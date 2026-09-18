@@ -175,6 +175,9 @@
         done < .env
         set +a
         pnpm test
+        # 仓库根 scripts/ 下的 vitest 用例（行业包治理门禁、套件夹具契约）不在
+        # pnpm -r 的包范围内，历史上从未被任何流水线执行过；这里显式跑一遍。
+        pnpm test:scripts
 
     - name: 全场景套件（非阻断）
       script: |

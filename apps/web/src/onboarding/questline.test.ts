@@ -318,24 +318,21 @@ describe("内容包完整性（行业可替换的硬约束）", () => {
         expect(cardKeys.has(task.ownerPresetKey), `${bundleId} 任务 ${task.id} → ${task.ownerPresetKey}`).toBe(true);
         expect(task.dispatchTitle.length).toBeGreaterThan(0);
       }
-      // ③ 驳回枚举：装配了反馈枚举表的行业包必须逐码命中（服务端会校验）
+      // ③ 驳回枚举：行业包必须装配反馈枚举表（第⑧槽），且内容包用到的码逐条命中
+      //    （服务端 registerFeedbackEnumsFromDisk 按 workspaces.industry 装载、decide 逐码校验）
       const enumsPath = join(bundlesRootDir, bundleId, "feedback-enums.yml");
-      if (existsSync(enumsPath)) {
-        const enumsText = readFileSync(enumsPath, "utf-8");
-        const rejectCodes = new Set(
-          [...enumsText.matchAll(/-\s*code:\s*(\S+)\n(?:.*\n)*?\s*appliesTo:\s*\[([^\]]*)\]/g)]
-            .filter((m) => (m[2] ?? "").includes("reject"))
-            .map((m) => m[1]!),
-        );
-        expect(rejectCodes.size).toBeGreaterThan(0);
-        for (const reason of content.rejectReasons) {
-          expect(rejectCodes.has(reason.code), `${bundleId} 驳回原因 ${reason.code} 未在枚举表登记`).toBe(true);
-        }
-      } else {
-        // 未装配枚举表（服务端不校验 code）：只允许跨行业通用码，禁止新造行业私有码
-        for (const reason of content.rejectReasons) {
-          expect(["data.stale", "fact.risk", "other"]).toContain(reason.code);
-        }
+      expect(existsSync(enumsPath), `${bundleId} 缺第⑧槽 feedback-enums.yml`).toBe(true);
+      const enumsText = readFileSync(enumsPath, "utf-8");
+      const rejectCodes = new Set(
+        [...enumsText.matchAll(/-\s*code:\s*(\S+)\n(?:.*\n)*?\s*appliesTo:\s*\[([^\]]*)\]/g)]
+          .filter((m) => (m[2] ?? "").includes("reject"))
+          .map((m) => m[1]!),
+      );
+      expect(rejectCodes.size).toBeGreaterThan(0);
+      expect(content.rejectReasons.length).toBeGreaterThan(0);
+      for (const reason of content.rejectReasons) {
+        expect(rejectCodes.has(reason.code), `${bundleId} 驳回原因 ${reason.code} 未在枚举表登记`).toBe(true);
+        expect(reason.label.trim().length).toBeGreaterThan(0);
       }
     });
   }

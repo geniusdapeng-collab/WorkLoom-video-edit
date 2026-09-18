@@ -580,14 +580,11 @@ export const QUESTLINE_GEO: QuestlineConfig = {
   values: QUEST_VALUES,
   nextSteps: QUEST_NEXT_STEPS,
 
-  /**
-   * geo-growth 目前**没有** feedback-enums.yml（第⑧槽未装配），服务端因此不校验 code。
-   * 这里只取跨行业通用码（data.stale / fact.risk / other），不新造行业私有码，
-   * 免得将来补上枚举表时历史归因链对不上。
-   */
+  // geo-growth 枚举表（bundles/geo-growth/feedback-enums.yml）里的 reject 适用码
   rejectReasons: [
-    { code: "data.stale", label: "依据不足" },
     { code: "fact.risk", label: "事实红线风险" },
+    { code: "geo.citation_missing", label: "引用源缺失或不可核验" },
+    { code: "data.stale", label: "数据陈旧/依据不足" },
     { code: "other", label: "其他（我补一句）" },
   ],
 };
