@@ -10,7 +10,7 @@
  * 演示走查：?demo=p1_loading|p1_empty|p1_community 强制状态态（仅演示，数据接线不变）
  */
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "react-router";
+import { useNavigate, useSearchParams } from "react-router";
 import { ensureDemoLogin, trpc } from "../../lib/trpc";
 import { Bridge } from "../../shell/Bridge";
 import {
@@ -45,6 +45,7 @@ const THREAD_DOT: Record<string, string> = {
 };
 
 export default function P1() {
+  const navigate = useNavigate();
   const { entries, subject, plan: accessPlan, capabilities, canAction } = useNavigationAccess();
   const [params] = useSearchParams();
   const demo = params.get("demo"); // 演示走查强制态（数据接线不变）
@@ -169,30 +170,42 @@ export default function P1() {
     <>
       <div className="mb-2 px-1 text-body tracking-[.2em] text-ink3">任务会话</div>
       {!isCommunity && canViewNight && nightConfigured && (
-        <div className="mb-1.5 cursor-pointer rounded-lg border border-holo/35 bg-holo/5 px-3 py-2.5">
+        <button
+          type="button"
+          onClick={() => navigate("/night")}
+          className="mb-1.5 w-full cursor-pointer rounded-lg border border-holo/35 bg-holo/5 px-3 py-2.5 text-left"
+        >
           <div className="flex items-center justify-between">
             <span className="inline-flex items-center gap-1 text-body text-holo"><Icon name="pin" size={13} />夜班中心频道</span>
             <span className={`inline-block h-1.5 w-1.5 rounded-full ${night?.run?.status === "running" ? "bg-holo animate-pulse-hud" : "bg-ink3"}`} />
           </div>
           <div className="mt-0.5 text-body text-ink2">夜班班组实时协作</div>
-        </div>
+        </button>
       )}
       {canViewNight && nightConfigured && night?.run?.stats && (
-        <div className="mb-1.5 cursor-pointer rounded-lg border border-gline bg-gold/5 px-3 py-2.5">
+        <button
+          type="button"
+          onClick={() => navigate("/reports")}
+          className="mb-1.5 w-full cursor-pointer rounded-lg border border-gline bg-gold/5 px-3 py-2.5 text-left"
+        >
           <div className="inline-flex items-center gap-1 text-body text-gold"><Icon name="pin" size={13} />昨夜日报</div>
           <div className="mt-0.5 text-body text-ink2">
             完成 {night.run.stats.done} · 待审批 {night.run.stats.pending} · 求援 {night.run.stats.need_human}
           </div>
-        </div>
+        </button>
       )}
       {canViewInbox && pendingCount > 0 && (
-        <div className="mb-1.5 cursor-pointer rounded-lg border border-warn/40 bg-warn/5 px-3 py-2.5">
+        <button
+          type="button"
+          onClick={() => navigate("/approvals")}
+          className="mb-1.5 w-full cursor-pointer rounded-lg border border-warn/40 bg-warn/5 px-3 py-2.5 text-left"
+        >
           <div className="flex items-center justify-between">
             <span className="text-body text-warn">待办 · 审批请求</span>
             <span className="rounded-full bg-warn/15 px-1.5 font-orb text-body font-bold text-warn">{pendingCount}</span>
           </div>
           <div className="mt-0.5 text-body text-ink2">请到审批中心处理</div>
-        </div>
+        </button>
       )}
       <div className="mt-3 mb-2 px-1 text-body tracking-[.2em] text-ink3">任务线程 · 最多 10 项并行</div>
       {threads.map((t) => (
@@ -237,7 +250,8 @@ export default function P1() {
       {!isCommunity && canViewNight && (
         <div className="mb-3 rounded-lg border border-line bg-card p-3">
           <div className="mb-1.5 text-body font-bold text-holo">夜班中心</div>
-          <NightStatusPill state={pillState} window="22:00–08:00" onClick={() => { window.location.href = "/night"; }} />
+          {/* 站内跳转统一走 SPA 路由：window.location 会整页刷新，丢掉当前工作台状态 */}
+          <NightStatusPill state={pillState} window="22:00–08:00" onClick={() => navigate("/night")} />
           {night?.run?.fenceSnapshot && <div className="mt-1.5 text-body text-ink3">围栏配置已锁定并留痕</div>}
         </div>
       )}

@@ -236,6 +236,15 @@ export default function P5() {
               >
                 {busy === "dry-run" ? "正在模拟回放…" : <><Icon name="play" size={14} className="inline" /> 模拟回放最近 10 条事件</>}
               </button>
+              {/* 草稿/回放必须有放弃路径：否则用户只能"提交"或离开页面（实测缺口） */}
+              <button
+                type="button"
+                onClick={() => { setDraft(null); setReport(null); }}
+                disabled={Boolean(busy)}
+                className="mt-1.5 w-full cursor-pointer rounded-lg border border-line px-3 py-1.5 text-body text-ink3 disabled:opacity-50"
+              >
+                放弃本次草稿
+              </button>
             </div>
           )}
 

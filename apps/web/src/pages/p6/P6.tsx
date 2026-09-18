@@ -335,7 +335,7 @@ export default function P6() {
 
         {banner && (
           <div className="mb-3">
-            <BannerAlert level={banner.level}>{banner.text}</BannerAlert>
+            <BannerAlert level={banner.level} actionLabel="关闭" onAction={() => setBanner(null)}>{banner.text}</BannerAlert>
           </div>
         )}
 
@@ -667,7 +667,7 @@ function SkillWizard({
                 ))}
               </div>
             </div>
-            {error && <BannerAlert level="alert">{error}</BannerAlert>}
+            {error && <BannerAlert level="alert" actionLabel="关闭" onAction={() => setError("")}>{error}</BannerAlert>}
             <div className="wl-action-row flex flex-wrap gap-2.5">
               {!created ? (
                 <>
@@ -705,6 +705,14 @@ function SkillWizard({
                     className="cursor-pointer rounded-md border border-go/50 px-4 py-2 text-body font-bold text-go disabled:opacity-40"
                   >
                     <Icon name="configuration" size={15} className="inline" /> 安装到本工作区
+                  </button>
+                  {/* 已创建的草稿也必须能离开：否则用户只剩"安装"或浏览器后退两条路 */}
+                  <button
+                    type="button"
+                    onClick={() => nav("/skills")}
+                    className="cursor-pointer rounded-md border border-line px-4 py-2 text-body text-ink3 hover:text-ink2"
+                  >
+                    返回技能中心（稍后再安装）
                   </button>
                 </>
               )}

@@ -20,6 +20,7 @@ import {
 } from "../../components/hud";
 import { RejectDialog } from "../../components/RejectDialog";
 import { Link } from "react-router";
+import { useNavigate } from "react-router";
 import { useNavigationAccess } from "../../shell/NavigationAccess";
 import { Icon, clientChineseText, type IconName } from "@workloom/ui";
 
@@ -35,6 +36,7 @@ interface ApprovalRow {
 type Filter = "all" | "done" | "pending" | "needHuman";
 
 export default function P3() {
+  const navigate = useNavigate();
   const { entries, canAction } = useNavigationAccess();
   const [ready, setReady] = useState(false);
   const [nightConfigured, setNightConfigured] = useState(true);
@@ -141,7 +143,14 @@ export default function P3() {
             <><Skeleton count={2} height={56} label="夜班摘要正在加载" /><Skeleton count={4} label="夜班详情正在加载" /></>
           ) : !nightConfigured ? (
             /* p3_empty：夜班未启用（F4.8） */
-            <EmptyState icon={<Icon name="night" size={24} />} title="夜班中心尚未出征" hint="前往规则与权限配置夜班，明早 08:30 日报送达。" actionLabel="去配置 →" />
+            <EmptyState
+              icon={<Icon name="night" size={24} />}
+              title="夜班中心尚未出征"
+              hint="前往规则与权限配置夜班，明早 08:30 日报送达。"
+              actionLabel="去配置 →"
+              // actionLabel 存在即渲染按钮：不传 onAction 会得到一个点了没反应的按钮（实测缺陷）
+              onAction={() => navigate("/configuration")}
+            />
           ) : (
             <>
               {/* P3E1 三栏计数头（与 P1 交接班卡强一致 F4.4；点击筛选） */}
@@ -250,13 +259,23 @@ export default function P3() {
               {(canApprove || canManageNight) && (
                 <div className="grid grid-cols-2 gap-2 pb-2">
                   {canApprove && (batchArmed ? (
-                    <button
-                      type="button"
-                      onClick={() => void doBatch()}
-                      className="min-h-11 cursor-pointer rounded-xl border border-gold/70 bg-gold/15 text-body font-black text-gold"
-                    >
-                      确认批量采纳 {batchable.length} 条？
-                    </button>
+                    <div className="flex min-h-11 items-stretch gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => void doBatch()}
+                        className="min-h-11 flex-1 cursor-pointer rounded-xl border border-gold/70 bg-gold/15 text-body font-black text-gold"
+                      >
+                        确认批量采纳 {batchable.length} 条？
+                      </button>
+                      {/* 二次确认必须有撤回路径（与 EmergencyBrake「撤回」同口径）：否则用户只能执行或离开页面 */}
+                      <button
+                        type="button"
+                        onClick={() => setBatchArmed(false)}
+                        className="min-h-11 cursor-pointer rounded-xl border border-line px-2.5 text-body text-ink3"
+                      >
+                        取消
+                      </button>
+                    </div>
                   ) : (
                     <button
                       type="button"
