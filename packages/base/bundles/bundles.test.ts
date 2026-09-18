@@ -49,9 +49,11 @@ describe("草稿骨架与校验（P7E5/§2.3，文件级）", () => {
     expect(() => removeDraft("hotel")).toThrowError(/仅草稿态/);
   });
 
-  it("页面注册表覆盖九大页（UI 用例同步校验基准）", () => {
+  it("页面注册表覆盖工作台九大页 + 获客控制台 p10–p20（UI 用例同步校验基准）", () => {
     expect(REGISTERED_PAGES).toContain("p7");
-    expect(REGISTERED_PAGES.length).toBe(9);
+    // p10–p20 由 apps/web/src/extensions/hotel/routes.tsx 交付（历史页号 p11–p20 已映射）
+    for (const page of ["p10", "p15", "p20"]) expect(REGISTERED_PAGES).toContain(page);
+    expect(REGISTERED_PAGES.length).toBe(20);
   });
 });
 

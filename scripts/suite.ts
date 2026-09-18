@@ -2695,7 +2695,29 @@ h2("融合·LLM 降级链：死端配置被拒 → mock 兜底应答不断链", 
         [id, scope.tenantId, scope.workspaceId, `E-${id}`, JSON.stringify({ action: "price.adjust", params: { price }, base_price: 458 })]);
       await mk(`apr-r05a-${SFX}`, 480);
       await mk(`apr-r05b-${SFX}`, 397); // 0.867 贴边
-      const r = await runQueueBeat(app, scope);
+      /**
+       * 队列隔离（与 R-11 同口径）：裁决节拍每轮只处理 ≤20 条 pending L2，
+       * 历史用例/套件自身跑出的待批会把窗口占满，导致本用例的两条根本进不了这一拍
+       * （实测"裁决 0 上浮 20"）。先把存量泊车到 l3_fleet，跑完再还原。
+       */
+      const parked = (await qApp<{ approval_id: string }>(
+        `UPDATE approvals SET tier='l3_fleet'
+          WHERE workspace_id=$1 AND status='pending' AND tier='l2_captain'
+            AND approval_id NOT IN ($2,$3)
+        RETURNING approval_id`,
+        [scope.workspaceId, `apr-r05a-${SFX}`, `apr-r05b-${SFX}`],
+      )).rows.map((row) => row.approval_id);
+      let r: Awaited<ReturnType<typeof runQueueBeat>>;
+      try {
+        r = await runQueueBeat(app, scope);
+      } finally {
+        if (parked.length > 0) {
+          await qApp(
+            `UPDATE approvals SET tier='l2_captain' WHERE workspace_id=$1 AND approval_id = ANY($2::text[])`,
+            [scope.workspaceId, parked],
+          );
+        }
+      }
       assert(r.decided >= 1 && r.escalated >= 1, `裁决 ${r.decided} 上浮 ${r.escalated}`);
       const a = await qApp<{ status: string }>(`SELECT status FROM approvals WHERE approval_id=$1`, [`apr-r05a-${SFX}`]);
       eq(a.rows[0]!.status, "approved", "带内批准");

@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { BASE_NAVIGATION, navigationEntriesFromBundle } from "@workloom/ui";
 import {
+  INDUSTRY_ROUTE_REGISTRY,
   buildIndustryRouteRegistry,
   industryRouteMatchesBundle,
   resolveIndustryRouteAccess,
@@ -177,5 +178,22 @@ describe("B 端 PC 行业扩展路由契约", () => {
 
     // 历史地址在 App 中复用同一个 definition 进入相同边界，不产生额外授权入口。
     expect(resolveIndustryRouteAccess({ ...definition, path: "/orders/:orderId" }, knownEntries, [])).toBe("forbidden");
+  });
+
+  it("真实行业扩展注册表整体合法：酒店获客控制台 11 页 + 历史页号 p10–p20 均可路由", () => {
+    // 扩展路由任一不合法会让整组 fail closed（导航与页面全丢），因此这里对**真实注册表**做回归
+    expect(INDUSTRY_ROUTE_REGISTRY.error).toBeNull();
+    const hotelRoutes = INDUSTRY_ROUTE_REGISTRY.routes.filter((route) => route.capabilityId.startsWith("hotel."));
+    expect(hotelRoutes.length).toBeGreaterThanOrEqual(11);
+    const legacy = hotelRoutes.flatMap((route) => route.legacyPaths ?? []);
+    // /p10 由 ai-video 扩展（素材库）持有：历史地址全局唯一，先到者保留
+    expect(legacy).not.toContain("/p10");
+    const aiVideoP10 = INDUSTRY_ROUTE_REGISTRY.routes
+      .filter((route) => (route.legacyPaths ?? []).includes("/p10"))
+      .map((route) => route.capabilityId);
+    expect(aiVideoP10).toEqual(["ai-video.assets"]);
+    for (const page of ["p11", "p12", "p13", "p14", "p15", "p16", "p17", "p18", "p19", "p20"]) {
+      expect(legacy, `${page} 历史页号须映射到行业控制台路由`).toContain(`/${page}`);
+    }
   });
 });

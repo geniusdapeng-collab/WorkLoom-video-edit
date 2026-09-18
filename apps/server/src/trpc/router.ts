@@ -132,7 +132,9 @@ import {
 import YAML from "yaml";
 import { videoRouter } from "../video/router.js";
 import { serviceRouter } from "../service/router.js";
+import { acquisitionQuestPlanner } from "../industry/hotel/acquisition-planner.js";
 import { overlayRouter } from "./overlay-router.js";
+import { acquisitionRouter } from "./acquisition-router.js";
 import {
   AccessAuthorityError,
   resolveAuthoritativeClientAccess,
@@ -1040,6 +1042,8 @@ const threadsRouter = router({
       if (input.runImmediately && intent.mode === "quest") {
         const r = await runQuest(app, getGatewayPool(), scope, {
           threadId, goal: input.title, presetKey: input.presetKey, llmCall: llmCall("quest-plan", scope),
+          // 行业规划：口语目标 → 带业务参数的步骤（缺数据不猜，交围栏失败关闭）
+          fallbackPlanner: acquisitionQuestPlanner(input.title),
         });
         return { kind: "routed" as const, mode: intent.mode, via: intent.via, threadId, status: r.status, stepsDone: r.stepsDone, stepsTotal: r.stepsTotal };
       }
@@ -1124,6 +1128,8 @@ const threadsRouter = router({
       }
       return runQuest(app, getGatewayPool(), scope, {
         threadId: input.threadId, goal: input.goal, presetKey: input.presetKey, mode, llmCall: llmCall("quest-plan", scope),
+        // 行业规划：口语目标 → 带业务参数的步骤（缺数据不猜，交围栏失败关闭）
+        fallbackPlanner: acquisitionQuestPlanner(input.goal),
       });
     }),
 });
@@ -3300,6 +3306,8 @@ export const appRouter = router({
   modelFeedback: modelFeedbackRouter,
   memory: memoryRouter,
   evolution: evolutionRouter,
+  // 获客控制台（行业扩展页 p10–p20 的数据面）：意图洞察→触达→承接→转化→归因
+  acquisition: acquisitionRouter,
   // 租户覆盖层（P26/P27）：实现早已随服务端构建，但此前从未挂载进根路由，
   // 三端 overlay.* 调用全部落到 404。挂载即生效，端点自身仍是受控守卫。
   overlay: overlayRouter,

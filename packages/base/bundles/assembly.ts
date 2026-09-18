@@ -48,8 +48,17 @@ export function bundlesRoot(): string {
   return process.env.BUNDLES_ROOT ?? DEFAULT_BUNDLES_ROOT;
 }
 
-/** 已注册工作台页面（P7E3 ⑤「UI 用例同步」校验基准；新增页面须同步此表与 cases.json） */
-export const REGISTERED_PAGES = ["p1", "p2", "p3", "p4", "p5", "p6", "p7", "p8", "p9"] as const;
+/**
+ * 已注册工作台页面（P7E3 ⑤「UI 用例同步」校验基准；新增页面须同步此表与 cases.json）。
+ *
+ * p10–p20 是行业获客控制台页面（apps/web/src/extensions/hotel/routes.tsx 交付，
+ * 历史页号经 legacyPaths 重定向到 /hotel/* 新路由）——它们必须在应用里有真实页面
+ * 才允许登记，未交付的用例不得靠加页号骗过门禁。
+ */
+export const REGISTERED_PAGES = [
+  "p1", "p2", "p3", "p4", "p5", "p6", "p7", "p8", "p9",
+  "p10", "p11", "p12", "p13", "p14", "p15", "p16", "p17", "p18", "p19", "p20",
+] as const;
 
 export type SlotId = "archive" | "enums" | "tools" | "fences" | "presets" | "ui" | "model-policy";
 export interface SlotState {
