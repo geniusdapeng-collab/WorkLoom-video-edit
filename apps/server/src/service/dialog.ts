@@ -156,7 +156,8 @@ export async function handleMessage(input: {
     const answers: Record<BizToolName, string> = {
       query_order: "为您查询到以下订单：",
       query_member: "为您查询到会员信息：",
-      query_catalog: "为您查询到房型价格：",
+      // 行业词表由活动适配器提供（它拥有行业对象的中文讲法）；基座兜底只用中性措辞
+      query_catalog: "为您查询到以下服务与价格：",
       query_ticket: "为您查询到工单进度：",
     };
     // 行业适配器优先：它拥有行业对象词表与中文动作说明；未命中/适配器缺席时回落到本地表

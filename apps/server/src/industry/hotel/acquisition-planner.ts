@@ -11,6 +11,22 @@
  * 参数一旦进入围栏就不可能被模型改写——这里只做确定性直译，不做任何"取巧补数"。
  */
 import { planQuest, type AssembledPreset, type QuestPlanner, type QuestStep } from "@workloom/runtime";
+import { OFF_PEAK_WINDOW } from "@workloom/shared";
+
+/**
+ * 夜班窗口判定（与 trpc 的 inNightWindow / OFF_PEAK_WINDOW 同口径：22:00–08:00，服务器本地时区）。
+ *
+ * 为什么规划器必须带上这个上下文：围栏规则 R7/R8 的 when 直接读 `context.night_shift`，
+ * 而表达式求值器对**缺失路径**是抛错（E2.1 按 block 处理）——不给上下文时，
+ * 一次普通的调价会被夜班规则误熔断。这里把可推导的事实显式写进步骤，
+ * 让 R7（夜班 ≤3% 自动）/R8（夜班 >3% 挂起）按设计生效。
+ */
+function inNightWindow(now = new Date()): boolean {
+  const start = Number(OFF_PEAK_WINDOW.start.slice(0, 2));
+  const end = Number(OFF_PEAK_WINDOW.end.slice(0, 2));
+  const hour = now.getHours();
+  return start > end ? hour >= start || hour < end : hour >= start && hour < end;
+}
 
 /** 一店一档里与获客闭环相关的字段（缺失即视为未建档，相关意图退回通用规划） */
 interface PlanningArchive {
@@ -27,12 +43,8 @@ function archiveOf(preset: AssembledPreset): PlanningArchive {
   return (essentials?.archive ?? {}) as PlanningArchive;
 }
 
-/** 价带锚点：一店一档里房型价带 [低位, 高位] 的中值；无该房型返回 undefined（不猜价格） */
-function bandAnchor(archive: PlanningArchive, roomType: string): number | undefined {
-  const bands = archive.business?.price_bands as Record<string, unknown> | undefined;
-  if (!bands) return undefined;
-  const entry = Object.entries(bands).find(([name]) => roomType.includes(name) || name.includes(roomType));
-  const band = entry?.[1];
+/** 价带中值：一店一档里 [低位, 高位] 的中值（展示层口径，不引入小数噪音） */
+function bandMid(band: unknown): number | undefined {
   if (!Array.isArray(band) || band.length !== 2) return undefined;
   const lower = Number(band[0]);
   const upper = Number(band[1]);
@@ -40,11 +52,56 @@ function bandAnchor(archive: PlanningArchive, roomType: string): number | undefi
   return Math.round((lower + upper) / 2);
 }
 
-/** 目标里提到的房型（命中一店一档价带才认） */
-function roomTypeOf(goal: string, archive: PlanningArchive): string | undefined {
+/** 房型词尾最小匹配长度：中文房型词通常 3 字（大床房/双床房/亲子房），太短会跨房型串味 */
+const ROOM_SUFFIX_MIN = 3;
+
+interface RoomAnchor {
+  /** 命中的价带 key（写进步骤 params，便于追溯用了哪个价带） */
+  roomType: string;
+  /** 锚点价（命中多个候选时为最低中值，见下） */
+  anchor: number;
+  /** 是否由"目标点名房型"精确命中（精确命中优先于词尾匹配） */
+  exact: boolean;
+}
+
+/**
+ * 价格锚点解析：目标里到底说的是哪档价。
+ *
+ * ① 目标直接包含价带 key（"把雅致大床房调到 600"）→ 精确命中，直接用该档；
+ * ② 否则按**房型词尾**匹配（"飞猪大床房" → 命中含"大床房"结尾的档位）：口语目标里常见的
+ *    是简称或带渠道修辞的说法，要求逐字包含 key 会让绝大部分真实指令取不到价；
+ * ③ 命中多档时不猜具体房型，取**最低中值**当锚点：锚点只用于保底价与越带判定，
+ *    取最低在涨价方向最容易撞保底价熔断、在降价方向最容易跌破底线——即两个方向都最保守，
+ *    绝不会因为取了偏高的锚点而放宽（D27 宁可挂起，不可误放）；
+ * ④ 一档都没命中（或价带缺字段）→ 返回空，由调用方省略 before/after，交围栏失败关闭。
+ */
+function roomAnchorsOf(goal: string, archive: PlanningArchive): RoomAnchor[] {
   const bands = archive.business?.price_bands as Record<string, unknown> | undefined;
-  if (!bands) return undefined;
-  return Object.keys(bands).find((name) => goal.includes(name));
+  if (!bands) return [];
+  const entries = Object.entries(bands)
+    .map(([roomType, band]) => ({ roomType, anchor: bandMid(band) }))
+    .filter((row): row is { roomType: string; anchor: number } => row.anchor !== undefined);
+  if (entries.length === 0) return [];
+
+  const exact = entries.filter((row) => goal.includes(row.roomType));
+  if (exact.length > 0) return exact.map((row) => ({ ...row, exact: true }));
+
+  const bySuffix = entries.filter((row) => {
+    for (let len = row.roomType.length - 1; len >= ROOM_SUFFIX_MIN; len -= 1) {
+      if (goal.includes(row.roomType.slice(-len))) return true;
+    }
+    return false;
+  });
+  return bySuffix.map((row) => ({ ...row, exact: false }));
+}
+
+/** 锚点选择：精确命中 > 词尾匹配；同档位取最低中值（保守），并给出用到的房型名 */
+function priceAnchorOf(goal: string, archive: PlanningArchive): RoomAnchor | undefined {
+  const anchors = roomAnchorsOf(goal, archive);
+  if (anchors.length === 0) return undefined;
+  const exact = anchors.filter((row) => row.exact);
+  const pool = exact.length > 0 ? exact : anchors;
+  return [...pool].sort((a, b) => a.anchor - b.anchor)[0];
 }
 
 /** 调价意图：百分比（"调 5%"）或绝对价（"调到 510"/"¥510"） */
@@ -72,7 +129,7 @@ function ratingOf(goal: string): number {
 function step(input: {
   index: number; action: string; objectType: string; tool: string;
   params?: Record<string, unknown>; objectId?: string;
-  before?: unknown; after?: unknown; label: string;
+  before?: unknown; after?: unknown; context?: Record<string, unknown>; label: string;
 }): QuestStep {
   return {
     stepId: `s${input.index}`,
@@ -83,6 +140,7 @@ function step(input: {
     ...(input.objectId ? { objectId: input.objectId } : {}),
     ...(input.before !== undefined ? { before: input.before } : {}),
     ...(input.after !== undefined ? { after: input.after } : {}),
+    ...(input.context !== undefined ? { context: input.context } : {}),
     label: input.label,
   };
 }
@@ -116,16 +174,20 @@ export function acquisitionQuestPlanner(goal: string): QuestPlanner {
     const mentionsPrice = /(调价|涨价|降价|定价|改价|房价|价格|调[到整])/.test(goal);
     if ((priceIntent || mentionsPrice) && tools.has("pms.price.write")) {
       const intent = priceIntent;
-      const matchedRoom = roomTypeOf(goal, archive);
-      const roomType = matchedRoom ?? "主打房型";
-      // 锚点只认"目标里点名的房型"的价带；没点名就不拿别的房型价格顶替
-      const anchor = matchedRoom ? bandAnchor(archive, matchedRoom) : undefined;
+      // 锚点只认目标里点到的房型价带（精确 > 词尾，见 roomAnchorsOf）；取不到就不造数
+      const matched = priceAnchorOf(goal, archive);
+      const roomType = matched?.roomType ?? "主打房型";
+      const anchor = matched?.anchor;
       let before: { price: number } | undefined;
       let after: { price: number } | undefined;
       if (intent?.kind === "percent") {
-        // 百分比意图只依赖比值：以 100 为归一化基准，围栏判定（涨幅≤8%）与真实价格同口径
-        before = { price: 100 };
-        after = { price: Number((100 * (1 + intent.pct / 100)).toFixed(2)) };
+        // 百分比意图必须落在**真实价位**上：围栏除了比值（R1 涨幅 ≤8%），还有绝对价规则
+        // （R2 保底价 ¥380）。历史上的 100 归一化基准会让 after.price=102 直接撞保底价熔断，
+        // 于是"调 5%"在演示与生产里都跑不成；缺锚点时宁可不给数（交围栏失败关闭）。
+        if (anchor !== undefined) {
+          before = { price: anchor };
+          after = { price: Number((anchor * (1 + intent.pct / 100)).toFixed(2)) };
+        }
       } else if (intent?.kind === "absolute" && anchor !== undefined) {
         before = { price: anchor };
         after = { price: intent.value };
@@ -136,6 +198,9 @@ export function acquisitionQuestPlanner(goal: string): QuestPlanner {
           index: 2, action: "price.adjust", objectType: "room_price", tool: "pms.price.write", objectId: "OBJ-DLX-01",
           params: { room_type: roomType, ...(intent ? { price: intent.kind === "absolute" ? intent.value : after?.price } : {}) },
           ...(before ? { before } : {}), ...(after ? { after } : {}),
+          // 围栏 R3/R7/R8 读 context：channel_new 对"调价"恒为 false（不是新渠道首发），
+          // night_shift 由当前时间推导——两键齐备才不会因缺失路径被误熔断（见 inNightWindow 注释）。
+          context: { channel_new: false, night_shift: inNightWindow() },
           label: intent ? `提交${roomType}调价` : "提交调价（未识别到目标价位，交围栏失败关闭）",
         }),
       ];

@@ -79,6 +79,8 @@ export default function P21() {
   const [briefs, setBriefs] = useState<BriefRow[]>([]);
   const [score, setScore] = useState<Scorecard | null>(null);
   const [queue, setQueue] = useState<ChairmanItem[]>([]);
+  /** 与 queue 同一次快照读到的分层计数（避免"徽标 N 件 / 列表空"的撕裂） */
+  const [queueCounts, setQueueCounts] = useState<Record<string, number> | null>(null);
   const [msg, setMsg] = useState("");
   // 授权向导
   const [clauses, setClauses] = useState<Record<string, boolean>>({});
@@ -92,7 +94,10 @@ export default function P21() {
     setAutonomyDraft(structuredClone(nextState.charter.autonomy));
     setBriefs(await trpc.captain.briefings.query({ limit: 8 }) as unknown as BriefRow[]);
     setScore(await trpc.captain.scorecard.query() as unknown as Scorecard);
-    setQueue(await trpc.captain.chairmanQueue.query() as unknown as ChairmanItem[]);
+    // 徽标与列表必须来自同一次快照：队列端点是单语句 CTE，计数与条目不可能互相矛盾
+    const snap = await trpc.captain.queueSnapshot.query() as unknown as { counts: Record<string, number>; items: ChairmanItem[] };
+    setQueue(snap.items);
+    setQueueCounts(snap.counts);
   };
   useEffect(() => { void load(); }, []);
 
@@ -176,7 +181,8 @@ export default function P21() {
             <div className="mb-1 text-body tracking-[.2em] text-ink3">待审分层</div>
             公司负责人审批 {state?.pendingByTier.l2_captain ?? 0} 件<br />
             集团负责人审批 {state?.pendingByTier.l3_fleet ?? 0} 件<br />
-            <b className="text-gold">请示董事长 {state?.pendingByTier.l4_chairman ?? 0} 件</b>
+            {/* 董事长这行必须与下方列表同快照（queueSnapshot），否则会出现"请示 3 件 / 列表为空" */}
+            <b className="text-gold">请示董事长 {queueCounts?.l4_chairman ?? state?.pendingByTier.l4_chairman ?? 0} 件</b>
           </div>
           {score && (
             <div className="rounded-lg border border-line bg-card p-3 text-body text-ink2">

@@ -57,11 +57,32 @@ describe("口碑：差评回复带评分（R6 必审可判定）", () => {
 describe("收益：调价参数只做确定性直译", () => {
   const archive = { business: { price_bands: { "雅致大床房": [398, 688] } } };
 
-  it("百分比意图 → 归一化基准，比值口径与真实价格一致", () => {
+  it("百分比意图 + 点名房型 → 锚点取该档价带中值（真实价位，不撞保底价）", () => {
     const steps = plan("把雅致大床房调价 5%", presetOf(pricingTools, archive));
     const adjust = steps.find((s) => s.action === "price.adjust")!;
-    expect(adjust.before).toEqual({ price: 100 });
-    expect(adjust.after).toEqual({ price: 105 });
+    expect(adjust.before).toEqual({ price: 543 });          // (398+688)/2
+    expect(adjust.after).toEqual({ price: 570.15 });        // 543 × 1.05
+    expect(adjust.params.room_type).toBe("雅致大床房");
+    // 围栏规则要读 context：缺键会让求值器抛错并按 block 处理（夜班规则误熔断）
+    expect(typeof adjust.context?.night_shift).toBe("boolean");
+    expect(adjust.context?.channel_new).toBe(false);
+  });
+
+  it("百分比意图 + 只给房型词尾 → 命中多档时取最低中值（两个方向都最保守）", () => {
+    // "飞猪大床房" 不是价带 key，但词尾「大床房」命中 雅致(543) 与 商旅(473) 两档；
+    // 不猜具体房型，取最低中值：对标价 473。取高值只会在涨价时更容易被误放行。
+    const multi = { business: { price_bands: { "雅致大床房": [398, 688], "亲子双床房": [468, 788], "商旅大床房": [358, 588] } } };
+    const steps = plan("周五旺季调价 2%：飞猪大床房小幅上调", presetOf(pricingTools, multi));
+    const adjust = steps.find((s) => s.action === "price.adjust")!;
+    expect(adjust.before).toEqual({ price: 473 });          // (358+588)/2，两候选中最低
+    expect(adjust.after).toEqual({ price: 482.46 });        // 473 × 1.02
+  });
+
+  it("百分比意图 + 价带里没有该房型 → 不编造 before/after（交围栏失败关闭）", () => {
+    const steps = plan("把总统套房调价 5%", presetOf(pricingTools, archive));
+    const adjust = steps.find((s) => s.action === "price.adjust")!;
+    expect(adjust.before).toBeUndefined();
+    expect(adjust.after).toBeUndefined();
   });
 
   it("绝对价 + 价带锚点 → before 取锚点，after 取目标价", () => {

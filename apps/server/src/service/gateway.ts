@@ -4,7 +4,7 @@
  *    wechat-mini/alipay 走 code→openid 交换 seam（无凭据 503「渠道未配置」）；
  *    IP+channel 限流 60 次/分（限流 Map 5 分钟 TTL 清扫）
  *  - 鉴权：Bearer c-token（verifyCToken）；内存限流 60 次/分钟/用户
- *  - POST /c/chat：service-dialog 流水线；toolCall → biz-hotel 适配器执行并渲染契约卡片；
+ *  - POST /c/chat：service-dialog 流水线；toolCall → 活动行业适配器执行并渲染契约卡片（基座零行业词汇）；
  *    ticketDraft + confirmTicket:true → 服务端幂等键 + createTicket/assignTicket/五元事件同一 serviceTx（H2）；
  *    pushMessage 失败 catch 落库 status='failed' 不阻断响应
  *  - 契约（H6，以 webc types.ts 为准）：cards={kind:'order'|'member'|'catalog',data}；
@@ -23,8 +23,8 @@ import {
   type Channel, type CTokenPayload,
 } from "./channels.js";
 import { selectServiceWorkspaceId, ServiceWorkspaceRoutingError } from "./workspace-routing.js";
-import { resolveWorkspaceBusinessAdapter } from "./adapters/business-registry.js";
-import { BusinessAdapterError, type ServiceFrontBusinessAdapter } from "./adapters/business.js";
+import { resolveWorkspaceBusinessAdapter, type BusinessAdapterBinding } from "./adapters/business-registry.js";
+import { BusinessAdapterError, businessDisplayText, type ServiceFrontBusinessAdapter } from "./adapters/business.js";
 import { handleMessage } from "./dialog.js";
 import {
   ServiceHttpError, assignTicketOn, createTicketOn, getTicket, listTickets, rateTicket, ticketTimeline,
@@ -128,6 +128,32 @@ async function activeBusinessAdapter(workspaceId: string): Promise<ServiceFrontB
   return binding.adapter;
 }
 
+/**
+ * 业务查询用的软着陆适配器：
+ *  - 未声明行业适配器 / 前台未启用 → 返回 null，由调用方给出**明确的空态**（available:false），
+ *    而不是 503 报错——C 端契约（apps/webc 的 api.ts）就是按 `available === false` 渲染空态的；
+ *  - 其他异常（未安装、指针冲突、投影被篡改、适配器未登记）→ 抛 503 失败关闭，绝不回退示例行业。
+ */
+function unavailableBusinessAdapter(binding: BusinessAdapterBinding): ServiceFrontBusinessAdapter | null {
+  if (binding.state === "ready") return binding.adapter;
+  if (binding.state === "adapter-not-declared" || binding.state === "front-disabled") return null;
+  throw new BusinessAdapterError("当前服务前台的业务能力暂不可用", 503, "BUSINESS_ADAPTER_UNAVAILABLE");
+}
+
+/**
+ * 工单部门名：**行业词汇由活动适配器提供**，基座只保留通用兜底（ticket.ts 的 DEPT_ROUTE）。
+ * 适配器未装配/投影非法时不阻断建单——返回 undefined，由通用兜底接管（工单照样进队列）。
+ */
+async function projectedDepartmentForTicket(workspaceId: string, kind: string): Promise<string | undefined> {
+  try {
+    const adapter = await activeBusinessAdapter(workspaceId);
+    const department = adapter.departmentForTicket?.(kind);
+    return department ? businessDisplayText(department, "ticket.department") : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 function sha256(text: string): string {
   return createHash("sha256").update(text).digest("hex");
 }
@@ -177,6 +203,8 @@ async function pushAcceptedSafely(input: {
 async function createTicketFlow(input: {
   workspaceId: string; cUserId: string; channel: string; conversationId?: string;
   kind: string; title: string; payload: Record<string, unknown>; idempotencyKey: string;
+  /** 行业部门名（由活动适配器投影）；缺省走基座通用兜底 */
+  dept?: string;
 }): Promise<{ ticket: Ticket; deduped: boolean; eventId: string | null }> {
   return serviceTx(input.workspaceId, async (client, scope) => {
     const { ticket, deduped } = await createTicketOn(client, {
@@ -184,7 +212,10 @@ async function createTicketFlow(input: {
       kind: input.kind, title: input.title, payload: input.payload, idempotencyKey: input.idempotencyKey,
     });
     if (deduped) return { ticket, deduped: true, eventId: null }; // 幂等重放：不重复派单/推送/留痕
-    const assigned = await assignTicketOn(client, { workspaceId: input.workspaceId, ticketId: ticket.id });
+    const assigned = await assignTicketOn(client, {
+      workspaceId: input.workspaceId, ticketId: ticket.id,
+      ...(input.dept ? { dept: input.dept } : {}),
+    });
     const ev = await appendEventOn(client, scope, { id: input.cUserId, type: "human" }, {
       objectType: "ticket", objectId: ticket.id, action: "service.ticket.create",
       after: { kind: input.kind, title: input.title, dept: assigned.dept, channel: input.channel },
@@ -316,9 +347,12 @@ serviceGateway.post("/chat", cAuth, async (c) => {
           ? "暂未查到您的工单记录。您可以直接说需要办理的事（送物/报修/投诉），我马上为您建单。"
           : `为您查询到 ${tickets.length} 条工单：${tickets.slice(0, 3).map((t) => `「${t.title}」${TICKET_STATUS_TEXT[t.status] ?? t.status}`).join("；")}。`;
       } else {
-        // 业务查询一律经活动行业包选中的适配器投影（基座不得内置行业形状）
-        const adapter = await activeBusinessAdapter(a.workspaceId);
-        if (r.toolCall.tool === "query_order") {
+        // 业务查询一律经活动行业包选中的适配器投影（基座不得内置行业形状）；
+        // 未声明适配器的门店如实告知"未开通"，不猜、不回落示例行业。
+        const adapter = unavailableBusinessAdapter(await resolveWorkspaceBusinessAdapter(a.workspaceId));
+        if (!adapter) {
+          answer = "当前门店尚未开通这项查询能力，可先办理送物/报修/投诉等事项目。";
+        } else if (r.toolCall.tool === "query_order") {
           const data = await adapter.queryOrder(ctx);
           if (data.bindRequired) answer = data.hint ?? "请先绑定会员身份后再查询。";
           else for (const order of data.orders) {
@@ -350,6 +384,7 @@ serviceGateway.post("/chat", cAuth, async (c) => {
       const flow = await createTicketFlow({
         workspaceId: a.workspaceId, cUserId: a.cUserId, channel: a.channel, conversationId: r.conversationId,
         kind: draft.kind, title: draft.title.slice(0, 120), payload: draft.payload ?? {}, idempotencyKey,
+        dept: await projectedDepartmentForTicket(a.workspaceId, draft.kind),
       });
       deduped = flow.deduped;
       if (!flow.deduped) {
@@ -384,17 +419,21 @@ serviceGateway.post("/chat", cAuth, async (c) => {
   }
 });
 
-/* ---------------- 业务查询（酒店示例适配器；H6 契约形状） ---------------- */
+/* ---------------- 业务查询（活动行业适配器投影；H6 契约形状） ---------------- */
 serviceGateway.get("/orders", cAuth, async (c) => {
   const requestId = randomUUID();
   try {
     const a = authOf(c);
     const user = await getCUser(a.workspaceId, a.cUserId);
-    const adapter = await activeBusinessAdapter(a.workspaceId);
+    const binding = await resolveWorkspaceBusinessAdapter(a.workspaceId);
+    const adapter = unavailableBusinessAdapter(binding);
+    // 未开通业务能力的门店：明确空态（available:false），不伪装成"没有订单"，也不 503
+    if (!adapter) return c.json({ orders: [], demo: false, available: false });
     const data = await adapter.queryOrder({ workspaceId: a.workspaceId, cUserId: a.cUserId, memberId: user?.memberId ?? null });
     return c.json({
       orders: data.orders,
       demo: data.demo,
+      available: true,
       ...(data.bindRequired ? { bindRequired: true, hint: data.hint } : {}),
     });
   } catch (err) {
@@ -407,16 +446,21 @@ serviceGateway.get("/member", cAuth, async (c) => {
   try {
     const a = authOf(c);
     const user = await getCUser(a.workspaceId, a.cUserId);
-    const adapter = await activeBusinessAdapter(a.workspaceId);
+    const binding = await resolveWorkspaceBusinessAdapter(a.workspaceId);
+    const adapter = unavailableBusinessAdapter(binding);
+    if (!adapter) {
+      return c.json({ title: "权益信息不可用", benefits: [], demo: false, available: false });
+    }
     const data = await adapter.queryMember({ workspaceId: a.workspaceId, cUserId: a.cUserId, memberId: user?.memberId ?? null });
     if (data.bindRequired || !data.member) {
       // H6 契约（webc MemberInfo + 绑定引导）：未绑定不返回等级/积分为 0 的伪会员信息
       return c.json({
         title: "身份尚未绑定", benefits: [], demo: data.demo,
+        available: true,
         bindRequired: true, hint: data.hint ?? "完成手机号验证绑定后即可查询本人订单与会员信息。",
       });
     }
-    return c.json({ ...data.member, demo: data.demo });
+    return c.json({ ...data.member, demo: data.demo, available: true });
   } catch (err) {
     return fail(c, err, requestId);
   }
@@ -525,6 +569,7 @@ serviceGateway.post("/tickets", cAuth, async (c) => {
     const flow = await createTicketFlow({
       workspaceId: a.workspaceId, cUserId: a.cUserId, channel: a.channel, conversationId: body.conversationId,
       kind: body.kind, title, payload, idempotencyKey,
+      dept: await projectedDepartmentForTicket(a.workspaceId, body.kind),
     });
     // H6 契约：回执 {requestId,state,resourceId,eventId,demo,delivery}；重放不重复落事件，标记 recorded
     if (flow.deduped) {

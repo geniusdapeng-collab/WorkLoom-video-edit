@@ -14,6 +14,7 @@ import { createServer, type Server } from "node:http";
 import pg from "pg";
 import { routeIntent, ruleBasedRoute, LlmIntentClassifier, type IntentClassifier } from "@workloom/runtime";
 import { runQuest, type QuestPlanner } from "@workloom/runtime";
+import { acquisitionQuestPlanner } from "../apps/server/src/industry/hotel/acquisition-planner.js";
 import {
   gatewayAppend, gatewayAppendIdempotent, checkPermission, isWriteAction,
   maskText, maskDeep, canonicalJson, eventHash, GENESIS_HASH,
@@ -1829,6 +1830,23 @@ o("HP-02 失败关闭：通用规划的写类步骤无规则命中 → 挂起待
   const r2 = await runQuest(app, gw, scope, { threadId: tid, goal: "把周五主打款调价 5%", presetKey: "pricing-agent" });
   eq(r2.status, "completed", "批准后恢复续跑完成");
 });
+
+o("生产行业规划器：百分比调价落真实价带锚点 + 夜班上下文，晨会派单直接跑通", async () => {
+  // 这一条守的是真实链路（threads.dispatch→threads.run 注入的 acquisitionQuestPlanner）：
+  //  - 百分比调价曾用 100 归一化基准 → after.price=102 直接撞 R2 保底价 ¥380 熔断；
+  //  - 步骤缺 context 时，「context.night_shift」在求值器里是"路径不存在"抛错 → E2.1 误熔断。
+  // 修好后：锚点取价带中值（真实价位），context 带 night_shift/channel_new，
+  // 2% 涨幅无论昼夜都该自动执行（夜班 R7 ≤3% 自动 / 白天 R1 ≤8% 自动）。
+  const tid = await mkThread();
+  const goal = "周五旺季调价 2%：飞猪大床房小幅上调，附竞对依据";
+  const r = await runQuest(app, gw, scope, {
+    threadId: tid, goal, presetKey: "pricing-agent",
+    fallbackPlanner: acquisitionQuestPlanner(goal),
+  });
+  eq(r.status, "completed", "生产规划器百分比调价自动执行");
+  const row = await qApp<{ status: string }>(`SELECT status FROM threads WHERE id=$1`, [tid]);
+  eq(row.rows[0]!.status, "completed", "线程状态同步");
+});
 o("待办巡阅：店长清空 3 条待审批", async () => {
   const a1 = await mkApproval(); const a2 = await mkApproval(); const a3 = await mkApproval();
   const q0 = await listQueue(app, scope, { status: "pending" });
@@ -2579,6 +2597,16 @@ h2("onboarding 经营主体写入 + 启用真实模式（横幅熄灭）→ 复�
     method: "POST", token: tokenOwner, body: { displayName: "云栖酒店", industry: "hotel", note: "E2E 向导验收" },
   });
   eq(data.result?.data?.ok, true, "主体档案写入");
+  // 落地向导只能补充 business.name/note/onboarded_at，**不得**抹掉行业档案里的
+  // 价带/保底价（曾经整体替换 archive.business → 行业规划器取不到价格锚点，调价全部失败关闭）
+  const biz = await qApp<{ business: Record<string, unknown> | null }>(
+    `SELECT archive->'business' AS business FROM profiles WHERE workspace_id=$1`,
+    [scope.workspaceId],
+  );
+  const business = biz.rows[0]?.business ?? {};
+  eq(business.name, "云栖酒店", "向导字段写入 business");
+  assert(business.price_bands, "行业档案价带保留（一店一档不被向导覆盖）");
+  eq(business.floor_price, 380, "保底价保留（与 R2 同源）");
   const { data: act } = await api<{ result?: { data?: { dataMode?: string } } }>("/trpc/onboarding.activateRealMode", { method: "POST", token: tokenOwner });
   eq(act.result?.data?.dataMode, "real", "真实模式激活");
   const { data: st } = await api<{ result?: { data?: { dataMode?: string } } }>("/trpc/onboarding.status", { token: tokenOwner });
@@ -2646,7 +2674,34 @@ h2("融合·P21 三端点互洽（state/theater/chairmanQueue/scorecard）", asy
   ]);
   eq(state.data.result?.data?.charter?.mode, theater.data.result?.data?.mode, "治理态两端一致");
   const l4n = theater.data.result?.data?.pendingByTier?.l4_chairman ?? 0;
-  eq((queue.data.result?.data ?? []).length, Math.min(l4n, 20), "L4 队列=分层计数（队列上限 20 截断口径）");
+  /**
+   * 撕裂口径的根治在服务端：`captain.queueSnapshot` 用单条 SQL 的 CTE 一次取回
+   * 「分层计数 + 董事长队列」，PostgreSQL 单语句一个快照，两个结果必然自洽。
+   * 下面先断言这个**原子不变量**，再对独立端点做"允许并发写入"的宽容核对——
+   * 节拍/审批在本用例两次 HTTP 读之间落库时（H-17 实测过一次 期望 20 / 实际 0），
+   * 独立快照天然可能不一致，不能当成缺陷。
+   */
+  const snap = await api<{ result?: { data?: { counts?: Record<string, number>; items?: unknown[]; limit?: number } } }>(
+    "/trpc/captain.queueSnapshot", { token: tokenOwner },
+  );
+  const counts = snap.data.result?.data?.counts ?? {};
+  const items = snap.data.result?.data?.items ?? [];
+  const limit = snap.data.result?.data?.limit ?? 20;
+  eq(items.length, Math.min(counts.l4_chairman ?? 0, limit), "队列快照原子自洽（计数与条目同快照）");
+  assert(snap.data.result?.data !== undefined, "队列快照端点可用");
+  // 独立端点宽容核对：允许一次并发提交造成的偏差，第二次取样仍不一致才算缺陷
+  let queueLen = (queue.data.result?.data ?? []).length;
+  let theaterL4 = l4n;
+  for (let attempt = 0; attempt < 2 && queueLen !== Math.min(theaterL4, 20); attempt += 1) {
+    await new Promise((r) => setTimeout(r, 120));
+    const [reTheater, reQueue] = await Promise.all([
+      api<{ result?: { data?: { pendingByTier?: Record<string, number> } } }>("/trpc/captain.theater", { token: tokenOwner }),
+      api<{ result?: { data?: unknown[] } }>("/trpc/captain.chairmanQueue", { token: tokenOwner }),
+    ]);
+    theaterL4 = reTheater.data.result?.data?.pendingByTier?.l4_chairman ?? 0;
+    queueLen = (reQueue.data.result?.data ?? []).length;
+  }
+  eq(queueLen, Math.min(theaterL4, 20), "L4 队列=分层计数（队列上限 20 截断口径；重采样后仍须一致）");
   assert(typeof score.data.result?.data?.briefings === "number", "成绩单数值在场");
 });
 h2("融合·LLM 降级链：死端配置被拒 → mock 兜底应答不断链", async () => {

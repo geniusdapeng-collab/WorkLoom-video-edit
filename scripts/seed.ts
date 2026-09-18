@@ -1730,6 +1730,30 @@ async function main(): Promise<void> {
      ON CONFLICT (workspace_id, member_id) DO NOTHING`,
     [WS_ID],
   );
+  /**
+   * C 端服务前台 **e2e 契约夹具**（M-1001/M-1002 + 三张订单）。
+   *
+   * 为什么放在行业种子而不是基座服务层：基座 store.ts 只核验表结构、零行业词汇（第⑧槽纪律）；
+   * 而 apps/server 的 e2e 契约用例按固定会员号断言（M-1001 见本人订单、M-1002 只见本人订单），
+   * 夹具必须无条件存在——**不能按空表门控**：本文件上面的「扩充运行态」会先占表，
+   * 门控会让夹具被静默跳过（D36 新装环境 e2e 七连挂的根因）。
+   * INSERT 全部 ON CONFLICT DO NOTHING，幂等可重跑。
+   */
+  await svcQ(
+    `INSERT INTO demo_members (member_id, workspace_id, name, phone, tier, points) VALUES
+       ('M-1001',$1,'张伟','13800000001','金卡',2680),
+       ('M-1002',$1,'刘芳','13800000002','银卡',860)
+     ON CONFLICT (workspace_id, member_id) DO NOTHING`,
+    [WS_ID],
+  );
+  await svcQ(
+    `INSERT INTO demo_orders (order_id, workspace_id, member_id, room_type, check_in, check_out, amount_fen, status) VALUES
+       ('O-20260820-001',$1,'M-1001','豪华大床房','2026-08-21','2026-08-23',117600,'已确认'),
+       ('O-20260818-002',$1,'M-1001','行政双床房','2026-08-18','2026-08-19',68800,'已完成'),
+       ('O-20260822-003',$1,'M-1002','山景大床房','2026-08-25','2026-08-26',52800,'已确认')
+     ON CONFLICT (workspace_id, order_id) DO NOTHING`,
+    [WS_ID],
+  );
   await svcQ(
     `INSERT INTO demo_orders (workspace_id, order_id, member_id, room_type, check_in, check_out, amount_fen, status)
      VALUES

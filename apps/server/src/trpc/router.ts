@@ -481,8 +481,12 @@ const onboardingRouter = router({
         await client.query("SELECT set_config('app.workspace_id', $1, true)", [scope.workspaceId]);
         await client.query("SELECT set_config('app.tenant_id', $1, true)", [scope.tenantId]);
         await client.query(`UPDATE workspaces SET name=$2, industry=$3 WHERE id=$1`, [scope.workspaceId, input.displayName, input.industry]);
+        // 合并而非整体替换 archive.business：一店一档里的价带/保底价/佣金/退改政策是
+        // **行业档案**（bundles/<industry>/schemas/archive.schema.json 声明），
+        // 落地向导只补充 name/note/onboarded_at。整体覆盖会把 price_bands、floor_price
+        // 一并抹掉——行业规划器随后取不到价格锚点，调价只能失败关闭（实测踩过）。
         await client.query(
-          `UPDATE profiles SET archive = jsonb_set(archive, '{business}', $2::jsonb), industry=$3, updated_at=now() WHERE workspace_id=$1`,
+          `UPDATE profiles SET archive = jsonb_set(archive, '{business}', COALESCE(archive->'business', '{}'::jsonb) || $2::jsonb), industry=$3, updated_at=now() WHERE workspace_id=$1`,
           [scope.workspaceId, JSON.stringify({ name: input.displayName, note: input.note, onboarded_at: new Date().toISOString() }), input.industry],
         );
         // D16（#1/A）：档案写与事件留痕同一事务同一 COMMIT
@@ -2962,6 +2966,53 @@ const captainRouter = router({
         client.release();
       }
     }),
+
+  /**
+   * 决策队列快照（同一 SQL、同一快照）：分层计数 + 董事长队列一次读齐。
+   *
+   * 存在的理由：`theater.pendingByTier` 与 `chairmanQueue` 是两次独立读，节拍/审批在两次读之间
+   * 落库时会出现「徽标显示 N 件、列表为空」的自相矛盾（P21 与巡检用例都踩过：H-17 实测
+   * 期望 20 / 实际 0）。这里用**单条语句的 CTE** 取数——PostgreSQL 单语句一个快照，
+   * 两个聚合结果必然一致；写入侧并发再多也不会撕裂。
+   */
+  queueSnapshot: protectedProcedure.query(async ({ ctx }) => {
+    const scope = scopeOf(ctx.identity);
+    const app = getAppPool();
+    const client = await app.connect();
+    try {
+      await client.query("BEGIN");
+      await client.query("SELECT set_config('app.workspace_id', $1, true)", [scope.workspaceId]);
+      const r = await client.query<{ counts: Record<string, number>; items: Array<Record<string, unknown>> }>(
+        `WITH pending AS (
+           SELECT a.approval_id, a.event_id, a.snapshot, e.payload, a.tier
+           FROM approvals a
+           LEFT JOIN biz_events e ON e.event_id = a.event_id AND e.workspace_id = a.workspace_id
+           WHERE a.workspace_id=$1 AND a.status='pending'
+         )
+         SELECT
+           COALESCE((
+             SELECT jsonb_object_agg(t.tier, t.n)
+             FROM (SELECT tier, count(*)::int AS n FROM pending WHERE tier IS NOT NULL GROUP BY tier) t
+           ), '{}'::jsonb) AS counts,
+           COALESCE((
+             SELECT jsonb_agg(jsonb_build_object(
+               'approval_id', s.approval_id, 'event_id', s.event_id,
+               'snapshot', s.snapshot, 'payload', s.payload
+             ) ORDER BY s.approval_id)
+             FROM (SELECT * FROM pending WHERE tier='l4_chairman' ORDER BY approval_id LIMIT 20) s
+           ), '[]'::jsonb) AS items`,
+        [scope.workspaceId],
+      );
+      await client.query("COMMIT");
+      const row = r.rows[0];
+      return { counts: row?.counts ?? {}, items: row?.items ?? [], limit: 20 };
+    } catch (err) {
+      await client.query("ROLLBACK").catch(() => undefined);
+      throw err;
+    } finally {
+      client.release();
+    }
+  }),
 
   /** 董事长请示队列（L4 pending + 事件依据链；P21 inline 三手势数据源） */
   chairmanQueue: protectedProcedure.query(async ({ ctx }) => {
