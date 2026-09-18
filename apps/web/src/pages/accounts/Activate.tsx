@@ -148,6 +148,7 @@ export default function Activate() {
       {err && <p role="alert" className="mt-3 break-words text-sm leading-relaxed text-red-400">{err}</p>}
       <Button className="mt-5 w-full" variant="primary" busy={busy} busyLabel="正在开通…" disabled={registryLoading || !complete} onClick={() => void submit()}>开通并进入配置引导</Button>
       <Button className="mt-4 text-neutral-300 underline" variant="quiet" onClick={() => nav("/login")}>已有账号？去登录</Button>
+      <Button className="mt-2 text-neutral-300 underline" variant="quiet" onClick={() => nav("/")}>← 返回经营主页（游客体验）</Button>
     </main>
   );
 }

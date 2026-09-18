@@ -4,6 +4,7 @@
  */
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { ensureDemoLogin } from "../../lib/trpc";
+import { PageExitLink } from "../../shell/PageExitLink";
 
 export interface ConsoleState<T> {
   data: T | null;
@@ -48,6 +49,8 @@ export function ConsoleShell(input: {
     <div className="mx-auto max-w-5xl p-4">
       <header className="mb-4 flex flex-wrap items-end justify-between gap-2">
         <div>
+          {/* 控制台是二级页（从工作台/导航钻取进来）：每个页面都必须有明确出口 */}
+          <PageExitLink label="返回工作台" className="mb-2 cursor-pointer rounded-lg border border-line px-3 py-1.5 text-body text-ink3 hover:border-holo/40 hover:text-ink2" />
           <h1 className="text-xl font-bold text-ink">{input.title}</h1>
           <p className="mt-1 text-body text-ink3">{input.desc}</p>
         </div>

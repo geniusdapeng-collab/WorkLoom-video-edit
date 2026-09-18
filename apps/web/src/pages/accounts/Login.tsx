@@ -107,6 +107,8 @@ export default function Login() {
         <Button variant="quiet" onClick={() => nav("/activate")}>注册开通</Button>
         <Button variant="quiet" onClick={() => nav("/invite")}>接受成员邀请</Button>
       </div>
+      {/* 裸页（无左侧导航）统一出口：不登录也能回到经营主页（游客体验） */}
+      <Button variant="quiet" className="mt-3 text-neutral-300 underline" onClick={() => nav("/")}>← 返回经营主页（游客体验）</Button>
 
       {import.meta.env.DEV && (
         <Button variant="quiet" className="mt-6 text-neutral-300 underline" onClick={() => void demoEnter()}>

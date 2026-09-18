@@ -5,6 +5,7 @@
  */
 import type { ReactNode } from "react";
 import { Icon } from "@workloom/ui";
+import { PageExitLink } from "../../shell/PageExitLink";
 import {
   AchievementBadge,
   AgentActionMessage,
@@ -57,6 +58,8 @@ export default function DevMatrix() {
       <p className="rounded border border-line bg-bg800 px-3 py-2 text-body text-ink2">
         仅限本地开发环境并显式开启诊断开关后使用；本页术语仅用于组件验收。
       </p>
+      {/* 裸页（/dev 不带左侧导航）：必须有本页出口，否则用户只能改地址栏离开 */}
+      <PageExitLink label="退出状态矩阵，返回工作台" />
       <div className="mb-4 flex items-baseline gap-3">
         <h2 className="text-h1 font-black tracking-wider">HUD 组件状态矩阵</h2>
         <span className="text-caption tracking-[.2em] text-ink3">/dev · DEV MATRIX · F2</span>

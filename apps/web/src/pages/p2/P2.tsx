@@ -16,6 +16,7 @@ import { COMMON_STATUS_TEXT, MODEL_TIER_TEXT, MODEL_WINDOW_TEXT, RULE_RESULT_TEX
 import { Bridge } from "../../shell/Bridge";
 import { useNavigationAccess } from "../../shell/NavigationAccess";
 import { RejectDialog } from "../../components/RejectDialog";
+import { PageExitLink } from "../../shell/PageExitLink";
 import {
   AgentActionMessage,
   BannerAlert,
@@ -239,6 +240,8 @@ export default function P2() {
       <div className="flex min-h-full flex-col">
         {/* ThreadHeader（P2-④：mode/路由置信度可见） */}
         <div className="mb-3 flex flex-wrap items-center gap-2.5">
+          {/* 二级页（从任务列表钻取进来）：给一条明确的回退路径，不依赖浏览器后退 */}
+          <PageExitLink to="/tasks" label="返回任务列表" preferHistory />
           <h2 className="text-h1 font-black tracking-wider">任务执行</h2>
           {thread && (
             <>

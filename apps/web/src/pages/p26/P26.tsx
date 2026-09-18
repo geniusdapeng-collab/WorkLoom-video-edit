@@ -12,6 +12,7 @@ import { ensureDemoLogin, trpc } from "../../lib/trpc";
 import { AsyncState, clientChineseText, clientValueText } from "@workloom/ui";
 import { versionText } from "../../lib/display";
 import { useNavigationAccess } from "../../shell/NavigationAccess";
+import { PageExitLink } from "../../shell/PageExitLink";
 
 /* ---------------- 类型（与服务端对齐） ---------------- */
 interface OverlayItem { type: string; op: string; path: string }
@@ -161,6 +162,8 @@ export default function P26() {
 
   return (
     <div className="mx-auto max-w-5xl px-6 py-8">
+      {/* 二级页（配置类）：显式出口，避免"进得来出不去" */}
+      <PageExitLink label="返回工作台" className="mb-4 cursor-pointer rounded-lg border border-line px-3 py-1.5 text-body text-ink3 hover:border-holo/40 hover:text-ink2" />
       <header className="mb-6">
         <h1 className="text-2xl font-bold text-ink">定制中心</h1>
         <p className="mt-1 text-sm text-ink3">行业经验我们给，你的个性自己长——系统永远在升级，定制永远不过时</p>

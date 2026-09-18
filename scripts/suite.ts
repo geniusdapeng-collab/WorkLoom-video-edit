@@ -2635,6 +2635,33 @@ h2("融合·LLM 降级链：死端配置被拒 → mock 兜底应答不断链", 
   const countEvents = async (action: string) =>
     Number((await qApp<{ n: string }>(`SELECT count(*)::text AS n FROM biz_events WHERE workspace_id=$1 AND payload->'decision'->>'action'=$2`, [scope.workspaceId, action])).rows[0]!.n);
 
+  /**
+   * 队列隔离跑一次裁决节拍。
+   *
+   * 裁决节拍每轮只处理 ≤20 条 pending L2；历史用例/前面场景留下的待批会把窗口占满，
+   * 本用例自己的审批就进不了这一拍——实测反复出现"裁决 0 上浮 20""夜班挂起项未裁决"等假失败。
+   * 先把其它 pending L2 泊车到 l3_fleet（keepIds 是本用例自己的行，不动），跑完还原。
+   */
+  const runQueueBeatIsolated = async (keepIds: string[]): Promise<Awaited<ReturnType<typeof runQueueBeat>>> => {
+    const parked = (await qApp<{ approval_id: string }>(
+      `UPDATE approvals SET tier='l3_fleet'
+        WHERE workspace_id=$1 AND status='pending' AND tier='l2_captain'
+          AND NOT (approval_id = ANY($2::text[]))
+        RETURNING approval_id`,
+      [scope.workspaceId, keepIds],
+    )).rows.map((row) => row.approval_id);
+    try {
+      return await runQueueBeat(app, scope);
+    } finally {
+      if (parked.length > 0) {
+        await qApp(
+          `UPDATE approvals SET tier='l2_captain' WHERE workspace_id=$1 AND approval_id = ANY($2::text[])`,
+          [scope.workspaceId, parked],
+        );
+      }
+    }
+  };
+
   RC("默认宪章 disabled（默认关闭铁律）", () => {
     eq(parseCharter(undefined).mode, "disabled", "空档 disabled");
     eq(parseCharter({ mode: "bogus" }).mode, "disabled", "脏档兜底 disabled");
@@ -2695,29 +2722,7 @@ h2("融合·LLM 降级链：死端配置被拒 → mock 兜底应答不断链", 
         [id, scope.tenantId, scope.workspaceId, `E-${id}`, JSON.stringify({ action: "price.adjust", params: { price }, base_price: 458 })]);
       await mk(`apr-r05a-${SFX}`, 480);
       await mk(`apr-r05b-${SFX}`, 397); // 0.867 贴边
-      /**
-       * 队列隔离（与 R-11 同口径）：裁决节拍每轮只处理 ≤20 条 pending L2，
-       * 历史用例/套件自身跑出的待批会把窗口占满，导致本用例的两条根本进不了这一拍
-       * （实测"裁决 0 上浮 20"）。先把存量泊车到 l3_fleet，跑完再还原。
-       */
-      const parked = (await qApp<{ approval_id: string }>(
-        `UPDATE approvals SET tier='l3_fleet'
-          WHERE workspace_id=$1 AND status='pending' AND tier='l2_captain'
-            AND approval_id NOT IN ($2,$3)
-        RETURNING approval_id`,
-        [scope.workspaceId, `apr-r05a-${SFX}`, `apr-r05b-${SFX}`],
-      )).rows.map((row) => row.approval_id);
-      let r: Awaited<ReturnType<typeof runQueueBeat>>;
-      try {
-        r = await runQueueBeat(app, scope);
-      } finally {
-        if (parked.length > 0) {
-          await qApp(
-            `UPDATE approvals SET tier='l2_captain' WHERE workspace_id=$1 AND approval_id = ANY($2::text[])`,
-            [scope.workspaceId, parked],
-          );
-        }
-      }
+      const r = await runQueueBeatIsolated([`apr-r05a-${SFX}`, `apr-r05b-${SFX}`]);
       assert(r.decided >= 1 && r.escalated >= 1, `裁决 ${r.decided} 上浮 ${r.escalated}`);
       const a = await qApp<{ status: string }>(`SELECT status FROM approvals WHERE approval_id=$1`, [`apr-r05a-${SFX}`]);
       eq(a.rows[0]!.status, "approved", "带内批准");
@@ -2759,7 +2764,7 @@ h2("融合·LLM 降级链：死端配置被拒 → mock 兜底应答不断链", 
         `INSERT INTO approvals (approval_id, tenant_id, workspace_id, event_id, channel, status, snapshot, tier)
          VALUES ($1,$2,$3,$4,'inapp','pending',$5,'l2_captain') ON CONFLICT (event_id, channel) DO NOTHING`,
         [`apr-r08-${SFX}`, scope.tenantId, scope.workspaceId, `E-apr-r08-${SFX}`, JSON.stringify({ action: "price.adjust", params: { price: 480 }, base_price: 458 })]);
-      await runQueueBeat(app, scope);
+      await runQueueBeatIsolated([`apr-r08-${SFX}`]);
       const st = await qApp<{ status: string }>(`SELECT status FROM approvals WHERE approval_id=$1`, [`apr-r08-${SFX}`]);
       eq(st.rows[0]!.status, "pending", "影子期审批不落状态");
       const dry = await qApp<{ n: string }>(`SELECT count(*)::text AS n FROM biz_events WHERE workspace_id=$1 AND payload->'decision'->>'action'='ceo.decision' AND payload->'decision'->'params'->>'dry_run'='true'`, [scope.workspaceId]);
@@ -2812,7 +2817,7 @@ h2("融合·LLM 降级链：死端配置被拒 → mock 兜底应答不断链", 
       eq(r1.status, "pending_review", "R1 越线挂起（11.35%>8%）");
       const apr = (await qApp<{ tier: string }>(`SELECT tier FROM approvals WHERE approval_id=$1`, [r1.pendingApprovalId!])).rows[0]!;
       eq(apr.tier, "l2_captain", "带内（11.35%<15%）路由 L2");
-      const q = await runQueueBeat(app, scope);
+      const q = await runQueueBeatIsolated([r1.pendingApprovalId!]);
       assert(q.decided >= 1, "CEO 裁决批准");
       const st = (await qApp<{ status: string }>(`SELECT status FROM approvals WHERE approval_id=$1`, [r1.pendingApprovalId!])).rows[0]!;
       eq(st.status, "approved", "审批已批准");
@@ -2840,9 +2845,10 @@ h2("融合·LLM 降级链：死端配置被拒 → mock 兜底应答不断链", 
           `INSERT INTO approvals (approval_id, tenant_id, workspace_id, event_id, channel, status, snapshot, tier)
            VALUES ($1,$2,$3,$4,'inapp','pending',$5,'l2_captain') ON CONFLICT (event_id, channel) DO NOTHING`,
           [`apr-r12-${SFX}`, scope.tenantId, scope.workspaceId, `E-apr-r12-${SFX}`, JSON.stringify({ action: "price.adjust", params: { price: 480 }, base_price: 458 })]);
-        const r1 = await runQueueBeat(app, scope);
+        const r1 = await runQueueBeatIsolated([`apr-r12-${SFX}`]);
         const evCount = await countEvents("ceo.decision");
-        const r2 = await runQueueBeat(app, scope);
+        // 二次节拍把本用例这条也移出窗口：口径是"队列清空后零裁决"
+        const r2 = await runQueueBeatIsolated([]);
         eq(r2.decided, 0, "二次节拍零裁决（pending 已清空）");
         eq(await countEvents("ceo.decision"), evCount, "二次节拍零新事件");
         assert(r1.decided >= 1, "首次节拍有裁决");
@@ -2932,7 +2938,7 @@ h2("融合·LLM 降级链：死端配置被拒 → mock 兜底应答不断链", 
          ON CONFLICT (event_id, channel) DO NOTHING`,
         [`apr-r17a-${SFX}`, scope.tenantId, scope.workspaceId, `E-apr-r17a-${SFX}`, JSON.stringify({ action: "price.adjust", params: { price: 480 }, base_price: 458 }),
          `apr-r17b-${SFX}`, `E-apr-r17b-${SFX}`]);
-      await runQueueBeat(app, scope);
+      await runQueueBeatIsolated([`apr-r17a-${SFX}`, `apr-r17b-${SFX}`]);
       await runBriefingBeat(app, scope, "daily");
       await gatewayAppend(gw, { ...scope, actor: { id: "suite", type: "agent" }, sessionId: "suite-r17" }, {
         who: { type: "agent", id: "suite" },
@@ -2985,7 +2991,7 @@ h2("融合·LLM 降级链：死端配置被拒 → mock 兜底应答不断链", 
         `INSERT INTO approvals (approval_id, tenant_id, workspace_id, event_id, channel, status, snapshot, tier)
          VALUES ($1,$2,$3,$4,'inapp','pending',$5,'l2_captain') ON CONFLICT (event_id, channel) DO NOTHING`,
         [`apr-r20-${SFX}`, scope.tenantId, scope.workspaceId, `E-apr-r20-${SFX}`, JSON.stringify({ action: "price.adjust", params: { price: 470 }, base_price: 458, origin: "night.package" })]);
-      const r = await runQueueBeat(app, scope);
+      const r = await runQueueBeatIsolated([`apr-r20-${SFX}`]);
       const st = (await qApp<{ status: string; decided_by: string }>(`SELECT status, decided_by FROM approvals WHERE approval_id=$1`, [`apr-r20-${SFX}`])).rows[0]!;
       eq(st.status, "approved", "夜班挂起项被 CEO 裁决");
       eq(st.decided_by, "company-ceo", "裁决人=公司CEO");
@@ -3007,7 +3013,7 @@ h2("融合·LLM 降级链：死端配置被拒 → mock 兜底应答不断链", 
          ON CONFLICT (event_id, channel) DO NOTHING`,
         [`apr-r21a-${SFX}`, scope.tenantId, scope.workspaceId, `E-apr-r21a-${SFX}`, JSON.stringify({ action: "price.adjust", params: { price: 480 }, base_price: 458 }),
          `apr-r21b-${SFX}`, `E-apr-r21b-${SFX}`, JSON.stringify({ action: "order.refund", params: { amount: 500 } })]);
-      const r = await runQueueBeat(app, scope);
+      const r = await runQueueBeatIsolated([`apr-r21a-${SFX}`, `apr-r21b-${SFX}`]);
       const a = (await qApp<{ status: string }>(`SELECT status FROM approvals WHERE approval_id=$1`, [`apr-r21a-${SFX}`])).rows[0]!;
       const b = (await qApp<{ tier: string }>(`SELECT tier FROM approvals WHERE approval_id=$1`, [`apr-r21b-${SFX}`])).rows[0]!;
       eq(a.status, "approved", "微决策直批");
@@ -3026,7 +3032,7 @@ h2("融合·LLM 降级链：死端配置被拒 → mock 兜底应答不断链", 
         `INSERT INTO approvals (approval_id, tenant_id, workspace_id, event_id, channel, status, snapshot, tier)
          VALUES ($1,$2,$3,$4,'inapp','pending',$5,'l2_captain') ON CONFLICT (event_id, channel) DO NOTHING`,
         [`apr-r22-${SFX}`, scope.tenantId, scope.workspaceId, `E-apr-r22-${SFX}`, JSON.stringify({ action: "order.refund", params: { amount: 5000 } })]);
-      await runQueueBeat(app, scope);
+      await runQueueBeatIsolated([`apr-r22-${SFX}`]);
       const ev = await qApp<{ payload: Record<string, unknown> }>(
         `SELECT payload FROM biz_events WHERE workspace_id=$1 AND payload->'decision'->>'action'='ceo.decision' AND payload->'decision'->'params'->>'approval_id'=$2 ORDER BY seq DESC LIMIT 1`,
         [scope.workspaceId, `apr-r22-${SFX}`]);
