@@ -142,8 +142,7 @@
       ],
       "serviceFront": {
         "enabled": true,
-        "identityPolicy": "order-proof",
-        "adapterId": "hotel.service-front-v1",
+        "identityPolicy": "disabled",
         "tabs": [
           "对话",
           "服务",
@@ -172,7 +171,7 @@
   },
   "integrity": {
     "algorithm": "sha256",
-    "digest": "1cd8d9b8e50ee7f3a2edb84d7b155845aca86ef5f8407580c317a945ad376331",
+    "digest": "882e6217ef46c92e6a31fb2d9711ba0c4ad68d98d459e5f9fe77743b9d6dcc9d",
     "assets": {
       "fences/geo-growth-baseline.yml": "26132b3c52290db8bfae71e7eacca25632adac48ec1dd2a6005749e9b015c44e",
       "model-policy.yml": "c2350007cf1a112c9de24231b6270e39d69344e2a9a3c05b8f17d246e571b84e",
@@ -199,7 +198,7 @@
       "schemas/archive.schema.json": "ad08672042078f5d8a2376f855e0fe936454048fb0e4cc421d5b8082ad4e2200",
       "schemas/objects.json": "656242d97a63158e9df3453fc7e693e4d5322379514750bdfd5f426cc581cc5b",
       "schemas/stages.json": "dbb994a399bcfe9ea34fbeacda92a13bfdebb8caeef4f74960faf4461a447c93",
-      "service-front/client.json": "ed223ea9d0721fbafc29eca8e2259119bb3e96b386ccb3aee07ac63f20432038",
+      "service-front/client.json": "2c4c67ea42de2a4039135008daabb269342b1e96c82c5c6e67c8203a5c69ff6f",
       "skills/ai-answer-rewrite/SKILL.md": "25d1597948d560a13262a91c360abd130f5e6debe2e9faff7d4de2bc9640833d",
       "skills/citation-reverse/SKILL.md": "ba3350d65c2c0c3fc2b588965ef36abeed39caea53a071c55ce8c3b748fae47b",
       "skills/dual-entry-inquiry/SKILL.md": "b3aba600d3ce22d3b25bd5e222eac78f91a41cdc55de4699801acdec5754db88",
