@@ -37,7 +37,7 @@ import { routedLlmCall, resetLlmAssembly } from "../service/llm.js";
 import { creditsRouter, modelFeedbackRouter } from "./credits-router.js";
 import { runRouterReviewBeat } from "@workloom/base/model-router";
 import {
-  loadCharter, parseCharter, transition, defaultCharter,
+  autonomySchema, loadCharter, parseCharter, transition, defaultCharter,
   runBriefingBeat, runQueueBeat, runDeviationBeat, runBreakerBeat, buildScorecard,
   runOutcomeReviewBeat, runHrReviewBeat, runBoardPackBeat, runOrgScanBeat, applyReplacement,
   buildFloor,
@@ -131,20 +131,29 @@ import {
 import YAML from "yaml";
 import { videoRouter } from "../video/router.js";
 import { serviceRouter } from "../service/router.js";
+import { overlayRouter } from "./overlay-router.js";
 import {
   AccessAuthorityError,
   resolveAuthoritativeClientAccess,
 } from "../service/access-authority.js";
 import {
+  completeWizardDraft,
+  getWizardDraft,
+  normalizeWizardDraftPayload,
   replayWelcome,
+  saveWizardDraft,
   saveWelcomeProgress,
   welcomeProgress,
   WELCOME_STEPS,
 } from "../service/onboarding-continuity.js";
+import { bundledServiceFrontAvailable, resolveServiceFrontPublication } from "../service/service-front-publication.js";
 import {
   buildEvolutionScorecard,
   decayMemories,
   disableMemory,
+  previewMemoryImpact,
+  reactivateMemory,
+  restoreMemories,
   editMemoryContent,
   getFeedbackEnums,
   recallMemoriesByMember,
@@ -317,6 +326,45 @@ const onboardingRouter = router({
       client.release();
     }
   }),
+
+  /**
+   * 落地向导续写（P0 断链修复）：服务层 onboarding-continuity 已实现版本化草稿，
+   * 但端点从未挂载，而 apps/web 引导页在 Promise.all 里首个请求就调用它 —— 之前该页必然失败。
+   * 责任人交接与权限判定留在服务层（canEditWizard/assignWizardDraft），端点只做入参校验。
+   */
+  wizardDraft: protectedProcedure.query(async ({ ctx }) => getWizardDraft(ctx.identity.workspaceId)),
+
+  saveWizardDraft: writeProcedure
+    .input(z.object({
+      expectedVersion: z.number().int().min(0),
+      currentStep: z.number().int().min(0).max(4),
+      // 载荷由服务层 normalizeWizardDraftPayload 归一化与校验（白名单字段），
+      // 这里保持 unknown 以免前端强类型载荷被 Record 索引签名挡住。
+      payload: z.unknown(),
+    }))
+    .mutation(async ({ ctx, input }) => saveWizardDraft(
+      ctx.identity.workspaceId,
+      { memberId: ctx.identity.memberId, memberNo: ctx.identity.memberNo, role: ctx.identity.role },
+      {
+        expectedVersion: input.expectedVersion,
+        currentStep: input.currentStep,
+        payload: normalizeWizardDraftPayload(input.payload),
+      },
+    )),
+
+  completeWizardDraft: writeProcedure
+    .input(z.object({ expectedVersion: z.number().int().min(0) }))
+    .mutation(async ({ ctx, input }) => completeWizardDraft(
+      ctx.identity.workspaceId,
+      { memberId: ctx.identity.memberId, memberNo: ctx.identity.memberNo, role: ctx.identity.role },
+      input.expectedVersion,
+    )),
+
+  /** C 端发布事实（真实 URL/路由/渠道能力分别核验）：引导页与 P22 共用同一事实源。 */
+  serviceFrontPublication: protectedProcedure.query(async ({ ctx }) => resolveServiceFrontPublication({
+    workspaceId: ctx.identity.workspaceId,
+    bundledClientAvailable: bundledServiceFrontAvailable(),
+  })),
 
   /** 第①步：真实大模型「测试连接」（真实 round-trip；不落盘、不留痕 key） */
   testLlm: writeProcedure
@@ -2602,11 +2650,10 @@ const captainRouter = router({
   grant: capabilityWriteProcedure("quest")
     .input(z.object({
       clauses: z.array(z.string()),
-      autonomy: z.object({
-        price_band: z.tuple([z.number(), z.number()]),
-        procurement_cap: z.number(),
-        campaign_cap: z.number(),
-      }),
+      // 自治边界与宪章 schema 同源（ranges/caps/lists）；旧的三字段形状
+      // （price_band/procurement_cap/campaign_cap）已被 .strict() 拒绝，
+      // 继续沿用会让授权在服务端 400、前端 P21 无法完成签署。
+      autonomy: autonomySchema,
       shadowDays: z.number().int().min(1).max(14).default(3),
       trialDays: z.number().int().min(3).max(30).default(7),
       identityConfirmed: z.boolean(), // §12.2 第⑤步身份核验（演示环境布尔确认）
@@ -3128,6 +3175,39 @@ const memoryRouter = router({
     return decayMemories(getAppPool(), getGatewayPool(), scopeOf(ctx.identity));
   }),
 
+  /**
+   * 高影响操作的服务端事实预览（P23）：停用/清算前先给出受影响员工/规则/在跑任务，
+   * 只报告已有引用关系，不猜。前端以 memoryId（单条）或 memberId（来源人清算）二选一调用。
+   */
+  impact: protectedProcedure
+    .input(z.object({
+      memoryId: z.string().min(1).optional(),
+      memberId: z.string().min(1).optional(),
+    }))
+    .query(async ({ ctx, input }) => previewMemoryImpact(getAppPool(), scopeOf(ctx.identity), {
+      ...(input.memoryId ? { memoryIds: [input.memoryId] } : {}),
+      ...(input.memberId ? { sourceMemberId: input.memberId } : {}),
+    })),
+
+  /**
+   * 记忆恢复（P23 意识系统）：回收态记忆只能由人手动恢复，恢复动作独立留痕，
+   * 历史停用记录保持不变（服务层 restoreMemories/reactivateMemory 已实现，
+   * 之前只有实现没有端点，前端 P23 的恢复按钮必然 404）。
+   */
+  restore: writeProcedure
+    .input(z.object({ memoryIds: z.array(z.string().min(1)).min(1).max(50) }))
+    .mutation(async ({ ctx, input }) => restoreMemories(
+      getAppPool(), getGatewayPool(), scopeOf(ctx.identity),
+      { memberNo: ctx.identity.memberNo }, input.memoryIds,
+    )),
+
+  reactivate: writeProcedure
+    .input(z.object({ memoryId: z.string().min(1) }))
+    .mutation(async ({ ctx, input }) => reactivateMemory(
+      getAppPool(), getGatewayPool(), scopeOf(ctx.identity),
+      { memberNo: ctx.identity.memberNo }, input.memoryId,
+    )),
+
   /** 本工作区装配的反馈枚举表（Bundle 第⑧槽；审批卡下拉数据源） */
   feedbackEnums: protectedProcedure.query(async ({ ctx }) => {
     return getFeedbackEnums(scopeOf(ctx.identity).workspaceId) ?? [];
@@ -3165,6 +3245,9 @@ export const appRouter = router({
   modelFeedback: modelFeedbackRouter,
   memory: memoryRouter,
   evolution: evolutionRouter,
+  // 租户覆盖层（P26/P27）：实现早已随服务端构建，但此前从未挂载进根路由，
+  // 三端 overlay.* 调用全部落到 404。挂载即生效，端点自身仍是受控守卫。
+  overlay: overlayRouter,
 });
 
 export type AppRouter = typeof appRouter;

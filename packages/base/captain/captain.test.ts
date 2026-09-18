@@ -224,7 +224,7 @@ describe("宪章解析健壮性", () => {
       },
     });
     expect(parsed.mode).toBe("disabled");
-    expect(parsed.autonomy).toEqual({ ranges: {}, caps: {} });
+    expect(parsed.autonomy).toEqual({ ranges: {}, caps: {}, lists: {} });
   });
 
   it("非法区间失败关闭，防止反向边界进入路由与熔断", () => {

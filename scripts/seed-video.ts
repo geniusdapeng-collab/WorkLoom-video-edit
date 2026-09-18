@@ -173,10 +173,16 @@ function studioArchive(): Record<string, unknown> {
       mode: "trial",
       identity: { name: "公司CEO", persona: "内容经营型" },
       autonomy: {
-        publish_per_day_cap: 3,
-        boost_budget_per_post: 500,
-        price_quote_band: [0.9, 1.2],
-        reply_auto_scope: ["夸赞", "感谢"],
+        ranges: {
+          price_quote_band: { label: "报价相对基准区间", lower: 0.9, upper: 1.2, anchor: 1 },
+        },
+        caps: {
+          publish_per_day_cap: { label: "账号每日发布条数上限", limit: 3 },
+          boost_budget_per_post: { label: "单条投流预算上限", limit: 500 },
+        },
+        lists: {
+          reply_auto_scope: ["夸赞", "感谢"],
+        },
       },
       escalate: ["对外公开承诺（赔偿/免费/声明）", "广告法敏感口径", "围栏规则放宽（任何放宽）", "新平台/新账号上线", "月累计投流超上限", "低于底价报价让步", "投放加投（G12 必审）", "宪章变更"],
       briefing: { daily: "08:30", weekly: "Mon 09:00", monthly: "1st 10:00", channel: "both" },
@@ -197,13 +203,26 @@ function studioArchive(): Record<string, unknown> {
       {
         key: "project",
         name: "项目制（单剧/单项目核算）",
-        autonomy: { render_budget_per_episode: 300, render_retry_cap: 5 },
+        autonomy: {
+          ranges: {},
+          caps: {
+            render_budget_per_episode: { label: "单集渲染预算上限", limit: 300 },
+            render_retry_cap: { label: "单集渲染重试次数上限", limit: 5 },
+          },
+        },
         circuit_breaker: { kpi_floor: { roi_iaa: 0.98, scrap_rate: 0.85 } },
       },
       {
         key: "contract",
         name: "合同制（商单履约 SLA）",
-        autonomy: { publish_per_day_cap: 2, content_reject_rounds_cap: 3, response_time_slo_hours: 4 },
+        autonomy: {
+          ranges: {},
+          caps: {
+            publish_per_day_cap: { label: "账号每日发布条数上限", limit: 2 },
+            content_reject_rounds_cap: { label: "内容打回轮次上限", limit: 3 },
+            response_time_slo_hours: { label: "商单响应时长上限（小时）", limit: 4 },
+          },
+        },
         circuit_breaker: { kpi_floor: { sla_hit_rate: 0.9 } },
       },
     ],

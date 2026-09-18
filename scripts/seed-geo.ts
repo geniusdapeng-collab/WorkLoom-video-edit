@@ -212,10 +212,16 @@ function clientArchive(): Record<string, unknown> {
       mode: "trial",
       identity: { name: "公司CEO", persona: "双域经营型" },
       autonomy: {
-        publish_per_day_cap: 3,
-        geo_publish_per_day_cap: 2,
-        price_quote_band: [0.9, 1.2],
-        reply_auto_scope: ["夸赞", "感谢"],
+        ranges: {
+          price_quote_band: { label: "报价相对基准区间", lower: 0.9, upper: 1.2, anchor: 1 },
+        },
+        caps: {
+          publish_per_day_cap: { label: "账号每日发布条数上限", limit: 3 },
+          geo_publish_per_day_cap: { label: "GEO 信源每日发布上限", limit: 2 },
+        },
+        lists: {
+          reply_auto_scope: ["夸赞", "感谢"],
+        },
       },
       escalate: [
         "对外公开承诺（赔偿/免费/声明）",

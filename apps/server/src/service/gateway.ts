@@ -18,9 +18,10 @@ import { Hono } from "hono";
 import type { Context, Next } from "hono";
 import { getOwnerPool } from "@workloom/db";
 import {
-  CHANNELS, cSecret, exchangeCodeForOpenid, getCUser, issueCToken, listNotifications, pushMessage,
-  resolveCUser, verifyCToken, type Channel, type CTokenPayload,
+  CHANNELS, cSecret, exchangeCodeForOpenid, getCUser, h5EntrySecret, issueCToken, listNotifications,
+  pushMessage, resolveCUser, verifyCToken, verifyH5EntryToken, type Channel, type CTokenPayload,
 } from "./channels.js";
+import { selectServiceWorkspaceId, ServiceWorkspaceRoutingError } from "./workspace-routing.js";
 import { handleMessage } from "./dialog.js";
 import { runBizTool, hotelBizAdapter, type BizTool, type DemoOrder } from "./adapters/biz-hotel.js";
 import {
@@ -193,11 +194,41 @@ async function createTicketFlow(input: {
   });
 }
 
+/**
+ * 正式 H5 入口（SERVICE_C_DEMO_AUTH=false）：身份与租户只能来自受信身份网关签发的
+ * entryToken——客户端自报的 openid/workspaceKey 只参与一致性校验，不决定身份。
+ * 全部失败在访问数据库之前关闭（fail closed）。
+ */
+async function resolveH5Entry(
+  body: { entryToken?: string; workspaceKey?: string },
+): Promise<{ ok: true; subject: string; workspaceKey: string } | { ok: false; status: 401 | 403 | 503; code: string; error: string }> {
+  const entryToken = body.entryToken?.trim() ?? "";
+  if (!entryToken) {
+    return { ok: false, status: 401, code: "H5_ENTRY_REQUIRED", error: "缺少入口凭据（entryToken），请从服务方提供的入口进入" };
+  }
+  const secret = h5EntrySecret();
+  if (!secret) {
+    return { ok: false, status: 503, code: "H5_ENTRY_UNCONFIGURED", error: "服务端未配置 H5 入口签名密钥（SERVICE_C_H5_ENTRY_SECRET）" };
+  }
+  const payload = await verifyH5EntryToken(entryToken, secret);
+  if (!payload) {
+    return { ok: false, status: 401, code: "H5_ENTRY_INVALID", error: "入口凭据无效或已过期" };
+  }
+  const claimed = body.workspaceKey?.trim() ?? "";
+  if (claimed && claimed !== payload.workspaceKey) {
+    return { ok: false, status: 403, code: "H5_ENTRY_SCOPE_MISMATCH", error: "入口凭据与页面工作区不一致" };
+  }
+  return { ok: true, subject: payload.subject, workspaceKey: payload.workspaceKey };
+}
+
 /* ---------------- 会话 ---------------- */
 serviceGateway.post("/session", async (c) => {
   const requestId = randomUUID();
   try {
-    const body = await bodyOf<{ channel: string; openid: string; nickname: string; code: string }>(c);
+    const body = await bodyOf<{
+      channel: string; openid: string; nickname: string; code: string;
+      entryToken: string; workspaceKey: string;
+    }>(c);
     if (!body.channel || !(CHANNELS as readonly string[]).includes(body.channel)) {
       return c.json({ error: `channel 须为 ${CHANNELS.join("/")}` }, 400);
     }
@@ -207,11 +238,33 @@ serviceGateway.post("/session", async (c) => {
       return c.json({ error: "请求过于频繁（60 次/分钟）" }, 429);
     }
     let openid: string;
+    /** 正式 H5 入口解析出的工作区（来自签名声明）；null = 走演示/单租户口径 */
+    let entryWorkspaceId: string | null = null;
     if (channel === "h5") {
-      // h5 直登仅演示授权放行（S2）
-      if (!DEMO_AUTH) return c.json({ error: "h5 演示直登已关闭（SERVICE_C_DEMO_AUTH=false）" }, 403);
-      if (!body.openid) return c.json({ error: "缺少 openid" }, 400);
-      openid = body.openid;
+      const hasEntryToken = Boolean(body.entryToken?.trim());
+      if (!DEMO_AUTH || hasEntryToken) {
+        // 正式入口：凭据缺失/伪造/跨租户一律在查库前失败关闭
+        const entry = await resolveH5Entry(body);
+        if (!entry.ok) return c.json({ code: entry.code, error: entry.error, requestId }, entry.status);
+        try {
+          entryWorkspaceId = selectServiceWorkspaceId({
+            fixedWorkspaceId: process.env.SERVICE_C_WORKSPACE_ID,
+            workspaceMap: process.env.SERVICE_C_WORKSPACE_MAP,
+            workspaceKey: entry.workspaceKey,
+          });
+        } catch (err) {
+          if (err instanceof ServiceWorkspaceRoutingError) {
+            console.warn(`[service-c] H5 入口工作区路由失败 requestId=${requestId}：${err.message}`);
+            return c.json({ code: "H5_ENTRY_WORKSPACE_UNMAPPED", error: "入口凭据对应的服务站点未配置", requestId }, 503);
+          }
+          throw err;
+        }
+        openid = `h5:${entry.subject}`;
+      } else {
+        // 演示直登（仅 LOCAL/演示部署；生产必须 SERVICE_C_DEMO_AUTH=false）
+        if (!body.openid) return c.json({ error: "缺少 openid" }, 400);
+        openid = body.openid;
+      }
     } else if (DEMO_AUTH && body.openid) {
       openid = body.openid; // 开发态：小程序渠道也允许 openid 直登
     } else {
@@ -221,7 +274,7 @@ serviceGateway.post("/session", async (c) => {
       if (!ex.ok) return c.json({ error: `渠道未配置：${channel}（${ex.reason}）`, requestId }, 503);
       openid = ex.openid;
     }
-    const workspaceId = await cWorkspaceId();
+    const workspaceId = entryWorkspaceId ?? await cWorkspaceId();
     const user = await resolveCUser({ workspaceId, channel, openid, nickname: body.nickname });
     const token = await issueCToken({ workspaceId, cUserId: user.id, channel: user.channel, secret: cSecret() });
     return c.json({ token, user });

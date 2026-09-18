@@ -7,6 +7,7 @@
  */
 import { ensureServiceSchema } from "../../service/store.js";
 import { svcQuery } from "../../service/events.js";
+import { HOTEL_RE_MEMBER, HOTEL_RE_ORDER, HOTEL_RE_ROOM_RATE, hotelTicketKindOf } from "./intent-rules.js";
 import {
   BusinessAdapterError,
   type BusinessContext,
@@ -50,10 +51,6 @@ function benefitsOf(tier: string): string[] {
   return ["积分累积"];
 }
 
-const RE_ORDER = /订单|预订|订房|入住记录|房费|账单/;
-const RE_MEMBER = /会员|积分|等级|权益|余额/;
-const RE_ROOM_RATE = /房价|房型|大床房|双床房|单人房|标准间|套房|海景房|钟点房/;
-
 const HOTEL_DEPARTMENTS: Record<string, string> = {
   complaint: "客服部",
   repair: "工程部",
@@ -78,22 +75,20 @@ export const hotelBizAdapter: ServiceFrontBusinessAdapter = {
   },
 
   classify(text) {
-    if (RE_ROOM_RATE.test(text)) {
+    if (HOTEL_RE_ROOM_RATE.test(text)) {
       return { tool: "query_catalog", answer: "为您查询到以下房型价格：" };
     }
-    if (RE_MEMBER.test(text)) {
+    if (HOTEL_RE_MEMBER.test(text)) {
       return { tool: "query_member", answer: "为您查询到以下会员信息：" };
     }
-    if (RE_ORDER.test(text)) {
+    if (HOTEL_RE_ORDER.test(text)) {
       return { tool: "query_order", answer: "为您查询到以下订单：" };
     }
     return null;
   },
 
   ticketKind(text) {
-    if (/维修|修|坏|故障|漏水|不制冷|不制热|空调|热水|马桶/.test(text)) return "repair";
-    if (/送|拿|打扫|换床单|加一|多要|再来/.test(text)) return "delivery";
-    return null;
+    return hotelTicketKindOf(text);
   },
 
   departmentForTicket(kind) {

@@ -15,6 +15,11 @@ import { searchKB, type KbHit } from "./kb.js";
 import { llmCall } from "./llm.js";
 import { serviceTx, svcQuery } from "./events.js";
 import type { Channel } from "./channels.js";
+import type { ServiceFrontBusinessAdapter } from "./adapters/business.js";
+import {
+  HOTEL_RE_MEMBER, HOTEL_RE_ORDER, HOTEL_RE_ROOM_RATE, HOTEL_RE_TICKET_STATUS,
+  hotelIntentRules, hotelTicketKindOf,
+} from "../industry/hotel/intent-rules.js";
 
 export type Intent = "chat" | "kb_qa" | "biz_query" | "service_request" | "complaint";
 export type BizToolName = "query_order" | "query_member" | "query_catalog" | "query_ticket";
@@ -39,10 +44,6 @@ function newId(prefix: string): string {
 
 /* ================= 意图（M8：复用 base 同一张规则表） ================= */
 
-/** 工单进度查询（server 侧特有 biz_query 子类，先于规则表判定） */
-const RE_TICKET_STATUS = /工单.*(进度|状态|怎么样)|进度.*工单/;
-const RE_ORDER = /订单|预订|订房|入住记录|房费|账单/;
-const RE_MEMBER = /会员|积分|等级|权益|余额/;
 const RE_CATALOG = /房价|房型|多少钱|价格/;
 
 /**
@@ -51,16 +52,15 @@ const RE_CATALOG = /房价|房型|多少钱|价格/;
  * 与「面膜多少钱」「加床一张多少钱」类通用询价严格区分（后者无房型词，仍走 kb_qa 查 FAQ，
  * M8 评测口径 R04/A16/A19/A24 不破坏；base 规则表保持行业无关，D17/D18 不受影响）。
  */
-const RE_ROOM_RATE = /房价|房型|大床房|双床房|单人房|标准间|套房|海景房|钟点房/;
-
 export function classify(text: string): { intent: Intent; tool?: BizToolName } {
-  if (RE_TICKET_STATUS.test(text)) return { intent: "biz_query", tool: "query_ticket" };
-  if (RE_ROOM_RATE.test(text)) return { intent: "biz_query", tool: "query_catalog" };
-  const ruled = ruleBasedIntent(text);
+  if (HOTEL_RE_TICKET_STATUS.test(text)) return { intent: "biz_query", tool: "query_ticket" };
+  if (HOTEL_RE_ROOM_RATE.test(text)) return { intent: "biz_query", tool: "query_catalog" };
+  // 行业词表以 IntentRuleExtension 注入；基座规则表保持行业无关（M8 同一张求值顺序表）
+  const ruled = ruleBasedIntent(text, hotelIntentRules);
   if (ruled === "complaint") return { intent: "complaint" };
   if (ruled === "service_request") return { intent: "service_request" };
   if (ruled === "biz_query") {
-    if (RE_MEMBER.test(text)) return { intent: "biz_query", tool: "query_member" };
+    if (HOTEL_RE_MEMBER.test(text)) return { intent: "biz_query", tool: "query_member" };
     if (RE_CATALOG.test(text)) return { intent: "biz_query", tool: "query_catalog" };
     return { intent: "biz_query", tool: "query_order" };
   }
@@ -70,9 +70,7 @@ export function classify(text: string): { intent: Intent; tool?: BizToolName } {
 
 /** service_request 文本 → 工单类型（修/坏类 → repair；送/拿/打扫类 → delivery；其余 other） */
 export function ticketKindOf(text: string): "repair" | "delivery" | "other" {
-  if (/维修|修|坏|故障|漏水|不制冷|不制热|空调|热水|马桶/.test(text)) return "repair";
-  if (/送|拿|打扫|换床单|加一|多要|再来/.test(text)) return "delivery";
-  return "other";
+  return hotelTicketKindOf(text) ?? "other";
 }
 
 /* ================= 置信度三档（H5） ================= */
@@ -137,6 +135,12 @@ function citationsOf(hits: KbHit[]): Array<{ documentTitle: string; heading: str
 
 export async function handleMessage(input: {
   workspaceId: string; cUserId: string; channel: Channel; text: string; conversationId?: string;
+  /**
+   * 活动行业适配器（由已验证 Bundle 选中；无活动包时为 null）。
+   * biz_query 的行业词与用户文案由它裁决，基座只保留兜底表——考试院收卷
+   * （eval.ts）与生产网关因此走同一条行业口径，评测才不会测出"基座假答案"。
+   */
+  businessAdapter?: ServiceFrontBusinessAdapter | null;
 }): Promise<DialogResult> {
   await ensureServiceSchema();
   const t0 = Date.now();
@@ -149,14 +153,22 @@ export async function handleMessage(input: {
   let result: Omit<DialogResult, "conversationId" | "latencyMs" | "mock">;
 
   if (cls.intent === "biz_query") {
-    const tool = cls.tool!;
     const answers: Record<BizToolName, string> = {
       query_order: "为您查询到以下订单：",
       query_member: "为您查询到会员信息：",
       query_catalog: "为您查询到房型价格：",
       query_ticket: "为您查询到工单进度：",
     };
-    result = { intent: "biz_query", answer: answers[tool], confidence: 0.95, citations: [], toolCall: { tool, params: {} } };
+    // 行业适配器优先：它拥有行业对象词表与中文动作说明；未命中/适配器缺席时回落到本地表
+    const adapterHit = input.businessAdapter?.classify(input.text) ?? null;
+    const tool: BizToolName = adapterHit?.tool ?? cls.tool!;
+    result = {
+      intent: "biz_query",
+      answer: adapterHit?.answer ?? answers[tool],
+      confidence: 0.95,
+      citations: [],
+      toolCall: { tool, params: adapterHit?.params ?? {} },
+    };
   } else if (cls.intent === "complaint") {
     result = {
       intent: "complaint",

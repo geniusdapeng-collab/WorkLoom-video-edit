@@ -2335,7 +2335,17 @@ function defineE2E(): void {
   h2("captain.grant 条款不全被拒（§12.2 逐项确认强制）", async () => {
     const { data } = await api<{ error?: { data?: { httpStatus?: number } } }>("/trpc/captain.grant", {
       method: "POST", token: tokenOwner,
-      body: { clauses: ["自主调价"], autonomy: { price_band: [0.85, 1.15], procurement_cap: 5000, campaign_cap: 2000 }, shadowDays: 3, trialDays: 7, identityConfirmed: true },
+      body: {
+        clauses: ["自主调价"],
+        autonomy: {
+          ranges: { price_quote_band: { label: "调价相对基准区间", lower: 0.85, upper: 1.15, anchor: 1 } },
+          caps: {
+            procurement_cap: { label: "单笔采购上限", limit: 5000 },
+            campaign_cap: { label: "单次活动预算上限", limit: 2000 },
+          },
+        },
+        shadowDays: 3, trialDays: 7, identityConfirmed: true,
+      },
     });
     eq(data.error?.data?.httpStatus, 400, "缺条款 400");
   });
@@ -2557,7 +2567,7 @@ h2("融合·LLM 降级链：死端配置被拒 → mock 兜底应答不断链", 
     eq(routeTier(ch, { action: "inventory.transfer", params: {}, crossWorkspace: true }), "l3_fleet", "跨区 L3");
     // 种子为 trial：降档后采购上限 2500
     const eff = effectiveAutonomy(ch);
-    eq(eff.procurement_cap, 2500, "试用降档生效（5000→2500）");
+    eq(eff.caps["procurement_cap"]?.limit, 2500, "试用降档生效（5000→2500）");
   });
 
   RC("依据链强制：空 basis 请示单拒生成（治理 §九.3）", () => {
@@ -2651,7 +2661,7 @@ h2("融合·LLM 降级链：死端配置被拒 → mock 兜底应答不断链", 
       const r = await runBreakerBeat(app, scope);
       assert(r.tripped && r.tightened, "熔断触发并收紧");
       const ch = await loadCharter(app, scope);
-      eq(ch.autonomy.procurement_cap, 2500, "上限收紧一档（5000→2500）");
+      eq(ch.autonomy.caps["procurement_cap"]?.limit, 2500, "上限收紧一档（5000→2500）");
       assert((await countEvents("ceo.circuit_breaker")) >= 1, "熔断事件留痕");
     } finally { await restoreArchive(arc); }
   });
