@@ -5,6 +5,7 @@
  */
 import { describe, expect, it } from "vitest";
 import { existsSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 import { parseOverlay, OverlayError, type OverlayDoc } from "./model.js";
 import { mergeOverlay, kbEntriesOf, isPresetDisabled, thresholdOf, type BundleAssetView } from "./merge.js";
@@ -165,7 +166,10 @@ describe("合并引擎", () => {
 
 /* ---------- ⑥ 真实酒店行业包试点（双租户） ---------- */
 describe("真实行业包试点（bundles/hotel 双租户）", () => {
-  const hotelDir = join(process.cwd(), "bundles/hotel");
+  // 用 import.meta.url 定位仓库根：process.cwd() 只在包目录下跑测试时才成立，
+  // 在仓库根跑 pnpm test 会找不到资产而静默跳过本用例（#25 同类路径缺陷）。
+  const repoRoot = fileURLToPath(new URL("../../..", import.meta.url));
+  const hotelDir = join(repoRoot, "bundles/hotel");
   const skip = !existsSync(join(hotelDir, "bundle.json"));
 
   it.skipIf(skip)("云栖亲子店 vs 云栖商务店：同一酒店包两种脾气", async () => {
