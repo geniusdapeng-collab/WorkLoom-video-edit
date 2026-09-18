@@ -1,13 +1,13 @@
 /**
- * QuestlineHud · 首日上岗常驻入口（狐狸先生待命位）
+ * QuestlineHud · 首日上岗常驻入口（织伴 · 首席增长官待命位）
  *
- * 从欢迎仪式结束到五关走完，狐狸先生一直待在经营主页左下角：
+ * 从欢迎仪式结束到五关走完，织伴一直待在经营主页左下角：
  *  - 未开始/进行中：显示"还差 N 关"，点一下继续；
  *  - 已完成：缩成小徽章，可重播，避免长期占屏。
  */
 import type { QuestLevel, QuestProgressSummary } from "../../onboarding/questline";
 import { useQuestlineContent } from "../../onboarding/QuestlineContent";
-import { FoxGuide } from "./FoxGuide";
+import { MateGuideAvatar } from "./MateGuideAvatar";
 
 export interface QuestlineHudProps {
   summary: QuestProgressSummary;
@@ -35,10 +35,10 @@ export function QuestlineHud({ summary, level, xp, achievements, serverXp, compl
     >
       <div className="pointer-events-auto flex min-w-0 items-end gap-2">
         <span className="hidden shrink-0 sm:inline-flex">
-          <FoxGuide size={72} mood={completed ? "celebrate" : "listen"} />
+          <MateGuideAvatar size={64} mood={completed ? "celebrate" : "listen"} />
         </span>
         <span className="shrink-0 sm:hidden">
-          <FoxGuide size={48} mood={completed ? "celebrate" : "listen"} />
+          <MateGuideAvatar size={44} mood={completed ? "celebrate" : "listen"} />
         </span>
         <div className="min-w-0 max-w-[15rem] rounded-2xl border border-gline/60 bg-panel/90 px-3 py-2 shadow-xl backdrop-blur">
           <div className="flex min-w-0 items-center gap-2">

@@ -20,8 +20,8 @@ import {
 } from "../../onboarding/questline";
 import { coreCardIds, stageDef, type TaskCardDef } from "../../onboarding/questline.config";
 import { useQuestlineContent } from "../../onboarding/QuestlineContent";
-import { FoxGuide, type FoxMood } from "./FoxGuide";
-import { FoxGuideBubble } from "./FoxGuideBubble";
+import { MateGuideAvatar, type GuideMood } from "./MateGuideAvatar";
+import { MateGuideBubble } from "./MateGuideBubble";
 import {
   ApproveStage,
   CompletionPanel,
@@ -139,7 +139,7 @@ export function QuestlineOverlay({
     window.setTimeout(() => setToast(""), ms);
   }, []);
 
-  /* 停留 9 秒未操作 → 狐狸先生给提示（不打断，不清空输入） */
+  /* 停留 9 秒未操作 → 织伴给提示（不打断，不清空输入） */
   useEffect(() => {
     if (!open) return;
     setHintVisible(false);
@@ -354,11 +354,11 @@ export function QuestlineOverlay({
     window.location.assign(to);
   };
 
-  // 关闭时由 QuestlineHud 接管"狐狸先生待命位"，这里不重复渲染
+  // 关闭时由 QuestlineHud 接管"织伴待命位"，这里不重复渲染
   if (!open) return null;
 
   const completed = state.status === "completed";
-  const mood: FoxMood = completed
+  const mood: GuideMood = completed
     ? "celebrate"
     : state.stage === "approve"
       ? pendingApproval ? "alert" : "think"
@@ -389,7 +389,7 @@ export function QuestlineOverlay({
             <span className="rounded border border-gold/60 bg-gold/10 px-2 py-0.5 text-body font-black tracking-widest text-gold">
               {content.journeyName}
             </span>
-            <span className="text-body text-ink3">{content.mateName}陪您走</span>
+            <span className="text-body text-ink3">{content.mateName}（{content.mateRole}）陪您走</span>
             <span className="flex-1" />
             <span className="text-body text-ink3">董事长等级 {level.level} · {level.rank}</span>
             <span className="font-mono text-body text-goldhi">{xp} XP</span>
@@ -446,11 +446,11 @@ export function QuestlineOverlay({
           {completed ? (
             <div className="min-w-0 space-y-3">
               <div className="mx-auto flex justify-center">
-                <FoxGuide size={104} mood="celebrate" />
+                <MateGuideAvatar size={96} mood="celebrate" />
               </div>
               <CompletionPanel onNext={openNextStep} />
               {/* 完成时也要"开口"：既是收尾台词，也把字幕条刷新到当前这句话 */}
-              <FoxGuideBubble text={bubbleText} tone="gold" />
+              <MateGuideBubble text={bubbleText} tone="gold" />
             </div>
           ) : (
             <>
@@ -583,16 +583,16 @@ export function QuestlineOverlay({
           )}
         </section>
 
-        {/* 底部：狐狸先生 + 主按钮 */}
+        {/* 底部：织伴 + 主按钮 */}
         {!completed && (
           <footer className="min-w-0 rounded-2xl border border-gline/50 bg-panel/85 px-4 py-3">
             <div className="flex min-w-0 items-end gap-3">
-              {/* 窄屏隐藏狐狸立绘、只留台词气泡：移动端把屏留给可点的卡片 */}
+              {/* 窄屏隐藏织伴形象、只留台词气泡：移动端把屏留给可点的卡片 */}
               <span className="hidden shrink-0 sm:inline-flex">
-                <FoxGuide size={92} mood={mood} speaking />
+                <MateGuideAvatar size={84} mood={mood} speaking />
               </span>
               <div className="min-w-0 flex-1">
-                <FoxGuideBubble text={bubbleText} tone={state.stage === "approve" ? "warn" : "default"}>
+                <MateGuideBubble text={bubbleText} tone={state.stage === "approve" ? "warn" : "default"}>
                   <StageActions
                     stage={state.stage}
                     busy={busy}
@@ -618,7 +618,7 @@ export function QuestlineOverlay({
                           : undefined}
                     disabled={state.stage === "goal" && !goalId && goalFree.trim().length === 0}
                   />
-                </FoxGuideBubble>
+                </MateGuideBubble>
               </div>
             </div>
           </footer>

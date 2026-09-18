@@ -23,8 +23,8 @@ import { AudioEngine } from "../../audio/AudioEngine";
 import { useAmbience } from "../../audio/ambience";
 import { AudioSettings } from "../../components/AudioSettings";
 import { ValueCounters } from "../../components/ValueCounters";
-import { QuestlineHud } from "../../components/fox-guide/QuestlineHud";
-import { QuestlineOverlay } from "../../components/fox-guide/QuestlineOverlay";
+import { QuestlineHud } from "../../components/mate-guide/QuestlineHud";
+import { QuestlineOverlay } from "../../components/mate-guide/QuestlineOverlay";
 import { useQuestline } from "../../onboarding/useQuestline";
 import { EMPTY_FACTS, factsFromRecentActions, type QuestFacts } from "../../onboarding/questline";
 import { questlineForBundle } from "../../onboarding/questline.config";
@@ -245,7 +245,7 @@ export default function P0() {
   const [data, setData] = useState<Theater | null>(null);
   const [queue, setQueue] = useState<ChairmanItem[]>([]);
 
-  /* ---- 首日上岗（狐狸先生带玩）：进度本地持久化，关卡推进只认客户操作与真实事实 ---- */
+  /* ---- 首日上岗（织伴 · 首席增长官带玩）：进度本地持久化，关卡推进只认客户操作与真实事实 ---- */
   const [questFacts, setQuestFacts] = useState<QuestFacts>(EMPTY_FACTS);
   const [serverXp, setServerXp] = useState<number | null>(null);
   const memberNo = subject?.memberNo ?? null;
@@ -761,7 +761,7 @@ export default function P0() {
         />
       )}
       {/* 新闻台字幕条（语音字幕等价物 + 降级兜底） */}
-      {/* 首日上岗：常驻入口（狐狸先生待命位）+ 引导壳（五关）；内容包随活动 Bundle 切换 */}
+      {/* 首日上岗：常驻入口（织伴待命位）+ 引导壳（五关）；内容包随活动 Bundle 切换 */}
       {questlineContent && (
         <QuestlineContentProvider content={questlineContent}>
           {!showWelcome && (

@@ -11,19 +11,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { MateLive2D, type MateMood, type MateGesture } from "./loommate/MateLive2D";
 import { VoiceEngine } from "../voice/VoiceEngine";
+import { MATE_VOICE_PROFILE } from "../voice/mateVoice";
 import { mateScriptOf, type BundleWelcomeProjection, type MateScript } from "./welcomeScripts";
 import { Icon } from "@workloom/ui";
 
-/** 织伴仪式音色（清晰优先；段间由真实 TTS 完成事件衔接） */
-const CEREMONY_VOICE = {
-  // 音高只做轻微修饰；1.2 会让系统 TTS 出现金属感和齿音。
-  pitch: 1.04,
-  rate: 0.94,
-  female: true,
-  // 中文名与本机实际音色名同列：macOS 的 zh-CN 音色在 Chromium 里叫「婷婷 / 美嘉 / 善怡 / 语舒」，
-  // 只写英文名会匹配不到；VoiceEngine 还会把不发 boundary 的 Eddy/Flo 一族降级兜底。
-  preferredNames: ["Flo", "Tingting", "Xiaoxiao", "Xiaoyi", "Meijia", "Sinji", "婷婷", "美嘉", "善怡", "语舒"],
-};
+/** 织伴音色：与首日上岗引导共用同一档案（见 voice/mateVoice.ts，禁止各写一份） */
+const CEREMONY_VOICE = MATE_VOICE_PROFILE;
 /** 字幕/语音节奏：约 5.8 字/秒 + 段尾缓冲 */
 const segDuration = (text: string) =>
   Math.max(3600, Math.min(40000, Math.round((text.length / 5.8) * 1000) + 900));

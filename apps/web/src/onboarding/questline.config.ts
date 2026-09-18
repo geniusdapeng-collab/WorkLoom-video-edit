@@ -1,18 +1,24 @@
 /**
- * questline.config · 「懂汇报的狐狸先生」首日上岗内容包（酒店获客口径）
+ * questline.config · 「织伴 · 首席增长官」首日上岗内容包
  *
- * 结构上刻意与行业包对齐：NPC 人设 / 员工卡 / 目标模板 / 首单任务卡 / 成就 / 价值口径 / 下一步。
- * 员工卡与首单卡引用的 presetKey 必须是本仓 `bundles/hotel/presets/*.yml` 里真实存在的岗位
- * （questline.test.ts 有门禁断言），台账口径与酒店基线围栏 R1/R2/R6 逐字对齐。
- * 生产化方向（本次不做）：迁到 `bundles/<industry>/onboarding/*.yml`，由
- * `industry-contract` 的 Bundle 投影提供，基座只保留 `questline.ts` 的机制。
+ * 引导人设 = 本产品既有的数字人 **织伴**（昵称小织；产品名是 WorkLoom 织元，两者不要混用，
+ * 详见 docs/first-day-questline.md §3），岗位 = **首席增长官**。
+ * 形象必须是系统内真实形象（`/live2d/mao/poster.png`），禁止手绘/自创替代品。
+ *
+ * 结构上刻意与行业包对齐：人设 / 员工卡 / 目标模板 / 首单任务卡 / 成就 / 价值口径 / 下一步。
+ * 三套内容包（hotel / geo-growth / ai-video）的员工卡与首单卡引用的 presetKey 必须真实存在于
+ * 对应 `bundles/<bundle>/presets/*.yml`，驳回原因必须命中该 Bundle 的反馈枚举表——
+ * 两条都由 questline.test.ts 设门禁。
  *
  * 内容纪律：
- *  - 员工卡里的岗位、职责、航道（围栏）必须与 `bundles/hotel/presets/*.yml` 一致，不自造岗位；
+ *  - 岗位、职责、航道（围栏）逐条对照行业包，不自造岗位、不编造围栏；
+ *  - 文案讲的是本产品的真实闭环：获客五环（意图洞察 → 双域触达 → 四路承接 → 线索转化 → 归因复盘）
+ *    与「您只做三件事：定方向、拍板、收钱」；
  *  - 任何"示例数字"必须带 `sample: true` 标注，界面按演示数据处理；
  *  - 台词每关至少 3 句（进场/等待/过关），单句控制在 42 字以内（"三句话汇报"节奏）。
  */
 import type { VoiceProfile } from "../voice/VoiceEngine";
+import { MATE_VOICE_PROFILE } from "../voice/mateVoice";
 import type { QuestStageId } from "./questline";
 
 export interface QuestScript {
@@ -126,7 +132,7 @@ export interface QuestlineConfig {
  */
 export const QUEST_ACHIEVEMENTS: AchievementDef[] = [
   { id: "aboard", title: "首航就绪", hint: "完成首次欢迎仪式", icon: "rocket", stage: "meet" },
-  { id: "three-keepers", title: "三位当家人", hint: "认识业务、对外、账目的负责人", icon: "team", stage: "meet" },
+  { id: "three-keepers", title: "三位当家人", hint: "认识获客班组的三位当家人", icon: "team", stage: "meet" },
   { id: "first-dispatch", title: "第一次派活", hint: "把第一件活交给数字员工", icon: "tasks", stage: "dispatch" },
   { id: "first-decision", title: "第一次拍板", hint: "完成一次真实审批", icon: "approval", stage: "approve" },
   { id: "first-close", title: "首次闭环", hint: "首单产出被验收", icon: "celebrate", stage: "review" },
@@ -147,40 +153,43 @@ export const QUEST_NEXT_STEPS: NextStepDef[] = [
 ];
 
 /**
- * 行业无关的五关文案（不含任何行业词）。
- * 行业包若要自己的口吻，整段覆盖 stages 即可（酒店包就是这样做的人话版）。
+ * 五关文案（产品级，不含行业私有词）。
+ *
+ * 讲的是本产品的真实闭环：获客五环（意图洞察 → 双域触达 → 四路承接 → 线索转化 → 归因复盘）
+ * 与「您只做三件事：定方向、拍板、收钱」。三套行业内容包共用这段叙事，
+ * 差异只落在员工卡 / 目标卡 / 任务卡 / 驳回枚举上。
  */
 export function genericStages(): QuestStageDef[] {
   return [
     {
       id: "meet",
       badge: "认人",
-      title: "第 1 关 · 认识三位当家人",
-      objective: "知道谁在替您管业务、谁对外发声、谁盯账目，以及他们什么时候必须来问您。",
+      title: "第 1 关 · 认识您的增长班组",
+      objective: "知道谁在替您找人群、做内容、接询盘、算成交——以及他们什么时候必须来问您。",
       primaryLabel: "都认识了",
       script: {
-        enter: "董事长，三句话向您汇报：班组已经全部在岗，今天就能干活，但先认识三位当家人。",
+        enter: "董事长，还是我织伴——在这个系统里我的岗位是首席增长官。三句话汇报：班组已上岗，获客五环今天就能转，但您得先认识几位当家人。",
         hint: "点一下卡片就算认识了。也可以换一批，或者先跳过。",
-        success: "认全了。以后有事，您直接找他们三个就行。",
+        success: "认全了。以后要人群、要内容、要询盘，直接找他们。",
       },
     },
     {
       id: "goal",
-      badge: "定目标",
+      badge: "定方向",
       title: "第 2 关 · 今天最想解决的一件事",
-      objective: "给团队一个明确方向；系统会告诉您谁负责、几步做完、什么时候来问您。",
+      objective: "给团队一个方向：要更多人看见、更多询盘，还是更快成交——谁负责、几步做完、什么时候来问您，我都写清楚。",
       primaryLabel: "就按这个来",
       script: {
-        enter: "团队干活得先知道您要什么。选一个，或者直接跟我说一句。",
-        hint: "三个选项都是本行业最常操心的事；也可以直接说您自己的目标。",
-        success: "收到。我把它拆成任务，派给该负责的人。",
+        enter: "您只做三件事：定方向、拍板、收钱。先从定方向开始——选一个，或者直接跟我说一句。",
+        hint: "三个选项都来自本行业包的真实管线，不是我编的；也可以直接说您自己的目标。",
+        success: "收到。我把它拆成任务，派给该负责的岗位。",
       },
     },
     {
       id: "dispatch",
       badge: "派活",
       title: "第 3 关 · 把第一件活交出去",
-      objective: "亲手派一单，看着它被执行——这是您第一次当「甩手掌柜」。",
+      objective: "亲手派一单，看着它跑起来：挂起、拍板、产出都走真实业务通道。",
       primaryLabel: "派给他",
       script: {
         enter: "光看不算数，得派一单试试。看中哪张卡，拖到人身上也行。",
@@ -192,7 +201,7 @@ export function genericStages(): QuestStageDef[] {
       id: "approve",
       badge: "拍板",
       title: "第 4 关 · 第一次行使拍板权",
-      objective: "在高风险动作上做一次真实决策——AI 永远不替您拍板。",
+      objective: "在高风险动作上做一次真实决策——加投、报价承诺、内容外发，AI 永远不替您拍板。",
       primaryLabel: "就这样定",
       script: {
         enter: "这事按您定的航道必须您拍板。改前改后和依据都在这儿。",
@@ -204,179 +213,114 @@ export function genericStages(): QuestStageDef[] {
       id: "review",
       badge: "验收",
       title: "第 5 关 · 看看今天赚了什么",
-      objective: "验收产出、看到价值计数，并决定下一步往哪走。",
+      objective: "验收产出、看归因结果，再决定下一步往哪走。",
       primaryLabel: "我看到了",
       script: {
-        enter: "活干完了。您花了几分钟，团队替您跑了这些事——我念给您听。",
+        enter: "活干完了。您花了几分钟，团队替您跑了这些事——归因链我念给您听。",
         hint: "没有回执的事我不会说「已完成」，这几项都是账本里查得到的。",
-        success: "首日上岗完成。从今晚开始，夜班也能交给他们。",
+        success: "首日上岗完成。今晚夜班接着跑，明早 8:30 给您战报。",
       },
     },
   ];
 }
 
-/** 狐狸先生音色：沉稳、比织伴略低略慢，避免两个角色在字幕条上被认成同一个人 */
-export const FOX_MATE_VOICE: VoiceProfile = {
-  // 与织伴（pitch 1.04 / rate 0.94）拉开辨识度：汇报官更低更慢，客户盲听能分清两个人。
-  // 本机实测 zh-CN 可用男声只有 Li-Mu（Eddy/Reed/Flo 一族无 boundary，已由 VoiceEngine 降级兜底）。
-  pitch: 0.86,
-  rate: 0.94,
-  // Eddy/Reed/Flo 一族在 zh-CN 下不出 boundary（口型不同步），由 VoiceEngine 降级兜底；
-  // 这里显式登记本机可用男声（Li-Mu / 云希 / 云健），保证狐狸先生与织伴在音色上分得开。
-  preferredNames: ["Eddy", "Reed", "Yunxi", "Yunjian", "云希", "云健", "李沐", "Li-Mu"],
-};
+/**
+ * 织伴音色：与欢迎仪式共用 `voice/mateVoice.ts` 的同一档案。
+ * 首日上岗里说话的就是织伴本人，不能出现"仪式一个女声、引导一个男声"的双角色错觉。
+ */
+export const MATE_GUIDE_VOICE: VoiceProfile = MATE_VOICE_PROFILE;
 
 export const QUESTLINE: QuestlineConfig = {
   journeyName: "首日上岗",
-  mateName: "狐狸先生",
-  mateRole: "汇报官 · 带玩向导",
+  mateName: "织伴",
+  mateRole: "首席增长官",
   ownerTitle: "董事长",
-  mateVoice: FOX_MATE_VOICE,
+  mateVoice: MATE_GUIDE_VOICE,
 
-  stages: [
-    {
-      id: "meet",
-      badge: "认人",
-      title: "第 1 关 · 认识三位当家人",
-      objective: "知道谁在替您管房价、口碑和账目，以及他们什么时候必须来问您。",
-      primaryLabel: "都认识了",
-      script: {
-        enter: "董事长，三句话向您汇报：班组已经全部在岗，今天就能干活，但先认识三位当家人。",
-        hint: "点一下卡片就算认识了。也可以换一批，或者先跳过。",
-        success: "认全了。以后有事，您直接找他们三个就行。",
-      },
-    },
-    {
-      id: "goal",
-      badge: "定目标",
-      title: "第 2 关 · 今天最想解决的一件事",
-      objective: "给团队一个明确方向；系统会告诉您谁负责、几步做完、什么时候来问您。",
-      primaryLabel: "就按这个来",
-      script: {
-        enter: "团队干活得先知道您要什么。选一个，或者直接跟我说一句。",
-        hint: "三个选项都是酒店最常操心的：差评、房价、账目。",
-        success: "收到。我把它拆成任务，派给该负责的人。",
-      },
-    },
-    {
-      id: "dispatch",
-      badge: "派活",
-      title: "第 3 关 · 把第一件活交出去",
-      objective: "亲手派一单，看着它被执行——这是您第一次当「甩手掌柜」。",
-      primaryLabel: "派给他",
-      script: {
-        enter: "光看不算数，得派一单试试。看中哪张卡，拖到人身上也行。",
-        hint: "每张卡都写清了：谁做、几步、多久、产出什么、要您拍板几次。",
-        success: "活已经派出去了，进度我帮您盯着。",
-      },
-    },
-    {
-      id: "approve",
-      badge: "拍板",
-      title: "第 4 关 · 第一次行使董事长权力",
-      objective: "在高风险动作上做一次真实决策——AI 永远不替您拍板。",
-      primaryLabel: "就这样定",
-      script: {
-        enter: "这事按您定的航道必须您拍板。改前改后和依据都在这儿。",
-        hint: "批准、修改、驳回都行；驳回想写原因就写一句。",
-        success: "记下了，全链留痕。以后这种事只找您一次。",
-      },
-    },
-    {
-      id: "review",
-      badge: "验收",
-      title: "第 5 关 · 看看今天赚了什么",
-      objective: "验收产出、看到价值计数，并决定下一步往哪走。",
-      primaryLabel: "我看到了",
-      script: {
-        enter: "活干完了。您花了几分钟，团队替您跑了这些事——我念给您听。",
-        hint: "没有回执的事我不会说「已完成」，这几项都是账本里查得到的。",
-        success: "首日上岗完成。从今晚开始，夜班也能交给他们。",
-      },
-    },
-  ],
+  stages: genericStages(),
 
+  /* 酒店获客（bundles/hotel）：员工卡取该包真实 preset 与真实围栏（R21/R24/R25/R3/R22/R26/R6/R23） */
   employees: [
     {
-      id: "pricing",
-      presetKey: "pricing-agent",
-      title: "收益定价官",
-      duty: "盯着竞对、房态和历史曲线，给出该涨该降的建议，并在授权范围内直接改价。",
-      fences: ["R1 · 涨幅 ≤8% 自动执行", "R2 · 不低于保底价 ¥380"],
-      tasks: ["复核今日房价建议", "盘点今日订单", "查看房态异常"],
-      sample: "今天竞对三家的均价、您的房态缺口、建议调整的三个房型",
+      id: "intake",
+      presetKey: "ai-receptionist",
+      title: "AI 接待员",
+      duty: "四路承接（评论 / 私信 / 落地页 / AI 搜索锚点）7×24 首响，问清需求留下线索；报价承诺一定先问您。",
+      fences: ["R21 · AI 接待报价承诺必审", "R24 · 客资隐私红线（明文不出系统）"],
+      tasks: ["处理今日询盘", "核对首响时长", "整理待拍板方案"],
+      sample: "今天 6 条询盘的处置记录 + 1 条待您拍板的报价方案",
       sampleIsDemo: true,
     },
     {
-      id: "review",
-      presetKey: "review-agent",
-      title: "口碑公关官",
-      duty: "值守各渠道新评价，差评先写回复草稿，外发前一定请您过目。",
-      fences: ["3 分以下差评必审挂起", "对外回复未经批准不外发"],
-      tasks: ["处理今日住客诉求", "回复差评草稿", "复盘口碑走势"],
-      sample: "今天 2 条差评的回复草稿 + 命中原因（卫生、噪音）",
+      id: "content",
+      presetKey: "content-agent",
+      title: "内容主笔官",
+      duty: "把选题写成短视频脚本与 GEO 图文，一个选题两处变现；对外发布前先过口径校验。",
+      fences: ["R25 · 获客内容口径校验", "R3 · 新渠道首次发布必审"],
+      tasks: ["生成本周双域内容", "改写短视频脚本", "核对口径与引用源"],
+      sample: "本周 5 条选题的双域版本 + 引用源清单",
       sampleIsDemo: true,
     },
     {
-      id: "reconcile",
-      presetKey: "reconcile-agent",
-      title: "财务司库官",
-      duty: "夜里把订单、结算、担保逐笔核对；大额退款和异常账单一定请您拍板。",
-      fences: ["大额退款必审", "担保异常必须人工介入"],
-      tasks: ["检查夜班交接", "复核订单对账", "查看异常账单"],
-      sample: "昨夜 3 笔差异订单 + 建议处置方式（补登、退款、挂账）",
-      sampleIsDemo: true,
-    },
-    {
-      id: "inspection",
-      presetKey: "inspection-agent",
-      title: "品质巡检官",
-      duty: "每天 07:00 只读巡检：价格、房态、评价、违规；异常分级推送，一键派单。",
+      id: "intel",
+      presetKey: "channel-watcher",
+      title: "渠道哨兵官",
+      duty: "盯竞对评论区、OTA 差评与搜索词：先有人群意图，再有内容排期。",
       fences: ["只读巡检，不改任何渠道数据", "异常只推送与派单"],
-      tasks: ["查看今日房态异常", "检查渠道价格", "复查评价违规"],
-      sample: "今晨巡检发现的 2 处价格倒挂、1 处超售风险",
+      tasks: ["扫描今日意图信号", "查竞对价格与动作", "派单给内容/接待"],
+      sample: "今晨 12 条意图信号 + 3 个值得跟的选题",
       sampleIsDemo: true,
     },
     {
-      id: "frontdesk",
-      presetKey: "frontdesk-agent",
-      title: "前台接待官",
-      duty: "入住退房辅助、订单处理、电话呼入记录与交接班清单，夜审协同。",
-      fences: ["订单改价需审批", "住客隐私不外发"],
-      tasks: ["处理今日住客诉求", "生成交接班清单", "跟进待入住订单"],
-      sample: "今日 12 张待入住订单 + 3 条住客特殊需求",
+      id: "coupon",
+      presetKey: "coupon-operator",
+      title: "团购运营官",
+      duty: "把询盘变成券与订单：库存与定价红线自己守住，成交回写到每条内容的来源链上。",
+      fences: ["R22 · 券库存熔断", "R26 · 券定价红线"],
+      tasks: ["复核券转化数据", "生成归因复盘", "查异常订单"],
+      sample: "上周归因成交额 + 三条高转化内容的来源链",
+      sampleIsDemo: true,
+    },
+    {
+      id: "retention",
+      presetKey: "guest-success",
+      title: "住客满意官",
+      duty: "成交之后的复购与口碑：差评先起草回复，对外外发前请您过目。",
+      fences: ["R6 · 差评必审", "R23 · 线索数据出域必审"],
+      tasks: ["回复差评草稿", "维护老客复购", "复盘口碑走势"],
+      sample: "今天 2 条差评的回复草稿 + 复购跟进清单",
       sampleIsDemo: true,
     },
   ],
 
   goals: [
     {
-      id: "review-fast",
-      title: "差评不过夜",
-      metric: "差评 2 小时内响应率 100%",
-      ownerPresetKey: "review-agent",
-      ownerTitle: "口碑公关官",
-      artifact: "今日差评处置清单（含回复草稿）",
+      id: "lead-24h",
+      title: "询盘不过夜",
+      metric: "私域询盘 30 秒首响率 100%",
+      ownerPresetKey: "ai-receptionist",
+      ownerTitle: "AI 接待员",
+      artifact: "询盘处置记录（含待拍板方案）",
       steps: 3,
       approvals: 1,
     },
     {
-      id: "price-safe",
-      title: "房价不踏空",
-      metric: "未来 7 天不空房、也不跌破保底价",
-      ownerPresetKey: "pricing-agent",
-      ownerTitle: "收益定价官",
-      artifact: "未来 7 天价格建议表",
+      id: "dual-publish",
+      title: "内容双域齐发",
+      metric: "短视频与 GEO 图文同源发布，口径零违规",
+      ownerPresetKey: "content-agent",
+      ownerTitle: "内容主笔官",
+      artifact: "双域内容排期 + 口径校验记录",
       steps: 4,
-      approvals: 2,
+      approvals: 1,
     },
     {
-      id: "books-clear",
-      title: "账目不过夜",
-      metric: "昨日订单 100% 对平",
-      ownerPresetKey: "reconcile-agent",
-      ownerTitle: "财务司库官",
-      artifact: "昨日对账差异单",
+      id: "attribution",
+      title: "归因到钱",
+      metric: "每条线索带来源链，成交可回写到内容",
+      ownerPresetKey: "coupon-operator",
+      ownerTitle: "团购运营官",
+      artifact: "归因成交清单（含来源链）",
       steps: 3,
       approvals: 1,
     },
@@ -384,40 +328,40 @@ export const QUESTLINE: QuestlineConfig = {
 
   tasks: [
     {
-      id: "inspect-today",
-      title: "查一遍今天的房态与价格异常",
-      ownerPresetKey: "inspection-agent",
-      ownerTitle: "品质巡检官",
-      steps: 3,
-      eta: "约 2 分钟",
-      artifact: "异常清单（价格倒挂 / 超售 / 渠道违规）",
-      approvals: 0,
-      credits: 12,
-      dispatchTitle: "巡检今天的房态与渠道价格，产出异常清单与处置建议",
-    },
-    {
-      id: "guest-request",
-      title: "处理今天住客的诉求",
-      ownerPresetKey: "frontdesk-agent",
-      ownerTitle: "前台接待官",
+      id: "intake-clear",
+      title: "处理今天的询盘与评论",
+      ownerPresetKey: "ai-receptionist",
+      ownerTitle: "AI 接待员",
       steps: 3,
       eta: "约 3 分钟",
-      artifact: "诉求处置记录 + 需要您拍板的补偿方案",
+      artifact: "询盘处置记录 + 需要您拍板的报价方案",
       approvals: 1,
-      credits: 18,
-      dispatchTitle: "处理今天住客的诉求，输出处置记录与需要董事长拍板的方案",
+      credits: 12,
+      dispatchTitle: "处理今天各渠道的询盘与评论，输出处置记录与需要拍板的报价方案",
     },
     {
-      id: "price-review",
-      title: "复核今天的房价建议",
-      ownerPresetKey: "pricing-agent",
-      ownerTitle: "收益定价官",
+      id: "dual-content",
+      title: "把本周选题做成双域内容",
+      ownerPresetKey: "content-agent",
+      ownerTitle: "内容主笔官",
       steps: 4,
       eta: "约 4 分钟",
-      artifact: "调价建议表（含依据与保底价校验）",
+      artifact: "短视频脚本 + GEO 图文 + 引用源清单",
       approvals: 1,
       credits: 24,
-      dispatchTitle: "复核今天的房价建议，给出调价依据与保底价校验，越线部分提请审批",
+      dispatchTitle: "生成本周双域内容（短视频脚本与 GEO 图文），整理引用源与口径校验清单，发布前提请审批",
+    },
+    {
+      id: "attribution-review",
+      title: "复核本周归因复盘",
+      ownerPresetKey: "coupon-operator",
+      ownerTitle: "团购运营官",
+      steps: 3,
+      eta: "约 3 分钟",
+      artifact: "归因成交清单 + 券转化数据",
+      approvals: 1,
+      credits: 18,
+      dispatchTitle: "复核本周券转化与归因数据，输出归因成交清单与下一步建议，异常部分提请审批",
     },
   ],
 
@@ -429,8 +373,10 @@ export const QUESTLINE: QuestlineConfig = {
 
   // 酒店包枚举表（bundles/hotel/feedback-enums.yml）：服务端会校验 code 已登记
   rejectReasons: [
-    { code: "price.too_high", label: "涨幅过大" },
-    { code: "data.stale", label: "依据不足" },
+    { code: "reply.tone", label: "回复语气不符" },
+    { code: "reply.fact_wrong", label: "事实性错误（房态/政策/订单）" },
+    { code: "amount.too_high", label: "金额过高" },
+    { code: "data.stale", label: "数据陈旧/依据不足" },
     { code: "other", label: "其他（我补一句）" },
   ],
 };
@@ -444,10 +390,10 @@ export const QUESTLINE: QuestlineConfig = {
  */
 export const QUESTLINE_GEO: QuestlineConfig = {
   journeyName: "首日上岗",
-  mateName: "狐狸先生",
-  mateRole: "汇报官 · 带玩向导",
+  mateName: "织伴",
+  mateRole: "首席增长官",
   ownerTitle: "董事长",
-  mateVoice: FOX_MATE_VOICE,
+  mateVoice: MATE_GUIDE_VOICE,
 
   stages: genericStages(),
 
@@ -593,10 +539,10 @@ export const QUESTLINE_GEO: QuestlineConfig = {
 
 export const QUESTLINE_VIDEO: QuestlineConfig = {
   journeyName: "首日上岗",
-  mateName: "狐狸先生",
-  mateRole: "汇报官 · 带玩向导",
+  mateName: "织伴",
+  mateRole: "首席增长官",
   ownerTitle: "董事长",
-  mateVoice: FOX_MATE_VOICE,
+  mateVoice: MATE_GUIDE_VOICE,
 
   stages: genericStages(),
 

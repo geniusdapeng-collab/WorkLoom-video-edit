@@ -27,10 +27,12 @@ import {
   QUESTLINE_GEO,
   QUESTLINE_PACKS,
   QUESTLINE_VIDEO,
+  MATE_GUIDE_VOICE,
   coreCardIds,
   questlineForBundle,
   stageDef,
 } from "./questline.config";
+import { MATE_VOICE_PROFILE } from "../voice/mateVoice";
 
 const facts = (patch: Partial<QuestFacts> = {}): QuestFacts => ({ ...EMPTY_FACTS, ...patch });
 
@@ -274,6 +276,25 @@ describe("内容包完整性（行业可替换的硬约束）", () => {
     expect(questlineForBundle("some-other-industry")).toBeNull();
     expect(questlineForBundle(null)).toBeNull();
     expect(questlineForBundle("  ")).toBeNull();
+  });
+
+  it("人设与音色：三套内容包都是织伴（首席增长官），音色与欢迎仪式同源", () => {
+    // 产品既有数字人 = 织伴（昵称小织），产品名 = WorkLoom 织元；引导岗位 = 首席增长官。
+    // 不许出现第二个角色名，也不许给引导单独配一套音色（否则同一屏里织伴像两个人）。
+    for (const content of Object.values(QUESTLINE_PACKS)) {
+      expect(content.mateName).toBe("织伴");
+      expect(content.mateRole).toBe("首席增长官");
+      expect(content.mateVoice).toBe(MATE_VOICE_PROFILE);
+      expect(content.mateVoice.female).toBe(true);
+    }
+    // 与欢迎仪式共用同一档案（导入的是同一个对象，不是各写一份相同数值）
+    expect(QUESTLINE.mateVoice).toBe(MATE_GUIDE_VOICE);
+    // 台词里不得残留迁移前的角色名
+    for (const content of Object.values(QUESTLINE_PACKS)) {
+      const text = JSON.stringify(content);
+      expect(text.includes("狐狸")).toBe(false);
+      expect(text.includes("汇报官")).toBe(false);
+    }
   });
 
   it("三位当家人 = 内容包前三张卡（机制里不得硬编码岗位 id）", () => {
