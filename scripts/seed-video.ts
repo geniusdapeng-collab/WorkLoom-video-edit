@@ -369,6 +369,26 @@ async function main() {
   }
   console.log(`✓ 官方技能 ×${skillsDocs.length} 已安装`);
 
+  /**
+   * 装配台账登记（bundle_installs）：游客首启入口按「is_example + 该 Bundle 有 active 安装行」
+   * 发现示例工作区，漏登记会导致 ai-video 演示工作区进不去。与 scripts/seed.ts 同口径。
+   */
+  await q(
+    `INSERT INTO bundle_installs (id, workspace_id, bundle_id, assets, status)
+     VALUES ($1,$2,'ai-video',$3,'active')
+     ON CONFLICT (id) DO NOTHING`,
+    [
+      `bi-${WS_ID}-ai-video`,
+      WS_ID,
+      JSON.stringify({
+        preset_ids: presets.map((p) => `agt-${p.preset_key}`),
+        fence_rule_ids: fences.map((r) => `fr-${r.rule_id.toLowerCase()}-v1-${WS_ID}`),
+        skill_ids: skillsDocs.map((s) => `skill-${s.name}`),
+      }),
+    ],
+  );
+  console.log("✓ 装配台账登记（bundle_installs）");
+
   // 工艺技能库注册（203 好莱坞 + 20 营销 → 技能广场可见；team 级已装）
   const craftSkills = loadLibrarySkills();
   for (const s of craftSkills) {

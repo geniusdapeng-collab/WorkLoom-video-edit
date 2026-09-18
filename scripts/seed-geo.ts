@@ -390,6 +390,29 @@ async function main() {
   }
   console.log(`✓ GEO 官方技能 ×${skillsDocs.length} 已安装`);
 
+  /**
+   * 装配台账登记（bundle_installs）。
+   *
+   * 游客首启入口（accounts.guestEnter）按「is_example=true + 该 Bundle 有 active 安装行」
+   * 自动发现示例工作区；漏登记这一行时，产品默认演示工作区（geo-growth）根本进不去——
+   * 前端只会看到"示例工作区未就绪（首启种子未完成）"。与 scripts/seed.ts 同口径。
+   */
+  await q(
+    `INSERT INTO bundle_installs (id, workspace_id, bundle_id, assets, status)
+     VALUES ($1,$2,'geo-growth',$3,'active')
+     ON CONFLICT (id) DO NOTHING`,
+    [
+      `bi-${WS_ID}-geo-growth`,
+      WS_ID,
+      JSON.stringify({
+        preset_ids: presets.map((p) => `agt-${p.preset_key}`),
+        fence_rule_ids: fences.map((r) => `fr-${r.rule_id.toLowerCase()}-v1-${WS_ID}`),
+        skill_ids: skillsDocs.map((s) => `skill-${s.name}`),
+      }),
+    ],
+  );
+  console.log("✓ 装配台账登记（bundle_installs）");
+
   // 自动化触发器（4 条主干管线节拍 + CEO Loop）
   const triggers = [
     { id: "tg-geo-intel-0700", name: "情报站每日 07:00 刷新", kind: "cron", schedule: "0 7 * * *", action: { dispatch: "geo-researcher", template: "intel.collect" } },
