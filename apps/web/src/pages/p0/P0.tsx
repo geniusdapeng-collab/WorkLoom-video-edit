@@ -23,6 +23,12 @@ import { AudioEngine } from "../../audio/AudioEngine";
 import { useAmbience } from "../../audio/ambience";
 import { AudioSettings } from "../../components/AudioSettings";
 import { ValueCounters } from "../../components/ValueCounters";
+import { QuestlineHud } from "../../components/fox-guide/QuestlineHud";
+import { QuestlineOverlay } from "../../components/fox-guide/QuestlineOverlay";
+import { useQuestline } from "../../onboarding/useQuestline";
+import { EMPTY_FACTS, factsFromRecentActions, type QuestFacts } from "../../onboarding/questline";
+import { questlineForBundle } from "../../onboarding/questline.config";
+import { QuestlineContentProvider } from "../../onboarding/QuestlineContent";
 import { useTheaterDiff } from "../../lib/theaterDiff";
 import { displayNameOf, hydrateAliases, reportTitleOf, selectReporters } from "../../lib/naming";
 import { Link } from "react-router";
@@ -196,7 +202,7 @@ function TypeBubble({ text, tone }: { text: string; tone: string }) {
 
 /* ================= 主组件 ================= */
 export default function P0() {
-  const { bundle, entries, canAction } = useNavigationAccess();
+  const { bundle, entries, canAction, subject } = useNavigationAccess();
   const canDispatch = canAction("task.dispatch");
   const canApprove = canAction("approval.decide");
   const canReadApprovals = entries.some((entry) => entry.route === "/approvals");
@@ -238,6 +244,78 @@ export default function P0() {
   }, []);
   const [data, setData] = useState<Theater | null>(null);
   const [queue, setQueue] = useState<ChairmanItem[]>([]);
+
+  /* ---- 首日上岗（狐狸先生带玩）：进度本地持久化，关卡推进只认客户操作与真实事实 ---- */
+  const [questFacts, setQuestFacts] = useState<QuestFacts>(EMPTY_FACTS);
+  const [serverXp, setServerXp] = useState<number | null>(null);
+  const memberNo = subject?.memberNo ?? null;
+  // S3：跨页面事实由剧场 ticker（近 14 条真实事件）推导——
+  // 3D 职场拖拽派活、AskRail 派活、审批中心拍板都能被认出来，而不是只认引导层里的动作。
+  const tickerFacts = useMemo(
+    () => factsFromRecentActions(
+      (data?.ticker ?? []).map((item) => ({ action: item.action, who: item.who })),
+      memberNo,
+    ),
+    [data?.ticker, memberNo],
+  );
+  const questlineFacts = useMemo<QuestFacts>(
+    () => ({
+      ...questFacts,
+      dispatched: questFacts.dispatched || tickerFacts.dispatched,
+      decided: questFacts.decided || tickerFacts.decided,
+      approvalsAvailable: queue.length > 0,
+    }),
+    [questFacts, tickerFacts, queue.length],
+  );
+  // 欢迎仪式走完才算"起跑线"；中途暂停欢迎的客户仍可从左下角手动开始
+  const questlineReady = Boolean(!showWelcome && welcome && welcome.status === "completed");
+  // 内容包随当前活动 Bundle 切换（酒店/GEO/短视频各一套）；解析不到就不显示引导，
+  // 宁可不引导，也不能把别的行业的岗位与人设塞给客户。
+  const questlineContent = useMemo(() => questlineForBundle(bundleId), [bundleId]);
+  const questline = useQuestline({
+    ready: questlineReady && questlineContent !== null,
+    facts: questlineFacts,
+    ...(questlineContent ? { content: questlineContent } : {}),
+  });
+  // M1：等级/XP 以团队页同源（roster 30 天事件投影）为准，避免同一屏出现两个"董事长等级"
+  useEffect(() => {
+    if (!questlineReady || !memberNo) return;
+    let stopped = false;
+    const loadXp = async () => {
+      try {
+        await ensureDemoLogin();
+        const roster = await trpc.roster.list.query() as { humans?: Array<{ memberNo: string; game?: { xp?: number } }> };
+        if (stopped) return;
+        const mine = (roster.humans ?? []).find((h) => h.memberNo === memberNo);
+        if (mine?.game && typeof mine.game.xp === "number") setServerXp(mine.game.xp);
+      } catch {
+        /* 取不到就不显示累计口径，退回本次会话 XP */
+      }
+    };
+    void loadXp();
+    const timer = window.setInterval(() => void loadXp(), 60_000);
+    return () => {
+      stopped = true;
+      window.clearInterval(timer);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [questlineReady, memberNo]);
+  const markQuestFact = (key: keyof QuestFacts, value: boolean) => {
+    setQuestFacts((current) => (current[key] === value ? current : { ...current, [key]: value }));
+  };
+  const pendingApproval = useMemo(() => {
+    const first = queue[0];
+    if (!first) return null;
+    const action = first.snapshot.action ?? first.payload.decision.action;
+    return {
+      approvalId: first.approval_id,
+      title: clientChineseText(first.snapshot.title, actionText(action)),
+      actionLabel: actionText(action),
+      ...(first.snapshot.ceo_rationale
+        ? { rationale: clientChineseText(first.snapshot.ceo_rationale, "负责人意见待确认") }
+        : {}),
+    };
+  }, [queue]);
   const [pick, setPick] = useState<Satellite | null>(null);
   const [input, setInput] = useState("");
   const [chat, setChat] = useState<Array<{ from: "me" | "ceo"; text: string }>>([]);
@@ -683,6 +761,41 @@ export default function P0() {
         />
       )}
       {/* 新闻台字幕条（语音字幕等价物 + 降级兜底） */}
+      {/* 首日上岗：常驻入口（狐狸先生待命位）+ 引导壳（五关）；内容包随活动 Bundle 切换 */}
+      {questlineContent && (
+        <QuestlineContentProvider content={questlineContent}>
+          {!showWelcome && (
+            <QuestlineHud
+              summary={questline.summary}
+              level={questline.level}
+              xp={questline.xp}
+              achievements={questline.state.achievements}
+              serverXp={serverXp}
+              completed={questline.state.status === "completed"}
+              onOpen={questline.openQuestline}
+            />
+          )}
+          <QuestlineOverlay
+            open={questline.open && !showWelcome}
+            state={questline.state}
+            level={questline.level}
+            xp={questline.xp}
+            celebration={questline.celebration}
+            canDispatch={canDispatch}
+            canApprove={canApprove}
+            pendingApproval={pendingApproval}
+            onClose={questline.closeQuestline}
+            onCompleteStage={questline.completeCurrent}
+            onSkipStage={questline.skipCurrent}
+            onLightCard={questline.markCard}
+            onFact={markQuestFact}
+            onXp={questline.noteXp}
+            onThreadId={questline.setThreadId}
+            onClearCelebration={questline.clearCelebration}
+            onTrack={questline.track}
+          />
+        </QuestlineContentProvider>
+      )}
       <SubtitleBar channelName={`${wsName} · 晨会`} />
       <RejectDialog
         open={canApprove && rejectTarget !== null}

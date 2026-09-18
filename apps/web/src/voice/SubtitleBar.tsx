@@ -79,6 +79,8 @@ export function SubtitleBar({ channelName = "经营晨会" }: { channelName?: st
         color: fuse ? "#ffdce2" : "#e8edf4",
         background: fuse ? "#a8323f" : "#252a30",
         borderRight: "1px solid rgba(214,220,228,.15)", overflowWrap: "anywhere",
+        // 窄屏（≤430px）不再让台标逐字竖排：定宽截断，把横向空间留给字幕正文
+        flexShrink: 0, whiteSpace: "nowrap", maxWidth: "38vw", overflow: "hidden", textOverflow: "ellipsis",
       }}>
         <span style={{ width: 6, height: 6, borderRadius: 3, background: fuse ? "#fff" : "#e05a6b", boxShadow: "0 0 6px #e05a6b" }} />
         播报台 · {channelName}
