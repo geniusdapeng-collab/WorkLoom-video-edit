@@ -343,7 +343,9 @@ async function main(): Promise<void> {
   /* ---------- PF.5 围栏规则演进流（渲染审批 + 评论三级分流；P5） ---------- */
   scene("PF.5 围栏规则演进流", "主理人/MCN 管理员 · 策略变化时 · 自然语言 → DSL 草稿 → dry-run → 审批 → 激活");
   const rule = {
-    ruleId: "G11", name: "渲染提交单批次 ≤3 镜", level: "review" as const,
+    // HP-02：提案必须是新规则身份——G11 已是 ai-video 基线的 rule_id（单项目算力超预算），
+    // 按基线身份改写 when 会被提案期单调守卫拒绝。G30 为 ai-video/geo 基线未占用的编号。
+    ruleId: "G30", name: "渲染提交单批次 ≤3 镜", level: "review" as const,
     objectTypes: ["render_quota"], actions: ["render.submit"], when: "after.shots > 3",
   };
   step("自然语言输入：「单批次渲染提交超过 3 镜必须审批」（F2.8）→ 转写 DSL 草稿 + 结构化预览");
@@ -357,10 +359,10 @@ async function main(): Promise<void> {
     `${dr.report.impact}${dr.report.wouldBlock.length ? ` · 拦截 ${dr.report.wouldBlock.join("、")}` : ""}`,
   );
   const rulesBefore = await trpc<FenceRuleRow[]>("fence.rules", { token });
-  if (rulesBefore.some((r) => r.rule_id === "G11" && r.status === "active")) {
-    ok("复跑降级：G11 已在上轮审批激活，L2.4「未确认不得激活」以首轮（重置后）运行为准");
+  if (rulesBefore.some((r) => r.rule_id === "G30" && r.status === "active")) {
+    ok("复跑降级：G30 已在上轮审批激活，L2.4「未确认不得激活」以首轮（重置后）运行为准");
   } else {
-    check("dry-run 未确认不得激活（L2.4）", !rulesBefore.some((r) => r.rule_id === "G11" && r.status === "active"));
+    check("dry-run 未确认不得激活（L2.4）", !rulesBefore.some((r) => r.rule_id === "G30" && r.status === "active"));
   }
   const propose = await trpc<{ proposed: boolean; eventId: string }>(
     "fence.confirmDryRun",
@@ -378,10 +380,18 @@ async function main(): Promise<void> {
     check("三手势 · 采纳（F5.3 写回事件库）", dec.status === "approved" && !dec.deduped, `手势事件 ${dec.gestureEventId}`);
   }
   const rulesAfter = await trpc<FenceRuleRow[]>("fence.rules", { token });
-  const g11 = rulesAfter.find((r) => r.rule_id === "G11" && r.status === "active");
-  check("审批通过 → 新版本激活（E1 接线 activateRuleVersion；基线只可加严 F2.3/L2.1）", !!g11, g11 ? `G11 ${g11.version} active` : "未激活");
+  const g30 = rulesAfter.find((r) => r.rule_id === "G30" && r.status === "active");
+  check(
+    "审批通过 → 新版本激活（E1 接线 activateRuleVersion；基线只可加严 F2.3/L2.1）",
+    !!g30 && /^v\d+$/.test(g30.version),
+    g30 ? `G30 ${g30.version} active` : "未激活",
+  );
   const versions = await trpc<Array<{ version: string; status: string }>>("fence.versions", { token });
-  check("版本历史留痕（active/rolled_back/出厂基线 🔒，旧版本可回滚 F2.4）", versions.some((v) => v.version === "v-next" && v.status === "active"));
+  check(
+    "版本历史留痕（HP-02：提案行 v-next → 激活即递增版本，旧版转 rolled_back F2.4）",
+    !!g30 && versions.some((v) => v.version === g30.version && v.status === "active"),
+    g30 ? `当前激活版本 ${g30.version}` : "无激活版本",
+  );
 
   // 渲染审批 / 评论三级分流：基线围栏口径断言（视频语境等价于酒店「调价必审/差评必审」）
   const active = rulesAfter.filter((r) => r.status === "active");

@@ -78,6 +78,23 @@ describe("考试闸 examGate", () => {
     ]));
     expect(r.pass).toBe(false);
   });
+
+  it("HP-02：`rules:` 形态的围栏包同样出题（统一读取口径，不能按 0 条规则静默通过）", async () => {
+    // 本仓行业包（hotel/ai-video/geo-growth）用 `rules:`，出厂包用 `fences:`；
+    // 只读 `fences` 会让 rules 形态的包在考试闸"一条规则都不出"，出题数校验随之失真。
+    const view = makeView();
+    view.fencePacks = [{ rules: [
+      { rule_id: "R-HT1", level: "block", name: "保底价熔断" },
+      { rule_id: "R-HT2", level: "review", name: "差评必审" },
+    ] } as never];
+    const r = await examGate(view, doc([
+      { type: "persona", op: "override", path: "service-front/tone", value: "亲切家庭风" },
+    ]));
+    expect(r.failures).toEqual([]);
+    expect(r.pass).toBe(true);
+    // 2 条规则 → 4 道正反题；若读取口径回退成 `fences`，这里会是 0 道题。
+    expect(r.total).toBe(4 + 1);
+  });
 });
 
 /* ---------- 流水线（内存 store 桩：不走真库，专注编排逻辑） ---------- */

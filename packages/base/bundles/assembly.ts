@@ -20,7 +20,8 @@ import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import pg from "pg";
 import YAML from "yaml";
-import { gatewayAppend, gatewayAppendOnClient } from "../workdata/gateway.js";
+import { gatewayAppend, gatewayAppendOnClient, registerReadActions, registerWriteActions } from "../workdata/gateway.js";
+import { fenceRulesOf } from "../fence-engine/dsl.js";
 import { parseModelPolicy } from "../model-router/policy.js";
 import {
   loadFeedbackEnumsFromBundle,
@@ -666,7 +667,9 @@ export function mergeComposedFenceRules(
   const merged = new Map<string, { bundleId: string; packVersion: string; rule: FenceRuleYml }>();
   for (const { bundleId, pack } of packs) {
     const packVersion = pack.version ?? "unknown";
-    for (const rule of pack.rules ?? []) {
+    // HP-02：并集读取口径统一走 fenceRulesOf（rules ?? fences），否则 `fences:` 形态的
+    // 行业包在组合视图里"一条规则都看不见"，组合并集与运行时判定口径分裂。
+    for (const rule of fenceRulesOf(pack) as FenceRuleYml[]) {
       if (!rule?.rule_id) continue;
       const current = merged.get(rule.rule_id);
       if (!current) {
@@ -1180,6 +1183,8 @@ interface FenceYml {
   version?: string;
   default_level?: "auto" | "review" | "block";
   rules?: FenceRuleYml[];
+  /** HP-02：出厂包存在两种顶层键——hotel/本仓各行业包用 `rules:`，ai-pm/platform 用 `fences:` */
+  fences?: FenceRuleYml[];
 }
 
 interface UiCasesJson {
@@ -1234,10 +1239,11 @@ function loadBundleDiskAssets(dir: string, slug: string): BundleDiskAssets {
   const readDeclaredJson = <T,>(assetPath: string | undefined): T | null => assetPath
     ? readJson<T>(verifiedAssetPath(slug, assetPath, bundleRoot))
     : null;
-  const fenceAssets = provides.fences.map((assetPath) => ({
-    assetPath,
-    value: YAML.parse(readFileSync(verifiedAssetPath(slug, assetPath, bundleRoot), "utf-8")) as FenceYml,
-  }));
+  const fenceAssets = provides.fences.map((assetPath) => {
+    const value = YAML.parse(readFileSync(verifiedAssetPath(slug, assetPath, bundleRoot), "utf-8")) as FenceYml;
+    // HP-02：装配层统一把 `fences:` 形态归一为 `rules:`，后续消费方（覆盖层视图/rebase/计数）只看 rules
+    return { assetPath, value: { ...value, rules: fenceRulesOf(value) as FenceYml["rules"] } };
+  });
   return {
     dir,
     bj,
@@ -1361,6 +1367,15 @@ async function computeAssemblyScoped(
   /* ---------- 槽③ 工具集 + 校验③ 工具探针健康 ---------- */
   const presets = composed.presets;
   const toolNames = [...new Set(presets.flatMap((p) => (p.tools ?? []).map((t) => t.name)))];
+  // HP-02：把本工作区装配声明的工具动作登记进网关动作分类表——
+  // access=write 的工具名成为显式写动作（否则落入"未分类"仍按写，但显式登记才能让
+  // 运维审计看到清单）；access=read 的工具名成为显式只读（避免被 fail-closed 误挂起）。
+  const writeToolNames = [...new Set(presets.flatMap((p) => (p.tools ?? [])
+    .filter((t) => t.access !== "read").map((t) => t.name)))];
+  const readToolNames = [...new Set(presets.flatMap((p) => (p.tools ?? [])
+    .filter((t) => t.access === "read").map((t) => t.name)))];
+  if (writeToolNames.length > 0) registerWriteActions(writeToolNames);
+  if (readToolNames.length > 0) registerReadActions(readToolNames);
   const agentRows = presets.length > 0
     ? (await client.query<{
         id: string; preset_key: string; name: string; version: string;
@@ -1389,8 +1404,11 @@ async function computeAssemblyScoped(
   /* ---------- 槽④ 围栏包 + 校验④ 围栏绑定完整 ---------- */
   const fenceFiles = assets.fenceFiles;
   const fencePacks = composed.fencePacks.map((entry) => entry.pack);
-  const ruleCount = fencePacks.reduce((n, f) => n + (f.rules?.length ?? 0), 0);
-  const baselineCount = fencePacks.reduce((n, f) => n + (f.rules?.filter((r) => r.is_baseline).length ?? 0), 0);
+  // HP-02：规则数与基线数按统一读取口径（rules ?? fences），且行业围栏包内规则默认即基线
+  // （显式 is_baseline:false 才退出基线保护）——否则 ai-pm/platform 这类包会显示"基线 0 条"。
+  const ruleCount = fencePacks.reduce((n, f) => n + fenceRulesOf(f).length, 0);
+  const baselineCount = fencePacks.reduce(
+    (n, f) => n + fenceRulesOf(f).filter((r) => r.is_baseline !== false).length, 0);
   // 每位班组成员：fence_bindings 非空且每条规则在围栏注册表 active（F2.10 未声明即禁写）
   const fenceRuleRows = agentRows.length > 0
     ? (await client.query<{ rule_id: string }>(

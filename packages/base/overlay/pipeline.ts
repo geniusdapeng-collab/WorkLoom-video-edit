@@ -10,6 +10,7 @@
  */
 import type pg from "pg";
 import { compileFenceQuestions, type FenceRuleRow } from "../eval-core/index.js";
+import { fenceRulesOf } from "../fence-engine/dsl.js";
 import { mergeOverlay, type BundleAssetView } from "./merge.js";
 import { OverlayError, type OverlayDoc, type OverlayStatus } from "./model.js";
 import { rollbackToLatestSnapshot, transition, type OverlayScope } from "./store.js";
@@ -88,8 +89,11 @@ export async function examGate(view: BundleAssetView, doc: OverlayDoc): Promise<
   }
   // ② 合并后围栏规则必须可编译为考试院正反题（结构自洽：每条规则都能出正反两题，
   //    且每题断言非空——证明规则是"可考核"的，不是写了句没人能执行的废话）
+  // HP-02：围栏包顶层键有 `rules:`（本仓行业包）与 `fences:`（出厂/样例包）两种形态，
+  // 只读 `fences` 会让 rules 形态的包在考试闸里"出 0 题"——出题数与规则数校验随之失真。
+  // 统一口径走 fenceRulesOf（dsl.ts），与装配计数、覆盖层合并、rebase 判定一致。
   const rules: FenceRuleRow[] = (merged.fencePacks ?? []).flatMap((p, pi) =>
-    (p.fences ?? []).map((f, fi) => ({
+    (fenceRulesOf(p) as Array<{ rule_id?: unknown; level?: unknown }>).map((f, fi) => ({
       id: `fp${pi}-f${fi}`,
       rule_id: String(f.rule_id),
       name: String(f.rule_id),

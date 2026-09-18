@@ -54,11 +54,13 @@ import {
 } from "@workloom/base/night-shift";
 import {
   activateRuleVersion,
+  checkCandidateAgainstBaseline,
   confirmDryRun,
   createDryRun,
   fenceActivationFromProposal,
   fenceRuleRowId,
   loadFencePack,
+  loadActiveRulesInTx,
 } from "@workloom/base/fence-engine";
 import { MAX_CONCURRENT_THREADS, PLAN_TIERS } from "@workloom/shared";
 import {
@@ -150,6 +152,7 @@ import {
   WELCOME_STEPS,
 } from "../service/onboarding-continuity.js";
 import { bundledServiceFrontAvailable, resolveServiceFrontPublication } from "../service/service-front-publication.js";
+import { resolveWorkspaceInspectionAdapter } from "../service/inspection-adapter.js";
 import {
   buildEvolutionScorecard,
   decayMemories,
@@ -1290,7 +1293,11 @@ const inspectionRouter = router({
   }),
   /** 手动跑一轮巡检（生产由触发器引擎 cron 07:00 唤起，F9.1；演示手动触发） */
   run: writeProcedure.mutation(async ({ ctx }) => {
-    return runInspectionScan(getAppPool(), getGatewayPool(), scopeOf(ctx.identity));
+    const scope = scopeOf(ctx.identity);
+    // HP-02 同批次能力：巡检适配器必须来自**已验证的活动 Bundle**——
+    // 未安装/投影损坏/未登记行业全部失败关闭（不静默回落到基座通用检查）。
+    const binding = await resolveWorkspaceInspectionAdapter(scope.workspaceId);
+    return runInspectionScan(getAppPool(), getGatewayPool(), scope, { adapter: binding.adapter });
   }),
   /** 一键派单（F9.3：以异常事件为输入唤起业务 Agent；幂等 L9.3） */
   dispatch: writeProcedure
@@ -2007,6 +2014,21 @@ const fenceRouter = router({
         await client.query("BEGIN");
         await client.query("SELECT set_config('app.workspace_id', $1, true)", [scope.workspaceId]);
         await client.query("SELECT set_config('app.tenant_id', $1, true)", [scope.tenantId]);
+        // HP-02：提案入口即做基线单调守卫——同 rule_id 的基线规则只可加严
+        // （level 不降 / when 不变 / 覆盖集不收窄）。修复前该守卫只在测试里被调用：
+        // 工作区可以把一条 block 基线规则"升级"成 review 或恒假条件，静默架空基线。
+        const activeBaseline = await loadActiveRulesInTx(client, scope);
+        const guard = checkCandidateAgainstBaseline(activeBaseline, {
+          rule_id: input.rule.ruleId, version: "v-next", name: input.rule.name,
+          level: input.rule.level, is_baseline: false,
+          objectTypes: input.rule.objectTypes, actions: input.rule.actions, when: input.rule.when,
+        });
+        if (!guard.ok) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: `围栏基线只可加严，本次变更被拒：${guard.violations.map((v) => v.reason).join("；")}`,
+          });
+        }
         const rowId = fenceRuleRowId(input.rule.ruleId, scope.workspaceId);
         await client.query(
           `INSERT INTO fence_rules (id, rule_id, version, workspace_id, name, level, match_spec, action, is_baseline, status, created_by)
@@ -2222,10 +2244,15 @@ const rosterRouter = router({
         const fences = agent.fence_bindings.length === 0 ? [] : (await client.query<{
           rule_id: string; name: string; level: string; version: string; is_baseline: boolean;
         }>(
+          // HP-02：同一 rule_id 可能同时存在全局基线与工作区版本，运行时按 deny 优先并集求值（judge 取最严），
+          // 展示口径必须取「实际生效的最严级别」，不能按 created_at 取最新行——否则界面/航道许可
+          // 会把被基线压住的宽松版本显示为生效规则，与真实拦截不一致（证据保真）。
           `SELECT DISTINCT ON (rule_id) rule_id, name, level, version, is_baseline
            FROM fence_rules
            WHERE (workspace_id=$1 OR workspace_id='*') AND status='active' AND rule_id = ANY($2)
-           ORDER BY rule_id, created_at DESC`,
+           ORDER BY rule_id,
+                    CASE level WHEN 'block' THEN 2 WHEN 'review' THEN 1 ELSE 0 END DESC,
+                    is_baseline DESC, created_at DESC`,
           [scope.workspaceId, agent.fence_bindings],
         )).rows;
 
@@ -3025,9 +3052,11 @@ const captainRouter = router({
         [scope.workspaceId],
       );
       // 展示层过滤：E2E 测试标记（E2E-*）写入的晨报不返回给界面（哈希链不动、套件断言不受影响——套件直接查库）
+      // COALESCE 兜住 after.text 为 NULL 的事件：SQL 里 NULL NOT LIKE 'x' 结果是 NULL，
+      // 会把整行判成"不满足"而丢掉（审计 S3 根因）。
       const briefing = await client.query<{ payload: Record<string, unknown>; created_at: string }>(
         `SELECT payload, created_at FROM biz_events WHERE workspace_id=$1 AND payload->'decision'->>'action' IN ('ceo.briefing','ceo.board_pack')
-         AND payload->'decision'->'after'->>'text' NOT LIKE '%E2E-%'
+         AND COALESCE(payload->'decision'->'after'->>'text','') NOT LIKE '%E2E-%'
          ORDER BY seq DESC LIMIT 1`,
         [scope.workspaceId],
       );
@@ -3044,11 +3073,14 @@ const captainRouter = router({
          ORDER BY 1, seq DESC`,
         [scope.workspaceId],
       );
-      // ticker 同口径过滤测试噪声（E2E 标记与套件 mock 数据不进界面）
+      // ticker 同口径过滤测试噪声（E2E 标记与套件 mock 数据不进界面）。
+      // 注意不能直接写 after->>'text' NOT LIKE ...：dispatch/approve 等事件没有 after.text，
+      // NULL 会让整行被丢掉，导致实况流只剩"带文本"的少数动作（审计 S3/一般缺陷）；
+      // 首日上岗的"跨页面事实推导"（factsFromRecentActions）正是读这份 ticker。
       const events = await client.query<{ event_id: string; action: string; who: string; created_at: string }>(
         `SELECT event_id, payload->'decision'->>'action' AS action, payload->'who'->>'id' AS who, created_at
          FROM biz_events WHERE workspace_id=$1
-         AND payload->'decision'->'after'->>'text' NOT LIKE '%E2E-%'
+         AND COALESCE(payload->'decision'->'after'->>'text','') NOT LIKE '%E2E-%'
          AND payload->'decision'->>'action' NOT LIKE 'test.%'
          ORDER BY seq LIMIT 14`.replace("ORDER BY seq LIMIT", "ORDER BY seq DESC LIMIT"),
         [scope.workspaceId],

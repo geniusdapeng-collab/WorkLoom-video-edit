@@ -352,7 +352,9 @@ async function main(): Promise<void> {
   /* ---------- PF.5 围栏规则演进流（群规 = 可执行规则包；US2.1/US2.2/US2.4；P5） ---------- */
   scene("PF.5 围栏规则演进流", "业主/集团管理员 · 策略变化时 · 自然语言 → DSL 草稿 → dry-run → 审批 → 激活");
   const rule = {
-    ruleId: "R7", name: "飞猪大床房底价 420", level: "block" as const,
+    // HP-02：提案必须是**新规则身份**——基线的 rule_id 只可加严（level 不降 / when 不改 / 覆盖集不收窄），
+    // 复用基线 R7 会被提案期单调守卫拒绝。R27 为酒店基线未占用的编号。
+    ruleId: "R27", name: "飞猪大床房底价 420", level: "block" as const,
     objectTypes: ["room_price"], actions: ["price.adjust"], when: "after.price < 420",
   };
   step("自然语言输入：「飞猪大床房周末不能低于 420」（F2.8）→ 转写 DSL 草稿 + 结构化预览");
@@ -366,10 +368,10 @@ async function main(): Promise<void> {
     `${dr.report.impact}${dr.report.wouldBlock.length ? ` · 拦截 ${dr.report.wouldBlock.join("、")}` : ""}`,
   );
   const rulesBefore = await trpc<Array<{ rule_id: string; status: string }>>("fence.rules", { token });
-  if (rulesBefore.some((r) => r.rule_id === "R7" && r.status === "active")) {
-    ok("复跑降级：R7 已在上轮审批激活，L2.4「未确认不得激活」以首轮（重置后）运行为准");
+  if (rulesBefore.some((r) => r.rule_id === "R27" && r.status === "active")) {
+    ok("复跑降级：R27 已在上轮审批激活，L2.4「未确认不得激活」以首轮（重置后）运行为准");
   } else {
-    check("dry-run 未确认不得激活（L2.4）", !rulesBefore.some((r) => r.rule_id === "R7" && r.status === "active"));
+    check("dry-run 未确认不得激活（L2.4）", !rulesBefore.some((r) => r.rule_id === "R27" && r.status === "active"));
   }
   const propose = await trpc<{ proposed: boolean; eventId: string }>(
     "fence.confirmDryRun",
@@ -387,10 +389,18 @@ async function main(): Promise<void> {
     check("三手势 · 采纳（F5.3 写回事件库）", dec.status === "approved" && !dec.deduped, `手势事件 ${dec.gestureEventId}`);
   }
   const rulesAfter = await trpc<Array<{ rule_id: string; status: string; version: string }>>("fence.rules", { token });
-  const r7 = rulesAfter.find((r) => r.rule_id === "R7" && r.status === "active");
-  check("审批通过 → 新版本激活（E1 接线 activateRuleVersion；基线只可加严 F2.3/L2.1）", !!r7, r7 ? `R7 ${r7.version} active` : "未激活");
+  const r27 = rulesAfter.find((r) => r.rule_id === "R27" && r.status === "active");
+  check(
+    "审批通过 → 新版本激活（E1 接线 activateRuleVersion；基线只可加严 F2.3/L2.1）",
+    !!r27 && /^v\d+$/.test(r27.version),
+    r27 ? `R27 ${r27.version} active` : "未激活",
+  );
   const versions = await trpc<Array<{ version: string; status: string }>>("fence.versions", { token });
-  check("版本历史留痕（active/rolled_back/出厂基线 🔒，旧版本可回滚 F2.4）", versions.some((v) => v.version === "v-next" && v.status === "active"));
+  check(
+    "版本历史留痕（HP-02：提案行 v-next → 激活即递增版本，旧版转 rolled_back F2.4）",
+    !!r27 && versions.some((v) => v.version === r27.version && v.status === "active"),
+    r27 ? `当前激活版本 ${r27.version}` : "无激活版本",
+  );
 
   /* ---------- PF.6 技能沉淀复利流（资产飞轮；US8.1/US8.2/US8.3/US8.4；P6→P2） ---------- */
   scene("PF.6 技能沉淀复利流", "运营/店长/业主 · 工作时段 · 事件流 → 高频检测 → 建议固化 → 人确认 → 安装生效");

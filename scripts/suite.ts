@@ -13,7 +13,7 @@ import { readdirSync } from "node:fs";
 import { createServer, type Server } from "node:http";
 import pg from "pg";
 import { routeIntent, ruleBasedRoute, LlmIntentClassifier, type IntentClassifier } from "@workloom/runtime";
-import { runQuest } from "@workloom/runtime";
+import { runQuest, type QuestPlanner } from "@workloom/runtime";
 import {
   gatewayAppend, gatewayAppendIdempotent, checkPermission, isWriteAction,
   maskText, maskDeep, canonicalJson, eventHash, GENESIS_HASH,
@@ -1786,10 +1786,48 @@ o("晨间问数：口语化提问路由 ask + NL 检索可达", async () => {
 });
 o("晨会派单：一句话调价任务跑通到 completed", async () => {
   const tid = await mkThread();
-  const r = await runQuest(app, gw, scope, { threadId: tid, goal: "把周五主打款调价 5%", presetKey: "pricing-agent" });
+  /**
+   * HP-02：写类动作「未命中规则 → default_level」强制生效后，**无业务参数**的
+   * 通用规划步骤（action=工具名、params 为空）不再静默 auto——这正是失败关闭要防的静默放宽。
+   * 本场景验证的是行业规划器 seam（生产链路 threads.dispatch→threads.run 注入的
+   * acquisitionQuestPlanner 同款形态）：把口语目标直译为带 before/after 的语义动作，
+   * 围栏据此判 R1（涨幅 ≤8% auto）与 R2（保底价 ¥380 熔断）。
+   */
+  const planPrice: QuestPlanner = () => [
+    {
+      stepId: "s1", action: "pms.price.read", objectType: "room_price", tool: "pms.price.read",
+      params: { room_type: "雅致大床房" }, label: "读取雅致大床房当前价格",
+    },
+    {
+      stepId: "s2", action: "price.adjust", objectType: "room_price", objectId: "OBJ-DLX-01",
+      tool: "pms.price.write", params: { room_type: "雅致大床房", price: 468 },
+      before: { price: 458 }, after: { price: 468 },
+      context: { channel_new: false, night_shift: false }, label: "提交价格调整",
+    },
+  ];
+  const r = await runQuest(app, gw, scope, {
+    threadId: tid, goal: "把周五主打款调价 5%", presetKey: "pricing-agent", fallbackPlanner: planPrice,
+  });
   eq(r.status, "completed", "调价任务完成");
   const row = await qApp<{ status: string }>(`SELECT status FROM threads WHERE id=$1`, [tid]);
   eq(row.rows[0]!.status, "completed", "线程状态同步");
+});
+
+o("HP-02 失败关闭：通用规划的写类步骤无规则命中 → 挂起待审而非静默放行", async () => {
+  const tid = await mkThread();
+  // 不注入行业规划器 → 基座确定性规划只给「工具名 + 空参」步骤：
+  // pms.price.write 既不在硬编码写前缀里，也没有任何规则按该动作名/对象名命中，
+  // HP-02 前会被当只读动作直接 auto 完成（静默放宽），现在必须按 default_level 挂起。
+  const r1 = await runQuest(app, gw, scope, { threadId: tid, goal: "把周五主打款调价 5%", presetKey: "pricing-agent" });
+  eq(r1.status, "pending_review", "未分类写动作挂起待审");
+  const apr = await qApp<{ approval_id: string; snapshot: Record<string, unknown> }>(
+    `SELECT approval_id, snapshot FROM approvals WHERE approval_id=$1`,
+    [r1.pendingApprovalId!],
+  );
+  assert(apr.rows[0], "挂起步骤进审批队列（人可介入，不再静默执行）");
+  await decide(app, gw, scope, boss, r1.pendingApprovalId!, { type: "approve" });
+  const r2 = await runQuest(app, gw, scope, { threadId: tid, goal: "把周五主打款调价 5%", presetKey: "pricing-agent" });
+  eq(r2.status, "completed", "批准后恢复续跑完成");
 });
 o("待办巡阅：店长清空 3 条待审批", async () => {
   const a1 = await mkApproval(); const a2 = await mkApproval(); const a3 = await mkApproval();
