@@ -37,16 +37,16 @@ WorkLoom 获客系统是一套**面向 B 端商家的 AI 获客经营系统**：
 **获客的精髓就一句话：在对的地方，用对的内容，接住有意图的人，并且每一环都能度量到钱。**
 
 <!-- CAPABILITIES:BEGIN -->
-<!-- 本区块由 scripts/generate-capabilities.mjs 自动生成（2026-09-02），请勿手改；重跑 pnpm capabilities 更新 -->
+<!-- 本区块由 scripts/generate-capabilities.mjs 自动生成（2026-09-18），请勿手改；重跑 pnpm capabilities 更新 -->
 
 ## 🧩 系统能力速览（自动生成 · 与代码同步）
 
 - 🖥 **三端应用（开箱即看）**：PC 端 · B 端工作台 · 移动端 · B 端高保真 · 移动端 · C 端 AI 服务前台
-- 🧲 **行业 Bundle（垂直能力包）**：bundles/ai-video/ · bundles/geo-growth/ · bundles/hotel/
+- 🏨 **行业 Bundle（垂直能力包）**：bundles/ai-video/ · bundles/geo-growth/ · bundles/hotel/
 - 🖐 **操作电脑能力（本仓自带 · 可装生产工作站）**：computer-use 三层感知（65 动作） · HTTP 远程驱动 + MCP server
-- 🤖 **AI 自动化引擎（系统内置能力）**：围栏 DSL 引擎 · L2 编排（ASK/QUEST） · 夜班自动运行 · 模型路由 · 全平台 RPA 发布 · 五元事件 + RLS 隔离 等 14 项
+- 🤖 **AI 自动化引擎（系统内置能力）**：围栏 DSL 引擎 · 技能保鲜环（下行分发） · L2 编排（ASK/QUEST） · 夜班自动运行 · 模型路由 · 全平台 RPA 发布 等 15 项
 - ✅ **验证与质量（工程纪律）**：一键安装（bootstrap） · 主测试套件 · GEO 域套件 · 酒店域套件 · 发布门禁 · 五元事件验链 等 8 项
-- 🎁 **演示与交付资产**：高保真演示页 ×12 · 官网静态站 · 自带技能 ×8 · 能力导览 PPT · Mock 数据体系
+- 🎁 **演示与交付资产**：高保真演示页 ×12 · 官网静态站 · 自带技能 ×9 · 能力导览 PPT · Mock 数据体系
 
 > 📖 完整能力导览（含截图与体验路径）：[docs/capabilities.auto.md](docs/capabilities.auto.md) ｜ 🤖 AI Agent 入口：[AGENTS.md](AGENTS.md) ｜ 🎯 首启必跑：`pnpm preview:all`
 <!-- CAPABILITIES:END -->

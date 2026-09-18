@@ -413,7 +413,8 @@ WorkData 事件以五元结构记录业务事实（`packages/shared/src/event-sc
 
 - `HP-01`（tenant-overlay）进行中：`AUDITING`；其余 36 项中，`HP-29` `IN_PROGRESS/PARTIAL`、`HP-30` `PARTIAL`、`HP-31` `VERIFYING`，**其余 33 项为 `READY`（尚未审计）**。
 - 三个发布 P1 未修（并入 HP-29）：不可变发行重跑恢复（DEF-P1-0012）、latest 并发 TOCTOU（DEF-P1-0013）、Artifact 来源摘要未贯穿下载边界（DEF-P1-0014）。
-- 下游八仓一般 CI 仍有既有红灯（DEF-P1-0015，typecheck 与 ui-contract，属 SC-4 之前债务）。
+- DEF-P1-0015 已清偿（2026-09-18 审计）：全仓 `tsc --noEmit` 零错误、ui-contract 通过、
+  真库用例（`RUN_DB_TESTS=1`）与全场景套件 459/459 通过，`.cnb.yml` test-gate 已转为必需门禁。
 - 自动 fanout 的 GitHub App 未配置（DEF-P2-0016），此前同步为手工受控；迁移到 CNB 后需重新设计。
 - 桌面真实签名/公证/Bundle 私钥 secrets 未配置（BLK-B-01-003），阻断真实 desktop 发行，不阻断代码合并。
 - 权威审计台账的私有落点未定（BLK-CTL-05-001）。

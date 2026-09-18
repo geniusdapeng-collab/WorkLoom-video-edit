@@ -269,6 +269,22 @@ export const BundleDependencySchema = z.object({
   version: Semver,
 }).strict();
 
+/**
+ * 组合装配裁决（仅主包可声明）。
+ *
+ * 多领域融合时，不同行业包可能各自定义同一个 preset_key（岗位标识）。运行时
+ * `agents` 的幂等键是 (workspace_id, preset_key)，同名不同义只能有一个权威定义，
+ * 否则组合装配会静默丢岗。因此：跨包同名岗位必须在此显式声明权威归属，
+ * 未声明即组合装载失败（fail closed，不猜）。
+ */
+export const BundleCompositionSchema = z.object({
+  /** preset_key → 权威定义的行业包标识（必须参与本次组合） */
+  presetOwners: z.record(
+    z.string().regex(/^[a-z][a-z0-9-]{1,79}$/, "岗位标识格式不正确"),
+    z.string().regex(/^[a-z0-9][a-z0-9-]{1,31}$/, "行业包标识格式不正确"),
+  ).default({}),
+}).strict();
+
 export const BundleManifestSchema = z.object({
   schemaVersion: z.literal(BUNDLE_SCHEMA_VERSION),
   name: z.string().regex(/^@workloom\/[a-z0-9][a-z0-9-]*$/),
@@ -287,6 +303,7 @@ export const BundleManifestSchema = z.object({
       contract: z.literal(INDUSTRY_CONTRACT_VERSION),
     }).strict(),
     dependencies: z.array(BundleDependencySchema).max(16).optional(),
+    composition: BundleCompositionSchema.optional(),
     provides: ProvidesSchema,
     ui: BundleUiSchema,
   }).strict(),

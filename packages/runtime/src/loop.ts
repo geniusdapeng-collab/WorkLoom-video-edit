@@ -422,10 +422,21 @@ export async function runQuest(
         const rangeValue = Number(step.context?.autonomy_range_value);
         const capKey = typeof step.context?.autonomy_cap_key === "string" ? step.context.autonomy_cap_key : undefined;
         const amount = Number(step.context?.autonomy_amount);
+        // 价格类步骤：把 before（基准价）与 params（调价后价）交给路由，越带自动上浮董事长
+        const stepBefore = (typeof step.before === "object" && step.before !== null ? step.before : {}) as Record<string, unknown>;
+        const stepAfter = (typeof step.after === "object" && step.after !== null ? step.after : {}) as Record<string, unknown>;
+        const afterPrice = Number.isFinite(Number(stepAfter.price)) ? Number(stepAfter.price) : Number(step.params.price);
+        const basePrice = Number.isFinite(Number(stepBefore.price))
+          ? Number(stepBefore.price)
+          : Number((step.params as Record<string, unknown>).base_price);
+        const priceCtx = Number.isFinite(afterPrice) && Number.isFinite(basePrice)
+          ? { afterPrice, basePrice, ...(typeof step.context?.autonomy_band_key === "string" ? { bandKey: step.context.autonomy_band_key } : {}) }
+          : undefined;
         const tier: ApprovalTier = routeTier(charter, {
           action: step.action, params: step.params,
           rangeCtx: { key: rangeKey, value: Number.isFinite(rangeValue) ? rangeValue : undefined },
           amountCtx: { amount: Number.isFinite(amount) ? amount : undefined, capKey },
+          ...(priceCtx ? { priceCtx } : {}),
         });
         await c.query(
           `INSERT INTO approvals (approval_id, tenant_id, workspace_id, event_id, channel, status, snapshot, tier)
@@ -441,6 +452,8 @@ export async function runQuest(
               autonomy_range_value: Number.isFinite(rangeValue) ? rangeValue : undefined,
               autonomy_cap_key: capKey,
               autonomy_amount: Number.isFinite(amount) ? amount : undefined,
+              // CEO 队列据此还原价格上下文（无则按"无判据"保守上浮，不猜价格）
+              ...(priceCtx ? { autonomy_band_key: priceCtx.bandKey, base_price: priceCtx.basePrice } : {}),
               irreversible: step.context?.irreversible === true,
               affected_domains: Array.isArray(step.context?.affected_domains) ? step.context.affected_domains : [],
               expires_at: new Date(Date.now() + 24 * 3600e3).toISOString(),

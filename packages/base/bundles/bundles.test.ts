@@ -5,9 +5,11 @@
  *          激活幂等（bundle.activate 事件）/ 草稿校验失败拒绝激活（不静默 L9.2）
  */
 import { cpSync, mkdtempSync, readFileSync, writeFileSync, existsSync } from "node:fs";
+import { createHash } from "node:crypto";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { canonicalBundleArtifactPayload } from "@workloom/industry-contract";
 import {
   BundleError, REGISTERED_PAGES, computeAssembly, listProfileSlugs, scaffoldDraft, removeDraft,
 } from "./assembly.js";
@@ -89,12 +91,21 @@ describe.runIf(RUN_DB)("行业装配 PG 集成（F2.10 铁律）", async () => {
     expect(p.filledCount).toBe(7);
     expect(p.checks.map((c) => c.ok)).toEqual([true, true, true, true, true, true]);
     expect(p.canActivate).toBe(true);
-    // 班组卡：7 preset 全注册且围栏绑定合法（P7E2）
-    expect(p.agents.length).toBe(7);
+    // 班组卡：行业包声明的 preset 全部注册且围栏绑定合法（P7E2）
+    // 期望值按清单推导，避免行业包扩编后测试与数据漂移
+    const hotelManifest = JSON.parse(
+      readFileSync(new URL("../../../bundles/hotel/bundle.json", import.meta.url), "utf-8"),
+    ) as { workloom: { provides: { presets: string[] } } };
+    expect(p.agents.length).toBe(hotelManifest.workloom.provides.presets.length);
     expect(p.agents.every((a) => a.fenceOk)).toBe(true);
-    // 槽摘要口径：档案 7 字段组 · forbidden 硬约束 2 条；UI 6 页 · 42 条；第⑦槽路由策略合法
+    // 槽摘要口径：档案字段组 · forbidden 硬约束；UI 页/用例数与 cases.json 同步；第⑦槽路由策略合法
     expect(p.slots[0]!.summary).toContain("字段组");
-    expect(p.slots[5]!.summary).toBe("6 页 · 状态用例 42 条同步");
+    const uiCases = JSON.parse(
+      readFileSync(new URL("../../../bundles/hotel/ui/cases.json", import.meta.url), "utf-8"),
+    ) as { cases: Array<{ page: string }> };
+    expect(p.slots[5]!.summary).toBe(
+      `${new Set(uiCases.cases.map((c) => c.page)).size} 页 · 状态用例 ${uiCases.cases.length} 条同步`,
+    );
     expect(p.slots[6]!.id).toBe("model-policy");
     expect(p.slots[6]!.summary).toContain("model-policy.yml");
   });
@@ -123,6 +134,11 @@ describe.runIf(RUN_DB)("行业装配 PG 集成（F2.10 铁律）", async () => {
     const bjPath = join(root, "copycat", "bundle.json");
     const bj = JSON.parse(readFileSync(bjPath, "utf-8"));
     bj.name = "@workloom/copycat"; bj.workloom.industry = "copycat"; bj.workloom.status = "draft";
+    // 手改清单后必须重算完整性摘要：改了内容却不更新摘要 = 平台应当拒绝的篡改
+    // （真实路径由 createBundleDraft/bundle:governance --refresh-digests 生成摘要）
+    bj.integrity.digest = createHash("sha256")
+      .update(canonicalBundleArtifactPayload(bj, bj.integrity.assets ?? {}))
+      .digest("hex");
     writeFileSync(bjPath, `${JSON.stringify(bj, null, 2)}\n`, "utf-8");
 
     // finally 还原演示工作区（hotel）：断言中断也不残留 industry 污染（测试纪律：不跨用例污染）

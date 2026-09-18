@@ -12,7 +12,7 @@ import {
   parseCharter, transition, canExecute, isShadow, isExpired,
   evalCircuitBreaker, tightenAutonomy, effectiveAutonomy, type Charter,
 } from "./charter.js";
-import { decideForCaptain, type QueueItem, type CeoVerdict } from "./router.js";
+import { decideForCaptain, priceContextFromSnapshot, type QueueItem, type CeoVerdict } from "./router.js";
 import { classifyDecision, runDeepAnalysis, judgeOutcome, type ExpectedOutcome } from "./decision.js";
 import { buildAgentScorecards, designReplacement } from "./hr.js";
 import { composeBoardPack, scanOrgHealth, proposeHiring } from "./board.js";
@@ -161,9 +161,14 @@ export async function runQueueBeat(
         value: Number.isFinite(Number(snap.autonomy_range_value)) ? Number(snap.autonomy_range_value) : undefined,
       },
       amountCtx: {
-        amount: Number.isFinite(Number(snap.autonomy_amount)) ? Number(snap.autonomy_amount) : undefined,
+        // 金额既可能来自运行时快照（autonomy_amount），也可能是外部/历史台账直接写在 params.amount：
+        // 两者都识别，且只用于"更严格"的分级（无上限声明 → 重大），不会放宽任何判定。
+        amount: Number.isFinite(Number(snap.autonomy_amount))
+          ? Number(snap.autonomy_amount)
+          : (Number.isFinite(Number(params.amount)) ? Number(params.amount) : undefined),
         capKey: typeof snap.autonomy_cap_key === "string" ? snap.autonomy_cap_key : undefined,
       },
+      priceCtx: priceContextFromSnapshot(snap, params),
       irreversible: snap.irreversible === true,
       affectedDomains: Array.isArray(snap.affected_domains)
         ? snap.affected_domains.filter((value): value is string => typeof value === "string")

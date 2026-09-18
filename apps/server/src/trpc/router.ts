@@ -2886,10 +2886,12 @@ const captainRouter = router({
       await client.query("BEGIN");
       await client.query("SELECT set_config('app.workspace_id', $1, true)", [scope.workspaceId]);
       const r = await client.query<{
-        approval_id: string; event_id: string; snapshot: Record<string, unknown>; payload: Record<string, unknown>;
+        approval_id: string; event_id: string; snapshot: Record<string, unknown>; payload: Record<string, unknown> | null;
       }>(
+        // 左连接：事件行缺失（历史/测试夹具）的待批请示也必须出现在董事长队列里——
+        // 内连接会把它静默隐藏，而 theater 的分层计数仍计入，两端互斥（H-17 实测 17≠16）。
         `SELECT a.approval_id, a.event_id, a.snapshot, e.payload
-         FROM approvals a JOIN biz_events e ON e.event_id = a.event_id AND e.workspace_id = a.workspace_id
+         FROM approvals a LEFT JOIN biz_events e ON e.event_id = a.event_id AND e.workspace_id = a.workspace_id
          WHERE a.workspace_id=$1 AND a.status='pending' AND a.tier='l4_chairman'
          ORDER BY a.approval_id LIMIT 20`,
         [scope.workspaceId],

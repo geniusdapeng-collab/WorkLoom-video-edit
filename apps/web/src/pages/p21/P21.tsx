@@ -50,7 +50,8 @@ interface BriefRow { event_id: string; created_at: string; payload: { decision: 
 interface ChairmanItem {
   approval_id: string; event_id: string;
   snapshot: { action?: string; params?: Record<string, unknown>; ceo_escalated?: boolean; ceo_rationale?: string };
-  payload: { decision: { action: string; basis?: string[] }; who: { id: string } };
+  // 事件行可能缺失（历史/测试夹具）：请示仍须出现在队列中，依据链降级显示"事件缺行"
+  payload: { decision: { action: string; basis?: string[] }; who: { id: string } } | null;
 }
 
 interface Scorecard {
@@ -286,13 +287,14 @@ export default function P21() {
           <div className="space-y-2">
             {queue.map((q) => {
               const snap = q.snapshot;
-              const basis = q.payload.decision.basis ?? [];
+              const basis = q.payload?.decision?.basis ?? [];
               return (
                 <div key={q.approval_id} className="rounded-lg border border-gline bg-card p-3">
                   <div className="mb-1 flex flex-wrap items-center gap-2 text-body text-ink3">
                     <span className="font-mono">{shortId(q.approval_id)}</span>
-                    <span>{actionText(snap.action ?? q.payload.decision.action)}</span>
+                    <span>{actionText(snap.action ?? q.payload?.decision?.action ?? "待董事长裁决")}</span>
                     {snap.ceo_escalated && <span className="rounded border border-holo/40 px-1 text-holo">公司负责人谨慎上浮</span>}
+                    {!q.payload && <span className="rounded border border-line px-1 text-ink3">事件缺行，按审批快照展示</span>}
                   </div>
                   <div className="text-body text-ink2">
                     关键参数：{payloadText(snap.params ?? {}, 180)}

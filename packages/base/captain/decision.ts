@@ -7,7 +7,7 @@
  */
 import type pg from "pg";
 import { effectiveAutonomy, type Charter } from "./charter.js";
-import type { QueueItem } from "./router.js";
+import { quoteBandBand, type QueueItem } from "./router.js";
 
 /* ================= ① 决策三级分流 ================= */
 
@@ -60,6 +60,14 @@ export function classifyDecision(c: Charter, item: QueueItem): { tier: DecisionT
       return { tier: "major", reasons: ["区间动作缺少有效自治声明或已越界"] };
     }
     return { tier: "micro", reasons: ["声明区间内的可逆微决策"] };
+  }
+  // 价格类动作：报价带内 = 声明区间内的可逆微决策；越带/未声明报价带 = 重大（与围栏路由同口径）
+  if (item.priceCtx?.afterPrice !== undefined) {
+    const band = quoteBandBand(a, item.priceCtx);
+    if (!band || band.ratio < band.lower || band.ratio > band.upper) {
+      return { tier: "major", reasons: ["价格动作缺少有效报价带声明或已越带"] };
+    }
+    return { tier: "micro", reasons: ["报价带内的可逆微决策"] };
   }
   return { tier: "standard", reasons: ["默认常规通道"] };
 }

@@ -21,13 +21,40 @@ export interface RouteInput {
   /** Bundle 声明的通用区间和值；找不到 key 时失败关闭到 L4。 */
   rangeCtx?: { key?: string; value?: number };
   amountCtx?: { amount?: number; capKey?: string };
+  /**
+   * 价格类动作：调价后价与基准价。框架按宪章声明的报价带判定「带内可自决 / 越带上浮董事长」——
+   * 键名沿用产品词汇（docs/workforce-v2.md 的 price_quote_band），行业包可用 bandKey 覆盖。
+   */
+  priceCtx?: { afterPrice?: number; basePrice?: number; bandKey?: string };
   isFenceWiden?: boolean;          // 围栏放宽提案（一律 L4）
   isCharterChange?: boolean;       // 宪章变更（一律 L4）
+}
+
+/** 价格动作默认报价带键名（宪章 autonomy.ranges 里由行业包命名的键）。 */
+export const DEFAULT_QUOTE_BAND_KEY = "price_quote_band";
+
+/**
+ * 报价带判定：比值口径 = 调价后 / 基准（1 = 不变），与宪章 anchor 同义。
+ * 返回 null = 未声明区间或输入不完整 → 调用方按失败关闭处理（L4）。
+ */
+export function quoteBandBand(
+  autonomy: ReturnType<typeof effectiveAutonomy>,
+  priceCtx: NonNullable<RouteInput["priceCtx"]>,
+): { ratio: number; lower: number; upper: number } | null {
+  if (priceCtx.afterPrice === undefined || !priceCtx.basePrice) return null;
+  const band = autonomy.ranges[priceCtx.bandKey ?? DEFAULT_QUOTE_BAND_KEY];
+  if (!band) return null;
+  return { ratio: priceCtx.afterPrice / priceCtx.basePrice, lower: band.lower, upper: band.upper };
 }
 
 export function routeTier(c: Charter, i: RouteInput): ApprovalTier {
   if (i.isFenceWiden || i.isCharterChange) return "l4_chairman";
   const a = effectiveAutonomy(c);
+  // 价格类动作：比值必须落在宪章声明的报价带内；未声明区间 → 董事长（失败关闭）
+  if (i.priceCtx?.afterPrice !== undefined) {
+    const band = quoteBandBand(a, i.priceCtx);
+    if (!band || band.ratio < band.lower || band.ratio > band.upper) return "l4_chairman";
+  }
   // 任一声明区间越界或未配置 → 董事长
   if (i.rangeCtx?.value !== undefined) {
     const range = i.rangeCtx.key ? a.ranges[i.rangeCtx.key] : undefined;
@@ -54,9 +81,39 @@ export interface QueueItem {
   ruleIds: string[];
   rangeCtx?: { key?: string; value?: number };
   amountCtx?: { amount?: number; capKey?: string };
+  /** 价格类动作：调价后/基准价（队列从审批快照回填，见 priceContextFromSnapshot） */
+  priceCtx?: { afterPrice?: number; basePrice?: number; bandKey?: string };
   irreversible?: boolean;
   affectedDomains?: string[];
   title: string;
+}
+
+function finiteNumber(value: unknown): number | undefined {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : undefined;
+}
+
+/**
+ * 从审批快照还原价格上下文（价格类动作的自治判定输入）。
+ *
+ * 兼容两种落库口径：
+ *   ① 运行时审批快照：before.price + after（= params）
+ *   ② 历史/外部注入：base_price + params.price
+ * 两者都拿不到 → undefined（调用方按"无判据"保守处理，不猜价格）。
+ */
+export function priceContextFromSnapshot(
+  snapshot: Record<string, unknown>,
+  params: Record<string, unknown>,
+): QueueItem["priceCtx"] {
+  const before = (snapshot.before ?? {}) as Record<string, unknown>;
+  const after = (snapshot.after ?? {}) as Record<string, unknown>;
+  const afterPrice = finiteNumber(after.price) ?? finiteNumber(params.price);
+  const basePrice = finiteNumber(before.price) ?? finiteNumber(snapshot.base_price) ?? finiteNumber(params.base_price);
+  if (afterPrice === undefined || basePrice === undefined) return undefined;
+  const bandKey = typeof snapshot.autonomy_band_key === "string" && snapshot.autonomy_band_key.trim()
+    ? snapshot.autonomy_band_key.trim()
+    : undefined;
+  return { afterPrice, basePrice, ...(bandKey ? { bandKey } : {}) };
 }
 
 export type CeoVerdict =
@@ -68,6 +125,20 @@ export type CeoVerdict =
  *  保守默认：无法判明一律 escalate（拒绝默认的镜像——宁可请示不可错放）。 */
 export function decideForCaptain(c: Charter, item: QueueItem): CeoVerdict {
   const a = effectiveAutonomy(c);
+  // 价格类：带内 approve；越带/贴边/未声明报价带一律上浮董事长
+  if (item.priceCtx?.afterPrice !== undefined) {
+    const band = quoteBandBand(a, item.priceCtx);
+    if (!band) return { kind: "escalate", rationale: "价格动作未引用宪章声明的报价带，上浮董事长复核" };
+    const { ratio, lower, upper } = band;
+    if (ratio < lower || ratio > upper) {
+      return { kind: "escalate", rationale: `调价比值 ${ratio.toFixed(4)} 超出报价带 [${lower}, ${upper}]，上浮董事长` };
+    }
+    const edge = Math.abs(upper - lower) * 0.1;
+    if (ratio - lower < edge || upper - ratio < edge) {
+      return { kind: "escalate", rationale: `调价比值 ${ratio.toFixed(4)} 贴近报价带边缘，谨慎上浮复核` };
+    }
+    return { kind: "approve", rationale: `调价比值 ${ratio.toFixed(4)} 位于报价带 [${lower}, ${upper}] 内，符合宪章` };
+  }
   // 通用区间：带内 approve；贴近边缘（区间宽度 10% 内）escalate；未声明失败关闭
   if (item.rangeCtx?.value !== undefined) {
     const range = item.rangeCtx.key ? a.ranges[item.rangeCtx.key] : undefined;

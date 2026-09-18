@@ -667,7 +667,12 @@ async function main(): Promise<void> {
     await q(
       `INSERT INTO agents (id, workspace_id, preset_key, name, version, kind, readonly, fence_bindings, skills, status, meta)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'ready',$10)
-       ON CONFLICT (id) DO NOTHING`,
+       -- 行业包演进（岗位版本/围栏绑定/技能清单变化）必须能进已有演示工作区：
+       -- 只 DO NOTHING 会让老工作区永久停留在旧定义，装配校验随之误判（F2.10 围栏绑定完整）。
+       ON CONFLICT (id) DO UPDATE SET
+         name = EXCLUDED.name, version = EXCLUDED.version, kind = EXCLUDED.kind,
+         readonly = EXCLUDED.readonly, fence_bindings = EXCLUDED.fence_bindings,
+         skills = EXCLUDED.skills, status = 'ready', meta = EXCLUDED.meta`,
       [
         `agt-${p.preset_key}`,
         WS_ID,

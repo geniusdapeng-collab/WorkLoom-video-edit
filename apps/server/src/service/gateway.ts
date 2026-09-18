@@ -18,12 +18,14 @@ import { Hono } from "hono";
 import type { Context, Next } from "hono";
 import { getOwnerPool } from "@workloom/db";
 import {
-  CHANNELS, cSecret, exchangeCodeForOpenid, getCUser, h5EntrySecret, issueCToken, listNotifications,
-  pushMessage, resolveCUser, verifyCToken, verifyH5EntryToken, type Channel, type CTokenPayload,
+  bindCUserIdentityOn, CHANNELS, cSecret, exchangeCodeForOpenid, getCUser, h5EntrySecret, issueCToken,
+  listNotifications, pushMessage, resolveCUser, verifyCToken, verifyH5EntryToken,
+  type Channel, type CTokenPayload,
 } from "./channels.js";
 import { selectServiceWorkspaceId, ServiceWorkspaceRoutingError } from "./workspace-routing.js";
+import { resolveWorkspaceBusinessAdapter } from "./adapters/business-registry.js";
+import { BusinessAdapterError, type ServiceFrontBusinessAdapter } from "./adapters/business.js";
 import { handleMessage } from "./dialog.js";
-import { runBizTool, hotelBizAdapter, type BizTool, type DemoOrder } from "./adapters/biz-hotel.js";
 import {
   ServiceHttpError, assignTicketOn, createTicketOn, getTicket, listTickets, rateTicket, ticketTimeline,
   type Ticket,
@@ -106,8 +108,24 @@ function clientIp(c: Context): string {
 /** 统一错误映射：ServiceHttpError → 语义状态码；其余 → 500 带 requestId（L9） */
 function fail(c: Context, err: unknown, requestId: string): Response {
   if (err instanceof ServiceHttpError) return c.json({ error: err.message, requestId }, err.status as 400);
+  // 行业适配器的失败关闭：状态码与稳定错误码都要给 C 端（webc 按 code 出中文提示）
+  if (err instanceof BusinessAdapterError) {
+    return c.json({ error: err.message, code: err.code, requestId }, err.status as 400);
+  }
   console.warn(`[service-c] 请求处理失败 requestId=${requestId}：`, err instanceof Error ? err.message : err);
   return c.json({ error: "服务内部错误", requestId }, 500);
+}
+
+/**
+ * 活动行业适配器（身份核验等业务能力的唯一入口）：
+ * 未装配/投影非法一律 503 失败关闭，绝不回退到示例行业。
+ */
+async function activeBusinessAdapter(workspaceId: string): Promise<ServiceFrontBusinessAdapter> {
+  const binding = await resolveWorkspaceBusinessAdapter(workspaceId);
+  if (binding.state !== "ready" || !binding.adapter) {
+    throw new ServiceHttpError(`当前服务前台不可用：${binding.reason}`, 503);
+  }
+  return binding.adapter;
 }
 
 function sha256(text: string): string {
@@ -127,24 +145,6 @@ const TICKET_STATUS_TEXT: Record<string, string> = {
 
 export function serializeTicket(t: Ticket): Ticket & { statusText: string } {
   return { ...t, statusText: TICKET_STATUS_TEXT[t.status] ?? t.status };
-}
-
-/** 会员等级 → 权益清单（演示口径） */
-function benefitsOf(tier: string): string[] {
-  if (tier.includes("金")) return ["免费双人早餐", "延迟退房至 14:00", "积分 1.5 倍累积"];
-  if (tier.includes("银")) return ["免费早餐", "积分 1.2 倍累积"];
-  return ["积分累积"];
-}
-
-function orderToContract(o: DemoOrder): Record<string, unknown> {
-  return {
-    id: o.orderId,
-    title: `${o.roomType} · 入住 ${o.checkIn}`,
-    status: o.status,
-    checkIn: o.checkIn,
-    roomType: o.roomType,
-    amount: o.amountYuan,
-  };
 }
 
 /** 工单受理推送：失败 catch 落库 status='failed' 不阻断响应（H2） */
@@ -177,20 +177,20 @@ async function pushAcceptedSafely(input: {
 async function createTicketFlow(input: {
   workspaceId: string; cUserId: string; channel: string; conversationId?: string;
   kind: string; title: string; payload: Record<string, unknown>; idempotencyKey: string;
-}): Promise<{ ticket: Ticket; deduped: boolean }> {
+}): Promise<{ ticket: Ticket; deduped: boolean; eventId: string | null }> {
   return serviceTx(input.workspaceId, async (client, scope) => {
     const { ticket, deduped } = await createTicketOn(client, {
       workspaceId: input.workspaceId, cUserId: input.cUserId, conversationId: input.conversationId,
       kind: input.kind, title: input.title, payload: input.payload, idempotencyKey: input.idempotencyKey,
     });
-    if (deduped) return { ticket, deduped: true }; // 幂等重放：不重复派单/推送/留痕
+    if (deduped) return { ticket, deduped: true, eventId: null }; // 幂等重放：不重复派单/推送/留痕
     const assigned = await assignTicketOn(client, { workspaceId: input.workspaceId, ticketId: ticket.id });
-    await appendEventOn(client, scope, { id: input.cUserId, type: "human" }, {
+    const ev = await appendEventOn(client, scope, { id: input.cUserId, type: "human" }, {
       objectType: "ticket", objectId: ticket.id, action: "service.ticket.create",
       after: { kind: input.kind, title: input.title, dept: assigned.dept, channel: input.channel },
       channel: input.channel,
     });
-    return { ticket: assigned, deduped: false };
+    return { ticket: assigned, deduped: false, eventId: ev.eventId };
   });
 }
 
@@ -277,7 +277,8 @@ serviceGateway.post("/session", async (c) => {
     const workspaceId = entryWorkspaceId ?? await cWorkspaceId();
     const user = await resolveCUser({ workspaceId, channel, openid, nickname: body.nickname });
     const token = await issueCToken({ workspaceId, cUserId: user.id, channel: user.channel, secret: cSecret() });
-    return c.json({ token, user });
+    // authMode 只描述"本次会话如何建立"：演示直登 vs 渠道/受信入口核验（webc 据此出徽标）
+    return c.json({ token, user: { ...user, authMode: DEMO_AUTH && !entryWorkspaceId ? "demo" : "channel" } });
   } catch (err) {
     return fail(c, err, requestId);
   }
@@ -305,38 +306,44 @@ serviceGateway.post("/chat", cAuth, async (c) => {
     let answer = r.answer;
     if (r.toolCall) {
       const user = await getCUser(a.workspaceId, a.cUserId);
-      const data = await runBizTool(r.toolCall.tool as BizTool, {
+      const ctx = {
         workspaceId: a.workspaceId, cUserId: a.cUserId, memberId: user?.memberId ?? null,
-      }, r.toolCall.params);
-      const d = data as {
-        demo?: boolean; bindRequired?: boolean; hint?: string;
-        orders?: DemoOrder[]; items?: Array<{ sku: string; name: string; priceYuan: number }>;
-        member?: { memberId: string; name: string; tier: string; points: number } | null;
-        ticket?: Record<string, unknown> | null;
       };
-      if (d.bindRequired) {
-        // S4：未绑定 → 不出卡，答案替换为绑定引导
-        answer = d.hint ?? "请先绑定会员身份后再查询。";
-      } else if (r.toolCall.tool === "query_order") {
-        for (const o of d.orders ?? []) cards.push({ kind: "order", data: orderToContract(o) });
-      } else if (r.toolCall.tool === "query_member") {
-        if (d.member) {
+      if (r.toolCall.tool === "query_ticket") {
+        // 工单进度只读本人真实工单：没有就如实说没有，不编造一条进度（E2.1）
+        const tickets = await listTickets({ workspaceId: a.workspaceId, cUserId: a.cUserId });
+        answer = tickets.length === 0
+          ? "暂未查到您的工单记录。您可以直接说需要办理的事（送物/报修/投诉），我马上为您建单。"
+          : `为您查询到 ${tickets.length} 条工单：${tickets.slice(0, 3).map((t) => `「${t.title}」${TICKET_STATUS_TEXT[t.status] ?? t.status}`).join("；")}。`;
+      } else {
+        // 业务查询一律经活动行业包选中的适配器投影（基座不得内置行业形状）
+        const adapter = await activeBusinessAdapter(a.workspaceId);
+        if (r.toolCall.tool === "query_order") {
+          const data = await adapter.queryOrder(ctx);
+          if (data.bindRequired) answer = data.hint ?? "请先绑定会员身份后再查询。";
+          else for (const order of data.orders) {
+            cards.push({ kind: "order", data: order as unknown as Record<string, unknown> });
+          }
+        } else if (r.toolCall.tool === "query_member") {
+          const data = await adapter.queryMember(ctx);
+          if (data.bindRequired) answer = data.hint ?? "请先绑定会员身份后再查询。";
+          else if (data.member) {
+            cards.push({ kind: "member", data: { ...data.member, demo: data.demo } as unknown as Record<string, unknown> });
+          }
+        } else if (r.toolCall.tool === "query_catalog") {
+          const data = await adapter.queryCatalog(ctx);
           cards.push({
-            kind: "member",
-            data: { level: d.member.tier, points: d.member.points, benefits: benefitsOf(d.member.tier), demo: d.demo ?? true },
+            kind: "catalog",
+            data: { cardTitle: data.cardTitle, items: data.items, demo: data.demo } as unknown as Record<string, unknown>,
           });
         }
-      } else if (r.toolCall.tool === "query_catalog") {
-        cards.push({ kind: "catalog", data: { items: d.items ?? [], demo: d.demo ?? true } });
-      } else if (r.toolCall.tool === "query_ticket") {
-        const t = d.ticket;
-        if (t) answer = `您的工单「${String(t.title)}」当前状态：${TICKET_STATUS_TEXT[String(t.status)] ?? String(t.status)}，${String(t.dept ?? "客服部")}跟进中。`;
       }
     }
 
     // 工单草稿确认：confirmTicket:true → 服务端幂等键 + 同事务建单/派单/五元事件（H2）
     let ticket: (Ticket & { statusText: string }) | null = null;
     let deduped = false;
+    let ticketReceipt: Record<string, unknown> | null = null;
     const draft = body.confirmTicket ? (body.ticketDraft ?? r.ticketDraft) : undefined; // 客户端显式回传的草稿优先于本轮新产生的兜底草稿
     if (draft) {
       const idempotencyKey = body.idempotencyKey ?? `chat:${r.conversationId}:${sha256(body.text.trim()).slice(0, 16)}`;
@@ -352,6 +359,10 @@ serviceGateway.post("/chat", cAuth, async (c) => {
         });
       }
       ticket = serializeTicket(flow.ticket);
+      ticketReceipt = {
+        requestId, state: flow.deduped ? "recorded" : "accepted", resourceId: flow.ticket.id,
+        eventId: flow.eventId, demo: true, ...(flow.deduped ? { idempotentReplay: true } : { delivery: { state: "demo" } }),
+      };
     }
 
     return c.json({
@@ -362,6 +373,7 @@ serviceGateway.post("/chat", cAuth, async (c) => {
       citations: r.citations,
       cards,
       ticket,
+      ...(ticketReceipt ? { receipt: ticketReceipt } : {}),
       ...(deduped ? { deduped: true } : {}),
       ticketDraft: r.ticketDraft ?? null,
       latencyMs: r.latencyMs,
@@ -378,9 +390,10 @@ serviceGateway.get("/orders", cAuth, async (c) => {
   try {
     const a = authOf(c);
     const user = await getCUser(a.workspaceId, a.cUserId);
-    const data = await hotelBizAdapter.queryOrder({ workspaceId: a.workspaceId, cUserId: a.cUserId, memberId: user?.memberId ?? null });
+    const adapter = await activeBusinessAdapter(a.workspaceId);
+    const data = await adapter.queryOrder({ workspaceId: a.workspaceId, cUserId: a.cUserId, memberId: user?.memberId ?? null });
     return c.json({
-      orders: data.orders.map(orderToContract),
+      orders: data.orders,
       demo: data.demo,
       ...(data.bindRequired ? { bindRequired: true, hint: data.hint } : {}),
     });
@@ -394,19 +407,16 @@ serviceGateway.get("/member", cAuth, async (c) => {
   try {
     const a = authOf(c);
     const user = await getCUser(a.workspaceId, a.cUserId);
-    const data = await hotelBizAdapter.queryMember({ workspaceId: a.workspaceId, cUserId: a.cUserId, memberId: user?.memberId ?? null });
+    const adapter = await activeBusinessAdapter(a.workspaceId);
+    const data = await adapter.queryMember({ workspaceId: a.workspaceId, cUserId: a.cUserId, memberId: user?.memberId ?? null });
     if (data.bindRequired || !data.member) {
+      // H6 契约（webc MemberInfo + 绑定引导）：未绑定不返回等级/积分为 0 的伪会员信息
       return c.json({
-        level: "游客", points: 0, benefits: [], demo: data.demo,
-        bindRequired: true, hint: data.hint,
+        title: "身份尚未绑定", benefits: [], demo: data.demo,
+        bindRequired: true, hint: data.hint ?? "完成手机号验证绑定后即可查询本人订单与会员信息。",
       });
     }
-    return c.json({
-      level: data.member.tier,
-      points: data.member.points,
-      benefits: benefitsOf(data.member.tier),
-      demo: data.demo,
-    });
+    return c.json({ ...data.member, demo: data.demo });
   } catch (err) {
     return fail(c, err, requestId);
   }
@@ -414,6 +424,82 @@ serviceGateway.get("/member", cAuth, async (c) => {
 
 /* ---------------- 工单 ---------------- */
 const TICKET_KINDS = ["delivery", "repair", "complaint", "other", "service_request", "consult"] as const;
+
+/* ---------------- 身份绑定（H6：webc IdentityCodeResponse / IdentityBindResponse） ---------------- */
+
+/** 手机号只以哈希落库（R24：客资明文不出系统），因此入口先做格式约束再交给行业适配器核验。 */
+const PHONE_RE = /^1\d{10}$/;
+
+serviceGateway.post("/identity/code", cAuth, async (c) => {
+  const requestId = randomUUID();
+  try {
+    const a = authOf(c);
+    const body = await bodyOf<{ phone: string }>(c);
+    const phone = body.phone?.trim() ?? "";
+    if (!PHONE_RE.test(phone)) return c.json({ error: "手机号格式不正确", code: "INVALID_IDENTITY_PHONE", requestId }, 400);
+    const adapter = await activeBusinessAdapter(a.workspaceId);
+    if (!adapter.identity) {
+      return c.json({ error: "当前行业未提供身份核验能力", code: "IDENTITY_UNAVAILABLE", requestId }, 503);
+    }
+    const challenge = await adapter.identity.requestCode(phone);
+    return c.json({
+      state: challenge.state,
+      message: challenge.message,
+      requestId,
+      ...(challenge.demoCode ? { demoCode: challenge.demoCode } : {}),
+    });
+  } catch (err) {
+    return fail(c, err, requestId);
+  }
+});
+
+serviceGateway.post("/identity/bind", cAuth, async (c) => {
+  const requestId = randomUUID();
+  try {
+    const a = authOf(c);
+    const body = await bodyOf<{ phone: string; code: string }>(c);
+    const phone = body.phone?.trim() ?? "";
+    const code = body.code?.trim() ?? "";
+    if (!PHONE_RE.test(phone) || !code) {
+      return c.json({ error: "手机号或验证码格式不正确", code: "INVALID_IDENTITY_INPUT", requestId }, 400);
+    }
+    const adapter = await activeBusinessAdapter(a.workspaceId);
+    if (!adapter.identity) {
+      return c.json({ error: "当前行业未提供身份核验能力", code: "IDENTITY_UNAVAILABLE", requestId }, 503);
+    }
+    // 核验在行业适配器内完成（行业自己决定权威身份源）；失败按 BusinessAdapterError 映射状态码与错误码
+    const matched = await serviceTx(a.workspaceId, async (client) =>
+      adapter.identity!.verifyCode(client, { workspaceId: a.workspaceId, cUserId: a.cUserId }, { phone, code }));
+    // 绑定写回 + 五元事件同一 COMMIT：回执里的 eventId 必须能对上账本，不允许"绑了但没留痕"
+    const bound = await serviceTx(a.workspaceId, async (client, scope) => {
+      const user = await bindCUserIdentityOn(client, {
+        workspaceId: a.workspaceId, cUserId: a.cUserId,
+        memberId: matched.subjectId, phoneHash: sha256(phone),
+        identityMode: matched.demo ? "demo" : "verified",
+      });
+      if (!user) throw new ServiceHttpError("C 端用户不存在（会话已失效）", 401);
+      const ev = await appendEventOn(client, scope, { id: a.cUserId, type: "human" }, {
+        objectType: "c_user", objectId: a.cUserId, action: "service.identity.bind",
+        after: {
+          memberId: matched.subjectId,
+          identityMode: user.identityMode,
+          phoneHashSuffix: sha256(phone).slice(0, 8),
+        },
+        channel: a.channel,
+      });
+      return { user, eventId: ev.eventId };
+    });
+    return c.json({
+      // 与会话口径一致：演示直登态标记 demo，其余（渠道/受信入口）标记 channel
+      user: { ...bound.user, authMode: DEMO_AUTH ? "demo" : "channel" },
+      receipt: {
+        requestId, state: "bound", resourceId: matched.subjectId, eventId: bound.eventId, demo: matched.demo,
+      },
+    });
+  } catch (err) {
+    return fail(c, err, requestId);
+  }
+});
 
 serviceGateway.post("/tickets", cAuth, async (c) => {
   const requestId = randomUUID();
@@ -440,12 +526,27 @@ serviceGateway.post("/tickets", cAuth, async (c) => {
       workspaceId: a.workspaceId, cUserId: a.cUserId, channel: a.channel, conversationId: body.conversationId,
       kind: body.kind, title, payload, idempotencyKey,
     });
-    if (flow.deduped) return c.json({ ticket: serializeTicket(flow.ticket), idempotentReplay: true });
+    // H6 契约：回执 {requestId,state,resourceId,eventId,demo,delivery}；重放不重复落事件，标记 recorded
+    if (flow.deduped) {
+      return c.json({
+        ticket: serializeTicket(flow.ticket),
+        idempotentReplay: true,
+        receipt: {
+          requestId, state: "recorded", resourceId: flow.ticket.id, idempotentReplay: true, demo: true,
+        },
+      });
+    }
     await pushAcceptedSafely({
       workspaceId: a.workspaceId, cUserId: a.cUserId,
       ticketId: flow.ticket.id, title: flow.ticket.title, dept: flow.ticket.dept,
     });
-    return c.json({ ticket: serializeTicket(flow.ticket) });
+    return c.json({
+      ticket: serializeTicket(flow.ticket),
+      receipt: {
+        requestId, state: "accepted", resourceId: flow.ticket.id, eventId: flow.eventId, demo: true,
+        delivery: { state: "demo" },
+      },
+    });
   } catch (err) {
     return fail(c, err, requestId);
   }
@@ -494,13 +595,18 @@ serviceGateway.post("/tickets/:id/rate", cAuth, async (c) => {
       workspaceId: a.workspaceId, ticketId: String(c.req.param("id")), cUserId: a.cUserId,
       score: body.score, comment: body.comment,
     });
+    let rateEventId: string | null = null;
     await serviceTx(a.workspaceId, async (client, scope) => {
-      await appendEventOn(client, scope, { id: a.cUserId, type: "human" }, {
+      const ev = await appendEventOn(client, scope, { id: a.cUserId, type: "human" }, {
         objectType: "ticket", objectId: ticket.id, action: "service.ticket.rate",
         after: { score: body.score, comment: body.comment ?? null }, channel: a.channel,
       });
+      rateEventId = ev.eventId;
     });
-    return c.json({ ticket: serializeTicket(ticket) });
+    return c.json({
+      ticket: serializeTicket(ticket),
+      receipt: { requestId, state: "recorded", resourceId: ticket.id, eventId: rateEventId, demo: true },
+    });
   } catch (err) {
     return fail(c, err, requestId);
   }

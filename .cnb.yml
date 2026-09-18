@@ -93,11 +93,10 @@
         pnpm db:seed
         pnpm db:verify-chain
 
-# 既有测试债务（DEF-P1-0015：下游 gate 原本就红在 typecheck/ui-contract）：
-# 下列流水线显式非阻断（allowFailure），失败仍显红，修好后逐仓转必需。
+# DEF-P1-0015 债务已清偿（2026-09-18 审计）：typecheck 全仓零错误、ui-contract 通过、
+# 真库用例与全场景套件全绿，故 test-gate 转为必需门禁（不再 allowFailure）。
 .test-gate: &test_gate
   name: test-gate
-  allowFailure: true
   docker:
     image: pgvector/pgvector:pg17
     volumes:
@@ -108,6 +107,9 @@
     IM_DRIVER: mock
     RUN_DB_TESTS: "1"
     TOOL_UNVERIFIED_RATE: "0"
+    # 真库契约/E2E 套件要求显式指定夹具工作区（缺省时它们会 fail-closed 抛错跳过，
+    # 这正是此前这些用例从未真正跑过的原因）。值与 db:seed 的演示工作区一致。
+    SERVICE_C_TEST_WORKSPACE_ID: ws-yunqi
   stages:
     - name: 准备 Node 24 与 pnpm
       script: |

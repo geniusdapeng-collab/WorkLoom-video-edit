@@ -154,6 +154,12 @@ export class MockNlTranslator implements NlTranslator {
     // 规则与结果直译
     const ruleId = this.lexicon.ruleIds?.find((id) => query.includes(id));
     if (ruleId) f.ruleId = ruleId;
+    else {
+      // 结构化规则编号（R2 / G9a / G-GEO1 / R-MK1）可直接直译：编号是全局词法，
+      // 不依赖行业词表；词表命中优先，保证工作区自定义编号仍以词表为准。
+      const token = query.split(/[\s，,。；;：:、"'（）()]+/).find((part) => /^[A-Z]{1,2}(?:-[A-Z]{2,4})?\d{1,2}[a-d]?$/.test(part));
+      if (token) f.ruleId = token;
+    }
     if (/熔断|被拦|block/i.test(query)) f.ruleResult = "blocked";
     else if (/待审|挂起|审批/.test(query)) f.ruleResult = "review";
     // 时间直译（演示剧本：昨天/今天/夜班窗口）

@@ -91,7 +91,8 @@
       ],
       "connectors": [
         "connectors/connectors.json"
-      ]
+      ],
+      "modelPolicy": "model-policy.yml"
     },
     "ui": {
       "schemaVersion": "workloom.bundle.ui/v1",
@@ -155,7 +156,7 @@
   },
   "integrity": {
     "algorithm": "sha256",
-    "digest": "1284592175e9c32ce4809f7dae6164f1c082523bc3e8d367bba8fcde3be2238a",
+    "digest": "249a15c2b9153e799cab9372bf5f70663f3851d1ca36a626eac205c2e0f0f262",
     "assets": {
       "connectors/connectors.json": "da242e8b9584c76bd95a5de798983fd6d8a401590f34944c64c5dd0eae86b863",
       "fences/hotel-baseline.yml": "44332ab3210ead00d8f517a6980ef9e2a22a90e27e5ce4073fce3f3292383c37",
@@ -163,6 +164,7 @@
       "fences/patches/homestay-patch.yml": "64b1b4cdca3f3a962237c9e64d791527eae86a3b39e5dae5d68a653b7d44eeb9",
       "fences/patches/low-star-single-patch.yml": "0c66b5e8df8f6ec7ec7133cce8106e191ceff36cfe4f2763fdf3e430e710738b",
       "fences/patches/unmanned-patch.yml": "67bd0caa242c9ae9e74133dab6b641a372b13ec2780b83aee2846c2437d22bf4",
+      "model-policy.yml": "dad3e661ad3068caf442bf0774e58d8989996c0a10c7047b923571ca416f3871",
       "pipelines/hotel-acquisition-loop.yml": "dcd9fc231f053428febb9b7f7f5b0d25e033ef4eb905002e722220abfc0a0773",
       "presets/ai-receptionist.yml": "1782565655f1d47889ba50baa261f75f0b8cf9fd07780629bf234b98b694e38a",
       "presets/channel-watcher.yml": "7a5a36baf3041f188dc915d2e7e0300c2356b968cc98644fa502e9a7111ea0ab",
@@ -214,7 +216,7 @@
       "skills/room-service-dispatch/SKILL.md": "f28771fc1e76568ec9d8a887709ae7eb5d51b5a712a889a75b4d6c2dd46412ed",
       "skills/safety-compliance/SKILL.md": "65d85f4ffddee27c50b46adaed5d8d5f9d631bd639f42aec7af9cb1b412a583d",
       "skills/staff-scheduler/SKILL.md": "348ab622d0755a93ffac11f00afce73f3bd5760e5df8e2c9fe7c7d59bac0dc3e",
-      "ui/cases.json": "facfd65308b944a552a039d14c968a9e2920a42efd6b3be659019692500c9aa4"
+      "ui/cases.json": "8e8056dffe4ce4aa1ba4d13736c00986ecb46a7b7f4361c8500f71f9761889ee"
     }
   }
 }

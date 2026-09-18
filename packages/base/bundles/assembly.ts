@@ -502,6 +502,93 @@ function assertOwnedProjectionDeclarations(manifest: BundleManifest): void {
   }
 }
 
+/** 组合编制结果：权威岗位 + 被遮蔽岗位留痕（遮蔽必须可见，不静默） */
+export interface ComposedWorkforce {
+  /**
+   * preset_key → 权威定义及其归属行业包。
+   * `effectiveFenceBindings` 是组合层算出的**围栏并集**（权威定义 ∪ 全部被遮蔽定义）：
+   * 融合不得以"丢岗"为代价丢掉被遮蔽岗位声明的治理边界，但也不改写各包自己的
+   * preset 文件——单包装配校验（F2.10 围栏绑定完整）仍按本包围栏资产判定。
+   */
+  presets: Map<string, {
+    bundleId: string;
+    preset: WorkforcePreset;
+    effectiveFenceBindings: string[];
+    shadowedBundleIds: string[];
+  }>;
+  /** 被遮蔽（非权威）的同名岗位定义，用于激活留痕与审计 */
+  shadowed: Array<{ presetKey: string; bundleId: string; winnerBundleId: string }>;
+}
+
+/**
+ * 组合岗位编制（主包 + 依赖包）。
+ *
+ * 多领域融合（如 获客主包 + 视频包 + 酒店包）各自带编制，跨包同名 preset_key
+ * 只能有一个权威定义——运行时 `agents` 幂等键是 (workspace_id, preset_key)，
+ * 同名不同义会让其中一个岗位静默失效。两条纪律：
+ *   ① 同名必须在主包 `composition.presetOwners` 显式声明权威归属，未声明即拒绝装载；
+ *   ② 权威定义的 fence_bindings 必须覆盖所有被遮蔽定义声明的围栏（只紧不松），
+ *      否则融合会以"组合"之名悄悄放宽治理边界。
+ */
+export function composeWorkforce(slug: string, root = bundlesRoot()): ComposedWorkforce {
+  const sources = loadProjectionSources(slug, root);
+  const byKey = new Map<string, Array<{ bundleId: string; preset: WorkforcePreset }>>();
+  for (const { manifest } of sources) {
+    const bundleId = manifest.workloom.industry;
+    for (const preset of parseBundleWorkforcePresets(manifest, bundleId, root)) {
+      const list = byKey.get(preset.preset_key) ?? [];
+      list.push({ bundleId, preset });
+      byKey.set(preset.preset_key, list);
+    }
+  }
+
+  const primary = sources.at(-1)!.manifest;
+  const owners = primary.workloom.composition?.presetOwners ?? {};
+  const presets: ComposedWorkforce["presets"] = new Map();
+  const shadowed: ComposedWorkforce["shadowed"] = [];
+
+  for (const [key, definitions] of byKey) {
+    if (definitions.length === 1) {
+      const only = definitions[0]!;
+      presets.set(key, {
+        bundleId: only.bundleId,
+        preset: only.preset,
+        effectiveFenceBindings: [...(only.preset.fence_bindings ?? [])].sort(),
+        shadowedBundleIds: [],
+      });
+      continue;
+    }
+    const involved = definitions.map((definition) => definition.bundleId).sort();
+    const owner = owners[key];
+    if (!owner) {
+      throw new BundleError("INVALID_INPUT",
+        `组合行业包岗位「${key}」在 ${involved.join(" / ")} 重复定义，主包 ${primary.workloom.industry} 未在 composition.presetOwners 声明权威归属`);
+    }
+    if (!involved.includes(owner)) {
+      throw new BundleError("INVALID_INPUT",
+        `组合行业包岗位「${key}」声明的权威归属「${owner}」不参与本次组合（${involved.join(" / ")}）`);
+    }
+    const winner = definitions.find((definition) => definition.bundleId === owner)!;
+    const losers = definitions.filter((definition) => definition.bundleId !== owner);
+    // 组合层并集：被遮蔽定义的围栏不丢，也不回写各包 preset 文件（单包校验不受影响）
+    const effectiveFenceBindings = [...new Set([
+      ...(winner.preset.fence_bindings ?? []),
+      ...losers.flatMap((loser) => loser.preset.fence_bindings ?? []),
+    ])].sort();
+    presets.set(key, {
+      bundleId: winner.bundleId,
+      preset: winner.preset,
+      effectiveFenceBindings,
+      shadowedBundleIds: losers.map((loser) => loser.bundleId).sort(),
+    });
+    for (const loser of losers) {
+      shadowed.push({ presetKey: key, bundleId: loser.bundleId, winnerBundleId: owner });
+    }
+  }
+
+  return { presets, shadowed };
+}
+
 function loadProjectionSources(primarySlug: string, root: string): VerifiedProjectionSource[] {
   const sources: VerifiedProjectionSource[] = [];
   const visiting: string[] = [];
@@ -580,6 +667,9 @@ function mergeSourcedLabels(
  * - welcome、serviceFront、inspection、theme、experiments 始终由主包裁决，依赖不能覆盖。
  */
 export function loadBundleUiProjection(slug: string, root = bundlesRoot()): BundleUiProjection {
+  // 组合岗位编制必须先通过同名冲突裁决（fail closed）：投影装载与岗位装载同一事实源，
+  // 不允许"导航能装、岗位静默丢一半"的组合。
+  composeWorkforce(slug, root);
   const sources = loadProjectionSources(slug, root);
   const primarySource = sources.at(-1)!;
   const primary = primarySource.manifest;

@@ -1,7 +1,7 @@
 # workloom-ai-acquisition · 能力导览（人类版）
 
 > WorkLoom 获客系统 · 短视频社媒营销 × GEO × 获客五环 × 行业运营（首垂直：酒店）
-> 本文件由 `node scripts/generate-capabilities.mjs` 从代码事实**自动生成**（2026-09-02），
+> 本文件由 `node scripts/generate-capabilities.mjs` 从代码事实**自动生成**（2026-09-18），
 > 请勿手改——能力变更后重跑生成器即可。Agent 版机器清单见 docs/capability-map.md。
 
 ## 🚀 5 分钟体验路径
@@ -22,7 +22,7 @@ pnpm install && pnpm preview:all
 |---|---|---|
 | ![PC](demo/preview-shots/pc-3000.png) | ![B移动](demo/preview-shots/shell-guest.png) | ![C移动](demo/preview-shots/mobile-c-3002.png) |
 
-## 📦 能力总览（35 项）
+## 📦 能力总览（36 项）
 
 ### 🖥 三端应用（开箱即看）
 
@@ -32,13 +32,13 @@ pnpm install && pnpm preview:all
 | **移动端 · B 端高保真** | 12 页高保真演示页 + 手机壳容器 | `pnpm preview:all` → http://localhost:3001 |
 | **移动端 · C 端 AI 服务前台** | 小程序入口 H5 模拟：对话/服务/工单/消息/我的，演示直登 | `pnpm preview:all` → http://localhost:3002 |
 
-### 🧲 行业 Bundle（垂直能力包）
+### 🏨 行业 Bundle（垂直能力包）
 
 | 能力 | 一句话 | 怎么体验 |
 |---|---|---|
-| **bundles/ai-video/** | 25 数字员工 presets · 8 个官方技能 | 见 bundles/ai-video/ 目录 |
-| **bundles/geo-growth/** | 16 数字员工 presets · 6 个官方技能 | 见 bundles/geo-growth/ 目录 |
-| **bundles/hotel/** | 16 数字员工 presets · 30 个官方技能 · 4 客群装配（audit_only/low_star_single/homestay/unmanned） · 含 fast-scan 快照快扫（15–30 分钟当场出体检报告） | 见 bundles/hotel/ 目录 |
+| **bundles/ai-video/** | 围栏/技能/员工/对象/管线一键装配 | 见 bundles/ai-video/ 目录 |
+| **bundles/geo-growth/** | 围栏/技能/员工/对象/管线一键装配 | 见 bundles/geo-growth/ 目录 |
+| **bundles/hotel/** | 围栏/技能/员工/对象/管线一键装配 | 见 bundles/hotel/ 目录 |
 
 ### 🖐 操作电脑能力（本仓自带 · 可装生产工作站）
 
@@ -52,6 +52,7 @@ pnpm install && pnpm preview:all
 | 能力 | 一句话 | 怎么体验 |
 |---|---|---|
 | **围栏 DSL 引擎** | 事前裁决：支持 in/contains_any 列表语义 | 见 docs/capability-map.md L3 |
+| **技能保鲜环（下行分发）** | 官方技能一键投放：五道预检 + L0/L1 静默/L2 审批 + 一键回滚 + 全事件留痕 | 见 docs/capability-map.md L3 |
 | **L2 编排（ASK/QUEST）** | 一句话目标自动拆解多步骤并派发 | 见 docs/capability-map.md L3 |
 | **夜班自动运行** | 离线任务推进，次日晨报 | 见 docs/capability-map.md L3 |
 | **模型路由** | 离线确定性模型，无密钥可跑 | 见 docs/capability-map.md L3 |
@@ -85,7 +86,7 @@ pnpm install && pnpm preview:all
 |---|---|---|
 | **高保真演示页 ×12** | 糖果色，含手机壳容器 | http://localhost:3001 |
 | **官网静态站** | 对外产品故事 | apps/site/index.html |
-| **自带技能 ×8** | component-integration / cross-platform-review / deal-flow / demo-mirror 等 | skills/official/ |
+| **自带技能 ×9** | client-demo-recorder / component-integration / cross-platform-review / deal-flow 等 | skills/official/ |
 | **能力导览 PPT** | 路演/汇报直接用 | docs/capability-tour.pptx |
 | **Mock 数据体系** | 种子 + 离线模型 + 演示直登，开箱即用 | mock/README.md |
 

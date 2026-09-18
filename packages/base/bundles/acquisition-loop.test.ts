@@ -11,7 +11,7 @@ import { dirname, join } from "node:path";
 import { describe, expect, it } from "vitest";
 import YAML from "yaml";
 import { loadOfficialSkills } from "../skills/official.js";
-import { bundlesRoot } from "./assembly.js";
+import { bundlesRoot, composeWorkforce } from "./assembly.js";
 
 interface PresetDoc {
   preset_key?: string;
@@ -129,18 +129,43 @@ describe("围栏引用完整性：管线门与员工绑定都必须有规则定�
     expect(broken).toEqual([]);
   });
 
-  it("员工 fence_bindings 引用的规则 id 必须存在（未声明即禁写的前提是可解析）", () => {
+  /**
+   * 口径是「组合内可解析」：融合产品把三域基线围栏一起装载（service 层 chooseSegment
+   * 显式合并 hotel/ai-video/geo-growth 三份基线），因此组合权威岗位可以引用姐妹域的
+   * 围栏（如 hotel CEO 引用 G17/G18、geo 复盘岗引用 G13）——这正是跨域融合要表达的语义。
+   */
+  const composedFenceIds = new Set(VIEWS.flatMap((bundle) => [...bundle.fenceRuleIds]));
+
+  it("员工 fence_bindings 引用的规则 id 必须在组合围栏集中存在（未声明即禁写的前提是可解析）", () => {
     const broken: string[] = [];
     for (const bundle of VIEWS) {
       for (const [key, { file, doc }] of bundle.presets) {
         for (const fence of doc.fence_bindings ?? []) {
-          if (!bundle.fenceRuleIds.has(fence)) {
+          if (!composedFenceIds.has(fence)) {
             broken.push(`${bundle.id}/${file.split("/").pop()} preset=${key} fence=${fence}`);
           }
         }
       }
     }
     expect(broken).toEqual([]);
+  });
+
+  it("跨域围栏引用必须落在已声明的组合内（主包依赖覆盖该包）", () => {
+    const dependencyIds = new Set(["hotel", "ai-video"]);
+    const crossBundleRefs: string[] = [];
+    for (const bundle of VIEWS) {
+      for (const [key, { doc }] of bundle.presets) {
+        for (const fence of doc.fence_bindings ?? []) {
+          if (bundle.fenceRuleIds.has(fence) || !composedFenceIds.has(fence)) continue;
+          // 该围栏来自其它包：只有当两个包同属一个组合（主包依赖或反向依赖）时才允许
+          const others = VIEWS.filter((other) => other.id !== bundle.id && other.fenceRuleIds.has(fence));
+          const inComposition = others.some((other) =>
+            bundle.id === "geo-growth" || other.id === "geo-growth" || (dependencyIds.has(bundle.id) && dependencyIds.has(other.id)));
+          if (!inComposition) crossBundleRefs.push(`${bundle.id}/${key} → ${fence}`);
+        }
+      }
+    }
+    expect(crossBundleRefs).toEqual([]);
   });
 });
 
@@ -160,30 +185,69 @@ describe("员工技能资产可解析", () => {
   });
 });
 
-describe("组合包 preset_key 冲突（已知债务登记）", () => {
+describe("多领域融合：组合岗位编制裁决", () => {
   /**
-   * 组合装载（geo-growth 依赖 hotel + ai-video）会把三个行业包的 preset 装进同一工作区，
-   * 而数字员工身份就是 preset_key（agents 幂等键 =(workspace_id, preset_key)）。
-   * 同名不同义 = 只能上岗一个，另一个静默失效（业务岗位丢失）。
-   *
-   * 当前 4 处冲突需要产品侧裁决"保留哪一份定义或改名"，故此处只做**登记 + 防增长**：
-   * 修复后请同步收缩本清单，不得新增。
+   * 组合装载（geo-growth 主包依赖 hotel + ai-video）把三个领域的编制装进同一工作区，
+   * 而数字员工身份就是 preset_key（agents 幂等键 =(workspace_id, preset_key)）：
+   * 同名不同义只能有一个权威定义，且裁决必须显式、可审计（不静默丢岗）。
    */
-  it("跨包重复 preset_key 只能是已登记的 4 处，不得新增", () => {
-    const owners = new Map<string, string[]>();
+  const composed = composeWorkforce("geo-growth");
+
+  it("组合编制内岗位标识唯一（每个 preset_key 只有一个权威定义）", () => {
+    const keys = [...composed.presets.keys()];
+    expect(new Set(keys).size).toBe(keys.length);
+    // 三个领域编制合并后应覆盖各自全部岗位（primary 16 + ai-video 33 + hotel 16 - 4 处遮蔽）
+    expect(keys.length).toBe(61);
+  });
+
+  it("同名岗位按主包声明落到权威归属包", () => {
+    const ownerOf = (key: string) => composed.presets.get(key)?.bundleId;
+    expect(ownerOf("ads-optimizer")).toBe("geo-growth");
+    expect(ownerOf("publish-operator")).toBe("geo-growth");
+    expect(ownerOf("review-analyst")).toBe("geo-growth");
+    // 酒店获客复合系统的 CEO 席位由行业包（hotel）持有：其职责覆盖酒店经营节拍与获客漏斗复盘
+    expect(ownerOf("company-ceo")).toBe("hotel");
+  });
+
+  it("被遮蔽的岗位定义逐条留痕（不静默丢弃）", () => {
+    const shadows = composed.shadowed.map((s) => `${s.bundleId}:${s.presetKey}→${s.winnerBundleId}`).sort();
+    expect(shadows).toEqual([
+      "ai-video:ads-optimizer→geo-growth",
+      "ai-video:publish-operator→geo-growth",
+      "ai-video:review-analyst→geo-growth",
+      "geo-growth:company-ceo→hotel",
+    ]);
+  });
+
+  it("权威岗位的有效围栏是组合并集（被遮蔽定义的边界不丢，且不改写包内文件）", () => {
+    for (const key of ["ads-optimizer", "publish-operator", "review-analyst", "company-ceo"]) {
+      const winner = composed.presets.get(key)!;
+      const loserFences = VIEWS
+        .filter((bundle) => bundle.id !== winner.bundleId)
+        .flatMap((bundle) => bundle.presets.get(key)?.doc.fence_bindings ?? []);
+      for (const fence of loserFences) {
+        expect(winner.effectiveFenceBindings, `${key} 组合有效围栏缺 ${fence}`).toContain(fence);
+      }
+      expect(winner.shadowedBundleIds.length).toBeGreaterThan(0);
+    }
+    // 包内文件保持原样：单包装配校验（F2.10 围栏绑定完整）不被组合裁决污染
+    const hotelCeo = VIEWS.find((b) => b.id === "hotel")!.presets.get("company-ceo")!.doc.fence_bindings!;
+    expect(hotelCeo).toEqual(["R17", "R18", "R19"]);
+    const geoReview = VIEWS.find((b) => b.id === "geo-growth")!.presets.get("review-analyst")!.doc.fence_bindings!;
+    expect(geoReview).toEqual(["G18"]);
+  });
+
+  it("组合编制覆盖三条管线的全部岗位（跨领域闭环不断岗）", () => {
+    const missing: string[] = [];
     for (const bundle of VIEWS) {
-      for (const key of bundle.presets.keys()) {
-        owners.set(key, [...(owners.get(key) ?? []), bundle.id].sort());
+      for (const { file, doc } of bundle.pipelines) {
+        for (const step of doc.steps ?? []) {
+          if (!step.owner || !composed.presets.has(step.owner)) {
+            missing.push(`${bundle.id}/${file.split("/").pop()} step=${step.step_key ?? "?"} owner=${step.owner ?? "未声明"}`);
+          }
+        }
       }
     }
-    const conflicts = Object.fromEntries(
-      [...owners.entries()].filter(([, list]) => list.length > 1).map(([key, list]) => [key, list]),
-    );
-    expect(conflicts).toEqual({
-      "ads-optimizer": ["ai-video", "geo-growth"],
-      "company-ceo": ["geo-growth", "hotel"],
-      "publish-operator": ["ai-video", "geo-growth"],
-      "review-analyst": ["ai-video", "geo-growth"],
-    });
+    expect(missing).toEqual([]);
   });
 });

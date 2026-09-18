@@ -1,7 +1,7 @@
 {
  "repo": "workloom-ai-acquisition",
  "description": "WorkLoom 获客系统 · 短视频社媒营销 × GEO × 获客五环 × 行业运营（首垂直：酒店）",
- "generatedAt": "2026-09-02T08:45:00.008Z",
+ "generatedAt": "2026-09-18T13:25:48.821Z",
  "demoPages": [
   "geo-customer-app.html",
   "geo-demo-c.html",
@@ -45,23 +45,23 @@
    ]
   },
   {
-   "icon": "🧲",
+   "icon": "🏨",
    "title": "行业 Bundle（垂直能力包）",
    "items": [
     {
      "name": "bundles/ai-video/",
      "how": "见 bundles/ai-video/ 目录",
-     "desc": "25 数字员工 presets · 8 个官方技能"
+     "desc": "围栏/技能/员工/对象/管线一键装配"
     },
     {
      "name": "bundles/geo-growth/",
      "how": "见 bundles/geo-growth/ 目录",
-     "desc": "16 数字员工 presets · 6 个官方技能"
+     "desc": "围栏/技能/员工/对象/管线一键装配"
     },
     {
      "name": "bundles/hotel/",
      "how": "见 bundles/hotel/ 目录",
-     "desc": "16 数字员工 presets · 30 个官方技能 · 4 客群装配（audit_only/low_star_single/homestay/unmanned） · 含 fast-scan 快照快扫（15–30 分钟当场出体检报告）"
+     "desc": "围栏/技能/员工/对象/管线一键装配"
     }
    ]
   },
@@ -89,6 +89,11 @@
      "name": "围栏 DSL 引擎",
      "how": "见 docs/capability-map.md L3",
      "desc": "事前裁决：支持 in/contains_any 列表语义"
+    },
+    {
+     "name": "技能保鲜环（下行分发）",
+     "how": "见 docs/capability-map.md L3",
+     "desc": "官方技能一键投放：五道预检 + L0/L1 静默/L2 审批 + 一键回滚 + 全事件留痕"
     },
     {
      "name": "L2 编排（ASK/QUEST）",
@@ -218,9 +223,9 @@
      "desc": "对外产品故事"
     },
     {
-     "name": "自带技能 ×8",
+     "name": "自带技能 ×9",
      "how": "skills/official/",
-     "desc": "component-integration / cross-platform-review / deal-flow / demo-mirror 等"
+     "desc": "client-demo-recorder / component-integration / cross-platform-review / deal-flow 等"
     },
     {
      "name": "能力导览 PPT",

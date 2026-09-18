@@ -6,6 +6,7 @@
  * 全部读写经 svcQuery/serviceTx（RLS 事务上下文，L7.1）。
  */
 import { SignJWT, jwtVerify } from "jose";
+import type pg from "pg";
 import { ensureServiceSchema } from "./store.js";
 import { serviceTx, svcQuery } from "./events.js";
 
@@ -20,6 +21,8 @@ export interface CUser {
   nickname: string | null;
   memberId: string | null;
   verified: boolean;
+  /** 会员身份核验方式：演示验证码 vs 真实渠道核验（webc 以 identityMode 展示徽标） */
+  identityMode: "demo" | "verified";
   createdAt: string;
 }
 
@@ -89,6 +92,7 @@ function newId(prefix: string): string {
 interface CUserRow extends Record<string, unknown> {
   id: string; workspace_id: string; channel: string; openid: string;
   nickname: string | null; member_id: string | null; phone_hash: string | null;
+  identity_mode: string | null;
   created_at: string;
 }
 
@@ -96,8 +100,29 @@ function toCUser(r: CUserRow): CUser {
   return {
     id: r.id, workspaceId: r.workspace_id, channel: r.channel as Channel, openid: r.openid,
     nickname: r.nickname, memberId: r.member_id, verified: !!r.phone_hash,
+    identityMode: r.identity_mode === "verified" ? "verified" : "demo",
     createdAt: new Date(r.created_at).toISOString(),
   };
+}
+
+/**
+ * 身份核验通过后的绑定写回：member_id + phone_hash + 核验方式同一条 UPDATE。
+ * 必须在调用方的 serviceTx 内执行，保证与五元事件同一 COMMIT（H2 纪律）。
+ */
+export async function bindCUserIdentityOn(
+  client: pg.PoolClient,
+  input: {
+    workspaceId: string; cUserId: string; memberId: string; phoneHash: string;
+    identityMode: "demo" | "verified";
+  },
+): Promise<CUser | null> {
+  const r = await client.query<CUserRow>(
+    `UPDATE c_users SET member_id=$3, phone_hash=$4, identity_mode=$5
+      WHERE workspace_id=$1 AND id=$2
+      RETURNING *`,
+    [input.workspaceId, input.cUserId, input.memberId, input.phoneHash, input.identityMode],
+  );
+  return r.rows[0] ? toCUser(r.rows[0]) : null;
 }
 
 export async function resolveCUser(input: {

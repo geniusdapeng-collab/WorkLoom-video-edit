@@ -140,7 +140,10 @@ describe.runIf(RUN_DB)("技能/意识 PG 集成（M8 铁律）", async () => {
     await uninstallSkill(app, gw, scope, { skillId: revenue!.id, by: "MEM-001" }).catch(() => undefined);
 
     const i1 = await installSkill(app, gw, scope, { skillId: revenue!.id, by: "MEM-001" });
-    expect(i1).toMatchObject({ installed: true, deduped: false, bindings: ["R1", "R2"] });
+    // 期望值取技能资产自身声明（行业包演进时断言随之更新，不写死清单）
+    const declaredBindings = revenue!.fence_bindings ?? [];
+    expect(declaredBindings.length).toBeGreaterThan(0);
+    expect(i1).toMatchObject({ installed: true, deduped: false, bindings: declaredBindings });
 
     const agent = await qApp<{ id: string }>(`SELECT id FROM agents WHERE workspace_id=$1 AND preset_key='pricing-agent'`, [scope.workspaceId]);
     const bindings = await resolveAgentFenceBindings(app, scope, agent.rows[0]!.id);
@@ -151,7 +154,7 @@ describe.runIf(RUN_DB)("技能/意识 PG 集成（M8 铁律）", async () => {
     expect(i2.deduped).toBe(true); // 重复安装不报错不重复留痕
 
     const u = await uninstallSkill(app, gw, scope, { skillId: revenue!.id, by: "MEM-001" });
-    expect(u.revokedBindings).toEqual(["R1", "R2"]); // L8.3 卸载即撤销
+    expect(u.revokedBindings).toEqual(declaredBindings); // L8.3 卸载即撤销
     const installs = await listInstalls(app, scope);
     expect(installs.find((x) => x.skill_id === revenue!.id)).toBeUndefined();
     const bindingsAfter = await resolveAgentFenceBindings(app, scope, agent.rows[0]!.id);
@@ -201,10 +204,14 @@ describe.runIf(RUN_DB)("技能/意识 PG 集成（M8 铁律）", async () => {
     await expect(installSkill(app, gw, scope, { skillId: "skill-ind-raw", by: "MEM-001" }))
       .rejects.toMatchObject({ code: "NOT_DESENSITIZED" });
 
+    // 冲突口径 = 绑定到「未生效围栏」。R9 是 hotel 基线的生效规则（is_baseline），
+    // 用它做冲突样本在真实演示工作区永远不成立，故改用确定不存在的规则标识。
+    // 自清理：该技能按设计不允许安装成功，历史残留安装行必须清掉（否则双路径快照校验读到脏数据）
+    await qApp(`DELETE FROM skill_installs WHERE skill_id='skill-conflict'`);
     await qApp(
       `INSERT INTO skills (id, level, bundle, name, version, description, fence_bindings, body, desensitized)
-       VALUES ('skill-conflict','official','hotel','conflict-skill','1.0.0','', '["R1","R9"]', '', false)
-       ON CONFLICT (id) DO UPDATE SET fence_bindings='["R1","R9"]'`,
+       VALUES ('skill-conflict','official','hotel','conflict-skill','1.0.0','', '["R1","R-NOT-ACTIVE"]', '', false)
+       ON CONFLICT (id) DO UPDATE SET fence_bindings='["R1","R-NOT-ACTIVE"]'`,
     );
     await expect(installSkill(app, gw, scope, { skillId: "skill-conflict", by: "MEM-001" }))
       .rejects.toMatchObject({ code: "FENCE_CONFLICT" });
