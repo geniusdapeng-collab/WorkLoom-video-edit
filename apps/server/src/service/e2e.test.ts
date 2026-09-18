@@ -6,11 +6,24 @@
  */
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { spawn, type ChildProcess } from "node:child_process";
+import { createServer } from "node:net";
 import { fileURLToPath } from "node:url";
 import { SignJWT } from "jose";
 import pg from "pg";
 
-const PORT = 8795;
+/**
+ * 端口动态化：固定端口 + 本机已有同端口服务（其它工作区实例）时，
+ * 子进程会 EADDRINUSE 退出而健康探测却对**别人的**服务判活，整套用例会打到别的仓库上。
+ */
+const PORT = await new Promise<number>((resolve, reject) => {
+  const probe = createServer();
+  probe.once("error", reject);
+  probe.listen(0, "127.0.0.1", () => {
+    const address = probe.address();
+    const port = typeof address === "object" && address ? address.port : 0;
+    probe.close(() => (port ? resolve(port) : reject(new Error("无法获取空闲端口"))));
+  });
+});
 const BASE = `http://localhost:${PORT}`;
 const ROOT = fileURLToPath(new URL("../../../../", import.meta.url));
 const RUN = `e2e-${Date.now().toString(36)}`;

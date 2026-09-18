@@ -48,6 +48,13 @@ const WS_ID = "ws-yunqi";
 const WS_NAME = "云栖酒店";
 const WS_SLUG = "yunqi-hotel";
 const FENCE_VERSION = "hotel-baseline/v4";
+/**
+ * 本产品的组合主包：product.manifest.json 的 defaultBundle（获客主包）。
+ * 融合获客系统的编制 = 主包（获客域）+ 依赖包（ai-video 内容生产 + hotel 酒店经营）。
+ */
+const PRODUCT_PRIMARY_BUNDLE = JSON.parse(
+  readFileSync(join(REPO_ROOT, "product.manifest.json"), "utf-8"),
+).defaultBundle as string;
 
 const MEMBERS = [
   { id: "MEM-001", name: "王店长", role: "owner" },
@@ -201,9 +208,92 @@ function loadSkills(): SkillDoc[] {
     });
 }
 
+/**
+ * 融合获客资产（bundles/geo-growth/schemas/archive.schema.json 对齐）。
+ *
+ * 本产品是"酒店获客复合系统"：一店一档既要装下酒店经营（房态/布草/供应商），
+ * 也要装下获客域（品牌实体卡/目标客群/内容与 GEO 资产/转化资产）。
+ * 缺了这一段，融合体在主包档案契约层就会被判不合规——只剩"酒店"，没有"获客"。
+ */
+function acquisitionAssets(): Record<string, unknown> {
+  return {
+    enterprise: {
+      name: WS_NAME,
+      profile: "杭州四钻 86 间客房单体酒店，OTA 依赖度高、直连占比低，正在用内容+GEO 换取直连客源",
+      qualifications: ["四钻评级", "消防验收合格", "食品经营许可"],
+      capacity: "86 间客房 / 日均接待 120 人次 / 宴会厅 2 个",
+      brand_guideline: { tone: "真诚克制，不夸大、不承诺档案外补偿", visual: "湖山青主色 + 暖金点缀" },
+    },
+    entity_card: {
+      product_lines: [
+        { model: "RT-DLX-KING", name: "豪华大床房", applications: ["情侣/商务单人"], params: { size: "38㎡", bed: "1.8m", view: "城市景观" } },
+        { model: "RT-FAM-TWIN", name: "亲子双床房", applications: ["亲子家庭"], params: { size: "42㎡", bed: "1.5m×2", extras: "儿童洗漱包" } },
+        { model: "RT-BIZ-KING", name: "商旅大床房", applications: ["差旅长住"], params: { size: "32㎡", bed: "1.8m", extras: "免费洗衣 2 件" } },
+      ],
+      core_selling_points: ["步行 8 分钟到地铁 2 号线", "早餐现做、儿童免加床费", "直连下单免 OTA 佣金让利", "差评 24h 内闭环"],
+      price_logic: "工作日 458 元锚定，周末与节假日按房态分档上浮，保底价 ¥380",
+      confirmed: true,
+    },
+    target_market: {
+      countries: ["中国"],
+      languages: ["zh"],
+      buyer_roles: ["商旅客人", "亲子家庭", "本地周末度假客", "企业差旅采购"],
+      competitors: [
+        { name: "西湖云舍酒店", note: "美团点评量高，但直连几乎没有" },
+        { name: "溪上云居民宿", note: "小红书内容密度高，亲子客群强" },
+      ],
+    },
+    content_assets: { materials: 26, history_scripts: 9, high_perf_structures: ["房型对比+价格锚定", "周边玩法清单", "差评反转故事"] },
+    operation_assets: {
+      accounts: [
+        { platform: "douyin", handle: "@云栖酒店", group: "A", daily_publish_limit: 2 },
+        { platform: "xiaohongshu", handle: "云栖酒店·杭州", group: "A", daily_publish_limit: 2 },
+        { platform: "shipinhao", handle: "云栖酒店", group: "B", daily_publish_limit: 1 },
+      ],
+      stage: "setup",
+      baseline: { plays_7d: 12_800, inquiries_30d: 46 },
+    },
+    geo_assets: {
+      query_set: [
+        { q: "杭州西湖附近酒店推荐", type: "category", lang: "zh", priority: "P0", status: "竞品首推" },
+        { q: "云栖酒店怎么样", type: "brand", lang: "zh", priority: "P0", status: "未提及" },
+        { q: "杭州亲子酒店哪家好", type: "scene", lang: "zh", priority: "P1", status: "未覆盖" },
+        { q: "杭州地铁2号线附近住宿", type: "scene", lang: "zh", priority: "P1", status: "未提及" },
+        { q: "云栖 vs 西湖云舍", type: "compare", lang: "zh", priority: "P1", status: "负面偏差" },
+      ],
+      visibility_baseline: {
+        mention_rate: 0.14, first_rate: 0.03, sov: 0.08,
+        platforms: ["doubao", "deepseek", "yuanbao", "chatgpt"],
+        by_platform: {
+          doubao: { mention: 0.19, first: 0.05, sov: 0.11 },
+          deepseek: { mention: 0.16, first: 0.03, sov: 0.09 },
+          yuanbao: { mention: 0.10, first: 0.01, sov: 0.05 },
+          chatgpt: { mention: 0.11, first: 0.02, sov: 0.07 },
+        },
+      },
+      citation_targets: ["携程目的地攻略", "知乎杭州住宿问答", "小红书城市榜单", "本地生活媒体"],
+    },
+    conversion_assets: {
+      funnel_baseline: { exposure: 128_000, interaction: 6_400, inquiry: 820, lead: 310, deal: 96, repurchase: 21 },
+      attribution: { chain: ["渠道", "内容ID", "入口", "线索ID"], ota_commission_saving_target: 42_000 },
+      coupon_skus: [
+        { sku: "CPN-STAY-300", title: "300 元住宿抵扣券", stock: 500, fuse_limit: 0.2 },
+        { sku: "CPN-SPA-88", title: "88 元 SPA 体验券", stock: 300, fuse_limit: 0.3 },
+      ],
+    },
+    data_boundary: {
+      pii: "客资明文不出系统（R24）；导出/外发必审（R23）",
+      cross_border: "境内存储，不跨境传输",
+      retention_days: 730,
+    },
+  };
+}
+
 /** 一店一档（bundles/hotel/schemas/archive.schema.json 对齐；保底价 ¥380 与 R2 同源） */
 function yunqiArchive(): Record<string, unknown> {
   return {
+    // 融合体：酒店经营档案 + 获客资产档案同属一店一档（主包与行业包契约取并集）
+    ...acquisitionAssets(),
     property: { name: WS_NAME, city: "杭州", rooms: 86, star: "四钻", segment: "low_star_single", pms_vendor: "示例PMS" },
     // 数字CEO 宪章（D21，演示：董事长已完成深度授权 → 试用期第 2 天）
     charter: {
@@ -695,6 +785,24 @@ async function main(): Promise<void> {
     );
   }
   console.log(`✓ Agent 实例 ×${presets.length}（含只读 preset：巡检/竞对/业主驾驶舱，L9.1）`);
+
+  /**
+   * 组合编制上岗（融合获客系统口径）：酒店经营 + 内容生产 + GEO 分发三个领域的编制
+   * 同属一个获客闭环，必须一次装齐；围栏按组合并集落库（只紧不松：客群补丁更严时保留补丁，
+   * 不会因为装入基线把客户已收紧的规则滚回去）。
+   * 这里传入显式 executor（seed 用单连接，不需要再开池）。
+   */
+  const { provisionComposedWorkforce } = await import("@workloom/base/bundles");
+  const composed = await provisionComposedWorkforce(
+    { query: (sql: string, params?: unknown[]) => owner.query(sql, params as never[]) },
+    { tenantId: TENANT_ID, workspaceId: WS_ID },
+    PRODUCT_PRIMARY_BUNDLE,
+    "system:seed",
+  );
+  console.log(
+    `✓ 组合编制上岗：${composed.bundleIds.join(" + ")} 共 ${composed.rosterSize} 岗`
+    + `（围栏并集 ${composed.fenceRules} 条 · 同名遮蔽 ${composed.shadowed.length} 处按主包裁决）`,
+  );
 
   // 一店一档（槽①；forbidden 双写：archive 内 + 独立列，L1.6）
   // dataMode=simulated：落地向导（D24）横幅事实源——种子库即「全模拟运行态」，向导启用真实模式后翻转

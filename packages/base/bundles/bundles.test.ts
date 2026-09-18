@@ -118,6 +118,90 @@ describe.runIf(RUN_DB)("行业装配 PG 集成（F2.10 铁律）", async () => {
     expect(ev.rows[0]!.action).toBe("bundle.check_run");
   });
 
+  /**
+   * 融合获客系统的装配口径：主包（获客域）激活前必须把三包编制一次装齐
+   * （酒店经营 + 内容生产 + GEO 分发），围栏取组合并集，同名岗位按主包裁决留痕。
+   * 这条用例独立建工作区，避免污染演示租户（ws-yunqi）。
+   */
+  it("融合装配：组合主包激活 = 三包编制齐装（61 岗）+ 围栏并集 + 遮蔽留痕", async () => {
+    const { provisionComposedWorkforce } = await import("./assembly.js");
+    const suffix = Date.now().toString(36);
+    const wsId = `ws-fusion-${suffix}`;
+    const tenantId = `tn-fusion-${suffix}`;
+    /** 独立工作区的 RLS 上下文（演示租户的 qApp 上下文对本工作区不可见） */
+    const qScope = async <T extends Record<string, any> = Record<string, any>>(sql: string, params: unknown[] = []) => {
+      const c = await app.connect();
+      try {
+        await c.query("BEGIN");
+        await c.query("SELECT set_config('app.workspace_id', $1, true)", [wsId]);
+        await c.query("SELECT set_config('app.tenant_id', $1, true)", [tenantId]);
+        const r = await c.query<T>(sql, params);
+        await c.query("COMMIT");
+        return r;
+      } catch (err) {
+        await c.query("ROLLBACK").catch(() => undefined);
+        throw err;
+      } finally {
+        c.release();
+      }
+    };
+    try {
+      await qScope(
+        `INSERT INTO tenants (id, name, plan) VALUES ($1,'融合装配验证租户','pro') ON CONFLICT (id) DO NOTHING`,
+        [tenantId],
+      );
+      await qScope(
+        `INSERT INTO workspaces (id, tenant_id, name, slug, industry, stage, night_config)
+         VALUES ($1,$2,'融合装配验证工作区',$1,'hotel','managed','{}') ON CONFLICT (id) DO NOTHING`,
+        [wsId, tenantId],
+      );
+      // 一店一档沿用演示租户的融合档案（酒店经营 + 获客资产），验证"融合档案满足组合契约"
+      await qScope(
+        `INSERT INTO profiles (workspace_id, tenant_id, industry, archive, forbidden)
+         SELECT $1,$2,'hotel',archive,forbidden FROM profiles WHERE workspace_id='ws-yunqi'`,
+        [wsId, tenantId],
+      );
+
+      const scope2 = { tenantId, workspaceId: wsId };
+      const provision = await provisionComposedWorkforce(app, scope2, "geo-growth", "MEM-FUSION");
+      expect(provision.bundleIds).toEqual(["hotel", "ai-video", "geo-growth"]);
+      expect(provision.rosterSize).toBe(61);
+      // 每个 preset_key 只由一个包提供（同名按主包裁决）：hotel 16 / ai-video 30 / geo-growth 15
+      expect(provision.perBundle).toEqual({ hotel: 16, "ai-video": 30, "geo-growth": 15 });
+      expect(provision.shadowed.length).toBe(4);
+      expect(provision.fenceRules).toBeGreaterThanOrEqual(54);
+
+      const profile = await computeAssembly(app, scope2, "geo-growth");
+      expect(profile.checks.map((c) => c.ok)).toEqual([true, true, true, true, true, true]);
+      expect(profile.canActivate).toBe(true);
+      expect(profile.agents.length).toBe(61);
+
+      const activated = await activateBundle(app, gw, scope2, "geo-growth", "MEM-FUSION");
+      expect(activated.composition.rosterSize).toBe(61);
+      const ev = await qScope<{ payload: { decision: { after: { composition?: { bundles?: string[]; rosterSize?: number } } } } }>(
+        `SELECT payload FROM biz_events WHERE workspace_id=$1 AND payload->'decision'->>'action'='bundle.activate'
+          ORDER BY seq DESC LIMIT 1`,
+        [wsId],
+      );
+      expect(ev.rows[0]!.payload.decision.after.composition?.bundles).toEqual(["hotel", "ai-video", "geo-growth"]);
+      expect(ev.rows[0]!.payload.decision.after.composition?.rosterSize).toBe(61);
+    } finally {
+      await qScope(`DELETE FROM agents WHERE workspace_id=$1`, [wsId]).catch(() => undefined);
+      await qScope(`DELETE FROM fence_rules WHERE workspace_id=$1`, [wsId]).catch(() => undefined);
+      await qScope(`DELETE FROM profiles WHERE workspace_id=$1`, [wsId]).catch(() => undefined);
+      await qScope(`DELETE FROM workspaces WHERE id=$1`, [wsId]).catch(() => undefined);
+      await qScope(`DELETE FROM tenants WHERE id=$1`, [tenantId]).catch(() => undefined);
+    }
+  }, 30000);
+
+  it("校验留痕：recheck 写 bundle.check_run 事件（P7E3 留痕可查）", async () => {
+    const r = await recheckBundle(app, gw, scope, "hotel", "MEM-001");
+    expect(r.eventId).toMatch(/^E-\d+$/);
+    const ev = await qApp(
+      `SELECT payload->'decision'->>'action' AS action FROM biz_events WHERE event_id=$1`, [r.eventId]);
+    expect(ev.rows[0]!.action).toBe("bundle.check_run");
+  });
+
   it("激活幂等：hotel 已激活仍可重激活并留痕 bundle.activate", async () => {
     const r = await activateBundle(app, gw, scope, "hotel", "MEM-001");
     expect(r.eventId).toMatch(/^E-\d+$/);

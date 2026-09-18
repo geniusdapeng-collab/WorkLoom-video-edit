@@ -2244,8 +2244,28 @@ async function runCases(list: Case[], label: string): Promise<number> {
 const e2eCases: Case[] = [];
 const h2 = (name: string, run: Case["run"]) => { const n = e2eCases.length + 1; e2eCases.push({ id: `H-${String(n).padStart(2, "0")}`, name, run }); };
 
-const PORT = 8787;
+/**
+ * E2E 端口：默认动态取空闲端口（可用 SUITE_PORT 固定）。
+ *
+ * 原先硬编码 8787：本机若已有其它工作区的服务占用该端口，spawn 出来的服务会因
+ * EADDRINUSE 退出，而 waitServer 却对**别人的**服务判健康——整套 HTTP 用例会打到
+ * 另一个工作区上，测出与该仓库无关的结果（实测过：拿到了 workroom-fox 的 412 门禁响应）。
+ */
+const PORT = Number(process.env.SUITE_PORT ?? 0) || await pickFreePort();
 const BASE = `http://localhost:${PORT}`;
+
+async function pickFreePort(): Promise<number> {
+  const { createServer } = await import("node:net");
+  return await new Promise<number>((resolve, reject) => {
+    const probe = createServer();
+    probe.once("error", reject);
+    probe.listen(0, "127.0.0.1", () => {
+      const address = probe.address();
+      const port = typeof address === "object" && address ? address.port : 0;
+      probe.close(() => (port ? resolve(port) : reject(new Error("无法获取空闲端口"))));
+    });
+  });
+}
 
 async function api<T = unknown>(path: string, opts: { method?: string; token?: string; body?: unknown } = {}): Promise<{ status: number; data: T }> {
   const res = await fetch(`${BASE}${path}`, {
@@ -2267,7 +2287,11 @@ async function login(memberNo: string): Promise<string> {
 }
 
 async function waitServer(proc: ChildProcess): Promise<void> {
+  let exited: number | null = null;
+  proc.once("exit", (code) => { exited = code ?? 0; });
   for (let i = 0; i < 40; i++) {
+    // 子进程已退出（端口占用/启动异常）→ 立即失败，绝不对可能存在的其它服务判健康
+    if (exited !== null) throw new Error(`server 进程启动即退出（exit=${exited}），端口 ${PORT} 可能被占用`);
     try {
       const r = await fetch(`${BASE}/health`);
       if (r.ok) return;
@@ -3583,11 +3607,21 @@ const svcPassed = await runCases(cases, "服务层用例");
 console.log("▸ 启动 HTTP E2E 段（spawn server）……");
 const server = spawn("pnpm", ["-C", "apps/server", "start"], {
   cwd: new URL("..", import.meta.url).pathname,
-  env: { ...process.env },
-  stdio: "ignore",
+  // 端口随实例走：动态端口 + 显式注入 SERVER_PORT，避免与其它工作区实例串台
+  env: { ...process.env, SERVER_PORT: String(PORT) },
+  stdio: ["ignore", "pipe", "pipe"],
 });
+let serverLog = "";
+server.stdout?.on("data", (chunk: Buffer) => { serverLog += chunk.toString(); });
+server.stderr?.on("data", (chunk: Buffer) => { serverLog += chunk.toString(); });
 try {
-  await waitServer(server);
+  try {
+    await waitServer(server);
+  } catch (err) {
+    // 启动失败时把服务端最后几行日志带出来（stdin 早就不是 ignore 了，日志必须可见）
+    console.error(serverLog.split("\n").slice(-12).join("\n"));
+    throw err;
+  }
   // E2E dispatch 用例前清出 L3.1 并发位：历史测试残留的 queued/running 线程全部
   // 标 completed（保留种子演示线程 T-101/102/103 的剧本状态），上限 10/工作区
   await qApp(

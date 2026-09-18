@@ -126,6 +126,7 @@ import {
   listProfileSlugs,
   recheckBundle,
   listSegments,
+  provisionComposedWorkforce,
   resolveSegment,
 } from "@workloom/base/bundles";
 import YAML from "yaml";
@@ -211,6 +212,28 @@ function locateBundleDir(): string {
     dir = up;
   }
   return join(process.cwd(), "bundles/hotel");
+}
+
+/**
+ * 组合主包（获客主包）标识：读 product.manifest.json 的 defaultBundle。
+ * 段装配完成后按它做组合编制上岗（主包 + 依赖包一次装齐），
+ * 拿不到清单时退回 hotel（酒店垂直是本产品的默认行业）。
+ */
+function locateProductPrimaryBundle(): string {
+  let dir = process.cwd();
+  for (let i = 0; i < 6; i++) {
+    const manifest = join(dir, "product.manifest.json");
+    if (existsSync(manifest)) {
+      try {
+        const raw = JSON.parse(readFileSync(manifest, "utf-8")) as { defaultBundle?: unknown };
+        if (typeof raw.defaultBundle === "string" && raw.defaultBundle.trim()) return raw.defaultBundle.trim();
+      } catch { /* 清单损坏不阻断装配：退回酒店垂直 */ }
+    }
+    const up = dirname(dir);
+    if (up === dir) break;
+    dir = up;
+  }
+  return "hotel";
 }
 
 /** 四 env 写回 .env（保留其他行）+ 同步 process.env + 清 LLM 缓存（全链即时生效，无需重启）
@@ -682,6 +705,27 @@ const onboardingRouter = router({
         );
         if (prof.rowCount === 0) throw new Error(`工作区档案缺失（profiles 无 ${scope.workspaceId} 行），请先完成经营主体步骤`);
 
+        /**
+         * ⑤·组合编制上岗（融合获客系统）：段装配只装了租户起步方式那一套（酒店经营），
+         * 但本产品的获客闭环还需要内容生产（ai-video）与 GEO 分发（geo-growth）的岗位同时在场。
+         * 按 product.manifest.json 的主包做一次幂等组合上岗：编制并集 + 围栏并集（只紧不松）。
+         */
+        const primaryBundle = locateProductPrimaryBundle();
+        let composition: Awaited<ReturnType<typeof provisionComposedWorkforce>> | null = null;
+        try {
+          // 复用本事务的连接（manageTransaction=false）：组合上岗与段装配同 COMMIT，
+          // 且单调守卫能看到本事务里刚写入的客群补丁（不会把客户收紧的围栏滚回去）
+          composition = await provisionComposedWorkforce(
+            // 显式包一层 executor：pg.PoolClient.query 的重载含 callback 变体，
+            // 直接传结构类型不成立；这里只暴露最小查询面，事务仍由本作用域掌控
+            { query: (sql: string, params?: unknown[]) => client.query(sql, params as never[]) },
+            scope, primaryBundle, ctx.identity.memberNo, undefined, { manageTransaction: false },
+          );
+        } catch (composeErr) {
+          // 组合上岗失败不静默：整体由外层事务 ROLLBACK（不装半个班子），原因交调用方
+          throw new Error(`组合编制上岗失败（${primaryBundle}）：${composeErr instanceof Error ? composeErr.message : composeErr}`);
+        }
+
         // ⑥ 事件留痕（D16：与装配写同事务同 COMMIT）
         await gatewayAppendOnClient(client, {
           ...scope, actor: { id: ctx.identity.memberNo, type: "human" }, sessionId: `onboarding-${scope.workspaceId}`,
@@ -696,6 +740,15 @@ const onboardingRouter = router({
               presets: presets.length, skills_installed: skillsInstalled, skills_skipped: skillsSkipped,
               fencePatch: patch?.version ?? null, fence_rules_applied: fenceRulesApplied,
               fence_default_level: patch?.default_level ?? null,
+              composition: composition
+                ? {
+                    bundles: composition.bundleIds,
+                    roster_size: composition.rosterSize,
+                    per_bundle: composition.perBundle,
+                    fence_rules: composition.fenceRules,
+                    shadowed: composition.shadowed,
+                  }
+                : null,
             },
             after: { stage },
             basis: [`落地向导「起步方式」：${asm.label}——${asm.pitch}`],
