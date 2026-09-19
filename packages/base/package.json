@@ -5,6 +5,7 @@
   "type": "module",
   "exports": {
     "./bundles": "./bundles/index.ts",
+    "./connectors": "./connectors/index.ts",
     "./workdata": "./workdata/index.ts",
     "./im-channels": "./im-channels/index.ts",
     "./inspection": "./inspection/index.ts",

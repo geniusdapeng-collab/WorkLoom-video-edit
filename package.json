@@ -36,6 +36,7 @@
     "scan:knowhow": "tsx scripts/tools/knowhow-depth.mts",
     "c-layer": "tsx --env-file=.env scripts/c-layer/evaluate.mts",
     "acceptance:scale-s8": "tsx --env-file=.env scripts/acceptance/scale-s8.mts",
+    "connectors:check": "tsx --env-file=.env scripts/connectors-check.mts",
     "suite:geo": "tsx --env-file=.env scripts/suite-geo.ts",
     "release:gate": "tsx --env-file=.env scripts/release-gate.ts",
     "suite:hotel": "tsx --env-file=.env scripts/suite-hotel.ts",

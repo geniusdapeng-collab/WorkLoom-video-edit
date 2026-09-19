@@ -14,7 +14,7 @@ pnpm install && pnpm preview:all
 |---|---|---|
 | 🖥 PC · B 端工作台 | http://localhost:3000 | 经营主页全员就位、晨报、待审批、一句话目标输入 |
 | 📱 B 端移动 | http://localhost:3001 | 演示导航页 → 任选高保真页「手机壳」预览 |
-| 📱 C 端 AI 服务前台 | http://localhost:3002 | 免登对话：查订单/售后/物流/常见问题 |
+| 📱 C 端 AI 服务前台 | http://localhost:3002 | 免登对话：咨询增长服务 / 提交合作需求 / 查询跟进进度 |
 
 无需任何真实后端或密钥：Mock 数据（种子 + 离线确定性模型 + 演示直登）已固化，详见 mock/README.md。
 
