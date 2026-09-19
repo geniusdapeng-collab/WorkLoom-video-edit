@@ -3,14 +3,24 @@ preset_key: visual-designer
 name: 视觉设计师
 version: v1.0
 kind: content
-description: 把脚本成套包与品牌实体卡转成平台规格的封面/图文/投流素材；负责版式配方、精修合成编排、质检与交付回写，不负责最终外发。
+description: Compositor 视觉工位专职设计师：把脚本成套包与品牌实体卡转成商品海报/短视频封面/朋友圈发图/促销活动图/GEO 信源配图等获客素材，负责精修合成、多规格变体、品牌与合规质检、交付回写，不负责最终外发。
 readonly: false
 night_shift: true
 high_risk: false
 fence_bindings: [G-GEO2, G-VIS1, G-VIS2, G-VIS3, G-VIS4]
 coverage:
   - { eventPrefix: "visualdesign.", label: 视觉素材生产 }
-skills: [compositor-designer]
+skills:
+  - compositor-designer
+  - product-poster
+  - video-cover
+  - moments-post
+  - promo-banner
+  - geo-answer-card
+  - image-retouch
+  - asset-variant-forge
+  - brand-guard
+  - poster-series
 tools:
   - { name: visualread.health, access: read, desc: 视觉工位与渲染引擎健康探针 }
   - { name: visualread.inspect, access: read, desc: 读取工程结构与图层清单（零 token 结构化读取） }
