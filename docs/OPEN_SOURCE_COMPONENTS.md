@@ -31,7 +31,7 @@
 | 8 | tRPC | [github.com/trpc/trpc](https://github.com/trpc/trpc) · MIT | 11.18.0 | **11.19.0** ⬆ | 运行时 | apps/server（@trpc/server）、apps/web（@trpc/client） | server/client 必须同版同批升级，跨版本混用会直接破坏三端类型契约 |
 | 9 | Drizzle ORM | [github.com/drizzle-team/drizzle-orm](https://github.com/drizzle-team/drizzle-orm) · Apache-2.0 | 0.45.2 | 0.45.2 | 运行时 | packages/db（client.ts / schema.ts） | 类型源与查询构造；DDL 事实源仍是手写 SQL migrations（D5 纪律：schema.ts 只做类型映射，禁止用 drizzle-kit 生成迁移） |
 | 10 | node-postgres（pg） | [github.com/brianc/node-postgres](https://github.com/brianc/node-postgres) · MIT | 8.23.0 | 8.23.0 | 运行时 | packages/db、packages/base、apps/server | PG 驱动；每个 workspace 必须同版，避免多实例连接池语义漂移 |
-| 11 | Zod | [github.com/colinhacks/zod](https://github.com/colinhacks/zod) · MIT | 4.0.0 / 4.4.3 | **4.6.5** ⬆ | 运行时 | apps/server、packages/base、packages/runtime | 事件与契约校验；v4 与 v3 API 差异大，升级必须全量跑契约测试 |
+| 11 | Zod | [github.com/colinhacks/zod](https://github.com/colinhacks/zod) · MIT | 4.4.3 / 4.6.5 | **4.6.5** ⬆ | 运行时 | apps/server、packages/base、packages/runtime | 事件与契约校验；v4 与 v3 API 差异大，升级必须全量跑契约测试 |
 | 12 | jose（JWT/JWS） | [github.com/panva/jose](https://github.com/panva/jose) · MIT | 6.2.10 | **6.2.12** ⬆ | 运行时 | apps/server、packages/base | 会话与租户令牌签发/校验；升级后必须过登录、跨租户越权（RLS）用例 |
 | 13 | yaml | [github.com/eemeli/yaml](https://github.com/eemeli/yaml) · ISC | 2.9.0 | **2.9.1** ⬆ | 运行时 | bundle/preset 解析、skills 声明、根脚本 | bundle 与技能 YAML 解析器；与 yaml-governance（治理固定解析器）保持 2.9.0 同版 |
 | 14 | js-yaml | [github.com/nodeca/js-yaml](https://github.com/nodeca/js-yaml) · MIT | 4.2.0 | **5.4.2** ⬆ | 运行时 | 随 dsh 分发（CLI 配置解析） | dsh CLI 配置解析依赖；随 dsh 锁定树升级 |
@@ -272,7 +272,7 @@
 | `ws` | 8.21.0（声明） | 8.21.0 | 开发 | vendor/dsh/package.json | **8.21.3** ⬆ |
 | `yaml` | 2.9.0 | 2.9.0 | 开发/生产 | .workloom-runtime-deps/package.json、apps/server/package.json、package.json 等 4 处 | **2.9.1** ⬆ |
 | `yaml-governance → npm:yaml` | 2.9.0 | npm:yaml@2.9.0 | 开发 | package.json | **2.9.1** ⬆ |
-| `zod` | 4.0.0 / 4.4.3（声明） | 4.4.3 / ^4.0.0 / ^4.4.3 | 生产 | .workloom-runtime-deps/package.json、apps/server/package.json、packages/base/package.json 等 7 处 | **4.6.5** ⬆ |
+| `zod` | 4.4.3 / 4.6.5（声明） | 4.4.3 / ^4.4.3 / ^4.6.5 | 生产 | .workloom-runtime-deps/package.json、apps/server/package.json、packages/base/package.json 等 7 处 | 4.6.5 |
 
 ### 2.2 Python 依赖（1 个）
 
@@ -298,13 +298,13 @@
 
 ## 3. 有可用更新
 
-登记组件滞后 29 个，直接依赖滞后 33 个 —— 逐项执行单见 `docs/oss-update-plan.md`。
+登记组件滞后 29 个，直接依赖滞后 32 个 —— 逐项执行单见 `docs/oss-update-plan.md`。
 - `DeepSeek Harness（dsh）` 0.1.2-rc.1 → **0.1.5-rc.2**（门禁 runtime-gate）
 - `node-addon-require-builtin` 0.1.5 → **0.1.6**（门禁 standard）
 - `dsh-im 多平台 IM 接入插件` 0.2.2 → **4.21.2**（门禁 standard）
 - `Hono` 4.13.5 → **4.13.8**（门禁 full）
 - `tRPC` 11.18.0 → **11.19.0**（门禁 full）
-- `Zod` 4.0.0 / 4.4.3 → **4.6.5**（门禁 standard）
+- `Zod` 4.4.3 / 4.6.5 → **4.6.5**（门禁 standard）
 - `jose（JWT/JWS）` 6.2.10 → **6.2.12**（门禁 full）
 - `yaml` 2.9.0 → **2.9.1**（门禁 standard）
 - `js-yaml` 4.2.0 → **5.4.2**（门禁 standard）
