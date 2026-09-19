@@ -37,7 +37,7 @@ WorkLoom 获客系统是一套**面向 B 端商家的 AI 获客经营系统**：
 **获客的精髓就一句话：在对的地方，用对的内容，接住有意图的人，并且每一环都能度量到钱。**
 
 <!-- CAPABILITIES:BEGIN -->
-<!-- 本区块由 scripts/generate-capabilities.mjs 自动生成（2026-09-18），请勿手改；重跑 pnpm capabilities 更新 -->
+<!-- 本区块由 scripts/generate-capabilities.mjs 自动生成（2026-09-19），请勿手改；重跑 pnpm capabilities 更新 -->
 
 ## 🧩 系统能力速览（自动生成 · 与代码同步）
 
