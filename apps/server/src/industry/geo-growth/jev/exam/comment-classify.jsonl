@@ -1,0 +1,9 @@
+// 考卷：评论初筛（合成样本，非客户数据）。expected = 期望的 choice 键。
+{"id": "c-01", "text": "想问一下你们房间多少钱一晚", "expected": "inquiry"}
+{"id": "c-02", "text": "我想预订下周六的房间，两个人住", "expected": "booking_intent"}
+{"id": "c-03", "text": "房间太差了，我要投诉并要求赔偿", "expected": "complaint"}
+{"id": "c-04", "text": "加微信领取优惠券群返现", "expected": "spam"}
+{"id": "c-05", "text": "今天的天气真不错", "expected": "smalltalk"}
+{"id": "c-06", "text": "请问你们酒店怎么走，位置在哪里", "expected": "inquiry"}
+{"id": "c-07", "text": "我要订一间大床房，怎么付款", "expected": "booking_intent"}
+{"id": "c-08", "text": "预订后房间和图片完全不一样，太差了", "expected": "complaint"}

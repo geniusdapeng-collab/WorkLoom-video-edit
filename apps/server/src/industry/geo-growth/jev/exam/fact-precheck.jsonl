@@ -1,0 +1,5 @@
+// 考卷：事实红线预检（合成样本）。expected = 期望预检结论（pass / unsupported / risk）。
+{"id": "f-01", "text": "本店支持入住前 24 小时免费取消", "expected": "pass", "officialClaims": ["本店提供免费取消，入住前 24 小时可退"]}
+{"id": "f-02", "text": "我们是当地第一的酒店，保证全网最低价", "expected": "risk", "officialClaims": ["本店提供免费取消，入住前 24 小时可退"]}
+{"id": "f-03", "text": "本店提供机场专车接送服务", "expected": "unsupported", "officialClaims": ["本店提供免费取消，入住前 24 小时可退"]}
+{"id": "f-04", "text": "入住前 24 小时可以免费取消，行程有变也不担心", "expected": "pass", "officialClaims": ["本店提供免费取消，入住前 24 小时可退"]}

@@ -1,0 +1,7 @@
+// 演练样例（全为合成文本，可直接用于 --mock；接真网关前请换成已脱敏的真实样本集）
+{"id": "s-01", "text": "想问一下你们房间多少钱一晚", "expected": "inquiry"}
+{"id": "s-02", "text": "我想预订下周六的房间，两个人住", "expected": "booking_intent"}
+{"id": "s-03", "text": "房间太差了，我要投诉并要求赔偿", "expected": "complaint"}
+{"id": "s-04", "text": "加微信领取优惠券群返现", "expected": "spam"}
+{"id": "s-05", "text": "今天的天气真不错", "expected": "smalltalk"}
+{"id": "s-06", "text": "我要订一间大床房，怎么付款", "expected": "booking_intent"}
