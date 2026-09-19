@@ -16,14 +16,31 @@ import { readFileSync } from "node:fs";
 import { createVisualBridgeExecutor } from "./executor.ts";
 
 export function createToolExecutor() {
-  const baseUrl = process.env.WORKLOOM_VISUAL_BRIDGE_URL;
+  return createScopedToolExecutor();
+}
+
+/** 宿主若能把 scope 传进来，就按 workspace 作用域建执行器（推荐）。 */
+export function createToolExecutorForScope(scope?: { tenantId?: string; workspaceId?: string }) {
+  return createScopedToolExecutor(scope);
+}
+
+function createScopedToolExecutor(scope?: { tenantId?: string; workspaceId?: string }) {
+  const endpoints = (process.env.WORKLOOM_VISUAL_BRIDGE_URLS
+    ?? process.env.WORKLOOM_VISUAL_BRIDGE_URL
+    ?? "")
+    .split(",")
+    .map((value) => value.trim())
+    .filter(Boolean);
   const token = process.env.WORKLOOM_VISUAL_BRIDGE_TOKEN
     ?? readTokenFile(process.env.WORKLOOM_VISUAL_BRIDGE_TOKEN_FILE);
-  if (!baseUrl || !token) return undefined;
+  if (endpoints.length === 0 || !token) return undefined;
   return createVisualBridgeExecutor({
-    baseUrl,
+    baseUrl: endpoints,
     token,
+    tenantId: scope?.workspaceId ?? scope?.tenantId ?? process.env.WORKLOOM_VISUAL_BRIDGE_TENANT,
     timeoutMs: Number(process.env.WORKLOOM_VISUAL_BRIDGE_TIMEOUT_MS ?? 300_000),
+    softFailures: process.env.WORKLOOM_VISUAL_BRIDGE_STRICT !== "1",
+    idempotencyPrefix: process.env.WORKLOOM_VISUAL_BRIDGE_IDEMPOTENCY_PREFIX ?? "visual",
   });
 }
 

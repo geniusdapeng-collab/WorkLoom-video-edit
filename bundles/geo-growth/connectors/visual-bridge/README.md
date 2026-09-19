@@ -44,6 +44,10 @@ const toolExecutor = createVisualBridgeExecutor({
 
 工位部署与版本 pin 见 `docs/visual-workstation.md`。
 
+v0.2 追加：`visualread.stats`（配额/指标/队列）、`visualread.assets`（租户素材清单）；
+`visualwrite.compose` 支持 `template + vars`；执行器自动注入 `tenant_id` 与幂等键、
+多端点故障转移、软失败（`receipt.synced=false`，不抛异常）；bridge 侧配额/路径监狱/作业持久化。
+
 ## 运行时端到端（真实 PG + 真实围栏 + 真实 bridge）
 
 ```bash

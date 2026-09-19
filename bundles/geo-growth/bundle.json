@@ -86,7 +86,8 @@
       "library": [],
       "segmentDefaults": [],
       "connectors": [],
-      "modelPolicy": "model-policy.yml"
+      "modelPolicy": "model-policy.yml",
+      "evalQuestions": "eval/questions.json"
     },
     "ui": {
       "schemaVersion": "workloom.bundle.ui/v1",
@@ -174,8 +175,9 @@
   },
   "integrity": {
     "algorithm": "sha256",
-    "digest": "b856ac96713f74712a294399c360e38792e0d8aeb9a96af36d3c6828593027aa",
+    "digest": "6eb5fec70628de4805645c194b0173891444bc859c95f57bd9e72e0dbcf1a1ed",
     "assets": {
+      "eval/questions.json": "a6c38bee4f8da97625cdd9645f50251bb568acf77dc9d78cb0f158d3f8195519",
       "fences/geo-growth-baseline.yml": "26132b3c52290db8bfae71e7eacca25632adac48ec1dd2a6005749e9b015c44e",
       "fences/geo-growth-visual.yml": "6a63344093996e87dc71f9950d5a07c7aa849e1bfdc37aa1987afd96da95258d",
       "model-policy.yml": "c2350007cf1a112c9de24231b6270e39d69344e2a9a3c05b8f17d246e571b84e",

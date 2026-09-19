@@ -1,0 +1,281 @@
+From 2d007c34123cd652318dedfa2ca4c8461aa068ce Mon Sep 17 00:00:00 2001
+From: cnb-oss-watch <oss-watch@cnb.cool>
+Date: Sat, 19 Sep 2026 16:08:48 +0800
+Subject: [PATCH] =?UTF-8?q?feat(base):=20=E9=83=A8=E7=BD=B2=E5=B1=82=20Too?=
+ =?UTF-8?q?lExecutor=20seam=20=E4=B8=8E=E5=B7=A5=E5=85=B7=E5=BC=82?=
+ =?UTF-8?q?=E5=B8=B8=E5=AE=89=E5=85=A8=E7=BD=91=20[T-2026-0919-0011]?=
+ =?UTF-8?q?=EF=BC=88=E6=9C=AC=E5=9C=B0=E7=95=99=E5=AD=98=EF=BC=8C=E6=9A=82?=
+ =?UTF-8?q?=E4=B8=8D=E6=8E=A8=E9=80=81=EF=BC=89?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+---
+ apps/server/src/runtime/tool-executor.test.ts | 63 +++++++++++++++++++
+ apps/server/src/runtime/tool-executor.ts      | 46 ++++++++++++++
+ apps/server/src/trpc/router.ts                |  5 ++
+ packages/runtime/src/loop.ts                  |  5 +-
+ packages/runtime/src/tools.test.ts            | 33 ++++++++++
+ packages/runtime/src/tools.ts                 | 29 +++++++++
+ 6 files changed, 179 insertions(+), 2 deletions(-)
+ create mode 100644 apps/server/src/runtime/tool-executor.test.ts
+ create mode 100644 apps/server/src/runtime/tool-executor.ts
+ create mode 100644 packages/runtime/src/tools.test.ts
+
+diff --git a/apps/server/src/runtime/tool-executor.test.ts b/apps/server/src/runtime/tool-executor.test.ts
+new file mode 100644
+index 0000000..7b3d92e
+--- /dev/null
++++ b/apps/server/src/runtime/tool-executor.test.ts
+@@ -0,0 +1,63 @@
++import { mkdtempSync, writeFileSync } from "node:fs";
++import { tmpdir } from "node:os";
++import { join } from "node:path";
++import { pathToFileURL } from "node:url";
++import { afterEach, describe, expect, it } from "vitest";
++import { loadDeploymentToolExecutor, TOOL_EXECUTOR_MODULE_ENV } from "./tool-executor.js";
++
++const original = process.env[TOOL_EXECUTOR_MODULE_ENV];
++
++afterEach(() => {
++  if (original === undefined) delete process.env[TOOL_EXECUTOR_MODULE_ENV];
++  else process.env[TOOL_EXECUTOR_MODULE_ENV] = original;
++});
++
++function moduleFile(source: string): string {
++  const directory = mkdtempSync(join(tmpdir(), "wl-tool-executor-"));
++  const path = join(directory, "executor.mjs");
++  writeFileSync(path, source);
++  return pathToFileURL(path).href;
++}
++
++describe("loadDeploymentToolExecutor（T-2026-0919-0011）", () => {
++  it("未配置 env → undefined（保持兜底执行器语义）", async () => {
++    delete process.env[TOOL_EXECUTOR_MODULE_ENV];
++    expect(await loadDeploymentToolExecutor()).toBeUndefined();
++  });
++
++  it("模块导出 createToolExecutor 时按作用域构建并返回函数", async () => {
++    process.env[TOOL_EXECUTOR_MODULE_ENV] = moduleFile(`
++      export function createToolExecutor(scope) {
++        return async (name, params) => ({
++          result: { name, params, workspace: scope?.workspaceId },
++          receipt: { synced: true, verified_at: "2026-09-19T00:00:00Z" },
++        });
++      }
++    `);
++    const executor = await loadDeploymentToolExecutor({ tenantId: "tenant-demo", workspaceId: "ws-geo" });
++    expect(typeof executor).toBe("function");
++    const out = await executor!("visualwrite.compose", { recipe: "r" });
++    expect(out.receipt.synced).toBe(true);
++    expect(out.result.workspace).toBe("ws-geo");
++  });
++
++  it("工厂返回 undefined → 视作未配置", async () => {
++    process.env[TOOL_EXECUTOR_MODULE_ENV] = moduleFile(`export function createToolExecutor() { return undefined; }`);
++    expect(await loadDeploymentToolExecutor()).toBeUndefined();
++  });
++
++  it("缺少工厂 → fail-closed 抛错", async () => {
++    process.env[TOOL_EXECUTOR_MODULE_ENV] = moduleFile(`export const nope = 1;`);
++    await expect(loadDeploymentToolExecutor()).rejects.toThrow(/未导出 createToolExecutor/);
++  });
++
++  it("工厂返回非函数 → fail-closed 抛错", async () => {
++    process.env[TOOL_EXECUTOR_MODULE_ENV] = moduleFile(`export function createToolExecutor() { return 42; }`);
++    await expect(loadDeploymentToolExecutor()).rejects.toThrow(/必须返回函数/);
++  });
++
++  it("模块加载失败 → fail-closed 抛错", async () => {
++    process.env[TOOL_EXECUTOR_MODULE_ENV] = pathToFileURL(join(tmpdir(), "definitely-missing-executor.mjs")).href;
++    await expect(loadDeploymentToolExecutor()).rejects.toThrow(/加载失败/);
++  });
++});
+diff --git a/apps/server/src/runtime/tool-executor.ts b/apps/server/src/runtime/tool-executor.ts
+new file mode 100644
+index 0000000..5694ae0
+--- /dev/null
++++ b/apps/server/src/runtime/tool-executor.ts
+@@ -0,0 +1,46 @@
++/**
++ * 部署层 ToolExecutor 加载器（T-2026-0919-0011）。
++ *
++ * 基座不认识任何行业连接器：只在部署环境声明 `WORKLOOM_TOOL_EXECUTOR_MODULE`
++ * 指向一个模块（本地路径或 npm 包名），由该模块导出 `createToolExecutor(scope)`
++ * 或 `createToolExecutorForScope(scope)`。未配置时返回 undefined，runQuest 保持
++ * 现有兜底语义（模拟档案 → 本地模拟回执；真实档案 → 未核实）。
++ *
++ * 失败关闭：模块加载失败、缺少工厂、工厂返回非函数都直接抛错，绝不静默降级成
++ * 「模拟成功」——演示与真实能力必须分明。
++ */
++import type { ToolExecutor } from "@workloom/runtime";
++
++export const TOOL_EXECUTOR_MODULE_ENV = "WORKLOOM_TOOL_EXECUTOR_MODULE";
++
++export interface ToolExecutorScope {
++  tenantId: string;
++  workspaceId: string;
++}
++
++export async function loadDeploymentToolExecutor(
++  scope?: ToolExecutorScope,
++): Promise<ToolExecutor | undefined> {
++  const modulePath = process.env[TOOL_EXECUTOR_MODULE_ENV]?.trim();
++  if (!modulePath) return undefined;
++
++  let module: Record<string, unknown>;
++  try {
++    module = (await import(modulePath)) as Record<string, unknown>;
++  } catch (error) {
++    throw new Error(
++      `部署工具执行器加载失败：${modulePath}（${error instanceof Error ? error.message : String(error)}）`,
++    );
++  }
++
++  const factory = module.createToolExecutor ?? module.createToolExecutorForScope;
++  if (typeof factory !== "function") {
++    throw new Error(`部署工具执行器模块未导出 createToolExecutor(scope)：${modulePath}`);
++  }
++  const executor = await (factory as (value?: ToolExecutorScope) => unknown)(scope);
++  if (executor === undefined || executor === null) return undefined;
++  if (typeof executor !== "function") {
++    throw new Error(`部署工具执行器工厂必须返回函数或 undefined：${modulePath}`);
++  }
++  return executor as ToolExecutor;
++}
+diff --git a/apps/server/src/trpc/router.ts b/apps/server/src/trpc/router.ts
+index 7ff7eb0..77d923c 100644
+--- a/apps/server/src/trpc/router.ts
++++ b/apps/server/src/trpc/router.ts
+@@ -43,6 +43,7 @@ import {
+ } from "@workloom/base/review-console";
+ import { routeIntent, runAsk, runQuest } from "@workloom/runtime";
+ import { LlmIntentClassifier, type IntentClassifier } from "@workloom/runtime";
++import { loadDeploymentToolExecutor } from "../runtime/tool-executor.js";
+ import { providerFromEnv, OpenAiCompatibleProvider } from "@workloom/base/model-router";
+ import { routedLlmCall, resetLlmAssembly } from "../service/llm.js";
+ import {
+@@ -1129,8 +1130,10 @@ const threadsRouter = router({
+         return { kind: "routed" as const, mode: intent.mode, via: intent.via, threadId, status: ra.status, answer: ra.answer };
+       }
+       if (input.runImmediately && intent.mode === "quest") {
++        const toolExecutor = await loadDeploymentToolExecutor(scope);
+         const r = await runQuest(app, getGatewayPool(), scope, {
+           threadId, goal: input.title, presetKey: selectedAgent!.presetKey, llmCall: llmCall("quest-plan", scope),
++          ...(toolExecutor ? { toolExecutor } : {}),
+         });
+         return { kind: "routed" as const, mode: intent.mode, via: intent.via, threadId, status: r.status, stepsDone: r.stepsDone, stepsTotal: r.stepsTotal };
+       }
+@@ -1216,8 +1219,10 @@ const threadsRouter = router({
+       if (mode === "ask") {
+         return runAsk(app, getGatewayPool(), scope, { threadId: input.threadId, goal: input.goal, presetKey: selectedAgent!.presetKey, llmCall: llmCall("ask-synthesize", scope) });
+       }
++      const toolExecutor = await loadDeploymentToolExecutor(scope);
+       return runQuest(app, getGatewayPool(), scope, {
+         threadId: input.threadId, goal: input.goal, presetKey: selectedAgent!.presetKey, mode, llmCall: llmCall("quest-plan", scope),
++        ...(toolExecutor ? { toolExecutor } : {}),
+       });
+     }),
+ });
+diff --git a/packages/runtime/src/loop.ts b/packages/runtime/src/loop.ts
+index aa1772e..2252c45 100644
+--- a/packages/runtime/src/loop.ts
++++ b/packages/runtime/src/loop.ts
+@@ -36,7 +36,7 @@ async function inTx<T>(
+   }
+ }
+ import type { BusinessEvent } from "@workloom/shared";
+-import { executeDeclaredTool, type ToolExecutor } from "./tools.js";
++import { executeDeclaredTool, runToolSafely, type ToolExecutor } from "./tools.js";
+ import { assemblePreset, type AssembledPreset } from "./assembly.js";
+ import { loadCharter, routeTier, type ApprovalTier } from "@workloom/base/captain";
+ import {
+@@ -468,7 +468,8 @@ export async function runQuest(
+     }
+ 
+     // auto（或 #34 已批准 review）：执行工具 → 回执校验（E3.7）→ 写事件
+-    const out = await runTool(step.tool, step.params);
++    // 执行器异常 → 未核实结果（T-2026-0919-0011）：保证一定落事件、线程不悬挂。
++    const out = await runToolSafely(runTool, step.tool, step.params);
+     const verified = out.receipt.synced === true;
+     if (!verified) unverified.push(step.stepId);
+     // D16（#1/A）：执行事件与线程进度同一事务——步骤级原子提交（replay 幂等锚点不漂移）
+diff --git a/packages/runtime/src/tools.test.ts b/packages/runtime/src/tools.test.ts
+new file mode 100644
+index 0000000..ef21c3c
+--- /dev/null
++++ b/packages/runtime/src/tools.test.ts
+@@ -0,0 +1,33 @@
++import { describe, expect, it } from "vitest";
++import { runToolSafely, type ToolExecutor } from "./tools.js";
++
++describe("runToolSafely（T-2026-0919-0011）", () => {
++  it("执行器成功时原样透传结果与回执", async () => {
++    const executor: ToolExecutor = async () => ({
++      result: { ok: true },
++      receipt: { synced: true, snapshot_uri: "file:///tmp/a.png", verified_at: "2026-09-19T00:00:00Z" },
++    });
++    const out = await runToolSafely(executor, "visualwrite.compose", { recipe: {} });
++    expect(out.receipt.synced).toBe(true);
++    expect(out.result).toEqual({ ok: true });
++  });
++
++  it("执行器抛异常 → 未核实结果，不冒泡", async () => {
++    const executor: ToolExecutor = async () => {
++      throw new Error("connect ECONNREFUSED 127.0.0.1:9773");
++    };
++    const out = await runToolSafely(executor, "visualwrite.compose", { recipe: {} });
++    expect(out.receipt).toEqual({ synced: false });
++    expect(out.result).toMatchObject({ state: "tool-error", tool: "visualwrite.compose" });
++    expect(String(out.result.error)).toContain("ECONNREFUSED");
++  });
++
++  it("非 Error 抛出物也收敛为字符串", async () => {
++    const executor: ToolExecutor = async () => {
++      throw "boom";
++    };
++    const out = await runToolSafely(executor, "visualwrite.render", {});
++    expect(out.receipt.synced).toBe(false);
++    expect(out.result.error).toBe("boom");
++  });
++});
+diff --git a/packages/runtime/src/tools.ts b/packages/runtime/src/tools.ts
+index cf44aad..71fbdf9 100644
+--- a/packages/runtime/src/tools.ts
++++ b/packages/runtime/src/tools.ts
+@@ -57,3 +57,32 @@ export async function executeDeclaredTool(
+     },
+   };
+ }
++
++/**
++ * 工具执行安全网（T-2026-0919-0011）：
++ *
++ * 部署层注入的执行器（连接器 / 远程工位）可能因为网络、超时、进程退出而抛异常。
++ * 异常直接冒泡会跳过「执行事件 + 线程进度」的同一事务，把线程留在 running——
++ * 既没有回执也没有失败留痕，断点续跑会一直卡在同一个步骤。
++ *
++ * 这里把异常收敛成「未核实」结果：runQuest 会照常写事件、把步骤加入 unverified，
++ * 最终把线程置为 failed（E3.7：无回执不得宣称完成）。
++ */
++export async function runToolSafely(
++  executor: ToolExecutor,
++  name: string,
++  params: Record<string, unknown>,
++): Promise<ToolResult> {
++  try {
++    return await executor(name, params);
++  } catch (error) {
++    return {
++      result: {
++        state: "tool-error",
++        tool: name,
++        error: error instanceof Error ? error.message : String(error),
++      },
++      receipt: { synced: false },
++    };
++  }
++}
+-- 
+2.39.5 (Apple Git-154)
+

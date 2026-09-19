@@ -29,7 +29,8 @@ const INSTALL_DIR = process.env.VISUAL_BRIDGE_HOME
   ?? join(homedir(), "Library/Application Support/WorkLoomVisualBridge");
 const BASE_URL = process.env.VISUAL_BRIDGE_URL ?? "http://127.0.0.1:9773";
 const TOKEN = readFileSync(join(INSTALL_DIR, "token"), "utf-8").trim();
-const OUT_DIR = join(INSTALL_DIR, "var", "runtime-e2e");
+const TENANT_ID = "ws-geo";
+const OUT_DIR = join(INSTALL_DIR, "var", "tenants", TENANT_ID, "out", "runtime-e2e");
 mkdirSync(OUT_DIR, { recursive: true });
 
 const TITLE_PNG = join(OUT_DIR, "runtime-title.png");
@@ -42,7 +43,19 @@ const PRESET_KEY = "visual-designer";
 const toolExecutor = createVisualBridgeExecutor({
   baseUrl: BASE_URL,
   token: TOKEN,
+  tenantId: TENANT_ID,
   timeoutMs: 180_000,
+  idempotencyPrefix: "runtime-smoke",
+});
+
+// Deliberately unreachable endpoint: proves the bridge being down produces a clean
+// "unverified" outcome instead of an exception that would leave the thread stuck.
+const outageExecutor = createVisualBridgeExecutor({
+  baseUrl: "http://127.0.0.1:9",
+  token: TOKEN,
+  tenantId: TENANT_ID,
+  timeoutMs: 1_500,
+  idempotencyPrefix: "runtime-smoke-outage",
 });
 
 function coverRecipe() {
@@ -108,12 +121,14 @@ const plans = {
       label: "未审配方渲染（应被 G-VIS4 挂起）",
     },
   ],
+  outage: () => plans.clean(),
 } as const;
 
 const goals: Record<keyof typeof plans, string> = {
   clean: "给新品做一张 1080x1440 封面并校验",
   blocked: "给新品做一张封面（文案含国家级）",
   review: "给新品做一张封面（配方未审）",
+  outage: "给新品做一张封面（工位不可达演练）",
 };
 
 async function main(): Promise<number> {
@@ -140,12 +155,13 @@ async function main(): Promise<number> {
          VALUES ($1,$2,$3,$4,'quest','queued',0,3,'MEM-G02',$5, now(), now())`,
         [threadId, SCOPE.tenantId, SCOPE.workspaceId, `视觉工位运行时段到端（${name}）`, agentId],
       );
+      const executor = name === "outage" ? outageExecutor : toolExecutor;
       const outcome = await runQuest(app, gateway, SCOPE, {
         threadId,
         goal: goals[name],
         presetKey: PRESET_KEY,
         fallbackPlanner: plans[name] as never,
-        toolExecutor,
+        toolExecutor: executor,
       });
       const events = await app.query<{ event_id: string; action: string; receipt: unknown; rule_impact: unknown }>(
         `SELECT event_id, payload->'decision'->>'action' AS action,
@@ -168,9 +184,15 @@ async function main(): Promise<number> {
     && fileHash.length === 64);
   const blocked = results.find((item) => item.name === "blocked") as { outcome: { status: string; blockedBy?: string } } | undefined;
   const review = results.find((item) => item.name === "review") as { outcome: { status: string; pendingApprovalId?: string } } | undefined;
+  const outage = results.find((item) => item.name === "outage") as
+    { outcome: { status: string; unverified?: string[] } } | undefined;
 
   console.log(JSON.stringify({
-    ok: cleanOk && blocked?.outcome.status === "paused" && review?.outcome.status === "pending_review",
+    ok: cleanOk
+      && blocked?.outcome.status === "paused"
+      && review?.outcome.status === "pending_review"
+      && outage?.outcome.status === "failed"
+      && (outage?.outcome.unverified?.length ?? 0) === 3,
     artifact: { path: COVER_PNG, sha256: fileHash, receiptSnapshot: receiptHash },
     results,
   }, null, 2));

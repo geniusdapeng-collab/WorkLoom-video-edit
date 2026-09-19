@@ -65,6 +65,41 @@ set -a; source .env; set +a
 宿主接线的基座侧改动以提案形式给出：`proposals/workloom-im/0001-deployment-tool-executor-seam.md`；
 行业侧适配器 `connectors/visual-bridge/server-adapter.mts` 已随分支提供。
 
+### 3.2 过渡生产入口（基座 seam 落地前）
+
+```bash
+set -a; source .env; set +a
+export WORKLOOM_VISUAL_BRIDGE_URL=http://127.0.0.1:9773
+export WORKLOOM_VISUAL_BRIDGE_TOKEN_FILE="$HOME/Library/Application Support/WorkLoomVisualBridge/token"
+export WORKLOOM_VISUAL_BRIDGE_TENANT=ws-geo
+export WORKLOOM_VISUAL_BRIDGE_OUT_DIR="$HOME/Library/Application Support/WorkLoomVisualBridge/var/tenants/ws-geo/out"
+
+# 单任务（--plan cover 或 --plan-file 传 QuestStep[]）
+./node_modules/.bin/tsx scripts/visual-quest-runner.mts \
+  --workspace ws-geo --goal "给新品做一张封面" --plan cover --write-archive \
+  --report reports/visual-$(date +%F).json
+
+# 夜班批处理（cron/launchd 调同一入口；失败退出码 1 触发告警）
+./node_modules/.bin/tsx scripts/visual-quest-runner.mts --batch jobs.json --report reports/nightly.json
+
+# KPI（周报口径：任务/渲染/成品/回执率/verify/线程状态/按天按租户）
+./node_modules/.bin/tsx scripts/visual-kpi.mts --days 7 --markdown reports/visual-kpi.md
+```
+
+- `--write-archive`：成品 + sha256 + thread_id 写入一客一档 `content_assets.visual_assets`（幂等）；
+- 回执 sha256 来自 `decision.after.result`（v1 ReceiptSchema 冻结，不扩字段）；
+- 生产节拍建议：夜班 02:00 批处理 + 每日 08:00 KPI 进 ops-rhythm 周报。
+- outage 演练：桥不可达时任务 `failed` 且步骤标未核实（`runtime-smoke.mts` 已覆盖）。
+
+### 3.3 模板、考试题与合规
+
+- 模板：`compositor-kit/templates/`（小红书 3:4、抖音 9:16、公众号首图 2.35:1 + 品牌包示例 + 平台规格注册表）；
+  bridge 支持 `{"template": "...", "vars": {...}}`，缺参/未解析失败关闭；
+- 上岗考：`bundles/geo-growth/eval/questions.json`（10 题：4 红线 + 1 holdout，覆盖 G-VIS1/2/3/4、提示注入、无回执、归档），
+  已通过基座 `loadVerifiedBundleEvalQuestions` 校验；
+- 合规：`compositor-kit/compliance/`（极限词/肖像/第三方素材/AI 标识/留存）与 G-VIS1/2/5 一一对应；
+- 工位发行：`make-release.sh`（sha256）→ `install-release.sh`（无需 Xcode）→ `doctor.sh` / `upgrade.sh` / `rollback.sh`。
+
 ## 4. 版本与供应链
 
 - 固定 **Compositor v1.0.4**；工位关闭 Sparkle 自动更新（上游 appcast 指向 GitHub raw，生产不跟自动更新）；
