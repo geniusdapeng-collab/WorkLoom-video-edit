@@ -29,7 +29,7 @@ export interface Scope { tenantId: string; workspaceId: string }
  * 自家门禁拦下——门禁与事实源必须同源：绑定点哪几条，就从 agents 表读哪几条
  * （组合编制下各工作区不同：融合区 [G17,G18,R17,R18,R19]，单包区只有本包声明）。
  */
-async function ceoActor(client: pg.PoolClient, scope: Scope): Promise<ActorInfo> {
+export async function ceoActor(client: pg.PoolClient, scope: Scope): Promise<ActorInfo> {
   const r = await client.query<{ readonly: boolean; fence_bindings: string[] }>(
     `SELECT readonly, fence_bindings FROM agents
       WHERE workspace_id=$1 AND preset_key='company-ceo' LIMIT 1`,
@@ -65,7 +65,7 @@ export async function loadCharter(app: pg.Pool, scope: Scope): Promise<Charter> 
   }
 }
 
-async function saveCharterInTx(client: pg.PoolClient, scope: Scope, charter: Charter): Promise<void> {
+export async function saveCharter(client: pg.PoolClient, scope: Scope, charter: Charter): Promise<void> {
   await client.query(
     `UPDATE profiles SET archive = jsonb_set(archive, '{charter}', $2::jsonb), updated_at=now() WHERE workspace_id=$1`,
     [scope.workspaceId, JSON.stringify(charter)],
@@ -119,7 +119,7 @@ async function applyExpiryIfDue(app: pg.Pool, scope: Scope, charter: Charter): P
   if (!isExpired(charter)) return charter;
   const next = transition(charter, { kind: "expire" });
   await inTx(app, scope, async (c) => {
-    await saveCharterInTx(c, scope, next);
+    await saveCharter(c, scope, next);
     await emitCeoEvent(c, scope, "captain.mode_change", {
       params: { from: charter.mode, to: "suspended", reason: "试用/保留期到期自动降级（绝不自动续期，§12 铁律）" },
       basis: [`试用截止 ${charter.grant?.trial_ends_at ?? charter.grant?.retain_until}`],
@@ -350,7 +350,7 @@ export async function runBreakerBeat(
   }
   const tightened = tightenAutonomy(charter);
   await inTx(app, scope, async (c) => {
-    await saveCharterInTx(c, scope, tightened);
+    await saveCharter(c, scope, tightened);
     await emitCeoEvent(c, scope, "ceo.circuit_breaker", {
       params: { metric: verdict.metric, actual: verdict.actual, floor: verdict.floor },
       after: { tightened_to: tightened.autonomy },

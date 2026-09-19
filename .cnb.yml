@@ -198,6 +198,17 @@
         set +a
         pnpm suite
 
+    - name: 开户即托管验收（P0 门禁：自动装配 → 影子 → 首报 → 转正）
+      script: |
+        set -eu
+        set -a
+        while IFS= read -r line; do
+          case "$line" in ''|\#*) continue ;; esac
+          export "$line"
+        done < .env
+        set +a
+        pnpm acceptance:onboarding
+
 main:
   push:
     - *static_gate

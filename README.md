@@ -265,9 +265,23 @@ pnpm db:seed:geo     # 社媒×GEO 双域代运营演示（geo-growth 工作区�
 pnpm dev             # server :8787 / web :5173
 ```
 
-PC 端默认进入 `video-studio` 工作区；切换主推的酒店获客工作区：启动 web 时设置 `VITE_DEMO_WORKSPACE=yunqi-hotel`（成员 `VITE_DEMO_MEMBER=MEM-001`）。
+PC 端默认进入 **获客用增演示工作区**（`geo-growth` / `ws-geo`，成员 `MEM-G01`）；如需切换演示工作区：启动 web 时设置 `VITE_DEMO_WORKSPACE=<slug>`（如 `video-studio` / `yunqi-hotel`）与 `VITE_DEMO_MEMBER=<member_no>`。
 
-**双端演示原型**（浏览器直接打开）：`docs/demo/hotel-owner-app.html`（B 端店长驾驶舱）/ `docs/demo/hotel-guest-app.html`（C 端住客小程序）。
+**双端演示原型**（浏览器直接打开）：`docs/demo/geo-demo-pc.html`（获客用增 B 端）/ `docs/demo/geo-demo-mobile.html`（移动端）/ `docs/demo/geo-demo-c.html`（C 端）。酒店试点夹具原型：`docs/demo/hotel-owner-app.html` / `docs/demo/hotel-guest-app.html`。
+
+### 开户即托管（P0：没开箱就在运营）
+
+平台侧一次接管：**自动装配组合编制 → 默认影子档（只推理、不执行）→ 产出《影子对照报告》→ 客户首次登录即见 → 客户一键转正进入试用**。全部动作幂等，账本 append-only。
+
+```bash
+pnpm onboarding provision --tenant tn-demo --workspace ws-demo --name "XX 获客用增" --slug xx-growth
+pnpm onboarding cycle     --tenant tn-demo --workspace ws-demo          # 影子周期：简报/队列裁决/偏差扫描（全 dry_run）
+pnpm onboarding report    --tenant tn-demo --workspace ws-demo --name "XX 获客用增"
+pnpm onboarding first-login --tenant tn-demo --workspace ws-demo        # 客户首次登录所见（影子报告 + 最新简报）
+pnpm onboarding advance   --tenant tn-demo --workspace ws-demo --by MEM-001 --confirm   # 转正：shadow → trial
+
+pnpm acceptance:onboarding   # 全链验收门禁（CI test-gate 已接入；非 0 退出即阻断）
+```
 
 ### 从模拟运行态到真实数据
 
