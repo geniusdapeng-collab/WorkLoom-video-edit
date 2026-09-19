@@ -3,8 +3,8 @@
 <!-- 自动生成，请勿手改：node scripts/oss-inventory.mjs --write -->
 
 > 生成器：`scripts/oss-inventory.mjs`（离线事实）＋ `scripts/oss-watch.sh`（上游最新版本）
-> 仓库：workloom-ai/WorkLoom-growth ｜ 最近一次上游扫描：2026-09-19T03:14:39.000Z
-> 统计：登记组件 90 个 ｜ npm 直接依赖 154 个 ｜ Python 依赖 1 个 ｜ 容器镜像 2 个
+> 仓库：workloom-ai/WorkLoom-growth ｜ 最近一次上游扫描：2026-09-19T10:10:43.000Z
+> 统计：登记组件 91 个 ｜ npm 直接依赖 154 个 ｜ Python 依赖 1 个 ｜ 容器镜像 2 个
 
 ## 0. 维护机制（四件事）
 
@@ -111,6 +111,7 @@
 | 88 | npm（桌面载荷安装器） | [github.com/npm/cli](https://github.com/npm/cli) · Artistic-2.0 | 11.17.0 | **12.0.2** ⬆ | 随包二进制 | .workloom-runtime-deps（受控 npm ci 安装桌面运行载荷） | 载荷安装器版本与 package-lock.json 绑定；升级需重跑 runtime:deps:refresh/verify |
 | 89 | python-pptx | [github.com/scanny/python-pptx](https://github.com/scanny/python-pptx) · MIT | 按需安装（未锁定版本） | 1.0.2 | 开发/构建 | scripts/build-capability-pptx.py（能力清单 PPT 生成） | 本地工具链依赖，不随产品分发；版本未锁定属已知缺口（建议后续补 requirements 引脚） |
 | 90 | Playwright（Python · computer-use 工具链） | [github.com/microsoft/playwright-python](https://github.com/microsoft/playwright-python) · Apache-2.0 | >=1.40.0 | **1.46.0** ⬆ | 开发/构建 | packages/base/computer-use/toolkit（安装脚本按 requirements 拉取） | 与 Node 侧 @playwright/test 独立版本线；浏览器二进制由 playwright install 管理，升级需同步预检脚本断言 |
+| 91 | Compositor（Mac 图像编辑器 / 视觉工位渲染内核） | [github.com/robbietilton/Compositor](https://github.com/robbietilton/Compositor) · MIT | 1.0.4 | 1.0.4 | 运行时 | Mac 视觉工位 headless 引擎（复用 ProjectStore/ImageExporter/LayerRenderer 源码）、人机协作精修：Compositor.app（macOS 26.5+） | MIT；上游 2026-09-16 创建、单作者，无 CLI/API/AppleScript，故采用源码 headless 裁剪 + 工位 pin 版本；生产工位关闭 Sparkle 自动更新；升级永不自动（先 selftest + golden 对比再灰度） |
 
 ## 2. 全量直接依赖（本仓事实，含上游最新）
 
