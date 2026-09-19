@@ -31,3 +31,6 @@ docs/demo/.manifest.json
 __pycache__/
 *.pyc
 release/
+
+# C 层评测运行产物（本地/评审侧生成）
+outputs/c-layer/
