@@ -193,6 +193,7 @@
       "serviceFront": {
         "enabled": true,
         "identityPolicy": "disabled",
+        "adapterId": "geo-growth.service-front-v1",
         "tabs": [
           "对话",
           "服务",
@@ -201,9 +202,9 @@
           "我的"
         ],
         "services": [
-          "查订单",
-          "送物服务",
-          "维修报修"
+          "咨询增长服务",
+          "提交合作需求",
+          "查询跟进进度"
         ]
       },
       "inspection": {
@@ -223,7 +224,7 @@
   },
   "integrity": {
     "algorithm": "sha256",
-    "digest": "252565cd4b450d507fb61090d940c18c780bf074c1bd3b35508b60e7ce61331d",
+    "digest": "05e7bb25a06e0f0b5b33a9cee85bb5014e20eaef40c044a69ed95d7993e39b1c",
     "assets": {
       "eval/questions.json": "a6c38bee4f8da97625cdd9645f50251bb568acf77dc9d78cb0f158d3f8195519",
       "fences/geo-growth-baseline.yml": "1cb22c07d5bf96c2ca6bd24792267bc2b7160911a6e4add9dc1b8246f3b0f1b5",
@@ -263,7 +264,7 @@
       "schemas/archive.schema.json": "ad08672042078f5d8a2376f855e0fe936454048fb0e4cc421d5b8082ad4e2200",
       "schemas/objects.json": "cc8b6d8972ef48689c91fdbe33da567a1c05e2bfb34dd17da3a7ea46ed86a4fc",
       "schemas/stages.json": "dbb994a399bcfe9ea34fbeacda92a13bfdebb8caeef4f74960faf4461a447c93",
-      "service-front/client.json": "2c4c67ea42de2a4039135008daabb269342b1e96c82c5c6e67c8203a5c69ff6f",
+      "service-front/client.json": "104f0b9f72d4a684106420af7a1502ca2e7b15cc170e6496d94a9dca8e9ae92e",
       "skills/ai-answer-rewrite/SKILL.md": "25d1597948d560a13262a91c360abd130f5e6debe2e9faff7d4de2bc9640833d",
       "skills/art-direction/SKILL.md": "52cfb2c429098ba98a6361525892317ad5a268f85f280553463d5187e7ec68d6",
       "skills/asset-variant-forge/SKILL.md": "c34fc2c76447e4727cad9c0f86b5256d648ee4d42d6ba84fe731f209db7842cf",

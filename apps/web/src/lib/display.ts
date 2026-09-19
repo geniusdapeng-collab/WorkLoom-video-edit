@@ -37,6 +37,7 @@ export const TICKET_KIND_TEXT: Record<string, string> = {
   delivery: "送物服务",
   repair: "维修报修",
   complaint: "投诉建议",
+  consult: "合作咨询",
   other: "其他需求",
   service_request: "服务请求",
 };

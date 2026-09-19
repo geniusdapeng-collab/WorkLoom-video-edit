@@ -1,5 +1,9 @@
 /**
- * A5 · 演示种子数据（PRD V2.5 P 章示例场景：云栖酒店）
+ * A5 · 演示种子数据（酒店试点业务前台夹具：云栖酒店）
+ * 主题口径：本仓产品主题是「获客用增」；本文件产出的是首个垂直行业试点（酒店）的
+ *          业务前台夹具（C 端行业适配器契约所需），获客用增的产品演示工作区
+ *          （ws-geo，bundles/geo-growth）由 scripts/seed-geo.ts 产出，
+ *          `pnpm db:seed` 已把两者串联为默认一键种子。
  * 用法：pnpm db:seed（读取 .env；幂等，可重复执行）
  *
  * 内容：demo 租户 / 云栖酒店工作区 / 3 人类成员 / 16 个基础 Agent preset 实例 +
@@ -1979,7 +1983,7 @@ async function main(): Promise<void> {
   // 同一提交；若中途抛错，main 捕获退出时连接关闭，PG 自动 ROLLBACK 不留半提交态
   await gw.query("COMMIT");
   await gw.end();
-  console.log("种子数据完成 ✅（云栖酒店演示数据集就绪）");
+  console.log("种子数据完成 ✅（酒店试点业务前台夹具就绪；获客用增演示由同链 seed-geo 产出）");
 }
 
 main().catch((err) => {

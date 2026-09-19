@@ -6,9 +6,14 @@
  * 它的 Bundle。Bundle 清单仍须通过摘要/生产签名校验，不能声明任意模块路径。
  */
 import type { BusinessAdapterRegistration } from "../service/adapters/business.js";
+import { geoGrowthBizAdapter } from "./geo/service-front-adapter.js";
 import { hotelBizAdapter } from "./hotel/service-front-adapter.js";
 
 export const BUNDLED_BUSINESS_ADAPTERS: readonly BusinessAdapterRegistration[] = Object.freeze([
+  Object.freeze({
+    adapter: geoGrowthBizAdapter,
+    bundleIds: Object.freeze(["geo-growth"]),
+  }),
   Object.freeze({
     adapter: hotelBizAdapter,
     bundleIds: Object.freeze(["hotel"]),
