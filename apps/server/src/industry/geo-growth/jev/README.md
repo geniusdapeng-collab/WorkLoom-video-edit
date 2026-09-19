@@ -115,10 +115,46 @@ evaluation 协议（`state + typed questions → typed answers`，官方明确�
 3. **限流**：官方限流动态调整（当前 250k tok/s、1200 RPM），网关侧另有免费档限流；批量跑请从
    `--concurrency 2` 起，观察 429 比例。
 
+## 8. NanoJev 本地通道（实验；`--provider nanojev`）
+
+[NanoJev](https://github.com/TianyuCodings/NanoJev) 是社区开源的 Jev 复刻（MIT）：Qwen3-0.6B + 决策头，
+一次前向输出 choice/boolean/score 的完整概率分布，自带训练管线与数据集，可**本地/自托管、零调用成本**。
+
+**接入事实（2026-09-19 调研 + 实测）**
+
+| 项 | 结论 |
+|---|---|
+| 契约 | 与我们同构：`choice`（2–255 项）/ `boolean`（对应我们的 boolean）/ `score`（2–10 档）；请求为 `{"states":[{id,state,questions}]}`，响应 `states[0].answers`，**不含 confidence**（本模块按最大概率派生并标记，分流更保守） |
+| 本模块支持 | 已实现 `NanoJevClient`（`nanojev.ts`）+ `--provider nanojev`，与网关通道共用场景/分流/报告链路；本地推理 `inputTokens=0` → 报告成本 `$0` |
+| 运行前提 | 官方推理代码**要求 CUDA**（`predict_toy_decisions.py` 显式检查 `torch.cuda`）；本机 Apple Silicon 跑不了，需在 CUDA 机器或 CNB GPU 环境启动 |
+| 模型适用性 | 权重是在**迷宫/贪吃蛇/合成事件**任务上训练的复刻模型，**不是通用 Jev**；直接零样本用于中文业务判断不可依赖，必须先用自己的数据微调并过考卷 |
+
+**启动与使用**
+
+```bash
+# ① 在 CUDA 机器上（或 CNB GPU 开发环境）准备 NanoJev
+git clone https://github.com/TianyuCodings/NanoJev.git && cd NanoJev
+python -m pip install -r requirements-toy.txt        # torch/transformers/safetensors/numpy
+huggingface-cli download C-Tianyu/NanoJev --include "variants/local_atomic_seed17/*"
+python scripts/serve_decisions.py --checkpoint-dir <上面下载的 variants/local_atomic_seed17> --port 8765
+
+# ② 本仓通过 NanoJev 通道跑影子评估（无需 API key）
+pnpm tsx apps/server/src/industry/geo-growth/jev/cli.ts \
+  --provider nanojev --scene comment-classify --exam
+# 远程宿主：--base-url http://<host>:8765
+```
+
+**用它做什么（建议）**
+
+1. **不要**把当前权重直接放进判断链路——它是游戏任务的微调模型，中文业务判断能力未经训练；
+2. **可以**把它当作"可训练的本地决策模型基座"：MIT + 完整训练管线 + JSONL 目标分布接口，用 growth 的
+   评论/线索样本微调后，可离线、零调用成本地跑我们的三个场景；
+3. **可以**用它做接入层与契约的回归验证（本模块已有 14 项离线用例覆盖请求映射、响应解析、错误语义）。
+
 ## 7. 测试
 
 ```bash
-# 本模块 39 个离线用例（协议/重试/超时/密钥安全/分流/指标/端到端）
+# 本模块 53 个离线用例（协议/重试/超时/密钥安全/分流/指标/端到端/NanoJev 契约）
 node_modules/.bin/vitest run apps/server/src/industry/geo-growth/jev
 
 # 类型检查（仓库 strict + noUncheckedIndexedAccess 口径）

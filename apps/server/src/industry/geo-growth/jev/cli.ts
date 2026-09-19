@@ -16,6 +16,7 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { DEFAULT_BASE_URL, DEFAULT_MODEL, JevClient } from "./client.js";
+import { NANOJEV_DEFAULT_URL, NanoJevClient } from "./nanojev.js";
 import { startMockServer } from "./mock-gateway.js";
 import { sceneOf } from "./scenes.js";
 import { runShadow } from "./shadow.js";
@@ -35,6 +36,8 @@ export interface CliArgs {
   exam: boolean;
   model: string;
   baseUrl: string;
+  /** 决策模型来源：gateway（Vercel AI Gateway）/ nanojev（本地自托管 NanoJev） */
+  provider: "gateway" | "nanojev";
   timeoutMs: number;
   help: boolean;
 }
@@ -51,6 +54,7 @@ const DEFAULT_ARGS: CliArgs = {
   exam: false,
   model: process.env["JEV_MODEL"] ?? DEFAULT_MODEL,
   baseUrl: process.env["JEV_BASE_URL"] ?? DEFAULT_BASE_URL,
+  provider: process.env["JEV_PROVIDER"] === "nanojev" ? "nanojev" : "gateway",
   timeoutMs: process.env["JEV_TIMEOUT_MS"] ? Number(process.env["JEV_TIMEOUT_MS"]) : 20_000,
   help: false,
 };
@@ -90,6 +94,12 @@ export function parseArgs(argv: readonly string[]): CliArgs {
       case "--base-url":
         args.baseUrl = next();
         break;
+      case "--provider": {
+        const value = next();
+        if (value !== "gateway" && value !== "nanojev") throw new Error("--provider 只支持 gateway | nanojev");
+        args.provider = value;
+        break;
+      }
       case "--timeout-ms":
         args.timeoutMs = Number(next());
         break;
@@ -167,9 +177,10 @@ function helpText(): string {
     "  --capture-raw          保存原始响应（首次接真 key 时用来钉死解析口径）",
     "  --model <id>           默认 typesafe-ai/jev（或环境变量 JEV_MODEL）",
     "  --base-url <url>       默认 https://ai-gateway.vercel.sh（或 JEV_BASE_URL）",
+    "  --provider <name>      gateway（默认，Vercel AI Gateway）| nanojev（本地自托管 NanoJev 服务）",
     "  --timeout-ms <n>       单次请求超时（默认 20000）",
     "",
-    "环境变量：AI_GATEWAY_API_KEY（真实网关必需；--mock 不需要）",
+    "环境变量：AI_GATEWAY_API_KEY（网关通道必需；--mock 不需要）；JEV_PROVIDER=nanojev 可切本地通道",
   ].join("\n");
 }
 
@@ -216,8 +227,8 @@ export async function main(argv: readonly string[] = process.argv.slice(2)): Pro
   }
 
   const apiKey = process.env["AI_GATEWAY_API_KEY"] ?? process.env["VERCEL_AI_GATEWAY_KEY"];
-  const useMock = args.mock || !apiKey;
-  if (!args.mock && !apiKey) {
+  const useMock = args.provider === "gateway" && (args.mock || !apiKey);
+  if (args.provider === "gateway" && !args.mock && !apiKey) {
     console.error(
       [
         "未检测到 AI_GATEWAY_API_KEY。",
@@ -231,15 +242,24 @@ export async function main(argv: readonly string[] = process.argv.slice(2)): Pro
   }
 
   const mockServer = useMock ? await startMockServer({ failFirstRequests: 0 }) : undefined;
-  const client = new JevClient({
-    apiKey: useMock ? "mock" : apiKey,
-    baseUrl: useMock ? (mockServer?.url ?? args.baseUrl) : args.baseUrl,
-    model: args.model,
-    timeoutMs: args.timeoutMs,
-  });
+  const nanojevUrl = args.baseUrl === DEFAULT_BASE_URL ? NANOJEV_DEFAULT_URL : args.baseUrl;
+  const client =
+    args.provider === "nanojev"
+      ? new NanoJevClient({ baseUrl: nanojevUrl, timeoutMs: Math.max(args.timeoutMs, 60_000) })
+      : new JevClient({
+          apiKey: useMock ? "mock" : apiKey,
+          baseUrl: useMock ? (mockServer?.url ?? args.baseUrl) : args.baseUrl,
+          model: args.model,
+          timeoutMs: args.timeoutMs,
+        });
 
   const outDir = resolve(args.out ?? defaultOutDir(scene.key));
-  const mode = useMock ? `mock(${mockServer?.url ?? "in-process"})` : `gateway(${client.host})`;
+  const mode =
+    args.provider === "nanojev"
+      ? `nanojev(${client.host})`
+      : useMock
+        ? `mock(${mockServer?.url ?? "in-process"})`
+        : `gateway(${client.host})`;
   console.log(`[jev-shadow] scene=${scene.key} rows=${rows.length} mode=${mode} model=${client.modelId}`);
 
   try {
