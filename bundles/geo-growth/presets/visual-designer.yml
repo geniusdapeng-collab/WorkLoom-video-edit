@@ -24,6 +24,7 @@ skills:
   - design-brief
   - art-direction
   - design-critique
+  - material-scout
 tools:
   - { name: visualread.health, access: read, desc: 视觉工位与渲染引擎健康探针 }
   - { name: visualread.inspect, access: read, desc: 读取工程结构与图层清单（零 token 结构化读取） }

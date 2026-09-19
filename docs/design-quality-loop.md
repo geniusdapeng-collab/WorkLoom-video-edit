@@ -9,16 +9,18 @@
 | 阶段 | 技能 | 产物 | 门 |
 |---|---|---|---|
 | ① 需求分析 | `design-brief` | brief.json（受众/渠道/目标/成功标准/必须/禁用/规格/素材来源） | 人确认 |
+| ①.5 素材寻源 | `material-scout` | 候选素材清单（授权/署名/尺寸）+ 入库素材 | ≥3 候选、≥2 可用 |
 | ② 概念构思 | `art-direction` | 2-3 个方向 + 参考图（正版图库/客户素材） | 选 1 个方向 |
 | ③ 艺术指导 | `art-direction` | 色板/字体/网格/素材清单（含授权） | 规范冻结 |
 | ④ 设计执行 | `product-poster` 等场景技能 + `compositor-designer` | recipe → `.comp` → PNG + 回执 | 尺寸/哈希校验 |
-| ⑤ 视觉评审 | `design-critique` | `visualread.critique`（samples≥2，中位数）+ top3 修改 | overall≥8 或连续两轮提升<0.5 且无红线 |
+| ⑤ 视觉评审 | `design-critique` | 评审团（art_director/client/mobile_user）三视角打分 + top3 修改 | 三视角≥7 且 client≥8；或连续两轮提升<0.5 且无红线 |
 | ⑥ 终审交付 | `brand-guard` | 评审记录 + QC 报告 + 一客一档归档 | 人工终审；外发走 G9/G-GEO1 |
 
 ## 素材优先级（决定上限的不是排版，是素材）
 
 1. **客户实拍/视频抽帧**（首选，授权明确、可信度最高）；
-2. **正版图库**（Unsplash/Pexels；`visualwrite.fetch_stock` 落库 + license sidecar）；
+2. **正版/开源图库**：免 key 通道（Wikimedia Commons / Openverse / The Met，`visualread.search_stock`）+ 免费商用库（Unsplash/Pexels/Pixabay/StockSnap/Burst…，注册表见 `templates/stock-sources.json`）；
+   没有专职设计师时，由数字员工 `material-scout`（素材寻源员）执行寻源、授权核对与入库（`visualwrite.fetch_stock` + license sidecar）；
 3. **AI 生图**（`visualwrite.generate`，需配置模型/key；生成图必须带 AI 标识）；
 4. 程序化矢量/纯色 **只用于版式元素与数据图**，不能冒充产品摄影。
 
@@ -38,6 +40,14 @@
 3. 文字压在主体高光上 → 缩略图不可读；
 4. 促销色滥用 → 与"温暖克制"的 brief 冲突；
 5. 单轮出图直接交付 → 没有收敛判据，质量靠运气。
+
+## 冲 8+ 的高效路径（效果优先、轮次受控）
+
+1. **并行锦标赛代替串行微调**：3 个候选一次评审团打分，选最优 → 通常 1 轮就超过单版本 3-4 轮的水平；
+2. **素材优先于排版**：先换更好的素材（`material-scout` + 免 key 图库），再谈字体细节；
+3. **冻结规范再改**：art-direction 冻结后只改 top3 问题，避免"每轮推翻重来"；
+4. **轮次预算 3 轮**：超出就换素材/换方向，不做无止境微调；
+5. **评审团三视角**：模型单视角有方差与偏好，三视角（艺术/客户/移动端）+ 人工终审（若有）最稳。
 
 ## 生产节拍
 

@@ -50,7 +50,8 @@
         "presets/customer-success.yml",
         "presets/private-domain-operator.yml",
         "presets/company-ceo.yml",
-        "presets/group-ceo.yml"
+        "presets/group-ceo.yml",
+        "presets/material-scout.yml"
       ],
       "fences": [
         "fences/geo-growth-baseline.yml",
@@ -75,7 +76,8 @@
         "skills/poster-series/SKILL.md",
         "skills/design-brief/SKILL.md",
         "skills/art-direction/SKILL.md",
-        "skills/design-critique/SKILL.md"
+        "skills/design-critique/SKILL.md",
+        "skills/material-scout/SKILL.md"
       ],
       "schemas": [
         "schemas/objects.json",
@@ -187,7 +189,7 @@
   },
   "integrity": {
     "algorithm": "sha256",
-    "digest": "8cdd55c6e762e757bbe5b6a8566da5513c5f45b1dd55eeef89e5604a4aa52604",
+    "digest": "47afdbba0e51094f32a4af46800d6c7107000e70f6680ea165e3dfd45a5820e3",
     "assets": {
       "eval/questions.json": "a6c38bee4f8da97625cdd9645f50251bb568acf77dc9d78cb0f158d3f8195519",
       "fences/geo-growth-baseline.yml": "26132b3c52290db8bfae71e7eacca25632adac48ec1dd2a6005749e9b015c44e",
@@ -206,6 +208,7 @@
       "presets/geo-content-planner.yml": "850c3b152b1e0d31bebe8ba58d1fd0a4df3601fe02b0c7f2029cff03e7ee28d7",
       "presets/geo-researcher.yml": "942b41b3a1a6e330f5a72c09763406a235b4c0cea5abcf7619fc07f058f857de",
       "presets/group-ceo.yml": "5026be4c99ed4200c5bbfa0de9a48596305f582d04cb6cb1d9a53a50070d97c6",
+      "presets/material-scout.yml": "e7becd627c741d22bda67371e54d03746d6626471bf6daa99f2cca7b7a82efdf",
       "presets/private-domain-operator.yml": "6f351e045ff799506245e1f18883d16a59f1330bfedf70242de1d97d5ea542bc",
       "presets/production-planner.yml": "67d7cb2933a2a7603d70664b1e0fc78488fa4f20ff96aea56d6c24468193697e",
       "presets/publish-operator.yml": "6a5e56a32dec37016a46e95614f51e60cf32e6ba51de3f80fbaa211bb5529137",
@@ -213,7 +216,7 @@
       "presets/scriptwriter.yml": "5daa921b76a54af0b253296ea24e897f71629fc632a583b333fa008d9e2bdcf8",
       "presets/source-distributor.yml": "8cbe329b6786775def27ce43f2095feb1128567c70898e11b9a5e12dacfbaa1e",
       "presets/visibility-watcher.yml": "05e59d7d7bfd329011cb18245938c4d37633838ce194487da69b5c4438b0b501",
-      "presets/visual-designer.yml": "a0624fdbdd9d628a8454e8c50f3599ff1cee7a551ac20c97286b3a8f58e46606",
+      "presets/visual-designer.yml": "7013fb117c7b310e2f1c442384e3cc4d732b86d514e8de66b7ef02552dbfc825",
       "schemas/archive.schema.json": "ad08672042078f5d8a2376f855e0fe936454048fb0e4cc421d5b8082ad4e2200",
       "schemas/objects.json": "093e860f2213bb0a7acc3cbe65f7293bc18bc96d2f2d607047dad75a91a7b79f",
       "schemas/stages.json": "dbb994a399bcfe9ea34fbeacda92a13bfdebb8caeef4f74960faf4461a447c93",
@@ -225,12 +228,13 @@
       "skills/citation-reverse/SKILL.md": "ba3350d65c2c0c3fc2b588965ef36abeed39caea53a071c55ce8c3b748fae47b",
       "skills/compositor-designer/SKILL.md": "487484ac76864622b15a0e673ca634a9b029b27876a644016320f3fc43f91010",
       "skills/design-brief/SKILL.md": "02373b339cf5aa1f057ae821813a19238566fdbb8cdfae3b6223e55566ad846f",
-      "skills/design-critique/SKILL.md": "898be7da80920347f4cb5f6206754ef59f0f33b8ec637f0eafc646a218d9c0ef",
+      "skills/design-critique/SKILL.md": "afbdcb3a8737c872c2a2bc167bceac32439216fe8e7cd3bafdf46a1fdabd8c11",
       "skills/dual-entry-inquiry/SKILL.md": "b3aba600d3ce22d3b25bd5e222eac78f91a41cdc55de4699801acdec5754db88",
       "skills/entity-consistency-check/SKILL.md": "d76fd80eafc29570e6654e568a11001f4f79a7a92df09bf81716a990836d9fa8",
       "skills/geo-answer-card/SKILL.md": "c7043d6f47749a59183ebf26d7e288f654bd2a7ecba18307bce8a025144d21eb",
       "skills/geo-query-craft/SKILL.md": "7b4cf59af2fee1cf5fbd761d2a04c0f394bff478116b4962d77de4b1391d540e",
       "skills/image-retouch/SKILL.md": "9bf2fb007f526f69bbf626090feb696d49b72e8c156f11779b06a2333a274dc4",
+      "skills/material-scout/SKILL.md": "4b35dcb18e0670c6bcd1d4357ee57d256bd046583deaf9b3ee1b20fedc3833a8",
       "skills/moments-post/SKILL.md": "e723a39bc560f930ff2e9f0b182481bee2ba17cb2d00ab97f397d493a66c1cfc",
       "skills/poster-series/SKILL.md": "b63561e293366b0d09e964ce1fd90cc1e64ae8ad78f570fb1f3f4d503b49529a",
       "skills/product-poster/SKILL.md": "eaa7e8cddb826eaeebe87f1d352b8736e6621211e0c588b8c1b6bee5767b4e28",
