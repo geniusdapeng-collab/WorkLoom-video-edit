@@ -198,7 +198,7 @@
         set +a
         pnpm suite
 
-    - name: 开户即托管验收（P0 门禁：自动装配 → 影子 → 首报 → 转正）
+    - name: P0 门禁：开户即托管验收 + 围栏别名扫描（S9）
       script: |
         set -eu
         set -a
@@ -208,6 +208,7 @@
         done < .env
         set +a
         pnpm acceptance:onboarding
+        pnpm scan:fences
 
 main:
   push:

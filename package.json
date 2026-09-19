@@ -31,6 +31,7 @@
     "db:seed:geo": "tsx --env-file=.env scripts/seed-geo.ts",
     "onboarding": "tsx --env-file=.env scripts/onboarding.mts",
     "acceptance:onboarding": "tsx --env-file=.env scripts/acceptance/onboarding.mts",
+    "scan:fences": "tsx scripts/tools/fence-alias-scan.mts",
     "suite:geo": "tsx --env-file=.env scripts/suite-geo.ts",
     "release:gate": "tsx --env-file=.env scripts/release-gate.ts",
     "suite:hotel": "tsx --env-file=.env scripts/suite-hotel.ts",

@@ -9,7 +9,7 @@ night_shift: false
 high_risk: false
 fence_bindings: [G-GEO2, G20]
 coverage:
-  - { eventPrefix: "script.", label: 视频脚本 }
+  - { eventPrefix: "growth.script.", label: 视频脚本 }
 skills: []
 tools:
   - { name: script.draft, access: write, desc: 脚本/标题/文案/标签/分镜成套起草 }

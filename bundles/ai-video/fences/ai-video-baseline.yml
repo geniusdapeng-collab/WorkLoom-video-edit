@@ -122,7 +122,8 @@ rules:
     level: auto
     is_baseline: true
     match:
-      object_types: [comment_reply]
+      # comment = 规划器按 comment.* 工具前缀派生的对象视图（S9 别名并集；只收紧）
+      object_types: [comment_reply, comment]
       actions: [comment.reply]
     when: "params.intent in ['praise', 'thanks']"
     note: 三级分流一级：夸赞/感谢自动回（模板库内措辞）
@@ -132,7 +133,7 @@ rules:
     level: review
     is_baseline: true
     match:
-      object_types: [comment_reply]
+      object_types: [comment_reply, comment]
       actions: [comment.reply]
     when: "params.intent in ['consult', 'after_sale']"
     note: 三级分流二级：咨询/售后 review，可转人工
@@ -142,7 +143,7 @@ rules:
     level: review
     is_baseline: true
     match:
-      object_types: [comment_reply]
+      object_types: [comment_reply, comment]
       actions: [comment.reply]
     when: "params.intent in ['negative', 'crisis'] or contains_any(params.text, ['投诉', '维权', '退款', '骗子', '举报'])"
     note: 三级分流三级+基线：负面/危机 review 并触发告警；含投诉/维权关键词必 review+告警
@@ -152,7 +153,7 @@ rules:
     level: block
     is_baseline: true
     match:
-      object_types: [comment_reply]
+      object_types: [comment_reply, comment]
       actions: [comment.reply]
     when: "params.intent == 'sensitive'"
     note: 三级分流四级：政治敏感等内容 block，只写「需介入」事件，不自动外发
@@ -194,7 +195,8 @@ rules:
     level: block
     is_baseline: true
     match:
-      object_types: [review_submission]
+      # review = 规划器按 review.* 工具前缀派生的对象视图（S9 别名并集；只收紧）
+      object_types: [review_submission, review]
       actions: [review.submit]
     when: "context.precheck_passed != true"
     note: 发布前三级预检未全绿的稿件禁止送审；任何人不得跳过

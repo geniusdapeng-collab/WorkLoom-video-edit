@@ -448,9 +448,9 @@
   },
   "integrity": {
     "algorithm": "sha256",
-    "digest": "908168ca36a8d9d42c6324628680ae38c493d85cb14b7de48a51f4d08abc3747",
+    "digest": "7b383b1afc32d1bcc578ff17d0a109a39fce0f3445249327ed00dce1f48eae79",
     "assets": {
-      "fences/ai-video-baseline.yml": "228e514e644e55fb4a7bea714c132b3196118a08e1adef56947b2f7accdccc35",
+      "fences/ai-video-baseline.yml": "d0c8f2f8f7bf59dd3b9b74b2d880d3e1d405ddf849b64adca703b8c071b2eed7",
       "library/hollywood-factory/技能系列/镜头级专项/剧情_卡梅隆_情感手持.md": "823392d5017ce604099c67a5e18da812923d3f6e3bf8949f7ec8615e84eba7ba",
       "library/hollywood-factory/技能系列/镜头级专项/剧情_卡梅隆_紧张手持.md": "6beefc37e904e113eb127a856aab05d81e97e92ef27614fcd90387b0bb61f833",
       "library/hollywood-factory/技能系列/镜头级专项/剧情_卢卡斯_告别斯坦尼康.md": "4dbe34cb520f9b66e10cc6b615b74221722a9ac8bd1aa491efb70bd4b2a1777a",

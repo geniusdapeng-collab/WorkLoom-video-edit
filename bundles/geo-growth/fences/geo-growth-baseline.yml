@@ -127,7 +127,8 @@ rules:
     level: block
     is_baseline: true
     match:
-      object_types: [geo_content, script_package, platform_variant]
+      # content = 规划器按 content.* 工具前缀派生的对象视图（S9 别名并集；只收紧）
+      object_types: [geo_content, script_package, platform_variant, content]
       actions: [content.submit, geo.publish]
     when: "context.fact_check_passed != true"
     note: ProductTruthChecker：宣称不得超出官方口径、创意前提与产品真实使用前提必须自洽、品牌实体信息与实体卡逐字一致；任一不符一票否决，双域通用
@@ -158,7 +159,8 @@ rules:
     level: block
     is_baseline: true
     match:
-      object_types: [geo_content, comment_reply, publish_task]
+      # content / comment = 规划器按工具前缀派生的对象视图（S9 别名并集；只收紧）
+      object_types: [geo_content, comment_reply, publish_task, content, comment]
       actions: [content.submit, comment.reply, publish.execute]
     when: "params.involves_persona == true or params.involves_brand_stance == true"
     note: 涉人设/品牌表态内容阻断一切自动外发，强制 L4 人审后由人执行；AI 不替客户做人格化承诺

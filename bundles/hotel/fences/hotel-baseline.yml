@@ -188,7 +188,8 @@ rules:
     level: block
     is_baseline: true
     match:
-      object_types: [channel, room, order]
+      # inventory = 规划器按 inventory.* 工具前缀派生的对象视图（S9 别名并集；只收紧）
+      object_types: [channel, room, order, inventory]
       actions: [inventory.sync, order.confirm]
     when: "params.available < 0 || params.sync_failed == true"
     note: 可售为负（超售）或库存同步失败（漏售风险）即熔断；同步失败时自动下架该渠道房态并转 review（占流失 15%）
@@ -260,7 +261,8 @@ rules:
     level: review
     is_baseline: true
     match:
-      object_types: [campaign, live_campaign]
+      # content = 规划器按 content.* 工具前缀派生的对象视图（S9 别名并集；只收紧）
+      object_types: [campaign, live_campaign, content]
       actions: [campaign.publish, content.publish, live.script.review]
     when: "params.fact_check_passed == false || params.caliber_mismatch == true"
     note: 获客内容（短视频/直播脚本/GEO 图文）的房价/房型/权益口径必须与一店一档逐字一致；不一致或未经事实校验必审

@@ -281,6 +281,7 @@ pnpm onboarding first-login --tenant tn-demo --workspace ws-demo        # 客户
 pnpm onboarding advance   --tenant tn-demo --workspace ws-demo --by MEM-001 --confirm   # 转正：shadow → trial
 
 pnpm acceptance:onboarding   # 全链验收门禁（CI test-gate 已接入；非 0 退出即阻断）
+pnpm scan:fences             # S9 围栏别名扫描：每条规则必须覆盖「工具前缀派生的对象视图」（G12 同类风险门禁）
 ```
 
 ### 从模拟运行态到真实数据

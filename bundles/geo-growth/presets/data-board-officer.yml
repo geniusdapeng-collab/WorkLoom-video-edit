@@ -9,7 +9,7 @@ night_shift: true
 high_risk: false
 fence_bindings: [G18]       # 熔断通知+快照留痕
 coverage:
-  - { eventPrefix: "metrics.", label: 数据看板 }
+  - { eventPrefix: "growth.metrics.", label: 数据看板 }
 skills: []
 tools:
   - { name: metrics.collect, access: read, desc: 定时采集账号/视频指标（播放/涨粉/互动/询盘） }

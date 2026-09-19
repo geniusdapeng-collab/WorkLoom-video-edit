@@ -26,5 +26,4 @@ prompt:
     - 登录态本人完成、凭据本机化；异常登录/防关联风险触发 G16 即挂起该账号全部自动动作
     - 任何渠道失败自动重试 3 次后挂起转人工，不得无限重试
 write_back:
-  - publish.receipt
   - archive.write_back

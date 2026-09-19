@@ -156,10 +156,10 @@
   },
   "integrity": {
     "algorithm": "sha256",
-    "digest": "28d1f116c67bbdb1795ba2d0cf94998025225045c959f99179979b4d4860e07a",
+    "digest": "25ca799aed34cdd324bb58f77d1c18203ce7329e4a94bc377933338ebd6e7fc6",
     "assets": {
       "connectors/connectors.json": "da242e8b9584c76bd95a5de798983fd6d8a401590f34944c64c5dd0eae86b863",
-      "fences/hotel-baseline.yml": "44332ab3210ead00d8f517a6980ef9e2a22a90e27e5ce4073fce3f3292383c37",
+      "fences/hotel-baseline.yml": "3086f0e78f567997b6cf67cd4aea9ab5201bd36b3e39d8c9c8eb20d5ba043334",
       "fences/patches/audit-only-patch.yml": "8c6f1874bf895ba0e2ceea7b5b801195e590d35650ed12a7d7b7b8290393abba",
       "fences/patches/homestay-patch.yml": "64b1b4cdca3f3a962237c9e64d791527eae86a3b39e5dae5d68a653b7d44eeb9",
       "fences/patches/low-star-single-patch.yml": "0c66b5e8df8f6ec7ec7133cce8106e191ceff36cfe4f2763fdf3e430e710738b",
@@ -168,7 +168,7 @@
       "pipelines/hotel-acquisition-loop.yml": "dcd9fc231f053428febb9b7f7f5b0d25e033ef4eb905002e722220abfc0a0773",
       "presets/ai-receptionist.yml": "1782565655f1d47889ba50baa261f75f0b8cf9fd07780629bf234b98b694e38a",
       "presets/channel-watcher.yml": "7a5a36baf3041f188dc915d2e7e0300c2356b968cc98644fa502e9a7111ea0ab",
-      "presets/company-ceo.yml": "6c3fc13b861868dd4fb466b3b0666d64b176989bcc1b96d0fcac4e2e6bea4737",
+      "presets/company-ceo.yml": "92ef2e7229ed7777862066e672f3c1d4f3076465689de58f5161d18833936612",
       "presets/competitor-agent.yml": "7481c3aeb736c778d25a8ab5f0051af28b6de1ca8fb442abd544c15458b0bb65",
       "presets/content-agent.yml": "ac292f561655411afc4afb99e46d0094bc8457f2ece715b65f708c2b4b6a4370",
       "presets/coupon-operator.yml": "5a27a9ef4d084d5271936c619abd0a2bfcb11b5d8cb8a4e016aac3a6c5ecc50c",
