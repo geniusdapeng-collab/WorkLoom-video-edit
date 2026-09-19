@@ -4,8 +4,8 @@
 #       (+pgvector) + nats-server + 产品载荷，用户机零依赖；首启由
 #       apps/desktop/electron/bootstrap.cjs 自动完成装配→initdb→迁移→种子→起服务，
 #       客户端窗口即产品（不再打开外部浏览器）。
-appId: com.geniusdapeng.workloomgeo
-productName: WorkLoom 获客增长系统
+appId: com.geniusdapeng.workloomgrowth
+productName: WorkLoom 获客增长系统（实验车道）
 copyright: Copyright © 2026 WorkLoom
 directories:
   output: release
@@ -31,8 +31,8 @@ extraResources:
 extraMetadata:
   main: apps/desktop/electron/main.cjs
   name: workloom-geo
-  productName: WorkLoom 获客增长系统
-  workloomPortOffset: 410
+  productName: WorkLoom 获客增长系统（实验车道）
+  workloomPortOffset: 420
 asar: true
 # 产物名带平台与架构、**不带版本号**——文件名恒定才能支撑
 # https://github.com/<org>/<repo>/releases/latest/download/<文件名> 永久直链

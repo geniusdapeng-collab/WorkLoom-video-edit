@@ -1,25 +1,34 @@
 {
   "schemaVersion": "workloom.product/v1",
-  "productId": "workloom-ai-acquisition",
+  "productId": "workloom-ai-growth",
   "role": "industry",
-  "displayName": "WorkLoom 获客增长系统",
+  "displayName": "WorkLoom 获客增长系统（实验车道）",
   "packageName": "workloom-ai-acquisition",
-  "repository": "workloom-ai/workloom",
+  "repository": "workloom-ai/WorkLoom-growth",
   "defaultBundle": "geo-growth",
-  "demoWorkspaceSlug": "geo-growth",
+  "demoWorkspaceSlug": "growth-experiment",
   "demoMemberNo": "MEM-G01",
   "release": {
-    "appId": "com.geniusdapeng.workloomgeo",
+    "appId": "com.geniusdapeng.workloomgrowth",
     "channel": "stable",
     "artifactPrefix": "WorkLoom 获客增长系统",
     "website": "apps/site"
   },
   "desktop": {
-    "portOffset": 410
+    "portOffset": 420
   },
   "clients": {
-    "bPc": { "enabled": true, "entry": "apps/web" },
-    "bMobile": { "enabled": true, "entry": "apps/webb" },
-    "cMobile": { "enabled": true, "entry": "apps/webc" }
+    "bPc": {
+      "enabled": true,
+      "entry": "apps/web"
+    },
+    "bMobile": {
+      "enabled": true,
+      "entry": "apps/webb"
+    },
+    "cMobile": {
+      "enabled": true,
+      "entry": "apps/webc"
+    }
   }
 }

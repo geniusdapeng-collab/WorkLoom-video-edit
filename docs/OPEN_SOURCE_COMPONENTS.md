@@ -1,4 +1,4 @@
-# WorkLoom 开源组件清单 · workloom-ai-acquisition
+# WorkLoom 开源组件清单 · workloom-ai-growth
 
 <!-- 自动生成，请勿手改：node scripts/oss-inventory.mjs --write -->
 
