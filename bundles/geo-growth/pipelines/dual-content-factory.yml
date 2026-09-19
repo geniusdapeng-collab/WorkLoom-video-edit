@@ -33,6 +33,11 @@ steps:
     owner: company-ceo
     gate: G-GEO1
     outputs: [geo_content]            # 双审制：社媒审传播力，GEO 审事实与结构
+  - step_key: visual-package
+    name: 视觉素材成套（封面/图文/信源配图）
+    owner: visual-designer
+    gate: G-VIS1
+    outputs: [visual_asset]            # 平台规格封面+图文；标题/价格走预渲染文字层，事实与实体卡逐字一致
   - step_key: social-publish
     name: 社媒组分发
     owner: publish-operator

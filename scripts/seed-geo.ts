@@ -80,13 +80,31 @@ interface FenceRule {
   match: { object_types: string[]; actions: string[] };
   when: string;
   note?: string;
+  /** 规则所属围栏包版本（多包并装时逐条落库，不能一律写基线版本）。 */
+  packVersion?: string;
 }
 
+/**
+ * 装载 bundle.json `provides.fences` 声明的全部基线围栏包。
+ * `fences/patches/*` 是客群二选一的客户级补丁，由落地向导按需应用，此处跳过。
+ * 之前只读 geo-growth-baseline.yml，导致新增的行业围栏包（如视觉工位 G-VIS 系列）
+ * 永远进不了 fence_rules 表——判定器看不到规则，写动作只能落保守 review。
+ */
 function loadFences(): FenceRule[] {
-  const doc = YAML.parse(
-    readFileSync(join(BUNDLE_DIR, "fences/geo-growth-baseline.yml"), "utf-8"),
-  );
-  return (doc?.rules ?? []) as FenceRule[];
+  const manifest = JSON.parse(readFileSync(join(BUNDLE_DIR, "bundle.json"), "utf-8")) as {
+    workloom?: { provides?: { fences?: string[] } };
+  };
+  const declared = manifest.workloom?.provides?.fences ?? ["fences/geo-growth-baseline.yml"];
+  const rules: FenceRule[] = [];
+  for (const assetPath of declared) {
+    if (assetPath.includes("/patches/")) continue;
+    const doc = YAML.parse(readFileSync(join(BUNDLE_DIR, assetPath), "utf-8"));
+    const version = typeof doc?.version === "string" ? doc.version : FENCE_VERSION;
+    for (const rule of (doc?.rules ?? doc?.fences ?? []) as FenceRule[]) {
+      rules.push({ ...rule, packVersion: version });
+    }
+  }
+  return rules;
 }
 
 interface SkillDoc {
@@ -315,7 +333,10 @@ async function main() {
     await q(
       `INSERT INTO agents (id, workspace_id, preset_key, name, version, kind, readonly, fence_bindings, skills, status, meta)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'ready',$10)
-       ON CONFLICT (id) DO NOTHING`,
+       ON CONFLICT (id) DO UPDATE
+         SET name = EXCLUDED.name, version = EXCLUDED.version, kind = EXCLUDED.kind,
+             readonly = EXCLUDED.readonly, fence_bindings = EXCLUDED.fence_bindings,
+             skills = EXCLUDED.skills, status = 'ready', meta = EXCLUDED.meta`,
       [
         `agt-geo-${p.preset_key}`,
         WS_ID,
@@ -354,11 +375,13 @@ async function main() {
     await q(
       `INSERT INTO fence_rules (id, rule_id, version, workspace_id, name, level, match_spec, action, is_baseline, status, created_by)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'active','system:seed')
-       ON CONFLICT (rule_id, version, workspace_id) DO NOTHING`,
+       ON CONFLICT (rule_id, version, workspace_id) DO UPDATE
+         SET name = EXCLUDED.name, level = EXCLUDED.level, match_spec = EXCLUDED.match_spec,
+             action = EXCLUDED.action, is_baseline = EXCLUDED.is_baseline, status = 'active'`,
       [
         `fr-${r.rule_id.toLowerCase()}-v1-${WS_ID}`,
         r.rule_id,
-        FENCE_VERSION,
+        r.packVersion ?? FENCE_VERSION,
         WS_ID,
         r.name,
         r.level,
@@ -371,7 +394,8 @@ async function main() {
       ],
     );
   }
-  console.log(`✓ 双域基线围栏装载 ×${fences.length}（${FENCE_VERSION}，active）`);
+  const fencePacks = [...new Set(fences.map((r) => r.packVersion ?? FENCE_VERSION))];
+  console.log(`✓ 双域基线围栏装载 ×${fences.length}（${fencePacks.join(" + ")}，active）`);
 
   // GEO 官方技能 + 安装绑定（F8.1/F8.2）
   for (const s of skillsDocs) {

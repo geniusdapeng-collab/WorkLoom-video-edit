@@ -1587,6 +1587,29 @@
       "currentSource": "packages/base/computer-use/toolkit/requirements.txt",
       "latest": "1.46.0",
       "latest_checked_at": "2026-09-18T16:00:21.000Z"
+    },
+    {
+      "name": "Compositor（Mac 图像编辑器 / 视觉工位渲染内核）",
+      "package": "robbietilton/Compositor",
+      "repo": "https://github.com/robbietilton/Compositor",
+      "license": "MIT",
+      "channel": "github",
+      "usage": "runtime",
+      "probe": {
+        "kind": "regex",
+        "file": "docs/visual-workstation.md",
+        "pattern": "Compositor v([0-9][0-9.]*)"
+      },
+      "scope": [
+        "Mac 视觉工位 headless 引擎（复用 ProjectStore/ImageExporter/LayerRenderer 源码）",
+        "人机协作精修：Compositor.app（macOS 26.5+）"
+      ],
+      "cadence": "weekly",
+      "gate": "runtime-gate",
+      "notes": "MIT；上游 2026-09-16 创建、单作者，无 CLI/API/AppleScript，故采用源码 headless 裁剪 + 工位 pin 版本；生产工位关闭 Sparkle 自动更新；升级永不自动（先 selftest + golden 对比再灰度）",
+      "currentSource": "docs/visual-workstation.md",
+      "latest": "1.0.4",
+      "latest_checked_at": "2026-09-19T07:30:00.000Z"
     }
   ]
 }

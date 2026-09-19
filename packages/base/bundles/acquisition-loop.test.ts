@@ -196,8 +196,8 @@ describe("多领域融合：组合岗位编制裁决", () => {
   it("组合编制内岗位标识唯一（每个 preset_key 只有一个权威定义）", () => {
     const keys = [...composed.presets.keys()];
     expect(new Set(keys).size).toBe(keys.length);
-    // 三个领域编制合并后应覆盖各自全部岗位（primary 16 + ai-video 33 + hotel 16 - 4 处遮蔽）
-    expect(keys.length).toBe(61);
+    // 三个领域编制合并后应覆盖各自全部岗位（primary 18 + ai-video 33 + hotel 16 - 4 处遮蔽）
+    expect(keys.length).toBe(63);
   });
 
   it("同名岗位按主包声明落到权威归属包", () => {

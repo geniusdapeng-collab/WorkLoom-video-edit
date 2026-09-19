@@ -668,6 +668,12 @@
    "last_scan_iso": "2026-09-18T16:00:21.000Z",
    "latest_seen": "v26.9.0",
    "channel": "github"
+  },
+  "Compositor（Mac 图像编辑器 / 视觉工位渲染内核）": {
+   "last_scan": 1789812643,
+   "last_scan_iso": "2026-09-19T10:10:43.000Z",
+   "latest_seen": null,
+   "channel": "github"
   }
  },
  "registry_cache": {
@@ -2080,8 +2086,8 @@
    "checked_at_iso": "2026-09-18T16:00:21.000Z"
   }
  },
- "last_full_scan": "2026-09-19T03:14:39.000Z",
- "last_full_scan_epoch": 1789787679,
+ "last_full_scan": "2026-09-19T10:10:43.000Z",
+ "last_full_scan_epoch": 1789812643,
  "registry": {
   "npm": "https://registry.npmmirror.com",
   "pypi": "https://pypi.tuna.tsinghua.edu.cn/pypi",
