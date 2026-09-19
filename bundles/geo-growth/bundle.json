@@ -72,7 +72,10 @@
         "skills/image-retouch/SKILL.md",
         "skills/asset-variant-forge/SKILL.md",
         "skills/brand-guard/SKILL.md",
-        "skills/poster-series/SKILL.md"
+        "skills/poster-series/SKILL.md",
+        "skills/design-brief/SKILL.md",
+        "skills/art-direction/SKILL.md",
+        "skills/design-critique/SKILL.md"
       ],
       "schemas": [
         "schemas/objects.json",
@@ -184,7 +187,7 @@
   },
   "integrity": {
     "algorithm": "sha256",
-    "digest": "842b92a84af9cceef0ed44cea475185bc74228cc4407b7978d89c7f4cde0449f",
+    "digest": "8cdd55c6e762e757bbe5b6a8566da5513c5f45b1dd55eeef89e5604a4aa52604",
     "assets": {
       "eval/questions.json": "a6c38bee4f8da97625cdd9645f50251bb568acf77dc9d78cb0f158d3f8195519",
       "fences/geo-growth-baseline.yml": "26132b3c52290db8bfae71e7eacca25632adac48ec1dd2a6005749e9b015c44e",
@@ -210,16 +213,19 @@
       "presets/scriptwriter.yml": "5daa921b76a54af0b253296ea24e897f71629fc632a583b333fa008d9e2bdcf8",
       "presets/source-distributor.yml": "8cbe329b6786775def27ce43f2095feb1128567c70898e11b9a5e12dacfbaa1e",
       "presets/visibility-watcher.yml": "05e59d7d7bfd329011cb18245938c4d37633838ce194487da69b5c4438b0b501",
-      "presets/visual-designer.yml": "18013c6f8f8c2ca9388f703196fd70105815cbdd2f8178a4c395d9213aefedd5",
+      "presets/visual-designer.yml": "a0624fdbdd9d628a8454e8c50f3599ff1cee7a551ac20c97286b3a8f58e46606",
       "schemas/archive.schema.json": "ad08672042078f5d8a2376f855e0fe936454048fb0e4cc421d5b8082ad4e2200",
       "schemas/objects.json": "093e860f2213bb0a7acc3cbe65f7293bc18bc96d2f2d607047dad75a91a7b79f",
       "schemas/stages.json": "dbb994a399bcfe9ea34fbeacda92a13bfdebb8caeef4f74960faf4461a447c93",
       "service-front/client.json": "2c4c67ea42de2a4039135008daabb269342b1e96c82c5c6e67c8203a5c69ff6f",
       "skills/ai-answer-rewrite/SKILL.md": "25d1597948d560a13262a91c360abd130f5e6debe2e9faff7d4de2bc9640833d",
+      "skills/art-direction/SKILL.md": "52cfb2c429098ba98a6361525892317ad5a268f85f280553463d5187e7ec68d6",
       "skills/asset-variant-forge/SKILL.md": "c34fc2c76447e4727cad9c0f86b5256d648ee4d42d6ba84fe731f209db7842cf",
       "skills/brand-guard/SKILL.md": "72d4b6f7521f21079e6f4a191343361cda322dbae5c09ac3ac9f8c71f8220cf5",
       "skills/citation-reverse/SKILL.md": "ba3350d65c2c0c3fc2b588965ef36abeed39caea53a071c55ce8c3b748fae47b",
       "skills/compositor-designer/SKILL.md": "487484ac76864622b15a0e673ca634a9b029b27876a644016320f3fc43f91010",
+      "skills/design-brief/SKILL.md": "02373b339cf5aa1f057ae821813a19238566fdbb8cdfae3b6223e55566ad846f",
+      "skills/design-critique/SKILL.md": "898be7da80920347f4cb5f6206754ef59f0f33b8ec637f0eafc646a218d9c0ef",
       "skills/dual-entry-inquiry/SKILL.md": "b3aba600d3ce22d3b25bd5e222eac78f91a41cdc55de4699801acdec5754db88",
       "skills/entity-consistency-check/SKILL.md": "d76fd80eafc29570e6654e568a11001f4f79a7a92df09bf81716a990836d9fa8",
       "skills/geo-answer-card/SKILL.md": "c7043d6f47749a59183ebf26d7e288f654bd2a7ecba18307bce8a025144d21eb",

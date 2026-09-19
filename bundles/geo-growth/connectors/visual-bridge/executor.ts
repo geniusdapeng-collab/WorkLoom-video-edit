@@ -66,9 +66,12 @@ export const VISUAL_BRIDGE_TOOLS = [
   "visualread.inspect",
   "visualread.verify",
   "visualread.snapshot",
+  "visualread.critique",
   "visualwrite.compose",
   "visualwrite.render",
   "visualwrite.text",
+  "visualwrite.fetch_stock",
+  "visualwrite.generate",
 ] as const;
 
 const TOOL_SET: ReadonlySet<string> = new Set(VISUAL_BRIDGE_TOOLS);
@@ -78,6 +81,9 @@ const NEVER_RETRY_CODES = new Set([
   "quota_exceeded", "disk_quota_exceeded", "path_not_allowed", "tenant_mismatch",
   "idempotency_conflict", "bad_request", "not_found", "bad_image", "compositor_not_installed",
   "screen_recording_permission_required", "not_provided",
+  "vision_not_configured", "vision_key_missing", "vision_bad_response", "vision_http_error",
+  "stock_host_not_allowed", "stock_url_invalid", "stock_too_large",
+  "image_gen_not_configured", "image_gen_key_missing", "image_gen_empty",
 ]);
 
 export function isVisualBridgeTool(name: string): boolean {
