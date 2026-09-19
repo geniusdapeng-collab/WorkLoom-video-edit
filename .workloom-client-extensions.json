@@ -1,0 +1,23 @@
+{
+  "schemaVersion": "workloom.client-extensions/v1",
+  "reason": "WorkLoom-growth 是三端壳上的产品分叉（实验车道）：apps/web 的页面/组件/壳/语音/引导/测试配置是获客增长产品层，不与基座三端壳逐字节一致；这些路径由本仓自己拥有，不随基座升级被覆盖。",
+  "scope": "repo-owned-client-paths",
+  "industryExtensionPaths": [
+    "apps/*/src/App.tsx",
+    "apps/*/src/pages/**",
+    "apps/*/src/shell/**",
+    "apps/*/src/voice/**",
+    "apps/*/src/onboarding/**",
+    "apps/*/src/components/mate-guide/**",
+    "apps/*/src/components/hud/**",
+    "apps/*/src/components/star-ring/**",
+    "apps/*/src/components/MateWelcome.tsx",
+    "apps/*/src/components/WelcomeCeremony.tsx",
+    "apps/*/vitest.config.ts",
+    "apps/*/package.json"
+  ],
+  "guarantees": {
+    "requiredEntries": "apps/web/src/main.tsx · apps/webb/src/main.tsx · apps/webc/src/main.tsx · apps/webc/public/service-front.config.json 仍按基座受管口径校验",
+    "uiVersionLock": "@workloom/ui 版本仍由 .workloom-ui.json 与 scripts/verify-ui-consumer.mjs 强制"
+  }
+}
