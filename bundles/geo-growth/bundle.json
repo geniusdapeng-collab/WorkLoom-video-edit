@@ -38,6 +38,7 @@
         "presets/citation-analyst.yml",
         "presets/scriptwriter.yml",
         "presets/production-planner.yml",
+        "presets/visual-designer.yml",
         "presets/geo-content-planner.yml",
         "presets/entity-inspector.yml",
         "presets/publish-operator.yml",
@@ -52,7 +53,8 @@
         "presets/group-ceo.yml"
       ],
       "fences": [
-        "fences/geo-growth-baseline.yml"
+        "fences/geo-growth-baseline.yml",
+        "fences/geo-growth-visual.yml"
       ],
       "skills": [
         "skills/geo-query-craft/SKILL.md",
@@ -60,7 +62,8 @@
         "skills/visibility-monitor/SKILL.md",
         "skills/citation-reverse/SKILL.md",
         "skills/entity-consistency-check/SKILL.md",
-        "skills/dual-entry-inquiry/SKILL.md"
+        "skills/dual-entry-inquiry/SKILL.md",
+        "skills/compositor-designer/SKILL.md"
       ],
       "schemas": [
         "schemas/objects.json",
@@ -171,11 +174,12 @@
   },
   "integrity": {
     "algorithm": "sha256",
-    "digest": "882e6217ef46c92e6a31fb2d9711ba0c4ad68d98d459e5f9fe77743b9d6dcc9d",
+    "digest": "b856ac96713f74712a294399c360e38792e0d8aeb9a96af36d3c6828593027aa",
     "assets": {
       "fences/geo-growth-baseline.yml": "26132b3c52290db8bfae71e7eacca25632adac48ec1dd2a6005749e9b015c44e",
+      "fences/geo-growth-visual.yml": "6a63344093996e87dc71f9950d5a07c7aa849e1bfdc37aa1987afd96da95258d",
       "model-policy.yml": "c2350007cf1a112c9de24231b6270e39d69344e2a9a3c05b8f17d246e571b84e",
-      "pipelines/dual-content-factory.yml": "1a8001d651765cc36deccc1a71659b270a9301d3b2f20509fc7d7d22ab3d713f",
+      "pipelines/dual-content-factory.yml": "0650692f2c48ea051b2a334c92b5880f762632d4091b5fb2a48e58a227a756b6",
       "pipelines/intel-fusion.yml": "17a1b4c6dc70e47da0dffa1d91b96da2eb84925435009b9dd4b6e72eae22d092",
       "pipelines/ops-rhythm.yml": "8a007c4de76d10830a05ef992bd7629399f6b0121fc6bf7ba1f5534c76857f78",
       "pipelines/visibility-watch.yml": "c0f354e30fff3bd0f153eaf08c532c8159713b4b5ac590f3d4b79ccc6f4fda5c",
@@ -195,12 +199,14 @@
       "presets/scriptwriter.yml": "5daa921b76a54af0b253296ea24e897f71629fc632a583b333fa008d9e2bdcf8",
       "presets/source-distributor.yml": "8cbe329b6786775def27ce43f2095feb1128567c70898e11b9a5e12dacfbaa1e",
       "presets/visibility-watcher.yml": "05e59d7d7bfd329011cb18245938c4d37633838ce194487da69b5c4438b0b501",
+      "presets/visual-designer.yml": "adbc41729aa80a00d11b46cab976cdaa4ee04d7c491fa3475b3d6dbb0bef9a50",
       "schemas/archive.schema.json": "ad08672042078f5d8a2376f855e0fe936454048fb0e4cc421d5b8082ad4e2200",
-      "schemas/objects.json": "656242d97a63158e9df3453fc7e693e4d5322379514750bdfd5f426cc581cc5b",
+      "schemas/objects.json": "093e860f2213bb0a7acc3cbe65f7293bc18bc96d2f2d607047dad75a91a7b79f",
       "schemas/stages.json": "dbb994a399bcfe9ea34fbeacda92a13bfdebb8caeef4f74960faf4461a447c93",
       "service-front/client.json": "2c4c67ea42de2a4039135008daabb269342b1e96c82c5c6e67c8203a5c69ff6f",
       "skills/ai-answer-rewrite/SKILL.md": "25d1597948d560a13262a91c360abd130f5e6debe2e9faff7d4de2bc9640833d",
       "skills/citation-reverse/SKILL.md": "ba3350d65c2c0c3fc2b588965ef36abeed39caea53a071c55ce8c3b748fae47b",
+      "skills/compositor-designer/SKILL.md": "487484ac76864622b15a0e673ca634a9b029b27876a644016320f3fc43f91010",
       "skills/dual-entry-inquiry/SKILL.md": "b3aba600d3ce22d3b25bd5e222eac78f91a41cdc55de4699801acdec5754db88",
       "skills/entity-consistency-check/SKILL.md": "d76fd80eafc29570e6654e568a11001f4f79a7a92df09bf81716a990836d9fa8",
       "skills/geo-query-craft/SKILL.md": "7b4cf59af2fee1cf5fbd761d2a04c0f394bff478116b4962d77de4b1391d540e",
