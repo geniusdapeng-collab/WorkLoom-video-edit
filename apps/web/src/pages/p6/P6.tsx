@@ -15,7 +15,7 @@ import { useLocation, useNavigate } from "react-router";
 import { ensureDemoLogin, trpc } from "../../lib/trpc";
 import { Bridge } from "../../shell/Bridge";
 import { BannerAlert, EmptyState, Skeleton } from "../../components/hud";
-import { OBJECT_TYPE_TEXT, actionText, dictText, shortId, versionText } from "../../lib/display";
+import { OBJECT_TYPE_TEXT, actionText, dictText, shortId, skillDisplayName, versionText } from "../../lib/display";
 import { Icon, clientChineseText, clientValueText, skillIconOf, type SkillIconName } from "@workloom/ui";
 import { useNavigationAccess } from "../../shell/NavigationAccess";
 
@@ -46,9 +46,7 @@ const RARITY = {
 
 /** 展示名（官方技能 description 首句可声明中文名；团队/行业直接用 name） */
 function displayName(s: SkillRow): string {
-  const m = /^([^。]{2,12})。/.exec(s.description);
-  if (m?.[1]) return clientChineseText(m[1], "未命名技能");
-  return clientChineseText(s.name, "未命名技能");
+  return skillDisplayName(s.name, s.description);
 }
 /** 展示描述（去掉首句中文名部分） */
 function displayDesc(s: SkillRow): string {

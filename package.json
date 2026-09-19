@@ -19,7 +19,7 @@
   "scripts": {
     "dev": "node scripts/dev-note.js && concurrently -k -n server,web \"pnpm -C apps/server dev\" \"pnpm -C apps/web dev\"",
     "db:migrate": "tsx --env-file=.env scripts/migrate.ts",
-    "db:seed": "tsx --env-file=.env scripts/seed.ts",
+    "db:seed": "tsx --env-file=.env scripts/seed.ts && tsx --env-file=.env scripts/seed-geo.ts",
     "demo": "TOOL_UNVERIFIED_RATE=0 tsx --env-file=.env scripts/demo.ts",
     "doctor": "bash scripts/doctor.sh",
     "typecheck": "pnpm -r --if-present typecheck",
@@ -37,6 +37,7 @@
     "preview:all": "bash scripts/preview-all.sh",
     "capabilities": "node scripts/generate-capabilities.mjs",
     "capabilities:check": "node scripts/generate-capabilities.mjs --check",
+    "acceptance:matrix": "tsx --env-file=.env scripts/acceptance-matrix.mts",
     "capabilities:pptx": "python3 scripts/build-capability-pptx.py",
     "postinstall": "pnpm -C packages/industry-contract build && (node scripts/postinstall-note.js || true)",
     "overview:pptx": "python3 scripts/build-overview-pptx.py",

@@ -13,6 +13,7 @@ import P5 from "./pages/p5/P5";
 import P6 from "./pages/p6/P6";
 import P7 from "./pages/p7/P7";
 import P8 from "./pages/p8/P8";
+import Portfolio from "./pages/portfolio/Portfolio";
 import P23 from "./pages/p23/P23";
 import P24 from "./pages/p24/P24";
 import P26 from "./pages/p26/P26";
@@ -143,6 +144,7 @@ function Shell() {
       <Route path="/assembly" element={<P7 />} />
       <Route path="/agents" element={<P8 />} />
       <Route path="/agents/:agentId" element={<P8 />} />
+      <Route path="/portfolio" element={<Portfolio />} />
       <Route path="/events" element={<Observability view="events" />} />
       <Route path="/event-ledger" element={<Navigate to="/events" replace />} />
       <Route path="/models" element={<Observability view="models" />} />

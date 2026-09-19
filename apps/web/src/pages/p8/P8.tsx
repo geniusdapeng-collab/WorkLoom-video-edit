@@ -22,7 +22,7 @@ import { useNavigate, useParams } from "react-router";
 import { ensureDemoLogin, trpc } from "../../lib/trpc";
 import { displayNameOf, setAliasLocal } from "../../lib/naming";
 import { AgentAvatarOf } from "../../components/AgentAvatar";
-import { FENCE_LEVEL_TEXT, RULE_RESULT_TEXT, actionText, capabilityText, dictText, shortId, versionText } from "../../lib/display";
+import { FENCE_LEVEL_TEXT, RULE_RESULT_TEXT, actionText, capabilityText, dictText, shortId, skillDisplayName, versionText } from "../../lib/display";
 import { Bridge } from "../../shell/Bridge";
 import { Button, Icon, Overlay, clientChineseText } from "@workloom/ui";
 import {
@@ -70,7 +70,7 @@ interface Profile {
   workspaceName: string; bundle: string;
   nightWindow: { open: boolean; range: string };
   fences: Array<{ ruleId: string; name?: string; level?: string; version?: string; isBaseline?: boolean; declared: boolean }>;
-  skills: Array<{ id: string; name: string; level: string; version: string; fence_bindings: string[]; installed: boolean }>;
+  skills: Array<{ id: string; name: string; description: string; level: string; version: string; fence_bindings: string[]; installed: boolean }>;
   stats: AgentRow["stats"];
   game: Game;
   events: Array<{
@@ -551,7 +551,7 @@ function AgentProfilePage({ agentId }: { agentId: string }) {
                   <div className="flex justify-between gap-3"><span className="text-ink3">员工编号</span><span className="font-mono text-holo">{shortId(p.agent.id)}</span></div>
                   <div className="flex justify-between gap-3"><span className="text-ink3">运行版本</span><span className="text-ink2">{versionText(p.agent.version)}</span></div>
                   <div className="flex justify-between"><span className="text-ink3">工作区</span><span className="text-ink2">{p.workspaceName}</span></div>
-                  <div className="flex justify-between gap-3"><span className="text-ink3">来源行业包</span><span className="text-ink2">{clientChineseText(p.bundle, "当前行业包")}</span></div>
+                  <div className="flex justify-between gap-3"><span className="text-ink3">来源行业包</span><span className="text-ink2">{clientChineseText(p.bundle, p.bundle)}</span></div>
                   <div className="flex justify-between"><span className="text-ink3">战队</span><span className="text-ink2">{p.agent.nightShift ? "夜班中心 · 夜班窗口自动上线" : "日常班组"}</span></div>
                 </div>
                 <div className="mt-2.5 border-t border-line/60 pt-2">
@@ -594,7 +594,7 @@ function AgentProfilePage({ agentId }: { agentId: string }) {
                         title="前往技能中心"
                         className="flex w-full min-w-0 cursor-pointer flex-wrap items-center gap-2 rounded-lg border border-line bg-bg800/40 px-2.5 py-1.5 text-left text-body hover:border-gline"
                       >
-                        <span className="flex min-w-0 flex-1 items-center gap-1 break-words text-ink2"><Icon name="package" size={13} className="shrink-0" /> {clientChineseText(s.name, "技能能力")} <span className="text-body text-ink3">{versionText(s.version)}</span></span>
+                        <span className="flex min-w-0 flex-1 items-center gap-1 break-words text-ink2"><Icon name="package" size={13} className="shrink-0" /> {skillDisplayName(s.name, s.description)} <span className="text-body text-ink3">{versionText(s.version)}</span></span>
                         <span className={`shrink-0 text-body ${s.installed ? "text-go" : "text-warn"}`}>
                           {s.installed ? `已装备 · ${s.fence_bindings.length} 条关联围栏` : "未安装"}
                         </span>

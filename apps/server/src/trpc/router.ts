@@ -137,6 +137,7 @@ import { serviceRouter } from "../service/router.js";
 import { acquisitionQuestPlanner } from "../industry/hotel/acquisition-planner.js";
 import { overlayRouter } from "./overlay-router.js";
 import { acquisitionRouter } from "./acquisition-router.js";
+import { collaborationRouter } from "./collaboration-router.js";
 import {
   AccessAuthorityError,
   resolveAuthoritativeClientAccess,
@@ -2095,7 +2096,7 @@ function inNightWindow(now = new Date()): boolean {
 }
 
 const rosterRouter = router({
-  /** 名册总览（p8 默认态：人类 3 + Agent 7 混编 + 30 天工时聚合 + 在线状态） */
+  /** 名册总览（p8 默认态：人类成员 + 工作区在编 Agent 全员混编 + 30 天工时聚合 + 在线状态） */
   list: protectedProcedure.query(async ({ ctx }) => {
     const scope = scopeOf(ctx.identity);
     const app = getAppPool();
@@ -2241,8 +2242,8 @@ const rosterRouter = router({
         const agent = ar.rows[0];
         if (!agent) return null; // L7.1：越权/不存在一律返回空
 
-        const ws = await client.query<{ name: string; bundle_id: string | null; is_example: boolean }>(
-        `SELECT name, bundle_id, is_example FROM workspaces WHERE id=$1`, [scope.workspaceId]);
+        const ws = await client.query<{ name: string; bundle_id: string | null; industry: string; is_example: boolean }>(
+        `SELECT name, bundle_id, industry, is_example FROM workspaces WHERE id=$1`, [scope.workspaceId]);
 
         // 航道许可：fence_bindings 逐条对账 fence_rules 当前 active 版本（缺规则=声明悬空，标红 F2.10）
         const fences = agent.fence_bindings.length === 0 ? [] : (await client.query<{
@@ -2262,10 +2263,10 @@ const rosterRouter = router({
 
         // 技能包：preset 声明 skills × 技能注册表 × 本工作区安装态（F8.2 安装即绑定）
         const skillRows = agent.skills.length === 0 ? [] : (await client.query<{
-          id: string; name: string; level: string; version: string; fence_bindings: string[]; installed: boolean;
+          id: string; name: string; description: string; level: string; version: string; fence_bindings: string[]; installed: boolean;
         }>(
           // preset 声明为短名（revenue-manager），注册表主键带 skill- 前缀——两种形态都匹配
-          `SELECT s.id, s.name, s.level, s.version, s.fence_bindings,
+          `SELECT s.id, s.name, s.description, s.level, s.version, s.fence_bindings,
                   EXISTS(SELECT 1 FROM skill_installs si WHERE si.skill_id=s.id AND si.workspace_id=$1) AS installed
            FROM skills s
            WHERE s.id = ANY($2) OR s.id = ANY(ARRAY(SELECT 'skill-' || x FROM unnest($2::text[]) AS x))
@@ -2324,7 +2325,15 @@ const rosterRouter = router({
             constraints: agent.meta?.prompt?.constraints ?? [],
           },
           workspaceName: ws.rows[0]?.name ?? "",
-          bundle: "hyperreality-ai-video", // 首版唯一行业 Bundle（D2）
+          /**
+           * 来源行业包：组合编制下每个岗位由不同包提供（hotel / ai-video / geo-growth），
+           * 事实源是装配器写入的 meta.sourceBundleId；旧单包数据回落工作区已装配行业。
+           * 禁止再写死单一 Bundle（曾固定为 hyperreality-ai-video，对当时组合编制的全部岗位都错）。
+           */
+          bundle: (agent.meta as { sourceBundleId?: string } | undefined)?.sourceBundleId
+            ?? ws.rows[0]?.bundle_id
+            ?? ws.rows[0]?.industry
+            ?? "unknown",
           nightWindow: { open: inNightWindow(), range: "22:00–08:00" },
           fences: agent.fence_bindings.map((ruleId) => {
             const hit = fences.find((f) => f.rule_id === ruleId);
@@ -3391,6 +3400,8 @@ export const appRouter = router({
   evolution: evolutionRouter,
   // 获客控制台（行业扩展页 p10–p20 的数据面）：意图洞察→触达→承接→转化→归因
   acquisition: acquisitionRouter,
+  // 协作底座（规模化协作设计 §3–§4）：对象读模型/任务契约/交接回执/决策配额/组合看板/数字人叙事
+  collaboration: collaborationRouter,
   // 租户覆盖层（P26/P27）：实现早已随服务端构建，但此前从未挂载进根路由，
   // 三端 overlay.* 调用全部落到 404。挂载即生效，端点自身仍是受控守卫。
   overlay: overlayRouter,

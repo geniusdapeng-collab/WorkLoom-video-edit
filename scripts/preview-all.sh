@@ -12,12 +12,32 @@ set -u
 cd "$(dirname "$0")/.."
 
 PC_PORT=3000; MB_PORT=3001; MC_PORT=3002; SERVER_PORT=8787
-export SERVICE_C_DEMO_AUTH=true SERVICE_C_WORKSPACE_ID=ws-aipm-demo TOOL_UNVERIFIED_RATE=0
+# C 端服务前台挂载到本仓实际存在的主演示工作区（ai-pm 包不在本仓，ws-aipm-demo 会 500/401）
+export SERVICE_C_DEMO_AUTH=true SERVICE_C_WORKSPACE_ID=ws-yunqi TOOL_UNVERIFIED_RATE=0
 export WEB_PORT=$PC_PORT WEBB_PORT=$MB_PORT WEBC_PORT=$MC_PORT SERVER_PORT=$SERVER_PORT
 
 say() { printf "\033[1;36m[preview:all]\033[0m %s\n" "$1"; }
 PIDS=""
-stop_port() { local P=$1 PID; PID=$(ss -tlnp 2>/dev/null | grep ":$P " | grep -oP 'pid=\K[0-9]+' | head -1 || true); [ -n "$PID" ] && kill "$PID" 2>/dev/null && say "已停掉 :$P 残留进程（PID=$PID）"; }
+stop_port() {
+  local P=$1 PID
+  if command -v lsof >/dev/null 2>&1; then
+    PID=$(lsof -nP -ti ":$P" 2>/dev/null | head -1 || true)   # macOS / BSD：lsof 可用
+  else
+    PID=$(ss -tlnp 2>/dev/null | grep ":$P " | grep -oP 'pid=\K[0-9]+' | head -1 || true)
+  fi
+  [ -n "$PID" ] && kill "$PID" 2>/dev/null && say "已停掉 :${P} 残留进程（PID=${PID}）"
+}
+
+# 每个种子所需的行业包目录；本仓未携带的包（如 ai-pm）自动跳过，避免一键预览被无关种子阻断
+seed_bundle_dir() {
+  case "$1" in
+    db:seed) printf '%s' "bundles/hotel" ;;
+    db:seed:video) printf '%s' "bundles/ai-video" ;;
+    db:seed:geo|db:seed:acq) printf '%s' "bundles/geo-growth" ;;
+    db:seed:aipm) printf '%s' "bundles/ai-pm" ;;
+    *) printf '' ;;
+  esac
+}
 cleanup() { say "停止三端预览…"; for P in $PIDS; do kill "$P" 2>/dev/null; done; }
 trap cleanup EXIT INT TERM
 
@@ -36,25 +56,30 @@ fi
 say "应用数据库迁移…"
 pnpm db:migrate >/tmp/preview-all-migrate.log 2>&1 || { echo "迁移失败 → /tmp/preview-all-migrate.log"; exit 1; }
 for SEED in $(node -e "console.log(Object.keys(require('./package.json').scripts||{}).filter(s=>/^db:seed/.test(s)).join(' '))" 2>/dev/null); do
+  SEED_BUNDLE=$(seed_bundle_dir "$SEED")
+  if [ -n "$SEED_BUNDLE" ] && [ ! -d "$SEED_BUNDLE" ]; then
+    say "跳过 ${SEED}（本仓不含 ${SEED_BUNDLE}）"
+    continue
+  fi
   say "注入模拟数据：pnpm $SEED"
   pnpm "$SEED" >>/tmp/preview-all-seed.log 2>&1 || { echo "种子失败 → /tmp/preview-all-seed.log"; exit 1; }
 done
 
 # ---------- 2. 起 server（Mock 模式） ----------
-say "启动 server :$SERVER_PORT（Mock：离线确定性模型 + 演示直登）"
+say "启动 server :${SERVER_PORT}（Mock：离线确定性模型 + 演示直登）"
 pnpm -C apps/server start >/tmp/preview-all-server.log 2>&1 &
 PIDS="$PIDS $!"
 
 # ---------- 3. 起三端 ----------
-say "启动 PC 端 :$PC_PORT（apps/web）"
+say "启动 PC 端 :${PC_PORT}（apps/web）"
 pnpm -C apps/web exec vite --port $PC_PORT --strictPort >/tmp/preview-all-pc.log 2>&1 &
 PIDS="$PIDS $!"
 
-say "启动 B 端移动 :$MB_PORT（apps/webb）"
+say "启动 B 端移动 :${MB_PORT}（apps/webb）"
 pnpm -C apps/webb exec vite --port "$MB_PORT" --strictPort >/tmp/preview-all-mb.log 2>&1 &
 PIDS="$PIDS $!"
 
-say "启动 C 端 :$MC_PORT（apps/webc，小程序入口 H5 模拟）"
+say "启动 C 端 :${MC_PORT}（apps/webc，小程序入口 H5 模拟）"
 pnpm -C apps/webc exec vite --port $MC_PORT --strictPort >/tmp/preview-all-mc.log 2>&1 &
 PIDS="$PIDS $!"
 

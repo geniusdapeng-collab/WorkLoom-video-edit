@@ -1,7 +1,7 @@
 {
  "repo": "workloom-ai-acquisition",
  "description": "WorkLoom 获客系统 · 短视频社媒营销 × GEO × 获客五环 × 行业运营（首垂直：酒店）",
- "generatedAt": "2026-09-19T07:08:04.610Z",
+ "generatedAt": "2026-09-19T10:38:15.609Z",
  "demoPages": [
   "geo-customer-app.html",
   "geo-demo-c.html",
@@ -56,7 +56,7 @@
     {
      "name": "bundles/geo-growth/",
      "how": "见 bundles/geo-growth/ 目录",
-     "desc": "围栏/技能/员工/对象/管线一键装配（16 个数字员工岗位 · 6 个技能）"
+     "desc": "围栏/技能/员工/对象/管线一键装配（27 个数字员工岗位 · 29 个技能）"
     },
     {
      "name": "bundles/hotel/",
@@ -72,7 +72,7 @@
     {
      "name": "数字员工中心（`/agents`）",
      "how": "`pnpm preview:all` → http://localhost:3000/agents",
-     "desc": "人机混编通讯录：员工档案 / 围栏对账 / 30 天战绩 / 派遣 / 夜班自动上线（本包 16 个岗位）"
+     "desc": "人机混编通讯录：员工档案 / 围栏对账 / 30 天战绩 / 派遣 / 夜班自动上线（本包 27 个岗位）"
     },
     {
      "name": "织伴数字人（Live2D 常驻浮层）",

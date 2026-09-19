@@ -2718,6 +2718,78 @@ h2("融合·LLM 降级链：死端配置被拒 → mock 兜底应答不断链", 
   assert((ask.result?.data?.answer ?? "").length > 10, "rule 兜底应答生成（不断链）");
 });
 
+h2("协作·组合看板：按域聚合在编/待批/动作/红线", async () => {
+  const { data } = await api<{ result?: { data?: { totals?: { agents?: number; pending?: number }; domains?: unknown[] } } }>("/trpc/collaboration.portfolio", { token: tokenOwner });
+  assert((data.result?.data?.totals?.agents ?? 0) >= 5, "在编人数 ≥5");
+  assert(Array.isArray(data.result?.data?.domains), "域列表在场");
+});
+h2("协作·数字人叙事：单一接口含决策包与配额", async () => {
+  const { data } = await api<{ result?: { data?: { narrative?: string; packet?: { quota?: number; items?: unknown[]; overflowCount?: number } } } }>("/trpc/collaboration.narrative", { token: tokenOwner });
+  assert((data.result?.data?.narrative ?? "").includes("董事长"), "叙事面向董事长");
+  eq(data.result?.data?.packet?.quota, 7, "默认配额 7");
+  assert((data.result?.data?.packet?.items?.length ?? 99) <= 7, "配额内呈现");
+});
+h2("协作·决策包 ≤7 且 overflow 计数在场（不丢弃）", async () => {
+  const { data } = await api<{ result?: { data?: { quota?: number; items?: unknown[]; overflowCount?: number } } }>("/trpc/collaboration.packet", { token: tokenOwner });
+  assert((data.result?.data?.items?.length ?? 99) <= 7, "条目 ≤7");
+  assert(typeof data.result?.data?.overflowCount === "number", "overflow 计数在场");
+});
+h2("协作·对象读模型：最近变更流可读", async () => {
+  const input = encodeURIComponent(JSON.stringify({ limit: 5 }));
+  const { data } = await api<{ result?: { data?: unknown[] } }>(`/trpc/collaboration.objects.changes?input=${input}`, { token: tokenOwner });
+  assert(Array.isArray(data.result?.data), "变更流数组");
+});
+h2("协作·任务契约全链路 create→settle + 交接回执", async () => {
+  const created = await api<{ result?: { data?: { id?: string; status?: string } } }>("/trpc/collaboration.contracts.create", {
+    method: "POST", token: tokenOwner,
+    body: {
+      title: `E2E 协作契约 ${SFX}`, goal: "验证契约状态机与交接回执", requester: "MEM-001",
+      assigneePreset: "growth-experimenter", verifierPreset: "review-analyst",
+      successCriteria: ["实验卡通过审核"], mode: "m4_contract",
+    },
+  });
+  const id = created.data.result?.data?.id;
+  assert(id, "契约创建");
+  eq(created.data.result?.data?.status, "draft", "初始为草稿");
+  for (const action of ["offer", "accept", "start", "deliver", "verify", "settle"]) {
+    const { data } = await api<{ error?: { data?: { httpStatus?: number } } }>("/trpc/collaboration.contracts.advance", {
+      method: "POST", token: tokenOwner, body: { id, action },
+    });
+    assert(!data.error, `契约动作 ${action} 成功`);
+  }
+  const got = await api<{ result?: { data?: { status?: string } } }>(
+    `/trpc/collaboration.contracts.get?input=${encodeURIComponent(JSON.stringify({ id }))}`, { token: tokenOwner },
+  );
+  eq(got.data.result?.data?.status, "settled", "契约走完全链路");
+  const rc = await api<{ result?: { data?: { id?: string } } }>("/trpc/collaboration.receipts.record", {
+    method: "POST", token: tokenOwner,
+    body: { contractId: id, from: "growth-experimenter", to: "review-analyst", summary: "交付实验卡与结果，证据已附", evidence: ["E2E-实验卡"] },
+  });
+  assert(rc.data.result?.data?.id, "交接回执落账");
+  const list = await api<{ result?: { data?: unknown[] } }>(
+    `/trpc/collaboration.receipts.list?input=${encodeURIComponent(JSON.stringify({ contractId: id }))}`, { token: tokenOwner },
+  );
+  assert((list.data.result?.data?.length ?? 0) >= 1, "回执可回读");
+});
+h2("协作·readonly 写契约/推进/回执 → 403（API 层强制，审计回归）", async () => {
+  const created = await api<{ error?: { data?: { httpStatus?: number } } }>("/trpc/collaboration.contracts.create", {
+    method: "POST", token: tokenReadonly,
+    body: {
+      title: `RO 契约 ${SFX}`, goal: "只读越权测试", assigneePreset: "growth-experimenter",
+      verifierPreset: "review-analyst", successCriteria: ["x"], mode: "m4_contract",
+    },
+  });
+  eq(created.data.error?.data?.httpStatus, 403, "readonly 建契约 403");
+  const adv = await api<{ error?: { data?: { httpStatus?: number } } }>("/trpc/collaboration.contracts.advance", {
+    method: "POST", token: tokenReadonly, body: { id: "CT-ro-probe", action: "offer" },
+  });
+  eq(adv.data.error?.data?.httpStatus, 403, "readonly 推进契约 403");
+  const rc = await api<{ error?: { data?: { httpStatus?: number } } }>("/trpc/collaboration.receipts.record", {
+    method: "POST", token: tokenReadonly, body: { contractId: "CT-ro-probe", from: "a", to: "b", summary: "x" },
+  });
+  eq(rc.data.error?.data?.httpStatus, 403, "readonly 记回执 403");
+});
+
 
 /* ================= R 域 · 数字CEO（D21） ================= */
 {
@@ -3722,6 +3794,19 @@ h2("融合·LLM 降级链：死端配置被拒 → mock 兜底应答不断链", 
 }
 
 /* ================= 主流程 ================= */
+
+/**
+ * 开跑前先清并发位：L3.1 单工作区 queued/running ≤10，套件自己每跑一次都会留下
+ * 「manager 派遣探测 / E2E 对账任务 / T-suite-*」等夹具线程。不清的话，跑过几轮后
+ * 队列被自己塞满 → dispatch 直接 429 → O-02/O-03/O-04/O-08/R-10 这些"派单跑到 completed"
+ * 的用例成片假失败（实测 2026-09-19：461/467，6 条全部由此而来）。
+ * 口径与 E2E 段前的清理一致，只保留种子演示剧本线程 T-101/102/103 的状态。
+ */
+await qApp(
+  `UPDATE threads SET status='completed', closed_at=now(), updated_at=now()
+   WHERE workspace_id=$1 AND status IN ('queued','running') AND id NOT IN ('T-101','T-102','T-103')`,
+  [scope.workspaceId],
+);
 
 const svcPassed = await runCases(cases, "服务层用例");
 

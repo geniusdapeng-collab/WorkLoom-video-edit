@@ -196,8 +196,16 @@ describe("多领域融合：组合岗位编制裁决", () => {
   it("组合编制内岗位标识唯一（每个 preset_key 只有一个权威定义）", () => {
     const keys = [...composed.presets.keys()];
     expect(new Set(keys).size).toBe(keys.length);
-    // 三个领域编制合并后应覆盖各自全部岗位（primary 18 + ai-video 33 + hotel 16 - 4 处遮蔽）
-    expect(keys.length).toBe(63);
+    /**
+     * 先校验不变式：组合编制 = 各包编制之和 − 被遮蔽的同名定义数（每个 preset_key 只留一个权威定义）。
+     * 再校验该不变式算出的数量与对外口径（README/装配测试的 72 岗）一致——口径漂移时同时暴露两侧。
+     * 数量本身随各包编制演化（曾从 61 长到 70，再到 72），所以断言读的是算出来的值，而不是让维护者去猜。
+     */
+    const declared = VIEWS.reduce((sum, bundle) => sum + bundle.presets.size, 0);
+    const shadowed = composed.shadowed.length;
+    expect(keys.length).toBe(declared - shadowed);
+    expect(shadowed).toBe(4);
+    expect(keys.length).toBe(72);
   });
 
   it("同名岗位按主包声明落到权威归属包", () => {

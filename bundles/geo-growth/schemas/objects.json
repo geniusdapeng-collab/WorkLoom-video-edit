@@ -3,6 +3,16 @@
   "description": "社媒×GEO 双域融合经营事件 Object 类型枚举 v1（融合方案 §2.2 双域对象模型；社媒域对象沿用 ai-video 口径，GEO 域与双域交叉对象为新增）",
   "objects": [
     {
+      "type": "ads",
+      "label": "投放数据视图",
+      "note": "通用任务规划器按工具名前缀派生的投放对象视图（ads.watch 盯盘 / ads.boost 加投）；预算治理以 ads_campaign 为准，G12 同时覆盖两种命名（真机验收发现）"
+    },
+    {
+      "type": "creative",
+      "label": "投放素材",
+      "note": "通用任务规划器按工具名前缀派生的素材对象（creative.reedit 低效素材二剪迭代）；素材版本与合规由 content 域同源管理"
+    },
+    {
       "type": "intel_card",
       "label": "统一情报卡",
       "note": "情报站每日产物：来源域（热榜/评论/AI问答）/问题原文/热度/置信度三级/适配人设/建议形式（短视频/GEO图文/双用）；双用选题优先排产"
@@ -181,6 +191,56 @@
       "type": "visual_asset",
       "label": "视觉成品素材",
       "note": "可投放成品：封面/图文/投流变体/信源配图；入库命名「题材_钩子_版本」，携配方与工程文件链、QC 结果与审批引用；外发受 G9/G-GEO1，无回执禁发（G-VIS5）"
+    },
+    {
+      "type": "offer",
+      "label": "对外 offer",
+      "note": "增长 offer 载体（权益/价格表述/有效期）；价格与绑定承诺受 G-GROW2 必审，非绑定框架走实验卡（G-GROW3）"
+    },
+    {
+      "type": "price_change",
+      "label": "价格变更",
+      "note": "价格调整主档；G-GROW2 强制 L4 人审（与 R21-R26 价格红线并集取严）"
+    },
+    {
+      "type": "commitment",
+      "label": "对外承诺",
+      "note": "对客户/平台的绑定承诺（赔付/保价/时效）；G-GROW2 强制 L4，AI 不得自行承诺"
+    },
+    {
+      "type": "coupon_sku",
+      "label": "券 SKU",
+      "note": "团购/预售券 SKU：库存、核销、有效期；上架/改价受 G-GROW2，售罄熔断联动 G-GROW4"
+    },
+    {
+      "type": "referral",
+      "label": "转介",
+      "note": "老带新转介记录：推荐人/被推荐人/奖励；自荐、设备撞库等高风险受 G-GROW5 熔断"
+    },
+    {
+      "type": "experiment",
+      "label": "增长实验",
+      "note": "实验卡与执行主档：假设/判据/样本/预算/停止条件；未登记禁跑（G-GROW3），停止条件触发自动停（G-GROW4）"
+    },
+    {
+      "type": "experiment_data",
+      "label": "实验数据",
+      "note": "实验过程数据视图（脱敏聚合）；导出/共享受 G-GROW6 数据边界约束"
+    },
+    {
+      "type": "growth_dataset",
+      "label": "增长数据产品",
+      "note": "增长班组对外的数据产品（意图雷达/线索池/预算账/实验账聚合视图）；导出/上传受 G-GROW6 约束"
+    },
+    {
+      "type": "lifecycle_program",
+      "label": "生命周期计划",
+      "note": "跨渠道生命周期与 LTV 计划（P2 条件岗）；未激活受 G-GROW7 阻断，酒店住客生命周期归 guest-success"
+    },
+    {
+      "type": "partnership",
+      "label": "渠道合作",
+      "note": "异业/联盟/平台与达人矩阵增长合作（P2 按客户规模启用）；未激活受 G-GROW8 阻断，内容商单归 creator-partner"
     }
   ]
 }

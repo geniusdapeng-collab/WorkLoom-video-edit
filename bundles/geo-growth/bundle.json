@@ -51,7 +51,16 @@
         "presets/private-domain-operator.yml",
         "presets/company-ceo.yml",
         "presets/group-ceo.yml",
-        "presets/material-scout.yml"
+        "presets/material-scout.yml",
+        "presets/growth-lead.yml",
+        "presets/growth-strategist.yml",
+        "presets/growth-experimenter.yml",
+        "presets/lead-conversion-officer.yml",
+        "presets/media-portfolio-manager.yml",
+        "presets/cro-designer.yml",
+        "presets/live-producer.yml",
+        "presets/lifecycle-growth-officer.yml",
+        "presets/growth-partnership-officer.yml"
       ],
       "fences": [
         "fences/geo-growth-baseline.yml",
@@ -77,7 +86,16 @@
         "skills/design-brief/SKILL.md",
         "skills/art-direction/SKILL.md",
         "skills/design-critique/SKILL.md",
-        "skills/material-scout/SKILL.md"
+        "skills/material-scout/SKILL.md",
+        "skills/experiment-design/SKILL.md",
+        "skills/budget-portfolio/SKILL.md",
+        "skills/lead-scoring/SKILL.md",
+        "skills/cro-playbook/SKILL.md",
+        "skills/live-commerce/SKILL.md",
+        "skills/growth-review/SKILL.md",
+        "skills/incrementality-measurement/SKILL.md",
+        "skills/lifecycle-growth/SKILL.md",
+        "skills/growth-partnership/SKILL.md"
       ],
       "schemas": [
         "schemas/objects.json",
@@ -111,7 +129,21 @@
         "operation": "获客经营"
       },
       "navigation": {
-        "slots": []
+        "slots": [
+          {
+            "capabilityId": "geo-growth.portfolio",
+            "title": "组合看板",
+            "route": "/portfolio",
+            "group": "operations",
+            "icon": "report",
+            "clients": [
+              "pc"
+            ],
+            "permissions": [
+              "geo-growth.portfolio.read"
+            ]
+          }
+        ]
       },
       "home": {
         "widgets": [
@@ -183,16 +215,18 @@
           "accent": "#f59e0b"
         }
       },
-      "permissions": [],
+      "permissions": [
+        "geo-growth.portfolio.read"
+      ],
       "experiments": []
     }
   },
   "integrity": {
     "algorithm": "sha256",
-    "digest": "47afdbba0e51094f32a4af46800d6c7107000e70f6680ea165e3dfd45a5820e3",
+    "digest": "252565cd4b450d507fb61090d940c18c780bf074c1bd3b35508b60e7ce61331d",
     "assets": {
       "eval/questions.json": "a6c38bee4f8da97625cdd9645f50251bb568acf77dc9d78cb0f158d3f8195519",
-      "fences/geo-growth-baseline.yml": "26132b3c52290db8bfae71e7eacca25632adac48ec1dd2a6005749e9b015c44e",
+      "fences/geo-growth-baseline.yml": "1cb22c07d5bf96c2ca6bd24792267bc2b7160911a6e4add9dc1b8246f3b0f1b5",
       "fences/geo-growth-visual.yml": "6a63344093996e87dc71f9950d5a07c7aa849e1bfdc37aa1987afd96da95258d",
       "model-policy.yml": "c2350007cf1a112c9de24231b6270e39d69344e2a9a3c05b8f17d246e571b84e",
       "pipelines/dual-content-factory.yml": "0650692f2c48ea051b2a334c92b5880f762632d4091b5fb2a48e58a227a756b6",
@@ -202,13 +236,22 @@
       "presets/ads-optimizer.yml": "1c562d53e931ef922f71b44ead21bd33a3905f2befdfe1f9f6177d06cf2ed2e2",
       "presets/citation-analyst.yml": "1267ce24d140fbf727e95be59a8b5e098b1829bfd2853c4010baddabb56750c1",
       "presets/company-ceo.yml": "95c9c568c3aa95e7eb690dbd0325b6087f653046ccf1868a12cbac7a9c8a3b92",
+      "presets/cro-designer.yml": "e43b4e310abd796969d92af7ae2ece537412d85ca93e86cfee32426f85132eba",
       "presets/customer-success.yml": "c939271088f6c4f619cc5d96e640a82b40bd726cd85540f50d1e27a0bd35954d",
       "presets/data-board-officer.yml": "3640838aacc1aa89b1e092410ec445ce133877ee8dbacfaaa5ff733a581c36fb",
       "presets/entity-inspector.yml": "1b6d5e631ffdcbd5bb2e0517ac65caf94eeb5d7625f50f12bad8e743358d068d",
       "presets/geo-content-planner.yml": "850c3b152b1e0d31bebe8ba58d1fd0a4df3601fe02b0c7f2029cff03e7ee28d7",
       "presets/geo-researcher.yml": "942b41b3a1a6e330f5a72c09763406a235b4c0cea5abcf7619fc07f058f857de",
       "presets/group-ceo.yml": "5026be4c99ed4200c5bbfa0de9a48596305f582d04cb6cb1d9a53a50070d97c6",
+      "presets/growth-experimenter.yml": "20e9afb6f9741644ab4419b7b4d555729c8e9b5e579271ededfddf162ba1a9aa",
+      "presets/growth-lead.yml": "31c8597c1df9b5b7bc1b7084ce3229b2afc1de6e89071f3c6fb9a588846dc968",
+      "presets/growth-partnership-officer.yml": "34d9bd37335033dbe9ec5731c48daf531fcbeedb42bdcf94b384a5e09c969a37",
+      "presets/growth-strategist.yml": "d2388e1b2fb40d5f15ab43a0018b1b529562b87785825afaf1611bf86e9cf0a4",
+      "presets/lead-conversion-officer.yml": "1946d8a4dd2a050481e60e0d14e8ef1a1c4f254a2cc528c636ed628f23f2bba6",
+      "presets/lifecycle-growth-officer.yml": "07e1885343d7db8f556c24f1138ee5bde7e9edff85718987a34b938213e34270",
+      "presets/live-producer.yml": "f6f82566d1d8eae51e81b19e3193e773fd052327ccb3c8c74323c8e7e8ec214e",
       "presets/material-scout.yml": "e7becd627c741d22bda67371e54d03746d6626471bf6daa99f2cca7b7a82efdf",
+      "presets/media-portfolio-manager.yml": "4aae72fb19dad569397c4acb45050ef9c29d8fce235ad51936e39840a9fd2c79",
       "presets/private-domain-operator.yml": "6f351e045ff799506245e1f18883d16a59f1330bfedf70242de1d97d5ea542bc",
       "presets/production-planner.yml": "67d7cb2933a2a7603d70664b1e0fc78488fa4f20ff96aea56d6c24468193697e",
       "presets/publish-operator.yml": "6a5e56a32dec37016a46e95614f51e60cf32e6ba51de3f80fbaa211bb5529137",
@@ -218,22 +261,31 @@
       "presets/visibility-watcher.yml": "05e59d7d7bfd329011cb18245938c4d37633838ce194487da69b5c4438b0b501",
       "presets/visual-designer.yml": "7013fb117c7b310e2f1c442384e3cc4d732b86d514e8de66b7ef02552dbfc825",
       "schemas/archive.schema.json": "ad08672042078f5d8a2376f855e0fe936454048fb0e4cc421d5b8082ad4e2200",
-      "schemas/objects.json": "093e860f2213bb0a7acc3cbe65f7293bc18bc96d2f2d607047dad75a91a7b79f",
+      "schemas/objects.json": "cc8b6d8972ef48689c91fdbe33da567a1c05e2bfb34dd17da3a7ea46ed86a4fc",
       "schemas/stages.json": "dbb994a399bcfe9ea34fbeacda92a13bfdebb8caeef4f74960faf4461a447c93",
       "service-front/client.json": "2c4c67ea42de2a4039135008daabb269342b1e96c82c5c6e67c8203a5c69ff6f",
       "skills/ai-answer-rewrite/SKILL.md": "25d1597948d560a13262a91c360abd130f5e6debe2e9faff7d4de2bc9640833d",
       "skills/art-direction/SKILL.md": "52cfb2c429098ba98a6361525892317ad5a268f85f280553463d5187e7ec68d6",
       "skills/asset-variant-forge/SKILL.md": "c34fc2c76447e4727cad9c0f86b5256d648ee4d42d6ba84fe731f209db7842cf",
       "skills/brand-guard/SKILL.md": "72d4b6f7521f21079e6f4a191343361cda322dbae5c09ac3ac9f8c71f8220cf5",
+      "skills/budget-portfolio/SKILL.md": "3e9ebf5213059276576c1fb201a06b200aff85b6d59239a4430a992f7df09987",
       "skills/citation-reverse/SKILL.md": "ba3350d65c2c0c3fc2b588965ef36abeed39caea53a071c55ce8c3b748fae47b",
       "skills/compositor-designer/SKILL.md": "487484ac76864622b15a0e673ca634a9b029b27876a644016320f3fc43f91010",
+      "skills/cro-playbook/SKILL.md": "bdcc48d1915212bad4fcf278c6a03df0d176345085d9ea0b71a51d0993e833ad",
       "skills/design-brief/SKILL.md": "02373b339cf5aa1f057ae821813a19238566fdbb8cdfae3b6223e55566ad846f",
       "skills/design-critique/SKILL.md": "afbdcb3a8737c872c2a2bc167bceac32439216fe8e7cd3bafdf46a1fdabd8c11",
       "skills/dual-entry-inquiry/SKILL.md": "b3aba600d3ce22d3b25bd5e222eac78f91a41cdc55de4699801acdec5754db88",
       "skills/entity-consistency-check/SKILL.md": "d76fd80eafc29570e6654e568a11001f4f79a7a92df09bf81716a990836d9fa8",
+      "skills/experiment-design/SKILL.md": "380b74be7d5e0880765d9c25b1e0ad3a1fc733839a11900b937204b0d79203fe",
       "skills/geo-answer-card/SKILL.md": "c7043d6f47749a59183ebf26d7e288f654bd2a7ecba18307bce8a025144d21eb",
       "skills/geo-query-craft/SKILL.md": "7b4cf59af2fee1cf5fbd761d2a04c0f394bff478116b4962d77de4b1391d540e",
+      "skills/growth-partnership/SKILL.md": "35824f3d70376072b378e27e5089dca5bed8c70f0fac025f4d72ccd7d224a9dd",
+      "skills/growth-review/SKILL.md": "4d6a9ee65691e2c80c1626a014036f67590279277baa45228d30593f79fe7816",
       "skills/image-retouch/SKILL.md": "9bf2fb007f526f69bbf626090feb696d49b72e8c156f11779b06a2333a274dc4",
+      "skills/incrementality-measurement/SKILL.md": "a65a8b406357bba9c7c0afac7c91738fa868f224aa6a0b16ddcfc479f113a938",
+      "skills/lead-scoring/SKILL.md": "017db42294989ff43738ee12237ffc9de03bf0fd8fda53885830165ee46f2cdb",
+      "skills/lifecycle-growth/SKILL.md": "d510a14ca89f28d92b43ed3d44bb62f0d988f8eef2d817755aae86e0d9d21415",
+      "skills/live-commerce/SKILL.md": "cbcfb0ad7c9a73e274cf7cfe9ae891db37b93e5f6114b4f3b9c9c52dba37a8f5",
       "skills/material-scout/SKILL.md": "4b35dcb18e0670c6bcd1d4357ee57d256bd046583deaf9b3ee1b20fedc3833a8",
       "skills/moments-post/SKILL.md": "e723a39bc560f930ff2e9f0b182481bee2ba17cb2d00ab97f397d493a66c1cfc",
       "skills/poster-series/SKILL.md": "b63561e293366b0d09e964ce1fd90cc1e64ae8ad78f570fb1f3f4d503b49529a",

@@ -502,7 +502,13 @@ export async function runQuest(
           ...(prefUsageRecorded ? {} : { memory_refs: preferenceMemoryRefs(prefs) }),
         },
         rule_impact: verdict.impacts,
-        receipt: verified ? out.receipt : undefined, // 无回执=未核实（E3.7），不写 receipt 位
+        /**
+         * E3.7「无回执=未核实」要**写 receipt 位并标 synced:false**，不能整个字段省略：
+         * 省略会让下游无法区分「字段缺失（数据缺陷）」与「如实标注未核实」，真机验收的
+         * 五元完整性检查正是把 3 条 creative.reedit 判成缺字段（2026-09-19 复盘）。
+         * 语义不变：synced 只在真回执到位时为 true，未核实一律 false。
+         */
+        receipt: { ...out.receipt, synced: verified },
         model_trace: { model_id: input.modelId ?? (simulated ? "simulated-runtime" : "runtime-adapter"), tier: "standard", window: undefined, credits: 1 },
       });
       if (!prefUsageRecorded) {

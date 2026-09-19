@@ -9,9 +9,9 @@
  * 挂载点：与 SimBanner 同位（P0 经营主页 + Bridge 工作台顶栏下方）。
  */
 import { useEffect, useState } from "react";
-import { Icon, clientChineseText } from "@workloom/ui";
+import { Icon } from "@workloom/ui";
 import { ensureDemoLogin, trpc } from "../lib/trpc";
-import { versionText } from "../lib/display";
+import { chineseDisplayName, versionText } from "../lib/display";
 
 interface LoadedItem { skillId: string; name: string; version: string; tier: string; at: string; auto: boolean }
 interface DistStatus {
@@ -78,7 +78,9 @@ export function SkillDistBanner() {
     );
   }
 
-  const names = loaded.slice(0, 2).map((x) => `「${clientChineseText(x.name, "技能能力")} ${versionText(x.version)}」`).join("、");
+  // 装载事件里的 name 可能夹带拉丁记号（如演示包的「Y 域分发技能」）——旧实现整串回落成
+  // 「技能能力」，用户看到的是一排同名技能；这里剔除记号后再展示，实在无法中文化才用中性兜底。
+  const names = loaded.slice(0, 2).map((x) => `「${chineseDisplayName(x.name, "技能能力")} ${versionText(x.version)}」`).join("、");
   const more = loaded.length > 2 ? ` 等 ${loaded.length} 个` : "";
   return (
     <div className="relative z-30 flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-teal-500/40 bg-teal-50/90 px-4 py-2 text-body text-teal-800 backdrop-blur">

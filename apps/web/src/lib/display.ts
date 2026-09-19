@@ -186,6 +186,57 @@ export function capabilityText(value: string): string {
   return CAPABILITY_TEXT[value] ?? "受限能力";
 }
 
+/**
+ * 剔除术语串里的拉丁技术记号（SOP / RPA / Brief / query / Y / v1 …）。
+ * 背景：clientChineseText 遇到夹带技术记号的串会**整串回落**，于是技能名会裸奔成
+ * 「comment-ops」或退化成「技能能力」——两者都是客户端可见的技术串。
+ */
+function stripTechnicalTokens(value: string): string {
+  return value
+    .replace(/[A-Za-z][A-Za-z0-9._+/-]*/g, " ")
+    .replace(/[\s·—–-]+/g, " ")
+    .trim();
+}
+
+/**
+ * 必须给中文名的场景（技能名等）：先按原串走词典（保留 GEO 这类词典认可的行业词），
+ * 被判定含技术记号时剔除拉丁记号再试一次，仍不可用才回落 fallback。
+ */
+export function chineseDisplayName(value: string | null | undefined, fallback: string): string {
+  const raw = (value ?? "").trim();
+  if (!raw) return fallback;
+  const kept = clientChineseText(raw, "");
+  if (kept) return kept;
+  const cleaned = stripTechnicalTokens(raw);
+  if (cleaned) {
+    const accepted = clientChineseText(cleaned, "");
+    if (accepted) return accepted;
+  }
+  return fallback;
+}
+
+/**
+ * 技能展示名（Bundles 技能口径）：优先从技能说明首段解析中文名
+ * （如「入住退房全流程套件。…」「GEO 六段式改写官方套件（随 bundles/geo-growth 分发）：…」），
+ * 未命中时回落 @workloom/ui 词典与原始 id。
+ * 首段里夹带技术记号（「评论三级分流 SOP 官方套件」「线索管家——四路承接应答留资 SOP」）
+ * 时先剔除记号再取中文名，避免整串回落成裸 id 上屏。
+ * 分隔符口径要覆盖行业写作习惯：破折号「——」也当名字结束符，否则
+ * 「团购券运营——通兑券/预售券 SKU 设计…」「意图雷达——竞对评论区/OTA差评…」这类
+ * 没有句号/冒号的说明会解析不出名字，直接裸奔英文 id（真机验收发现的 2 例）。
+ * 行业词表仍由各 Bundle 的技能正文提供，客户端不新增行业词汇（display.ts 顶部扩展纪律）。
+ */
+export function skillDisplayName(name: string, description?: string | null): string {
+  const text = (description ?? "").trim();
+  const m = /^([^（(。：:—]{2,40})[（(。：:—]/.exec(text);
+  const candidate = m?.[1]?.trim();
+  if (candidate) {
+    const resolved = chineseDisplayName(candidate, "");
+    if (resolved) return resolved;
+  }
+  return chineseDisplayName(name, name);
+}
+
 // —— 线程模式 ——
 export const THREAD_MODE_TEXT: Record<string, string> = {
   quest: "主线任务",

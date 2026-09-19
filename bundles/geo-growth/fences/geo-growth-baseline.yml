@@ -1,4 +1,4 @@
-# 社媒×GEO 双域融合经营基线围栏包（融合方案 v1.0 §2.4：双域合计 12 条基线，全部只可加严）
+# 社媒×GEO 双域融合经营基线围栏包（双域 17 条 + 获客用增 6 条 = 23 条基线，全部只可加严）
 # 单调守卫（F2.3）：is_baseline=true 的规则，任何上层 patch 只可收紧不可放宽
 # DSL 求值语义：match 命中后求值 when 表达式（沙箱，禁任意代码）；
 #   命中 → 按 level 判定；block 优先于 review 优先于 auto（deny 优先并集求值）；
@@ -83,7 +83,10 @@ rules:
     level: review
     is_baseline: true
     match:
-      object_types: [ads_campaign]
+      # ads_campaign = 行业对象模型里的投放计划主档；ads = 通用任务规划器按工具名前缀
+      # （ads.watch/ads.boost）派生的投放对象视图。两种命名都要覆盖，否则规划器跑出的
+      # ads.boost 事件对象类型匹配不上本规则，加投就绕过 G12 的对象维度（真机验收发现）。
+      object_types: [ads_campaign, ads]
       actions: [ads.boost]
     when: "true"
     note: 任何追加投流预算动作必审（涉预算纪律，不可降级为 auto）
@@ -179,3 +182,84 @@ rules:
       actions: [breaker.trigger]
     when: "true"
     note: 任何熔断触发自动执行三件套：即时通知决策人、生成边界快照、事件链留痕；不得静默熔断
+
+  # ---- 获客用增班组（Growth Squad · v1.2 决策：预算带/价格承诺/实验登记/停止条件/转介防作弊/数据边界） ----
+  - rule_id: G-GROW1
+    name: 预算再分配超带必审
+    level: review
+    is_baseline: true
+    match:
+      object_types: [budget_ledger]
+      actions: [budget.allocate.write, budget.recommend.write]
+    when: "params.single_experiment_pct > 5 or params.monthly_reallocation_pct > 20 or params.risk_exposure_pct > 15"
+    note: 预算带内自主（单实验 ≤5% / 月内再分配 ≤20% / 在跑实验风险敞口 ≤15%）；任一超带转 L4 人审，台账留痕
+
+  - rule_id: G-GROW2
+    name: 价格/绑定承诺/现金激励必审
+    level: review
+    is_baseline: true
+    match:
+      object_types: [offer, price_change, commitment, coupon_sku, referral]
+      actions: [price.change, coupon.publish, commitment.make, discount.grant, referral.reward]
+    when: "true"
+    note: 价格/绑定承诺/现金激励类动作永远 L4，不因实验次数达标而放开；非绑定 offer 框架与承接变体走实验卡（G-GROW3）
+
+  - rule_id: G-GROW3
+    name: 实验未登记禁止执行
+    level: block
+    is_baseline: true
+    match:
+      object_types: [experiment]
+      actions: [experiment.start, experiment.execute]
+    when: "params.registered != true"
+    note: 无实验卡（假设/判据/样本/预算/停止条件/伦理边界）禁止开跑；登记后方可执行（增长实验官纪律）
+
+  - rule_id: G-GROW4
+    name: 实验停止条件触发自动停止+留痕
+    level: auto
+    is_baseline: true
+    match:
+      object_types: [experiment, circuit_breaker]
+      actions: [experiment.stop, experiment.guard]
+    when: "params.stop_condition_hit == true"
+    note: 亏损/时间/护栏任一停止条件触发即自动停止并落边界快照，不得拖延；与 G18 熔断通知同口径
+
+  - rule_id: G-GROW5
+    name: 转介防作弊熔断
+    level: block
+    is_baseline: true
+    match:
+      object_types: [referral]
+      actions: [referral.grant]
+    when: "params.risk_score >= 0.8 or params.self_referral == true or params.device_collision == true"
+    note: 自荐、设备撞库、异常批量等高风险转介奖励熔断并转人审；正常转介按激励规则执行
+
+  - rule_id: G-GROW6
+    name: 增长数据边界
+    level: block
+    is_baseline: true
+    match:
+      object_types: [growth_dataset, experiment_data]
+      actions: [data.export, data.share, audience.upload]
+    when: "context.data_boundary_ok != true"
+    note: 实验与客资数据不出客户边界；导出/共享/人群上传未经数据边界确认即阻断（与 D19 上行红线同口径）
+
+  - rule_id: G-GROW7
+    name: 生命周期岗条件激活门禁
+    level: block
+    is_baseline: true
+    match:
+      object_types: [lifecycle_program, referral]
+      actions: [lifecycle.program.write, lifecycle.touch.write, referral.program.write]
+    when: "context.p2_activated != true"
+    note: P2 条件岗默认不出场；触发条件（非酒店包 / 多店多品牌 / guest-success 超限）经 L4 激活后放行；酒店单店住客生命周期归 guest-success，避免重复触达
+
+  - rule_id: G-GROW8
+    name: 渠道增长岗条件激活门禁
+    level: block
+    is_baseline: true
+    match:
+      object_types: [partnership]
+      actions: [partnership.plan.write, partner.outreach.write, matrix.plan.write]
+    when: "context.p2_activated != true"
+    note: 渠道增长岗按客户规模启用；多账号矩阵/多区域投放规模未达且未激活时写动作一律阻断，激活走 L4

@@ -26,7 +26,9 @@ prompt:
   constraints:
     - 治理边界以 charter 为准：越权动作自动熔断并升级董事长（L4）
     - 涉保底价/对外承诺/围栏放宽一律上交人审，不自行裁决
-write_back: [ceo.briefing, ceo.deviation]
+# 写回落点必须是本岗位已声明的动作名（契约层对账）：偏差报告出自 ceo.deviation.scan 的扫描结论，
+# 原写 `ceo.deviation` 在工具清单里不存在（悬空落点），按发布专员 publish.receipt 同口径改为动作全名。
+write_back: [ceo.briefing, ceo.deviation.scan]
 # 行业扩展投影：保留字段级写回范围，待基座契约纳入通用 outputProjections 后迁移。
 write_back_projection:
   - { object: workspace, fields: [briefing, deviation_report], note: 晨报与偏差报告以工作区为对象留痕 }

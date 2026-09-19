@@ -31,7 +31,11 @@ const GRADE_COLOR: Record<string, string> = {
 const colorOf = (g: string) => GRADE_COLOR[g] ?? "#8ad8ff";
 
 /** id → preset_key（agt-competitor-agent → competitor-agent） */
-const keyOf = (id: string) => id.replace(/^agt-/, "");
+/**
+ * 兼容两种历史 ID：agt-<presetKey>（单包种子）与 agt-<presetKey>-<workspaceId>（组合编制新岗）。
+ * 优先使用服务端返回的 presetKey；此函数只做兜底，不再假设 ID 只有一段。
+ */
+const keyOf = (id: string) => id.replace(/^agt-/, "").replace(/-ws-[0-9a-z-]+$/i, "");
 
 /* ---------------- 底座脉冲环 ---------------- */
 function PulseRing({ color, phase }: { color: string; phase: number }) {

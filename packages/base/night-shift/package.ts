@@ -129,8 +129,19 @@ export async function deliverPackage(
     );
     // 幂等：已 package_generated（或班次不存在）→ rowCount=0，直接返回不重写投递事件（G8 留痕唯一）
     if (upd.rowCount === 0) {
+      /**
+       * 幂等路径必须返回**已落库的统计**，而不是本次重新投影的结果：
+       * 首次投递自己会往窗口里写 `night.package.deliver` 等事件，二次投影会把它们算进条目
+       * （真机套件实测 done 3→4，`packages/base/night-shift/night-shift.test.ts` 判失败）。
+       * 只有第一次投递（UPDATE 命中）才写状态与留痕；后续调用一律以库里那份为准。
+       */
+      const persisted = await c2.query<{ stats: NightPackage["stats"] | null }>(
+        `SELECT stats FROM night_runs WHERE id=$1 AND workspace_id=$2`,
+        [runId, scope.workspaceId],
+      );
       await c2.query("COMMIT");
-      return pkg;
+      const storedStats = persisted.rows[0]?.stats;
+      return storedStats ? { ...pkg, stats: storedStats } : pkg;
     }
     // D16（#1/A）：状态回写与投递事件同一事务同一 COMMIT（G8）
     await gatewayAppendOnClient(c2, {

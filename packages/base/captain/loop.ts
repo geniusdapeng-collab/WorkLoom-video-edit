@@ -7,7 +7,7 @@
  * 全部写路径：app 池单事务 + 事务级双 GUC（D16 同构）；事件均带 basis（治理 §九.3 依据链强制）。
  */
 import type pg from "pg";
-import { gatewayAppendOnClient } from "@workloom/base/workdata";
+import { gatewayAppendOnClient, type ActorInfo } from "@workloom/base/workdata";
 import {
   parseCharter, transition, canExecute, isShadow, isExpired,
   evalCircuitBreaker, tightenAutonomy, effectiveAutonomy, type Charter,
@@ -20,7 +20,30 @@ import { generateBriefing, buildMemo, type BriefingKind } from "./briefing.js";
 
 export interface Scope { tenantId: string; workspaceId: string }
 
-const CEO_ACTOR = { id: "company-ceo", type: "agent" as const };
+/**
+ * CEO 节拍的归因主体（actor）必须带**本工作区 company-ceo 岗位声明的围栏绑定**。
+ *
+ * 网关段①（F2.10）会拒绝「未声明 fence_bindings 的 Agent 发起写类动作」，而 CEO 节拍
+ * 全是写类动作（ceo.briefing / captain.mode_change / L2 裁决留痕）。旧实现把 actor 写死成
+ * `{ id: "company-ceo", type: "agent" }`（不带绑定），真机发布门禁 T-02 因此整条晨报链被
+ * 自家门禁拦下——门禁与事实源必须同源：绑定点哪几条，就从 agents 表读哪几条
+ * （组合编制下各工作区不同：融合区 [G17,G18,R17,R18,R19]，单包区只有本包声明）。
+ */
+async function ceoActor(client: pg.PoolClient, scope: Scope): Promise<ActorInfo> {
+  const r = await client.query<{ readonly: boolean; fence_bindings: string[] }>(
+    `SELECT readonly, fence_bindings FROM agents
+      WHERE workspace_id=$1 AND preset_key='company-ceo' LIMIT 1`,
+    [scope.workspaceId],
+  );
+  const row = r.rows[0];
+  return {
+    id: "company-ceo",
+    type: "agent",
+    readonly: row?.readonly ?? false,
+    // 岗位未在编时留空绑定 → 网关按未声明围栏拒绝（fail-closed，不偷放）
+    fenceBindings: row?.fence_bindings ?? [],
+  };
+}
 
 /* ================= 宪章读写 ================= */
 
@@ -71,10 +94,11 @@ async function emitCeoEvent(
   decision: { params?: Record<string, unknown>; after?: Record<string, unknown>; basis: string[] },
   opts?: { dryRun?: boolean },
 ): Promise<string> {
+  const actor = await ceoActor(client, scope);
   const res = await gatewayAppendOnClient(client, {
-    ...scope, actor: CEO_ACTOR, sessionId: `ceo-${scope.workspaceId}`,
+    ...scope, actor, sessionId: `ceo-${scope.workspaceId}`,
   }, {
-    who: { type: "agent", id: CEO_ACTOR.id },
+    who: { type: "agent", id: actor.id },
     context: { tenant_id: scope.tenantId, workspace_id: scope.workspaceId, time: new Date().toISOString() },
     object: { type: "company_ceo", id: scope.workspaceId },
     decision: {
@@ -226,7 +250,7 @@ ${item.action} ${JSON.stringify(item.params)}
           `UPDATE approvals SET status=$3, gesture=$4::jsonb, decided_by=$5, decided_at=now()
            WHERE approval_id=$1 AND workspace_id=$2 AND status='pending'`,
           [row.approval_id, scope.workspaceId, verdict.kind === "approve" ? "approved" : "rejected",
-           JSON.stringify({ type: verdict.kind, weight: 1, reason_text: verdict.rationale }), CEO_ACTOR.id],
+           JSON.stringify({ type: verdict.kind, weight: 1, reason_text: verdict.rationale }), "company-ceo"],
         );
         applied = (u.rowCount ?? 0) > 0;
         if (applied) decided++;

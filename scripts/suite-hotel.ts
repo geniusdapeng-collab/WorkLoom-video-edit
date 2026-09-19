@@ -66,7 +66,10 @@ const J = (input: Parameters<typeof judge>[0]) => judge(input, fenceRules, "revi
 /* ================= A · Bundle 完整性 ================= */
 const a = C("A");
 a("bundle.json 声明的全部资产路径存在", () => {
-  for (const paths of Object.values(bundleJson.workloom.provides) as string[][]) {
+  // provides 既有数组资产（presets/skills/…），也有单值字符串（modelPolicy）——只校验数组项，
+  // 否则字符串会被逐字符遍历，产生「缺失资产 m」这类假失败（组合包同样适用）。
+  for (const paths of Object.values(bundleJson.workloom.provides) as Array<string[] | string>) {
+    if (!Array.isArray(paths)) continue;
     for (const p of paths) assert(existsSync(join(BUNDLE, p)), `缺失资产 ${p}`);
   }
 });
@@ -177,9 +180,16 @@ b("基线回归：R2 保底价熔断仍生效", () => {
 
 /* ================= C · 种子与运行态 ================= */
 const c = C("C");
-c("16 个 Agent 实例装载", async () => {
-  const r = await q(`SELECT count(*) n FROM agents WHERE workspace_id=$1`, [WS]);
-  assert(Number(r.rows[0].n) === 16, `agents=${r.rows[0].n}`);
+c("16 个酒店岗全部在编（组合编制共 72 岗）", async () => {
+  // 组合编制口径（获客主包 27 岗含视觉栈 2 + 酒店包 + 视频包）：总数 72（hotel 16 / ai-video 30 / geo-growth 26），其中酒店来源 16。
+  // 旧断言只认 16 会把组合编制的跨域岗位误判为缺编。
+  const all = await q(`SELECT count(*) n FROM agents WHERE workspace_id=$1`, [WS]);
+  assert(Number(all.rows[0].n) === 72, `组合编制 agents=${all.rows[0].n}`);
+  const hotel = await q(
+    `SELECT count(*) n FROM agents WHERE workspace_id=$1 AND (meta->>'sourceBundleId' = 'hotel' OR meta->>'sourceBundleId' IS NULL)`,
+    [WS],
+  );
+  assert(Number(hotel.rows[0].n) === 16, `酒店岗=${hotel.rows[0].n}`);
 });
 c("获客 4 员工在编且 preset 夜班声明正确", async () => {
   const r = await q(`SELECT preset_key FROM agents WHERE workspace_id=$1 AND preset_key IN ('ai-receptionist','coupon-operator','guest-success','channel-watcher')`, [WS]);

@@ -36,7 +36,8 @@
     "./publish-rpa": "./publish-rpa/index.ts",
     "./social-listening": "./social-listening/index.ts",
     "./cost-ledger": "./cost-ledger/index.ts",
-    "./deal-flow": "./deal-flow/index.ts"
+    "./deal-flow": "./deal-flow/index.ts",
+    "./collaboration": "./collaboration/index.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
