@@ -117,6 +117,13 @@ evaluation 协议（`state + typed questions → typed answers`，官方明确�
 
 ## 7. 测试
 
+> 附：**NanoJev 评估结论（2026-09-19，暂不采用）**——社区开源平替
+> [NanoJev](https://github.com/TianyuCodings/NanoJev)（MIT，Qwen3-0.6B + 决策头，契约与我们同构）曾在
+> PR #57 接入本地通道，因其推理代码**硬依赖 CUDA**（`predict_toy_decisions.py` 显式检查 `torch.cuda`）、
+> 且权重面向迷宫/贪吃蛇等游戏任务（非通用 Jev），在无 CUDA 的机器上不具可用性 → **已于 PR #58 完整回滚**。
+> 将来若具备 CUDA 环境且需要"零调用成本的本地决策模型"，可重新评估（含其训练管线与 HF 数据集），
+> 但须先用自己的标注数据微调并过考卷，再考虑进入判断链路。
+
 ```bash
 # 本模块 39 个离线用例（协议/重试/超时/密钥安全/分流/指标/端到端）
 node_modules/.bin/vitest run apps/server/src/industry/geo-growth/jev
