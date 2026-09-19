@@ -209,6 +209,7 @@
         set +a
         pnpm acceptance:onboarding
         pnpm scan:fences
+        pnpm scan:knowhow
 
 main:
   push:
