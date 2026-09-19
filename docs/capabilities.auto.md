@@ -22,7 +22,7 @@ pnpm install && pnpm preview:all
 |---|---|---|
 | ![PC](demo/preview-shots/pc-3000.png) | ![B移动](demo/preview-shots/shell-guest.png) | ![C移动](demo/preview-shots/mobile-c-3002.png) |
 
-## 📦 能力总览（36 项）
+## 📦 能力总览（39 项）
 
 ### 🖥 三端应用（开箱即看）
 
@@ -37,8 +37,16 @@ pnpm install && pnpm preview:all
 | 能力 | 一句话 | 怎么体验 |
 |---|---|---|
 | **bundles/ai-video/** | 围栏/技能/员工/对象/管线一键装配 | 见 bundles/ai-video/ 目录 |
-| **bundles/geo-growth/** | 围栏/技能/员工/对象/管线一键装配 | 见 bundles/geo-growth/ 目录 |
+| **bundles/geo-growth/** | 围栏/技能/员工/对象/管线一键装配（16 个数字员工岗位 · 6 个技能） | 见 bundles/geo-growth/ 目录 |
 | **bundles/hotel/** | 围栏/技能/员工/对象/管线一键装配 | 见 bundles/hotel/ 目录 |
+
+### 🧑‍💼 数字员工与数字人（本仓自带）
+
+| 能力 | 一句话 | 怎么体验 |
+|---|---|---|
+| **数字员工中心（`/agents`）** | 人机混编通讯录：员工档案 / 围栏对账 / 30 天战绩 / 派遣 / 夜班自动上线（本包 16 个岗位） | `pnpm preview:all` → http://localhost:3000/agents |
+| **织伴数字人（Live2D 常驻浮层）** | 全页面常驻数字人：语音播报 + 口型/表情/动作 + 三态（小角落 / 大形象 / 屏保）+ 记忆透明面板 | 打开任一 PC 页面右下角；`pnpm preview:all` |
+| **语音与口型引擎** | TTS 音色映射 + 中文逐字开口度时间线 + 音频振幅驱动口型；人设/音色可切换 | docs/voice-and-avatar-delivery-contract.md |
 
 ### 🖐 操作电脑能力（本仓自带 · 可装生产工作站）
 
