@@ -168,8 +168,8 @@ describe.runIf(RUN_DB)("行业装配 PG 集成（F2.10 铁律）", async () => {
       const provision = await provisionComposedWorkforce(app, scope2, "geo-growth", "MEM-FUSION");
       expect(provision.bundleIds).toEqual(["hotel", "ai-video", "geo-growth"]);
       expect(provision.rosterSize).toBe(63);
-      // 每个 preset_key 只由一个包提供（同名按主包裁决）：hotel 16 / ai-video 30 / geo-growth 15
-      expect(provision.perBundle).toEqual({ hotel: 16, "ai-video": 30, "geo-growth": 15 });
+      // 每个 preset_key 只由一个包提供（同名按主包裁决）：hotel 16 / ai-video 30 / geo-growth 17
+      expect(provision.perBundle).toEqual({ hotel: 16, "ai-video": 30, "geo-growth": 17 });
       expect(provision.shadowed.length).toBe(4);
       expect(provision.fenceRules).toBeGreaterThanOrEqual(54);
 
