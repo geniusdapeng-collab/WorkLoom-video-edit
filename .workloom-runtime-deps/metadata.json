@@ -1,9 +1,9 @@
 {
   "schemaVersion": "workloom.runtime-deps/v1",
   "product": {
-    "productId": "workloom-ai-acquisition",
+    "productId": "workloom-ai-growth",
     "role": "industry",
-    "repository": "workloom-ai/workloom",
+    "repository": "workloom-ai/WorkLoom-growth",
     "includePlatformOps": false
   },
   "npmVersion": "11.17.0",
@@ -24,7 +24,7 @@
   "inputs": [
     {
       "path": "apps/server/package.json",
-      "sha256": "ab776d10cabcb6c13ea09bf70d86d7f7019a81c5883caa923905c9609f0e35de"
+      "sha256": "e394b4853e18c6b52f3f54090d291b64bc4ea94067915aeab2ca65bcca51750b"
     },
     {
       "path": "apps/web/package.json",
@@ -32,7 +32,7 @@
     },
     {
       "path": "package.json",
-      "sha256": "95dc6c0705434320411b0eb827f8a1efd77bf387934260d6a3b5bef64e4de51b"
+      "sha256": "dadee49e656bccd975cc2b1b3bba17b2086091cab6919026d5ad287517e01cbe"
     },
     {
       "path": "packages/audit-engine/package.json",
@@ -40,35 +40,35 @@
     },
     {
       "path": "packages/base/package.json",
-      "sha256": "5e3d57099f0cd912676828b2798e2576b33f935071d1e4e0fb8a64d6fc19dd7e"
+      "sha256": "d6b309b67a0a23b7465b758210e3647194c44489ad2b9a3e19d68af8ebfe6e2a"
     },
     {
       "path": "packages/db/package.json",
-      "sha256": "9744ab0544f7f07a041177849b7222e12cd1dba1671b3d8ada44d7a492cbfd3e"
+      "sha256": "fea6bfee0ea381b1341fdfff6b31cb4b4a3f2b48329db2af610dfaa185e7d9c2"
     },
     {
       "path": "packages/industry-contract/package.json",
-      "sha256": "c807e33ef19ce5b727686c705662108c9fd5ce84986c7f2fbfe669bfad7ae482"
+      "sha256": "bd21ee1c58e618051105a46fe08c772eb736f28658d184f26f105564a4862d2c"
     },
     {
       "path": "packages/runtime/package.json",
-      "sha256": "28351633fd63541b4a26f3cf45a88046893bca0e5bd85b90168c82e257d9640b"
+      "sha256": "9ec1a6bbfded34938f35b57ea94d9cfdd98ed6b29c93836a86e3df92b123ec81"
     },
     {
       "path": "packages/shared/package.json",
-      "sha256": "be4781eb24c355a1dc1ec10dabb92d161cde5500c472af7b85e25042256d07ec"
+      "sha256": "26ed5c3a560c35730fe8f84343a83f5e7c3d7d2c488468584acfc524699b4cb2"
     },
     {
       "path": "packages/video-studio/package.json",
-      "sha256": "57dfa5fc361cf5aaeaced72b62d5755eb4bb67ca2d2a8796c9fd5575ee3121bb"
+      "sha256": "04d675f0518aabf2b8983c17c9ea79e6e9a8ac545239261f94ab92bfd4200826"
     },
     {
       "path": "pnpm-lock.yaml",
-      "sha256": "b1d41f851dc2a7b83f4428acb552e9c853b3628356b378d1f82eff74a4af4993"
+      "sha256": "ee2658279d206d6bc9e08c80b5ca49f5cac2d4feaca0e37f986f802228eb5456"
     },
     {
       "path": "product.manifest.json",
-      "sha256": "ab0096730d568c42ee2c880856f37dd4d73ed84bae7ec4af120320689c59e88f"
+      "sha256": "c96fb2595310880b1c3604fbdc9786eb94fba3a2de15846bb14c608e6e9cb3e8"
     },
     {
       "path": "scripts/pack-nm-merge.mjs",
@@ -87,6 +87,6 @@
       "sha256": "38d5eba21ae509aec4de97000bda055ca632f0216473e1d1000eeba6b5e0a475"
     }
   ],
-  "manifestSha256": "bae08a229cce26438b95966696c66e9e7e285b3dcf6885dc475ecb490faebefb",
-  "packageLockSha256": "97f96e83cb4a3b8e034e5322fcca40ac753c68195206032024afd97f75197fbc"
+  "manifestSha256": "3cbc0c168f98c6200152d8b6cb98c200fca4d202a4880523857626b3b7694729",
+  "packageLockSha256": "10c51662480d80fe8754468bbc2b2d28f0aca2bafcefbfc7a5d6934b0a07c8bf"
 }
