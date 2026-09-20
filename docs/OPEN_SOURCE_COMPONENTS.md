@@ -4,7 +4,7 @@
 
 > 生成器：`scripts/oss-inventory.mjs`（离线事实）＋ `scripts/oss-watch.sh`（上游最新版本）
 > 仓库：workloom-ai/WorkLoom-growth ｜ 最近一次上游扫描：2026-09-19T10:10:43.000Z
-> 统计：登记组件 91 个 ｜ npm 直接依赖 154 个 ｜ Python 依赖 1 个 ｜ 容器镜像 2 个
+> 统计：登记组件 91 个 ｜ npm 直接依赖 162 个 ｜ Python 依赖 1 个 ｜ 容器镜像 2 个
 
 ## 0. 维护机制（四件事）
 
@@ -21,10 +21,10 @@
 
 | # | 组件 | 开源地址 / 许可 | 当前使用版本 | 上游最新 | 状态 | 使用位置 | 注意事项 |
 |---|---|---|---|---|---|---|---|
-| 1 | DeepSeek Harness（dsh） | [github.com/deepseek-ai/deepseek-harness](https://github.com/deepseek-ai/deepseek-harness) · MIT | 0.1.2-rc.1 | **0.1.5-rc.2** ⬆ | 运行时 | vendor/dsh（审计基线）、packages/runtime/dsh-gate（锁定运行时） | Agent 运行时地基：锁版 + 内部 fork 镜像，任何新版本（含 rc 预发布）即触发升级；永远单独一批，必过 E6 回归与 H-5 kill -9 重放；升级前必须 diff 依赖树（0.1.2-rc.1 已移除 node-pty；rc.2 起要求 Node ≥24 的 zstd API） |
+| 1 | DeepSeek Harness（dsh） | [github.com/deepseek-ai/deepseek-harness](https://github.com/deepseek-ai/deepseek-harness) · MIT | 0.1.6-alpha.2 | 0.1.5-rc.2 | 运行时 | vendor/dsh（审计基线）、packages/runtime/dsh-gate（锁定运行时） | Agent 运行时地基：锁版 + 内部 fork 镜像，任何新版本（含 rc 预发布）即触发升级；永远单独一批，必过 E6 回归与 H-5 kill -9 重放；升级前必须 diff 依赖树（0.1.2-rc.1 已移除 node-pty；rc.2 起要求 Node ≥24 的 zstd API） |
 | 2 | Cordis（插件元框架） | [github.com/cordiverse/cordis](https://github.com/cordiverse/cordis) · MIT | 4.0.2 | 4.0.2 | 运行时 | 随 dsh 分发（插件元框架）、packages/runtime/plugins | 插件可撤销效果是技能绑定围栏、插件卸载即撤销的运行时保证；实际版本以 dsh 锁定树为准（上游独立仓为 4.0.0-rc 线，跟随 dsh 升级） |
 | 3 | Schemastery | [github.com/deepseek-ai/deepseek-harness](https://github.com/deepseek-ai/deepseek-harness) · MIT | 3.18.2 | 3.18.2 | 运行时 | 随 dsh 分发（配置 schema 引擎） | 配置文件校验引擎；随 dsh 锁定树升级，不单独升级 |
-| 4 | node-addon-require-builtin | [github.com/deepseek-ai/deepseek-harness](https://github.com/deepseek-ai/deepseek-harness) · MIT | 0.1.5 | **0.1.6** ⬆ | 运行时 | 随 dsh 分发（原生插件加载） | dsh 原生插件加载依赖；随 dsh 锁定树升级 |
+| 4 | node-addon-require-builtin | [github.com/deepseek-ai/deepseek-harness](https://github.com/deepseek-ai/deepseek-harness) · MIT | 0.1.6 | 0.1.6 | 运行时 | 随 dsh 分发（原生插件加载） | dsh 原生插件加载依赖；随 dsh 锁定树升级 |
 | 5 | dsh-im 多平台 IM 接入插件 | [github.com/xmanrui/dsh-im](https://github.com/xmanrui/dsh-im) · MIT | 0.2.2 | **4.21.2** ⬆ | 运行时 | vendor/dsh-im（文档锁定）、scripts/install-im-channels.sh | 钉钉/企微/飞书官方通道首批启用；安装走 pin 版本 + integrity 校验；观察名单（微信 iLink、WhatsApp baileys 等非官方协议）不启用；Slack 枚举位保留未接线 |
 | 6 | Hono | [github.com/honojs/hono](https://github.com/honojs/hono) · MIT | 4.13.5 | **4.13.8** ⬆ | 运行时 | apps/server | HTTP 服务层；与 @hono/node-server 同批升级 |
 | 7 | @hono/node-server | [github.com/honojs/node-server](https://github.com/honojs/node-server) · MIT | 2.1.1 | 2.1.1 | 运行时 | apps/server | 随 hono 同批升级；服务端启动路径变更需过 server 契约与 E2E |
@@ -115,116 +115,124 @@
 
 ## 2. 全量直接依赖（本仓事实，含上游最新）
 
-### 2.1 npm 直接依赖（154 个，解析自 pnpm-lock.yaml）
+### 2.1 npm 直接依赖（162 个，解析自 pnpm-lock.yaml）
 
 | 包 | 当前版本 | 声明 | 类型 | 出现位置 | 上游最新 |
 |---|---|---|---|---|---|
 | `@agentclientprotocol/sdk` | 1.4.0（声明） | 1.4.0 | 开发 | vendor/dsh/package.json | 1.4.0 |
 | `@deepseek-ai/cordis` | 4.0.2（声明） | ^4.0.2 | 生产 | vendor/dsh/package.json | 4.0.2 |
-| `@deepseek-ai/cordis-plugin-hmr` | 1.0.17（声明） | ^1.0.17 | 生产 | vendor/dsh/package.json | 1.0.17 |
 | `@deepseek-ai/cordis-plugin-include` | 1.0.7（声明） | ^1.0.7 | 生产 | vendor/dsh/package.json | 1.0.7 |
 | `@deepseek-ai/cordis-plugin-loader` | 1.0.3（声明） | ^1.0.3 | 生产 | vendor/dsh/package.json | 1.0.3 |
 | `@deepseek-ai/cordis-plugin-timer` | 1.1.4（声明） | ^1.1.4 | 生产 | vendor/dsh/package.json | 1.1.4 |
-| `@deepseek-ai/dsh` | 0.1.2-rc.1 | 0.1.2-rc.1 | 生产 | packages/runtime/dsh-gate/package.json | **0.1.5-rc.2** ⬆ |
-| `@deepseek-ai/dsh-acp` | 0.1.2-rc.1（声明） | ^0.1.2-rc.1 | 开发 | vendor/dsh/package.json | 0.0.1-rc.1 |
-| `@deepseek-ai/dsh-acp-app` | 0.1.2-rc.1（声明） | ^0.1.2-rc.1 | 生产 | vendor/dsh/package.json | 0.1.2-alpha.2 |
-| `@deepseek-ai/dsh-agent` | 0.1.2-rc.1（声明） | ^0.1.2-rc.1 | 开发 | vendor/dsh/package.json | 0.1.0-rc.6 |
-| `@deepseek-ai/dsh-agent-instructions` | 0.1.2-rc.1（声明） | ^0.1.2-rc.1 | 生产 | vendor/dsh/package.json | 0.1.0-rc.6 |
-| `@deepseek-ai/dsh-agent-tool-presentation` | 0.1.2-rc.1（声明） | ^0.1.2-rc.1 | 生产 | vendor/dsh/package.json | 0.1.0-rc.6 |
-| `@deepseek-ai/dsh-app-boot` | 0.1.2-rc.1（声明） | ^0.1.2-rc.1 | 生产 | vendor/dsh/package.json | 0.1.0-rc.6 |
-| `@deepseek-ai/dsh-attachment-local` | 0.1.2-rc.1（声明） | ^0.1.2-rc.1 | 开发 | vendor/dsh/package.json | 0.0.1-rc.1 |
-| `@deepseek-ai/dsh-base` | 0.1.2-rc.1（声明） | ^0.1.2-rc.1 | 生产 | vendor/dsh/package.json | 0.0.1-rc.1 |
-| `@deepseek-ai/dsh-bash-local` | 0.1.2-rc.1（声明） | ^0.1.2-rc.1 | 开发 | vendor/dsh/package.json | 0.0.1-rc.1 |
-| `@deepseek-ai/dsh-client-ui-agent-preset` | 0.1.2-rc.1（声明） | ^0.1.2-rc.1 | 生产 | vendor/dsh/package.json | 0.0.1-rc.1 |
-| `@deepseek-ai/dsh-client-ui-cordis` | 0.1.2-rc.1（声明） | ^0.1.2-rc.1 | 生产 | vendor/dsh/package.json | 0.0.1-rc.3 |
-| `@deepseek-ai/dsh-cmdline` | 0.1.2-rc.1（声明） | ^0.1.2-rc.1 | 生产 | vendor/dsh/package.json | 0.0.1-rc.1 |
-| `@deepseek-ai/dsh-command-compact` | 0.1.2-rc.1（声明） | ^0.1.2-rc.1 | 生产 | vendor/dsh/package.json | 0.0.1-rc.1 |
-| `@deepseek-ai/dsh-command-goal` | 0.1.2-rc.1（声明） | ^0.1.2-rc.1 | 生产 | vendor/dsh/package.json | 0.0.1-rc.1 |
-| `@deepseek-ai/dsh-compaction-basic` | 0.1.2-rc.1（声明） | ^0.1.2-rc.1 | 生产 | vendor/dsh/package.json | 0.0.1-rc.3 |
-| `@deepseek-ai/dsh-compaction-tool-result-pruner` | 0.1.2-rc.1（声明） | ^0.1.2-rc.1 | 生产 | vendor/dsh/package.json | 0.0.1-rc.3 |
-| `@deepseek-ai/dsh-cordis-client-runner` | 0.1.2-rc.1（声明） | ^0.1.2-rc.1 | 生产 | vendor/dsh/package.json | 0.0.1-rc.3 |
-| `@deepseek-ai/dsh-credentials-local` | 0.1.2-rc.1（声明） | ^0.1.2-rc.1 | 开发 | vendor/dsh/package.json | 0.0.1-rc.1 |
-| `@deepseek-ai/dsh-deepseek-llm-api-extensions` | 0.1.2-rc.1（声明） | ^0.1.2-rc.1 | 开发 | vendor/dsh/package.json | 0.1.2-alpha.2 |
-| `@deepseek-ai/dsh-experimental-agent-team` | 0.1.2-rc.1（声明） | ^0.1.2-rc.1 | 开发 | vendor/dsh/package.json | **0.1.5-alpha.2** ⬆ |
-| `@deepseek-ai/dsh-experimental-agent-team-profile` | 0.1.2-rc.1（声明） | ^0.1.2-rc.1 | 开发 | vendor/dsh/package.json | **0.1.5-alpha.2** ⬆ |
-| `@deepseek-ai/dsh-experimental-code-runtime-python` | 0.1.2-rc.1（声明） | ^0.1.2-rc.1 | 开发 | vendor/dsh/package.json | —（未扫描） |
-| `@deepseek-ai/dsh-experimental-tool-agent-team` | 0.1.2-rc.1（声明） | ^0.1.2-rc.1 | 开发 | vendor/dsh/package.json | **0.1.5-alpha.2** ⬆ |
-| `@deepseek-ai/dsh-fs-local` | 0.1.2-rc.1（声明） | ^0.1.2-rc.1 | 生产 | vendor/dsh/package.json | 0.0.1-rc.1 |
-| `@deepseek-ai/dsh-fs-observation-policy` | 0.1.2-rc.1（声明） | ^0.1.2-rc.1 | 开发 | vendor/dsh/package.json | 0.0.1-rc.3 |
-| `@deepseek-ai/dsh-fs-sandbox` | 0.1.2-rc.1（声明） | ^0.1.2-rc.1 | 开发 | vendor/dsh/package.json | 0.0.1-rc.1 |
-| `@deepseek-ai/dsh-goal` | 0.1.2-rc.1（声明） | ^0.1.2-rc.1 | 生产 | vendor/dsh/package.json | 0.0.1-rc.1 |
-| `@deepseek-ai/dsh-goal-round-driver` | 0.1.2-rc.1（声明） | ^0.1.2-rc.1 | 生产 | vendor/dsh/package.json | 0.0.1-rc.3 |
-| `@deepseek-ai/dsh-headless` | 0.1.2-rc.1（声明） | ^0.1.2-rc.1 | 生产 | vendor/dsh/package.json | 0.0.1-rc.1 |
-| `@deepseek-ai/dsh-home-paths` | 0.1.2-rc.1（声明） | ^0.1.2-rc.1 | 生产 | vendor/dsh/package.json | 0.0.1-rc.3 |
-| `@deepseek-ai/dsh-hooks-claude-code` | 0.1.2-rc.1（声明） | ^0.1.2-rc.1 | 生产 | vendor/dsh/package.json | 0.0.1-rc.5 |
-| `@deepseek-ai/dsh-hooks-codex` | 0.1.2-rc.1（声明） | ^0.1.2-rc.1 | 生产 | vendor/dsh/package.json | 0.0.1-rc.1 |
-| `@deepseek-ai/dsh-host-frontend-static` | 0.1.2-rc.1（声明） | ^0.1.2-rc.1 | 开发 | vendor/dsh/package.json | 0.0.1-rc.3 |
-| `@deepseek-ai/dsh-host-webserver` | 0.1.2-rc.1（声明） | ^0.1.2-rc.1 | 开发 | vendor/dsh/package.json | 0.0.1-rc.1 |
-| `@deepseek-ai/dsh-jobs-local` | 0.1.2-rc.1（声明） | ^0.1.2-rc.1 | 生产 | vendor/dsh/package.json | 0.0.1-rc.3 |
-| `@deepseek-ai/dsh-launch-environment` | 0.1.2-rc.1（声明） | ^0.1.2-rc.1 | 生产 | vendor/dsh/package.json | 0.0.1-rc.3 |
-| `@deepseek-ai/dsh-llm` | 0.1.2-rc.1（声明） | ^0.1.2-rc.1 | 开发 | vendor/dsh/package.json | 0.0.1-rc.1 |
-| `@deepseek-ai/dsh-llm-deepseek` | 0.1.2-rc.1（声明） | ^0.1.2-rc.1 | 开发 | vendor/dsh/package.json | 0.0.1-rc.1 |
-| `@deepseek-ai/dsh-llm-mock-server` | 0.1.2-rc.1（声明） | ^0.1.2-rc.1 | 开发 | vendor/dsh/package.json | 0.0.1-rc.1 |
-| `@deepseek-ai/dsh-llm-pi-ai` | 0.1.2-rc.1（声明） | ^0.1.2-rc.1 | 开发 | vendor/dsh/package.json | 0.0.1-rc.1 |
-| `@deepseek-ai/dsh-llm-replay` | 0.1.2-rc.1（声明） | ^0.1.2-rc.1 | 开发 | vendor/dsh/package.json | 0.0.1-rc.1 |
-| `@deepseek-ai/dsh-loader-smoke` | 0.1.2-rc.1（声明） | ^0.1.2-rc.1 | 开发 | vendor/dsh/package.json | 0.0.1-rc.1 |
-| `@deepseek-ai/dsh-mcp-client` | 0.1.2-rc.1（声明） | ^0.1.2-rc.1 | 生产 | vendor/dsh/package.json | 0.0.1-rc.1 |
-| `@deepseek-ai/dsh-persona` | 0.1.2-rc.1（声明） | ^0.1.2-rc.1 | 生产 | vendor/dsh/package.json | 0.0.1-rc.1 |
-| `@deepseek-ai/dsh-plan-mode` | 0.1.2-rc.1（声明） | ^0.1.2-rc.1 | 生产 | vendor/dsh/package.json | 0.0.1-rc.1 |
-| `@deepseek-ai/dsh-plugin-package-inventory-deepseek` | 0.1.2-rc.1（声明） | ^0.1.2-rc.1 | 开发 | vendor/dsh/package.json | 0.1.2-alpha.2 |
-| `@deepseek-ai/dsh-pwsh-local` | 0.1.2-rc.1（声明） | ^0.1.2-rc.1 | 生产 | vendor/dsh/package.json | 0.0.1-rc.1 |
-| `@deepseek-ai/dsh-pwsh-sandbox` | 0.1.2-rc.1（声明） | ^0.1.2-rc.1 | 生产 | vendor/dsh/package.json | 0.0.1-rc.1 |
-| `@deepseek-ai/dsh-sandbox-local` | 0.1.2-rc.1（声明） | ^0.1.2-rc.1 | 开发 | vendor/dsh/package.json | 0.0.1-rc.1 |
-| `@deepseek-ai/dsh-sandbox-policy` | 0.1.2-rc.1（声明） | ^0.1.2-rc.1 | 开发 | vendor/dsh/package.json | 0.0.1-rc.1 |
-| `@deepseek-ai/dsh-schedule` | 0.1.2-rc.1（声明） | ^0.1.2-rc.1 | 生产 | vendor/dsh/package.json | 0.0.1-rc.3 |
-| `@deepseek-ai/dsh-sdk-app` | 0.1.2-rc.1（声明） | ^0.1.2-rc.1 | 生产 | vendor/dsh/package.json | 0.1.2-alpha.2 |
-| `@deepseek-ai/dsh-sdk-minimal` | 0.1.2-rc.1（声明） | ^0.1.2-rc.1 | 生产 | vendor/dsh/package.json | 0.1.2-alpha.2 |
-| `@deepseek-ai/dsh-session` | 0.1.2-rc.1（声明） | ^0.1.2-rc.1 | 开发 | vendor/dsh/package.json | 0.0.1-rc.1 |
-| `@deepseek-ai/dsh-session-checkpoint-policy` | 0.1.2-rc.1（声明） | ^0.1.2-rc.1 | 开发 | vendor/dsh/package.json | 0.0.1-rc.1 |
-| `@deepseek-ai/dsh-session-log-deepseek` | 0.1.2-rc.1（声明） | ^0.1.2-rc.1 | 开发 | vendor/dsh/package.json | 0.1.2-alpha.2 |
-| `@deepseek-ai/dsh-session-persistence-jsonl` | 0.1.2-rc.1（声明） | ^0.1.2-rc.1 | 开发 | vendor/dsh/package.json | 0.0.1-rc.1 |
-| `@deepseek-ai/dsh-session-projection` | 0.1.2-rc.1（声明） | ^0.1.2-rc.1 | 生产 | vendor/dsh/package.json | 0.0.1-rc.1 |
-| `@deepseek-ai/dsh-session-query` | 0.1.2-rc.1（声明） | ^0.1.2-rc.1 | 开发 | vendor/dsh/package.json | 0.0.1-rc.1 |
-| `@deepseek-ai/dsh-session-reference` | 0.1.2-rc.1（声明） | ^0.1.2-rc.1 | 生产 | vendor/dsh/package.json | 0.0.1-rc.1 |
-| `@deepseek-ai/dsh-settings` | 0.1.2-rc.1（声明） | ^0.1.2-rc.1 | 开发 | vendor/dsh/package.json | 0.0.1-rc.1 |
-| `@deepseek-ai/dsh-settings-file` | 0.1.2-rc.1（声明） | ^0.1.2-rc.1 | 开发 | vendor/dsh/package.json | 0.0.1-rc.3 |
-| `@deepseek-ai/dsh-shell-env` | 0.1.2-rc.1（声明） | ^0.1.2-rc.1 | 开发 | vendor/dsh/package.json | 0.0.1-rc.3 |
-| `@deepseek-ai/dsh-skill` | 0.1.2-rc.1（声明） | ^0.1.2-rc.1 | 生产 | vendor/dsh/package.json | 0.0.1-rc.1 |
-| `@deepseek-ai/dsh-skill-filesystem` | 0.1.2-rc.1（声明） | ^0.1.2-rc.1 | 生产 | vendor/dsh/package.json | 0.0.1-rc.3 |
-| `@deepseek-ai/dsh-subagent` | 0.1.2-rc.1（声明） | ^0.1.2-rc.1 | 开发 | vendor/dsh/package.json | 0.0.1-rc.1 |
-| `@deepseek-ai/dsh-subagent-fork-in-process` | 0.1.2-rc.1（声明） | ^0.1.2-rc.1 | 开发 | vendor/dsh/package.json | 0.0.1-rc.3 |
-| `@deepseek-ai/dsh-subagent-spawn-in-process` | 0.1.2-rc.1（声明） | ^0.1.2-rc.1 | 开发 | vendor/dsh/package.json | 0.0.1-rc.3 |
-| `@deepseek-ai/dsh-subprocess-local` | 0.1.2-rc.1（声明） | ^0.1.2-rc.1 | 开发 | vendor/dsh/package.json | 0.0.1-rc.1 |
-| `@deepseek-ai/dsh-system-prompt` | 0.1.2-rc.1（声明） | ^0.1.2-rc.1 | 开发 | vendor/dsh/package.json | 0.0.1-rc.1 |
-| `@deepseek-ai/dsh-terminal` | 0.1.2-rc.1（声明） | ^0.1.2-rc.1 | 生产 | vendor/dsh/package.json | 0.0.1-rc.3 |
-| `@deepseek-ai/dsh-terminal-bash` | 0.1.2-rc.1（声明） | ^0.1.2-rc.1 | 生产 | vendor/dsh/package.json | 0.0.1-rc.3 |
-| `@deepseek-ai/dsh-time-context` | 0.1.2-rc.1（声明） | ^0.1.2-rc.1 | 生产 | vendor/dsh/package.json | 0.0.1-rc.1 |
-| `@deepseek-ai/dsh-tmux-context` | 0.1.2-rc.1（声明） | ^0.1.2-rc.1 | 生产 | vendor/dsh/package.json | 0.0.1-rc.1 |
-| `@deepseek-ai/dsh-token-meter` | 0.1.2-rc.1（声明） | ^0.1.2-rc.1 | 生产 | vendor/dsh/package.json | 0.0.1-rc.1 |
-| `@deepseek-ai/dsh-tool-ask-user` | 0.1.2-rc.1（声明） | ^0.1.2-rc.1 | 生产 | vendor/dsh/package.json | 0.0.1-rc.1 |
-| `@deepseek-ai/dsh-tool-bash` | 0.1.2-rc.1（声明） | ^0.1.2-rc.1 | 生产 | vendor/dsh/package.json | 0.0.1-rc.1 |
-| `@deepseek-ai/dsh-tool-bash-persistent` | 0.1.2-rc.1（声明） | ^0.1.2-rc.1 | 生产 | vendor/dsh/package.json | 0.0.1-rc.1 |
-| `@deepseek-ai/dsh-tool-cordis` | 0.1.2-rc.1（声明） | ^0.1.2-rc.1 | 生产 | vendor/dsh/package.json | 0.0.1-rc.1 |
-| `@deepseek-ai/dsh-tool-fs` | 0.1.2-rc.1（声明） | ^0.1.2-rc.1 | 生产 | vendor/dsh/package.json | 0.0.1-rc.1 |
-| `@deepseek-ai/dsh-tool-fs-search` | 0.1.2-rc.1（声明） | ^0.1.2-rc.1 | 生产 | vendor/dsh/package.json | 0.0.1-rc.1 |
-| `@deepseek-ai/dsh-tool-goal` | 0.1.2-rc.1（声明） | ^0.1.2-rc.1 | 生产 | vendor/dsh/package.json | 0.0.1-rc.1 |
-| `@deepseek-ai/dsh-tool-jobs` | 0.1.2-rc.1（声明） | ^0.1.2-rc.1 | 生产 | vendor/dsh/package.json | 0.0.1-rc.3 |
-| `@deepseek-ai/dsh-tool-pwsh` | 0.1.2-rc.1（声明） | ^0.1.2-rc.1 | 生产 | vendor/dsh/package.json | 0.0.1-rc.1 |
-| `@deepseek-ai/dsh-tool-pwsh-persistent` | 0.1.2-rc.1（声明） | ^0.1.2-rc.1 | 生产 | vendor/dsh/package.json | 0.1.0-rc.8 |
-| `@deepseek-ai/dsh-tool-ralph` | 0.1.2-rc.1（声明） | ^0.1.2-rc.1 | 生产 | vendor/dsh/package.json | 0.0.1-rc.1 |
-| `@deepseek-ai/dsh-tool-skill` | 0.1.2-rc.1（声明） | ^0.1.2-rc.1 | 生产 | vendor/dsh/package.json | 0.0.1-rc.1 |
-| `@deepseek-ai/dsh-tool-str-replace-editor` | 0.1.2-rc.1（声明） | ^0.1.2-rc.1 | 生产 | vendor/dsh/package.json | 0.0.1-rc.1 |
-| `@deepseek-ai/dsh-tool-subagent` | 0.1.2-rc.1（声明） | ^0.1.2-rc.1 | 生产 | vendor/dsh/package.json | 0.0.1-rc.1 |
-| `@deepseek-ai/dsh-tool-subagent-control` | 0.1.2-rc.1（声明） | ^0.1.2-rc.1 | 生产 | vendor/dsh/package.json | 0.0.1-rc.1 |
-| `@deepseek-ai/dsh-tool-todo` | 0.1.2-rc.1（声明） | ^0.1.2-rc.1 | 生产 | vendor/dsh/package.json | 0.0.1-rc.1 |
-| `@deepseek-ai/dsh-tool-web` | 0.1.2-rc.1（声明） | ^0.1.2-rc.1 | 生产 | vendor/dsh/package.json | 0.0.1-rc.1 |
-| `@deepseek-ai/dsh-tool-workflow` | 0.1.2-rc.1（声明） | ^0.1.2-rc.1 | 生产 | vendor/dsh/package.json | 0.0.1-rc.1 |
-| `@deepseek-ai/dsh-tools` | 0.1.2-rc.1（声明） | ^0.1.2-rc.1 | 开发 | vendor/dsh/package.json | 0.0.1-rc.1 |
-| `@deepseek-ai/dsh-user-approval` | 0.1.2-rc.1（声明） | ^0.1.2-rc.1 | 开发 | vendor/dsh/package.json | 0.0.1-rc.1 |
-| `@deepseek-ai/dsh-web-app` | 0.1.2-rc.1（声明） | ^0.1.2-rc.1 | 生产 | vendor/dsh/package.json | 0.0.1-rc.1 |
-| `@deepseek-ai/dsh-webhook` | 0.1.2-rc.1（声明） | ^0.1.2-rc.1 | 生产 | vendor/dsh/package.json | 0.1.2-alpha.2 |
-| `@deepseek-ai/dsh-webhook-github` | 0.1.2-rc.1（声明） | ^0.1.2-rc.1 | 生产 | vendor/dsh/package.json | 0.1.2-alpha.2 |
-| `@deepseek-ai/dsh-workflow-worker-thread` | 0.1.2-rc.1（声明） | ^0.1.2-rc.1 | 生产 | vendor/dsh/package.json | 0.0.1-rc.3 |
+| `@deepseek-ai/dsh` | 0.1.6-alpha.2 | 0.1.6-alpha.2 | 生产 | packages/runtime/dsh-gate/package.json | 0.1.5-rc.2 |
+| `@deepseek-ai/dsh-acp` | 0.1.6-alpha.2（声明） | ^0.1.6-alpha.2 | 开发 | vendor/dsh/package.json | 0.0.1-rc.1 |
+| `@deepseek-ai/dsh-acp-app` | 0.1.6-alpha.2（声明） | ^0.1.6-alpha.2 | 生产 | vendor/dsh/package.json | 0.1.2-alpha.2 |
+| `@deepseek-ai/dsh-agent` | 0.1.6-alpha.2（声明） | ^0.1.6-alpha.2 | 开发 | vendor/dsh/package.json | 0.1.0-rc.6 |
+| `@deepseek-ai/dsh-agent-instructions` | 0.1.6-alpha.2（声明） | ^0.1.6-alpha.2 | 生产 | vendor/dsh/package.json | 0.1.0-rc.6 |
+| `@deepseek-ai/dsh-agent-loop` | 0.1.6-alpha.2（声明） | ^0.1.6-alpha.2 | 开发 | vendor/dsh/package.json | —（未扫描） |
+| `@deepseek-ai/dsh-agent-loop-testkit` | 0.1.6-alpha.2（声明） | ^0.1.6-alpha.2 | 开发 | vendor/dsh/package.json | —（未扫描） |
+| `@deepseek-ai/dsh-agent-tool-presentation` | 0.1.6-alpha.2（声明） | ^0.1.6-alpha.2 | 生产 | vendor/dsh/package.json | 0.1.0-rc.6 |
+| `@deepseek-ai/dsh-app-boot` | 0.1.6-alpha.2（声明） | ^0.1.6-alpha.2 | 生产 | vendor/dsh/package.json | 0.1.0-rc.6 |
+| `@deepseek-ai/dsh-atomic-write` | 0.1.6-alpha.2（声明） | ^0.1.6-alpha.2 | 生产 | vendor/dsh/package.json | —（未扫描） |
+| `@deepseek-ai/dsh-attachment-local` | 0.1.6-alpha.2（声明） | ^0.1.6-alpha.2 | 开发 | vendor/dsh/package.json | 0.0.1-rc.1 |
+| `@deepseek-ai/dsh-base` | 0.1.6-alpha.2（声明） | ^0.1.6-alpha.2 | 生产 | vendor/dsh/package.json | 0.0.1-rc.1 |
+| `@deepseek-ai/dsh-bash-local` | 0.1.6-alpha.2（声明） | ^0.1.6-alpha.2 | 开发 | vendor/dsh/package.json | 0.0.1-rc.1 |
+| `@deepseek-ai/dsh-client-ui-agent-preset` | 0.1.6-alpha.2（声明） | ^0.1.6-alpha.2 | 生产 | vendor/dsh/package.json | 0.0.1-rc.1 |
+| `@deepseek-ai/dsh-client-ui-cordis` | 0.1.6-alpha.2（声明） | ^0.1.6-alpha.2 | 生产 | vendor/dsh/package.json | 0.0.1-rc.3 |
+| `@deepseek-ai/dsh-cmdline` | 0.1.6-alpha.2（声明） | ^0.1.6-alpha.2 | 生产 | vendor/dsh/package.json | 0.0.1-rc.1 |
+| `@deepseek-ai/dsh-command-compact` | 0.1.6-alpha.2（声明） | ^0.1.6-alpha.2 | 生产 | vendor/dsh/package.json | 0.0.1-rc.1 |
+| `@deepseek-ai/dsh-command-goal` | 0.1.6-alpha.2（声明） | ^0.1.6-alpha.2 | 生产 | vendor/dsh/package.json | 0.0.1-rc.1 |
+| `@deepseek-ai/dsh-compaction-basic` | 0.1.6-alpha.2（声明） | ^0.1.6-alpha.2 | 生产 | vendor/dsh/package.json | 0.0.1-rc.3 |
+| `@deepseek-ai/dsh-compaction-tool-result-pruner` | 0.1.6-alpha.2（声明） | ^0.1.6-alpha.2 | 生产 | vendor/dsh/package.json | 0.0.1-rc.3 |
+| `@deepseek-ai/dsh-cordis-client-runner` | 0.1.6-alpha.2（声明） | ^0.1.6-alpha.2 | 生产 | vendor/dsh/package.json | 0.0.1-rc.3 |
+| `@deepseek-ai/dsh-credentials-local` | 0.1.6-alpha.2（声明） | ^0.1.6-alpha.2 | 开发 | vendor/dsh/package.json | 0.0.1-rc.1 |
+| `@deepseek-ai/dsh-deepseek-llm-api-extensions` | 0.1.6-alpha.2（声明） | ^0.1.6-alpha.2 | 开发 | vendor/dsh/package.json | 0.1.2-alpha.2 |
+| `@deepseek-ai/dsh-experimental-agent-team` | 0.1.6-alpha.2（声明） | ^0.1.6-alpha.2 | 开发 | vendor/dsh/package.json | 0.1.5-alpha.2 |
+| `@deepseek-ai/dsh-experimental-agent-team-profile` | 0.1.6-alpha.2（声明） | ^0.1.6-alpha.2 | 生产 | vendor/dsh/package.json | 0.1.5-alpha.2 |
+| `@deepseek-ai/dsh-experimental-agent-team-web-profile` | 0.1.6-alpha.2（声明） | ^0.1.6-alpha.2 | 生产 | vendor/dsh/package.json | —（未扫描） |
+| `@deepseek-ai/dsh-experimental-ptc-runtime-python` | 0.1.6-alpha.2（声明） | ^0.1.6-alpha.2 | 开发 | vendor/dsh/package.json | —（未扫描） |
+| `@deepseek-ai/dsh-experimental-tool-agent-team` | 0.1.6-alpha.2（声明） | ^0.1.6-alpha.2 | 开发 | vendor/dsh/package.json | 0.1.5-alpha.2 |
+| `@deepseek-ai/dsh-fs-local` | 0.1.6-alpha.2（声明） | ^0.1.6-alpha.2 | 生产 | vendor/dsh/package.json | 0.0.1-rc.1 |
+| `@deepseek-ai/dsh-fs-observation-policy` | 0.1.6-alpha.2（声明） | ^0.1.6-alpha.2 | 开发 | vendor/dsh/package.json | 0.0.1-rc.3 |
+| `@deepseek-ai/dsh-fs-sandbox` | 0.1.6-alpha.2（声明） | ^0.1.6-alpha.2 | 开发 | vendor/dsh/package.json | 0.0.1-rc.1 |
+| `@deepseek-ai/dsh-goal` | 0.1.6-alpha.2（声明） | ^0.1.6-alpha.2 | 生产 | vendor/dsh/package.json | 0.0.1-rc.1 |
+| `@deepseek-ai/dsh-goal-round-driver` | 0.1.6-alpha.2（声明） | ^0.1.6-alpha.2 | 生产 | vendor/dsh/package.json | 0.0.1-rc.3 |
+| `@deepseek-ai/dsh-headless` | 0.1.6-alpha.2（声明） | ^0.1.6-alpha.2 | 生产 | vendor/dsh/package.json | 0.0.1-rc.1 |
+| `@deepseek-ai/dsh-hmr` | 0.1.6-alpha.2（声明） | ^0.1.6-alpha.2 | 生产 | vendor/dsh/package.json | —（未扫描） |
+| `@deepseek-ai/dsh-home-paths` | 0.1.6-alpha.2（声明） | ^0.1.6-alpha.2 | 生产 | vendor/dsh/package.json | 0.0.1-rc.3 |
+| `@deepseek-ai/dsh-hooks-claude-code` | 0.1.6-alpha.2（声明） | ^0.1.6-alpha.2 | 生产 | vendor/dsh/package.json | 0.0.1-rc.5 |
+| `@deepseek-ai/dsh-hooks-codex` | 0.1.6-alpha.2（声明） | ^0.1.6-alpha.2 | 生产 | vendor/dsh/package.json | 0.0.1-rc.1 |
+| `@deepseek-ai/dsh-host-frontend-static` | 0.1.6-alpha.2（声明） | ^0.1.6-alpha.2 | 开发 | vendor/dsh/package.json | 0.0.1-rc.3 |
+| `@deepseek-ai/dsh-host-webserver` | 0.1.6-alpha.2（声明） | ^0.1.6-alpha.2 | 开发 | vendor/dsh/package.json | 0.0.1-rc.1 |
+| `@deepseek-ai/dsh-http-proxy` | 0.1.6-alpha.2（声明） | ^0.1.6-alpha.2 | 生产 | vendor/dsh/package.json | —（未扫描） |
+| `@deepseek-ai/dsh-jobs-local` | 0.1.6-alpha.2（声明） | ^0.1.6-alpha.2 | 生产 | vendor/dsh/package.json | 0.0.1-rc.3 |
+| `@deepseek-ai/dsh-launch-environment` | 0.1.6-alpha.2（声明） | ^0.1.6-alpha.2 | 生产 | vendor/dsh/package.json | 0.0.1-rc.3 |
+| `@deepseek-ai/dsh-llm` | 0.1.6-alpha.2（声明） | ^0.1.6-alpha.2 | 开发 | vendor/dsh/package.json | 0.0.1-rc.1 |
+| `@deepseek-ai/dsh-llm-deepseek` | 0.1.6-alpha.2（声明） | ^0.1.6-alpha.2 | 开发 | vendor/dsh/package.json | 0.0.1-rc.1 |
+| `@deepseek-ai/dsh-llm-mock-server` | 0.1.6-alpha.2（声明） | ^0.1.6-alpha.2 | 开发 | vendor/dsh/package.json | 0.0.1-rc.1 |
+| `@deepseek-ai/dsh-llm-pi-ai` | 0.1.6-alpha.2（声明） | ^0.1.6-alpha.2 | 开发 | vendor/dsh/package.json | 0.0.1-rc.1 |
+| `@deepseek-ai/dsh-llm-replay` | 0.1.6-alpha.2（声明） | ^0.1.6-alpha.2 | 开发 | vendor/dsh/package.json | 0.0.1-rc.1 |
+| `@deepseek-ai/dsh-loader-smoke` | 0.1.6-alpha.2（声明） | ^0.1.6-alpha.2 | 开发 | vendor/dsh/package.json | 0.0.1-rc.1 |
+| `@deepseek-ai/dsh-mcp-client` | 0.1.6-alpha.2（声明） | ^0.1.6-alpha.2 | 生产 | vendor/dsh/package.json | 0.0.1-rc.1 |
+| `@deepseek-ai/dsh-mcp-resources` | 0.1.6-alpha.2（声明） | ^0.1.6-alpha.2 | 生产 | vendor/dsh/package.json | —（未扫描） |
+| `@deepseek-ai/dsh-persona` | 0.1.6-alpha.2（声明） | ^0.1.6-alpha.2 | 生产 | vendor/dsh/package.json | 0.0.1-rc.1 |
+| `@deepseek-ai/dsh-plan-mode` | 0.1.6-alpha.2（声明） | ^0.1.6-alpha.2 | 生产 | vendor/dsh/package.json | 0.0.1-rc.1 |
+| `@deepseek-ai/dsh-plugin-manager` | 0.1.6-alpha.2（声明） | ^0.1.6-alpha.2 | 生产 | vendor/dsh/package.json | —（未扫描） |
+| `@deepseek-ai/dsh-plugin-package-inventory-deepseek` | 0.1.6-alpha.2（声明） | ^0.1.6-alpha.2 | 开发 | vendor/dsh/package.json | 0.1.2-alpha.2 |
+| `@deepseek-ai/dsh-pwsh-local` | 0.1.6-alpha.2（声明） | ^0.1.6-alpha.2 | 生产 | vendor/dsh/package.json | 0.0.1-rc.1 |
+| `@deepseek-ai/dsh-pwsh-sandbox` | 0.1.6-alpha.2（声明） | ^0.1.6-alpha.2 | 生产 | vendor/dsh/package.json | 0.0.1-rc.1 |
+| `@deepseek-ai/dsh-sandbox-local` | 0.1.6-alpha.2（声明） | ^0.1.6-alpha.2 | 开发 | vendor/dsh/package.json | 0.0.1-rc.1 |
+| `@deepseek-ai/dsh-sandbox-policy` | 0.1.6-alpha.2（声明） | ^0.1.6-alpha.2 | 开发 | vendor/dsh/package.json | 0.0.1-rc.1 |
+| `@deepseek-ai/dsh-schedule` | 0.1.6-alpha.2（声明） | ^0.1.6-alpha.2 | 生产 | vendor/dsh/package.json | 0.0.1-rc.3 |
+| `@deepseek-ai/dsh-sdk-app` | 0.1.6-alpha.2（声明） | ^0.1.6-alpha.2 | 生产 | vendor/dsh/package.json | 0.1.2-alpha.2 |
+| `@deepseek-ai/dsh-sdk-minimal` | 0.1.6-alpha.2（声明） | ^0.1.6-alpha.2 | 生产 | vendor/dsh/package.json | 0.1.2-alpha.2 |
+| `@deepseek-ai/dsh-session` | 0.1.6-alpha.2（声明） | ^0.1.6-alpha.2 | 开发 | vendor/dsh/package.json | 0.0.1-rc.1 |
+| `@deepseek-ai/dsh-session-checkpoint-policy` | 0.1.6-alpha.2（声明） | ^0.1.6-alpha.2 | 开发 | vendor/dsh/package.json | 0.0.1-rc.1 |
+| `@deepseek-ai/dsh-session-log-deepseek` | 0.1.6-alpha.2（声明） | ^0.1.6-alpha.2 | 开发 | vendor/dsh/package.json | 0.1.2-alpha.2 |
+| `@deepseek-ai/dsh-session-persistence-jsonl` | 0.1.6-alpha.2（声明） | ^0.1.6-alpha.2 | 开发 | vendor/dsh/package.json | 0.0.1-rc.1 |
+| `@deepseek-ai/dsh-session-projection` | 0.1.6-alpha.2（声明） | ^0.1.6-alpha.2 | 生产 | vendor/dsh/package.json | 0.0.1-rc.1 |
+| `@deepseek-ai/dsh-session-query` | 0.1.6-alpha.2（声明） | ^0.1.6-alpha.2 | 开发 | vendor/dsh/package.json | 0.0.1-rc.1 |
+| `@deepseek-ai/dsh-session-reference` | 0.1.6-alpha.2（声明） | ^0.1.6-alpha.2 | 生产 | vendor/dsh/package.json | 0.0.1-rc.1 |
+| `@deepseek-ai/dsh-settings` | 0.1.6-alpha.2（声明） | ^0.1.6-alpha.2 | 开发 | vendor/dsh/package.json | 0.0.1-rc.1 |
+| `@deepseek-ai/dsh-settings-file` | 0.1.6-alpha.2（声明） | ^0.1.6-alpha.2 | 开发 | vendor/dsh/package.json | 0.0.1-rc.3 |
+| `@deepseek-ai/dsh-shell-env` | 0.1.6-alpha.2（声明） | ^0.1.6-alpha.2 | 开发 | vendor/dsh/package.json | 0.0.1-rc.3 |
+| `@deepseek-ai/dsh-skill` | 0.1.6-alpha.2（声明） | ^0.1.6-alpha.2 | 生产 | vendor/dsh/package.json | 0.0.1-rc.1 |
+| `@deepseek-ai/dsh-skill-filesystem` | 0.1.6-alpha.2（声明） | ^0.1.6-alpha.2 | 生产 | vendor/dsh/package.json | 0.0.1-rc.3 |
+| `@deepseek-ai/dsh-subagent` | 0.1.6-alpha.2（声明） | ^0.1.6-alpha.2 | 开发 | vendor/dsh/package.json | 0.0.1-rc.1 |
+| `@deepseek-ai/dsh-subagent-fork-in-process` | 0.1.6-alpha.2（声明） | ^0.1.6-alpha.2 | 开发 | vendor/dsh/package.json | 0.0.1-rc.3 |
+| `@deepseek-ai/dsh-subagent-spawn-in-process` | 0.1.6-alpha.2（声明） | ^0.1.6-alpha.2 | 开发 | vendor/dsh/package.json | 0.0.1-rc.3 |
+| `@deepseek-ai/dsh-subprocess-local` | 0.1.6-alpha.2（声明） | ^0.1.6-alpha.2 | 开发 | vendor/dsh/package.json | 0.0.1-rc.1 |
+| `@deepseek-ai/dsh-system-prompt` | 0.1.6-alpha.2（声明） | ^0.1.6-alpha.2 | 开发 | vendor/dsh/package.json | 0.0.1-rc.1 |
+| `@deepseek-ai/dsh-terminal` | 0.1.6-alpha.2（声明） | ^0.1.6-alpha.2 | 生产 | vendor/dsh/package.json | 0.0.1-rc.3 |
+| `@deepseek-ai/dsh-terminal-bash` | 0.1.6-alpha.2（声明） | ^0.1.6-alpha.2 | 生产 | vendor/dsh/package.json | 0.0.1-rc.3 |
+| `@deepseek-ai/dsh-time-context` | 0.1.6-alpha.2（声明） | ^0.1.6-alpha.2 | 生产 | vendor/dsh/package.json | 0.0.1-rc.1 |
+| `@deepseek-ai/dsh-tmux-context` | 0.1.6-alpha.2（声明） | ^0.1.6-alpha.2 | 生产 | vendor/dsh/package.json | 0.0.1-rc.1 |
+| `@deepseek-ai/dsh-token-meter` | 0.1.6-alpha.2（声明） | ^0.1.6-alpha.2 | 生产 | vendor/dsh/package.json | 0.0.1-rc.1 |
+| `@deepseek-ai/dsh-tool-ask-user` | 0.1.6-alpha.2（声明） | ^0.1.6-alpha.2 | 生产 | vendor/dsh/package.json | 0.0.1-rc.1 |
+| `@deepseek-ai/dsh-tool-bash` | 0.1.6-alpha.2（声明） | ^0.1.6-alpha.2 | 生产 | vendor/dsh/package.json | 0.0.1-rc.1 |
+| `@deepseek-ai/dsh-tool-bash-persistent` | 0.1.6-alpha.2（声明） | ^0.1.6-alpha.2 | 生产 | vendor/dsh/package.json | 0.0.1-rc.1 |
+| `@deepseek-ai/dsh-tool-cordis` | 0.1.6-alpha.2（声明） | ^0.1.6-alpha.2 | 生产 | vendor/dsh/package.json | 0.0.1-rc.1 |
+| `@deepseek-ai/dsh-tool-fs` | 0.1.6-alpha.2（声明） | ^0.1.6-alpha.2 | 生产 | vendor/dsh/package.json | 0.0.1-rc.1 |
+| `@deepseek-ai/dsh-tool-fs-search` | 0.1.6-alpha.2（声明） | ^0.1.6-alpha.2 | 生产 | vendor/dsh/package.json | 0.0.1-rc.1 |
+| `@deepseek-ai/dsh-tool-goal` | 0.1.6-alpha.2（声明） | ^0.1.6-alpha.2 | 生产 | vendor/dsh/package.json | 0.0.1-rc.1 |
+| `@deepseek-ai/dsh-tool-jobs` | 0.1.6-alpha.2（声明） | ^0.1.6-alpha.2 | 生产 | vendor/dsh/package.json | 0.0.1-rc.3 |
+| `@deepseek-ai/dsh-tool-present` | 0.1.6-alpha.2（声明） | ^0.1.6-alpha.2 | 生产 | vendor/dsh/package.json | —（未扫描） |
+| `@deepseek-ai/dsh-tool-pwsh` | 0.1.6-alpha.2（声明） | ^0.1.6-alpha.2 | 生产 | vendor/dsh/package.json | 0.0.1-rc.1 |
+| `@deepseek-ai/dsh-tool-pwsh-persistent` | 0.1.6-alpha.2（声明） | ^0.1.6-alpha.2 | 生产 | vendor/dsh/package.json | 0.1.0-rc.8 |
+| `@deepseek-ai/dsh-tool-ralph` | 0.1.6-alpha.2（声明） | ^0.1.6-alpha.2 | 生产 | vendor/dsh/package.json | 0.0.1-rc.1 |
+| `@deepseek-ai/dsh-tool-skill` | 0.1.6-alpha.2（声明） | ^0.1.6-alpha.2 | 生产 | vendor/dsh/package.json | 0.0.1-rc.1 |
+| `@deepseek-ai/dsh-tool-str-replace-editor` | 0.1.6-alpha.2（声明） | ^0.1.6-alpha.2 | 生产 | vendor/dsh/package.json | 0.0.1-rc.1 |
+| `@deepseek-ai/dsh-tool-subagent` | 0.1.6-alpha.2（声明） | ^0.1.6-alpha.2 | 生产 | vendor/dsh/package.json | 0.0.1-rc.1 |
+| `@deepseek-ai/dsh-tool-subagent-control` | 0.1.6-alpha.2（声明） | ^0.1.6-alpha.2 | 生产 | vendor/dsh/package.json | 0.0.1-rc.1 |
+| `@deepseek-ai/dsh-tool-todo` | 0.1.6-alpha.2（声明） | ^0.1.6-alpha.2 | 生产 | vendor/dsh/package.json | 0.0.1-rc.1 |
+| `@deepseek-ai/dsh-tool-web` | 0.1.6-alpha.2（声明） | ^0.1.6-alpha.2 | 生产 | vendor/dsh/package.json | 0.0.1-rc.1 |
+| `@deepseek-ai/dsh-tool-workflow` | 0.1.6-alpha.2（声明） | ^0.1.6-alpha.2 | 生产 | vendor/dsh/package.json | 0.0.1-rc.1 |
+| `@deepseek-ai/dsh-tools` | 0.1.6-alpha.2（声明） | ^0.1.6-alpha.2 | 开发 | vendor/dsh/package.json | 0.0.1-rc.1 |
+| `@deepseek-ai/dsh-user-approval` | 0.1.6-alpha.2（声明） | ^0.1.6-alpha.2 | 开发 | vendor/dsh/package.json | 0.0.1-rc.1 |
+| `@deepseek-ai/dsh-web-app` | 0.1.6-alpha.2（声明） | ^0.1.6-alpha.2 | 生产 | vendor/dsh/package.json | 0.0.1-rc.1 |
+| `@deepseek-ai/dsh-webhook` | 0.1.6-alpha.2（声明） | ^0.1.6-alpha.2 | 生产 | vendor/dsh/package.json | 0.1.2-alpha.2 |
+| `@deepseek-ai/dsh-webhook-github` | 0.1.6-alpha.2（声明） | ^0.1.6-alpha.2 | 生产 | vendor/dsh/package.json | 0.1.2-alpha.2 |
+| `@deepseek-ai/dsh-workflow-ptc` | 0.1.6-alpha.2（声明） | ^0.1.6-alpha.2 | 生产 | vendor/dsh/package.json | —（未扫描） |
 | `@deepseek-ai/schemastery` | 3.18.2（声明） | ^3.18.2 | 生产 | vendor/dsh/package.json | 3.18.2 |
 | `@hono/node-server` | 2.1.1（声明） | 2.1.1 | 生产 | .workloom-runtime-deps/package.json、apps/server/package.json | 2.1.1 |
 | `@playwright/test` | 1.63.0（声明） | 1.63.0 | 开发 | apps/web/package.json | 1.63.0 |
@@ -254,7 +262,7 @@
 | `jose` | 6.2.10（声明） | 6.2.10 | 生产 | .workloom-runtime-deps/package.json、apps/server/package.json、packages/base/package.json | **6.2.12** ⬆ |
 | `js-yaml` | 4.2.0（声明） | ^4.2.0 | 生产 | vendor/dsh/package.json | **5.4.2** ⬆ |
 | `jsdom` | 30.1.0（声明） | ^30.1.0 | 开发 | apps/web/package.json、apps/webc/package.json | 30.1.0 |
-| `node-addon-require-builtin` | 0.1.4（声明） | ^0.1.4 | 生产 | vendor/dsh/package.json | **0.1.6** ⬆ |
+| `node-addon-require-builtin` | 0.1.6（声明） | ^0.1.6 | 生产 | vendor/dsh/package.json | 0.1.6 |
 | `pg` | 8.23.0 | 8.23.0 | 生产 | .workloom-runtime-deps/package.json、package.json、packages/base/package.json 等 5 处 | 8.23.0 |
 | `pixi-live2d-display` | 0.4.0（声明） | ^0.4.0 | 生产 | apps/web/package.json | 0.4.0 |
 | `pixi.js` | 6.5.10（声明） | ^6.5.10 | 生产 | apps/web/package.json | **8.21.0** ⬆ |
@@ -298,9 +306,7 @@
 
 ## 3. 有可用更新
 
-登记组件滞后 29 个，直接依赖滞后 32 个 —— 逐项执行单见 `docs/oss-update-plan.md`。
-- `DeepSeek Harness（dsh）` 0.1.2-rc.1 → **0.1.5-rc.2**（门禁 runtime-gate）
-- `node-addon-require-builtin` 0.1.5 → **0.1.6**（门禁 standard）
+登记组件滞后 27 个，直接依赖滞后 27 个 —— 逐项执行单见 `docs/oss-update-plan.md`。
 - `dsh-im 多平台 IM 接入插件` 0.2.2 → **4.21.2**（门禁 standard）
 - `Hono` 4.13.5 → **4.13.8**（门禁 full）
 - `tRPC` 11.18.0 → **11.19.0**（门禁 full）
