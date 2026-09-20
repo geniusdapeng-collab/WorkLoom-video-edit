@@ -32,7 +32,7 @@
     },
     {
       "path": "package.json",
-      "sha256": "dadee49e656bccd975cc2b1b3bba17b2086091cab6919026d5ad287517e01cbe"
+      "sha256": "fdf0f1df1bc46715442e18b630604fd453fd9811c1db9506fa372b6231958307"
     },
     {
       "path": "packages/audit-engine/package.json",
@@ -64,11 +64,11 @@
     },
     {
       "path": "pnpm-lock.yaml",
-      "sha256": "ee2658279d206d6bc9e08c80b5ca49f5cac2d4feaca0e37f986f802228eb5456"
+      "sha256": "4867ff054e9f52a1a213881daee8a93b23d002ed326e61e96b58a9276cfc089f"
     },
     {
       "path": "product.manifest.json",
-      "sha256": "c96fb2595310880b1c3604fbdc9786eb94fba3a2de15846bb14c608e6e9cb3e8"
+      "sha256": "1aa6bf2b967cf3e7f88f024ff913a3633fb17737a54c3f495872f6c56b008df9"
     },
     {
       "path": "scripts/pack-nm-merge.mjs",

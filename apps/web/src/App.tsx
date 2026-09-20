@@ -5,7 +5,6 @@ import P1 from "./pages/p1/P1";
 import P2 from "./pages/p2/P2";
 import P9 from "./pages/p9/P9";
 import P21 from "./pages/p21/P21";
-import P22 from "./pages/p22/P22";
 import P0 from "./pages/p0/P0";
 import P3 from "./pages/p3/P3";
 import P4 from "./pages/p4/P4";
@@ -19,9 +18,6 @@ import P24 from "./pages/p24/P24";
 import P26 from "./pages/p26/P26";
 import P27 from "./pages/p27/P27";
 import P28 from "./pages/p28/P28";
-import P29 from "./pages/p29/P29";
-import P30 from "./pages/p30/P30";
-import P31 from "./pages/p31/P31";
 import Login from "./pages/accounts/Login";
 import Activate from "./pages/accounts/Activate";
 import InviteAccept from "./pages/accounts/InviteAccept";
@@ -104,7 +100,6 @@ function Shell() {
       <Route path="/p2/:threadId" element={<LegacyTaskRedirect />} />
       <Route path="/p9" element={<Navigate to="/night" replace />} />
       <Route path="/p21" element={<Navigate to="/executive" replace />} />
-      <Route path="/p22" element={<Navigate to="/service" replace />} />
       <Route path="/p3" element={<Navigate to="/reports" replace />} />
       <Route path="/p4" element={<Navigate to="/approvals" replace />} />
       <Route path="/p5" element={<Navigate to="/guardrails" replace />} />
@@ -118,16 +113,12 @@ function Shell() {
       <Route path="/p26" element={<Navigate to="/customize" replace />} />
       <Route path="/p27" element={<Navigate to="/configuration" replace />} />
       <Route path="/p28" element={<Navigate to="/inbox" replace />} />
-      <Route path="/p29" element={<Navigate to="/account" replace />} />
-      <Route path="/p30" element={<Navigate to="/members" replace />} />
-      <Route path="/p31" element={<Navigate to="/partners" replace />} />
       <Route path="/p0" element={<Navigate to="/" replace />} />
       <Route path="/inbox" element={<P28 />} />
       <Route path="/tasks" element={<P1 />} />
       <Route path="/tasks/:threadId" element={<P2 />} />
       <Route path="/approvals" element={<P4 />} />
       <Route path="/reports" element={<P3 />} />
-      <Route path="/service" element={<P22 />} />
       <Route path="/executive" element={<P21 />} />
       <Route path="/guardrails" element={<P5 />} />
       <Route path="/exams" element={<P24 />} />
@@ -135,9 +126,6 @@ function Shell() {
       <Route path="/night" element={<P9 />} />
       <Route path="/skills" element={<P6 />} />
       <Route path="/skills/create" element={<P6 />} />
-      <Route path="/members" element={<P30 />} />
-      <Route path="/partners" element={<P31 />} />
-      <Route path="/account" element={<P29 />} />
       <Route path="/workspaces" element={<Workspaces />} />
       <Route path="/customize" element={<P26 />} />
       <Route path="/configuration" element={<P27 />} />
@@ -185,16 +173,6 @@ function Shell() {
           </Routes>
         </NavigationAccessBoundary>
       </div>
-      {/* 游客模式浮标（F-GUEST1：随时可去正式开通/登录） */}
-      {!bare && isGuest() && (
-        <a
-          href="/login"
-          className="fixed bottom-5 z-50 rounded-full border border-amber-500/40 bg-neutral-900/95 px-4 py-2 text-sm text-amber-300 shadow-lg hover:border-amber-400"
-          style={{ right: "calc(var(--workloom-ask-rail-width, var(--wl-assistant-expanded)) + var(--wl-space-4))" }}
-        >
-          游客体验中 · <span className="font-semibold underline">正式开通 →</span>
-        </a>
-      )}
     </div>
   );
 }

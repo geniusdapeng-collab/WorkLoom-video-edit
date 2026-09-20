@@ -506,7 +506,7 @@ async function main() {
   await q(
     `INSERT INTO night_runs (id, workspace_id, run_date, status, fence_snapshot_version, candidate_count, stats, started_at, package_event_id)
      VALUES ($1,$2,$3,'package_generated',$4,14,$5,$6,NULL)
-     ON CONFLICT (id) DO NOTHING`,
+     ON CONFLICT (workspace_id, run_date) DO NOTHING`,
     [
       `nr-video-${runDate}`, WS_ID, runDate, FENCE_VERSION,
       JSON.stringify({ done: 14, pending: 2, alerts: 1, note: "评论分流 47 条 / 数据采集 12 轮 / 谷时渲染 S00 完成 / 早八点战报已生成" }),
@@ -662,6 +662,13 @@ async function main() {
     const ev = mkEvent(i, times[i - 1] as Date);
     const checked = safeParseBusinessEvent(ev);
     if (!checked.success) throw new Error(`种子事件 ${ev.event_id} 未过校验：${checked.error.message}`);
+    /**
+     * 幂等口径（2026-09-20 真机验收修复）：先查存在再写，重复 seed 不再消耗 nextval。
+     * 旧写法 ON CONFLICT DO NOTHING 每条冲突烧一个序号，复跑后 verify-chain 会报
+     * 「>500 连续空洞，疑似恶意删段」；与基座 seed.ts 的 L1.4 口径对齐。
+     */
+    const exists = await gw.query(`SELECT 1 FROM biz_events WHERE tenant_id=$1 AND event_id=$2`, [TENANT_ID, ev.event_id]);
+    if (exists.rowCount) continue;
     const payload = JSON.stringify(checked.data);
     const hash = eventHash(prevHash, checked.data);
     const res = await gw.query(

@@ -6,7 +6,7 @@
   "packageName": "workloom-ai-acquisition",
   "repository": "workloom-ai/WorkLoom-growth",
   "defaultBundle": "geo-growth",
-  "demoWorkspaceSlug": "growth-experiment",
+  "demoWorkspaceSlug": "geo-growth",
   "demoMemberNo": "MEM-G01",
   "release": {
     "appId": "com.geniusdapeng.workloomgrowth",

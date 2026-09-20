@@ -9,8 +9,9 @@
  */
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { existsSync, readFileSync, realpathSync, statSync, writeFileSync } from "node:fs";
+import { homedir } from "node:os";
+import { dirname, extname, join, resolve, sep } from "node:path";
 import { getAppPool, getGatewayPool, getOwnerPool } from "@workloom/db";
 import {
   getCapabilities,
@@ -34,6 +35,8 @@ import { routeIntent, runAsk, runQuest } from "@workloom/runtime";
 import { LlmIntentClassifier, type IntentClassifier } from "@workloom/runtime";
 import { providerFromEnv, OpenAiCompatibleProvider } from "@workloom/base/model-router";
 import { routedLlmCall, resetLlmAssembly } from "../service/llm.js";
+import { loadDeploymentToolExecutor } from "../runtime/tool-executor.js";
+import { startVideoProjectRun, StudioWorkerError } from "../video/studio-worker.js";
 import { creditsRouter, modelFeedbackRouter } from "./credits-router.js";
 import { runRouterReviewBeat } from "@workloom/base/model-router";
 import {
@@ -123,6 +126,7 @@ import {
 import {
   BundleError,
   activateBundle,
+  bundlesRoot,
   computeAssembly,
   createBundleDraft,
   listProfileSlugs,
@@ -946,6 +950,198 @@ const membersRouter = router({
   }),
 });
 
+/**
+ * 派遣默认执行 preset 解析（2026-09-20 真机验收修复）：
+ * 旧默认写死 "pricing-agent"——该 preset 只存在于 hotel 组合；growth（geo-growth 包）工作区
+ * 没有它，runImmediately 的 Quest 循环直接 AssemblyReject 500（"Agent preset 未注册"）。
+ * 口径改为：读工作区活动 Bundle 的 preset 清单 → 取 kind: orchestrator 的注册表就绪项
+ * （Bundle 声明顺序），其次按指挥层常用 preset 兜底，最后退到任意就绪员工；全无就绪员工即明确报错。
+ */
+const DISPATCH_PRESET_FALLBACKS = ["company-ceo", "group-ceo", "growth-lead", "director"] as const;
+async function resolveDispatchPresetKey(scope: { tenantId: string; workspaceId: string }): Promise<string> {
+  const app = getAppPool();
+  const client = await app.connect();
+  let industry: string | null = null;
+  let ready: string[] = [];
+  try {
+    await client.query("BEGIN");
+    await client.query("SELECT set_config('app.workspace_id', $1, true)", [scope.workspaceId]);
+    await client.query("SELECT set_config('app.tenant_id', $1, true)", [scope.tenantId]);
+    const ws = await client.query<{ industry: string | null }>(
+      `SELECT industry FROM workspaces WHERE id=$1 AND tenant_id=$2`,
+      [scope.workspaceId, scope.tenantId],
+    );
+    industry = ws.rows[0]?.industry ?? null;
+    const ag = await client.query<{ preset_key: string }>(
+      `SELECT preset_key FROM agents WHERE workspace_id=$1 AND status='ready' ORDER BY preset_key`,
+      [scope.workspaceId],
+    );
+    ready = ag.rows.map((r) => r.preset_key);
+    await client.query("COMMIT");
+  } catch (err) {
+    await client.query("ROLLBACK").catch(() => undefined);
+    throw err;
+  } finally {
+    client.release();
+  }
+
+  const candidates: string[] = [];
+  // ① Bundle 声明顺序：bundles/<industry>/bundle.json → provides.presets → 文件内 kind: orchestrator
+  try {
+    const dir = join(bundlesRoot(), industry ?? "_default");
+    const manifestPath = join(dir, "bundle.json");
+    if (existsSync(manifestPath)) {
+      const manifest = JSON.parse(readFileSync(manifestPath, "utf-8")) as {
+        workloom?: { provides?: { presets?: string[] } };
+      };
+      for (const rel of manifest.workloom?.provides?.presets ?? []) {
+        const p = join(dir, rel);
+        if (!existsSync(p)) continue;
+        const doc = YAML.parse(readFileSync(p, "utf-8")) as { preset_key?: unknown; kind?: unknown };
+        if (doc?.kind === "orchestrator" && typeof doc.preset_key === "string") candidates.push(doc.preset_key);
+      }
+    }
+  } catch {
+    /* Bundle 清单不合法/缺目录 → 走下方指挥层兜底（不阻塞派遣） */
+  }
+  candidates.push(...DISPATCH_PRESET_FALLBACKS);
+
+  const readySet = new Set(ready);
+  for (const key of candidates) if (readySet.has(key)) return key;
+  if (ready.length > 0) return ready[0]!;
+  throw new TRPCError({
+    code: "PRECONDITION_FAILED",
+    message: "工作区没有可装配的数字员工（agents 全部未就绪），无法派遣任务——请先在名册完成上岗",
+  });
+}
+
+/**
+ * 线程归属 preset 解析（2026-09-21 真机修复）：
+ * `threads.agent_id` 存的是 **agents.id**（如 agt-geo-production-planner），不是 preset_key。
+ * 旧实现把它当 preset_key 直接喂给 runQuest/runAsk：续跑时装配层直接拒绝「Agent preset 未注册」
+ * ——视频任务在「审批通过 → 自动续跑」这一步静默卡死（真机实测：审批成功但线程不动）。
+ * 这里把两种写法（agents.id / preset_key）统一归一成 preset_key；都解析不到时退回派遣默认。
+ */
+async function resolveThreadPresetKey(
+  scope: { tenantId: string; workspaceId: string },
+  ref: string | null | undefined,
+): Promise<string> {
+  const candidate = ref?.trim();
+  if (!candidate) return resolveDispatchPresetKey(scope);
+  const app = getAppPool();
+  const client = await app.connect();
+  try {
+    await client.query("BEGIN");
+    await client.query("SELECT set_config('app.workspace_id', $1, true)", [scope.workspaceId]);
+    await client.query("SELECT set_config('app.tenant_id', $1, true)", [scope.tenantId]);
+    const r = await client.query<{ preset_key: string }>(
+      `SELECT preset_key FROM agents
+        WHERE workspace_id=$1 AND (id=$2 OR preset_key=$2)
+        ORDER BY (preset_key=$2) DESC
+        LIMIT 1`,
+      [scope.workspaceId, candidate],
+    );
+    await client.query("COMMIT");
+    if (r.rows[0]?.preset_key) return r.rows[0].preset_key;
+  } catch (err) {
+    await client.query("ROLLBACK").catch(() => undefined);
+    throw err;
+  } finally {
+    client.release();
+  }
+  return resolveDispatchPresetKey(scope);
+}
+
+/**
+ * 产物（artifact）取件 —— 任务详情「最终结果」直接看/下载产物（2026-09-21 产品所有者口径）。
+ *
+ * 安全边界（三条，fail-closed）：
+ *  ① 只认工作区事件里真实登记过的产物路径（按 threadId + index 定位，客户端拿不到任意路径）；
+ *  ② 路径必须落在允许的资产根内（工作区资产目录 / 本机视觉工位租户目录 / 仓库 outputs），
+ *     且解析真实路径后仍在根内（防符号链接跳出）；
+ *  ③ 只放行白名单扩展名 + 单件上限（默认 24MB，可用 WORKLOOM_ARTIFACT_MAX_BYTES 调整），
+ *     超限明确报错，不静默截断。
+ * 文本边界：文件名/路径不出服务端；客户端只拿 kind/mime/bytes 与 base64 数据。
+ */
+const ARTIFACT_MIME: Record<string, string> = {
+  ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".webp": "image/webp",
+  ".gif": "image/gif", ".bmp": "image/bmp",
+  ".mp4": "video/mp4", ".mov": "video/quicktime", ".webm": "video/webm",
+  ".md": "text/markdown; charset=utf-8", ".txt": "text/plain; charset=utf-8",
+  ".html": "text/html; charset=utf-8", ".htm": "text/html; charset=utf-8",
+  ".pdf": "application/pdf", ".json": "application/json; charset=utf-8",
+};
+const ARTIFACT_MAX_BYTES = Number(process.env.WORKLOOM_ARTIFACT_MAX_BYTES ?? 24 * 1024 * 1024);
+
+function artifactKindOf(mime: string): "image" | "video" | "document" | "file" {
+  if (mime.startsWith("image/")) return "image";
+  if (mime.startsWith("video/")) return "video";
+  if (mime.startsWith("text/") || mime === "application/pdf" || mime.startsWith("application/json")) return "document";
+  return "file";
+}
+
+/** 允许读取的资产根（真实路径） */
+function artifactRoots(workspaceId: string): string[] {
+  const explicit = (process.env.WORKLOOM_ARTIFACT_ROOTS ?? "").split(",").map((v) => v.trim()).filter(Boolean);
+  const bridgeSupport = process.env.WORKLOOM_VISUAL_BRIDGE_SUPPORT_DIR
+    ?? join(homedir(), "Library", "Application Support", "WorkLoomVisualBridge");
+  return [
+    ...explicit,
+    join(bridgeSupport, "var", "tenants", workspaceId),
+    resolve(process.cwd(), "outputs"),
+    resolve(process.cwd(), "var"),
+  ].flatMap((root) => {
+    try {
+      return [realpathSync(root)];
+    } catch {
+      return [];
+    }
+  });
+}
+
+/** 从线程事件里按登记顺序取出产物条目（只认 outputs[]，路径仅服务端可见） */
+interface RegisteredArtifact { path: string; bytes: number | null }
+function artifactsOfEvents(events: Array<{ decision?: { after?: unknown } }>): RegisteredArtifact[] {
+  const out: RegisteredArtifact[] = [];
+  for (const ev of events) {
+    const after = ev?.decision?.after as Record<string, unknown> | undefined;
+    if (!after) continue;
+    const containers: unknown[] = [after, (after as { result?: unknown }).result];
+    for (const container of containers) {
+      if (!container || typeof container !== "object") continue;
+      const outputs = (container as { outputs?: unknown }).outputs;
+      if (!Array.isArray(outputs)) continue;
+      for (const item of outputs) {
+        if (!item || typeof item !== "object") continue;
+        const record = item as Record<string, unknown>;
+        const path = typeof record.path === "string" ? record.path : typeof record.file === "string" ? record.file : null;
+        if (!path) continue;
+        out.push({ path, bytes: typeof record.bytes === "number" ? record.bytes : null });
+      }
+    }
+  }
+  return out;
+}
+
+/** 校验路径：必须在允许根内、扩展名白名单、大小不超限；返回可读的真实路径与元数据 */
+function resolveArtifactFile(path: string, workspaceId: string): { real: string; mime: string; size: number } {
+  const mime = ARTIFACT_MIME[extname(path).toLowerCase()];
+  if (!mime) throw new TRPCError({ code: "BAD_REQUEST", message: "该产物格式暂不支持在线预览或下载（仅支持图片/视频/文本文档/PDF）" });
+  let real: string;
+  try {
+    real = realpathSync(path);
+  } catch {
+    throw new TRPCError({ code: "NOT_FOUND", message: "产物文件不在本机（可能已被清理或位于工位另一侧）" });
+  }
+  const allowed = artifactRoots(workspaceId).some((root) => real === root || real.startsWith(root + sep));
+  if (!allowed) throw new TRPCError({ code: "FORBIDDEN", message: "产物不在本工作区的资产范围内，已拒绝读取" });
+  const size = statSync(real).size;
+  if (size > ARTIFACT_MAX_BYTES) {
+    throw new TRPCError({ code: "PAYLOAD_TOO_LARGE", message: `产物约 ${Math.round(size / 1024 / 1024)} MB，超过在线取件上限（${Math.round(ARTIFACT_MAX_BYTES / 1024 / 1024)} MB），请到资产目录直接取用` });
+  }
+  return { real, mime, size };
+}
+
 /** threads router：list（L7.1 越权返回空）/ dispatch（Quest 接口；H-10 越版 403+留痕） */
 const threadsRouter = router({
   list: protectedProcedure.query(async ({ ctx }) => {
@@ -977,7 +1173,9 @@ const threadsRouter = router({
     .input(
       z.object({
         title: z.string().min(1).max(500), // F3.1：≤500 字
-        presetKey: z.string().default("pricing-agent"),
+        // 不写死 preset：由工作区活动 Bundle 的 orchestrator 解析（见 resolveDispatchPresetKey）；
+        // nullish：既有验收脚本/客户端会显式传 null 表示"用默认"，不能因此 400。
+        presetKey: z.string().min(1).nullish(),
         runImmediately: z.boolean().default(false),
       }),
     )
@@ -989,6 +1187,7 @@ const threadsRouter = router({
         // 含糊指令：反问澄清，不盲目建任务
         return { kind: "clarify" as const, question: intent.clarifyQuestion, via: intent.via };
       }
+      const presetKey = input.presetKey ?? (await resolveDispatchPresetKey(scope));
       const app = getAppPool();
       const client = await app.connect();
       let threadId: string;
@@ -1047,13 +1246,75 @@ const threadsRouter = router({
         });
         return { kind: "routed" as const, mode: intent.mode, via: intent.via, threadId, status: ra.status, answer: ra.answer };
       }
+      /**
+       * 视频创作类目标 → 走**标准视频生产管线**（ai-video studio：情报五站 → G1..G7 → 25/30 字段
+       * 镜头卡 → 导演评审 → 定妆锚定 → 渲染脚本 → 渲染 → 发布监控；内部门全自动，只留投放/改价/
+       * 超预算/对外发布人审），而不是通用 Quest 规划器——后者只有工位视觉工具，会把内部流转步骤
+       * 照单执行并留下「未提供工具」的空跑记录（真机实测：T-175 视频任务）。
+       * 线程照常建档（任务中心可见），并落一条关联事件把线程与视频项目串起来。
+       */
+      const videoGoal = /视频|短片|影片|成片|镜头卡|分镜|宣传片|TVC|纪录片|口播|种草片|混剪/.test(input.title);
+      if (input.runImmediately && intent.mode === "quest" && videoGoal) {
+        try {
+          const started = await startVideoProjectRun(scope, {
+            intent: input.title,
+            isMarketing: true, // 本仓目标语料以营销/获客素材为主，走营销片管线（含情报前置层）
+            by: { id: ctx.identity.memberNo, type: "human" },
+            threadId,
+          });
+          await gatewayAppend(getGatewayPool(), {
+            tenantId: scope.tenantId, workspaceId: scope.workspaceId,
+            actor: { id: ctx.identity.memberNo, type: "human" },
+            sessionId: threadId,
+          }, {
+            who: { type: "human", id: ctx.identity.memberNo },
+            context: {
+              tenant_id: scope.tenantId, workspace_id: scope.workspaceId,
+              time: new Date().toISOString(), channel: "inapp",
+            },
+            object: { type: "video_project", id: started.projectId },
+            decision: {
+              action: "video.route.standard",
+              after: { threadId, projectId: started.projectId, runId: started.runId },
+              basis: ["视频目标路由到标准视频管线（25/30 字段镜头卡 + 导演前置评审 + 定妆锚定）"],
+            },
+            rule_impact: [],
+          });
+          return {
+            kind: "routed" as const, mode: "quest" as const, via: intent.via, threadId,
+            status: "running" as const,
+            video: { projectId: started.projectId, runId: started.runId },
+          };
+        } catch (error) {
+          if (error instanceof StudioWorkerError && error.code === "LLM_MISSING") {
+            throw new TRPCError({ code: "PRECONDITION_FAILED", message: error.message });
+          }
+          throw error;
+        }
+      }
       if (input.runImmediately && intent.mode === "quest") {
+        // 部署层真实执行器（视觉工位/RPA 等）：配置了才注入，未配置保持原 fail-closed 语义
+        const toolExecutor = await loadDeploymentToolExecutor(scope);
+        /**
+         * 视觉目标走**确定性行业规划**：LLM 规划器对"生成一张图"会产出空参步骤
+         * （compose 缺 recipe / render 缺 project），桥侧必然 bad_request。
+         * 这里在视觉目标上关闭 LLM 规划，直接用行业规划器的 visualwrite.generate 直译。
+         */
+        const visualGoal = /海报|配图|封面|生图|出图|主视觉|图片|素材图|生成.{0,12}图|画一?[张幅].{0,12}图|做一?[张幅].{0,12}图/.test(input.title);
         const r = await runQuest(app, getGatewayPool(), scope, {
-          threadId, goal: input.title, presetKey: input.presetKey, llmCall: llmCall("quest-plan", scope),
+          threadId, goal: input.title, presetKey,
+          ...(visualGoal ? {} : { llmCall: llmCall("quest-plan", scope) }),
           // 行业规划：口语目标 → 带业务参数的步骤（缺数据不猜，交围栏失败关闭）
           fallbackPlanner: acquisitionQuestPlanner(input.title),
+          ...(toolExecutor ? { toolExecutor } : {}),
         });
-        return { kind: "routed" as const, mode: intent.mode, via: intent.via, threadId, status: r.status, stepsDone: r.stepsDone, stepsTotal: r.stepsTotal };
+        // 返回挂起步骤的审批号：前端（统一对话框/任务页）据此给"去审批"直达入口
+        return {
+          kind: "routed" as const, mode: intent.mode, via: intent.via, threadId,
+          status: r.status, stepsDone: r.stepsDone, stepsTotal: r.stepsTotal,
+          ...(r.pendingApprovalId ? { pendingApprovalId: r.pendingApprovalId } : {}),
+          ...(r.unverified?.length ? { unverified: r.unverified } : {}),
+        };
       }
       return { kind: "routed" as const, mode: intent.mode, via: intent.via, threadId, status: "queued" as const };
     }),
@@ -1111,36 +1372,236 @@ const threadsRouter = router({
       }
     }),
 
+  /**
+   * 产物清单（任务详情「最终结果」用）：只回元数据（序号/类型/mime/大小），不回路径与文件名。
+   * 路径仅服务端可见 —— 客户端按 index 取件，拿不到任意文件读取能力。
+   */
+  artifacts: protectedProcedure
+    .input(z.object({ threadId: z.string().min(1) }))
+    .query(async ({ ctx, input }) => {
+      const scope = scopeOf(ctx.identity);
+      const app = getAppPool();
+      const client = await app.connect();
+      try {
+        await client.query("BEGIN");
+        await client.query("SELECT set_config('app.workspace_id', $1, true)", [scope.workspaceId]);
+        const r = await client.query<{ payload: { decision?: { after?: unknown } } }>(
+          `SELECT payload FROM biz_events WHERE workspace_id=$1 AND session_id=$2 ORDER BY seq ASC`,
+          [scope.workspaceId, input.threadId],
+        );
+        const registered = artifactsOfEvents(r.rows.map((row) => row.payload));
+        return registered.flatMap((entry, index) => {
+          const mime = ARTIFACT_MIME[extname(entry.path).toLowerCase()];
+          if (!mime) return [];
+          return [{
+            index,
+            kind: artifactKindOf(mime),
+            mime,
+            bytes: entry.bytes,
+          }];
+        });
+      } catch (err) {
+        await client.query("ROLLBACK").catch(() => undefined);
+        throw err;
+      } finally {
+        await client.query("COMMIT").catch(() => undefined);
+        client.release();
+      }
+    }),
+
+  /** 产物取件（base64，走既有鉴权头；不做无鉴权的裸 HTTP 端点）：图片/视频/文档都能直接预览与下载 */
+  artifactData: protectedProcedure
+    .input(z.object({ threadId: z.string().min(1), index: z.number().int().min(0) }))
+    .query(async ({ ctx, input }) => {
+      const scope = scopeOf(ctx.identity);
+      const app = getAppPool();
+      const client = await app.connect();
+      let entry: RegisteredArtifact | undefined;
+      try {
+        await client.query("BEGIN");
+        await client.query("SELECT set_config('app.workspace_id', $1, true)", [scope.workspaceId]);
+        const r = await client.query<{ payload: { decision?: { after?: unknown } } }>(
+          `SELECT payload FROM biz_events WHERE workspace_id=$1 AND session_id=$2 ORDER BY seq ASC`,
+          [scope.workspaceId, input.threadId],
+        );
+        const registered = artifactsOfEvents(r.rows.map((row) => row.payload))
+          .filter((item) => Boolean(ARTIFACT_MIME[extname(item.path).toLowerCase()]));
+        entry = registered[input.index];
+      } catch (err) {
+        await client.query("ROLLBACK").catch(() => undefined);
+        throw err;
+      } finally {
+        await client.query("COMMIT").catch(() => undefined);
+        client.release();
+      }
+      if (!entry) throw new TRPCError({ code: "NOT_FOUND", message: "该任务没有这个序号的产物" });
+      const { real, mime, size } = resolveArtifactFile(entry.path, scope.workspaceId);
+      const data = readFileSync(real).toString("base64");
+      return { index: input.index, kind: artifactKindOf(mime), mime, bytes: size, base64: data };
+    }),
+
   /** 运行/续跑线程（replay 断点续跑幂等，E3.3/H-5；按线程模式分流：ask 应答 / agent 逐步确认 / quest 自主执行） */
   run: capabilityWriteProcedure("quest")
-    .input(z.object({ threadId: z.string(), goal: z.string(), presetKey: z.string().default("pricing-agent") }))
+    .input(z.object({ threadId: z.string(), goal: z.string(), presetKey: z.string().min(1).nullish() }))
     .mutation(async ({ ctx, input }) => {
       const scope = scopeOf(ctx.identity);
       const app = getAppPool();
       const client = await app.connect();
       let mode: "ask" | "agent" | "quest" = "quest";
+      let threadAgentRef: string | null = null;
       try {
         await client.query("BEGIN");
         await client.query("SELECT set_config('app.workspace_id', $1, true)", [scope.workspaceId]);
-        const t = await client.query<{ mode: string }>(`SELECT mode FROM threads WHERE id=$1 AND workspace_id=$2`, [input.threadId, scope.workspaceId]);
+        const t = await client.query<{ mode: string; agent_id: string | null }>(
+          `SELECT mode, agent_id FROM threads WHERE id=$1 AND workspace_id=$2`,
+          [input.threadId, scope.workspaceId],
+        );
         await client.query("COMMIT");
         if (t.rows[0]?.mode === "ask" || t.rows[0]?.mode === "agent") mode = t.rows[0].mode;
+        threadAgentRef = t.rows[0]?.agent_id ?? null;
       } catch (err) {
         await client.query("ROLLBACK").catch(() => undefined);
         throw err;
       } finally {
         client.release();
       }
+      // 前端可能把 threads.agent_id（agents.id）当 presetKey 传进来；统一归一成 preset_key
+      const presetKey = await resolveThreadPresetKey(scope, input.presetKey ?? threadAgentRef);
       if (mode === "ask") {
-        return runAsk(app, getGatewayPool(), scope, { threadId: input.threadId, goal: input.goal, presetKey: input.presetKey, llmCall: llmCall("ask-synthesize", scope) });
+        return runAsk(app, getGatewayPool(), scope, { threadId: input.threadId, goal: input.goal, presetKey, llmCall: llmCall("ask-synthesize", scope) });
       }
+      const toolExecutor = await loadDeploymentToolExecutor(scope);
+      const visualGoal = /海报|配图|封面|生图|出图|主视觉|图片|素材图|生成.{0,12}图|画一?[张幅].{0,12}图|做一?[张幅].{0,12}图/.test(input.goal);
       return runQuest(app, getGatewayPool(), scope, {
-        threadId: input.threadId, goal: input.goal, presetKey: input.presetKey, mode, llmCall: llmCall("quest-plan", scope),
+        threadId: input.threadId, goal: input.goal, presetKey, mode,
+        ...(visualGoal ? {} : { llmCall: llmCall("quest-plan", scope) }),
         // 行业规划：口语目标 → 带业务参数的步骤（缺数据不猜，交围栏失败关闭）
         fallbackPlanner: acquisitionQuestPlanner(input.goal),
+        ...(toolExecutor ? { toolExecutor } : {}),
       });
     }),
+
+  /**
+   * 线程留言（三合一全局框的「留言」落点，2026-09-20）：
+   * 只写五元事件留痕（object=thread），**不派活、不回答、不推进**——与夜班频道 nightShift.note
+   * 同口径（后者 object=store / channel=夜班）。走统一网关：权限 → 脱敏 → 高风险校验 → 事件。
+   * 归属校验在 RLS 上下文内做，越权线程一律 NOT_FOUND（同 get 口径，不泄露存在性）。
+   */
+  note: writeProcedure
+    .input(z.object({ threadId: z.string().min(1), text: z.string().min(1).max(500) }))
+    .mutation(async ({ ctx, input }) => {
+      const scope = scopeOf(ctx.identity);
+      const app = getAppPool();
+      const client = await app.connect();
+      try {
+        await client.query("BEGIN");
+        await client.query("SELECT set_config('app.workspace_id', $1, true)", [scope.workspaceId]);
+        await client.query("SELECT set_config('app.tenant_id', $1, true)", [scope.tenantId]);
+        const t = await client.query(`SELECT id FROM threads WHERE id=$1 AND workspace_id=$2`, [input.threadId, scope.workspaceId]);
+        await client.query("COMMIT");
+        if (t.rowCount === 0) {
+          throw new TRPCError({ code: "NOT_FOUND", message: `任务 ${input.threadId} 不存在或不属于当前工作区` });
+        }
+      } catch (err) {
+        await client.query("ROLLBACK").catch(() => undefined);
+        throw err;
+      } finally {
+        client.release();
+      }
+      const r = await gatewayAppend(getGatewayPool(), {
+        ...scope, actor: { id: ctx.identity.memberNo, type: "human" }, sessionId: input.threadId,
+      }, {
+        who: { type: "human", id: ctx.identity.memberNo },
+        context: { tenant_id: scope.tenantId, workspace_id: scope.workspaceId, time: new Date().toISOString(), channel: "任务会话" },
+        object: { type: "thread", id: input.threadId },
+        decision: { action: "thread.note", after: { text: input.text } },
+        rule_impact: [],
+      });
+      return { threadId: input.threadId, eventId: r.eventId };
+    }),
 });
+
+/**
+ * 步骤级审批通过 → Quest 自动续跑（2026-09-20 三合一真机修复）。
+ *
+ * 原语义：审批只改审批状态，用户还得回任务页点"继续推进"；生图/发布这类**半程任务**
+ * 于是停在 waiting 态（实测："生成一张手冲咖啡图"批完不出图）。这里在审批落库后
+ * 异步续跑一次（fire-and-forget）：
+ *  - 只处理审批事件带 `decision.step_id` 与 `session_id`（线程）的步骤级审批；
+ *  - 线程非 quest 模式或已完成 → 跳过；续跑仍走围栏/回执原语义（不伪造完成）；
+ *  - 失败只落服务端日志，审批结果不变（用户仍可手动"继续推进"）。
+ */
+function scheduleQuestResumeAfterApproval(
+  scope: { tenantId: string; workspaceId: string },
+  approvalId: string,
+): void {
+  setTimeout(() => {
+    void (async () => {
+      try {
+        const app = getAppPool();
+        const client = await app.connect();
+        let threadId: string | null = null;
+        let stepId: string | null = null;
+        try {
+          await client.query("BEGIN");
+          await client.query("SELECT set_config('app.workspace_id', $1, true)", [scope.workspaceId]);
+          await client.query("SELECT set_config('app.tenant_id', $1, true)", [scope.tenantId]);
+          const r = await client.query<{ session_id: string | null; step_id: string | null }>(
+            `SELECT e.session_id, e.payload->'decision'->>'step_id' AS step_id
+               FROM approvals a JOIN biz_events e ON e.event_id = a.event_id
+              WHERE a.approval_id = $1 AND a.workspace_id = $2`,
+            [approvalId, scope.workspaceId],
+          );
+          threadId = r.rows[0]?.session_id ?? null;
+          stepId = r.rows[0]?.step_id ?? null;
+          await client.query("COMMIT");
+        } catch (err) {
+          await client.query("ROLLBACK").catch(() => undefined);
+          throw err;
+        } finally {
+          client.release();
+        }
+        if (!threadId || !stepId) return;
+
+        const c2 = await app.connect();
+        let thread: { mode: string; title: string; status: string; agent_id: string | null } | undefined;
+        try {
+          await c2.query("BEGIN");
+          await c2.query("SELECT set_config('app.workspace_id', $1, true)", [scope.workspaceId]);
+          const t = await c2.query<{ mode: string; title: string; status: string; agent_id: string | null }>(
+            `SELECT mode, title, status, agent_id FROM threads WHERE id=$1 AND workspace_id=$2`,
+            [threadId, scope.workspaceId],
+          );
+          thread = t.rows[0];
+          await c2.query("COMMIT");
+        } catch (err) {
+          await c2.query("ROLLBACK").catch(() => undefined);
+          throw err;
+        } finally {
+          c2.release();
+        }
+        if (!thread || thread.mode !== "quest" || thread.status === "completed") return;
+
+        const toolExecutor = await loadDeploymentToolExecutor(scope);
+        // threads.agent_id 是 agents.id，不是 preset_key：必须先归一，否则续跑必然「preset 未注册」
+        const presetKey = await resolveThreadPresetKey(scope, thread.agent_id);
+        const visualGoal = /海报|配图|封面|生图|出图|主视觉|图片|素材图|生成.{0,12}图|画一?[张幅].{0,12}图|做一?[张幅].{0,12}图/.test(thread.title);
+        const r = await runQuest(app, getGatewayPool(), scope, {
+          threadId, goal: thread.title, presetKey,
+          ...(visualGoal ? {} : { llmCall: llmCall("quest-plan", scope) }),
+          fallbackPlanner: acquisitionQuestPlanner(thread.title),
+          ...(toolExecutor ? { toolExecutor } : {}),
+        });
+        console.log(`[approval] 审批 ${approvalId} 通过 → 自动续跑 ${threadId}：${r.status}（${r.stepsDone}/${r.stepsTotal}）`);
+      } catch (error) {
+        console.warn(
+          "[approval] 自动续跑失败（审批结果不变，可手动继续推进）",
+          error instanceof Error ? error.message : String(error),
+        );
+      }
+    })();
+  }, 0);
+}
 
 /**
  * E1 联调接线（PF.5/F2.4）：审批手势通过后的副作用分发——
@@ -1226,6 +1687,8 @@ const approvalsRouter = router({
         // E1 联调接线（PF.5/F2.4）：fence.rule.propose 手势通过 → 激活规则版本
         if (!res.deduped && res.status === "approved") {
           await activateFenceRuleAfterApproval(scopeOf(ctx.identity), input.approvalId);
+          // 步骤级审批通过 → 自动续跑所属 Quest（2026-09-20：否则"批完还得手动推进"，生图链路停在半路）
+          scheduleQuestResumeAfterApproval(scopeOf(ctx.identity), input.approvalId);
           // D22 汰换重生：hr.replacement 批准 → 旧停用 + 新员工上岗
           const scope2 = scopeOf(ctx.identity);
           const app2 = getAppPool();

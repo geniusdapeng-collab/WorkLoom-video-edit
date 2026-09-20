@@ -35,6 +35,8 @@ import YAML from "yaml";
 import { eventHash, safeParseReplayAwareEvent } from "@workloom/base/workdata";
 import { composeWorkforce } from "@workloom/base/bundles";
 import { loadOfficialSkills } from "@workloom/base/skills";
+// 2026-09-20：技能围栏绑定表收口到共享模块（seed.ts 与 seed-geo.ts 共用同一事实源）
+import { COMPOSED_SKILL_BINDINGS, HOTEL_SKILL_BINDINGS, skillBindingsFor } from "./skill-bindings.mts";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = join(__dirname, "..");
@@ -188,74 +190,14 @@ function loadBundleSkills(bundleId: string, dir: string, bindMap: Record<string,
 }
 
 function loadSkills(): SkillDoc[] {
-  // v3 全量绑定表（30 技能；与 workloom-hotel v3.4.0 同口径）
-  const bindMap: Record<string, string[]> = {
-    "revenue-manager": ["R1", "R2", "R7", "R8"],
-    "review-crisis": ["R6"],
-    "channel-reconciler": ["R4", "R5"],
-    "inspection-suite": [],
-    "night-audit-suite": ["R5"],
-    "checkin-checkout": ["R4", "R14"],
-    "customer-service": ["R13"],
-    "content-marketing": ["R3", "R15"],
-    "retention-manager": ["R9"],
-    "inventory-procurement": ["R11"],
-    "staff-scheduler": ["R12"],
-    "safety-compliance": ["R10"],
-    "finance-reporting": [],
-    "morning-briefing": [],
-    "handover-manager": [],
-    "pricing-matrix": ["R1", "R2"],
-    "review-asset-mining": [],
-    "room-service-dispatch": ["R14"],
-    "maintenance-dispatch": [],
-    "ai-live-assistant": ["R15", "R2"],
-    "ota-operations": [],
-    "guest-profile-crm": [],
-    "phone-concierge": ["R9", "R13"],
-    "overbooking-parity-guard": ["R17", "R18", "R2"],
-    "incident-postmortem": ["R10"],
-    // v3.3 获客域技能绑定
-    "lead-concierge": ["R21", "R23", "R24", "R25"],
-    "coupon-ops": ["R22", "R26"],
-    "hotel-geo-content": ["R25"],
-    "intent-radar": [],
-  };
-  return loadBundleSkills("hotel", join(BUNDLE_DIR, "skills"), bindMap);
+  // v3 全量绑定表（30 技能）见 scripts/skill-bindings.mts（与 seed-geo.ts 共用同一事实源）
+  return loadBundleSkills("hotel", join(BUNDLE_DIR, "skills"), HOTEL_SKILL_BINDINGS as Record<string, string[]>);
 }
 
 /**
  * 组合并入包（ai-video / geo-growth）的技能绑定表。
  * 口径：只收录 SKILL.md 描述中显式声明的围栏（未声明即空列表，不臆造绑定）。
  */
-const COMPOSED_SKILL_BINDINGS: Record<"ai-video" | "geo-growth", Record<string, string[]>> = {
-  "ai-video": {
-    "comment-ops": ["G10a", "G10b", "G10c", "G10d"],
-    "director-review": ["G6"],
-    "jenny-loom-research": ["G1"],
-    "marketing-brief-parser": ["G2"],
-    "portrait-studio": ["G5"],
-    "publish-ops": ["G9", "G9a"],
-    "render-ops": ["G8"],
-    "shot-prompt-craft": ["G6"],
-  },
-  "geo-growth": {
-    "ai-answer-rewrite": ["G-GEO1", "G-GEO2"],
-    "entity-consistency-check": ["G-GEO2"],
-    // 获客用增班组技能（v1.2）：预算带/实验登记与停止/价格承诺/转介与数据边界
-    "experiment-design": ["G-GROW3", "G-GROW4"],
-    "budget-portfolio": ["G-GROW1"],
-    "lead-scoring": ["G-GROW6"],
-    "cro-playbook": ["G-GROW2"],
-    "live-commerce": ["G-GROW2", "G-GROW4"],
-    "growth-review": [],
-    "incrementality-measurement": ["G-GROW6"],
-    // P2 条件岗技能（默认未激活，硬门禁 G-GROW7/8）
-    "lifecycle-growth": ["G-GROW7", "G-GROW2"],
-    "growth-partnership": ["G-GROW8", "G-GROW2"],
-  },
-};
-
 /**
  * 包外官方技能（`skills/official/`，bundle=null）的围栏绑定表。
  * 口径同行业包：只登记 SKILL.md 里**显式写明**的围栏，未写明就保持空绑定（不臆造）。
@@ -1522,7 +1464,7 @@ async function main(): Promise<void> {
   await gw.query(
     `INSERT INTO night_runs (id, workspace_id, run_date, status, fence_snapshot_version, candidate_count, stats, started_at, package_event_id)
      VALUES ($1,$2,$3,'package_generated',$4,$5,$6,$7,$8)
-     ON CONFLICT (id) DO NOTHING`,
+     ON CONFLICT (workspace_id, run_date) DO NOTHING`,
     [
       `nr-${WS_ID}-${runDate}`,
       WS_ID,

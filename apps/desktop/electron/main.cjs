@@ -460,13 +460,18 @@ async function runRenderSmoke() {
     return !!skip;
   })()`, true);
   if (!enteredSystem) throw new Error(`无法退出团队仪式：${JSON.stringify(report)}`);
-  await new Promise((resolve) => setTimeout(resolve, 350));
-  const confirmedSystem = await win.webContents.executeJavaScript(`(() => {
-    const enter = document.querySelector('button[data-welcome-action="enter-system"]');
-    enter?.click();
-    return !!enter;
-  })()`, true);
-  if (!confirmedSystem) throw new Error(`无法确认进入系统：${JSON.stringify(report)}`);
+  // 2026-09-20：仪式末尾的 V4 主弹窗（含「进入系统，先逛逛」按钮）已按产品决定删除——
+  // 「直接进入」即完成欢迎流程，所以这里改为等待欢迎覆盖层真正消失，而不是再点一次确认按钮。
+  const welcomeExitDeadline = Date.now() + 10000;
+  let welcomeExitProbe = null;
+  while (Date.now() < welcomeExitDeadline) {
+    welcomeExitProbe = await win.webContents.executeJavaScript(`(() => ({
+      overlay: !!document.querySelector('[data-welcome-phase]'),
+    }))()`, true);
+    if (!welcomeExitProbe?.overlay) break;
+    await new Promise((resolve) => setTimeout(resolve, 250));
+  }
+  if (welcomeExitProbe?.overlay) throw new Error(`欢迎仪式未退出：${JSON.stringify({ report, welcomeExitProbe })}`);
 
   async function captureProductScene(sceneName, fileStem) {
     const sceneDeadline = Date.now() + 15000;

@@ -36,7 +36,7 @@ import { pollRenderJobs } from "./render-poller.js";
 /** PollReport 类型再导出（web 端 AppRouter 类型可移植性，TS2883） */
 export type { PollReport } from "./render-poller.js";
 import { dealRouter } from "./deal.js";
-import { getRun, startRun, StudioWorkerError } from "./studio-worker.js";
+import { getRun, startRun, startVideoProjectRun, StudioWorkerError } from "./studio-worker.js";
 
 interface Scope { tenantId: string; workspaceId: string }
 
@@ -127,60 +127,24 @@ const studioRouter = router({
     }))
     .mutation(async ({ ctx, input }) => {
       const scope = scopeOf(ctx.identity);
-      const app = getAppPool();
-      const client = await app.connect();
-      let projectId: string;
-      try {
-        // D16（#1/A）：项目行与建档事件同一事务同一 COMMIT（模仿 threads.dispatch 口径）
-        await client.query("BEGIN");
-        await client.query("SELECT set_config('app.workspace_id', $1, true)", [scope.workspaceId]);
-        await client.query("SELECT set_config('app.tenant_id', $1, true)", [scope.tenantId]);
-        if (input.projectId) {
-          projectId = input.projectId;
-        } else {
-          // 号源走 SECURITY DEFINER 函数（0016：全库最大值绕 RLS，跨工作区不撞号）
-          const max = await client.query<{ n: number }>(
-            `SELECT public.video_projects_max_vid_no() AS n`,
-          );
-          projectId = makeReadableId("VID", Number(max.rows[0]?.n ?? 0) + 1);
-        }
-        const kind = input.isMarketing ? "marketing" : "narrative";
-        await client.query(
-          `INSERT INTO video_projects (id, workspace_id, title, kind, created_by)
-           VALUES ($1,$2,$3,$4,$5)`,
-          [projectId, scope.workspaceId, input.intent.slice(0, 200), kind, ctx.identity.memberNo],
-        );
-        await gatewayAppendOnClient(client, {
-          ...scope, actor: { id: ctx.identity.memberNo, type: "human" },
-        }, {
-          who: { type: "human", id: ctx.identity.memberNo },
-          context: {
-            tenant_id: scope.tenantId, workspace_id: scope.workspaceId,
-            time: new Date().toISOString(), channel: "inapp",
-          },
-          object: { type: "video_project", id: projectId },
-          decision: {
-            action: "video.project.create",
-            after: { projectId, kind, intent: input.intent.slice(0, 500) },
-            basis: ["视频项目建档（§5：一部片子/一个营销 Campaign）"],
-          },
-          rule_impact: [],
-        });
-        await client.query("COMMIT");
-      } catch (err) {
-        await client.query("ROLLBACK").catch(() => undefined);
-        throw err;
-      } finally {
-        client.release();
-      }
-      try {
+      if (input.projectId) {
+        // 指定 projectId 的补跑：项目行已存在，仅重启管线
         const runId = startRun(scope, {
-          projectId: projectId!,
+          projectId: input.projectId,
           intent: input.intent,
           metadata: input.metadata,
           isMarketing: input.isMarketing,
         });
-        return { runId, projectId: projectId! };
+        return { runId, projectId: input.projectId };
+      }
+      try {
+        // 与「右栏派活识别出视频目标」共用同一条标准管线入口（studio-worker#startVideoProjectRun）
+        return await startVideoProjectRun(scope, {
+          intent: input.intent,
+          metadata: input.metadata,
+          isMarketing: input.isMarketing,
+          by: { id: ctx.identity.memberNo, type: "human" },
+        });
       } catch (err) {
         if (err instanceof StudioWorkerError && err.code === "LLM_MISSING") {
           throw new TRPCError({ code: "PRECONDITION_FAILED", message: err.message });
@@ -300,10 +264,24 @@ const renderRouter = router({
 
       // G8 围栏预检（纯函数判定；impacts 随事件落库）
       const { rules, defaultLevel } = await loadActiveRules(app, scope);
+      /**
+       * 素材制作默认全自动（2026-09-21 产品所有者口径）：
+       * 「制作投放素材」（图片 / 视频 / 渲染脚本）不设人审卡点；需要人审的是**投放领域**
+       * （加投 G12）与**改价**场景，以及算力**超预算**（G11：project_compute_used ≥ cap）时暂停提交。
+       * 这里显式给判定器上下文：render_auto=true ⇒ G8（渲染提交必审）自动放行；
+       * 预算上限可由 WORKLOOM_PROJECT_COMPUTE_CAP（秒）配置，未配置视为不设上限。
+       * 注意：缺失路径的数值比较会触发求值异常→block，所以两个数值必须显式给出。
+       */
+      const computeCap = Number(process.env.WORKLOOM_PROJECT_COMPUTE_CAP ?? 0);
       const verdict = judge({
         object: { type: "render_script", id: script.id },
         action: "render.submit",
         params: { mode: input.mode, scriptKey: script.script_key, version: script.version },
+        context: {
+          render_auto: (process.env.WORKLOOM_RENDER_AUTO ?? "1") !== "0" || input.mode === "auto",
+          project_compute_used: 0,
+          project_compute_cap: Number.isFinite(computeCap) && computeCap > 0 ? computeCap : Number.MAX_SAFE_INTEGER,
+        },
       }, rules, defaultLevel);
       if (verdict.level === "block") {
         throw new TRPCError({
@@ -349,7 +327,12 @@ const renderRouter = router({
       } else {
         const gen = await routeGenSubmit(
           {
-            prompt: `render_script:${script.script_key} v${script.version}`,
+            /**
+             * 2026-09-20 三合一真机测试修复：真实 Seedance 提交必须带**脚本正文**。
+             * 旧实现只送 `render_script:<key> v<version>`，模型拿不到任何画面信息（等于拍空白）。
+             * 这里送脚本正文（截断 1500 字，控制 token 成本），并保留脚本标识便于账本对账。
+             */
+            prompt: `${String(script.md ?? "").slice(0, 1500)}\n\n（脚本 ${script.script_key} v${script.version}）`,
             estimatedUnits: input.estimatedSeconds,
             refId: script.id,
           },
@@ -402,6 +385,12 @@ const renderRouter = router({
               : "G8 已过，Seedance 提交（§6 渲染提交，烧额度门已审）"],
           },
           rule_impact: verdict.impacts,
+          /**
+           * 2026-09-20 真机测试修复：提交事件带回执位三态——
+           * 真实提交=「已执行但尚无外部回执」（synced:false，等轮询回填）；mock=同样标未核实。
+           * 真正的成片回执由 render-poller 在 render.complete 时写 synced:true + 成片 URL。
+           */
+          receipt: { synced: false },
         });
         await client.query("COMMIT");
       } catch (err) {

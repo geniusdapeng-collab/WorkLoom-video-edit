@@ -18,10 +18,11 @@ import { getAppPool, getGatewayPool } from "@workloom/db";
 import { GatewayEventSink, poolFromEnv } from "@workloom/base/model-router";
 import { modelPolicyFor } from "../service/llm.js";
 import { gatewayAppend, gatewayAppendOnClient } from "@workloom/base/workdata";
-import { newId } from "@workloom/shared";
+import { makeReadableId, newId } from "@workloom/shared";
 import {
   VideoStudio,
   WorkloomLLMEngine,
+  installVendorEngineBridge,
   type ApprovalCallback,
   type EventSink,
   type GateKey,
@@ -37,6 +38,21 @@ const APPROVAL_TIMEOUT_MS = Number(process.env.HR_APPROVAL_TIMEOUT_MS ?? 7_200_0
 const APPROVAL_POLL_MS = Number(process.env.HR_APPROVAL_POLL_MS ?? 2_000);
 /** 流水线总截止（透传 vendor STORMAXE_TOTAL_DEADLINE_MS 口径，默认 1 小时） */
 const TOTAL_DEADLINE_MS = Number(process.env.VM_TOTAL_DEADLINE_MS ?? 3_600_000);
+
+/**
+ * 自动放行的「内部准备门」（2026-09-21 产品所有者口径：数字员工之间的日常协作不设人审）。
+ *
+ * 人审只留给两类事：① **业务决策**（主题 G2 / 需求对齐清单 G4 / 镜头提示词 G6 —— 决定"对外说什么、
+ * 长什么样"）；② **花钱或对外**（G8 渲染提交烧额度、G9 公网发布、G10 对外评论回复）。
+ * 情报档案 G1 / 需求整理 G3 / 定妆照 G5 / 预生产收口 G7 属内部准备：直接放行，但**照样写事件**，
+ * 作为过程与时间线留痕（不插 approvals 行，审批中心不再出现内部协作项）。
+ * 可用 HR_AUTO_GATES 覆盖（逗号分隔；设为空字符串即恢复全部人审）。
+ */
+const AUTO_GATES = new Set(
+  (process.env.HR_AUTO_GATES
+    ?? "G1_DOSSIER,G2_THEME,G3_INSIGHT,G4_PRD,G5_PORTRAIT,G6_PROMPT,G7_FINAL")
+    .split(",").map((value) => value.trim()).filter(Boolean),
+);
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 /** 运行产物根（checkpoints/characters/confirmations）：默认仓库根 .vm-work/ */
@@ -188,6 +204,13 @@ export function startRun(scope: Scope, input: RunInput): string {
     scene: "preproduction",
   });
 
+  /**
+   * vendor 自建 LLMEngine 也要接到宿主模型路由（2026-09-21 真机修复）：
+   * 剧本引擎/需求洞察等子引擎会自己 new 一个引擎读 vendor 的环境变量与模型名，
+   * 不桥接就会出现「LLM引擎返回失败: API Key 未配置」→ 预生产在 Layer 1 直接失败。
+   */
+  installVendorEngineBridge(llm);
+
   const entry: RunEntry = {
     runId: newId("RUN"),
     projectId: input.projectId,
@@ -224,6 +247,43 @@ export function startRun(scope: Scope, input: RunInput): string {
     const gate = req.gate as GateKey;
     const gateObj = gateObjectOf(gate, req.vendorType);
     const objectId = gate === "G7_FINAL" ? input.projectId : `${input.projectId}:${gate.toLowerCase()}`;
+    /**
+     * 内部准备门：自动放行 + 留痕（不插 approvals 行）。
+     * 与下面的人工门共用同一事务口径：门事件经安全网关落事件账本（过程与时间线可见），
+     * 审批中心只保留真正的业务决策与花钱/对外门。
+     */
+    if (AUTO_GATES.has(gate)) {
+      const autoClient = await getAppPool().connect();
+      try {
+        await autoClient.query("BEGIN");
+        await autoClient.query("SELECT set_config('app.workspace_id', $1, true)", [scope.workspaceId]);
+        await autoClient.query("SELECT set_config('app.tenant_id', $1, true)", [scope.tenantId]);
+        await gatewayAppendOnClient(autoClient, { ...scope, actor: { ...WORKER_ACTOR } }, {
+          who: { ...WORKER_ACTOR },
+          context: {
+            tenant_id: scope.tenantId, workspace_id: scope.workspaceId,
+            time: new Date().toISOString(), channel: "inapp",
+          },
+          object: { type: gateObj.type, id: objectId },
+          decision: {
+            action: gateObj.action,
+            after: {
+              gate: req.gate, vendorType: req.vendorType, runId: entry.runId, title: req.title,
+              autoApproved: true,
+            },
+            basis: ["员工日常协作不设人审（2026-09-21 口径）：内部准备门自动放行，产出作为过程与时间线留痕"],
+          },
+          rule_impact: [],
+        });
+        await autoClient.query("COMMIT");
+      } catch (err) {
+        await autoClient.query("ROLLBACK").catch(() => undefined);
+        throw err;
+      } finally {
+        autoClient.release();
+      }
+      return { approved: true, reason: `auto-approved(${req.gate})`, suggestions: [] };
+    }
     // D16（#1/A）：门动作事件与 approvals 行同一事务同一 COMMIT（模仿 fence.confirmDryRun 口径）
     const client = await getAppPool().connect();
     let approvalId: string;
@@ -299,4 +359,74 @@ export function startRun(scope: Scope, input: RunInput): string {
   })();
 
   return entry.runId;
+}
+
+/**
+ * 建视频项目 + 启动标准预生产管线（唯一入口，2026-09-21）：
+ *   - video.studio.start（视频页面手起）与 threads.dispatch（右栏「派」识别出视频目标）共用同一条链路，
+ *     避免"内容类目标走通用 Quest 规划器、把内部流转步骤照单执行"的分叉；
+ *   - 建档行与建档事件同一事务（D16 同口径）；threadId 传入时把任务线程与视频项目关联，
+ *     任务详情/时间线因此能看到「已转入标准视频管线」。
+ */
+export interface StartVideoProjectInput {
+  intent: string;
+  metadata?: Record<string, unknown>;
+  isMarketing?: boolean;
+  by: { id: string; type: "human" | "system" };
+  threadId?: string;
+}
+
+export async function startVideoProjectRun(
+  scope: { tenantId: string; workspaceId: string },
+  input: StartVideoProjectInput,
+): Promise<{ projectId: string; runId: string }> {
+  const client = await getAppPool().connect();
+  let projectId = "";
+  try {
+    await client.query("BEGIN");
+    await client.query("SELECT set_config('app.workspace_id', $1, true)", [scope.workspaceId]);
+    await client.query("SELECT set_config('app.tenant_id', $1, true)", [scope.tenantId]);
+    const max = await client.query<{ n: number }>(`SELECT public.video_projects_max_vid_no() AS n`);
+    projectId = makeReadableId("VID", Number(max.rows[0]?.n ?? 0) + 1);
+    const kind = input.isMarketing ? "marketing" : "narrative";
+    await client.query(
+      `INSERT INTO video_projects (id, workspace_id, title, kind, created_by)
+       VALUES ($1,$2,$3,$4,$5)`,
+      [projectId, scope.workspaceId, input.intent.slice(0, 200), kind, input.by.id],
+    );
+    await gatewayAppendOnClient(client, {
+      ...scope,
+      actor: { ...input.by },
+      ...(input.threadId ? { sessionId: input.threadId } : {}),
+    }, {
+      who: { ...input.by },
+      context: {
+        tenant_id: scope.tenantId, workspace_id: scope.workspaceId,
+        time: new Date().toISOString(), channel: "inapp",
+      },
+      object: { type: "video_project", id: projectId },
+      decision: {
+        action: "video.project.create",
+        after: {
+          projectId, kind, intent: input.intent.slice(0, 500),
+          ...(input.threadId ? { threadId: input.threadId } : {}),
+        },
+        basis: ["视频标准管线立项（§5：一部片子/一个营销 Campaign）"],
+      },
+      rule_impact: [],
+    });
+    await client.query("COMMIT");
+  } catch (err) {
+    await client.query("ROLLBACK").catch(() => undefined);
+    throw err;
+  } finally {
+    client.release();
+  }
+  const runId = startRun(scope, {
+    projectId,
+    intent: input.intent,
+    metadata: input.metadata,
+    isMarketing: input.isMarketing,
+  });
+  return { projectId, runId };
 }

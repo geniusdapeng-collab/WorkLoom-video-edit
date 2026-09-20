@@ -16,7 +16,6 @@ import { Bridge } from "../../shell/Bridge";
 import {
   AgentActionMessage,
   BannerAlert,
-  DispatchBar,
   EmptyState,
   HandoffCard,
   KpiGauge,
@@ -66,9 +65,6 @@ export default function P1() {
   })), [agents]);
 
   // 派遣栏状态（P1E1）
-  const [draft, setDraft] = useState("");
-  const [dispatchState, setDispatchState] = useState<"empty" | "typing" | "routing">("empty");
-  const [clarify, setClarify] = useState<string | null>(null);
   const canViewInbox = entries.some((entry) => entry.route === "/inbox");
   const canViewNight = entries.some((entry) => entry.route === "/night");
   const canViewMembers = entries.some((entry) => entry.route === "/members");
@@ -131,35 +127,16 @@ export default function P1() {
   }, [agents, insp, pendingCount, threads]);
   const metricsAsOf = new Date().toTimeString().slice(0, 5);
 
-  /* ---------- 派遣（P1E1：含糊→反问不建任务 F3.2；成功→完成后态新线程顶部 0/y 蓝呼吸 F3.4） ---------- */
-  const dispatch = useCallback(async (text: string, presetKey?: string) => {
-    if (!canDispatch || !text.trim()) return;
-    const selectedAgent = presetKey ?? agents[0]?.preset_key;
-    if (!selectedAgent) {
-      setError("当前没有可接单的数字员工，请先在团队中心完成装配。");
-      return;
-    }
-    setDispatchState("routing");
-    setClarify(null);
-    try {
-      const r = await trpc.threads.dispatch.mutate({
-        title: text.trim(),
-        presetKey: selectedAgent,
-      });
-      if (r.kind === "clarify") {
-        setClarify(clientChineseText(r.question, "请补充目标与时间")); // 反问澄清，不留任务
-      } else {
-        setDraft("");
-        await load(); // 完成后态：新线程出现列表顶部
-      }
-    } catch (e) {
-      console.error("工作台派遣失败", e);
-      setError("任务暂时无法派发，请稍后重试；系统没有创建任务。");
-    } finally {
-      // #18 修复：用 text.trim() 判断而非闭包旧值 draft（setDraft 异步，闭包内 draft 未更新）
-      setDispatchState(text.trim() ? "typing" : "empty");
-    }
-  }, [agents, canDispatch, load]);
+  /**
+   * 派遣入口（三合一 2026-09-20）：页面不再自带输入框——快捷目标与自定义目标
+   * 统一交给右侧「织伴」全局框（问/派/留言/推进 四落点在同一处），本页只负责把
+   * 目标与岗位送过去，并在任务列表刷新时呈现结果。
+   */
+  const openDispatchInRail = useCallback((text?: string, presetKey?: string) => {
+    window.dispatchEvent(new CustomEvent("workloom:assistant-intent", {
+      detail: { intent: "task", ...(text ? { presetText: text } : {}), ...(presetKey ? { presetKey } : {}) },
+    }));
+  }, []);
 
   /* ---------- 状态变体 ---------- */
   const isLoading = demo === "p1_loading" || !ready;
@@ -392,16 +369,7 @@ export default function P1() {
           </div>
         )}
 
-        {/* 反问澄清条（F3.2：含糊指令不建任务） */}
-        {clarify && (
-          <div className="mt-3">
-            <BannerAlert level="info" actionLabel="知道了" onAction={() => setClarify(null)}>
-              任务待确认（未建任务）：{clarify}
-            </BannerAlert>
-          </div>
-        )}
-
-        {/* 底部航线设定台（P1E1）+ 快捷目标（P1E7；社区版隐藏 Quest 类 F7.2） */}
+        {/* 派遣入口（三合一：输入统一走右侧「织伴」全局框）+ 快捷目标（P1E7） */}
         <div className="mt-4 space-y-2">
           {canDispatch && !isCommunity && (
             <div className="flex flex-wrap gap-1.5">
@@ -409,7 +377,7 @@ export default function P1() {
                 <button
                   key={g.label}
                   type="button"
-                  onClick={() => void dispatch(g.text, g.preset)}
+                  onClick={() => openDispatchInRail(g.text, g.preset)}
                   className="cursor-pointer rounded-md border border-line bg-card px-2.5 py-1 text-body text-ink2 transition-colors hover:border-gline hover:text-gold"
                 >
                   <Icon name="lightning" size={13} className="inline" /> {g.label}
@@ -417,14 +385,15 @@ export default function P1() {
               ))}
             </div>
           )}
-          {canDispatch && <DispatchBar
-            state={dispatchState}
-            value={draft}
-            chips={[profile?.name ?? "当前工作区", `阶段：${clientValueText(profile?.stage)}`]}
-            onCancelRoute={() => setDispatchState(draft ? "typing" : "empty")}
-            onChange={(v) => { setDraft(v); setDispatchState(v ? "typing" : "empty"); }}
-            onSubmit={() => void dispatch(draft)}
-          />}
+          {canDispatch && (
+            <button
+              type="button"
+              onClick={() => openDispatchInRail()}
+              className="w-full rounded-lg border border-gline bg-card px-4 py-2.5 text-left text-body text-ink3 hover:text-gold"
+            >
+              说出目标派活……（统一走右侧「织伴」全局框 · 提问 / 派活 / 留言 · ⌘K）
+            </button>
+          )}
         </div>
       </div>
     </Bridge>

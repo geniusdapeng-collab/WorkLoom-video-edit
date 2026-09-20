@@ -7,3 +7,6 @@ onlyBuiltDependencies:
   - electron-winstaller
   - esbuild
   - node-pty
+allowBuilds:
+  electron-winstaller: set this to true or false
+  esbuild: set this to true or false

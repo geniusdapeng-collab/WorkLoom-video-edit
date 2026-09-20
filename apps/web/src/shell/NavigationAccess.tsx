@@ -83,7 +83,16 @@ export interface ActiveBundleUi {
   };
 }
 
-const UNPRIVILEGED_ENTRIES = navigationForPermissions(new Set<string>());
+/**
+ * growth 实验车道模块裁剪（2026-09-20 产品决定）：服务前台 / 成员管理 / 伙伴授权 / 个人与偏好
+ * 四个模块的页面与路由已删除（见 App.tsx），导航同样过滤，避免出现点进去 404 的入口。
+ * 只过滤导航入口，不动基座授权结果与其它页面。
+ */
+const REMOVED_NAV_ROUTES = new Set(["/service", "/members", "/partners", "/account"]);
+const withoutRemovedModules = (list: readonly NavigationEntry[]): NavigationEntry[] =>
+  list.filter((entry) => !REMOVED_NAV_ROUTES.has(entry.route));
+
+const UNPRIVILEGED_ENTRIES = withoutRemovedModules(navigationForPermissions(new Set<string>()));
 const NavigationAccessContext = createContext<NavigationAccessValue>({
   entries: UNPRIVILEGED_ENTRIES,
   knownEntries: NAV_ENTRIES,
@@ -167,8 +176,8 @@ export function NavigationAccessProvider({ children }: { children: ReactNode }) 
         }
         if (cancelled) return;
         const permissions = new Set(access.navigationPermissions);
-        setKnownEntries(composeNavigation({ client: "b-pc", bundleEntries }));
-        setEntries(navigationForPermissions(permissions, bundleEntries));
+        setKnownEntries(withoutRemovedModules(composeNavigation({ client: "b-pc", bundleEntries })));
+        setEntries(withoutRemovedModules(navigationForPermissions(permissions, bundleEntries)));
         setActionPermissions(new Set(access.actionPermissions));
         setBundle(activeBundle);
         setBundleStatus(nextBundleStatus);

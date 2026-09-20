@@ -148,6 +148,56 @@
       "note": "双域统一排期：社媒错峰+信源节奏+GEO 引用源建设计划"
     },
     {
+      "type": "content",
+      "label": "内容资产视图",
+      "note": "通用任务规划器按 content.* 工具前缀派生的内容对象视图（G-GEO2 事实红线的 object_types 并集：geo_content/script_package/platform_variant/content）；内容资产版本与 content_calendar 排期同源"
+    },
+    {
+      "type": "risk_list",
+      "label": "风险清单",
+      "note": "风险识别任务交付物：逐条风险（来源/影响/等级/缓解建议）；planner 步骤 emit_risk_list 产出，对外表述受 G-GEO2/G-VIS2 并集判定"
+    },
+    {
+      "type": "risk_identification_task",
+      "label": "风险识别任务",
+      "note": "通用任务规划器按动作名派生的风险识别工单对象（planner 步骤 emit_risk_identification_task）；越围栏写动作按 default_level 挂审"
+    },
+    {
+      "type": "risk_dimension_set",
+      "label": "风险维度集",
+      "note": "风险识别过程对象：按维度拆解的风险候选集合（planner 步骤 decompose_risk_dimensions）"
+    },
+    {
+      "type": "risk_assessment",
+      "label": "风险评估",
+      "note": "风险评估结论对象：逐条风险的等级/影响/缓解建议（planner 步骤 assess_plan_risks）"
+    },
+    {
+      "type": "goal",
+      "label": "目标",
+      "note": "规划器目标对象：线程目标与原话口径（Quest 规划输入，供拆解与复盘对齐）"
+    },
+    {
+      "type": "task_list",
+      "label": "任务清单",
+      "note": "多步骤交付物对象：按顺序排列的待办条目（如「整理本周线索清单」的产物）"
+    },
+    {
+      "type": "checklist",
+      "label": "检查单",
+      "note": "核对型交付物对象：逐项打勾的检查条目与结论"
+    },
+    {
+      "type": "geo_content_publish_plan",
+      "label": "GEO 发布计划",
+      "note": "双域发布排期对象：内容/信源/社媒节奏与门槛（G-GEO1 外发必审）"
+    },
+    {
+      "type": "render_script",
+      "label": "渲染脚本",
+      "note": "视频渲染脚本版本对象（render_scripts 行）：G8 烧额度门与 Seedance 提交的对象；外发成片以 render.complete 回执为准"
+    },
+    {
       "type": "budget_ledger",
       "label": "预算台账",
       "note": "投放/算力台账：G12 加投必审计量依据；算力成本穿透不加价"

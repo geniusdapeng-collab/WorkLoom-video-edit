@@ -291,7 +291,15 @@ async function main() {
   // ⑤ 起 web（生产=构建+preview；开发=vite dev）
   if (!DEV) {
     say("构建 web 生产包（首次约 1-2 分钟）…");
-    const build = spawnSync("pnpm", ["-C", "apps/web", "build"], { cwd: ROOT, stdio: "inherit", env: process.env, shell: process.platform === "win32" });
+    /**
+     * 2026-09-20 真机验收修复：随包 .env 里 NODE_ENV=development（本地开发口径）会被 Vite 当成
+     * 「非生产」构建——import.meta.env.DEV 不下线，开发引导文案（本地端口/仓库命令/验证码通道）
+     * 进入发行包，verify-production-client-boundary 门禁直接失败（客户端起不来）。
+     * 构建只认生产口径；服务端进程仍用上面继承的环境（candidate bundle 等开发授权不受影响）。
+     */
+    const build = spawnSync("pnpm", ["-C", "apps/web", "build"], {
+      cwd: ROOT, stdio: "inherit", env: { ...process.env, NODE_ENV: "production" }, shell: process.platform === "win32",
+    });
     if (build.status !== 0) { warn("web 构建失败"); stopAll(1); return; }
     say(`启动 web 预览（:${WEB_PORT}）…`);
     run("pnpm", ["-C", "apps/web", "preview"], "web", { WEB_PORT: String(WEB_PORT), SERVER_PORT: String(SERVER_PORT) });

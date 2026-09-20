@@ -128,6 +128,13 @@ export async function pollRenderJobs(
             basis: [done ? "轮询回填：渲染成功（异步任务制第二步）" : `轮询回填：渲染失败（${result.error ?? "未知原因"}；不静默）`],
           },
           rule_impact: [],
+          /**
+           * 2026-09-20 真机测试修复：渲染完成必须带**外部回执**（无回执不算完成）。
+           * 成功=Seedance 返回的成片 URL（synced:true，可回溯到供应商对象）；失败=无回执并标原因。
+           */
+          ...(done && result.uri
+            ? { receipt: { synced: true, snapshot_uri: result.uri, verified_at: new Date().toISOString() } }
+            : { receipt: { synced: false } }),
         });
         await gw.query("COMMIT");
       } catch (err) {

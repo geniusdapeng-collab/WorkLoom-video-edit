@@ -7,7 +7,7 @@
  * 交互：点员工 → 回调父级（绩效卡）；点请示员工 → 弹出审批卡（原地三手势）。
  */
 import { useEffect, useRef } from "react";
-import { displayNameOf } from "../../lib/naming";
+import { displayNameOf, roleTitleOf } from "../../lib/naming";
 
 /* ================= 类型（与 base/captain/floor.ts 对齐） ================= */
 export interface FloorAgent {
@@ -43,18 +43,33 @@ interface ActorRt {
 
 const CONFETTI_COLORS = ["#ffd98a", "#8ad8ff", "#6adf8a", "#ff8a8a", "#e8a2ff"];
 
+/** 头顶任务牌状态词（与 3D 版同口径） */
+const FLOOR_STATE_TEXT: Record<string, string> = {
+  working: "进行中",
+  asking: "待您拍板",
+  blocked: "有异常",
+  celebrating: "已完成",
+  collab: "协作中",
+  idle: "待命",
+  disabled: "已停用",
+};
+
 export function FloorView({
-  floor, ceoName, onPickAgent, onDecide, onPickApproval,
+  floor, ceoName, onPickAgent, onDecide, onPickApproval, onOpenProfile, onOpenTask,
 }: {
   floor: FloorPayload;
   ceoName: string;
   onPickAgent: (a: FloorAgent) => void;
   onDecide: (approvalId: string, gesture: "approve" | "reject") => void;
   onPickApproval: (a: FloorAgent) => void;
+  /** 员工本体点击 → 员工档案（2026-09-20 重设计：派活改由拖任务卡 / 全局对话框承担） */
+  onOpenProfile?: (a: FloorAgent) => void;
+  /** 头顶任务牌点击 → 任务详情 */
+  onOpenTask?: (threadId: string) => void;
 }) {
   const ref = useRef<HTMLCanvasElement>(null);
   const actors = useRef<Map<string, ActorRt>>(new Map());
-  const hitboxes = useRef<Array<{ id: string; sx: number; sy: number; r: number }>>([]);
+  const hitboxes = useRef<Array<{ id: string; sx: number; sy: number; r: number; kind?: "agent" | "task"; threadId?: string }>>([]);
   const floorRef = useRef(floor);
   floorRef.current = floor;
 
@@ -216,7 +231,7 @@ export function FloorView({
         const { sx, sy } = iso(rt.x, rt.y);
         const walking = Math.abs(rt.tx - rt.x) + Math.abs(rt.ty - rt.y) > 0.08;
         drawAgent(ctx, sx, sy, rt, a, now, walking);
-        hitboxes.current.push({ id: a.id, sx, sy: sy - 14, r: 16 });
+        hitboxes.current.push({ id: a.id, sx, sy: sy - 14, r: 16, kind: "agent" });
 
         /* 彩带粒子 */
         for (const c of rt.confetti) {
@@ -226,15 +241,29 @@ export function FloorView({
         rt.confetti = rt.confetti.filter((c) => c.life > 0);
         if (a.state === "celebrating" && now - rt.enteredAt < 3 && Math.random() < 0.08) spawnConfetti(rt, 2);
 
-        /* 名牌 + 气泡 */
-        ctx.font = "8.5px sans-serif"; ctx.textAlign = "center";
-        ctx.fillStyle = "rgba(255,255,255,.88)";
-        const label = displayNameOf({ presetKey: a.presetKey, roleName: a.name });
-        const lw = ctx.measureText(label).width + 10;
-        roundRect(ctx, sx - lw / 2, sy + 6, lw, 12, 6); ctx.fill();
-        ctx.strokeStyle = "rgba(51,38,43,.18)"; ctx.lineWidth = 1;
-        roundRect(ctx, sx - lw / 2, sy + 6, lw, 12, 6); ctx.stroke();
-        ctx.fillStyle = "#33262b"; ctx.fillText(label, sx, sy + 15);
+        /* 头顶任务牌（2026-09-20 重设计）：第一行岗位名，第二行任务/状态；点牌子进任务详情 */
+        ctx.textAlign = "center";
+        const roleLabel = roleTitleOf(a.name, a.presetKey);
+        const stateLabel = a.currentThread
+          ? `${FLOOR_STATE_TEXT[a.state] ?? "进行中"} · ${a.currentThread.title.slice(0, 14)}`
+          : FLOOR_STATE_TEXT[a.state] ?? "待命";
+        ctx.font = "700 8.5px sans-serif";
+        const w1 = ctx.measureText(roleLabel).width;
+        ctx.font = "8px sans-serif";
+        const w2 = ctx.measureText(stateLabel).width;
+        const pw = Math.max(w1, w2) + 12;
+        const py = sy + 6;
+        ctx.fillStyle = "rgba(255,255,255,.92)";
+        roundRect(ctx, sx - pw / 2, py, pw, 21, 6); ctx.fill();
+        ctx.strokeStyle = a.state === "asking" ? "rgba(232,137,12,.55)" : "rgba(51,38,43,.18)"; ctx.lineWidth = 1;
+        roundRect(ctx, sx - pw / 2, py, pw, 21, 6); ctx.stroke();
+        ctx.fillStyle = "#33262b"; ctx.font = "700 8.5px sans-serif";
+        ctx.fillText(roleLabel, sx, py + 9);
+        ctx.fillStyle = a.state === "idle" ? "#7a6a72" : "#4a5568"; ctx.font = "8px sans-serif";
+        ctx.fillText(stateLabel, sx, py + 18);
+        if (a.currentThread) {
+          hitboxes.current.push({ id: a.id, sx, sy: py + 10, r: 11, kind: "task", threadId: a.currentThread.id });
+        }
         if (a.state === "asking") {
           bubble(ctx, sx, sy - 46, a.pendingTier === "l4_chairman" ? "请您定（董事长级）" : "请您定", "#e8890c");
           // 聚光灯
@@ -263,10 +292,12 @@ export function FloorView({
     const mx = e.clientX - rect.left, my = e.clientY - rect.top;
     for (const h of [...hitboxes.current].reverse()) {
       if ((mx - h.sx) ** 2 + (my - h.sy) ** 2 < h.r ** 2 * 2.2) {
+        // 任务牌命中 → 任务详情；员工本体命中 → asking 走审批卡，否则员工档案
+        if (h.kind === "task" && h.threadId) { onOpenTask?.(h.threadId); return; }
         const agent = floorRef.current.agents.find((a) => a.id === h.id);
         if (!agent) return;
         if (agent.state === "asking" && agent.approvalId) onPickApproval(agent);
-        else onPickAgent(agent);
+        else (onOpenProfile ?? onPickAgent)(agent);
         return;
       }
     }

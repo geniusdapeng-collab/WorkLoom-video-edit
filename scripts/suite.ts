@@ -2539,7 +2539,14 @@ const STUB_PORT = 8791;
 h2("onboarding.status 全模拟运行态（横幅事实源：simulated + mock）", async () => {
   const { data } = await api<{ result?: { data?: { dataMode?: string; llm?: { real?: boolean }; workspace?: { events?: number; agents?: number } } } }>("/trpc/onboarding.status", { token: tokenOwner });
   eq(data.result?.data?.dataMode, "simulated", "种子库默认模拟态");
-  eq(data.result?.data?.llm?.real, false, "默认 mock 模型");
+  /**
+   * 2026-09-20 真机验收修复：模型装配断言必须与 .env 一致，不能写死 mock。
+   * 交付客户端配的是真实模型（deepseek），写死 false 会把"真实装配"判成失败（467 中唯一红）。
+   * 口径：provider=mock 或 baseUrl 缺失 → real=false；否则 real=true（横幅事实源随环境翻转）。
+   */
+  const provider = process.env.LLM_PROVIDER ?? "mock";
+  const expectReal = provider !== "mock" && Boolean(process.env.LLM_BASE_URL);
+  eq(data.result?.data?.llm?.real, expectReal, `模型装配与 .env 一致（provider=${provider}）`);
   assert((data.result?.data?.workspace?.events ?? 0) > 0, "开箱即有事件数据（运行态）");
   assert((data.result?.data?.workspace?.agents ?? 0) >= 5, "数字团队在场");
 });

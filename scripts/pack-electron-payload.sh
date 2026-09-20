@@ -86,6 +86,11 @@ for d in "${RUNTIME_SOURCE_DIRS[@]}"; do
 done
 cp scripts/migrate.ts scripts/desktop-bootstrap-db.mjs scripts/product-runtime.mjs scripts/vite-product.mjs "$R/scripts/"
 cp scripts/seed*.ts "$R/scripts/"  # 全部行业种子随包（seed/seed-aipm/seed-geo/seed-video/seed-consulting/seed-boost/seed-platform…按仓配置选用）
+# 种子共享模块：seed-*.ts 会 import 这些 .mts（不只是 seed* 前缀的文件）。
+# 2026-09-20 客户端首启实证：漏拷 skill-bindings.mts → 种子 ERR_MODULE_NOT_FOUND，客户端起不来。
+for shared in scripts/skill-bindings.mts; do
+  [ -f "$shared" ] && cp "$shared" "$R/scripts/"
+done
 printf '%s\n' "$VERSION" > "$R/VERSION"
 # 源码不携带 node_modules：运行期统一由下方 npm 扁平化安装的根 node_modules 提供（v2.0.8 实证）
 find "$R/apps" "$R/packages" -type d -name node_modules -prune -exec rm -rf {} + 2>/dev/null || true

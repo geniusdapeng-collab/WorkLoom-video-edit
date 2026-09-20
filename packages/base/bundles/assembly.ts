@@ -45,8 +45,22 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 export const DEFAULT_BUNDLES_ROOT = join(__dirname, "..", "..", "..", "bundles");
 import { maybeApplyOverlay } from "../overlay/assembly-hook.js";
 
+/**
+ * 打包载荷布局（2026-09-20 客户端首启实证）：
+ *   仓库：<repo>/packages/base/bundles/assembly.ts      → 上三级 = <repo>/bundles ✅
+ *   载荷：<runtime>/node_modules/@workloom/base/bundles → 上三级 = <runtime>/node_modules/bundles ❌
+ * 载荷比仓库多一级，反推会落到不存在的目录 → 组合装配 NOT_FOUND、种子失败。
+ * 因此按候选存在性择优；`BUNDLES_ROOT` 仍是最高优先级（测试/自定义部署）。
+ */
+export const PACKAGED_BUNDLES_ROOT = join(__dirname, "..", "..", "..", "..", "bundles");
+const BUNDLES_ROOT_CANDIDATES = [DEFAULT_BUNDLES_ROOT, PACKAGED_BUNDLES_ROOT] as const;
+
 export function bundlesRoot(): string {
-  return process.env.BUNDLES_ROOT ?? DEFAULT_BUNDLES_ROOT;
+  if (process.env.BUNDLES_ROOT) return process.env.BUNDLES_ROOT;
+  for (const candidate of BUNDLES_ROOT_CANDIDATES) {
+    if (existsSync(candidate)) return candidate;
+  }
+  return DEFAULT_BUNDLES_ROOT;
 }
 
 /**

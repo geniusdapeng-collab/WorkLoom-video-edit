@@ -246,6 +246,27 @@ export function acquisitionQuestPlanner(goal: string): QuestPlanner {
       return steps;
     }
 
+    /**
+     * ⑥ 视觉：生图/海报/配图 → 直连视觉工位的 AI 生图工具（Ark seedream）。
+     *
+     * 2026-09-20 真机修复：LLM 规划器对视觉目标会给出**空参步骤**（compose 缺 recipe、
+     * render 缺 project…），桥侧一律 bad_request，等于"派了活但出不了图"。
+     * 这里做确定性直译：把整句规格作为 prompt 交给 `visualwrite.generate`，
+     * 由视觉工位产出成品图并回 sha256 回执；出图即完成，围栏/回执语义不变。
+     */
+    if (/(海报|配图|封面|生图|出图|主视觉|图片|素材图|生成.{0,12}图|画一?[张幅].{0,12}图|做一?[张幅].{0,12}图)/.test(goal) && tools.has("visualwrite.generate")) {
+      return [
+        step({
+          index: 1,
+          action: "visualwrite.generate",
+          objectType: "visual_asset",
+          tool: "visualwrite.generate",
+          params: { prompt: goal.slice(0, 1200) },
+          label: "按规格生成主视觉（AI 生图）",
+        }),
+      ];
+    }
+
     // 未知意图：交回基座确定性规划（行业化不吞通用能力）
     return planQuest(goal, preset);
   };

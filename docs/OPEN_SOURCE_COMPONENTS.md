@@ -4,7 +4,7 @@
 
 > 生成器：`scripts/oss-inventory.mjs`（离线事实）＋ `scripts/oss-watch.sh`（上游最新版本）
 > 仓库：workloom-ai/WorkLoom-growth ｜ 最近一次上游扫描：2026-09-19T10:10:43.000Z
-> 统计：登记组件 91 个 ｜ npm 直接依赖 162 个 ｜ Python 依赖 1 个 ｜ 容器镜像 2 个
+> 统计：登记组件 91 个 ｜ npm 直接依赖 163 个 ｜ Python 依赖 1 个 ｜ 容器镜像 2 个
 
 ## 0. 维护机制（四件事）
 
@@ -62,7 +62,7 @@
 | 39 | Electron | [github.com/electron/electron](https://github.com/electron/electron) · MIT | 44.1.1 | **44.4.2** ⬆ | 运行时 | apps/desktop | 桌面壳（正式产品形态）；升级必须过打包载荷校验、真实窗口响应式与托盘/夜班行为验收 |
 | 40 | electron-builder | [github.com/electron-userland/electron-builder](https://github.com/electron-userland/electron-builder) · MIT | 26.15.3 | 26.15.3 | 开发/构建 | apps/desktop（打包/签名） | 安装包与签名链路；升级后过 app:pack / app:dist 与发布资产校验 |
 | 41 | Playwright | [github.com/microsoft/playwright](https://github.com/microsoft/playwright) · Apache-2.0 | 1.63.0 | 1.63.0 | 开发/构建 | 三端 E2E（apps/*）、packages/base/computer-use/toolkit（Python 版，随工具链安装） | E2E 与 computer-use 浏览器驱动共用；升级必须重建 Linux 视觉基线（CNB ui-gate 在同一镜像内跑）；Python 侧版本由 toolkit/requirements.txt 约束 |
-| 42 | @axe-core/playwright | [github.com/dequelabs/axe-core-npm](https://github.com/dequelabs/axe-core-npm) · MPL-2.0 | 未引入 | 4.13.0 | 开发/构建 | 三端无障碍门禁 | 与 @playwright/test 版本矩阵敏感，同批升级 |
+| 42 | @axe-core/playwright | [github.com/dequelabs/axe-core-npm](https://github.com/dequelabs/axe-core-npm) · MPL-2.0 | 4.13.0 | 4.13.0 | 开发/构建 | 三端无障碍门禁 | 与 @playwright/test 版本矩阵敏感，同批升级 |
 | 43 | Vitest | [github.com/vitest-dev/vitest](https://github.com/vitest-dev/vitest) · MIT | 3.2.0 / 4.1.11 | **5.0.1** ⬆ | 开发/构建 | packages/*、apps/server | 各 workspace 版本需对齐（历史存在 v3/v4 混用）；升级后全量跑 pnpm test |
 | 44 | tsx | [github.com/privatenumber/tsx](https://github.com/privatenumber/tsx) · MIT | 4.23.12 / 4.23.13 | **4.23.13** ⬆ | 开发/构建 | 根脚本、apps/server | TS 直跑器；升级后过 db:migrate/db:seed 与 server 启动 |
 | 45 | TypeScript | [github.com/microsoft/TypeScript](https://github.com/microsoft/TypeScript) · Apache-2.0 | 5.9.0 / 7.0.2 | **7.0.2** ⬆ | 开发/构建 | 全仓 typecheck | 7.0 原生化工具链；部分包仍锁 5.9（治理/UI 消费校验），升级按包分批，避免一次全仓 |
@@ -115,11 +115,12 @@
 
 ## 2. 全量直接依赖（本仓事实，含上游最新）
 
-### 2.1 npm 直接依赖（162 个，解析自 pnpm-lock.yaml）
+### 2.1 npm 直接依赖（163 个，解析自 pnpm-lock.yaml）
 
 | 包 | 当前版本 | 声明 | 类型 | 出现位置 | 上游最新 |
 |---|---|---|---|---|---|
 | `@agentclientprotocol/sdk` | 1.4.0（声明） | 1.4.0 | 开发 | vendor/dsh/package.json | 1.4.0 |
+| `@axe-core/playwright` | 4.13.0 | 4.13.0 | 开发 | package.json | 4.13.0 |
 | `@deepseek-ai/cordis` | 4.0.2（声明） | ^4.0.2 | 生产 | vendor/dsh/package.json | 4.0.2 |
 | `@deepseek-ai/cordis-plugin-include` | 1.0.7（声明） | ^1.0.7 | 生产 | vendor/dsh/package.json | 1.0.7 |
 | `@deepseek-ai/cordis-plugin-loader` | 1.0.3（声明） | ^1.0.3 | 生产 | vendor/dsh/package.json | 1.0.3 |

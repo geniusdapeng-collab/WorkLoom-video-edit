@@ -56,15 +56,19 @@ export function SubtitleBar({ channelName = "经营晨会" }: { channelName?: st
   }, []);
 
   const fuse = current?.priority === "fuse";
+  /**
+   * 2026-09-20 观感修复（产品所有者反馈）：旧版台标块+边框+深色底，看起来像"输入框"。
+   * 现在改成**无边框的字幕行**：只有文字与轻阴影，左为台标小签、右为"人物 + 字幕"，
+   * 熔断（fuse）仍用红色文字与红色辉光强调（保留"熔断置顶打断"语义）。
+   */
   return (
     <div
       style={{
         position: "fixed", left: "50%", bottom: 18, transform: "translateX(-50%)",
-        zIndex: 60, display: "flex", alignItems: "stretch", width: "min(860px, calc(100vw - 24px))", maxWidth: "100%",
-        borderRadius: 10, overflow: "hidden",
-        border: `1px solid ${fuse ? "rgba(224,90,107,.6)" : "rgba(214,220,228,.22)"}`,
-        background: "rgba(14,16,19,.92)", backdropFilter: "blur(8px)",
-        boxShadow: fuse ? "0 8px 30px rgba(224,90,107,.25)" : "0 8px 30px rgba(0,0,0,.45)",
+        zIndex: 60, display: "flex", alignItems: "baseline", justifyContent: "center", gap: 10,
+        width: "min(860px, calc(100vw - 24px))", maxWidth: "100%",
+        background: "transparent", border: "none",
+        textShadow: fuse ? "0 0 12px rgba(224,90,107,.55)" : "0 2px 10px rgba(0,0,0,.85)",
         opacity: visible ? 1 : 0,
         visibility: visible ? "visible" : "hidden",
         transition: "opacity .3s ease",
@@ -74,18 +78,15 @@ export function SubtitleBar({ channelName = "经营晨会" }: { channelName?: st
       aria-hidden={!visible}
     >
       <div style={{
-        flex: "0 1 42%", minWidth: 0, display: "flex", alignItems: "center", gap: 6,
-        padding: "8px 12px", fontSize: 14, fontWeight: 700, letterSpacing: 1,
-        color: fuse ? "#ffdce2" : "#e8edf4",
-        background: fuse ? "#a8323f" : "#252a30",
-        borderRight: "1px solid rgba(214,220,228,.15)", overflowWrap: "anywhere",
-        // 窄屏（≤430px）不再让台标逐字竖排：定宽截断，把横向空间留给字幕正文
-        flexShrink: 0, whiteSpace: "nowrap", maxWidth: "38vw", overflow: "hidden", textOverflow: "ellipsis",
+        display: "inline-flex", alignItems: "center", gap: 6, flexShrink: 0,
+        fontSize: 12.5, fontWeight: 700, letterSpacing: 1.5,
+        color: fuse ? "#ffb3bf" : "#9aa6b5",
+        whiteSpace: "nowrap", maxWidth: "38vw", overflow: "hidden", textOverflow: "ellipsis",
       }}>
         <span style={{ width: 6, height: 6, borderRadius: 3, background: fuse ? "#fff" : "#e05a6b", boxShadow: "0 0 6px #e05a6b" }} />
         播报台 · {channelName}
       </div>
-      <div style={{ minWidth: 0, padding: "8px 14px", fontSize: 14, color: "#eef4ff", lineHeight: 1.5, display: "flex", flexWrap: "wrap", alignItems: "center" }}>
+      <div style={{ minWidth: 0, fontSize: 15, color: fuse ? "#ff9fae" : "#eef4ff", lineHeight: 1.6, display: "flex", flexWrap: "wrap", alignItems: "baseline", justifyContent: "center" }}>
         {current && (
           <>
             <b style={{ minWidth: 0, maxWidth: "100%", color: fuse ? "#ff9fae" : "#b3c6de", marginRight: 8, overflowWrap: "anywhere", wordBreak: "break-word" }}>{current.persona}</b>

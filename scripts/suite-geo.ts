@@ -59,7 +59,17 @@ const presetKeys = new Set<string>(presets.map(p => p.preset_key));
 const fenceIds = new Set<string>(fenceRules.map(r => r.rule_id));
 // 视觉栈围栏（G-VIS*，独立基线包）：presets 的 fence_bindings 校验必须并集，否则视觉岗被判"绑了不存在的围栏"
 const visualFenceDoc = YAML.parse(readFileSync(join(BUNDLE, "fences/geo-growth-visual.yml"), "utf-8"));
-for (const r of (visualFenceDoc.rules ?? []) as Array<{ rule_id: string }>) fenceIds.add(r.rule_id);
+const visualFenceRules: RuntimeRule[] = ((visualFenceDoc.rules ?? []) as Array<{ rule_id: string; name: string; level: RuntimeRule["level"]; is_baseline: boolean; match: { object_types: string[]; actions: string[] }; when: string }>).map(r => ({
+  rule_id: r.rule_id, version: visualFenceDoc.version, name: r.name, level: r.level, is_baseline: r.is_baseline,
+  objectTypes: r.match.object_types, actions: r.match.actions, when: r.when,
+}));
+for (const r of visualFenceRules) fenceIds.add(r.rule_id);
+/**
+ * 两个基线包（baseline + visual）的规则并集：E-04「rule_impact 引用的规则存在」必须按
+ * **工作区已激活的全部围栏包**判定。2026-09-20 真机验收修复：该检查此前只装 baseline 规则，
+ * 视觉岗正常引用 G-VIS2（block 级事实红线）被判「未知规则」——假失败，非产品缺陷。
+ */
+const allFenceRules: RuntimeRule[] = [...fenceRules, ...visualFenceRules];
 
 /* ================= A · Bundle 完整性 ================= */
 const a = C("A");
@@ -288,9 +298,23 @@ c("工作区存在且行业为 geo-growth", async () => {
   const r = await q(`SELECT industry, stage FROM workspaces WHERE id=$1`, [WS]);
   assert(r.rows[0]?.industry === "geo-growth", `industry=${r.rows[0]?.industry}`);
 });
-c("27 员工全部 ready 落库", async () => {
+c("组合编制全部 ready 落库（本包 27 岗 ⊆ 组合 72 岗，无缺岗）", async () => {
+  /**
+   * 2026-09-20 真机验收修复：花名册权威 = 装配器组合编制（geo-growth + hotel + ai-video，
+   * 同名遮蔽按主包裁决），与基座 seed.ts（ws-yunqi 72 岗）同口径；seed-geo 已按组合编制上岗。
+   * 旧断言写死 27（只数本包），组合上岗后必然假失败。
+   */
   const r = await q(`SELECT count(*) n, count(distinct preset_key) d FROM agents WHERE workspace_id=$1 AND status='ready'`, [WS]);
-  assert(Number(r.rows[0].n) === 27 && Number(r.rows[0].d) === 27, `agents=${r.rows[0].n}`);
+  const total = Number(r.rows[0].n);
+  const distinct = Number(r.rows[0].d);
+  assert(total >= 27 && distinct === total, `agents=${total}/distinct=${distinct}`);
+  const missing = await q(
+    `SELECT p.preset_key FROM (VALUES ${presets.map((_p, i) => `($${i + 2}::text)`).join(",")}) AS p(preset_key)
+     LEFT JOIN agents a ON a.workspace_id=$1 AND a.preset_key=p.preset_key AND a.status='ready'
+     WHERE a.id IS NULL`,
+    [WS, ...presets.map((p) => String(p.preset_key))],
+  );
+  assert(missing.rows.length === 0, `本包未上岗：${missing.rows.map((x) => x.preset_key).join(",")}`);
 });
 c("员工 fence_bindings 原样落库（F2.10）", async () => {
   const r = await q(`SELECT preset_key, fence_bindings FROM agents WHERE workspace_id=$1 AND preset_key='geo-content-planner'`, [WS]);
@@ -420,6 +444,10 @@ const e = C("E");
  */
 const SYSTEM_TYPES = new Set([
   "thread", "task", "approval", "conversation", "company_ceo", "client", "workspace", "member", "store",
+  // review = 审批对象在事件里的平台别名（approval.gesture 的 object.type；2026-09-20 真机验收增补）
+  "review",
+  // secretary_reminder = 个人域（织伴「我的」）提醒对象：不属于行业对象模型（2026-09-20 三合一增补）
+  "secretary_reminder",
 ]);
 e("ws-geo 事件 ≥60 条且五元字段完整（容忍门禁活火写入）", async () => {
   const r = await q(`SELECT count(*) n FROM biz_events WHERE workspace_id=$1`, [WS]);
@@ -448,14 +476,22 @@ e("事件 GEO 对象类型全部在对象模型内（系统对象豁免）", asy
 });
 e("事件 who 全部在编制内（系统/人类豁免）", async () => {
   // model-router = 平台模型路由组件（缺省/降级时写 model.degraded 留痕），与 captain/fleet 同属系统身份
-  const SYSTEM_ACTORS = new Set(["morning-briefing", "captain", "fleet", "im-channels", "model-router"]);
+  const SYSTEM_ACTORS = new Set([
+    "morning-briefing", "captain", "fleet", "im-channels", "model-router",
+    // night-shift = 夜班调度器（night_runs / 决策包投递的留痕主体；2026-09-20 真机验收增补）
+    "night-shift",
+    // render-poller = 视频渲染轮询回填器（Seedance 异步任务第二步的留痕主体；2026-09-20 真机测试增补）
+    "render-poller",
+    // render-operator = 渲染提交的生成池计量主体（gen.degraded / 提交留痕；2026-09-20 真机测试增补）
+    "render-operator",
+  ]);
   const r = await q(`SELECT DISTINCT payload->'who'->>'id' id FROM biz_events WHERE workspace_id=$1`, [WS]);
   for (const row of r.rows) assert(presetKeys.has(row.id) || SYSTEM_ACTORS.has(row.id) || String(row.id).startsWith("MEM-"), `who=${row.id} 不在编制`);
 });
 e("rule_impact 引用的规则存在且级别一致", async () => {
   const r = await q(`SELECT DISTINCT ri->>'rule_id' rid, ri->>'result' res FROM biz_events, jsonb_array_elements(payload->'rule_impact') ri WHERE workspace_id=$1`, [WS]);
   for (const row of r.rows) {
-    const rule = fenceRules.find(x => x.rule_id === row.rid);
+    const rule = allFenceRules.find(x => x.rule_id === row.rid);
     assert(rule, `rule_impact 引用未知规则 ${row.rid}`);
     assert(["pass", "review", "blocked"].includes(row.res), `${row.rid} 非法 result=${row.res}`);
   }

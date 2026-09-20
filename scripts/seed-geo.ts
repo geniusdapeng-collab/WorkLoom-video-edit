@@ -16,12 +16,14 @@
  */
 import pg from "pg";
 import YAML from "yaml";
-import { readFileSync, readdirSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { safeParseReplayAwareEvent } from "@workloom/base/workdata";
 // 哈希链统一生产口径（events.ts 的 canonicalJson/eventHash），与 seed.ts/seed-video.ts 同一纪律
 import { eventHash } from "@workloom/base/workdata";
+// 技能围栏绑定表（与基座 seed.ts 共用同一事实源；见 scripts/skill-bindings.mts）
+import { skillBindingsFor } from "./skill-bindings.mts";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = join(__dirname, "..");
@@ -139,6 +141,61 @@ function loadSkills(): SkillDoc[] {
         body: (m?.[2] ?? "").trim(),
       };
     });
+}
+
+/**
+ * 组合技能并集（2026-09-20 真机验收修复）：
+ * 组合编制（hotel + ai-video + geo-growth）里的酒店/视频岗位引用各自包的 official 技能；
+ * 只装本包 29 条技能时，那些岗位被判「技能已声明未装备」（ui 探针 skillsOk=false）。
+ * 这里按各包 bundle.json 的 provides.skills 逐条落 skills 行 + ws-geo 安装行，
+ * 与基座 seed.ts 的组合技能安装同口径（安装快照取 skills 表当前值）。
+ */
+function loadComposedSkillDocs(): Array<{ bundle: string | null; doc: SkillDoc }> {
+  const out: Array<{ bundle: string | null; doc: SkillDoc }> = [];
+  for (const bundleId of ["hotel", "ai-video", "geo-growth"]) {
+    const manifestPath = join(REPO_ROOT, "bundles", bundleId, "bundle.json");
+    if (!existsSync(manifestPath)) continue;
+    const manifest = JSON.parse(readFileSync(manifestPath, "utf-8")) as {
+      workloom?: { provides?: { skills?: string[] } };
+    };
+    for (const rel of manifest.workloom?.provides?.skills ?? []) {
+      const abs = join(REPO_ROOT, "bundles", bundleId, rel);
+      if (!existsSync(abs)) continue;
+      const raw = readFileSync(abs, "utf-8");
+      const m = raw.match(/^---\n([\s\S]*?)\n---\n([\s\S]*)$/);
+      const fm = YAML.parse(m?.[1] ?? "{}") as Record<string, unknown>;
+      const fallbackName = rel.split("/").slice(-2)[0] ?? "skill";
+      out.push({
+        bundle: bundleId,
+        doc: {
+          name: String(fm.name ?? fallbackName),
+          description: String(fm.description ?? ""),
+          body: (m?.[2] ?? "").trim(),
+        },
+      });
+    }
+  }
+  // 编制引用的包外官方技能（<repo>/skills/official/*，如 deal-flow——商单全流程 SOP，G15 联动）：
+  // bundle 为空表示不随任何行业包卸载；不装它们时 creator-partner / deal-manager 被判技能未装备。
+  const officialDir = join(REPO_ROOT, "skills", "official");
+  if (existsSync(officialDir)) {
+    for (const d of readdirSync(officialDir).sort()) {
+      const abs = join(officialDir, d, "SKILL.md");
+      if (!existsSync(abs)) continue;
+      const raw = readFileSync(abs, "utf-8");
+      const m = raw.match(/^---\n([\s\S]*?)\n---\n([\s\S]*)$/);
+      const fm = YAML.parse(m?.[1] ?? "{}") as Record<string, unknown>;
+      out.push({
+        bundle: null,
+        doc: {
+          name: String(fm.name ?? d),
+          description: String(fm.description ?? ""),
+          body: (m?.[2] ?? "").trim(),
+        },
+      });
+    }
+  }
+  return out;
 }
 
 /** 一客一档 v2（融合方案 §3.2 七模块；forbidden 红线双写，L1.6 同源纪律） */
@@ -360,6 +417,59 @@ async function main() {
   }
   console.log(`✓ 数码员工 ×${presets.length}（情报 2 + 内容 4 + 分发 3 + 数据 3 + 经营 2 + 指挥 2）`);
 
+  /**
+   * 组合编制上岗（2026-09-20 真机验收修复）：
+   * geo-growth 的 bundle.json 声明 composition（hotel + ai-video 依赖，presetOwners 含 company-ceo 等），
+   * 权威花名册 = 装配器 composeWorkforce 的运行结果（72 岗，含同名遮蔽裁决）。此前 seed 只落本包 27 岗，
+   * 与基座 seed.ts（ws-yunqi 已按组合编制上岗 72 岗）口径不一致——RDAS L1 矩阵因此判 0/72。
+   * 这里与基座同口径补齐；围栏按组合并集落库（只紧不松，不滚动客户已收紧的规则）。
+   */
+  const { provisionComposedWorkforce } = await import("@workloom/base/bundles");
+  const composed = await provisionComposedWorkforce(
+    { query: (sql: string, params?: unknown[]) => owner.query(sql, params as never[]) },
+    { tenantId: TENANT_ID, workspaceId: WS_ID },
+    "geo-growth",
+    "system:seed",
+  );
+  console.log(
+    `✓ 组合编制上岗：${composed.bundleIds.join(" + ")} 共 ${composed.rosterSize} 岗`
+    + `（围栏并集 ${composed.fenceRules} 条 · 同名遮蔽 ${composed.shadowed.length} 处按主包裁决）`,
+  );
+
+  // 组合技能安装：依赖包 official 技能（hotel 30 + ai-video 8）补行并装到本工作区，
+  // 让组合编制里的酒店/视频岗位"技能已声明 = 已装备"（与基座 seed.ts 同口径）。
+  const composedSkills = loadComposedSkillDocs();
+  for (const { bundle, doc } of composedSkills) {
+    const skillId = `skill-${doc.name}`;
+    // 围栏绑定按共享绑定表回填；未登记（返回 null）时保留注册表现值，绝不臆造或清空。
+    // 必须 UPSERT 而不是 DO NOTHING：db:seed:video 等先行种子可能已建行但没带绑定。
+    const declared = skillBindingsFor(bundle, doc.name);
+    await q(
+      `INSERT INTO skills (id, level, bundle, name, version, description, fence_bindings, body, desensitized)
+       VALUES ($1,'official',$2,$3,'1.0.0',$4,$5::jsonb,$6,false)
+       ON CONFLICT (id) DO UPDATE SET
+         bundle = EXCLUDED.bundle,
+         description = EXCLUDED.description,
+         body = EXCLUDED.body,
+         fence_bindings = CASE WHEN $7::boolean THEN EXCLUDED.fence_bindings ELSE skills.fence_bindings END
+       WHERE skills.description IS DISTINCT FROM EXCLUDED.description
+          OR skills.body IS DISTINCT FROM EXCLUDED.body
+          OR ($7::boolean AND skills.fence_bindings IS DISTINCT FROM EXCLUDED.fence_bindings)`,
+      [skillId, bundle, doc.name, doc.description, JSON.stringify(declared ?? []), doc.body, declared !== null],
+    );
+    await q(
+      `INSERT INTO skill_installs (skill_id, workspace_id, installed_by, fence_bindings_snapshot, installed_version)
+       SELECT s.id, $2, 'system:seed', s.fence_bindings, s.version FROM skills s WHERE s.id=$1
+       ON CONFLICT (skill_id, workspace_id) DO UPDATE SET
+         fence_bindings_snapshot = EXCLUDED.fence_bindings_snapshot,
+         installed_version = EXCLUDED.installed_version
+       WHERE skill_installs.fence_bindings_snapshot IS DISTINCT FROM EXCLUDED.fence_bindings_snapshot
+          OR skill_installs.installed_version IS DISTINCT FROM EXCLUDED.installed_version`,
+      [skillId, WS_ID],
+    );
+  }
+  console.log(`✓ 组合官方技能 ×${composedSkills.length} 已安装（hotel + ai-video + geo-growth 三包并集）`);
+
   // 一客一档 v2（dataMode=simulated：D24 落地向导横幅事实源——种子库即「全模拟运行态」）
   const archive = { ...clientArchive(), dataMode: "simulated" };
   await q(
@@ -407,8 +517,13 @@ async function main() {
       [skillId, s.name, s.description, s.body],
     );
     await q(
-      `INSERT INTO skill_installs (skill_id, workspace_id, installed_by)
-       VALUES ($1,$2,'MEM-G01') ON CONFLICT (skill_id, workspace_id) DO NOTHING`,
+      `INSERT INTO skill_installs (skill_id, workspace_id, installed_by, fence_bindings_snapshot, installed_version)
+       SELECT s.id, $2, 'MEM-G01', s.fence_bindings, s.version FROM skills s WHERE s.id=$1
+       ON CONFLICT (skill_id, workspace_id) DO UPDATE SET
+         fence_bindings_snapshot = EXCLUDED.fence_bindings_snapshot,
+         installed_version = EXCLUDED.installed_version
+       WHERE skill_installs.fence_bindings_snapshot IS DISTINCT FROM EXCLUDED.fence_bindings_snapshot
+          OR skill_installs.installed_version IS DISTINCT FROM EXCLUDED.installed_version`,
       [skillId, WS_ID],
     );
   }
@@ -487,7 +602,7 @@ async function main() {
   await q(
     `INSERT INTO night_runs (id, workspace_id, run_date, status, fence_snapshot_version, candidate_count, stats, started_at, package_event_id)
      VALUES ($1,$2,$3,'package_generated',$4,11,$5,$6,NULL)
-     ON CONFLICT (id) DO NOTHING`,
+     ON CONFLICT (workspace_id, run_date) DO NOTHING`,
     [
       `nr-geo-${runDate}`, WS_ID, runDate, FENCE_VERSION,
       JSON.stringify({ done: 11, pending: 2, alerts: 1, note: "【社媒侧】TikTok 播放 2.1w（周末峰 ▲31%）/ 涨粉 +214 / 询盘 4 条；【GEO 侧】24 query 采集（品牌词提及 4/6 ▲2，品类词首推破零 1 条，SOV 6% ▲1pt）/ 引用源新增知乎收录 1；【交叉侧】双入口询盘 4 条（社媒 2 / AI 搜索 2，含德国 Hans 报价谈判推进）；评论分流 31 条（自动 27 / 待审 3 / 告警 1）/ 实体巡检发现百科功率口径冲突 1 处（修复计划已立项）" }),
@@ -609,6 +724,14 @@ async function main() {
     const ev = mkEvent(i, times[i - 1] as Date);
     const checked = safeParseReplayAwareEvent(ev);
     if (!checked.success) throw new Error(`种子事件 ${ev.event_id} 未过校验：${checked.error.message}`);
+    /**
+     * 幂等口径（2026-09-20 真机验收修复）：先查存在再写。
+     * 旧写法 `ON CONFLICT DO NOTHING` 在重复 seed 时每条冲突都会消耗一次 nextval——
+     * 复跑一次就烧掉整批序号，verify-chain 判「>500 连续空洞，疑似恶意删段」（实测 777 空洞）。
+     * 与基座 seed.ts 的 L1.4 口径一致：存在即跳过，序号只在该事件真正落账时消耗。
+     */
+    const exists = await gw.query(`SELECT 1 FROM biz_events WHERE tenant_id=$1 AND event_id=$2`, [TENANT_ID, ev.event_id]);
+    if (exists.rowCount) continue;
     const payload = JSON.stringify(checked.data);
     const hash = eventHash(prevHash, checked.data);
     const res = await gw.query(

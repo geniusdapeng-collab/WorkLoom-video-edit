@@ -15,6 +15,10 @@
 import {
   routeSmart, type EventSink, type ModelPolicy, type ModelProvider, type PlanId,
 } from "@workloom/base/model-router";
+import { existsSync } from "node:fs";
+import { createRequire } from "node:module";
+import { dirname, resolve as resolvePath } from "node:path";
+import { fileURLToPath } from "node:url";
 
 export interface LLMReasonOptions {
   model?: string;
@@ -257,5 +261,54 @@ export class WorkloomLLMEngine {
     options: LLMReasonOptions = {}
   ): Promise<LLMReasonResult> {
     return this.reason(prompt, { ...options, forceJson: true });
+  }
+}
+
+/**
+ * vendor 自建 LLMEngine 的「原型桥」（2026-09-21 真机修复）
+ *
+ * 问题：vendor 多条链路（剧本引擎、需求洞察子引擎、提示词/微动作…）会**自己** `new LLMEngine({...})`，
+ * 读的是 vendor 自己的环境变量（LLM_ENDPOINT / KIMI_API_KEY …）与模型名（kimi-k2p6）。
+ * 宿主注入的适配器只在主流水线生效，于是这些环节全部失败：
+ *   `[ScriptGenerator] LLM引擎返回失败: API Key 未配置` → 剧本生成重试 3 次 → 预生产 pipeline.failed。
+ *
+ * 做法：**不改 vendor 目录**（只读纪律），在运行时把 vendor LLMEngine 原型的四个调用点
+ * （reason / reasonRaw / reasonStructured / chat）重定向到宿主适配器 —— 这些方法被整体替换，
+ * 构造函数里那句 `_noApiKey` 判断自然失效，模型/端点/计量/事件留痕全部走 WorkLoom 模型路由。
+ *
+ * 幂等：重复调用只覆盖一次；返回摘除函数（恢复原方法），便于测试与热重载。
+ */
+export function installVendorEngineBridge(engine: WorkloomLLMEngine): () => void {
+  try {
+    // 仓库根按**本模块位置**解析（服务进程 cwd 是 apps/server，用 cwd 会找不到 vendor）
+    const repoRoot = resolvePath(dirname(fileURLToPath(import.meta.url)), "../../..");
+    const vendorRequire = createRequire(resolvePath(repoRoot, "package.json"));
+    const enginePath = resolvePath(repoRoot, "vendor/supermickey/systems/llm-reasoning-engine.js");
+    if (!existsSync(enginePath)) return () => undefined;
+    const mod = vendorRequire(enginePath) as { LLMEngine?: { prototype: Record<string, unknown> } };
+    const prototype = mod?.LLMEngine?.prototype;
+    if (!prototype) return () => undefined;
+    const patched: Array<[string, unknown]> = [];
+    const redirect = (name: string, impl: (...args: unknown[]) => unknown) => {
+      if (typeof prototype[name] !== "function") return;
+      patched.push([name, prototype[name]]);
+      prototype[name] = impl;
+    };
+    redirect("reason", (prompt: unknown, options: unknown = {}) =>
+      engine.reason(String(prompt ?? ""), options as LLMReasonOptions));
+    redirect("reasonRaw", (prompt: unknown, options: unknown = {}) =>
+      engine.reasonRaw(String(prompt ?? ""), options as LLMReasonOptions));
+    redirect("reasonStructured", (prompt: unknown, schema: unknown, options: unknown = {}) =>
+      engine.reasonStructured(String(prompt ?? ""), { ...(options as LLMReasonOptions), ...(schema ? { responseFormat: { type: "json_object" } } : {}) }));
+    redirect("chat", (systemPrompt: unknown, userPrompt: unknown, temperature: unknown = 1) =>
+      engine.chat(String(systemPrompt ?? ""), String(userPrompt ?? ""), Number(temperature) || 1));
+    redirect("generate", (prompt: unknown, options: unknown = {}) =>
+      engine.generate(String(prompt ?? ""), options as LLMReasonOptions));
+    return () => {
+      for (const [name, original] of patched) prototype[name] = original;
+    };
+  } catch {
+    // vendor 不在（例如只跑单测）时静默：桥接是增强，不是启动前置
+    return () => undefined;
   }
 }

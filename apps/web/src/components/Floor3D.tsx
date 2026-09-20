@@ -30,6 +30,17 @@ import type { FloorAgent, FloorScene, FloorPayload } from "../pages/p0/Floor";
 /* ---------------- 与 Floor.tsx 同语义的工具 ---------------- */
 function hash(s: string): number { let h = 0; for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0; return Math.abs(h); }
 
+/** 头顶任务牌的状态词（与楼层状态机一一对应，保持短句） */
+const FLOOR_STATE_TEXT: Record<string, string> = {
+  working: "进行中",
+  asking: "待您拍板",
+  blocked: "有异常",
+  celebrating: "已完成",
+  collab: "协作中",
+  idle: "待命",
+  disabled: "已停用",
+};
+
 /** 走位目标（与 Floor.tsx targetOf 逐分支一致） */
 interface CrowdSlot { index: number; total: number }
 
@@ -38,7 +49,8 @@ function targetOf(a: FloorAgent, scene: FloorScene, slot: CrowdSlot = { index: 0
   // 同一目的地采用确定性的环形占位，而不是 id 随机微偏移。随机微偏移会发生碰撞，
   // 角色与 HTML 名牌就会叠成一团；环形槽位保证同工位/指挥台前每人位置唯一。
   const angle = slot.total <= 1 ? -Math.PI / 2 : (slot.index / slot.total) * Math.PI * 2 - Math.PI / 2;
-  const radius = slot.total <= 1 ? 0 : 0.48 + Math.floor(slot.index / 8) * 0.24;
+  // 密度重设计：环半径加大 + 每环 6 人（每批 18 人时站位与头顶任务牌互不压叠）
+  const radius = slot.total <= 1 ? 0 : 0.62 + Math.floor(slot.index / 6) * 0.42;
   const jx = Math.cos(angle) * radius;
   const jy = Math.sin(angle) * radius * 0.72;
   switch (a.state) {
@@ -82,11 +94,14 @@ const STATE_TEXT: Record<string, string> = {
 /* ---------------- 单个数字员工 ---------------- */
 function Worker({
   agent, scene, tile, crowdSlot, onPick, onDropTask, night,
+  onOpenTask,
 }: {
   agent: FloorAgent; scene: FloorScene; tile: number;
   crowdSlot: CrowdSlot;
   onPick: (a: FloorAgent) => void;
   onDropTask?: (a: FloorAgent, task: string) => void;
+  /** 头顶任务牌点击 → 任务详情（无任务时不响应） */
+  onOpenTask?: (threadId: string) => void;
   night: boolean;
 }) {
   const group = useRef<THREE.Group>(null);
@@ -152,7 +167,8 @@ function Worker({
         <meshBasicMaterial color={color} transparent opacity={dimmed ? 0.15 : 0.55} side={THREE.DoubleSide} blending={THREE.AdditiveBlending} depthWrite={false} />
       </mesh>
       {/* 真人风数字员工（KayKit 骨骼动画；ref 供注视点头） */}
-      <group scale={dimmed ? 0.62 : 0.78}>
+      {/* 密度重设计：角色略微缩小 + 站位间距放大，头顶任务牌不再互相压住（见父组件 tile） */}
+      <group scale={dimmed ? 0.5 : 0.62}>
         <BusinessAvatar3D ref={avatarRef} identity={agent.presetKey} state={agent.state} moving={movingRef.current} />
       </group>
       {/* 一句话状态气泡（hover 0.5s / 注视触发） */}
@@ -183,15 +199,54 @@ function Worker({
         <sphereGeometry args={[0.4, 8, 8]} />
       </mesh>
       {/* 游戏式名牌：只显示岗位名；用户设置别名后只显示别名。状态仅在请示时出现。 */}
-      {!dimmed && hovered && (
-        <NamePlate
-          persona={displayNameOf({ presetKey: agent.presetKey, roleName: agent.name })}
-          role={asking ? "请您定" : ""}
-          color={color}
-          spotlight={asking}
-          position={[0, 1.22 + (hash(agent.id) % 4) * 0.24, 0]}
-          distanceFactor={8}
-        />
+      {/*
+       * 头顶常驻任务牌（2026-09-20 重设计）：
+       *  第一行 = 岗位名；第二行 = 当前任务（进行中/待您拍板/已完成…）+ 任务标题。
+       *  点任务牌 → 任务详情；点员工本体 → 员工档案；asking 另有金色徽标 → 审批卡。
+       *  数据随 theater 5s 轮询自动刷新（状态机即数据）。
+       */}
+      {!dimmed && (
+        <Html center position={[0, 1.5 + (hash(agent.id) % 4) * 0.22, 0]} zIndexRange={[25, 0]} distanceFactor={7.5}>
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3, pointerEvents: "none" }}>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                if (agent.currentThread) onOpenTask?.(agent.currentThread.id);
+              }}
+              title={agent.currentThread ? `进入任务：${agent.currentThread.title}` : "当前没有在办任务"}
+              style={{
+                pointerEvents: "auto", cursor: agent.currentThread ? "pointer" : "default",
+                maxWidth: 132, border: `1px solid ${asking ? "rgba(255,217,138,.65)" : "rgba(214,220,228,.28)"}`,
+                borderRadius: 7, padding: "2px 7px", textAlign: "left", lineHeight: 1.35,
+                background: asking ? "rgba(52,40,16,.92)" : "rgba(14,16,19,.82)",
+                boxShadow: "0 3px 12px rgba(0,0,0,.45)",
+              }}
+            >
+              <span style={{ display: "block", fontSize: 10.5, fontWeight: 700, color: asking ? "#ffd98a" : "#e8edf4", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {roleTitleOf(agent.name, agent.presetKey)}
+              </span>
+              <span style={{ display: "block", fontSize: 10, color: agent.state === "idle" ? "#8a939e" : "#b3c6de", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {agent.currentThread
+                  ? `${FLOOR_STATE_TEXT[agent.state] ?? "进行中"} · ${agent.currentThread.title}`
+                  : FLOOR_STATE_TEXT[agent.state] ?? "待命"}
+              </span>
+            </button>
+            {asking && agent.approvalId && (
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); onPick(agent); }}
+                style={{
+                  pointerEvents: "auto", cursor: "pointer", fontSize: 10, fontWeight: 700,
+                  color: "#12151a", border: "none", borderRadius: 999, padding: "1px 8px",
+                  background: "linear-gradient(135deg, #ffe6ad, #f5c860)", boxShadow: "0 2px 10px rgba(255,201,96,.45)",
+                }}
+              >
+                待您拍板 →
+              </button>
+            )}
+          </div>
+        </Html>
       )}
       {/* 拖拽接收锚点 */}
       {onDropTask && (
@@ -407,9 +462,15 @@ function PanClamp({ controlsRef, bounds }: { controlsRef: React.RefObject<any>; 
 /* ---------------- 主组件（props 与 FloorView 全兼容） ---------------- */
 export function Floor3D({
   floor, ceoName, onPickAgent, onPickApproval, onDropTask, directorEvent = null,
+  onOpenProfile, onOpenTask,
 }: {
   floor: FloorPayload;
   ceoName: string;
+  /** 员工本体点击 → 员工档案（2026-09-20 重设计：派活改由拖任务卡 / 全局对话框承担） */
+  onOpenProfile: (a: FloorAgent) => void;
+  /** 头顶任务牌点击 → 任务详情 */
+  onOpenTask: (threadId: string) => void;
+  /** 兼容保留：员工指挥卡入口（其他视图仍在用） */
   onPickAgent: (a: FloorAgent) => void;
   onDecide: (approvalId: string, gesture: "approve" | "reject") => void;
   onPickApproval: (a: FloorAgent) => void;
@@ -417,11 +478,12 @@ export function Floor3D({
   /** 导演运镜事件（theaterDiff 输入；null=无新事件） */
   directorEvent?: DirectorEvent | null;
 }) {
-  const tile = 0.86;
+  // 密度重设计：站位间距 0.86 → 1.02（每批 18 人时人群与头顶牌都能看清）
+  const tile = 1.02;
   const scene = floor.scene;
   const onPick = (a: FloorAgent) => {
     if (a.state === "asking" && a.approvalId) onPickApproval(a);
-    else onPickAgent(a);
+    else onOpenProfile(a);
   };
   const night = useNightTime();
   const camY = Math.max(scene.grid.w, scene.grid.h) * tile * 0.95;
@@ -463,7 +525,7 @@ export function Floor3D({
 
         <OfficeScene scene={scene} tile={tile} ceoName={ceoName} night={night} />
         {floor.agents.map((a) => (
-          <Worker key={a.id} agent={a} scene={scene} tile={tile} crowdSlot={crowdSlots.get(a.id) ?? { index: 0, total: 1 }} onPick={onPick} onDropTask={onDropTask} night={night} />
+          <Worker key={a.id} agent={a} scene={scene} tile={tile} crowdSlot={crowdSlots.get(a.id) ?? { index: 0, total: 1 }} onPick={onPick} onDropTask={onDropTask} onOpenTask={onOpenTask} night={night} />
         ))}
         <DustMotes count={46} area={[9, 2.8, 7]} color={night ? "#8aa8d8" : "#bcd6ff"} size={1.2} position={[0, 1.5, 0]} speed={0.18} />
 

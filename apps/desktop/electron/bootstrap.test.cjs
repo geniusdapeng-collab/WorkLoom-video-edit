@@ -220,10 +220,12 @@ describe("桌面载荷原子装配", () => {
   it("发布渲染冒烟使用稳定动作标记走完真实欢迎流程", () => {
     const mainSource = fs.readFileSync(path.join(__dirname, "main.cjs"), "utf8");
     const welcomeSource = fs.readFileSync(path.join(__dirname, "../../web/src/components/WelcomeCeremony.tsx"), "utf8");
-    for (const action of ["skip-team", "enter-system"]) {
-      assert.ok(mainSource.includes(`data-welcome-action="${action}"`));
-      assert.ok(welcomeSource.includes(`data-welcome-action="${action}"`));
-    }
+    // 2026-09-20：仪式收尾的 V4 主弹窗（enter-system 按钮行）已删除；
+    // 冒烟只保留「直接进入」这一个稳定动作，随后等待欢迎覆盖层消失。
+    assert.ok(mainSource.includes('data-welcome-action="skip-team"'));
+    assert.ok(welcomeSource.includes('data-welcome-action="skip-team"'));
+    assert.doesNotMatch(mainSource, /data-welcome-action="enter-system"/u);
+    assert.doesNotMatch(welcomeSource, /data-welcome-action="enter-system"/u);
     assert.doesNotMatch(mainSource, /textContent\?\.includes\(['"](?:跳过仪式|进入系统)/u);
   });
 });

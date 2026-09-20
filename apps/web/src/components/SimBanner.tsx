@@ -7,7 +7,7 @@
  * 挂载点：P0 经营主页顶栏下方 + Bridge 工作台顶栏下方（全覆盖所有页面）。
  */
 import { useEffect, useState } from "react";
-import { ensureDemoLogin, trpc } from "../lib/trpc";
+import { ensureDemoLogin, isLocalFull, trpc } from "../lib/trpc";
 import { Icon } from "@workloom/ui";
 
 export interface OnboardingStatus {
@@ -46,24 +46,12 @@ export function SimBanner() {
     };
   }, []);
   if (!st) return null;
-  // V4 §2：示例版银带（深空银辉语义——不是警告，是身份说明；与黄色模拟态警示分色）
-  if (st.bundle?.isExample) {
-    return (
-      <div className="relative z-30 flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-line bg-bg800/90 px-4 py-1.5 text-body text-ink2 backdrop-blur">
-        <Icon name="star" size={15} className="text-gold" />
-        <span className="min-w-0 flex-1 break-words">
-          当前运行：<b className="text-ink">行业示例版</b>（{st.workspace.name}）——这是基座的示例装配，数据与团队可真实操作；
-          也可一键清空后按引导定制您的专属行业版。
-        </span>
-        <a
-          href="/onboarding?mode=customize"
-          className="shrink-0 rounded border border-gline bg-bg700 px-3 py-1 font-bold text-ink no-underline transition-colors hover:bg-bg700"
-        >
-          定制我的行业版 →
-        </a>
-      </div>
-    );
-  }
+  /**
+   * 2026-09-20 产品所有者决定：**删除**「行业示例版」银带与「定制我的行业版」入口（不是开关隐藏，是清理代码）。
+   * 示例装配事实改由经营主页头部「演示数据」小徽标承担披露，不再占整行、不再引导改装配。
+   * 本机个人使用（LOCAL_FULL）姿态下，本组件整体不渲染。
+   */
+  if (isLocalFull()) return null;
   const simData = st.dataMode === "simulated";
   const mockLlm = !st.llm.real;
   if (!simData && !mockLlm) return null;

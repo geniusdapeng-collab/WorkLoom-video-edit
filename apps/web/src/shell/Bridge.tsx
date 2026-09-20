@@ -13,7 +13,6 @@ import { EmergencyBrake, NightStatusPill } from "../components/hud";
 import { SimBanner } from "../components/SimBanner";
 import { SkillDistBanner } from "../components/SkillDistBanner";
 import { COMMON_STATUS_TEXT, dictText, shortId } from "../lib/display";
-import { PlanSwitcher } from "./PlanSwitcher";
 
 /** 星野背景（氛围层；永不遮挡信息、不影响 G10 首屏口径——§7 动效纪律） */
 function StarField() {
@@ -215,7 +214,10 @@ export function Bridge({
                 <button type="button" onClick={toggleRight} className="flex min-h-9 items-center gap-1 rounded-lg border border-line px-2.5 text-body text-ink2 hover:border-gline hover:text-gold" aria-label={rightInGrid ? "隐藏任务上下文面板" : "显示任务上下文面板"} aria-pressed={rightInGrid}>
                   <Icon name="workspace" size={15} />上下文
                 </button>
-                <PlanSwitcher onPlan={setPlan} />
+                {/* 版本切换入口（社区版/专业版/团队版/私有部署版）：
+                    2026-09-20 产品所有者决定删除——本仓只按「专业版」运行（基座 seed 默认即 pro），
+                    四档枚举与能力矩阵仍由基座持有（服务端越版调用照旧 403+升级提示），
+                    只是不再把演示切换器摆在产品界面上。 */}
                 {!community && <NightStatusPill />}
                 {!community && <EmergencyBrake />}
               </>

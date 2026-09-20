@@ -391,6 +391,10 @@ export const ACTOR_TEXT: Record<string, string> = {
   system: "系统",
   "night-shift": "夜班中心",
   "morning-briefing": "夜班晨报",
+  // 2026-09-20 补录：渲染链路与模型路由的系统身份（否则字幕条落"系统成员"泛称）
+  "render-poller": "渲染轮询",
+  "render-operator": "渲染工位",
+  "model-router": "模型路由",
 };
 
 /**
@@ -419,6 +423,15 @@ export const ACTION_OPS_TEXT: Record<string, string> = {
   "night.run.start": "夜班开始",
   "strategy.memo": "策略备忘",
   "thread.dispatch": "任务派发",
+  // 2026-09-20 三合一真机测试补录：渲染/模型/线程留言三类**基座公共动作**
+  // （render router 与 model-router 属基座；thread.note 为统一对话框新增的通用留言动作）。
+  // 行业专有动作码仍由 Bundle 术语投影提供，不在此堆行业词。
+  "render.submit": "提交渲染",
+  "render.complete": "渲染完成",
+  "render.failed": "渲染失败",
+  "thread.note": "任务留言",
+  "model.call": "模型调用",
+  "model.degraded": "模型降级",
   // 裸词别名（历史数据兼容）
   send: "发送",
   answer: "即时应答",

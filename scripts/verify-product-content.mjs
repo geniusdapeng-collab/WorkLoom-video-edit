@@ -181,8 +181,19 @@ for (const scene of ["apps/web/src/components/Floor3D.tsx", "apps/web/src/compon
     { excludes: "personaOf(", message: "3D 名牌不得显示系统生成的人名" },
   ]);
 }
+/**
+ * 2026-09-21 产品所有者口径变更：职场头顶信息由「悬停名牌」改为**常驻任务牌**
+ * （第一行岗位名、第二行当前任务/状态），稀疏性不再靠悬停，而是靠 P0 的**分批展示**
+ * （每批 ≤18 人 + 活跃置顶 + 12s 轮播）。旧规则"空闲态只能悬停显示名牌"因此作废，
+ * 改为校验新的两条硬约束：任务牌状态词与楼层状态机同口径、任务牌可点进任务详情；
+ * 同时要求 P0 保留分批上限常量，避免把 70+ 人一次铺满造成标签重叠。
+ */
 requireSource("apps/web/src/components/Floor3D.tsx", [
-  { includes: "!dimmed && hovered", message: "职场空闲态只能悬停显示名牌，避免 3D 人群标签重叠" },
+  { includes: "FLOOR_STATE_TEXT", message: "头顶任务牌必须显示与楼层状态机同口径的状态词" },
+  { includes: "onOpenTask", message: "头顶任务牌必须能点进任务详情" },
+]);
+requireSource("apps/web/src/pages/p0/P0.tsx", [
+  { includes: "FLOOR_BATCH_SIZE", message: "职场必须分批展示（密度受控，避免人群标签重叠）" },
 ]);
 requireSource("apps/web/src/components/Stage3D.tsx", [
   { includes: "hovered || spotlight", message: "舞台只应在悬停或点名时显示成员名牌" },

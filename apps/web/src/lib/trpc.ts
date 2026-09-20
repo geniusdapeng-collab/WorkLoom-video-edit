@@ -9,6 +9,10 @@ import type { AppRouter } from "@workloom/server/router";
 import { DEMO_MEMBER, DEMO_WORKSPACE, storageKey } from "./product";
 
 const TOKEN_KEY = storageKey("access-token");
+/** 本机个人使用：隐藏游客/注册入口，并默认以种子成员身份全量登录（客户端启动器注入，见 design-studio/acceptance 文档）。 */
+const LOCAL_FULL = import.meta.env.VITE_WORKLOOM_LOCAL_FULL === "1";
+/** 本机全量模式开关（客户端启动器注入 VITE_WORKLOOM_LOCAL_FULL=1；用于隐藏试用/游客类入口）。 */
+export function isLocalFull(): boolean { return LOCAL_FULL; }
 // 身份切换代次：显式登录开始后，较早发出的游客请求不得再覆盖正式令牌。
 let identityRevision = 0;
 let formalLoginEpoch = 0;
@@ -45,7 +49,7 @@ export function setRefreshToken(token: string): void { localStorage.setItem(REFR
  * 进入配置引导（/onboarding）时才引导正式登录。游客令牌由 accounts.auth.guestEnter
  * 签发（readonly 角色；服务端 writeProcedure 403 一切写操作——体验全程零写入）。 */
 const GUEST_KEY = storageKey("guest");
-export function isGuest(): boolean { return localStorage.getItem(GUEST_KEY) === "1"; }
+export function isGuest(): boolean { return !LOCAL_FULL && localStorage.getItem(GUEST_KEY) === "1"; }
 export function clearGuestFlag(): void { localStorage.removeItem(GUEST_KEY); }
 
 function setGuestToken(token: string): void {
@@ -123,6 +127,8 @@ export const trpc: ReturnType<typeof createTRPCClient<AppRouter>> = createTRPCCl
  */
 export const DEV_DEMO_MEMBER = DEMO_MEMBER;
 export async function ensureDemoLogin(memberNo?: string): Promise<void> {
+  // 本机全量模式：任何"游客进场"调用都升级为种子成员正式登录（无注册、无游客限制）。
+  if (!memberNo && LOCAL_FULL) memberNo = DEV_DEMO_MEMBER;
   if (memberNo) {
     // 先使并发中的游客请求失效；只允许最后一次显式登录写入正式身份。
     const loginEpoch = ++formalLoginEpoch;

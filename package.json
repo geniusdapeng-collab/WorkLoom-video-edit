@@ -8,8 +8,8 @@
     "node": ">=24.0.0"
   },
   "dependencies": {
-    "@workloom/base": "workspace:*",
     "@workloom/audit-engine": "workspace:*",
+    "@workloom/base": "workspace:*",
     "@workloom/db": "workspace:*",
     "@workloom/runtime": "workspace:*",
     "@workloom/shared": "workspace:*",
@@ -87,15 +87,16 @@
     }
   },
   "devDependencies": {
+    "@axe-core/playwright": "4.13.0",
     "@types/node": "^24.0.0",
     "concurrently": "^9.1.0",
-    "tsx": "^4.23.12",
-    "typescript": "^7.0.2",
-    "vitest": "^4.1.11",
-    "yaml": "2.9.0",
     "electron": "^44.1.1",
     "electron-builder": "^26.15.3",
+    "tsx": "^4.23.12",
+    "typescript": "^7.0.2",
     "typescript-governance": "npm:typescript@5.9.3",
+    "vitest": "^4.1.11",
+    "yaml": "2.9.0",
     "yaml-governance": "npm:yaml@2.9.0"
   },
   "description": "WorkLoom 获客系统 · 短视频社媒营销 × GEO × 获客五环 × 行业运营（首垂直：酒店）"

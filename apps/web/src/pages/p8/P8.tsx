@@ -23,6 +23,7 @@ import { ensureDemoLogin, trpc } from "../../lib/trpc";
 import { displayNameOf, setAliasLocal } from "../../lib/naming";
 import { AgentAvatarOf } from "../../components/AgentAvatar";
 import { FENCE_LEVEL_TEXT, RULE_RESULT_TEXT, actionText, capabilityText, dictText, shortId, skillDisplayName, versionText } from "../../lib/display";
+import { libraryVoiceFor } from "../../voice/voiceLibrary";
 import { Bridge } from "../../shell/Bridge";
 import { Button, Icon, Overlay, clientChineseText } from "@workloom/ui";
 import {
@@ -184,9 +185,6 @@ function AgentCard({ a, canManage, onOpen }: { a: AgentRow; canManage: boolean; 
           }`}>
             <AgentAvatarOf name={displayName} presetKey={a.presetKey} size={30} ring={false} />
           </div>
-          <span className="absolute -right-1.5 -bottom-1 rounded border border-line bg-bg900 px-1 font-mono text-body text-ink3">
-            {versionText(a.version)}
-          </span>
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex min-w-0 flex-wrap items-center gap-1.5 text-body font-bold text-ink">
@@ -307,10 +305,7 @@ function RosterHome() {
   const left = (
     <>
       <div className="mb-2 px-1 text-body tracking-[.2em] text-ink3">团队概览</div>
-      <div className="mb-1.5 rounded-lg border border-line bg-card px-3 py-2.5">
-        <div className="text-body font-bold text-ink">人类成员 · {humans.length}</div>
-        <div className="mt-0.5 text-body text-ink3">{humans.filter((h) => h.online).length} 人在线（近 24h 留痕）</div>
-      </div>
+      {/* 人类成员块：2026-09-20 产品决定删除（本页聚焦数字员工编制；人类账号在服务端仍存在） */}
       <div className="mb-1.5 rounded-lg border border-line bg-card px-3 py-2.5">
         <div className="text-body font-bold text-ink">数字员工 · {agents.length} 个岗位</div>
         <div className="mt-0.5 text-body text-ink3">
@@ -373,11 +368,6 @@ function RosterHome() {
           />
         ) : (
           <>
-            <div className="mb-2 text-body tracking-[.2em] text-ink3">人类成员 · {humans.length}</div>
-            <div className="mb-5 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
-              {humans.map((h) => <HumanCard key={h.memberNo} h={h} />)}
-            </div>
-
             <div className="mb-2 text-body tracking-[.2em] text-ink3">
               数字员工 · {agents.length} 个岗位 · 夜班岗位在 {data?.nightWindow.range} 自动上线
             </div>
@@ -474,7 +464,6 @@ function AgentProfilePage({ agentId }: { agentId: string }) {
             {displayNameOf({ presetKey: a.presetKey, roleName: a.name }).slice(0, 1)}
           </span>
           <span className="min-w-0 flex-1 break-words text-body text-ink2">{displayNameOf({ presetKey: a.presetKey, roleName: a.name })}</span>
-          <span className="text-body text-ink3">{versionText(a.version)}</span>
         </button>
       ))}
       <button
@@ -525,7 +514,6 @@ function AgentProfilePage({ agentId }: { agentId: string }) {
             <div className="mb-3 flex flex-wrap items-baseline gap-3">
               <h2 className="text-h1 font-black tracking-wider">
                 成员档案 · {displayNameOf({ presetKey: p.agent.presetKey, roleName: p.agent.name })}
-                <span className="ml-2 text-body font-normal text-holo">{versionText(p.agent.version)}</span>
               </h2>
               <span className="text-body tracking-[.2em] text-ink3">身份、能力、权限与工作记录</span>
             </div>
@@ -543,19 +531,24 @@ function AgentProfilePage({ agentId }: { agentId: string }) {
               </div>
             )}
 
-            {/* 上排三卡：身份与归属 / 规则许可 / 技能包 */}
-            <div className="grid grid-cols-1 gap-3.5 lg:grid-cols-2 xl:grid-cols-3">
+            {/* 上排三卡：身份与归属 / 规则许可 / 技能包
+                2026-09-20 排版修复：三列在带左右栏的 B 端壳里过窄，围栏名被挤成竖排单字；
+                改为最多两列 + 围栏逐条块状布局（名称一行、规则号/版本一行、状态右侧对齐）。 */}
+            <div className="grid grid-cols-1 gap-3.5 lg:grid-cols-2">
               <div className="rounded-msg border border-line bg-card p-3.5">
                 <div className="mb-2 text-body font-bold text-holo">身份与归属</div>
                 <div className="space-y-1.5 text-body">
                   <div className="flex justify-between gap-3"><span className="text-ink3">员工编号</span><span className="font-mono text-holo">{shortId(p.agent.id)}</span></div>
                   <div className="flex justify-between gap-3"><span className="text-ink3">运行版本</span><span className="text-ink2">{versionText(p.agent.version)}</span></div>
+                  {/* 音色（2026-09-20）：来自音色库 voice/voiceLibrary.ts，按岗位标识稳定散列 ——
+                      同一员工全场同一嗓音；性别是硬约束，女声岗位不会掉到男声。 */}
+                  <div className="flex justify-between gap-3"><span className="text-ink3">音色</span><span className="text-ink2">{libraryVoiceFor(p.agent.presetKey).label}</span></div>
                   <div className="flex justify-between"><span className="text-ink3">工作区</span><span className="text-ink2">{p.workspaceName}</span></div>
                   <div className="flex justify-between gap-3"><span className="text-ink3">来源行业包</span><span className="text-ink2">{clientChineseText(p.bundle, p.bundle)}</span></div>
                   <div className="flex justify-between"><span className="text-ink3">战队</span><span className="text-ink2">{p.agent.nightShift ? "夜班中心 · 夜班窗口自动上线" : "日常班组"}</span></div>
                 </div>
                 <div className="mt-2.5 border-t border-line/60 pt-2">
-                  <LevelBadge level={p.game.level} rank={p.game.rank} name={displayNameOf({ presetKey: p.agent.presetKey, roleName: p.agent.name })} version={p.agent.version} />
+                  <LevelBadge level={p.game.level} rank={p.game.rank} name={displayNameOf({ presetKey: p.agent.presetKey, roleName: p.agent.name })} />
                 </div>
               </div>
 
@@ -564,16 +557,22 @@ function AgentProfilePage({ agentId }: { agentId: string }) {
                 {p.fences.length === 0 ? (
                   <div className="text-body text-ink3">未声明关联围栏——写操作已被系统阻断，仅允许只读动作。</div>
                 ) : (
-                  <div className="space-y-1.5">
+                  <div className="space-y-2">
                     {p.fences.map((f) => (
-                      <div key={f.ruleId} className="flex items-center gap-2 text-body">
-                        <FenceBindingTag label={clientChineseText(f.name, "关联围栏")} />
-                        <span className="min-w-0 flex-1 break-words text-ink2">
-                          {f.declared ? `${clientChineseText(f.name, "关联围栏")} ${versionText(f.version)}` : "声明悬空：规则不存在"}
-                        </span>
-                        <span className={`inline-flex shrink-0 items-center gap-1 text-body ${f.declared ? "text-go" : "text-alert"}`}>
-                          {f.declared ? <>{f.isBaseline && <Icon name="lock" size={13} />}已声明 · {dictText(FENCE_LEVEL_TEXT, f.level)}</> : <><Icon name="error" size={13} />标红</>}
-                        </span>
+                      <div key={f.ruleId} className="rounded-lg border border-line bg-bg800/40 px-2.5 py-2 text-body">
+                        <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-1">
+                          <span className="min-w-0 flex-1 break-words text-ink2">{clientChineseText(f.name, "关联围栏")}</span>
+                          <span className={`inline-flex shrink-0 items-center gap-1 ${f.declared ? "text-go" : "text-alert"}`}>
+                            {f.declared
+                              ? <>{f.isBaseline && <Icon name="lock" size={13} />}已声明 · {dictText(FENCE_LEVEL_TEXT, f.level)}</>
+                              : <><Icon name="error" size={13} />声明悬空</>}
+                          </span>
+                        </div>
+                        <div className="mt-1 flex flex-wrap items-center gap-2">
+                          {/* 规则内部编号不进客户端（客户端文案边界）；标签只表达来源与基线语义 */}
+                          <FenceBindingTag label={f.declared ? (f.isBaseline ? "基线围栏" : "关联围栏") : "规则不存在"} />
+                          <span className="text-ink3">{f.declared ? versionText(f.version) : "声明悬空：规则不存在"}</span>
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -592,9 +591,9 @@ function AgentProfilePage({ agentId }: { agentId: string }) {
                         type="button"
                         onClick={() => nav("/skills")}
                         title="前往技能中心"
-                        className="flex w-full min-w-0 cursor-pointer flex-wrap items-center gap-2 rounded-lg border border-line bg-bg800/40 px-2.5 py-1.5 text-left text-body hover:border-gline"
+                        className="flex w-full min-w-0 cursor-pointer flex-wrap items-center justify-between gap-x-3 gap-y-1 rounded-lg border border-line bg-bg800/40 px-2.5 py-1.5 text-left text-body hover:border-gline"
                       >
-                        <span className="flex min-w-0 flex-1 items-center gap-1 break-words text-ink2"><Icon name="package" size={13} className="shrink-0" /> {skillDisplayName(s.name, s.description)} <span className="text-body text-ink3">{versionText(s.version)}</span></span>
+                        <span className="flex min-w-0 flex-1 items-center gap-1 break-words text-ink2"><Icon name="package" size={13} className="shrink-0" /> {skillDisplayName(s.name, s.description)}</span>
                         <span className={`shrink-0 text-body ${s.installed ? "text-go" : "text-warn"}`}>
                           {s.installed ? `已装备 · ${s.fence_bindings.length} 条关联围栏` : "未安装"}
                         </span>

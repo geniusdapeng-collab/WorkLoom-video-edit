@@ -8,6 +8,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router";
 import { ensureDemoLogin, trpc } from "../../lib/trpc";
 import { VoiceEngine } from "../../voice/VoiceEngine";
+import { mateVoiceProfileOf } from "../../voice/mateVoice";
+import { AudioEngine } from "../../audio/AudioEngine";
 import { MateLive2D, type MateMood, type MateGesture } from "./MateLive2D";
 import { useAskRailPadding, useSideNavWidth } from "../../lib/useAskRail";
 import { canonicalNavigationPath } from "../../shell/NavMenu";
@@ -29,12 +31,33 @@ interface InboxItem {
 interface MemRow { id: string; layer: string; mkey: string; content: string; source: string; confidence: string; created_at: string }
 interface ChatMsg { from: "me" | "mate"; text: string }
 
-const VOICE_MAP: Record<string, { pitch: number; rate: number; female?: boolean }> = {
-  sweet: { pitch: 1.25, rate: 1.02, female: true },
-  bright: { pitch: 1.15, rate: 1.1, female: true },
-  soft: { pitch: 1.05, rate: 0.92, female: true },
-  calm: { pitch: 0.9, rate: 0.95 },
-};
+/**
+ * 任务完成播报（2026-09-20 产品所有者设计）：
+ *   任务一完成，小织主动出来播报——挥魔法棒 → 指向右侧对话框（那里有完成通知卡片）。
+ *   纯情绪价值：睁大眼起手、眯眼笑收尾，星尘沿指向飞向右栏，配一声欢快仪式音。
+ */
+interface SettledTaskNotice {
+  threadId: string;
+  title: string;
+  status: "completed" | "failed";
+}
+/** 星尘：从魔法棒位置（人物左侧持棒手）洒出，飞向右栏 */
+const WAND_SPARKS = [
+  { left: 30, top: 42, dx: 120, dy: -70, delay: 0 },
+  { left: 27, top: 46, dx: 180, dy: -30, delay: 0.06 },
+  { left: 33, top: 49, dx: 240, dy: 10, delay: 0.12 },
+  { left: 29, top: 53, dx: 300, dy: 40, delay: 0.18 },
+  { left: 35, top: 39, dx: 150, dy: -100, delay: 0.24 },
+  { left: 24, top: 50, dx: 260, dy: -40, delay: 0.3 },
+  { left: 32, top: 57, dx: 340, dy: 20, delay: 0.36 },
+  { left: 26, top: 44, dx: 210, dy: -60, delay: 0.42 },
+] as const;
+
+/**
+ * 织伴音色档位统一走 voice/mateVoice.ts#mateVoiceProfileOf —— 单一事实源。
+ * （旧实现在这里另写了一份 VOICE_MAP，其中 calm 档没标 female，会掉进男声兜底，
+ * 于是同一台机器上织伴"一会儿男声一会儿女声"；2026-09-20 真机反馈后合并到一处。）
+ */
 const PERSONA_NAME: Record<string, string> = { tianmei: "小织", yuanqi: "小元气", chenwen: "织稳" };
 const LAYER_TEXT: Record<string, string> = {
   profile: "身份", facts: "事实", preferences: "偏好", relations: "关系", episodic: "情景", working: "进行中",
@@ -93,9 +116,7 @@ export function LoomMate() {
   const [viewport, setViewport] = useState(() => ({ width: window.innerWidth, height: window.innerHeight }));
   const [settings, setSettings] = useState<Settings | null>(null);
   const [items, setItems] = useState<InboxItem[]>([]);
-  const [open, setOpen] = useState<"none" | "chat" | "settings" | "memory">("none");
-  const [chat, setChat] = useState<ChatMsg[]>([]);
-  const [input, setInput] = useState("");
+  const [open, setOpen] = useState<"none" | "settings" | "memory">("none");
   const [busy, setBusy] = useState(false);
   const [memory, setMemory] = useState<Record<string, MemRow[]> | null>(null);
   const seenIds = useRef<Set<string>>(new Set());
@@ -104,7 +125,20 @@ export function LoomMate() {
 
   /* —— 浮层交互（拖拽移动 / 迷你球 / 隐藏把手；本机偏好存 localStorage，2026-09 浮层 UX 专项） —— */
   const [pos, setPos] = useState<{ x: number; y: number } | null>(() => {
-    try { const v = localStorage.getItem("loommate.pos"); return v ? JSON.parse(v) as { x: number; y: number } : null; } catch { return null; }
+    try {
+      const v = localStorage.getItem("loommate.pos");
+      if (!v) return null;
+      const p = JSON.parse(v) as { x: number; y: number };
+      /**
+       * 2026-09-20 真机反馈：保存的位置若落在**主视图中央区域**（横向 25%–75%、纵向 25%–80%），
+       * 会长期压住经营主页的职场/舞台。这类位置不还原，回落到默认停靠位（右/左下角）；
+       * 用户仍可随时拖到任意位置（贴边吸附那套不变）。
+       */
+      const cx = window.innerWidth * 0.25, cx2 = window.innerWidth * 0.75;
+      const cy = window.innerHeight * 0.25, cy2 = window.innerHeight * 0.8;
+      if (p.x > cx && p.x < cx2 && p.y > cy && p.y < cy2) return null;
+      return p;
+    } catch { return null; }
   });
   const [hidden, setHidden] = useState(() => { try { return localStorage.getItem("loommate.hidden") === "1"; } catch { return false; } });
   /**
@@ -169,7 +203,7 @@ export function LoomMate() {
   const onDragEnd = () => {
     const d = dragRef.current;
     dragRef.current = null;
-    if (!d || !d.moved) { void openPanel("chat"); return; } // 未拖动=点击开聊
+    if (!d || !d.moved) { openAssistantRail(); return; } // 未拖动=点击唤起右侧「织伴」全局框（我的域）
     setPos((p) => {
       if (!p) return p;
       const snapped = {
@@ -188,16 +222,70 @@ export function LoomMate() {
       return !!(c.getContext("webgl2") ?? c.getContext("webgl"));
     } catch { return false; }
   }, []);
-  // 情绪映射（数字人表情）：红线→fear 高等判→neutral+招呼 完成→happy 常态→甜妹 love
-  const topItem = items[0];
-  const mood: MateMood = topItem?.level === "red" ? "fear"
-    : topItem?.kind === "done" ? "happy"
-    : topItem ? "neutral"
-    : "love";
-  const mateGesture: MateGesture = items.length > 0 ? "handup" : null;
   const personaName = settings?.persona_key === "custom"
     ? (settings?.persona_custom?.name ?? "小织")
     : (PERSONA_NAME[settings?.persona_key ?? "tianmei"] ?? "小织");
+
+  /* —— 任务完成播报状态机：rise(举棒) → point(挥棒指向右栏) → smile(眯眼笑收尾) —— */
+  const [celebrate, setCelebrate] = useState<SettledTaskNotice | null>(null);
+  const [wandPhase, setWandPhase] = useState<"rise" | "point" | "smile">("rise");
+  const celebrateTimers = useRef<number[]>([]);
+  const announceTask = useCallback((task: SettledTaskNotice) => {
+    celebrateTimers.current.forEach((t) => window.clearTimeout(t));
+    celebrateTimers.current = [];
+    setWandPhase("rise");
+    setCelebrate(task);
+    // 主动出来播报：小球态自动展开成形象（用户显式「隐藏」过则只发声 + 右栏高亮，不强弹）
+    setMini(false);
+    persistLocal("loommate.mini", "0");
+    AudioEngine.play("fanfare");
+    VoiceEngine.speak({
+      role: "loommate", persona: personaName,
+      text: task.status === "completed"
+        ? `董事长，${task.title}，任务完成了，请您查看！`
+        : `董事长，${task.title}，任务出了点状况，请您查看。`,
+      priority: "ceremony",
+      voiceOverride: mateVoiceProfileOf(settings?.voice_key),
+    });
+    celebrateTimers.current.push(
+      window.setTimeout(() => setWandPhase("point"), 900),
+      window.setTimeout(() => {
+        setWandPhase("smile");
+        // 指向右栏：让对应的任务完成卡片发光，视线与魔法棒落到同一处
+        window.dispatchEvent(new CustomEvent("workloom:notify-highlight", { detail: { threadId: task.threadId } }));
+      }, 1500),
+      window.setTimeout(() => setCelebrate(null), 9000),
+    );
+  }, [personaName, settings?.voice_key]);
+  useEffect(() => {
+    const onSettled = (event: Event) => {
+      const detail = (event as CustomEvent<SettledTaskNotice>).detail;
+      if (!detail?.threadId) return;
+      announceTask(detail);
+    };
+    window.addEventListener("workloom:task-settled", onSettled);
+    return () => {
+      window.removeEventListener("workloom:task-settled", onSettled);
+      celebrateTimers.current.forEach((t) => window.clearTimeout(t));
+    };
+  }, [announceTask]);
+  const celebrateLine = celebrate
+    ? (celebrate.status === "completed"
+      ? `董事长，「${celebrate.title}」完成了，请您查看！`
+      : `董事长，「${celebrate.title}」出了点状况，请您查看。`)
+    : null;
+
+  // 情绪映射（数字人表情）：播报中→excited 睁大眼起手 / happy 眯眼笑收尾；红线→fear；有事项→招呼；常态→甜妹 love
+  const topItem = items[0];
+  const mood: MateMood = celebrate
+    ? (wandPhase === "rise" ? "excited" : "happy")
+    : topItem?.level === "red" ? "fear"
+      : topItem?.kind === "done" ? "happy"
+        : topItem ? "neutral"
+          : "love";
+  const mateGesture: MateGesture = celebrate
+    ? (wandPhase === "rise" ? "handup" : "wandpoint")
+    : items.length > 0 ? "handup" : null;
 
   const load = useCallback(async () => {
     await ensureDemoLogin();
@@ -216,7 +304,7 @@ export function LoomMate() {
           role: "loommate", persona: personaName,
           text: inboxSpeechText(it.title, it.body).slice(0, 120),
           priority: it.level === "red" ? "fuse" : "ambient",
-          voiceOverride: VOICE_MAP[s.settings.voice_key] ?? VOICE_MAP.sweet,
+          voiceOverride: mateVoiceProfileOf(s.settings.voice_key),
         });
       }
     }
@@ -337,37 +425,21 @@ export function LoomMate() {
     return true;
   };
 
-  const send = async (text: string) => {
-    if (!text.trim() || busy) return;
-    setBusy(true);
-    setChat((c) => [...c, { from: "me", text }]);
-    setInput("");
-    try {
-      const r = await svc().secretary.chat.mutate({ text });
-      const reply = clientChineseText(r.reply, "小织暂时没能整理出可展示的答复，请稍后再试。");
-      setChat((c) => [...c, { from: "mate", text: reply }]);
-      if (settings?.voice_on) {
-        VoiceEngine.speak({
-          role: "loommate", persona: personaName, text: reply.slice(0, 150),
-          priority: "ambient", voiceOverride: VOICE_MAP[settings.voice_key] ?? VOICE_MAP.sweet,
-        });
-      }
-      const link = (r.data as { link?: string } | undefined)?.link;
-      if (r.action === "goto" && link) navigate(canonicalNavigationPath(link));
-    } catch (e) {
-      console.warn("小织对话请求失败", e);
-      setChat((c) => [...c, { from: "mate", text: "呜……信号暂时不稳定。刚才的话已保留，请稍后再试。" }]);
-    } finally { setBusy(false); }
-  };
+  /**
+   * 三合一合并（2026-09-20）：小织不再自带第二个对话框——「聊聊」面板下线，
+   * 对话统一走右侧全局框的「我的」域（记事/提醒/查任务/找人）。
+   * 这里保留：设置、记忆、未读气泡、形象与语音（人格外壳）。
+   */
+  const openAssistantRail = useCallback(() => {
+    window.dispatchEvent(new CustomEvent("workloom:assistant-visibility", { detail: "show" }));
+    window.dispatchEvent(new CustomEvent("workloom:assistant-intent", { detail: { intent: "personal", domain: "mine" } }));
+  }, []);
 
-  const openPanel = async (p: "chat" | "settings" | "memory") => {
+  const openPanel = async (p: "settings" | "memory") => {
     setOpen(open === p ? "none" : p);
     if (p === "memory") {
       const m = await svc().secretary.memoryPanel.query().catch(() => null);
       if (m) setMemory(m.memory);
-    }
-    if (p === "chat" && chat.length === 0) {
-      setChat([{ from: "mate", text: `${settings?.display_name ?? "董事长"}好呀～我是${personaName}，您的贴身小秘书！有事叫我查、叫我记、叫我提醒您，都可以哦～` }]);
     }
   };
 
@@ -387,7 +459,7 @@ export function LoomMate() {
           className="absolute right-5 top-5 rounded-full border border-line bg-bg900/80 px-3 py-1.5 text-body text-ink2 hover:text-ink">
           退出屏保（Esc）
         </button>
-        <button onClick={() => void openPanel("chat")} className="relative cursor-pointer transition-transform hover:scale-[1.02]">
+        <button onClick={openAssistantRail} className="relative cursor-pointer transition-transform hover:scale-[1.02]" title="打开右侧「织伴」全局框（我的域）">
           {webglOk
             ? <MateLive2D size={Math.min(520, Math.round((typeof window !== "undefined" ? window.innerHeight : 900) * 0.55))} mood={mood} gesture={mateGesture} />
             : <MateAvatar size={Math.min(520, Math.round((typeof window !== "undefined" ? window.innerHeight : 900) * 0.55))} excited={unread > 0} />}
@@ -428,8 +500,8 @@ export function LoomMate() {
           <div className="absolute bottom-16 right-5 top-16 w-[var(--wl-assistant-expanded)]">
             <MatePanel
               open={open} setOpen={setOpen} openPanel={openPanel}
-              chat={chat} busy={busy} input={input} setInput={setInput} send={send}
-              personaName={personaName} settings={settings} setSettings={setSettings}
+              personaName={personaName}
+              settings={settings} setSettings={setSettings}
               memory={memory} setMemory={setMemory}
             />
           </div>
@@ -486,8 +558,8 @@ export function LoomMate() {
         <div className="pointer-events-auto">
           <MatePanel
             open={open} setOpen={setOpen} openPanel={openPanel}
-            chat={chat} busy={busy} input={input} setInput={setInput} send={send}
-            personaName={personaName} settings={settings} setSettings={setSettings}
+            personaName={personaName}
+            settings={settings} setSettings={setSettings}
             memory={memory} setMemory={setMemory}
           />
         </div>
@@ -496,20 +568,53 @@ export function LoomMate() {
       {/* 本体：形象（可拖拽·松手边缘吸附）+ 名字 + 控制条 */}
       {mini && open === "none" ? (
         /* 迷你球：64px 圆球贴在原位置，点击展开 */
-        <button
-          onClick={() => { setMini(false); persistLocal("loommate.mini", "0"); }}
-          title="展开小织"
-          className="pointer-events-auto relative block h-16 w-16 overflow-hidden rounded-full border-2 border-gold/60 bg-bg900 shadow-xl transition-transform hover:scale-110"
-        >
-          <img src="/live2d/mao/poster.png" alt={personaName} draggable={false} className="h-full w-full object-cover" />
-          {unread > 0 && (
-            <span className="absolute -right-0.5 -top-0.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-alert px-1 text-body font-bold text-white shadow-lg">
-              {unread}
-            </span>
-          )}
-        </button>
+        <div className="relative">
+          <button
+            onClick={() => { setMini(false); persistLocal("loommate.mini", "0"); }}
+            title="展开小织"
+            className="pointer-events-auto relative block h-16 w-16 overflow-hidden rounded-full border-2 border-gold/60 bg-bg900 shadow-xl transition-transform hover:scale-110"
+          >
+            <img src="/live2d/mao/poster.png" alt={personaName} draggable={false} className="h-full w-full object-cover" />
+            {unread > 0 && (
+              <span className="absolute -right-0.5 -top-0.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-alert px-1 text-body font-bold text-white shadow-lg">
+                {unread}
+              </span>
+            )}
+          </button>
+          {/* 迷你球态也要有退出出口（2026-09-20 真机验收整改）：小织收起成球时，
+              底栏控制条不渲染，之前只能先展开再隐藏——这里在球体左侧常驻一个 × 直接收起浮层。 */}
+          <button
+            type="button"
+            onClick={() => { setHidden(true); persistLocal("loommate.hidden", "1"); setPos((p) => p ?? defaultPos()); }}
+            title="隐藏织伴（屏幕边缘留「小织」把手，点一下唤回）"
+            aria-label="隐藏织伴"
+            className="pointer-events-auto absolute -left-2 top-1/2 -mt-3.5 inline-flex h-7 w-7 items-center justify-center rounded-full border border-line bg-bg900/95 text-body text-ink2 shadow-lg hover:border-gline hover:text-gold"
+          >
+            <span aria-hidden="true" className="leading-none">✕</span>
+          </button>
+        </div>
       ) : (
       <div className="pointer-events-none flex flex-col items-center">
+        {/* 任务完成播报的舞台样式（挥棒 / 星尘 / 指向右栏的光轨） */}
+        <style>{`
+          @keyframes wl-wand-swing { 0%{transform:rotate(0) translateY(0)} 16%{transform:rotate(-7deg) translateY(-4px)} 34%{transform:rotate(6deg) translateY(-7px)} 52%{transform:rotate(-5deg) translateY(-2px)} 70%{transform:rotate(3deg)} 100%{transform:rotate(0) translateY(0)} }
+          @keyframes wl-wand-point { 0%{transform:rotate(0)} 38%{transform:rotate(6deg) translateX(3px)} 66%{transform:rotate(4deg) translateX(2px)} 100%{transform:rotate(0) translateX(0)} }
+          @keyframes wl-spark-fly { 0%{opacity:0;transform:translate(0,0) scale(.5)} 12%{opacity:1} 60%{opacity:.95} 100%{opacity:0;transform:translate(var(--dx,220px),var(--dy,-40px)) scale(1.25)} }
+          @keyframes wl-beam-pulse { 0%{opacity:0;transform:scaleX(.35)} 25%{opacity:.95} 65%{opacity:.8;transform:scaleX(1)} 100%{opacity:0;transform:scaleX(1)} }
+          @keyframes wl-say-pop { from{opacity:0;transform:translateY(6px) scale(.95)} to{opacity:1;transform:none} }
+          .wl-mate-stage{position:relative;transform-origin:50% 82%}
+          .wl-mate-stage[data-wand-phase="rise"]{animation:wl-wand-swing .9s ease-in-out 1}
+          .wl-mate-stage[data-wand-phase="point"]{animation:wl-wand-point 1.1s ease-in-out 1}
+          .wl-wand-cast{position:absolute;inset:0;pointer-events:none;overflow:visible}
+          .wl-wand-spark{position:absolute;font-size:15px;line-height:1;color:#ffe6ad;text-shadow:0 0 10px rgba(255,214,138,.95),0 0 22px rgba(255,186,106,.6);opacity:0;animation:wl-spark-fly 1.5s cubic-bezier(.2,.8,.3,1) forwards}
+          .wl-wand-beam{position:absolute;left:62%;top:38%;width:min(46vw,560px);height:3px;border-radius:999px;transform-origin:left center;
+            background:linear-gradient(90deg,rgba(255,230,173,0),rgba(255,230,173,.95),rgba(255,214,138,.35) 70%,rgba(255,214,138,0));
+            box-shadow:0 0 14px rgba(255,214,138,.8);animation:wl-beam-pulse 1.6s ease-out .95s forwards;opacity:0}
+          .wl-wand-beam::after{content:"➤";position:absolute;right:-6px;top:-9px;font-size:13px;color:#ffe6ad;text-shadow:0 0 12px rgba(255,214,138,.9)}
+          .wl-mate-say{margin-top:6px;max-width:min(26rem,calc(100vw - 2rem));border-radius:14px;border:1px solid rgba(255,214,138,.55);
+            background:linear-gradient(160deg,rgba(46,36,20,.96),rgba(28,24,18,.94));padding:7px 11px;text-align:center;color:#ffe9c2;
+            font-size:13px;line-height:1.6;box-shadow:0 12px 30px rgba(0,0,0,.45),0 0 22px rgba(255,214,138,.22);animation:wl-say-pop .35s ease-out}
+        `}</style>
         <div
           role="button" tabIndex={0}
           aria-label={`${personaName}助手；回车打开对话，方向键移动，按住 Shift 可加速移动`}
@@ -519,21 +624,64 @@ export function LoomMate() {
             if (moveByKeyboard(e)) return;
             if (e.key === "Enter" || e.key === " ") {
               e.preventDefault();
-              void openPanel("chat");
+              openAssistantRail();
             }
           }}
           className="pointer-events-auto relative block cursor-grab touch-none select-none transition-transform hover:scale-105 active:cursor-grabbing"
-          title={`${personaName}（拖拽挪位置 · 点击聊聊）`}
+          title={`${personaName}（拖拽挪位置 · 点击打开全局框）`}
         >
-          {webglOk
-            ? <MateLive2D size={dim} mood={mood} gesture={mateGesture} />
-            : <MateAvatar size={dim} excited={unread > 0} />}
+          <div className="wl-mate-stage" data-wand-phase={celebrate ? wandPhase : "idle"}>
+            {webglOk
+              ? <MateLive2D size={dim} mood={mood} gesture={mateGesture} />
+              : <MateAvatar size={dim} excited={unread > 0 || Boolean(celebrate)} />}
+            {/* 任务完成：星尘沿魔法棒洒出并飞向右栏，配一条指向对话框的光轨 */}
+            {celebrate && (
+              <div className="wl-wand-cast" aria-hidden="true">
+                <span className="wl-wand-beam" />
+                {WAND_SPARKS.map((s, i) => (
+                  <span
+                    key={i}
+                    className="wl-wand-spark"
+                    style={{
+                      left: `${s.left}%`,
+                      top: `${s.top}%`,
+                      animationDelay: `${s.delay}s`,
+                      "--dx": `${s.dx}px`,
+                      "--dy": `${s.dy}px`,
+                    } as React.CSSProperties}
+                  >
+                    {i % 2 === 0 ? "✦" : "✧"}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+          {/* 2026-09-20（真机验收整改）：大形象在窄屏/舞台低位时控制条会被视口裁掉，
+              用户找不到「隐藏」出口。这里在形象本体右上角常驻一个 × 隐藏按钮：
+              点击后与底部控制条「隐藏」同一条链路（边缘留小织把手，一点唤回）。 */}
+          <button
+            type="button"
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={(e) => {
+              e.stopPropagation();
+              setHidden(true);
+              persistLocal("loommate.hidden", "1");
+              setPos((p) => p ?? defaultPos());
+            }}
+            title="隐藏织伴（屏幕边缘留「小织」把手，点一下唤回）"
+            aria-label="隐藏织伴"
+            className={`absolute -top-2 z-10 inline-flex h-7 w-7 items-center justify-center rounded-full border border-line bg-bg900/95 text-body text-ink2 shadow-lg hover:border-gline hover:text-gold ${unread > 0 ? "-left-2" : "-right-2"}`}
+          >
+            <span aria-hidden="true" className="leading-none">✕</span>
+          </button>
           {unread > 0 && (
             <span className="absolute -right-1 -top-1 flex h-6 min-w-6 items-center justify-center rounded-full bg-alert px-1 text-body font-bold text-white shadow-lg">
               {unread}
             </span>
           )}
         </div>
+        {/* 播报字幕：她说的话必须看得见（VoiceEngine 纪律：发声的都要有字幕） */}
+        {celebrateLine && <div className="wl-mate-say" role="status">{celebrateLine}</div>}
         <div className="pointer-events-auto mt-0.5 flex items-center gap-1.5">
             <span className="rounded-full bg-bg900/90 px-2.5 py-0.5 text-body text-ink shadow">
             {personaName}
@@ -558,12 +706,10 @@ export function LoomMate() {
 }
 
 /* ---------------- 展开面板（聊/设置/记忆——角落态与全屏态复用） ---------------- */
-function MatePanel({ open, setOpen, openPanel, chat, busy, input, setInput, send, personaName, settings, setSettings, memory, setMemory }: {
-  open: "chat" | "settings" | "memory";
-  setOpen: (v: "none" | "chat" | "settings" | "memory") => void;
-  openPanel: (p: "chat" | "settings" | "memory") => Promise<void>;
-  chat: ChatMsg[]; busy: boolean; input: string; setInput: (v: string) => void;
-  send: (text: string) => Promise<void>;
+function MatePanel({ open, setOpen, openPanel, personaName, settings, setSettings, memory, setMemory }: {
+  open: "settings" | "memory";
+  setOpen: (v: "none" | "settings" | "memory") => void;
+  openPanel: (p: "settings" | "memory") => Promise<void>;
   personaName: string; settings: Settings | null;
   setSettings: React.Dispatch<React.SetStateAction<Settings | null>>;
   memory: Record<string, MemRow[]> | null;
@@ -573,7 +719,8 @@ function MatePanel({ open, setOpen, openPanel, chat, busy, input, setInput, send
 <div className="flex h-[min(26rem,calc(100vh-2rem))] w-[var(--wl-assistant-expanded)] max-w-full flex-col rounded-2xl border border-gline bg-bg900/95 shadow-2xl backdrop-blur" role="region" aria-label="小织助手面板">
           <div className="flex items-center justify-between border-b border-line px-3 py-2">
             <div className="flex gap-1">
-              {([["chat", "聊聊"], ["settings", "设置"], ["memory", "记忆"]] as const).map(([k, label]) => (
+              {/* 三合一：闲聊入口已并入右侧全局框「我的」域，这里只保留设置与记忆 */}
+              {([["settings", "设置"], ["memory", "记忆"]] as const).map(([k, label]) => (
                 <button key={k} onClick={() => void openPanel(k)}
                   className={`rounded-full px-3 py-1 text-body ${open === k ? "bg-gold/15 text-gold" : "text-ink2 hover:text-ink"}`}>
                   {label}
@@ -582,39 +729,6 @@ function MatePanel({ open, setOpen, openPanel, chat, busy, input, setInput, send
             </div>
             <button onClick={() => setOpen("none")} className="text-ink3 hover:text-ink" aria-label="关闭小织助手面板" title="关闭小织助手面板"><Icon name="close" size={16} /></button>
           </div>
-          {open === "chat" && (
-            <>
-              <div className="flex-1 space-y-2 overflow-y-auto p-3">
-                {chat.map((m, i) => (
-                  <div key={i} className={m.from === "me" ? "text-right" : ""}>
-                    <span className={`inline-block max-w-[85%] rounded-2xl px-3 py-1.5 text-body leading-relaxed ${
-                      m.from === "me" ? "bg-gold/15 text-ink" : "bg-bg800 text-ink"}`}>
-                      {m.text}
-                    </span>
-                  </div>
-                ))}
-                {busy && <div className="text-body text-ink3">{personaName}正在思考…</div>}
-              </div>
-              <div className="border-t border-line p-2">
-                <div className="mb-1.5 flex gap-1">
-                  {["任务怎么样了", "明早八点提醒我过审批", "找总经理"].map((chip) => (
-                    <button key={chip} onClick={() => void send(chip)}
-                      className="rounded-full border border-line px-2 py-0.5 text-body text-ink3 hover:text-ink">{chip}</button>
-                  ))}
-                </div>
-                <div className="flex gap-1.5">
-                  <input value={input} onChange={(e) => setInput(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === "Enter") void send(input); }}
-                    placeholder={`跟${personaName}说点什么……`}
-                    className="min-w-0 flex-1 rounded-full border border-line bg-bg950 px-3 py-1.5 text-body outline-none focus:border-gline" />
-                  <button disabled={busy} onClick={() => void send(input)}
-                    className="rounded-full bg-gradient-to-br from-gold to-gold2 px-3.5 py-1.5 text-body font-semibold text-ongold disabled:opacity-50">
-                    发送
-                  </button>
-                </div>
-              </div>
-            </>
-          )}
           {open === "settings" && settings && (
             <SettingsPanel settings={settings} personaName={personaName}
               onSave={async (patch) => {

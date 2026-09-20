@@ -25,8 +25,15 @@ import * as PIXI from "pixi.js";
 import type { Live2DModel } from "pixi-live2d-display";
 import { VoiceEngine } from "../../voice/VoiceEngine";
 
-export type MateMood = "neutral" | "happy" | "fear" | "love";
-export type MateGesture = "handup" | "thumbup" | null;
+export type MateMood = "neutral" | "happy" | "fear" | "love" | "excited";
+/**
+ * 手势即语义：
+ *  - handup / thumbup：日常招呼与点赞；
+ *  - wandpoint：任务完成的魔法棒播报（举棒 → 挥棒 → 指向右侧对话框）。
+ *    模型动作组只有 TapBody/Idle 这类通用动作，指向的舞台表演由 LoomMate 外壳用
+ *    挥棒动画 + 星尘 + 指向光轨补足，这里是"同一支棒"的动作起点。
+ */
+export type MateGesture = "handup" | "thumbup" | "wandpoint" | null;
 
 export interface Live2DHandle {
   setMood: (m: MateMood) => void;
@@ -80,10 +87,12 @@ function profileOf(modelUrl: string): ModelProfile {
 
 /** 表情映射按模型登记（残留教训：曾硬编码 shizuku 表情 ID，换 Mao 后情绪静默失效）
  *  Mao（Cubism 3.0 官样）：exp_02 眯眼笑 / exp_06 脸红羞涩 / exp_07 睁大吃惊
- *  shizuku（备份模型）：f01 微笑 / f02 羞涩 / f04 吃惊 */
+ *  shizuku（备份模型）：f01 微笑 / f02 羞涩 / f04 吃惊
+ *  excited（任务完成播报的兴奋态）：先用「睁大眼」的吃惊表情起手，播报尾段由 LoomMate
+ *  切回 happy 的眯眼笑——两眼一笑一睁，是"手舞足蹈"的情绪曲线，而不是一个静态表情。 */
 const MODEL_EXPR: Record<string, Record<MateMood, string | null>> = {
-  mao:     { neutral: null, happy: "exp_02", love: "exp_06", fear: "exp_07" },
-  shizuku: { neutral: null, happy: "f01",    love: "f02",    fear: "f04"    },
+  mao:     { neutral: null, happy: "exp_02", love: "exp_06", fear: "exp_07", excited: "exp_07" },
+  shizuku: { neutral: null, happy: "f01",    love: "f02",    fear: "f04",    excited: "f04"    },
 };
 function moodExprOf(modelUrl: string, mood: MateMood): string | null {
   const key = Object.keys(MODEL_EXPR).find((k) => modelUrl.toLowerCase().includes(k)) ?? "mao";
@@ -221,7 +230,8 @@ function MateVector2D({ size, mood = "neutral", gesture = null, frame = "bust", 
     };
   }, [onReady]);
 
-  const happy = mood === "happy" || mood === "love";
+  // excited（任务完成播报）在矢量后端同样按"开心脸"呈现；星尘与挥棒由外壳叠加
+  const happy = mood === "happy" || mood === "love" || mood === "excited";
   const afraid = mood === "fear";
   const activeGesture = commandGesture ?? gesture;
   const handUp = activeGesture === "handup";
@@ -346,6 +356,11 @@ function Live2DBackend({ size, mood = "neutral", gesture = null, modelUrl = "/li
         height: size,
         backgroundAlpha: 0,
         antialias: true,
+        // 2026-09-20（真机验收整改）：Retina 屏按设备像素比渲染。
+        // 之前 resolution 缺省=1，画布位图被系统放大到 2x——胸前的颜料印花与发丝被糊成
+        // 「乱码感」色块；autoDensity 保证 CSS 尺寸不变（布局零影响），仅提升位图密度。
+        resolution: Math.min(window.devicePixelRatio || 1, 2),
+        autoDensity: true,
         preserveDrawingBuffer: capture,   // 路线 B 截图保真
         autoStart: false,                 // 自控时钟（虚拟时钟契约前提）
       });
@@ -758,6 +773,9 @@ function Live2DBackend({ size, mood = "neutral", gesture = null, modelUrl = "/li
         position: "relative", width: size, height: size, borderRadius: 16,
         overflow: "hidden", pointerEvents: "none",
       }}
+      /* axe aria-prohibited-attr：无 role 的 div 不允许挂 aria-label；
+         织伴形象语义 = 图像，与矢量后端（vector2d 分支）保持同一可访问口径。 */
+      role="img"
       aria-label="织伴数字人"
     >
       {!renderReady && !loadError && <div style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", color: "#68707a", fontSize: 14 }}>数字人正在登台…</div>}

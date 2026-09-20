@@ -20,7 +20,6 @@ import { PageExitLink } from "../../shell/PageExitLink";
 import {
   AgentActionMessage,
   BannerAlert,
-  DispatchBar,
   EmptyState,
   HumanBubble,
   Skeleton,
@@ -60,6 +59,142 @@ function receiptOf(ev: Ev): ReceiptState {
   return "unverified";
 }
 
+/**
+ * 任务结果摘要（2026-09-20 真机反馈：任务详情要看得见「关键链路进展」与「最终结果」）。
+ * 只认「结果」语义的字段：
+ *   - 字符串结果（result/output/summary/text/content）直接展示；
+ *   - 结构化结果（result.outputs / artifacts / files）折算为产物摘要（类型 + 体积）；
+ *   - 任务标题（title）、提示词（prompt）、模型名（model）**不是**结果，不回显；
+ *   - `模型：信息待确认`、`补充信息：…`、字段名与 JSON 这类占位一律不回显。
+ */
+const RESULT_TEXT_KEYS = ["summary", "text", "content", "output", "url"] as const;
+const RESULT_LIST_KEYS = ["outputs", "artifacts", "files"] as const;
+
+/** 产物摘要：只看数量、类型与体积，不释放本地路径/哈希等内部信息 */
+function artifactLineOf(items: unknown[]): string | null {
+  if (items.length === 0) return null;
+  const first = items[0];
+  if (!first || typeof first !== "object") return `已产出 ${items.length} 个产物`;
+  const record = first as Record<string, unknown>;
+  const path = typeof record.path === "string" ? record.path : typeof record.url === "string" ? record.url : "";
+  const kind = /\.(png|jpe?g|webp|gif|bmp)$/i.test(path) ? "图片"
+    : /\.(mp4|mov|webm)$/i.test(path) ? "视频"
+      : /\.(md|txt|docx?|pdf)$/i.test(path) ? "文档" : "文件";
+  const bytes = typeof record.bytes === "number" ? record.bytes : null;
+  const size = bytes === null ? "" : ` · 约 ${Math.max(1, Math.round(bytes / 1024))} KB`;
+  return `已产出 ${items.length} 个${kind}产物${size}`;
+}
+
+function resultLineOf(after: unknown): string | null {
+  if (typeof after === "string") return clientChineseText(after, "") || null;
+  if (!after || typeof after !== "object") return null;
+  const record = after as Record<string, unknown>;
+  for (const key of ["result", "output", "summary", "text", "content"] as const) {
+    const value = record[key];
+    if (typeof value === "string" && value.trim()) {
+      const text = clientChineseText(value, "");
+      if (text) return text.length > 240 ? `${text.slice(0, 240)}…` : text;
+    }
+    if (!value || typeof value !== "object") continue;
+    const nested = value as Record<string, unknown>;
+    for (const textKey of RESULT_TEXT_KEYS) {
+      const textValue = nested[textKey];
+      if (typeof textValue !== "string" || !textValue.trim()) continue;
+      const text = clientChineseText(textValue, "");
+      if (text) return text.length > 240 ? `${text.slice(0, 240)}…` : text;
+    }
+    for (const listKey of RESULT_LIST_KEYS) {
+      const items = nested[listKey];
+      if (Array.isArray(items)) {
+        const line = artifactLineOf(items);
+        if (line) return line;
+      }
+    }
+  }
+  return null;
+}
+
+/** 产物条目（服务端只回元数据；路径不出服务端） */
+interface ArtifactMeta { index: number; kind: "image" | "video" | "document" | "file"; mime: string; bytes: number | null }
+
+const ARTIFACT_KIND_TEXT: Record<ArtifactMeta["kind"], string> = {
+  image: "图片", video: "视频", document: "文档", file: "文件",
+};
+
+function bytesText(bytes: number | null): string {
+  if (typeof bytes !== "number" || bytes <= 0) return "";
+  if (bytes >= 1024 * 1024) return ` · ${(bytes / 1024 / 1024).toFixed(1)} MB`;
+  return ` · ${Math.max(1, Math.round(bytes / 1024))} KB`;
+}
+
+/**
+ * 产物预览（2026-09-21 产品所有者口径：最终结果里要能直接看、直接下载）：
+ * 图片/视频内联展示并可下载；纯文本/MD/HTML/PDF 等给下载入口。
+ * 取件走 threads.artifactData（鉴权头 + base64 → blob URL），不做无鉴权裸端点。
+ */
+function ArtifactView({ threadId, artifact }: { threadId: string; artifact: ArtifactMeta }) {
+  const [url, setUrl] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    let alive = true;
+    let objectUrl: string | null = null;
+    void (async () => {
+      try {
+        await ensureDemoLogin();
+        const data = await (trpc.threads as unknown as {
+          artifactData: { query: (i: { threadId: string; index: number }) => Promise<{ base64: string; mime: string }> };
+        }).artifactData.query({ threadId, index: artifact.index });
+        if (!alive) return;
+        const binary = atob(data.base64);
+        const bytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
+        objectUrl = URL.createObjectURL(new Blob([bytes], { type: data.mime }));
+        setUrl(objectUrl);
+      } catch (err) {
+        if (!alive) return;
+        // 服务端给的是受控中文文案（超限/越界/不在本机），过一遍客户端文案边界再用
+        const message = err instanceof Error ? clientChineseText(err.message, "") : "";
+        setError(message || "产物暂时无法打开（可能不在本机或已被清理）");
+      }
+    })();
+    return () => {
+      alive = false;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [threadId, artifact.index]);
+
+  const label = `产物 ${artifact.index + 1} · ${ARTIFACT_KIND_TEXT[artifact.kind]}${bytesText(artifact.bytes)}`;
+  if (error) {
+    return <div className="rounded-lg border border-warn/40 bg-warn/5 px-2.5 py-2 text-body text-warn">{label}：{error}</div>;
+  }
+  return (
+    <div className="rounded-lg border border-line bg-bg800/40 p-2.5">
+      <div className="mb-1.5 flex flex-wrap items-center gap-2 text-body text-ink3">
+        <span>{label}</span>
+        <span className="flex-1" />
+        {url && (
+          <a
+            href={url}
+            download={`artifact-${threadId}-${artifact.index + 1}`}
+            className="rounded border border-gline px-2 py-0.5 text-body font-bold text-gold no-underline hover:bg-gold/10"
+          >
+            下载
+          </a>
+        )}
+      </div>
+      {!url ? (
+        <div className="text-body text-ink3">正在取件…</div>
+      ) : artifact.kind === "image" ? (
+        <img src={url} alt={label} className="max-h-72 w-auto max-w-full rounded-md border border-line bg-bg950 object-contain" />
+      ) : artifact.kind === "video" ? (
+        <video src={url} controls playsInline className="max-h-72 w-full max-w-full rounded-md border border-line bg-bg950" />
+      ) : (
+        <div className="text-body text-ink2">该格式不支持内联预览，点「下载」取用（支持纯文本 / Markdown / HTML / PDF）。</div>
+      )}
+    </div>
+  );
+}
+
 export default function P2() {
   const { canAction } = useNavigationAccess();
   const { threadId = "" } = useParams();
@@ -72,9 +207,10 @@ export default function P2() {
   const [threads, setThreads] = useState<ThreadRow[]>([]);
   const [events, setEvents] = useState<Ev[]>([]);
   const [approvals, setApprovals] = useState<ApprovalRow[]>([]);
-  const [composer, setComposer] = useState("");
   const [banner, setBanner] = useState<{ level: "alert" | "warn" | "info"; text: string } | null>(null);
   const [rejectTarget, setRejectTarget] = useState<string | null>(null);
+  /** 产物清单（任务详情「最终结果」直接看/下载产物） */
+  const [artifacts, setArtifacts] = useState<ArtifactMeta[]>([]);
 
   const load = useCallback(async () => {
     try {
@@ -91,7 +227,19 @@ export default function P2() {
         setEvents(ev);
         // 本线程相关审批（event_id ∈ 线程事件链）
         const ids = new Set(ev.map((e) => e.event_id));
-        setApprovals(ap.filter((a) => ids.has(a.event_id)));
+        /**
+         * 只展示「需要人审的决策门」：内部生产协作（脚本/分镜/拍摄清单/成片这些员工之间的
+         * 日常流转）不设人审——产出只作为过程与时间线出现在消息流与关键链路里
+         * （2026-09-21 产品所有者口径；配套围栏 G-C01 已把内部协作改为 auto）。
+         * 历史遗留的挂起项在这里一并过滤，等服务端过期清扫收口。
+         */
+        setApprovals(ap.filter((a) => ids.has(a.event_id)).filter((a) => {
+          const snapshot = a.snapshot as { gate?: unknown; action?: unknown };
+          if (snapshot?.gate) return true;                       // G1–G10 决策门
+          const action = typeof snapshot?.action === "string" ? snapshot.action : "";
+          return /\.(confirm|execute|submit|publish|boost|approve|adjust|commit|finalize|topup)$/.test(action)
+            || /^(gate|publish|ads|price|deal|budget|credit|spend|purchase|order|invoice)\./.test(action);
+        }));
       }
       setOffline(false);
     } catch {
@@ -106,6 +254,26 @@ export default function P2() {
     const t = setInterval(() => void load(), 5000); // F3.4 ≤5s 轮询
     return () => clearInterval(t);
   }, [load]);
+
+  /** 产物清单：跟事件流同频刷新（产物是事件账本里登记的，不另建事实源） */
+  useEffect(() => {
+    if (!threadId) return;
+    let alive = true;
+    const loadArtifacts = async () => {
+      try {
+        await ensureDemoLogin();
+        const list = await (trpc.threads as unknown as {
+          artifacts: { query: (i: { threadId: string }) => Promise<ArtifactMeta[]> };
+        }).artifacts.query({ threadId });
+        if (alive) setArtifacts(list);
+      } catch {
+        /* 取件清单失败不影响任务详情其余内容 */
+      }
+    };
+    void loadArtifacts();
+    const t = setInterval(() => void loadArtifacts(), 5000);
+    return () => { alive = false; clearInterval(t); };
+  }, [threadId]);
 
   /* ---------- 计量与围栏聚合（ThreadInspector） ---------- */
   const meter = useMemo(() => {
@@ -127,6 +295,30 @@ export default function P2() {
   const isFailed = demo === "p2_error" || thread?.status === "failed";
   const canApprove = canAction("approval.decide");
   const canDispatch = canAction("task.dispatch");
+
+  /**
+   * 关键链路进展 + 最终结果（2026-09-20 真机反馈补齐）：
+   *  派发（人下达）→ 执行（数字员工动作，含子呼叫/审批）→ 交付（线程收尾 + 可展示结果）。
+   * 全程只用事件账本里真实存在的事实，不编造进度：没有的事件就是「尚未发生」。
+   */
+  const chain = useMemo(() => {
+    const dispatched = events.some((e) => e.decision.action === "thread.dispatch" || e.who.type === "human");
+    const agentActions = events.filter((e) => e.who.type === "agent");
+    const approvalsIn = events.filter((e) => e.decision.action.includes("approval")).length;
+    const results = events
+      .map((e) => ({ at: e.context.time, text: resultLineOf(e.decision.after) }))
+      .filter((x): x is { at: string; text: string } => Boolean(x.text));
+    const last = events[events.length - 1];
+    return {
+      dispatched,
+      agentActions: agentActions.length,
+      approvalsIn,
+      latestAt: last?.context.time ? new Date(last.context.time).toTimeString().slice(0, 5) : null,
+      lastStep: last ? `${actorText(last.who.id)} · ${actionText(last.decision.action)}` : null,
+      result: results.length ? results[results.length - 1]!.text : null,
+      delivered: Boolean(thread && thread.status === "completed"),
+    };
+  }, [events, thread]);
 
   /* ---------- 手势写回（approvals.decide；驳回原因弹窗在 P4 落地完整枚举，此处驳回走默认原因） ---------- */
   const gesture = useCallback(async (approvalId: string, g: "approve" | "edit" | "reject") => {
@@ -153,18 +345,6 @@ export default function P2() {
     setBanner({ level: "info", text: "已驳回并记录原因，后续会用于校准协作偏好。" });
     await load();
   }, [rejectTarget, load]);
-
-  /* ---------- 追问（P2E6：沿用线程上下文；threads.run 续跑，replay 幂等 H-5） ---------- */
-  const followUp = useCallback(async () => {
-    if (!composer.trim() || !thread) return;
-    setBanner({ level: "info", text: "追问已沿用当前任务上下文并进入队列，正在执行…" });
-    setComposer("");
-    try {
-      await trpc.threads.run.mutate({ threadId: thread.id, goal: composer, ...(thread.agent_id ? { presetKey: thread.agent_id } : {}) });
-    } finally {
-      await load();
-    }
-  }, [composer, thread, load]);
 
   /* ---------- 左栏：会话列表（P2E1 状态点浏览，单击切换） ---------- */
   const left = (
@@ -287,6 +467,38 @@ export default function P2() {
         )}
 
         <div className="flex-1 space-y-3">
+          {/* 关键链路进展（派发 → 执行 → 交付）：只画账本里真实发生的阶段 */}
+          {thread && events.length > 0 && (
+            <section className="rounded-msg border border-line bg-card p-3.5">
+              <div className="mb-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-body">
+                <span className="font-bold text-holo">关键链路进展</span>
+                <span className="text-ink3">
+                  {dictText(COMMON_STATUS_TEXT, thread.status)} · {thread.progress_done}/{thread.progress_total} 步
+                </span>
+                <span className="flex-1" />
+                <span className="text-ink3">
+                  {offline ? "连接中断 · 重连中" : chain.latestAt ? `最近更新 ${chain.latestAt}` : "等待首次执行"}
+                </span>
+              </div>
+              <ol className="flex flex-wrap items-center gap-x-2 gap-y-1.5 text-body">
+                {[
+                  { key: "派发", done: chain.dispatched, detail: chain.dispatched ? "已下达给数字员工" : "尚未下达" },
+                  { key: "执行", done: chain.agentActions > 0, detail: chain.agentActions > 0 ? `${chain.agentActions} 条动作${chain.approvalsIn ? ` · ${chain.approvalsIn} 次审批` : ""}` : "尚未执行" },
+                  { key: "交付", done: chain.delivered && Boolean(chain.result), detail: chain.delivered ? (chain.result ? "已产出结果" : "已收尾 · 无对外结果") : "尚未交付" },
+                ].map((stage, index) => (
+                  <li key={stage.key} className="inline-flex min-w-0 items-center gap-2">
+                    {index > 0 && <span className="text-ink3">→</span>}
+                    <span className={`inline-flex items-center gap-1 rounded border px-2 py-0.5 ${stage.done ? "border-go/50 text-go" : "border-line text-ink3"}`}>
+                      <Icon name={stage.done ? "check" : "circle"} size={12} />
+                      {stage.key}
+                    </span>
+                    <span className="break-words text-ink3">{stage.detail}</span>
+                  </li>
+                ))}
+              </ol>
+              {chain.lastStep && <div className="mt-2 break-words text-body text-ink2">最近一步：{chain.lastStep}</div>}
+            </section>
+          )}
           {!ready ? (
             <><Skeleton count={2} height={44} label="会话摘要正在加载" /><Skeleton count={4} label="会话内容正在加载" /></>
           ) : !thread ? (
@@ -342,10 +554,15 @@ export default function P2() {
                     action={actionText(ev.decision.action)}
                     eventId={ev.event_id}
                     receipt={receiptOf(ev)}
-                    rules={(ev.rule_impact ?? []).map((r) => `关联围栏 · ${dictText(RULE_RESULT_TEXT, r.result)}`)}
+                    // 同一事件可能命中多条同结果围栏 → 标签去重，避免 React key 重复告警
+                    rules={[...new Set((ev.rule_impact ?? []).map((r) => `关联围栏 · ${dictText(RULE_RESULT_TEXT, r.result)}`))]}
                     credits={ev.model_trace?.credits}
                   >
-                    {payloadText(ev.decision.after)}
+                    {/* 2026-09-20：不再回显原始载荷（「模型：信息待确认 / 补充信息：…」是无用信息） */}
+                    {resultLineOf(ev.decision.after)
+                      ?? (ev.decision.effect === "write"
+                        ? "已提交写操作，等待对外回执（无回执不算完成）。"
+                        : "已记录本次动作，未产生可展示的对外结果。")}
                   </AgentActionMessage>
                 );
               })}
@@ -374,26 +591,34 @@ export default function P2() {
                 </div>
               ))}
 
-              {/* 完成后态 p2_done：交付卡 + 决策链路时间轴；无对外变更明示「仅只读分析」（E3.7） */}
+              {/* 完成后态 p2_done：最终结果（真实产出，没有产出就说没有）；无对外变更明示「仅只读分析」（E3.7） */}
               {isDone && (
                 <div className="rounded-msg border border-go/40 bg-go/5 p-4">
-                  <div className="mb-1.5 flex items-center gap-1.5 text-h2 font-black text-go"><Icon name="check" size={17} />交付完成 · 变更报告</div>
-                  {!hasWrite && <div className="mb-1.5 flex items-center gap-1.5 text-body text-warn"><Icon name="warning" size={14} />本任务没有产生对外变更，仅完成了只读分析。</div>}
-                  <div className="text-body text-ink2">决策链路时间轴（共 {events.length} 条账本事件）：</div>
-                  <div className="mt-1.5 space-y-1">
-                    {events.map((ev) => (
-                      <div key={ev.event_id} className="flex items-center gap-2 font-mono text-body text-ink3">
-                        <span className="text-holo">账本凭证 {shortId(ev.event_id)}</span>
-                        <span>{actorText(ev.who.id)} · {actionText(ev.decision.action)}</span>
-                        <span className={receiptOf(ev) === "synced" ? "text-go" : receiptOf(ev) === "failed" ? "text-alert" : "text-warn"}>
-                          <Icon
-                            name={receiptOf(ev) === "synced" ? "check" : receiptOf(ev) === "failed" ? "error" : "warning"}
-                            label={receiptOf(ev) === "synced" ? "已生效" : receiptOf(ev) === "failed" ? "失败" : "未核实"}
-                            size={13}
-                          />
-                        </span>
-                      </div>
-                    ))}
+                  <div className="mb-1.5 flex items-center gap-1.5 text-h2 font-black text-go"><Icon name="check" size={17} />最终结果</div>
+                  {chain.result ? (
+                    <div className="break-words text-body leading-relaxed text-ink">{chain.result}</div>
+                  ) : (
+                    <div className="break-words text-body leading-relaxed text-ink2">
+                      本任务没有产出可交付的结果：链路已收尾，但没有结果载荷写回（未产生物料、文案或对外变更）。
+                    </div>
+                  )}
+                  {!hasWrite && (
+                    <div className="mt-1.5 flex items-center gap-1.5 text-body text-warn">
+                      <Icon name="warning" size={14} />没有对外写操作 → 未产生变更，仅只读分析或结论。
+                    </div>
+                  )}
+                  {/* 产物直达：图片/视频内联看，其余格式给下载入口（2026-09-21 产品所有者口径） */}
+                  {artifacts.length > 0 && (
+                    <div className="mt-2.5 space-y-2">
+                      {artifacts.map((artifact) => (
+                        <ArtifactView key={artifact.index} threadId={threadId} artifact={artifact} />
+                      ))}
+                    </div>
+                  )}
+                  <div className="mt-2 border-t border-go/25 pt-2 text-body text-ink3">
+                    关键链路：派发 {chain.dispatched ? "已下达" : "未下达"} · 执行 {chain.agentActions} 条动作
+                    {chain.approvalsIn ? ` · 审批 ${chain.approvalsIn} 次` : ""} · 交付 {chain.result ? "已产出结果" : "无对外结果"}
+                    （共 {events.length} 条账本事件）
                   </div>
                 </div>
               )}
@@ -401,16 +626,25 @@ export default function P2() {
           )}
         </div>
 
-        {/* P2E6 线程内追问（只读成员不显示输入栏 E2.6；沿用线程上下文 F3.6） */}
+        {/* P2E6 线程内追问（三合一：页面不再自带输入框，统一交右侧「织伴」全局框；
+            推进=threads.run 续跑，留言=threads.note 只写账本。只读成员隐藏入口 E2.6） */}
         {canDispatch && thread && (
-          <div className="mt-4">
-            <DispatchBar
-              state={composer ? "typing" : "empty"}
-              value={composer}
-              chips={["沿用当前任务上下文"]}
-              onChange={setComposer}
-              onSubmit={() => void followUp()}
-            />
+          <div className="mt-4 flex flex-wrap items-center gap-2 text-body text-ink3">
+            <button
+              type="button"
+              onClick={() => window.dispatchEvent(new CustomEvent("workloom:assistant-intent", { detail: { intent: "advance" } }))}
+              className="cursor-pointer rounded-lg border border-gline bg-gold/10 px-3 py-1.5 font-bold text-gold hover:bg-gold/20"
+            >
+              继续推进本任务
+            </button>
+            <button
+              type="button"
+              onClick={() => window.dispatchEvent(new CustomEvent("workloom:assistant-intent", { detail: { intent: "note" } }))}
+              className="cursor-pointer rounded-lg border border-line px-3 py-1.5 text-ink2 hover:border-gline hover:text-gold"
+            >
+              给本任务留言
+            </button>
+            <span>输入统一走右侧「织伴」全局框；推进与留言都会留痕，执行仍以围栏与回执为准。</span>
           </div>
         )}
       </div>
