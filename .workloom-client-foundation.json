@@ -26,10 +26,6 @@
       "sha256": "ac4734f030587b91b9064ebbbbb30a7970ac5411a41f0ad9918857f2906fea6e",
       "mode": 420
     },
-    "apps/web/package.json": {
-      "sha256": "df621e14e0adf04e7e4f165a52a5811eb9093d8f357ae14eee3bedb772310b20",
-      "mode": 420
-    },
     "apps/web/playwright.consumer.config.ts": {
       "sha256": "04f53ae00b39c3af426482d4b9bd28dd13aff3db7879dcb51573de5fcddf1c21",
       "mode": 420
@@ -274,10 +270,6 @@
       "sha256": "5a7891f8fe12a0c84dfbb64454b0b6b51328894011021e5c664bc8701aaf40ad",
       "mode": 420
     },
-    "apps/web/src/App.tsx": {
-      "sha256": "1985f884cea996908d24aa5b285ca15bec716d45c9af6d4d0c31c77f52c604f9",
-      "mode": 420
-    },
     "apps/web/src/audio/ambience.ts": {
       "sha256": "7d1feed9b9f4bf3429c3ff562009a09946ca705278de2ceb6674a99e5e434326",
       "mode": 420
@@ -346,112 +338,12 @@
       "sha256": "b033f53c2855118d742c351a1eff5fc638e58093df43a003615f19736384f366",
       "mode": 420
     },
-    "apps/web/src/components/hud/DispatchBar.tsx": {
-      "sha256": "9aaa1fa1dec5342c88aaf68b68896394e76cea10891f1adcd6531ff8fc87f7d9",
-      "mode": 420
-    },
-    "apps/web/src/components/hud/EmergencyBrake.tsx": {
-      "sha256": "a82c2d1f0c476c4292b4363f9d5c6346872e1a83c93bf1dfa35ac6988ee0917e",
-      "mode": 420
-    },
-    "apps/web/src/components/hud/EventIdChip.tsx": {
-      "sha256": "373ddeed52b4aff39f74a69ffe8f20b2590191fbe0c669c36b3baf5a61ed3e45",
-      "mode": 420
-    },
-    "apps/web/src/components/hud/feedback.tsx": {
-      "sha256": "4a2eb44a24da4a28d060bfc9b523025117818db432cda9e310328e57a8b1dd41",
-      "mode": 420
-    },
-    "apps/web/src/components/hud/FenceLight.tsx": {
-      "sha256": "23a624d702df4939b9bccf2653847937972a90e2d7554ab808cad0494c87106b",
-      "mode": 420
-    },
-    "apps/web/src/components/hud/gamification.tsx": {
-      "sha256": "17a2ae4a7d854d41a4152760c357f3e86aecc576a7c32088a1ec427a59cbe057",
-      "mode": 420
-    },
-    "apps/web/src/components/hud/HandoffCard.tsx": {
-      "sha256": "02ccfa5f99a92aa8c037c93897e0948387cc171adf4c9f826434539f7037891b",
-      "mode": 420
-    },
-    "apps/web/src/components/hud/index.ts": {
-      "sha256": "1071dac706b210e206ec6f43d0cf7d928cf2cd673911086c2c3e390602268352",
-      "mode": 420
-    },
-    "apps/web/src/components/hud/KpiGauge.tsx": {
-      "sha256": "3369728bc2bec4e5963222e0ab0de5014a410373f6eea946b0582d764aa7a9a8",
-      "mode": 420
-    },
-    "apps/web/src/components/hud/messages.tsx": {
-      "sha256": "c520e8ea01361a1c70d97c2dc41e12f01b21c20933ec4b3ece1423cc7d3f37e5",
-      "mode": 420
-    },
-    "apps/web/src/components/hud/NightStatusPill.tsx": {
-      "sha256": "13b5712fd5b0ebb116c04615483cce8caec9b36b6875c2794772fa4fccd1cf07",
-      "mode": 420
-    },
-    "apps/web/src/components/hud/PlanCompareCard.tsx": {
-      "sha256": "37c936995e90ce487cbab9c859fb20f0f89738f3f08f72cfb4ab4aaad0fe3707",
-      "mode": 420
-    },
-    "apps/web/src/components/hud/QuestCard.tsx": {
-      "sha256": "9f9e1575a09b382af350bf3ac9500efb4cf826e7f083c25fef7ddd8ed6dd006f",
-      "mode": 420
-    },
-    "apps/web/src/components/hud/RadarAlertCard.tsx": {
-      "sha256": "174426c5aba1e544abddb8252e55191de2ea7c0bfd3af1e57229da125c3bddfc",
-      "mode": 420
-    },
-    "apps/web/src/components/hud/TriGestureBar.tsx": {
-      "sha256": "e1967cfde696684a6416d5fdc7104ded1dd57d70f501f35d49883f9fc7532a48",
-      "mode": 420
-    },
-    "apps/web/src/components/hud/XpBar.tsx": {
-      "sha256": "d05d92260e2987d6ae5f21baaffaeca0a0916fc3e2376bf7c76cf2527ae148d9",
-      "mode": 420
-    },
-    "apps/web/src/components/loommate/LoomMate.tsx": {
-      "sha256": "ed24a42e0d036b954291503cc8e91fdf914afde206004deb16e0eea5a507653f",
-      "mode": 420
-    },
-    "apps/web/src/components/loommate/MateLive2D.tsx": {
-      "sha256": "1d787c7b9fbd507e68a8335f3c4e09221f705fb6f22cd4f8118264bb15adb090",
-      "mode": 420
-    },
-    "apps/web/src/components/loommate/speechText.test.ts": {
-      "sha256": "90fbf47d1bf1fc24fb504300af0305c05f071622d037977fecdcb5a322d7ec64",
-      "mode": 420
-    },
-    "apps/web/src/components/loommate/speechText.ts": {
-      "sha256": "c5523c2efe80c6a500f4727809c43727ef194e6925638a0797ec271d90736193",
-      "mode": 420
-    },
-    "apps/web/src/components/loommate/VENDOR.md": {
-      "sha256": "e8ec46f2fa7c3ed2b633172260ab846bc962ac647f7f5b79ece48bab8864192e",
-      "mode": 420
-    },
-    "apps/web/src/components/MateWelcome.tsx": {
-      "sha256": "35e25f60299246584cd3b120b9ca342406dc9d14e847676b0bd25c9362507d36",
-      "mode": 420
-    },
     "apps/web/src/components/RejectDialog.tsx": {
       "sha256": "649adf5ce106359f0ae6a8bacf8a6b711d62c34565ba8778a8d494551cc008cb",
       "mode": 420
     },
     "apps/web/src/components/SimBanner.tsx": {
       "sha256": "068d845c135ee2f7cfd83fdc68d90b2940422559f09285a3eeddb57be477ede7",
-      "mode": 420
-    },
-    "apps/web/src/components/SkillDistBanner.tsx": {
-      "sha256": "2c72b9a5cf4a769c3aad4771aa89a624e935330aff3b8446f2ac933b7f206239",
-      "mode": 420
-    },
-    "apps/web/src/components/Stage3D.tsx": {
-      "sha256": "901ffda9cbc352d25d0df3fff07a97f7d23b896a5e7bd69a27b303c82dca3b2d",
-      "mode": 420
-    },
-    "apps/web/src/components/star-ring/StarRing.tsx": {
-      "sha256": "a3cc20c319b0c9adfef7c2f2804bcfaea5b45f5a4807229ebf0c6cc4a22b3838",
       "mode": 420
     },
     "apps/web/src/components/UrlQrCode.test.ts": {
@@ -466,24 +358,12 @@
       "sha256": "f44949f948429ea6ecf5efc0ac4b6164bfb02f3670b3c00fa288c7b338a5b9a9",
       "mode": 420
     },
-    "apps/web/src/components/WelcomeCeremony.tsx": {
-      "sha256": "2a1797cda6ae00dbe20b31efcf0f0ce6e3d5f6b1f5aab3c46abcd34ead3675e7",
-      "mode": 420
-    },
     "apps/web/src/components/welcomeScripts.test.ts": {
       "sha256": "f4fdd6640a63f9a06d3934de0f057688e06c398d48355f90a2e7e83493b9105b",
       "mode": 420
     },
     "apps/web/src/components/welcomeScripts.ts": {
       "sha256": "e5c2699bba185d58c06fdfec9ca6de6e80edd068ea76ddf39302516023a8d515",
-      "mode": 420
-    },
-    "apps/web/src/lib/display.test.ts": {
-      "sha256": "7eddb856058ac709f05df7f8001c3b4e1611914b17bcb5d26d92562f4ef3a171",
-      "mode": 420
-    },
-    "apps/web/src/lib/display.ts": {
-      "sha256": "25b75d0b2b6afd080b1d9c15079fe2446514098276a73a70b3eefcdef5a2689a",
       "mode": 420
     },
     "apps/web/src/lib/naming.test.ts": {
@@ -534,34 +414,6 @@
       "sha256": "eb93d3542fce62f1b2b92e041988cb5ea44425b03a43f09ef83267ff081744a7",
       "mode": 420
     },
-    "apps/web/src/pages/accounts/Activate.tsx": {
-      "sha256": "7fd7d13de268aa7ad77cebb7e777304474a35b4d3ee1998e3adec10ed8c967a6",
-      "mode": 420
-    },
-    "apps/web/src/pages/accounts/InviteAccept.tsx": {
-      "sha256": "6ef95b18e2031a61cf0da01985f5195cd3297ae5a6eb482e953914affb8102be",
-      "mode": 420
-    },
-    "apps/web/src/pages/accounts/Login.tsx": {
-      "sha256": "9ce01c77faae50681bef9608e5a882b654c8176d581dc12375d3783409e2413d",
-      "mode": 420
-    },
-    "apps/web/src/pages/accounts/systemText.test.ts": {
-      "sha256": "e04b8fe491ee176c2b5a876f9bff06d5a9099a1ec932737427b2bd496be60564",
-      "mode": 420
-    },
-    "apps/web/src/pages/accounts/systemText.ts": {
-      "sha256": "bc8794f8661396488798d20e5fe7d1ec95e1430cbf6206235c7f50049266fb55",
-      "mode": 420
-    },
-    "apps/web/src/pages/accounts/Workspaces.tsx": {
-      "sha256": "460b87f85a86677e204ff40fc0ed84fba62e8e6bcc8b617c19b1c06104c2640a",
-      "mode": 420
-    },
-    "apps/web/src/pages/dev/DevMatrix.tsx": {
-      "sha256": "c5f764199ec3aa8fa5f69e49f315ad52e238c5df1f065cda2c3cff6e6ca32956",
-      "mode": 420
-    },
     "apps/web/src/pages/observability/Observability.tsx": {
       "sha256": "a3cf4774e092eeeacd920310ba8dc26d4b6adf582fa10f1b780030e5141f1296",
       "mode": 420
@@ -580,26 +432,6 @@
     },
     "apps/web/src/pages/onboarding/systemText.ts": {
       "sha256": "e17b463157627b06082fcfff651e13c10723702f3a31160a2062759f273f3289",
-      "mode": 420
-    },
-    "apps/web/src/pages/p0/Floor.tsx": {
-      "sha256": "87602096dcdb053190cf72a437416305d7b5d903a3857405508acb84ac8db3e8",
-      "mode": 420
-    },
-    "apps/web/src/pages/p0/P0.tsx": {
-      "sha256": "77f1857212e77c30162cbde183adf6d28f75ba2b8306d1d2404eca481f8c717f",
-      "mode": 420
-    },
-    "apps/web/src/pages/p1/P1.tsx": {
-      "sha256": "215c79c8d7fe2681adc12b7d6bf443b84481809bf79354eedaa65ee8f84c6342",
-      "mode": 420
-    },
-    "apps/web/src/pages/p2/P2.tsx": {
-      "sha256": "9ce4e26c5b26ad3f56448ad50786cf2d7092d9ec391bc0ff5fc5a0c1745652e2",
-      "mode": 420
-    },
-    "apps/web/src/pages/p21/P21.tsx": {
-      "sha256": "abb491a65ffdd5a7d34f0e9538730c5a00e732244029fe5278faea43d41d19e2",
       "mode": 420
     },
     "apps/web/src/pages/p22/P22.tsx": {
@@ -622,10 +454,6 @@
       "sha256": "4317f8a2d9bd142a0e097567cec5af7714a11067cc3b323b1104937bbb639a92",
       "mode": 420
     },
-    "apps/web/src/pages/p26/P26.tsx": {
-      "sha256": "b14bf7b5ab808420aeda5b4749e70557389a255a0c50c267870858ed4c1e758e",
-      "mode": 420
-    },
     "apps/web/src/pages/p27/P27.tsx": {
       "sha256": "61384de8c233796b0360c871cba075697edc40cf559b79a612f8844f7ab8b06c",
       "mode": 420
@@ -636,10 +464,6 @@
     },
     "apps/web/src/pages/p29/P29.tsx": {
       "sha256": "3d1c759add0de8b0bf4445c2137c7184c105f0a27166677b1a583e6e430a26be",
-      "mode": 420
-    },
-    "apps/web/src/pages/p3/P3.tsx": {
-      "sha256": "70c37387a9fb830a8fab3647fcbe37844d065b6a708c7a7295e5c2e0d6ebbfd9",
       "mode": 420
     },
     "apps/web/src/pages/p30/P30.tsx": {
@@ -654,20 +478,8 @@
       "sha256": "26399b6dccf27cfd7a8a368ce7f9b0ac57eacd8bea77254fac253152bab155d6",
       "mode": 420
     },
-    "apps/web/src/pages/p5/P5.tsx": {
-      "sha256": "1b327b92661a974743f08e16e999cf6cbd3fa5b24522495486057d0d415b6741",
-      "mode": 420
-    },
-    "apps/web/src/pages/p6/P6.tsx": {
-      "sha256": "2ba358f54a637b9d1104b4e91aac91308210e0eda366d6cb4585378f685ee2c9",
-      "mode": 420
-    },
     "apps/web/src/pages/p7/P7.tsx": {
       "sha256": "428d779182a4c59d0c516d7341a3b9dc38d2db76c8b1e8d48c7d973bad96a3cc",
-      "mode": 420
-    },
-    "apps/web/src/pages/p8/P8.tsx": {
-      "sha256": "f1101a75c18f8902a8421a6dd7b2a1506aa74a8158e578df908719c16e8852b7",
       "mode": 420
     },
     "apps/web/src/pages/p9/P9.tsx": {
@@ -676,10 +488,6 @@
     },
     "apps/web/src/shell/Bridge.tsx": {
       "sha256": "7f8d670a2a559052defe61e37684bfda5182f1c8aac552ae7bc359004e4ee99c",
-      "mode": 420
-    },
-    "apps/web/src/shell/IndustryRoutes.test.tsx": {
-      "sha256": "a30c57624784ce7901e2ab21c51f3fb7806fc74841c947eb77f0301d66227064",
       "mode": 420
     },
     "apps/web/src/shell/IndustryRoutes.tsx": {
@@ -708,22 +516,6 @@
     },
     "apps/web/src/styles/tokens.css": {
       "sha256": "cc8a4da15772a62b9d122ea6afbe49262ec6d12f301c0450ed019ca9a407302e",
-      "mode": 420
-    },
-    "apps/web/src/voice/SubtitleBar.test.tsx": {
-      "sha256": "27bd5dda42d443cdf95981e2ce0e963e17d25441797c5ac442b9a323214a1b03",
-      "mode": 420
-    },
-    "apps/web/src/voice/SubtitleBar.tsx": {
-      "sha256": "e6fbecf35da0658b22cd94f6b5c65cbfe95c1948042568f93d47e281cf300b65",
-      "mode": 420
-    },
-    "apps/web/src/voice/VoiceEngine.test.ts": {
-      "sha256": "2a58392004a1e36ac437ed38c6cdfa2d8186f98f9ab0e0c5e360211249cf5b7d",
-      "mode": 420
-    },
-    "apps/web/src/voice/VoiceEngine.ts": {
-      "sha256": "410a5984270eaaf1df4c10a0c25247cf8560064582876396add2638ad50e06df",
       "mode": 420
     },
     "apps/web/tsconfig.json": {
@@ -800,10 +592,6 @@
     },
     "apps/webc/index.html": {
       "sha256": "0d98e1379abdff88bab678d2b5274fa210cd33a4108820dd831c686756a3fe82",
-      "mode": 420
-    },
-    "apps/webc/package.json": {
-      "sha256": "a9278a471203bfee5b9b47335b52af2b191af86b22ba13535c29499fe227f652",
       "mode": 420
     },
     "apps/webc/public/service-front.config.json": {
@@ -914,5 +702,6 @@
       "sha256": "aa49b080fb55cbf42f9337a20fbc621dfa275fd85150cd5d7edf490205fe4fc8",
       "mode": 420
     }
-  }
+  },
+  "note": "2026-09-20 状态迁移：把仓级实验扩展路径（App 壳 / 页面 / voice / loommate / Stage3D 等）从受管文件集移出，交回本仓自持；基座登记见 workloom-im sync/child-repos.json#children[growth].industryExtensionPaths。"
 }
