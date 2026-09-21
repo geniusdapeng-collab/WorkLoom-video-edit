@@ -45,3 +45,5 @@ acceptance/outcomes/
 var/
 artifacts/
 apps/server/output/
+# 工位本地工具链（ffmpeg/ffprobe 等受控下载的二进制，绝不进仓；见 kit/ffmpeg-pin.json）
+.workloom-tools/

@@ -4,9 +4,9 @@
  * 与 scripts/seed.ts（酒店 Bundle）同构，装载：
  *  - 演示租户/工作区（industry: ai-video）
  *  - 人类成员（主理人/运营/剪辑）
- *  - bundles/ai-video 的 33 个数码员工 preset（制作 21 + 经营 12；含 fence_bindings 原样落库）
- *  - ai-video-baseline/v2 基线围栏（G1-G10 系列 15 条 + 经营扩展 G11-G16 共 21 条）
- *  - 8 个官方技能（安装即绑定围栏）
+ *  - bundles/ai-video 的 34 个数码员工 preset（制作 21 + 经营 12 + 后期调色师 1；含 fence_bindings 原样落库）
+ *  - 围栏 26 条：ai-video-baseline/v2（G1-G16 共 21 条）+ ai-video-color/v1（成片调色门 G-COL0..G-COL4 共 5 条）
+ *  - 12 个官方技能（安装即绑定围栏；含调色师四件套 color-grade / color-look-design / color-shot-matching / color-delivery-spec）
  *  - 一企一档（品牌档案 + forbidden 红线）
  *  - 自动化触发器（每 2h 数据采集 / 早八点战报 / 每 30min 评论采集）
  *  - 演示项目：1 个 video_project + 3 镜渲染脚本（v1）+ 2 条素材
@@ -83,11 +83,21 @@ interface FenceRule {
   note?: string;
 }
 
+/**
+ * 围栏装载：以 bundle.json 的 provides.fences 为唯一事实源（与 seed-geo 同构）。
+ * 新增围栏包（如 fences/ai-video-color.yml 的成片调色门 G-COL0..G-COL4）无需再改本脚本。
+ */
 function loadFences(): FenceRule[] {
-  const doc = YAML.parse(
-    readFileSync(join(BUNDLE_DIR, "fences/ai-video-baseline.yml"), "utf-8"),
-  );
-  return (doc?.rules ?? []) as FenceRule[];
+  const manifest = JSON.parse(readFileSync(join(BUNDLE_DIR, "bundle.json"), "utf-8"));
+  const declared: string[] = manifest?.workloom?.provides?.fences ?? ["fences/ai-video-baseline.yml"];
+  const out: FenceRule[] = [];
+  for (const relative of declared) {
+    const doc = YAML.parse(readFileSync(join(BUNDLE_DIR, relative), "utf-8"));
+    for (const rule of (doc?.rules ?? []) as FenceRule[]) {
+      out.push({ ...rule, packVersion: (doc?.version as string) ?? FENCE_VERSION });
+    }
+  }
+  return out;
 }
 
 interface SkillDoc {
