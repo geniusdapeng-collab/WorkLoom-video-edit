@@ -10,8 +10,9 @@ import { fetchRequestHandler } from "@trpc/server/adapters/fetch";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { existsSync } from "node:fs";
+import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
-import { dirname, join } from "node:path";
+import { dirname, extname, join } from "node:path";
 import { appRouter } from "./trpc/router.js";
 import { createContext } from "./trpc/context.js";
 import { serviceGateway } from "./service/gateway.js";
@@ -19,6 +20,7 @@ import { getOwnerPool, getAppPool, getGatewayPool } from "@workloom/db";
 import { bundlesRoot } from "@workloom/base/bundles";
 import { registerFeedbackEnumsFromDisk } from "@workloom/base/evolve";
 import { startSkillDistAutoSync, buildManifest, receiveReflux, type RefluxPayload } from "@workloom/base/skill-ops";
+import { resolveMediaPath, verifyMediaToken } from "./video/gen/ingest.js";
 
 const app = new Hono();
 
@@ -55,6 +57,40 @@ const port = Number(process.env.SERVER_PORT ?? 8787);
 
 /** C 端公开网关（AI 服务前台；独立于员工 tRPC，c-token 鉴权 + 限流） */
 app.route("/c", serviceGateway);
+
+/**
+ * 成片媒体库通道（T-2026-0921-0002）：HMAC 签名 + 过期时间，防目录穿越。
+ * 为什么不做裸静态目录：成片是客户资产，必须带鉴权（签名即鉴权，短 TTL，不落 cookie）。
+ */
+const MEDIA_MIME: Record<string, string> = {
+  ".mp4": "video/mp4", ".webm": "video/webm", ".mov": "video/quicktime",
+  ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".webp": "image/webp",
+};
+app.get("/media/*", async (c) => {
+  const raw = c.req.path.replace(/^\/media\//, "");
+  let relPath: string;
+  try {
+    relPath = decodeURIComponent(raw);
+  } catch {
+    return c.json({ error: "MEDIA_PATH_INVALID" }, 400);
+  }
+  const verdict = verifyMediaToken(relPath, c.req.query("token") ?? "");
+  if (!verdict.ok) return c.json({ error: "MEDIA_TOKEN_INVALID", reason: verdict.reason }, 403);
+  let abs: string;
+  try {
+    abs = resolveMediaPath(relPath);
+  } catch {
+    return c.json({ error: "MEDIA_PATH_INVALID" }, 400);
+  }
+  if (!existsSync(abs)) return c.json({ error: "MEDIA_NOT_FOUND" }, 404);
+  const buf = await readFile(abs);
+  return new Response(buf, {
+    headers: {
+      "content-type": MEDIA_MIME[extname(abs).toLowerCase()] ?? "application/octet-stream",
+      "cache-control": "private, max-age=300",
+    },
+  });
+});
 
 /** 官方运营台 HTTP 端点（仅 SKILL_OPS_MODE=official 部署挂载）：
  *  GET  /skill-dist/manifest.json —— 客户端拉取通道（分发包逐一官方签名，客户端 staging① 验签）

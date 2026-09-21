@@ -40,3 +40,8 @@ dist-payload/
 dist-payload.tar.gz
 outputs/acceptance/
 acceptance/outcomes/
+
+# 视频生成接缝运行产物（T-2026-0921-0001：成片媒体库 / 供应商产物 / UI 探针截图，均不入库）
+var/
+artifacts/
+apps/server/output/
