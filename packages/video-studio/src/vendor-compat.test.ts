@@ -128,4 +128,42 @@ uninstall();
     const result = runInChild(script);
     expect(result.characterRef).toBe("");
   }, 60_000);
+
+  /**
+   * 真机根因回归（2026-09-22）：`ConfigIsolator.isolate(options)` 把宿主注入的 LLM 引擎
+   * 摊平成普通对象 → 创意主题生成器报「LLM 引擎无可用调用方法」→ 主题静默降级成艺术实验。
+   */
+  it("配置隔离保活注入的类实例（LLM 引擎方法不再丢失）", () => {
+    const script = `
+import { createRequire } from "node:module";
+import { installVendorConfigIsolatorBridge } from ${JSON.stringify(resolve(here, "vendor-compat.ts"))};
+const require = createRequire(${JSON.stringify(join(repoRoot, "package.json"))});
+const { ConfigIsolator } = require(${JSON.stringify(join(repoRoot, "vendor/supermickey/hyperreality-system/utils/config-isolator.js"))});
+
+class FakeEngine {
+  constructor() { this.tag = "engine"; }
+  async reason() { return { success: true, content: "{}" }; }
+  async chat() { return "{}"; }
+}
+const engine = new FakeEngine();
+const before = ConfigIsolator.isolate({ llmEngine: engine, nested: { a: 1, list: [1, 2] } });
+const uninstall = installVendorConfigIsolatorBridge();
+const after = ConfigIsolator.isolate({ llmEngine: engine, nested: { a: 1, list: [1, 2] } });
+uninstall();
+console.log("RESULT " + JSON.stringify({
+  beforeEngineMethods: [typeof before.llmEngine?.reason, typeof before.llmEngine?.chat],
+  afterEngineSameRef: after.llmEngine === engine,
+  afterEngineMethods: [typeof after.llmEngine?.reason, typeof after.llmEngine?.chat],
+  nestedCloned: after.nested !== undefined && after.nested !== null,
+  nestedValue: after.nested?.a,
+  listIsArray: Array.isArray(after.nested?.list)
+}));
+`;
+    const result = runInChild(script);
+    expect(result.beforeEngineMethods).toEqual(["undefined", "undefined"]);
+    expect(result.afterEngineSameRef).toBe(true);
+    expect(result.afterEngineMethods).toEqual(["function", "function"]);
+    expect(result.nestedValue).toBe(1);
+    expect(result.listIsArray).toBe(true);
+  }, 60_000);
 });
