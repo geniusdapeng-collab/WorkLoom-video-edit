@@ -99,6 +99,53 @@ describe("parseAnswers", () => {
     expect(result.inputTokens).toBe(10);
   });
 
+  it("官方直连形状：boolean 问题的回答 type 是 noul、字段是 noul（docs.typesafe.ai/api 示例口径）", () => {
+    const result = parseAnswers(
+      {
+        model: "jev-1.13.0",
+        answers: {
+          intent: {
+            type: "choice",
+            choice: "inquiry",
+            probabilities: { inquiry: 0.88, complaint: 0.12, spam: 0 },
+            confidence: 0.81,
+          },
+          strength: {
+            type: "score",
+            score: 1.05,
+            legend: { "0": "none", "1": "vague", "2": "clear" },
+            probabilities: { "0": 0, "1": 0.95, "2": 0.05 },
+            confidence: 0.92,
+          },
+          urgent: { type: "noul", noul: 0.95 },
+        },
+        usage: { input_tokens: 296, output_tokens: 20 },
+      },
+      QUESTIONS,
+      "jev-latest",
+      42,
+    );
+    expect(result.model).toBe("jev-1.13.0");
+    expect(result.byId["urgent"]?.probability).toBeCloseTo(0.95);
+    // Noul 没有置信度字段 → 派生（更保守，不得进自动档）
+    expect(result.byId["urgent"]?.confidenceDerived).toBe(true);
+    expect(result.byId["intent"]?.confidence).toBeCloseTo(0.81);
+    expect(result.byId["strength"]?.confidence).toBeCloseTo(0.92);
+    expect(result.inputTokens).toBe(296);
+    expect(result.outputTokens).toBe(20);
+  });
+
+  it("官方直连形状：noul 回答越界同样整体拒绝", () => {
+    expect(() =>
+      parseAnswers(
+        { answers: { urgent: { type: "noul", noul: 1.4 } }, usage: {} },
+        { urgent: { type: "boolean", instructions: "q" } },
+        "m",
+        0,
+      ),
+    ).toThrow(JevResponseError);
+  });
+
   it.each([
     ["未知 choice", { intent: { type: "choice", choice: "invented", probabilities: { inquiry: 1 } } }],
     ["概率出界", { intent: { type: "choice", choice: "inquiry", probabilities: { inquiry: 1.4 } } }],

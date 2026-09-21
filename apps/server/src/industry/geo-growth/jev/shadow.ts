@@ -14,7 +14,7 @@ import type { RowOutcome, Scene, ShadowReport, ShadowRow } from "./types.js";
 export interface ShadowOptions {
   rows: readonly ShadowRow[];
   scene: Scene;
-  client: Pick<JevClient, "evaluate" | "modelId" | "host">;
+  client: Pick<JevClient, "evaluate" | "modelId" | "providerId" | "host">;
   concurrency?: number;
   maxCostUsd?: number;
   captureRaw?: boolean;
@@ -120,6 +120,7 @@ export async function runShadow(options: ShadowOptions): Promise<ShadowRunResult
   const report = buildReport({
     scene: scene.key,
     sceneVersion: scene.version,
+    provider: client.providerId,
     model: client.modelId,
     baseUrlHost: client.host,
     startedAt,

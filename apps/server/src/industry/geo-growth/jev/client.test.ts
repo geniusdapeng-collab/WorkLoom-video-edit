@@ -1,8 +1,17 @@
 /**
- * 网关客户端单测：重试/退避/超时/鉴权/密钥安全（全部用假 fetch，不发外呼）。
+ * 客户端单测：两条通道的请求形状 + 重试/退避/超时/鉴权/密钥安全（全部用假 fetch，不发外呼）。
  */
 import { describe, expect, it } from "vitest";
-import { JevClient, JevError } from "./client.js";
+import {
+  GATEWAY_PATH,
+  JevClient,
+  JevError,
+  TYPESAFE_PATH,
+  apiKeyFromEnv,
+  clientFromEnv,
+  resolveProvider,
+  toTypeSafeQuestions,
+} from "./client.js";
 import { createMockFetch } from "./mock-gateway.js";
 import type { JevRequest } from "./types.js";
 
@@ -20,26 +29,87 @@ const REQUEST: JevRequest = {
 const noSleep = async (): Promise<void> => undefined;
 
 describe("JevClient", () => {
-  it("成功调用：协议头 + 回答解析（走本地模拟 fetch）", async () => {
+  it("通道 2（默认，官方直连）：回答解析走本地模拟通道", async () => {
     const { fetchImpl } = createMockFetch();
     const client = new JevClient({ apiKey: "test-key", baseUrl: "https://example.test", fetchImpl });
     const result = await client.evaluate(REQUEST);
     expect(result.byId["intent"]?.choice).toBe("inquiry");
     expect(result.inputTokens).toBeGreaterThan(0);
-    expect(result.model).toBe("typesafe-ai/jev");
+    // 官方直连回答里是解析后的版本化 id（请求发的是别名 jev-latest）
+    expect(result.model).toBe("jev-1.13.0");
+    expect(client.providerId).toBe("typesafe");
   });
 
-  it("协议头按 evaluation v4 发送", async () => {
+  it("通道 2 请求形状：/v1/systemone + Bearer + 请求体带 model，boolean 映射为官方原语 noul", async () => {
+    let seenUrl = "";
+    let seenHeaders: Record<string, string> = {};
+    let seenBody: Record<string, unknown> = {};
+    const fetchImpl = (async (input: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]) => {
+      seenUrl = String(input);
+      seenHeaders = {};
+      for (const [key, value] of Object.entries(init?.headers ?? {})) seenHeaders[key.toLowerCase()] = String(value);
+      seenBody = JSON.parse(String(init?.body)) as Record<string, unknown>;
+      return new Response(
+        JSON.stringify({
+          model: "jev-1.13.0",
+          answers: {
+            urgent: { type: "noul", noul: 0.93 },
+          },
+          usage: { input_tokens: 300, output_tokens: 24 },
+        }),
+        { status: 200 },
+      );
+    }) as typeof fetch;
+    const client = new JevClient({ apiKey: "ts-key", baseUrl: "https://api.typesafe.ai", fetchImpl });
+    await client.evaluate({
+      state: { comment: "hi" },
+      questions: {
+        urgent: { type: "boolean", instructions: "Is it urgent?", criteria: { true: "yes", false: "no" } },
+      },
+    });
+    expect(seenUrl).toBe(`https://api.typesafe.ai${TYPESAFE_PATH}`);
+    expect(seenHeaders["authorization"]).toBe("Bearer ts-key");
+    expect(seenHeaders["content-type"]).toBe("application/json");
+    expect(seenHeaders["ai-gateway-protocol-version"]).toBeUndefined();
+    expect(seenBody["model"]).toBe("jev-latest");
+    const questions = seenBody["questions"] as Record<string, Record<string, unknown>>;
+    expect(questions["urgent"]?.["type"]).toBe("noul");
+    expect(questions["urgent"]?.["criteria"]).toEqual({ true: "yes", false: "no" });
+  });
+
+  it("toTypeSafeQuestions：boolean→noul，choice/score 原样透传", () => {
+    const mapped = toTypeSafeQuestions({
+      flag: { type: "boolean", instructions: "q" },
+      pick: { type: "choice", instructions: "c", criteria: { a: "x", b: "y" } },
+      rate: { type: "score", instructions: "s", criteria: ["low", "high"] },
+    });
+    expect(mapped["flag"]).toEqual({ type: "noul", instructions: "q" });
+    expect(mapped["pick"]).toEqual({ type: "choice", instructions: "c", criteria: { a: "x", b: "y" } });
+    expect(mapped["rate"]).toEqual({ type: "score", instructions: "s", criteria: ["low", "high"] });
+  });
+
+  it("通道 1（网关）：协议头按 evaluation v4 发送，请求体不带 model", async () => {
+    let seenUrl = "";
     const seen: Record<string, string> = {};
-    const fetchImpl = (async (_input: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]) => {
+    let seenBody: Record<string, unknown> = {};
+    const fetchImpl = (async (input: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]) => {
+      seenUrl = String(input);
       for (const [key, value] of Object.entries(init?.headers ?? {})) seen[key.toLowerCase()] = String(value);
+      seenBody = JSON.parse(String(init?.body)) as Record<string, unknown>;
       return new Response(JSON.stringify({ model: "typesafe-ai/jev", answers: { intent: { type: "choice", choice: "inquiry", probabilities: { inquiry: 1, complaint: 0, booking_intent: 0, smalltalk: 0, spam: 0 } } }, usage: {} }), { status: 200 });
     }) as typeof fetch;
-    const client = new JevClient({ apiKey: "test-key", baseUrl: "https://example.test", fetchImpl });
+    const client = new JevClient({
+      apiKey: "test-key",
+      provider: "vercel-gateway",
+      baseUrl: "https://example.test",
+      fetchImpl,
+    });
     await client.evaluate(REQUEST);
+    expect(seenUrl).toBe(`https://example.test${GATEWAY_PATH}`);
     expect(seen["ai-gateway-protocol-version"]).toBe("0.0.1");
     expect(seen["ai-evaluation-model-specification-version"]).toBe("4");
     expect(seen["ai-model-id"]).toBe("typesafe-ai/jev");
+    expect(seenBody["model"]).toBeUndefined();
   });
 
   it("429 后重试直至成功", async () => {
@@ -141,5 +211,59 @@ describe("JevClient", () => {
       expect(error).toBeInstanceOf(JevError);
       expect(String((error as Error).message)).not.toContain("sk-super-secret-value");
     }
+  });
+
+  it("422（问题结构非法）归类为 bad_request 且不重试", async () => {
+    let calls = 0;
+    const fetchImpl = (async () => {
+      calls += 1;
+      return new Response(JSON.stringify({ error: { message: "criteria is required" } }), { status: 422 });
+    }) as typeof fetch;
+    const client = new JevClient({ apiKey: "k", baseUrl: "https://api.typesafe.ai", fetchImpl, maxAttempts: 3, sleepImpl: noSleep });
+    await expect(client.evaluate(REQUEST)).rejects.toMatchObject({ code: "bad_request", retryable: false });
+    expect(calls).toBe(1);
+  });
+});
+
+describe("通道判定（环境变量）", () => {
+  it("显式 JEV_PROVIDER 优先，并接受简写", () => {
+    expect(resolveProvider({ JEV_PROVIDER: "vercel-gateway", TYPESAFE_API_KEY: "ts" })).toBe("vercel-gateway");
+    expect(resolveProvider({ JEV_PROVIDER: "direct" })).toBe("typesafe");
+    expect(resolveProvider({ JEV_PROVIDER: "gateway" })).toBe("vercel-gateway");
+  });
+
+  it("按键推断：TYPESAFE_API_KEY → 直连；AI_GATEWAY_API_KEY → 网关；都没有 → 直连", () => {
+    expect(resolveProvider({ TYPESAFE_API_KEY: "ts" })).toBe("typesafe");
+    expect(resolveProvider({ AI_GATEWAY_API_KEY: "gw" })).toBe("vercel-gateway");
+    expect(resolveProvider({ VERCEL_AI_GATEWAY_KEY: "gw" })).toBe("vercel-gateway");
+    expect(resolveProvider({})).toBe("typesafe");
+  });
+
+  it("非法 JEV_PROVIDER 直接报错（不静默回退）", () => {
+    expect(() => resolveProvider({ JEV_PROVIDER: "openai" })).toThrow(/未知 JEV_PROVIDER/);
+  });
+
+  it("各通道只读各自的密钥，默认地址/模型随通道切换", () => {
+    const env = { TYPESAFE_API_KEY: "ts-key", AI_GATEWAY_API_KEY: "gw-key" };
+    expect(apiKeyFromEnv(env, "typesafe")).toBe("ts-key");
+    expect(apiKeyFromEnv(env, "vercel-gateway")).toBe("gw-key");
+    const direct = clientFromEnv({ TYPESAFE_API_KEY: "ts-key" });
+    expect(direct.providerId).toBe("typesafe");
+    expect(direct.host).toBe("api.typesafe.ai");
+    expect(direct.modelId).toBe("jev-latest");
+    const gateway = clientFromEnv({ AI_GATEWAY_API_KEY: "gw-key" });
+    expect(gateway.providerId).toBe("vercel-gateway");
+    expect(gateway.host).toBe("ai-gateway.vercel.sh");
+    expect(gateway.modelId).toBe("typesafe-ai/jev");
+  });
+
+  it("JEV_BASE_URL / JEV_MODEL 覆盖通道默认值（自建代理场景）", () => {
+    const client = clientFromEnv({
+      TYPESAFE_API_KEY: "ts-key",
+      JEV_BASE_URL: "http://127.0.0.1:8787",
+      JEV_MODEL: "jev-1.13.0",
+    });
+    expect(client.host).toBe("127.0.0.1:8787");
+    expect(client.modelId).toBe("jev-1.13.0");
   });
 });

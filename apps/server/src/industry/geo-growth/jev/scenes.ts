@@ -133,6 +133,37 @@ const LEAD_LEVELS = [
 
 const LEAD_LEVEL_ZH: Record<string, string> = { "0": "低意向", "1": "中意向", "2": "高意向" };
 
+/**
+ * 档位落点：**按概率分布取最高档，并列取低档**（而不是四舍五入 score）
+ *
+ * 首次真机复跑暴露的问题（2026-09-21）：l-03「随便看看，先了解一下」两次运行给出 score 0.48 / 0.50，
+ * 分布其实是 {0:0.5, 1:0.5} 的**平票**；原来用 `Math.round(score)` 取档，0.5 被静默抬到「中意向」，
+ * 同一句话在两轮里给出不同档位。分数是"加权均值"，在边界上被噪声推一下就会翻档；
+ * 而分布本身就带着"模型在两级之间"的信息。
+ *
+ * 规则：
+ *   ① 取概率最高的档位；并列时取**更低**档（保守：不把线索往高意向夸）；
+ *   ② 最高与次高概率差 ≤ `LEAD_TIE_MARGIN` 视为"贴边界"，标记 ambiguous=1（分流强制进人审队列）；
+ *   ③ 原始 score（加权均值）仍进 details，供人审与口径对照，但不再直接决定档位。
+ */
+export const LEAD_TIE_MARGIN = 0.1;
+
+export function leadLevelDecision(
+  probabilities: Record<string, number>,
+  levelCount: number,
+): { level: number; gap: number; ambiguous: boolean } {
+  const probs = Array.from({ length: levelCount }, (_, index) => probabilities[String(index)] ?? 0);
+  let level = 0;
+  for (let index = 1; index < probs.length; index += 1) {
+    if ((probs[index] ?? 0) > (probs[level] ?? 0)) level = index; // 严格大于 → 并列取低档
+  }
+  const top = probs[level] ?? 0;
+  const second = probs.reduce((max, value, index) => (index === level ? max : Math.max(max, value)), 0);
+  const gap = top - second;
+  // 浮点容差：概率来自 JSON 小数（如 0.55 - 0.45 = 0.10000000000000003），恰好卡阈值时必须仍判贴边界
+  return { level, gap, ambiguous: gap <= LEAD_TIE_MARGIN + 1e-9 };
+}
+
 export const leadQualifyScene: Scene = {
   key: "lead-qualify",
   version: "1.0.0",
@@ -173,8 +204,11 @@ export const leadQualifyScene: Scene = {
   decide(result: JevCallResult): SceneDecision {
     const strength = answer(result, "intent_strength");
     const rawScore = strength.score ?? 0;
-    const bucket = Math.min(LEAD_LEVELS.length - 1, Math.max(0, Math.round(rawScore)));
-    const decision = String(bucket);
+    const { level, gap, ambiguous } = leadLevelDecision(
+      strength.probabilities ?? {},
+      LEAD_LEVELS.length,
+    );
+    const decision = String(level);
     const ids = ["intent_strength", "budget_stated", "timeline_stated", "decision_maker"] as const;
     return {
       decision,
@@ -183,6 +217,8 @@ export const leadQualifyScene: Scene = {
       confidenceDerived: anyDerived(result, ids),
       details: {
         intent_strength: Number(rawScore.toFixed(3)),
+        level_gap: Number(gap.toFixed(3)),
+        ambiguous: ambiguous ? 1 : 0,
         budget_stated: answer(result, "budget_stated").probability ?? 0,
         timeline_stated: answer(result, "timeline_stated").probability ?? 0,
         decision_maker: answer(result, "decision_maker").probability ?? 0,
@@ -196,6 +232,56 @@ export const leadQualifyScene: Scene = {
 /* ------------------------------------------------------------------ */
 
 const PRE_IDS = ["premise_supported", "invented_specifics", "brand_stance_risk"] as const;
+
+/**
+ * 事实预检的代码侧判定规则（**模型只给概率，标签由代码定**）
+ *
+ * 首次真机考卷暴露的问题（2026-09-21，真实 Jev 1.13）：原规则「invented>0.5 或 stance>0.5 → risk」
+ * 会在两种情况下误判——
+ *   ① 前提已被官方口径支撑（premise=0.83），但品牌表态是**抛硬币**（stance=0.52）→ 被翻成 risk；
+ *   ② 前提完全不在口径内（premise=0.03），同时表态分很高（stance=0.86）→ 标签该是 unsupported
+ *      （操作员要修的是「口径外的事实」），却被表态分抢走标签。
+ *
+ * 因此规则改为「红线优先 + 边界不翻标签」三段式：
+ *   ① 编造具体信息（数字/奖项/认证/第三方背书）≥ 0.6 → `risk`（一票红线，最高优先，与围栏 G-GEO2 同向）；
+ *   ② 前提支撑 < 0.5 → `unsupported`（主问题判定用中点，因为问的就是"是否在口径内"）；
+ *   ③ 前提成立、但品牌表态 ≥ 0.6 → `risk`；
+ *   ④ 其余 → `pass`。
+ * 阈值取 0.6 而不是 0.5：Noul **没有置信度字段**（官方文档），0.5x 只代表"模型也拿不准"，
+ * 不足以据此贴合规风险标签；且本场景任何非 pass 结论都强制人工，改标签不改变"不会自动放行"。
+ *
+ * 注意：本规则是在 n=4 的合成考卷 + 首次真机结果上定的**暂定校准**，必须用真实脱敏样本复核
+ * （判据见 README §3：先看校准，再看准确率）。
+ */
+export const PRE_RISK_THRESHOLD = 0.6;
+export const PRE_SUPPORT_THRESHOLD = 0.5;
+
+export interface FactPrecheckSignals {
+  /** 前提是否在官方口径内（Noul 概率） */
+  premiseSupported: number;
+  /** 是否编造了官方口径之外的具体信息（Noul 概率） */
+  inventedSpecifics: number;
+  /** 是否替品牌做出需人审的表态/承诺（Noul 概率） */
+  brandStanceRisk: number;
+}
+
+/** 纯函数：三个信号 → 预检标签（可单测、可审计；不依赖模型调用） */
+export function factPrecheckDecision(signals: FactPrecheckSignals): { decision: string; decisionZh: string } {
+  const { premiseSupported, inventedSpecifics, brandStanceRisk } = signals;
+  let decision: "pass" | "unsupported" | "risk";
+  if (inventedSpecifics >= PRE_RISK_THRESHOLD) {
+    decision = "risk";
+  } else if (premiseSupported < PRE_SUPPORT_THRESHOLD) {
+    decision = "unsupported";
+  } else if (brandStanceRisk >= PRE_RISK_THRESHOLD) {
+    decision = "risk";
+  } else {
+    decision = "pass";
+  }
+  const decisionZh =
+    decision === "risk" ? "疑似编造/表态风险" : decision === "unsupported" ? "前提超出口径" : "预检通过";
+  return { decision, decisionZh };
+}
 
 export const factPrecheckScene: Scene = {
   key: "fact-precheck",
@@ -245,9 +331,11 @@ export const factPrecheckScene: Scene = {
     const inventedP = invented.probability ?? 0;
     const stanceP = stance.probability ?? 0;
     const premiseP = premise.probability ?? 0;
-    const decision =
-      inventedP > 0.5 || stanceP > 0.5 ? "risk" : premiseP < 0.5 ? "unsupported" : "pass";
-    const decisionZh = decision === "risk" ? "疑似编造/表态风险" : decision === "unsupported" ? "前提超出口径" : "预检通过";
+    const { decision, decisionZh } = factPrecheckDecision({
+      premiseSupported: premiseP,
+      inventedSpecifics: inventedP,
+      brandStanceRisk: stanceP,
+    });
     return {
       decision,
       decisionZh,

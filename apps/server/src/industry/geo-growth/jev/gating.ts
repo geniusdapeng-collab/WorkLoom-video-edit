@@ -37,7 +37,8 @@ function finite(value: number | undefined, fallback: number): number {
 
 /**
  * 计算分流建议。规则顺序（先保守后宽松，冲突取更保守结果）：
- *   ① 场景硬规则（fact-precheck 非 pass → human；comment 命中 needs_human → human）
+ *   ① 场景硬规则（fact-precheck 非 pass → human；comment 命中 needs_human → human；
+ *      lead-qualify 档位贴边界 → review）
  *   ② 派生置信度 → 至少 review
  *   ③ 阈值：≥autoAt → auto（仅当场景允许）；≥reviewAt → review；否则 human
  */
@@ -56,6 +57,13 @@ export function gateDecision(scene: SceneKey, decision: SceneDecision): GateDeci
       reasons.push(`needs_human=${needsHuman.toFixed(2)}（投诉/合规/敏感信号）`);
       return { route: "human", reasons, shadow: true };
     }
+  }
+  if (scene === "lead-qualify" && decision.details["ambiguous"] === 1) {
+    // 档位贴边界（最高两档概率差 ≤ LEAD_TIE_MARGIN）：按概率分布已取更保守的下档，
+    // 但"低/中/高"本身要人来定——档位边界的平票不能由代码静默决定（首次真机复跑实测到 score 0.48/0.50 漂移）。
+    const gap = typeof decision.details["level_gap"] === "number" ? decision.details["level_gap"] : undefined;
+    reasons.push(`档位贴边界（gap=${gap === undefined ? "未知" : gap.toFixed(3)}），需人工确认档位`);
+    return { route: "review", reasons, shadow: true };
   }
 
   if (decision.confidenceDerived) {

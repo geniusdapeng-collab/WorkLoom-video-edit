@@ -7,7 +7,7 @@
  *   - 成本按 Jev 现行价目：$0.042 / 1M 输入 token，输出免费（docs.typesafe.ai/models）；
  *   - 延迟为端到端（含网关网络），取 p50/p95/max。
  */
-import type { RowOutcome, Route, ShadowReport } from "./types.js";
+import type { JevProvider, RowOutcome, Route, ShadowReport } from "./types.js";
 
 export const JEV_INPUT_USD_PER_TOKEN = 0.042 / 1_000_000;
 
@@ -97,6 +97,7 @@ export function estimateCostUsd(inputTokens: number): number {
 export interface ReportInput {
   scene: ShadowReport["scene"];
   sceneVersion: string;
+  provider: JevProvider;
   model: string;
   baseUrlHost: string;
   startedAt: string;
@@ -121,6 +122,7 @@ export function buildReport(input: ReportInput): ShadowReport {
   return {
     scene: input.scene,
     sceneVersion: input.sceneVersion,
+    provider: input.provider,
     model: input.model,
     baseUrlHost: input.baseUrlHost,
     startedAt: input.startedAt,

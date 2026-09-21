@@ -1,14 +1,16 @@
 /**
  * Jev 协议层：请求构造无关；本文件只做两件事——
- *   ① 解析并**校验**网关回答（非法即拒，绝不猜测）；
- *   ② 概率归一化（网关按两位小数四舍五入，官方社区实现记录其和不严格为 1）。
+ *   ① 解析并**校验**回答（非法即拒，绝不猜测）；
+ *   ② 概率归一化（网关按两位小数四舍五入；官方直连返回的概率同样不保证严格为 1）。
  *
  * 解析纪律（对齐 jev-ultrafast 的 validate_choice 与 TypeSafe 官方 API 文档）：
  *   - choice：`choice` 必须在 criteria 键内；概率仅在已知键上取值，未知键忽略；至少一个正数；
  *   - score：`score` 必须落在 [0, n-1]；概率键为 "0".."n-1"，缺失按 0 处理；
- *   - boolean：`probability` 必须为 [0,1] 内的有限数；
+ *   - boolean（本地类型名）↔ 官方原语 `noul`：回答字段为 `noul`（官方直连）或 `probability`（网关），
+ *     两者取其一，值必须为 [0,1] 内的有限数；回答的 `type` 允许 `boolean` 或 `noul`（同一原语的两种叫法）；
  *   - 置信度优先取模型自报（answer.confidence 或 providerMetadata.typesafe.confidence[id]），
- *     缺失时派生为最大概率，并标记 confidenceDerived=true（分流策略据此更保守）。
+ *     缺失时派生为最大概率，并标记 confidenceDerived=true（分流策略据此更保守）——
+ *     官方直连对 Noul **不返回置信度**，因此 boolean 主决策场景恒为派生置信度、不得自动分流。
  */
 import type { AnswerView, JevCallResult, JevQuestionSet, QuestionType } from "./types.js";
 
@@ -19,6 +21,13 @@ export class JevResponseError extends Error {
     this.name = "JevResponseError";
   }
 }
+
+/** 每个问题类型接受的回答 type（boolean 与官方原语名 noul 等价） */
+const ACCEPTED_ANSWER_TYPES: Record<QuestionType, readonly string[]> = {
+  boolean: ["boolean", "noul"],
+  choice: ["choice"],
+  score: ["score"],
+};
 
 function isFiniteNumber(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value);
@@ -139,10 +148,11 @@ export function parseAnswers(
       throw new JevResponseError(`缺少回答：${id}`);
     }
     const answer = rawAnswer as Record<string, unknown>;
-    const type = (answer["type"] ?? question.type) as QuestionType;
-    if (type !== question.type) {
-      throw new JevResponseError(`回答类型不符：${id} 期望 ${question.type} 实际 ${String(type)}`);
+    const rawType = answer["type"];
+    if (rawType !== undefined && !ACCEPTED_ANSWER_TYPES[question.type].includes(String(rawType))) {
+      throw new JevResponseError(`回答类型不符：${id} 期望 ${question.type} 实际 ${String(rawType)}`);
     }
+    const type: QuestionType = question.type;
 
     if (question.type === "boolean") {
       const probability = answer["probability"] ?? answer["noul"];

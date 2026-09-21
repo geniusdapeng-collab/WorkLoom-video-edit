@@ -1,10 +1,16 @@
 /**
- * 本地模拟网关（离线可跑通全流程；**不是**真模型，输出仅供联调）
+ * 本地模拟通道（离线可跑通全流程；**不是**真模型，输出仅供联调）
  *
  * 两个用途：
  *   ① 单测：注入 fetch，验证协议解析/重试/预算/分流，不产生任何外呼；
  *   ② CLI `--mock`：起一个 127.0.0.1 的真实 HTTP 服务，让"请求 → 协议头 → 响应 → 解析"
  *      整条链路是真机走通的（只有模型部分是规则模拟），用于无 key 环境下的端到端验证。
+ *
+ * 两条通道的**响应形状按请求路径**区分（与真实通道一致）：
+ *   - `/v1/systemone`（官方直连）：answers 里 boolean 问题返回 `{"type":"noul","noul":…}`，
+ *     choice/score 直接带 `confidence`；usage 为 `{input_tokens, output_tokens}`；
+ *   - `/v4/ai/evaluation-model`（Vercel 网关）：boolean 返回 `{"type":"boolean","probability":…}`，
+ *     置信度走 `providerMetadata.typesafe.confidence`；usage 为 `{inputTokens, outputTokens}`。
  *
  * 行为契约（确定性，便于断言）：
  *   - 概率按两位小数四舍五入后返回（复现网关的取整行为，协议层应重新归一化）；
@@ -13,13 +19,19 @@
  *   - options.failFirstRequests 可注入前 N 次 429/529，用于重试验证。
  */
 import { createServer, type Server } from "node:http";
-import { DEFAULT_MODEL } from "./client.js";
+import { GATEWAY_MODEL, TYPESAFE_PATH, TYPESAFE_MODEL } from "./client.js";
+import type { JevProvider } from "./types.js";
+
+/** 官方直连返回的是**具体版本号**（请求用别名 jev-latest，回答里是解析后的 id） */
+export const TYPESAFE_RESPONSE_MODEL = "jev-1.13.0";
 
 export interface MockGatewayOptions {
   /** 前 N 次请求返回限流/过载（按 statuses 轮转），用于重试与退避路径验证 */
   failFirstRequests?: number;
   failStatuses?: number[];
   model?: string;
+  /** 响应形状；缺省按请求路径自动判定 */
+  provider?: JevProvider;
 }
 
 interface MockState {
@@ -140,8 +152,12 @@ function scoreAnswer(id: string, text: string): { score: number; probabilities: 
 }
 
 /** 纯函数响应体：与 HTTP 层解耦，便于单测直接调用 */
-export function mockResponse(body: unknown, model = DEFAULT_MODEL): Record<string, unknown> {
+export function mockResponse(
+  body: unknown,
+  options: { provider?: JevProvider; model?: string } = {},
+): Record<string, unknown> {
   if (typeof body !== "object" || body === null) throw new Error("mock: 请求体不是对象");
+  const provider: JevProvider = options.provider ?? "typesafe";
   const record = body as Record<string, unknown>;
   const state = (record["state"] ?? {}) as Record<string, unknown>;
   const questions = (record["questions"] ?? {}) as Record<string, Record<string, unknown>>;
@@ -152,24 +168,31 @@ export function mockResponse(body: unknown, model = DEFAULT_MODEL): Record<strin
   const { intent } = pickByRules(text);
   const answers: Record<string, unknown> = {};
   const confidence: Record<string, number> = {};
-  let inputChars = JSON.stringify(body).length;
+  const inputChars = JSON.stringify(body).length;
+  const questionCount = Object.keys(questions).length;
 
   for (const [id, question] of Object.entries(questions)) {
     const type = question["type"];
-    if (type === "choice") {
+    if (type === "choice" || type === "noul") {
+      if (type === "noul") {
+        const { probability, confidence: conf } = booleanAnswer(id, text, intent, officialClaims);
+        answers[id] = { type: "noul", noul: round2(probability) };
+        if (conf !== undefined) confidence[id] = conf;
+        continue;
+      }
       const criteria = (question["criteria"] ?? {}) as Record<string, string>;
       const keys = Object.keys(criteria);
       const chosen = keys.includes(intent) ? intent : (keys[0] ?? "unknown");
       const weights: Record<string, number> = {};
       for (const key of keys) weights[key] = key === chosen ? 0.9 : 0.1 / Math.max(1, keys.length - 1);
       const probabilities = normalizeWeights(weights);
-      answers[id] = { type, choice: chosen, probabilities };
+      answers[id] = { type: "choice", choice: chosen, probabilities };
       confidence[id] = 0.9;
       continue;
     }
     if (type === "score") {
       const { score, probabilities } = scoreAnswer(id, text);
-      answers[id] = { type, score, probabilities };
+      answers[id] = { type: "score", score, probabilities };
       continue;
     }
     const { probability, confidence: conf } = booleanAnswer(id, text, intent, officialClaims);
@@ -177,16 +200,42 @@ export function mockResponse(body: unknown, model = DEFAULT_MODEL): Record<strin
     if (conf !== undefined) confidence[id] = conf;
   }
 
+  if (provider === "typesafe") {
+    // 官方直连形状：模型回具体的版本化 id；choice/score 的置信度直接挂在回答上；
+    // Noul 没有置信度字段（协议层据此走派生置信度 → 分流更保守）。
+    for (const [id, answer] of Object.entries(answers)) {
+      const recordAnswer = answer as Record<string, unknown>;
+      if (recordAnswer["type"] !== "noul" && confidence[id] !== undefined) {
+        recordAnswer["confidence"] = confidence[id];
+      }
+    }
+    return {
+      model: options.model ?? (record["model"] === TYPESAFE_MODEL ? TYPESAFE_RESPONSE_MODEL : String(record["model"] ?? TYPESAFE_RESPONSE_MODEL)),
+      answers,
+      usage: {
+        input_tokens: Math.max(1, Math.round(inputChars / 4)),
+        output_tokens: questionCount * 12 + 6,
+      },
+    };
+  }
+
   return {
-    model,
+    model: options.model ?? GATEWAY_MODEL,
     answers,
     providerMetadata: { typesafe: { confidence } },
     usage: { inputTokens: Math.max(1, Math.round(inputChars / 4)), outputTokens: 0 },
   };
 }
 
+/** 按请求路径判定通道（与真实世界的两条 URL 一一对应） */
+function providerOf(url: string, fallback: JevProvider | undefined): JevProvider {
+  if (url.includes(TYPESAFE_PATH)) return "typesafe";
+  if (url.includes("/v4/ai/evaluation-model")) return "vercel-gateway";
+  return fallback ?? "typesafe";
+}
+
 function makeFetch(options: MockGatewayOptions, state: MockState): typeof fetch {
-  return (async (_input: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]) => {
+  return (async (input: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]) => {
     state.calls += 1;
     const failCount = options.failFirstRequests ?? 0;
     if (state.calls <= failCount) {
@@ -198,7 +247,8 @@ function makeFetch(options: MockGatewayOptions, state: MockState): typeof fetch 
       });
     }
     const body = init?.body ? JSON.parse(String(init.body)) : {};
-    return new Response(JSON.stringify(mockResponse(body, options.model ?? DEFAULT_MODEL)), {
+    const provider = options.provider ?? providerOf(String(input), undefined);
+    return new Response(JSON.stringify(mockResponse(body, { provider, model: options.model })), {
       status: 200,
       headers: { "content-type": "application/json" },
     });
@@ -221,6 +271,7 @@ export interface MockServer {
 export async function startMockServer(options: MockGatewayOptions = {}): Promise<MockServer> {
   const state: MockState = { calls: 0 };
   const server: Server = createServer((request, response) => {
+    const provider = options.provider ?? providerOf(request.url ?? "", undefined);
     const chunks: Buffer[] = [];
     request.on("data", (chunk: Buffer) => chunks.push(chunk));
     request.on("end", () => {
@@ -236,7 +287,7 @@ export async function startMockServer(options: MockGatewayOptions = {}): Promise
       try {
         const body = JSON.parse(Buffer.concat(chunks).toString("utf8"));
         response.writeHead(200, { "content-type": "application/json" });
-        response.end(JSON.stringify(mockResponse(body, options.model ?? DEFAULT_MODEL)));
+        response.end(JSON.stringify(mockResponse(body, { provider, model: options.model })));
       } catch (error) {
         response.writeHead(400, { "content-type": "application/json" });
         response.end(JSON.stringify({ error: { message: String(error) } }));

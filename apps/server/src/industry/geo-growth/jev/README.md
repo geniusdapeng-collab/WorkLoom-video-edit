@@ -1,7 +1,8 @@
 # Jev 决策模型 · growth 影子评估（试点）
 
 > 位置：`apps/server/src/industry/geo-growth/jev/`（行业侧，`base-sync` 排除路径，不改基座契约）
-> 通道：**Vercel AI Gateway**（`typesafe-ai/jev`，evaluation 协议 v4）
+> 通道：**① TypeSafe 官方直连（默认）** `POST https://api.typesafe.ai/v1/systemone`；
+> **② Vercel AI Gateway（备选）** `typesafe-ai/jev`，evaluation 协议 v4
 > 状态：影子评估（shadow）——只产出报告，**不写业务库、不发外发通道、不替代任何围栏**
 
 ## 1. 为什么做、边界是什么
@@ -26,28 +27,51 @@
 ## 2. 快速开始
 
 ```bash
-# ① 离线全链路（本地模拟网关，无 key、无外呼）：先确认协议与报告口径
+# ① 离线全链路（本地模拟通道，无 key、无外呼）：先确认协议与报告口径
+#    模拟通道按请求路径返回对应形状：/v1/systemone（直连）或 /v4/ai/evaluation-model（网关）
 pnpm tsx apps/server/src/industry/geo-growth/jev/cli.ts --scene comment-classify --exam --mock
 
 # ② 用真实业务样本跑影子（数据集必须脱敏；JSONL：{id, text, expected?, context?, officialClaims?}）
 pnpm tsx apps/server/src/industry/geo-growth/jev/cli.ts --scene comment-classify --dataset ./local-comments.jsonl
 
-# ③ 首次接真 key：先抓原始响应，钉死解析口径
-AI_GATEWAY_API_KEY=<key> pnpm tsx apps/server/src/industry/geo-growth/jev/cli.ts \
+# ③ 首次接真 key：先抓原始响应，钉死解析口径（通道 2 官方直连）
+TYPESAFE_API_KEY=<key> pnpm tsx apps/server/src/industry/geo-growth/jev/cli.ts \
   --scene comment-classify --dataset ./local-comments.jsonl --limit 3 --capture-raw
+
+# ④ 通道 1（网关）仍可用：显式声明 provider，键名也换成网关的
+JEV_PROVIDER=vercel-gateway AI_GATEWAY_API_KEY=<key> pnpm tsx apps/server/src/industry/geo-growth/jev/cli.ts \
+  --scene comment-classify --exam
 ```
 
 ### 2.1 环境变量
 
 | 变量 | 默认 | 说明 |
 |---|---|---|
-| `AI_GATEWAY_API_KEY` | 无 | **必需**（真实网关）。在 Vercel 控制台 → AI Gateway → API Keys 创建；只进本机 `.env`/环境，绝不进仓库 |
-| `JEV_BASE_URL` | `https://ai-gateway.vercel.sh` | 网关根地址 |
-| `JEV_MODEL` | `typesafe-ai/jev` | 模型 id（同页还可跑 `inception/mercury-2.5` 作文本 helper） |
+| `TYPESAFE_API_KEY` | 无 | 通道 2 必需。在 `console.typesafe.ai/keys` 创建；只进本机 `.env`/环境，绝不进仓库 |
+| `AI_GATEWAY_API_KEY` | 无 | 通道 1 必需。Vercel 控制台 → AI Gateway → API Keys；同上只走环境注入 |
+| `JEV_PROVIDER` | 按 key 推断 | `typesafe`（默认）｜`vercel-gateway`；显式值优先于键推断，非法值直接报错不静默回退 |
+| `JEV_BASE_URL` | 按通道 | 直连 `https://api.typesafe.ai`；网关 `https://ai-gateway.vercel.sh` |
+| `JEV_MODEL` | 按通道 | 直连 `jev-latest`（别名→`jev-1.13.0`）；网关 `typesafe-ai/jev` |
 | `JEV_TIMEOUT_MS` | `20000` | 单次请求硬超时 |
 
-CLI 参数：`--scene` `--dataset` `--exam` `--out` `--limit` `--concurrency` `--max-cost-usd`
+通道判别：`--provider` > `JEV_PROVIDER` > 按键推断（有 `TYPESAFE_API_KEY` 走直连、只有网关 key 走网关）
+> 默认直连。**不会**在两条通道之间静默切换：键缺失时直接报缺 key 并给出获取入口。
+
+CLI 参数：`--scene` `--provider` `--dataset` `--exam` `--out` `--limit` `--concurrency` `--max-cost-usd`
 `--mock` `--capture-raw` `--model` `--base-url` `--timeout-ms`（`--help` 查看全部）。
+
+### 2.2 两条通道的请求/响应差异（同一解析层兼容）
+
+| 项 | 通道 2 · 官方直连（默认） | 通道 1 · Vercel 网关 |
+|---|---|---|
+| 路径 | `POST {base}/v1/systemone` | `POST {base}/v4/ai/evaluation-model` |
+| 鉴权 | `Authorization: Bearer $TYPESAFE_API_KEY` | `Authorization: Bearer $AI_GATEWAY_API_KEY` + 3 个协议头 |
+| 请求体 | `{state, model, questions}`（`model` 必填） | `{state, questions}`（模型走 `ai-model-id` 头） |
+| 问题类型名 | 官方原语 `noul` / `choice` / `score`（本地 `boolean` 出站前映射为 `noul`） | evaluation v4 类型名（`boolean` / `choice` / `score`） |
+| Noul 回答 | `{"type":"noul","noul":0.95}`，**无置信度字段** → 本模块派生置信度并强制保守分流 | `{"type":"boolean","probability":…}` + `providerMetadata.typesafe.confidence` |
+| usage | `{input_tokens, output_tokens}` | `{inputTokens, outputTokens}` |
+
+`report.json` 的 `provider` 字段记录本次跑的是哪条通道——**跨通道对比必须同数据集、同模型别名、同口径**。
 
 ## 3. 输出与判读
 
@@ -82,8 +106,9 @@ evaluation 协议（`state + typed questions → typed answers`，官方明确�
 
 ## 5. 合规与安全
 
-- **数据出站**：Vercel AI Gateway 目录中 `typesafe-ai/jev` 标注 `zdr: all`（零数据留存）与
-  `no_training: all`（不用于训练）；接入前仍需按 WorkLoom 不变量走脱敏与出站声明。
+- **数据出站**：官方声明「Jev 不用客户请求/响应做训练」（`docs.typesafe.ai/models` § Data handling），
+  企业版可另行签署零数据留存（ZDR）；通道 1 的网关目录同样标注 `zdr: all` + `no_training: all`。
+  即便如此，**接入前仍必须按 WorkLoom 不变量走脱敏与出站声明**：出站的 state 只放判断必需字段。
 - **秘密管理**：key 只从环境变量读取；`client.ts` 的错误消息只包含状态码与主机名，测试覆盖"key 不出现在错误里"。
 - **失败语义**：4xx 中 401/403 立即失败（非重试）；429/5xx/超时按退避重试（只读调用，安全）；
   非法回答（未知选项、越界分数、概率异常）整体拒绝，**绝不猜测**。
@@ -93,27 +118,29 @@ evaluation 协议（`state + typed questions → typed answers`，官方明确�
 
 ```bash
 # 每日谷时跑一轮（示例：每周一 09:10，与 visibility-watch 周频采集同窗）
-10 9 * * 1  cd <repo> && AI_GATEWAY_API_KEY=<key> pnpm tsx \
+10 9 * * 1  cd <repo> && TYPESAFE_API_KEY=<key> pnpm tsx \
   apps/server/src/industry/geo-growth/jev/cli.ts \
   --scene comment-classify --dataset data/jev-shadow/input/comments.jsonl \
   --concurrency 2 --max-cost-usd 1 \
   --out data/jev-shadow/runs/$(date +\%Y\%m\%d)
 ```
 
-- **监控口径**：`report.json` 的 `failed`（网关不可用）、`routes.auto/human`（分流漂移）、`costUsd`（预算）、`ece`（校准恶化）、`accuracy`（若带标签）。
+- **监控口径**：`report.json` 的 `failed`（通道不可用）、`routes.auto/human`（分流漂移）、`costUsd`（预算）、`ece`（校准恶化）、`accuracy`（若带标签）。
 - **告警阈值（建议起步值）**：`failed > 5%` 或 `ece > 0.15` 或 `accuracy` 环比下降 `>5pp` 即暂停自动档并回退全人审。
 - **回退**：删掉定时任务即可；本模块只写 `data/**`，无业务副作用。
 - **升级到灰度**：连续 2 周满足「准确率不低于现行 L1 档、`ece ≤ 0.12`、自动档样本 ≥500 条」后，再按第 4 节走基座提案。
 
 ## 6. 已知不确定性与首次接真 key 的必做动作
 
-1. **网关响应形状**：本模块按 TypeSafe 官方文档 + 社区实现（PR #15/#28）兼容解析
-   （`answers` 支持多层级、置信度支持 `providerMetadata.typesafe.confidence`）。
-   首次接真 key 请务必 `--capture-raw --limit 3`，确认形状后如与解析不一致，改 `protocol.ts` 并补测试。
+1. **响应形状**：解析层同时兼容官方直连（`answers[id].type=noul`、`usage.input_tokens`）与网关
+   （`type=boolean`、`providerMetadata.typesafe.confidence`、`usage.inputTokens`）。首次接真 key 请务必
+   `--capture-raw --limit 3`，确认形状后如与解析不一致，改 `protocol.ts` 并补测试（**不要**先跑全量）。
 2. **中文准确率**：官方明确英文最佳、CJK "handled but not equally well"。本模块 instructions 全英文、
    state 为中文原文；**必须用考卷 + 真实样本实测**后才能定自动档阈值。
-3. **限流**：官方限流动态调整（当前 250k tok/s、1200 RPM），网关侧另有免费档限流；批量跑请从
-   `--concurrency 2` 起，观察 429 比例。
+3. **限流与上下文**：官方限流动态调整（当前 250k tok/s、1200 RPM，超限返回 429 并带 `retry-after`），
+   单请求上下文 64k token（state 与最长问题占 32k）；批量跑请从 `--concurrency 2` 起，观察 429 比例。
+4. **别名会漂移**：`jev-latest` 当前指向 `jev-1.13.0`；阈值一旦按版本调好，应把 `JEV_MODEL` 钉到
+   版本化 id，避免上游换版本时静默改变分流口径（`report.json.model` 记录实际回答的版本）。
 
 ## 7. 测试
 
@@ -125,7 +152,7 @@ evaluation 协议（`state + typed questions → typed answers`，官方明确�
 > 但须先用自己的标注数据微调并过考卷，再考虑进入判断链路。
 
 ```bash
-# 本模块 39 个离线用例（协议/重试/超时/密钥安全/分流/指标/端到端）
+# 本模块 49 个离线用例（双通道请求形状/协议解析/重试/超时/密钥安全/分流/指标/端到端）
 node_modules/.bin/vitest run apps/server/src/industry/geo-growth/jev
 
 # 类型检查（仓库 strict + noUncheckedIndexedAccess 口径）

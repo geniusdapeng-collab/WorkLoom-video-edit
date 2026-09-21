@@ -40,6 +40,15 @@ describe("gateDecision", () => {
     expect(gateDecision("lead-qualify", decision({ confidence: 0.5 })).route).toBe("human");
   });
 
+  it("线索分级：档位贴边界（ambiguous=1）即使置信度很高也进人审队列", () => {
+    const gate = gateDecision(
+      "lead-qualify",
+      decision({ confidence: 0.99, details: { ambiguous: 1, level_gap: 0.01 } }),
+    );
+    expect(gate.route).toBe("review");
+    expect(gate.reasons.join(" ")).toContain("贴边界");
+  });
+
   it("事实预检：非 pass 结论必须人工，pass 也只能到人审队列", () => {
     expect(gateDecision("fact-precheck", decision({ decision: "risk" })).route).toBe("human");
     expect(gateDecision("fact-precheck", decision({ decision: "unsupported" })).route).toBe("human");
