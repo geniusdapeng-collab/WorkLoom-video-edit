@@ -31,6 +31,7 @@ export const COLOR_TOOLS = [
   "colorread.scope",
   "colorread.recipes",
   "colorwrite.grade",
+  "colorwrite.best",
   "colorwrite.match",
 ];
 
@@ -964,16 +965,307 @@ export async function compareFrames({ before, after, at = 0, output, bins = reso
 
 /* ============================ 可见性度量 ============================ */
 
-async function rawFrame(input, at, bins) {
-  // 统一缩到 640 宽再比较：与分辨率/编码无关，只回答"画面变了吗、变了多少"。
+/* ---------- 画质度量与择优（"最佳效果"要用可计算的分数说话） ---------- */
+
+/**
+ * 单帧画质指标（单次遍历，纯 JS）：
+ *   rmsContrast 对比度（亮度标准差）｜ tonalRange 影调跨度（P95-P5）｜ satMean 平均饱和
+ *   oversatPct 过饱和像素占比 ｜ colorfulness 色彩浓度（Hasler-Süsstrunk）
+ *   sharpness 细节能量（拉普拉斯方差）｜ shadow/highlightClipPct 裁切占比（信息损失）
+ */
+export function frameQuality(buf, width = 0, height = 0) {
+  const n = Math.floor(buf.length / 3);
+  if (n === 0) throw new ColorError("空帧无法评估画质", "bad_media");
+  const gray = new Float64Array(n);
+  let sY = 0; let sY2 = 0; let sSat = 0; let over = 0; let dark = 0; let bright = 0;
+  let sRg = 0; let sRg2 = 0; let sYb = 0; let sYb2 = 0;
+  for (let i = 0, p = 0; p < n; i += 3, p += 1) {
+    const r = buf[i]; const g = buf[i + 1]; const b = buf[i + 2];
+    const y = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+    gray[p] = y; sY += y; sY2 += y * y;
+    const mx = r > g ? (r > b ? r : b) : (g > b ? g : b);
+    const mn = r < g ? (r < b ? r : b) : (g < b ? g : b);
+    const sat = mx === 0 ? 0 : (mx - mn) / mx;
+    sSat += sat;
+    if (sat > 0.92 && mx > 60) over += 1;
+    if (y <= 4) dark += 1;
+    if (y >= 251) bright += 1;
+    const rg = r - g; const yb = 0.5 * (r + g) - b;
+    sRg += rg; sRg2 += rg * rg; sYb += yb; sYb2 += yb * yb;
+  }
+  const meanY = sY / n;
+  const rmsContrast = Math.sqrt(Math.max(sY2 / n - meanY * meanY, 0));
+  const sorted = Float64Array.from(gray).sort();
+  const tonalRange = sorted[Math.floor(n * 0.95)] - sorted[Math.floor(n * 0.05)];
+  const stat = (s, s2) => { const m = s / n; return [m, Math.sqrt(Math.max(s2 / n - m * m, 0))]; };
+  const [muRg, sdRg] = stat(sRg, sRg2);
+  const [muYb, sdYb] = stat(sYb, sYb2);
+  const colorfulness = Math.sqrt(sdRg ** 2 + sdYb ** 2) + 0.3 * Math.sqrt(muRg ** 2 + muYb ** 2);
+
+  // 细节能量：3×3 拉普拉斯响应方差（越锐利越高）
+  let sharpSum = 0; let sharpSum2 = 0; let count = 0;
+  if (width > 2 && height > 2 && width * height === n) {
+    for (let y = 1; y < height - 1; y += 1) {
+      for (let x = 1; x < width - 1; x += 1) {
+        const idx = y * width + x;
+        const lap = gray[idx - width] + gray[idx + width] + gray[idx - 1] + gray[idx + 1] - 4 * gray[idx];
+        sharpSum += lap; sharpSum2 += lap * lap; count += 1;
+      }
+    }
+  }
+  const sharpness = count > 0
+    ? Math.sqrt(Math.max(sharpSum2 / count - (sharpSum / count) ** 2, 0))
+    : 0;
+
+  return {
+    yavg: Math.round(meanY * 100) / 100,
+    rmsContrast: Math.round(rmsContrast * 100) / 100,
+    tonalRange: Math.round(tonalRange * 100) / 100,
+    satMean: Math.round((sSat / n) * 1000) / 1000,
+    oversatPct: Math.round((over / n) * 10000) / 100,
+    colorfulness: Math.round(colorfulness * 100) / 100,
+    sharpness: Math.round(sharpness * 100) / 100,
+    shadowClipPct: Math.round((dark / n) * 10000) / 100,
+    highlightClipPct: Math.round((bright / n) * 10000) / 100,
+  };
+}
+
+/**
+ * 画质打分（基准 100 = 原片）。**不是"更艳就更高"**，而是"不许变差、允许小幅变好"：
+ * - 对比度/清晰度下降：重罚（用户投诉的正是"变灰、变糊"）
+ * - 过饱和/掉饱和：双向罚（饱和度不是越高越好）
+ * - 裁切增加：重罚（信息丢了就找不回来）
+ * - 亮度漂移 + "原片本来就在健康区间却被拉出去"：罚
+ * - 对比/细节小幅提升：有限奖励（上限 +13）
+ */
+/** 画质健康区间（显示参考素材的校准经验值，可按素材类型覆盖）。 */
+export const QUALITY_BANDS = {
+  rmsContrast: [22, 45],   // 对比度：低于下限发灰，高于上限发硬
+  satMean: [0.22, 0.48],   // 平均饱和：低于下限发灰，高于上限发艳
+};
+
+const bandDistance = (value, [lo, hi]) => (value < lo ? lo - value : value > hi ? value - hi : 0);
+/** 朝健康区间移动 → 有限奖励；偏离 → 按权重扣分（同样封顶，避免异常素材把分数拉到无意义区间）。 */
+const bandEffect = (diff, weight, maxReward, maxPenalty) => (diff <= 0
+  ? Math.min(maxReward, -diff * weight)
+  : -Math.min(maxPenalty, diff * weight));
+
+export function scoreQuality(cand, src, bands = QUALITY_BANDS) {
+  const safe = (a, b) => (b > 0.01 ? a / b : 1);
+  const contrastRatio = safe(cand.rmsContrast, src.rmsContrast);
+  const detailRatio = safe(cand.sharpness, src.sharpness);
+  const satRatio = safe(cand.satMean, src.satMean);
+  const clipDelta = (cand.shadowClipPct + cand.highlightClipPct) - (src.shadowClipPct + src.highlightClipPct);
+  const overDelta = cand.oversatPct - src.oversatPct;
+
+  const srcHealthyExposure = src.yavg >= 80 && src.yavg <= 140;
+  const srcComfortableExposure = src.yavg >= 90 && src.yavg <= 125;
+  const lumaDrift = cand.yavg - src.yavg;
+  const brokeExposure = srcHealthyExposure
+    && (cand.yavg < 72 || cand.yavg > 150 || (srcComfortableExposure && Math.abs(lumaDrift) > 25));
+
+  let score = 100;
+  // 对比度/饱和：朝健康区间移动加分（封顶），偏离按权重扣分。
+  // 关键区别：**不再把"饱和相对原片升高"一律当劣化**——对本来就偏灰的素材，拉回健康区间是改善。
+  score += bandEffect(
+    bandDistance(cand.rmsContrast, bands.rmsContrast) - bandDistance(src.rmsContrast, bands.rmsContrast),
+    45, 8, 15,
+  );
+  score += bandEffect(
+    bandDistance(cand.satMean, bands.satMean) - bandDistance(src.satMean, bands.satMean),
+    60, 6, 12,
+  );
+  score -= 25 * Math.max(0, 1 - detailRatio);          // 清晰度只能不掉
+  score -= 12 * Math.max(0, satRatio - 1.35);          // 极端过饱和再加罚
+  score -= 2.5 * Math.max(0, clipDelta);               // 裁切增加：信息损失
+  score -= 0.6 * Math.max(0, overDelta);
+  score -= 0.15 * Math.abs(lumaDrift);                 // 亮度漂移
+  if (brokeExposure) score -= 10;                      // 原片曝光健康却被拉出区间
+  score += Math.min(5, 12 * Math.max(0, detailRatio - 1));
+
+  return {
+    score: Math.round(score * 100) / 100,
+    reasons: {
+      contrastRatio: Math.round(contrastRatio * 1000) / 1000,
+      detailRatio: Math.round(detailRatio * 1000) / 1000,
+      satRatio: Math.round(satRatio * 1000) / 1000,
+      clipDeltaPct: Math.round(clipDelta * 100) / 100,
+      oversatDeltaPct: Math.round(overDelta * 100) / 100,
+      lumaDrift: Math.round((cand.yavg - src.yavg) * 100) / 100,
+      brokeHealthyExposure: brokeExposure,
+    },
+  };
+}
+
+/** 抽样帧的画质（多帧取均值；帧太大时按宽度缩放，跨素材可比）。 */
+export async function qualityOfFile({ input, at = [0], width = 480, bins = resolveBinaries() }) {
+  const samples = [];
+  for (const t of at) {
+    const buf = await rawFrame(input, t, bins, width);
+    const height = Math.round((buf.length / 3) / width);
+    samples.push(frameQuality(buf, width, height));
+  }
+  const keys = Object.keys(samples[0]);
+  const avg = {};
+  for (const k of keys) avg[k] = Math.round((samples.reduce((s, x) => s + x[k], 0) / samples.length) * 100) / 100;
+  return { samples, avg };
+}
+
+/** 作用在单张静态帧上的滤镜链评估（look dev：先在静帧上比效果，再整片渲染一次）。 */
+async function qualityWithChain({ framePath, chain, width, bins }) {
+  const { stdout } = await runBin(bins.ffmpeg, [
+    "-hide_banner", "-v", "error", "-y",
+    "-i", framePath,
+    "-vf", `${chain},scale=${width}:-2,format=rgb24`,
+    "-frames:v", "1",
+    "-f", "rawvideo", "-pix_fmt", "rgb24", "-",
+  ], { label: "ffmpeg(chain-eval)", timeoutMs: 60_000 });
+  const height = Math.round((stdout.length / 3) / width);
+  return frameQuality(stdout, width, height);
+}
+
+
+async function rawFrame(input, at, bins, width = 640) {
+  // 统一缩到固定宽度再比较：与分辨率/编码无关，只回答"画面变了吗、变得好不好"。
   const { stdout } = await runBin(bins.ffmpeg, [
     "-hide_banner", "-v", "error",
     "-ss", String(at), "-i", input,
     "-frames:v", "1",
-    "-vf", "scale=640:-2,format=rgb24",
+    "-vf", `scale=${width}:-2,format=rgb24`,
     "-f", "rawvideo", "-pix_fmt", "rgb24", "-",
   ], { label: "ffmpeg(rgb-frame)", timeoutMs: 60_000 });
   return stdout;
+}
+
+/**
+ * 默认候选池：原片不动 / 仅自动校正 / 各内置 look × [0.5, 0.8] 强度。
+ * 数量刻意收敛（~18 个），只在抽样静帧上评估——先比效果，再整片渲染一次。
+ */
+export function defaultCandidates({ profiles = null, intensities = [0.5, 0.8] } = {}) {
+  const list = [];
+  for (const name of profiles ?? Object.keys(PROFILES)) {
+    for (const intensity of intensities) {
+      list.push({ id: `${name}@${intensity}`, label: `${name} 强度 ${intensity}`, spec: { profile: name, intensity } });
+    }
+  }
+  return list;
+}
+
+function averageMetrics(samples) {
+  const keys = Object.keys(samples[0]);
+  const avg = {};
+  for (const k of keys) avg[k] = Math.round((samples.reduce((s, x) => s + x[k], 0) / samples.length) * 100) / 100;
+  return avg;
+}
+
+/**
+ * 择优调色（"最佳效果"的实现路径）：候选择优 + 客观打分 + 允许「不动」。
+ *
+ *   1. 抽 N 张静帧（look dev，不整片渲染）；
+ *   2. 候选池（原片不动 / 仅校正 / look×强度）在静帧上逐一评估；
+ *   3. scoreQuality 打分（基准 100 = 原片）；
+ *   4. **最高分没过阈值 → 判定"无需调色"，不产出任何文件**（do no harm）；
+ *   5. 确有更优候选时，才整片渲染一次，并对成片复测画质。
+ */
+export async function best({
+  input, output = null, sampleAt = null, candidates = null,
+  minImprovement = 2, width = 480, bins = resolveBinaries(), maxSamples = 4,
+}) {
+  const probe = await probeMedia(input, { bins });
+  const at = Array.isArray(sampleAt) && sampleAt.length
+    ? sampleAt
+    : defaultTimestamps(probe.duration).slice(0, maxSamples);
+
+  const frameDir = await fsp.mkdtemp(path.join(os.tmpdir(), "color-best-"));
+  try {
+    const frames = [];
+    for (let i = 0; i < at.length; i += 1) {
+      const still = path.join(frameDir, `f${i}.png`);
+      await runBin(bins.ffmpeg, [
+        "-hide_banner", "-v", "error", "-y", "-ss", String(at[i]), "-i", input, "-frames:v", "1", still,
+      ], { label: "ffmpeg(still)", timeoutMs: 60_000 });
+      frames.push(still);
+    }
+
+    // 「仅校正」候选：由量化诊断推导（只在确有欠曝/偏色/低饱和时才有非空参数）
+    const statsFrames = [];
+    for (const t of at) statsFrames.push(await frameStats({ input, at: t, bins }));
+    const autoApplied = autoCorrections(summarize(statsFrames));
+
+    const pool = [
+      { id: "identity", label: "原片不动（不调色）", spec: null },
+      ...(Object.keys(autoApplied).length
+        ? [{ id: "auto-correct", label: "仅自动校正（白平衡/曝光/裁切）", spec: { corrections: autoApplied, intensity: 1 } }]
+        : []),
+      ...(Array.isArray(candidates) && candidates.length ? candidates : defaultCandidates()),
+    ];
+
+    const evaluated = [];
+    for (const candidate of pool) {
+      const chain = candidate.spec ? buildChain(candidate.spec) : "null";
+      // 同一候选的抽样帧并行评估（4 帧并发），候选之间串行——总耗时从分钟级降到十几秒。
+      const perFrame = await Promise.all(
+        frames.map((still) => qualityWithChain({ framePath: still, chain, width, bins })),
+      );
+      evaluated.push({ id: candidate.id, label: candidate.label, spec: candidate.spec, chain, quality: averageMetrics(perFrame) });
+    }
+
+    const baseline = evaluated[0];
+    for (const item of evaluated) {
+      item.scoring = item.id === "identity"
+        ? { score: 100, reasons: { contrastRatio: 1, detailRatio: 1, satRatio: 1, clipDeltaPct: 0, oversatDeltaPct: 0, lumaDrift: 0, brokeHealthyExposure: false } }
+        : scoreQuality(item.quality, baseline.quality);
+    }
+    const winner = evaluated.reduce((a, b) => (b.scoring.score > a.scoring.score ? b : a));
+    const improvement = Math.round((winner.scoring.score - 100) * 100) / 100;
+    const table = evaluated.map((e) => ({ id: e.id, label: e.label, score: e.scoring.score, reasons: e.scoring.reasons, quality: e.quality }));
+
+    if (winner.id === "identity" || improvement < minImprovement) {
+      return {
+        verdict: "no_change_needed",
+        winner: winner.id,
+        improvement,
+        minImprovement,
+        reason: `最佳候选「${winner.label}」仅比原片高 ${improvement} 分（阈值 ${minImprovement}）：按「不劣化优先」纪律判定无需调色，未产出新文件`,
+        source: baseline.quality,
+        sampledAt: at,
+        candidates: table,
+        sha256: await sha256File(input),
+      };
+    }
+
+    if (!output) throw new ColorError("已有更优候选，但未提供 output_path（择优调色需要输出路径）", "bad_request");
+    const graded = await grade({
+      input,
+      output,
+      profile: winner.spec?.profile ?? null,
+      lutPath: winner.spec?.lutPath ?? null,
+      corrections: winner.spec?.corrections ?? {},
+      intensity: winner.spec?.intensity ?? 1,
+      verifyAt: at,
+      bins,
+    });
+    const outQuality = (await qualityOfFile({ input: output, at, width, bins })).avg;
+    return {
+      verdict: "graded",
+      winner: winner.id,
+      winnerLabel: winner.label,
+      improvement,
+      minImprovement,
+      source: baseline.quality,
+      after: outQuality,
+      finalScore: scoreQuality(outQuality, baseline.quality),
+      chain: graded.chain,
+      visibility: graded.visibility,
+      delta: graded.delta,
+      sha256: graded.sha256,
+      sampledAt: at,
+      candidates: table,
+      output: graded.output,
+    };
+  } finally {
+    await fsp.rm(frameDir, { recursive: true, force: true }).catch(() => {});
+  }
 }
 
 /**
@@ -1123,6 +1415,35 @@ export async function callTool(name, params = {}, { bins = resolveBinaries(), en
           // 因此把产物哈希带进 snapshot_uri，保证事件账本里可核验（sha256 字段仍留给直接调用方）。
           snapshot_uri: `color://grade/${path.basename(graded.output)}?sha256=${graded.sha256}`,
           sha256: graded.sha256,
+          verified_at: new Date().toISOString(),
+        },
+      };
+    }
+
+    case "colorwrite.best": {
+      // 择优调色：先比效果再渲染；判"无需调色"时不写任何文件（do no harm）。
+      const input = assertPathAllowed(text(params.input_path, "input_path"), roots, "input_path");
+      const output = params.output_path
+        ? assertPathAllowed(String(params.output_path), roots, "output_path")
+        : null;
+      if (params.overwrite_source === true || (output && output === input)) {
+        throw new ColorError("禁止覆盖原片", "overwrite_source_forbidden");
+      }
+      const outcome = await best({
+        input,
+        output,
+        sampleAt: Array.isArray(params.sample_at) ? params.sample_at.map(Number) : null,
+        minImprovement: params.min_improvement === undefined ? 2 : Number(params.min_improvement),
+        bins,
+      });
+      return {
+        result: outcome,
+        receipt: {
+          synced: true,
+          snapshot_uri: outcome.verdict === "graded"
+            ? `color://best/${path.basename(outcome.output)}?sha256=${outcome.sha256}`
+            : `color://best/no-change?sha256=${outcome.sha256}`,
+          sha256: outcome.sha256,
           verified_at: new Date().toISOString(),
         },
       };

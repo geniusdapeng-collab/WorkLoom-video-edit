@@ -20,9 +20,10 @@ function okResponse(result: Record<string, unknown>, receipt: Record<string, unk
 }
 
 describe("工具白名单", () => {
-  it("只声明 7 个调色工具，且不提供他人工具", () => {
-    expect(COLOR_BRIDGE_TOOLS).toHaveLength(7);
+  it("只声明 8 个调色工具，且不提供他人工具", () => {
+    expect(COLOR_BRIDGE_TOOLS).toHaveLength(8);
     expect(isColorBridgeTool("colorread.recipes")).toBe(true);
+    expect(isColorBridgeTool("colorwrite.best")).toBe(true);
     expect(isColorBridgeTool("colorwrite.grade")).toBe(true);
     expect(isColorBridgeTool("visualwrite.compose")).toBe(false);
     expect(isColorBridgeTool("render.submit")).toBe(false);

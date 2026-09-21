@@ -63,6 +63,7 @@ export const COLOR_BRIDGE_TOOLS = [
   "colorread.scope",
   "colorread.recipes",
   "colorwrite.grade",
+  "colorwrite.best",
   "colorwrite.match",
 ] as const;
 

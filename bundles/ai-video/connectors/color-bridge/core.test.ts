@@ -9,7 +9,8 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import {
   COLOR_TOOLS, ColorError, SCOPE_KINDS, allowedRoots, assertPathAllowed, autoCorrections,
-  buildChain, frameDifference, grade, probeMedia, PROFILES, renderScopes, resolveBinaries, summarize,
+  best, buildChain, frameDifference, frameQuality, grade, probeMedia, PROFILES, renderScopes,
+  resolveBinaries, scoreQuality, summarize,
 } from "./core.mjs";
 
 const bins = resolveBinaries();
@@ -24,9 +25,10 @@ const hasFfmpeg = (() => {
 })();
 
 describe("工具面与滤镜链（纯函数）", () => {
-  it("工具面固定为 7 个（含配方库检索），scope 三种", () => {
-    expect(COLOR_TOOLS).toHaveLength(7);
+  it("工具面固定为 8 个（含配方库检索与择优调色），scope 三种", () => {
+    expect(COLOR_TOOLS).toHaveLength(8);
     expect(COLOR_TOOLS).toContain("colorread.recipes");
+    expect(COLOR_TOOLS).toContain("colorwrite.best");
     expect(SCOPE_KINDS).toEqual(["waveform", "vectorscope", "histogram"]);
   });
 
@@ -136,6 +138,55 @@ describe("路径监狱", () => {
   });
 });
 
+describe("画质度量与打分（纯函数）", () => {
+  const flatFrame = (() => {
+    const buf = Buffer.alloc(32 * 32 * 3);
+    for (let i = 0; i < buf.length; i += 3) { buf[i] = 120; buf[i + 1] = 120; buf[i + 2] = 120; }
+    return buf;
+  })();
+  const richFrame = (() => {
+    const buf = Buffer.alloc(32 * 32 * 3);
+    for (let p = 0; p < 32 * 32; p += 1) {
+      const i = p * 3;
+      buf[i] = p % 2 ? 240 : 12;
+      buf[i + 1] = p % 3 ? 40 : 200;
+      buf[i + 2] = p % 5 ? 30 : 210;
+    }
+    return buf;
+  })();
+
+  it("对比度/饱和/裁切指标方向正确", () => {
+    const flat = frameQuality(flatFrame, 32, 32);
+    const rich = frameQuality(richFrame, 32, 32);
+    expect(flat.rmsContrast).toBeLessThan(rich.rmsContrast);
+    expect(flat.satMean).toBeLessThan(rich.satMean);
+    expect(flat.yavg).toBeCloseTo(120, 0);
+    // 全黑帧应被识别为暗部裁切
+    const black = frameQuality(Buffer.alloc(32 * 32 * 3), 32, 32);
+    expect(black.shadowClipPct).toBeGreaterThan(99);
+  });
+
+  it("打分对「拉亮+加饱和+裁切」这类劣化敏感（回归：2026-09-21 事故的真实数值）", () => {
+    // 真实实测：原片 yavg 104.1 / satMean 0.286 / rmsContrast 38.9 / 高光裁切 0%
+    // 劣化交付：yavg 137.7（+33.6）/ satMean 0.419（+46%）/ 高光裁切 1.6%
+    const src = { yavg: 104.1, rmsContrast: 38.9, tonalRange: 124, satMean: 0.286, oversatPct: 0, colorfulness: 38.5, sharpness: 12, shadowClipPct: 0, highlightClipPct: 0 };
+    const degraded = { ...src, yavg: 137.7, satMean: 0.419, colorfulness: 53.9, highlightClipPct: 1.6, rmsContrast: 38.84 };
+    const scored = scoreQuality(degraded, src);
+    expect(scored.score).toBeLessThan(90);              // 明显低于原片（100），择优时必输
+    expect(scored.reasons.brokeHealthyExposure).toBe(true);
+    expect(scored.reasons.clipDeltaPct).toBeCloseTo(1.6, 1);
+    const healthy = { ...src, yavg: 110 };
+    const brokeExposure = { ...healthy, yavg: 160 };
+    expect(scoreQuality(brokeExposure, healthy).reasons.brokeHealthyExposure).toBe(true);
+  });
+
+  it("打分对「把偏灰素材拉回健康区间」给正分（这才是该调的场景）", () => {
+    const src = { yavg: 96, rmsContrast: 18, tonalRange: 90, satMean: 0.17, oversatPct: 0, colorfulness: 22, sharpness: 8, shadowClipPct: 0, highlightClipPct: 0 };
+    const better = { ...src, rmsContrast: 26, satMean: 0.28, sharpness: 8.8, yavg: 93 };
+    expect(scoreQuality(better, src).score).toBeGreaterThan(100);
+  });
+});
+
 describe.runIf(hasFfmpeg)("真实 ffmpeg 端到端", () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "colore2e-"));
   const source = path.join(dir, "src.mp4");
@@ -219,4 +270,41 @@ describe.runIf(hasFfmpeg)("真实 ffmpeg 端到端", () => {
     await expect(grade({ input: source, output: path.join(dir, "x.mp4"), lutPath: "/tmp/missing.cube", bins }))
       .rejects.toThrow(/LUT 不存在/);
   }, 60_000);
+
+  it("择优：健康素材判「无需调色」且不产出文件（do no harm）", async () => {
+    const out = path.join(dir, "best-none.mp4");
+    const result = await best({
+      input: source, output: out, sampleAt: [1],
+      candidates: [{ id: "moody-dark@1", label: "moody-dark", spec: { profile: "moody-dark", intensity: 1 } }],
+      bins,
+    });
+    expect(result.verdict).toBe("no_change_needed");
+    expect(result.candidates.length).toBeGreaterThanOrEqual(2);
+    expect(fs.existsSync(out)).toBe(false);
+  }, 180_000);
+
+  it("择优：扁平素材会选出「提升对比度」的候选并出片（且不是靠拉饱和骗分）", async () => {
+    const flat = path.join(dir, "flat.mp4");
+    execFileSync(bins.ffmpeg, [
+      "-hide_banner", "-v", "error", "-y",
+      // 低对比、无彩的灰阶渐变：模拟"未调色的相机原片"
+      "-f", "lavfi", "-i", "gradients=size=320x240:c0=0x303030:c1=0x707070:duration=3:rate=15",
+      "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p", flat,
+    ]);
+    const out = path.join(dir, "flat-best.mp4");
+    const result = await best({
+      input: flat, output: out, sampleAt: [1],
+      candidates: [
+        { id: "natural@1", label: "natural", spec: { profile: "natural", intensity: 1 } },
+        { id: "high-contrast-social@0.5", label: "high-contrast", spec: { profile: "high-contrast-social", intensity: 0.5 } },
+        { id: "clean-bright@0.5", label: "clean-bright", spec: { profile: "clean-bright", intensity: 0.5 } },
+      ],
+      bins,
+    });
+    expect(result.verdict).toBe("graded");
+    expect(fs.existsSync(out)).toBe(true);
+    expect(result.finalScore.score).toBeGreaterThan(100);
+    expect((result.finalScore.reasons.contrastRatio as number)).toBeGreaterThanOrEqual(1);
+    expect((result.finalScore.reasons.clipDeltaPct as number)).toBeLessThanOrEqual(0.5);
+  }, 240_000);
 });

@@ -20,7 +20,7 @@ import process from "node:process";
 
 import {
   ColorError, assertPathAllowed, allowedRoots,
-  callTool, compareFrames, findRecipes, grade, match, resolveBinaries, SCOPE_KINDS, PROFILES,
+  best, callTool, compareFrames, findRecipes, grade, match, resolveBinaries, SCOPE_KINDS, PROFILES,
 } from "./core.mjs";
 
 function parseArgs(argv) {
@@ -107,6 +107,22 @@ function printHuman(command, result) {
     line(`指标：YAVG ${fmt(r.before.YAVG)} → ${fmt(r.after.YAVG)}（Δ${fmt(r.delta.YAVG)}）  SATAVG ${fmt(r.before.SATAVG)} → ${fmt(r.after.SATAVG)}`);
     line(`sha256：${r.sha256}`);
     for (const w of r.verifyWarnings) line(`⚠ ${w}`);
+    return;
+  }
+  if (command === "best") {
+    const r = result;
+    line(`结论：${r.verdict === "graded" ? `已调色（选中 ${r.winnerLabel}）` : "无需调色（原片不动，未产出文件）"}`);
+    line(`理由：${r.reason ?? `最佳候选比原片高 ${r.improvement} 分（阈值 ${r.minImprovement}）`}`);
+    line("");
+    line("候选得分（基准 100 = 原片）");
+    for (const c of [...r.candidates].sort((a, b) => b.score - a.score).slice(0, 6)) {
+      line(`  ${String(c.score).padStart(6)}  ${String(c.id).padEnd(22)} 对比度×${c.reasons.contrastRatio} 饱和×${c.reasons.satRatio} 裁切${c.reasons.clipDeltaPct >= 0 ? "+" : ""}${c.reasons.clipDeltaPct}% 亮度${c.reasons.lumaDrift >= 0 ? "+" : ""}${c.reasons.lumaDrift}`);
+    }
+    if (r.verdict === "graded") {
+      line("");
+      line(`成片：${r.output}`);
+      line(`成片得分：${r.finalScore.score}（原片 100）｜可见性 ${r.visibility.meanAbsDiff}/255 ${r.visibility.verdict}`);
+    }
     return;
   }
   if (command === "scope") {
@@ -207,6 +223,17 @@ async function main() {
       break;
     }
 
+    case "best": {
+      result = await best({
+        input: needPath(flags.in, "--in"),
+        output: flags.out ? needPath(flags.out, "--out") : null,
+        sampleAt: flags.at ? String(flags.at).split(",").map(Number) : null,
+        minImprovement: flags["min-improvement"] === undefined ? 2 : Number(flags["min-improvement"]),
+        bins,
+      });
+      break;
+    }
+
     case "match": {
       const refs = flags.ref ? [flags.ref].flat() : [];
       const targets = flags.in ? [flags.in].flat() : [];
@@ -246,6 +273,8 @@ async function main() {
         "                                  题材×场景调色配方（含 profile/LUT/强度/目标区间/避免事项）",
         "  grade   --in <file> --out <file> [--profile <p>] [--lut <cube>] [--intensity 0..1] [--corrections-json <json>]",
         "                                        [--auto]  自动校正（曝光/饱和/偏色，先校正后创作）",
+        "  best    --in <file> [--out <file>] [--at a,b] [--min-improvement 2]",
+        "                                  候选择优+画质打分；判「无需调色」时不产出文件（do no harm）",
         "  match   --ref <file> --in <file> [--in <file>...] --out-dir <dir> [--profile <p>]",
         "  compare --before <file> --after <file> [--at s] --out <png>",
         "",
