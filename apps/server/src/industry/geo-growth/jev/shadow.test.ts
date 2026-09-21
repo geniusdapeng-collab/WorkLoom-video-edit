@@ -15,7 +15,8 @@ let client: JevClient;
 
 beforeAll(async () => {
   server = await startMockServer();
-  client = new JevClient({ apiKey: "mock", baseUrl: server.url, model: "typesafe-ai/jev" });
+  // 走默认通道（typesafe）+ 默认模型别名（jev-latest）→ 模拟通道按真实语义回报版本化 id
+  client = new JevClient({ apiKey: "mock", baseUrl: server.url });
 });
 
 afterAll(async () => {
@@ -38,6 +39,8 @@ describe("runShadow（本地模拟网关）", () => {
     expect(report.accuracy).toBe(1);
     expect(report.baseUrlHost).toMatch(/^127\.0\.0\.1:\d+$/);
     expect(report.costUsd).toBeGreaterThan(0);
+    // 响应自报的版本化 id 会被收进报告（与请求用的别名分开记，别名漂移可观测）
+    expect(report.responseModels).toEqual(["jev-1.13.0"]);
     expect(outcomes.every((row) => row.decisionZh.length > 0)).toBe(true);
   });
 

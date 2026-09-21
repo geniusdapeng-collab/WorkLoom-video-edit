@@ -305,6 +305,10 @@ export async function main(argv: readonly string[] = process.argv.slice(2)): Pro
     console.log("");
     console.log(`[报告] ${join(outDir, "report.json")}`);
     console.log(
+      `  通道 ${report.provider}（host=${report.baseUrlHost}）；请求模型 ${report.model}；` +
+        `实际回答 ${report.responseModels.length > 0 ? report.responseModels.join(", ") : "未自报"}`,
+    );
+    console.log(
       `  样本 ${report.total}（成功 ${report.succeeded} / 失败 ${report.failed}）；` +
         `准确率 ${report.accuracy === null ? "无标签" : `${(report.accuracy * 100).toFixed(1)}%`}；` +
         `ECE ${report.ece === null ? "-" : report.ece.toFixed(3)}`,

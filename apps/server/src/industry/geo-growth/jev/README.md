@@ -71,7 +71,9 @@ CLI 参数：`--scene` `--provider` `--dataset` `--exam` `--out` `--limit` `--co
 | Noul 回答 | `{"type":"noul","noul":0.95}`，**无置信度字段** → 本模块派生置信度并强制保守分流 | `{"type":"boolean","probability":…}` + `providerMetadata.typesafe.confidence` |
 | usage | `{input_tokens, output_tokens}` | `{inputTokens, outputTokens}` |
 
-`report.json` 的 `provider` 字段记录本次跑的是哪条通道——**跨通道对比必须同数据集、同模型别名、同口径**。
+`report.json` 的 `provider` 字段记录本次跑的是哪条通道，`model` 记录**请求用的 id（可能是别名）**，
+`responseModels` 记录**模型自报的版本化 id**（响应里 `model` 字段，去重排序）——
+两者不一致即说明别名已漂移，是阈值失效的第一信号。**跨通道对比必须同数据集、同模型别名、同口径**。
 
 ## 3. 输出与判读
 
@@ -79,7 +81,7 @@ CLI 参数：`--scene` `--provider` `--dataset` `--exam` `--out` `--limit` `--co
 
 | 文件 | 内容 |
 |---|---|
-| `report.json` | 汇总：`accuracy` / `macroF1` / `ece` + `eceBins` / `costUsd` / `latency{p50,p95,max}` / `routes{auto,review,human}` / `autoRate` / `errors` |
+| `report.json` | 汇总：`provider` / `model`（请求 id）/ `responseModels`（响应自报版本）/ `accuracy` / `macroF1` / `ece` + `eceBins` / `costUsd` / `latency{p50,p95,max}` / `routes{auto,review,human}` / `autoRate` / `errors` |
 | `outcomes.jsonl` | 每行：决策、置信度、路由、依据、token、延迟、是否正确 |
 | `raw.json`（`--capture-raw`） | 原始响应，用于钉解析口径与排查 |
 
@@ -140,7 +142,7 @@ evaluation 协议（`state + typed questions → typed answers`，官方明确�
 3. **限流与上下文**：官方限流动态调整（当前 250k tok/s、1200 RPM，超限返回 429 并带 `retry-after`），
    单请求上下文 64k token（state 与最长问题占 32k）；批量跑请从 `--concurrency 2` 起，观察 429 比例。
 4. **别名会漂移**：`jev-latest` 当前指向 `jev-1.13.0`；阈值一旦按版本调好，应把 `JEV_MODEL` 钉到
-   版本化 id，避免上游换版本时静默改变分流口径（`report.json.model` 记录实际回答的版本）。
+   版本化 id，避免上游换版本时静默改变分流口径（`report.json.responseModels` 记录实际回答的版本）。
 
 ## 7. 测试
 

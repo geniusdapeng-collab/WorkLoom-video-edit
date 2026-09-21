@@ -64,6 +64,7 @@ describe("指标口径", () => {
       sceneVersion: "1.0.0",
       provider: "typesafe",
       model: "typesafe-ai/jev",
+      responseModels: ["jev-1.13.0"],
       baseUrlHost: "127.0.0.1",
       startedAt: "2026-09-19T00:00:00.000Z",
       durationMs: 1000,
@@ -78,5 +79,6 @@ describe("指标口径", () => {
     expect(report.latency.p95).toBe(300);
     expect(report.errors).toEqual([{ id: "d", error: "[rate_limited] 429" }]);
     expect(report.provider).toBe("typesafe");
+    expect(report.responseModels).toEqual(["jev-1.13.0"]);
   });
 });

@@ -99,6 +99,8 @@ export interface ReportInput {
   sceneVersion: string;
   provider: JevProvider;
   model: string;
+  /** 各次响应自报的模型 id（去重排序）；空数组=响应未带 model 字段 */
+  responseModels: readonly string[];
   baseUrlHost: string;
   startedAt: string;
   durationMs: number;
@@ -124,6 +126,7 @@ export function buildReport(input: ReportInput): ShadowReport {
     sceneVersion: input.sceneVersion,
     provider: input.provider,
     model: input.model,
+    responseModels: [...input.responseModels],
     baseUrlHost: input.baseUrlHost,
     startedAt: input.startedAt,
     durationMs: input.durationMs,

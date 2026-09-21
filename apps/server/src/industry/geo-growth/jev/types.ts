@@ -165,7 +165,10 @@ export interface ShadowReport {
   sceneVersion: string;
   /** 接入通道（typesafe=官方直连 / vercel-gateway=网关）；同一份报告口径下必须可区分 */
   provider: JevProvider;
+  /** 请求时使用的模型 id（可能是别名，如 jev-latest） */
   model: string;
+  /** 响应里模型自报的 id（版本化，如 jev-1.13.0）；别名漂移时这里会变，是阈值失效的第一信号 */
+  responseModels: string[];
   baseUrlHost: string;
   startedAt: string;
   durationMs: number;
