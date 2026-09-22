@@ -60,6 +60,14 @@ export const COMPOSED_SKILL_BINDINGS: Record<"ai-video" | "geo-growth", Record<s
     "bgm-vocal-separation": ["G-BGM0", "G-BGM3"],
     "bgm-library-license": ["G-BGM1", "G-BGM5"],
     "bgm-delivery-spec": ["G-BGM0", "G-BGM1", "G-BGM2", "G-BGM3", "G-BGM4", "G-BGM5"],
+    // 后期字幕师五件套（2026-09-23）：安装即绑定标题字幕门 G-SUB0..G-SUB5，卸载即撤销。
+    // 注：字幕与围栏的关系不是"一对一"——选型看到品牌视觉锤与许可，烧录看到覆盖原片与安全区，
+    // 交付规范看全量，所以按技能职责分配绑定，不做并集兜底。
+    "font-selection": ["G-SUB0", "G-SUB1", "G-SUB3", "G-SUB5"],
+    "subtitle-layout-design": ["G-SUB0", "G-SUB3"],
+    "caption-burnin-ops": ["G-SUB0", "G-SUB2", "G-SUB3"],
+    "font-license-compliance": ["G-SUB1", "G-SUB5"],
+    "subtitle-delivery-spec": ["G-SUB0", "G-SUB1", "G-SUB2", "G-SUB3", "G-SUB4", "G-SUB5"],
   },
   "geo-growth": {
     "ai-answer-rewrite": ["G-GEO1", "G-GEO2"],
