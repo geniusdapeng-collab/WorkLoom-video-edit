@@ -872,6 +872,48 @@ export function writeLibrary({ outDir, result, libraryName, provider = "owner-pr
 /* ============================ 精选（curation） ============================ */
 
 /**
+ * 合并**外部模型标签**（可选接入点，例如 CLAP / MTG-Jamendo / Essentia 打标模型的输出）。
+ *
+ * 设计原则（避免"模型说啥就是啥"）：
+ * - **不覆盖**本地实测：模型标签进 `externalTags`，与实测标签并列保存，谁也不能抹掉谁；
+ * - 只在本地风格判定**不是 high** 时，才把模型风格记为 `styleExternal` 并标注 `styleSource="external-model"`，
+ *   便于下游按需取用（默认仍用本地判定，冲突一眼可见）；
+ * - 概率/置信度原样登记，不做二次包装；来源写 `source`。
+ *
+ * 输入形状（`--external-tags` 读的 JSON）：
+ *   { "tracks": { "<sha256 或 id>": { "style": "...", "mood": "...", "genres": ["..."],
+ *                                    "instrumentation": ["..."], "confidence": 0.83, "source": "clap-v2" } } }
+ */
+export function mergeExternalTags({ tracks, external, defaultSource = "external-model" }) {
+  const map = external?.tracks ?? external ?? {};
+  let merged = 0;
+  let styleAdopted = 0;
+  for (const track of tracks) {
+    const hit = map[track.sha256] ?? map[track.id] ?? map[track.file];
+    if (!hit) continue;
+    merged += 1;
+    track.externalTags = {
+      source: hit.source ?? defaultSource,
+      style: hit.style ?? null,
+      mood: hit.mood ?? null,
+      genres: Array.isArray(hit.genres) ? hit.genres : null,
+      instrumentation: Array.isArray(hit.instrumentation) ? hit.instrumentation : null,
+      valence: Number.isFinite(hit.valence) ? hit.valence : null,
+      arousal: Number.isFinite(hit.arousal) ? hit.arousal : null,
+      confidence: Number.isFinite(hit.confidence) ? hit.confidence : null,
+      mergedAt: new Date().toISOString(),
+    };
+    const localConfidence = track.confidence?.style;
+    if (hit.style && localConfidence !== "high") {
+      track.styleExternal = hit.style;
+      track.styleSource = "external-model";
+      styleAdopted += 1;
+    }
+  }
+  return { merged, styleAdopted, total: tracks.length };
+}
+
+/**
  * 精选质量分（0..100）：只用手上有的**实测证据**打分，不假装听过。
  *
  * 打分项与理由都返回，便于在报告里逐首解释"为什么入选"：

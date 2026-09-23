@@ -7,7 +7,7 @@
  * 让 loudnorm 收尾直接 "Conversion failed!"）。为此重跑 30 分钟全量打标不划算，
  * 但也不能把这些文件悄悄丢掉——补跑 + 如实留痕才是正确做法。
  *
- * 用法：node scripts/bgm-tag-retry.mjs --library ~/.workloom-bgm/library [--mode all|retry|backfill]
+ * 用法：node scripts/bgm-tag-retry.mjs --library ~/.workloom-bgm/library [--mode all|retry|backfill] [--external-tags model.json]
  *
  * `backfill`：索引是用旧版打标器生成时（比如还没读内嵌元数据），不必重跑 30 分钟全量分析——
  * 只补读 ID3/MP4 tags 并回填 title/artist/album/copyright（每首一次 ffprobe，约 30ms）。
@@ -17,7 +17,7 @@ import path from "node:path";
 
 import {
   DEFAULT_FILTERS, applyHardFilters, buildIndexEntry, classifyTrack, measureTrack,
-  readMediaTags, titleArtistOf, writeLibrary,
+  mergeExternalTags, readMediaTags, titleArtistOf, writeLibrary,
 } from "../bundles/ai-video/connectors/bgm-bridge/tag.mjs";
 
 function arg(name, fallback = null) {
@@ -111,6 +111,14 @@ if (mode !== "retry") {
   }
 }
 
+/** 可选：并入外部打标模型输出（不覆盖本地实测，只并列留痕；详见 mergeExternalTags 注释）。 */
+let externalMerge = null;
+const externalFile = arg("external-tags", null);
+if (externalFile && externalFile !== true) {
+  const external = JSON.parse(readFileSync(path.resolve(String(externalFile)), "utf8"));
+  externalMerge = mergeExternalTags({ tracks, external });
+}
+
 const counts = {
   ...(doc.library?.counts ?? {}),
   scanned: doc.library?.counts?.scanned ?? tracks.length,
@@ -139,6 +147,7 @@ writeLibrary({
 });
 process.stdout.write(`${JSON.stringify({
   libraryDir, mode, recovered: recovered.length, stillFailing: stillFailing.length, backfilled,
+  externalMerge,
   tracks: tracks.length, recoveredItems: recovered,
   remaining: stillFailing.map((item) => ({ file: item.file, error: item.error })),
 }, null, 2)}\n`);

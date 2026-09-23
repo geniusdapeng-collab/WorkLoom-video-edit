@@ -21,7 +21,7 @@ import {
   DEFAULT_FILTERS, FOLDER_HINTS, STYLE_FAMILIES, applyHardFilters, bpmBucketOf, buildIndexEntry,
   canonicalBpm, classifyStyle, classifyTrack, clipRiskOf, computeExcerptGain, energyScoreOf, folderHintFor,
   instrumentationOf, listAudioFiles, loopFriendlyOf, parseAstatsOverall, planExcerpt, scoreForCurated,
-  selectCuratedTracks, silenceStatsOf, tagLibrary, titleArtistFromFile, titleArtistOf, writeLibrary,
+  mergeExternalTags, selectCuratedTracks, silenceStatsOf, tagLibrary, titleArtistFromFile, titleArtistOf, writeLibrary,
 } from "../../../bundles/ai-video/connectors/bgm-bridge/tag.mjs";
 
 /** ffmpeg 可用性（CI 的 test-gate 镜像里可能没有 ffmpeg；缺件时跳过真机量测，不假红）。 */
@@ -310,6 +310,31 @@ describe("曲库打标 · 精选口径（质量分 / 多样性 / 选段 / 增益
     const fallback = planExcerpt({ track: trackOf({ durationSec: 100, structure: null, loop: null }), targetSec: 30 });
     expect(fallback.startSec).toBe(35);
     expect(fallback.reason).toContain("证据不足");
+  });
+
+  it("外部模型标签：只并列留痕、不覆盖实测；本地置信度不高时才把模型风格记为 styleExternal", () => {
+    const tracks = [
+      { id: "a", sha256: "a".repeat(64), confidence: { style: "low" } },
+      { id: "b", sha256: "b".repeat(64), confidence: { style: "high" } },
+      { id: "c", sha256: "c".repeat(64), confidence: { style: "medium" } },
+    ];
+    const result = mergeExternalTags({
+      tracks,
+      external: {
+        tracks: {
+          ["a".repeat(64)]: { style: "cinematic-build", mood: "悲壮", genres: ["trailer"], instrumentation: ["strings"], valence: 0.2, arousal: 0.8, confidence: 0.91, source: "clap-v2" },
+          ["b".repeat(64)]: { style: "festive-bright", confidence: 0.62, source: "clap-v2" },
+        },
+      },
+    });
+    expect(result.merged).toBe(2);
+    expect(result.styleAdopted).toBe(1); // 只有 low 置信度那条采纳模型风格
+    expect(tracks[0]!.styleExternal).toBe("cinematic-build");
+    expect(tracks[0]!.styleSource).toBe("external-model");
+    expect(tracks[0]!.externalTags.source).toBe("clap-v2");
+    expect(tracks[1]!.styleExternal).toBeUndefined(); // high 置信度不被覆盖
+    expect(tracks[1]!.externalTags.confidence).toBeCloseTo(0.62, 3);
+    expect(tracks[2]!.externalTags).toBeUndefined(); // 没有模型输出就不塞空字段
   });
 
   it("选段增益：线性对齐目标响度，峰值越界时峰值保护优先（宁可略轻也不削波）", () => {
