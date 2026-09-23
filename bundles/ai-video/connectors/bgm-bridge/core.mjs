@@ -29,6 +29,7 @@ import {
 import { composeToWav, planComposition } from "./synth.mjs";
 import { analyzePromptBrief, energyCurveFor, scoreTrackAgainstBrief } from "./brief.mjs";
 import { cacheDir as onlineCacheDir, fetchCandidate, listSources, searchOnline } from "./sources.mjs";
+import { tagLibrary, writeLibrary } from "./tag.mjs";
 
 /** 工位对外错误类型（与 measure 内核同源，统一 code 语义）。 */
 export const BgmError = MeasureError;
@@ -49,6 +50,7 @@ export const BGM_TOOLS = [
   "bgmwrite.mix",
   "bgmwrite.separate",
   "bgmwrite.best",
+  "bgmwrite.tag",
 ];
 
 const TOOL_SET = new Set(BGM_TOOLS);
@@ -2434,6 +2436,91 @@ export async function callTool(name, params = {}, { bins = resolveBinaries(), en
       return {
         result,
         receipt: { synced: true, sha256: result.vocals.sha256, verified_at: new Date().toISOString() },
+      };
+    }
+
+    /**
+     * 曲库打标（写工具）：把一批本地音乐实测打标成可检索曲库索引。
+     *
+     * 围栏 G-BGM8 的实现在这里落地（两道硬闸）：
+     * ① **许可必须先声明**：`license` 必填且必须落在可商用白名单里（NC/ND/未知一律拒），
+     *    来源不明的音频不许写进曲库；
+     * ② **不许覆盖既有曲库**：目标目录已有 `tracks.json` 时必须显式 `allow_overwrite=true`，
+     *    否则一票否决——避免一次误调用把客户积累的曲库索引冲掉。
+     * 低置信标签不阻断，但会写进索引（`confidence.style=low`）并随回执上报，供人审复核。
+     */
+    case "bgmwrite.tag": {
+      const inputDir = assertPathAllowed(text(params.input_dir, "input_dir"), roots, "input_dir");
+      const outDir = assertPathAllowed(text(params.out_dir, "out_dir"), roots, "out_dir");
+      const license = String(params.license ?? "").trim();
+      if (!license) {
+        throw new BgmError(
+          "曲库打标必须先声明许可（license）：来源不明的音频不许写进曲库（围栏 G-BGM8）",
+          "license_blocked",
+        );
+      }
+      const info = licenseInfo(license);
+      if (info.commercial !== true) {
+        throw new BgmError(
+          `许可「${info.label}」不可商用 → 不允许进曲库（围栏 G-BGM5 / G-BGM8）；可选：${Object.entries(LICENSE_TABLE)
+            .filter(([, entry]) => entry.commercial === true).map(([key]) => key).join(" / ")}`,
+          "license_blocked",
+        );
+      }
+      if (!fs.existsSync(inputDir) || !fs.statSync(inputDir).isDirectory()) {
+        throw new BgmError(`素材目录不存在或不是目录：${inputDir}`, "bad_request");
+      }
+      const indexPath = path.join(outDir, "tracks.json");
+      if (fs.existsSync(indexPath) && params.allow_overwrite !== true) {
+        throw new BgmError(
+          `目标曲库已有索引 ${indexPath}：覆盖既有曲库须显式 allow_overwrite=true（围栏 G-BGM8）`,
+          "overwrite_existing_forbidden",
+        );
+      }
+      const tagged = await tagLibrary({
+        root: inputDir,
+        license: info.key,
+        licenseNote: params.license_note
+          ? String(params.license_note)
+          : `许可 ${info.label}（调用方 ${params.license_source ? String(params.license_source) : "未标注来源"} 声明）`,
+        licenseSource: params.license_source ? String(params.license_source) : null,
+        recursive: params.recursive !== false,
+        maxSeconds: optionalNumber(params.max_seconds) ?? 180,
+        concurrency: optionalNumber(params.concurrency) ?? 4,
+      });
+      const written = writeLibrary({
+        outDir,
+        result: tagged,
+        libraryName: params.library_name ? String(params.library_name) : null,
+        provider: params.provider ? String(params.provider) : "local-tagged",
+        fileMode: params.file_mode === "relative" ? "relative" : "absolute",
+      });
+      const lowConfidence = tagged.tracks
+        .filter((track) => track.confidence?.style === "low")
+        .map((track) => ({ id: track.id, file: track.file, style: track.style, styleConfidence: track.confidence?.style, bpmConfidence: track.bpmConfidence }));
+      return {
+        result: {
+          outDir: written.outDir,
+          files: written.files,
+          counts: tagged.counts,
+          license: { key: info.key, label: info.label, attributionRequired: info.attributionRequired === true },
+          filters: tagged.filters,
+          rejected: tagged.rejected.slice(0, 50),
+          rejectedTotal: tagged.rejected.length,
+          errors: tagged.errors,
+          lowConfidence: lowConfidence.slice(0, 20),
+          lowConfidenceTotal: lowConfidence.length,
+          sample: tagged.tracks.slice(0, 5).map((track) => ({
+            id: track.id, style: track.style, bpm: track.bpm, bpmBucket: track.bpmBucket,
+            energyBucket: track.energyBucket, tags: track.tags,
+          })),
+        },
+        receipt: {
+          synced: true,
+          snapshot_uri: `bgm://library/${path.basename(outDir)}?tracks=${tagged.tracks.length}`,
+          verified_at: new Date().toISOString(),
+          ...(tagged.tracks[0]?.sha256 ? { sha256: tagged.tracks[0].sha256 } : {}),
+        },
       };
     }
 

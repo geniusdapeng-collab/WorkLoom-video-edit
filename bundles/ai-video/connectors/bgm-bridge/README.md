@@ -50,6 +50,26 @@ const toolExecutor = createBgmBridgeExecutor({
 | `bgmwrite.mix` | 写 | 分层混音出片：原声保留策略、侧链让位、卡点对齐、淡入淡出、-14 LUFS 母版 |
 | `bgmwrite.separate` | 写 | 人声分离（demucs/audio-separator → ffmpeg 中心声道近似，质量等级如实标注） |
 | `bgmwrite.best` | 写 | 择优配乐：候选池打分；**允许结论是"这片子不需要配乐"**（不产出文件） |
+| `bgmwrite.tag` | 写 | **曲库打标**：素材目录逐首实测（响度/真峰值/削波/拍速/结构/频谱/静音）→ 多维标签 + 置信度 → 写曲库索引；许可必须先声明（围栏 G-BGM8），低置信交人审（G-BGM9） |
+
+## 随仓兜底曲库（50 首可商用纯音乐选段）
+
+`bundles/ai-video/library/bgm-library-curated/` 是**兜底曲库**：客户没有自建曲库、在线曲源也不可用时，
+配乐链路用它不断档。它由产品所有者提供的可商用纯音乐包（1200 首）经**实测打标 + 精选**生成：
+
+```bash
+# ① 素材包打标（一次跑完，索引落盘；许可必须先声明）
+bgm-cli tag --in ~/Downloads/1200可商用纯音乐 --out ~/.workloom-bgm/library \
+            --license royalty-free --license-note "所有者声明可商用" --concurrency 6
+# ② 精选 N 首进仓（质量分 + 风格族轮转 → 选段 → 线性增益到 -14 LUFS → AAC 112k）
+node scripts/bgm-curate-library.mjs --index ~/.workloom-bgm/library \
+     --out bundles/ai-video/library/bgm-library-curated --count 50 --seconds 60
+```
+
+每首 60s 选段（优先取能量最饱满的 drop 段中心）、**线性增益到 -14 LUFS**（峰值贴顶的选段按**峰值保护优先**，宁可低于 -14 也不压动态/不冒削波风险——偏低多少用 `excerpt.loudnessDeltaDb` 与 `peakProtected` 如实登记）；真峰值目标 ≤-1 dBTP，AAC 交调过冲实测最差 -0.33；索引里带
+风格族/题材/情绪/BPM 档/能量档/配器/使用场景/循环友好度与**逐条置信度**，每个数字都能回溯到
+`curation-report.json` 与工位曲库的 `tag-evidence.json`；许可按所有者声明登记为 `royalty-free`
+（来源目录写在 `licenseSource`，上游逐首许可未随包提供——再分发前请复核）。
 
 ## 目录预设（catalog）：欧美流行 / 中国古典 / 影视配乐
 
