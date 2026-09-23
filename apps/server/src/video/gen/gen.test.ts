@@ -11,7 +11,9 @@ import { join } from "node:path";
 import { listModels, getModel, providerConfigured, findFallbackModels, defaultVideoModelId } from "./catalog.js";
 import { estimateCost, checkCostCaps, costCaps, usdCnyRate } from "./cost.js";
 import { ArkVideoProvider, HiggsfieldProvider, buildVideoGenPool } from "./providers.js";
+import { serviceTierRejectionReason } from "./params.js";
 import { signMediaPath, verifyMediaToken, resolveMediaPath, downloadToMediaStore } from "./ingest.js";
+import type { ProviderError } from "./types.js";
 import { createDryRunDriver, buildPublishAdapters, fenceOverrideEnabled } from "./publish.js";
 
 const ARK_ONLY_ENV = { VOLCENGINE_ARK_API_KEY: "test-key" } as NodeJS.ProcessEnv;
@@ -164,6 +166,33 @@ describe("供应商适配器", () => {
     for (const image of images) expect(image.role).toBe("reference_image");
   });
 
+  /**
+   * 真人肖像官方通道：已授权真人素材以 `asset://<asset ID>` 传入参考图/首帧，
+   * provider 必须原样透传（不要改写、不要当成本地路径）。
+   */
+  it("Ark Seedance：asset:// 授权真人素材原样透传（参考图与首帧）", async () => {
+    const calls: Array<{ body: Record<string, unknown> }> = [];
+    vi.stubGlobal("fetch", vi.fn(async (_url: string, init?: RequestInit) => {
+      calls.push({ body: JSON.parse(String(init?.body ?? "{}")) as Record<string, unknown> });
+      return new Response(JSON.stringify({ id: "cgt-asset" }), { status: 200, headers: { "content-type": "application/json" } });
+    }));
+    const provider = new ArkVideoProvider({ apiKey: "k" });
+    await provider.submit({
+      prompt: "授权真人素材出镜口播",
+      estimatedUnits: 5,
+      params: {
+        providerModel: "doubao-seedance-2-5-260628",
+        durationSec: 5,
+        aspectRatio: "9:16",
+        referenceImageUrls: ["asset://asset-20260923120000-ab12c"],
+      },
+    });
+    const content = calls[0]!.body.content as Array<Record<string, unknown>>;
+    const image = content.find((c) => c.type === "image_url") as { image_url?: { url?: string }; role?: string };
+    expect(image?.image_url?.url).toBe("asset://asset-20260923120000-ab12c");
+    expect(image?.role).toBe("reference_image");
+  });
+
   /** 官方 SDK（5.0.50）新增/既有未用参数：watermark 默认关闭、seed/service_tier/return_last_frame 透传 */
   it("Ark Seedance：watermark 默认 false，新参数（seed/service_tier/return_last_frame/camera_fixed）透传", async () => {
     const calls: Array<{ body: Record<string, unknown> }> = [];
@@ -192,6 +221,63 @@ describe("供应商适配器", () => {
     expect(body.service_tier).toBe("flex");
     expect(body.return_last_frame).toBe(true);
     expect(body.camera_fixed).toBe(true);
+  });
+
+  /**
+   * 真机 2026-09-23：Ark 对 `service_tier: flex` 直接 400
+   * （`the specified service_tier flex does not support content generation`）。
+   * 供应商适配器仍按中立参数透传（保持通用），由平台侧前置拒绝，避免烧一次必然失败的提交。
+   */
+  describe("生成参数闸（service_tier）", () => {
+    it("flex 被前置拒绝（大小写不敏感），default/未传放行", () => {
+      expect(serviceTierRejectionReason("flex")).toMatch(/flex 不支持视频生成/);
+      expect(serviceTierRejectionReason("FLEX")).toMatch(/flex 不支持视频生成/);
+      expect(serviceTierRejectionReason(" Flex ")).toMatch(/flex 不支持视频生成/);
+      expect(serviceTierRejectionReason("default")).toBeNull();
+      expect(serviceTierRejectionReason("")).toBeNull();
+      expect(serviceTierRejectionReason(undefined)).toBeNull();
+      expect(serviceTierRejectionReason(null)).toBeNull();
+    });
+  });
+
+  /**
+   * 真人隐私闸（真机 2026-09-23）：seedance 对"可能包含真人"的输入图一律 400
+   * （`InputImageSensitiveContentDetected.PrivacyInformation`）。平台政策类失败必须**明确报错**，
+   * 且不得被当成可切换供应商的错误（否则会静默换档重试）。
+   */
+  it("Ark Seedance：真人图像被隐私闸拒绝时归为 MODERATION，并给出可行动指引", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({
+      error: {
+        code: "InputImageSensitiveContentDetected.PrivacyInformation",
+        message: "The request failed because the input image 'content[1]' may contain real person.",
+      },
+    }), { status: 400, headers: { "content-type": "application/json" } })));
+    const provider = new ArkVideoProvider({ apiKey: "k" });
+    await expect(provider.submit({
+      prompt: "真人出镜口播镜头",
+      estimatedUnits: 5,
+      params: {
+        providerModel: "doubao-seedance-2-5-260628",
+        durationSec: 5,
+        aspectRatio: "9:16",
+        referenceImageUrls: ["data:image/jpeg;base64,AAAA"],
+      },
+    })).rejects.toMatchObject({
+      name: "ProviderError",
+      kind: "MODERATION",
+      status: 400,
+    });
+    const message = await provider.submit({
+      prompt: "真人出镜口播镜头",
+      estimatedUnits: 5,
+      params: {
+        providerModel: "doubao-seedance-2-5-260628",
+        durationSec: 5,
+        referenceImageUrls: ["data:image/jpeg;base64,AAAA"],
+      },
+    }).catch((err: ProviderError) => err.message);
+    expect(String(message)).toMatch(/含肖像|授权通道/);
+    expect(String(message)).toMatch(/真人/);
   });
 
   it("Ark Seedance：视频/音频参考以 video_url / audio_url content 提交（含 role）", async () => {

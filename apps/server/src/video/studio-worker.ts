@@ -286,6 +286,12 @@ function portraitConfig(metadata?: Record<string, unknown>): StudioPortraitConfi
     referenceImages: collectReferenceImages(metadata).map((image) =>
       path.isAbsolute(image) ? image : path.join(REPO_ROOT, image)),
     characterAnchorImages: anchors.map((image) => (path.isAbsolute(image) ? image : path.join(REPO_ROOT, image))),
+    /**
+     * 生产链路 fail-closed：角色定妆照必须带"角色档案"描述。
+     * 真机事故 2026-09-23：描述为空时模型自由发挥，要求"三十岁上下女性"却出了男性模特，
+     * 直接污染真人出镜链路。（vendor 直跑保持默认 false，不影响其它产品。）
+     */
+    requireCharacterDescription: true,
   };
 }
 
