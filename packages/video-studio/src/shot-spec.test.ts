@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  AUDIO_DISCIPLINE_CLAUSE,
+  AUDIO_NEGATIVE_TERMS,
   fieldSpec,
   normalizeConstraintSegment,
   normalizeStructuredFields,
@@ -128,6 +130,59 @@ describe("字段规范真源", () => {
     const report = prepareShotPrompt(shot, { ratio: "9:16", log: () => undefined });
     expect(report.missingSpecFields).not.toContain("dialogue");
     expect(report.prompt).toContain("【台词】");
+  });
+
+  /** 产品口径（2026-09-23）：镜头内只允许台词/旁白/音效，禁止 BGM；配乐统一在后期加 */
+  it("音频纪律：每镜提示词都带禁 BGM 子句与英文负面词", () => {
+    for (const card of [contentCard(), openingCard()]) {
+      const report = prepareShotPrompt(card, { ratio: "9:16", log: () => undefined });
+      expect(report.prompt).toContain("【音频纪律】");
+      expect(report.prompt).toMatch(/no background music/i);
+      expect(report.delivery.pass).toBe(true);
+    }
+  });
+
+  it("音频纪律：audio 字段里的音乐指令被剔除，不进入提示词", () => {
+    const shot = contentCard();
+    shot.audio = "背景音乐：钢琴长音铺底；环境声：水声与鸟鸣；配乐在1.5s进点";
+    const logs: string[] = [];
+    const report = prepareShotPrompt(shot, { ratio: "9:16", log: (line) => logs.push(line) });
+    expect(logs.join()).toContain("剔除");
+    // 清洗后只保留环境声描述 + 音频纪律子句；不得出现「背景音乐/配乐」的正面指令
+    const positive = report.prompt.split("【音频纪律】")[0] ?? "";
+    expect(positive).not.toContain("背景音乐：钢琴");
+    expect(positive).not.toContain("配乐在1.5s进点");
+    expect(report.prompt).toContain("环境声：水声与鸟鸣");
+  });
+
+  /** 真机 2026-09-23 平江路 dry-run：vendor 音频设计写「人声清晰，无配乐」，误删会丢合规表述 */
+  it("音频纪律：否定式表述（「无配乐」）与纪律同向，不被误删", () => {
+    const shot = contentCard();
+    shot.audio = "环境声：水声与船桨声；人声清晰，无配乐喧宾";
+    const logs: string[] = [];
+    const report = prepareShotPrompt(shot, { ratio: "9:16", log: (line) => logs.push(line) });
+    expect(report.prompt).toContain("无配乐喧宾");
+    expect(logs.join()).not.toContain("剔除");
+  });
+
+  /**
+   * 产品所有者 2026-09-23 听检 30s 样片后确认：**画面内实况声源（评弹/三弦等）不算 BGM**，
+   * 必须保留；禁的只是镜头外加配乐。这条口径同时约束子句文本与负面词表，避免"越收越紧"。
+   */
+  it("音频纪律：画内实况声源（评弹/三弦/琵琶）保留，子句与负面词不越界", () => {
+    const shot = contentCard();
+    shot.audio = "街巷人声；远处评弹声与三弦、琵琶声；室内混响自然，无其他配乐";
+    const logs: string[] = [];
+    const report = prepareShotPrompt(shot, { ratio: "9:16", log: (line) => logs.push(line) });
+    expect(report.prompt).toContain("评弹声");
+    expect(report.prompt).toContain("三弦");
+    expect(report.prompt).toContain("琵琶");
+    expect(logs.join()).not.toContain("剔除");
+    // 子句显式承认画内实况声；负面词不再包含会压掉实况音乐的过宽词
+    expect(AUDIO_DISCIPLINE_CLAUSE).toContain("实况声源");
+    expect(AUDIO_DISCIPLINE_CLAUSE).toContain("镜头外");
+    expect(AUDIO_NEGATIVE_TERMS).toMatch(/no non-diegetic music/i);
+    expect(AUDIO_NEGATIVE_TERMS).not.toMatch(/singing voice|no song|no melody/i);
   });
 });
 
