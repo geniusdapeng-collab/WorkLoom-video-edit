@@ -412,7 +412,7 @@ export function findTracks(query = {}, env = process.env) {
  */
 export async function resolveTrackForBrief({
   brief = null, recipe = null, policy = "online-first", durationSec = null,
-  env = process.env, fetchImpl = fetch, destDir = null, limit = 8,
+  env = process.env, fetchImpl = fetch, destDir = null, limit = 8, catalog = null,
 }) {
   const attempts = [];
   const recipes = loadRecipes().recipes;
@@ -421,7 +421,7 @@ export async function resolveTrackForBrief({
   if (wanted === "online-first" || wanted === "online-only") {
     try {
       const { candidates, attempts: searchAttempts, configuredSources } = await searchOnline({
-        brief, recipe, limit, env, fetchImpl,
+        brief, recipe, limit, env, fetchImpl, catalog,
       });
       attempts.push(...searchAttempts.map((entry) => ({ ...entry, layer: "online" })));
       if (!candidates.length) {
@@ -1850,6 +1850,7 @@ export async function best({
   minScore = 92, evidenceDir = null, bins = resolveBinaries(), seed = 0, targetLufs = -14, truePeak = -1.0,
   bpmStrategy = "cut-driven",
   promptText = null, sourcePolicy = "compose-only", destDir = null, env = process.env, fetchImpl = fetch,
+  catalog = null,
 }) {
   const probe = await probeMedia(input, { bins });
   const duration = probe.duration;
@@ -1889,7 +1890,7 @@ export async function best({
     const recipeForSearch = brief?.recipeId ? findRecipes({ recipeId: brief.recipeId }).recipe : null;
     trackResolution = await resolveTrackForBrief({
       brief, recipe: recipeForSearch, policy: sourcePolicy, durationSec: duration,
-      env, fetchImpl, destDir,
+      env, fetchImpl, destDir, catalog,
     });
   }
   const voice = await detectVoiceBandSegments({ input, duration, bins });
@@ -1926,11 +1927,11 @@ export async function best({
     };
   }
 
-  const catalog = findRecipes({ list: true }).items;
-  let pool = catalog;
-  if (Array.isArray(recipeIds) && recipeIds.length) pool = catalog.filter((recipe) => recipeIds.includes(recipe.id));
+  const recipeCatalog = findRecipes({ list: true }).items;
+  let pool = recipeCatalog;
+  if (Array.isArray(recipeIds) && recipeIds.length) pool = recipeCatalog.filter((recipe) => recipeIds.includes(recipe.id));
   else if (effectiveGenre || mood || (brief?.recipeId)) {
-    const filtered = catalog.filter((recipe) => {
+    const filtered = recipeCatalog.filter((recipe) => {
       if (brief?.recipeId && recipe.id === brief.recipeId) return true;
       const genreHit = effectiveGenre ? recipe.genre.includes(String(effectiveGenre)) : false;
       const moodHit = mood ? recipe.mood.includes(String(mood)) : false;
@@ -2271,6 +2272,7 @@ export async function callTool(name, params = {}, { bins = resolveBinaries(), en
       const resolution = await resolveTrackForBrief({
         brief, recipe, policy: params.source_policy ?? "online-first",
         durationSec, env, destDir, limit: optionalNumber(params.limit) ?? 8,
+        catalog: typeof params.catalog === "string" ? params.catalog : null,
       });
       return {
         result: {
@@ -2454,6 +2456,7 @@ export async function callTool(name, params = {}, { bins = resolveBinaries(), en
         bpmStrategy: params.bpm_strategy === "recipe" ? "recipe" : "cut-driven",
         promptText: params.prompt_text ? String(params.prompt_text) : null,
         sourcePolicy: typeof params.source_policy === "string" ? params.source_policy : "compose-only",
+        catalog: typeof params.catalog === "string" ? params.catalog : null,
         destDir: params.dest_dir ? assertPathAllowed(String(params.dest_dir), roots, "dest_dir") : null,
       });
       return {

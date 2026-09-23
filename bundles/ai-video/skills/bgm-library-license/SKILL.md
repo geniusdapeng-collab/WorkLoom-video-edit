@@ -17,6 +17,26 @@ description: 曲库与许可合规官方套件（随 bundles/ai-video 分发）�
 
 ## 一·二、在线取源的纪律（新增）
 
+### 一·三、目录预设与"我想听欧美流行 / 中国古典"这件事（2026-09-23）
+
+`bgmwrite.fetch` / `bgmwrite.best` 支持 `catalog` 参数，把"要什么风格"翻译成各曲源的检索条件：
+
+| catalog | 含义 | Jamendo 标签 | Freesound 检索词 |
+|---|---|---|---|
+| `western-pop` | **欧美流行风格**（现代流行/电子/舞曲），不是"某几首最新商业热单" | pop / dance / electronic | pop music loop upbeat |
+| `chinese-classical` | **中国古典/国风**（古筝·二胡·琵琶·笛箫·民乐） | traditional / chinese / world | guzheng erhu pipa dizi chinese traditional |
+| `cinematic-score` | 影视配乐（管弦/氛围/推进） | soundtrack / classical / cinematic | cinematic orchestral score |
+
+**版权边界（必须对客户讲清，不能含糊）**：
+
+1. **"最新的欧美流行乐"（如当下榜单热单）不能抓、也不能进仓**：它们是受版权保护的商业录音，
+   随开源仓分发或用于客户交付都属侵权。合法路径只有两条：
+   - 接**已授权的商业曲库**（自有订阅账号 / 客户自有曲库 → 用 `generic-http` 指过去，或把已购曲目放进 `WORKLOOM_BGM_LIBRARY_DIR`）；
+   - 用 CC0/CC BY/免版税的**同风格**曲目（`catalog=western-pop` 就是这条）。
+2. **中国古典音乐**：传统曲目（《春江花月夜》《高山流水》这类）的**曲谱**多为公有领域，
+   但**录音**带表演者与录音制作者权——所以要走 CC0/CC BY 或已授权曲源，不能随手抓一个录音就用。
+3. 工位只做三件事：检索（登记 provider）、许可闸、下载缓存；**不爬取、不绕过鉴权、不伪造许可**。
+
 1. **只对接公开 API 或客户自建索引**，不做网页爬取、不绕过鉴权、不使用未授权源（围栏 G-BGM7 一票否决）；
 2. 首次启用某 provider 或更换 provider 走人审（围栏 G-BGM6）；凭据只从环境变量/受控秘密存储读，**不回显、不落文件**；
 3. 下载前先判许可（`license_ccurl` / Freesound `license` / Mubert 免版税声明）：不可商用一律拒收，绝不"先下后审"；

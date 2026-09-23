@@ -51,6 +51,25 @@ const toolExecutor = createBgmBridgeExecutor({
 | `bgmwrite.separate` | 写 | 人声分离（demucs/audio-separator → ffmpeg 中心声道近似，质量等级如实标注） |
 | `bgmwrite.best` | 写 | 择优配乐：候选池打分；**允许结论是"这片子不需要配乐"**（不产出文件） |
 
+## 目录预设（catalog）：欧美流行 / 中国古典 / 影视配乐
+
+```bash
+bgm-cli fetch --prompt "国风古筝，中国古典" --catalog chinese-classical
+bgm-cli fetch --prompt "欧美流行风格，快节奏" --catalog western-pop
+bgm-cli best  --in clip.mp4 --out scored.mp4 --prompt "..." --catalog cinematic-score
+```
+
+| catalog | 含义 | 曲源参数（Jamendo 标签 / Freesound 检索词） |
+|---|---|---|
+| `western-pop` | 欧美流行**风格**（现代流行/电子/舞曲） | pop/dance/electronic · "pop music loop upbeat" |
+| `chinese-classical` | 中国古典/国风（古筝·二胡·琵琶·笛箫） | traditional/chinese/world · "guzheng erhu pipa dizi chinese traditional" |
+| `cinematic-score` | 影视配乐（管弦/氛围/推进） | soundtrack/classical/cinematic · "cinematic orchestral score" |
+
+**版权红线（产品侧已明确记录在 `bgm-library-license` 技能里）**：当下榜单的商业热单、以及任何来源不明的录音，
+都**不能**抓取、不能随开源仓分发、不能直接用于客户商用交付 —— 要么走已授权的商业曲库（自建索引 `generic-http`
+或把已购曲目放进 `WORKLOOM_BGM_LIBRARY_DIR`），要么用同风格的 CC0/CC BY/免版税曲目。中国古典同理：
+曲谱多属公有领域，**录音**仍有表演者权。
+
 ## 选段（外部曲目只取"最合适的那一段"）
 
 外部曲目通常 2–3 分钟、片子只有几十秒，所以"裁哪一段"与"配什么曲子"同等重要：

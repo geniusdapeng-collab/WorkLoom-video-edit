@@ -4,13 +4,11 @@
  * 与 scripts/seed.ts（酒店 Bundle）同构，装载：
  *  - 演示租户/工作区（industry: ai-video）
  *  - 人类成员（主理人/运营/剪辑）
- *  - bundles/ai-video 的 37 个数码员工 preset（制作 21 + 经营 12 + 后期 4：调色师 / BGM 配乐师 / 字幕师 / 配音师；含 fence_bindings 原样落库）
- *  - 字幕师自带 29 款随包字体（library/fonts：档案 sha256 ↔ 随包文件 ↔ bundle 完整性索引 三层校验）与 16 条版式配方
- *  - 围栏 46 条：ai-video-baseline/v2（G1-G16 共 21 条）+ ai-video-color/v1（成片调色门 G-COL0..G-COL4 共 5 条）
- *    + ai-video-bgm/v1（成片配乐门 G-BGM0..G-BGM5 共 6 条）+ ai-video-subtitle/v2（文字层门 G-SUB0..G-SUB6 共 7 条：字幕/标题/弹幕/贴纸/卡拉OK）
- *    + ai-video-voice/v1（本地声音克隆/配音门 G-VOICE0..G-VOICE6 共 7 条）
- *  - 27 个官方技能（安装即绑定围栏；含调色师四件套、BGM 配乐师五件套、字幕师五件套与配音师五件套
- *    voice-clone-consent / voice-reference-craft / voice-profile-craft / voice-dubbing-sync / voice-delivery-spec）
+ *  - bundles/ai-video 的 35 个数码员工 preset（制作 21 + 经营 12 + 后期 2：调色师 / BGM 配乐师；含 fence_bindings 原样落库）
+ *  - 围栏 32 条：ai-video-baseline/v2（G1-G16 共 21 条）+ ai-video-color/v1（成片调色门 G-COL0..G-COL4 共 5 条）
+ *    + ai-video-bgm/v1（成片配乐门 G-BGM0..G-BGM5 共 6 条）
+ *  - 17 个官方技能（安装即绑定围栏；含调色师四件套与 BGM 配乐师五件套
+ *    bgm-score-design / bgm-audio-layering / bgm-vocal-separation / bgm-library-license / bgm-delivery-spec）
  *  - 一企一档（品牌档案 + forbidden 红线）
  *  - 自动化触发器（每 2h 数据采集 / 早八点战报 / 每 30min 评论采集）
  *  - 演示项目：1 个 video_project + 3 镜渲染脚本（v1）+ 2 条素材
@@ -356,25 +354,11 @@ async function main() {
   console.log("✓ 一企一档（含 forbidden 红线 ×3）");
 
   // 基线围栏装载（G1-G10 系列，active）
-  //
-  // 2026-09-23 修订：原先 `DO NOTHING` 导致「改了围栏包 → 重跑种子不生效」（版本号是常量，
-  // 唯一键 (rule_id, version, workspace_id) 永远命中旧行）——字幕师新增弹幕/贴纸围栏时就踩到了：
-  // 库里 G-SUB0 的 actions 仍是旧清单，弹幕步被判成"无规则命中→默认 review"而挂起。
-  // 现改为**单调升级**：等级更严（auto < review < block）或同级时用包内事实刷新 name/level/match_spec/action；
-  // 等级更松（试图放宽围栏）则整条跳过，保持"覆盖层只收紧"的不变量。
-  const FENCE_LEVEL_RANK: Record<string, number> = { auto: 0, review: 1, block: 2 };
   for (const r of fences) {
     await q(
       `INSERT INTO fence_rules (id, rule_id, version, workspace_id, name, level, match_spec, action, is_baseline, status, created_by)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'active','system:seed')
-       ON CONFLICT (rule_id, version, workspace_id) DO UPDATE
-         SET name = EXCLUDED.name,
-             level = EXCLUDED.level,
-             match_spec = EXCLUDED.match_spec,
-             action = EXCLUDED.action,
-             is_baseline = EXCLUDED.is_baseline,
-             status = 'active'
-       WHERE $10 >= CASE fence_rules.level WHEN 'block' THEN 2 WHEN 'review' THEN 1 ELSE 0 END`,
+       ON CONFLICT (rule_id, version, workspace_id) DO NOTHING`,
       [
         `fr-${r.rule_id.toLowerCase()}-v1-${WS_ID}`,
         r.rule_id,
@@ -388,7 +372,6 @@ async function main() {
           note: r.note ?? "",
         }),
         r.is_baseline,
-        FENCE_LEVEL_RANK[r.level] ?? 1,
       ],
     );
   }
