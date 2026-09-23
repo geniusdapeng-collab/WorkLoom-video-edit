@@ -26,12 +26,15 @@ import { existsSync, readdirSync, readFileSync, statSync, writeFileSync } from "
 import { basename, dirname, extname, isAbsolute, resolve } from "node:path";
 import {
   allocateShotDurations,
+  allocateReferenceSlots,
   composeShotReferences,
   durationRulesMarkdown,
   durationValidationMarkdown,
   fieldSpec,
   pickCharacterPortrait as pickCharacterPortraitFromIndex,
+  loadCharacterLibrary,
   prepareShotPrompt,
+  resolveShotCharacters,
   shotSpecMarkdown,
   validateShotDurations,
   type ShotSpecReport
@@ -326,6 +329,11 @@ async function fetchLastFrameUrl(taskId: string, timeoutMs = 15_000): Promise<st
 const workDir = resolve(REPO_ROOT, process.env.HR_WORK_DIR ?? ".vm-work");
 const refFiles = loadRefFiles(arg("--refs", "var/media/references/suzhou-nanyuan"));
 const portraitIndex = loadPortraitIndex(projectId, workDir);
+/** 人物档案库（跨项目资产；`HR_CHARACTER_LIBRARY` 可覆盖默认 var/media/characters） */
+const characterLibrary = loadCharacterLibrary(resolve(REPO_ROOT, process.env.HR_CHARACTER_LIBRARY ?? "var/media/characters"));
+if (characterLibrary.size > 0) {
+  console.log(`人物档案库：${characterLibrary.size} 个角色（${[...characterLibrary.values()].map((c) => `${c.name}@v${c.activeSet?.version ?? "-"}`).join("、")}）`);
+}
 
 const shots = loadShots(resolve(shotsFile)).filter((s) => only.length === 0 || only.includes(s.shotId));
 /**
@@ -413,12 +421,55 @@ async function waitForShotAndLastFrame(jobId: string, taskId: string): Promise<s
 for (const shot of shots) {
   const seconds = durations.get(shot.shotId)!;
   const scriptKey = `${projectId}-${shot.shotId}`.toLowerCase();
-  /** 人物优先：先挑定妆照，再按"人物 1 + 场景 ≤3"编排参考图（真机事故修复） */
-  const portraitPick = pickCharacterPortraitFromIndex(portraitIndex as PackagePortraitIndexLike | null, shot);
-  const portrait = portraitPick.file;
-  const venue = pickVenueRefs(shot, refFiles, portrait ? 3 : 4);
-  const composed = composeShotReferences({ portrait, venueRefs: venue, maxRefs: 4 });
-  const references = composed.references;
+  /**
+   * ① 档案库选角（1–10 人，T-2026-0923-0058）：跨项目人物档案优先；
+   *    未建档的老项目回退到项目级 `portrait-index.json` 的单角色逻辑。
+   */
+  const cast = characterLibrary.size > 0
+    ? resolveShotCharacters(shot as unknown as Record<string, unknown>, characterLibrary)
+    : { characters: [], unmatched: [] as string[] };
+  const venuePool = pickVenueRefs(shot, refFiles, 4);
+  let references: string[];
+  let planNote: string;
+  let usedCharacters: Array<{ id: string; name: string; angle: string }> = [];
+  let droppedCharacters: Array<{ id: string; name: string; reason: string }> = [];
+  let portrait: string | null = null;
+  let portraitPick: { file: string | null; matchedBy: string; character?: string; note?: string } = { file: null, matchedBy: "none" };
+  let sourceLabel = "档案库";
+
+  if (cast.characters.length > 0) {
+    const dialogueLines = Array.isArray((shot as Record<string, unknown>).dialogueBlocks)
+      ? ((shot as Record<string, unknown>).dialogueBlocks as unknown[]).length
+      : 0;
+    const plan = allocateReferenceSlots({
+      characters: cast.characters.map((character, index) => ({
+        id: character.id,
+        name: character.name,
+        files: character.files,
+        dialogueLines,
+        lead: index === 0
+      })),
+      venueRefs: venuePool,
+      maxRefs: 4
+    });
+    references = plan.references;
+    planNote = plan.note;
+    usedCharacters = plan.used;
+    droppedCharacters = plan.dropped;
+    const first = plan.used[0];
+    portrait = first ? (cast.characters.find((c) => c.id === first.id)?.files[first.angle] ?? null) : null;
+    portraitPick = { file: portrait, matchedBy: "archive", character: first?.name };
+  } else {
+    sourceLabel = "项目索引";
+    const pick = pickCharacterPortraitFromIndex(portraitIndex as PackagePortraitIndexLike | null, shot);
+    portraitPick = pick;
+    portrait = pick.file;
+    const venue = pickVenueRefs(shot, refFiles, portrait ? 3 : 4);
+    const composed = composeShotReferences({ portrait, venueRefs: venue, maxRefs: 4 });
+    references = composed.references;
+    planNote = composed.note;
+    usedCharacters = portrait ? [{ id: pick.character ?? "unknown", name: pick.character ?? "未命名", angle: "front" }] : [];
+  }
   const characterCount = Object.keys((portraitIndex as PackagePortraitIndexLike | null)?.characters ?? {}).length;
   /** 镜头卡自己声明了出镜角色（`character`/`characters`/`character_ref` 任一非空）也算"需要人物参考" */
   const declaresCharacter = Boolean(
@@ -427,10 +478,18 @@ for (const shot of shots) {
       .find(Boolean)
   ) || (Array.isArray(shot.characters) && shot.characters.length > 0);
   console.log(
-    `🎭 ${shot.shotId} 参考图：${composed.note}`
-    + `（人物=${portrait ? basename(portrait) : "无"}｜命中方式=${portraitPick.matchedBy}`
-    + `${portraitPick.character ? `｜角色=${portraitPick.character}` : ""}）`
+    `🎭 ${shot.shotId} 参考图：${planNote}`
+    + `（来源=${sourceLabel}｜命中方式=${portraitPick.matchedBy}`
+    + `${portrait ? `｜人物=${basename(portrait)}` : "｜人物=无"}`
+    + `${usedCharacters.length > 0
+      ? `｜角色=${usedCharacters.map((u) => {
+          const version = cast.characters.find((c) => c.id === u.id)?.activeSet?.version;
+          return `${u.name}@v${version ?? "-"}:${u.angle}`;
+        }).join("、")}`
+      : ""}）`
     + `${portraitPick.note ? `\n   · ${portraitPick.note}` : ""}`
+    + `${droppedCharacters.length > 0 ? `\n   · 降级：${droppedCharacters.map((d) => `${d.name}（${d.reason}）`).join("、")}` : ""}`
+    + `${cast.unmatched.length > 0 ? `\n   · ⚠️ 未建档角色（当前按文字描述处理）：${cast.unmatched.join("、")}` : ""}`
   );
   const row: ShotResult = { shotId: shot.shotId, scriptKey, scriptId: scriptKey, seconds, references: references.length };
   results.push(row);
