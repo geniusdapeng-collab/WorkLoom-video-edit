@@ -18,8 +18,6 @@
     { "type": "color_report", "label": "色彩报告", "note": "调色师产物：前后指标（YMIN/YAVG/YMAX/UAVG/VAVG/SATAVG）、滤镜链、profile/LUT 版本、scope 与前后对比帧引用、产物 sha256；无回执不得进入入库/发布队列（G-COL3）" },
     { "type": "bgm_track", "label": "配乐音轨", "note": "配乐师产物：自算作曲（配方 id/调性/BPM/配器/种子）或曲库曲目（id/许可/TASL 署名）；含 sha256 与实测峰值/RMS；许可不合规不得入片（G-BGM5）" },
     { "type": "bgm_report", "label": "配乐报告", "note": "配乐师产物：分层策略、BGM 电平与让位深度、人声-音乐余量、配乐可闻度、响度（LUFS/dBTP/LRA）、卡点达标率与采用 BPM、署名文件、产物 sha256；无回执不得进入入库/发布队列（G-BGM3）" },
-    { "type": "subtitle_track", "label": "字幕轨（文字版式方案）", "note": "字幕师产物：字体 id/家族/fullname/文件 sha256/许可 + 场景字号/描边/边距/对齐 + ASS 样式与事件 + 平台版式；字体许可不合规不得入片（G-SUB5），方案可直接给剪辑软件复用" },
-    { "type": "subtitle_report", "label": "字幕报告", "note": "字幕师产物：选型理由（含被否候选）、版式体检（实测墨迹外接框/字号占短边/行宽/安全区/遮挡区/对比度）、字幕可现度增量、时间轴回读一致性、fontselect 字体解析命中、编码器、证据帧与成片 sha256；无回执不得进入入库/发布队列（G-SUB3）" },
     { "type": "publish_task", "label": "发布任务" },
     { "type": "account_metric", "label": "账号指标", "note": "账号/视频时序指标（播放/完播/互动/转化）；阈值告警与战报的事实源；G16 复用其登录风控上下文" },
     { "type": "comment", "label": "评论", "note": "采集原始评论；意图分类 praise/thanks/consult/after_sale/negative/crisis/sensitive 后驱动 G10 三级分流" },
@@ -36,9 +34,6 @@
     { "type": "creator_collab", "label": "达人合作", "note": "达人合作单：筛选依据/建联记录/Brief/交付验收/效果回填" },
     { "type": "ip_asset", "label": "版权资产", "note": "音乐/字体/素材/肖像授权台账：授权范围（用途/平台/地域/期限）+ 来源凭证，无凭证禁止使用" },
     { "type": "review_submission", "label": "送审单", "note": "平台送审载体：三级预检全绿方可提交，未过预检受 G14 阻断；驳回案例回写规则库" },
-    { "type": "budget_ledger", "label": "预算台账", "note": "项目/账号级预算与算力台账：G11 算力超预算暂停、G12 加投必审的计量依据" },
-    { "type": "voice_profile", "label": "音色档案", "note": "配音师产物：参考音频（本机麦克风或授权素材）+ 逐字转写 + 质量指标 + 授权回执（consent.json）；无授权声明不得建档（G-VOICE1），参考音频与声纹不出本机（G-VOICE5）" },
-    { "type": "voice_track", "label": "配音音轨", "note": "配音师产物：逐段合成的配音轨（时窗对齐 + 倍速适配），含每段起点/时窗/语音时长；产物 sha256 入回执，无回执不得进入入库/发布队列（G-VOICE3）" },
-    { "type": "voice_report", "label": "配音报告", "note": "配音师产物：音色档案引用、原声保留策略与让位深度、响度（LUFS/dBTP/LRA）、音画时长漂移、逐段时窗表、引擎与模型版本、RTF 与产物 sha256；对外发布还需授权范围覆盖 external-publish（G-VOICE6）" }
+    { "type": "budget_ledger", "label": "预算台账", "note": "项目/账号级预算与算力台账：G11 算力超预算暂停、G12 加投必审的计量依据" }
   ]
 }
