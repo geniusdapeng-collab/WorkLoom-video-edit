@@ -10,9 +10,10 @@
  * 缺 ffmpeg 的环境自动跳过，保证 CI 不因环境缺件而假红。
  */
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import path, { dirname, join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { loadAllLocalTracks } from "../../../bundles/ai-video/connectors/bgm-bridge/core.mjs";
@@ -22,6 +23,7 @@ import {
   canonicalBpm, classifyStyle, classifyTrack, clipRiskOf, computeExcerptGain, energyScoreOf, folderHintFor,
   instrumentationOf, listAudioFiles, loopFriendlyOf, parseAstatsOverall, planExcerpt, scoreForCurated,
   mergeExternalTags, selectCuratedTracks, silenceStatsOf, tagLibrary, titleArtistFromFile, titleArtistOf, writeLibrary,
+  defaultScanRoots, discoverLibraries, inspectLibraryDir, packLibrary, rebindLibrary,
 } from "../../../bundles/ai-video/connectors/bgm-bridge/tag.mjs";
 
 /** ffmpeg 可用性（CI 的 test-gate 镜像里可能没有 ffmpeg；缺件时跳过真机量测，不假红）。 */
@@ -355,6 +357,123 @@ describe("曲库打标 · 精选口径（质量分 / 多样性 / 选段 / 增益
 });
 
 describe("曲库打标 · 索引契约（与运行时加载器同构）", () => {
+  /** 造一个小曲库目录：写若干假音频文件 + 索引（不跑 ffmpeg，纯路径/契约测试）。 */
+  const buildFakeLibrary = (root: string, names: string[], fileMode: "absolute" | "relative" = "relative") => {
+    const tracks = names.map((name, index) => {
+      const abs = join(root, name);
+      writeFileSync(abs, `fake-audio-${index}-${name}`);
+      return {
+        id: `t-${index}`, file: fileMode === "absolute" ? abs : name, bytes: readFileSync(abs).length,
+        sha256: createHash("sha256").update(readFileSync(abs)).digest("hex"), license: "royalty-free",
+      };
+    });
+    writeFileSync(join(root, "tracks.json"), JSON.stringify({
+      schemaVersion: "workloom.bgm-library/v1",
+      library: { name: "测试曲库", provider: "owner-provided-pack", fileMode, tracks: tracks.length, sourceRoot: root },
+      tracks,
+    }, null, 2));
+    return tracks;
+  };
+
+  it("自动发现：带索引且在位的目录被识别为可用；音频丢失的目录被标成需要 rebind", () => {
+    const scanRoot = tempDir("bgm-scan-");
+    const good = join(scanRoot, "用户的下载", "素材包");
+    mkdirSync(good, { recursive: true });
+    buildFakeLibrary(good, ["a.mp3", "b.mp3"]);
+
+    const broken = join(scanRoot, "旧位置", "素材包");
+    mkdirSync(broken, { recursive: true });
+    const brokenTracks = buildFakeLibrary(broken, ["c.mp3"]);
+    // 模拟"音频被挪走"：删掉音频，只留索引
+    rmSync(join(broken, "c.mp3"));
+
+    const found = discoverLibraries({ scanRoots: [scanRoot] });
+    expect(found).toHaveLength(2);
+    const usable = found.find((item) => item.dir === good)!;
+    expect(usable.usable).toBe(true);
+    expect(usable.sample).toEqual({ scanned: 2, present: 2, missing: 0 });
+    const needing = found.find((item) => item.dir === broken)!;
+    expect(needing.usable).toBe(false);
+    expect(needing.needsRebind).toBe(true);
+    expect(needing.note).toContain("rebind");
+
+    // 只有真在位的那批才允许被加载器自动接上
+    const inspected = inspectLibraryDir(broken)!;
+    expect(inspected.tracks).toBe(brokenTracks.length);
+  });
+
+  it("rebind：素材换位置后按文件名+大小重新绑定（sha256 模式严格核验内容）", async () => {
+    const work = tempDir("bgm-rebind-");
+    const material = join(work, "素材");
+    mkdirSync(material, { recursive: true });
+    buildFakeLibrary(material, ["x.mp3", "y.mp3"], "absolute");
+    const indexDir = join(work, "工位曲库");
+    mkdirSync(indexDir, { recursive: true });
+    // 索引搬到独立目录（模拟工位曲库与素材分离），仍记绝对路径
+    const manifest = JSON.parse(readFileSync(join(material, "tracks.json"), "utf8"));
+    writeFileSync(join(indexDir, "tracks.json"), JSON.stringify(manifest, null, 2));
+
+    const moved = join(work, "外接盘", "素材");
+    mkdirSync(path.dirname(moved), { recursive: true });
+    renameSync(material, moved);
+
+    const report = await rebindLibrary({ indexDir, newRoot: moved, verify: "sha256" });
+    expect(report.matched).toBe(2);
+    expect(report.missing).toBe(0);
+    const doc = JSON.parse(readFileSync(join(indexDir, "tracks.json"), "utf8")) as {
+      library: { sourceRoot: string; rebind: { matched: number; verify: string } };
+      tracks: Array<{ file: string; relocatedFrom: string }>;
+    };
+    expect(doc.library.sourceRoot).toBe(moved);
+    expect(doc.library.rebind).toMatchObject({ matched: 2, verify: "sha256" });
+    expect(doc.tracks.every((track) => track.file.startsWith(moved))).toBe(true);
+    expect(doc.tracks.every((track) => existsSync(track.file))).toBe(true);
+    expect(doc.tracks[0]!.relocatedFrom.startsWith(material.slice(0, material.length))).toBe(true);
+
+    // 新目录里找不到对应文件时如实报 missing（不猜、不硬绑）
+    const empty = join(work, "空目录");
+    mkdirSync(empty, { recursive: true });
+    const missingReport = await rebindLibrary({ indexDir, newRoot: empty, verify: "size" });
+    expect(missingReport.matched).toBe(0);
+    expect(missingReport.missing).toBe(2);
+  });
+
+  it("pack：把索引进素材目录并转成相对路径（文件夹整体拷走后仍可用）", () => {
+    const work = tempDir("bgm-pack-");
+    const material = join(work, "素材");
+    mkdirSync(material, { recursive: true });
+    const tracks = buildFakeLibrary(material, ["p.mp3", "q.mp3"], "absolute");
+    const indexDir = join(work, "索引");
+    mkdirSync(indexDir, { recursive: true });
+    writeFileSync(join(indexDir, "tracks.json"), readFileSync(join(material, "tracks.json")));
+    writeFileSync(join(indexDir, "tag-evidence.json"), JSON.stringify({
+      evidence: tracks.map((track) => ({ id: track.id, file: track.file })),
+    }));
+
+    const packed = packLibrary({ indexDir, destDir: material, overwrite: true });
+    expect(packed.fileMode).toBe("relative");
+    const doc = JSON.parse(readFileSync(join(material, "tracks.json"), "utf8")) as {
+      library: { fileMode: string }; tracks: Array<{ file: string }>;
+    };
+    expect(doc.library.fileMode).toBe("relative");
+    expect(doc.tracks.every((track) => !path.isAbsolute(track.file))).toBe(true);
+    const evidence = JSON.parse(readFileSync(join(material, "tag-evidence.json"), "utf8")) as { evidence: Array<{ file: string }> };
+    expect(evidence.evidence.every((entry) => !path.isAbsolute(entry.file))).toBe(true);
+
+    // pack 之后这个目录自己就是合法曲库（自动发现能认出来）
+    const found = discoverLibraries({ scanRoots: [work] });
+    expect(found.map((item) => item.dir)).toContain(material);
+  });
+
+  it("扫描根可由 WORKLOOM_BGM_SCAN_ROOTS 覆盖（部署时可指定挂载盘/共享盘）", () => {
+    expect(defaultScanRoots({ WORKLOOM_BGM_SCAN_ROOTS: "/tmp/a:/tmp/b" })).toEqual(["/tmp/a", "/tmp/b"]);
+    const fakeHome = tempDir("bgm-home-");
+    mkdirSync(join(fakeHome, "Downloads"), { recursive: true });
+    const defaults = defaultScanRoots({ HOME: fakeHome });
+    expect(defaults).toContain(join(fakeHome, "Downloads")); // 存在的目录才扫
+    expect(defaults.every((dir) => existsSync(dir))).toBe(true);
+  });
+
   const measurement = {
     input: "/music/旅拍/温暖.mp3", sha256: "b".repeat(64), bytes: 2048, durationSec: 180,
     format: { codec: "mp3", container: "mp3", bitrateKbps: 320, sampleRate: 44100, channels: 2 },

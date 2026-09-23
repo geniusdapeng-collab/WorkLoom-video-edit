@@ -25,6 +25,16 @@ description: 曲库与许可合规官方套件（随 bundles/ai-video 分发）�
    静音逐首都写进 `tag-evidence.json`；内嵌 ID3 元数据优先于文件名（文件名常是简写），两者都缺就留空；
 3. **低置信要人审**：`confidence.style=low` 的曲目允许入册兜底，但用于客户交付前须人耳复核（围栏 G-BGM9）。
 
+### 一·五、素材搬家与"客户单独下载文件夹"（自动关联纪律）
+
+- **随文件夹分发的必须是相对路径索引**：用 `bgmwrite.library action=pack`（`bgm-cli library --pack`）把 `tracks.json`
+  写进素材目录并转成 `relative` —— 用户解压到任何位置（下载目录/外接盘/共享盘）都能被自动发现直接可用；
+- **绝对路径索引搬走后必须 rebind**：按文件名+大小（`verify=size`，默认）或内容哈希（`verify=sha256`）重新绑定，
+  三态如实回报 `matched / missing / ambiguous`，**不许**在找不到文件时假装可用；
+- **自动发现是"便利"不是"隐式"**：发现到的曲库以 `local-discovered` 身份排在显式配置（客户自建/随仓兜底/工位本地）之后，
+  同 id 先到先得；`WORKLOOM_BGM_SCAN_ROOTS` 决定扫描根，`WORKLOOM_BGM_DISCOVER=0` 可关。抽样核验通过才算"可用"。
+
+
 顺带提一句"AI 生成音乐的许可陷阱"：外部模型权重常带 NC/ND（如 MusicGen 权重 CC-BY-NC），
 **权重许可与产出物许可不是一回事**——这也是本仓默认走"自算合成 + 已声明可商用曲包"的原因。
 

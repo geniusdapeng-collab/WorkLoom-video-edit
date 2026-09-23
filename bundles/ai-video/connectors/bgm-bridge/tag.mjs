@@ -20,6 +20,7 @@
  */
 import { createHash } from "node:crypto";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 
 import {
@@ -870,6 +871,299 @@ export function writeLibrary({ outDir, result, libraryName, provider = "owner-pr
 }
 
 /* ============================ 精选（curation） ============================ */
+
+/* ---------------------------- 曲库搬迁与自动关联 ---------------------------- */
+
+/** 默认扫描根：用户下载/解压素材最常落到的地方（外部盘也扫，便于"插上盘就能用"）。 */
+export function defaultScanRoots(env = process.env) {
+  const override = String(env.WORKLOOM_BGM_SCAN_ROOTS ?? "").trim();
+  if (override) return override.split(":").map((entry) => entry.trim()).filter(Boolean);
+  const home = env.HOME || os.homedir();
+  const roots = [path.join(home, "Downloads"), path.join(home, "Documents"), path.join(home, "Desktop")];
+  try {
+    for (const entry of fs.readdirSync("/Volumes", { withFileTypes: true })) {
+      if (entry.isDirectory() && !entry.name.startsWith(".")) roots.push(path.join("/Volumes", entry.name));
+    }
+  } catch {
+    /* 没有 /Volumes（非 macOS）就跳过 */
+  }
+  return roots.filter((dir) => fs.existsSync(dir));
+}
+
+/** 索引里的曲目路径基准：优先 `library.sourceRoot`，其次索引所在目录。 */
+export function indexBaseDir(doc, indexDir) {
+  const root = doc?.library?.sourceRoot;
+  return typeof root === "string" && root.trim() ? root : indexDir;
+}
+
+const SKIP_DIR_NAMES = new Set(["node_modules", ".git", ".cache", "Library", "Applications", ".Trash", ".workloom-bgm"]);
+
+/**
+ * 自动发现"曲库目录"：在给定扫描根下（默认深度 2）找 `tracks.json`，并**抽样核验**音频是否在位。
+ *
+ * 为什么要抽样而不是全量核验：素材包动辄上千首 5GB，逐个 sha256 会让"打开工位"变成分钟级等待。
+ * 抽样 5 首 + `stat` 就能可靠区分"索引在这儿、音频也在"（→ 可直接用）与"索引在、音频没了"（→ 提示 rebind）。
+ */
+export function discoverLibraries({
+  scanRoots = defaultScanRoots(), maxDepth = 2, maxCandidates = 60, sampleSize = 5,
+} = {}) {
+  const found = [];
+  const walk = (dir, depth) => {
+    if (found.length >= maxCandidates || depth > maxDepth) return;
+    let entries;
+    try {
+      entries = fs.readdirSync(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    if (entries.some((entry) => entry.isFile() && entry.name === "tracks.json")) {
+      const candidate = inspectLibraryDir(dir, sampleSize);
+      if (candidate) found.push(candidate);
+      return; // 一个目录已经是曲库，不再往下钻
+    }
+    for (const entry of entries) {
+      if (!entry.isDirectory() || entry.name.startsWith(".") || SKIP_DIR_NAMES.has(entry.name)) continue;
+      walk(path.join(dir, entry.name), depth + 1);
+    }
+  };
+  for (const root of scanRoots) {
+    if (found.length >= maxCandidates) break;
+    // depth 语义：扫描根本身是 0，其子目录是 1……默认 maxDepth=2 → 能认到"下载/某素材包/tracks.json"
+    if (fs.existsSync(root)) walk(path.resolve(root), 0);
+  }
+  return found.sort((a, b) => b.sample.present - a.sample.present);
+}
+
+/** 检查某个目录是不是可用曲库（返回可用性统计 + 是否需要 rebind 修复）。 */
+export function inspectLibraryDir(dir, sampleSize = 5) {
+  const manifestPath = path.join(dir, "tracks.json");
+  let doc;
+  try {
+    doc = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
+  } catch {
+    return null;
+  }
+  const tracks = Array.isArray(doc?.tracks) ? doc.tracks : [];
+  if (!tracks.length) return null;
+  const base = indexBaseDir(doc, dir);
+  const sample = tracks.slice(0, Math.max(1, sampleSize));
+  let present = 0;
+  for (const track of sample) {
+    const file = typeof track.file === "string" ? track.file : "";
+    if (!file) continue;
+    const candidates = path.isAbsolute(file) ? [file] : [path.resolve(dir, file), path.resolve(base, file)];
+    if (candidates.some((candidate) => fs.existsSync(candidate))) present += 1;
+  }
+  const scanned = sample.filter((track) => typeof track.file === "string" && track.file).length;
+  return {
+    dir,
+    fileMode: doc?.library?.fileMode ?? (path.isAbsolute(tracks[0].file ?? "") ? "absolute" : "relative"),
+    libraryName: doc?.library?.name ?? path.basename(dir),
+    license: tracks[0]?.license ?? null,
+    licenseSource: tracks[0]?.licenseSource ?? null,
+    tracks: tracks.length,
+    baseDir: base,
+    sample: { scanned, present, missing: scanned - present },
+    usable: scanned > 0 && present === scanned,
+    needsRebind: scanned > 0 && present === 0,
+    note: scanned === 0
+      ? "索引里没有可用路径"
+      : present === scanned
+        ? `抽样 ${present}/${scanned} 首在位，可直接使用`
+        : present === 0
+          ? `抽样 ${scanned} 首全部找不到（素材疑似被移动）→ 用 bgmwrite.library rebind 重新绑定`
+          : `抽样 ${present}/${scanned} 首在位（部分缺失）`,
+  };
+}
+
+/** 收集一个目录下的音频文件（用于 rebind 匹配；跳过隐藏文件与非音频）。 */
+function collectAudioFiles(root, { maxDepth = 6 } = {}) {
+  const out = [];
+  const walk = (dir, depth) => {
+    if (depth > maxDepth) return;
+    let entries;
+    try {
+      entries = fs.readdirSync(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const entry of entries) {
+      if (entry.name.startsWith(".")) continue;
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        if (!SKIP_DIR_NAMES.has(entry.name)) walk(full, depth + 1);
+        continue;
+      }
+      if (entry.isSymbolicLink()) {
+        try {
+          if (fs.statSync(full).isFile()) out.push(full);
+        } catch { /* 悬空软链忽略 */ }
+        continue;
+      }
+      if (entry.isFile() && AUDIO_EXTENSIONS.has(path.extname(entry.name).toLowerCase())) out.push(full);
+    }
+  };
+  walk(root, 0);
+  return out;
+}
+
+/**
+ * 重新绑定曲库路径（"我把素材文件夹挪走了，能不能照样用"）。
+ *
+ * 匹配策略（从快到准，`verify` 决定核验强度）：
+ * 1. 按**文件名**（basename）在素材目录里找候选；同名多个时优先大小一致者；
+ * 2. `verify="size"`（默认）：只比对文件大小 —— 移动/重命名目录的场景够用，1252 首约 1-2 秒；
+ * 3. `verify="sha256"`：逐首算哈希与索引里的 sha256 对齐 —— 更严格（同名不同内容不会错绑），代价是读全量文件。
+ *
+ * 结果如实回报：`matched`（重新绑定成功）/ `missing`（新目录里找不到）/ `ambiguous`（同名多候选且无法判定）。
+ */
+export async function rebindLibrary({
+  indexDir, newRoot, verify = "size", onProgress = null, dryRun = false,
+}) {
+  const manifestPath = path.join(indexDir, "tracks.json");
+  if (!fs.existsSync(manifestPath)) throw new Error(`索引不存在：${manifestPath}`);
+  if (!fs.existsSync(newRoot)) throw new Error(`新素材目录不存在：${newRoot}`);
+  const doc = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
+  const oldBase = indexBaseDir(doc, indexDir);
+  const tracks = Array.isArray(doc?.tracks) ? doc.tracks : [];
+  const files = collectAudioFiles(newRoot);
+
+  const byName = new Map();
+  for (const file of files) {
+    const key = path.basename(file);
+    if (!byName.has(key)) byName.set(key, []);
+    byName.get(key).push(file);
+  }
+
+  const report = { indexDir, oldBase, newRoot, verify, matched: 0, missing: 0, ambiguous: 0, details: [] };
+  let index = 0;
+  for (const track of tracks) {
+    index += 1;
+    onProgress?.({ index, total: tracks.length, id: track.id });
+    const oldFile = typeof track.file === "string" ? track.file : "";
+    const oldAbs = oldFile ? (path.isAbsolute(oldFile) ? oldFile : path.resolve(oldBase, oldFile)) : "";
+    const candidates = byName.get(path.basename(oldAbs)) ?? [];
+    if (!candidates.length) {
+      report.missing += 1;
+      report.details.push({ id: track.id, status: "missing", oldPath: oldAbs });
+      continue;
+    }
+    let resolved = null;
+    if (candidates.length === 1) {
+      resolved = candidates[0];
+    } else {
+      // 同名多候选：先按大小缩，再（可选）按 sha256 定
+      const oldSize = Number(track.bytes);
+      const sameSize = Number.isFinite(oldSize)
+        ? candidates.filter((candidate) => {
+          try {
+            return fs.statSync(candidate).size === oldSize;
+          } catch {
+            return false;
+          }
+        })
+        : [];
+      const pool = sameSize.length ? sameSize : candidates;
+      if (pool.length === 1) {
+        resolved = pool[0];
+      } else if (track.sha256) {
+        resolved = pool.find((candidate) => {
+          try {
+            return createHash("sha256").update(fs.readFileSync(candidate)).digest("hex") === track.sha256;
+          } catch {
+            return false;
+          }
+        }) ?? null;
+      }
+      if (!resolved) {
+        report.ambiguous += 1;
+        report.details.push({ id: track.id, status: "ambiguous", oldPath: oldAbs, candidates: pool.slice(0, 5) });
+        continue;
+      }
+    }
+    if (verify === "sha256" && track.sha256) {
+      const actual = createHash("sha256").update(fs.readFileSync(resolved)).digest("hex");
+      if (actual !== track.sha256) {
+        report.missing += 1;
+        report.details.push({ id: track.id, status: "hash_mismatch", oldPath: oldAbs, candidate: resolved });
+        continue;
+      }
+    } else if (Number.isFinite(Number(track.bytes))) {
+      const size = fs.statSync(resolved).size;
+      if (size !== Number(track.bytes)) {
+        report.ambiguous += 1;
+        report.details.push({ id: track.id, status: "size_mismatch", oldPath: oldAbs, candidate: resolved, expectedBytes: track.bytes, actualBytes: size });
+        continue;
+      }
+    }
+    if (!dryRun) {
+      track.file = resolved;
+      track.relocatedFrom = oldAbs || null;
+    }
+    report.matched += 1;
+    report.details.push({ id: track.id, status: "matched", oldPath: oldAbs, newPath: resolved });
+  }
+
+  if (!dryRun) {
+    doc.library = {
+      ...(doc.library ?? {}),
+      sourceRoot: newRoot,
+      fileMode: "absolute",
+      relocatedAt: new Date().toISOString(),
+      rebind: { verify, matched: report.matched, missing: report.missing, ambiguous: report.ambiguous, previousRoot: oldBase },
+    };
+    fs.writeFileSync(manifestPath, `${JSON.stringify(doc, null, 2)}\n`);
+  }
+  return report;
+}
+
+/**
+ * 打包索引进素材目录（让"文件夹自己带着索引走"）：把 tracks.json / tag-evidence.json / tag-report.json
+ * 以**相对路径**写进素材目录，这样客户把整个文件夹拷走/解压到任何位置，系统都能直接认出来（配合自动发现）。
+ */
+export function packLibrary({ indexDir, destDir = null, overwrite = false }) {
+  const manifestPath = path.join(indexDir, "tracks.json");
+  if (!fs.existsSync(manifestPath)) throw new Error(`索引不存在：${manifestPath}`);
+  const doc = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
+  const base = indexBaseDir(doc, indexDir);
+  const target = path.resolve(destDir ?? base);
+  if (!fs.existsSync(target)) fs.mkdirSync(target, { recursive: true });
+  const targetManifest = path.join(target, "tracks.json");
+  if (fs.existsSync(targetManifest) && !overwrite && path.resolve(indexDir) !== target) {
+    throw new Error(`目标目录已有 tracks.json：${targetManifest}（覆盖需显式 overwrite=true）`);
+  }
+  const rel = (file) => {
+    const abs = path.isAbsolute(file) ? file : path.resolve(base, file);
+    const relative = path.relative(target, abs);
+    return relative.startsWith("..") ? abs : relative.split(path.sep).join("/");
+  };
+  const packed = {
+    ...doc,
+    library: {
+      ...(doc.library ?? {}),
+      sourceRoot: target,
+      fileMode: "relative",
+      packedAt: new Date().toISOString(),
+    },
+    tracks: (doc.tracks ?? []).map((track) => ({ ...track, file: rel(track.file) })),
+  };
+  fs.writeFileSync(targetManifest, `${JSON.stringify(packed, null, 2)}\n`);
+  const copied = ["tracks.json"];
+  for (const name of ["tag-evidence.json", "tag-report.json"]) {
+    const source = path.join(indexDir, name);
+    if (!fs.existsSync(source)) continue;
+    const evidence = JSON.parse(fs.readFileSync(source, "utf8"));
+    if (Array.isArray(evidence.evidence)) {
+      evidence.evidence = evidence.evidence.map((entry) => ({
+        ...entry,
+        file: typeof entry.file === "string" ? rel(entry.file) : entry.file,
+      }));
+    }
+    fs.writeFileSync(path.join(target, name), `${JSON.stringify(evidence, null, 2)}\n`);
+    copied.push(name);
+  }
+  return { destDir: target, files: copied, tracks: packed.tracks.length, fileMode: "relative" };
+}
 
 /**
  * 合并**外部模型标签**（可选接入点，例如 CLAP / MTG-Jamendo / Essentia 打标模型的输出）。

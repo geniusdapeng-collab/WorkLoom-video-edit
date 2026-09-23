@@ -20,6 +20,9 @@
  *   bgm-cli tag       --in ~/Music/曲库包 --out ~/.workloom-bgm/library --license royalty-free
  *                     [--license-note "..."] [--license-source "..."] [--concurrency 6]
  *                     [--max-seconds 180] [--no-recursive] [--allow-overwrite]
+ *   bgm-cli library   --scan                                   # 自动发现本机可用曲库（Downloads/Documents/Desktop/外接盘）
+ *   bgm-cli library   --rebind ~/Documents/新位置 --library ~/.workloom-bgm/library --allow-overwrite [--verify sha256]
+ *   bgm-cli library   --pack --library ~/.workloom-bgm/library [--out ~/Downloads/1200可商用纯音乐]
  *   bgm-cli best      --in clip.mp4 --out scored.mp4 [--genre 美食] [--mood 诱人温暖]
  *                     [--policy keep-dialogue] [--min-score 92] [--evidence-dir dir]
  *                     [--prompt "..."] [--source-policy online-first] [--catalog cinematic-score]
@@ -301,6 +304,53 @@ async function main() {
       }
       return 0;
     }
+    case "library": {
+      // 曲库维护：搬迁重绑 / 打进素材目录随文件夹走 / 自动发现
+      const libraryDir = typeof flags.library === "string"
+        ? flags.library
+        : (process.env.WORKLOOM_BGM_HOME ? `${process.env.WORKLOOM_BGM_HOME}/library` : `${process.env.HOME}/.workloom-bgm/library`);
+      if (flags.scan === true) {
+        const { result } = await callTool("bgmwrite.library", { action: "inspect", library_dir: libraryDir });
+        line("自动发现的本机曲库：");
+        if (!result.discovered.length) line("  （没找到带 tracks.json 的目录）");
+        for (const item of result.discovered) {
+          line(`  · ${item.dir}`);
+          line(`    ${item.libraryName} · ${item.tracks} 首 · ${item.fileMode} 路径 · ${item.note}`);
+        }
+        line("当前加载顺序：");
+        for (const root of result.roots) line(`  ${root.kind.padEnd(16)} ${root.dir}`);
+        return 0;
+      }
+      if (typeof flags.rebind === "string") {
+        const { result } = await callTool("bgmwrite.library", {
+          action: "rebind",
+          library_dir: libraryDir,
+          new_root: flags.rebind,
+          verify: flags.verify === "sha256" ? "sha256" : "size",
+          allow_overwrite: flags["allow-overwrite"] === true,
+          dry_run: flags["dry-run"] === true,
+        });
+        line(`${result.dryRun ? "试算" : "已重新绑定"}：命中 ${result.matched} · 找不到 ${result.missing} · 歧义 ${result.ambiguous}（核验方式 ${result.verify}）`);
+        line(`  旧目录：${result.oldRoot}`);
+        line(`  新目录：${result.newRoot}`);
+        for (const item of result.samples) line(`  · [${item.status}] ${item.id} → ${item.newPath ?? item.oldPath}`);
+        return 0;
+      }
+      if (flags.pack === true) {
+        const { result } = await callTool("bgmwrite.library", {
+          action: "pack",
+          library_dir: libraryDir,
+          ...(typeof flags.out === "string" ? { dest_dir: flags.out } : {}),
+          allow_overwrite: flags["allow-overwrite"] === true,
+        });
+        line(`已把索引打进素材目录：${result.destDir}（${result.tracks} 首，路径模式=${result.fileMode}）`);
+        line(`  写入文件：${result.files.join(" / ")}`);
+        line("  这个文件夹从此可以整体拷走/压缩分发：解压到任意位置都能被自动发现（相对路径索引）");
+        return 0;
+      }
+      line("用法：bgm-cli library --scan | --rebind <新素材目录> --allow-overwrite [--verify sha256] | --pack [--out <素材目录>]");
+      return 2;
+    }
     case "best": {
       const result = await best({
         input: flags.in,
@@ -328,6 +378,7 @@ async function main() {
     default:
       process.stderr.write(
         "用法：bgm-cli <health|probe|analyze|recipes|library|compose|mix|separate|fetch|tag|best> [--flags]\n"
+        + "       bgm-cli library --scan | --rebind <新目录> --allow-overwrite | --pack [--out <目录>]\n"
         + "参见 bundles/ai-video/connectors/bgm-bridge/README.md\n",
       );
       return 2;

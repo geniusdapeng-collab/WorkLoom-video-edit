@@ -185,7 +185,7 @@ describe("岗位 / 技能 / 管线 / 对象四层引用", () => {
     coverage: Array<{ eventPrefix: string }>; write_back: string[];
   };
 
-  it("岗位卡：5 技能 / 13 工具 / 10 围栏 / 事件域 bgm.", () => {
+  it("岗位卡：5 技能 / 14 工具 / 10 围栏 / 事件域 bgm.", () => {
     expect(preset.preset_key).toBe("bgm-composer");
     expect(preset.name).toBe("BGM配乐师");
     expect(preset.kind).toBe("operator");
@@ -198,7 +198,7 @@ describe("岗位 / 技能 / 管线 / 对象四层引用", () => {
     expect(preset.tools.map((tool) => tool.name)).toEqual([...BGM_TOOLS]);
     expect(preset.tools.some((tool) => tool.access === "write")).toBe(true);
     expect(preset.tools.filter((tool) => tool.access === "write").map((tool) => tool.name)).toEqual([
-      "bgmwrite.compose", "bgmwrite.fetch", "bgmwrite.mix", "bgmwrite.separate", "bgmwrite.best", "bgmwrite.tag",
+      "bgmwrite.compose", "bgmwrite.fetch", "bgmwrite.mix", "bgmwrite.separate", "bgmwrite.best", "bgmwrite.tag", "bgmwrite.library",
     ]);
     expect(preset.write_back).toEqual(["bgmwrite.compose", "bgmwrite.mix"]);
     expect(preset.coverage.map((coverage) => coverage.eventPrefix)).toEqual(["bgm."]);

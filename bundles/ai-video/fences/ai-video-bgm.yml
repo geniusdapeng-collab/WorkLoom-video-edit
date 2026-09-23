@@ -90,9 +90,9 @@ rules:
     is_baseline: true
     match:
       object_types: [bgm_track, bgm_report, video_asset]
-      actions: [bgmwrite.tag]
+      actions: [bgmwrite.tag, bgmwrite.library]
     when: "params.license_declared == false or params.license_ok == false or params.overwrite_existing == true or params.out_dir_inside_source == true"
-    note: 打标是把外部素材**写进可交付曲库**的动作，两道硬闸：① 没有许可声明（或声明的许可不在可商用白名单）一票否决——来源不明的音频不许入册；② 目标目录已有曲库索引（tracks.json）而调用未显式 allow_overwrite=true 一票否决，避免一次误调用冲掉客户积累的曲库；③ 输出目录落在素材目录内部（会把索引混进素材包）同样阻断。连接器层（bgmwrite.tag）对这三条做同等校验，双保险。
+    note: 打标是把外部素材**写进可交付曲库**的动作，两道硬闸：① 没有许可声明（或声明的许可不在可商用白名单）一票否决——来源不明的音频不许入册；② 目标目录已有曲库索引（tracks.json）而调用未显式 allow_overwrite=true 一票否决，避免一次误调用冲掉客户积累的曲库；③ 输出目录落在素材目录内部（会把索引混进素材包）同样阻断。连接器层（bgmwrite.tag / bgmwrite.library 的 rebind·pack）对这三条做同等校验，双保险。
 
   - rule_id: G-BGM9
     name: 低置信标签入册须人审复核

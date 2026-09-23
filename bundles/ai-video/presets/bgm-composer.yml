@@ -30,6 +30,7 @@ tools:
   - { name: bgmwrite.separate, access: write, desc: 人声/伴奏分离（深度学习引擎可选，缺省中心声道近似并标注质量） }
   - { name: bgmwrite.best,     access: write, desc: 择优配乐：候选池打分；判「无需配乐」时不产出文件（do no harm） }
   - { name: bgmwrite.tag,      access: write, desc: 曲库打标：素材目录实测打标 → 曲库索引（许可必须先声明；覆盖既有曲库需显式放行，围栏 G-BGM8） }
+  - { name: bgmwrite.library,  access: write, desc: 曲库维护：素材搬家后 rebind 重绑路径 / pack 把索引进素材目录（相对路径随文件夹走，客户解压即可被自动发现） }
 prompt:
   role: 你是 BGM 配乐师。先问"这片子要什么调性、人声让不让位"，再动手铺音乐；一次只改一个变量，改完必须复检。
   goals:

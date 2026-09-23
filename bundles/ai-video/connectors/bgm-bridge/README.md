@@ -71,6 +71,41 @@ node scripts/bgm-curate-library.mjs --index ~/.workloom-bgm/library \
 `curation-report.json` 与工位曲库的 `tag-evidence.json`；许可按所有者声明登记为 `royalty-free`
 （来源目录写在 `licenseSource`，上游逐首许可未随包提供——再分发前请复核）。
 
+## 素材搬家与自动关联（客户单独下载文件夹也能接上）
+
+曲库索引里的路径分两种模式，对应两条完全不同的使用路径：
+
+| 模式 | 谁生成 | 适合什么场景 | 搬走素材后 |
+|---|---|---|---|
+| `absolute`（默认） | `bgm-cli tag` 就地打标（不搬文件） | 工位本机使用，素材原地不动 | 路径会失效 → 用 `rebind` 重绑 |
+| `relative` | `bgm-cli library --pack` 打进素材目录 | **随文件夹分发**：用户下载/解压到任意位置 | 跟着文件夹走，永远有效 |
+
+```bash
+# ① 打标（工位本机索引，绝对路径）
+bgm-cli tag --in ~/Downloads/1200可商用纯音乐 --out ~/.workloom-bgm/library --license royalty-free
+
+# ② 把索引"打进"素材目录，变成相对路径索引 → 整个文件夹可以压缩分发
+bgm-cli library --pack --library ~/.workloom-bgm/library --out ~/Downloads/1200可商用纯音乐
+
+# ③ 素材被挪到别处（索引还在工位）→ 重新绑定
+bgm-cli library --rebind ~/Documents/新位置 --library ~/.workloom-bgm/library --allow-overwrite
+bgm-cli library --rebind <新位置> --verify sha256 --library <索引目录> --allow-overwrite   # 严格模式（按内容哈希核验）
+
+# ④ 看本机有哪些可用曲库（自动发现：Downloads / Documents / Desktop / 外接盘，默认深度 2）
+bgm-cli library --scan
+```
+
+配套的运行时行为：
+
+- **自动发现**：`libraryRoots()` 除三个显式根（客户自建 / 随仓兜底 / 工位本地）外，会自动扫描
+  `~/Downloads`、`~/Documents`、`~/Desktop` 与 `/Volumes/*` 下带 `tracks.json` 的目录，**抽样核验**音频在位后
+  以 `local-discovered` 身份加入（显式配置永远优先，同 id 先到先得）；`WORKLOOM_BGM_SCAN_ROOTS` 可改扫描根，
+  `WORKLOOM_BGM_DISCOVER=0` 可整体关掉。实测一次扫描约 **80ms**，不会拖慢工位；
+- **失效自查**：索引里抽到的文件全不在位时，`inspectLibraryDir` 会给出 `needsRebind` 提示与"疑似被移动"的说明，
+  不装作还能用；
+- **rebind 口径**：按**文件名**匹配，同名多候选时用文件大小（默认 `--verify size`）或 `sha256`（严格模式）定夺，
+  结果如实分三类回报：`matched` / `missing` / `ambiguous`。
+
 ## 目录预设（catalog）：欧美流行 / 中国古典 / 影视配乐
 
 ```bash

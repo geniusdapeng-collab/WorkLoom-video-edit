@@ -29,7 +29,7 @@ import {
 import { composeToWav, planComposition } from "./synth.mjs";
 import { analyzePromptBrief, energyCurveFor, scoreTrackAgainstBrief } from "./brief.mjs";
 import { cacheDir as onlineCacheDir, fetchCandidate, listSources, searchOnline } from "./sources.mjs";
-import { tagLibrary, writeLibrary } from "./tag.mjs";
+import { defaultScanRoots, discoverLibraries, packLibrary, rebindLibrary, tagLibrary, writeLibrary } from "./tag.mjs";
 
 /** 工位对外错误类型（与 measure 内核同源，统一 code 语义）。 */
 export const BgmError = MeasureError;
@@ -51,6 +51,7 @@ export const BGM_TOOLS = [
   "bgmwrite.separate",
   "bgmwrite.best",
   "bgmwrite.tag",
+  "bgmwrite.library",
 ];
 
 const TOOL_SET = new Set(BGM_TOOLS);
@@ -217,15 +218,41 @@ export function libraryRoots(env = process.env) {
   const workbenchHome = (env.WORKLOOM_BGM_HOME ?? "").trim() || path.join(os.homedir(), ".workloom-bgm");
   const candidates = [
     custom ? { dir: path.resolve(custom), kind: "local-custom", label: "客户自建曲库" } : null,
-    { dir: path.resolve(here, "../../library/bgm-library-curated"), kind: "local-curated", label: "随仓精选曲库（12 首）" },
+    { dir: path.resolve(here, "../../library/bgm-library-curated"), kind: "local-curated", label: "随仓兜底曲库（50 首选段）" },
     { dir: path.join(workbenchHome, "library"), kind: "local-workbench", label: "工位本地曲库" },
   ].filter(Boolean);
-  const seen = new Set();
-  return candidates.filter((entry) => {
-    if (seen.has(entry.dir)) return false;
-    seen.add(entry.dir);
-    return true;
-  });
+  const seen = new Set(candidates.map((entry) => entry.dir));
+  const roots = [...candidates];
+  /**
+   * 自动发现（"用户单独下载了素材文件夹，系统自己认出来"）：
+   * 在 Downloads / Documents / Desktop / 外接盘（可用 WORKLOOM_BGM_SCAN_ROOTS 覆盖）里找带 `tracks.json`
+   * 的目录并抽样核验；`WORKLOOM_BGM_DISCOVER=0` 可关掉（极简部署或磁盘挂载慢时用）。
+   * 发现到的库排在显式配置之后（显式配置永远优先），同 id 由 `loadAllLocalTracks` 先到先得。
+   */
+  if ((env.WORKLOOM_BGM_DISCOVER ?? "1") !== "0") {
+    try {
+      for (const found of discoverLibraries({ scanRoots: defaultScanRoots(env) })) {
+        if (seen.has(found.dir) || !found.usable) continue;
+        seen.add(found.dir);
+        roots.push({
+          dir: found.dir,
+          kind: "local-discovered",
+          label: `自动发现的曲库（${found.libraryName}）`,
+          discovered: { tracks: found.tracks, sample: found.sample, needsRebind: found.needsRebind },
+        });
+      }
+    } catch {
+      /* 自动发现失败不阻塞配乐：显式配置的三个根照常工作 */
+    }
+  }
+  const deduped = [];
+  const pushed = new Set();
+  for (const entry of roots) {
+    if (pushed.has(entry.dir)) continue;
+    pushed.add(entry.dir);
+    deduped.push(entry);
+  }
+  return deduped;
 }
 
 /** 许可白名单：只能商用 → true；非商用/禁止演绎 → false；未知 → null（未知一律按"不可商用"处理）。 */
@@ -2522,6 +2549,74 @@ export async function callTool(name, params = {}, { bins = resolveBinaries(), en
           ...(tagged.tracks[0]?.sha256 ? { sha256: tagged.tracks[0].sha256 } : {}),
         },
       };
+    }
+
+    /**
+     * 曲库维护（写工具）：`rebind` 搬迁后重绑路径，`pack` 把索引进素材目录（相对路径，随文件夹走）。
+     *
+     * 产品口径：用户单独下载素材文件夹后，两条路都能"接上"——
+     * ① 文件夹里带着 `tracks.json`（`pack` 出来的相对路径索引）→ 自动发现直接可用；
+     * ② 只有绝对路径索引而素材被挪走 → `rebind` 按文件名/大小（可选 sha256）重新绑定。
+     * 覆盖既有索引同样受围栏 G-BGM8 约束（必须显式 allow_overwrite=true）。
+     */
+    case "bgmwrite.library": {
+      const action = text(params.action, "action");
+      const libraryDir = assertPathAllowed(text(params.library_dir, "library_dir"), roots, "library_dir");
+      if (action === "rebind") {
+        const newRoot = assertPathAllowed(text(params.new_root, "new_root"), roots, "new_root");
+        if (params.allow_overwrite !== true) {
+          throw new BgmError(
+            "重新绑定会改写曲库索引（tracks.json）：须显式 allow_overwrite=true（围栏 G-BGM8）",
+            "overwrite_existing_forbidden",
+          );
+        }
+        const report = await rebindLibrary({
+          indexDir: libraryDir,
+          newRoot,
+          verify: params.verify === "sha256" ? "sha256" : "size",
+          dryRun: params.dry_run === true,
+        });
+        return {
+          result: {
+            action, indexDir: libraryDir, oldRoot: report.oldBase, newRoot: report.newRoot,
+            verify: report.verify, dryRun: params.dry_run === true,
+            matched: report.matched, missing: report.missing, ambiguous: report.ambiguous,
+            samples: report.details.slice(0, 10),
+          },
+          receipt: {
+            synced: report.missing === 0,
+            snapshot_uri: `bgm://library/rebind?matched=${report.matched}&missing=${report.missing}`,
+            verified_at: new Date().toISOString(),
+          },
+        };
+      }
+      if (action === "pack") {
+        const destDir = params.dest_dir ? assertPathAllowed(String(params.dest_dir), roots, "dest_dir") : null;
+        const packed = packLibrary({
+          indexDir: libraryDir,
+          destDir,
+          overwrite: params.allow_overwrite === true,
+        });
+        return {
+          result: { action, ...packed },
+          receipt: {
+            synced: true,
+            snapshot_uri: `bgm://library/pack?tracks=${packed.tracks}`,
+            verified_at: new Date().toISOString(),
+          },
+        };
+      }
+      if (action === "inspect" || action === "discover") {
+        return {
+          result: {
+            action,
+            discovered: discoverLibraries({ scanRoots: defaultScanRoots(env) }),
+            roots: libraryRoots(env).map((root) => ({ dir: root.dir, kind: root.kind, label: root.label })),
+          },
+          receipt: { synced: true, verified_at: new Date().toISOString() },
+        };
+      }
+      throw new BgmError(`未知曲库动作：${action}（支持 rebind / pack / inspect）`, "bad_request");
     }
 
     case "bgmwrite.best": {
