@@ -614,7 +614,7 @@
   },
   "integrity": {
     "algorithm": "sha256",
-    "digest": "3e609d2a963d49285ace540e6944255911ce972da4839d27bf2a6b02d76fe511",
+    "digest": "f9ad0b27488c8842f99dae831476aae731cf81432bcb1aaa378ea387ec7cad4d",
     "assets": {
       "connectors/bgm-bridge/cli.mjs": "7f64e35286363564946a336daf5bd75ea4342f67cca30496361034cb52b0056f",
       "connectors/bgm-bridge/core.mjs": "073de9ea6660d6c7d4e0da05be888d89633a854ffc145e37db50a5bde3a0c31d",
@@ -1033,7 +1033,7 @@
       "presets/trend-researcher.yml": "802b157911cf35216d5122784d8ba0d89ac1da2187748413243f957c002307b3",
       "presets/visual-director.yml": "74683eed31a08c7ffce74ffeb02a4349051c4ec9164ba995470455cf35f6fa61",
       "presets/voice-artist.yml": "ea8d3efaab6de0659fc39e52f37568595c2f8c0caa5c2220d7cb71203beebdb7",
-      "schemas/objects.json": "7a92af35844c698bec6877d5963f3fb2ef68bb789738aa5bd15c8a4ab92454d6",
+      "schemas/objects.json": "7809a5df786b109d29e97c4dcb7258f5ccb84f76c66508109c1b3af5c57bc222",
       "schemas/stages.json": "418332ca5a5522083592da40773265d8f09b1ab9276d566275e075ef56118831",
       "skills/bgm-audio-layering/SKILL.md": "118d6edfcb27ff21c349f4a9bbd4e9dc95551a499a6dc45313f8c7c53cde7e3e",
       "skills/bgm-delivery-spec/SKILL.md": "6d20e7b842f83c9121b401582db7249dc73407ebcc988c1b0765a6fee4da3e86",
