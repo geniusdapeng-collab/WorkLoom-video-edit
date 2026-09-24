@@ -759,7 +759,9 @@ const renderRouter = router({
      * 优先用调用方显式值；否则用**镜头卡/渲染脚本的计划时长**；最后才回落 estimatedSeconds。
      * `WORKLOOM_DURATION_SUBMIT_STRICT=1` 时：缺计划时长或与计划偏差 >1s 一律拒绝（先告警灰度后可切）。
      */
-    const planned = plannedDurationOf(script);
+    /** 回滚开关：WORKLOOM_DURATION_SUBMIT_DERIVE=off 时退回"调用方给值 / estimatedSeconds"的旧行为 */
+    const deriveFromScript = (process.env.WORKLOOM_DURATION_SUBMIT_DERIVE ?? "on") !== "off";
+    const planned = deriveFromScript ? plannedDurationOf(script) : { seconds: null, source: null };
     const strictDuration = (process.env.WORKLOOM_DURATION_SUBMIT_STRICT ?? "0") === "1";
     if (strictDuration && planned.seconds === null) {
       throw new TRPCError({
