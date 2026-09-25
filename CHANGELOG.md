@@ -1,5 +1,35 @@
 # Changelog
 
+## [video-routing-dossier] - 2026-09-25 · 视频管线自动化分流 + 商品情报档案激活（T-2026-0925-0002）
+
+> 营销片/叙事片自动分流（不确定就问用户，不猜不提）；商品情报档案从「只出任务书」变为可用的真实档案链路；
+> 真机跑批暴露并修复 7 类宿主/引擎缺陷（含"AI 监制只看到 600 字摘录"这一系统性误杀根因）。
+
+### 自动化分流（新增）
+
+- `packages/video-studio/src/pipeline-router.ts`：显式声明 → 规则打分 → 商品锚点 → LLM 仲裁（`pipeline-route`，L1+规则兜底）→ **不确定即澄清**；
+  营销片缺商品名同样先问（情报五站以商品为锚）；`stripRoutingDirective` 清掉分流行指令、`buildPipelineIntent` 写入需求口径；
+- `threads.dispatch` / `video.studio.start` 接线：澄清落 `video.route.clarify`、判定落 `video.route.standard`（含 pipeline/via/confidence/product/signals）。
+
+### 商品情报档案激活
+
+- 新增 `apps/server/src/video/data-mining-executor.ts`：多引擎检索（baidu-m/so360/bing）+ 限速熔断 + 磁盘缓存 +
+  可预置真实来源 + **URL 白名单**（防幻觉链接）+ 相关性过滤 + 失败半量重试 → 仍失败即缺站；
+- vendor 引擎修复：A4 独立来源定级（修「提及次数=来源数」的 confidence 虚高）、信封链校验、档案落盘原子化与根目录、
+  A3 查询矩阵键兼容、检索词去重复品牌。
+
+### 宿主门与创意链路修复
+
+- 门内容落盘送审（`writeGateArtifact`）：监制不再只看到 600 字摘录；
+- AI 监制打回 → **有上限自动重跑**（`VM_PRODUCER_RETRY`，默认 1 次）；
+- 创意主题：营销 Brief + 情报摘要卡进生成输入、类型词表补社媒营销语汇、LLM 提取强制 JSON、Brief 口径（时长/画幅/平台）统一 + 基调护栏；
+- G3 确认单补「需求契约（角色/场景/道具/动作）+ 受众/风险结论摘要」。
+
+### 跑批工具与文档
+
+- 新增 `scripts/tools/data-pipeline-run.mts`：不提交渲染的完整数据管线跑批（产物与 `video.studio.start` 同形，可直接接 `pipeline-audit`）；
+- 新增 `docs/video-pipeline-routing-and-dossier-2026-09-25.md`：分流口径、激活链、逐环节审计证据、遗留项与回滚开关。
+
 ## [base-sync-1.12.0] - 2026-09-02 · 基座同步：技能保鲜环 P1（自动同步 + 上行回流 + 官方运营台）
 
 > 自 workloom-im@1.12.0 同步（vendored 基座公共段一致）：skill-ops P1 完全体（autosync/reflux/console）+ 迁移 0019/0020 + SkillDistBanner 通栏 + skillOps.reflux/console 路由 + 官方端点 + suite Y 域 P1 用例与 R-26 加固 + L2 审批 tier 红线修复（l4_chairman）。
