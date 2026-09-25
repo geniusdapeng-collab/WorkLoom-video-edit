@@ -1,5 +1,13 @@
 # Changelog
 
+## [intel-search-api] - 2026-09-25 · 情报检索通道加固：API 检索源（T-2026-0925-0003）
+
+- 引擎链新增 `api` 通道并置顶：`TAVILY_API_KEY`（Tavily 协议）或 `WL_SEARCH_API_URL`+`WL_SEARCH_API_KEY`
+  （通用 JSON 网关，Bearer 鉴权）配好即自动启用；未配置静默跳过，保留 HTML 三引擎链（baidu-m/so360/bing）；
+- 结果数组/字段名多形态兼容（`results / items / data[] / data.items[]`；`snippet|content|description|summary`）；
+- 限流（403/429）与 HTML 通道同口径进 15 分钟熔断冷却，缓存复用，失败按缺站（不编造）；
+- 单测 +4（Tavily 解析/通用网关鉴权/限流熔断/未配置静默），`apps/server` 用例 12/12 通过。
+
 ## [video-routing-dossier] - 2026-09-25 · 视频管线自动化分流 + 商品情报档案激活（T-2026-0925-0002）
 
 > 营销片/叙事片自动分流（不确定就问用户，不猜不提）；商品情报档案从「只出任务书」变为可用的真实档案链路；
