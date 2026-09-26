@@ -331,6 +331,25 @@
       "availability": "catalog-only",
       "docs": "https://open.higgsfield.ai/explore",
       "notes": "配乐/音效；本轮未接适配器"
+    },
+    {
+      "id": "whiteboard-stream",
+      "name": "手绘白板流式笔迹 · 本地确定性渲染（vendor/srt-whiteboard）",
+      "provider": "whiteboard-local",
+      "providerModel": "srt-whiteboard-stream",
+      "kind": "video",
+      "modes": ["t2v"],
+      "tier": "L1",
+      "supports": ["aspectRatio"],
+      "limits": {
+        "aspectRatios": ["16:9"],
+        "maxPromptChars": 20000
+      },
+      "pricing": { "unit": "second", "usd": 0, "asOf": "2026-09-27", "note": "本地 CPU 渲染，零模型成本（只消耗本机算力）" },
+      "retentionDays": null,
+      "availability": "wired",
+      "docs": "https://github.com/geeklee/srt-whiteboard-animation",
+      "notes": "口播解说片（kind=explainer）的第二视觉引擎：SRT 驱动、逐元素手绘揭示。开关 WHITEBOARD_ENABLED=1 + venv 就绪才可用；渲染耗时随幕数与总时长线性增长（真机实测 ~0.4× 实时 @1280/30fps）"
     }
   ]
 }

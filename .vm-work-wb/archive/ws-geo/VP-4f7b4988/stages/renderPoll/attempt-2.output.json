@@ -1,0 +1,14 @@
+{
+  "jobId": "RJ-48422294",
+  "taskId": "wb-wb-45558ee6",
+  "assetId": "VA-1d3d4853",
+  "provider": "whiteboard-local",
+  "providerModel": "srt-whiteboard-stream",
+  "actualSeconds": 315,
+  "actualCny": 0,
+  "pricing": "catalog",
+  "resultUrl": "file:///Users/mac/Documents/Codex/2026-09-27/growth-review-ppt-x20-aicoding-git-2/work/growth/var/whiteboard-jobs/wb-wb-45558ee6/whiteboard-silent.mp4",
+  "ingest": {
+    "ok": true
+  }
+}
