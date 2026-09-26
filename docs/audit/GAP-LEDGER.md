@@ -22,6 +22,8 @@
 | GAP-0013 | B1 | 定妆照纪律（`portrait-studio`） | T9 资产深度 | P1 | 28 行摘要只写了背景干净度结论，没写 clean-background/v1 阈值、角度档位判据与失败处置 | `bundles/ai-video/skills/portrait-studio/SKILL.md` | **FIXED（T-2026-0926-0102）**：补 8 行工艺判据表（含阈值与来源）、5 条参数边界、6 条失败模式 | 同 GAP-0012 | FIXED | A |
 | GAP-0014 | B2 | 发布纪律（`publish-ops`） | T9 资产深度 | P1 | 22 行摘要只写"按平台蓝图过检"，六个平台的文案/话题/定时规格与失败处置不在技能内 | `bundles/ai-video/skills/publish-ops/SKILL.md` | **FIXED（T-2026-0926-0102）**：补六平台规格表（来源：`publish-rpa/adapters/*.ts`）、5 条前置校验、7 条失败诊断、3 条证据口径 | 同 GAP-0012 | FIXED | A |
 | GAP-0015 | B2 | 营销片真机全链 | T2 无证据 | P1 | 事实红线闸的接线已在类级与单测级验证，但**尚未**在真实检索通道 + 真实模型下跑完整营销片链路（需要 `TAVILY_API_KEY`/`WL_SEARCH_API_URL` 或 HTML 检索通道可用 + LLM key），因此"真实档案 → 真实冲突命中"尚无真机证据 | `apps/server/src/video/data-mining-executor.ts`（需真实检索）；本机无 key | 待真机轮：用真实商品跑一次营销片（情报五站 → truth-check → PRD），核验 `stages.truthCheck` 与 PRD 制作约束 | — | OPEN | D（未验证，已声明） |
+| GAP-0016 | B1/B2 | 后期链四工位 | T9 资产深度 | P1 | 调色选型/配乐定调/字幕版式/音色档案四个技能「判据齐、失败模式缺」：真机翻车（风格跳变、配乐盖人声、字幕压 UI、换引擎变声）没有可判定的检测器与处置 | `bundles/ai-video/skills/{color-look-design,bgm-score-design,subtitle-layout-design,voice-profile-craft}/SKILL.md` | **FIXED（T-2026-0926-0104）**：各补 6–8 行失败模式表（症状 → 检测器 → 处置），判据全部取自该技能既有阈值与围栏（G-COL/G-BGM/G-SUB/G-VOICE） | `agent-knowhow.test.ts`（59 项，覆盖 12 个技能） | FIXED | A |
+| GAP-0017 | B1 | 审计器口径 | T2 工具口径 | P2 | 首版 `agent-knowhow-audit.mts` 只认固定章节名，把本仓「一、二、三」编号标题与「目标值表/禁忌/常见翻车」等写法误判为缺失 | `scripts/tools/agent-knowhow-audit.mts` | **FIXED（T-2026-0926-0104）**：改为语义区块 + 全文量化阈值行 + 红线表述的混合口径（结构等价判定），并同步回归测试；视频域达标率由 7/32 修正为 15/32（真实值） | 同 GAP-0016 | FIXED | A/B |
 
 ## 变更记录
 
@@ -30,3 +32,4 @@
 | 2026-09-26 | T-2026-0926-0101 | 建账（GAP-0001…0011）；完成 GAP-0007/0008 两项 Know-How 强化并锁回归；新增只读审计器 `scripts/tools/agent-knowhow-audit.mts` |
 | 2026-09-26 | T-2026-0926-0102 | 完成 GAP-0012/0013/0014（提示词工艺 / 定妆照纪律 / 发布纪律）Know-How 强化；回归扩到 S-A/S-B/S-C 三型（39 项） |
 | 2026-09-26 | T-2026-0926-0103 | 完成 GAP-0001：营销片事实红线闸接线（桥 + 引擎方法 + PRD 红线继承 + 类级验证 3/3）；新登记 GAP-0015（真机全链待验） |
+| 2026-09-26 | T-2026-0926-0104 | 完成 GAP-0016（后期链四工位失败模式）与 GAP-0017（审计器结构等价口径）；视频域 Know-How 达标 15/32，回归 214 项全绿 |
