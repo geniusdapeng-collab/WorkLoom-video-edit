@@ -1157,7 +1157,15 @@ function buildSrt(): string {
       }
     }
     if (current.trim()) wrapped.push(current.trim());
-    return wrapped.slice(0, 2).join("\n");
+    /**
+     * 标点口径（2026-09-25 工位判据 / 2026-09-27 真机修复）：交付字幕**不带标点**，
+     * 数字内的 `. : - /` 保留。此前这里只按标点折行、却把标点一并写进 SRT，
+     * 烧录模式的 "标点体检" 必然 fail（字幕工位按落盘 SRT 判），母版终审被判 score=0。
+     * 折行仍按标点语义分段，落盘前逐行剔除标点，与旁挂模式工位的清洗口径一致。
+     */
+    const stripCuePunctuation = (line: string): string =>
+      line.replace(/[，。！？；、,.!?;:："“”'‘’（）()【】《》—…·]/g, "").replace(/\s{2,}/g, " ").trim();
+    return wrapped.slice(0, 2).map(stripCuePunctuation).filter(Boolean).join("\n");
   };
   shots.forEach((shot, index) => {
     const duration = Number(shot.duration ?? 5);
