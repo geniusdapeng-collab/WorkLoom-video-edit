@@ -45,5 +45,13 @@ acceptance/outcomes/
 var/
 artifacts/
 apps/server/output/
+# 制片档案运行产物（T-2026-0926-0001：archive/<ws>/<project> 档案夹 + checkpoints/characters/logs）
+.vm-work/
+# vendor 运行时写回（真机跑批产生：类型配置缓存 / 提示词守卫日志 / 定妆照交付物 / 技能使用统计）
+# 这些是运行产物不是源码；vendor 本体只读不改，但它的运行期落盘目录必须留在工作树外。
+vendor/supermickey/cache/
+vendor/supermickey/output/
+vendor/supermickey/deliverables/
+vendor/supermickey/hyperreality-system/skills/*/usage-stats.jsonl
 # 工位本地工具链（ffmpeg/ffprobe 等受控下载的二进制，绝不进仓；见 kit/ffmpeg-pin.json）
 .workloom-tools/
