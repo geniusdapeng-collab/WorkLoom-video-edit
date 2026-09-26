@@ -7,7 +7,7 @@
 
 | ID | 批次 | 单元 | 类型 | 严重度 | 现象 | 根因（文件:行/函数） | 处置 | 回归用例 | 状态 | 证据等级 |
 |---|---|---|---|---|---|---|---|---|---|---|
-| GAP-0001 | B2 | 营销片 `truth-check` | T1 纸门 | P0 | 事实红线闸在管线里声明「ProductTruthChecker 一票否决」，但全仓机检无任何 require/调用点 | `vendor/supermickey/hyperreality-system/engines/production-engine/agents/product-truth-checker.js:117`（`class ProductTruthChecker`，仅自引用） | 待接线：把档案事实基线映射为 `researchNotes` 并在创意主题后调用 `verify()`；命中冲突即打回创意 | 待建（接线批次） | OPEN | B（全量 rg）+ A（文件精读） |
+| GAP-0001 | B2 | 营销片 `truth-check` | T1 纸门 | P0 | 事实红线闸在管线里声明「ProductTruthChecker 一票否决」，但全仓机检无任何 require/调用点 | `vendor/.../agents/product-truth-checker.js:117`（仅自引用） | **FIXED（T-2026-0926-0103）**：新增纯函数桥 `engines/truth-check-bridge.js`（档案→带信源 researchNotes→verify）+ 引擎方法 `HyperrealitySystem._runProductTruthCheckGate()`，在**创意主题确认之后、需求洞察之前**执行；命中冲突即 `blocking` 打回创意并落 fatal 错误；`factRedLines` 写回 `metadata._factRedLines` 并注入 PRD「制作约束」；无证据时 `degraded=no-evidence` 显式落账不误阻断 | `packages/base/bundles/truth-check-bridge.test.ts`（6 项）+ `scripts/tools/verify-truth-check-gate.mts`（真实类实例 3/3） | FIXED | A（接线精读）+ A（类级真实运行） |
 | GAP-0002 | B3 | 投流素材工厂 | T1 纸门 | P1 | `hook-performance-store.js` 零引用，钩子表现回填无实现 | `vendor/.../agents/hook-performance-store.js` | 登记；评估接线或降级声明 | — | OPEN | B |
 | GAP-0003 | B2 | 营销片时长约束 | T1 纸门 | P1 | `marketing-duration-bridge.js` 零引用，营销片时长约束是否落到共享段未经证明 | `vendor/.../agents/marketing-duration-bridge.js` | 与 GAP-0001 同批核验；无消费方则降级声明 | — | OPEN | B |
 | GAP-0004 | B1 | 多风格交付 | T1 纸门 | P1 | `platform-variant-fanner.js` 零引用，平台变体是否由别的实现承担未证明 | `vendor/.../agents/platform-variant-fanner.js` | 核验 `deliver.ts` 是否覆盖其职责；否则登记 | — | OPEN | B |
@@ -21,6 +21,7 @@
 | GAP-0012 | B1 | 提示词工艺（`shot-prompt-craft`） | T9 资产深度 | P1 | 29 行摘要只有方法叙述，没有 25/30 字段判据表、字符口径边界与失败模式；真机曾因占位符/缺号/字数不足反复打回 | `bundles/ai-video/skills/shot-prompt-craft/SKILL.md` | **FIXED（T-2026-0926-0102）**：补 11 行工艺判据表（含来源）、5 条参数边界、8 条失败模式 | `agent-knowhow.test.ts`（39 项全绿） | FIXED | A |
 | GAP-0013 | B1 | 定妆照纪律（`portrait-studio`） | T9 资产深度 | P1 | 28 行摘要只写了背景干净度结论，没写 clean-background/v1 阈值、角度档位判据与失败处置 | `bundles/ai-video/skills/portrait-studio/SKILL.md` | **FIXED（T-2026-0926-0102）**：补 8 行工艺判据表（含阈值与来源）、5 条参数边界、6 条失败模式 | 同 GAP-0012 | FIXED | A |
 | GAP-0014 | B2 | 发布纪律（`publish-ops`） | T9 资产深度 | P1 | 22 行摘要只写"按平台蓝图过检"，六个平台的文案/话题/定时规格与失败处置不在技能内 | `bundles/ai-video/skills/publish-ops/SKILL.md` | **FIXED（T-2026-0926-0102）**：补六平台规格表（来源：`publish-rpa/adapters/*.ts`）、5 条前置校验、7 条失败诊断、3 条证据口径 | 同 GAP-0012 | FIXED | A |
+| GAP-0015 | B2 | 营销片真机全链 | T2 无证据 | P1 | 事实红线闸的接线已在类级与单测级验证，但**尚未**在真实检索通道 + 真实模型下跑完整营销片链路（需要 `TAVILY_API_KEY`/`WL_SEARCH_API_URL` 或 HTML 检索通道可用 + LLM key），因此"真实档案 → 真实冲突命中"尚无真机证据 | `apps/server/src/video/data-mining-executor.ts`（需真实检索）；本机无 key | 待真机轮：用真实商品跑一次营销片（情报五站 → truth-check → PRD），核验 `stages.truthCheck` 与 PRD 制作约束 | — | OPEN | D（未验证，已声明） |
 
 ## 变更记录
 
@@ -28,3 +29,4 @@
 |---|---|---|
 | 2026-09-26 | T-2026-0926-0101 | 建账（GAP-0001…0011）；完成 GAP-0007/0008 两项 Know-How 强化并锁回归；新增只读审计器 `scripts/tools/agent-knowhow-audit.mts` |
 | 2026-09-26 | T-2026-0926-0102 | 完成 GAP-0012/0013/0014（提示词工艺 / 定妆照纪律 / 发布纪律）Know-How 强化；回归扩到 S-A/S-B/S-C 三型（39 项） |
+| 2026-09-26 | T-2026-0926-0103 | 完成 GAP-0001：营销片事实红线闸接线（桥 + 引擎方法 + PRD 红线继承 + 类级验证 3/3）；新登记 GAP-0015（真机全链待验） |
