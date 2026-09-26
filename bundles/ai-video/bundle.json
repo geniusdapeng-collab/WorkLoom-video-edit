@@ -681,7 +681,7 @@
   },
   "integrity": {
     "algorithm": "sha256",
-    "digest": "e1dc1ee687b73dabd422b124d5c20a2134d669ef8cd720217f0a8e6cbbcea0e4",
+    "digest": "486fd92f12563bf8fd01a6ae510eb961106cf24efd8b0aa669a5a301a9499fa8",
     "assets": {
       "connectors/bgm-bridge/cli.mjs": "bc1de683c93149f9e79d99f9d59eab98f829398fa07ce1c94eca10ed48ad9eca",
       "connectors/bgm-bridge/core.mjs": "d58d2d46d806964f9808d5feba046a8befc0252eb90447be4263d5a7a9ecc5d1",
@@ -1063,7 +1063,7 @@
       "library/style-variants/warm-story.json": "fd6e273c0d5d0d25c1b0831fe1e097c952b607d5df0fd7afcb95aafea5865698",
       "library/templates/director-review-form.md": "e1c072bebcd45bf11e16c7dc53968ed4bbd27225c875b0d4b02191214ce6b0df",
       "library/templates/project-config-template.json": "d236841a1713bb0a664ba8b7cb6c50a481676e18986e076ee92c63af0475e398",
-      "library/templates/prompt-v4-template.md": "b9598401980b9b42864ca96c87c44af68d7774d7efc8f2c262d09044f9b15f60",
+      "library/templates/prompt-v4-template.md": "0ec087e88bb119e2fce6233e1eaf4a1b7d44d23ae418fc220e3f542f302c7536",
       "library/templates/scene-card-template.md": "1db045140ae41be4b3f32e1c08967b74d0fb2a7101a567e0c8054b2bd47ac8b1",
       "library/templates/shot-card-v4-template.md": "46cd261292b95725f59576069131b9a772ef8b5c7a2cdf55bbbaf2117b0bad87",
       "library/typography-recipes/recipes.json": "08009f8e2b1884c2d7c04b65e724c08ab45cbdd9c2576a135966065690953601",
