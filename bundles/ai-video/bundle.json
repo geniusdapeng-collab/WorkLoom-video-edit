@@ -680,7 +680,7 @@
   },
   "integrity": {
     "algorithm": "sha256",
-    "digest": "1134792ca944262e6e187a8996f9faccc1003ceaf352796d9f938d8ec8028726",
+    "digest": "4af196ec222e2dcb1b15ee3b0c87bdb39c8cea84455111561d74fb734d0e82ad",
     "assets": {
       "connectors/bgm-bridge/cli.mjs": "bc1de683c93149f9e79d99f9d59eab98f829398fa07ce1c94eca10ed48ad9eca",
       "connectors/bgm-bridge/core.mjs": "7bc3bf38d5e085977cce5a2c7b1da338bee49b57f7c76dd16e1f50f9e999b070",
@@ -1128,11 +1128,11 @@
       "skills/cover-design/SKILL.md": "09ca3e47cb6f70baa5657d9b962ba488130f899526a570e597eed469fe06af87",
       "skills/delivery-package-ops/SKILL.md": "8beeba0da726520af34c5e993893cdf419832618e142db68d686673f688f2cec",
       "skills/delivery-revision-ops/SKILL.md": "9312316573bb50ab41430f1e51ada470729a906c1d6c5f0b97d0b60233d2c3da",
-      "skills/director-review/SKILL.md": "7ca415f0a42877c92f9393ceb93b4866f0b2debca5fb979fabef6033389760c1",
+      "skills/director-review/SKILL.md": "0559960d5f8107d6beb532b5fc973b8c8c150f737b38a796e061a9c495acd16f",
       "skills/font-license-compliance/SKILL.md": "431be781d8dd6e920359829a02d3ce3d92546a25611f89a9fb6a279bbed6ca8c",
       "skills/font-selection/SKILL.md": "d7377d79b9621568375218c86c19fdb75c3e4ce7a4176e71d20661039398f9e5",
-      "skills/jenny-loom-research/SKILL.md": "d7eab8f47705713a9127fe6c108d7eeb4f8d15ed137feee09f4172a42900c922",
-      "skills/marketing-brief-parser/SKILL.md": "eb209b6a96b78cd175be5ee2ee60bc7348e5a623c2afd2e89294e117b7b2bcfa",
+      "skills/jenny-loom-research/SKILL.md": "e284bf762dc495855f72cc8b516c925cea515a9e33d5c858689d3d1a39f20e80",
+      "skills/marketing-brief-parser/SKILL.md": "ea2d799a5e052eb1cf543e9ca93015cb87fdfdd5f9d6d0c65b159c7c144cc44c",
       "skills/portrait-studio/SKILL.md": "9ad3d41ae558a5255e577ea16248b4a581eb4062a30cc3ba5a17e2321e6a63b6",
       "skills/producer-gate-review/SKILL.md": "a95e62bfd93fa4ba9313c76faf0743edb9c77819c4d141a6ecc50206ad17dc4f",
       "skills/publish-ops/SKILL.md": "dd929d5ea42af3672a773dda05c13a26027780f6d682e532ef8c83fe9fe2a36c",
