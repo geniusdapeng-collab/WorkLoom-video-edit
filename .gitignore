@@ -36,6 +36,10 @@ release/
 vendor/srt-whiteboard/.venv/
 var/whiteboard-jobs/
 
+# 制片档案运行目录：HR_WORK_DIR 指向哪个目录，那个目录就整体不入库
+# （真机踩到：本机把 HR_WORK_DIR 设成 .vm-work-wb 后，档案被 `git add -A` 扫进提交）
+.vm-work*/
+
 # C 层评测运行产物（本地/评审侧生成）
 outputs/c-layer/
 
