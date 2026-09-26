@@ -24,13 +24,24 @@ const BUNDLE_DIR = join(ROOT, "ai-video");
 /** S-A 型技能必须齐备的五个区块（结构等价判定，允许标题带括注） */
 const REQUIRED_SECTIONS = ["决策原则", "打法库", "SOP", "关键指标", "失败模式"] as const;
 
-const SKILLS: Array<{ name: string; boundBy: string[] }> = [
+const SKILLS_SA: Array<{ name: string; boundBy: string[] }> = [
   // 营销片前置：情报五站（G1 前）
   { name: "jenny-loom-research", boundBy: ["intel-collector", "intel-reviewer", "intel-competitor", "intel-verifier", "intel-binder", "trend-researcher"] },
   // 营销片前置：Brief 解析（G2 前）
   { name: "marketing-brief-parser", boundBy: ["creative-planner"] },
   // 营销片事实红线闸 + G6 评审材料
   { name: "director-review", boundBy: ["continuity-reviewer"] },
+];
+
+/** S-B 制作/工艺型：工艺判据表 + 参数边界 + 失败模式 + 输出契约 */
+const SKILLS_SB: Array<{ name: string; boundBy: string[] }> = [
+  { name: "shot-prompt-craft", boundBy: ["prompt-fuser", "field-inspector"] },
+  { name: "portrait-studio", boundBy: ["portrait-artist"] },
+];
+
+/** S-C 工具/纪律型：前置校验 + 失败诊断 + 证据口径 + 输出契约 */
+const SKILLS_SC: Array<{ name: string; boundBy: string[] }> = [
+  { name: "publish-ops", boundBy: ["publish-operator", "distribution-operator"] },
 ];
 
 const skillText = (name: string): string => readFileSync(join(BUNDLE_DIR, "skills", name, "SKILL.md"), "utf8");
@@ -57,8 +68,20 @@ const tableRows = (block: string): number => {
   return count;
 };
 
-describe("数字员工配套技能 · 行业 Know-How 结构（S-A）", () => {
-  for (const { name, boundBy } of SKILLS) {
+/** 岗位绑定未断链（技能不会变成孤儿） */
+function expectBoundToPresets(name: string, boundBy: string[]): void {
+  const bound: string[] = [];
+  for (const preset of boundBy) {
+    const p = join(BUNDLE_DIR, "presets", `${preset}.yml`);
+    expect(existsSync(p), `preset 缺失：${preset}`).toBe(true);
+    const doc = YAML.parse(readFileSync(p, "utf8")) as { skills?: string[] };
+    if ((doc.skills ?? []).includes(name)) bound.push(preset);
+  }
+  expect(bound.length).toBeGreaterThan(0);
+}
+
+describe("数字员工配套技能 · 行业 Know-How 结构（S-A 经营/决策型）", () => {
+  for (const { name, boundBy } of SKILLS_SA) {
     const text = skillText(name);
 
     it(`${name}：五个 Know-How 区块齐备`, () => {
@@ -102,14 +125,77 @@ describe("数字员工配套技能 · 行业 Know-How 结构（S-A）", () => {
     });
 
     it(`${name}：岗位绑定未断链（技能不会变成孤儿）`, () => {
-      const bound: string[] = [];
-      for (const preset of boundBy) {
-        const p = join(BUNDLE_DIR, "presets", `${preset}.yml`);
-        expect(existsSync(p), `preset 缺失：${preset}`).toBe(true);
-        const doc = YAML.parse(readFileSync(p, "utf8")) as { skills?: string[] };
-        if ((doc.skills ?? []).includes(name)) bound.push(preset);
-      }
-      expect(bound.length).toBeGreaterThan(0);
+      expectBoundToPresets(name, boundBy);
+    });
+  }
+});
+
+describe("数字员工配套技能 · 行业 Know-How 结构（S-B 制作/工艺型）", () => {
+  for (const { name, boundBy } of SKILLS_SB) {
+    const text = skillText(name);
+
+    it(`${name}：工艺判据表 ≥4 行且带来源列`, () => {
+      const block = section(text, "工艺判据");
+      expect(block, `${name} 缺「工艺判据」区块`).not.toBe("");
+      expect(tableRows(block)).toBeGreaterThanOrEqual(4);
+      expect(block).toContain("来源");
+    });
+
+    it(`${name}：参数边界 ≥3 条`, () => {
+      const block = section(text, "参数边界");
+      expect(block, `${name} 缺「参数边界」区块`).not.toBe("");
+      expect(numbered(block) + bullets(block)).toBeGreaterThanOrEqual(3);
+    });
+
+    it(`${name}：失败模式 ≥3 行且含检测器与处置`, () => {
+      const block = section(text, "失败模式");
+      expect(tableRows(block)).toBeGreaterThanOrEqual(3);
+      expect(block).toContain("检测器");
+      expect(block).toContain("处置");
+    });
+
+    it(`${name}：输出契约与边界齐备`, () => {
+      expect(section(text, "输出契约")).not.toBe("");
+      expect(section(text, "边界")).not.toBe("");
+    });
+
+    it(`${name}：岗位绑定未断链（技能不会变成孤儿）`, () => {
+      expectBoundToPresets(name, boundBy);
+    });
+  }
+});
+
+describe("数字员工配套技能 · 行业 Know-How 结构（S-C 工具/纪律型）", () => {
+  for (const { name, boundBy } of SKILLS_SC) {
+    const text = skillText(name);
+
+    it(`${name}：前置校验 ≥3 条`, () => {
+      const block = section(text, "前置校验");
+      expect(block, `${name} 缺「前置校验」区块`).not.toBe("");
+      expect(numbered(block) + bullets(block)).toBeGreaterThanOrEqual(3);
+    });
+
+    it(`${name}：失败诊断 ≥3 行且含检测器与处置`, () => {
+      const block = section(text, "失败诊断");
+      expect(block, `${name} 缺「失败诊断」区块`).not.toBe("");
+      expect(tableRows(block)).toBeGreaterThanOrEqual(3);
+      expect(block).toContain("检测器");
+      expect(block).toContain("处置");
+    });
+
+    it(`${name}：证据口径 ≥2 条`, () => {
+      const block = section(text, "证据口径");
+      expect(block, `${name} 缺「证据口径」区块`).not.toBe("");
+      expect(numbered(block) + bullets(block)).toBeGreaterThanOrEqual(2);
+    });
+
+    it(`${name}：输出契约齐备 + 无不可判定表述`, () => {
+      expect(section(text, "输出契约")).not.toBe("");
+      expect(/应加强专业性|提升专业水平|注意结合实际情况/.test(text)).toBe(false);
+    });
+
+    it(`${name}：岗位绑定未断链（技能不会变成孤儿）`, () => {
+      expectBoundToPresets(name, boundBy);
     });
   }
 });

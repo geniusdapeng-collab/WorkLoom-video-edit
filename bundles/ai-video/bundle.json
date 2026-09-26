@@ -680,7 +680,7 @@
   },
   "integrity": {
     "algorithm": "sha256",
-    "digest": "4af196ec222e2dcb1b15ee3b0c87bdb39c8cea84455111561d74fb734d0e82ad",
+    "digest": "4492600ccb3593667cdfbe199b7634ed2cbe1ccaf6151ad313194054631340e4",
     "assets": {
       "connectors/bgm-bridge/cli.mjs": "bc1de683c93149f9e79d99f9d59eab98f829398fa07ce1c94eca10ed48ad9eca",
       "connectors/bgm-bridge/core.mjs": "7bc3bf38d5e085977cce5a2c7b1da338bee49b57f7c76dd16e1f50f9e999b070",
@@ -1133,11 +1133,11 @@
       "skills/font-selection/SKILL.md": "d7377d79b9621568375218c86c19fdb75c3e4ce7a4176e71d20661039398f9e5",
       "skills/jenny-loom-research/SKILL.md": "e284bf762dc495855f72cc8b516c925cea515a9e33d5c858689d3d1a39f20e80",
       "skills/marketing-brief-parser/SKILL.md": "ea2d799a5e052eb1cf543e9ca93015cb87fdfdd5f9d6d0c65b159c7c144cc44c",
-      "skills/portrait-studio/SKILL.md": "9ad3d41ae558a5255e577ea16248b4a581eb4062a30cc3ba5a17e2321e6a63b6",
+      "skills/portrait-studio/SKILL.md": "9d05fb3083ec4561997efc45d1dcdd74b6ef76fde4448aaea2d09cbaed32e860",
       "skills/producer-gate-review/SKILL.md": "a95e62bfd93fa4ba9313c76faf0743edb9c77819c4d141a6ecc50206ad17dc4f",
-      "skills/publish-ops/SKILL.md": "dd929d5ea42af3672a773dda05c13a26027780f6d682e532ef8c83fe9fe2a36c",
+      "skills/publish-ops/SKILL.md": "c6386d9b270d3a690fdfcb7de9f4507c4024574f82bb48df667607283d7d02a4",
       "skills/render-ops/SKILL.md": "05108411ffc7d6e63ed01b8deb67d56df34faf3d26fb1196cf0a3822e7aae6a5",
-      "skills/shot-prompt-craft/SKILL.md": "bed3f7154a9a91e6e741b3961d6bc1172a14fbb3f45206d4e504fca3ef6d10cb",
+      "skills/shot-prompt-craft/SKILL.md": "d941c2d742959c2291e0700499771ea69a2e4473d7301c12397f43281321b3a4",
       "skills/subtitle-delivery-spec/SKILL.md": "c12f16c7353c35ee3f75a800e15a6ef35e1556c872eb7e6b2c7fc06078f9cfe2",
       "skills/subtitle-layout-design/SKILL.md": "dc203d2686272ec1c52b2f4b362c06059ef74aa2434a127de2b8967770685d2f",
       "skills/voice-clone-consent/SKILL.md": "16faabf06b8a3cff80c32e1795cf25b9511fa637a8cf6c96cb7a06f9e4d446c4",

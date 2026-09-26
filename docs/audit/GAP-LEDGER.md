@@ -18,9 +18,13 @@
 | GAP-0009 | B2 | 视频域考题覆盖 | T2 无证据 | P1 | `bundles/ai-video` 无 `eval/`，27 名环节员工零考题覆盖（仅 geo-growth 有 30 题） | `bundles/ai-video/` 缺 `eval/questions.json` | 按 `eval-core` schema 建最小题集（不改表结构） | — | OPEN | B |
 | GAP-0010 | B5 | hotel 技能资产 | T7 孤儿 | P2 | 10 个技能无任何 preset 绑定（`ai-live-assistant`/`content-marketing`/`fast-scan`/`inspection-suite`/`ota-operations`/`overbooking-parity-guard`/`pricing-matrix`/`review-asset-mining`/`safety-compliance`/`staff-scheduler`） | `bundles/hotel/presets/*.yml` 的 `skills` 字段 | 裁定：补绑定（走提案）或登记为可装配能力 | — | OPEN | B |
 | GAP-0011 | B1–B3 | vendor 阶段兜底 | T5 静默降级 | P0/P1 | 既有审计器可扫出 `FIELD_GUARD` 默认模板覆盖、子 Agent 全失败退规则兜底等"看起来成功"的路径；尚未逐条裁定 | `scripts/tools/pipeline-agent-audit.mts` 输出；`vendor/.../field-guard.js` 等 | 逐条判定是否已显式记 `degraded`，未记的按 P0 处置 | — | OPEN | B（待 A 级确认） |
+| GAP-0012 | B1 | 提示词工艺（`shot-prompt-craft`） | T9 资产深度 | P1 | 29 行摘要只有方法叙述，没有 25/30 字段判据表、字符口径边界与失败模式；真机曾因占位符/缺号/字数不足反复打回 | `bundles/ai-video/skills/shot-prompt-craft/SKILL.md` | **FIXED（T-2026-0926-0102）**：补 11 行工艺判据表（含来源）、5 条参数边界、8 条失败模式 | `agent-knowhow.test.ts`（39 项全绿） | FIXED | A |
+| GAP-0013 | B1 | 定妆照纪律（`portrait-studio`） | T9 资产深度 | P1 | 28 行摘要只写了背景干净度结论，没写 clean-background/v1 阈值、角度档位判据与失败处置 | `bundles/ai-video/skills/portrait-studio/SKILL.md` | **FIXED（T-2026-0926-0102）**：补 8 行工艺判据表（含阈值与来源）、5 条参数边界、6 条失败模式 | 同 GAP-0012 | FIXED | A |
+| GAP-0014 | B2 | 发布纪律（`publish-ops`） | T9 资产深度 | P1 | 22 行摘要只写"按平台蓝图过检"，六个平台的文案/话题/定时规格与失败处置不在技能内 | `bundles/ai-video/skills/publish-ops/SKILL.md` | **FIXED（T-2026-0926-0102）**：补六平台规格表（来源：`publish-rpa/adapters/*.ts`）、5 条前置校验、7 条失败诊断、3 条证据口径 | 同 GAP-0012 | FIXED | A |
 
 ## 变更记录
 
 | 日期 | 批次 | 变更 |
 |---|---|---|
 | 2026-09-26 | T-2026-0926-0101 | 建账（GAP-0001…0011）；完成 GAP-0007/0008 两项 Know-How 强化并锁回归；新增只读审计器 `scripts/tools/agent-knowhow-audit.mts` |
+| 2026-09-26 | T-2026-0926-0102 | 完成 GAP-0012/0013/0014（提示词工艺 / 定妆照纪律 / 发布纪律）Know-How 强化；回归扩到 S-A/S-B/S-C 三型（39 项） |
