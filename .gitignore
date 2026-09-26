@@ -46,6 +46,19 @@ outputs/c-layer/
 # 桌面自包含载荷与验收产物（本地构建/跑验收生成，不入库）
 dist-payload/
 dist-payload.tar.gz
+
+# ============================================================================
+# talkcraft 引擎与口播解说片产物（T-2026-0926-0008）
+#   引擎是上游资产（PolyForm Noncommercial），**永不入库**：安装期拉取到 vendor/talkcraft/。
+#   CI 闸 scripts/ci/verify-talkcraft-license.mjs 会反向检查"上游源码没被提交"。
+# ============================================================================
+vendor/talkcraft/
+var/talkcraft-src/
+var/talkcraft-jobs/
+var/talkcraft-assets/
+var/tcvenv/
+var/ppt/
+var/explainer-poc/
 outputs/acceptance/
 acceptance/outcomes/
 
