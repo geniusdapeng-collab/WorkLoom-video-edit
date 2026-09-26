@@ -203,12 +203,13 @@ describe("多领域融合：组合岗位编制裁决", () => {
      * 同日再新增 ai-video「配音师」，总数 76；2026-09-24 新增 ai-video「制片人／监制」（77）与「摄影指导」（78）），
      * 所以断言读的是算出来的值，而不是让维护者去猜。
      * 2026-09-25 新增 ai-video「封面设计师」（79）——封面由"抽帧 + 一行字"改成"设计稿 → 合成 → 机检 → 监制"。
+     * 2026-09-27 新增 ai-video「口播解说片导演」（80）——解说片产品化（管线/岗位/技能/媒资目录）。
      */
     const declared = VIEWS.reduce((sum, bundle) => sum + bundle.presets.size, 0);
     const shadowed = composed.shadowed.length;
     expect(keys.length).toBe(declared - shadowed);
     expect(shadowed).toBe(4);
-    expect(keys.length).toBe(79);
+    expect(keys.length).toBe(80);
   });
 
   it("同名岗位按主包声明落到权威归属包", () => {
