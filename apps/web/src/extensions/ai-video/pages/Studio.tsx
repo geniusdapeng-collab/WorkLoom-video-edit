@@ -74,6 +74,8 @@ export default function Studio() {
   const nav = useNavigate();
   const [params] = useSearchParams();
   const projectId = params.get("project") ?? "vp-demo-001";
+  /** 商品档案页「用此商品开拍」带过来的商品名（媒资库 → 生产页的上下文传递） */
+  const productHint = params.get("product");
 
   const [ready, setReady] = useState(false);
   const [banner, setBanner] = useState<{ level: "alert" | "warn" | "info"; text: string } | null>(null);
@@ -467,6 +469,12 @@ export default function Studio() {
   return (
     <Bridge left={left} right={right}>
       <div className="px-1">
+        {productHint ? (
+          <div className="mb-3 rounded-lg border border-line bg-card px-3 py-2 text-caption text-ink2">
+            本次开拍商品：<span className="font-bold text-ink">{productHint}</span>
+            <span className="text-ink3">（来自商品档案；立项/下单时引用该商品，情报环节会复用这份 dossier）</span>
+          </div>
+        ) : null}
         <div className="mb-3 flex items-center justify-between">
           <div>
             <div className="text-title text-ink">生成工作室 · {projectId}</div>

@@ -568,6 +568,58 @@
             "permissions": [
               "ai-video.review-guide.read"
             ]
+          },
+          {
+            "capabilityId": "ai-video.media",
+            "title": "媒资库",
+            "route": "/ai-video/media",
+            "group": "operations",
+            "icon": "folder",
+            "clients": [
+              "pc"
+            ],
+            "permissions": [
+              "ai-video.media.read"
+            ]
+          },
+          {
+            "capabilityId": "ai-video.media-collections",
+            "title": "合集重剪台",
+            "route": "/ai-video/media/collections",
+            "group": "operations",
+            "icon": "skills",
+            "clients": [
+              "pc"
+            ],
+            "permissions": [
+              "ai-video.media.read"
+            ]
+          },
+          {
+            "capabilityId": "ai-video.media-films",
+            "title": "成片历史",
+            "route": "/ai-video/media/films",
+            "group": "operations",
+            "icon": "notice",
+            "clients": [
+              "pc"
+            ],
+            "permissions": [
+              "ai-video.media.read"
+            ]
+          },
+          {
+            "capabilityId": "ai-video.media-products",
+            "title": "商品档案",
+            "route": "/ai-video/media/products",
+            "group": "operations",
+            "icon": "document",
+            "clients": [
+              "pc"
+            ],
+            "permissions": [
+              "ai-video.media.read"
+            ]
           }
         ]
       },
@@ -620,14 +672,15 @@
         "ai-video.skills.read",
         "ai-video.team-performance.read",
         "ai-video.activity.read",
-        "ai-video.review-guide.read"
+        "ai-video.review-guide.read",
+        "ai-video.media.read"
       ],
       "experiments": []
     }
   },
   "integrity": {
     "algorithm": "sha256",
-    "digest": "391953041628bc20c66b5a7d04e1da1b0f77ee229190522d417dcff9e779d757",
+    "digest": "1134792ca944262e6e187a8996f9faccc1003ceaf352796d9f938d8ec8028726",
     "assets": {
       "connectors/bgm-bridge/cli.mjs": "bc1de683c93149f9e79d99f9d59eab98f829398fa07ce1c94eca10ed48ad9eca",
       "connectors/bgm-bridge/core.mjs": "7bc3bf38d5e085977cce5a2c7b1da338bee49b57f7c76dd16e1f50f9e999b070",
