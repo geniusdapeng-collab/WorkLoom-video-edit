@@ -12,7 +12,7 @@
  *      写操作（改名/打标/归档）与五元事件同一事务同一 COMMIT（D16）。
  */
 import type pg from "pg";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { isAbsolute, join, resolve } from "node:path";
 import { gatewayAppendOnClient } from "@workloom/base/workdata";
 import { newId } from "@workloom/shared";
@@ -153,6 +153,26 @@ function cursorClause(builder: WhereBuilder, cursor?: string | null): void {
   builder.clauses.push(`(a.created_at, a.id) < (${p1}::timestamptz, ${p2}::text)`);
 }
 
+/**
+ * 媒体仓「本机文件」索引：一次 `readdir(recursive)` 覆盖 video/image/audio/upload 四个分仓，
+ * 取代原来"每行 1~2 次 existsSync"（列表 200 行 = 400 次同步 stat，阻塞事件循环）。
+ */
+export function mediaFileIndex(workspaceId: string): Set<string> {
+  const index = new Set<string>();
+  for (const subdir of ["video", "image", "audio", "upload"]) {
+    const dir = join(mediaRoot(), subdir, workspaceId);
+    if (!existsSync(dir)) continue;
+    try {
+      for (const entry of readdirSync(dir, { recursive: true }) as string[]) {
+        index.add(`${subdir}/${workspaceId}/${String(entry).split("\\").join("/")}`);
+      }
+    } catch {
+      /* 索引失败退化为空集合：列表仍可用（hasLocalFile=false），不阻断 */
+    }
+  }
+  return index;
+}
+
 export function toAssetView(row: MediaAssetRow, opts: { thumbExists?: (rel: string) => boolean } = {}): MediaAssetView {
   const tags = Array.isArray(row.tags) ? row.tags.map((t) => String(t)) : [];
   const exists = opts.thumbExists ?? ((rel: string) => existsSync(join(mediaRoot(), rel)));
@@ -233,7 +253,7 @@ function whereBuilder(scope: Scope, input: ListAssetsInput): WhereBuilder {
  */
 async function searchTrgm(
   app: AppPool, scope: Scope, input: ListAssetsInput, query: string, limit: number,
-  trace: NonNullable<ListAssetsResult["searchTrace"]>,
+  trace: NonNullable<ListAssetsResult["searchTrace"]>, viewScope?: Scope,
 ): Promise<ListAssetsResult> {
   const w = whereBuilder(scope, { ...input, cursor: undefined });
   const q = w.add(query);
@@ -258,7 +278,7 @@ async function searchTrgm(
     `SELECT ${ASSET_COLUMNS}, ${simExpr} AS similarity
        FROM video_assets a WHERE ${w.clauses.join(" AND ")}
       ORDER BY similarity DESC, a.created_at DESC, a.id DESC LIMIT ${pLimit}`, w.params);
-  return finishList(rows, limit, { ...trace, layer: "trgm" });
+  return finishList(rows, limit, { ...trace, layer: "trgm" }, viewScope ?? scope);
 }
 
 export async function listAssets(app: AppPool, scope: Scope, input: ListAssetsInput): Promise<ListAssetsResult> {
@@ -283,7 +303,7 @@ export async function listAssets(app: AppPool, scope: Scope, input: ListAssetsIn
         `SELECT ${ASSET_COLUMNS} FROM video_assets a WHERE ${w.clauses.join(" AND ")}
           ORDER BY array_position($${w.params.length}::text[], a.id), a.created_at DESC, a.id DESC LIMIT ${p}`,
         [...w.params, ids]);
-      if (rows.length > 0) return finishList(rows, limit, { ...trace, layer: "semantic" });
+      if (rows.length > 0) return finishList(rows, limit, { ...trace, layer: "semantic" }, scope);
       if (pinned === "semantic") return finishList([], limit, { ...trace, layer: "semantic" });
       trace.layer = "tsv";
     }
@@ -297,16 +317,16 @@ export async function listAssets(app: AppPool, scope: Scope, input: ListAssetsIn
     const tsvRows = await scopedQuery<MediaAssetRow>(app, scope,
       `SELECT ${ASSET_COLUMNS} FROM video_assets a WHERE ${w.clauses.join(" AND ")}
         ORDER BY a.created_at DESC, a.id DESC LIMIT ${p}`, w.params);
-    if (tsvRows.length > 0) return finishList(tsvRows, limit, { ...trace, layer: "tsv" });
+    if (tsvRows.length > 0) return finishList(tsvRows, limit, { ...trace, layer: "tsv" }, scope);
     // 已钉在 tsv 层（翻页中）：不能掉进 trgm，否则排序口径突变 → 返回空由上层结束翻页
     if (pinned === "tsv") return finishList([], limit, { ...trace, layer: "tsv" });
 
     // ③ trgm / 子串兜底：中文的实际主路（tsv 零命中才走到这里）
-    return searchTrgm(app, scope, input, query, limit, trace);
+    return searchTrgm(app, scope, input, query, limit, trace, scope);
   }
 
   if (query && pinned === "trgm") {
-    return searchTrgm(app, scope, input, query, limit, trace);
+    return searchTrgm(app, scope, input, query, limit, trace, scope);
   }
 
   const w = whereBuilder(scope, input);
@@ -314,11 +334,12 @@ export async function listAssets(app: AppPool, scope: Scope, input: ListAssetsIn
   const plainRows = await scopedQuery<MediaAssetRow>(app, scope,
     `SELECT ${ASSET_COLUMNS} FROM video_assets a WHERE ${w.clauses.join(" AND ")}
       ORDER BY a.created_at DESC, a.id DESC LIMIT ${p}`, w.params);
-  return finishList(plainRows, limit, trace);
+  return finishList(plainRows, limit, trace, scope);
 }
 
-function finishList(rows: MediaAssetRow[], limit: number, trace: NonNullable<ListAssetsResult["searchTrace"]>): ListAssetsResult {
-  const items = rows.map((row) => toAssetView(row));
+function finishList(rows: MediaAssetRow[], limit: number, trace: NonNullable<ListAssetsResult["searchTrace"]>, scope?: Scope): ListAssetsResult {
+  const index = scope ? mediaFileIndex(scope.workspaceId) : null;
+  const items = rows.map((row) => toAssetView(row, { thumbExists: index ? (rel) => index.has(rel) : undefined }));
   const last = rows.at(-1);
   return {
     items,
@@ -371,8 +392,9 @@ export async function getAsset(app: AppPool, scope: Scope, assetId: string): Pro
     ? join(resolve(archiveWorkDir()), "archive", scope.workspaceId, row.project_id)
     : null;
 
+  const fileIndex = mediaFileIndex(scope.workspaceId);
   return {
-    ...toAssetView(row),
+    ...toAssetView(row, { thumbExists: (rel) => fileIndex.has(rel) }),
     provenance: row.provenance ?? {},
     meta: row.meta ?? {},
     licenseRisk: row.license_risk,
@@ -582,8 +604,9 @@ export async function listFilms(
        LEFT JOIN video_projects p ON p.id = a.project_id AND p.workspace_id = a.workspace_id
       WHERE ${clauses.join(" AND ")}
       ORDER BY a.created_at DESC, a.id DESC LIMIT $${params.length}`, params);
+  const fileIndex = mediaFileIndex(scope.workspaceId);
   const items: FilmRow[] = rows.map((row) => {
-    const view = toAssetView(row);
+    const view = toAssetView(row, { thumbExists: (rel) => fileIndex.has(rel) });
     return {
       id: view.id,
       title: view.title,
