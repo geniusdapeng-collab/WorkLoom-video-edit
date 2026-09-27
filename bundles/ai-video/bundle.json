@@ -728,7 +728,7 @@
   },
   "integrity": {
     "algorithm": "sha256",
-    "digest": "5510aae4278bcb517a9c98268de593afd7358d55ef85d9303acb4ce7cc1de1cc",
+    "digest": "760e56dd2e75aa86903cf79700f267f71c06041f38f29f9a7d9451228d8f0935",
     "assets": {
       "connectors/bgm-bridge/brief.mjs": "bb858adae23728deffa1668d9f9db15085f9c94ed73d2c01b5505d82e78e2407",
       "connectors/bgm-bridge/cli.mjs": "bc1de683c93149f9e79d99f9d59eab98f829398fa07ce1c94eca10ed48ad9eca",
