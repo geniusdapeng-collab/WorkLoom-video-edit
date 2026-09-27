@@ -39,7 +39,7 @@ import YAML from "yaml";
 import {
   applyMicromotion, appendGateEvent, assessVariantDistinctness, auditContinuity, buildDeliveryManifest, buildGateEvent,
   assessMotionRichness, buildCoverDesignPrompt, buildMaterialMotionPrompt, buildPlatePrompt, buildRevisionPlan, buildRevisionReport, buildVariantPlan,
-  buildMaterialScenePrompt, assessReferenceIndependence, decidePlateCache, MATERIAL_MOTION_POLICY, MATERIAL_RAW_MOTION_POLICY, MATERIAL_SCENE_POLICY_VERSION,
+  buildMaterialScenePrompt, assessReferenceIndependence, decidePlateCache, plateRequestSha256, MATERIAL_MOTION_POLICY, MATERIAL_RAW_MOTION_POLICY, MATERIAL_SCENE_POLICY_VERSION,
   isDoubledNarration, speechAcceptance,
   termPronunciationCheck,
   REFERENCE_INDEPENDENCE_POLICY,
@@ -948,13 +948,13 @@ const CUT_GRID: number[] = (() => {
  * 相关环节按"生成镜/素材镜"分流，否则 G7 会因为"素材镜没有文生关键帧"而误判缺件。
  */
 const isMaterialShot = (shot: ShotCard): boolean => String((shot as Record<string, unknown>).photo ?? "").trim().length > 0;
-const generatedShots = shots.filter((shot) => !isMaterialShot(shot));
-const materialShots = shots.filter((shot) => isMaterialShot(shot));
+const generatedShots = (): ShotCard[] => shots.filter((shot) => !isMaterialShot(shot));
+const materialShots = (): ShotCard[] => shots.filter((shot) => isMaterialShot(shot));
 /**
  * 素材用途**在开跑前先验一遍**（fail-fast）：缺声明/写成静态直出用途时当场停，
  * 不等到出片阶段才发现"这一镜本来就不该这么做"。错误信息里带规则原文。
  */
-for (const shot of materialShots) {
+for (const shot of materialShots()) {
   try {
     readMaterialSpec(shot as unknown as Record<string, unknown>);
   } catch (err) {
@@ -1243,33 +1243,27 @@ function plateMetaFile(shotId: string): string {
   return join(PLATE_DIR, `${shotId}.plate-meta.json`);
 }
 
-function readPlateMeta(shotId: string): { promptSha256?: string; anchorMode?: string; model?: string; at?: string } | null {
+function readPlateMeta(shotId: string): import("../../packages/video-studio/src/plate-cache.js").PlateCacheMeta | null {
   const file = plateMetaFile(shotId);
   if (!existsSync(file)) return null;
   try {
-    return JSON.parse(readFileSync(file, "utf8")) as { promptSha256?: string; anchorMode?: string; model?: string; at?: string };
+    return JSON.parse(readFileSync(file, "utf8")) as import("../../packages/video-studio/src/plate-cache.js").PlateCacheMeta;
   } catch {
     return null;
   }
 }
 
-function writePlateMeta(shotId: string, promptText: string, anchorMode: string): void {
+function writePlateMeta(shotId: string, promptText: string, anchorMode: string, basePrompt: string, requestSha256: string, artifactFile: string): void {
   const payload = {
-    promptSha256: createHash("sha256").update(promptText).digest("hex"),
+    promptSha256: createHash("sha256").update(basePrompt).digest("hex"),
+    submittedPromptSha256: createHash("sha256").update(promptText).digest("hex"),
+    requestSha256,
+    artifactSha256: createHash("sha256").update(readFileSync(artifactFile)).digest("hex"),
     anchorMode,
     model: IMAGE_MODEL,
     at: stamp()
   };
   writeFileSync(plateMetaFile(shotId), `${JSON.stringify(payload, null, 2)}\n`, "utf8");
-}
-
-/** 当前提示词文件的 sha256（提示词还没产出时返回 null，视为缓存不可用） */
-function promptSha256(shotId: string): string | null {
-  const file = join(PROMPT_DIR, `${shotId}.txt`);
-  if (!existsSync(file)) return null;
-  const text = readFileSync(file, "utf8").trim();
-  if (!text) return null;
-  return createHash("sha256").update(text).digest("hex");
 }
 
 /** 本镜最近一次关键帧裁决是否为放行（被驳回过的产物不得被缓存复用洗白） */
@@ -1595,7 +1589,7 @@ if (STAGES.has("micromotion")) {
   const started = Date.now();
   const traces: Array<Record<string, unknown>> = [];
   let empty = 0;
-  for (const shot of generatedShots) {
+  for (const shot of generatedShots()) {
     const { card, trace } = applyMicromotion(shot as unknown as Record<string, unknown>);
     traces.push(trace as unknown as Record<string, unknown>);
     if (trace.applied.length === 0 && !trace.skipped) empty += 1;
@@ -1639,6 +1633,10 @@ if (STAGES.has("micromotion")) {
   }
   log(`微动作增强：${shots.length} 镜 × 5 路（面部/身体/眼神/呼吸/融合）已并入 action${verdict ? `，监制${verdict.approved ? "放行" : "打回"}` : "（未启用 LLM 复评）"}`);
 }
+
+/** 后续审核与生成共享这份当前镜头快照；每次替换镜头卡后均从 shots 重建视图。 */
+const CURRENT_SHOTS_FILE = join(WORK_DIR, `shotlist-current-${PROJECT}.json`);
+writeFileSync(CURRENT_SHOTS_FILE, `${JSON.stringify({ projectId: PROJECT, shots }, null, 2)}\n`, "utf8");
 
 /* ---------- ② 脚本 + 提示词交付闸（监制：prompt） ---------- */
 if (STAGES.has("spec")) {
@@ -1796,7 +1794,7 @@ if (STAGES.has("spec")) {
    * 把空载体送给监制必然判"无正文"打回；而素材镜的把关门是 **G-MAT1**。
    * 因此这里显式跳过 G6 并留痕（via=skip），既不静默放行，也不让监制去判不适用的载体。
    */
-  if (materialShots.length === shots.length) {
+  if (materialShots().length === shots.length) {
     log(`ℹ️ 全片 ${shots.length} 镜均为素材镜：文生提示词门（G6）不适用，按 skip 留痕（素材镜由 G-MAT1 把关）`);
     record({
       stage: "prompt-package", shotId: null, invoked: false, ok: true, cached: false, degraded: false, attempt: 1, ms: 0,
@@ -1822,11 +1820,11 @@ if (STAGES.has("spec")) {
     artifacts: [
       { path: join(PROMPT_DIR, "spec-report.json"), kind: "json" },
       /** 只送**生成镜**的提示词；真实素材段没有提示词文件（硬塞路径会让监制读到空文件） */
-      ...generatedShots.map((s) => ({ path: join(PROMPT_DIR, `${s.shotId}.txt`), kind: "text" as const }))
+      ...generatedShots().map((s) => ({ path: join(PROMPT_DIR, `${s.shotId}.txt`), kind: "text" as const }))
     ],
     deterministic: checks,
     context: {
-      title: shotlist.title, shots: generatedShots.length, materialShots: materialShots.map((s) => s.shotId), rateFail,
+      title: shotlist.title, shots: generatedShots().length, materialShots: materialShots().map((s) => s.shotId), rateFail,
       /** 节拍预算：只报数不拦（监制可据情权衡，不作 PASS/FAIL） */
       motionBudget: motionBudgetNotes,
       poseContradictionRule: "同一镜「面向镜头」与「转身/侧身/背身」互斥；「桥/栏杆/船/河 + 指物 + 正面」属高漂移先验，建议改正面走近或删指物",
@@ -1921,12 +1919,23 @@ if (STAGES.has("plates")) {
      */
     const cachedPlateExists = existsSync(plate);
     const cachedMeta = readPlateMeta(shot.shotId);
-    const currentPromptSha = promptSha256(shot.shotId);
+    const basePlatePrompt = platePrompt(shot, lead?.name ?? "主角", lead?.appearanceText ?? "");
+    const anchors = plateAnchorMode === "real"
+      ? ([portraitRefs[0], portraitRefs[1], venueRefs[0]].filter(Boolean) as string[])
+      : venueRefs.slice(0, 1);
+    const imageSize = ENV.SEEDREAM_SIZE ?? "2K";
+    const currentPromptSha = createHash("sha256").update(basePlatePrompt).digest("hex");
+    const currentRequestSha = plateRequestSha256({
+      prompt: basePlatePrompt, model: IMAGE_MODEL, anchorMode: plateAnchorMode, size: imageSize,
+      referenceSha256: anchors.map((file) => createHash("sha256").update(readFileSync(file)).digest("hex"))
+    });
     const cacheDecision = decidePlateCache({
       exists: cachedPlateExists,
       sizeBytes: cachedPlateExists ? statSync(plate).size : 0,
       meta: cachedMeta,
       currentPromptSha256: currentPromptSha,
+      currentRequestSha256: currentRequestSha,
+      currentArtifactSha256: cachedPlateExists ? createHash("sha256").update(readFileSync(plate)).digest("hex") : null,
       anchorMode: plateAnchorMode,
       lastApproved: lastKeyframeApproved(readStageHistory(), shot.shotId)
     });
@@ -1959,18 +1968,15 @@ if (STAGES.has("plates")) {
     for (let attempt = 1; attempt <= MAX_ATTEMPTS && !approved; attempt += 1) {
       const started = Date.now();
       try {
-        const prompt = platePrompt(shot, lead?.name ?? "主角", lead?.appearanceText ?? "")
+        const prompt = basePlatePrompt
           /**
            * 关键帧重试同样"带变更"：把上一轮监制的具体问题写进去（原来只有一句泛泛的"构图更准"）。
            */
           + (attempt > 1 ? `\n${retryInstruction(plateVerdict, attempt, MAX_ATTEMPTS)}` : "");
-        const anchors = plateAnchorMode === "real"
-          ? ([portraitRefs[0], portraitRefs[1], venueRefs[0]].filter(Boolean) as string[])
-          : (venueRefs.slice(0, 1) as string[]);
         if (plateAnchorMode === "real" && attempt === 1) {
           log(`  ⚠ ${shot.shotId} 关键帧挂了真人锚点：产物会被 Seedance 隐私校验拒（仅适合做档案资产）`);
         }
-        const url = await arkImage(prompt, anchors, ENV.SEEDREAM_SIZE ?? "2K");
+        const url = await arkImage(prompt, anchors, imageSize);
         saveHostedUrl(shot.shotId, url);
         await download(url, plate);
         const info = probe(plate);
@@ -1992,7 +1998,7 @@ if (STAGES.has("plates")) {
           attempt, ms: Date.now() - started, artifact: plate, evidence: info, verdict
         });
         /** 放行才写指纹：被驳回的图不写元文件，下一轮必然重出（缓存失效判据 ② 的物证） */
-        if (verdict.approved) writePlateMeta(shot.shotId, prompt, plateAnchorMode);
+        if (verdict.approved) writePlateMeta(shot.shotId, prompt, plateAnchorMode, basePlatePrompt, currentRequestSha, plate);
         approved = verdict.approved;
         if (!approved) plateVerdict = verdict;
         if (!approved) log(`↻ 关键帧 ${shot.shotId} 第 ${attempt} 次未过监制：${verdict.reason}`);
@@ -2489,7 +2495,7 @@ function applyCameraMovePunchCut(input: string, output: string, options: {
 
 if (STAGES.has("material-gen")) {
   const [pw, ph] = RESOLUTION === "1080p" ? (ASPECT === "9:16" ? [1080, 1920] : [1920, 1080]) : [720, 1280];
-  for (const shot of materialShots) {
+  for (const shot of materialShots()) {
     const shotStarted = Date.now();
     const card = shot as Record<string, unknown>;
     const spec = readMaterialSpec(card);
@@ -2884,7 +2890,7 @@ if (STAGES.has("material-gen")) {
       });
     }
   }
-  if (materialShots.length > 0) log(`素材镜：${materialShots.length} 镜（生成输入 → 生成式镜头，禁止静态直出）`);
+  if (materialShots().length > 0) log(`素材镜：${materialShots().length} 镜（生成输入 → 生成式镜头，禁止静态直出）`);
 }
 
 
@@ -2899,11 +2905,11 @@ if (STAGES.has("videos")) {
    */
   const gateHistory = readStageHistory();
   /** 素材镜不产出文生关键帧，G7 的提示词/关键帧判据只对**生成镜**成立（素材镜由 G-MAT1 门管） */
-  const promptReady = generatedShots.every((s) => {
+  const promptReady = generatedShots().every((s) => {
     const file = join(PROMPT_DIR, `${s.shotId}.txt`);
     return existsSync(file) && readFileSync(file, "utf8").trim().length >= 1200;
   });
-  const plateReady = generatedShots.every((s) => {
+  const plateReady = generatedShots().every((s) => {
     const plate = join(PLATE_DIR, `${s.shotId}-plate.png`);
     return existsSync(plate) && statSync(plate).size > 50_000;
   });
@@ -2915,7 +2921,7 @@ if (STAGES.has("videos")) {
    * 但失败产物**覆盖了磁盘上的文件名**；G7 只看历史里的 ok 记录 → 误判"已放行"，
    * 于是用一版**从未被放行的关键帧**去渲染视频（最贵的环节）。判据改为"该镜存在 ok 记录且记录时间 ≥ 关键帧文件 mtime"。
    */
-  const plateApprovedDetail = generatedShots.map((s) => {
+  const plateApprovedDetail = generatedShots().map((s) => {
     const plate = join(PLATE_DIR, `${s.shotId}-plate.png`);
     if (!existsSync(plate)) return { shotId: s.shotId, ok: false, reason: "缺关键帧文件" };
     const mtime = statSync(plate).mtimeMs;
@@ -2952,30 +2958,30 @@ if (STAGES.has("videos")) {
     return r.stage === "gate" && gateStepKeyOf(row) === "material-generate"
       && gateModeOf(row) === "verify" && gateShotIdsOf(row).includes(shotId) && r.ok;
   });
-  const materialReady = materialShots.every((s) => {
+  const materialReady = materialShots().every((s) => {
     const clip = join(CLIP_DIR, `${s.shotId}.mp4`);
     return existsSync(clip) && statSync(clip).size > 100_000 && materialGateVerified(s.shotId);
   });
-  const micromotionReady = !STAGES.has("micromotion") || generatedShots.every((s) => String(s.action ?? "").includes("【微动作】"))
+  const micromotionReady = !STAGES.has("micromotion") || generatedShots().every((s) => String(s.action ?? "").includes("【微动作】"))
     || gateHistory.some((r) => r.stage === "micromotion" && r.ok);
   const g7 = recordGate({
     stepKey: "g7-preproduction",
     sourceStage: "keyframe",
     shotIds: shots.map((s) => s.shotId),
     checks: [
-      { id: "prompt-files", pass: promptReady, hard: true, detail: promptReady ? `${generatedShots.length} 个生成镜提示词齐备且 ≥1200 字（另有 ${materialShots.length} 个素材镜走 material-gen 的动效提示词）` : "有生成镜缺提示词或字数不足 1200" },
-      { id: "plate-files", pass: plateReady, hard: true, detail: plateReady ? `${generatedShots.length} 个生成镜关键帧齐备（>50KB）` : "有生成镜关键帧缺失或过小" },
+      { id: "prompt-files", pass: promptReady, hard: true, detail: promptReady ? `${generatedShots().length} 个生成镜提示词齐备且 ≥1200 字（另有 ${materialShots().length} 个素材镜走 material-gen 的动效提示词）` : "有生成镜缺提示词或字数不足 1200" },
+      { id: "plate-files", pass: plateReady, hard: true, detail: plateReady ? `${generatedShots().length} 个生成镜关键帧齐备（>50KB）` : "有生成镜关键帧缺失或过小" },
       { id: "prompt-approved", pass: promptApproved, hard: true, detail: promptApproved ? "提示词环节有放行裁决（历史/本轮）" : "提示词环节无放行裁决" },
       {
         id: "plates-approved", pass: plateApproved, hard: true,
         detail: plateApproved
-          ? `每镜关键帧均有**晚于该文件**的放行裁决（${plateApprovedDetail.filter((e) => e.ok).length}/${generatedShots.length}）`
+          ? `每镜关键帧均有**晚于该文件**的放行裁决（${plateApprovedDetail.filter((e) => e.ok).length}/${generatedShots().length}）`
           : `有镜头关键帧缺少有效放行：${plateApprovedDetail.filter((e) => !e.ok).map((e) => `${e.shotId}（${e.reason}）`).join("；")}`
       },
       {
         id: "material-segments", pass: materialReady, hard: true,
         detail: materialReady
-          ? `${materialShots.length} 个素材镜已产出且过 G-MAT1（生成溯源 + 非静态直出 + 保真评审）`
+          ? `${materialShots().length} 个素材镜已产出且过 G-MAT1（生成溯源 + 非静态直出 + 保真评审）`
           : `有素材镜未产出或未过 G-MAT1（素材只作生成输入，禁止静态直出）`
       },
       /**
@@ -5578,7 +5584,7 @@ if (!subtitleSidecar && SUBTITLE_MODE !== "burn") {
   ) || null;
   const materialGateEvents = [...history, ...records].filter((r) => r.stage === "gate"
     && gateStepKeyOf(r as unknown as Record<string, unknown>) === "material-generate");
-  const materialPolicyFails = materialShots.filter((s) => !materialGateEvents.some((r) => {
+  const materialPolicyFails = materialShots().filter((s) => !materialGateEvents.some((r) => {
     const row = r as unknown as Record<string, unknown>;
     return gateModeOf(row) === "verify" && gateShotIdsOf(row).includes(s.shotId) && r.ok;
   }));
@@ -5745,10 +5751,10 @@ if (!subtitleSidecar && SUBTITLE_MODE !== "burn") {
          * 绝不静默通过。
          */
         pass: materialPolicyFails.length === 0 || ACCEPT_REJECTED.includes("material-usage-policy"),
-        detail: materialShots.length === 0
+        detail: materialShots().length === 0
           ? "本片无素材镜（无实拍素材入片）"
           : materialPolicyFails.length === 0
-            ? `${materialShots.length} 个素材镜均过 G-MAT1（生成溯源 + 非静态直出 + 保真评审；${MATERIAL_POLICY_VERSION}）`
+            ? `${materialShots().length} 个素材镜均过 G-MAT1（生成溯源 + 非静态直出 + 保真评审；${MATERIAL_POLICY_VERSION}）`
             : `以下素材镜缺 G-MAT1 验证记录：${materialPolicyFails.map((s) => s.shotId).join("、")}（素材不得直接静态展示）`
               + (ACCEPT_REJECTED.includes("material-usage-policy")
                 ? "；**已显式放行**（复用既有渲染素材重剪，原始渲染记录在既有工作区，未重渲，见 material-reuse-acknowledge 记录）"
@@ -5793,7 +5799,7 @@ if (!subtitleSidecar && SUBTITLE_MODE !== "burn") {
     context: {
       stageSummary, stages: [...STAGES],
       narration: coverage.map((entry) => `${entry.shotId}（${entry.speaker}）：${entry.ok ? "有人声" : "缺人声"}`),
-      materialPolicy: { version: MATERIAL_POLICY_VERSION, statement: MATERIAL_POLICY_STATEMENT, shots: materialShots.map((s) => s.shotId) }
+      materialPolicy: { version: MATERIAL_POLICY_VERSION, statement: MATERIAL_POLICY_STATEMENT, shots: materialShots().map((s) => s.shotId) }
     },
     env: ENV, allowFallbackApprove: ALLOW_FALLBACK_APPROVE, log
   });
