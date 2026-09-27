@@ -147,8 +147,8 @@ function renderScriptRethrow(err: unknown): never {
 function deliveryRethrow(err: unknown): never {
   if (err instanceof DeliveryError) {
     const code = err.code === "not_found" ? "NOT_FOUND"
-      : err.code === "path_not_allowed" ? "FORBIDDEN"
-        : err.code === "idempotency_conflict" || err.code === "shot_regeneration_required" || err.code === "artifact_too_large"
+      : ["path_not_allowed", "scope_mismatch", "scope_required"].includes(err.code) ? "FORBIDDEN"
+        : err.code === "idempotency_conflict" || err.code === "shot_regeneration_required" || err.code === "artifact_too_large" || err.code === "delivery_unverified"
           ? "PRECONDITION_FAILED"
           : "BAD_REQUEST";
     throw new TRPCError({ code, message: err.message });
@@ -238,14 +238,14 @@ const deliveryRouter = router({
   /** 交付包列表（按创建时间倒序；无交付根时返回空列表） */
   list: protectedProcedure
     .input(z.object({ limit: z.number().int().min(1).max(100).default(20) }))
-    .query(({ input }) => listDeliveryPackages({ limit: input.limit })),
+    .query(({ ctx, input }) => listDeliveryPackages({ scope: scopeOf(ctx.identity), limit: input.limit })),
 
   /** 单个交付包详情（母版/旁挂字幕/变体/差异实测/检查/返修历史/选择记录；媒体给签名 URL） */
   get: protectedProcedure
     .input(z.object({ dir: z.string().min(1).max(200) }))
-    .query(({ input }) => {
+    .query(({ ctx, input }) => {
       try {
-        return readDeliveryPackage(input.dir);
+        return readDeliveryPackage(input.dir, scopeOf(ctx.identity));
       } catch (err) {
         deliveryRethrow(err);
       }
@@ -264,9 +264,9 @@ const deliveryRouter = router({
       ref: z.string().min(1).max(400),
       maxBytes: z.number().int().min(1024).max(64 * 1024 * 1024).optional(),
     }))
-    .query(({ input }) => {
+    .query(({ ctx, input }) => {
       try {
-        return readDeliveryArtifact({ dir: input.dir, ref: input.ref, maxBytes: input.maxBytes });
+        return readDeliveryArtifact({ scope: scopeOf(ctx.identity), dir: input.dir, ref: input.ref, maxBytes: input.maxBytes });
       } catch (err) {
         deliveryRethrow(err);
       }
@@ -284,6 +284,7 @@ const deliveryRouter = router({
       let selection;
       try {
         selection = selectDeliveryVariant({
+          scope,
           dir: input.dir, variantId: input.variantId,
           note: input.note ?? null, by: ctx.identity.memberNo,
         });
@@ -293,7 +294,9 @@ const deliveryRouter = router({
       await appendDeliveryEvent(ctx, scope, {
         objectType: "delivery_package", objectId: input.dir,
         action: "delivery.variant.selected",
-        after: { variantId: selection.variantId, note: selection.note, at: selection.at },
+        after: { variantId: selection.variantId, note: selection.note, at: selection.at,
+          projectId: selection.projectId, revision: selection.revision, manifestSha256: selection.manifestSha256,
+          sealSha256: selection.sealSha256, variantSha256: selection.variantSha256 },
         basis: ["用户在交付包里选择了风格变体（一个包多版本，选择即交付结论）"],
         /**
          * 选择结果回流组织偏好池：同一事务写入 preference 记忆，
@@ -335,7 +338,7 @@ const deliveryRouter = router({
       const scope = scopeOf(ctx.identity);
       let outcome;
       try {
-        outcome = await triageDeliveryFeedback(input.dir, input.feedback);
+        outcome = await triageDeliveryFeedback(input.dir, input.feedback, scope);
       } catch (err) {
         deliveryRethrow(err);
       }
@@ -343,6 +346,7 @@ const deliveryRouter = router({
       if (input.record) {
         try {
           const recorded = recordRevisionRequest({
+            scope,
             dir: input.dir, feedback: input.feedback,
             triage: outcome.triage, patchHint: outcome.patchHint, by: ctx.identity.memberNo,
           });
@@ -378,6 +382,7 @@ const deliveryRouter = router({
       let job;
       try {
         job = await startDeliveryRevision({
+          scope,
           dir: input.dir,
           patch: input.patch,
           by: ctx.identity.memberNo,
@@ -403,12 +408,12 @@ const deliveryRouter = router({
   /** 重合成作业状态（内存注册表；日志同时落盘 `<包>/revision-jobs/<jobId>.log`） */
   job: protectedProcedure
     .input(z.object({ jobId: z.string().min(1).max(120) }))
-    .query(({ input }) => deliveryJobStatus(input.jobId)),
+    .query(({ ctx, input }) => deliveryJobStatus(input.jobId, scopeOf(ctx.identity))),
 
   /** 某交付包（或缺省全部）的作业列表 */
   jobs: protectedProcedure
     .input(z.object({ dir: z.string().min(1).max(200).optional() }))
-    .query(({ input }) => listDeliveryJobs(input.dir)),
+    .query(({ ctx, input }) => listDeliveryJobs(scopeOf(ctx.identity), input.dir)),
 });
 
 /* ================= studio：预生产流水线 ================= */

@@ -25,6 +25,9 @@ interface PackageSummary {
   variantCount: number;
   variantIds: string[];
   passed: boolean;
+  trustStatus: "verified" | "draft" | "invalid";
+  trustReason: string;
+  revision: number | null;
   failedChecks: string[];
   selectedVariantId: string | null;
   revisionCount: number;
@@ -147,6 +150,7 @@ export default function Delivery() {
   const [bgmInput, setBgmInput] = useState("");
   const [advancedPatch, setAdvancedPatch] = useState("{}");
   const pollRef = useRef<number | null>(null);
+  const detailLoadRef = useRef(0);
 
   const loadList = useCallback(async (silent = false) => {
     if (!silent) setReady(false);
@@ -163,10 +167,12 @@ export default function Delivery() {
   }, [preferDir]);
 
   const loadDetail = useCallback(async (dir: string) => {
+    const request = ++detailLoadRef.current;
     try {
       const row = await trpc.video.delivery.get.query({ dir }) as unknown as PackageDetail;
-      setDetail(row);
+      if (request === detailLoadRef.current) setDetail(row);
     } catch (e) {
+      if (request !== detailLoadRef.current) return;
       setDetail(null);
       setBanner({ level: "alert", text: `交付包加载失败：${e instanceof Error ? e.message : String(e)}` });
     }
@@ -175,6 +181,7 @@ export default function Delivery() {
   useEffect(() => { void loadList(); }, [loadList]);
   useEffect(() => {
     if (!activeDir) return;
+    setDetail(null);
     setTriage(null);
     setSubtitleText("");
     setBgmInput("");
@@ -208,7 +215,10 @@ export default function Delivery() {
   }, [job, activeDir, loadDetail, loadList]);
 
   const selectVariant = useCallback(async (variantId: string, variantName: string) => {
-    if (!activeDir) return;
+    if (!activeDir || detail?.dir !== activeDir || detail.trustStatus !== "verified") {
+      setBanner({ level: "warn", text: "这份交付包尚未通过终审，请先预览或提交返修意见。" });
+      return;
+    }
     setBusy(`select:${variantId}`);
     setBanner(null);
     try {
@@ -221,7 +231,7 @@ export default function Delivery() {
     } finally {
       setBusy(null);
     }
-  }, [activeDir, loadDetail, loadList]);
+  }, [activeDir, detail, loadDetail, loadList]);
 
   const analyzeFeedback = useCallback(async () => {
     if (!activeDir || !feedback.trim()) return;
@@ -311,7 +321,8 @@ export default function Delivery() {
    */
   const [artifacts, setArtifacts] = useState<Record<string, string>>({});
   useEffect(() => {
-    if (!detail || !activeDir) return;
+    setArtifacts({});
+    if (!detail || !activeDir || detail.dir !== activeDir) return;
     const refs = [
       detail.master.ref,
       ...detail.subtitleFiles.map((file) => file.ref),
@@ -337,15 +348,15 @@ export default function Delivery() {
   }, [detail, activeDir]);
 
   const artifactUrl = useCallback((ref: string | null | undefined): string | null => {
-    if (!ref) return null;
+    if (!ref || detail?.dir !== activeDir) return null;
     const value = artifacts[ref];
     return value && !value.startsWith("error:") ? value : null;
-  }, [artifacts]);
+  }, [artifacts, detail?.dir, activeDir]);
   const artifactError = useCallback((ref: string | null | undefined): string | null => {
-    if (!ref) return null;
+    if (!ref || detail?.dir !== activeDir) return null;
     const value = artifacts[ref];
     return value?.startsWith("error:") ? value.slice(6) : null;
-  }, [artifacts]);
+  }, [artifacts, detail?.dir, activeDir]);
 
   if (!ready) {
     return (
@@ -371,7 +382,7 @@ export default function Delivery() {
         <div>
           <h1 className="font-orb text-xl text-ink">交付包 · 多风格版本与返修</h1>
           <p className="mt-1 max-w-3xl text-sm text-ink3">
-            一支片子出 2–3 个风格明显不同的版本（封面 / 文案 / 配乐 / 调色 / 转场），你挑一个；
+            一支片子出 3 个风格明显不同的版本（封面 / 文案 / 配乐 / 调色 / 转场），你挑一个；
             字幕以旁挂文件交付（母版不烧字，要带字幕走可开关字幕轨）。有意见直接写一句，先在本地重合成，
             只有点名到画面内容才需要重生成镜头（走人审）。
           </p>
@@ -401,12 +412,8 @@ export default function Delivery() {
           <div className="text-xs uppercase tracking-wide text-ink4">交付包（{packages.length}）</div>
           {packages.length === 0 ? (
             <div className="rounded border border-line/60 p-3 text-sm text-ink3">
-              还没有交付包。出片工具会把它写到交付根（默认 <code>var/delivery</code>，
-              可用 <code>WORKLOOM_DELIVERY_DIR</code> 指定）：
-              <pre className="mt-2 overflow-x-auto rounded bg-black/30 p-2 text-xs">
-{`post-cli deliver --project project.json \\
-  --shots a.mp4,b.mp4 --srt subs.srt --out-dir var/delivery/<项目>-<时间>`}
-              </pre>
+              当前工作区还没有交付包。出片完成后，母版和风格版本会出现在这里；
+              草稿可预览、可提返修意见，通过终审后才能正式选定。
             </div>
           ) : packages.map((row) => (
             <button
@@ -418,7 +425,7 @@ export default function Delivery() {
               <div className="flex items-center justify-between gap-2">
                 <span className="font-orb text-sm text-ink">{row.title}</span>
                 <span className={`rounded border px-1.5 py-0.5 text-[11px] ${row.passed ? "border-go/45 text-go" : "border-alert/55 text-alert"}`}>
-                  {row.passed ? "检查全绿" : `${row.failedChecks.length} 项待看`}
+                  {row.trustStatus === "verified" ? "终审通过" : row.trustStatus === "invalid" ? "需重新核验" : "草稿待终审"}
                 </span>
               </div>
               <div className="mt-1 text-xs text-ink3">
@@ -437,6 +444,12 @@ export default function Delivery() {
             <EmptyState icon="🎬" title="先选一个交付包" hint="左栏选包后，这里会显示母版、旁挂字幕、几个风格版本与差异实测。" />
           ) : (
             <>
+              {detail.trustStatus !== "verified" ? (
+                <div role="status" className="rounded border border-warn/50 bg-warn/5 p-3 text-sm text-warn">
+                  <div className="font-medium">{detail.trustStatus === "invalid" ? "交付核验失效" : "草稿，尚未通过终审"}</div>
+                  <p className="mt-1 break-words text-xs">{detail.trustReason}。当前可预览和提返修意见，暂不能正式选定或登记为已交付成片。</p>
+                </div>
+              ) : null}
               <div className="rounded border border-line/60 p-3">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div className="font-orb text-sm text-ink">
@@ -520,14 +533,14 @@ export default function Delivery() {
                         <button
                           type="button"
                           data-testid={`delivery-select-${variant.id}`}
-                          disabled={busy === `select:${variant.id}`}
+                          disabled={busy !== null || detail.trustStatus !== "verified" || detail.dir !== activeDir}
                           onClick={() => void selectVariant(variant.id, variant.name)}
-                          className={`rounded border px-2 py-1 text-xs ${variant.isSelected ? "border-go/60 text-go" : "border-holo/50 text-holo hover:bg-holo/10"}`}
+                          className={`rounded border px-2 py-1 text-xs disabled:cursor-not-allowed disabled:opacity-40 ${variant.isSelected ? "border-go/60 text-go" : "border-holo/50 text-holo hover:bg-holo/10"}`}
                         >
-                          {busy === `select:${variant.id}` ? "提交中…" : variant.isSelected ? "已选这个版本" : "选这个版本"}
+                          {busy === `select:${variant.id}` ? "提交中…" : detail.trustStatus !== "verified" ? "待终审后选定" : variant.isSelected ? "已选这个版本" : "选这个版本"}
                         </button>
                         {artifactUrl(variant.videoRef) ? (
-                          <a className="text-xs text-ink2 underline" href={artifactUrl(variant.videoRef)!} download={`${variant.id}.mp4`}>下载成片</a>
+                          <a className="text-xs text-ink2 underline" href={artifactUrl(variant.videoRef)!} download={`${variant.id}.mp4`}>{detail.trustStatus === "verified" ? "下载成片" : "下载草稿"}</a>
                         ) : null}
                         {artifactUrl(variant.softsubRef) ? (
                           <a className="text-xs text-ink2 underline" href={artifactUrl(variant.softsubRef)!} download={`${variant.id}-softsub.mp4`}>软字幕轨版</a>
@@ -567,7 +580,7 @@ export default function Delivery() {
                   </table>
                 </div>
                 <div className="rounded border border-line/60 p-3">
-                  <div className="text-xs uppercase tracking-wide text-ink4">交付检查</div>
+                  <div className="text-xs uppercase tracking-wide text-ink4">{detail.trustStatus === "verified" ? "交付检查（已核实）" : "清单检查记录（待终审）"}</div>
                   <ul className="mt-2 space-y-1 text-xs">
                     {detail.checks.map((check) => (
                       <li key={check.kind} className="flex items-center justify-between gap-2">
