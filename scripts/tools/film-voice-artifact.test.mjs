@@ -85,3 +85,12 @@ test("only a successful and verified new candidate is promoted", (t) => {
   assert.deepEqual(promoteDubCandidate({ candidate, final: f.voiced, commandOk: true, verifiedOk: true }), { ok: true, reason: "promoted" });
   assert.equal(readFileSync(f.voiced, "utf8"), "verified new dub");
 });
+
+
+test("an unverified or degraded voice receipt cannot authorize a raw clip", (t) => {
+  const f = fixture(t);
+  const unverified = { ...f.record, artifact: f.raw, evidence: { ...f.record.evidence, source: "clip-audio-unverified" } };
+  assert.equal(assessVoiceArtifact({ ...f, record: unverified }).ok, false);
+  const degraded = { ...unverified, degraded: true, evidence: { ...unverified.evidence, source: "clip-audio" } };
+  assert.equal(assessVoiceArtifact({ ...f, record: degraded }).ok, false);
+});

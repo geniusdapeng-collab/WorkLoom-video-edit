@@ -6,6 +6,7 @@ export interface VoiceArtifactRecord {
   stage: string;
   shotId: string | null;
   ok: boolean;
+  degraded?: boolean;
   artifact: string | null;
   evidence: Record<string, unknown>;
 }
@@ -20,7 +21,7 @@ export type VoiceArtifactStatus = {
 };
 
 const VOICED_SOURCES = new Set(["tts-narration", "tts-term-replaced", "voiced-reuse"]);
-const RAW_SOURCES = new Set(["clip-audio", "clip-audio-unverified"]);
+const RAW_SOURCES = new Set(["clip-audio"]);
 
 export function fingerprintText(text: string): string {
   return createHash("sha256").update(text).digest("hex");
@@ -55,7 +56,7 @@ export function assessVoiceArtifact({
   text: string;
   profile: string;
 }): VoiceArtifactStatus {
-  if (!record || record.stage !== "voice" || record.shotId !== shotId || !record.ok) {
+  if (!record || record.stage !== "voice" || record.shotId !== shotId || !record.ok || record.degraded) {
     return { ok: false, voiced: false, reason: "missing_or_failed_voice_receipt" };
   }
   const evidence = record.evidence ?? {};

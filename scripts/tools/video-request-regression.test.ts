@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -11,20 +11,20 @@ const temporary: string[] = [];
 afterEach(() => { for (const dir of temporary.splice(0)) rmSync(dir, { recursive: true, force: true }); });
 
 type Card = Record<string, unknown>;
-function runChain(shots: Card[], options: { stages?: string; args?: string[]; dir?: string } = {}) {
+function runChain(shots: Card[], options: { stages?: string; args?: string[]; dir?: string; dryRun?: boolean; project?: string } = {}) {
   const dir = options.dir ?? mkdtempSync(join(tmpdir(), "video-request-regression-"));
   if (!options.dir) temporary.push(dir);
   const shotsFile = join(dir, "shots.json");
   writeFileSync(shotsFile, JSON.stringify({ title: "摄影增强回归", shots }));
   const result = spawnSync(process.execPath, ["--import", "tsx", "scripts/tools/full-chain-film.mts",
-    "--shots", shotsFile, "--project", "regression", "--work-dir", dir, "--out", join(dir, "out"),
+    "--shots", shotsFile, "--project", options.project ?? "regression", "--work-dir", dir, "--out", join(dir, "out"),
     "--keys-file", join(dir, "no-credentials.env"), "--library", join(dir, "no-characters"),
-    "--platform", "youtube", "--stages", options.stages ?? "cine-kb,micromotion", "--dry-run", ...(options.args ?? [])
+    "--platform", "youtube", "--stages", options.stages ?? "cine-kb,micromotion", ...(options.dryRun === false ? [] : ["--dry-run"]), ...(options.args ?? [])
   ], { cwd: root, encoding: "utf8", timeout: 30_000, env: { ...process.env, ARK_API_KEY: "", LLM_API_KEY: "" } });
   return {
     dir, result, diagnostic: `${result.error ?? ""}\n${result.stdout}\n${result.stderr}`,
     read: (file: string) => JSON.parse(readFileSync(join(dir, file), "utf8")),
-    rows: () => readFileSync(join(dir, "logs/stages.jsonl"), "utf8").trim().split("\n").map((line) => JSON.parse(line)),
+    rows: () => readFileSync(join(dir, "logs", options.project ?? "regression", "stages.jsonl"), "utf8").trim().split("\n").map((line) => JSON.parse(line)),
   };
 }
 
@@ -160,5 +160,65 @@ describe("全链路镜头增强真实消费", () => {
     expect(gate.evidence.micromotionEvidence.map((entry: Card) => entry.status)).toEqual(["not_applicable", "passed"]);
     expect(gate.evidence.micromotionEvidence.every((entry: Card) => entry.verified === true)).toBe(true);
     expect(gate.evidence.micromotionEvidence[1].outputHash).toBe(shotIntentHash(run.read("shotlist-current-regression.json").shots[1].action));
+  }, 40_000);
+});
+
+
+describe("全链路当前血缘与返修范围", () => {
+  it.each(["compose", "color", "bgm", "master", "deliver", "revise"])("单镜范围不能误进整片 %s", (stage) => {
+    const run = runChain([emptyShot], { stages: stage, args: ["--only", "EMPTY"] });
+    expect(run.result.status, run.diagnostic).not.toBe(0);
+    expect(run.diagnostic).toContain("SELECTED_SHOTS_POST_SCOPE");
+  }, 40_000);
+  it("未知阶段和未知镜号在执行前拒绝", () => {
+    for (const options of [{ stages: "typo" }, { stages: "micromotion", args: ["--only", "GHOST"] }]) {
+      const run = runChain([emptyShot], options);
+      expect(run.result.status, run.diagnostic).not.toBe(0);
+      expect(run.diagnostic).toMatch(/UNKNOWN_STAGE|SHOT_SCOPE_UNKNOWN/);
+    }
+  }, 40_000);
+  it("镜号重复和路径字符不能混入同一产物目录", () => {
+    for (const shots of [[emptyShot, emptyShot], [{ ...emptyShot, shotId: "../other" }]]) {
+      const run = runChain(shots);
+      expect(run.result.status, run.diagnostic).not.toBe(0);
+      expect(run.diagnostic).toContain("SHOT_REGISTRY_INVALID");
+    }
+  }, 40_000);
+  it("生产执行不能用豁免开关把缺测变合格", () => {
+    const run = runChain([emptyShot], { stages: "master", dryRun: false, args: ["--accept-rejected", "master"] });
+    expect(run.result.status, run.diagnostic).not.toBe(0);
+    expect(run.diagnostic).toContain("PRODUCTION_BYPASS_REJECTED");
+  }, 40_000);
+  it("只有旧成功日志、没有本次母版时以非零退出，不能报告请求完成", () => {
+    const dir = mkdtempSync(join(tmpdir(), "video-current-proof-")); temporary.push(dir);
+    mkdirSync(join(dir, "logs/regression"), { recursive: true });
+    writeFileSync(join(dir, "logs/regression/stages.jsonl"), JSON.stringify({ stage: "master", ok: true, shotId: null }) + "\n");
+    const run = runChain([emptyShot], { dir, stages: "master", dryRun: false });
+    expect(run.result.status, run.diagnostic).toBe(6);
+    expect(run.diagnostic).toContain("缺阶段 master");
+    expect(existsSync(join(dir, "out/regression-30s-final.mp4"))).toBe(false);
+  }, 40_000);
+  it("不同项目在同一work目录独立记账且当前输入输出含实际指纹", () => {
+    const first = runChain([emptyShot], { stages: "micromotion", project: "project-a" });
+    expect(first.result.status, first.diagnostic).toBe(0);
+    const before = readFileSync(join(first.dir, "logs/project-a/stages.jsonl"), "utf8");
+    const second = runChain([windowShot], { dir: first.dir, stages: "micromotion", project: "project-b" });
+    expect(second.result.status, second.diagnostic).toBe(0);
+    expect(readFileSync(join(first.dir, "logs/project-a/stages.jsonl"), "utf8")).toBe(before);
+    const row = second.rows().find((entry: Card) => entry.stage === "micromotion");
+    expect(row.lineage.projectId).toBe("project-b");
+    expect(row.lineage.outputs[0].sha256).toMatch(/^[a-f0-9]{64}$/);
+  }, 40_000);
+  it("修复另一镜输入不会使未选镜头自己的源指纹改变", () => {
+    const first = runChain([emptyShot, windowShot], { stages: "cine-kb" });
+    expect(first.result.status, first.diagnostic).toBe(0);
+    const firstRow = first.rows().find((entry: Card) => entry.stage === "cine-kb" && entry.shotId === "EMPTY");
+    const second = runChain([emptyShot, { ...windowShot, dialogue: [{ text: "仅改这一镜" }] }], { dir: first.dir, stages: "cine-kb", args: ["--only", "PERSON"] });
+    expect(second.result.status, second.diagnostic).toBe(0);
+    const existing = second.rows().find((entry: Card) => entry.stage === "cine-kb" && entry.shotId === "EMPTY");
+    expect(existing.lineage).toEqual(firstRow.lineage);
+    expect(existing.lineage.inputs.map((entry: Card) => entry.path)).not.toContain(join(first.dir, "shots.json"));
+    const aggregate = second.rows().findLast((entry: Card) => entry.stage === "cine-kb" && entry.shotId === null);
+    expect(aggregate.lineage.sourceHash).not.toBe(first.rows().find((entry: Card) => entry.stage === "cine-kb" && entry.shotId === null).lineage.sourceHash);
   }, 40_000);
 });
