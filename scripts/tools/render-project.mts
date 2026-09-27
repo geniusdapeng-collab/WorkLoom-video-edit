@@ -578,7 +578,7 @@ for (const shot of shots) {
       ? characterPortraits
       : productPortraits.length > 0
         ? productPortraits
-        : venue;
+        : venuePool;
     if (fallback.length > 0) cardWithPortraits.portraits = fallback;
   }
 
