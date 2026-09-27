@@ -13,7 +13,7 @@
  *   3. 可选的 LLM 评审（含图像）—— 打分 + 问题清单 + 修改建议；模型不可用时**如实降级**并标注。
  *
  * 纪律：默认 fail-closed —— 硬闸失败必打回；LLM 不可用且无硬闸结论时**不放行**（返回 rerun），
- * 只有"硬闸全过 + 显式允许降级"才降级放行并标记 `via:"fallback"`（便于审计"哪些门是空转的"）。
+ * 模型/证据不可用时保持 unverified；旧 allowFallbackApprove 参数不再授予正式通过资格。
  */
 
 export type ProducerStage =
@@ -32,13 +32,16 @@ export type ProducerStage =
   | "cover"
   | "master";
 
-import { existsSync, readFileSync, rmSync, statSync } from "node:fs";
+import { existsSync, readFileSync, rmSync, statSync, mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { randomUUID } from "node:crypto";
+import { randomUUID, createHash } from "node:crypto";
 import { spawnSync } from "node:child_process";
 
+import type { QualityStatus } from "./quality-evidence.js";
+
 export interface DeterministicCheck {
+  status?: QualityStatus;
   id: string;
   pass: boolean;
   detail: string;
@@ -56,6 +59,8 @@ export interface ProducerArtifact {
 }
 
 export interface ProducerVerdict {
+  status: QualityStatus;
+  evidence?: Array<{ path: string; sha256: string; scope: string }>;
   stage: ProducerStage;
   approved: boolean;
   /** 0–100；硬闸失败为 0 */
@@ -69,7 +74,7 @@ export interface ProducerVerdict {
   model?: string;
   ms: number;
   reason: string;
-  /** 降级放行（模型不可用但硬闸全过）——审计要用 */
+  /** 证据或模型不可用；degraded 不具备放行资格。 */
   degraded: boolean;
 }
 
@@ -255,12 +260,15 @@ export interface ProducerGateOptions {
   projectId: string;
   artifacts: ProducerArtifact[];
   deterministic: DeterministicCheck[];
+  /** Required measured checks cannot be omitted or represented by a soft score. */
+  requiredCheckIds?: string[];
+  minScore?: number;
   /** 覆盖默认评审要点 */
   rubric?: string[];
   /** 画面类环节可附视觉基准（如定妆照）做一致性比对 */
   referenceImages?: string[];
   context?: Record<string, unknown>;
-  /** 允许在"硬闸全过 + 模型不可用"时降级放行（默认 false，fail-closed） */
+  /** @deprecated 仅为旧调用方保留；不会授予正式通过资格。 */
   allowFallbackApprove?: boolean;
   env?: Record<string, string | undefined>;
   fetchImpl?: typeof fetch;
@@ -287,14 +295,6 @@ export function resolveProducerLlm(env: Record<string, string | undefined> = pro
   return { baseUrl: baseUrl.replace(/\/$/, ""), apiKey, model };
 }
 
-function mimeOf(path: string): string {
-  const lower = path.toLowerCase();
-  if (lower.endsWith(".png")) return "image/png";
-  if (lower.endsWith(".webp")) return "image/webp";
-  if (lower.endsWith(".jpg") || lower.endsWith(".jpeg")) return "image/jpeg";
-  return "application/octet-stream";
-}
-
 function summarizeArtifacts(artifacts: ProducerArtifact[]): string {
   return artifacts.map((a) => {
     const probe = a.probe ? ` ${JSON.stringify(a.probe)}` : "";
@@ -307,8 +307,7 @@ function summarizeArtifacts(artifacts: ProducerArtifact[]): string {
  * 单张送审图预算（2026-09-24 三轮审计，真机事故复现）：
  * 视频抽帧是 1080×1920 的 PNG，单张 ≈10MB；4 张产物帧 + 2 张基准图一起 base64 后 **≈53MB**，
  * 评审模型的网关直接返回 `HTTP 413 Request Entity Too Large` → 监制判为"不可用"、镜头悬空（既没通过也没真打回）。
- * 这里加一道**按需压缩**：超过预算的图先缩到 720 宽 JPEG 再送审；压缩器不可用时保持原图并如实记日志
- * （宁可送大图赌一次，也不能悄悄丢掉评审证据）。
+ * 超预算先缩到720宽JPEG；压缩不可用或仍超预算时返回未验证，不静默丢图或赌超大请求。
  */
 const JUDGE_IMAGE_BUDGET_BYTES = 900_000;
 
@@ -319,12 +318,12 @@ function shrinkImageWithFfmpeg(path: string): string | null {
   const res = spawnSync(bin, [
     "-hide_banner", "-v", "error", "-y", "-i", path,
     "-frames:v", "1", "-vf", "scale=720:-2", "-q:v", "3", out
-  ]);
-  if (res.status !== 0 || !existsSync(out)) {
-    try { rmSync(out, { force: true }); } catch { /* 压缩失败产物不存在也无所谓 */ }
+  ], { timeout: 30_000 });
+  if (res.status !== 0 || !existsSync(out) || statSync(out).size >= statSync(path).size) {
+    rmSync(out, { force: true });
     return null;
   }
-  return statSync(out).size < statSync(path).size ? out : null;
+  return out;
 }
 
 /**
@@ -387,7 +386,7 @@ export async function reviewStage(options: ProducerGateOptions): Promise<Produce
   const log = options.log ?? (() => undefined);
   const stage = options.stage;
   const rubric = options.rubric ?? PRODUCER_RUBRICS[stage];
-  const hardFailures = options.deterministic.filter((c) => !c.pass && c.hard === true).map((c) => `${c.id}：${c.detail}`);
+  const hardFailures = options.deterministic.filter((c) => c.hard === true && (c.status === "failed" || (c.status === undefined && c.pass === false))).map((c) => `${c.id}：${c.detail}`);
   const softFailures = options.deterministic.filter((c) => c.pass === false).map((c) => `${c.id}：${c.detail}`);
 
   /** ① 硬闸：任一失败直接打回 */
@@ -395,6 +394,7 @@ export async function reviewStage(options: ProducerGateOptions): Promise<Produce
     log(`[producer][${stage}] 硬闸失败，打回重跑：${hardFailures.join("；")}`);
     return {
       stage,
+      status: "failed",
       approved: false,
       score: 0,
       hardFailures,
@@ -408,179 +408,133 @@ export async function reviewStage(options: ProducerGateOptions): Promise<Produce
     };
   }
 
+  const evidence: NonNullable<ProducerVerdict["evidence"]> = [];
+  const reject = (reason: string, via: ProducerVerdict["via"] = "deterministic", model?: string): ProducerVerdict => ({
+    stage, status: "unverified", approved: false, score: 0, hardFailures: [],
+    issues: [...softFailures, reason], suggestions: ["补齐有效证据或修复评审组件后重跑本环节"],
+    rerun: true, via, model, ms: Date.now() - started, reason, degraded: true, evidence
+  });
+  const required = new Set(options.requiredCheckIds ?? []);
+  // This visual/text adapter cannot listen. Acoustic quality requires a component receipt.
+  if (stage === "bgm" || stage === "master") required.add("audio-review");
+  for (const id of required) {
+    const checks = options.deterministic.filter((c) => c.id === id);
+    if (checks.length !== 1 || (checks[0]?.status !== undefined && checks[0]?.status !== "passed") || checks[0]?.pass !== true) return reject(`缺少已通过的必需证据：${id}`);
+  }
+  if (options.deterministic.some((c) => c.hard && (c.status === "unverified" || (c.status !== "not_applicable" && c.pass !== true)))) return reject("必需质量检查未验证");
   const llm = resolveProducerLlm(options.env ?? process.env);
-  /** ② 无模型：显式降级（默认不放行，除非调用方允许降级） */
-  if (!llm) {
-    const approved = Boolean(options.allowFallbackApprove);
-    log(`[producer][${stage}] 无可用评审模型 → ${approved ? "降级放行（已标记 degraded）" : "拒绝放行（fail-closed）"}`);
-    return {
-      stage,
-      approved,
-      score: approved ? 60 : 0,
-      hardFailures: [],
-      issues: softFailures,
-      suggestions: approved ? ["接入 LLM_* 后重新开启实质评审"] : ["配置 LLM_BASE_URL / LLM_API_KEY / LLM_MODEL 后重跑"],
-      rerun: !approved,
-      via: "fallback",
-      ms: Date.now() - started,
-      reason: approved ? "无评审模型，按允许降级放行" : "无评审模型，且未允许降级",
-      degraded: true
-    };
-  }
-
-  /** ③ LLM 监制评审（可带图） */
-  const imageArtifacts = options.artifacts.filter((a) => a.kind === "image");
-  const content: Array<Record<string, unknown>> = [
-    {
-      type: "text",
-      text: [
-        `你是视频项目的 AI 监制（制片人），负责在【${stage}】环节放行或打回重跑。`,
-        `项目：${options.projectId}`,
-        "",
-        "评审要点（逐条判断）：",
-        ...rubric.map((r, i) => `${i + 1}. ${r}`),
-        "",
-        "本环节产物：",
-        summarizeArtifacts(options.artifacts),
-        "",
-        "确定性检查结果（已通过，作为事实依据）：",
-        options.deterministic.map((c) => `- ${c.pass ? "PASS" : "FAIL"} ${c.id}：${c.detail}`).join("\n") || "- 无",
-        /**
-         * 补充事实的注入上限（2026-09-25 从 2000 提到 6000）：题材/平台/剪辑风格这类**判据依据**
-         * 一旦被截断，监制就会拿"记忆里的旧标准"打分（真机：给城市地标片挑电子律动曲，
-         * 却被按上一部水乡片的口味打回）。判据比省 token 重要。
-         */
-        options.context ? `\n补充事实：\n${JSON.stringify(options.context, null, 1).slice(0, 6000)}` : "",
-        "",
-        "只输出 JSON（不要 markdown 代码块）：",
-        '{"approved": true|false, "score": 0-100, "issues": ["..."], "suggestions": ["..."], "reason": "一句话结论"}',
-        "判定纪律（以下任一命中即必须 approved=false，并给出可执行的重跑建议）：人物不像、画质塑料、肢体畸变、遮挡主体、与上面任一条纪律冲突。"
-      ].join("\n")
-    }
-  ];
-  /**
-   * 图像配额（2026-09-24 真机修正）：**待评审产物优先**。
-   * 早先把基准图排在前面，4 张基准图吃满配额后产物只剩 2 张，评审看不到 closeup 等关键机位。
-   * 现在口径：产物最多 4 张，基准图最多 2 张（够做人脸参照即可）。
-   */
-  const imageQueue = [
-    ...imageArtifacts.slice(0, 4).map((a) => ({ path: a.path, label: "待评审产物" })),
-    ...(options.referenceImages ?? []).slice(0, 2).map((path) => ({ path, label: "基准图（角色定妆照/授权真人照片）" }))
-  ];
-  /** 压缩产物是临时文件，请求结束后回收（评审重试/修复调用共用同一批已编码内容） */
-  const tempImages: string[] = [];
-  for (const image of imageQueue) {
-    try {
-      let attachPath = image.path;
-      let bytes = readFileSync(attachPath);
-      if (bytes.byteLength > JUDGE_IMAGE_BUDGET_BYTES) {
-        const shrink = options.shrinkImage ?? shrinkImageWithFfmpeg;
-        const shrunk = shrink(image.path);
-        if (shrunk) {
-          attachPath = shrunk;
-          tempImages.push(shrunk);
-          bytes = readFileSync(shrunk);
-          log(`[producer][${stage}] 送审图超预算（${(readFileSync(image.path).byteLength / 1024 / 1024).toFixed(1)}MB）→ 压缩到 ${(bytes.byteLength / 1024).toFixed(0)}KB：${image.path}`);
-        } else {
-          log(`[producer][${stage}] 送审图超预算且压缩不可用（按原图送审，可能触发 413）：${image.path}`);
-        }
-      }
-      content.push({ type: "text", text: `以下是${image.label}：${attachPath}` });
-      content.push({ type: "image_url", image_url: { url: `data:${mimeOf(attachPath)};base64,${bytes.toString("base64")}` } });
-    } catch (err) {
-      log(`[producer][${stage}] 读取图像失败（跳过）：${image.path} — ${err instanceof Error ? err.message : String(err)}`);
-    }
-  }
-  /**
-   * **文本类产物正文**也要给监制（2026-09-24 真机）：
-   * 早先只送 `- [text] /path (2296KB)` 这样的清单，监制看不到正文，
-   * 于是对"字段是否模板默认值 / 有没有红线词 / 有没有 [object Object]"只能回一句
-   * "无正文可核验"——要么误放行、要么以"无法核实"打回（真机 prompt 环节 58 分打回）。
-   * 现在按预算把 json/text 产物正文片段送进去（单文件 1600 字、总量 12000 字），
-   * 图像信息优先级不变（图像在前，文本在后）。
-   */
-  const TEXT_EVIDENCE_PER_FILE = 1600;
-  const TEXT_EVIDENCE_TOTAL = 12_000;
-  const textArtifacts = [
-    ...options.artifacts.filter((a) => a.kind === "json"),
-    ...options.artifacts.filter((a) => a.kind === "text")
-  ];
-  let textBudget = TEXT_EVIDENCE_TOTAL;
-  for (const artifact of textArtifacts) {
-    if (textBudget <= 0) break;
-    try {
-      const raw = readFileSync(artifact.path, "utf8");
-      const limit = Math.min(TEXT_EVIDENCE_PER_FILE, textBudget);
-      const clipped = raw.length > limit ? `${raw.slice(0, limit)}\n…（已截断；原文 ${raw.length} 字）` : raw;
-      textBudget -= clipped.length;
-      content.push({ type: "text", text: `以下是产物正文（${artifact.kind}）：${artifact.path}\n${clipped}` });
-    } catch (err) {
-      log(`[producer][${stage}] 读取文本产物失败（跳过）：${artifact.path} — ${err instanceof Error ? err.message : String(err)}`);
-    }
-  }
-
+  if (!llm) return reject("无可用评审模型；降级只能预览，不能作为合格交付", "fallback");
+  const minScore = options.minScore ?? 70;
+  if (!Number.isFinite(minScore) || minScore < 0 || minScore > 100) return reject("评审分数阈值非法");
+  const tempPaths: string[] = [];
+  const textContent: Array<Record<string, unknown>> = [];
+  const images: Array<{ path: string; label: string }> = [];
+  let totalText = 0;
   try {
-    const res = await (options.fetchImpl ?? fetch)(`${llm.baseUrl}/chat/completions`, {
-      method: "POST",
-      headers: { "content-type": "application/json", authorization: `Bearer ${llm.apiKey}` },
-      body: JSON.stringify({
-        model: llm.model,
-        messages: [{ role: "user", content }],
-        temperature: 0.2,
-        response_format: { type: "json_object" }
-      }),
-      signal: AbortSignal.timeout(180_000)
-    });
-    const text = await res.text();
-    if (!res.ok) throw new Error(`HTTP ${res.status} ${text.slice(0, 200)}`);
-    const parsed = JSON.parse(text) as { choices?: Array<{ message?: { content?: string } }> };
-    const raw = parsed.choices?.[0]?.message?.content ?? "";
-    /**
-     * 评审模型返回的 JSON 偶发畸形（真机 2026-09-24：SC-06 评审返回在第 155 字符处少了一个逗号，
-     * 直接 JSON.parse 抛错 → 整个环节被判"评审不可用"）。这里先做**括号截取修复**，
-     * 仍失败再让模型自修复一次；两次都失败才按"评审不可用"处理（仍是 fail-closed，但不再因一个逗号卡住产线）。
-     */
-    const json = await parseJudgeJson(raw, llm, options.fetchImpl ?? fetch, log, stage) as {
-      approved?: boolean; score?: number; issues?: string[]; suggestions?: string[]; reason?: string;
-    };
-    const approved = json.approved === true;
-    log(`[producer][${stage}] 评审：${approved ? "放行" : "打回"}（score=${json.score ?? "?"}）— ${json.reason ?? ""}`);
-    return {
-      stage,
-      approved,
-      score: typeof json.score === "number" ? json.score : approved ? 80 : 40,
-      hardFailures: [],
-      issues: [...softFailures, ...(json.issues ?? [])],
-      suggestions: json.suggestions ?? [],
-      rerun: !approved,
-      via: "llm",
-      model: llm.model,
-      ms: Date.now() - started,
-      reason: json.reason ?? (approved ? "评审通过" : "评审未通过"),
-      degraded: false
-    };
+    if (options.artifacts.length === 0) throw new Error("缺少待评审产物");
+    for (const artifact of options.artifacts) {
+      const stat = statSync(artifact.path);
+      if (!stat.isFile() || stat.size === 0) throw new Error(`产物为空或不是文件：${artifact.path}`);
+      if (stat.size > 1_000_000_000) throw new Error(`产物超过单次评审资源上限：${artifact.path}`);
+      const bytes = readFileSync(artifact.path);
+      const sha256 = createHash("sha256").update(bytes).digest("hex");
+      if (artifact.kind === "audio") throw new Error(`当前评审适配器不支持音频内容：${artifact.path}；需要音频评审组件`);
+      if (artifact.kind === "text" || artifact.kind === "json") {
+        const raw = bytes.toString("utf8");
+        if (artifact.kind === "json") JSON.parse(raw);
+        totalText += raw.length;
+        if (totalText > 100_000) throw new Error("文本证据超出本次完整评审预算；需拆分评审，禁止截断后通过");
+        textContent.push({ type: "text", text: `以下是产物正文（完整）：${artifact.path}\n${raw}` });
+        evidence.push({ path: artifact.path, sha256, scope: "complete-text" });
+      } else if (artifact.kind === "image") {
+        images.push({ path: artifact.path, label: "待评审产物" });
+        evidence.push({ path: artifact.path, sha256, scope: "image" });
+      } else if (artifact.kind === "video") {
+        const probe = spawnSync(process.env.WL_FFPROBE ?? "ffprobe", ["-v", "error", "-show_entries", "format=duration", "-of", "json", artifact.path], { encoding: "utf8", timeout: 30_000 });
+        if (probe.status !== 0) throw new Error(`视频探测失败：${artifact.path}`);
+        const duration = Number(JSON.parse(probe.stdout).format?.duration);
+        if (!Number.isFinite(duration) || duration <= 0) throw new Error(`视频时长无效：${artifact.path}`);
+        const dir = mkdtempSync(join(tmpdir(), "producer-frames-")); tempPaths.push(dir);
+        const timestamps = [0, 0.2, 0.4, 0.6, 0.8].map((r) => duration * r);
+        for (const [index, at] of timestamps.entries()) {
+          const path = join(dir, `${index}.jpg`);
+          const result = spawnSync(process.env.WL_FFMPEG ?? "ffmpeg", ["-v", "error", "-y", "-ss", String(at), "-i", artifact.path, "-frames:v", "1", "-vf", "scale=720:-2", "-q:v", "3", path], { timeout: 30_000 });
+          if (result.status !== 0 || !existsSync(path)) throw new Error(`视频时序抽帧失败：${artifact.path}@${at}`);
+          images.push({ path, label: `视频 ${artifact.path} 时间 ${at.toFixed(3)}s，按序比较` });
+        }
+        evidence.push({ path: artifact.path, sha256, scope: `temporal-sample:${timestamps.map((t) => t.toFixed(3)).join(",")}; audio-not-reviewed` });
+      }
+    }
+    const artifactImages = images.length;
+    if ((options.referenceImages?.length ?? 0) > 6) throw new Error("基准图超过单次对比预算，需按角色拆分评审");
+    for (const path of options.referenceImages ?? []) {
+      const bytes = readFileSync(path);
+      evidence.push({ path, sha256: createHash("sha256").update(bytes).digest("hex"), scope: "reference-image" });
+      images.push({ path, label: "基准图" });
+    }
+    if (images.length > 60) throw new Error("图像证据超过完整评审预算，需按镜头拆分；禁止静默丢图");
+    const visualStages = ["keyframe", "shot", "compose", "color", "subtitle", "mux", "danmaku", "cover", "master"];
+    if (visualStages.includes(stage) && !artifactImages) throw new Error("画面评审缺少实际图像或可抽帧视频");
+    const encoded: Array<Record<string, unknown>[]> = [];
+    for (const image of images) {
+      let path = image.path;
+      let bytes = readFileSync(path);
+      if (bytes.length > JUDGE_IMAGE_BUDGET_BYTES) {
+        const shrunk = (options.shrinkImage ?? shrinkImageWithFfmpeg)(path);
+        if (!shrunk) throw new Error(`送审图压缩失败：${path}`);
+        if (shrunk !== path) tempPaths.push(shrunk);
+        path = shrunk; bytes = readFileSync(path);
+      }
+      const png = bytes.subarray(0, 8).equals(Buffer.from([137,80,78,71,13,10,26,10]));
+      const jpeg = bytes[0] === 255 && bytes[1] === 216 && bytes[2] === 255;
+      const webp = bytes.toString("ascii", 0, 4) === "RIFF" && bytes.toString("ascii", 8, 12) === "WEBP";
+      if (!(png || jpeg || webp) || bytes.length > JUDGE_IMAGE_BUDGET_BYTES) throw new Error(`图像内容无效或仍超预算：${image.path}`);
+      encoded.push([{ type: "text", text: image.label }, { type: "image_url", image_url: { url: `data:${png ? "image/png" : jpeg ? "image/jpeg" : "image/webp"};base64,${bytes.toString("base64")}` } }]);
+    }
+    const context = options.context ? JSON.stringify(options.context) : "";
+    if (context.length > 30_000) throw new Error("评审上下文超预算，禁止截断事实");
+    const batches = Math.max(1, Math.ceil(artifactImages / 6));
+    const answers: Array<{ approved: boolean; score: number; issues: string[]; suggestions: string[]; reason: string }> = [];
+    for (let batch = 0; batch < batches; batch += 1) {
+      const content = [{ type: "text", text: [
+        `你是视频监制。项目 ${options.projectId}，环节 ${stage}，证据批次 ${batch + 1}/${batches}。`,
+        ...rubric.map((r, i) => `${i + 1}. ${r}`),
+        "只评审实际收到的证据，视频为带时间戳抽帧，不代表逐帧、口型或听音验证。缺证据必须拒绝，不能猜测。",
+        summarizeArtifacts(options.artifacts),
+        "确定性检查（含失败与不适用）：", ...options.deterministic.map((c) => `${c.id}: ${c.status ?? (c.pass ? "passed" : "failed")} ${c.detail}`),
+        context,
+        '只输出 JSON: {"approved":true|false,"score":0-100,"issues":[],"suggestions":[],"reason":"结论"}'
+      ].join("\n") }, ...textContent, ...encoded.slice(batch * 6, Math.min(artifactImages, (batch + 1) * 6)).flat(), ...encoded.slice(artifactImages).flat()];
+      const res = await (options.fetchImpl ?? fetch)(`${llm.baseUrl}/chat/completions`, {
+        method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${llm.apiKey}` },
+        body: JSON.stringify({ model: llm.model, messages: [{ role: "user", content }], temperature: 0.2, response_format: { type: "json_object" } }),
+        signal: AbortSignal.timeout(180_000)
+      });
+      const rawBody = await res.text();
+      if (!res.ok) throw new Error(`HTTP ${res.status} ${rawBody.slice(0, 160)}`);
+      const raw = JSON.parse(rawBody).choices?.[0]?.message?.content;
+      if (typeof raw !== "string") throw new Error("评审模型缺少文本结果");
+      const json = await parseJudgeJson(raw, llm, options.fetchImpl ?? fetch, log, stage);
+      if (typeof json.approved !== "boolean" || typeof json.score !== "number" || !Number.isFinite(json.score) || json.score < 0 || json.score > 100
+        || !Array.isArray(json.issues) || !json.issues.every((x) => typeof x === "string")
+        || !Array.isArray(json.suggestions) || !json.suggestions.every((x) => typeof x === "string") || typeof json.reason !== "string") throw new Error("评审结果结构非法");
+      answers.push(json as typeof answers[number]);
+    }
+    for (const item of evidence) {
+      const currentHash = createHash("sha256").update(readFileSync(item.path)).digest("hex");
+      if (currentHash !== item.sha256) throw new Error(`评审期间产物发生变化：${item.path}`);
+    }
+    const approved = answers.every((a) => a.approved && a.score >= minScore);
+    return { stage, status: approved ? "passed" : "failed", approved, score: Math.min(...answers.map((a) => a.score)),
+      hardFailures: [], issues: [...softFailures, ...answers.flatMap((a) => a.issues)], suggestions: answers.flatMap((a) => a.suggestions),
+      rerun: !approved, via: "llm", model: llm.model, ms: Date.now() - started,
+      reason: answers.map((a) => a.reason).join("；") + (approved ? "" : `（所有证据批次需通过且评分≥${minScore}）`), degraded: false, evidence };
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    const approved = Boolean(options.allowFallbackApprove);
-    log(`[producer][${stage}] 评审调用失败：${message.slice(0, 200)} → ${approved ? "降级放行" : "拒绝放行"}`);
-    return {
-      stage,
-      approved,
-      score: approved ? 55 : 0,
-      hardFailures: [],
-      issues: [...softFailures, `评审模型不可用：${message.slice(0, 160)}`],
-      suggestions: approved ? ["修复评审模型通路后重跑本环节以获得实质评审"] : ["修复评审模型通路后重跑本环节"],
-      rerun: !approved,
-      via: "fallback",
-      model: llm.model,
-      ms: Date.now() - started,
-      reason: `评审模型不可用：${message.slice(0, 120)}`,
-      degraded: true
-    };
+    return reject(err instanceof Error ? err.message : String(err), "fallback", llm.model);
   } finally {
-    /** 回收送审用的临时压缩图（评审失败路径也要回收，避免 /tmp 里越攒越多） */
-    for (const temp of tempImages) {
-      try { rmSync(temp, { force: true }); } catch { /* 临时文件删不掉不该影响评审结论 */ }
+    for (const path of tempPaths) {
+      try { rmSync(path, { recursive: true, force: true }); }
+      catch (err) { log(`[producer] 临时证据清理失败：${path}：${String(err)}`); }
     }
   }
 }

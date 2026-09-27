@@ -38,7 +38,7 @@ import { basename, dirname, isAbsolute, join, resolve } from "node:path";
 import YAML from "yaml";
 import {
   applyMicromotion, appendGateEvent, assessVariantDistinctness, auditContinuity, buildDeliveryManifest, buildGateEvent,
-  assessMotionRichness, buildCoverDesignPrompt, buildMaterialMotionPrompt, buildPlatePrompt, buildRevisionPlan, buildRevisionReport, buildVariantPlan,
+  assessMotionRichness, motionPolicyForShot, buildCoverDesignPrompt, buildMaterialMotionPrompt, buildPlatePrompt, buildRevisionPlan, buildRevisionReport, buildVariantPlan,
   buildMaterialScenePrompt, assessReferenceIndependence, decidePlateCache, plateRequestSha256, MATERIAL_MOTION_POLICY, MATERIAL_RAW_MOTION_POLICY, MATERIAL_SCENE_POLICY_VERSION,
   isDoubledNarration, speechAcceptance,
   termPronunciationCheck,
@@ -172,16 +172,13 @@ const ONLY = arg("--only").split(",").map((s) => s.trim()).filter(Boolean);
  * **不允许静默放行**——必须显式列出，运行日志与阶段记录里要留"带瑕疵放行"的痕迹。
  */
 const ACCEPT_REJECTED = arg("--accept-rejected").split(",").map((s) => s.trim()).filter(Boolean);
-/**
- * 素材镜**运动强度**的显式放行名单（2026-09-25 新增）。
- * 用途：额度受限（如 Ark 账号欠费）时，先用**后期运镜增强**交付，并把"原始渲染运动不足"
- * 如实记为带瑕疵放行（绝不静默通过）；额度恢复后去掉这个参数即可按新提示词重渲。
- */
-const ACCEPT_WEAK_MOTION = arg("--accept-weak-material-motion").split(",").map((s) => s.trim()).filter(Boolean);
+if (arg("--accept-weak-material-motion")) {
+  throw new Error("运动质量不能通过 --accept-weak-material-motion 豁免；请按镜头意图修复并重测。");
+}
 /** 只做后期运镜增强、不提交新渲染（额度受限/只想换运镜设计时用） */
 const MATERIAL_POST_ONLY = flag("--material-post-only");
-/** 后期速度坡道（剪辑手法，默认开；关掉则完全保留模型给的时间节奏） */
-const MATERIAL_SPEED_RAMP = !flag("--no-material-speed-ramp");
+/** 后期速度坡道只由显式参数或镜头意图启用，默认保持原速度 */
+const MATERIAL_SPEED_RAMP = flag("--material-speed-ramp") && !flag("--no-material-speed-ramp");
 /**
  * 后期数字运镜（变焦 + 换景别切，默认**关**）。
  * 产品所有者口径：画面里的运镜必须由模型构建（参考图只作实景依据），数字变焦只作应急手段。
@@ -2609,11 +2606,13 @@ if (STAGES.has("material-gen")) {
       let lastVerdict: ProducerVerdict | null = null;
       let lastMotion = { meanEnergy: 0, maxEnergy: 0, rampRatio: 0, frames: 0, peakAtSec: 0 };
       let lastRawMotion = { meanEnergy: 0, maxEnergy: 0, rampRatio: 0, frames: 0, peakAtSec: 0 };
-      let lastMotionVerdict = { rich: false, detail: "" };
+      const motionPolicy = motionPolicyForShot(card);
+      const useSpeedRamp = MATERIAL_SPEED_RAMP || (motionPolicy.intent === "speed-ramp" && !flag("--no-material-speed-ramp"));
+      let lastMotionVerdict = assessMotionRichness(lastRawMotion, motionPolicy);
       let lastRampVerdict = { rich: false, detail: "" };
       let lastRamp: { segments: Array<{ from: number; to: number; speed: number }>; total: number } | null = null;
       let lastReuse = { samples: [] as Array<{ atSec: number; bestPsnrDb: number | null }>, candidates: 0 };
-      let lastReuseVerdict = { staticDisplay: false, hits: 0, samples: 0, worst: null as number | null, detail: "" };
+      let lastReuseVerdict = assessMaterialReuse([], { durationSec: duration });
       let lastInfo: Record<string, unknown> = {};
       let lastFrames: string[] = [];
       let lastOutputSha = "";
@@ -2676,34 +2675,10 @@ if (STAGES.has("material-gen")) {
            * 成片用完整口径（mean ≥8 且 ramp ≥1.8）。两者分开，才不会"匀速但运动充分"被误杀。
            */
           lastRawMotion = measureMotionRichness(rawClip);
-          lastMotionVerdict = assessMotionRichness(lastRawMotion, MATERIAL_RAW_MOTION_POLICY);
-          /**
-           * 带瑕疵放行（显式）：额度受限时允许"原始渲染运动不足"入片，但必须
-           * ① 镜头在 `--accept-weak-material-motion` 名单里；② 单独写一条 acknowledge 记录留痕。
-           */
-          const weakAccepted = !lastMotionVerdict.rich && ACCEPT_WEAK_MOTION.includes(shot.shotId);
-          if (weakAccepted) {
-            log(`  ⚠ ${shot.shotId} 原始渲染运动不足（${lastRawMotion.meanEnergy.toFixed(2)} < ${MATERIAL_MOTION_POLICY.minMeanEnergy}）：按显式放行处理，交由后期运镜增强`);
-            record({
-              stage: "material-motion-acknowledge", shotId: shot.shotId, invoked: true, ok: true, cached: false,
-              degraded: true, attempt: usedAttempt, ms: 0, artifact: rawClip,
-              evidence: {
-                rawMotion: lastRawMotion, policy: MATERIAL_MOTION_POLICY,
-                reason: "额度受限（Ark AccountOverdueError）：本轮先用后期运镜增强交付，重渲待额度恢复",
-                rerunCommand: `--stages material-gen --only ${shot.shotId} --max-attempts 2（去掉 --material-post-only/--accept-weak-material-motion）`
-              },
-              verdict: null, note: "带瑕疵放行：原始渲染运动不足，已用后期运镜增强补偿（显式留痕）"
-            });
-          }
-          /**
-           * 后期层（默认只保留**速度坡道**这一项剪辑手法；画面里的运镜必须由模型构建）：
-           *   · `--material-speed-ramp`（默认开）：快起→稳行→快收，归一化回原时长——这是剪辑节奏，不是"把图动起来"；
-           *   · `--material-post-camera-move`（默认**关**）：数字变焦 + 换景别切（应急手段）。
-           * 产品所有者口径（2026-09-25）："图片只是实景素材参考，是用来构建真实视频场景的，不是简单做个运镜了事"——
-           * 所以画面运动一律由模型构建（reference 模式 + 场景构建提示词），数字运镜不再默认参与出片。
-           */
+          lastMotionVerdict = assessMotionRichness(lastRawMotion, { ...motionPolicy, minRampRatio: 0 });
+          // 后期速度坡道按意图或显式参数启用；不能补偿未验证的模型生成或物理质量。
           const rampedClip = join(CLIP_DIR, `${shot.shotId}.ramped.mp4`);
-          lastRamp = MATERIAL_SPEED_RAMP
+          lastRamp = useSpeedRamp
             ? applySpeedRamp(rawClip, rampedClip, { durationSec: duration })
             : (() => {
               execFileSync("cp", [rawClip, rampedClip]);
@@ -2746,7 +2721,7 @@ if (STAGES.has("material-gen")) {
                 lastReuse = measureMaterialReuse(clip, prepared, duration, shot.shotId);
                 lastReuseVerdict = assessMaterialReuse(lastReuse.samples, { durationSec: duration });
                 log(`  ✂ ${shot.shotId} 照片尾段裁剪：切掉 ${keep.toFixed(2)}s 之后（首次命中 ${firstHit.toFixed(2)}s），剩余 ${keep.toFixed(2)}s 变速 ${photoTailTrim.factor.toFixed(3)}× 归一回 ${duration}s`
-                  + `；重测 ${lastReuseVerdict.staticDisplay ? "仍判静态直出" : "已通过"}`);
+                  + `；重测 ${lastReuseVerdict.status}`);
               } catch (err) {
                 log(`  ⚠ ${shot.shotId} 照片尾段裁剪失败：${err instanceof Error ? err.message : String(err)}`);
                 break;
@@ -2758,7 +2733,7 @@ if (STAGES.has("material-gen")) {
           const independenceVerdict = assessReferenceIndependence(independence, REFERENCE_INDEPENDENCE_POLICY);
           lastMotion = measureMotionRichness(clip);
           {
-            const rampOk = lastMotion.rampRatio >= MATERIAL_MOTION_POLICY.minRampRatio;
+            const rampOk = !useSpeedRamp || (Number.isFinite(lastMotion.rampRatio) && lastMotion.rampRatio >= MATERIAL_MOTION_POLICY.minRampRatio);
             lastRampVerdict = {
               rich: rampOk,
               detail: `坡道后成片：运动能量 平均 ${lastMotion.meanEnergy.toFixed(2)}／峰值 ${lastMotion.maxEnergy.toFixed(2)}`
@@ -2782,8 +2757,7 @@ if (STAGES.has("material-gen")) {
               ...frameFiles.map((f) => ({ path: f, kind: "image" as const }))
             ],
             rubric: [
-              "**运镜要够猛且有节奏**：镜头必须有明显的位移（推进/拉开/横摇/俯仰/升降/环绕）与速度变化（快起稳收或慢起快收），"
-                + "像《土耳其瞭望塔》那样的运动片；只有自然元素微动、镜头几乎不动，判不合格",
+              `运镜服务原镜头意图（${motionPolicy.intent}）：固定机位可成立，平稳推镜不强加甩镜；仅显式速度坡道镜要求快慢变化。帧差数值不等于物理真实。`,
               "真实三维视差：因镜头位移，前景与远景的相对位移明显不同（不是整幅画面一起平移/缩放的贴图感）",
               "真实地标保真：首帧里的真实地标/建筑形制、檐口层叠、匾额与文字标识、周边水域与地形关系在画面上保持不变（不得被改造、臆造或增删构件）",
               "不是静态直出：不允许「把素材照片放大/平移当镜头」的观感（画面出现全幅一致的位移/缩放痕迹即判不合格）",
@@ -2796,7 +2770,7 @@ if (STAGES.has("material-gen")) {
               { id: "resolution", pass: Number(lastInfo.width ?? 0) >= 720 && Number(lastInfo.height ?? 0) >= 720, detail: `${lastInfo.width}x${lastInfo.height}`, hard: true },
               { id: "audio-track", pass: Boolean(lastInfo.hasAudio), detail: lastInfo.hasAudio ? `音轨 ${lastInfo.acodec}` : "缺音轨（配音环节会补旁白）", hard: false },
               { id: "generation-provenance", pass: provenance.ok, detail: provenance.detail, hard: true },
-              { id: "not-static-display", pass: !lastReuseVerdict.staticDisplay, detail: `素材复用度：${lastReuseVerdict.detail}（候选窗口 ${lastReuse.candidates} 个）`, hard: true },
+              { id: "not-static-display", pass: lastReuseVerdict.passed, detail: `素材复用度：${lastReuseVerdict.detail}（候选窗口 ${lastReuse.candidates} 个）`, hard: true },
               {
                 id: "scene-constructed",
                 pass: independenceVerdict.independent,
@@ -2805,9 +2779,8 @@ if (STAGES.has("material-gen")) {
               },
               {
                 id: "motion-richness",
-                pass: lastMotionVerdict.rich || ACCEPT_WEAK_MOTION.includes(shot.shotId),
-                detail: `原始渲染：${lastMotionVerdict.detail}`
-                  + (lastMotionVerdict.rich ? "" : "（**显式放行**：额度受限，后期运镜增强已应用，详见 material-motion-acknowledge 记录）"),
+                pass: lastMotionVerdict.rich,
+                detail: `原始渲染：${lastMotionVerdict.detail}`,
                 hard: true
               },
               { id: "speed-ramp", pass: lastRampVerdict.rich, detail: lastRampVerdict.detail, hard: true }
@@ -2816,6 +2789,7 @@ if (STAGES.has("material-gen")) {
               shotId: shot.shotId, scene: shot.scene, motion: spec.motion ?? null,
               policy: MATERIAL_POLICY_STATEMENT,
               motionMeasured: lastMotion,
+              motionPolicy,
               rawMotionMeasured: lastRawMotion,
               cameraMove,
               speedRamp: lastRamp,
@@ -2830,19 +2804,19 @@ if (STAGES.has("material-gen")) {
             shotIds: [shot.shotId],
             checks: [
               { id: "generation-provenance", pass: provenance.ok, hard: true, detail: provenance.detail },
-              { id: "not-static-display", pass: !lastReuseVerdict.staticDisplay, hard: true, detail: lastReuseVerdict.detail },
+              { id: "not-static-display", pass: lastReuseVerdict.passed, hard: true, detail: lastReuseVerdict.detail },
               {
                 id: "scene-constructed", pass: independenceVerdict.independent, hard: true,
                 detail: independenceVerdict.detail
               },
               {
                 id: "motion-richness",
-                pass: lastMotionVerdict.rich || ACCEPT_WEAK_MOTION.includes(shot.shotId),
+                pass: lastMotionVerdict.rich,
                 hard: true,
                 detail: lastMotionVerdict.detail
               },
               { id: "speed-ramp", pass: lastRampVerdict.rich, hard: true, detail: lastRampVerdict.detail },
-              { id: "fidelity-reviewed", pass: lastVerdict.approved || Boolean(lastVerdict.degraded), hard: false, detail: lastVerdict.approved ? "监制保真评审放行" : `监制未放行（${lastVerdict.reason.slice(0, 80)}）` }
+              { id: "fidelity-reviewed", pass: lastVerdict.approved, hard: false, detail: lastVerdict.approved ? "监制保真评审放行" : `监制未放行（${lastVerdict.reason.slice(0, 80)}）` }
             ],
             softApproved: lastVerdict.approved, via: lastVerdict.via, score: lastVerdict.score,
             evidence: {
@@ -2871,7 +2845,7 @@ if (STAGES.has("material-gen")) {
               : `第 ${usedAttempt} 次未过（${lastMotionVerdict.rich ? "" : "运动不足；"}${lastVerdict.approved ? "" : `监制：${lastVerdict.reason.slice(0, 60)}`}）`
           });
           if (!accepted && usedAttempt < attempts) {
-            log(`  ↻ ${shot.shotId} 运镜未达标（${lastMotionVerdict.detail}）→ 升级运动强度重渲`);
+            log(`  ↻ ${shot.shotId} 运镜未达标（${lastMotionVerdict.detail}）→ 按原镜头意图修复重渲`);
           }
         } catch (err) {
           record({
