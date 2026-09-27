@@ -39,6 +39,8 @@ import { homedir } from "node:os";
 import { tmpdir } from "node:os";
 import { basename, dirname, isAbsolute, join, resolve } from "node:path";
 import YAML from "yaml";
+import { loadOrCreateFilmAuthorContext, reviewFilmStage } from "../../packages/video-studio/src/film-contracts.js";
+import type { ProducerGateOptions } from "../../packages/video-studio/src/producer-gate.js";
 import { executeRevision } from "../../packages/video-studio/src/revision-executor.js";
 import { assessVoiceArtifact, fingerprintFile, fingerprintText, promoteDubCandidate, type VoiceArtifactRecord } from "./film-voice-artifact.js";
 import {
@@ -56,7 +58,7 @@ import {
   coverDeterministicChecks, coverPrefersNightBackground, COVER_FONTS, COVER_LOWER_BAND_SAFE_AREA, COVER_REVIEW_RUBRIC, COVER_SAFE_AREA,
   getCoverSpec, isKnownCoverPlatform, COVER_PLATFORM_IDS,
   fallbackCoverPlan, findAngleFile, MATERIAL_POLICY_STATEMENT, MATERIAL_POLICY_VERSION, assessMaterialReuse,
-  assertMaterialGenerationProvenance, parseCoverPlan, prepareShotPrompt, readMaterialSpec, resolveProducerLlm, reviewStage,
+  assertMaterialGenerationProvenance, parseCoverPlan, prepareShotPrompt, readMaterialSpec, resolveProducerLlm,
   buildSfxArgs, cutTimesFromShots, planCutSfxDetailed, CUT_SFX_POLICY, planHookSfx, HOOK_SFX_POLICY,
   measureBpm, beatGridReport, checkShotOrder, assessVariantAxes, VARIANT_MIN_COUNT, auditDeliverableNaming,
   assessCharacterConsistency, medianColor, type CharacterConsistencyReport, type RgbColor,
@@ -118,6 +120,8 @@ const log = (line: string): void => process.stdout.write(`[${stamp().slice(11, 1
 
 const SHOTS_FILE = abs(arg("--shots"));
 if (!SHOTS_FILE || !existsSync(SHOTS_FILE)) throw new Error("需要 --shots <shotlist.json>");
+const sourceBytes = readFileSync(SHOTS_FILE);
+const sourceDocument = JSON.parse(sourceBytes.toString("utf8")) as Record<string, unknown> & { shots?: Array<Record<string, unknown>> };
 const PROJECT = arg("--project", basename(SHOTS_FILE, ".json"));
 if (!/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(PROJECT) || PROJECT.includes("..")) throw new Error("PROJECT_ID_INVALID: 项目ID不能包含路径或特殊分隔符");
 const RUN_ID = randomUUID();
@@ -127,12 +131,12 @@ const OUT_ROOT = resolve(arg("--out", join(REPO_ROOT, "outputs", PROJECT)));
 const KEYS_FILE = arg("--keys-file", join(homedir(), ".workloom", "live.env"));
 const BRIEF_FILE = arg("--brief");
 const REVISION_CONTEXT = arg("--revision-context", "");
-const ASPECT = arg("--aspect", "9:16");
+const ASPECT = arg("--aspect", typeof sourceDocument.aspect === "string" ? sourceDocument.aspect : "9:16");
 /**
  * 云端生成保持原来的低价分辨率；UHD 只在本机取得镜头文件后执行。
  * `--resolution 2160p` 是旧参数风格的交付档别名，不传给模型提示词。
  */
-const REQUESTED_RESOLUTION = arg("--resolution", "1080p");
+const REQUESTED_RESOLUTION = arg("--resolution", typeof sourceDocument.resolution === "string" ? sourceDocument.resolution : "1080p");
 const QUALITY_ARG = arg("--quality", "");
 if (!["720p", "1080p", "2160p"].includes(REQUESTED_RESOLUTION)) {
   throw new Error(`--resolution 不支持 ${REQUESTED_RESOLUTION}（可选 720p / 1080p / 2160p）`);
@@ -548,15 +552,25 @@ type StageRecord = {
   reason?: string;
 };
 const records: StageRecord[] = [];
-const sourceBytes = readFileSync(SHOTS_FILE);
-const sourceDocument = JSON.parse(sourceBytes.toString("utf8")) as Record<string, unknown> & { shots?: Array<Record<string, unknown>> };
 if (!Array.isArray(sourceDocument.shots) || !sourceDocument.shots.length) throw new Error("SHOT_REGISTRY_REQUIRED");
 const sourceIds = sourceDocument.shots.map((shot) => String(shot.shotId ?? ""));
 if (sourceIds.some((id) => !/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(id) || id.includes("..")) || new Set(sourceIds).size !== sourceIds.length) throw new Error("SHOT_REGISTRY_INVALID: 镜号缺失、重复或包含路径字符");
 if (ONLY.some((id) => !sourceIds.includes(id))) throw new Error("SHOT_SCOPE_UNKNOWN: --only 包含未登记镜号");
 const sourceFileHash = createHash("sha256").update(sourceBytes).digest("hex");
 const lineageComponentHash = sha256FileSync(join(REPO_ROOT, "scripts/tools/full-chain-film.mts"));
-const sourceSupportFiles = [...(BRIEF_FILE ? [abs(BRIEF_FILE)] : []), ...(arg("--scene-bible") ? [abs(arg("--scene-bible"))] : [])];
+const SCENE_BIBLE_FILE = arg("--scene-bible");
+const sceneBible: SceneBible | null = SCENE_BIBLE_FILE
+  ? JSON.parse(readFileSync(abs(SCENE_BIBLE_FILE), "utf8")) as SceneBible
+  : (sourceDocument.sceneBible as SceneBible | undefined) ?? null;
+const AUTHOR_CONTEXT_FILE = join(LOG_DIR, "project-context.json");
+const authorContext = loadOrCreateFilmAuthorContext({ path: AUTHOR_CONTEXT_FILE, projectId: PROJECT,
+  eraProfile: sourceDocument.eraProfile ?? sceneBible?.eraProfile });
+const filmContractSource = { projectId: PROJECT, shots: sourceDocument.shots!, eraProfile: authorContext.eraProfile,
+  ...(sceneBible ? { sceneBible } : {}) };
+function reviewStage(options: Omit<ProducerGateOptions, "contracts">): Promise<ProducerVerdict> {
+  return reviewFilmStage(filmContractSource, options);
+}
+const sourceSupportFiles = [AUTHOR_CONTEXT_FILE, ...(BRIEF_FILE ? [abs(BRIEF_FILE)] : []), ...(arg("--scene-bible") ? [abs(arg("--scene-bible"))] : [])];
 const sourceSnapshot = captureLineageInputs(sourceSupportFiles);
 if (sourceSnapshot.errors.length) throw new Error(`SOURCE_UNREADABLE: ${sourceSnapshot.errors.join("; ")}`);
 const sourceSupportHashes = new Map(sourceSnapshot.artifacts.map((entry) => [entry.path, entry.sha256]));
@@ -568,7 +582,7 @@ function sourceHashFor(shotId: string | null): string {
     source: shotId ? { ...common, shot: allShots!.find((shot) => shot.shotId === shotId) ?? null } : { ...sourceDocument, selectedShotIds: ONLY },
     brief: BRIEF_FILE ? sourceSupportHashes.get(abs(BRIEF_FILE)) ?? null : null,
     sceneBible: arg("--scene-bible") ? sourceSupportHashes.get(abs(arg("--scene-bible"))) ?? null : null,
-    aspect: ASPECT, resolution: SOURCE_RESOLUTION, fps: FPS,
+    eraProfile: authorContext.eraProfile, aspect: ASPECT, resolution: SOURCE_RESOLUTION, fps: FPS,
   });
 }
 function lineageStage(rec: Pick<StageRecord, "stage" | "stepKey" | "evidence">): string {
@@ -911,7 +925,7 @@ interface ShotCard {
   dialogue?: Array<{ speaker?: string; text?: string; emotion?: string; trigger?: string }>;
   [key: string]: unknown;
 }
-const shotlist = JSON.parse(readFileSync(SHOTS_FILE, "utf8")) as {
+const shotlist = structuredClone(sourceDocument) as {
   projectId?: string; title?: string; durationSeconds?: number; aspect?: string; resolution?: string;
   sceneBible?: SceneBible;
   hook?: HookCard;
@@ -934,19 +948,10 @@ if (!Array.isArray(shotsSelected) || shotsSelected.length === 0) throw new Error
  *   ② **审计**：`environmentDefects` 逐镜出硬/软缺陷，写 `env-realism-report-<project>.json` 留证；
  *   ③ **闸门**：本轮要做生成类阶段（spec/plates/material-gen/videos）时，硬缺陷 **fail-closed**
  *      ——"渲染前拦住"而不是"渲完肉眼发现"（单镜关键帧 ~85s、单镜视频 ~160s、还要重后期）。
- *      确需带瑕疵继续：`--accept-rejected env` 或 `--accept-env-defects`（会写进阶段日志留痕）。
+ *      正式生产不可豁免；dry-run 可生成带明确降级标记的诊断记录。
  *
  * 纪律：圣经只升级**环境**，不改表演/台词/时长/构图（`expandShotWithBible` 的字段白名单）。
  */
-const SCENE_BIBLE_FILE = arg("--scene-bible");
-const sceneBible: SceneBible | null = (() => {
-  if (SCENE_BIBLE_FILE) {
-    const file = abs(SCENE_BIBLE_FILE);
-    if (!existsSync(file)) throw new Error(`--scene-bible 指向的文件不存在：${file}`);
-    return JSON.parse(readFileSync(file, "utf8")) as SceneBible;
-  }
-  return shotlist.sceneBible ?? null;
-})();
 const shots: ShotCard[] = sceneBible
   ? shotsSelected.map((shot) => expandShotWithBible(shot as ShotCard & Record<string, unknown>, sceneBible))
   : shotsSelected;
@@ -958,17 +963,18 @@ const envBibleIssues = sceneBible ? validateSceneBible(sceneBible) : [];
 const envDefects: EnvDefect[] = environmentDefects(shots, sceneBible);
 const envSummary = summarizeDefects(envDefects);
 /**
- * 设备口径（2026-09-27 产品所有者硬约束）：场景里的电子设备**全部使用 2024 年之后的 Apple 设备**。
+ * 设备口径：新项目默认当前故事日期并冻结，历史场景/品牌要求由源合同明确声明。
  * 与环境审计同一处 fail-closed——都是"渲染前必须清零"的资产级约束，报告合并在一份文件里（便于一条命令复核）。
  */
-const devDefects: DeviceDefect[] = deviceDefects(shots);
+const devDefects: DeviceDefect[] = deviceDefects(shots, { eraProfile: authorContext.eraProfile });
 const devSummary = summarizeDeviceDefects(devDefects);
 const envHardTotal = envSummary.hard + devSummary.hard;
 const envSoftTotal = envSummary.soft + devSummary.soft;
 const ENV_REPORT_FILE = join(WORK_DIR, `env-realism-report-${PROJECT}.json`);
 mkdirSync(WORK_DIR, { recursive: true });
 writeFileSync(ENV_REPORT_FILE, `${JSON.stringify({
-  schemaVersion: "workloom.env-realism-report/v1",
+  schemaVersion: "workloom.env-realism-report/v2",
+  eraProfile: authorContext.eraProfile,
   generatedAt: stamp(),
   shotlist: SHOTS_FILE,
   projectId: PROJECT,
@@ -976,7 +982,7 @@ writeFileSync(ENV_REPORT_FILE, `${JSON.stringify({
     ? { spaceId: sceneBible.spaceId, summary: spaceSummary(sceneBible), materials: sceneBible.materials?.length ?? 0, practicalLights: sceneBible.practicalLights?.length ?? 0, traces: sceneBible.traces?.length ?? 0, issues: envBibleIssues }
     : null,
   summary: { hard: envHardTotal, soft: envSoftTotal, byRule: { ...envSummary.byRule, ...devSummary.byRule }, environment: envSummary, device: devSummary },
-  devicePolicy: { version: DEVICE_POLICY_VERSION, verifiedAt: DEVICE_POLICY_VERIFIED_AT, brief: "场景里的电子设备全部为 2024 年后世代的 Apple 在售机型（以镜头卡 devices[] 声明）" },
+  devicePolicy: { version: DEVICE_POLICY_VERSION, verifiedAt: DEVICE_POLICY_VERIFIED_AT, eraProfile: authorContext.eraProfile, brief: "按冻结故事年代、逐镜具体型号及显式品牌档案核实；局部时代合同可覆写" },
   perShot: shots.map((shot) => {
     const own = [...envDefects, ...devDefects].filter((defect) => defect.shotId === shot.shotId);
     return {
@@ -1019,11 +1025,11 @@ record({
   note: "环境真实性 + 设备口径审计（场景圣经展开 + 确定性规则）"
 });
 if (envAuditInScope && envHardTotal > 0 && !envAccepted) {
-  log("⛔ 环境真实性 / 设备口径硬缺陷未清零：本环节要在**花钱之前**拦住「平均样板间」与非 2024 后 Apple 设备。");
-  log("   修法：在 shotlist 顶层写 sceneBible（或 --scene-bible <file>），让每镜带上空间实指 / 材质工艺 / 实用光源 / 使用痕迹；");
-  log("   可交互道具（手机/平板/笔记本）补 propInteraction（prop / orientation / operatedBy）。");
-  log(`   设备口径：每镜补 devices[]（category + model，机型见允许清单：${allowedModelSummary()}…）——裸词不算机型。`);
-  log("   确需带瑕疵继续：--accept-rejected env（会记为 degraded 留痕）。");
+  log("⛔ 环境真实性 / 设备口径硬缺陷未清零：本环节在花钱之前核对场景事实、器物用途与冻结年代。");
+  log("   修法：在 shotlist 顶层写 sceneBible（或 --scene-bible <file>），让每镜带上空间、可见材质、实际光源和明确使用状态；");
+  log("   可交互道具（手机/平板/笔记本）按用途补 propInteraction（prop / purpose / orientation / screenFacing / operatedBy）。");
+  log(`   设备口径：每镜补 devices[]（category + model，机型见允许清单：${allowedModelSummary(undefined, authorContext.eraProfile)}…）——裸词不算机型。`);
+  log("   按报告修复源合同后重跑；正式生产不接受豁免。");
   process.exit(7);
 }
 
@@ -1531,7 +1537,7 @@ function platePrompt(shot: ShotCard, characterName: string, appearanceText = "")
     appearanceText,
     aspect: ASPECT,
     resolution: SOURCE_RESOLUTION,
-    title: shotlist.title
+    title: shotlist.title, eraProfile: authorContext.eraProfile, ...(sceneBible ? { sceneBible } : {})
   });
 }
 function buildSrt(): string {
@@ -2264,7 +2270,7 @@ if (STAGES.has("plates")) {
       });
     }
     if (DRY_RUN) {
-      record({ stage: "keyframe", shotId: shot.shotId, invoked: false, ok: true, cached: false, degraded: false, attempt: 0, ms: 0, artifact: null, evidence: { dryRun: true }, verdict: null });
+      record({ stage: "keyframe", shotId: shot.shotId, invoked: false, ok: true, cached: false, degraded: false, attempt: 0, ms: 0, artifact: null, evidence: { dryRun: true, prompt: basePlatePrompt, eraProfile: authorContext.eraProfile }, verdict: null });
       continue;
     }
     let approved = false;
@@ -2287,7 +2293,8 @@ if (STAGES.has("plates")) {
         const info = probe(plate);
         const width = Number(info.width ?? 0); const height = Number(info.height ?? 0);
         const ratio = width && height ? width / height : 0;
-        const expected = ASPECT === "9:16" ? 9 / 16 : 16 / 9;
+        const [aspectWidth, aspectHeight] = ASPECT.split(":").map(Number);
+        const expected = aspectWidth! / aspectHeight!;
         const verdict = await reviewStage({
           stage: "keyframe", projectId: PROJECT,
           artifacts: [{ path: plate, kind: "image", bytes: Number(info.bytes ?? 0), probe: info }],

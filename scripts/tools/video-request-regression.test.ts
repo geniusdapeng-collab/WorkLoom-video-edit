@@ -13,11 +13,11 @@ const temporary: string[] = [];
 afterEach(() => { for (const dir of temporary.splice(0)) rmSync(dir, { recursive: true, force: true }); });
 
 type Card = Record<string, unknown>;
-function runChain(shots: Card[], options: { stages?: string; args?: string[]; dir?: string; dryRun?: boolean; project?: string } = {}) {
+function runChain(shots: Card[], options: { stages?: string; args?: string[]; dir?: string; dryRun?: boolean; project?: string; source?: Card } = {}) {
   const dir = options.dir ?? mkdtempSync(join(tmpdir(), "video-request-regression-"));
   if (!options.dir) temporary.push(dir);
   const shotsFile = join(dir, "shots.json");
-  writeFileSync(shotsFile, JSON.stringify({ title: "摄影增强回归", shots }));
+  writeFileSync(shotsFile, JSON.stringify({ title: "摄影增强回归", ...options.source, shots }));
   const result = spawnSync(process.execPath, ["--import", "tsx", "scripts/tools/full-chain-film.mts",
     "--shots", shotsFile, "--project", options.project ?? "regression", "--work-dir", dir, "--out", join(dir, "out"),
     "--keys-file", join(dir, "no-credentials.env"), "--library", join(dir, "no-characters"),
@@ -276,4 +276,61 @@ describe("成片硬切 CFR 接缝", () => {
     expect(sync.ok).toBe(true);
     expect(sync.measured).toBe(3);
   }, 100_000);
+});
+
+
+describe("全链路冻结年代与原合同接线", () => {
+  it.each([
+    { sourceResolution: "720p", args: [], expectedSource: "720p", expectedOutput: "720p", quality: "hd" },
+    { sourceResolution: "2160p", args: [], expectedSource: "1080p", expectedOutput: "2160p", quality: "uhd" },
+    { sourceResolution: "720p", args: ["--resolution", "1080p"], expectedSource: "1080p", expectedOutput: "1080p", quality: "hd" },
+  ])("源规格 $sourceResolution 与明确覆盖保留4K源片/交付档边界", ({ sourceResolution, args, expectedSource, expectedOutput, quality }) => {
+    const run = runChain([emptyShot], { stages: "plates", source: { aspect: "16:9", resolution: sourceResolution }, args: ["--accept-env-defects", ...args] });
+    expect(run.result.status, run.diagnostic).toBe(0);
+    const prompt = run.rows().find((r: Card) => r.stage === "keyframe").evidence.prompt;
+    expect(prompt).toContain("16:9 横幅");
+    expect(prompt).toContain(expectedSource);
+    expect(run.diagnostic).toContain(`源 ${expectedSource} → 交付 ${expectedOutput}`);
+    expect(run.diagnostic).toContain(`(${quality === "uhd" ? "3840x2160" : expectedOutput === "720p" ? "1280x720" : "1920x1080"})`);
+    if (quality === "uhd") expect(prompt).not.toContain("2160p");
+  }, 40_000);
+  it("新项目默认当天且续跑保存同一日期，源合同记录进入血缘", () => {
+    const first = runChain([emptyShot], { stages: "micromotion" });
+    expect(first.result.status, first.diagnostic).toBe(0);
+    const context = first.read("logs/regression/project-context.json");
+    expect(context.eraProfile.storyDate).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    const next = runChain([emptyShot], { stages: "micromotion", dir: first.dir });
+    expect(next.result.status, next.diagnostic).toBe(0);
+    expect(next.read("logs/regression/project-context.json")).toEqual(context);
+    expect(next.rows().findLast((r: Card) => r.stage === "micromotion").lineage.inputs.some((input: Card) => input.path.endsWith("project-context.json"))).toBe(true);
+  }, 40_000);
+  it("片级历史日期与局部闪回进入实际关键帧prompt，并继承源横幅", () => {
+    const shot = { shotId: "PAIR", duration: 8, scene: "两个女人在海边岩石上相对站立", action: "两人不笑，保持站姿", composition: "双人中景", lighting: "2200K 暖烛光，日落余光", depth_of_field: "两人与海岸同时清晰", eraProfile: { storyDate: "1995-08-02" }, environmentProfile: { setting: "exterior", condition: "natural" } };
+    const run = runChain([shot], { stages: "plates", source: { eraProfile: { storyDate: "2025-01-01" }, aspect: "16:9" }, args: ["--accept-env-defects"] });
+    expect(run.result.status, run.diagnostic).toBe(0);
+    const prompt = run.rows().find((r: Card) => r.stage === "keyframe").evidence.prompt;
+    expect(prompt).toContain("16:9 横幅"); expect(prompt).toContain("人数 2");
+    expect(prompt).toContain("1995-08-02"); expect(prompt).toContain("2200K 暖烛光");
+    expect(prompt).toContain("两人与海岸同时清晰"); expect(prompt).not.toContain("5600K");
+    expect(run.read("logs/regression/project-context.json").eraProfile.storyDate).toBe("2025-01-01");
+  }, 40_000);
+  it("外部场景圣经年代默认继承，逐镜未来设备被报告", () => {
+    const dir = mkdtempSync(join(tmpdir(), "film-bible-era-")); temporary.push(dir);
+    const bible = { spaceId: "coast", space: { city: "上海", building: "海边岩岸", orientation: "朝海", timeOfDay: "傍晚" }, materials: [], practicalLights: [{ type: "日落天光", direction: "西侧" }], traces: [], environmentProfile: { setting: "exterior", condition: "natural" }, eraProfile: { storyDate: "2024-01-01" } };
+    const biblePath = join(dir, "bible.json"); writeFileSync(biblePath, JSON.stringify(bible));
+    const shot = { ...emptyShot, scene: "无人的海边空镜，岩石上静置手机", devices: [{ category: "phone", model: "iPhone 16 Pro" }] };
+    const run = runChain([shot], { dir, stages: "micromotion", args: ["--scene-bible", biblePath] });
+    expect(run.result.status, run.diagnostic).toBe(0);
+    const report = run.read("env-realism-report-regression.json");
+    expect(report.eraProfile.storyDate).toBe("2024-01-01");
+    expect(report.summary.device.hard).toBeGreaterThan(0);
+    expect(JSON.stringify(report.defects)).toContain("2024-01-01");
+  }, 40_000);
+  it("已经冻结后改源年代明确拒绝，不能默默盖写", () => {
+    const first = runChain([emptyShot], { stages: "micromotion", source: { eraProfile: { storyDate: "2024-01-01" } } });
+    expect(first.result.status, first.diagnostic).toBe(0);
+    const second = runChain([emptyShot], { stages: "micromotion", dir: first.dir, source: { eraProfile: { storyDate: "2025-01-01" } } });
+    expect(second.result.status).not.toBe(0); expect(second.diagnostic).toContain("FILM_ERA_CONFLICT");
+    expect(second.read("logs/regression/project-context.json").eraProfile.storyDate).toBe("2024-01-01");
+  }, 40_000);
 });
