@@ -111,7 +111,7 @@ bgm-cli library --scan
 ```bash
 bgm-cli fetch --prompt "国风古筝，中国古典" --catalog chinese-classical
 bgm-cli fetch --prompt "欧美流行风格，快节奏" --catalog western-pop
-bgm-cli best  --in clip.mp4 --out scored.mp4 --prompt "..." --catalog cinematic-score
+bgm-cli best  --in clip.mp4 --out scored.mp4 --audio-stems pinned-audio-reference.json --prompt "..." --catalog cinematic-score
 ```
 
 | catalog | 含义 | 曲源参数（Jamendo 标签 / Freesound 检索词） |
@@ -131,7 +131,7 @@ bgm-cli best  --in clip.mp4 --out scored.mp4 --prompt "..." --catalog cinematic-
 
 ```bash
 bgm-cli structure --in track.wav                       # 看结构：分段 + BPM + 高潮候选
-bgm-cli mix --in clip.mp4 --out scored.mp4 --bgm track.wav --section auto
+bgm-cli mix --in clip.mp4 --out scored.mp4 --bgm track.wav --audio-stems pinned-audio-reference.json --section auto
 bgm-cli mix ... --section climax                       # 强制取高潮段
 bgm-cli mix ... --section calm                         # 强制取铺垫段
 bgm-cli mix ... --section-start 62 --section-end 78    # 人工指定（秒）
@@ -151,12 +151,34 @@ bgm-cli mix ... --section-start 62 --section-end 78    # 人工指定（秒）
 
 | policy | 声音床 | 适用 | 纪律 |
 |---|---|---|---|
-| `keep-dialogue`（默认） | 原声全保留，BGM 让位 | 口播/访谈/带货 | 人声-音乐余量 ≥6dB，让位 8–14dB |
-| `keep-all` | 原声全保留，BGM 更轻 | 纪录片/现场感 | 配乐电平再降 3dB，让位更浅 |
-| `replace-bed` | 仅人声（中心声道近似分离） | 环境声脏、要换氛围 | 单声道素材直接拒绝（`separation_unavailable`） |
-| `music-only` | 静音（原声全丢） | 纯音乐卡点片 | 必须显式 `allow_discard_original=true`，且 G-BGM3 在有人声时阻断 |
+| `keep-dialogue`（默认） | 独立对白 + 环境 + 拟音 | 口播/访谈/带货 | 只由独立对白驱动侧链；对白-音乐余量 ≥3dB，3–6dB 告警 |
+| `keep-all` | 同一独立节目轨，BGM 更轻 | 纪录片/现场感 | 配乐电平再降 3dB，旧音乐不进入节目轨 |
+| `replace-bed` | 经签章的独立对白 | 环境声脏、要换氛围 | 不做中心声道近似分离；独立对白缺失拒绝 |
+| `music-only` | 静音节目床 | 无对白纯音乐片 | 显式 `allow_discard_original=true` 且对白须有权威不适用回执 |
+
+## 正常混音的独立来源要求
+
+`mix`/`best` 的 CLI 参数 `--audio-stems` 指向固定引用 JSON：`{dir,manifestSha256,recipeSha256,scope}`；
+工具参数名为 `audio_stems`。来源由本工位自持的 `audio-stems.mjs` 生成/校验（后期工位同源引用），四角色与签章合同见
+[`post-bridge/README.md`](../post-bridge/README.md#独立音轨来源合同t-2026-0927-0037)。工位使用
+`WORKLOOM_AUDIO_STEM_SIGNING_SECRET` / `WORKLOOM_AUDIO_STEM_SIGNING_KEY_ID` 验证，未配置时拒绝。
+本连接器只含验证器，尚未实现生产签发者。分离工具的输出不是生产独立来源资格。
+
+混音前后均重验当前签章、作用域、源/角色/节目字节及配方重放。画面、音乐、节目与对白从校验后的
+FD 快照读取，画面内嵌音频不参与混音。对白活动、侧链和人声余量均来自独立对白轨。最终对白/音乐/
+节目测量使用同一线性主增益，保留处理后轨道与哈希，不以不同响度归一化的文件比较余量。
+增益受真峰值余量限制；无法同时满足响度和峰值时失败，不使用未记录的动态限制器。
+合法无对白决定显示 `applicability=not_applicable`；其人声余量与让位数值为 null，未获得不适用签章的
+缺失测量仍失败。音频/视频时间线差超过 40ms 拒绝。
+
+输出路径必须为新文件。相同 HTTP 请求仅在途共用作业；已完成请求重交会返回
+`idempotency_revalidation_required`，同键不同参数为 `idempotency_conflict`。旧回执不作为新一次成功依据。
 
 ## 安装与自检（工位一次性）
+
+下列旧 selftest/demo/runtime-smoke 脚本尚未接入独立来源签发合同，其混音步骤会按缺少签章拒绝；
+当前合同的真实 FFmpeg、CLI/HTTP 与总装测试由 `audio-stems*.test.mjs`、`audio-stems-mix.test.mjs` 和
+`delivery-integration.test.ts` 覆盖。不得把旧脚本执行失败解释为需要放宽来源校验。
 
 ```bash
 bash kit/install.sh            # 受控下载 ffmpeg/ffprobe（pin 版本 + sha256 校验 + 必需滤镜检查）
@@ -222,7 +244,7 @@ node_modules/.bin/tsx bundles/ai-video/connectors/bgm-bridge/runtime-smoke.mts
 | 保留人声、BGM 让位 | `sidechaincompress` 侧链由人声频段驱动；`duckingDepthDb` / `speechToMusicMarginDb` 实测 |
 | 配了不能像没配 | `musicPresenceDb` <3dB 直接 `verify_failed` 并删除产物（do-no-harm） |
 | 不压住人声 | 人声-音乐余量 <3dB 直接 `verify_failed`；3–6dB 记告警 |
-| 响度交付口径 | 两遍法 `loudnorm`：-14 LUFS / -1 dBTP，复检超差记 `loudness_ok=false` |
+| 响度交付口径 | 由实测节目响度/真峰值求同一线性增益；-14 LUFS / -1 dBTP，超差拒绝发布 |
 | 卡点对齐 | 剪辑点（scene 检测）→ 节拍网格偏移搜索；平均/达标率与阈值写进回执 |
 | 选段可解释 | `bgmread.structure` 的段表 + `chooseSection` 的决策理由 + `section-picked.png` 证据；无高潮点如实写 `skipped` |
 | 原片只读 | `assertOutputWritable` 同款检查 + 围栏 G-BGM2 |

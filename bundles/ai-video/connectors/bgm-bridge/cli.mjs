@@ -11,6 +11,7 @@
  *   bgm-cli compose   --out bgm.wav (--in clip.mp4 | --duration 30) [--id food] [--genre 美食]
  *                     [--seed 2026] [--bpm 96] [--bpm-strategy cut-driven]
  *   bgm-cli mix       --in clip.mp4 --out scored.mp4 --bgm bgm.wav [--policy keep-dialogue]
+ *                     --audio-stems pinned-audio-reference.json
  *                     [--music-level -22] [--ducking 12] [--lufs -14] [--evidence-dir dir]
  *                     [--track-license cc-by-4.0] [--attribution-out CREDITS.md]
  *   bgm-cli separate  --in clip.mp4 --out-dir dir [--engine auto|demucs|ffmpeg]
@@ -35,6 +36,7 @@
  */
 
 import process from "node:process";
+import fs from "node:fs";
 
 import { BgmError, analyze, analyzeStructure, best, callTool, compose, findRecipes, findTracks, mix, separate } from "./core.mjs";
 import { CATALOGS } from "./sources.mjs";
@@ -78,6 +80,12 @@ function catalogFlag(value) {
     throw new BgmError(`未知目录预设：${name}（可选 ${Object.keys(CATALOGS).join(" / ")}）`, "catalog_unknown");
   }
   return name;
+}
+
+function audioStemsFlag(value) {
+  if (typeof value !== "string" || !value) throw new BgmError("--audio-stems 需要工程固定的签章分轨引用 JSON", "audio_stems_source_unverified", false);
+  try { return JSON.parse(fs.readFileSync(value, "utf8")); }
+  catch (error) { throw new BgmError(`音轨引用无法读取：${error.message}`, "bad_request", false); }
 }
 
 async function main() {
@@ -195,6 +203,7 @@ async function main() {
     }
     case "mix": {
       const result = await mix({
+        audioStems: audioStemsFlag(flags["audio-stems"]),
         input: flags.in,
         output: flags.out,
         bgmPath: flags.bgm,
@@ -364,6 +373,7 @@ async function main() {
     }
     case "best": {
       const result = await best({
+        audioStems: audioStemsFlag(flags["audio-stems"]),
         input: flags.in,
         output: flags.out,
         genre: typeof flags.genre === "string" ? flags.genre : null,
@@ -397,9 +407,9 @@ async function main() {
 }
 
 main()
-  .then((code) => process.exit(code))
+  .then((code) => { process.exitCode = code; })
   .catch((error) => {
-    const code = error instanceof BgmError ? error.code : "engine_failed";
+    const code = typeof error?.code === "string" ? error.code : "engine_failed";
     process.stderr.write(`${code}: ${error instanceof Error ? error.message : String(error)}\n`);
-    process.exit(3);
+    process.exitCode = 3;
   });

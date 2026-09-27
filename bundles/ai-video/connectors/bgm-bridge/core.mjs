@@ -15,6 +15,7 @@
  * ducking 8–14dB、母版 -14 LUFS / -1 dBTP），参数集为本仓自有取值。
  */
 
+import { randomUUID } from "node:crypto";
 import fs from "node:fs";
 import fsp from "node:fs/promises";
 import os from "node:os";
@@ -27,6 +28,8 @@ import {
   segmentSpectralStats, sha256File, tempDir,
 } from "./measure.mjs";
 import { composeToWav, planComposition } from "./synth.mjs";
+import { verifyAudioStemBundle, snapshotAudioStemArtifact } from "./audio-stems.mjs";
+import { createAudioStemReceiptVerifier } from "./audio-stems-trust.mjs";
 import { analyzePromptBrief, energyCurveFor, scoreTrackAgainstBrief } from "./brief.mjs";
 import { cacheDir as onlineCacheDir, fetchCandidate, listSources, searchOnline } from "./sources.mjs";
 import { defaultScanRoots, discoverLibraries, packLibrary, rebindLibrary, tagLibrary, writeLibrary } from "./tag.mjs";
@@ -1333,48 +1336,102 @@ async function renderStem({ input, output, chain, durationSec, bins, label }) {
   return output;
 }
 
-/** 用 loudnorm 两遍法把音频标准化到播出响度（此处不做动态压缩，只做整体增益与真峰值限制）。 */
+/** A shared linear gain preserves actual stem ratios; no hidden dynamic normalization. */
 async function normalizeLoudness({ input, output, targetLufs, truePeak, bins }) {
   const measured = await measureLoudness(input, { bins, targetLufs, truePeak });
-  const measuredI = Number.isFinite(measured.integratedLufs) ? measured.integratedLufs : targetLufs;
-  const measuredTp = Number.isFinite(measured.truePeakDbtp) ? measured.truePeakDbtp : truePeak;
-  const measuredLra = Number.isFinite(measured.lra) ? measured.lra : 11;
-  const measuredThresh = Number.isFinite(measured.thresholdLufs) ? measured.thresholdLufs : targetLufs - 10;
-  const offset = Number.isFinite(measured.targetOffset) ? measured.targetOffset : 0;
-  // 真峰值留 0.5dB 余量：loudnorm 的 TP 是"上限"而不是"保证值"，贴边设置实测会越界（本仓实测 -0.74dBTP > -1.0 目标）。
-  // 交付口径仍然是 ≤-1.0dBTP，由末尾的实测复检 + 闭环修正兜底。
-  const applyTruePeak = Math.round((truePeak - 0.5) * 100) / 100;
-  await runBin(bins.ffmpeg, [
-    "-hide_banner", "-v", "error", "-y",
-    "-i", input,
-    "-af",
-    `loudnorm=I=${targetLufs}:TP=${applyTruePeak}:LRA=11:linear=true:`
-    + `measured_I=${measuredI}:measured_TP=${measuredTp}:measured_LRA=${measuredLra}:`
-    + `measured_thresh=${measuredThresh}:offset=${offset}:print_format=summary`,
-    "-c:a", "pcm_s16le", "-ar", "48000", "-ac", "2",
-    output,
-  ], { label: "ffmpeg(loudnorm-apply)", timeoutMs: 900_000 });
-  return { path: output, measuredBefore: measured, sha256: await sha256File(output) };
+  if (!Number.isFinite(measured.integratedLufs) || !Number.isFinite(measured.truePeakDbtp)) {
+    throw new BgmError("节目混合响度或真峰值不可测", "verify_failed", false);
+  }
+  const wantedGainDb = targetLufs - measured.integratedLufs;
+  const gainDb = Math.min(wantedGainDb, truePeak - 0.5 - measured.truePeakDbtp);
+  await applyMasterGain({ input, output, gainDb, bins });
+  return { path: output, measuredBefore: measured, gainDb, wantedGainDb,
+    method: "shared-linear-gain", limiterApplied: false, truePeakHeadroomDb: 0.5,
+    sha256: await sha256File(output) };
+}
+async function applyMasterGain({ input, output, gainDb, bins }) {
+  await runBin(bins.ffmpeg, ["-hide_banner", "-v", "error", "-n", "-i", input,
+    "-af", `volume=${gainDb}dB`, "-c:a", "pcm_f32le", "-ar", "48000", "-ac", "2", output],
+  { label: "ffmpeg(shared-master-gain)", timeoutMs: 900_000 });
 }
 
-/** 闭环修正：把已过真峰值红线的母版整体下压（可逆、只减不增），再复测。 */
-async function trimMaster({ input, output, gainDb, bins }) {
-  await runBin(bins.ffmpeg, [
-    "-hide_banner", "-v", "error", "-y",
-    "-i", input,
-    "-af", `volume=${round(gainDb, 2)}dB`,
-    "-c:a", "pcm_s16le", "-ar", "48000", "-ac", "2", output,
-  ], { label: "ffmpeg(trim-master)", timeoutMs: 600_000 });
-  return { path: output, sha256: await sha256File(output) };
+/** Validate current host-signed sources; request parameters cannot replace the verifier. */
+export async function verifyIndependentAudio(audioStems, { env = process.env, bins = resolveBinaries() } = {}) {
+  if (!audioStems || typeof audioStems !== "object" || Array.isArray(audioStems)) {
+    throw new BgmError("重混必须提供独立来源 audio_stems；混合原声和分离猜测不具备来源资格", "audio_stems_source_unverified", false);
+  }
+  if (env.WORKLOOM_BGM_BRIDGE_TENANT && audioStems.scope?.tenantId !== env.WORKLOOM_BGM_BRIDGE_TENANT) {
+    throw new BgmError("独立音轨租户与服务绑定不符", "tenant_mismatch", false);
+  }
+  return verifyAudioStemBundle({ dir: audioStems.dir,
+    expectedManifestSha256: audioStems.manifestSha256, expectedRecipeSha256: audioStems.recipeSha256,
+    scope: audioStems.scope, verifySource: createAudioStemReceiptVerifier({ env }),
+    allowedRoots: allowedRoots(env), bins });
+}
+
+/** Frozen source bundle first; snapshot every consumed byte into an exclusive evidence directory. */
+export async function mix(options = {}) {
+  const { audioStems, env = process.env, bins = resolveBinaries() } = options;
+  for (const [key, min, max] of [["musicLevelDb", -80, 0], ["duckingDb", 0, 40], ["targetLufs", -36, -5],
+    ["truePeak", -12, 0], ["fadeInSec", 0, 120], ["fadeOutSec", 0, 120], ["bgmBpm", 20, 300], ["bpmOverride", 20, 300]]) {
+    if (options[key] != null && (!Number.isFinite(options[key]) || options[key] < min || options[key] > max)) {
+      throw new BgmError(`${key} 必须是 ${min} 至 ${max} 的有限数值`, "bad_request", false);
+    }
+  }
+  const stems = await verifyIndependentAudio(audioStems, { env, bins });
+  const roots = allowedRoots(env);
+  const output = assertPathAllowed(options.output, roots, "output");
+  const source = assertPathAllowed(options.input, roots, "input");
+  const music = assertPathAllowed(options.bgmPath, roots, "bgmPath");
+  if (output === source || output === music) throw new BgmError("禁止覆盖媒体源", "overwrite_source_forbidden", false);
+  if (fs.existsSync(output)) throw new BgmError("混音输出已存在，不能覆盖", "idempotency_conflict", false);
+  if (!["keep-dialogue", "keep-all", "replace-bed", "music-only"].includes(options.policy ?? "keep-dialogue")) {
+    throw new BgmError("未知分层策略", "bad_request", false);
+  }
+  if (options.policy === "music-only" && (options.allowDiscardOriginal !== true || stems.roles.dialogue.status !== "not_applicable")) {
+    throw new BgmError("music-only 需要显式丢弃许可且对白必须有权威不适用回执", "audio_stems_source_unverified", false);
+  }
+  await fsp.mkdir(path.dirname(output), { recursive: true });
+  const work = await fsp.mkdtemp(path.join(path.dirname(output), `.mix-${randomUUID()}-`));
+  const copy = async (file, sha256, name) => (await snapshotAudioStemArtifact({ file, sha256,
+    output: path.join(work, name), allowedRoots: roots })).path;
+  try {
+    const input = await copy(source, await sha256File(source), "picture.mp4");
+    const bgmPath = await copy(music, await sha256File(music), "new-music");
+    const programPath = await copy(stems.program.path, stems.program.sha256, "program.wav");
+    const dialoguePath = await copy(stems.roles.dialogue.path, stems.roles.dialogue.sha256, "dialogue.wav");
+    const probe = await probeMedia(input, { bins });
+    if (Math.abs(probe.duration - stems.program.durationSec) > 0.04) {
+      throw new BgmError("独立节目轨与画面时间线相差超过 40ms", "audio_stems_alignment_failed", false);
+    }
+    const candidate = path.join(work, probe.video ? "candidate.mp4" : "candidate.wav");
+    const report = await mixVerified({ ...options, input, bgmPath, output: candidate, bins,
+      programPath, dialoguePath, dialogueStatus: stems.roles.dialogue.status, workDir: work, keepWork: true });
+    // Expiry can change during a long render. Revalidate before publishing.
+    await verifyIndependentAudio(audioStems, { env, bins });
+    report.output.path = output;
+    report.input = source;
+    report.bgm.path = music;
+    report.independentAudio = { ...audioStems, sourceAuthority: "passed", embeddedAudioUsed: false,
+      programSha256: stems.program.sha256, dialogueSha256: stems.roles.dialogue.sha256,
+      dialogueStatus: stems.roles.dialogue.status, retainedMusicExcluded: true };
+    report.workDir = work;
+    await fsp.writeFile(path.join(work, "mix-report.json"), `${JSON.stringify(report, null, 2)}\n`, { flag: "wx", mode: 0o600 });
+    await fsp.link(candidate, output);
+    return report;
+  } catch (error) {
+    await fsp.writeFile(path.join(work, "failed.json"), `${JSON.stringify({ status: "failed", code: error.code ?? "engine_failed", message: error.message })}\n`, { flag: "wx", mode: 0o600 });
+    throw error;
+  }
 }
 
 /**
  * 配乐出片（本连接器的主流程）：
  *
- *   原片音轨（只读） ─┬─ 侧链键（200–4000Hz）
- *                     └─ 声音床（原声 / 仅人声 / 静音，按 policy）
+ *   经签章的独立对白 ── 侧链键（200–4000Hz）
+ *   独立节目轨 ──────── 声音床（对白 + 环境 + 拟音，不含旧配乐）
  *    BGM（自算或曲库曲目）→ 音量/淡入淡出/卡点偏移 → sidechaincompress 让位 → 与声音床合流
- *      → loudnorm 两遍法（-14 LUFS / -1 dBTP）→ 与视频轨合流（视频轨 copy，不重编码画面）
+ *      → 同一可追溯线性主增益（受真峰值余量约束）→ 与视频轨合流（视频轨 copy）
  *      → 复检：响度 / 让位深度 / 人声余量 / 配乐可闻度 / 卡点误差（无回执不算完成）
  *
  * @returns {Promise<object>} 产物 + 指标 + 证据（不含任何客户原始数据的上行）
@@ -1411,7 +1468,7 @@ export function measuredDuckingDepthDb(controlInVoice, duckedInVoice) {
 /** 交付复检：需要实测的值缺失时按未核实处理，不把 null 当作达标。 */
 export function evaluateMixChecks({
   loudnessAfter, targetLufs, truePeak, musicPresenceDb, musicPresenceTargetDb,
-  speechToMusicMarginDb, duckingDepthDb, policy,
+  speechToMusicMarginDb, duckingDepthDb, policy, dialogueStatus = "ready",
 }) {
   return {
     loudness_ok: Number.isFinite(loudnessAfter.integratedLufs)
@@ -1419,10 +1476,10 @@ export function evaluateMixChecks({
     true_peak_ok: Number.isFinite(loudnessAfter.truePeakDbtp)
       && loudnessAfter.truePeakDbtp <= truePeak + 0.2,
     music_audible: Number.isFinite(musicPresenceDb) && musicPresenceDb >= musicPresenceTargetDb,
-    dialogue_preserved: Number.isFinite(speechToMusicMarginDb) ? speechToMusicMarginDb >= 3 : true,
-    ducking_applied: policy === "music-only"
-      ? true
-      : Number.isFinite(duckingDepthDb) && duckingDepthDb <= -4,
+    dialogue_preserved: dialogueStatus === "not_applicable"
+      || (Number.isFinite(speechToMusicMarginDb) && speechToMusicMarginDb >= 3),
+    ducking_applied: dialogueStatus === "not_applicable"
+      || (Number.isFinite(duckingDepthDb) && duckingDepthDb <= -4),
   };
 }
 
@@ -1446,7 +1503,7 @@ export async function enforceMixChecks({ checks, output, details = [], retryable
   throw failure;
 }
 
-export async function mix({
+async function mixVerified({
   input, output, bgmPath = null, policy = "keep-dialogue", bgmBpm = null,
   musicLevelDb = null, duckingDb = null, targetLufs = -14, truePeak = -1.0,
   fadeInSec = 1.2, fadeOutSec = 1.6, align = true, allowDiscardOriginal = false,
@@ -1455,6 +1512,7 @@ export async function mix({
   section = "full", sectionStartSec = null, sectionEndSec = null, filmClimaxOverrideSec = null,
   /** 显式剪辑网格（秒）：由成片方给出真实剪辑点，优先于从音轨起音"猜"剪辑点（2026-09-25 真机） */
   cutTimes = null, bpmOverride = null, bpmStrategy = "recipe",
+  programPath, dialoguePath, dialogueStatus,
 }) {
   if (!AUDIO_POLICIES.includes(policy)) {
     throw new BgmError(`未知分层策略：${policy}（可用：${AUDIO_POLICIES.join(", ")}）`, "bad_request");
@@ -1483,7 +1541,9 @@ export async function mix({
 
   const work = workDir ?? (await tempDir("bgm-mix-"));
   await fsp.mkdir(work, { recursive: true });
-  const voice = await detectVoiceBandSegments({ input, duration, bins });
+  const voice = dialogueStatus === "not_applicable"
+    ? { noiseDb: -38, activeRatio: 0, segments: [], silences: [{ start: 0, end: duration, duration }], method: "authorized-no-dialogue" }
+    : await detectVoiceBandSegments({ input: dialoguePath, duration, bins });
   /**
    * 剪辑点来源（2026-09-25 真机）：`cutTimes` 有值就用它（成片方最清楚自己的剪辑网格——
    * 例如每镜 5s 硬切），否则退回 `detectCuts()` 从音轨起音反推。
@@ -1522,7 +1582,7 @@ export async function mix({
   const explicitSection = Number.isFinite(sectionStartSec) && Number.isFinite(sectionEndSec);
   if (explicitSection || section !== "full") {
     structure = await analyzeStructure({ input: bgmPath, bins });
-    filmArc = await filmEnergyArc({ input, bins });
+    filmArc = await filmEnergyArc({ input: programPath, bins });
     // 片子的"高潮"按三级依据定：剪辑密度 → 非对白能量 → 音频能量（口播片不会被台词峰值带跑）
     const climax = filmClimaxTime({
       arc: filmArc,
@@ -1638,7 +1698,7 @@ export async function mix({
           "-filter_complex",
           `[0:a]atrim=start=${phase},asetpts=N/SR/TB[head];[0:a]atrim=end=${phase},asetpts=N/SR/TB[tail];`
           + "[head][tail]concat=n=2:v=0:a=1[out]",
-          "-map", "[out]", "-c:a", "pcm_s16le", "-ar", "48000", "-ac", "2", rotatedPath,
+          "-map", "[out]", "-c:a", "pcm_f32le", "-ar", "48000", "-ac", "2", rotatedPath,
         ], { label: "ffmpeg(section-preroll)", timeoutMs: 300_000 });
         playPath = rotatedPath;
         sectionPlaceOffsetSec = 0;
@@ -1697,7 +1757,7 @@ export async function mix({
     await runBin(bins.ffmpeg, [
       "-hide_banner", "-v", "error", "-y",
       "-f", "concat", "-safe", "0", "-i", listFile,
-      "-c:a", "pcm_s16le", "-ar", "48000", "-ac", "2", bedMusic,
+      "-c:a", "pcm_f32le", "-ar", "48000", "-ac", "2", bedMusic,
     ], { label: "ffmpeg(bed-music)", timeoutMs: 600_000 });
     playPath = bedMusic;
     if (sectionPlan?.played) {
@@ -1714,7 +1774,7 @@ export async function mix({
       .slice(0, 4);
     const levels = [];
     for (const window of windows) {
-      const measured = await segmentMeanVolumeDb({ input, start: window.start, duration: Math.min(window.duration, 2), bins });
+      const measured = await segmentMeanVolumeDb({ input: programPath, start: window.start, duration: Math.min(window.duration, 2), bins });
       levels.push(measured.meanDb);
     }
     return round(average(levels), 2);
@@ -1728,7 +1788,7 @@ export async function mix({
     const levels = [];
     for (const window of windows) {
       const measured = await segmentMeanVolumeDb({
-        input, start: window.start, duration: Math.min(window.duration, 2), band: VOICE_BAND, bins,
+        input: dialoguePath, start: window.start, duration: Math.min(window.duration, 2), band: VOICE_BAND, bins,
       });
       levels.push(measured.meanDb);
     }
@@ -1742,28 +1802,15 @@ export async function mix({
   const effectiveDucking = policy === "keep-all" ? (duckingDb ?? 8) * 0.6 : (duckingDb ?? 12);
   const duck = deriveDuckParams({ speechLevelDb: speechLevel, duckingDb: effectiveDucking });
 
-  // ① 声音床：原声 / 仅人声（中心声道近似分离）/ 静音
+  // Every policy consumes verified independent sources; center separation is never clean evidence.
   const bedPath = path.join(work, "bed.wav");
-  let bedSource = input;
-  let sidechainSource = input;
-  let separation = null;
-  if (policy === "replace-bed") {
-    const chains = centerSeparationChain();
-    if (probe.audio.channels < 2) {
-      throw new BgmError("replace-bed 需要立体声素材做中心声道分离（当前为单声道）：请改用 keep-dialogue 或先跑深度学习分离", "separation_unavailable");
-    }
-    await renderStem({ input, output: bedPath, chain: chains.vocals, durationSec: duration, bins, label: "ffmpeg(vocals-stem)" });
+  let bedSource = policy === "replace-bed" ? dialoguePath : programPath;
+  const sidechainSource = dialogueStatus === "not_applicable" || policy === "music-only" ? null : dialoguePath;
+  const separation = null;
+  if (policy === "music-only") {
+    await runBin(bins.ffmpeg, ["-hide_banner", "-v", "error", "-n", "-f", "lavfi", "-i", "anullsrc=r=48000:cl=stereo",
+      "-t", String(duration), "-c:a", "pcm_f32le", bedPath], { label: "ffmpeg(silence-bed)", timeoutMs: 120_000 });
     bedSource = bedPath;
-    sidechainSource = bedPath;
-    separation = { engine: "ffmpeg-center", quality: "approximate", vocals: bedPath, note: "中心声道近似分离（非 Demucs 级）" };
-  } else if (policy === "music-only") {
-    await runBin(bins.ffmpeg, [
-      "-hide_banner", "-v", "error", "-y",
-      "-f", "lavfi", "-i", "anullsrc=r=48000:cl=stereo",
-      "-t", String(duration), "-c:a", "pcm_s16le", bedPath,
-    ], { label: "ffmpeg(silence-bed)", timeoutMs: 120_000 });
-    bedSource = bedPath;
-    sidechainSource = null;
   }
 
   // ② BGM 链：循环铺满 → 卡点偏移 → 音量 → 淡入淡出 → 让位压缩
@@ -1804,7 +1851,7 @@ export async function mix({
   }
   await runBin(bins.ffmpeg, [
     ...musicArgs, "-filter_complex", musicParts.join(";"),
-    "-map", "[out]", "-c:a", "pcm_s16le", "-ar", "48000", "-ac", "2",
+    "-map", "[out]", "-c:a", "pcm_f32le", "-ar", "48000", "-ac", "2",
     /**
      * 输出时长上界（2026-09-24 真机修复）：音乐输入是 `-stream_loop -1`（无限），只靠
      * `atrim` 收口时，若侧链（原片音轨）在末帧略早于音乐结束，`sidechaincompress` 会等一个
@@ -1828,7 +1875,7 @@ export async function mix({
       "-hide_banner", "-v", "error", "-y",
       "-i", input, "-i", playPath,
       "-filter_complex", `[1:a]${musicChain},atrim=0:${round(duration, 3)},asetpts=N/SR/TB[ctl]`,
-      "-map", "[ctl]", "-c:a", "pcm_s16le", "-ar", "48000", "-ac", "2",
+      "-map", "[ctl]", "-c:a", "pcm_f32le", "-ar", "48000", "-ac", "2",
       "-t", String(round(duration, 3)), controlPath,
     ], { label: "ffmpeg(control-music)", timeoutMs: 600_000 });
   }
@@ -1839,7 +1886,7 @@ export async function mix({
     "-hide_banner", "-v", "error", "-y",
     "-i", bedSource, "-i", duckedPath,
     "-filter_complex", "[0:a][1:a]amix=inputs=2:duration=first:dropout_transition=0:normalize=0[out]",
-    "-map", "[out]", "-c:a", "pcm_s16le", "-ar", "48000", "-ac", "2", premasterPath,
+    "-map", "[out]", "-c:a", "pcm_f32le", "-ar", "48000", "-ac", "2", premasterPath,
   ], { label: "ffmpeg(mix-down)", timeoutMs: 900_000 });
 
   // ④ 母版响度（两遍法 loudnorm：-14 LUFS / -1 dBTP）
@@ -1847,20 +1894,14 @@ export async function mix({
     input: premasterPath, output: path.join(work, "master.wav"), targetLufs, truePeak, bins,
   });
 
-  // ④·b 真峰值闭环：首次应用后若仍越过 -1.0dBTP，就整体下压再复测（只减不增，可解释、可复现）
-  let masterTrimDb = 0;
-  {
-    const check = await measureLoudness(normalized.path, { bins, targetLufs, truePeak });
-    if (Number.isFinite(check.truePeakDbtp) && check.truePeakDbtp > truePeak) {
-      masterTrimDb = Math.round((truePeak - check.truePeakDbtp - 0.1) * 100) / 100;
-      normalized = await trimMaster({
-        input: normalized.path,
-        output: path.join(work, "master-trimmed.wav"),
-        gainDb: masterTrimDb,
-        bins,
-      });
-    }
-  }
+  // Retain the independent tracks after exactly the same master gain for meaningful comparison.
+  const finalDialoguePath = path.join(work, "dialogue-final.wav");
+  const finalMusicPath = path.join(work, "music-final.wav");
+  const finalProgramPath = path.join(work, "program-final.wav");
+  await applyMasterGain({ input: dialoguePath, output: finalDialoguePath, gainDb: normalized.gainDb, bins });
+  await applyMasterGain({ input: duckedPath, output: finalMusicPath, gainDb: normalized.gainDb, bins });
+  await applyMasterGain({ input: bedSource, output: finalProgramPath, gainDb: normalized.gainDb, bins });
+  const masterTrimDb = 0;
 
   // ⑤ 与视频合流（画面不重编码）
   if (probe.video) {
@@ -1878,9 +1919,13 @@ export async function mix({
   const outputProbe = await probeMedia(output, { bins });
   const loudnessAfter = await measureLoudness(output, { bins, targetLufs, truePeak });
 
+  const quietCandidates = (segments, minimum) => segments
+    .map((segment) => { const start = Math.max(0.2, segment.start), end = Math.min(duration - 0.2, segment.end);
+      return { ...segment, start, end, duration: end - start }; })
+    .filter((segment) => segment.duration >= minimum).sort((a, b) => b.duration - a.duration).slice(0, 6);
   const windows = {
     voice: voice.segments.filter((segment) => segment.duration >= 0.6).sort((a, b) => b.duration - a.duration).slice(0, 6),
-    quiet: voice.silences.filter((segment) => segment.duration >= 0.4 && segment.start >= 0.2).sort((a, b) => b.duration - a.duration).slice(0, 6),
+    quiet: quietCandidates(voice.silences, 0.4),
   };
   // 全程无绝对静音（连续口播/连续现场声）时，用「相对安静窗口」兜底测配乐可闻度：
   // 把 silencedetect 的阈值抬高 12dB 再找一次——它找到的不是静音，而是"这段片子相对最安静的地方"，
@@ -1888,12 +1933,9 @@ export async function mix({
   let quietWindowSource = "absolute-silence";
   if (windows.quiet.length === 0) {
     const relative = await detectVoiceBandSegments({
-      input, duration, noiseDb: Math.min(-6, voice.noiseDb + 12), minSilenceSec: 0.35, minSegmentSec: 0.2, bins,
+      input: dialoguePath, duration, noiseDb: Math.min(-6, voice.noiseDb + 12), minSilenceSec: 0.35, minSegmentSec: 0.2, bins,
     });
-    windows.quiet = relative.silences
-      .filter((segment) => segment.duration >= 0.35 && segment.start >= 0.2)
-      .sort((a, b) => b.duration - a.duration)
-      .slice(0, 6);
+    windows.quiet = quietCandidates(relative.silences, 0.35);
     quietWindowSource = windows.quiet.length ? "relative-quiet(noise+12dB)" : "none";
   }
   const levelOf = async (file, list, band = null) => {
@@ -1908,8 +1950,10 @@ export async function mix({
   const duckedInQuiet = await levelOf(duckedPath, windows.quiet);
   const controlInVoice = controlPath ? await levelOf(controlPath, windows.voice) : null;
   const finalInQuiet = await levelOf(output, windows.quiet);
-  const finalInVoiceBand = await levelOf(output, windows.voice, VOICE_BAND);
-  const sourceInQuiet = await levelOf(input, windows.quiet);
+  const finalInVoiceBand = await levelOf(finalDialoguePath, windows.voice, VOICE_BAND);
+  const finalMusicInVoice = await levelOf(finalMusicPath, windows.voice);
+  const sourceInQuiet = await levelOf(finalProgramPath, windows.quiet);
+  const finalMusicInQuiet = await levelOf(finalMusicPath, windows.quiet);
 
   /** 旧口径（对照用，保留字段以免下游断链）：让位后的"人声窗 − 安静窗"，受曲子动态影响 */
   const duckingContrastDb = Number.isFinite(duckedInVoice) && Number.isFinite(duckedInQuiet)
@@ -1923,27 +1967,19 @@ export async function mix({
   const duckingDepthDb = measuredDuckingDepthDb(controlInVoice, duckedInVoice);
   /** 对照口径（旧指标）也一并暴露，便于回归比较"曲子动态"与"真实侧链深度"两条曲线 */
   const levelsDebug = { controlInVoiceDb: controlInVoice, duckingContrastDb };
-  const speechToMusicMarginDb = Number.isFinite(finalInVoiceBand) && Number.isFinite(duckedInVoice)
-    ? round(finalInVoiceBand - duckedInVoice, 2)
+  const speechToMusicMarginDb = Number.isFinite(finalInVoiceBand) && Number.isFinite(finalMusicInVoice)
+    ? round(finalInVoiceBand - finalMusicInVoice, 2)
     : null;
-  const musicPresenceDb = Number.isFinite(finalInQuiet) && Number.isFinite(sourceInQuiet)
-    ? round(finalInQuiet - sourceInQuiet, 2)
-    : Number.isFinite(duckedInQuiet) && Number.isFinite(roomTone) ? round(duckedInQuiet - roomTone, 2) : null;
-  /**
-   * 可闻度的**依据来源**写进回执：quiet-window（安静窗口实测）｜room-tone（房间底噪基准）｜none（测不到）。
-   * 下游据此区分「测得偏低」与「测不到」，不再从 null 反推（真机实测：硬切变体全程连续现场声 → none）。
-   */
-  const presenceMeasured = (Number.isFinite(finalInQuiet) && Number.isFinite(sourceInQuiet))
-    || (Number.isFinite(duckedInQuiet) && Number.isFinite(roomTone));
-  const presenceBasis = Number.isFinite(finalInQuiet) && Number.isFinite(sourceInQuiet)
-    ? "quiet-window"
-    : (Number.isFinite(duckedInQuiet) && Number.isFinite(roomTone) ? "room-tone" : "none");
+  const musicPresenceDb = Number.isFinite(finalMusicInQuiet) && Number.isFinite(sourceInQuiet)
+    ? round(finalMusicInQuiet - sourceInQuiet, 2) : null;
+  const presenceMeasured = Number.isFinite(musicPresenceDb);
+  const presenceBasis = presenceMeasured ? "independent-post-gain-tracks" : "none";
 
   const targets = findRecipes({ list: true }).targets;
   const checks = evaluateMixChecks({
     loudnessAfter, targetLufs, truePeak, musicPresenceDb,
     musicPresenceTargetDb: targets.musicPresenceDb,
-    speechToMusicMarginDb, duckingDepthDb, policy,
+    speechToMusicMarginDb, duckingDepthDb, policy, dialogueStatus,
   });
   const warnings = [];
   if (Number.isFinite(speechToMusicMarginDb) && speechToMusicMarginDb < targets.dialogueToMusicMarginDb) {
@@ -1988,13 +2024,13 @@ export async function mix({
   if (evidenceDir) {
     await fsp.mkdir(evidenceDir, { recursive: true });
     const waveform = await renderWaveformCompare({
-      before: input, after: output, output: path.join(evidenceDir, "waveform-before-after.png"), bins,
+      before: programPath, after: output, output: path.join(evidenceDir, "waveform-before-after.png"), bins,
     });
     evidence = { waveform };
     if (sectionPlan?.chosen) {
       const structureShot = await renderSectionEvidence({
         music: { input: bgmPath, durationSec: structure?.durationSec ?? bgmProbe.duration },
-        film: { input, durationSec: duration },
+        film: { input: programPath, durationSec: duration },
         section: { startSec: sectionPlan.played?.startSec ?? sectionPlan.chosen.startSec, endSec: sectionPlan.chosen.endSec },
         filmPeakSec: filmArc?.peakTimeSec ?? null,
         output: path.join(evidenceDir, "section-picked.png"),
@@ -2074,6 +2110,8 @@ export async function mix({
       speechToMusicMarginDb,
       musicPresenceDb,
       programLevelDb: speechLevel,
+      comparisonBasis: "independent dialogue/music/program after identical linear master gain",
+      finalMusicInVoiceDb: finalMusicInVoice, finalMusicInQuietDb: finalMusicInQuiet,
     },
       loudness: {
         before: {
@@ -2082,6 +2120,8 @@ export async function mix({
         },
         after: { integratedLufs: round(loudnessAfter.integratedLufs, 2), truePeakDbtp: round(loudnessAfter.truePeakDbtp, 2), lra: round(loudnessAfter.lra, 2) },
         masterTrimDb,
+        normalization: { method: normalized.method, gainDb: normalized.gainDb,
+          wantedGainDb: normalized.wantedGainDb, limiterApplied: false, truePeakHeadroomDb: normalized.truePeakHeadroomDb },
       },
     output: {
       path: output,
@@ -2091,6 +2131,11 @@ export async function mix({
       hash: await sha256File(output),
     },
     checks,
+    applicability: { dialogue_preserved: dialogueStatus, ducking_applied: dialogueStatus },
+    retainedTracks: await Promise.all([
+      ["dialogue", finalDialoguePath], ["music", finalMusicPath], ["program", finalProgramPath],
+      ["ducked-music", duckedPath], ["control-music", controlPath],
+    ].filter(([, file]) => file).map(async ([role, file]) => ({ role, path: file, sha256: await sha256File(file) }))),
     warnings,
     voiceActivity: {
       activeRatio: voice.activeRatio,
@@ -2215,8 +2260,9 @@ export async function best({
   minScore = 92, evidenceDir = null, bins = resolveBinaries(), seed = 0, targetLufs = -14, truePeak = -1.0,
   bpmStrategy = "cut-driven",
   promptText = null, sourcePolicy = "compose-only", destDir = null, env = process.env, fetchImpl = fetch,
-  catalog = null, platform = null, genreMismatchPolicy = null,
+  catalog = null, platform = null, genreMismatchPolicy = null, audioStems = null,
 }) {
+  const independent = await verifyIndependentAudio(audioStems, { env, bins });
   const probe = await probeMedia(input, { bins });
   const duration = probe.duration;
 
@@ -2261,7 +2307,7 @@ export async function best({
       env, fetchImpl, destDir, catalog,
     });
   }
-  const voice = await detectVoiceBandSegments({ input, duration, bins });
+  const voice = await detectVoiceBandSegments({ input: independent.roles.dialogue.path, duration, bins });
   const detected = probe.video ? await detectCuts({ input, bins }) : { cuts: [], strong: [], method: "no-video" };
   const roomWindows = voice.silences
     .filter((segment) => segment.duration >= 0.4 && segment.start >= 0.2)
@@ -2271,30 +2317,16 @@ export async function best({
     .filter((segment) => segment.duration >= 0.6)
     .sort((a, b) => b.duration - a.duration)
     .slice(0, 4);
-  const levelOf = async (list, band = null) => {
+  const levelOf = async (list, band = null, file = independent.program.path) => {
     const levels = [];
     for (const window of list) {
-      const measured = await segmentMeanVolumeDb({ input, start: window.start, duration: Math.min(window.duration, 2), band, bins });
+      const measured = await segmentMeanVolumeDb({ input: file, start: window.start, duration: Math.min(window.duration, 2), band, bins });
       levels.push(measured.meanDb);
     }
     return round(average(levels), 2);
   };
-  const speechLevel = await levelOf(voiceWindows, VOICE_BAND);
+  const speechLevel = await levelOf(voiceWindows, VOICE_BAND, independent.roles.dialogue.path);
   const roomTone = await levelOf(roomWindows);
-  const spectrum = voiceWindows[0]
-    ? await segmentSpectralStats({ input, start: voiceWindows[0].start, duration: Math.min(voiceWindows[0].duration, 3), bins })
-    : null;
-  const suspectedBed = voice.activeRatio >= 0.9 && spectrum?.flatness !== null && spectrum?.flatness !== undefined && spectrum.flatness < 0.02;
-  if (suspectedBed) {
-    return {
-      verdict: "no_bgm_needed",
-      reason: `素材疑似已有连续配乐（人声频段活动占比 ${(voice.activeRatio * 100).toFixed(1)}%、谱平坦度 ${spectrum?.flatness}）：按「不劣化优先」判定无需配乐，未产出新文件`,
-      source: { speechLevelDb: speechLevel, roomToneDb: roomTone, activeRatio: voice.activeRatio },
-      candidates: [],
-      sha256: await sha256File(input),
-    };
-  }
-
   const recipeCatalog = findRecipes({ list: true }).items;
   let pool = recipeCatalog;
   if (Array.isArray(recipeIds) && recipeIds.length) pool = recipeCatalog.filter((recipe) => recipeIds.includes(recipe.id));
@@ -2422,6 +2454,7 @@ export async function best({
     composed = await composeToWav({ recipe, durationSec: duration, output: bgmPath, seed, bpmOverride: winner.bpm });
   }
   const mixed = await mix({
+    audioStems, env,
     input,
     output,
     bgmPath,
@@ -2758,6 +2791,7 @@ export async function callTool(name, params = {}, { bins = resolveBinaries(), en
         );
       }
       const report = await mix({
+        audioStems: params.audio_stems ?? null, env,
         input,
         output,
         bgmPath,
@@ -2981,6 +3015,7 @@ export async function callTool(name, params = {}, { bins = resolveBinaries(), en
       if (output && output === input) throw new BgmError("禁止覆盖原片", "overwrite_source_forbidden");
       const evidenceDir = params.evidence_dir ? assertPathAllowed(String(params.evidence_dir), roots, "evidence_dir") : null;
       const outcome = await best({
+        audioStems: params.audio_stems ?? null, env,
         input,
         output,
         genre: params.genre ?? null,
