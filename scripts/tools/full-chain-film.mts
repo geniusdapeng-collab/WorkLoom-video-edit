@@ -56,10 +56,12 @@ import {
   environmentDefects, expandShotWithBible, summarizeDefects, validateSceneBible, spaceSummary,
   openingHookChecks, summarizeHookChecks, validateHookCard, defaultHookSfx, hookWindowFor, HOOK_TYPE_LABELS, HOOK_WINDOW_SEC,
   deviceDefects, summarizeDeviceDefects, DEVICE_POLICY_VERSION, DEVICE_POLICY_VERIFIED_AT, allowedModelSummary,
+  planMicromotion, MICROMOTION_MARKER, MICROMOTION_POLICY_VERSION,
   type CoverAccountProfile, type CoverDesignInput, type CoverMeasurements, type CoverPlan,
   type CoverPlatformSpec, type GateCheck, type GateEvent, type PipelineGateStepKey,
-  type DeviceCategory, type DeviceDefect, type EnvDefect, type HookCard, type PlatePromptShot, type ProducerVerdict, type SceneBible
+  type DeviceCategory, type DeviceDefect, type EnvDefect, type HookCard, type MicromotionTrace, type PlatePromptShot, type ProducerVerdict, type SceneBible
 } from "../../packages/video-studio/src/index.js";
+import { normalizeShotIntent, shotIntentHash, type ShotIntentStatus } from "../../packages/video-studio/src/shot-intent.js";
 
 const REPO_ROOT = resolve(import.meta.dirname ?? process.cwd(), "../..");
 const FFMPEG = process.env.WL_FFMPEG ?? "ffmpeg";
@@ -1470,6 +1472,96 @@ const specReports: Array<Record<string, unknown>> = [];
 /** 动作节拍预算（advisory：只报数不拦，避免把"9 个 vs 8 个"这种量级差当成缺陷） */
 const motionBudgetNotes: Array<{ shotId: string; beats: number; advice: string }> = [];
 
+interface EnhancementConsumption {
+  shotId: string;
+  status: ShotIntentStatus;
+  verified: boolean;
+  detail: string;
+  sourceHash: string | null;
+  outputHash: string | null;
+}
+
+/** Project success requires every shot to pass or explicitly be inapplicable. */
+function enhancementStatus(statuses: readonly ShotIntentStatus[]): ShotIntentStatus {
+  if (statuses.includes("failed")) return "failed";
+  if (statuses.includes("unverified")) return "unverified";
+  return statuses.includes("passed") ? "passed" : "not_applicable";
+}
+
+/** Validate the exact card consumed downstream, not a marker or a historical success row. */
+function micromotionConsumption(shot: ShotCard, trace?: MicromotionTrace): EnhancementConsumption {
+  const result: EnhancementConsumption = {
+    shotId: shot.shotId, status: "unverified", verified: false,
+    detail: "缺少当前镜头的微动作证据", sourceHash: null, outputHash: null
+  };
+  if (!trace) return result;
+  try {
+    const expected = planMicromotion(shot);
+    result.sourceHash = expected.sourceHash;
+    result.outputHash = shotIntentHash(shot.action ?? (shot.fields as Record<string, unknown> | undefined)?.action ?? null);
+    if (trace.status === "failed") return { ...result, status: "failed", detail: trace.skipped ?? "微动作失败" };
+    if (trace.status !== "passed" && trace.status !== "not_applicable") return { ...result, detail: trace.skipped ?? "微动作未验证" };
+    if (trace.schemaVersion !== "workloom.micromotion-trace/v1" || trace.policyVersion !== MICROMOTION_POLICY_VERSION
+      || !trace.sourceHash || trace.shotId !== shot.shotId || trace.sourceHash !== expected.sourceHash
+      || trace.intentHash !== expected.intentHash || trace.status !== expected.status
+      || shotIntentHash(trace.applied) !== shotIntentHash(expected.applied) || trace.text !== expected.text
+      || !Number.isFinite(trace.charDelta) || trace.charDelta < 0 || trace.charDelta > 200) {
+      return { ...result, detail: "微动作版本、原始意图、适用性或应用清单与当前卡片不匹配" };
+    }
+    if (trace.status === "passed") {
+      const action = shot.action;
+      if (trace.applied.length === 0 || trace.outputHash !== result.outputHash || typeof action !== "string"
+        || !action.endsWith(MICROMOTION_MARKER + trace.applied.map((entry) => entry.clause).join("；"))) {
+        return { ...result, detail: "微动作输出哈希或完整应用句未在当前 action 中核到" };
+      }
+    } else if (trace.applied.length || trace.text || trace.charDelta !== 0) {
+      return { ...result, detail: "不适用镜头仍带微动作写入，状态矛盾" };
+    }
+    return { ...result, status: trace.status, verified: true, detail: trace.status === "passed"
+      ? `已核对 ${trace.applied.length} 个适用通道的完整写入、原始意图与 action 哈希`
+      : trace.skipped ?? "当前主体与可见部位不适用人物微动作" };
+  } catch (error) {
+    return { ...result, detail: `微动作消费证据无法核验：${error instanceof Error ? error.message : String(error)}` };
+  }
+}
+
+/** KB evidence describes actual written fields; proposals and dropped clauses cannot count. */
+function cineKbConsumption(shot: ShotCard, trace: Record<string, unknown>, policyVersion: string): EnhancementConsumption {
+  const result: EnhancementConsumption = {
+    shotId: shot.shotId, status: "unverified", verified: false,
+    detail: String(trace.error ?? "摄影知识未验证"), sourceHash: null, outputHash: null
+  };
+  if (trace.status === "failed") return { ...result, status: "failed", detail: String(trace.error ?? "摄影知识失败") };
+  if (trace.status !== "passed" && trace.status !== "not_applicable") return result;
+  try {
+    const intent = normalizeShotIntent(shot);
+    result.sourceHash = intent.sourceHash;
+    result.outputHash = shotIntentHash(shot);
+    if (trace.schemaVersion !== "workloom.cine-kb-trace/v1" || trace.policyVersion !== policyVersion
+      || trace.sourceHash !== intent.sourceHash || trace.intentHash !== shotIntentHash(intent)
+      || trace.outputHash !== result.outputHash || !Array.isArray(trace.applied) || !Array.isArray(trace.actualWrittenFields)) {
+      return { ...result, detail: "摄影知识版本、原始意图或输出哈希与当前卡片不匹配" };
+    }
+    const applied = trace.applied as Array<Record<string, unknown>>;
+    const fields = applied.map((entry) => entry.field);
+    const written = applied.every((entry) => typeof entry.field === "string" && typeof entry.written === "string"
+      && entry.written.length > 0 && entry.writtenChars === entry.written.length && !entry.dropped
+      && typeof shot[entry.field] === "string" && (shot[entry.field] as string).endsWith(entry.written)
+      && entry.fieldHash === shotIntentHash(shot[entry.field]));
+    if (!written || new Set(fields).size !== fields.length || shotIntentHash(fields) !== shotIntentHash(trace.actualWrittenFields)
+      || (trace.status === "passed" ? applied.length === 0 : applied.length !== 0)) {
+      return { ...result, detail: "摄影知识实际写入字段、完整贡献句或逐字段哈希不一致" };
+    }
+    return { ...result, status: trace.status, verified: true, detail: trace.status === "passed"
+      ? `已核对 ${applied.length} 个实际写入字段及当前卡片哈希`
+      : "没有适用的新增摄影知识，原卡保持不变" };
+  } catch (error) {
+    return { ...result, detail: `摄影知识消费证据无法核验：${error instanceof Error ? error.message : String(error)}` };
+  }
+}
+
+const micromotionTraces = new Map<ShotCard, MicromotionTrace>();
+
 /* ---------- ⓪ 摄影知识库注入（监制：cine-kb） ---------- */
 /**
  * 为什么放在提示词之前：知识库的价值就在"写提示词前先定关键细节"——
@@ -1483,20 +1575,37 @@ if (STAGES.has("cine-kb")) {
   if (!existsSync(bridgePath) || !existsSync(kbDir)) {
     record({
       stage: "cine-kb", shotId: null, invoked: false, ok: false, cached: false, degraded: false, attempt: 1, ms: 0,
-      artifact: null, evidence: { kbDir, bridgePath, exists: { bridge: existsSync(bridgePath), kb: existsSync(kbDir) } },
-      verdict: null, note: "摄影知识库或连接器缺失，跳过注入（不静默：此处显式记录）"
+      artifact: null, evidence: { status: "unverified", kbDir, bridgePath, exists: { bridge: existsSync(bridgePath), kb: existsSync(kbDir) } },
+      verdict: null, note: "请求的摄影知识库或连接器缺失，未验证"
     });
+    throw new Error("摄影知识增强未通过：请求的知识库或连接器缺失");
   } else {
-    const core = await import(bridgePath) as {
+    type CineKbCore = {
+      CINE_KB_POLICY_VERSION: string;
       loadKb: (dir: string) => Record<string, unknown>;
       kbStatus: (kb: unknown) => Record<string, unknown>;
-      enrichShotCard: (kb: unknown, card: unknown) => { card: Record<string, unknown>; trace: Record<string, unknown> };
+      enrichShotCard: (kb: unknown, card: unknown, options: { englishGloss: boolean }) => { card: Record<string, unknown>; trace: Record<string, unknown> };
     };
-    const kb = core.loadKb(kbDir);
-    const status = core.kbStatus(kb) as { topics: number; entries: number; missingTopics: Array<{ id: string; title: string }> };
+    let core: CineKbCore;
+    let kb: Record<string, unknown>;
+    let status: { topics: number; entries: number; missingTopics: Array<{ id: string; title: string }> };
+    try {
+      core = await import(bridgePath) as CineKbCore;
+      kb = core.loadKb(kbDir);
+      status = core.kbStatus(kb) as typeof status;
+    } catch (error) {
+      record({
+        stage: "cine-kb", shotId: null, invoked: true, ok: false, cached: false, degraded: false, attempt: 1,
+        ms: Date.now() - started, artifact: null,
+        evidence: { status: "unverified", kbDir, error: error instanceof Error ? error.message : String(error) },
+        verdict: null, note: "摄影知识库加载失败，未验证"
+      });
+      throw error;
+    }
     log(`摄影知识库：${status.topics} 篇 / ${status.entries} 条映射${status.missingTopics.length > 0 ? `｜⚠ 缺篇 ${status.missingTopics.map((t) => `${t.id} ${t.title}`).join("、")}` : ""}`);
     const traceDir = join(WORK_DIR, "cine-kb");
     mkdirSync(traceDir, { recursive: true });
+    const perShot: EnhancementConsumption[] = [];
     for (const [index, shot] of shots.entries()) {
       /**
        * 提示词语言口径（2026-09-24 真机）：分镜卡【语言约束】写明"全部字段必须使用中文"，
@@ -1505,20 +1614,34 @@ if (STAGES.has("cine-kb")) {
        */
       const { card, trace } = core.enrichShotCard(kb, shot, { englishGloss: flag("--prompt-english-gloss") });
       shots[index] = card as ShotCard;
-      const traceFile = join(traceDir, `${shot.shotId}.json`);
-      writeFileSync(traceFile, `${JSON.stringify({ ...trace, kbDir, kbStatus: status }, null, 2)}\n`, "utf8");
+      const consumption = cineKbConsumption(shots[index]!, trace, core.CINE_KB_POLICY_VERSION);
+      perShot.push(consumption);
+      // Shot ids are labels, not paths; an invalid id cannot escape or overwrite another trace.
+      const traceName = `${String(index + 1).padStart(3, "0")}-${String(shot.shotId).replace(/[^\p{L}\p{N}_-]/gu, "_").slice(0, 80) || "shot"}.json`;
+      const traceFile = join(traceDir, traceName);
+      writeFileSync(traceFile, `${JSON.stringify({ ...trace, consumption, kbDir, kbStatus: status }, null, 2)}\n`, "utf8");
       const advisor = (trace as { apertureAdvisor?: { aperture: string; scenarioLabel: string | null; matchedBy: string } }).apertureAdvisor;
-      const fields = ((trace as { applied?: Array<{ field: string; added: string }> }).applied ?? []);
-      log(`  ${shot.shotId}: 光圈 ${advisor?.aperture ?? "-"}（${advisor?.scenarioLabel ?? "-"}）· 注入 ${fields.filter((f) => f.field !== "depth_of_field").length} 条知识 → ${fields.map((f) => f.field).join("/")}`);
+      const fields = ((trace as { applied?: Array<{ field: string; writtenChars: number }> }).applied ?? []).filter((entry) => entry.writtenChars > 0);
+      log(`  ${shot.shotId}: ${consumption.status} · 光圈 ${advisor?.aperture ?? "-"}（${advisor?.scenarioLabel ?? "-"}）· 实际写入 ${fields.length} 个字段 → ${fields.map((f) => f.field).join("/") || "无"}`);
       record({
-        stage: "cine-kb", shotId: shot.shotId, invoked: true, ok: true, cached: false, degraded: false, attempt: 1,
+        stage: "cine-kb", shotId: shot.shotId, invoked: true, ok: consumption.verified, cached: trace.reused === true, degraded: false, attempt: 1,
         ms: Date.now() - started, artifact: traceFile,
-        evidence: { aperture: advisor?.aperture ?? null, scenario: advisor?.scenarioLabel ?? null, matchedBy: advisor?.matchedBy ?? null, injectedFields: fields.map((f) => f.field), missingTopics: status.missingTopics.map((t) => t.id) },
-        verdict: null, note: "知识库按场景注入（参数只进 trace，提示词只写画面语言）"
+        evidence: { ...consumption, traceStatus: trace.status, aperture: advisor?.aperture ?? null, scenario: advisor?.scenarioLabel ?? null, matchedBy: advisor?.matchedBy ?? null, injectedFields: fields.map((f) => f.field), missingTopics: status.missingTopics.map((t) => t.id) },
+        verdict: null, note: consumption.detail
       });
     }
-    /** 提示词交付闸前把增强后的镜头卡落盘留档 */
-    writeFileSync(join(WORK_DIR, `shotlist-enriched-${PROJECT}.json`), `${JSON.stringify({ projectId: PROJECT, shots, cineKbApplied: true }, null, 2)}\n`, "utf8");
+    const projectStatus = enhancementStatus(perShot.map((entry) => entry.status));
+    const ok = perShot.length === shots.length && perShot.every((entry) => entry.verified);
+    const enrichedFile = join(WORK_DIR, `shotlist-enriched-${PROJECT}.json`);
+    writeFileSync(enrichedFile, `${JSON.stringify({ projectId: PROJECT, shots, status: projectStatus, cineKbApplied: perShot.some((entry) => entry.status === "passed"), perShot }, null, 2)}\n`, "utf8");
+    // The latest project row cannot let a successful last shot mask an earlier failed/unverified shot.
+    record({
+      stage: "cine-kb", shotId: null, invoked: true, ok, cached: false, degraded: false, attempt: 1,
+      ms: Date.now() - started, artifact: enrichedFile,
+      evidence: { status: projectStatus, perShot, textRulesOnly: true }, verdict: null,
+      note: "逐镜适用性与写入证据汇总；不代表视频视觉质量通过"
+    });
+    if (!ok) throw new Error(`摄影知识增强未通过：${perShot.filter((entry) => !entry.verified).map((entry) => `${entry.shotId} ${entry.status}（${entry.detail}）`).join("；")}`);
   }
 }
 
@@ -1575,7 +1698,7 @@ if (STAGES.has("continuity")) {
   }
 }
 
-/* ---------- ①-1 微动作增强（step_key: micromotion，5 路：面部/身体/眼神/呼吸/融合） ---------- */
+/* ---------- ①-1 微动作增强（step_key: micromotion，按主体与可见部位判适用性） ---------- */
 /**
  * 管线 yml 的 `micromotion` 环节。
  *
@@ -1585,51 +1708,60 @@ if (STAGES.has("continuity")) {
  */
 if (STAGES.has("micromotion")) {
   const started = Date.now();
-  const traces: Array<Record<string, unknown>> = [];
-  let empty = 0;
-  for (const shot of generatedShots()) {
+  const traces: MicromotionTrace[] = [];
+  const perShot: EnhancementConsumption[] = [];
+  for (const [index, shot] of shots.entries()) {
+    if (isMaterialShot(shot)) continue;
     const { card, trace } = applyMicromotion(shot as unknown as Record<string, unknown>);
-    traces.push(trace as unknown as Record<string, unknown>);
-    if (trace.applied.length === 0 && !trace.skipped) empty += 1;
-    if (!trace.skipped) {
-      /** 就地替换镜头卡：后续 spec 融合、关键帧 platePrompt、视频提交读到的都是增强后的 action */
-      const index = shots.findIndex((s) => s.shotId === shot.shotId);
-      if (index >= 0) shots[index] = card as unknown as ShotCard;
-    }
+    // Even a reused/N/A result may restore prior owned text. Always consume the returned card.
+    shots[index] = card as ShotCard;
+    micromotionTraces.set(shots[index]!, trace);
+    traces.push(trace);
+    perShot.push(micromotionConsumption(shots[index]!, trace));
   }
-  const channelsOk = traces.every((t) => (t.applied as unknown[]).length >= 4 || Boolean(t.skipped));
-  const bounded = traces.every((t) => Number(t.charDelta ?? 0) <= 200);
+  const applicable = perShot.every((entry) => entry.verified);
+  const bounded = traces.every((t) => Number.isFinite(t.charDelta) && t.charDelta >= 0 && t.charDelta <= 200);
   const languageOnly = !/f\/|ISO|帧率|焦段/.test(traces.map((t) => String(t.text ?? "")).join(" "));
   const checks: GateCheck[] = [
-    { id: "five-channels", pass: channelsOk, hard: true, detail: channelsOk ? "每镜 5 路微动作齐备（面部/身体/眼神/呼吸/融合）" : "存在镜头不足 4 路微动作" },
+    { id: "intent-and-consumption", pass: applicable, hard: true, detail: applicable ? "每镜适用性、原始意图与实际写入哈希均已核验；合法不适用不增加动作" : perShot.filter((entry) => !entry.verified).map((entry) => `${entry.shotId}：${entry.detail}`).join("；") },
     { id: "bounded-delta", pass: bounded, hard: true, detail: bounded ? `增量均在界内（最大 ${Math.max(0, ...traces.map((t) => Number(t.charDelta ?? 0)))} 字）` : "微动作增量超过 200 字上限" },
     { id: "language-only", pass: languageOnly, hard: true, detail: "微动作只写画面语言（不含 f 值/ISO/帧率等技术参数）" }
   ];
+  const traceFile = join(WORK_DIR, `micromotion-${PROJECT}.json`);
+  // A dry run executes these deterministic transforms too; preserve their real evidence.
+  writeFileSync(traceFile, `${JSON.stringify({ at: stamp(), projectId: PROJECT, traces, perShot, checks, shots: generatedShots(), textRulesOnly: true }, null, 2)}\n`, "utf8");
   const verdict = flag("--micromotion-review") && !DRY_RUN
     ? await reviewStage({
         stage: "micromotion", projectId: PROJECT,
-        artifacts: [{ path: SHOTS_FILE, kind: "json" }],
+        artifacts: [{ path: traceFile, kind: "json", note: "实际消费的当前镜头卡、适用性与逐字段写入证据" }],
+        rubric: [
+          "按原始主体与可见部位判适用性：空镜、商品、动物可为 not_applicable；不能要求补齐五路微动作或凑通道数量。",
+          "只评审实际写入的动作是否保持源姿态、视线、否定约束与台词节拍：睡眠不睁眼、蹲姿不起身、不笑不加笑意，未出镜部位不补表演。",
+          "passed 表示文本与写入证据通过；unverified/failed 必须保留未通过，旧标记或历史成功不能替代当前 sourceHash/outputHash。",
+          "本环节只有镜头文本证据，不能据此宣称视频动作自然、人物一致或物理真实；这些由后续实片评审验证。"
+        ],
         deterministic: checks,
-        context: { traces: traces.slice(0, 8).map((t) => ({ shotId: t.shotId, text: t.text })) },
+        context: { traces, perShot, textRulesOnly: true },
         env: ENV, allowFallbackApprove: ALLOW_FALLBACK_APPROVE, log
       })
     : null;
   const ok = checks.every((c) => !c.hard || c.pass) && (verdict ? verdict.approved : true);
-  const traceFile = join(WORK_DIR, `micromotion-${PROJECT}.json`);
-  if (!DRY_RUN) writeFileSync(traceFile, `${JSON.stringify({ at: stamp(), projectId: PROJECT, traces }, null, 2)}\n`, "utf8");
+  const projectStatus = enhancementStatus(perShot.map((entry) => entry.status));
   record({
     stage: "micromotion", shotId: null, invoked: true, ok, cached: false, degraded: Boolean(verdict?.degraded),
-    attempt: 1, ms: Date.now() - started, artifact: DRY_RUN ? null : traceFile,
+    attempt: 1, ms: Date.now() - started, artifact: traceFile,
     evidence: {
-      channels: traces.map((t) => ({ shotId: t.shotId, applied: (t.applied as unknown[]).length, skipped: t.skipped ?? null, charDelta: t.charDelta })),
-      llmReviewed: Boolean(verdict)
+      status: !ok && projectStatus !== "failed" && projectStatus !== "unverified" ? "failed" : projectStatus,
+      perShot, checks,
+      channels: traces.map((t) => ({ shotId: t.shotId, status: t.status, applied: t.applied.length, skipped: t.skipped ?? null, charDelta: t.charDelta })),
+      llmReviewed: Boolean(verdict), textRulesOnly: true
     },
     verdict
   });
-  if (empty > 0 || !ok) {
-    throw new Error(`微动作增强未通过自检：空增强 ${empty} 镜${verdict && !verdict.approved ? `；监制：${verdict.reason}` : ""}`);
+  if (!ok) {
+    throw new Error(`微动作增强未通过自检：${checks.filter((check) => !check.pass).map((check) => check.detail).join("；")}${verdict && !verdict.approved ? `；监制：${verdict.reason}` : ""}`);
   }
-  log(`微动作增强：${shots.length} 镜 × 5 路（面部/身体/眼神/呼吸/融合）已并入 action${verdict ? `，监制${verdict.approved ? "放行" : "打回"}` : "（未启用 LLM 复评）"}`);
+  log(`微动作增强：${perShot.filter((entry) => entry.status === "passed").length} 镜实际写入，${perShot.filter((entry) => entry.status === "not_applicable").length} 镜不适用；已核验当前卡片${verdict ? `，监制${verdict.approved ? "放行" : "打回"}` : "（未启用 LLM 文本复评）"}`);
 }
 
 /** 后续审核与生成共享这份当前镜头快照；每次替换镜头卡后均从 shots 重建视图。 */
@@ -2937,8 +3069,10 @@ if (STAGES.has("videos")) {
     const clip = join(CLIP_DIR, `${s.shotId}.mp4`);
     return existsSync(clip) && statSync(clip).size > 100_000 && materialGateVerified(s.shotId);
   });
-  const micromotionReady = !STAGES.has("micromotion") || generatedShots().every((s) => String(s.action ?? "").includes("【微动作】"))
-    || gateHistory.some((r) => r.stage === "micromotion" && r.ok);
+  const micromotionEvidence = STAGES.has("micromotion")
+    ? generatedShots().map((shot) => micromotionConsumption(shot, micromotionTraces.get(shot)))
+    : [];
+  const micromotionReady = !STAGES.has("micromotion") || micromotionEvidence.every((entry) => entry.verified);
   const g7 = recordGate({
     stepKey: "g7-preproduction",
     sourceStage: "keyframe",
@@ -2977,10 +3111,13 @@ if (STAGES.has("videos")) {
           ? `开场钩子硬失败 0（${hookCard ? `${hookCard.type}｜兑现镜 ${hookCard.payoffShotId}` : "未登记钩子卡"}；平台 ${PLATFORM} 窗口前 ${hookWindowFor(PLATFORM)}s；软提示 ${hookSummary.soft} 项）`
           : `开场钩子硬失败 ${hookSummary.hard} 项（${hookSummary.hardFailures.map((check) => check.id).join("、")}）${hookAccepted ? "——已显式声明带瑕疵放行" : "——渲染前必须清零"}`
       },
-      { id: "micromotion-applied", pass: micromotionReady, hard: false, detail: micromotionReady ? "微动作增强已并入镜头卡（或本轮未启用）" : "镜头卡未见微动作增强标记" }
+      { id: "micromotion-applied", pass: micromotionReady, hard: true,
+        detail: !STAGES.has("micromotion") ? "本轮未启用微动作增强，不声明已执行"
+          : micromotionReady ? "已逐镜复核当前卡片的适用性、原始意图与实际写入哈希（含合法不适用）"
+            : micromotionEvidence.filter((entry) => !entry.verified).map((entry) => `${entry.shotId}：${entry.detail}`).join("；") }
     ],
     evidence: {
-      promptReady, plateReady, promptApproved, plateApproved, materialReady, micromotionReady,
+      promptReady, plateReady, promptApproved, plateApproved, materialReady, micromotionReady, micromotionEvidence,
       envRealism: { hard: envSummary.hard, soft: envSummary.soft, byRule: envSummary.byRule, bible: sceneBible?.spaceId ?? null, report: ENV_REPORT_FILE },
       devicePolicy: { version: DEVICE_POLICY_VERSION, hard: devSummary.hard, soft: devSummary.soft, byRule: devSummary.byRule },
       openingHook: {
