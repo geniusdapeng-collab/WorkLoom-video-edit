@@ -134,6 +134,33 @@ export function loadRecipes(file = RECIPE_FILE) {
 }
 
 /**
+ * 平台差异参数（T-15）：配方可在同层声明 `platformOverrides = { douyin: { musicLevelDb?, duckingDb?, lufsTarget? } }`。
+ * 仅当调用上下文显式给出目标平台且配方声明了该平台覆盖时才生效（覆盖值参与打分/混音参数推导）；
+ * 无平台上下文或未声明覆盖时返回配方基准值——行为与既有口径完全一致。
+ */
+export function applyPlatformOverrides(recipe, platform = null) {
+  const result = {
+    musicLevelDb: recipe?.musicLevelDb ?? null,
+    duckingDb: recipe?.duckingDb ?? null,
+    lufsTarget: null,
+    override: null,
+  };
+  const key = String(platform ?? "").trim().toLowerCase();
+  if (!recipe || !key) return result;
+  const overrides = recipe.platformOverrides?.[key];
+  if (!overrides || typeof overrides !== "object") return result;
+  const applied = {};
+  for (const field of ["musicLevelDb", "duckingDb", "lufsTarget"]) {
+    if (Number.isFinite(overrides[field])) {
+      applied[field] = overrides[field];
+      result[field] = overrides[field];
+    }
+  }
+  if (Object.keys(applied).length) result.override = { platform: key, ...applied };
+  return result;
+}
+
+/**
  * 按题材/情绪/平台检索配方；`list=true` 返回速查表，否则返回首选配方 + 备选。
  */
 export function findRecipes(query = {}) {
@@ -178,6 +205,7 @@ export function findRecipes(query = {}) {
         musicLevelDb: recipe.musicLevelDb,
         duckingDb: recipe.duckingDb,
         platforms: recipe.platforms ?? [],
+        platformOverrides: recipe.platformOverrides ?? null,
       })),
     };
   }
@@ -487,7 +515,15 @@ export async function resolveTrackForBrief({
             return { candidate, info, match };
           })
           .sort((a, b) => b.match.score - a.match.score);
-        const compliant = scored.filter((entry) => entry.info.commercial === true);
+        // T-05：题材 veto 出局的候选不得进入商用候选池（与本地库同一纪律，不再只靠分数排序）。
+        const compliant = scored.filter((entry) => entry.info.commercial === true && entry.match.verdict !== "rejected");
+        const vetoed = scored.filter((entry) => entry.match.verdict === "rejected" && entry.info.commercial === true);
+        if (vetoed.length) {
+          attempts.push({
+            layer: "online", source: vetoed[0].candidate.source, status: "genre_vetoed",
+            message: `题材未命中且策略 veto：出局 ${vetoed.length} 首（如 ${vetoed[0].candidate.id}：${vetoed[0].match.reasons.find((reason) => reason.includes("题材未命中")) ?? "题材不符"}）`,
+          });
+        }
         const rejected = scored.filter((entry) => entry.info.commercial !== true);
         if (rejected.length) {
           attempts.push({
@@ -2130,7 +2166,7 @@ export async function best({
   minScore = 92, evidenceDir = null, bins = resolveBinaries(), seed = 0, targetLufs = -14, truePeak = -1.0,
   bpmStrategy = "cut-driven",
   promptText = null, sourcePolicy = "compose-only", destDir = null, env = process.env, fetchImpl = fetch,
-  catalog = null,
+  catalog = null, platform = null, genreMismatchPolicy = null,
 }) {
   const probe = await probeMedia(input, { bins });
   const duration = probe.duration;
@@ -2142,7 +2178,10 @@ export async function best({
    * ③ 用简报调配方电平与分层策略，并让提示词的高潮线索参与选段对齐。
    */
   const briefBundle = promptText
-    ? analyzePromptBrief({ promptText, durationSec: duration })
+    ? analyzePromptBrief({
+      promptText, platform: platform ?? null, durationSec: duration,
+      genreMismatchPolicy: genreMismatchPolicy ?? null,
+    })
     : null;
   const brief = briefBundle?.brief ?? null;
   const energyCurve = brief ? energyCurveFor({ brief, durationSec: duration }) : null;
@@ -2228,9 +2267,11 @@ export async function best({
       ? deriveTempoFromCuts({ cuts: detected.cuts, baseBpm: recipe.bpm })
       : { bpm: recipe.bpm, source: "recipe", note: null };
     const alignment = alignBeatGrid({ bpm: tempo.bpm, cuts: detected.cuts });
-    for (const duckDepth of [recipe.duckingDb - 2, recipe.duckingDb, recipe.duckingDb + 2]) {
+    // 平台差异参数（T-15）：上下文带目标平台且配方声明覆盖时，用覆盖值参与打分/混音参数推导。
+    const platformFx = applyPlatformOverrides(recipe, platform ?? brief?.platform ?? null);
+    for (const duckDepth of [platformFx.duckingDb - 2, platformFx.duckingDb, platformFx.duckingDb + 2]) {
       const depth = Math.max(6, Math.min(18, duckDepth));
-      const musicLevel = Math.max(-30, Math.min(-16, recipe.musicLevelDb));
+      const musicLevel = Math.max(-30, Math.min(-16, platformFx.musicLevelDb));
       // 人声出现时 BGM 被压低 depth dB → 该窗口音乐电平 = musicLevel - depth，
       // 因此余量 = 人声电平 − (音乐电平 − 让位深度)。此前写成 (musicLevel + depth)，
       // 会把"音乐被压低"算成"音乐更响"，导致 best 误判"无需配乐"（2026-09-23 演示实测）。
@@ -2271,6 +2312,7 @@ export async function best({
         duckingDb: depth,
         bpm: tempo.bpm,
         tempo,
+        platformOverride: platformFx.override,
         score: round(score, 2),
         predicted: {
           speechToMusicMarginDb: margin,
@@ -2296,6 +2338,8 @@ export async function best({
   if (!output) throw new BgmError("已有更优候选，但未提供 output_path（择优配乐需要输出路径）", "bad_request");
 
   const recipe = loadRecipes().recipes.find((item) => item.id === winner.recipeId);
+  const winnerFx = applyPlatformOverrides(recipe, platform ?? brief?.platform ?? null);
+  const effectiveTargetLufs = Number.isFinite(winnerFx.lufsTarget) ? winnerFx.lufsTarget : targetLufs;
   const work = await tempDir("bgm-best-");
   const levelWithBrief = Math.max(-30, Math.min(-16, winner.musicLevelDb + (brief?.musicLevelDeltaDb ?? 0)));
   const climaxOverride = Number.isFinite(brief?.climax?.atSec) ? brief.climax.atSec : null;
@@ -2336,7 +2380,7 @@ export async function best({
     bgmBpm: winner.bpm,
     musicLevelDb: levelWithBrief,
     duckingDb: winner.duckingDb,
-    targetLufs,
+    targetLufs: effectiveTargetLufs,
     truePeak,
     evidenceDir,
     bins,
@@ -2350,7 +2394,7 @@ export async function best({
     winnerLabel: winner.label,
     score: winner.score,
     minScore,
-    recipe: { id: recipe.id, genre: recipe.genre, mood: recipe.mood, key: recipe.key, mode: recipe.mode, bpm: recipe.bpm, chords: recipe.chords },
+    recipe: { id: recipe.id, genre: recipe.genre, mood: recipe.mood, key: recipe.key, mode: recipe.mode, bpm: recipe.bpm, chords: recipe.chords, platformOverride: winnerFx.override },
     brief,
     energyCurve,
     track: trackInfo,
@@ -2520,9 +2564,12 @@ export async function callTool(name, params = {}, { bins = resolveBinaries(), en
         platform: params.platform ?? null,
         durationSec: optionalNumber(params.duration_sec),
         recipeHint: params.recipe_hint ?? null,
+        genreMismatchPolicy: params.genre_mismatch_policy ? String(params.genre_mismatch_policy) : null,
       });
       const energyCurve = energyCurveFor({ brief, durationSec: optionalNumber(params.duration_sec) });
       const matchedRecipe = brief.recipeId ? findRecipes({ recipeId: brief.recipeId }).recipe : null;
+      // 平台差异参数（T-15）：brief 带目标平台且配方声明覆盖时，建议参数用覆盖值。
+      const platformFx = matchedRecipe ? applyPlatformOverrides(matchedRecipe, brief.platform) : null;
       return {
         result: {
           brief,
@@ -2532,9 +2579,10 @@ export async function callTool(name, params = {}, { bins = resolveBinaries(), en
             ? {
               id: matchedRecipe.id, genre: matchedRecipe.genre, mood: matchedRecipe.mood,
               bpm: matchedRecipe.bpm, key: matchedRecipe.key, mode: matchedRecipe.mode,
-              musicLevelDb: matchedRecipe.musicLevelDb,
-              recommendedLevelDb: Math.max(-30, Math.min(-16, matchedRecipe.musicLevelDb + brief.musicLevelDeltaDb)),
-              duckingDb: matchedRecipe.duckingDb,
+              musicLevelDb: platformFx.musicLevelDb,
+              recommendedLevelDb: Math.max(-30, Math.min(-16, platformFx.musicLevelDb + brief.musicLevelDeltaDb)),
+              duckingDb: platformFx.duckingDb,
+              platformOverride: platformFx.override,
             }
             : null,
           sourcePolicyHint: "online-first（在线曲源优先，失败回退本地曲库，再兜底自算作曲）",
@@ -2548,7 +2596,10 @@ export async function callTool(name, params = {}, { bins = resolveBinaries(), en
       const promptText = params.prompt_text ? String(params.prompt_text) : null;
       const durationSec = optionalNumber(params.duration_sec);
       const brief = promptText
-        ? analyzePromptBrief({ promptText, durationSec }).brief
+        ? analyzePromptBrief({
+          promptText, durationSec,
+          genreMismatchPolicy: params.genre_mismatch_policy ? String(params.genre_mismatch_policy) : null,
+        }).brief
         : null;
       const recipe = params.recipe_id
         ? findRecipes({ recipeId: String(params.recipe_id) }).recipe
@@ -2896,6 +2947,8 @@ export async function callTool(name, params = {}, { bins = resolveBinaries(), en
         sourcePolicy: typeof params.source_policy === "string" ? params.source_policy : "compose-only",
         catalog: typeof params.catalog === "string" ? params.catalog : null,
         destDir: params.dest_dir ? assertPathAllowed(String(params.dest_dir), roots, "dest_dir") : null,
+        platform: params.platform ? String(params.platform) : null,
+        genreMismatchPolicy: params.genre_mismatch_policy ? String(params.genre_mismatch_policy) : null,
       });
       return {
         result: outcome,

@@ -31,6 +31,25 @@ import {
 export const TAG_SCHEMA = "workloom.bgm-tag/v1";
 export const LIBRARY_SCHEMA = "workloom.bgm-library/v1";
 
+/**
+ * 证据文件里的库位置：写「相对仓库根」的稳定路径。
+ * 原因：绝对路径会把生成机器的目录结构（沙箱/用户名）带进随仓资产，换机器后无法复核，
+ * 且等于把构建环境信息写进产品资产。识别不到仓库根时退化为目录名，绝不写绝对路径。
+ */
+function stableLibraryRoot(libraryDir) {
+  const target = path.resolve(libraryDir);
+  let cursor = target;
+  for (;;) {
+    if (fs.existsSync(path.join(cursor, "pnpm-workspace.yaml"))) {
+      const relative = path.relative(cursor, target);
+      return relative && !relative.startsWith("..") ? relative : path.basename(target);
+    }
+    const parent = path.dirname(cursor);
+    if (parent === cursor) return path.basename(target);
+    cursor = parent;
+  }
+}
+
 export const AUDIO_EXTENSIONS = new Set([
   ".mp3", ".wav", ".m4a", ".aac", ".flac", ".ogg", ".opus", ".aiff", ".aif",
 ]);
@@ -271,6 +290,324 @@ export function classifyStyle({ bpm, tempoConfidence, energyScore, dynamicsDb, f
   return { style: best.style, styleLabel: STYLE_FAMILIES[best.style].label, confidence, margin: round(margin, 2), candidates: scored.slice(0, 3) };
 }
 
+/* ============================ 调性/调式检测 ============================ */
+
+/**
+ * 调性估计：**纯 JS 实测**，不依赖第三方库、不猜。
+ *
+ * 链路：ffmpeg 解码中部代表段 PCM（22050Hz 单声道）→ STFT（4096 帧 / 2048 hop，Hann 窗，
+ * 基-2 FFT 自实现）→ 12 bin chromagram（频率按 A4=440 折到音级，近静音帧跳过）→
+ * Krumhansl–Schmuckler 大/小调模板做 Pearson 相关 → 24 个候选取最优。
+ *
+ * 输出口径与 `bgm-recipes/recipes.json` 兼容：key 用 "C4" 体系（音名 + 八度 4，升号记 #），
+ * mode 只出 major/minor（配方里的 dorian 等教会调式由上游配方指定，检测只负责大小调二分类）。
+ *
+ * 置信度沿用本文件既有三档口径——看**证据强度**（第一名相关度领先第二名的幅度 + 相关度绝对值）：
+ * - high：领先 ≥0.12 且最佳相关度 ≥0.6；
+ * - medium：领先 ≥0.05 且最佳相关度 ≥0.4；
+ * - low：其余（如实标 low，标签不落 `key:`，只把候选写进证据，交人审）。
+ * 阈值为本仓自有取值，非通用常量。
+ */
+const KS_PROFILES = {
+  major: [6.35, 2.23, 3.48, 2.33, 4.38, 4.09, 2.52, 5.19, 2.39, 3.66, 2.29, 2.88],
+  minor: [6.33, 2.68, 3.52, 5.38, 2.6, 3.53, 2.54, 4.75, 3.98, 2.69, 3.34, 3.17],
+};
+
+const KEY_NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
+
+/** 基-2 就地 FFT（Cooley–Tukey 迭代式；re/im 长度必须是 2 的幂）。 */
+export function fftRadix2(re, im) {
+  const n = re.length;
+  for (let i = 1, j = 0; i < n; i += 1) {
+    let bit = n >> 1;
+    for (; j & bit; bit >>= 1) j ^= bit;
+    j ^= bit;
+    if (i < j) {
+      const swapR = re[i]; re[i] = re[j]; re[j] = swapR;
+      const swapI = im[i]; im[i] = im[j]; im[j] = swapI;
+    }
+  }
+  for (let size = 2; size <= n; size <<= 1) {
+    const half = size >> 1;
+    const angleStep = (-2 * Math.PI) / size;
+    for (let start = 0; start < n; start += size) {
+      for (let k = 0; k < half; k += 1) {
+        const angle = angleStep * k;
+        const wr = Math.cos(angle);
+        const wi = Math.sin(angle);
+        const even = start + k;
+        const odd = even + half;
+        const xr = re[odd] * wr - im[odd] * wi;
+        const xi = re[odd] * wi + im[odd] * wr;
+        re[odd] = re[even] - xr;
+        im[odd] = im[even] - xi;
+        re[even] += xr;
+        im[even] += xi;
+      }
+    }
+  }
+}
+
+/**
+ * 12 bin chromagram：STFT 幅度谱按 A4=440 折到音级。
+ * 近静音帧（RMS < 1e-4）跳过——静音段的数值噪声会稀释模板相关度。
+ */
+export function chromagramFromPcm({ pcm, sampleRate, frameSize = 4096, hopSize = 2048, minHz = 55, maxHz = 4186 }) {
+  const chroma = new Float64Array(12);
+  if (!(pcm?.length >= frameSize)) return { chroma: [...chroma], framesUsed: 0, framesTotal: 0 };
+  const halfBins = frameSize / 2;
+  const binHz = sampleRate / frameSize;
+  const binToPc = new Int8Array(halfBins).fill(-1);
+  for (let bin = 0; bin < halfBins; bin += 1) {
+    const freq = bin * binHz;
+    if (freq < minHz || freq > maxHz) continue;
+    binToPc[bin] = (((Math.round(12 * Math.log2(freq / 440)) + 69) % 12) + 12) % 12;
+  }
+  const hann = new Float64Array(frameSize);
+  for (let index = 0; index < frameSize; index += 1) {
+    hann[index] = 0.5 * (1 - Math.cos((2 * Math.PI * index) / (frameSize - 1)));
+  }
+  const re = new Float64Array(frameSize);
+  const im = new Float64Array(frameSize);
+  let framesUsed = 0;
+  let framesTotal = 0;
+  for (let start = 0; start + frameSize <= pcm.length; start += hopSize) {
+    framesTotal += 1;
+    let sumSquares = 0;
+    for (let index = 0; index < frameSize; index += 1) {
+      const sample = pcm[start + index] ?? 0;
+      re[index] = sample * hann[index];
+      im[index] = 0;
+      sumSquares += sample * sample;
+    }
+    if (Math.sqrt(sumSquares / frameSize) < 1e-4) continue; // 近静音帧
+    fftRadix2(re, im);
+    for (let bin = 0; bin < halfBins; bin += 1) {
+      const pc = binToPc[bin];
+      if (pc < 0) continue;
+      chroma[pc] += Math.sqrt(re[bin] * re[bin] + im[bin] * im[bin]);
+    }
+    framesUsed += 1;
+  }
+  const peak = Math.max(...chroma);
+  const normalized = peak > 0 ? [...chroma].map((value) => value / peak) : [...chroma];
+  return { chroma: normalized, framesUsed, framesTotal };
+}
+
+/** Pearson 相关（K-S 模板匹配的相似度口径）。 */
+function pearsonCorrelation(a, b) {
+  const n = a.length;
+  const meanA = a.reduce((sum, value) => sum + value, 0) / n;
+  const meanB = b.reduce((sum, value) => sum + value, 0) / n;
+  let numerator = 0;
+  let denomA = 0;
+  let denomB = 0;
+  for (let index = 0; index < n; index += 1) {
+    const da = a[index] - meanA;
+    const db = b[index] - meanB;
+    numerator += da * db;
+    denomA += da * da;
+    denomB += db * db;
+  }
+  const denom = Math.sqrt(denomA * denomB);
+  return denom > 0 ? numerator / denom : 0;
+}
+
+/** 置信度分档（纯函数，便于单测）：领先幅度 + 最佳相关度绝对值双条件。 */
+export function keyConfidenceFromMargin(margin, bestCorr) {
+  if (!Number.isFinite(margin) || !Number.isFinite(bestCorr)) return "low";
+  if (bestCorr >= 0.6 && margin >= 0.12) return "high";
+  if (bestCorr >= 0.4 && margin >= 0.05) return "medium";
+  return "low";
+}
+
+/**
+ * chroma 向量 → 最优 key/mode + 置信度 + top2 候选（证据要可复核，所以 top2 相关度都返回）。
+ */
+export function estimateKeyFromChroma(chroma) {
+  const vector = Array.isArray(chroma) ? chroma : [];
+  if (vector.length !== 12 || vector.every((value) => value === 0)) {
+    return { key: null, mode: null, confidence: "low", margin: null, bestCorr: null, secondCorr: null, candidates: [], reason: "chroma 为空（无声/证据不足）" };
+  }
+  const scored = [];
+  for (let root = 0; root < 12; root += 1) {
+    for (const mode of ["major", "minor"]) {
+      const profile = KS_PROFILES[mode];
+      const rotated = profile.map((_, index) => profile[(index - root + 12) % 12]);
+      scored.push({ root, mode, corr: pearsonCorrelation(vector, rotated) });
+    }
+  }
+  scored.sort((a, b) => b.corr - a.corr);
+  const [best, second] = scored;
+  const margin = best.corr - (second?.corr ?? 0);
+  return {
+    key: `${KEY_NAMES[best.root]}4`,
+    mode: best.mode,
+    confidence: keyConfidenceFromMargin(margin, best.corr),
+    margin: round(margin, 4),
+    bestCorr: round(best.corr, 4),
+    secondCorr: round(second?.corr, 4),
+    candidates: scored.slice(0, 2).map((entry) => ({
+      key: `${KEY_NAMES[entry.root]}4`, mode: entry.mode, corr: round(entry.corr, 4),
+    })),
+  };
+}
+
+/** PCM → 调性估计（chromagram + K-S 模板的一条龙）。 */
+export function estimateKeyFromPcm({ pcm, sampleRate }) {
+  const { chroma, framesUsed, framesTotal } = chromagramFromPcm({ pcm, sampleRate });
+  return { ...estimateKeyFromChroma(chroma), chroma: chroma.map((value) => round(value, 4)), framesUsed, framesTotal };
+}
+
+/**
+ * 单曲调性实测：取**中部代表段**（默认 45s；首尾常是淡入/铺垫，中部和声最稳定）。
+ * 失败如实抛（由调用方决定记 low 还是中断），不吞异常、不编一个 key。
+ */
+export async function measureKey(input, { bins = resolveBinaries(), sampleRate = 22050, windowSec = 45, durationSec = null } = {}) {
+  const duration = Number.isFinite(durationSec) ? durationSec : (await probeMedia(input, { bins })).duration;
+  const analyzed = Math.max(4, Math.min(windowSec, duration));
+  const startSec = Math.max(0, (duration - analyzed) / 2);
+  const { pcm, sampleRate: rate } = await decodePcm({ input, sampleRate, startSec, maxSeconds: analyzed, bins });
+  const estimate = estimateKeyFromPcm({ pcm, sampleRate: rate });
+  return {
+    ...estimate,
+    fromSec: round(startSec, 2),
+    windowSec: round(analyzed, 2),
+    method: "chromagram(4096/2048 Hann) + Krumhansl-Schmuckler 模板相关（中部代表段）",
+  };
+}
+
+/**
+ * 调性目录先验裁决：对齐 classifyStyle 的先验纪律——
+ * tracks.json 已有 `key:` 标注（人工/先前标注）时，实测要推翻它必须达到 high 置信
+ * （相关度明显领先第二名），否则**保留先验**、置信度记 medium，冲突写入 conflict 供复核。
+ */
+export function decideKeyWithPrior({ detection, priorKey = null, priorMode = null }) {
+  if (!priorKey) return { ...detection, source: "measured" };
+  const agrees = priorKey === detection.key && (!priorMode || priorMode === detection.mode);
+  if (agrees) {
+    return {
+      ...detection,
+      key: priorKey,
+      mode: priorMode ?? detection.mode,
+      confidence: detection.confidence === "low" ? "medium" : detection.confidence,
+      source: "prior+measured",
+    };
+  }
+  if (detection.confidence === "high") {
+    return {
+      ...detection,
+      source: "measured-override",
+      conflict: `实测 ${detection.key}/${detection.mode}（top2 相关度 ${detection.bestCorr}/${detection.secondCorr}，领先 ${detection.margin}，达 high）推翻先验 ${priorKey}/${priorMode ?? "-"}`,
+    };
+  }
+  return {
+    key: priorKey,
+    mode: priorMode ?? detection.mode ?? null,
+    confidence: "medium",
+    margin: detection.margin ?? null,
+    bestCorr: detection.bestCorr ?? null,
+    secondCorr: detection.secondCorr ?? null,
+    candidates: detection.candidates ?? [],
+    source: "prior-kept",
+    conflict: `实测倾向 ${detection.key}/${detection.mode}（置信 ${detection.confidence}，未达推翻先验所需 high）→ 保留先验 ${priorKey}/${priorMode ?? "-"}`,
+  };
+}
+
+/** 从既有 tags 数组提取调性先验（`key:C4` / `mode:major` 形式）。 */
+export function keyPriorFromTags(tags) {
+  const list = (Array.isArray(tags) ? tags : []).map(String);
+  const keyTag = list.find((tag) => /^key:[A-G][#b]?\d$/.test(tag));
+  const modeTag = list.find((tag) => /^mode:(major|minor)$/.test(tag));
+  return { key: keyTag ? keyTag.slice(4) : null, mode: modeTag ? modeTag.slice(5) : null };
+}
+
+/* ============================ 能量弧线标签 ============================ */
+
+/**
+ * 能量弧线类型（`arc:xxx` 标签词汇表，5-8 个；映射规则见 classifyEnergyArc 注释）。
+ * 弧线是**检索/选曲**用的粗摘要：同一风格的曲子，"一路推上去"和"蓄一波炸开"用法完全不同。
+ */
+export const ARC_TYPES = {
+  "flat-ambient": "平稳氛围：全曲能量平坦（动态 <6dB 或单段 flat），无明确高潮，适合铺底",
+  "rising-steady": "渐进上升：能量整体爬升（尾段均值高于首段 ≥3dB），无爆发式 drop",
+  "build-drop": "蓄积爆发：存在高能 drop 段（前有铺垫），典型「蓄-放」结构",
+  "wave-narrative": "起伏叙事：≥2 个高能段或 drop↔breakdown 交替，多轮起落",
+  "outro-resolve": "尾段收束：高能段之后尾段明显回落（≥4dB）且占全曲 ≥20% 时长",
+  "front-loaded": "前重后轻：能量集中在前段，尾段均值低于首段 ≥3dB",
+};
+
+/**
+ * 能量弧线判定（输入是 structure 识别的 segments + dynamicsDb，规则按优先级短路）：
+ * 1. 无段 / 单段 flat / 动态 <6dB                         → flat-ambient
+ * 2. ≥2 个 drop，或 drop + breakdown 交替                 → wave-narrative
+ * 3. 恰好 1 个 drop：尾段 outro 回落 ≥4dB 且占 ≥20% 时长  → outro-resolve；否则 → build-drop
+ * 4. 无 drop：按时长加权的首 30%/尾 30% 段均值差
+ *    - 尾高于首 ≥3dB                                     → rising-steady
+ *    - 首高于尾 ≥3dB                                     → front-loaded
+ *    - 其余多段（≥3 段）交替                              → wave-narrative；否则 flat-ambient
+ */
+export function classifyEnergyArc({ segments = [], dynamicsDb = null } = {}) {
+  const list = (Array.isArray(segments) ? segments : []).filter((segment) => Number.isFinite(segment?.durationSec));
+  const totalSec = list.reduce((sum, segment) => sum + segment.durationSec, 0);
+  if (!list.length || totalSec <= 0) return { arc: "flat-ambient", reason: "无结构段证据，按平稳氛围处理" };
+  if (list.length === 1 && list[0].type === "flat") return { arc: "flat-ambient", reason: "单段 flat（全曲能量平坦）" };
+  if (Number.isFinite(dynamicsDb) && dynamicsDb < 6) {
+    return { arc: "flat-ambient", reason: `动态 ${round(dynamicsDb)} dB <6dB：无明确高潮` };
+  }
+  const drops = list.filter((segment) => segment.type === "drop");
+  const hasBreakdown = list.some((segment) => segment.type === "breakdown");
+  if (drops.length >= 2 || (drops.length >= 1 && hasBreakdown)) {
+    return {
+      arc: "wave-narrative",
+      reason: `${drops.length} 个高能段${hasBreakdown ? " + breakdown 交替" : ""}：多轮起落`,
+    };
+  }
+  if (drops.length === 1) {
+    const dropPeak = drops[0].avgDb ?? -60;
+    const last = list[list.length - 1];
+    const tailShare = last.durationSec / totalSec;
+    if (last.type === "outro" && tailShare >= 0.2 && Number.isFinite(last.avgDb) && last.avgDb <= dropPeak - 4) {
+      return {
+        arc: "outro-resolve",
+        reason: `drop 峰值 ${round(dropPeak)} dB 后尾段回落到 ${round(last.avgDb)} dB（占全曲 ${round(tailShare * 100, 0)}%）`,
+      };
+    }
+    const hasBuild = list.some((segment) => segment.type === "build");
+    return {
+      arc: "build-drop",
+      reason: hasBuild ? "build→drop 蓄积爆发结构" : "存在高能 drop 段（铺垫→爆发）",
+    };
+  }
+  const weightedAvg = (subset) => {
+    const duration = subset.reduce((sum, segment) => sum + segment.durationSec, 0);
+    if (!duration) return null;
+    return subset.reduce((sum, segment) => sum + (segment.avgDb ?? -60) * segment.durationSec, 0) / duration;
+  };
+  const headAvg = weightedAvg(list.filter((segment) => segment.startSec < totalSec * 0.3));
+  const tailAvg = weightedAvg(list.filter((segment) => segment.endSec > totalSec * 0.7));
+  if (Number.isFinite(headAvg) && Number.isFinite(tailAvg)) {
+    const rise = tailAvg - headAvg;
+    if (rise >= 3) return { arc: "rising-steady", reason: `尾段均值较首段上行 ${round(rise)} dB（无爆发式 drop）` };
+    if (rise <= -3) return { arc: "front-loaded", reason: `尾段均值较首段回落 ${round(-rise)} dB：能量集中在前段` };
+  }
+  if (list.length >= 3) return { arc: "wave-narrative", reason: `${list.length} 段能量交替（无集中爆发）` };
+  return { arc: "flat-ambient", reason: "能量走向平坦" };
+}
+
+/**
+ * 写标签（幂等）：先清掉既有 `key:`/`mode:`/`arc:` 前缀标签，再按需追加——
+ * 重跑回标不会产生重复标签；低置信调性不落 `key:`/`mode:`（不许猜），证据里仍留候选。
+ */
+export function applyKeyArcTags(tags, { key = null, mode = null, arc = null } = {}) {
+  const cleaned = (Array.isArray(tags) ? tags : []).filter((tag) => !/^(key|mode|arc):/.test(String(tag)));
+  const next = [...cleaned];
+  if (key) next.push(`key:${key}`);
+  if (mode) next.push(`mode:${mode}`);
+  if (arc) next.push(`arc:${arc}`);
+  return [...new Set(next)];
+}
+
 /** 循环友好度：首尾能量接近 + 尾部无长静音（拼短视频循环时不会"啪"一下）。 */
 export function loopFriendlyOf({ envelopeDb, trailingSilenceSec = 0 }) {
   if (!Array.isArray(envelopeDb) || envelopeDb.length < 16) {
@@ -352,9 +689,12 @@ export async function measureTrack({
   const durationFull = probe.duration;
   const analyzedSec = Math.min(durationFull, maxSeconds);
 
-  const [loudness, pcm] = await Promise.all([
+  const [loudness, pcm, keyEstimate] = await Promise.all([
     measureLoudness(input, { bins, maxSeconds }),
     decodePcm({ input, maxSeconds, bins }),
+    // 调性实测失败不拖垮整首：记 low + 原因，候选留空（不许猜）
+    measureKey(input, { bins, durationSec: durationFull })
+      .catch((error) => ({ key: null, mode: null, confidence: "low", candidates: [], reason: `调性实测失败：${error instanceof Error ? error.message : String(error)}` })),
   ]);
 
   const { pcm: samples, sampleRate } = pcm;
@@ -422,6 +762,7 @@ export async function measureTrack({
     spectral,
     onsetRatePerSec,
     energyScore,
+    key: keyEstimate,
     analyzedNote: durationFull > maxSeconds
       ? `只分析前 ${maxSeconds}s（共 ${round(durationFull, 1)}s）：长曲的响度/结构与整曲一致时用前段代表，避免逐曲全解码`
       : "整曲分析",
@@ -549,6 +890,11 @@ export function classifyTrack({ measurement, relativePath, mediaTags = null }) {
     trailingSilenceSec: measurement.silence?.trailingSec ?? 0,
   });
   const identity = titleArtistOf({ tags: mediaTags, relativePath: relativePath ?? measurement.input });
+  const arc = classifyEnergyArc({
+    segments: measurement.structure?.segments ?? [],
+    dynamicsDb: measurement.envelope?.dynamicsDb ?? null,
+  });
+  const keyDetection = measurement.key ?? { key: null, mode: null, confidence: "low" };
   return {
     style: style.style,
     styleLabel: style.styleLabel,
@@ -558,6 +904,12 @@ export function classifyTrack({ measurement, relativePath, mediaTags = null }) {
     genre: hint?.genre ?? STYLE_FAMILIES[style.style].label,
     mood: hint?.mood ?? null,
     useCases: STYLE_USE_CASES[style.style] ?? [],
+    key: keyDetection.key ?? null,
+    mode: keyDetection.mode ?? null,
+    keyConfidence: keyDetection.confidence ?? "low",
+    keyCandidates: keyDetection.candidates ?? [],
+    arc: arc.arc,
+    arcReason: arc.reason,
     bpm: tempo.bpm,
     bpmRaw: tempo.raw,
     bpmFoldFactor: tempo.foldFactor,
@@ -606,6 +958,9 @@ export function buildIndexEntry({ measurement, tags, root, relativePath, license
     tags: [...new Set([
       tags.style, tags.styleLabel, tags.genre, tags.mood, tags.bpmBucket,
       energyBucket ? `能量-${energyBucket}` : null,
+      // 调性只在置信度 ≥medium 时落标签（低置信不许猜，候选留在证据里）
+      ...(tags.key && tags.keyConfidence !== "low" ? [`key:${tags.key}`, `mode:${tags.mode}`] : []),
+      tags.arc ? `arc:${tags.arc}` : null,
       ...(tags.useCases ?? []), ...(tags.instrumentation ?? []),
       ...(tags.loop?.loopFriendly ? ["循环友好"] : []),
     ].filter(Boolean))],
@@ -643,6 +998,7 @@ export function buildIndexEntry({ measurement, tags, root, relativePath, license
     confidence: {
       style: tags.styleConfidence,
       bpm: measurement.tempo?.confidence ?? "low",
+      key: tags.keyConfidence ?? "low",
       note: tags.styleConfidence === "low" ? "风格判定低置信：建议人耳复核后再用于客户交付" : "风格判定 ≥ medium",
     },
     curatedFrom: path.relative(root, measurement.input).split(path.sep).join("/"),
@@ -757,11 +1113,14 @@ export async function tagLibrary({
       spectral: measurement.spectral,
       onsetRatePerSec: measurement.onsetRatePerSec,
       energyScore: measurement.energyScore,
+      key: measurement.key ?? null,
       tags: {
         style: tags.style, styleConfidence: tags.styleConfidence, styleCandidates: tags.styleCandidates,
         genre: tags.genre, mood: tags.mood, useCases: tags.useCases,
         bpmBucket: tags.bpmBucket, instrumentation: tags.instrumentation, loop: tags.loop,
         vocalPresence: tags.vocalPresence, hint: tags.hint,
+        key: tags.key, mode: tags.mode, keyConfidence: tags.keyConfidence, keyCandidates: tags.keyCandidates,
+        arc: tags.arc, arcReason: tags.arcReason,
       },
     });
   }
@@ -868,6 +1227,138 @@ export function writeLibrary({ outDir, result, libraryName, provider = "owner-pr
     files: ["tracks.json", "tag-evidence.json", "tag-report.json"],
     tracks: tracks.length,
   };
+}
+
+/* ============================ 调性/弧线批量回标 ============================ */
+
+/**
+ * 对既有曲库**增量回标**调性与能量弧线（不动其它字段、不重新实测响度/拍速）：
+ * - 调性：逐首 `measureKey` 实测中部代表段；既有 `key:` 标签作为先验（裁决规则见 decideKeyWithPrior）；
+ * - 弧线：对曲库文件重算能量包络 + structure 分段后归纳（索引里的存量段落来自原始整曲，
+ *   贴到 60s 选段上口径不对；重算失败才退回存量段落）；
+ * - 标签经 `applyKeyArcTags` 幂等写入（重跑不产生重复标签）；
+ * - 证据（top2 模板相关度、判定依据、先验冲突）落 `tag-evidence.json` 的 `keyArcEvidence` 段——
+ *   若已有打标证据文件则合并保留原 `evidence`，不覆盖历史。
+ */
+export async function retagLibraryKeyArc({
+  libraryDir, bins = resolveBinaries(), concurrency = 4, onProgress = null,
+}) {
+  const manifestPath = path.join(libraryDir, "tracks.json");
+  if (!fs.existsSync(manifestPath)) throw new Error(`索引不存在：${manifestPath}`);
+  const doc = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
+  const base = indexBaseDir(doc, libraryDir);
+  const tracks = Array.isArray(doc.tracks) ? doc.tracks : [];
+  let done = 0;
+  const results = await runPool(tracks, concurrency, async (track) => {
+    const file = typeof track.file === "string" && track.file
+      ? (path.isAbsolute(track.file) ? track.file : path.resolve(base, track.file))
+      : null;
+    let keyResult = null;
+    let keyError = null;
+    /**
+     * 弧线证据**优先用曲库文件本身重算**：精选曲库存的是 60s 选段，而索引里的
+     * structure.segments 来自原始整曲（时长对不上选段），直接拿它归纳弧线会把
+     * "整曲的叙事"贴到"选段文件"头上。重算失败才退回索引里的存量段落。
+     */
+    let arcInput = { segments: track.structure?.segments ?? [], dynamicsDb: Number(track.dynamicsDb) || null };
+    let arcSource = "stored-structure";
+    if (file && fs.existsSync(file)) {
+      try {
+        const detection = await measureKey(file, { bins, durationSec: Number(track.durationSec) || null });
+        const prior = keyPriorFromTags(track.tags);
+        keyResult = decideKeyWithPrior({ detection, priorKey: prior.key, priorMode: prior.mode });
+        const { pcm, sampleRate } = await decodePcm({ input: file, sampleRate: 8000, maxSeconds: 300, bins });
+        const envelope = energyEnvelope({ pcm, sampleRate, windowSec: 0.25 });
+        const onsets = onsetStrength(envelope.db);
+        const structure = classifySegments({ envelope, onsets, minSegmentSec: 3 });
+        arcInput = {
+          segments: structure.segments,
+          dynamicsDb: round((envelope.quantiles.p90 ?? 0) - (envelope.quantiles.p10 ?? 0), 2),
+        };
+        arcSource = "excerpt-structure";
+      } catch (error) {
+        keyError = error instanceof Error ? error.message : String(error);
+      }
+    } else {
+      keyError = `音频文件不在位：${track.file ?? "(无 file 字段)"}`;
+    }
+    const arc = classifyEnergyArc(arcInput);
+    done += 1;
+    onProgress?.({ id: track.id, index: done, total: tracks.length, failed: Boolean(keyError) });
+    return { track, keyResult, keyError, arc, arcSource, arcSegments: arcInput.segments.length };
+  });
+
+  const evidence = [];
+  let keyTagged = 0;
+  let keyLow = 0;
+  let keyFailed = 0;
+  let priorConflicts = 0;
+  const byArc = {};
+  for (const { track, keyResult, keyError, arc, arcSource, arcSegments } of results) {
+    const keyUsable = keyResult && keyResult.confidence !== "low";
+    track.tags = applyKeyArcTags(track.tags, {
+      key: keyUsable ? keyResult.key : null,
+      mode: keyUsable ? keyResult.mode : null,
+      arc: arc.arc,
+    });
+    if (keyResult) {
+      track.confidence = { ...(track.confidence ?? {}), key: keyResult.confidence };
+      if (keyUsable) keyTagged += 1;
+      else keyLow += 1;
+      if (keyResult.conflict) priorConflicts += 1;
+    } else {
+      keyFailed += 1;
+    }
+    byArc[arc.arc] = (byArc[arc.arc] ?? 0) + 1;
+    evidence.push({
+      id: track.id,
+      file: track.file,
+      key: keyResult
+        ? {
+          key: keyResult.key, mode: keyResult.mode, confidence: keyResult.confidence,
+          source: keyResult.source, conflict: keyResult.conflict ?? null,
+          top2: keyResult.candidates ?? [],
+          margin: keyResult.margin ?? null,
+          bestCorr: keyResult.bestCorr ?? null, secondCorr: keyResult.secondCorr ?? null,
+          fromSec: keyResult.fromSec ?? null, windowSec: keyResult.windowSec ?? null,
+          method: keyResult.method ?? null,
+          basis: `top2 模板相关度 ${keyResult.bestCorr}/${keyResult.secondCorr}（领先 ${keyResult.margin}）→ ${keyResult.key}/${keyResult.mode}（${keyResult.confidence}）`,
+        }
+        : { error: keyError },
+      arc: { arc: arc.arc, reason: arc.reason, source: arcSource, segments: arcSegments },
+    });
+  }
+
+  doc.library = {
+    ...(doc.library ?? {}),
+    keyArcTaggedAt: new Date().toISOString(),
+    keyArc: {
+      keyTagged, keyLowConfidence: keyLow, keyFailed, priorConflicts, byArc,
+      note: "调性为 chromagram + Krumhansl-Schmuckler 模板相关实测（中部代表段）；弧线由 structure 段落证据归纳；低置信调性不落 key: 标签，候选见 tag-evidence.json",
+    },
+  };
+  fs.writeFileSync(manifestPath, `${JSON.stringify(doc, null, 2)}\n`);
+
+  const evidencePath = path.join(libraryDir, "tag-evidence.json");
+  let evidenceDoc = {
+    schemaVersion: TAG_SCHEMA,
+    generatedAt: new Date().toISOString(),
+    root: stableLibraryRoot(libraryDir),
+    evidence: [],
+  };
+  if (fs.existsSync(evidencePath)) {
+    try {
+      evidenceDoc = { ...evidenceDoc, ...JSON.parse(fs.readFileSync(evidencePath, "utf8")) };
+    } catch { /* 证据文件损坏则从空开始（历史证据不猜着保留） */ }
+  }
+  evidenceDoc.keyArcEvidence = {
+    generatedAt: new Date().toISOString(),
+    counts: { keyTagged, keyLowConfidence: keyLow, keyFailed, priorConflicts, byArc },
+    tracks: evidence,
+  };
+  fs.writeFileSync(evidencePath, `${JSON.stringify(evidenceDoc, null, 2)}\n`);
+
+  return { libraryDir, tracks: tracks.length, keyTagged, keyLowConfidence: keyLow, keyFailed, priorConflicts, byArc };
 }
 
 /* ============================ 精选（curation） ============================ */
