@@ -37,6 +37,7 @@ import { providerFromEnv, OpenAiCompatibleProvider } from "@workloom/base/model-
 import { routedLlmCall, resetLlmAssembly } from "../service/llm.js";
 import { loadDeploymentToolExecutor } from "../runtime/tool-executor.js";
 import { startVideoProjectRun, StudioWorkerError } from "../video/studio-worker.js";
+import { resolveScenePolicyForIntent, ScenePolicyRouteError } from "../video/scene-policy-routing.js";
 import { applyRouteToMetadata, buildPipelineIntent, routeVideoPipeline } from "@hyperreality/video-studio";
 import { creditsRouter, modelFeedbackRouter } from "./credits-router.js";
 import { runRouterReviewBeat } from "@workloom/base/model-router";
@@ -1241,6 +1242,20 @@ const threadsRouter = router({
           },
         };
       }
+      if (isVideoQuest) {
+        // 在线程建档前处理片型歧义；失败时不留下无项目的 queued 线程。
+        try {
+          resolveScenePolicyForIntent(input.title);
+        } catch (error) {
+          if (error instanceof ScenePolicyRouteError) {
+            throw new TRPCError({
+              code: error.kind === "catalog" ? "PRECONDITION_FAILED" : "BAD_REQUEST",
+              message: error.message,
+            });
+          }
+          throw error;
+        }
+      }
       const presetKey = input.presetKey ?? (await resolveDispatchPresetKey(scope));
       const app = getAppPool();
       const client = await app.connect();
@@ -1326,6 +1341,8 @@ const threadsRouter = router({
             aspectRatio: decision.route === "marketing" ? "9:16" : undefined,
           });
           const started = await startVideoProjectRun(scope, {
+            rawIntent: input.title,
+            customerMetadata: null,
             intent: pipelineIntent,
             metadata: seededMetadata,
             isMarketing: decision.route === "marketing",
@@ -1374,6 +1391,12 @@ const threadsRouter = router({
             },
           };
         } catch (error) {
+          if (error instanceof ScenePolicyRouteError) {
+            throw new TRPCError({
+              code: error.kind === "catalog" ? "PRECONDITION_FAILED" : "BAD_REQUEST",
+              message: error.message,
+            });
+          }
           if (error instanceof StudioWorkerError && error.code === "LLM_MISSING") {
             throw new TRPCError({ code: "PRECONDITION_FAILED", message: error.message });
           }

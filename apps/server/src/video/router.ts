@@ -46,6 +46,7 @@ import { mediaUrl } from "./gen/ingest.js";
 export type { PollReport } from "./render-poller.js";
 import { dealRouter } from "./deal.js";
 import { getRun, startRun, startVideoProjectRun, summarizeWorkspaceRuns, StudioWorkerError } from "./studio-worker.js";
+import { resolveScenePolicyForIntent, ScenePolicyRouteError } from "./scene-policy-routing.js";
 import { makeStageArchive } from "./archive-host.js";
 import { readArchiveSummary, resumeProject, scanStaleRunsOnStartup } from "./archive-resume.js";
 import { applyRouteToMetadata, buildPipelineIntent, routeVideoPipeline } from "@hyperreality/video-studio";
@@ -139,6 +140,16 @@ function renderScriptRethrow(err: unknown): never {
   if (err instanceof RenderScriptError) {
     throw new TRPCError({
       code: err.code === "NOT_FOUND" ? "NOT_FOUND" : "BAD_REQUEST",
+      message: err.message,
+    });
+  }
+  throw err;
+}
+
+function scenePolicyRethrow(err: unknown): never {
+  if (err instanceof ScenePolicyRouteError) {
+    throw new TRPCError({
+      code: err.kind === "catalog" ? "PRECONDITION_FAILED" : "BAD_REQUEST",
       message: err.message,
     });
   }
@@ -479,15 +490,23 @@ const studioRouter = router({
             via: decision.via,
           };
         }
-        const runId = startRun(scope, {
-          projectId: input.projectId,
-          intent: buildPipelineIntent(input.intent, {
-            durationSec: 30,
-            aspectRatio: decision.route === "marketing" ? "9:16" : undefined,
-          }),
-          metadata: applyRouteToMetadata(input.metadata, decision),
-          isMarketing: decision.route === "marketing",
-        });
+        let runId: string;
+        try {
+          const selectedScenePolicy = resolveScenePolicyForIntent(input.intent, input.metadata);
+          runId = startRun(scope, {
+            projectId: input.projectId,
+            rawIntent: input.intent,
+            intent: buildPipelineIntent(input.intent, {
+              durationSec: 30,
+              aspectRatio: decision.route === "marketing" ? "9:16" : undefined,
+            }),
+            metadata: applyRouteToMetadata(input.metadata, decision),
+            isMarketing: decision.route === "marketing",
+            selectedScenePolicy,
+          });
+        } catch (err) {
+          scenePolicyRethrow(err);
+        }
         return { kind: "routed" as const, runId, projectId: input.projectId, pipeline: decision.route };
       }
 
@@ -535,6 +554,8 @@ const studioRouter = router({
       try {
         // 与「右栏派活识别出视频目标」共用同一条标准管线入口（studio-worker#startVideoProjectRun）
         const started = await startVideoProjectRun(scope, {
+          rawIntent: input.intent,
+          customerMetadata: input.metadata ?? null,
           intent: buildPipelineIntent(input.intent, {
             durationSec: 30,
             aspectRatio: decision.route === "marketing" ? "9:16" : undefined,
@@ -552,6 +573,7 @@ const studioRouter = router({
           via: decision.via,
         };
       } catch (err) {
+        if (err instanceof ScenePolicyRouteError) scenePolicyRethrow(err);
         if (err instanceof StudioWorkerError && err.code === "LLM_MISSING") {
           throw new TRPCError({ code: "PRECONDITION_FAILED", message: err.message });
         }
@@ -639,13 +661,17 @@ const studioRouter = router({
     }))
     .mutation(async ({ ctx, input }) => {
       const scope = scopeOf(ctx.identity);
-      return resumeProject(scope, {
-        projectId: input.projectId,
-        fromStage: input.fromStage,
-        intent: input.intent,
-        startRun: (runInput) => startRun(scope, runInput),
-        actor: { id: ctx.identity.memberNo, type: "human" },
-      });
+      try {
+        return await resumeProject(scope, {
+          projectId: input.projectId,
+          fromStage: input.fromStage,
+          intent: input.intent,
+          startRun: (runInput) => startRun(scope, runInput),
+          actor: { id: ctx.identity.memberNo, type: "human" },
+        });
+      } catch (err) {
+        scenePolicyRethrow(err);
+      }
     }),
 
   /** 档案只读视图（任务详情页「制片档案」标签数据源）：manifest + 台账 + 最近 20 条事件 + 关联发现 */
