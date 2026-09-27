@@ -120,6 +120,11 @@ afterEach(() => {
   rmSync(root, { recursive: true, force: true });
 });
 
+const expectedBase = () => {
+  const base = readDeliveryPackage("VID-TEST-001", scope, env()).revisionBase!;
+  return { expectedVersion: base.version, expectedProjectSha256: base.projectSha256 };
+};
+
 const env = (): NodeJS.ProcessEnv => ({ WORKLOOM_DELIVERY_DIR: root, WORKLOOM_DELIVERY_SIGNING_SECRET: TEST_DELIVERY_SECRET });
 
 describe("交付包路径监狱", () => {
@@ -171,6 +176,8 @@ describe("交付包读模型", () => {
     expect(detail.variants[0]!.coverRef).toBe("variants/warm-story/cover.png");
     expect(detail.subtitleFiles[0]!.ref).toBe("subtitles/VID-TEST-001.zh.srt");
     expect(detail.cost?.tokenCostDelta).toBe(0);
+    expect(detail.revisionBase).toEqual({ version: 1, projectSha256: deliverySha256(readFileSync(join(packageDir, "film-project.json"))) });
+    expect(detail.revisionBaseReason).toBeNull();
   });
 
   it("清单缺变体时列表仍可读，失败项如实统计", () => {
@@ -275,15 +282,15 @@ describe("选择结果 → 组织偏好池（evolve 写入侧）", () => {
 
 describe("返修指令纪律（不在请求里烧钱、不替用户猜）", () => {
   it("空 patch 与模板占位符都在启动工位前被拒", async () => {
-    await expect(startDeliveryRevision({ dir: "VID-TEST-001", patch: {}, scope, env: env() })).rejects.toThrow(/patch 为空/);
+    await expect(startDeliveryRevision({ ...expectedBase(), dir: "VID-TEST-001", patch: {}, scope, env: env() })).rejects.toThrow(/patch 为空/);
     await expect(
-      startDeliveryRevision({ dir: "VID-TEST-001", patch: { bgm: { style: "<风格关键词>" } }, scope, env: env() }),
+      startDeliveryRevision({ ...expectedBase(), dir: "VID-TEST-001", patch: { bgm: { style: "<风格关键词>" } }, scope, env: env() }),
     ).rejects.toThrow(/占位符/);
   });
 
   it("点名画面内容（需要重生成镜头）→ 拒绝执行并指向人审", async () => {
     await expect(
-      startDeliveryRevision({ dir: "VID-TEST-001", patch: { shots: { regenerate: ["SC-01"] } }, scope, env: env() }),
+      startDeliveryRevision({ ...expectedBase(), dir: "VID-TEST-001", patch: { shots: { regenerate: ["SC-01"] } }, scope, env: env() }),
     ).rejects.toThrow(/画面内容|G8/);
   });
 });
@@ -296,5 +303,52 @@ describe("连续返修的版本基线", () => {
     expect(latestFilmProjectPath(packageDir)).toBe(join(packageDir, "versions", "v3", "film-project.json"));
     writeJson(join(packageDir, "versions", "v4", "revision.json"), { version: 4 });
     expect(latestFilmProjectPath(packageDir)).toBe(join(packageDir, "versions", "v3", "film-project.json"));
+  });
+});
+
+
+describe("返修读取快照与提交保持一致", () => {
+  it("未发布工程的认领不能被显示为完成的返修历史", () => {
+    writeJson(join(packageDir, "versions", "v2", "revision.json"), { version: 2, impact: { localOnly: true } });
+    writeJson(join(packageDir, "versions", "v2", "revision-failed.json"), { code: "revision_conflict" });
+    const detail = readDeliveryPackage("VID-TEST-001", scope, env());
+    expect(detail.revisions).toEqual([]);
+    expect(detail.revisionCount).toBe(0);
+    expect(detail.revisionBase?.version).toBe(1);
+  });
+  it.each(["new-version", "same-version-changed-bytes"])("拒绝旧页面的 %s 快照，且不写作业或新版本", async (change) => {
+    const expected = expectedBase();
+    const project = JSON.parse(readFileSync(join(packageDir, "film-project.json"), "utf8"));
+    const target = change === "new-version" ? join(packageDir, "versions", "v2", "film-project.json") : join(packageDir, "film-project.json");
+    writeJson(target, { ...project, version: change === "new-version" ? 2 : 1, title: "changed after page load" });
+    await expect(startDeliveryRevision({ ...expected, dir: "VID-TEST-001", patch: { copy: { title: "stale edit" } }, scope, env: env() }))
+      .rejects.toMatchObject({ code: "revision_conflict" });
+    expect(existsSync(join(packageDir, "revision-jobs"))).toBe(false);
+    const latest = readDeliveryPackage("VID-TEST-001", scope, env()).revisionBase!;
+    expect(latest.projectSha256).not.toBe(expected.expectedProjectSha256);
+    expect(latest.version).toBe(change === "new-version" ? 2 : 1);
+  });
+  it.each([null, {}, { expectedVersion: 1, expectedProjectSha256: "bad" }])("执行前拒绝缺失或非法前置条件 %j", async (expected) => {
+    await expect(startDeliveryRevision({ dir: "VID-TEST-001", patch: { copy: { title: "test" } }, scope, env: env(), ...expected } as never))
+      .rejects.toMatchObject({ code: "bad_request" });
+    expect(existsSync(join(packageDir, "revision-jobs"))).toBe(false);
+  });
+  it.each([{ projectId: "other" }, { version: 0 }, { schemaVersion: "unknown" }])("错误工程归属或版本不提供可提交快照 %j", (changed) => {
+    const file = join(packageDir, "film-project.json");
+    writeJson(file, { ...JSON.parse(readFileSync(file, "utf8")), ...changed });
+    expect(readDeliveryPackage("VID-TEST-001", scope, env())).toMatchObject({ revisionBase: null, revisionBaseReason: expect.any(String) });
+  });
+  it.each(["missing", "hash", "owner"])("新认领工程的 %s 提交证据无效时不提供可写快照", (change) => {
+    const base = expectedBase();
+    const versionDir = join(packageDir, "versions", "v2");
+    const project = JSON.parse(readFileSync(join(packageDir, "film-project.json"), "utf8"));
+    writeJson(join(versionDir, "film-project.json"), { ...project, version: 2 });
+    const claim = { runId: "claim-test", version: 2, baseVersion: base.expectedVersion, baseProjectSha256: base.expectedProjectSha256 };
+    writeJson(join(versionDir, "revision-claim.json"), claim);
+    if (change !== "missing") writeJson(join(versionDir, "revision.json"), { version: 2, commit: { ...claim,
+      runId: change === "owner" ? "another-claim" : claim.runId,
+      projectSha256: change === "hash" ? "a".repeat(64) : deliverySha256(readFileSync(join(versionDir, "film-project.json"))),
+    } });
+    expect(readDeliveryPackage("VID-TEST-001", scope, env())).toMatchObject({ revisionBase: null, revisionBaseReason: expect.stringContaining("回执不一致") });
   });
 });

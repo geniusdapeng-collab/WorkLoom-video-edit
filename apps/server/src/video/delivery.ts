@@ -22,7 +22,7 @@ import { basename, dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import {
   DeliveryError, assertDeliveryScope, assertManifestScope, assertScopedPackagePath,
-  cleanDeliveryRef, inspectDeliveryTrust, inspectRegisteredDeliveryArtifact,
+  cleanDeliveryRef, inspectDeliveryFile, inspectDeliveryTrust, inspectRegisteredDeliveryArtifact,
   readDeliveryManifestFile, requireDeliveryTrust, safeDeliveryPath, scopedDeliveryRoot,
   type DeliveryScope, type DeliveryTrust,
 } from "./delivery-trust.js";
@@ -246,6 +246,8 @@ export interface DeliveryPackageDetail extends DeliveryPackageSummary {
   /** 最新一轮返修里"如实记账但用户必须知道"的瑕疵（例如某变体配乐没过检、已按原声降级） */
   latestRevisionWarnings: string[];
   projectPath: string | null;
+  revisionBase: { version: number; projectSha256: string } | null;
+  revisionBaseReason: string | null;
 }
 
 /** 交付包里一个风格变体在界面上的读模型（含签名媒体 URL 与"是否被选中"）。 */
@@ -311,6 +313,10 @@ function readRevisions(packageDir: string): DeliveryPackageDetail["revisions"] {
   for (const entry of readdirSync(versionsDir)) {
     if (!/^v\d+$/.test(entry)) continue;
     safeDeliveryPath(packageDir, `versions/${entry}`);
+    // revision.json is written before the atomic commit point. Failed or
+    // interrupted reservations must not appear as completed revision history.
+    const committedProject = safeDeliveryPath(packageDir, `versions/${entry}/film-project.json`, true);
+    if (!existsSync(committedProject)) continue;
     const rev = readJson<{ version?: number; at?: string; impact?: { localOnly?: boolean }; patch?: unknown; outDir?: string }>(
       join(versionsDir, entry, "revision.json"),
     );
@@ -460,6 +466,15 @@ export function readDeliveryPackage(dir: string, scope: DeliveryScope, env: Node
     ref: artifactRefFor(packageDir, file.path, env),
   }));
   const revisions = readRevisions(packageDir);
+  let revisionBase: DeliveryPackageDetail["revisionBase"] = null;
+  let revisionBaseReason: string | null = null;
+  try {
+    const snapshot = readDeliveryRevisionBase(packageDir, String(manifest.projectId ?? ""));
+    revisionBase = { version: snapshot.version, projectSha256: snapshot.projectSha256 };
+  } catch (error) {
+    if (!(error instanceof DeliveryError)) throw error;
+    revisionBaseReason = error.message;
+  }
   return {
     ...base,
     resolution: Array.isArray(manifest.resolution) ? manifest.resolution : null,
@@ -508,6 +523,8 @@ export function readDeliveryPackage(dir: string, scope: DeliveryScope, env: Node
     revisions,
     latestRevisionWarnings: readLatestRevisionWarnings(packageDir, revisions),
     projectPath: manifest.filmProject ? safeDeliveryPath(packageDir, manifest.filmProject) : null,
+    revisionBase,
+    revisionBaseReason,
   };
 }
 
@@ -567,6 +584,47 @@ export function latestFilmProjectPath(packageDir: string): string {
     .filter((entry) => existsSync(entry.path))
     .sort((a, b) => b.version - a.version);
   return candidates[0]?.path ?? rootProject;
+}
+
+/** The detail response and write endpoint compare the exact same guarded bytes. */
+function readDeliveryRevisionBase(packageDir: string, projectId: string): {
+  projectPath: string; project: Record<string, unknown>; version: number; projectSha256: string;
+} {
+  const projectPath = latestFilmProjectPath(packageDir);
+  const file = inspectDeliveryFile(packageDir, relative(packageDir, projectPath), { read: true, maxBytes: 4 * 1024 * 1024 });
+  let project: Record<string, unknown>;
+  try { project = JSON.parse(file.content!.toString("utf8")) as Record<string, unknown>; }
+  catch { throw new DeliveryError("返修工程 JSON 无法读取", "bad_media"); }
+  const version = project?.version;
+  if (project?.schemaVersion !== "workloom.film-project/v1" || project.projectId !== projectId
+    || typeof version !== "number" || !Number.isSafeInteger(version) || version < 1
+    || (dirname(projectPath) !== packageDir && basename(dirname(projectPath)) !== `v${version}`)) {
+    throw new DeliveryError("返修工程的项目归属或版本无效", "revision_conflict");
+  }
+  if (dirname(projectPath) !== packageDir) {
+    const versionRef = relative(packageDir, dirname(projectPath));
+    const readRecord = (name: string): Record<string, unknown> | null => {
+      const ref = `${versionRef}/${name}`;
+      if (!existsSync(safeDeliveryPath(packageDir, ref, true))) return null;
+      try {
+        const value = JSON.parse(inspectDeliveryFile(packageDir, ref, { read: true, maxBytes: 4 * 1024 * 1024 }).content!.toString("utf8")) as unknown;
+        if (!value || typeof value !== "object" || Array.isArray(value)) throw new DeliveryError("返修提交记录格式无效", "revision_conflict");
+        return value as Record<string, unknown>;
+      } catch (error) {
+        if (error instanceof DeliveryError) throw error;
+        throw new DeliveryError("返修提交记录无法读取", "revision_conflict");
+      }
+    };
+    const receipt = readRecord("revision.json");
+    const claim = readRecord("revision-claim.json");
+    const commit = receipt?.commit as Record<string, unknown> | undefined;
+    if ((commit && (commit.version !== version || commit.projectSha256 !== file.sha256))
+      || (claim && (!commit || commit.runId !== claim.runId || claim.version !== version
+        || commit.baseVersion !== claim.baseVersion || commit.baseProjectSha256 !== claim.baseProjectSha256))) {
+      throw new DeliveryError("返修工程与提交回执不一致，暂不能作为新返修基础", "revision_conflict");
+    }
+  }
+  return { projectPath, project, version, projectSha256: file.sha256 };
 }
 
 /** 反馈分诊（确定性规则表）：只读，不改任何文件；返回归因/受影响层/是否需重生成镜头/成本口径。 */
@@ -743,6 +801,8 @@ export interface RevisionJob {
   exitCode: number | null;
   impact: Record<string, unknown> | null;
   patch: Record<string, unknown>;
+  expectedVersion: number;
+  expectedProjectSha256: string;
   logPath: string;
   logTail: string[];
   version: number | null;
@@ -799,9 +859,10 @@ export function listDeliveryJobs(scope: DeliveryScope, dir?: string): RevisionJo
  * **不在本接口里重生成镜头**：patch 命中画面内容时直接拒绝（先去过 G8 人审 + 只重跑点名镜头）。
  */
 export async function startDeliveryRevision({
-  dir, patch, scope, by = null, env = process.env, onCompleted,
+  dir, patch, scope, expectedVersion, expectedProjectSha256, by = null, env = process.env, onCompleted,
 }: {
   dir: string; patch: Record<string, unknown>; scope: DeliveryScope; by?: string | null; env?: NodeJS.ProcessEnv;
+  expectedVersion: number; expectedProjectSha256: string;
   /**
    * 作业完成回调（T-2026-0926-0007 接线点）：交付包里的母版/变体/封面要进媒资库。
    * 用回调而不是在 delivery 里直接依赖 media 模块，避免"交付层 ↔ 媒资层"互相 import 成环；
@@ -810,8 +871,18 @@ export async function startDeliveryRevision({
   onCompleted?: (info: { dir: string; outDir: string | null; version: number | null }) => void;
 }): Promise<RevisionJob> {
   const packageDir = resolvePackageDir(dir, scope, env);
-  const projectPath = latestFilmProjectPath(packageDir);
-  if (!existsSync(projectPath)) throw new DeliveryError("交付包缺 film-project.json（返修入口）", "not_found");
+  if (!Number.isSafeInteger(expectedVersion) || expectedVersion < 1 || !/^[a-f0-9]{64}$/.test(expectedProjectSha256 ?? "")) {
+    throw new DeliveryError("返修需要页面读取时的版本和工程指纹，请刷新交付包后重新核对修改", "bad_request");
+  }
+  const projectId = String(readDeliveryManifestFile(packageDir).manifest.projectId ?? "");
+  const compareBase = () => {
+    const snapshot = readDeliveryRevisionBase(packageDir, projectId);
+    if (snapshot.version !== expectedVersion || snapshot.projectSha256 !== expectedProjectSha256) {
+      throw new DeliveryError("返修基础已变化，本次修改尚未执行；请刷新交付包并核对新版本后再提交", "revision_conflict");
+    }
+    return snapshot;
+  };
+  compareBase();
   const running = [...jobs.values()].find((job) => sameDeliveryScope(job.scope, scope) && job.dir === dir && job.status === "running");
   if (running) {
     throw new DeliveryError(`该交付包已有重合成作业在执行中（${running.jobId}）：等它结束再提交`, "idempotency_conflict");
@@ -830,8 +901,7 @@ export async function startDeliveryRevision({
     );
   }
   const core = await loadBridgeCore();
-  const project = readJson<unknown>(projectPath);
-  if (!project) throw new DeliveryError("返修基线工程缺失", "not_found");
+  const { projectPath, project } = compareBase();
   // 先做影响分析：未知键 / 不存在的镜头在这里就被拒（不静默忽略用户指令）
   const impact = core.analyzeImpact({ project, patch: patch ?? {} });
   const regeneration = (impact.shotRegeneration ?? {}) as { required?: boolean; shotIds?: string[] };
@@ -873,6 +943,8 @@ export async function startDeliveryRevision({
     exitCode: null,
     impact,
     patch,
+    expectedVersion,
+    expectedProjectSha256,
     logPath,
     logTail: [],
     version: null,
@@ -899,7 +971,8 @@ export async function startDeliveryRevision({
    */
   const child = spawn(
     process.execPath,
-    [cli, "reedit", "--project", projectPath, "--patch", patchPath, "--delivery-dir", packageDir],
+    [cli, "reedit", "--project", projectPath, "--patch", patchPath, "--delivery-dir", packageDir,
+      "--expected-version", String(expectedVersion), "--expected-project-sha256", expectedProjectSha256],
     {
     cwd: REPO_ROOT,
     env: { ...process.env, ...env },

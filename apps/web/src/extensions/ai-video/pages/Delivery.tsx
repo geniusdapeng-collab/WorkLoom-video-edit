@@ -74,6 +74,8 @@ interface PackageDetail extends PackageSummary {
   cost: { shotGeneration?: string; tokenCostDelta?: number | string; note?: string } | null;
   revisions: Array<{ version: number | null; at: string | null; localOnly: boolean | null; outDir: string | null }>;
   latestRevisionWarnings: string[];
+  revisionBase: { version: number; projectSha256: string } | null;
+  revisionBaseReason: string | null;
 }
 
 interface TriageView {
@@ -295,6 +297,10 @@ export default function Delivery() {
 
   const runRevision = useCallback(async () => {
     if (!activeDir) return;
+    if (detail?.dir !== activeDir || !detail.revisionBase) {
+      setBanner({ level: "warn", text: "当前工程无法作为返修基础，请刷新交付包后核对版本。" });
+      return;
+    }
     if (composedPatch.error) {
       setBanner({ level: "alert", text: composedPatch.error });
       return;
@@ -307,7 +313,8 @@ export default function Delivery() {
     setBusy("revise");
     setBanner(null);
     try {
-      const created = await trpc.video.delivery.startRevision.mutate({ dir: activeDir, patch }) as unknown as RevisionJobView;
+      const created = await trpc.video.delivery.startRevision.mutate({ dir: activeDir, patch,
+        expectedVersion: detail.revisionBase.version, expectedProjectSha256: detail.revisionBase.projectSha256 }) as unknown as RevisionJobView;
       setJob(created);
       setBanner({ level: "info", text: `本地重合成已启动（作业 ${created.jobId}）：只重算受影响的层，镜头不重新生成。` });
     } catch (e) {
@@ -315,7 +322,7 @@ export default function Delivery() {
     } finally {
       setBusy(null);
     }
-  }, [activeDir, composedPatch]);
+  }, [activeDir, detail, composedPatch]);
 
   const active = useMemo(
     () => packages.find((row) => row.dir === activeDir) ?? null,
@@ -399,7 +406,7 @@ export default function Delivery() {
         <button
           type="button"
           className="rounded border border-line px-3 py-1 text-sm text-ink2 hover:border-holo/60 hover:text-holo"
-          onClick={() => void loadList()}
+          onClick={() => { void loadList(); if (activeDir) void loadDetail(activeDir); }}
         >
           刷新
         </button>
@@ -637,6 +644,15 @@ export default function Delivery() {
 
               <div className="rounded border border-line/60 p-3">
                 <div className="text-xs uppercase tracking-wide text-ink4">提返修意见（先在本地重合成，不重新生成镜头）</div>
+                <p data-testid="delivery-revision-base" className="mt-2 break-words text-xs text-ink3">
+                  {detail.revisionBase ? `本次修改基于 v${detail.revisionBase.version}。其他人提交新版本后，需要刷新并核对后再提交。`
+                    : `暂不能执行返修：${detail.revisionBaseReason ?? "工程版本尚未读取"}`}
+                </p>
+                {detail.revisionBase && detail.revisionBase.version !== detail.revision ? (
+                  <p className="mt-1 break-words text-xs text-warn">
+                    上方预览{detail.revision ? `仍对应交付 v${detail.revision}` : "尚未标记交付版本"}；最新返修工程为 v{detail.revisionBase.version}，不代表新版成片已通过终审。
+                  </p>
+                ) : null}
                 <textarea
                   data-testid="delivery-feedback"
                   className="mt-2 h-20 w-full rounded border border-line/60 bg-black/20 p-2 text-sm text-ink outline-none focus:border-holo/60"
@@ -658,7 +674,8 @@ export default function Delivery() {
                     <button
                       type="button"
                       data-testid="delivery-run-revision"
-                      disabled={triage.requiresShotRegeneration || busy === "revise" || Object.keys(composedPatch.patch).length === 0}
+                      disabled={triage.requiresShotRegeneration || busy !== null || job?.status === "running" || detail.dir !== activeDir
+                        || !detail.revisionBase || Boolean(composedPatch.error) || Object.keys(composedPatch.patch).length === 0}
                       onClick={() => void runRevision()}
                       className="rounded border border-go/50 px-3 py-1 text-sm text-go hover:bg-go/10 disabled:opacity-40"
                     >

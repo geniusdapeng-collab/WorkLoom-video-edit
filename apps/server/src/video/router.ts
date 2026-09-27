@@ -152,6 +152,8 @@ function deliveryRethrow(err: unknown): never {
   if (err instanceof DeliveryError) {
     const code = err.code === "not_found" ? "NOT_FOUND"
       : ["path_not_allowed", "scope_mismatch", "scope_required"].includes(err.code) ? "FORBIDDEN"
+        : ["revision_conflict", "revision_busy"].includes(err.code) ? "CONFLICT"
+          : err.code === "revision_io_failed" ? "INTERNAL_SERVER_ERROR"
         : err.code === "idempotency_conflict" || err.code === "shot_regeneration_required" || err.code === "artifact_too_large" || err.code === "delivery_unverified"
           ? "PRECONDITION_FAILED"
           : "BAD_REQUEST";
@@ -380,6 +382,8 @@ const deliveryRouter = router({
     .input(z.object({
       dir: z.string().min(1).max(200),
       patch: z.record(z.string(), z.unknown()),
+      expectedVersion: z.number().int().positive(),
+      expectedProjectSha256: z.string().regex(/^[a-f0-9]{64}$/),
     }))
     .mutation(async ({ ctx, input }) => {
       const scope = scopeOf(ctx.identity);
@@ -389,6 +393,8 @@ const deliveryRouter = router({
           scope,
           dir: input.dir,
           patch: input.patch,
+          expectedVersion: input.expectedVersion,
+          expectedProjectSha256: input.expectedProjectSha256,
           by: ctx.identity.memberNo,
           /** 返修完成 → 新版本成片/封面自动进媒资库（T-2026-0926-0007；失败只记日志） */
           onCompleted: deliveryIngestHook(scope),
@@ -401,6 +407,7 @@ const deliveryRouter = router({
         action: "delivery.revision.started",
         after: {
           jobId: job.jobId, patch: input.patch,
+          expectedVersion: job.expectedVersion, expectedProjectSha256: job.expectedProjectSha256,
           layers: (job.impact?.layers as unknown) ?? null,
           localOnly: (job.impact?.localOnly as unknown) ?? null,
         },

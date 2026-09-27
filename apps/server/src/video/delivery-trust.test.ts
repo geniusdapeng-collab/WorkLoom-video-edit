@@ -145,7 +145,8 @@ describe("scoped registered artifact access", () => {
     expect(() => readDeliveryArtifact({ dir: "PKG-1", ref: "master.mp4", scope: other, env })).toThrow();
     expect(() => selectDeliveryVariant({ dir: "PKG-1", variantId: "a", scope: other, env })).toThrow();
     expect(() => recordRevisionRequest({ dir: "PKG-1", feedback: "字幕", triage: {}, scope: other, env })).toThrow();
-    await expect(startDeliveryRevision({ dir: "PKG-1", patch: { text: {} }, scope: other, env })).rejects.toThrow();
+    await expect(startDeliveryRevision({ dir: "PKG-1", patch: { text: {} }, scope: other, env,
+      expectedVersion: 1, expectedProjectSha256: deliverySha256(readFileSync(join(pkg, "film-project.json"))) })).rejects.toThrow();
     await expect(triageDeliveryFeedback("PKG-1", "字幕", other, env)).rejects.toThrow();
     expect(deliveryJobStatus("nonexistent", other)).toBeNull();
     expect(listDeliveryJobs(other)).toEqual([]);

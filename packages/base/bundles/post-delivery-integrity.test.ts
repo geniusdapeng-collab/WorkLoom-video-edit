@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, expect, it } from "vitest";
 
-import { normaliseShots, reedit } from "../../../bundles/ai-video/connectors/post-bridge/core.mjs";
+import { normaliseShots, readRevisionBase, reedit } from "../../../bundles/ai-video/connectors/post-bridge/core.mjs";
 
 const bins = {
   ffmpeg: process.env.WORKLOOM_POST_FFMPEG_PATH || "ffmpeg",
@@ -14,6 +14,10 @@ const bins = {
 const hasMediaTools = [bins.ffmpeg, bins.ffprobe].every((bin) => spawnSync(bin, ["-version"], { stdio: "ignore" }).status === 0)
   && /\blibx264\b/.test(spawnSync(bins.ffmpeg, ["-hide_banner", "-encoders"], { encoding: "utf8" }).stdout ?? "");
 const scratch: string[] = [];
+const expectedBase = (file: string) => {
+  const base = readRevisionBase(file);
+  return { expectedVersion: base.version, expectedProjectSha256: base.sha256 };
+};
 
 afterEach(() => {
   for (const dir of scratch.splice(0)) rmSync(dir, { recursive: true, force: true });
@@ -58,23 +62,25 @@ it.skipIf(!hasMediaTools)("rejects a replaced normalization cache and a modified
     },
   };
   writeFileSync(projectPath, JSON.stringify(project));
-  await expect(reedit({ projectPath, deliveryDir: dir, patch: { copy: { title: "changed" } }, bins })).rejects.toMatchObject({ code: "verify_failed" });
+  await expect(reedit({ projectPath, ...expectedBase(projectPath), deliveryDir: dir, patch: { copy: { title: "changed" } }, bins })).rejects.toMatchObject({ code: "verify_failed" });
 
   copyFileSync(fresh.path, previousVideo);
-  const revision = await reedit({ projectPath, deliveryDir: dir, patch: { copy: { title: "changed" } }, bins });
+  const revision = await reedit({ projectPath, ...expectedBase(projectPath), deliveryDir: dir, patch: { copy: { title: "changed" } }, bins });
   expect(revision.executed).toBe(true);
+  expect(revision.version).toBe(3); // v2 failed integrity and remains reserved for audit.
+  expect(JSON.parse(readFileSync(join(dir, "versions", "v2", "revision-failed.json"), "utf8")).code).toBe("verify_failed");
   const next = JSON.parse(readFileSync(revision.projectPath, "utf8"));
   expect(next.layers.variants[0].assembly.sha256).toBe(fresh.sha256);
   expect(next.layers.variants[0].color.sha256).toBe(fresh.sha256);
   expect(next.layers.variants[0].artifacts.video.sha256).toBe(fresh.sha256);
-  const v2Before = readFileSync(revision.projectPath);
-  await expect(reedit({ projectPath, deliveryDir: dir, patch: { copy: { title: "different" } }, bins }))
-    .rejects.toMatchObject({ code: "version_exists" });
-  expect(readFileSync(revision.projectPath)).toEqual(v2Before);
-  const v3 = await reedit({ projectPath: revision.projectPath, patch: { copy: { title: "again" } }, bins });
-  expect(v3.version).toBe(3);
-  expect(v3.targetDir).toBe(join(dir, "versions", "v3"));
-  const v4 = await reedit({ projectPath: v3.projectPath, patch: { cover: { variantId: "warm-story", subtitle: "New cover" } }, bins });
-  expect(v4.rebuilt.filter((row: { layer: string }) => row.layer === "cover").map((row: { variant: string }) => row.variant)).toEqual(["warm-story"]);
-  expect(v4.reused.filter((row: { layer: string }) => row.layer === "cover").map((row: { variant: string }) => row.variant)).toEqual(["clean-tech"]);
+  const committedBefore = readFileSync(revision.projectPath);
+  await expect(reedit({ projectPath, ...expectedBase(projectPath), deliveryDir: dir, patch: { copy: { title: "different" } }, bins }))
+    .rejects.toMatchObject({ code: "revision_conflict" });
+  expect(readFileSync(revision.projectPath)).toEqual(committedBefore);
+  const nextRevision = await reedit({ projectPath: revision.projectPath, ...expectedBase(revision.projectPath), patch: { copy: { title: "again" } }, bins });
+  expect(nextRevision.version).toBe(4);
+  expect(nextRevision.targetDir).toBe(join(dir, "versions", "v4"));
+  const coverRevision = await reedit({ projectPath: nextRevision.projectPath, ...expectedBase(nextRevision.projectPath), patch: { cover: { variantId: "warm-story", subtitle: "New cover" } }, bins });
+  expect(coverRevision.rebuilt.filter((row: { layer: string }) => row.layer === "cover").map((row: { variant: string }) => row.variant)).toEqual(["warm-story"]);
+  expect(coverRevision.reused.filter((row: { layer: string }) => row.layer === "cover").map((row: { variant: string }) => row.variant)).toEqual(["clean-tech"]);
 }, 30_000);

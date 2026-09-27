@@ -86,6 +86,26 @@ node bundles/ai-video/connectors/post-bridge/cli.mjs health
 
 桌面安装包包含上述脚本与后期代码，不内置模型和 FFmpeg 二进制。现有 FFmpeg kit 的构建含 `--enable-nonfree`，不可随产品再分发；安装器把它下载到当前 Mac 的 `~/.workloom-color/bin`。后期工位优先使用显式 `WORKLOOM_POST_FFMPEG_PATH` / `WORKLOOM_POST_FFPROBE_PATH`，否则寻找该 kit，最后才查系统 `PATH`。无本机引擎或 ffmpeg 时 UHD 请求失败并给出健康探针结果；Windows 与 Intel Mac 的 UHD 增强尚未经过本机验收。
 
+## 返修并发与版本前置条件
+
+页面 `video.delivery.get` 返回当前 `revisionBase: { version, projectSha256 }`；提交 `startRevision` 必须带
+`expectedVersion` 与 `expectedProjectSha256`。服务先比较快照，原样传给 CLI，工位拿到包级排他锁后再次比较。
+页面加载后若已有新版本，或同版本工程字节改变，本次请求返回 `CONFLICT`，用户刷新并核对后才能再次提交。
+
+工具 `postwrite.reedit` 对应参数是 `expected_version` / `expected_project_sha256`；可先以 `dry_run: true`
+取得只读计划及前置条件。CLI 可用 `--dry-run`，或显式传
+`--expected-version N --expected-project-sha256 <64位小写SHA256>`。两个参数必须成对；均省略时只读取用户
+`--project` 指定文件的快照，仍会拒绝过期文件，绝不自动跟随新版本。
+
+工位用 `.revision.lock` 的独占创建认领包，同锁内独占创建 `versions/vN`；每个认领有 runId、基础版本与哈希。
+先写产物与 `revision.json#commit`，最后以不可覆盖的原子硬链接发布 `film-project.json`，发布成功才算该版本提交。
+失败目录保留 `revision-failed.json`，版本号不复用；下一次成功可能从 v1 跳到 v3。退出只清理本进程仍持有的锁。
+异常退出留下的锁不会凭 PID 自动抢占，需运维核对对应进程、runId、认领和失败回执后恢复。
+
+`revision_conflict`（快照/锁归属变化）、`revision_busy`（已有持有者）、`revision_io_failed`（认领存储失败）
+均不可自动切换端点重试。此协议面向同一台工位的本地文件系统；不宣称网络文件系统上的分布式锁保证。
+独占创建与网络文件系统限制依据 [Node.js 文件系统标志文档](https://nodejs.org/docs/latest-v24.x/api/fs.html#file-system-flags)。
+
 ## 风格变体（`library/style-variants/`）
 
 | 变体 | 定位 | 差异轴（实测） |

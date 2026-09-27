@@ -1,5 +1,5 @@
 /** Actual tRPC middleware + delivery filesystem; authority lookup and unused DB handles are mocked. */
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Identity } from "@workloom/base/tenancy";
@@ -14,9 +14,9 @@ vi.mock("@workloom/db", async (importOriginal) => ({
   getAppPool: () => ({}), getGatewayPool: () => ({}),
 }));
 import { videoRouter } from "./router.js";
-import { startDeliveryRevision } from "./delivery.js";
+import { readDeliveryPackage, startDeliveryRevision } from "./delivery.js";
 import { scopedDeliveryRoot } from "./delivery-trust.js";
-import { seedTestPackage, TEST_DELIVERY_SECRET } from "./delivery-fixture.test-support.js";
+import { seedTestPackage, writeFixtureJson, TEST_DELIVERY_SECRET } from "./delivery-fixture.test-support.js";
 
 const owner: Identity = { kind: "member", memberId: "owner", memberNo: "MEM-OWNER", name: "Owner", role: "owner", plan: "pro", tenantId: "tenant-router", workspaceId: "ws-router" };
 const scope = { tenantId: owner.tenantId, workspaceId: owner.workspaceId };
@@ -25,6 +25,10 @@ const mediaCaller = (identity: Identity | null = owner) => videoRouter.createCal
 let root: string;
 let pkg: string;
 let previous: NodeJS.ProcessEnv;
+const expectedBase = () => {
+  const base = readDeliveryPackage("PKG-1", scope).revisionBase!;
+  return { expectedVersion: base.version, expectedProjectSha256: base.projectSha256 };
+};
 beforeEach(() => {
   root = mkdtempSync(join(tmpdir(), "delivery-router-"));
   previous = Object.fromEntries(["WORKLOOM_DELIVERY_DIR", "WORKLOOM_DELIVERY_SIGNING_SECRET", "WORKLOOM_POST_BRIDGE_CLI"].map((key) => [key, process.env[key]]));
@@ -32,6 +36,7 @@ beforeEach(() => {
   process.env.WORKLOOM_DELIVERY_SIGNING_SECRET = TEST_DELIVERY_SECRET;
   pkg = join(scopedDeliveryRoot(root, scope), "PKG-1");
   seedTestPackage(pkg, scope);
+  writeFixtureJson(join(pkg, "film-project.json"), { ...JSON.parse(readFileSync(join(pkg, "film-project.json"), "utf8")), schemaVersion: "workloom.film-project/v1" });
   authority.mockReset().mockImplementation(async (identity) => ({ identity, permissions: {} }));
 });
 afterEach(() => {
@@ -55,7 +60,7 @@ describe("delivery routes derive scope from the authenticated identity", () => {
     await expect(other.artifact({ dir: "PKG-1", ref: "master.mp4" })).rejects.toMatchObject({ code: "NOT_FOUND" });
     await expect(other.selectVariant({ dir: "PKG-1", variantId: "a" })).rejects.toMatchObject({ code: "NOT_FOUND" });
     await expect(other.triage({ dir: "PKG-1", feedback: "修改字幕", record: true })).rejects.toMatchObject({ code: "NOT_FOUND" });
-    await expect(other.startRevision({ dir: "PKG-1", patch: { copy: { title: "test" } } })).rejects.toMatchObject({ code: "NOT_FOUND" });
+    await expect(other.startRevision({ ...expectedBase(), dir: "PKG-1", patch: { copy: { title: "test" } } })).rejects.toMatchObject({ code: "NOT_FOUND" });
     expect(await other.job({ jobId: "unknown" })).toBeNull();
     expect(await other.jobs({ dir: "PKG-1" })).toEqual([]);
   });
@@ -70,7 +75,7 @@ describe("delivery routes derive scope from the authenticated identity", () => {
     const readOnly = caller({ ...owner, role: "readonly" });
     await expect(readOnly.selectVariant({ dir: "PKG-1", variantId: "a" })).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(readOnly.triage({ dir: "PKG-1", feedback: "字幕", record: true })).rejects.toMatchObject({ code: "FORBIDDEN" });
-    await expect(readOnly.startRevision({ dir: "PKG-1", patch: { copy: { title: "x" } } })).rejects.toMatchObject({ code: "FORBIDDEN" });
+    await expect(readOnly.startRevision({ ...expectedBase(), dir: "PKG-1", patch: { copy: { title: "x" } } })).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
   it("draft packages return a business rejection on selection", async () => {
     rmSync(join(pkg, "delivery-seal.json"));
@@ -93,7 +98,7 @@ describe("delivery routes derive scope from the authenticated identity", () => {
     writeFileSync(cli, `import { existsSync } from "node:fs"; console.log("返修完成：v2 → /fake"); setInterval(() => { if (existsSync(${JSON.stringify(release)})) process.exit(2); }, 20);`);
     process.env.WORKLOOM_POST_BRIDGE_CLI = cli;
     const completed = vi.fn();
-    const job = await startDeliveryRevision({ dir: "PKG-1", patch: { copy: { title: "test" } }, scope, onCompleted: completed });
+    const job = await startDeliveryRevision({ ...expectedBase(), dir: "PKG-1", patch: { copy: { title: "test" } }, scope, onCompleted: completed });
     expect(await caller().job({ jobId: job.jobId })).toMatchObject({ jobId: job.jobId });
     const other = caller({ ...owner, tenantId: "other" });
     expect(await other.job({ jobId: job.jobId })).toBeNull();
@@ -108,5 +113,36 @@ describe("delivery routes derive scope from the authenticated identity", () => {
     await vi.waitFor(() => expect(job.status).toBe("failed"), { timeout: 10_000 });
     expect(job.exitCode).toBe(2);
     expect(completed).not.toHaveBeenCalled();
+  }, 30_000);
+});
+
+
+describe("返修路由版本前置条件", () => {
+  it("页面 get 的旧快照遇到 v2 时返回 CONFLICT，并且没有启动作业", async () => {
+    const detail = await caller().get({ dir: "PKG-1" });
+    const base = detail.revisionBase!;
+    const project = JSON.parse(readFileSync(join(pkg, "film-project.json"), "utf8"));
+    writeFixtureJson(join(pkg, "versions", "v2", "film-project.json"), { ...project, version: 2 });
+    await expect(caller().startRevision({ dir: "PKG-1", patch: { copy: { title: "old page" } }, expectedVersion: base.version, expectedProjectSha256: base.projectSha256 }))
+      .rejects.toMatchObject({ code: "CONFLICT" });
+    expect(existsSync(join(pkg, "revision-jobs"))).toBe(false);
+  });
+  it("缺少版本前置条件的旧客户端返回 BAD_REQUEST", async () => {
+    await expect(caller().startRevision({ dir: "PKG-1", patch: { copy: { title: "old client" } } } as never))
+      .rejects.toMatchObject({ code: "BAD_REQUEST" });
+    expect(existsSync(join(pkg, "revision-jobs"))).toBe(false);
+  });
+  it("服务将用户读取的两个前置条件原样交给真实 CLI 子进程", async () => {
+    const cli = join(root, "capture-revision-cli.mjs");
+    const captured = join(root, "captured-args.json");
+    writeFileSync(cli, `import fs from "node:fs"; fs.writeFileSync(${JSON.stringify(captured)}, JSON.stringify(process.argv.slice(2)));`);
+    process.env.WORKLOOM_POST_BRIDGE_CLI = cli;
+    const expected = expectedBase();
+    const job = await startDeliveryRevision({ ...expected, dir: "PKG-1", patch: { copy: { title: "current page" } }, scope });
+    await vi.waitFor(() => expect(job.status).toBe("done"), { timeout: 10_000 });
+    const args = JSON.parse(readFileSync(captured, "utf8")) as string[];
+    expect(args[args.indexOf("--expected-version") + 1]).toBe(String(expected.expectedVersion));
+    expect(args[args.indexOf("--expected-project-sha256") + 1]).toBe(expected.expectedProjectSha256);
+    expect(job).toMatchObject(expected);
   }, 30_000);
 });
