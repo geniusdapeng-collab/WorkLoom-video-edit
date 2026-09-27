@@ -811,7 +811,7 @@ const renderRouter = router({
       returnLastFrame: z.boolean().optional(),
       /** 服务档位：default（终稿）| flex（草稿，成本更低） */
       serviceTier: z.enum(["default", "flex"]).optional(),
-      /** 幂等键（缺省按脚本+模型+时长+模式生成，防重复点击重复扣费） */
+      /** 幂等键（缺省由提交服务按完整请求指纹生成） */
       idempotencyKey: z.string().max(200).optional(),
       /** 预计渲染秒数（额度台账计量基准；兼容旧调用，默认 30s） */
       estimatedSeconds: z.number().int().min(1).max(600).default(30),
@@ -979,8 +979,8 @@ const renderRouter = router({
           returnLastFrame: input.returnLastFrame,
           serviceTier: input.serviceTier,
         },
-        /** 幂等键：同脚本 + 同模型 + 同时长 + 同模式重复点击不会重复扣费 */
-        idempotencyKey: input.idempotencyKey?.trim() || `render:${script.id}:${chosen.id}:${durationSec}:${input.mode}`,
+        /** 默认键由提交服务基于完整请求派生；显式键须与已绑定内容一致。 */
+        idempotencyKey: input.idempotencyKey?.trim() || undefined,
       fenceLevel: verdict.level,
       fenceImpacts: verdict.impacts,
       budgetOverageSeconds: budget.overageSeconds,
@@ -1002,7 +1002,8 @@ const renderRouter = router({
             input: {
               scriptId: script.id, scriptKey: script.script_key, scriptVersion: script.version,
               mode: input.mode, modelId, durationSec, fenceLevel: verdict.level,
-              idempotencyKey: input.idempotencyKey?.trim() || `render:${script.id}:${chosen.id}:${durationSec}:${input.mode}`,
+              idempotencyKey: submitted.idempotencyKey,
+              requestHash: submitted.requestHash,
             },
             output: {
               jobId: submitted.jobId, taskId: submitted.taskId, provider: submitted.provider,
