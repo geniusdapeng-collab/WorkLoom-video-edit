@@ -181,17 +181,31 @@ const WORKER_ACTOR = { id: "video-studio", type: "system" } as const;
 /**
  * 软失败原因提取（T-2026-0926-0005）：vendor 返回 `success:false` 但不抛异常时，
  * 注册表 `entry.error` 往往是空串——`?? 兜底` 会落成空消息并被分类成 BUG。
- * 取因顺序：运行器异常 → result.error → vendor `failures[].message` → 通用兜底。
+ * 取因顺序：运行器异常 → result.error/errorMessage → vendor failures/errors → 被拒确认门 → 通用兜底。
  */
 export function terminalFailureMessageOf(result: unknown, entryError?: string | null): string {
-  const r = (result ?? {}) as { error?: unknown; failures?: Array<{ message?: unknown }> };
+  const r = (result ?? {}) as {
+    error?: unknown;
+    errorMessage?: unknown;
+    failures?: Array<{ message?: unknown }>;
+    errors?: Array<{ message?: unknown; error?: unknown }>;
+    confirmations?: Record<string, unknown>;
+  };
   const candidates: string[] = [];
   const push = (value: unknown): void => {
     if (typeof value === "string" && value.trim()) candidates.push(value.trim());
   };
   push(entryError);
   push(r.error);
+  push(r.errorMessage);
   if (Array.isArray(r.failures)) for (const failure of r.failures) push(failure?.message);
+  if (Array.isArray(r.errors)) for (const failure of r.errors) push(failure?.message ?? failure?.error);
+  for (const confirmation of Object.values(r.confirmations ?? {})) {
+    if (confirmation && typeof confirmation === "object") {
+      const verdict = confirmation as { approved?: unknown; reason?: unknown };
+      if (verdict.approved === false) push(verdict.reason);
+    }
+  }
   return (candidates[0] ?? "vendor 返回 success:false").slice(0, 500);
 }
 
@@ -789,7 +803,10 @@ export function startRun(scope: Scope, input: RunInput): string {
       const runOnce = async (): Promise<Awaited<ReturnType<typeof studio.runPreproduction>>> => {
         const runnerStore = archive;
         if (!runner || !runnerStore) return studio.runPreproduction(input);
-        return (await runner.run(
+        // 档案 output 是给索引/交接包使用的摘要，不能取代 vendor 业务结果。
+        // confirmations 决定打回重试，stages.dataMining 决定商品档案投影；两者必须完整保留。
+        let rawResult: Awaited<ReturnType<typeof studio.runPreproduction>> | undefined;
+        await runner.run(
           "preproduction",
           { intent: input.intent, isMarketing: input.isMarketing ?? false, pipelineKind },
           async (ctx) => {
@@ -810,6 +827,7 @@ export function startRun(scope: Scope, input: RunInput): string {
                 return { files: 0, bytes: 0, skipped: [] as string[] };
               });
             const r = await studio.runPreproduction(input);
+            rawResult = r;
             await ctx.heartbeat({ stages: Object.keys(r.stages ?? {}) });
             const vendorResumed = (r as unknown as { resumed?: unknown }).resumed === true;
             const vendorDegraded = (r as unknown as { degraded?: unknown }).degraded === true;
@@ -953,7 +971,9 @@ export function startRun(scope: Scope, input: RunInput): string {
               ...(outcome ? { outcome } : {}),
             };
           },
-        )) as Awaited<ReturnType<typeof studio.runPreproduction>>;
+        );
+        if (!rawResult) throw new Error("预生产档案执行器未返回业务结果");
+        return rawResult;
       };
       let result = await runOnce();
       let attempts = 1;
@@ -962,7 +982,8 @@ export function startRun(scope: Scope, input: RunInput): string {
         console.log(`[studio-worker] AI 监制打回 → 自动重跑第 ${attempts}/${maxAttempts} 次（同一项目、同一门口径）`);
         result = await runOnce();
       }
-      entry.status = "finished";
+      entry.status = result.success ? "finished" : "failed";
+      entry.error = result.success ? null : terminalFailureMessageOf(result, entry.error);
       /** 情报层产出摘要（逐环节审计要看得见"档案到底有没有装订出来"） */
       const dataMiningStage = (result.stages?.dataMining ?? null) as
         | { status?: string; product_id?: string; data?: { ok?: boolean; reused?: boolean; dossier?: { gaps?: unknown[]; provenance?: unknown[] } } }
