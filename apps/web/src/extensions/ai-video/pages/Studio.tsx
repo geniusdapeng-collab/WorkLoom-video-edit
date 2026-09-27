@@ -82,6 +82,9 @@ export default function Studio() {
   const [busy, setBusy] = useState<string | null>(null);
   const [models, setModels] = useState<ModelEntry[]>([]);
   const [scripts, setScripts] = useState<ScriptRow[]>([]);
+  const [shots, setShots] = useState<Array<{ shotId: string; durationSec: number; prompt: string; promptSha256: string }>>([]);
+  const [shotId, setShotId] = useState("");
+  const [sourceError, setSourceError] = useState<string | null>(null);
   const [jobs, setJobs] = useState<JobRow[]>([]);
 
   const [modelId, setModelId] = useState<string>("");
@@ -110,8 +113,14 @@ export default function Studio() {
   }, []);
 
   const loadScripts = useCallback(async () => {
-    const rows = await trpc.video.cms.listScripts.query({ projectId }) as unknown as ScriptRow[];
-    setScripts(rows);
+    const [drafts, production] = await Promise.allSettled([
+      trpc.video.cms.listScripts.query({ projectId }), trpc.video.production.shots.query({ projectId }),
+    ]);
+    if (drafts.status === "fulfilled") setScripts(drafts.value as unknown as ScriptRow[]);
+    if (production.status === "fulfilled") {
+      setShots(production.value.shots); setShotId(cur => production.value.shots.some(shot => shot.shotId === cur) ? cur : production.value.shots[0]?.shotId ?? "");
+      setSourceError(null);
+    } else { setShots([]); setShotId(""); setSourceError(production.reason instanceof Error ? production.reason.message : String(production.reason)); }
   }, [projectId]);
 
   const loadJobs = useCallback(async (silent = false) => {
@@ -165,25 +174,23 @@ export default function Studio() {
     return () => { alive = false; };
   }, [modelId, durationSec]);
 
-  const latestScript = scripts[scripts.length - 1] ?? null;
+  const selectedShot = shots.find(shot => shot.shotId === shotId) ?? null;
+  useEffect(() => { if (selectedShot) setDurationSec(selectedShot.durationSec); }, [selectedShot]);
 
   const submit = useCallback(async () => {
-    if (!latestScript || !modelId) {
-      setBanner({ level: "warn", text: "还没有可提交的渲染脚本（先在片库生成/保存一版脚本）" });
+    if (busy) return;
+    if (!selectedShot || !modelId) {
+      setBanner({ level: "warn", text: "还没有可生成的服务镜头，请先完成当前项目的预生产。" });
       return;
     }
-    setBusy("submit");
+    setBusy("qualify");
     try {
-      const r = await trpc.video.render.submit.mutate({
-        scriptId: latestScript.id,
-        modelId,
-        mode,
-        durationSec,
-        aspectRatio,
-        resolution,
-        generateAudio,
-        ...(firstFrameUrl.trim() ? { firstFrameUrl: firstFrameUrl.trim() } : {}),
-      }) as unknown as {
+      if (firstFrameUrl.trim() && !/^(https?:\/\/|asset:\/\/)/.test(firstFrameUrl.trim())) throw new Error("首帧地址须使用 https、http 或已授权的 asset:// 素材地址。");
+      const qualification = await trpc.video.production.qualifyShot.mutate({ projectId, shotId: selectedShot.shotId, modelId, mode,
+        params: { durationSec: selectedShot.durationSec, aspectRatio, resolution, generateAudio,
+          ...(firstFrameUrl.trim() ? { firstFrameUrl: firstFrameUrl.trim() } : {}) } });
+      setBusy("submit");
+      const r = await trpc.video.render.submit.mutate({ qualificationToken: qualification.qualificationToken }) as unknown as {
         jobId: string; taskId: string; mock: boolean; provider: string; providerModel: string;
         estUsd: number | null; estCny: number | null; deduped: boolean; durationSec: number; clamped: boolean;
       };
@@ -199,7 +206,7 @@ export default function Studio() {
     } finally {
       setBusy(null);
     }
-  }, [latestScript, modelId, mode, durationSec, aspectRatio, resolution, generateAudio, firstFrameUrl, loadJobs]);
+  }, [busy, selectedShot, projectId, modelId, mode, aspectRatio, resolution, generateAudio, firstFrameUrl, loadJobs]);
 
   const pollNow = useCallback(async () => {
     setBusy("poll");
@@ -255,6 +262,7 @@ export default function Studio() {
           <div className="text-micro text-ink3">模型</div>
           <select
             value={modelId}
+            disabled={busy !== null}
             onChange={(e) => setModelId(e.target.value)}
             className="mt-1 w-full cursor-pointer rounded-md border border-line bg-bg900 px-2 py-1.5 text-caption text-ink2"
           >
@@ -274,15 +282,22 @@ export default function Studio() {
       )}
 
       <div className="mb-2 rounded-lg border border-line bg-card p-3">
+        <label className="mb-2 block text-micro text-ink3">预生产镜头
+          <select aria-label="预生产镜头" value={shotId} disabled={busy !== null || shots.length === 0} onChange={event => setShotId(event.target.value)} className="mt-1 w-full rounded-md border border-line bg-bg900 px-2 py-1.5 text-caption text-ink2 disabled:opacity-40">
+            {shots.length === 0 && <option value="">暂无已验证镜头</option>}
+            {shots.map(shot => <option key={shot.shotId} value={shot.shotId}>{shot.shotId} · {shot.durationSec} 秒</option>)}
+          </select>
+        </label>
         <div className="grid grid-cols-2 gap-2">
           <label className="text-micro text-ink3">
-            时长（秒）
+            镜头计划（秒）
             <input
               type="number"
               min={model?.limits?.durationSec?.min ?? 4}
               max={model?.limits?.durationSec?.max ?? 15}
               value={durationSec}
-              onChange={(e) => setDurationSec(Number(e.target.value))}
+              readOnly
+              aria-label="镜头计划秒数"
               className="mt-1 w-full rounded-md border border-line bg-bg900 px-2 py-1 text-caption text-ink2"
             />
           </label>
@@ -290,6 +305,7 @@ export default function Studio() {
             画幅
             <select
               value={aspectRatio}
+              disabled={busy !== null}
               onChange={(e) => setAspectRatio(e.target.value)}
               className="mt-1 w-full cursor-pointer rounded-md border border-line bg-bg900 px-2 py-1 text-caption text-ink2"
             >
@@ -300,6 +316,7 @@ export default function Studio() {
             清晰度
             <select
               value={resolution}
+              disabled={busy !== null}
               onChange={(e) => setResolution(e.target.value)}
               className="mt-1 w-full cursor-pointer rounded-md border border-line bg-bg900 px-2 py-1 text-caption text-ink2"
             >
@@ -307,7 +324,7 @@ export default function Studio() {
             </select>
           </label>
           <label className="mt-4 flex items-center gap-2 text-micro text-ink3">
-            <input type="checkbox" checked={generateAudio} onChange={(e) => setGenerateAudio(e.target.checked)} />
+            <input type="checkbox" disabled={busy !== null} checked={generateAudio} onChange={(e) => setGenerateAudio(e.target.checked)} />
             生成音轨
           </label>
         </div>
@@ -315,13 +332,14 @@ export default function Studio() {
           首帧图 URL（可选）
           <input
             value={firstFrameUrl}
+            disabled={busy !== null}
             onChange={(e) => setFirstFrameUrl(e.target.value)}
             placeholder="https://…/frame.jpg"
             className="mt-1 w-full rounded-md border border-line bg-bg900 px-2 py-1 text-caption text-ink2"
           />
         </label>
         <div className="mt-2 text-micro text-ink3">
-          提交脚本：{latestScript ? `${latestScript.script_key} v${latestScript.version}（${latestScript.status}）` : "暂无脚本"}
+          {selectedShot ? "时长与正文来自当前服务预生产镜头，修改内容后须重新预生产。" : "完成预生产后刷新本页，服务镜头会出现在这里。"}
         </div>
       </div>
 
@@ -346,15 +364,15 @@ export default function Studio() {
 
       <button
         type="button"
-        disabled={busy === "submit" || !modelId}
+        disabled={busy !== null || !modelId || !selectedShot || estimate?.allowed === false}
         onClick={() => void submit()}
         className="w-full cursor-pointer rounded-md gold-grad px-3 py-2 text-caption font-bold text-ongold disabled:opacity-40"
       >
-        ▶ 提交生成（{modelId || "未选模型"}）
+        {busy === "qualify" ? "正在审核完整生成请求…" : busy === "submit" ? "正在提交生成…" : "▶ 审核并生成当前镜头"}
       </button>
       <button
         type="button"
-        disabled={busy === "poll"}
+        disabled={busy !== null}
         onClick={() => void pollNow()}
         className="mt-1.5 w-full cursor-pointer rounded-md border border-line px-3 py-1.5 text-caption text-ink3 hover:border-holo/40 hover:text-ink2 disabled:opacity-40"
       >
@@ -453,7 +471,7 @@ export default function Studio() {
         />
         <button
           type="button"
-          disabled={busy === "publish"}
+          disabled={busy !== null}
           onClick={() => void publish()}
           className="mt-2 w-full cursor-pointer rounded-md border border-gold/50 px-3 py-1.5 text-caption font-bold text-gold hover:bg-gold/10 disabled:opacity-40"
         >
@@ -475,11 +493,11 @@ export default function Studio() {
             <span className="text-ink3">（来自商品档案；立项/下单时引用该商品，情报环节会复用这份 dossier）</span>
           </div>
         ) : null}
-        <div className="mb-3 flex items-center justify-between">
+        <div className="mb-3 flex min-w-0 flex-wrap items-center justify-between gap-2">
           <div>
-            <div className="text-title text-ink">生成工作室 · {projectId}</div>
+            <div className="break-words text-title text-ink">生成工作室 · {projectId}</div>
             <div className="mt-0.5 text-caption text-ink3">
-              选模型 → 看报价 → 提交 → 队列/进度 → 成片入库 → 发布（全程留痕）
+              选择服务镜头 → 看报价 → 审核完整请求 → 生成 → 入库
             </div>
           </div>
           <span className="rounded border border-line px-2 py-1 text-micro text-ink3">
@@ -487,6 +505,7 @@ export default function Studio() {
           </span>
         </div>
 
+        {sourceError && <div className="mb-3"><BannerAlert level="warn">当前项目尚无可验证的服务镜头：{sourceError}</BannerAlert></div>}
         {banner && (
           <BannerAlert level={banner.level} actionLabel="知道了" onAction={() => setBanner(null)}>
             {banner.text}
@@ -497,11 +516,12 @@ export default function Studio() {
           <div className="space-y-2"><Skeleton count={4} height={56} /></div>
         ) : (
           <div className="rounded-lg border border-line bg-bg900/40 p-3">
+            {selectedShot && <details className="mb-3"><summary className="cursor-pointer text-caption text-ink2">查看当前镜头完整内容 · {selectedShot.shotId}</summary><pre className="mt-2 max-h-80 overflow-auto whitespace-pre-wrap break-words text-caption leading-relaxed text-ink3">{selectedShot.prompt}</pre></details>}
             <div className="text-caption text-ink2">
-              当前项目已有 {scripts.length} 个脚本版本、{jobs.length} 个生成任务。
+              当前项目已有 {shots.length} 个服务镜头、{scripts.length} 个工作稿版本、{jobs.length} 个生成任务。
             </div>
             <div className="mt-2 text-micro leading-relaxed text-ink3">
-              · 提交前会先过 G8（素材制作默认自动放行；超预算走人审）与成本上限闸（USD/CNY 双轨）；
+              · 服务先审核当前镜头的完整生成请求；通过后再过 G8（素材制作默认自动放行；超预算走人审）与成本上限闸（USD/CNY 双轨）；
               · 生成完成后点「立即刷新任务状态」触发轮询回填 + 成片入库（供应商只保留 7 天，入库后才算真交付）；
               · 真实渲染会消耗供应商额度，界面上的"演示/促销价/未核价"标识以数据为准，不粉饰。
             </div>

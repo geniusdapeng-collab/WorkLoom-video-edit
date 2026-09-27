@@ -10,9 +10,11 @@ import { newId } from "@workloom/shared";
 import { getModel, findFallbackModels, resolveProviderModel } from "./catalog.js";
 import { estimateCost } from "./cost.js";
 import { videoGenPool } from "./providers.js";
-import type { MediaModel, VideoGenParams } from "./types.js";
+import type { VideoGenParams } from "./types.js";
 import type { Scope } from "./db.js";
 import { SubmissionError, SubmissionLedger, submissionRequestHash, type SubmissionReceipt, type SubmissionRow } from "./submission-ledger.js";
+import { buildRenderPrompt } from "./compiled-request.js";
+import { authorizeRenderSubmission } from "../production-authority.js";
 
 export interface RenderScriptLike {
   id: string;
@@ -47,6 +49,8 @@ export interface SubmitGenJobInput {
   fenceImpacts: RuleImpact[];
   budgetOverageSeconds?: number;
   env?: NodeJS.ProcessEnv;
+  /** 正式远端生成必须来自服务当前预生产的不可变资格。 */
+  qualificationToken?: string;
 }
 
 export interface SubmitGenJobResult {
@@ -61,13 +65,6 @@ export interface SubmitGenJobResult {
   degraded: Array<{ from: string; to: string | null; reason: string }>;
   idempotencyKey: string;
   requestHash: string;
-}
-
-function buildPrompt(script: RenderScriptLike, model: MediaModel): string {
-  const maxChars = model.limits?.maxPromptChars ?? 4000;
-  const body = String(script.md ?? "").trim();
-  const trimmed = body.length > maxChars ? body.slice(0, maxChars) : body;
-  return `${trimmed}\n\n（脚本 ${script.script_key} v${script.version}）`;
 }
 
 function publicResult(receipt: SubmissionReceipt, row: SubmissionRow, deduped: boolean): SubmitGenJobResult {
@@ -89,6 +86,20 @@ function failureReason(err: unknown): string {
 }
 
 export async function submitGenJob(input: SubmitGenJobInput): Promise<SubmitGenJobResult> {
+  submissionRequestHash({ script: input.script, params: input.params });
+  const snapshot = { ...input, script: structuredClone(input.script), params: structuredClone(input.params),
+    scope: { ...input.scope }, env: { ...(input.env ?? process.env) } };
+  const model = getModel(snapshot.modelId);
+  // 本地白板/解说有独立的结构化制作链，资格由对应管线后续接入，不能套用远端提示词证明。
+  if (model && !["whiteboard-local", "remotion-local"].includes(model.provider)) {
+    const authorization = await authorizeRenderSubmission(snapshot);
+    try { return await submitWithLedger({ ...snapshot, app: authorization.leasedApp ?? snapshot.app }, authorization); }
+    finally { await authorization.release(); }
+  }
+  return submitWithLedger(snapshot, null);
+}
+
+async function submitWithLedger(input: SubmitGenJobInput, authorization: Awaited<ReturnType<typeof authorizeRenderSubmission>> | null): Promise<SubmitGenJobResult> {
   // 快照与指纹来自同一份 JSON 数据，等待 DB/健康探针期间调用方修改对象不能改变实际请求。
   submissionRequestHash({ script: input.script, params: input.params });
   const script = structuredClone(input.script);
@@ -99,15 +110,15 @@ export async function submitGenJob(input: SubmitGenJobInput): Promise<SubmitGenJ
   if (!model || model.availability !== "wired") {
     throw new SubmissionError("MODEL_UNAVAILABLE", `模型 ${input.modelId} 不存在或未接入适配器`);
   }
-  const primaryModel = resolveProviderModel(model, env);
+  const primaryModel = authorization?.compiled.providerModel ?? resolveProviderModel(model, env);
   const chain = [{ model, provider: model.provider, providerModel: primaryModel },
-    ...findFallbackModels(model, 2, env).map((fallback) => ({
+    ...(authorization ? [] : findFallbackModels(model, 2, env)).map((fallback) => ({
       model: fallback, provider: fallback.provider, providerModel: fallback.effectiveProviderModel,
     }))];
   const pool = videoGenPool(env);
-  const mock = pool.size === 0;
-  const prompt = buildPrompt(script, model);
-  const requestHash = submissionRequestHash({
+  const mock = authorization ? false : pool.size === 0;
+  const prompt = authorization?.reconciliationOnly ? script.md : buildRenderPrompt(script, model);
+  const requestHash = authorization?.requestHash ?? submissionRequestHash({
     version: 1, scope,
     script: { id: script.id, projectId: script.project_id, shotId: script.shot_id,
       key: script.script_key, version: script.version, md: script.md, fields: script.fields ?? {} },
@@ -153,6 +164,7 @@ export async function submitGenJob(input: SubmitGenJobInput): Promise<SubmitGenJ
   };
   if (row.state === "accepted" || row.state === "finalized") return finalize(row, true);
   if (row.state !== "reserved") throw pending(row);
+  if (authorization?.reconciliationOnly) throw pending(row, "SUBMISSION_UNVERIFIED");
 
   const owner = newId("GSO");
   const claimed = await ledger.claim(row, owner);

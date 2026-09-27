@@ -5,6 +5,13 @@ import { newId } from "@workloom/shared";
 import { SubmissionLedger, submissionRequestHash } from "./submission-ledger.js";
 import { submitGenJob, type RenderScriptLike, type SubmitGenJobInput } from "./submit.js";
 
+/** 该契约专测已获资格后的账本原子性；production-authority.pg.test 使用真实发行/验签链。 */
+vi.mock("../production-authority.js", () => ({ authorizeRenderSubmission: async (input: SubmitGenJobInput) => {
+  const { compileRenderRequest } = await import("./compiled-request.js");
+  const { getModel } = await import("./catalog.js");
+  const built = compileRenderRequest({ ...input, model: getModel(input.modelId)!, env: input.env ?? {} });
+  return { compiled: built.compiled, requestHash: built.requestHash, reconciliationOnly: false, release: async () => undefined };
+} }));
 const providers = vi.hoisted(() => ({ submit: vi.fn() }));
 vi.mock("./providers.js", () => ({ videoGenPool: () => new Map([
   ["seedance", { healthy: async () => true, submit: providers.submit }],

@@ -11,6 +11,13 @@ const f = vi.hoisted(() => ({
   failFinalize: false, failAccepted: false, failDispatch: false, failDegradation: false,
   dispatches: 0, healthy: vi.fn(), submit: vi.fn(), fallback: vi.fn(),
 }));
+/** 本文件隔离账本/供应商行为；正式签发和验签由 production-authority.test/pg.test 覆盖。 */
+vi.mock("../production-authority.js", () => ({ authorizeRenderSubmission: async (input: SubmitGenJobInput) => {
+  const { compileRenderRequest } = await import("./compiled-request.js");
+  const { getModel } = await import("./catalog.js");
+  const built = compileRenderRequest({ ...input, model: getModel(input.modelId)!, env: input.env ?? {} });
+  return { compiled: built.compiled, requestHash: built.requestHash, reconciliationOnly: false, release: async () => undefined };
+} }));
 vi.mock("./providers.js", () => ({ videoGenPool: () => f.pool }));
 vi.mock("@workloom/base/workdata", async (importOriginal) => ({
   ...await importOriginal<Record<string, unknown>>(),
@@ -199,11 +206,11 @@ describe("提交状态机与接受后原子记账", () => {
     await expect(submitGenJob(request())).rejects.toThrow("SUBMISSION_UNKNOWN");
     expect(f.fallback).not.toHaveBeenCalled();
   });
-  it("明确鉴权拒绝可转备援，使用实际备援报价", async () => {
+  it("已审请求即使明确鉴权拒绝也不转未审备援", async () => {
     f.submit.mockRejectedValueOnce(new ProviderError("AUTH", "unauthorized", 401));
-    const result = await submitGenJob(request());
-    expect(result).toMatchObject({ provider: "higgsfield", taskId: "fallback-task" });
-    expect(result.estUsd).not.toBeNull(); expect(result.degraded).toHaveLength(1);
+    await expect(submitGenJob(request())).rejects.toThrow("PROVIDERS_UNAVAILABLE");
+    expect(f.submit).toHaveBeenCalledTimes(1); expect(f.fallback).not.toHaveBeenCalled();
+    expect([...f.rows.values()][0]?.state).toBe("rejected");
   });
   it.each(["BAD_REQUEST", "MODERATION", "CONCURRENCY"] as const)("%s 不换供应商", async (kind) => {
     f.submit.mockRejectedValue(new ProviderError(kind, "rejected", 400));
@@ -215,11 +222,10 @@ describe("提交状态机与接受后原子记账", () => {
     await expect(submitGenJob(request())).rejects.toThrow("degradation unavailable");
     expect(f.submit).not.toHaveBeenCalled(); expect(f.fallback).not.toHaveBeenCalled();
   });
-  it("无供应商 mock 仍走持久预占且不会写真实模型计量", async () => {
+  it("正式远端资格缺供应商时明确失败，不转换为 mock 成功", async () => {
     f.pool.clear();
-    const result = await submitGenJob(request());
-    expect(result.mock).toBe(true); expect(result.taskId).toMatch(/^mock-/);
-    expect(f.events.map(event => event.decision.action)).toEqual(["render.submit"]);
+    await expect(submitGenJob(request())).rejects.toThrow("PROVIDERS_UNAVAILABLE");
+    expect(f.jobs).toHaveLength(0); expect(f.events).toHaveLength(0);
   });
 });
 
