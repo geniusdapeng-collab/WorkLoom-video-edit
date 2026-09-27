@@ -42,6 +42,108 @@ function runInChild(script: string): Record<string, unknown> {
   return JSON.parse(line.slice("RESULT ".length)) as Record<string, unknown>;
 }
 
+const exactPortraitFixture = `
+import { createRequire } from "node:module";
+import { mkdtempSync, writeFileSync, readFileSync, symlinkSync, unlinkSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join, relative } from "node:path";
+import { createHash } from "node:crypto";
+import { createPortraitRuntime, REQUIRED_ANGLES } from ${JSON.stringify(resolve(here, "portrait-runtime.ts"))};
+import { installVendorPortraitBindingBridge } from ${JSON.stringify(resolve(here, "vendor-compat.ts"))};
+const require = createRequire(${JSON.stringify(join(repoRoot, "package.json"))});
+const { RenderingEngine } = require(${JSON.stringify(join(repoRoot, "vendor/supermickey/hyperreality-system/engines/rendering-engine/rendering-engine.js"))});
+const { RenderSubmitterCore } = require(${JSON.stringify(join(repoRoot, "vendor/supermickey/scripts/render-submitter-core.js"))});
+const root = mkdtempSync(join(tmpdir(), "wl-exact-portrait-"));
+// Keep the real guardian and its persistence logic; relocate only its fixed vendor output path.
+const { PromptGuardian } = require(${JSON.stringify(join(repoRoot, "vendor/supermickey/scripts/prompt-guardian.js"))});
+const guardianSave = PromptGuardian.prototype._saveLog;
+PromptGuardian.prototype._saveLog = function(...args) { this.logPath = join(root, "guardian-log.json"); return guardianSave.apply(this, args); };
+const charactersDir = join(root, "characters", "PROJECT");
+let calls = 0;
+const runtime = createPortraitRuntime({ workDir: root, projectId: "PROJECT", apiKey: "test-only-key", model: "test-model", retries: 0, fetchImpl: async (url) => {
+  if (String(url).includes("/images/generations")) { calls++; return new Response(JSON.stringify({ data: [{ url: "https://cdn.example.invalid/out" }] })); }
+  return new Response(new Uint8Array(4096).fill(calls));
+} });
+for (const version of ["旧蓝色长裙", "新红色外套"]) for (const angle of ["front_full", "three_quarter", "face_closeup", "side_full"]) {
+  await runtime.apiRender({ characterId: "guest", characterName: "住客", characterDescription: "三十岁女性，齐肩黑发，" + version, angle, prompt: version });
+}
+let index = runtime.snapshot();
+const baseline = structuredClone(index);
+const originalManifest = RenderingEngine.prototype._generateBindingManifest;
+const originalPayload = RenderSubmitterCore.prototype.buildPayload;
+const uninstall = installVendorPortraitBindingBridge({ resolveIndex: () => index, log: () => undefined });
+const engine = new RenderingEngine({ charactersDir, outputDir: root, apiKey: "test-only-key", endpoint: "test-model" });
+const core = new RenderSubmitterCore({ charactersDir, endpoint: "test-model" });
+const prompt = () => ({ shotId: "SC-01", prompt: "guest 住客穿红色外套，站在有光照的房间中央，保持自然站姿，镜头平稳拍摄人物正面，背景清晰，没有额外角色，台词：今天我们来到这里。", duration: 6, portraits: [], characterRef: "" });
+const errorOf = async (fn) => { try { await fn(); return "MISSED"; } catch (error) { return String(error.message); } };
+`;
+
+describe("当前定妆照版本的真实消费链", () => {
+  it("真实runtime两版四角度→manifest→provider payload只消费索引最新字节，历史目录顺序无效", () => {
+    const result = runInChild(exactPortraitFixture + `
+for (const angle of REQUIRED_ANGLES) writeFileSync(join(index.characters.guest.dir, "portraits", "000-old-" + angle + ".png"), Buffer.alloc(4096, 99));
+const card = prompt();
+await engine.render([card], { dryRun: true });
+const shot = engine._convertToShotFormat(card);
+const manifest = await engine._generateBindingManifest([card]);
+const check = core.validateManifest(manifest);
+const payload = core.buildPayload(shot, manifest);
+const actual = payload.content.filter(item => item.type === "image_url").map(item => createHash("sha256").update(Buffer.from(item.image_url.url.split(",")[1], "base64")).digest("hex"));
+const expected = REQUIRED_ANGLES.map(angle => index.characters.guest.receipts[angle].output.sha256);
+const paths = REQUIRED_ANGLES.map(angle => manifest.characters.guest.portraits[angle]);
+const expectedPaths = REQUIRED_ANGLES.map(angle => relative(charactersDir, index.characters.guest.files[angle]));
+uninstall();
+console.log("RESULT " + JSON.stringify({ calls, valid: check.valid, actual, expected, paths, expectedPaths, selection: manifest.selection, restored: RenderingEngine.prototype._generateBindingManifest === originalManifest && RenderSubmitterCore.prototype.buildPayload === originalPayload }));
+`);
+    expect(result.calls).toBe(8); expect(result.valid).toBe(true);
+    expect(result.actual).toEqual(result.expected); expect(result.paths).toEqual(result.expectedPaths);
+    expect(result.selection).toBe("exact-current-index-files"); expect(result.restored).toBe(true);
+  }, 90_000);
+
+  it("篡改、缺收据、symlink、越界和重复角度均不能进入vendor提交", () => {
+    const result = runInChild(exactPortraitFixture + `
+const rejected = [];
+const front = index.characters.guest.files.front; const originalBytes = readFileSync(front);
+writeFileSync(front, Buffer.alloc(originalBytes.length, 99)); rejected.push(await errorOf(() => engine.render([prompt()], { dryRun: true }))); writeFileSync(front, originalBytes);
+delete index.characters.guest.receipts.front; rejected.push(await errorOf(() => engine._generateBindingManifest([prompt()]))); index = structuredClone(baseline);
+const external = join(root, "external.png"); writeFileSync(external, originalBytes); unlinkSync(front); symlinkSync(external, front); rejected.push(await errorOf(() => engine._generateBindingManifest([prompt()]))); unlinkSync(front); writeFileSync(front, originalBytes);
+index.characters.guest.files.front = external; rejected.push(await errorOf(() => engine._generateBindingManifest([prompt()]))); index = structuredClone(baseline);
+index.characters.guest.files.side = front; index.characters.guest.receipts.side = { ...index.characters.guest.receipts.front, angle: "side" }; rejected.push(await errorOf(() => engine._generateBindingManifest([prompt()]))); index = structuredClone(baseline);
+index.characters.guest.receipts.front.kind = "product"; rejected.push(await errorOf(() => engine._generateBindingManifest([prompt()]))); index = structuredClone(baseline);
+rejected.push(await errorOf(() => engine._generateBindingManifest([prompt(), prompt()])));
+uninstall(); console.log("RESULT " + JSON.stringify({ rejected }));
+`);
+    expect(result.rejected).toHaveLength(7);
+    for (const error of result.rejected as string[]) expect(error).toMatch(/PORTRAIT_BINDING_(INVALID|RECEIPT_INVALID)/);
+  }, 90_000);
+
+  it("清单生成后改索引/产物/清单均阻断，最终payload字节也再次核对", () => {
+    const result = runInChild(exactPortraitFixture + `
+const card = prompt(); const manifest = await engine._generateBindingManifest([card]); const shot = engine._convertToShotFormat(card);
+const front = index.characters.guest.files.front; const bytes = readFileSync(front);
+writeFileSync(front, Buffer.alloc(bytes.length, 99));
+const tampered = await errorOf(() => core.buildPayload(shot, manifest)); writeFileSync(front, bytes);
+index.characters.guest.name = "新角色版本";
+const changedIndex = await errorOf(() => engine._generateBindingManifest([card]));
+const stalePayload = await errorOf(() => core.buildPayload(shot, manifest)); index = structuredClone(baseline);
+const forged = structuredClone(manifest); forged.characters.guest.portraits.front = "changed.png";
+const changedManifest = await errorOf(() => core.buildPayload(shot, forged));
+// Inject a downstream body mutation after the real vendor builder's reads; the bridge must catch actual data bytes.
+const originalRead = require("fs").readFileSync; let changedRead = false;
+require("fs").readFileSync = function(file, ...args) {
+  const value = originalRead.call(this, file, ...args);
+  if (file === front && new Error().stack.includes("render-submitter-core.js")) { changedRead = true; return Buffer.alloc(bytes.length, 99); }
+  return value;
+};
+const changedBody = await errorOf(() => core.buildPayload(shot, manifest)); require("fs").readFileSync = originalRead;
+uninstall(); console.log("RESULT " + JSON.stringify({ tampered, changedIndex, stalePayload, changedManifest, changedBody, changedRead }));
+`);
+    expect(result.tampered).toMatch(/PORTRAIT_BINDING_RECEIPT_INVALID/);
+    for (const key of ["changedIndex", "stalePayload", "changedManifest", "changedBody"]) expect(result[key]).toMatch(/PORTRAIT_BINDING_CHANGED/);
+    expect(result.changedRead).toBe(true);
+  }, 90_000);
+});
+
 describe("定妆照绑定桥（真机故障复现 → 修复）", () => {
   it("角色四角度齐备后，vendor 绑定清单校验通过（不再 BINDING_MANIFEST_INVALID）", () => {
     const workDir = mkdtempSync(join(tmpdir(), "wl-chars-"));

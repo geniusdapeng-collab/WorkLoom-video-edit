@@ -14,9 +14,10 @@
  *   - 其余类型原样传给原实现
  * 幂等；返回摘除函数。
  */
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, lstatSync, realpathSync } from "node:fs";
+import { createHash } from "node:crypto";
 import { createRequire } from "node:module";
-import { dirname, resolve as resolvePath } from "node:path";
+import { dirname, isAbsolute, join, relative, sep, resolve as resolvePath } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   applyProjectedDurations,
@@ -27,7 +28,7 @@ import {
   projectShotDurations,
   resolveRateKey,
 } from "./duration-projection.js";
-import type { PortraitIndex } from "./portrait-runtime.js";
+import { REQUIRED_ANGLES, type PortraitIndex, type PortraitIndexEntry } from "./portrait-runtime.js";
 import {
   CinematicSkillError, cinematicSkillHash, checkCinematicSkillCompliance, planCinematicSkills,
   type CinematicSkillRouter, type CinematicSkillStatus,
@@ -177,10 +178,46 @@ interface RenderPromptLike {
 export function installVendorPortraitBindingBridge(options: PortraitBindingBridgeOptions): () => void {
   const log = options.log ?? (() => undefined);
   const maxPerShot = options.maxCharactersPerShot ?? 1;
+  if (!Number.isInteger(maxPerShot) || maxPerShot < 1) throw new Error("PORTRAIT_BINDING_INVALID: 每镜角色上限无效");
+  type Engine = { config?: { charactersDir?: string } };
+  type BoundEntry = { id: string; name: string; requiredAngles: readonly string[]; portraits: Record<string, string>; evidence: Record<string, unknown> };
+  const boundSnapshots = new WeakMap<RenderPromptLike, string>();
+  const inside = (root: string, file: string): boolean => { const rel = relative(root, file); return rel !== ".." && !rel.startsWith(`..${sep}`) && !isAbsolute(rel); };
+  function currentIndex(): PortraitIndex | null {
+    const value = options.resolveIndex ? options.resolveIndex() : options.index ?? null;
+    if (value && (value.schemaVersion !== "workloom.portrait-index/v1" || !isPlainObject(value.characters))) throw new Error("PORTRAIT_BINDING_INVALID: 角色索引无效");
+    return value ? structuredClone(value) : null;
+  }
+  /** Read only the indexed files; directory order and historical filenames cannot select a version. */
+  function exactEntry(engine: Engine, key: string, entry: PortraitIndexEntry): BoundEntry {
+    const root = engine.config?.charactersDir;
+    if (!root || entry.kind !== "character" || typeof entry.id !== "string") throw new Error("PORTRAIT_BINDING_INVALID: 角色类型或根目录无效");
+    const lexicalRoot = resolvePath(root); const canonicalRoot = realpathSync(root);
+    const portraits: Record<string, string> = {}; const evidence: Record<string, unknown> = {};
+    const seen = new Set<string>();
+    for (const angle of REQUIRED_ANGLES) {
+      const file = entry.files?.[angle];
+      if (typeof file !== "string" || !isAbsolute(file) || !inside(lexicalRoot, resolvePath(file))) throw new Error(`PORTRAIT_BINDING_INVALID: ${key}/${angle} 路径越界或缺失`);
+      const rel = relative(lexicalRoot, resolvePath(file));
+      const realPath = realpathSync(file); const stat = lstatSync(file);
+      if (stat.isSymbolicLink() || !stat.isFile() || stat.size < 1024 || stat.size > 100_000_000 || realPath !== join(canonicalRoot, rel) || !inside(canonicalRoot, realPath)) throw new Error(`PORTRAIT_BINDING_INVALID: ${key}/${angle} 文件或符号链接不可用`);
+      if (seen.has(realPath)) throw new Error(`PORTRAIT_BINDING_INVALID: ${key} 多个角度指向同一文件`);
+      seen.add(realPath);
+      const bytes = readFileSync(realPath); const sha256 = createHash("sha256").update(bytes).digest("hex");
+      if (bytes.length !== stat.size || realpathSync(file) !== realPath) throw new Error(`PORTRAIT_BINDING_CHANGED: ${key}/${angle} 读取期间变化`);
+      const receipt = entry.receipts?.[angle];
+      if (receipt) {
+        if (receipt.schemaVersion !== "workloom.portrait-cache/v2" || receipt.kind !== "character" || receipt.id !== entry.id || receipt.angle !== angle || !/^[a-f0-9]{64}$/.test(receipt.requestHash)
+          || receipt.output?.path !== file || receipt.output.realPath !== realPath || receipt.output.sha256 !== sha256 || receipt.output.bytes !== bytes.length) throw new Error(`PORTRAIT_BINDING_RECEIPT_INVALID: ${key}/${angle} 当前产物与收据不一致`);
+      } else if (entry.receipts || /-[a-f0-9]{64}-[a-zA-Z]+\.png$/.test(file)) throw new Error(`PORTRAIT_BINDING_RECEIPT_INVALID: ${key}/${angle} 新缓存缺少收据`);
+      portraits[angle] = rel.split(sep).join("/");
+      evidence[angle] = { path: file, realPath, sha256, bytes: bytes.length, requestHash: receipt?.requestHash ?? null, scope: receipt ? "generation-receipt-and-current-bytes" : "legacy-index-current-bytes-only" };
+    }
+    return { id: key, name: entry.name || key, requiredAngles: REQUIRED_ANGLES, portraits, evidence };
+  }
 
   /** 四角度齐备的角色（缺一即不作为绑定对象：渲染核心会整单拒绝） */
-  function eligibleCharacters(): Array<{ key: string; files: Record<string, string> }> {
-    const index = options.resolveIndex ? options.resolveIndex() : options.index ?? null;
+  function eligibleCharacters(index: PortraitIndex | null): Array<{ key: string; files: Record<string, string> }> {
     if (!index) return [];
     return Object.entries(index.characters ?? {})
       .map(([key, entry]) => ({ key, files: (entry.files ?? {}) as Record<string, string> }))
@@ -189,8 +226,8 @@ export function installVendorPortraitBindingBridge(options: PortraitBindingBridg
       );
   }
 
-  function pickFor(prompt: RenderPromptLike): string[] {
-    const eligible = eligibleCharacters();
+  function pickFor(prompt: RenderPromptLike, index: PortraitIndex | null): string[] {
+    const eligible = eligibleCharacters(index);
     if (eligible.length === 0) return [];
     const haystack = [
       typeof prompt.prompt === "string" ? prompt.prompt : "",
@@ -204,28 +241,20 @@ export function installVendorPortraitBindingBridge(options: PortraitBindingBridg
     return chosen.map((item) => item.key);
   }
 
-  function bindPrompt(prompt: RenderPromptLike): void {
-    const keys = pickFor(prompt);
-    if (keys.length === 0) return;
-    const index = (options.resolveIndex ? options.resolveIndex() : options.index) as PortraitIndex | null;
-    if (!index) return;
+  function bindPrompt(engine: Engine, prompt: RenderPromptLike): BoundEntry[] {
+    const index = currentIndex(); const keys = pickFor(prompt, index);
+    if (keys.length === 0 || !index) return [];
+    const entries = keys.map((key) => exactEntry(engine, key, index.characters[key]!));
+    const snapshot = cinematicSkillHash(entries);
+    const prior = boundSnapshots.get(prompt);
+    if (prior && prior !== snapshot) throw new Error("PORTRAIT_BINDING_CHANGED: 镜头绑定后当前版本或字节发生变化");
+    boundSnapshots.set(prompt, snapshot);
     prompt._workloomBoundCharacters = keys;
-    const refs = keys
-      .map((key) => {
-        const entry = index.characters[key];
-        const front = entry?.files?.front;
-        if (!front) return null;
-        const fileName = front.split("/").pop() || `${key}-front.png`;
-        return `${key}: image://characters/${key}/portraits/${fileName}`;
-      })
-      .filter((ref): ref is string => Boolean(ref))
-      .join("; ");
-    if (!refs) return;
-    const existing = typeof prompt.characterRef === "string" ? prompt.characterRef.trim() : "";
-    if (!existing || existing === "NONE") prompt.characterRef = refs;
+    prompt.characterRef = entries.map((entry) => `${entry.id}: image://characters/${entry.portraits.front}`).join("; ");
     // 空数组在 JS 里是真值：vendor 的 `prompt.portraits || prompt.characterRef` 会优先取空数组，
     // 于是 refs 永远读不到（真机 2026-09-21 实测）。这里把空数组摘掉，让 characterRef 生效。
     if (Array.isArray(prompt.portraits) && prompt.portraits.length === 0) delete prompt.portraits;
+    return entries;
   }
 
   try {
@@ -241,27 +270,70 @@ export function installVendorPortraitBindingBridge(options: PortraitBindingBridg
     };
     const prototype = mod?.RenderingEngine?.prototype;
     if (!prototype || typeof prototype.render !== "function") return () => undefined;
+    const coreMod = vendorRequire(resolvePath(repoRoot, "vendor/supermickey/scripts/render-submitter-core.js")) as { RenderSubmitterCore?: { prototype: Record<string, unknown> } };
+    const corePrototype = coreMod.RenderSubmitterCore?.prototype;
+    if (!corePrototype || typeof corePrototype.buildPayload !== "function") throw new Error("PORTRAIT_BINDING_INVALID: vendor缺少提交体构造入口");
+    const originalPayload = corePrototype.buildPayload as (shot: Record<string, unknown>, manifest: Record<string, unknown>) => Record<string, unknown>;
 
     const originalRender = prototype.render as (prompts: unknown, opts?: unknown) => Promise<unknown>;
+    const originalManifest = prototype._generateBindingManifest;
+    if (typeof originalManifest !== "function") throw new Error("PORTRAIT_BINDING_INVALID: vendor缺少绑定清单入口");
     const originalConvert = typeof prototype._convertToShotFormat === "function"
       ? (prototype._convertToShotFormat as (prompt: RenderPromptLike) => Record<string, unknown>)
       : null;
 
-    prototype.render = function patchedRender(this: unknown, prompts: unknown, opts?: unknown) {
+    prototype.render = function patchedRender(this: Engine, prompts: unknown, opts?: unknown) {
       const list = Array.isArray(prompts) ? (prompts as RenderPromptLike[]) : [];
       let bound = 0;
       for (const prompt of list) {
-        try {
-          bindPrompt(prompt);
-          if (prompt._workloomBoundCharacters?.length) bound += 1;
-        } catch (err) {
-          log(`[vendor-compat] 定妆照绑定失败（${String(prompt?.shotId ?? "?")}）：${err instanceof Error ? err.message : String(err)}`);
-        }
+        bindPrompt(this, prompt);
+        if (prompt._workloomBoundCharacters?.length) bound += 1;
       }
       if (bound > 0) {
         log(`[vendor-compat] 定妆照绑定桥：${bound}/${list.length} 个镜头已绑定角色定妆照（每镜 ≤${maxPerShot} 角色）`);
       }
       return originalRender.call(this, prompts, opts);
+    };
+
+    prototype._generateBindingManifest = async function patchedManifest(this: Engine, prompts: RenderPromptLike[]) {
+      const characters: Record<string, BoundEntry> = {}; const shots: Record<string, unknown>[] = [];
+      const shotIds = new Set<string>();
+      for (const prompt of prompts) {
+        if (!prompt.shotId || shotIds.has(prompt.shotId)) throw new Error("PORTRAIT_BINDING_INVALID: 镜头ID缺失或重复");
+        shotIds.add(prompt.shotId);
+        const entries = bindPrompt(this, prompt);
+        for (const entry of entries) {
+          const prior = characters[entry.id];
+          if (prior && cinematicSkillHash(prior) !== cinematicSkillHash(entry)) throw new Error("PORTRAIT_BINDING_CHANGED: 同一清单混入多个角色版本");
+          characters[entry.id] = entry;
+        }
+        shots.push({ shotId: prompt.shotId, requiredCharacters: entries.map((entry) => entry.id), duration: prompt.duration ?? 15, promptLength: prompt.promptCharCount || (typeof prompt.prompt === "string" ? prompt.prompt.length : 0) });
+      }
+      return { generatedAt: new Date().toISOString(), characters, shots, schemaVersion: "workloom.portrait-binding/v2", selection: "exact-current-index-files", bindingHash: cinematicSkillHash({ characters, shots }) };
+    };
+
+    corePrototype.buildPayload = function patchedPayload(this: { charactersDir: string; extractCharactersFromShot: (shot: Record<string, unknown>) => string[] }, shot: Record<string, unknown>, manifest: Record<string, unknown>) {
+      if (manifest.schemaVersion !== "workloom.portrait-binding/v2") throw new Error("PORTRAIT_BINDING_INVALID: 提交体必须使用本次精确文件清单");
+      if (manifest.bindingHash !== cinematicSkillHash({ characters: manifest.characters, shots: manifest.shots })) throw new Error("PORTRAIT_BINDING_CHANGED: 清单内容被改写");
+      const characters = manifest.characters as Record<string, BoundEntry>;
+      const index = currentIndex(); const expected: Array<{ sha256: string; bytes: number }> = [];
+      for (const key of this.extractCharactersFromShot(shot)) {
+        const entry = index?.characters[key];
+        if (!entry || !characters[key]) throw new Error("PORTRAIT_BINDING_INVALID: 提交角色缺少当前索引或清单");
+        const current = exactEntry({ config: { charactersDir: this.charactersDir } }, key, entry);
+        if (cinematicSkillHash(current) !== cinematicSkillHash(characters[key])) throw new Error("PORTRAIT_BINDING_CHANGED: 提交前角色版本发生变化");
+        for (const angle of REQUIRED_ANGLES) expected.push(current.evidence[angle] as { sha256: string; bytes: number });
+      }
+      const payload = originalPayload.call(this, shot, manifest);
+      const images = (Array.isArray(payload.content) ? payload.content : []).filter((item: Record<string, unknown>) => item.type === "image_url") as Array<{ image_url?: { url?: string } }>;
+      if (images.length !== expected.length) throw new Error("PORTRAIT_BINDING_CHANGED: 实际提交参考图数量不符");
+      for (let i = 0; i < images.length; i += 1) {
+        const encoded = /^data:image\/[a-zA-Z0-9.+-]+;base64,([A-Za-z0-9+/=]+)$/.exec(images[i]!.image_url?.url ?? "");
+        if (!encoded) throw new Error("PORTRAIT_BINDING_INVALID: 参考图不是实际内联字节");
+        const bytes = Buffer.from(encoded[1]!, "base64");
+        if (bytes.length !== expected[i]!.bytes || createHash("sha256").update(bytes).digest("hex") !== expected[i]!.sha256) throw new Error("PORTRAIT_BINDING_CHANGED: 实际提交参考图字节与收据不一致");
+      }
+      return payload;
     };
 
     if (originalConvert) {
@@ -275,11 +347,13 @@ export function installVendorPortraitBindingBridge(options: PortraitBindingBridg
 
     return () => {
       prototype.render = originalRender;
+      prototype._generateBindingManifest = originalManifest;
+      corePrototype.buildPayload = originalPayload;
       if (originalConvert) prototype._convertToShotFormat = originalConvert;
     };
   } catch (err) {
-    log(`[vendor-compat] 定妆照绑定桥注入失败（不影响其它桥）：${err instanceof Error ? err.message : String(err)}`);
-    return () => undefined;
+    log(`[vendor-compat] 定妆照绑定桥注入失败：${err instanceof Error ? err.message : String(err)}`);
+    throw err;
   }
 }
 
