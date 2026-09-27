@@ -31,7 +31,7 @@ import { newId } from "@workloom/shared";
 import { writeFileSync } from "node:fs";
 import { protectedProcedure, router, scopeOf, writeProcedure } from "../../trpc/context.js";
 import { scopedQuery, type Scope } from "../gen/db.js";
-import { submitGenJob } from "../gen/submit.js";
+import { submitGenJob, type RenderScriptLike } from "../gen/submit.js";
 import { pollRenderJobs } from "../render-poller.js";
 import { downloadToMediaStore, mediaUrl, registerRenderedClip, resolveMediaPath } from "../gen/ingest.js";
 import {
@@ -624,15 +624,16 @@ export const whiteboardRouter = router({
 
       /* ---- 渲染脚本行（白板片同样走"版本即审批对象"口径） ---- */
       const scriptKey = `whiteboard-${film.project_id}`;
-      const existing = await scopedQuery<{ id: string; version: number; status: string }>(
+      const existing = await scopedQuery<RenderScriptLike & Record<string, unknown>>(
         app, scope,
-        `SELECT id, version, status FROM render_scripts
-          WHERE workspace_id=$1 AND script_key=$2 ORDER BY version DESC LIMIT 1`,
-        [scope.workspaceId, scriptKey],
+        `SELECT s.* FROM render_scripts s JOIN workspaces w ON w.id=s.workspace_id
+          WHERE s.workspace_id=$1 AND s.script_key=$2 AND w.tenant_id=$3 AND s.project_id=$4
+          ORDER BY s.version DESC LIMIT 1`,
+        [scope.workspaceId, scriptKey, scope.tenantId, film.project_id],
       );
-      let scriptId = existing[0]?.id;
-      if (!scriptId) {
-        const created = await createRenderScript(app, gateway, scope, {
+      let scriptRow: RenderScriptLike | undefined = existing[0];
+      if (!scriptRow) {
+        scriptRow = await createRenderScript(app, gateway, scope, {
           scriptKey,
           projectId: film.project_id,
           shotId: "WHITEBOARD",
@@ -644,12 +645,11 @@ export const whiteboardRouter = router({
           },
           by: actor,
         });
-        scriptId = created.id;
       }
       if (verdict.level === "review") {
         const cur = await scopedQuery<{ status: string }>(
           app, scope, `SELECT status FROM render_scripts WHERE workspace_id=$1 AND id=$2`,
-          [scope.workspaceId, scriptId],
+          [scope.workspaceId, scriptRow.id],
         );
         if (cur[0]?.status !== "approved") {
           throw new TRPCError({
@@ -676,15 +676,7 @@ export const whiteboardRouter = router({
         .slice(0, 16);
       const submit = await submitGenJob({
         app, gateway, scope, actor,
-        script: {
-          id: scriptId,
-          project_id: film.project_id,
-          shot_id: "WHITEBOARD",
-          script_key: scriptKey,
-          version: 1,
-          status: verdict.level === "review" ? "approved" : "draft",
-          md: film.script_md,
-        },
+        script: scriptRow,
         modelId: WHITEBOARD_MODEL_ID,
         params: {
           durationSec: Math.max(1, Math.round(totalDurationMs / 1000)),

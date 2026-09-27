@@ -13,7 +13,7 @@ import {
   JimengProvider, KlingProvider,
   type GenKind, type GenProvider, type GenRequest, type GenTaskStatus,
 } from "@workloom/base/model-router";
-import { ProviderError, type ProviderErrorKind } from "./types.js";
+import { ProviderError } from "./types.js";
 import { WhiteboardProvider } from "../whiteboard/provider.js";
 import { whiteboardEngineReady } from "../whiteboard/engine.js";
 import { RemotionProvider } from "../explainer/remotion-provider.js";
@@ -71,8 +71,8 @@ function classify(status: number, body: string): ProviderError {
     );
   }
   if (status === 400 && /concurrent/i.test(body)) return new ProviderError("CONCURRENCY", `供应商并发已满：${text}`, status);
-  if (status === 404 || status === 423 || status === 503) return new ProviderError("MODEL_UNAVAILABLE", `模型不可用：HTTP ${status} ${text}`, status);
-  if (status === 429) return new ProviderError("RETRYABLE", `限流：HTTP 429 ${text}`, status);
+  if (status === 404 || status === 423) return new ProviderError("MODEL_UNAVAILABLE", `模型不可用：HTTP ${status} ${text}`, status, "not-accepted");
+  if (status === 429) return new ProviderError("RETRYABLE", `限流：HTTP 429 ${text}`, status, "not-accepted");
   if (status >= 500) return new ProviderError("RETRYABLE", `供应商故障：HTTP ${status} ${text}`, status);
   if (status === 400 || status === 422) return new ProviderError("BAD_REQUEST", `参数被拒：HTTP ${status} ${text}`, status);
   return new ProviderError("PROVIDER_FAILED", `供应商失败：HTTP ${status} ${text}`, status);
@@ -153,7 +153,7 @@ export class ArkVideoProvider implements GenProvider {
       ...(p.extra ?? {}),
     };
     const data = await postJson(`${this.base()}/contents/generations/tasks`, { authorization: `Bearer ${this.cfg.apiKey}` }, payload) as { id?: string };
-    if (!data?.id) throw new ProviderError("PROVIDER_FAILED", "Seedance 未返回 task_id");
+    if (typeof data?.id !== "string" || !data.id.trim()) throw new ProviderError("PROVIDER_FAILED", "Seedance 未返回 task_id");
     return { taskId: data.id };
   }
   async poll(taskId: string): Promise<{ status: GenTaskStatus; uri?: string; actualUnits?: number; error?: string }> {
@@ -190,7 +190,7 @@ export class ArkImageProvider implements GenProvider {
     };
     const data = await postJson(`${this.base()}/images/generations`, { authorization: `Bearer ${this.cfg.apiKey}` }, payload) as { data?: Array<{ url?: string }> };
     const url = data?.data?.[0]?.url;
-    if (!url) throw new ProviderError("PROVIDER_FAILED", "Seedream 未返回图像 URL");
+    if (typeof url !== "string" || !url.trim()) throw new ProviderError("PROVIDER_FAILED", "Seedream 未返回图像 URL");
     // 同步接口 → 用 taskId 内嵌结果（poll 直接解出，不轮询）
     return { taskId: `sync-url-${Buffer.from(url, "utf8").toString("base64url")}` };
   }
@@ -242,7 +242,7 @@ export class HiggsfieldProvider implements GenProvider {
       request_id?: string; id?: string;
     };
     const taskId = data?.request_id ?? data?.id;
-    if (!taskId) throw new ProviderError("PROVIDER_FAILED", "Higgsfield 未返回 request_id");
+    if (typeof taskId !== "string" || !taskId.trim()) throw new ProviderError("PROVIDER_FAILED", "Higgsfield 未返回 request_id");
     return { taskId };
   }
 
@@ -293,7 +293,7 @@ export class MuapiProvider implements GenProvider {
       ...(p.extra ?? {}),
     }) as { request_id?: string; id?: string };
     const taskId = data?.request_id ?? data?.id;
-    if (!taskId) throw new ProviderError("PROVIDER_FAILED", "MuAPI 未返回 request_id");
+    if (typeof taskId !== "string" || !taskId.trim()) throw new ProviderError("PROVIDER_FAILED", "MuAPI 未返回 request_id");
     return { taskId };
   }
   async poll(taskId: string): Promise<{ status: GenTaskStatus; uri?: string; error?: string }> {
@@ -372,8 +372,7 @@ export function buildVideoGenPool(opts: GenPoolOptions = {}): Map<string, GenPro
 
 /** 供 poller 使用：把供应商 id 解析成适配器（单例池，避免每轮重建） */
 let singletonPool: { key: string; pool: Map<string, GenProvider> } | null = null;
-export function videoGenPool(): Map<string, GenProvider> {
-  const env = process.env;
+export function videoGenPool(env: NodeJS.ProcessEnv = process.env): Map<string, GenProvider> {
   /**
    * 单例缓存键必须包含**所有影响装配的输入**：白板引擎由"开关 + venv 是否存在"驱动，
    * 只按密钥拼键会出现"装了 venv，但池子仍是旧的（没有 whiteboard-local）"的假不可用。
@@ -382,9 +381,11 @@ export function videoGenPool(): Map<string, GenProvider> {
   const key = [
     env.VOLCENGINE_ARK_API_KEY, env.HF_API_KEY_ID, env.HF_API_KEY_SECRET, env.MUAPI_API_KEY,
     env.KLING_API_KEY, env.JIMENG_API_KEY,
+    env.SEEDANCE_ENDPOINT, env.SEEDREAM_ENDPOINT, env.HF_BASE_URL, env.HF_WEBHOOK_URL,
+    env.MUAPI_BASE_URL, env.KLING_ENDPOINT, env.KLING_MODEL, env.JIMENG_ENDPOINT, env.JIMENG_MODEL,
     env.WHITEBOARD_ENABLED, env.WHITEBOARD_ENGINE_DIR, env.WHITEBOARD_PYTHON,
     env.TALKCRAFT_ENABLED, env.TALKCRAFT_ENGINE_DIR,
   ].join("|");
-  if (!singletonPool || singletonPool.key !== key) singletonPool = { key, pool: buildVideoGenPool() };
+  if (!singletonPool || singletonPool.key !== key) singletonPool = { key, pool: buildVideoGenPool({ env }) };
   return singletonPool.pool;
 }

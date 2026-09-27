@@ -16,7 +16,7 @@ import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { describe, expect, it } from "vitest";
+import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { buildSrt, groupScenes, parseSrt, srtTime, tileScenes } from "./srt.js";
 import { validateAnnotation, visibleArea } from "./annotate.js";
 import { pipelineKindOf } from "../render-poller.js";
@@ -418,3 +418,62 @@ function whichPython(): string | null {
   }
   return null;
 }
+
+
+describe("白板 render 路由提交脚本的数据库版本", () => {
+  let caller: any;
+  const scope = { tenantId: "tenant-wb", workspaceId: "workspace-wb" };
+  const persisted = () => ({ id: "script-v7", project_id: "project-wb", shot_id: "WHITEBOARD",
+    script_key: "whiteboard-project-wb", version: 7, status: "approved", md: "数据库精确正文及备注", fields: { durationMs: 5000, engine: "whiteboard-local" } });
+  let current: ReturnType<typeof persisted> | null;
+  let fence = "auto";
+  const submitted = vi.fn();
+  const created = vi.fn();
+  const query = vi.fn(async (sql: string) => ({ rows: [], rowCount: 0 }));
+  const pool = { connect: async () => ({ query, release: vi.fn() }) };
+  beforeAll(async () => {
+    const { initTRPC } = await import("@trpc/server");
+    const t = initTRPC.context<any>().create();
+    vi.doMock("../../trpc/context.js", () => ({ router: t.router, protectedProcedure: t.procedure,
+      writeProcedure: t.procedure, scopeOf: (identity: any) => ({ tenantId: identity.tenantId, workspaceId: identity.workspaceId }) }));
+    vi.doMock("@workloom/db", () => ({ getAppPool: () => pool, getGatewayPool: () => pool }));
+    vi.doMock("../gen/submit.js", () => ({ submitGenJob: submitted }));
+    vi.doMock("@workloom/base/asset-cms", () => ({ create: created }));
+    vi.doMock("@workloom/base/fence-engine", () => ({ loadActiveRulesInTx: async () => [], judge: () => ({ level: fence, impacts: [], triggeredBy: [] }) }));
+    vi.doMock("./engine.js", async () => ({ ...await vi.importActual<any>("./engine.js"), whiteboardEngineReady: () => true }));
+    vi.doMock("../gen/db.js", () => ({ scopedQuery: async (_pool: unknown, actualScope: unknown, sql: string, params: unknown[]) => {
+      expect(actualScope).toEqual(scope);
+      if (sql.includes("FROM whiteboard_films")) return [{ id: "film-wb", project_id: "project-wb", script_md: "口播原文", render_fps: 30, cap_long_edge: 1280 }];
+      if (sql.includes("FROM whiteboard_scenes")) return [{ scene_no: 1, lineart_path: "lineart.png", annotation: { elements: [{}] }, duration_ms: 5000 }];
+      if (sql.includes("SELECT s.* FROM render_scripts")) {
+        expect(params).toEqual([scope.workspaceId, "whiteboard-project-wb", scope.tenantId, "project-wb"]);
+        return current ? [current] : [];
+      }
+      if (sql.includes("SELECT status FROM render_scripts")) return [{ status: current?.status ?? "draft" }];
+      throw new Error(`unexpected query ${sql}`);
+    } }));
+    caller = (await import("./router.js")).whiteboardRouter.createCaller({ identity: { ...scope, memberId: "MEM-WB" } } as any);
+  });
+  beforeEach(() => {
+    current = persisted(); fence = "auto"; submitted.mockReset().mockResolvedValue({ taskId: "task" }); created.mockReset();
+    created.mockImplementation(async (_a, _g, _scope, input) => ({ ...persisted(), id: "script-v1", version: 1, status: "draft", md: input.md, fields: input.fields }));
+  });
+  it("已有 v7 的正文、字段、状态原样交给唯一提交入口，不伪造 v1", async () => {
+    await caller.render({ filmId: "film-wb" });
+    expect(submitted.mock.calls[0]?.[0].script).toEqual(persisted());
+    expect(created).not.toHaveBeenCalled();
+  });
+  it("首次创建使用 create 实际回传正文与字段，能够通过账本内容校验", async () => {
+    current = null;
+    await caller.render({ filmId: "film-wb" });
+    const actual = submitted.mock.calls[0]?.[0].script;
+    expect(actual.version).toBe(1); expect(actual.md).toContain("手绘白板片");
+    expect(actual.fields).toEqual({ engine: "whiteboard-local", scenes: 1, durationMs: 5000 });
+    expect(actual.md).not.toBe("口播原文");
+  });
+  it("review 未批准时仍在唯一提交入口前拒绝", async () => {
+    fence = "review"; current!.status = "draft";
+    await expect(caller.render({ filmId: "film-wb" })).rejects.toThrow("须先经");
+    expect(submitted).not.toHaveBeenCalled();
+  });
+});

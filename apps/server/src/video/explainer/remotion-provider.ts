@@ -14,6 +14,7 @@
 import { spawn } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { z } from "zod";
 import type { GenProvider, GenRequest, GenTaskStatus } from "@workloom/base/model-router";
 import { engineDirOf, engineStatus, jobsDirOf, licenseStateOf, talkcraftEnabled } from "./engine.js";
 
@@ -40,6 +41,29 @@ export interface RemotionSubmitParams {
   scope?: string;
   /** 并行度（缺省 TALKCRAFT_RENDER_WORKERS=2） */
   parallel?: number;
+}
+
+/** The generation router nests provider-specific fields under extra; direct CLI
+ * callers use the historical top-level form. Conflicting copies fail before writes. */
+export function remotionSubmitParams(req: GenRequest): RemotionSubmitParams {
+  const all = req.params ?? {};
+  const extra = all.extra;
+  if (extra !== undefined && (!extra || typeof extra !== "object" || Array.isArray(extra))) {
+    throw new Error("RemotionProvider：extra 必须是对象");
+  }
+  const nested = (extra ?? {}) as Record<string, unknown>;
+  const values: Record<string, unknown> = {};
+  for (const key of ["jobDir", "audioSeconds", "scope", "parallel"] as const) {
+    if (all[key] !== undefined && nested[key] !== undefined && all[key] !== nested[key]) {
+      throw new Error(`RemotionProvider：参数 ${key} 在 params 与 extra 中冲突`);
+    }
+    values[key] = nested[key] ?? all[key];
+  }
+  return z.object({
+    jobDir: z.string().min(1).optional(), audioSeconds: z.number().positive().optional(),
+    scope: z.string().regex(/^(full|changed:[^,\s:]+|only:[^,\s:]+(?:,[^,\s:]+)*)$/).optional(),
+    parallel: z.number().int().min(1).max(64).optional(),
+  }).parse(values);
 }
 
 export function statePathOf(jobDir: string): string {
@@ -104,7 +128,7 @@ export class RemotionProvider implements GenProvider {
 
   async submit(req: GenRequest): Promise<{ taskId: string }> {
     const env = this.opts.env ?? process.env;
-    const params = (req.params ?? {}) as RemotionSubmitParams & { providerModel?: string };
+    const params = remotionSubmitParams(req);
     const taskId = `rtc-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
     const jobDir = params.jobDir ?? join(jobsDirOf(env), taskId);
     if (!existsSync(join(jobDir, "remotion", "props.json"))) {
@@ -120,6 +144,7 @@ export class RemotionProvider implements GenProvider {
      * 上一版让 poll 直接按 `jobsDir/<taskId>` 找 status.json → 永远读不到（渲染早就完成，CLI 却干等到超时）。
      * 指针文件就是这条映射的唯一事实源，崩溃重启后依然有效。
      */
+    mkdirSync(jobsDirOf(env), { recursive: true });
     writeFileSync(join(jobsDirOf(env), `${taskId}.jobdir`), jobDir);
     writeJobState(jobDir, { status: "running", taskId, jobDir, scope, startedAt: new Date().toISOString() });
     const args = renderShotsArgs({
