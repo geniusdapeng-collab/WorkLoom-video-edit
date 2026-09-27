@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync, symlinkSync, realpathSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { GATE_PRODUCER_STAGE, portraitGateEvidence } from "./gate-policy.js";
+import { GATE_PRODUCER_STAGE, portraitGateEvidence, gateDeterministicChecks } from "./gate-policy.js";
 let dir: string;
 beforeEach(() => { dir = mkdtempSync(path.join(tmpdir(), "portrait-proof-")); });
 afterEach(() => rmSync(dir, { recursive: true, force: true }));
@@ -44,4 +44,10 @@ describe("服务预生产 G5/G7", () => {
     expect(portraitGateEvidence(input)).toMatchObject({ notApplicable: true, deterministic: [{ status: "not_applicable" }] });
     expect(portraitGateEvidence({ ...input, scriptReport: { characters_count: 1 } }).notApplicable).toBe(false);
   });
+});
+
+it("营销G1允许合法JSON空值，拒绝仅摘要或旧自报档案", () => {
+  const good = { facts: { schemaVersion: "workloom.marketing-facts/v1", stages: [1, 2, 3], sources: [1], optional: null } };
+  expect(gateDeterministicChecks("G1_DOSSIER", JSON.stringify(good)).every(check => check.pass)).toBe(true);
+  for (const bad of ["商品事实摘要".repeat(100), JSON.stringify({ ...good, facts: { ...good.facts, stages: [1] } }), "null"]) expect(gateDeterministicChecks("G1_DOSSIER", bad).some(check => check.hard && !check.pass)).toBe(true);
 });

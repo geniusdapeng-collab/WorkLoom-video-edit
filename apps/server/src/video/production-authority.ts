@@ -7,6 +7,7 @@ import type pg from "pg";
 import { newId } from "@workloom/shared";
 import { gatewayAppendOnClient } from "@workloom/base/workdata";
 import { reviewStage, type ProducerVerdict } from "@hyperreality/video-studio";
+import { verifyMarketingFacts } from "./marketing-authority.js";
 import { archiveWorkDir, projectRunLockKey } from "./archive-host.js";
 import { getModel, providerConfigured } from "./gen/catalog.js";
 import type { AppPool, Scope } from "./gen/db.js";
@@ -121,7 +122,7 @@ async function currentSource(app: AppPool, scope: Scope, projectId: string): Pro
       ORDER BY r.attempt DESC LIMIT 1`, [scope.tenantId, scope.workspaceId, projectId]);
     const row = rows.rows[0];
     if (!row || row.status !== "done" || !/^[a-f0-9]{64}$/.test(row.output_sha256 ?? "")) fail("PREPRODUCTION_REQUIRED", "缺少当前作用域已完成且可核实的预生产执行回执");
-    if (row.kind !== "narrative") fail("PIPELINE_QUALIFICATION_UNAVAILABLE", "当前正式资格签发只支持叙事预生产；其他管线需完成各自的资格链路");
+    if (!["narrative", "marketing"].includes(row.kind)) fail("PIPELINE_QUALIFICATION_UNAVAILABLE", "当前正式资格签发只支持已核实的叙事/营销预生产；其他管线需完成各自的资格链路");
     return row;
   });
 }
@@ -134,9 +135,9 @@ async function sourceForShot(app: AppPool, scope: Scope, projectId: string, shot
   const authority = record(output.productionEvidence, "缺少服务预生产资格证据，旧档案需重新执行");
   if (authority.schemaVersion !== "workloom.preproduction-authority/v1" || authority.issuer !== "workloom.studio-worker"
     || authority.tenantId !== scope.tenantId || authority.workspaceId !== scope.workspaceId || authority.projectId !== projectId
-    || authority.attempt !== row.attempt || authority.runId !== row.run_id || authority.pipelineKind !== "narrative") fail("PREPRODUCTION_UNVERIFIED", "服务预生产证据身份不一致");
+    || authority.attempt !== row.attempt || authority.runId !== row.run_id || authority.pipelineKind !== row.kind) fail("PREPRODUCTION_UNVERIFIED", "服务预生产证据身份不一致");
   const gates = Array.isArray(authority.gates) ? authority.gates as JsonRecord[] : [];
-  for (const key of REQUIRED_GATES) {
+  for (const key of [...(row.kind === "marketing" ? ["G1_DOSSIER"] : []), ...REQUIRED_GATES]) {
     const matches = gates.filter(g => g.gate === key);
     const gate = matches[0];
     const na = key === "G5_PORTRAIT" && gate?.status === "not_applicable" && gate?.basis === "no-characters-or-products";
@@ -161,8 +162,16 @@ async function sourceForShot(app: AppPool, scope: Scope, projectId: string, shot
   const ref = `stages/preproduction/attempt-${row.attempt}.prompts.json`;
   if (output.promptsRef !== ref || typeof output.promptsSha256 !== "string" || !/^[a-f0-9]{64}$/.test(output.promptsSha256)) fail("SOURCE_INVALID", "缺少本次完整提示词归档摘要");
   const prompts = record(JSON.parse((await readBytes(root, ref, output.promptsSha256)).toString("utf8")), "提示词归档结构非法");
-  if (prompts.attempt !== row.attempt || prompts.stageId !== "preproduction" || prompts.pipelineKind !== "narrative" || prompts.fieldsTrimmed === true) fail("SOURCE_INVALID", "提示词归档不是完整的当前执行产物");
+  if (prompts.attempt !== row.attempt || prompts.stageId !== "preproduction" || prompts.pipelineKind !== row.kind || prompts.fieldsTrimmed === true) fail("SOURCE_INVALID", "提示词归档不是完整的当前执行产物");
   const shots = Array.isArray(prompts.shots) ? prompts.shots as JsonRecord[] : [];
+  if (row.kind === "marketing") {
+    if (typeof output.marketingFactsRef !== "string" || typeof output.marketingFactsSha256 !== "string") fail("MARKETING_FACTS_REQUIRED", "营销预生产缺少当前来源事实包");
+    const facts = await verifyMarketingFacts({ root, ref: output.marketingFactsRef, sha256: output.marketingFactsSha256,
+      scope: { ...scope, projectId, runId: row.run_id, attempt: row.attempt },
+      shots: shots.map(item => ({ shotId: String(item.shotId ?? ""), prompt: String(item.prompt ?? ""), fields: item.fields })) });
+    const g1 = gates.find(gate => gate.gate === "G1_DOSSIER");
+    if (!(g1?.evidence as JsonRecord[] | undefined)?.some(item => item.sha256 === facts.g1ContentSha256 && item.scope === "complete-text")) fail("MARKETING_G1_UNBOUND", "G1并未审核当前完整事实包");
+  }
   const matching = shotId === null ? shots.slice(0, 1) : shots.filter(shot => shot.shotId === shotId);
   if (matching.length !== 1) fail("SHOT_NOT_FOUND", "镜头不存在或重复，不能签发资格");
   const shot = matching[0]!;

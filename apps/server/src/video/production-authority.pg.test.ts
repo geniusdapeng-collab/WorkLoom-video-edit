@@ -2,10 +2,11 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import pg from "pg";
 import { randomBytes } from "node:crypto";
-import { mkdtemp, mkdir, writeFile, realpath, rm } from "node:fs/promises";
+import { mkdtemp, mkdir, writeFile, realpath, rm, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { authorizeRenderSubmission, loadQualifiedRenderInput, qualifyProductionShot } from "./production-authority.js";
+import { prepareMarketingFacts, finalizeMarketingFacts } from "./marketing-authority.js";
 import { renderSha256 } from "./gen/compiled-request.js";
 import { submitGenJob } from "./gen/submit.js";
 import { projectRunLockKey } from "./archive-host.js";
@@ -87,6 +88,69 @@ describe.runIf(RUN_DB)("正式生成资格活库契约", () => {
     }; } } as unknown as pg.Pool;
   }
 
+  async function marketingSource() {
+    const root = path.join(dir, "archive", scope.workspaceId, projectId);
+    const body = "星野 F3 风扇支持 9 档风量；9 档不是能耗等级。", sourceUrl = "https://source.example.com/f3";
+    const snapshot = { sourceId: "SRC-pg", requestedUrl: sourceUrl, finalUrl: sourceUrl, redirectChain: [], fetchedAt: new Date().toISOString(), contentType: "text/plain", rawSha256: renderSha256(body), textSha256: renderSha256(body), bytes: Buffer.byteLength(body), text: body, assetUrls: [] };
+    const prepared = await prepareMarketingFacts({ scope: { ...scope, projectId, runId: `RUN-${seq}`, attempt: 1 }, root, env,
+      intent: "介绍星野 F3 的风量档位", metadata: { brief: { product: "星野 F3" } },
+      llm: { reason: async prompt => {
+        const stage = /当前阶段：(A[123])/.exec(prompt)?.[1];
+        return { success: true, data: stage === "A1" ? { payload: { identity: { name: "星野 F3", specs: { 风量: "9 档" } }, images: [] }, citations: ["/identity/name", "/identity/specs/风量"].map(pointer => ({ pointer, sourceId: snapshot.sourceId, quote: body })) }
+          : { payload: stage === "A2" ? { reviews: [] } : { competitors: [] }, citations: [], noEvidenceReason: "本次未取得可核实的评价/竞品" } };
+      } }, dependencies: { search: async () => [{ title: "规格", url: sourceUrl, snippet: "不是正文" }], fetchSource: async () => ({ snapshot, rawBytes: Buffer.from(body) }) } });
+    const promptsFile = path.join(root, "stages/preproduction/attempt-1.prompts.json"), outputFile = path.join(root, "stages/preproduction/attempt-1.output.json");
+    const prompts = JSON.parse(await readFile(promptsFile, "utf8")); prompts.pipelineKind = "marketing";
+    prompts.shots[0].prompt = "窗边展示星野 F3 风扇，字幕：风量 9 档。";
+    const saved = await finalizeMarketingFacts(prepared, prompts.shots, env);
+    const g1File = path.join(dir, "workspaces", scope.workspaceId, "gates", projectId, "attempt-1", "G1_DOSSIER.md");
+    await writeFile(g1File, prepared.g1Content);
+    const output = JSON.parse(await readFile(outputFile, "utf8"));
+    output.marketingFactsRef = saved.ref; output.marketingFactsSha256 = saved.sha256;
+    output.productionEvidence.pipelineKind = "marketing"; output.productionEvidence.gates.unshift({ gate: "G1_DOSSIER", status: "passed", approved: true, via: "llm", degraded: false, model: "test-judge", evidence: [{ path: g1File, sha256: renderSha256(prepared.g1Content), scope: "complete-text" }] });
+    const promptBytes = JSON.stringify(prompts); await writeFile(promptsFile, promptBytes); output.promptsSha256 = renderSha256(promptBytes);
+    const bytes = JSON.stringify(output); await writeFile(outputFile, bytes);
+    await owner.query("UPDATE video_projects SET kind='marketing' WHERE id=$1", [projectId]);
+    await owner.query("UPDATE production_stage_runs SET output_sha256=$2 WHERE id=$1", [sourceId, renderSha256(bytes)]);
+    return { root, prepared, output, outputFile };
+  }
+
+  it("营销完整来源事实包→资格签发→Ark适配器提交（网络替身）；A2/A3缺证据用途限制保留", async () => {
+    const state = await marketingSource(); expect(state.prepared.bundle.restrictions).toHaveLength(2);
+    const qualification = await issue(); const result = await submitGenJob(await input(qualification.qualificationToken));
+    expect(result.mock).toBe(false); expect(providerCalls).toBe(1);
+    expect((await owner.query("SELECT status FROM production_qualifications WHERE id=$1", [qualification.qualificationId])).rows[0].status).toBe("passed");
+    const repeated = await issue(); expect(repeated).toEqual(qualification);
+  });
+  it("营销签发后原文改变/新attempt不能提交；accepted补账继续只认原内容", async () => {
+    const state = await marketingSource(), qualification = await issue();
+    const textFile = path.join(state.root, state.prepared.bundle.sources[0]!.textRef), original = await readFile(textFile);
+    await writeFile(textFile, "changed"); await expect(submitGenJob(await input(qualification.qualificationToken))).rejects.toThrow("MARKETING_FACTS_CHANGED"); expect(providerCalls).toBe(0);
+    await writeFile(textFile, original);
+    await expect(submitGenJob(await input(qualification.qualificationToken, faultPool("INSERT INTO render_jobs")))).rejects.toThrow("SUBMISSION_FINALIZATION_PENDING");
+    expect(providerCalls).toBe(1);
+    await owner.query("INSERT INTO production_stage_runs (id,workspace_id,project_id,stage_id,attempt,status) VALUES ($1,$2,$3,'preproduction',2,'running')", [`SR-mk-new-${suffix}-${seq}`, scope.workspaceId, projectId]);
+    await writeFile(textFile, "changed again");
+    const retry = await submitGenJob(await input(qualification.qualificationToken)); expect(retry.deduped).toBe(true); expect(providerCalls).toBe(1);
+  });
+  it("营销G1失败或审核其他事实包不得签发，缺G1不能只靠其余六门", async () => {
+    const state = await marketingSource();
+    for (const variant of ["failed", "wrong-bound", "missing"]) {
+      const output = structuredClone(state.output);
+      if (variant === "failed") output.productionEvidence.gates[0].approved = false;
+      if (variant === "wrong-bound") {
+        const file = output.productionEvidence.gates[0].evidence[0].path;
+        await writeFile(file, "另一事实包"); output.productionEvidence.gates[0].evidence[0].sha256 = renderSha256("另一事实包");
+      }
+      if (variant === "missing") output.productionEvidence.gates.shift();
+      const bytes = JSON.stringify(output); await writeFile(state.outputFile, bytes);
+      await owner.query("UPDATE production_stage_runs SET output_sha256=$2 WHERE id=$1", [sourceId, renderSha256(bytes)]);
+      await expect(issue()).rejects.toThrow();
+    }
+    expect(providerCalls).toBe(0);
+    expect((await owner.query("SELECT id FROM production_qualifications WHERE project_id=$1", [projectId])).rowCount).toBe(0);
+  });
+
   it("服务签发→加载→真实Ark适配器提交；审核JSON字节等于POST；原子记录完整", async () => {
     const qualification = await issue();
     const result = await submitGenJob(await input(qualification.qualificationToken));
@@ -94,7 +158,7 @@ describe.runIf(RUN_DB)("正式生成资格活库契约", () => {
     const stored = await owner.query("SELECT compiled_request FROM production_qualifications WHERE id=$1", [qualification.qualificationId]);
     const sent = calls.find(call => call.url.endsWith("/contents/generations/tasks"));
     expect(sent).toEqual({ url: stored.rows[0].compiled_request.endpoint, body: stored.rows[0].compiled_request.bodyJson });
-    const events = await owner.query("SELECT payload->'decision'->>'action' AS action FROM biz_events WHERE workspace_id=$1 ORDER BY seq", [scope.workspaceId]);
+    const events = await owner.query("SELECT payload->'decision'->>'action' AS action FROM biz_events WHERE workspace_id=$1 AND (payload->'decision'->'after'->>'qualificationId'=$2 OR payload->'decision'->'after'->>'jobId'=$3) ORDER BY seq", [scope.workspaceId, qualification.qualificationId, result.jobId]);
     expect(events.rows.map(row => row.action)).toEqual(["render.qualification", "model.call", "render.submit"]);
     expect((await owner.query("SELECT status FROM render_scripts WHERE id=$1", [qualification.scriptId])).rows[0].status).toBe("submitted");
     const repeatQualification = await issue(); expect(repeatQualification).toEqual(qualification);

@@ -47,7 +47,9 @@ export const GATE_PRODUCER_STAGE: Partial<Record<GateKey, ProducerStage>> = {
 
 /** 逐门评审要点（在通用 rubric 之上叠加该门的专属口径） */
 export const GATE_RUBRIC: Partial<Record<GateKey, string[]>> = {
-  G1_DOSSIER: ["情报档案有真实来源与可核验事实，不出现凭空编造的品牌/数据", "与项目主题相关，不含无关行业的商品与场景"],
+  G1_DOSSIER: ["逐条核对facts中的原文引用和支持关系评审，档案/摘要卡不能新增未经claims支持的事实，用户输入不是事实来源",
+    "A2/A3没有证据时必须保留明确用途限制；无证据不等于负面结论，不允许创造用户口碑、竞品对比或数字主张",
+    "商品型号/价格时点/计量单位与来源一致，来源冲突必须拒绝；与项目主题相关，不含无关行业商品"],
   G2_THEME: ["主题/受众/时长/画幅与需求一致", "不出现与主题无关的红线意象（科幻/微观/无关地域）"],
   G3_INSIGHT: ["需求对齐清单覆盖角色/场景/道具/动作四类契约", "受众与风险项有具体结论，不是占位文字"],
   G4_PRD: ["角色系统有可执行的外观锚点（定妆照前置）", "交付标准可验证（画幅/时长/音频/字幕口径）"],
@@ -63,6 +65,16 @@ export const GATE_RUBRIC: Partial<Record<GateKey, string[]>> = {
 export function gateDeterministicChecks(gate: GateKey, content: string): Array<{ id: string; pass: boolean; detail: string; hard?: boolean }> {
   const text = content ?? "";
   const trimmed = text.trim();
+  if (gate === "G1_DOSSIER") {
+    let valid = false;
+    try {
+      const value = JSON.parse(trimmed) as { facts?: { schemaVersion?: string; stages?: unknown[]; sources?: unknown[] } };
+      valid = value.facts?.schemaVersion === "workloom.marketing-facts/v1" && value.facts.stages?.length === 3
+        && Array.isArray(value.facts.sources) && value.facts.sources.length > 0;
+    } catch { valid = false; }
+    return [{ id: "marketing-facts-present", pass: valid, hard: true,
+      detail: valid ? "完整本次来源/三站事实包可解析；null等JSON值不会当作占位词误杀" : "G1必须读取宿主本次完整来源事实包" }];
+  }
   const checks = [
     { id: "content-present", pass: trimmed.length > 0, hard: true, detail: trimmed.length > 0 ? `门内容 ${trimmed.length} 字` : "门内容为空（vendor 未产出该环节产物）" },
     { id: "no-placeholder", pass: !/undefined|null(?![\w])|NaN|\[object Object\]/.test(trimmed), hard: true, detail: /undefined|null(?![\w])|NaN|\[object Object\]/.test(trimmed) ? "门内容含 undefined/null/NaN/[object Object] 占位" : "无占位符泄漏" },

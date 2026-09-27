@@ -21,6 +21,9 @@ const doubles = vi.hoisted(() => ({
   meta: vi.fn(),
   detach: vi.fn(),
   review: vi.fn(),
+  prepare: vi.fn(),
+  finalize: vi.fn(),
+  studioConfigs: [] as Array<Record<string, any>>,
   emitGates: true,
   query: vi.fn(),
 }));
@@ -31,6 +34,7 @@ vi.mock("@workloom/base/model-router", () => ({
 }));
 vi.mock("@workloom/base/workdata", () => ({ gatewayAppend: vi.fn(), gatewayAppendOnClient: vi.fn() }));
 vi.mock("../service/llm.js", () => ({ modelPolicyFor: () => undefined }));
+vi.mock("./marketing-authority.js", () => ({ prepareMarketingFacts: doubles.prepare, finalizeMarketingFacts: doubles.finalize }));
 vi.mock("./data-mining-executor.js", () => ({ createDataMiningExecutor: vi.fn() }));
 vi.mock("./media/library.js", () => ({ ingestPortraitsFromIndex: doubles.ingest }));
 vi.mock("./media/products.js", () => ({ upsertProductProfileFromDossier: doubles.project }));
@@ -51,7 +55,7 @@ vi.mock("./archive-host.js", () => ({
 vi.mock("@hyperreality/video-studio", async (importOriginal) => ({
   ...await importOriginal<typeof import("@hyperreality/video-studio")>(),
   VideoStudio: class {
-    constructor(private readonly config: { onApproval: (input: Record<string, unknown>) => Promise<unknown> }) {}
+    constructor(private readonly config: { onApproval: (input: Record<string, unknown>) => Promise<unknown> }) { doubles.studioConfigs.push(config); }
     async runPreproduction(...args: unknown[]) {
       const result = await doubles.runPreproduction(...args);
       if (result.success && doubles.emitGates) for (const gate of ["G2_THEME", "G3_INSIGHT", "G4_PRD", "G6_PROMPT", "G7_FINAL"]) {
@@ -83,6 +87,14 @@ afterEach(() => { vi.unstubAllEnvs(); vi.restoreAllMocks(); });
 beforeEach(() => {
   vi.clearAllMocks();
   doubles.nextAttempt = 0;
+  doubles.studioConfigs.length = 0;
+  doubles.prepare.mockReset().mockImplementation(async ({ scope, root }) => ({
+    bundle: { rawSha256: "a".repeat(64), productQuery: { name: "本次商品" } }, raw: { A1: {}, A2: {}, A3: {} },
+    prefix: `stages/preproduction/attempt-${scope.attempt}.marketing`,
+    storeRoot: path.join(root, `stages/preproduction/attempt-${scope.attempt}.marketing-dossier`),
+    g1Content: JSON.stringify({ facts: { schemaVersion: "workloom.marketing-facts/v1", stages: [1, 2, 3], sources: [1], optionalValue: null }, scope }),
+  }));
+  doubles.finalize.mockReset().mockResolvedValue({ ref: "stages/preproduction/attempt-1.marketing-facts.json", sha256: "b".repeat(64) });
   doubles.emitGates = true;
   doubles.query.mockReset().mockResolvedValue({ rows: [], rowCount: 1 });
   doubles.review.mockReset().mockImplementation(async (options) => {
@@ -126,6 +138,7 @@ const rejected = () => ({
 
 async function runToTerminal(isMarketing = true) {
   const projectId = `VID-result-${++projectSequence}`;
+  if (!isMarketing) doubles.meta.mockResolvedValue({ kind: "narrative", title: "叙事结果", createdAt: "2026-09-27T00:00:00Z" });
   const runId = worker.startRun(scope, { projectId, intent: "测试预生产结果", isMarketing });
   await vi.waitFor(() => expect(worker.getRun(runId, scope.workspaceId)?.finishedAt).not.toBeNull(), { timeout: 3_000, interval: 10 });
   const entry = worker.getRun(runId, scope.workspaceId)!;
@@ -150,6 +163,13 @@ describe("预生产原始结果与诚实终态", () => {
     expect(doubles.finish.mock.calls.map(([row]) => row.status)).toEqual(["failed", "done"]);
     expect((await archiveOutput(projectId, 1)).success).toBe(false);
     expect((await archiveOutput(projectId, 2)).stages).toEqual(["portraitStudio", "scriptEngine", "dataMining", "productionEngine"]);
+    const dossierRef = `archive/${scope.workspaceId}/${projectId}/stages/preproduction/attempt-2.marketing-dossier`;
+    expect((await archiveOutput(projectId, 2)).dossier).toMatchObject({ root: dossierRef });
+    const projectRoot = path.join(doubles.workDir, "archive", scope.workspaceId, projectId);
+    const prompts = JSON.parse(await readFile(path.join(projectRoot, "stages/preproduction/attempt-2.prompts.json"), "utf8"));
+    expect(prompts.dossier.root).toBe(dossierRef);
+    expect(await readFile(path.join(projectRoot, "context-bundle.json"), "utf8")).toContain(dossierRef);
+    expect(doubles.project.mock.calls[0]?.[3].dossierRoot).toBe(path.join(projectRoot, "stages/preproduction/attempt-2.marketing-dossier"));
     expect(worker.getRun(runId, "another-workspace")).toBeNull();
     expect(doubles.release).toHaveBeenCalledTimes(1);
     expect(doubles.uninstall).toHaveBeenCalledTimes(1);
@@ -291,4 +311,32 @@ describe("预生产原始结果与诚实终态", () => {
     expect(doubles.review.mock.calls.some(([options]) => options.context.gate === "G5_PORTRAIT" && options.deterministic.some((check: { pass: boolean }) => !check.pass))).toBe(true);
   });
 
+});
+
+ describe("宿主营销G1必须先于vendor", () => {
+  it("当前attempt事实G1通过后才调用vendor，最终完整镜头审核写回事实引用", async () => {
+    doubles.runPreproduction.mockImplementation(async () => {
+      expect(doubles.prepare).toHaveBeenCalledTimes(1);
+      expect(doubles.review.mock.calls.some(([options]) => options.context.gate === "G1_DOSSIER")).toBe(true);
+      return success();
+    });
+    const { entry, projectId } = await runToTerminal(); expect(entry.status).toBe("finished");
+    expect(doubles.prepare).toHaveBeenCalledWith(expect.objectContaining({ scope: expect.objectContaining({ ...scope, projectId, attempt: 1 }) }));
+    expect(doubles.finalize).toHaveBeenCalledWith(expect.anything(), [{ shotId: "SC-1", prompt: "01.【场景】窗边桌面", fields: { scene: "窗边桌面" } }]);
+    expect(await archiveOutput(projectId, 1)).toMatchObject({ marketingFactsRef: "stages/preproduction/attempt-1.marketing-facts.json", marketingFactsSha256: "b".repeat(64) });
+    expect(doubles.studioConfigs[0]?.dataMining.verifiedRaw.projectId).toBe(projectId);
+  });
+  it.each(["source", "g1", "unverified-proof", "unbound-proof"])("%s未核实不执行vendor或终态事实审核", async kind => {
+    if (kind === "source") doubles.prepare.mockRejectedValue(new Error("MARKETING_A1_UNVERIFIED"));
+    if (kind === "g1") doubles.review.mockResolvedValue({ status: "failed", approved: false, via: "llm", degraded: false, reason: "不支持主张", score: 0 });
+    if (kind === "unverified-proof") doubles.review.mockResolvedValue({ status: "unverified", approved: true, via: "fallback", degraded: true, reason: "来源不可用", score: 95, issues: [], suggestions: [], evidence: [] });
+    if (kind === "unbound-proof") doubles.review.mockResolvedValue({ status: "passed", approved: true, via: "llm", model: "judge", degraded: false, reason: "通过", score: 95, issues: [], suggestions: [], evidence: [{ sha256: "0".repeat(64), scope: "complete-text" }] });
+    const { entry } = await runToTerminal(); expect(entry.status).toBe("failed");
+    expect(doubles.runPreproduction).not.toHaveBeenCalled(); expect(doubles.finalize).not.toHaveBeenCalled();
+  });
+  it("最终事实审核失败时不写done、不投影商品，保留失败原因", async () => {
+    doubles.runPreproduction.mockResolvedValue(success()); doubles.finalize.mockRejectedValue(new Error("MARKETING_PROMPT_FACTS_REJECTED"));
+    const { entry } = await runToTerminal(); expect(entry.status).toBe("failed"); expect(entry.error).toContain("MARKETING_PROMPT_FACTS_REJECTED");
+    expect(doubles.project).not.toHaveBeenCalled(); expect(doubles.finish.mock.calls.every(([row]) => row.status === "failed")).toBe(true);
+  });
 });

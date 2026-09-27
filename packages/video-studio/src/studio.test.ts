@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { resolveGate } from "./gates.js";
 import { autoApproveHandler, runWithConfirmationHandler } from "./confirmation.js";
@@ -279,4 +280,30 @@ describe("vendor 核心可加载", () => {
     // vendor 加载时会打印日志噪声，断言最后一行输出
     expect(out.trim().split("\n").pop()).toBe("function");
   }, 35_000);
+});
+
+ describe("营销只消费宿主绑定回填", () => {
+  const rawJson = JSON.stringify({ A1: { identity: { name: "本次商品" } }, A2: { reviews: [] }, A3: { competitors: [] } });
+  const sha256 = createHash("sha256").update(rawJson).digest("hex");
+  function marketing(verifiedRaw?: { projectId: string; rawJson: string; sha256: string; productQuery: Record<string, unknown> }) {
+    return new VideoStudio({ llm: new WorkloomLLMEngine({ baseUrl: "https://example.invalid", apiKey: "test-only", model: "test" }),
+      workDir: "/unused/marketing-test", onApproval: async () => ({ approved: true }), log: () => undefined,
+      dataMining: { mode: "api", raw: { A1: { identity: { name: "旧缓存商品" } } }, storeRoot: "/unused/current-attempt", verifiedRaw } });
+  }
+  it.each(["missing", "wrong-project", "wrong-hash", "missing-stage"])("%s在vendor构造与create之前拒绝", async kind => {
+    let proof = { projectId: "P1", rawJson, sha256, productQuery: { name: "本次商品" } };
+    if (kind === "wrong-project") proof.projectId = "other";
+    if (kind === "wrong-hash") proof.sha256 = "0".repeat(64);
+    if (kind === "missing-stage") { proof.rawJson = JSON.stringify({ A1: {} }); proof.sha256 = createHash("sha256").update(proof.rawJson).digest("hex"); }
+    await expect(marketing(kind === "missing" ? undefined : proof).runPreproduction({ projectId: "P1", intent: "营销", isMarketing: true,
+      metadata: { _dataDossier: { approved: true }, dataMiningRaw: { forged: true } } })).rejects.toThrow("MARKETING_G1_REQUIRED");
+    expect(studioMocks.construct).not.toHaveBeenCalled(); expect(studioMocks.create).not.toHaveBeenCalled();
+  });
+  it("可信回填覆盖旧cfg raw，metadata自报档案被移除；强制刷新和G1后跳过vendor重复审核", async () => {
+    studioMocks.create.mockResolvedValue({ success: true, stages: {} });
+    const metadata = { _dataDossier: { name: "伪造档案" }, brief: { product: "当前查询商品" } };
+    await marketing({ projectId: "P1", rawJson, sha256, productQuery: { name: "本次商品" } }).runPreproduction({ projectId: "P1", intent: "营销", isMarketing: true, metadata });
+    expect(studioMocks.create).toHaveBeenCalledWith("营销", { brief: metadata.brief, dataMining: { name: "本次商品" } }, expect.objectContaining({ dataMiningRaw: JSON.parse(rawJson), dataMiningRefresh: true, skipDataMiningReview: true }));
+    expect(metadata._dataDossier.name).toBe("伪造档案");
+  });
 });
