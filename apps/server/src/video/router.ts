@@ -40,6 +40,7 @@ import { SubmissionError } from "./gen/submission-ledger.js";
 import { canonicalRenderJson } from "./gen/compiled-request.js";
 import { loadQualifiedRenderInput } from "./production-authority.js";
 import { productionRouter } from "./production-router.js";
+import { filmRouter } from "./film-router.js";
 import { createPublishTask, executePublishTask, fenceOverrideEnabled } from "./gen/publish.js";
 import { mediaUrl } from "./gen/ingest.js";
 /** PollReport 类型再导出（web 端 AppRouter 类型可移植性，TS2883） */
@@ -1324,6 +1325,8 @@ const genRouter = router({
 export const videoRouter = router({
   studio: studioRouter,
   production: productionRouter,
+  /** 固定影片工位（T-2026-0927-0039）：公开 full-chain 入口只提作业与读状态，外呼在服务通道内留账。 */
+  film: filmRouter,
   cms: cmsRouter,
   render: renderRouter,
   gen: genRouter,
