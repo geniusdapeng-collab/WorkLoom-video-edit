@@ -41,6 +41,7 @@ import {
   assessMotionRichness, buildCoverDesignPrompt, buildMaterialMotionPrompt, buildPlatePrompt, buildRevisionPlan, buildRevisionReport, buildVariantPlan,
   buildMaterialScenePrompt, assessReferenceIndependence, decidePlateCache, MATERIAL_MOTION_POLICY, MATERIAL_RAW_MOTION_POLICY, MATERIAL_SCENE_POLICY_VERSION,
   isDoubledNarration, speechAcceptance,
+  termPronunciationCheck,
   REFERENCE_INDEPENDENCE_POLICY,
   coverDeterministicChecks, coverPrefersNightBackground, COVER_FONTS, COVER_LOWER_BAND_SAFE_AREA, COVER_REVIEW_RUBRIC, COVER_SAFE_AREA,
   getCoverSpec, isKnownCoverPlatform, COVER_PLATFORM_IDS,
@@ -3317,6 +3318,14 @@ interface SpeechReport {
   segments: number | null;
   transcript: string | null;
   detail: string;
+  /**
+   * 术语级核查：读错/缺失的受保护术语（如「数字 CEO」被读成「数字 CBO」）。
+   *
+   * 真机事故（2026-09-27 VID-GROWTH-SALES02）：模型自带音频把 CEO 读成 CBO、种草读成监口，
+   * 整句 ASR 相似度 0.96 / 0.85 全部高于 0.45 下限 → 旧判据放行。单个术语读错会被整句
+   * 相似度稀释，因此这里单独留一个字段：非空即代表**必须重配这一镜人声**。
+   */
+  termMissing: string[] | null;
 }
 
 /**
@@ -3327,13 +3336,13 @@ interface SpeechReport {
 function checkSpeech(file: string, expectText: string): SpeechReport {
   const res = runCli(VOICE_CLI, ["verify", "--in", file, "--expect-text", expectText, "--min-match", "0", "--no-strict"]);
   if (!res.ok) {
-    return { ok: false, matchRatio: null, activeRatio: null, segments: null, transcript: null, detail: `配音工位调用失败：${res.out.slice(-200)}` };
+    return { ok: false, matchRatio: null, activeRatio: null, segments: null, transcript: null, termMissing: null, detail: `配音工位调用失败：${res.out.slice(-200)}` };
   }
   let checked: Record<string, unknown> = {};
   try {
     checked = ((JSON.parse(res.out) as { result?: { checked?: Record<string, unknown> } }).result?.checked) ?? {};
   } catch {
-    return { ok: false, matchRatio: null, activeRatio: null, segments: null, transcript: null, detail: `核验输出不是 JSON：${res.out.slice(-120)}` };
+    return { ok: false, matchRatio: null, activeRatio: null, segments: null, transcript: null, termMissing: null, detail: `核验输出不是 JSON：${res.out.slice(-120)}` };
   }
   const num = (value: unknown): number | null => (typeof value === "number" && Number.isFinite(value) ? value : null);
   const matchRatio = num(checked.match_ratio);
@@ -3346,12 +3355,20 @@ function checkSpeech(file: string, expectText: string): SpeechReport {
    * 同一句被说两遍（真机 VID-GR01 第 1 镜：匹配 1.000 / 活动度 0.228 → 转写变成两句重复）。
    */
   const verdict = speechAcceptance({ matchRatio, activeRatio, matchMin: SPEECH_MATCH_MIN, activeMin: SPEECH_ACTIVE_MIN });
-  const ok = verdict.ok;
+  /**
+   * 术语级核查（2026-09-27 真机事故修复）：整句相似度会稀释单点读错——
+   * 「数字 CEO」被模型读成「数字 CBO」时 match_ratio 仍有 0.96，`speechAcceptance` 会放行。
+   * 因此再跑一道**逐术语 fail-closed** 的判据：台词里出现的受保护术语必须在转写里核到
+   * （本体或登记过的同音变体），否则这一镜人声判不可用 → 走"用克隆音色替换人声"那条路。
+   */
+  const terms = termPronunciationCheck({ transcript, expectedText: expectText });
+  const ok = verdict.ok && terms.ok;
   const detail = `人声活动度 ${activeRatio === null ? "未测到" : activeRatio.toFixed(3)}（下限 ${SPEECH_ACTIVE_MIN}）`
     + ` · 台词匹配 ${matchRatio === null ? "未测到" : matchRatio.toFixed(3)}（下限 ${SPEECH_MATCH_MIN}）`
     + ` · 语音段 ${segments ?? "?"} · 转写 ${transcript === null ? "无" : `「${transcript.slice(0, 40)}」`}`
-    + `｜判据：${verdict.reason}`;
-  return { ok, matchRatio, activeRatio, segments, transcript, detail };
+    + `｜判据：${verdict.reason}`
+    + `｜术语：${terms.detail}`;
+  return { ok, matchRatio, activeRatio, segments, transcript, termMissing: terms.missing, detail };
 }
 
 /** 配音产物路径（旁白混入后的镜头段；原片只读，不覆盖 `<shotId>.mp4`） */
@@ -3485,11 +3502,19 @@ if (STAGES.has("voice")) {
         });
         continue;
       }
-      log(`  ⚠ ${shot.shotId} 人声核查未过（${before.detail.slice(0, 90)}）→ 补旁白（音色 ${NARRATION_PROFILE}）`);
+      /**
+       * 术语读错（如 CEO→CBO）与"没人声"是两种缺陷，处置也不同：
+       *   · 没人声 → `keep-dialogue` 叠旁白（保留现场声，压低原声）；
+       *   · 术语读错 → 原声里那个错音**必须消失**，所以用 `replace-bed` 直接换掉这一镜人声
+       *     （2026-09-27 真机：CF-04/CF-05 用 replace-bed 重配后 ASR 转写恢复为 CEO / 种草）。
+       */
+      const termBroken = (before.termMissing ?? []).length > 0;
+      const dubPolicy = termBroken ? "replace-bed" : "keep-dialogue";
+      log(`  ⚠ ${shot.shotId} 人声核查未过（${before.detail.slice(0, 90)}）→ ${termBroken ? `术语读错（${(before.termMissing ?? []).join("/")}）→ 用克隆音色替换该镜人声` : "补旁白"}（音色 ${NARRATION_PROFILE}）`);
       const out = voicedFile(shot.shotId);
       const dub = runCli(VOICE_CLI, [
         "dub", "--in", raw, "--out", out, "--profile", NARRATION_PROFILE,
-        "--text", text, "--policy", "keep-dialogue", "--lufs", "-16"
+        "--text", text, "--policy", dubPolicy, "--lufs", "-16"
       ]);
       const produced = existsSync(out);
       const after = produced ? checkSpeech(out, text) : before;
@@ -3507,20 +3532,20 @@ if (STAGES.has("voice")) {
       const ttsTextSha256 = createHash("sha256").update(text).digest("hex").slice(0, 16);
       narrationCoverage.push({
         shotId: shot.shotId, speaker, text, ok,
-        source: ok ? "tts-narration" : (doubled ? "tts-doubled-fallback" : "tts-failed"),
+        source: ok ? (termBroken ? "tts-term-replaced" : "tts-narration") : (doubled ? "tts-doubled-fallback" : "tts-failed"),
         detail: ok
           ? after.detail
           : (doubled
             ? `补旁白出现重复播报（同一句两次）→ 已放弃配音产物并回退原片：${after.detail}`
-            : `补旁白${produced ? "后仍未通过" : "未产出"}：${after.detail}`)
+            : `${termBroken ? "术语替换" : "补旁白"}${produced ? "后仍未通过" : "未产出"}：${after.detail}`)
       });
       record({
         stage: "voice", shotId: shot.shotId, invoked: true, ok, cached: false, degraded: !ok, attempt: 1,
         ms: Date.now() - shotStarted, artifact: produced && !doubled ? out : null,
         evidence: {
-          source: "tts-narration", profile: NARRATION_PROFILE, policy: "keep-dialogue", doubled,
+          source: termBroken ? "tts-term-replaced" : "tts-narration", profile: NARRATION_PROFILE, policy: dubPolicy, doubled,
           ttsTextSha256, ttsText: text,
-          before: { matchRatio: before.matchRatio, activeRatio: before.activeRatio, transcript: before.transcript },
+          before: { matchRatio: before.matchRatio, activeRatio: before.activeRatio, transcript: before.transcript, termMissing: before.termMissing },
           after: { matchRatio: after.matchRatio, activeRatio: after.activeRatio, transcript: after.transcript },
           toolOutput: dub.out.slice(-300)
         },
