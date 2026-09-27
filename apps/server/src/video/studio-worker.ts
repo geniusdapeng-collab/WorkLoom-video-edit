@@ -282,7 +282,7 @@ export function summarizeWorkspaceRuns(
 
 export class StudioWorkerError extends Error {
   constructor(
-    public readonly code: "LLM_MISSING",
+    public readonly code: "LLM_MISSING" | "ARCHIVE_REQUIRED",
     message: string,
   ) {
     super(message);
@@ -437,6 +437,9 @@ function portraitConfig(metadata?: Record<string, unknown>): StudioPortraitConfi
  * @throws StudioWorkerError LLM_MISSING —— LLM_* 四环境变量未配齐（禁止静默降级）
  */
 export function startRun(scope: Scope, input: RunInput): string {
+  if ((process.env.ARCHIVE_ENABLED ?? "1") === "0") {
+    throw new StudioWorkerError("ARCHIVE_REQUIRED", "生产预生产必须启用档案与运行租约，拒绝 ARCHIVE_ENABLED=0");
+  }
   const llm = WorkloomLLMEngine.fromEnv();
   if (!llm) {
     throw new StudioWorkerError(
@@ -501,27 +504,22 @@ export function startRun(scope: Scope, input: RunInput): string {
   /**
    * ================= 制片档案（T-2026-0926-0001） =================
    *
-   * 旁路不阻断：档案写盘失败只 console.error，主流程语义零变化。
-   * `ARCHIVE_ENABLED=0` → 完全回到现状路径（回滚开关，与本次改动前逐字一致）。
+   * 认领、输入、输出及终结回执是执行前置证据；初始化失败即停止。
+   * 生产入口禁止通过 ARCHIVE_ENABLED=0 关闭档案与运行租约。
    * 管线类型：营销片（含情报层）/ 叙事片，落进 manifest.pipelineKind 供跨会话承接。
    */
-  const archiveEnabled = (process.env.ARCHIVE_ENABLED ?? "1") !== "0";
   const pipelineKind: PipelineKind = input.isMarketing ? "marketing" : "narrative";
-  const archive = archiveEnabled
-    ? new ArchiveStore(path.resolve(WORK_DIR), scope.workspaceId, input.projectId, pipelineKind, {
-        aspectRatio: (input.metadata as Record<string, unknown> | undefined)?.aspectRatio ?? null,
-      })
-    : null;
+  const archive = new ArchiveStore(path.resolve(WORK_DIR), scope.workspaceId, input.projectId, pipelineKind, {
+    aspectRatio: (input.metadata as Record<string, unknown> | undefined)?.aspectRatio ?? null,
+  });
   /** 结构化日志镜像的"当前环节"（StageRunner 在环节边界更新；与文本 tee 并行） */
   const stageRef: { name: string | null; attempt: number } = { name: null, attempt: 0 };
-  const runner = archive
-    ? new StageRunner(archive, makeLedgerWriter(scope), entry.runId, {
-        onStart: (stageId, attempt) => {
-          stageRef.name = stageId;
-          stageRef.attempt = attempt;
-        },
-      })
-    : null;
+  const runner = new StageRunner(archive, makeLedgerWriter(scope), entry.runId, {
+    onStart: (stageId, attempt) => {
+      stageRef.name = stageId;
+      stageRef.attempt = attempt;
+    },
+  });
   /** 交接包线索（来自真实事件，不猜）：门裁决 + 时长投影 */
   const decisionLog: string[] = [];
 
@@ -746,49 +744,25 @@ export function startRun(scope: Scope, input: RunInput): string {
      * 项目级执行者租约（规格书 §11：同一项目同一时刻只允许一个执行者，杜绝双写与重复烧额度）。
      * 会话级 advisory lock 持有到 run 结束；进程被 kill -9 → 连接断开 → 锁自动释放。
      */
-    const lease = runner
-      ? await acquireProjectLease(input.projectId).catch((err) => {
-          console.error(`[archive] 项目租约获取异常（按无锁继续，档案仍落文件）: ${(err as Error).message}`);
-          return "error" as const;
-        })
-      : null;
-    if (lease === null && runner) {
-      entry.status = "failed";
-      entry.error = `项目 ${input.projectId} 已有执行者持有档案租约（不重复启动，避免双份烧额度）`;
-      console.error(`[studio-worker] ${entry.error}`);
-      restoreRunLogs();
-      uninstallPortraitBinding();
-      entry.finishedAt = new Date().toISOString();
-      return;
-    }
-    const activeLease = lease && lease !== "error" ? lease : null;
-    const detachStructuredLog = archive ? attachStructuredLog(archive, {
-      currentStage: () => stageRef.name,
-      currentAttempt: () => stageRef.attempt,
-    }) : null;
-    /** 项目元数据（thread_id 进交接包，跨会话承接对得上任务线程）；读失败不阻断 */
+    let activeLease: Awaited<ReturnType<typeof acquireProjectLease>> = null;
+    let detachStructuredLog: (() => void) | null = null;
     let projectMeta: Awaited<ReturnType<typeof readProjectMeta>> = null;
     try {
-      if (archive) {
-        try {
-          /** 先读项目身份再 ensure：manifest 要拿它做跨代一致性校验（真机审计发现 D1） */
-          projectMeta = await readProjectMeta(scope, input.projectId).catch(() => null);
-          await archive.ensure(
-            projectMeta
-              ? { kind: projectMeta.kind, title: projectMeta.title, createdAt: projectMeta.createdAt }
-              : { kind: pipelineKind, title: null, createdAt: null },
-          );
-          await archive.appendJsonl("events.jsonl", {
-            kind: "run.started",
-            runId: entry.runId,
-            pipelineKind,
-            threadId: projectMeta?.threadId ?? null,
-            intent: input.intent.slice(0, 200),
-          });
-        } catch (err) {
-          console.error(`[archive] 档案初始化失败（继续执行）: ${(err as Error).message}`);
-        }
+      activeLease = await acquireProjectLease(scope, input.projectId);
+      if (!activeLease) {
+        throw new Error(`项目 ${input.projectId} 已有执行者持有档案租约（不重复启动，避免双份烧额度）`);
       }
+      projectMeta = await readProjectMeta(scope, input.projectId);
+      if (!projectMeta) throw new Error(`PROJECT_NOT_FOUND: 项目 ${input.projectId} 不存在或不属于当前工作区`);
+      await archive.ensure({ kind: projectMeta.kind, title: projectMeta.title, createdAt: projectMeta.createdAt });
+      detachStructuredLog = attachStructuredLog(archive, {
+        currentStage: () => stageRef.name,
+        currentAttempt: () => stageRef.attempt,
+      });
+      await archive.appendJsonl("events.jsonl", {
+        kind: "run.started", runId: entry.runId, pipelineKind,
+        threadId: projectMeta.threadId, intent: input.intent.slice(0, 200),
+      });
       /**
        * AI 监制打回 → **有上限的自动重跑**（T-2026-0925-0002）。
        *
@@ -802,7 +776,6 @@ export function startRun(scope: Scope, input: RunInput): string {
       const maxAttempts = Math.max(1, Number(process.env.VM_PRODUCER_RETRY ?? 1) + 1);
       const runOnce = async (): Promise<Awaited<ReturnType<typeof studio.runPreproduction>>> => {
         const runnerStore = archive;
-        if (!runner || !runnerStore) return studio.runPreproduction(input);
         // 档案 output 是给索引/交接包使用的摘要，不能取代 vendor 业务结果。
         // confirmations 决定打回重试，stages.dataMining 决定商品档案投影；两者必须完整保留。
         let rawResult: Awaited<ReturnType<typeof studio.runPreproduction>> | undefined;
@@ -1097,7 +1070,8 @@ export function startRun(scope: Scope, input: RunInput): string {
     } catch (err) {
       entry.status = "failed";
       entry.error = err instanceof Error ? err.message : String(err);
-      if (archive) {
+      // 元数据尚未验证时，不为不存在/越权的项目创建失败档案。
+      if (projectMeta) {
         try {
           await updateContextBundle(archive, {
             pipelineKind,
@@ -1112,10 +1086,22 @@ export function startRun(scope: Scope, input: RunInput): string {
         }
       }
     } finally {
-      detachStructuredLog?.();
-      if (activeLease) await activeLease.release();
-      restoreRunLogs();
-      uninstallPortraitBinding();
+      // 一个清理失败不能跳过其余清理；租约解锁异常由宿主销毁连接，终态仍诚实报告失败。
+      for (const cleanup of [
+        () => detachStructuredLog?.(),
+        () => activeLease?.release(),
+        restoreRunLogs,
+        uninstallPortraitBinding,
+      ]) {
+        try {
+          await cleanup();
+        } catch (cleanupError) {
+          const message = cleanupError instanceof Error ? cleanupError.message : String(cleanupError);
+          entry.status = "failed";
+          entry.error = [entry.error, `运行清理失败：${message}`].filter(Boolean).join("；");
+          console.error(`[studio-worker] ${entry.error}`);
+        }
+      }
       entry.finishedAt = new Date().toISOString();
     }
   })();

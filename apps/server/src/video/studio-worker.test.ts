@@ -16,6 +16,9 @@ const doubles = vi.hoisted(() => ({
   release: vi.fn(),
   uninstall: vi.fn(),
   nextAttempt: 0,
+  lease: vi.fn(),
+  meta: vi.fn(),
+  detach: vi.fn(),
 }));
 
 vi.mock("@workloom/db", () => ({ getAppPool: () => ({}), getGatewayPool: () => ({}) }));
@@ -29,8 +32,8 @@ vi.mock("./media/library.js", () => ({ ingestPortraitsFromIndex: doubles.ingest 
 vi.mock("./media/products.js", () => ({ upsertProductProfileFromDossier: doubles.project }));
 vi.mock("./archive-host.js", () => ({
   archiveWorkDir: () => doubles.workDir,
-  acquireProjectLease: async () => ({ release: doubles.release }),
-  readProjectMeta: async () => ({ kind: "marketing", title: "结果完整性", threadId: "T1", createdAt: "2026-09-27T00:00:00Z" }),
+  acquireProjectLease: doubles.lease,
+  readProjectMeta: doubles.meta,
   makeLedgerWriter: () => ({
     claimRun: async (row: { inputRefTemplate: string }) => {
       const attempt = ++doubles.nextAttempt;
@@ -48,7 +51,7 @@ vi.mock("@hyperreality/video-studio", async (importOriginal) => ({
   installVendorEngineBridge: vi.fn(),
   installVendorRenderCompatBridge: vi.fn(),
   installVendorPortraitBindingBridge: () => doubles.uninstall,
-  attachStructuredLog: () => () => undefined,
+  attachStructuredLog: () => doubles.detach,
 }));
 
 let worker: typeof import("./studio-worker.js");
@@ -68,7 +71,11 @@ beforeEach(() => {
   doubles.nextAttempt = 0;
   doubles.runPreproduction.mockReset();
   doubles.finish.mockResolvedValue(undefined);
-  doubles.release.mockResolvedValue(undefined);
+  doubles.release.mockReset().mockResolvedValue(undefined);
+  doubles.uninstall.mockReset();
+  doubles.detach.mockReset();
+  doubles.lease.mockReset().mockResolvedValue({ release: doubles.release });
+  doubles.meta.mockReset().mockResolvedValue({ kind: "marketing", title: "结果完整性", threadId: "T1", createdAt: "2026-09-27T00:00:00Z" });
   doubles.ingest.mockResolvedValue({ scanned: 0, ingested: 0, deduped: 0, skipped: 0, errors: [] });
   doubles.project.mockResolvedValue({ profile: { productName: "商品", dossierSha256: "a".repeat(64) }, changed: true, heroIngested: false });
   vi.stubEnv("ARCHIVE_ENABLED", "1");
@@ -132,13 +139,12 @@ describe("预生产原始结果与诚实终态", () => {
     expect(worker.summarizeWorkspaceRuns(scope.workspaceId).failedRecent).toBeGreaterThan(0);
   });
 
-  it.each(["0", "1"])("ARCHIVE_ENABLED=%s：业务软失败都不得显示 finished", async (archiveEnabled) => {
-    vi.stubEnv("ARCHIVE_ENABLED", archiveEnabled);
+  it("业务软失败不得显示 finished", async () => {
     doubles.runPreproduction.mockResolvedValue({ success: false, errors: [{ stage: "insight", message: "来源不足" }], stages: {} });
     const { entry } = await runToTerminal();
     expect(entry).toMatchObject({ status: "failed", error: "来源不足", resultSummary: { success: false, producerAttempts: 1 } });
     expect(doubles.runPreproduction).toHaveBeenCalledTimes(1);
-    expect(doubles.finish).toHaveBeenCalledTimes(archiveEnabled === "1" ? 1 : 0);
+    expect(doubles.finish).toHaveBeenCalledTimes(1);
   });
 
   it("vendor 抛错保留原始错误，仍释放资源并写失败档案", async () => {
@@ -165,13 +171,62 @@ describe("预生产原始结果与诚实终态", () => {
     expect(doubles.uninstall).toHaveBeenCalledTimes(1);
   });
 
-  it("关闭档案后仍保留原有成功结果和商品档案投影", async () => {
+  it("禁止关闭生产档案，拒绝发生在供应商与租约调用之前", () => {
     vi.stubEnv("ARCHIVE_ENABLED", "0");
-    doubles.runPreproduction.mockResolvedValue(success());
+    expect(() => worker.startRun(scope, { projectId: "VID-off", intent: "x" })).toThrow("ARCHIVE_ENABLED=0");
+    expect(doubles.runPreproduction).not.toHaveBeenCalled();
+    expect(doubles.lease).not.toHaveBeenCalled();
+  });
+
+  it.each(["busy", "error"])("租约 %s 不会无锁执行，并清理已安装的桥", async (failure) => {
+    if (failure === "busy") doubles.lease.mockResolvedValue(null);
+    else doubles.lease.mockRejectedValue(new Error("lease network failed"));
     const { entry } = await runToTerminal();
-    expect(entry).toMatchObject({ status: "finished", error: null, resultSummary: { dataMining: { productId: "product-a" } } });
-    expect(doubles.project).toHaveBeenCalledTimes(1);
+    expect(entry.status).toBe("failed");
+    expect(doubles.runPreproduction).not.toHaveBeenCalled();
+    expect(doubles.meta).not.toHaveBeenCalled();
     expect(doubles.finish).not.toHaveBeenCalled();
+    expect(doubles.uninstall).toHaveBeenCalledTimes(1);
+    expect(doubles.release).not.toHaveBeenCalled();
+  });
+
+  it.each(["missing", "error", "archive"])("项目/档案初始化 %s 时不执行并释放租约", async (failure) => {
+    if (failure === "missing") doubles.meta.mockResolvedValue(null);
+    else if (failure === "error") doubles.meta.mockRejectedValue(new Error("project metadata failed"));
+    else {
+      const { ArchiveStore } = await import("@hyperreality/video-studio");
+      vi.spyOn(ArchiveStore.prototype, "ensure").mockRejectedValue(new Error("archive failed"));
+    }
+    const { entry, projectId } = await runToTerminal();
+    expect(entry.status).toBe("failed");
+    expect(doubles.runPreproduction).not.toHaveBeenCalled();
+    expect(doubles.release).toHaveBeenCalledTimes(1);
+    expect(doubles.uninstall).toHaveBeenCalledTimes(1);
+    if (failure !== "archive") {
+      await expect(readFile(path.join(doubles.workDir, "archive", scope.workspaceId, projectId, "context-bundle.json"))).rejects.toMatchObject({ code: "ENOENT" });
+    }
+  });
+
+  it("完成回执未核实不投影商品也不自动重试", async () => {
+    doubles.runPreproduction.mockResolvedValue(success());
+    doubles.finish.mockRejectedValueOnce(new Error("receipt unverified"));
+    const { entry } = await runToTerminal();
+    expect(entry).toMatchObject({ status: "failed", error: "receipt unverified", resultSummary: null });
+    expect(doubles.runPreproduction).toHaveBeenCalledTimes(1);
+    expect(doubles.project).not.toHaveBeenCalled();
+    expect(doubles.release).toHaveBeenCalledTimes(1);
+  });
+
+  it("解锁和日志清理抛错仍清理绑定桥并写终态", async () => {
+    doubles.runPreproduction.mockResolvedValue(success());
+    doubles.detach.mockImplementation(() => { throw new Error("detach failed"); });
+    doubles.release.mockRejectedValue(new Error("unlock failed"));
+    const { entry } = await runToTerminal();
+    expect(entry.status).toBe("failed");
+    expect(entry.error).toContain("detach failed");
+    expect(entry.error).toContain("unlock failed");
+    expect(doubles.release).toHaveBeenCalledTimes(1);
+    expect(doubles.uninstall).toHaveBeenCalledTimes(1);
   });
 
   it("失败原因兼容已有 failures 与 errorMessage，空消息回退且限制长度", () => {
