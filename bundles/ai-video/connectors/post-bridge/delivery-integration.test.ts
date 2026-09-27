@@ -6,7 +6,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { assembleTimeline, buildDeliveryPackage, reedit, resolveBinaries } from "./core.mjs";
+import { assembleTimeline, buildDeliveryPackage, readRevisionBase, reedit, resolveBinaries } from "./core.mjs";
 
 const bins = resolveBinaries();
 const hasMediaTools = (() => {
@@ -21,6 +21,10 @@ const hasMediaTools = (() => {
 
 const hash = (file: string) => createHash("sha256").update(fs.readFileSync(file)).digest("hex");
 const readJson = (file: string) => JSON.parse(fs.readFileSync(file, "utf8"));
+const expectedBase = (file: string) => {
+  const base = readRevisionBase(file);
+  return { expectedVersion: base.version, expectedProjectSha256: base.sha256 };
+};
 
 describe.skipIf(!hasMediaTools)("后期真实总装与连续返修（需 FFmpeg/FFprobe）", () => {
   let root: string;
@@ -141,6 +145,7 @@ describe.skipIf(!hasMediaTools)("后期真实总装与连续返修（需 FFmpeg/
     const oldMtimes = oldPaths.map((file: string) => fs.statSync(file).mtimeMs);
     const v2 = await reedit({
       projectPath: delivery.projectPath, deliveryDir: delivery.outDir,
+      ...expectedBase(delivery.projectPath),
       patch: { shots: { replace: [{ shotId: "NC-1" }] } }, shotPaths: { "NC-1": replacement }, bins, env,
     });
     expect(v2.executed).toBe(true);
@@ -155,6 +160,7 @@ describe.skipIf(!hasMediaTools)("后期真实总装与连续返修（需 FFmpeg/
 
     const v3 = await reedit({
       projectPath: v2.projectPath, deliveryDir: delivery.outDir,
+      ...expectedBase(v2.projectPath),
       patch: { copy: { body: "第二次只改文案" } }, bins, env,
     });
     const third = readJson(v3.projectPath);
@@ -175,13 +181,15 @@ describe.skipIf(!hasMediaTools)("后期真实总装与连续返修（需 FFmpeg/
     const originalBytes = fs.readFileSync(newPath);
     try {
       fs.appendFileSync(newPath, "external-tamper");
-      const rejectedDir = path.join(root, "tampered-revision");
+      const rejectedDir = path.join(delivery.outDir, "versions", "v4");
       await expect(reedit({
         projectPath: v3.projectPath, deliveryDir: delivery.outDir, outDir: rejectedDir,
+        ...expectedBase(v3.projectPath),
         patch: { copy: { body: "不得接纳漂移" } }, bins, env,
       })).rejects.toMatchObject({ code: "verify_failed", retryable: false });
       expect(fs.existsSync(path.join(rejectedDir, "film-project.json"))).toBe(false);
       expect(fs.existsSync(path.join(rejectedDir, "revision.json"))).toBe(false);
+      expect(readJson(path.join(rejectedDir, "revision-failed.json")).code).toBe("verify_failed");
     } finally {
       fs.writeFileSync(newPath, originalBytes);
     }

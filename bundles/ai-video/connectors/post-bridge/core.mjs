@@ -21,7 +21,7 @@
  *   bgm-bridge/core.mjs       → 选曲与混音（findTracks / mix，自带 LUFS 复检）
  */
 
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import {
   AV_SYNC_POLICY,
   buildSampleAccurateConcatPlan,
@@ -1982,13 +1982,208 @@ function resolveStored(base, storedPath) {
   return path.isAbsolute(value) ? value : path.resolve(base, value);
 }
 
+/** A revision request compares both the chosen version and its exact bytes. */
+export function readRevisionBase(projectPath) {
+  const file = path.resolve(text(projectPath, "projectPath"));
+  let fd;
+  try { fd = fs.openSync(file, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW); }
+  catch (error) {
+    const code = error.code === "ENOENT" ? "not_found" : error.code === "ELOOP" ? "path_not_allowed" : "revision_io_failed";
+    throw new PostError(`无法读取返修工程：${error.message}`, code);
+  }
+  try {
+    const before = fs.fstatSync(fd);
+    if (!before.isFile() || before.size <= 0 || before.size > 4 * 1024 * 1024) {
+      throw new PostError("返修工程必须是 4 MiB 以内的非空文件", "bad_request");
+    }
+    const bytes = fs.readFileSync(fd);
+    const after = fs.fstatSync(fd);
+    const current = fs.lstatSync(file);
+    if (before.size !== bytes.length || before.size !== after.size || before.mtimeMs !== after.mtimeMs
+      || before.ctimeMs !== after.ctimeMs || current.isSymbolicLink() || current.ino !== before.ino || current.dev !== before.dev) {
+      throw new PostError("返修工程在读取期间变化", "revision_conflict");
+    }
+    let project;
+    try { project = JSON.parse(bytes.toString("utf8")); }
+    catch (error) { throw new PostError(`返修工程 JSON 非法：${error.message}`, "bad_request"); }
+    if (project?.schemaVersion !== FILM_PROJECT_SCHEMA || !Number.isSafeInteger(project.version) || project.version < 1
+      || typeof project.projectId !== "string" || !project.projectId.trim()) {
+      throw new PostError("返修工程缺少有效 schemaVersion、projectId 或 version", "bad_request");
+    }
+    return { file, project, version: project.version, sha256: createHash("sha256").update(bytes).digest("hex") };
+  } finally { fs.closeSync(fd); }
+}
+
+/** No symlinked version/root may redirect a local revision claim. */
+function revisionPath(base, target, allowMissing = false) {
+  const root = path.resolve(base);
+  const rel = path.relative(root, path.resolve(target));
+  if (rel === ".." || rel.startsWith(`..${path.sep}`) || path.isAbsolute(rel)) {
+    throw new PostError("返修路径不在交付包内", "path_not_allowed");
+  }
+  const rootStat = fs.lstatSync(root);
+  if (!rootStat.isDirectory() || rootStat.isSymbolicLink()) throw new PostError("交付包根不能是符号链接", "path_not_allowed");
+  let current = root;
+  for (const part of rel.split(path.sep).filter(Boolean)) {
+    current = path.join(current, part);
+    let stat;
+    try { stat = fs.lstatSync(current); }
+    catch (error) { if (allowMissing && error.code === "ENOENT") continue; throw error; }
+    if (stat.isSymbolicLink()) throw new PostError("返修路径不允许符号链接", "path_not_allowed");
+  }
+  return path.resolve(target);
+}
+
+/** A published film-project is the commit point; reserved/failed versions are never reused. */
+function revisionHead(base) {
+  const initial = readRevisionBase(revisionPath(base, path.join(base, "film-project.json")));
+  let latest = initial;
+  let highestReserved = initial.version;
+  const versions = revisionPath(base, path.join(base, "versions"), true);
+  if (!fs.existsSync(versions)) return { latest, highestReserved };
+  if (!fs.lstatSync(versions).isDirectory()) throw new PostError("versions 不是目录", "bad_request");
+  for (const name of fs.readdirSync(versions)) {
+    if (!/^v[1-9]\d*$/.test(name)) continue;
+    const version = Number(name.slice(1));
+    if (!Number.isSafeInteger(version)) throw new PostError("返修版本号越界", "bad_request");
+    const dir = revisionPath(base, path.join(versions, name));
+    if (!fs.lstatSync(dir).isDirectory()) throw new PostError(`返修版本不是目录：${name}`, "bad_request");
+    highestReserved = Math.max(highestReserved, version);
+    const file = revisionPath(base, path.join(dir, "film-project.json"), true);
+    if (!fs.existsSync(file)) continue;
+    const candidate = readRevisionBase(file);
+    if (candidate.version !== version || candidate.project.projectId !== initial.project.projectId) {
+      throw new PostError(`返修版本归属不一致：${name}`, "revision_conflict");
+    }
+    const receiptFile = revisionPath(base, path.join(dir, "revision.json"), true);
+    const claimFile = revisionPath(base, path.join(dir, "revision-claim.json"), true);
+    if (fs.existsSync(claimFile) && !fs.existsSync(receiptFile)) {
+      throw new PostError(`返修提交记录缺失：${name}`, "revision_conflict");
+    }
+    if (fs.existsSync(receiptFile)) {
+      const receipt = JSON.parse(fs.readFileSync(receiptFile, "utf8"));
+      if (receipt.commit && (receipt.commit.projectSha256 !== candidate.sha256 || receipt.commit.version !== version)) {
+        throw new PostError(`已提交返修工程指纹变化：${name}`, "revision_conflict");
+      }
+      if (fs.existsSync(claimFile)) {
+        const claim = JSON.parse(fs.readFileSync(claimFile, "utf8"));
+        if (!receipt.commit || receipt.commit.runId !== claim.runId || receipt.commit.baseProjectSha256 !== claim.baseProjectSha256
+          || receipt.commit.baseVersion !== claim.baseVersion || claim.version !== version) {
+          throw new PostError(`返修提交与认领记录不一致：${name}`, "revision_conflict");
+        }
+      }
+    }
+    if (candidate.version > latest.version) latest = candidate;
+  }
+  return { latest, highestReserved };
+}
+
+async function withRevisionClaim({ base, snapshot, expectedVersion, expectedProjectSha256, outDir }, execute) {
+  if (!Number.isSafeInteger(expectedVersion) || expectedVersion < 1 || !/^[a-f0-9]{64}$/.test(expectedProjectSha256 ?? "")) {
+    throw new PostError("执行返修需要 expectedVersion 和 expectedProjectSha256（先读取所选工程或 dryRun）", "bad_request");
+  }
+  if (snapshot.version !== expectedVersion || snapshot.sha256 !== expectedProjectSha256) {
+    throw new PostError("返修基础版本或工程指纹已变化，请重新读取后再提交", "revision_conflict");
+  }
+  revisionPath(base, snapshot.file);
+  const lockPath = revisionPath(base, path.join(base, ".revision.lock"), true);
+  let fd;
+  try { fd = fs.openSync(lockPath, "wx", 0o600); }
+  catch (error) {
+    if (error.code === "EEXIST") throw new PostError("该交付包已有返修持有排他锁；不得覆盖或自动抢占未对账的锁", "revision_busy");
+    throw new PostError(`无法认领返修锁：${error.message}`, "revision_io_failed");
+  }
+  const lockIdentity = fs.fstatSync(fd);
+  const runId = randomUUID();
+  let targetDir = null;
+  let published = false;
+  const claim = { runId, pid: process.pid, host: os.hostname(), at: new Date().toISOString(), projectId: snapshot.project.projectId,
+    baseVersion: expectedVersion, baseProjectSha256: expectedProjectSha256 };
+  const assertCurrent = () => {
+    const lock = fs.lstatSync(lockPath);
+    if (lock.isSymbolicLink() || lock.ino !== lockIdentity.ino || lock.dev !== lockIdentity.dev
+      || JSON.parse(fs.readFileSync(lockPath, "utf8")).runId !== runId) {
+      throw new PostError("返修锁归属已变化，禁止提交产物", "revision_conflict");
+    }
+    const { latest } = revisionHead(base);
+    if (latest.version !== expectedVersion || latest.sha256 !== expectedProjectSha256
+      || fs.realpathSync(latest.file) !== fs.realpathSync(snapshot.file)) {
+      throw new PostError("返修基础已不是当前版本，禁止覆盖新版本", "revision_conflict");
+    }
+  };
+  try {
+    fs.writeFileSync(fd, `${JSON.stringify(claim, null, 2)}\n`);
+    fs.fsyncSync(fd);
+    assertCurrent();
+    const version = revisionHead(base).highestReserved + 1;
+    if (!Number.isSafeInteger(version)) throw new PostError("返修版本号越界", "bad_request");
+    const expectedTarget = path.join(base, "versions", `v${version}`);
+    if (outDir && path.resolve(outDir) !== path.resolve(expectedTarget)) {
+      throw new PostError(`返修 outDir 必须是当前可认领的新版本目录：${expectedTarget}`, "revision_conflict");
+    }
+    const versionsDir = revisionPath(base, path.join(base, "versions"), true);
+    fs.mkdirSync(versionsDir, { recursive: true });
+    revisionPath(base, expectedTarget, true);
+    fs.mkdirSync(expectedTarget); // atomic, recursive=false: an existing version is never overwritten
+    targetDir = expectedTarget;
+    fs.writeFileSync(path.join(targetDir, "revision-claim.json"), `${JSON.stringify({ ...claim, version }, null, 2)}\n`, { flag: "wx", mode: 0o600 });
+    const publish = async (nextProject, revision) => {
+      assertCurrent();
+      const bytes = `${JSON.stringify(nextProject, null, 2)}\n`;
+      const projectSha256 = createHash("sha256").update(bytes).digest("hex");
+      revision.commit = { ...claim, version, projectSha256 };
+      await writeJson(path.join(targetDir, "revision.json"), revision);
+      const pending = path.join(targetDir, `.film-project-${runId}.pending`);
+      try {
+        const pendingFd = fs.openSync(pending, "wx", 0o600);
+        try { fs.writeFileSync(pendingFd, bytes); fs.fsyncSync(pendingFd); }
+        finally { fs.closeSync(pendingFd); }
+        assertCurrent();
+        const projectFile = path.join(targetDir, "film-project.json");
+        fs.linkSync(pending, projectFile); // atomic publish; unlike rename, an existing name is never replaced
+        published = true;
+        return projectFile;
+      } finally { await fsp.rm(pending, { force: true }); }
+    };
+    return await execute({ version, targetDir, publish });
+  } catch (error) {
+    if (targetDir && !published) {
+      try {
+        await writeJson(path.join(targetDir, "revision-failed.json"), {
+          schemaVersion: "workloom.delivery-revision-failure/v1", ...claim, failedAt: new Date().toISOString(),
+          code: error.code ?? "engine_failed", message: error instanceof Error ? error.message : String(error),
+        });
+      } catch (recordError) {
+        throw new PostError(`返修失败且失败记录无法写入：${recordError.message}；原错误：${error.message}`, "revision_io_failed");
+      }
+    }
+    throw error;
+  } finally {
+    fs.closeSync(fd);
+    let lock;
+    try { lock = fs.lstatSync(lockPath); }
+    catch (error) { throw new PostError(`返修锁无法复核，未删除：${error.message}`, "revision_conflict"); }
+    if (lock.ino !== lockIdentity.ino || lock.dev !== lockIdentity.dev || lock.isSymbolicLink()
+      || JSON.parse(fs.readFileSync(lockPath, "utf8")).runId !== runId) {
+      throw new PostError("返修锁已被替换，不删除其他持有者的锁", "revision_conflict");
+    }
+    fs.unlinkSync(lockPath);
+  }
+}
+
 /**
  * 本地二次编辑：读工程文件 → 只重算受影响层 → 落到**新版本目录**（v2/v3…）。
  * 不重新生成镜头；点名到镜头的 patch 会被拒绝执行，只返回计划（fail-closed，钱不能自动烧）。
+ * @param {{projectPath?: string, deliveryDir?: string|null, expectedVersion?: number|null,
+ * expectedProjectSha256?: string|null, patch?: Record<string, any>, outDir?: string|null,
+ * shotPaths?: Record<string, string>|null, bins?: {ffmpeg: string, ffprobe: string},
+ * dryRun?: boolean, env?: NodeJS.ProcessEnv}} options
  */
 export async function reedit({
   projectPath,
   deliveryDir = null,
+  expectedVersion = null,
+  expectedProjectSha256 = null,
   patch = {},
   outDir = null,
   shotPaths = null,
@@ -1996,12 +2191,9 @@ export async function reedit({
   dryRun = false,
   env = process.env,
 } = {}) {
-  const projectFile = path.resolve(text(projectPath, "projectPath"));
-  if (!fs.existsSync(projectFile)) throw new PostError(`工程文件不存在：${projectFile}`, "not_found");
-  const project = JSON.parse(await fsp.readFile(projectFile, "utf8"));
-  if (project.schemaVersion !== FILM_PROJECT_SCHEMA) {
-    throw new PostError(`工程文件版本不支持：${project.schemaVersion}（期望 ${FILM_PROJECT_SCHEMA}）`, "bad_request");
-  }
+  const snapshot = readRevisionBase(projectPath);
+  const projectFile = snapshot.file;
+  const project = snapshot.project;
   const impact = analyzeImpact({ project, patch });
   /**
    * 两个基准必须分开（2026-09-24 真机修复）：
@@ -2017,7 +2209,7 @@ export async function reedit({
     : projectDir;
   const base = deliveryDir ? path.resolve(deliveryDir)
     : project.deliveryRoot ? path.resolve(projectDir, project.deliveryRoot) : inferredRoot;
-  const version = (Number(project.version) || 1) + 1;
+  const version = project.version + 1;
   const targetDir = path.resolve(outDir ?? path.join(base, "versions", `v${version}`));
 
   if (impact.shotRegeneration.required && !shotPaths) {
@@ -2039,463 +2231,450 @@ export async function reedit({
 
   const plan = impact;
   if (dryRun) {
-    return { executed: false, dryRun: true, impact: plan, version, targetDir };
+    return { executed: false, dryRun: true, impact: plan, version, targetDir,
+      expectedVersion: snapshot.version, expectedProjectSha256: snapshot.sha256 };
   }
 
-  const projectShots = (project.layers?.shots ?? []).map((shot) => ({
-    shotId: shot.shotId,
-    stored: shot,
-  }));
-  const [width, height] = project.resolution ?? [1080, 1920];
-  const quality = resolveQuality(project);
-  const fps = Number(project.fps ?? 30);
-  const workDir = path.join(base, "work");
-  await fsp.mkdir(path.dirname(targetDir), { recursive: true });
-  try {
-    await fsp.mkdir(targetDir);
-  } catch (error) {
-    if (error?.code === "EEXIST") {
-      throw new PostError(`返修版本目录已存在：${targetDir}；请从最新工程版本继续返修`, "version_exists");
-    }
-    throw error;
-  }
-  let completed = false;
-  try {
-  await fsp.mkdir(path.join(targetDir, "variants"));
+  return withRevisionClaim({ base, snapshot, expectedVersion, expectedProjectSha256, outDir }, async ({ version, targetDir, publish }) => {
+    const projectShots = (project.layers?.shots ?? []).map((shot) => ({
+      shotId: shot.shotId,
+      stored: shot,
+    }));
+    const [width, height] = project.resolution ?? [1080, 1920];
+    const quality = resolveQuality(project);
+    const fps = Number(project.fps ?? 30);
+    const workDir = path.join(base, "work");
+    await fsp.mkdir(path.join(targetDir, "variants"));
 
-  const rebuilt = [];
-  const reused = [];
+    const rebuilt = [];
+    const reused = [];
 
-  /**
-   * 层 1：镜头产物（**返修的地基**）。
-   * 没被点名的镜头一律直接复用上一次归一化的产物，并复核哈希与工程文件一致——
-   * 这样"不重新生成镜头"不是一句承诺，而是可以在 `revision.json` 里逐镜对账的哈希。
-   * 只有被点名的镜头（shotPaths 传入的新产物）才重新归一化。
-   */
-  const normalised = [];
-  for (const entry of projectShots) {
-    const replacement = shotPaths?.[entry.shotId];
-    if (replacement) {
-      const [clip] = await normaliseShots({
-        shots: [{ shotId: entry.shotId, path: replacement, kind: entry.stored.kind ?? "live-action" }],
-        project: { projectId: project.projectId, resolution: [width, height], quality, fps },
-        workDir,
-        bins,
-        reuse: true,
-      });
-      normalised.push(clip);
-      rebuilt.push({ layer: "shots", shotId: clip.shotId, path: clip.path, sha256: clip.sha256, note: "点名镜头：用重生成后的新产物归一化" });
-      continue;
-    }
-    const file = resolveStored(projectDir, entry.stored.normalised);
-    if (!fs.existsSync(file)) throw new PostError(`返修需要的镜头产物缺失：${entry.shotId} → ${file}`, "not_found");
-    const sha256 = await sha256File(file);
-    if (!entry.stored.sha256 || sha256 !== entry.stored.sha256) {
-      throw new PostError(`返修镜头 ${entry.shotId} 的归一化产物与工程文件哈希不一致：请通过 shotPaths 显式替换或从原素材重新归一化`, "verify_failed");
-    }
-    const reusedProbe = await probeMedia(file, { bins });
-    if (!(reusedProbe.videoDuration > 0)) {
-      throw new PostError(`返修镜头 ${entry.shotId} 缺视频轨时长`, "bad_media");
-    }
-    const clip = {
-      shotId: entry.shotId,
-      source: resolveStored(projectDir, entry.stored.source ?? entry.stored.normalised),
-      sourceHash: entry.stored.sourceSha256 ?? null,
-      sourceKind: entry.stored.kind ?? "live-action",
-      quality,
-      enhancement: entry.stored.enhancement ? {
-        ...entry.stored.enhancement,
-        output: entry.stored.enhancement.output ? resolveStored(projectDir, entry.stored.enhancement.output) : null,
-        provenancePath: entry.stored.enhancement.provenancePath ? resolveStored(projectDir, entry.stored.enhancement.provenancePath) : null,
-      } : null,
-      path: file,
-      sha256,
-      duration: reusedProbe.videoDuration,
-      reused: true,
-    };
-    normalised.push(clip);
-    reused.push({ layer: "shots", shotId: clip.shotId, path: file, sha256, note: "复用上次归一化产物（哈希与工程文件一致）" });
-  }
-  if (quality === "uhd") await verifyUhdEvidence(normalised, [width, height], bins);
-
-  const variantIds = (project.layers?.variants ?? []).map((variant) => variant.id);
-  const variantsOut = [];
-  for (const variantId of variantIds) {
-    const stored = project.layers.variants.find((variant) => variant.id === variantId);
-    const pack = structuredClone(findVariantPack(variantId));
-    const appliesToVariant = (change) => Boolean(change)
-      && (change.variantId === undefined || change.variantId === variantId);
-    const scoped = {
-      subtitles: appliesToVariant(patch.subtitles),
-      bgm: appliesToVariant(patch.bgm),
-      color: appliesToVariant(patch.color),
-      transitions: appliesToVariant(patch.transitions),
-      cover: appliesToVariant(patch.cover),
-      copy: appliesToVariant(patch.copy),
-    };
-    const rebuildVariant = {
-      assemble: Boolean(patch.shots) || scoped.transitions,
-      color: Boolean(patch.shots) || scoped.transitions || scoped.color,
-      audio: Boolean(patch.shots) || scoped.transitions || scoped.color || scoped.bgm,
-      text: Boolean(patch.shots) || scoped.transitions || scoped.subtitles,
-      cover: Boolean(patch.shots) || scoped.transitions || scoped.color || scoped.cover,
-    };
-    const priorStyle = stored?.style ?? {};
-    if (priorStyle.color) pack.color = { ...(pack.color ?? {}), ...priorStyle.color };
-    else if (stored?.color) {
-      for (const key of ["profile", "lut", "intensity"]) {
-        if (stored.color[key] !== undefined) pack.color = { ...(pack.color ?? {}), [key]: stored.color[key] };
+    /**
+     * 层 1：镜头产物（**返修的地基**）。
+     * 没被点名的镜头一律直接复用上一次归一化的产物，并复核哈希与工程文件一致——
+     * 这样"不重新生成镜头"不是一句承诺，而是可以在 `revision.json` 里逐镜对账的哈希。
+     * 只有被点名的镜头（shotPaths 传入的新产物）才重新归一化。
+     */
+    const normalised = [];
+    for (const entry of projectShots) {
+      const replacement = shotPaths?.[entry.shotId];
+      if (replacement) {
+        const [clip] = await normaliseShots({
+          shots: [{ shotId: entry.shotId, path: replacement, kind: entry.stored.kind ?? "live-action" }],
+          project: { projectId: project.projectId, resolution: [width, height], quality, fps },
+          workDir,
+          bins,
+          reuse: true,
+        });
+        normalised.push(clip);
+        rebuilt.push({ layer: "shots", shotId: clip.shotId, path: clip.path, sha256: clip.sha256, note: "点名镜头：用重生成后的新产物归一化" });
+        continue;
       }
-    }
-    if (priorStyle.bgm) pack.bgm = { ...(pack.bgm ?? {}), ...priorStyle.bgm };
-    const bgmSelectionChanged = scoped.bgm
-      && ["trackId", "mood", "genre", "style", "enabled"].some((key) => Object.hasOwn(patch.bgm, key));
-    if (stored?.bgm?.trackId && !bgmSelectionChanged) {
-      pack.bgm = {
-        ...(pack.bgm ?? {}), trackId: stored.bgm.trackId, policy: stored.bgm.policy ?? pack.bgm?.policy,
-        mood: undefined, genre: undefined, style: undefined,
-      };
-    }
-    if (priorStyle.transitions) pack.transitions = { ...(pack.transitions ?? {}), ...priorStyle.transitions };
-    else if (stored?.assembly?.mode) pack.transitions = { ...(pack.transitions ?? {}), mode: stored.assembly.mode };
-    if (priorStyle.cover) pack.cover = { ...(pack.cover ?? {}), ...priorStyle.cover };
-    if (priorStyle.copyTone) pack.copy = { ...(pack.copy ?? {}), tone: priorStyle.copyTone };
-    if (scoped.bgm) {
-      pack.bgm = {
-        ...pack.bgm,
-        ...(bgmSelectionChanged ? { trackId: undefined, mood: undefined, genre: undefined, style: undefined } : {}),
-        ...patch.bgm,
-      };
-      delete pack.bgm.variantId;
-    }
-    if (scoped.color) {
-      pack.color = { ...(pack.color ?? {}), ...patch.color };
-      delete pack.color.variantId;
-    }
-    if (scoped.transitions) {
-      pack.transitions = { ...(pack.transitions ?? {}), ...patch.transitions };
-      delete pack.transitions.variantId;
-    }
-    if (scoped.cover) {
-      pack.cover = { ...(pack.cover ?? {}), ...patch.cover };
-      delete pack.cover.variantId;
-    }
-    if (scoped.copy) {
-      pack.copy = { ...(pack.copy ?? {}), ...patch.copy };
-      delete pack.copy.variantId;
-    }
-
-    const variantDir = path.join(targetDir, "variants", variantId);
-    await fsp.mkdir(variantDir, { recursive: true });
-    const previousVideo = stored?.artifacts?.video?.path ? resolveStored(projectDir, stored.artifacts.video.path) : null;
-    const previousSoftsub = stored?.artifacts?.softsub?.path ? resolveStored(projectDir, stored.artifacts.softsub.path) : null;
-    const previousCover = stored?.artifacts?.cover?.path ? resolveStored(projectDir, stored.artifacts.cover.path) : null;
-
-    // 拼接层（只有转场/镜头变化才重算）
-    let assemblyPath = stored?.assembly?.path ? resolveStored(projectDir, stored.assembly.path) : null;
-    let assemblyReused = true;
-    const assemblyTrustedFromStored = !rebuildVariant.assemble && Boolean(stored?.assembly?.sha256)
-      && Boolean(assemblyPath) && fs.existsSync(assemblyPath);
-    if (assemblyTrustedFromStored) {
-      await assertStoredArtifact(assemblyPath, stored.assembly.sha256, `返修变体 ${variantId} 拼接层`);
-    } else {
-      const transitions = { ...(project.layers.transitions ?? {}), ...(pack.transitions ?? {}) };
-      const key = await contentKey({ shots: normalised.map((clip) => clip.sha256), transitions, v: 2 });
-      const receiptKey = await contentKey({ key, type: "assembly" });
-      assemblyPath = path.join(workDir, "assemble", `${variantId}-${key}.mp4`);
-      const metaPath = path.join(workDir, "assemble", `${variantId}-${key}.json`);
-      if (fs.existsSync(assemblyPath) && fs.existsSync(metaPath)) {
-        let meta;
-        try { meta = JSON.parse(await fsp.readFile(metaPath, "utf8")); }
-        catch (error) {
-          throw new PostError(`返修变体 ${variantId} 拼接缓存回执不可读：${error instanceof Error ? error.message : String(error)}`, "verify_failed");
-        }
-        if (meta.key !== receiptKey) throw new PostError(`返修变体 ${variantId} 拼接缓存键不匹配`, "verify_failed");
-        await assertStoredArtifact(assemblyPath, meta.sha256, `返修变体 ${variantId} 拼接缓存`);
-      } else {
-        await assembleTimeline({ clips: normalised, transitions, output: assemblyPath, resolution: [width, height], fps, quality, bins });
-        await writeJson(metaPath, { sha256: await sha256File(assemblyPath), key: receiptKey });
-        assemblyReused = false;
+      const file = resolveStored(projectDir, entry.stored.normalised);
+      if (!fs.existsSync(file)) throw new PostError(`返修需要的镜头产物缺失：${entry.shotId} → ${file}`, "not_found");
+      const sha256 = await sha256File(file);
+      if (!entry.stored.sha256 || sha256 !== entry.stored.sha256) {
+        throw new PostError(`返修镜头 ${entry.shotId} 的归一化产物与工程文件哈希不一致：请通过 shotPaths 显式替换或从原素材重新归一化`, "verify_failed");
       }
-    }
-    const assemblyProbe = await probeMedia(assemblyPath, { bins });
-    if (assemblyProbe.width !== width || assemblyProbe.height !== height || !assemblyProbe.hasAudio) {
-      throw new PostError(`返修变体 ${variantId} 拼接层规格不符`, "verify_failed");
-    }
-    const assemblySha256 = await sha256File(assemblyPath);
-    (assemblyReused ? reused : rebuilt).push({ layer: "assemble", variant: variantId, path: assemblyPath, reused: assemblyReused });
-
-    // 调色层
-    let gradedInput = assemblyPath;
-    let colorReused = true;
-    const storedColorPath = stored?.color?.path ? resolveStored(projectDir, stored.color.path) : null;
-    const colorTrustedFromStored = pack.color && !rebuildVariant.color && assemblyTrustedFromStored
-      && Boolean(stored?.color?.sha256) && Boolean(storedColorPath) && fs.existsSync(storedColorPath);
-    if (pack.color && !colorTrustedFromStored) {
-      const gradedPath = path.join(workDir, "graded", `${variantId}-re${version}.mp4`);
-      const report = await colorGrade({
-        input: assemblyPath,
-        output: gradedPath,
-        profile: pack.color.profile ?? null,
-        lutPath: pack.color.lut ? resolveLut(pack.color.lut) : null,
-        intensity: optionalNumber(pack.color.intensity, 0.8),
+      const reusedProbe = await probeMedia(file, { bins });
+      if (!(reusedProbe.videoDuration > 0)) {
+        throw new PostError(`返修镜头 ${entry.shotId} 缺视频轨时长`, "bad_media");
+      }
+      const clip = {
+        shotId: entry.shotId,
+        source: resolveStored(projectDir, entry.stored.source ?? entry.stored.normalised),
+        sourceHash: entry.stored.sourceSha256 ?? null,
+        sourceKind: entry.stored.kind ?? "live-action",
         quality,
-        bins,
-      });
-      gradedInput = gradedPath;
-      colorReused = false;
-      (rebuilt).push({ layer: "color", variant: variantId, path: gradedPath, sha256: report.sha256 });
-    } else if (colorTrustedFromStored) {
-      await assertStoredArtifact(storedColorPath, stored.color.sha256, `返修变体 ${variantId} 调色层`);
-      gradedInput = storedColorPath;
-      reused.push({ layer: "color", variant: variantId, path: gradedInput, sha256: stored.color.sha256 });
+        enhancement: entry.stored.enhancement ? {
+          ...entry.stored.enhancement,
+          output: entry.stored.enhancement.output ? resolveStored(projectDir, entry.stored.enhancement.output) : null,
+          provenancePath: entry.stored.enhancement.provenancePath ? resolveStored(projectDir, entry.stored.enhancement.provenancePath) : null,
+        } : null,
+        path: file,
+        sha256,
+        duration: reusedProbe.videoDuration,
+        reused: true,
+      };
+      normalised.push(clip);
+      reused.push({ layer: "shots", shotId: clip.shotId, path: file, sha256, note: "复用上次归一化产物（哈希与工程文件一致）" });
     }
-    const gradedSha256 = await sha256File(gradedInput);
+    if (quality === "uhd") await verifyUhdEvidence(normalised, [width, height], bins);
 
-    // 音频层
-    const videoTarget = path.join(variantDir, `${variantId}.mp4`);
-    let trackId = stored?.bgm?.trackId ?? null;
-    if (rebuildVariant.audio || !assemblyTrustedFromStored || (pack.color && !colorTrustedFromStored)) {
-      const audioOutcome = await mixVariantAudio({ pack, gradedInput, workDir, output: videoTarget, bins, env, reuse: true });
-      trackId = audioOutcome.track?.id ?? null;
-      await writeJson(path.join(variantDir, "audio.json"), audioOutcome.failure
-        ? { track: null, failed: true, code: audioOutcome.failure.code, message: audioOutcome.failure.message, note: "配乐复检未通过：本变体按原声降级交付" }
-        : audioOutcome.report
-          ? {
-            track: audioOutcome.track,
-            policy: pack.bgm?.policy ?? "keep-dialogue",
-            musicLevelDb: pack.bgm?.musicLevelDb ?? null,
-            mixing: audioOutcome.report.mixing ?? null,
-            loudness: audioOutcome.report.loudness,
-            checks: audioOutcome.report.checks,
-            ...(audioOutcome.reused ? { reused: true, cacheKey: audioOutcome.cacheKey } : {}),
+    const variantIds = (project.layers?.variants ?? []).map((variant) => variant.id);
+    const variantsOut = [];
+    for (const variantId of variantIds) {
+      const stored = project.layers.variants.find((variant) => variant.id === variantId);
+      const pack = structuredClone(findVariantPack(variantId));
+      const appliesToVariant = (change) => Boolean(change)
+        && (change.variantId === undefined || change.variantId === variantId);
+      const scoped = {
+        subtitles: appliesToVariant(patch.subtitles),
+        bgm: appliesToVariant(patch.bgm),
+        color: appliesToVariant(patch.color),
+        transitions: appliesToVariant(patch.transitions),
+        cover: appliesToVariant(patch.cover),
+        copy: appliesToVariant(patch.copy),
+      };
+      const rebuildVariant = {
+        assemble: Boolean(patch.shots) || scoped.transitions,
+        color: Boolean(patch.shots) || scoped.transitions || scoped.color,
+        audio: Boolean(patch.shots) || scoped.transitions || scoped.color || scoped.bgm,
+        text: Boolean(patch.shots) || scoped.transitions || scoped.subtitles,
+        cover: Boolean(patch.shots) || scoped.transitions || scoped.color || scoped.cover,
+      };
+      const priorStyle = stored?.style ?? {};
+      if (priorStyle.color) pack.color = { ...(pack.color ?? {}), ...priorStyle.color };
+      else if (stored?.color) {
+        for (const key of ["profile", "lut", "intensity"]) {
+          if (stored.color[key] !== undefined) pack.color = { ...(pack.color ?? {}), [key]: stored.color[key] };
+        }
+      }
+      if (priorStyle.bgm) pack.bgm = { ...(pack.bgm ?? {}), ...priorStyle.bgm };
+      const bgmSelectionChanged = scoped.bgm
+        && ["trackId", "mood", "genre", "style", "enabled"].some((key) => Object.hasOwn(patch.bgm, key));
+      if (stored?.bgm?.trackId && !bgmSelectionChanged) {
+        pack.bgm = {
+          ...(pack.bgm ?? {}), trackId: stored.bgm.trackId, policy: stored.bgm.policy ?? pack.bgm?.policy,
+          mood: undefined, genre: undefined, style: undefined,
+        };
+      }
+      if (priorStyle.transitions) pack.transitions = { ...(pack.transitions ?? {}), ...priorStyle.transitions };
+      else if (stored?.assembly?.mode) pack.transitions = { ...(pack.transitions ?? {}), mode: stored.assembly.mode };
+      if (priorStyle.cover) pack.cover = { ...(pack.cover ?? {}), ...priorStyle.cover };
+      if (priorStyle.copyTone) pack.copy = { ...(pack.copy ?? {}), tone: priorStyle.copyTone };
+      if (scoped.bgm) {
+        pack.bgm = {
+          ...pack.bgm,
+          ...(bgmSelectionChanged ? { trackId: undefined, mood: undefined, genre: undefined, style: undefined } : {}),
+          ...patch.bgm,
+        };
+        delete pack.bgm.variantId;
+      }
+      if (scoped.color) {
+        pack.color = { ...(pack.color ?? {}), ...patch.color };
+        delete pack.color.variantId;
+      }
+      if (scoped.transitions) {
+        pack.transitions = { ...(pack.transitions ?? {}), ...patch.transitions };
+        delete pack.transitions.variantId;
+      }
+      if (scoped.cover) {
+        pack.cover = { ...(pack.cover ?? {}), ...patch.cover };
+        delete pack.cover.variantId;
+      }
+      if (scoped.copy) {
+        pack.copy = { ...(pack.copy ?? {}), ...patch.copy };
+        delete pack.copy.variantId;
+      }
+
+      const variantDir = path.join(targetDir, "variants", variantId);
+      await fsp.mkdir(variantDir, { recursive: true });
+      const previousVideo = stored?.artifacts?.video?.path ? resolveStored(projectDir, stored.artifacts.video.path) : null;
+      const previousSoftsub = stored?.artifacts?.softsub?.path ? resolveStored(projectDir, stored.artifacts.softsub.path) : null;
+      const previousCover = stored?.artifacts?.cover?.path ? resolveStored(projectDir, stored.artifacts.cover.path) : null;
+
+      // 拼接层（只有转场/镜头变化才重算）
+      let assemblyPath = stored?.assembly?.path ? resolveStored(projectDir, stored.assembly.path) : null;
+      let assemblyReused = true;
+      const assemblyTrustedFromStored = !rebuildVariant.assemble && Boolean(stored?.assembly?.sha256)
+        && Boolean(assemblyPath) && fs.existsSync(assemblyPath);
+      if (assemblyTrustedFromStored) {
+        await assertStoredArtifact(assemblyPath, stored.assembly.sha256, `返修变体 ${variantId} 拼接层`);
+      } else {
+        const transitions = { ...(project.layers.transitions ?? {}), ...(pack.transitions ?? {}) };
+        const key = await contentKey({ shots: normalised.map((clip) => clip.sha256), transitions, v: 2 });
+        const receiptKey = await contentKey({ key, type: "assembly" });
+        assemblyPath = path.join(workDir, "assemble", `${variantId}-${key}.mp4`);
+        const metaPath = path.join(workDir, "assemble", `${variantId}-${key}.json`);
+        if (fs.existsSync(assemblyPath) && fs.existsSync(metaPath)) {
+          let meta;
+          try { meta = JSON.parse(await fsp.readFile(metaPath, "utf8")); }
+          catch (error) {
+            throw new PostError(`返修变体 ${variantId} 拼接缓存回执不可读：${error instanceof Error ? error.message : String(error)}`, "verify_failed");
           }
-          : { track: null, policy: "原声（变体刻意不配乐）" });
-      const row = { layer: "audio", variant: variantId, path: videoTarget, sha256: await sha256File(videoTarget) };
-      if (audioOutcome.reused && !audioOutcome.failure) reused.push({ ...row, note: "混音缓存命中（画面与曲目未变，未重跑混音）" });
-      else rebuilt.push(audioOutcome.failure ? { ...row, failure: audioOutcome.failure } : row);
-    } else {
-      await assertStoredArtifact(previousVideo, stored?.artifacts?.video?.sha256, `返修变体 ${variantId} 视频`);
-      await fsp.copyFile(previousVideo, videoTarget);
-      reused.push({ layer: "audio", variant: variantId, path: previousVideo, sha256: stored?.artifacts?.video?.sha256 ?? null });
-    }
+          if (meta.key !== receiptKey) throw new PostError(`返修变体 ${variantId} 拼接缓存键不匹配`, "verify_failed");
+          await assertStoredArtifact(assemblyPath, meta.sha256, `返修变体 ${variantId} 拼接缓存`);
+        } else {
+          await assembleTimeline({ clips: normalised, transitions, output: assemblyPath, resolution: [width, height], fps, quality, bins });
+          await writeJson(metaPath, { sha256: await sha256File(assemblyPath), key: receiptKey });
+          assemblyReused = false;
+        }
+      }
+      const assemblyProbe = await probeMedia(assemblyPath, { bins });
+      if (assemblyProbe.width !== width || assemblyProbe.height !== height || !assemblyProbe.hasAudio) {
+        throw new PostError(`返修变体 ${variantId} 拼接层规格不符`, "verify_failed");
+      }
+      const assemblySha256 = await sha256File(assemblyPath);
+      (assemblyReused ? reused : rebuilt).push({ layer: "assemble", variant: variantId, path: assemblyPath, reused: assemblyReused });
 
-    // 文字层：旁挂字幕 + 软字幕轨
-    const subtitleFiles = (project.layers?.text?.files ?? []);
-    let textDir = project.layers?.text?.sidecarDir ? resolveStored(projectDir, project.layers.text.sidecarDir) : path.join(projectDir, "subtitles");
-    let softsub = null;
-    let softsubReused = true;
-    if (rebuildVariant.text) {
-      const { parseSrt } = await import("../subtitle-bridge/core.mjs");
-      const baseCuesPath = subtitleFiles.find((file) => file.format === "srt" && file.lang === "chi")?.path;
-      const zhText = patch.subtitles?.zhText
-        ?? (patch.subtitles?.zhPath ? await fsp.readFile(path.resolve(patch.subtitles.zhPath), "utf8") : null)
-        ?? (baseCuesPath ? await fsp.readFile(path.join(projectDir, baseCuesPath), "utf8") : null);
-      if (!zhText) throw new PostError("返修文字层缺少字幕内容（既没有 patch.subtitles，也没有原字幕）", "bad_request");
-      const enText = patch.subtitles?.enText
-        ?? (patch.subtitles?.enPath ? await fsp.readFile(path.resolve(patch.subtitles.enPath), "utf8") : null)
-        ?? (() => {
-          const enPath = subtitleFiles.find((file) => file.format === "srt" && file.lang === "eng")?.path;
-          return enPath ? fs.readFileSync(path.join(projectDir, enPath), "utf8") : null;
-        })();
-      textDir = path.join(targetDir, "subtitles");
-      const sidecar = await exportSidecars({
-        input: videoTarget,
-        outputDir: textDir,
-        name: project.projectId,
-        cues: parseSrt(zhText),
-        cuesEn: enText ? parseSrt(enText) : [],
-        platform: project.platform ?? null,
-        brief: { 平台: project.platform ?? "默认" },
-        bins,
-      });
-      softsubReused = false;
-      rebuilt.push({ layer: "text", variant: variantId, path: sidecar.manifestPath, files: sidecar.files.length, checks: sidecar.checks.map((check) => ({ kind: check.kind, ok: check.ok })) });
-    }
-    if (scoped.subtitles && patch.subtitles?.burn === true) {
-      const { renderWithSubtitles, parseSrt } = await import("../subtitle-bridge/core.mjs");
-      const cues = parseSrt(await fsp.readFile(path.join(textDir, `${project.projectId}.zh.srt`), "utf8"));
-      const burned = await renderWithSubtitles({
-        mode: "subtitle", input: videoTarget, output: path.join(variantDir, `${variantId}.burned.mp4`),
-        cues, platform: project.platform ?? null, brief: { 平台: project.platform ?? "默认" }, bins,
-      });
-      rebuilt.push({ layer: "text-burn", variant: variantId, path: burned.output.path, sha256: burned.output.hash });
-    }
-    const shouldSoftMux = rebuildVariant.text || rebuildVariant.audio || rebuildVariant.color || rebuildVariant.assemble
-      || !assemblyTrustedFromStored || (pack.color && !colorTrustedFromStored) || !previousSoftsub;
-    if (shouldSoftMux) {
-      const srtFiles = fs.existsSync(textDir)
-        ? (await fsp.readdir(textDir)).filter((file) => file.endsWith(".srt")).sort()
-        : [];
-      if (srtFiles.length) {
-        softsub = await softMux({
+      // 调色层
+      let gradedInput = assemblyPath;
+      let colorReused = true;
+      const storedColorPath = stored?.color?.path ? resolveStored(projectDir, stored.color.path) : null;
+      const colorTrustedFromStored = pack.color && !rebuildVariant.color && assemblyTrustedFromStored
+        && Boolean(stored?.color?.sha256) && Boolean(storedColorPath) && fs.existsSync(storedColorPath);
+      if (pack.color && !colorTrustedFromStored) {
+        const gradedPath = path.join(workDir, "graded", `${variantId}-re${version}.mp4`);
+        const report = await colorGrade({
+          input: assemblyPath,
+          output: gradedPath,
+          profile: pack.color.profile ?? null,
+          lutPath: pack.color.lut ? resolveLut(pack.color.lut) : null,
+          intensity: optionalNumber(pack.color.intensity, 0.8),
+          quality,
+          bins,
+        });
+        gradedInput = gradedPath;
+        colorReused = false;
+        (rebuilt).push({ layer: "color", variant: variantId, path: gradedPath, sha256: report.sha256 });
+      } else if (colorTrustedFromStored) {
+        await assertStoredArtifact(storedColorPath, stored.color.sha256, `返修变体 ${variantId} 调色层`);
+        gradedInput = storedColorPath;
+        reused.push({ layer: "color", variant: variantId, path: gradedInput, sha256: stored.color.sha256 });
+      }
+      const gradedSha256 = await sha256File(gradedInput);
+
+      // 音频层
+      const videoTarget = path.join(variantDir, `${variantId}.mp4`);
+      let trackId = stored?.bgm?.trackId ?? null;
+      if (rebuildVariant.audio || !assemblyTrustedFromStored || (pack.color && !colorTrustedFromStored)) {
+        const audioOutcome = await mixVariantAudio({ pack, gradedInput, workDir, output: videoTarget, bins, env, reuse: true });
+        trackId = audioOutcome.track?.id ?? null;
+        await writeJson(path.join(variantDir, "audio.json"), audioOutcome.failure
+          ? { track: null, failed: true, code: audioOutcome.failure.code, message: audioOutcome.failure.message, note: "配乐复检未通过：本变体按原声降级交付" }
+          : audioOutcome.report
+            ? {
+              track: audioOutcome.track,
+              policy: pack.bgm?.policy ?? "keep-dialogue",
+              musicLevelDb: pack.bgm?.musicLevelDb ?? null,
+              mixing: audioOutcome.report.mixing ?? null,
+              loudness: audioOutcome.report.loudness,
+              checks: audioOutcome.report.checks,
+              ...(audioOutcome.reused ? { reused: true, cacheKey: audioOutcome.cacheKey } : {}),
+            }
+            : { track: null, policy: "原声（变体刻意不配乐）" });
+        const row = { layer: "audio", variant: variantId, path: videoTarget, sha256: await sha256File(videoTarget) };
+        if (audioOutcome.reused && !audioOutcome.failure) reused.push({ ...row, note: "混音缓存命中（画面与曲目未变，未重跑混音）" });
+        else rebuilt.push(audioOutcome.failure ? { ...row, failure: audioOutcome.failure } : row);
+      } else {
+        await assertStoredArtifact(previousVideo, stored?.artifacts?.video?.sha256, `返修变体 ${variantId} 视频`);
+        await fsp.copyFile(previousVideo, videoTarget);
+        reused.push({ layer: "audio", variant: variantId, path: previousVideo, sha256: stored?.artifacts?.video?.sha256 ?? null });
+      }
+
+      // 文字层：旁挂字幕 + 软字幕轨
+      const subtitleFiles = (project.layers?.text?.files ?? []);
+      let textDir = project.layers?.text?.sidecarDir ? resolveStored(projectDir, project.layers.text.sidecarDir) : path.join(projectDir, "subtitles");
+      let softsub = null;
+      let softsubReused = true;
+      if (rebuildVariant.text) {
+        const { parseSrt } = await import("../subtitle-bridge/core.mjs");
+        const baseCuesPath = subtitleFiles.find((file) => file.format === "srt" && file.lang === "chi")?.path;
+        const zhText = patch.subtitles?.zhText
+          ?? (patch.subtitles?.zhPath ? await fsp.readFile(path.resolve(patch.subtitles.zhPath), "utf8") : null)
+          ?? (baseCuesPath ? await fsp.readFile(path.join(projectDir, baseCuesPath), "utf8") : null);
+        if (!zhText) throw new PostError("返修文字层缺少字幕内容（既没有 patch.subtitles，也没有原字幕）", "bad_request");
+        const enText = patch.subtitles?.enText
+          ?? (patch.subtitles?.enPath ? await fsp.readFile(path.resolve(patch.subtitles.enPath), "utf8") : null)
+          ?? (() => {
+            const enPath = subtitleFiles.find((file) => file.format === "srt" && file.lang === "eng")?.path;
+            return enPath ? fs.readFileSync(path.join(projectDir, enPath), "utf8") : null;
+          })();
+        textDir = path.join(targetDir, "subtitles");
+        const sidecar = await exportSidecars({
           input: videoTarget,
-          output: path.join(variantDir, `${variantId}.softsub.mp4`),
-          subtitles: srtFiles.map((file, index) => ({
-            path: path.join(textDir, file),
-            lang: file.includes(".en.") ? "eng" : "chi",
-            title: file.includes(".en.") ? "English" : "中文",
-            default: index === 0,
-          })),
+          outputDir: textDir,
+          name: project.projectId,
+          cues: parseSrt(zhText),
+          cuesEn: enText ? parseSrt(enText) : [],
+          platform: project.platform ?? null,
+          brief: { 平台: project.platform ?? "默认" },
           bins,
         });
         softsubReused = false;
-        rebuilt.push({ layer: "text", variant: variantId, path: softsub.output, tracks: softsub.tracks.length, videoUnchanged: true });
+        rebuilt.push({ layer: "text", variant: variantId, path: sidecar.manifestPath, files: sidecar.files.length, checks: sidecar.checks.map((check) => ({ kind: check.kind, ok: check.ok })) });
       }
-    } else if (previousSoftsub) {
-      await assertStoredArtifact(previousSoftsub, stored?.artifacts?.softsub?.sha256, `返修变体 ${variantId} 软字幕视频`);
-      await fsp.copyFile(previousSoftsub, path.join(variantDir, `${variantId}.softsub.mp4`));
-      softsub = { output: path.join(variantDir, `${variantId}.softsub.mp4`), sha256: await sha256File(previousSoftsub) };
-      reused.push({ layer: "text", variant: variantId, path: previousSoftsub, sha256: stored?.artifacts?.softsub?.sha256 ?? null });
-    }
+      if (scoped.subtitles && patch.subtitles?.burn === true) {
+        const { renderWithSubtitles, parseSrt } = await import("../subtitle-bridge/core.mjs");
+        const cues = parseSrt(await fsp.readFile(path.join(textDir, `${project.projectId}.zh.srt`), "utf8"));
+        const burned = await renderWithSubtitles({
+          mode: "subtitle", input: videoTarget, output: path.join(variantDir, `${variantId}.burned.mp4`),
+          cues, platform: project.platform ?? null, brief: { 平台: project.platform ?? "默认" }, bins,
+        });
+        rebuilt.push({ layer: "text-burn", variant: variantId, path: burned.output.path, sha256: burned.output.hash });
+      }
+      const shouldSoftMux = rebuildVariant.text || rebuildVariant.audio || rebuildVariant.color || rebuildVariant.assemble
+        || !assemblyTrustedFromStored || (pack.color && !colorTrustedFromStored) || !previousSoftsub;
+      if (shouldSoftMux) {
+        const srtFiles = fs.existsSync(textDir)
+          ? (await fsp.readdir(textDir)).filter((file) => file.endsWith(".srt")).sort()
+          : [];
+        if (srtFiles.length) {
+          softsub = await softMux({
+            input: videoTarget,
+            output: path.join(variantDir, `${variantId}.softsub.mp4`),
+            subtitles: srtFiles.map((file, index) => ({
+              path: path.join(textDir, file),
+              lang: file.includes(".en.") ? "eng" : "chi",
+              title: file.includes(".en.") ? "English" : "中文",
+              default: index === 0,
+            })),
+            bins,
+          });
+          softsubReused = false;
+          rebuilt.push({ layer: "text", variant: variantId, path: softsub.output, tracks: softsub.tracks.length, videoUnchanged: true });
+        }
+      } else if (previousSoftsub) {
+        await assertStoredArtifact(previousSoftsub, stored?.artifacts?.softsub?.sha256, `返修变体 ${variantId} 软字幕视频`);
+        await fsp.copyFile(previousSoftsub, path.join(variantDir, `${variantId}.softsub.mp4`));
+        softsub = { output: path.join(variantDir, `${variantId}.softsub.mp4`), sha256: await sha256File(previousSoftsub) };
+        reused.push({ layer: "text", variant: variantId, path: previousSoftsub, sha256: stored?.artifacts?.softsub?.sha256 ?? null });
+      }
 
-    // 封面 + 文案
-    const coverTarget = path.join(variantDir, "cover.png");
-    if (rebuildVariant.cover || !assemblyTrustedFromStored || (pack.color && !colorTrustedFromStored) || !previousCover) {
-      const cover = await buildCover({
-        input: gradedInput, output: coverTarget, project, variant: pack, resolution: [width, height],
-        platform: project.platform ?? null, bins, workDir,
+      // 封面 + 文案
+      const coverTarget = path.join(variantDir, "cover.png");
+      if (rebuildVariant.cover || !assemblyTrustedFromStored || (pack.color && !colorTrustedFromStored) || !previousCover) {
+        const cover = await buildCover({
+          input: gradedInput, output: coverTarget, project, variant: pack, resolution: [width, height],
+          platform: project.platform ?? null, bins, workDir,
+        });
+        rebuilt.push({ layer: "cover", variant: variantId, path: cover.output, sha256: cover.sha256 });
+      } else {
+        await assertStoredArtifact(previousCover, stored?.artifacts?.cover?.sha256, `返修变体 ${variantId} 封面`);
+        await fsp.copyFile(previousCover, coverTarget);
+        reused.push({ layer: "cover", variant: variantId, path: previousCover, sha256: stored?.artifacts?.cover?.sha256 ?? null });
+      }
+      const copy = buildCopyPack({ project: { ...project, copy: { ...(project.layers.copy ?? {}), ...(scoped.copy ? patch.copy : {}) } }, variant: pack });
+      await fsp.writeFile(path.join(variantDir, "copy.md"), copy.markdown, "utf8");
+      await writeJson(path.join(variantDir, "copy.json"), { ...copy, checks: copy.checks });
+
+      const videoProbe = await probeMedia(videoTarget, { bins });
+      if (videoProbe.width !== width || videoProbe.height !== height) {
+        throw new PostError(`返修变体 ${variantId} 规格不符：实测 ${videoProbe.width}×${videoProbe.height}，目标 ${width}×${height}`, "verify_failed");
+      }
+      variantsOut.push({
+        id: variantId,
+        name: pack.name,
+        dir: variantDir,
+        layers: {
+          assembly: { path: assemblyPath, sha256: assemblySha256, reused: assemblyReused },
+          color: pack.color ? { path: gradedInput, sha256: gradedSha256, reused: colorReused } : null,
+        },
+        video: { path: videoTarget, sha256: await sha256File(videoTarget), duration: videoProbe.duration, resolution: [videoProbe.width, videoProbe.height] },
+        softsub: softsub ? { path: softsub.output, sha256: await sha256File(softsub.output), reused: softsubReused } : null,
+        cover: { path: coverTarget, sha256: await sha256File(coverTarget) },
+        copy: { path: path.join(variantDir, "copy.md"), title: copy.title, hashtags: copy.hashtags, checks: copy.checks },
+        bgm: trackId ? { trackId, policy: pack.bgm?.policy ?? "keep-dialogue" } : null,
+        style: { color: pack.color ?? null, bgm: pack.bgm ?? null, transitions: pack.transitions ?? null, cover: pack.cover ?? null, copyTone: pack.copy?.tone ?? null },
       });
-      rebuilt.push({ layer: "cover", variant: variantId, path: cover.output, sha256: cover.sha256 });
-    } else {
-      await assertStoredArtifact(previousCover, stored?.artifacts?.cover?.sha256, `返修变体 ${variantId} 封面`);
-      await fsp.copyFile(previousCover, coverTarget);
-      reused.push({ layer: "cover", variant: variantId, path: previousCover, sha256: stored?.artifacts?.cover?.sha256 ?? null });
     }
-    const copy = buildCopyPack({ project: { ...project, copy: { ...(project.layers.copy ?? {}), ...(scoped.copy ? patch.copy : {}) } }, variant: pack });
-    await fsp.writeFile(path.join(variantDir, "copy.md"), copy.markdown, "utf8");
-    await writeJson(path.join(variantDir, "copy.json"), { ...copy, checks: copy.checks });
 
-    const videoProbe = await probeMedia(videoTarget, { bins });
-    if (videoProbe.width !== width || videoProbe.height !== height) {
-      throw new PostError(`返修变体 ${variantId} 规格不符：实测 ${videoProbe.width}×${videoProbe.height}，目标 ${width}×${height}`, "verify_failed");
-    }
-    variantsOut.push({
-      id: variantId,
-      name: pack.name,
-      dir: variantDir,
+    const revision = {
+      schemaVersion: "workloom.delivery-revision/v1",
+      at: new Date().toISOString(),
+      version,
+      patch,
+      impact,
+      rebuilt,
+      reused,
+      quality,
+      resolution: [width, height],
+      checks: [{ kind: "resolution_exact", ok: variantsOut.every((variant) => variant.video.resolution[0] === width && variant.video.resolution[1] === height), detail: { requested: [width, height], variants: variantsOut.map((variant) => ({ id: variant.id, resolution: variant.video.resolution })) } }],
+      outDir: targetDir,
+      note: impact.localOnly ? "本地重合成（未重新生成镜头）" : "含镜头重生成后重新合成",
+    };
+    const nextProject = {
+      ...project,
+      version,
+      deliveryRoot: path.relative(targetDir, base) || ".",
+      updatedAt: revision.at,
       layers: {
-        assembly: { path: assemblyPath, sha256: assemblySha256, reused: assemblyReused },
-        color: pack.color ? { path: gradedInput, sha256: gradedSha256, reused: colorReused } : null,
+        ...project.layers,
+        /**
+         * 路径一律相对**新工程文件所在目录**重写：返修可以连续做多轮（v2 → v3 → v4），
+         * 每轮的工程文件都必须能独立解析到自己用到的镜头/拼接/调色产物，
+         * 否则第二轮返修会指着上一轮目录里的相对路径找不到文件（真机第一版就踩了这个坑）。
+         */
+        shots: (project.layers?.shots ?? []).map((shot) => {
+          const fresh = normalised.find((clip) => clip.shotId === shot.shotId);
+          if (!fresh) throw new PostError(`返修缺少镜头产物：${shot.shotId}`, "not_found");
+          return {
+            ...shot,
+            source: path.relative(targetDir, path.resolve(fresh.source)),
+            normalised: path.relative(targetDir, fresh.path),
+            sha256: fresh.sha256,
+            sourceSha256: fresh.sourceHash,
+            duration: fresh.duration,
+            kind: fresh.sourceKind ?? shot.kind ?? "live-action",
+            enhancement: fresh.enhancement ? {
+              ...fresh.enhancement,
+              output: fresh.enhancement.output ? path.relative(targetDir, fresh.enhancement.output) : null,
+              provenancePath: fresh.enhancement.provenancePath ? path.relative(targetDir, fresh.enhancement.provenancePath) : null,
+            } : null,
+          };
+        }),
+        variants: (project.layers?.variants ?? []).map((stored) => {
+          const fresh = variantsOut.find((variant) => variant.id === stored.id);
+          if (!fresh) return stored;
+          return {
+            ...stored,
+            bgm: fresh.bgm,
+            style: fresh.style,
+            assembly: fresh.layers?.assembly
+              ? { ...(stored.assembly ?? {}), path: path.relative(targetDir, fresh.layers.assembly.path), sha256: fresh.layers.assembly.sha256, reused: fresh.layers.assembly.reused }
+              : stored.assembly ?? null,
+            color: fresh.layers?.color
+              ? {
+                ...(stored.color ?? {}),
+                path: path.relative(targetDir, fresh.layers.color.path),
+                sha256: fresh.layers.color.sha256,
+                reused: fresh.layers.color.reused,
+              }
+              : null,
+            artifacts: {
+              ...stored.artifacts,
+              video: { path: path.relative(targetDir, fresh.video.path), sha256: fresh.video.sha256 },
+              softsub: fresh.softsub ? { path: path.relative(targetDir, fresh.softsub.path), sha256: fresh.softsub.sha256 } : null,
+              cover: { path: path.relative(targetDir, fresh.cover.path), sha256: fresh.cover.sha256 },
+              copy: { path: path.relative(targetDir, fresh.copy.path) },
+            },
+          };
+        }),
       },
-      video: { path: videoTarget, sha256: await sha256File(videoTarget), duration: videoProbe.duration, resolution: [videoProbe.width, videoProbe.height] },
-      softsub: softsub ? { path: softsub.output, sha256: await sha256File(softsub.output), reused: softsubReused } : null,
-      cover: { path: coverTarget, sha256: await sha256File(coverTarget) },
-      copy: { path: path.join(variantDir, "copy.md"), title: copy.title, hashtags: copy.hashtags, checks: copy.checks },
-      bgm: trackId ? { trackId, policy: pack.bgm?.policy ?? "keep-dialogue" } : null,
-      style: { color: pack.color ?? null, bgm: pack.bgm ?? null, transitions: pack.transitions ?? null, cover: pack.cover ?? null, copyTone: pack.copy?.tone ?? null },
-    });
-  }
-
-  const revision = {
-    schemaVersion: "workloom.delivery-revision/v1",
-    at: new Date().toISOString(),
-    version,
-    patch,
-    impact,
-    rebuilt,
-    reused,
-    quality,
-    resolution: [width, height],
-    checks: [{ kind: "resolution_exact", ok: variantsOut.every((variant) => variant.video.resolution[0] === width && variant.video.resolution[1] === height), detail: { requested: [width, height], variants: variantsOut.map((variant) => ({ id: variant.id, resolution: variant.video.resolution })) } }],
-    outDir: targetDir,
-    note: impact.localOnly ? "本地重合成（未重新生成镜头）" : "含镜头重生成后重新合成",
-  };
-  await writeJson(path.join(targetDir, "revision.json"), revision);
-  const nextProject = {
-    ...project,
-    version,
-    deliveryRoot: path.relative(targetDir, base) || ".",
-    updatedAt: revision.at,
-    layers: {
-      ...project.layers,
-      /**
-       * 路径一律相对**新工程文件所在目录**重写：返修可以连续做多轮（v2 → v3 → v4），
-       * 每轮的工程文件都必须能独立解析到自己用到的镜头/拼接/调色产物，
-       * 否则第二轮返修会指着上一轮目录里的相对路径找不到文件（真机第一版就踩了这个坑）。
-       */
-      shots: (project.layers?.shots ?? []).map((shot) => {
-        const fresh = normalised.find((clip) => clip.shotId === shot.shotId);
-        if (!fresh) throw new PostError(`返修缺少镜头产物：${shot.shotId}`, "not_found");
-        return {
-          ...shot,
-          source: path.relative(targetDir, path.resolve(fresh.source)),
-          normalised: path.relative(targetDir, fresh.path),
-          sha256: fresh.sha256,
-          sourceSha256: fresh.sourceHash,
-          duration: fresh.duration,
-          kind: fresh.sourceKind ?? shot.kind ?? "live-action",
-          enhancement: fresh.enhancement ? {
-            ...fresh.enhancement,
-            output: fresh.enhancement.output ? path.relative(targetDir, fresh.enhancement.output) : null,
-            provenancePath: fresh.enhancement.provenancePath ? path.relative(targetDir, fresh.enhancement.provenancePath) : null,
-          } : null,
-        };
-      }),
-      variants: (project.layers?.variants ?? []).map((stored) => {
-        const fresh = variantsOut.find((variant) => variant.id === stored.id);
-        if (!fresh) return stored;
-        return {
-          ...stored,
-          bgm: fresh.bgm,
-          style: fresh.style,
-          assembly: fresh.layers?.assembly
-            ? { ...(stored.assembly ?? {}), path: path.relative(targetDir, fresh.layers.assembly.path), sha256: fresh.layers.assembly.sha256, reused: fresh.layers.assembly.reused }
-            : stored.assembly ?? null,
-          color: fresh.layers?.color
-            ? {
-              ...(stored.color ?? {}),
-              path: path.relative(targetDir, fresh.layers.color.path),
-              sha256: fresh.layers.color.sha256,
-              reused: fresh.layers.color.reused,
-            }
-            : null,
-          artifacts: {
-            ...stored.artifacts,
-            video: { path: path.relative(targetDir, fresh.video.path), sha256: fresh.video.sha256 },
-            softsub: fresh.softsub ? { path: path.relative(targetDir, fresh.softsub.path), sha256: fresh.softsub.sha256 } : null,
-            cover: { path: path.relative(targetDir, fresh.cover.path), sha256: fresh.cover.sha256 },
-            copy: { path: path.relative(targetDir, fresh.copy.path) },
-          },
-        };
-      }),
-    },
-    history: [...(project.history ?? []), { at: revision.at, kind: "revision", version, patch, localOnly: impact.localOnly }],
-  };
-  const projectPathOut = await writeJson(path.join(targetDir, "film-project.json"), nextProject);
-  completed = true;
-  return {
-    executed: true,
-    version,
-    targetDir,
-    projectPath: projectPathOut,
-    impact,
-    revisionPath: path.join(targetDir, "revision.json"),
-    variants: variantsOut,
-    rebuilt,
-    reused,
-    summary: {
-      rebuiltLayers: [...new Set(rebuilt.map((row) => row.layer))],
-      reusedLayers: [...new Set(reused.map((row) => row.layer))],
-      // 同一次返修里"哪些层被重算、哪些层被复用"要能按变体看清楚：
-      // 比如"只改了 clean-tech 的配乐"，就不该让 warm-story / bold-promo 显得也被重算。
-      rebuiltByLayer: [...new Set(rebuilt.map((row) => row.layer))].map((layer) => ({
-        layer,
-        variants: [...new Set(rebuilt.filter((row) => row.layer === layer).map((row) => row.variant).filter(Boolean))],
-        count: rebuilt.filter((row) => row.layer === layer).length,
-      })),
-      reusedByLayer: [...new Set(reused.map((row) => row.layer))].map((layer) => ({
-        layer,
-        variants: [...new Set(reused.filter((row) => row.layer === layer).map((row) => row.variant).filter(Boolean))],
-        count: reused.filter((row) => row.layer === layer).length,
-      })),
-      tokenCostDelta: impact.costHint.tokenCostDelta,
-      note: impact.costHint.note,
-    },
-  };
-  } finally {
-    if (!completed) await fsp.rm(targetDir, { recursive: true, force: true });
-  }
+      history: [...(project.history ?? []), { at: revision.at, kind: "revision", version, patch, localOnly: impact.localOnly }],
+    };
+    const projectPathOut = await publish(nextProject, revision);
+    return {
+      executed: true,
+      version,
+      targetDir,
+      projectPath: projectPathOut,
+      impact,
+      revisionPath: path.join(targetDir, "revision.json"),
+      variants: variantsOut,
+      rebuilt,
+      reused,
+      summary: {
+        rebuiltLayers: [...new Set(rebuilt.map((row) => row.layer))],
+        reusedLayers: [...new Set(reused.map((row) => row.layer))],
+        // 同一次返修里"哪些层被重算、哪些层被复用"要能按变体看清楚：
+        // 比如"只改了 clean-tech 的配乐"，就不该让 warm-story / bold-promo 显得也被重算。
+        rebuiltByLayer: [...new Set(rebuilt.map((row) => row.layer))].map((layer) => ({
+          layer,
+          variants: [...new Set(rebuilt.filter((row) => row.layer === layer).map((row) => row.variant).filter(Boolean))],
+          count: rebuilt.filter((row) => row.layer === layer).length,
+        })),
+        reusedByLayer: [...new Set(reused.map((row) => row.layer))].map((layer) => ({
+          layer,
+          variants: [...new Set(reused.filter((row) => row.layer === layer).map((row) => row.variant).filter(Boolean))],
+          count: reused.filter((row) => row.layer === layer).length,
+        })),
+        tokenCostDelta: impact.costHint.tokenCostDelta,
+        note: impact.costHint.note,
+      },
+    };
+  });
 }
 
 /* ============================ 反馈分诊（把话变成返修任务） ============================ */
@@ -2775,6 +2954,8 @@ export async function callTool(name, params = {}, { bins = resolveBinaries(), en
       const outcome = await reedit({
         projectPath,
         deliveryDir: params.delivery_dir ? assertPathAllowed(params.delivery_dir, roots, "delivery_dir") : null,
+        expectedVersion: params.expected_version ?? null,
+        expectedProjectSha256: params.expected_project_sha256 ?? null,
         patch: params.patch ?? {},
         outDir: params.out_dir ? assertPathAllowed(params.out_dir, roots, "out_dir") : null,
         shotPaths,
