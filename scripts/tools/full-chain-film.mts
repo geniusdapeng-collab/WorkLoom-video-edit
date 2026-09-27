@@ -28,7 +28,7 @@
  * 阶段汇总：`<work-dir>/logs/stages.json`
  */
 import { execFileSync, spawnSync } from "node:child_process";
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import {
   appendFileSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, utimesSync, writeFileSync
 } from "node:fs";
@@ -36,6 +36,7 @@ import { homedir } from "node:os";
 import { tmpdir } from "node:os";
 import { basename, dirname, isAbsolute, join, resolve } from "node:path";
 import YAML from "yaml";
+import { assessVoiceArtifact, fingerprintFile, fingerprintText, promoteDubCandidate, type VoiceArtifactRecord } from "./film-voice-artifact.js";
 import {
   applyMicromotion, appendGateEvent, assessVariantDistinctness, auditContinuity, buildDeliveryManifest, buildGateEvent,
   assessMotionRichness, buildCoverDesignPrompt, buildMaterialMotionPrompt, buildPlatePrompt, buildRevisionPlan, buildRevisionReport, buildVariantPlan,
@@ -3381,14 +3382,21 @@ function checkSpeech(file: string, expectText: string): SpeechReport {
 function voicedFile(shotId: string): string {
   return join(CLIP_DIR, `${shotId}.voiced.mp4`);
 }
-/**
- * 合成用片段：配音版比原片段新时优先（原始片段保持只读，符合配音围栏"原片只读 + 新文件"口径）。
- */
+/** 最近一次本项目逐镜人声裁决；旧记录缺内容指纹时不会被当作可复用回执。 */
+function latestVoiceRecord(shotId: string): StageRecord | null {
+  return readStageHistory().filter((entry) => entry.stage === "voice" && entry.shotId === shotId
+    && entry.evidence?.projectId === PROJECT).at(-1) ?? null;
+}
+
+/** 合成只采用与当前原片、台词和音色匹配且曾通过核验的配音版。 */
 function clipFor(shot: ShotCard): string {
   const raw = join(CLIP_DIR, `${shot.shotId}.mp4`);
   const voiced = voicedFile(shot.shotId);
-  if (existsSync(voiced) && (!existsSync(raw) || statSync(voiced).mtimeMs >= statSync(raw).mtimeMs)) return voiced;
-  return raw;
+  const status = assessVoiceArtifact({
+    record: latestVoiceRecord(shot.shotId), projectId: PROJECT, shotId: shot.shotId,
+    raw, voiced, text: dialogueText(shot), profile: NARRATION_PROFILE
+  });
+  return status.ok && status.voiced ? voiced : raw;
 }
 
 /** 逐镜人声覆盖情况（终审门按这份清单判"每句台词都有人声"） */
@@ -3418,11 +3426,12 @@ if (STAGES.has("voice")) {
       if (!text) {
         record({
           stage: "voice", shotId: shot.shotId, invoked: false, ok: true, cached: false, degraded: false, attempt: 1, ms: 0,
-          artifact: raw, evidence: { dialogue: false }, verdict: null, note: "本镜无台词：人声门不适用（空镜/纯音乐段）"
+          artifact: raw, evidence: { projectId: PROJECT, dialogue: false }, verdict: null, note: "本镜无台词：人声门不适用（空镜/纯音乐段）"
         });
         continue;
       }
       const shotStarted = Date.now();
+      const provenance = { projectId: PROJECT, rawSha256: fingerprintFile(raw), textSha256: fingerprintText(text) };
       let before = checkSpeech(raw, text);
       /**
        * 工具故障 → 先重试一次；仍不可用则**保留原声、不补旁白**（避免双声叠播）。
@@ -3441,6 +3450,7 @@ if (STAGES.has("voice")) {
             stage: "voice", shotId: shot.shotId, invoked: true, ok: true, cached: false, degraded: true, attempt: 1,
             ms: Date.now() - shotStarted, artifact: raw,
             evidence: {
+              ...provenance,
               source: "clip-audio-unverified",
               toolFailure: true,
               before: { matchRatio: before.matchRatio, activeRatio: before.activeRatio, transcript: before.transcript, detail: before.detail }
@@ -3456,33 +3466,21 @@ if (STAGES.has("voice")) {
         record({
           stage: "voice", shotId: shot.shotId, invoked: true, ok: true, cached: true, degraded: false, attempt: 1,
           ms: Date.now() - shotStarted, artifact: raw,
-          evidence: { source: "clip-audio", matchRatio: before.matchRatio, activeRatio: before.activeRatio, transcript: before.transcript },
+          evidence: { ...provenance, source: "clip-audio", matchRatio: before.matchRatio, activeRatio: before.activeRatio, transcript: before.transcript },
           verdict: null, note: `人声核查通过（${before.detail}）`
         });
         continue;
       }
-      /**
-       * 复用上轮配音版（分段重跑友好）：`<shot>.voiced.mp4` 已过核查就不再重复合成 TTS。
-       * 判据仍然是**产物核查**（不是"文件在就算数"）——配音版没通过就照常重做。
-       * 但**换音色必须重做**（2026-09-25 产品所有者反馈"中间镜与首位音色不一样、很割裂"）：
-       * 旁白音色变了却复用旧文件，等于把旧音色又发一遍，所以这里比对上次记录的 profile。
-       */
+      /** 复用必须同时匹配原片、台词、音色、配音产物的指纹，并再次核查可听人声。 */
       const existingVoiced = voicedFile(shot.shotId);
-      /**
-       * 音色比对要取**最近一次真的做过 TTS 合成**的那条记录（它才有 `profile`）。
-       * 早先取"最后一条成功记录"：而复用路径本身不写 profile → 读到 null → 判定"没换音色" → 复用了旧音色
-       * （真机抓到：`zh-xiaozhi` 的旧旁白被当成新音色的产物继续用，产品所有者听到的仍是两把声音）。
-       */
-      const lastVoiceProfile = [...readStageHistory(), ...records]
-        .filter((r) => r.stage === "voice" && r.shotId === shot.shotId)
-        .map((r) => (r.evidence as { profile?: string } | undefined)?.profile)
-        .filter((value): value is string => Boolean(value))
-        .at(-1) ?? null;
-      const profileChanged = Boolean(lastVoiceProfile && lastVoiceProfile !== NARRATION_PROFILE);
-      if (profileChanged) {
-        log(`  ↻ ${shot.shotId} 旁白音色变更（${lastVoiceProfile} → ${NARRATION_PROFILE}）→ 重新配音`);
+      const reusable = assessVoiceArtifact({
+        record: latestVoiceRecord(shot.shotId), projectId: PROJECT, shotId: shot.shotId,
+        raw, voiced: existingVoiced, text, profile: NARRATION_PROFILE
+      });
+      if (existsSync(existingVoiced) && !reusable.ok) {
+        log(`  ↻ ${shot.shotId} 旧配音版不可复用（${reusable.reason}）→ 重新配音`);
       }
-      if (existsSync(existingVoiced) && existingVoiced !== raw && !profileChanged) {
+      if (reusable.ok && reusable.voiced) {
         const reused = checkSpeech(existingVoiced, text);
         if (reused.ok) {
           narrationCoverage.push({ shotId: shot.shotId, speaker, text, ok: true, source: "voiced-reuse", detail: reused.detail });
@@ -3490,10 +3488,9 @@ if (STAGES.has("voice")) {
             stage: "voice", shotId: shot.shotId, invoked: true, ok: true, cached: true, degraded: false, attempt: 1,
             ms: Date.now() - shotStarted, artifact: existingVoiced,
             evidence: {
+              ...provenance, voicedSha256: reusable.voicedSha256,
               source: "voiced-reuse", matchRatio: reused.matchRatio, activeRatio: reused.activeRatio,
-              transcript: reused.transcript,
-              /** 复用也要带上"这份产物当初是用哪把音色合成的"，否则下一轮无法判断音色有没有变 */
-              profile: lastVoiceProfile ?? NARRATION_PROFILE, profileInherited: true
+              transcript: reused.transcript, profile: NARRATION_PROFILE, profileInherited: true
             },
             verdict: null, note: `复用上轮配音版并通过核查（${reused.detail}）`
           });
@@ -3504,7 +3501,7 @@ if (STAGES.has("voice")) {
         narrationCoverage.push({ shotId: shot.shotId, speaker, text, ok: false, source: "dry-run", detail: before.detail });
         record({
           stage: "voice", shotId: shot.shotId, invoked: false, ok: false, cached: false, degraded: true, attempt: 1, ms: 0,
-          artifact: null, evidence: { dryRun: true, before }, verdict: null, note: "dry-run：未补旁白"
+          artifact: null, evidence: { ...provenance, dryRun: true, before }, verdict: null, note: "dry-run：未补旁白"
         });
         continue;
       }
@@ -3518,37 +3515,59 @@ if (STAGES.has("voice")) {
       const dubPolicy = termBroken ? "replace-bed" : "keep-dialogue";
       log(`  ⚠ ${shot.shotId} 人声核查未过（${before.detail.slice(0, 90)}）→ ${termBroken ? `术语读错（${(before.termMissing ?? []).join("/")}）→ 用克隆音色替换该镜人声` : "补旁白"}（音色 ${NARRATION_PROFILE}）`);
       const out = voicedFile(shot.shotId);
+      const candidate = `${out}.pending-${randomUUID()}.mp4`;
       const dub = runCli(VOICE_CLI, [
-        "dub", "--in", raw, "--out", out, "--profile", NARRATION_PROFILE,
+        "dub", "--in", raw, "--out", candidate, "--profile", NARRATION_PROFILE,
         "--text", text, "--policy", dubPolicy, "--lufs", "-16"
       ]);
-      const produced = existsSync(out);
-      const after = produced ? checkSpeech(out, text) : before;
+      let produced = false;
+      let candidateError: string | null = null;
+      try {
+        produced = dub.ok && existsSync(candidate) && statSync(candidate).size > 0;
+      } catch (error) {
+        candidateError = error instanceof Error ? error.message : String(error);
+      }
+      const after = produced ? checkSpeech(candidate, text) : before;
       /**
        * 重复播报防线（真机同因）：补旁白是"叠"在原声之上，若原声本已说对，
        * 复核转写就会出现两遍 → 判本次补旁白失败并**放弃配音产物**（回退原片，绝不交付"说了两遍"的音频）。
        */
       const doubled = produced && isDoubledNarration(after.transcript, text);
-      const ok = produced && after.ok && !doubled;
-      if (doubled && existsSync(out)) {
-        rmSync(out, { force: true });
-        log(`  ⚠ ${shot.shotId} 补旁白后出现重复播报（同一句两次）→ 放弃配音产物，回退原片`);
+      let rawStable = false;
+      try {
+        rawStable = fingerprintFile(raw) === provenance.rawSha256;
+      } catch (error) {
+        candidateError = error instanceof Error ? error.message : String(error);
       }
+      const promotion = promoteDubCandidate({
+        candidate, final: out, commandOk: dub.ok, verifiedOk: produced && after.ok && !doubled && rawStable
+      });
+      let voicedSha256: string | null = null;
+      if (promotion.ok) {
+        try {
+          voicedSha256 = fingerprintFile(out);
+        } catch (error) {
+          candidateError = error instanceof Error ? error.message : String(error);
+        }
+      }
+      const ok = promotion.ok && voicedSha256 !== null;
+      if (doubled) log(`  ⚠ ${shot.shotId} 补旁白后出现重复播报（同一句两次）→ 放弃本次候选产物，回退原片`);
       /** 合成文本指纹：TTS 的输入就是台词原文 → 内容一致性由构造保证（ASR 只作可听性核查） */
-      const ttsTextSha256 = createHash("sha256").update(text).digest("hex").slice(0, 16);
+      const ttsTextSha256 = provenance.textSha256.slice(0, 16);
       narrationCoverage.push({
         shotId: shot.shotId, speaker, text, ok,
         source: ok ? (termBroken ? "tts-term-replaced" : "tts-narration") : (doubled ? "tts-doubled-fallback" : "tts-failed"),
         detail: ok
           ? after.detail
           : (doubled
-            ? `补旁白出现重复播报（同一句两次）→ 已放弃配音产物并回退原片：${after.detail}`
-            : `${termBroken ? "术语替换" : "补旁白"}${produced ? "后仍未通过" : "未产出"}：${after.detail}`)
+            ? `补旁白出现重复播报（同一句两次）→ 已放弃候选产物并回退原片：${after.detail}`
+            : `${termBroken ? "术语替换" : "补旁白"}${produced ? "后仍未通过" : "未产出"}：${after.detail}；${promotion.reason}`)
       });
       record({
         stage: "voice", shotId: shot.shotId, invoked: true, ok, cached: false, degraded: !ok, attempt: 1,
-        ms: Date.now() - shotStarted, artifact: produced && !doubled ? out : null,
+        ms: Date.now() - shotStarted, artifact: ok ? out : null,
         evidence: {
+          ...provenance, voicedSha256, rawStable, promotion: promotion.reason, candidateError,
           source: termBroken ? "tts-term-replaced" : "tts-narration", profile: NARRATION_PROFILE, policy: dubPolicy, doubled,
           ttsTextSha256, ttsText: text,
           before: { matchRatio: before.matchRatio, activeRatio: before.activeRatio, transcript: before.transcript, termMissing: before.termMissing },
@@ -3559,8 +3578,8 @@ if (STAGES.has("voice")) {
         note: ok
           ? `已补旁白并通过复核（${after.detail}）`
           : (doubled
-            ? "重复播报防线命中：同一句被补旁白叠成两遍，已删除配音产物并回退原片（不交付重复音频）"
-            : `补旁白未通过复核：${after.detail}`)
+            ? "重复播报防线命中：同一句被补旁白叠成两遍，已丢弃候选产物并回退原片（不交付重复音频）"
+            : `补旁白未通过复核：${after.detail}；${promotion.reason}`)
       });
       if (!ok) log(`  ⛔ ${shot.shotId} 补旁白后仍未通过人声核查：${after.detail}`);
     }
@@ -3570,7 +3589,7 @@ if (STAGES.has("voice")) {
     record({
       stage: "voice-summary", shotId: null, invoked: true, ok: covered === total && total > 0, cached: false,
       degraded: covered !== total, attempt: 1, ms: Date.now() - started, artifact: null,
-      evidence: { covered, total, profile: NARRATION_PROFILE, perShot: narrationCoverage },
+      evidence: { projectId: PROJECT, covered, total, profile: NARRATION_PROFILE, perShot: narrationCoverage },
       verdict: null,
       note: covered === total ? "每句台词都有人声" : `有 ${total - covered} 镜缺人声（终审门会拦下）`
     });
@@ -5540,28 +5559,37 @@ if (!subtitleSidecar && SUBTITLE_MODE !== "burn") {
    *   ② **素材镜必须过 G-MAT1**（生成溯源 + 非静态直出；素材只作生成输入）。
    * 两条都按"产物 + 历史裁决"判定，支持分段重跑（只跑 master 时也能查到门记录）。
    */
-  const voiceHistory = history.filter((r) => r.stage === "voice-summary");
-  const narrationFromHistory = (voiceHistory.at(-1)?.evidence as { perShot?: typeof narrationCoverage } | undefined)?.perShot ?? [];
+  const dialogueShots = shots.filter((s) => dialogueText(s).length > 0);
   /**
-   * 覆盖表口径（2026-09-25 南昌片真机修正）：
-   * 早先"只跑某几镜的配音"（`--stages voice --only NC-15`）会把 voice-summary 覆盖成**只含那几镜**的清单，
-   * 终审据此误判 NC-01/NC-16"有台词但人声未通过"。
-   * 现在：以**逐镜 voice 记录**为准（每镜取最近一次裁决），summary 只作兜底——分段重跑不再破坏覆盖表。
+   * 终审按本项目的逐镜最新回执复核当前文件指纹。旧 summary、其它项目同名镜头、
+   * 或原片/台词/音色已变化的历史绿灯，都不能证明这次合成的音轨有人声。
    */
-  const coverageByShot = new Map<string, (typeof narrationCoverage)[number]>();
-  for (const entry of narrationFromHistory) coverageByShot.set(entry.shotId, entry);
-  for (const record of [...history, ...records]) {
-    if (record.stage !== "voice" || !record.shotId) continue;
-    const evidence = (record.evidence ?? {}) as { source?: string; matchRatio?: number | null; activeRatio?: number | null };
-    if (evidence.source === "missing-clip" || (record.verdict as { approved?: boolean } | null)?.approved === false) continue;
-    coverageByShot.set(record.shotId, {
-      shotId: record.shotId, speaker: "-", text: "-", ok: record.ok,
-      source: evidence.source ?? "unknown",
-      detail: `活动度 ${evidence.activeRatio ?? "?"} · 匹配 ${evidence.matchRatio ?? "?"}`
+  const latestVoiceByShot = new Map<string, StageRecord>();
+  for (const entry of history) {
+    if (entry.stage === "voice" && entry.shotId && entry.evidence?.projectId === PROJECT) {
+      latestVoiceByShot.set(entry.shotId, entry);
+    }
+  }
+  const voiceArtifactFailures: Array<{ shotId: string; reason: string }> = [];
+  const coverage: typeof narrationCoverage = [];
+  for (const shot of dialogueShots) {
+    const raw = join(CLIP_DIR, `${shot.shotId}.mp4`);
+    const voiced = voicedFile(shot.shotId);
+    const last = latestVoiceByShot.get(shot.shotId) ?? null;
+    const current = assessVoiceArtifact({
+      record: last as VoiceArtifactRecord | null, projectId: PROJECT, shotId: shot.shotId,
+      raw, voiced, text: dialogueText(shot), profile: NARRATION_PROFILE
+    });
+    if (!current.ok) {
+      voiceArtifactFailures.push({ shotId: shot.shotId, reason: current.reason });
+      continue;
+    }
+    coverage.push({
+      shotId: shot.shotId, speaker: String((shot.dialogue ?? [])[0]?.speaker ?? "旁白"),
+      text: dialogueText(shot), ok: true,
+      source: String(last?.evidence.source ?? "unknown"), detail: current.reason
     });
   }
-  const coverage = [...coverageByShot.values()];
-  const dialogueShots = shots.filter((s) => dialogueText(s).length > 0);
   const missingNarration = dialogueShots.filter((s) => !coverage.some((entry) => entry.shotId === s.shotId && entry.ok));
   /**
    * 门事件的形状有两种（都来自同一份 stages.jsonl）：
@@ -5734,8 +5762,8 @@ if (!subtitleSidecar && SUBTITLE_MODE !== "burn") {
         id: "narration-coverage",
         pass: missingNarration.length === 0,
         detail: missingNarration.length === 0
-          ? `${dialogueShots.length} 个有台词的镜头均有人声（逐镜 ASR 核查）`
-          : `以下镜头有台词但人声未通过核查：${missingNarration.map((s) => s.shotId).join("、")}`,
+          ? `${dialogueShots.length} 个有台词的镜头均有匹配当前原片/台词/音色的逐镜回执`
+          : `以下镜头缺当前文件的人声回执：${voiceArtifactFailures.map((entry) => `${entry.shotId}(${entry.reason})`).join("、")}`,
         hard: true
       },
       /**
