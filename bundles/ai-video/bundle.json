@@ -538,7 +538,11 @@
         "connectors/post-bridge/server-adapter.mts",
         "connectors/cover-kb-bridge/account-profile.mjs",
         "connectors/cover-kb-bridge/cli.mjs",
-        "connectors/cover-kb-bridge/core.mjs"
+        "connectors/cover-kb-bridge/core.mjs",
+        "connectors/cine-kb-bridge/core.mjs",
+        "connectors/cine-kb-bridge/cli.mjs",
+        "connectors/cine-kb-bridge/shot-intent.mjs",
+        "connectors/cine-kb-bridge/shot-intent.d.mts"
       ],
       "modelPolicy": "model-policy.yml",
       "evalQuestions": "eval/questions.json"
@@ -724,7 +728,7 @@
   },
   "integrity": {
     "algorithm": "sha256",
-    "digest": "f9e0fe2c890144f403b0768f344ef5e57761c2b00dc9c88f3900082e2220201e",
+    "digest": "5510aae4278bcb517a9c98268de593afd7358d55ef85d9303acb4ce7cc1de1cc",
     "assets": {
       "connectors/bgm-bridge/brief.mjs": "bb858adae23728deffa1668d9f9db15085f9c94ed73d2c01b5505d82e78e2407",
       "connectors/bgm-bridge/cli.mjs": "bc1de683c93149f9e79d99f9d59eab98f829398fa07ce1c94eca10ed48ad9eca",
@@ -740,6 +744,10 @@
       "connectors/bgm-bridge/sources.mjs": "ec1bb5d4a894d75e206cd6f26d5585379b7af4c18350997255ed6e686b0c5ea8",
       "connectors/bgm-bridge/synth.mjs": "e6ebdcb8d6a37e40786a8ae22d00417b19761965141c6e7fad20eecb971f085a",
       "connectors/bgm-bridge/tag.mjs": "e1b17e966f06d31ab1ea46f3134b4073a574d1aff8c8a73906261e4f097bd2a9",
+      "connectors/cine-kb-bridge/cli.mjs": "596f8d75c73c1bcf20d69cce4260f1556de4b0ed3601acb6d48d4bddfd0dc2fc",
+      "connectors/cine-kb-bridge/core.mjs": "41a4beede1b06a08ff17d11f4ffb999724789e3c9314845e0a599f53768f3304",
+      "connectors/cine-kb-bridge/shot-intent.d.mts": "509d9d429e33e62ba472e8674fc281678e9fe500374dab505d47455b72441118",
+      "connectors/cine-kb-bridge/shot-intent.mjs": "df7facaa58ce97da3019f02fdaa2ec48fc98f8fc21cc5481a697d50633c464ac",
       "connectors/color-bridge/cli.mjs": "e3593d7e9aecb5d1e58aa8d99a0e668d41302f8674df0f1fb8928de7d7f56d9e",
       "connectors/color-bridge/core.mjs": "e6212787853377cf6c9326cfe5c95e934d67cb51ba7ec0925ffe581f3a4aa0bd",
       "connectors/color-bridge/executor.ts": "b9f548d8604dd2b3e2150dfeb544562ee7e2ad209402378f0c6eab2903fbd0fa",
