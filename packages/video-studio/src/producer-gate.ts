@@ -39,6 +39,10 @@ import { randomUUID, createHash } from "node:crypto";
 import { spawnSync } from "node:child_process";
 
 import type { QualityStatus } from "./quality-evidence.js";
+import { normalizeShotIntent, shotIntentHash, type ShotIntentStatus } from "./shot-intent.js";
+import { devicePolicyPromptLines } from "./device-policy.js";
+import { environmentDefects, expandShotWithBible, environmentProfilePromptLines, propInteractionPromptLines, type SceneBible } from "./scene-bible.js";
+import { resolveEraProfile, type EraProfile } from "./era-profile.js";
 
 export interface DeterministicCheck {
   status?: QualityStatus;
@@ -60,6 +64,8 @@ export interface ProducerArtifact {
 
 export interface ProducerVerdict {
   status: QualityStatus;
+  /** Binds the exact supplied source contracts; absent means no structured contract was supplied. */
+  contractHash?: string;
   evidence?: Array<{ path: string; sha256: string; scope: string }>;
   stage: ProducerStage;
   approved: boolean;
@@ -84,176 +90,95 @@ export interface ProducerVerdict {
  */
 export const PRODUCER_RUBRICS: Record<ProducerStage, string[]> = {
   script: [
-    "台词速率 ≤ 3.6 字/秒（按镜头时长硬算），不出现念不完的长句",
-    "每镜有明确的动作与情绪变化，不是静态摆拍",
-    "镜头时长合计等于目标总时长，节奏有起伏（开场/推进/收尾）"
+    "台词速率和时长符合明确交付合同，无台词镜头不添加对白；总时长与目标一致",
+    "动作、静止、情绪与每镜叙事目的相符，不强迫空镜或克制表演产生动作变化",
+    "开场、推进和收尾服务当前 brief；年代、主体、人数与原镜头合同一致"
   ],
   prompt: [
-    "25/30 字段齐备且非模板默认值（字段是生成的，不是下游补的）",
-    "提示词长度达到交付口径（≥1200 字），含【约束】实际画幅分辨率",
-    "不含红线词（科幻/微观等与 brief 无关的意象），无 [object Object]",
-    "场景与人物解耦：定妆照只描述人，场景只由镜头提示词给"
+    "所用生成器要求的字段齐备、含义明确；不以字数或模板堆叠代替实际可拍摄内容",
+    "光源、画幅、主体人数、动作、台词及清晰范围符合当前镜头合同，不含退化对象字符串",
+    "没有添加原卡禁止的意象；题材词是否适用按本片 brief 判断；定妆照背景不带入场景"
   ],
-  /**
-   * 连贯性导演评审（2026-09-24 接入）：跨镜头看"还是不是同一支片子"。
-   * 6 问 + 5 维与 `packages/video-studio/src/continuity.ts` 的确定性检查同源，
-   * LLM 只负责"机检查不出来的语义跳变"（例如同一场景里空间关系讲不通）。
-   */
   continuity: [
-    "人物同一性：六镜是同一个人、同一套造型（服装/妆造/发型无可解释变化）",
-    "空间连续性：同一场所的空间锚点（河道/桥/船/建筑/巷道）连续，转场有交代",
-    "时间与光线推进：时段单向推进或显式闪回，不出现时间错乱",
-    "动作与视线连续：相邻镜的运动方向与视线读得通，没有来回折返",
-    "道具状态连续：关键道具（碗/勺/船/灯笼/伞）的出现与消失都有动作交代",
-    "节奏与情绪：总时长对齐目标，情绪曲线有起承转收，结尾收得住"
+    "逐角色身份与本镜服装妆造合同一致；明确换装、多人和角色不出镜均按原卡处理",
+    "同一 sceneId 的空间锚点连续；不同空间、转场和闪回按剧本明确关系处理",
+    "时段、光源、运动方向、视线与道具状态的变化有叙事或动作依据",
+    "总时长、节奏和情绪符合当前 brief，不要求固定镜头数量或单调时序"
   ],
-  /**
-   * 微动作增强（2026-09-24 接入）：5 路（面部/身体/眼神/呼吸/融合）是否真的落到提示词里。
-   */
   micromotion: [
-    "五路微动作齐备：面部（眉/嘴角）、眼神（注视点与眨眼）、身体（重心/肩线）、呼吸（与时长对齐）、融合（与台词节拍对齐）",
-    "微动作是**画面语言**（可被摄影机拍到），不是情绪形容词堆砌",
-    "微动作与宏观动作不冲突（不出现'站在原地走两步'这类互斥描述）",
-    "增量有界：微动作补充不把提示词撑到影响交付闸（增量 ≤200 字）"
+    "只检查主体与可见部位适用的微动作；空镜、产品无需人体通道，睡眠不加眨眼，无对白不加口语融合",
+    "实际写入的微动作有可核对的当前源和输出证据，不用通道数量或标记替代成功",
+    "保持原姿态、动作、表情禁令、台词与时长；完整句增量不超过200字"
   ],
   keyframe: [
-    /**
-     * 桥/栈道类结构（2026-09-24 真机二次事故命名化）：
-     * 交付成片里出现过"桥面两侧直接临水、看不到任何一端连接"的悬空步道（观众读作「从水里走上来的一座桥」）。
-     * 这类结构问题在旧 rubric 里只能靠"空间与物理自洽（通用）"间接覆盖，评审时容易被人物/画质项盖过；
-     * 现在单独点名，且给出可判定的判据。
-     */
-    "桥/栈道类结构（场景含桥、栈道时必判）：桥体可辨（拱形或梁式）、两端各有桥头并与岸线/地面真实相接、栏杆沿桥面连续；不出现「桥面两侧直接临水且看不到任何一端连接」的悬空步道（无头之桥）、不出现桥体与水面之间无驳岸/桥台过渡",
-    "画面里的人物与角色档案/定妆照是同一张脸、同一发型与服装",
-    "是纯写实影像（非插画/3D/CG），皮肤有真实质感不塑料",
-    "构图符合镜头卡（景别/朝向/留白），主体完整入画无裁切事故",
-    /**
-     * 景深档位（2026-09-25 知识注入四轮审计 · A12 提示词/评审一致性）：
-     * 关键帧提示词从本轮起带上知识库（OPTICS-001 光圈顾问）给出的景深裁决，评审侧必须有同名类目，
-     * 否则"风光镜被拍成整体虚化""人像特写背景全清"这类**参数与题材错配**在关键帧阶段无人拦。
-     * 判据与 OPTICS-001 第二/三节同源：风光/建筑/合影/车轨长曝/微距要求前后景清晰；
-     * 单人特写/夜景人像要求主体分离、背景柔和；两者不得互换。
-     */
-    "景深/清晰范围符合题材与镜头卡：风光/建筑/多人合影/车轨长曝/微距必须前后景清晰可辨；单人特写/夜景人像要求主体锐利、背景柔和分离；不得出现深景深题材整体发虚或浅景深题材背景抢戏",
-    "无文字、无水印、无多余手指/肢体，无第二张脸",
-    "场景与镜头卡一致（地点/时段/道具），且没有出现定妆照里的中性背景",
-    /**
-     * 通用空间/物理自洽（2026-09-24 机制化）：
-     * 这条**不对场景做任何枚举**，而是给出"任何画面都必须成立"的物理不变量——
-     * 起因：「无头之桥」（水面上一条看不到桥头、看不出通往何处的桥面）能通过关键帧与视频两道门，
-     * 因为当时 rubric 只查人物一致性/肢体/构图，没有"结构是否成立"这一类目。
-     * 穷举场景（桥/栈道/台阶…）永远有漏网，唯一可扩展的做法是把**物理不变量**写进评审层。
-     */
-    "空间与物理自洽（通用，任何场景都要判）：① 结构完整性——画面里的建筑/地形/器物都是有来由、有落点、有支撑的完整结构，不出现悬空构件、断裂结构、无来由的延伸；② 尺度关系——人物与环境元素的尺度比合理（门高于人、栏杆到腰、路宽于步幅、器物可被手持）；③ 透视一致——同一场景内线性元素共享地平线与消失点，不出现两套透视；④ 光影一致——光向/色温/阴影方向与时段相符，物体与地面有接触阴影；⑤ 接触与承重——脚踩地、手有支撑、道具被真实承重，无穿模与漂浮",
-    /**
-     * 环境真实性（2026-09-27 真机事故命名化）：
-     * 8 镜**全部通过监制**、但产品所有者一眼看出"空间布景不像实拍"。取证结论是必然的：
-     * 旧 rubric 只有"场景与镜头卡一致"——**镜头卡本身写的就是空词**（"现代简约商务空间"），
-     * 于是"一致"与"真实"之间没有任何判据。模型拿空词只能落回训练分布的**平均办公室**。
-     * 这一类目把"像实拍"拆成可判的四件事：空间实指 / 材质工艺与使用状态 / 场景内实用光源 / 使用痕迹。
-     * 与 `packages/video-studio/src/scene-bible.ts#environmentDefects` 同源（那里是确定性规则，这里是视觉复核）。
-     */
-    "环境真实性（必判）：空间是**可指认的真实场所**而不是平均样板间——能读出空间类型与实指（年代/地段/建筑性质/朝向/时段），材质带**工艺与使用状态**（如「胡桃木哑光打蜡 + 中央咖啡杯痕」「微水泥批刀痕 + 两处细裂纹」），灯光含**场景内实用光源**（窗光/筒灯/台灯/屏幕光，方向与色温可读），画面存在**使用痕迹**（指纹/水渍/卷边/划痕/薄灰/旧钉眼）。判红：无任何使用痕迹的样板间、一眼影棚（柔光箱/反光板做主光）、材质只停留在一级名词（「原木」「浅色墙」）而无工艺与状态、空间空旷到与人物活动不符",
-    /**
-     * 道具-人体交互逻辑（2026-09-27 badcase 命名化）：
-     * 真机成片里出现「手机屏幕朝向观众」——观众读到的是"主播把手机举给你看"，而剧本里明明是主播自己在看。
-     * 这类错误的共性是**道具与人的物理关系没被声明也没被复核**：谁拿、怎么拿、朝向谁、挡住什么。
-     * 判据与 `scene-bible.ts#propInteraction` 同源（prop/orientation/operatedBy/contact/occlusion）。
-     */
-    "道具-人体交互逻辑（必判）：被手持或被操作的器物（手机/平板/遥控器/键盘/鼠标/相机/麦克风/笔记本）必须有成立的物理关系——**屏幕朝向它的使用者**（观众只见机身背面或侧缘，不出现屏幕内容正对镜头）、有承重与接触（立于支架、置于桌面、手指遮挡范围合理）、操作者有明确操作姿态（手指落点与界面一致）。判红：屏幕内容朝观众、道具漂浮或穿模、手指数量/长度异常、操作姿态与道具位置矛盾、道具在镜内凭空出现或消失"
-    ,
-    /**
-     * 设备口径（2026-09-27 产品所有者硬约束）：场景里的电子设备**全部使用 2024 年之后的 Apple 设备**。
-     * 判据与 `device-policy.ts#DEVICE_ALLOWLIST` 同源（清单是唯一事实源，扩展清单即扩展评审）。
-     * 为什么必须在关键帧就判：机型外观（机身比例/材质/颜色/接口）是"一眼可辨"的品牌线索，
-     * 一旦关键帧长成杂牌或旧机型，视频段只会把它拍得更清楚。
-     */
-    "设备口径（必判）：画面里的电子设备（笔记本/台式机/手机/平板/显示器/耳机/键鼠）全部是 2024 年后世代的 Apple 在售机型，且与镜头卡声明的机型一致（机身比例、材质、颜色、接口、键盘布局可辨为该机型）；无其他品牌标识或贴纸、无旧世代或已停产机型外观、无无品牌的通用设备。判红：出现非 Apple 品牌设备、机型与卡片不符、旧世代外观（如厚边框旧笔记本、老式大块头显示器）、同一画面两台外观不一致的「同型号」设备"
+    "主体种类、人数、可见部位、身份和本镜服装符合原卡；空镜不加人，多人不按单人标准删除",
+    "构图、画幅、视线、光源方向、时段、白平衡和景深服从原镜头，不套固定5600K或题材景深",
+    "可见结构的尺度、透视、光影、接触和承重自洽，无畸变穿模；桥头在画外或特写时不强求两岸可见",
+    "按环境档案检查材质工艺和状态；used保留所声明痕迹，new/sterile不编磨损，studio/product允许已声明棚光",
+    "道具按operate/present/shared-view/rest的用途核对朝向与接触；展示给观众不因朝外被拒",
+    "设备外观与具体型号、冻结故事日期和显式devicePolicy一致；未提供的年代或型号保持未验证",
+    "写实效果与交付风格相符，无未要求的文字或水印；可见皮肤和肢体自然"
   ],
   shot: [
-    "桥/栈道类结构（场景含桥、栈道时必判）：整镜内桥体与两端连接保持一致，不出现结构凭空出现/消失、桥面变成悬空步道、桥体与水面的接触关系翻转",
-    "肢体语言自然：重心、步态、手部动作有真实物理感，无肢体畸变",
-    "表情丰富且与台词情绪一致（眉眼/嘴角有变化，不是面无表情）",
-    "口型与台词时长匹配，动作连贯无跳帧感",
-    "与前后镜人物形象一致（同脸同服装），无跨镜漂移",
-    "空间与物理自洽（通用）：镜头内的场景结构、尺度、透视、光影、接触关系在时间上保持一致，不出现结构凭空出现/消失、物体漂浮或穿模",
-    /**
-     * 环境真实性与道具交互在**时间维**上的复核（关键帧是一张图，镜头是连续帧）：
-     * 真机教训——关键帧看着对，但整镜里材质/光源方向翻转、道具朝向在镜内改变（例如手机屏幕从朝内变成朝镜头），
-     * 这类问题只在视频段才暴露，因此 shot 环节必须有同名类目。
-     */
-    "环境真实性在时间上保持：同一空间的空间锚点、材质工艺、光源方向与色温、使用痕迹跨帧一致，不出现墙面/地面材质在镜内改变、窗光方向翻转、布景道具凭空增减",
-    "道具-人体交互逻辑在时间上保持：手机/平板/键盘等被操作道具的朝向、承重与遮挡关系在整镜内保持一致，屏幕始终朝向它的使用者（观众只见背面或侧缘）；不出现道具朝向在镜内改变、从手里跳到桌上、屏幕内容正对镜头",
-    /**
-     * 设备口径在**时间维**上的复核：机型外观在镜内不能跳变（一半是 MacBook 一半是杂牌），
-     * 也不能出现"屏幕从刘海屏变成打孔屏"这类世代混用。
-     */
-    "设备口径在时间上保持：镜内电子设备均为 2024 年后世代的 Apple 在售机型，机型外观（机身比例/边框/颜色/接口/键盘布局）跨帧一致，不出现品牌标识闪烁、机型在镜内变化、屏幕形态在世代之间跳变"
+    "人物动作、静止或克制表情按当前合同执行，重心和接触自然；不要求每镜微笑或表情丰富",
+    "有可见说话人时核对口型证据；无对白或背影不冒称口型已验证，抽帧不能替代连续视听检查",
+    "同一镜头的结构、材质、光源与设备外观保持时序一致；明确动作导致的朝向变化允许",
+    "屏幕朝向服从操作/展示/共享合同，位移由动作衔接，无道具跳变、穿模或身份漂移"
   ],
-  compose: [
-    "拼接处无花屏/丢帧/音画不同步，转场自然",
-    "总时长与目标一致（±0.5s），分辨率/帧率/像素格式全片统一"
-  ],
-  color: [
-    "肤色不偏色（不蜡黄不发青），暗部不死黑、高光不溢出",
-    "影调统一且符合题材（江南水乡：低饱和、月白黛青、暖灯不过饱和）",
-    "调色后画质不劣于原片（择优机制：拿不到提升就不调）"
-  ],
-  subtitle: [
-    "字幕在安全区内（避开平台 UI 遮挡区与画面主体面部）",
-    "字体/字号/描边与题材匹配，可现度达标（Δ 超过阈值）",
-    "时间轴与台词逐条对齐，无错字与断句事故"
-  ],
-  /**
-   * 软字幕轨收口（2026-09-24 补登记）。这个环节一直是**默认阶段**（`mux`），
-   * 但因为一直没人跑到它就没人发现 rubric 缺失——真机第一次跑到即 TypeError，
-   * 把整条交付链打断在最后一步。补上判据。
-   */
-  mux: [
-    "软字幕轨版可播放，字幕轨可开关（画面与声音轨逐帧 copy、零改动）",
-    "时长与母版一致（±0.05s），无重新编码导致的画质劣化",
-    "旁挂字幕文件（srt/ass/vtt + 清单）随交付目录齐备，语言标注正确",
-    "字幕轨内容与旁挂文件一致（不是两份各说各话）"
-  ],
-  danmaku: [
-    "弹幕不遮挡主体面部与字幕带，密度不过载（并发未超上限）",
-    "弹幕内容与画面语境相符，不出现与题材无关的评论",
-    "滚动/固定弹幕分层清晰，透明度不淹没画面"
-  ],
-  bgm: [
-    "整片响度达标（−14 LUFS 附近）且真峰值不超 −1 dBTP",
-    "人声/环境声时刻 BGM 让位（ducking），不盖台词",
-    /**
-     * 曲风判据必须**跟着 brief 走**（2026-09-25 真机）：早先写死"江南水乡：温润、中慢、器乐为主"，
-     * 于是给城市地标片挑的电子律动曲被按上一部片子的题材打回，点评理由与 brief 直接冲突。
-     * 现在只要求"与 brief/平台调性一致"，并把 brief 里的 tone/editingStyle 作为事实依据传进来。
-     */
-    "曲风与 brief 的题材、平台与剪辑风格一致（城市地标/快剪可走电子律动；抒情纪实走温润器乐），无人声唱歌抢戏",
-    "卡点与画面切换点对齐（误差在片长容忍内；快剪片以硬切点为基准）"
-  ],
-  cover: [
-    "钩子文案与成片内容一致（不标题党），主标题 ≤ 9 字/行、最多两行",
-    "主体面部不被文字压住，底部平台 UI 遮挡区不放大字",
-    "封面与视频首帧风格统一，色彩与调色后母版一致"
-  ],
+  compose: ["拼接与转场符合剪辑合同，无花屏、丢帧或未经授权的音画变化", "时长、画幅、帧率与像素格式符合明确交付规格"],
+  color: ["光源色温和创作色彩按本片合同保留；肤色、暗部和高光的变化须有照明依据", "镜间影调与叙事相符；调色方案和原片分别评审，不能用失败调色证明原片通过"],
+  subtitle: ["字幕位于安全区，字体、字号与对比度在实际画面可读", "逐条对照原台词和时间轴核对内容、断句、同步与遮挡；无对白按明确字幕策略处理"],
+  mux: ["软字幕版可播放且字幕轨可开关，视频和音频与审核母版保持一致", "旁挂字幕及语言清单齐备，软轨内容与旁挂文件一致，时长符合合同"],
+  danmaku: ["按本片明确启用的弹幕规格检查内容、密度、分层和遮挡", "未启用或不适用时不为了凑后期能力添加弹幕"],
+  bgm: ["响度、真峰值及音乐与人声的关系符合明确音频交付合同", "曲风、节拍、唱词适用性与本片brief一致；实际听音证据独立提供，图像模型不冒充听音"],
+  cover: ["文案与成片一致并在平台安全区内可读，避免遮挡本片关键主体", "封面风格和色彩符合成片与平台规格；主体不必是人脸"],
   master: [
-    "整片可播放、时长/分辨率/帧率/音轨符合交付规格",
-    "五项后期能力（调色/字幕/弹幕/配乐/封面）都在成片里可见",
-    "无黑帧、无静音段事故、无编码错误",
-    "全片空间与物理自洽（通用）复核：抽检各镜的场景结构完整性、尺度与透视一致性，未出现悬空/断裂结构、漂浮物体或与人物尺度冲突的元素",
-    /**
-     * 全片环境真实性复核（2026-09-27）：单镜各自的"像实拍"不等于**同一支片子**像实拍——
-     * 旧管线每镜独立出关键帧，很容易变成"每镜一个样板间"（同一场戏的会议室换了三次装修）。
-     * 终审必须跨镜看三件事：空间是不是同一处、光源方向/时段是否单调推进、材质与使用痕迹是否连续。
-     */
-    "全片环境一致性与真实性复核：各镜属于同一真实空间（空间实指、材质工艺、光源方向与时段跨镜连续，不是每镜一个样板间）；全片无「屏幕内容朝观众」这类道具-人体物理关系错误；使用痕迹与材质在镜间可辩认为同一空间",
-    /**
-     * 全片设备口径复核（2026-09-27 产品所有者硬约束）：跨镜看"设备是不是同一批 2024+ Apple 机型"——
-     * 单镜各自合规、跨镜却换了机型/品牌，是终端观众最容易一眼识破的破绽。
-     */
-    "全片设备口径复核：所有镜头里的电子设备均为 2024 年后世代的 Apple 在售机型；同一台设备跨镜外观一致（同机型同颜色同接口），不出现品牌标识、旧世代机型或杂牌设备；设备外观与镜头卡声明一致"
+    "整片播放、时长、画幅、帧率、字幕和音轨符合交付合同，无黑帧或编码事故",
+    "已要求的后期能力逐项有真实产物和证据；不适用项必须有明确依据，不强制五项全部启用",
+    "按sceneId、角色身份、道具和转场合同核对跨镜一致性，允许明确换装、多空间与闪回",
+    "环境状态、道具朝向和设备年代按逐镜合同复核，不套全磨损、全屏幕朝内或全Apple模板",
+    "听音、连续时序、来源与最终交付检查由对应证据支持，抽帧通过不替代缺失证据"
   ]
 };
+
+export interface ProducerReviewContracts {
+  shots: Array<Record<string, unknown>>;
+  eraProfile?: EraProfile;
+  sceneBible?: SceneBible;
+}
+export interface ProducerReviewContract {
+  schemaVersion: "workloom.producer-contract/v1";
+  contractHash: string;
+  sourceHash: string;
+  shots: Array<{ shotId: string; intent: ReturnType<typeof normalizeShotIntent>; constraints: string[] }>;
+}
+/** Shared author contracts are compiled before any paid review; this does not prove image quality. */
+export function buildProducerReviewContract(input: ProducerReviewContracts): ProducerReviewContract {
+  if (!input || !Array.isArray(input.shots) || !input.shots.length) throw new Error("PRODUCER_CONTRACT_INVALID: shots必须为非空数组");
+  const sourceHash = shotIntentHash(input);
+  if (input.eraProfile !== undefined) resolveEraProfile(input.eraProfile);
+  const seen = new Set<string>();
+  const shots = input.shots.map((original) => {
+    const shot = input.sceneBible === undefined ? original : expandShotWithBible(original, input.sceneBible);
+    const intent = normalizeShotIntent(shot);
+    if (!intent.shotId.trim() || seen.has(intent.shotId)) throw new Error("PRODUCER_CONTRACT_INVALID: shotId缺失或重复");
+    seen.add(intent.shotId);
+    if (intent.subject.kind === "unknown") throw new Error(`PRODUCER_CONTRACT_UNVERIFIED: ${intent.shotId} 主体未明确`);
+    const defects = environmentDefects([shot], input.sceneBible).filter((entry) => entry.hard);
+    if (defects.length) {
+      const error = new Error(defects.map((entry) => entry.detail).join("；"));
+      Object.assign(error, { status: defects.some((entry) => entry.status === "failed") ? "failed" : "unverified" });
+      throw error;
+    }
+    return { shotId: intent.shotId, intent, constraints: [
+      ...environmentProfilePromptLines(shot.environmentProfile as import("./scene-bible.js").EnvironmentProfile | undefined),
+      ...propInteractionPromptLines(shot),
+      ...devicePolicyPromptLines(shot, { eraProfile: input.eraProfile }),
+    ] };
+  });
+  const facts = { schemaVersion: "workloom.producer-contract/v1" as const, sourceHash, shots };
+  return { ...facts, contractHash: shotIntentHash(facts) };
+}
 
 export interface ProducerGateOptions {
   stage: ProducerStage;
@@ -268,6 +193,7 @@ export interface ProducerGateOptions {
   /** 画面类环节可附视觉基准（如定妆照）做一致性比对 */
   referenceImages?: string[];
   context?: Record<string, unknown>;
+  contracts?: ProducerReviewContracts;
   /** @deprecated 仅为旧调用方保留；不会授予正式通过资格。 */
   allowFallbackApprove?: boolean;
   env?: Record<string, string | undefined>;
@@ -409,11 +335,18 @@ export async function reviewStage(options: ProducerGateOptions): Promise<Produce
   }
 
   const evidence: NonNullable<ProducerVerdict["evidence"]> = [];
+  let contract: ProducerReviewContract | undefined;
   const reject = (reason: string, via: ProducerVerdict["via"] = "deterministic", model?: string): ProducerVerdict => ({
-    stage, status: "unverified", approved: false, score: 0, hardFailures: [],
+    stage, status: "unverified", approved: false, score: 0, hardFailures: [], contractHash: contract?.contractHash,
     issues: [...softFailures, reason], suggestions: ["补齐有效证据或修复评审组件后重跑本环节"],
     rerun: true, via, model, ms: Date.now() - started, reason, degraded: true, evidence
   });
+  try { if (options.contracts !== undefined) contract = buildProducerReviewContract(options.contracts); }
+  catch (error) {
+    const verdict = reject(error instanceof Error ? error.message : String(error));
+    if ((error as { status?: ShotIntentStatus })?.status === "failed") return { ...verdict, status: "failed", degraded: false, hardFailures: [verdict.reason] };
+    return verdict;
+  }
   const required = new Set(options.requiredCheckIds ?? []);
   // This visual/text adapter cannot listen. Acoustic quality requires a component receipt.
   if (stage === "bgm" || stage === "master") required.add("audio-review");
@@ -492,7 +425,8 @@ export async function reviewStage(options: ProducerGateOptions): Promise<Produce
       encoded.push([{ type: "text", text: image.label }, { type: "image_url", image_url: { url: `data:${png ? "image/png" : jpeg ? "image/jpeg" : "image/webp"};base64,${bytes.toString("base64")}` } }]);
     }
     const context = options.context ? JSON.stringify(options.context) : "";
-    if (context.length > 30_000) throw new Error("评审上下文超预算，禁止截断事实");
+    const contractText = contract ? JSON.stringify(contract) : "未提供结构化镜头合同；不得宣称已核实年代、人数、空间或设备型号。";
+    if (context.length + contractText.length > 30_000) throw new Error("评审上下文超预算，禁止截断事实");
     const batches = Math.max(1, Math.ceil(artifactImages / 6));
     const answers: Array<{ approved: boolean; score: number; issues: string[]; suggestions: string[]; reason: string }> = [];
     for (let batch = 0; batch < batches; batch += 1) {
@@ -503,6 +437,7 @@ export async function reviewStage(options: ProducerGateOptions): Promise<Produce
         summarizeArtifacts(options.artifacts),
         "确定性检查（含失败与不适用）：", ...options.deterministic.map((c) => `${c.id}: ${c.status ?? (c.pass ? "passed" : "failed")} ${c.detail}`),
         context,
+        "结构化原镜头合同优先于通用rubric；只对实际适用项目评审，不得把合同当产物质量证明。", contractText,
         '只输出 JSON: {"approved":true|false,"score":0-100,"issues":[],"suggestions":[],"reason":"结论"}'
       ].join("\n") }, ...textContent, ...encoded.slice(batch * 6, Math.min(artifactImages, (batch + 1) * 6)).flat(), ...encoded.slice(artifactImages).flat()];
       const res = await (options.fetchImpl ?? fetch)(`${llm.baseUrl}/chat/completions`, {
@@ -524,8 +459,9 @@ export async function reviewStage(options: ProducerGateOptions): Promise<Produce
       const currentHash = createHash("sha256").update(readFileSync(item.path)).digest("hex");
       if (currentHash !== item.sha256) throw new Error(`评审期间产物发生变化：${item.path}`);
     }
+    if (contract && options.contracts && shotIntentHash(options.contracts) !== contract.sourceHash) throw new Error("评审期间原镜头合同发生变化");
     const approved = answers.every((a) => a.approved && a.score >= minScore);
-    return { stage, status: approved ? "passed" : "failed", approved, score: Math.min(...answers.map((a) => a.score)),
+    return { stage, status: approved ? "passed" : "failed", approved, contractHash: contract?.contractHash, score: Math.min(...answers.map((a) => a.score)),
       hardFailures: [], issues: [...softFailures, ...answers.flatMap((a) => a.issues)], suggestions: answers.flatMap((a) => a.suggestions),
       rerun: !approved, via: "llm", model: llm.model, ms: Date.now() - started,
       reason: answers.map((a) => a.reason).join("；") + (approved ? "" : `（所有证据批次需通过且评分≥${minScore}）`), degraded: false, evidence };

@@ -10,6 +10,7 @@ describe("原始镜头意图：主体、动作与可见性", () => {
     [{ scene: "手表商品微距", camera_movement: "缓慢推近" }, "object"],
     [{ scene: "树林中的鹰，特写鹰眼" }, "animal"],
     [{ scene: "女人拿着手表", action: "坐在椅子上" }, "person"],
+    [{ scene: "双人远景，两人站在桥上" }, "person"],
     [{ scene: "无人机航拍女人走过广场" }, "person"],
     [{ scene: "办公室", subject: { kind: "environment" }, character: "预设角色" }, "environment"],
   ] as const)("源卡 %j → %s", (card, kind) => {
@@ -50,6 +51,17 @@ describe("原始镜头意图：主体、动作与可见性", () => {
 });
 
 describe("原始镜头意图：否定、时段、光源与台词", () => {
+  it.each(["无手机", "无任何电脑", "无显示器", "无键盘", "无磨损", "无划痕", "无任何使用痕迹", "无指纹", "无杯痕"])("设备/状态领域否定不充当肯定事实：%s", (phrase) => {
+    const assertions = splitShotAssertions(`现场空镜；${phrase}，但保留窗光`);
+    expect(assertions.negative).toContain(phrase);
+    expect(assertions.positive).toBe("现场空镜；保留窗光");
+  });
+  it("定语否定仍保留原物件，有限规则不误伤无人机、无线设备或无反相机", () => {
+    expect(splitShotAssertions("无划痕的胡桃木桌面")).toEqual({ positive: "胡桃木桌面", negative: ["无划痕的"] });
+    for (const text of ["无人机航拍街道", "无线鼠标放在桌面", "无反相机架在三脚架上", "无光污染的星空"]) {
+      expect(splitShotAssertions(text).positive).toContain(text.startsWith("无光污染") ? "星空" : text);
+    }
+  });
   it("否定不倒置，转折后的肯定仍保留", () => {
     const intent = normalizeShotIntent({ scene: "女人在窗边", action: "不笑；保持蹲姿，不要起身", camera_movement: "不要推近，但固定机位观察" });
     expect(intent.performance.forbidSmile).toBe(true);

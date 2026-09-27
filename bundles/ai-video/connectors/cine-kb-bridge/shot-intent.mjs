@@ -64,7 +64,7 @@ export function splitShotAssertions(raw) {
   );
   const clauses = withoutBlocks.split(/[。；;\n，,、]+/).flatMap((sentence) =>
     sentence.split(/但是|然而|而是|但|\bbut\b|\binstead\b|并(?:且)?(?=保持|继续|不|禁|避)|且(?=保持|继续|不)/i));
-  const negation = /禁止|避免|不要|不得|不许|不能|无需|没有|未见|未出现|不含|不露|不做|不加|不说|不拍|不出|不看|不转|不回|不抬|不起|不站|不走|不动|不笑|不眨|不睁|不横|不环|不摇|不平|不推|不跟|不挥|不摆|不偏|不变|不移|不晃|无人(?!机)|无(?=角色|台词|对白|旁白|光污染|风|雨|雪|硬阴影|噪点|光源)|\b(?:do not|don't|no|not|never|without|avoid)\b/i;
+  const negation = /禁止|避免|不要|不得|不许|不能|无需|没有|未见|未出现|不含|不露|不做|不加|不说|不拍|不出|不看|不转|不回|不抬|不起|不站|不走|不动|不笑|不眨|不睁|不横|不环|不摇|不平|不推|不跟|不挥|不摆|不偏|不变|不移|不晃|无人(?!机)|无(?=(?:任何)?(?:角色|台词|对白|旁白|桥|栈道|光污染|风|雨|雪|硬阴影|噪点|光源|设备|手机|平板|笔记本电脑|台式机|电脑|显示器|显示屏|耳机|键盘|鼠标|智能手表|屏幕|磨损|划痕|使用痕迹|水渍|指纹|污渍|灰尘|薄灰|杯痕|磕痕|锈迹))|\b(?:do not|don't|no|not|never|without|avoid)\b/i;
   for (const rawClause of clauses) {
     const clause = rawClause.trim();
     if (!clause) continue;
@@ -201,7 +201,7 @@ export function normalizeShotIntent(input) {
     || /^(none|object|product|environment|landscape|animal)$/.test(explicitKind)
     || /空镜|无人(?!机)|无人物|无角色|没有(?:任何)?(?:人物|人|角色)|不出现(?:任何)?(?:人物|人|角色)|\bno (?:people|person|human|character)s?\b/i.test(descriptions)
     || /^(?:无|无人物|无角色|none|null)$/i.test(characterRaw.trim());
-  const personEvidence = /人物|女主|男主|主角|女人|男人|女孩|男孩|老人|儿童|孩子|婴儿|游客|工人|演员|模特|医生|护士|士兵|运动员|演唱者|她|(?<!其)他|\b(?:person|woman|man|girl|boy|actor|people)\b/i.test(descriptivePositive)
+  const personEvidence = /双人|两人|二人|多人|人群|众人|情侣|人物|女主|男主|主角|女人|男人|女孩|男孩|老人|儿童|孩子|婴儿|游客|工人|演员|模特|医生|护士|士兵|运动员|演唱者|她|(?<!其)他|\b(?:person|woman|man|girl|boy|actor|people)\b/i.test(descriptivePositive)
     || /抬眼|垂眼|眨眼|低头|抬头|坐着|坐下|起身|蹲着|蹲姿|躺着|睡着|面部|嘴角/.test(action.positive);
   const animalSubject = /动物|猫|狗|犬|鸟|鹰|鹿|熊|昆虫|企鹅|蝙蝠|\b(?:animal|cat|dog|bird)\b/i.test(descriptivePositive) && !/人物|女主|男主|女人|男人|女孩|男孩|老人|儿童|孩子|她|(?<!其)他|\b(?:person|woman|man|girl|boy|actor|people)\b/i.test(descriptivePositive);
   const hasPerson = !noPerson && (!animalSubject || namedPerson || declared.hasPerson === true) && (declared.hasPerson === true || ["person", "human"].includes(explicitKind) || namedPerson || personEvidence);
