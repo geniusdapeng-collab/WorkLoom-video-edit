@@ -10,6 +10,7 @@ export * from "./library-bpm.js";
 export * from "./character-consistency.js";
 export * from "./shot-order.js";
 export * from "./cover-design.js";
+export * from "./cover-platforms.js";
 export * from "./sfx-synth.js";
 export * from "./portrait-runtime.js";
 export * from "./portrait-binding.js";

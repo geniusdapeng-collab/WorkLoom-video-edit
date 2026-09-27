@@ -42,6 +42,8 @@ const SKILLS_SB: Array<{ name: string; boundBy: string[] }> = [
   { name: "voice-profile-craft", boundBy: ["voice-artist"] },
   { name: "cinematography-kb", boundBy: ["cinematographer", "visual-director"] },
   { name: "voice-clone-consent", boundBy: ["voice-artist"] },
+  /** 封面知识库（cover-kb）：平台规范 × 账号视觉锤 × 题材映射 × 钩子公式的检索与注入纪律 */
+  { name: "cover-kb", boundBy: ["cover-designer"] },
 ];
 
 /** S-C 工具/纪律型 */
