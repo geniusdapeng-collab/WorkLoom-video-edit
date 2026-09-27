@@ -373,12 +373,19 @@ export async function normaliseShots({
 async function assembleSampleAccurate({
   bins, list, clips, output, workDir, fps = 30, verify = true, allowUnverified = false,
 }) {
-  const plan = buildSampleAccurateConcatPlan({ listFile: list, clips, output, workDir, fps });
+  // 归一化产物使用 duration；音画模块使用 durationSec。两段命令与实测必须共享同一时长。
+  const measuredClips = clips.map((clip) => ({
+    ...clip, durationSec: Number(clip.durationSec ?? clip.duration ?? 0),
+  }));
+  if (measuredClips.some((clip) => !Number.isFinite(clip.durationSec) || clip.durationSec <= 0)) {
+    throw new PostError("样点级拼接需要每个镜头的有效时长", "bad_media");
+  }
+  const plan = buildSampleAccurateConcatPlan({ listFile: list, clips: measuredClips, output, workDir, fps });
   await runBin(bins.ffmpeg, plan.videoArgs, { label: "ffmpeg(concat-video)", timeoutMs: 900_000 });
   await runBin(bins.ffmpeg, plan.audioArgs, { label: "ffmpeg(concat-audio)", timeoutMs: 900_000 });
   await runBin(bins.ffmpeg, plan.muxArgs, { label: "ffmpeg(concat-mux)", timeoutMs: 900_000 });
   if (!verify) return null;
-  const durations = clips.map((clip) => Number(clip.durationSec ?? 0));
+  const durations = measuredClips.map((clip) => clip.durationSec);
   const starts = [];
   let cursor = 0;
   for (let index = 0; index < clips.length; index += 1) {
@@ -963,6 +970,7 @@ export async function buildDeliveryPackage({
 
   /* ① 归一化（全部变体共用；按内容哈希缓存，返修时可复用） */
   const normalised = await normaliseShots({ shots, project, workDir, bins, reuse });
+  const totalSeconds = normalised.reduce((sum, clip) => sum + Number(clip.duration), 0);
   const baseTransitions = { mode: project.transitions?.mode ?? "hard", fadeSec: project.transitions?.fadeSec ?? 0.5 };
   const masterAssembly = await assembleTimeline({
     clips: normalised,
@@ -1665,6 +1673,12 @@ export async function reedit({
     if (!fs.existsSync(file)) throw new PostError(`返修需要的镜头产物缺失：${entry.shotId} → ${file}`, "not_found");
     const sha256 = await sha256File(file);
     const drifted = Boolean(entry.stored.sha256) && sha256 !== entry.stored.sha256;
+    if (drifted) {
+      throw new PostError(
+        `返修镜头产物哈希与工程文件不一致：${entry.shotId} → ${file}（请通过 shotPaths 显式替换）`,
+        "verify_failed",
+      );
+    }
     const clip = {
       shotId: entry.shotId,
       source: resolveStored(projectDir, entry.stored.source ?? entry.stored.normalised),
@@ -1672,14 +1686,10 @@ export async function reedit({
       path: file,
       sha256,
       duration: entry.stored.duration ?? (await probeMedia(file, { bins })).duration,
-      reused: !drifted,
+      reused: true,
     };
     normalised.push(clip);
-    if (drifted) {
-      rebuilt.push({ layer: "shots", shotId: clip.shotId, path: file, sha256, note: "归一化产物哈希与工程文件不一致（被外部改动过）：如实标注，不当作复用" });
-    } else {
-      reused.push({ layer: "shots", shotId: clip.shotId, path: file, sha256, note: "复用上次归一化产物（哈希与工程文件一致）" });
-    }
+    reused.push({ layer: "shots", shotId: clip.shotId, path: file, sha256, note: "复用上次归一化产物（哈希与工程文件一致）" });
   }
 
   const variantIds = (project.layers?.variants ?? []).map((variant) => variant.id);
@@ -1902,12 +1912,14 @@ export async function reedit({
        */
       shots: (project.layers?.shots ?? []).map((shot) => {
         const fresh = normalised.find((clip) => clip.shotId === shot.shotId);
+        if (!fresh) throw new PostError(`返修缺少镜头产物：${shot.shotId}`, "not_found");
         return {
           ...shot,
-          source: shot.source ? path.relative(targetDir, resolveStored(projectDir, shot.source)) : shot.source,
-          normalised: path.relative(targetDir, resolveStored(projectDir, shot.normalised)),
-          sha256: fresh?.sha256 ?? shot.sha256,
-          duration: fresh?.duration ?? shot.duration ?? null,
+          source: path.relative(targetDir, path.resolve(fresh.source)),
+          normalised: path.relative(targetDir, fresh.path),
+          sha256: fresh.sha256,
+          sourceSha256: fresh.sourceHash,
+          duration: fresh.duration,
         };
       }),
       variants: (project.layers?.variants ?? []).map((stored) => {
