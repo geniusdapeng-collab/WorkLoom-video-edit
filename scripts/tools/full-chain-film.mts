@@ -37,12 +37,15 @@ import {
   coverDeterministicChecks, coverPrefersNightBackground, COVER_FONTS, COVER_LOWER_BAND_SAFE_AREA, COVER_REVIEW_RUBRIC, COVER_SAFE_AREA,
   fallbackCoverPlan, findAngleFile, MATERIAL_POLICY_STATEMENT, MATERIAL_POLICY_VERSION, assessMaterialReuse,
   assertMaterialGenerationProvenance, parseCoverPlan, prepareShotPrompt, readMaterialSpec, resolveProducerLlm, reviewStage,
-  buildSfxArgs, cutTimesFromShots, planCutSfxDetailed, CUT_SFX_POLICY,
+  buildSfxArgs, cutTimesFromShots, planCutSfxDetailed, CUT_SFX_POLICY, planHookSfx, HOOK_SFX_POLICY,
   measureBpm, beatGridReport, checkShotOrder, assessVariantAxes, VARIANT_MIN_COUNT,
   normalizePromptLanguage,
   restoreTimelineField,
+  environmentDefects, expandShotWithBible, summarizeDefects, validateSceneBible, spaceSummary,
+  openingHookChecks, summarizeHookChecks, validateHookCard, defaultHookSfx, hookWindowFor, HOOK_TYPE_LABELS, HOOK_WINDOW_SEC,
+  deviceDefects, summarizeDeviceDefects, DEVICE_POLICY_VERSION, DEVICE_POLICY_VERIFIED_AT, allowedModelSummary,
   type CoverDesignInput, type CoverMeasurements, type CoverPlan, type GateCheck, type GateEvent, type PipelineGateStepKey,
-  type PlatePromptShot, type ProducerVerdict
+  type DeviceCategory, type DeviceDefect, type EnvDefect, type HookCard, type PlatePromptShot, type ProducerVerdict, type SceneBible
 } from "../../packages/video-studio/src/index.js";
 
 const REPO_ROOT = resolve(import.meta.dirname ?? process.cwd(), "../..");
@@ -693,10 +696,174 @@ interface ShotCard {
 }
 const shotlist = JSON.parse(readFileSync(SHOTS_FILE, "utf8")) as {
   projectId?: string; title?: string; durationSeconds?: number; aspect?: string; resolution?: string;
+  sceneBible?: SceneBible;
+  hook?: HookCard;
   character?: { id?: string; name?: string }; shots: ShotCard[];
 };
-const shots = ONLY.length > 0 ? shotlist.shots.filter((s) => ONLY.includes(s.shotId)) : shotlist.shots;
-if (!Array.isArray(shots) || shots.length === 0) throw new Error("shotlist 里没有镜头");
+const shotsSelected = ONLY.length > 0 ? shotlist.shots.filter((s) => ONLY.includes(s.shotId)) : shotlist.shots;
+if (!Array.isArray(shotsSelected) || shotsSelected.length === 0) throw new Error("shotlist 里没有镜头");
+
+/* ================= 场景圣经 · 环境真实性（2026-09-27 真机事故 → 机制化） ================= */
+
+/**
+ * 事故：销售口播片 8 镜**全部通过监制**，但产品所有者一眼看出"空间布景不像实拍"。
+ * 逐镜取证：8/8 缺空间实指与使用痕迹、7/8 灯光只有柔光箱/反光板这类棚具语言、材质全是一级名词。
+ * 根因不是模型，是**管线里没有任何"环境真实性"判据**：模型收到"现代简约商务空间"这类空词时，
+ * 只能落回训练分布里的**平均办公室**——平均化就是"AI 感"。
+ *
+ * 本节的机制（三件，缺一不可）：
+ *   ① **展开**：片级 `sceneBible` 展开进每镜既有字段（scene/sceneDescription/lighting/props），
+ *      关键帧提示词与视频提示词因此都吃到空间实指、材质工艺、实用光源、使用痕迹与道具交互；
+ *   ② **审计**：`environmentDefects` 逐镜出硬/软缺陷，写 `env-realism-report-<project>.json` 留证；
+ *   ③ **闸门**：本轮要做生成类阶段（spec/plates/material-gen/videos）时，硬缺陷 **fail-closed**
+ *      ——"渲染前拦住"而不是"渲完肉眼发现"（单镜关键帧 ~85s、单镜视频 ~160s、还要重后期）。
+ *      确需带瑕疵继续：`--accept-rejected env` 或 `--accept-env-defects`（会写进阶段日志留痕）。
+ *
+ * 纪律：圣经只升级**环境**，不改表演/台词/时长/构图（`expandShotWithBible` 的字段白名单）。
+ */
+const SCENE_BIBLE_FILE = arg("--scene-bible");
+const sceneBible: SceneBible | null = (() => {
+  if (SCENE_BIBLE_FILE) {
+    const file = abs(SCENE_BIBLE_FILE);
+    if (!existsSync(file)) throw new Error(`--scene-bible 指向的文件不存在：${file}`);
+    return JSON.parse(readFileSync(file, "utf8")) as SceneBible;
+  }
+  return shotlist.sceneBible ?? null;
+})();
+const shots: ShotCard[] = sceneBible
+  ? shotsSelected.map((shot) => expandShotWithBible(shot as ShotCard & Record<string, unknown>, sceneBible))
+  : shotsSelected;
+
+/** 只有"要花钱生成"的阶段才让环境审计 fail-closed；纯后期复跑（compose/subtitle/mux…）不拦 */
+const ENV_AUDIT_STAGES = ["spec", "plates", "material-gen", "videos"] as const;
+const envAuditInScope = ENV_AUDIT_STAGES.some((stage) => STAGES.has(stage));
+const envBibleIssues = sceneBible ? validateSceneBible(sceneBible) : [];
+const envDefects: EnvDefect[] = environmentDefects(shots, sceneBible);
+const envSummary = summarizeDefects(envDefects);
+/**
+ * 设备口径（2026-09-27 产品所有者硬约束）：场景里的电子设备**全部使用 2024 年之后的 Apple 设备**。
+ * 与环境审计同一处 fail-closed——都是"渲染前必须清零"的资产级约束，报告合并在一份文件里（便于一条命令复核）。
+ */
+const devDefects: DeviceDefect[] = deviceDefects(shots);
+const devSummary = summarizeDeviceDefects(devDefects);
+const envHardTotal = envSummary.hard + devSummary.hard;
+const envSoftTotal = envSummary.soft + devSummary.soft;
+const ENV_REPORT_FILE = join(WORK_DIR, `env-realism-report-${PROJECT}.json`);
+mkdirSync(WORK_DIR, { recursive: true });
+writeFileSync(ENV_REPORT_FILE, `${JSON.stringify({
+  schemaVersion: "workloom.env-realism-report/v1",
+  generatedAt: stamp(),
+  shotlist: SHOTS_FILE,
+  projectId: PROJECT,
+  sceneBible: sceneBible
+    ? { spaceId: sceneBible.spaceId, summary: spaceSummary(sceneBible), materials: sceneBible.materials?.length ?? 0, practicalLights: sceneBible.practicalLights?.length ?? 0, traces: sceneBible.traces?.length ?? 0, issues: envBibleIssues }
+    : null,
+  summary: { hard: envHardTotal, soft: envSoftTotal, byRule: { ...envSummary.byRule, ...devSummary.byRule }, environment: envSummary, device: devSummary },
+  devicePolicy: { version: DEVICE_POLICY_VERSION, verifiedAt: DEVICE_POLICY_VERIFIED_AT, brief: "场景里的电子设备全部为 2024 年后世代的 Apple 在售机型（以镜头卡 devices[] 声明）" },
+  perShot: shots.map((shot) => {
+    const own = [...envDefects, ...devDefects].filter((defect) => defect.shotId === shot.shotId);
+    return {
+      shotId: shot.shotId,
+      hard: own.filter((defect) => defect.hard).length,
+      soft: own.filter((defect) => !defect.hard).length,
+      rules: own.map((defect) => `${defect.rule}${defect.hard ? "" : "(软)"}`),
+      detail: own.map((defect) => defect.detail)
+    };
+  }),
+  defects: [...envDefects, ...devDefects]
+}, null, 2)}\n`, "utf8");
+
+log(`环境真实性审计：${sceneBible ? `场景圣经 ${sceneBible.spaceId}（${spaceSummary(sceneBible)}）` : "未提供场景圣经（片级 sceneBible / --scene-bible）"}`);
+if (envBibleIssues.length > 0) log(`  ⚠ 圣经自身待完善（软）：${envBibleIssues.join("；")}`);
+log(`  环境：硬缺陷 ${envSummary.hard} · 软提示 ${envSummary.soft}｜设备口径（${DEVICE_POLICY_VERSION}）：硬缺陷 ${devSummary.hard} · 软提示 ${devSummary.soft}`);
+log(`  合计：硬缺陷 ${envHardTotal} · 软提示 ${envSoftTotal}｜规则：${Object.entries({ ...envSummary.byRule, ...devSummary.byRule }).map(([rule, count]) => `${rule}×${count}`).join(" · ") || "无"}`);
+for (const defect of envDefects.filter((item) => item.hard)) log(`  ✗ ${defect.shotId} [${defect.rule}] ${defect.detail}`);
+for (const defect of devDefects) log(`  ${defect.hard ? "✗" : "△"} ${defect.shotId} [${defect.rule}] ${defect.detail}`);
+log(`  报告：${ENV_REPORT_FILE}`);
+
+const envAccepted = ACCEPT_REJECTED.includes("env") || ACCEPT_REJECTED.includes("env-realism") || flag("--accept-env-defects");
+record({
+  stage: "env-audit", shotId: null, invoked: true,
+  ok: envHardTotal === 0 || envAccepted || !envAuditInScope,
+  cached: false,
+  degraded: envHardTotal > 0 && envAccepted,
+  attempt: 1, ms: 0, artifact: ENV_REPORT_FILE,
+  evidence: {
+    sceneBible: sceneBible ? sceneBible.spaceId : null,
+    space: sceneBible ? spaceSummary(sceneBible) : null,
+    bibleIssues: envBibleIssues,
+    hard: envHardTotal, soft: envSoftTotal, byRule: { ...envSummary.byRule, ...devSummary.byRule },
+    environment: { hard: envSummary.hard, soft: envSummary.soft },
+    devicePolicy: { version: DEVICE_POLICY_VERSION, verifiedAt: DEVICE_POLICY_VERIFIED_AT, hard: devSummary.hard, soft: devSummary.soft },
+    inScope: envAuditInScope, acceptedBy: envAccepted ? "ACCEPT_REJECTED(env)" : null,
+    hardDefects: [...envDefects, ...devDefects].filter((item) => item.hard).map((item) => ({ shotId: item.shotId, rule: item.rule, detail: item.detail }))
+  },
+  verdict: null,
+  note: "环境真实性 + 设备口径审计（场景圣经展开 + 确定性规则）"
+});
+if (envAuditInScope && envHardTotal > 0 && !envAccepted) {
+  log("⛔ 环境真实性 / 设备口径硬缺陷未清零：本环节要在**花钱之前**拦住「平均样板间」与非 2024 后 Apple 设备。");
+  log("   修法：在 shotlist 顶层写 sceneBible（或 --scene-bible <file>），让每镜带上空间实指 / 材质工艺 / 实用光源 / 使用痕迹；");
+  log("   可交互道具（手机/平板/笔记本）补 propInteraction（prop / orientation / operatedBy）。");
+  log(`   设备口径：每镜补 devices[]（category + model，机型见允许清单：${allowedModelSummary()}…）——裸词不算机型。`);
+  log("   确需带瑕疵继续：--accept-rejected env（会记为 degraded 留痕）。");
+  process.exit(7);
+}
+
+/* ================= 开场钩子 · 前 3 秒（2026-09-27 新增岗位/机制） ================= */
+
+/**
+ * 产品所有者口径：抖音类平台上，完播率的分水岭在**前 3 秒**。
+ * 此前管线里没有"钩子"这个产物——片头设计师管的是片头镜头卡，音效只铺剪辑点（0–0.6s 空白），
+ * 评审清单里也没有钩子类目，于是"开头三秒平平"没有任何机制能发现。
+ *
+ * 三段机制（与 `opening-hook.ts` 同源）：
+ *   ① **钩子卡**（shotlist 顶层 `hook`，钩子设计师的产物）：type / promise / payoffShotId / 首镜模板 / 钩子音；
+ *   ② **确定性判据**：类型在库内、承诺有兑现镜、音效落在 0–0.6s 窗口、首镜够长；
+ *   ③ **钩子音效**：在 sfx 阶段把 0–0.6s 的钩子音铺上（短平台默认 impact，长视频默认 whoosh）。
+ * 短平台缺钩子卡 = 硬失败（前 3 秒不许靠运气）；其余平台缺钩子卡 = 软提示。
+ */
+const PLATFORM = arg("--platform", "抖音/快手");
+const hookCard: HookCard | null = shotlist.hook ?? null;
+/**
+ * 钩子判据必须看**整片**镜头卡，而不是 `--only` 过滤后的子集（2026-09-27 真机 v2 发现）：
+ * 单镜补渲（`--stages plates --only CF-05`）时，兑现镜 CF-03 不在子集里 → 误报"兑现镜不存在"，
+ * 把一次正常的补渲判成硬失败。首镜与兑现镜都是**片级**概念，口径应为完整 shotlist.shots。
+ */
+const hookChecks = openingHookChecks({ shots: shotlist.shots, hook: hookCard, platform: PLATFORM });
+const hookSummary = summarizeHookChecks(hookChecks);
+/**
+ * 钩子音效三条开关口径：显式关（`--no-hook-sfx`）> 显式开（`--hook-sfx`）> 有钩子卡即开。
+ * 音色与落点：钩子卡声明优先，否则按平台给安全默认（`defaultHookSfx`）。
+ */
+const hookSfxEnabled = flag("--no-hook-sfx") ? false : (flag("--hook-sfx") || Boolean(hookCard));
+const hookSfxSpec = hookCard?.sfx ?? defaultHookSfx(PLATFORM);
+log(`开场钩子：${hookCard ? `${hookCard.type}（${HOOK_TYPE_LABELS[hookCard.type] ?? "未知类型"}）· 兑现镜 ${hookCard.payoffShotId}` : "未登记钩子卡"}`);
+log(`  窗口：前 ${hookWindowFor(PLATFORM)}s｜判据：硬失败 ${hookSummary.hard} · 软提示 ${hookSummary.soft}｜钩子音：${hookSfxEnabled ? `${hookSfxSpec.kind}@${hookSfxSpec.atSec}s` : "关闭"}`);
+for (const check of hookChecks) log(`  ${check.pass ? "✓" : "✗"} [${check.id}] ${check.detail}`);
+const hookAccepted = ACCEPT_REJECTED.includes("hook");
+record({
+  stage: "hook-audit", shotId: null, invoked: true,
+  ok: hookSummary.hard === 0 || hookAccepted, cached: false,
+  degraded: hookSummary.hard > 0 && hookAccepted,
+  attempt: 1, ms: 0, artifact: null,
+  evidence: {
+    platform: PLATFORM, windowSec: hookWindowFor(PLATFORM), hookSfxEnabled,
+    hook: hookCard ? { type: hookCard.type, promise: hookCard.promise, payoffShotId: hookCard.payoffShotId, sfx: hookSfxSpec } : null,
+    cardIssues: hookCard ? validateHookCard(hookCard) : [],
+    checks: hookChecks, hard: hookSummary.hard, soft: hookSummary.soft,
+    acceptedBy: hookAccepted ? "ACCEPT_REJECTED(hook)" : null
+  },
+  verdict: null,
+  note: "开场钩子审计（类型库 / 承诺兑现 / 0–0.6s 钩子音窗口）"
+});
+if (hookSummary.hard > 0 && !hookAccepted) {
+  log("⛔ 开场钩子硬失败：前 3 秒是短平台完播率的分水岭，不允许「靠运气」进流水线。");
+  for (const check of hookSummary.hardFailures) log(`   · ${check.id}：${check.detail}`);
+  log("   修法：在 shotlist 顶层写 hook{ type, promise, payoffShotId, firstShotTemplate{visual,line}, sfx{kind,atSec} }；");
+  log("   确需带瑕疵继续：--accept-rejected hook（会记为 degraded 留痕）。");
+  process.exit(8);
+}
 const totalSeconds = Number(shotlist.durationSeconds ?? shots.reduce((sum, s) => sum + Number(s.duration ?? 0), 0));
 /**
  * 成片目标时长（秒）= 分镜总时长 − 逐刀转场损耗。
@@ -1515,8 +1682,15 @@ if (STAGES.has("spec")) {
      * 命中时给监制与设计者一个明确建议：改"正面走近"或去掉指物。
      */
     const sceneText = `${shot.scene ?? ""} ${shot.sceneDescription ?? ""}`;
-    const priorRisk = /指|挥|递|捧|端/.test(actionText)
-      && /桥|栏杆|船|河|水|岸/.test(sceneText)
+    /**
+     * 判据收紧（2026-09-27 真机 v2 首轮打回）：早先「指」与「水」两处都太宽——
+     * ・「指」把**拇指/手指**这类正常手部描述算成"指物"；
+     * ・「水」把**水磨石/水泥/水杯**这类材质与器物算成"水岸"。
+     * 于是「水磨石地面 + 拇指滑动 + 看向镜头」这种完全正常的口播镜被判成高危构图先验，
+     * 监制据此打回（score 62）。现在只认真正的指物动作与真正的水体/桥栏语义。
+     */
+    const priorRisk = /指(物|向|点|着|了指)|挥(手|动)?示意|递(物|出)|捧起|端(起|着)/.test(actionText)
+      && /(水岸|水面|水边|河水|江水|江面|河面|湖面|湖边|海边|岸边|桥|栏杆|船)/.test(sceneText)
       && /面向镜头|看向镜头|正对镜头|正脸|眼神交流/.test(actionText);
     checks.push({
       id: `prior-risk:${shot.shotId}`, pass: !priorRisk, hard: false,
@@ -2680,7 +2854,28 @@ if (STAGES.has("videos")) {
     return existsSync(plate) && statSync(plate).size > 50_000;
   });
   const promptApproved = historyApproved(gateHistory, "prompt-review") || historyApproved(records, "prompt-review");
-  const plateApproved = generatedShots.every((s) => gateHistory.some((r) => r.stage === "keyframe" && r.shotId === s.shotId && r.ok));
+  /**
+   * 关键帧放行判据（2026-09-27 真机 v2 修正）：**放行必须晚于磁盘上这一版关键帧**。
+   *
+   * 事故：某镜在上一轮被放行（历史里有 ok 记录），本轮提示词变更 → 关键帧缓存失效 → 重渲 3 次全部被打回，
+   * 但失败产物**覆盖了磁盘上的文件名**；G7 只看历史里的 ok 记录 → 误判"已放行"，
+   * 于是用一版**从未被放行的关键帧**去渲染视频（最贵的环节）。判据改为"该镜存在 ok 记录且记录时间 ≥ 关键帧文件 mtime"。
+   */
+  const plateApprovedDetail = generatedShots.map((s) => {
+    const plate = join(PLATE_DIR, `${s.shotId}-plate.png`);
+    if (!existsSync(plate)) return { shotId: s.shotId, ok: false, reason: "缺关键帧文件" };
+    const mtime = statSync(plate).mtimeMs;
+    const approval = [...gateHistory, ...records]
+      .filter((r) => r.stage === "keyframe" && r.shotId === s.shotId && r.ok)
+      .map((r) => Date.parse(r.at))
+      .filter((t) => Number.isFinite(t))
+      .sort((a, b) => b - a)[0];
+    if (approval === undefined) return { shotId: s.shotId, ok: false, reason: "无放行记录" };
+    return approval >= mtime
+      ? { shotId: s.shotId, ok: true, reason: `放行时间晚于关键帧（${new Date(approval).toISOString().slice(11, 19)} ≥ ${new Date(mtime).toISOString().slice(11, 19)}）` }
+      : { shotId: s.shotId, ok: false, reason: `关键帧在放行之后被重渲（${new Date(mtime).toISOString().slice(11, 19)} > 放行 ${new Date(approval).toISOString().slice(11, 19)}）——必须重新过监制` };
+  });
+  const plateApproved = plateApprovedDetail.every((entry) => entry.ok);
   /**
    * 素材镜就绪判据（2026-09-25 口径修订）：**不是"有文件就行"**，而是要求
    * ① 片段在盘上；② G-MAT1 的 **verify 事件**存在（证明做过生成溯源 + 复用度实测 + 监制评审）。
@@ -2717,16 +2912,48 @@ if (STAGES.has("videos")) {
       { id: "prompt-files", pass: promptReady, hard: true, detail: promptReady ? `${generatedShots.length} 个生成镜提示词齐备且 ≥1200 字（另有 ${materialShots.length} 个素材镜走 material-gen 的动效提示词）` : "有生成镜缺提示词或字数不足 1200" },
       { id: "plate-files", pass: plateReady, hard: true, detail: plateReady ? `${generatedShots.length} 个生成镜关键帧齐备（>50KB）` : "有生成镜关键帧缺失或过小" },
       { id: "prompt-approved", pass: promptApproved, hard: true, detail: promptApproved ? "提示词环节有放行裁决（历史/本轮）" : "提示词环节无放行裁决" },
-      { id: "plates-approved", pass: plateApproved, hard: true, detail: plateApproved ? "每镜关键帧均有放行裁决" : "有镜头关键帧未放行" },
+      {
+        id: "plates-approved", pass: plateApproved, hard: true,
+        detail: plateApproved
+          ? `每镜关键帧均有**晚于该文件**的放行裁决（${plateApprovedDetail.filter((e) => e.ok).length}/${generatedShots.length}）`
+          : `有镜头关键帧缺少有效放行：${plateApprovedDetail.filter((e) => !e.ok).map((e) => `${e.shotId}（${e.reason}）`).join("；")}`
+      },
       {
         id: "material-segments", pass: materialReady, hard: true,
         detail: materialReady
           ? `${materialShots.length} 个素材镜已产出且过 G-MAT1（生成溯源 + 非静态直出 + 保真评审）`
           : `有素材镜未产出或未过 G-MAT1（素材只作生成输入，禁止静态直出）`
       },
+      /**
+       * 环境真实性（2026-09-27 事故机制化）：G7 是"花钱之前最后一道门"，
+       * 环境审计的结论必须在这道门的**判据清单**里可见（而不是只写在控制台日志里）——
+       * 平台执行器与审计器按 step_key 读的是 checks[]，环境真实性缺了这一条就又会变成"只有人眼能发现"。
+       */
+      {
+        id: "env-realism", pass: envHardTotal === 0 || envAccepted, hard: true,
+        detail: envHardTotal === 0
+          ? `环境真实性 + 设备口径硬缺陷 0（场景圣经 ${sceneBible ? sceneBible.spaceId : "未提供"}；设备清单 ${DEVICE_POLICY_VERSION}；软提示 ${envSoftTotal} 项，报告 ${basename(ENV_REPORT_FILE)}）`
+          : `环境真实性硬缺陷 ${envSummary.hard} 项 + 设备口径硬缺陷 ${devSummary.hard} 项（${Object.entries({ ...envSummary.byRule, ...devSummary.byRule }).map(([rule, count]) => `${rule}×${count}`).join(" · ")}）${envAccepted ? "——已显式声明带瑕疵放行" : "——渲染前必须清零"}`
+      },
+      /** 开场钩子（2026-09-27 新增岗位/机制）：同 env-realism，结论必须在这道花钱前的门里可见 */
+      {
+        id: "hook-first-3s", pass: hookSummary.hard === 0 || hookAccepted, hard: true,
+        detail: hookSummary.hard === 0
+          ? `开场钩子硬失败 0（${hookCard ? `${hookCard.type}｜兑现镜 ${hookCard.payoffShotId}` : "未登记钩子卡"}；平台 ${PLATFORM} 窗口前 ${hookWindowFor(PLATFORM)}s；软提示 ${hookSummary.soft} 项）`
+          : `开场钩子硬失败 ${hookSummary.hard} 项（${hookSummary.hardFailures.map((check) => check.id).join("、")}）${hookAccepted ? "——已显式声明带瑕疵放行" : "——渲染前必须清零"}`
+      },
       { id: "micromotion-applied", pass: micromotionReady, hard: false, detail: micromotionReady ? "微动作增强已并入镜头卡（或本轮未启用）" : "镜头卡未见微动作增强标记" }
     ],
-    evidence: { promptReady, plateReady, promptApproved, plateApproved, materialReady, micromotionReady }
+    evidence: {
+      promptReady, plateReady, promptApproved, plateApproved, materialReady, micromotionReady,
+      envRealism: { hard: envSummary.hard, soft: envSummary.soft, byRule: envSummary.byRule, bible: sceneBible?.spaceId ?? null, report: ENV_REPORT_FILE },
+      devicePolicy: { version: DEVICE_POLICY_VERSION, hard: devSummary.hard, soft: devSummary.soft, byRule: devSummary.byRule },
+      openingHook: {
+        platform: PLATFORM, windowSec: hookWindowFor(PLATFORM), hard: hookSummary.hard, soft: hookSummary.soft,
+        hook: hookCard ? { type: hookCard.type, promise: hookCard.promise, payoffShotId: hookCard.payoffShotId } : null,
+        sfx: hookSfxEnabled ? hookSfxSpec : null
+      }
+    }
   });
   if (!g7.approved && !ACCEPT_REJECTED.includes("G7")) {
     log(`⛔ G7 预生产最终确认未通过：${g7.reason}`);
@@ -3886,7 +4113,22 @@ if (STAGES.has("sfx") && existsSync(scored) && !DRY_RUN) {
    */
   const climaxAtSec = accentTimes.length > 0 ? accentTimes[accentTimes.length - 1] : undefined;
   const sfxPlan = planCutSfxDetailed({ cutTimes, durationSec: totalDuration, accentTimes, climaxAtSec }, CUT_SFX_POLICY);
-  const placements = sfxPlan.placements;
+  /**
+   * 开场钩子音（2026-09-27）：0–0.6s 是转场音效覆盖不到的窗口，单独摆一条。
+   * 与转场音效的冲突在这里显式消解（不是静默丢弃）：钩子音**优先**——它是前 3 秒机制的一部分，
+   * 被它挤掉的剪辑点音效如实记进 `hookConflicts`。
+   */
+  const hookPlacement = planHookSfx({
+    enabled: hookSfxEnabled && existsSync(scored),
+    atSec: hookSfxSpec.atSec, kind: hookSfxSpec.kind, gainDb: hookSfxSpec.gainDb
+  });
+  const hookConflicts = hookPlacement
+    ? sfxPlan.placements.filter((placement) => Math.abs(placement.atSec - hookPlacement.atSec) < CUT_SFX_POLICY.minGapSec)
+    : [];
+  const placements = [
+    ...(hookPlacement ? [hookPlacement] : []),
+    ...sfxPlan.placements.filter((placement) => !hookConflicts.includes(placement))
+  ];
   try {
     const files: string[] = [];
     const renderOne = (kind: "whoosh" | "impact" | "riser", durationSec: number, file: string): void => {
@@ -3894,7 +4136,11 @@ if (STAGES.has("sfx") && existsSync(scored) && !DRY_RUN) {
     };
     placements.forEach((placement, index) => {
       const file = join(sfxDir, `${String(index + 1).padStart(2, "0")}-${placement.kind}-${placement.atSec}s.wav`);
-      renderOne(placement.kind, placement.kind === "riser" ? 1.2 : placement.kind === "impact" ? 0.26 : 0.36, file);
+      /** 钩子音按 `HOOK_SFX_POLICY.durationSec`（0.26s 收在 0–0.6s 窗口内），剪辑点音效按各音色默认时长 */
+      const durationSec = hookPlacement && placement === hookPlacement
+        ? HOOK_SFX_POLICY.durationSec
+        : (placement.kind === "riser" ? 1.2 : placement.kind === "impact" ? 0.26 : 0.36);
+      renderOne(placement.kind, durationSec, file);
       files.push(file);
     });
     const sfxTrack = join(sfxDir, "sfx-track.wav");
@@ -3930,6 +4176,7 @@ if (STAGES.has("sfx") && existsSync(scored) && !DRY_RUN) {
         artifacts: [{ path: out, kind: "video", probe: probe(out) }, ...placements.slice(0, 6).map((p, i) => ({ path: files[i]!, kind: "audio" as const, note: `${p.kind}@${p.atSec}s` }))],
         rubric: [
           "音效与画面剪辑点对齐：甩镜/擦除处能听到气流，段落重音处有冲击，高潮前有抬升",
+          "开场钩子音（若启用）：0–0.6s 内有一记与钩子画面同帧的音效，首句台词仍清晰可辨（开场音是「抬一下」，不是音效秀）",
           "音效不能盖台词：有人声的镜头里，人声仍清晰可辨（响度与让位不因加音效而破坏）",
           "音效不过量：不是每个镜头都塞特效，密集段也不能糊成一片（间隔与条数在口径内）",
           "整片响度仍在母版口径（−14 LUFS ±1.5）"
@@ -3937,6 +4184,14 @@ if (STAGES.has("sfx") && existsSync(scored) && !DRY_RUN) {
         deterministic: [
           { id: "sfx-produced", pass: existsSync(out), detail: existsSync(out) ? "带音效母版已产出" : "带音效母版未产出", hard: true },
           { id: "sfx-count", pass: placements.length >= Math.min(3, cutTimes.length), detail: `音效 ${placements.length} 条 / 剪辑点 ${cutTimes.length} 个`, hard: true },
+          {
+            id: "hook-sfx-window",
+            pass: !hookSfxEnabled || Boolean(hookPlacement),
+            hard: hookSfxEnabled && hookWindowFor(PLATFORM) <= HOOK_WINDOW_SEC,
+            detail: hookPlacement
+              ? `开场钩子音 ${hookPlacement.kind}@${hookPlacement.atSec}s（窗口 0–${HOOK_SFX_POLICY.windowSec}s，与钩子画面同帧）`
+              : (hookSfxEnabled ? "钩子音已启用但未摆放（异常）" : "未启用钩子音（长视频平台默认不强制）")
+          },
           { id: "video-untouched", pass: Number(probe(out).duration ?? 0) > 0, detail: "视频轨 copy（画面零改动）", hard: true },
           {
             id: "loudness-drift", pass: drift === null ? false : drift <= 1.5,
@@ -3957,10 +4212,12 @@ if (STAGES.has("sfx") && existsSync(scored) && !DRY_RUN) {
         evidence: {
           placements: placements.map((p) => ({ atSec: p.atSec, kind: p.kind, gainDb: p.gainDb, reason: p.reason })),
           dropped: sfxPlan.dropped.map((p) => ({ atSec: p.atSec, kind: p.kind, reason: p.reason })),
+          hook: hookPlacement ? { atSec: hookPlacement.atSec, kind: hookPlacement.kind, gainDb: hookPlacement.gainDb, reason: hookPlacement.reason } : null,
+          hookConflicts: hookConflicts.map((p) => ({ atSec: p.atSec, kind: p.kind, reason: "被开场钩子音挤掉（0–0.6s 内不与剪辑点音效叠加）" })),
           climaxAtSec, cutTimes, loudnessBefore: before.detail, loudnessAfter: after.detail, drift,
           tool: "sfx-synth（合成，无第三方采样）"
         },
-        verdict, note: `转场音效 ${placements.length} 条（whoosh/impact/riser）`
+        verdict, note: `音效 ${placements.length} 条（whoosh/impact/riser）${hookPlacement ? " · 含开场钩子音" : ""}`
       });
     }
   } catch (err) {
