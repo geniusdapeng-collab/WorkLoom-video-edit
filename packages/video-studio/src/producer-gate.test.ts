@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { PRODUCER_RUBRICS, resolveProducerLlm, reviewStage, type ProducerGateOptions } from "./producer-gate.js";
+import { PRODUCER_RUBRICS, buildProducerReviewContract, resolveProducerLlm, reviewStage, type ProducerGateOptions } from "./producer-gate.js";
 const env = { LLM_BASE_URL: "https://api.example.com", LLM_API_KEY: "k", LLM_MODEL: "judge-1" };
 const dirs: string[] = [];
 const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aD1sAAAAASUVORK5CYII=", "base64");
@@ -116,5 +116,50 @@ describe("AI producer evidence gate", () => {
   it("credentials need all three fields", () => {
     expect(resolveProducerLlm({})).toBeNull(); expect(resolveProducerLlm({ LLM_BASE_URL: "x", LLM_API_KEY: "y" })).toBeNull();
     expect(resolveProducerLlm({ DEEPSEEK_BASE_URL: "https://api.example.com", DEEPSEEK_API_KEY: "k", DEEPSEEK_MODEL: "test" })?.model).toBe("test");
+  });
+});
+
+
+describe("producer uses explicit source contracts", () => {
+  const shots = [{ shotId: "PAIR", scene: "两人坐在窗边", characters: ["甲", "乙"], composition: "双人近景", lighting: "右侧烛光2200K", action: "保持坐姿，不笑", depth_of_field: "深景深" }];
+  it("exact contract hash and complete facts enter judge, without old universal templates", async () => {
+    const bodies: string[] = []; const contracts = { shots };
+    const expected = buildProducerReviewContract(contracts);
+    const result = await reviewStage(textOptions({ contracts, fetchImpl: judge(good, bodies) }));
+    expect(result.approved).toBe(true); expect(result.contractHash).toBe(expected.contractHash);
+    expect(bodies[0]).toContain("右侧烛光2200K"); expect(bodies[0]).toContain("深景深"); expect(bodies[0]).toContain(expected.contractHash);
+    expect(expected.shots[0]?.intent.subject.count).toBe(2);
+    expect(Object.values(PRODUCER_RUBRICS).flat().join("；")).not.toMatch(/五路微动作齐备|无第二张脸|屏幕始终朝向|全部是 2024|六镜是同一个人|都在成片里可见/);
+  });
+  it("structured device date and purpose are checked before calling a model", async () => {
+    const bodies: string[] = [];
+    const phone = { shotId: "PHONE", scene: "手机产品特写", devices: [{ category: "phone", model: "iPhone 16" }] };
+    const missing = await reviewStage(textOptions({ contracts: { shots: [phone] }, fetchImpl: judge(good, bodies) }));
+    expect(missing.status).toBe("unverified"); expect(bodies).toHaveLength(0);
+    const future = await reviewStage(textOptions({ contracts: { shots: [phone], eraProfile: { storyDate: "2012-01-01" } }, fetchImpl: judge(good, bodies) }));
+    expect(future.status).toBe("failed"); expect(bodies).toHaveLength(0);
+    const valid = await reviewStage(textOptions({ contracts: { shots: [phone], eraProfile: { storyDate: "2024-09-20" } }, fetchImpl: judge(good, bodies) }));
+    expect(valid.approved).toBe(true); expect(bodies[0]).toContain("设备声明：iPhone 16");
+  });
+  it.each([null, { shots: [] }, { shots: [null] }, { shots: [{ scene: "空镜" }] }, { shots: [shots[0], shots[0]] }, { shots: [{ shotId: "UNKNOWN" }] }, { shots, sceneBible: null }])("invalid structured contracts are unverified before external calls %j", async (contracts) => {
+    const bodies: string[] = [];
+    const result = await reviewStage(textOptions({ contracts: contracts as never, fetchImpl: judge(good, bodies) }));
+    expect(result.status).toBe("unverified"); expect(bodies).toHaveLength(0);
+  });
+  it("mutating the source while reviewing cannot retain a passed verdict", async () => {
+    const contracts = { shots: structuredClone(shots) };
+    const fetchImpl = (async () => { contracts.shots[0]!.lighting = "左侧冷光"; return new Response(JSON.stringify({ choices: [{ message: { content: JSON.stringify(good) } }] })); }) as typeof fetch;
+    const result = await reviewStage(textOptions({ contracts, fetchImpl }));
+    expect(result.approved).toBe(false); expect(result.reason).toContain("合同发生变化");
+  });
+  it("oversize contract stays unverified without truncating its final facts", async () => {
+    const bodies: string[] = [];
+    const result = await reviewStage(textOptions({ contracts: { shots: [{ ...shots[0], description: "a".repeat(30001) }] }, fetchImpl: judge(good, bodies) }));
+    expect(result.status).toBe("unverified"); expect(result.reason).toContain("超预算"); expect(bodies).toHaveLength(0);
+  });
+  it("legacy no-contract caller explicitly declares the unverified fact boundary", async () => {
+    const bodies: string[] = [];
+    const result = await reviewStage(textOptions({ fetchImpl: judge(good, bodies) }));
+    expect(result.contractHash).toBeUndefined(); expect(bodies[0]).toContain("未提供结构化镜头合同");
   });
 });
