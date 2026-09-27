@@ -463,6 +463,8 @@
         "library/scene-policies/commerce-seeding.source.md",
         "library/scene-policies/knowledge-talking-head.json",
         "library/scene-policies/knowledge-talking-head.source.md",
+        "library/scene-policies/beauty-fashion.json",
+        "library/scene-policies/beauty-fashion.source.md",
         "library/seedance-references/audio-tags.md",
         "library/seedance-references/cinematography.md",
         "library/seedance-references/director-styles.md",
@@ -757,7 +759,7 @@
   },
   "integrity": {
     "algorithm": "sha256",
-    "digest": "841735d4b7e29ca54c89dfc19eaa88030621a6b7bde4f9ed2359dfdaf9fe4e6b",
+    "digest": "dd7ee16acfc50bedad12ea788a3aa8323d8b3b5fe2720d668cab3a87e19d2dda",
     "assets": {
       "connectors/bgm-bridge/audio-stems-trust.mjs": "701b20e1705b16b026be2900bb49430ef875c8f01f83515f297a5b0b9a50cf93",
       "connectors/bgm-bridge/audio-stems.mjs": "9180a2cb1fbac95f4c5ec835041e98436ccc2de6d7a874abb651bf6b74124425",
@@ -1164,6 +1166,8 @@
       "library/luts/slog3-to-rec709.cube": "63ff904e3535404f23f6f23048233726b5c09839a87c0f436724ccba0e43d01e",
       "library/media-catalog/media-catalog.json": "569f9a0f05a8bb66eb48d67b742bd53a3bd64ea213a79cb0f4925c7ecf627d27",
       "library/README.md": "791f05f2cd3f60d1ac343ce09c5bab841cb7157847f87bc0bc9eaa735f6b7730",
+      "library/scene-policies/beauty-fashion.json": "915aa70789f1deab4f81a0948b4c2de17390fb9eeb2a91523d3f3a04a94816e6",
+      "library/scene-policies/beauty-fashion.source.md": "8ca27e9a3aa2981c81cb88a071e206b9755c28e69bc1ad4e62048609f7703e89",
       "library/scene-policies/commerce-seeding.json": "3ef8c65dbfb0072634d125195c3181522637652dc386a22d32793931caebef3b",
       "library/scene-policies/commerce-seeding.source.md": "363e2bab86f4cdaa39c08ab1bfa3a067a0597165a91185c5734b37d5bc3557b2",
       "library/scene-policies/commercial-person.json": "92e5d5ac79eac0b64e75cc3cb740fe65319d493689eead54833ea4f611de73d1",
