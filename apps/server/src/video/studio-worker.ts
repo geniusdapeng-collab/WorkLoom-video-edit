@@ -39,6 +39,7 @@ import {
   type PipelineKind,
   type PortraitIndex,
   type ProducerStage,
+  type ProducerVerdict,
   type RunInput,
   type StudioConfig,
   type StudioPortraitConfig,
@@ -55,6 +56,7 @@ import {
   gateDeterministicChecks,
   isProducerRejection,
   producerModeFromEnv,
+  portraitGateEvidence,
   writeGateArtifact,
   type ProducerMode,
 } from "./gate-policy.js";
@@ -469,7 +471,8 @@ export function startRun(scope: Scope, input: RunInput): string {
    * vendor 只写 portraitBindings，渲染侧读 characterRef，中间断线 → 出了图也报
    * BINDING_MANIFEST_INVALID）。索引跑完预生产才落盘，故用惰性读取。
    */
-  const portraitIndexPath = path.join(WORK_DIR, "characters", input.projectId, "portrait-index.json");
+  const runWorkDir = path.join(WORK_DIR, "workspaces", scope.workspaceId);
+  const portraitIndexPath = path.join(runWorkDir, "characters", input.projectId, "portrait-index.json");
   const uninstallPortraitBinding = installVendorPortraitBindingBridge({
     resolveIndex: () => {
       try {
@@ -522,6 +525,8 @@ export function startRun(scope: Scope, input: RunInput): string {
   });
   /** 交接包线索（来自真实事件，不猜）：门裁决 + 时长投影 */
   const decisionLog: string[] = [];
+  const gateProofs = new Map<string, Record<string, unknown>>();
+  let completedVendorResult: Awaited<ReturnType<VideoStudio["runPreproduction"]>> | null = null;
 
   const onEvent: EventSink = async (e) => {
     try {
@@ -591,12 +596,18 @@ export function startRun(scope: Scope, input: RunInput): string {
          * `reviewStage` 读不到文件 → 监制只看到 rubric 里的 600 字摘录 → 文档后半段
          * （需求契约/结论摘要等）等于不存在，连续三轮把 G3 判成"契约缺失"。
          */
-        const artifact = writeGateArtifact(WORK_DIR, input.projectId, gate, req.contentMd ?? "");
-        producerVerdict = await reviewStage({
+        const artifact = writeGateArtifact(runWorkDir, path.join(input.projectId, `attempt-${stageRef.attempt}`), gate, req.contentMd ?? "");
+        const portrait = gate === "G5_PORTRAIT" ? portraitGateEvidence({ workDir: runWorkDir, projectId: input.projectId,
+          stage: completedVendorResult?.stages?.portraitStudio,
+          scriptReport: (completedVendorResult?.stages?.scriptEngine as { report?: unknown } | undefined)?.report }) : null;
+        producerVerdict = portrait?.notApplicable ? {
+          stage: "keyframe", status: "not_applicable", approved: true, score: 100, hardFailures: [], issues: [], suggestions: [],
+          rerun: false, via: "deterministic", ms: 0, reason: "no-characters-or-products", degraded: false, evidence: [],
+        } : await reviewStage({
           stage: producerStage,
           projectId: input.projectId,
-          artifacts: [{ path: artifact.path, kind: "text", note: req.title }],
-          deterministic: gateDeterministicChecks(gate, req.contentMd ?? ""),
+          artifacts: [{ path: artifact.path, kind: "text", note: req.title }, ...(portrait?.artifacts ?? [])],
+          deterministic: portrait?.deterministic ?? gateDeterministicChecks(gate, req.contentMd ?? ""),
           rubric: [
             ...((GATE_RUBRIC[gate] ?? []) as string[]),
             `门内容全长 ${artifact.chars} 字，已随附件送审；摘录（供定位，不是全文）：${(req.contentMd ?? "").slice(0, 600)}`
@@ -661,6 +672,10 @@ export function startRun(scope: Scope, input: RunInput): string {
       } finally {
         autoClient.release();
       }
+      gateProofs.set(gate, { gate, approved, status: producerVerdict?.status ?? "unverified",
+        via: producerVerdict?.via ?? "auto", degraded: producerVerdict?.degraded ?? true,
+        model: producerVerdict?.model ?? null, evidence: producerVerdict?.evidence ?? [],
+        ...(producerVerdict?.status === "not_applicable" ? { basis: producerVerdict.reason } : {}) });
       if (PRODUCER_MODE === "auto") {
         return { approved: true, reason: `auto-approved(${req.gate})`, suggestions: [] };
       }
@@ -727,7 +742,7 @@ export function startRun(scope: Scope, input: RunInput): string {
 
   const studio = new VideoStudio({
     llm,
-    workDir: WORK_DIR,
+    workDir: runWorkDir,
     onApproval,
     onEvent,
     totalDeadlineMs: TOTAL_DEADLINE_MS,
@@ -783,6 +798,8 @@ export function startRun(scope: Scope, input: RunInput): string {
           "preproduction",
           { intent: input.intent, isMarketing: input.isMarketing ?? false, pipelineKind },
           async (ctx) => {
+            gateProofs.clear();
+            completedVendorResult = null;
             /**
              * 断点快照（真机发现的方案缺陷修复，T-2026-0926-0001 留痕）：
              * vendor 在 Phase checkpoint 指纹不匹配时会**删除**自己的 checkpoint
@@ -791,7 +808,7 @@ export function startRun(scope: Scope, input: RunInput): string {
              */
             const preCheckpoints = await runnerStore
               .snapshotExternalDir(
-                path.resolve(WORK_DIR, "checkpoints", input.projectId),
+                path.resolve(runWorkDir, "checkpoints", input.projectId),
                 `checkpoints/attempt-${ctx.attempt}-before`,
                 { filter: (name) => name.endsWith(".json") },
               )
@@ -800,6 +817,27 @@ export function startRun(scope: Scope, input: RunInput): string {
                 return { files: 0, bytes: 0, skipped: [] as string[] };
               });
             const r = await studio.runPreproduction(input);
+            completedVendorResult = r;
+            if (r.success) {
+              // vendor 真出图批量模式跳过的是生成前询问；服务必须在实际图片存在后完成 G5。
+              const portraitVerdict = await onApproval({ runId: entry.runId, gate: "G5_PORTRAIT", vendorType: "portrait-generation",
+                title: "实际定妆照完整性与视觉审核", contentMd: JSON.stringify({ portraitStudio: r.stages?.portraitStudio,
+                  scriptReport: (r.stages?.scriptEngine as { report?: unknown } | undefined)?.report }) });
+              r.confirmations = { ...((r.confirmations ?? {}) as Record<string, unknown>), hostPortraits: portraitVerdict };
+              if (!portraitVerdict.approved) r.success = false;
+            }
+            if (r.success && !input.isMarketing) {
+              const missing = ["G2_THEME", "G3_INSIGHT", "G4_PRD", "G5_PORTRAIT", "G6_PROMPT", "G7_FINAL"].filter(gate => {
+                const proof = gateProofs.get(gate);
+                return !(proof?.approved === true && (proof.status === "passed" && proof.via === "llm" && proof.degraded === false
+                  || gate === "G5_PORTRAIT" && proof.status === "not_applicable" && proof.basis === "no-characters-or-products"));
+              });
+              if (missing.length) {
+                r.success = false;
+                r.confirmations = { ...((r.confirmations ?? {}) as Record<string, unknown>), hostQualification: { approved: false,
+                  reason: `producer-rejected：缺少服务监制裁决 ${missing.join(",")}`, fatal: "producer_rejected" } };
+              }
+            }
             rawResult = r;
             await ctx.heartbeat({ stages: Object.keys(r.stages ?? {}) });
             const vendorResumed = (r as unknown as { resumed?: unknown }).resumed === true;
@@ -906,6 +944,9 @@ export function startRun(scope: Scope, input: RunInput): string {
             return {
               output: {
                 success: r.success,
+                productionEvidence: { schemaVersion: "workloom.preproduction-authority/v1", issuer: "workloom.studio-worker",
+                  tenantId: scope.tenantId, workspaceId: scope.workspaceId, projectId: input.projectId,
+                  runId: entry.runId, attempt: ctx.attempt, pipelineKind, gates: [...gateProofs.values()] },
                 stages: Object.keys(r.stages ?? {}),
                 checkpointDir: `checkpoints/${input.projectId}`,
                 ...(promptsArtifact

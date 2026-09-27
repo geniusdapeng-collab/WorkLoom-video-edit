@@ -14,43 +14,10 @@ import {
   type GenKind, type GenProvider, type GenRequest, type GenTaskStatus,
 } from "@workloom/base/model-router";
 import { ProviderError } from "./types.js";
+import { compileProviderRequest, type CompiledProviderRequest } from "./compiled-request.js";
 import { WhiteboardProvider } from "../whiteboard/provider.js";
 import { whiteboardEngineReady } from "../whiteboard/engine.js";
 import { RemotionProvider } from "../explainer/remotion-provider.js";
-
-interface NeutralParams {
-  providerModel?: string;
-  durationSec?: number;
-  aspectRatio?: string;
-  resolution?: string;
-  generateAudio?: boolean;
-  firstFrameUrl?: string;
-  referenceImageUrls?: string[];
-  referenceVideoUrls?: string[];
-  referenceAudioUrls?: string[];
-  seed?: number;
-  negativePrompt?: string;
-  watermark?: boolean;
-  cameraFixed?: boolean;
-  returnLastFrame?: boolean;
-  serviceTier?: string;
-  priority?: number;
-  executionExpiresAfter?: number;
-  frames?: number;
-  outputFormat?: string;
-  callbackUrl?: string;
-  extra?: Record<string, unknown>;
-}
-
-function neutral(req: GenRequest): NeutralParams {
-  return (req.params ?? {}) as NeutralParams;
-}
-
-function requireModel(req: GenRequest, fallback?: string): string {
-  const m = neutral(req).providerModel ?? fallback;
-  if (!m) throw new ProviderError("BAD_REQUEST", "缺少 providerModel（模型目录未解析出供应商模型 id）");
-  return m;
-}
 
 /** HTTP 失败 → 统一分类（401/并发满/模型不可用/可重试/其他） */
 function classify(status: number, body: string): ProviderError {
@@ -89,6 +56,15 @@ async function postJson(url: string, headers: Record<string, string>, body: unkn
   }
 }
 
+/** 直接发送编译后的 JSON，不在审核后再映射、追加或覆盖字段。 */
+async function postCompiled(compiled: CompiledProviderRequest, headers: Record<string, string>): Promise<unknown> {
+  const res = await fetch(compiled.endpoint, { method: compiled.method, headers: { "content-type": "application/json", ...headers }, body: compiled.bodyJson });
+  const text = await res.text();
+  if (!res.ok) throw classify(res.status, text);
+  try { return JSON.parse(text) as unknown; }
+  catch { throw new ProviderError("PROVIDER_FAILED", "供应商响应不是有效 JSON"); }
+}
+
 async function getJson(url: string, headers: Record<string, string>): Promise<{ ok: boolean; status: number; body: unknown; text: string }> {
   const res = await fetch(url, { method: "GET", headers });
   const text = await res.text();
@@ -108,51 +84,8 @@ export class ArkVideoProvider implements GenProvider {
   }
   async healthy(): Promise<boolean> { return Boolean(this.cfg.apiKey); }
   async submit(req: GenRequest): Promise<{ taskId: string }> {
-    const p = neutral(req);
-    const content: Array<Record<string, unknown>> = [{ type: "text", text: req.prompt }];
-    /**
-     * Ark 的 `content` 里**每张图都必须带 role**：真机 2026-09-22 实测，
-     * 参考图不带 role 时直接 400 `role must be specified for image contents`
-     * （渲染提交整批失败）。首帧用 first_frame，参考图用 reference_image。
-     */
-    const first = p.firstFrameUrl?.trim();
-    if (first) content.push({ type: "image_url", image_url: { url: first }, role: "first_frame" });
-    for (const url of p.referenceImageUrls ?? []) {
-      if (url?.trim()) content.push({ type: "image_url", image_url: { url }, role: "reference_image" });
-    }
-    // 视频/音频参考（官方 SDK 支持 video_url / audio_url 内容类型；role 由调用方语义给出）
-    for (const url of p.referenceVideoUrls ?? []) {
-      if (url?.trim()) content.push({ type: "video_url", video_url: { url }, role: "reference_video" });
-    }
-    for (const url of p.referenceAudioUrls ?? []) {
-      if (url?.trim()) content.push({ type: "audio_url", audio_url: { url }, role: "reference_audio" });
-    }
-    const payload: Record<string, unknown> = {
-      model: requireModel(req),
-      content,
-      ...(p.durationSec ? { duration: Math.round(p.durationSec) } : {}),
-      ...(p.frames ? { frames: Math.round(p.frames) } : {}),
-      ...(p.aspectRatio ? { ratio: p.aspectRatio } : {}),
-      ...(p.resolution ? { resolution: p.resolution } : {}),
-      ...(p.generateAudio === undefined ? {} : { generate_audio: p.generateAudio }),
-      ...(p.seed === undefined ? {} : { seed: p.seed }),
-      /**
-       * 官方 SDK（volcengine-python-sdk@5.0.50，2026-09-17）确认的新参数：
-       * watermark / camera_fixed / return_last_frame / service_tier / priority /
-       * execution_expires_after / output_format / callback_url。
-       * watermark 默认 false（产品成片不应带平台水印）。
-       */
-      watermark: p.watermark ?? false,
-      ...(p.cameraFixed === undefined ? {} : { camera_fixed: p.cameraFixed }),
-      ...(p.returnLastFrame === undefined ? {} : { return_last_frame: p.returnLastFrame }),
-      ...(p.serviceTier ? { service_tier: p.serviceTier } : {}),
-      ...(p.priority === undefined ? {} : { priority: p.priority }),
-      ...(p.executionExpiresAfter === undefined ? {} : { execution_expires_after: p.executionExpiresAfter }),
-      ...(p.outputFormat ? { output_format: p.outputFormat } : {}),
-      ...(p.callbackUrl ? { callback_url: p.callbackUrl } : {}),
-      ...(p.extra ?? {}),
-    };
-    const data = await postJson(`${this.base()}/contents/generations/tasks`, { authorization: `Bearer ${this.cfg.apiKey}` }, payload) as { id?: string };
+    const compiled = compileProviderRequest(this.providerId, req, this.cfg);
+    const data = await postCompiled(compiled, { authorization: `Bearer ${this.cfg.apiKey}` }) as { id?: string };
     if (typeof data?.id !== "string" || !data.id.trim()) throw new ProviderError("PROVIDER_FAILED", "Seedance 未返回 task_id");
     return { taskId: data.id };
   }
@@ -179,16 +112,8 @@ export class ArkImageProvider implements GenProvider {
   }
   async healthy(): Promise<boolean> { return Boolean(this.cfg.apiKey); }
   async submit(req: GenRequest): Promise<{ taskId: string }> {
-    const p = neutral(req);
-    const payload: Record<string, unknown> = {
-      model: requireModel(req),
-      prompt: req.prompt,
-      response_format: "url",
-      ...(p.resolution ? { size: p.resolution } : {}),
-      ...(p.seed === undefined ? {} : { seed: p.seed }),
-      ...(p.extra ?? {}),
-    };
-    const data = await postJson(`${this.base()}/images/generations`, { authorization: `Bearer ${this.cfg.apiKey}` }, payload) as { data?: Array<{ url?: string }> };
+    const compiled = compileProviderRequest(this.providerId, req, this.cfg);
+    const data = await postCompiled(compiled, { authorization: `Bearer ${this.cfg.apiKey}` }) as { data?: Array<{ url?: string }> };
     const url = data?.data?.[0]?.url;
     if (typeof url !== "string" || !url.trim()) throw new ProviderError("PROVIDER_FAILED", "Seedream 未返回图像 URL");
     // 同步接口 → 用 taskId 内嵌结果（poll 直接解出，不轮询）
@@ -219,28 +144,9 @@ export class HiggsfieldProvider implements GenProvider {
   }
   async healthy(): Promise<boolean> { return Boolean(this.cfg.keyId && this.cfg.keySecret); }
 
-  /** 中立参数 → Higgsfield 请求体（端点 schema：prompt/resolution/duration/aspect_ratio/generate_audio/image_url） */
-  private body(req: GenRequest): Record<string, unknown> {
-    const p = neutral(req);
-    return {
-      prompt: req.prompt,
-      ...(p.durationSec ? { duration: Math.round(p.durationSec) } : {}),
-      ...(p.resolution ? { resolution: p.resolution } : {}),
-      ...(p.aspectRatio ? { aspect_ratio: p.aspectRatio } : {}),
-      ...(p.generateAudio === undefined ? {} : { generate_audio: p.generateAudio }),
-      ...(p.firstFrameUrl ? { image_url: p.firstFrameUrl } : {}),
-      ...(p.referenceImageUrls?.length ? { reference_images: p.referenceImageUrls } : {}),
-      ...(p.seed === undefined ? {} : { seed: p.seed }),
-      ...(p.extra ?? {}),
-    };
-  }
-
   async submit(req: GenRequest): Promise<{ taskId: string }> {
-    const endpoint = requireModel(req);
-    const qs = this.cfg.webhookUrl ? `?hf_webhook=${encodeURIComponent(this.cfg.webhookUrl)}` : "";
-    const data = await postJson(`${this.base()}/${endpoint}${qs}`, this.auth(), this.body(req)) as {
-      request_id?: string; id?: string;
-    };
+    const compiled = compileProviderRequest(this.providerId, req, this.cfg);
+    const data = await postCompiled(compiled, this.auth()) as { request_id?: string; id?: string };
     const taskId = data?.request_id ?? data?.id;
     if (typeof taskId !== "string" || !taskId.trim()) throw new ProviderError("PROVIDER_FAILED", "Higgsfield 未返回 request_id");
     return { taskId };
@@ -283,15 +189,8 @@ export class MuapiProvider implements GenProvider {
   }
   async healthy(): Promise<boolean> { return Boolean(this.cfg.apiKey); }
   async submit(req: GenRequest): Promise<{ taskId: string }> {
-    const p = neutral(req);
-    const data = await postJson(`${this.base()}/api/v1/${requireModel(req)}`, { "x-api-key": this.cfg.apiKey }, {
-      prompt: req.prompt,
-      ...(p.durationSec ? { duration: Math.round(p.durationSec) } : {}),
-      ...(p.aspectRatio ? { aspect_ratio: p.aspectRatio } : {}),
-      ...(p.resolution ? { resolution: p.resolution } : {}),
-      ...(p.firstFrameUrl ? { image_url: p.firstFrameUrl } : {}),
-      ...(p.extra ?? {}),
-    }) as { request_id?: string; id?: string };
+    const compiled = compileProviderRequest(this.providerId, req, this.cfg);
+    const data = await postCompiled(compiled, { "x-api-key": this.cfg.apiKey }) as { request_id?: string; id?: string };
     const taskId = data?.request_id ?? data?.id;
     if (typeof taskId !== "string" || !taskId.trim()) throw new ProviderError("PROVIDER_FAILED", "MuAPI 未返回 request_id");
     return { taskId };

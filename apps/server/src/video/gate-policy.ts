@@ -12,8 +12,9 @@
  */
 import type { GateKey } from "@hyperreality/video-studio";
 import type { ProducerStage } from "@hyperreality/video-studio";
-import { mkdirSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { mkdirSync, writeFileSync, readFileSync, realpathSync, statSync } from "node:fs";
+import { join, resolve, relative, sep } from "node:path";
+import type { ProducerArtifact, DeterministicCheck, PortraitIndex } from "@hyperreality/video-studio";
 
 /**
  * 自动放行的「内部准备门」。默认包含 G1–G7；`HR_AUTO_GATES` 可覆盖
@@ -41,7 +42,7 @@ export const GATE_PRODUCER_STAGE: Partial<Record<GateKey, ProducerStage>> = {
   G4_PRD: "prompt",
   G5_PORTRAIT: "keyframe",
   G6_PROMPT: "prompt",
-  G7_FINAL: "master"
+  G7_FINAL: "prompt"
 };
 
 /** 逐门评审要点（在通用 rubric 之上叠加该门的专属口径） */
@@ -118,4 +119,47 @@ export function isProducerRejection(result: {
     const reason = String(record.reason ?? "");
     return reason.includes("producer-rejected") || reason.includes("producer_unavailable");
   });
+}
+
+
+/** G5 的事实由本次引擎结构结果与真实索引/图片共同给出；不从确认单里的自述推断出图。 */
+export function portraitGateEvidence(input: {
+  workDir: string; projectId: string; stage: unknown; scriptReport: unknown;
+}): { artifacts: ProducerArtifact[]; deterministic: DeterministicCheck[]; notApplicable: boolean } {
+  const stage = input.stage && typeof input.stage === "object" ? input.stage as Record<string, unknown> : {};
+  const report = input.scriptReport && typeof input.scriptReport === "object" ? input.scriptReport as Record<string, unknown> : {};
+  if (stage.status === "skipped" && stage.reason === "no-characters-or-products" && report.characters_count === 0) {
+    return { artifacts: [], notApplicable: true, deterministic: [{ id: "portrait-applicability", status: "not_applicable", pass: false, hard: true,
+      detail: "本次剧本结构 characters_count=0 且 PortraitStudio 无角色/商品任务" }] };
+  }
+  const fail = (detail: string) => ({ artifacts: [], notApplicable: false,
+    deterministic: [{ id: "portrait-files", pass: false, hard: true, detail }] });
+  try {
+    if (stage.status !== "completed" || !(Number(stage.completedPortraits) > 0) || Number(stage.pendingPortraits) !== 0) return fail("本次定妆照未完整生成，不能用旧图片或计划书代替");
+    const base = realpathSync(input.workDir);
+    const root = resolve(base, "characters", input.projectId);
+    if (!root.startsWith(`${base}${sep}`) || realpathSync(root) !== root) return fail("定妆照目录越界或经过符号链接");
+    const indexPath = join(root, "portrait-index.json");
+    if (realpathSync(indexPath) !== indexPath) return fail("定妆照索引经过符号链接");
+    const index = JSON.parse(readFileSync(indexPath, "utf8")) as PortraitIndex;
+    if (index.schemaVersion !== "workloom.portrait-index/v1" || index.projectId !== input.projectId) return fail("定妆照索引不属于当前项目");
+    const characters = Object.values(index.characters ?? {}), products = Object.values(index.products ?? {});
+    if (characters.length !== Number(stage.characters) || products.length !== Number(stage.products)) return fail("实际定妆照主体数与本次生成任务不一致");
+    const artifacts: ProducerArtifact[] = [{ path: indexPath, kind: "json", note: "本次实际角色/商品及角度索引" }];
+    for (const item of [...characters, ...products]) {
+      const entries = Object.entries(item.files ?? {});
+      if (item.kind === "character" && ["front", "threeQuarter", "closeup", "side"].some(angle => !item.files?.[angle])) return fail(`角色 ${item.id} 缺少必需的四角度`);
+      if (entries.length === 0) return fail("主体没有实际出图文件");
+      for (const [angle, file] of entries) {
+        const absolute = resolve(base, relative(resolve(input.workDir), resolve(file)));
+        if (!absolute.startsWith(`${root}${sep}`) || realpathSync(file) !== absolute || !statSync(absolute).isFile() || statSync(absolute).size === 0) return fail("定妆照文件缺失、为空、越界或经过符号链接");
+        artifacts.push({ path: absolute, kind: "image", note: `${item.kind}:${item.id}:${angle}` });
+      }
+    }
+    if (artifacts.length === 1) return fail("定妆照索引没有可送审图片");
+    return { artifacts, notApplicable: false, deterministic: [
+      { id: "portrait-files", pass: true, hard: true, detail: `${artifacts.length - 1} 张当前项目图片已读取并与本次任务数量核对` },
+      { id: "required-angles", pass: true, hard: true, detail: "所有人物四角度完整，商品有实际视图" },
+    ] };
+  } catch (error) { return fail(`实际定妆照证据不可读取：${error instanceof Error ? error.message : String(error)}`); }
 }
