@@ -728,7 +728,7 @@
   },
   "integrity": {
     "algorithm": "sha256",
-    "digest": "5510aae4278bcb517a9c98268de593afd7358d55ef85d9303acb4ce7cc1de1cc",
+    "digest": "760e56dd2e75aa86903cf79700f267f71c06041f38f29f9a7d9451228d8f0935",
     "assets": {
       "connectors/bgm-bridge/brief.mjs": "bb858adae23728deffa1668d9f9db15085f9c94ed73d2c01b5505d82e78e2407",
       "connectors/bgm-bridge/cli.mjs": "bc1de683c93149f9e79d99f9d59eab98f829398fa07ce1c94eca10ed48ad9eca",
@@ -1203,7 +1203,7 @@
       "presets/subtitle-stylist.yml": "2dae6b77cd15bea73efe88fc0a7d7e1ff21acd32f2b3e7470243846ba998a062",
       "presets/trend-researcher.yml": "802b157911cf35216d5122784d8ba0d89ac1da2187748413243f957c002307b3",
       "presets/visual-director.yml": "74683eed31a08c7ffce74ffeb02a4349051c4ec9164ba995470455cf35f6fa61",
-      "presets/voice-artist.yml": "ea8d3efaab6de0659fc39e52f37568595c2f8c0caa5c2220d7cb71203beebdb7",
+      "presets/voice-artist.yml": "dec7a71914f82f56a0fc81e8470271c31663b9fc70103d18bf9671c17763f56a",
       "schemas/objects.json": "7809a5df786b109d29e97c4dcb7258f5ccb84f76c66508109c1b3af5c57bc222",
       "schemas/stages.json": "418332ca5a5522083592da40773265d8f09b1ab9276d566275e075ef56118831",
       "skills/bgm-audio-layering/SKILL.md": "d8c945fc0a8ffd66f107a48ef9c1da3d1d55a3e1673efe320c4fac219828685f",
@@ -1237,7 +1237,7 @@
       "skills/subtitle-layout-design/SKILL.md": "bf81cef58f61cac5fd3c5e3bf9a1cac545257f7f8ac9395eb56d357cc1b5c567",
       "skills/talkcraft-ops/SKILL.md": "9bfa7996abbe2f56478b48eb074e456a130de3e7cb7282bc1d576bfa9f7b0ff6",
       "skills/voice-clone-consent/SKILL.md": "796ca32d1f8b7eaaa36d5892182d7a6d5a50372729a495709cf189c510a57831",
-      "skills/voice-delivery-spec/SKILL.md": "73210bae2c2a037ab51219c459540e3dc48ba4ba02e3768095fc2fb4cc399a3c",
+      "skills/voice-delivery-spec/SKILL.md": "0b7898e144f98ec83afe9a72a144f9dc8042a1d51b651c93e6ab3a9fab743adc",
       "skills/voice-dubbing-sync/SKILL.md": "649ba8ddc09347c4169f10ff6ae86930ef2df3bd46297c9e6af7dadd2542caff",
       "skills/voice-profile-craft/SKILL.md": "429812cecc23eeaf47a446f48d69902fb99c7eb2184937eaecb706115fcdd964",
       "skills/voice-reference-craft/SKILL.md": "7b572de1953955f4e7b163805e6885fab23cd6d20b07058644d42850229ca3b1",
