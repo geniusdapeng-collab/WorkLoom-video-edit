@@ -509,30 +509,38 @@ export async function archiveAsset(app: AppPool, scope: Scope, input: { assetId:
 export interface TagGroup { group: string; tags: Array<{ name: string; usage: number }> }
 
 export async function tagGroups(app: AppPool, scope: Scope): Promise<TagGroup[]> {
-  const rows = await scopedQuery<{ group_name: string; name: string }>(
+  // 一条 SQL 取"受管标签 + 用量"（原实现：全表扫一遍 media_tags + 再全表扫一遍 JSONB 标签，再内存合并）
+  const managed = await scopedQuery<{ group_name: string; name: string; usage: string }>(
     app, scope,
-    `SELECT group_name, name FROM media_tags WHERE workspace_id = $1 ORDER BY group_name ASC, name ASC`,
+    `SELECT g.group_name, g.name, COALESCE(u.usage, 0)::text AS usage
+       FROM media_tags g
+       LEFT JOIN (
+         SELECT tag, COUNT(*) AS usage
+           FROM video_assets a, jsonb_array_elements_text(a.tags) AS tag
+          WHERE a.workspace_id = $1 AND a.status <> 'archived'
+          GROUP BY tag
+       ) u ON u.tag = g.name
+      WHERE g.workspace_id = $1
+      ORDER BY g.group_name ASC, g.name ASC`,
     [scope.workspaceId]);
-  const counts = await scopedQuery<{ tag: string; usage: string }>(
+  // 自由标签（JSONB 快用轨）：只取"未被受管标签登记过"的，避免重复计数
+  const free = await scopedQuery<{ tag: string; usage: string }>(
     app, scope,
     `SELECT tag, COUNT(*)::text AS usage
        FROM video_assets a, jsonb_array_elements_text(a.tags) AS tag
       WHERE a.workspace_id = $1 AND a.status <> 'archived'
-      GROUP BY tag`,
+        AND NOT EXISTS (SELECT 1 FROM media_tags t WHERE t.workspace_id = $1 AND t.name = tag)
+      GROUP BY tag ORDER BY tag ASC`,
     [scope.workspaceId]);
-  const usage = new Map(counts.map((c) => [c.tag, Number(c.usage)]));
   const groups = new Map<string, Array<{ name: string; usage: number }>>();
-  for (const row of rows) {
+  for (const row of managed) {
     const list = groups.get(row.group_name) ?? [];
-    list.push({ name: row.name, usage: usage.get(row.name) ?? 0 });
+    list.push({ name: row.name, usage: Number(row.usage) });
     groups.set(row.group_name, list);
   }
-  // 自由标签（JSONB 快用轨）也要可见：未受管但已被用过的标签进 default 组
-  const managed = new Set(rows.map((r) => r.name));
-  const free = [...usage.keys()].filter((tag) => !managed.has(tag)).sort();
   if (free.length > 0) {
     const list = groups.get("default") ?? [];
-    for (const tag of free) list.push({ name: tag, usage: usage.get(tag) ?? 0 });
+    for (const row of free) list.push({ name: row.tag, usage: Number(row.usage) });
     groups.set("default", list);
   }
   return [...groups.entries()].map(([group, tags]) => ({ group, tags }));
@@ -594,14 +602,16 @@ export async function listFilms(
     project_title: string | null; publish_total: string; publish_done: string; publish_failed: string;
   }>(app, scope,
     `SELECT ${ASSET_COLUMNS}, p.title AS project_title,
-            (SELECT COUNT(*)::text FROM publish_tasks t
-              WHERE t.workspace_id = a.workspace_id AND t.asset_id = a.id) AS publish_total,
-            (SELECT COUNT(*)::text FROM publish_tasks t
-              WHERE t.workspace_id = a.workspace_id AND t.asset_id = a.id AND t.status = 'succeeded') AS publish_done,
-            (SELECT COUNT(*)::text FROM publish_tasks t
-              WHERE t.workspace_id = a.workspace_id AND t.asset_id = a.id AND t.status = 'failed') AS publish_failed
+            pt.publish_total, pt.publish_done, pt.publish_failed
        FROM video_assets a
        LEFT JOIN video_projects p ON p.id = a.project_id AND p.workspace_id = a.workspace_id
+       LEFT JOIN LATERAL (
+         SELECT COUNT(*)::text AS publish_total,
+                COUNT(*) FILTER (WHERE t.status = 'succeeded')::text AS publish_done,
+                COUNT(*) FILTER (WHERE t.status = 'failed')::text AS publish_failed
+           FROM publish_tasks t
+          WHERE t.workspace_id = a.workspace_id AND t.asset_id = a.id
+       ) pt ON TRUE
       WHERE ${clauses.join(" AND ")}
       ORDER BY a.created_at DESC, a.id DESC LIMIT $${params.length}`, params);
   const fileIndex = mediaFileIndex(scope.workspaceId);
