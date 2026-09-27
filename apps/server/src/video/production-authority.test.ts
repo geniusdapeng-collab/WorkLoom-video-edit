@@ -97,6 +97,10 @@ describe("正式资格的正常路径和来源边界", () => {
     const auth = await authorized(result.qualificationToken); expect(pool.locked).toBe(true);
     expect(auth.requestHash).toBe(result.requestHash); await auth.release(); expect(pool.locked).toBe(false);
   });
+  it("营销不能只改kind复用叙事六门，必须本次G1和事实包", async () => {
+    pool.source.kind = "marketing"; output.productionEvidence.pipelineKind = "marketing"; prompts.pipelineKind = "marketing";
+    await persist(); await expect(issue()).rejects.toThrow("PREPRODUCTION_GATES_UNVERIFIED"); expect(calls).toHaveLength(0);
+  });
   it("当前服务镜头列表无需 CMS 行；按完整档案读取 prompt/fields/时长及摘要", async () => {
     const listed = await listProductionShots({ app: pool.asPool(), scope, projectId: "P1", workDir: dir });
     expect(listed).toMatchObject({ projectId: "P1", sourceStageRunId: "SR1", sourceAttempt: 1,

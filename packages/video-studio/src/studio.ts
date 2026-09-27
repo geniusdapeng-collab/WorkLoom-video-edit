@@ -11,6 +11,7 @@
  */
 
 import { createRequire } from "node:module";
+import { createHash } from "node:crypto";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { runWithConfirmationHandler, type ConfirmationHandler } from "./confirmation.js";
@@ -133,6 +134,8 @@ export interface StudioConfig {
     raw?: Record<string, unknown>;
     storeRoot?: string;
     staleAfterDays?: number;
+    /** 仅服务宿主在完整来源/G1通过后装配；浏览器metadata中的同名字段没有权限。 */
+    verifiedRaw?: { projectId: string; rawJson: string; sha256: string; productQuery: Record<string, unknown> };
   };
 }
 
@@ -177,6 +180,25 @@ export class VideoStudio {
    */
   async runPreproduction(input: RunInput): Promise<PreproductionResult> {
     const { cfg } = this;
+    const metadata = structuredClone(input.metadata ?? {});
+    delete metadata._dataDossier;
+    const verified = cfg.dataMining?.verifiedRaw;
+    let verifiedRaw: Record<string, unknown> | undefined;
+    if (input.isMarketing) {
+      if (!verified || verified.projectId !== input.projectId || createHash("sha256").update(verified.rawJson).digest("hex") !== verified.sha256) {
+        throw new Error("MARKETING_G1_REQUIRED：营销创意只能消费本次宿主G1通过的事实回填");
+      }
+      const parsed = JSON.parse(verified.rawJson) as Record<string, unknown>;
+      if (!parsed || typeof parsed !== "object" || ["A1", "A2", "A3"].some(stage => !parsed[stage] || typeof parsed[stage] !== "object")) {
+        throw new Error("MARKETING_G1_REQUIRED：本次事实回填未覆盖三站");
+      }
+      if (!verified.productQuery || typeof verified.productQuery.name !== "string" || !verified.productQuery.name.trim()
+        || Object.keys(verified.productQuery).some(key => !["name", "brand", "category", "model"].includes(key))) {
+        throw new Error("MARKETING_G1_REQUIRED：商品查询必须来自本次已审事实包");
+      }
+      metadata.dataMining = structuredClone(verified.productQuery);
+      verifiedRaw = parsed;
+    }
     const log = cfg.log ?? ((line: string) => console.log(line));
     const require = createRequire(import.meta.url);
     const { HyperrealitySystem } = require(resolveVendorEntry()) as {
@@ -403,6 +425,12 @@ export class VideoStudio {
             + `；档案根 ${String(createOptions.dataMiningStoreRoot)}`
           );
         }
+        if (verifiedRaw) {
+          createOptions.dataMiningRaw = verifiedRaw;
+          createOptions.dataMiningRefresh = true;
+          // G1已经由宿主在vendor.create之前评审；不受portrait batchMode影响，也不再次挑选旧缓存。
+          createOptions.skipDataMiningReview = true;
+        }
         if (portraitRuntime) {
           createOptions.batchMode = true;
           createOptions.portraitExecutor = "api";
@@ -410,7 +438,7 @@ export class VideoStudio {
           const modelName = portraitCfg && portraitCfg.enabled !== false ? portraitCfg.model : "未指定模型";
           log(`[studio] 定妆照真实出图已启用（${modelName}，产物根 ${charactersDir}）`);
         }
-        const result = await system.create(input.intent, input.metadata ?? {}, createOptions);
+        const result = await system.create(input.intent, metadata, createOptions);
         if (portraitRuntime) {
           const index = portraitRuntime.snapshot();
           const characters = Object.keys(index.characters).length;

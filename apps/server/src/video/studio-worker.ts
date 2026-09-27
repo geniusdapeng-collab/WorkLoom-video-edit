@@ -46,6 +46,8 @@ import {
 } from "@hyperreality/video-studio";
 import { buildServerGateRecord, withGateLedger } from "./gate-ledger-bridge.js";
 import { createDataMiningExecutor } from "./data-mining-executor.js";
+import { prepareMarketingFacts, finalizeMarketingFacts, type PreparedMarketingFacts } from "./marketing-authority.js";
+import { canonicalRenderJson, renderSha256 } from "./gen/compiled-request.js";
 import { acquireProjectLease, archiveWorkDir, makeLedgerWriter, readProjectMeta } from "./archive-host.js";
 import { ingestPortraitsFromIndex } from "./media/library.js";
 import { upsertProductProfileFromDossier } from "./media/products.js";
@@ -740,7 +742,9 @@ export function startRun(scope: Scope, input: RunInput): string {
     return verdict;
   };
 
-  const studio = new VideoStudio({
+  let marketingDossierRoot: string | undefined;
+  let marketingDossierRef: string | undefined;
+  const studioConfig: StudioConfig = {
     llm,
     workDir: runWorkDir,
     onApproval,
@@ -749,9 +753,9 @@ export function startRun(scope: Scope, input: RunInput): string {
     deferRender: (process.env.HR_DEFER_RENDER ?? "1") !== "0",
     portraits: portraitConfig(input.metadata),
     /** 营销路由 → 情报五站真跑（叙事路由不装配，vendor 也不会进情报层） */
-    dataMining: dataMiningConfigFor(input.metadata, llm, scope.workspaceId),
+    dataMining: input.isMarketing ? undefined : dataMiningConfigFor(input.metadata, llm, scope.workspaceId),
     log: (line) => console.log(line),
-  });
+  };
 
   // 异步执行：不阻塞 tRPC 响应；终态只写注册表投影（生命周期事件由 onEvent 落库）
   void (async () => {
@@ -769,6 +773,7 @@ export function startRun(scope: Scope, input: RunInput): string {
       }
       projectMeta = await readProjectMeta(scope, input.projectId);
       if (!projectMeta) throw new Error(`PROJECT_NOT_FOUND: 项目 ${input.projectId} 不存在或不属于当前工作区`);
+      if (projectMeta.kind !== pipelineKind) throw new Error("PIPELINE_KIND_MISMATCH：预生产管线与服务项目类型不一致");
       await archive.ensure({ kind: projectMeta.kind, title: projectMeta.title, createdAt: projectMeta.createdAt });
       detachStructuredLog = attachStructuredLog(archive, {
         currentStage: () => stageRef.name,
@@ -789,11 +794,11 @@ export function startRun(scope: Scope, input: RunInput): string {
        * 「第几次尝试、耗时、错误分类」全部落盘，历史不丢。
        */
       const maxAttempts = Math.max(1, Number(process.env.VM_PRODUCER_RETRY ?? 1) + 1);
-      const runOnce = async (): Promise<Awaited<ReturnType<typeof studio.runPreproduction>>> => {
+      const runOnce = async (): Promise<Awaited<ReturnType<VideoStudio["runPreproduction"]>>> => {
         const runnerStore = archive;
         // 档案 output 是给索引/交接包使用的摘要，不能取代 vendor 业务结果。
         // confirmations 决定打回重试，stages.dataMining 决定商品档案投影；两者必须完整保留。
-        let rawResult: Awaited<ReturnType<typeof studio.runPreproduction>> | undefined;
+        let rawResult: Awaited<ReturnType<VideoStudio["runPreproduction"]>> | undefined;
         await runner.run(
           "preproduction",
           { intent: input.intent, isMarketing: input.isMarketing ?? false, pipelineKind },
@@ -816,7 +821,27 @@ export function startRun(scope: Scope, input: RunInput): string {
                 console.error(`[archive] 断点快照失败（继续执行）: ${(err as Error).message}`);
                 return { files: 0, bytes: 0, skipped: [] as string[] };
               });
-            const r = await studio.runPreproduction(input);
+            let marketing: PreparedMarketingFacts | undefined;
+            let g1Approved = true;
+            if (input.isMarketing) {
+              marketing = await prepareMarketingFacts({ scope: { ...scope, projectId: input.projectId, runId: entry.runId, attempt: ctx.attempt },
+                root: archive.root, metadata: input.metadata ?? {}, intent: input.intent, llm });
+              const verdict = await onApproval({ runId: entry.runId, gate: "G1_DOSSIER", vendorType: "host-source-dossier",
+                title: "本次营销来源正文与逐主张事实审核", contentMd: marketing.g1Content });
+              const proof = gateProofs.get("G1_DOSSIER");
+              g1Approved = verdict.approved === true && proof?.status === "passed" && proof?.via === "llm" && proof?.degraded === false
+                && typeof proof.model === "string" && proof.model.length > 0
+                && Array.isArray(proof.evidence) && proof.evidence.some(item => item?.scope === "complete-text" && item?.sha256 === renderSha256(marketing!.g1Content));
+              marketingDossierRoot = marketing.storeRoot;
+              marketingDossierRef = path.posix.join("archive", scope.workspaceId, input.projectId, `${marketing.prefix}-dossier`);
+            }
+            const studio = new VideoStudio({ ...studioConfig, ...(marketing ? { dataMining: {
+              mode: "api", storeRoot: marketing.storeRoot, refresh: true,
+              verifiedRaw: { projectId: input.projectId, rawJson: canonicalRenderJson(marketing.raw), sha256: marketing.bundle.rawSha256, productQuery: marketing.bundle.productQuery },
+            } } : {}) });
+            const r: Awaited<ReturnType<VideoStudio["runPreproduction"]>> = g1Approved ? await studio.runPreproduction(input) : {
+              success: false, stages: {}, confirmations: { hostG1: { approved: false, reason: "producer-rejected(G1_DOSSIER)：本次来源与事实未通过真实监制" } },
+            };
             completedVendorResult = r;
             if (r.success) {
               // vendor 真出图批量模式跳过的是生成前询问；服务必须在实际图片存在后完成 G5。
@@ -826,8 +851,8 @@ export function startRun(scope: Scope, input: RunInput): string {
               r.confirmations = { ...((r.confirmations ?? {}) as Record<string, unknown>), hostPortraits: portraitVerdict };
               if (!portraitVerdict.approved) r.success = false;
             }
-            if (r.success && !input.isMarketing) {
-              const missing = ["G2_THEME", "G3_INSIGHT", "G4_PRD", "G5_PORTRAIT", "G6_PROMPT", "G7_FINAL"].filter(gate => {
+            if (r.success) {
+              const missing = [...(input.isMarketing ? ["G1_DOSSIER"] : []), "G2_THEME", "G3_INSIGHT", "G4_PRD", "G5_PORTRAIT", "G6_PROMPT", "G7_FINAL"].filter(gate => {
                 const proof = gateProofs.get(gate);
                 return !(proof?.approved === true && (proof.status === "passed" && proof.via === "llm" && proof.degraded === false
                   || gate === "G5_PORTRAIT" && proof.status === "not_applicable" && proof.basis === "no-characters-or-products"));
@@ -906,7 +931,7 @@ export function startRun(scope: Scope, input: RunInput): string {
                   shotCount: shots.length,
                   totalPromptChars: shots.reduce((sum, shot) => sum + String(shot.prompt ?? "").length, 0),
                   dossier: dm
-                    ? { root: `dossiers/${scope.workspaceId}`, productId: dm.product_id ?? null }
+                    ? { root: marketingDossierRef ?? `dossiers/${scope.workspaceId}`, productId: dm.product_id ?? null }
                     : null,
                   shots: shots.map((shot) => ({
                     shotId: shot.shot_id ?? shot.shotId ?? null,
@@ -941,9 +966,13 @@ export function startRun(scope: Scope, input: RunInput): string {
                 + `（stages/preproduction/attempt-${ctx.attempt}.prompts.json，sha256=${promptsArtifact.sha256.slice(0, 12)}）`,
               );
             }
+            const marketingFacts = marketing && r.success && promptPack ? await finalizeMarketingFacts(marketing,
+              promptPack.shots.map(shot => ({ shotId: String(shot.shotId ?? ""), prompt: shot.prompt, fields: shot.fields }))) : undefined;
+            if (marketing && r.success && !marketingFacts) throw new Error("MARKETING_PROMPTS_UNVERIFIED：营销预生产没有完整最终镜头事实审核");
             return {
               output: {
                 success: r.success,
+                ...(marketingFacts ? { marketingFactsRef: marketingFacts.ref, marketingFactsSha256: marketingFacts.sha256 } : {}),
                 productionEvidence: { schemaVersion: "workloom.preproduction-authority/v1", issuer: "workloom.studio-worker",
                   tenantId: scope.tenantId, workspaceId: scope.workspaceId, projectId: input.projectId,
                   runId: entry.runId, attempt: ctx.attempt, pipelineKind, gates: [...gateProofs.values()] },
@@ -973,7 +1002,7 @@ export function startRun(scope: Scope, input: RunInput): string {
                 ...(dm
                   ? {
                       dossier: {
-                        root: `dossiers/${scope.workspaceId}`,
+                        root: marketingDossierRef ?? `dossiers/${scope.workspaceId}`,
                         productId: dm.product_id ?? null,
                         evidenceCount: Array.isArray(dm.data?.dossier?.provenance)
                           ? dm.data!.dossier!.provenance!.length
@@ -1051,7 +1080,7 @@ export function startRun(scope: Scope, input: RunInput): string {
         if (input.isMarketing && minedProductId) {
           try {
             const profile = await upsertProductProfileFromDossier(getAppPool(), getGatewayPool(), scope, {
-              dossierRoot: path.join(WORK_DIR, "dossiers", scope.workspaceId),
+              dossierRoot: marketingDossierRoot ?? path.join(WORK_DIR, "dossiers", scope.workspaceId),
               productId: minedProductId,
               by: "video-studio",
             });
@@ -1092,7 +1121,7 @@ export function startRun(scope: Scope, input: RunInput): string {
               ...decisionLog,
               ...(dataMiningStage
                 ? [
-                    `情报档案：dossiers/${scope.workspaceId}（商品 ${dataMiningStage.product_id ?? "未标注"}，证据 ${
+                    `情报档案：${marketingDossierRef ?? `dossiers/${scope.workspaceId}`}（商品 ${dataMiningStage.product_id ?? "未标注"}，证据 ${
                       Array.isArray(dataMiningStage.data?.dossier?.provenance)
                         ? dataMiningStage.data!.dossier!.provenance!.length
                         : 0
