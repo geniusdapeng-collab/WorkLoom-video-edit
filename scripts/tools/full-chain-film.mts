@@ -14,7 +14,9 @@
  *     --library <角色档案库根> --work-dir <.vm-work 根> --out <交付目录> \
  *     [--stages spec,plates,videos,compose,color,subtitle,danmaku,bgm,cover,mux] \
  *     [--subtitle-mode sidecar|burn|both]   # 缺省 sidecar：字幕只做旁挂文件 + 软字幕轨，母版不烧字 \
- *     [--aspect 9:16] [--resolution 1080p] [--fps 30] [--max-attempts 2] \
+ *     [--aspect 9:16|16:9|1:1|4:5] [--resolution 720p|1080p|2160p] [--quality hd|uhd] \
+ *     [--enhance-kind live-action|animation] [--enhance-engine-dir <本地引擎目录>] \
+ *     [--fps 30] [--max-attempts 2] \
  *     [--keys-file ~/.workloom/live.env] [--brief <brief.json>] [--no-resume] [--dry-run]
  *
  * 封面平台化与知识库（2026-09-27）：
@@ -30,7 +32,8 @@
 import { execFileSync, spawnSync } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
 import {
-  appendFileSync, existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, statSync, writeFileSync
+  accessSync, appendFileSync, constants as fsConstants, copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync,
+  renameSync, rmSync, statSync, writeFileSync
 } from "node:fs";
 import { homedir } from "node:os";
 import { tmpdir } from "node:os";
@@ -70,8 +73,37 @@ import {
 import { normalizeShotIntent, shotIntentHash, type ShotIntentStatus } from "../../packages/video-studio/src/shot-intent.js";
 
 const REPO_ROOT = resolve(import.meta.dirname ?? process.cwd(), "../..");
-const FFMPEG = process.env.WL_FFMPEG ?? "ffmpeg";
-const FFPROBE = process.env.WL_FFPROBE ?? "ffprobe";
+/** GUI 启动时 PATH 常不含工位 kit；只选经过仓内 pin 摘要核验的本机二进制。 */
+function verifiedLocalMediaBins(): { ffmpeg: string; ffprobe: string } | null {
+  if (process.platform !== "darwin" || !["arm64", "x64"].includes(process.arch)) return null;
+  const dir = join(process.env.WORKLOOM_COLOR_HOME || join(homedir(), ".workloom-color"), "bin");
+  const paths = { ffmpeg: join(dir, "ffmpeg"), ffprobe: join(dir, "ffprobe") };
+  if (!existsSync(paths.ffmpeg) && !existsSync(paths.ffprobe)) return null;
+  const pinFile = join(REPO_ROOT, "bundles/ai-video/connectors/color-bridge/kit/ffmpeg-pin.json");
+  if (!existsSync(pinFile)) throw new Error(`本机媒体工具已存在，但缺少摘要清单：${pinFile}`);
+  const pin = JSON.parse(readFileSync(pinFile, "utf8")) as {
+    targets?: Record<string, Record<string, { sha256?: string }>>;
+  };
+  const target = pin.targets?.[`darwin-${process.arch}`];
+  for (const [name, file] of Object.entries(paths)) {
+    const expected = target?.[name]?.sha256;
+    if (!expected || !/^[a-f0-9]{64}$/i.test(expected)) {
+      throw new Error(`本机媒体工具 ${name} 没有该平台的受控 SHA-256；请先检查 kit pin`);
+    }
+    try { accessSync(file, fsConstants.X_OK); }
+    catch { throw new Error(`本机媒体工具不可执行或缺失：${file}`); }
+    const actual = createHash("sha256").update(readFileSync(file)).digest("hex");
+    if (actual !== expected) throw new Error(`本机媒体工具摘要不匹配：${file}`);
+  }
+  return paths;
+}
+const EXPLICIT_FFMPEG = process.env.WL_FFMPEG || process.env.FFMPEG_PATH;
+const EXPLICIT_FFPROBE = process.env.WL_FFPROBE || process.env.FFPROBE_PATH;
+const LOCAL_MEDIA_BINS = EXPLICIT_FFMPEG && EXPLICIT_FFPROBE ? null : verifiedLocalMediaBins();
+const FFMPEG = EXPLICIT_FFMPEG || LOCAL_MEDIA_BINS?.ffmpeg || "ffmpeg";
+const FFPROBE = EXPLICIT_FFPROBE || LOCAL_MEDIA_BINS?.ffprobe || "ffprobe";
+process.env.WL_FFMPEG ||= FFMPEG;
+process.env.WL_FFPROBE ||= FFPROBE;
 
 function arg(name: string, fallback = ""): string {
   const i = process.argv.indexOf(name);
@@ -91,12 +123,62 @@ if (!/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(PROJECT) || PROJECT.includes(".."
 const RUN_ID = randomUUID();
 const LIBRARY = resolve(arg("--library", join(REPO_ROOT, "var/media/characters")));
 const WORK_DIR = resolve(arg("--work-dir", join(REPO_ROOT, ".vm-work")));
-const OUT_DIR = resolve(arg("--out", join(REPO_ROOT, "outputs", PROJECT)));
+const OUT_ROOT = resolve(arg("--out", join(REPO_ROOT, "outputs", PROJECT)));
 const KEYS_FILE = arg("--keys-file", join(homedir(), ".workloom", "live.env"));
 const BRIEF_FILE = arg("--brief");
 const REVISION_CONTEXT = arg("--revision-context", "");
 const ASPECT = arg("--aspect", "9:16");
-const RESOLUTION = arg("--resolution", "1080p");
+/**
+ * 云端生成保持原来的低价分辨率；UHD 只在本机取得镜头文件后执行。
+ * `--resolution 2160p` 是旧参数风格的交付档别名，不传给模型提示词。
+ */
+const REQUESTED_RESOLUTION = arg("--resolution", "1080p");
+const QUALITY_ARG = arg("--quality", "");
+if (!["720p", "1080p", "2160p"].includes(REQUESTED_RESOLUTION)) {
+  throw new Error(`--resolution 不支持 ${REQUESTED_RESOLUTION}（可选 720p / 1080p / 2160p）`);
+}
+if (QUALITY_ARG && !["hd", "uhd"].includes(QUALITY_ARG)) {
+  throw new Error(`--quality 不支持 ${QUALITY_ARG}（可选 hd / uhd）`);
+}
+if (REQUESTED_RESOLUTION === "2160p" && QUALITY_ARG === "hd") {
+  throw new Error("--resolution 2160p 与 --quality hd 冲突");
+}
+type FilmQuality = "hd" | "uhd";
+const QUALITY: FilmQuality = (QUALITY_ARG || (REQUESTED_RESOLUTION === "2160p" ? "uhd" : "hd")) as FilmQuality;
+const SOURCE_RESOLUTION = REQUESTED_RESOLUTION === "2160p" ? "1080p" : REQUESTED_RESOLUTION;
+const OUTPUT_RESOLUTION = QUALITY === "uhd" ? "2160p" : SOURCE_RESOLUTION;
+/** UHD 产物独立存放，避免 HD 预览与 UHD 正式版互相覆盖或错误复用。 */
+const OUT_DIR = QUALITY === "uhd" ? join(OUT_ROOT, "uhd") : OUT_ROOT;
+/** 以短边为 720/1080/2160，四种交付画幅用同一个推导口径。 */
+function dimensionsFor(aspect: string, resolution: string): { width: number; height: number } {
+  const shortEdge = Number(resolution.replace(/p$/, ""));
+  const ratio: Record<string, [number, number]> = {
+    "9:16": [9, 16], "16:9": [16, 9], "1:1": [1, 1], "4:5": [4, 5]
+  };
+  const pair = ratio[aspect];
+  if (!pair || ![720, 1080, 2160].includes(shortEdge)) {
+    throw new Error(`不支持画幅/分辨率组合：${aspect} ${resolution}`);
+  }
+  const [x, y] = pair;
+  const width = Math.round(shortEdge * x / Math.min(x, y));
+  const height = Math.round(shortEdge * y / Math.min(x, y));
+  if (width % 2 !== 0 || height % 2 !== 0) throw new Error(`编码尺寸必须为偶数：${width}x${height}`);
+  return { width, height };
+}
+const SOURCE_SIZE = dimensionsFor(ASPECT, SOURCE_RESOLUTION);
+const OUTPUT_SIZE = dimensionsFor(ASPECT, OUTPUT_RESOLUTION);
+function sampleDimensions(shortEdge: number): { width: number; height: number } {
+  const sourceShort = Math.min(SOURCE_SIZE.width, SOURCE_SIZE.height);
+  return {
+    width: Math.round(SOURCE_SIZE.width * shortEdge / sourceShort),
+    height: Math.round(SOURCE_SIZE.height * shortEdge / sourceShort)
+  };
+}
+const ENHANCE_KIND = arg("--enhance-kind", "live-action");
+if (!["live-action", "animation"].includes(ENHANCE_KIND)) {
+  throw new Error(`--enhance-kind 不支持 ${ENHANCE_KIND}（可选 live-action / animation；文字画面须原生渲染）`);
+}
+const ENHANCE_ENGINE_DIR = arg("--enhance-engine-dir", "");
 const FPS = Number(arg("--fps", "30"));
 const MAX_ATTEMPTS = Number(arg("--max-attempts", "2"));
 /** 转场淡入淡出时长（秒）：快剪片（小红书/瞭望塔风格）用 0.1–0.2，抒情片用 0.5 */
@@ -167,14 +249,6 @@ const COVER_THEME_ARG = arg("--theme", "");
 /** 账号定位档案（`--account <id>`）：读 `bundles/ai-video/library/account-profiles/<id>.yml`，注入视觉锤约束 */
 const COVER_ACCOUNT_ARG = arg("--account", "");
 const COVER_ACCOUNT_DIR = resolve(arg("--account-dir", join(REPO_ROOT, "bundles/ai-video/library/account-profiles")));
-/**
- * 逐刀转场总损耗（秒）与**成片目标时长**（同一口径，compose 校验与终审都用它）：
- * 15 刀 × 0.16s = 2.4s 会被 xfade 吃掉，目标应是"分镜总时长 − 损耗"，而不是分镜总时长。
- */
-const CUT_TRANSITION_COUNT = CUT_TRANSITION
-  ? CUT_TRANSITION_AT.split(",").map((value) => Number(value.trim())).filter((value) => Number.isFinite(value) && value > 0).length
-  : 0;
-const transitionLoss = Number((CUT_TRANSITION_COUNT * CUT_TRANSITION_DURATION).toFixed(3));
 const DANMAKU_FILE = arg("--danmaku");
 /** 只跑指定镜头（逗号分隔；用于单镜验证与局部重跑） */
 const ONLY = arg("--only").split(",").map((s) => s.trim()).filter(Boolean);
@@ -405,7 +479,7 @@ const LOG_DIR = join(WORK_DIR, "logs", PROJECT);
 const STAGE_LOG = join(LOG_DIR, "stages.jsonl");
 const PLATE_DIR = join(WORK_DIR, "plates", PROJECT);
 const CLIP_DIR = join(WORK_DIR, "clips", PROJECT);
-const POST_DIR = join(WORK_DIR, "post", PROJECT);
+const POST_DIR = QUALITY === "uhd" ? join(WORK_DIR, "post", PROJECT, "uhd") : join(WORK_DIR, "post", PROJECT);
 const PROMPT_DIR = join(WORK_DIR, "prompts", PROJECT);
 /** 成片交付路径（模板块与交付包/返修块共用；模板块内部变量名保持 `deliverable` 不变） */
 const DELIVERABLE = join(OUT_DIR, `${PROJECT}-30s-final.mp4`);
@@ -415,6 +489,7 @@ const DELIVERABLE = join(OUT_DIR, `${PROJECT}-30s-final.mp4`);
  * 下面在落盘时按**实测时长**重命名（如 `-48s-final.mp4`），并把这个路径用于交付清单与变体派生。
  */
 let deliverablePath = DELIVERABLE;
+let masterApprovedForUhd = false;
 /** 工位路径白名单（冒号分隔）：仓库根 + 运行产物根 + 交付目录 + 系统临时目录 */
 const CLI_ALLOWED_ROOTS = [REPO_ROOT, WORK_DIR, OUT_DIR, tmpdir()].join(":");
 for (const dir of [LOG_DIR, PLATE_DIR, CLIP_DIR, POST_DIR, PROMPT_DIR, OUT_DIR]) mkdirSync(dir, { recursive: true });
@@ -493,7 +568,7 @@ function sourceHashFor(shotId: string | null): string {
     source: shotId ? { ...common, shot: allShots!.find((shot) => shot.shotId === shotId) ?? null } : { ...sourceDocument, selectedShotIds: ONLY },
     brief: BRIEF_FILE ? sourceSupportHashes.get(abs(BRIEF_FILE)) ?? null : null,
     sceneBible: arg("--scene-bible") ? sourceSupportHashes.get(abs(arg("--scene-bible"))) ?? null : null,
-    aspect: ASPECT, resolution: RESOLUTION, fps: FPS,
+    aspect: ASPECT, resolution: SOURCE_RESOLUTION, fps: FPS,
   });
 }
 function lineageStage(rec: Pick<StageRecord, "stage" | "stepKey" | "evidence">): string {
@@ -671,6 +746,16 @@ function runCli(cli: string, args: string[]): { ok: boolean; out: string } {
        */
       env: {
         ...process.env,
+        WL_FFMPEG: FFMPEG,
+        WL_FFPROBE: FFPROBE,
+        FFMPEG_PATH: FFMPEG,
+        FFPROBE_PATH: FFPROBE,
+        WORKLOOM_BGM_FFMPEG_PATH: process.env.WORKLOOM_BGM_FFMPEG_PATH || FFMPEG,
+        WORKLOOM_BGM_FFPROBE_PATH: process.env.WORKLOOM_BGM_FFPROBE_PATH || FFPROBE,
+        WORKLOOM_SUBTITLE_FFMPEG_PATH: process.env.WORKLOOM_SUBTITLE_FFMPEG_PATH || FFMPEG,
+        WORKLOOM_SUBTITLE_FFPROBE_PATH: process.env.WORKLOOM_SUBTITLE_FFPROBE_PATH || FFPROBE,
+        WORKLOOM_POST_FFMPEG_PATH: process.env.WORKLOOM_POST_FFMPEG_PATH || FFMPEG,
+        WORKLOOM_POST_FFPROBE_PATH: process.env.WORKLOOM_POST_FFPROBE_PATH || FFPROBE,
         WL_REPO_ROOT: REPO_ROOT,
         WORKLOOM_COLOR_ALLOWED_ROOTS: CLI_ALLOWED_ROOTS,
         WORKLOOM_SUBTITLE_ALLOWED_ROOTS: CLI_ALLOWED_ROOTS,
@@ -996,6 +1081,15 @@ if (hookSummary.hard > 0 && !hookAccepted) {
   log("   确需带瑕疵继续：--accept-rejected hook（会记为 degraded 留痕）。");
   process.exit(8);
 }
+/** 只计算真实存在的刀口；单镜片不能进入 compose 的逐刀转场分支。 */
+const EFFECTIVE_CUT_TRANSITION = shots.length > 1 ? CUT_TRANSITION : "";
+const EFFECTIVE_CUT_TRANSITION_AT = CUT_TRANSITION_AT.trim()
+  ? [...new Set(CUT_TRANSITION_AT.split(",").map((value) => Number(value.trim()))
+    .filter((value) => Number.isInteger(value) && value >= 2 && value <= shots.length))].join(",")
+  : "";
+const CUT_TRANSITION_COUNT = !EFFECTIVE_CUT_TRANSITION ? 0
+  : CUT_TRANSITION_AT.trim() ? EFFECTIVE_CUT_TRANSITION_AT.split(",").filter(Boolean).length : shots.length - 1;
+const transitionLoss = Number((CUT_TRANSITION_COUNT * CUT_TRANSITION_DURATION).toFixed(3));
 const totalSeconds = Number(shotlist.durationSeconds ?? shots.reduce((sum, s) => sum + Number(s.duration ?? 0), 0));
 /**
  * 成片目标时长（秒）= 分镜总时长 − 逐刀转场损耗。
@@ -1011,10 +1105,10 @@ const CUT_GRID: number[] = (() => {
    * 配乐工位按错锚点对齐、监制据此判"卡点只有 10/15 命中"（真机）。现在与 compose/音效层同源。
    */
   const durations = shots.map((shot) => Number(shot.duration ?? 5));
-  const transitionAt = CUT_TRANSITION
-    ? CUT_TRANSITION_AT.split(",").map((value) => Number(value.trim())).filter((value) => Number.isFinite(value) && value > 0)
+  const transitionAt = EFFECTIVE_CUT_TRANSITION
+    ? EFFECTIVE_CUT_TRANSITION_AT.split(",").map((value) => Number(value.trim())).filter((value) => Number.isFinite(value) && value > 0)
     : [];
-  return cutTimesFromShots(durations, CUT_TRANSITION ? CUT_TRANSITION_DURATION : 0, transitionAt);
+  return cutTimesFromShots(durations, EFFECTIVE_CUT_TRANSITION ? CUT_TRANSITION_DURATION : 0, transitionAt);
 })();
 
 /**
@@ -1381,7 +1475,7 @@ async function arkVideo(options: {
        * 画幅由关键帧自己决定，这里只在纯文生视频时才传 ratio。
        */
       ...(options.firstFrame ? {} : { ratio: ASPECT }),
-      resolution: RESOLUTION,
+      resolution: SOURCE_RESOLUTION,
       generate_audio: options.generateAudio,
       watermark: false,
       return_last_frame: true,
@@ -1436,7 +1530,7 @@ function platePrompt(shot: ShotCard, characterName: string, appearanceText = "")
     characterName,
     appearanceText,
     aspect: ASPECT,
-    resolution: RESOLUTION,
+    resolution: SOURCE_RESOLUTION,
     title: shotlist.title
   });
 }
@@ -1541,7 +1635,9 @@ function cachedShotSettings(shot: ShotCard): { frames: string[]; checks: Array<{
 
 /* ================= 主流程 ================= */
 
-log(`项目 ${PROJECT}｜镜头 ${shots.length} 个｜目标 ${totalSeconds}s｜${ASPECT} ${RESOLUTION}@${FPS}fps`);
+log(`项目 ${PROJECT}｜镜头 ${shots.length} 个｜目标 ${totalSeconds}s｜${ASPECT} 源 ${SOURCE_RESOLUTION} → 交付 ${OUTPUT_RESOLUTION} (${OUTPUT_SIZE.width}x${OUTPUT_SIZE.height})@${FPS}fps`);
+log(`媒体工具：ffmpeg=${FFMPEG}｜ffprobe=${FFPROBE}`);
+log(`后期缓存：${POST_DIR}｜交付目录：${OUT_DIR}`);
 log(`角色档案：${lead ? `${lead.name}（${lead.id}）角度 ${Object.keys(lead.files).join("/")}` : "未找到（人物一致性将降级为文字描述）"}`);
 log(`阶段：${[...STAGES].join(" → ")}｜监制：${flag("--allow-fallback-approve") ? "允许降级放行" : "fail-closed"}`);
 if (DRY_RUN) log("⚠ dry-run：只做脚本/提示词/计划，不出图不出片");
@@ -1865,7 +1961,7 @@ if (STAGES.has("spec")) {
     const duration = Number(shot.duration ?? 0);
     const chars = dialogueText(shot).replace(/[，。！？、,.!?]/g, "").length;
     const rate = duration > 0 ? chars / duration : 0;
-    const report = prepareShotPrompt(shot as unknown as Record<string, unknown>, { ratio: ASPECT, resolution: RESOLUTION });
+    const report = prepareShotPrompt(shot as unknown as Record<string, unknown>, { ratio: ASPECT, resolution: SOURCE_RESOLUTION });
     /**
      * 提示词语言与引用归一（2026-09-24 真机，6 镜全部命中）：
      *   · 卡片【语言约束】要求全中文，而 vendor 负面约束默认夹带英文（no text / no watermark…）→ 映射成中文等价；
@@ -2336,8 +2432,8 @@ function measureMaterialReuse(clip: string, material: string, durationSec: numbe
 } {
   const dir = join(WORK_DIR, "material-reuse", PROJECT, shotId);
   mkdirSync(dir, { recursive: true });
-  /** 检索分辨率：180×320（够判结构，又比 360×640 快 4 倍） */
-  const W = 180; const H = 320;
+  /** 9:16 为 180×320；其他画幅按源比例取样，避免横片被强行拉成竖片。 */
+  const { width: W, height: H } = sampleDimensions(180);
   const candidates: string[] = [];
   const candidateNames: string[] = [];
   for (const scale of MATERIAL_REUSE_SCALES) {
@@ -2352,8 +2448,11 @@ function measureMaterialReuse(clip: string, material: string, durationSec: numbe
            * 否则"横图裁一块再拉成竖屏"会引入各向异性拉伸，匹配度恒低（真机：NC-02 峰值只有 13.5dB）。
            */
           run(FFMPEG, ["-y", "-i", material,
-            "-vf", `scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,`
-              + `crop=round(1080/${scale}/2)*2:round(1920/${scale}/2)*2:(1080-round(1080/${scale}/2)*2)*${fx}:(1920-round(1920/${scale}/2)*2)*${fy},`
+            "-vf", `scale=${SOURCE_SIZE.width}:${SOURCE_SIZE.height}:force_original_aspect_ratio=increase,`
+              + `crop=${SOURCE_SIZE.width}:${SOURCE_SIZE.height},`
+              + `crop=round(${SOURCE_SIZE.width}/${scale}/2)*2:round(${SOURCE_SIZE.height}/${scale}/2)*2:`
+              + `(${SOURCE_SIZE.width}-round(${SOURCE_SIZE.width}/${scale}/2)*2)*${fx}:`
+              + `(${SOURCE_SIZE.height}-round(${SOURCE_SIZE.height}/${scale}/2)*2)*${fy},`
               + `scale=${W}:${H}`,
             "-frames:v", "1", out]);
         }
@@ -2429,7 +2528,7 @@ function measureReferenceIndependence(clip: string, material: string, durationSe
 } {
   const dir = join(WORK_DIR, "reference-independence", PROJECT, shotId);
   mkdirSync(dir, { recursive: true });
-  const W = 360; const H = 640;
+  const { width: W, height: H } = sampleDimensions(360);
   const scales = [1, 1.15, 1.3, 1.45];
   const positions: Array<[string, number, number]> = [
     ["center", 0.5, 0.5], ["left", 0, 0.5], ["right", 1, 0.5], ["top", 0.5, 0], ["bottom", 0.5, 1],
@@ -2490,7 +2589,8 @@ function measureReferenceIndependence(clip: string, material: string, durationSe
  * 判定口径在 `material-policy.ts#assessMotionRichness`（含单测与真机标定值）。
  */
 function measureMotionRichness(file: string): { meanEnergy: number; maxEnergy: number; rampRatio: number; frames: number; peakAtSec: number } {
-  const W = 160; const H = 284; const fps = 8;
+  const { width: W, height: H } = sampleDimensions(160);
+  const fps = 8;
   const res = spawnSync(FFMPEG, [
     "-v", "error", "-i", file,
     "-vf", `fps=${fps},scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H},format=gray`,
@@ -2685,7 +2785,7 @@ function applyCameraMovePunchCut(input: string, output: string, options: {
       "-y", "-ss", segment.from.toFixed(3), "-t", span.toFixed(3), "-i", input,
       "-filter_complex",
       `[0:v]fps=${fps},scale=iw*${oversample}:ih*${oversample}:flags=lanczos,`
-        + `zoompan=z='${z}':x='${x}':y='${y}':d=1:s=1080x1920:fps=${fps},setsar=1${blurFilter},format=yuv420p[v];`
+        + `zoompan=z='${z}':x='${x}':y='${y}':d=1:s=${SOURCE_SIZE.width}x${SOURCE_SIZE.height}:fps=${fps},setsar=1${blurFilter},format=yuv420p[v];`
         + `[0:a]afade=t=in:st=0:d=0.02,asetpts=PTS-STARTPTS[a]`,
       "-map", "[v]", "-map", "[a]",
       "-t", span.toFixed(3),
@@ -2703,7 +2803,7 @@ function applyCameraMovePunchCut(input: string, output: string, options: {
 }
 
 if (STAGES.has("material-gen")) {
-  const [pw, ph] = RESOLUTION === "1080p" ? (ASPECT === "9:16" ? [1080, 1920] : [1920, 1080]) : [720, 1280];
+  const { width: pw, height: ph } = SOURCE_SIZE;
   for (const shot of materialShots()) {
     const shotStarted = Date.now();
     const card = shot as Record<string, unknown>;
@@ -2735,7 +2835,7 @@ if (STAGES.has("material-gen")) {
        * 重跑轮会在循环里升级强度并写入同一文件（`let` 是因为提交门要读当前轮提示词）。
        */
       let prompt = buildMaterialScenePrompt(card, {
-        aspect: ASPECT, resolution: RESOLUTION, durationSec: duration, title: shotlist.title
+        aspect: ASPECT, resolution: SOURCE_RESOLUTION, durationSec: duration, title: shotlist.title
       });
       writeFileSync(promptFile, `${prompt}\n`, "utf8");
       const promptIntent = prompt;
@@ -2836,7 +2936,7 @@ if (STAGES.has("material-gen")) {
          * （沿用视频镜的 `retryInstruction`，避免"重采样碰运气"白烧额度）。
          */
         const attemptPrompt = buildMaterialScenePrompt(card, {
-          aspect: ASPECT, resolution: RESOLUTION, durationSec: duration, title: shotlist.title,
+          aspect: ASPECT, resolution: SOURCE_RESOLUTION, durationSec: duration, title: shotlist.title,
           motionStrength: usedAttempt > 1 ? "assertive" : "standard"
         }) + (usedAttempt > 1 ? `\n${retryInstruction(lastVerdict, usedAttempt, attempts)}\n【运动机检未过】${lastMotionVerdict.detail}` : "");
         writeFileSync(promptFile, `${attemptPrompt}\n`, "utf8");
@@ -3785,7 +3885,10 @@ if (STAGES.has("voice")) {
 
 /* ---------- ④ 合成母版 ---------- */
 let master = join(POST_DIR, "master-raw.mp4");
-if (STAGES.has("compose")) {
+if (STAGES.has("compose") && DRY_RUN) {
+  log("dry-run：跳过合成与本地逐镜增强，不产出可误认作正式 UHD 的视频");
+}
+if (STAGES.has("compose") && !DRY_RUN) {
   rememberInputs("compose", shots.map(clipFor));
   const started = Date.now();
   /**
@@ -3815,37 +3918,132 @@ if (STAGES.has("compose")) {
     ? requestedOrder.map((shotId) => clipById.get(shotId)!).filter(Boolean)
     : [];
   const missing = clips.filter((c) => !existsSync(c));
-  /**
-   * 带瑕疵放行审计：被监制打回、又出现在 `--accept-rejected` 里的镜头，
-   * 合成时要写一条 explicit 记录（不得静默拼进母版）。
-   */
+  /** 合成必须使用当前镜头产物及通过回执；素材镜还必须通过 G-MAT1。 */
   const blocked = shots.filter((shot) => {
     const generated = isMaterialShot(shot) ? stageApproved("gate:material-generate:verify", [shot.shotId])
       : artifactReusable("shot", join(CLIP_DIR, `${shot.shotId}.mp4`), undefined, shot.shotId);
     return !generated || (dialogueText(shot).length > 0 && !stageApproved("voice", [shot.shotId]));
   }).map((shot) => shot.shotId);
-  if (!orderCheck.ok) blocked.push("invalid-shot-order");
   if (blocked.length) log(`⛔ 缺少当前镜头或人声的通过回执，合成中止：${blocked.join("、")}`);
-  if (missing.length > 0 || blocked.length > 0) {
-    record({ stage: "compose", shotId: null, invoked: false, ok: false, cached: false, degraded: false, attempt: 1, ms: 0, artifact: null, evidence: { missing }, verdict: null, note: "缺镜头产物，跳过合成" });
+  if (!orderCheck.ok || missing.length > 0 || blocked.length > 0) {
+    record({ stage: "compose", shotId: null, invoked: false, ok: false, cached: false, degraded: false, attempt: 1, ms: 0, artifact: null,
+      evidence: { orderOk: orderCheck.ok, missing, blocked }, verdict: null, note: "镜头顺序、镜头产物或人声未过门，跳过合成" });
+    if (QUALITY === "uhd") {
+      throw new Error(`UHD 合成中止：镜头顺序 ${orderCheck.ok ? "通过" : "失败"}、缺片 ${missing.length}、回执阻塞 ${blocked.length}`);
+    }
   } else {
-    const [w, h] = RESOLUTION === "1080p" ? (ASPECT === "9:16" ? [1080, 1920] : [1920, 1080]) : [720, 1280];
+    const { width: w, height: h } = OUTPUT_SIZE;
+    /**
+     * UHD 先逐镜用本地增强引擎处理，再交给合成器。逐镜串行以适配 8 GiB M3，
+     * 同一原片由引擎按内容指纹复用；缺引擎、无回执、尺寸/时长异常均中止正式 4K 出片。
+     * 云端生成阶段始终使用 SOURCE_RESOLUTION，不因交付档切成付费 4K 请求。
+     */
+    const composeClips = [...clips];
+    if (QUALITY === "uhd") {
+      const engineFile = join(REPO_ROOT, "bundles/ai-video/connectors/enhance-bridge/core.mjs");
+      if (!existsSync(engineFile)) throw new Error(`UHD 本地增强引擎不存在：${engineFile}`);
+      const enhancer = await import(engineFile) as {
+        enhanceVideo: (input: {
+          input: string; outputDir: string; scopeId: string; targetWidth: number; targetHeight: number;
+          kind: "live-action" | "animation"; engineDir?: string; bins: { ffmpeg: string; ffprobe: string };
+        }) => Promise<{
+          output: string; sha256: string; sourceSha256: string; key: string; reused: boolean;
+          provenancePath: string; processingMode: string; model: string | null; modelScale: number | null;
+          engine: Record<string, unknown>; receipt: { localVerified?: boolean };
+        }>;
+      };
+      const enhancedDir = join(WORK_DIR, "enhanced", PROJECT, "2160p");
+      mkdirSync(enhancedDir, { recursive: true });
+      for (const [index, source] of clips.entries()) {
+        const shotId = requestedOrder[index]!;
+        const startedEnhancement = Date.now();
+        const sourceInfo = probe(source);
+        const card = shots.find((shot) => shot.shotId === shotId) as (ShotCard & { enhancementKind?: string }) | undefined;
+        const requestedKind = card?.enhancementKind ?? ENHANCE_KIND;
+        try {
+          if (!["live-action", "animation"].includes(requestedKind)) {
+            throw new Error(`镜头 ${shotId} enhancementKind=${requestedKind} 不适合 AI 超分；文字/图形镜头须原生 4K 渲染`);
+          }
+          const kind = requestedKind as "live-action" | "animation";
+          const enhanced = await enhancer.enhanceVideo({
+            input: source,
+            outputDir: enhancedDir,
+            scopeId: `film-${createHash("sha256").update(`${PROJECT}:${shotId}`).digest("hex").slice(0, 16)}`,
+            targetWidth: w,
+            targetHeight: h,
+            kind,
+            bins: {
+              ffmpeg: process.env.WORKLOOM_ENHANCE_FFMPEG_PATH || FFMPEG,
+              ffprobe: process.env.WORKLOOM_ENHANCE_FFPROBE_PATH || FFPROBE
+            },
+            ...(ENHANCE_ENGINE_DIR ? { engineDir: abs(ENHANCE_ENGINE_DIR) } : {})
+          });
+          if (enhanced.receipt?.localVerified !== true || !existsSync(enhanced.output) || !existsSync(enhanced.provenancePath)) {
+            throw new Error("缺本地增强回执、产物或溯源文件");
+          }
+          const sourceWidth = Number(sourceInfo.width ?? 0);
+          const sourceHeight = Number(sourceInfo.height ?? 0);
+          const sourceBelowTarget = sourceWidth < w || sourceHeight < h;
+          const aiProvenanceOk = enhanced.processingMode === "ai-upscale"
+            && Boolean(enhanced.model)
+            && /^[a-f0-9]{64}$/i.test(String(enhanced.engine?.archiveSha256 ?? ""));
+          if (sourceBelowTarget && !aiProvenanceOk) {
+            throw new Error(`低于 UHD 目标的镜头必须有本地 AI 超分模型与引擎指纹：`
+              + `${sourceWidth}x${sourceHeight} → ${w}x${h}，实际 ${enhanced.processingMode}`);
+          }
+          if (!sourceBelowTarget && !aiProvenanceOk
+            && !["passthrough", "native-resize"].includes(enhanced.processingMode)) {
+            throw new Error(`UHD 原生/缩小镜头处理模式不可信：${enhanced.processingMode}`);
+          }
+          const outputInfo = probe(enhanced.output);
+          const durationDrift = Math.abs(Number(outputInfo.duration ?? 0) - Number(sourceInfo.duration ?? 0));
+          const dimensionsOk = Number(outputInfo.width) === w && Number(outputInfo.height) === h;
+          const audioOk = !sourceInfo.hasAudio || Boolean(outputInfo.hasAudio);
+          if (!dimensionsOk || durationDrift > 0.15 || !audioOk) {
+            throw new Error(`增强产物机检未过：${outputInfo.width}x${outputInfo.height}（目标 ${w}x${h}）`
+              + `、时长漂移 ${durationDrift.toFixed(3)}s、音轨 ${audioOk ? "保留" : "丢失"}`);
+          }
+          composeClips[index] = enhanced.output;
+          record({
+            stage: "enhance", shotId, invoked: true, ok: true, cached: enhanced.reused, degraded: false,
+            attempt: 1, ms: Date.now() - startedEnhancement, artifact: enhanced.output,
+            evidence: {
+              quality: QUALITY, kind, source, sourceSha256: enhanced.sourceSha256,
+              outputSha256: enhanced.sha256, key: enhanced.key, provenancePath: enhanced.provenancePath,
+              processingMode: enhanced.processingMode, model: enhanced.model, modelScale: enhanced.modelScale,
+              engine: enhanced.engine,
+              sourceProbe: sourceInfo, outputProbe: outputInfo, durationDriftSec: Number(durationDrift.toFixed(3)),
+              localVerified: true
+            }, verdict: null,
+            note: "本机逐镜增强回执已核验；不代表媒体库版本链或额度台账已同步"
+          });
+        } catch (error) {
+          record({
+            stage: "enhance", shotId, invoked: true, ok: false, cached: false, degraded: false,
+            attempt: 1, ms: Date.now() - startedEnhancement, artifact: null,
+            evidence: { source, target: `${w}x${h}`, error: error instanceof Error ? error.message : String(error) },
+            verdict: null, note: "UHD 增强失败，正式交付中止"
+          });
+          throw error;
+        }
+      }
+    }
     const result = runCli(join(REPO_ROOT, "scripts/tools/compose-film.mts"), [
-      "--clips", clips.join(","), "--out", master, "--width", String(w), "--height", String(h),
+      "--clips", composeClips.join(","), "--out", master, "--width", String(w), "--height", String(h),
       "--fps", String(FPS), "--fade", String(XFADE), "--color", "none",
       /**
        * 逐刀转场（2026-09-25）：`--cut-transition` 指定 xfade 名（默认 `hblur` ≈ 甩镜拖影）、
        * `--cut-transition-duration` 指定秒数（默认 0.18）。传空字符串 = 纯硬切。
        */
-      ...(CUT_TRANSITION ? ["--transition", CUT_TRANSITION, "--transition-duration", String(CUT_TRANSITION_DURATION)] : [])
-      , ...(CUT_TRANSITION && CUT_TRANSITION_AT ? ["--transition-at", CUT_TRANSITION_AT] : [])
+      ...(EFFECTIVE_CUT_TRANSITION ? ["--transition", EFFECTIVE_CUT_TRANSITION, "--transition-duration", String(CUT_TRANSITION_DURATION)] : [])
+      , ...(EFFECTIVE_CUT_TRANSITION && EFFECTIVE_CUT_TRANSITION_AT ? ["--transition-at", EFFECTIVE_CUT_TRANSITION_AT] : [])
       /**
        * 时长目标 = **分镜总时长 − 转场重叠量**（2026-09-25 南昌片真机修正）：
        * 早先这里传的是分镜总时长本身，转场吃掉 2.4s 后又把整片拉长 4.7%——
        * 结果是"画面节拍网格"被整体缩放，配乐卡点全乱（真机：卡点命中 4/15）。
        * 现在只在**有缺口时**按真实目标补足，节拍网格保持不动。
        */
-      , "--retime-to", String(Number((totalSeconds - (CUT_TRANSITION ? CUT_TRANSITION_AT.split(",").filter(Boolean).length * CUT_TRANSITION_DURATION : 0)).toFixed(3)))
+      , "--retime-to", String(expectedMasterSeconds)
       /**
        * 音画对齐放行开关（2026-09-27 真机）：原始镜头的 AAC 逐段比画面短几毫秒，
        * 8 段累计 −29.3ms（≈ 0.9 帧 @30fps）会被 compose 的单调漂移判据拦下。
@@ -3874,8 +4072,8 @@ if (STAGES.has("compose")) {
       context: {
         clips: clips.length,
         /** 时长容差口径（把"判据"交给监制，而不是让它自己猜）：目标 ±1.0s，转场会吃掉少量时长 */
-        durationPolicy: `目标 ${totalSeconds}s，容差 ±1.0s（逐刀转场 ${CUT_TRANSITION || "无"}@${CUT_TRANSITION_DURATION}s 在 ${CUT_TRANSITION_AT || "全部"} 入点生效，会按刀数缩短总长）`,
-        transitions: CUT_TRANSITION ? { name: CUT_TRANSITION, durationSec: CUT_TRANSITION_DURATION, at: CUT_TRANSITION_AT } : null
+        durationPolicy: `目标 ${totalSeconds}s，容差 ±1.0s（逐刀转场 ${EFFECTIVE_CUT_TRANSITION || "无"}@${CUT_TRANSITION_DURATION}s 在 ${EFFECTIVE_CUT_TRANSITION_AT || "全部"} 入点生效，会按刀数缩短总长）`,
+        transitions: EFFECTIVE_CUT_TRANSITION ? { name: EFFECTIVE_CUT_TRANSITION, durationSec: CUT_TRANSITION_DURATION, at: EFFECTIVE_CUT_TRANSITION_AT } : null
       }, env: ENV, allowFallbackApprove: ALLOW_FALLBACK_APPROVE, log
     }) : null;
     record({
@@ -3883,11 +4081,16 @@ if (STAGES.has("compose")) {
       degraded: Boolean(verdict?.degraded), attempt: 1, ms: Date.now() - started, artifact: master,
       evidence: {
         ...info, outputFiles: [`${master.replace(/\.mp4$/i, "")}.av-sync.json`], tool: "scripts/tools/compose-film.mts",
+        quality: QUALITY, sourceResolution: SOURCE_RESOLUTION, outputResolution: OUTPUT_RESOLUTION,
+        enhancedClips: QUALITY === "uhd" ? composeClips : [],
         /** 顺序判据证据（policy/期望顺序/实际顺序），终审与审计都能按它复核"有没有打乱镜头" */
         order: { policy: ORDER_POLICY, expected: orderCheck.expected, actual: orderCheck.actual, ok: orderCheck.ok },
       }, verdict
     });
     if (!result.ok) log(`⛔ 合成失败：${result.out.slice(-400)}`);
+    if (QUALITY === "uhd" && (!result.ok || !verdict?.approved)) {
+      throw new Error(`UHD 合成或监制门未通过：${result.ok ? "监制未批准" : result.out.slice(-400)}`);
+    }
   }
 }
 
@@ -3901,7 +4104,7 @@ if (STAGES.has("compose")) {
  *   锚色：该角色**首个声明出镜镜头**的取样色；差 ≥90 判失败、≥45 告警（阈值在模块里显式可审计）。
  */
 let characterConsistency: CharacterConsistencyReport | null = null;
-if (STAGES.has("compose") && existsSync(master)) {
+if (STAGES.has("compose") && !DRY_RUN && existsSync(master)) {
   const sampleStart = Date.now();
   const characterShots = shots.filter((shot) => {
     const character = String((shot as { character?: unknown }).character ?? "").trim();
@@ -4435,8 +4638,8 @@ if (STAGES.has("sfx") && existsSync(scored) && !DRY_RUN) {
   mkdirSync(sfxDir, { recursive: true });
   const totalDuration = Number(probe(scored).duration ?? 0);
   const shotDurations = shots.map((s) => Number(s.duration ?? 5));
-  const cutTimes = cutTimesFromShots(shotDurations, CUT_TRANSITION ? CUT_TRANSITION_DURATION : 0,
-    CUT_TRANSITION ? CUT_TRANSITION_AT.split(",").map((v) => Number(v.trim())).filter((v) => Number.isFinite(v) && v > 0) : []);
+  const cutTimes = cutTimesFromShots(shotDurations, EFFECTIVE_CUT_TRANSITION ? CUT_TRANSITION_DURATION : 0,
+    EFFECTIVE_CUT_TRANSITION ? EFFECTIVE_CUT_TRANSITION_AT.split(",").map((v) => Number(v.trim())).filter((v) => Number.isFinite(v) && v > 0) : []);
   /** 段落重音 = 进入快剪段的第一刀 + 最后一刀（模板可覆盖） */
   const accentTimes = cutTimes.length > 1 ? [cutTimes[0]!, cutTimes[cutTimes.length - 1]!] : cutTimes.slice(0, 1);
   /**
@@ -4698,7 +4901,9 @@ if (STAGES.has("cover") && existsSync(colored)) {
   const coverPng = join(OUT_DIR, `${PROJECT}-cover.png`);
   const coverDir = join(POST_DIR, "cover");
   mkdirSync(coverDir, { recursive: true });
-  const { width: CW, height: CH } = coverSpec.canvas;
+  /** UHD 封面图形按最终视频画布原生绘制，文字/装饰层不经过视频超分。 */
+  const { width: CW, height: CH } = QUALITY === "uhd" ? OUTPUT_SIZE : coverSpec.canvas;
+  const coverScale = Math.min(CW / coverSpec.canvas.width, CH / coverSpec.canvas.height);
   /** 平台安全区（机检口径；person-solo 的下带文字另有一套上下限，底部遮挡仍按平台） */
   const coverSafeArea = {
     topMinRatio: coverSpec.safeArea.topMinRatio,
@@ -5088,7 +5293,7 @@ if (STAGES.has("cover") && existsSync(colored)) {
   const cardH = COVER_HERO === "split" ? CH : Math.round(cardW * 1.32);
   const cardX = COVER_HERO === "split" ? CW - cardW : CW - cardW - Math.round(CW * 0.052);
   const cardY = COVER_HERO === "split" ? 0 : COVER_HERO === "person" ? Math.round(CH * 0.16) : CH - cardH - Math.round(CH * 0.09);
-  const cardBorder = Math.max(6, Math.round(cardW * 0.018));
+  const cardBorder = Math.max(Math.round(6 * coverScale), Math.round(cardW * 0.018));
 
   const bgAt = bgPick.atSec;
   /**
@@ -5221,7 +5426,7 @@ if (STAGES.has("cover") && existsSync(colored)) {
      * 上/左/右三边渐隐、**下边保持不透明**（2026-09-25 真机二次修正）：
      * 四边全渐隐会让卡片变成"半透明雾面贴片"（监制：几乎不可辨）；下边不透明度保证人物"站得住"。
      */
-    const fadePx = Math.max(56, Math.round(cardW * (COVER_HERO === "split" ? 0.22 : 0.16)));
+    const fadePx = Math.max(Math.round(56 * coverScale), Math.round(cardW * (COVER_HERO === "split" ? 0.22 : 0.16)));
     const edge = (value: string): string => `min(1\\,${value})`;
     /** split：只渐隐左边界（与地标自然衔接）；其余版式：上/左/右三边渐隐 */
     const alphaExpr = COVER_HERO === "split"
@@ -5247,7 +5452,7 @@ if (STAGES.has("cover") && existsSync(colored)) {
     /** 投影（半透明黑矩形，偏移右下）再叠卡；投影让"这是一张卡"成立，而不是贴纸 */
     const shadow = join(coverDir, "person-shadow.png");
     run(FFMPEG, ["-y", "-i", bgOnly, "-vf",
-      `drawbox=x=${cardX + 10}:y=${cardY + 14}:w=${cardW}:h=${cardH}:color=black@0.35:t=fill`,
+      `drawbox=x=${cardX + Math.round(10 * coverScale)}:y=${cardY + Math.round(14 * coverScale)}:w=${cardW}:h=${cardH}:color=black@0.35:t=fill`,
       "-frames:v", "1", shadow]);
     run(FFMPEG, ["-y", "-i", shadow, "-i", personFile, "-filter_complex",
       `[0:v][1:v]overlay=x=${cardX}:y=${cardY}`, "-frames:v", "1", bgPerson]);
@@ -5260,8 +5465,8 @@ if (STAGES.has("cover") && existsSync(colored)) {
   /** 景物为主版式没有人物卡抢版面，主标题可以再大一档（同屏信息更少但更醒目） */
   const headSizeDesired = Math.round(CH * plan.typography.headlineSizeRatio * (COVER_HERO === "scenery" && !insetEnabled ? 1.15 : 1));
   const subSize = Math.round(CH * plan.typography.sublineSizeRatio);
-  const badgeSize = Math.max(28, Math.round(subSize * 0.72));
-  const left = plan.typography.align === "center" ? 0 : 64;
+  const badgeSize = Math.max(Math.round(28 * coverScale), Math.round(subSize * 0.72));
+  const left = plan.typography.align === "center" ? 0 : Math.round(64 * coverScale);
   /**
    * 标题**自适应字级**（2026-09-25 真机二次复核：'标题末字被右缘裁切'）：
    * drawtext 不会自动换行/缩放，设计稿给的字级在实际字数下会溢出画幅。
@@ -5284,7 +5489,7 @@ if (STAGES.has("cover") && existsSync(colored)) {
    * （2026-09-27 平台化：抖音 6% / 小红书 7% / YouTube 5%，来自 cover-platforms.ts）。
    */
   const accentY = Math.round(CH * coverSafeAreaForLayout.topMinRatio);
-  const accentH = Math.max(8, Math.round(CH * 0.006));
+  const accentH = Math.max(Math.round(8 * coverScale), Math.round(CH * 0.006));
   const titleY = accentY + Math.round(headSize * 0.42);
   const lineGap = Math.round(headSize * 0.12);
   const titleLines = headlineLinesRaw;
@@ -5387,6 +5592,7 @@ if (STAGES.has("cover") && existsSync(colored)) {
    */
   const coverCheckSpec: CoverPlatformSpec = {
     ...coverSpec,
+    canvas: { width: CW, height: CH },
     safeArea: {
       ...coverSpec.safeArea,
       topMinRatio: coverSafeAreaForCheck.topMinRatio,
@@ -5485,7 +5691,7 @@ if (STAGES.has("cover") && existsSync(colored)) {
       /** 平台口径证据（2026-09-27）：出的是哪个平台的封面、机检按哪套安全区判 */
       coverPlatform: {
         id: coverSpec.id, label: COVER_PLATFORM_ARG || platform, ratio: coverSpec.ratio,
-        canvas: coverSpec.canvas, safeArea: coverSafeAreaForCheck,
+        canvas: { width: CW, height: CH }, safeArea: coverSafeAreaForCheck,
         headlineLimit: coverSpec.language === "en" ? `${coverSpec.headlineMaxChars} words` : `${coverSpec.headlineMaxChars} chars`
       },
       /** 封面知识库注入证据：hints 与 trace 一一对应（无 trace 视为未注入） */
@@ -5534,16 +5740,28 @@ if (STAGES.has("cover") && existsSync(colored)) {
   if (coverApproved && !flag("--no-open-with-cover") && existsSync(coverPng) && existsSync(scored)) {
     try {
       const card = join(coverDir, "cover-card.mp4");
+      const oversampleWidth = Math.round(OUTPUT_SIZE.width * 1.1 / 2) * 2;
+      const oversampleHeight = Math.round(OUTPUT_SIZE.height * 1.1 / 2) * 2;
       run(FFMPEG, ["-y", "-loop", "1", "-t", "1.2", "-i", coverPng,
         "-f", "lavfi", "-t", "1.2", "-i", "anullsrc=r=48000:cl=stereo",
-        "-vf", "scale=1188:2112:force_original_aspect_ratio=increase,crop=1188:2112,zoompan=z='1.0+0.06*on/36':d=1:s=1080x1920:fps=30,format=yuv420p",
+        "-vf", `scale=${oversampleWidth}:${oversampleHeight}:force_original_aspect_ratio=increase,`
+          + `crop=${oversampleWidth}:${oversampleHeight},zoompan=z='1.0+0.06*on/${Math.round(1.2 * FPS)}'`
+          + `:d=1:s=${OUTPUT_SIZE.width}x${OUTPUT_SIZE.height}:fps=${FPS},format=yuv420p`,
         "-map", "0:v", "-map", "1:a", "-c:v", "libx264", "-preset", "medium", "-crf", "18",
         "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "160k", "-shortest", card]);
+      const cardInfo = probe(card);
+      if (Number(cardInfo.width) !== OUTPUT_SIZE.width || Number(cardInfo.height) !== OUTPUT_SIZE.height) {
+        throw new Error(`封面卡尺寸 ${cardInfo.width}x${cardInfo.height}，要求 ${OUTPUT_SIZE.width}x${OUTPUT_SIZE.height}`);
+      }
       const withCover = join(OUT_DIR, `${PROJECT}-with-cover.mp4`);
       run(FFMPEG, ["-y", "-i", card, "-i", scored,
         "-filter_complex", "[0:v][0:a][1:v][1:a]concat=n=2:v=1:a=1[v][a]",
         "-map", "[v]", "-map", "[a]", "-c:v", "libx264", "-preset", "medium", "-crf", "18",
         "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart", withCover]);
+      const withCoverInfo = probe(withCover);
+      if (Number(withCoverInfo.width) !== OUTPUT_SIZE.width || Number(withCoverInfo.height) !== OUTPUT_SIZE.height) {
+        throw new Error(`片头合成尺寸 ${withCoverInfo.width}x${withCoverInfo.height}，要求 ${OUTPUT_SIZE.width}x${OUTPUT_SIZE.height}`);
+      }
       log(`  ⇢ 封面已合成进片头：${withCover}（封面卡 1.2s + 正片，总时长 ${Number(probe(withCover).duration ?? 0).toFixed(2)}s）`);
       record({
         stage: "cover-intro", shotId: null, invoked: true, ok: true, cached: false, degraded: false, attempt: 1, ms: 0,
@@ -5556,6 +5774,7 @@ if (STAGES.has("cover") && existsSync(colored)) {
       });
     } catch (error) {
       log(`  ⚠ 封面合成进成片失败：${error instanceof Error ? error.message.slice(0, 160) : String(error)}`);
+      if (QUALITY === "uhd") throw error;
     }
   }
 }
@@ -5629,6 +5848,15 @@ if (STAGES.has("master") && existsSync(scored) && !DRY_RUN) {
   rememberInputs("master", [scored]);
 
   const scoredInfo = probe(scored);
+  if (Number(scoredInfo.width) !== OUTPUT_SIZE.width || Number(scoredInfo.height) !== OUTPUT_SIZE.height) {
+    record({
+      stage: "master", shotId: null, invoked: true, ok: false, cached: false, degraded: false, attempt: 1, ms: 0,
+      artifact: scored,
+      evidence: { quality: QUALITY, expected: OUTPUT_SIZE, actual: { width: scoredInfo.width, height: scoredInfo.height } },
+      verdict: null, note: "交付分辨率不符，禁止把预览或旧缓存签成正式母版"
+    });
+    throw new Error(`交付分辨率不符：${scoredInfo.width}x${scoredInfo.height}，要求 ${OUTPUT_SIZE.width}x${OUTPUT_SIZE.height}`);
+  }
   /**
    * 文件名与成片时长**同源**：先量实际时长，再决定交付文件名（不再写死 30s）。
    * 审计口径见 `auditDeliverableNaming`：文件名里写明的时长与成片差 >1s 即判不合格。
@@ -5640,8 +5868,11 @@ if (STAGES.has("master") && existsSync(scored) && !DRY_RUN) {
     log(`ℹ 成片 ${Number(scoredInfo.duration ?? 0).toFixed(2)}s：交付文件名按实测时长改写为 ${basename(finalPath)}（旧名 ${basename(DELIVERABLE)}）`);
   }
   deliverablePath = finalPath;
-  const info = probe(deliverable);
-  const accidents = detectQualityAccidents(deliverable);
+  /** UHD 只在终审放行后发布正式文件；失败候选留在后期缓存供审计和返修。 */
+  const reviewFile = QUALITY === "uhd" ? join(POST_DIR, `${PROJECT}-master-review.mp4`) : deliverable;
+  if (QUALITY === "uhd") copyFileSync(scored, reviewFile);
+  const info = probe(reviewFile);
+  const accidents = detectQualityAccidents(reviewFile);
   const finalNamingAudit = auditDeliverableNaming({ path: finalPath, durationSec: Number(info.duration ?? 0) });
   /**
    * 音画对齐实测报告（2026-09-26 真机事故沉淀 · 机制）：
@@ -5771,7 +6002,7 @@ if (STAGES.has("master") && existsSync(scored) && !DRY_RUN) {
      * 这里把封面 PNG、阶段汇总 JSON 一并作为产物附件交给它审。
      */
     artifacts: [
-      { path: deliverable, kind: "video", bytes: Number(info.bytes ?? 0), probe: info },
+      { path: reviewFile, kind: "video", bytes: Number(info.bytes ?? 0), probe: info },
       ...(existsSync(join(OUT_DIR, `${PROJECT}-cover.png`)) ? [{ path: join(OUT_DIR, `${PROJECT}-cover.png`), kind: "image" as const, note: "封面产物" }] : []),
       ...(softsubFile ? [{ path: softsubFile, kind: "video" as const, note: "软字幕轨版（字幕可开关、画面零改动）" }] : []),
       ...(subtitleSidecar ? [{ path: subtitleSidecar.srt, kind: "text" as const, note: "旁挂字幕文件（母版未烧字）" }] : []),
@@ -5785,7 +6016,10 @@ if (STAGES.has("master") && existsSync(scored) && !DRY_RUN) {
         detail: `成片 ${Number(info.duration ?? 0).toFixed(2)}s（目标 ${expectedMasterSeconds}s = 分镜 ${totalSeconds}s − 转场 ${transitionLoss.toFixed(2)}s）`,
         hard: true
       },
-      { id: "resolution", pass: Number(info.height ?? 0) >= 1920 || Number(info.width ?? 0) >= 1920, detail: `${info.width}x${info.height}`, hard: true },
+      {
+        id: "resolution", pass: Number(info.width) === OUTPUT_SIZE.width && Number(info.height) === OUTPUT_SIZE.height,
+        detail: `${info.width}x${info.height}（${QUALITY} 目标 ${OUTPUT_SIZE.width}x${OUTPUT_SIZE.height}）`, hard: true
+      },
       { id: "audio", pass: Boolean(info.hasAudio), detail: info.hasAudio ? `音轨 ${info.acodec}` : "无音轨", hard: true },
       { id: "no-black-frame", pass: accidents.blackSeconds <= 0.2, detail: `最长黑帧 ${accidents.blackSeconds.toFixed(2)}s（阈值 ≤0.2s）· ${accidents.detail}`, hard: true },
       { id: "silence-window", pass: accidents.silenceSeconds <= 2.0, detail: `最长静音段 ${accidents.silenceSeconds.toFixed(2)}s（阈值 ≤2.0s；配乐铺底后不应出现长静音）` },
@@ -5970,44 +6204,75 @@ if (STAGES.has("master") && existsSync(scored) && !DRY_RUN) {
     },
     env: ENV, allowFallbackApprove: ALLOW_FALLBACK_APPROVE, log
   });
+  let published = false;
   if (verdict.approved && !verdict.degraded) {
-    const reviewed = lineageInputSnapshots.get("master:")?.artifacts.find((entry) => entry.path === resolve(scored));
-    const current = fingerprintArtifact(scored);
-    if (!reviewed || reviewed.sha256 !== current.sha256 || reviewed.realpath !== current.realpath) throw new Error("MASTER_CHANGED_DURING_REVIEW");
-    const candidate = `${finalPath}.pending-${RUN_ID}`;
-    execFileSync("cp", [scored, candidate]);
-    if (fingerprintArtifact(candidate).sha256 !== reviewed.sha256 || fingerprintArtifact(scored).sha256 !== reviewed.sha256) {
-      rmSync(candidate, { force: true });
-      throw new Error("MASTER_CHANGED_DURING_PUBLICATION");
+    const pending = join(OUT_DIR, `.${basename(finalPath)}.${randomUUID()}.pending`);
+    try {
+      const reviewed = lineageInputSnapshots.get("master:")?.artifacts.find((entry) => entry.path === resolve(scored));
+      const current = fingerprintArtifact(scored);
+      if (!reviewed || reviewed.sha256 !== current.sha256 || reviewed.realpath !== current.realpath
+        || fingerprintArtifact(reviewFile).sha256 !== reviewed.sha256) {
+        throw new Error("MASTER_CHANGED_DURING_REVIEW");
+      }
+      copyFileSync(reviewFile, pending, fsConstants.COPYFILE_EXCL);
+      if (fingerprintArtifact(pending).sha256 !== reviewed.sha256
+        || fingerprintArtifact(reviewFile).sha256 !== reviewed.sha256
+        || fingerprintArtifact(scored).sha256 !== reviewed.sha256) {
+        throw new Error("MASTER_CHANGED_DURING_PUBLICATION");
+      }
+      renameSync(pending, finalPath);
+      published = true;
+      masterApprovedForUhd = QUALITY === "uhd";
+    } catch (error) {
+      rmSync(pending, { force: true });
+      record({
+        stage: "master", shotId: null, invoked: true, ok: false, cached: false, degraded: false,
+        attempt: 1, ms: verdict.ms, artifact: reviewFile,
+        evidence: { quality: QUALITY, publishError: error instanceof Error ? error.message : String(error) }, verdict,
+        note: "终审放行但原子发布失败；正式交付中止"
+      });
+      throw error;
     }
-    renameSync(candidate, finalPath);
   }
+  deliverablePath = published ? finalPath : reviewFile;
   record({
-    stage: "master", shotId: null, invoked: true, ok: verdict.approved, cached: false, degraded: verdict.degraded,
-    attempt: 1, ms: verdict.ms, artifact: verdict.approved ? finalPath : scored, evidence: { ...info, stageSummary }, verdict
+    stage: "master", shotId: null, invoked: true, ok: published, cached: false, degraded: verdict.degraded,
+    attempt: 1, ms: verdict.ms, artifact: deliverablePath,
+    evidence: { ...info, quality: QUALITY, sourceResolution: SOURCE_RESOLUTION, outputResolution: OUTPUT_RESOLUTION, stageSummary }, verdict
   });
-  writeFileSync(join(LOG_DIR, "stage-summary.json"), `${JSON.stringify({ project: PROJECT, at: stamp(), summary: stageSummary, deliverable, records }, null, 2)}\n`, "utf8");
+  writeFileSync(join(LOG_DIR, "stage-summary.json"), `${JSON.stringify({ project: PROJECT, at: stamp(), summary: stageSummary, deliverable: deliverablePath, records }, null, 2)}\n`, "utf8");
   /**
    * 终审结论要如实说：`✅ 成片` 只在监制放行时出现；未放行时输出 ⚠ + 理由，
    * 避免"文件存在"被读成"已通过"。
    */
-  if (verdict.approved) log(`✅ 成片（终审放行，score=${verdict.score}）：${deliverable}`);
-  else { log(`⛔ 母版终审未放行（score=${verdict.score}）：${verdict.reason}；保留工作产物 ${scored}`); process.exitCode = 6; }
+  if (published) log(`✅ 成片（终审放行，score=${verdict.score}）：${deliverablePath}`);
+  else if (QUALITY === "uhd") {
+    log(`⛔ UHD 母版终审未放行（score=${verdict.score}）：${verdict.reason}\n   审查候选：${reviewFile}（未发布到交付目录）`);
+    throw new Error(`UHD 母版终审未放行：${verdict.reason}`);
+  } else {
+    log(`⛔ 母版终审未放行（score=${verdict.score}）：${verdict.reason}；保留工作产物 ${reviewFile}`);
+    process.exitCode = 6;
+  }
 }
 
 /* ---------- ⑫ 多风格交付包（step_key: deliver，gate G-DLV1：变体雷同一票否决） ---------- */
+if (QUALITY === "uhd" && STAGES.has("deliver") && !DRY_RUN && !masterApprovedForUhd) {
+  throw new Error("UHD 多风格交付缺本轮终审放行的母版；请先完成母版终审");
+}
 /**
  * 管线 yml 的 deliver 步：**干净母版 + 旁挂字幕 + 2–3 个风格变体 + 软字幕轨版 + 交付清单**，
  * 纪律是"镜头只生成一次，变体零 token"——变体只做**后期层派生**（调色/混音/文案），绝不重跑渲染。
  * gate `G-DLV1`：任一对变体"画面与音轨都测不出差别"即一票否决（那不算两个变体，是把同一支片子发两遍）。
  */
-if (STAGES.has("deliver") && artifactReusable("master", deliverablePath, scored) && !DRY_RUN) {
+if (STAGES.has("deliver") && !DRY_RUN && (QUALITY !== "uhd" || masterApprovedForUhd)
+  && artifactReusable("master", deliverablePath, scored)) {
   rememberInputs("deliver", [deliverablePath]);
   const started = Date.now();
   const variantPlans = buildVariantPlan({ master: deliverablePath, outDir: OUT_DIR, projectId: PROJECT, coverHook: arg("--cover-hook", shotlist.title ?? "") });
   const samples: Array<{ variantId: string; frames: Array<{ r: number; g: number; b: number }>; loudness: { lufs: number; peakDb: number } | null }> = [];
   const variantManifest: Array<{
     id: string; label: string; path: string; sha256: string; note: string; gradeProfile: string | null;
+    width: number; height: number;
     cover?: { path: string; sha256: string } | null;
     bgm?: { track: string; sha256: string; measuredBpm?: number; gridErrorMs?: number } | null;
   }> = [];
@@ -6022,15 +6287,21 @@ if (STAGES.has("deliver") && artifactReusable("master", deliverablePath, scored)
     const target = join(OUT_DIR, `${PROJECT}-cover-${variantId}.png`);
     const fontFile = join(REPO_ROOT, "bundles/ai-video/library/fonts", COVER_FONTS["smiley-sans"].file);
     const hex = accent.replace("#", "0x");
+    const coverInfo = probe(source);
+    const scale = QUALITY === "uhd"
+      ? Math.min(Number(coverInfo.width ?? 0) / 1080, Number(coverInfo.height ?? 0) / 1920)
+      : 1;
+    if (!(scale > 0)) return null;
+    const px = (value: number): number => Math.max(1, Math.round(value * scale));
     try {
       execFileSync(FFMPEG, [
         "-v", "error", "-y", "-i", source,
         "-vf", [
-          `drawbox=x=0:y=ih-14:w=iw:h=14:color=${hex}@0.95:t=fill`,
-          `drawbox=x=64:y=ih-124:w=iw-128:h=76:color=black@0.45:t=fill`,
+          `drawbox=x=0:y=ih-${px(14)}:w=iw:h=${px(14)}:color=${hex}@0.95:t=fill`,
+          `drawbox=x=${px(64)}:y=ih-${px(124)}:w=iw-${px(128)}:h=${px(76)}:color=black@0.45:t=fill`,
           /** 注意：drawtext 表达式里高度变量是 `h`（不是 drawbox 的 `ih`）——写错整条滤镜配置会失败 */
           `drawtext=${existsSync(fontFile) ? `fontfile='${fontFile}':` : ""}text='${label}':`
-            + `fontcolor=white:fontsize=44:x=84:y=h-112`,
+            + `fontcolor=white:fontsize=${px(44)}:x=${px(84)}:y=h-${px(112)}`,
         ].join(","),
         "-frames:v", "1", target,
       ]);
@@ -6096,6 +6367,9 @@ if (STAGES.has("deliver") && artifactReusable("master", deliverablePath, scored)
       }
       const variantCover = renderVariantCover(plan.variant.id, plan.variant.coverAccent, `${plan.variant.label}${plan.variant.copySuffix}`);
       const info = probe(plan.output);
+      if (Number(info.width) !== OUTPUT_SIZE.width || Number(info.height) !== OUTPUT_SIZE.height) {
+        throw new Error(`变体 ${plan.variant.id} 分辨率 ${info.width}x${info.height}，要求 ${OUTPUT_SIZE.width}x${OUTPUT_SIZE.height}`);
+      }
       const duration = Number(info.duration ?? 0);
       const times = [duration * 0.2, duration * 0.5, duration * 0.8].map((t) => Math.max(0.2, Math.round(t * 10) / 10));
       const measured = measureLoudness(plan.output);
@@ -6108,6 +6382,7 @@ if (STAGES.has("deliver") && artifactReusable("master", deliverablePath, scored)
         id: plan.variant.id, label: plan.variant.label, path: plan.output,
         sha256: createHash("sha256").update(readFileSync(plan.output)).digest("hex"),
         note: plan.variant.note, gradeProfile: plan.variant.gradeProfile,
+        width: Number(info.width), height: Number(info.height),
         cover: variantCover, bgm: variantBgm,
       });
       log(`  变体 ${plan.variant.id}（${plan.variant.label}）→ ${basename(plan.output)}`);
@@ -6134,6 +6409,17 @@ if (STAGES.has("deliver") && artifactReusable("master", deliverablePath, scored)
     stepKey: "deliver",
     sourceStage: "deliver",
     checks: [
+      {
+        id: "master-resolution", pass: (() => {
+          const info = probe(deliverablePath);
+          return Number(info.width) === OUTPUT_SIZE.width && Number(info.height) === OUTPUT_SIZE.height;
+        })(), hard: true, detail: `${QUALITY} 母版要求 ${OUTPUT_SIZE.width}x${OUTPUT_SIZE.height}`
+      },
+      {
+        id: "variant-resolutions",
+        pass: variantManifest.every((variant) => variant.width === OUTPUT_SIZE.width && variant.height === OUTPUT_SIZE.height),
+        hard: true, detail: `变体 ${variantManifest.length} 支均须为 ${OUTPUT_SIZE.width}x${OUTPUT_SIZE.height}`
+      },
       { id: "variants-produced", pass: variantManifest.length >= VARIANT_MIN_COUNT, hard: true, detail: `产出变体 ${variantManifest.length} 个（产品口径：至少 ${VARIANT_MIN_COUNT} 个不同风格的后期版本）：${variantManifest.map((v) => v.id).join("/")}` },
       { id: "variants-distinct", pass: distinctness.approved, hard: true, detail: distinctness.detail },
       { id: "variant-axes", pass: variantAxes.ok, hard: true, detail: variantAxes.detail },
@@ -6150,7 +6436,7 @@ if (STAGES.has("deliver") && artifactReusable("master", deliverablePath, scored)
     }
   });
   const manifestFile = join(OUT_DIR, `${PROJECT}-delivery-manifest.json`);
-  writeFileSync(manifestFile, `${JSON.stringify(buildDeliveryManifest({
+  writeFileSync(manifestFile, `${JSON.stringify({ ...buildDeliveryManifest({
     projectId: PROJECT,
     platform: arg("--platform", "抖音/快手"),
     /**
@@ -6171,7 +6457,11 @@ if (STAGES.has("deliver") && artifactReusable("master", deliverablePath, scored)
     variantAxes,
     samples,
     at: stamp()
-  }), null, 2)}\n`, "utf8");
+  }), quality: {
+    tier: QUALITY, sourceResolution: SOURCE_RESOLUTION, outputResolution: OUTPUT_RESOLUTION,
+    width: OUTPUT_SIZE.width, height: OUTPUT_SIZE.height,
+    localEnhancement: QUALITY === "uhd" ? "per-shot, verified receipt in stages.jsonl" : "not requested"
+  } }, null, 2)}\n`, "utf8");
   record({
     stage: "deliver", shotId: null, invoked: true, ok: gate.approved, cached: false, degraded: gate.degraded, attempt: 1,
     ms: Date.now() - started, artifact: manifestFile,

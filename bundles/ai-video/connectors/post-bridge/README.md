@@ -17,11 +17,12 @@
 WorkLoom（大脑：岗位/技能/围栏/事件账本）         Mac 后期工位（手，独立内网）
   runtime ToolExecutor ──HTTP/Bearer──▶  post-bridge (127.0.0.1:9777)
                                             ├─ ffmpeg / ffprobe（归一化/拼接/封面/软轨）
+                                            ├─ enhance-bridge（UHD 档：M3 本机逐帧增强低分辨率镜头）
                                             ├─ subtitle-bridge 内核（旁挂字幕 + 软字幕轨 + 标题版式）
                                             ├─ color-bridge 内核（调色，自带可见性校验）
                                             ├─ bgm-bridge 内核（选曲 + 让位混音，自带 LUFS 复检）
                                             ├─ library/style-variants（风格配方：调色/BGM/转场/封面/文案）
-                                            ├─ 产物区（新文件 + 版本链 + 缓存：norm/assemble/graded/audio）
+                                            ├─ 产物区（新文件 + 版本链 + 缓存：enhanced/norm/assemble/graded/audio）
                                             └─ 回执：sha256 / 变体差异实测 / 复用证据 / 成本口径
 ```
 
@@ -61,15 +62,29 @@ WorkLoom（大脑：岗位/技能/围栏/事件账本）         Mac 后期工�
 ```bash
 post-cli health
 post-cli variants
-post-cli plan     --project project.json --shots a.mp4,b.mp4 [--variants warm-story,clean-tech]
+post-cli plan     --project project.json --shots a.mp4,b.mp4 [--quality hd|uhd] [--variants warm-story,clean-tech]
 post-cli deliver  --project project.json --shots a.mp4,b.mp4 --out-dir out/ \
-                  [--srt subs.srt] [--srt-en subs.en.srt] [--burn-subtitles] [--no-soft-subtitles]
+                  [--quality hd|uhd] [--srt subs.srt] [--srt-en subs.en.srt] [--burn-subtitles] [--no-soft-subtitles]
 post-cli impact   --project out/film-project.json --patch patch.json
 post-cli reedit   --project out/film-project.json --patch patch.json [--shot SC-03=/path/new.mp4]
 post-cli triage   --feedback "配乐太吵，另外第 3 个镜头人物走形"
 ```
 
 退出码：`0` 成功；`2` 用法错误；`3` 工具错误（code 见 `PostError`）；`4` 需要人审（镜头重生成走 G8）。
+
+`quality` 缺省为 `hd`。`uhd` 对应竖屏 2160×3840、横屏 3840×2160、方屏 2160×2160、4:5 2160×2700。
+请求 UHD 时，低于目标画布的实拍/动画镜头先在本机增强，再进入共用后期层；增强引擎不可用、原片为可排版的文字位图、或增强回读规格不符，交付会报错。
+已达目标的原片直接使用并在清单标 `source-sufficient`。`delivery-manifest.json#enhancements` 与 `film-project.json#layers.shots[].enhancement` 留逐镜源哈希、模型、增强哈希和来源文件；`resolution_exact` 与 `enhancement_provenance` 检查不通过时不判交付完成。
+
+在 Apple Silicon macOS 工位上先安装本机工具（安装脚本校验固定版本与哈希）：
+
+```bash
+bash bundles/ai-video/connectors/color-bridge/kit/install.sh
+node scripts/tools/enhance-engine-install.mjs
+node bundles/ai-video/connectors/post-bridge/cli.mjs health
+```
+
+桌面安装包包含上述脚本与后期代码，不内置模型和 FFmpeg 二进制。现有 FFmpeg kit 的构建含 `--enable-nonfree`，不可随产品再分发；安装器把它下载到当前 Mac 的 `~/.workloom-color/bin`。后期工位优先使用显式 `WORKLOOM_POST_FFMPEG_PATH` / `WORKLOOM_POST_FFPROBE_PATH`，否则寻找该 kit，最后才查系统 `PATH`。无本机引擎或 ffmpeg 时 UHD 请求失败并给出健康探针结果；Windows 与 Intel Mac 的 UHD 增强尚未经过本机验收。
 
 ## 风格变体（`library/style-variants/`）
 

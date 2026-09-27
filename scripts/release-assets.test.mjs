@@ -111,13 +111,45 @@ test("every packaging download is wired through the verified fetch boundary", as
   assert.match(files.pgvectorWin, /release-assets\.json/);
   assert.match(files.pgvectorWin, /release-assets\.mjs verify \$NupkgPath \$NupkgName/);
   assert.match(files.pgvectorWin, /--version=\$PostgresPackageVersion --source=\$PackageStage --require-checksums/);
-  assert.match(files.pgvectorWin, /if \(Test-Path \$PgRoot\)[\s\S]+干净 runner/);
+  assert.match(files.pgvectorWin, /if \(Test-Path -LiteralPath \$PgRoot\)/);
+  assert.match(files.pgvectorWin, /Test-Path -LiteralPath \$PgMarker -PathType Leaf/);
+  assert.match(files.pgvectorWin, /Get-FileHash -LiteralPath \$entry\.FullName -Algorithm SHA256/);
+  assert.match(files.pgvectorWin, /Assert-PgInventoryEqual \$recordedFiles \$currentFiles/);
+  assert.match(files.pgvectorWin, /Assert-PgInventoryEqual \$BaseInventory \$AfterBuildInventory/);
+  assert.doesNotMatch(files.pgvectorWin, /choco uninstall|Remove-Item\s+\$PgRoot/u);
   assert.match(files.pgvectorWin, /choco list --exact \$PostgresPackage --limit-output/);
   assert.doesNotMatch(files.pgvectorWin, /if \(-not \(Test-Path \"\$PgRoot\\bin\\pg_config\.exe\"\)\)/);
   assert.match(files.pgvectorWin, /fetch --quiet --depth 1 origin \$PgvectorCommit/);
   assert.match(files.pgvectorWin, /\$ActualPgvectorCommit -ne \$PgvectorCommit/);
   assert.doesNotMatch(files.pgvectorWin, /foreach \(\$pkg|git clone --depth 1 --branch/);
   assert.match(files.electron, /verify-windows-pg-provenance vendor\/pg-win\/WORKLOOM-PROVENANCE\.txt/);
+  for (const tool of [
+    "full-chain-film.mts", "compose-film.mts", "explainer-run.mts", "whiteboard-film.mts",
+    "whiteboard-env-install.mts", "enhance-engine-install.mjs",
+  ]) {
+    assert.match(files.electron, new RegExp(`scripts/tools/${tool.replaceAll(".", "\\.")}`));
+    assert.match(files.mac, new RegExp(`scripts/tools/${tool.replaceAll(".", "\\.")}`));
+  }
+  for (const relativePath of [
+    "scripts/whiteboard/lineart_tools.py",
+    "assets/whiteboard/drawing-hand-workloom.png",
+    "vendor/srt-whiteboard/LICENSE",
+    "vendor/srt-whiteboard/requirements.txt",
+    "vendor/srt-whiteboard/scripts/prepare_env.py",
+    "vendor/srt-whiteboard/scripts/render_stream_whiteboard.py",
+    "vendor/srt-whiteboard/scripts/stream_render.py",
+    "vendor/srt-whiteboard/scripts/merge_scenes.py",
+    "vendor/srt-whiteboard/scripts/render_annotation_preview.py",
+    "vendor/srt-whiteboard/examples/scene-01-monkey-mountain-banana.png",
+    "vendor/srt-whiteboard/examples/scene-01-monkey-mountain-banana.annotation.json",
+  ]) {
+    assert.ok(files.electron.includes(relativePath), `Electron 载荷遗漏 ${relativePath}`);
+    assert.ok(files.mac.includes(relativePath), `macOS 载荷遗漏 ${relativePath}`);
+  }
+  assert.doesNotMatch(files.electron, /cp\s+(?:-\S+\s+)*vendor\/srt-whiteboard\s/u,
+    "Electron 载荷不得把机器本地 .venv 随 vendor 根目录复制");
+  assert.doesNotMatch(files.mac, /cp\s+(?:-\S+\s+)*vendor\/srt-whiteboard\s/u,
+    "macOS 载荷不得把机器本地 .venv 随 vendor 根目录复制");
   assert.match(files.win, /verify-windows-pg-provenance vendor\/pg-win\/WORKLOOM-PROVENANCE\.txt/);
   for (const name of ["desktopWorkflow", "legacyWorkflow"]) {
     assert.match(files[name], /runs-on: windows-2022/);

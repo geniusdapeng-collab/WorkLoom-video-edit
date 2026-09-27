@@ -18,8 +18,16 @@ import { buildCardRegistry, extractConstSlots, extractDisplayStrings, parseFront
 import { alignScriptToTimestamps, expandToTiming, intToChinese, normalizeSpoken } from "./aligner.js";
 import { licenseStateOf, engineStatus, REQUIRED_ENGINE_FILES } from "./engine.js";
 import { deriveAnchors, deriveBeats, validateShotbook } from "./shotbook.js";
-import { renderShotsArgs, remotionSubmitParams, RemotionProvider } from "./remotion-provider.js";
-import type { ExplainerShotbook, ExplainerScript, SemanticsFile, TimestampsFile } from "./types.js";
+import { renderShotsArgs, renderWorkerCount, remotionSubmitParams, RemotionProvider } from "./remotion-provider.js";
+import { explainerOutputSize, type ExplainerShotbook, type ExplainerScript, type SemanticsFile, type TimestampsFile } from "./types.js";
+
+describe("输出画布契约", () => {
+  it("默认 HD，UHD 竖屏与横屏均为原生尺寸", () => {
+    expect(explainerOutputSize("9:16")).toEqual({ width: 1080, height: 1920 });
+    expect(explainerOutputSize("9:16", "uhd")).toEqual({ width: 2160, height: 3840 });
+    expect(explainerOutputSize("16:9", "uhd")).toEqual({ width: 3840, height: 2160 });
+  });
+});
 
 const CARD_SRC = `import React from "react";
 // 这是注释里的中文，不该进展示文案
@@ -327,6 +335,13 @@ describe("engine 许可闸与就绪度", () => {
 });
 
 describe("渲染 CLI 组装", () => {
+  it("UHD 强制单段单帧，HD 维持可配置并行度", () => {
+    expect(renderWorkerCount(2160, 3840, 8)).toBe(1);
+    expect(renderWorkerCount(3840, 2160, 2)).toBe(1);
+    expect(renderWorkerCount(1080, 1920, 2)).toBe(2);
+    expect(() => renderWorkerCount(1080, 1920, 0)).toThrow(/正整数/);
+  });
+
   it("三态范围与参数顺序（render_shots.mjs 真实契约）", () => {
     expect(renderShotsArgs({ scope: "full", parallel: 2, muxOut: "../out/v1.mp4", propsFile: "props.json" }))
       .toEqual(["--shots", "shots.json", "--all", "--parallel", "2", "--mux", "../out/v1.mp4", "--props", "@props.json"]);
@@ -372,7 +387,7 @@ describe("解说片 submit 路由不可变请求复放", () => {
   const scope = { tenantId: "tenant-ex", workspaceId: "workspace-ex" };
   let saved: any;
   let row: any;
-  const prepare = vi.fn(), submit = vi.fn(), create = vi.fn(), approve = vi.fn(), update = vi.fn();
+  const prepare = vi.fn(), submit = vi.fn(), create = vi.fn(), approve = vi.fn(), update = vi.fn(), renderJob = vi.fn();
   const query = vi.fn();
   beforeAll(async () => {
     const { initTRPC } = await import("@trpc/server");
@@ -387,7 +402,7 @@ describe("解说片 submit 路由不可变请求复放", () => {
     vi.doMock("../router.js", () => ({ loadActiveRules: async () => ({ rules: [], defaultLevel: "auto" }) }));
     vi.doMock("./pipeline.js", () => ({ runExplainerPipeline: prepare }));
     vi.doMock("./db.js", () => ({ scopedQuery: query, projectOf: async () => ({ id: "project-ex", kind: "explainer" }),
-      latestShotbook: async () => row, updateShotbook: update, renderJobOf: async () => null }));
+      latestShotbook: async () => row, updateShotbook: update, renderJobOf: renderJob }));
     caller = (await import("./router.js")).explainerRouter.createCaller({ identity: { ...scope, memberNo: "MEM-EX", plan: "pro" } } as any);
   });
   beforeEach(() => {
@@ -395,6 +410,7 @@ describe("解说片 submit 路由不可变请求复放", () => {
     row = { id: "shotbook", project_id: "project-ex", version: 3, script_text: "正文句子。", shotbook: { shots: [{ id: "s1", card: "verified-card" }] } };
     prepare.mockReset().mockResolvedValue({ jobDir: "/tmp/prepared-project", voice: { sha256: "voice" }, timestamps: { total: 5.4, sentences: [{ i: 1, ok: true }] } });
     submit.mockReset().mockResolvedValue({ taskId: "accepted-task" }); update.mockReset();
+    renderJob.mockReset().mockResolvedValue(null);
     create.mockReset().mockImplementation(async (_a, _g, _s, input) => {
       saved = { id: `${input.scriptKey}-v1`, project_id: input.projectId, shot_id: input.shotId, script_key: input.scriptKey,
         version: 1, md: input.md, fields: input.fields, status: "draft" };
@@ -404,8 +420,8 @@ describe("解说片 submit 路由不可变请求复放", () => {
     query.mockReset().mockImplementation(async (sql, params, actualScope) => {
       expect(actualScope).toEqual(scope);
       if (sql.includes("SELECT s.* FROM render_scripts")) {
-        expect(params).toEqual([scope.workspaceId, "explainer-shotbook", scope.tenantId, "project-ex"]);
-        return saved ? [saved] : [];
+        expect(params).toEqual([scope.workspaceId, expect.stringMatching(/^explainer-shotbook(?:-uhd)?$/), scope.tenantId, "project-ex"]);
+        return saved && (!saved.script_key || saved.script_key === params[1]) ? [saved] : [];
       }
       if (sql.includes("SUM(")) return [{ total: "0" }];
       if (sql.includes("FROM explainer_shotbooks")) return [row];
@@ -421,6 +437,27 @@ describe("解说片 submit 路由不可变请求复放", () => {
     expect(repeated.script).toEqual(first.script); expect(repeated.params).toEqual(first.params);
     expect(prepare).toHaveBeenCalledTimes(1); expect(create).toHaveBeenCalledTimes(1); expect(approve).toHaveBeenCalledTimes(1);
     expect(repeated.idempotencyKey).toBe("explainer:shotbook:v3");
+  });
+  it("UHD 采用独立脚本与幂等键，重试沿用已装配的原生 4K 画布", async () => {
+    await caller.submit({ projectId: "project-ex", quality: "uhd" });
+    const first = submit.mock.calls[0]?.[0];
+    expect(first.script.script_key).toBe("explainer-shotbook-uhd");
+    expect(first.idempotencyKey).toBe("explainer:shotbook:v3:uhd");
+    expect(first.params.resolution).toBe("2160x3840");
+    expect(prepare.mock.calls[0]?.[0].quality).toBe("uhd");
+    await caller.submit({ projectId: "project-ex", quality: "uhd" });
+    const repeated = submit.mock.calls[1]?.[0];
+    expect(repeated.script).toEqual(first.script);
+    expect(repeated.params).toEqual(first.params);
+    expect(prepare).toHaveBeenCalledTimes(1);
+    expect(create).toHaveBeenCalledTimes(1);
+    expect(approve).toHaveBeenCalledTimes(1);
+  });
+  it("另一清晰度仍在渲染时拒绝覆盖分镜的工程目录", async () => {
+    renderJob.mockImplementation(async (_scope, key) => key === "explainer:shotbook:v3:uhd" ? { status: "running" } : null);
+    await expect(caller.submit({ projectId: "project-ex" })).rejects.toThrow("仍在运行");
+    expect(prepare).not.toHaveBeenCalled();
+    expect(submit).not.toHaveBeenCalled();
   });
   it.each([{ voiceProfile: "changed" }, { renderScope: "only:s1" }, { assets: [{ from: "/a", to: "b" }] }])("相同分镜改变输入 %j，在重做准备/调用供应商前拒绝", async (patch) => {
     await caller.submit({ projectId: "project-ex" });

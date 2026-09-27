@@ -5,8 +5,8 @@
  * 用法：
  *   post-cli health
  *   post-cli variants
- *   post-cli plan     --project project.json --shots a.mp4,b.mp4 [--variants warm-story,clean-tech]
- *   post-cli deliver  --project project.json --shots a.mp4,b.mp4 --out-dir out/
+ *   post-cli plan     --project project.json --shots a.mp4,b.mp4 [--quality hd|uhd] [--variants warm-story,clean-tech]
+ *   post-cli deliver  --project project.json --shots a.mp4,b.mp4 --out-dir out/ [--quality hd|uhd]
  *                     [--srt subs.srt] [--srt-en subs.en.srt] [--variants …]
  *                     [--burn-subtitles] [--no-soft-subtitles]
  *   post-cli impact   --project film-project.json --patch patch.json
@@ -66,6 +66,7 @@ function readShots(value) {
     return list.map((shot, index) => ({
       shotId: String(shot.shotId ?? shot.shot_id ?? `SC-${String(index + 1).padStart(2, "0")}`),
       path: String(shot.path ?? shot.localPath ?? ""),
+      ...(shot.kind ? { kind: String(shot.kind) } : {}),
     }));
   }
   return value.split(",").map((file, index) => ({
@@ -91,7 +92,7 @@ async function main() {
       return 0;
     }
     case "plan": {
-      const project = readJson(flags.project, "--project");
+      const project = { ...readJson(flags.project, "--project"), ...(flags.quality ? { quality: flags.quality } : {}) };
       const shots = readShots(flags.shots);
       if (shots.length === 0) throw new PostError("--shots 缺失（a.mp4,b.mp4 或 shots.json）", "bad_request");
       const variants = typeof flags.variants === "string" ? flags.variants.split(",").map((id) => id.trim()).filter(Boolean) : null;
@@ -105,7 +106,7 @@ async function main() {
       return 0;
     }
     case "deliver": {
-      const project = readJson(flags.project, "--project");
+      const project = { ...readJson(flags.project, "--project"), ...(flags.quality ? { quality: flags.quality } : {}) };
       const shots = readShots(flags.shots);
       if (shots.length === 0) throw new PostError("--shots 缺失（a.mp4,b.mp4 或 shots.json）", "bad_request");
       if (typeof flags["out-dir"] !== "string") throw new PostError("--out-dir 缺失", "bad_request");

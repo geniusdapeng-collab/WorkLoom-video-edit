@@ -22,6 +22,7 @@ interface PackageSummary {
   title: string;
   createdAt: string | null;
   platform: string | null;
+  quality: "hd" | "uhd";
   variantCount: number;
   variantIds: string[];
   passed: boolean;
@@ -65,6 +66,11 @@ interface PackageDetail extends PackageSummary {
   divergence: Array<{ a: string; b: string; meanAbsDiff: number | null; verdict: string | null; audioDiffers: boolean }>;
   coverDivergence: Array<{ a: string; b: string; meanAbsDiff: number | null; verdict: string | null }>;
   checks: Array<{ kind: string; ok: boolean; detail: unknown }>;
+  enhancements: Array<{
+    shotId: string; kind: string; status: string; model: string | null;
+    sourceResolution: number[] | null; outputResolution: number[] | null;
+    sourceSha256: string | null; outputSha256: string | null; provenanceRef: string | null;
+  }>;
   cost: { shotGeneration?: string; tokenCostDelta?: number | string; note?: string } | null;
   revisions: Array<{ version: number | null; at: string | null; localOnly: boolean | null; outDir: string | null }>;
   latestRevisionWarnings: string[];
@@ -96,6 +102,8 @@ interface RevisionJobView {
 }
 
 const CHECK_LABEL: Record<string, string> = {
+  resolution_exact: "母版与变体画布实测",
+  enhancement_provenance: "本机增强来源核验",
   master_no_burn_in: "母版不烧字幕",
   sidecar_files: "旁挂字幕文件",
   variant_count: "变体数量",
@@ -326,6 +334,7 @@ export default function Delivery() {
     const refs = [
       detail.master.ref,
       ...detail.subtitleFiles.map((file) => file.ref),
+      ...detail.enhancements.map((item) => item.provenanceRef),
       ...detail.variants.flatMap((variant) => [variant.coverRef, variant.videoRef, variant.softsubRef]),
     ].filter((ref): ref is string => Boolean(ref));
     const unique = [...new Set(refs)];
@@ -429,7 +438,7 @@ export default function Delivery() {
                 </span>
               </div>
               <div className="mt-1 text-xs text-ink3">
-                {row.platform ?? "默认平台"} · {row.variantCount} 个版本 · {row.revisionCount} 次返修
+                {row.platform ?? "默认平台"} · {row.quality === "uhd" ? "UHD" : "HD"} · {row.variantCount} 个版本 · {row.revisionCount} 次返修
               </div>
               <div className="mt-1 text-[11px] text-ink4">{fmtTime(row.createdAt)}</div>
               {row.selectedVariantId ? (
@@ -454,6 +463,9 @@ export default function Delivery() {
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div className="font-orb text-sm text-ink">
                     干净母版（不含字幕）
+                    <span className={`ml-2 rounded border px-1.5 py-0.5 text-[11px] ${detail.quality === "uhd" ? "border-go/45 text-go" : "border-line text-ink3"}`}>
+                      {detail.quality === "uhd" ? "UHD · 本机后期" : "HD"}
+                    </span>
                     <span className="ml-2 text-xs text-ink3">
                       {detail.resolution ? `${detail.resolution[0]}×${detail.resolution[1]}` : ""} {detail.fps ? `@${detail.fps}fps` : ""}
                       {detail.master.duration ? ` · ${detail.master.duration}s` : ""}
@@ -487,6 +499,27 @@ export default function Delivery() {
                   </div>
                 </div>
               </div>
+
+              {detail.quality === "uhd" ? (
+                <div className="rounded border border-line/60 p-3 text-xs text-ink3">
+                  <div className="font-orb text-sm text-ink">逐镜清晰度来源</div>
+                  <p className="mt-1">低分辨率镜头由本机增强；已足够大的原片直接使用。这里列出实测规格与来源回执。</p>
+                  <ul className="mt-2 space-y-2">
+                    {detail.enhancements.map((item) => (
+                      <li key={item.shotId} className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded border border-line/40 px-2 py-1.5">
+                        <span className="font-semibold text-ink2">{item.shotId}</span>
+                        <span>{item.sourceResolution?.join("×") ?? "源规格未记录"} → {item.outputResolution?.join("×") ?? (item.status === "source-sufficient" ? "原片足够大" : "产物规格未记录")}</span>
+                        <span className={item.status === "enhanced" || item.status === "source-sufficient" ? "text-go" : "text-warn"}>
+                          {item.status === "enhanced" ? `本机增强 · ${item.model ?? "模型未记录"}` : item.status === "source-sufficient" ? "使用原片" : "来源待核验"}
+                        </span>
+                        {artifactUrl(item.provenanceRef) ? (
+                          <a className="text-holo underline" href={artifactUrl(item.provenanceRef)!} download={`${item.shotId}-enhancement.json`}>下载来源回执</a>
+                        ) : null}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
 
               <div className="space-y-2">
                 <div className="text-xs uppercase tracking-wide text-ink4">风格版本（挑一个）</div>

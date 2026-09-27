@@ -36,7 +36,12 @@ import {
   createExplainerProject, insertShotbook, latestShotbook, projectOf, renderJobOf, scopedQuery, updateShotbook,
   type ShotbookRow,
 } from "./db.js";
-import { ExplainerScriptSchema, type ExplainerShotbook } from "./types.js";
+import { ExplainerQualitySchema, explainerOutputSize, ExplainerScriptSchema, type ExplainerQuality, type ExplainerShotbook } from "./types.js";
+
+function renderKey(shotbookId: string, version: number, quality: ExplainerQuality): string {
+  const base = `explainer:${shotbookId}:v${version}`;
+  return quality === "hd" ? base : `${base}:uhd`;
+}
 
 const explainerSavedParams = z.object({
   durationSec: z.number().int().positive(), aspectRatio: z.string().min(1), resolution: z.string().min(1),
@@ -206,6 +211,7 @@ export const explainerRouter = router({
       hostAssets: z.record(z.string(), z.string()).optional(),
       assets: z.array(z.object({ from: z.string().max(1024), to: z.string().max(512) })).optional(),
       renderScope: z.string().max(120).default("full"),
+      quality: ExplainerQualitySchema.default("hd"),
       allowOverage: z.boolean().default(false),
     }))
     .mutation(async ({ ctx, input }) => {
@@ -222,18 +228,27 @@ export const explainerRouter = router({
       if (row.shotbook.shots.some((s) => s.card === "placeholder")) {
         throw new TRPCError({ code: "PRECONDITION_FAILED", message: "该版本还是占位分镜（card=placeholder）——先生成 SHOTBOOK" });
       }
-      const idempotencyKey = `explainer:${row.id}:v${row.version}`;
-      const scriptKey = `explainer-${row.id}`;
+      const idempotencyKey = renderKey(row.id, row.version, input.quality);
+      // HD retains its existing script identity; UHD has a separate immutable request.
+      const scriptKey = `explainer-${row.id}${input.quality === "uhd" ? "-uhd" : ""}`;
       const md = `# 口播解说片 ${row.id} v${row.version}\n\n${row.script_text}`;
-      // Same shotbook means the same immutable script and prepared parameters. Retry never
-      // overwrites an in-flight Remotion project or manufactures another script version.
+      const size = explainerOutputSize("9:16", input.quality);
+      const resolution = `${size.width}x${size.height}`;
+      // Keep the historical HD hash stable for an already accepted request.
+      // Each quality still binds its own voice, assets, scope and prepared params.
       const submissionInputHash = submissionRequestHash({
         scope, projectId: input.projectId, shotbookId: row.id, version: row.version,
         scriptText: row.script_text, shotbook: row.shotbook,
         voiceSource: input.voiceSource, voiceProfile: input.voiceProfile ?? null,
         uploadPath: input.uploadPath ?? null, uploadConfirmed: input.uploadConfirmed,
         hostAssets: input.hostAssets ?? {}, assets: input.assets ?? [], renderScope: input.renderScope,
+        ...(input.quality === "uhd" ? { quality: input.quality } : {}),
       });
+      const otherQuality = input.quality === "hd" ? "uhd" : "hd";
+      const otherJob = await renderJobOf(scope, renderKey(row.id, row.version, otherQuality));
+      if (otherJob && !["done", "failed"].includes(otherJob.status)) {
+        throw new TRPCError({ code: "PRECONDITION_FAILED", message: `同一分镜版本的 ${otherQuality} 渲染仍在运行，请先完成该任务` });
+      }
       const existingScripts = await scopedQuery<RenderScriptLike>(
         `SELECT s.* FROM render_scripts s JOIN workspaces w ON w.id=s.workspace_id
           WHERE s.workspace_id=$1 AND s.script_key=$2 AND w.tenant_id=$3 AND s.project_id=$4
@@ -249,6 +264,9 @@ export const explainerRouter = router({
           throw new TRPCError({ code: "CONFLICT", message: "该分镜已绑定其他或未核实的生成请求；请核对原任务，不得重做准备段或重发" });
         }
         params = explainerSavedParams.parse(scriptRow.fields?.submissionParams);
+        if (params.resolution !== resolution) {
+          throw new TRPCError({ code: "CONFLICT", message: "已绑定渲染请求的画布尺寸与当前清晰度不符" });
+        }
         lowMatch = z.array(z.number().int()).parse(scriptRow.fields?.lowMatch);
       } else {
         const script = ExplainerScriptSchema.parse({ sentences: splitScript(row.script_text) });
@@ -257,9 +275,10 @@ export const explainerRouter = router({
         let prepared: Awaited<ReturnType<typeof runExplainerPipeline>>;
         try {
           prepared = await runExplainerPipeline({
-            taskId: `${row.id}-v${row.version}`,
+            taskId: `${row.id}-v${row.version}${input.quality === "uhd" ? "-uhd" : ""}`,
             script,
             shotbook: row.shotbook,
+            quality: input.quality,
             voice: {
               source: input.voiceSource,
               profile: input.voiceProfile,
@@ -286,7 +305,7 @@ export const explainerRouter = router({
 
         params = {
           durationSec: Math.max(1, Math.round(prepared.timestamps.total)),
-          aspectRatio: "9:16", resolution: "1080x1920", generateAudio: false,
+          aspectRatio: "9:16", resolution, generateAudio: false,
           extra: { jobDir: prepared.jobDir, audioSeconds: prepared.timestamps.total, scope: input.renderScope },
         };
         lowMatch = prepared.timestamps.sentences.filter((sentence) => !sentence.ok).map((sentence) => sentence.i);
@@ -318,12 +337,13 @@ export const explainerRouter = router({
       });
       if (!budget.allowed) throw new TRPCError({ code: "PRECONDITION_FAILED", message: budget.reason ?? "渲染额度不足" });
 
-      /* ---- 一个分镜版本只绑定一个不可变渲染请求，重试复用原版本 ---- */
+      /* ---- 每个清晰度绑定一个不可变渲染请求；重试复用原版本 ---- */
       if (!scriptRow) {
         scriptRow = await createRenderScript(getAppPool(), getGatewayPool(), scope, {
           scriptKey, projectId: input.projectId, shotId: "full", md,
           fields: { kind: "explainer", shotbookId: row.id, version: row.version,
-            durationSec, aspect: "9:16", submissionInputHash, submissionParams: params, lowMatch },
+            durationSec, aspect: "9:16", quality: input.quality, ...size,
+            submissionInputHash, submissionParams: params, lowMatch },
           by: ctx.identity.memberNo,
         });
       }
@@ -345,7 +365,10 @@ export const explainerRouter = router({
         fenceImpacts: verdict.impacts,
         env: process.env,
       });
-      await updateShotbook(scope, row.id, { status: "rendered", renderScope: { mode: input.renderScope } });
+      await updateShotbook(scope, row.id, {
+        status: "rendered", jobDir: params.extra.jobDir,
+        renderScope: { mode: input.renderScope, quality: input.quality },
+      });
       return {
         ...submitted,
         shotbookId: row.id,
@@ -354,6 +377,8 @@ export const explainerRouter = router({
         idempotencyKey,
         durationSec,
         lowMatch,
+        quality: input.quality,
+        resolution,
       };
     }),
 
@@ -367,7 +392,10 @@ export const explainerRouter = router({
       if (!row.job_dir || !existsSync(row.job_dir)) {
         throw new TRPCError({ code: "PRECONDITION_FAILED", message: "该版本还没跑过 submit（工程目录不在场）" });
       }
-      const job = await renderJobOf(scope, `explainer:${row.id}:v${row.version}`);
+      const manifest = JSON.parse(readFileSync(join(row.job_dir, "job.json"), "utf8")) as { quality?: unknown; aspect?: "9:16" | "16:9" };
+      const quality = ExplainerQualitySchema.parse(manifest.quality ?? "hd");
+      const aspect = manifest.aspect ?? "9:16";
+      const job = await renderJobOf(scope, renderKey(row.id, row.version, quality));
       if (!job) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "找不到渲染任务（先 submit）" });
       if (job.status !== "done") {
         return {
@@ -385,7 +413,8 @@ export const explainerRouter = router({
       const cueCount = existsSync(cuesPath) ? (JSON.parse(readFileSync(cuesPath, "utf8")) as unknown[]).length : 0;
       const { report } = await runMachineGates({
         jobDir: row.job_dir, cards, cueCount, engineDir,
-        aspect: "9:16",
+        aspect,
+        quality,
         shots: JSON.parse(readFileSync(join(row.job_dir, "remotion", "shots.json"), "utf8")) as Array<{ id: string; start: number; end: number }>,
         onLog: (line) => console.log(`[explainer:finalize] ${line}`),
       });
@@ -408,6 +437,7 @@ export const explainerRouter = router({
         provenance: {
           shotbookId: row.id, version: row.version, jobDir: row.job_dir,
           enginePin: row.engine_pin, loudnorm: delivery.measurement, qaPass: report.pass,
+          quality, resolution: explainerOutputSize(aspect, quality),
         },
         by: ctx.identity.memberNo,
       });

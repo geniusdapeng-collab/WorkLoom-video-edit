@@ -168,6 +168,7 @@ export interface DeliveryManifest {
   title?: string;
   createdAt?: string;
   platform?: string | null;
+  quality?: "hd" | "uhd";
   resolution?: number[];
   fps?: number;
   master?: { path?: string; sha256?: string; duration?: number | null; subtitles?: string };
@@ -184,6 +185,11 @@ export interface DeliveryManifest {
   }>;
   coverDivergence?: Array<{ a?: string; b?: string; meanAbsDiff?: number; verdict?: string }>;
   checks?: Array<{ kind?: string; ok?: boolean; detail?: unknown }>;
+  enhancements?: Array<{
+    shotId?: string; kind?: string; status?: string; model?: string | null;
+    sourceResolution?: number[] | null; outputResolution?: number[] | null;
+    sourceSha256?: string | null; outputSha256?: string | null; provenancePath?: string | null;
+  }>;
   filmProject?: string;
   cost?: { shotGeneration?: string; tokenCostDelta?: number | string; note?: string };
 }
@@ -206,6 +212,7 @@ export interface DeliveryPackageSummary {
   title: string;
   createdAt: string | null;
   platform: string | null;
+  quality: "hd" | "uhd";
   variantCount: number;
   variantIds: string[];
   passed: boolean;
@@ -227,6 +234,11 @@ export interface DeliveryPackageDetail extends DeliveryPackageSummary {
   divergence: Array<{ a: string; b: string; meanAbsDiff: number | null; verdict: string | null; audioDiffers: boolean }>;
   coverDivergence: Array<{ a: string; b: string; meanAbsDiff: number | null; verdict: string | null }>;
   checks: Array<{ kind: string; ok: boolean; detail: unknown }>;
+  enhancements: Array<{
+    shotId: string; kind: string; status: string; model: string | null;
+    sourceResolution: number[] | null; outputResolution: number[] | null;
+    sourceSha256: string | null; outputSha256: string | null; provenanceRef: string | null;
+  }>;
   cost: DeliveryManifest["cost"] | null;
     selection: DeliverySelection | null;
     selections: DeliverySelection[];
@@ -363,6 +375,7 @@ function summarize(packageDir: string, manifest: DeliveryManifest, scope: Delive
     title: String(manifest.title ?? manifest.projectId ?? basename(packageDir)),
     createdAt: manifest.createdAt ?? null,
     platform: manifest.platform ?? null,
+    quality: manifest.quality === "uhd" ? "uhd" : "hd",
     variantCount: variants.length,
     variantIds: variants.map((variant) => String(variant.id)),
     passed: trust.status === "verified",
@@ -477,6 +490,17 @@ export function readDeliveryPackage(dir: string, scope: DeliveryScope, env: Node
       kind: String(check.kind ?? ""),
       ok: check.ok === true,
       detail: check.detail ?? null,
+    })),
+    enhancements: (manifest.enhancements ?? []).map((item) => ({
+      shotId: String(item.shotId ?? ""),
+      kind: String(item.kind ?? ""),
+      status: String(item.status ?? "not-requested"),
+      model: item.model ?? null,
+      sourceResolution: Array.isArray(item.sourceResolution) ? item.sourceResolution : null,
+      outputResolution: Array.isArray(item.outputResolution) ? item.outputResolution : null,
+      sourceSha256: item.sourceSha256 ?? null,
+      outputSha256: item.outputSha256 ?? null,
+      provenanceRef: artifactRefFor(packageDir, item.provenancePath, env),
     })),
     cost: manifest.cost ?? null,
     selection: selectedId ? selections.filter((selection) => selection.variantId === selectedId).at(-1) ?? null : null,

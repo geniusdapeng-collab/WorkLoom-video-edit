@@ -80,7 +80,7 @@ export const NEVER_RETRY_CODES = new Set([
   "idempotency_conflict", "bad_request", "not_found", "not_provided",
   "ffmpeg_not_installed", "bad_media", "bad_font", "font_not_found", "bad_style", "bad_srt",
   "bad_recipe", "bad_lut", "license_blocked", "overwrite_source_forbidden", "not_configured",
-  "verify_failed",
+  "verify_failed", "version_exists",
 ]);
 
 export function isPostBridgeTool(name: string): boolean {

@@ -1,12 +1,14 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { normalizeShotIntent, shotIntentHash } from "../../packages/video-studio/src/shot-intent.js";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
+const ffmpeg = process.env.WL_FFMPEG ?? "ffmpeg";
+const ffprobe = process.env.WL_FFPROBE ?? "ffprobe";
 const temporary: string[] = [];
 afterEach(() => { for (const dir of temporary.splice(0)) rmSync(dir, { recursive: true, force: true }); });
 
@@ -221,4 +223,57 @@ describe("全链路当前血缘与返修范围", () => {
     const aggregate = second.rows().findLast((entry: Card) => entry.stage === "cine-kb" && entry.shotId === null);
     expect(aggregate.lineage.sourceHash).not.toBe(first.rows().find((entry: Card) => entry.stage === "cine-kb" && entry.shotId === null).lineage.sourceHash);
   }, 40_000);
+});
+
+describe("成片硬切 CFR 接缝", () => {
+  const available = [ffmpeg, ffprobe].every((bin) => spawnSync(bin, ["-version"], { stdio: "ignore" }).status === 0);
+
+  it.skipIf(!available)("视频直拷拼接的每个接缝保持整帧间隔，音画同步按同一时长计算", () => {
+    const dir = mkdtempSync(join(tmpdir(), "compose-cfr-")); temporary.push(dir);
+    const clips: string[] = [];
+    for (const [index, color] of ["red", "green", "blue"].entries()) {
+      const file = join(dir, `source-${index}.mp4`);
+      const made = spawnSync(ffmpeg, [
+        "-hide_banner", "-v", "error", "-y",
+        "-f", "lavfi", "-i", `color=c=${color}:s=64x96:r=8:d=1`,
+        "-f", "lavfi", "-i", `anoisesrc=color=white:seed=${index + 7}:r=48000:d=1`,
+        "-map", "0:v:0", "-map", "1:a:0", "-c:v", "libx264", "-preset", "ultrafast",
+        "-pix_fmt", "yuv420p", "-c:a", "aac", "-ar", "48000", "-ac", "2", file,
+      ], { encoding: "utf8", timeout: 15_000 });
+      expect(made.status, `${made.error ?? ""}\n${made.stderr}`).toBe(0);
+      clips.push(file);
+    }
+    const master = join(dir, "master.mp4");
+    const result = spawnSync(process.execPath, ["--import", "tsx", "scripts/tools/compose-film.mts",
+      "--clips", clips.join(","), "--out", master, "--width", "64", "--height", "96",
+      "--fps", "8", "--fade", "0", "--color", "none", "--keep-temp",
+    ], {
+      cwd: root, encoding: "utf8", timeout: 90_000,
+      env: { ...process.env, TMPDIR: dir, WL_FFMPEG: ffmpeg, WL_FFPROBE: ffprobe },
+    });
+    expect(result.status, `${result.error ?? ""}\n${result.stdout}\n${result.stderr}`).toBe(0);
+    const work = join(dir, readdirSync(dir).find((name) => name.startsWith("wl-compose-")) ?? "missing");
+    expect(readFileSync(join(work, "concat.txt"), "utf8").match(/^duration 1\.000000$/gm)).toHaveLength(3);
+    for (const file of [join(work, "video-only.mp4"), join(work, "raw.mp4"), master]) {
+      const read = spawnSync(ffprobe, [
+        "-v", "error", "-select_streams", "v:0", "-show_packets",
+        "-show_entries", "stream=r_frame_rate,nb_frames:packet=pts_time", "-of", "json", file,
+      ], { encoding: "utf8", timeout: 15_000 });
+      expect(read.status, `${read.error ?? ""}\n${read.stderr}`).toBe(0);
+      const doc = JSON.parse(read.stdout) as {
+        streams: Array<{ r_frame_rate: string; nb_frames: string }>;
+        packets: Array<{ pts_time: string }>;
+      };
+      const pts = doc.packets.map((packet) => Number(packet.pts_time)).sort((a, b) => a - b);
+      expect(Number(doc.streams[0]!.nb_frames), file).toBe(24);
+      expect(doc.streams[0]!.r_frame_rate, file).toBe("8/1");
+      expect(pts, file).toHaveLength(24);
+      for (let index = 1; index < pts.length; index += 1) {
+        expect(pts[index]! - pts[index - 1]!, `${file}: frame ${index}`).toBeCloseTo(0.125, 4);
+      }
+    }
+    const sync = JSON.parse(readFileSync(join(dir, "master.av-sync.json"), "utf8")) as { ok: boolean; measured: number };
+    expect(sync.ok).toBe(true);
+    expect(sync.measured).toBe(3);
+  }, 100_000);
 });
