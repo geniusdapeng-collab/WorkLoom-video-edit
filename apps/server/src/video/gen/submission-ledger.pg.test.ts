@@ -1,6 +1,7 @@
 /** 真 PG：唯一预占/CAS、RLS、不可变回执、接受后短事务及 COMMIT ack 丢失。供应商均注入测试替身，不触网。 */
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import pg from "pg";
+import { newId } from "@workloom/shared";
 import { SubmissionLedger, submissionRequestHash } from "./submission-ledger.js";
 import { submitGenJob, type RenderScriptLike, type SubmitGenJobInput } from "./submit.js";
 
@@ -14,7 +15,7 @@ describe.runIf(RUN_DB)("生成预占与接受回执活库契约", () => {
   const owner = new pg.Pool({ connectionString: process.env.DATABASE_URL });
   const app = new pg.Pool({ connectionString: process.env.DATABASE_APP_URL });
   const gateway = new pg.Pool({ connectionString: process.env.DATABASE_GATEWAY_URL });
-  const suffix = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const suffix = newId("suite");
   const scope = { tenantId: `tenant-gen-${suffix}`, workspaceId: `ws-gen-${suffix}` };
   const other = { tenantId: `tenant-gen-other-${suffix}`, workspaceId: `ws-gen-other-${suffix}` };
   const projectId = `VID-GEN-${suffix}`;
@@ -33,8 +34,8 @@ describe.runIf(RUN_DB)("生成预占与接受回执活库契约", () => {
   afterAll(async () => { await Promise.all([owner.end(), app.end(), gateway.end()]); });
   beforeEach(() => { providers.submit.mockReset().mockResolvedValue({ taskId: `provider-${suffix}-${seq}` }); });
 
-  async function script(context = scope, project = projectId): Promise<RenderScriptLike> {
-    const id = `RS-${suffix}-${seq++}`;
+  async function script(context = scope, project = projectId, idPrefix = "RS"): Promise<RenderScriptLike> {
+    const id = `${idPrefix}-${suffix}-${seq++}`;
     const row: RenderScriptLike = { id, project_id: project, shot_id: `shot-${seq}`, script_key: id,
       version: 1, status: "approved", md: "固定机位拍摄玻璃杯，五秒", fields: { durationSec: 5, nested: { a: 1, b: 2 } } };
     await owner.query(`INSERT INTO render_scripts
@@ -154,16 +155,20 @@ describe.runIf(RUN_DB)("生成预占与接受回执活库契约", () => {
     expect(providers.submit).toHaveBeenCalledTimes(1);
     expect(await counts(source.id)).toEqual({ jobs: 1, actions: ["model.call", "render.submit"] });
   });
-  it("计量事件写失败时脚本/job/trace 全回滚，重放仍保持原调用人", async () => {
-    const source = await script();
+  it.each(["RS", "RS-1790528096006"])("计量事件写失败时脚本/job/trace 全回滚，重放仍保持原调用人（%s）", async (idPrefix) => {
+    // 第二个前缀的时间戳通过 Luhn，会按网关契约脱敏，不能用原始 object.id 回查事件。
+    const source = await script(scope, projectId, idPrefix);
     await expect(submitGenJob(submitInput(source, faultPool("append_event_insert")))).rejects.toThrow("SUBMISSION_FINALIZATION_PENDING");
     expect(await counts(source.id)).toEqual({ jobs: 0, actions: [] });
     const scriptRow = await owner.query("SELECT status FROM render_scripts WHERE id=$1", [source.id]);
     expect(scriptRow.rows[0].status).toBe("approved");
-    await submitGenJob({ ...submitInput(source), actor: "MEM-RETRY" });
+    const replay = await submitGenJob({ ...submitInput(source), actor: "MEM-RETRY" });
     const event = await owner.query(`SELECT payload->'who'->>'id' AS actor FROM biz_events
-      WHERE workspace_id=$1 AND payload->'object'->>'id'=$2`, [scope.workspaceId, source.id]);
-    expect(event.rows[0].actor).toBe("MEM-T"); expect(providers.submit).toHaveBeenCalledTimes(1);
+      WHERE workspace_id=$1 AND payload->'decision'->>'action'='render.submit'
+        AND payload->'decision'->'after'->>'jobId'=$2`, [scope.workspaceId, replay.jobId]);
+    expect(event.rows).toEqual([{ actor: "MEM-T" }]);
+    expect(await counts(source.id)).toEqual({ jobs: 1, actions: ["model.call", "render.submit"] });
+    expect(providers.submit).toHaveBeenCalledTimes(1);
   });
   it.each(["commit-before", "commit-after"] as const)("accepted %s 故障后不重复提交，已提交者可补账", async (mode) => {
     const source = await script();
