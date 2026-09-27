@@ -26,7 +26,7 @@ export const REVISION_LAYERS: RevisionLayer[] = [
 ];
 
 /** “换”及单独的“镜头/手/人物”不能证明需要重新生成画面。 */
-export const SHOT_LEVEL_PATTERN = /重拍|重渲|重新(?:生成|渲染)(?:画面|镜头|视频)|穿帮|畸变|崩脸|穿模|画面内容|(?:人物|角色|脸|面部|表情|肢体|手指|动作|构图|场景|建筑|桥).{0,12}(?:僵硬|异常|错误|不自然|不对|变形|扭曲|缺失|崩坏|失真)|(?:替换|更换|换掉|修改|调整).{0,4}(?:人物|角色|场景|建筑|画面|镜头(?!顺序|排序))|(?:人物|角色|场景|建筑|画面内容).{0,4}(?:换掉|替换)/i;
+export const SHOT_LEVEL_PATTERN = /重拍|重渲|重新(?:生成|渲染)(?:画面|镜头|视频)|穿帮|畸变|崩脸|穿模|画面内容|(?:人物|角色|脸|面部|表情|肢体|手指|动作|构图|场景|建筑|桥).{0,12}(?:僵硬|异常|错误|不自然|不对|变形|扭曲|缺失|崩坏|失真)|(?:替换|更换|换掉|修改|调整).{0,4}(?:人物|角色|场景|建筑|画面|镜头(?!顺序|排序))|(?:人物|角色|场景|建筑|画面内容).{0,4}(?:换掉|替换)|(?:替换|更换|换掉|换)\s*[A-Z]{1,16}-\d+|[A-Z]{1,16}-\d+\s*(?:换掉|替换|更换)/i;
 
 const LAYER_ORDER: RevisionLayer["id"][] = ["compose", "color", "subtitle", "danmaku", "bgm", "cover", "mux", "master", "deliver"];
 /** 对齐 full-chain 的产物流：raw→graded→字幕/弹幕→配乐→软轨→终审→交付；封面另从 graded 分叉。 */
@@ -69,18 +69,27 @@ function normalizeText(value: string): string {
 }
 
 function feedbackClauses(note: string): string[] {
-  return normalizeText(note).split(/[，,。；;！!？?\n]|另外|同时|并且|但是|只(?:要|需)?|仅(?:需)?/u)
+  return normalizeText(note).split(/[，,。；;！!？?\n]|另外|同时|并且|但是|而且|以及|但|且/u)
     .map((clause) => clause.trim()).filter(Boolean)
-    .filter((clause) => !/(?:不要|不用|无需|不必|别)(?:再)?(?:改|动|换|重拍|重渲)|(?:保持|保留).*(?:不变|原样)|(?:没问题|无需修改|不用改)/u.test(clause));
+    .filter((clause) => !/(?:不要|不用|无需|不必|不再|不|别)(?:再)?(?:全部|全片|所有镜头)?(?:改|动|换|重拍|重渲|重新(?:生成|渲染))|(?:保持|保留).*(?:不变|原样)|(?:没问题|无需修改|不用改)/u.test(clause));
 }
 
-function attribution(note: string): { kind: RevisionKind; layers: RevisionLayer["id"][] } {
+function attribution(note: string): { kind: RevisionKind; layers: RevisionLayer["id"][]; clauses: string[]; shotClauses: string[] } {
   const clauses = feedbackClauses(note);
   const layers = REVISION_LAYERS.filter((layer) => clauses.some((clause) => layer.pattern.test(clause))).map((layer) => layer.id);
-  // 封面里的角色、字幕文字中的动作属于该后期层；独立分句的画面问题仍会触发镜头归因。
-  const hitsShot = clauses.some((clause) => !/封面|标题|钩子|字幕|弹幕/u.test(clause) && SHOT_LEVEL_PATTERN.test(clause));
+  // 封面里的角色或字幕文字中的动作属于后期层；画面问题先于层说明时仍保留画面归因。
+  const shotClauses = clauses.filter((clause) => {
+    const shot = SHOT_LEVEL_PATTERN.exec(clause);
+    if (!shot) return false;
+    if (/^(?:(?:替换|更换|换掉|换)\s*[A-Z]{1,16}-\d+|[A-Z]{1,16}-\d+\s*(?:换掉|替换|更换))$/i.test(shot[0])
+      && /^\s*(?:的)?\s*(?:字幕|弹幕|封面|标题|钩子|配乐|音乐|BGM|调色|转场|顺序|排序)/iu.test(clause.slice(shot.index + shot[0].length))) return false;
+    const post = /封面|标题|钩子|字幕|弹幕/u.exec(clause);
+    if (/^(?:替换|更换|换掉|修改|调整).{0,4}(?:封面|标题|钩子|字幕|弹幕)/u.test(shot[0])) return false;
+    return !post || shot.index < post.index;
+  });
+  const hitsShot = shotClauses.length > 0;
   const kind = hitsShot ? (layers.length ? "mixed" : "shot-level") : layers.length ? "layer-level" : "unclassified";
-  return { kind, layers };
+  return { kind, layers, clauses, shotClauses };
 }
 
 export function classifyRevision(note: string): RevisionKind {
@@ -106,7 +115,7 @@ export function buildRevisionPlan(options: {
   hasher: (path: string) => string;
   namedShots?: string[];
 }): RevisionPlan {
-  const { kind, layers: requestedLayers } = attribution(options.note);
+  const { kind, layers: requestedLayers, clauses, shotClauses } = attribution(options.note);
   const blockers: RevisionBlocker[] = [];
   const known = new Map<string, string>();
   const key = (id: string) => normalizeText(id).trim().toUpperCase();
@@ -119,19 +128,42 @@ export function buildRevisionPlan(options: {
   if (known.size === 0) blockers.push({ code: "invalid_shot_registry", detail: "项目没有可核对的镜头登记" });
   if (kind === "unclassified") blockers.push({ code: "unclassified", detail: "意见没有明确点名可修改的画面问题或后期层" });
 
-  const note = normalizeText(options.note);
-  const explicit = [...(options.namedShots ?? [])];
+  const references = (text: string): string[] => {
+    const result: string[] = [];
+    for (const [id, original] of known) {
+      const escaped = id.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      if (new RegExp(`(?<![A-Za-z0-9_-])${escaped}(?![A-Za-z0-9_-])`, "i").test(text)) result.push(original);
+    }
+    result.push(...[...text.matchAll(/(?<![A-Za-z0-9_-])[A-Z]{1,16}-\d+[A-Z0-9]*(?![A-Za-z0-9_-])/gi)].map((match) => match[0]));
+    return [...new Set(result.map(key))];
+  };
   // 先匹配项目的实际编号，支持自定义命名；再检出未知标准镜号，防止拼错后落到全片。
-  for (const [id, original] of known) {
-    const escaped = id.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    if (new RegExp(`(?<![A-Za-z0-9_-])${escaped}(?![A-Za-z0-9_-])`, "i").test(note)) explicit.push(original);
-  }
-  explicit.push(...[...note.matchAll(/(?<![A-Za-z0-9_-])[A-Z]{1,16}-\d+[A-Z0-9]*(?![A-Za-z0-9_-])/gi)].map((match) => match[0]));
-  const named = [...new Set(explicit.map(key))];
-  const unknown = named.filter((id) => !known.has(id));
+  const referencesInActiveClauses = references(clauses.join("；"));
+  const explicit = (options.namedShots ?? []).map(key);
+  const unknown = [...new Set([...referencesInActiveClauses, ...explicit])].filter((id) => !known.has(id));
   if (unknown.length) blockers.push({ code: "unknown_shot", detail: `意见包含未登记镜号：${unknown.join("、")}` });
   const needsShots = kind === "shot-level" || kind === "mixed";
-  const explicitAll = /全部(?:的)?镜头|所有(?:的)?镜头|全片(?:的)?(?:画面|镜头)|全部重拍|全片重拍|重拍全部/u.test(note);
+  const visualNote = shotClauses.join("；");
+  const named = [...new Set([...references(visualNote), ...explicit])];
+  const allShotsPattern = /全部(?:的)?镜头|所有(?:的)?镜头|全片(?:的)?(?:画面|镜头)|全部重拍|全片重拍|重拍全部/u;
+  const scopeClauses: string[] = [];
+  // “NC-02，重拍”允许独立镜号分句；字幕分句里的镜号不能变成重生成范围。
+  for (const clause of clauses) {
+    const ids = references(clause);
+    if (ids.length && !REVISION_LAYERS.some((layer) => layer.pattern.test(clause))) named.push(...ids);
+    if (attribution(clause).kind !== "unclassified") continue;
+    let remainder = clause;
+    for (const id of ids) {
+      const escaped = id.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      remainder = remainder.replace(new RegExp(escaped, "gi"), "");
+    }
+    remainder = remainder.replace(/(?:全部|所有)(?:的)?镜头|全片(?:的)?(?:画面|镜头)/gu, "");
+    if (/^[\s、和与及]*$/u.test(remainder)) scopeClauses.push(clause);
+    else if (!/^(?:请|麻烦|帮忙)?(?:改一下|修改一下|调整一下|修一下|处理一下|谢谢|即可|就好)$/u.test(remainder)) {
+      if (kind !== "unclassified") blockers.push({ code: "unclassified", detail: `部分意见无法归因，禁止只执行其中已识别部分：${clause}` });
+    }
+  }
+  const explicitAll = allShotsPattern.test([visualNote, ...scopeClauses].join("；"));
   const selected = needsShots
     ? options.shots.filter((shot) => explicitAll || named.includes(key(shot.shotId))).map((shot) => shot.shotId)
     : [];
@@ -142,7 +174,7 @@ export function buildRevisionPlan(options: {
     try {
       const sha256 = options.hasher(shot.clipPath);
       if (!/^[a-f0-9]{64}$/i.test(sha256)) throw new Error("未返回有效 SHA-256");
-      reuseEvidence.push({ shotId: shot.shotId, path: shot.clipPath, sha256 });
+      reuseEvidence.push({ shotId: shot.shotId, path: shot.clipPath, sha256: sha256.toLowerCase() });
     } catch (error) {
       blockers.push({ code: "reuse_evidence_unavailable", detail: `无法核实复用镜头 ${shot.shotId}：${error instanceof Error ? error.message : String(error)}` });
     }
