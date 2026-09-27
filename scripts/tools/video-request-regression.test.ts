@@ -223,6 +223,19 @@ describe("全链路当前血缘与返修范围", () => {
     const aggregate = second.rows().findLast((entry: Card) => entry.stage === "cine-kb" && entry.shotId === null);
     expect(aggregate.lineage.sourceHash).not.toBe(first.rows().find((entry: Card) => entry.stage === "cine-kb" && entry.shotId === null).lineage.sourceHash);
   }, 40_000);
+  it("UHD 仍可复用 HD 的前期镜头源回执，后期增强单独按整份分镜绑定", () => {
+    const first = runChain([emptyShot, windowShot], { stages: "cine-kb", args: ["--quality", "hd", "--only", "EMPTY"] });
+    expect(first.result.status, first.diagnostic).toBe(0);
+    const before = first.rows().findLast((entry: Card) => entry.stage === "cine-kb" && entry.shotId === "EMPTY");
+    const second = runChain([emptyShot, { ...windowShot, dialogue: [{ text: "另一镜新台词" }] }], {
+      dir: first.dir, stages: "cine-kb", args: ["--quality", "uhd", "--only", "EMPTY"],
+    });
+    expect(second.result.status, second.diagnostic).toBe(0);
+    const after = second.rows().findLast((entry: Card) => entry.stage === "cine-kb" && entry.shotId === "EMPTY");
+    expect(after.lineage.projectId).toBe(before.lineage.projectId);
+    expect(after.lineage.sourceHash).toBe(before.lineage.sourceHash);
+    expect(after.lineage.recipeHash).toBe(before.lineage.recipeHash);
+  }, 40_000);
 });
 
 describe("成片硬切 CFR 接缝", () => {
@@ -275,6 +288,46 @@ describe("成片硬切 CFR 接缝", () => {
     const sync = JSON.parse(readFileSync(join(dir, "master.av-sync.json"), "utf8")) as { ok: boolean; measured: number };
     expect(sync.ok).toBe(true);
     expect(sync.measured).toBe(3);
+  }, 100_000);
+
+  it.skipIf(!available)("--transition-at 3 只在第三镜入点转场，音画起点与刀数同源", () => {
+    const dir = mkdtempSync(join(tmpdir(), "compose-transition-entry-")); temporary.push(dir);
+    const clips: string[] = [];
+    for (const [index, color] of ["red", "green", "blue"].entries()) {
+      const file = join(dir, `source-${index}.mp4`);
+      const made = spawnSync(ffmpeg, [
+        "-hide_banner", "-v", "error", "-y", "-f", "lavfi", "-i", `color=c=${color}:s=64x96:r=8:d=1`,
+        "-f", "lavfi", "-i", `anoisesrc=color=white:seed=${index + 31}:r=48000:d=1`,
+        "-map", "0:v:0", "-map", "1:a:0", "-c:v", "libx264", "-preset", "ultrafast",
+        "-pix_fmt", "yuv420p", "-c:a", "aac", "-ar", "48000", "-ac", "2", file,
+      ], { encoding: "utf8", timeout: 15_000 });
+      expect(made.status, `${made.error ?? ""}\n${made.stderr}`).toBe(0);
+      clips.push(file);
+    }
+    const master = join(dir, "master.mp4");
+    const result = spawnSync(process.execPath, ["--import", "tsx", "scripts/tools/compose-film.mts",
+      "--clips", clips.join(","), "--out", master, "--width", "64", "--height", "96", "--fps", "8",
+      "--fade", "0", "--color", "none", "--transition", "fade", "--transition-duration", "0.25",
+      "--transition-at", "3",
+    ], { cwd: root, encoding: "utf8", timeout: 90_000, env: { ...process.env, WL_FFMPEG: ffmpeg, WL_FFPROBE: ffprobe } });
+    expect(result.status, `${result.error ?? ""}\n${result.stdout}\n${result.stderr}`).toBe(0);
+    expect(result.stdout).toContain("× 1 刀");
+    const duration = spawnSync(ffprobe, ["-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", master], { encoding: "utf8" });
+    expect(Math.abs(Number(duration.stdout.trim()) - 2.75)).toBeLessThanOrEqual(0.13); // ≤1 frame @8fps
+    const report = JSON.parse(readFileSync(join(dir, "master.av-sync.json"), "utf8"));
+    expect(report.outputSha256).toMatch(/^[a-f0-9]{64}$/);
+    expect(report.clipCount).toBe(3);
+    expect(report.samples.map((sample: { index: number }) => sample.index)).toEqual([0, 1, 2]);
+    const pixel = (at: number) => {
+      const frame = spawnSync(ffmpeg, ["-v", "error", "-ss", String(at), "-i", master, "-frames:v", "1",
+        "-vf", "scale=1:1", "-f", "rawvideo", "-pix_fmt", "rgb24", "-"], { encoding: "buffer" });
+      expect(frame.status, `${frame.error ?? ""}\n${String(frame.stderr)}`).toBe(0);
+      return [...frame.stdout.subarray(0, 3)];
+    };
+    const firstCut = pixel(1.125), beforeThirdEntry = pixel(1.625), thirdShot = pixel(2.125);
+    expect(firstCut[1]).toBeGreaterThan(firstCut[2]); // second shot, not a blend into blue
+    expect(beforeThirdEntry[1]).toBeGreaterThan(beforeThirdEntry[2]); // old index error cuts to blue here
+    expect(thirdShot[2]).toBeGreaterThan(thirdShot[1]);
   }, 100_000);
 });
 

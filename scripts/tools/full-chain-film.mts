@@ -32,12 +32,12 @@
 import { execFileSync, spawnSync } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
 import {
-  accessSync, appendFileSync, constants as fsConstants, copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync,
+  accessSync, appendFileSync, closeSync, constants as fsConstants, copyFileSync, existsSync, mkdirSync, openSync, readFileSync, readSync, readdirSync,
   renameSync, rmSync, statSync, writeFileSync
 } from "node:fs";
 import { homedir } from "node:os";
 import { tmpdir } from "node:os";
-import { basename, dirname, isAbsolute, join, resolve } from "node:path";
+import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import YAML from "yaml";
 import { filmReviewContracts, loadOrCreateFilmAuthorContext, reviewFilmStage } from "../../packages/video-studio/src/film-contracts.js";
 import { buildProducerReviewContract, type ProducerGateOptions } from "../../packages/video-studio/src/producer-gate.js";
@@ -78,6 +78,8 @@ import {
   type ProducerVerdict, type SceneBible, type ScenePolicyReport
 } from "../../packages/video-studio/src/index.js";
 import { normalizeShotIntent, shotIntentHash, type ShotIntentStatus } from "../../packages/video-studio/src/shot-intent.js";
+import { verifyAvSyncEvidence } from "../../packages/video-studio/src/av-sync.js";
+import { publishUhdDelivery, sha256UhdAsset } from "../../packages/video-studio/src/uhd-delivery.js";
 
 const REPO_ROOT = resolve(import.meta.dirname ?? process.cwd(), "../..");
 /** GUI 启动时 PATH 常不含工位 kit；只选经过仓内 pin 摘要核验的本机二进制。 */
@@ -126,6 +128,7 @@ const log = (line: string): void => process.stdout.write(`[${stamp().slice(11, 1
 const SHOTS_FILE = abs(arg("--shots"));
 if (!SHOTS_FILE || !existsSync(SHOTS_FILE)) throw new Error("需要 --shots <shotlist.json>");
 const sourceBytes = readFileSync(SHOTS_FILE);
+const sourceFileHash = createHash("sha256").update(sourceBytes).digest("hex");
 const sourceDocument = JSON.parse(sourceBytes.toString("utf8")) as Record<string, unknown> & { shots?: Array<Record<string, unknown>> };
 const PROJECT = arg("--project", basename(SHOTS_FILE, ".json"));
 if (!/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(PROJECT) || PROJECT.includes("..")) throw new Error("PROJECT_ID_INVALID: 项目ID不能包含路径或特殊分隔符");
@@ -156,8 +159,18 @@ type FilmQuality = "hd" | "uhd";
 const QUALITY: FilmQuality = (QUALITY_ARG || (REQUESTED_RESOLUTION === "2160p" ? "uhd" : "hd")) as FilmQuality;
 const SOURCE_RESOLUTION = REQUESTED_RESOLUTION === "2160p" ? "1080p" : REQUESTED_RESOLUTION;
 const OUTPUT_RESOLUTION = QUALITY === "uhd" ? "2160p" : SOURCE_RESOLUTION;
-/** UHD 产物独立存放，避免 HD 预览与 UHD 正式版互相覆盖或错误复用。 */
-const OUT_DIR = QUALITY === "uhd" ? join(OUT_ROOT, "uhd") : OUT_ROOT;
+/** UHD 全套交付文件先留在与正式目录同卷的源版本暂存区，交付门全过后整体发布。 */
+const PUBLIC_OUT_DIR = QUALITY === "uhd" ? join(OUT_ROOT, "uhd") : OUT_ROOT;
+const PUBLIC_RELEASE_DIR = QUALITY === "uhd" ? join(PUBLIC_OUT_DIR, "releases", RUN_ID) : PUBLIC_OUT_DIR;
+const OUT_DIR = QUALITY === "uhd" ? join(OUT_ROOT, ".uhd-staging", RUN_ID) : OUT_ROOT;
+function publicDeliveryPath(path: string): string {
+  if (QUALITY !== "uhd") return path;
+  const rel = relative(OUT_DIR, path);
+  if (!rel || rel === ".." || rel.startsWith(`..${sep}`) || isAbsolute(rel)) {
+    throw new Error(`UHD_DELIVERY_PATH_OUTSIDE_STAGING: ${path}`);
+  }
+  return join(PUBLIC_RELEASE_DIR, rel);
+}
 /** 以短边为 720/1080/2160，四种交付画幅用同一个推导口径。 */
 function dimensionsFor(aspect: string, resolution: string): { width: number; height: number } {
   const shortEdge = Number(resolution.replace(/p$/, ""));
@@ -561,7 +574,6 @@ if (!Array.isArray(sourceDocument.shots) || !sourceDocument.shots.length) throw 
 const sourceIds = sourceDocument.shots.map((shot) => String(shot.shotId ?? ""));
 if (sourceIds.some((id) => !/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(id) || id.includes("..")) || new Set(sourceIds).size !== sourceIds.length) throw new Error("SHOT_REGISTRY_INVALID: 镜号缺失、重复或包含路径字符");
 if (ONLY.some((id) => !sourceIds.includes(id))) throw new Error("SHOT_SCOPE_UNKNOWN: --only 包含未登记镜号");
-const sourceFileHash = createHash("sha256").update(sourceBytes).digest("hex");
 const lineageComponentHash = sha256FileSync(join(REPO_ROOT, "scripts/tools/full-chain-film.mts"));
 const SCENE_BIBLE_FILE = arg("--scene-bible");
 const sceneBible: SceneBible | null = SCENE_BIBLE_FILE
@@ -581,13 +593,21 @@ if (sourceSnapshot.errors.length) throw new Error(`SOURCE_UNREADABLE: ${sourceSn
 const sourceSupportHashes = new Map(sourceSnapshot.artifacts.map((entry) => [entry.path, entry.sha256]));
 const lineageInputPaths = new Map<string, string[]>();
 const lineageInputSnapshots = new Map<string, LineageInputSnapshot>();
-function sourceHashFor(shotId: string | null): string {
+const UHD_DELIVERY_STAGES = new Set([
+  "enhance", "compose", "character-consistency", "color", "subtitle", "danmaku", "bgm", "sfx",
+  "cover", "cover-intro", "mux", "master", "deliver",
+]);
+function uhdDeliveryStage(stage: string): boolean {
+  return QUALITY === "uhd" && (UHD_DELIVERY_STAGES.has(stage) || stage.startsWith("gate:deliver:"));
+}
+function sourceHashFor(shotId: string | null, stage: string): string {
   const { shots: allShots, durationSeconds: _total, ...common } = sourceDocument;
   return productionHash({
     source: shotId ? { ...common, shot: allShots!.find((shot) => shot.shotId === shotId) ?? null } : { ...sourceDocument, selectedShotIds: ONLY },
     brief: BRIEF_FILE ? sourceSupportHashes.get(abs(BRIEF_FILE)) ?? null : null,
     sceneBible: arg("--scene-bible") ? sourceSupportHashes.get(abs(arg("--scene-bible"))) ?? null : null,
     eraProfile: authorContext.eraProfile, aspect: ASPECT, resolution: SOURCE_RESOLUTION, fps: FPS,
+    ...(uhdDeliveryStage(stage) ? { quality: QUALITY, shotlistSha256: sourceFileHash } : {}),
   });
 }
 function lineageStage(rec: Pick<StageRecord, "stage" | "stepKey" | "evidence">): string {
@@ -601,11 +621,19 @@ function lineageRecipe(stage: string): Record<string, unknown> {
     : stage === "danmaku" ? ["--danmaku", "--no-danmaku"] : [];
   const args = process.argv.slice(2), options: Record<string, string | boolean> = {};
   for (let i = 0; i < args.length; i++) if (prefixes.some((prefix) => args[i]!.startsWith(prefix))) options[args[i]!] = args[i + 1] && !args[i + 1]!.startsWith("--") ? args[i + 1]! : true;
-  return { component: lineageComponentHash, stage, platform: arg("--platform", "抖音/快手"), subtitleMode: SUBTITLE_MODE, options };
+  return { component: lineageComponentHash, stage, platform: arg("--platform", "抖音/快手"), subtitleMode: SUBTITLE_MODE, options,
+    ...(uhdDeliveryStage(stage) ? { quality: QUALITY, shotlistSha256: sourceFileHash } : {}) };
 }
-function lineageRecords(rows: StageRecord[]): StageRecord[] { return rows.map((row) => ({ ...row, stage: lineageStage(row) })); }
+function lineageRecords(rows: StageRecord[], stage: string): StageRecord[] {
+  const recipeHash = productionHash(lineageRecipe(stage));
+  // HD source clips can feed UHD enhancement. For delivery stages, only the
+  // latest verdict from the requested quality/recipe may decide publication.
+  return rows.map((row) => ({ ...row, stage: lineageStage(row) }))
+    .filter((row) => row.stage === stage && (!row.lineage || row.lineage.recipeHash === recipeHash));
+}
 function stageApproved(stage: string, shotIds: Array<string | null> = [null], rows = readStageHistory()): boolean {
-  return stageLineageApproved({ records: lineageRecords(rows), projectId: PROJECT, stage, shotIds, sourceHash: sourceHashFor, recipe: lineageRecipe(stage) }).ok;
+  return stageLineageApproved({ records: lineageRecords(rows, stage), projectId: PROJECT, stage, shotIds,
+    sourceHash: (id) => sourceHashFor(id, stage), recipe: lineageRecipe(stage) }).ok;
 }
 function rememberInputs(stage: string, paths: string[], shotId: string | null = null): void {
   const key = `${stage}:${shotId ?? ""}`;
@@ -614,7 +642,9 @@ function rememberInputs(stage: string, paths: string[], shotId: string | null = 
   lineageInputSnapshots.set(key, captureLineageInputs(all));
 }
 function artifactReusable(stage: string, candidate: string, upstream?: string, shotId: string | null = null): boolean {
-  return reusableLineageArtifact({ records: lineageRecords(readStageHistory()), scope: { projectId: PROJECT, sourceHash: sourceHashFor(shotId) }, stage, shotId, recipe: lineageRecipe(stage), candidate, upstream });
+  return reusableLineageArtifact({ records: lineageRecords(readStageHistory(), stage),
+    scope: { projectId: PROJECT, sourceHash: sourceHashFor(shotId, stage) },
+    stage, shotId, recipe: lineageRecipe(stage), candidate, upstream });
 }
 function record(rec: Omit<StageRecord, "at">): StageRecord {
   if (sha256FileSync(SHOTS_FILE) !== sourceFileHash) throw new Error("SOURCE_CHANGED_DURING_RUN: 分镜源文件运行中发生变化，请从当前版本重新开始");
@@ -622,7 +652,7 @@ function record(rec: Omit<StageRecord, "at">): StageRecord {
   const declaredOutputs = [rec.artifact, ...(Array.isArray(rec.evidence.outputFiles) ? rec.evidence.outputFiles : [])].filter((file): file is string => typeof file === "string" && Boolean(file));
   const notApplicable = !rec.invoked && rec.ok && (rec.evidence.applicable === false || rec.evidence.dialogue === false || Boolean(rec.evidence.skipReason));
   const status = rec.degraded || rec.verdict?.degraded ? "unverified" : !rec.ok || rec.verdict?.approved === false ? "failed" : notApplicable ? "not_applicable" : "passed";
-  const lineage = createLineageReceipt({ projectId: PROJECT, sourceHash: sourceHashFor(rec.shotId), runId: RUN_ID, stage, shotId: rec.shotId,
+  const lineage = createLineageReceipt({ projectId: PROJECT, sourceHash: sourceHashFor(rec.shotId, stage), runId: RUN_ID, stage, shotId: rec.shotId,
     recipe: lineageRecipe(stage), status, inputs: lineageInputPaths.get(`${stage}:${rec.shotId ?? ""}`) ?? sourceSupportFiles,
     inputSnapshot: lineageInputSnapshots.get(`${stage}:${rec.shotId ?? ""}`) ?? sourceSnapshot, outputs: declaredOutputs, reviewedArtifacts: rec.verdict?.evidence,
     ...(notApplicable ? { notApplicableReason: rec.note ?? "镜头契约明确不适用" } : {}),
@@ -713,7 +743,20 @@ function run(bin: string, args: string[]): string {
  * 读盘失败时抛错（不许返回空串——空串会伪装成"指纹齐备"）。
  */
 function sha256FileSync(file: string): string {
-  return createHash("sha256").update(readFileSync(file)).digest("hex");
+  const before = statSync(file), fd = openSync(file, "r"), digest = createHash("sha256");
+  const buffer = Buffer.allocUnsafe(1024 * 1024);
+  try {
+    let bytes = 0;
+    do {
+      bytes = readSync(fd, buffer, 0, buffer.length, null);
+      if (bytes > 0) digest.update(buffer.subarray(0, bytes));
+    } while (bytes > 0);
+  } finally { closeSync(fd); }
+  const after = statSync(file);
+  if (before.size !== after.size || before.mtimeMs !== after.mtimeMs || before.ino !== after.ino) {
+    throw new Error(`HASH_SOURCE_CHANGED_DURING_READ: ${file}`);
+  }
+  return digest.digest("hex");
 }
 function probe(file: string): Record<string, unknown> {
   try {
@@ -4125,6 +4168,7 @@ if (STAGES.has("compose") && !DRY_RUN) {
      * 云端生成阶段始终使用 SOURCE_RESOLUTION，不因交付档切成付费 4K 请求。
      */
     const composeClips = [...clips];
+    const enhancementEvidence: string[] = [];
     if (QUALITY === "uhd") {
       const engineFile = join(REPO_ROOT, "bundles/ai-video/connectors/enhance-bridge/core.mjs");
       if (!existsSync(engineFile)) throw new Error(`UHD 本地增强引擎不存在：${engineFile}`);
@@ -4147,6 +4191,7 @@ if (STAGES.has("compose") && !DRY_RUN) {
         const card = shots.find((shot) => shot.shotId === shotId) as (ShotCard & { enhancementKind?: string }) | undefined;
         const requestedKind = card?.enhancementKind ?? ENHANCE_KIND;
         try {
+          rememberInputs("enhance", [source], shotId);
           if (!["live-action", "animation"].includes(requestedKind)) {
             throw new Error(`镜头 ${shotId} enhancementKind=${requestedKind} 不适合 AI 超分；文字/图形镜头须原生 4K 渲染`);
           }
@@ -4166,6 +4211,10 @@ if (STAGES.has("compose") && !DRY_RUN) {
           });
           if (enhanced.receipt?.localVerified !== true || !existsSync(enhanced.output) || !existsSync(enhanced.provenancePath)) {
             throw new Error("缺本地增强回执、产物或溯源文件");
+          }
+          if (fingerprintArtifact(source).sha256 !== enhanced.sourceSha256
+            || fingerprintArtifact(enhanced.output).sha256 !== enhanced.sha256) {
+            throw new Error("增强回执的源片或产物 SHA-256 与当前字节不一致");
           }
           const sourceWidth = Number(sourceInfo.width ?? 0);
           const sourceHeight = Number(sourceInfo.height ?? 0);
@@ -4190,6 +4239,7 @@ if (STAGES.has("compose") && !DRY_RUN) {
               + `、时长漂移 ${durationDrift.toFixed(3)}s、音轨 ${audioOk ? "保留" : "丢失"}`);
           }
           composeClips[index] = enhanced.output;
+          enhancementEvidence.push(enhanced.provenancePath);
           record({
             stage: "enhance", shotId, invoked: true, ok: true, cached: enhanced.reused, degraded: false,
             attempt: 1, ms: Date.now() - startedEnhancement, artifact: enhanced.output,
@@ -4199,10 +4249,13 @@ if (STAGES.has("compose") && !DRY_RUN) {
               processingMode: enhanced.processingMode, model: enhanced.model, modelScale: enhanced.modelScale,
               engine: enhanced.engine,
               sourceProbe: sourceInfo, outputProbe: outputInfo, durationDriftSec: Number(durationDrift.toFixed(3)),
-              localVerified: true
+              localVerified: true, outputFiles: [enhanced.provenancePath]
             }, verdict: null,
             note: "本机逐镜增强回执已核验；不代表媒体库版本链或额度台账已同步"
           });
+          if (!artifactReusable("enhance", enhanced.output, source, shotId)) {
+            throw new Error(`镜头 ${shotId} 增强后的当前产物缺通过回执`);
+          }
         } catch (error) {
           record({
             stage: "enhance", shotId, invoked: true, ok: false, cached: false, degraded: false,
@@ -4213,6 +4266,8 @@ if (STAGES.has("compose") && !DRY_RUN) {
           throw error;
         }
       }
+      // The compose receipt must bind the exact enhanced bytes and provenance it consumed.
+      rememberInputs("compose", [...clips, ...composeClips, ...enhancementEvidence]);
     }
     const result = runCli(join(REPO_ROOT, "scripts/tools/compose-film.mts"), [
       "--clips", composeClips.join(","), "--out", master, "--width", String(w), "--height", String(h),
@@ -6066,12 +6121,21 @@ if (STAGES.has("master") && existsSync(scored) && !DRY_RUN) {
    * 为什么按硬闸处理：这类漂移**肉眼很难在剪辑台上发现**，但用户一听就是"上一镜的音效串到下一镜"，
    * 真机上已经出过一次（15 镜尾镜 +125ms）。机制口径：没测 = 不过，不允许"没测就当过"。
    */
+  const rawMasterPath = join(POST_DIR, "master-raw.mp4");
   const avSyncReportPath = join(POST_DIR, "master-raw.av-sync.json");
   const avSyncReport = existsSync(avSyncReportPath)
     ? JSON.parse(readFileSync(avSyncReportPath, "utf8")) as {
       ok?: boolean; maxAbsLagMs?: number; driftMs?: number | null; measured?: number;
-      violations?: string[]; generatedAt?: string;
+      violations?: string[]; generatedAt?: string; output?: string; outputSha256?: string;
     }
+    : null;
+  const avSyncEvidence = QUALITY === "uhd"
+    ? verifyAvSyncEvidence(avSyncReport, {
+      output: rawMasterPath,
+      outputSha256: existsSync(rawMasterPath) ? sha256FileSync(rawMasterPath) : "",
+      clipCount: shots.length,
+      allowMeasuredDrift: flag("--accept-av-sync-drift"),
+    })
     : null;
   /**
    * 链路完整性：**产物血缘 + 历史裁决**（支持"只重跑一段"）。
@@ -6098,14 +6162,17 @@ if (STAGES.has("master") && existsSync(scored) && !DRY_RUN) {
     ...(softsubFile ? [{ label: "softsub", path: softsubFile }] : [])
   ];
   const lineage = lineageCheck(chain);
+  const enhancementLineageOk = QUALITY !== "uhd" || stageApproved("enhance", sourceIds, history);
   const capabilityStages = (DANMAKU_ENABLED ? ["color", "subtitle", "danmaku", "bgm"] : ["color", "subtitle", "bgm"]) as ReadonlyArray<"color" | "subtitle" | "danmaku" | "bgm">;
-  const capabilityChecks = capabilityStages.map((stage) => ({
-    id: `history-${stage}`,
-    pass: historyApproved(history, stage),
-    detail: historyApproved(history, stage)
-      ? `历史日志里有 ${stage} 的放行裁决`
-      : `历史日志里没有 ${stage} 的放行裁决（若本次只重跑部分环节，请确认该环节此前确实执行过）`
-  }));
+  const capabilityChecks = capabilityStages.map((stage) => {
+    const approved = historyApproved(history, stage);
+    return {
+      id: `history-${stage}`, pass: approved, hard: QUALITY === "uhd",
+      detail: approved
+        ? `历史日志里有 ${stage} 的放行裁决`
+        : `历史日志里没有 ${stage} 的放行裁决（若本次只重跑部分环节，请确认该环节此前确实执行过）`
+    };
+  });
   if (!DANMAKU_ENABLED) {
     /** 关闭也要留痕：终审报告里写明"弹幕层按平台口径未启用"，而不是让它消失得无影无踪 */
     capabilityChecks.push({
@@ -6211,7 +6278,13 @@ if (STAGES.has("master") && existsSync(scored) && !DRY_RUN) {
       { id: "audio", pass: Boolean(info.hasAudio), detail: info.hasAudio ? `音轨 ${info.acodec}` : "无音轨", hard: true },
       { id: "no-black-frame", pass: accidents.blackSeconds <= 0.2, detail: `最长黑帧 ${accidents.blackSeconds.toFixed(2)}s（阈值 ≤0.2s）· ${accidents.detail}`, hard: true },
       { id: "silence-window", pass: accidents.silenceSeconds <= 2.0, detail: `最长静音段 ${accidents.silenceSeconds.toFixed(2)}s（阈值 ≤2.0s；配乐铺底后不应出现长静音）` },
-      { id: "post-chain-lineage", pass: lineage.ok, detail: lineage.detail },
+      { id: "post-chain-lineage", pass: lineage.ok, detail: lineage.detail, hard: QUALITY === "uhd" },
+      ...(QUALITY === "uhd" ? [{
+        id: "enhancement-lineage", pass: enhancementLineageOk, hard: true,
+        detail: enhancementLineageOk
+          ? `${sourceIds.length} 镜均有当前分镜和当前源片的 UHD 增强回执`
+          : "逐镜 UHD 增强回执缺失、降级或源片/产物字节已变化"
+      }] : []),
       /**
        * 字幕交付口径（2026-09-24）：sidecar 模式必须真的留下旁挂文件；
        * burn 模式必须真的有带字成片。两种都不能"说交付了但盘上什么都没有"。
@@ -6238,8 +6311,11 @@ if (STAGES.has("master") && existsSync(scored) && !DRY_RUN) {
          * 于是同一条片子在 compose 放行、在 master 又被同一项判红——两处口径必须一致。
          * 放行仍留痕：detail 里如实打印实测偏移/漂移，不静默通过。
          */
-        pass: avSyncReport?.ok === true || (Boolean(avSyncReport) && flag("--accept-av-sync-drift")),
-        detail: avSyncReport
+        pass: QUALITY === "uhd" ? avSyncEvidence?.ok === true
+          : avSyncReport?.ok === true || (Boolean(avSyncReport) && flag("--accept-av-sync-drift")),
+        detail: QUALITY === "uhd" && avSyncEvidence && !avSyncEvidence.ok
+          ? `音画实测证据无效：${avSyncEvidence.detail}`
+          : avSyncReport
           ? `音画对齐实测：可测 ${avSyncReport.measured ?? 0} 镜，最大偏移 ${avSyncReport.maxAbsLagMs ?? "?"}ms，`
             + `累计漂移 ${avSyncReport.driftMs ?? "?"}ms（报告 ${basename(avSyncReportPath)}，生成于 ${avSyncReport.generatedAt ?? "?"}）`
             + (avSyncReport.ok === true ? "" : (flag("--accept-av-sync-drift") ? "；已按 --accept-av-sync-drift 显式放行（带瑕疵放行，留痕）" : ""))
@@ -6571,7 +6647,7 @@ if (STAGES.has("deliver") && !DRY_RUN && (QUALITY !== "uhd" || masterApprovedFor
       });
       variantManifest.push({
         id: plan.variant.id, label: plan.variant.label, path: plan.output,
-        sha256: createHash("sha256").update(readFileSync(plan.output)).digest("hex"),
+        sha256: sha256FileSync(plan.output),
         note: plan.variant.note, gradeProfile: plan.variant.gradeProfile,
         width: Number(info.width), height: Number(info.height),
         cover: variantCover, bgm: variantBgm,
@@ -6626,6 +6702,34 @@ if (STAGES.has("deliver") && !DRY_RUN && (QUALITY !== "uhd" || masterApprovedFor
       axes: variantAxes,
     }
   });
+  /** UHD sidecars join the same pending package; no public delivery file exists before G-DLV1. */
+  const stagedSubtitles: string[] = [];
+  if (QUALITY === "uhd" && subtitleSidecar) {
+    const dir = join(OUT_DIR, "subtitles");
+    mkdirSync(dir, { recursive: true });
+    for (const name of readdirSync(subtitleSidecar.dir)) {
+      if (!/\.(srt|ass|vtt|json)$/i.test(name)) continue;
+      const target = join(dir, name);
+      copyFileSync(join(subtitleSidecar.dir, name), target);
+      stagedSubtitles.push(target);
+    }
+  }
+  const publishedVariants = variantManifest.map((variant) => ({
+    ...variant,
+    path: publicDeliveryPath(variant.path),
+    cover: variant.cover ? { ...variant.cover, path: publicDeliveryPath(variant.cover.path) } : null,
+  }));
+  const coverFile = join(OUT_DIR, `${PROJECT}-cover.png`);
+  const withCover = join(OUT_DIR, `${PROJECT}-with-cover.mp4`);
+  const stagedContentAssets = [...new Set([deliverablePath, ...stagedSubtitles,
+    ...variantManifest.flatMap((variant) => [variant.path, ...(variant.cover ? [variant.cover.path] : [])]),
+    ...(existsSync(coverFile) ? [coverFile] : []),
+    ...(softsubFile ? [softsubFile] : []),
+    ...(existsSync(withCover) && stageApproved("cover-intro") ? [withCover] : []),
+  ])];
+  const assetHashes = QUALITY === "uhd"
+    ? await Promise.all(stagedContentAssets.map(async (path) => ({ path: publicDeliveryPath(path), sha256: await sha256UhdAsset(path) })))
+    : [];
   const manifestFile = join(OUT_DIR, `${PROJECT}-delivery-manifest.json`);
   writeFileSync(manifestFile, `${JSON.stringify({ ...buildDeliveryManifest({
     projectId: PROJECT,
@@ -6635,32 +6739,68 @@ if (STAGES.has("deliver") && !DRY_RUN && (QUALITY !== "uhd" || masterApprovedFor
      * 否则这支主件会被 JSON.stringify 静默丢掉（真机 2026-09-25 踩过：清单里没有母版指纹）。
      */
     deliverable: {
-      path: deliverablePath,
-      sha256: createHash("sha256").update(readFileSync(deliverablePath)).digest("hex"),
+      path: publicDeliveryPath(deliverablePath),
+      sha256: QUALITY === "uhd" ? await sha256UhdAsset(deliverablePath) : sha256FileSync(deliverablePath),
       bytes: statSync(deliverablePath).size,
       durationSec: Number(probe(deliverablePath).duration ?? 0),
       namingAudit: auditDeliverableNaming({ path: deliverablePath, durationSec: Number(probe(deliverablePath).duration ?? 0) }),
     },
-    subtitles: { sidecarDir: subtitleSidecar?.dir ?? null, softsub: softsubFile, burned: SUBTITLE_MODE !== "sidecar" },
-    cover: { path: existsSync(join(OUT_DIR, `${PROJECT}-cover.png`)) ? join(OUT_DIR, `${PROJECT}-cover.png`) : null, hook: arg("--cover-hook", shotlist.title ?? "") },
-    variants: variantManifest,
+    subtitles: { sidecarDir: subtitleSidecar
+        ? (QUALITY === "uhd" ? publicDeliveryPath(join(OUT_DIR, "subtitles")) : subtitleSidecar.dir)
+        : null,
+      softsub: softsubFile ? publicDeliveryPath(softsubFile) : null, burned: SUBTITLE_MODE !== "sidecar" },
+    cover: { path: existsSync(join(OUT_DIR, `${PROJECT}-cover.png`)) ? publicDeliveryPath(join(OUT_DIR, `${PROJECT}-cover.png`)) : null, hook: arg("--cover-hook", shotlist.title ?? "") },
+    variants: publishedVariants,
     distinctness,
     variantAxes,
     samples,
     at: stamp()
-  }), quality: {
+  }), ...(QUALITY === "uhd" ? { assets: assetHashes } : {}), quality: {
     tier: QUALITY, sourceResolution: SOURCE_RESOLUTION, outputResolution: OUTPUT_RESOLUTION,
     width: OUTPUT_SIZE.width, height: OUTPUT_SIZE.height,
     localEnhancement: QUALITY === "uhd" ? "per-shot, verified receipt in stages.jsonl" : "not requested"
   } }, null, 2)}\n`, "utf8");
-  record({
-    stage: "deliver", shotId: null, invoked: true, ok: gate.approved, cached: false, degraded: gate.degraded, attempt: 1,
-    ms: Date.now() - started, artifact: manifestFile,
-    evidence: { variants: variantManifest.map((v) => v.id), distinctness: distinctness.pairs, manifest: manifestFile }, verdict: null, note: "多风格交付包（G-DLV1：变体雷同否决）"
-  });
-  if (!gate.approved && !ACCEPT_REJECTED.includes("deliver")) {
-    log(`⛔ 交付包未放行（G-DLV1）：${gate.reason}`);
-    process.exit(6);
+  if (QUALITY === "uhd") {
+    if (!gate.approved || gate.degraded) {
+      record({ stage: "deliver", shotId: null, invoked: true, ok: false, cached: false, degraded: gate.degraded,
+        attempt: 1, ms: Date.now() - started, artifact: manifestFile,
+        evidence: { variants: variantManifest.map((v) => v.id), distinctness: distinctness.pairs, manifest: manifestFile },
+        verdict: null, note: "G-DLV1 未放行，所有 UHD 文件只留在暂存区" });
+      throw new Error(`UHD 交付包未放行（G-DLV1）：${gate.reason}`);
+    }
+    const stagedAssets = [...stagedContentAssets, manifestFile];
+    rememberInputs("deliver", [deliverablePath, manifestFile, ...variantManifest.map((variant) => variant.path)]);
+    try {
+      const published = await publishUhdDelivery({
+        stagingDir: OUT_DIR, publicRoot: PUBLIC_OUT_DIR, releaseId: RUN_ID,
+        assets: stagedAssets.map((path) => relative(OUT_DIR, path)),
+        manifestName: basename(manifestFile), approved: gate.approved && !gate.degraded,
+      });
+      const publishedManifest = publicDeliveryPath(manifestFile);
+      record({ stage: "deliver", shotId: null, invoked: true, ok: true, cached: false, degraded: false,
+        attempt: 1, ms: Date.now() - started, artifact: publishedManifest,
+        evidence: { variants: variantManifest.map((v) => v.id), distinctness: distinctness.pairs,
+          manifest: publishedManifest, files: published.files,
+          outputFiles: stagedAssets.filter((path) => path !== manifestFile).map(publicDeliveryPath) },
+        verdict: null, note: "G-DLV1 全绿后整包发布 UHD 交付目录" });
+      log(`✅ UHD 交付包（G-DLV1 全绿）→ ${published.releaseDir}（${published.files} 个文件；当前指针 ${published.currentFile}）`);
+    } catch (error) {
+      record({ stage: "deliver", shotId: null, invoked: true, ok: false, cached: false, degraded: false,
+        attempt: 1, ms: Date.now() - started, artifact: manifestFile,
+        evidence: { publishError: error instanceof Error ? error.message : String(error) }, verdict: null,
+        note: "UHD 交付发布失败，正式目录保留上一版" });
+      throw error;
+    }
+  } else {
+    record({
+      stage: "deliver", shotId: null, invoked: true, ok: gate.approved, cached: false, degraded: gate.degraded, attempt: 1,
+      ms: Date.now() - started, artifact: manifestFile,
+      evidence: { variants: variantManifest.map((v) => v.id), distinctness: distinctness.pairs, manifest: manifestFile }, verdict: null, note: "多风格交付包（G-DLV1：变体雷同否决）"
+    });
+    if (!gate.approved && !ACCEPT_REJECTED.includes("deliver")) {
+      log(`⛔ 交付包未放行（G-DLV1）：${gate.reason}`);
+      process.exit(6);
+    }
   }
 }
 
