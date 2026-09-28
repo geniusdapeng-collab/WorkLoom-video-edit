@@ -32,6 +32,8 @@ import { mediaUrl } from "./video/gen/ingest.js";
 import { startThreadScheduler } from "./runtime/scheduler.js";
 import { gatewayAppend } from "@workloom/base/workdata";
 import { registerBundleAskFacts } from "./runtime/ask-facts-loader.js";
+import { registerAskKbSearch } from "@workloom/runtime";
+import { searchKB } from "./service/kb.js";
 
 import { readVoiceFile, synthesizeVoice, voiceStationConfig } from "./voice/station.js";
 const app = new Hono();
@@ -356,6 +358,19 @@ serve({ fetch: app.fetch, port, hostname: host }, (info) => {
       if (industries.length > 0) console.log(`行业 ask 事实面已装载：${industries.join("、")}`);
     })
     .catch((err) => console.error("[ask-facts] 装载失败（不阻塞启动）", err instanceof Error ? err.message : String(err)));
+  /**
+   * X-04（第四轮实测）：把客户知识库检索接进 ask 事实面——此前知识库管道只建到"检索"为止，
+   * 客户上传的券后折扣/暗号/政策一个字都进不了答案。检索失败由 gatherFacts 吞掉并回落（不劣化）。
+   */
+  registerAskKbSearch(async (scope, question, limit) => {
+    const hits = await searchKB({ workspaceId: scope.workspaceId, query: question, limit });
+    return hits.map((hit) => ({
+      content: hit.content,
+      ...(hit.heading ? { heading: hit.heading } : {}),
+      ...(hit.documentTitle ? { documentTitle: hit.documentTitle } : {}),
+      documentId: hit.documentId,
+    }));
+  });
 });
 
 // 技能保鲜环 · 夜班窗口自动同步（机制即自动，客户零操作）：

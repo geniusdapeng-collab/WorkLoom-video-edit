@@ -1225,6 +1225,15 @@ const threadsRouter = router({
         let inserted = false;
         let lastError: unknown;
         threadId = ""; // TS 明确赋值（循环内必被覆盖；失败路径直接抛出，不会用到空串）
+        /**
+         * X-07（第四轮实测，P2）：建档即写 agent_id——此前只有 runQuest 执行时才回填，
+         * 排队中的线程在楼层上无归属（`agent_id IS NULL` 被过滤），客户看不到"谁在排这条队"。
+         */
+        const ownerAgent = await client.query<{ id: string }>(
+          `SELECT id FROM agents WHERE workspace_id=$1 AND preset_key=$2 LIMIT 1`,
+          [scope.workspaceId, presetKey],
+        );
+        const ownerAgentId = ownerAgent.rows[0]?.id ?? null;
         for (let attempt = 0; attempt < 2 && !inserted; attempt += 1) {
           const max = await client.query<{ n: number }>(
             `SELECT public.threads_max_t_no() AS n`,
@@ -1232,9 +1241,9 @@ const threadsRouter = router({
           threadId = makeReadableId("T", Number(max.rows[0]?.n ?? 100) + 1); // bigint 驱动返回 string，必须 Number() 防拼接（D29 教训）
           try {
             await client.query(
-              `INSERT INTO threads (id, tenant_id, workspace_id, title, mode, status, created_by)
-               VALUES ($1,$2,$3,$4,$5,'queued',$6)`,
-              [threadId, scope.tenantId, scope.workspaceId, input.title, intent.mode, ctx.identity.memberNo],
+              `INSERT INTO threads (id, tenant_id, workspace_id, title, mode, status, created_by, agent_id)
+               VALUES ($1,$2,$3,$4,$5,'queued',$6,$7)`,
+              [threadId, scope.tenantId, scope.workspaceId, input.title, intent.mode, ctx.identity.memberNo, ownerAgentId],
             );
             inserted = true;
           } catch (err) {
@@ -1408,7 +1417,16 @@ const threadsRouter = router({
         await client.query("BEGIN");
         await client.query("SELECT set_config('app.workspace_id', $1, true)", [scope.workspaceId]);
         const r = await client.query(
-          `SELECT id, title, mode, status, progress_done, progress_total, created_by, agent_id, created_at, updated_at
+          `SELECT id, title, mode, status, progress_done, progress_total, created_by, agent_id, created_at, updated_at,
+                  /**
+                   * X-02（第四轮实测，P0）：对话框任务卡需要在 pending_review 时给出「去审批」直达入口——
+                   * 服务端 dispatch 早就在返回这个号，但刷新/换页后卡片拿不到；这里随线程详情一起给出。
+                   */
+                  (SELECT a.approval_id FROM approvals a JOIN biz_events e ON e.event_id = a.event_id
+                    WHERE a.workspace_id=$1 AND e.session_id = threads.id AND a.status='pending'
+                    ORDER BY a.created_at DESC LIMIT 1) AS pending_approval_id,
+                  /** 举一反三（X-06）：把归属岗位带回前端——"请示出现在正确的员工头上"可肉眼核验 */
+                  (SELECT ag.preset_key FROM agents ag WHERE ag.workspace_id=threads.workspace_id AND ag.id=threads.agent_id) AS preset_key
            FROM threads WHERE workspace_id=$1 AND id=$2`,
           [scope.workspaceId, input.threadId],
         );
@@ -1440,6 +1458,47 @@ const threadsRouter = router({
           [scope.workspaceId, input.threadId, input.limit],
         );
         return r.rows.map((x) => x.payload);
+      } catch (err) {
+        await client.query("ROLLBACK").catch(() => undefined);
+        throw err;
+      } finally {
+        await client.query("COMMIT").catch(() => undefined);
+        client.release();
+      }
+    }),
+
+  /**
+   * 结算流水（X-08，第五轮实测）：完成/失败/驳回终止的线程投影——服务端事实源，
+   * 供织伴"补播报"用：此前播报只靠 StarRing 卡片轮询**亲自见证**跃迁，
+   * 于是 P8/名册抽屉派遣的任务、调度器自动跑的任务、以及刷新过页面的任务，小织一概沉默。
+   * 只读、幂等（客户端按 threadId + closed_at 去重）。
+   */
+  settledSince: protectedProcedure
+    .input(z.object({
+      /** 起算毫秒时间戳（缺省=近 30 分钟） */
+      since: z.number().int().nonnegative().optional(),
+      limit: z.number().int().min(1).max(50).default(20),
+    }))
+    .query(async ({ ctx, input }) => {
+      const scope = scopeOf(ctx.identity);
+      const app = getAppPool();
+      const client = await app.connect();
+      const since = new Date(input.since && input.since > 0 ? input.since : Date.now() - 30 * 60_000);
+      try {
+        await client.query("BEGIN");
+        await client.query("SELECT set_config('app.workspace_id', $1, true)", [scope.workspaceId]);
+        await client.query("SELECT set_config('app.tenant_id', $1, true)", [scope.tenantId]);
+        const r = await client.query(
+          `SELECT id, title, mode, status, agent_id, closed_at, updated_at
+             FROM threads
+            WHERE workspace_id=$1
+              AND status IN ('completed','failed','cancelled')
+              AND COALESCE(closed_at, updated_at) >= $2
+            ORDER BY COALESCE(closed_at, updated_at) DESC
+            LIMIT $3`,
+          [scope.workspaceId, since.toISOString(), input.limit],
+        );
+        return r.rows;
       } catch (err) {
         await client.query("ROLLBACK").catch(() => undefined);
         throw err;

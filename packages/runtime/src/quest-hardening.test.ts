@@ -64,3 +64,23 @@ describe("计划相关性闸门（N-13 假交付止血）", () => {
     expect(assessPlanRelevance("生成一张门店周年庆促销海报", visualPlan).relevant).toBe(true);
   });
 });
+
+describe("ask × 客户知识库事实面（X-04 机制位）", () => {
+  it("KB 命中注入事实块并标注可下钻来源", async () => {
+    const { mergeKbFacts } = await import("./ask.js");
+    const base = { facts: [{ label: "事件库规模", value: "12 条" }], sources: ["biz_events"] };
+    const merged = mergeKbFacts(base, [
+      { content: "周年庆券后 7.5 折，暗号星火计划", heading: "促销", documentTitle: "周年庆活动说明", documentId: "kb-doc-1" },
+    ]);
+    expect(merged.facts).toHaveLength(2);
+    expect(merged.facts[1]!.label).toContain("知识库·周年庆活动说明");
+    expect(merged.facts[1]!.value).toContain("7.5 折");
+    expect(merged.sources).toContain("kb:kb-doc-1");
+  });
+
+  it("零命中不占位、不劣化", async () => {
+    const { mergeKbFacts } = await import("./ask.js");
+    const base = { facts: [{ label: "事件库规模", value: "0 条" }], sources: ["biz_events"] };
+    expect(mergeKbFacts(base, [])).toEqual(base);
+  });
+});

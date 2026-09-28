@@ -150,6 +150,39 @@ export function registeredAskFactIndustries(): string[] {
   return [...industryFactProviders.keys()];
 }
 
+/**
+ * 客户知识库事实面（X-04，第四轮实测）：知识库管道此前只建到"检索"为止——
+ * 客户上传的券后折扣/暗号/政策，ask 一个字都不用（答案里只有事件库统计）。
+ * 底座只定机制（seam），具体检索由部署层（apps/server）注入 service-kb 的 searchKB，
+ * 避免 runtime 反向依赖服务前台模块；未注入时行为与旧版一致（不占位、不劣化）。
+ */
+export interface AskKbHit {
+  content: string;
+  heading?: string;
+  documentTitle?: string;
+  documentId: string;
+}
+export type AskKbSearch = (scope: Scope, question: string, limit: number) => Promise<AskKbHit[]>;
+let kbSearch: AskKbSearch | undefined;
+export function registerAskKbSearch(fn: AskKbSearch | undefined): void {
+  kbSearch = fn;
+}
+
+/**
+ * KB 命中 → 事实块合并（X-04 的核心映射，纯函数：便于单测与口径统一）。
+ * 命中才占位；label 带文档标题与标题层级，sources 标注 `kb:<docId>` 供账本下钻到原文。
+ */
+export function mergeKbFacts(base: AskFactResult, hits: AskKbHit[]): AskFactResult {
+  if (hits.length === 0) return base;
+  const picked = hits.slice(0, 5);
+  const facts: AskFact[] = picked.map((hit) => ({
+    label: `知识库·${(hit.documentTitle ?? "文档").slice(0, 24)}${hit.heading ? `（${hit.heading.slice(0, 16)}）` : ""}`,
+    value: hit.content.replace(/\s+/g, " ").slice(0, 160),
+  }));
+  const sources = picked.map((hit) => `kb:${hit.documentId}`);
+  return { facts: [...base.facts, ...facts], sources: [...base.sources, ...sources] };
+}
+
 /** 工作区行业（进程级缓存；读失败/无行业 → null → 底座通用面） */
 const workspaceIndustryCache = new Map<string, string | null>();
 async function workspaceIndustryOf(app: pg.Pool, scope: Scope): Promise<string | null> {
@@ -179,7 +212,14 @@ async function workspaceIndustryOf(app: pg.Pool, scope: Scope): Promise<string |
 async function gatherFacts(app: pg.Pool, scope: Scope, question: string): Promise<AskFactResult> {
   const industry = await workspaceIndustryOf(app, scope);
   const provider = (industry ? industryFactProviders.get(industry) : undefined) ?? industryFactProviders.get("_default");
-  return (provider ?? defaultAskFactProvider)(app, scope, question);
+  const base = await (provider ?? defaultAskFactProvider)(app, scope, question);
+  // X-04：客户知识库事实（命中才占位；检索失败/无命中不劣化回答）
+  if (!kbSearch) return base;
+  try {
+    return mergeKbFacts(base, await kbSearch(scope, question, 5));
+  } catch {
+    return base; // 检索异常不影响问询主链路（不静默伪称"没有知识"）
+  }
 }
 
 /**

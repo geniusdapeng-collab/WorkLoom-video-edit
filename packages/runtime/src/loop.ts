@@ -918,6 +918,21 @@ export async function runQuest(
               autonomy_amount: Number.isFinite(amount) ? amount : undefined,
               // CEO 队列据此还原价格上下文（无则按"无判据"保守上浮，不猜价格）
               ...(priceCtx ? { autonomy_band_key: priceCtx.bandKey, base_price: priceCtx.basePrice } : {}),
+              /**
+               * Y-01（第六轮实测，安全级）：批量审批守卫读 snapshot.high_risk，而生产代码从未写过该字段
+               * （只有测试构造过）→「高危必须逐条人审」在批量入口可被一键绕过。
+               * 现在按三条口径派生：岗位级高危（preset.meta.high_risk）/ 步骤不可逆 / 董事长级（L4）。
+               */
+              high_risk: preset.highRisk || step.context?.irreversible === true || tier === "l4_chairman",
+              /**
+               * 举一反三（与 Y-01 同类）：任务页审批卡会渲染 snapshot.rule_version（「命中关联围栏」），
+               * 但生产路径从未写过该字段——只有测试构造过。这里按本次判定影响面写入，
+               * 无命中规则时写 default_level 口径，保证 UI 语义诚实（不强说"命中规则"）。
+               */
+              rule_version: verdict.impacts.length
+                ? verdict.impacts.map((impact) => `${impact.rule_id}@${impact.version}`).join(", ")
+                : `default_level=${defaultLevel}`,
+              rule_ids: verdict.impacts.map((impact) => impact.rule_id),
               irreversible: step.context?.irreversible === true,
               affected_domains: Array.isArray(step.context?.affected_domains) ? step.context.affected_domains : [],
               expires_at: new Date(Date.now() + 24 * 3600e3).toISOString(),

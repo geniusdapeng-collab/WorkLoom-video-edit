@@ -213,6 +213,8 @@ export default function P2() {
   const { threadId = "" } = useParams();
   const [params] = useSearchParams();
   const demo = params.get("demo");
+  /** X-02：来自对话框卡片的审批锚点（?apr=）——高亮并滚动到该审批卡 */
+  const anchorApprovalId = params.get("apr");
 
   const [ready, setReady] = useState(false);
   const [offline, setOffline] = useState(false); // 断线重连中（F3.4 不伪造进度）
@@ -596,7 +598,21 @@ export default function P2() {
 
               {/* 内联业务关卡卡（ApprovalCardMsg 语义：diff + 命中规则版本 + 三手势/已决态） */}
               {approvals.map((a) => (
-                <div key={a.approval_id} className={`rounded-msg border p-4 ${a.status === "pending" ? "border-warn/40 bg-warn/4" : "border-line bg-card"}`}>
+                <div
+                  key={a.approval_id}
+                  id={`apr-${a.approval_id}`}
+                  ref={(el) => {
+                    // X-02：从对话框「去审批」进入时，滚动并高亮对应审批卡
+                    if (el && anchorApprovalId && a.approval_id === anchorApprovalId && a.status === "pending") {
+                      requestAnimationFrame(() => el.scrollIntoView({ behavior: "smooth", block: "center" }));
+                    }
+                  }}
+                  className={`rounded-msg border p-4 ${
+                    anchorApprovalId && a.approval_id === anchorApprovalId && a.status === "pending"
+                      ? "border-amber-400 bg-amber-500/10 ring-2 ring-amber-400/60"
+                      : a.status === "pending" ? "border-warn/40 bg-warn/4" : "border-line bg-card"
+                  }`}
+                >
                   <div className="mb-2 flex items-center gap-2">
                     <span className={`inline-flex items-center gap-1 text-h2 font-bold ${a.status === "pending" ? "text-warn" : "text-ink2"}`}>
                       <Icon name="approval" size={15} />业务关卡 · {a.status === "pending" ? "待放行" : a.status === "approved" ? "已放行" : a.status === "edited" ? "改后放行" : a.status === "rejected" ? "已退回" : "已过期"}

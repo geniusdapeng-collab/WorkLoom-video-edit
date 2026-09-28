@@ -67,7 +67,7 @@ beforeEach(() => {
   queries = [];
   historyFailure = undefined;
   doubles.assemblePreset.mockResolvedValue({
-    agentId: "agent-a", presetKey: "operator", version: "v1", fenceBindings: [], prompt: null,
+    agentId: "agent-a", presetKey: "operator", version: "v1", highRisk: false, fenceBindings: [], prompt: null,
     essentials: { archive: { dataMode: "real" }, stage: "production", goal: input.goal },
     tools: [
       { name: "task.submit", access: "write", desc: "提交" },
