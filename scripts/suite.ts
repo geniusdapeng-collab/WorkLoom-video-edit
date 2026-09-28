@@ -1886,8 +1886,10 @@ o("X-05/X-07 楼层联动：排队任务有归属；刚完成仍看得见庆祝�
   await qApp(`UPDATE threads SET status='completed', closed_at=now() WHERE id=$1`, [queuedId]);
   const floorDone = await buildFloor(app, scope);
   const doneRow = floorDone.agents.find((x) => x.id === agentId);
-  eq(doneRow?.state, "celebrating", "刚完成优先渲染庆祝（X-05）");
-  assert(doneRow?.statusLine.includes("刚完成"), "庆祝气泡保留");
+  // X-05 最终口径：请示与庆祝共存——state 仍为 asking（审批显眼可直达），celebrating 作为独立标志
+  eq(doneRow?.state, "asking", "有请示时以 asking 为主态（审批可达）");
+  eq(doneRow?.celebrating, true, "同屏标记刚完成（庆祝不被队列堆积吃掉）");
+  assert(doneRow?.statusLine.includes("刚完成"), "气泡同时含请示与刚完成");
   eq(doneRow?.approvalId, aprId, "共存：仍带审批直达号");
 });
 
