@@ -38,6 +38,7 @@ import {
   isNavigationActive,
   useManagedSurface,
 } from "@workloom/ui";
+import { clientNaturalText } from "../../lib/clientText";
 import { NAV_ENTRIES } from "../../shell/NavMenu";
 import { COMMON_STATUS_TEXT, dictText, THREAD_MODE_TEXT } from "../../lib/display";
 import { sharedLayoutPixels } from "../../lib/useAskRail";
@@ -80,6 +81,10 @@ interface TaskCard {
   stepsTotal?: number;
   updatedAt?: string;
   summary?: string;
+  /** GR-15 ③：派遣时的连接器覆盖度提示（无连接器 → 将以未核实收尾） */
+  warnings?: string[];
+  /** GR-17：执行失败原因（工具异常/无回执等）——卡片直接可见，不用进任务页才知道 */
+  error?: string;
 }
 
 const TASK_STATUS_TEXT: Record<string, string> = {
@@ -190,6 +195,13 @@ function TaskCardView({ card, onOpen, highlight = false }: {
         </span>
       </div>
       <div className="mt-1 break-words text-body text-ink3">{taskCardSummary(card)}</div>
+      {/* GR-15/GR-17：连接器提示与失败原因直接上卡（不再"跑完才知道"） */}
+      {card.warnings?.map((w) => (
+        <div key={w} className="mt-1 rounded border border-warn/40 bg-warn/10 px-1.5 py-0.5 text-body text-warn">⚠️ {w}</div>
+      ))}
+      {card.error && (
+        <div className="mt-1 rounded border border-alert/40 bg-alert/10 px-1.5 py-0.5 text-body text-alert">✕ {card.error}</div>
+      )}
       <div className="mt-1.5 flex items-center justify-between gap-2 text-body">
         <span className="text-ink3">
           {typeof card.stepsTotal === "number" && card.stepsTotal > 0
@@ -233,6 +245,8 @@ export function StarRing() {
   const sendRef = useRef<((text: string, intent?: RailIntent) => Promise<void>) | null>(null);
   /** 页面 chip 可指定执行岗位（如任务中心的快捷目标） */
   const presetKeyRef = useRef<string | null>(null);
+  /** GR-20：待用户补充的分流目标（clarify 往返用；下一条输入与其合并） */
+  const pendingClarifyRef = useRef<string | null>(null);
   const collapsedTriggerRef = useRef<HTMLButtonElement | null>(null);
   const railSurface = useManagedSurface<HTMLDivElement>({
     open: !hidden && !collapsed,
@@ -347,7 +361,13 @@ export function StarRing() {
    * forcedIntent 用于确认条/预设落点；失败保留输入并可重试（§9.3）。
    */
   const send = useCallback(async (raw: string, forcedIntent?: RailIntent) => {
-    const text = raw.trim();
+    /**
+     * GR-20：clarify 续答——上一轮若在等用户回答（如"走营销片还是叙事片"），
+     * 这次输入必须与原目标合并回传，否则"走营销片"会被当成全新目标、与原需求脱节。
+     */
+    const pendingGoal = pendingClarifyRef.current;
+    const text = pendingGoal ? `${pendingGoal}（用户补充：${raw.trim()}）` : raw.trim();
+    pendingClarifyRef.current = null;
     if (!text || sending) return;
     const intent: RailIntent = forcedIntent
       ?? presetIntent
@@ -371,7 +391,7 @@ export function StarRing() {
         const r = await secretary.secretary.chat.mutate({ text });
         pushMsg({
           role: "agent", intent, action: INTENT_LABEL.personal, receipt: "unverified",
-          text: clientChineseText(r.reply, "小织暂时没能整理出答复，请稍后再试。"),
+          text: clientNaturalText(r.reply, "小织暂时没能整理出答复，请稍后再试。"),
         });
         return;
       }
@@ -413,7 +433,11 @@ export function StarRing() {
           });
           return;
         }
-        const r = await trpc.threads.run.mutate({ threadId: ctxThreadId, goal: text }) as {
+        /**
+         * N-06：不把用户这句口语当规划目标——续跑复用线程既定计划（GR-01 计划持久化），
+         * 以前传 goal 会把计划按"继续/推进吧"重新洗一遍（漂移、空计划、误匹配都由此而来）。
+         */
+        const r = await trpc.threads.run.mutate({ threadId: ctxThreadId }) as {
           status?: string; stepsDone?: number; stepsTotal?: number;
         };
         pushMsg({
@@ -442,15 +466,18 @@ export function StarRing() {
       if (r.kind === "clarify") {
         // 像留言的陈述句被反问时，给出落点确认（误路由一键纠正）
         setConfirm({ text, options: hasActionVerb(text) ? ["task", "note", "ask"] : ["ask", "note", "task"] });
+        // GR-20：视频分流等"带上下文的追问"记下原目标，下一条输入合并回传
+        const routeContext = (r as { routeContext?: { goal?: string } }).routeContext;
+        if (routeContext?.goal) pendingClarifyRef.current = routeContext.goal;
         pushMsg({
           role: "agent", intent, action: "落点待确认", receipt: "unverified", refId: r.threadId,
-          text: clientChineseText(r.question, "请补充目标与时间；信息完整前不会创建任务。"),
+          text: clientNaturalText(r.question, "请补充目标与时间；信息完整前不会创建任务。"),
         });
       } else if (intent === "ask" || (r.mode === "ask" && r.answer)) {
         pushMsg({
           role: "agent", intent: "ask", action: INTENT_LABEL.ask,
           receipt: "synced", refId: r.threadId,
-          text: clientChineseText(r.answer, "应答内容暂时无法显示，请稍后再试。"),
+          text: clientNaturalText(r.answer, "应答内容暂时无法显示，请稍后再试。"),
           prompt: text,
         });
       } else {
@@ -460,6 +487,12 @@ export function StarRing() {
          */
         msgSeq.current += 1;
         cardMsgId = msgSeq.current;
+        /**
+         * GR-15 ③ / GR-17：把「无连接器（将以未核实收尾）」与「执行失败原因」直接带到卡片上——
+         * 此前用户要等任务跑完、进任务页才发现没有连接器或被驳回，属于"事后才知道"。
+         */
+        const dispatchWarnings = (r as { warnings?: string[] }).warnings ?? [];
+        const dispatchError = (r as { error?: string }).error;
         const card: TaskCard = {
           threadId: r.threadId ?? "",
           title: text,
@@ -468,6 +501,8 @@ export function StarRing() {
           stepsDone: r.stepsDone,
           stepsTotal: r.stepsTotal,
           updatedAt: new Date().toISOString(),
+          ...(dispatchWarnings.length ? { warnings: dispatchWarnings } : {}),
+          ...(dispatchError ? { error: dispatchError } : {}),
         };
         setMsgs((cur) => [...cur, { id: cardMsgId!, role: "agent", intent: "task", card }]);
       }
@@ -510,6 +545,15 @@ export function StarRing() {
     let alive = true;
     /** 每个线程上一次已知状态：非终态 → completed/failed 的一次跃迁触发「小织任务完成播报」 */
     const settledRef = new Map<string, string>();
+    /**
+     * N-12：轮询降频——原来只有 completed/failed 才停止，`pending_review`（等审批）与 `paused`（熔断）
+     * 会 5s 一次永久打服务端。改为：活跃态 5s；停滞态（等人工）降频到 30s；
+     * 连续 N 次无变化再退到 60s（审批/熔断本就不会自己变，等用户动作即可）。
+     */
+    const POLL_ACTIVE_MS = 5000;
+    const POLL_IDLE_MS = 30000;
+    const POLL_STALE_MS = 60000;
+    let timer: number | undefined;
     const tick = async () => {
       try {
         await ensureDemoLogin();
@@ -519,7 +563,7 @@ export function StarRing() {
         for (const m of targets) {
           const threadId = m.card!.threadId;
           const t = (await trpc.threads.get.query({ threadId })) as {
-            status?: string; progress_done?: number; progress_total?: number; updated_at?: string;
+            status?: string; progress_done?: number; progress_total?: number; updated_at?: string; error?: string | null;
           } | null;
           if (!alive || !t?.status) continue;
           const previous = settledRef.get(threadId);
@@ -538,14 +582,20 @@ export function StarRing() {
               stepsDone: typeof t.progress_done === "number" ? t.progress_done : x.card.stepsDone,
               stepsTotal: typeof t.progress_total === "number" ? t.progress_total : x.card.stepsTotal,
               updatedAt: t.updated_at ?? new Date().toISOString(),
+              ...(t.error ? { error: t.error } : {}),
             },
           } : x)));
         }
       } catch { /* 断线保留上次状态 */ }
+      if (!alive) return;
+      const idle = msgsRef.current.some((m) =>
+        m.card && (m.card.status === "pending_review" || m.card.status === "paused"));
+      const unchanged = settledRef.size > 0 && [...settledRef.values()].every((s) => s === "pending_review" || s === "paused");
+      const next = unchanged ? POLL_STALE_MS : idle ? POLL_IDLE_MS : POLL_ACTIVE_MS;
+      timer = window.setTimeout(() => void tick(), next);
     };
     void tick();
-    const timer = window.setInterval(() => void tick(), 5000);
-    return () => { alive = false; window.clearInterval(timer); };
+    return () => { alive = false; if (timer) window.clearTimeout(timer); };
   }, [pendingCardKey]);
 
   const inputBar = (

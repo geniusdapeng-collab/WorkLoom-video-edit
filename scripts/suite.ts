@@ -1826,8 +1826,20 @@ o("HP-02 失败关闭：通用规划的写类步骤无规则命中 → 挂起待
     [r1.pendingApprovalId!],
   );
   assert(apr.rows[0], "挂起步骤进审批队列（人可介入，不再静默执行）");
-  await decide(app, gw, scope, boss, r1.pendingApprovalId!, { type: "approve" });
-  const r2 = await runQuest(app, gw, scope, { threadId: tid, goal: "把周五主打款调价 5%", presetKey: "pricing-agent" });
+  /**
+   * GR-07 起：确定性兜底计划的**每个写步骤**各自挂起人工裁决（读步骤照常执行）——
+   * 因此"批准一次"只会推进到下一个挂起点；真实链路里这个循环由
+   * `scheduleQuestResumeAfterApproval`（批准 → 自动续跑 → 下一个挂起点）自动完成。
+   * 本用例显式模拟该循环，并断言最终能走到 completed。
+   */
+  let r2 = await runQuest(app, gw, scope, { threadId: tid, goal: "把周五主打款调价 5%", presetKey: "pricing-agent" });
+  let guard = 0;
+  while (r2.status === "pending_review" && guard < 6) {
+    assert(r2.pendingApprovalId, "每个写步骤都能给出待批 ID");
+    await decide(app, gw, scope, boss, r2.pendingApprovalId!, { type: "approve" });
+    r2 = await runQuest(app, gw, scope, { threadId: tid, goal: "把周五主打款调价 5%", presetKey: "pricing-agent" });
+    guard += 1;
+  }
   eq(r2.status, "completed", "批准后恢复续跑完成");
 });
 
