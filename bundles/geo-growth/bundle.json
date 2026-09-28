@@ -224,7 +224,7 @@
   },
   "integrity": {
     "algorithm": "sha256",
-    "digest": "fcbbfea8df850dbdcb8bcca2c1f4d451c049c3262358f9746ab1c5c9178c1bc2",
+    "digest": "6ecd20bc95e8377cf8ff5f81ae70b00dbefcd759aee75c5f1c9b34bfce4a5385",
     "assets": {
       "eval/questions.json": "49e7b69803ac4c398b812e93758d136332c9312041d894ca7b74a8a1623e7993",
       "fences/geo-growth-baseline.yml": "f11a2d04045409168fa20f665a3852646555e99a0ece0f36afa70d7d2160eaf3",
@@ -264,7 +264,7 @@
       "schemas/archive.schema.json": "ad08672042078f5d8a2376f855e0fe936454048fb0e4cc421d5b8082ad4e2200",
       "schemas/objects.json": "1c7330962d407572f9df3557bb61ebddb0ddd0179a1820f411b28ee51d733020",
       "schemas/stages.json": "dbb994a399bcfe9ea34fbeacda92a13bfdebb8caeef4f74960faf4461a447c93",
-      "service-front/client.json": "104f0b9f72d4a684106420af7a1502ca2e7b15cc170e6496d94a9dca8e9ae92e",
+      "service-front/client.json": "b30a525b9a398631aeb8410e2638f7085cd86c3e8ce914b1245a06fcef536cca",
       "skills/ai-answer-rewrite/SKILL.md": "ff70313de2c4488931aac01a09bb5c58ba6a0c4abdfcd63f41e97571f86b7610",
       "skills/art-direction/SKILL.md": "cc11f1494078b38f19c5d32a639ae036442163cbef00ebb98a156358036fda27",
       "skills/asset-variant-forge/SKILL.md": "cbe3a2c37c2a752b46aacd1ada967423e64479829e5cde81ec5548b9cf6994dc",
