@@ -274,7 +274,7 @@ function persistLlmEnv(cfg: { provider: string; baseUrl: string; apiKey: string;
   writeFileSync(file, lines.filter((l, i) => l !== "" || i < lines.length - 1).join("\n"));
   cachedLlmCall = undefined; // 复位装配缓存（见 llmCall()/intentClassifier()）
   cachedClassifier = undefined;
-  cachedIndustry = undefined;
+  industryCache.clear(); // A-04：行业缓存按工作区分桶后整体复位
   resetLlmAssembly(); // v3.0：模型池与行业策略缓存同步复位（写盘即全链生效免重启）
 }
 
@@ -1065,12 +1065,12 @@ const threadsRouter = router({
          FROM threads WHERE workspace_id=$1 ORDER BY created_at DESC LIMIT 50`,
         [scope.workspaceId],
       );
+      await client.query("COMMIT"); // A-08：显式提交，失败即抛（不再 finally 吞错）
       return r.rows;
     } catch (err) {
       await client.query("ROLLBACK").catch(() => undefined);
       throw err;
     } finally {
-      await client.query("COMMIT").catch(() => undefined);
       client.release();
     }
   }),
@@ -1260,11 +1260,13 @@ const threadsRouter = router({
           },
           rule_impact: [],
         });
+        // A-08 修复：COMMIT 纳入 try 主体——此前在 finally 里 .catch(()=>undefined) 吞掉，
+        // COMMIT 失败（连接断开/序列化冲突）时事务实际回滚但调用方按成功继续（幽灵账本）
+        await client.query("COMMIT");
       } catch (err) {
         await client.query("ROLLBACK").catch(() => undefined);
         throw err;
       } finally {
-        await client.query("COMMIT").catch(() => undefined);
         client.release();
       }
       // 派遣事件已随建线程同事务落库（D16；G8 三段瀑布同口径）
@@ -1272,10 +1274,19 @@ const threadsRouter = router({
       // ask 问询：即时应答（B8——取数为真、模型可插拔；不依赖 runImmediately 按钮）
       if (intent.mode === "ask") {
         // N-11：ask 事件归属本工作区实际岗位（此前硬编码 hotel 的 "morning-briefing"，账本张冠李戴）
-        const ra = await runAsk(getAppPool(), getGatewayPool(), scope, {
-          threadId, goal: planningGoal, presetKey, llmCall: llmCall("ask-synthesize", scope),
-        });
-        return { kind: "routed" as const, mode: intent.mode, via: intent.via, threadId, status: ra.status, answer: ra.answer };
+        try {
+          const ra = await runAsk(getAppPool(), getGatewayPool(), scope, {
+            threadId, goal: planningGoal, presetKey, llmCall: llmCall("ask-synthesize", scope),
+          });
+          return { kind: "routed" as const, mode: intent.mode, via: intent.via, threadId, status: ra.status, answer: ra.answer };
+        } catch (err) {
+          // A-02 修复兜底：runAsk 已把线程认领为 running，失败必须给终态出口，不得悬挂
+          await getAppPool().query(
+            `UPDATE threads SET status='failed', error=$3, updated_at=now() WHERE id=$1 AND workspace_id=$2 AND status='running'`,
+            [threadId, scope.workspaceId, err instanceof Error ? err.message.slice(0, 500) : String(err).slice(0, 500)],
+          ).catch(() => undefined);
+          throw err;
+        }
       }
       /**
        * 视频创作类目标 → 走**标准视频生产管线**（ai-video studio：情报五站 → G1..G7 → 25/30 字段
@@ -1657,6 +1668,48 @@ const threadsRouter = router({
 });
 
 /**
+ * B-05/B-06 修复：批准后副作用统一钩子（单笔 decide / 批量 batchApprove / IM 手势回调三路同钩）。
+ *  - 围栏激活：保持同步 await（既有验收口径：decide 返回即生效），失败隔离不反噬审批结果；
+ *  - Quest 续跑：scheduleQuestResumeAfterApproval（内部自管 setTimeout/catch）；
+ *  - HR 汰换上岗：hr.replacement 批准 → 旧停用 + 新员工上岗（此前仅单笔 decide 路径有，批量批准永不执行）。
+ * 各项失败只落服务端日志——审批已 approved 的事实不被副作用失败反噬（B-06 对症）。
+ */
+async function runPostApprovalSideEffects(
+  scope: { tenantId: string; workspaceId: string },
+  approvalId: string,
+): Promise<void> {
+  try {
+    await activateFenceRuleAfterApproval(scope, approvalId);
+  } catch (err) {
+    console.error(`[approvals] 围栏激活副作用失败 ${approvalId}（审批结果不变）：`, err instanceof Error ? err.message : err);
+  }
+  scheduleQuestResumeAfterApproval(scope, approvalId);
+  try {
+    const app = getAppPool();
+    const c = await app.connect();
+    try {
+      await c.query("BEGIN");
+      await c.query("SELECT set_config('app.workspace_id', $1, true)", [scope.workspaceId]);
+      const snap = await c.query<{ snapshot: Record<string, unknown> }>(
+        `SELECT snapshot FROM approvals WHERE approval_id=$1`, [approvalId],
+      );
+      await c.query("COMMIT");
+      const ss = snap.rows[0]?.snapshot ?? {};
+      if (ss.kind === "hr.replacement" && ss.design && typeof ss.agent_id === "string") {
+        await applyReplacement(app, scope, ss.design as never, ss.agent_id);
+      }
+    } catch (e) {
+      await c.query("ROLLBACK").catch(() => undefined);
+      throw e;
+    } finally {
+      c.release();
+    }
+  } catch (err) {
+    console.error(`[approvals] HR 汰换副作用失败 ${approvalId}（审批结果不变）：`, err instanceof Error ? err.message : err);
+  }
+}
+
+/**
  * 步骤级审批通过 → Quest 自动续跑（2026-09-20 三合一真机修复）。
  *
  * 原语义：审批只改审批状态，用户还得回任务页点"继续推进"；生图/发布这类**半程任务**
@@ -1791,7 +1844,8 @@ async function activateFenceRuleAfterApproval(
 /** approvals router（B6：统一队列/三手势/批量/超时扫描；L5.1 服务端强制鉴权） */
 const approvalsRouter = router({
   list: protectedProcedure
-    .input(z.object({ status: z.enum(["pending", "approved", "edited", "rejected", "expired"]).optional() }).optional())
+    // B-07 修复：superseded 入列——被重规划作废的审批此前在任何过滤下不可见（状态机盲区）
+    .input(z.object({ status: z.enum(["pending", "approved", "edited", "rejected", "expired", "superseded"]).optional() }).optional())
     .query(async ({ ctx, input }) => {
       return listQueue(getAppPool(), scopeOf(ctx.identity), { status: input?.status });
     }),
@@ -1817,34 +1871,9 @@ const approvalsRouter = router({
           { memberNo: ctx.identity.memberNo, role: ctx.identity.role },
           input.approvalId,
           { type: input.gesture, reasonEnum: input.reasonEnum, reasonText: input.reasonText, editedAfter: input.editedAfter, editKind: input.editKind },
+          undefined,
+          { onApproved: (id) => runPostApprovalSideEffects(scopeOf(ctx.identity), id) },
         );
-        // E1 联调接线（PF.5/F2.4）：fence.rule.propose 手势通过 → 激活规则版本
-        if (!res.deduped && res.status === "approved") {
-          await activateFenceRuleAfterApproval(scopeOf(ctx.identity), input.approvalId);
-          // 步骤级审批通过 → 自动续跑所属 Quest（2026-09-20：否则"批完还得手动推进"，生图链路停在半路）
-          scheduleQuestResumeAfterApproval(scopeOf(ctx.identity), input.approvalId);
-          // D22 汰换重生：hr.replacement 批准 → 旧停用 + 新员工上岗
-          const scope2 = scopeOf(ctx.identity);
-          const app2 = getAppPool();
-          const c2 = await app2.connect();
-          try {
-            await c2.query("BEGIN");
-            await c2.query("SELECT set_config('app.workspace_id', $1, true)", [scope2.workspaceId]);
-            const snap = await c2.query<{ snapshot: Record<string, unknown> }>(
-              `SELECT snapshot FROM approvals WHERE approval_id=$1`, [input.approvalId],
-            );
-            await c2.query("COMMIT");
-            const ss = snap.rows[0]?.snapshot ?? {};
-            if (ss.kind === "hr.replacement" && ss.design && typeof ss.agent_id === "string") {
-              await applyReplacement(app2, scope2, ss.design as never, ss.agent_id);
-            }
-          } catch (e) {
-            await c2.query("ROLLBACK").catch(() => undefined);
-            throw e;
-          } finally {
-            c2.release();
-          }
-        }
         return res;
       } catch (err) {
         if (err instanceof ApprovalError) {
@@ -1867,11 +1896,9 @@ const approvalsRouter = router({
           scopeOf(ctx.identity),
           { memberNo: ctx.identity.memberNo, role: ctx.identity.role },
           input.approvalIds,
+          // B-05 修复：批量批准与单笔 decide 同钩子——Quest 续跑/围栏激活/HR 汰换不再断链
+          { onApproved: (id) => runPostApprovalSideEffects(scopeOf(ctx.identity), id) },
         );
-        // E1 联调接线（PF.5/F2.4）：批量采纳通过项同样触发围栏激活接线（防御性；围栏提案标记 high_risk 本不可批量）
-        for (const id of res.approved) {
-          await activateFenceRuleAfterApproval(scopeOf(ctx.identity), id);
-        }
         return res;
       } catch (err) {
         if (err instanceof ApprovalError) {
@@ -3178,6 +3205,8 @@ const imRouter = router({
           scope,
           input,
           mockDriverFor(input.channel),
+          // B-05 修复：IM 手势批准与端内 decide 同钩子（批准≠执行断链对症）
+          { onApproved: (id) => runPostApprovalSideEffects(scope, id) },
         );
         return { ...r, unsigned: sig.unsigned };
       } catch (err) {
@@ -3330,17 +3359,34 @@ function llmCall(scene = "generic", scope?: { tenantId: string; workspaceId: str
 }
 
 /** 工作区行业（bundle 第⑦槽 model-policy.yml 按行业加载；进程级缓存） */
-let cachedIndustry: string | null | undefined;
-async function workspaceIndustry(scope: { workspaceId: string }): Promise<string | null> {
-  if (cachedIndustry !== undefined) return cachedIndustry;
+/**
+ * A-04 修复（路由空转）：①查询此前无事务级 GUC，workspaces 有 RLS
+ * （USING id = current_setting('app.workspace_id')）→ 恒 0 行 → 行业恒 null，
+ * bundle model-policy.yml 永不生效；②单值缓存跨工作区串味（第二工作区吃第一工作区的行业）。
+ * 现在：事务内双 GUC 查询（与全仓编码铁律同口径），缓存按 workspaceId 分桶。
+ */
+const industryCache = new Map<string, string | null>();
+async function workspaceIndustry(scope: { tenantId: string; workspaceId: string }): Promise<string | null> {
+  const hit = industryCache.get(scope.workspaceId);
+  if (hit !== undefined) return hit;
+  const app = getAppPool();
+  const client = await app.connect();
   try {
-    const r = await getAppPool().query<{ industry: string | null }>(
+    await client.query("BEGIN");
+    await client.query("SELECT set_config('app.workspace_id', $1, true)", [scope.workspaceId]);
+    await client.query("SELECT set_config('app.tenant_id', $1, true)", [scope.tenantId]);
+    const r = await client.query<{ industry: string | null }>(
       `SELECT industry FROM workspaces WHERE id=$1`, [scope.workspaceId]);
-    cachedIndustry = r.rows[0]?.industry ?? null;
+    await client.query("COMMIT");
+    const industry = r.rows[0]?.industry ?? null;
+    industryCache.set(scope.workspaceId, industry);
+    return industry;
   } catch {
-    cachedIndustry = null;
+    await client.query("ROLLBACK").catch(() => undefined);
+    return null; // 查询失败不缓存（下次重试），行业缺省落底座默认策略
+  } finally {
+    client.release();
   }
-  return cachedIndustry;
 }
 
 let cachedClassifier: IntentClassifier | null | undefined;

@@ -103,12 +103,20 @@ async function mkThread(status = "queued"): Promise<string> {
   return id;
 }
 let evSeq = 0;
-async function mkEvent(action: string, opts: { sessionId?: string; basis?: string[]; stepId?: string } = {}): Promise<string> {
+async function mkEvent(
+  action: string,
+  opts: { sessionId?: string; basis?: string[]; stepId?: string; extraDecision?: Record<string, unknown> } = {},
+): Promise<string> {
   const r = await gatewayAppend(gw, { ...scope, actor: { id: "pricing-agent", type: "agent", fenceBindings: ["R1"] }, sessionId: opts.sessionId ?? null }, {
     who: { type: "agent", id: "pricing-agent", version: "v2.3" },
     context: { tenant_id: scope.tenantId, workspace_id: scope.workspaceId, time: new Date().toISOString() },
     object: { type: "suite", id: `suite-${SFX}-${++evSeq}` },
-    decision: { action, ...(opts.stepId ? { step_id: opts.stepId } : {}), ...(opts.basis ? { basis: opts.basis } : {}) },
+    decision: {
+      action,
+      ...(opts.stepId ? { step_id: opts.stepId } : {}),
+      ...(opts.basis ? { basis: opts.basis } : {}),
+      ...(opts.extraDecision ?? {}),
+    },
     rule_impact: [],
   });
   return r.eventId;
@@ -2006,6 +2014,174 @@ o("W-01 缺参写步骤：行业规划器打标 + 机制兜底，不得围栏假
     `SELECT snapshot FROM approvals WHERE approval_id=$1`, [r.pendingApprovalId!]);
   eq(snap.rows[0]?.snapshot.params_incomplete, true, "审批卡须带参数不完整警示");
   assert((snap.rows[0]?.snapshot.warning ?? "").length > 0, "警示须有可读原因");
+});
+
+/**
+ * 排雷台账回归（T-2026-0929-0003，第三方深度审计 22+1 项中的"无断言项"补口）。
+ *
+ * 立此存照：审计台账里 A-01 / A-06 / B-04 / B-07 这几项当时只有修复代码 + 人工核对，
+ * 没有可执行断言兜底——正是"改完仍在"最容易复发的一类。这里逐条补断言。
+ */
+o("A-01 高危岗位写步骤须逐次授权：围栏判 auto 亦不得直接落库，放行后票据一次性消费", async () => {
+  /**
+   * 组合是关键：`comment-operator` 的 `meta.high_risk=true`（公网外发），
+   * 其绑定围栏 `G10a` 对 `comment.reply` 判定为 **auto**。
+   * actor 不接 `preset.highRisk` 时，这一支会绕过网关段③静默落库（P0 空转）。
+   */
+  const tid = await mkThread();
+  const plan: QuestPlanner = () => [{
+    stepId: "s1", action: "comment.reply", objectType: "comment", tool: "comment.reply",
+    params: { text: "谢谢支持" }, label: "回复公开评论",
+  }];
+  const quest = () => runQuest(app, gw, scope, {
+    threadId: tid, goal: "回复一条公开评论", presetKey: "comment-operator", fallbackPlanner: plan,
+  });
+  const executedCount = async () => Number((await qApp<{ c: string }>(
+    `SELECT count(*) AS c FROM biz_events
+      WHERE workspace_id=$1 AND session_id=$2
+        AND payload->'decision'->>'step_id'='s1' AND payload->'decision'->>'kind'='execute'`,
+    [scope.workspaceId, tid],
+  )).rows[0]!.c);
+
+  const r1 = await quest();
+  eq(r1.status, "pending_review", "高危岗位写步骤必须挂人审（不得按围栏 auto 直接执行）");
+  eq(await executedCount(), 0, "未获批前零执行事件（授权段必须挡住）");
+  const snap = await qApp<{ hr: boolean | null }>(
+    `SELECT (snapshot->>'high_risk')::boolean AS hr FROM approvals WHERE approval_id=$1`,
+    [r1.pendingApprovalId!]);
+  eq(snap.rows[0]?.hr, true, "高危岗位挂起的审批必须带 high_risk（不可被批量照批）");
+  const batchGuard = await batchApprove(app, gw, scope, boss, [r1.pendingApprovalId!]);
+  eq(batchGuard.approved.length, 0, "高危岗位的挂起审批不得被批量照批");
+
+  // 人放行 → 写步骤执行（携带 approvalRef），落库时票据被原子消费
+  await decide(app, gw, scope, boss, r1.pendingApprovalId!, { type: "approve" });
+  await quest();
+  eq(await executedCount(), 1, "获批后写步骤执行且只执行一次");
+  const consumed = await qApp<{ consumed_at: Date | null }>(
+    `SELECT consumed_at FROM approvals WHERE approval_id=$1`, [r1.pendingApprovalId!]);
+  assert(consumed.rows[0]?.consumed_at != null, "授权票据必须被消费（L3.5 一次性）");
+
+  /**
+   * 幂等：重放不得二次执行（票据已消费 + 步骤已有核实回执 → 原样返回，不重复落库）。
+   * 这一条与下一条（B-02b）共同守住"一次授权 = 一次执行"。
+   */
+  const r3 = await quest();
+  eq(r3.status, "completed", "重放保持已完成（幂等）");
+  eq(await executedCount(), 1, "重放不得二次执行（一次授权只放行一次）");
+});
+
+o("B-02b 已消费票据不得再充当授权：重试必须重新挂人审，不得抛错悬挂线程", async () => {
+  /**
+   * 联动地雷（本次修复发现）：A-01 把 highRisk 接进 actor + B-02 票据一次性消费之后，
+   * 「票据已被消费、步骤又需要重跑」的组合若仍把死票据当授权，落库会被网关拒绝并抛出，
+   * 线程停在 running（无终态、无法自愈）。正确口径：消费过的票据不构成本轮授权，重新挂人审。
+   * 造现场：审批 approved 且 consumed_at 非空、事件带 step_id 且绑定本线程；
+   * 步骤动作走 default_level=review（`brief.generate` 无规则命中）。
+   */
+  const tid = await mkThread();
+  /**
+   * 用 frontdesk-agent 的写工具 `pms.checkin`：无规则命中 → default_level=review（干净的人审位）。
+   * 事件须写成 `kind=execute + outcome=error`：GR-17 口径下这类事件**不进回执集合**
+   * （执行器异常=可重试，不是"未核实"），这样步骤才不会被 replay 的 early-return 拦掉，
+   * 从而真正走到"票据是否还可充当授权"的判定点。
+   */
+  const evId = await mkEvent("pms.checkin", {
+    sessionId: tid, stepId: "s1", extraDecision: { kind: "execute", outcome: "error", error: "套件造现场：上一次执行异常" },
+  });
+  const aprId = `apr-consumed-${SFX}`;
+  await qApp(
+    `INSERT INTO approvals (approval_id, tenant_id, workspace_id, event_id, channel, status, snapshot, consumed_at)
+     VALUES ($1,$2,$3,$4,'inapp','approved',$5, now())`,
+    [aprId, scope.tenantId, scope.workspaceId, evId,
+      JSON.stringify({ before: null, after: { v: 1 }, high_risk: false, expires_at: new Date(Date.now() + 864e5).toISOString() })],
+  );
+  const plan: QuestPlanner = () => [{
+    stepId: "s1", action: "pms.checkin", objectType: "room", tool: "pms.checkin",
+    params: { room: "8301" }, label: "入住登记",
+  }];
+  const r = await runQuest(app, gw, scope, {
+    threadId: tid, goal: "给 8301 办入住登记（B-02b）", presetKey: "frontdesk-agent", fallbackPlanner: plan,
+  });
+  eq(r.status, "pending_review", "已消费票据不得充当授权：必须重新挂人审");
+  assert(r.pendingApprovalId !== aprId, "重试必须产生新审批（不得复用死票据）");
+  const alive = await qApp<{ status: string }>(`SELECT status FROM threads WHERE id=$1`, [tid]);
+  assert(alive.rows[0]!.status !== "running", `线程不得停在 running（实际 ${alive.rows[0]!.status}）`);
+});
+
+o("A-06 ask 输出闸门加载失败必须显式标注，不得按空规则集静默放行", async () => {
+  const tid = await mkThread();
+  /**
+   * 只让「闸门读规则」那一条查询失败（`loadAskRules` 的 SQL 特征：`OR workspace_id='*'`），
+   * 事实面统计那条同名表查询照常成功——用来区分"闸门不可用"与"本来就没规则"。
+   * 实现说明：用一个**包住单个真实连接**的轻量 pool（不用 Proxy 包 pg.Pool——
+   * 代理会破坏连接归还，池被借空后整条套件挂死，实测踩过）。
+   */
+  const real = await app.connect();
+  const broken = {
+    connect: async () => ({
+      query: async (sql: string, params?: unknown[]) => {
+        if (/FROM fence_rules WHERE \(workspace_id=\$1 OR workspace_id='\*'\)/.test(String(sql))) {
+          throw new Error("injected: ask 闸门读规则故障（A-06）");
+        }
+        return real.query(sql as never, params as never);
+      },
+      release: () => undefined,
+    }),
+    query: (sql: string, params?: unknown[]) => real.query(sql as never, params as never),
+  } as unknown as typeof app;
+  try {
+    const r = await runAsk(broken, gw, scope, { threadId: tid, goal: "今天经营怎么样？", presetKey: "pricing-agent" });
+    assert(/输出闸门暂不可用/.test(r.answer), `闸门失效必须显式标注（实际答案：${r.answer.slice(0, 80)}）`);
+  } finally {
+    real.release();
+  }
+});
+
+o("B-04 显式 replan 作废未决审批必须经网关留痕（approval.superseded）", async () => {
+  const tid = await mkThread();
+  const evId = await mkEvent("suite.b04.pending", { sessionId: tid });
+  const aprId = `apr-b04-${SFX}`;
+  await qApp(
+    `INSERT INTO approvals (approval_id, tenant_id, workspace_id, event_id, channel, status, snapshot)
+     VALUES ($1,$2,$3,$4,'inapp','pending','{}')`,
+    [aprId, scope.tenantId, scope.workspaceId, evId],
+  );
+  // 计划本身必须合法（工具须由 preset 声明），否则 runQuest 在 saveThreadPlan 之前就报错
+  const plan: QuestPlanner = () => [{
+    stepId: "s1", action: "pms.price.read", objectType: "room_price", tool: "pms.price.read",
+    params: { room_type: "雅致大床房" }, label: "读取当前价格",
+  }];
+  await runQuest(app, gw, scope, {
+    threadId: tid, goal: "读取雅致大床房的当前价格（B-04）", presetKey: "pricing-agent",
+    fallbackPlanner: plan, replan: true,
+  });
+  const row = await qApp<{ status: string }>(`SELECT status FROM approvals WHERE approval_id=$1`, [aprId]);
+  eq(row.rows[0]!.status, "superseded", "未决审批被作废");
+  const ev = await qApp<{ c: string }>(
+    `SELECT count(*) AS c FROM biz_events
+      WHERE workspace_id=$1
+        AND payload->'object'->>'type'='approval' AND payload->'object'->>'id'=$2
+        AND payload->'decision'->>'action'='approval.superseded'`,
+    [scope.workspaceId, aprId],
+  );
+  eq(Number(ev.rows[0]!.c), 1, "作废必须经网关写事件（状态变更不得裸改表）");
+});
+
+o("B-07 superseded 必须是可查询状态（共享枚举 + 队列过滤）", async () => {
+  const { APPROVAL_STATUSES } = await import("@workloom/shared");
+  assert((APPROVAL_STATUSES as readonly string[]).includes("superseded"), "共享审批状态枚举须含 superseded");
+  // 自备现场（不依赖前一条用例的遗留行；套件可单独跑这一段）
+  const evId = await mkEvent("suite.b07.superseded");
+  const aprId = `apr-b07-${SFX}`;
+  await qApp(
+    `INSERT INTO approvals (approval_id, tenant_id, workspace_id, event_id, channel, status, snapshot)
+     VALUES ($1,$2,$3,$4,'inapp','superseded','{}')`,
+    [aprId, scope.tenantId, scope.workspaceId, evId],
+  );
+  const rows = await listQueue(app, scope, { status: "superseded" });
+  assert(rows.length > 0, "superseded 审批必须能在队列里查到（此前状态机盲区）");
+  assert(rows.every((r) => r.status === "superseded"), "过滤必须生效");
+  assert(rows.some((r) => r.approval_id === aprId), "现场行必须出现在过滤结果里");
 });
 
 o("X-05/X-07 楼层联动：排队任务有归属；刚完成仍看得见庆祝（与请示共存）", async () => {

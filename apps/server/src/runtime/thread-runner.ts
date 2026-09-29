@@ -159,6 +159,8 @@ export interface ThreadQuestInput {
   /** GR-01：显式重规划（缺省复用已持久化计划；replan 会失效本线程未决审批） */
   replan?: boolean;
   replanReason?: string;
+  /** A-03：调用方已完成原子认领（调度器单语句 UPDATE 认领）时置 true，跳过入口 CAS */
+  skipClaim?: boolean;
 }
 
 /**
@@ -220,6 +222,29 @@ export interface ThreadQuestOutcome extends QuestRunResult {
  * 线程执行唯一装配点：dispatch(runImmediately) / threads.run / 审批自动续跑 / 调度器都走这里。
  */
 export async function runQuestForThread(scope: Scope, input: ThreadQuestInput): Promise<ThreadQuestOutcome> {
+  /**
+   * A-03 修复：执行前原子认领（queued/paused→running CAS）。调度器已用自己的单语句认领，
+   * 这里是 dispatch(runImmediately)/threads.run/审批续跑共用入口——抢不到认领说明
+   * 他方正在执行，直接放弃（幂等退出），杜绝同一线程并发重入导致写工具重复执行。
+   */
+  if (!input.skipClaim) {
+    const app0 = getAppPool();
+    const claimed = await app0.query(
+      `UPDATE threads SET status='running', updated_at=now()
+        WHERE id=$1 AND workspace_id=$2 AND status IN ('queued','paused') RETURNING id`,
+      [input.threadId, scope.workspaceId],
+    );
+    if ((claimed.rowCount ?? 0) === 0) {
+      const cur = await app0.query<{ status: string }>(
+        `SELECT status FROM threads WHERE id=$1 AND workspace_id=$2`, [input.threadId, scope.workspaceId]);
+      const st = cur.rows[0]?.status ?? "unknown";
+      if (st !== "running") {
+        // pending_review/failed/completed 等：维持原语义（审批续跑/重放由 runQuest 内部按事件态处理）
+      } else {
+        return { threadId: input.threadId, status: "running", stepsDone: 0, stepsTotal: 0, unverified: [], presetKey: "" };
+      }
+    }
+  }
   const presetKey = await resolveThreadPresetKey(scope, input.presetRef, input.goal);
   const toolExecutor = await loadDeploymentToolExecutor(scope);
   const visualGoal = VISUAL_GOAL_PATTERN.test(input.goal);
