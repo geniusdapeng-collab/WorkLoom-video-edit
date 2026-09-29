@@ -760,9 +760,30 @@ export async function runQuest(
         params: step.params, before: step.before, after: step.after, context: step.context,
       });
     }
-    const verdict: { level: "auto" | "review" | "block"; impacts: RuleImpact[]; triggeredBy: string[]; evalErrors: string[] } = paramsIncomplete
+    const rawVerdict: { level: "auto" | "review" | "block"; impacts: RuleImpact[]; triggeredBy: string[]; evalErrors: string[] } = paramsIncomplete
       ? { level: "review", impacts: [], triggeredBy: [], evalErrors: [] }
       : (views.length === 1 ? judge(views[0]!, rules, defaultLevel) : judgeViews(views, rules, defaultLevel));
+
+    /**
+     * 机制兜底（2026-09-29 第二次修复，W-01；与 GR-07 同口径的"缺数据宁挂起，不误熔断"）。
+     *
+     * 为什么必须放在机制层：GR-07 的强制人审是**标记驱动**的（只认 `context.params_incomplete`），
+     * 而"缺参数"的实际来源不止兜底规划器——行业规划器（acquisition-planner）刻意不猜数据、
+     * 缺价带档案时不写 before/after，于是步骤照常进围栏瀑布，命中 R1/R2/R7/R8 这类算术型 when
+     * → 缺失路径 num() 抛错 → E2.1 宁可错杀按 block → 客户看到"围栏熔断 + 任务已暂停"，
+     * 把"档案缺字段"误报成"违了围栏"，且连人审入口都没有（第三方 UI 实拍实证）。
+     *
+     * 判据只认"**全部** block 都来自求值异常"：只要有任意一条规则是**真判 block**，
+     * 熔断语义原样保留（宁可错杀的红线不动）；求值异常本身仍进 rule_impact 留痕，不做静默降级。
+     */
+    const blockedImpacts = rawVerdict.impacts.filter((impact) => impact.result === "blocked").length;
+    const fenceUnevaluable = toolAccess === "write"
+      && rawVerdict.level === "block"
+      && rawVerdict.evalErrors.length > 0
+      && blockedImpacts === rawVerdict.evalErrors.length;
+    const verdict: typeof rawVerdict = fenceUnevaluable
+      ? { level: "review", impacts: rawVerdict.impacts, triggeredBy: [], evalErrors: rawVerdict.evalErrors }
+      : rawVerdict;
 
     await updateThread(app, scope, threadId, { current_action: step.label });
 
@@ -844,11 +865,13 @@ export async function runQuest(
                 ? `越围栏挂起：${verdict.triggeredBy.join("、")}`
                 : (input.mode === "agent"
                   ? "agent 模式逐步确认：每步操作前挂起等待人工裁决"
-                  : (paramsIncomplete
-                    ? (planUnverified
-                      ? "计划与目标相关性低（目标关键词在计划中无落点）→ 一律人工裁决，请先核对是不是您要的活"
-                      : "确定性兜底计划：参数不完整 → 一律人工裁决（不做围栏自动判定）")
-                    : "越围栏挂起：写类动作无规则命中 → default_level=review")),
+                 : (paramsIncomplete
+                   ? (planUnverified
+                     ? "计划与目标相关性低（目标关键词在计划中无落点）→ 一律人工裁决，请先核对是不是您要的活"
+                     : "确定性兜底计划：参数不完整 → 一律人工裁决（不做围栏自动判定）")
+                    : (fenceUnevaluable
+                      ? `围栏无法求值（缺参数，未按熔断处理）→ 一律人工裁决：${verdict.evalErrors.slice(0, 3).join("；")}`
+                      : "越围栏挂起：写类动作无规则命中 → default_level=review"))),
               ...(approvalDrifted ? ["审批快照与当前步骤不一致，需重新裁决（approval_drift_detected）"] : []),
             ],
             ...(prefUsageRecorded ? {} : { memory_refs: preferenceMemoryRefs(prefs) }),
@@ -900,10 +923,19 @@ export async function runQuest(
               after: step.after ?? step.params ?? null,
               action: step.action,
               params: step.params,
-              ...(step.context?.params_incomplete === true
+              ...(step.context?.params_incomplete === true || fenceUnevaluable
                 ? {
                   params_incomplete: true,
-                  warning: "该步骤由确定性兜底计划生成，参数不完整，请人工补齐或驳回",
+                  /**
+                   * 告警文案按来源分流（2026-09-29 第二次修复）：
+                   * 规划器自己打了标 → 优先用它的**可执行**说明（例如"档案缺 business.price_bands，
+                   * 请补齐价带或直接给出目标价与基准价"）；机制兜底降级 → 说明"围栏为什么算不出来"。
+                   */
+                  warning: step.context?.params_incomplete === true
+                    ? (typeof step.context.params_incomplete_note === "string" && step.context.params_incomplete_note.trim()
+                      ? step.context.params_incomplete_note
+                      : "该步骤由确定性兜底计划生成，参数不完整，请人工补齐或驳回")
+                    : `围栏无法求值（缺参数，已按人工裁决而非熔断处理）：${verdict.evalErrors.slice(0, 3).join("；")}。请补齐参数或驳回。`,
                 }
                 : {}),
               ...(step.context?.plan_unverified === true && step.context?.params_incomplete !== true

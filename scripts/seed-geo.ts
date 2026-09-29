@@ -19,7 +19,7 @@ import YAML from "yaml";
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { safeParseReplayAwareEvent } from "@workloom/base/workdata";
+import { alignReadableIdSequences, safeParseReplayAwareEvent } from "@workloom/base/workdata";
 // 哈希链统一生产口径（events.ts 的 canonicalJson/eventHash），与 seed.ts/seed-video.ts 同一纪律
 import { eventHash } from "@workloom/base/workdata";
 // 技能围栏绑定表（与基座 seed.ts 共用同一事实源；见 scripts/skill-bindings.mts）
@@ -761,6 +761,10 @@ async function main() {
 
   await gw.end();
   console.log("✓ 运行态剧本完成（情报/能见度/双域分发/私域/晨报/审批全量有数）");
+
+  // GR-02（2026-09-29 第二次修复）：种子/手写 id 写入方收尾对齐号源（取号函数只做 nextval）
+  const seqFloor = await alignReadableIdSequences(owner);
+  console.log(`✓ 可读号源对齐：threads→${seqFloor.threads}，video_projects→${seqFloor.videoProjects}`);
 
   await owner.end();
   console.log("\nWorkLoom GEO 双域演示种子完成。下一步：pnpm dev 后在工作台查看（ws-geo 工作区）。");

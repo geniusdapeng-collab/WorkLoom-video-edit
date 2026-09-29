@@ -18,7 +18,7 @@ import { fileURLToPath } from "node:url";
 import { getAppPool, getGatewayPool } from "@workloom/db";
 import { GatewayEventSink, poolFromEnv } from "@workloom/base/model-router";
 import { modelPolicyFor } from "../service/llm.js";
-import { gatewayAppend, gatewayAppendOnClient } from "@workloom/base/workdata";
+import { gatewayAppend, gatewayAppendOnClient, insertWithReadableId, VIDEO_PROJECT_ID_SOURCE } from "@workloom/base/workdata";
 import { makeReadableId, newId } from "@workloom/shared";
 import {
   VideoStudio,
@@ -747,7 +747,12 @@ export function startRun(scope: Scope, input: StudioRunInput): string {
          ON CONFLICT (event_id, channel) DO NOTHING`,
         [
           approvalId, scope.tenantId, scope.workspaceId, ev.eventId,
-          JSON.stringify({ contentMd: req.contentMd, gate: req.gate, vendorType: req.vendorType }),
+          /**
+           * W-04 举一反三：这一支是"人工确认门"（HR_PRODUCER=human 或门不在 AUTO_GATES 内），
+           * 按模块自述"人审只保留给花钱与对外动作"——必须在快照上显式声明高危，
+           * 否则批量采纳入口会把"逐门确认"降级成一键放行（第三方实测同类的 l4 种子审批即被批量放行）。
+           */
+          JSON.stringify({ contentMd: req.contentMd, gate: req.gate, vendorType: req.vendorType, high_risk: true }),
         ],
       );
       await client.query("COMMIT");
@@ -1353,14 +1358,16 @@ export async function startVideoProjectRun(
     await client.query("BEGIN");
     await client.query("SELECT set_config('app.workspace_id', $1, true)", [scope.workspaceId]);
     await client.query("SELECT set_config('app.tenant_id', $1, true)", [scope.tenantId]);
-    const max = await client.query<{ n: number }>(`SELECT public.video_projects_max_vid_no() AS n`);
-    projectId = makeReadableId("VID", Number(max.rows[0]?.n ?? 0) + 1);
+    // GR-02（2026-09-29 第二次修复）：视频项目号与线程号同口径——纯 nextval 取号 + SAVEPOINT 换号重试
     const kind = input.isMarketing ? "marketing" : "narrative";
-    await client.query(
-      `INSERT INTO video_projects (id, workspace_id, title, kind, created_by)
-       VALUES ($1,$2,$3,$4,$5)`,
-      [projectId, scope.workspaceId, input.intent.slice(0, 200), kind, input.by.id],
-    );
+    projectId = (await insertWithReadableId(client, VIDEO_PROJECT_ID_SOURCE, async (id) => {
+      await client.query(
+        `INSERT INTO video_projects (id, workspace_id, title, kind, created_by)
+         VALUES ($1,$2,$3,$4,$5)`,
+        [id, scope.workspaceId, input.intent.slice(0, 200), kind, input.by.id],
+      );
+      return id;
+    })).id;
     await gatewayAppendOnClient(client, {
       ...scope,
       actor: { ...input.by },

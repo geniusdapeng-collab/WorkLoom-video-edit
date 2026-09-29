@@ -32,7 +32,7 @@ import YAML from "yaml";
 // 此前种子用 JSON.stringify 键序算哈希，与生产 canonicalJson 口径不一致，
 // 种子 100 条事件用生产验证器重算全部不符（链上两种算法混杂）
 // P0-3 续：种子 ID 走 E-SEED- 前缀，zod 经 safeParseReplayAwareEvent 占位缝校验
-import { eventHash, safeParseReplayAwareEvent } from "@workloom/base/workdata";
+import { alignReadableIdSequences, eventHash, safeParseReplayAwareEvent } from "@workloom/base/workdata";
 import { composeWorkforce } from "@workloom/base/bundles";
 import { loadOfficialSkills } from "@workloom/base/skills";
 // 2026-09-20：技能围栏绑定表收口到共享模块（seed.ts 与 seed-geo.ts 共用同一事实源）
@@ -1024,6 +1024,14 @@ async function main(): Promise<void> {
     );
   }
   console.log("✓ 凭据引用 ×2（占位密文，事件只记引用 ID）");
+
+  /**
+   * GR-02（2026-09-29 第二次修复）：种子手写了 T-101..T-103，取号序列必须越过这段号段。
+   * 为什么放在种子而不是取号函数里：0050 曾把 `max()` 读回取号函数，等于把并发原子性
+   * 交还给 max 竞争（12 路并发实测 1 个 500）。号源函数只做 nextval，落后就在**写入方**对齐。
+   */
+  const seqFloor = await alignReadableIdSequences(owner);
+  console.log(`✓ 可读号源对齐：threads→${seqFloor.threads}，video_projects→${seqFloor.videoProjects}`);
 
   // —— 事件写入：切 gateway 角色（F1.2 唯一可 INSERT biz_events）
   // L2：GUC 一律 is_local=true 且包在显式事务内（事务提交即失效，不留会话级残留）；
