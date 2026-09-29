@@ -1,0 +1,76 @@
+{
+  "schemaVersion": "workloom.product-archive/v1",
+  "id": "携住科技",
+  "displayName": "携住科技",
+  "brand": "携住科技",
+  "aliases": [
+    "携住科技"
+  ],
+  "source": {
+    "kind": "system-generated",
+    "priority": 1,
+    "generatedAt": "2026-09-29T14:50:26.163Z",
+    "generator": "scripts/tools/product-archive.mts@search",
+    "reviewStatus": "pending-owner-review",
+    "searchedQueries": [
+      "携住科技 产品图",
+      "携住科技 官网",
+      "携住科技 酒店自助入住机"
+    ],
+    "evidence": [
+      {
+        "query": "携住科技 产品图",
+        "url": "https://hea.china.com/article/20231019/102023_1423865.html",
+        "title": "data-op=\"{'y':'D9EBC9EE'}\" data-click={\"p1\":10,\"rsv_bdr\":\"0\",\"rsv_cd\":\"\",\"fm\":\"as\"} data-cost={\"renderCost\":2,\"dataCost\"",
+        "site": "hea.china.com",
+        "note": "data-op=\"{'y':'D9EBC9EE'}\" data-click={\"p1\":10,\"rsv_bdr\":\"0\",\"rsv_cd\":\"\",\"fm\":\"as\"} data-cost={\"renderCost\":2,\"dataCost\":2} m-name=\"mirror-san/app/www_index/ind"
+      }
+    ],
+    "disclaimer": "本档案由系统检索公开网页自动生成：产品图与资料来自第三方页面，**版权、商用授权与参数准确性均未由客户确认**；正式投放前必须由客户核对外观、参数与素材授权。"
+  },
+  "photos": [
+    {
+      "id": "p1",
+      "role": "hero",
+      "file": "photos/01-data-op-y-d9ebc9ee-data--web2.jpg",
+      "sha256": "fa3a5072d94814a6c6eb44d5d94ace3178ff7b54d42aff9e294948f6cec29f15",
+      "bytes": 122575,
+      "width": 877,
+      "height": 486
+    },
+    {
+      "id": "p2",
+      "role": "detail",
+      "file": "photos/02-data-op-y-d9ebc9ee-data--web2.jpg",
+      "sha256": "244782611f5ac7c4ac114863864ce0a3e14081db3984a0a5e7f11f8a973863f4",
+      "bytes": 93546,
+      "width": 877,
+      "height": 492
+    },
+    {
+      "id": "p3",
+      "role": "detail",
+      "file": "photos/03-data-op-y-d9ebc9ee-data--web2.jpg",
+      "sha256": "064ba599a94fb5068439bf7c5a5b11cc3b4e12bb838c414ad87e8d42764e9112",
+      "bytes": 117845,
+      "width": 877,
+      "height": 488
+    },
+    {
+      "id": "p4",
+      "role": "detail",
+      "file": "photos/04-data-op-y-d9ebc9ee-data--web.jpg",
+      "sha256": "914828a78e00be072a727e92740343614eb24071997f732f152c6280c7debc4c",
+      "bytes": 60702,
+      "width": 650,
+      "height": 362
+    }
+  ],
+  "specs": {
+    "notes": [
+      "外观以 photos/ 下的真实产品图为准；未核实的参数一律不登记。"
+    ]
+  },
+  "createdAt": "2026-09-29T14:50:26.163Z",
+  "updatedAt": "2026-09-29T14:50:26.163Z"
+}

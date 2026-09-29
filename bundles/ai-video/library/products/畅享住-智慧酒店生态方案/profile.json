@@ -1,0 +1,220 @@
+{
+  "schemaVersion": "workloom.product-archive/v1",
+  "id": "畅享住-智慧酒店生态方案",
+  "displayName": "畅享住 智慧酒店生态方案",
+  "type": "solution",
+  "company": "苏州未来前台",
+  "brand": "畅享住",
+  "aliases": [
+    "畅享住智慧酒店产品方案",
+    "畅享住 酒店方案"
+  ],
+  "relations": {
+    "companyId": "苏州未来前台",
+    "includes": [
+      {
+        "id": "ai-frontdesk",
+        "role": "自助入住终端"
+      },
+      {
+        "id": "cxz-03"
+      },
+      {
+        "id": "cxz-01"
+      },
+      {
+        "id": "cxz-02"
+      },
+      {
+        "id": "pms-agent",
+        "role": "云端经营系统"
+      },
+      {
+        "id": "ble-door",
+        "role": "客房门锁"
+      },
+      {
+        "id": "face-door",
+        "role": "门禁终端"
+      },
+      {
+        "id": "cardless-power",
+        "role": "客房取电"
+      },
+      {
+        "id": "visual-ip",
+        "role": "运营服务"
+      },
+      {
+        "id": "ota-ops",
+        "role": "运营服务"
+      },
+      {
+        "id": "geo-promo",
+        "role": "获客服务"
+      },
+      {
+        "id": "locker-cooler",
+        "role": "生态设备"
+      },
+      {
+        "id": "cxz-t001"
+      },
+      {
+        "id": "tablet-butler"
+      },
+      {
+        "id": "hotel-ai-agent"
+      },
+      {
+        "id": "ble-checkin"
+      },
+      {
+        "id": "embedded-desktop"
+      },
+      {
+        "id": "simple-vertical"
+      },
+      {
+        "id": "premium-vertical"
+      },
+      {
+        "id": "face-checkin"
+      }
+    ]
+  },
+  "source": {
+    "kind": "user-upload",
+    "priority": 10,
+    "generatedAt": "2026-09-29T15:20:32.925Z",
+    "generator": "scripts/tools/product-archive.mts@import-pptx",
+    "reviewStatus": "owner-confirmed",
+    "providedBy": "畅享住智慧酒店生态产品解决方案.pptx（客户提供的对外合作方案 PPT）",
+    "evidence": [
+      {
+        "query": "客户方案 PPT 第 1 页",
+        "url": "pptx://畅享住智慧酒店生态产品解决方案.pptx#slide=1",
+        "title": "畅享住",
+        "slide": 1,
+        "slideTitle": "畅享住",
+        "deckSha256": "dbea8b9acbf6e0724ee748512a3e879d6c1f44557dfa72ed141029df16d50448",
+        "file": "畅享住智慧酒店生态产品解决方案.pptx",
+        "quote": "畅享住 / 智慧酒店产品方案 / ®"
+      },
+      {
+        "query": "客户方案 PPT 第 2 页",
+        "url": "pptx://畅享住智慧酒店生态产品解决方案.pptx#slide=2",
+        "title": "杭州富邦丽佳国际大酒店 河南天地粤海酒店",
+        "slide": 2,
+        "slideTitle": "杭州富邦丽佳国际大酒店 河南天地粤海酒店",
+        "deckSha256": "dbea8b9acbf6e0724ee748512a3e879d6c1f44557dfa72ed141029df16d50448",
+        "file": "畅享住智慧酒店生态产品解决方案.pptx",
+        "quote": "杭州富邦丽佳国际大酒店 河南天地粤海酒店 / 北京崇文门饭店 / •"
+      },
+      {
+        "query": "客户方案 PPT 第 3 页",
+        "url": "pptx://畅享住智慧酒店生态产品解决方案.pptx#slide=3",
+        "title": "畅享住桌面型 （型号：CXZ-03 ）",
+        "slide": 3,
+        "slideTitle": "畅享住桌面型 （型号：CXZ-03 ）",
+        "deckSha256": "dbea8b9acbf6e0724ee748512a3e879d6c1f44557dfa72ed141029df16d50448",
+        "file": "畅享住智慧酒店生态产品解决方案.pptx",
+        "quote": "畅享住桌面型 （型号：CXZ-03 ） / 产品亮点： / ① 桌面款自助机（桌面/嵌入）"
+      },
+      {
+        "query": "客户方案 PPT 第 4 页",
+        "url": "pptx://畅享住智慧酒店生态产品解决方案.pptx#slide=4",
+        "title": "畅想云 - 智能体产品介绍",
+        "slide": 4,
+        "slideTitle": "畅想云 - 智能体产品介绍",
+        "deckSha256": "dbea8b9acbf6e0724ee748512a3e879d6c1f44557dfa72ed141029df16d50448",
+        "file": "畅享住智慧酒店生态产品解决方案.pptx",
+        "quote": "畅想云 - 智能体产品介绍 / 手机报表 / 各种数据统计 清晰直观"
+      },
+      {
+        "query": "客户方案 PPT 第 5 页",
+        "url": "pptx://畅享住智慧酒店生态产品解决方案.pptx#slide=5",
+        "title": "碰一下开门 （高性价比-蓝牙密码锁）",
+        "slide": 5,
+        "slideTitle": "碰一下开门 （高性价比-蓝牙密码锁）",
+        "deckSha256": "dbea8b9acbf6e0724ee748512a3e879d6c1f44557dfa72ed141029df16d50448",
+        "file": "畅享住智慧酒店生态产品解决方案.pptx",
+        "quote": "碰一下开门 （高性价比-蓝牙密码锁） / 产品亮点： / ① 主流蓝牙锁，市场占有率高"
+      },
+      {
+        "query": "客户方案 PPT 第 6 页",
+        "url": "pptx://畅享住智慧酒店生态产品解决方案.pptx#slide=6",
+        "title": "视觉美化与IP打造",
+        "slide": 6,
+        "slideTitle": "视觉美化与IP打造",
+        "deckSha256": "dbea8b9acbf6e0724ee748512a3e879d6c1f44557dfa72ed141029df16d50448",
+        "file": "畅享住智慧酒店生态产品解决方案.pptx",
+        "quote": "视觉美化与IP打造 / 酒店运营 - 视觉美化与IP打造 / 有目标的视觉呈现，解决核心问题"
+      },
+      {
+        "query": "客户方案 PPT 第 7 页",
+        "url": "pptx://畅享住智慧酒店生态产品解决方案.pptx#slide=7",
+        "title": "酒店运营-OTA数字化运营",
+        "slide": 7,
+        "slideTitle": "酒店运营-OTA数字化运营",
+        "deckSha256": "dbea8b9acbf6e0724ee748512a3e879d6c1f44557dfa72ed141029df16d50448",
+        "file": "畅享住智慧酒店生态产品解决方案.pptx",
+        "quote": "酒店运营-OTA数字化运营 / 渠道平台 / 运营策略"
+      },
+      {
+        "query": "客户方案 PPT 第 8 页",
+        "url": "pptx://畅享住智慧酒店生态产品解决方案.pptx#slide=8",
+        "title": "GEO推广-让酒店在AI时代被发现、被推荐",
+        "slide": 8,
+        "slideTitle": "GEO推广-让酒店在AI时代被发现、被推荐",
+        "deckSha256": "dbea8b9acbf6e0724ee748512a3e879d6c1f44557dfa72ed141029df16d50448",
+        "file": "畅享住智慧酒店生态产品解决方案.pptx",
+        "quote": "GEO推广-让酒店在AI时代被发现、被推荐 / GEO推广 - 让酒店被AI看见 / 豆包 消费决策 DeepSeek 技术认知 元宝 社交知识 Kimi 深度研究"
+      },
+      {
+        "query": "客户方案 PPT 第 9 页",
+        "url": "pptx://畅享住智慧酒店生态产品解决方案.pptx#slide=9",
+        "title": "生态产品 - 寄存柜、保温柜",
+        "slide": 9,
+        "slideTitle": "生态产品 - 寄存柜、保温柜",
+        "deckSha256": "dbea8b9acbf6e0724ee748512a3e879d6c1f44557dfa72ed141029df16d50448",
+        "file": "畅享住智慧酒店生态产品解决方案.pptx",
+        "quote": "生态产品 - 寄存柜、保温柜 / 酒店地理位置优越，但不隔音睡不好、设施老旧是历史差评中最主要的原因；酒店于2023年合作携程舒睡房，提供了梦百合慢回弹床垫和记忆绵枕头，并通过携程特色房型包装、房型名称优化吸引用户 / 改造后房型点评分"
+      },
+      {
+        "query": "客户方案 PPT 第 10 页",
+        "url": "pptx://畅享住智慧酒店生态产品解决方案.pptx#slide=10",
+        "title": "免房置换",
+        "slide": 10,
+        "slideTitle": "免房置换",
+        "deckSha256": "dbea8b9acbf6e0724ee748512a3e879d6c1f44557dfa72ed141029df16d50448",
+        "file": "畅享住智慧酒店生态产品解决方案.pptx",
+        "quote": "免房置换 / 使用酒店现有房型置换 / 所需房量 =合同金额/房型过去365天平均房价*折扣率"
+      },
+      {
+        "query": "客户方案 PPT 第 11 页",
+        "url": "pptx://畅享住智慧酒店生态产品解决方案.pptx#slide=11",
+        "title": "员工更轻松，服务自然优",
+        "slide": 11,
+        "slideTitle": "员工更轻松，服务自然优",
+        "deckSha256": "dbea8b9acbf6e0724ee748512a3e879d6c1f44557dfa72ed141029df16d50448",
+        "file": "畅享住智慧酒店生态产品解决方案.pptx",
+        "quote": "员工更轻松，服务自然优 / 立刻加入合作 “碰一下”住酒店 / 详情联系业务经理：Tel"
+      }
+    ],
+    "extraction": {
+      "method": "pptx-slide-keyword-mapping",
+      "verified": false,
+      "note": "整份方案页证据齐备；成员商品由关键词判定"
+    },
+    "disclaimer": "方案级素材（含案例页）来自客户方 PPT，主图可能包含案例酒店场景照；投放前请客户确认可用范围。"
+  },
+  "photos": [],
+  "specs": {
+    "notes": [
+      "方案 = 会员商品索引 + 多商品页素材；单商品外观请以对应商品档案为准。"
+    ]
+  },
+  "createdAt": "2026-09-29T15:20:32.925Z",
+  "updatedAt": "2026-09-29T22:50:56.755Z"
+}

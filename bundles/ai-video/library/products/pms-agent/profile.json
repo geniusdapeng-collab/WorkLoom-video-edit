@@ -1,0 +1,172 @@
+{
+  "schemaVersion": "workloom.product-archive/v1",
+  "id": "pms-agent",
+  "displayName": "畅想云智能体（PMS / 订单直连 / 手机报表）",
+  "type": "product",
+  "company": "苏州未来前台",
+  "brand": "畅享住",
+  "aliases": [
+    "畅想云智能体（PMS / 订单直连 / 手机报表）",
+    "pms-agent"
+  ],
+  "source": {
+    "kind": "user-upload",
+    "priority": 10,
+    "generatedAt": "2026-09-29T22:50:56.755Z",
+    "generator": "scripts/tools/product-archive.mts@import-pdf",
+    "reviewStatus": "owner-confirmed",
+    "providedBy": "未来前台全系列产品介绍（2026年）.pdf（客户提供的全系列产品介绍）",
+    "evidence": [
+      {
+        "query": "客户产品资料 PDF 第 2 页",
+        "url": "pdf://未来前台全系列产品介绍（2026年）.pdf#page=2",
+        "title": "目录",
+        "slide": 2,
+        "slideTitle": "目录",
+        "deckSha256": "0f312aeb265e105bece4f2bf2b57e9897605ee6286358d05eb97a93fa4431a01",
+        "file": "未来前台全系列产品介绍（2026年）.pdf",
+        "quote": "酒店AI智能体 碰一下住酒店",
+        "note": "同页关联页"
+      },
+      {
+        "query": "客户产品资料 PDF 第 13 页",
+        "url": "pdf://未来前台全系列产品介绍（2026年）.pdf#page=13",
+        "title": "03",
+        "slide": 13,
+        "slideTitle": "03",
+        "deckSha256": "0f312aeb265e105bece4f2bf2b57e9897605ee6286358d05eb97a93fa4431a01",
+        "file": "未来前台全系列产品介绍（2026年）.pdf",
+        "quote": "酒 店 A I 智 能 体",
+        "note": "同页关联页"
+      },
+      {
+        "query": "客户产品资料 PDF 第 14 页",
+        "url": "pdf://未来前台全系列产品介绍（2026年）.pdf#page=14",
+        "title": "功能亮点",
+        "slide": 14,
+        "slideTitle": "功能亮点",
+        "deckSha256": "0f312aeb265e105bece4f2bf2b57e9897605ee6286358d05eb97a93fa4431a01",
+        "file": "未来前台全系列产品介绍（2026年）.pdf",
+        "quote": "内屏预装PMS系统，外屏自助入住系统：最大化减少前台设备，支持有证、",
+        "note": "同页关联页"
+      },
+      {
+        "query": "客户产品资料 PDF 第 15 页",
+        "url": "pdf://未来前台全系列产品介绍（2026年）.pdf#page=15",
+        "title": "模块详解",
+        "slide": 15,
+        "slideTitle": "模块详解",
+        "deckSha256": "0f312aeb265e105bece4f2bf2b57e9897605ee6286358d05eb97a93fa4431a01",
+        "file": "未来前台全系列产品介绍（2026年）.pdf",
+        "quote": "• 内屏内置PMS系统 / • 内置订单直连系统",
+        "note": "同页关联页"
+      },
+      {
+        "query": "客户产品资料 PDF 第 19 页",
+        "url": "pdf://未来前台全系列产品介绍（2026年）.pdf#page=19",
+        "title": "功能亮点",
+        "slide": 19,
+        "slideTitle": "功能亮点",
+        "deckSha256": "0f312aeb265e105bece4f2bf2b57e9897605ee6286358d05eb97a93fa4431a01",
+        "file": "未来前台全系列产品介绍（2026年）.pdf",
+        "quote": "碰一下无证入住，AI智能体，OTA订单入住、续住、换房等复杂操作",
+        "note": "同页关联页"
+      },
+      {
+        "query": "客户产品资料 PDF 第 20 页",
+        "url": "pdf://未来前台全系列产品介绍（2026年）.pdf#page=20",
+        "title": "方案详解",
+        "slide": 20,
+        "slideTitle": "方案详解",
+        "deckSha256": "0f312aeb265e105bece4f2bf2b57e9897605ee6286358d05eb97a93fa4431a01",
+        "file": "未来前台全系列产品介绍（2026年）.pdf",
+        "quote": "OTA PMS 入住 开门 客房 / OTA订单：涵盖支持各大主流平 PMS系统：新一代酒店智能体AI管 自助入住：提供多种型号自助机解 碰一下开门：提供多种门锁方案，新 房间控电方案：提供低成本简易",
+        "note": "同页关联页"
+      }
+    ],
+    "extraction": {
+      "method": "pdf-page-keyword-mapping",
+      "verified": false,
+      "note": "页码→商品→图片为机器判定：图片是否确为该商品请客户抽查；参数为原文摘录并带 page 来源"
+    },
+    "disclaimer": "素材与参数来自客户提供的产品资料：可在本客户项目内使用；对外投放前请客户确认素材授权与参数口径。"
+  },
+  "photos": [
+    {
+      "id": "p1",
+      "file": "photos/pms-agent-01.jpg",
+      "role": "hero",
+      "sha256": "60ba6ecd7ff3fd4b8b19ecb87481ae129f2cea33fbcdaaedeab26f0aa6748c0b",
+      "bytes": 114807,
+      "width": 579,
+      "height": 1280
+    },
+    {
+      "id": "p2",
+      "file": "photos/pms-agent-02.jpg",
+      "role": "detail",
+      "sha256": "369528683086c54cf611c70973a1073cd3f887a4aa26eb3362f45ae8e2d44f2e",
+      "bytes": 74498,
+      "width": 579,
+      "height": 1280
+    },
+    {
+      "id": "p3",
+      "file": "photos/pms-agent-03.jpg",
+      "role": "detail",
+      "sha256": "7913d936c99fb1584fcbb7e9b4b902fc45d2d011f67bc8f4833d6ad9d9c81d0d",
+      "bytes": 107587,
+      "width": 1280,
+      "height": 988
+    }
+  ],
+  "specs": {
+    "features": [
+      "内屏预装PMS系统，外屏自助入住系统：最大化减少前台设备，支持有证、",
+      "支持大容量循环发卡，酒店无需更换门锁系统，支持多种设备灵活发卡，",
+      "可兼容重复利用酒店旧款自助机",
+      "支持一键退房，全数电发票自动开票，可现场跟客人要好评，支持现场发",
+      "屏下身份证读卡器 • 便携循环发卡机",
+      "双屏双触设计 • 发卡机带身份证识读",
+      "高清IPS触摸屏 • 带二维码扫码取卡",
+      "发卡机分带屏/不带屏版",
+      "屏幕角度可旋转调节",
+      "内屏内置PMS系统"
+    ],
+    "parameters": [
+      {
+        "name": "型号",
+        "value": "FFD-D3Pro",
+        "source": "page 2"
+      },
+      {
+        "name": "发卡",
+        "value": "可兼容重复利用酒店旧款自助机",
+        "source": "page 2"
+      },
+      {
+        "name": "发卡",
+        "value": "机带身份证识读",
+        "source": "page 2"
+      },
+      {
+        "name": "发卡",
+        "value": "机分带屏/不带屏版",
+        "source": "page 2"
+      },
+      {
+        "name": "屏幕",
+        "value": "角度可旋转调节",
+        "source": "page 2"
+      },
+      {
+        "name": "型号",
+        "value": "自助机解碰一下开门:提供多种门锁方案",
+        "source": "page 2"
+      }
+    ],
+    "notes": []
+  },
+  "createdAt": "2026-09-29T22:50:56.755Z",
+  "updatedAt": "2026-09-29T22:50:56.755Z"
+}

@@ -1,0 +1,134 @@
+{
+  "schemaVersion": "workloom.product-archive/v1",
+  "id": "cardless-power",
+  "displayName": "无卡取电（蓝牙取电开关）",
+  "type": "product",
+  "company": "苏州未来前台",
+  "brand": "畅享住",
+  "aliases": [
+    "无卡取电（蓝牙取电开关）",
+    "cardless-power"
+  ],
+  "source": {
+    "kind": "user-upload",
+    "priority": 10,
+    "generatedAt": "2026-09-29T22:50:56.755Z",
+    "generator": "scripts/tools/product-archive.mts@import-pdf",
+    "reviewStatus": "owner-confirmed",
+    "providedBy": "未来前台全系列产品介绍（2026年）.pdf（客户提供的全系列产品介绍）",
+    "evidence": [
+      {
+        "query": "客户产品资料 PDF 第 19 页",
+        "url": "pdf://未来前台全系列产品介绍（2026年）.pdf#page=19",
+        "title": "功能亮点",
+        "slide": 19,
+        "slideTitle": "功能亮点",
+        "deckSha256": "0f312aeb265e105bece4f2bf2b57e9897605ee6286358d05eb97a93fa4431a01",
+        "file": "未来前台全系列产品介绍（2026年）.pdf",
+        "quote": "碰一下开门，支持多种门锁解决方案，配套密码托底方案，支持无卡取电",
+        "note": "同页关联页"
+      },
+      {
+        "query": "客户产品资料 PDF 第 21 页",
+        "url": "pdf://未来前台全系列产品介绍（2026年）.pdf#page=21",
+        "title": "方案详解",
+        "slide": 21,
+        "slideTitle": "方案详解",
+        "deckSha256": "0f312aeb265e105bece4f2bf2b57e9897605ee6286358d05eb97a93fa4431a01",
+        "file": "未来前台全系列产品介绍（2026年）.pdf",
+        "quote": "碰一下门锁（内置碰一下芯片） 无卡取电套装（完美融入智控生态）",
+        "note": "同页关联页"
+      },
+      {
+        "query": "客户产品资料 PDF 第 22 页",
+        "url": "pdf://未来前台全系列产品介绍（2026年）.pdf#page=22",
+        "title": "方案详解",
+        "slide": 22,
+        "slideTitle": "方案详解",
+        "deckSha256": "0f312aeb265e105bece4f2bf2b57e9897605ee6286358d05eb97a93fa4431a01",
+        "file": "未来前台全系列产品介绍（2026年）.pdf",
+        "quote": "碰一下门锁（分体静音锁） 无卡取电套装（完美融入智控生态）",
+        "note": "同页关联页"
+      },
+      {
+        "query": "客户产品资料 PDF 第 23 页",
+        "url": "pdf://未来前台全系列产品介绍（2026年）.pdf#page=23",
+        "title": "方案详解",
+        "slide": 23,
+        "slideTitle": "方案详解",
+        "deckSha256": "0f312aeb265e105bece4f2bf2b57e9897605ee6286358d05eb97a93fa4431a01",
+        "file": "未来前台全系列产品介绍（2026年）.pdf",
+        "quote": "碰一下门锁（主流蓝牙锁） 无卡取电套装（仅支持通断电）",
+        "note": "同页关联页"
+      },
+      {
+        "query": "客户产品资料 PDF 第 47 页",
+        "url": "pdf://未来前台全系列产品介绍（2026年）.pdf#page=47",
+        "title": "使用场景",
+        "slide": 47,
+        "slideTitle": "使用场景",
+        "deckSha256": "0f312aeb265e105bece4f2bf2b57e9897605ee6286358d05eb97a93fa4431a01",
+        "file": "未来前台全系列产品介绍（2026年）.pdf",
+        "quote": "前后均可以通过手机办理入住， 支持无证入住，没有前台人员 控支持无卡取电，人体感应有 证入住功能，国际版支持护照",
+        "note": "同页关联页"
+      }
+    ],
+    "extraction": {
+      "method": "pdf-page-keyword-mapping",
+      "verified": false,
+      "note": "页码→商品→图片为机器判定：图片是否确为该商品请客户抽查；参数为原文摘录并带 page 来源"
+    },
+    "disclaimer": "素材与参数来自客户提供的产品资料：可在本客户项目内使用；对外投放前请客户确认素材授权与参数口径。"
+  },
+  "photos": [
+    {
+      "id": "p1",
+      "file": "photos/cardless-power-01-web.jpg",
+      "role": "hero",
+      "sha256": "c104863e2780e8239350c38f69c3830029fba4b3b2e5eef9c05f04ac0866ef45",
+      "bytes": 88164,
+      "width": 1400,
+      "height": 894
+    },
+    {
+      "id": "p2",
+      "file": "photos/cardless-power-02-web.jpg",
+      "role": "detail",
+      "sha256": "9ea514bd67f688d56bb088e5bc24730fa28efed4922296a7f89a0c797076c7e2",
+      "bytes": 154613,
+      "width": 1400,
+      "height": 1482
+    },
+    {
+      "id": "p3",
+      "file": "photos/cardless-power-03.jpg",
+      "role": "detail",
+      "sha256": "a621a2b4bca0917c7c3e78c8e4f7652a719fe3bdedde59571ee7cf41a580dd01",
+      "bytes": 135162,
+      "width": 1042,
+      "height": 1080
+    },
+    {
+      "id": "p4",
+      "file": "photos/cardless-power-04.jpg",
+      "role": "detail",
+      "sha256": "46b6d93444ee60c316ad570acad896b96795b59a3218e30e225f8db66bf7641f",
+      "bytes": 117196,
+      "width": 1229,
+      "height": 1229
+    }
+  ],
+  "specs": {
+    "features": [
+      "碰一下开门，支持多种门锁解决方案，配套密码托底方案，支持无卡取电",
+      "碰一下住中服务、退房，支持碰一下发票，碰一下输入车牌，碰一下吐槽",
+      "碰一下门锁（主流蓝牙锁） 无卡取电套装（仅支持通断电）",
+      "手机扫码住 无前台自助入住 无房卡刷脸开门 可接待外宾",
+      "无需前台操作 自助办理入住 人通电，无人断电 读取，支持外卡交易"
+    ],
+    "parameters": [],
+    "notes": []
+  },
+  "createdAt": "2026-09-29T22:50:56.755Z",
+  "updatedAt": "2026-09-29T22:50:56.755Z"
+}

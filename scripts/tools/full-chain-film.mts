@@ -80,6 +80,7 @@ import {
 } from "../../packages/video-studio/src/index.js";
 import { normalizeShotIntent, shotIntentHash, type ShotIntentStatus } from "../../packages/video-studio/src/shot-intent.js";
 import { verifyAvSyncEvidence } from "../../packages/video-studio/src/av-sync.js";
+import { loadProductArchives, productArchivePromptLines, productHeroPhoto, productPhotoPath, selectProductArchive } from "../../packages/video-studio/src/product-archive.js";
 import { publishUhdDelivery, sha256UhdAsset } from "../../packages/video-studio/src/uhd-delivery.js";
 
 const REPO_ROOT = resolve(import.meta.dirname ?? process.cwd(), "../..");
@@ -1292,6 +1293,114 @@ for (const shot of shots) {
 }
 if (assetShots().length > 0) {
   log(`授权真人素材镜 ${assetShots().length} 镜：${assetShots().map((s) => `${s.shotId}→${assetRefOf(s)}`).join(" · ")}（外部素材 ID，未向平台核验授权有效性）`);
+}
+/* ---------- ⓪-0 真实商品档案绑定（T-2026-0929-0004） ---------- */
+/**
+ * 产品口径（产品所有者 2026-09-29）：涉及**具体公司名或品牌名**的片子，默认必须用该公司/品牌的**真实产品**。
+ *   · 系统里有档案（`bundles/ai-video/library/products/*`）就用它：客户上传的档案优先于系统检索生成的档案；
+ *   · 没有档案 → **fail-closed**：先跑 `scripts/tools/product-archive.mts search|build` 建档，不拿 AI 编产品；
+ *   · 绑定后该镜自动成为**素材镜**（真实产品照片只作生成输入，materialUsage=generation-reference），
+ *     并把"外观以参考照片为准、不得改结构/标识"写进道具口径——由 material-gen 阶段按 G-MAT1 把关。
+ */
+const PRODUCT_LIBRARY = resolve(arg("--product-library", join(REPO_ROOT, "bundles/ai-video/library/products")));
+const productLibrary = loadProductArchives(PRODUCT_LIBRARY, {
+  probeImage: (file: string) => {
+    try {
+      const info = probe(file);
+      const width = Number(info.width ?? 0);
+      const height = Number(info.height ?? 0);
+      return width > 0 && height > 0 ? { width, height } : null;
+    } catch { return null; }
+  }
+});
+const productSelectorOf = (shot: ShotCard): string => String((shot as Record<string, unknown>).product ?? "").trim();
+const declaredProducts = Array.isArray(shotlist.products) ? (shotlist.products as unknown[]).map((item) => String(item).trim()).filter(Boolean) : [];
+const declaredCompany = String((shotlist as Record<string, unknown>).company ?? "").trim();
+const declaredBrand = String((shotlist as Record<string, unknown>).brand ?? "").trim();
+const productBindingGuide = `请先建档：tsx scripts/tools/product-archive.mts search --name "<公司/品牌>"（系统检索，priority=1）`
+  + `，或由客户提供照片后 tsx scripts/tools/product-archive.mts build --name "<商品名>" --photo <图…> --company "<公司>"（priority=10）`;
+/**
+ * 档案库整体只做**告警**：一个多商品方案库里难免有"只有参数、没有产品图"的成员（例如同页多型号）。
+ * 真正 fail-closed 的时机是**本片引用它**的时候（下面解析不到可用档案即报错），而不是别人家的档案不完整就拦住本片。
+ */
+const brokenArchives = productLibrary.archives.filter((entry) => entry.issues.some((issue) => issue.hard));
+if (brokenArchives.length > 0) {
+  log(`⚠ 商品档案库有 ${brokenArchives.length} 份档案存在硬问题（本片未引用则不拦截）：`
+    + brokenArchives.map((entry) => `${entry.archive.id}[${entry.issues.filter((issue) => issue.hard).map((issue) => issue.code).join(",")}]`).join("、"));
+}
+if (declaredCompany || declaredBrand) {
+  const ownerSelector = declaredCompany || declaredBrand;
+  const ownerMatch = selectProductArchive(productLibrary.archives, ownerSelector);
+  if (!ownerMatch.archive) {
+    throw new Error(`本片声明了公司/品牌「${ownerSelector}」，但商品档案库里没有对应档案（${ownerMatch.reason}）。`
+      + `涉及具体公司/品牌的片子必须使用真实产品：${productBindingGuide}`);
+  }
+}
+const productBindings: Array<{ shotId: string; selector: string; archiveId: string; sourceKind: string; priority: number; matchedBy: string; photoFile: string; photoSha256: string; bound: boolean }> = [];
+for (const selector of declaredProducts) {
+  if (!selectProductArchive(productLibrary.archives, selector).archive) {
+    throw new Error(`shotlist.products 声明的商品「${selector}」没有可用档案：${productBindingGuide}`);
+  }
+}
+for (const shot of shots) {
+  const selector = productSelectorOf(shot);
+  if (!selector) continue;
+  const match = selectProductArchive(productLibrary.archives, selector);
+  if (!match.archive || !match.dir) {
+    throw new Error(`镜头 ${shot.shotId} 声明了商品「${selector}」，但没有可用的真实商品档案（${match.reason}）。${productBindingGuide}`);
+  }
+  const entry = productLibrary.byId.get(match.archive.id)!;
+  const hero = productHeroPhoto(match.archive);
+  if (!hero) throw new Error(`镜头 ${shot.shotId} 绑定的商品档案 ${match.archive.id} 没有主图（role=hero）`);
+  const card = shot as Record<string, unknown>;
+  const existingPhoto = String(card.photo ?? "").trim();
+  const photoAbs = productPhotoPath(entry, hero);
+  const bound = !existingPhoto;
+  if (bound) {
+    card.photo = photoAbs;
+    card.materialUsage = "generation-reference";
+    card.focus = { x: 0.5, y: 0.5 };
+  }
+  card.productRef = {
+    id: match.archive.id,
+    sourceKind: match.archive.source.kind,
+    priority: match.archive.source.priority,
+    matchedBy: match.matchedBy,
+    photo: hero.file,
+    photoSha256: hero.sha256,
+    reviewStatus: match.archive.source.reviewStatus ?? null,
+    bound
+  };
+  card.props = [String(card.props ?? "").trim(), productArchivePromptLines(match.archive).join("｜")].filter(Boolean).join("｜");
+  productBindings.push({
+    shotId: String(shot.shotId), selector, archiveId: match.archive.id, sourceKind: match.archive.source.kind,
+    priority: match.archive.source.priority, matchedBy: String(match.matchedBy), photoFile: photoAbs, photoSha256: hero.sha256, bound
+  });
+  log(`真实商品绑定 ${shot.shotId} ← ${match.archive.id}（${match.archive.source.kind}，priority=${match.archive.source.priority}）主图 ${hero.file}`);
+}
+if (productBindings.length > 0) {
+  const systemGenerated = productBindings.filter((entry) => entry.sourceKind === "system-generated");
+  const productGate = recordGate({
+    stepKey: "g-product-ref",
+    sourceStage: "product",
+    checks: [
+      { id: "product-archive-present", pass: productBindings.length > 0, hard: true, detail: `${productBindings.length} 镜绑定真实商品档案（库 ${PRODUCT_LIBRARY}）` },
+      { id: "product-photo-verified", pass: productBindings.every((entry) => existsSync(entry.photoFile)), hard: true, detail: productBindings.map((entry) => `${entry.shotId}→${basename(entry.photoFile)}`).join("、") },
+      {
+        id: "product-source-priority", pass: true, hard: true,
+        detail: systemGenerated.length > 0
+          ? `${systemGenerated.length} 镜用的是**系统检索生成**的商品档案（priority=1，带检索证据与免责声明，未经客户确认）；客户上传档案（priority=10）可随时替换`
+          : `全部使用客户上传的商品档案（priority=10）`
+      },
+      { id: "product-binding", pass: productBindings.every((entry) => entry.bound), hard: false, detail: productBindings.map((entry) => `${entry.shotId}:${entry.bound ? "已自动绑定主图" : "沿用镜头卡自带素材"}`).join("、") }
+    ],
+    shotIds: productBindings.map((entry) => entry.shotId),
+    evidence: { library: PRODUCT_LIBRARY, bindings: productBindings, declaredProducts, company: declaredCompany || null, brand: declaredBrand || null },
+    reason: `真实商品档案绑定 ${productBindings.length} 镜（客户上传优先，系统检索次之）`
+  });
+  if (!productGate.approved) throw new Error(`真实商品档案门未通过：${productGate.reason}`);
+} else if (declaredCompany || declaredBrand || declaredProducts.length > 0) {
+  log(`ℹ️ 本片声明了公司/品牌（${declaredCompany || declaredBrand}）但没有任何镜头绑定商品（shot.product 未声明）：未做真实商品绑定`);
 }
 /**
  * 素材用途**在开跑前先验一遍**（fail-fast）：缺声明/写成静态直出用途时当场停，
