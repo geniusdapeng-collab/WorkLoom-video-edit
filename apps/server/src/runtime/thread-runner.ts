@@ -229,20 +229,39 @@ export async function runQuestForThread(scope: Scope, input: ThreadQuestInput): 
    */
   if (!input.skipClaim) {
     const app0 = getAppPool();
-    const claimed = await app0.query(
-      `UPDATE threads SET status='running', updated_at=now()
-        WHERE id=$1 AND workspace_id=$2 AND status IN ('queued','paused') RETURNING id`,
-      [input.threadId, scope.workspaceId],
-    );
-    if ((claimed.rowCount ?? 0) === 0) {
-      const cur = await app0.query<{ status: string }>(
-        `SELECT status FROM threads WHERE id=$1 AND workspace_id=$2`, [input.threadId, scope.workspaceId]);
-      const st = cur.rows[0]?.status ?? "unknown";
-      if (st !== "running") {
-        // pending_review/failed/completed 等：维持原语义（审批续跑/重放由 runQuest 内部按事件态处理）
-      } else {
-        return { threadId: input.threadId, status: "running", stepsDone: 0, stepsTotal: 0, unverified: [], presetKey: "" };
+    const c = await app0.connect();
+    let blocked = false;
+    try {
+      /**
+       * 认领必须带**事务级 RLS 上下文**（T-2026-0930-0003，基座 T-2026-0929-0201 实测发现）：
+       * threads 表对 app 角色启用 RLS（`workspace_id = current_setting('app.workspace_id', true)`），
+       * 无 GUC 时那条 UPDATE 匹配 0 行 → CAS **静默空转**、并发重入照旧放行
+       * （实测：线程置 running 后入口仍进入步骤循环并写 3 条事件）。
+       */
+      await c.query("BEGIN");
+      await c.query("SELECT set_config('app.workspace_id', $1, true)", [scope.workspaceId]);
+      await c.query("SELECT set_config('app.tenant_id', $1, true)", [scope.tenantId]);
+      const claimed = await c.query(
+        `UPDATE threads SET status='running', updated_at=now()
+          WHERE id=$1 AND workspace_id=$2 AND status IN ('queued','paused') RETURNING id`,
+        [input.threadId, scope.workspaceId],
+      );
+      if ((claimed.rowCount ?? 0) === 0) {
+        const cur = await c.query<{ status: string }>(
+          `SELECT status FROM threads WHERE id=$1 AND workspace_id=$2`, [input.threadId, scope.workspaceId]);
+        blocked = (cur.rows[0]?.status ?? "unknown") === "running";
       }
+      await c.query("COMMIT");
+    } catch (err) {
+      await c.query("ROLLBACK").catch(() => undefined);
+      throw err;
+    } finally {
+      c.release();
+    }
+    // 他方正在执行：幂等退出（不并发重入）；
+    // pending_review/completed/failed 等维持原语义（审批续跑/重放由 runQuest 内部按事件态处理）
+    if (blocked) {
+      return { threadId: input.threadId, status: "running", stepsDone: 0, stepsTotal: 0, unverified: [], presetKey: "" };
     }
   }
   const presetKey = await resolveThreadPresetKey(scope, input.presetRef, input.goal);

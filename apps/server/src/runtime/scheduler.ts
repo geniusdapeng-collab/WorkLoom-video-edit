@@ -219,11 +219,30 @@ export async function resumeApprovedPendingThreads(): Promise<number> {
     }
     for (const threadId of threadIds) {
       try {
-        const th = await app.query<{ title: string; mode: string; agent_id: string | null }>(
-          `SELECT title, mode, agent_id FROM threads WHERE id=$1 AND workspace_id=$2`,
-          [threadId, scope.workspaceId],
-        );
-        const row = th.rows[0];
+        /**
+         * 读取线程元数据同样必须带**事务级 RLS 上下文**（T-2026-0930-0003，基座实测发现）：
+         * threads 对 app 角色启用 RLS，无 GUC 的 `app.query` 恒 0 行 → 旧写法
+         * `if (!row) continue` 会把每一条候选线程静默跳过，补扫恒返回 0
+         * （实测：选取 SQL 命中候选，`resumeApprovedPendingThreads()` 仍返回 0）。
+         */
+        const th = await app.connect();
+        let row: { title: string; mode: string; agent_id: string | null } | undefined;
+        try {
+          await th.query("BEGIN");
+          await th.query("SELECT set_config('app.workspace_id', $1, true)", [scope.workspaceId]);
+          await th.query("SELECT set_config('app.tenant_id', $1, true)", [scope.tenantId]);
+          const r = await th.query<{ title: string; mode: string; agent_id: string | null }>(
+            `SELECT title, mode, agent_id FROM threads WHERE id=$1 AND workspace_id=$2`,
+            [threadId, scope.workspaceId],
+          );
+          row = r.rows[0];
+          await th.query("COMMIT");
+        } catch (err) {
+          await th.query("ROLLBACK").catch(() => undefined);
+          throw err;
+        } finally {
+          th.release();
+        }
         if (!row) continue;
         const outcome = await runQuestForThread(scope, {
           threadId,

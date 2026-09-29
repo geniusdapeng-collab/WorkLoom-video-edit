@@ -2184,6 +2184,74 @@ o("B-07 superseded 必须是可查询状态（共享枚举 + 队列过滤）", a
   assert(rows.some((r) => r.approval_id === aprId), "现场行必须出现在过滤结果里");
 });
 
+/**
+ * A-03（原子认领，T-2026-0930-0003 续修）：认领必须带事务级 RLS 上下文——
+ * 裸 `getAppPool().query` 在无 `app.workspace_id` GUC 时对 threads 恒 0 行，CAS 会静默空转。
+ * 用确定性现场（线程已在他方 running）而不是 race：并发 Promise.all 会因"先到者已跑完"偶发假绿。
+ */
+o("A-03 线程执行必须原子认领：他方 running 时入口必须幂等退出（零事件）", async () => {
+  const { runQuestForThread } = await import("../apps/server/src/runtime/thread-runner.js");
+  let tid: string | undefined;
+  try {
+    tid = await mkThread("queued");
+    await qApp(`UPDATE threads SET status='running', updated_at=now() WHERE id=$1`, [tid]);
+    const rejected = await runQuestForThread(scope, {
+      threadId: tid, goal: "并发认领探针：让岗位执行一件小事", presetRef: "pricing-agent",
+    });
+    eq(rejected.status, "running", "线程已被他方认领时必须幂等退出（不得并发重入）");
+    const ev = await qApp<{ c: string }>(`SELECT count(*) AS c FROM biz_events WHERE session_id=$1`, [tid]);
+    eq(Number(ev.rows[0]!.c), 0, "被拒的一路不得产生任何事件（零副作用）");
+    // 反向：queued 仍可被正常认领并执行（不得把正常路径一起挡死）
+    await qApp(`UPDATE threads SET status='queued', updated_at=now() WHERE id=$1`, [tid]);
+    const ok = await runQuestForThread(scope, {
+      threadId: tid, goal: "并发认领探针：让岗位执行一件小事", presetRef: "pricing-agent",
+    });
+    assert(ok.status !== "running", `queued 线程必须被认领并执行（实际 ${ok.status}）`);
+  } finally {
+    if (tid) await qApp(`DELETE FROM threads WHERE id=$1`, [tid]).catch(() => undefined);
+  }
+});
+
+/**
+ * A-05（启动补扫，T-2026-0930-0003 续修）：补扫取线程元数据同样必须带事务级 RLS 上下文，
+ * 否则 `if (!row) continue` 会把每条候选静默跳过、`resumed` 恒为 0。
+ * 造现场：review 判定事件（kind=review，不算"已完成步骤"）+ 同一 step 的 approved 审批。
+ */
+o("A-05 启动补扫：审批已通过而线程仍挂起时必须补续跑", async () => {
+  const { resumeApprovedPendingThreads } = await import("../apps/server/src/runtime/scheduler.js");
+  let tid: string | undefined;
+  try {
+    tid = await mkThread("queued");
+    const ev = await gatewayAppend(gw, { ...scope, actor: { id: "desktop-agent", type: "agent", fenceBindings: ["R2"] }, sessionId: tid }, {
+      who: { type: "agent", id: "desktop-agent", version: "v1" },
+      context: { tenant_id: scope.tenantId, workspace_id: scope.workspaceId, time: new Date().toISOString() },
+      object: { type: "suite", id: `suite-a05-${SFX}` },
+      decision: { action: "desktop.gui", step_id: "s1", kind: "review", params: { clicks: 1 } },
+      rule_impact: [],
+    });
+    await qApp(
+      `UPDATE threads SET status='pending_review', title='桌面助理执行一件小事',
+              agent_id=(SELECT id FROM agents WHERE workspace_id=$2 AND preset_key='desktop-agent'), updated_at=now()
+        WHERE id=$1`,
+      [tid, scope.workspaceId],
+    );
+    const aprId = `apr-a05-${SFX}`;
+    await qApp(
+      `INSERT INTO approvals (approval_id, tenant_id, workspace_id, event_id, channel, status, snapshot)
+       VALUES ($1,$2,$3,$4,'inapp','approved',$5)`,
+      [aprId, scope.tenantId, scope.workspaceId, ev.eventId,
+        JSON.stringify({ before: null, after: { v: 1 }, high_risk: true, expires_at: new Date(Date.now() + 864e5).toISOString() })],
+    );
+    const resumed = await resumeApprovedPendingThreads();
+    assert(resumed >= 1, `启动补扫应至少补续跑 1 条僵尸线程（实际 ${resumed}）`);
+    const after = await qApp<{ status: string }>(`SELECT status FROM threads WHERE id=$1`, [tid]);
+    assert(after.rows[0]!.status !== "pending_review",
+      `补扫后线程必须离开 pending_review（实际 ${after.rows[0]!.status}）`);
+  } finally {
+    if (tid) await qApp(`DELETE FROM threads WHERE id=$1`, [tid]).catch(() => undefined);
+  }
+});
+
 o("X-05/X-07 楼层联动：排队任务有归属；刚完成仍看得见庆祝（与请示共存）", async () => {
   const { buildFloor } = await import("@workloom/base/captain");
   /**
