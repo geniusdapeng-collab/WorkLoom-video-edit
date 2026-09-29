@@ -1264,8 +1264,35 @@ const CUT_GRID: number[] = (() => {
  * 相关环节按"生成镜/素材镜"分流，否则 G7 会因为"素材镜没有文生关键帧"而误判缺件。
  */
 const isMaterialShot = (shot: ShotCard): boolean => String((shot as Record<string, unknown>).photo ?? "").trim().length > 0;
-const generatedShots = (): ShotCard[] => shots.filter((shot) => !isMaterialShot(shot));
+/**
+ * **授权真人素材镜**（T-2026-0929-0003，真机探针 2026-09-29）：
+ * 镜头卡给出 `assetRef: "asset://<asset ID>"` 时，主角是**火山方舟「私域真人人像库」里已认证的真人**。
+ *   · Seedream 图片接口**不接受** `asset://`（真机 400 `invalid url specified`）→ 跳过文生关键帧；
+ *   · Seedance 视频接口**接受** `asset://` 作参考图（真机 200 受理并出片，口型/台词可用）→ 以参考图出片，
+ *     **不传首帧**（首帧会给一张 AI 生成的脸，顶掉真人身份）；
+ *   · 授权有效性属平台侧事实：本工具只校验引用格式并如实标记
+ *     `external-asset-id-not-provider-verified`，不把"格式合法"当"授权有效"。
+ */
+const ASSET_REF_PATTERN = /^asset:\/\/[A-Za-z0-9][A-Za-z0-9_-]*$/;
+/** 注意：**不要**写成 `value is string` 的类型谓词——那会把 `string` 在否定分支收窄成 `never`（TS 实测） */
+const isAssetRefLocal = (value: unknown): boolean => typeof value === "string" && ASSET_REF_PATTERN.test(value.trim());
+const assetRefOf = (shot: ShotCard): string => String((shot as Record<string, unknown>).assetRef ?? "").trim();
+const isAssetShot = (shot: ShotCard): boolean => isAssetRefLocal(assetRefOf(shot));
+const generatedShots = (): ShotCard[] => shots.filter((shot) => !isMaterialShot(shot) && !isAssetShot(shot));
 const materialShots = (): ShotCard[] => shots.filter((shot) => isMaterialShot(shot));
+/** 需要提示词文生关键帧/台词的人镜两类：生成镜 + 授权真人素材镜（素材镜另有动效提示词） */
+const promptShots = (): ShotCard[] => shots.filter((shot) => !isMaterialShot(shot));
+const assetShots = (): ShotCard[] => shots.filter((shot) => isAssetShot(shot) && !isMaterialShot(shot));
+/** 开跑前 fail-fast：`assetRef` 存在但格式不合法（例如漏了 `asset://` 前缀）要当场停，不能静默降级成生成镜 */
+for (const shot of shots) {
+  const raw = (shot as Record<string, unknown>).assetRef;
+  if (raw !== undefined && String(raw).trim().length > 0 && !isAssetRefLocal(raw)) {
+    throw new Error(`授权真人素材引用格式非法（${shot.shotId}）：${String(raw).slice(0, 80)}（应为 asset://<asset ID>）`);
+  }
+}
+if (assetShots().length > 0) {
+  log(`授权真人素材镜 ${assetShots().length} 镜：${assetShots().map((s) => `${s.shotId}→${assetRefOf(s)}`).join(" · ")}（外部素材 ID，未向平台核验授权有效性）`);
+}
 /**
  * 素材用途**在开跑前先验一遍**（fail-fast）：缺声明/写成静态直出用途时当场停，
  * 不等到出片阶段才发现"这一镜本来就不该这么做"。错误信息里带规则原文。
@@ -1326,11 +1353,19 @@ function loadCharacterRoot(root: string, library: Map<string, CharacterEntryLike
       identity?: Record<string, unknown>;
       appearance?: Record<string, unknown>;
       wardrobe?: Array<Record<string, unknown>>;
-      portraitSets?: Array<{ dir: string; angles: string[]; active?: boolean; version: number }>;
+      portraitSets?: Array<{ dir: string; angles: string[]; active?: boolean; version: number; assets?: Record<string, string> }>;
     };
     const sets = profile.portraitSets ?? [];
     const active = sets.find((s) => s.active) ?? sets[sets.length - 1];
     const files: Record<string, string> = {};
+    /**
+     * 授权真人素材（T-2026-0929-0003）：档案里可以只给平台素材引用（`assets` 映射），
+     * 没有本地定妆照文件。此时角度 → `asset://<asset ID>`，由 Seedance 作参考图承担人物身份；
+     * 与本地文件角度可混用（本地文件优先）。
+     */
+    for (const [angle, ref] of Object.entries(active?.assets ?? {})) {
+      if (isAssetRefLocal(ref)) files[angle] = ref.trim();
+    }
     if (active) {
       const setDir = join(dir, active.dir);
       if (existsSync(setDir)) {
@@ -1404,10 +1439,16 @@ if (lead && characterRegistry.defaultModel && lead.id === characterRegistry.defa
 if (!DRY_RUN) {
   const requiredAngles = ["front", "threeQuarter", "closeup", "side"];
   const published = lead ? requiredAngles.map((angle) => ({ angle, path: lead.files[angle] ?? "" })) : [];
-  const missing = published.filter((f) => !f.path || !existsSync(f.path));
+  /**
+   * 授权真人素材引用（`asset://<asset ID>`）**不是本地文件**：没有文件、没有字节数可量。
+   * 判据改为"引用格式合法即算在场"，并在 checks 里单列一条如实说明
+   * `external-asset-id-not-provider-verified`（本工具不向平台核验授权有效性）。
+   */
+  const missing = published.filter((f) => !f.path || (!isAssetRefLocal(f.path) && !existsSync(f.path)));
   /** 安全取字节数：缺失/空路径返回 0（真机 2026-09-24：空路径直接 statSync 抛 ENOENT 把整个运行打断） */
   const sizeOf = (path: string): number => (path && existsSync(path) ? statSync(path).size : 0);
-  const tiny = published.filter((f) => sizeOf(f.path) > 0 && sizeOf(f.path) < 50_000);
+  const tiny = published.filter((f) => !isAssetRefLocal(f.path) && sizeOf(f.path) > 0 && sizeOf(f.path) < 50_000);
+  const externalRefs = published.filter((f) => isAssetRefLocal(f.path)).map((f) => `${f.angle}=${f.path}`);
   /**
    * 定妆照监制记录：**优先读角色目录的门账本 `gates.jsonl`**（`g5-portrait-confirm`，
    * 由 `portrait-agent review` 落账，2026-09-24 起）；没有门记录时回退到 `reviews/*.json`。
@@ -1448,9 +1489,16 @@ if (!DRY_RUN) {
         {
           id: "file-size", pass: tiny.length === 0, hard: true,
           detail: tiny.length === 0
-            ? `四角度均 >50KB（${published.map((f) => `${f.angle}=${(sizeOf(f.path) / 1024).toFixed(0)}KB`).join(" ")}）`
+            ? `四角度均 >50KB 或为授权素材引用（${published.map((f) => `${f.angle}=${isAssetRefLocal(f.path) ? "asset://" : `${(sizeOf(f.path) / 1024).toFixed(0)}KB`}`).join(" ")}）`
             : `以下角度文件过小（疑似占位图）：${tiny.map((f) => f.angle).join("/")}`
         },
+        ...(externalRefs.length > 0
+          ? [{
+              id: "external-asset-ref", pass: true, hard: true,
+              detail: `授权真人素材引用 ${externalRefs.length} 个角度（${externalRefs.join("、")}）——`
+                + "外部素材 ID：本工具只校验引用格式，未向平台核验授权有效期与归属（external-asset-id-not-provider-verified）"
+            }]
+          : []),
         {
           /** 附加信息（不参与硬闸）：档案里一共有多少角度可用——只有 4 个必需角度时也能拍，但选择面更窄 */
           id: "archive-angles", pass: Object.keys(lead.files).length >= 4, hard: false,
@@ -1476,8 +1524,13 @@ if (!DRY_RUN) {
     /**
      * 没有定妆照监制记录时**不冒充实质评审**：确定性闸照跑，但 degraded 置位，
      * 让审计一眼看到"这个门这次只做了资产校验"。
+     *
+     * 例外（T-2026-0929-0003）：**全角度为平台授权真人素材引用**（asset://）时，
+     * 人物同一性由平台在「私域真人人像库」建档时做了一致性校验与授权，本地没有图片可评——
+     * 此时"external-asset-ref"判据就是这道门的实质判据，不再因"没有本地监制记录"降级；
+     * 授权有效期与归属仍如实标注为未由本工具核验（external-asset-id-not-provider-verified）。
      */
-    degraded: Boolean(lead) && !review && !gateRecord,
+    degraded: Boolean(lead) && !review && !gateRecord && externalRefs.length === 0,
     evidence: {
       character: lead ? { id: lead.id, name: lead.name, angles: Object.keys(lead.files) } : null,
       reviewFile,
@@ -1498,6 +1551,8 @@ if (!DRY_RUN) {
 /* ================= 关键帧 / 视频 出图出片 ================= */
 
 function dataUrl(file: string): string {
+  /** 方舟授权真人素材（`asset://<asset ID>`）不是本地文件：**原样透传**给平台，不能 base64 编码 */
+  if (isAssetRefLocal(file)) return file;
   const ext = file.toLowerCase().endsWith(".png") ? "png" : file.toLowerCase().endsWith(".webp") ? "webp" : "jpeg";
   return `data:image/${ext};base64,${readFileSync(file).toString("base64")}`;
 }
@@ -1878,7 +1933,13 @@ function cineKbConsumption(shot: ShotCard, trace: Record<string, unknown>, polic
   }
 }
 
-const micromotionTraces = new Map<ShotCard, MicromotionTrace>();
+/**
+ * 微动作证据按**镜号**索引，而不是按对象引用：
+ * 片型后置复核（`scene-policy-postplan`）会对当前镜头卡重新执行 `applyScenePolicy`，
+ * 每次都会返回**新对象**（内容同构）。真机 2026-09-29：对象引用做键 → 后置复核之后
+ * G7 的 `micromotion-applied` 判据全部报"缺少当前镜头的微动作证据"，环节被自己的记账方式卡死。
+ */
+const micromotionTraces = new Map<string, MicromotionTrace>();
 
 /* ---------- ⓪ 摄影知识库注入（监制：cine-kb） ---------- */
 /**
@@ -2033,7 +2094,7 @@ if (STAGES.has("micromotion")) {
     const { card, trace } = applyMicromotion(shot as unknown as Record<string, unknown>);
     // Even a reused/N/A result may restore prior owned text. Always consume the returned card.
     shots[index] = card as ShotCard;
-    micromotionTraces.set(shots[index]!, trace);
+    micromotionTraces.set(String(shots[index]!.shotId), trace);
     traces.push(trace);
     perShot.push(micromotionConsumption(shots[index]!, trace));
   }
@@ -2342,11 +2403,11 @@ if (STAGES.has("spec")) {
     artifacts: [
       { path: join(PROMPT_DIR, "spec-report.json"), kind: "json" },
       /** 只送**生成镜**的提示词；真实素材段没有提示词文件（硬塞路径会让监制读到空文件） */
-      ...generatedShots().map((s) => ({ path: join(PROMPT_DIR, `${s.shotId}.txt`), kind: "text" as const }))
+      ...promptShots().map((s) => ({ path: join(PROMPT_DIR, `${s.shotId}.txt`), kind: "text" as const }))
     ],
     deterministic: checks,
     context: {
-      title: shotlist.title, shots: generatedShots().length, materialShots: materialShots().map((s) => s.shotId), rateFail,
+      title: shotlist.title, shots: promptShots().length, materialShots: materialShots().map((s) => s.shotId), rateFail,
       scenePolicy: scenePolicyReport ? { id: scenePolicy!.id, version: scenePolicy!.version, ratios: scenePolicyReport.ratios,
         exceptionsApplied: scenePolicyReport.exceptionsApplied } : null,
       /** 节拍预算：只报数不拦（监制可据情权衡，不作 PASS/FAIL） */
@@ -2370,7 +2431,7 @@ if (STAGES.has("spec")) {
     // aggregate only after all shot verdicts exist. The global deterministic checks remain on G6.
     const scoped: Array<{ shotId: string; verdict: ProducerVerdict }> = [];
     const allShotIds = shots.map((item) => item.shotId);
-    for (const shot of generatedShots()) {
+    for (const shot of promptShots()) {
       const report = specReports.find((item) => item.shotId === shot.shotId);
       if (!report) throw new Error(`PROMPT_REVIEW_SCOPE_MISSING: ${shot.shotId}`);
       const reportFile = join(PROMPT_DIR, `spec-report-${shot.shotId}.json`);
@@ -2386,7 +2447,7 @@ if (STAGES.has("spec")) {
       });
       scoped.push({ shotId: shot.shotId, verdict: perShot });
     }
-    if (scoped.length !== generatedShots().length) throw new Error("PROMPT_REVIEW_SCOPE_INCOMPLETE");
+    if (scoped.length !== promptShots().length) throw new Error("PROMPT_REVIEW_SCOPE_INCOMPLETE");
     scopedReviewFile = join(PROMPT_DIR, "prompt-review-scoped.json");
     writeFileSync(scopedReviewFile, `${JSON.stringify(scoped, null, 2)}\n`, "utf8");
     const approved = scoped.every((item) => item.verdict.approved);
@@ -2479,6 +2540,20 @@ if (STAGES.has("plates")) {
       continue;
     }
     /**
+     * 授权真人素材镜：Seedream 图片接口不接受 `asset://`（真机 400 invalid url），
+     * 且**关键帧本来就不该有脸**——人物身份由 Seedance 参考图承担（见 videos 阶段）。
+     * 这里如实记录"跳过文生关键帧"，不产出任何 AI 生成的人脸首帧。
+     */
+    if (isAssetShot(shot)) {
+      record({
+        stage: "keyframe", shotId: shot.shotId, invoked: false, ok: true, cached: false, degraded: false, attempt: 1, ms: 0,
+        artifact: null,
+        evidence: { assetRef: assetRefOf(shot), skipReason: "授权真人素材镜：人物身份由 Seedance 参考图承担，不产文生关键帧" },
+        verdict: null, note: "授权真人素材镜：跳过文生关键帧（Seedream 不接受 asset://；首帧会顶掉真人身份）"
+      });
+      continue;
+    }
+    /**
      * 关键帧缓存必须过**两道失效判据**（2026-09-26 真机 T-2026-0926-0007）：
      *
      *  1. **提示词指纹**：出图时写 `GR-xx.plate-meta.json`（prompt sha256 + 锚点模式 + 模型）。
@@ -2565,7 +2640,7 @@ if (STAGES.has("plates")) {
             { id: "bytes", pass: Number(info.bytes ?? 0) > 50_000, detail: `文件 ${((Number(info.bytes ?? 0)) / 1024).toFixed(0)}KB`, hard: true },
             { id: "aspect", pass: Math.abs(ratio - expected) < 0.06, detail: `${width}x${height}（期望比例 ${expected.toFixed(3)}，实测 ${ratio.toFixed(3)}）`, hard: true }
           ],
-          referenceImages: portraitRefs.slice(0, 2), context: { shotId: shot.shotId, scene: shot.scene, action: shot.action,
+          referenceImages: localReviewRefs(portraitRefs).slice(0, 2), context: { shotId: shot.shotId, scene: shot.scene, action: shot.action,
             scenePolicy: scenePolicy ? { id: scenePolicy.id, tags: shot.policyTags, speechScene: shot.speechScene } : null }, env: ENV,
           allowFallbackApprove: ALLOW_FALLBACK_APPROVE, log
         });
@@ -3463,16 +3538,26 @@ if (STAGES.has("videos")) {
    * 判据全部看**产物 + 历史裁决**（支持分段重跑：只跑 videos 时，plate/prompt 的放行记录在 stages.jsonl 里）。
    */
   const gateHistory = readStageHistory();
-  /** 素材镜不产出文生关键帧，G7 的提示词/关键帧判据只对**生成镜**成立（素材镜由 G-MAT1 门管） */
-  const promptReady = generatedShots().every((s) => {
+  /**
+   * 素材镜不产出文生关键帧，G7 的**提示词**判据对"生成镜 + 授权真人素材镜"成立
+   * （素材镜由 G-MAT1 门管，授权真人素材镜由下方 external-asset-shots 判据管）。
+   */
+  const promptReady = promptShots().every((s) => {
     const file = join(PROMPT_DIR, `${s.shotId}.txt`);
     return existsSync(file) && readFileSync(file, "utf8").trim().length >= 1200;
   });
+  /** 授权真人素材镜就绪判据：引用格式合法 + 提示词齐备（≥1200 字）；**不要求关键帧**（这类镜头本就不产） */
+  const assetShotDetail = assetShots().map((s) => {
+    const file = join(PROMPT_DIR, `${s.shotId}.txt`);
+    const promptOk = existsSync(file) && readFileSync(file, "utf8").trim().length >= 1200;
+    return { shotId: s.shotId, ref: assetRefOf(s), ok: isAssetRefLocal(assetRefOf(s)) && promptOk };
+  });
+  const assetShotsReady = assetShotDetail.every((entry) => entry.ok);
   const plateReady = generatedShots().every((s) => {
     const plate = join(PLATE_DIR, `${s.shotId}-plate.png`);
     return existsSync(plate) && statSync(plate).size > 50_000;
   });
-  const promptApproved = generatedShots().length === 0 || stageApproved("prompt-review", [null], gateHistory);
+  const promptApproved = promptShots().length === 0 || stageApproved("prompt-review", [null], gateHistory);
   /**
    * 关键帧放行判据（2026-09-27 真机 v2 修正）：**放行必须晚于磁盘上这一版关键帧**。
    *
@@ -3509,7 +3594,7 @@ if (STAGES.has("videos")) {
     return existsSync(clip) && statSync(clip).size > 100_000 && materialGateVerified(s.shotId);
   });
   const micromotionEvidence = STAGES.has("micromotion")
-    ? generatedShots().map((shot) => micromotionConsumption(shot, micromotionTraces.get(shot)))
+    ? promptShots().map((shot) => micromotionConsumption(shot, micromotionTraces.get(String(shot.shotId))))
     : [];
   const micromotionReady = !STAGES.has("micromotion") || micromotionEvidence.every((entry) => entry.verified);
   const g7 = recordGate({
@@ -3517,8 +3602,16 @@ if (STAGES.has("videos")) {
     sourceStage: "keyframe",
     shotIds: shots.map((s) => s.shotId),
     checks: [
-      { id: "prompt-files", pass: promptReady, hard: true, detail: promptReady ? `${generatedShots().length} 个生成镜提示词齐备且 ≥1200 字（另有 ${materialShots().length} 个素材镜走 material-gen 的动效提示词）` : "有生成镜缺提示词或字数不足 1200" },
+      { id: "prompt-files", pass: promptReady, hard: true, detail: promptReady ? `${promptShots().length} 个文生镜头（生成镜 + 授权真人素材镜）提示词齐备且 ≥1200 字（另有 ${materialShots().length} 个素材镜走 material-gen 的动效提示词）` : "有生成镜/授权真人素材镜缺提示词或字数不足 1200" },
       { id: "plate-files", pass: plateReady, hard: true, detail: plateReady ? `${generatedShots().length} 个生成镜关键帧齐备（>50KB）` : "有生成镜关键帧缺失或过小" },
+      {
+        id: "external-asset-shots", pass: assetShotsReady, hard: true,
+        detail: assetShots().length === 0
+          ? "本片无授权真人素材镜（不适用）"
+          : assetShotsReady
+            ? `${assetShots().length} 个授权真人素材镜就绪：${assetShotDetail.map((e) => `${e.shotId}→${e.ref}（提示词齐备，无文生关键帧）`).join("；")}——外部素材 ID，未向平台核验授权有效性`
+            : `授权真人素材镜未就绪：${assetShotDetail.filter((e) => !e.ok).map((e) => e.shotId).join("、")}`
+      },
       { id: "prompt-approved", pass: promptApproved, hard: true, detail: promptApproved ? "提示词环节有放行裁决（历史/本轮）" : "提示词环节无放行裁决" },
       {
         id: "plates-approved", pass: plateApproved, hard: true,
@@ -3596,6 +3689,18 @@ if (STAGES.has("videos")) {
   const refs = usePortraitRefs && lead
     ? (["front", "closeup"].map((a) => lead.files[a]).filter(Boolean) as string[])
     : [];
+  /**
+   * 授权真人素材镜的参考图口径（T-2026-0929-0003）：
+   * 该镜**只**带平台授权素材引用（`asset://<asset ID>`）作 `reference_image`，且**不带首帧**——
+   * 首帧会给一张 AI 生成的脸，把真人身份顶掉。人物身份、口型与台词都交给 Seedance 按参考图生成。
+   */
+  const refsForShot = (shot: ShotCard): string[] => (isAssetShot(shot) ? [assetRefOf(shot)] : refs);
+  /**
+   * 送审基准图口径：评审组件按**本地文件**读图，`asset://` 是平台素材引用、不是文件路径
+   * （真机 2026-09-29：把 asset 引用当基准图投递 → `ENOENT: open 'asset://…'`，监制直接不可用）。
+   * 因此送审时只投递本地存在的图片；授权素材引用只进生成请求（`arkVideo` 的 reference_image）。
+   */
+  const localReviewRefs = (list: string[]): string[] => list.filter((ref) => !isAssetRefLocal(ref) && existsSync(ref));
   for (const shot of shots) {
     const clip = join(CLIP_DIR, `${shot.shotId}.mp4`);
     const duration = Number(shot.duration ?? 5);
@@ -3621,7 +3726,15 @@ if (STAGES.has("videos")) {
       });
       continue;
     }
-    rememberInputs("shot", [join(PROMPT_DIR, `${shot.shotId}.txt`), join(PLATE_DIR, `${shot.shotId}-plate.png`), ...refs], shot.shotId);
+    const shotRefs = refsForShot(shot);
+    const shotIsAsset = isAssetShot(shot);
+    rememberInputs(
+      "shot",
+      shotIsAsset
+        ? [join(PROMPT_DIR, `${shot.shotId}.txt`), assetRefOf(shot)]
+        : [join(PROMPT_DIR, `${shot.shotId}.txt`), join(PLATE_DIR, `${shot.shotId}-plate.png`), ...shotRefs],
+      shot.shotId
+    );
     const cached = RESUME && existsSync(clip) && statSync(clip).size > 100_000 && artifactReusable("shot", clip, undefined, shot.shotId);
     /**
      * 复用产物**仍要过监制**（2026-09-24 真机修复）：
@@ -3637,7 +3750,7 @@ if (STAGES.has("videos")) {
         rubric: scenePolicy ? [...PRODUCER_RUBRICS.shot, scenePolicy.prompt.visualReview] : undefined,
         artifacts: [{ path: clip, kind: "video", bytes: Number(info.bytes ?? 0), probe: info }, ...settings.frames.map((f) => ({ path: f, kind: "image" as const }))],
         deterministic: settings.checks,
-        referenceImages: refs.slice(0, 2),
+        referenceImages: localReviewRefs(shotRefs).slice(0, 2),
         context: { shotId: shot.shotId, dialogue: dialogueText(shot), action: shot.action, note: "复用既有成片的复检",
           scenePolicy: scenePolicy ? { id: scenePolicy.id, tags: shot.policyTags, speechScene: shot.speechScene } : null },
         env: ENV, allowFallbackApprove: ALLOW_FALLBACK_APPROVE, log
@@ -3700,9 +3813,14 @@ if (STAGES.has("videos")) {
          * 真机实测 base64 真人图会被隐私校验拒（见 `hostedUrlFile` 注释与探针脚本）。
          * 托管 URL 过期（>20h）时退回 base64 并如实记录——让监制看到这是降级路径，而不是假装成功。
          */
-        const hosted = loadHostedUrl(shot.shotId);
-        const firstFrame = hosted ?? (existsSync(plate) ? dataUrl(plate) : undefined);
-        if (!hosted && existsSync(plate)) {
+        /**
+         * 授权真人素材镜（T-2026-0929-0003）：**不要首帧**。
+         * 首帧是一张 AI 生成的人脸，会把平台素材里的真人身份顶掉（Seedance 以首帧为画面基准）；
+         * 这类镜头改由 `reference_image = asset://<asset ID>` 承担人物身份，让模型按真实长相生成。
+         */
+        const hosted = shotIsAsset ? null : loadHostedUrl(shot.shotId);
+        const firstFrame = shotIsAsset ? undefined : hosted ?? (existsSync(plate) ? dataUrl(plate) : undefined);
+        if (!shotIsAsset && !hosted && existsSync(plate)) {
           log(`  ⚠ ${shot.shotId} 无有效托管 URL，退回 base64 首帧（真人题材大概率被隐私校验拒）`);
         }
         /**
@@ -3722,8 +3840,16 @@ if (STAGES.has("videos")) {
             { id: "no-hard-params", pass: !/f\/\d/.test(promptText), hard: true, detail: /f\/\d/.test(promptText) ? "提示词正文出现 f 值（KB 纪律：正文只写画面语言，f 值只进 trace）" : "正文不含 f 值等技术参数" },
             { id: "aspect-constraint", pass: /【约束】/.test(promptText) && promptText.includes(ASPECT), hard: true, detail: `含【约束】与画幅 ${ASPECT}` },
             { id: "duration-limit", pass: duration > 0 && duration <= 30, hard: true, detail: `单镜时长 ${duration}s（上限 30s）` },
-            { id: "first-frame", pass: Boolean(hosted) || existsSync(plate), hard: true, detail: hosted ? `首帧用 Ark 托管 URL（${basename(hosted)}）` : existsSync(plate) ? "首帧退回本地关键帧 base64（隐私校验风险，已记录）" : "既无托管 URL 也无关键帧" },
-            { id: "plate-size", pass: !existsSync(plate) || statSync(plate).size > 50_000, hard: false, detail: existsSync(plate) ? `关键帧 ${(statSync(plate).size / 1024).toFixed(0)}KB` : "无关键帧文件" }
+            {
+              id: "first-frame", pass: shotIsAsset ? true : Boolean(hosted) || existsSync(plate), hard: true,
+              detail: shotIsAsset
+                ? `授权真人素材镜：不带首帧，人物身份由参考图 ${assetRefOf(shot)} 承担（外部素材 ID，未平台核验）`
+                : hosted ? `首帧用 Ark 托管 URL（${basename(hosted)}）` : existsSync(plate) ? "首帧退回本地关键帧 base64（隐私校验风险，已记录）" : "既无托管 URL 也无关键帧"
+            },
+            {
+              id: "plate-size", pass: shotIsAsset || !existsSync(plate) || statSync(plate).size > 50_000, hard: false,
+              detail: shotIsAsset ? "授权真人素材镜不产关键帧（合规口径，不是缺件）" : existsSync(plate) ? `关键帧 ${(statSync(plate).size / 1024).toFixed(0)}KB` : "无关键帧文件"
+            }
           ],
           evidence: {
             model: VIDEO_MODEL, seconds: duration, attempt,
@@ -3743,7 +3869,7 @@ if (STAGES.has("videos")) {
         const submitted = await arkVideo({
           prompt: attemptPrompt,
           firstFrame,
-          refs: refs.map(dataUrl),
+          refs: shotRefs.map(dataUrl),
           /** 同素材镜：Seedance 时长下限 4s → 先渲染合法时长，再变速归一化到分镜时长 */
           seconds: renderSecondsFor(duration),
           generateAudio: ENV.SEEDANCE_GENERATE_AUDIO !== "0",
@@ -3808,7 +3934,7 @@ if (STAGES.has("videos")) {
                 + (expectsMotion && motion.energy < 2.5 ? "：动作幅度偏低，可能是「站着念完」而非分镜要求的走/挥手" : "")
             }
           ],
-          referenceImages: refs.slice(0, 2),
+          referenceImages: localReviewRefs(shotRefs).slice(0, 2),
           context: { shotId: shot.shotId, dialogue: dialogueText(shot), action: shot.action, taskId: submitted.taskId },
           env: ENV, allowFallbackApprove: ALLOW_FALLBACK_APPROVE, log
         });
