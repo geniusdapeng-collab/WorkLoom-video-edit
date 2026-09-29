@@ -1,0 +1,27 @@
+{
+  "schemaVersion": "workloom.real-person-asset/v1",
+  "assetId": "asset-20260929120055-mk2gn",
+  "displayName": "未来前台 CEO（苏州未来前台）",
+  "role": "未来前台 CEO / 创始人，出镜主讲人",
+  "certified": {
+    "gender": "female",
+    "ageBand": "三十岁上下",
+    "hair": "深色及肩直发（以参考素材为准）",
+    "appearance": "东亚女性，五官精致、仪态优雅、镜头感好；具体面貌以平台认证素材为准",
+    "wardrobeBaseline": "高定黑色小香风套装（小黑裙廓形）／正式商务套装",
+    "source": "火山方舟「私域真人人像库」平台认证素材；属性由产品所有者 2026-09-29 当面确认（此前误记为男性，已更正）",
+    "verifiedAt": "2026-09-29",
+    "evidence": "asset://asset-20260929120055-mk2gn（平台认证 ID，账号级资产）"
+  },
+  "authorization": {
+    "status": "real-authorized",
+    "scope": "本项目（苏州未来前台 · 酒店自助入住机 投放片）内使用其真人形象出镜",
+    "expiresAt": null,
+    "evidence": "产品所有者提供 asset ID 并确认已完成平台官方真人认证与授权"
+  },
+  "notes": [
+    "本主档是**人物属性的唯一事实源**：镜头卡写的性别/年龄段必须与 certified 一致，否则出片前硬阻断（真机事故 T-2026-0929-0007）。",
+    "多镜真人片必须先渲 1 镜 canary 并通过身份比对，再渲其余镜头（避免整片白烧）。",
+    "授权有效期与归属由平台侧管理，本工具不向平台核验（external-asset-id-not-provider-verified）。"
+  ]
+}

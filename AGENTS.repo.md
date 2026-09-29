@@ -31,3 +31,18 @@
 - 改能力面（脚本 / 包 / 技能 / 演示页）→ 必须 `pnpm capabilities` 重新生成人类版导览，再 `pnpm capabilities:check`。
 - UI 改动必须用仓内 browser/computer-use 能力打开真实页面截图核对，不能只看 curl 与日志。
 - 发布前 `pnpm release:gate` 全过（硬性门禁）；任务号与提交规范见 `docs/DEVELOPMENT-PROTOCOL.md`。
+
+## 三、认证真人素材：先建档，再出镜（T-2026-0929-0007）
+
+**客户给出的平台认证真人素材 ID（`asset://asset-…`）不等于"人物属性已知"。** 2026-09-29 真机事故：
+镜头卡按上下文猜成"男性"，而认证素材本人是女性 → 模型跟文案、6 镜渲错人、全部被监制拒收，白烧算力。
+
+硬规则（进出片链路前必读）：
+
+1. 拿到 assetId 的**第一动作是问属性**（性别/年龄段/授权范围/有效期）并建主档
+   `bundles/ai-video/library/real-person-assets/<assetId>/profile.json`；**不许"先渲一版看看"**。
+2. 镜头卡（含代词）必须与主档一致；`g-real-person`（G-RP1）门在出片前逐镜核对，冲突即硬阻断。
+3. 多镜真人片**先渲 1 镜 canary** 并通过身份比对，再渲其余镜头。
+4. 缺属性、缺授权、素材未登记 → fail-closed；禁止在文案里临时代替平台事实。
+
+细则见 `docs/real-person-asset.md`。

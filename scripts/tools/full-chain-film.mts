@@ -81,6 +81,7 @@ import {
 import { normalizeShotIntent, shotIntentHash, type ShotIntentStatus } from "../../packages/video-studio/src/shot-intent.js";
 import { verifyAvSyncEvidence } from "../../packages/video-studio/src/av-sync.js";
 import { loadProductArchives, productArchivePromptLines, productHeroPhoto, productPhotoPath, selectProductArchive } from "../../packages/video-studio/src/product-archive.js";
+import { assertShotMatchesCertifiedAsset, assetIdOf, identityReviewContext, loadRealPersonAssets, realPersonUsageReceipt, REAL_PERSON_POLICY_VERSION } from "../../packages/video-studio/src/real-person-asset.js";
 import { publishUhdDelivery, sha256UhdAsset } from "../../packages/video-studio/src/uhd-delivery.js";
 
 const REPO_ROOT = resolve(import.meta.dirname ?? process.cwd(), "../..");
@@ -1294,6 +1295,65 @@ for (const shot of shots) {
 if (assetShots().length > 0) {
   log(`授权真人素材镜 ${assetShots().length} 镜：${assetShots().map((s) => `${s.shotId}→${assetRefOf(s)}`).join(" · ")}（外部素材 ID，未向平台核验授权有效性）`);
 }
+/* ---------- ⓪-0.5 认证真人素材一致性门（T-2026-0929-0007，事故机制化） ---------- */
+/**
+ * 事故复盘（2026-09-29）：客户给了平台已认证的真人素材 ID，但系统只校验"引用能不能提交"，
+ * 没有任何地方记录"这位真人是谁"；镜头卡文案写男性 → 模型跟文案 → 6 镜渲成男性全部被拒收。
+ * 本门把人物属性变成硬闸：
+ *   ① 每个 `asset://` 必须有**真人主档**（bundles/ai-video/library/real-person-assets/<assetId>/profile.json）；
+ *   ② 主档必须 real-authorized 且在有效期内，性别等关键属性不许为空（缺了先问客户，禁止先生成）；
+ *   ③ 镜头卡文本与主档属性**逐项一致**（性别/年龄段/assetRef），冲突即 fail-closed；
+ *   ④ 多镜真人片**先渲 1 镜 canary 并通过身份比对**，再渲其余镜头（见 videos 阶段的 canary 判据）。
+ */
+const REAL_PERSON_LIBRARY = resolve(arg("--real-person-library", join(REPO_ROOT, "bundles/ai-video/library/real-person-assets")));
+const realPersonLibrary = loadRealPersonAssets(REAL_PERSON_LIBRARY);
+const realPersonChecks: GateCheck[] = [];
+const realPersonByShot = new Map<string, { assetId: string; displayName: string; scopeText: string }>();
+for (const shot of assetShots()) {
+  const id = assetIdOf(assetRefOf(shot));
+  const entry = realPersonLibrary.byAssetId.get(id);
+  if (!entry) {
+    throw new Error(`镜头 ${shot.shotId} 使用认证真人素材 ${id}，但真人主档库里没有该素材（${REAL_PERSON_LIBRARY}）→ 先建主档（性别/年龄段/授权/证据），禁止临时编人物属性`);
+  }
+  const hard = entry.issues.filter((issue) => issue.hard);
+  if (hard.length > 0) {
+    throw new Error(`认证真人主档 ${id} 不可用：${hard.map((issue) => `[${issue.code}] ${issue.detail}`).join("；")}`
+      + `（缺关键属性时**先向客户确认**，不允许先拍后猜）`);
+  }
+  const conflicts = assertShotMatchesCertifiedAsset(shot as unknown as Record<string, unknown>, entry.asset);
+  const hardConflicts = conflicts.filter((issue) => issue.hard);
+  if (hardConflicts.length > 0) {
+    throw new Error(`认证真人一致性门未通过（${REAL_PERSON_POLICY_VERSION}）：${hardConflicts.map((issue) => `[${issue.code}] ${issue.detail}`).join("；")}`);
+  }
+  realPersonChecks.push({
+    id: `certified-consistent:${shot.shotId}`, pass: true, hard: true,
+    detail: `${shot.shotId} 与主档一致（${entry.asset.displayName}｜${entry.asset.certified.gender}｜${entry.asset.certified.ageBand ?? "年龄段未声明"}）`
+  });
+  realPersonByShot.set(String(shot.shotId), { assetId: id, displayName: entry.asset.displayName, scopeText: identityReviewContext(entry.asset).discipline as string });
+}
+if (realPersonChecks.length > 0) {
+  const realPersonGate = recordGate({
+    stepKey: "g-real-person",
+    sourceStage: "portrait",
+    checks: [
+      ...realPersonChecks,
+      {
+        id: "canary-policy", pass: true, hard: true,
+        detail: `多镜真人片先出 canary：本片 ${realPersonChecks.length} 镜用认证真人素材，第 1 镜通过身份比对后才继续其余镜头`
+      }
+    ],
+    shotIds: [...realPersonByShot.keys()],
+    evidence: {
+      library: REAL_PERSON_LIBRARY,
+      policy: REAL_PERSON_POLICY_VERSION,
+      usage: assetShots().map((shot) => realPersonUsageReceipt({ asset: realPersonLibrary.byAssetId.get(assetIdOf(assetRefOf(shot)))!.asset, projectId: PROJECT, shots: [String(shot.shotId)] }))
+    },
+    reason: `认证真人一致性门通过：${realPersonChecks.length} 镜与平台认证主档属性一致（资产 ID 与授权证据已留痕）`
+  });
+  if (!realPersonGate.approved) throw new Error(`认证真人门未通过：${realPersonGate.reason}`);
+  log(`认证真人素材门 G-RP1 通过：${realPersonChecks.length} 镜（主档 ${REAL_PERSON_LIBRARY}）`);
+}
+
 /* ---------- ⓪-0 真实商品档案绑定（T-2026-0929-0004） ---------- */
 /**
  * 产品口径（产品所有者 2026-09-29）：涉及**具体公司名或品牌名**的片子，默认必须用该公司/品牌的**真实产品**。
