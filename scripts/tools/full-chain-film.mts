@@ -81,7 +81,7 @@ import {
 import { normalizeShotIntent, shotIntentHash, type ShotIntentStatus } from "../../packages/video-studio/src/shot-intent.js";
 import { verifyAvSyncEvidence } from "../../packages/video-studio/src/av-sync.js";
 import { loadProductArchives, productArchivePromptLines, productHeroPhoto, productPhotoPath, selectProductArchive } from "../../packages/video-studio/src/product-archive.js";
-import { assertShotMatchesCertifiedAsset, assetIdOf, identityReviewContext, loadRealPersonAssets, realPersonUsageReceipt, REAL_PERSON_POLICY_VERSION } from "../../packages/video-studio/src/real-person-asset.js";
+import { assertShotMatchesCertifiedAsset, assetIdOf, hasIdentityAnchor, identityAnchorContext, identityAnchorPath, identityReviewContext, loadRealPersonAssets, realPersonUsageReceipt, REAL_PERSON_POLICY_VERSION } from "../../packages/video-studio/src/real-person-asset.js";
 import { auditFilmRedlines, PROMPT_REDLINE_POLICY_VERSION } from "../../packages/video-studio/src/prompt-redlines.js";
 import { assessFilmFirstPass, FIRST_PASS_POLICY_VERSION } from "../../packages/video-studio/src/first-pass.js";
 import { publishUhdDelivery, sha256UhdAsset } from "../../packages/video-studio/src/uhd-delivery.js";
@@ -1384,6 +1384,7 @@ let FIRST_PASS_ORDER: ShotCard[] = shots;
 const REAL_PERSON_LIBRARY = resolve(arg("--real-person-library", join(REPO_ROOT, "bundles/ai-video/library/real-person-assets")));
 const realPersonLibrary = loadRealPersonAssets(REAL_PERSON_LIBRARY);
 const realPersonChecks: GateCheck[] = [];
+const identityAnchors = new Map<string, string>();   // shotId → 认证基准照（本地文件，仅用于像不像比对）
 const realPersonByShot = new Map<string, { assetId: string; displayName: string; scopeText: string }>();
 for (const shot of assetShots()) {
   const id = assetIdOf(assetRefOf(shot));
@@ -1406,6 +1407,8 @@ for (const shot of assetShots()) {
     detail: `${shot.shotId} 与主档一致（${entry.asset.displayName}｜${entry.asset.certified.gender}｜${entry.asset.certified.ageBand ?? "年龄段未声明"}）`
   });
   realPersonByShot.set(String(shot.shotId), { assetId: id, displayName: entry.asset.displayName, scopeText: identityReviewContext(entry.asset).discipline as string });
+  const anchor = identityAnchorPath(entry.asset, entry.dir);
+  if (anchor) identityAnchors.set(String(shot.shotId), anchor);
 }
 if (realPersonChecks.length > 0) {
   const realPersonGate = recordGate({
@@ -4025,7 +4028,7 @@ if (STAGES.has("videos")) {
         rubric: scenePolicy ? [...PRODUCER_RUBRICS.shot, scenePolicy.prompt.visualReview] : undefined,
         artifacts: [{ path: clip, kind: "video", bytes: Number(info.bytes ?? 0), probe: info }, ...settings.frames.map((f) => ({ path: f, kind: "image" as const }))],
         deterministic: settings.checks,
-        referenceImages: localReviewRefs(shotRefs).slice(0, 2),
+        referenceImages: [...(identityAnchors.has(String(shot.shotId)) ? [identityAnchors.get(String(shot.shotId))!] : []), ...localReviewRefs(shotRefs)].slice(0, 3),
         context: { shotId: shot.shotId, dialogue: dialogueText(shot), action: shot.action, note: "复用既有成片的复检",
           scenePolicy: scenePolicy ? { id: scenePolicy.id, tags: shot.policyTags, speechScene: shot.speechScene } : null },
         env: ENV, allowFallbackApprove: ALLOW_FALLBACK_APPROVE, log
@@ -4209,8 +4212,9 @@ if (STAGES.has("videos")) {
                 + (expectsMotion && motion.energy < 2.5 ? "：动作幅度偏低，可能是「站着念完」而非分镜要求的走/挥手" : "")
             }
           ],
-          referenceImages: localReviewRefs(shotRefs).slice(0, 2),
-          context: { shotId: shot.shotId, dialogue: dialogueText(shot), action: shot.action, taskId: submitted.taskId },
+          referenceImages: [...(identityAnchors.has(String(shot.shotId)) ? [identityAnchors.get(String(shot.shotId))!] : []), ...localReviewRefs(shotRefs)].slice(0, 3),
+          context: { shotId: shot.shotId, dialogue: dialogueText(shot), action: shot.action, taskId: submitted.taskId,
+            ...(identityAnchors.has(String(shot.shotId)) ? { identityAnchor: identityAnchorContext(realPersonLibrary.byAssetId.get(assetIdOf(assetRefOf(shot)))!.asset), identityAnchorNote: "第 1 张基准照用于比对；不像本人即判不合格" } : {}) },
           env: ENV, allowFallbackApprove: ALLOW_FALLBACK_APPROVE, log
         });
         record({
