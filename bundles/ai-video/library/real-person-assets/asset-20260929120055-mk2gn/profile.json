@@ -22,6 +22,20 @@
   "notes": [
     "本主档是**人物属性的唯一事实源**：镜头卡写的性别/年龄段必须与 certified 一致，否则出片前硬阻断（真机事故 T-2026-0929-0007）。",
     "多镜真人片必须先渲 1 镜 canary 并通过身份比对，再渲其余镜头（避免整片白烧）。",
-    "授权有效期与归属由平台侧管理，本工具不向平台核验（external-asset-id-not-provider-verified）。"
+    "授权有效期与归属由平台侧管理，本工具不向平台核验（external-asset-id-not-provider-verified）。",
+    "同组素材 11 张（组 ID group-20260929115741-gv1tdf）：生成时带「主素材 + 同组 2 张」共 3 张参考图，用于稳定人脸相似度。"
+  ],
+  "assetGroupId": "group-20260929115741-gv1tdf",
+  "referenceAssets": [
+    "asset-20260929120055-42ftx",
+    "asset-20260929120055-d6xr",
+    "asset-20260929120055-4fgtr",
+    "asset-20260929120054-2t88r",
+    "asset-20260929120054-p66jhg",
+    "asset-20260929120054-c26r6r",
+    "asset-20260929120548-20hwrw",
+    "asset-20260929120054-rgzf",
+    "asset-20260929120319-ftzr7",
+    "asset-20260929120319-bxy7"
   ]
 }

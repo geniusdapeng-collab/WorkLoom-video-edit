@@ -81,7 +81,7 @@ import {
 import { normalizeShotIntent, shotIntentHash, type ShotIntentStatus } from "../../packages/video-studio/src/shot-intent.js";
 import { verifyAvSyncEvidence } from "../../packages/video-studio/src/av-sync.js";
 import { loadProductArchives, productArchivePromptLines, productHeroPhoto, productPhotoPath, selectProductArchive } from "../../packages/video-studio/src/product-archive.js";
-import { assertShotMatchesCertifiedAsset, assetIdOf, hasIdentityAnchor, identityAnchorContext, identityAnchorPath, identityReviewContext, loadRealPersonAssets, realPersonUsageReceipt, REAL_PERSON_POLICY_VERSION } from "../../packages/video-studio/src/real-person-asset.js";
+import { assertShotMatchesCertifiedAsset, assetIdOf, hasIdentityAnchor, identityAnchorContext, identityAnchorPath, identityReviewContext, loadRealPersonAssets, realPersonUsageReceipt, referenceAssetRefs, REAL_PERSON_POLICY_VERSION } from "../../packages/video-studio/src/real-person-asset.js";
 import { auditFilmRedlines, PROMPT_REDLINE_POLICY_VERSION } from "../../packages/video-studio/src/prompt-redlines.js";
 import { assessFilmFirstPass, FIRST_PASS_POLICY_VERSION } from "../../packages/video-studio/src/first-pass.js";
 import { publishUhdDelivery, sha256UhdAsset } from "../../packages/video-studio/src/uhd-delivery.js";
@@ -3972,7 +3972,16 @@ if (STAGES.has("videos")) {
    * 该镜**只**带平台授权素材引用（`asset://<asset ID>`）作 `reference_image`，且**不带首帧**——
    * 首帧会给一张 AI 生成的脸，把真人身份顶掉。人物身份、口型与台词都交给 Seedance 按参考图生成。
    */
-  const refsForShot = (shot: ShotCard): string[] => (isAssetShot(shot) ? [assetRefOf(shot)] : refs);
+  /**
+   * 真人镜参考图：**主素材 + 同组素材（最多 3 张）**——单张参考容易漂脸，同组多张显著更稳。
+   * 资质与授权范围来自真人主档（referenceAssets / assetGroupId）。
+   */
+  const refsForShot = (shot: ShotCard): string[] => {
+    if (!isAssetShot(shot)) return refs;
+    const id = assetIdOf(assetRefOf(shot));
+    const entry = realPersonLibrary.byAssetId.get(id);
+    return entry ? referenceAssetRefs(entry.asset, 3) : [assetRefOf(shot)];
+  };
   /**
    * 送审基准图口径：评审组件按**本地文件**读图，`asset://` 是平台素材引用、不是文件路径
    * （真机 2026-09-29：把 asset 引用当基准图投递 → `ENOENT: open 'asset://…'`，监制直接不可用）。
