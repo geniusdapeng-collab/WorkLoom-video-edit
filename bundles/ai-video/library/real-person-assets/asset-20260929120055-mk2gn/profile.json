@@ -37,5 +37,57 @@
     "asset-20260929120054-rgzf",
     "asset-20260929120319-ftzr7",
     "asset-20260929120319-bxy7"
-  ]
+  ],
+  "portraitSet": {
+    "schemaVersion": "workloom.real-person-portrait-set/v1",
+    "group": "group-20260929115741-gv1tdf",
+    "count": 11,
+    "assets": [
+      {
+        "assetId": "asset-20260929120055-mk2gn",
+        "angleGuess": "front"
+      },
+      {
+        "assetId": "asset-20260929120055-42ftx",
+        "angleGuess": "threeQuarter/side/closeup（待客户确认）"
+      },
+      {
+        "assetId": "asset-20260929120055-d6xr",
+        "angleGuess": "threeQuarter/side/closeup（待客户确认）"
+      },
+      {
+        "assetId": "asset-20260929120055-4fgtr",
+        "angleGuess": "threeQuarter/side/closeup（待客户确认）"
+      },
+      {
+        "assetId": "asset-20260929120054-2t88r",
+        "angleGuess": "threeQuarter/side/closeup（待客户确认）"
+      },
+      {
+        "assetId": "asset-20260929120054-p66jhg",
+        "angleGuess": "threeQuarter/side/closeup（待客户确认）"
+      },
+      {
+        "assetId": "asset-20260929120054-c26r6r",
+        "angleGuess": "threeQuarter/side/closeup（待客户确认）"
+      },
+      {
+        "assetId": "asset-20260929120548-20hwrw",
+        "angleGuess": "threeQuarter/side/closeup（待客户确认）"
+      },
+      {
+        "assetId": "asset-20260929120054-rgzf",
+        "angleGuess": "threeQuarter/side/closeup（待客户确认）"
+      },
+      {
+        "assetId": "asset-20260929120319-ftzr7",
+        "angleGuess": "threeQuarter/side/closeup（待客户确认）"
+      },
+      {
+        "assetId": "asset-20260929120319-bxy7",
+        "angleGuess": "threeQuarter/side/closeup（待客户确认）"
+      }
+    ],
+    "note": "同组 11 张为同一授权人；角度标签由顺序推断，客户可直接改 angleGuess。生成时按「主素材 + 同组 2 张」共 3 张提交（Seedance 参考图上限）。"
+  }
 }

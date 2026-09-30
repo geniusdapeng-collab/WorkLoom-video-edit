@@ -290,6 +290,20 @@ if (arg("--accept-weak-material-motion")) {
 }
 /** 只做后期运镜增强、不提交新渲染（额度受限/只想换运镜设计时用） */
 const MATERIAL_POST_ONLY = flag("--material-post-only");
+/**
+ * 纯后期组装模式（T-2026-0929-0012，真机事故沉淀）：
+ * 当源镜头是**外部拿到的成品片段**（未过本片 shot/voice 回执）时，允许继续走完整后期链
+ * （合成→调色→字幕→配乐→封面设计师→母版→变体交付包），但必须：
+ *   1 显式传 `--assembly-mode post-only --assembly-reason "<原因>"`；
+ *   2 落一条 degraded 门记录（哪些镜头无回执）；
+ *   3 交付清单里标 assemblyMode=post-only、shotReceiptsMissing=[…]。
+ * 目的：把"绕开管线、手工做封面/BGM"这条歪路堵死——要么走完整链并留痕，要么不做。
+ */
+const POST_ONLY_ASSEMBLY = arg("--assembly-mode", "") === "post-only";
+const POST_ONLY_REASON = arg("--assembly-reason", "").trim();
+if (POST_ONLY_ASSEMBLY && POST_ONLY_REASON.length < 8) {
+  throw new Error("post-only 组装必须显式给出 --assembly-reason \"<至少 8 字原因>\"（说明源镜头为何没有本片回执）");
+}
 /** 后期速度坡道只由显式参数或镜头意图启用，默认保持原速度 */
 const MATERIAL_SPEED_RAMP = flag("--material-speed-ramp") && !flag("--no-material-speed-ramp");
 /**
@@ -1016,8 +1030,28 @@ record({ stage: "scene-policy-audit", shotId: null, invoked: true, ok: scenePoli
     sourceSha256: scenePolicy?.sourceSha256 ?? null, selection: scenePolicySelection.reason,
     defects: scenePolicyReport?.defects ?? [], ratios: scenePolicyReport?.ratios ?? null }, verdict: null });
 if (scenePolicyReport && !scenePolicyReport.passed) {
-  log(`⛔ ${scenePolicy.title} 生成前门禁未通过（${scenePolicyReport.defects.length} 项）：${scenePolicyReport.defects.map((item) => `${item.shotId ?? "全片"}[${item.rule}] ${item.detail}`).join("；")}`);
-  process.exit(7);
+  /**
+   * post-only 组装（T-2026-0929-0012）：片型门是**生成前**门（管"别拍跑偏的片子"），
+   * 而本模式不生成任何新镜头、只是把已有成品片段走完整后期链——因此降级为**告警 + 门记录**，
+   * 不阻断；真正的把关点在 cover/deliver（平台规范、差异实测）与人工验收。
+   */
+  const defects = scenePolicyReport.defects.map((item) => `${item.shotId ?? "全片"}[${item.rule}] ${item.detail}`);
+  if (POST_ONLY_ASSEMBLY) {
+    log(`⚠ ${scenePolicy.title} 生成前门禁未通过（${scenePolicyReport.defects.length} 项），但本片为 post-only 组装（不生成新镜头）→ 记为 degraded，不阻断`);
+    for (const defect of defects.slice(0, 6)) log(`   · ${defect}`);
+    recordGate({
+      stepKey: "g-post-only-assembly",
+      sourceStage: "scene-policy",
+      checks: [{ id: "scene-policy-degraded", pass: true, hard: false, detail: `片型门 ${scenePolicy.id} 未通过 ${scenePolicyReport.defects.length} 项：${defects.slice(0, 6).join("；")}` }],
+      shotIds: sourceDocument.shots.map((shot) => String(shot.shotId)),
+      degraded: true,
+      reason: `post-only 组装：片型生成前门降级（${scenePolicyReport.defects.length} 项）`,
+      evidence: { assemblyMode: "post-only", policy: scenePolicy.id, defects: scenePolicyReport.defects, ratios: scenePolicyReport.ratios }
+    });
+  } else {
+    log(`⛔ ${scenePolicy.title} 生成前门禁未通过（${scenePolicyReport.defects.length} 项）：${defects.join("；")}`);
+    process.exit(7);
+  }
 }
 const shotsSelected = ONLY.length > 0 ? shotlist.shots.filter((s) => ONLY.includes(s.shotId)) : shotlist.shots;
 if (!Array.isArray(shotsSelected) || shotsSelected.length === 0) throw new Error("shotlist 里没有镜头");
@@ -1301,6 +1335,46 @@ for (const shot of shots) {
 if (assetShots().length > 0) {
   log(`授权真人素材镜 ${assetShots().length} 镜：${assetShots().map((s) => `${s.shotId}→${assetRefOf(s)}`).join(" · ")}（外部素材 ID，未向平台核验授权有效性）`);
 }
+
+/**
+ * 提交前硬闸（T-2026-0929-0013，客户口径："问题要在提交提示词之前发现，不要反复重试烧钱"）：
+ * 在**每一次真正花钱的提交之前**，对最终编译出来的提示词做确定性体检；命中红线即拒绝提交（fail-closed），
+ * 并把结论写进门账本（G-PRE1）。同时禁止"同一提示词重试"（指纹相同 = 同一注押两次）。
+ */
+function preflightSubmitGuard(input: { shotId: string; stage: string; prompt: string; fps: number; attempt: number; prevFingerprint: string | null }): void {
+  const text = input.prompt;
+  const issues: string[] = [];
+  const hasScreen = /屏幕|触控|界面/.test(text);
+  const screenOk = /(虚化|不可辨|光晕|过曝成色块|背对|不出现)/.test(text);
+  if (hasScreen && !screenOk) issues.push("屏幕类元素未声明虚化/背对/不入画——模型会把界面渲染成可读文字（真机返修 6 次）");
+  const hasDoc = /身份证|证件|护照|单据|票据/.test(text);
+  const docOk = /(不可辨|背面|无证件文字|无身份证|不出现)/.test(text);
+  if (hasDoc && !docOk) issues.push("证件类道具未声明不可辨认/背面/不入画——会出现可辨字迹与号码（隐私红线，真机返修 5 次）");
+  if (/定住|稳住|定格/.test(text) && /推|拉|移|摇|环绕/.test(text)) issues.push("同一镜同时锁\"定住\"时点与推拉运镜——模型做不到，落幅必漂（真机返修 3 次）");
+  const fpsMatch = text.match(/(\d{2})\s*fps/i);
+  if (fpsMatch && Number(fpsMatch[1]) !== input.fps) issues.push(`提示词写 ${fpsMatch[1]}fps，管线按 ${input.fps}fps 出片`);
+  const fingerprint = createHash("sha256").update(text).digest("hex").slice(0, 12);
+  const identicalRetry = input.prevFingerprint !== null && input.prevFingerprint === fingerprint;
+  if (identicalRetry) issues.push("本次重试的提示词与上一次完全相同（指纹 " + fingerprint + "）——禁止同注押两次");
+  const gate = recordGate({
+    stepKey: "g-pre-submit",
+    sourceStage: input.stage,
+    checks: [
+      { id: "no-text-redline", pass: !issues.some((i) => i.includes("可读文字") || i.includes("可辨字迹")), hard: true, detail: issues.filter((i) => i.includes("可读文字") || i.includes("可辨字迹")).join("；") || "无文字类红线" },
+      { id: "no-timing-conflict", pass: !issues.some((i) => i.includes("落幅必漂")), hard: true, detail: issues.find((i) => i.includes("落幅必漂")) ?? "无时点/运镜冲突" },
+      { id: "no-identical-retry", pass: !identicalRetry, hard: true, detail: identicalRetry ? "同提示词重试被拒" : `提示词指纹 ${fingerprint}（第 ${input.attempt} 次提交）` },
+      { id: "fps-consistent", pass: !issues.some((i) => i.includes("fps")), hard: true, detail: issues.find((i) => i.includes("fps")) ?? "帧率一致" }
+    ],
+    shotIds: [input.shotId],
+    evidence: { stage: input.stage, attempt: input.attempt, promptChars: text.length, fingerprint, issues },
+    reason: issues.length === 0 ? `提交前体检通过（${input.stage}/${input.shotId}，指纹 ${fingerprint}）` : `提交前体检未通过：${issues.join("；")}`
+  });
+  if (!gate.approved) {
+    throw new Error(`PREFLIGHT_BLOCKED（未花钱）：${input.shotId} — ${issues.join("；")}｜修好提示词再提交，不要靠重试`);
+  }
+  if (issues.length === 0) log(`  ✓ 提交前体检（G-PRE1）：${input.shotId} 指纹 ${fingerprint}`);
+}
+
 /* ---------- ⓪-0.3 一次过就绪度门（G-FP1，T-2026-0929-0009：不再盲重试烧额度） ---------- */
 /**
  * 真机归因：本会话每一次返修都能在卡片里提前看到——让模型"别写屏幕字"、6 秒里锁"2.5s 定住"又要推镜、
@@ -2427,7 +2501,16 @@ if (scenePolicy) {
   record({ stage: "scene-policy-postplan", shotId: null, invoked: true, ok: scenePolicyReport.passed,
     cached: false, degraded: false, attempt: 1, ms: 0, artifact: SCENE_POLICY_REPORT_FILE,
     evidence: { policy: scenePolicy.id, version: scenePolicy.version, defects: scenePolicyReport.defects, ratios: scenePolicyReport.ratios }, verdict: null });
-  if (!scenePolicyReport.passed) throw new Error(`${scenePolicy.title} 后置分镜门禁未过：${scenePolicyReport.defects.map((item) => `${item.shotId ?? "全片"}[${item.rule}] ${item.detail}`).join("；")}`);
+  if (!scenePolicyReport.passed) {
+    const defects = scenePolicyReport.defects.map((item) => `${item.shotId ?? "全片"}[${item.rule}] ${item.detail}`);
+    /** post-only 组装：后置片型门同样是"生成前/生成后"的拍摄质量门，不生成新镜头时降级为告警（G-POST1 已留痕） */
+    if (POST_ONLY_ASSEMBLY) {
+      log(`⚠ ${scenePolicy.title} 后置分镜门禁未过（${defects.length} 项），post-only 组装降级不阻断`);
+      for (const defect of defects.slice(0, 4)) log(`   · ${defect}`);
+    } else {
+      throw new Error(`${scenePolicy.title} 后置分镜门禁未过：${defects.join("；")}`);
+    }
+  }
 }
 
 /** 后续审核与生成共享这份当前镜头快照；每次替换镜头卡后均从 shots 重建视图。 */
@@ -3537,6 +3620,7 @@ if (STAGES.has("material-gen")) {
       let accepted = false;
       let usedAttempt = 0;
       let lastVerdict: ProducerVerdict | null = null;
+    let lastPromptFingerprint: string | null = null;
       let lastMotion = { meanEnergy: 0, maxEnergy: 0, rampRatio: 0, frames: 0, peakAtSec: 0 };
       let lastRawMotion = { meanEnergy: 0, maxEnergy: 0, rampRatio: 0, frames: 0, peakAtSec: 0 };
       const motionPolicy = motionPolicyForShot(card);
@@ -4122,6 +4206,7 @@ if (STAGES.has("videos")) {
      * 让日志能自证"这次重试确实改了东西"。
      */
     let lastVerdict: ProducerVerdict | null = null;
+    let lastPromptFingerprint: string | null = null;
     for (let attempt = 1; attempt <= MAX_ATTEMPTS && !approved; attempt += 1) {
       const started = Date.now();
       const attemptPrompt = attempt === 1 ? prompt : `${prompt}\n\n${retryInstruction(lastVerdict, attempt, MAX_ATTEMPTS)}`;
@@ -4185,6 +4270,8 @@ if (STAGES.has("videos")) {
           });
           break;
         }
+        preflightSubmitGuard({ shotId: String(shot.shotId), stage: "videos", prompt: attemptPrompt, fps: FPS, attempt, prevFingerprint: lastPromptFingerprint });
+        lastPromptFingerprint = promptFingerprint;
         const submitted = await arkVideo({
           prompt: attemptPrompt,
           firstFrame,
@@ -4661,8 +4748,24 @@ if (STAGES.has("compose") && !DRY_RUN) {
       : artifactReusable("shot", join(CLIP_DIR, `${shot.shotId}.mp4`), undefined, shot.shotId);
     return !generated || (dialogueText(shot).length > 0 && !stageApproved("voice", [shot.shotId]));
   }).map((shot) => shot.shotId);
-  if (blocked.length) log(`⛔ 缺少当前镜头或人声的通过回执，合成中止：${blocked.join("、")}`);
-  if (!orderCheck.ok || missing.length > 0 || blocked.length > 0) {
+  if (blocked.length && POST_ONLY_ASSEMBLY) {
+    recordGate({
+      stepKey: "g-post-only-assembly",
+      sourceStage: "compose",
+      checks: [{
+        id: "post-only-declared", pass: true, hard: false,
+        detail: `post-only 组装：${blocked.length} 镜无本片 shot/voice 回执（${blocked.join("、")}）；原因：${POST_ONLY_REASON}`
+      }],
+      shotIds: blocked,
+      degraded: true,
+      reason: "post-only 组装（degraded）：源镜头为外部成品片段，缺本片回执",
+      evidence: { assemblyMode: "post-only", reason: POST_ONLY_REASON, blocked }
+    });
+    log(`⚠ post-only 组装模式：${blocked.length} 镜无本片回执（已落 degraded 门记录）→ 继续走完整后期链`);
+  } else if (blocked.length) log(`⛔ 缺少当前镜头或人声的通过回执，合成中止：${blocked.join("、")}`);
+  /** post-only 组装：回执缺失（blocked）不阻断合成；顺序错误或缺片仍然阻断（那是事实性缺陷，不是"没回执"） */
+  const receiptsBlock = blocked.length > 0 && !POST_ONLY_ASSEMBLY;
+  if (!orderCheck.ok || missing.length > 0 || receiptsBlock) {
     record({ stage: "compose", shotId: null, invoked: false, ok: false, cached: false, degraded: false, attempt: 1, ms: 0, artifact: null,
       evidence: { orderOk: orderCheck.ok, missing, blocked }, verdict: null, note: "镜头顺序、镜头产物或人声未过门，跳过合成" });
     if (QUALITY === "uhd") {
