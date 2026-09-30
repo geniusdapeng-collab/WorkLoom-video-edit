@@ -59,6 +59,7 @@ import {
   getCoverSpec, isKnownCoverPlatform, COVER_PLATFORM_IDS,
   fallbackCoverPlan, findAngleFile, MATERIAL_POLICY_STATEMENT, MATERIAL_POLICY_VERSION, assessMaterialReuse,
   assertMaterialGenerationProvenance, parseCoverPlan, prepareShotPrompt, readMaterialSpec, resolveProducerLlm,
+  detectProductAnchor, resolveRoutePreflight, RoutePreflightError, type RoutePreflightResult,
   buildSfxArgs, cutTimesFromShots, planCutSfxDetailed, CUT_SFX_POLICY, planHookSfx, HOOK_SFX_POLICY,
   measureBpm, beatGridReport, checkShotOrder, assessVariantAxes, VARIANT_MIN_COUNT, auditDeliverableNaming,
   assessCharacterConsistency, medianColor, type CharacterConsistencyReport, type RgbColor,
@@ -130,6 +131,18 @@ const log = (line: string): void => process.stdout.write(`[${stamp().slice(11, 1
 
 /* ================= 参数 ================= */
 
+/**
+ * 服务端"固定影片工位"（--worker / FILM_WORKER_MODE=worker）在 **CLI 侧尚未接线**（第二批，见
+ * `docs/repairs/T-2026-0927-0039.md` 第 57 行：full-chain-film.mts 未改动，工位子进程端到端待第二批）。
+ * 这里显式 fail-closed：否则子进程会在读不到作业上下文的情况下继续跑，报错位置与原因都不可读。
+ */
+if (flag("--worker") || String(process.env.FILM_WORKER_MODE ?? "") === "worker") {
+  throw new Error(
+    "WORKER_MODE_NOT_WIRED: 服务端固定影片工位的 CLI 侧入口尚未接线（第二批）。"
+    + "缺的是：解析 FILM_JOB_CONTEXT（冻结阶段/选项/inputRef）与受限通道（llm/image/video/media/voice/review）。"
+    + "请走公开 CLI 出片，或先完成第二批接线（docs/repairs/T-2026-0927-0039.md）。"
+  );
+}
 const SHOTS_FILE = abs(arg("--shots"));
 if (!SHOTS_FILE || !existsSync(SHOTS_FILE)) throw new Error("需要 --shots <shotlist.json>");
 const sourceBytes = readFileSync(SHOTS_FILE);
@@ -306,6 +319,11 @@ if (POST_ONLY_ASSEMBLY && POST_ONLY_REASON.length < 8) {
 }
 /** post-only 组装时"无本片回执"的镜头清单（交付清单里如实列出，供客户/审计复核） */
 let postOnlyMissingReceipts: string[] = [];
+/**
+ * 配乐层状态（交付清单留痕，T-2026-0930-0015）：声明式直混 / 工位判定无需配乐 / 签章路径。
+ * bgm 阶段在自己的块作用域里算出结论，这里提升到模块作用域供交付清单与母版终审引用。
+ */
+let bgmManifestInfo: Record<string, unknown> | null = null;
 /**
  * 声明式直混（T-2026-0930-0014，配本机"无版权曲库直用"口径）：
  * 源片是对白+环境混在一起的成品（post-only 组装/既有素材复用）时**不存在**可独立取证的干净分轨；
@@ -522,6 +540,16 @@ const SUBTITLE_MODE = (() => {
 const VALID_STAGES = new Set(["cine-kb", "continuity", "micromotion", "spec", "plates", "material-gen", "videos", "voice", "compose", "color", "subtitle", "danmaku", "bgm", "sfx", "cover", "mux", "master", "deliver", "revise"]);
 for (const stage of STAGES) if (!VALID_STAGES.has(stage)) throw new Error(`UNKNOWN_STAGE: ${stage}`);
 if (STAGES.has("deliver")) STAGES.add("master");
+/**
+ * post-only 组装**必须**过字段规范闸（T-2026-0930-0015）。
+ * 真机事故：手写组装卡没跑 `spec` → `character` 只写了"这位女士…"、没写主角名/ID（P0 字段不合格），
+ * 一路漏到封面环节才炸（人物卡找不到来源镜 → 退最小稿 → 母版终审被拦）。
+ * 这里不靠"记得加 spec"，而是入口自动补上；spec 阶段在 post-only 下按"字段规范"判（见下方 spec 块）。
+ */
+if (POST_ONLY_ASSEMBLY && !STAGES.has("spec")) {
+  STAGES.add("spec");
+  log("ℹ post-only 组装：自动补上 spec 阶段（25 字段规范闸）——手写组装卡同样要过字段规范");
+}
 assertSelectedShotStageScope(STAGES, ONLY);
 if (!DRY_RUN && (ACCEPT_REJECTED.length || ALLOW_FALLBACK_APPROVE || flag("--accept-env-defects") || flag("--accept-av-sync-drift"))) {
   throw new Error("PRODUCTION_BYPASS_REJECTED: 生产不能通过豁免参数把未通过或未核实变为合格；请调用对应组件修复后重新验证。");
@@ -613,6 +641,53 @@ if (!Array.isArray(sourceDocument.shots) || !sourceDocument.shots.length) throw 
 const sourceIds = sourceDocument.shots.map((shot) => String(shot.shotId ?? ""));
 if (sourceIds.some((id) => !/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(id) || id.includes("..")) || new Set(sourceIds).size !== sourceIds.length) throw new Error("SHOT_REGISTRY_INVALID: 镜号缺失、重复或包含路径字符");
 if (ONLY.some((id) => !sourceIds.includes(id))) throw new Error("SHOT_SCOPE_UNKNOWN: --only 包含未登记镜号");
+/**
+ * 视频类型分流前置（T-2026-0930-0015，2026-09-30 真机复盘沉淀）。
+ *
+ * 分流器 `pipeline-router.ts` 此前只接在**服务端派活**上；AI agent / 交付同学直接跑本 CLI 时会
+ * 跳过"先判营销片 / 叙事片 / 口播解说片"。这里把它变成**出片入口的 fail-closed 前置**：
+ *   · `--route work/route.json`（由 scripts/tools/route-video.mts 生成）；或
+ *   · `--route-kind marketing|narrative`（已确认过的补跑项目，显式声明并留痕）。
+ * 营销片必须有商品锚点（纪律：**不猜商品**）；分流结论是"判不准"时必须先问用户，不许替用户花钱。
+ */
+const ROUTE_FILE = arg("--route", "");
+const ROUTE_KIND_ARG = arg("--route-kind", "");
+const routeBrief: unknown = BRIEF_FILE && existsSync(abs(BRIEF_FILE))
+  ? (() => {
+    try {
+      return JSON.parse(readFileSync(abs(BRIEF_FILE), "utf8"));
+    } catch (error) {
+      throw new Error(`ROUTE_BRIEF_UNREADABLE: --brief 不是合法 JSON（${error instanceof Error ? error.message : String(error)}）`);
+    }
+  })()
+  : undefined;
+const routeRecord: unknown = ROUTE_FILE
+  ? (() => {
+    if (!existsSync(abs(ROUTE_FILE))) {
+      throw new Error(`ROUTE_FILE_MISSING: --route ${ROUTE_FILE} 不存在；先跑 scripts/tools/route-video.mts --out ${ROUTE_FILE}`);
+    }
+    try {
+      return JSON.parse(readFileSync(abs(ROUTE_FILE), "utf8"));
+    } catch (error) {
+      throw new Error(`ROUTE_FILE_UNREADABLE: --route 不是合法 JSON（${error instanceof Error ? error.message : String(error)}）`);
+    }
+  })()
+  : undefined;
+const ROUTE_PRODUCT_ANCHOR = detectProductAnchor({ brief: routeBrief, shotlist: sourceDocument });
+const ROUTE_PREFLIGHT: RoutePreflightResult = (() => {
+  try {
+    return resolveRoutePreflight({ routeRecord, routeKind: ROUTE_KIND_ARG, productAnchor: ROUTE_PRODUCT_ANCHOR });
+  } catch (error) {
+    if (error instanceof RoutePreflightError) {
+      log(`⛔ 分流前置检查未通过（${error.code}）：`);
+      for (const line of error.message.split("\n")) log(`　　${line}`);
+      throw new Error(`ROUTE_PREFLIGHT_${error.code}: ${error.message.split("\n")[0]}`);
+    }
+    throw error;
+  }
+})();
+log(`✅ 分流前置：${ROUTE_PREFLIGHT.kind}（来源：${ROUTE_PREFLIGHT.source}）`
+  + `${ROUTE_PREFLIGHT.productAnchor ? ` · 商品锚点「${ROUTE_PREFLIGHT.productAnchor}」` : ""}`);
 const lineageComponentHash = sha256FileSync(join(REPO_ROOT, "scripts/tools/full-chain-film.mts"));
 const SCENE_BIBLE_FILE = arg("--scene-bible");
 const sceneBible: SceneBible | null = SCENE_BIBLE_FILE
@@ -819,6 +894,130 @@ function readStageHistory(): StageRecord[] {
     try { return JSON.parse(line) as StageRecord; }
     catch { throw new Error(`STAGE_LEDGER_INVALID: ${STAGE_LOG}:${index + 1}，先恢复有效账本再续跑`); }
   });
+}
+/**
+ * 渲染 / 返工台账（T-2026-0930-0015）。
+ *
+ * 产品所有者口径（2026-09-30 真机复盘）：客户要能看到"**每一次花钱的账**"——
+ * 提交了几次渲染、几次渲出后判不合格、几次被平台拒收（欠费/限额）、几次 canary 止损、
+ * 后期各环节返工几次。只统计事实，不做费用估算（渲染单价未登记在仓库里）。
+ */
+interface RenderLedgerShot {
+  shotId: string;
+  /** 真的提交并拿到产物（或尝试渲染）的次数 */
+  attempts: number;
+  /** 渲出来后判不合格的次数 */
+  rejected: number;
+  /** 最近一次不合格原因（硬闸/监制/机检，取第一条） */
+  lastReason: string | null;
+  /** 平台拒收（未渲染）：欠费/限额等 */
+  platformRejections: number;
+  /** canary 止损中止（未渲染） */
+  canaryAborts: number;
+}
+interface RenderLedger {
+  generatedAt: string;
+  projectId: string;
+  totals: { renderAttempts: number; rendersRejected: number; platformRejections: number; canaryAborts: number; postStageRetries: number };
+  shots: RenderLedgerShot[];
+  postStages: Array<{ stage: string; retries: number; lastReason: string | null }>;
+  notes: string[];
+}
+const RENDER_LEDGER_STAGES = ["material-gen", "shot"] as const;
+const RENDER_LEDGER_POST_STAGES = ["compose", "color", "subtitle", "bgm", "cover", "mux", "master", "deliver"] as const;
+function buildRenderLedger(history: StageRecord[]): RenderLedger {
+  const byShot = new Map<string, RenderLedgerShot>();
+  const postByStage = new Map<string, { stage: string; retries: number; lastReason: string | null }>();
+  let platformRejections = 0;
+  let canaryAborts = 0;
+  for (const row of history) {
+    const evidence = row.evidence ?? {};
+    const errorText = String(evidence.error ?? "");
+    const reasonText = String(
+      (row.verdict?.hardFailures ?? [])[0] ?? row.verdict?.reason ?? row.note ?? evidence.reason ?? errorText ?? ""
+    ).slice(0, 240);
+    if ((RENDER_LEDGER_STAGES as readonly string[]).includes(row.stage) && row.invoked) {
+      const shotId = String(row.shotId ?? "(unassigned)");
+      const entry = byShot.get(shotId) ?? { shotId, attempts: 0, rejected: 0, lastReason: null, platformRejections: 0, canaryAborts: 0 };
+      if (/AccountOverdue|限额|quota|insufficient/i.test(errorText)) {
+        entry.platformRejections += 1;
+        platformRejections += 1;
+      } else if (errorText.startsWith("CANARY_ABORT")) {
+        entry.canaryAborts += 1;
+        canaryAborts += 1;
+      } else {
+        entry.attempts += 1;
+        if (!row.ok) {
+          entry.rejected += 1;
+          entry.lastReason = reasonText || entry.lastReason;
+        }
+      }
+      byShot.set(shotId, entry);
+      continue;
+    }
+    if ((RENDER_LEDGER_POST_STAGES as readonly string[]).includes(row.stage) && row.invoked && !row.ok) {
+      const current = postByStage.get(row.stage) ?? { stage: row.stage, retries: 0, lastReason: null };
+      current.retries += 1;
+      current.lastReason = reasonText || current.lastReason;
+      postByStage.set(row.stage, current);
+    }
+  }
+  const shots = [...byShot.values()].sort((a, b) => a.shotId.localeCompare(b.shotId));
+  const postStages = [...postByStage.values()].sort((a, b) => a.stage.localeCompare(b.stage));
+  return {
+    generatedAt: stamp(),
+    projectId: PROJECT,
+    totals: {
+      renderAttempts: shots.reduce((sum, entry) => sum + entry.attempts, 0),
+      rendersRejected: shots.reduce((sum, entry) => sum + entry.rejected, 0),
+      platformRejections,
+      canaryAborts,
+      postStageRetries: postStages.reduce((sum, entry) => sum + entry.retries, 0)
+    },
+    shots,
+    postStages,
+    notes: [
+      "口径：渲染提交与打回次数来自本项目 stages.jsonl（material-gen / shot）；平台拒收与 canary 止损**不计入**渲染次数。",
+      "只记次数与原因，不做费用估算（渲染单价未登记；客户可按自己与平台的结算口径折算）。"
+    ]
+  };
+}
+function renderLedgerMarkdown(ledger: RenderLedger): string {
+  const lines = [
+    `# 渲染与返工台账 · ${ledger.projectId}`,
+    "",
+    `生成时间：${ledger.generatedAt}`,
+    "",
+    "## 汇总",
+    "",
+    `- 提交渲染（含重试）：**${ledger.totals.renderAttempts}** 次`,
+    `- 渲出后判不合格：**${ledger.totals.rendersRejected}** 次`,
+    `- 平台拒收（未渲染，如欠费）：**${ledger.totals.platformRejections}** 次`,
+    `- canary 止损中止（未继续渲染）：**${ledger.totals.canaryAborts}** 次`,
+    `- 后期返工：**${ledger.totals.postStageRetries}** 次`,
+    "",
+    "## 逐镜",
+    "",
+    "| 镜号 | 渲染次数 | 判不合格 | 平台拒收 | canary 止损 | 最近原因 |",
+    "|---|---:|---:|---:|---:|---|",
+    ...(ledger.shots.length
+      ? ledger.shots.map((shot) => `| ${shot.shotId} | ${shot.attempts} | ${shot.rejected} | ${shot.platformRejections} | ${shot.canaryAborts} | ${(shot.lastReason ?? "").replace(/\|/g, "／")} |`)
+      : ["| （无渲染记录） | 0 | 0 | 0 | 0 | |"]),
+    "",
+    "## 后期返工",
+    "",
+    "| 环节 | 失败次数 | 最近原因 |",
+    "|---|---:|---|",
+    ...(ledger.postStages.length
+      ? ledger.postStages.map((entry) => `| ${entry.stage} | ${entry.retries} | ${(entry.lastReason ?? "").replace(/\|/g, "／")} |`)
+      : ["| （无返工记录） | 0 | |"]),
+    "",
+    "## 口径",
+    "",
+    ...ledger.notes.map((note) => `- ${note}`),
+    ""
+  ];
+  return `${lines.join("\n")}\n`;
 }
 function historyApproved(history: StageRecord[], stage: string): boolean { return stageApproved(stage, [null], history); }
 function lineageCheck(files: Array<{ label: string; path: string }>): { ok: boolean; detail: string } {
@@ -1108,6 +1307,20 @@ writeScenePolicyReport();
  * 后续收尾检查不会把它当成"请求未完成"（否则片子已交付、退出码却是 6，误导自动化）。
  */
 const scenePolicyDeclaredDegraded = POST_ONLY_ASSEMBLY && scenePolicyReport !== null && !scenePolicyReport.passed;
+/**
+ * 分流结论留痕（T-2026-0930-0015）：`--route` / `--route-kind` 的结论与来源写进阶段账本，
+ * 交付清单同样带 `route` 字段——审计能回答"这条片子当时按哪条管线做的、商品锚点是什么"。
+ */
+record({
+  stage: "route", shotId: null, invoked: true, ok: true, cached: false, degraded: false, attempt: 1, ms: 0,
+  artifact: ROUTE_FILE ? abs(ROUTE_FILE) : null,
+  evidence: {
+    kind: ROUTE_PREFLIGHT.kind, source: ROUTE_PREFLIGHT.source,
+    productAnchor: ROUTE_PREFLIGHT.productAnchor, notes: ROUTE_PREFLIGHT.notes,
+    recordTitle: ROUTE_PREFLIGHT.record ? String(ROUTE_PREFLIGHT.record.title ?? "") : null
+  },
+  verdict: null, note: `视频类型：${ROUTE_PREFLIGHT.kind}（${ROUTE_PREFLIGHT.source}）`
+});
 record({ stage: "scene-policy-audit", shotId: null, invoked: true, ok: scenePolicyReport?.passed ?? true,
   cached: false, degraded: scenePolicyDeclaredDegraded, attempt: 1, ms: 0, artifact: SCENE_POLICY_REPORT_FILE,
   evidence: { policy: scenePolicy?.id ?? null, version: scenePolicy?.version ?? null,
@@ -2615,6 +2828,11 @@ if (STAGES.has("spec")) {
   const started = Date.now();
   const checks: Array<{ id: string; pass: boolean; detail: string; hard?: boolean }> = [];
   let rateFail = 0;
+  /** post-only 字段闸用：声明了主角出镜的镜号（`shotlist.character.appearanceInShots`，缺省为空） */
+  const leadAppearanceShotIds = (() => {
+    const raw = (shotlist as unknown as { character?: { appearanceInShots?: unknown } }).character?.appearanceInShots;
+    return new Set<string>(Array.isArray(raw) ? raw.map(String) : []);
+  })();
   for (const shot of shots) {
     /** 素材镜不参与文生提示词融合（它的提示词是"图生视频"的动效提示词，由 material-gen 组装） */
     if (isMaterialShot(shot)) {
@@ -2673,7 +2891,8 @@ if (STAGES.has("spec")) {
     specReports.push({
       shotId: shot.shotId, charCount: finalPrompt.length, promptSource: report.promptSource,
       deliveryPass: report.delivery.pass, issues: report.delivery.issues,
-      missingSpecFields: report.missingSpecFields, redlines: report.redlines, degraded: report.degraded,
+      missingSpecFields: report.missingSpecFields, missingP0Fields: report.missingP0Fields,
+      redlines: report.redlines, degraded: report.degraded,
       sceneSubstituted: report.sceneSubstituted, sceneSubstitution: report.sceneSubstitution,
       languageNormalized: {
         replacements: normalized.replacements, dedupedRefs: normalized.dedupedRefs,
@@ -2698,23 +2917,56 @@ if (STAGES.has("spec")) {
     }
     writeFileSync(join(PROMPT_DIR, `${shot.shotId}.txt`), `${finalPrompt}\n`, "utf8");
     const promptFile = join(PROMPT_DIR, `${shot.shotId}.txt`);
+    /**
+     * post-only 组装（T-2026-0930-0015）：本片不产出新提示词，"**提示词载体类**检查"（交付闸/字数/
+     * 片型约束/语速/台词窗/朝向互斥）不作出厂否决票——素材已经渲出来了，拿去交付。
+     * 但 **25 字段 P0 规范**照旧是硬闸：真机事故就是组装卡 `character` 没写主角名/ID，
+     * 一路漏到封面才炸（人物卡找不到来源镜）。字段规范与"有没有生成提示词"无关。
+     */
+    const promptCarrierHard = !POST_ONLY_ASSEMBLY;
+    /**
+     * post-only 字段闸（只拦"组装卡该有却没有"的字段）：
+     *   · `scene` / `duration` 是所有镜头的事实必需项；
+     *   · `character` 只在**声明了主角出镜**（`shotlist.character.appearanceInShots` 含本镜，
+     *     或卡里已写了人物描述）时才要求写主角名/ID——商品微距、品牌尾卡本来就没有人物。
+     * 生成片不改口径（本检查记为咨询项，硬闸仍是"交付闸 + 字数 + 片型约束"）。
+     */
+    const postOnlyFieldIssues: string[] = [];
+    if (POST_ONLY_ASSEMBLY) {
+      if (!String(shot.scene ?? "").trim()) postOnlyFieldIssues.push("scene");
+      if (!(Number(shot.duration ?? 0) > 0)) postOnlyFieldIssues.push("duration");
+      const characterText = String(shot.character ?? "");
+      const declaredLead = Boolean(lead) && (leadAppearanceShotIds.has(shot.shotId) || characterText.trim().length > 0);
+      const mentionsLead = Boolean(lead) && (characterText.includes(lead!.name) || characterText.includes(lead!.id));
+      if (declaredLead && !mentionsLead) postOnlyFieldIssues.push(`character（必须写主角名/ID：${lead!.name}（${lead!.id}））`);
+    }
     checks.push({
-      id: `delivery:${shot.shotId}`, pass: report.delivery.pass, hard: true,
+      id: `p0-fields:${shot.shotId}`,
+      pass: POST_ONLY_ASSEMBLY ? postOnlyFieldIssues.length === 0 : report.missingP0Fields.length === 0,
+      hard: POST_ONLY_ASSEMBLY,
+      detail: POST_ONLY_ASSEMBLY
+        ? (postOnlyFieldIssues.length === 0
+          ? "post-only 组装：必需字段齐备（scene/duration/主角 character）"
+          : `post-only 组装：缺 ${postOnlyFieldIssues.join("、")}——先补镜头卡再出片`)
+        : `P0 字段缺失 ${report.missingP0Fields.length} 项（咨询项；生成片以交付闸为准）`
+    });
+    checks.push({
+      id: `delivery:${shot.shotId}`, pass: report.delivery.pass, hard: promptCarrierHard,
       detail: report.delivery.pass ? `交付闸通过（${finalPrompt.length} 字 · ${report.promptSource}）` : `交付闸未过：${report.delivery.issues.join("；")}`
     });
     const primaryPolicyTag = scenePolicy ? shot.policyTags?.find((tag) => scenePolicy.primaryTags.includes(tag)) : undefined;
     const policyPromptPresent = !scenePolicy || (finalPrompt.includes(scenePolicy.prompt.scene)
       && Boolean(primaryPolicyTag && finalPrompt.includes(scenePolicy.prompt.byTag[primaryPolicyTag] ?? "\u0000")));
     checks.push({
-      id: `scene-policy-prompt:${shot.shotId}`, pass: policyPromptPresent, hard: true,
+      id: `scene-policy-prompt:${shot.shotId}`, pass: policyPromptPresent, hard: promptCarrierHard,
       detail: policyPromptPresent ? "片型场景与景别约束已进入最终视频提示词" : "最终视频提示词缺片型场景或景别约束，禁止生成"
     });
     checks.push({
-      id: `char-count:${shot.shotId}`, pass: finalPrompt.length >= 1200, hard: true,
+      id: `char-count:${shot.shotId}`, pass: finalPrompt.length >= 1200, hard: promptCarrierHard,
       detail: `提示词 ${finalPrompt.length} 字（交付口径 ≥1200）`
     });
     checks.push({
-      id: `speech-rate:${shot.shotId}`, pass: rate <= 3.6, hard: true,
+      id: `speech-rate:${shot.shotId}`, pass: rate <= 3.6, hard: promptCarrierHard,
       detail: `台词 ${chars} 字 / ${duration}s = ${rate.toFixed(2)} 字每秒（上限 3.6）`
     });
     /**
@@ -2725,7 +2977,7 @@ if (STAGES.has("spec")) {
       .filter((item, index, list) => list.findIndex((other) => other[0] === item[0]) === index);
     const windowOverrun = duration > 0 ? dialogueWindows.filter((item) => Number(item[2]) > duration + 1e-9) : [];
     checks.push({
-      id: `dialogue-window:${shot.shotId}`, pass: windowOverrun.length === 0, hard: true,
+      id: `dialogue-window:${shot.shotId}`, pass: windowOverrun.length === 0, hard: promptCarrierHard,
       detail: dialogueWindows.length === 0
         ? "无台词时间窗（无需核验）"
         : windowOverrun.length > 0
@@ -2752,7 +3004,7 @@ if (STAGES.has("spec")) {
     const wantsTurn = /转身|回眸|侧身|侧转|背对|背身|转正脸|转回/.test(actionText);
     const sequenced = /先[^。；]{0,24}(再|随后|然后)|随后|然后|之后|最后|再转身|再转回|停下(后|之后)?|停留一拍|走(三|两)步后/.test(actionRaw);
     checks.push({
-      id: `pose-contradiction:${shot.shotId}`, pass: !(wantsFront && wantsTurn && !sequenced), hard: true,
+      id: `pose-contradiction:${shot.shotId}`, pass: !(wantsFront && wantsTurn && !sequenced), hard: promptCarrierHard,
       detail: wantsFront && wantsTurn && !sequenced
         ? "同一镜同时要求「面向镜头/眼神交流」与「转身/回头/侧身」——动作互斥，模型只能满足一半（真机 SC-02 连续 4 次被打回）。请拆成两镜，或改成「正面站定/正面走近」的重述。"
         : wantsFront && wantsTurn && sequenced
@@ -2799,11 +3051,16 @@ if (STAGES.has("spec")) {
     motionBudgetNotes.push({ shotId: shot.shotId, beats, advice: beats > 8 ? "节拍偏多（建议 ≤8），可合并同拍的连续位移" : "节拍在预算内" });
     if (rate > 3.6) rateFail += 1;
     record({
-      stage: "spec", shotId: shot.shotId, invoked: true, ok: report.delivery.pass && report.charCount >= 1200 && policyPromptPresent,
+      stage: "spec", shotId: shot.shotId, invoked: true,
+      /** post-only 组装：以 25 字段 P0 规范为准（不产出提示词）；生成片：沿用"交付闸 + 字数 + 片型约束"口径 */
+      ok: POST_ONLY_ASSEMBLY
+        ? postOnlyFieldIssues.length === 0
+        : report.delivery.pass && report.charCount >= 1200 && policyPromptPresent,
       cached: false, degraded: report.degraded, attempt: 1, ms: Date.now() - started,
       artifact: promptFile,
       evidence: {
         charCount: report.charCount, promptSource: report.promptSource, missing: report.missingSpecFields,
+        missingP0: report.missingP0Fields, postOnlyFieldGate: POST_ONLY_ASSEMBLY,
         sceneSubstituted: report.sceneSubstituted, sceneSubstitution: report.sceneSubstitution
       },
       verdict: null
@@ -3909,9 +4166,15 @@ if (STAGES.has("material-gen")) {
                 id: "motion-richness",
                 pass: lastMotionVerdict.rich,
                 detail: `原始渲染：${lastMotionVerdict.detail}`,
-                hard: true
+                /**
+                 * 运镜强弱是**创作口径**，不是事实（T-2026-0930-0015 收口，与下方 verifyGate 同口径）：
+                 * 渲出来的片段确实在动（not-static-display 已核），是否"够热闹"交给客户验收。
+                 * 旧口径在这里当硬闸，正是"渲出来→判不合格→再渲"烧钱循环的最后一条残留路径。
+                 */
+                hard: false
               },
-              { id: "speed-ramp", pass: lastRampVerdict.rich, detail: lastRampVerdict.detail, hard: true }
+              { id: "speed-ramp", pass: lastRampVerdict.rich, hard: false,
+                detail: `${lastRampVerdict.detail}（创作口径，不阻断交付）` }
             ],
             context: {
               shotId: shot.shotId, scene: shot.scene, motion: spec.motion ?? null,
@@ -4123,9 +4386,15 @@ if (STAGES.has("videos")) {
           : `环境真实性硬缺陷 ${envSummary.hard} 项 + 设备口径硬缺陷 ${devSummary.hard} 项（${Object.entries({ ...envSummary.byRule, ...devSummary.byRule }).map(([rule, count]) => `${rule}×${count}`).join(" · ")}）${envAccepted ? "——已显式声明带瑕疵放行" : "——渲染前必须清零"}`
       },
       {
-        id: "scene-policy", pass: scenePolicyReport?.passed ?? true, hard: true,
+        /**
+         * 片型配比（景别/机位/叙事证据）是**创作口径**（T-2026-0930-0014 产品所有者口径）：
+         * 默认降为咨询项（不挡花钱前的放行）；需要旧口径时用 `--review-policy blocking`。
+         */
+        id: "scene-policy", pass: scenePolicyReport?.passed ?? true, hard: REVIEW_POLICY === "blocking",
         detail: scenePolicyReport
-          ? `${scenePolicy!.id}@${scenePolicy!.version} 全片配比和逐镜品质门：${scenePolicyReport.defects.length} 项硬缺陷；报告 ${basename(SCENE_POLICY_REPORT_FILE)}`
+          ? `${scenePolicy!.id}@${scenePolicy!.version} 全片配比和逐镜品质门：${scenePolicyReport.defects.length} 项缺陷`
+            + `（按 T-2026-0930-0014 口径默认记为咨询项${REVIEW_POLICY === "blocking" ? "；--review-policy blocking 下仍作硬闸" : ""}）；`
+            + `报告 ${basename(SCENE_POLICY_REPORT_FILE)}`
           : "需求未命中已安装的片型知识条目（本门不适用）"
       },
       /** 平台语速门（2026-09-30）：与 hook-first-3s 同口径，结论必须在这道花钱前的门里可见 */
@@ -5516,17 +5785,48 @@ if (STAGES.has("bgm") && existsSync(danmakuOut)) {
    * 也不是把整片卡死，而是：**不加配乐（bgm_layer=false）、留痕声明、继续走完后期链交付**；
    * 恢复路径 = 接入签发者（WORKLOOM_AUDIO_STEM_SIGNING_SECRET）后重跑 bgm 环节补上音乐层。
    */
-  const bgmDeclaredOff = !existsSync(out)
-    && /audio_stems_source_unverified|签章分轨引用|独立音轨.*(未配置|缺失)/.test(bgmDetail);
+  /**
+   * 「工位判定无需配乐」的声明降级（T-2026-0930-0015）。
+   *
+   * 真机（2026-09-30 post-only 复跑）：`best` 按"不劣化优先"给出 `no_bgm_needed`（人声太满 /
+   * 找不到安全可闻窗口），曲库里也没有与剪辑网格相容的音乐床 → 工位**退出码 0 但没有产物**。
+   * 旧口径把这种情况判成硬失败（`scored：配乐版未产出` + `audio-track：无音轨`），整片被卡在母版终审。
+   * 按产品口径（渲后不做质量裁决、能交付先交付），这里记为"配乐层不适用"：
+   *   如实写明工位结论与曲库原因，不伪造音乐轨；需要旧口径时用 `--review-policy blocking`。
+   */
+  const bgmNoBgmDeclared = !existsSync(out)
+    && /no_bgm_needed|无需配乐/.test(`${bgmDetail}\n${String(result.out ?? "")}`);
+  const bgmDeclaredOff = (!existsSync(out)
+    && /audio_stems_source_unverified|签章分轨引用|独立音轨.*(未配置|缺失)/.test(bgmDetail))
+    || bgmNoBgmDeclared;
   /**
    * 实际出产物的是 `mix`（点名曲目/音乐床两条路径）；`best` 只是自动择曲的前置探测。
    * 声明式直混下 `best` 的择曲探测失败不该判"配乐工位失败"——判据落在**产物是否产出**上，
    * 前置探测的结论单独留痕（preselectTool）。
    */
   const bgmToolOk = existsSync(out) || result.ok;
+  /** 配乐层状态（交付清单留痕）：声明式直混 / 工位判定无需配乐 / 签章路径，三态如实写 */
+  bgmManifestInfo = {
+    layer: bgmDeclaredOff ? "off" : "on",
+    via: bgmVia,
+    notRequired: bgmNoBgmDeclared,
+    declaredOff: bgmDeclaredOff,
+    reason: bgmDeclaredOff
+      ? (bgmNoBgmDeclared
+        ? "配乐工位按「不劣化优先」判定无需配乐（人声太满 / 无可闻窗口），且曲库无网格相容音乐床——不伪造音乐轨"
+        : "本机无独立音轨签发者（WORKLOOM_AUDIO_STEM_SIGNING_SECRET 未配置）→ 声明式关闭配乐层，不冒充签章分轨")
+      : null,
+    sourceAuthority: bgmDeclaredOff ? "declared-unverified" : "signed-stems",
+    stemsVerified: !bgmDeclaredOff,
+    output: existsSync(out) ? basename(out) : null,
+    evidence: bgmDetail.slice(-400)
+  };
   if (bgmDeclaredOff) {
-    log("⚠ 配乐层按独立音轨纪律关闭（bgm_layer=false）：工位要求签章分轨引用，本机未配置签发者（不伪造干净轨）；"
-      + " 恢复路径：接入签发者后重跑 bgm 环节");
+    log(bgmNoBgmDeclared
+      ? "⚠ 配乐层不适用（bgm_layer=false）：工位按「不劣化优先」判定无需配乐（人声太满/无可闻窗口），"
+        + "且曲库无网格相容音乐床——不伪造音乐轨，交付清单如实标注（--review-policy blocking 可恢复硬失败）"
+      : "⚠ 配乐层按独立音轨纪律关闭（bgm_layer=false）：工位要求签章分轨引用，本机未配置签发者（不伪造干净轨）；"
+        + " 恢复路径：接入签发者后重跑 bgm 环节");
   }
   const lufs = (result.out.match(/-?\d+(\.\d+)?\s*LUFS/) ?? ["无响度读数"])[0] ?? "";
   const mixLufs = (bgmDetail.match(/-?\d+(\.\d+)?\s*LUFS/) ?? ["无响度读数"])[0] ?? lufs;
@@ -5540,16 +5840,24 @@ if (STAGES.has("bgm") && existsSync(danmakuOut)) {
     deterministic: [
       { id: "scored", pass: existsSync(out) || bgmDeclaredOff,
         detail: existsSync(out) ? "配乐版已产出"
+          : bgmNoBgmDeclared ? "配乐层不适用（工位判定无需配乐：人声太满/无可闻窗口，曲库无相容音乐床）——不伪造音乐轨"
           : bgmDeclaredOff ? "配乐层不适用（声明降级 bgm_layer=false）：无签章分轨引用，不伪造干净轨"
             : "配乐版未产出",
-        hard: !bgmDeclaredOff },
+        hard: !bgmDeclaredOff || REVIEW_POLICY === "blocking" },
       { id: "tool-exit", pass: bgmToolOk || bgmDeclaredOff,
         detail: existsSync(out) ? "配乐版已产出（混音工位退出码 0）"
           : result.ok ? "配乐工位退出码 0"
           : bgmDeclaredOff ? "配乐工位按独立音轨纪律拒收（预期边界：本机无签发者）"
             : `配乐工位失败：${result.out.slice(-300)}`,
         hard: !bgmToolOk && !bgmDeclaredOff },
-      { id: "audio-track", pass: Boolean(info.hasAudio), detail: info.hasAudio ? `音轨 ${info.acodec}` : "无音轨", hard: !info.hasAudio },
+      {
+        id: "audio-track",
+        pass: bgmNoBgmDeclared ? true : Boolean(info.hasAudio),
+        detail: bgmNoBgmDeclared
+          ? "配乐层不适用（bgm_layer=false）：母版音轨继承上游调色/字幕版（对白+环境），不叠加音乐"
+          : info.hasAudio ? `音轨 ${info.acodec}` : "无音轨",
+        hard: !info.hasAudio && !bgmNoBgmDeclared
+      },
       {
         id: "loudness", pass: measured.lufs === null ? false : measured.lufs >= -17 && measured.lufs <= -12,
         detail: `${measured.detail}（母版口径 −14 LUFS ±2）`
@@ -5933,6 +6241,34 @@ if (STAGES.has("cover") && existsSync(colored)) {
     return CUT_GRID[index - 1] ?? shots.slice(0, index).reduce((sum, s) => sum + Number(s.duration ?? 5), 0);
   };
   const personShots = shots.filter((s) => String(s.character ?? "").length > 0);
+  /**
+   * 人物来源镜硬闸（T-2026-0930-0015，产品所有者口径）：
+   * 卡片里有人物镜、管线也知道主角是谁，但**没有任何一张卡的 character 写了主角名/ID** 时，
+   * 封面"人物为主"版式必然找不到来源镜 → 设计师稿非法 → 退最小稿 → 母版终审被拦（真机事故）。
+   * 这里在做封面之前**显式报错**并指出改哪一处，不再静默退化；显式声明 `--cover-archetype subject-led`
+   * （本来就不要人物卡）时不拦。
+   */
+  const leadMatchedPersons = lead
+    ? personShots.filter((s) => String(s.character ?? "").includes(lead.name) || String(s.character ?? "").includes(lead.id))
+    : personShots;
+  if (COVER_ARCHETYPE !== "subject-led" && lead && personShots.length > 0 && leadMatchedPersons.length === 0) {
+    const detail = `COVER_PERSON_SOURCE_MISSING: 分镜卡里有 ${personShots.length} 个带 character 的镜头，但没有任何一个写了主角「${lead.name}（${lead.id}）」；`
+      + "封面「人物为主」版式无法定位人物来源镜（真机事故：character 只写「这位女士…」）。"
+      + `请把主角名/ID 写进对应镜头的 character 字段（如「${lead.name}（${lead.id}；与认证素材为同一人…）」），`
+      + "或显式声明 --cover-archetype subject-led 只用物体主视觉。";
+    log(`⛔ ${detail}`);
+    record({
+      stage: "cover", shotId: null, invoked: false, ok: false, cached: false, degraded: false, attempt: 1, ms: 0,
+      artifact: null,
+      evidence: {
+        code: "COVER_PERSON_SOURCE_MISSING", archetype: COVER_ARCHETYPE,
+        lead: { name: lead.name, id: lead.id },
+        personShots: personShots.map((s) => s.shotId)
+      },
+      verdict: null, note: "封面人物卡缺主角来源镜：先补镜头卡 character（P0 字段）再出片"
+    });
+    throw new Error(detail);
+  }
   const coverBrief = BRIEF_FILE && existsSync(abs(BRIEF_FILE))
     ? (JSON.parse(readFileSync(abs(BRIEF_FILE), "utf8")) as CoverDesignInput["brief"])
     : null;
@@ -6225,8 +6561,13 @@ if (STAGES.has("cover") && existsSync(colored)) {
    */
   const wantsLandmark = /滕王阁/.test(planText);
   const isNightShot = (shot: ShotCard): boolean => {
-    const scene = String(shot.scene ?? "");
-    if (!/夜景|夜色|夜间|夜晚|灯光秀|灯火|夜市/.test(scene)) return false;
+    /**
+     * 判定口径（T-2026-0930-0015 补）：**场景正文 + 场景描述一起看**，并认"晚 20:05 / 深夜 / 傍晚"。
+     * 真机：卡片把时刻写在 `scene`（"晚 20:05"）、把"灯火通明"写在 `sceneDescription`，
+     * 旧口径只看 `scene` 且不认"晚 HH:MM" → 夜景底图被判成日景，被 5.5 的白天清晰度下限否掉。
+     */
+    const scene = `${String(shot.scene ?? "")} ${String((shot as Record<string, unknown>).sceneDescription ?? "")}`;
+    if (!/夜景|夜色|夜间|夜晚|夜里|深夜|傍晚|晚\s?\d{1,2}[:：]\d{2}|灯光秀|灯火|夜市/.test(scene)) return false;
     return wantsLandmark ? /滕王阁/.test(scene) : true;
   };
   if (wantsNight && !isNightShot(bgShot)) {
@@ -6627,7 +6968,12 @@ if (STAGES.has("cover") && existsSync(colored)) {
       + `${isNightShot(COVER_HERO === "person" || COVER_HERO === "person-solo" ? heroShot : bgShot) ? "，夜景口径" : ""}；低于它基本是运动模糊/失焦）`
       + `${bgSubstituted && !(COVER_HERO === "person" || COVER_HERO === "person-solo") ? "（已自动改取全片最清晰帧）" : ""}`
       + `${COVER_HERO === "person" || COVER_HERO === "person-solo" ? `（人物底图：${heroShot.shotId} @ ${heroAt}s）` : ""}`,
-    hard: true
+    /**
+     * 清晰度是**画质口径**而不是事实：已经自动改取过全片最清晰帧，仍达不到阈值时，
+     * 继续判硬失败只会让整片交不出去（真机：夜景底图 3.34 被 5.5 否掉 → 封面/母版连环打回）。
+     * 按 T-2026-0930-0015 口径默认记为咨询项；`--review-policy blocking` 恢复旧硬闸。
+     */
+    hard: REVIEW_POLICY === "blocking"
   });
   /** ④ 监制：看整图（rubric 只问可验证的事） */
   const verdict = await reviewStage({
@@ -7519,11 +7865,19 @@ if (STAGES.has("deliver") && !DRY_RUN && (QUALITY !== "uhd" || masterApprovedFor
   }));
   const coverFile = join(OUT_DIR, `${PROJECT}-cover.png`);
   const withCover = join(OUT_DIR, `${PROJECT}-with-cover.mp4`);
+  /**
+   * 渲染 / 返工台账（T-2026-0930-0015）：客户要能看到"**每一次花钱的账**"——几次提交、几次判不合格、
+   * 几次平台拒收、几次 canary 止损、后期返工几次。清单与 Markdown 同时落盘（UHD 走暂存发布，一并纳入）。
+   */
+  const renderLedger = buildRenderLedger(readStageHistory());
+  const renderLedgerFile = join(OUT_DIR, `${PROJECT}-render-ledger.md`);
+  writeFileSync(renderLedgerFile, renderLedgerMarkdown(renderLedger), "utf8");
   const stagedContentAssets = [...new Set([deliverablePath, ...stagedSubtitles,
     ...variantManifest.flatMap((variant) => [variant.path, ...(variant.cover ? [variant.cover.path] : [])]),
     ...(existsSync(coverFile) ? [coverFile] : []),
     ...(softsubFile ? [softsubFile] : []),
     ...(existsSync(withCover) && stageApproved("cover-intro") ? [withCover] : []),
+    renderLedgerFile,
   ])];
   const assetHashes = QUALITY === "uhd"
     ? await Promise.all(stagedContentAssets.map(async (path) => ({ path: publicDeliveryPath(path), sha256: await sha256UhdAsset(path) })))
@@ -7568,7 +7922,21 @@ if (STAGES.has("deliver") && !DRY_RUN && (QUALITY !== "uhd" || masterApprovedFor
     mode: POST_ONLY_ASSEMBLY ? "post-only" : "generated",
     reason: POST_ONLY_REASON || null,
     shotReceiptsMissing: POST_ONLY_ASSEMBLY ? postOnlyMissingReceipts : [],
-  } }, null, 2)}\n`, "utf8");
+  },
+  /**
+   * 视频类型分流结论（T-2026-0930-0015）：审计能回答"这条片子按哪条管线做的、商品锚点是什么"。
+   */
+  route: {
+    kind: ROUTE_PREFLIGHT.kind,
+    source: ROUTE_PREFLIGHT.source,
+    productAnchor: ROUTE_PREFLIGHT.productAnchor,
+    notes: ROUTE_PREFLIGHT.notes,
+  },
+  /** 配乐层状态（T-2026-0930-0015）：off 时写明原因，不让"没配乐"变成查不到的黑盒 */
+  bgm: bgmManifestInfo,
+  /** 渲染/返工台账（次数与原因；不做费用估算） */
+  renderLedger,
+  renderLedgerFile: publicDeliveryPath(renderLedgerFile) }, null, 2)}\n`, "utf8");
   if (QUALITY === "uhd") {
     if (!gate.approved || gate.degraded) {
       record({ stage: "deliver", shotId: null, invoked: true, ok: false, cached: false, degraded: gate.degraded,

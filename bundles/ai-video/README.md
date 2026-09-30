@@ -18,6 +18,11 @@ pnpm exec tsx scripts/tools/route-video.mts --title "<用户需求原文>" --llm
 `explainer`（口播解说片）/ `clarify`（**判不准 → 先问用户，不要替用户花钱**），
 并打印对应的**建议命令**与意图清理后的文本。
 
+> **出片入口的硬约束（T-2026-0930-0015）**：`full-chain-film.mts` 现在**要求分流结论**——
+> 要么 `--route work/route.json`（上面这条命令的 `--out` 产物），要么对已确认过的补跑项目显式
+> `--route-kind marketing|narrative`。两者都没有会直接 `ROUTE_PREFLIGHT_ROUTE_REQUIRED` 拒绝出片；
+> 判不准（`clarify`）时也会拒绝并提示"先问用户"。营销片缺商品锚点同样 fail-closed。
+
 - 判据与口径：`packages/video-studio/src/pipeline-router.ts`；设计说明：`docs/video-pipeline-routing-and-dossier-2026-09-25.md`
 - **营销片必需商品锚点**（商品名只能来自用户显式声明 / metadata / 模型抽取，**不许猜**）；
   商品档案放在 `bundles/ai-video/library/products/<档案>/`，G-PROD1 会逐镜校验真实商品绑定。
@@ -29,7 +34,12 @@ pnpm exec tsx scripts/tools/route-video.mts --title "<用户需求原文>" --llm
 ```bash
 node -v            # >= 24
 pnpm install
+pnpm exec tsx scripts/tools/video-doctor.mts   # 出片环境自检（缺什么一目了然）
 ```
+
+`video-doctor` 会检查：Node/pnpm、ffmpeg/ffprobe（含 `~/.workloom-color/bin` 与 `WL_FFMPEG`）、
+火山方舟与评审模型密钥、配音工位、**配乐曲库与路径监狱**、真人/商品/片型/封面知识库、入口与 runbook 是否齐备。
+`--json` 输出给 Agent 解析；存在 FAIL 时退出码 1。
 
 工位与密钥（**不要写进仓库/日志/提交**）：
 
@@ -59,6 +69,10 @@ cine-kb → continuity → micromotion → spec（25 字段交付闸）→ plate
         → voice（逐镜人声核查/补旁白）→ compose → color → subtitle → bgm → cover → mux → master → deliver
 ```
 
+> **post-only 组装自动带 `spec`**（T-2026-0930-0015）：`--assembly-mode post-only` 时管线会**自动补上**
+> `spec` 阶段；此时它按"25 字段 P0 规范"判（不要求生成用提示词）。真机事故：手写组装卡的 `character`
+> 只写"这位女士…"、没写主角名/ID（P0 字段），一路漏到封面才炸。
+
 ## 3. 两条已定稿的执行口径（2026-09-30，产品所有者）
 
 1. **渲染后不做"合格/不合格"裁决**：`--review-policy off`（默认）。渲染成功就**直接走完整后期链并交付**，
@@ -75,6 +89,7 @@ cine-kb → continuity → micromotion → spec（25 字段交付闸）→ plate
    封面人物卡找不到来源镜 → 封面退化 → 母版终审被上游放行闸拦下）。
 2. **`character` 字段必须写主角名/ID**（如 `未来前台CEO（ceo-future-frontdesk…）`），
    否则封面"人物为主"版式、造型一致性判定都会失配。
+   现在管线会在封面环节**显式报错**（`COVER_PERSON_SOURCE_MISSING`）而不是静默退化成"仅标题"。
 3. **配乐**：本机没有独立音轨签发者（`WORKLOOM_AUDIO_STEM_SIGNING_SECRET` 未配置）时，
    管线自动走**声明式直混** `--declared-program-mix`：本地无版权曲库直接可用，
    回执如实标注 `sourceAuthority=declared-unverified`、`stemsVerified=false`（不冒充签章分轨）。
@@ -82,12 +97,18 @@ cine-kb → continuity → micromotion → spec（25 字段交付闸）→ plate
 4. **不要手工做封面 / 手工混音绕过管线**：交付清单要能核对（`delivery-manifest.json` 里有
    `reviewPolicy` / `assembly` / 封面来源 / 各变体 sha256）。
 5. **账户欠费**：`AccountOverdueError` 403 会拦住提交；**先充值**，不要连点重试。
+6. **服务端固定影片工位（`--worker`）第二批未接线**：CLI 侧还没有解析 `FILM_JOB_CONTEXT`
+   与受限通道（llm/image/video/media/voice/review）的实现，本 CLI 会显式报
+   `WORKER_MODE_NOT_WIRED`。需要"客户端 UI 派活 → 工位出片"时先完成第二批（`docs/repairs/T-2026-0927-0037.md` / `-0039.md`）。
+7. **创作口径不得写成硬闸**：片型配比、运镜强弱、造型主色这类"好不好看"的问题默认只做咨询项，
+   硬闸只允许事实类（产物/时长/分辨率/音轨/音画对齐/字幕/命名/授权与素材用途）。CI 会拦（`scripts/ci/verify-hard-gate-policy.mjs`）。
 
 ## 5. 交付物与验收
 
 交付目录（`--out`）应包含：`*-<实测时长>s-final.mp4`（母版，名称与实测时长一致）、
 `subtitles/`（srt/ass/vtt + 清单）、`*-softsub.mp4`、变体 3 支 + 变体封面、
-`*-cover.png`、`*-delivery-manifest.json`（sha256/变体差异/审核口径/组装声明）。
+`*-cover.png`、`*-delivery-manifest.json`（sha256/变体差异/审核口径/组装声明/**分流结论**/**渲染台账**）、
+`*-render-ledger.md`（每一次花钱的账：提交几次、判不合格几次、平台拒收几次、canary 止损几次、后期返工几次）。
 质量口径见 `docs/video-delivery-and-revision.md`；监制门设计见 `docs/producer-gate-design.md`。
 
 ## 6. 认证真人（asset://）：定妆照/角度槽位怎么落实
