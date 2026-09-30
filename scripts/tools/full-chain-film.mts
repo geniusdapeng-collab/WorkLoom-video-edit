@@ -83,6 +83,7 @@ import { verifyAvSyncEvidence } from "../../packages/video-studio/src/av-sync.js
 import { loadProductArchives, productArchivePromptLines, productHeroPhoto, productPhotoPath, selectProductArchive } from "../../packages/video-studio/src/product-archive.js";
 import { assertShotMatchesCertifiedAsset, assetIdOf, identityReviewContext, loadRealPersonAssets, realPersonUsageReceipt, REAL_PERSON_POLICY_VERSION } from "../../packages/video-studio/src/real-person-asset.js";
 import { auditFilmRedlines, PROMPT_REDLINE_POLICY_VERSION } from "../../packages/video-studio/src/prompt-redlines.js";
+import { assessFilmFirstPass, FIRST_PASS_POLICY_VERSION } from "../../packages/video-studio/src/first-pass.js";
 import { publishUhdDelivery, sha256UhdAsset } from "../../packages/video-studio/src/uhd-delivery.js";
 
 const REPO_ROOT = resolve(import.meta.dirname ?? process.cwd(), "../..");
@@ -206,7 +207,7 @@ if (!["live-action", "animation"].includes(ENHANCE_KIND)) {
 }
 const ENHANCE_ENGINE_DIR = arg("--enhance-engine-dir", "");
 const FPS = Number(arg("--fps", "30"));
-const MAX_ATTEMPTS = Number(arg("--max-attempts", "2"));
+const MAX_ATTEMPTS = Math.max(1, Number(arg("--max-attempts", "1")) || 1);   // 默认不做盲重试（T-2026-0929-0009）
 /** 转场淡入淡出时长（秒）：快剪片（小红书/瞭望塔风格）用 0.1–0.2，抒情片用 0.5 */
 const XFADE = Number(arg("--xfade", "0.5"));
 /**
@@ -1281,6 +1282,8 @@ const ASSET_REF_PATTERN = /^asset:\/\/[A-Za-z0-9][A-Za-z0-9_-]*$/;
 const isAssetRefLocal = (value: unknown): boolean => typeof value === "string" && ASSET_REF_PATTERN.test(value.trim());
 const assetRefOf = (shot: ShotCard): string => String((shot as Record<string, unknown>).assetRef ?? "").trim();
 const isAssetShot = (shot: ShotCard): boolean => isAssetRefLocal(assetRefOf(shot));
+/** 送审基准图只投本地文件：asset:// 是平台引用、不是文件路径（真机 ENOENT 事故） */
+const localReviewRefsEarly = (list: string[]): string[] => list.filter((ref) => !isAssetRefLocal(ref) && existsSync(ref));
 const generatedShots = (): ShotCard[] => shots.filter((shot) => !isMaterialShot(shot) && !isAssetShot(shot));
 const materialShots = (): ShotCard[] => shots.filter((shot) => isMaterialShot(shot));
 /** 商品镜：素材镜里由 G-PROD1 绑定真实商品档案的镜头（参考图锁的是**产品外观**，不要求复刻参考构图） */
@@ -1298,6 +1301,41 @@ for (const shot of shots) {
 if (assetShots().length > 0) {
   log(`授权真人素材镜 ${assetShots().length} 镜：${assetShots().map((s) => `${s.shotId}→${assetRefOf(s)}`).join(" · ")}（外部素材 ID，未向平台核验授权有效性）`);
 }
+/* ---------- ⓪-0.3 一次过就绪度门（G-FP1，T-2026-0929-0009：不再盲重试烧额度） ---------- */
+/**
+ * 真机归因：本会话每一次返修都能在卡片里提前看到——让模型"别写屏幕字"、6 秒里锁"2.5s 定住"又要推镜、
+ * 服装锁到面料配饰、一镜塞三个互相打架的诉求。这里在花钱前给出**就绪度 + 改卡建议**，
+ * 并把**最险的镜头排到渲染队列最前面**（canary 先错，只花一镜的钱）。
+ */
+let FIRST_PASS_ORDER: ShotCard[] = shots;
+{
+  const readiness = assessFilmFirstPass(shots as unknown as Array<Record<string, unknown>>, { fps: FPS });
+  const shotIds = shots.map((shot) => String(shot.shotId));
+  const order = readiness.renderOrder;
+  FIRST_PASS_ORDER = order.map((id) => shots.find((shot) => String(shot.shotId) === id)!).filter(Boolean);
+  const gate = recordGate({
+    stepKey: "g-first-pass",
+    sourceStage: "prompt",
+    checks: [
+      {
+        id: "first-pass-ready", pass: readiness.ready, hard: true,
+        detail: readiness.ready
+          ? `${FIRST_PASS_POLICY_VERSION}：${shots.length} 镜无高风险项（就绪度通过；渲染顺序按风险降序：${order.join(" → ")}）`
+          : readiness.blockers.map((entry) => `${entry.shotId}｜${entry.finding.id}｜${entry.finding.detail}｜改卡建议：${entry.finding.suggestion}`).join("；")
+      }
+    ],
+    shotIds,
+    evidence: { policy: FIRST_PASS_POLICY_VERSION, perShot: readiness.perShot, renderOrder: order },
+    reason: readiness.ready ? `${FIRST_PASS_POLICY_VERSION}：就绪` : `存在 ${readiness.blockers.length} 项高风险（花钱前拦住）`
+  });
+  if (!gate.approved) {
+    log(`⛔ 一次过就绪度未通过（未花任何渲染额度）：`);
+    for (const entry of readiness.blockers) log(`   · ${entry.shotId} ${entry.finding.id}：${entry.finding.detail}\n     改卡建议：${entry.finding.suggestion}`);
+    throw new Error(`FIRST_PASS_NOT_READY: ${readiness.blockers.map((entry) => `${entry.shotId}:${entry.finding.id}`).join(",")}`);
+  }
+  log(`一次过就绪度 G-FP1 通过（渲染顺序按风险降序：${order.join(" → ")}）`);
+}
+
 /* ---------- ⓪-0.4 提示词红线门（G-RL1，T-2026-0929-0008：提高一次过率） ---------- */
 /**
  * 每一次"渲完才发现"的返修，都对应一条可以提前写死在卡片里的红线。这里在**花钱之前**统一清零：
@@ -2847,7 +2885,7 @@ if (STAGES.has("plates")) {
             { id: "bytes", pass: Number(info.bytes ?? 0) > 50_000, detail: `文件 ${((Number(info.bytes ?? 0)) / 1024).toFixed(0)}KB`, hard: true },
             { id: "aspect", pass: Math.abs(ratio - expected) < 0.06, detail: `${width}x${height}（期望比例 ${expected.toFixed(3)}，实测 ${ratio.toFixed(3)}）`, hard: true }
           ],
-          referenceImages: localReviewRefs(portraitRefs).slice(0, 2), context: { shotId: shot.shotId, scene: shot.scene, action: shot.action,
+          referenceImages: localReviewRefsEarly(portraitRefs).slice(0, 2), context: { shotId: shot.shotId, scene: shot.scene, action: shot.action,
             scenePolicy: scenePolicy ? { id: scenePolicy.id, tags: shot.policyTags, speechScene: shot.speechScene } : null }, env: ENV,
           allowFallbackApprove: ALLOW_FALLBACK_APPROVE, log
         });
@@ -3357,7 +3395,7 @@ function applyCameraMovePunchCut(input: string, output: string, options: {
 
 if (STAGES.has("material-gen")) {
   const { width: pw, height: ph } = SOURCE_SIZE;
-  for (const shot of materialShots()) {
+  for (const shot of FIRST_PASS_ORDER.filter((item) => isMaterialShot(item))) {
     const shotStarted = Date.now();
     const card = shot as Record<string, unknown>;
     const spec = readMaterialSpec(card);
@@ -3631,7 +3669,16 @@ if (STAGES.has("material-gen")) {
               "无文字与水印：画面内不得出现新增文字、字幕、LOGO、边框、角标",
               ...(scenePolicy ? [scenePolicy.prompt.visualReview] : [])
             ],
-            referenceImages: [prepared, ...(isProductMaterialShot(shot) ? [productPhotoPath(productLibrary.byId.get(String((shot as Record<string, unknown>).productRef?.id))!, productHeroPhoto(productLibrary.byId.get(String((shot as Record<string, unknown>).productRef?.id))!.archive)!)] : [])],
+            referenceImages: (() => {
+              const refs: string[] = [prepared];
+              const productRef = (shot as Record<string, unknown>).productRef as { id?: string } | undefined;
+              const entry = productRef?.id ? productLibrary.byId.get(String(productRef.id)) : undefined;
+              if (isProductMaterialShot(shot) && entry) {
+                const hero = productHeroPhoto(entry.archive);
+                if (hero) refs.push(productPhotoPath(entry, hero));
+              }
+              return refs;
+            })(),
             deterministic: [
               { id: "duration", pass: Math.abs(Number(lastInfo.duration ?? 0) - duration) <= 0.6, detail: `期望 ${duration}s 实测 ${Number(lastInfo.duration ?? 0).toFixed(2)}s`, hard: true },
               { id: "resolution", pass: Number(lastInfo.width ?? 0) >= 720 && Number(lastInfo.height ?? 0) >= 720, detail: `${lastInfo.width}x${lastInfo.height}`, hard: true },
@@ -3928,8 +3975,8 @@ if (STAGES.has("videos")) {
    * （真机 2026-09-29：把 asset 引用当基准图投递 → `ENOENT: open 'asset://…'`，监制直接不可用）。
    * 因此送审时只投递本地存在的图片；授权素材引用只进生成请求（`arkVideo` 的 reference_image）。
    */
-  const localReviewRefs = (list: string[]): string[] => list.filter((ref) => !isAssetRefLocal(ref) && existsSync(ref));
-  for (const shot of shots) {
+  const localReviewRefs = localReviewRefsEarly;
+  for (const shot of FIRST_PASS_ORDER) {
     const clip = join(CLIP_DIR, `${shot.shotId}.mp4`);
     const duration = Number(shot.duration ?? 5);
     /**
