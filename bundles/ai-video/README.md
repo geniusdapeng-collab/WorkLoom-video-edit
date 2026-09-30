@@ -152,3 +152,34 @@ pnpm exec tsx scripts/tools/portrait-set-install.mts \
 映射里必填 `front / threeQuarter / closeup / side`；可选 `frontFull / threeQuarterLeft /
 threeQuarterRight / smileCloseup / back / actionPose / emotionCloseup / handDetail`。
 派生（充值后 img2img）用 `scripts/tools/portrait-agent.mts`，产物必须标注"派生·非权威原图"。
+
+### 6.1 客户只给一张「资产详情页截图」时的通用流程（无需客户逐张导出）
+
+认证素材在**客户账号**里，平台没有"导出资产内容"的接口（`/assets/*` 实测 404）。通用做法是**两件输入**：
+
+| 客户给什么 | 用途 |
+|---|---|
+| 控制台「资产详情」页**截图** | 结构：分组名/分组 ID/授权说明、逐行**缩略图**（判角度）、资源原始文件名、状态 |
+| 从该页**复制的 ID 列表文本**（`asset-…` 每行一个） | **权威 ID**（截图小字不可靠：大模型会幻觉、本机 Vision OCR 也会把 `6r` 读成 `гq`；由 **Agent 读图后转成文本**再喂给 CLI，程序不直接吃截图） |
+
+```bash
+# ① 清单对账（客户截图/导出/粘贴文本 → 主档 referenceAssets/portraitSet 对平；默认 dry-run）
+pnpm exec tsx scripts/tools/real-person-assets.mts reconcile \
+  --asset asset-xxxxxxxx --from <清单文件.txt|json> --apply --label "客户控制台资产详情页截图"
+
+# ② 两段式出定妆照（第一段视频路出身份母版；第二段图生图出其余角度；逐张机器像不像校验）
+pnpm exec tsx scripts/tools/portrait-set-from-asset.mts \
+  --asset asset://asset-xxxxxxxx --character <角色ID> --library <角色库> \
+  --out-dir <角色目录>/portraits/_derived --angles front,threeQuarter,closeup,side \
+  --engine two-stage --stage-a-angles front --refs 2 \
+  --verify-against <已验收成片帧.jpg> --install --activate
+```
+
+> 角度映射由 **Agent 读截图缩略图**给出（标 `angleGuess`，属"机器/Agent 判读、非客户逐张确认"）；
+> 平台侧权威清单只提供 ID 与文件名，**不猜角度**——两者分工不要混。
+
+四条硬经验（真机实测，别再踩）：
+1. **图端点不吃 `asset://`**（400 `invalid url`）——asset 参考只能走**视频端点**取首帧；
+2. **参考图 2 张最好**（角度对应那张 + 主素材）；4 张不同服装/光位混投会让脸跑偏；
+3. **主素材可能是古装/生活照**（本例就是古装照）——提示词必须显式绑定"现代商务造型 + 禁古装/汉服/影楼"；
+4. **像不像必须机器判**（对已验收成片帧），不指望客户/人工确认；判不过**整批拒绝**，不装半套。
