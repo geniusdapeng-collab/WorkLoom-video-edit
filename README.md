@@ -127,6 +127,12 @@ NATS/Redis 的事件总线库可在源码中找到，但当前主业务入口未
 
 仓库自带默认模特陈卓的角色档案与定妆照，入口是 [`characters/registry.json`](bundles/ai-video/library/characters/registry.json)，默认标识为 `chen-zhuo`。在使用该角色库的出片链路中，镜头未显式指定角色时按 registry 的默认选角规则处理；需要换人或多人时再提供角色名/档案，无需重复建立默认角色。
 
+**认证真人（客户在火山方舟「私域人像库」认证的真人素材，`asset://…`）怎么用**：素材在客户账号里，本地没有原图，
+标准流程是「客户给一张**资产详情页截图** → 清单对账 → Agent 判读缩略图角度 → 两段式出**专业定妆照** → 机器像不像校验 → 装档」。
+完整 SOP 见 [`docs/real-person-portrait-set.md`](docs/real-person-portrait-set.md)，速查见
+[`bundles/ai-video/README.md`](bundles/ai-video/README.md) §6/§6.1；工具：`scripts/tools/real-person-assets.mts`（清单对账，不猜角度）、
+`scripts/tools/portrait-set-from-asset.mts`（两段式出图 + 机器校验）、`scripts/tools/portrait-set-install.mts`（装档 + 写后复核）。
+
 **角色资产随仓存在，不等于克隆后即可生成成片。** 出片仍需要对应模型或媒体供应商、授权素材通道、渲染引擎与后期依赖。真人肖像应按供应商授权路径使用，不能把仓库内参考图视为绕过平台授权检查的方式。
 
 - [角色规则与 FAQ](docs/character-registry.md)
