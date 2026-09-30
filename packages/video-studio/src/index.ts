@@ -20,6 +20,7 @@ export * from "./portrait-agent.js";
 export * from "./producer-gate.js";
 export * from "./shot-spec.js";
 export * from "./route-preflight.js";
+export * from "./real-person-asset-sync.js";
 export * from "./duration-rules.js";
 export * from "./vendor-compat.js";
 export * from "./confirmation.js";

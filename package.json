@@ -60,6 +60,7 @@
     "computer:mcp": "tsx packages/base/computer-use/mcp.ts",
     "computer:smoke": "tsx packages/base/computer-use/smoke.ts",
     "video:doctor": "tsx scripts/tools/video-doctor.mts",
+    "video:assets": "tsx scripts/tools/real-person-assets.mts",
     "setup": "bash scripts/bootstrap.sh",
     "setup:full": "bash scripts/bootstrap.sh --with-computer",
     "skill:forge": "tsx scripts/skill-forge.mts",

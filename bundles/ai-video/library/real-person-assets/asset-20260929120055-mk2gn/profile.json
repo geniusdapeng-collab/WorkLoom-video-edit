@@ -31,43 +31,25 @@
     "asset-20260929120546-z9b8h",
     "asset-20260929120546-pqnhg",
     "asset-20260929120546-c26rq",
+    "asset-20260929120546-28whv",
     "asset-20260929120546-rlg2f",
     "asset-20260929120319-ftzr7",
     "asset-20260929120319-bxvj7",
-    "asset-20260929120546-28whv",
     "asset-20260929120055-42ftx",
     "asset-20260929120055-dskrx",
     "asset-20260929120055-kfgtc"
   ],
   "referenceAssetSources": {
     "schemaVersion": "workloom.real-person-asset-sources/v1",
-    "evidence": "火山方舟控制台「资产详情」截图（客户提供，2026-09-30）：组内共 11 条，全部「已入库」；组 ID group-20260929115741-gv1tdf",
+    "evidence": "客户提供的火山方舟控制台「资产详情」截图（2026-09-30，Agent 转文本）",
+    "sourceSha256": "f6e6ecd33bc374de26cdcd2b48126f1ca1ea25d223c591cfccd5b452d3a90b8d",
     "verifiedAt": "2026-09-30",
-    "orderNote": "顺序即 priority：前两张（z9b8h / pqnhg）是正面近景/半身，管线取「主素材 + 前两张」作 Seedance 参考图（上限 3 张）",
-    "assets": [
-      { "assetId": "asset-20260929120055-mk2gn", "sourceFile": "mmeexport1787735134426.jpg", "role": "primary" },
-      { "assetId": "asset-20260929120546-z9b8h", "sourceFile": "mmeexport1790654691361.jpg", "angleGuess": "closeup" },
-      { "assetId": "asset-20260929120546-pqnhg", "sourceFile": "mmeexport1790654699472.jpg", "angleGuess": "threeQuarter" },
-      { "assetId": "asset-20260929120546-c26rq", "sourceFile": "mmeexport1790654706719.jpg", "angleGuess": "threeQuarter" },
-      { "assetId": "asset-20260929120546-rlg2f", "sourceFile": "mmeexport1790654695902.jpg", "angleGuess": "closeup" },
-      { "assetId": "asset-20260929120319-ftzr7", "sourceFile": "1790654567670.jpg", "angleGuess": "front" },
-      { "assetId": "asset-20260929120319-bxvj7", "sourceFile": "1790654519143.jpg", "angleGuess": "closeup" },
-      { "assetId": "asset-20260929120546-28whv", "sourceFile": "mmeexport1790428341648.jpg", "angleGuess": "threeQuarter" },
-      { "assetId": "asset-20260929120055-42ftx", "sourceFile": "mmeexport1788597920366.jpg", "angleGuess": "frontFull" },
-      { "assetId": "asset-20260929120055-dskrx", "sourceFile": "mmeexport1790428885272.jpg", "angleGuess": "frontFull" },
-      { "assetId": "asset-20260929120055-kfgtc", "sourceFile": "IMG_20260926_211819.jpg", "angleGuess": "threeQuarter" }
-    ],
-    "note": "angleGuess 由缩略图初判，**待客户确认**；定妆照入库以本清单为准（不再按顺序猜）。"
-  },
-  "portraitSet": {
-    "schemaVersion": "workloom.real-person-portrait-set/v1",
-    "group": "group-20260929115741-gv1tdf",
-    "count": 11,
+    "orderNote": "顺序即 priority：管线取「主素材 + 前两张」作生成参考图（上限 3 张）",
     "assets": [
       {
         "assetId": "asset-20260929120055-mk2gn",
-        "sourceFile": "mmeexport1787735134426.jpg",
-        "angleGuess": "front"
+        "role": "primary",
+        "sourceFile": "mmeexport1787735134426.jpg"
       },
       {
         "assetId": "asset-20260929120546-z9b8h",
@@ -82,6 +64,11 @@
       {
         "assetId": "asset-20260929120546-c26rq",
         "sourceFile": "mmeexport1790654706719.jpg",
+        "angleGuess": "threeQuarter"
+      },
+      {
+        "assetId": "asset-20260929120546-28whv",
+        "sourceFile": "mmeexport1790428341648.jpg",
         "angleGuess": "threeQuarter"
       },
       {
@@ -100,9 +87,67 @@
         "angleGuess": "closeup"
       },
       {
+        "assetId": "asset-20260929120055-42ftx",
+        "sourceFile": "mmeexport1788597920366.jpg",
+        "angleGuess": "frontFull"
+      },
+      {
+        "assetId": "asset-20260929120055-dskrx",
+        "sourceFile": "mmeexport1790428885272.jpg",
+        "angleGuess": "frontFull"
+      },
+      {
+        "assetId": "asset-20260929120055-kfgtc",
+        "sourceFile": "IMG_20260926_211819.jpg",
+        "angleGuess": "threeQuarter"
+      }
+    ],
+    "note": "angleGuess 由缩略图/来源文件名初判，**待客户确认**；定妆照入库以本清单为准。"
+  },
+  "portraitSet": {
+    "schemaVersion": "workloom.real-person-portrait-set/v1",
+    "group": "group-20260929115741-gv1tdf",
+    "count": 11,
+    "assets": [
+      {
+        "assetId": "asset-20260929120055-mk2gn",
+        "sourceFile": "mmeexport1787735134426.jpg",
+        "angleGuess": "待客户确认"
+      },
+      {
+        "assetId": "asset-20260929120546-z9b8h",
+        "sourceFile": "mmeexport1790654691361.jpg",
+        "angleGuess": "closeup"
+      },
+      {
+        "assetId": "asset-20260929120546-pqnhg",
+        "sourceFile": "mmeexport1790654699472.jpg",
+        "angleGuess": "threeQuarter"
+      },
+      {
+        "assetId": "asset-20260929120546-c26rq",
+        "sourceFile": "mmeexport1790654706719.jpg",
+        "angleGuess": "threeQuarter"
+      },
+      {
         "assetId": "asset-20260929120546-28whv",
         "sourceFile": "mmeexport1790428341648.jpg",
         "angleGuess": "threeQuarter"
+      },
+      {
+        "assetId": "asset-20260929120546-rlg2f",
+        "sourceFile": "mmeexport1790654695902.jpg",
+        "angleGuess": "closeup"
+      },
+      {
+        "assetId": "asset-20260929120319-ftzr7",
+        "sourceFile": "1790654567670.jpg",
+        "angleGuess": "front"
+      },
+      {
+        "assetId": "asset-20260929120319-bxvj7",
+        "sourceFile": "1790654519143.jpg",
+        "angleGuess": "closeup"
       },
       {
         "assetId": "asset-20260929120055-42ftx",
@@ -120,6 +165,6 @@
         "angleGuess": "threeQuarter"
       }
     ],
-    "note": "同组 11 张为同一授权人；assetId 已按 2026-09-30 控制台截图逐条校正（此前 8 个 ID 控制台查无），sourceFile 为控制台源文件名，angleGuess 为缩略图初判、待客户确认。生成时按「主素材 + 同组 2 张」共 3 张提交（Seedance 参考图上限）。"
+    "note": "同组素材为同一授权人；assetId 以客户提供的平台清单为准，sourceFile 为控制台源文件名。"
   }
 }

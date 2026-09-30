@@ -9,13 +9,20 @@
  * 本文件只做一件事：在 CI 里拦住"把创作口径写成 hard: true"的改动。
  */
 
-/** 创作/审美口径的检查 id 清单（命中且 hard: true 即违规） */
+/**
+ * 创作/审美口径的检查 id 清单（命中且 hard: true 即违规）。
+ *
+ * 口径边界（2026-09-30 复核）：
+ *   · 这里管的是**"渲出来之后再判好不好看"**的检查——它们只能作咨询项；
+ *   · **渲染前**的提示词载体检查（如 `scene-policy-prompt`：最终提示词必须带上片型场景/景别约束）
+ *     属于"事前标准规范"，可以保持 hard（本清单因此**不含**它）；
+ *   · 需要按策略切换的地方用 `hard: REVIEW_POLICY === "blocking"`，本规则只拦字面量 `hard: true`。
+ */
 export const CREATIVE_CHECK_IDS = [
   "motion-richness",
   "speed-ramp",
   "motion-budget",
   "scene-policy",
-  "scene-policy-prompt",
   "character-consistency",
   "style-variant",
   "aesthetic",
