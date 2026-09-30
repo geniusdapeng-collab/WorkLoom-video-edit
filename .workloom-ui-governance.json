@@ -11,6 +11,7 @@
       "sha256": "2164c1acdc97653da5fbb04fb50437a4f107129cc81dfff58d1b38ce8b95c99c"
     }
   },
+  "lane": "experiment",
   "industryExtensionPaths": [
     "apps/*/src/audio/**",
     "apps/*/src/components/AgentAvatar.tsx",
@@ -51,6 +52,5 @@
     "apps/web/src/voice/**",
     "apps/webb/src/App.tsx",
     "apps/webb/src/Auth.tsx"
-  ],
-  "lane": "experiment"
+  ]
 }
