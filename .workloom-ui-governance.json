@@ -52,5 +52,5 @@
     "apps/webb/src/App.tsx",
     "apps/webb/src/Auth.tsx"
   ],
-  "tolerateExtensionSnapshotOverlap": true
+  "lane": "experiment"
 }
