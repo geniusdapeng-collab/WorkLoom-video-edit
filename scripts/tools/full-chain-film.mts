@@ -82,6 +82,7 @@ import { normalizeShotIntent, shotIntentHash, type ShotIntentStatus } from "../.
 import { verifyAvSyncEvidence } from "../../packages/video-studio/src/av-sync.js";
 import { loadProductArchives, productArchivePromptLines, productHeroPhoto, productPhotoPath, selectProductArchive } from "../../packages/video-studio/src/product-archive.js";
 import { assertShotMatchesCertifiedAsset, assetIdOf, identityReviewContext, loadRealPersonAssets, realPersonUsageReceipt, REAL_PERSON_POLICY_VERSION } from "../../packages/video-studio/src/real-person-asset.js";
+import { auditFilmRedlines, PROMPT_REDLINE_POLICY_VERSION } from "../../packages/video-studio/src/prompt-redlines.js";
 import { publishUhdDelivery, sha256UhdAsset } from "../../packages/video-studio/src/uhd-delivery.js";
 
 const REPO_ROOT = resolve(import.meta.dirname ?? process.cwd(), "../..");
@@ -1282,6 +1283,8 @@ const assetRefOf = (shot: ShotCard): string => String((shot as Record<string, un
 const isAssetShot = (shot: ShotCard): boolean => isAssetRefLocal(assetRefOf(shot));
 const generatedShots = (): ShotCard[] => shots.filter((shot) => !isMaterialShot(shot) && !isAssetShot(shot));
 const materialShots = (): ShotCard[] => shots.filter((shot) => isMaterialShot(shot));
+/** 商品镜：素材镜里由 G-PROD1 绑定真实商品档案的镜头（参考图锁的是**产品外观**，不要求复刻参考构图） */
+const isProductMaterialShot = (shot: ShotCard): boolean => Boolean((shot as Record<string, unknown>).productRef);
 /** 需要提示词文生关键帧/台词的人镜两类：生成镜 + 授权真人素材镜（素材镜另有动效提示词） */
 const promptShots = (): ShotCard[] => shots.filter((shot) => !isMaterialShot(shot));
 const assetShots = (): ShotCard[] => shots.filter((shot) => isAssetShot(shot) && !isMaterialShot(shot));
@@ -1295,6 +1298,41 @@ for (const shot of shots) {
 if (assetShots().length > 0) {
   log(`授权真人素材镜 ${assetShots().length} 镜：${assetShots().map((s) => `${s.shotId}→${assetRefOf(s)}`).join(" · ")}（外部素材 ID，未向平台核验授权有效性）`);
 }
+/* ---------- ⓪-0.4 提示词红线门（G-RL1，T-2026-0929-0008：提高一次过率） ---------- */
+/**
+ * 每一次"渲完才发现"的返修，都对应一条可以提前写死在卡片里的红线。这里在**花钱之前**统一清零：
+ * 屏幕文字/图标/LOGO、证件字迹与号码、卡片类道具重复、timeline 定住而运镜没定住、卡片与管线帧率不一致。
+ * hard 项不清零就 fail-closed；soft 项进证据与日志（不阻断，但必须被看见）。
+ */
+{
+  const redlines = auditFilmRedlines(shots as unknown as Array<Record<string, unknown>>, { fps: FPS });
+  const shotIds = shots.map((shot) => String(shot.shotId));
+  const redlineGate = recordGate({
+    stepKey: "g-prompt-redlines",
+    sourceStage: "prompt",
+    checks: [
+      {
+        id: "redlines-clear", pass: redlines.hard.length === 0, hard: true,
+        detail: redlines.hard.length === 0
+          ? `${PROMPT_REDLINE_POLICY_VERSION}：${shots.length} 镜红线清零（soft ${redlines.soft.length} 项已记录）`
+          : redlines.hard.map((issue) => `${issue.id}｜${issue.detail}｜为什么：${issue.why}`).join("；")
+      },
+      ...(redlines.soft.length > 0
+        ? [{ id: "redlines-soft", pass: true, hard: false, detail: redlines.soft.map((issue) => `${issue.id}｜${issue.detail}`).join("；") }]
+        : [])
+    ],
+    shotIds,
+    evidence: { policy: PROMPT_REDLINE_POLICY_VERSION, perShot: redlines.perShot, soft: redlines.soft },
+    reason: redlines.hard.length === 0
+      ? `提示词红线 ${PROMPT_REDLINE_POLICY_VERSION}：hard 0 · soft ${redlines.soft.length}`
+      : `提示词红线未清零（${redlines.hard.length} 项 hard）`
+  });
+  if (!redlineGate.approved) {
+    throw new Error(`提示词红线未清零（花钱前拦住）：${redlines.hard.map((issue) => `[${issue.id}] ${issue.detail}`).join("；")}`);
+  }
+  for (const issue of redlines.soft.slice(0, 6)) log(`⚠ 提示词红线（软）${issue.id}：${issue.detail}`);
+}
+
 /* ---------- ⓪-0.5 认证真人素材一致性门（T-2026-0929-0007，事故机制化） ---------- */
 /**
  * 事故复盘（2026-09-29）：客户给了平台已认证的真人素材 ID，但系统只校验"引用能不能提交"，
@@ -1374,7 +1412,7 @@ const productLibrary = loadProductArchives(PRODUCT_LIBRARY, {
   }
 });
 const productSelectorOf = (shot: ShotCard): string => String((shot as Record<string, unknown>).product ?? "").trim();
-const declaredProducts = Array.isArray(shotlist.products) ? (shotlist.products as unknown[]).map((item) => String(item).trim()).filter(Boolean) : [];
+const declaredProducts = Array.isArray((shotlist as Record<string, unknown>).products) ? ((shotlist as Record<string, unknown>).products as unknown[]).map((item) => String(item).trim()).filter(Boolean) : [];
 const declaredCompany = String((shotlist as Record<string, unknown>).company ?? "").trim();
 const declaredBrand = String((shotlist as Record<string, unknown>).brand ?? "").trim();
 const productBindingGuide = `请先建档：tsx scripts/tools/product-archive.mts search --name "<公司/品牌>"（系统检索，priority=1）`
@@ -3593,19 +3631,27 @@ if (STAGES.has("material-gen")) {
               "无文字与水印：画面内不得出现新增文字、字幕、LOGO、边框、角标",
               ...(scenePolicy ? [scenePolicy.prompt.visualReview] : [])
             ],
-            referenceImages: [prepared],
+            referenceImages: [prepared, ...(isProductMaterialShot(shot) ? [productPhotoPath(productLibrary.byId.get(String((shot as Record<string, unknown>).productRef?.id))!, productHeroPhoto(productLibrary.byId.get(String((shot as Record<string, unknown>).productRef?.id))!.archive)!)] : [])],
             deterministic: [
               { id: "duration", pass: Math.abs(Number(lastInfo.duration ?? 0) - duration) <= 0.6, detail: `期望 ${duration}s 实测 ${Number(lastInfo.duration ?? 0).toFixed(2)}s`, hard: true },
               { id: "resolution", pass: Number(lastInfo.width ?? 0) >= 720 && Number(lastInfo.height ?? 0) >= 720, detail: `${lastInfo.width}x${lastInfo.height}`, hard: true },
               { id: "audio-track", pass: Boolean(lastInfo.hasAudio), detail: lastInfo.hasAudio ? `音轨 ${lastInfo.acodec}` : "缺音轨（配音环节会补旁白）", hard: false },
               { id: "generation-provenance", pass: provenance.ok, detail: provenance.detail, hard: true },
-              { id: "not-static-display", pass: lastReuseVerdict.passed, detail: `素材复用度：${lastReuseVerdict.detail}（候选窗口 ${lastReuse.candidates} 个）`, hard: true },
-              {
-                id: "scene-constructed",
-                pass: independenceVerdict.independent,
-                detail: `${independenceVerdict.detail}（候选窗口 ${independence.candidates} 个；口径 ${MATERIAL_SCENE_POLICY_VERSION}）`,
-                hard: true
-              },
+              isProductMaterialShot(shot)
+                /** 商品镜：参考图只锁产品外观，**要求**重建机位 → 用"真实运动"判非静态直出，不用像素复用度 */
+                ? { id: "not-static-display", pass: lastMotionVerdict.rich || Number(lastMotion.meanEnergy ?? 0) >= 2.5, hard: true,
+                    detail: `商品镜非静态直出：运动能量 ${Number(lastMotion.meanEnergy ?? 0).toFixed(2)}/255 · 坡道 ${lastMotion.rampRatio.toFixed(2)}（参考图仅锁产品外观，允许且要求换机位：复用度 ${lastReuseVerdict.detail.slice(0, 80)}）` }
+                : { id: "not-static-display", pass: lastReuseVerdict.passed, detail: `素材复用度：${lastReuseVerdict.detail}（候选窗口 ${lastReuse.candidates} 个）`, hard: true },
+              isProductMaterialShot(shot)
+                /** 商品镜不评"场景构建独立性"（它的参考图是产品白底图，不是场景照片） */
+                ? { id: "product-identity-reviewed", pass: Boolean((shot as Record<string, unknown>).productRef), hard: false,
+                    detail: `商品镜：产品外观由 G-PROD1 绑定的真实商品档案与监制外观比对把关（${String((shot as Record<string, unknown>).productRef && (shot as Record<string, unknown>).productRef === undefined ? "" : "")}参考图不作场景保真基准）` }
+                : {
+                    id: "scene-constructed",
+                    pass: independenceVerdict.independent,
+                    detail: `${independenceVerdict.detail}（候选窗口 ${independence.candidates} 个；口径 ${MATERIAL_SCENE_POLICY_VERSION}）`,
+                    hard: true
+                  },
               {
                 id: "motion-richness",
                 pass: lastMotionVerdict.rich,
@@ -3633,7 +3679,10 @@ if (STAGES.has("material-gen")) {
             shotIds: [shot.shotId],
             checks: [
               { id: "generation-provenance", pass: provenance.ok, hard: true, detail: provenance.detail },
-              { id: "not-static-display", pass: lastReuseVerdict.passed, hard: true, detail: lastReuseVerdict.detail },
+              isProductMaterialShot(shot)
+                ? { id: "not-static-display", pass: lastMotionVerdict.rich || Number(lastMotion.meanEnergy ?? 0) >= 2.5, hard: true,
+                    detail: `商品镜非静态直出：运动能量 ${Number(lastMotion.meanEnergy ?? 0).toFixed(2)}/255（参考图仅锁产品外观）` }
+                : { id: "not-static-display", pass: lastReuseVerdict.passed, hard: true, detail: lastReuseVerdict.detail },
               {
                 id: "scene-constructed", pass: independenceVerdict.independent, hard: true,
                 detail: independenceVerdict.detail
@@ -3684,7 +3733,17 @@ if (STAGES.has("material-gen")) {
           });
         }
       }
-      if (!accepted) log(`  ⚠ ${shot.shotId} 素材镜 ${usedAttempt} 次尝试仍未达标：${lastMotionVerdict.detail}`);
+      if (!accepted) {
+        log(`  ⚠ ${shot.shotId} 素材镜 ${usedAttempt} 次尝试仍未达标：${lastMotionVerdict.detail}`);
+        /**
+         * canary 快速止损（T-2026-0929-0008）：真人镜/商品镜反复不过时，**立刻停**，
+         * 先修卡片再重跑，不要继续把后面的镜头一起渲完（真机教训：6 镜白烧 2 轮）。
+         */
+        if (isProductMaterialShot(shot) || isAssetShot(shot)) {
+          log(`⛔ canary 止损：${shot.shotId}（真人/商品镜）未过 → 停止后续渲染，请先按监制意见修卡片再重跑`);
+          throw new Error(`CANARY_ABORT: ${shot.shotId} 未过监制，已停止后续渲染以节省算力`);
+        }
+      }
     } catch (err) {
       record({
         stage: "material-gen", shotId: shot.shotId, invoked: true, ok: false, cached: false, degraded: false, attempt: 1,
