@@ -1336,6 +1336,30 @@ let FIRST_PASS_ORDER: ShotCard[] = shots;
   log(`一次过就绪度 G-FP1 通过（渲染顺序按风险降序：${order.join(" → ")}）`);
 }
 
+
+/**
+ * 身份锚帧（T-2026-0929-0011）：第一个通过监制的真人镜，取中段帧落盘，
+ * 后续真人镜出片时把它作为**第 4 张参考图**（与同组 3 张素材并列）——
+ * 这样侧脸/背影等非正面构图也能保住本人长相，而不是靠禁止构图来回避。
+ */
+function rememberIdentityAnchor(shot: ShotCard, clip: string): void {
+  if (!isAssetShot(shot) || ceoIdentityAnchorFrame) return;
+  try {
+    if (!existsSync(clip)) return;
+    const dir = join(WORK_DIR, "identity-anchor");
+    mkdirSync(dir, { recursive: true });
+    const out = join(dir, `${PROJECT}-${shot.shotId}.jpg`);
+    const duration = Number(probe(clip).duration ?? 0) || 2;
+    run(FFMPEG, ["-y", "-v", "error", "-ss", (duration * 0.5).toFixed(2), "-i", clip, "-frames:v", "1", "-q:v", "2", out]);
+    if (existsSync(out)) {
+      ceoIdentityAnchorFrame = out;
+      log(`  ⚓ 身份锚帧已登记：${shot.shotId} → ${basename(out)}（后续真人镜将带此帧参考，保长相不靠删构图）`);
+    }
+  } catch (error) {
+    log(`  ⚠ 身份锚帧登记失败（${shot.shotId}）：${error instanceof Error ? error.message.slice(0, 100) : String(error)}`);
+  }
+}
+
 /* ---------- ⓪-0.4 提示词红线门（G-RL1，T-2026-0929-0008：提高一次过率） ---------- */
 /**
  * 每一次"渲完才发现"的返修，都对应一条可以提前写死在卡片里的红线。这里在**花钱之前**统一清零：
@@ -1385,6 +1409,8 @@ const REAL_PERSON_LIBRARY = resolve(arg("--real-person-library", join(REPO_ROOT,
 const realPersonLibrary = loadRealPersonAssets(REAL_PERSON_LIBRARY);
 const realPersonChecks: GateCheck[] = [];
 const identityAnchors = new Map<string, string>();   // shotId → 认证基准照（本地文件，仅用于像不像比对）
+/** 首镜放行后抽出的"身份锚帧"：后续真人镜带上它一起出片（保长相，同时允许侧脸/背影构图） */
+let ceoIdentityAnchorFrame: string | null = null;
 const realPersonByShot = new Map<string, { assetId: string; displayName: string; scopeText: string }>();
 for (const shot of assetShots()) {
   const id = assetIdOf(assetRefOf(shot));
@@ -3976,11 +4002,17 @@ if (STAGES.has("videos")) {
    * 真人镜参考图：**主素材 + 同组素材（最多 3 张）**——单张参考容易漂脸，同组多张显著更稳。
    * 资质与授权范围来自真人主档（referenceAssets / assetGroupId）。
    */
+  /**
+   * 真人镜参考图：**同组多张素材（最多 3）+ 首镜已放行帧（身份锚）**，总计不超过 4 张。
+   * 侧脸/背影等非正面构图靠这套锚定保长相——不靠删构图。
+   */
   const refsForShot = (shot: ShotCard): string[] => {
     if (!isAssetShot(shot)) return refs;
     const id = assetIdOf(assetRefOf(shot));
     const entry = realPersonLibrary.byAssetId.get(id);
-    return entry ? referenceAssetRefs(entry.asset, 3) : [assetRefOf(shot)];
+    const base = entry ? referenceAssetRefs(entry.asset, 3) : [assetRefOf(shot)];
+    const anchor = ceoIdentityAnchorFrame && !base.includes(ceoIdentityAnchorFrame) ? [ceoIdentityAnchorFrame] : [];
+    return [...base, ...anchor].slice(0, 4);
   };
   /**
    * 送审基准图口径：评审组件按**本地文件**读图，`asset://` 是平台素材引用、不是文件路径
@@ -4070,7 +4102,7 @@ if (STAGES.has("videos")) {
         evidence: { mode: "recheck", note: "复用产物复核：本次未向渲染服务提交", seconds: duration, cached: true }
       });
       if (!g8Recheck.approved) log(`  ⚠ ${shot.shotId} G8 复用复核存在未过项（复用放行以上方复检裁决为准）：${g8Recheck.reason.slice(0, 120)}`);
-      if (verdict.approved && g8Recheck.approved) continue;
+      if (verdict.approved && g8Recheck.approved) { rememberIdentityAnchor(shot, clip); continue; }
       log(`↻ ${shot.shotId} 既有成片复检未过（${verdict.reason}），重新渲染`);
       log(`  （复用判据：${actual.toFixed(2)}s / ${info.width}x${info.height}）`);
     }
@@ -4226,6 +4258,7 @@ if (STAGES.has("videos")) {
             ...(identityAnchors.has(String(shot.shotId)) ? { identityAnchor: identityAnchorContext(realPersonLibrary.byAssetId.get(assetIdOf(assetRefOf(shot)))!.asset), identityAnchorNote: "第 1 张基准照用于比对；不像本人即判不合格" } : {}) },
           env: ENV, allowFallbackApprove: ALLOW_FALLBACK_APPROVE, log
         });
+        if (verdict.approved) rememberIdentityAnchor(shot, clip);
         record({
           stage: "shot", shotId: shot.shotId, invoked: true, ok: verdict.approved, cached: false, degraded: verdict.degraded,
           attempt, ms: Date.now() - started, artifact: clip,
