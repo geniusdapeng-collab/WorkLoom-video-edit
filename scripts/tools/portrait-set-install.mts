@@ -74,14 +74,13 @@ const sourceKind = arg("--source", "customer-export").trim();
  * 建议传**该真人已通过验收的成片帧**（既有权威性，又不依赖客户再提供材料）。
  */
 const anchorArg = arg("--anchor").trim();
-let anchorRelative: string | null = null;
+let anchorSourceFile: string | null = null;
 if (anchorArg) {
-  const anchorFile = resolve(anchorArg);
-  if (!existsSync(anchorFile)) {
-    console.error(`--anchor 不存在：${anchorFile}`);
+  anchorSourceFile = resolve(anchorArg);
+  if (!existsSync(anchorSourceFile)) {
+    console.error(`--anchor 不存在：${anchorSourceFile}`);
     process.exit(2);
   }
-  anchorRelative = `sources/${profile.name}-anchor${extname(anchorFile).toLowerCase() || ".png"}`;
 }
 if (!["customer-export", "asset-derived"].includes(sourceKind)) {
   console.error(`--source 只支持 customer-export（客户导出原图）/ asset-derived（以授权素材为参考的派生图），收到：${sourceKind}`);
@@ -101,6 +100,10 @@ if (!existsSync(mappingFile)) {
 }
 
 const profile = JSON.parse(readFileSync(join(characterDir, "profile.json"), "utf8")) as CharacterProfile;
+/** 基准照片落在角色目录内（评审按 <characterDir>/sources 找）——文件名带角色名，便于区分版本来源 */
+const anchorRelative = anchorSourceFile
+  ? `sources/${profile.name}-anchor${extname(anchorSourceFile).toLowerCase() || ".png"}`
+  : null;
 const mappingRaw = JSON.parse(readFileSync(mappingFile, "utf8")) as Record<string, unknown>;
 const mapping: Array<{ angle: string; file: string }> = [];
 for (const [angle, value] of Object.entries(mappingRaw)) {
@@ -191,7 +194,7 @@ if (!dryRun) {
     /** 身份基准照片落进角色目录（评审与后续追加重出都用它当"同一张脸"的锚） */
     if (anchorRelative) {
       mkdirSync(join(characterDir, "sources"), { recursive: true });
-      copyFileSync(resolve(anchorArg), join(characterDir, anchorRelative));
+      copyFileSync(anchorSourceFile!, join(characterDir, anchorRelative));
     }
     const sourceManifest = {
       schemaVersion: "workloom.portrait-source-map/v1",
