@@ -30,6 +30,19 @@
       "archive": "bundles/ai-video/library/characters/model-02-lin-yu-an",
       "authorization": "generated-original",
       "note": "系统内置 2 号原创虚构 AI 模特（纯文生图，非真人）；仅在点名时使用，不替换默认 1 号"
+    },
+    {
+      "ordinal": 3,
+      "id": "ceo-future-frontdesk",
+      "name": "未来前台CEO",
+      "aliases": [
+        "未来前台CEO",
+        "未来前台 CEO",
+        "苏州未来前台CEO"
+      ],
+      "archive": "bundles/ai-video/library/characters/model-03-ceo-future-frontdesk",
+      "authorization": "real-authorized",
+      "note": "客户方 CEO（火山方舟私域真人人像库认证素材派生的专业定妆照，客户验收放行）；只在点名时使用，不改变 1 号默认。标准 8 角度里的 back/actionPose/emotionCloseup/handDetail 待平台充值后补（2026-10-01 账户欠费）"
     }
   ]
 }

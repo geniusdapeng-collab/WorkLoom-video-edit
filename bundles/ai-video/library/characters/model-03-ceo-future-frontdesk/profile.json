@@ -1,0 +1,102 @@
+{
+  "schemaVersion": "workloom.character-profile/v1",
+  "id": "ceo-future-frontdesk",
+  "name": "未来前台CEO",
+  "ordinal": 3,
+  "kind": "authorized-real",
+  "modelRole": "客户方出镜人物：苏州未来前台 CEO（女性，三十岁上下；平台真人认证素材派生的专业定妆照）。点名时使用，不改变 1 号默认模特。",
+  "identity": {
+    "gender": "female",
+    "age": "三十岁上下",
+    "height": "168cm",
+    "occupation": "未来前台 创始人 / CEO",
+    "origin": "苏州"
+  },
+  "appearance": {
+    "gender": "female",
+    "face": "东亚女性面孔，鹅蛋脸，五官精致立体，眉眼舒展有神，鼻梁挺直，唇形饱满自然；镜头前仪态优雅、亲和自信",
+    "skin": "肤色自然偏亮，皮肤细腻通透有光泽，可见真实皮肤纹理与细小毛孔，不磨皮不美颜",
+    "eyes": "深棕色眼睛，眼型偏长，眼神清亮自信，笑时眼角有细纹",
+    "hair": "深色及肩直发（以参考画面为准），发丝自然、有轻微蓬松感",
+    "features": [
+      "说话时手势利落、手掌摊开",
+      "站姿挺拔、肩背打开",
+      "语速偏稳、吐字清楚"
+    ],
+    "bodyType": "纤细挺拔，比例自然"
+  },
+  "wardrobe": [
+    {
+      "id": "w1",
+      "name": "高定黑色小香风套装（小黑裙廓形）",
+      "detail": "黑色粗花呢高定套装（小黑裙廓形，金色纽扣、及膝裙摆、合体西装外套），配珍珠耳饰与黑色细跟高跟鞋；妆面为高级裸妆；无品牌标识与字母印花",
+      "scene": "本片主造型（全片不换装、不换发型）"
+    }
+  ],
+  "persona": {
+    "tone": "优雅从容、专业可信，像五星级酒店的创始人亲自介绍自己的产品",
+    "speechRate": "3.2 字/秒",
+    "accent": "普通话（语速稳、吐字清楚，不夸张煽情）",
+    "gesture": "手势利落，指向产品时手掌摊开，收尾以点头致意"
+  },
+  "biography": [
+    "人物身份来自火山方舟「私域真人人像库」已认证真人素材（asset://asset-20260929120055-mk2gn，素材组 group-20260929115741-gv1tdf）；",
+    "本档案只登记平台授权素材引用与派生定妆照，不复制、不推断任何未提供的个人身份信息。"
+  ],
+  "authorization": {
+    "status": "real-authorized",
+    "platform": "volcengine-ark-private-portrait-library",
+    "evidence": "asset://asset-20260929120055-mk2gn",
+    "scope": "仅用于苏州未来前台自有产品的形象生成（客户授权）",
+    "note": "G5 门只校验引用格式；授权有效期与归属由平台侧管理（external-asset-id-not-provider-verified）。"
+  },
+  "generation": {
+    "stylePrompt": "纯写实商业广告质感，自然光与环境光，中性白平衡，皮肤保留真实毛孔与细颗粒；纪实镜头语言，轻微手持呼吸感",
+    "negativePrompt": "卡通、动漫、插画、3D/CG 渲染感、塑料皮肤、过度磨皮、美颜滤镜、夸张五官、多余手指、文字水印",
+    "model": "doubao-seedance-2-5-260628",
+    "seed": 20260924
+  },
+  "portraitSets": [
+    {
+      "version": 1,
+      "dir": "portraits/v1",
+      "angles": [
+        "front",
+        "threeQuarter",
+        "closeup",
+        "side",
+        "frontFull",
+        "threeQuarterLeft",
+        "threeQuarterRight",
+        "smileCloseup"
+      ],
+      "files": {
+        "front": "portraits/v1/未来前台CEO-front.jpg",
+        "threeQuarter": "portraits/v1/未来前台CEO-threeQuarter.jpg",
+        "closeup": "portraits/v1/未来前台CEO-closeup.jpg",
+        "side": "portraits/v1/未来前台CEO-side.jpg",
+        "frontFull": "portraits/v1/未来前台CEO-frontFull.jpg",
+        "threeQuarterLeft": "portraits/v1/未来前台CEO-threeQuarterLeft.jpg",
+        "threeQuarterRight": "portraits/v1/未来前台CEO-threeQuarterRight.jpg",
+        "smileCloseup": "portraits/v1/未来前台CEO-smileCloseup.jpg"
+      },
+      "source": "asset-derived",
+      "active": true,
+      "anchors": [
+        "sources/未来前台CEO-anchor.jpg"
+      ],
+      "scheme": "workloom.portrait-set/v2",
+      "note": "客户验收放行（2026-10-01，owner-acceptance）：这 8 张可用；标准角度 back/actionPose/emotionCloseup/handDetail 待平台充值后补（当前账户欠费，不伪造）。",
+      "assets": {
+        "front": "asset://asset-20260929120055-mk2gn",
+        "threeQuarter": "asset://asset-20260929120055-42ftx",
+        "closeup": "asset://asset-20260929120055-d6xr",
+        "side": "asset://asset-20260929120055-4fgtr",
+        "frontFull": "asset://asset-20260929120054-2t88r",
+        "threeQuarterLeft": "asset://asset-20260929120054-p66jhg",
+        "threeQuarterRight": "asset://asset-20260929120054-c26r6r",
+        "smileCloseup": "asset://asset-20260929120548-20hwrw"
+      }
+    }
+  ]
+}

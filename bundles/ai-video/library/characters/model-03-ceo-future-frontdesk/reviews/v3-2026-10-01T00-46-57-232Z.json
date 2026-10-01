@@ -1,0 +1,97 @@
+{
+  "at": "2026-10-01T00:46:57.234Z",
+  "characterId": "ceo-future-frontdesk",
+  "version": 3,
+  "source": "real-authorized",
+  "verdict": {
+    "stage": "keyframe",
+    "status": "failed",
+    "approved": false,
+    "score": 32,
+    "hardFailures": [],
+    "issues": [
+      "各角度之间面部骨相有轻度漂移：正面/近景下颌更收窄、下巴更尖，三四分之三面下颌更宽，属定妆照口径下可接受的拍摄差异，不构成不合格",
+      "正面图双手交叠处指节边界略软（未见明显穿模或断指），如需特写手部建议复核",
+      "各图发型（短波波头/盘发/长波波头）与刘海差异较大，按本卡口径仅作建议，不扣分",
+      "身份不匹配（唯一硬标准失败）：与基准照片不是同一张脸。候选图脸型更宽更圆、下颌转折与颧骨位置不同；眼型裂度更窄、双眼皮褶皱不明显、外眼角走向不同；鼻梁更低更宽、鼻头更圆钝；唇峰走向与下庭比例也与基准不符。",
+      "两张候选图彼此五官一致，可视为同一演员的两次拍摄，但与所附唯一基准照片（anchor-present: passed）为不同人脸，无法通过人脸一致性比对。",
+      "按 v3 定妆照口径，齐肩直发/发色、黑色粗花呢外套与金属纽扣、灰底棚景、光位与景别差异均不作为不合格理由，仅记录；未提供道具、环境档案或设备型号，故相关条目（4/5/6）本批次不适用，不做评审结论。",
+      "未提供结构化镜头合同，无法核实景别、视角、光源方向、时段、白平衡与景深等镜头要求，本环节仅按定妆照取证；亦未收到可校验的动态证据，不宣称逐帧、口型或听音验证。"
+    ],
+    "suggestions": [
+      "若后续需锁定同一造型的连续镜头，建议在同一发型/发长下补拍一套，减少跨图造型跳变带来的连贯性风险",
+      "基准图为冷蓝实景、产物为灰底棚拍，正式分镜时请统一说明背景与色温口径",
+      "手部出现于前景的近景角度可补一张手部细节参考，便于比对接触与指形",
+      "更换或重拍为与基准照片同一人的素材，重点校正眼型/眼裂、鼻梁高度与鼻尖形态、下颌与颧骨轮廓等骨相与五官比例。",
+      "补交与基准照片同光位、同焦距的正面无遮挡对照图（去红唇重妆、头发不遮面），便于直接做面部比例比对。",
+      "如坚持沿用当前造型与灰底棚拍，请同时附同一人的其他真实生活照作为身份佐证，否则仍按缺证据拒绝。",
+      "若本环节需要按镜头合同评审（视角、光位、景深、道具用途等），请提供该镜头的结构化合同后再评。"
+    ],
+    "rerun": true,
+    "via": "llm",
+    "model": "deepseek-flash",
+    "ms": 21799,
+    "reason": "8 张产物均通过确定性检查（必需角度、文件体积、基准照片均具备），已用基准照片做同一人脸比对：眼型（内双窄睑、眼尾略上扬）、鼻型（鼻梁直、鼻头自然）、唇形（唇峰清晰、厚度近似）与脸型比例在 8 张中与基准照片一致，判为同一人；发型、发色、配饰、珍珠/金色纽扣、背景灰调与明度差异按 2026-10-01 口径一律不作不合格理由。画面为写实摄影质感，皮肤与肢体自然，无未要求文字或水印，props/服饰接触与承重自洽，未见畸变穿模。未提供结构化镜头合同，故未对构图、画幅、视线、光源方向、时段、白平衡、景深、年代与设备型号作核实声明，仅按定妆照人脸一致性口径放行；面部骨相的轻度角度性漂移与手部指节偏软列为建议级问题，不影响本批通过。；人脸一致性为 v3 唯一硬标准，候选两张图与基准照片在脸型骨相、眼型与眼裂、鼻部形态、唇形比例上均存在可辨识差异，判定非同一人，故不通过。造型、发色、服装、品牌与灰底背景差异按 2026-10-01 口径不构成扣分理由；未见文字水印，皮肤与肢体表现自然。定妆照之外的环境/道具/设备条目因无档案与合同，保持未验证。（所有证据批次需通过且评分≥80）",
+    "degraded": false,
+    "evidence": [
+      {
+        "path": "/Users/mac/Documents/Codex/2026-09-29/growth-https-cnb-cool-workloom-ai/work/film/library/characters/model-01-ceo-future-frontdesk/portraits/v3/未来前台CEO-front.png",
+        "sha256": "42baf1abc9bca3d826a175bcb47bc529a156a4407b132880a6030e149b119eb3",
+        "scope": "image"
+      },
+      {
+        "path": "/Users/mac/Documents/Codex/2026-09-29/growth-https-cnb-cool-workloom-ai/work/film/library/characters/model-01-ceo-future-frontdesk/portraits/v3/未来前台CEO-threeQuarter.png",
+        "sha256": "28d05305f8a2019d97ebcdeb1f66c50ebc97aefa15c2b59e4e88d52393633355",
+        "scope": "image"
+      },
+      {
+        "path": "/Users/mac/Documents/Codex/2026-09-29/growth-https-cnb-cool-workloom-ai/work/film/library/characters/model-01-ceo-future-frontdesk/portraits/v3/未来前台CEO-closeup.png",
+        "sha256": "8b75374cd9d88298b90ca1161e25f55bb02bcb2f2bd12f7cacaab0e5edacacfe",
+        "scope": "image"
+      },
+      {
+        "path": "/Users/mac/Documents/Codex/2026-09-29/growth-https-cnb-cool-workloom-ai/work/film/library/characters/model-01-ceo-future-frontdesk/portraits/v3/未来前台CEO-side.png",
+        "sha256": "936987427f488cf40043ac2ef6caaec9fddc19bb27150d982362056d70d34862",
+        "scope": "image"
+      },
+      {
+        "path": "/Users/mac/Documents/Codex/2026-09-29/growth-https-cnb-cool-workloom-ai/work/film/library/characters/model-01-ceo-future-frontdesk/portraits/v3/未来前台CEO-frontFull.png",
+        "sha256": "e7f7dbc33770d4f16e2fbafb9dfbbf78119ada5051e8e0fa5e8c0f59c43d0f58",
+        "scope": "image"
+      },
+      {
+        "path": "/Users/mac/Documents/Codex/2026-09-29/growth-https-cnb-cool-workloom-ai/work/film/library/characters/model-01-ceo-future-frontdesk/portraits/v3/未来前台CEO-threeQuarterLeft.png",
+        "sha256": "41b6abed348038de77a1b32cf87cd0f74e0fdd1e2c4036fdd1024bc2bc466e4c",
+        "scope": "image"
+      },
+      {
+        "path": "/Users/mac/Documents/Codex/2026-09-29/growth-https-cnb-cool-workloom-ai/work/film/library/characters/model-01-ceo-future-frontdesk/portraits/v3/未来前台CEO-threeQuarterRight.png",
+        "sha256": "ff85fe728df81fe3fa51a006a07995b12bfc0ec1e8d1775f84bde9d900bbcb20",
+        "scope": "image"
+      },
+      {
+        "path": "/Users/mac/Documents/Codex/2026-09-29/growth-https-cnb-cool-workloom-ai/work/film/library/characters/model-01-ceo-future-frontdesk/portraits/v3/未来前台CEO-smileCloseup.png",
+        "sha256": "a796f017d91c513633c085c1d5d70b999e1948080b96ed6b37e8c4ddd31a248a",
+        "scope": "image"
+      },
+      {
+        "path": "/Users/mac/Documents/Codex/2026-09-29/growth-https-cnb-cool-workloom-ai/work/film/library/characters/model-01-ceo-future-frontdesk/sources/未来前台CEO-anchor.jpg",
+        "sha256": "ffab3dba7d0fe062c8bb581e3935eb24644eae94d3d9174229bc3019e5177f67",
+        "scope": "reference-image"
+      }
+    ]
+  },
+  "artifacts": [
+    "/Users/mac/Documents/Codex/2026-09-29/growth-https-cnb-cool-workloom-ai/work/film/library/characters/model-01-ceo-future-frontdesk/portraits/v3/未来前台CEO-front.png",
+    "/Users/mac/Documents/Codex/2026-09-29/growth-https-cnb-cool-workloom-ai/work/film/library/characters/model-01-ceo-future-frontdesk/portraits/v3/未来前台CEO-threeQuarter.png",
+    "/Users/mac/Documents/Codex/2026-09-29/growth-https-cnb-cool-workloom-ai/work/film/library/characters/model-01-ceo-future-frontdesk/portraits/v3/未来前台CEO-closeup.png",
+    "/Users/mac/Documents/Codex/2026-09-29/growth-https-cnb-cool-workloom-ai/work/film/library/characters/model-01-ceo-future-frontdesk/portraits/v3/未来前台CEO-side.png",
+    "/Users/mac/Documents/Codex/2026-09-29/growth-https-cnb-cool-workloom-ai/work/film/library/characters/model-01-ceo-future-frontdesk/portraits/v3/未来前台CEO-frontFull.png",
+    "/Users/mac/Documents/Codex/2026-09-29/growth-https-cnb-cool-workloom-ai/work/film/library/characters/model-01-ceo-future-frontdesk/portraits/v3/未来前台CEO-threeQuarterLeft.png",
+    "/Users/mac/Documents/Codex/2026-09-29/growth-https-cnb-cool-workloom-ai/work/film/library/characters/model-01-ceo-future-frontdesk/portraits/v3/未来前台CEO-threeQuarterRight.png",
+    "/Users/mac/Documents/Codex/2026-09-29/growth-https-cnb-cool-workloom-ai/work/film/library/characters/model-01-ceo-future-frontdesk/portraits/v3/未来前台CEO-smileCloseup.png"
+  ],
+  "references": [
+    "/Users/mac/Documents/Codex/2026-09-29/growth-https-cnb-cool-workloom-ai/work/film/library/characters/model-01-ceo-future-frontdesk/sources/未来前台CEO-anchor.jpg"
+  ]
+}
