@@ -317,12 +317,14 @@ export function FloorView({
       onKeyDown={event => { if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "PageUp", "PageDown", "Home", "End", " "].includes(event.key)) scroll.current.userPositioned = true; }}
       onScroll={event => { if (Math.abs(event.currentTarget.scrollLeft - scroll.current.left) > 1 || Math.abs(event.currentTarget.scrollTop - scroll.current.top) > 1) scroll.current.userPositioned = true; }}>
       {canvasError && <p role="alert" className="p-4 text-sm text-rose-700">{canvasError}</p>}
-      <div ref={content} className="h-full w-full">
+      {/* Geometry must update immediately: reduced-motion CSS can still enable a tiny transition. */}
+      <div ref={content} className="h-full w-full" style={{ transitionProperty: "none" }}>
         <canvas
           ref={ref}
           onClick={onClick}
           onMouseMove={onMouseMove}
           className="block h-full w-full cursor-pointer"
+          style={{ transitionProperty: "none" }}
           data-scene={floor.scene.id}
           data-product-scene="workplace-2d"
           data-product-scene-actors={String(floor.agents.filter(a => a.state !== "disabled").length)}

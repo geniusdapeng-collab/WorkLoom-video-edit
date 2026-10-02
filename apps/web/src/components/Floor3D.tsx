@@ -214,7 +214,7 @@ function Worker({
             if (node) { labelRegistry.nodes.set(agent.id, node); labelRegistry.measure?.(node); }
             else labelRegistry.nodes.delete(agent.id);
           }}
-          style={{ pointerEvents: "none", width: "max-content", visibility: "hidden" }}>
+          style={{ pointerEvents: "none", width: "max-content", visibility: "hidden", transitionProperty: "none" }}>
           <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3, pointerEvents: "none" }}>
             <button
               type="button"
@@ -547,7 +547,7 @@ export function Floor3D({
       style={{ width: "100%", maxWidth: "100%", height: 440, borderRadius: 12, overflow: "auto", background: "#0b0d10", position: "relative" }}
     >
       {labelError && <p role="alert">职场名牌暂时无法显示，请刷新页面后重试。</p>}
-      <div style={{ width: "100%", minWidth: minimum.width, height: minimum.height, position: "relative" }}>
+      <div style={{ width: "100%", minWidth: minimum.width, height: minimum.height, position: "relative", transitionProperty: "none" }}>
       <style>{`.wl-floor-plaque:hover{filter:brightness(1.25)}.wl-floor-plaque:active{filter:brightness(.85)}.wl-floor-plaque:focus-visible{outline:2px solid #8ad8ff;outline-offset:3px}`}</style>
       <svg aria-hidden="true" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none", zIndex: 12 }}>
         {activeAgents.map(agent => <line key={agent.id} stroke={STATE_COLOR[agent.state] ?? "#8ad8ff"} strokeWidth={.8}
@@ -555,6 +555,7 @@ export function Floor3D({
       </svg>
       <FuseVignette event={directorEvent} />
       <Canvas
+        style={{ transitionProperty: "none" }}
         camera={{ position: [camY * 1.5, camY * 0.5, camY * 1.5], fov: 40 }}
         dpr={[1, 2]}
         gl={{ antialias: true, alpha: false }}
