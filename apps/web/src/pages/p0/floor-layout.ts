@@ -27,6 +27,19 @@ export function floorRectsOverlap(a: FloorRect, b: FloorRect): boolean {
   return a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height;
 }
 
+/** Center a real employee card, close to the team's center, when the scene first expands. */
+export function floorInitialScroll(cards: FloorRect[], viewportWidth: number, viewportHeight: number, contentWidth: number, contentHeight: number) {
+  if (!cards.length) return { left: 0, top: 0 };
+  const centerX = cards.reduce((sum, card) => sum + card.x + card.width / 2, 0) / cards.length;
+  const centerY = cards.reduce((sum, card) => sum + card.y + card.height / 2, 0) / cards.length;
+  const focus = cards.reduce((best, card) => Math.hypot(card.x + card.width / 2 - centerX, card.y + card.height / 2 - centerY)
+    < Math.hypot(best.x + best.width / 2 - centerX, best.y + best.height / 2 - centerY) ? card : best);
+  return {
+    left: Math.max(0, Math.min(contentWidth - viewportWidth, focus.x + focus.width / 2 - viewportWidth / 2)),
+    top: Math.max(0, Math.min(contentHeight - viewportHeight, focus.y + focus.height / 2 - viewportHeight / 2)),
+  };
+}
+
 function preferredPosition(agent: FloorAgent, scene: FloorScene) {
   const station = scene.stations.find(item => item.id === agent.stationId);
   if (agent.state === "asking") return { x: scene.ceoDesk.x, y: scene.ceoDesk.y + 1.1 };

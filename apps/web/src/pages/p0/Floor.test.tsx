@@ -112,4 +112,18 @@ describe("职场真实组件的首帧与点击分派", () => {
     unavailable = true; await render(team(1));
     expect(host.querySelector('[role="alert"]')?.textContent).toContain("职场画布暂时无法显示");
   });
+  it("65 人长岗位场景首帧即能看到员工，用户滚动后轮询不会抢回位置", async () => {
+    width = 390;
+    const list = team(65).map((agent, index) => ({ ...agent, name: `跨区域客户生命周期增长策略与特殊需求研究负责人${index}`.repeat(3) }));
+    await render(list); await advance();
+    const region = host.querySelector<HTMLElement>('[role="region"]')!;
+    const visible = () => cards.filter(card => card.x < region.scrollLeft + width && card.x + card.width > region.scrollLeft && card.y < region.scrollTop + 440 && card.y + card.height > region.scrollTop);
+    expect(visible().length).toBeGreaterThan(0);
+    region.scrollLeft = 17; region.scrollTop = 19;
+    await act(async () => region.dispatchEvent(new Event("scroll", { bubbles: true })));
+    await render([...list].reverse()); await advance();
+    expect(region.scrollLeft).toBe(17); expect(region.scrollTop).toBe(19);
+    width = 768; await advance();
+    expect(region.scrollLeft).toBe(17); expect(region.scrollTop).toBe(19);
+  });
 });

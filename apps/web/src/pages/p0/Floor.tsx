@@ -10,7 +10,7 @@
  */
 import { useEffect, useRef, useState } from "react";
 import { roleTitleOf } from "../../lib/naming";
-import { createFloorLayout, FLOOR_ROLE_FONT, FLOOR_STATUS_FONT, type FloorLayout, type FloorRect } from "./floor-layout";
+import { createFloorLayout, floorInitialScroll, FLOOR_ROLE_FONT, FLOOR_STATUS_FONT, type FloorLayout, type FloorRect } from "./floor-layout";
 
 /* ================= 类型（与 base/captain/floor.ts 对齐） ================= */
 export interface FloorAgent {
@@ -59,6 +59,7 @@ export function FloorView({
 }) {
   const ref = useRef<HTMLCanvasElement>(null);
   const viewport = useRef<HTMLDivElement>(null);
+  const scroll = useRef({ userPositioned: false, left: 0, top: 0 });
   const [canvasError, setCanvasError] = useState<string | null>(null);
   const actors = useRef<Map<string, ActorRt>>(new Map());
   const hitboxes = useRef<Array<FloorRect & { id: string; kind: "agent" | "task"; threadId?: string }>>([]);
@@ -84,6 +85,11 @@ export function FloorView({
         try {
           layout = createFloorLayout(floorRef.current, viewportW, viewportH, ctx);
           cv.style.width = `${layout.width}px`; cv.style.height = `${layout.height}px`;
+          if (viewport.current && !scroll.current.userPositioned) {
+            const position = floorInitialScroll([...layout.slots.values()].map(slot => slot.card), viewportW, viewportH, layout.width, layout.height);
+            scroll.current.left = position.left; scroll.current.top = position.top;
+            viewport.current.scrollLeft = position.left; viewport.current.scrollTop = position.top;
+          }
           // Scene/poll/resize changes allocate each actor's own slot before its first painted frame.
           for (const [id, rt] of actors.current) {
             const slot = layout.slots.get(id);
@@ -300,7 +306,11 @@ export function FloorView({
   };
 
   return (
-    <div ref={viewport} className="h-[380px] w-full max-w-full overflow-auto sm:h-[440px]" tabIndex={0} role="region" aria-label="数字职场，可滚动查看全部员工">
+    <div ref={viewport} className="h-[380px] w-full max-w-full overflow-auto sm:h-[440px]" tabIndex={0} role="region" aria-label="数字职场，可滚动查看全部员工"
+      onWheel={() => { scroll.current.userPositioned = true; }}
+      onPointerDown={() => { scroll.current.userPositioned = true; }}
+      onKeyDown={event => { if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "PageUp", "PageDown", "Home", "End", " "].includes(event.key)) scroll.current.userPositioned = true; }}
+      onScroll={event => { if (Math.abs(event.currentTarget.scrollLeft - scroll.current.left) > 1 || Math.abs(event.currentTarget.scrollTop - scroll.current.top) > 1) scroll.current.userPositioned = true; }}>
       {canvasError && <p role="alert" className="p-4 text-sm text-rose-700">{canvasError}</p>}
       <canvas
       ref={ref}
