@@ -1,14 +1,49 @@
 // Register workspace exports without moving their source files. Moving a package into
 // node_modules breaks repo-relative imports and creates a second copy of its state.
 // Real ESM facades survive Windows ZIP extraction without junctions or symlinks.
-import { existsSync, mkdirSync, readFileSync, readdirSync, realpathSync, rmSync, statSync, writeFileSync } from "node:fs";
-import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
+import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, realpathSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { loadPayloadPolicy } from "./payload-policy.mjs";
 
 function inside(root, candidate) {
   const rel = relative(root, candidate);
   return rel === "" || (!rel.startsWith(`..${sep}`) && rel !== ".." && !isAbsolute(rel));
+}
+
+// Skip development dependency trees before traversing them. Dereferencing pnpm
+// links and deleting the result later can exhaust the packaging machine's disk.
+export function copyRuntimeSources(repositoryRoot, runtimeRoot, sourcePaths) {
+  const sourceRoot = realpathSync(resolve(repositoryRoot));
+  if (!Array.isArray(sourcePaths) || sourcePaths.length === 0) throw new Error("缺少载荷源码路径");
+  const destinationRoot = resolve(runtimeRoot);
+  mkdirSync(destinationRoot, { recursive: true });
+  const canonicalDestination = realpathSync(destinationRoot);
+  const copied = [];
+  for (const sourcePath of sourcePaths) {
+    if (typeof sourcePath !== "string" || !sourcePath || isAbsolute(sourcePath)) throw new Error("载荷源码路径必须是仓库相对路径");
+    const source = resolve(sourceRoot, sourcePath);
+    if (source === sourceRoot || !inside(sourceRoot, source)) throw new Error(`载荷源码路径越界：${sourcePath}`);
+    if (!existsSync(source)) continue;
+    if (!inside(sourceRoot, realpathSync(source))) throw new Error(`载荷源码链接越界：${sourcePath}`);
+    const destination = resolve(canonicalDestination, relative(sourceRoot, source));
+    if (inside(source, destination)) throw new Error(`载荷目标不可位于源码目录内：${sourcePath}`);
+    mkdirSync(dirname(destination), { recursive: true });
+    if (!inside(canonicalDestination, realpathSync(dirname(destination)))
+      || (existsSync(destination) && !inside(canonicalDestination, realpathSync(destination)))) {
+      throw new Error(`载荷目标链接越界：${sourcePath}`);
+    }
+    cpSync(source, destination, {
+      recursive: true, dereference: true, preserveTimestamps: true,
+      filter: (candidate) => {
+        if (basename(candidate) === "node_modules") return false;
+        if (!inside(sourceRoot, realpathSync(candidate))) throw new Error(`载荷源码链接越界：${relative(sourceRoot, candidate)}`);
+        return true;
+      },
+    });
+    copied.push(sourcePath);
+  }
+  return copied;
 }
 
 export function registerWorkspaceModules(runtimeRoot) {
@@ -88,8 +123,14 @@ export function registerWorkspaceModules(runtimeRoot) {
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   try {
     if (!process.argv[2]) throw new Error("用法：node scripts/pack-workspace-modules.mjs <runtime目录>");
-    const names = registerWorkspaceModules(process.argv[2]);
-    console.log(`✓ ${names.length} 个工作区包已注册为实体 ESM 入口：${names.join(", ")}`);
+    if (process.argv[2] === "--copy-sources") {
+      if (!process.argv[3]) throw new Error("用法：pack-workspace-modules.mjs --copy-sources <runtime目录> <源码路径...>");
+      const copied = copyRuntimeSources(process.cwd(), process.argv[3], process.argv.slice(4));
+      console.log(`✓ 已复制 ${copied.length} 项载荷源码，未遍历开发依赖目录`);
+    } else {
+      const names = registerWorkspaceModules(process.argv[2]);
+      console.log(`✓ ${names.length} 个工作区包已注册为实体 ESM 入口：${names.join(", ")}`);
+    }
   } catch (error) {
     console.error(error instanceof Error ? error.message : String(error));
     process.exitCode = 1;

@@ -1,10 +1,11 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { cpSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import test from "node:test";
-import { registerWorkspaceModules } from "./pack-workspace-modules.mjs";
+import { copyRuntimeSources, registerWorkspaceModules } from "./pack-workspace-modules.mjs";
 
 function fixture(t) {
   const root = mkdtempSync(join(tmpdir(), "workloom-workspace 中文 空格-"));
@@ -99,4 +100,43 @@ test("行业载荷不会因目录存在而注册仙女座的 platform-ops", (t) 
   put(root, "platform-ops/index.mjs", "export const ops = true;");
   assert.deepEqual(registerWorkspaceModules(root), ["@fixture/film"]);
   assert.equal(existsSync(join(root, "node_modules/@workloom/platform-ops")), false);
+});
+
+test("源码装配不遍历 pnpm 循环链接或嵌套开发依赖，仍保留实际构建产物", (t) => {
+  const root = fixture(t);
+  pkg(root, "film");
+  put(root, "apps/server/src/index.ts", "export const ready = true;");
+  put(root, "packages/film/dist/index.d.ts", "export declare const ready: boolean;");
+  put(root, "packages/film/node_modules/development-only/huge.txt", "must not enter payload");
+  symlinkSync(root, join(root, "apps/server/node_modules"), "dir");
+  const payload = join(root, "载荷 输出");
+  assert.deepEqual(copyRuntimeSources(root, payload, ["apps/server", "packages", "bundles"]), ["apps/server", "packages", "bundles"]);
+  assert.equal(existsSync(join(payload, "apps/server/node_modules")), false);
+  assert.equal(existsSync(join(payload, "packages/film/node_modules")), false);
+  assert.equal(readFileSync(join(payload, "packages/film/dist/index.d.ts"), "utf8"), "export declare const ready: boolean;");
+  assert.equal(readFileSync(join(payload, "apps/server/src/index.ts"), "utf8"), "export const ready = true;");
+});
+
+test("源码装配拒绝仓库越界和目标递归，不读取外部链接", (t) => {
+  const root = fixture(t);
+  pkg(root, "film");
+  const outside = mkdtempSync(join(tmpdir(), "workloom-outside-"));
+  t.after(() => rmSync(outside, { recursive: true, force: true }));
+  put(outside, "private.mjs", "export const privateValue = true;");
+  symlinkSync(join(outside, "private.mjs"), join(root, "packages/film/src/outside.mjs"));
+  assert.throws(() => copyRuntimeSources(root, join(root, "payload"), ["packages"]), /链接越界/u);
+  assert.equal(existsSync(join(root, "payload/packages/film/src/outside.mjs")), false);
+  assert.throws(() => copyRuntimeSources(root, join(root, "payload"), ["../escape"]), /路径越界/u);
+  assert.throws(() => copyRuntimeSources(root, join(root, "packages/film/output"), ["packages"]), /不可位于源码目录内/u);
+});
+
+test("源码复制 CLI 保留中文空格路径并以失败退出码报告缺参", (t) => {
+  const root = fixture(t);
+  pkg(root, "film");
+  const script = fileURLToPath(new URL("./pack-workspace-modules.mjs", import.meta.url));
+  const payload = join(root, "客户 安装源码");
+  const args = [script, "--copy-sources", payload, "packages", "bundles"];
+  assert.match(execFileSync(process.execPath, args, { cwd: root, encoding: "utf8" }), /未遍历开发依赖目录/u);
+  assert.equal(existsSync(join(payload, "packages/film/src/index.mjs")), true);
+  assert.throws(() => execFileSync(process.execPath, [script, "--copy-sources", payload], { cwd: root, stdio: "pipe" }), /缺少载荷源码路径/u);
 });

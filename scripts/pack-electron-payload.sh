@@ -79,11 +79,7 @@ RUNTIME_SOURCE_DIRS=(
   apps/web/vite.config.ts apps/web/tsconfig.json packages bundles
 )
 [ "$PLATFORM_OPS_MODE" = "include" ] && RUNTIME_SOURCE_DIRS+=(platform-ops)
-for d in "${RUNTIME_SOURCE_DIRS[@]}"; do
-  [ -e "$d" ] || continue
-  mkdir -p "$R/$(dirname "$d")"
-  copy "$d" "$R/$(dirname "$d")/"
-done
+node scripts/pack-workspace-modules.mjs --copy-sources "$R" "${RUNTIME_SOURCE_DIRS[@]}"
 cp scripts/migrate.ts scripts/desktop-bootstrap-db.mjs scripts/product-runtime.mjs scripts/vite-product.mjs "$R/scripts/"
 mkdir -p "$R/scripts/tools"
 # Film CLIs keep their repo-relative paths in the installed runtime. Native

@@ -78,11 +78,7 @@ RUNTIME_SOURCE_DIRS=(
   apps/web/vite.config.ts apps/web/tsconfig.json packages bundles
 )
 [ "$PLATFORM_OPS_MODE" = "include" ] && RUNTIME_SOURCE_DIRS+=(platform-ops)
-for d in "${RUNTIME_SOURCE_DIRS[@]}"; do
-  [ -e "$d" ] || continue
-  mkdir -p "$R/$(dirname "$d")"
-  copy "$d" "$R/$(dirname "$d")/"
-done
+node scripts/pack-workspace-modules.mjs --copy-sources "$R" "${RUNTIME_SOURCE_DIRS[@]}"
 mkdir -p "$R/scripts"
 copy scripts/migrate.ts "$R/scripts/"
 copy scripts/desktop-bootstrap-db.mjs "$R/scripts/"
