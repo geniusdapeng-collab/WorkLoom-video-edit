@@ -16,6 +16,7 @@ describe("职场真实组件的首帧与点击分派", () => {
   const profile = vi.fn(), task = vi.fn();
   let nextFrame: number;
   let unavailable = false;
+  let contentSafety = false;
 
   function team(count = 18, state: FloorAgent["state"] = "idle"): FloorAgent[] {
     return Array.from({ length: count }, (_, index) => ({ id: `person-${index}`, presetKey: `person-role-${index}`, name: `客户成功官${"甲乙丙丁戊己庚辛壬癸子丑寅卯辰巳午未"[index]}`,
@@ -36,7 +37,7 @@ describe("职场真实组件的首帧与点击分派", () => {
   }
   beforeEach(() => {
     (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
-    clock = 0; width = 768; frames = new Map(); nextFrame = 0; texts = []; cards = []; unavailable = false;
+    clock = 0; width = 768; frames = new Map(); nextFrame = 0; texts = []; cards = []; unavailable = false; contentSafety = false;
     profile.mockClear(); task.mockClear();
     vi.spyOn(performance, "now").mockImplementation(() => clock);
     vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => { frames.set(++nextFrame, callback); return nextFrame; });
@@ -44,7 +45,11 @@ describe("职场真实组件的首帧与点击分派", () => {
     vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockImplementation(() => width);
     vi.spyOn(HTMLElement.prototype, "clientHeight", "get").mockReturnValue(440);
     vi.spyOn(HTMLCanvasElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLCanvasElement) {
-      return { x: 0, y: 0, left: 0, top: 0, right: parseFloat(this.style.width), bottom: parseFloat(this.style.height), width: parseFloat(this.style.width), height: parseFloat(this.style.height), toJSON: () => ({}) };
+      // The installed content-safety.css caps Canvas inline size at its parent's
+      // width. jsdom has no layout engine, so reproduce that observed constraint.
+      const paintedWidth = parseFloat(this.style.width);
+      const displayedWidth = contentSafety ? Math.min(paintedWidth, parseFloat(this.parentElement?.style.width || "") || width) : paintedWidth;
+      return { x: 0, y: 0, left: 0, top: 0, right: displayedWidth, bottom: parseFloat(this.style.height), width: displayedWidth, height: parseFloat(this.style.height), toJSON: () => ({}) };
     });
     let path: Array<[number, number]> = [];
     const gradient = { addColorStop: vi.fn() };
@@ -111,6 +116,27 @@ describe("职场真实组件的首帧与点击分派", () => {
   it("浏览器无法创建 Canvas 时显示明确错误", async () => {
     unavailable = true; await render(team(1));
     expect(host.querySelector('[role="alert"]')?.textContent).toContain("职场画布暂时无法显示");
+  });
+  it("内容安全样式下，窄屏看到的员工与名牌位置仍准确打开各自档案", async () => {
+    width = 390; contentSafety = true;
+    const list = team(); await render(list); await advance();
+    const ratio = canvas().getBoundingClientRect().width / parseFloat(canvas().style.width);
+    const roles = texts.filter(item => list.some(agent => agent.name === item.text));
+    expect(roles).toHaveLength(18);
+    for (const role of roles) {
+      const expected = list.find(agent => agent.name === role.text)!;
+      const before = profile.mock.calls.length;
+      await click(role.x * ratio, role.y - 29);
+      expect(profile.mock.calls.length).toBe(before + 1);
+      expect(profile.mock.calls.at(-1)![0].id).toBe(expected.id);
+      await click(role.x * ratio, role.y + 5);
+      expect(profile.mock.calls.length).toBe(before + 2);
+      expect(profile.mock.calls.at(-1)![0].id).toBe(expected.id);
+    }
+    expect(task).not.toHaveBeenCalled();
+    // Text must remain legible at its measured size, rather than only remapping
+    // clicks onto a visually compressed crowd.
+    expect(ratio).toBe(1);
   });
   it("65 人长岗位场景首帧即能看到员工，用户滚动后轮询不会抢回位置", async () => {
     width = 390;

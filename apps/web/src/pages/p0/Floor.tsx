@@ -59,6 +59,7 @@ export function FloorView({
 }) {
   const ref = useRef<HTMLCanvasElement>(null);
   const viewport = useRef<HTMLDivElement>(null);
+  const content = useRef<HTMLDivElement>(null);
   const scroll = useRef({ userPositioned: false, left: 0, top: 0 });
   const [canvasError, setCanvasError] = useState<string | null>(null);
   const actors = useRef<Map<string, ActorRt>>(new Map());
@@ -84,6 +85,10 @@ export function FloorView({
         signature = nextSignature;
         try {
           layout = createFloorLayout(floorRef.current, viewportW, viewportH, ctx);
+          // The shared content-safety stylesheet limits Canvas to 100% of its
+          // parent. Give it the actual layout-sized content parent inside the
+          // scroll viewport, preserving measured text and pointer coordinates.
+          if (content.current) { content.current.style.width = `${layout.width}px`; content.current.style.height = `${layout.height}px`; }
           cv.style.width = `${layout.width}px`; cv.style.height = `${layout.height}px`;
           if (viewport.current && !scroll.current.userPositioned) {
             const position = floorInitialScroll([...layout.slots.values()].map(slot => slot.card), viewportW, viewportH, layout.width, layout.height);
@@ -312,15 +317,17 @@ export function FloorView({
       onKeyDown={event => { if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "PageUp", "PageDown", "Home", "End", " "].includes(event.key)) scroll.current.userPositioned = true; }}
       onScroll={event => { if (Math.abs(event.currentTarget.scrollLeft - scroll.current.left) > 1 || Math.abs(event.currentTarget.scrollTop - scroll.current.top) > 1) scroll.current.userPositioned = true; }}>
       {canvasError && <p role="alert" className="p-4 text-sm text-rose-700">{canvasError}</p>}
-      <canvas
-      ref={ref}
-      onClick={onClick}
-      onMouseMove={onMouseMove}
-      className="block h-full w-full cursor-pointer"
-      data-scene={floor.scene.id}
-      data-product-scene="workplace-2d"
-      data-product-scene-actors={String(floor.agents.filter(a => a.state !== "disabled").length)}
-      />
+      <div ref={content} className="h-full w-full">
+        <canvas
+          ref={ref}
+          onClick={onClick}
+          onMouseMove={onMouseMove}
+          className="block h-full w-full cursor-pointer"
+          data-scene={floor.scene.id}
+          data-product-scene="workplace-2d"
+          data-product-scene-actors={String(floor.agents.filter(a => a.state !== "disabled").length)}
+        />
+      </div>
     </div>
   );
 }
