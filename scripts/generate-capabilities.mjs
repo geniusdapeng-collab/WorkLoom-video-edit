@@ -14,6 +14,9 @@
  */
 import { readFileSync, writeFileSync, existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
+import { createHash } from "node:crypto";
+import { execFileSync } from "node:child_process";
+import { capabilityStatus } from "./capability-status.mjs";
 
 const ROOT = join(import.meta.dirname, "..");
 const CHECK = process.argv.includes("--check");
@@ -51,7 +54,7 @@ const declarationTotals = bundleDeclarations.reduce((sum, b) => ({ presets: sum.
 const uniquePresetKeys = new Set(bundleDeclarations.flatMap((b) => b.presetKeys)).size;
 const repoName = pkg.name?.split("/").pop() || "workloom";
 const desc = "企业获客与内容运营工作系统：工作台、行业包声明、内容生产工位与共享治理组件。";
-const evidenceNotice = "本导览检查 manifest、脚本和文件入口。目录存在不等于真实工具接通；岗位、技能与管线数是声明资产数，不是生产实测通过数。";
+const evidenceNotice = "本导览检查 manifest、脚本和文件入口。目录可发现、实际可调用、结果已验证分别记录；缺少同提交独立运行证据时后两项为未验证。岗位、技能与管线数是声明资产数，不是生产实测通过数。";
 
 // ---------- 能力分组（按事实探测，出现的才列出） ----------
 const groups = [];
@@ -59,10 +62,10 @@ const groups = [];
 groups.push({
   icon: "🖥", title: "三端应用入口",
   items: [
-    { name: "PC 工作台", how: "隔离演示启动后：http://localhost:3000", desc: "任务、岗位、报告、行业入口；可见内容受权限和活动行业包影响" },
-    { name: "员工移动工作台", how: "隔离演示启动后：http://localhost:3001", desc: "React 员工移动应用；与 docs/demo 的历史静态原型分开看" },
-    { name: "客户 H5 服务前台", how: "隔离演示启动后：http://localhost:3002", desc: "对话/服务/工单/消息/我的；preview 脚本使用酒店服务夹具" },
-  ],
+    existsSync(join(ROOT, "apps/web/package.json")) && { name: "PC 工作台", how: "隔离演示启动后：http://localhost:3000", desc: "任务、岗位、报告、行业入口；可见内容受权限和活动行业包影响" },
+    existsSync(join(ROOT, "apps/webb/package.json")) && { name: "员工移动工作台", how: "隔离演示启动后：http://localhost:3001", desc: "React 员工移动应用；与 docs/demo 的历史静态原型分开看" },
+    existsSync(join(ROOT, "apps/webc/package.json")) && { name: "客户 H5 服务前台", how: "隔离演示启动后：http://localhost:3002", desc: "对话/服务/工单/消息/我的；preview 脚本使用酒店服务夹具" },
+  ].filter(Boolean),
 });
 
 if (bundles.length) groups.push({
@@ -177,7 +180,16 @@ const sourceLinks = (paths) => paths.map((file) => `[${file}](../${encodeURI(fil
 const cell = (text) => String(text).replaceAll("|", "\\|").replaceAll("\n", " ");
 
 // ---------- 生成 JSON ----------
-const data = { repo: repoName, productId: productManifest.productId, repository: productManifest.repository, displayName: productManifest.displayName, description: desc, generatedAt: new Date().toISOString(), evidenceNotice, bundleDeclarations, declarationTotals: { ...declarationTotals, uniquePresetKeys }, demoPages, shots, groups };
+// 路径只证明可发现性。运行状态从提交/散列/时间绑定的独立结果取证，默认未验证。
+let currentCommit = null;
+try { currentCommit = execFileSync("git", ["-C", ROOT, "rev-parse", "HEAD"], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim(); } catch { currentCommit = null; }
+const attestations = existsSync(join(ROOT, "acceptance/capability-status.json")) ? J("acceptance/capability-status.json") : { entries: [] };
+if (!Array.isArray(attestations.entries)) throw new Error("capability-status.json 必须含 entries 数组");
+for (const group of groups) for (const item of group.items) {
+  item.id = `cap:${createHash("sha256").update(`${group.title}/${item.name}`).digest("hex").slice(0, 16)}`;
+  item.availability = capabilityStatus({ root: ROOT, id: item.id, discoverable: true, currentCommit, attestation: attestations.entries.find(entry => entry.id === item.id) });
+}
+const data = { schema: "workloom.capabilities/v2", repo: repoName, productId: productManifest.productId, repository: productManifest.repository, displayName: productManifest.displayName, description: desc, generatedAt: new Date().toISOString(), evidenceNotice, bundleDeclarations, declarationTotals: { ...declarationTotals, uniquePresetKeys }, demoPages, shots, groups };
 
 // ---------- 生成 Markdown（人类版导览） ----------
 const declarationTable = `| 行业包 | 声明版本 | 状态 | 岗位定义 | 技能路径 | 管线 |\n|---|---|---|---:|---:|---:|\n${bundleDeclarations.map((b) => `| [${b.bundle}](../${b.sourcePath}) | ${b.version} | ${b.status} | ${b.presets} | ${b.skills} | ${b.pipelines} |`).join("\n")}\n| 声明合计 | — | — | ${declarationTotals.presets} | ${declarationTotals.skills} | ${declarationTotals.pipelines} |`;
@@ -207,7 +219,7 @@ ${declarationTable}
 
 ## 代码与资产入口（${groups.reduce((n, g) => n + g.items.length, 0)} 项）
 
-${groups.map((g) => `### ${g.icon} ${g.title}\n\n来源：${sourceLinks(g.sourcePaths)}。\n\n| 入口 | 用途与边界 | 查阅或运行 |\n|---|---|---|\n${g.items.map((i) => `| **${cell(i.name)}** | ${cell(i.desc)} | ${cell(i.how)} |`).join("\n")}`).join("\n\n")}
+${groups.map((g) => `### ${g.icon} ${g.title}\n\n来源：${sourceLinks(g.sourcePaths)}。\n\n| 入口 | 用途与边界 | 查阅或运行 | 可发现 | 可调用 | 结果已验证 / 环境 |\n|---|---|---|---|---|---|\n${g.items.map((i) => `| **${cell(i.name)}** | ${cell(i.desc)} | ${cell(i.how)} | 是 | ${i.availability.callable === true ? "是" : "未验证"} | ${i.availability.verified === true ? `是 / ${i.availability.environment}` : "未验证"} |`).join("\n")}`).join("\n\n")}
 
 ## 🧭 下一步
 
