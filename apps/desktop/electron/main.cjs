@@ -55,7 +55,7 @@ process.env.WORKLOOM_WEB_PORT ??= String(5173 + PRODUCT_PORT_OFFSET);
 process.env.WORKLOOM_PG_PORT ??= String(5432 + PRODUCT_PORT_OFFSET);
 process.env.WORKLOOM_NATS_PORT ??= String(4222 + PRODUCT_PORT_OFFSET);
 const { bootstrap } = require("./bootstrap.cjs");
-const { dismissFirstDayGuide } = require("./render-smoke.cjs");
+const { dismissFirstDayGuide, probeWebGL } = require("./render-smoke.cjs");
 
 const TITLE = process.env.WORKLOOM_APP_TITLE ?? app.getName();
 const APP_SMOKE = process.env.WORKLOOM_APP_SMOKE === "1";
@@ -360,13 +360,13 @@ async function runRenderSmoke() {
   fs.mkdirSync(logDir, { recursive: true });
   const deadline = Date.now() + 60000;
   let probe = null;
+  let webglAvailable = null;
   while (Date.now() < deadline && win && !win.isDestroyed()) {
     probe = await win.webContents.executeJavaScript(`(() => {
       const root = document.querySelector('[data-product-ready="true"]');
       const welcome = document.querySelector('[aria-label^="织伴开场介绍"]');
       const avatar = welcome?.querySelector('[data-avatar-ready="true"]') || null;
-      const canvas = document.createElement('canvas');
-      const webgl = !!(canvas.getContext('webgl2') || canvas.getContext('webgl'));
+      const webgl = ${webglAvailable === null ? `(${probeWebGL.toString()})(document)` : JSON.stringify(webglAvailable)};
       return {
         productReady: !!root,
         welcomeReady: !!welcome,
@@ -380,6 +380,7 @@ async function runRenderSmoke() {
         bodyText: document.body.innerText.slice(0, 1200)
       };
     })()`, true).catch((error) => ({ error: String(error) }));
+    if (typeof probe?.webgl === "boolean") webglAvailable = probe.webgl;
     if (probe?.productReady && probe?.avatarReady) break;
     await new Promise((resolve) => setTimeout(resolve, 500));
   }

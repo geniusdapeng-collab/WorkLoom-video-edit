@@ -6,7 +6,7 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 const { describe, it } = require("node:test");
-const { dismissFirstDayGuide } = require("./render-smoke.cjs");
+const { dismissFirstDayGuide, probeWebGL } = require("./render-smoke.cjs");
 const {
   bootstrap,
   installPayloadAtomically,
@@ -36,6 +36,30 @@ function assertPrivateFile(file) {
   // support 目录 ACL，不能用恒假的 0600 位比较阻断 Windows runner。
   if (process.platform !== "win32") assert.equal(stat.mode & 0o777, 0o600);
 }
+
+describe("渲染探针不占用产品 GPU 上下文", () => {
+  it("WebGL2 检测后立即释放临时上下文，不再检测 WebGL1", () => {
+    const calls = [];
+    const context = { getExtension: (name) => { calls.push(name); return { loseContext: () => calls.push("released") }; } };
+    const document = { createElement: (name) => { calls.push(name); return { getContext: (kind) => { calls.push(kind); return context; } }; } };
+    assert.equal(probeWebGL(document), true);
+    assert.deepEqual(calls, ["canvas", "webgl2", "WEBGL_lose_context", "released"]);
+  });
+
+  it("WebGL1 回退同样释放，扩展未提供时仍如实报告能力", () => {
+    let released = 0;
+    const context = { getExtension: () => ({ loseContext: () => { released++; } }) };
+    assert.equal(probeWebGL({ createElement: () => ({ getContext: (kind) => kind === "webgl" ? context : null }) }), true);
+    assert.equal(released, 1);
+    assert.equal(probeWebGL({ createElement: () => ({ getContext: () => ({ getExtension: () => null }) }) }), true);
+  });
+
+  it("无上下文、创建异常、释放异常均报告不可用", () => {
+    assert.equal(probeWebGL({ createElement: () => ({ getContext: () => null }) }), false);
+    assert.equal(probeWebGL({ createElement: () => { throw new Error("GPU unavailable"); } }), false);
+    assert.equal(probeWebGL({ createElement: () => ({ getContext: () => ({ getExtension: () => ({ loseContext: () => { throw new Error("GPU reset"); } }) }) }) }), false);
+  });
+});
 
 describe("真实首日引导退出的渲染冒烟", () => {
   function clock() {

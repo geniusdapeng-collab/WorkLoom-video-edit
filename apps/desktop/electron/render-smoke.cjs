@@ -1,5 +1,18 @@
 "use strict";
 
+/** A capability probe must release its temporary GPU context. */
+function probeWebGL(document) {
+  try {
+    const canvas = document.createElement("canvas");
+    const context = canvas.getContext("webgl2") || canvas.getContext("webgl");
+    if (!context) return false;
+    context.getExtension("WEBGL_lose_context")?.loseContext();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /** Follow the real guide lifecycle within the existing render smoke deadline. */
 async function dismissFirstDayGuide(probe, {
   timeoutMs = 10000,
@@ -43,4 +56,4 @@ async function dismissFirstDayGuide(probe, {
   return { shown, clicked, supported, closed: false };
 }
 
-module.exports = { dismissFirstDayGuide };
+module.exports = { dismissFirstDayGuide, probeWebGL };
