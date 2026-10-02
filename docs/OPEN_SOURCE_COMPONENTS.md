@@ -3,7 +3,8 @@
 <!-- 自动生成，请勿手改：node scripts/oss-inventory.mjs --write -->
 
 > 生成器：`scripts/oss-inventory.mjs`（离线事实）＋ `scripts/oss-watch.sh`（上游最新版本）
-> 仓库：workloom-ai/WorkLoom-growth ｜ 最近一次成功扫描：2026-09-19T10:10:43.000Z ｜ 最近尝试：未记录
+> 仓库：workloom-ai/WorkLoom-growth ｜ 最近一次成功扫描：尚未记录已核实成功（运行 `pnpm oss:watch`） ｜ 最近尝试：未记录
+> 历史全量扫描/尝试（未核实）：2026-09-19T10:10:43.000Z
 > 每项上游版本按成功时间、查询状态和 TTL 单独判定；历史缓存与失败查询不作本次最新版本结论。
 > 统计：登记组件 98 个 ｜ npm 直接依赖 172 个 ｜ Python 依赖 5 个 ｜ 容器镜像 2 个
 
@@ -49,8 +50,8 @@
 | 25 | react-dom | [github.com/facebook/react](https://github.com/facebook/react) · MIT | 19.2.8 | 19.3.0（历史记录；未核实或已过期） | 运行时 | apps/web、apps/webc、apps/webb | 必须与 react 严格同版 |
 | 26 | React Router | [github.com/remix-run/react-router](https://github.com/remix-run/react-router) · MIT | 8.4.0 | 8.4.0（历史记录；未核实或已过期） | 运行时 | apps/web | 路由与数据加载；大版本升级需核对路由表与深链（含 bare 路由返回出口） |
 | 27 | TanStack Query | [github.com/TanStack/query](https://github.com/TanStack/query) · MIT | 5.103.1 | 5.103.1（历史记录；未核实或已过期） | 运行时 | apps/web | 服务端状态缓存；升级复核轮询失效策略（心跳类页面） |
-| 28 | Vite | [github.com/vitejs/vite](https://github.com/vitejs/vite) · MIT | 8.2.2 / 8.3.0 | 8.3.0（历史记录；未核实或已过期） | 开发/构建 | apps/web、apps/webc、apps/webb | 构建工具链；与 @vitejs/plugin-react、@tailwindcss/vite 同批联动；v8 走 rolldown 内核，升级后必须过三端生产构建 |
-| 29 | @vitejs/plugin-react | [github.com/vitejs/vite-plugin-react](https://github.com/vitejs/vite-plugin-react) · MIT | 6.1.0 / 6.1.1 | 6.1.1（历史记录；未核实或已过期） | 开发/构建 | apps/web、apps/webc、apps/webb | 与 vite 同批升级 |
+| 28 | Vite | [github.com/vitejs/vite](https://github.com/vitejs/vite) · MIT | 8.3.0 | 8.3.0（历史记录；未核实或已过期） | 开发/构建 | apps/web、apps/webc、apps/webb | 构建工具链；与 @vitejs/plugin-react、@tailwindcss/vite 同批联动；v8 走 rolldown 内核，升级后必须过三端生产构建 |
+| 29 | @vitejs/plugin-react | [github.com/vitejs/vite-plugin-react](https://github.com/vitejs/vite-plugin-react) · MIT | 6.1.1 | 6.1.1（历史记录；未核实或已过期） | 开发/构建 | apps/web、apps/webc、apps/webb | 与 vite 同批升级 |
 | 30 | Tailwind CSS | [github.com/tailwindlabs/tailwindcss](https://github.com/tailwindlabs/tailwindcss) · MIT | 4.3.3 | 4.3.3（历史记录；未核实或已过期） | 开发/构建 | apps/web、apps/webc、apps/webb、packages/ui | v4 令牌制；升级后必须过 Candy 设计系统纯色验证与三端视觉基线 |
 | 31 | @tailwindcss/vite | [github.com/tailwindlabs/tailwindcss](https://github.com/tailwindlabs/tailwindcss) · MIT | 4.3.3 | 4.3.3（历史记录；未核实或已过期） | 开发/构建 | apps/web、apps/webc、apps/webb | 必须与 tailwindcss 严格同版 |
 | 32 | three.js | [github.com/mrdoob/three.js](https://github.com/mrdoob/three.js) · MIT | 0.186.0 | 0.186.0（历史记录；未核实或已过期） | 运行时 | apps/web（3D 舞台/数字人） | 3D 渲染；与 @react-three/fiber、drei、postprocessing、three-stdlib 同批升级（版本矩阵敏感），升级后必须过真实渲染截图 |
@@ -266,7 +267,7 @@
 | `@types/react-dom` | 19.2.0（声明） | ^19.2.0 | 开发 | apps/web/package.json、apps/webb/package.json、apps/webc/package.json | 19.3.0（历史记录；未核实或已过期） |
 | `@types/three` | 0.186.0（声明） | ^0.186.0 | 开发 | apps/web/package.json | 0.186.0（历史记录；未核实或已过期） |
 | `@types/ws` | 8.18.1（声明） | 8.18.1 | 开发 | vendor/dsh/package.json | 8.18.1（历史记录；未核实或已过期） |
-| `@vitejs/plugin-react` | 6.1.0 / 6.1.1（声明） | 6.1.0 / 6.1.1 | 开发/生产 | .workloom-runtime-deps/package.json、apps/web/package.json、apps/webb/package.json 等 4 处 | 6.1.1（历史记录；未核实或已过期） |
+| `@vitejs/plugin-react` | 6.1.1（声明） | 6.1.1 | 开发/生产 | .workloom-runtime-deps/package.json、apps/web/package.json、apps/webb/package.json 等 4 处 | 6.1.1（历史记录；未核实或已过期） |
 | `@workloom/ui` | 0.1.19（声明） | 0.1.19 | 生产 | apps/web/package.json、apps/webb/package.json、apps/webc/package.json | —（未扫描） |
 | `ajv` | 8.20.0（声明） | ^8.20.0 | 开发 | vendor/dsh/package.json | —（未扫描） |
 | `commander` | 15.0.0（声明） | ^15.0.0 | 生产 | vendor/dsh/package.json | 15.0.0（历史记录；未核实或已过期） |
@@ -293,7 +294,7 @@
 | `tsx` | 4.23.12 / 4.23.13 | 4.23.12 / ^4.23.12 / ^4.23.13 | 开发/生产 | .workloom-runtime-deps/package.json、apps/server/package.json、package.json 等 4 处 | 4.23.13（历史记录；未核实或已过期） |
 | `typescript` | 5.9.0 / 7.0.2 | ^5.9.0 / ^7.0.2 | 开发 | apps/server/package.json、apps/web/package.json、apps/webb/package.json 等 12 处 | 7.0.2（历史记录；未核实或已过期） |
 | `typescript-governance → npm:typescript` | 5.9.3 | npm:typescript@5.9.3 | 开发 | package.json | 7.0.2（历史记录；未核实或已过期） |
-| `vite` | 8.2.2 / 8.3.0（声明） | 8.2.2 / 8.3.0 | 开发/生产 | .workloom-runtime-deps/package.json、apps/web/package.json、apps/webb/package.json 等 4 处 | 8.3.0（历史记录；未核实或已过期） |
+| `vite` | 8.3.0（声明） | 8.3.0 | 开发/生产 | .workloom-runtime-deps/package.json、apps/web/package.json、apps/webb/package.json 等 4 处 | 8.3.0（历史记录；未核实或已过期） |
 | `vitest` | 3.2.0 / 4.1.11 / 5.0.1 | ^3.2.0 / ^4.1.11 / ^5.0.1 | 开发 | apps/webb/package.json、package.json、packages/audit-engine/package.json 等 8 处 | 5.0.1（历史记录；未核实或已过期） |
 | `ws` | 8.21.0（声明） | 8.21.0 | 开发 | vendor/dsh/package.json | 8.21.3（历史记录；未核实或已过期） |
 | `yaml` | 2.9.0 | 2.9.0 | 开发/生产 | .workloom-runtime-deps/package.json、apps/server/package.json、package.json 等 4 处 | 2.9.1（历史记录；未核实或已过期） |
