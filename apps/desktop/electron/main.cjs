@@ -55,6 +55,7 @@ process.env.WORKLOOM_WEB_PORT ??= String(5173 + PRODUCT_PORT_OFFSET);
 process.env.WORKLOOM_PG_PORT ??= String(5432 + PRODUCT_PORT_OFFSET);
 process.env.WORKLOOM_NATS_PORT ??= String(4222 + PRODUCT_PORT_OFFSET);
 const { bootstrap } = require("./bootstrap.cjs");
+const { dismissFirstDayGuide } = require("./render-smoke.cjs");
 
 const TITLE = process.env.WORKLOOM_APP_TITLE ?? app.getName();
 const APP_SMOKE = process.env.WORKLOOM_APP_SMOKE === "1";
@@ -488,24 +489,16 @@ async function runRenderSmoke() {
   if (welcomeExitProbe?.overlay) throw new Error(`欢迎仪式未退出：${JSON.stringify({ report, welcomeExitProbe })}`);
 
   // 首日上岗是另一层真实用户引导；先走其退出按钮，再核验可见职场，DOM 就绪不能证明无遮挡。
-  const guideAction = await win.webContents.executeJavaScript(`(() => {
+  report.firstDayGuide = await dismissFirstDayGuide(() => win.webContents.executeJavaScript(`(() => {
+    const supported = !!document.querySelector('[data-questline-hud="true"]');
     const guide = document.querySelector('[data-questline-overlay="true"]');
-    if (!guide) return { shown: false, clicked: false };
+    if (!guide) return { shown: false, clicked: false, supported };
     const button = [...guide.querySelectorAll('button')].find((node) => ['稍后再来', '关闭'].includes(node.textContent?.trim()));
     button?.click();
-    return { shown: true, clicked: !!button };
-  })()`, true);
-  if (guideAction.shown && !guideAction.clicked) throw new Error("首日上岗引导缺少可用退出按钮");
-  const guideDeadline = Date.now() + 10000;
-  let guideClosed = false;
-  while (Date.now() < guideDeadline) {
-    guideClosed = await win.webContents.executeJavaScript(`!document.querySelector('[data-questline-overlay="true"]')`, true);
-    if (guideClosed) break;
-    await new Promise((resolve) => setTimeout(resolve, 250));
-  }
-  report.firstDayGuide = { ...guideAction, closed: guideClosed };
+    return { shown: true, clicked: !!button, supported };
+  })()`, true));
   saveReport();
-  if (!guideClosed) throw new Error("首日上岗引导退出后仍覆盖产品页面");
+  if (!report.firstDayGuide.closed) throw new Error("首日上岗引导退出后仍覆盖产品页面");
 
   async function captureProductScene(sceneName, fileStem) {
     const sceneDeadline = Date.now() + 15000;

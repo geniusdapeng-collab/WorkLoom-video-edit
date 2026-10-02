@@ -6,6 +6,7 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 const { describe, it } = require("node:test");
+const { dismissFirstDayGuide } = require("./render-smoke.cjs");
 const {
   bootstrap,
   installPayloadAtomically,
@@ -35,6 +36,52 @@ function assertPrivateFile(file) {
   // support 目录 ACL，不能用恒假的 0600 位比较阻断 Windows runner。
   if (process.platform !== "win32") assert.equal(stat.mode & 0o777, 0o600);
 }
+
+describe("真实首日引导退出的渲染冒烟", () => {
+  function clock() {
+    let time = 0;
+    return { now: () => time, pause: async (milliseconds) => { time += milliseconds; } };
+  }
+
+  it("欢迎层退出的空帧不能跳过下一次 React 提交才出现的引导", async () => {
+    const timer = clock();
+    let probes = 0;
+    const result = await dismissFirstDayGuide(async () => {
+      probes++;
+      return { supported: true, shown: probes === 3, clicked: probes === 3 };
+    }, timer);
+    assert.deepEqual(result, { supported: true, shown: true, clicked: true, closed: true });
+    assert.ok(probes >= 7);
+  });
+
+  it("存在引导入口却一直不出现引导时不能标成退出成功", async () => {
+    const result = await dismissFirstDayGuide(async () => ({ supported: true, shown: false, clicked: false }), clock());
+    assert.equal(result.closed, false);
+    assert.equal(result.shown, false);
+  });
+
+  it("点了关闭仍持续覆盖时在原截止时间内失败关闭", async () => {
+    const timer = clock();
+    const result = await dismissFirstDayGuide(async () => ({ supported: true, shown: true, clicked: true }), timer);
+    assert.equal(result.closed, false);
+    assert.equal(timer.now(), 10000);
+  });
+
+  it("未安装引导内容包时稳定无遮挡仍可验收", async () => {
+    const result = await dismissFirstDayGuide(async () => ({ supported: false, shown: false, clicked: false }), clock());
+    assert.deepEqual(result, { supported: false, shown: false, clicked: false, closed: true });
+  });
+
+  it("缺退出按钮或 renderer 执行失败均不吞异常", async () => {
+    await assert.rejects(
+      dismissFirstDayGuide(async () => ({ supported: true, shown: true, clicked: false }), clock()),
+      /缺少可用退出按钮/u,
+    );
+    await assert.rejects(dismissFirstDayGuide(async () => { throw new Error("renderer unavailable"); }, clock()),
+      /renderer unavailable/u);
+    await assert.rejects(dismissFirstDayGuide(async () => ({ shown: "false" }), clock()), /非法状态/u);
+  });
+});
 
 function fixture(version, withCurrent = true) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "workloom-bootstrap-"));
