@@ -81,6 +81,29 @@ describe("真实首日引导退出的渲染冒烟", () => {
       /renderer unavailable/u);
     await assert.rejects(dismissFirstDayGuide(async () => ({ shown: "false" }), clock()), /非法状态/u);
   });
+
+  it("renderer 永不返回时也必须到截止即结束且不遗留定时器", async () => {
+    let watchdog;
+    let probes = 0;
+    try {
+      const result = await Promise.race([
+        dismissFirstDayGuide(() => { probes++; return new Promise(() => {}); }, { timeoutMs: 20 }),
+        new Promise((_, reject) => { watchdog = setTimeout(() => reject(new Error("guide deadline was not enforced")), 500); }),
+      ]);
+      assert.equal(result.closed, false);
+      assert.equal(probes, 1);
+      const timer = clock();
+      let lateProbes = 0;
+      const late = await dismissFirstDayGuide(async () => {
+        lateProbes++;
+        if (lateProbes === 3) await timer.pause(10000);
+        return { supported: true, shown: lateProbes === 1, clicked: lateProbes === 1 };
+      }, timer);
+      assert.equal(late.closed, false, "A renderer result delivered after the deadline cannot pass");
+    } finally {
+      clearTimeout(watchdog);
+    }
+  });
 });
 
 function fixture(version, withCurrent = true) {

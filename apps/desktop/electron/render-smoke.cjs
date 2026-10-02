@@ -11,8 +11,19 @@ async function dismissFirstDayGuide(probe, {
   let clicked = false;
   let supported = false;
   let clearSince = null;
+  const expired = Symbol("guide-deadline");
   while (now() < deadline) {
-    const state = await probe();
+    let timeout;
+    let state;
+    try {
+      state = await Promise.race([
+        Promise.resolve().then(probe),
+        new Promise((resolve) => { timeout = setTimeout(() => resolve(expired), Math.max(0, deadline - now())); }),
+      ]);
+    } finally {
+      clearTimeout(timeout);
+    }
+    if (state === expired || now() >= deadline) break;
     if (!state || [state.shown, state.clicked, state.supported].some((value) => typeof value !== "boolean")) {
       throw new Error("首日上岗引导探针返回非法状态");
     }
@@ -27,7 +38,7 @@ async function dismissFirstDayGuide(probe, {
       // 等 React 的后续提交稳定，不能以 welcome/guide 两层之间的空帧判定退出。
       if (now() - clearSince >= 750) return { shown, clicked, supported, closed: true };
     }
-    await pause(250);
+    await pause(Math.min(250, Math.max(0, deadline - now())));
   }
   return { shown, clicked, supported, closed: false };
 }
