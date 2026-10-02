@@ -543,10 +543,11 @@ async function handleChannelRequest(ctx: RunContext, frame: FilmChannelRequestFr
   if (!workerAllows(ctx.worker, frame.method)) fail("METHOD_NOT_ALLOWED", `工位未登记能力 ${frame.method}`);
   const expectedComponent = FILM_CHANNEL_METHOD_COMPONENT[frame.method];
   if (frame.component !== expectedComponent) fail("FRAME_INVALID", "组件分类与方法不匹配");
-  const stage = String(frame.stepKey).split(":")[0]!;
-  if (!ctx.job.stages.includes(stage)) fail("STEP_OUT_OF_SCOPE", `步骤 ${frame.stepKey} 不在本次作业冻结阶段内`);
-  if (frame.shotId !== null && !ctx.shots.has(frame.shotId)) fail("SHOT_NOT_FOUND", `镜号 ${frame.shotId} 不在冻结原稿内`);
-  if (["image.generate", "video.generate", "voice.dub", "voice.verify"].includes(frame.method) && !frame.shotId) fail("SHOT_NOT_FOUND", "逐镜组件需要冻结镜号");
+  const selected = String(ctx.job.options.only ?? "").split(",").filter(Boolean);
+  validateFilmChannelScope(frame, {
+    stages: ctx.job.stages, projectId: ctx.job.project_id,
+    shotIds: new Set([...ctx.shots.keys()].filter((id) => !selected.length || selected.includes(id))),
+  });
   const actualHash = filmRequestHash({ method: frame.method, stepKey: frame.stepKey, shotId: frame.shotId, params: frame.params });
   if (actualHash !== frame.requestHash) fail("FRAME_INVALID", "请求哈希与参数不一致");
   const payloadHash = renderSha256(filmCanonicalJson(frame.params));
@@ -577,6 +578,42 @@ async function handleChannelRequest(ctx: RunContext, frame: FilmChannelRequestFr
       evidence: { message: error instanceof Error ? error.message.slice(0, 400) : String(error).slice(0, 400) },
     }).catch(() => undefined);
     throw error;
+  }
+}
+
+/** Validate the complete frozen step before reserving budget or dispatching a component. */
+export function validateFilmChannelScope(frame: FilmChannelRequestFrame, scope: {
+  stages: readonly string[]; projectId: string; shotIds: ReadonlySet<string>;
+}): void {
+  if (typeof frame.stepKey !== "string" || !frame.stepKey) fail("FRAME_INVALID", "通道调用缺少步骤键");
+  const stage = frame.stepKey.split(":")[0]!;
+  if (!scope.stages.includes(stage)) fail("STEP_OUT_OF_SCOPE", `步骤 ${frame.stepKey} 不在本次作业冻结阶段内`);
+  if (frame.shotId !== null && (typeof frame.shotId !== "string" || !scope.shotIds.has(frame.shotId))) {
+    fail("SHOT_NOT_FOUND", `镜号 ${String(frame.shotId)} 不在本次作业冻结镜头范围内`);
+  }
+  const expectedKey = frame.shotId === null ? stage : `${stage}:${frame.shotId}`;
+  if (frame.stepKey !== expectedKey) fail("STEP_SHOT_MISMATCH", "步骤键与请求镜号不一致");
+  const methodStages: Record<string, readonly string[]> = {
+    "llm.chat": ["cover"], "image.generate": ["plates"],
+    "video.generate": ["videos", "material-gen"], "media.fetch": ["plates", "videos", "material-gen"],
+    "voice.dub": ["voice"], "voice.verify": ["voice"],
+  };
+  if (frame.method === "gate.review") {
+    const params = record(frame.params);
+    const reviewStage = text(params.stage, "gate.review 需要 stage", 64);
+    const aliases: Record<string, readonly string[]> = { script: ["spec"], prompt: ["spec"], keyframe: ["plates"], shot: ["videos", "material-gen"] };
+    if (!(aliases[reviewStage] ?? [reviewStage]).includes(stage)) fail("METHOD_STAGE_MISMATCH", "评审阶段与冻结步骤不一致");
+    if (params.projectId !== scope.projectId) fail("REVIEW_SCOPE_INVALID", "评审项目必须与冻结作业一致");
+    const context = params.context === undefined ? {} : record(params.context);
+    if ((context.shotId ?? null) !== frame.shotId) fail("REVIEW_SCOPE_INVALID", "评审镜号必须与请求作用域一致");
+    if (reviewStage === "shot" && context.sourceStage !== undefined && context.sourceStage !== stage) {
+      fail("REVIEW_SCOPE_INVALID", "评审来源阶段必须与冻结步骤一致");
+    }
+  } else if (!methodStages[frame.method]?.includes(stage)) {
+    fail("METHOD_STAGE_MISMATCH", `方法 ${frame.method} 不属于阶段 ${stage}`);
+  }
+  if (["image.generate", "video.generate", "voice.dub", "voice.verify"].includes(frame.method) && frame.shotId === null) {
+    fail("SHOT_NOT_FOUND", "逐镜组件需要冻结镜号");
   }
 }
 function abortable<T>(signal: AbortSignal, work: () => Promise<T>): Promise<T> {
