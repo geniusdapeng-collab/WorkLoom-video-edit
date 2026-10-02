@@ -958,7 +958,8 @@ async function bootstrap(opts) {
     throw new Error("持久状态绑定的 PostgreSQL 实例已缺失，拒绝静默初始化为另一实例");
   }
 
-  if (!envExisted) {
+  const oldJwt = readEnvValue(envText, "JWT_SECRET");
+  if (!envExisted || !oldJwt || Buffer.byteLength(oldJwt) < 32 || /workloom-dev-secret|change[-_ ]?me|replace[-_ ]?me/i.test(oldJwt)) {
     const jwtValue = `wl-${crypto.randomBytes(24).toString("hex")}`;
     const piiValue = `pii-${crypto.randomBytes(24).toString("hex")}`;
     envText = upsertEnvValue(envText, "JWT_SECRET", jwtValue);
@@ -990,6 +991,13 @@ async function bootstrap(opts) {
     WORKLOOM_NATS_PORT: String(NATS_PORT),
   };
   const serverEnv = withBundledNodePath({ ...desktopEnv, NODE_ENV: "production" }, NODE_BIN);
+  const desktopProduct = JSON.parse(fs.readFileSync(path.join(RUNTIME, "product.manifest.json"), "utf8"));
+  if (typeof desktopProduct.demoWorkspaceSlug !== "string" || typeof desktopProduct.demoMemberNo !== "string") {
+    throw new Error("受保护产品清单缺少本机工作区与成员配置");
+  }
+  const desktopLoginKey = crypto.randomBytes(32).toString("hex");
+  Object.assign(serverEnv, { SERVER_HOST: "127.0.0.1", WORKLOOM_DESKTOP_LOGIN_KEY: desktopLoginKey,
+    WORKLOOM_DESKTOP_WORKSPACE: desktopProduct.demoWorkspaceSlug, WORKLOOM_DESKTOP_MEMBER: desktopProduct.demoMemberNo });
   const runDatabaseHelper = (mode, legacyPasswords = []) => run(NODE_BIN, [DB_HELPER], {
     env: {
       ...desktopEnv,
@@ -1198,7 +1206,19 @@ async function bootstrap(opts) {
     releaseBootstrapLock();
     say("== 已停止 ==");
   };
-  return { stop, webUrl };
+  const login = async () => {
+    if (stopped) throw new Error("本机服务已经停止");
+    const response = await fetch(`http://127.0.0.1:${SERVER_PORT}/trpc/auth.desktopLogin`, {
+      method: "POST", headers: { "content-type": "application/json", "x-workloom-desktop-key": desktopLoginKey },
+      body: "{}", signal: AbortSignal.timeout(10000),
+    });
+    if (!response.ok) throw new Error(`本机登录尚未完成（${response.status}）`);
+    const value = await response.json();
+    const session = value.result?.data;
+    if (typeof session?.token !== "string" || !session.identity) throw new Error("本机登录响应不完整");
+    return session;
+  };
+  return { stop, webUrl, login };
   } catch (error) {
     const rolledBack = Boolean(payloadTransaction);
     try {

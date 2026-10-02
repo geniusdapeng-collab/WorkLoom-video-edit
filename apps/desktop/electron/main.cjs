@@ -24,7 +24,7 @@
  *   WORKLOOM_NATS_PORT   NATS 端口（默认 4222）
  *   WORKLOOM_PORT_OFFSET 产品端口偏移（行业包/构建配置提供，默认 0）
  */
-const { app, BrowserWindow, Tray, Menu, Notification, nativeImage, shell, dialog } = require("electron");
+const { app, BrowserWindow, Tray, Menu, Notification, nativeImage, shell, dialog, ipcMain } = require("electron");
 const fs = require("node:fs");
 const path = require("node:path");
 
@@ -94,6 +94,14 @@ let bootstrapStartedAt = 0;
 let retryBootstrap = null;
 let lastBootstrapError = null;
 let lastBootstrapReference = null;
+
+ipcMain.handle("workloom:desktop-login", async (event) => {
+  if (!win || event.sender !== win.webContents || event.senderFrame !== win.webContents.mainFrame
+    || event.senderFrame?.origin !== WEB_URL || !handle?.login) {
+    throw new Error("登录请求不是来自受信任的本机工作台");
+  }
+  return handle.login();
+});
 
 /* ---------- 单实例锁：重复启动唤出已有窗口 ---------- */
 const gotLock = app.requestSingleInstanceLock();
@@ -260,13 +268,19 @@ function createWindow() {
     autoHideMenuBar: true,
     backgroundColor: "#F8FAFC",
     show: false,
-    webPreferences: { contextIsolation: true, nodeIntegration: false },
+    webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true,
+      // 渲染验收从独立内存会话开始；旧欢迎页和收起偏好不应掩盖待验后端。
+      // 普通客户窗口仍用持久会话，验收不会改写客户浏览器状态。
+      ...(RENDER_SMOKE ? { partition: "workloom-render-smoke" } : {}),
+      ...(!SOURCE_MODE ? { preload: path.join(__dirname, "preload.cjs") } : {}) },
   });
 
   win.webContents.setWindowOpenHandler(({ url }) => {
-    if (url.startsWith("http://127.0.0.1") || url.startsWith("http://localhost")) return { action: "allow" };
-    void shell.openExternal(url);
+    if (/^https?:\/\//i.test(url)) void shell.openExternal(url);
     return { action: "deny" };
+  });
+  win.webContents.on("will-navigate", (event, url) => {
+    if (new URL(url).origin !== WEB_URL) event.preventDefault();
   });
 
   // 去浏览器化（客户端即产品），但保留系统缩放与无障碍能力。
@@ -473,6 +487,26 @@ async function runRenderSmoke() {
   }
   if (welcomeExitProbe?.overlay) throw new Error(`欢迎仪式未退出：${JSON.stringify({ report, welcomeExitProbe })}`);
 
+  // 首日上岗是另一层真实用户引导；先走其退出按钮，再核验可见职场，DOM 就绪不能证明无遮挡。
+  const guideAction = await win.webContents.executeJavaScript(`(() => {
+    const guide = document.querySelector('[data-questline-overlay="true"]');
+    if (!guide) return { shown: false, clicked: false };
+    const button = [...guide.querySelectorAll('button')].find((node) => ['稍后再来', '关闭'].includes(node.textContent?.trim()));
+    button?.click();
+    return { shown: true, clicked: !!button };
+  })()`, true);
+  if (guideAction.shown && !guideAction.clicked) throw new Error("首日上岗引导缺少可用退出按钮");
+  const guideDeadline = Date.now() + 10000;
+  let guideClosed = false;
+  while (Date.now() < guideDeadline) {
+    guideClosed = await win.webContents.executeJavaScript(`!document.querySelector('[data-questline-overlay="true"]')`, true);
+    if (guideClosed) break;
+    await new Promise((resolve) => setTimeout(resolve, 250));
+  }
+  report.firstDayGuide = { ...guideAction, closed: guideClosed };
+  saveReport();
+  if (!guideClosed) throw new Error("首日上岗引导退出后仍覆盖产品页面");
+
   async function captureProductScene(sceneName, fileStem) {
     const sceneDeadline = Date.now() + 15000;
     let sceneProbe = null;
@@ -481,6 +515,7 @@ async function runRenderSmoke() {
         const scene = document.querySelector('[data-product-scene="${sceneName}"]');
         return {
           ready: !!scene,
+          overlayVisible: !!document.querySelector('[data-welcome-phase], [data-questline-overlay="true"]'),
           actors: Number(scene?.getAttribute('data-product-scene-actors') || 0),
           labels: scene ? [...document.querySelectorAll('[data-product-nameplate]')].map((node) => node.textContent?.trim() || '').filter(Boolean) : [],
         };
@@ -495,6 +530,7 @@ async function runRenderSmoke() {
     const scenePixels = pixelHealth(sceneShot);
     const sceneReport = { ...sceneProbe, pixels: scenePixels, screenshotPath: sceneScreenshotPath };
     if (!sceneProbe?.ready) throw new Error(`${sceneName} 未就绪：${JSON.stringify(sceneReport)}`);
+    if (sceneProbe.overlayVisible) throw new Error(`${sceneName} 仍被引导层遮挡：${JSON.stringify(sceneReport)}`);
     if (report.bundle === "ai-pm" && Number(sceneProbe.actors) !== Number(report.actorCount) + (sceneName.startsWith("report-stage-") ? 1 : 0)) {
       throw new Error(`${sceneName} 团队人数不完整：${JSON.stringify(sceneReport)}`);
     }
