@@ -214,7 +214,7 @@ export default function P0() {
   const [waveIndex, setWaveIndex] = useState(0);
   const floorAgentsAll = useMemo(() => data?.floor?.agents ?? [], [data]);
   const sortedFloorAgents = useMemo(() => {
-    const rank: Record<string, number> = { asking: 0, blocked: 1, celebrating: 2, collab: 3, working: 4, idle: 5, disabled: 6 };
+    const rank: Record<string, number> = { asking: 0, blocked: 1, celebrating: 2, collab: 3, working: 4, queued: 5, idle: 6, disabled: 7 };
     return [...floorAgentsAll].sort(
       (a, b) => (rank[a.state] ?? 9) - (rank[b.state] ?? 9) || a.id.localeCompare(b.id),
     );

@@ -38,6 +38,7 @@ const FLOOR_STATE_TEXT: Record<string, string> = {
   blocked: "有异常",
   celebrating: "已完成",
   collab: "协作中",
+  queued: "排队中",
   idle: "待命",
   disabled: "已停用",
 };
@@ -79,6 +80,7 @@ const STATE_COLOR: Record<string, string> = {
   blocked: "#ff8a8a",
   celebrating: "#6adf8a",
   collab: "#8ad8ff",
+  queued: "#89a3c8",
   idle: "#a8b8d8",
   disabled: "#5a6478",
 };
@@ -88,6 +90,7 @@ const STATE_TEXT: Record<string, string> = {
   blocked: "受阻",
   celebrating: "捷报",
   collab: "协作中",
+  queued: "排队中",
   idle: "休整",
   disabled: "停用",
 };
