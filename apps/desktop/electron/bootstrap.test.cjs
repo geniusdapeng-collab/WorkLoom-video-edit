@@ -5,6 +5,7 @@ const { spawnSync } = require("node:child_process");
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
+const vm = require("node:vm");
 const { describe, it } = require("node:test");
 const { dismissFirstDayGuide, probeWebGL } = require("./render-smoke.cjs");
 const {
@@ -130,6 +131,59 @@ describe("真实首日引导退出的渲染冒烟", () => {
   });
 });
 
+describe("产品截图采用捕获时的可见场景", () => {
+  async function capture(states, captureState) {
+    const source = fs.readFileSync(path.join(__dirname, "main.cjs"), "utf8");
+    const start = source.indexOf("  async function captureProductScene(sceneName, fileStem) {");
+    const end = source.indexOf("\n  const workplaceScene = ", start);
+    assert.ok(start > 0 && end > start, "实际场景函数必须可提取");
+    let elapsed = 0;
+    let probes = 0;
+    const context = {
+      SAFE_RENDERING: false, logDir: "/isolated-scene", path, Buffer,
+      fs: { writeFileSync() {} }, report: { bundle: "ai-pm", actorCount: 14 },
+      Date: { now: () => elapsed },
+      setTimeout: (resolve, milliseconds) => { elapsed += milliseconds; resolve(); },
+      pixelHealth: () => ({ variance: 100, visibleRatio: 1 }),
+      win: { webContents: {
+        executeJavaScript: async () => {
+          const state = states(elapsed, probes++);
+          return { ready: true, overlayVisible: false, actors: 14, labels: [], ...state };
+        },
+        capturePage: async () => {
+          captureState?.();
+          return { toPNG: () => Buffer.from("isolated-scene") };
+        },
+      } },
+    };
+    const captureScene = vm.runInNewContext(source.slice(start, end) + "\ncaptureProductScene", context);
+    return captureScene("workplace-3d", "workplace");
+  }
+
+  it("等待后实际无遮挡且完整时仍通过", async () => {
+    const result = await capture(() => ({}));
+    assert.equal(result.ready, true);
+    assert.equal(result.overlayVisible, false);
+    assert.equal(result.actors, 14);
+  });
+
+  it("稳定等待中重新出现引导层时拒绝旧无遮挡状态", async () => {
+    await assert.rejects(capture(milliseconds => ({ overlayVisible: milliseconds >= 1000 })), /仍被引导层遮挡/u);
+  });
+
+  it("稳定等待中卸载场景或员工减少时拒绝旧完整状态", async () => {
+    await assert.rejects(capture(milliseconds => ({ ready: milliseconds < 1000 })), /未就绪/u);
+    await assert.rejects(capture(milliseconds => ({ actors: milliseconds >= 1000 ? 13 : 14 })), /团队人数不完整/u);
+  });
+
+  it("截图捕获期间出现遮罩或内置人名也必须失败", async () => {
+    let captured = false;
+    await assert.rejects(capture(() => ({ overlayVisible: captured }), () => { captured = true; }), /仍被引导层遮挡/u);
+    captured = false;
+    await assert.rejects(capture(() => ({ labels: captured ? ["顾云峥"] : [] }), () => { captured = true; }), /泄漏系统内置人名/u);
+  });
+});
+
 function fixture(version, withCurrent = true) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "workloom-bootstrap-"));
   const sourceRoot = path.join(root, "payload");
@@ -157,6 +211,32 @@ function transientDirectories(supportDir) {
 }
 
 describe("桌面载荷原子装配", () => {
+  it("同版本标记不能跳过缺失运行目录、错误运行版本或缺失 Node 的恢复", async () => {
+    for (const missing of ["runtime", "runtime-version", "node"]) {
+      const f = fixture("2.0.0");
+      fs.writeFileSync(path.join(f.supportDir, "VERSION"), "2.0.0\n");
+      if (missing === "runtime") fs.rmSync(path.join(f.supportDir, "runtime"), { recursive: true });
+      else fs.writeFileSync(path.join(f.supportDir, "runtime", "VERSION"), missing === "runtime-version" ? "1.0.0\n" : "2.0.0\n");
+      if (missing === "node") fs.rmSync(path.join(f.supportDir, "node"), { recursive: true });
+      const pgData = path.join(f.supportDir, "pgdata");
+      fs.mkdirSync(pgData);
+      fs.writeFileSync(path.join(pgData, "customer.txt"), "existing-customer-database");
+      try {
+        await assert.rejects(bootstrap({
+          resourcesDir: f.sourceRoot, supportDir: f.supportDir, smoke: true, failAt: "after-first-swap",
+        }), /安装故障注入：after-first-swap/u, "必须进入原子恢复，不能停在缺版本/二进制错误");
+        assert.equal(fs.readFileSync(path.join(f.supportDir, "VERSION"), "utf8"), "2.0.0\n");
+        assert.equal(fs.readFileSync(path.join(pgData, "customer.txt"), "utf8"), "existing-customer-database");
+        assert.equal(fs.readFileSync(path.join(f.supportDir, ".bootstrapped"), "utf8"), "done");
+        assert.deepEqual(transientDirectories(f.supportDir), []);
+        assert.equal(fs.existsSync(path.join(f.supportDir, ".bootstrap-lock")), false);
+        if (missing !== "runtime") assert.equal(fs.readFileSync(path.join(f.supportDir, "runtime", ".env"), "utf8"), "JWT_SECRET=keep-me\n");
+      } finally {
+        fs.rmSync(f.root, { recursive: true, force: true });
+      }
+    }
+  });
+
   it("解析物理路径后向 tar 传相对路径，并为 Windows 跨盘符暂存归档", () => {
     const destination = "D:\\a\\_temp\\wl-smoke\\.payload-cache";
     const sameDrive = tarExtractionPlan(

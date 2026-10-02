@@ -877,7 +877,18 @@ async function bootstrap(opts) {
     effResources = cacheDir;
   }
   const installedVer = readIf(path.join(supportDir, "VERSION")) || "none";
-  if (payloadVer !== installedVer) {
+  // VERSION 哨兵只说明上次提交过；缓存清理、磁盘损坏或中断恢复后还必须检查实际载荷。
+  const installedRuntimeVer = readIf(path.join(RUNTIME, "VERSION"));
+  const requiredInstalledFiles = [
+    NODE_BIN, path.join(RUNTIME, ".env.defaults"),
+    path.join(RUNTIME, "scripts", "desktop-bootstrap-db.mjs"),
+    path.join(RUNTIME, "node_modules", "vite", "bin", "vite.js"),
+    ...["postgres", "pg_ctl", "initdb"].map(pgBin),
+  ];
+  const installedTsx = [path.join(RUNTIME, "node_modules", "tsx", "dist", "cli.mjs"), path.join(RUNTIME, "node_modules", ".bin", "tsx")]
+    .some((file) => fs.existsSync(file));
+  if (payloadVer !== installedVer || installedRuntimeVer !== payloadVer || !installedTsx
+      || requiredInstalledFiles.some((file) => !fs.existsSync(file))) {
     status(`→ 装配运行时载荷（${payloadVer}）…`, { phase: "payload-staging", percent: 20, etaSeconds: 100 });
     fs.mkdirSync(supportDir, { recursive: true });
     // runtime 会在升级时整体替换；先保留用户配置，避免 JWT/API Key/模型设置被新版覆盖。

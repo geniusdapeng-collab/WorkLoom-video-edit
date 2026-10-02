@@ -503,39 +503,45 @@ async function runRenderSmoke() {
 
   async function captureProductScene(sceneName, fileStem) {
     const sceneDeadline = Date.now() + 15000;
+    const queryScene = () => win.webContents.executeJavaScript(`(() => {
+      const scene = document.querySelector('[data-product-scene="${sceneName}"]');
+      return {
+        ready: !!scene,
+        overlayVisible: !!document.querySelector('[data-welcome-phase], [data-questline-overlay="true"]'),
+        actors: Number(scene?.getAttribute('data-product-scene-actors') || 0),
+        labels: scene ? [...document.querySelectorAll('[data-product-nameplate]')].map((node) => node.textContent?.trim() || '').filter(Boolean) : [],
+      };
+    })()`, true);
     let sceneProbe = null;
     while (Date.now() < sceneDeadline) {
-      sceneProbe = await win.webContents.executeJavaScript(`(() => {
-        const scene = document.querySelector('[data-product-scene="${sceneName}"]');
-        return {
-          ready: !!scene,
-          overlayVisible: !!document.querySelector('[data-welcome-phase], [data-questline-overlay="true"]'),
-          actors: Number(scene?.getAttribute('data-product-scene-actors') || 0),
-          labels: scene ? [...document.querySelectorAll('[data-product-nameplate]')].map((node) => node.textContent?.trim() || '').filter(Boolean) : [],
-        };
-      })()`, true);
+      sceneProbe = await queryScene();
       if (sceneProbe?.ready) break;
       await new Promise((resolve) => setTimeout(resolve, 350));
     }
     await new Promise((resolve) => setTimeout(resolve, 3600));
+    // 等待动画后 DOM 可能已被新的引导层覆盖；截图前后都必须重新取实际状态。
+    const beforeCapture = await queryScene();
     const sceneShot = await win.webContents.capturePage();
+    sceneProbe = await queryScene();
     const sceneScreenshotPath = path.join(logDir, `${fileStem}-${SAFE_RENDERING ? "safe" : "default"}.png`);
     fs.writeFileSync(sceneScreenshotPath, sceneShot.toPNG());
     const scenePixels = pixelHealth(sceneShot);
-    const sceneReport = { ...sceneProbe, pixels: scenePixels, screenshotPath: sceneScreenshotPath };
-    if (!sceneProbe?.ready) throw new Error(`${sceneName} 未就绪：${JSON.stringify(sceneReport)}`);
-    if (sceneProbe.overlayVisible) throw new Error(`${sceneName} 仍被引导层遮挡：${JSON.stringify(sceneReport)}`);
-    if (report.bundle === "ai-pm" && Number(sceneProbe.actors) !== Number(report.actorCount) + (sceneName.startsWith("report-stage-") ? 1 : 0)) {
-      throw new Error(`${sceneName} 团队人数不完整：${JSON.stringify(sceneReport)}`);
-    }
+    const sceneReport = { ...sceneProbe, beforeCapture, pixels: scenePixels, screenshotPath: sceneScreenshotPath };
     if (scenePixels.variance < 35 || scenePixels.visibleRatio < 0.015) throw new Error(`${sceneName} 画面疑似纯黑/纯色：${JSON.stringify(sceneReport)}`);
     const builtInNames = ['顾云峥', '高明珏', '程既明', '任知遥', '叶言之', '唐亦舟', '万见庭', '陆闻秋', '祁含章', '祁清晏', '许诠宁'];
-    if ((sceneProbe.labels || []).some((label) => builtInNames.some((name) => label.includes(name)))) {
-      throw new Error(`${sceneName} 默认 HUD 泄漏系统内置人名：${JSON.stringify(sceneReport)}`);
-    }
     const maxIdleLabels = sceneName === "workplace-3d" ? 4 : 1;
-    if ((sceneProbe.labels || []).length > maxIdleLabels) {
-      throw new Error(`${sceneName} 空闲态名牌过密：${JSON.stringify(sceneReport)}`);
+    for (const capturedState of [beforeCapture, sceneProbe]) {
+      if (!capturedState?.ready) throw new Error(`${sceneName} 未就绪：${JSON.stringify(sceneReport)}`);
+      if (capturedState.overlayVisible) throw new Error(`${sceneName} 仍被引导层遮挡：${JSON.stringify(sceneReport)}`);
+      if (report.bundle === "ai-pm" && Number(capturedState.actors) !== Number(report.actorCount) + (sceneName.startsWith("report-stage-") ? 1 : 0)) {
+        throw new Error(`${sceneName} 团队人数不完整：${JSON.stringify(sceneReport)}`);
+      }
+      if ((capturedState.labels || []).some((label) => builtInNames.some((name) => label.includes(name)))) {
+        throw new Error(`${sceneName} 默认 HUD 泄漏系统内置人名：${JSON.stringify(sceneReport)}`);
+      }
+      if ((capturedState.labels || []).length > maxIdleLabels) {
+        throw new Error(`${sceneName} 空闲态名牌过密：${JSON.stringify(sceneReport)}`);
+      }
     }
     return sceneReport;
   }
