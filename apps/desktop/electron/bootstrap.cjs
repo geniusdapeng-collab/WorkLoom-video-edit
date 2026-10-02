@@ -371,6 +371,7 @@ function existingUrlPassword(text, key) {
 }
 
 function buildDesktopEnvironment(text, {
+  runtimeDir,
   pgPort,
   serverPort,
   webPort,
@@ -378,6 +379,9 @@ function buildDesktopEnvironment(text, {
   appPassword,
   gatewayPassword,
 }) {
+  if (typeof runtimeDir !== "string" || !path.isAbsolute(runtimeDir)) {
+    throw new Error("桌面运行目录必须为绝对路径");
+  }
   const values = {
     DATABASE_URL: databaseUrl("postgres", adminPassword, pgPort),
     APP_DB_PASSWORD: appPassword,
@@ -392,7 +396,7 @@ function buildDesktopEnvironment(text, {
    * 没有这一行，桌面上任何含写步骤的 quest 都会落 `connector-required`（未核实）而无法交付。
    * 规格与端口/工具名都从载荷内的桥源码派生（bundle 增删桥后无需改本文件）。
    */
-  const toolExecutorModules = resolveToolExecutorModules(RUNTIME);
+  const toolExecutorModules = resolveToolExecutorModules(runtimeDir);
   if (toolExecutorModules) values.WORKLOOM_TOOL_EXECUTOR_MODULES = toolExecutorModules;
   let next = text;
   for (const [key, value] of Object.entries(values)) next = upsertEnvValue(next, key, value);
@@ -964,6 +968,7 @@ async function bootstrap(opts) {
   const appPassword = databaseState.credentials.app;
   const gatewayPassword = databaseState.credentials.gateway;
   const desktopConfig = buildDesktopEnvironment(envText, {
+    runtimeDir: RUNTIME,
     pgPort: PG_PORT,
     serverPort: SERVER_PORT,
     webPort: WEB_PORT,

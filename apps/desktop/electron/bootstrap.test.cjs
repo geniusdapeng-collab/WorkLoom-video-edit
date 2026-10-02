@@ -320,6 +320,7 @@ describe("桌面 PostgreSQL 实例归属与端口契约", () => {
       "",
     ].join("\n");
     const result = buildDesktopEnvironment(original, {
+      runtimeDir: path.resolve(__dirname, "../../../"),
       pgPort: 55432,
       serverPort: 18787,
       webPort: 15173,
@@ -334,6 +335,38 @@ describe("桌面 PostgreSQL 实例归属与端口契约", () => {
       const value = result.text.match(new RegExp(`^${key}=(.*)$`, "mu"))?.[1];
       assert.equal(new URL(value).hostname, "127.0.0.1");
       assert.equal(new URL(value).port, "55432");
+    }
+  });
+
+  it("首装与升级分别从当前载荷生成桥注册表，不引用其他实例的运行目录", () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "workloom-bridge-config-"));
+    const source = path.resolve(__dirname, "../../../bundles/ai-video/connectors/bgm-bridge/executor.ts");
+    const configuration = {
+      pgPort: 55432, serverPort: 18787, webPort: 15173,
+      adminPassword: "test-only", appPassword: "test-only", gatewayPassword: "test-only",
+    };
+    try {
+      let previous = "LLM_MODEL=keep-user-choice\n";
+      for (const directory of ["首装 runtime", "升级 runtime"]) {
+        const runtimeDir = path.join(root, directory);
+        const executor = path.join(runtimeDir, "bundles", "ai-video", "connectors", "bgm-bridge", "executor.ts");
+        fs.mkdirSync(path.dirname(executor), { recursive: true });
+        fs.copyFileSync(source, executor);
+        const result = buildDesktopEnvironment(previous, { ...configuration, runtimeDir });
+        assert.equal(result.values.WORKLOOM_TOOL_EXECUTOR_MODULES,
+          `${executor}#createBgmBridgeExecutor#bgmread.*|bgmwrite.*#http://127.0.0.1:9775`);
+        assert.ok(result.text.includes(`WORKLOOM_TOOL_EXECUTOR_MODULES=${result.values.WORKLOOM_TOOL_EXECUTOR_MODULES}\n`));
+        assert.match(result.text, /^LLM_MODEL=keep-user-choice$/mu);
+        previous = result.text;
+      }
+      const emptyRuntime = path.join(root, "无连接器 runtime");
+      fs.mkdirSync(emptyRuntime);
+      const empty = buildDesktopEnvironment("LLM_MODEL=keep-user-choice\n", { ...configuration, runtimeDir: emptyRuntime });
+      assert.equal(empty.values.WORKLOOM_TOOL_EXECUTOR_MODULES, undefined);
+      assert.match(empty.text, /^LLM_MODEL=keep-user-choice$/mu);
+      assert.throws(() => buildDesktopEnvironment("", { ...configuration, runtimeDir: "relative/runtime" }), /运行目录必须为绝对路径/u);
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
     }
   });
 });
