@@ -235,7 +235,8 @@ export function Stage3D({
     <div
       data-product-scene="report-stage-3d"
       data-product-scene-actors={String(agents.length + 1)}
-      style={{ width: "100%", height: "100%", minHeight: 440, borderRadius: 12, overflow: "hidden", background: "#0b0d10" }}
+      // The P0 wrapper has automatic height; a percentage height leaves Canvas at its 150px intrinsic size.
+      style={{ width: "100%", height: 440, minHeight: 440, borderRadius: 12, overflow: "hidden", background: "#0b0d10" }}
     >
       <Canvas camera={{ position: [8.6, 0.9, 11.2], fov: 42 }} dpr={[1, 2]} gl={{ antialias: true, alpha: false }}>
         <SkyDome night={night} />

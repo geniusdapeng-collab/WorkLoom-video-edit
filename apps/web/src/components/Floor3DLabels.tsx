@@ -49,7 +49,9 @@ export function Floor3DLabels({ registry }: { registry: Floor3DLabelRegistry }) 
       bodies.push({ x: left - 2, y: top - 2, width: right - left + 4, height: bottom - top + 4 });
     }
     // The CEO's separate HTML plaque also participates in collision avoidance.
-    const ceo = gl.domElement.parentElement?.querySelector<HTMLElement>("[data-product-nameplate]");
+    // Drei Html uses Fiber's connected event container, outside the canvas measurement div.
+    const scene = gl.domElement.closest('[data-product-scene="workplace-3d"]') ?? gl.domElement.parentElement;
+    const ceo = scene?.querySelector<HTMLElement>("[data-product-nameplate]");
     if (ceo) {
       const canvas = gl.domElement.getBoundingClientRect(), rect = ceo.getBoundingClientRect();
       fixedPlaques.push({ x: rect.left - canvas.left, y: rect.top - canvas.top, width: rect.width, height: rect.height });

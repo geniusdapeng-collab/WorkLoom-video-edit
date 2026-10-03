@@ -132,7 +132,7 @@ describe("真实首日引导退出的渲染冒烟", () => {
 });
 
 describe("产品截图采用捕获时的可见场景", () => {
-  async function capture(states, captureState) {
+  async function capture(states, captureState, sceneName = "workplace-3d") {
     const source = fs.readFileSync(path.join(__dirname, "main.cjs"), "utf8");
     const start = source.indexOf("  async function captureProductScene(sceneName, fileStem) {");
     const end = source.indexOf("\n  const workplaceScene = ", start);
@@ -148,7 +148,8 @@ describe("产品截图采用捕获时的可见场景", () => {
       win: { webContents: {
         executeJavaScript: async () => {
           const state = states(elapsed, probes++);
-          return { ready: true, overlayVisible: false, actors: 14, labels: [], ...state };
+          return { ready: true, overlayVisible: false, actors: sceneName.startsWith("report-stage-") ? 15 : 14, labels: [],
+            geometry: { scene: { width: 768, height: 440 }, canvas: { width: 768, height: 440 }, contextLost: false, ceoOverlapIds: [] }, ...state };
         },
         capturePage: async () => {
           captureState?.();
@@ -157,7 +158,7 @@ describe("产品截图采用捕获时的可见场景", () => {
       } },
     };
     const captureScene = vm.runInNewContext(source.slice(start, end) + "\ncaptureProductScene", context);
-    return captureScene("workplace-3d", "workplace");
+    return captureScene(sceneName, "scene");
   }
 
   it("等待后实际无遮挡且完整时仍通过", async () => {
@@ -181,6 +182,20 @@ describe("产品截图采用捕获时的可见场景", () => {
     await assert.rejects(capture(() => ({ overlayVisible: captured }), () => { captured = true; }), /仍被引导层遮挡/u);
     captured = false;
     await assert.rejects(capture(() => ({ labels: captured ? ["顾云峥"] : [] }), () => { captured = true; }), /泄漏系统内置人名/u);
+  });
+
+  it("场景就绪但实际舞台 Canvas 只占 150 像素时不能用整页像素健康转绿", async () => {
+    await assert.rejects(capture(() => ({
+      geometry: { scene: { width: 768, height: 440 }, canvas: { width: 768, height: 150 }, contextLost: false, ceoOverlapIds: [] },
+    }), undefined, "report-stage-3d"), /舞台画布未铺满/u);
+  });
+
+  it("负责人固定牌与员工名牌相交、Canvas 缺失或上下文失效时拒绝验收", async () => {
+    for (const geometry of [
+      { scene: { width: 768, height: 440 }, canvas: { width: 768, height: 440 }, contextLost: false, ceoOverlapIds: ["worker"] },
+      { scene: { width: 768, height: 440 }, canvas: null, contextLost: false, ceoOverlapIds: [] },
+      { scene: { width: 768, height: 440 }, canvas: { width: 768, height: 440 }, contextLost: true, ceoOverlapIds: [] },
+    ]) await assert.rejects(capture(() => ({ geometry })), /名牌相交|画布不可用/u);
   });
 });
 

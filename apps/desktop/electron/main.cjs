@@ -501,15 +501,44 @@ async function runRenderSmoke() {
   saveReport();
   if (!report.firstDayGuide.closed) throw new Error("首日上岗引导退出后仍覆盖产品页面");
 
+  // 数字人动作已单独验过；通过现有收起控件查看正式场景，不能让扩展浮层掩盖布局缺陷。
+  report.assistantSceneControl = await win.webContents.executeJavaScript(`(() => {
+    const expanded = document.querySelector('[data-loommate-display="expanded"]');
+    const button = expanded?.querySelector('button[title="收起为小球（不挡界面）"]');
+    button?.click();
+    return { expandedBefore: !!expanded, clicked: !!button, action: button?.title || null };
+  })()`, true);
+  await new Promise((resolve) => setTimeout(resolve, 350));
+  report.assistantSceneControl.collapsed = await win.webContents.executeJavaScript(
+    `!document.querySelector('[data-loommate-display="expanded"]')`, true,
+  );
+  saveReport();
+  if (!report.assistantSceneControl.collapsed) throw new Error("织伴实际收起控件未能让出产品场景");
+
   async function captureProductScene(sceneName, fileStem) {
     const sceneDeadline = Date.now() + 15000;
     const queryScene = () => win.webContents.executeJavaScript(`(() => {
       const scene = document.querySelector('[data-product-scene="${sceneName}"]');
+      const canvas = scene?.querySelector('canvas');
+      const rectOf = (node) => {
+        if (!node) return null;
+        const rect = node.getBoundingClientRect();
+        return { x: rect.x, y: rect.y, width: rect.width, height: rect.height };
+      };
+      const ceo = rectOf(scene?.querySelector('[data-product-nameplate]'));
+      const ceoOverlapIds = scene && ceo ? [...scene.querySelectorAll('button[data-floor-agent]')].filter((node) => {
+        const rect = node.getBoundingClientRect();
+        return rect.x < ceo.x + ceo.width - .5 && ceo.x < rect.right - .5 && rect.y < ceo.y + ceo.height - .5 && ceo.y < rect.bottom - .5;
+      }).map((node) => node.getAttribute('data-floor-agent')) : [];
+      const context = canvas?.getContext('webgl2');
       return {
         ready: !!scene,
         overlayVisible: !!document.querySelector('[data-welcome-phase], [data-questline-overlay="true"]'),
         actors: Number(scene?.getAttribute('data-product-scene-actors') || 0),
-        labels: scene ? [...document.querySelectorAll('[data-product-nameplate]')].map((node) => node.textContent?.trim() || '').filter(Boolean) : [],
+        labels: scene ? [...scene.querySelectorAll('[data-product-nameplate]')].map((node) => node.textContent?.trim() || '').filter(Boolean) : [],
+        geometry: { scene: rectOf(scene), canvas: rectOf(canvas), ceo, ceoOverlapIds,
+          contextLost: context?.isContextLost() ?? null,
+          drawingBuffer: context ? { width: context.drawingBufferWidth, height: context.drawingBufferHeight } : null },
       };
     })()`, true);
     let sceneProbe = null;
@@ -533,6 +562,16 @@ async function runRenderSmoke() {
     for (const capturedState of [beforeCapture, sceneProbe]) {
       if (!capturedState?.ready) throw new Error(`${sceneName} 未就绪：${JSON.stringify(sceneReport)}`);
       if (capturedState.overlayVisible) throw new Error(`${sceneName} 仍被引导层遮挡：${JSON.stringify(sceneReport)}`);
+      if (sceneName.endsWith("-3d")) {
+        const geometry = capturedState.geometry;
+        if (!geometry?.canvas || !geometry.scene || geometry.contextLost !== false || geometry.canvas.width <= 0 || geometry.canvas.height <= 0) {
+          throw new Error(`${sceneName} 画布不可用：${JSON.stringify(sceneReport)}`);
+        }
+        if (sceneName === "report-stage-3d" && (Math.abs(geometry.scene.width - geometry.canvas.width) > 1 || Math.abs(geometry.scene.height - geometry.canvas.height) > 1)) {
+          throw new Error(`${sceneName} 舞台画布未铺满实际场景：${JSON.stringify(sceneReport)}`);
+        }
+        if (geometry.ceoOverlapIds?.length) throw new Error(`${sceneName} 负责人和员工名牌相交：${JSON.stringify(sceneReport)}`);
+      }
       if (report.bundle === "ai-pm" && Number(capturedState.actors) !== Number(report.actorCount) + (sceneName.startsWith("report-stage-") ? 1 : 0)) {
         throw new Error(`${sceneName} 团队人数不完整：${JSON.stringify(sceneReport)}`);
       }
