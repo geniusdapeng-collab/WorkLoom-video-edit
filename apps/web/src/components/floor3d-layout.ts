@@ -1,5 +1,6 @@
 import type { FloorAgent, FloorScene } from "../pages/p0/Floor";
 import { floorRectsOverlap, type FloorRect } from "../pages/p0/floor-layout";
+import * as THREE from "three";
 
 export interface FloorLabelAnchor { id: string; x: number; y: number; width: number; height: number }
 
@@ -30,6 +31,28 @@ export function floor3DTargets(agents: FloorAgent[], scene: FloorScene): Map<str
     targets.set(agent.id, candidates.splice(closest, 1)[0]!);
   }
   return targets;
+}
+
+/** Fit the default landing camera to the actual body bounds, including dense rosters. */
+export function floor3DCameraHeight(targets: Map<string, { x: number; y: number }>, scene: FloorScene, tile: number): number {
+  let height = Math.max(scene.grid.w, scene.grid.h) * tile * .95;
+  const camera = new THREE.PerspectiveCamera(40, 1, .1, 1000);
+  const point = new THREE.Vector3();
+  for (let attempt = 0; attempt < 20; attempt++) {
+    camera.position.set(height * .76, height * .88, height * .76);
+    camera.lookAt(0, .3, 0); camera.updateMatrixWorld();
+    const fits = [...targets.values()].every(target => {
+      const x = (target.x - scene.grid.w / 2) * tile, z = (target.y - scene.grid.h / 2) * tile;
+      for (const dx of [-.4, .4]) for (const y of [.2, 1.15]) for (const dz of [-.4, .4]) {
+        point.set(x + dx, y, z + dz).project(camera);
+        if (Math.abs(point.x) > .9 || Math.abs(point.y) > .9 || point.z < -1 || point.z > 1) return false;
+      }
+      return true;
+    });
+    if (fits) return height;
+    height *= 1.12;
+  }
+  throw new RangeError("Floor bodies exceed the default camera view");
 }
 
 /** Screen-space names keep their actual CSS size through camera movement and zoom. */

@@ -6,6 +6,7 @@ import { placeFloor3DLabels, type FloorLabelAnchor } from "./floor3d-layout";
 
 export interface Floor3DLabelRegistry {
   actors: Map<string, THREE.Group>;
+  hitAreas: Map<string, THREE.Mesh>;
   nodes: Map<string, HTMLDivElement>;
   lines: Map<string, SVGLineElement>;
   positions: Map<string, [number, number]>;
@@ -15,7 +16,7 @@ export interface Floor3DLabelRegistry {
 }
 
 export function createFloor3DLabelRegistry(): Floor3DLabelRegistry {
-  return { actors: new Map(), nodes: new Map(), lines: new Map(), positions: new Map() };
+  return { actors: new Map(), hitAreas: new Map(), nodes: new Map(), lines: new Map(), positions: new Map() };
 }
 
 /** Negative priority runs after actor/OrbitControls updates and before Drei's Html projection. */
@@ -62,7 +63,8 @@ export function Floor3DLabels({ registry }: { registry: Floor3DLabelRegistry }) 
       || (prior.avoidsBodies && [...prior.rects.values()].some(rect => bodies.some(body => floorRectsOverlap(rect, body))));
     if (changed) {
       const strict = placeFloor3DLabels(labels, size.width, size.height, [...bodies, ...fixedPlaques]);
-      // At a close camera angle bodies can fill the viewport. Names remain readable and clickable.
+      // Keep names readable while the scrollable viewport grows. A body-obstructing
+      // fallback is temporary; it must never count as a completed allocation.
       const rects = strict ?? placeFloor3DLabels(labels, size.width, size.height, fixedPlaques);
       if (!rects) {
         for (const node of registry.nodes.values()) node.style.visibility = "hidden";
@@ -71,6 +73,7 @@ export function Floor3DLabels({ registry }: { registry: Floor3DLabelRegistry }) 
       }
       cache.current = { signature, anchors: labels, rects, avoidsBodies: strict !== null };
     }
+    if (!cache.current!.avoidsBodies) registry.grow?.();
     const rects = cache.current!.rects;
     registry.focus?.(rects, size.width, size.height);
     registry.positions.clear();

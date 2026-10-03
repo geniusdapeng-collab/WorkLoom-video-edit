@@ -27,9 +27,10 @@ import { displayNameOf, roleTitleOf } from "../lib/naming";
 import { clientChineseText } from "@workloom/ui";
 import { CineFloor, SpotBeam, CineRig, CinePost, SkyDome, Skyline, NamePlate, DustMotes } from "./cinematic";
 import type { FloorAgent, FloorScene, FloorPayload } from "../pages/p0/Floor";
-import { floor3DTargets } from "./floor3d-layout";
+import { floor3DCameraHeight, floor3DTargets } from "./floor3d-layout";
 import { createFloor3DLabelRegistry, Floor3DLabels, type Floor3DLabelRegistry } from "./Floor3DLabels";
 import { floorInitialScroll } from "../pages/p0/floor-layout";
+import { Floor3DTaskDrop } from "./Floor3DTaskDrop";
 
 /* ---------------- 与 Floor.tsx 同语义的工具 ---------------- */
 function hash(s: string): number { let h = 0; for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0; return Math.abs(h); }
@@ -69,14 +70,13 @@ const STATE_TEXT: Record<string, string> = {
 
 /* ---------------- 单个数字员工 ---------------- */
 function Worker({
-  agent, scene, tile, target, labelRegistry, onPick, onDropTask, night,
+  agent, scene, tile, target, labelRegistry, onPick, night,
   onOpenTask,
 }: {
   agent: FloorAgent; scene: FloorScene; tile: number;
   target: { x: number; y: number };
   labelRegistry: Floor3DLabelRegistry;
   onPick: (a: FloorAgent) => void;
-  onDropTask?: (a: FloorAgent, task: string) => void;
   /** 头顶任务牌点击 → 任务详情，无任务时打开员工档案 */
   onOpenTask?: (threadId: string) => void;
   night: boolean;
@@ -84,6 +84,7 @@ function Worker({
   const group = useRef<THREE.Group>(null);
   const ring = useRef<THREE.Mesh>(null);
   const avatarRef = useRef<AvatarHandle>(null);
+  const hitArea = useRef<THREE.Mesh>(null);
   const [bubble, setBubble] = useState(false);
   const [hovered, setHovered] = useState(false);
   const hoverTimer = useRef<number | null>(null);
@@ -115,8 +116,9 @@ function Worker({
 
   useEffect(() => {
     if (group.current) labelRegistry.actors.set(agent.id, group.current);
+    if (hitArea.current) labelRegistry.hitAreas.set(agent.id, hitArea.current);
     return () => {
-      labelRegistry.actors.delete(agent.id); labelRegistry.positions.delete(agent.id);
+      labelRegistry.actors.delete(agent.id); labelRegistry.hitAreas.delete(agent.id); labelRegistry.positions.delete(agent.id);
       if (hoverTimer.current !== null) window.clearTimeout(hoverTimer.current);
       if (hideTimer.current !== null) window.clearTimeout(hideTimer.current);
       document.body.style.cursor = "default";
@@ -180,6 +182,7 @@ function Worker({
       {agent.state === "celebrating" && <Confetti seed={hash(agent.id)} />}
       {/* 点击热区 */}
       <mesh
+        ref={hitArea}
         position={[0, 0.7, 0]} visible={false}
         onClick={(e) => { e.stopPropagation(); onPick(agent); }}
         onPointerOver={(e) => {
@@ -245,23 +248,6 @@ function Worker({
               </span>
             </button>
           </div>
-        </Html>
-      )}
-      {/* 拖拽接收锚点 */}
-      {onDropTask && (
-        <Html center position={[0, 0.8, 0]} zIndexRange={[10, 0]}>
-          <div
-            data-agent-drop={agent.id}
-            onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "copy"; }}
-            onDrop={(e) => {
-              e.preventDefault();
-              const task = e.dataTransfer.getData("text/workloom-task");
-              if (task) onDropTask(agent, task);
-            }}
-            onClick={(e) => { e.stopPropagation(); onPick(agent); }}
-            style={{ width: 72, height: 96, transform: "translateY(-48px)", borderRadius: 12 }}
-            title={`拖任务给 ${roleTitleOf(agent.name, agent.presetKey)}`}
-          />
         </Html>
       )}
     </group>
@@ -483,27 +469,32 @@ export function Floor3D({
     onOpenProfile(a);
   };
   const night = useNightTime();
-  const camY = Math.max(scene.grid.w, scene.grid.h) * tile * 0.95;
   const controlsRef = useRef<any>(null);
   const activeAgents = useMemo(() => floor.agents.filter(agent => agent.state !== "disabled"), [floor.agents]);
   const targets = useMemo(() => floor3DTargets(floor.agents, scene), [floor.agents, scene]);
+  const camY = useMemo(() => floor3DCameraHeight(targets, scene, tile), [targets, scene, tile]);
   const labelRegistry = useRef(createFloor3DLabelRegistry());
   const viewport = useRef<HTMLDivElement>(null);
   const scroll = useRef({ userPositioned: false, left: 0, top: 0, size: "" });
-  const [minimum, setMinimum] = useState({ width: Math.max(320, Math.ceil(Math.sqrt(activeAgents.length)) * 128), height: 440 });
+  const [minimum, setMinimum] = useState({ width: Math.max(activeAgents.length ? 440 : 320, Math.ceil(Math.sqrt(activeAgents.length)) * 128), height: 440 });
   const minimumRef = useRef(minimum);
   minimumRef.current = minimum;
   const [labelError, setLabelError] = useState(false);
   useEffect(() => {
     const registry = labelRegistry.current;
-    let pending = 0, stopped = false;
+    let pending = 0, stopped = false, measured = false;
     const measure = () => {
       pending = 0;
       if (stopped) return;
       const nodes = [...registry.nodes.values()];
       const area = nodes.reduce((total, node) => total + (node.offsetWidth + 8) * (node.offsetHeight + 8), 0);
-      const width = Math.max(320, Math.ceil(Math.sqrt(activeAgents.length)) * 128, Math.ceil(Math.sqrt(area * 1.6)));
-      const height = Math.max(440, Math.ceil(area / Math.max(1, width * .5)));
+      // Keep populated scenes at least square so the default camera fit remains valid.
+      const baseWidth = Math.max(activeAgents.length ? 440 : 320, Math.ceil(Math.sqrt(activeAgents.length)) * 128, Math.ceil(Math.sqrt(area * 2)));
+      const width = Math.max(baseWidth, measured ? minimumRef.current.width : 0);
+      const height = Math.max(440, Math.ceil(area / Math.max(1, baseWidth * .5)), measured ? minimumRef.current.height : 0);
+      // Ref/ResizeObserver callbacks also run after growth and same-size polls.
+      // Preserve the room gained for bodies until the roster size changes.
+      measured = true;
       minimumRef.current = { width, height };
       setMinimum(prior => prior.width === width && prior.height === height ? prior : { width, height });
       setLabelError(false);
@@ -571,8 +562,9 @@ export function Floor3D({
 
         <OfficeScene scene={scene} tile={tile} ceoName={ceoName} night={night} />
         {activeAgents.map((a) => (
-          <Worker key={a.id} agent={a} scene={scene} tile={tile} target={targets.get(a.id)!} labelRegistry={labelRegistry.current} onPick={onPick} onDropTask={onDropTask} onOpenTask={onOpenTask} night={night} />
+          <Worker key={a.id} agent={a} scene={scene} tile={tile} target={targets.get(a.id)!} labelRegistry={labelRegistry.current} onPick={onPick} onOpenTask={onOpenTask} night={night} />
         ))}
+        {onDropTask && <Floor3DTaskDrop registry={labelRegistry.current} agents={activeAgents} onDropTask={onDropTask} />}
         <Floor3DLabels registry={labelRegistry.current} />
         <DustMotes count={46} area={[9, 2.8, 7]} color={night ? "#8aa8d8" : "#bcd6ff"} size={1.2} position={[0, 1.5, 0]} speed={0.18} />
 
