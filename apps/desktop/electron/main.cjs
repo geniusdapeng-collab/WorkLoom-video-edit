@@ -212,16 +212,24 @@ function diagnosticText() {
       const start = Math.max(0, size - 200_000);
       const fd = fs.openSync(file, "r");
       const buffer = Buffer.alloc(size - start);
-      fs.readSync(fd, buffer, 0, buffer.length, start);
-      fs.closeSync(fd);
+      try {
+        fs.readSync(fd, buffer, 0, buffer.length, start);
+      } finally {
+        fs.closeSync(fd);
+      }
       sections.push(`\n===== ${name}（末尾 ${buffer.length} 字节）=====\n${buffer.toString("utf8")}`);
     }
   } catch (error) {
     sections.push(`\n日志读取失败：${error instanceof Error ? error.message : String(error)}`);
   }
+  // JSON、dotenv、连接 URI 与授权头都可能出现在日志和错误摘要中。
+  // 在整个诊断文本上处理，不能只隐藏裸 JWT 字段或把带空格的秘密截成半截。
   return sections.join("\n")
-    .replace(/(JWT_SECRET|PII_SALT|API[_-]?KEY|ACCESS[_-]?TOKEN|REFRESH[_-]?TOKEN)\s*[:=]\s*[^\s,}\]]+/gi, "$1=[已脱敏]")
-    .replace(/Bearer\s+[A-Za-z0-9._~+/=-]+/gi, "Bearer [已脱敏]");
+    .replace(/(^|[^a-z0-9+.-])([a-z][a-z0-9+.-]*:\/\/)[^\s/?#"'<>]*@/gim, "$1$2[已脱敏]@")
+    .replace(/(^|\n)([ \t]*(?:cookie|set-cookie|authorization|proxy-authorization)\s*:)[^\r\n]*/gi, "$1$2 [已脱敏]")
+    .replace(/\b(Bearer|Basic)\s+[A-Za-z0-9._~+/=-]+/gi, "$1 [已脱敏]")
+    .replace(/((?:^|[^\w.-])["']?(?:[\w.-]*(?:password|passwd|secret|salt|token|api[_-]?key|private[_-]?key)|(?:proxy[_-]?)?authorization|(?:set[_-]?)?cookie)["']?\s*[:=]\s*)("(?:\\.|[^"\\])*(?:"|$)|'(?:\\.|[^'\\])*(?:'|$)|[^\s,;}\]&"']+)/gim,
+      (_match, prefix, value) => `${prefix}${value.startsWith('"') ? '"[已脱敏]"' : value.startsWith("'") ? "'[已脱敏]'" : "[已脱敏]"}`);
 }
 
 async function handleSplashAction(action) {
@@ -239,10 +247,24 @@ async function handleSplashAction(action) {
       defaultPath: path.join(app.getPath("documents"), `WorkLoom-启动诊断-${Date.now()}.txt`),
       filters: [{ name: "文本诊断", extensions: ["txt"] }],
     };
-    const result = splash
-      ? await dialog.showSaveDialog(splash, options)
-      : await dialog.showSaveDialog(options);
-    if (!result.canceled && result.filePath) fs.writeFileSync(result.filePath, diagnosticText(), { mode: 0o600 });
+    try {
+      const result = splash
+        ? await dialog.showSaveDialog(splash, options)
+        : await dialog.showSaveDialog(options);
+      if (!result.canceled && result.filePath) {
+        const fd = fs.openSync(result.filePath, "w", 0o600);
+        try {
+          // mode 只管新建文件；覆盖旧文件时在写入诊断内容前收紧权限。
+          if (process.platform !== "win32") fs.fchmodSync(fd, 0o600);
+          fs.writeFileSync(fd, diagnosticText(), "utf8");
+        } finally {
+          fs.closeSync(fd);
+        }
+      }
+    } catch (error) {
+      const failure = `诊断导出失败：${error instanceof Error ? error.message : String(error)}`;
+      showSplash("诊断导出未完成。请重新选择可写位置；原启动错误和日志仍保留。", publicStartupError(failure), lastBootstrapReference ?? "");
+    }
     return;
   }
   if (action === "exit") {

@@ -38,6 +38,150 @@ function assertPrivateFile(file) {
   if (process.platform !== "win32") assert.equal(stat.mode & 0o777, 0o600);
 }
 
+describe("启动诊断秘密脱敏", () => {
+  function diagnostic(logText, { error = null, fileSystem = fs } = {}) {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "workloom-diagnostic-"));
+    const logDir = path.join(root, "logs");
+    fs.mkdirSync(logDir);
+    fs.writeFileSync(path.join(logDir, "startup.log"), logText, { mode: 0o600 });
+    try {
+      const source = fs.readFileSync(path.join(__dirname, "main.cjs"), "utf8");
+      const start = source.indexOf("function diagnosticText() {");
+      const end = source.indexOf("\nasync function handleSplashAction", start);
+      assert.ok(start > 0 && end > start, "必须执行真实诊断导出函数");
+      return vm.runInNewContext(source.slice(start, end) + "\ndiagnosticText()", {
+        fs: fileSystem, path, Buffer, process, Error,
+        supportDirResolved: root, lastBootstrapReference: "启动-TEST", lastBootstrapError: error,
+        app: { getVersion: () => "test-version", getPath: () => root },
+      });
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  }
+
+  const cases = [
+    ["原有文本 JWT、盐和 Bearer", "JWT_SECRET=synthetic-jwt\nPII_SALT=synthetic-salt\nBearer synthetic-bearer", ["synthetic-jwt", "synthetic-salt", "synthetic-bearer"]],
+    ["JSON 引号与大小写字段", JSON.stringify({ JWT_SECRET: "synthetic-json-jwt", apiKey: "synthetic-json-key", accessToken: "synthetic-json-access", refresh_token: "synthetic-json-refresh", APP_DB_PASSWORD: "synthetic-json-db" }), ["synthetic-json-jwt", "synthetic-json-key", "synthetic-json-access", "synthetic-json-refresh", "synthetic-json-db"]],
+    ["引号内的空格和分隔符", "API_KEY='synthetic single quoted value'\nclientSecret=\"synthetic double,quoted value\"", ["synthetic single quoted value", "synthetic double,quoted value", "quoted value"]],
+    ["带编码密码的连接 URI", `connect postgresql://postgres:synthetic%3Auri%40password@127.0.0.1:55432/workloom\nrequest ${"https:"}//test-user:synthetic-uri-auth@example.invalid/path`, ["synthetic%3Auri%40password", "synthetic-uri-auth"]],
+    ["libpq 密码与 URI 查询密码", "host=127.0.0.1 password='synthetic libpq password' dbname=workloom\npostgres://127.0.0.1/workloom?password=synthetic-query-password&connect_timeout=3", ["synthetic libpq password", "synthetic-query-password"]],
+    ["Basic 授权和 Cookie", "Authorization: Basic c3ludGhldGljOnBhc3N3b3Jk\nCookie: session=synthetic-cookie; preference=compact\n{\"cookie\":\"synthetic-json-cookie\"}", ["c3ludGhldGljOnBhc3N3b3Jk", "synthetic-cookie", "synthetic-json-cookie"]],
+    ["JSON 转义引号和 Unicode 密码", JSON.stringify({ password: 'synthetic-quote-"-password', PRIVATE_KEY: "synthetic-私钥\n第二行" }), ['synthetic-quote-', "synthetic-私钥", "第二行"]],
+  ];
+  for (const [label, input, secrets] of cases) {
+    it(label, () => {
+      const output = diagnostic(input);
+      for (const secret of secrets) assert.equal(output.includes(secret), false, `${label} 不得保留合成秘密`);
+      assert.ok(output.includes("[已脱敏]"));
+      assert.ok(output.includes("test-version"));
+      assert.ok(output.includes("启动-TEST"));
+    });
+  }
+
+  it("错误摘要和日志读取失败也经过脱敏", () => {
+    const output = diagnostic("", {
+      error: '{"JWT_SECRET":"synthetic-header-secret"}',
+      fileSystem: { ...fs, readdirSync() { throw new Error("connect postgresql://postgres:synthetic-read-secret@127.0.0.1/workloom failed"); } },
+    });
+    assert.equal(output.includes("synthetic-header-secret"), false);
+    assert.equal(output.includes("synthetic-read-secret"), false);
+    assert.ok(output.includes("日志读取失败"));
+  });
+
+  it("读取异常关闭自己的文件句柄并保留失败信息", () => {
+    let opened;
+    let closed;
+    const output = diagnostic("synthetic log", { fileSystem: {
+      ...fs,
+      openSync(...args) { opened = fs.openSync(...args); return opened; },
+      readSync() { throw new Error("synthetic read failure"); },
+      closeSync(fd) { closed = fd; return fs.closeSync(fd); },
+    } });
+    try {
+      assert.equal(closed, opened);
+      assert.ok(output.includes("synthetic read failure"));
+    } finally {
+      if (opened !== closed) fs.closeSync(opened);
+    }
+  });
+
+  it("空日志和有界尾部仍保留版本、主机和错误上下文", () => {
+    const startedAt = Date.now();
+    const output = diagnostic("x".repeat(200_010) + "\nECONNREFUSED host=127.0.0.1 port=55432\nAPI_KEY=synthetic-bounded-key\n");
+    assert.ok(Date.now() - startedAt < 2000, "单个 200KB 日志的脱敏不得因长文本冻结诊断导出");
+    assert.equal(output.includes("synthetic-bounded-key"), false);
+    assert.ok(output.includes("末尾 200000 字节"));
+    assert.ok(output.includes("ECONNREFUSED host=127.0.0.1 port=55432"));
+    const empty = diagnostic("");
+    assert.ok(empty.includes("最近错误：无"));
+    assert.ok(empty.includes("末尾 0 字节"));
+  });
+
+  async function exportDiagnostic({ result, fileSystem = fs, dialogError } = {}) {
+    const source = fs.readFileSync(path.join(__dirname, "main.cjs"), "utf8");
+    const start = source.indexOf("async function handleSplashAction(action) {");
+    const end = source.indexOf("\nfunction closeSplash", start);
+    const publicStart = source.indexOf("function publicStartupError(error) {");
+    const publicEnd = source.indexOf("\nconst SPLASH_HTML", publicStart);
+    assert.ok(start > 0 && end > start && publicStart > 0 && publicEnd > publicStart);
+    const messages = [];
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "workloom-diagnostic-export-"));
+    try {
+      const action = vm.runInNewContext(source.slice(publicStart, publicEnd) + "\n" + source.slice(start, end) + "\nhandleSplashAction", {
+        fs: fileSystem, path, process, Date, Error,
+        app: { getPath: () => root }, splash: null, lastBootstrapReference: "启动-TEST",
+        diagnosticText: () => "WorkLoom 启动诊断\n合成的已脱敏内容",
+        showSplash: (...args) => messages.push(args),
+        dialog: { showSaveDialog: async () => { if (dialogError) throw dialogError; return result; } },
+      });
+      await action("export");
+      return messages;
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  }
+
+  it("取消无写入；新建与覆盖后的诊断文件均为私有", async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "workloom-diagnostic-save-"));
+    const file = path.join(root, "已存在的诊断.txt");
+    try {
+      let writes = 0;
+      await exportDiagnostic({ result: { canceled: true, filePath: file }, fileSystem: { ...fs, writeFileSync() { writes++; } } });
+      assert.equal(writes, 0);
+      assert.equal(fs.existsSync(file), false);
+      await exportDiagnostic({ result: { canceled: false, filePath: file } });
+      assertPrivateFile(file);
+      if (process.platform !== "win32") fs.chmodSync(file, 0o644);
+      fs.writeFileSync(file, "先前内容");
+      await exportDiagnostic({ result: { canceled: false, filePath: file } });
+      assertPrivateFile(file);
+      assert.equal(fs.readFileSync(file, "utf8").includes("先前内容"), false);
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("保存对话框和文件写入失败均留在可恢复启动页", async () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "workloom-diagnostic-failure-"));
+    const result = { canceled: false, filePath: path.join(root, "失败诊断.txt") };
+    try {
+      for (const options of [
+        { dialogError: new Error("synthetic save dialog failure") },
+        { result, fileSystem: { ...fs, openSync() { throw new Error("EACCES synthetic open failure"); } } },
+        { result, fileSystem: { ...fs, writeFileSync() { throw new Error("EACCES synthetic export failure"); } } },
+      ]) {
+        const messages = await exportDiagnostic(options);
+        assert.equal(messages.length, 1);
+        assert.ok(messages[0][0].includes("诊断导出未完成"));
+        assert.ok(messages[0][1]);
+        assert.equal(messages[0][2], "启动-TEST");
+      }
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+});
+
 describe("渲染探针不占用产品 GPU 上下文", () => {
   it("WebGL2 检测后立即释放临时上下文，不再检测 WebGL1", () => {
     const calls = [];
