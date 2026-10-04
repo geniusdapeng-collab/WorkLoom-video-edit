@@ -1,0 +1,15 @@
+{
+  "name": "floor-web-build",
+  "command": [
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+    "--env-file=.env",
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/pnpm/bin/pnpm.cjs",
+    "--filter",
+    "@workloom/web",
+    "build"
+  ],
+  "exit_code": 0,
+  "seconds": 15.595,
+  "ran_at": "2026-10-03T04:21:15.846629+08:00",
+  "log": "floor-web-build.log"
+}

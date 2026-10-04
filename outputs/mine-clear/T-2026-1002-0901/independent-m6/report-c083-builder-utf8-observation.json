@@ -1,0 +1,25 @@
+{
+  "schema": "growth.independent-m6/report-builder-observation@1",
+  "source_commit": "c08386eb9993744a0cb0c2495a98fc1fc4ccbed9",
+  "observed_by": "growth_m6",
+  "observed_at": "2026-10-03T09:28:36.406866+08:00",
+  "actual_first_invocation_exit_code": 1,
+  "actual_error": "SyntaxError: Non-UTF-8 code starting with byte e7 in build_report.py on line 410, but no encoding declared",
+  "subsequent_read_sha256": "1f71831d56232aef4cf871c8b1ade080cac1a1a3d1e71fa509277357458a7efc",
+  "subsequent_strict_utf8_decode_and_ast_passed": true,
+  "python": "3.9.6 actual /Library/Developer/CommandLineTools/usr/bin/python3",
+  "product_cases_reexecuted": 0,
+  "source_mutated": false,
+  "cause_proven": false,
+  "interpretation": "Actual generator failure retained. Subsequent same file strict byte decode and AST passed; no encoding repair or causal claim is inferred. Retry generator only after complete-byte check, without rerunning any product controls.",
+  "actual_direct_invocations_failed": 2,
+  "strict_bytes_compile_passed": true,
+  "strict_unicode_compile_passed": true,
+  "tokenize_detect_encoding": "utf-8",
+  "official_reference": {
+    "title": "Python 3.9 Lexical analysis - encoding declarations",
+    "url": "https://docs.python.org/3.9/reference/lexical_analysis.html#encoding-declarations",
+    "fact": "Source defaults to UTF-8; this does not establish the local file-entry failure cause"
+  },
+  "next_execution": "Read exact complete UTF-8 bytes, compile with original absolute filename and execute its original namespace/__file__; original code and all guards unchanged, hash before/after checked"
+}

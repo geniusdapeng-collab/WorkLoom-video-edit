@@ -1,0 +1,15 @@
+{
+  "at": "2026-10-03T07:46:01.275417+08:00",
+  "method": "Completed source reads from prior same-task window; current bytes matched recorded fullread SHA before registry update. No new source acceptance or product execution.",
+  "previous_full_read_files": 126,
+  "current_full_read_files": 131,
+  "added": [
+    "scripts/delivery/mine-clear.mjs",
+    "scripts/runtime-deps-lock.mjs",
+    "scripts/pack-nm-merge.mjs",
+    "scripts/seed-geo.ts",
+    "scripts/verify-chain.ts"
+  ],
+  "provenance": "regression-command-output-assessment.json",
+  "new_uncommitted_floor_source_semantically_accepted": false
+}

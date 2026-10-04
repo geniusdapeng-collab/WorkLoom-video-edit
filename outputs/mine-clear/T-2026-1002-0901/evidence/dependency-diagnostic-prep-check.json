@@ -1,0 +1,14 @@
+{
+  "name": "dependency-diagnostic-prep-check",
+  "command": [
+    "/usr/bin/python3",
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/native_diagnostic_fixture.py",
+    "prepare",
+    "--prefix",
+    "dependency"
+  ],
+  "exit_code": 0,
+  "seconds": 0.644,
+  "ran_at": "2026-10-04T00:47:16.802558+08:00",
+  "log": "dependency-diagnostic-prep-check.log"
+}

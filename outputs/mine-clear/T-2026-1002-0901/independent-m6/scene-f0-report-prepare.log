@@ -1,0 +1,2 @@
+COMMAND ["python3", "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/independent-m6/prepare_report.py"]
+{"commit": "f0a11286a49419fb7909088e2d170f4dde7b60c6", "files": {"total": 145, "full": 138, "machine": 2, "sample": 5, "unread": 0, "changed_total": 76, "changed_full": 69}, "checklist": {"not-run": 100, "manual-missing": 167, "pass": 9}, "cards": 22, "targeted_assertions": 532}

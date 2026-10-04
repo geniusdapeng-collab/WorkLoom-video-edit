@@ -1,0 +1,707 @@
+{
+  "at": "2026-10-03T13:47:45.852Z",
+  "phase": "before",
+  "evidence_grade": "B",
+  "source_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+  "generated_lock_inspection": "Whole YAML and npm JSON parsed; no generated lock prose claimed as manual code reading",
+  "pnpm_lock_sha256": "9d7b2c2748491e948ef19856ff1503118b01aa43fa4381e3cb342add3e11ee5a",
+  "importers_count": 12,
+  "package_nodes_count": 711,
+  "snapshot_nodes_count": 718,
+  "original_importers": {
+    ".": {
+      "dependencies": {
+        "@workloom/audit-engine": {
+          "specifier": "workspace:*",
+          "version": "link:packages/audit-engine"
+        },
+        "@workloom/base": {
+          "specifier": "workspace:*",
+          "version": "link:packages/base"
+        },
+        "@workloom/db": {
+          "specifier": "workspace:*",
+          "version": "link:packages/db"
+        },
+        "@workloom/runtime": {
+          "specifier": "workspace:*",
+          "version": "link:packages/runtime"
+        },
+        "@workloom/shared": {
+          "specifier": "workspace:*",
+          "version": "link:packages/shared"
+        },
+        "pg": {
+          "specifier": "8.23.0",
+          "version": "8.23.0"
+        },
+        "yaml": {
+          "specifier": "2.9.0",
+          "version": "2.9.0"
+        }
+      },
+      "devDependencies": {
+        "@axe-core/playwright": {
+          "specifier": "4.13.0",
+          "version": "4.13.0(playwright-core@1.63.0)"
+        },
+        "@types/node": {
+          "specifier": "^24.0.0",
+          "version": "24.13.3"
+        },
+        "concurrently": {
+          "specifier": "^9.1.0",
+          "version": "9.2.4"
+        },
+        "electron": {
+          "specifier": "^44.1.1",
+          "version": "44.1.1"
+        },
+        "electron-builder": {
+          "specifier": "^26.15.3",
+          "version": "26.15.3(electron-builder-squirrel-windows@26.15.3)"
+        },
+        "tsx": {
+          "specifier": "^4.23.12",
+          "version": "4.23.12"
+        },
+        "typescript": {
+          "specifier": "^7.0.2",
+          "version": "7.0.2"
+        },
+        "typescript-governance": {
+          "specifier": "npm:typescript@5.9.3",
+          "version": "typescript@5.9.3"
+        },
+        "vitest": {
+          "specifier": "^4.1.11",
+          "version": "4.1.11(@opentelemetry/api@1.9.1)(@types/node@24.13.3)(jsdom@30.1.0(@noble/hashes@2.4.0))(vite@8.3.0(@types/node@24.13.3)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.12)(yaml@2.9.0))"
+        },
+        "yaml-governance": {
+          "specifier": "npm:yaml@2.9.0",
+          "version": "yaml@2.9.0"
+        }
+      }
+    },
+    "apps/server": {
+      "dependencies": {
+        "@hono/node-server": {
+          "specifier": "2.1.1",
+          "version": "2.1.1(hono@4.13.8)"
+        },
+        "@hyperreality/video-studio": {
+          "specifier": "workspace:*",
+          "version": "link:../../packages/video-studio"
+        },
+        "@trpc/server": {
+          "specifier": "11.19.0",
+          "version": "11.19.0(typescript@7.0.2)"
+        },
+        "@workloom/base": {
+          "specifier": "workspace:*",
+          "version": "link:../../packages/base"
+        },
+        "@workloom/db": {
+          "specifier": "workspace:*",
+          "version": "link:../../packages/db"
+        },
+        "@workloom/runtime": {
+          "specifier": "workspace:*",
+          "version": "link:../../packages/runtime"
+        },
+        "@workloom/shared": {
+          "specifier": "workspace:*",
+          "version": "link:../../packages/shared"
+        },
+        "hono": {
+          "specifier": "4.13.8",
+          "version": "4.13.8"
+        },
+        "jose": {
+          "specifier": "6.2.12",
+          "version": "6.2.12"
+        },
+        "yaml": {
+          "specifier": "2.9.0",
+          "version": "2.9.0"
+        },
+        "zod": {
+          "specifier": "^4.6.5",
+          "version": "4.6.5"
+        }
+      },
+      "devDependencies": {
+        "@types/node": {
+          "specifier": "^24.0.0",
+          "version": "24.13.3"
+        },
+        "@types/pg": {
+          "specifier": "^8.23.1",
+          "version": "8.23.1"
+        },
+        "tsx": {
+          "specifier": "^4.23.13",
+          "version": "4.23.13"
+        },
+        "typescript": {
+          "specifier": "^7.0.2",
+          "version": "7.0.2"
+        }
+      }
+    },
+    "apps/web": {
+      "dependencies": {
+        "@react-three/drei": {
+          "specifier": "^10.7.8",
+          "version": "10.7.8(@react-three/fiber@9.7.0(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(three@0.186.1))(@types/react@19.2.18)(@types/three@0.186.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(three@0.186.1)"
+        },
+        "@react-three/fiber": {
+          "specifier": "^9.7.0",
+          "version": "9.7.0(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(three@0.186.1)"
+        },
+        "@react-three/postprocessing": {
+          "specifier": "^3.1.1",
+          "version": "3.1.1(@react-three/fiber@9.7.0(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(three@0.186.1))(@types/three@0.186.0)(postprocessing@6.39.5(three@0.186.1))(react@19.2.8)(three@0.186.1)"
+        },
+        "@tanstack/react-query": {
+          "specifier": "5.103.1",
+          "version": "5.103.1(react@19.2.8)"
+        },
+        "@trpc/client": {
+          "specifier": "11.19.0",
+          "version": "11.19.0(@trpc/server@11.19.0(typescript@7.0.2))(typescript@7.0.2)"
+        },
+        "@workloom/industry-contract": {
+          "specifier": "workspace:*",
+          "version": "link:../../packages/industry-contract"
+        },
+        "@workloom/server": {
+          "specifier": "workspace:*",
+          "version": "link:../server"
+        },
+        "@workloom/shared": {
+          "specifier": "workspace:*",
+          "version": "link:../../packages/shared"
+        },
+        "@workloom/ui": {
+          "specifier": "https://cnb.cool/workloom-ai/workloom-im/-/releases/download/ui-v0.1.19/workloom-ui-0.1.19.tgz",
+          "version": "https://cnb.cool/workloom-ai/workloom-im/-/releases/download/ui-v0.1.19/workloom-ui-0.1.19.tgz(react-dom@19.2.8(react@19.2.8))(react@19.2.8)"
+        },
+        "pixi-live2d-display": {
+          "specifier": "^0.4.0",
+          "version": "0.4.0(0736f5bd67d2e4de7e9fff36ad63fa2e)"
+        },
+        "pixi.js": {
+          "specifier": "^6.5.10",
+          "version": "6.5.10"
+        },
+        "postprocessing": {
+          "specifier": "^6.39.5",
+          "version": "6.39.5(three@0.186.1)"
+        },
+        "react": {
+          "specifier": "19.2.8",
+          "version": "19.2.8"
+        },
+        "react-dom": {
+          "specifier": "19.2.8",
+          "version": "19.2.8(react@19.2.8)"
+        },
+        "react-router": {
+          "specifier": "8.4.0",
+          "version": "8.4.0(react-dom@19.2.8(react@19.2.8))(react@19.2.8)"
+        },
+        "three": {
+          "specifier": "^0.186.0",
+          "version": "0.186.1"
+        },
+        "three-stdlib": {
+          "specifier": "^2.36.1",
+          "version": "2.36.1(three@0.186.1)"
+        }
+      },
+      "devDependencies": {
+        "@playwright/test": {
+          "specifier": "1.63.0",
+          "version": "1.63.0"
+        },
+        "@tailwindcss/vite": {
+          "specifier": "4.3.3",
+          "version": "4.3.3(vite@8.3.0(@types/node@26.3.0)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.13)(yaml@2.9.0))"
+        },
+        "@types/react": {
+          "specifier": "^19.2.0",
+          "version": "19.2.18"
+        },
+        "@types/react-dom": {
+          "specifier": "^19.2.0",
+          "version": "19.2.4(@types/react@19.2.18)"
+        },
+        "@types/three": {
+          "specifier": "^0.186.0",
+          "version": "0.186.0"
+        },
+        "@vitejs/plugin-react": {
+          "specifier": "6.1.1",
+          "version": "6.1.1(vite@8.3.0(@types/node@26.3.0)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.13)(yaml@2.9.0))"
+        },
+        "jsdom": {
+          "specifier": "^30.1.0",
+          "version": "30.1.0(@noble/hashes@2.4.0)"
+        },
+        "tailwindcss": {
+          "specifier": "4.3.3",
+          "version": "4.3.3"
+        },
+        "typescript": {
+          "specifier": "^7.0.2",
+          "version": "7.0.2"
+        },
+        "vite": {
+          "specifier": "8.3.0",
+          "version": "8.3.0(@types/node@26.3.0)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.13)(yaml@2.9.0)"
+        }
+      }
+    },
+    "apps/webb": {
+      "dependencies": {
+        "@trpc/client": {
+          "specifier": "11.19.0",
+          "version": "11.19.0(@trpc/server@11.19.0(typescript@7.0.2))(typescript@7.0.2)"
+        },
+        "@workloom/server": {
+          "specifier": "workspace:*",
+          "version": "link:../server"
+        },
+        "@workloom/ui": {
+          "specifier": "https://cnb.cool/workloom-ai/workloom-im/-/releases/download/ui-v0.1.19/workloom-ui-0.1.19.tgz",
+          "version": "https://cnb.cool/workloom-ai/workloom-im/-/releases/download/ui-v0.1.19/workloom-ui-0.1.19.tgz(react-dom@19.2.8(react@19.2.8))(react@19.2.8)"
+        },
+        "react": {
+          "specifier": "19.2.8",
+          "version": "19.2.8"
+        },
+        "react-dom": {
+          "specifier": "19.2.8",
+          "version": "19.2.8(react@19.2.8)"
+        }
+      },
+      "devDependencies": {
+        "@types/react": {
+          "specifier": "^19.2.0",
+          "version": "19.2.18"
+        },
+        "@types/react-dom": {
+          "specifier": "^19.2.0",
+          "version": "19.2.4(@types/react@19.2.18)"
+        },
+        "@vitejs/plugin-react": {
+          "specifier": "6.1.1",
+          "version": "6.1.1(vite@8.3.0(@types/node@26.3.0)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.13)(yaml@2.9.0))"
+        },
+        "typescript": {
+          "specifier": "^7.0.2",
+          "version": "7.0.2"
+        },
+        "vite": {
+          "specifier": "8.3.0",
+          "version": "8.3.0(@types/node@26.3.0)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.13)(yaml@2.9.0)"
+        },
+        "vitest": {
+          "specifier": "^5.0.1",
+          "version": "5.0.3(@opentelemetry/api@1.9.1)(@types/node@26.3.0)(jsdom@30.1.0(@noble/hashes@2.4.0))(vite@8.3.0(@types/node@26.3.0)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.13)(yaml@2.9.0))"
+        }
+      }
+    },
+    "apps/webc": {
+      "dependencies": {
+        "@workloom/ui": {
+          "specifier": "https://cnb.cool/workloom-ai/workloom-im/-/releases/download/ui-v0.1.19/workloom-ui-0.1.19.tgz",
+          "version": "https://cnb.cool/workloom-ai/workloom-im/-/releases/download/ui-v0.1.19/workloom-ui-0.1.19.tgz(react-dom@19.2.8(react@19.2.8))(react@19.2.8)"
+        },
+        "react": {
+          "specifier": "19.2.8",
+          "version": "19.2.8"
+        },
+        "react-dom": {
+          "specifier": "19.2.8",
+          "version": "19.2.8(react@19.2.8)"
+        }
+      },
+      "devDependencies": {
+        "@tailwindcss/vite": {
+          "specifier": "4.3.3",
+          "version": "4.3.3(vite@8.3.0(@types/node@26.3.0)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.13)(yaml@2.9.0))"
+        },
+        "@types/react": {
+          "specifier": "^19.2.0",
+          "version": "19.2.18"
+        },
+        "@types/react-dom": {
+          "specifier": "^19.2.0",
+          "version": "19.2.4(@types/react@19.2.18)"
+        },
+        "@vitejs/plugin-react": {
+          "specifier": "6.1.1",
+          "version": "6.1.1(vite@8.3.0(@types/node@26.3.0)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.13)(yaml@2.9.0))"
+        },
+        "jsdom": {
+          "specifier": "^30.1.0",
+          "version": "30.1.0(@noble/hashes@2.4.0)"
+        },
+        "tailwindcss": {
+          "specifier": "4.3.3",
+          "version": "4.3.3"
+        },
+        "typescript": {
+          "specifier": "^7.0.2",
+          "version": "7.0.2"
+        },
+        "vite": {
+          "specifier": "8.3.0",
+          "version": "8.3.0(@types/node@26.3.0)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.13)(yaml@2.9.0)"
+        }
+      }
+    },
+    "packages/audit-engine": {
+      "devDependencies": {
+        "typescript": {
+          "specifier": "^5.9.0",
+          "version": "5.9.3"
+        },
+        "vitest": {
+          "specifier": "^3.2.0",
+          "version": "3.2.7(@types/debug@4.1.13)(@types/node@26.3.0)(jiti@2.7.0)(jsdom@30.1.0(@noble/hashes@2.4.0))(lightningcss@1.33.0)(tsx@4.23.13)(yaml@2.9.0)"
+        }
+      }
+    },
+    "packages/base": {
+      "dependencies": {
+        "@workloom/db": {
+          "specifier": "workspace:*",
+          "version": "link:../db"
+        },
+        "@workloom/industry-contract": {
+          "specifier": "workspace:*",
+          "version": "link:../industry-contract"
+        },
+        "@workloom/shared": {
+          "specifier": "workspace:*",
+          "version": "link:../shared"
+        },
+        "jose": {
+          "specifier": "6.2.12",
+          "version": "6.2.12"
+        },
+        "pg": {
+          "specifier": "8.23.0",
+          "version": "8.23.0"
+        },
+        "yaml": {
+          "specifier": "2.9.0",
+          "version": "2.9.0"
+        },
+        "zod": {
+          "specifier": "^4.6.5",
+          "version": "4.6.5"
+        }
+      },
+      "devDependencies": {
+        "@types/pg": {
+          "specifier": "^8.23.1",
+          "version": "8.23.1"
+        },
+        "typescript": {
+          "specifier": "^7.0.2",
+          "version": "7.0.2"
+        },
+        "vitest": {
+          "specifier": "^4.1.11",
+          "version": "4.1.11(@opentelemetry/api@1.9.1)(@types/node@26.3.0)(jsdom@30.1.0(@noble/hashes@2.4.0))(vite@8.3.0(@types/node@26.3.0)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.13)(yaml@2.9.0))"
+        }
+      }
+    },
+    "packages/db": {
+      "dependencies": {
+        "@workloom/shared": {
+          "specifier": "workspace:*",
+          "version": "link:../shared"
+        },
+        "drizzle-orm": {
+          "specifier": "^0.45.2",
+          "version": "0.45.2(@opentelemetry/api@1.9.1)(@types/pg@8.23.1)(pg@8.23.0)"
+        },
+        "pg": {
+          "specifier": "8.23.0",
+          "version": "8.23.0"
+        }
+      },
+      "devDependencies": {
+        "@types/pg": {
+          "specifier": "^8.23.1",
+          "version": "8.23.1"
+        },
+        "tsx": {
+          "specifier": "^4.23.13",
+          "version": "4.23.13"
+        },
+        "typescript": {
+          "specifier": "^5.9.0",
+          "version": "5.9.3"
+        }
+      }
+    },
+    "packages/industry-contract": {
+      "dependencies": {
+        "zod": {
+          "specifier": "^4.6.5",
+          "version": "4.6.5"
+        }
+      },
+      "devDependencies": {
+        "typescript": {
+          "specifier": "^7.0.2",
+          "version": "7.0.2"
+        },
+        "vitest": {
+          "specifier": "^4.1.11",
+          "version": "4.1.11(@opentelemetry/api@1.9.1)(@types/node@26.3.0)(jsdom@30.1.0(@noble/hashes@2.4.0))(vite@8.3.0(@types/node@26.3.0)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.13)(yaml@2.9.0))"
+        }
+      }
+    },
+    "packages/runtime": {
+      "dependencies": {
+        "@workloom/base": {
+          "specifier": "workspace:*",
+          "version": "link:../base"
+        },
+        "@workloom/db": {
+          "specifier": "workspace:*",
+          "version": "link:../db"
+        },
+        "@workloom/shared": {
+          "specifier": "workspace:*",
+          "version": "link:../shared"
+        },
+        "pg": {
+          "specifier": "8.23.0",
+          "version": "8.23.0"
+        },
+        "zod": {
+          "specifier": "^4.6.5",
+          "version": "4.6.5"
+        }
+      },
+      "devDependencies": {
+        "@types/pg": {
+          "specifier": "^8.23.1",
+          "version": "8.23.1"
+        },
+        "typescript": {
+          "specifier": "^5.9.0",
+          "version": "5.9.3"
+        },
+        "vitest": {
+          "specifier": "^3.2.0",
+          "version": "3.2.7(@types/debug@4.1.13)(@types/node@26.3.0)(jiti@2.7.0)(jsdom@30.1.0(@noble/hashes@2.4.0))(lightningcss@1.33.0)(tsx@4.23.13)(yaml@2.9.0)"
+        }
+      }
+    },
+    "packages/shared": {
+      "dependencies": {
+        "zod": {
+          "specifier": "^4.6.5",
+          "version": "4.6.5"
+        }
+      },
+      "devDependencies": {
+        "typescript": {
+          "specifier": "^5.9.0",
+          "version": "5.9.3"
+        },
+        "vitest": {
+          "specifier": "^3.2.0",
+          "version": "3.2.7(@types/debug@4.1.13)(@types/node@26.3.0)(jiti@2.7.0)(jsdom@30.1.0(@noble/hashes@2.4.0))(lightningcss@1.33.0)(tsx@4.23.13)(yaml@2.9.0)"
+        }
+      }
+    },
+    "packages/video-studio": {
+      "dependencies": {
+        "zod": {
+          "specifier": "^4.6.5",
+          "version": "4.6.5"
+        }
+      },
+      "devDependencies": {
+        "@types/node": {
+          "specifier": "^24.0.0",
+          "version": "24.13.3"
+        },
+        "typescript": {
+          "specifier": "^5.9.0",
+          "version": "5.9.3"
+        },
+        "vitest": {
+          "specifier": "^3.2.0",
+          "version": "3.2.7(@types/debug@4.1.13)(@types/node@24.13.3)(jiti@2.7.0)(jsdom@30.1.0(@noble/hashes@2.4.0))(lightningcss@1.33.0)(tsx@4.23.13)(yaml@2.9.0)"
+        }
+      }
+    }
+  },
+  "pixi_snapshot": [
+    "pixi-live2d-display@0.4.0(0736f5bd67d2e4de7e9fff36ad63fa2e)",
+    {
+      "dependencies": {
+        "@pixi/core": "6.5.10(@pixi/constants@6.5.10)(@pixi/extensions@6.5.10)(@pixi/math@6.5.10)(@pixi/runner@6.5.10)(@pixi/settings@6.5.10(@pixi/constants@6.5.10))(@pixi/ticker@6.5.10(@pixi/extensions@6.5.10)(@pixi/settings@6.5.10(@pixi/constants@6.5.10)))(@pixi/utils@6.5.10(@pixi/constants@6.5.10)(@pixi/settings@6.5.10(@pixi/constants@6.5.10)))",
+        "@pixi/display": "6.5.10(@pixi/constants@6.5.10)(@pixi/math@6.5.10)(@pixi/settings@6.5.10(@pixi/constants@6.5.10))(@pixi/utils@6.5.10(@pixi/constants@6.5.10)(@pixi/settings@6.5.10(@pixi/constants@6.5.10)))",
+        "@pixi/loaders": "6.5.10(@pixi/constants@6.5.10)(@pixi/core@6.5.10(@pixi/constants@6.5.10)(@pixi/extensions@6.5.10)(@pixi/math@6.5.10)(@pixi/runner@6.5.10)(@pixi/settings@6.5.10(@pixi/constants@6.5.10))(@pixi/ticker@6.5.10(@pixi/extensions@6.5.10)(@pixi/settings@6.5.10(@pixi/constants@6.5.10)))(@pixi/utils@6.5.10(@pixi/constants@6.5.10)(@pixi/settings@6.5.10(@pixi/constants@6.5.10))))(@pixi/utils@6.5.10(@pixi/constants@6.5.10)(@pixi/settings@6.5.10(@pixi/constants@6.5.10)))",
+        "@pixi/math": "6.5.10",
+        "@pixi/sprite": "6.5.10(@pixi/constants@6.5.10)(@pixi/core@6.5.10(@pixi/constants@6.5.10)(@pixi/extensions@6.5.10)(@pixi/math@6.5.10)(@pixi/runner@6.5.10)(@pixi/settings@6.5.10(@pixi/constants@6.5.10))(@pixi/ticker@6.5.10(@pixi/extensions@6.5.10)(@pixi/settings@6.5.10(@pixi/constants@6.5.10)))(@pixi/utils@6.5.10(@pixi/constants@6.5.10)(@pixi/settings@6.5.10(@pixi/constants@6.5.10))))(@pixi/display@6.5.10(@pixi/constants@6.5.10)(@pixi/math@6.5.10)(@pixi/settings@6.5.10(@pixi/constants@6.5.10))(@pixi/utils@6.5.10(@pixi/constants@6.5.10)(@pixi/settings@6.5.10(@pixi/constants@6.5.10))))(@pixi/math@6.5.10)(@pixi/settings@6.5.10(@pixi/constants@6.5.10))(@pixi/utils@6.5.10(@pixi/constants@6.5.10)(@pixi/settings@6.5.10(@pixi/constants@6.5.10)))",
+        "@pixi/utils": "6.5.10(@pixi/constants@6.5.10)(@pixi/settings@6.5.10(@pixi/constants@6.5.10))",
+        "gh-pages": "6.3.0"
+      }
+    }
+  ],
+  "published_runtime_artifacts": [
+    {
+      "file": "dist/cubism2.es.js",
+      "bytes": 71702,
+      "sha256": "979ea0eca872682e56ffdc42e86277f4ec46fcadfc820e5157e9903d617744de",
+      "external_modules": [
+        "@pixi/core",
+        "@pixi/display",
+        "@pixi/math",
+        "@pixi/utils"
+      ]
+    },
+    {
+      "file": "dist/cubism2.js",
+      "bytes": 77596,
+      "sha256": "657786c85388026461cc145f9c19504f614cb6c773bf571ce26ee6de9f6a2a69",
+      "external_modules": [
+        "@pixi/core",
+        "@pixi/display",
+        "@pixi/math",
+        "@pixi/utils"
+      ]
+    },
+    {
+      "file": "dist/cubism2.min.js",
+      "bytes": 41520,
+      "sha256": "0e86a36540fb487d463904fc5e295316a3130dfc8ac345f37f29b34bed48bba3",
+      "external_modules": [
+        "@pixi/core",
+        "@pixi/display",
+        "@pixi/math",
+        "@pixi/utils"
+      ]
+    },
+    {
+      "file": "dist/cubism4.es.js",
+      "bytes": 208691,
+      "sha256": "8d2ed8bbd95aac6b157fe5a3cffc0ea83fa804efba853d93e12bf94f53c293b7",
+      "external_modules": [
+        "@pixi/core",
+        "@pixi/display",
+        "@pixi/math",
+        "@pixi/utils"
+      ]
+    },
+    {
+      "file": "dist/cubism4.js",
+      "bytes": 224911,
+      "sha256": "fb65789289e4471b6b70829ea3a188c97174f2ebfa840bc0f3fc6ab7ce238075",
+      "external_modules": [
+        "@pixi/core",
+        "@pixi/display",
+        "@pixi/math",
+        "@pixi/utils"
+      ]
+    },
+    {
+      "file": "dist/cubism4.min.js",
+      "bytes": 119922,
+      "sha256": "af1267e6d52759b245766c578d905bfa025b532d5c3cc727c370957c4409e21b",
+      "external_modules": [
+        "@pixi/core",
+        "@pixi/display",
+        "@pixi/math",
+        "@pixi/utils"
+      ]
+    },
+    {
+      "file": "dist/extra.es.js",
+      "bytes": 2157,
+      "sha256": "eb4fed3e73702b4e7da92d27f3b770c040fa8ad2cab3506c3810d37b35535ad5",
+      "external_modules": [
+        "@pixi/graphics",
+        "@pixi/math",
+        "@pixi/text"
+      ]
+    },
+    {
+      "file": "dist/extra.js",
+      "bytes": 2896,
+      "sha256": "55d246ac1790b0fec6e205f7c1559ff9b2a65bedaec491945a941d515bd1696f",
+      "external_modules": [
+        "@pixi/graphics",
+        "@pixi/math",
+        "@pixi/text"
+      ]
+    },
+    {
+      "file": "dist/extra.min.js",
+      "bytes": 1730,
+      "sha256": "f71e5b58190bab324eed2ac49fa6f84be090ec63df068b70b9d826b5e6ed9d16",
+      "external_modules": [
+        "@pixi/graphics",
+        "@pixi/math",
+        "@pixi/text"
+      ]
+    },
+    {
+      "file": "dist/index.es.js",
+      "bytes": 221703,
+      "sha256": "35d302425b2375c042fda5ca1bf8c20d4196a9e7173531c39fa9cba4c9760581",
+      "external_modules": [
+        "@pixi/core",
+        "@pixi/display",
+        "@pixi/math",
+        "@pixi/utils"
+      ]
+    },
+    {
+      "file": "dist/index.js",
+      "bytes": 235551,
+      "sha256": "921684d4ed0d0ca37acf9c2e516fc1cd65d1358881901eaee087e6dd0c5da1e9",
+      "external_modules": [
+        "@pixi/core",
+        "@pixi/display",
+        "@pixi/math",
+        "@pixi/utils"
+      ]
+    },
+    {
+      "file": "dist/index.min.js",
+      "bytes": 126855,
+      "sha256": "a89a80b019293dd22ff7357469569fdc456011f93535ded81bfa3f592d64fa6e",
+      "external_modules": [
+        "@pixi/core",
+        "@pixi/display",
+        "@pixi/math",
+        "@pixi/utils"
+      ]
+    }
+  ],
+  "desktop_runtime_package_lock_sha256": "5f43bade687d37f6f28df174310bf5bd693fcb22bc846243204ce2fc11859440",
+  "desktop_runtime_packages": 134,
+  "forbidden_desktop_runtime_nodes": [],
+  "upstream_doc_deploy": "gh-pages -d site",
+  "rationale": "The published Live2D runtime only imports Pixi peer modules; gh-pages is the upstream documentation deploy command. Remove only that exact unused edge, preserving runtime versions and bytes.",
+  "official_sources": [
+    "https://github.com/advisories/GHSA-vfj7-8cjw-p6xm",
+    "https://raw.githubusercontent.com/guansss/pixi-live2d-display/v0.4.0/package.json",
+    "https://pnpm.io/10.x/settings#overrides"
+  ],
+  "pass": true
+}

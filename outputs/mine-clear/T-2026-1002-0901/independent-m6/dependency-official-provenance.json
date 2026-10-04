@@ -1,0 +1,42 @@
+{
+  "schema": "growth.independent-m6/dependency-primary-source-provenance@1",
+  "reviewed_by": "growth_m6",
+  "at": "2026-10-04T01:22:13.451448+08:00",
+  "sources": [
+    {
+      "url": "https://pnpm.io/10.x/settings#overrides",
+      "title": "Settings (pnpm-workspace.yaml) | pnpm",
+      "retrieval_tool": "mcp__bing_search__fetch_page",
+      "actual_retrieval_success": true,
+      "read_scope": "Dependency Resolution / overrides: parent selector with version and greater-than; minus removes an unused dependency. Other settings in the truncated page were not semantically reviewed.",
+      "derived_fact": "A root override can select an exact parent version and remove a specific unneeded dependency using the minus value. Actual local graph change is independently tested by complete parsed Git input comparison.",
+      "evidence_grade": "B official API/configuration description, separate from local A source and B graph/runtime evidence"
+    },
+    {
+      "url": "https://raw.githubusercontent.com/guansss/pixi-live2d-display/v0.4.0/package.json",
+      "title": "pixi-live2d-display v0.4.0 package manifest",
+      "retrieval_tool": "mcp__bing_search__raw_file",
+      "actual_retrieval_success": true,
+      "local_retained_file": "dependency-official-pixi-v0.4.0-manifest.txt",
+      "sha256": "78a08deb8e1f0032e4689d36a502c192ffb9be7cc4a86fcb50a4898d6a366092",
+      "read_scope": "Complete upstream package manifest, including dist/types exports, peer modules, gh-pages dependency and deploy script. Published runtime file references were only literal-reference machine scans.",
+      "derived_fact": "The upstream manifest declares gh-pages and invokes it in deploy; product runtime deployment edge use is inferred within the reviewed artifact/reference scope, not proof of arbitrary dynamic behavior.",
+      "evidence_grade": "B upstream package metadata, no full upstream semantic code-reading claim"
+    },
+    {
+      "url": "https://github.com/advisories/GHSA-vfj7-8cjw-p6xm",
+      "title": "braces vulnerable to stack-exhaustion denial of service through deeply nested patterns",
+      "retrieval_tool": "mcp__bing_search__fetch_page",
+      "actual_retrieval_success": true,
+      "read_scope": "Advisory metadata/affected and patched sections fetched earlier in this same independent task.",
+      "retained_readback": "mc016-red-readback-official-7fee.json",
+      "sha256": "ddd5c924d0678a0a404b0a4b991776e696a9e2c8e72f61e715a1aaef8b1b56db",
+      "severity": "High",
+      "affected_range": "<=3.0.3",
+      "patched_versions": "None",
+      "evidence_grade": "B actual official advisory metadata, not a browser exploit-reachability claim"
+    }
+  ],
+  "no_new_product_test_execution": true,
+  "no_credentials_or_private_customer_contents_opened": true
+}

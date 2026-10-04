@@ -1,0 +1,6 @@
+COMMAND ["python3", "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/run_execution_repair.py", "--source", "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"]
+{"card": "MC-001", "started_at": "2026-10-04T03:14:37.565147+08:00", "role": "repair"}
+{"card": "MC-001", "exit_code": 2, "pass": false}
+ ✗ 不能混写不同提交的 evidence-index
+
+Actual repair assertion failed; retained original run and invalidated card require inspection

@@ -1,0 +1,7 @@
+{
+  "source": "7fee3a6a5563d41c568463994764d3883eb7667d",
+  "state": "Actual first 15 repair cards succeeded; MC016 failed new official HIGH; remaining cards not executed",
+  "snapshot": "execution-ledger-repair-7fee-partial.json",
+  "sha256": "3b643b67307ffc76589289fd23490bb309dece3771bcb47e6e1b23bc40218514",
+  "original_failed_run": "runs/MC-016-0-1791033810501.json"
+}

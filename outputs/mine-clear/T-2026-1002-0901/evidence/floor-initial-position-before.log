@@ -1,0 +1,51 @@
+COMMAND ["/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node", "--env-file=.env", "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/pnpm/bin/pnpm.cjs", "--filter", "@workloom/web", "exec", "vitest", "run", "src/pages/p0/Floor.test.tsx"]
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - import "./vite.config" without a file extension (vitest.config.ts:10:24). Add the file extension
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+
+[1m[30m[46m RUN [49m[39m[22m [36mv4.1.11 [39m[90m/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/apps/web[39m
+
+Sourcemap for "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/node_modules/.pnpm/@workloom+ui@https+++cnb.cool+workloom-ai+workloom-im+-+releases+download+ui-v0.1.19+wo_086870d384add426af4f926c44614b7c/node_modules/@workloom/ui/dist/index.js" points to missing source files
+Sourcemap for "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/node_modules/.pnpm/@workloom+ui@https+++cnb.cool+workloom-ai+workloom-im+-+releases+download+ui-v0.1.19+wo_086870d384add426af4f926c44614b7c/node_modules/@workloom/ui/dist/language.js" points to missing source files
+Sourcemap for "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/node_modules/.pnpm/@workloom+ui@https+++cnb.cool+workloom-ai+workloom-im+-+releases+download+ui-v0.1.19+wo_086870d384add426af4f926c44614b7c/node_modules/@workloom/ui/dist/entity-presentation.js" points to missing source files
+Sourcemap for "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/node_modules/.pnpm/@workloom+ui@https+++cnb.cool+workloom-ai+workloom-im+-+releases+download+ui-v0.1.19+wo_086870d384add426af4f926c44614b7c/node_modules/@workloom/ui/dist/navigation.js" points to missing source files
+Sourcemap for "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/node_modules/.pnpm/@workloom+ui@https+++cnb.cool+workloom-ai+workloom-im+-+releases+download+ui-v0.1.19+wo_086870d384add426af4f926c44614b7c/node_modules/@workloom/ui/dist/icons.js" points to missing source files
+Sourcemap for "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/node_modules/.pnpm/@workloom+ui@https+++cnb.cool+workloom-ai+workloom-im+-+releases+download+ui-v0.1.19+wo_086870d384add426af4f926c44614b7c/node_modules/@workloom/ui/dist/managed-surface.js" points to missing source files
+Sourcemap for "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/node_modules/.pnpm/@workloom+ui@https+++cnb.cool+workloom-ai+workloom-im+-+releases+download+ui-v0.1.19+wo_086870d384add426af4f926c44614b7c/node_modules/@workloom/ui/dist/modal-document-state.js" points to missing source files
+Sourcemap for "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/node_modules/.pnpm/@workloom+ui@https+++cnb.cool+workloom-ai+workloom-im+-+releases+download+ui-v0.1.19+wo_086870d384add426af4f926c44614b7c/node_modules/@workloom/ui/dist/overlay-manager.js" points to missing source files
+Sourcemap for "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/node_modules/.pnpm/@workloom+ui@https+++cnb.cool+workloom-ai+workloom-im+-+releases+download+ui-v0.1.19+wo_086870d384add426af4f926c44614b7c/node_modules/@workloom/ui/dist/overlay-stack.js" points to missing source files
+Sourcemap for "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/node_modules/.pnpm/@workloom+ui@https+++cnb.cool+workloom-ai+workloom-im+-+releases+download+ui-v0.1.19+wo_086870d384add426af4f926c44614b7c/node_modules/@workloom/ui/dist/color-contrast.js" points to missing source files
+Sourcemap for "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/node_modules/.pnpm/@workloom+ui@https+++cnb.cool+workloom-ai+workloom-im+-+releases+download+ui-v0.1.19+wo_086870d384add426af4f926c44614b7c/node_modules/@workloom/ui/dist/layout-controls.js" points to missing source files
+Sourcemap for "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/node_modules/.pnpm/@workloom+ui@https+++cnb.cool+workloom-ai+workloom-im+-+releases+download+ui-v0.1.19+wo_086870d384add426af4f926c44614b7c/node_modules/@workloom/ui/dist/components.js" points to missing source files
+Sourcemap for "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/node_modules/.pnpm/@workloom+ui@https+++cnb.cool+workloom-ai+workloom-im+-+releases+download+ui-v0.1.19+wo_086870d384add426af4f926c44614b7c/node_modules/@workloom/ui/dist/primitives.js" points to missing source files
+Sourcemap for "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/node_modules/.pnpm/@workloom+ui@https+++cnb.cool+workloom-ai+workloom-im+-+releases+download+ui-v0.1.19+wo_086870d384add426af4f926c44614b7c/node_modules/@workloom/ui/dist/forms.js" points to missing source files
+Sourcemap for "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/node_modules/.pnpm/@workloom+ui@https+++cnb.cool+workloom-ai+workloom-im+-+releases+download+ui-v0.1.19+wo_086870d384add426af4f926c44614b7c/node_modules/@workloom/ui/dist/overlays.js" points to missing source files
+Sourcemap for "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/node_modules/.pnpm/@workloom+ui@https+++cnb.cool+workloom-ai+workloom-im+-+releases+download+ui-v0.1.19+wo_086870d384add426af4f926c44614b7c/node_modules/@workloom/ui/dist/states.js" points to missing source files
+Sourcemap for "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/node_modules/.pnpm/@workloom+ui@https+++cnb.cool+workloom-ai+workloom-im+-+releases+download+ui-v0.1.19+wo_086870d384add426af4f926c44614b7c/node_modules/@workloom/ui/dist/shell.js" points to missing source files
+Sourcemap for "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/node_modules/.pnpm/@workloom+ui@https+++cnb.cool+workloom-ai+workloom-im+-+releases+download+ui-v0.1.19+wo_086870d384add426af4f926c44614b7c/node_modules/@workloom/ui/dist/patterns.js" points to missing source files
+Sourcemap for "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/node_modules/.pnpm/@workloom+ui@https+++cnb.cool+workloom-ai+workloom-im+-+releases+download+ui-v0.1.19+wo_086870d384add426af4f926c44614b7c/node_modules/@workloom/ui/dist/data.js" points to missing source files
+ [31m❯[39m src/pages/p0/Floor.test.tsx [2m([22m[2m5 tests[22m[2m | [22m[31m1 failed[39m[2m)[22m[33m 855[2mms[22m[39m
+     [32m✓[39m 第一帧已绘出 18 个分离名牌，每个角色与名牌都打开自己档案[32m 290[2mms[22m[39m
+     [32m✓[39m 任务牌左右边缘和四个内角都打开任务；空白不触发；完整标题可悬停查看[32m 19[2mms[22m[39m
+     [32m✓[39m 轮询换序、排队状态、尺寸变化与停用离场都重新使用有效绘制事实[32m 274[2mms[22m[39m
+     [32m✓[39m 浏览器无法创建 Canvas 时显示明确错误[32m 10[2mms[22m[39m
+[31m     [31m×[31m 65 人长岗位场景首帧即能看到员工，用户滚动后轮询不会抢回位置[39m[32m 259[2mms[22m[39m
+
+[31m⎯⎯⎯⎯⎯⎯⎯[39m[1m[41m Failed Tests 1 [49m[22m[31m⎯⎯⎯⎯⎯⎯⎯[39m
+
+[41m[1m FAIL [22m[49m src/pages/p0/Floor.test.tsx[2m > [22m职场真实组件的首帧与点击分派[2m > [22m65 人长岗位场景首帧即能看到员工，用户滚动后轮询不会抢回位置
+[31m[1mAssertionError[22m: expected 0 to be greater than 0[39m
+[36m [2m❯[22m src/pages/p0/Floor.test.tsx:[2m121:30[22m[39m
+
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯[22m[39m
+
+
+[2m Test Files [22m [1m[31m1 failed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[31m1 failed[39m[22m[2m | [22m[1m[32m4 passed[39m[22m[90m (5)[39m
+[2m   Start at [22m 04:46:47
+[2m   Duration [22m 10.87s[2m (transform 925ms, setup 0ms, import 1.24s, tests 855ms, environment 6.82s)[22m
+
+undefined
+/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/apps/web:
+ ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL  Command failed with exit code 1: vitest run src/pages/p0/Floor.test.tsx

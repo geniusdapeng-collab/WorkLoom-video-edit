@@ -1,0 +1,67 @@
+{
+  "at": "2026-10-03T09:58:40.560809+08:00",
+  "source": "f0a11286a49419fb7909088e2d170f4dde7b60c6",
+  "files": [
+    {
+      "file": "apps/desktop/electron/main.cjs",
+      "lines": 716,
+      "sha256": "efe4d3c42c76c0b1af4353ad77906f9d5843f562c096076aad6d2cd38c1adf3d",
+      "reading": "Full original file and direct dependencies read before edit; every final modified diff read; exact clean Git bytes checked",
+      "grade": "A"
+    },
+    {
+      "file": "apps/desktop/electron/bootstrap.test.cjs",
+      "lines": 840,
+      "sha256": "b33769aa9908c1519d6f1e5eeb557c6d788c3174ed0c8e0f981d106a0e11146b",
+      "reading": "Full original file and direct dependencies read before edit; every final modified diff read; exact clean Git bytes checked",
+      "grade": "A"
+    },
+    {
+      "file": "apps/web/src/components/Floor3DLabels.tsx",
+      "lines": 97,
+      "sha256": "0d2505a53e6e1e2811a6cc68d8124669cb4656e658d16e5e9a2eb8cf691e123b",
+      "reading": "Full original file and direct dependencies read before edit; every final modified diff read; exact clean Git bytes checked",
+      "grade": "A"
+    },
+    {
+      "file": "apps/web/src/components/Floor3DLabels.test.tsx",
+      "lines": 73,
+      "sha256": "381a1dbc257f2983cb61ca80b62eefe219bd7420ebde06f8d0f9920f8aa04ecd",
+      "reading": "Full original file and direct dependencies read before edit; every final modified diff read; exact clean Git bytes checked",
+      "grade": "A"
+    },
+    {
+      "file": "apps/web/src/components/Stage3D.tsx",
+      "lines": 283,
+      "sha256": "12cc2603a8b265de77053f8cfb0d4a36b2f3e79b1b15b69ed927ca4d76ca8429",
+      "reading": "Full original file and direct dependencies read before edit; every final modified diff read; exact clean Git bytes checked",
+      "grade": "A"
+    },
+    {
+      "file": "docs/repairs/T-2026-1002-0901.md",
+      "lines": 79,
+      "sha256": "e4d836436b086de53ac21232eb363dcca2a82dd4b72e4ac331b1c2d86bc9f079",
+      "reading": "Full original file and direct dependencies read before edit; every final modified diff read; exact clean Git bytes checked",
+      "grade": "A"
+    }
+  ],
+  "web_tests": {
+    "total": 34,
+    "passed": 34,
+    "failed": 0
+  },
+  "actual_scene_cases": {
+    "passed": 7,
+    "failed": 0,
+    "executed_sha": "c08386eb9993744a0cb0c2495a98fc1fc4ccbed9",
+    "dirty_bytes_explicitly_equal_to_committed_runtime": true
+  },
+  "screenshots_directly_viewed": [
+    "scene-layout-after-stage-1440.png",
+    "scene-layout-after-stage-390.png",
+    "scene-layout-after-floor-1440.png",
+    "scene-layout-after-floor-390.png"
+  ],
+  "visual_scope": "C sample: stage fills its 440px scene, CEO/worker plaques separate; narrow Floor remains internally scrollable; not all members visible at once or real phone/complete stage hit targets",
+  "native_final_passed": false
+}

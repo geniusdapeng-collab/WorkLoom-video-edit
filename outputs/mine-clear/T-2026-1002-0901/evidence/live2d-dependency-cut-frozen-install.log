@@ -1,0 +1,9 @@
+COMMAND ["/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node", "--env-file=.env", "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/pnpm/bin/pnpm.cjs", "install", "--frozen-lockfile", "--ignore-scripts", "--offline"]
+Scope: all 12 workspace projects
+Lockfile is up to date, resolution step is skipped
+Progress: resolved 1, reused 0, downloaded 0, added 0
+Packages: +1 -42
++------------------------------------------
+Progress: resolved 1, reused 1, downloaded 0, added 0, done
+
+Done in 749ms using pnpm v10.14.0

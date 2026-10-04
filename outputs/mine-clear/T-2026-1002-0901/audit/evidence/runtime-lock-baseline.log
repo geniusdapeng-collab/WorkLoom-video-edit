@@ -1,0 +1,2 @@
+COMMAND ["/Users/mac/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node", "--env-file=.env", "scripts/runtime-deps-lock.mjs", "verify"]
+runtime 精确 manifest 已过期，请刷新每产品依赖锁

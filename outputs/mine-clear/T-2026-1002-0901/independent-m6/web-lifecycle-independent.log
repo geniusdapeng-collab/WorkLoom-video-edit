@@ -1,0 +1,42 @@
+COMMAND ["/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node", "--env-file=.env", "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/pnpm/bin/pnpm.cjs", "--dir", "apps/web", "test", "--config", "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/independent-m6/live2d-independent.config.mjs"]
+
+> @workloom/web@0.1.0 test /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/apps/web
+> vitest run --config /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/independent-m6/live2d-independent.config.mjs
+
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - import "./vite.config" without a file extension (vitest.config.ts:10:24). Add the file extension
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+
+[1m[30m[46m RUN [49m[39m[22m [36mv4.1.11 [39m[90m/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/apps/web[39m
+
+ [31m❯[39m ../../../../outputs/growth-production-fix-2026-10-02/independent-m6/live2d-independent.test.tsx [2m([22m[2m0 test[22m[2m)[22m
+
+[31m⎯⎯⎯⎯⎯⎯[39m[1m[41m Failed Suites 1 [49m[22m[31m⎯⎯⎯⎯⎯⎯⎯[39m
+
+[41m[1m FAIL [22m[49m ../../../../outputs/growth-production-fix-2026-10-02/independent-m6/live2d-independent.test.tsx[2m [ ../../../../outputs/growth-production-fix-2026-10-02/independent-m6/live2d-independent.test.tsx ][22m
+[31m[1mError[22m: Failed to resolve import "react/jsx-dev-runtime" from "../../../../outputs/growth-production-fix-2026-10-02/independent-m6/live2d-independent.test.tsx". Does the file exist?[39m
+  Plugin: [35mvite:import-analysis[39m
+  File: [36m/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/independent-m6/live2d-independent.test.tsx[39m:24:37
+[33m  22 |  const __vi_import_1__ = await import("react-dom/client");
+  23 |  const __vi_import_2__ = await import("/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/wor...
+  24 |  const __vi_import_3__ = await import("react/jsx-dev-runtime");
+     |                                       ^
+  25 |  // @vitest-environment jsdom
+  26 |  // Independent controls import actual product code. Pixi/Voice I/O are local fakes.[39m
+[90m [2m❯[22m TransformPluginContext._formatLog ../../node_modules/.pnpm/vite@8.3.0_@types+node@24.13.3_esbuild@0.28.2_jiti@2.7.0_tsx@4.23.12_yaml@2.9.0/node_modules/vite/dist/node/chunks/node.js:[2m8393:39[22m[39m
+[90m [2m❯[22m TransformPluginContext.error ../../node_modules/.pnpm/vite@8.3.0_@types+node@24.13.3_esbuild@0.28.2_jiti@2.7.0_tsx@4.23.12_yaml@2.9.0/node_modules/vite/dist/node/chunks/node.js:[2m8390:14[22m[39m
+[90m [2m❯[22m normalizeUrl ../../node_modules/.pnpm/vite@8.3.0_@types+node@24.13.3_esbuild@0.28.2_jiti@2.7.0_tsx@4.23.12_yaml@2.9.0/node_modules/vite/dist/node/chunks/node.js:[2m26058:18[22m[39m
+[90m [2m❯[22m ../../node_modules/.pnpm/vite@8.3.0_@types+node@24.13.3_esbuild@0.28.2_jiti@2.7.0_tsx@4.23.12_yaml@2.9.0/node_modules/vite/dist/node/chunks/node.js:[2m26128:30[22m[39m
+[90m [2m❯[22m TransformPluginContext.transform ../../node_modules/.pnpm/vite@8.3.0_@types+node@24.13.3_esbuild@0.28.2_jiti@2.7.0_tsx@4.23.12_yaml@2.9.0/node_modules/vite/dist/node/chunks/node.js:[2m26094:4[22m[39m
+[90m [2m❯[22m EnvironmentPluginContainer.transform ../../node_modules/.pnpm/vite@8.3.0_@types+node@24.13.3_esbuild@0.28.2_jiti@2.7.0_tsx@4.23.12_yaml@2.9.0/node_modules/vite/dist/node/chunks/node.js:[2m8172:14[22m[39m
+[90m [2m❯[22m loadAndTransform ../../node_modules/.pnpm/vite@8.3.0_@types+node@24.13.3_esbuild@0.28.2_jiti@2.7.0_tsx@4.23.12_yaml@2.9.0/node_modules/vite/dist/node/chunks/node.js:[2m19634:26[22m[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯[22m[39m
+
+
+[2m Test Files [22m [1m[31m1 failed[39m[22m[90m (1)[39m
+[2m      Tests [22m [2mno tests[22m
+[2m   Start at [22m 01:25:25
+[2m   Duration [22m 22.72s[2m (transform 0ms, setup 0ms, import 0ms, tests 0ms, environment 13.13s)[22m
+
+ ELIFECYCLE  Test failed. See above for more details.

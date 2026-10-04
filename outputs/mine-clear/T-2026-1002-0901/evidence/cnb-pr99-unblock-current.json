@@ -1,0 +1,70 @@
+{
+  "at": "2026-10-03T23:34:14.938Z",
+  "repository": "workloom-ai/workloom-growthtest",
+  "pull": {
+    "number": "99",
+    "title": "fix(industry): 修复治理验收与 runtime 输入锁 [T-2026-1002-9001]",
+    "head": {
+      "ref": "refs/heads/task/T-2026-1002-9001",
+      "sha": "e19f97c440d68d45af3c76710eb7c6c879c84b9d",
+      "repo": {
+        "id": "2101830819702788096",
+        "name": "workloom-growthtest",
+        "path": "workloom-ai/workloom-growthtest",
+        "web_url": "https://cnb.cool/workloom-ai/workloom-growthtest"
+      }
+    },
+    "base": {
+      "ref": "refs/heads/main",
+      "sha": "da06fdf1e1ead0cafc078ea27695397d2e9209db",
+      "repo": {
+        "id": "2101830819702788096",
+        "name": "workloom-growthtest",
+        "path": "workloom-ai/workloom-growthtest",
+        "web_url": "https://cnb.cool/workloom-ai/workloom-growthtest"
+      }
+    },
+    "is_wip": false,
+    "mergeable_state": "mergeable",
+    "is_merged": false,
+    "labels": [
+      "protocol",
+      "risk/review"
+    ]
+  },
+  "statuses": {
+    "state": "failure",
+    "statuses": [
+      {
+        "state": "error",
+        "context": "cnb/pull_request/pipeline-1(static-gate)",
+        "description": "error [10.9s]",
+        "target_url": "https://cnb.cool/workloom-ai/workloom-growthtest/-/build/logs/cnb-npu-1k40mjter#001",
+        "created_at": "2026-10-03T10:58:04Z",
+        "updated_at": "2026-10-03T10:58:15Z"
+      },
+      {
+        "state": "success",
+        "context": "cnb/pull_request/pipeline-2(db-gate)",
+        "description": "success [32.5s]",
+        "target_url": "https://cnb.cool/workloom-ai/workloom-growthtest/-/build/logs/cnb-npu-1k40mjter#002",
+        "created_at": "2026-10-03T10:58:04Z",
+        "updated_at": "2026-10-03T10:58:36Z"
+      },
+      {
+        "state": "success",
+        "context": "cnb/pull_request/pipeline-3(test-gate)",
+        "description": "success [3m 15s]",
+        "target_url": "https://cnb.cool/workloom-ai/workloom-growthtest/-/build/logs/cnb-npu-1k40mjter#003",
+        "created_at": "2026-10-03T10:58:04Z",
+        "updated_at": "2026-10-03T11:01:19Z"
+      }
+    ],
+    "sha": "a4e6b1ae0d4c4d03def72729b6036d2c55858c0c"
+  },
+  "main": {
+    "name": "refs/heads/main",
+    "sha": "da06fdf1e1ead0cafc078ea27695397d2e9209db"
+  },
+  "source_head": "e19f97c440d68d45af3c76710eb7c6c879c84b9d"
+}

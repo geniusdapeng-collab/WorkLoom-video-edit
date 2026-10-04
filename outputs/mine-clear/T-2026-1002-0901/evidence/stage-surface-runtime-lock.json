@@ -1,0 +1,13 @@
+{
+  "name": "stage-surface-runtime-lock",
+  "command": [
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+    "--env-file=.env",
+    "scripts/runtime-deps-lock.mjs",
+    "verify"
+  ],
+  "exit_code": 0,
+  "seconds": 0.253,
+  "ran_at": "2026-10-03T18:55:01.751048+08:00",
+  "log": "stage-surface-runtime-lock.log"
+}

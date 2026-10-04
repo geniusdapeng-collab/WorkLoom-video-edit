@@ -1,0 +1,245 @@
+{
+  "at": "2026-10-03T23:39:52.083Z",
+  "repository": "workloom-ai/WorkLoom-growth",
+  "sn": "cnb-s2t-1k421u483",
+  "result": {
+    "status": "error",
+    "pipelinesStatus": {
+      "cnb-s2t-1k421u483-001": {
+        "id": "cnb-s2t-1k421u483-001",
+        "name": "desktop-macos",
+        "status": "error",
+        "duration": 0,
+        "stages": [
+          {
+            "status": "error",
+            "duration": 79,
+            "name": "Prepare",
+            "id": "prepare"
+          },
+          {
+            "status": "skipped",
+            "duration": 0,
+            "name": "校验发布身份、工具链和签名凭据",
+            "id": "stage-0"
+          },
+          {
+            "status": "skipped",
+            "duration": 0,
+            "name": "构建受信行业 Bundle、投影和 Web",
+            "id": "stage-1"
+          },
+          {
+            "status": "skipped",
+            "duration": 0,
+            "name": "打包签名与公证的 arm64 DMG，执行真实首启与渲染冒烟",
+            "id": "stage-2"
+          },
+          {
+            "status": "skipped",
+            "duration": 0,
+            "name": "打包签名与公证的 x64 DMG并核验载荷",
+            "id": "stage-3"
+          },
+          {
+            "status": "skipped",
+            "duration": 0,
+            "name": "封存并回读 macOS 候选 SHA-512",
+            "id": "stage-4"
+          },
+          {
+            "status": "skipped",
+            "duration": 0,
+            "name": "通知发布者 macOS 候选已验真",
+            "id": "stage-5"
+          },
+          {
+            "status": "skipped",
+            "duration": 0,
+            "name": "销毁临时 CNB 令牌",
+            "id": "stage-6"
+          },
+          {
+            "status": "success",
+            "duration": 2,
+            "name": "BeforeEnd",
+            "id": "beforeEnd"
+          },
+          {
+            "status": "skipped",
+            "duration": 0,
+            "name": "DebugDetection",
+            "id": "debugDetection"
+          },
+          {
+            "status": "success",
+            "duration": 77,
+            "name": "End",
+            "id": "end"
+          }
+        ],
+        "labels": []
+      },
+      "cnb-s2t-1k421u483-002": {
+        "id": "cnb-s2t-1k421u483-002",
+        "name": "desktop-windows",
+        "status": "error",
+        "duration": 0,
+        "stages": [
+          {
+            "status": "error",
+            "duration": 79,
+            "name": "Prepare",
+            "id": "prepare"
+          },
+          {
+            "status": "skipped",
+            "duration": 0,
+            "name": "校验发布身份、工具链和签名凭据",
+            "id": "stage-0"
+          },
+          {
+            "status": "skipped",
+            "duration": 0,
+            "name": "编译锁定的 PostgreSQL 与 pgvector",
+            "id": "stage-1"
+          },
+          {
+            "status": "skipped",
+            "duration": 0,
+            "name": "构建受信行业 Bundle、投影和 Web",
+            "id": "stage-2"
+          },
+          {
+            "status": "skipped",
+            "duration": 0,
+            "name": "打包 Authenticode NSIS 并执行真实首启与渲染冒烟",
+            "id": "stage-3"
+          },
+          {
+            "status": "skipped",
+            "duration": 0,
+            "name": "封存并回读 Windows 候选 SHA-512",
+            "id": "stage-4"
+          },
+          {
+            "status": "skipped",
+            "duration": 0,
+            "name": "通知发布者 Windows 候选已验真",
+            "id": "stage-5"
+          },
+          {
+            "status": "skipped",
+            "duration": 0,
+            "name": "销毁临时 CNB 令牌",
+            "id": "stage-6"
+          },
+          {
+            "status": "success",
+            "duration": 3,
+            "name": "BeforeEnd",
+            "id": "beforeEnd"
+          },
+          {
+            "status": "skipped",
+            "duration": 0,
+            "name": "DebugDetection",
+            "id": "debugDetection"
+          },
+          {
+            "status": "success",
+            "duration": 76,
+            "name": "End",
+            "id": "end"
+          }
+        ],
+        "labels": []
+      },
+      "cnb-s2t-1k421u483-003": {
+        "id": "cnb-s2t-1k421u483-003",
+        "name": "desktop-publisher",
+        "status": "error",
+        "duration": 5271,
+        "metricCoreHours": 0.01,
+        "metricDuration": 3577,
+        "stages": [
+          {
+            "status": "success",
+            "duration": 4128,
+            "name": "Prepare",
+            "id": "prepare"
+          },
+          {
+            "status": "success",
+            "duration": 350,
+            "name": "校验 main、稳定 tag 和发布提交",
+            "id": "stage-0"
+          },
+          {
+            "status": "error",
+            "duration": 92,
+            "name": "等待 macOS 已验真候选",
+            "id": "stage-1"
+          },
+          {
+            "status": "skipped",
+            "duration": 0,
+            "name": "等待 Windows 已验真候选",
+            "id": "stage-2"
+          },
+          {
+            "status": "skipped",
+            "duration": 0,
+            "name": "单一发布者创建草稿、核验五资产远端字节并公开 Latest",
+            "id": "stage-3"
+          },
+          {
+            "status": "skipped",
+            "duration": 0,
+            "name": "销毁临时 CNB 令牌",
+            "id": "stage-4"
+          },
+          {
+            "status": "success",
+            "duration": 622,
+            "name": "BeforeEnd",
+            "id": "beforeEnd"
+          },
+          {
+            "status": "skipped",
+            "duration": 0,
+            "name": "DebugDetection",
+            "id": "debugDetection"
+          },
+          {
+            "status": "success",
+            "duration": 622,
+            "name": "End",
+            "id": "end"
+          }
+        ],
+        "labels": [
+          {
+            "key": "ARCH",
+            "value": [
+              "amd64"
+            ]
+          },
+          {
+            "key": "cpus",
+            "value": [
+              8
+            ]
+          },
+          {
+            "key": "memory",
+            "value": [
+              16
+            ]
+          }
+        ],
+        "ip": "10.235.16.37"
+      }
+    }
+  }
+}

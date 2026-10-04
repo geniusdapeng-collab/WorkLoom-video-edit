@@ -1,0 +1,22 @@
+{
+  "name": "mac-dmg-smoke-session-final",
+  "command": [
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+    "--env-file=.env",
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/pnpm/bin/pnpm.cjs",
+    "exec",
+    "electron-builder",
+    "--mac",
+    "dmg",
+    "--arm64",
+    "--publish",
+    "never",
+    "-c.extraMetadata.version=0.1.0-fix.20261002.1",
+    "-c.mac.identity=-",
+    "-c.mac.notarize=false"
+  ],
+  "exit_code": 1,
+  "seconds": 385.467,
+  "ran_at": "2026-10-02T22:50:49.231299+08:00",
+  "log": "mac-dmg-smoke-session-final.log"
+}

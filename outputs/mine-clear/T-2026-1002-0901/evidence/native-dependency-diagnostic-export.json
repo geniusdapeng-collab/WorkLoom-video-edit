@@ -1,0 +1,143 @@
+{
+  "schema": "growth.native-diagnostic-export@1",
+  "source_commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+  "pass": true,
+  "synthetic_only": true,
+  "real_customer_data_used": false,
+  "customer_data_opened": false,
+  "paid_provider_calls": 0,
+  "application": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/依赖修复 客户应用/WorkLoom 获客增长系统（实验车道）.app",
+  "app_asar_sha256": "68f4c953a300237a55ceedb0e0dc7c77f361c581cbac046aed8a49431471706c",
+  "payload_sha256": "89d813bd9bee83c7471b623dbb43c7c9d702afa78e3fe06bcf94adec02a33a53",
+  "main_sha256": "231d1e1c9621c9408393aee430ff80008eb5548d3c734ce96e329cff5f588ad2",
+  "actual_startup_failure_page_observed": true,
+  "actual_native_menu": true,
+  "actual_save_dialog": true,
+  "actual_cancel_observed": true,
+  "actual_overwrite_confirmation_observed": true,
+  "actual_recovery_page_retained": true,
+  "action_surface": "startup-failure-page-actions",
+  "export_file": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/依赖修复 诊断导出/本机诊断 覆盖测试.txt",
+  "export_sha256": "a744ca84fb3d45a010f74cf04475609d3000506225ffa73b2791a906210ca130",
+  "export_bytes": 1062,
+  "export_mode": "0600",
+  "synthetic_fields_absent": [
+    {
+      "field_name": "jsonToken",
+      "absent": true
+    },
+    {
+      "field_name": "clientSecret",
+      "absent": true
+    },
+    {
+      "field_name": "quotedPassword",
+      "absent": true
+    },
+    {
+      "field_name": "apiKey",
+      "absent": true
+    },
+    {
+      "field_name": "uriUser",
+      "absent": true
+    },
+    {
+      "field_name": "uriPassword",
+      "absent": true
+    },
+    {
+      "field_name": "authorization",
+      "absent": true
+    },
+    {
+      "field_name": "cookie",
+      "absent": true
+    },
+    {
+      "field_name": "privateKey",
+      "absent": true
+    },
+    {
+      "field_name": "proxyAuthorization",
+      "absent": true
+    }
+  ],
+  "benign_context_preserved": {
+    "QA 本机诊断中文上下文保留": true,
+    "stage=synthetic-no-customer": true,
+    "error_code=QA_SYNTHETIC_CONTEXT": true
+  },
+  "actual_cases": [
+    {
+      "id": "actual_startup_failure_page_observed",
+      "passed": true
+    },
+    {
+      "id": "actual_native_menu",
+      "passed": true
+    },
+    {
+      "id": "actual_save_dialog",
+      "passed": true
+    },
+    {
+      "id": "actual_cancel_observed",
+      "passed": true
+    },
+    {
+      "id": "actual_overwrite_confirmation_observed",
+      "passed": true
+    },
+    {
+      "id": "actual_recovery_page_retained",
+      "passed": true
+    },
+    {
+      "id": "all-synthetic-fields-redacted",
+      "passed": true
+    },
+    {
+      "id": "benign-context-preserved",
+      "passed": true
+    },
+    {
+      "id": "actual-overwrite-mode-0600",
+      "passed": true
+    }
+  ],
+  "all_actual_cases_passed": true,
+  "root_actual_seconds": 374.362,
+  "public_evidence": [
+    {
+      "path": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/evidence/native-dependency-diagnostic-failure-page.png",
+      "sha256": "ce9962bccaa98e79864fca14ee6e714177fc58f5d221ce8024fac795d74006ad",
+      "bytes": 112700
+    },
+    {
+      "path": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/evidence/native-dependency-diagnostic-save-dialog.png",
+      "sha256": "2378e81007baca3d7c0b0231133f30647f008025010e2fb276670adaf60890dd",
+      "bytes": 35557
+    },
+    {
+      "path": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/evidence/native-dependency-diagnostic-overwrite-confirmation.png",
+      "sha256": "559be5efdd42ac92de10e47bf7252edcc6cb880d6a6a02f0c89c74be2e6d22e0",
+      "bytes": 49860
+    },
+    {
+      "path": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/evidence/native-dependency-diagnostic-recovery-page.png",
+      "sha256": "56d8230c517058839b9a295df7dcc5a882b2676ee314c1b6ac4a93f19178884d",
+      "bytes": 113564
+    },
+    {
+      "path": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/evidence/native-dependency-diagnostic-export.txt",
+      "sha256": "a744ca84fb3d45a010f74cf04475609d3000506225ffa73b2791a906210ca130",
+      "bytes": 1062
+    }
+  ],
+  "observation_file": "outputs/growth-production-fix-2026-10-02/evidence/native-dependency-diagnostic-gui-observation.json",
+  "observation_sha256": "6785e4f26dbc949ee4652add8bf4dd4b9405b75b5387f2414da53859bde1c05d",
+  "source_unit_controls_kept_separate_from_ui": true,
+  "signed_platform_release": false,
+  "windows_acl_verified": false
+}

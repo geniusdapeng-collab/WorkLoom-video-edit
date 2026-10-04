@@ -1,0 +1,33 @@
+{
+  "at": "2026-10-03T06:21:52.220314+08:00",
+  "scope": "This task owned stopped QA artifacts only",
+  "genuine_old_upgrade_customer_preserved": true,
+  "old_seed_exit_code": 0,
+  "old_customer_version": "v0.1.0-fix.20261002.1",
+  "private_configuration_and_identity_match_before_receipt": true,
+  "retained": [
+    {
+      "file": "historical-old-upgrade-app.asar",
+      "sha256": "303b6241f5a22b150cf65f66d9a3e374ea28f39f357d3162f253e92ab9854d9c",
+      "bytes": 20464716
+    },
+    {
+      "file": "historical-955e-payload.tar.gz",
+      "sha256": "439aa48a173f14bca43f8b6a58c1e9f6a0eb68fa105e9dc982ee12218c8edb37",
+      "bytes": 500729046
+    }
+  ],
+  "old_upgrade_application_payload": {
+    "sha256": "1415b400b9c380c6144cb014f27364d3577275bff9c76e74bac001d4085cd6ee",
+    "bytes": 500700440,
+    "full_bytes_retained": false,
+    "reason": "Old QA shell is rebuildable; actual old customer runtime/DB/config/version plus successful prior seed receipts retained; source binding not inferred from filename"
+  },
+  "removed": [
+    "work/growth-audit/dist-payload.tar.gz",
+    "work/生产修复 客户应用/WorkLoom 获客增长系统（实验车道）.app",
+    "work/终态修复 升级客户/.payload-cache"
+  ],
+  "customer_runtime_database_config_removed": false,
+  "reason": "Stage final source with limited disk; remove duplicate historical tar and old installer shell, then only the old compressed payload cache; keep every old customer runtime/DB/config/identity/version/log and red receipt"
+}

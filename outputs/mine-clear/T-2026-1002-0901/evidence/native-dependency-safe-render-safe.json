@@ -1,0 +1,183 @@
+{
+  "productReady": true,
+  "welcomeReady": true,
+  "bundle": "geo-growth",
+  "actorCount": 64,
+  "avatarReady": true,
+  "renderMode": "vector2d",
+  "ceremonyMode": null,
+  "webgl": false,
+  "title": "WorkLoom 获客增长系统（实验车道） · B 端工作台",
+  "bodyText": "WorkLoom\n企业数字员工即时协作\n收起主导航\n搜索主导航\n今日\n经营首页\n统一待办\n协作\n任务中心\n经营\n经营报告\n老板视图\n片库与脚本\n视频经营动态\n媒资库\n合集重剪台\n成片历史\n商品档案\n组合看板\n安全与留痕\n自动化\n组织管理\n隐藏\n恢复默认\n视图\n织伴\n工作区\n正在协助：经营首页\n我的\n一个框，四种落点：\n问 → 直接回答 · 派 → 立项\n留言 → 只写账本 · 推进 → 续跑当前任务\n选择下方常用问题，或直接输入内容开始\n汇报当前经营概况\n今天有哪些业务关卡需要我确认\n发送\nWorkLoom GEO · 双域经营演示工作室\n经营主页 · 公司负责人\n职场\n舞台\n演示数据\n已自主完成\n60\n项作业\n团队在岗\n81\n人\n团队全员就位\n向您报到，董事长\n跳过开场，直接进入 \n欢迎董事长 · 首次开启\n您的专属 AI 智能经营系统 —— 全体员工列队欢迎",
+  "pixels": {
+    "mean": 23.38,
+    "variance": 327.52,
+    "visibleRatio": 0.9971
+  },
+  "safeRendering": true,
+  "screenshotPath": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/依赖修复 安全客户/logs/render-safe.png",
+  "checkedAt": "2026-10-03T16:38:54.596Z",
+  "avatarTelemetry": {
+    "backend": "vector2d",
+    "modelUrl": "vector2d",
+    "mouthParameter": "svg-mouth",
+    "mouthPeak": 1,
+    "lipStarts": 1,
+    "lipBoundaries": 0,
+    "syntheticLipFrames": 1,
+    "blinkCount": 1,
+    "gestureCount": 2,
+    "lastMotionGroup": "handup",
+    "parameterWrites": 0,
+    "parameterWriteFailures": 0
+  },
+  "transitionTrace": [
+    {
+      "phase": "mate",
+      "segment": "enter",
+      "exiting": "false"
+    },
+    {
+      "phase": "mate",
+      "segment": "intro",
+      "exiting": "false"
+    },
+    {
+      "phase": "mate",
+      "segment": "system",
+      "exiting": "false"
+    },
+    {
+      "phase": "mate",
+      "segment": "detail",
+      "exiting": "false"
+    },
+    {
+      "phase": "mate",
+      "segment": "bridge",
+      "exiting": "false"
+    },
+    {
+      "phase": "mate",
+      "segment": "bridge",
+      "exiting": "true"
+    },
+    {
+      "phase": "entrance",
+      "segment": null,
+      "exiting": null
+    }
+  ],
+  "team": {
+    "ready": true,
+    "mode": "vector2d",
+    "actors": 65,
+    "text": "哪些业务关卡需要我确认\n发送\nWorkLoom GEO · 双域经营演示工作室\n经营主页 · 公司负责人\n职场\n舞台\n演示数据\n已自主完成\n60\n项作业\n团队在岗\n81\n人\n数字总经理\nAI接待员\n音频设计师\n纪栖云\n渠道哨兵官\n摄影指导\n调色师\n评论区运营\n市场侦察官\n合规审核员\n内容主笔官\n连贯审查官\n团购运营官\n封面设计师\n创意策划\n达人合作专员\n商单经理\n数字执行官\n总导演\n多平台分发专员\n口播编导\n字段质检员\n前台接待官\n投放优化师\n引用源分析师\n数字总经理\n承接转化设计师\n客户成功专员\n数据看板官\n实体一致性管理员\nGEO 内容策划\n调研员\n脚本师\n陆既白\n增长实验官\n增长负责人\n渠道增长官\n增长策略师\n线索转化官\n生命周期增长官\n直播操盘手\n素材寻源员\n投放组合经理\n私域承接专员\n生产编排员\n发布专员\n复盘分析师\n信源分发专员\nAI 能见度监测官\n视觉设计师\n住客满意官\n开场钩子设计师\n客房管家官\n策略分析师\n品质巡检官\n情报官·装订\n情报官·采集\n情报官·竞品\n情报官·评价\n情报官·核验\n版权管理员\n数据看板官\n微动作增强师\n片头设计师\n业主驾驶舱\n稍后继续\n直接进入 ",
+    "pixels": {
+      "mean": 27.93,
+      "variance": 960.66,
+      "visibleRatio": 0.6943
+    },
+    "screenshotPath": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/依赖修复 安全客户/logs/team-safe.png"
+  },
+  "firstDayGuide": {
+    "shown": true,
+    "clicked": true,
+    "supported": true,
+    "closed": true
+  },
+  "assistantSceneControl": {
+    "expandedBefore": true,
+    "clicked": true,
+    "action": "收起为小球（不挡界面）",
+    "collapsed": true
+  },
+  "workplace": {
+    "ready": true,
+    "overlayVisible": false,
+    "actors": 18,
+    "labels": [],
+    "geometry": {
+      "scene": {
+        "x": 300,
+        "y": 263.75,
+        "width": 768,
+        "height": 440
+      },
+      "canvas": null,
+      "ceo": null,
+      "ceoOverlapIds": [],
+      "contextLost": null,
+      "drawingBuffer": null
+    },
+    "beforeCapture": {
+      "ready": true,
+      "overlayVisible": false,
+      "actors": 18,
+      "labels": [],
+      "geometry": {
+        "scene": {
+          "x": 300,
+          "y": 263.75,
+          "width": 768,
+          "height": 440
+        },
+        "canvas": null,
+        "ceo": null,
+        "ceoOverlapIds": [],
+        "contextLost": null,
+        "drawingBuffer": null
+      }
+    },
+    "pixels": {
+      "mean": 42.6,
+      "variance": 3768.03,
+      "visibleRatio": 0.9489
+    },
+    "screenshotPath": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/依赖修复 安全客户/logs/workplace-safe.png"
+  },
+  "reportStage": {
+    "ready": true,
+    "overlayVisible": false,
+    "actors": 65,
+    "labels": [],
+    "geometry": {
+      "scene": {
+        "x": 300,
+        "y": 371.75,
+        "width": 768,
+        "height": 224
+      },
+      "canvas": null,
+      "ceo": null,
+      "ceoOverlapIds": [],
+      "contextLost": null,
+      "drawingBuffer": null
+    },
+    "beforeCapture": {
+      "ready": true,
+      "overlayVisible": false,
+      "actors": 65,
+      "labels": [],
+      "geometry": {
+        "scene": {
+          "x": 300,
+          "y": 371.75,
+          "width": 768,
+          "height": 224
+        },
+        "canvas": null,
+        "ceo": null,
+        "ceoOverlapIds": [],
+        "contextLost": null,
+        "drawingBuffer": null
+      }
+    },
+    "pixels": {
+      "mean": 25.49,
+      "variance": 530.99,
+      "visibleRatio": 0.949
+    },
+    "screenshotPath": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/依赖修复 安全客户/logs/stage-safe.png"
+  }
+}

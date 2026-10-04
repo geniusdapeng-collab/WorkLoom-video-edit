@@ -1,0 +1,57 @@
+COMMAND ["/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node", "--env-file=.env", "--input-type=module", "-e", "const {spawnSync}=await import(\"node:child_process\"); for (const args of [[\"--test\",\"scripts/ci/protocol-rules.test.mjs\",\"scripts/ci/cnb-desktop-release.test.mjs\",\"scripts/ci/hard-gate-policy.test.mjs\",\"scripts/oss-inventory.test.mjs\"],[\"scripts/ci/verify-hard-gate-policy.mjs\"],[\"scripts/ci/verify-commit-msg.mjs\",\"--self-test\"],[\"scripts/ci/verify-lock-conflict.mjs\",\"--self-test\"],[\"scripts/verify-builtin-character-assets.mjs\"],[\"scripts/verify-client-foundation-consumer.mjs\"]]) { const r=spawnSync(process.execPath,args,{stdio:\"inherit\"}); if(r.status!==0) process.exit(r.status??1); }"]
+✔ CNB config has main-only signed producers and one locked publisher (19.909958ms)
+✔ Windows release runner calls pwsh and creates the pgvector source directory before git -C (11.806292ms)
+✔ context rejects wrong branch, source SHA, repo, role, or unsigned mode (5.289375ms)
+✔ preflight binds remote main and tag and refuses an existing Release (56.420833ms)
+✔ Mac producer seals exact candidates, uploads them once, and reads back SHA-512 (48.175917ms)
+✔ producer rejects a substituted remote candidate and untrusted confirmation URL (15.201833ms)
+✔ publisher creates draft, uploads exactly five assets, verifies remote bytes, then makes Latest (81.922958ms)
+✔ publisher leaves a draft when remote Release bytes change; never makes it public (25.756416ms)
+✔ publisher rejects a coherently replaced installer and manifest before creating a draft (12.6125ms)
+✔ publisher refuses mixed-build candidates before creating any Release (8.784292ms)
+✔ publisher rejects unsafe remote candidate filenames before download (7.665917ms)
+✔ publisher rejects a corrupted downloaded installer before the first Release write (12.182833ms)
+✔ publisher keeps an incomplete draft if main moves before public promotion (40.455333ms)
+▶ 硬闸口径规则（创作口径不得作出厂否决票）
+  ✔ 创作口径 + hard: true 命中（含模板字符串 id 与 shotId 后缀） (2.080084ms)
+  ✔ hard: false / 按策略切换 / 事实类硬闸 都不拦 (0.422583ms)
+  ✔ 窗口外（>12 行）的 hard: true 不误伤 (0.178667ms)
+  ✔ 清单本身可审计（不是魔法字符串） (0.200083ms)
+✔ 硬闸口径规则（创作口径不得作出厂否决票） (5.028042ms)
+▶ 提交信息规则
+  ✔ 接受合法提交并拒绝缺任务号 (3.335333ms)
+  ✔ 未知 type 失败；layer 不符仅告警 (0.302ms)
+  ✔ 过渡期祖父规则：早于阈值的提交只校 type (0.149625ms)
+  ✔ 豁免自动化与审计提交 (0.144958ms)
+  ✔ 过渡开关允许缺任务号但保留格式校验 (0.076125ms)
+  ✔ layer 映射覆盖九仓 (0.059ms)
+✔ 提交信息规则 (4.882334ms)
+▶ 并发冲突规则
+  ✔ 识别模块级互斥路径 (0.180625ms)
+  ✔ 不同文件但同一互斥模块也算冲突 (0.140542ms)
+  ✔ 同文件重叠判定 (0.08ms)
+  ✔ push 事件降级为提醒：合并已发生，跨 PR 重叠不再判红（回归 2026-09-27 main 误报） (0.0935ms)
+✔ 并发冲突规则 (0.632291ms)
+▶ 路径解析与误判防护
+  ✔ 不同目录的同名文件不算冲突 (0.064458ms)
+  ✔ 根级 package.json 属于互斥模块，子目录 package.json 不属于 (0.038708ms)
+✔ 路径解析与误判防护 (0.162084ms)
+✔ npm 清单：优先采用 lockfile 解析版本，并保留 npm 别名行 (30.31825ms)
+✔ Python 与容器镜像：解析约束、镜像来源 (10.633791ms)
+✔ probe 探测：regex / vendor / lockfile 三类来源 (2.60975ms)
+✔ 清单渲染：确定性、含上游最新与漂移标记、--check 可复现 (85.352ms)
+✔ 版本工具：最高版本选择与滞后判定 (0.156084ms)
+✔ 仓库标识行：克隆 URL 大小写不同不算清单漂移 (0.416625ms)
+ℹ tests 35
+ℹ suites 4
+ℹ pass 35
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 508.601166
+[hard-gate-policy] 通过：扫描 107 个文件，未发现"创作口径写成硬闸"。
+✓ verify-commit-msg self-test 通过（11 例，含过渡期祖父规则）
+✓ verify-lock-conflict self-test 通过（模块互斥 / 文件重叠 / 无冲突 / 自身 PR 判定 4 例 / 事件处置级别 5 例）
+内置角色资产与声明一致性检查通过：全部登记模特档案可解析、四角度定妆照齐备；默认模特声明在首页/文档/能力清单/目录说明四处同步，非默认模特在权威文档与目录说明可找到。
+✅ PC/B移动/C移动均来自客户端基座 0.1.19；受管文件指纹零漂移（本仓自有扩展路径 39 条由基座声明豁免）

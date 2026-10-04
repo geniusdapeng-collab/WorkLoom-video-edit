@@ -1,0 +1,51 @@
+COMMAND ["/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node", "--env-file=.env", "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/pnpm/bin/pnpm.cjs", "exec", "tsx", "--env-file=.env", "../film-worker-acceptance.mts", "--repo", "."]
+[film-worker FJ-mur3sb5h-byuwtlqs/stderr] [pii] PII_SALT 未配置，使用 dev 占位盐（仅限开发/测试，生产必须注入 PII_SALT）
+[film-worker FJ-mur3sb5h-byuwtlqs/stdout] [15:13:57] ✅ 分流前置：narrative（来源：explicit）
+[film-worker FJ-mur3sb5h-byuwtlqs/stdout] [15:13:58]   ⇢ [route] ok 0ms
+[film-worker FJ-mur3sb5h-byuwtlqs/stdout] [15:13:58]   ⇢ [scene-policy-audit] ok 0ms → /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/work/repair-film-route/archive/ws-yunqi/repair-film-c63b2c04-f0c4-490c-8668-d0be0b9d068a/stages/film/attempt-1/work/scene-policy-report-repair-film-c63b2c04-f0c4-490c-8668-d0be0b9d068a.json
+[film-worker FJ-mur3sb5h-byuwtlqs/stdout] [15:13:58] 环境真实性审计：未提供场景圣经（片级 sceneBible / --scene-bible）
+[film-worker FJ-mur3sb5h-byuwtlqs/stdout] [15:13:58]   环境：硬缺陷 0 · 软提示 2｜设备口径（workloom.device-era/v2）：硬缺陷 0 · 软提示 0
+[film-worker FJ-mur3sb5h-byuwtlqs/stdout] [15:13:58]   合计：硬缺陷 0 · 软提示 2｜规则：generic-wording×1 · optic-signature×1
+[film-worker FJ-mur3sb5h-byuwtlqs/stdout] [15:13:58]   报告：/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/work/repair-film-route/archive/ws-yunqi/repair-film-c63b2c04-f0c4-490c-8668-d0be0b9d068a/stages/film/attempt-1/work/env-realism-report-repair-film-c63b2c04-f0c4-490c-8668-d0be0b9d068a.json
+[film-worker FJ-mur3sb5h-byuwtlqs/stdout] [15:13:58]   ⇢ [env-audit] ok 0ms → /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/work/repair-film-route/archive/ws-yunqi/repair-film-c63b2c04-f0c4-490c-8668-d0be0b9d068a/stages/film/attempt-1/work/env-realism-report-repair-film-c63b2c04-f0c4-490c-8668-d0be0b9d068a.json
+[film-worker FJ-mur3sb5h-byuwtlqs/stdout] [15:13:58] 开场钩子：未登记钩子卡
+[film-worker FJ-mur3sb5h-byuwtlqs/stdout] [15:13:58]   窗口：前 5s｜判据：硬失败 0 · 软提示 1｜钩子音：关闭
+[film-worker FJ-mur3sb5h-byuwtlqs/stdout] [15:13:58]   ✗ [hook-card] 缺钩子卡：建议在 shotlist 顶层加 hook（类型/承诺/兑现镜/首镜模板）
+[film-worker FJ-mur3sb5h-byuwtlqs/stdout] [15:13:58]   ⇢ [hook-audit] ok 0ms
+[film-worker FJ-mur3sb5h-byuwtlqs/stdout] [15:13:58] 平台语速：YouTube → standard 档（目标 3.5 · 上限 4.2 字/秒 · 配音基础速率 1×）
+[film-worker FJ-mur3sb5h-byuwtlqs/stdout] [15:13:58]   台词镜 0 个｜念不完 0 · 节奏偏松 0 · 无法判定 0
+[film-worker FJ-mur3sb5h-byuwtlqs/stdout] [15:13:58]   ⇢ [speech-rate] ok 0ms
+[film-worker FJ-mur3sb5h-byuwtlqs/stdout] [15:13:58]   ⇢ [gate SC-01] ok 0ms
+[film-worker FJ-mur3sb5h-byuwtlqs/stdout] [15:13:58]   ⇢ [gate G-FP1 g-first-pass] ok（deterministic） — workloom.first-pass-readiness/v1：就绪
+[film-worker FJ-mur3sb5h-byuwtlqs/stdout] [15:13:58] 一次过就绪度 G-FP1 通过（渲染顺序按风险降序：SC-01）
+[film-worker FJ-mur3sb5h-byuwtlqs/stdout] [15:13:58]   ⇢ [gate SC-01] ok 0ms
+[film-worker FJ-mur3sb5h-byuwtlqs/stdout] [15:13:58]   ⇢ [gate G-RL1 g-prompt-redlines] ok（deterministic） — 提示词红线 workloom.prompt-redlines/v1：hard 0 · soft 1
+[film-worker FJ-mur3sb5h-byuwtlqs/stdout] [15:13:58] ⚠ 提示词红线（软）hands-negative：SC-01：含手部动作，但负面清单缺「无多余手指/六指」
+[film-worker FJ-mur3sb5h-byuwtlqs/stdout] [15:14:23] ⚠ 商品档案库有 9 份档案存在硬问题（本片未引用则不拦截）：ble-checkin[photos-empty]、cxz-01[photos-empty]、embedded-desktop[photos-empty]、face-checkin[photos-empty]、hotel-ai-agent[photos-empty]、locker-cooler[photo-missing]、premium-vertical[photos-empty]、simple-vertical[photos-empty]、tablet-butler[photos-empty]
+[film-worker FJ-mur3sb5h-byuwtlqs/stdout] [15:14:23] 未显式指定模特 → 使用系统默认模特：陈卓（chen-zhuo，1 号）
+[film-worker FJ-mur3sb5h-byuwtlqs/stdout] [15:14:23]   ⇢ [gate] ok 0ms
+[film-worker FJ-mur3sb5h-byuwtlqs/stdout] [15:14:23]   ⇢ [gate G5 g5-portrait-confirm] ok（deterministic） — 门通过（5 项判据，硬闸 3 条）
+[film-worker FJ-mur3sb5h-byuwtlqs/stdout] [15:14:23] 项目 repair-film-c63b2c04-f0c4-490c-8668-d0be0b9d068a｜镜头 1 个｜目标 5s｜9:16 源 1080p → 交付 1080p (1080x1920)@30fps
+[film-worker FJ-mur3sb5h-byuwtlqs/stdout] [15:14:23] 媒体工具：ffmpeg=/Users/mac/.workloom-color/bin/ffmpeg｜ffprobe=/Users/mac/.workloom-color/bin/ffprobe
+[film-worker FJ-mur3sb5h-byuwtlqs/stdout] [15:14:23] 后期缓存：/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/work/repair-film-route/archive/ws-yunqi/repair-film-c63b2c04-f0c4-490c-8668-d0be0b9d068a/stages/film/attempt-1/work/post/repair-film-c63b2c04-f0c4-490c-8668-d0be0b9d068a｜交付目录：/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/work/repair-film-route/archive/ws-yunqi/repair-film-c63b2c04-f0c4-490c-8668-d0be0b9d068a/stages/film/attempt-1/delivery
+[film-worker FJ-mur3sb5h-byuwtlqs/stdout] [15:14:23] 角色档案：陈卓（chen-zhuo）角度 front/threeQuarter/closeup/side/back/actionPose/emotionCloseup/handDetail
+[film-worker FJ-mur3sb5h-byuwtlqs/stdout] [15:14:23] 阶段：cine-kb → continuity｜监制：fail-closed
+[film-worker FJ-mur3sb5h-byuwtlqs/stdout] [15:14:23] 摄影知识库：19 篇 / 388 条映射
+[film-worker FJ-mur3sb5h-byuwtlqs/stdout] [15:14:24]   SC-01: passed · 光圈 f/2.8–f/4（环境人像（要带场景））· 实际写入 3 个字段 → depth_of_field/lighting/camera_movement
+[film-worker FJ-mur3sb5h-byuwtlqs/stdout] [15:14:24]   ⇢ [cine-kb SC-01] ok 319ms → /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/work/repair-film-route/archive/ws-yunqi/repair-film-c63b2c04-f0c4-490c-8668-d0be0b9d068a/stages/film/attempt-1/work/cine-kb/001-SC-01.json
+[film-worker FJ-mur3sb5h-byuwtlqs/stdout] [15:14:24]   ⇢ [cine-kb] ok 327ms → /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/work/repair-film-route/archive/ws-yunqi/repair-film-c63b2c04-f0c4-490c-8668-d0be0b9d068a/stages/film/attempt-1/work/shotlist-enriched-repair-film-c63b2c04-f0c4-490c-8668-d0be0b9d068a.json
+[film-worker FJ-mur3sb5h-byuwtlqs/stderr] /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/packages/video-studio/src/film-worker-channel.ts:246
+[film-worker FJ-mur3sb5h-byuwtlqs/stderr]         else call.reject(new FilmChannelError(frame.error?.code ?? "CHANNEL_ERROR", frame.error?.message ?? "父服务未给出错误说明", frame.error?.details));
+[film-worker FJ-mur3sb5h-byuwtlqs/stderr]                          ^
+[film-worker FJ-mur3sb5h-byuwtlqs/stderr] FilmChannelError: FILM_CHANNEL_FAILED: Cannot use a pool after calling end on the pool
+[film-worker FJ-mur3sb5h-byuwtlqs/stderr]     at <anonymous> (/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/packages/video-studio/src/film-worker-channel.ts:246:26)
+[film-worker FJ-mur3sb5h-byuwtlqs/stderr]     at process.listener (/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/packages/video-studio/src/film-worker-channel.ts:198:52)
+[film-worker FJ-mur3sb5h-byuwtlqs/stderr]     at process.emit (node:events:509:28)
+[film-worker FJ-mur3sb5h-byuwtlqs/stderr]     at emit (node:internal/child_process:989:14)
+[film-worker FJ-mur3sb5h-byuwtlqs/stderr]     at process.processTicksAndRejections (node:internal/process/task_queues:91:21) {
+[film-worker FJ-mur3sb5h-byuwtlqs/stderr]   code: 'FILM_CHANNEL_FAILED',
+[film-worker FJ-mur3sb5h-byuwtlqs/stderr]   details: undefined
+[film-worker FJ-mur3sb5h-byuwtlqs/stderr] }
+[film-worker FJ-mur3sb5h-byuwtlqs/stderr] Node.js v24.19.0
+[film-worker FJ-mur3sb5h-byuwtlqs] 运行编排异常：Cannot use a pool after calling end on the pool
+{"case":"success","provider_mode":"isolated, no provider credentials or calls; local stage only","passed":false,"checks":[{"name":"Public film start/status executes registered local stage with frozen source","healthy":false,"status":"running","error":null,"log":"[pii] PII_SALT 未配置，使用 dev 占位盐（仅限开发/测试，生产必须注入 PII_SALT）\n[15:13:57] ✅ 分流前置：narrative（来源：explicit）\n[15:13:58]   ⇢ [route] ok 0ms\n[15:13:58]   ⇢ [scene-policy-audit] ok 0ms → /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/work/repair-film-route/archive/ws-yunqi/repair-film-c63b2c04-f0c4-490c-8668-d0be0b9d068a/stages/film/attempt-1/work/scene-policy-report-repair-film-c63b2c04-f0c4-490c-8668-d0be0b9d068a.json\n[15:13:58] 环境真实性审计：未提供场景圣经（片级 sceneBible / --scene-bible）\n[15:13:58]   环境：硬缺陷 0 · 软提示 2｜设备口径（workloom.device-era/v2）：硬缺陷 0 · 软提示 0\n[15:13:58]   合计：硬缺陷 0 · 软提示 2｜规则：generic-wording×1 · optic-signature×1\n[15:13:58]   报告：/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/work/repair-film-route/archive/ws-yunqi/repair-film-c63b2c04-f0c4-490c-8668-d0be0b9d068a/stages/film/attempt-1/work/env-realism-report-repair-film-c63b2c04-f0c4-490c-8668-d0be0b9d068a.json\n[15:13:58]   ⇢ [env-audit] ok 0ms → /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/work/repair-film-route/archive/ws-yunqi/repair-film-c63b2c04-f0c4-490c-8668-d0be0b9d068a/stages/film/attempt-1/work/env-realism-report-repair-film-c63b2c04-f0c4-490c-8668-d0be0b9d068a.json\n[15:13:58] 开场钩子：未登记钩子卡\n[15:13:58]   窗口：前 5s｜判据：硬失败 0 · 软提示 1｜钩子音：关闭\n[15:13:58]   ✗ [hook-card] 缺钩子卡：建议在 shotlist 顶层加 hook（类型/承诺/兑现镜/首镜模板）\n[15:13:58]   ⇢ [hook-audit] ok 0ms\n[15:13:58] 平台语速：YouTube → standard 档（目标 3.5 · 上限 4.2 字/秒 · 配音基础速率 1×）\n[15:13:58]   台词镜 0 个｜念不完 0 · 节奏偏松 0 · 无法判定 0\n[15:13:58]   ⇢ [speech-rate] ok 0ms\n[15:13:58]   ⇢ [gate SC-01] ok 0ms\n[15:13:58]   ⇢ [gate G-FP1 g-first-pass] ok（deterministic） — workloom.first-pass-readiness/v1：就绪\n[15:13:58] 一次过就绪度 G-FP1 通过（渲染顺序按风险降序：SC-01）\n[15:13:58]   ⇢ [gate SC-01] ok 0ms\n[15:13:58]   ⇢ [gate G-RL1 g-prompt-redlines] ok（deterministic） — 提示词红线 workloom.prompt-redlines/v1：hard 0 · soft 1\n[15:13:58] ⚠ 提示词红线（软）hands-negative：SC-01：含手部动作，但负面清单缺「无多余手指/六指」\n","components":[]}]}

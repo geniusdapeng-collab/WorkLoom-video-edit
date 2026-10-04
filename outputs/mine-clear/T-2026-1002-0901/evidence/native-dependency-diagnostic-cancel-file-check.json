@@ -1,0 +1,7 @@
+{
+  "source_commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+  "after_cancel_destination_sha256": "30e690d9684d6b68dab2051d2298ff7d451087023eaa95449ddbbd056992dddc",
+  "after_cancel_destination_mode": "0644",
+  "actual_cancel_observed": true,
+  "synthetic_only": true
+}

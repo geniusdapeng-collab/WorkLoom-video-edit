@@ -1,0 +1,3 @@
+COMMAND ["/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node", "--env-file=.env", "--check", "apps/desktop/electron/render-smoke.cjs"]
+
+M6_SOURCE_CHANGED_DURING_EXECUTION

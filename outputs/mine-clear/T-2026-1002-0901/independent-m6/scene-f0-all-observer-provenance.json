@@ -1,0 +1,90 @@
+{
+  "source_commit": "f0a11286a49419fb7909088e2d170f4dde7b60c6",
+  "verified_by": "growth_m6",
+  "product_source_changed": false,
+  "camera_canvas_layout_or_hitbox_replaced": false,
+  "assertions_or_deadlines_relaxed": false,
+  "records": [
+    {
+      "file": "floor3d-probe.mjs",
+      "owned_sha256": "4dc17d49b84fe5898e62c06555b9d5f3cf9732e0d883c8da5bf207979360d6c0",
+      "reused_exact_observer_bytes": true,
+      "origin_receipt": "floor-observer-c083-provenance.json",
+      "scope": "Observer unchanged; this does not relabel its earlier executed source"
+    },
+    {
+      "file": "floor3d-edges-probe.mjs",
+      "owned_sha256": "df8fe700381a625072f6a5c71b084a49da2556891219092eab3d872b887a6e4d",
+      "reused_exact_observer_bytes": true,
+      "origin_receipt": "floor-observer-c083-provenance.json",
+      "scope": "Observer unchanged; this does not relabel its earlier executed source"
+    },
+    {
+      "file": "floor3d-bubble-c083-fixture/fixture.tsx",
+      "owned_sha256": "c50f44213fc9245930b4ffb5af00f76a3c1b4c774c9d6ad593fd6119c0a51ab7",
+      "reused_exact_observer_bytes": true,
+      "origin_receipt": "floor-observer-c083-provenance.json",
+      "scope": "Observer unchanged; this does not relabel its earlier executed source"
+    },
+    {
+      "file": "floor3d-bubble-c083-fixture/index.html",
+      "owned_sha256": "63d755ea7ac40c0efa75a4469b8d0494930dc77a32bc041efc1cb2873f7859e5",
+      "reused_exact_observer_bytes": true,
+      "origin_receipt": "floor-observer-c083-provenance.json",
+      "scope": "Observer unchanged; this does not relabel its earlier executed source"
+    },
+    {
+      "file": "floor3d-bubble-c083-probe.mjs",
+      "owned_sha256": "921a0cf9b5f120bc77aec004fd1f71fdbff2cac43fa16fb12f63a4c4ac3efe48",
+      "reused_exact_observer_bytes": true,
+      "origin_receipt": "floor-observer-c083-provenance.json",
+      "scope": "Observer unchanged; this does not relabel its earlier executed source"
+    },
+    {
+      "original_file": "work/scene-layout-probe.mjs",
+      "original_sha256": "88c3108ae72ca1c6fe0babb8d069483e8859b325318570634cd038cc5b63852e",
+      "file": "scene-f0-probe.mjs",
+      "owned_sha256": "f1acbcd9d0b080059d239b1978ec3ec6196133527110cdb431a3670df044b818"
+    },
+    {
+      "original_file": "work/scene-layout-fixture/fixture.tsx",
+      "original_sha256": "729417f88479b5895b927887a34c3799ec799f4c459c7119da1f0927edcc64e6",
+      "file": "scene-f0-fixture/fixture.tsx",
+      "owned_sha256": "729417f88479b5895b927887a34c3799ec799f4c459c7119da1f0927edcc64e6"
+    },
+    {
+      "original_file": "work/scene-layout-fixture/index.html",
+      "original_sha256": "ab5736eb783e241bb5ca4193033096807cc1f02f44bdda0dfba99334c1fb0218",
+      "file": "scene-f0-fixture/index.html",
+      "owned_sha256": "c1a4e53e80dc362d2b495499460076f8c700081538a9a64cb5e291e009933e92"
+    },
+    {
+      "file": "scene-f0-render-guide-transient-probe.cjs",
+      "owned_sha256": "e8cb47a9ec14477503010f6f43b5a9c0d8bda7bc236b449a73cab5120bfed7c3",
+      "scope": "The new actual native function requires geometry on its positive fixture. Added 768x440/live-context/empty-overlap geometry to the independent page state; all original eight assertions, timelines, deadlines and exact extraction boundaries unchanged. Negative overlay states still compared at original capture-time frames."
+    }
+  ],
+  "source_receipts": [
+    {
+      "file": "floor-observer-c083-provenance.json",
+      "sha256": "2f61ee7bbdeb52b6492001cc660299dfd60f92ea04a412ab866dcc686009c2c0"
+    },
+    {
+      "file": "scene-f0-observer-provenance.json",
+      "sha256": "41706ae70fa74d4cb9ccaf607ff8450b772dfba00232ff4e10bf1e47827f3ede"
+    },
+    {
+      "file": "scene-f0-transient-provenance.json",
+      "sha256": "1bd7f90ac4641674f546a92262afe66361b31e05febfd7d6fc5b486664ce92be"
+    }
+  ],
+  "actual_execution_prefixes": [
+    "scene-f0-default",
+    "scene-f0-drop",
+    "scene-f0-edges",
+    "scene-f0-hover",
+    "scene-f0-layout",
+    "scene-f0-guide-transient"
+  ],
+  "generated_at": "2026-10-03T10:31:58.017795+08:00"
+}

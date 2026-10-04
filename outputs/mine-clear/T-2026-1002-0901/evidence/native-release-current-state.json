@@ -1,0 +1,15 @@
+{
+  "at": "2026-10-03T01:28:28.581Z",
+  "repository": "workloom-ai/WorkLoom-growth",
+  "read_only": true,
+  "entries": [
+    {
+      "endpoint": "/-/releases?page=1&page_size=100",
+      "entries": []
+    },
+    {
+      "endpoint": "/-/git/tags?page=1&page_size=100",
+      "entries": []
+    }
+  ]
+}

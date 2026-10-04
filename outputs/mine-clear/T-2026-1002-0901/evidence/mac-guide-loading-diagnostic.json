@@ -1,0 +1,12 @@
+{
+  "name": "mac-guide-loading-diagnostic",
+  "command": [
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/引导修复 客户应用/WorkLoom 获客增长系统（实验车道）.app/Contents/MacOS/WorkLoom 获客增长系统（实验车道）",
+    "--remote-debugging-port=29822",
+    "--remote-debugging-address=127.0.0.1"
+  ],
+  "exit_code": 0,
+  "seconds": 134.013,
+  "ran_at": "2026-10-03T01:02:20.063393+08:00",
+  "log": "mac-guide-loading-diagnostic.log"
+}

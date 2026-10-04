@@ -1,0 +1,86 @@
+TAP version 13
+# Subtest: 非交互调用没有 --yes 时 fail closed，且不访问数据库
+ok 1 - 非交互调用没有 --yes 时 fail closed，且不访问数据库
+  ---
+  duration_ms: 60.157791
+  type: 'test'
+  ...
+# Subtest: 远端、生产和数据库名不匹配目标始终拒绝
+ok 2 - 远端、生产和数据库名不匹配目标始终拒绝
+  ---
+  duration_ms: 540.841125
+  type: 'test'
+  ...
+# Subtest: 检测到非演示工作区时拒绝删除
+ok 3 - 检测到非演示工作区时拒绝删除
+  ---
+  duration_ms: 3865.33475
+  type: 'test'
+  ...
+# Subtest: 本机 workloom 纯演示库先备份，再事务重建并执行迁移种子
+ok 4 - 本机 workloom 纯演示库先备份，再事务重建并执行迁移种子
+  ---
+  duration_ms: 3372.285708
+  type: 'test'
+  ...
+# Subtest: 未知参数 fail closed
+ok 5 - 未知参数 fail closed
+  ---
+  duration_ms: 5.876541
+  type: 'test'
+  ...
+# Subtest: 备份失败时禁止删除和后续迁移种子
+ok 6 - 备份失败时禁止删除和后续迁移种子
+  ---
+  duration_ms: 294.634667
+  type: 'test'
+  ...
+# Subtest: 空备份不能证明可恢复，禁止删除
+ok 7 - 空备份不能证明可恢复，禁止删除
+  ---
+  duration_ms: 278.786417
+  type: 'test'
+  ...
+# Subtest: 客户类型查询失败或不可识别时禁止备份与删除
+ok 8 - 客户类型查询失败或不可识别时禁止备份与删除
+  ---
+  duration_ms: 673.695458
+  type: 'test'
+  ...
+# Subtest: 明确的 IPv6 环回和 .env 后备目标可以重置，缺少配置拒绝
+ok 9 - 明确的 IPv6 环回和 .env 后备目标可以重置，缺少配置拒绝
+  ---
+  duration_ms: 1269.834292
+  type: 'test'
+  ...
+# Subtest: 同名容器和连接路由环境变量不能替换已校验的目标
+ok 10 - 同名容器和连接路由环境变量不能替换已校验的目标
+  ---
+  duration_ms: 410.651292
+  type: 'test'
+  ...
+# Subtest: 删除事务发现并发客户工作区或 SQL 失败时禁止迁移和种子
+ok 11 - 删除事务发现并发客户工作区或 SQL 失败时禁止迁移和种子
+  ---
+  duration_ms: 2811.088375
+  type: 'test'
+  ...
+# Subtest: 迁移失败立即停止，备份保留且不继续种子
+ok 12 - 迁移失败立即停止，备份保留且不继续种子
+  ---
+  duration_ms: 3364.946583
+  type: 'test'
+  ...
+1..12
+# tests 12
+# suites 0
+# pass 12
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 17021.079625
+
+
+exit_code=0 signal=none error=none
+assertion_validation={"ok":true,"errors":[],"testSummary":{"total":12,"passed":12,"failed":0,"cancelled":0,"skipped":0,"todo":0}}

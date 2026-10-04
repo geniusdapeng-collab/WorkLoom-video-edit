@@ -1,0 +1,12 @@
+{
+  "transport": "actual public filmRouter.start/status via createCaller with authoritative seeded member",
+  "provider_mode": "all provider keys absent; mock; no provider requests",
+  "initial_status": "running",
+  "final_status": "failed",
+  "error_class": "WORKER_EXIT_NONZERO",
+  "components": [],
+  "native_module_load_failure": true,
+  "worker_mode_not_wired": false,
+  "worker_log_excerpt": "node:internal/modules/esm/resolve:271\n    throw new ERR_MODULE_NOT_FOUND(\n          ^\n\nError [ERR_MODULE_NOT_FOUND]: Cannot find module '/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/packages/video-studio/src/film-contracts.js' imported from /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/scripts/tools/full-chain-film.mts\n    at finalizeResolution (node:internal/modules/esm/resolve:271:11)\n    at moduleResolve (node:internal/modules/esm/resolve:865:10)\n    at defaultResolve (node:internal/modules/esm/resolve:992:11)\n    at #cachedDefaultResolve (node:internal/modules/esm/loader:701:20)\n    at #resolveAndMaybeBlockOnLoaderThread (node:internal/modules/esm/loader:721:38)\n    at ModuleLoader.resolveSync (node:internal/modules/esm/loader:759:56)\n    at #resolve (node:internal/modules/esm/loader:683:17)\n    at ModuleLoader.getOrCreateModuleJob (node:internal/modules/esm/loader:603:35)\n    at ModuleJob.syncLink (node:internal/modules/esm/module_job:163:33)\n    at ModuleJob.link (node:internal/modules/esm/module_job:253:17) {\n  code: 'ERR_MODULE_NOT_FOUND',\n  url: 'file:///Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/packages/video-studio/src/film-contracts.js'\n}\n\nNode.js v24.19.0\n",
+  "healthy": false
+}

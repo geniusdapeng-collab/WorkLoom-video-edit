@@ -1,0 +1,11 @@
+{
+  "at": "2026-10-03T19:41:59.131510+08:00",
+  "source_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+  "original_metadata_refresh_error": "AssertionError: Other report prose changed during metadata-only refresh",
+  "observed_change": "Repeated build appended a second Current exact native clause to five observation statuses because builder stores mutated summary status and only strips the older exact final delimiter",
+  "original_failed_report_retained": "history/7fee-duplicate-native-text-before-correction/REPORT.md",
+  "original_prose_diff": "history/7fee-duplicate-native-text-before-correction/report-prose-diff.patch",
+  "product_or_native_cases_run": 0,
+  "no_gate_or_case_count_changed": true,
+  "correction_plan": "Make own status suffix replacement idempotent, rerun prepare then complete builder and integrity validator"
+}

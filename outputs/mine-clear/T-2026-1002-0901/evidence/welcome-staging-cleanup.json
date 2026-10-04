@@ -1,0 +1,17 @@
+{
+  "at": "2026-10-03T03:03:21.805947+08:00",
+  "source": "955e2277ee1496cfc4b40bd30345d1ce1be1acf1",
+  "closure": "welcome-payload-source-closure.json",
+  "removed": [
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/dist-payload/runtime",
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/dist-payload/node",
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/dist-payload/pg",
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/dist-payload/nats"
+  ],
+  "retained": [
+    "dist-payload.tar.gz",
+    "dist-payload/PAYLOAD_VERSION"
+  ],
+  "customer_support_touched": false,
+  "reason": "Verified generated staging can be recreated from the retained product archive; release builder reads only archive and version"
+}

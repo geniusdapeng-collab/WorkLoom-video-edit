@@ -1,0 +1,59 @@
+{
+  "source_commit": "c08386eb9993744a0cb0c2495a98fc1fc4ccbed9",
+  "parent_commit": "d6a100b60218173cdae6f5a5de7f66452bbbd884",
+  "at": "2026-10-03T09:03:49.792961+08:00",
+  "evidence_grade": "B",
+  "files": [
+    {
+      "path": "apps/web/src/components/Floor3D.tsx",
+      "candidate_sha256": "40e8bfa0f688eb527edec2ba10f040afc91a72b1730eb4383d707687fd1bf740",
+      "committed_sha256": "40e8bfa0f688eb527edec2ba10f040afc91a72b1730eb4383d707687fd1bf740",
+      "equal": true
+    },
+    {
+      "path": "apps/web/src/components/Floor3DLabels.tsx",
+      "candidate_sha256": "3188a20fc7b40580e5e958301ba1ca0913a3165d06a2e4615001546e84412e46",
+      "committed_sha256": "3188a20fc7b40580e5e958301ba1ca0913a3165d06a2e4615001546e84412e46",
+      "equal": true
+    },
+    {
+      "path": "apps/web/src/components/Floor3DTaskDrop.tsx",
+      "candidate_sha256": "1c9a40bf5dec879f5896eff88263efedc885de4919b3e4a8d42ecb43e337a81f",
+      "committed_sha256": "1c9a40bf5dec879f5896eff88263efedc885de4919b3e4a8d42ecb43e337a81f",
+      "equal": true
+    },
+    {
+      "path": "apps/web/src/components/Floor3DLabels.test.tsx",
+      "candidate_sha256": "ca2411b9e698bc63d2b22b84ab51e6f3804c2d53492ffdf462f6adeeda76b71a",
+      "committed_sha256": "ca2411b9e698bc63d2b22b84ab51e6f3804c2d53492ffdf462f6adeeda76b71a",
+      "equal": true
+    },
+    {
+      "path": "apps/web/src/components/Floor3DTaskDrop.test.tsx",
+      "candidate_sha256": "eaa4854a3694bbc0538dd66fae95470c11b0c9c7572996971b54fe4e5c102024",
+      "committed_sha256": "eaa4854a3694bbc0538dd66fae95470c11b0c9c7572996971b54fe4e5c102024",
+      "equal": true
+    },
+    {
+      "path": "apps/web/src/components/floor3d-layout.ts",
+      "candidate_sha256": "4a8ace04880cc9995a44ff6780a122eaad38b3b2057115f3d25ded45a18e803a",
+      "committed_sha256": "4a8ace04880cc9995a44ff6780a122eaad38b3b2057115f3d25ded45a18e803a",
+      "equal": true
+    },
+    {
+      "path": "apps/web/src/components/floor3d-layout.test.ts",
+      "candidate_sha256": "ee4667f023d1d8d0950af51322d910f8c628677017a95c9f8b13180b9be1d440",
+      "committed_sha256": "ee4667f023d1d8d0950af51322d910f8c628677017a95c9f8b13180b9be1d440",
+      "equal": true
+    },
+    {
+      "path": "apps/web/src/components/HoverBubble.tsx",
+      "candidate_sha256": "f31aac61c489193fe9892d21613c132af1c4db1608b1dfe0e2cc3d6d484f3ad5",
+      "committed_sha256": "f31aac61c489193fe9892d21613c132af1c4db1608b1dfe0e2cc3d6d484f3ad5",
+      "equal": true
+    }
+  ],
+  "candidate_executions_remain_original_marker": "d6a100b60218173cdae6f5a5de7f66452bbbd884+uncommitted-obs17-final-visible-bubble",
+  "git_working_tree_clean": true,
+  "scope": "Exact committed Git blobs equal the prior repair-owned tested candidate. Original runs/argv/time/source marker preserved; current independent executions will bind their own actual source SHA."
+}

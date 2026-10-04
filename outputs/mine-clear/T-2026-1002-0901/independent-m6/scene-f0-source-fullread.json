@@ -1,0 +1,106 @@
+{
+  "source_commit": "f0a11286a49419fb7909088e2d170f4dde7b60c6",
+  "read_by": "growth_m6",
+  "fresh_full_read_files": [
+    {
+      "path": "apps/desktop/electron/main.cjs",
+      "sha256": "efe4d3c42c76c0b1af4353ad77906f9d5843f562c096076aad6d2cd38c1adf3d",
+      "lines": 716,
+      "full_read": true,
+      "grade": "A complete actual current source read; B Git/byte freeze"
+    },
+    {
+      "path": "apps/desktop/electron/bootstrap.test.cjs",
+      "sha256": "b33769aa9908c1519d6f1e5eeb557c6d788c3174ed0c8e0f981d106a0e11146b",
+      "lines": 840,
+      "full_read": true,
+      "grade": "A complete actual current source read; B Git/byte freeze"
+    },
+    {
+      "path": "apps/web/src/components/Floor3DLabels.tsx",
+      "sha256": "0d2505a53e6e1e2811a6cc68d8124669cb4656e658d16e5e9a2eb8cf691e123b",
+      "lines": 97,
+      "full_read": true,
+      "grade": "A complete actual current source read; B Git/byte freeze"
+    },
+    {
+      "path": "apps/web/src/components/Floor3DLabels.test.tsx",
+      "sha256": "381a1dbc257f2983cb61ca80b62eefe219bd7420ebde06f8d0f9920f8aa04ecd",
+      "lines": 73,
+      "full_read": true,
+      "grade": "A complete actual current source read; B Git/byte freeze"
+    },
+    {
+      "path": "apps/web/src/components/Stage3D.tsx",
+      "sha256": "12cc2603a8b265de77053f8cfb0d4a36b2f3e79b1b15b69ed927ca4d76ca8429",
+      "lines": 283,
+      "full_read": true,
+      "grade": "A complete actual current source read; B Git/byte freeze"
+    },
+    {
+      "path": "docs/repairs/T-2026-1002-0901.md",
+      "sha256": "e4d836436b086de53ac21232eb363dcca2a82dd4b72e4ac331b1c2d86bc9f079",
+      "lines": 79,
+      "full_read": true,
+      "grade": "A complete actual current source read; B Git/byte freeze"
+    }
+  ],
+  "unchanged_full_read_direct_dependencies": [
+    {
+      "path": "apps/desktop/electron/bootstrap.cjs",
+      "sha256": "aca7f94eacd643cc223a40ce15443321b6b2ce2814621d3ce89ea57ee7018c46",
+      "prior_full_read_commit": "c08386eb9993744a0cb0c2495a98fc1fc4ccbed9",
+      "unchanged": true
+    },
+    {
+      "path": "apps/desktop/electron/render-smoke.cjs",
+      "sha256": "c287cb424fc0ed5f20fbacceab1e999705e3081838952ca8a806787530738fe3",
+      "prior_full_read_commit": "c08386eb9993744a0cb0c2495a98fc1fc4ccbed9",
+      "unchanged": true
+    },
+    {
+      "path": "apps/web/src/components/BusinessAvatar3D.tsx",
+      "sha256": "6bf778c0f5091335b4d8709f9e5b9d9eb6df3f820b79319d46253b043f683c2d",
+      "prior_full_read_commit": "c08386eb9993744a0cb0c2495a98fc1fc4ccbed9",
+      "unchanged": true
+    },
+    {
+      "path": "apps/web/src/components/cinematic.tsx",
+      "sha256": "e9e9f5875654f6f700bdf39b3d3908b31105188580b10a612f7bb8e52d4f6fc2",
+      "prior_full_read_commit": "c08386eb9993744a0cb0c2495a98fc1fc4ccbed9",
+      "unchanged": true
+    },
+    {
+      "path": "apps/web/src/components/floor3d-layout.ts",
+      "sha256": "4a8ace04880cc9995a44ff6780a122eaad38b3b2057115f3d25ded45a18e803a",
+      "prior_full_read_commit": "c08386eb9993744a0cb0c2495a98fc1fc4ccbed9",
+      "unchanged": true
+    },
+    {
+      "path": "apps/web/src/pages/p0/floor-layout.ts",
+      "sha256": "d4b435b40ffaf11077ba0906ecbda3a9291165a7fb6ea59f2f611441443cfaa2",
+      "prior_full_read_commit": "c08386eb9993744a0cb0c2495a98fc1fc4ccbed9",
+      "unchanged": true
+    },
+    {
+      "path": "apps/web/src/lib/naming.ts",
+      "sha256": "8d05e0df3b163ab4186e577af1555d1b9e389ded97a0ad1faad3f3a993b946bd",
+      "prior_full_read_commit": "c08386eb9993744a0cb0c2495a98fc1fc4ccbed9",
+      "unchanged": true
+    },
+    {
+      "path": "apps/web/src/lib/useNightTime.ts",
+      "sha256": "ccf604d36908f893f183f97df9381f1c1d50ee3fbc5e92fdf85cd0eae3ef6a29",
+      "prior_full_read_commit": "c08386eb9993744a0cb0c2495a98fc1fc4ccbed9",
+      "unchanged": true
+    },
+    {
+      "path": "apps/web/src/pages/p0/P0.tsx",
+      "sha256": "1b2cab15dd81b050d5963d4cdef7edf304d81804f33fd224979ce606370a8c5e",
+      "prior_full_read_commit": "c08386eb9993744a0cb0c2495a98fc1fc4ccbed9",
+      "unchanged": true
+    }
+  ],
+  "full_read_registry_count": 138,
+  "read_at": "2026-10-03T10:03:23.276090+08:00"
+}

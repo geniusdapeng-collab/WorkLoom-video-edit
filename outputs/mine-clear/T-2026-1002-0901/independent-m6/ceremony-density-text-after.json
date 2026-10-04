@@ -1,0 +1,17 @@
+{
+  "name": "ceremony-density-text-after",
+  "command": [
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+    "--env-file=.env",
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/independent-m6/ceremony-density-probe.mjs",
+    "ad4a7a0ba65845a8b401d3cbae7c8981c2ddfb4b",
+    "ceremony-density-text-after-results.json",
+    "ceremony-density-text-after"
+  ],
+  "exit_code": 0,
+  "seconds": 51.983,
+  "source_before": "ad4a7a0ba65845a8b401d3cbae7c8981c2ddfb4b",
+  "source_after": "ad4a7a0ba65845a8b401d3cbae7c8981c2ddfb4b",
+  "ran_at": "2026-10-03T02:37:25.020091+08:00",
+  "log": "ceremony-density-text-after.log"
+}

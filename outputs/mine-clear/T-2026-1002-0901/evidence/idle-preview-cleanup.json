@@ -1,0 +1,16 @@
+{
+  "at": "2026-10-03T01:56:03.243698+08:00",
+  "stopped": [
+    {
+      "pid": 59192,
+      "cwd": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/apps/web",
+      "signal": "SIGTERM"
+    },
+    {
+      "pid": 65625,
+      "cwd": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/apps/web",
+      "signal": "SIGTERM"
+    }
+  ],
+  "reason": "Own idle responsive-preview Vite processes; native fixture and other chats untouched"
+}

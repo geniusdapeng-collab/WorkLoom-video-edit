@@ -1,0 +1,43 @@
+{
+  "schema": "workloom.evidence-run/v1",
+  "id": "MC-012-0-1791058842649",
+  "command": "/Library/Developer/CommandLineTools/usr/bin/python3 /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/run_isolated_replay.py --repo /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit --source 1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8 --group runtime --case REJECT-WORKSPACE-COLLISION",
+  "exec": {
+    "file": "/Library/Developer/CommandLineTools/usr/bin/python3",
+    "args": [
+      "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/run_isolated_replay.py",
+      "--repo",
+      "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit",
+      "--source",
+      "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+      "--group",
+      "runtime",
+      "--case",
+      "REJECT-WORKSPACE-COLLISION"
+    ]
+  },
+  "actor": "growth_m6",
+  "role": "acceptance",
+  "subject": {
+    "card_id": "MC-012",
+    "assertion_index": 0
+  },
+  "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+  "working_tree_dirty": false,
+  "started_at": "2026-10-03T20:20:42.649Z",
+  "finished_at": "2026-10-03T20:20:43.452Z",
+  "exit_code": 0,
+  "signal": null,
+  "validation": {
+    "ok": true,
+    "errors": []
+  },
+  "result": "pass",
+  "outputs": [
+    {
+      "path": "evidence/MC-012-0-1791058842649.txt",
+      "sha256": "d333e31e0643b5b552c18c898bcfbe75f5bf91a94c9dd1bef8cda91daf880a83",
+      "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+    }
+  ]
+}

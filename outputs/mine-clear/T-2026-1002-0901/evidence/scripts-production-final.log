@@ -1,0 +1,244 @@
+COMMAND ["/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node", "--env-file=.env", "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/pnpm/bin/pnpm.cjs", "test:scripts"]
+
+> workloom-ai-acquisition@0.1.0 test:scripts /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit
+> vitest run scripts/tools/video-request-regression.test.ts scripts/bundle-governance.test.ts scripts/suite-fixture-preflight.test.ts scripts/verify-client-foundation-extensions.test.ts scripts/geo-fusion-plan-doc-sync.test.ts bundles/ai-video/connectors/bgm-bridge/verify-message.test.ts bundles/ai-video/connectors/bgm-bridge/genre-mismatch.test.ts bundles/ai-video/connectors/bgm-bridge/recipes-expansion.test.ts bundles/ai-video/connectors/bgm-bridge/tonality-context.test.ts bundles/ai-video/connectors/color-bridge/core.test.ts bundles/ai-video/library/luts/luts.test.ts bundles/ai-video/connectors/subtitle-bridge/punctuation.test.ts bundles/ai-video/connectors/cine-kb-bridge/audit-round3.test.ts && node --test scripts/tools/film-voice-artifact.test.mjs scripts/video-capabilities.test.mjs bundles/ai-video/connectors/bgm-bridge/declared-program-mix.test.mjs scripts/ci/hard-gate-policy.test.mjs && pnpm test:desktop
+
+
+[1m[30m[46m RUN [49m[39m[22m [36mv4.1.11 [39m[90m/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit[39m
+
+ [32m✓[39m dist-payload/runtime/bundles/ai-video/connectors/bgm-bridge/recipes-expansion.test.ts [2m([22m[2m77 tests[22m[2m)[22m[32m 45[2mms[22m[39m
+ [32m✓[39m bundles/ai-video/library/luts/luts.test.ts [2m([22m[2m24 tests[22m[2m)[22m[33m 1463[2mms[22m[39m
+     [33m[2m✓[22m[39m manifest.json 与生成器一致，且声明为自生成（无第三方 LUT） [33m 413[2mms[22m[39m
+     [33m[2m✓[22m[39m --check 模式通过（磁盘 = 生成结果） [33m 732[2mms[22m[39m
+ [32m✓[39m dist-payload/runtime/bundles/ai-video/library/luts/luts.test.ts [2m([22m[2m24 tests[22m[2m)[22m[33m 1463[2mms[22m[39m
+     [33m[2m✓[22m[39m manifest.json 与生成器一致，且声明为自生成（无第三方 LUT） [33m 434[2mms[22m[39m
+     [33m[2m✓[22m[39m --check 模式通过（磁盘 = 生成结果） [33m 749[2mms[22m[39m
+ [32m✓[39m scripts/geo-fusion-plan-doc-sync.test.ts [2m([22m[2m3 tests[22m[2m)[22m[33m 1049[2mms[22m[39m
+     [33m[2m✓[22m[39m 组合编制总岗数 / 遮蔽处数 = 装配器运行结果 [33m 821[2mms[22m[39m
+ [32m✓[39m bundles/ai-video/connectors/cine-kb-bridge/audit-round3.test.ts [2m([22m[2m12 tests[22m[2m)[22m[33m 631[2mms[22m[39m
+ [32m✓[39m bundles/ai-video/connectors/bgm-bridge/recipes-expansion.test.ts [2m([22m[2m77 tests[22m[2m)[22m[32m 51[2mms[22m[39m
+ [32m✓[39m bundles/ai-video/connectors/bgm-bridge/verify-message.test.ts [2m([22m[2m10 tests[22m[2m)[22m[32m 14[2mms[22m[39m
+ [32m✓[39m dist-payload/runtime/bundles/ai-video/connectors/bgm-bridge/tonality-context.test.ts [2m([22m[2m15 tests[22m[2m)[22m[32m 59[2mms[22m[39m
+ [32m✓[39m dist-payload/runtime/bundles/ai-video/connectors/cine-kb-bridge/audit-round3.test.ts [2m([22m[2m12 tests[22m[2m)[22m[32m 233[2mms[22m[39m
+ [32m✓[39m scripts/verify-client-foundation-extensions.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 44[2mms[22m[39m
+ [32m✓[39m dist-payload/runtime/bundles/ai-video/connectors/bgm-bridge/verify-message.test.ts [2m([22m[2m10 tests[22m[2m)[22m[32m 12[2mms[22m[39m
+ [32m✓[39m dist-payload/runtime/bundles/ai-video/connectors/bgm-bridge/genre-mismatch.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 7[2mms[22m[39m
+ [32m✓[39m bundles/ai-video/connectors/bgm-bridge/tonality-context.test.ts [2m([22m[2m15 tests[22m[2m)[22m[32m 70[2mms[22m[39m
+ [32m✓[39m bundles/ai-video/connectors/subtitle-bridge/punctuation.test.ts [2m([22m[2m9 tests[22m[2m)[22m[32m 30[2mms[22m[39m
+ [32m✓[39m bundles/ai-video/connectors/bgm-bridge/genre-mismatch.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 42[2mms[22m[39m
+ [32m✓[39m scripts/suite-fixture-preflight.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 8[2mms[22m[39m
+ [32m✓[39m scripts/bundle-governance.test.ts [2m([22m[2m6 tests[22m[2m)[22m[33m 3897[2mms[22m[39m
+     [33m[2m✓[22m[39m '缺少 coverage' 时治理门禁失败关闭 [33m 432[2mms[22m[39m
+     [33m[2m✓[22m[39m '缺少 night_shift' 时治理门禁失败关闭 [33m 438[2mms[22m[39m
+     [33m[2m✓[22m[39m '重复事件前缀' 时治理门禁失败关闭 [33m 401[2mms[22m[39m
+     [33m[2m✓[22m[39m 发布前阻断缺失依赖、精确版本漂移与循环依赖 [33m 2015[2mms[22m[39m
+     [33m[2m✓[22m[39m 发布前阻断组合导航、术语与依赖首页槽位冲突 [33m 608[2mms[22m[39m
+ [32m✓[39m dist-payload/runtime/bundles/ai-video/connectors/subtitle-bridge/punctuation.test.ts [2m([22m[2m9 tests[22m[2m)[22m[32m 4[2mms[22m[39m
+ [32m✓[39m bundles/ai-video/connectors/color-bridge/core.test.ts [2m([22m[2m49 tests[22m[2m)[22m[33m 13759[2mms[22m[39m
+     [33m[2m✓[22m[39m grade 出片并给出前后指标与哈希；覆盖原片被拒 [33m 1390[2mms[22m[39m
+     [33m[2m✓[22m[39m look 参数可辨：teal-orange 满档必须产生肉眼可见差异（visible） [33m 1120[2mms[22m[39m
+     [33m[2m✓[22m[39m 强度必须单调生效：0.25 的改动量显著小于 1.0（回归：曾因混合顺序写反而失效） [33m 1638[2mms[22m[39m
+     [33m[2m✓[22m[39m 看不出变化就拒绝交付（verify_failed，且不留产物） [33m 476[2mms[22m[39m
+     [33m[2m✓[22m[39m 择优：扁平素材会选出「提升对比度」的候选并出片（且不是靠拉饱和骗分） [33m 671[2mms[22m[39m
+     [33m[2m✓[22m[39m 配方驱动：给出题材后候选池包含该配方的强度梯度与 LUT，并在结果里回报所用配方 [33m 381[2mms[22m[39m
+     [33m[2m✓[22m[39m ①亮度均值相同但分布不同：旧均值判据通过、新残差识别；fail 判负、off 关闭 [33m 1328[2mms[22m[39m
+     [33m[2m✓[22m[39m ②正常匹配素材：均值与直方图判据双双过线，零误报 [33m 388[2mms[22m[39m
+     [33m[2m✓[22m[39m ③降噪默认关闭；开启且噪点命中时插入 hqdn3d 且 luma_spatial≤2.0；干净素材不插入 [33m 2597[2mms[22m[39m
+     [33m[2m✓[22m[39m T-01 自动肤色检测：无 patch 命中真实肤色区（低置信度也如实上报），绿色块不误判 [33m 568[2mms[22m[39m
+     [33m[2m✓[22m[39m T-03 缺陷检测：失焦素材命中不可修复档，清晰素材不误报 [33m 335[2mms[22m[39m
+     [33m[2m✓[22m[39m T-03 交付闸：onUnfixable=block 时拒出片且不留产物，默认 report 只如实上报 [33m 1156[2mms[22m[39m
+     [33m[2m✓[22m[39m T-04 交付元数据：输出 bt709 三标签齐全且 ffprobe 回读一致 [33m 484[2mms[22m[39m
+ [32m✓[39m dist-payload/runtime/bundles/ai-video/connectors/color-bridge/core.test.ts [2m([22m[2m49 tests[22m[2m)[22m[33m 13872[2mms[22m[39m
+     [33m[2m✓[22m[39m grade 出片并给出前后指标与哈希；覆盖原片被拒 [33m 1403[2mms[22m[39m
+     [33m[2m✓[22m[39m look 参数可辨：teal-orange 满档必须产生肉眼可见差异（visible） [33m 1112[2mms[22m[39m
+     [33m[2m✓[22m[39m 强度必须单调生效：0.25 的改动量显著小于 1.0（回归：曾因混合顺序写反而失效） [33m 1635[2mms[22m[39m
+     [33m[2m✓[22m[39m 看不出变化就拒绝交付（verify_failed，且不留产物） [33m 480[2mms[22m[39m
+     [33m[2m✓[22m[39m 择优：扁平素材会选出「提升对比度」的候选并出片（且不是靠拉饱和骗分） [33m 681[2mms[22m[39m
+     [33m[2m✓[22m[39m 配方驱动：给出题材后候选池包含该配方的强度梯度与 LUT，并在结果里回报所用配方 [33m 368[2mms[22m[39m
+     [33m[2m✓[22m[39m ①亮度均值相同但分布不同：旧均值判据通过、新残差识别；fail 判负、off 关闭 [33m 1394[2mms[22m[39m
+     [33m[2m✓[22m[39m ②正常匹配素材：均值与直方图判据双双过线，零误报 [33m 393[2mms[22m[39m
+     [33m[2m✓[22m[39m ③降噪默认关闭；开启且噪点命中时插入 hqdn3d 且 luma_spatial≤2.0；干净素材不插入 [33m 2630[2mms[22m[39m
+     [33m[2m✓[22m[39m T-01 自动肤色检测：无 patch 命中真实肤色区（低置信度也如实上报），绿色块不误判 [33m 571[2mms[22m[39m
+     [33m[2m✓[22m[39m T-03 缺陷检测：失焦素材命中不可修复档，清晰素材不误报 [33m 332[2mms[22m[39m
+     [33m[2m✓[22m[39m T-03 交付闸：onUnfixable=block 时拒出片且不留产物，默认 report 只如实上报 [33m 1205[2mms[22m[39m
+     [33m[2m✓[22m[39m T-04 交付元数据：输出 bt709 三标签齐全且 ffprobe 回读一致 [33m 484[2mms[22m[39m
+ [32m✓[39m scripts/tools/video-request-regression.test.ts [2m([22m[2m33 tests[22m[2m)[22m[33m 28980[2mms[22m[39m
+     [33m[2m✓[22m[39m 无人物与商品定妆照的镜头可使用场地参考回退，不访问块外变量 [33m 831[2mms[22m[39m
+     [33m[2m✓[22m[39m KB之后的微动作读取当前卡片，保留景深与灯光增强 [33m 1841[2mms[22m[39m
+     [33m[2m✓[22m[39m 空镜和商品均可不适用：不注入人物、不伪报写入，KB项目聚合允许全 N/A [33m 1619[2mms[22m[39m
+     [33m[2m✓[22m[39m 蹲姿不笑与睡眠只添加适用通道，保留台词/时长/否定原文并核对完整输出 [33m 937[2mms[22m[39m
+     [33m[2m✓[22m[39m '未知主体' 不能靠 skipped 或单标记伪过微动作门 [33m 1077[2mms[22m[39m
+     [33m[2m✓[22m[39m '没有来源的旧标记' 不能靠 skipped 或单标记伪过微动作门 [33m 942[2mms[22m[39m
+     [33m[2m✓[22m[39m KB第一镜未验证、最后一镜成功时，项目仍失败且停止下游 [33m 853[2mms[22m[39m
+     [33m[2m✓[22m[39m KB部分字段超预算不能用其余成功写入掩盖 [33m 1039[2mms[22m[39m
+     [33m[2m✓[22m[39m 请求的KB目录缺失会记录未验证并停止，而非跳过后继续微动作 [33m 1081[2mms[22m[39m
+     [33m[2m✓[22m[39m 当前镜头JSON重新作为输入时保持幂等，trace仍核到实际消费卡片 [33m 2040[2mms[22m[39m
+     [33m[2m✓[22m[39m G7复核合法N/A与真实两通道写入，记录当前证据而非历史成功或marker计数 [33m 869[2mms[22m[39m
+     [33m[2m✓[22m[39m 未知阶段和未知镜号在执行前拒绝 [33m 491[2mms[22m[39m
+     [33m[2m✓[22m[39m 镜号重复和路径字符不能混入同一产物目录 [33m 470[2mms[22m[39m
+     [33m[2m✓[22m[39m 只有旧成功日志、没有本次母版时以非零退出，不能报告请求完成 [33m 757[2mms[22m[39m
+     [33m[2m✓[22m[39m 不同项目在同一work目录独立记账且当前输入输出含实际指纹 [33m 1590[2mms[22m[39m
+     [33m[2m✓[22m[39m 修复另一镜输入不会使未选镜头自己的源指纹改变 [33m 1284[2mms[22m[39m
+     [33m[2m✓[22m[39m UHD 仍可复用 HD 的前期镜头源回执，后期增强单独按整份分镜绑定 [33m 1577[2mms[22m[39m
+     [33m[2m✓[22m[39m 视频直拷拼接的每个接缝保持整帧间隔，音画同步按同一时长计算 [33m 1183[2mms[22m[39m
+     [33m[2m✓[22m[39m --transition-at 3 只在第三镜入点转场，音画起点与刀数同源 [33m 1135[2mms[22m[39m
+     [33m[2m✓[22m[39m 源规格 '720p' 与明确覆盖保留4K源片/交付档边界 [33m 723[2mms[22m[39m
+     [33m[2m✓[22m[39m 源规格 '2160p' 与明确覆盖保留4K源片/交付档边界 [33m 648[2mms[22m[39m
+     [33m[2m✓[22m[39m 源规格 '720p' 与明确覆盖保留4K源片/交付档边界 [33m 619[2mms[22m[39m
+     [33m[2m✓[22m[39m 新项目默认当天且续跑保存同一日期，源合同记录进入血缘 [33m 1305[2mms[22m[39m
+     [33m[2m✓[22m[39m 片级历史日期与局部闪回进入实际关键帧prompt，并继承源横幅 [33m 676[2mms[22m[39m
+     [33m[2m✓[22m[39m 外部场景圣经年代默认继承，逐镜未来设备被报告 [33m 671[2mms[22m[39m
+     [33m[2m✓[22m[39m 已经冻结后改源年代明确拒绝，不能默默盖写 [33m 912[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m21 passed[39m[22m[90m (21)[39m
+[2m      Tests [22m [1m[32m450 passed[39m[22m[90m (450)[39m
+[2m   Start at [22m 21:56:21
+[2m   Duration [22m 29.39s[2m (transform 2.95s, setup 0ms, import 4.87s, tests 65.73s, environment 1ms)[22m
+
+▶ 配乐声明式直混（无签章签发者时的正常交付路径）
+  ✔ 无签发者 + 显式声明：直混出片，回执如实标注 declared-unverified (636.3145ms)
+  ✔ 不声明、也没有签章：仍然 fail-closed（audio_stems_source_unverified） (0.677584ms)
+✔ 配乐声明式直混（无签章签发者时的正常交付路径） (698.396375ms)
+▶ 硬闸口径规则（创作口径不得作出厂否决票）
+  ✔ 创作口径 + hard: true 命中（含模板字符串 id 与 shotId 后缀） (0.533792ms)
+  ✔ hard: false / 按策略切换 / 事实类硬闸 都不拦 (0.110666ms)
+  ✔ 窗口外（>12 行）的 hard: true 不误伤 (0.072125ms)
+  ✔ 清单本身可审计（不是魔法字符串） (0.0915ms)
+✔ 硬闸口径规则（创作口径不得作出厂否决票） (2.205875ms)
+✔ a verified dubbed clip is reusable only while its complete provenance matches (3.9865ms)
+✔ a newer old dub cannot hide a changed raw clip or a failed latest receipt (1.185458ms)
+✔ a raw clip accepted by ASR remains the composition choice even with a newer dub file (0.625542ms)
+✔ a failed dub cannot accept or overwrite a stale previous output (1.378917ms)
+✔ only a successful and verified new candidate is promoted (2.496875ms)
+✔ an unverified or degraded voice receipt cannot authorize a raw clip (0.852833ms)
+✔ delivery hashes main, attachments and asset list; later tampering is detected (3.612792ms)
+✔ empty manifest, missing or empty main, directory and missing digest never pass (2.165167ms)
+✔ cross-project manifests, conflicting digests, invalid JSON and path escapes fail (1.958417ms)
+✔ suggested POSIX command preserves every argument literally and supplies a PowerShell representation (35.252708ms)
+ℹ tests 16
+ℹ suites 2
+ℹ pass 16
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 788.652
+
+> workloom-ai-acquisition@0.1.0 test:desktop /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit
+> node --test apps/desktop/electron/bootstrap.test.cjs scripts/desktop-bootstrap-db.test.mjs scripts/runtime-deps-lock.test.mjs scripts/pack-nm-merge.test.mjs scripts/payload-policy.test.mjs scripts/pack-workspace-modules.test.mjs
+
+21:56:51 == WorkLoom 织元 · 引导启动（resources=/var/folders/dj/mkh6fwbd4mb6ycp933xfty4h0000gn/T/workloom-packaged-payload-missing-Pv2AFH/resources）==
+21:56:51 正在检查本机版本与安装载荷…
+21:56:51 == WorkLoom 织元 · 引导启动（resources=/var/folders/dj/mkh6fwbd4mb6ycp933xfty4h0000gn/T/workloom-packaged-no-double-payload-1SHIYD/resources）==
+21:56:51 正在检查本机版本与安装载荷…
+▶ 桌面载荷原子装配
+  ✔ 解析物理路径后向 tar 传相对路径，并为 Windows 跨盘符暂存归档 (1.216625ms)
+  ✔ 正式打包入口缺少载荷时在启动任何服务前失败关闭 (7.289459ms)
+  ✔ 正式打包入口不会把源码 dist-payload 双重嵌套误认作 Resources (6.183833ms)
+  ✔ 完整暂存后换入；提交前可回滚，提交后清理临时目录 (11.917291ms)
+  ✔ 提交清理故障发生在不可逆边界之后，不会重新开放旧载荷回滚 (10.27775ms)
+  ✔ 换入第一项后故障会恢复旧版目录、版本和首航状态 (9.790209ms)
+  ✔ 首装暂存失败不会留下半套运行时 (3.060083ms)
+  ✔ 安装阶段检查点以机器可读中文状态落盘 (5.188834ms)
+  ✔ 启动页使用确定进度语义，不再显示循环假进度 (1.25575ms)
+  ✔ 源码主进程只复用已验活服务，正式安装包与渲染冒烟不能绕过载荷 (0.505916ms)
+  ✔ 发布渲染冒烟使用稳定动作标记走完真实欢迎流程 (1.02975ms)
+✔ 桌面载荷原子装配 (59.182166ms)
+▶ 桌面 PostgreSQL 实例归属与端口契约
+  ✔ 严格拒绝空白、小数、非数字和越界端口 (0.167958ms)
+  ✔ 只有 pg_ctl 确认运行且 postmaster 数据目录与端口同时匹配才允许复用 (1.652333ms)
+  ✔ pg_ctl 未确认运行时不读取残留 PID，也不把端口监听者当作自有实例 (0.210542ms)
+  ✔ 退出前重新复验实例归属，PID 文件被替换时绝不发送 stop (3.695791ms)
+  ✔ 托管环境只重写数据库与服务端口，保留其他用户配置 (1.813833ms)
+  ✔ 首装与升级分别从当前载荷生成桥注册表，不引用其他实例的运行目录 (3.457709ms)
+✔ 桌面 PostgreSQL 实例归属与端口契约 (11.675417ms)
+▶ 桌面本机渲染子进程的 Node 路径
+  ✔ 干净 GUI PATH 下仍能启动当前随包 Node，且保留系统工具路径 (30.022ms)
+  ✔ Windows 只传一个不区分大小写的 Path；POSIX 不改其他同名变量 (0.115709ms)
+✔ 桌面本机渲染子进程的 Node 路径 (30.2105ms)
+▶ 桌面 PostgreSQL 凭据状态与 SCRAM 围栏
+  ✔ 0600 状态文件生成三份互异随机凭据，重复启动不轮换 (1.737917ms)
+  ✔ 损坏状态失败关闭；绑定 system_identifier 后才能完成并清除旧凭据 (3.073292ms)
+  ✔ pending 状态可从恢复后的旧配置补充候选；hardened 后绝不重新收录 (1.57675ms)
+  ✔ initdb 只接受 pwfile + SCRAM，HBA 只允许本机 SCRAM (0.397584ms)
+  ✔ pending 迁移复验失败会原子恢复旧 HBA 并再次 reload (1.173375ms)
+  ✔ 即使磁盘 HBA 未变化也强制 reload，再以正反向凭据复验结果为准 (0.473ms)
+  ✔ 源码固定先提交新 payload 再创建状态或改库，且不含 trust initdb (0.27675ms)
+  ✔ payload commit 前用内置 Node 语法检查安全 helper，校验失败立即阻断 (0.314834ms)
+  ✔ 所有 migrate 入口在轮换 app/gateway 角色前固定本会话 SCRAM (0.500458ms)
+✔ 桌面 PostgreSQL 凭据状态与 SCRAM 围栏 (9.760542ms)
+▶ 应急浏览器壳与正式 Electron 共用安全引导
+  ✔ 原子单实例锁拒绝活进程，并可接管死进程遗留锁 (1.66525ms)
+  ✔ 两端旧启动器只委托 bootstrap，不再维护 trust/helper 分支 (0.764959ms)
+  ✔ 浏览器壳按平台使用无 shell 拼接的固定打开命令 (0.115958ms)
+  ✔ CLI 在启动前注册 INT/TERM/HUP，并用 AbortSignal 驱动初始化清理 (0.169833ms)
+✔ 应急浏览器壳与正式 Electron 共用安全引导 (2.788584ms)
+workloom-db-identity {"dataDirectory":"/private/var/folders/dj/mkh6fwbd4mb6ycp933xfty4h0000gn/T/workloom-helper-inspect-HkOqBp/pgdata","port":55432,"hbaFile":"/var/folders/dj/mkh6fwbd4mb6ycp933xfty4h0000gn/T/workloom-helper-inspect-HkOqBp/pgdata/pg_hba.conf","systemIdentifier":"7654321098765432109","postmasterStartTime":"2026-09-16 16:52:18.418+00"}
+bootstrap-db prepare ok
+bootstrap-db verify ok
+▶ 客户端投影路径围栏
+  ✔ 同时接受 POSIX 与 Windows 的目录分隔符 (1.301125ms)
+  ✔ 拒绝同目录、父目录逃逸和 Windows 跨盘路径 (0.119084ms)
+✔ 客户端投影路径围栏 (4.388166ms)
+▶ 桌面数据库安全引导
+  ✔ 经符号链接路径执行 helper 时仍识别为 CLI 入口 (1.243875ms)
+  ✔ 要求三模式、端口、PGDATA、HBA 与三角色凭据全部由启动器显式注入 (0.522833ms)
+  ✔ inspect 用旧 owner 候选只读绑定非默认端口、PGDATA、HBA 与 system_identifier (5.447042ms)
+  ✔ legacy prepare 先验归属，再轮换 owner/app/gateway 为 SCRAM 并准备业务库 (3.70775ms)
+  ✔ verify 对三角色正向连接、错误凭据反向拒绝，且全过程零写 (3.727042ms)
+  ✔ trust 仍接受错误凭据时 verify 失败，不会误标为 SCRAM 生效 (1.931916ms)
+  ✔ 错误凭据探测若得到非认证错误则失败关闭，不把网络故障当成安全证明 (0.698958ms)
+  ✔ 未知 data_directory、活动 HBA 或 system_identifier 时首条查询后零写失败 (1.6745ms)
+  ✔ 实例报告端口不符时失败且零写入 (0.6325ms)
+✔ 桌面数据库安全引导 (21.575125ms)
+✔ pnpm 锁文件在 Windows CRLF 检出后保持同一解析语义 (2.833917ms)
+✔ 基座物理存在 platform-ops 时依赖合成仍排除平台工程 (15.281209ms)
+✔ 仙女座精确身份收集 platform-ops，缺包则阻断 (5.48225ms)
+✔ 范围 specifier 只输出 pnpm 锁定的精确版本 (3.980584ms)
+✔ 缺锁、specifier 漂移与同名解析版本冲突均失败关闭 (12.459ms)
+✔ 包目录创建顺序不影响依赖清单输出 (10.112417ms)
+✔ 搬动原工作区副本会破坏仓库相对引用，新注册保留同一模块实例 (147.426833ms)
+✔ 子路径、条件 exports 和类型入口都引用保留的真实源文件 (38.154208ms)
+✔ 缺失构建产物在打包时失败，不留到客户启动时 (1.658333ms)
+✔ 包名称重复、路径越界和未支持的入口协议均失败关闭 (4.838125ms)
+✔ 行业载荷不会因目录存在而注册仙女座的 platform-ops (2.819167ms)
+✔ 只有仙女座精确身份允许携带 platform-ops (3.313292ms)
+✔ 基座即使物理存在平台源码和内部包也会被装包后检查阻断 (73.999583ms)
+✔ 归档清单对大小写、Windows 分隔符和相对段统一失败关闭 (0.242167ms)
+✔ 缺失或不可校验的产品清单不能生成载荷策略 (62.914708ms)
+✔ 仙女座载荷检查允许平台源码，但不放宽其他产品 (23.428417ms)
+✔ 非 Git 运行时缺少任一身份闭包文件时，目录与归档检查均失败关闭 (7.705459ms)
+✔ 非 Git 运行时伪造产品身份时与源策略精确比对失败 (1.416625ms)
+✔ 产品清单未投影字段被篡改时摘要校验仍失败关闭 (2.57725ms)
+✔ 身份闭包目录与归档完整且产品身份一致时通过 (1.774167ms)
+✔ 归档中的身份闭包必须是精确文件路径，目录或大小写伪装不能通过 (0.251834ms)
+✔ 运行依赖锁输入摘要忽略 Git 工作树 LF/CRLF 差异 (0.74275ms)
+✔ 正式装配跨平台直接调用 Node 随附 npm CLI (0.976125ms)
+✖ 仓库提交的每产品 runtime lock 与当前依赖输入完全一致 (28.100375ms)
+✔ package-lock 必须锁定完整三目标原生包与 registry integrity (1.880167ms)
+✔ 安装后目标校验拒绝宿主架构原生包并生成稳定 inventory 摘要 (7.7995ms)
+✔ 正式与应急装配线统一使用每产品 lock、目标 OS/CPU 和身份闭包 (4.565292ms)
+ℹ tests 70
+ℹ suites 7
+ℹ pass 69
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 267.450958
+
+✖ failing tests:
+
+test at scripts/runtime-deps-lock.test.mjs:70:1
+✖ 仓库提交的每产品 runtime lock 与当前依赖输入完全一致 (28.100375ms)
+  Error: runtime 依赖锁元数据或输入摘要已过期，请刷新每产品依赖锁
+      at verifyRuntimeDepsLock (file:///Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/scripts/runtime-deps-lock.mjs:221:40)
+      at TestContext.<anonymous> (file:///Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/scripts/runtime-deps-lock.test.mjs:72:20)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1382:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:960:18)
+      at Test.postRun (node:internal/test_runner/test:1522:19)
+      at Test.run (node:internal/test_runner/test:1447:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:960:7)
+ ELIFECYCLE  Command failed with exit code 1.
+ ELIFECYCLE  Command failed with exit code 1.

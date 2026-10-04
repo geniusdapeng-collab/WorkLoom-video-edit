@@ -1,0 +1,15 @@
+{
+  "name": "runtime-pg-core-fixed",
+  "command": [
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+    "--env-file=.env",
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/pnpm/bin/pnpm.cjs",
+    "--filter",
+    "@workloom/runtime",
+    "test"
+  ],
+  "exit_code": 0,
+  "seconds": 1.666,
+  "ran_at": "2026-10-02T20:40:40.383844+08:00",
+  "log": "runtime-pg-core-fixed.log"
+}

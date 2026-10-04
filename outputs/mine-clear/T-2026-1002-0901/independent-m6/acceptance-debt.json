@@ -1,0 +1,78 @@
+{
+  "generated_at": "2026-10-04T05:32:31.451409+08:00",
+  "waivers": [],
+  "debts": [
+    {
+      "type": "本地QA已复验/正式条件保留",
+      "item": "MC-106 / OBS-04/08..19 最终渲染门槛 / MC-018实际诊断导出",
+      "reason": "当前精确新客户包的源、实际 app/payload/DMG 字节、冷默认/安全模式、首装/重启和真实旧版升级已独立复核；本地 QA 专项放行，正式 Windows/Apple trust/模型/UX 条件仍保留。",
+      "impact": "本地QA范围可条件放行；不能声明正式全平台Release",
+      "supplement_when": "正式平台/信任链发布前",
+      "owner": "root 修复；growth_m6 独立复验",
+      "waiver": "无豁免"
+    },
+    {
+      "type": "未执行",
+      "item": "Windows 客户端与正式签名/Apple 公证",
+      "reason": "本机 macOS arm64；本包仅 ad-hoc QA，发布者源码/替身测试不等于正式平台产物",
+      "impact": "不可声称全平台或正式公开 Release 可用",
+      "supplement_when": "相应正式平台发布前",
+      "owner": "产品发布 owner",
+      "waiver": "无豁免"
+    },
+    {
+      "type": "未执行",
+      "item": "P0–P3 真实内置模型矩阵",
+      "reason": "独立任务禁止真实供应商；未使用真实生产业务目标与支付回执",
+      "impact": "P 域未验证；O 域能力未验证",
+      "supplement_when": "宣称模型生产可用前",
+      "owner": "模型/业务验收 owner",
+      "waiver": "无豁免"
+    },
+    {
+      "type": "未执行/人工缺失",
+      "item": "U0–U8 完整体验协议",
+      "reason": "当前只有两宽度与原生截图样本；无真实用户/真手机/读屏/完整 axe/键盘操作链",
+      "impact": "U 域未验证，截图不构成全部任务可完成的证据",
+      "supplement_when": "声明完整用户体验验收前",
+      "owner": "UX 与产品验收 owner",
+      "waiver": "无豁免"
+    },
+    {
+      "type": "未执行",
+      "item": "O0–O9、ADR/HIR、长期可靠性",
+      "reason": "真实交付件分母 0，无业务 KPI/工时四源对账/金标留出/24h 以上长跑",
+      "impact": "不能宣称 AI 经营价值、自主交付率提升或 pass^k",
+      "supplement_when": "声明业务或长期效果前",
+      "owner": "业务/统计 owner",
+      "waiver": "无豁免"
+    },
+    {
+      "type": "观测失败/窄复测通过",
+      "item": "广域 packages/base 8 条超时",
+      "reason": "原并行 run 失败；三文件原阈值复测 43 条通过，根因未做性能归因",
+      "impact": "原广域门禁不改写为通过；a403/0f3/ad4a CI 三闸继承回执分别说明",
+      "supplement_when": "如继续主张该主机并行稳定性，需受控资源条件重跑/分析",
+      "owner": "开发/测试 owner",
+      "waiver": "无豁免"
+    },
+    {
+      "type": "观测失败/原阈值复测通过",
+      "item": "955e 密集团队 390 宽 ready 超时",
+      "reason": "首次冻结源 run 3/4，390 ready 15s 超时；同脚本/同阈值复测 4/4，无 source 变化",
+      "impact": "原 red 保留；不能以复测推导资源争用或已解释原超时",
+      "supplement_when": "如要主张高并发主机/真实手机稳定性，按独立设备与资源协议补验",
+      "owner": "开发/平台验收 owner",
+      "waiver": "无豁免"
+    },
+    {
+      "type": "裁剪",
+      "item": "8 个非精读文件与未执行 267 个检查项",
+      "reason": "源码专项范围；历史文档、巨型其他业务分支与缺外部条件的完整协议未重跑",
+      "impact": "不作全仓通读或完整 RDAS 通过",
+      "supplement_when": "扩大对应结论前按 coverage 逐项补做",
+      "owner": "验收 owner",
+      "waiver": "无豁免"
+    }
+  ]
+}

@@ -1,0 +1,31 @@
+{
+  "at": "2026-10-03T10:01:38.067525+08:00",
+  "historical_source": "c08386eb9993744a0cb0c2495a98fc1fc4ccbed9",
+  "retained_actual_package_bytes": [
+    {
+      "file": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/evidence/history/c083-native-v3-artifacts/app.asar",
+      "sha256": "86fe16b5eaf75faa6e0e894f9ae3f9a80eb70dd30a8f618340eafd5beb5b18bc",
+      "bytes": 20477190
+    },
+    {
+      "file": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/evidence/history/c083-native-v3-artifacts/payload.tar.gz",
+      "sha256": "79b6fdffc5f452f17ed821fbc8f0515984d5e07a00362f0b630d6fd65f19933e",
+      "bytes": 500722891
+    },
+    {
+      "file": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/evidence/history/c083-native-v3-artifacts/Info.plist",
+      "sha256": "f2f0e4537588bc113dc4548fd28ae98a9b5a353553dfc71646da5d23957e9dde",
+      "bytes": 4222
+    }
+  ],
+  "removed_duplicate_owned_shells": [
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/职场修复 客户应用",
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/release/mac-arm64"
+  ],
+  "original_fingerprint": "floor-app-fingerprint.json",
+  "historical_original_paths_unchanged_in_original_receipts": true,
+  "scope": "Only stopped owned QA .app shells; exact app.asar and payload archive bytes retained. Original v.3 execution receipts and screenshots remain immutable. No customer support/state/database/config directory removed.",
+  "codesign_verify_passed_before_removal": true,
+  "apple_notarization": false,
+  "signed_customer_release": false
+}

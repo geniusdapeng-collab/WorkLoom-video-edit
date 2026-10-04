@@ -1,0 +1,71 @@
+{
+  "schema": "growth.independent-m6/dependency-generator-preparation@1",
+  "at": "2026-10-04T01:32:53.812490+08:00",
+  "prepared_by": "growth_m6",
+  "files": [
+    {
+      "file": "prepare_report.py",
+      "sha256": "f2142cef4442f1afaa63a7da56d8dd7a70730f8fe0c07cdece5f5e37a56c7280",
+      "lines": 737,
+      "strict_utf8_AST_and_complete_byte_compile": true,
+      "actually_executed_report_or_native_generator": false
+    },
+    {
+      "file": "build_report.py",
+      "sha256": "b6826996aa7339afeb47a3de57a8128136ebfdc7b91fb32e1b6e4dc3aedaee25",
+      "lines": 928,
+      "strict_utf8_AST_and_complete_byte_compile": true,
+      "actually_executed_report_or_native_generator": false
+    },
+    {
+      "file": "validate_report.py",
+      "sha256": "d23e226c24e567d20acbc51e04989e0d23a67ef252ad1c92379f0c2135447fd8",
+      "lines": 514,
+      "strict_utf8_AST_and_complete_byte_compile": true,
+      "actually_executed_report_or_native_generator": false
+    },
+    {
+      "file": "create-floor-native-verification.py",
+      "sha256": "d8eeb6ee952200d7e700a7ef58003962a563e0abde757947ab6d148bf4f5f592",
+      "lines": 367,
+      "strict_utf8_AST_and_complete_byte_compile": true,
+      "actually_executed_report_or_native_generator": false
+    },
+    {
+      "file": "review-native-diagnostic-export.py",
+      "sha256": "59c98be1bd14ae9509287a084310375a61f8825f22f25c4c950f4a6759fb6ad0",
+      "lines": 200,
+      "strict_utf8_AST_and_complete_byte_compile": true,
+      "actually_executed_report_or_native_generator": false
+    },
+    {
+      "file": "dependency_rebinding.py",
+      "sha256": "2bea1310c7913abca270668421e5b9cd69aaaac96aae77681288fb8007784af1",
+      "lines": 77,
+      "strict_utf8_AST_and_complete_byte_compile": true,
+      "actually_executed_report_or_native_generator": false
+    },
+    {
+      "file": "rebind-dependency-functional-controls.py",
+      "sha256": "a14768946d5baaa16dce856184d45740dff24a6105ae70a7d9419cec866705ec",
+      "lines": 99,
+      "strict_utf8_AST_and_complete_byte_compile": true,
+      "actually_executed_report_or_native_generator": false
+    },
+    {
+      "file": "run-modern-mcd-acceptance.py",
+      "sha256": "df7294d9abc0922b5dba2787bd5b01b4c4919ae719a6043f42d5b85c0f3c9c2c",
+      "lines": 192,
+      "strict_utf8_AST_and_complete_byte_compile": true,
+      "actually_executed_report_or_native_generator": false
+    }
+  ],
+  "canonical_7fee_manifest_summary_report_kept_historical": true,
+  "new_1e471_formal_output_generated": false,
+  "new_source_tests_PG_GPU_native_large_IO_executed": false,
+  "source_resource_window_owner": "root",
+  "remaining": "Native receipt, exact bytes/pixels/state/export, real repair24 and independent acceptance23, then actual report generation and strict integrity validation.",
+  "acceptance_registry_proxy_prepared": true,
+  "registry_proxy_used_only_on_audit_contract": true,
+  "canonical_helper_pins_replaced": false
+}

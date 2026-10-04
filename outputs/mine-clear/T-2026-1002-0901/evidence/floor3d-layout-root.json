@@ -1,0 +1,18 @@
+{
+  "name": "floor3d-layout-root",
+  "command": [
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+    "--env-file=.env",
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/pnpm/bin/pnpm.cjs",
+    "--filter",
+    "@workloom/web",
+    "exec",
+    "vitest",
+    "run",
+    "src/components/floor3d-layout.test.ts"
+  ],
+  "exit_code": 0,
+  "seconds": 21.967,
+  "ran_at": "2026-10-03T04:40:32.512777+08:00",
+  "log": "floor3d-layout-root.log"
+}

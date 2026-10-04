@@ -1,0 +1,7 @@
+{
+  "at": "2026-10-03T01:26:10.677741+08:00",
+  "removed_duplicate": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/安装测试 客户应用",
+  "app_asar_sha256": "5fc5ca23a07807ce91a93132df2a7c6d617d32a217664d94cbb8b1bb5feb0580",
+  "recoverable_from": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-audit-2026-10-02/WorkLoom-Growth-mac-arm64-QA.dmg",
+  "reason": "Owned original QA duplicate; preserve original DMG and reports, free space for current native acceptance"
+}

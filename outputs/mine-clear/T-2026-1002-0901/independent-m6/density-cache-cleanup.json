@@ -1,0 +1,168 @@
+{
+  "schema": "growth.independent-m6/owned-cache-cleanup@1",
+  "at": "2026-10-03T03:23:34.905112+08:00",
+  "path": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/independent-m6/ceremony-density-cache",
+  "removed_files": [
+    {
+      "file": "deps/@react-three_drei.js",
+      "bytes": 3131385,
+      "sha256": "2caa67fa20e93ca71f9ecb75694fcba4b26f1897a16e70b39fc1cedd39b02a36"
+    },
+    {
+      "file": "deps/@react-three_drei.js.map",
+      "bytes": 5901851,
+      "sha256": "2605c06a992ae113a1a87b60363fa0b25532abd04f3b2721dbe4f7ceb2b11568"
+    },
+    {
+      "file": "deps/@react-three_fiber.js",
+      "bytes": 943,
+      "sha256": "52ca8ca6b099e14b137a904deec7b2285136c20d1b57c5917254ac6c8b783314"
+    },
+    {
+      "file": "deps/@react-three_postprocessing.js",
+      "bytes": 743478,
+      "sha256": "e7b9d61930224eeb898086c81fa9ef9876770b493055e7e4525478e5ecd730cd"
+    },
+    {
+      "file": "deps/@react-three_postprocessing.js.map",
+      "bytes": 1192545,
+      "sha256": "40fb5217f337a20d670da624e9098b9cd8a38596e755db8aa98caf27d78ee893"
+    },
+    {
+      "file": "deps/@workloom_ui.js",
+      "bytes": 128508,
+      "sha256": "9855c9903fb48e283ca9faf540bd0368ffe92fabd6f5300e0dea794bf01313b3"
+    },
+    {
+      "file": "deps/@workloom_ui.js.map",
+      "bytes": 205874,
+      "sha256": "7644d061783c9d13aee47e833cc29905ce038adc56fbdc6d9a2110b098f3ef83"
+    },
+    {
+      "file": "deps/_metadata.json",
+      "bytes": 3462,
+      "sha256": "f71f9e5054a9c79642d557edd619450d08a559cc4442207d4aed23d494561ff1"
+    },
+    {
+      "file": "deps/jsx-runtime-D3ZQyOTs.js",
+      "bytes": 10806,
+      "sha256": "b6107d659b39fef4a32142baf29b42019990d06c40753e7cd85f8d547ef770f2"
+    },
+    {
+      "file": "deps/jsx-runtime-D3ZQyOTs.js.map",
+      "bytes": 18811,
+      "sha256": "cb9de6951e120d8a56569093b1c8480a5ba808f440c4bdb7a41a64d476ac0b61"
+    },
+    {
+      "file": "deps/maath.esm-C6MCEb2o.js",
+      "bytes": 28462,
+      "sha256": "e89b28bf30b2e71e35e3b4797d85fd4ab690ca758be163ab8f9aa201a06eb5f8"
+    },
+    {
+      "file": "deps/maath.esm-C6MCEb2o.js.map",
+      "bytes": 82109,
+      "sha256": "14975deab5f224c3e2d795b99170111d92cd5cc47097cabe09cb91f96cb112c0"
+    },
+    {
+      "file": "deps/package.json",
+      "bytes": 23,
+      "sha256": "3ca9d4afd21425087cf31893b8f9f63c81b0b8408db5e343ca76e5f8aa26ab9a"
+    },
+    {
+      "file": "deps/react-dom-CnR2lbX_.js",
+      "bytes": 14597,
+      "sha256": "bcd371eb6eb1de9dc7bba4f233cc08a22fc3581a6acdcd5e304697ef05cf8a0b"
+    },
+    {
+      "file": "deps/react-dom-CnR2lbX_.js.map",
+      "bytes": 25817,
+      "sha256": "4e886f14ef8dc5d21fedb8e2c3e10652c6c89564a5fa3b4fd477426d3dcbc971"
+    },
+    {
+      "file": "deps/react-dom_client.js",
+      "bytes": 810996,
+      "sha256": "444edcfd0424b21499065afaa9635c5b98b6d914fcf55bde14b71afb5f0828f4"
+    },
+    {
+      "file": "deps/react-dom_client.js.map",
+      "bytes": 1481165,
+      "sha256": "ddda908c8510f0278696e6c879ec7cd4c12ed3cb074f3dfa360a6cfccbae9d91"
+    },
+    {
+      "file": "deps/react-three-fiber.esm-6ETOLY9Q.js",
+      "bytes": 401387,
+      "sha256": "95f114b1591932a98f3b26c4105951877cf9e2dcecde88e135f7e6bd69c843ea"
+    },
+    {
+      "file": "deps/react-three-fiber.esm-6ETOLY9Q.js.map",
+      "bytes": 1004630,
+      "sha256": "49fc3d9e45c4dfd2f07d3cbcf81dd721458bac7156ed9fb5537fb571bd062aca"
+    },
+    {
+      "file": "deps/react.js",
+      "bytes": 38310,
+      "sha256": "df15615aa9d5d817927c4d8c6b01b7dfc75291105ffd0b84b4af2488ece3a05c"
+    },
+    {
+      "file": "deps/react.js.map",
+      "bytes": 68959,
+      "sha256": "f80b75da7e98d90ccd712e51eb19fbf87a9e333fa070aa35a2923813d1e8fbf5"
+    },
+    {
+      "file": "deps/react_jsx-dev-runtime.js",
+      "bytes": 10530,
+      "sha256": "27760c48f8b3bf945283d34a342a49888093f5a5bc0df9ee4f91205d161a4517"
+    },
+    {
+      "file": "deps/react_jsx-dev-runtime.js.map",
+      "bytes": 18240,
+      "sha256": "0360dd7fe80320339fc41bb82f6206b7d0284a43cf8d4349d63311c6d6f2f5a8"
+    },
+    {
+      "file": "deps/rolldown-runtime-DC62tzP2.js",
+      "bytes": 1445,
+      "sha256": "f74ce63fe4684f55be3ea69da3a4528da464f9d5f63cda903b76eb13e92d1954"
+    },
+    {
+      "file": "deps/scheduler-_K7gShRP.js",
+      "bytes": 10223,
+      "sha256": "4beeb06074909200219bbd03b8298431662ec2f3c14e46dadd2e75626622d65e"
+    },
+    {
+      "file": "deps/scheduler-_K7gShRP.js.map",
+      "bytes": 18305,
+      "sha256": "69e76d12fbe4d06c6226c4bd81d5b2330deb5f1bbf3b975d28912bbf330f50cf"
+    },
+    {
+      "file": "deps/three.js",
+      "bytes": 17692,
+      "sha256": "2449bb342743ca37ae5a6104aa42bdac4e8b23d2aff6602a535cd027bebf5c46"
+    },
+    {
+      "file": "deps/three.module-QAJAubfM.js",
+      "bytes": 1915175,
+      "sha256": "a2028049aee2758f2a545c218fe423d3270fb692358ad94ed569e86d0d479262"
+    },
+    {
+      "file": "deps/three.module-QAJAubfM.js.map",
+      "bytes": 3051229,
+      "sha256": "b989dcd40541882fa8c4c8619ff44c63918800bf84d8898a98d938804f73c055"
+    },
+    {
+      "file": "deps/vision_bundle-CYszuFb6.js",
+      "bytes": 175544,
+      "sha256": "d5a9a7ccfbb245835f53f91da069edb9bc24e057871e45464852b791a74b8aeb"
+    },
+    {
+      "file": "deps/vision_bundle-CYszuFb6.js.map",
+      "bytes": 343762,
+      "sha256": "1081a20112c8e76e81f69a3cec651d1fb776802a82d91835e9cc6d38ae5265fd"
+    }
+  ],
+  "removed_bytes": 20856263,
+  "prior_runner_exit": 0,
+  "all_harness_inputs_results_logs_screenshots_retained": true,
+  "product_source_parent_fixture_other_session_data_touched": false,
+  "private_configuration_or_database_opened": false,
+  "reason": "HostENOSPC; remove only owned stopped dependency build cache. No acceptance evidence was removed."
+}

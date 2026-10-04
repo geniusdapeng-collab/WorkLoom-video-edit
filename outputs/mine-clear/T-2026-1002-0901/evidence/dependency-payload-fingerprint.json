@@ -1,0 +1,90 @@
+{
+  "source": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+  "payload_version": "v0.1.0-fix.20261003.6",
+  "packer_receipt": "mac-dependency-payload-cached-proxy.json",
+  "packer_log": "mac-dependency-payload-cached-proxy.log",
+  "payload_archive_sha256": "89d813bd9bee83c7471b623dbb43c7c9d702afa78e3fe06bcf94adec02a33a53",
+  "payload_archive_bytes": 500741404,
+  "critical_source_checks": [
+    {
+      "path": "apps/server/src/video/film-worker.ts",
+      "source_sha256": "6e2eb96c595f811cabae5e0aac4e905c12ac2af2dba037bdb78b376259134311",
+      "payload_sha256": "6e2eb96c595f811cabae5e0aac4e905c12ac2af2dba037bdb78b376259134311",
+      "equal": true
+    },
+    {
+      "path": "apps/web/src/components/Floor3D.tsx",
+      "source_sha256": "40e8bfa0f688eb527edec2ba10f040afc91a72b1730eb4383d707687fd1bf740",
+      "payload_sha256": "40e8bfa0f688eb527edec2ba10f040afc91a72b1730eb4383d707687fd1bf740",
+      "equal": true
+    },
+    {
+      "path": "apps/web/src/components/Floor3DLabels.tsx",
+      "source_sha256": "0d2505a53e6e1e2811a6cc68d8124669cb4656e658d16e5e9a2eb8cf691e123b",
+      "payload_sha256": "0d2505a53e6e1e2811a6cc68d8124669cb4656e658d16e5e9a2eb8cf691e123b",
+      "equal": true
+    },
+    {
+      "path": "apps/web/src/components/Floor3DTaskDrop.tsx",
+      "source_sha256": "1c9a40bf5dec879f5896eff88263efedc885de4919b3e4a8d42ecb43e337a81f",
+      "payload_sha256": "1c9a40bf5dec879f5896eff88263efedc885de4919b3e4a8d42ecb43e337a81f",
+      "equal": true
+    },
+    {
+      "path": "apps/web/src/components/HoverBubble.tsx",
+      "source_sha256": "f31aac61c489193fe9892d21613c132af1c4db1608b1dfe0e2cc3d6d484f3ad5",
+      "payload_sha256": "f31aac61c489193fe9892d21613c132af1c4db1608b1dfe0e2cc3d6d484f3ad5",
+      "equal": true
+    },
+    {
+      "path": "apps/web/src/components/Stage3D.tsx",
+      "source_sha256": "c49d9cbfd21bd376dcdd2c9f540e269e59cf796de2143bc29153026a8976e647",
+      "payload_sha256": "c49d9cbfd21bd376dcdd2c9f540e269e59cf796de2143bc29153026a8976e647",
+      "equal": true
+    },
+    {
+      "path": "apps/web/src/components/floor3d-layout.ts",
+      "source_sha256": "4a8ace04880cc9995a44ff6780a122eaad38b3b2057115f3d25ded45a18e803a",
+      "payload_sha256": "4a8ace04880cc9995a44ff6780a122eaad38b3b2057115f3d25ded45a18e803a",
+      "equal": true
+    },
+    {
+      "path": "apps/web/src/components/loommate/MateLive2D.tsx",
+      "source_sha256": "6a292be27b875f4780bf47bf4e773006391b911c5df4f8160638d07285e313ec",
+      "payload_sha256": "6a292be27b875f4780bf47bf4e773006391b911c5df4f8160638d07285e313ec",
+      "equal": true
+    },
+    {
+      "path": "apps/web/src/pages/p0/Floor.tsx",
+      "source_sha256": "3a90bb297bebf658241b0028970ec467f700d08a8531708144221b815a9a3301",
+      "payload_sha256": "3a90bb297bebf658241b0028970ec467f700d08a8531708144221b815a9a3301",
+      "equal": true
+    },
+    {
+      "path": "apps/web/src/pages/p0/floor-layout.ts",
+      "source_sha256": "d4b435b40ffaf11077ba0906ecbda3a9291165a7fb6ea59f2f611441443cfaa2",
+      "payload_sha256": "d4b435b40ffaf11077ba0906ecbda3a9291165a7fb6ea59f2f611441443cfaa2",
+      "equal": true
+    },
+    {
+      "path": "packages/base/workdata/gateway.ts",
+      "source_sha256": "1f7b60fb592d716b556d57ed59589726296cb97b1667bf6e3e3ce9fb03189785",
+      "payload_sha256": "1f7b60fb592d716b556d57ed59589726296cb97b1667bf6e3e3ce9fb03189785",
+      "equal": true
+    },
+    {
+      "path": "packages/runtime/src/loop.ts",
+      "source_sha256": "ae4ec887d54baf5af27591f6c1a1a3684e761bf6c2c31a622b2fa2f3bfbc9d7e",
+      "payload_sha256": "ae4ec887d54baf5af27591f6c1a1a3684e761bf6c2c31a622b2fa2f3bfbc9d7e",
+      "equal": true
+    },
+    {
+      "path": "scripts/tools/full-chain-film.mts",
+      "source_sha256": "0a085ccbeb3d195d39f915d49aa4aa3c3ad6e9aa5f381eeb8e01fc83c4e4617f",
+      "payload_sha256": "0a085ccbeb3d195d39f915d49aa4aa3c3ad6e9aa5f381eeb8e01fc83c4e4617f",
+      "equal": true
+    }
+  ],
+  "public_asset_cache": "existing public binaries; every pin verified by product packer",
+  "signed_platform_release": false
+}

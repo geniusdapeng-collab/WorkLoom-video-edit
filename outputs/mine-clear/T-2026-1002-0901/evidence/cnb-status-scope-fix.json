@@ -1,0 +1,37 @@
+{
+  "number": "318",
+  "head": "3bfb89d3285b1e5e4c475b830e12f2c9c54b590b",
+  "base": "42ead347c65a5cc343bcd290702d53a7fcdb1687",
+  "wip": true,
+  "mergeable": "mergeable",
+  "statuses": {
+    "state": "success",
+    "statuses": [
+      {
+        "state": "success",
+        "context": "cnb/pull_request/pipeline-1(static-gate)",
+        "description": "success [19.4s]",
+        "target_url": "https://cnb.cool/workloom-ai/WorkLoom-growth/-/build/logs/cnb-hdb-1k3uj4r8c#001",
+        "created_at": "2026-10-02T15:18:56Z",
+        "updated_at": "2026-10-02T15:19:15Z"
+      },
+      {
+        "state": "success",
+        "context": "cnb/pull_request/pipeline-2(db-gate)",
+        "description": "success [32.5s]",
+        "target_url": "https://cnb.cool/workloom-ai/WorkLoom-growth/-/build/logs/cnb-hdb-1k3uj4r8c#002",
+        "created_at": "2026-10-02T15:18:56Z",
+        "updated_at": "2026-10-02T15:19:28Z"
+      },
+      {
+        "state": "success",
+        "context": "cnb/pull_request/pipeline-3(test-gate)",
+        "description": "success [3m 10s]",
+        "target_url": "https://cnb.cool/workloom-ai/WorkLoom-growth/-/build/logs/cnb-hdb-1k3uj4r8c#003",
+        "created_at": "2026-10-02T15:18:56Z",
+        "updated_at": "2026-10-02T15:22:06Z"
+      }
+    ],
+    "sha": "214ecf3b3dfa4acc1d06333f0ae6810a22066df0"
+  }
+}

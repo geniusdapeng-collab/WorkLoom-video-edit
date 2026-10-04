@@ -1,0 +1,70 @@
+COMMAND ["/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node", "--env-file=.env", "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/pnpm/bin/pnpm.cjs", "-C", "apps/web", "test"]
+
+> @workloom/web@0.1.0 test /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/apps/web
+> vitest run
+
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - import "./vite.config" without a file extension (vitest.config.ts:10:24). Add the file extension
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+
+[1m[30m[46m RUN [49m[39m[22m [36mv4.1.11 [39m[90m/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/apps/web[39m
+
+Sourcemap for "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/node_modules/.pnpm/@workloom+ui@https+++cnb.cool+workloom-ai+workloom-im+-+releases+download+ui-v0.1.19+wo_086870d384add426af4f926c44614b7c/node_modules/@workloom/ui/dist/index.js" points to missing source files
+Sourcemap for "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/node_modules/.pnpm/@workloom+ui@https+++cnb.cool+workloom-ai+workloom-im+-+releases+download+ui-v0.1.19+wo_086870d384add426af4f926c44614b7c/node_modules/@workloom/ui/dist/language.js" points to missing source files
+Sourcemap for "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/node_modules/.pnpm/@workloom+ui@https+++cnb.cool+workloom-ai+workloom-im+-+releases+download+ui-v0.1.19+wo_086870d384add426af4f926c44614b7c/node_modules/@workloom/ui/dist/entity-presentation.js" points to missing source files
+Sourcemap for "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/node_modules/.pnpm/@workloom+ui@https+++cnb.cool+workloom-ai+workloom-im+-+releases+download+ui-v0.1.19+wo_086870d384add426af4f926c44614b7c/node_modules/@workloom/ui/dist/navigation.js" points to missing source files
+ [32m✓[39m src/components/loomball/provenance.test.ts [2m([22m[2m1 test[22m[2m)[22m[33m 470[2mms[22m[39m
+     [33m[2m✓[22m[39m apps/web/src 业务代码（vendor 之外）不出现上游商标字样 [33m 460[2mms[22m[39m
+Sourcemap for "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/node_modules/.pnpm/@workloom+ui@https+++cnb.cool+workloom-ai+workloom-im+-+releases+download+ui-v0.1.19+wo_086870d384add426af4f926c44614b7c/node_modules/@workloom/ui/dist/icons.js" points to missing source files
+Sourcemap for "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/node_modules/.pnpm/@workloom+ui@https+++cnb.cool+workloom-ai+workloom-im+-+releases+download+ui-v0.1.19+wo_086870d384add426af4f926c44614b7c/node_modules/@workloom/ui/dist/managed-surface.js" points to missing source files
+Sourcemap for "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/node_modules/.pnpm/@workloom+ui@https+++cnb.cool+workloom-ai+workloom-im+-+releases+download+ui-v0.1.19+wo_086870d384add426af4f926c44614b7c/node_modules/@workloom/ui/dist/modal-document-state.js" points to missing source files
+Sourcemap for "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/node_modules/.pnpm/@workloom+ui@https+++cnb.cool+workloom-ai+workloom-im+-+releases+download+ui-v0.1.19+wo_086870d384add426af4f926c44614b7c/node_modules/@workloom/ui/dist/overlay-manager.js" points to missing source files
+Sourcemap for "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/node_modules/.pnpm/@workloom+ui@https+++cnb.cool+workloom-ai+workloom-im+-+releases+download+ui-v0.1.19+wo_086870d384add426af4f926c44614b7c/node_modules/@workloom/ui/dist/overlay-stack.js" points to missing source files
+Sourcemap for "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/node_modules/.pnpm/@workloom+ui@https+++cnb.cool+workloom-ai+workloom-im+-+releases+download+ui-v0.1.19+wo_086870d384add426af4f926c44614b7c/node_modules/@workloom/ui/dist/color-contrast.js" points to missing source files
+Sourcemap for "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/node_modules/.pnpm/@workloom+ui@https+++cnb.cool+workloom-ai+workloom-im+-+releases+download+ui-v0.1.19+wo_086870d384add426af4f926c44614b7c/node_modules/@workloom/ui/dist/layout-controls.js" points to missing source files
+Sourcemap for "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/node_modules/.pnpm/@workloom+ui@https+++cnb.cool+workloom-ai+workloom-im+-+releases+download+ui-v0.1.19+wo_086870d384add426af4f926c44614b7c/node_modules/@workloom/ui/dist/components.js" points to missing source files
+Sourcemap for "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/node_modules/.pnpm/@workloom+ui@https+++cnb.cool+workloom-ai+workloom-im+-+releases+download+ui-v0.1.19+wo_086870d384add426af4f926c44614b7c/node_modules/@workloom/ui/dist/primitives.js" points to missing source files
+Sourcemap for "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/node_modules/.pnpm/@workloom+ui@https+++cnb.cool+workloom-ai+workloom-im+-+releases+download+ui-v0.1.19+wo_086870d384add426af4f926c44614b7c/node_modules/@workloom/ui/dist/forms.js" points to missing source files
+Sourcemap for "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/node_modules/.pnpm/@workloom+ui@https+++cnb.cool+workloom-ai+workloom-im+-+releases+download+ui-v0.1.19+wo_086870d384add426af4f926c44614b7c/node_modules/@workloom/ui/dist/overlays.js" points to missing source files
+Sourcemap for "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/node_modules/.pnpm/@workloom+ui@https+++cnb.cool+workloom-ai+workloom-im+-+releases+download+ui-v0.1.19+wo_086870d384add426af4f926c44614b7c/node_modules/@workloom/ui/dist/states.js" points to missing source files
+Sourcemap for "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/node_modules/.pnpm/@workloom+ui@https+++cnb.cool+workloom-ai+workloom-im+-+releases+download+ui-v0.1.19+wo_086870d384add426af4f926c44614b7c/node_modules/@workloom/ui/dist/shell.js" points to missing source files
+Sourcemap for "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/node_modules/.pnpm/@workloom+ui@https+++cnb.cool+workloom-ai+workloom-im+-+releases+download+ui-v0.1.19+wo_086870d384add426af4f926c44614b7c/node_modules/@workloom/ui/dist/patterns.js" points to missing source files
+Sourcemap for "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/node_modules/.pnpm/@workloom+ui@https+++cnb.cool+workloom-ai+workloom-im+-+releases+download+ui-v0.1.19+wo_086870d384add426af4f926c44614b7c/node_modules/@workloom/ui/dist/data.js" points to missing source files
+ [32m✓[39m src/lib/display.test.ts [2m([22m[2m11 tests[22m[2m)[22m[33m 549[2mms[22m[39m
+     [33m[2m✓[22m[39m 只从当前 Bundle 投影读取岗位、动作和字段显示名 [33m 482[2mms[22m[39m
+ [32m✓[39m src/voice/VoiceEngine.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 240[2mms[22m[39m
+ [32m✓[39m src/voice/neuralVoice.test.ts [2m([22m[2m15 tests[22m[2m)[22m[32m 98[2mms[22m[39m
+ [32m✓[39m src/onboarding/questline.test.ts [2m([22m[2m30 tests[22m[2m)[22m[33m 650[2mms[22m[39m
+     [33m[2m✓[22m[39m [ai-video] 四关齐备且引用岗位与行业包一致 [33m 328[2mms[22m[39m
+ [32m✓[39m src/lib/trpc.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 3210[2mms[22m[39m
+     [33m[2m✓[22m[39m ensureGuestSession（历史别名）不再签发游客，而是以店主登录 [33m 3078[2mms[22m[39m
+ [32m✓[39m src/shell/AffordanceConsistency.test.ts [2m([22m[2m1 test[22m[2m)[22m[33m 4110[2mms[22m[39m
+     [33m[2m✓[22m[39m 跨三端扫描：actionLabel 与 onAction 同时出现 [33m 4101[2mms[22m[39m
+ [32m✓[39m src/onboarding/useWelcomeProgress.test.tsx [2m([22m[2m4 tests[22m[2m)[22m[32m 112[2mms[22m[39m
+ [32m✓[39m src/components/UrlQrCode.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 15[2mms[22m[39m
+ [32m✓[39m src/components/loommate/MateLive2D.test.tsx [2m([22m[2m4 tests[22m[2m)[22m[32m 241[2mms[22m[39m
+ [32m✓[39m src/components/loomball/LoomBall.disabled.test.tsx [2m([22m[2m1 test[22m[2m)[22m[33m 715[2mms[22m[39m
+     [33m[2m✓[22m[39m VITE_LOOMBALL=0 → 等尺寸空盒，不挂引擎、不留全局 [33m 700[2mms[22m[39m
+ [32m✓[39m src/components/loomball/LoomBall.test.tsx [2m([22m[2m3 tests[22m[2m)[22m[32m 123[2mms[22m[39m
+ [32m✓[39m src/voice/SubtitleBar.test.tsx [2m([22m[2m4 tests[22m[2m)[22m[32m 270[2mms[22m[39m
+ [32m✓[39m src/lib/ui-state.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 79[2mms[22m[39m
+ [32m✓[39m src/shell/PageExitAffordance.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 117[2mms[22m[39m
+ [32m✓[39m src/lib/naming.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 5[2mms[22m[39m
+ [32m✓[39m src/shell/NavMenu.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 5[2mms[22m[39m
+ [32m✓[39m src/components/loomball/agent-emotion.test.ts [2m([22m[2m11 tests[22m[2m)[22m[32m 75[2mms[22m[39m
+ [32m✓[39m src/lib/clientText.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 14[2mms[22m[39m
+ [32m✓[39m src/lib/theaterDiff.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 6[2mms[22m[39m
+ [32m✓[39m src/pages/onboarding/systemText.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 24[2mms[22m[39m
+ [32m✓[39m src/components/welcomeScripts.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 25[2mms[22m[39m
+ [32m✓[39m src/pages/p23/systemText.test.ts [2m([22m[2m1 test[22m[2m)[22m[32m 8[2mms[22m[39m
+ [32m✓[39m src/pages/accounts/systemText.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 4[2mms[22m[39m
+ [32m✓[39m src/components/loommate/speechText.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 5[2mms[22m[39m
+ [32m✓[39m src/shell/OverlayExitAffordance.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 22[2mms[22m[39m
+ [32m✓[39m src/shell/IndustryRoutes.test.tsx [2m([22m[2m11 tests[22m[2m)[22m[32m 54[2mms[22m[39m
+ [32m✓[39m src/components/loomball/engine.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 51[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m28 passed[39m[22m[90m (28)[39m
+[2m      Tests [22m [1m[32m150 passed[39m[22m[90m (150)[39m
+[2m   Start at [22m 02:25:29
+[2m   Duration [22m 32.65s[2m (transform 30.33s, setup 0ms, import 50.61s, tests 11.30s, environment 64.15s)[22m
+

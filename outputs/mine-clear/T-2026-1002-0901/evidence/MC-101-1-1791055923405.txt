@@ -1,0 +1,5 @@
+✅ runtime 依赖锁有效：workloom-ai-growth · 12 个直接依赖
+
+
+exit_code=0 signal=none error=none
+assertion_validation={"ok":true,"errors":[]}

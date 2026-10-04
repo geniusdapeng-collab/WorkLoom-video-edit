@@ -1,0 +1,52 @@
+COMMAND ["/usr/bin/python3", "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/run_execution_repair.py", "--source", "7fee3a6a5563d41c568463994764d3883eb7667d"]
+{"card": "MC-001", "started_at": "2026-10-03T21:23:03.409553+08:00", "role": "repair"}
+{"card": "MC-001", "exit_code": 0, "pass": true}
+{"card": "MC-002", "started_at": "2026-10-03T21:23:04.284770+08:00", "role": "repair"}
+{"card": "MC-002", "exit_code": 0, "pass": true}
+{"card": "MC-003", "started_at": "2026-10-03T21:23:04.590121+08:00", "role": "repair"}
+{"card": "MC-003", "exit_code": 0, "pass": true}
+{"card": "MC-004", "started_at": "2026-10-03T21:23:05.621754+08:00", "role": "repair"}
+{"card": "MC-004", "exit_code": 0, "pass": true}
+{"card": "MC-005", "started_at": "2026-10-03T21:23:06.731081+08:00", "role": "repair"}
+{"card": "MC-005", "exit_code": 0, "pass": true}
+{"card": "MC-006", "started_at": "2026-10-03T21:23:14.274643+08:00", "role": "repair"}
+{"card": "MC-006", "exit_code": 0, "pass": true}
+{"card": "MC-007", "started_at": "2026-10-03T21:23:19.362099+08:00", "role": "repair"}
+{"card": "MC-007", "exit_code": 0, "pass": true}
+{"card": "MC-008", "started_at": "2026-10-03T21:23:20.083539+08:00", "role": "repair"}
+{"card": "MC-008", "exit_code": 0, "pass": true}
+{"card": "MC-009", "started_at": "2026-10-03T21:23:20.812515+08:00", "role": "repair"}
+{"card": "MC-009", "exit_code": 0, "pass": true}
+{"card": "MC-010", "started_at": "2026-10-03T21:23:21.577919+08:00", "role": "repair"}
+{"card": "MC-010", "exit_code": 0, "pass": true}
+{"card": "MC-011", "started_at": "2026-10-03T21:23:22.419371+08:00", "role": "repair"}
+{"card": "MC-011", "exit_code": 0, "pass": true}
+{"card": "MC-012", "started_at": "2026-10-03T21:23:23.178870+08:00", "role": "repair"}
+{"card": "MC-012", "exit_code": 0, "pass": true}
+{"card": "MC-013", "started_at": "2026-10-03T21:23:23.973131+08:00", "role": "repair"}
+{"card": "MC-013", "exit_code": 0, "pass": true}
+{"card": "MC-014", "started_at": "2026-10-03T21:23:27.501382+08:00", "role": "repair"}
+{"card": "MC-014", "exit_code": 0, "pass": true}
+{"card": "MC-015", "started_at": "2026-10-03T21:23:29.908570+08:00", "role": "repair"}
+{"card": "MC-015", "exit_code": 0, "pass": true}
+{"card": "MC-016", "started_at": "2026-10-03T21:23:30.417208+08:00", "role": "repair"}
+{"card": "MC-016", "exit_code": 1, "pass": false}
+{
+  "id": "MC-016",
+  "actor": "codex-root-T-2026-1002-0901",
+  "role": "repair",
+  "result": "fail",
+  "commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+  "assertions": [
+    {
+      "result": "fail",
+      "run": {
+        "path": "runs/MC-016-0-1791033810501.json",
+        "sha256": "be6a1d83714e81eaa0bba5e9e46c9edb2df8fb768ba01c72d588af4ec4d0b022",
+        "commit": "7fee3a6a5563d41c568463994764d3883eb7667d"
+      }
+    }
+  ]
+}
+ 
+Actual repair assertion failed; retained original run and invalidated card require inspection

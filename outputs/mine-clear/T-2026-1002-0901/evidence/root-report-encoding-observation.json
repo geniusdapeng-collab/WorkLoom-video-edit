@@ -1,0 +1,13 @@
+{
+  "source_commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+  "product_source_changed": false,
+  "original_entry_failure": "final-report-1e471.log",
+  "original_builder": "outputs/growth-production-fix-2026-10-02/history/root-report-builder-pre-encoding.py",
+  "original_builder_sha256": "eda19fe7340007ce40d2592b11e26a1eaddcd6cd47f1187d5ad39772aa770ea8",
+  "new_builder_sha256": "47879bda7fbb7966aca75eed6ddc46437d8b246886fb516b0d80631104acc074",
+  "strict_original_utf8_decode_and_compile_passed": true,
+  "full_module_ast_equal": true,
+  "change": "Only explicit source encoding declaration; no guard or output-generation statement omitted",
+  "official_encoding_declaration_reference": "https://docs.python.org/3/reference/lexical_analysis.html#encoding-declarations",
+  "unique_failure_cause_proven": false
+}

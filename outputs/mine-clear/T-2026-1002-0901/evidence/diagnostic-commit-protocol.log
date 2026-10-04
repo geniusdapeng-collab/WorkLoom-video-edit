@@ -1,0 +1,4 @@
+COMMAND ["/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node", "--env-file=.env", "scripts/ci/verify-commit-msg.mjs", "--repo", "workloom-ai/WorkLoom-growth"]
+✓ f9515d09ee6d fix(growth): redact diagnostics and recover save failures [T-2026-1002-0901]
+
+✓ 提交信息校验通过（1 条，范围 HEAD~1..HEAD）

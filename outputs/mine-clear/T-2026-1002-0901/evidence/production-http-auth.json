@@ -1,0 +1,14 @@
+{
+  "name": "production-http-auth",
+  "command": [
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+    "--env-file=.env",
+    "work/../../auth-production-acceptance.mjs",
+    "--repo",
+    "."
+  ],
+  "exit_code": 0,
+  "seconds": 6.517,
+  "ran_at": "2026-10-02T21:39:16.944743+08:00",
+  "log": "production-http-auth.log"
+}

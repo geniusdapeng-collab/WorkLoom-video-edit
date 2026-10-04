@@ -1,0 +1,81 @@
+{
+  "database": "growth_audit owned fake fixtures only",
+  "workspace": "ws-geo",
+  "rows": [
+    {
+      "event_id": "E-13023",
+      "seq": "4108",
+      "kind": null,
+      "ts": null,
+      "actor_kind": null,
+      "actor_type": "system",
+      "actor_id": "system",
+      "object_type": "server_request",
+      "action": "system.error",
+      "has_after": true,
+      "has_receipt": false,
+      "has_model_trace": false,
+      "has_who": true
+    },
+    {
+      "event_id": "E-13022",
+      "seq": "4107",
+      "kind": null,
+      "ts": null,
+      "actor_kind": null,
+      "actor_type": "system",
+      "actor_id": "system",
+      "object_type": "server_request",
+      "action": "system.error",
+      "has_after": true,
+      "has_receipt": false,
+      "has_model_trace": false,
+      "has_who": true
+    },
+    {
+      "event_id": "E-13021",
+      "seq": "4106",
+      "kind": null,
+      "ts": null,
+      "actor_kind": null,
+      "actor_type": "system",
+      "actor_id": "system",
+      "object_type": "server_request",
+      "action": "system.error",
+      "has_after": true,
+      "has_receipt": false,
+      "has_model_trace": false,
+      "has_who": true
+    },
+    {
+      "event_id": "E-13020",
+      "seq": "4105",
+      "kind": null,
+      "ts": null,
+      "actor_kind": null,
+      "actor_type": "system",
+      "actor_id": "system",
+      "object_type": "server_request",
+      "action": "system.error",
+      "has_after": true,
+      "has_receipt": false,
+      "has_model_trace": false,
+      "has_who": true
+    },
+    {
+      "event_id": "E-13019",
+      "seq": "4104",
+      "kind": null,
+      "ts": null,
+      "actor_kind": null,
+      "actor_type": "system",
+      "actor_id": "system",
+      "object_type": "server_request",
+      "action": "system.error",
+      "has_after": true,
+      "has_receipt": false,
+      "has_model_trace": false,
+      "has_who": true
+    }
+  ]
+}

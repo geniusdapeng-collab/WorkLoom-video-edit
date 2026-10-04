@@ -1,0 +1,83 @@
+COMMAND ["/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node", "--env-file=.env", "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/pnpm/bin/pnpm.cjs", "--filter", "@workloom/web", "exec", "vitest", "run", "src/components/loommate/MateLive2D.test.tsx"]
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - import "./vite.config" without a file extension (vitest.config.ts:10:24). Add the file extension
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+
+[1m[30m[46m RUN [49m[39m[22m [36mv4.1.11 [39m[90m/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/apps/web[39m
+
+ [31m❯[39m src/components/loommate/MateLive2D.test.tsx [2m([22m[2m4 tests[22m[2m | [22m[31m3 failed[39m[2m)[22m[33m 1200[2mms[22m[39m
+[31m     [31m×[31m 插件 import 期间退出，不创建已失去容器的 Pixi 实例[39m[33m 759[2mms[22m[39m
+[31m     [31m×[31m 模型到达前退出，销毁迟到模型且不回写 ready[39m[32m 137[2mms[22m[39m
+[31m     [31m×[31m 表情加载期间退出，不安装旧组件的动作和时钟[39m[32m 41[2mms[22m[39m
+     [32m✓[39m 保持挂载时仍完成模型、手势与实际首次渲染[32m 252[2mms[22m[39m
+
+[31m⎯⎯⎯⎯⎯⎯⎯[39m[1m[41m Failed Tests 3 [49m[22m[31m⎯⎯⎯⎯⎯⎯⎯[39m
+
+[41m[1m FAIL [22m[49m src/components/loommate/MateLive2D.test.tsx[2m > [22m数字人异步加载的组件归属[2m > [22m插件 import 期间退出，不创建已失去容器的 Pixi 实例
+[31m[1mAssertionError[22m: expected [ Application{ …(5) } ] to have a length of +0 but got 1[39m
+
+[32m- Expected[39m
+[31m+ Received[39m
+
+[32m- 0[39m
+[31m+ 1[39m
+
+[36m [2m❯[22m src/components/loommate/MateLive2D.test.tsx:[2m88:23[22m[39m
+    [90m 86|[39m     fake[33m.[39m[34mfinishImport[39m()[33m;[39m
+    [90m 87|[39m     [35mawait[39m [34mflush[39m()[33m;[39m
+    [90m 88|[39m     [34mexpect[39m(fake[33m.[39mapps)[33m.[39m[34mtoHaveLength[39m([34m0[39m)[33m;[39m
+    [90m   |[39m                       [31m^[39m
+    [90m 89|[39m     [34mexpect[39m(fake[33m.[39m[35mfrom[39m)[33m.[39mnot[33m.[39m[34mtoHaveBeenCalled[39m()[33m;[39m
+    [90m 90|[39m     expect((window as unknown as { __loommateL2DErr?: string }).__loom…
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/3]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/components/loommate/MateLive2D.test.tsx[2m > [22m数字人异步加载的组件归属[2m > [22m模型到达前退出，销毁迟到模型且不回写 ready
+[31m[1mAssertionError[22m: expected "vi.fn()" to be called once, but got 0 times[39m
+[36m [2m❯[22m src/components/loommate/MateLive2D.test.tsx:[2m104:26[22m[39m
+    [90m102|[39m     pending[33m.[39m[34mresolve[39m(late)[33m;[39m
+    [90m103|[39m     [35mawait[39m [34mflush[39m()[33m;[39m
+    [90m104|[39m     [34mexpect[39m(late[33m.[39mdestroy)[33m.[39m[34mtoHaveBeenCalledOnce[39m()[33m;[39m
+    [90m   |[39m                          [31m^[39m
+    [90m105|[39m     [34mexpect[39m(fake[33m.[39mapps[[34m0[39m][33m![39m[33m.[39mdestroy)[33m.[39m[34mtoHaveBeenCalledOnce[39m()[33m;[39m
+    [90m106|[39m     [34mexpect[39m(onReady)[33m.[39mnot[33m.[39m[34mtoHaveBeenCalled[39m()[33m;[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/3]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m src/components/loommate/MateLive2D.test.tsx[2m > [22m数字人异步加载的组件归属[2m > [22m表情加载期间退出，不安装旧组件的动作和时钟
+[31m[1mAssertionError[22m: expected "vi.fn()" to not be called at all, but actually been called 1 times[90m
+
+Received:
+
+[1m  1st vi.fn() call:
+
+[22m    Array [
+      Object {
+        "gesture": [Function gesture],
+        "setMood": [Function setMood],
+        "speakWithAudio": [Function speakWithAudio],
+      },
+    ]
+[31m[90m
+
+Number of calls: [1m1[22m
+[31m[39m
+[36m [2m❯[22m src/components/loommate/MateLive2D.test.tsx:[2m121:25[22m[39m
+    [90m119|[39m     expression[33m.[39m[34mresolve[39m([35mtrue[39m)[33m;[39m
+    [90m120|[39m     [35mawait[39m [34mflush[39m()[33m;[39m
+    [90m121|[39m     [34mexpect[39m(onReady)[33m.[39mnot[33m.[39m[34mtoHaveBeenCalled[39m()[33m;[39m
+    [90m   |[39m                         [31m^[39m
+    [90m122|[39m     [34mexpect[39m(window[33m.[39m__loommateLive2DReady)[33m.[39m[34mtoBeUndefined[39m()[33m;[39m
+    [90m123|[39m     [34mexpect[39m(window[33m.[39m__loommateExercise)[33m.[39m[34mtoBeUndefined[39m()[33m;[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/3]⎯[22m[39m
+
+
+[2m Test Files [22m [1m[31m1 failed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[31m3 failed[39m[22m[2m | [22m[1m[32m1 passed[39m[22m[90m (4)[39m
+[2m   Start at [22m 01:08:07
+[2m   Duration [22m 18.67s[2m (transform 1.49s, setup 0ms, import 2.53s, tests 1.20s, environment 12.54s)[22m
+
+undefined
+/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/apps/web:
+ ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL  Command failed with exit code 1: vitest run src/components/loommate/MateLive2D.test.tsx

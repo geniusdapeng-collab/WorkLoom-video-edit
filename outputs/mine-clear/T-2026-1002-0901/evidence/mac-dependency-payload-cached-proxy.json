@@ -1,0 +1,17 @@
+{
+  "name": "mac-dependency-payload-cached-proxy",
+  "command": [
+    "bash",
+    "scripts/pack-electron-payload.sh",
+    "--platform",
+    "mac",
+    "--arch",
+    "arm64",
+    "--version",
+    "v0.1.0-fix.20261003.6"
+  ],
+  "exit_code": 0,
+  "seconds": 215.768,
+  "ran_at": "2026-10-03T23:47:21.895842+08:00",
+  "log": "mac-dependency-payload-cached-proxy.log"
+}

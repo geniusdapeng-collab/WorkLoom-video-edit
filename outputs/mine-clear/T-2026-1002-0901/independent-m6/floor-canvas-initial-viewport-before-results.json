@@ -1,0 +1,103 @@
+{
+  "schema": "growth.independent-m6/floor-canvas-painted@2",
+  "verifier": "growth_m6",
+  "source_commit": "b8b349fc88a3ed0b873d23720bf4d3d845500408",
+  "baseline_mode": false,
+  "source_root": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit",
+  "source_hashes": {
+    "apps/web/src/pages/p0/Floor.tsx": "cf98843676cfc2a12e43734c240f38f7ea0c6a3afce7a988d2c232de611d79f1",
+    "apps/web/src/lib/naming.ts": "8d05e0df3b163ab4186e577af1555d1b9e389ded97a0ad1faad3f3a993b946bd",
+    "bundles/geo-growth/floor-scene.json": "944aef23a59f2eaffa4899edb3aaf8895bcade8dac81926a4b32ef4ff37bee32",
+    "apps/web/src/pages/p0/floor-layout.ts": "82966a7d1f10974b8e3d88b1cf83988cb9b83befbfe92f381862ebc3b336f285"
+  },
+  "actual_installed_ui_language_sha256": "f6a052cc7994cfe68430f353f8d09b0cecf2dcb005a74a64b0d7257d457bdec2",
+  "browser": "154.0.8037.95",
+  "scenarios": [
+    {
+      "id": "first-long65-idle-390",
+      "state": "idle",
+      "stations": "none",
+      "width": 390,
+      "count": 65
+    },
+    {
+      "id": "first-long65-working-1440",
+      "state": "working",
+      "stations": "shared",
+      "width": 1440,
+      "count": 65
+    }
+  ],
+  "cases": [
+    {
+      "id": "first-long65-idle-390-initial-visible-card",
+      "expected": "At least one employee plaque is initially visible without scrolling after the first actual paint frame",
+      "actual": {
+        "visible": [],
+        "region": {
+          "x": 16,
+          "y": 16,
+          "width": 358,
+          "height": 380,
+          "scrollLeft": 0,
+          "scrollTop": 0
+        },
+        "canvas": {
+          "x": 16,
+          "y": 16,
+          "width": 1590,
+          "height": 1686,
+          "pixelWidth": 1590,
+          "pixelHeight": 1686
+        },
+        "labels": 65
+      },
+      "pass": false,
+      "error": "No actor plaque visible in initial 358x380 region"
+    },
+    {
+      "id": "first-long65-working-1440-initial-visible-card",
+      "expected": "At least one employee plaque is initially visible without scrolling after the first actual paint frame",
+      "actual": {
+        "visible": [
+          "m6-floor-22"
+        ],
+        "region": {
+          "x": 336,
+          "y": 16,
+          "width": 768,
+          "height": 440,
+          "scrollLeft": 0,
+          "scrollTop": 0
+        },
+        "canvas": {
+          "x": 336,
+          "y": 16,
+          "width": 2522,
+          "height": 1449,
+          "pixelWidth": 2522,
+          "pixelHeight": 1449
+        },
+        "labels": 65
+      },
+      "pass": true
+    },
+    {
+      "id": "owned-canvas-no-errors-or-network",
+      "expected": "No page error or external network request occurred in the actual isolated Floor component fixture",
+      "actual": {
+        "errors": [],
+        "blockedRequests": []
+      },
+      "pass": true
+    }
+  ],
+  "passed": 2,
+  "failed": 1,
+  "fixture": "Actual imported FloorView (exact git blobs when baseline_mode), installed clientChineseText and GEO scene; real Canvas native fill path bounds, TextMetrics and painted head circles; actual mouse callbacks with per-click deltas. RAF runs one real component paint frame at initial mount. No product layout or hitbox method is copied or replaced.",
+  "observation_change": "Additional initial-viewport discoverability expectation, independent of offscreen reachability; earlier 24 and 14 control receipts retained unchanged. Measures actual filled path backgrounds and painted heads instead of inferring rectangles/centers from the original two-line baseline. Explicitly checks per-click callback increments; scrolls actual overflow containers before pointer clicks. Original observer and 6/18 red receipt are preserved separately.",
+  "limitation": "Isolated desktop component fixture, not a native cold run, real phone or complete UX study. Valid synthetic floor payloads; no production DB or media provider calls.",
+  "metrics_reference": "https://html.spec.whatwg.org/multipage/canvas.html#textmetrics",
+  "errors": [],
+  "blockedRequests": []
+}

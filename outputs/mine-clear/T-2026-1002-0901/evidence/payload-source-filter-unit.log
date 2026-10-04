@@ -1,0 +1,17 @@
+COMMAND ["/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node", "--env-file=.env", "--test", "scripts/pack-workspace-modules.test.mjs"]
+✔ 搬动原工作区副本会破坏仓库相对引用，新注册保留同一模块实例 (790.891ms)
+✔ 子路径、条件 exports 和类型入口都引用保留的真实源文件 (175.326959ms)
+✔ 缺失构建产物在打包时失败，不留到客户启动时 (5.314166ms)
+✔ 包名称重复、路径越界和未支持的入口协议均失败关闭 (17.605708ms)
+✔ 行业载荷不会因目录存在而注册仙女座的 platform-ops (13.919125ms)
+✔ 源码装配不遍历 pnpm 循环链接或嵌套开发依赖，仍保留实际构建产物 (16.03025ms)
+✔ 源码装配拒绝仓库越界和目标递归，不读取外部链接 (17.357875ms)
+✔ 源码复制 CLI 保留中文空格路径并以失败退出码报告缺参 (237.618958ms)
+ℹ tests 8
+ℹ suites 0
+ℹ pass 8
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1679.619875

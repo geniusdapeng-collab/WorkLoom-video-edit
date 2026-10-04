@@ -1,0 +1,13 @@
+{
+  "name": "post-unblock-public-bundle",
+  "command": [
+    "python3",
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/build_public_growth_bundle.py",
+    "--stage",
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-public-stage-final-1e47"
+  ],
+  "exit_code": 0,
+  "seconds": 2.706,
+  "ran_at": "2026-10-04T07:45:31.412880+08:00",
+  "log": "post-unblock-public-bundle.log"
+}

@@ -1,0 +1,16 @@
+{
+  "name": "film-worker-core",
+  "command": [
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+    "--env-file=.env",
+    "--import",
+    "tsx",
+    "../film-worker-acceptance.mts",
+    "--repo",
+    "."
+  ],
+  "exit_code": 1,
+  "seconds": 1.26,
+  "ran_at": "2026-10-02T21:03:10.029885+08:00",
+  "log": "film-worker-core.log"
+}

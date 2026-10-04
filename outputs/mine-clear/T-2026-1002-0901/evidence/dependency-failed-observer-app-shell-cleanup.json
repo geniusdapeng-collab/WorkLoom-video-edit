@@ -1,0 +1,25 @@
+{
+  "source_commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+  "path": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/依赖修复 客户应用/WorkLoom 获客增长系统（实验车道）.app",
+  "reason": "Owned failed observer installation was never launched; complete original packaged application remains, hash verified before removing this duplicate shell",
+  "retained_original": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/release-dependency/mac-arm64/WorkLoom 获客增长系统（实验车道）.app",
+  "files": [
+    {
+      "file": "Contents/Resources/app.asar",
+      "sha256": "68f4c953a300237a55ceedb0e0dc7c77f361c581cbac046aed8a49431471706c",
+      "equals_preserved_packaged_original": true
+    },
+    {
+      "file": "Contents/Resources/payload.tar.gz",
+      "sha256": "89d813bd9bee83c7471b623dbb43c7c9d702afa78e3fe06bcf94adec02a33a53",
+      "equals_preserved_packaged_original": true
+    },
+    {
+      "file": "Contents/Info.plist",
+      "sha256": "441ec80eb368263be6db3655c4f75ca821865014ddc3189fb4d4ea7409f3fc94",
+      "equals_preserved_packaged_original": true
+    }
+  ],
+  "native_process_started": false,
+  "customer_support_or_database_removed": false
+}

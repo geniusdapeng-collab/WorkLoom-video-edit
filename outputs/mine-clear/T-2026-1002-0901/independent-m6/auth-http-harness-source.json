@@ -1,0 +1,9 @@
+{
+  "source": "work/auth-production-acceptance.mjs",
+  "source_sha256": "9bafa9b3cb50647dcac71496842634d923d4ae05d2b2321fcd3dbfa7e83688c8",
+  "changes": [
+    "fixture path made absolute",
+    "results written in independent-m6",
+    "owned HTTP port 28978"
+  ]
+}

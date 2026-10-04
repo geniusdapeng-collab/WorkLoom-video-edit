@@ -1,0 +1,41 @@
+{
+  "schema": "workloom.evidence-run/v1",
+  "id": "MC-102-0-1791055925539",
+  "command": "/Library/Developer/CommandLineTools/usr/bin/python3 /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/run_isolated_replay.py --repo /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit --source 1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8 --group auth",
+  "exec": {
+    "file": "/Library/Developer/CommandLineTools/usr/bin/python3",
+    "args": [
+      "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/run_isolated_replay.py",
+      "--repo",
+      "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit",
+      "--source",
+      "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+      "--group",
+      "auth"
+    ]
+  },
+  "actor": "codex-root-T-2026-1002-0901",
+  "role": "repair",
+  "subject": {
+    "card_id": "MC-102",
+    "assertion_index": 0
+  },
+  "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+  "working_tree_dirty": false,
+  "started_at": "2026-10-03T19:32:05.539Z",
+  "finished_at": "2026-10-03T19:32:12.215Z",
+  "exit_code": 0,
+  "signal": null,
+  "validation": {
+    "ok": true,
+    "errors": []
+  },
+  "result": "pass",
+  "outputs": [
+    {
+      "path": "evidence/MC-102-0-1791055925539.txt",
+      "sha256": "6353c291f6c23afd784a1c074c4ebe5c3ec0052fd4e2a5c0fb8d15d01070e63f",
+      "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+    }
+  ]
+}

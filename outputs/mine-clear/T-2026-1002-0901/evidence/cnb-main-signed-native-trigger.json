@@ -1,0 +1,23 @@
+{
+  "at": "2026-10-03T23:35:06.723Z",
+  "repository": "workloom-ai/WorkLoom-growth",
+  "request": {
+    "branch": "main",
+    "sha": "f50a0f5be2be4ba053d918e07a94e45cdae4e4c2",
+    "event": "api_trigger_desktop_release",
+    "sync": "false",
+    "title": "Signed desktop candidate v0.1.0 at f50a0f5be2be",
+    "env": {
+      "RELEASE_TAG": "v0.1.0",
+      "RELEASE_SHA": "f50a0f5be2be4ba053d918e07a94e45cdae4e4c2",
+      "PLATFORM_SIGNING": "signed"
+    }
+  },
+  "result": {
+    "sn": "cnb-s2t-1k421u483",
+    "buildLogUrl": "https://cnb.cool/workloom-ai/WorkLoom-growth/-/build/logs/cnb-s2t-1k421u483",
+    "event": "api_trigger_desktop_release",
+    "message": "cnb received, but didn't finish build yet",
+    "success": true
+  }
+}

@@ -1,0 +1,149 @@
+[
+  {
+    "source": "outputs/growth-production-fix-2026-10-02/evidence/ui-responsive.json",
+    "copy": "inherited/evidence__ui-responsive.json",
+    "sha256": "2ff135386551aa45d8664ec95b8448faaa3aee8f4c69843a6feaa3975abebb5f",
+    "origin_verifier": "codex-root-T-2026-1002-0901",
+    "independent_review": "read/parsed only; not claimed independently executed"
+  },
+  {
+    "source": "outputs/growth-production-fix-2026-10-02/evidence/screenshots/growth-desktop-1440.png",
+    "copy": "inherited/evidence__screenshots__growth-desktop-1440.png",
+    "sha256": "3a2f313e8426071b53ad9fe1dfa71c679b4fd61586eff41498ac48c4c68ed0bb",
+    "origin_verifier": "codex-root-T-2026-1002-0901",
+    "independent_review": "read/parsed only; not claimed independently executed"
+  },
+  {
+    "source": "outputs/growth-production-fix-2026-10-02/evidence/screenshots/growth-mobile-390.png",
+    "copy": "inherited/evidence__screenshots__growth-mobile-390.png",
+    "sha256": "a9852c0d78216f3d2369a9d3370af5fc6b47352569e3e1e8dbdf8f4e20917d97",
+    "origin_verifier": "codex-root-T-2026-1002-0901",
+    "independent_review": "read/parsed only; not claimed independently executed"
+  },
+  {
+    "source": "outputs/growth-production-fix-2026-10-02/evidence/mac-client-fresh-production.json",
+    "copy": "inherited/evidence__mac-client-fresh-production.json",
+    "sha256": "03b45c8cecf045cf6f34dd637d44451afe1979d1c07123136458e595962e3f2d",
+    "origin_verifier": "codex-root-T-2026-1002-0901",
+    "independent_review": "read/parsed only; not claimed independently executed"
+  },
+  {
+    "source": "outputs/growth-production-fix-2026-10-02/evidence/mac-client-restart-production.json",
+    "copy": "inherited/evidence__mac-client-restart-production.json",
+    "sha256": "7d57f75bc95981a9cdfe8d27c595416f23e323c1ba815d2d72c2198c0af32ba0",
+    "origin_verifier": "codex-root-T-2026-1002-0901",
+    "independent_review": "read/parsed only; not claimed independently executed"
+  },
+  {
+    "source": "outputs/growth-production-fix-2026-10-02/evidence/mac-client-upgrade-production.json",
+    "copy": "inherited/evidence__mac-client-upgrade-production.json",
+    "sha256": "c4fd3d233ceb3e3db55ea68edde5d18c3b224ef7a279c8dcf55e8e74903807f9",
+    "origin_verifier": "codex-root-T-2026-1002-0901",
+    "independent_review": "read/parsed only; not claimed independently executed"
+  },
+  {
+    "source": "outputs/growth-production-fix-2026-10-02/evidence/mac-client-render-production.json",
+    "copy": "inherited/evidence__mac-client-render-production.json",
+    "sha256": "f6f4fe23125598b2339051040a3c4c177e299e13acc18de7d4417e8b03fc1047",
+    "origin_verifier": "codex-root-T-2026-1002-0901",
+    "independent_review": "read/parsed only; not claimed independently executed"
+  },
+  {
+    "source": "outputs/growth-production-fix-2026-10-02/evidence/mac-client-safe-production.json",
+    "copy": "inherited/evidence__mac-client-safe-production.json",
+    "sha256": "38369cbab7012a60fcca6dd54a737f71e697b8f0364add065414dc95ac02987f",
+    "origin_verifier": "codex-root-T-2026-1002-0901",
+    "independent_review": "read/parsed only; not claimed independently executed"
+  },
+  {
+    "source": "outputs/growth-production-fix-2026-10-02/evidence/mac-dmg-smoke-session-final.json",
+    "copy": "inherited/evidence__mac-dmg-smoke-session-final.json",
+    "sha256": "3d55056e58d5a19dbc61f936af050f02d24979efc01e63aa3d414657d859532e",
+    "origin_verifier": "codex-root-T-2026-1002-0901",
+    "independent_review": "read/parsed only; not claimed independently executed"
+  },
+  {
+    "source": "outputs/growth-production-fix-2026-10-02/evidence/client-生产修复 首次客户/render-default.json",
+    "copy": "inherited/evidence__client-生产修复 首次客户__render-default.json",
+    "sha256": "8dd1641400b3cb40b4116c1d5ff17b4cfdd0992a58d2102dbb8cdd1d1c52aa25",
+    "origin_verifier": "codex-root-T-2026-1002-0901",
+    "independent_review": "read/parsed only; not claimed independently executed"
+  },
+  {
+    "source": "outputs/growth-production-fix-2026-10-02/evidence/client-生产修复 首次客户/render-safe.json",
+    "copy": "inherited/evidence__client-生产修复 首次客户__render-safe.json",
+    "sha256": "4bfe8ad448f6a869bc93c8009d150732aaf7e7a9e98aa29d4762146aa25ad76c",
+    "origin_verifier": "codex-root-T-2026-1002-0901",
+    "independent_review": "read/parsed only; not claimed independently executed"
+  },
+  {
+    "source": "outputs/growth-production-fix-2026-10-02/evidence/portrait-cli-production-final-fixed.json",
+    "copy": "inherited/evidence__portrait-cli-production-final-fixed.json",
+    "sha256": "0299568ea51b5323ab135e873fdc557db7f85a78df881dc688b372acb97fa716",
+    "origin_verifier": "codex-root-T-2026-1002-0901",
+    "independent_review": "read/parsed only; not claimed independently executed"
+  },
+  {
+    "source": "outputs/growth-production-fix-2026-10-02/evidence/portrait-cli-production-final-fixed.log",
+    "copy": "inherited/evidence__portrait-cli-production-final-fixed.log",
+    "sha256": "4384895aae32e21121d504f7980a489d3120d2369b2203d586830505367752a8",
+    "origin_verifier": "codex-root-T-2026-1002-0901",
+    "independent_review": "read/parsed only; not claimed independently executed"
+  },
+  {
+    "source": "outputs/growth-production-fix-2026-10-02/evidence/release-gate-production-final.json",
+    "copy": "inherited/evidence__release-gate-production-final.json",
+    "sha256": "5f327765165027979672b47a0719078b518a35326a9c0468e5f0b18d9eb37998",
+    "origin_verifier": "codex-root-T-2026-1002-0901",
+    "independent_review": "read/parsed only; not claimed independently executed"
+  },
+  {
+    "source": "outputs/growth-production-fix-2026-10-02/evidence/release-gate-production-final.log",
+    "copy": "inherited/evidence__release-gate-production-final.log",
+    "sha256": "db357549410e640124b611931c7d65394008f9796f1fb35856c8c4324f9c8c38",
+    "origin_verifier": "codex-root-T-2026-1002-0901",
+    "independent_review": "read/parsed only; not claimed independently executed"
+  },
+  {
+    "source": "outputs/growth-production-fix-2026-10-02/evidence/full-scenes-production-corrected.json",
+    "copy": "inherited/evidence__full-scenes-production-corrected.json",
+    "sha256": "ad5fcdb5ab671c18fa90320de7380fc0803d49399435d563fbf4678ad0c4b66e",
+    "origin_verifier": "codex-root-T-2026-1002-0901",
+    "independent_review": "read/parsed only; not claimed independently executed"
+  },
+  {
+    "source": "outputs/growth-production-fix-2026-10-02/evidence/full-scenes-production-corrected.log",
+    "copy": "inherited/evidence__full-scenes-production-corrected.log",
+    "sha256": "aba18062970e929206bb62b97cba3d682558710da15a31e7f875c81391fcf80b",
+    "origin_verifier": "codex-root-T-2026-1002-0901",
+    "independent_review": "read/parsed only; not claimed independently executed"
+  },
+  {
+    "source": "outputs/growth-production-fix-2026-10-02/evidence/static-release-production-final.json",
+    "copy": "inherited/evidence__static-release-production-final.json",
+    "sha256": "9adddfad11ef5f30125d214b815cfb8fde11dc31afd1e682a74935447cf86741",
+    "origin_verifier": "codex-root-T-2026-1002-0901",
+    "independent_review": "read/parsed only; not claimed independently executed"
+  },
+  {
+    "source": "outputs/growth-production-fix-2026-10-02/evidence/static-release-production-final.log",
+    "copy": "inherited/evidence__static-release-production-final.log",
+    "sha256": "97bea8f12b533be502be41b64594bfeabf5086be804378d484184cd93f5f70c3",
+    "origin_verifier": "codex-root-T-2026-1002-0901",
+    "independent_review": "read/parsed only; not claimed independently executed"
+  },
+  {
+    "source": "work/生产修复 首次客户/logs/workplace-default.png",
+    "copy": "inherited/workplace-default.png",
+    "sha256": "67b41f0920ba71616cd76fbdb4af703a41fa72f53d33c4509c5209715c357681",
+    "origin_verifier": "codex-root-T-2026-1002-0901",
+    "independent_review": "image inspected; sample only"
+  },
+  {
+    "source": "work/生产修复 首次客户/logs/stage-default.png",
+    "copy": "inherited/stage-default.png",
+    "sha256": "b003c27f04322def5104ea7b245e850bcb4a39ac70a9c1124a462b9d109c0dfe",
+    "origin_verifier": "codex-root-T-2026-1002-0901",
+    "independent_review": "image inspected; sample only"
+  }
+]

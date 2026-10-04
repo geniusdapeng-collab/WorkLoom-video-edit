@@ -1,0 +1,17 @@
+{
+  "name": "mac-welcome-payload",
+  "command": [
+    "bash",
+    "scripts/pack-electron-payload.sh",
+    "--platform",
+    "mac",
+    "--arch",
+    "arm64",
+    "--version",
+    "v0.1.0-fix.20261003.2"
+  ],
+  "exit_code": 0,
+  "seconds": 641.915,
+  "ran_at": "2026-10-03T02:51:58.651164+08:00",
+  "log": "mac-welcome-payload.log"
+}

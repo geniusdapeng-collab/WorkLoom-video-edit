@@ -1,0 +1,46 @@
+{
+  "source_commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+  "after_cancel_destination_sha256": "30e690d9684d6b68dab2051d2298ff7d451087023eaa95449ddbbd056992dddc",
+  "after_cancel_destination_mode": "0644",
+  "actual_cancel_observed": true,
+  "synthetic_only": true,
+  "actual_startup_failure_page_observed": true,
+  "actual_native_menu": true,
+  "actual_save_dialog": true,
+  "actual_overwrite_confirmation_observed": true,
+  "actual_recovery_page_retained": true,
+  "action_surface": "startup-failure-page-actions",
+  "observer": "/root via mcp__cua_repl",
+  "native_menu_semantics": "Observed failure-page actions, not macOS system menu",
+  "screenshots": [
+    {
+      "file": "native-dependency-diagnostic-failure-page.png",
+      "sha256": "ce9962bccaa98e79864fca14ee6e714177fc58f5d221ce8024fac795d74006ad"
+    },
+    {
+      "file": "native-dependency-diagnostic-save-dialog.png",
+      "sha256": "2378e81007baca3d7c0b0231133f30647f008025010e2fb276670adaf60890dd"
+    },
+    {
+      "file": "native-dependency-diagnostic-overwrite-confirmation.png",
+      "sha256": "559be5efdd42ac92de10e47bf7252edcc6cb880d6a6a02f0c89c74be2e6d22e0"
+    },
+    {
+      "file": "native-dependency-diagnostic-recovery-page.png",
+      "sha256": "56d8230c517058839b9a295df7dcc5a882b2676ee314c1b6ac4a93f19178884d"
+    }
+  ],
+  "state_evidence": "native-dependency-diagnostic-gui-states.json",
+  "observer_errors": [
+    {
+      "action": "cancel-button stale AX id 29 after full tree renumber",
+      "error": "invalid element ID",
+      "recovery": "read current tree then clicked actual Cancel 8"
+    },
+    {
+      "action": "getAXState after safe exit",
+      "error": "App quit",
+      "meaning": "safe exit observed; actual command receipt must separately equal exit 0"
+    }
+  ]
+}

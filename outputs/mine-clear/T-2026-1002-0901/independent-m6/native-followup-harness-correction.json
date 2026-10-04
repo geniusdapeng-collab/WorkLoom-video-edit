@@ -1,0 +1,11 @@
+{
+  "schema": "growth.independent-m6/harness-correction@1",
+  "at": "2026-10-03T03:48:41.236709+08:00",
+  "first_run_exit_code": 1,
+  "first_failure": "verify-native-followup.py line111 AssertionError: warm diagnostic command equality wrongly required no flags",
+  "cause": "Validator treated intentional CDP diagnostic as a no-CDP command; the root receipt carries --remote-debugging-port=29822. This is a harness assertion error, not a product or native run failure.",
+  "correction": "Check exact packaged executable plus exactly one numeric CDP argument for the warm diagnostic; retain exact single-executable assertion for cold default and safe receipts.",
+  "product_source_mutated": false,
+  "root_native_receipts_mutated": false,
+  "private_contents_opened": false
+}

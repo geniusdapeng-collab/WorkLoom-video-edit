@@ -1,0 +1,48 @@
+{
+  "schema": "workloom.mine-clear/baseline@1",
+  "task_id": "T-2026-1002-0901",
+  "repo": "workloom-growth",
+  "repo_path": ".",
+  "remote": "origin",
+  "audit": {
+    "commit": "42ead347c65a5cc343bcd290702d53a7fcdb1687",
+    "branch": "task/T-2026-1002-0901",
+    "remote": "origin",
+    "fetched_at": null,
+    "notes": "匿名 CNB main 已核对；具体结束核对时间见final-source-state.json，不虚填fetch时间。原镜像 main 保持未改。审计源码42ead347，客户端修复后5d0c83e，未修业务代码字节未变。"
+  },
+  "repair": {
+    "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+    "reverified_problem_ids": [
+      "MC-001",
+      "MC-002",
+      "MC-003",
+      "MC-004",
+      "MC-005",
+      "MC-006",
+      "MC-007",
+      "MC-008",
+      "MC-009",
+      "MC-010",
+      "MC-011",
+      "MC-012",
+      "MC-013",
+      "MC-014",
+      "MC-015",
+      "MC-016",
+      "MC-017",
+      "MC-018"
+    ],
+    "notes": "修复前证据保留在原审计目录；本目录记录修复后实际回归及独立 M6 专项结论。"
+  },
+  "acceptance": {
+    "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+    "is_descendant_of_repair": true,
+    "notes": "独立源码专项验收；正式 Windows/Mac 签名及 RDAS 生产域仍另设硬门槛。"
+  },
+  "scope": "Three source baselines derived exactly from the current ledger; native QA and platform conditions are in report.md.",
+  "derivation": {
+    "file": "ledger.json",
+    "original_sha256": "74e7e20c2c1cd386cdb3900c42d9ac5c23e0a2f9afe10535b1c46e2159fda36a"
+  }
+}

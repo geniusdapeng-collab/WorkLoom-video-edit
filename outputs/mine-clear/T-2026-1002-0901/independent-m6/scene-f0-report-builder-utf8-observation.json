@@ -1,0 +1,17 @@
+{
+  "source_commit": "f0a11286a49419fb7909088e2d170f4dde7b60c6",
+  "normal_file_entry_exit": 1,
+  "normal_file_entry_error": "SyntaxError: Non-UTF-8 code starting with byte e4 on line419; no encoding declared",
+  "builder_sha256": "32b99975319c9b3755c9623d46b046a49f437e87d102669823793aca1130d56f",
+  "builder_bytes": 100763,
+  "python": "3.9.6",
+  "strict_utf8_decode": true,
+  "full_ast_parse": true,
+  "full_original_bytes_compile": true,
+  "cause_proven": false,
+  "official_lexical_reference": "https://docs.python.org/3.9/reference/lexical_analysis.html#encoding-declarations",
+  "official_search_known_issue": "Search returned irrelevant results; no known-issue attribution established",
+  "entry_workaround": "Execute entire original bytes via compile(bytes, original absolute filename, exec) in original __file__/__name__ namespace; no source/guard deletions or product edits",
+  "executed_workaround_yet": false,
+  "recorded_at": "2026-10-03T10:47:57.871028+08:00"
+}

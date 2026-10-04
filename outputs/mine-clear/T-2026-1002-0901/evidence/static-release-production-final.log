@@ -1,0 +1,45 @@
+COMMAND ["/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node", "--env-file=.env", "--input-type=module", "-e", "const {spawnSync}=await import(\"node:child_process\"); for (const name of [\"product:verify\",\"projections:check\",\"scan:fences\",\"scan:knowhow\",\"oss:check\"]) { const r=spawnSync(process.execPath,[\"--env-file=.env\",\"../pnpm/bin/pnpm.cjs\",name],{stdio:\"inherit\"}); if(r.status!==0) process.exit(r.status??1); }"]
+
+> workloom-ai-acquisition@0.1.0 product:verify /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit
+> node scripts/verify-product-content.mjs
+
+产品内容完整性检查通过：产品身份、三端入口、发布目标、Bundle 资产、数字员工、技能、桌面种子、语音与场景命名契约一致。
+
+> workloom-ai-acquisition@0.1.0 projections:check /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit
+> tsx scripts/generate-client-projections.mts
+
+✅ C端投影与 geo-growth@1.0.0 清单一致
+
+> workloom-ai-acquisition@0.1.0 scan:fences /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit
+> tsx scripts/tools/fence-alias-scan.mts
+
+围栏别名扫描：geo-growth 组合（hotel + ai-video + geo-growth）· 基线规则 121 条 · 对象 114 类
+✓ 无对象别名缺口（每条规则均覆盖其动作前缀对应的 planner 派生对象）
+ℹ 写动作未经任何围栏覆盖 104 个（advisory）：action_list.emit, ai_task.emit, alert.emit, answer.structure, archive.write_back, audio.design, brief.generate, calendar.schedule, captain.score, ceo.briefing, ceo.queue.scan, citation_list.write, clip.request.write, collab.brief.gen, collab.track, colorwrite.best, conflict.emit, content.draft, conversion.report.write, coverwrite.plan, coverwrite.verify, creative.reedit, creator.outreach, cro.variant.write, deal.closure.report, deal.dunning, deal.lead.capture, deal.quote.draft, decision.escalate.write, dossier.write, evidence.snapshot, explainerwrite.align, explainerwrite.deliver, explainerwrite.gates, explainerwrite.script, explainerwrite.shotbook, explainerwrite.voice, faq.mine, ffmpeg.run, field.repair, fleet.scoreboard, funnel.report, gate.request, gate.review, geo_queue.emit, growth.map.write, growth.plan.write, growth.review.write, hookwrite.card, hookwrite.verify, incrementality.report.write, inquiry.tag, insight.generate, intel_card.emit, intent.signal.emit, ip.asset.register, landing.copy.write, lead.clean, lead.grade, lead.route.write, lead.score.write, lifecycle.plan.write, live.plan.write, live.report.write, live.runbook.write, ltv.report.write, motion.inject, nurture.sequence.write, offer.frame.write, opening.design, ota.price.write, partnership.report.write, phone.answer, phone_call.log, pipeline.advance, pms.checkin, pms.checkout, pms.price.write, portfolio.plan.write, portrait.plan, post.compose, prd.generate, project.create, project.rewind, prompt.fuse, prompt.refine, rejection.learn, report.monthly, report.weekly, review.block, roi.alert, scene.design, script.generate, settlement.diff, settlement.split, shootlist.emit, source.maintain, stock.alert, theme.generate, touch.log, variant.derive, visibility.alert, visual.design, visualwrite.fetch_stock
+
+> workloom-ai-acquisition@0.1.0 scan:knowhow /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit
+> tsx scripts/tools/knowhow-depth.mts
+
+knowhow 深度校验：15 个技能（获客用增自研域）
+✓ geo-query-craft              原则 4 · 打法 3(分支 2) · SOP 3 · KPI 4 · 失败模式 4 · 评测 ✓
+✓ ai-answer-rewrite            原则 4 · 打法 3(分支 2) · SOP 3 · KPI 4 · 失败模式 4 · 评测 ✓
+✓ visibility-monitor           原则 4 · 打法 3(分支 2) · SOP 3 · KPI 4 · 失败模式 3 · 评测 ✓
+✓ citation-reverse             原则 4 · 打法 3(分支 2) · SOP 3 · KPI 4 · 失败模式 4 · 评测 ✓
+✓ entity-consistency-check     原则 4 · 打法 3(分支 2) · SOP 3 · KPI 4 · 失败模式 4 · 评测 ✓
+✓ dual-entry-inquiry           原则 4 · 打法 3(分支 2) · SOP 3 · KPI 4 · 失败模式 4 · 评测 ✓
+✓ budget-portfolio             原则 4 · 打法 3(分支 2) · SOP 3 · KPI 4 · 失败模式 4 · 评测 ✓
+✓ experiment-design            原则 4 · 打法 3(分支 2) · SOP 3 · KPI 4 · 失败模式 4 · 评测 ✓
+✓ growth-review                原则 4 · 打法 3(分支 2) · SOP 3 · KPI 4 · 失败模式 4 · 评测 ✓
+✓ incrementality-measurement   原则 4 · 打法 3(分支 2) · SOP 3 · KPI 4 · 失败模式 4 · 评测 ✓
+✓ lead-scoring                 原则 4 · 打法 3(分支 2) · SOP 3 · KPI 4 · 失败模式 4 · 评测 ✓
+✓ lifecycle-growth             原则 4 · 打法 3(分支 2) · SOP 3 · KPI 4 · 失败模式 4 · 评测 ✓
+✓ live-commerce                原则 4 · 打法 3(分支 2) · SOP 3 · KPI 4 · 失败模式 4 · 评测 ✓
+✓ growth-partnership           原则 4 · 打法 3(分支 2) · SOP 3 · KPI 4 · 失败模式 4 · 评测 ✓
+✓ cro-playbook                 原则 4 · 打法 3(分支 2) · SOP 3 · KPI 4 · 失败模式 4 · 评测 ✓
+
+✓ 15 技能五维齐全且评测覆盖达标
+
+> workloom-ai-acquisition@0.1.0 oss:check /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit
+> bash scripts/oss-watch.sh --check
+
+✓ 开源组件清单与仓库事实一致

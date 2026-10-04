@@ -1,0 +1,28 @@
+{
+  "at": "2026-10-03T23:52:24.974Z",
+  "repository": "workloom-ai/WorkLoom-growth",
+  "sn": "cnb-s2t-1k421u483",
+  "pipeline": "cnb-s2t-1k421u483-002",
+  "stage": "prepare",
+  "result": {
+    "duration": 79,
+    "content": [
+      "trace: 5dc2c1550a85f66c3cf09ed7154b3ad6 (parent: 16436598f3e0b935ba8d9735ac3acd97)",
+      "lock(workloom-ai/WorkLoom-growth-workloom-desktop-windows-pg17-install): get lock：{orange:lock:23d0f43398bde875a107f1f279250738}",
+      "pipeline init...",
+      "check if skip...",
+      "no skip",
+      "\u001b[33mMaster 2026-10-04 07:35:07\u001b[0m runner init...",
+      "1th attempt to assign runner",
+      "start...",
+      "Requesting alloc-runner service for allocation...",
+      "Pipeline prepare error: No runner for namespace: group tags: workloom-growth-desktop-windows, cpus: -1. Reference document: https://docs.cnb.cool/build/build-node.html"
+    ],
+    "endTime": 1791070507539,
+    "error": "No runner for namespace: group tags: workloom-growth-desktop-windows, cpus: -1. Reference document: https://docs.cnb.cool/build/build-node.html",
+    "status": "error",
+    "name": "Prepare",
+    "startTime": 1791070507460,
+    "id": "prepare"
+  }
+}

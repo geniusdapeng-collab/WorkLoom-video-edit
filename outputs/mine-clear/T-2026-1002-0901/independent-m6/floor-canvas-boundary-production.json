@@ -1,0 +1,17 @@
+{
+  "name": "floor-canvas-boundary-production",
+  "command": [
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+    "--env-file=.env",
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/independent-m6/floor-canvas-boundary-probe.mjs",
+    "aad8700daa0991555b9792db80f4703e3322f4f1",
+    "floor-canvas-boundary-production-results.json",
+    "floor-canvas-boundary-production"
+  ],
+  "exit_code": 1,
+  "seconds": 32.487,
+  "source_before": "aad8700daa0991555b9792db80f4703e3322f4f1",
+  "source_after": "aad8700daa0991555b9792db80f4703e3322f4f1",
+  "ran_at": "2026-10-03T05:31:27.178387+08:00",
+  "log": "floor-canvas-boundary-production.log"
+}

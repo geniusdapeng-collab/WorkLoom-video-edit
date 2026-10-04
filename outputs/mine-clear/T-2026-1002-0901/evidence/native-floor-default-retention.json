@@ -1,0 +1,53 @@
+{
+  "mode": "default",
+  "at": "2026-10-03T09:30:16.209901+08:00",
+  "command_exit_code": 0,
+  "evidence": [
+    {
+      "source": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/职场修复 默认客户/logs/render-default.json",
+      "retained": "native-floor-default-render-default.json",
+      "sha256": "e02d96cb55582ee833635c95b1e073b61406db78f9ddc2dce5ef22d546bcc3eb",
+      "bytes": 5513
+    },
+    {
+      "source": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/职场修复 默认客户/logs/render-default.png",
+      "retained": "native-floor-default-render-default.png",
+      "sha256": "45a2d16151ea9b0b9a1dff0ea37620380fe52f8ddada9dfcba440cb6dc084ea5",
+      "bytes": 1488262
+    },
+    {
+      "source": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/职场修复 默认客户/logs/stage-default.png",
+      "retained": "native-floor-default-stage-default.png",
+      "sha256": "178e360eba2f27b887e7644e73a7d8fe2b90b71443aa290a6063c423b8d1beac",
+      "bytes": 1263917
+    },
+    {
+      "source": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/职场修复 默认客户/logs/team-default.png",
+      "retained": "native-floor-default-team-default.png",
+      "sha256": "969a4fc279b74a16ee2bf6b9826547adf713c9907d33468f7c3e0cc2ea6b6e0f",
+      "bytes": 1488621
+    },
+    {
+      "source": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/职场修复 默认客户/logs/workplace-default.png",
+      "retained": "native-floor-default-workplace-default.png",
+      "sha256": "63201bcf8724234f137b082b67c83ff47c395d41b0f38d907c9ec3f734750fea",
+      "bytes": 2210167
+    }
+  ],
+  "private_state_retained": true,
+  "diagnosticOnly": false,
+  "reused_failed_fixture": false,
+  "configuration_retained": {
+    "path": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/职场修复 默认客户/qa-retained-config.env",
+    "mode": "0o600",
+    "sha256": "bac7a2d041b8da973fdffae10a0f52504c59cccebd983a1583d51f336b4d50ff"
+  },
+  "removed_reinstallable_runtime_cache": [
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/职场修复 默认客户/runtime",
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/职场修复 默认客户/node",
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/职场修复 默认客户/pg",
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/职场修复 默认客户/nats",
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/职场修复 默认客户/.payload-cache"
+  ],
+  "reason": "Owned stopped QA fixture only; private QA .env retained as mode 0600, DB/state/version/logs and uniquely retained screenshots kept"
+}

@@ -1,0 +1,1506 @@
+{
+  "schema": "growth.independent-m6/fresh-fullread@1",
+  "source_commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+  "read_by": "growth_m6",
+  "read_at": "2026-10-03T23:57:25.709511+08:00",
+  "full_read_registry_count": 149,
+  "fresh_full_read_files": [
+    {
+      "path": "package.json",
+      "sha256": "d899406147668e66293738b2dcf2fbf516f91def2676bfbde6aba9bd6f949bae",
+      "lines": 112,
+      "full_read": true,
+      "grade": "A complete current text and direct diff reading; B input/hash equivalence validation"
+    },
+    {
+      "path": ".workloom-runtime-deps/metadata.json",
+      "sha256": "7b31857358fb40b4ad0dcd75b4dac9f3d4f547fb0aaa43c64cf95de7dece7208",
+      "lines": 92,
+      "full_read": true,
+      "grade": "A complete current text and direct diff reading; B input/hash equivalence validation"
+    },
+    {
+      "path": "docs/repairs/T-2026-1002-0901.md",
+      "sha256": "7450e4addbee4efe79ef3cdcba45f52f272e07d996b48a17d7bdebfa27ed640b",
+      "lines": 95,
+      "full_read": true,
+      "grade": "A complete current text and direct diff reading; B input/hash equivalence validation"
+    }
+  ],
+  "unchanged_full_read_direct_dependencies": [
+    {
+      "path": ".workloom-runtime-deps/package.json",
+      "sha256": "e0340ff5a9ac4cb175dfe90c7af0507a3ff10bd9e77e0bd5e7ebc72443180502",
+      "unchanged": true,
+      "prior_full_read_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+      "prior_full_read_receipt": "surface-7fee-source-fullread.json",
+      "prior_and_current_git_blob_object": "8a395d636df6d773346e7030da68b02ba9869f96",
+      "full_read": true,
+      "grade": "A prior complete source reading retained for exactly equal bytes; B current Git object binding"
+    },
+    {
+      "path": "AGENTS.md",
+      "sha256": "cc4b3ff324ecf404473397d9d538fb93193ad811ba6624d38390d65f7ef21f9a",
+      "unchanged": true,
+      "prior_full_read_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+      "prior_full_read_receipt": "surface-7fee-source-fullread.json",
+      "prior_and_current_git_blob_object": "6c9e644666e410ce0207dd2d2e4387eeef567f28",
+      "full_read": true,
+      "grade": "A prior complete source reading retained for exactly equal bytes; B current Git object binding"
+    },
+    {
+      "path": "AGENTS.repo.md",
+      "sha256": "545b15dd35eb8fbe01b211b7abbb94080d8ffbd78227a762b1262f4ad2c61d2d",
+      "unchanged": true,
+      "prior_full_read_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+      "prior_full_read_receipt": "surface-7fee-source-fullread.json",
+      "prior_and_current_git_blob_object": "96a9744cb8281c4832d3b23c494848c0474e01b9",
+      "full_read": true,
+      "grade": "A prior complete source reading retained for exactly equal bytes; B current Git object binding"
+    },
+    {
+      "path": "WORKLOOM_PRODUCT_CONTEXT.md",
+      "sha256": "59667533f52d296468d152eb7bc05908fef64decc8e6a5415b48938c79410e51",
+      "unchanged": true,
+      "prior_full_read_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+      "prior_full_read_receipt": "surface-7fee-source-fullread.json",
+      "prior_and_current_git_blob_object": "300662adecfb8de4cc45fdbc87499d4777e35952",
+      "full_read": true,
+      "grade": "A prior complete source reading retained for exactly equal bytes; B current Git object binding"
+    },
+    {
+      "path": "apps/desktop/electron/bootstrap.cjs",
+      "sha256": "aca7f94eacd643cc223a40ce15443321b6b2ce2814621d3ce89ea57ee7018c46",
+      "unchanged": true,
+      "prior_full_read_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+      "prior_full_read_receipt": "surface-7fee-source-fullread.json",
+      "prior_and_current_git_blob_object": "0dd6ff2a7792ee05f63a13516b49dfa0c4ff8d07",
+      "full_read": true,
+      "grade": "A prior complete source reading retained for exactly equal bytes; B current Git object binding"
+    },
+    {
+      "path": "apps/desktop/electron/bootstrap.test.cjs",
+      "sha256": "ee5aa1da3a27ccdacf17a91c75602680bc5b30b9b06a7cedc970fedf57f3cafa",
+      "unchanged": true,
+      "prior_full_read_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+      "prior_full_read_receipt": "surface-7fee-source-fullread.json",
+      "prior_and_current_git_blob_object": "79b1356a95f18c0bd02b5056138c0da485157871",
+      "full_read": true,
+      "grade": "A prior complete source reading retained for exactly equal bytes; B current Git object binding"
+    },
+    {
+      "path": "apps/desktop/electron/main.cjs",
+      "sha256": "231d1e1c9621c9408393aee430ff80008eb5548d3c734ce96e329cff5f588ad2",
+      "unchanged": true,
+      "prior_full_read_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+      "prior_full_read_receipt": "surface-7fee-source-fullread.json",
+      "prior_and_current_git_blob_object": "630c29c0a5434ecaa057919f3ba86fbafd3c141c",
+      "full_read": true,
+      "grade": "A prior complete source reading retained for exactly equal bytes; B current Git object binding"
+    },
+    {
+      "path": "apps/desktop/electron/preload.cjs",
+      "sha256": "a7f42b647d6188b5dc2da06f6602207aa631da7952c2f2a0c52747b47b0532d4",
+      "unchanged": true,
+      "prior_full_read_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+      "prior_full_read_receipt": "surface-7fee-source-fullread.json",
+      "prior_and_current_git_blob_object": "9974670e30cf7aed249c99548df2d22d2c6d3be8",
+      "full_read": true,
+      "grade": "A prior complete source reading retained for exactly equal bytes; B current Git object binding"
+    },
+    {
+      "path": "apps/desktop/electron/render-smoke.cjs",
+      "sha256": "c287cb424fc0ed5f20fbacceab1e999705e3081838952ca8a806787530738fe3",
+      "unchanged": true,
+      "prior_full_read_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+      "prior_full_read_receipt": "surface-7fee-source-fullread.json",
+      "prior_and_current_git_blob_object": "011828cfaaa57c41d3b356fe56d12a581693baec",
+      "full_read": true,
+      "grade": "A prior complete source reading retained for exactly equal bytes; B current Git object binding"
+    },
+    {
+      "path": "apps/server/package.json",
+      "sha256": "e394b4853e18c6b52f3f54090d291b64bc4ea94067915aeab2ca65bcca51750b",
+      "unchanged": true,
+      "prior_full_read_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+      "prior_full_read_receipt": "surface-7fee-source-fullread.json",
+      "prior_and_current_git_blob_object": "e82c1b7f36e76510d1e5ee8f243abae4a6ad8563",
+      "full_read": true,
+      "grade": "A prior complete source reading retained for exactly equal bytes; B current Git object binding"
+    },
+    {
+      "path": "apps/server/src/index.ts",
+      "sha256": "aaade3806bebe0001e8c46af0e7f0076f1fc2b098f741736a6a92dd0f81f3274",
+      "unchanged": true,
+      "prior_full_read_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+      "prior_full_read_receipt": "surface-7fee-source-fullread.json",
+      "prior_and_current_git_blob_object": "1f6281c92ec504a072560e4d88594fb8881cc1cb",
+      "full_read": true,
+      "grade": "A prior complete source reading retained for exactly equal bytes; B current Git object binding"
+    },
+    {
+      "path": "apps/server/src/runtime/scheduler.ts",
+      "sha256": "07ee0471b81ab18934729d5280d38cfe6f36ed8d364317709df4c789913774e5",
+      "unchanged": true,
+      "prior_full_read_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+      "prior_full_read_receipt": "surface-7fee-source-fullread.json",
+      "prior_and_current_git_blob_object": "6ac2260c56945cd3322f1f8b1c92532d13deffa1",
+      "full_read": true,
+      "grade": "A prior complete source reading retained for exactly equal bytes; B current Git object binding"
+    },
+    {
+      "path": "apps/server/src/runtime/thread-runner.ts",
+      "sha256": "316144ae275e8ac0a086c97aa9305fcebedf43f46c6177f88962195e740e3344",
+      "unchanged": true,
+      "prior_full_read_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+      "prior_full_read_receipt": "surface-7fee-source-fullread.json",
+      "prior_and_current_git_blob_object": "744b129c0cbfac79e403d704447a8c8a71d68f69",
+      "full_read": true,
+      "grade": "A prior complete source reading retained for exactly equal bytes; B current Git object binding"
+    },
+    {
+      "path": "apps/server/src/service/access-authority.ts",
+      "sha256": "e3b4d8b16e3c937fd7101386fb7498f73994cf21adb6bbb550d875e4d4c17148",
+      "unchanged": true,
+      "prior_full_read_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+      "prior_full_read_receipt": "surface-7fee-source-fullread.json",
+      "prior_and_current_git_blob_object": "dcf93c582a29e9b2ac494e030d97d5020ee907e2",
+      "full_read": true,
+      "grade": "A prior complete source reading retained for exactly equal bytes; B current Git object binding"
+    },
+    {
+      "path": "apps/server/src/service/desktop-auth.test.ts",
+      "sha256": "5d48644fdcc3fa39f7bb41aa3fcb884fd25bcdd4fcc5ad363f7371f7b6965c12",
+      "unchanged": true,
+      "prior_full_read_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+      "prior_full_read_receipt": "surface-7fee-source-fullread.json",
+      "prior_and_current_git_blob_object": "f6545f05b0b793c469fd528f12b8e9e6ea477c92",
+      "full_read": true,
+      "grade": "A prior complete source reading retained for exactly equal bytes; B current Git object binding"
+    },
+    {
+      "path": "apps/server/src/service/desktop-auth.ts",
+      "sha256": "fa09c74915b27200e73378d191268d7d1ad43256111a78051cfc9e08b1a348dd",
+      "unchanged": true,
+      "prior_full_read_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+      "prior_full_read_receipt": "surface-7fee-source-fullread.json",
+      "prior_and_current_git_blob_object": "694f47526e4b5639087de5517d089e733a444a07",
+      "full_read": true,
+      "grade": "A prior complete source reading retained for exactly equal bytes; B current Git object binding"
+    },
+    {
+      "path": "apps/server/src/service/events.ts",
+      "sha256": "0de38cb1019bcd9280e71809f7756a0cda4506d66f36553efdfeb6d6f9258499",
+      "unchanged": true,
+      "prior_full_read_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+      "prior_full_read_receipt": "surface-7fee-source-fullread.json",
+      "prior_and_current_git_blob_object": "57cae4b4c7a9d9c7a5005352c499fdc1480e8284",
+      "full_read": true,
+      "grade": "A prior complete source reading retained for exactly equal bytes; B current Git object binding"
+    },
+    {
+      "path": "apps/server/src/service/onboarding-continuity.pg.test.ts",
+      "sha256": "653d52e9fa92cf0c13940b1573879bf315bfaa33ddfbb19785b7957e421eb3bc",
+      "unchanged": true,
+      "prior_full_read_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+      "prior_full_read_receipt": "surface-7fee-source-fullread.json",
+      "prior_and_current_git_blob_object": "f62bae98af38e8a68e42671a18265011245d2b77",
+      "full_read": true,
+      "grade": "A prior complete source reading retained for exactly equal bytes; B current Git object binding"
+    },
+    {
+      "path": "apps/server/src/service/onboarding-continuity.test.ts",
+      "sha256": "0873f0fedc697713b16038a6ac804bac9b9d5f9fda96c854751666b1d8c3ceda",
+      "unchanged": true,
+      "prior_full_read_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+      "prior_full_read_receipt": "surface-7fee-source-fullread.json",
+      "prior_and_current_git_blob_object": "6053e3bc2ce60e9aef894d4438e71a383182a679",
+      "full_read": true,
+      "grade": "A prior complete source reading retained for exactly equal bytes; B current Git object binding"
+    },
+    {
+      "path": "apps/server/src/service/onboarding-continuity.ts",
+      "sha256": "b9b26723f24bcacdfb925d9ef420385a29e52bdb30553e2d3f9621d3bb2811da",
+      "unchanged": true,
+      "prior_full_read_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+      "prior_full_read_receipt": "surface-7fee-source-fullread.json",
+      "prior_and_current_git_blob_object": "a31a9a473633fa2ce482a0aa6b4b4ccbb5de8162",
+      "full_read": true,
+      "grade": "A prior complete source reading retained for exactly equal bytes; B current Git object binding"
+    },
+    {
+      "path": "apps/server/src/trpc/context.ts",
+      "sha256": "60c5f70cae897c34c789a8c8aa0479552cc110b9ae04dff639f02c0d1e244c89",
+      "unchanged": true,
+      "prior_full_read_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+      "prior_full_read_receipt": "surface-7fee-source-fullread.json",
+      "prior_and_current_git_blob_object": "ea381941f7b215f9d62370a97cd707fc56f11d28",
+      "full_read": true,
+      "grade": "A prior complete source reading retained for exactly equal bytes; B current Git object binding"
+    },
+    {
+      "path": "apps/server/src/video/film-ledger.ts",
+      "sha256": "f8a1d7c9d1b77058b5ceccb1f1511b93c85d85a406639be04d9505f9bee48b42",
+      "unchanged": true,
+      "prior_full_read_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+      "prior_full_read_receipt": "surface-7fee-source-fullread.json",
+      "prior_and_current_git_blob_object": "b8d6923847609abc9f4ff0d1d53cd1b6ea869893",
+      "full_read": true,
+      "grade": "A prior complete source reading retained for exactly equal bytes; B current Git object binding"
+    },
+    {
+      "path": "apps/server/src/video/film-router.ts",
+      "sha256": "be176e9c058e987ae7285335362cc80ad80aec89c1d25c851476b23b94e8fb89",
+      "unchanged": true,
+      "prior_full_read_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+      "prior_full_read_receipt": "surface-7fee-source-fullread.json",
+      "prior_and_current_git_blob_object": "ce8f9d0a3c821920a5c0c15dd9749212c994ed14",
+      "full_read": true,
+      "grade": "A prior complete source reading retained for exactly equal bytes; B current Git object binding"
+    },
+    {
+      "path": "apps/server/src/video/film-worker.test.ts",
+      "sha256": "3679bbd674617f96ab5884c4d0c1da745856e286945e1eba9dff7efbf201810d",
+      "unchanged": true,
+      "prior_full_read_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+      "prior_full_read_receipt": "surface-7fee-source-fullread.json",
+      "prior_and_current_git_blob_object": "aa403b5a5fa6d195628b51f97d8b4d8c50dc32d9",
+      "full_read": true,
+      "grade": "A prior complete source reading retained for exactly equal bytes; B current Git object binding"
+    },
+    {
+      "path": "apps/server/src/video/film-worker.ts",
+      "sha256": "6e2eb96c595f811cabae5e0aac4e905c12ac2af2dba037bdb78b376259134311",
+      "unchanged": true,
+      "prior_full_read_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+      "prior_full_read_receipt": "surface-7fee-source-fullread.json",
+      "prior_and_current_git_blob_object": "84c513fa46be42c94e5f5a1a1ee7cbedc127b82f",
+      "full_read": true,
+      "grade": "A prior complete source reading retained for exactly equal bytes; B current Git object binding"
+    },
+    {
+      "path": "apps/server/src/video/gen/db.ts",
+      "sha256": "44ff4a9c803a4899e8f9239cc9ffc0c345e17811e91cbbe6a9ec1e61e7243e9c",
+      "unchanged": true,
+      "prior_full_read_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+      "prior_full_read_receipt": "surface-7fee-source-fullread.json",
+      "prior_and_current_git_blob_object": "0c4dc11159af3adcd03b260a25c0f5a27ff9b4c6",
+      "full_read": true,
+      "grade": "A prior complete source reading retained for exactly equal bytes; B current Git object binding"
+    },
+    {
+      "path": "apps/server/src/video/gen/submission-ledger.ts",
+      "sha256": "c4ec9d7df53b103e3e1eb4d5684726fbd26db472e307ae844d908d96e7b14738",
+      "unchanged": true,
+      "prior_full_read_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+      "prior_full_read_receipt": "surface-7fee-source-fullread.json",
+      "prior_and_current_git_blob_object": "451f2ed99ed0f55fd1381044834d3972e6c8a012",
+      "full_read": true,
+      "grade": "A prior complete source reading retained for exactly equal bytes; B current Git object binding"
+    },
+    {
+      "path": "apps/server/vitest.config.ts",
+      "sha256": "0c9448c7020ad554d33623089f8b94adfd13e127e8b2b398f0e3482e066ec543",
+      "unchanged": true,
+      "prior_full_read_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+      "prior_full_read_receipt": "surface-7fee-source-fullread.json",
+      "prior_and_current_git_blob_object": "eebec5bef4048568bb21e16a4e606c2c71c4666a",
+      "full_read": true,
+      "grade": "A prior complete source reading retained for exactly equal bytes; B current Git object binding"
+    },
+    {
+      "path": "apps/web/package.json",
+      "sha256": "17273b001dea29afe53c13a4f3cdd17685cea4081bde2521ab5157ec45a1081b",
+      "unchanged": true,
+      "prior_full_read_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+      "prior_full_read_receipt": "surface-7fee-source-fullread.json",
+      "prior_and_current_git_blob_object": "6e82dd1893a86e39eea8d1f401d80cce9a186fd7",
+      "full_read": true,
+      "grade": "A prior complete source reading retained for exactly equal bytes; B current Git object binding"
+    },
+    {
+      "path": "apps/web/src/audio/AudioEngine.ts",
+      "sha256": "05713d66be1a78f2832c0dece19475baefd5f23fad288ee48f69b33d219501f1",
+      "unchanged": true,
+      "prior_full_read_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+      "prior_full_read_receipt": "surface-7fee-source-fullread.json",
+      "prior_and_current_git_blob_object": "1e199fe961d4094fc2573932cd954329f2c28ee5",
+      "full_read": true,
+      "grade": "A prior complete source reading retained for exactly equal bytes; B current Git object binding"
+    },
+    {
+      "path": "apps/web/src/audio/sfx.ts",
+      "sha256": "38b93e0be2b21df095469741b3d0e91f57d933987576fe1c49fd61798643a8ea",
+      "unchanged": true,
+      "prior_full_read_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+      "prior_full_read_receipt": "surface-7fee-source-fullread.json",
+      "prior_and_current_git_blob_object": "0a406e5328fd9353b9a500b56a7151e827fcbaeb",
+      "full_read": true,
+      "grade": "A prior complete source reading retained for exactly equal bytes; B current Git object binding"
+    },
+    {
+      "path": "apps/web/src/components/AgentAvatar.tsx",
+      "sha256": "020697d93c854d2f88417225b0255d7600dbe0f936c1e69d13c264a3859e8c8f",
+      "unchanged": true,
+      "prior_full_read_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+      "prior_full_read_receipt": "surface-7fee-source-fullread.json",
+      "prior_and_current_git_blob_object": "c399a2db71041939877bdb3aff357ddd83b22878",
+      "full_read": true,
+      "grade": "A prior complete source reading retained for exactly equal bytes; B current Git object binding"
+    },
+    {
+      "path": "apps/web/src/components/Avatar3D.tsx",
+      "sha256": "8f21118320959db5b40c99cf05e7facb69ef9517805df01f069697e15c37a28a",
+      "unchanged": true,
+      "prior_full_read_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+      "prior_full_read_receipt": "surface-7fee-source-fullread.json",
+      "prior_and_current_git_blob_object": "fdd1c40227047a33728512f3d4e2f5ddf4037b36",
+      "full_read": true,
+      "grade": "A prior complete source reading retained for exactly equal bytes; B current Git object binding"
+    },
+    {
+      "path": "apps/web/src/components/BusinessAvatar3D.tsx",
+      "sha256": "6bf778c0f5091335b4d8709f9e5b9d9eb6df3f820b79319d46253b043f683c2d",
+      "unchanged": true,
+      "prior_full_read_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+      "prior_full_read_receipt": "surface-7fee-source-fullread.json",
+      "prior_and_current_git_blob_object": "6a33a9c6e8e877761e19ebb0ee36adb3cf28f7c3",
+      "full_read": true,
+      "grade": "A prior complete source reading retained for exactly equal bytes; B current Git object binding"
+    },
+    {
+      "path": "apps/web/src/components/CeremonyStage.tsx",
+      "sha256": "0535fa4243b2a998c7afcb38b967fcb26f0e755093cfba80574600b489807299",
+      "unchanged": true,
+      "prior_full_read_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+      "prior_full_read_receipt": "surface-7fee-source-fullread.json",
+      "prior_and_current_git_blob_object": "52c55e811d9c94966ee2cd62d6fa7a74a186ad25",
+      "full_read": true,
+      "grade": "A prior complete source reading retained for exactly equal bytes; B current Git object binding"
+    },
+    {
+      "path": "apps/web/src/components/CineDirector.tsx",
+      "sha256": "b72d38e0781af780afcb48796c9d3efa3029c98a9f63b927c2650feb5363f083",
+      "unchanged": true,
+      "prior_full_read_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+      "prior_full_read_receipt": "surface-7fee-source-fullread.json",
+      "prior_and_current_git_blob_object": "cd6814138959135aee07044bb74f7c64a7b1914d",
+      "full_read": true,
+      "grade": "A prior complete source reading retained for exactly equal bytes; B current Git object binding"
+    },
+    {
+      "path": "apps/web/src/components/Floor3D.tsx",
+      "sha256": "40e8bfa0f688eb527edec2ba10f040afc91a72b1730eb4383d707687fd1bf740",
+      "unchanged": true,
+      "prior_full_read_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+      "prior_full_read_receipt": "surface-7fee-source-fullread.json",
+      "prior_and_current_git_blob_object": "dd2353c61dd77e5e019265712fc7eadc5ebcd0e8",
+      "full_read": true,
+      "grade": "A prior complete source reading retained for exactly equal bytes; B current Git object binding"
+    },
+    {
+      "path": "apps/web/src/components/Floor3DLabels.test.tsx",
+      "sha256": "381a1dbc257f2983cb61ca80b62eefe219bd7420ebde06f8d0f9920f8aa04ecd",
+      "unchanged": true,
+      "prior_full_read_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+      "prior_full_read_receipt": "surface-7fee-source-fullread.json",
+      "prior_and_current_git_blob_object": "5db28b376713f8c9981c0c00d2e7427d2addfd59",
+      "full_read": true,
+      "grade": "A prior complete source reading retained for exactly equal bytes; B current Git object binding"
+    },
+    {
+      "path": "apps/web/src/components/Floor3DLabels.tsx",
+      "sha256": "0d2505a53e6e1e2811a6cc68d8124669cb4656e658d16e5e9a2eb8cf691e123b",
+      "unchanged": true,
+      "prior_full_read_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+      "prior_full_read_receipt": "surface-7fee-source-fullread.json",
+      "prior_and_current_git_blob_object": "a8c30ef14cc4b1771f79b22d3bf80827997ab515",
+      "full_read": true,
+      "grade": "A prior complete source reading retained for exactly equal bytes; B current Git object binding"
+    },
+    {
+      "path": "apps/web/src/components/Floor3DTaskDrop.test.tsx",
+      "sha256": "eaa4854a3694bbc0538dd66fae95470c11b0c9c7572996971b54fe4e5c102024",
+      "unchanged": true,
+      "prior_full_read_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+      "prior_full_read_receipt": "surface-7fee-source-fullread.json",
+      "prior_and_current_git_blob_object": "bc3d25cdf2793469944117d01a6fa4ed9e9aa08d",
+      "full_read": true,
+      "grade": "A prior complete source reading retained for exactly equal bytes; B current Git object binding"
+    },
+    {
+      "path": "apps/web/src/components/Floor3DTaskDrop.tsx",
+      "sha256": "1c9a40bf5dec879f5896eff88263efedc885de4919b3e4a8d42ecb43e337a81f",
+      "unchanged": true,
+      "prior_full_read_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+      "prior_full_read_receipt": "surface-7fee-source-fullread.json",
+      "prior_and_current_git_blob_object": "b67ab33c067356709ac2b69f2d11cb945782f727",
+      "full_read": true,
+      "grade": "A prior complete source reading retained for exactly equal bytes; B current Git object binding"
+    },
+    {
+      "path": "apps/web/src/components/GazeSystem.tsx",
+      "sha256": "6a62489c452e77594e1990df6cd530307416ef0390429eb1f607c4e14abfa424",
+      "unchanged": true,
+      "prior_full_read_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+      "prior_full_read_receipt": "surface-7fee-source-fullread.json",
+      "prior_and_current_git_blob_object": "f8c30037febdef72d82ae39b8b1eb024ab65c0ac",
+      "full_read": true,
+      "grade": "A prior complete source reading retained for exactly equal bytes; B current Git object binding"
+    },
+    {
+      "path": "apps/web/src/components/HoverBubble.tsx",
+      "sha256": "f31aac61c489193fe9892d21613c132af1c4db1608b1dfe0e2cc3d6d484f3ad5",
+      "unchanged": true,
+      "prior_full_read_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+      "prior_full_read_receipt": "surface-7fee-source-fullread.json",
+      "prior_and_current_git_blob_object": "ff3707d1a321fbf948b5bc8de9021f9096e11ac9",
+      "full_read": true,
+      "grade": "A prior complete source reading retained for exactly equal bytes; B current Git object binding"
+    },
+    {
+      "path": "apps/web/src/components/MateWelcome.tsx",
+      "sha256": "38e43512c36a38505877c3570a04ea04deaa6fb6a395b9c2d9beded98b4c4981",
+      "unchanged": true,
+      "prior_full_read_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+      "prior_full_read_receipt": "surface-7fee-source-fullread.json",
+      "prior_and_current_git_blob_object": "dc4a2b0f3aeeac7d665a5f9eb434b2188e01db30",
+      "full_read": true,
+      "grade": "A prior complete source reading retained for exactly equal bytes; B current Git object binding"
+    },
+    {
+      "path": "apps/web/src/components/Stage3D.test.tsx",
+      "sha256": "c017765433a4cceb8245886f28f4413c0dfa010eba9af0db98f47fd928ea7bfb",
+      "unchanged": true,
+      "prior_full_read_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+      "prior_full_read_receipt": "surface-7fee-source-fullread.json",
+      "prior_and_current_git_blob_object": "aa6bbf8a836462e739ee7ff26fc4b684c3285534",
+      "full_read": true,
+      "grade": "A prior complete source reading retained for exactly equal bytes; B current Git object binding"
+    },
+    {
+      "path": "apps/web/src/components/Stage3D.tsx",
+      "sha256": "c49d9cbfd21bd376dcdd2c9f540e269e59cf796de2143bc29153026a8976e647",
+      "unchanged": true,
+      "prior_full_read_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+      "prior_full_read_receipt": "surface-7fee-source-fullread.json",
+      "prior_and_current_git_blob_object": "1a4d053eb6b96e16591169a71ccf34ed51ffd9a7",
+      "full_read": true,
+      "grade": "A prior complete source reading retained for exactly equal bytes; B current Git object binding"
+    },
+    {
+      "path": "apps/web/src/components/WelcomeCeremony.tsx",
+      "sha256": "8811918a8b0b36680a96e079479f94ab3992c2c578ef03874cfa40aedbbef2b7",
+      "unchanged": true,
+      "prior_full_read_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+      "prior_full_read_receipt": "surface-7fee-source-fullread.json",
+      "prior_and_current_git_blob_object": "8c7d17a3ebd61ee6307620966780e8789ddcb8da",
+      "full_read": true,
+      "grade": "A prior complete source reading retained for exactly equal bytes; B current Git object binding"
+    },
+    {
+      "path": "apps/web/src/components/cinematic.tsx",
+      "sha256": "e9e9f5875654f6f700bdf39b3d3908b31105188580b10a612f7bb8e52d4f6fc2",
+      "unchanged": true,
+      "prior_full_read_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+      "prior_full_read_receipt": "surface-7fee-source-fullread.json",
+      "prior_and_current_git_blob_object": "cd1269a696803c9775e058ff68a8007ac326b3ef",
+      "full_read": true,
+      "grade": "A prior complete source reading retained for exactly equal bytes; B current Git object binding"
+    },
+    {
+      "path": "apps/web/src/components/floor3d-layout.test.ts",
+      "sha256": "ee4667f023d1d8d0950af51322d910f8c628677017a95c9f8b13180b9be1d440",
+      "unchanged": true,
+      "prior_full_read_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+      "prior_full_read_receipt": "surface-7fee-source-fullread.json",
+      "prior_and_current_git_blob_object": "9e3f92efc39f4b816adacf105ddd5d90af2a67b9",
+      "full_read": true,
+      "grade": "A prior complete source reading retained for exactly equal bytes; B current Git object binding"
+    },
+    {
+      "path": "apps/web/src/components/floor3d-layout.ts",
+      "sha256": "4a8ace04880cc9995a44ff6780a122eaad38b3b2057115f3d25ded45a18e803a",
+      "unchanged": true,
+      "prior_full_read_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+      "prior_full_read_receipt": "surface-7fee-source-fullread.json",
+      "prior_and_current_git_blob_object": "0815a77c5b26880f90efecbc94cac5c6e04638f3",
+      "full_read": true,
+      "grade": "A prior complete source reading retained for exactly equal bytes; B current Git object binding"
+    },
+    {
+      "path": "apps/web/src/components/loommate/LoomMate.tsx",
+      "sha256": "988f92a5584d59746c86f1effebffacdd318184132c868bf5001a0a650512b5c",
+      "unchanged": true,
+      "prior_full_read_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+      "prior_full_read_receipt": "surface-7fee-source-fullread.json",
+      "prior_and_current_git_blob_object": "1738bdb4b4e66281d00db44d2197736f2d7e9976",
+      "full_read": true,
+      "grade": "A prior complete source reading retained for exactly equal bytes; B current Git object binding"
+    },
+    {
+      "path": "apps/web/src/components/loommate/MateLive2D.test.tsx",
+      "sha256": "ed35d73ed6936c4c78f0934a04e29ec29757a346868a61398840e24ad0540635",
+      "unchanged": true,
+      "prior_full_read_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+      "prior_full_read_receipt": "surface-7fee-source-fullread.json",
+      "prior_and_current_git_blob_object": "d678771eb414f572100044d56d8bfccb7bd2f6b2",
+      "full_read": true,
+      "grade": "A prior complete source reading retained for exactly equal bytes; B current Git object binding"
+    },
+    {
+      "path": "apps/web/src/components/loommate/MateLive2D.tsx",
+      "sha256": "6a292be27b875f4780bf47bf4e773006391b911c5df4f8160638d07285e313ec",
+      "unchanged": true,
+      "prior_full_read_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+      "prior_full_read_receipt": "surface-7fee-source-fullread.json",
+      "prior_and_current_git_blob_object": "ae0db0681abbc3e04d7c714ecdb113f7cacc7bb9",
+      "full_read": true,
+      "grade": "A prior complete source reading retained for exactly equal bytes; B current Git object binding"
+    },
+    {
+      "path": "apps/web/src/components/mate-guide/QuestlineHud.tsx",
+      "sha256": "02a8156ddea72eb3a6972aa279759c326af073acb22ab4c512254b11e695c692",
+      "unchanged": true,
+      "prior_full_read_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+      "prior_full_read_receipt": "surface-7fee-source-fullread.json",
+      "prior_and_current_git_blob_object": "6f47acc46268e0618929f3eb2a0a80755db3e335",
+      "full_read": true,
+      "grade": "A prior complete source reading retained for exactly equal bytes; B current Git object binding"
+    },
+    {
+      "path": "apps/web/src/components/mate-guide/QuestlineOverlay.tsx",
+      "sha256": "e598093ec41078aa9e93a4058ac2fc71fc7a95b4c58ac6249d37e472327513fb",
+      "unchanged": true,
+      "prior_full_read_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+      "prior_full_read_receipt": "surface-7fee-source-fullread.json",
+      "prior_and_current_git_blob_object": "61ad40537bbe91f2b4fe0d048ec04f99a87b3c44",
+      "full_read": true,
+      "grade": "A prior complete source reading retained for exactly equal bytes; B current Git object binding"
+    },
+    {
+      "path": "apps/web/src/components/welcomeScripts.ts",
+      "sha256": "30ec5892ddaee54b2dadbbe6fb7c8d4cdc9d023c74128f43f8d1dc36491e8d75",
+      "unchanged": true,
+      "prior_full_read_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+      "prior_full_read_receipt": "surface-7fee-source-fullread.json",
+      "prior_and_current_git_blob_object": "d03a114083df4bc52428e81d2a1296f7687396b7",
+      "full_read": true,
+      "grade": "A prior complete source reading retained for exactly equal bytes; B current Git object binding"
+    },
+    {
+      "path": "apps/web/src/lib/naming.ts",
+      "sha256": "8d05e0df3b163ab4186e577af1555d1b9e389ded97a0ad1faad3f3a993b946bd",
+      "unchanged": true,
+      "prior_full_read_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+      "prior_full_read_receipt": "surface-7fee-source-fullread.json",
+      "prior_and_current_git_blob_object": "fd0d0bedf207707de1ddf509b03d744397dd0684",
+      "full_read": true,
+      "grade": "A prior complete source reading retained for exactly equal bytes; B current Git object binding"
+    },
+    {
+      "path": "apps/web/src/lib/theaterDiff.ts",
+      "sha256": "2dc17c972130c8a27fbb8201419dc6219cc281e47b7dae2235f799d3e31a103f",
+      "unchanged": true,
+      "prior_full_read_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+      "prior_full_read_receipt": "surface-7fee-source-fullread.json",
+      "prior_and_current_git_blob_object": "c7f67f626d4c46f5dc0c525cf01ece5bde0cb0e4",
+      "full_read": true,
+      "grade": "A prior complete source reading retained for exactly equal bytes; B current Git object binding"
+    },
+    {
+      "path": "apps/web/src/lib/trpc.ts",
+      "sha256": "c5bc01427be530f8c9b5affec7d68eb56c2e4385aab746d661372c38d7c9c0f1",
+      "unchanged": true,
+      "prior_full_read_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+      "prior_full_read_receipt": "surface-7fee-source-fullread.json",
+      "prior_and_current_git_blob_object": "f88b8220df400be24b7b3bb450ff8d52dc50ed1f",
+      "full_read": true,
+      "grade": "A prior complete source reading retained for exactly equal bytes; B current Git object binding"
+    },
+    {
+      "path": "apps/web/src/lib/useNightTime.ts",
+      "sha256": "ccf604d36908f893f183f97df9381f1c1d50ee3fbc5e92fdf85cd0eae3ef6a29",
+      "unchanged": true,
+      "prior_full_read_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+      "prior_full_read_receipt": "surface-7fee-source-fullread.json",
+      "prior_and_current_git_blob_object": "a87898a5029c3885448d8bcd57c5e9dd82efd297",
+      "full_read": true,
+      "grade": "A prior complete source reading retained for exactly equal bytes; B current Git object binding"
+    },
+    {
+      "path": "apps/web/src/main.tsx",
+      "sha256": "9ec9eea9ce0a5ae01330512e7ca202b07ee3d725fbb1ffeaed00f3a094e289ec",
+      "unchanged": true,
+      "prior_full_read_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+      "prior_full_read_receipt": "surface-7fee-source-fullread.json",
+      "prior_and_current_git_blob_object": "08be9fedf3056503eb22922bbc6312e32396767a",
+      "full_read": true,
+      "grade": "A prior complete source reading retained for exactly equal bytes; B current Git object binding"
+    },
+    {
+      "path": "apps/web/src/onboarding/QuestlineContent.tsx",
+      "sha256": "b4e8c5b1d02052ba607ab29f4566c631b0c3fe77c0f50697f1d4738a5dc83192",
+      "unchanged": true,
+      "prior_full_read_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+      "prior_full_read_receipt": "surface-7fee-source-fullread.json",
+      "prior_and_current_git_blob_object": "0aeaaaca91535eddb2261febeeca23818eb50745",
+      "full_read": true,
+      "grade": "A prior complete source reading retained for exactly equal bytes; B current Git object binding"
+    },
+    {
+      "path": "apps/web/src/onboarding/questline.config.ts",
+      "sha256": "cf992950b56ff5e77fd488041d4c14c6d1ffdfaf7b4962da63e26f07e372153b",
+      "unchanged": true,
+      "prior_full_read_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+      "prior_full_read_receipt": "surface-7fee-source-fullread.json",
+      "prior_and_current_git_blob_object": "d810a34c29ec80e17e2cb7dd253902218e3ed04f",
+      "full_read": true,
+      "grade": "A prior complete source reading retained for exactly equal bytes; B current Git object binding"
+    },
+    {
+      "path": "apps/web/src/onboarding/questline.test.ts",
+      "sha256": "721f2f102759e28104b8b2a4ec0a22d4ebe97e589d9bd18d685e41be8cd0ca78",
+      "unchanged": true,
+      "prior_full_read_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+      "prior_full_read_receipt": "surface-7fee-source-fullread.json",
+      "prior_and_current_git_blob_object": "5d22fcf607006b5833cc4cedde1f41c315281a7f",
+      "full_read": true,
+      "grade": "A prior complete source reading retained for exactly equal bytes; B current Git object binding"
+    },
+    {
+      "path": "apps/web/src/onboarding/questline.ts",
+      "sha256": "e7e81fbe1555316135e1a7ad916ee97b8871e102096e12c12a03ae7642312289",
+      "unchanged": true,
+      "prior_full_read_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+      "prior_full_read_receipt": "surface-7fee-source-fullread.json",
+      "prior_and_current_git_blob_object": "7d4307bd220e4505cab91fe6e2872307a692f770",
+      "full_read": true,
+      "grade": "A prior complete source reading retained for exactly equal bytes; B current Git object binding"
+    },
+    {
+      "path": "apps/web/src/onboarding/useQuestline.test.tsx",
+      "sha256": "87bcf30f0c9cb2399df250b69ddc36502de1977143febf92357033c96fff1f60",
+      "unchanged": true,
+      "prior_full_read_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+      "prior_full_read_receipt": "surface-7fee-source-fullread.json",
+      "prior_and_current_git_blob_object": "844394e45b667e9b1f7bea558796fa2cbb97fa4a",
+      "full_read": true,
+      "grade": "A prior complete source reading retained for exactly equal bytes; B current Git object binding"
+    },
+    {
+      "path": "apps/web/src/onboarding/useQuestline.ts",
+      "sha256": "497adb51545890214b3770c40d84edcabec372e760da67498641d5d2e5928478",
+      "unchanged": true,
+      "prior_full_read_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+      "prior_full_read_receipt": "surface-7fee-source-fullread.json",
+      "prior_and_current_git_blob_object": "7d4afdb5c4f0bfc1301503a08275ae5b8b1c72c5",
+      "full_read": true,
+      "grade": "A prior complete source reading retained for exactly equal bytes; B current Git object binding"
+    },
+    {
+      "path": "apps/web/src/onboarding/useWelcomeProgress.test.tsx",
+      "sha256": "fff027758cb82a141ef24a7368a97307bc725bea639c57df4ef67eacad1d47dc",
+      "unchanged": true,
+      "prior_full_read_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+      "prior_full_read_receipt": "surface-7fee-source-fullread.json",
+      "prior_and_current_git_blob_object": "cf53b48be2c5a4b99438ec7fb7fb169615c0cf17",
+      "full_read": true,
+      "grade": "A prior complete source reading retained for exactly equal bytes; B current Git object binding"
+    },
+    {
+      "path": "apps/web/src/onboarding/useWelcomeProgress.ts",
+      "sha256": "af7199560c287547c2d45ddea5dc33a95cef87546d0c8fe80ad52d60a64bbba6",
+      "unchanged": true,
+      "prior_full_read_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+      "prior_full_read_receipt": "surface-7fee-source-fullread.json",
+      "prior_and_current_git_blob_object": "d4b5093ba993e6f6b429379ec096ab231e92ba9a",
+      "full_read": true,
+      "grade": "A prior complete source reading retained for exactly equal bytes; B current Git object binding"
+    },
+    {
+      "path": "apps/web/src/pages/p0/Floor.test.tsx",
+      "sha256": "d80f041dc3377034fd45ca78b596485509cccf435bf4e67f2a44d7ccae7dd6d3",
+      "unchanged": true,
+      "prior_full_read_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+      "prior_full_read_receipt": "surface-7fee-source-fullread.json",
+      "prior_and_current_git_blob_object": "98bc8bc0b9e4600f0f850f2a87267fb72a222012",
+      "full_read": true,
+      "grade": "A prior complete source reading retained for exactly equal bytes; B current Git object binding"
+    },
+    {
+      "path": "apps/web/src/pages/p0/Floor.tsx",
+      "sha256": "3a90bb297bebf658241b0028970ec467f700d08a8531708144221b815a9a3301",
+      "unchanged": true,
+      "prior_full_read_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+      "prior_full_read_receipt": "surface-7fee-source-fullread.json",
+      "prior_and_current_git_blob_object": "18d656657018d6f0ee4a50b40b0b26e05721e975",
+      "full_read": true,
+      "grade": "A prior complete source reading retained for exactly equal bytes; B current Git object binding"
+    },
+    {
+      "path": "apps/web/src/pages/p0/P0.tsx",
+      "sha256": "1b2cab15dd81b050d5963d4cdef7edf304d81804f33fd224979ce606370a8c5e",
+      "unchanged": true,
+      "prior_full_read_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+      "prior_full_read_receipt": "surface-7fee-source-fullread.json",
+      "prior_and_current_git_blob_object": "d9ef9bbc2c16f7d890813295434037e782a07791",
+      "full_read": true,
+      "grade": "A prior complete source reading retained for exactly equal bytes; B current Git object binding"
+    },
+    {
+      "path": "apps/web/src/pages/p0/floor-layout.test.ts",
+      "sha256": "1cdceca77b9a7e216d10082944b35d924e411d45b6421d8d94573bbd1d9b0fa8",
+      "unchanged": true,
+      "prior_full_read_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+      "prior_full_read_receipt": "surface-7fee-source-fullread.json",
+      "prior_and_current_git_blob_object": "888de36039d030b88dd45b764afcd2dc6b8058a8",
+      "full_read": true,
+      "grade": "A prior complete source reading retained for exactly equal bytes; B current Git object binding"
+    },
+    {
+      "path": "apps/web/src/pages/p0/floor-layout.ts",
+      "sha256": "d4b435b40ffaf11077ba0906ecbda3a9291165a7fb6ea59f2f611441443cfaa2",
+      "unchanged": true,
+      "prior_full_read_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+      "prior_full_read_receipt": "surface-7fee-source-fullread.json",
+      "prior_and_current_git_blob_object": "ee9b08828eba05db93f1b558cba3dc6d0ce2da12",
+      "full_read": true,
+      "grade": "A prior complete source reading retained for exactly equal bytes; B current Git object binding"
+    },
+    {
+      "path": "apps/web/src/styles/subtitle.css",
+      "sha256": "20729481d6a885c54e6c381810cd00f0b30871fc6b3ad4a5e49fac8e7cef4bf1",
+      "unchanged": true,
+      "prior_full_read_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+      "prior_full_read_receipt": "surface-7fee-source-fullread.json",
+      "prior_and_current_git_blob_object": "2b52d270ed0cbd8738e1a3d75253509c42c6b8ef",
+      "full_read": true,
+      "grade": "A prior complete source reading retained for exactly equal bytes; B current Git object binding"
+    },
+    {
+      "path": "apps/web/src/styles/tokens.css",
+      "sha256": "cc8a4da15772a62b9d122ea6afbe49262ec6d12f301c0450ed019ca9a407302e",
+      "unchanged": true,
+      "prior_full_read_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+      "prior_full_read_receipt": "surface-7fee-source-fullread.json",
+      "prior_and_current_git_blob_object": "099aa0c6e3eb6dcebf3767a80550417b42cd5771",
+      "full_read": true,
+      "grade": "A prior complete source reading retained for exactly equal bytes; B current Git object binding"
+    },
+    {
+      "path": "apps/web/src/voice/VoiceEngine.ts",
+      "sha256": "3d6bb09d4f593dcff24f7da0b151d669da945257abcb0880e819ca05e167cfc8",
+      "unchanged": true,
+      "prior_full_read_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+      "prior_full_read_receipt": "surface-7fee-source-fullread.json",
+      "prior_and_current_git_blob_object": "f9a7f1771e8172c95da4053460f57c1aeb66e704",
+      "full_read": true,
+      "grade": "A prior complete source reading retained for exactly equal bytes; B current Git object binding"
+    },
+    {
+      "path": "apps/web/src/voice/mateVoice.ts",
+      "sha256": "7fbd64c35c9321f08f59bfc14bb1b5695c989993424a42bf55d0da9e7c24dd20",
+      "unchanged": true,
+      "prior_full_read_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+      "prior_full_read_receipt": "surface-7fee-source-fullread.json",
+      "prior_and_current_git_blob_object": "bc737d045b9d72b1236eeef0da9b9c1149e61f7a",
+      "full_read": true,
+      "grade": "A prior complete source reading retained for exactly equal bytes; B current Git object binding"
+    },
+    {
+      "path": "apps/web/tsconfig.json",
+      "sha256": "b10d871fcdc0061dde770a1f473a06213c6c7cd1df966c31b680ef90c1deab1a",
+      "unchanged": true,
+      "prior_full_read_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+      "prior_full_read_receipt": "surface-7fee-source-fullread.json",
+      "prior_and_current_git_blob_object": "aafaef53fd7d4c1760c650443402f2f25c9bd6ad",
+      "full_read": true,
+      "grade": "A prior complete source reading retained for exactly equal bytes; B current Git object binding"
+    },
+    {
+      "path": "apps/web/vite.config.ts",
+      "sha256": "54b67032309c054459a1946f43009d5f7869748c60c6fb6cd461569da549e221",
+      "unchanged": true,
+      "prior_full_read_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+      "prior_full_read_receipt": "surface-7fee-source-fullread.json",
+      "prior_and_current_git_blob_object": "d1dbd3e02ccdcee07d7ed9295a233c2238134587",
+      "full_read": true,
+      "grade": "A prior complete source reading retained for exactly equal bytes; B current Git object binding"
+    },
+    {
+      "path": "apps/web/vitest.config.ts",
+      "sha256": "6304966b68891894642a5f33c2ae57a176de46b7a78f604e881722539ab3490d",
+      "unchanged": true,
+      "prior_full_read_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+      "prior_full_read_receipt": "surface-7fee-source-fullread.json",
+      "prior_and_current_git_blob_object": "98ef50c41e3725a6b6da5ad4a149c9e4f95fd898",
+      "full_read": true,
+      "grade": "A prior complete source reading retained for exactly equal bytes; B current Git object binding"
+    },
+    {
+      "path": "apps/webc/public/industry/service-front.config.json",
+      "sha256": "fd66b505e45bfb1a1e25174e3d74a65af80e64303efcb757bfed64f008905dff",
+      "unchanged": true,
+      "prior_full_read_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+      "prior_full_read_receipt": "surface-7fee-source-fullread.json",
+      "prior_and_current_git_blob_object": "f1ceed6869d075c28a427b25099f84e3a029ac3c",
+      "full_read": true,
+      "grade": "A prior complete source reading retained for exactly equal bytes; B current Git object binding"
+    },
+    {
+      "path": "bundles/geo-growth/bundle.json",
+      "sha256": "e2f6197f72a6743c26f5ff7d540c0f72de8dc497abf9203ad0b626afb89c1ac0",
+      "unchanged": true,
+      "prior_full_read_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+      "prior_full_read_receipt": "surface-7fee-source-fullread.json",
+      "prior_and_current_git_blob_object": "57f97c9261a19b104f18cf699c3915945c6bcbee",
+      "full_read": true,
+      "grade": "A prior complete source reading retained for exactly equal bytes; B current Git object binding"
+    },
+    {
+      "path": "bundles/geo-growth/capabilities/video.mjs",
+      "sha256": "97a5c1f8def3beae54e807b1ad25bcffc0c4906f1c0fc10cc6ad5fba922eb8cc",
+      "unchanged": true,
+      "prior_full_read_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+      "prior_full_read_receipt": "surface-7fee-source-fullread.json",
+      "prior_and_current_git_blob_object": "e81d6f4faad96fe46a3e8b7c0f9b1e524b110c0b",
+      "full_read": true,
+      "grade": "A prior complete source reading retained for exactly equal bytes; B current Git object binding"
+    },
+    {
+      "path": "bundles/geo-growth/fences/geo-growth-baseline.yml",
+      "sha256": "4a06d0a472be51a3e8922bc77e8834ef9f1f31e752b4ef3d345058ca908970c7",
+      "unchanged": true,
+      "prior_full_read_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+      "prior_full_read_receipt": "surface-7fee-source-fullread.json",
+      "prior_and_current_git_blob_object": "e9f4fbe97b55eb2647c9838c46626b08d0936a94",
+      "full_read": true,
+      "grade": "A prior complete source reading retained for exactly equal bytes; B current Git object binding"
+    },
+    {
+      "path": "bundles/geo-growth/floor-scene.json",
+      "sha256": "944aef23a59f2eaffa4899edb3aaf8895bcade8dac81926a4b32ef4ff37bee32",
+      "unchanged": true,
+      "prior_full_read_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+      "prior_full_read_receipt": "surface-7fee-source-fullread.json",
+      "prior_and_current_git_blob_object": "6dedf72541557f8ae83c3cd639ce6da63141e665",
+      "full_read": true,
+      "grade": "A prior complete source reading retained for exactly equal bytes; B current Git object binding"
+    },
+    {
+      "path": "bundles/geo-growth/schemas/objects.json",
+      "sha256": "56a7fd4260455e7ad73ca0dbc0f6f6bb630f6f5131e2042f14c86e5e5eae66dc",
+      "unchanged": true,
+      "prior_full_read_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+      "prior_full_read_receipt": "surface-7fee-source-fullread.json",
+      "prior_and_current_git_blob_object": "231eb95f747f6d8d37dec83a22649e15b6776372",
+      "full_read": true,
+      "grade": "A prior complete source reading retained for exactly equal bytes; B current Git object binding"
+    },
+    {
+      "path": "packages/base/accounts/tokens.ts",
+      "sha256": "ae3e4f7f8da91fe3e6e4115491f368231737071970b22c376eac7ffa05c1bf4b",
+      "unchanged": true,
+      "prior_full_read_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+      "prior_full_read_receipt": "surface-7fee-source-fullread.json",
+      "prior_and_current_git_blob_object": "6457454a3a53148870c7b53fce49ca68bea428f9",
+      "full_read": true,
+      "grade": "A prior complete source reading retained for exactly equal bytes; B current Git object binding"
+    },
+    {
+      "path": "packages/base/bundles/bundles.test.ts",
+      "sha256": "9fae7130394e8ea9417a248f55c6e355062f7e29876ec814be3439d4011f83d9",
+      "unchanged": true,
+      "prior_full_read_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+      "prior_full_read_receipt": "surface-7fee-source-fullread.json",
+      "prior_and_current_git_blob_object": "322d51e1804bb86ad74b671c478e0210b602f54f",
+      "full_read": true,
+      "grade": "A prior complete source reading retained for exactly equal bytes; B current Git object binding"
+    },
+    {
+      "path": "packages/base/bundles/index.ts",
+      "sha256": "5bae6b929e8921ea1e9c4fcabd0bc31ea44b0a5bdbfca78965b6b8a1704e060d",
+      "unchanged": true,
+      "prior_full_read_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+      "prior_full_read_receipt": "surface-7fee-source-fullread.json",
+      "prior_and_current_git_blob_object": "bea86bc99156e7d7af0117f7be260286761a38dc",
+      "full_read": true,
+      "grade": "A prior complete source reading retained for exactly equal bytes; B current Git object binding"
+    },
+    {
+      "path": "packages/base/captain/floor.ts",
+      "sha256": "2e40706175df1682ef628e4876eee368b99c4b98315f759543f9f2e3697fb00a",
+      "unchanged": true,
+      "prior_full_read_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+      "prior_full_read_receipt": "surface-7fee-source-fullread.json",
+      "prior_and_current_git_blob_object": "91f6b2716d6d278bb7cb10ed0edcd894f749ea1e",
+      "full_read": true,
+      "grade": "A prior complete source reading retained for exactly equal bytes; B current Git object binding"
+    },
+    {
+      "path": "packages/base/fence-engine/index.ts",
+      "sha256": "b87bec63850cfb4bac4768c3d8449b57e14e7d82f2d8b4c02ab8498063c6c764",
+      "unchanged": true,
+      "prior_full_read_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+      "prior_full_read_receipt": "surface-7fee-source-fullread.json",
+      "prior_and_current_git_blob_object": "ce2ee6682fead0819a8e316db557345e8a6d8be5",
+      "full_read": true,
+      "grade": "A prior complete source reading retained for exactly equal bytes; B current Git object binding"
+    },
+    {
+      "path": "packages/base/fence-engine/judge.ts",
+      "sha256": "6a42d2b45ca3cd88874919179f5321fa5f9ab27819313a5ebfd4707ae6a7f3d6",
+      "unchanged": true,
+      "prior_full_read_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+      "prior_full_read_receipt": "surface-7fee-source-fullread.json",
+      "prior_and_current_git_blob_object": "8d5baa3cdda29eed676f679ba08c259a8ec1f1d1",
+      "full_read": true,
+      "grade": "A prior complete source reading retained for exactly equal bytes; B current Git object binding"
+    },
+    {
+      "path": "packages/base/package.json",
+      "sha256": "d6b309b67a0a23b7465b758210e3647194c44489ad2b9a3e19d68af8ebfe6e2a",
+      "unchanged": true,
+      "prior_full_read_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+      "prior_full_read_receipt": "surface-7fee-source-fullread.json",
+      "prior_and_current_git_blob_object": "a03c94c2af4521c6ed1686774baa5e48ff38a7f2",
+      "full_read": true,
+      "grade": "A prior complete source reading retained for exactly equal bytes; B current Git object binding"
+    },
+    {
+      "path": "packages/base/review-console/approvals.test.ts",
+      "sha256": "be7a7443fb88a5559daeec2f97d29a4bf6845a4c3179113224fc501442197e4d",
+      "unchanged": true,
+      "prior_full_read_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+      "prior_full_read_receipt": "surface-7fee-source-fullread.json",
+      "prior_and_current_git_blob_object": "a6e6a281a209d8eea532788b388dd971b728e033",
+      "full_read": true,
+      "grade": "A prior complete source reading retained for exactly equal bytes; B current Git object binding"
+    },
+    {
+      "path": "packages/base/review-console/approvals.ts",
+      "sha256": "8c08a6824b8da0f5fd82103a35f5e0da71ebdf7ad3808b9b9e9969a96665452c",
+      "unchanged": true,
+      "prior_full_read_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+      "prior_full_read_receipt": "surface-7fee-source-fullread.json",
+      "prior_and_current_git_blob_object": "cf96872a89fac584f51102dbb2639bad26f37709",
+      "full_read": true,
+      "grade": "A prior complete source reading retained for exactly equal bytes; B current Git object binding"
+    },
+    {
+      "path": "packages/base/skills/index.ts",
+      "sha256": "c942ab1fa6f25d52c34ae3cf64566c23e7b642c542a367f00a7be81c2eca51e8",
+      "unchanged": true,
+      "prior_full_read_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+      "prior_full_read_receipt": "surface-7fee-source-fullread.json",
+      "prior_and_current_git_blob_object": "862c4e8239f6771a473342368189eebb580bb65d",
+      "full_read": true,
+      "grade": "A prior complete source reading retained for exactly equal bytes; B current Git object binding"
+    },
+    {
+      "path": "packages/base/skills/official.ts",
+      "sha256": "57978c939822cebbfbf0c5a01e413ba737d2fed958120453519f9d842fe24835",
+      "unchanged": true,
+      "prior_full_read_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+      "prior_full_read_receipt": "surface-7fee-source-fullread.json",
+      "prior_and_current_git_blob_object": "37d77a94ccb33b84cd9447a5179edee675f4195d",
+      "full_read": true,
+      "grade": "A prior complete source reading retained for exactly equal bytes; B current Git object binding"
+    },
+    {
+      "path": "packages/base/tenancy/auth.ts",
+      "sha256": "d1be9c71cc3620ba6990e81115f0b2c5a9d40b2758117f21c7bbdb4f64f018ce",
+      "unchanged": true,
+      "prior_full_read_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+      "prior_full_read_receipt": "surface-7fee-source-fullread.json",
+      "prior_and_current_git_blob_object": "45f9da39626c54426d44c554dcda9ef2fce37659",
+      "full_read": true,
+      "grade": "A prior complete source reading retained for exactly equal bytes; B current Git object binding"
+    },
+    {
+      "path": "packages/base/tenancy/tenancy.test.ts",
+      "sha256": "8c2608913fb16668f95b0f608cf05f4e328bf07f67132791c177d1a1813b3a10",
+      "unchanged": true,
+      "prior_full_read_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+      "prior_full_read_receipt": "surface-7fee-source-fullread.json",
+      "prior_and_current_git_blob_object": "08b25b5a413e3f87bfc2fd06273bf2d5139395ae",
+      "full_read": true,
+      "grade": "A prior complete source reading retained for exactly equal bytes; B current Git object binding"
+    },
+    {
+      "path": "packages/base/vitest.config.ts",
+      "sha256": "d8dc29a43309dccf1cf9ef1f3754c4d47b994a39b132a540d6583f4f8444ad35",
+      "unchanged": true,
+      "prior_full_read_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+      "prior_full_read_receipt": "surface-7fee-source-fullread.json",
+      "prior_and_current_git_blob_object": "92f8c0943836ac7ea58643962dd22f02077e3134",
+      "full_read": true,
+      "grade": "A prior complete source reading retained for exactly equal bytes; B current Git object binding"
+    },
+    {
+      "path": "packages/base/workdata/events.ts",
+      "sha256": "c2cea423e934037fa4e2802a83ebe69daca1facb1e6876434783d2b13a530ed5",
+      "unchanged": true,
+      "prior_full_read_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+      "prior_full_read_receipt": "surface-7fee-source-fullread.json",
+      "prior_and_current_git_blob_object": "261d40f719f5f01494d1c9c2d05519cf133d73ec",
+      "full_read": true,
+      "grade": "A prior complete source reading retained for exactly equal bytes; B current Git object binding"
+    },
+    {
+      "path": "packages/base/workdata/gateway.ts",
+      "sha256": "1f7b60fb592d716b556d57ed59589726296cb97b1667bf6e3e3ce9fb03189785",
+      "unchanged": true,
+      "prior_full_read_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+      "prior_full_read_receipt": "surface-7fee-source-fullread.json",
+      "prior_and_current_git_blob_object": "51867f707ea57e3201c4951fb42036dc1c119d27",
+      "full_read": true,
+      "grade": "A prior complete source reading retained for exactly equal bytes; B current Git object binding"
+    },
+    {
+      "path": "packages/base/workdata/index.ts",
+      "sha256": "0d3c5b0483b528fcf57c137363aa5328ce78bf999bc44404b938bca476062a09",
+      "unchanged": true,
+      "prior_full_read_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+      "prior_full_read_receipt": "surface-7fee-source-fullread.json",
+      "prior_and_current_git_blob_object": "c9070ece56541ea7ba515731cb75b1981c17ffd7",
+      "full_read": true,
+      "grade": "A prior complete source reading retained for exactly equal bytes; B current Git object binding"
+    },
+    {
+      "path": "packages/base/workdata/pii.ts",
+      "sha256": "2c9f18d1a220ecaab52e904486b6c2b9872336d6080303f86c928786d7fbadec",
+      "unchanged": true,
+      "prior_full_read_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+      "prior_full_read_receipt": "surface-7fee-source-fullread.json",
+      "prior_and_current_git_blob_object": "a3064d0b505f02e514d9226f2c73dffba588ecf2",
+      "full_read": true,
+      "grade": "A prior complete source reading retained for exactly equal bytes; B current Git object binding"
+    },
+    {
+      "path": "packages/base/workdata/readable-id.ts",
+      "sha256": "c66b34756ef5e42237e4e07c8f4e22180481643bc8115c97f723a2330680ff39",
+      "unchanged": true,
+      "prior_full_read_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+      "prior_full_read_receipt": "surface-7fee-source-fullread.json",
+      "prior_and_current_git_blob_object": "ace978bcf2c65e1736b33d97b335881c8055617c",
+      "full_read": true,
+      "grade": "A prior complete source reading retained for exactly equal bytes; B current Git object binding"
+    },
+    {
+      "path": "packages/db/migrations/0022_bundle_mechanism.sql",
+      "sha256": "0bd0fef17aba902350b55f9ee161124504b8a6eab53265ce3ccf83e110c736ad",
+      "unchanged": true,
+      "prior_full_read_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+      "prior_full_read_receipt": "surface-7fee-source-fullread.json",
+      "prior_and_current_git_blob_object": "ca9c742dc5006a575edf1f18842e0f957a3fe635",
+      "full_read": true,
+      "grade": "A prior complete source reading retained for exactly equal bytes; B current Git object binding"
+    },
+    {
+      "path": "packages/db/src/client.ts",
+      "sha256": "67b8b3b34049046cb4449e9e05975cb8549f81acbb856b6e91b425ef20798e7d",
+      "unchanged": true,
+      "prior_full_read_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+      "prior_full_read_receipt": "surface-7fee-source-fullread.json",
+      "prior_and_current_git_blob_object": "e8b720ccb96f8933d97f1baf789acde04df44ae5",
+      "full_read": true,
+      "grade": "A prior complete source reading retained for exactly equal bytes; B current Git object binding"
+    },
+    {
+      "path": "packages/runtime/package.json",
+      "sha256": "9ec1a6bbfded34938f35b57ea94d9cfdd98ed6b29c93836a86e3df92b123ec81",
+      "unchanged": true,
+      "prior_full_read_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+      "prior_full_read_receipt": "surface-7fee-source-fullread.json",
+      "prior_and_current_git_blob_object": "751d39ece95d9dfe6ce7cd9fa1786b99e9fb532a",
+      "full_read": true,
+      "grade": "A prior complete source reading retained for exactly equal bytes; B current Git object binding"
+    },
+    {
+      "path": "packages/runtime/src/assembly.ts",
+      "sha256": "24dc365fb6eade190f825a5bc1effd2ae78c84bf65def0891c7bbaa4723a3007",
+      "unchanged": true,
+      "prior_full_read_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+      "prior_full_read_receipt": "surface-7fee-source-fullread.json",
+      "prior_and_current_git_blob_object": "7663cb160f8c7a5f0efdd83c2e867dd102756701",
+      "full_read": true,
+      "grade": "A prior complete source reading retained for exactly equal bytes; B current Git object binding"
+    },
+    {
+      "path": "packages/runtime/src/loop.test.ts",
+      "sha256": "ff10709cfc6eb4bded1fe97577203630941127b7fae32d8d6d660c5684ac0193",
+      "unchanged": true,
+      "prior_full_read_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+      "prior_full_read_receipt": "surface-7fee-source-fullread.json",
+      "prior_and_current_git_blob_object": "d60d6bb2af286dc650fd2a2429e2586c1ff546c8",
+      "full_read": true,
+      "grade": "A prior complete source reading retained for exactly equal bytes; B current Git object binding"
+    },
+    {
+      "path": "packages/runtime/src/loop.ts",
+      "sha256": "ae4ec887d54baf5af27591f6c1a1a3684e761bf6c2c31a622b2fa2f3bfbc9d7e",
+      "unchanged": true,
+      "prior_full_read_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+      "prior_full_read_receipt": "surface-7fee-source-fullread.json",
+      "prior_and_current_git_blob_object": "f668cf6c72376c8ea6a891ca74aa11115df57236",
+      "full_read": true,
+      "grade": "A prior complete source reading retained for exactly equal bytes; B current Git object binding"
+    },
+    {
+      "path": "packages/runtime/src/runtime.test.ts",
+      "sha256": "c299bc006e531f6247c16a97715fbcdfd0bde22eb5ff8cc80f8e9a37a68fe573",
+      "unchanged": true,
+      "prior_full_read_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+      "prior_full_read_receipt": "surface-7fee-source-fullread.json",
+      "prior_and_current_git_blob_object": "da89e7dcda0b5364e6e2779307bb06fee8753cca",
+      "full_read": true,
+      "grade": "A prior complete source reading retained for exactly equal bytes; B current Git object binding"
+    },
+    {
+      "path": "packages/runtime/src/tools.ts",
+      "sha256": "78d110dfcf5281024d10e3dfac06c9cf719624a68b5adddf51ecb5605c03902e",
+      "unchanged": true,
+      "prior_full_read_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+      "prior_full_read_receipt": "surface-7fee-source-fullread.json",
+      "prior_and_current_git_blob_object": "18c69ebb6105e389196c8b46d40b9066dd350c97",
+      "full_read": true,
+      "grade": "A prior complete source reading retained for exactly equal bytes; B current Git object binding"
+    },
+    {
+      "path": "packages/video-studio/src/film-worker-channel.ts",
+      "sha256": "c6545f197263a445c2686e5ae809ee1f483adac5dd99bd614040f48f7b07831f",
+      "unchanged": true,
+      "prior_full_read_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+      "prior_full_read_receipt": "surface-7fee-source-fullread.json",
+      "prior_and_current_git_blob_object": "fc14947896165d546f0736e95a5812a2ddfa6a3f",
+      "full_read": true,
+      "grade": "A prior complete source reading retained for exactly equal bytes; B current Git object binding"
+    },
+    {
+      "path": "packages/video-studio/src/film-worker-runtime.test.ts",
+      "sha256": "a2b903af54e827b33f0c14e5821544934df8c4fb1e16be1786bdde03fd79750b",
+      "unchanged": true,
+      "prior_full_read_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+      "prior_full_read_receipt": "surface-7fee-source-fullread.json",
+      "prior_and_current_git_blob_object": "9b7ccadaf6a0da3e2c7b072561f85750f63c6d52",
+      "full_read": true,
+      "grade": "A prior complete source reading retained for exactly equal bytes; B current Git object binding"
+    },
+    {
+      "path": "packages/video-studio/src/film-worker-runtime.ts",
+      "sha256": "35f0be522be7f6dfa6b28d661e0bd350b66a32a646d77db05d26fce1ef540c36",
+      "unchanged": true,
+      "prior_full_read_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+      "prior_full_read_receipt": "surface-7fee-source-fullread.json",
+      "prior_and_current_git_blob_object": "bfd4413268783ec324a9751a6b05661d32a19ae2",
+      "full_read": true,
+      "grade": "A prior complete source reading retained for exactly equal bytes; B current Git object binding"
+    },
+    {
+      "path": "packages/video-studio/src/index.ts",
+      "sha256": "fbacc818f5d8e01f30e36f8a14c012c253dc6ac68d773659b7d54e0dfc5a88ea",
+      "unchanged": true,
+      "prior_full_read_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+      "prior_full_read_receipt": "surface-7fee-source-fullread.json",
+      "prior_and_current_git_blob_object": "3be846a501d4bb30ea0bc96f2ebd67c3574d5f3f",
+      "full_read": true,
+      "grade": "A prior complete source reading retained for exactly equal bytes; B current Git object binding"
+    },
+    {
+      "path": "packages/video-studio/src/portrait-decision.test.ts",
+      "sha256": "985f4b90f29ecf2292a013e82a4426778af9709ccadd18274936b8deae47c59b",
+      "unchanged": true,
+      "prior_full_read_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+      "prior_full_read_receipt": "surface-7fee-source-fullread.json",
+      "prior_and_current_git_blob_object": "6a32e228dcfa0c8598f3227a92cc0c05e5e09ae0",
+      "full_read": true,
+      "grade": "A prior complete source reading retained for exactly equal bytes; B current Git object binding"
+    },
+    {
+      "path": "packages/video-studio/src/portrait-decision.ts",
+      "sha256": "6846ad0975cafc89d5efc890e4e842b67c63050a815ea5e99c5cad7160436607",
+      "unchanged": true,
+      "prior_full_read_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+      "prior_full_read_receipt": "surface-7fee-source-fullread.json",
+      "prior_and_current_git_blob_object": "c9b6fec19860136458e524102462df9b457f1d51",
+      "full_read": true,
+      "grade": "A prior complete source reading retained for exactly equal bytes; B current Git object binding"
+    },
+    {
+      "path": "product.manifest.json",
+      "sha256": "1aa6bf2b967cf3e7f88f024ff913a3633fb17737a54c3f495872f6c56b008df9",
+      "unchanged": true,
+      "prior_full_read_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+      "prior_full_read_receipt": "surface-7fee-source-fullread.json",
+      "prior_and_current_git_blob_object": "b86d17bd8154e1f592488e40be720af349e8e642",
+      "full_read": true,
+      "grade": "A prior complete source reading retained for exactly equal bytes; B current Git object binding"
+    },
+    {
+      "path": "scripts/ci/cnb-desktop-release.mjs",
+      "sha256": "789236137878fa0335da659307f73ce4249bbc981f1c291444d941e46316347f",
+      "unchanged": true,
+      "prior_full_read_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+      "prior_full_read_receipt": "surface-7fee-source-fullread.json",
+      "prior_and_current_git_blob_object": "a8152ec80520f69675bd139481cc2cb9c976fc20",
+      "full_read": true,
+      "grade": "A prior complete source reading retained for exactly equal bytes; B current Git object binding"
+    },
+    {
+      "path": "scripts/ci/cnb-desktop-release.test.mjs",
+      "sha256": "5a1809dfae4a89b81c1d93529c52d3bbe5efea085e8286f082758763db6d08f5",
+      "unchanged": true,
+      "prior_full_read_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+      "prior_full_read_receipt": "surface-7fee-source-fullread.json",
+      "prior_and_current_git_blob_object": "50d44a43580b1bdbe1d74c284126340bc359effb",
+      "full_read": true,
+      "grade": "A prior complete source reading retained for exactly equal bytes; B current Git object binding"
+    },
+    {
+      "path": "scripts/delivery/mine-clear.mjs",
+      "sha256": "c314bfdb9c3310ed1f14976e46e9ddbf612bfde9f0938fabfcdb9b164fa43c7f",
+      "unchanged": true,
+      "prior_full_read_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+      "prior_full_read_receipt": "surface-7fee-source-fullread.json",
+      "prior_and_current_git_blob_object": "402a29d08005e0c501d3792d048e3638266bc3cb",
+      "full_read": true,
+      "grade": "A prior complete source reading retained for exactly equal bytes; B current Git object binding"
+    },
+    {
+      "path": "scripts/migrate.ts",
+      "sha256": "3776b4efc5f2622bd0c55353652780290f3267dbd1d4d35b7f919328a473dacc",
+      "unchanged": true,
+      "prior_full_read_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+      "prior_full_read_receipt": "surface-7fee-source-fullread.json",
+      "prior_and_current_git_blob_object": "8bcb2f432c17b0c08883311037758f50f6e30043",
+      "full_read": true,
+      "grade": "A prior complete source reading retained for exactly equal bytes; B current Git object binding"
+    },
+    {
+      "path": "scripts/pack-electron-payload.sh",
+      "sha256": "0e91155a79c6147ee944e00987235caa9e5d8df368875970d8ad8e9a33441b01",
+      "unchanged": true,
+      "prior_full_read_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+      "prior_full_read_receipt": "surface-7fee-source-fullread.json",
+      "prior_and_current_git_blob_object": "021af3ba64836f98e48d3c82ed35d379da5f2da8",
+      "full_read": true,
+      "grade": "A prior complete source reading retained for exactly equal bytes; B current Git object binding"
+    },
+    {
+      "path": "scripts/pack-macos.sh",
+      "sha256": "3d28254b2fde730ac6b192c317715f4f9de0aa9271650cce37cd1ad244d6d5f6",
+      "unchanged": true,
+      "prior_full_read_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+      "prior_full_read_receipt": "surface-7fee-source-fullread.json",
+      "prior_and_current_git_blob_object": "e1c11cc287dc12ae027aec84ceb72bfe70c2734c",
+      "full_read": true,
+      "grade": "A prior complete source reading retained for exactly equal bytes; B current Git object binding"
+    },
+    {
+      "path": "scripts/pack-nm-merge.mjs",
+      "sha256": "8e7aa9c1e7fe10e13165802f27c6162bbda9d45ae95c97841e9484e2560856ce",
+      "unchanged": true,
+      "prior_full_read_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+      "prior_full_read_receipt": "surface-7fee-source-fullread.json",
+      "prior_and_current_git_blob_object": "413670fd21cc968f562933f9bfc6c1da31bc4827",
+      "full_read": true,
+      "grade": "A prior complete source reading retained for exactly equal bytes; B current Git object binding"
+    },
+    {
+      "path": "scripts/pack-windows.sh",
+      "sha256": "21be99dc7b0968de17287b59064b508caf10d47abfcc5b04da35f100253947cb",
+      "unchanged": true,
+      "prior_full_read_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+      "prior_full_read_receipt": "surface-7fee-source-fullread.json",
+      "prior_and_current_git_blob_object": "aff2b6ad8b12c3b62d1727f6e564a0c4d061b002",
+      "full_read": true,
+      "grade": "A prior complete source reading retained for exactly equal bytes; B current Git object binding"
+    },
+    {
+      "path": "scripts/pack-workspace-modules.mjs",
+      "sha256": "b28d5fc4e31dadd2f9567f6e65da95cd1e2595a4097e2fc7c6d2935127cb313a",
+      "unchanged": true,
+      "prior_full_read_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+      "prior_full_read_receipt": "surface-7fee-source-fullread.json",
+      "prior_and_current_git_blob_object": "b32a8ed07bad584c1a65b318f93981322b31a881",
+      "full_read": true,
+      "grade": "A prior complete source reading retained for exactly equal bytes; B current Git object binding"
+    },
+    {
+      "path": "scripts/pack-workspace-modules.test.mjs",
+      "sha256": "8393d9fe80337be3d80794b176ba42ff1032b868c288cca200ead77301dc50a6",
+      "unchanged": true,
+      "prior_full_read_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+      "prior_full_read_receipt": "surface-7fee-source-fullread.json",
+      "prior_and_current_git_blob_object": "8e3995fbb44d2b89e5f8d62f895684dde7a148bb",
+      "full_read": true,
+      "grade": "A prior complete source reading retained for exactly equal bytes; B current Git object binding"
+    },
+    {
+      "path": "scripts/payload-policy.mjs",
+      "sha256": "be1035d6c7f1e12f739bbc8e94e97c3aa8a45c2fc38a605537f2eb18916a6118",
+      "unchanged": true,
+      "prior_full_read_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+      "prior_full_read_receipt": "surface-7fee-source-fullread.json",
+      "prior_and_current_git_blob_object": "ae43c8fd42c1abb3758d344997e491ca226782cf",
+      "full_read": true,
+      "grade": "A prior complete source reading retained for exactly equal bytes; B current Git object binding"
+    },
+    {
+      "path": "scripts/payload-policy.test.mjs",
+      "sha256": "b7b73308491882ff2a6da9dec0893ce9703bc1c2c942a62aeea42add1426bd7c",
+      "unchanged": true,
+      "prior_full_read_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+      "prior_full_read_receipt": "surface-7fee-source-fullread.json",
+      "prior_and_current_git_blob_object": "145f2f058edcd7b5cf02d3f725c201b37179a45b",
+      "full_read": true,
+      "grade": "A prior complete source reading retained for exactly equal bytes; B current Git object binding"
+    },
+    {
+      "path": "scripts/product-runtime.mjs",
+      "sha256": "bf8a446d4a600424b8d38189fa4cbe61a36126dc051124c71012a1ec46c439e3",
+      "unchanged": true,
+      "prior_full_read_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+      "prior_full_read_receipt": "surface-7fee-source-fullread.json",
+      "prior_and_current_git_blob_object": "c5a1b60a7397da4199818208a4ba9637c7f2d3d7",
+      "full_read": true,
+      "grade": "A prior complete source reading retained for exactly equal bytes; B current Git object binding"
+    },
+    {
+      "path": "scripts/reset-safety.test.mjs",
+      "sha256": "74318c0c8958d6fdf01d82e02e9792b1f6fcc889a50bf70f9d2974b6eeb456d6",
+      "unchanged": true,
+      "prior_full_read_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+      "prior_full_read_receipt": "surface-7fee-source-fullread.json",
+      "prior_and_current_git_blob_object": "c096fd98592c9d59a9d78bc8f9c5cf0dde139158",
+      "full_read": true,
+      "grade": "A prior complete source reading retained for exactly equal bytes; B current Git object binding"
+    },
+    {
+      "path": "scripts/reset.sh",
+      "sha256": "f415b9f841253996746c19b6c827bc57fb1ee1ff23fb92b08d7a84879c1d260c",
+      "unchanged": true,
+      "prior_full_read_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+      "prior_full_read_receipt": "surface-7fee-source-fullread.json",
+      "prior_and_current_git_blob_object": "4bda562debdaf2e1e2d259b7a188d15ba90c0df8",
+      "full_read": true,
+      "grade": "A prior complete source reading retained for exactly equal bytes; B current Git object binding"
+    },
+    {
+      "path": "scripts/runtime-deps-lock.mjs",
+      "sha256": "38d5eba21ae509aec4de97000bda055ca632f0216473e1d1000eeba6b5e0a475",
+      "unchanged": true,
+      "prior_full_read_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+      "prior_full_read_receipt": "surface-7fee-source-fullread.json",
+      "prior_and_current_git_blob_object": "8c12be076e0f507fb9b6bddd08e81d45d1f86f7c",
+      "full_read": true,
+      "grade": "A prior complete source reading retained for exactly equal bytes; B current Git object binding"
+    },
+    {
+      "path": "scripts/seed-geo.ts",
+      "sha256": "9091bb26f40114e7fa38ce88686dd80adcf99c30fc2acff60c9ffdc27c3d092b",
+      "unchanged": true,
+      "prior_full_read_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+      "prior_full_read_receipt": "surface-7fee-source-fullread.json",
+      "prior_and_current_git_blob_object": "c3696334e5008aada632cf49cd9326f678854af0",
+      "full_read": true,
+      "grade": "A prior complete source reading retained for exactly equal bytes; B current Git object binding"
+    },
+    {
+      "path": "scripts/seed.ts",
+      "sha256": "9b05ce3bc86aa27395d106341c8d0bf343c049d9e93ccb9478655c8d2c1eb176",
+      "unchanged": true,
+      "prior_full_read_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+      "prior_full_read_receipt": "surface-7fee-source-fullread.json",
+      "prior_and_current_git_blob_object": "5eb39012f385f077aa2b03d7241d191cf18d59cd",
+      "full_read": true,
+      "grade": "A prior complete source reading retained for exactly equal bytes; B current Git object binding"
+    },
+    {
+      "path": "scripts/skill-bindings.mts",
+      "sha256": "19c7377835bf35a4b34f6869211692d2ad2ebfb75d1b4226fe8bcb8211bd3776",
+      "unchanged": true,
+      "prior_full_read_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+      "prior_full_read_receipt": "surface-7fee-source-fullread.json",
+      "prior_and_current_git_blob_object": "4302f9af39835c242ebc3d6853910f54f38461c9",
+      "full_read": true,
+      "grade": "A prior complete source reading retained for exactly equal bytes; B current Git object binding"
+    },
+    {
+      "path": "scripts/suite-geo.ts",
+      "sha256": "95e3db37c577417cb98eb7f4fab9e2c98c447d44c197b185c10e8d7075d07ebc",
+      "unchanged": true,
+      "prior_full_read_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+      "prior_full_read_receipt": "surface-7fee-source-fullread.json",
+      "prior_and_current_git_blob_object": "70b47b66468849c8b4de4b5f9a530d4da3ce771a",
+      "full_read": true,
+      "grade": "A prior complete source reading retained for exactly equal bytes; B current Git object binding"
+    },
+    {
+      "path": "scripts/tools/portrait-agent.mts",
+      "sha256": "43add6b5f59b7618de8b820e098aa4e37d5ad47f6f526dcfe129210025618074",
+      "unchanged": true,
+      "prior_full_read_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+      "prior_full_read_receipt": "surface-7fee-source-fullread.json",
+      "prior_and_current_git_blob_object": "720b6749e2454df5ee8f3761f926b87de8d01e7a",
+      "full_read": true,
+      "grade": "A prior complete source reading retained for exactly equal bytes; B current Git object binding"
+    },
+    {
+      "path": "scripts/verify-chain.ts",
+      "sha256": "20119360fc90c5d0fe60c42d3402fab027a0d8d8047a8f78c9b93b4b5d558cb8",
+      "unchanged": true,
+      "prior_full_read_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+      "prior_full_read_receipt": "surface-7fee-source-fullread.json",
+      "prior_and_current_git_blob_object": "886f04fc7c7846200965f57ad30960a8e1cb7867",
+      "full_read": true,
+      "grade": "A prior complete source reading retained for exactly equal bytes; B current Git object binding"
+    },
+    {
+      "path": "scripts/verify-production-client-boundary.mjs",
+      "sha256": "ef270644c19e1b35d39d8bab9d8e0e8a832b99efe4a663001b0d95859b4afd32",
+      "unchanged": true,
+      "prior_full_read_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+      "prior_full_read_receipt": "surface-7fee-source-fullread.json",
+      "prior_and_current_git_blob_object": "65c478711cf29239fed148d52c39c4159ead814c",
+      "full_read": true,
+      "grade": "A prior complete source reading retained for exactly equal bytes; B current Git object binding"
+    },
+    {
+      "path": "scripts/video-capabilities.test.mjs",
+      "sha256": "b71f319eeafc8c31a19dfc9c8c32f221d2f41cf35b462873bec15339f4ed6aec",
+      "unchanged": true,
+      "prior_full_read_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+      "prior_full_read_receipt": "surface-7fee-source-fullread.json",
+      "prior_and_current_git_blob_object": "117b4f7fc25eaea50f06bee506d07f15295206ba",
+      "full_read": true,
+      "grade": "A prior complete source reading retained for exactly equal bytes; B current Git object binding"
+    },
+    {
+      "path": "scripts/vite-product.mjs",
+      "sha256": "c8b4cdfac57632871322911e8a5882b5114c2e9a26d862cb7e96a663e388a538",
+      "unchanged": true,
+      "prior_full_read_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+      "prior_full_read_receipt": "surface-7fee-source-fullread.json",
+      "prior_and_current_git_blob_object": "efb8e9a7418790311fec3897e46d7a5dbfe07741",
+      "full_read": true,
+      "grade": "A prior complete source reading retained for exactly equal bytes; B current Git object binding"
+    }
+  ],
+  "generated_lock": {
+    "path": "pnpm-lock.yaml",
+    "grade": "B",
+    "whole_yaml_unique_key_parse": true,
+    "semantic_binding": "dependency-1e47-structural-binding.json",
+    "no_A_lock_reading_claim": true
+  },
+  "working_tree_at_preparation": "?? release-dependency/",
+  "tracked_source_clean_at_preparation": true,
+  "all_working_tree_clean_at_preparation": false,
+  "untracked_parent_owned_release_build_output_does_not_replace_clean_MCD_gate": true,
+  "source_controls_final_verified": false,
+  "native_and_modern_MCD_pass_claimed": false,
+  "scope": "Three current complete texts plus146 prior full reads retained only after exact Git-blob equality; generated pnpm lock fully parsed atB. No product tests, PG, GPU, native or large artifact I/O executed."
+}

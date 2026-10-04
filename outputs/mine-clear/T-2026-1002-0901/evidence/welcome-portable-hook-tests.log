@@ -1,0 +1,16 @@
+COMMAND ["/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node", "--env-file=.env", "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/pnpm/bin/pnpm.cjs", "-C", "apps/web", "exec", "vitest", "run", "src/onboarding/useQuestline.test.tsx", "src/onboarding/useWelcomeProgress.test.tsx"]
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - import "./vite.config" without a file extension (vitest.config.ts:10:24). Add the file extension
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+
+[1m[30m[46m RUN [49m[39m[22m [36mv4.1.11 [39m[90m/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/apps/web[39m
+
+ [32m✓[39m src/onboarding/useWelcomeProgress.test.tsx [2m([22m[2m4 tests[22m[2m)[22m[33m 895[2mms[22m[39m
+     [33m[2m✓[22m[39m 完成响应后迟到的进度响应不能回退状态或重新显示仪式 [33m 427[2mms[22m[39m
+ [32m✓[39m src/onboarding/useQuestline.test.tsx [2m([22m[2m4 tests[22m[2m)[22m[33m 339[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m2 passed[39m[22m[90m (2)[39m
+[2m      Tests [22m [1m[32m8 passed[39m[22m[90m (8)[39m
+[2m   Start at [22m 02:36:58
+[2m   Duration [22m 19.93s[2m (transform 2.81s, setup 0ms, import 7.44s, tests 1.23s, environment 23.10s)[22m
+

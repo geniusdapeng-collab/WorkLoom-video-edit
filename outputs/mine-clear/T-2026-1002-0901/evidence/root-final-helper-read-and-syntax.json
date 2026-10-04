@@ -1,0 +1,89 @@
+{
+  "files": [
+    {
+      "file": "work/prepare_execution_ledger.py",
+      "sha256": "99ef10f31a215a63d853fd29816824eaa611ac5f866955e0d7c361c8f867c5ac",
+      "lines": 174,
+      "full_read": true,
+      "syntax": true
+    },
+    {
+      "file": "work/run_execution_repair.py",
+      "sha256": "b1d4419ae81ccd6c2b77010b0dc130e6d3b0e1bb564904dc15b739694d70a862",
+      "lines": 105,
+      "full_read": true,
+      "syntax": true
+    },
+    {
+      "file": "work/generate_repair_ledger.py",
+      "sha256": "1f06b7bad79af4377c9088fd7f2067778cb43c693e20c29f6a1010042f16e6c5",
+      "lines": 166,
+      "full_read": true,
+      "syntax": true
+    },
+    {
+      "file": "work/prepare_repair_coverage.py",
+      "sha256": "90d15078b71b4f4f6fae95f32549f437b8281d89edec084d3c92d8c87da99a24",
+      "lines": 67,
+      "full_read": true,
+      "syntax": true
+    },
+    {
+      "file": "work/build_production_report.py",
+      "sha256": "62f984a76b7121314eed6fa94da21e4eaad5f91bc380aee1930b202ae464f3a0",
+      "lines": 214,
+      "full_read": true,
+      "syntax": true
+    },
+    {
+      "file": "work/build_public_growth_bundle.py",
+      "sha256": "bc1df1e91c6719abad68a7a54bfe619d8197c7456f9d141ff158ca2ec31c187f",
+      "lines": 332,
+      "full_read": true,
+      "syntax": true
+    },
+    {
+      "file": "work/verify_current_payload.py",
+      "sha256": "cb61b94fa7195617aa4212307b83ca4e00d1a1d40c979e1130622d01f9619272",
+      "lines": 77,
+      "full_read": true,
+      "syntax": true
+    },
+    {
+      "file": "work/run_floor_mac.py",
+      "sha256": "b38583ca7b078acebf77f444452afeeef48aca6aaae2a315d141ac8c117578b1",
+      "lines": 44,
+      "full_read": true,
+      "syntax": true
+    },
+    {
+      "file": "work/retain_floor_evidence.py",
+      "sha256": "9e9e65aa76347408042512fa541b1747863a965d0164428ec1b7340cd9174832",
+      "lines": 72,
+      "full_read": true,
+      "syntax": true
+    },
+    {
+      "file": "work/install_floor_dmg.py",
+      "sha256": "02a1d4c602dbf6c3abb6a5b87e5bcac90e8a5235f6f1eccb929e31bba6fbf649",
+      "lines": 74,
+      "full_read": true,
+      "syntax": true
+    },
+    {
+      "file": "work/run_installed_film_load.py",
+      "sha256": "656bfc45630cd52d1c61eb2b5c86cbf27273766e0c198c0361ae8fe984b37be9",
+      "lines": 64,
+      "full_read": true,
+      "syntax": true
+    },
+    {
+      "file": "work/run_isolated_replay.py",
+      "sha256": "d341079a1973b4ad690ffe866b11eb3ecd022ac88ac577da8fac4a9b489eab87",
+      "lines": 134,
+      "full_read": true,
+      "syntax": true
+    }
+  ],
+  "scope": "Complete helper reads; syntax only. Native and modern MCD have not run yet."
+}

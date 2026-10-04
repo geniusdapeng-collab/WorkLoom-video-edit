@@ -1,0 +1,30 @@
+{
+  "schema": "growth.independent-m6/floor-unsafe-status-provenance@1",
+  "source_commit": "c08386eb9993744a0cb0c2495a98fc1fc4ccbed9",
+  "prepared_by": "growth_m6",
+  "generated_at": "2026-10-03T09:14:11.956542+08:00",
+  "observer": {
+    "file": "floor3d-safety-c083-probe.mjs",
+    "sha256": "3f881d0102a89a265956e38045f969a861f9f4d1b0f2dff8280c5a4a586e9f1b",
+    "full_read": true
+  },
+  "original_raw_fixture": {
+    "file": "floor3d-edges-fixture/fixture.tsx",
+    "sha256": "baa03dd511f005176dd4e3ea61d6c6fa97d0a89b506a7e49664c047c3baecba2",
+    "unchanged": true,
+    "expected_input": "EnglishWithoutAnySpacesAndWithUnicode"
+  },
+  "existing_source_fallback": {
+    "file": "apps/web/src/components/Floor3D.tsx",
+    "sha256": "40e8bfa0f688eb527edec2ba10f040afc91a72b1730eb4383d707687fd1bf740",
+    "text": "当前状态待确认",
+    "contract": "Existing actual clientChineseText call; no product language policy modification"
+  },
+  "legal_chinese_hover_positive_preserved": {
+    "file": "floor3d-bubble-c083-fixture/fixture.tsx",
+    "sha256": "c50f44213fc9245930b4ffb5af00f76a3c1b4c774c9d6ad593fd6119c0a51ab7"
+  },
+  "planned_cases": 3,
+  "boundary": "Two real mouse hover widths in actual WebGL with production CSS; isolated synthetic component data, no native install, OS drag, DB or providers",
+  "executed": false
+}

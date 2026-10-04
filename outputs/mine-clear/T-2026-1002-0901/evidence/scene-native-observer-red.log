@@ -1,0 +1,47 @@
+COMMAND ["/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node", "--test", "--test-name-pattern=产品截图采用", "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/apps/desktop/electron/bootstrap.test.cjs"]
+▶ 产品截图采用捕获时的可见场景
+  ✔ 等待后实际无遮挡且完整时仍通过 (2.6895ms)
+  ✔ 稳定等待中重新出现引导层时拒绝旧无遮挡状态 (1.242625ms)
+  ✔ 稳定等待中卸载场景或员工减少时拒绝旧完整状态 (0.779833ms)
+  ✔ 截图捕获期间出现遮罩或内置人名也必须失败 (0.7245ms)
+  ✖ 场景就绪但实际舞台 Canvas 只占 150 像素时不能用整页像素健康转绿 (0.608583ms)
+  ✖ 负责人固定牌与员工名牌相交、Canvas 缺失或上下文失效时拒绝验收 (0.384542ms)
+✖ 产品截图采用捕获时的可见场景 (7.046375ms)
+ℹ tests 6
+ℹ suites 1
+ℹ pass 4
+ℹ fail 2
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 63.846083
+
+✖ failing tests:
+
+test at apps/desktop/electron/bootstrap.test.cjs:187:3
+✖ 场景就绪但实际舞台 Canvas 只占 150 像素时不能用整页像素健康转绿 (0.608583ms)
+  AssertionError [ERR_ASSERTION]: Missing expected rejection.
+      at async TestContext.<anonymous> (/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/apps/desktop/electron/bootstrap.test.cjs:188:5)
+      at async Test.run (node:internal/test_runner/test:1389:7)
+      at async Suite.processPendingSubtests (node:internal/test_runner/test:960:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: undefined,
+    expected: /舞台画布未铺满/u,
+    operator: 'rejects',
+    diff: 'simple'
+  }
+
+test at apps/desktop/electron/bootstrap.test.cjs:193:3
+✖ 负责人固定牌与员工名牌相交、Canvas 缺失或上下文失效时拒绝验收 (0.384542ms)
+  AssertionError [ERR_ASSERTION]: Missing expected rejection.
+      at async TestContext.<anonymous> (/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/apps/desktop/electron/bootstrap.test.cjs:198:8)
+      at async Test.run (node:internal/test_runner/test:1389:7)
+      at async Suite.processPendingSubtests (node:internal/test_runner/test:960:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: undefined,
+    expected: /名牌相交|画布不可用/u,
+    operator: 'rejects',
+    diff: 'simple'
+  }

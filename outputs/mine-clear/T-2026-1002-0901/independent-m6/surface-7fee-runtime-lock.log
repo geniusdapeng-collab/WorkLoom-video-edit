@@ -1,0 +1,2 @@
+COMMAND ["/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node", "--env-file=.env", "scripts/runtime-deps-lock.mjs", "verify"]
+✅ runtime 依赖锁有效：workloom-ai-growth · 12 个直接依赖

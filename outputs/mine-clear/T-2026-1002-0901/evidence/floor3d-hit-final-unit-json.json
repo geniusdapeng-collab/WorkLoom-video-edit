@@ -1,0 +1,23 @@
+{
+  "name": "floor3d-hit-final-unit-json",
+  "command": [
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/pnpm/bin/pnpm.cjs",
+    "-C",
+    "apps/web",
+    "exec",
+    "vitest",
+    "run",
+    "src/components/Floor3DLabels.test.tsx",
+    "src/components/Floor3DTaskDrop.test.tsx",
+    "src/components/floor3d-layout.test.ts",
+    "src/pages/p0/floor-layout.test.ts",
+    "src/pages/p0/Floor.test.tsx",
+    "--reporter=json",
+    "--outputFile=/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/repair-obs17/unit-vitest-final-results.json"
+  ],
+  "exit_code": 0,
+  "seconds": 16.158,
+  "ran_at": "2026-10-03T07:48:54.884004+08:00",
+  "log": "floor3d-hit-final-unit-json.log"
+}

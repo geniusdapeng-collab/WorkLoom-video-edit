@@ -1,0 +1,240 @@
+{
+  "schema": "growth.independent-m6/scene-screenshot-review@1",
+  "source_commit": "f0a11286a49419fb7909088e2d170f4dde7b60c6",
+  "reviewed_by": "growth_m6",
+  "reviewed_at": "2026-10-03T10:31:58.017795+08:00",
+  "total_current_owned_pngs": 36,
+  "directly_viewed_pngs": 36,
+  "sampled_pngs": 0,
+  "unread_pngs": 0,
+  "grade": "C",
+  "method": "All36 full PNGs directly viewed via view_image in nine actual tool batches; no montage or image substitution",
+  "observations": [
+    "Both actual Stage samples render the stage throughout its440px region; the former flat lower cutoff is absent in these browser component samples.",
+    "Both actual connected-portal workplace samples separate the CEO plaque from all18 worker plaques. The narrow virtual room crops side workers at its local scroll viewport; this is not a claim that every worker is simultaneously visible.",
+    "All18 default/drop state samples preserve separated horizontal role plaques and deliberate task-status ellipsis. Some multi-worker probe screenshots retain transient status bubbles after pointer interactions; static images do not establish the complete interruption/UX protocol.",
+    "The65-person and queued samples were captured after native camera-wheel and scroll controls. Zoomed/scrolled framing intentionally crops actors and labels; all-actor reachability derives from individual case assertions and actual mouse callbacks.",
+    "All eight short/long legal-Chinese hover samples retain complete visible short text or wrapped long Chinese with emoji inside the actual visible region at both widths; the long hover overlay may cover its own plaque while shown.",
+    "The two separate English/camel-negative samples visibly show 当前状态待确认; the raw unregistered English string is absent.",
+    "Screenshots are gradeC synthetic component samples. Physical hit/callback, complete bubble/glyph bounds, disabled registry cleanup, synthetic event.isTrustedfalse and reject/no-dispatch contracts are machine assertions gradedB."
+  ],
+  "limits": "No current installed native cold package, real phone, all camera angles, full-stage per-member hit protocol, whole user journey or business results; historicalc083 native visual red remains preserved.",
+  "images": [
+    {
+      "file": "scene-f0-default-asking-null-1440.png",
+      "sha256": "dec4ac376fd104781972bbc241a77017f594ecdd9c2c24a8d58541e7fa06c1e0",
+      "visually_viewed": true,
+      "grade": "C"
+    },
+    {
+      "file": "scene-f0-default-blocked-null-1440.png",
+      "sha256": "e0e6f7fc14ae849154e969cdc03374f62d78a81e65bf958e08a904cdff4e218e",
+      "visually_viewed": true,
+      "grade": "C"
+    },
+    {
+      "file": "scene-f0-default-celebrating-null-1440.png",
+      "sha256": "a0d17c7b78acf395cee7cbc79601ed4ea9f7a0a1584f20bea9ee3c24413736b0",
+      "visually_viewed": true,
+      "grade": "C"
+    },
+    {
+      "file": "scene-f0-default-idle-null-1440.png",
+      "sha256": "ee068a06727c93681c5ba50380f012da538db7ec7706f74dd31fed93e73e2ed5",
+      "visually_viewed": true,
+      "grade": "C"
+    },
+    {
+      "file": "scene-f0-default-idle-null-390.png",
+      "sha256": "c23994a46e6458e4ea0e37ee65acb7f305173f3080352e38735071d79d9eb3de",
+      "visually_viewed": true,
+      "grade": "C"
+    },
+    {
+      "file": "scene-f0-default-idle-shared-1440.png",
+      "sha256": "c724a8965154e3824eed502747df6ce002bc337f5b3fc1c08a3467ad75df6d2a",
+      "visually_viewed": true,
+      "grade": "C"
+    },
+    {
+      "file": "scene-f0-default-single-idle-positive.png",
+      "sha256": "ead2a04a6b510d989dc2ac5de27f0c2e0f99a5c093568dbf7ed8c8bc03d203b1",
+      "visually_viewed": true,
+      "grade": "C"
+    },
+    {
+      "file": "scene-f0-default-single-task-positive.png",
+      "sha256": "b97446e90c5b1b73ba60a866e16c848eea257d30aaa13a0f55b0ec040b016011",
+      "visually_viewed": true,
+      "grade": "C"
+    },
+    {
+      "file": "scene-f0-default-working-shared-1440.png",
+      "sha256": "8e46b2b2816fa2180cb72d20b9d934bfab1d567e3a6e20a8f5da3a7cd1047acd",
+      "visually_viewed": true,
+      "grade": "C"
+    },
+    {
+      "file": "scene-f0-drop-asking-null-1440.png",
+      "sha256": "5648260afb97b6798e23bf6003aa1db2be7ae001d4fc971917cd99bd1a46b21e",
+      "visually_viewed": true,
+      "grade": "C"
+    },
+    {
+      "file": "scene-f0-drop-blocked-null-1440.png",
+      "sha256": "8eb90b98a409386263b72965aedd6a0745f3a0198302e69d5eb668141761472b",
+      "visually_viewed": true,
+      "grade": "C"
+    },
+    {
+      "file": "scene-f0-drop-celebrating-null-1440.png",
+      "sha256": "6a59fc42ab389833e5684320c684b3755fef370a6bc528ace7529a3dfab194a8",
+      "visually_viewed": true,
+      "grade": "C"
+    },
+    {
+      "file": "scene-f0-drop-idle-null-1440.png",
+      "sha256": "e87b350af64486d1680a9193a4e59b1cf7e78f3ff995d5b2da99f5acffd57027",
+      "visually_viewed": true,
+      "grade": "C"
+    },
+    {
+      "file": "scene-f0-drop-idle-null-390.png",
+      "sha256": "6f521bb96e97974f8de883cdffefa16d675fbf6f83786c6f4c98716089e79c3a",
+      "visually_viewed": true,
+      "grade": "C"
+    },
+    {
+      "file": "scene-f0-drop-idle-shared-1440.png",
+      "sha256": "ac19f764040f6acb9da7a6189a365b81c5ee4650a0dc5ace7407a2a11a0a5636",
+      "visually_viewed": true,
+      "grade": "C"
+    },
+    {
+      "file": "scene-f0-drop-single-idle-positive.png",
+      "sha256": "47d68080b22ecd8f6367dda01b817c3294aa18ee92551083c19f60d6c783741a",
+      "visually_viewed": true,
+      "grade": "C"
+    },
+    {
+      "file": "scene-f0-drop-single-task-positive.png",
+      "sha256": "0c327afe6b69564d90dfbb335e61a66475eb7599b278abef0f67f47d4ba3b168",
+      "visually_viewed": true,
+      "grade": "C"
+    },
+    {
+      "file": "scene-f0-drop-working-shared-1440.png",
+      "sha256": "7b207f4b20072817058fb5c8ced661265a04793c018b9b19cce1967f4931948c",
+      "visually_viewed": true,
+      "grade": "C"
+    },
+    {
+      "file": "scene-f0-edges-collab-null-1440.png",
+      "sha256": "293928d40f2e053a57d062d3e8beccfa6dcd59905a55a7b993ae48c20ab967ab",
+      "visually_viewed": true,
+      "grade": "C"
+    },
+    {
+      "file": "scene-f0-edges-idle-null-65-390.png",
+      "sha256": "7455b7582d4afc417988246b60d979b476f1f6530404080acd9133b53f0014f3",
+      "visually_viewed": true,
+      "grade": "C"
+    },
+    {
+      "file": "scene-f0-edges-queued-shared-390.png",
+      "sha256": "a07c481dcf239e8ff78609b8e593f2529d4f62784c9e9c173d7f794dcb6d26bd",
+      "visually_viewed": true,
+      "grade": "C"
+    },
+    {
+      "file": "scene-f0-edges-working-shared-65-1440.png",
+      "sha256": "14b0bf6527d28d3f905bef42ec3506bffde8a6f88e7a82e957b573429111c867",
+      "visually_viewed": true,
+      "grade": "C"
+    },
+    {
+      "file": "scene-f0-hover-long-hover-1440-bubble.png",
+      "sha256": "28eb6d450fb3ccde43905e699a477a6a6b3289235e5b529644d13d39830fc6c4",
+      "visually_viewed": true,
+      "grade": "C"
+    },
+    {
+      "file": "scene-f0-hover-long-hover-1440.png",
+      "sha256": "c693d61e72188010d710f900aec49abc9f84075557b122109c1450919aed4803",
+      "visually_viewed": true,
+      "grade": "C"
+    },
+    {
+      "file": "scene-f0-hover-long-hover-390-bubble.png",
+      "sha256": "ee38358197e11656f01194609808c1ce4daa4e0023b00db0741dbc182acc5add",
+      "visually_viewed": true,
+      "grade": "C"
+    },
+    {
+      "file": "scene-f0-hover-long-hover-390.png",
+      "sha256": "c70209bde4157098c3324bda858964d5b37c60e35ad98e04bfa8f58cd493fc13",
+      "visually_viewed": true,
+      "grade": "C"
+    },
+    {
+      "file": "scene-f0-hover-short-hover-1440-bubble.png",
+      "sha256": "1faacc18f61ff9bb582ac9542bdf922f7d32452d774b1d01c756d4a29c6bab29",
+      "visually_viewed": true,
+      "grade": "C"
+    },
+    {
+      "file": "scene-f0-hover-short-hover-1440.png",
+      "sha256": "5e728d7b2747df61775851d1dccff66b9baa3877e830516fbb72c066a33d32f2",
+      "visually_viewed": true,
+      "grade": "C"
+    },
+    {
+      "file": "scene-f0-hover-short-hover-390-bubble.png",
+      "sha256": "0c3680f5748c1781a6e303a9b7b59a5e3049e2569016aa32f2aabd8fffb1dbb4",
+      "visually_viewed": true,
+      "grade": "C"
+    },
+    {
+      "file": "scene-f0-hover-short-hover-390.png",
+      "sha256": "93e788d3a5cdeb3362f080e452ed93d5e2ac1e2cef7db734422770947cacb9a7",
+      "visually_viewed": true,
+      "grade": "C"
+    },
+    {
+      "file": "scene-f0-layout-floor-1440.png",
+      "sha256": "73096d3911d2a308ddc21663e262c2da135b0c08a45774d9b941b66e6dc5f28f",
+      "visually_viewed": true,
+      "grade": "C"
+    },
+    {
+      "file": "scene-f0-layout-floor-390.png",
+      "sha256": "c48c8d909711bcbd95324918830510af9e6bb6f219d8b242a0ad700d53dbb049",
+      "visually_viewed": true,
+      "grade": "C"
+    },
+    {
+      "file": "scene-f0-layout-stage-1440.png",
+      "sha256": "6bb7d1a66d18c46bc7b85c854c099dfd28060e30738ce5e9e3aa4531b35843da",
+      "visually_viewed": true,
+      "grade": "C"
+    },
+    {
+      "file": "scene-f0-layout-stage-390.png",
+      "sha256": "cdb0d0a569abb9260612672c5f7bbf633c5f3cd2e521c32707013d85520c8380",
+      "visually_viewed": true,
+      "grade": "C"
+    },
+    {
+      "file": "scene-f0-safety-unsafe-status-hover-1440.png",
+      "sha256": "b0cef38b2894789d3a9d5720d3551dad899f4d5d04aa0c1c860e74ac627e20c2",
+      "visually_viewed": true,
+      "grade": "C"
+    },
+    {
+      "file": "scene-f0-safety-unsafe-status-hover-390.png",
+      "sha256": "c5eacc2f34b07dd9cb3f1b700598ef631e472d2a21d0f5cfc1da29406a67b1e3",
+      "visually_viewed": true,
+      "grade": "C"
+    }
+  ]
+}

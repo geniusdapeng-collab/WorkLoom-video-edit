@@ -1,0 +1,88 @@
+{
+  "source_commit": "c08386eb9993744a0cb0c2495a98fc1fc4ccbed9",
+  "copied_at": "2026-10-03T09:38:51.776222+08:00",
+  "files": [
+    {
+      "root_file": "mac-floor-default.json",
+      "file": "inherited/evidence__mac-floor-default.json",
+      "sha256": "ff81867fc7c5b6310ca6ca7d1ebaf7c4fb47aec84a1da909b0f02e8e194d4dab",
+      "bytes": 398,
+      "origin": "root actual native v.3; independent public receipt and pixel inspection; no verifier UI launch",
+      "source_commit": "c08386eb9993744a0cb0c2495a98fc1fc4ccbed9"
+    },
+    {
+      "root_file": "mac-floor-default.log",
+      "file": "inherited/evidence__mac-floor-default.log",
+      "sha256": "2c98fafc4b758832a0a039ea002fcbcaec52941ebe79a902682eeb6445aedc59",
+      "bytes": 6673,
+      "origin": "root actual native v.3; independent public receipt and pixel inspection; no verifier UI launch",
+      "source_commit": "c08386eb9993744a0cb0c2495a98fc1fc4ccbed9"
+    },
+    {
+      "root_file": "native-floor-default-render-default.json",
+      "file": "inherited/evidence__native-floor-default-render-default.json",
+      "sha256": "e02d96cb55582ee833635c95b1e073b61406db78f9ddc2dce5ef22d546bcc3eb",
+      "bytes": 5513,
+      "origin": "root actual native v.3; independent public receipt and pixel inspection; no verifier UI launch",
+      "source_commit": "c08386eb9993744a0cb0c2495a98fc1fc4ccbed9"
+    },
+    {
+      "root_file": "native-floor-default-retention.json",
+      "file": "inherited/evidence__native-floor-default-retention.json",
+      "sha256": "7ed664d8e9f37bbbfc6d19619da30f43e6c114620876dda2b1d28165d45b7c52",
+      "bytes": 2944,
+      "origin": "root actual native v.3; independent public receipt and pixel inspection; no verifier UI launch",
+      "source_commit": "c08386eb9993744a0cb0c2495a98fc1fc4ccbed9"
+    },
+    {
+      "root_file": "native-floor-default-render-default.png",
+      "file": "inherited/evidence__native-floor-default-render-default.png",
+      "sha256": "45a2d16151ea9b0b9a1dff0ea37620380fe52f8ddada9dfcba440cb6dc084ea5",
+      "bytes": 1488262,
+      "origin": "root actual native v.3; independent public receipt and pixel inspection; no verifier UI launch",
+      "source_commit": "c08386eb9993744a0cb0c2495a98fc1fc4ccbed9"
+    },
+    {
+      "root_file": "native-floor-default-team-default.png",
+      "file": "inherited/evidence__native-floor-default-team-default.png",
+      "sha256": "969a4fc279b74a16ee2bf6b9826547adf713c9907d33468f7c3e0cc2ea6b6e0f",
+      "bytes": 1488621,
+      "origin": "root actual native v.3; independent public receipt and pixel inspection; no verifier UI launch",
+      "source_commit": "c08386eb9993744a0cb0c2495a98fc1fc4ccbed9"
+    },
+    {
+      "root_file": "native-floor-default-workplace-default.png",
+      "file": "inherited/evidence__native-floor-default-workplace-default.png",
+      "sha256": "63201bcf8724234f137b082b67c83ff47c395d41b0f38d907c9ec3f734750fea",
+      "bytes": 2210167,
+      "origin": "root actual native v.3; independent public receipt and pixel inspection; no verifier UI launch",
+      "source_commit": "c08386eb9993744a0cb0c2495a98fc1fc4ccbed9"
+    },
+    {
+      "root_file": "native-floor-default-stage-default.png",
+      "file": "inherited/evidence__native-floor-default-stage-default.png",
+      "sha256": "178e360eba2f27b887e7644e73a7d8fe2b90b71443aa290a6063c423b8d1beac",
+      "bytes": 1263917,
+      "origin": "root actual native v.3; independent public receipt and pixel inspection; no verifier UI launch",
+      "source_commit": "c08386eb9993744a0cb0c2495a98fc1fc4ccbed9"
+    },
+    {
+      "root_file": "floor-app-fingerprint.json",
+      "file": "inherited/evidence__floor-app-fingerprint.json",
+      "sha256": "dc4fdd638cf4a8a27874a9a8836e5fbf2dcb686fbadfb10e61962a93258b474b",
+      "bytes": 1984,
+      "origin": "root actual native v.3; independent public receipt and pixel inspection; no verifier UI launch",
+      "source_commit": "c08386eb9993744a0cb0c2495a98fc1fc4ccbed9"
+    },
+    {
+      "root_file": "floor-payload-fingerprint.json",
+      "file": "inherited/evidence__floor-payload-fingerprint.json",
+      "sha256": "e4758c1fd37a5a67485048b05e219b043c48687352995a35ae2b2d4bf78f76ea",
+      "bytes": 3651,
+      "origin": "root actual native v.3; independent public receipt and pixel inspection; no verifier UI launch",
+      "source_commit": "c08386eb9993744a0cb0c2495a98fc1fc4ccbed9"
+    }
+  ],
+  "local_qa_verified": false,
+  "reason": "Source-bound actual v.3 default controls passed; integration visual findings and safe/lifecycle/bytes/MCD follow-up pending"
+}

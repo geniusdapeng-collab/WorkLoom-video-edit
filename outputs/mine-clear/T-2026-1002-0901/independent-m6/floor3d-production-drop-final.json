@@ -1,0 +1,18 @@
+{
+  "name": "floor3d-production-drop-final",
+  "command": [
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+    "--env-file=.env",
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/independent-m6/floor3d-probe.mjs",
+    "d6a100b60218173cdae6f5a5de7f66452bbbd884",
+    "floor3d-production-drop-final-results.json",
+    "floor3d-production-drop-final",
+    "with-drop"
+  ],
+  "exit_code": 1,
+  "seconds": 248.335,
+  "source_before": "d6a100b60218173cdae6f5a5de7f66452bbbd884",
+  "source_after": "d6a100b60218173cdae6f5a5de7f66452bbbd884",
+  "ran_at": "2026-10-03T06:19:25.502183+08:00",
+  "log": "floor3d-production-drop-final.log"
+}

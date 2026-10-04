@@ -1,0 +1,22 @@
+{
+  "mode": "fresh",
+  "at": "2026-10-03T18:02:32.578821+08:00",
+  "command_exit_code": 0,
+  "evidence": [],
+  "private_state_retained": true,
+  "diagnosticOnly": false,
+  "reused_failed_fixture": false,
+  "configuration_retained": {
+    "path": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/场景修复 首次客户/qa-retained-config.env",
+    "mode": "0o600",
+    "sha256": "a507e1d0190de9652569ec9673dffcf636c2d77df56613b5397920cb69b921ad"
+  },
+  "removed_reinstallable_runtime_cache": [
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/场景修复 首次客户/runtime",
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/场景修复 首次客户/node",
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/场景修复 首次客户/pg",
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/场景修复 首次客户/nats",
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/场景修复 首次客户/.payload-cache"
+  ],
+  "reason": "Owned stopped QA fixture only; private QA .env retained as mode 0600, DB/state/version/logs and uniquely retained screenshots kept"
+}

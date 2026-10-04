@@ -1,0 +1,17 @@
+{
+  "name": "mac-floor-payload",
+  "command": [
+    "bash",
+    "scripts/pack-electron-payload.sh",
+    "--platform",
+    "mac",
+    "--arch",
+    "arm64",
+    "--version",
+    "v0.1.0-fix.20261003.3"
+  ],
+  "exit_code": 0,
+  "seconds": 54.942,
+  "ran_at": "2026-10-03T09:24:09.882119+08:00",
+  "log": "mac-floor-payload.log"
+}

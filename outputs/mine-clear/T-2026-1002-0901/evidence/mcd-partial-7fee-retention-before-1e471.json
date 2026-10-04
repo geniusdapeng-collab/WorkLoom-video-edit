@@ -1,0 +1,10 @@
+{
+  "at": "2026-10-04T03:13:58.795968+08:00",
+  "original_source": "7fee3a6a5563d41c568463994764d3883eb7667d",
+  "retained_original": "evidence/execution-ledger-repair-7fee-partial.json",
+  "archived_canonical": "history/7fee-modern-partial-before-1e471/execution-ledger.json",
+  "sha256": "3b643b67307ffc76589289fd23490bb309dece3771bcb47e6e1b23bc40218514",
+  "original_failed_run": "runs/MC-016-0-1791033810501.json",
+  "prior_green_imported": false,
+  "next_role": "repair-only; independent native review and acceptance remain required"
+}

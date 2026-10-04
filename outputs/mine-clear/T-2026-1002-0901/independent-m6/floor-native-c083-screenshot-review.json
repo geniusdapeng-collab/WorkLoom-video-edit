@@ -1,0 +1,104 @@
+{
+  "source_commit": "c08386eb9993744a0cb0c2495a98fc1fc4ccbed9",
+  "reviewed_by": "growth_m6",
+  "reviewed_at": "2026-10-03T09:41:57.353009+08:00",
+  "scope_grade": "C",
+  "full_ux_pass_claimed": false,
+  "provisional": true,
+  "all_modes_reviewed": true,
+  "files": [
+    {
+      "root_file": "native-floor-default-render-default.png",
+      "sha256": "45a2d16151ea9b0b9a1dff0ea37620380fe52f8ddada9dfcba440cb6dc084ea5",
+      "bytes": 1488262,
+      "viewed": true,
+      "review": "Actual default Live2D opening image: character and skip control visible, no blank image. This frame precedes entry and does not prove the full UX task.",
+      "scope_grade": "C",
+      "runtime_origin": "root",
+      "viewed_by": "growth_m6"
+    },
+    {
+      "root_file": "native-floor-default-team-default.png",
+      "sha256": "969a4fc279b74a16ee2bf6b9826547adf713c9907d33468f7c3e0cc2ea6b6e0f",
+      "bytes": 1488621,
+      "viewed": true,
+      "review": "Actual welcome team grid and entry buttons visible; lower rows continue below the captured viewport. 65 actors is a receipt count; this pixel sample does not establish all 65 simultaneously readable or scrolling usability.",
+      "scope_grade": "C",
+      "runtime_origin": "root",
+      "viewed_by": "growth_m6"
+    },
+    {
+      "root_file": "native-floor-default-workplace-default.png",
+      "sha256": "63201bcf8724234f137b082b67c83ff47c395d41b0f38d907c9ec3f734750fea",
+      "bytes": 2210167,
+      "viewed": true,
+      "review": "Workplace scene and state labels visible. Company owner gold plaque intersects the entity-consistency-manager label. Expanded mate covers several lower-right labels/actors, including conversion designer and Lu Jibai. The ready/18-actor receipt does not establish no visual obstruction.",
+      "scope_grade": "C",
+      "runtime_origin": "root",
+      "viewed_by": "growth_m6"
+    },
+    {
+      "root_file": "native-floor-default-stage-default.png",
+      "sha256": "178e360eba2f27b887e7644e73a7d8fe2b90b71443aa290a6063c423b8d1beac",
+      "bytes": 1263917,
+      "viewed": true,
+      "review": "Actual report-stage scene occupies upper portion of the scene box; lower roughly 40 percent is a flat black region. Team figures are very small and compressed in the upper scene; expanded mate covers lower-right area. Exact rendering cause and clickable reachability unverified; ready/65-actor receipt is retained separately.",
+      "scope_grade": "C",
+      "runtime_origin": "root",
+      "viewed_by": "growth_m6"
+    },
+    {
+      "root_file": "native-floor-safe-render-safe.png",
+      "sha256": "065481a8bbdf5b94c8a75002320279211960899ef65ffcb2c1284347b0df667a",
+      "bytes": 1355258,
+      "viewed": true,
+      "review": "Safe vector opening character and skip control visible; the image is dark but not blank. No full accessibility or task-flow claim from one frame.",
+      "scope_grade": "C",
+      "runtime_origin": "root",
+      "viewed_by": "growth_m6"
+    },
+    {
+      "root_file": "native-floor-safe-team-safe.png",
+      "sha256": "26853f838b96b4494c21403f3d399eef1c94f7bf01f25416b6ee4834411dd3d4",
+      "bytes": 1515152,
+      "viewed": true,
+      "review": "Safe team grid and continue/enter controls visible. Lower team rows lie outside this captured viewport; 65 actors is separately the JSON count, not proof of all simultaneously visible or keyboard/scroll reachability.",
+      "scope_grade": "C",
+      "runtime_origin": "root",
+      "viewed_by": "growth_m6"
+    },
+    {
+      "root_file": "native-floor-safe-workplace-safe.png",
+      "sha256": "e991454db47d787756dfb7b9a3c9aee76b9e40b9f8db4ad80b09e46222d0bfd7",
+      "bytes": 1010753,
+      "viewed": true,
+      "review": "2D workplace uses a bright isometric floor with readable visible labels. Expanded mate image covers several lower-right labels/agents; close/hide controls are visible. This is observed occlusion; actual repeated close/reopen and reachability not tested by this pixel review.",
+      "scope_grade": "C",
+      "runtime_origin": "root",
+      "viewed_by": "growth_m6"
+    },
+    {
+      "root_file": "native-floor-safe-stage-safe.png",
+      "sha256": "34661d7aaff7eee1ea606dcc52d4485aad3856334b67283786e581be5224b474",
+      "bytes": 1076823,
+      "viewed": true,
+      "review": "2D fallback stage is a central manager silhouette surrounded by blue satellite dots. No report-stage-3d lower black rectangle in this vector fallback frame. Expanded mate covers lower-right area; satellite selection/reachability unverified.",
+      "scope_grade": "C",
+      "runtime_origin": "root",
+      "viewed_by": "growth_m6"
+    }
+  ],
+  "findings": {
+    "stage_black_region_observed": true,
+    "workplace_fixed_plaque_label_intersection_observed": true,
+    "expanded_mate_scene_obstruction_observed": true,
+    "rendering_root_cause_confirmed": false,
+    "permission_or_paid_provider_calls": 0
+  },
+  "local_qa_verified": false,
+  "blocking_visual_observations": [
+    "Actual default Stage3D occupies only the upper portion of its scene box; lower approximately 40 percent is flat black",
+    "Actual default workplace company-owner plaque intersects a state label; root is adding connected-portal and canvas-parent controls"
+  ],
+  "claim_boundary": "Actual v.3 receipt/frame review; does not substitute for final corrected source/native/lifecycle/app/payload/DMG/modern-MCD gates"
+}

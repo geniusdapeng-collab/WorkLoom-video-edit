@@ -1,0 +1,67 @@
+{
+  "at": "2026-10-03T22:53:46.571Z",
+  "repository": "workloom-ai/workloom-growthtest",
+  "pull": {
+    "number": "96",
+    "title": "WIP: 一句话导演 V2、四版独立后期与客户首启修复 [T-2026-1002-0001]",
+    "head": {
+      "ref": "refs/heads/task/T-2026-1002-0001",
+      "sha": "4da4b65e23bb3f783189038d1be9faee7f3c1973",
+      "repo": {
+        "id": "2101830819702788096",
+        "name": "workloom-growthtest",
+        "path": "workloom-ai/workloom-growthtest",
+        "web_url": "https://cnb.cool/workloom-ai/workloom-growthtest"
+      }
+    },
+    "base": {
+      "ref": "refs/heads/main",
+      "sha": "da06fdf1e1ead0cafc078ea27695397d2e9209db",
+      "repo": {
+        "id": "2101830819702788096",
+        "name": "workloom-growthtest",
+        "path": "workloom-ai/workloom-growthtest",
+        "web_url": "https://cnb.cool/workloom-ai/workloom-growthtest"
+      }
+    },
+    "is_wip": true,
+    "mergeable_state": "mergeable",
+    "is_merged": false,
+    "labels": []
+  },
+  "statuses": {
+    "state": "success",
+    "statuses": [
+      {
+        "state": "success",
+        "context": "cnb/pull_request/pipeline-1(static-gate)",
+        "description": "success [20.9s]",
+        "target_url": "https://cnb.cool/workloom-ai/workloom-growthtest/-/build/logs/cnb-ibp-1k3umlmj2#001",
+        "created_at": "2026-10-02T16:20:34Z",
+        "updated_at": "2026-10-02T16:20:54Z"
+      },
+      {
+        "state": "success",
+        "context": "cnb/pull_request/pipeline-2(db-gate)",
+        "description": "success [36s]",
+        "target_url": "https://cnb.cool/workloom-ai/workloom-growthtest/-/build/logs/cnb-ibp-1k3umlmj2#002",
+        "created_at": "2026-10-02T16:20:34Z",
+        "updated_at": "2026-10-02T16:21:09Z"
+      },
+      {
+        "state": "success",
+        "context": "cnb/pull_request/pipeline-3(test-gate)",
+        "description": "success [3m 39s]",
+        "target_url": "https://cnb.cool/workloom-ai/workloom-growthtest/-/build/logs/cnb-ibp-1k3umlmj2#003",
+        "created_at": "2026-10-02T16:20:34Z",
+        "updated_at": "2026-10-02T16:24:13Z"
+      }
+    ],
+    "sha": "c7bb0e06f2058d6984783344fd5acaac0e31fe5b"
+  },
+  "main": {
+    "name": "refs/heads/main",
+    "sha": "da06fdf1e1ead0cafc078ea27695397d2e9209db"
+  },
+  "source_head": "4da4b65e23bb3f783189038d1be9faee7f3c1973"
+}

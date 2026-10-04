@@ -1,0 +1,13 @@
+{
+  "name": "suite-geo",
+  "command": [
+    "/Users/mac/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node",
+    "--env-file=.env",
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/pnpm/bin/pnpm.cjs",
+    "suite:geo"
+  ],
+  "exit_code": 1,
+  "seconds": 7.447,
+  "ran_at": "2026-10-02T10:12:33.298051+08:00",
+  "log": "suite-geo.log"
+}

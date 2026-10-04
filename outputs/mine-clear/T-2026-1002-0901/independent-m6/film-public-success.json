@@ -1,0 +1,20 @@
+{
+  "name": "film-public-success",
+  "command": [
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+    "--env-file=.env",
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/pnpm/bin/pnpm.cjs",
+    "exec",
+    "tsx",
+    "--env-file=.env",
+    "../../outputs/growth-production-fix-2026-10-02/independent-m6/film-public-probe.mts",
+    "--repo",
+    ".",
+    "--case",
+    "success"
+  ],
+  "exit_code": 0,
+  "seconds": 44.14,
+  "ran_at": "2026-10-02T23:38:51.600449+08:00",
+  "log": "film-public-success.log"
+}

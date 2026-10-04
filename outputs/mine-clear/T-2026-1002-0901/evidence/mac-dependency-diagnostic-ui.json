@@ -1,0 +1,10 @@
+{
+  "name": "mac-dependency-diagnostic-ui",
+  "command": [
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/依赖修复 客户应用/WorkLoom 获客增长系统（实验车道）.app/Contents/MacOS/WorkLoom 获客增长系统（实验车道）"
+  ],
+  "exit_code": 0,
+  "seconds": 374.362,
+  "ran_at": "2026-10-04T01:37:17.824148+08:00",
+  "log": "mac-dependency-diagnostic-ui.log"
+}

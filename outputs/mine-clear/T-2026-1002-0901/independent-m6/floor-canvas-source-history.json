@@ -1,0 +1,43 @@
+{
+  "schema": "growth.independent-m6/floor-canvas-source-history@1",
+  "source_commit": "955e2277ee1496cfc4b40bd30345d1ce1be1acf1",
+  "method": "git show exact original blobs and unmodified owned observer snapshots; no product source changes",
+  "files": [
+    {
+      "path": "apps/web/src/pages/p0/Floor.tsx",
+      "source_commit": "955e2277ee1496cfc4b40bd30345d1ce1be1acf1",
+      "snapshot": "history/955e-floor-original/apps/web/src/pages/p0/Floor.tsx",
+      "sha256": "3ee3d6727e1c8bd770dbda414d9b55fc5891069de112ec90dfb84dc3a6efe7c7"
+    },
+    {
+      "path": "apps/web/src/lib/naming.ts",
+      "source_commit": "955e2277ee1496cfc4b40bd30345d1ce1be1acf1",
+      "snapshot": "history/955e-floor-original/apps/web/src/lib/naming.ts",
+      "sha256": "8d05e0df3b163ab4186e577af1555d1b9e389ded97a0ad1faad3f3a993b946bd"
+    },
+    {
+      "path": "bundles/geo-growth/floor-scene.json",
+      "source_commit": "955e2277ee1496cfc4b40bd30345d1ce1be1acf1",
+      "snapshot": "history/955e-floor-original/bundles/geo-growth/floor-scene.json",
+      "sha256": "944aef23a59f2eaffa4899edb3aaf8895bcade8dac81926a4b32ef4ff37bee32"
+    },
+    {
+      "path": "floor-canvas-probe.mjs",
+      "snapshot": "history/955e-floor-observer-original/floor-canvas-probe.mjs",
+      "sha256": "25ade93c7e24c917a362d7291025056f181eb52beac4fed48bdc2c446e3a7ac9",
+      "kind": "owned-observer"
+    },
+    {
+      "path": "floor-canvas/fixture.tsx",
+      "snapshot": "history/955e-floor-observer-original/floor-canvas/fixture.tsx",
+      "sha256": "6caee60a7d355ded01d38a10043459420db81d28712c3bc20787726544bc3e96",
+      "kind": "owned-observer"
+    },
+    {
+      "path": "floor-canvas/index.html",
+      "snapshot": "history/955e-floor-observer-original/floor-canvas/index.html",
+      "sha256": "f90cff42d0ea79fe4165f85b9f61be8b7c69deae5f3fe0b5c61d5986e233b51c",
+      "kind": "owned-observer"
+    }
+  ]
+}

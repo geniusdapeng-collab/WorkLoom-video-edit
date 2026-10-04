@@ -1,0 +1,7 @@
+{
+  "kind": "verifier-harness-error",
+  "execution": "floor-canvas-initial-viewport-harness-path-error.json",
+  "product_cases_executed": 0,
+  "error": "generator used task-relative path from repository cwd; MODULE_NOT_FOUND resulting before browser execution",
+  "correction": "Create own probe from task cwd; preserve original wrapper receipt, then execute distinct actual probe"
+}

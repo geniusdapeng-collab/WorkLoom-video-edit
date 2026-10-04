@@ -1,0 +1,82 @@
+{
+  "ran_at": "2026-10-02T15:52:46.912Z",
+  "scope": "read-only owned PostgreSQL fake fixtures",
+  "version": {
+    "postgres": "PostgreSQL 17.11 (Postgres.app) on aarch64-apple-darwin23.6.0, compiled by Apple clang version 15.0.0 (clang-1500.3.9.4), 64-bit",
+    "database": "growth_audit"
+  },
+  "workspaces": [
+    {
+      "id": "ws-geo",
+      "tenant_id": "tenant-demo",
+      "industry": "geo-growth",
+      "stage": "stable",
+      "data_mode": "simulated"
+    }
+  ],
+  "prior_bad_events_still_present": true,
+  "original_fixture_report_sha256": "a92668dc86b89ee3fc64ec47cc4ef23e49679fd0656ed069cd447f325daa20c4",
+  "preserved": [
+    {
+      "event_id": "E-13019",
+      "seq": "4104",
+      "prev_hash": "a2abe74ecd5945fd8050c4c32263cda4c524a422cbe483219843ef25b25cb9da",
+      "hash": "1a2648ad5df8a21e066e3de91d171037e9ddaab48b44453b0c60bffad2838275",
+      "object_type": "server_request",
+      "action": "system.error",
+      "actor_id": "system",
+      "has_receipt": false,
+      "has_model_trace": false
+    },
+    {
+      "event_id": "E-13020",
+      "seq": "4105",
+      "prev_hash": "1a2648ad5df8a21e066e3de91d171037e9ddaab48b44453b0c60bffad2838275",
+      "hash": "7ca7683b1c272ebb138f89c6ece2bf768d7e3532a73d2b4d879e984c48fc0548",
+      "object_type": "server_request",
+      "action": "system.error",
+      "actor_id": "system",
+      "has_receipt": false,
+      "has_model_trace": false
+    },
+    {
+      "event_id": "E-13021",
+      "seq": "4106",
+      "prev_hash": "7ca7683b1c272ebb138f89c6ece2bf768d7e3532a73d2b4d879e984c48fc0548",
+      "hash": "cd81fdf904955d656044d26c4bec08f598a3df94f468f086d5846545c37b109b",
+      "object_type": "server_request",
+      "action": "system.error",
+      "actor_id": "system",
+      "has_receipt": false,
+      "has_model_trace": false
+    },
+    {
+      "event_id": "E-13022",
+      "seq": "4107",
+      "prev_hash": "cd81fdf904955d656044d26c4bec08f598a3df94f468f086d5846545c37b109b",
+      "hash": "022adb855947e897de08b024022a46c351d4d5fc5d0b322f7731a5c9e5c82278",
+      "object_type": "server_request",
+      "action": "system.error",
+      "actor_id": "system",
+      "has_receipt": false,
+      "has_model_trace": false
+    },
+    {
+      "event_id": "E-13023",
+      "seq": "4108",
+      "prev_hash": "022adb855947e897de08b024022a46c351d4d5fc5d0b322f7731a5c9e5c82278",
+      "hash": "80088c579683d341a1b28ae231ca5e0307e9c9ff325acac700fb56f978dea5d2",
+      "object_type": "server_request",
+      "action": "system.error",
+      "actor_id": "system",
+      "has_receipt": false,
+      "has_model_trace": false
+    }
+  ],
+  "statistics": {
+    "events": "87",
+    "server_error_events": "5",
+    "m6_session_events": "0"
+  },
+  "boundary": "The five original server-error rows were retained. Receipt and model_trace remain absent; no supplier evidence is fabricated."
+}

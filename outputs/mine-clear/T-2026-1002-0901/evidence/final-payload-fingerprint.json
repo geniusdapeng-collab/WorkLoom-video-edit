@@ -1,0 +1,34 @@
+{
+  "source": "a40340e54c486eacdb2386929cd0f6fb87aac0dd",
+  "payload_version": "v0.1.0-fix.20261002.2",
+  "payload_archive_sha256": "f0a9e7c32b1b7e8895cd008fcb29cc609454c19a39bac374cd11d56ed3c96995",
+  "payload_archive_bytes": 500696165,
+  "critical_source_checks": [
+    {
+      "path": "apps/server/src/video/film-worker.ts",
+      "source_sha256": "6e2eb96c595f811cabae5e0aac4e905c12ac2af2dba037bdb78b376259134311",
+      "payload_sha256": "6e2eb96c595f811cabae5e0aac4e905c12ac2af2dba037bdb78b376259134311",
+      "equal": true
+    },
+    {
+      "path": "packages/runtime/src/loop.ts",
+      "source_sha256": "ae4ec887d54baf5af27591f6c1a1a3684e761bf6c2c31a622b2fa2f3bfbc9d7e",
+      "payload_sha256": "ae4ec887d54baf5af27591f6c1a1a3684e761bf6c2c31a622b2fa2f3bfbc9d7e",
+      "equal": true
+    },
+    {
+      "path": "packages/base/workdata/gateway.ts",
+      "source_sha256": "1f7b60fb592d716b556d57ed59589726296cb97b1667bf6e3e3ce9fb03189785",
+      "payload_sha256": "1f7b60fb592d716b556d57ed59589726296cb97b1667bf6e3e3ce9fb03189785",
+      "equal": true
+    },
+    {
+      "path": "scripts/tools/full-chain-film.mts",
+      "source_sha256": "0a085ccbeb3d195d39f915d49aa4aa3c3ad6e9aa5f381eeb8e01fc83c4e4617f",
+      "payload_sha256": "0a085ccbeb3d195d39f915d49aa4aa3c3ad6e9aa5f381eeb8e01fc83c4e4617f",
+      "equal": true
+    }
+  ],
+  "public_asset_cache": "existing binaries; each pin verified by product packer",
+  "signed_platform_release": false
+}

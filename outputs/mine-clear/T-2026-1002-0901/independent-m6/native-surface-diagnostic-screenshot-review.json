@@ -1,0 +1,71 @@
+{
+  "schema": "growth.independent-m6/diagnostic-screenshot-review@1",
+  "source_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+  "reviewed_by": "growth_m6",
+  "reviewed_at": "2026-10-03T20:51:04.150252+08:00",
+  "scope_grade": "C",
+  "files": [
+    {
+      "root_file": "native-surface-diagnostic-failure.png",
+      "file": "inherited/evidence__native-surface-diagnostic-failure.png",
+      "sha256": "9c86352501994af86ef9f8924e0d9cc11fb17e8a21d9ff3fa5762dfa92352aa0",
+      "bytes": 112612,
+      "viewed": true,
+      "view_method": "Direct tools.view_image original for each of four original PNGs",
+      "review": "Startup failure reason and support reference 启动-MUSDEQM7 are readable. Retry, log directory, diagnostic export and safe-exit actions are visible with clear labels. No private credential values are displayed in this sampled frame.",
+      "grade": "C"
+    },
+    {
+      "root_file": "native-surface-diagnostic-save-dialog.png",
+      "file": "inherited/evidence__native-surface-diagnostic-save-dialog.png",
+      "sha256": "508901f6f3208d3311da27e9137807ab665b15d3a4e183bf37b33dff433d3f72",
+      "bytes": 35572,
+      "viewed": true,
+      "view_method": "Direct tools.view_image original for each of four original PNGs",
+      "review": "Actual macOS save panel has editable filename, directory selection, Cancel and Save controls. Long filename uses ordinary input clipping; screenshot supports the existence of the actual save panel, while Cancel behavior is separately bound to root action and hash/mode receipts.",
+      "grade": "C"
+    },
+    {
+      "root_file": "native-surface-diagnostic-overwrite.png",
+      "file": "inherited/evidence__native-surface-diagnostic-overwrite.png",
+      "sha256": "e5628abf1efdfab8da67174b6f2dd45166c10da1a7fd96aae78f6fd8118f287a",
+      "bytes": 49841,
+      "viewed": true,
+      "view_method": "Direct tools.view_image original for each of four original PNGs",
+      "review": "Actual native replacement confirmation names the owned Chinese QA text destination and directory, with Cancel and Replace controls; it does not display synthetic secret values.",
+      "grade": "C"
+    },
+    {
+      "root_file": "native-surface-diagnostic-recovery.png",
+      "file": "inherited/evidence__native-surface-diagnostic-recovery.png",
+      "sha256": "bd351e57112cdafceb5091f04c0df693926cbafc82d047568b289721baab937e",
+      "bytes": 113491,
+      "viewed": true,
+      "view_method": "Direct tools.view_image original for each of four original PNGs",
+      "review": "After export, the same startup failure page and support reference 启动-MUSDEQM7 remain visible, with all four recovery/exit actions still available. This frame does not claim an actual successful retry.",
+      "grade": "C"
+    }
+  ],
+  "directly_viewed_pngs": 4,
+  "sampled_pngs": 0,
+  "unread_pngs": 0,
+  "blocking_visual_observations": [],
+  "actual_startup_failure_page_observed": true,
+  "actual_native_save_panel_observed": true,
+  "actual_overwrite_confirmation_observed": true,
+  "actual_recovery_page_observed": true,
+  "full_ux_pass_claimed": false,
+  "root_execution_kept_separate_from_verifier_review": true,
+  "actual_root_UI_seconds": 633.415,
+  "actual_source_UI_failure_retry_success_claimed": false,
+  "actual_GUI_save_error_path_claimed": false,
+  "source_save_error_controls_kept_separate": true,
+  "legacy_menu_key_meaning": "Startup failure page action clicked by root CUA; no macOS system-menu execution claimed",
+  "public_synthetic_export_fully_read": true,
+  "public_export_sha256": "088c4588934fd277de846c07c2274cd51da89cf68bc253d740cb46482b07e4eb",
+  "public_export_bytes": 1062,
+  "actual_export_posix_mode_independently_stat_verified": "0600",
+  "private_customer_or_synthetic_secret_fixture_opened": false,
+  "independent_app_payload_dmg_byte_probes_yet": false,
+  "final_native_gate_verified": false
+}

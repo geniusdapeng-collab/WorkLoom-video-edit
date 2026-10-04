@@ -1,0 +1,11 @@
+COMMAND ["/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node", "--env-file=.env", "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/pnpm/bin/pnpm.cjs", "exec", "vitest", "run", "packages/video-studio/src/film-worker-runtime.test.ts"]
+
+[1m[30m[46m RUN [49m[39m[22m [36mv4.1.11 [39m[90m/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit[39m
+
+ [32m✓[39m packages/video-studio/src/film-worker-runtime.test.ts [2m([22m[2m10 tests[22m[2m)[22m[32m 19[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m1 passed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[32m10 passed[39m[22m[90m (10)[39m
+[2m   Start at [22m 21:53:24
+[2m   Duration [22m 151ms[2m (transform 42ms, setup 0ms, import 56ms, tests 19ms, environment 0ms)[22m
+

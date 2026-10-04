@@ -1,0 +1,14 @@
+{
+  "name": "mac-welcome-upgrade-state-seed",
+  "command": [
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+    "--env-file=.env",
+    "../native_private_state.mjs",
+    "seed",
+    "upgrade"
+  ],
+  "exit_code": 0,
+  "seconds": 6.63,
+  "ran_at": "2026-10-03T04:03:03.643536+08:00",
+  "log": "mac-welcome-upgrade-state-seed.log"
+}

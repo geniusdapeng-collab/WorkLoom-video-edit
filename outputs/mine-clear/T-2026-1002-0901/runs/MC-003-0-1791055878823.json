@@ -1,0 +1,77 @@
+{
+  "schema": "workloom.evidence-run/v1",
+  "id": "MC-003-0-1791055878823",
+  "command": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node --env-file=.env --test scripts/pack-workspace-modules.test.mjs",
+  "exec": {
+    "file": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+    "args": [
+      "--test-reporter=/Users/mac/.codex/skills/mine-clear-delivery/assets/node-test-reporter.mjs",
+      "--test-reporter-destination=/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/evidence/MC-003-0-1791055878823-node-tests.jsonl",
+      "--test-reporter=tap",
+      "--test-reporter-destination=stdout",
+      "--env-file=.env",
+      "--test",
+      "scripts/pack-workspace-modules.test.mjs"
+    ]
+  },
+  "requested_exec": {
+    "file": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+    "args": [
+      "--env-file=.env",
+      "--test",
+      "scripts/pack-workspace-modules.test.mjs"
+    ]
+  },
+  "node_observer": {
+    "schema": "workloom.node-test-observer/v1",
+    "reporter_path": "/Users/mac/.codex/skills/mine-clear-delivery/assets/node-test-reporter.mjs",
+    "reporter_sha256": "286448a4dee571759fc1703564477d27bf5319bcb05ff66db2186deda60bc78f",
+    "destination": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/evidence/MC-003-0-1791055878823-node-tests.jsonl",
+    "summary": {
+      "path": "evidence/MC-003-0-1791055878823-node-tests.jsonl",
+      "sha256": "b2d0dacc5af8e5659a643bb716700a65c58ffcc6bf8f60a692d6a769843bb358",
+      "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+    }
+  },
+  "node_executable": {
+    "path": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+    "sha256": "27db838bb204ef7c21df2931f5656e4c8fb32e6e947f363a402b49714d32b5b1"
+  },
+  "actor": "codex-root-T-2026-1002-0901",
+  "role": "repair",
+  "subject": {
+    "card_id": "MC-003",
+    "assertion_index": 0
+  },
+  "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+  "working_tree_dirty": false,
+  "started_at": "2026-10-03T19:31:18.824Z",
+  "finished_at": "2026-10-03T19:31:19.412Z",
+  "exit_code": 0,
+  "signal": null,
+  "validation": {
+    "ok": true,
+    "errors": [],
+    "testSummary": {
+      "total": 8,
+      "passed": 8,
+      "failed": 0,
+      "cancelled": 0,
+      "skipped": 0,
+      "todo": 0
+    }
+  },
+  "result": "pass",
+  "outputs": [
+    {
+      "path": "evidence/MC-003-0-1791055878823.txt",
+      "sha256": "3b8a94e72f3a66424c851148a107cf4f9f892d96eb3f284030bb24a7f85a4b58",
+      "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+    },
+    {
+      "path": "evidence/MC-003-0-1791055878823-node-tests.jsonl",
+      "sha256": "b2d0dacc5af8e5659a643bb716700a65c58ffcc6bf8f60a692d6a769843bb358",
+      "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+    }
+  ]
+}

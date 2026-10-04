@@ -1,0 +1,20 @@
+{
+  "name": "floor-content-safety-green",
+  "command": [
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+    "--env-file=.env",
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/pnpm/bin/pnpm.cjs",
+    "--filter",
+    "@workloom/web",
+    "exec",
+    "vitest",
+    "run",
+    "src/pages/p0/Floor.test.tsx",
+    "src/pages/p0/floor-layout.test.ts",
+    "src/components/floor3d-layout.test.ts"
+  ],
+  "exit_code": 1,
+  "seconds": 34.974,
+  "ran_at": "2026-10-03T05:22:29.566495+08:00",
+  "log": "floor-content-safety-green.log"
+}

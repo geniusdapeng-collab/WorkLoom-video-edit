@@ -1,0 +1,61 @@
+COMMAND ["/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node", "--env-file=.env", "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/independent-m6/floor3d-probe.mjs", "955e2277ee1496cfc4b40bd30345d1ce1be1acf1", "floor3d-production-before-results.json", "floor3d-production-before", "955e-frozen"]
+5:40:14 AM [vite] (client) Re-optimizing dependencies because vite config has changed
+(!) Failed to run dependency scan. Skipping dependency pre-bundling. Error:   Failed to scan for dependencies from entries:
+  /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/independent-m6/floor3d-fixture/index.html
+
+  Build failed with 1 error:
+
+[31m[PARSE_ERROR] [0mUnexpected token
+    [38;5;246m╭[0m[38;5;246m─[0m[38;5;246m[[0m ../../outputs/growth-production-fix-2026-10-02/independent-m6/floor3d-fixture/fixture.tsx:34:115 [38;5;246m][0m
+    [38;5;246m│[0m
+ [38;5;246m34 │[0m [38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249mo[0m[38;5;249mn[0m[38;5;249mD[0m[38;5;249mr[0m[38;5;249mo[0m[38;5;249mp[0m[38;5;249mT[0m[38;5;249ma[0m[38;5;249ms[0m[38;5;249mk[0m[38;5;249m=[0m[38;5;249m{[0m[38;5;249mf[0m[38;5;249mi[0m[38;5;249mx[0m[38;5;249mt[0m[38;5;249mu[0m[38;5;249mr[0m[38;5;249me[0m[38;5;249m.[0m[38;5;249mw[0m[38;5;249mi[0m[38;5;249mt[0m[38;5;249mh[0m[38;5;249mD[0m[38;5;249mr[0m[38;5;249mo[0m[38;5;249mp[0m[38;5;249m [0m[38;5;249m?[0m[38;5;249m [0m[38;5;249m([0m[38;5;249m([0m[38;5;249ma[0m[38;5;249mg[0m[38;5;249me[0m[38;5;249mn[0m[38;5;249mt[0m[38;5;249m,[0m[38;5;249m [0m[38;5;249mt[0m[38;5;249ma[0m[38;5;249ms[0m[38;5;249mk[0m[38;5;249m)[0m[38;5;249m [0m[38;5;249m=[0m[38;5;249m>[0m[38;5;249m [0m[38;5;249mf[0m[38;5;249mi[0m[38;5;249mx[0m[38;5;249mt[0m[38;5;249mu[0m[38;5;249mr[0m[38;5;249me[0m[38;5;249m.[0m[38;5;249md[0m[38;5;249mr[0m[38;5;249mo[0m[38;5;249mp[0m[38;5;249mC[0m[38;5;249ml[0m[38;5;249mi[0m[38;5;249mc[0m[38;5;249mk[0m[38;5;249ms[0m[38;5;249m.[0m[38;5;249mp[0m[38;5;249mu[0m[38;5;249ms[0m[38;5;249mh[0m[38;5;249m([0m[38;5;249m{[0m[38;5;249mi[0m[38;5;249md[0m[38;5;249m:[0m[38;5;249ma[0m[38;5;249mg[0m[38;5;249me[0m[38;5;249mn[0m[38;5;249mt[0m[38;5;249m.[0m[38;5;249mi[0m[38;5;249md[0m[38;5;249m,[0m[38;5;249mt[0m[38;5;249ma[0m[38;5;249ms[0m[38;5;249mk[0m[38;5;249m}[0m[38;5;249m)[0m[38;5;249m)[0m[38;5;249m [0m[38;5;249m:[0m[38;5;249m [0m[38;5;249mu[0m[38;5;249mn[0m[38;5;249md[0m[38;5;249me[0m[38;5;249mf[0m[38;5;249mi[0m[38;5;249mn[0m[38;5;249me[0m[38;5;249md[0m[38;5;249m}[0m[38;5;249m [0m[38;5;249m/[0m[38;5;249m>[0m[38;5;249m,[0m,
+ [38;5;240m   │[0m                                                                                                                   ┬  
+ [38;5;240m   │[0m                                                                                                                   ╰── 
+[38;5;246m────╯[0m
+
+    at aggregateBindingErrorsIntoJsError (file:///Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/node_modules/.pnpm/rolldown@1.2.11/node_modules/rolldown/dist/shared/error-C7pxws0W.mjs:48:18)
+    at unwrapBindingResult (file:///Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/node_modules/.pnpm/rolldown@1.2.11/node_modules/rolldown/dist/shared/error-C7pxws0W.mjs:18:128)
+    at scan (file:///Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/node_modules/.pnpm/rolldown@1.2.11/node_modules/rolldown/dist/experimental-index.mjs:241:3)
+    at async Object.build (file:///Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/node_modules/.pnpm/vite@8.3.0_@types+node@26.3.0_esbuild@0.28.2_jiti@2.7.0_tsx@4.23.13_yaml@2.9.0/node_modules/vite/dist/node/chunks/node.js:27504:3)
+    at async scan (file:///Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/node_modules/.pnpm/vite@8.3.0_@types+node@26.3.0_esbuild@0.28.2_jiti@2.7.0_tsx@4.23.13_yaml@2.9.0/node_modules/vite/dist/node/chunks/node.js:27443:4)
+    at async file:///Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/node_modules/.pnpm/vite@8.3.0_@types+node@26.3.0_esbuild@0.28.2_jiti@2.7.0_tsx@4.23.13_yaml@2.9.0/node_modules/vite/dist/node/chunks/node.js:35201:15
+5:40:20 AM [vite] (client) Pre-transform error: Transform failed with 1 error:
+
+[31m[PARSE_ERROR] [0mUnexpected token
+    [38;5;246m╭[0m[38;5;246m─[0m[38;5;246m[[0m ../../outputs/growth-production-fix-2026-10-02/independent-m6/floor3d-fixture/fixture.tsx:34:115 [38;5;246m][0m
+    [38;5;246m│[0m
+ [38;5;246m34 │[0m [38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249mo[0m[38;5;249mn[0m[38;5;249mD[0m[38;5;249mr[0m[38;5;249mo[0m[38;5;249mp[0m[38;5;249mT[0m[38;5;249ma[0m[38;5;249ms[0m[38;5;249mk[0m[38;5;249m=[0m[38;5;249m{[0m[38;5;249mf[0m[38;5;249mi[0m[38;5;249mx[0m[38;5;249mt[0m[38;5;249mu[0m[38;5;249mr[0m[38;5;249me[0m[38;5;249m.[0m[38;5;249mw[0m[38;5;249mi[0m[38;5;249mt[0m[38;5;249mh[0m[38;5;249mD[0m[38;5;249mr[0m[38;5;249mo[0m[38;5;249mp[0m[38;5;249m [0m[38;5;249m?[0m[38;5;249m [0m[38;5;249m([0m[38;5;249m([0m[38;5;249ma[0m[38;5;249mg[0m[38;5;249me[0m[38;5;249mn[0m[38;5;249mt[0m[38;5;249m,[0m[38;5;249m [0m[38;5;249mt[0m[38;5;249ma[0m[38;5;249ms[0m[38;5;249mk[0m[38;5;249m)[0m[38;5;249m [0m[38;5;249m=[0m[38;5;249m>[0m[38;5;249m [0m[38;5;249mf[0m[38;5;249mi[0m[38;5;249mx[0m[38;5;249mt[0m[38;5;249mu[0m[38;5;249mr[0m[38;5;249me[0m[38;5;249m.[0m[38;5;249md[0m[38;5;249mr[0m[38;5;249mo[0m[38;5;249mp[0m[38;5;249mC[0m[38;5;249ml[0m[38;5;249mi[0m[38;5;249mc[0m[38;5;249mk[0m[38;5;249ms[0m[38;5;249m.[0m[38;5;249mp[0m[38;5;249mu[0m[38;5;249ms[0m[38;5;249mh[0m[38;5;249m([0m[38;5;249m{[0m[38;5;249mi[0m[38;5;249md[0m[38;5;249m:[0m[38;5;249ma[0m[38;5;249mg[0m[38;5;249me[0m[38;5;249mn[0m[38;5;249mt[0m[38;5;249m.[0m[38;5;249mi[0m[38;5;249md[0m[38;5;249m,[0m[38;5;249mt[0m[38;5;249ma[0m[38;5;249ms[0m[38;5;249mk[0m[38;5;249m}[0m[38;5;249m)[0m[38;5;249m)[0m[38;5;249m [0m[38;5;249m:[0m[38;5;249m [0m[38;5;249mu[0m[38;5;249mn[0m[38;5;249md[0m[38;5;249me[0m[38;5;249mf[0m[38;5;249mi[0m[38;5;249mn[0m[38;5;249me[0m[38;5;249md[0m[38;5;249m}[0m[38;5;249m [0m[38;5;249m/[0m[38;5;249m>[0m[38;5;249m,[0m,
+ [38;5;240m   │[0m                                                                                                                   ┬  
+ [38;5;240m   │[0m                                                                                                                   ╰── 
+[38;5;246m────╯[0m
+
+  Plugin: vite:oxc
+  File: /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/independent-m6/floor3d-fixture/fixture.tsx
+5:40:20 AM [vite] Internal server error: Transform failed with 1 error:
+
+[31m[PARSE_ERROR] [0mUnexpected token
+    [38;5;246m╭[0m[38;5;246m─[0m[38;5;246m[[0m ../../outputs/growth-production-fix-2026-10-02/independent-m6/floor3d-fixture/fixture.tsx:34:115 [38;5;246m][0m
+    [38;5;246m│[0m
+ [38;5;246m34 │[0m [38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249m [0m[38;5;249mo[0m[38;5;249mn[0m[38;5;249mD[0m[38;5;249mr[0m[38;5;249mo[0m[38;5;249mp[0m[38;5;249mT[0m[38;5;249ma[0m[38;5;249ms[0m[38;5;249mk[0m[38;5;249m=[0m[38;5;249m{[0m[38;5;249mf[0m[38;5;249mi[0m[38;5;249mx[0m[38;5;249mt[0m[38;5;249mu[0m[38;5;249mr[0m[38;5;249me[0m[38;5;249m.[0m[38;5;249mw[0m[38;5;249mi[0m[38;5;249mt[0m[38;5;249mh[0m[38;5;249mD[0m[38;5;249mr[0m[38;5;249mo[0m[38;5;249mp[0m[38;5;249m [0m[38;5;249m?[0m[38;5;249m [0m[38;5;249m([0m[38;5;249m([0m[38;5;249ma[0m[38;5;249mg[0m[38;5;249me[0m[38;5;249mn[0m[38;5;249mt[0m[38;5;249m,[0m[38;5;249m [0m[38;5;249mt[0m[38;5;249ma[0m[38;5;249ms[0m[38;5;249mk[0m[38;5;249m)[0m[38;5;249m [0m[38;5;249m=[0m[38;5;249m>[0m[38;5;249m [0m[38;5;249mf[0m[38;5;249mi[0m[38;5;249mx[0m[38;5;249mt[0m[38;5;249mu[0m[38;5;249mr[0m[38;5;249me[0m[38;5;249m.[0m[38;5;249md[0m[38;5;249mr[0m[38;5;249mo[0m[38;5;249mp[0m[38;5;249mC[0m[38;5;249ml[0m[38;5;249mi[0m[38;5;249mc[0m[38;5;249mk[0m[38;5;249ms[0m[38;5;249m.[0m[38;5;249mp[0m[38;5;249mu[0m[38;5;249ms[0m[38;5;249mh[0m[38;5;249m([0m[38;5;249m{[0m[38;5;249mi[0m[38;5;249md[0m[38;5;249m:[0m[38;5;249ma[0m[38;5;249mg[0m[38;5;249me[0m[38;5;249mn[0m[38;5;249mt[0m[38;5;249m.[0m[38;5;249mi[0m[38;5;249md[0m[38;5;249m,[0m[38;5;249mt[0m[38;5;249ma[0m[38;5;249ms[0m[38;5;249mk[0m[38;5;249m}[0m[38;5;249m)[0m[38;5;249m)[0m[38;5;249m [0m[38;5;249m:[0m[38;5;249m [0m[38;5;249mu[0m[38;5;249mn[0m[38;5;249md[0m[38;5;249me[0m[38;5;249mf[0m[38;5;249mi[0m[38;5;249mn[0m[38;5;249me[0m[38;5;249md[0m[38;5;249m}[0m[38;5;249m [0m[38;5;249m/[0m[38;5;249m>[0m[38;5;249m,[0m,
+ [38;5;240m   │[0m                                                                                                                   ┬  
+ [38;5;240m   │[0m                                                                                                                   ╰── 
+[38;5;246m────╯[0m
+
+  Plugin: vite:oxc
+  File: /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/independent-m6/floor3d-fixture/fixture.tsx
+      at transformWithOxc (file:///Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/node_modules/.pnpm/vite@8.3.0_@types+node@26.3.0_esbuild@0.28.2_jiti@2.7.0_tsx@4.23.13_yaml@2.9.0/node_modules/vite/dist/node/chunks/node.js:7208:19)
+      at TransformPluginContext.transform (file:///Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/node_modules/.pnpm/vite@8.3.0_@types+node@26.3.0_esbuild@0.28.2_jiti@2.7.0_tsx@4.23.13_yaml@2.9.0/node_modules/vite/dist/node/chunks/node.js:7280:26)
+      at EnvironmentPluginContainer.transform (file:///Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/node_modules/.pnpm/vite@8.3.0_@types+node@26.3.0_esbuild@0.28.2_jiti@2.7.0_tsx@4.23.13_yaml@2.9.0/node_modules/vite/dist/node/chunks/node.js:8172:51)
+      at async loadAndTransform (file:///Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/node_modules/.pnpm/vite@8.3.0_@types+node@26.3.0_esbuild@0.28.2_jiti@2.7.0_tsx@4.23.13_yaml@2.9.0/node_modules/vite/dist/node/chunks/node.js:19634:26)
+      at async viteTransformMiddleware (file:///Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/node_modules/.pnpm/vite@8.3.0_@types+node@26.3.0_esbuild@0.28.2_jiti@2.7.0_tsx@4.23.13_yaml@2.9.0/node_modules/vite/dist/node/chunks/node.js:19853:20)
+node:internal/modules/run_main:107
+    triggerUncaughtException(
+    ^
+
+page.waitForFunction: Timeout 20000ms exceeded.
+    at /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/independent-m6/floor3d-probe.mjs:127:16 {
+  log: [],
+  name: 'TimeoutError'
+}
+
+Node.js v24.19.0

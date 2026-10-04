@@ -1,0 +1,16 @@
+{
+  "name": "film-public-coverage",
+  "command": [
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+    "--env-file=.env",
+    "--import",
+    "tsx",
+    "../film-worker-acceptance.mts",
+    "--repo",
+    "."
+  ],
+  "exit_code": 0,
+  "seconds": 1.304,
+  "ran_at": "2026-10-02T21:49:40.540718+08:00",
+  "log": "film-public-coverage.log"
+}

@@ -1,0 +1,286 @@
+{
+  "metadata_preflight_only": true,
+  "actual_modern_execution_claimed": false,
+  "rows": [
+    {
+      "card": "MC-001",
+      "file": "outputs/growth-audit-2026-10-02/evidence/desktop-bootstrap-before.log",
+      "bytes": 5089,
+      "sha256": "7c92deafc2ca46c95772f4ab82e9d40b9e288695a7ad805e5361b40a90c90ca5",
+      "publish_shape_reason": null
+    },
+    {
+      "card": "MC-001",
+      "file": "outputs/growth-audit-2026-10-02/evidence/desktop-bootstrap-after.log",
+      "bytes": 4259,
+      "sha256": "aa53b85ef145ad64cd94fba3e3b626e5687cc10153a3047b752dca060aa90013",
+      "publish_shape_reason": null
+    },
+    {
+      "card": "MC-001",
+      "file": "outputs/growth-audit-2026-10-02/evidence/installed-app-first.json",
+      "bytes": 402,
+      "sha256": "d700eaa3bfa71a09e29d41d34280b9d852782ff20896bf8bb5a706236414d035",
+      "publish_shape_reason": null
+    },
+    {
+      "card": "MC-002",
+      "file": "outputs/growth-audit-2026-10-02/evidence/runtime-lock-baseline.log",
+      "bytes": 220,
+      "sha256": "211ed29b0fb0215ef987fdb5fc1ba7559c55fecaa1a03dadccd60363f2e26fb4",
+      "publish_shape_reason": null
+    },
+    {
+      "card": "MC-002",
+      "file": "outputs/growth-audit-2026-10-02/evidence/runtime-lock-verify-final.json",
+      "bytes": 351,
+      "sha256": "b8f119d4f06ad426f86af61eb35ff5cf4d01de6986d05ef8c02f95bb376f991a",
+      "publish_shape_reason": null
+    },
+    {
+      "card": "MC-002",
+      "file": "outputs/growth-audit-2026-10-02/evidence/runtime-lock-stage-windows-fixed-env.json",
+      "bytes": 550,
+      "sha256": "2a5c7a9500ff87003ac09663c5e41fa78a9ce30783bcfd3a2c2f6ea446342fa7",
+      "publish_shape_reason": null
+    },
+    {
+      "card": "MC-003",
+      "file": "outputs/growth-audit-2026-10-02/evidence/packaged-bootstrap-first.log",
+      "bytes": 2590,
+      "sha256": "65f224522f9f970b07a37ee29819047454d2a3f37a0c21448734871cb182dfd8",
+      "publish_shape_reason": null
+    },
+    {
+      "card": "MC-003",
+      "file": "outputs/growth-audit-2026-10-02/evidence/desktop-workspace-regression.log",
+      "bytes": 737,
+      "sha256": "a988f2a58e3dfe5cd769ccf5f86e6546da691700a98308eab9d27d7ff1b5d943",
+      "publish_shape_reason": null
+    },
+    {
+      "card": "MC-003",
+      "file": "outputs/growth-audit-2026-10-02/evidence/installed-app-first.json",
+      "bytes": 402,
+      "sha256": "d700eaa3bfa71a09e29d41d34280b9d852782ff20896bf8bb5a706236414d035",
+      "publish_shape_reason": null
+    },
+    {
+      "card": "MC-004",
+      "file": "outputs/growth-audit-2026-10-02/evidence/packaged-film-cli-red.log",
+      "bytes": 2102,
+      "sha256": "7545d7e53ad7e19fbe59154c04a2bb7dce84f9570c1b32056272b25ef1b89ae8",
+      "publish_shape_reason": null
+    },
+    {
+      "card": "MC-004",
+      "file": "outputs/growth-audit-2026-10-02/evidence/packaged-film-load-result.json",
+      "bytes": 270,
+      "sha256": "8e42d7fc721cf499b1804f3c2c86f0880f3411da8951c691f95cb713469bf982",
+      "publish_shape_reason": null
+    },
+    {
+      "card": "MC-004",
+      "file": "outputs/growth-audit-2026-10-02/evidence/shell-pack-syntax.json",
+      "bytes": 294,
+      "sha256": "80c9890505e5079119febd4d8fedcb356faa683e55b4d7fca33d2f91b6f8294a",
+      "publish_shape_reason": null
+    },
+    {
+      "card": "MC-005",
+      "file": "outputs/growth-audit-2026-10-02/evidence/production-login-nonexample.json",
+      "bytes": 403,
+      "sha256": "899bcc1a7540873ff35848041a9fa2bfa5b89c53395ac7c7d86e7dd079b51f6b",
+      "publish_shape_reason": null
+    },
+    {
+      "card": "MC-005",
+      "file": "outputs/growth-audit-2026-10-02/evidence/production-login-nonexample-assert-final.json",
+      "bytes": 709,
+      "sha256": "7c9d2d81080c4781f51030efab7788fba27069f4644236f65a446f7022dc6935",
+      "publish_shape_reason": null
+    },
+    {
+      "card": "MC-005",
+      "file": "outputs/growth-audit-2026-10-02/evidence/source-server-c-ready.json",
+      "bytes": 479,
+      "sha256": "bbf8c9c3ee1c32d446d91512e8c83f0f15b9cee8d5d59584f1e0f3eee349de06",
+      "publish_shape_reason": null
+    },
+    {
+      "card": "MC-006",
+      "file": "outputs/growth-audit-2026-10-02/evidence/runtime-repro-results.json",
+      "bytes": 6456,
+      "sha256": "e7821b9ab94d2f874bb6844d983690683a5923f7c1fb0f1f58cc6b528af5998c",
+      "publish_shape_reason": null
+    },
+    {
+      "card": "MC-006",
+      "file": "outputs/growth-audit-2026-10-02/evidence/runtime-health-assert-final.json",
+      "bytes": 729,
+      "sha256": "701349c0831759d9159576a5579d05baea3c9310a2a76dab9b13389970710b41",
+      "publish_shape_reason": null
+    },
+    {
+      "card": "MC-007",
+      "file": "outputs/growth-audit-2026-10-02/evidence/runtime-repro-results.json",
+      "bytes": 6456,
+      "sha256": "e7821b9ab94d2f874bb6844d983690683a5923f7c1fb0f1f58cc6b528af5998c",
+      "publish_shape_reason": null
+    },
+    {
+      "card": "MC-007",
+      "file": "outputs/growth-audit-2026-10-02/evidence/runtime-health-assert-final.json",
+      "bytes": 729,
+      "sha256": "701349c0831759d9159576a5579d05baea3c9310a2a76dab9b13389970710b41",
+      "publish_shape_reason": null
+    },
+    {
+      "card": "MC-008",
+      "file": "outputs/growth-audit-2026-10-02/evidence/runtime-repro-results.json",
+      "bytes": 6456,
+      "sha256": "e7821b9ab94d2f874bb6844d983690683a5923f7c1fb0f1f58cc6b528af5998c",
+      "publish_shape_reason": null
+    },
+    {
+      "card": "MC-008",
+      "file": "outputs/growth-audit-2026-10-02/evidence/runtime-health-assert-final.json",
+      "bytes": 729,
+      "sha256": "701349c0831759d9159576a5579d05baea3c9310a2a76dab9b13389970710b41",
+      "publish_shape_reason": null
+    },
+    {
+      "card": "MC-009",
+      "file": "outputs/growth-audit-2026-10-02/evidence/runtime-repro-results.json",
+      "bytes": 6456,
+      "sha256": "e7821b9ab94d2f874bb6844d983690683a5923f7c1fb0f1f58cc6b528af5998c",
+      "publish_shape_reason": null
+    },
+    {
+      "card": "MC-010",
+      "file": "outputs/growth-audit-2026-10-02/evidence/runtime-repro-results.json",
+      "bytes": 6456,
+      "sha256": "e7821b9ab94d2f874bb6844d983690683a5923f7c1fb0f1f58cc6b528af5998c",
+      "publish_shape_reason": null
+    },
+    {
+      "card": "MC-011",
+      "file": "outputs/growth-audit-2026-10-02/evidence/runtime-repro-results.json",
+      "bytes": 6456,
+      "sha256": "e7821b9ab94d2f874bb6844d983690683a5923f7c1fb0f1f58cc6b528af5998c",
+      "publish_shape_reason": null
+    },
+    {
+      "card": "MC-012",
+      "file": "outputs/growth-audit-2026-10-02/evidence/runtime-repro-results.json",
+      "bytes": 6456,
+      "sha256": "e7821b9ab94d2f874bb6844d983690683a5923f7c1fb0f1f58cc6b528af5998c",
+      "publish_shape_reason": null
+    },
+    {
+      "card": "MC-013",
+      "file": "outputs/growth-audit-2026-10-02/evidence/film-route-result.json",
+      "bytes": 1777,
+      "sha256": "6a5b027b27e349b581115452a3407fcc10a940c5c6fe62845b170956c6ebc3b1",
+      "publish_shape_reason": null
+    },
+    {
+      "card": "MC-013",
+      "file": "outputs/growth-audit-2026-10-02/evidence/film-route-assert-final.json",
+      "bytes": 724,
+      "sha256": "46a6d192c175faa8f6ff6e0f0cc93662334c26105eb9edfa85515962a6e4ca7b",
+      "publish_shape_reason": null
+    },
+    {
+      "card": "MC-013",
+      "file": "outputs/growth-audit-2026-10-02/evidence/packaged-film-load-result.json",
+      "bytes": 270,
+      "sha256": "8e42d7fc721cf499b1804f3c2c86f0880f3411da8951c691f95cb713469bf982",
+      "publish_shape_reason": null
+    },
+    {
+      "card": "MC-014",
+      "file": "outputs/growth-audit-2026-10-02/evidence/suite-geo.json",
+      "bytes": 391,
+      "sha256": "182683d2721817e7709acf150cee728f147fa774feb2c3dc08091b007136211b",
+      "publish_shape_reason": null
+    },
+    {
+      "card": "MC-014",
+      "file": "outputs/growth-audit-2026-10-02/evidence/fence-object-result.json",
+      "bytes": 214,
+      "sha256": "12fce58f8196f81814cddde0421566f37e82ab54e5f4b3f17fef3507e4c190d4",
+      "publish_shape_reason": null
+    },
+    {
+      "card": "MC-015",
+      "file": "outputs/growth-audit-2026-10-02/evidence/video-plan-result.json",
+      "bytes": 687,
+      "sha256": "7c5c3c650df7672db7c8f335371f50fda3e80cd95e510fe4d651f41da5ac579b",
+      "publish_shape_reason": null
+    },
+    {
+      "card": "MC-015",
+      "file": "outputs/growth-audit-2026-10-02/evidence/video-plan-assert.json",
+      "bytes": 560,
+      "sha256": "5e074e3fd27a595d0b076017f304b706d370132520f5bfaf7d07b3a059e6ff22",
+      "publish_shape_reason": null
+    },
+    {
+      "card": "MC-016",
+      "file": "outputs/growth-audit-2026-10-02/evidence/dependency-audit.log",
+      "bytes": 18817,
+      "sha256": "6b3e5b5fad1877635ee326f7d608aa0aedb8e083cd1de6fa0b4f851e9cea6a07",
+      "publish_shape_reason": null
+    },
+    {
+      "card": "MC-016",
+      "file": "outputs/growth-audit-2026-10-02/evidence/runtime-lock-stage-windows-fixed-env.json",
+      "bytes": 550,
+      "sha256": "2a5c7a9500ff87003ac09663c5e41fa78a9ce30783bcfd3a2c2f6ea446342fa7",
+      "publish_shape_reason": null
+    },
+    {
+      "card": "MC-017",
+      "file": "outputs/growth-production-fix-2026-10-02/evidence/reset-safety-before.json",
+      "bytes": 456,
+      "sha256": "34682ef773641a2713c60be146dc3982ada155297914c812541fd20081c017f7",
+      "publish_shape_reason": null
+    },
+    {
+      "card": "MC-017",
+      "file": "outputs/growth-production-fix-2026-10-02/evidence/reset-safety-before.log",
+      "bytes": 8601,
+      "sha256": "f8d71ab1812d7e75f1ee754e5b9e7af23728239d041f92af5b53c9ff96ac3493",
+      "publish_shape_reason": null
+    },
+    {
+      "card": "MC-017",
+      "file": "outputs/growth-production-fix-2026-10-02/evidence/reset-safety-controls-final.json",
+      "bytes": 1351,
+      "sha256": "1bd5bea1664a0b906dcbcc83c3c5904d66b58088b305af94db8f727770258e8b",
+      "publish_shape_reason": null
+    },
+    {
+      "card": "MC-018",
+      "file": "outputs/growth-production-fix-2026-10-02/evidence/diagnostic-complete-original-before.json",
+      "bytes": 591,
+      "sha256": "fc23a39d08e1ca5369c39d2731a5a9e70453aa2895e7fcef78e72351a3a66e9b",
+      "publish_shape_reason": null
+    },
+    {
+      "card": "MC-018",
+      "file": "outputs/growth-production-fix-2026-10-02/evidence/diagnostic-contract-after.json",
+      "bytes": 487,
+      "sha256": "a7021fa478339f6521a792d13f07b38fd95a80c564c850c04daad45e8b392ee1",
+      "publish_shape_reason": null
+    },
+    {
+      "card": "MC-018",
+      "file": "outputs/growth-production-fix-2026-10-02/evidence/diagnostic-redaction-performance-before.json",
+      "bytes": 516,
+      "sha256": "00b8073f63515011fd1548b9aebd597baf77ae4964c67281d75a7d9481abc694",
+      "publish_shape_reason": null
+    }
+  ]
+}

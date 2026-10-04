@@ -1,0 +1,2 @@
+COMMAND ["python3", "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/restore_owned_geo_fixture_window.py"]
+{"source_commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8", "restored_prerequisite": {"metrics": 14, "first_day": "2026-09-27", "last_day": "2026-10-03"}, "retained_removed_synthetic_row_ids": [1, 2, 3, 4], "event_ledger_unchanged": true, "product_source_unchanged": true, "pass": true}

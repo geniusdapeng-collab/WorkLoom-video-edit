@@ -1,0 +1,6 @@
+COMMAND ["/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node", "--env-file=.env", "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/pnpm/bin/pnpm.cjs", "install", "--lockfile-only", "--ignore-scripts", "--offline"]
+Scope: all 12 workspace projects
+ WARN  `node_modules` is present. Lockfile only installation will make it out-of-date
+ ERR_PNPM_NO_OFFLINE_META  Failed to resolve electron@>=44.1.1 <45.0.0-0 in package mirror /Users/mac/Library/Caches/pnpm/metadata-v1.3/registry.npmjs.org/electron.json
+
+This error happened while installing a direct dependency of /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit

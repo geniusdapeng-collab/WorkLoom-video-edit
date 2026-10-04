@@ -1,0 +1,13 @@
+{
+  "name": "mcd-execution-repair-7fee",
+  "command": [
+    "/usr/bin/python3",
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/run_execution_repair.py",
+    "--source",
+    "7fee3a6a5563d41c568463994764d3883eb7667d"
+  ],
+  "exit_code": 1,
+  "seconds": 87.573,
+  "ran_at": "2026-10-03T21:24:30.845698+08:00",
+  "log": "mcd-execution-repair-7fee.log"
+}

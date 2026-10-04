@@ -1,0 +1,1075 @@
+{
+  "source_commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+  "generated_at": "2026-10-04T04:57:30.307383+08:00",
+  "grade": "B",
+  "prompts_declared_presets": {
+    "files": [
+      {
+        "file": "bundles/ai-video/presets/ads-optimizer.yml",
+        "sha256": "4969554944f4e2586aef8ab29da819d76611a6ba537b5964db6e9e7db9cc5bf2"
+      },
+      {
+        "file": "bundles/ai-video/presets/audio-designer.yml",
+        "sha256": "e0122309c8a94d7b8e73109c3b88f92b900917bdc04c5535836e7f1f3c66dc0b"
+      },
+      {
+        "file": "bundles/ai-video/presets/bgm-composer.yml",
+        "sha256": "06627683e8df30128505a8b344f03fa62252f2999e3bc9f2c9428d8eeaf500fe"
+      },
+      {
+        "file": "bundles/ai-video/presets/cinematographer.yml",
+        "sha256": "24baa157493ace46b7372c35e19add1842a41714955119c36b854ec2b53c0aad"
+      },
+      {
+        "file": "bundles/ai-video/presets/colorist.yml",
+        "sha256": "d3b93f95a3a1d2e3cbba95f6c05129d2fa9729f54913999e0e647e8963753c51"
+      },
+      {
+        "file": "bundles/ai-video/presets/comment-operator.yml",
+        "sha256": "6b96a0ef1e62d6f98bc82872578bec3afd590e4f51f3b1076b974fa7b2fe7b93"
+      },
+      {
+        "file": "bundles/ai-video/presets/compliance-officer.yml",
+        "sha256": "0fe8477702798a61fa32366318d4cdda6f0f85ceecfc50f3ef6a51a775bc8e68"
+      },
+      {
+        "file": "bundles/ai-video/presets/continuity-reviewer.yml",
+        "sha256": "b4eee93a32e3cf5efdf53eacd428e3ab628798c59aa7d7abcb1bb6155458b6e3"
+      },
+      {
+        "file": "bundles/ai-video/presets/cover-designer.yml",
+        "sha256": "29892ea7f60572749454a22b51b30959edb2d53a238e4419364c219a84651b11"
+      },
+      {
+        "file": "bundles/ai-video/presets/creative-planner.yml",
+        "sha256": "fe16218689b960ae71ca8d383db4087f8c38cbc001640f5107bc44466ed72bef"
+      },
+      {
+        "file": "bundles/ai-video/presets/creator-partner.yml",
+        "sha256": "86851319aef45426056920fd33148e869a37127f2ab096f964167e536dd46137"
+      },
+      {
+        "file": "bundles/ai-video/presets/deal-manager.yml",
+        "sha256": "d76894cd64adb18ceade267fb9e7a4b13dd1ebac8e0e430950717684d04eebc0"
+      },
+      {
+        "file": "bundles/ai-video/presets/director.yml",
+        "sha256": "272dc3d26aa41b99bd0583b2fdf392e4e3680bc1b8e83749f833fed9be69a9b7"
+      },
+      {
+        "file": "bundles/ai-video/presets/distribution-operator.yml",
+        "sha256": "64cb2950a4ffb5d6cd9014404d8964bb5d667fa0703a1d34299049d4ff932a4e"
+      },
+      {
+        "file": "bundles/ai-video/presets/explainer-director.yml",
+        "sha256": "a1586c23ad2cf5303d19b6381b55678086765d387834431d4a583ff341dc5f37"
+      },
+      {
+        "file": "bundles/ai-video/presets/field-inspector.yml",
+        "sha256": "6d472d55b25f2c5129ad018cf14cb764eef25bcd020e00d226e1bd568fcad05e"
+      },
+      {
+        "file": "bundles/ai-video/presets/hook-designer.yml",
+        "sha256": "945c7e93f2fb135262b91740ecf4fb659fc1d9e92ecb1597d5f54e3839679f45"
+      },
+      {
+        "file": "bundles/ai-video/presets/insight-analyst.yml",
+        "sha256": "e9889db8a6992de9cdb9b42d938edfad419e1dbaebe6643a46f52a0335c94183"
+      },
+      {
+        "file": "bundles/ai-video/presets/intel-binder.yml",
+        "sha256": "b6fa870dc45a0996963d4ed6ccce4fd829fe921f03f0bfc2b14bd4c30b376844"
+      },
+      {
+        "file": "bundles/ai-video/presets/intel-collector.yml",
+        "sha256": "4ef715261b008ad664cb40a53d1c922c2a94b6be6659f77d63aef4ba4f36fa98"
+      },
+      {
+        "file": "bundles/ai-video/presets/intel-competitor.yml",
+        "sha256": "9822a945bfc9beccbf33d9d5ad0026262c64e16f123e15c968d427610e94238d"
+      },
+      {
+        "file": "bundles/ai-video/presets/intel-reviewer.yml",
+        "sha256": "d46f93ac81e67237a6f5f5a6c040aa73959700d6cb3fed7f86e276e129a180ab"
+      },
+      {
+        "file": "bundles/ai-video/presets/intel-verifier.yml",
+        "sha256": "bfa6abdbfffdbd2c8f30e363c1fa36740c7e04f35cdc675836c82bf1ea09f7b0"
+      },
+      {
+        "file": "bundles/ai-video/presets/ip-curator.yml",
+        "sha256": "0cf8896e100fd4f33cf1e74b4b6b6004efba8fcc84bdf530fdd02a2da5df0caf"
+      },
+      {
+        "file": "bundles/ai-video/presets/metrics-watcher.yml",
+        "sha256": "058d94ac5541dc892c1b3ea6fa016ee90903c4e56a53c55310f9e0324493aa58"
+      },
+      {
+        "file": "bundles/ai-video/presets/micromotion-stylist.yml",
+        "sha256": "a31bf3d0aa53ac3a259abb07894b1dd1211175e37ff23c490b2b1278bf1614de"
+      },
+      {
+        "file": "bundles/ai-video/presets/opening-designer.yml",
+        "sha256": "6a860c8dc8990514a46ca14b5cf7b57e5e1a119f224e45a16cb0d3349749f620"
+      },
+      {
+        "file": "bundles/ai-video/presets/portrait-artist.yml",
+        "sha256": "e2da54cdcb185a60b0954092aba7fe2a2ee8fa3a5f739f25893e906bbb3fdf93"
+      },
+      {
+        "file": "bundles/ai-video/presets/post-editor.yml",
+        "sha256": "7312f58c57fc5066d31adeff375f87de9d77e07bc6b2c3c36167c8c311ed4258"
+      },
+      {
+        "file": "bundles/ai-video/presets/prd-specialist.yml",
+        "sha256": "e8d6c7e0aa79235e78049ae5844ba537513adc0b0849003fcb5121f547cfcb01"
+      },
+      {
+        "file": "bundles/ai-video/presets/producer.yml",
+        "sha256": "141d8eccd770321f18e3f35741be396e3f3be06c2aa7341acb689a05f03853fc"
+      },
+      {
+        "file": "bundles/ai-video/presets/prompt-fuser.yml",
+        "sha256": "019952c79c5770875ca59e6415324194d2300368a36c3b4e28ef0c1d12ac7894"
+      },
+      {
+        "file": "bundles/ai-video/presets/publish-operator.yml",
+        "sha256": "303b23a76c094f2ae3778c712edf71ec63de27d67b2ccd1bfe9f577f4b695dce"
+      },
+      {
+        "file": "bundles/ai-video/presets/render-operator.yml",
+        "sha256": "ba912cb485d9fb8cf7c737b93515e2974b9a52cb6a2b482024366e650537715c"
+      },
+      {
+        "file": "bundles/ai-video/presets/review-analyst.yml",
+        "sha256": "01130c5e4181d89e67935312fec9a2e40df533a6da981cacf5091ca8e64d3da1"
+      },
+      {
+        "file": "bundles/ai-video/presets/scene-designer.yml",
+        "sha256": "4970864e41c4fd0181db824ac8cdd75d9f95ae6ae1a1c22237dd9f9dcc05523a"
+      },
+      {
+        "file": "bundles/ai-video/presets/scriptwriter.yml",
+        "sha256": "01874917ac0e38aa3baf1edda5d82e6002f22c69dafccb010a1ab7cbddbb0a2d"
+      },
+      {
+        "file": "bundles/ai-video/presets/settlement-clerk.yml",
+        "sha256": "6b6f1cdcc3e71d5d2a88dc9aba1e9013e250e924b4bd95eda393a710dcd99f5c"
+      },
+      {
+        "file": "bundles/ai-video/presets/subtitle-stylist.yml",
+        "sha256": "2dae6b77cd15bea73efe88fc0a7d7e1ff21acd32f2b3e7470243846ba998a062"
+      },
+      {
+        "file": "bundles/ai-video/presets/trend-researcher.yml",
+        "sha256": "802b157911cf35216d5122784d8ba0d89ac1da2187748413243f957c002307b3"
+      },
+      {
+        "file": "bundles/ai-video/presets/visual-director.yml",
+        "sha256": "74683eed31a08c7ffce74ffeb02a4349051c4ec9164ba995470455cf35f6fa61"
+      },
+      {
+        "file": "bundles/ai-video/presets/voice-artist.yml",
+        "sha256": "dec7a71914f82f56a0fc81e8470271c31663b9fc70103d18bf9671c17763f56a"
+      },
+      {
+        "file": "bundles/geo-growth/presets/ads-optimizer.yml",
+        "sha256": "1c562d53e931ef922f71b44ead21bd33a3905f2befdfe1f9f6177d06cf2ed2e2"
+      },
+      {
+        "file": "bundles/geo-growth/presets/citation-analyst.yml",
+        "sha256": "1267ce24d140fbf727e95be59a8b5e098b1829bfd2853c4010baddabb56750c1"
+      },
+      {
+        "file": "bundles/geo-growth/presets/company-ceo.yml",
+        "sha256": "95c9c568c3aa95e7eb690dbd0325b6087f653046ccf1868a12cbac7a9c8a3b92"
+      },
+      {
+        "file": "bundles/geo-growth/presets/cro-designer.yml",
+        "sha256": "e43b4e310abd796969d92af7ae2ece537412d85ca93e86cfee32426f85132eba"
+      },
+      {
+        "file": "bundles/geo-growth/presets/customer-success.yml",
+        "sha256": "c939271088f6c4f619cc5d96e640a82b40bd726cd85540f50d1e27a0bd35954d"
+      },
+      {
+        "file": "bundles/geo-growth/presets/data-board-officer.yml",
+        "sha256": "740214e41a91e6b1d20c549dda21f54836982579a6646f314d68b793c485f637"
+      },
+      {
+        "file": "bundles/geo-growth/presets/entity-inspector.yml",
+        "sha256": "1b6d5e631ffdcbd5bb2e0517ac65caf94eeb5d7625f50f12bad8e743358d068d"
+      },
+      {
+        "file": "bundles/geo-growth/presets/geo-content-planner.yml",
+        "sha256": "850c3b152b1e0d31bebe8ba58d1fd0a4df3601fe02b0c7f2029cff03e7ee28d7"
+      },
+      {
+        "file": "bundles/geo-growth/presets/geo-researcher.yml",
+        "sha256": "942b41b3a1a6e330f5a72c09763406a235b4c0cea5abcf7619fc07f058f857de"
+      },
+      {
+        "file": "bundles/geo-growth/presets/group-ceo.yml",
+        "sha256": "5026be4c99ed4200c5bbfa0de9a48596305f582d04cb6cb1d9a53a50070d97c6"
+      },
+      {
+        "file": "bundles/geo-growth/presets/growth-experimenter.yml",
+        "sha256": "20e9afb6f9741644ab4419b7b4d555729c8e9b5e579271ededfddf162ba1a9aa"
+      },
+      {
+        "file": "bundles/geo-growth/presets/growth-lead.yml",
+        "sha256": "31c8597c1df9b5b7bc1b7084ce3229b2afc1de6e89071f3c6fb9a588846dc968"
+      },
+      {
+        "file": "bundles/geo-growth/presets/growth-partnership-officer.yml",
+        "sha256": "34d9bd37335033dbe9ec5731c48daf531fcbeedb42bdcf94b384a5e09c969a37"
+      },
+      {
+        "file": "bundles/geo-growth/presets/growth-strategist.yml",
+        "sha256": "d2388e1b2fb40d5f15ab43a0018b1b529562b87785825afaf1611bf86e9cf0a4"
+      },
+      {
+        "file": "bundles/geo-growth/presets/lead-conversion-officer.yml",
+        "sha256": "1946d8a4dd2a050481e60e0d14e8ef1a1c4f254a2cc528c636ed628f23f2bba6"
+      },
+      {
+        "file": "bundles/geo-growth/presets/lifecycle-growth-officer.yml",
+        "sha256": "07e1885343d7db8f556c24f1138ee5bde7e9edff85718987a34b938213e34270"
+      },
+      {
+        "file": "bundles/geo-growth/presets/live-producer.yml",
+        "sha256": "f6f82566d1d8eae51e81b19e3193e773fd052327ccb3c8c74323c8e7e8ec214e"
+      },
+      {
+        "file": "bundles/geo-growth/presets/material-scout.yml",
+        "sha256": "e7becd627c741d22bda67371e54d03746d6626471bf6daa99f2cca7b7a82efdf"
+      },
+      {
+        "file": "bundles/geo-growth/presets/media-portfolio-manager.yml",
+        "sha256": "4aae72fb19dad569397c4acb45050ef9c29d8fce235ad51936e39840a9fd2c79"
+      },
+      {
+        "file": "bundles/geo-growth/presets/private-domain-operator.yml",
+        "sha256": "6f351e045ff799506245e1f18883d16a59f1330bfedf70242de1d97d5ea542bc"
+      },
+      {
+        "file": "bundles/geo-growth/presets/production-planner.yml",
+        "sha256": "67d7cb2933a2a7603d70664b1e0fc78488fa4f20ff96aea56d6c24468193697e"
+      },
+      {
+        "file": "bundles/geo-growth/presets/publish-operator.yml",
+        "sha256": "02f85e2e6bc1fcf44fdb545a199ff793b06741af9f360783a132a0a69bec2078"
+      },
+      {
+        "file": "bundles/geo-growth/presets/review-analyst.yml",
+        "sha256": "a3130f43b0f48a2b63d58160e33a11c6ed7b90f8f6e8c55e565446dffa44ad1d"
+      },
+      {
+        "file": "bundles/geo-growth/presets/scriptwriter.yml",
+        "sha256": "d2406b78d11082a594c68ac45031779deac13371c98ec0709c8ace479b1de357"
+      },
+      {
+        "file": "bundles/geo-growth/presets/source-distributor.yml",
+        "sha256": "8cbe329b6786775def27ce43f2095feb1128567c70898e11b9a5e12dacfbaa1e"
+      },
+      {
+        "file": "bundles/geo-growth/presets/visibility-watcher.yml",
+        "sha256": "05e59d7d7bfd329011cb18245938c4d37633838ce194487da69b5c4438b0b501"
+      },
+      {
+        "file": "bundles/geo-growth/presets/visual-designer.yml",
+        "sha256": "8d02b6660eff1114f994959fc4432abda97bf420bfcc23cac9f57039d3c6014e"
+      },
+      {
+        "file": "bundles/hotel/presets/ai-receptionist.yml",
+        "sha256": "1782565655f1d47889ba50baa261f75f0b8cf9fd07780629bf234b98b694e38a"
+      },
+      {
+        "file": "bundles/hotel/presets/channel-watcher.yml",
+        "sha256": "7a5a36baf3041f188dc915d2e7e0300c2356b968cc98644fa502e9a7111ea0ab"
+      },
+      {
+        "file": "bundles/hotel/presets/company-ceo.yml",
+        "sha256": "92ef2e7229ed7777862066e672f3c1d4f3076465689de58f5161d18833936612"
+      },
+      {
+        "file": "bundles/hotel/presets/competitor-agent.yml",
+        "sha256": "7481c3aeb736c778d25a8ab5f0051af28b6de1ca8fb442abd544c15458b0bb65"
+      },
+      {
+        "file": "bundles/hotel/presets/content-agent.yml",
+        "sha256": "ac292f561655411afc4afb99e46d0094bc8457f2ece715b65f708c2b4b6a4370"
+      },
+      {
+        "file": "bundles/hotel/presets/coupon-operator.yml",
+        "sha256": "5a27a9ef4d084d5271936c619abd0a2bfcb11b5d8cb8a4e016aac3a6c5ecc50c"
+      },
+      {
+        "file": "bundles/hotel/presets/desktop-agent.yml",
+        "sha256": "55b3197cafe26ec5bc8c887fc814c10d643b53ddd808b8525dc2f8f194bb0eb8"
+      },
+      {
+        "file": "bundles/hotel/presets/frontdesk-agent.yml",
+        "sha256": "e3ce58c6f727138e75b618bbd9c01e746d2562407d7ce89ab2492ebb8acfa169"
+      },
+      {
+        "file": "bundles/hotel/presets/guest-success.yml",
+        "sha256": "9e6225608a450909cebf65d5fe92e0f22cdb8a052c5f6104b1025e2a31c8211a"
+      },
+      {
+        "file": "bundles/hotel/presets/housekeeper-agent.yml",
+        "sha256": "c6508f19a5bfc100d5788b3e3d47a70ad541d3030e5169bbb21929b7baaf7e5f"
+      },
+      {
+        "file": "bundles/hotel/presets/inspection-agent.yml",
+        "sha256": "cc02af0732c8efafee4444b8572d35f141a12db9d5685e28439e29c809d53017"
+      },
+      {
+        "file": "bundles/hotel/presets/owner-cockpit.yml",
+        "sha256": "0b3e887b62ab544b26e3b8217f0176cb721d732d376cb74d1be24301cc719e82"
+      },
+      {
+        "file": "bundles/hotel/presets/phone-agent.yml",
+        "sha256": "2d2efa592626ca5314a8768cad8dc534e3f5c34bd25e05926db192a022b58084"
+      },
+      {
+        "file": "bundles/hotel/presets/pricing-agent.yml",
+        "sha256": "8ea9c9b0dca09dfc4d1f79a601934b128631060a082fe9f6b84913c0b5b733a8"
+      },
+      {
+        "file": "bundles/hotel/presets/reconcile-agent.yml",
+        "sha256": "c9f854d64a1d297eb3643c5d7a61ed4b42c48a37d8c3bff23e0b2fabb0e7fc69"
+      },
+      {
+        "file": "bundles/hotel/presets/review-agent.yml",
+        "sha256": "cc1c6b087f7b1e593b3951f2d56565a3a8b820a221d4742bea82439740061834"
+      }
+    ],
+    "file_count": 85,
+    "aggregate_sha256": "115ff24afbf1513143521e43b1d5969d07e5f60c3b54e4e8aab7dd276cdf5e1a"
+  },
+  "skills_declared_text": {
+    "files": [
+      {
+        "file": "bundles/ai-video/skills/bgm-audio-layering/SKILL.md",
+        "sha256": "d8c945fc0a8ffd66f107a48ef9c1da3d1d55a3e1673efe320c4fac219828685f"
+      },
+      {
+        "file": "bundles/ai-video/skills/bgm-delivery-spec/SKILL.md",
+        "sha256": "f32297f00c04519683b7633bab6d4faede3e762117800192654bc4350aa0eca1"
+      },
+      {
+        "file": "bundles/ai-video/skills/bgm-library-license/SKILL.md",
+        "sha256": "e6f86f640f902709e03b8a78cf22df70a4bc882dcc4a38ebc194f563a74656dd"
+      },
+      {
+        "file": "bundles/ai-video/skills/bgm-score-design/SKILL.md",
+        "sha256": "a8d50adf445ecb295f2dd3e5143947a558f491abb8fe9a5643d2226c6a89facc"
+      },
+      {
+        "file": "bundles/ai-video/skills/bgm-vocal-separation/SKILL.md",
+        "sha256": "d2862cbc02f85c5f4e632100dd79e02f08fb9dc9d335312ef68c63eb76f7c6e3"
+      },
+      {
+        "file": "bundles/ai-video/skills/caption-burnin-ops/SKILL.md",
+        "sha256": "f0ce9ec0de1b6c7637ab1653a07be0dac53cd46f2fb26804e6b42a38a048b539"
+      },
+      {
+        "file": "bundles/ai-video/skills/cinematography-kb/SKILL.md",
+        "sha256": "a71a4a7635047e3e8d5b3cfc00b99aee8b812120b49f68f39963df3c7a63f0bd"
+      },
+      {
+        "file": "bundles/ai-video/skills/color-delivery-spec/SKILL.md",
+        "sha256": "76bdfd112881caa2f157038e2c4f479b5e624caf2d4de9abd0681e44d7a69323"
+      },
+      {
+        "file": "bundles/ai-video/skills/color-grade/SKILL.md",
+        "sha256": "5abf6547ff9634833675972b8545fe64e4990bbec372b88da964794c75e3e0ba"
+      },
+      {
+        "file": "bundles/ai-video/skills/color-look-design/SKILL.md",
+        "sha256": "c24fb1a6fb09f6059144f62b0e71cd332231d37b581e835617db79625d2e9032"
+      },
+      {
+        "file": "bundles/ai-video/skills/color-shot-matching/SKILL.md",
+        "sha256": "ec07b2163b6e3c5febef124530cb5909d7fe1bab012c21aa55c198a09adb2590"
+      },
+      {
+        "file": "bundles/ai-video/skills/comment-ops/SKILL.md",
+        "sha256": "3f43c8c1fdf913387c28640028107665ec7c019e94f3e311d17c22e04bbbab0a"
+      },
+      {
+        "file": "bundles/ai-video/skills/cover-design/SKILL.md",
+        "sha256": "dcab23efdf7d624df2c08517954c2f798027f1ff1e5c81937d115d8a4eff2cd7"
+      },
+      {
+        "file": "bundles/ai-video/skills/cover-kb/SKILL.md",
+        "sha256": "deeb98ae71e372f1378a5f5a2a60ca3a4ebffbb328700eb5a5ef20f9f5a7c3fd"
+      },
+      {
+        "file": "bundles/ai-video/skills/delivery-package-ops/SKILL.md",
+        "sha256": "752805baab801abc22d429e0716450772b39759eb46dd85b5ebd46918cf35826"
+      },
+      {
+        "file": "bundles/ai-video/skills/delivery-revision-ops/SKILL.md",
+        "sha256": "9fe8f74dcce31f34bb13a27b610cda748a35a369ff0e219f5c83f0a57726ca2a"
+      },
+      {
+        "file": "bundles/ai-video/skills/director-review/SKILL.md",
+        "sha256": "0559960d5f8107d6beb532b5fc973b8c8c150f737b38a796e061a9c495acd16f"
+      },
+      {
+        "file": "bundles/ai-video/skills/font-license-compliance/SKILL.md",
+        "sha256": "5083ec693ae9247a3d333c2ad1d3d3a10926e0a3b362ce9cf50e28ba02192ec3"
+      },
+      {
+        "file": "bundles/ai-video/skills/font-selection/SKILL.md",
+        "sha256": "786265f4f87cccf78052c8c536abf5a28684cab49052a543bbf0cf8e629ad93b"
+      },
+      {
+        "file": "bundles/ai-video/skills/jenny-loom-research/SKILL.md",
+        "sha256": "e284bf762dc495855f72cc8b516c925cea515a9e33d5c858689d3d1a39f20e80"
+      },
+      {
+        "file": "bundles/ai-video/skills/marketing-brief-parser/SKILL.md",
+        "sha256": "ea2d799a5e052eb1cf543e9ca93015cb87fdfdd5f9d6d0c65b159c7c144cc44c"
+      },
+      {
+        "file": "bundles/ai-video/skills/opening-hook-craft/SKILL.md",
+        "sha256": "755d7d985d4e2ad6740b47307ea951cb5578af1cbdec4da0c487a2adb6a6b604"
+      },
+      {
+        "file": "bundles/ai-video/skills/portrait-studio/SKILL.md",
+        "sha256": "a4f19587b96f7a2742d9362e922aa44d6daf565fa00483f430cba45fbcff838d"
+      },
+      {
+        "file": "bundles/ai-video/skills/producer-gate-review/SKILL.md",
+        "sha256": "3530d95f620569c674348b1efe69efbff5b989c71b58927eb048674e802fb0db"
+      },
+      {
+        "file": "bundles/ai-video/skills/publish-ops/SKILL.md",
+        "sha256": "c6386d9b270d3a690fdfcb7de9f4507c4024574f82bb48df667607283d7d02a4"
+      },
+      {
+        "file": "bundles/ai-video/skills/render-ops/SKILL.md",
+        "sha256": "b2da8dc36837175a4ed76de931bd1de0764ed0cb0ede3f68f0dbc2f798a1a606"
+      },
+      {
+        "file": "bundles/ai-video/skills/shot-prompt-craft/SKILL.md",
+        "sha256": "78396716608b95a5a010059ff2a72c0d31b0457bd8aa67142c383171dc6d558c"
+      },
+      {
+        "file": "bundles/ai-video/skills/subtitle-delivery-spec/SKILL.md",
+        "sha256": "c12f16c7353c35ee3f75a800e15a6ef35e1556c872eb7e6b2c7fc06078f9cfe2"
+      },
+      {
+        "file": "bundles/ai-video/skills/subtitle-layout-design/SKILL.md",
+        "sha256": "bf81cef58f61cac5fd3c5e3bf9a1cac545257f7f8ac9395eb56d357cc1b5c567"
+      },
+      {
+        "file": "bundles/ai-video/skills/talkcraft-ops/SKILL.md",
+        "sha256": "9bfa7996abbe2f56478b48eb074e456a130de3e7cb7282bc1d576bfa9f7b0ff6"
+      },
+      {
+        "file": "bundles/ai-video/skills/voice-clone-consent/SKILL.md",
+        "sha256": "796ca32d1f8b7eaaa36d5892182d7a6d5a50372729a495709cf189c510a57831"
+      },
+      {
+        "file": "bundles/ai-video/skills/voice-delivery-spec/SKILL.md",
+        "sha256": "0b7898e144f98ec83afe9a72a144f9dc8042a1d51b651c93e6ab3a9fab743adc"
+      },
+      {
+        "file": "bundles/ai-video/skills/voice-dubbing-sync/SKILL.md",
+        "sha256": "649ba8ddc09347c4169f10ff6ae86930ef2df3bd46297c9e6af7dadd2542caff"
+      },
+      {
+        "file": "bundles/ai-video/skills/voice-profile-craft/SKILL.md",
+        "sha256": "429812cecc23eeaf47a446f48d69902fb99c7eb2184937eaecb706115fcdd964"
+      },
+      {
+        "file": "bundles/ai-video/skills/voice-reference-craft/SKILL.md",
+        "sha256": "7b572de1953955f4e7b163805e6885fab23cd6d20b07058644d42850229ca3b1"
+      },
+      {
+        "file": "bundles/geo-growth/skills/ai-answer-rewrite/SKILL.md",
+        "sha256": "ff70313de2c4488931aac01a09bb5c58ba6a0c4abdfcd63f41e97571f86b7610"
+      },
+      {
+        "file": "bundles/geo-growth/skills/art-direction/SKILL.md",
+        "sha256": "cc11f1494078b38f19c5d32a639ae036442163cbef00ebb98a156358036fda27"
+      },
+      {
+        "file": "bundles/geo-growth/skills/asset-variant-forge/SKILL.md",
+        "sha256": "cbe3a2c37c2a752b46aacd1ada967423e64479829e5cde81ec5548b9cf6994dc"
+      },
+      {
+        "file": "bundles/geo-growth/skills/brand-guard/SKILL.md",
+        "sha256": "f503f589579e6315bfa0d5f88ed24d3a5a7371907d8a50b430baeb9dc5f7a9e2"
+      },
+      {
+        "file": "bundles/geo-growth/skills/budget-portfolio/SKILL.md",
+        "sha256": "cd7c164f5a17131be578049ddb24f697396c6472ad55cc55aab163ce69b3592f"
+      },
+      {
+        "file": "bundles/geo-growth/skills/citation-reverse/SKILL.md",
+        "sha256": "6649d7132c40bafa801d96b9990935f2dd22ad20d11803af300549ef872ae8f0"
+      },
+      {
+        "file": "bundles/geo-growth/skills/compositor-designer/SKILL.md",
+        "sha256": "39f7c4c5586878476e6843f2e6a382d4cda98ef26ebbdad4f0ceda9509badba1"
+      },
+      {
+        "file": "bundles/geo-growth/skills/cro-playbook/SKILL.md",
+        "sha256": "ca6fa035d6da08143148006e8327e6a5ade45b83231967eb14d7d5aaccb0c2ef"
+      },
+      {
+        "file": "bundles/geo-growth/skills/design-brief/SKILL.md",
+        "sha256": "3aff1aa840e204fdbade0f68698b94ad77a789886b3557ffb85345b046dfecaa"
+      },
+      {
+        "file": "bundles/geo-growth/skills/design-critique/SKILL.md",
+        "sha256": "adf0543467e3347b4813ae99e6f9be9ca90c675289c50231566d8845fb825894"
+      },
+      {
+        "file": "bundles/geo-growth/skills/dual-entry-inquiry/SKILL.md",
+        "sha256": "193b75b5e1558995a2fbafb6b61fc708d4b3cb905445e628503cfca95b6e10f6"
+      },
+      {
+        "file": "bundles/geo-growth/skills/entity-consistency-check/SKILL.md",
+        "sha256": "b20a35eab3fee5dece0108f38f9a947cbbb84d4d78a9084c2dcab00469ff5b8e"
+      },
+      {
+        "file": "bundles/geo-growth/skills/experiment-design/SKILL.md",
+        "sha256": "e58588906870d344792eecd3237333cad02e206c9e230b35ce2c1933c06c5dc5"
+      },
+      {
+        "file": "bundles/geo-growth/skills/geo-answer-card/SKILL.md",
+        "sha256": "976e27f4c5f6c69534c60d9cc4c5b791981a78db27ee459af2edf7b1870fd0e6"
+      },
+      {
+        "file": "bundles/geo-growth/skills/geo-query-craft/SKILL.md",
+        "sha256": "47137323c542d5fb936bdc7d56efc080411e2631df720b63474c8673cb7597fd"
+      },
+      {
+        "file": "bundles/geo-growth/skills/growth-partnership/SKILL.md",
+        "sha256": "8287173d0bedbaf7085d001e187861cce1344406c993de36c686e38230cebdf5"
+      },
+      {
+        "file": "bundles/geo-growth/skills/growth-review/SKILL.md",
+        "sha256": "a53d044a1bb5e31978079df09a002f6479c7824d2264bfcb3d5abd94b730f08e"
+      },
+      {
+        "file": "bundles/geo-growth/skills/image-retouch/SKILL.md",
+        "sha256": "8c60ab98fb2bf2ee5b2a35d037bffe31b34459d86e0f79b67cfa614986d71c56"
+      },
+      {
+        "file": "bundles/geo-growth/skills/incrementality-measurement/SKILL.md",
+        "sha256": "4b968e857003590f771add667325c740424e6356b1b23eb57fbfc0798a12e5ff"
+      },
+      {
+        "file": "bundles/geo-growth/skills/lead-scoring/SKILL.md",
+        "sha256": "bbd29f97739384b10736918bf056726a5b539bfa38452e3e2acee367d05073b3"
+      },
+      {
+        "file": "bundles/geo-growth/skills/lifecycle-growth/SKILL.md",
+        "sha256": "0ce68776ca764e4214f7afbbf0b595bb930a03b2e9303831c18144db50d950ef"
+      },
+      {
+        "file": "bundles/geo-growth/skills/live-commerce/SKILL.md",
+        "sha256": "7c4f5109853a0341482f42e97cfe66b2643cf662d028f38199e1f1a50ecff364"
+      },
+      {
+        "file": "bundles/geo-growth/skills/material-scout/SKILL.md",
+        "sha256": "43af986ca4fe262dd3829bfe8c1321d52a06137cec44292e658e0e5eaa74067d"
+      },
+      {
+        "file": "bundles/geo-growth/skills/moments-post/SKILL.md",
+        "sha256": "592a5f33b337fe2a3b1bc95a2539ff67cf9f520190e41069a11bfad1e3628a3a"
+      },
+      {
+        "file": "bundles/geo-growth/skills/poster-series/SKILL.md",
+        "sha256": "e73cf755dce3529a95c1149931dde4e55f1f26eeb81811af026d9fe20b11da98"
+      },
+      {
+        "file": "bundles/geo-growth/skills/product-poster/SKILL.md",
+        "sha256": "eca3d17fce88eeb227eca16a743030537b7089a95ef3b64b30c55afd68b155f6"
+      },
+      {
+        "file": "bundles/geo-growth/skills/promo-banner/SKILL.md",
+        "sha256": "0fbdc27dafe0b1be243261f0d67ce691906b6743da3bf3f4b8ab76ea07e22c57"
+      },
+      {
+        "file": "bundles/geo-growth/skills/video-cover/SKILL.md",
+        "sha256": "77eb6e2247ee5df248ab69fa391f917598aea72dd2d5495a12b0a5915f317be9"
+      },
+      {
+        "file": "bundles/geo-growth/skills/visibility-monitor/SKILL.md",
+        "sha256": "4486f68ca3e6e9d8fa345839cf1fb61aaa1d241012d358e40320c50f2e999702"
+      },
+      {
+        "file": "bundles/hotel/skills/ai-live-assistant/SKILL.md",
+        "sha256": "76db679a8a2eec3d6a90c9ef52b5ad28ed626e7ce6b8ff514d67cc0e2263b677"
+      },
+      {
+        "file": "bundles/hotel/skills/channel-reconciler/SKILL.md",
+        "sha256": "c142851ede919e10b4cf2535018a8877fdcca7e5bfad12e14580ef9fb7ffba24"
+      },
+      {
+        "file": "bundles/hotel/skills/checkin-checkout/SKILL.md",
+        "sha256": "f3257fe405a5bc49d9f65023b3dbe6d001dd42d2679a7dc78dc5bbf8df0003e0"
+      },
+      {
+        "file": "bundles/hotel/skills/content-marketing/SKILL.md",
+        "sha256": "bf3aaa47157dd1675dd81e9b1e1266bc2a681d94f2c183fad345688ab603f1d9"
+      },
+      {
+        "file": "bundles/hotel/skills/coupon-ops/SKILL.md",
+        "sha256": "3e8ac2205791613f4ce62e90e593cdecba18e8a21350731ad81e5c32a25a9dcd"
+      },
+      {
+        "file": "bundles/hotel/skills/customer-service/SKILL.md",
+        "sha256": "9221fdec533d4022cef6cc97180fe522891410e6c47446651dd12a84ede1c0b9"
+      },
+      {
+        "file": "bundles/hotel/skills/fast-scan/SKILL.md",
+        "sha256": "76270d8b299b524504c06aa0128ceb1022bfd1172212613b25b17a26d8743b59"
+      },
+      {
+        "file": "bundles/hotel/skills/finance-reporting/SKILL.md",
+        "sha256": "d45992fe702db111e5b919c8a057d18463c3bfe99e66a528716d2503a5dc4056"
+      },
+      {
+        "file": "bundles/hotel/skills/guest-profile-crm/SKILL.md",
+        "sha256": "a968b2c2d5ddf3a4bdeed4af41759c7efc5d572ff40df344d8a29a352f8254ce"
+      },
+      {
+        "file": "bundles/hotel/skills/handover-manager/SKILL.md",
+        "sha256": "c28d5fcb1ab652bb1503a00719b3d926b6568efe53d0cc12798d33874bdd243a"
+      },
+      {
+        "file": "bundles/hotel/skills/hotel-geo-content/SKILL.md",
+        "sha256": "e17f03755a3f0c7aeaa9367fd0e097cfe393c93fa7098ace2359bffe5812fe01"
+      },
+      {
+        "file": "bundles/hotel/skills/incident-postmortem/SKILL.md",
+        "sha256": "e5fd726c4d91a5c71a339c206649040575cde45b7b5bc4ea357fdf4aa62306b4"
+      },
+      {
+        "file": "bundles/hotel/skills/inspection-suite/SKILL.md",
+        "sha256": "f445821a87ed9b60562eebd8555d8b9a3bbeef196f39f8357ddd210e18ca837f"
+      },
+      {
+        "file": "bundles/hotel/skills/intent-radar/SKILL.md",
+        "sha256": "9d427e9c5742aa869cc672af65d05e0a53c0a36d14063a14c221373ad91653e4"
+      },
+      {
+        "file": "bundles/hotel/skills/inventory-procurement/SKILL.md",
+        "sha256": "e743f4c778d482c5290ba2235dc3af78eb12fe8960f47587e40272c50558f5e2"
+      },
+      {
+        "file": "bundles/hotel/skills/lead-concierge/SKILL.md",
+        "sha256": "308d4294937269644f731ff1b5052495674984a73841a3608fd2c47885a332b1"
+      },
+      {
+        "file": "bundles/hotel/skills/maintenance-dispatch/SKILL.md",
+        "sha256": "118a3dae3f1d813577fefb806b2a05949d19063dded929dee15317782e7dd124"
+      },
+      {
+        "file": "bundles/hotel/skills/morning-briefing/SKILL.md",
+        "sha256": "3a5359688de1dba258029a8fe2a76136df15646ce605a79e794938a920d73b8c"
+      },
+      {
+        "file": "bundles/hotel/skills/night-audit-suite/SKILL.md",
+        "sha256": "a224e3eb717af837bd3b762527563284a97c4259808b6a52a8d046e4b6c769e5"
+      },
+      {
+        "file": "bundles/hotel/skills/ota-operations/SKILL.md",
+        "sha256": "8db09922be22b0dced91ca1613609f3ec52b16d9e394b010ce38bcdb78cb420d"
+      },
+      {
+        "file": "bundles/hotel/skills/overbooking-parity-guard/SKILL.md",
+        "sha256": "c2591434e1336c0e0687e5ddf9b1e933b36737b37c74efa514c1a48ba2870659"
+      },
+      {
+        "file": "bundles/hotel/skills/phone-concierge/SKILL.md",
+        "sha256": "c1d66e536cd4b1e6f692ad676c1c3214f663a12bde3f428ed8e45e86498649b4"
+      },
+      {
+        "file": "bundles/hotel/skills/pricing-matrix/SKILL.md",
+        "sha256": "e0448060821ae533c7a06cc3f49bca402e9cfd24d4406604df601744893fbf5b"
+      },
+      {
+        "file": "bundles/hotel/skills/retention-manager/SKILL.md",
+        "sha256": "d99ba695d6cf416254dacecdd4a0a2eec77107f9db3636cda9b946d75791f704"
+      },
+      {
+        "file": "bundles/hotel/skills/revenue-manager/SKILL.md",
+        "sha256": "bd2abf25d8482425493f78cd50e06a9cdfa41a0a768d37e2188388cd846a1631"
+      },
+      {
+        "file": "bundles/hotel/skills/review-asset-mining/SKILL.md",
+        "sha256": "18c8ff347b51ba279fa2573ac619475ef58e180098ef4601a524f9b7c2db016f"
+      },
+      {
+        "file": "bundles/hotel/skills/review-crisis/SKILL.md",
+        "sha256": "32dc7ebf0a788683bae4c38b700c34ec731c7dcdeb68242cdd65caeb605e443b"
+      },
+      {
+        "file": "bundles/hotel/skills/room-service-dispatch/SKILL.md",
+        "sha256": "340e08ac8223cdb8f5b7f476beca147f078e732051044c5d6d77c9a86f16d611"
+      },
+      {
+        "file": "bundles/hotel/skills/safety-compliance/SKILL.md",
+        "sha256": "65d85f4ffddee27c50b46adaed5d8d5f9d631bd639f42aec7af9cb1b412a583d"
+      },
+      {
+        "file": "bundles/hotel/skills/staff-scheduler/SKILL.md",
+        "sha256": "f8e76d6db7b0514b4036be3761dd8d3a17ad09532a2788f656d7ae06ff9da3ba"
+      }
+    ],
+    "file_count": 94,
+    "aggregate_sha256": "19c6f48be4e7261fcc6be17373d033639af4c93c3889f4897b41bf199f20b4d0"
+  },
+  "fences_declared_text": {
+    "files": [
+      {
+        "file": "bundles/ai-video/fences/ai-video-baseline.yml",
+        "sha256": "3d4aa78bff9458972abff4173cd4cc685461b56dc731aea5d7b0aab1be86580b"
+      },
+      {
+        "file": "bundles/ai-video/fences/ai-video-bgm.yml",
+        "sha256": "4d5c8e2e961c18157578bd4cfc47763e4ef3f6d75b973caa3a062fd8e2676dff"
+      },
+      {
+        "file": "bundles/ai-video/fences/ai-video-cine-kb.yml",
+        "sha256": "93e9b8fb8b812e29892b2889a66777c2ee6335ac4fbd11fe841007df651730e6"
+      },
+      {
+        "file": "bundles/ai-video/fences/ai-video-color.yml",
+        "sha256": "709cb9fc3cba47a4ee2b4ee233d714277223cb23f9ca210ed3712de54c597ed6"
+      },
+      {
+        "file": "bundles/ai-video/fences/ai-video-delivery.yml",
+        "sha256": "36f5d03da25b03b1f785301d110b2de683fe173051ac3499ed2a931f3ebf44b0"
+      },
+      {
+        "file": "bundles/ai-video/fences/ai-video-material.yml",
+        "sha256": "b8e87b3f72e36b5759a1d32a44d553a055b86ec9518ec2520100d403f0f9308e"
+      },
+      {
+        "file": "bundles/ai-video/fences/ai-video-subtitle.yml",
+        "sha256": "da04abf084a0ecbf87bd22a183ab10195ad13df5ee463229bb0e34324e47e7bf"
+      },
+      {
+        "file": "bundles/ai-video/fences/ai-video-voice.yml",
+        "sha256": "52ab044fbfa8c4b1f83c91c8e469e97ae82d1c5d31b15dc420b705858694d295"
+      },
+      {
+        "file": "bundles/geo-growth/fences/geo-growth-baseline.yml",
+        "sha256": "4a06d0a472be51a3e8922bc77e8834ef9f1f31e752b4ef3d345058ca908970c7"
+      },
+      {
+        "file": "bundles/geo-growth/fences/geo-growth-visual.yml",
+        "sha256": "dd397a66ec47da7f5e013cac5e045c350543a0a1153da63926e72e9c300ba273"
+      },
+      {
+        "file": "bundles/hotel/fences/hotel-baseline.yml",
+        "sha256": "667466baa8f484c2ff06125541e557185a51729101847caf1a7850fb7d49a3cd"
+      },
+      {
+        "file": "bundles/hotel/fences/patches/README.md",
+        "sha256": "8442942f1193605be582f9711b83d5f52954e86d8a83f9cb2459146a8190cb73"
+      },
+      {
+        "file": "bundles/hotel/fences/patches/audit-only-patch.yml",
+        "sha256": "8c6f1874bf895ba0e2ceea7b5b801195e590d35650ed12a7d7b7b8290393abba"
+      },
+      {
+        "file": "bundles/hotel/fences/patches/homestay-patch.yml",
+        "sha256": "64b1b4cdca3f3a962237c9e64d791527eae86a3b39e5dae5d68a653b7d44eeb9"
+      },
+      {
+        "file": "bundles/hotel/fences/patches/low-star-single-patch.yml",
+        "sha256": "0c66b5e8df8f6ec7ec7133cce8106e191ceff36cfe4f2763fdf3e430e710738b"
+      },
+      {
+        "file": "bundles/hotel/fences/patches/unmanned-patch.yml",
+        "sha256": "67bd0caa242c9ae9e74133dab6b641a372b13ec2780b83aee2846c2437d22bf4"
+      }
+    ],
+    "file_count": 16,
+    "aggregate_sha256": "75521ae3b34bda69959b45b9ce5a56c8b41fd117b107a38120af6d787960d845"
+  },
+  "bundle_manifests": {
+    "files": [
+      {
+        "file": "bundles/ai-video/bundle.json",
+        "sha256": "a704988010ac3c813ded450ffcc4b2d0b8840177c828313d605bc15261505658"
+      },
+      {
+        "file": "bundles/geo-growth/bundle.json",
+        "sha256": "e2f6197f72a6743c26f5ff7d540c0f72de8dc497abf9203ad0b626afb89c1ac0"
+      },
+      {
+        "file": "bundles/hotel/bundle.json",
+        "sha256": "e19db5119406a934f025d4b389614b1778b62ec36a8daa0a1f6d2be37ac2606c"
+      }
+    ],
+    "file_count": 3,
+    "aggregate_sha256": "7f28e08f129779b80e0617f24168d51c8e29df5afc35ba1f8a69d042bf581de1"
+  },
+  "memory_implementation_fingerprint": {
+    "files": [
+      {
+        "file": "packages/base/review-console/approvals.ts",
+        "sha256": "8c08a6824b8da0f5fd82103a35f5e0da71ebdf7ad3808b9b9e9969a96665452c"
+      },
+      {
+        "file": "packages/base/workdata/memory.ts",
+        "sha256": "b1f7448901034a450ef397df9ca95f4a193196497ad96f15ab8de68477836414"
+      }
+    ],
+    "file_count": 2,
+    "aggregate_sha256": "8ea284803b8382f031f14effb9b78b0b2303e452f44a4cddb548e2f6c7d31aeb"
+  },
+  "seed_source": {
+    "files": [
+      {
+        "file": "scripts/seed-geo.ts",
+        "sha256": "9091bb26f40114e7fa38ce88686dd80adcf99c30fc2acff60c9ffdc27c3d092b"
+      },
+      {
+        "file": "scripts/seed.ts",
+        "sha256": "9b05ce3bc86aa27395d106341c8d0bf343c049d9e93ccb9478655c8d2c1eb176"
+      }
+    ],
+    "file_count": 2,
+    "aggregate_sha256": "14f0b8732cc99d65a7f34282b4b67d3e109c1b53c5818613a261787559ac9170"
+  },
+  "locks": {
+    "pnpm": {
+      "lockfileVersion": "9.0",
+      "importers": 12,
+      "packages": 711,
+      "snapshots": 718
+    },
+    "runtime": {
+      "lockfileVersion": 3,
+      "packages": 135
+    }
+  },
+  "floor_production_css": {
+    "sha256": "bc5b185ab487ec8441ca19a29646b603a15f2382cb4d48a73263fc81e76ad777",
+    "bytes": 139675,
+    "origin": "actual production CSS built at7d5, independently compared with actualaad output; relevant global styles unchanged",
+    "grade": "B compiled bytes and URL/import parsing; source styles have their own reading inventory",
+    "floor_binding": {
+      "file": "floor-production-7d5.css",
+      "sha256": "bc5b185ab487ec8441ca19a29646b603a15f2382cb4d48a73263fc81e76ad777",
+      "bytes": 139675,
+      "original_build_source": "7d5f02049cc75a692d4eaac33916633cb2192f01",
+      "unchanged_source_styles_and_dependency_lock": [
+        "apps/web/src/main.tsx",
+        "apps/web/src/styles/tokens.css",
+        "apps/web/src/styles/subtitle.css",
+        "apps/web/vite.config.ts",
+        "apps/web/package.json",
+        "pnpm-lock.yaml"
+      ],
+      "external_files": [
+        {
+          "path": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/node_modules/.pnpm/@workloom+ui@https+++cnb.cool+workloom-ai+workloom-im+-+releases+download+ui-v0.1.19+wo_086870d384add426af4f926c44614b7c/node_modules/@workloom/ui/package.json",
+          "sha256": "195c346ca2dc3a10d9cd274413b1bcc74e0b74874644caac9e7f6e5a478ed663",
+          "source_origin": "actual installed dependency text; independently read and hashed"
+        },
+        {
+          "path": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/node_modules/.pnpm/@workloom+ui@https+++cnb.cool+workloom-ai+workloom-im+-+releases+download+ui-v0.1.19+wo_086870d384add426af4f926c44614b7c/node_modules/@workloom/ui/dist/index.js",
+          "sha256": "4e5bcb73b537dff41cc25b7c14ab30dd53930b53d8200c5dc4b13db54f553fed",
+          "source_origin": "actual installed dependency text; independently read and hashed"
+        },
+        {
+          "path": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/node_modules/.pnpm/@workloom+ui@https+++cnb.cool+workloom-ai+workloom-im+-+releases+download+ui-v0.1.19+wo_086870d384add426af4f926c44614b7c/node_modules/@workloom/ui/dist/language.js",
+          "sha256": "f6a052cc7994cfe68430f353f8d09b0cecf2dcb005a74a64b0d7257d457bdec2",
+          "source_origin": "actual installed dependency text; independently read and hashed"
+        },
+        {
+          "path": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/node_modules/.pnpm/@workloom+ui@https+++cnb.cool+workloom-ai+workloom-im+-+releases+download+ui-v0.1.19+wo_086870d384add426af4f926c44614b7c/node_modules/@workloom/ui/dist/tokens.css",
+          "sha256": "f0ea76e55488e114556ee0dcd8abd40cdfaa63caca4eb833dec43a65c32fbc29",
+          "source_origin": "actual installed dependency text; independently read and hashed"
+        },
+        {
+          "path": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/node_modules/.pnpm/@workloom+ui@https+++cnb.cool+workloom-ai+workloom-im+-+releases+download+ui-v0.1.19+wo_086870d384add426af4f926c44614b7c/node_modules/@workloom/ui/dist/content-safety.css",
+          "sha256": "457c11f8fcfec43c8bf4ab0136313b97fbb26a924da615d2f3196fbc892f6020",
+          "source_origin": "actual installed dependency text; independently read and hashed"
+        },
+        {
+          "path": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/node_modules/.pnpm/@workloom+ui@https+++cnb.cool+workloom-ai+workloom-im+-+releases+download+ui-v0.1.19+wo_086870d384add426af4f926c44614b7c/node_modules/@workloom/ui/dist/components.css",
+          "sha256": "11c5d3aea838f0227b47c594701f13a20da3ce93cd4d13731001ef141eb21df6",
+          "source_origin": "actual installed dependency text; independently read and hashed"
+        }
+      ]
+    }
+  },
+  "external_read_inventory": {
+    "schema": "growth.independent-m6/external-source-reading@1",
+    "files": [
+      {
+        "path": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/node_modules/.pnpm/@workloom+ui@https+++cnb.cool+workloom-ai+workloom-im+-+releases+download+ui-v0.1.19+wo_086870d384add426af4f926c44614b7c/node_modules/@workloom/ui/package.json",
+        "relative_to_repository": "apps/web/node_modules/@workloom/ui/package.json",
+        "lines": 54,
+        "sha256": "195c346ca2dc3a10d9cd274413b1bcc74e0b74874644caac9e7f6e5a478ed663",
+        "reading": "full",
+        "scope_note": "Actual installed CNB @workloom/ui language export used by Floor naming; no full dependency semantic coverage claim"
+      },
+      {
+        "path": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/node_modules/.pnpm/@workloom+ui@https+++cnb.cool+workloom-ai+workloom-im+-+releases+download+ui-v0.1.19+wo_086870d384add426af4f926c44614b7c/node_modules/@workloom/ui/dist/index.js",
+        "relative_to_repository": "apps/web/node_modules/@workloom/ui/dist/index.js",
+        "lines": 16,
+        "sha256": "4e5bcb73b537dff41cc25b7c14ab30dd53930b53d8200c5dc4b13db54f553fed",
+        "reading": "full",
+        "scope_note": "Actual installed CNB @workloom/ui language export used by Floor naming; no full dependency semantic coverage claim"
+      },
+      {
+        "path": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/node_modules/.pnpm/@workloom+ui@https+++cnb.cool+workloom-ai+workloom-im+-+releases+download+ui-v0.1.19+wo_086870d384add426af4f926c44614b7c/node_modules/@workloom/ui/dist/language.js",
+        "relative_to_repository": "apps/web/node_modules/@workloom/ui/dist/language.js",
+        "lines": 324,
+        "sha256": "f6a052cc7994cfe68430f353f8d09b0cecf2dcb005a74a64b0d7257d457bdec2",
+        "reading": "full",
+        "scope_note": "Actual installed CNB @workloom/ui language export used by Floor naming; no full dependency semantic coverage claim"
+      },
+      {
+        "path": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/node_modules/.pnpm/@workloom+ui@https+++cnb.cool+workloom-ai+workloom-im+-+releases+download+ui-v0.1.19+wo_086870d384add426af4f926c44614b7c/node_modules/@workloom/ui/dist/tokens.css",
+        "relative_to_repository": "apps/web/node_modules/@workloom/ui/dist/tokens.css",
+        "lines": 117,
+        "sha256": "f0ea76e55488e114556ee0dcd8abd40cdfaa63caca4eb833dec43a65c32fbc29",
+        "reading": "full",
+        "scope_note": "Actual installed global CSS loaded by production web entry; full text read. Compiled CSS fingerprint is separate B evidence; no entire UI dependency semantic coverage claim."
+      },
+      {
+        "path": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/node_modules/.pnpm/@workloom+ui@https+++cnb.cool+workloom-ai+workloom-im+-+releases+download+ui-v0.1.19+wo_086870d384add426af4f926c44614b7c/node_modules/@workloom/ui/dist/content-safety.css",
+        "relative_to_repository": "apps/web/node_modules/@workloom/ui/dist/content-safety.css",
+        "lines": 113,
+        "sha256": "457c11f8fcfec43c8bf4ab0136313b97fbb26a924da615d2f3196fbc892f6020",
+        "reading": "full",
+        "scope_note": "Actual installed global CSS loaded by production web entry; full text read. Compiled CSS fingerprint is separate B evidence; no entire UI dependency semantic coverage claim."
+      },
+      {
+        "path": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/node_modules/.pnpm/@workloom+ui@https+++cnb.cool+workloom-ai+workloom-im+-+releases+download+ui-v0.1.19+wo_086870d384add426af4f926c44614b7c/node_modules/@workloom/ui/dist/components.css",
+        "relative_to_repository": "apps/web/node_modules/@workloom/ui/dist/components.css",
+        "lines": 549,
+        "sha256": "11c5d3aea838f0227b47c594701f13a20da3ce93cd4d13731001ef141eb21df6",
+        "reading": "full",
+        "scope_note": "Actual installed global CSS loaded by production web entry; full text read. Compiled CSS fingerprint is separate B evidence; no entire UI dependency semantic coverage claim."
+      }
+    ],
+    "included_in_tracked_file_coverage": false
+  },
+  "price_table": {
+    "state": "not frozen or exercised for paid providers in this specialized round",
+    "actual_paid_provider_calls": 0
+  },
+  "evaluation": {
+    "spec": "rdas/v3.1",
+    "verifier": "growth_m6",
+    "fixed_by": "codex-root-T-2026-1002-0901",
+    "judge": "deterministic assertions plus code review; no LLM scoring of provider results",
+    "human_calibration": null,
+    "temperature": null,
+    "seed": null
+  },
+  "environment": {
+    "source_test_kind": "owned-loopback fake PostgreSQL and macOS local processes",
+    "production_p_domain": "not-run",
+    "database": {
+      "ran_at": "2026-10-02T15:52:46.912Z",
+      "scope": "read-only owned PostgreSQL fake fixtures",
+      "version": {
+        "postgres": "PostgreSQL 17.11 (Postgres.app) on aarch64-apple-darwin23.6.0, compiled by Apple clang version 15.0.0 (clang-1500.3.9.4), 64-bit",
+        "database": "growth_audit"
+      },
+      "workspaces": [
+        {
+          "id": "ws-geo",
+          "tenant_id": "tenant-demo",
+          "industry": "geo-growth",
+          "stage": "stable",
+          "data_mode": "simulated"
+        }
+      ],
+      "prior_bad_events_still_present": true,
+      "original_fixture_report_sha256": "a92668dc86b89ee3fc64ec47cc4ef23e49679fd0656ed069cd447f325daa20c4",
+      "preserved": [
+        {
+          "event_id": "E-13019",
+          "seq": "4104",
+          "prev_hash": "a2abe74ecd5945fd8050c4c32263cda4c524a422cbe483219843ef25b25cb9da",
+          "hash": "1a2648ad5df8a21e066e3de91d171037e9ddaab48b44453b0c60bffad2838275",
+          "object_type": "server_request",
+          "action": "system.error",
+          "actor_id": "system",
+          "has_receipt": false,
+          "has_model_trace": false
+        },
+        {
+          "event_id": "E-13020",
+          "seq": "4105",
+          "prev_hash": "1a2648ad5df8a21e066e3de91d171037e9ddaab48b44453b0c60bffad2838275",
+          "hash": "7ca7683b1c272ebb138f89c6ece2bf768d7e3532a73d2b4d879e984c48fc0548",
+          "object_type": "server_request",
+          "action": "system.error",
+          "actor_id": "system",
+          "has_receipt": false,
+          "has_model_trace": false
+        },
+        {
+          "event_id": "E-13021",
+          "seq": "4106",
+          "prev_hash": "7ca7683b1c272ebb138f89c6ece2bf768d7e3532a73d2b4d879e984c48fc0548",
+          "hash": "cd81fdf904955d656044d26c4bec08f598a3df94f468f086d5846545c37b109b",
+          "object_type": "server_request",
+          "action": "system.error",
+          "actor_id": "system",
+          "has_receipt": false,
+          "has_model_trace": false
+        },
+        {
+          "event_id": "E-13022",
+          "seq": "4107",
+          "prev_hash": "cd81fdf904955d656044d26c4bec08f598a3df94f468f086d5846545c37b109b",
+          "hash": "022adb855947e897de08b024022a46c351d4d5fc5d0b322f7731a5c9e5c82278",
+          "object_type": "server_request",
+          "action": "system.error",
+          "actor_id": "system",
+          "has_receipt": false,
+          "has_model_trace": false
+        },
+        {
+          "event_id": "E-13023",
+          "seq": "4108",
+          "prev_hash": "022adb855947e897de08b024022a46c351d4d5fc5d0b322f7731a5c9e5c82278",
+          "hash": "80088c579683d341a1b28ae231ca5e0307e9c9ff325acac700fb56f978dea5d2",
+          "object_type": "server_request",
+          "action": "system.error",
+          "actor_id": "system",
+          "has_receipt": false,
+          "has_model_trace": false
+        }
+      ],
+      "statistics": {
+        "events": "87",
+        "server_error_events": "5",
+        "m6_session_events": "0"
+      },
+      "boundary": "The five original server-error rows were retained. Receipt and model_trace remain absent; no supplier evidence is fabricated."
+    },
+    "browser_metadata": {
+      "node": "v24.19.0",
+      "playwright": "1.63.0",
+      "chromium": "154.0.8037.95",
+      "electron": "44.1.1",
+      "source": "Installed runtime metadata and an independent fresh blank Chromium process; no product UX task was executed."
+    },
+    "os": "ProductName:\t\tmacOS\nProductVersion:\t\t15.7.3\nBuildVersion:\t\t24G419",
+    "architecture": "arm64"
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "name": "mac-welcome-upgrade-state-before",
+  "command": [
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+    "--env-file=.env",
+    "../native_private_state.mjs",
+    "before",
+    "upgrade"
+  ],
+  "exit_code": 0,
+  "seconds": 3.261,
+  "ran_at": "2026-10-03T04:03:07.302452+08:00",
+  "log": "mac-welcome-upgrade-state-before.log"
+}

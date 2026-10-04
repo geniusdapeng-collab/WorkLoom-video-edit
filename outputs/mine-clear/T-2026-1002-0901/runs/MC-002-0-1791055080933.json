@@ -1,0 +1,37 @@
+{
+  "schema": "workloom.evidence-run/v1",
+  "id": "MC-002-0-1791055080933",
+  "command": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node --env-file=.env scripts/runtime-deps-lock.mjs verify",
+  "exec": {
+    "file": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+    "args": [
+      "--env-file=.env",
+      "scripts/runtime-deps-lock.mjs",
+      "verify"
+    ]
+  },
+  "actor": "codex-root-T-2026-1002-0901",
+  "role": "repair",
+  "subject": {
+    "card_id": "MC-002",
+    "assertion_index": 0
+  },
+  "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+  "working_tree_dirty": false,
+  "started_at": "2026-10-03T19:18:00.933Z",
+  "finished_at": "2026-10-03T19:18:01.081Z",
+  "exit_code": 0,
+  "signal": null,
+  "validation": {
+    "ok": true,
+    "errors": []
+  },
+  "result": "pass",
+  "outputs": [
+    {
+      "path": "evidence/MC-002-0-1791055080933.txt",
+      "sha256": "d31c099b9e136dc1d0e6b3c8e4de74ad1781ba1d066317e7b7e39a85f27d037d",
+      "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+    }
+  ]
+}

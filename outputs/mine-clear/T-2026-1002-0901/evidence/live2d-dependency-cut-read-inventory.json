@@ -1,0 +1,35 @@
+{
+  "source_before": "7fee3a6a5563d41c568463994764d3883eb7667d",
+  "phase": "reviewed candidate prior commit",
+  "changed_files": [
+    {
+      "path": "package.json",
+      "grade": "A",
+      "sha256": "d899406147668e66293738b2dcf2fbf516f91def2676bfbde6aba9bd6f949bae",
+      "lines": 112,
+      "reason": "Complete file read and final diff review"
+    },
+    {
+      "path": "pnpm-lock.yaml",
+      "grade": "B",
+      "sha256": "834833a61b50ff153fd0ed456a306d5fe0a3d2bffb51b8665fc0cf8b85d684e8",
+      "lines": 7211,
+      "reason": "Whole generated metadata/graph parse and exact structural diff"
+    },
+    {
+      "path": ".workloom-runtime-deps/metadata.json",
+      "grade": "B",
+      "sha256": "7b31857358fb40b4ad0dcd75b4dac9f3d4f547fb0aaa43c64cf95de7dece7208",
+      "lines": 92,
+      "reason": "Whole generated metadata/graph parse and exact structural diff"
+    },
+    {
+      "path": "docs/repairs/T-2026-1002-0901.md",
+      "grade": "A",
+      "sha256": "7450e4addbee4efe79ef3cdcba45f52f272e07d996b48a17d7bdebfa27ed640b",
+      "lines": 95,
+      "reason": "Complete file read and final diff review"
+    }
+  ],
+  "scope": "Four direct repair files; generated locks fully parsed rather than read as source implementation. Published upstream runtime artifacts are separately whole-AST B inspections."
+}

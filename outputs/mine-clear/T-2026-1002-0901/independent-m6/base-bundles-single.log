@@ -1,0 +1,14 @@
+COMMAND ["/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node", "--env-file=.env", "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/pnpm/bin/pnpm.cjs", "--filter", "@workloom/base", "exec", "vitest", "run", "bundles/bundles.test.ts"]
+
+[1m[30m[46m RUN [49m[39m[22m [36mv4.1.11 [39m[90m/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/packages/base[39m
+
+ [32m✓[39m bundles/bundles.test.ts [2m([22m[2m11 tests[22m[2m)[22m[33m 11144[2mms[22m[39m
+     [33m[2m✓[22m[39m hotel profile：七槽 7/7 已装配 + 起飞前检查单七项全绿（F2.10 + v3.0 第⑦槽） [33m 541[2mms[22m[39m
+     [33m[2m✓[22m[39m 融合装配：组合主包激活 = 三包编制齐装（81 岗）+ 围栏并集 + 遮蔽留痕 [33m 9769[2mms[22m[39m
+     [33m[2m✓[22m[39m H-15 第三行业五要素填充即可运行：填满五槽 → 6/6 全绿 → 激活切换 → 底座代码零改动（§2.3/§2.4） [33m 404[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m1 passed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[32m11 passed[39m[22m[90m (11)[39m
+[2m   Start at [22m 23:20:23
+[2m   Duration [22m 13.62s[2m (transform 1.40s, setup 0ms, import 2.16s, tests 11.14s, environment 0ms)[22m
+

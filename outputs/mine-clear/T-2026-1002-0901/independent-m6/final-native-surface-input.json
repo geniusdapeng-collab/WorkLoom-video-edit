@@ -1,0 +1,38 @@
+{
+  "source_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+  "evidence_prefix": "surface",
+  "application_receipt": "surface-app-fingerprint.json",
+  "app_result": "surface-final-app-byte-probe-results.json",
+  "payload_result": "surface-final-payload-byte-probe-results.json",
+  "dmg_result": "surface-final-dmg-byte-probe-results.json",
+  "default": {
+    "wrapper": "mac-surface-default-repeat.json",
+    "render": "native-surface-default-repeat-render-default.json",
+    "retention": "native-surface-default-repeat-retention.json"
+  },
+  "safe": {
+    "wrapper": "mac-surface-safe.json",
+    "render": "native-surface-safe-render-safe.json",
+    "retention": "native-surface-safe-retention.json"
+  },
+  "fresh": {
+    "wrapper": "mac-surface-fresh.json"
+  },
+  "restart": {
+    "wrapper": "mac-surface-restart.json"
+  },
+  "upgrade": {
+    "wrapper": "mac-surface-upgrade.json"
+  },
+  "private_states": {
+    "fresh_before": "native-surface-fresh-state-before.json",
+    "fresh_after": "native-surface-fresh-state-after.json",
+    "upgrade_before": "native-welcome-upgrade-state-before.json",
+    "upgrade_after": "native-surface-upgrade-state-after.json"
+  },
+  "diagnostic_export_review": "native-surface-diagnostic-export-independent-review.json",
+  "screenshot_review": "floor-native-surface-screenshot-review.json",
+  "original_default_red_review": "native-surface-default-original-red-review.json",
+  "public_state_preservation_review": "native-surface-state-preservation-review.json",
+  "scope": "Reviewed actual root runs plus independent installed/archive/DMG/public-export bytes and pixel/stat receipts; no native launch or DB/provider call by verifier."
+}

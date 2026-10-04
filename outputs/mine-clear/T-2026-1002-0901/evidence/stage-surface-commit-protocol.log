@@ -1,0 +1,4 @@
+COMMAND ["/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node", "--env-file=.env", "scripts/ci/verify-commit-msg.mjs", "--range", "HEAD~1..HEAD"]
+✓ 7fee3a6a5563 fix(growth): separate stage reflector and solid base [T-2026-1002-0901]
+
+✓ 提交信息校验通过（1 条，范围 HEAD~1..HEAD）

@@ -1,0 +1,20 @@
+{
+  "name": "welcome-terminal-real-pg-corrected",
+  "command": [
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+    "--env-file=.env",
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/pnpm/bin/pnpm.cjs",
+    "-C",
+    "apps/server",
+    "exec",
+    "vitest",
+    "run",
+    "src/service/onboarding-continuity.test.ts",
+    "src/service/onboarding-continuity.pg.test.ts",
+    "--no-file-parallelism"
+  ],
+  "exit_code": 0,
+  "seconds": 25.113,
+  "ran_at": "2026-10-03T02:25:26.411052+08:00",
+  "log": "welcome-terminal-real-pg-corrected.log"
+}

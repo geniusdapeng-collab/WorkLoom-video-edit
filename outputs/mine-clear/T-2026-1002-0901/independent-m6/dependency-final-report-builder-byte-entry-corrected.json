@@ -1,0 +1,17 @@
+{
+  "name": "dependency-final-report-builder-byte-entry-corrected",
+  "command": [
+    "python3",
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/independent-m6/execute-report-bytes.py",
+    "94fd569a49d6262e3d0c7b353e6ed272bf8b9231ba4daad45a75132184418f1a"
+  ],
+  "exit_code": 0,
+  "seconds": 8.142,
+  "source_before": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+  "source_after": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+  "ran_at": "2026-10-04T05:02:45.012128+08:00",
+  "log": "dependency-final-report-builder-byte-entry-corrected.log",
+  "builder_sha256_before_after": "94fd569a49d6262e3d0c7b353e6ed272bf8b9231ba4daad45a75132184418f1a",
+  "active_generator_log_written_after_completion": true,
+  "scope": "Actual complete original byte execution; output captured before writing own log to avoid hashing an actively changing generator log inside its own evidence index."
+}

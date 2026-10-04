@@ -1,0 +1,15 @@
+COMMAND ["/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node", "--env-file=.env", "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/pnpm/bin/pnpm.cjs", "-C", "apps/webc", "build"]
+
+> @workloom/webc@0.1.0 build /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/apps/webc
+> vite build
+
+vite v8.3.0 building client environment for production...
+transforming...
+✓ 53 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                   0.59 kB │ gzip:  0.42 kB
+dist/assets/index-NjIvvi0q.css   77.68 kB │ gzip: 14.20 kB
+dist/assets/index-FCz3qWrP.js   281.03 kB │ gzip: 86.68 kB
+
+✓ built in 137ms

@@ -1,0 +1,7 @@
+{
+  "node": "v24.19.0",
+  "playwright": "1.63.0",
+  "chromium": "154.0.8037.95",
+  "electron": "44.1.1",
+  "source": "Installed runtime metadata and an independent fresh blank Chromium process; no product UX task was executed."
+}

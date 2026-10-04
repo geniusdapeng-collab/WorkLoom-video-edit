@@ -1,0 +1,67 @@
+{
+  "id": "MC-017",
+  "kind": "problem",
+  "severity": "P0",
+  "level": "L1",
+  "batch": 0,
+  "state": "unfixed",
+  "title": "演示重置在非交互模式绕过确认，未识别客户工作区且缺少删除前备份",
+  "evidence_grade": "A",
+  "root_cause": {
+    "file": "scripts/reset.sh",
+    "line": 12,
+    "commit": "42ead347c65a5cc343bcd290702d53a7fcdb1687",
+    "symbol": "confirmation / DROP SCHEMA"
+  },
+  "discovered_at_source_commit": "f0a11286a49419fb7909088e2d170f4dde7b60c6",
+  "trigger_path": "已存在合成.env的非交互环境，无--yes调用原脚本；psql/pg_dump/pnpm/docker均为PATH替身；不访问真实数据库。",
+  "expected": "未显式确认、生产/远端目标、客户或未知库、探测/备份失败均不进入删除；先生成私有备份，删除事务重查客户状态，SQL或迁移失败停止。",
+  "actual": "f0a脚本与审计42ead完整Git blob相同；8组实际替身断言0通过/8失败。旧脚本未经确认进入DROP替身，忽略客户和备份错误。无真实DROP。",
+  "fix_direction": "显式确认；校验唯一实际PostgreSQL loopback workloom目标；拒绝生产和未知库，备份0600并检查非空；事务锁定工作区并重查客户行，再迁移种子。",
+  "fix_plan": "用12组有真实.env的替身控制恢复并收紧本仓安全策略；接入test:desktop/CI；独立角色重新运行；保留原失败和Git字节绑定。",
+  "coupling": "数据删除、URL重定向、同名Docker、连接环境变量、并发客户开户、备份和迁移失败联动；不能仅补交互提示。",
+  "invariant_ids": [
+    "INV-1",
+    "INV-4",
+    "INV-5",
+    "INV-11"
+  ],
+  "assertions": [
+    {
+      "kind": "sample",
+      "given": "原f0a脚本及含合成.env的PATH替身夹具",
+      "expect": "未确认、客户和备份失败均不删除",
+      "command": "node --test work/reset-safety-before/reset-safety.test.mjs",
+      "last_result": "fail",
+      "evidence": "evidence/reset-safety-before.log"
+    }
+  ],
+  "evidence": [
+    {
+      "type": "code",
+      "ref": "scripts/reset.sh:12@42ead347c65a5cc343bcd290702d53a7fcdb1687",
+      "note": "后续f0a发现；完整Git blob与原审计相同，未改写复现时间"
+    },
+    {
+      "type": "runtime",
+      "ref": "evidence/reset-safety-before.json",
+      "note": "实际后续发现运行，8失败；原argv保留"
+    },
+    {
+      "type": "runtime",
+      "ref": "evidence/reset-safety-before.log",
+      "note": "真实Node原输出；PATH命令为替身"
+    },
+    {
+      "type": "runtime",
+      "ref": "evidence/reset-safety-controls-final.json",
+      "note": "原源码与发现来源；候选12绿不等于独立验收"
+    }
+  ],
+  "regression": {
+    "command": "node --test scripts/reset-safety.test.mjs",
+    "evidence": null
+  },
+  "rollback": "按已发表修复提交普通revert；禁止通过reset.sh恢复客户库；人工审核备份后使用受控恢复流程。",
+  "notes": "新增实际P0；未修改原审计台账，不复用旧绿，不对真实客户执行重置。"
+}

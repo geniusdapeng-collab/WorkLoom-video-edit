@@ -1,0 +1,13 @@
+{
+  "name": "geo-suite-digests",
+  "command": [
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+    "--env-file=.env",
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/pnpm/bin/pnpm.cjs",
+    "suite:geo"
+  ],
+  "exit_code": 0,
+  "seconds": 3.279,
+  "ran_at": "2026-10-02T21:36:34.868151+08:00",
+  "log": "geo-suite-digests.log"
+}

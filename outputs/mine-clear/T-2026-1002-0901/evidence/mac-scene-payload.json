@@ -1,0 +1,17 @@
+{
+  "name": "mac-scene-payload",
+  "command": [
+    "bash",
+    "scripts/pack-electron-payload.sh",
+    "--platform",
+    "mac",
+    "--arch",
+    "arm64",
+    "--version",
+    "v0.1.0-fix.20261003.4"
+  ],
+  "exit_code": 0,
+  "seconds": 68.859,
+  "ran_at": "2026-10-03T17:24:50.497244+08:00",
+  "log": "mac-scene-payload.log"
+}

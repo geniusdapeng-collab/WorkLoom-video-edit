@@ -1,0 +1,88 @@
+{
+  "schema": "growth.independent-m6/native-build-attempt-preservation@1",
+  "reviewed_by": "growth_m6",
+  "reviewed_at": "2026-10-03T21:23:15.518650+08:00",
+  "source_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+  "original_build_exit_code": 1,
+  "original_build_seconds": 254.701,
+  "original_network_timeout_observed": true,
+  "original_failure_preserved": true,
+  "original_failed_build_rewritten_as_passed": false,
+  "successful_cached_build_exit_code": 0,
+  "successful_cached_build_seconds": 38.697,
+  "successful_build_same_argv": true,
+  "tool_override_origin": "Root current official-digest public tool-cache receipt and actual corrected builder log; no product/checksum changes claimed",
+  "independent_final_DMG_byte_result": "surface-final-dmg-byte-probe-results.json",
+  "fresh_current_CNB_three_gates_green": true,
+  "CNB_source_SHA": "7fee3a6a5563d41c568463994764d3883eb7667d",
+  "CNB_platform_merge_trial_SHA": "6b5856e328b81abc12df269e1441f81ee9285e7f",
+  "CI_query_executed_by_verifier": false,
+  "product_mutated_by_verifier": false,
+  "private_contents_opened": false,
+  "actual_native_UI_or_PG_calls_by_verifier": 0,
+  "public_evidence": [
+    {
+      "root_file": "mac-surface-dmg-build.json",
+      "file": "inherited/evidence__mac-surface-dmg-build.json",
+      "sha256": "b431ec44132cd068cebd3084a7482473200969f6e0b968608eadb6e7a4880fea",
+      "bytes": 843,
+      "read_scope": "All receipt/log text read"
+    },
+    {
+      "root_file": "mac-surface-dmg-build.log",
+      "file": "inherited/evidence__mac-surface-dmg-build.log",
+      "sha256": "8f328289d5bf27243cf830df474d3b25d3cc60e2253cbbaaea1f05d6bd9636dd",
+      "bytes": 2673,
+      "read_scope": "All receipt/log text read"
+    },
+    {
+      "root_file": "mac-surface-dmg-build-cached.json",
+      "file": "inherited/evidence__mac-surface-dmg-build-cached.json",
+      "sha256": "a3782d0272c923fe17ea5636a418c9f9462896f226c298b347781bb9a089b15e",
+      "bytes": 856,
+      "read_scope": "All receipt/log text read"
+    },
+    {
+      "root_file": "mac-surface-dmg-build-cached.log",
+      "file": "inherited/evidence__mac-surface-dmg-build-cached.log",
+      "sha256": "7acb8ee66bea6e87e658982101c5e3b935e871abbb09d27150faf6ea4b54f53e",
+      "bytes": 1848,
+      "read_scope": "All receipt/log text read"
+    },
+    {
+      "root_file": "mac-surface-dmg-tool-cache.json",
+      "file": "inherited/evidence__mac-surface-dmg-tool-cache.json",
+      "sha256": "e46e4c8f758a4122b55dd19f74c4eb3e8b765154afdc6ca87152e422a0d9cc5e",
+      "bytes": 1311,
+      "read_scope": "All receipt/log text read"
+    },
+    {
+      "root_file": "surface-dmg-fingerprint.json",
+      "file": "inherited/evidence__surface-dmg-fingerprint.json",
+      "sha256": "b3aaf6605634d3a334f98bf60da3d2253a0b17112a40d4c5ab0d630de7310072",
+      "bytes": 2512,
+      "read_scope": "All receipt/log text read"
+    },
+    {
+      "root_file": "cnb-surface-before-mcd-status.json",
+      "file": "inherited/evidence__cnb-surface-before-mcd-status.json",
+      "sha256": "df8d683a7e3f365a9cdee86ea9a90aa4fe6cd9efadb3cab4847618687660847d",
+      "bytes": 2952,
+      "read_scope": "All receipt/log text read"
+    },
+    {
+      "root_file": "surface-payload-fingerprint.json",
+      "file": "inherited/evidence__surface-payload-fingerprint.json",
+      "sha256": "4832ea7e5cbebef1873b423398cd3bff6619bdaef32572a0798d55245bed44ad",
+      "bytes": 4025,
+      "read_scope": "All receipt/log text read"
+    },
+    {
+      "root_file": "surface-payload-source-closure.json",
+      "file": "inherited/evidence__surface-payload-source-closure.json",
+      "sha256": "ddaad26e64634c97e905d4f82ced980a8f3ba45ef1b4ef0299129730a2b79f03",
+      "bytes": 605287,
+      "read_scope": "B all2093 structured rows parsed and each independently hashed in actual tar/Git/build probe"
+    }
+  ]
+}

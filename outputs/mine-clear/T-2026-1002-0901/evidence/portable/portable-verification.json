@@ -1,0 +1,145 @@
+{
+  "source": "7d5f02049cc75a692d4eaac33916633cb2192f01",
+  "scope": "ported minimal rerunnable probe execution; B evidence; not new independent business samples",
+  "case_count": 27,
+  "cases": [
+    {
+      "file": "runtime-repro-results.json",
+      "case": "QUEUE-10",
+      "pass": true
+    },
+    {
+      "file": "runtime-repro-results.json",
+      "case": "BLOCK-FLAG",
+      "pass": true
+    },
+    {
+      "file": "runtime-repro-results.json",
+      "case": "PENDING-CONCURRENCY",
+      "pass": true
+    },
+    {
+      "file": "runtime-repro-results.json",
+      "case": "EDIT-PARAMS",
+      "pass": true
+    },
+    {
+      "file": "runtime-repro-results.json",
+      "case": "EDIT-HIGH-RISK",
+      "pass": true
+    },
+    {
+      "file": "runtime-repro-results.json",
+      "case": "RELEVANCE-REPLAY",
+      "pass": true
+    },
+    {
+      "file": "runtime-repro-results.json",
+      "case": "REJECT-TERMINAL",
+      "pass": true
+    },
+    {
+      "file": "runtime-repro-results.json",
+      "case": "PERMISSION-BEFORE-ACTION",
+      "pass": true
+    },
+    {
+      "file": "runtime-repro-results.json",
+      "case": "REJECT-WORKSPACE-COLLISION",
+      "pass": true
+    },
+    {
+      "file": "auth-production-http-results.json",
+      "case": "Anonymous production owner impersonation denied on non-example real-mode fixture",
+      "pass": true
+    },
+    {
+      "file": "auth-production-http-results.json",
+      "case": "Protected API rejects anonymous requests",
+      "pass": true
+    },
+    {
+      "file": "auth-production-http-results.json",
+      "case": "Desktop capability is mandatory",
+      "pass": true
+    },
+    {
+      "file": "auth-production-http-results.json",
+      "case": "Wrong desktop capability rejected",
+      "pass": true
+    },
+    {
+      "file": "auth-production-http-results.json",
+      "case": "Trusted local capability signs only the configured identity",
+      "pass": true
+    },
+    {
+      "file": "auth-production-http-results.json",
+      "case": "Trusted local session can access the real protected API",
+      "pass": true
+    },
+    {
+      "file": "auth-production-http-results.json",
+      "case": "Unsupported JWT algorithm denied",
+      "pass": true
+    },
+    {
+      "file": "auth-production-http-results.json",
+      "case": "JWT without expiration denied",
+      "pass": true
+    },
+    {
+      "file": "auth-production-http-results.json",
+      "case": "JWT without issue time denied",
+      "pass": true
+    },
+    {
+      "file": "auth-production-http-results.json",
+      "case": "Expired JWT denied",
+      "pass": true
+    },
+    {
+      "file": "auth-production-http-results.json",
+      "case": "Wrong product issuer denied",
+      "pass": true
+    },
+    {
+      "file": "film-public-success-results.json",
+      "case": "Public film start/status executes registered local stage with frozen source",
+      "pass": true
+    },
+    {
+      "file": "film-public-success-results.json",
+      "case": "Result is bound to the job, run and frozen input",
+      "pass": true
+    },
+    {
+      "file": "film-public-success-results.json",
+      "case": "Registered component capability reaches the parent review ledger",
+      "pass": true
+    },
+    {
+      "file": "film-public-success-results.json",
+      "case": "Unknown stage fails before spawning",
+      "pass": true
+    },
+    {
+      "file": "film-public-success-results.json",
+      "case": "Options cannot read a secret file or replace job paths",
+      "pass": true
+    },
+    {
+      "file": "film-public-missing-output-results.json",
+      "case": "Composition without upstream clips cannot report a successful job",
+      "pass": true
+    },
+    {
+      "file": "film-public-deadline-results.json",
+      "case": "Hard deadline stops the worker and cannot become a successful exit",
+      "pass": true
+    }
+  ],
+  "customer_data": false,
+  "provider_calls": 0,
+  "queue_scope": "global scheduler in this task owned fake growth_audit DB; possible effects on earlier fake fixtures remain disclosed"
+}

@@ -1,0 +1,467 @@
+{
+  "schema": "growth.independent-m6/final-native@1",
+  "source_commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+  "evidence_prefix": "dependency",
+  "verified_by": "growth_m6",
+  "verified_at": "2026-10-04T03:10:44.579270+08:00",
+  "local_qa_verified": true,
+  "actual_app_payload_bytes_verified": true,
+  "actual_dmg_verified": true,
+  "cold_default_verified": true,
+  "cold_safe_verified": true,
+  "fresh_restart_verified": true,
+  "old_customer_upgrade_verified": true,
+  "private_contents_opened_by_verifier": false,
+  "actual_installed_diagnostic_export_verified": true,
+  "diagnostic_export_review": "native-dependency-diagnostic-export-independent-review.json",
+  "final_native_scene_pixel_samples_reviewed": true,
+  "blocking_visual_observations": [],
+  "source_controls": "floor-final-verification.json",
+  "app_byte_result": "dependency-final-app-byte-probe-results.json",
+  "payload_byte_result": "dependency-final-payload-byte-probe-results.json",
+  "dmg_byte_result": "dependency-final-dmg-byte-probe-results.json",
+  "runtime_controls": [
+    {
+      "name": "cold-default",
+      "exit_code": 0,
+      "seconds": 72.395,
+      "evidence": "inherited/evidence__mac-dependency-default.json",
+      "scope": "root actual cold owned client run; independent retained JSON/log/pixel-state/hash/stat review; no verifier UI launch"
+    },
+    {
+      "name": "cold-safe",
+      "exit_code": 0,
+      "seconds": 106.95,
+      "evidence": "inherited/evidence__mac-dependency-safe.json",
+      "scope": "root actual cold owned client run; independent retained JSON/log/pixel-state/hash/stat review; no verifier UI launch"
+    },
+    {
+      "name": "fresh",
+      "exit_code": 0,
+      "seconds": 30.874,
+      "evidence": "inherited/evidence__mac-dependency-fresh.json",
+      "scope": "root actual exact app/bootstrap/PG health; independent command/log and before/after identity/version/hash review"
+    },
+    {
+      "name": "restart",
+      "exit_code": 0,
+      "seconds": 5.612,
+      "evidence": "inherited/evidence__mac-dependency-restart.json",
+      "scope": "root actual exact app/bootstrap/PG health; independent command/log and before/after identity/version/hash review"
+    },
+    {
+      "name": "upgrade",
+      "exit_code": 0,
+      "seconds": 34.298,
+      "evidence": "inherited/evidence__mac-dependency-upgrade.json",
+      "scope": "root actual exact app/bootstrap/PG health; independent command/log and before/after identity/version/hash review"
+    },
+    {
+      "name": "actual-installed-diagnostic-export",
+      "exit_code": 0,
+      "seconds": 374.362,
+      "evidence": "native-dependency-diagnostic-export-independent-review.json",
+      "scope": "Actual root installed startup failure page/export action/save dialog with synthetic logs; independent exact app/archive, public exported text and POSIX mode review. Source unit and UI executions remain separate."
+    }
+  ],
+  "native_checks": {
+    "default": {
+      "exit_code": 0,
+      "seconds": 72.395,
+      "cold_owned_fixture_root_asserted": true,
+      "actual_wrapper": "mac-dependency-default.json",
+      "actual_render": "native-dependency-default-render-default.json",
+      "actual_retention": "native-dependency-default-retention.json",
+      "diagnostic_only": false,
+      "reused_failed_fixture": false,
+      "source_commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+      "render_mode": "live2d-webgl",
+      "capture_before_and_after_overlay_absent": true,
+      "team_actors": 65,
+      "workplace_actors": 18,
+      "stage_actors": 65,
+      "mouth_peak": 0.45,
+      "blink_count": 1,
+      "gesture_count": 1,
+      "private_config_exists": true,
+      "private_config_mode": "0600",
+      "private_contents_opened": false,
+      "configuration_sha256_root_reported": "501d2c3fcdb1a37085a8e3f4e00e772ef9f91eb0bb30687b55385f06220a9aec",
+      "configuration_hash_independently_recomputed": false
+    },
+    "safe": {
+      "exit_code": 0,
+      "seconds": 106.95,
+      "cold_owned_fixture_root_asserted": true,
+      "actual_wrapper": "mac-dependency-safe.json",
+      "actual_render": "native-dependency-safe-render-safe.json",
+      "actual_retention": "native-dependency-safe-retention.json",
+      "diagnostic_only": false,
+      "reused_failed_fixture": false,
+      "source_commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+      "render_mode": "vector2d",
+      "capture_before_and_after_overlay_absent": true,
+      "team_actors": 65,
+      "workplace_actors": 18,
+      "stage_actors": 65,
+      "mouth_peak": 1,
+      "blink_count": 1,
+      "gesture_count": 2,
+      "private_config_exists": true,
+      "private_config_mode": "0600",
+      "private_contents_opened": false,
+      "configuration_sha256_root_reported": "bd395870be04083b5f16e1a505601265af5a95a15cabfbc394b1cf5f78f985bf",
+      "configuration_hash_independently_recomputed": false
+    }
+  },
+  "preservation": {
+    "fresh": {
+      "fields_compared": [
+        "instanceId",
+        "systemIdentifier",
+        "credentialsHash",
+        "configurationHash",
+        "customerWorkspaceHash",
+        "fixtureId"
+      ],
+      "all_equal": true,
+      "before_payload_version": "v0.1.0-fix.20261003.6",
+      "after_payload_version": "v0.1.0-fix.20261003.6",
+      "configuration_mode": "0600",
+      "private_contents_opened": false,
+      "hash_origin": "root public before/after reader receipts; actual private contents not independently recomputed"
+    },
+    "upgrade": {
+      "fields_compared": [
+        "instanceId",
+        "systemIdentifier",
+        "credentialsHash",
+        "configurationHash",
+        "customerWorkspaceHash",
+        "fixtureId"
+      ],
+      "all_equal": true,
+      "before_payload_version": "v0.1.0-fix.20261003.5",
+      "after_payload_version": "v0.1.0-fix.20261003.6",
+      "configuration_mode": "0600",
+      "private_contents_opened": false,
+      "hash_origin": "root public before/after reader receipts; actual private contents not independently recomputed"
+    }
+  },
+  "original_attempts": [
+    {
+      "name": "original-cold-default",
+      "exit_code": 1,
+      "seconds": 56.336,
+      "review": "native-surface-default-original-red-review.json",
+      "executed_source_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+      "historical_for_accepted_source": true,
+      "source_commit_origin": "Parent explicitly asserted exact clean source; original runtime wrapper and partial renderer JSON have no source SHA field",
+      "source_sha_added_to_original": false,
+      "first_day_guide_scene_fields_missing": true,
+      "root_cause_proven": false,
+      "rewritten_as_passed": false,
+      "independent_actual_UI_execution_claimed": false,
+      "scope": "Original actual root cold-default failed before scene results; immutable wrapper/log/retained JSON/two images inspected. Separate new cold-default-repeat is the selected successful control."
+    }
+  ],
+  "original_default_red_review": "native-surface-default-original-red-review.json",
+  "historical_high_advisory_hold_review": "mc016-new-high-advisory-red-review-7fee.json",
+  "state_preservation_review": "native-dependency-state-preservation-review.json",
+  "build_attempts_review": "native-dependency-build-attempt-preservation-review.json",
+  "dependency_functional_inheritance": {
+    "file": "dependency-functional-input-inheritance.json",
+    "sha256": "1a93da0c703b7e0559517e726e0016fe6084d608111ad6960cdfdc1e9e664609",
+    "source_commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+    "previous_accepted_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+    "functional_cases_inherited": 558,
+    "functional_cases_actually_executed_at_accepted_commit": 0,
+    "new_functional_execution_claimed": false
+  },
+  "screenshots": "native-dependency-screenshot-review.json",
+  "public_provenance": [
+    {
+      "file": "inherited/evidence__dependency-app-fingerprint.json",
+      "root_file": "dependency-app-fingerprint.json",
+      "sha256": "58d8358712fff9a9b69b09eba5b5ad9e8eb24af5c6c2581bbccb7034d6c33930",
+      "bytes": 1984,
+      "origin": "root execution; independent public receipt/byte inspection"
+    },
+    {
+      "file": "inherited/evidence__mac-surface-default.json",
+      "root_file": "mac-surface-default.json",
+      "sha256": "7326239456805016ce01381b6aaad6c0d9916fbefdba4f51691ff7d657587ce5",
+      "bytes": 403,
+      "origin": "root execution; independent public receipt/byte inspection"
+    },
+    {
+      "file": "inherited/evidence__mac-surface-default.log",
+      "root_file": "mac-surface-default.log",
+      "sha256": "a86b36f1113216937c0bffcb70fa8317baa8a03fdc54868d6418e4a54faffec9",
+      "bytes": 1866,
+      "origin": "root execution; independent public receipt/byte inspection"
+    },
+    {
+      "file": "inherited/evidence__native-surface-default-retention.json",
+      "root_file": "native-surface-default-retention.json",
+      "sha256": "57cdf603ac36d8a5c5bb634f164e87fa17e13fb4ebb7ba5175018fe413c70101",
+      "bytes": 1203,
+      "origin": "root execution; independent public receipt/byte inspection"
+    },
+    {
+      "file": "inherited/evidence__native-surface-default-render-default.json",
+      "root_file": "native-surface-default-render-default.json",
+      "sha256": "786dc51c6e2a4559d556c8fdba893522bd95096a485d2e5556247bdb90a927c3",
+      "bytes": 4315,
+      "origin": "root execution; independent public receipt/byte inspection"
+    },
+    {
+      "file": "inherited/evidence__native-surface-default-render-default.png",
+      "root_file": "native-surface-default-render-default.png",
+      "sha256": "91422a4597d0c44bdc0f0c0e874a11432729a4957de6420fd9dacac94c203810",
+      "bytes": 1470683,
+      "origin": "root execution; independent public receipt/byte inspection"
+    },
+    {
+      "file": "inherited/evidence__native-surface-default-team-default.png",
+      "root_file": "native-surface-default-team-default.png",
+      "sha256": "1c7f5da064eeb1f1ceb22994849b0f8e15ca0d0b71f5ef704a53ef8a8c26d2bb",
+      "bytes": 1594312,
+      "origin": "root execution; independent public receipt/byte inspection"
+    },
+    {
+      "file": "inherited/evidence__mac-surface-default.json",
+      "root_file": "mac-surface-default.json",
+      "sha256": "7326239456805016ce01381b6aaad6c0d9916fbefdba4f51691ff7d657587ce5",
+      "bytes": 403,
+      "origin": "root execution; independent public receipt/byte inspection"
+    },
+    {
+      "file": "inherited/evidence__surface-app-fingerprint.json",
+      "root_file": "surface-app-fingerprint.json",
+      "sha256": "b1b99cf9da08a687fff195d88a16c43f2cec6c7c479b668aa54b72cb6f0add2f",
+      "bytes": 1984,
+      "origin": "root execution; independent public receipt/byte inspection"
+    },
+    {
+      "file": "inherited/evidence__native-surface-default-render-default.json",
+      "root_file": "native-surface-default-render-default.json",
+      "sha256": "786dc51c6e2a4559d556c8fdba893522bd95096a485d2e5556247bdb90a927c3",
+      "bytes": 4315,
+      "origin": "root execution; independent public receipt/byte inspection"
+    },
+    {
+      "file": "inherited/evidence__mac-dependency-default.json",
+      "root_file": "mac-dependency-default.json",
+      "sha256": "52f37db38e44f97977953ea3da1bdc19f30743df79921c1ab3ae5f3240b0fb71",
+      "bytes": 409,
+      "origin": "root execution; independent public receipt/byte inspection"
+    },
+    {
+      "file": "inherited/evidence__mac-dependency-default.log",
+      "root_file": "mac-dependency-default.log",
+      "sha256": "4e0202ab114d3e6d3b7820a90998383b9ebe81c3fa0560ed98108c38c9e9674f",
+      "bytes": 8187,
+      "origin": "root execution; independent public receipt/byte inspection"
+    },
+    {
+      "file": "inherited/evidence__native-dependency-default-render-default.json",
+      "root_file": "native-dependency-default-render-default.json",
+      "sha256": "6a5921769fb1543e1d76403af086b704e03eef6471379cb14a56944dc6fca353",
+      "bytes": 7867,
+      "origin": "root execution; independent public receipt/byte inspection"
+    },
+    {
+      "file": "inherited/evidence__native-dependency-default-retention.json",
+      "root_file": "native-dependency-default-retention.json",
+      "sha256": "04f555eb7ff1a41aaed4cc237d6018eececc9f1b1e66ec0b791b7fcbe822216a",
+      "bytes": 2969,
+      "origin": "root execution; independent public receipt/byte inspection"
+    },
+    {
+      "file": "inherited/evidence__native-dependency-default-render-default.json",
+      "root_file": "native-dependency-default-render-default.json",
+      "sha256": "6a5921769fb1543e1d76403af086b704e03eef6471379cb14a56944dc6fca353",
+      "bytes": 7867,
+      "origin": "root execution; independent public receipt/byte inspection"
+    },
+    {
+      "file": "inherited/evidence__native-dependency-default-render-default.png",
+      "root_file": "native-dependency-default-render-default.png",
+      "sha256": "ce14f053cd7b6bc385d33d5619d593ad6bf07d12ab393788d94666853163915b",
+      "bytes": 1497177,
+      "origin": "root execution; independent public receipt/byte inspection"
+    },
+    {
+      "file": "inherited/evidence__native-dependency-default-stage-default.png",
+      "root_file": "native-dependency-default-stage-default.png",
+      "sha256": "5711b02f37d1c98b15097a7e9fe282ec49112c8440f95f70e99e9cfc7f9426ab",
+      "bytes": 2077961,
+      "origin": "root execution; independent public receipt/byte inspection"
+    },
+    {
+      "file": "inherited/evidence__native-dependency-default-team-default.png",
+      "root_file": "native-dependency-default-team-default.png",
+      "sha256": "1e7cfcd904ee767a504bb0fcd4077a79413b9a15b91c9e55d8d46f029950cf9e",
+      "bytes": 1615061,
+      "origin": "root execution; independent public receipt/byte inspection"
+    },
+    {
+      "file": "inherited/evidence__native-dependency-default-workplace-default.png",
+      "root_file": "native-dependency-default-workplace-default.png",
+      "sha256": "2e3fbd9591e03039db54242fb6ed2c2673b4d5e80add39a6b85bc84e40edc288",
+      "bytes": 1664619,
+      "origin": "root execution; independent public receipt/byte inspection"
+    },
+    {
+      "file": "inherited/evidence__mac-dependency-safe.json",
+      "root_file": "mac-dependency-safe.json",
+      "sha256": "cf658b01eee65f4b48be4b3c1eec3415c8aadcc3d98223c4dc5203b5d32feab5",
+      "bytes": 403,
+      "origin": "root execution; independent public receipt/byte inspection"
+    },
+    {
+      "file": "inherited/evidence__mac-dependency-safe.log",
+      "root_file": "mac-dependency-safe.log",
+      "sha256": "3176dc98ef9c93400a121f167e9fda794f836057a68d59d6448cb4f94598562a",
+      "bytes": 7565,
+      "origin": "root execution; independent public receipt/byte inspection"
+    },
+    {
+      "file": "inherited/evidence__native-dependency-safe-render-safe.json",
+      "root_file": "native-dependency-safe-render-safe.json",
+      "sha256": "c6f14e79a1f443278f0ea8a4c2f2b60cdabfa8819986b57aa58d17683fdb2fc9",
+      "bytes": 6580,
+      "origin": "root execution; independent public receipt/byte inspection"
+    },
+    {
+      "file": "inherited/evidence__native-dependency-safe-retention.json",
+      "root_file": "native-dependency-safe-retention.json",
+      "sha256": "a118141ba2c0c32a5eefdb75b482701b25df2db2ce6bbcd395d8e73284b8f1df",
+      "bytes": 2918,
+      "origin": "root execution; independent public receipt/byte inspection"
+    },
+    {
+      "file": "inherited/evidence__native-dependency-safe-render-safe.json",
+      "root_file": "native-dependency-safe-render-safe.json",
+      "sha256": "c6f14e79a1f443278f0ea8a4c2f2b60cdabfa8819986b57aa58d17683fdb2fc9",
+      "bytes": 6580,
+      "origin": "root execution; independent public receipt/byte inspection"
+    },
+    {
+      "file": "inherited/evidence__native-dependency-safe-render-safe.png",
+      "root_file": "native-dependency-safe-render-safe.png",
+      "sha256": "733f99f018f54dea43e141e8f1ad426ba617afbef5f81469b2c384c456d65576",
+      "bytes": 278479,
+      "origin": "root execution; independent public receipt/byte inspection"
+    },
+    {
+      "file": "inherited/evidence__native-dependency-safe-stage-safe.png",
+      "root_file": "native-dependency-safe-stage-safe.png",
+      "sha256": "2459c12bbd5cdb7fef524ec466c478e273cb675c96ed9f2836cda8ac061e778d",
+      "bytes": 629161,
+      "origin": "root execution; independent public receipt/byte inspection"
+    },
+    {
+      "file": "inherited/evidence__native-dependency-safe-team-safe.png",
+      "root_file": "native-dependency-safe-team-safe.png",
+      "sha256": "26853f838b96b4494c21403f3d399eef1c94f7bf01f25416b6ee4834411dd3d4",
+      "bytes": 1515152,
+      "origin": "root execution; independent public receipt/byte inspection"
+    },
+    {
+      "file": "inherited/evidence__native-dependency-safe-workplace-safe.png",
+      "root_file": "native-dependency-safe-workplace-safe.png",
+      "sha256": "48416fbfc30554af81afa16c4be98a20aef8766ca5079d04785a0521d63071a4",
+      "bytes": 554548,
+      "origin": "root execution; independent public receipt/byte inspection"
+    },
+    {
+      "file": "inherited/evidence__mac-dependency-fresh.json",
+      "root_file": "mac-dependency-fresh.json",
+      "sha256": "e82e148376e17a1acd420f1c8a0b0421f563497049bedf5b628879d5af135da9",
+      "bytes": 405,
+      "origin": "root execution; independent public receipt/byte inspection"
+    },
+    {
+      "file": "inherited/evidence__mac-dependency-fresh.log",
+      "root_file": "mac-dependency-fresh.log",
+      "sha256": "8d98752e2f1c58f5a96a01d6153f42dd017374b670bba4c617a097120ea2679e",
+      "bytes": 1920,
+      "origin": "root execution; independent public receipt/byte inspection"
+    },
+    {
+      "file": "inherited/evidence__mac-dependency-restart.json",
+      "root_file": "mac-dependency-restart.json",
+      "sha256": "35a623a95c7df873d40d26299c76580510b34f0ab4c8c30419898cecca72beab",
+      "bytes": 408,
+      "origin": "root execution; independent public receipt/byte inspection"
+    },
+    {
+      "file": "inherited/evidence__mac-dependency-restart.log",
+      "root_file": "mac-dependency-restart.log",
+      "sha256": "a33c752823baf41d4d2699d2a6700abe48fa708e881d29c969ded48edbd4d73c",
+      "bytes": 1054,
+      "origin": "root execution; independent public receipt/byte inspection"
+    },
+    {
+      "file": "inherited/evidence__mac-dependency-upgrade.json",
+      "root_file": "mac-dependency-upgrade.json",
+      "sha256": "d0ccd43302ce3a7e76b2e820a8be4c1f8c0c433bb2a51c9099ef3b2f581fd0ea",
+      "bytes": 409,
+      "origin": "root execution; independent public receipt/byte inspection"
+    },
+    {
+      "file": "inherited/evidence__mac-dependency-upgrade.log",
+      "root_file": "mac-dependency-upgrade.log",
+      "sha256": "bc61df1dbbb5883dcf6e3b76afe4e97e7ab47aeb2faba805ebdfe210c1c92ad7",
+      "bytes": 1756,
+      "origin": "root execution; independent public receipt/byte inspection"
+    },
+    {
+      "file": "inherited/evidence__native-dependency-fresh-state-before.json",
+      "root_file": "native-dependency-fresh-state-before.json",
+      "sha256": "a792356f2d589e40856e4ef000f1801ac24e3954b4f3a3f655bac7ec602732a0",
+      "bytes": 651,
+      "origin": "root execution; independent public receipt/byte inspection"
+    },
+    {
+      "file": "inherited/evidence__native-dependency-fresh-state-after.json",
+      "root_file": "native-dependency-fresh-state-after.json",
+      "sha256": "a293dc317196ff7565e2fa8a20a7378da54527a712627e9cedb5b00b034af0cc",
+      "bytes": 870,
+      "origin": "root execution; independent public receipt/byte inspection"
+    },
+    {
+      "file": "inherited/evidence__native-dependency-upgrade-state-before.json",
+      "root_file": "native-dependency-upgrade-state-before.json",
+      "sha256": "005e934676070eceaae2bb71a9d7208aec367d672b3b31bbe6e2154a15809f79",
+      "bytes": 705,
+      "origin": "root execution; independent public receipt/byte inspection"
+    },
+    {
+      "file": "inherited/evidence__native-dependency-upgrade-state-after.json",
+      "root_file": "native-dependency-upgrade-state-after.json",
+      "sha256": "8d6fddc1876be68d15d77f5b11cc7671837d607e5ef0634a9c988cfb90997358",
+      "bytes": 926,
+      "origin": "root execution; independent public receipt/byte inspection"
+    },
+    {
+      "file": "inherited/evidence__native-dependency-diagnostic-export.json",
+      "root_file": "native-dependency-diagnostic-export.json",
+      "sha256": "d33d673e7889e9bb37be208db56b25e81b216c6ffa14770674ea76c88f7d8075",
+      "bytes": 4854,
+      "origin": "root execution; independent public receipt/byte inspection"
+    }
+  ],
+  "runtime_execution_origin": "root; verifier independently inspected public results/images/bytes only",
+  "real_provider_calls_by_verifier": 0,
+  "full_rdas_pass": false,
+  "production_release_eligible": false,
+  "formal_platform_conditions": [
+    "Windows actual native not-run",
+    "Apple official signing/notarization not-run",
+    "full UX/real-mobile/model/business/ADR/long-run protocols unverified"
+  ],
+  "original_failures_not_rewritten_as_passed": true
+}

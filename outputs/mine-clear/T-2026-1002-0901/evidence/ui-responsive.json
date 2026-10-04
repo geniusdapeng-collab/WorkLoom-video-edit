@@ -1,0 +1,33 @@
+{
+  "environment": "isolated PG fixture; Vite development browser; actual packaged desktop evidence separate",
+  "desktop": {
+    "guideVisible": false,
+    "mate": {
+      "height": 583.046875,
+      "mode": "expanded",
+      "width": 304,
+      "x": 800,
+      "y": 300.953125
+    },
+    "scrollWidth": 1440,
+    "viewport": {
+      "height": 900,
+      "width": 1440
+    }
+  },
+  "mobile": {
+    "guideVisible": false,
+    "mate": {
+      "height": 320.046875,
+      "mode": "mini",
+      "width": 304,
+      "x": 14,
+      "y": 507.953125
+    },
+    "scrollWidth": 390,
+    "viewport": {
+      "height": 844,
+      "width": 390
+    }
+  }
+}

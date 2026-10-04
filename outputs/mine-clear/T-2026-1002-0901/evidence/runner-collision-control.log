@@ -1,0 +1,1 @@
+COMMAND ["/Library/Developer/CommandLineTools/usr/bin/python3", "-c", "from pathlib import Path; import json; Path('/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/evidence/runner-collision-control.json').write_text(json.dumps({\"owned_child_artifact\":True,\"value\":\"preserve\"})+\"\\n\")"]

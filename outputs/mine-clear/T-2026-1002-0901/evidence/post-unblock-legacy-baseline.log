@@ -1,0 +1,151 @@
+COMMAND ["/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node", "--env-file=.env", "scripts/delivery/mine-clear.mjs", "verify-baseline", "--ledger", "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/ledger.json", "--repo", ".", "--no-fetch", "--json"]
+{
+  "head": "1e471c34",
+  "rows": [
+    {
+      "id": "MC-001",
+      "state": "verified",
+      "base_commit": "42ead347",
+      "status": "current",
+      "file": "apps/desktop/electron/bootstrap.cjs",
+      "changed_files": 1
+    },
+    {
+      "id": "MC-002",
+      "state": "verified",
+      "base_commit": "42ead347",
+      "status": "current",
+      "file": ".workloom-runtime-deps/metadata.json",
+      "changed_files": 1
+    },
+    {
+      "id": "MC-003",
+      "state": "verified",
+      "base_commit": "42ead347",
+      "status": "current",
+      "file": "scripts/pack-electron-payload.sh",
+      "changed_files": 1
+    },
+    {
+      "id": "MC-004",
+      "state": "verified",
+      "base_commit": "42ead347",
+      "status": "current",
+      "file": "scripts/pack-electron-payload.sh",
+      "changed_files": 1
+    },
+    {
+      "id": "MC-005",
+      "state": "verified",
+      "base_commit": "42ead347",
+      "status": "current",
+      "file": "apps/server/src/trpc/router.ts",
+      "changed_files": 1
+    },
+    {
+      "id": "MC-006",
+      "state": "verified",
+      "base_commit": "42ead347",
+      "status": "current",
+      "file": "packages/runtime/src/loop.ts",
+      "changed_files": 1
+    },
+    {
+      "id": "MC-007",
+      "state": "verified",
+      "base_commit": "42ead347",
+      "status": "current",
+      "file": "packages/runtime/src/loop.ts",
+      "changed_files": 1
+    },
+    {
+      "id": "MC-008",
+      "state": "verified",
+      "base_commit": "42ead347",
+      "status": "current",
+      "file": "packages/runtime/src/loop.ts",
+      "changed_files": 1
+    },
+    {
+      "id": "MC-009",
+      "state": "verified",
+      "base_commit": "42ead347",
+      "status": "current",
+      "file": "packages/base/review-console/approvals.ts",
+      "changed_files": 1
+    },
+    {
+      "id": "MC-010",
+      "state": "verified",
+      "base_commit": "42ead347",
+      "status": "current",
+      "file": "apps/server/src/runtime/scheduler.ts",
+      "changed_files": 1
+    },
+    {
+      "id": "MC-011",
+      "state": "verified",
+      "base_commit": "42ead347",
+      "status": "current",
+      "file": "apps/server/src/runtime/thread-runner.ts",
+      "changed_files": 1
+    },
+    {
+      "id": "MC-012",
+      "state": "verified",
+      "base_commit": "42ead347",
+      "status": "current",
+      "file": "packages/base/review-console/approvals.ts",
+      "changed_files": 1
+    },
+    {
+      "id": "MC-013",
+      "state": "verified",
+      "base_commit": "42ead347",
+      "status": "current",
+      "file": "apps/server/src/video/film-worker.ts",
+      "changed_files": 1
+    },
+    {
+      "id": "MC-014",
+      "state": "verified",
+      "base_commit": "42ead347",
+      "status": "current",
+      "file": "bundles/geo-growth/fences/geo-growth-baseline.yml",
+      "changed_files": null
+    },
+    {
+      "id": "MC-015",
+      "state": "verified",
+      "base_commit": "42ead347",
+      "status": "current",
+      "file": "bundles/geo-growth/capabilities/video.mjs",
+      "changed_files": 1
+    },
+    {
+      "id": "MC-016",
+      "state": "verified",
+      "base_commit": "42ead347",
+      "status": "current",
+      "file": "apps/web/package.json",
+      "changed_files": null
+    },
+    {
+      "id": "MC-017",
+      "state": "verified",
+      "base_commit": "42ead347",
+      "status": "current",
+      "file": "scripts/reset.sh",
+      "changed_files": 1
+    },
+    {
+      "id": "MC-018",
+      "state": "verified",
+      "base_commit": "42ead347",
+      "status": "current",
+      "file": "apps/desktop/electron/main.cjs",
+      "changed_files": 1
+    }
+  ],
+  "stale": 0
+}

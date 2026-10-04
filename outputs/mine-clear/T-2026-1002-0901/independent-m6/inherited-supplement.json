@@ -1,0 +1,30 @@
+[
+  {
+    "origin": "root",
+    "original": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/evidence/cnb-status-pack-fix.json",
+    "snapshot": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/independent-m6/inherited/evidence__cnb-status-pack-fix.json",
+    "sha256": "fb6bf6485b476268122bb4bfde0cc1cc35ed127feed992a01d5dbed8f04b13f4",
+    "review": "independent metadata inspection; not independently executed native build or CNB API call"
+  },
+  {
+    "origin": "root",
+    "original": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/evidence/mac-dmg-final-local-electron.json",
+    "snapshot": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/independent-m6/inherited/evidence__mac-dmg-final-local-electron.json",
+    "sha256": "c46003d079cb6e28b517c97a7caa9565ece6aeebcf8730ac8545f5461aa871c0",
+    "review": "independent metadata inspection; not independently executed native build or CNB API call"
+  },
+  {
+    "origin": "root",
+    "original": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/evidence/final-dmg-fingerprint.json",
+    "snapshot": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/independent-m6/inherited/evidence__final-dmg-fingerprint.json",
+    "sha256": "04a90110d6479e172f01fc4c7d422b8135548b2b2ac07974a628ba02bd4dac73",
+    "review": "independent metadata inspection; not independently executed native build or CNB API call"
+  },
+  {
+    "origin": "root",
+    "original": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/evidence/final-payload-fingerprint.json",
+    "snapshot": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/independent-m6/inherited/evidence__final-payload-fingerprint.json",
+    "sha256": "3399ae0979ca7579a954660501c03d9b7a4581676d60cd2a7bde3385e23a01a9",
+    "review": "independent metadata inspection; not independently executed native build or CNB API call"
+  }
+]

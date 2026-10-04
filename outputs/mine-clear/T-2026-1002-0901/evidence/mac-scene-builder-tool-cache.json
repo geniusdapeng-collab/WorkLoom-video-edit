@@ -1,0 +1,20 @@
+{
+  "at": "2026-10-03T17:43:16.597473+08:00",
+  "artifact_url": "https://github.com/electron-userland/electron-builder-binaries/releases/download/icons@1.1.0/icons-bundle.tar.gz",
+  "official_checksum_source": "https://raw.githubusercontent.com/electron-userland/electron-builder/master/packages/app-builder-lib/src/toolsets/icons.ts",
+  "installed_toolset_version": "1.1.0",
+  "expected_sha256": "2241c9501aa5ddd19317956449f50a1bc311df2c34058aae9bf8bfe62081eaec",
+  "actual_sha256": "2241c9501aa5ddd19317956449f50a1bc311df2c34058aae9bf8bfe62081eaec",
+  "verified": true,
+  "bytes": 3143719,
+  "download_route": "Existing local HTTP proxy; TLS and SHA checks kept",
+  "owned_toolset_directory": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/builder-icons-1.1.0/icons-bundle",
+  "dependency_or_product_source_changed": false,
+  "original_builder_receipt": "mac-scene-dir-build.json",
+  "original_builder_exit_code": 1,
+  "original_failure": "connect ETIMEDOUT 20.205.243.166:443",
+  "interruption_performed": false,
+  "first_cache_retry": "mac-scene-dir-build-cached.json",
+  "first_cache_retry_exit_code": 1,
+  "first_cache_retry_reason": "Observer used outer directory; actual tool is inside icons-bundle; original error retained"
+}

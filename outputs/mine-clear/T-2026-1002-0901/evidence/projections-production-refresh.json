@@ -1,0 +1,13 @@
+{
+  "name": "projections-production-refresh",
+  "command": [
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+    "--env-file=.env",
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/pnpm/bin/pnpm.cjs",
+    "projections:generate"
+  ],
+  "exit_code": 0,
+  "seconds": 0.62,
+  "ran_at": "2026-10-02T22:21:45.777713+08:00",
+  "log": "projections-production-refresh.log"
+}

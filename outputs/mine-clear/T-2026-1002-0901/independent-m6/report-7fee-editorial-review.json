@@ -1,0 +1,22 @@
+{
+  "schema": "growth.independent-m6/report-editorial-review@1",
+  "reviewed_at": "2026-10-03T19:32:45.334088+08:00",
+  "reviewed_by": "growth_m6",
+  "source_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+  "report_sha256": "5c0855799e4bf89a2cd14d5a889849bfbcbc46cdd5fbe8494e323fa1e7e26c72",
+  "report_lines": 438,
+  "complete_report_text_read": true,
+  "truncated_read_ranges_reread": [
+    "165..194",
+    "240..270"
+  ],
+  "source_statement_actual_current_cases": 173,
+  "inherited_unique_cases": 385,
+  "full_rdas_pass": false,
+  "final_native_verified": false,
+  "new_stage_pixels_directly_reviewed": 4,
+  "prior_floor_pixels_retained_with_original_source": 32,
+  "new_geometry_cases_are_inside_product36": true,
+  "missing_original_unit_source_fields_disclosed": true,
+  "native_GUI_and_MCD_execution_still_pending": true
+}

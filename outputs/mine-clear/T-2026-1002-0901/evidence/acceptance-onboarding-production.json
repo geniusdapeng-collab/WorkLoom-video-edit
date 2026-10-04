@@ -1,0 +1,13 @@
+{
+  "name": "acceptance-onboarding-production",
+  "command": [
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+    "--env-file=.env",
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/pnpm/bin/pnpm.cjs",
+    "acceptance:onboarding"
+  ],
+  "exit_code": 0,
+  "seconds": 5.378,
+  "ran_at": "2026-10-02T22:23:06.969389+08:00",
+  "log": "acceptance-onboarding-production.log"
+}

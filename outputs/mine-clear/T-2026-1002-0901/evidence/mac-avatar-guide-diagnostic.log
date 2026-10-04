@@ -1,0 +1,10 @@
+COMMAND ["/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/生命周期修复 客户应用/WorkLoom 获客增长系统（实验车道）.app/Contents/MacOS/WorkLoom 获客增长系统（实验车道）", "--remote-debugging-port=29822"]
+
+DevTools listening on ws://127.0.0.1:29822/devtools/browser/f448526b-a071-400f-a629-b5b3b581789c
+02:01:56 == WorkLoom 织元 · 引导启动（resources=/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/生命周期修复 客户应用/WorkLoom 获客增长系统（实验车道）.app/Contents/Resources）==
+02:01:56 正在检查本机版本与安装载荷…
+02:01:56 → 解压运行时载荷（v0.1.0-fix.20261003.1）…
+02:02:51 载荷解压完成
+WorkLoom 启动失败：载荷版本不一致：期望 v0.1.0-fix.20261003.1，实际 缺失
+日志目录：/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/生命周期 默认客户/logs
+[89044:1003/020253.561649:ERROR:content/browser/network_service_instance_impl.cc:650] Network service crashed or was terminated, restarting service.

@@ -1,0 +1,68 @@
+{
+  "schema": "growth.independent-m6/resource-handback@1",
+  "generated_at": "2026-10-03T21:19:04.316762+08:00",
+  "source_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+  "handed_back_by": "growth_m6",
+  "handed_back_to": "root",
+  "physical_source_PG_GPU_native_large_IO_window_released": true,
+  "own_active_process_sessions": [],
+  "closed_actual_exit0_sessions": [
+    38585,
+    82377,
+    15597,
+    23996
+  ],
+  "readonly_DMG_mount_actually_detached": true,
+  "source_clean_verified": true,
+  "actual_native_source_bytes_QA_verified": true,
+  "own_metadata_only_continuation_remaining": true,
+  "source_formal_first_full_byte_build_exit_code": 0,
+  "source_formal_final_index_validation_pending": true,
+  "source_scoped_merge_eligible": false,
+  "actual_MCD_acceptance_executed": false,
+  "next_dependency": "Root actual24repair on exactclean7fee, immutable repair snapshot and explicit ownedPG window release before growth_m6 actual23acceptance",
+  "private_contents_opened": false,
+  "real_provider_calls": 0,
+  "files": [
+    {
+      "file": "final-native-surface-input.json",
+      "sha256": "f257f80198868335d51eb306a6b2e334216fb2c24991e44fb6a591eb4a863724",
+      "bytes": 1677
+    },
+    {
+      "file": "floor-native-verification.json",
+      "sha256": "c9e6b235665f0ae2dd2dbf4a58ec4e927b55dc870e783abb87f230d1ec74c38a",
+      "bytes": 19778
+    },
+    {
+      "file": "surface-final-app-byte-probe-results.json",
+      "sha256": "bc904590e70295d85ba7d65f01404b3fa3d43eb1ea8d25ab9b4b554fa6ba16ff",
+      "bytes": 2558
+    },
+    {
+      "file": "surface-final-payload-byte-probe-results.json",
+      "sha256": "f4d21bedffaad1312f977acaa85165927487b603223d890d0a975cdf6ddd030a",
+      "bytes": 1406483
+    },
+    {
+      "file": "surface-final-dmg-byte-probe-results.json",
+      "sha256": "5ec12656775d0a220969f0f950f28308aea2b445a95f32a01d0b75c94398af38",
+      "bytes": 1394
+    },
+    {
+      "file": "native-surface-diagnostic-export-independent-review.json",
+      "sha256": "028dc76445d50057fdb87239ab297b86ae1e8dde629bcd57d76a2fad4acc7015",
+      "bytes": 4970
+    },
+    {
+      "file": "mcd-exec-helper-fullread.json",
+      "sha256": "17f7c6fe4a14b0b5471c8a698234e9d9675985700b60b5bac35b775a9a5f22b9",
+      "bytes": 5928
+    },
+    {
+      "file": "mcd-exec-helper-fullread-7fee-final-native.json",
+      "sha256": "17f7c6fe4a14b0b5471c8a698234e9d9675985700b60b5bac35b775a9a5f22b9",
+      "bytes": 5928
+    }
+  ]
+}

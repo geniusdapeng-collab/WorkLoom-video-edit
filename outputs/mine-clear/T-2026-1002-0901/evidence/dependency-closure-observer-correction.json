@@ -1,0 +1,14 @@
+{
+  "at": "2026-10-04T00:26:11.314801+08:00",
+  "schema": "growth.evidence-observer-correction@1",
+  "source_commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+  "product_failure": false,
+  "original_full_closure_json_overwritten_by_command_receipt": true,
+  "original_closure_log_retained": true,
+  "original_rich_full_rows_not_retained": true,
+  "new_exact_current_source_closure_run": "dependency-payload-closure-check",
+  "source_changed": false,
+  "app_check_failed_before_final_fingerprint_written": true,
+  "native_default_launch_not_executed_missing_fingerprint": true,
+  "runner_fix": "Reject reused label/output; preserve child JSON on name collision and use a separate command receipt"
+}

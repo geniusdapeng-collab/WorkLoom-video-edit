@@ -1,0 +1,39 @@
+{
+  "source_commit": "f0a11286a49419fb7909088e2d170f4dde7b60c6",
+  "adapted_by": "growth_m6",
+  "code_origin": "root scene-layout observer, fully read 116 lines and both fixture files",
+  "product_source_changed": false,
+  "camera_canvas_layout_or_hitbox_replaced": false,
+  "assertions_or_deadlines_relaxed": false,
+  "rewrites": {
+    "const repo = resolve(base, \"growth-audit\");": "const repo = resolve(base, \"../../../work/growth-audit\");",
+    "const out = resolve(base, \"../outputs/growth-production-fix-2026-10-02/evidence\");": "const out = base;",
+    "const own = resolve(base, \"scene-layout-fixture\");": "const own = resolve(base, \"scene-f0-fixture\");",
+    "const css = resolve(out, \"../repair-obs17/floor-production-7d5.css\");": "const css = resolve(base, \"floor-production-7d5.css\");",
+    "cacheDir: resolve(base, \"scene-layout-cache\")": "cacheDir: resolve(base, \"scene-f0-cache\")",
+    "port: 29248": "port: 29258",
+    "\"29248\"": "\"29258\"",
+    "127.0.0.1:29248": "127.0.0.1:29258",
+    "schema: \"growth.scene-layout@1\"": "schema: \"growth.independent-m6/scene-layout@1\", verified_by: \"growth_m6\""
+  },
+  "files": [
+    {
+      "original_file": "work/scene-layout-probe.mjs",
+      "original_sha256": "88c3108ae72ca1c6fe0babb8d069483e8859b325318570634cd038cc5b63852e",
+      "file": "scene-f0-probe.mjs",
+      "owned_sha256": "f1acbcd9d0b080059d239b1978ec3ec6196133527110cdb431a3670df044b818"
+    },
+    {
+      "original_file": "work/scene-layout-fixture/fixture.tsx",
+      "original_sha256": "729417f88479b5895b927887a34c3799ec799f4c459c7119da1f0927edcc64e6",
+      "file": "scene-f0-fixture/fixture.tsx",
+      "owned_sha256": "729417f88479b5895b927887a34c3799ec799f4c459c7119da1f0927edcc64e6"
+    },
+    {
+      "original_file": "work/scene-layout-fixture/index.html",
+      "original_sha256": "ab5736eb783e241bb5ca4193033096807cc1f02f44bdda0dfba99334c1fb0218",
+      "file": "scene-f0-fixture/index.html",
+      "owned_sha256": "c1a4e53e80dc362d2b495499460076f8c700081538a9a64cb5e291e009933e92"
+    }
+  ]
+}

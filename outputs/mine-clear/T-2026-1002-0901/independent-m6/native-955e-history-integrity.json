@@ -1,0 +1,130 @@
+{
+  "schema": "growth.independent-m6/native-history-integrity@1",
+  "verified_by": "growth_m6",
+  "verified_at": "2026-10-03T03:27:01.269518+08:00",
+  "operation": "Read-only retained public QA artifacts and private config stat only; no source/native/support/DB mutation",
+  "original_ad4a_failed_files": [
+    {
+      "file": "native-avatar-default-render-default.json",
+      "sha256": "69aeff17e3c6cc7318ce99f9801f57504b4c9c5ad1b1b056441c4a9970cf3329",
+      "bytes": 4439
+    },
+    {
+      "file": "native-avatar-default-render-default.png",
+      "sha256": "e6ba4fae04a7456888922521651a46f5905a8243e5d19fba35aba1d91fb25020",
+      "bytes": 1527215
+    },
+    {
+      "file": "native-avatar-default-team-default.png",
+      "sha256": "a177bbc36a5a36b5e614bdac944f301a8f72494dd0f7a50ad50106600d94b8b3",
+      "bytes": 1487250
+    }
+  ],
+  "original_ad4a_guide": {
+    "shown": true,
+    "clicked": true,
+    "supported": true,
+    "closed": false
+  },
+  "original_ad4a_command_exit_code": 1,
+  "current_955e_failed_files": [
+    {
+      "file": "native-welcome-default-render-default.json",
+      "sha256": "d3b096533c69d2bf679fdd5e490914626fa54975aa5aa7217c77a616cea71c27",
+      "bytes": 1103
+    },
+    {
+      "file": "native-welcome-default-render-default.png",
+      "sha256": "9e4bbd7e42a2dda330bf2839220e381bafd6050aa1f6a707f5ff45944a023736",
+      "bytes": 182129
+    }
+  ],
+  "current_955e_command_exit_code": 1,
+  "current_955e_command_seconds": 561.676,
+  "current_955e_failure": {
+    "product_ready": false,
+    "welcome_ready": false,
+    "actors": 0,
+    "avatar_ready": false,
+    "render_mode": null,
+    "access_wait_visible": true,
+    "root_cause_proven": false,
+    "private_state_retained_boolean_is_not_a_configuration_hash_proof": true
+  },
+  "separate_ad4a_instrumented_diagnostic_files": [
+    {
+      "file": "native-guide-diagnostic-v2-render-default.json",
+      "sha256": "8c772c472633fca1dfe594bfd183c1f82f87c4c0655c1437cc9ba4cf9a588537",
+      "bytes": 5177
+    },
+    {
+      "file": "native-guide-diagnostic-v2-render-default.png",
+      "sha256": "2a03b36951db4bf5c8e2f2aafc120127f1f75d68a25ee981e07348601ce7bb15",
+      "bytes": 1510031
+    },
+    {
+      "file": "native-guide-diagnostic-v2-stage-default.png",
+      "sha256": "ec06afc134e484a0b91ff76f9e4dda97e48603e4d8af70bac958df11663d14bb",
+      "bytes": 569657
+    },
+    {
+      "file": "native-guide-diagnostic-v2-team-default.png",
+      "sha256": "2865b4af3b854d0cc083f32d0f59fa961417ecebf7e717e052b5c187b3df225d",
+      "bytes": 1500306
+    },
+    {
+      "file": "native-guide-diagnostic-v2-workplace-default.png",
+      "sha256": "d86c9e24b6cc6373906000e767c5b05c7a8685360baefcceac7d0c62e7e1113c",
+      "bytes": 1714424
+    }
+  ],
+  "diagnostic_frames": 80,
+  "diagnostic_welcome_responses": [
+    {
+      "at": 1790964712991,
+      "http_status": 200,
+      "status": "not_started",
+      "current_step": "start"
+    },
+    {
+      "at": 1790964714264,
+      "http_status": 200,
+      "status": "in_progress",
+      "current_step": "mate"
+    },
+    {
+      "at": 1790964733854,
+      "http_status": 200,
+      "status": "in_progress",
+      "current_step": "team"
+    },
+    {
+      "at": 1790964738086,
+      "http_status": 200,
+      "status": "completed",
+      "current_step": "done"
+    },
+    {
+      "at": 1790964741000,
+      "http_status": 200,
+      "status": "in_progress",
+      "current_step": "summary"
+    }
+  ],
+  "diagnostic_errors": 1,
+  "observed_completed_response_at": 1790964738086,
+  "observed_late_nonterminal_response_at": 1790964741000,
+  "late_response_is_not_original_native_causal_proof": true,
+  "private_v2_configuration": {
+    "exists": true,
+    "file_mode": "0600",
+    "contents_opened": false,
+    "root_reported_sha256": "efb19ffe30f710c03aa3d5b6f90538d3e4b9381dfefbdcd06eaf8fe0a763fdb2",
+    "sha256_independently_recomputed": false
+  },
+  "correction_receipt": "native-config-preservation-correction.json",
+  "corrected_claim": "Two older cleanups removed the task-generated runtime/.env with runtime; blanket configuration preservation is false for those two owned QA fixtures.",
+  "configuration_scope": "Randomly generated configurations for isolated QA fixtures created by this task; no customer configuration or supplier credential values included.",
+  "earlier_09bc_overwritten_png_and_18_unretained_frames_remain_disclosed": true,
+  "final_955e_native_gate_verified": false
+}

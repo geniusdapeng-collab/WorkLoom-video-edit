@@ -1,0 +1,26 @@
+{
+  "passed": true,
+  "model_calls": 0,
+  "checks": [
+    {
+      "name": "Human rejection requires a reviewer and a concrete reason",
+      "healthy": true
+    },
+    {
+      "name": "Actual CLI records rejection without model credentials",
+      "healthy": true
+    },
+    {
+      "name": "Rejection is bound to the selected character version and human basis",
+      "healthy": true
+    },
+    {
+      "name": "A later machine success cannot erase that actual human rejection",
+      "healthy": true
+    },
+    {
+      "name": "Rejection preserves the profile and every original candidate",
+      "healthy": true
+    }
+  ]
+}

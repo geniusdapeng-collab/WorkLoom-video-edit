@@ -1,0 +1,280 @@
+{
+  "schema": "growth.independent-m6/floor-scroll-trace@1",
+  "verifier": "growth_m6",
+  "source_commit": "aad8700daa0991555b9792db80f4703e3322f4f1",
+  "production_css": {
+    "file": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/independent-m6/floor-production-7d5.css",
+    "sha256": "bc5b185ab487ec8441ca19a29646b603a15f2382cb4d48a73263fc81e76ad777",
+    "compiled_source_commit": "7d5f02049cc75a692d4eaac33916633cb2192f01",
+    "method": "Exact frozen production build CSS; original source global styles unchanged since955e; actual computed styles are observed."
+  },
+  "baseline_mode": false,
+  "extra_user_scroll_controls": false,
+  "diagnostic_only": true,
+  "trace_method": "Native setters delegate unchanged; no extent read before delegation. Immediate actual native scroll getter after delegation; extents sampled on microtask and native event capture. Canvas bitmap native setters record order. Native getter/extent observation can flush layout and disturb timing, so uninstrumented original6/7 remains separate control.",
+  "source_root": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit",
+  "source_hashes": {
+    "apps/web/src/pages/p0/Floor.tsx": "ae8560d0eebcde8a49ae5bdde44d3a818b0d037dede4c28e0bc465a397217449",
+    "apps/web/src/lib/naming.ts": "8d05e0df3b163ab4186e577af1555d1b9e389ded97a0ad1faad3f3a993b946bd",
+    "bundles/geo-growth/floor-scene.json": "944aef23a59f2eaffa4899edb3aaf8895bcade8dac81926a4b32ef4ff37bee32",
+    "apps/web/src/pages/p0/floor-layout.ts": "d4b435b40ffaf11077ba0906ecbda3a9291165a7fb6ea59f2f611441443cfaa2"
+  },
+  "actual_installed_ui_language_sha256": "f6a052cc7994cfe68430f353f8d09b0cecf2dcb005a74a64b0d7257d457bdec2",
+  "browser": "154.0.8037.95",
+  "scenarios": [
+    {
+      "id": "first-long65-idle-390",
+      "state": "idle",
+      "stations": "none",
+      "width": 390,
+      "count": 65
+    },
+    {
+      "id": "first-long65-working-1440",
+      "state": "working",
+      "stations": "shared",
+      "width": 1440,
+      "count": 65
+    }
+  ],
+  "cases": [
+    {
+      "id": "first-long65-idle-390-initial-visible-card",
+      "expected": "At least one employee plaque is initially visible without scrolling after the first actual paint frame",
+      "actual": {
+        "visible": [],
+        "region": {
+          "x": 16,
+          "y": 16,
+          "width": 358,
+          "height": 380,
+          "scrollLeft": 0,
+          "scrollTop": 0
+        },
+        "canvas": {
+          "x": 16,
+          "y": 16,
+          "width": 1590,
+          "height": 1686,
+          "pixelWidth": 1590,
+          "pixelHeight": 1686,
+          "logical": {
+            "width": 1590,
+            "height": 1686
+          },
+          "cssScale": {
+            "x": 1,
+            "y": 1
+          }
+        },
+        "labels": 65
+      },
+      "pass": false,
+      "error": "No actor plaque visible in initial 358x380 region",
+      "native_scroll_trace": [
+        {
+          "order": 1,
+          "type": "native-scroll-setter",
+          "property": "scrollLeft",
+          "desired": 653,
+          "beforeNativeDimensionsRead": false,
+          "actualImmediatelyAfterSetter": 0,
+          "inlineContentWidth": "1590px",
+          "inlineContentHeight": "1686px"
+        },
+        {
+          "order": 2,
+          "type": "native-scroll-setter",
+          "property": "scrollTop",
+          "desired": 362.5,
+          "beforeNativeDimensionsRead": false,
+          "actualImmediatelyAfterSetter": 0,
+          "inlineContentWidth": "1590px",
+          "inlineContentHeight": "1686px"
+        },
+        {
+          "order": 3,
+          "type": "canvas-native-bitmap-setter",
+          "property": "width",
+          "before": 300,
+          "desired": 1590,
+          "canvasStyleWidth": "1590px",
+          "canvasStyleHeight": "1686px",
+          "after": 1590
+        },
+        {
+          "order": 4,
+          "type": "canvas-native-bitmap-setter",
+          "property": "height",
+          "before": 150,
+          "desired": 1686,
+          "canvasStyleWidth": "1590px",
+          "canvasStyleHeight": "1686px",
+          "after": 1686
+        },
+        {
+          "order": 5,
+          "type": "setter-after-microtask",
+          "setterOrder": 1,
+          "extent": {
+            "left": 0,
+            "top": 0,
+            "scrollWidth": 358,
+            "scrollHeight": 380,
+            "clientWidth": 358,
+            "clientHeight": 380,
+            "contentWidth": "1590px",
+            "contentHeight": "1686px",
+            "canvasWidth": 1590,
+            "canvasHeight": 1686
+          }
+        },
+        {
+          "order": 6,
+          "type": "setter-after-microtask",
+          "setterOrder": 2,
+          "extent": {
+            "left": 0,
+            "top": 0,
+            "scrollWidth": 358,
+            "scrollHeight": 380,
+            "clientWidth": 358,
+            "clientHeight": 380,
+            "contentWidth": "1590px",
+            "contentHeight": "1686px",
+            "canvasWidth": 1590,
+            "canvasHeight": 1686
+          }
+        }
+      ]
+    },
+    {
+      "id": "first-long65-working-1440-initial-visible-card",
+      "expected": "At least one employee plaque is initially visible without scrolling after the first actual paint frame",
+      "actual": {
+        "visible": [
+          "m6-floor-22"
+        ],
+        "region": {
+          "x": 336,
+          "y": 16,
+          "width": 768,
+          "height": 440,
+          "scrollLeft": 0,
+          "scrollTop": 0
+        },
+        "canvas": {
+          "x": 336,
+          "y": 16,
+          "width": 2522,
+          "height": 1449,
+          "pixelWidth": 2522,
+          "pixelHeight": 1449,
+          "logical": {
+            "width": 2522,
+            "height": 1449
+          },
+          "cssScale": {
+            "x": 1,
+            "y": 1
+          }
+        },
+        "labels": 65
+      },
+      "pass": true,
+      "native_scroll_trace": [
+        {
+          "order": 1,
+          "type": "native-scroll-setter",
+          "property": "scrollLeft",
+          "desired": 760,
+          "beforeNativeDimensionsRead": false,
+          "actualImmediatelyAfterSetter": 0,
+          "inlineContentWidth": "2522px",
+          "inlineContentHeight": "1449px"
+        },
+        {
+          "order": 2,
+          "type": "native-scroll-setter",
+          "property": "scrollTop",
+          "desired": 436.5,
+          "beforeNativeDimensionsRead": false,
+          "actualImmediatelyAfterSetter": 0,
+          "inlineContentWidth": "2522px",
+          "inlineContentHeight": "1449px"
+        },
+        {
+          "order": 3,
+          "type": "canvas-native-bitmap-setter",
+          "property": "width",
+          "before": 300,
+          "desired": 2522,
+          "canvasStyleWidth": "2522px",
+          "canvasStyleHeight": "1449px",
+          "after": 2522
+        },
+        {
+          "order": 4,
+          "type": "canvas-native-bitmap-setter",
+          "property": "height",
+          "before": 150,
+          "desired": 1449,
+          "canvasStyleWidth": "2522px",
+          "canvasStyleHeight": "1449px",
+          "after": 1449
+        },
+        {
+          "order": 5,
+          "type": "setter-after-microtask",
+          "setterOrder": 1,
+          "extent": {
+            "left": 0,
+            "top": 0,
+            "scrollWidth": 768,
+            "scrollHeight": 440,
+            "clientWidth": 768,
+            "clientHeight": 440,
+            "contentWidth": "2522px",
+            "contentHeight": "1449px",
+            "canvasWidth": 2522,
+            "canvasHeight": 1449
+          }
+        },
+        {
+          "order": 6,
+          "type": "setter-after-microtask",
+          "setterOrder": 2,
+          "extent": {
+            "left": 0,
+            "top": 0,
+            "scrollWidth": 768,
+            "scrollHeight": 440,
+            "clientWidth": 768,
+            "clientHeight": 440,
+            "contentWidth": "2522px",
+            "contentHeight": "1449px",
+            "canvasWidth": 2522,
+            "canvasHeight": 1449
+          }
+        }
+      ]
+    },
+    {
+      "id": "owned-canvas-no-errors-or-network",
+      "expected": "No page error or external network request occurred in the actual isolated Floor component fixture",
+      "actual": {
+        "errors": [],
+        "blockedRequests": []
+      },
+      "pass": true
+    }
+  ],
+  "passed": 2,
+  "failed": 1,
+  "fixture": "Actual imported FloorView (exact git blobs when baseline_mode), installed clientChineseText and GEO scene; real Canvas native fill path bounds, TextMetrics and painted head circles; actual mouse callbacks with per-click deltas. RAF runs one real component paint frame at initial mount. No product layout or hitbox method is copied or replaced.",
+  "observation_change": "Additional initial-viewport discoverability expectation, independent of offscreen reachability; earlier 24 and 14 control receipts retained unchanged. Measures actual filled path backgrounds and painted heads instead of inferring rectangles/centers from the original two-line baseline. Explicitly checks per-click callback increments; scrolls actual overflow containers before pointer clicks. Original observer and 6/18 red receipt are preserved separately.",
+  "limitation": "Isolated desktop component fixture, not a native cold run, real phone or complete UX study. Valid synthetic floor payloads; no production DB or media provider calls.",
+  "metrics_reference": "https://html.spec.whatwg.org/multipage/canvas.html#textmetrics",
+  "errors": [],
+  "blockedRequests": []
+}

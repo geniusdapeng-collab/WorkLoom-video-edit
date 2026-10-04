@@ -1,0 +1,15 @@
+{
+  "name": "floor-current-web-types",
+  "command": [
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+    "--env-file=.env",
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/pnpm/bin/pnpm.cjs",
+    "--filter",
+    "@workloom/web",
+    "typecheck"
+  ],
+  "exit_code": 0,
+  "seconds": 16.417,
+  "ran_at": "2026-10-03T04:50:47.155062+08:00",
+  "log": "floor-current-web-types.log"
+}

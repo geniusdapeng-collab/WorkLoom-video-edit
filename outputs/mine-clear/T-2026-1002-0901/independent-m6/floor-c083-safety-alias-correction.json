@@ -1,0 +1,26 @@
+{
+  "schema": "growth.independent-m6/harness-correction@1",
+  "source_commit": "c08386eb9993744a0cb0c2495a98fc1fc4ccbed9",
+  "recorded_at": "2026-10-03T09:15:24.195466+08:00",
+  "prepared_by": "growth_m6",
+  "actual_failure": "Safety-only observer Vite dependency optimization failed before any product/browser case because bare string alias three also rewrote three/examples/... to a file entry plus subpath",
+  "failed_run": "history/c083-safety-alias-original/floor-c083-safety.json",
+  "original_sha256": "3f881d0102a89a265956e38045f969a861f9f4d1b0f2dff8280c5a4a586e9f1b",
+  "corrected_sha256": "e0aac4c845238162b503962d608b02a0fd9001eee705f40bca8b5ee3e6a2bce1",
+  "change": "Exact full-name regular expression aliases only, matching unchanged successful default/edges/hover observer contract; no replacement of product code, assertions or timeouts",
+  "executed_product_cases_in_failed_attempt": 0,
+  "preserved_files": [
+    "history/c083-safety-alias-original/floor-c083-safety.json",
+    "history/c083-safety-alias-original/floor3d-safety-c083-probe.mjs",
+    "history/c083-safety-alias-original/floor-c083-safety.log",
+    "history/c083-safety-alias-original/floor-c083-safety-provenance.json"
+  ],
+  "new_attempt_prefix": "floor-c083-safety-fixed",
+  "official_reference": {
+    "title": "Vite v8.3.0 Shared Options - resolve.alias",
+    "url": "https://github.com/vitejs/vite/blob/v8.3.0/docs/config/shared-options.md#resolvealias",
+    "retrieved": "2026-10-03",
+    "search": "Bing result irrelevant; exact official raw GitHub documentation retrieved successfully",
+    "supported_fact": "Array alias find may be a RegExp; full-name regular expression avoids this observer string-prefix rewrite"
+  }
+}

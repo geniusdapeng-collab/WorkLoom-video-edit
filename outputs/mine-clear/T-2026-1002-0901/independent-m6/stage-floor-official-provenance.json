@@ -1,0 +1,57 @@
+{
+  "schema": "growth.independent-m6/stage-floor-official-provenance@1",
+  "retrieved_at": "2026-10-03T18:09:22.740869+08:00",
+  "read_by": "growth_m6",
+  "source_commit": "f9515d09ee6de9b34f38b93d3769654fe4869391",
+  "official_sources": [
+    {
+      "title": "Drei MeshReflectorMaterial exact v10.7.8 source",
+      "url": "https://raw.githubusercontent.com/pmndrs/drei/v10.7.8/src/core/MeshReflectorMaterial.tsx",
+      "retrieval": "Actual raw_file tool success, complete response without truncation",
+      "local_file": "stage-floor-official-Drei-MeshReflectorMaterial-v10.7.8.tsx",
+      "sha256": "e905f769a55d74359c4540f03cad8edac1fbddd6bbd1ece237f7eecbb777cc48",
+      "full_file_read": true,
+      "scope": "Reflector plane/virtual camera/useFrame parent visibility and scene render only; this does not imply the full material shader/blur implementation was read",
+      "fact": "Per-frame reflective pass temporarily hides the reflector own parent, renders the scene into reflection target, then restores that parent; other product geometry remains present"
+    },
+    {
+      "title": "Three.js official cameras manual",
+      "url": "https://threejs.org/manual/pages/cameras.html",
+      "retrieval": "Actual web search then open success",
+      "read_scope": "Rendered lines224..260, with prior camera overview; not full manual semantic reading",
+      "fact": "Limited depth precision between near and far can make the renderer unable to reliably decide which surfaces are in front",
+      "current_product_caused_by_that_fact_proven": false
+    }
+  ],
+  "immutable_original_function_bindings": [
+    {
+      "file": "apps/web/src/components/Stage3D.tsx",
+      "function": "Theater",
+      "audit_source": "42ead347c65a5cc343bcd290702d53a7fcdb1687",
+      "discovery_source": "f9515d09ee6de9b34f38b93d3769654fe4869391",
+      "function_equal": true,
+      "function_sha256_audit": "5bae56189a3b38ac45138f15bf63164195418238207f0d83dfad236716cfe8c0",
+      "function_sha256_discovery": "5bae56189a3b38ac45138f15bf63164195418238207f0d83dfad236716cfe8c0",
+      "whole_file_equal": false,
+      "grade": "B immutable Git byte equivalence; A current full implementation read"
+    },
+    {
+      "file": "apps/web/src/components/cinematic.tsx",
+      "function": "CineFloor",
+      "audit_source": "42ead347c65a5cc343bcd290702d53a7fcdb1687",
+      "discovery_source": "f9515d09ee6de9b34f38b93d3769654fe4869391",
+      "function_equal": true,
+      "function_sha256_audit": "0f21511c9992c0536af54bf50ea599915523c4a3fea8a94abc7ffacd5f994428",
+      "function_sha256_discovery": "0f21511c9992c0536af54bf50ea599915523c4a3fea8a94abc7ffacd5f994428",
+      "whole_file_equal": true,
+      "grade": "B immutable Git byte equivalence; A current full implementation read"
+    }
+  ],
+  "original_runtime_discovery_commit": "f9515d09ee6de9b34f38b93d3769654fe4869391",
+  "original_runtime_not_relabelled_to_audit": true,
+  "coplanar_source_math": "CineFloor y=-0.02; cylinder center y=-0.09, height0.14, cap nominal y=-0.02. Actual finite GPU depth conflict remains a candidate until controlled counterfactual.",
+  "actual_counterfactual_by_verifier": false,
+  "cause_grade": "D",
+  "private_data_opened": false,
+  "actual_gpu_native_or_pg_by_verifier": false
+}

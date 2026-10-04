@@ -1,0 +1,84 @@
+{
+  "passed": true,
+  "environment": "isolated loopback production HTTP, fake non-example business data, no provider calls",
+  "checks": [
+    {
+      "name": "Anonymous production owner impersonation denied on non-example real-mode fixture",
+      "healthy": true,
+      "actual": {
+        "http": 403
+      }
+    },
+    {
+      "name": "Protected API rejects anonymous requests",
+      "healthy": true,
+      "actual": {
+        "http": 401
+      }
+    },
+    {
+      "name": "Desktop capability is mandatory",
+      "healthy": true,
+      "actual": {
+        "http": 401
+      }
+    },
+    {
+      "name": "Wrong desktop capability rejected",
+      "healthy": true,
+      "actual": {
+        "http": 401
+      }
+    },
+    {
+      "name": "Trusted local capability signs only the configured identity",
+      "healthy": true,
+      "actual": {
+        "http": 200,
+        "targetMatches": true
+      }
+    },
+    {
+      "name": "Trusted local session can access the real protected API",
+      "healthy": true,
+      "actual": {
+        "http": 200
+      }
+    },
+    {
+      "name": "Unsupported JWT algorithm denied",
+      "healthy": true,
+      "actual": {
+        "http": 401
+      }
+    },
+    {
+      "name": "JWT without expiration denied",
+      "healthy": true,
+      "actual": {
+        "http": 401
+      }
+    },
+    {
+      "name": "JWT without issue time denied",
+      "healthy": true,
+      "actual": {
+        "http": 401
+      }
+    },
+    {
+      "name": "Expired JWT denied",
+      "healthy": true,
+      "actual": {
+        "http": 401
+      }
+    },
+    {
+      "name": "Wrong product issuer denied",
+      "healthy": true,
+      "actual": {
+        "http": 401
+      }
+    }
+  ]
+}

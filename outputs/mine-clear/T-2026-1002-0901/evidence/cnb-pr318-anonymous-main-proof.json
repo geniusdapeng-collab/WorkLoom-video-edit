@@ -1,0 +1,28 @@
+{
+  "at": "2026-10-04T07:15:49.406755+08:00",
+  "read_channel": "anonymous git fetch with empty credential helper",
+  "repository": "workloom-ai/WorkLoom-growth",
+  "accepted_source": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+  "own_merge": "f50a0f5be2be4ba053d918e07a94e45cdae4e4c2",
+  "fetched_main": "f50a0f5be2be4ba053d918e07a94e45cdae4e4c2",
+  "accepted_is_ancestor_of_own_merge": true,
+  "own_merge_matches_accepted_tree": true,
+  "tree_diff": [],
+  "accepted_tree": "385bfacc4e997567b6265b61b4d6be53dbc82047",
+  "merged_tree": "385bfacc4e997567b6265b61b4d6be53dbc82047",
+  "own_source_task_pr": 318,
+  "input_files": [
+    {
+      "file": "cnb-pr318-unblock-merge.json",
+      "sha256": "cbd780dfe06db79be93205d128ff722be24ee5d6adb5126752810724989609df"
+    },
+    {
+      "file": "cnb-pr318-unblock-ready.json",
+      "sha256": "b4b060e9e844a482f1a4859bb5fb474a3f30d571d877c808827f5e7edffaa6bf"
+    },
+    {
+      "file": "cnb-native-followup-issue.json",
+      "sha256": "da4086f1839b3be2354965cbf0a766c11bd633c534e2d225651306c16f434d40"
+    }
+  ]
+}

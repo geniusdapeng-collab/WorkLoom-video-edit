@@ -1,0 +1,18 @@
+{
+  "at": "2026-10-03T20:48:50.657186+08:00",
+  "origin_url": "https://github.com/electron-userland/electron-builder-binaries/releases/download/dmg-builder%401.2.5/dmgbuild-bundle-arm64-75c8a6c.tar.gz",
+  "official_source_url": "https://raw.githubusercontent.com/electron-userland/electron-builder/HEAD/packages/dmg-builder/src/dmgUtil.ts",
+  "installed_tool_source": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/node_modules/.pnpm/dmg-builder@26.15.3_electron-builder-squirrel-windows@26.15.3/node_modules/dmg-builder/out/dmgUtil.js",
+  "installed_tool_source_sha256": "b110f021e1b08a131c6f9e810c5c9739e9f6a4db2881cba64047226050dafd69",
+  "pinned_archive_sha256": "793404d0c96687e27d5ee40a668d498c92e36a64d6c2906df511031adb33cbeb",
+  "download_sha256_verified": true,
+  "download_bytes": 22995919,
+  "safe_archive_members": 664,
+  "all_archive_links_bound_to_owned_directory": true,
+  "executable": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/builder-dmg-1.2.5/dmgbuild",
+  "executable_sha256": "f7d806f0a3803b49112522c1ddc299e7d27e4539f949c488f099aab75f12b31b",
+  "selection_env": "CUSTOM_DMGBUILD_PATH",
+  "original_failed_build": "mac-surface-dmg-build.json",
+  "source_changed": false,
+  "checksums_disabled": false
+}

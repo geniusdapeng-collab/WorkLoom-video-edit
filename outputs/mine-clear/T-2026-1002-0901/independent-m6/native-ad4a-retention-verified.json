@@ -1,0 +1,23 @@
+{
+  "origin": "growth_m6",
+  "grade": "B metadata equality; C two screenshot samples",
+  "source_commit": "ad4a7a0ba65845a8b401d3cbae7c8981c2ddfb4b",
+  "files": [
+    {
+      "file": "evidence__native-avatar-default-render-default.json",
+      "hash_equal": true,
+      "bytes_equal": true
+    },
+    {
+      "file": "evidence__native-avatar-default-render-default.png",
+      "hash_equal": true,
+      "bytes_equal": true
+    },
+    {
+      "file": "evidence__native-avatar-default-team-default.png",
+      "hash_equal": true,
+      "bytes_equal": true
+    }
+  ],
+  "cold_run": "failed; guide closed=false"
+}

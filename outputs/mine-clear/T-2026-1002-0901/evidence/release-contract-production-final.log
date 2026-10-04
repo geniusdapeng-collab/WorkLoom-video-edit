@@ -1,0 +1,38 @@
+COMMAND ["/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node", "--env-file=.env", "--test", "scripts/ci/cnb-desktop-release.test.mjs", "scripts/unsigned-desktop-release.test.mjs", "scripts/desktop-release-finalizer.test.mjs"]
+✔ CNB config has main-only signed producers and one locked publisher (10.264417ms)
+✔ Windows release runner calls pwsh and creates the pgvector source directory before git -C (4.3745ms)
+✔ context rejects wrong branch, source SHA, repo, role, or unsigned mode (1.404333ms)
+✔ preflight binds remote main and tag and refuses an existing Release (10.888333ms)
+✔ Mac producer seals exact candidates, uploads them once, and reads back SHA-512 (12.283833ms)
+✔ producer rejects a substituted remote candidate and untrusted confirmation URL (4.378041ms)
+✔ publisher creates draft, uploads exactly five assets, verifies remote bytes, then makes Latest (10.197708ms)
+✔ publisher leaves a draft when remote Release bytes change; never makes it public (8.493875ms)
+✔ publisher rejects a coherently replaced installer and manifest before creating a draft (4.311167ms)
+✔ publisher refuses mixed-build candidates before creating any Release (3.482709ms)
+✔ publisher rejects unsafe remote candidate filenames before download (3.189584ms)
+✔ publisher rejects a corrupted downloaded installer before the first Release write (5.496666ms)
+✔ publisher keeps an incomplete draft if main moves before public promotion (8.822292ms)
+✔ discovers existing product artifact names and assembles exactly five public assets (7.506667ms)
+✔ fails closed on duplicate architecture candidates (1.547583ms)
+✔ fails closed when a candidate is tampered with after sealing (4.930291ms)
+✔ fails closed when platform candidates belong to another tag (2.2445ms)
+✔ public verification rejects extra or missing assets (3.020875ms)
+✔ 正式发布只允许手动派发并默认显式选择 unsigned (17.316792ms)
+✔ 预检把稳定 tag、release_sha、dispatch SHA 与当前 main 精确绑定 (0.12325ms)
+✔ 正式发布并发、工具链与 Action 供应链全部锁定 (1.187084ms)
+✔ 平台未签名模式不削弱 Bundle Ed25519 信任链 (0.1395ms)
+✔ signed 与 unsigned 平台校验边界清晰 (0.170708ms)
+✔ 平台任务只封存同 run/attempt 候选，唯一 publisher 原子发布五资产 (0.278125ms)
+✔ Release 标题与当前仓库、稳定 tag 绑定 (0.047584ms)
+✔ 唯一 publisher 与基座 canonical 模板逐字节同源并展平候选资产 (0.450459ms)
+✔ 桌面产品身份、端口和签名配置与产品清单一致 (0.102375ms)
+✔ 全新 runner 在 Web 构建前先生成行业契约产物 (0.177791ms)
+✔ Windows 候选冒烟隔离端口、支持目录并完整留存三段诊断 (0.119625ms)
+ℹ tests 29
+ℹ suites 0
+ℹ pass 29
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 172.149875

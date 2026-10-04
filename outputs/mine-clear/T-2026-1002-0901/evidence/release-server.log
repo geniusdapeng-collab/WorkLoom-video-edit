@@ -1,0 +1,17 @@
+[service-c] SERVICE_C_DEMO_AUTH 已开启：h5/openid 演示直登可用（生产环境必须置 false 并配置渠道 code 交换凭据）
+apps/webc 静态托管已挂载：/app/c → /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/apps/webc/dist
+WorkLoom IM 底座 server 已启动：http://127.0.0.1:28787（tRPC: /trpc/*，C 端网关: /c/*）
+行业 ask 事实面已装载：geo-growth
+反馈枚举表已装载：hotel→ws-6fe2da2de028e3fd（11 条）、hotel→ws-c3n3xv（11 条）、hotel→ws-night-shift-contract（11 条）、geo-growth→ws-geo（13 条）、hotel→ws-82a6182e1b0cefce（11 条）、hotel→ws-0pwxig（11 条）、hotel→ws-b76f6c3d513ed86c（11 条）、hotel→ws-q3i2az（11 条）、hotel→ws-yunqi（11 条）
+[scheduler] 僵尸线程续跑 T-suite-stmur1b2zb-pifjqo → pending_review
+[scheduler] 启动恢复：补续跑 1 条「审批已通过但线程挂起」的僵尸线程
+(node:19520) DeprecationWarning: Calling client.query() when the client is already executing a query is deprecated and will be removed in pg@9.0. Use async/await or an external async flow control mechanism instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+[trpc] query skills.skillOps.status → INTERNAL_SERVER_ERROR: Connection terminated due to connection timeout（ref=a81552c6）
+[trpc] query onboarding.status → INTERNAL_SERVER_ERROR: Connection terminated due to connection timeout（ref=3e1838f5）
+[trpc] query onboarding.status → INTERNAL_SERVER_ERROR: Connection terminated due to connection timeout（ref=3e1838f5）
+[trpc] query threads.settledSince → INTERNAL_SERVER_ERROR: Connection terminated due to connection timeout（ref=d133b9e4）
+[trpc] 5xx 事件留痕失败（不二次抛出） Connection terminated due to connection timeout
+[trpc] query captain.theater → INTERNAL_SERVER_ERROR: Connection terminated due to connection timeout（ref=3727ffc0）
+[trpc] query captain.theater → INTERNAL_SERVER_ERROR: Connection terminated due to connection timeout（ref=3727ffc0）
+[trpc] query captain.theater → INTERNAL_SERVER_ERROR: Connection terminated due to connection timeout（ref=3727ffc0）

@@ -1,0 +1,11 @@
+{
+  "source_before": "7fee3a6a5563d41c568463994764d3883eb7667d",
+  "built_candidate_after_dependency_cut": true,
+  "original_files": 64,
+  "current_files": 64,
+  "added": [],
+  "removed": [],
+  "changed": [],
+  "evidence_grade": "B",
+  "all_web_build_bytes_equal": true
+}

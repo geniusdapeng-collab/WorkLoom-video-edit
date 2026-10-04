@@ -1,0 +1,190 @@
+{
+  "schema": "growth.independent-m6/ceremony-density@1",
+  "verifier": "growth_m6",
+  "source_commit": "ad4a7a0ba65845a8b401d3cbae7c8981c2ddfb4b",
+  "source_hash": "a1656582f7959424b6b0d1aa894b2e4ad8f6af5dc404d1e1bd0c4232ede1de94",
+  "browser": "154.0.8037.95",
+  "cases": [
+    {
+      "id": "dense-team-1440",
+      "expected": "All 65 actual team actors persist, labels do not overlap, scroll reaches the last actor, and the page stays inside the viewport",
+      "actual": {
+        "actorCount": 65,
+        "labelCount": 65,
+        "overlaps": [],
+        "overflowingText": [
+          {
+            "index": 9,
+            "text": "跨区域客户关系与经营数据复核负责人 9",
+            "scrollHeight": 48,
+            "clientHeight": 35,
+            "scrollWidth": 100,
+            "clientWidth": 100
+          },
+          {
+            "index": 18,
+            "text": "跨区域客户关系与经营数据复核负责人 18",
+            "scrollHeight": 48,
+            "clientHeight": 35,
+            "scrollWidth": 100,
+            "clientWidth": 100
+          },
+          {
+            "index": 27,
+            "text": "跨区域客户关系与经营数据复核负责人 27",
+            "scrollHeight": 48,
+            "clientHeight": 35,
+            "scrollWidth": 100,
+            "clientWidth": 100
+          },
+          {
+            "index": 36,
+            "text": "跨区域客户关系与经营数据复核负责人 36",
+            "scrollHeight": 48,
+            "clientHeight": 35,
+            "scrollWidth": 100,
+            "clientWidth": 100
+          },
+          {
+            "index": 45,
+            "text": "跨区域客户关系与经营数据复核负责人 45",
+            "scrollHeight": 48,
+            "clientHeight": 35,
+            "scrollWidth": 100,
+            "clientWidth": 100
+          },
+          {
+            "index": 54,
+            "text": "跨区域客户关系与经营数据复核负责人 54",
+            "scrollHeight": 48,
+            "clientHeight": 35,
+            "scrollWidth": 100,
+            "clientWidth": 100
+          },
+          {
+            "index": 63,
+            "text": "跨区域客户关系与经营数据复核负责人 63",
+            "scrollHeight": 48,
+            "clientHeight": 35,
+            "scrollWidth": 100,
+            "clientWidth": 100
+          }
+        ],
+        "scrollHeight": 732,
+        "clientHeight": 616,
+        "scrollTop": 116,
+        "lastActorFullyVisible": true,
+        "horizontalOverflow": 0,
+        "minimumLabelHeight": 32,
+        "regionRole": "region",
+        "regionTabIndex": 0,
+        "layout": "grid",
+        "renderMode": "vector2d"
+      },
+      "pass": false,
+      "error": "Every role's text must stay inside its own label box\n+ actual - expected\n\n+ [\n+   {\n+     clientHeight: 35,\n+     clientWidth: 100,\n+     index: 9,\n+     scrollHeight: 48,\n+     scrollWidth: 100,\n+     text: '跨区域客户关系与经营数据复核负责人 9'\n+   },\n+   {\n+     clientHeight: 35,\n+     clientWidth: 100,\n+     index: 18,\n+     scrollHeight: 48,\n+     scrollWidth: 100,\n+     text: '跨区域客户关系与经营数据复核负责人 18'\n+   },\n+   {\n+     clientHeight: 35,\n+     clientWidth: 100,\n+     index: 27,\n+     scrollHeight: 48,\n+     scrollWidth: 100,\n+     text: '跨区域客户关系与经营数据复核负责人 27'\n+   },\n+   {\n+     clientHeight: 35,\n+     clientWidth: 100,\n+     index: 36,\n+     scrollHeight: 48,\n+     scrollWidth: 100,\n+     text: '跨区域客户关系与经营数据复核负责人 36'\n+   },\n+   {\n+     clientHeight: 35,\n+     clientWidth: 100,\n+     index: 45,\n+     scrollHeight: 48,\n+     scrollWidth: 100,\n+     text: '跨区域客户关系与经营数据复核负责人 45'\n+   },\n+   {\n+     clientHeight: 35,\n+     clientWidth: 100,\n+     index: 54,\n+     scrollHeight: 48,\n+     scrollWidth: 100,\n+     text: '跨区域客户关系与经营数据复核负责人 54'\n+   },\n+   {\n+     clientHeight: 35,\n+     clientWidth: 100,\n+     index: 63,\n+     scrollHeight: 48,\n+     scrollWidth: 100,\n+     text: '跨区域客户关系与经营数据复核负责人 63'\n+   }\n+ ]\n- []\n"
+    },
+    {
+      "id": "dense-team-390",
+      "expected": "All 65 actual team actors persist, labels do not overlap, scroll reaches the last actor, and the page stays inside the viewport",
+      "actual": {
+        "actorCount": 65,
+        "labelCount": 65,
+        "overlaps": [],
+        "overflowingText": [
+          {
+            "index": 9,
+            "text": "跨区域客户关系与经营数据复核负责人 9",
+            "scrollHeight": 48,
+            "clientHeight": 35,
+            "scrollWidth": 97,
+            "clientWidth": 97
+          },
+          {
+            "index": 18,
+            "text": "跨区域客户关系与经营数据复核负责人 18",
+            "scrollHeight": 48,
+            "clientHeight": 35,
+            "scrollWidth": 97,
+            "clientWidth": 97
+          },
+          {
+            "index": 27,
+            "text": "跨区域客户关系与经营数据复核负责人 27",
+            "scrollHeight": 48,
+            "clientHeight": 35,
+            "scrollWidth": 97,
+            "clientWidth": 97
+          },
+          {
+            "index": 36,
+            "text": "跨区域客户关系与经营数据复核负责人 36",
+            "scrollHeight": 48,
+            "clientHeight": 35,
+            "scrollWidth": 97,
+            "clientWidth": 97
+          },
+          {
+            "index": 45,
+            "text": "跨区域客户关系与经营数据复核负责人 45",
+            "scrollHeight": 48,
+            "clientHeight": 35,
+            "scrollWidth": 97,
+            "clientWidth": 97
+          },
+          {
+            "index": 54,
+            "text": "跨区域客户关系与经营数据复核负责人 54",
+            "scrollHeight": 48,
+            "clientHeight": 35,
+            "scrollWidth": 97,
+            "clientWidth": 97
+          },
+          {
+            "index": 63,
+            "text": "跨区域客户关系与经营数据复核负责人 63",
+            "scrollHeight": 48,
+            "clientHeight": 35,
+            "scrollWidth": 97,
+            "clientWidth": 97
+          }
+        ],
+        "scrollHeight": 2644,
+        "clientHeight": 598,
+        "scrollTop": 2046,
+        "lastActorFullyVisible": true,
+        "horizontalOverflow": 0,
+        "minimumLabelHeight": 32,
+        "regionRole": "region",
+        "regionTabIndex": 0,
+        "layout": "grid",
+        "renderMode": "vector2d"
+      },
+      "pass": false,
+      "error": "Every role's text must stay inside its own label box\n+ actual - expected\n\n+ [\n+   {\n+     clientHeight: 35,\n+     clientWidth: 97,\n+     index: 9,\n+     scrollHeight: 48,\n+     scrollWidth: 97,\n+     text: '跨区域客户关系与经营数据复核负责人 9'\n+   },\n+   {\n+     clientHeight: 35,\n+     clientWidth: 97,\n+     index: 18,\n+     scrollHeight: 48,\n+     scrollWidth: 97,\n+     text: '跨区域客户关系与经营数据复核负责人 18'\n+   },\n+   {\n+     clientHeight: 35,\n+     clientWidth: 97,\n+     index: 27,\n+     scrollHeight: 48,\n+     scrollWidth: 97,\n+     text: '跨区域客户关系与经营数据复核负责人 27'\n+   },\n+   {\n+     clientHeight: 35,\n+     clientWidth: 97,\n+     index: 36,\n+     scrollHeight: 48,\n+     scrollWidth: 97,\n+     text: '跨区域客户关系与经营数据复核负责人 36'\n+   },\n+   {\n+     clientHeight: 35,\n+     clientWidth: 97,\n+     index: 45,\n+     scrollHeight: 48,\n+     scrollWidth: 97,\n+     text: '跨区域客户关系与经营数据复核负责人 45'\n+   },\n+   {\n+     clientHeight: 35,\n+     clientWidth: 97,\n+     index: 54,\n+     scrollHeight: 48,\n+     scrollWidth: 97,\n+     text: '跨区域客户关系与经营数据复核负责人 54'\n+   },\n+   {\n+     clientHeight: 35,\n+     clientWidth: 97,\n+     index: 63,\n+     scrollHeight: 48,\n+     scrollWidth: 97,\n+     text: '跨区域客户关系与经营数据复核负责人 63'\n+   }\n+ ]\n- []\n"
+    },
+    {
+      "id": "compact-team-positive",
+      "expected": "The actual compact 14-person team keeps its existing vector layout without a dense grid",
+      "actual": {
+        "actorCount": "14",
+        "denseGridCount": 0
+      },
+      "pass": true
+    },
+    {
+      "id": "owned-browser-no-errors",
+      "expected": "No page error or external request occurred in the isolated actual component fixture",
+      "actual": {
+        "errors": [],
+        "blockedRequests": []
+      },
+      "pass": true
+    }
+  ],
+  "passed": 2,
+  "failed": 2,
+  "errors": [],
+  "blockedRequests": [],
+  "limitation": "Actual CeremonyStage rendered in an isolated desktop Chromium fixture at two widths. This is not a cold native receipt, a real mobile device, a user study, or a complete accessibility audit."
+}

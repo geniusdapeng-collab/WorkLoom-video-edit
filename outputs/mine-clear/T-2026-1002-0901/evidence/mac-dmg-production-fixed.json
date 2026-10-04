@@ -1,0 +1,22 @@
+{
+  "name": "mac-dmg-production-fixed",
+  "command": [
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+    "--env-file=.env",
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/pnpm/bin/pnpm.cjs",
+    "exec",
+    "electron-builder",
+    "--mac",
+    "dmg",
+    "--arm64",
+    "--publish",
+    "never",
+    "-c.mac.identity=-",
+    "-c.mac.notarize=false",
+    "-c.extraMetadata.version=0.1.0-fix.20261002.1"
+  ],
+  "exit_code": 0,
+  "seconds": 51.303,
+  "ran_at": "2026-10-02T22:06:20.955822+08:00",
+  "log": "mac-dmg-production-fixed.log"
+}

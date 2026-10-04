@@ -1,0 +1,28 @@
+{
+  "at": "2026-10-03T23:16:08.584Z",
+  "repository": "workloom-ai/WorkLoom-growth",
+  "main_sha": "f50a0f5be2be4ba053d918e07a94e45cdae4e4c2",
+  "before": {
+    "number": "316",
+    "title": "[T-2026-1002-0901] 完成运行时、影片工位与客户端可靠性整改并发布",
+    "state": "open",
+    "state_reason": "open",
+    "labels": [
+      "risk/review",
+      "src/human",
+      "t/doing"
+    ]
+  },
+  "completion_comment_id": "2106523718036520960",
+  "after": {
+    "number": "316",
+    "title": "[T-2026-1002-0901] 完成运行时、影片工位与客户端可靠性整改并发布",
+    "state": "closed",
+    "state_reason": "completed",
+    "labels": [
+      "risk/review",
+      "src/human",
+      "t/doing"
+    ]
+  }
+}

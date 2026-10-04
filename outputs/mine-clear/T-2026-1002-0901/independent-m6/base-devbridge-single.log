@@ -1,0 +1,29 @@
+COMMAND ["/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node", "--env-file=.env", "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/pnpm/bin/pnpm.cjs", "--filter", "@workloom/base", "exec", "vitest", "run", "dev-bridge/dev-bridge.test.ts"]
+
+[1m[30m[46m RUN [49m[39m[22m [36mv4.1.11 [39m[90m/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/packages/base[39m
+
+warning: adding embedded git repository: .workloom/t-conflict
+hint: You've added another git repository inside your current repository.
+hint: Clones of the outer repository will not contain the contents of
+hint: the embedded repository and will not know how to obtain it.
+hint: If you meant to add a submodule, use:
+hint: 
+hint: 	git submodule add <url> .workloom/t-conflict
+hint: 
+hint: If you added this path by mistake, you can remove it from the
+hint: index with:
+hint: 
+hint: 	git rm --cached .workloom/t-conflict
+hint: 
+hint: See "git help submodule" for more information.
+ [32m✓[39m dev-bridge/dev-bridge.test.ts [2m([22m[2m30 tests[22m[2m)[22m[33m 3063[2mms[22m[39m
+     [33m[2m✓[22m[39m 超时熔断：长睡眠进程被 timeout 击杀 [33m 1506[2mms[22m[39m
+     [33m[2m✓[22m[39m 取消：cancel 后 exitReason=canceled [33m 304[2mms[22m[39m
+     [33m[2m✓[22m[39m 全链路：建隔离→机床改代码→回收 diff→提交→合并基线→打标签 [33m 734[2mms[22m[39m
+     [33m[2m✓[22m[39m 合并冲突：自动中止并抛错（转人工，绝不强合） [33m 377[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m1 passed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[32m30 passed[39m[22m[90m (30)[39m
+[2m   Start at [22m 23:21:33
+[2m   Duration [22m 3.42s[2m (transform 137ms, setup 0ms, import 198ms, tests 3.06s, environment 0ms)[22m
+

@@ -1,0 +1,16 @@
+{
+  "source": "aad8700daa0991555b9792db80f4703e3322f4f1",
+  "reason": "Layout-sized content parent is now inside the semantic overflow region; read actual [role=region] scroll and bounds instead of assuming canvas immediate parent. Original3 initial visibility +4 extra wheel/poll/resize expectations unchanged. Boundary14 additionally records and checks actual logical/CSS scale is1, making raw painted-point clicks equivalent to visible points.",
+  "scripts": [
+    {
+      "script": "floor-canvas-boundary-probe.mjs",
+      "before_sha256": "25260a1d948218e235da11cc1e3e22fea3e3fe4deb7ce09d99cb8a039da56238",
+      "after_sha256": "d778f3e989c13cd8512d50180087473ebb51dce507d6fead0ff08ad9566c28f2"
+    },
+    {
+      "script": "floor-canvas-initial-viewport-probe.mjs",
+      "before_sha256": "9d930d9e77d217d2f092b6866357cf932d424008f885f484e32bfa8ea3f2cb4f",
+      "after_sha256": "58e508bb7f9671f8c2c747229f62d19cf1d726dd0b42e1b31ea81cfdcd17ed68"
+    }
+  ]
+}

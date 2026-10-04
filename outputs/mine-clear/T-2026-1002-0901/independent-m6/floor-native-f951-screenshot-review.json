@@ -1,0 +1,257 @@
+{
+  "schema": "growth.independent-m6/native-screenshot-review@1",
+  "source_commit": "f9515d09ee6de9b34f38b93d3769654fe4869391",
+  "reviewed_by": "growth_m6",
+  "reviewed_at": "2026-10-03T18:05:05.121752+08:00",
+  "scope_grade": "C",
+  "files": [
+    {
+      "root_file": "native-scene-default-render-default.png",
+      "file": "inherited/evidence__native-scene-default-render-default.png",
+      "sha256": "eddd1d51c0a935e6a2ea8ecac609648f487f39d7eb52c7955623f05a65c4b92c",
+      "bytes": 1481272,
+      "viewed": true,
+      "view_method": "tools.view_image detail original; all8 direct images, no contact-sheet sampling",
+      "review": "Live2D character is visible against dark opening background. Static frame alone does not establish the complete opening interaction or avatar telemetry.",
+      "grade": "C"
+    },
+    {
+      "root_file": "native-scene-default-stage-default.png",
+      "file": "inherited/evidence__native-scene-default-stage-default.png",
+      "sha256": "8e6b88fd6a2c013f2d906de97f3e6cdb45258189a079cbd3fc23d1f3f048abcd",
+      "bytes": 2206893,
+      "viewed": true,
+      "view_method": "tools.view_image detail original; all8 direct images, no contact-sheet sampling",
+      "review": "Clear irregular angular blue/black torn patches and dense horizontal discontinuities cover a substantial left foreground floor area. Concentric/radial fine lines and soft reflections are distinguishable. Blocking visual observation OBS-18 remains.",
+      "grade": "C"
+    },
+    {
+      "root_file": "native-scene-default-team-default.png",
+      "file": "inherited/evidence__native-scene-default-team-default.png",
+      "sha256": "ea5be00e311a5f6c26d054f7f41a1415b1b2bf2c17b4038d9f6097bba39886fc",
+      "bytes": 1616407,
+      "viewed": true,
+      "view_method": "tools.view_image detail original; all8 direct images, no contact-sheet sampling",
+      "review": "Readable role cards in dense welcome grid; lower rows require internal scrolling. This single screenshot does not independently prove all65 actors are simultaneously visible or reachable.",
+      "grade": "C"
+    },
+    {
+      "root_file": "native-scene-default-workplace-default.png",
+      "file": "inherited/evidence__native-scene-default-workplace-default.png",
+      "sha256": "b3e62bf59a078bda8cec8e759e1c9c8bf3855021306d1acc1a3258ec3578fe30",
+      "bytes": 1960117,
+      "viewed": true,
+      "view_method": "tools.view_image detail original; all8 direct images, no contact-sheet sampling",
+      "review": "Scene fills the intended region and CEO plaque is visually separate in this frame; no prior lower black cutoff. Static labels and source/DOM interaction controls remain distinct.",
+      "grade": "C"
+    },
+    {
+      "root_file": "native-scene-safe-render-safe.png",
+      "file": "inherited/evidence__native-scene-safe-render-safe.png",
+      "sha256": "4ad135d3e44f2b4fe54656b5ac21603ec98847a48ae29e2c38894e6497fa75df",
+      "bytes": 1337703,
+      "viewed": true,
+      "view_method": "tools.view_image detail original; all8 direct images, no contact-sheet sampling",
+      "review": "Vector character is visible at a dark opening-animation sample. No claim of complete readability timing or full UX is made from this frame.",
+      "grade": "C"
+    },
+    {
+      "root_file": "native-scene-safe-stage-safe.png",
+      "file": "inherited/evidence__native-scene-safe-stage-safe.png",
+      "sha256": "e44ec21acc84832c985c56c4c06c49eb493c56e7afaba3845aaf92ca513813e4",
+      "bytes": 633257,
+      "viewed": true,
+      "view_method": "tools.view_image detail original; all8 direct images, no contact-sheet sampling",
+      "review": "Independent vector2d stage renders the central silhouette and surrounding blue points without the default3D floor. It cannot clear the default floor visual failure.",
+      "grade": "C"
+    },
+    {
+      "root_file": "native-scene-safe-team-safe.png",
+      "file": "inherited/evidence__native-scene-safe-team-safe.png",
+      "sha256": "5c88365f8c443160c63bfea7a50be9270f91deea4a7f1f4cfc285cf975855274",
+      "bytes": 1515144,
+      "viewed": true,
+      "view_method": "tools.view_image detail original; all8 direct images, no contact-sheet sampling",
+      "review": "Dense vector-role welcome grid is visible/readable in this frame; lower rows are internally scrollable, not all65 simultaneously shown.",
+      "grade": "C"
+    },
+    {
+      "root_file": "native-scene-safe-workplace-safe.png",
+      "file": "inherited/evidence__native-scene-safe-workplace-safe.png",
+      "sha256": "eec14da86e6380ca7a30b7bf19fe355905026a2406869c8e3ce73e99bfbba1a4",
+      "bytes": 555092,
+      "viewed": true,
+      "view_method": "tools.view_image detail original; all8 direct images, no contact-sheet sampling",
+      "review": "Independent vector2d workplace has visible actor/name cards and CEO; this is a separate fallback implementation and does not verify default3D rendering.",
+      "grade": "C"
+    }
+  ],
+  "directly_viewed_pngs": 8,
+  "sampled_pngs": 0,
+  "unread_pngs": 0,
+  "final_corrected_native_review": false,
+  "full_ux_pass_claimed": false,
+  "blocking_visual_observations": [
+    {
+      "id": "OBS-18",
+      "title": "Default native Stage3D floor shows visible torn patches/horizontal discontinuities",
+      "severity": "P2",
+      "severity_label": "一般视觉缺陷；阻止本轮native像素验收，不代表崩溃或业务阻断",
+      "observed_source_commit": "f9515d09ee6de9b34f38b93d3769654fe4869391",
+      "observed_app_version": "0.1.0-fix.20261003.4",
+      "observed_app_asar_sha256_root_reported": "1803d9c72992a72386199430cd639d0aaab2e7fe964fcacf88a642ae3d0ca69e",
+      "file": "native-scene-default-stage-default.png",
+      "pixel_grade": "C direct original screenshot",
+      "source_location": [
+        {
+          "file": "apps/web/src/components/Stage3D.tsx",
+          "lines": [
+            189,
+            191,
+            192
+          ],
+          "facts": "CineFloor plus cylinder position.y=-0.09 and height0.14; cylinder top=-0.02"
+        },
+        {
+          "file": "apps/web/src/components/cinematic.tsx",
+          "lines": [
+            28,
+            29,
+            30
+          ],
+          "facts": "Reflective mesh position.y=-0.02"
+        }
+      ],
+      "coplanar_source_fact_grade": "A",
+      "cause_candidate": "Coplanar floor/cylinder cap depth conflict",
+      "cause_grade": "D inferred from exact geometry and visible symptom; no counterfactual executed by verifier yet",
+      "root_cause_proven": false,
+      "repro_steps": [
+        "Run exact scene v.4 app with genuinely new owned support and default rendering",
+        "Complete welcome and close first-day guide/collapse assistant through existing handlers",
+        "Switch to stage; inspect left foreground floor in retained original PNG"
+      ],
+      "expected": "Stable reflective theater floor, intended concentric/radial fine lines and soft reflections, without torn black/blue tiles or dense horizontal discontinuities",
+      "actual": "Retained default stage PNG visibly contains torn angular patches and horizontal discontinuities across substantial foreground floor area",
+      "next_gate": "Keep camera/actors/reflector/postprocessing unchanged; compare a minimal positive vertical separation of the cylinder cap from reflection surface, then rebuild and cold-native rereview. No GPU run was started by verifier."
+    }
+  ],
+  "local_qa_verified": false,
+  "native_gate_state": "HOLD",
+  "actual_root_runtime_exit_codes": {
+    "default": 0,
+    "safe": 0
+  },
+  "actual_root_runtime_seconds": {
+    "default": 78.999,
+    "safe": 78.078
+  },
+  "source_reads": [
+    {
+      "file": "apps/web/src/components/Stage3D.tsx",
+      "sha256": "12cc2603a8b265de77053f8cfb0d4a36b2f3e79b1b15b69ed927ca4d76ca8429",
+      "full_read": true,
+      "source_commit": "f9515d09ee6de9b34f38b93d3769654fe4869391",
+      "grade": "A complete source; B immutable Git byte binding"
+    },
+    {
+      "file": "apps/web/src/components/cinematic.tsx",
+      "sha256": "e9e9f5875654f6f700bdf39b3d3908b31105188580b10a612f7bb8e52d4f6fc2",
+      "full_read": true,
+      "source_commit": "f9515d09ee6de9b34f38b93d3769654fe4869391",
+      "grade": "A complete source; B immutable Git byte binding"
+    }
+  ],
+  "source_runtime_binding": "Root actual .4 app receipt and retained PNG/JSON/log metadata, not a verifier actual byte probe yet",
+  "independent_app_payload_dmg_byte_probes_executed": false,
+  "private_contents_opened": false,
+  "public_provenance": [
+    {
+      "file": "inherited/evidence__native-scene-default-render-default.json",
+      "root_file": "native-scene-default-render-default.json",
+      "sha256": "821911f9e54555e37d6ae2c84f2540275e5763742179ba71c658b566b4d1e6a2",
+      "bytes": 7861
+    },
+    {
+      "file": "inherited/evidence__native-scene-default-render-default.png",
+      "root_file": "native-scene-default-render-default.png",
+      "sha256": "eddd1d51c0a935e6a2ea8ecac609648f487f39d7eb52c7955623f05a65c4b92c",
+      "bytes": 1481272
+    },
+    {
+      "file": "inherited/evidence__native-scene-default-stage-default.png",
+      "root_file": "native-scene-default-stage-default.png",
+      "sha256": "8e6b88fd6a2c013f2d906de97f3e6cdb45258189a079cbd3fc23d1f3f048abcd",
+      "bytes": 2206893
+    },
+    {
+      "file": "inherited/evidence__native-scene-default-team-default.png",
+      "root_file": "native-scene-default-team-default.png",
+      "sha256": "ea5be00e311a5f6c26d054f7f41a1415b1b2bf2c17b4038d9f6097bba39886fc",
+      "bytes": 1616407
+    },
+    {
+      "file": "inherited/evidence__native-scene-default-workplace-default.png",
+      "root_file": "native-scene-default-workplace-default.png",
+      "sha256": "b3e62bf59a078bda8cec8e759e1c9c8bf3855021306d1acc1a3258ec3578fe30",
+      "bytes": 1960117
+    },
+    {
+      "file": "inherited/evidence__native-scene-default-retention.json",
+      "root_file": "native-scene-default-retention.json",
+      "sha256": "8e050e2bcefd15e77ad0307cf5fed33fe721708141131c6a514c085755c39449",
+      "bytes": 2944
+    },
+    {
+      "file": "inherited/evidence__mac-scene-default.json",
+      "root_file": "mac-scene-default.json",
+      "sha256": "41f9f818fcd1f3b93ab05565d417510978cb96e5def01eb4209708c5f250afb5",
+      "bytes": 399
+    },
+    {
+      "file": "inherited/evidence__native-scene-safe-render-safe.json",
+      "root_file": "native-scene-safe-render-safe.json",
+      "sha256": "ffdfba0ef9656e5b5b3ed4907e197c80de86cb082f144326061974e8eaea556d",
+      "bytes": 6754
+    },
+    {
+      "file": "inherited/evidence__native-scene-safe-render-safe.png",
+      "root_file": "native-scene-safe-render-safe.png",
+      "sha256": "4ad135d3e44f2b4fe54656b5ac21603ec98847a48ae29e2c38894e6497fa75df",
+      "bytes": 1337703
+    },
+    {
+      "file": "inherited/evidence__native-scene-safe-stage-safe.png",
+      "root_file": "native-scene-safe-stage-safe.png",
+      "sha256": "e44ec21acc84832c985c56c4c06c49eb493c56e7afaba3845aaf92ca513813e4",
+      "bytes": 633257
+    },
+    {
+      "file": "inherited/evidence__native-scene-safe-team-safe.png",
+      "root_file": "native-scene-safe-team-safe.png",
+      "sha256": "5c88365f8c443160c63bfea7a50be9270f91deea4a7f1f4cfc285cf975855274",
+      "bytes": 1515144
+    },
+    {
+      "file": "inherited/evidence__native-scene-safe-workplace-safe.png",
+      "root_file": "native-scene-safe-workplace-safe.png",
+      "sha256": "eec14da86e6380ca7a30b7bf19fe355905026a2406869c8e3ce73e99bfbba1a4",
+      "bytes": 555092
+    },
+    {
+      "file": "inherited/evidence__native-scene-safe-retention.json",
+      "root_file": "native-scene-safe-retention.json",
+      "sha256": "8cdeb40c9710e9aba9271d056829348ebce4146bac5317c31c513320a777c80f",
+      "bytes": 2894
+    },
+    {
+      "file": "inherited/evidence__mac-scene-safe.json",
+      "root_file": "mac-scene-safe.json",
+      "sha256": "9731de68bb3c98829958a3491806d9202dd8637122f97093f51bf170e027b26a",
+      "bytes": 393
+    }
+  ],
+  "safe_not_a_default3d_negative_control": true,
+  "original_runtime_exit0_not_rewritten": true,
+  "actual_gpu_or_native_or_pg_by_verifier": false
+}

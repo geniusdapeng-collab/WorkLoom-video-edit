@@ -1,0 +1,1 @@
+COMMAND ["work/downloads/node-v24.19.0-darwin-arm64/bin/node", "work/pnpm/bin/pnpm.cjs", "-C", "apps/web", "exec", "vitest", "run", "src/components/Floor3DLabels.test.tsx", "--reporter=json", "--outputFile=/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/evidence/floor-native-ceo-portal-red-results.json"]

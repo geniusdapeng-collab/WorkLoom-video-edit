@@ -1,0 +1,32 @@
+{
+  "schema": "growth.reset-safety-controls@1",
+  "recorded_at": "2026-10-03T10:38:14.102737+08:00",
+  "original_source_commit": "f0a11286a49419fb7909088e2d170f4dde7b60c6",
+  "audit_baseline": "42ead347c65a5cc343bcd290702d53a7fcdb1687",
+  "original_git_blobs_equal": true,
+  "old_script_sha256": "836b988ed3dd8eb234b164489fa22325125f32ccb9d0ed87bc091493a6233131",
+  "before_test_sha256": "5955b60be62de1300ef2687d4cd10d11f35d5a6eb44cd63922e69dc97bb44420",
+  "before_result": {
+    "tests": 8,
+    "pass": 0,
+    "fail": 8,
+    "receipt": "evidence/reset-safety-before.json"
+  },
+  "candidate_result": {
+    "tests": 12,
+    "pass": 12,
+    "fail": 0,
+    "receipt": "evidence/reset-safety-hardened-candidate-final.json",
+    "script_sha256": "290c586626cd772d00e4a2a3ce92753c47061cfb5720f0011c5bf6276a74eac6",
+    "test_sha256": "eed6796543ac8623d9a98f30997345f24f4f013456c61099e2c1608c5cece52a",
+    "source_status": "outside-product candidate, not a product commit or independent acceptance"
+  },
+  "real_database_calls": 0,
+  "real_delete_operations": 0,
+  "fixture": "PATH-only synthetic psql/pg_dump/pnpm/docker; no customer/provider I/O",
+  "official_contracts": [
+    "https://www.postgresql.org/docs/17/app-psql.html",
+    "https://www.postgresql.org/docs/17/app-pgdump.html",
+    "https://www.postgresql.org/docs/17/libpq-connect.html"
+  ]
+}

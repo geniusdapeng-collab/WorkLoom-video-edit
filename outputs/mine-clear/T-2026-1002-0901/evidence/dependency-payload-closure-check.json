@@ -1,0 +1,13 @@
+{
+  "name": "dependency-payload-closure-check",
+  "command": [
+    "/usr/bin/python3",
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/verify_current_payload.py",
+    "dependency",
+    "mac-dependency-payload-cached-proxy"
+  ],
+  "exit_code": 0,
+  "seconds": 1.497,
+  "ran_at": "2026-10-04T00:26:11.676224+08:00",
+  "log": "dependency-payload-closure-check.log"
+}

@@ -1,0 +1,54 @@
+{
+  "schema": "growth.independent-m6/external-source-reading@1",
+  "files": [
+    {
+      "path": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/node_modules/.pnpm/@workloom+ui@https+++cnb.cool+workloom-ai+workloom-im+-+releases+download+ui-v0.1.19+wo_086870d384add426af4f926c44614b7c/node_modules/@workloom/ui/package.json",
+      "relative_to_repository": "apps/web/node_modules/@workloom/ui/package.json",
+      "lines": 54,
+      "sha256": "195c346ca2dc3a10d9cd274413b1bcc74e0b74874644caac9e7f6e5a478ed663",
+      "reading": "full",
+      "scope_note": "Actual installed CNB @workloom/ui language export used by Floor naming; no full dependency semantic coverage claim"
+    },
+    {
+      "path": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/node_modules/.pnpm/@workloom+ui@https+++cnb.cool+workloom-ai+workloom-im+-+releases+download+ui-v0.1.19+wo_086870d384add426af4f926c44614b7c/node_modules/@workloom/ui/dist/index.js",
+      "relative_to_repository": "apps/web/node_modules/@workloom/ui/dist/index.js",
+      "lines": 16,
+      "sha256": "4e5bcb73b537dff41cc25b7c14ab30dd53930b53d8200c5dc4b13db54f553fed",
+      "reading": "full",
+      "scope_note": "Actual installed CNB @workloom/ui language export used by Floor naming; no full dependency semantic coverage claim"
+    },
+    {
+      "path": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/node_modules/.pnpm/@workloom+ui@https+++cnb.cool+workloom-ai+workloom-im+-+releases+download+ui-v0.1.19+wo_086870d384add426af4f926c44614b7c/node_modules/@workloom/ui/dist/language.js",
+      "relative_to_repository": "apps/web/node_modules/@workloom/ui/dist/language.js",
+      "lines": 324,
+      "sha256": "f6a052cc7994cfe68430f353f8d09b0cecf2dcb005a74a64b0d7257d457bdec2",
+      "reading": "full",
+      "scope_note": "Actual installed CNB @workloom/ui language export used by Floor naming; no full dependency semantic coverage claim"
+    },
+    {
+      "path": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/node_modules/.pnpm/@workloom+ui@https+++cnb.cool+workloom-ai+workloom-im+-+releases+download+ui-v0.1.19+wo_086870d384add426af4f926c44614b7c/node_modules/@workloom/ui/dist/tokens.css",
+      "relative_to_repository": "apps/web/node_modules/@workloom/ui/dist/tokens.css",
+      "lines": 117,
+      "sha256": "f0ea76e55488e114556ee0dcd8abd40cdfaa63caca4eb833dec43a65c32fbc29",
+      "reading": "full",
+      "scope_note": "Actual installed global CSS loaded by production web entry; full text read. Compiled CSS fingerprint is separate B evidence; no entire UI dependency semantic coverage claim."
+    },
+    {
+      "path": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/node_modules/.pnpm/@workloom+ui@https+++cnb.cool+workloom-ai+workloom-im+-+releases+download+ui-v0.1.19+wo_086870d384add426af4f926c44614b7c/node_modules/@workloom/ui/dist/content-safety.css",
+      "relative_to_repository": "apps/web/node_modules/@workloom/ui/dist/content-safety.css",
+      "lines": 113,
+      "sha256": "457c11f8fcfec43c8bf4ab0136313b97fbb26a924da615d2f3196fbc892f6020",
+      "reading": "full",
+      "scope_note": "Actual installed global CSS loaded by production web entry; full text read. Compiled CSS fingerprint is separate B evidence; no entire UI dependency semantic coverage claim."
+    },
+    {
+      "path": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/node_modules/.pnpm/@workloom+ui@https+++cnb.cool+workloom-ai+workloom-im+-+releases+download+ui-v0.1.19+wo_086870d384add426af4f926c44614b7c/node_modules/@workloom/ui/dist/components.css",
+      "relative_to_repository": "apps/web/node_modules/@workloom/ui/dist/components.css",
+      "lines": 549,
+      "sha256": "11c5d3aea838f0227b47c594701f13a20da3ce93cd4d13731001ef141eb21df6",
+      "reading": "full",
+      "scope_note": "Actual installed global CSS loaded by production web entry; full text read. Compiled CSS fingerprint is separate B evidence; no entire UI dependency semantic coverage claim."
+    }
+  ],
+  "included_in_tracked_file_coverage": false
+}

@@ -1,0 +1,78 @@
+COMMAND ["/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node", "--env-file=.env", "--test", "--test-reporter=tap", "--test-name-pattern=启动诊断秘密脱敏", "apps/desktop/electron/bootstrap.test.cjs"]
+TAP version 13
+# Subtest: 启动诊断秘密脱敏
+    # Subtest: 原有文本 JWT、盐和 Bearer
+    ok 1 - 原有文本 JWT、盐和 Bearer
+      ---
+      duration_ms: 9.742083
+      type: 'test'
+      ...
+    # Subtest: JSON 引号与大小写字段
+    ok 2 - JSON 引号与大小写字段
+      ---
+      duration_ms: 0.901708
+      type: 'test'
+      ...
+    # Subtest: 引号内的空格和分隔符
+    ok 3 - 引号内的空格和分隔符
+      ---
+      duration_ms: 0.733833
+      type: 'test'
+      ...
+    # Subtest: 带编码密码的连接 URI
+    ok 4 - 带编码密码的连接 URI
+      ---
+      duration_ms: 0.850375
+      type: 'test'
+      ...
+    # Subtest: libpq 密码与 URI 查询密码
+    ok 5 - libpq 密码与 URI 查询密码
+      ---
+      duration_ms: 0.750625
+      type: 'test'
+      ...
+    # Subtest: Basic 授权和 Cookie
+    ok 6 - Basic 授权和 Cookie
+      ---
+      duration_ms: 0.824917
+      type: 'test'
+      ...
+    # Subtest: JSON 转义引号和 Unicode 密码
+    ok 7 - JSON 转义引号和 Unicode 密码
+      ---
+      duration_ms: 0.995042
+      type: 'test'
+      ...
+    # Subtest: 错误摘要和日志读取失败也经过脱敏
+    ok 8 - 错误摘要和日志读取失败也经过脱敏
+      ---
+      duration_ms: 0.941417
+      type: 'test'
+      ...
+    # Subtest: 读取异常关闭自己的文件句柄并保留失败信息
+    ok 9 - 读取异常关闭自己的文件句柄并保留失败信息
+      ---
+      duration_ms: 0.965709
+      type: 'test'
+      ...
+    # Subtest: 空日志和有界尾部仍保留版本、主机和错误上下文
+    ok 10 - 空日志和有界尾部仍保留版本、主机和错误上下文
+      ---
+      duration_ms: 6.422583
+      type: 'test'
+      ...
+    1..10
+ok 1 - 启动诊断秘密脱敏
+  ---
+  duration_ms: 23.782167
+  type: 'suite'
+  ...
+1..1
+# tests 10
+# suites 1
+# pass 10
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 87.724458

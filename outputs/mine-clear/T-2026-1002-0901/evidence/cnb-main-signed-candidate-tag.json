@@ -1,0 +1,58 @@
+{
+  "at": "2026-10-03T23:21:58.344Z",
+  "repository": "workloom-ai/WorkLoom-growth",
+  "source_sha": "f50a0f5be2be4ba053d918e07a94e45cdae4e4c2",
+  "tag": "v0.1.0",
+  "result": {
+    "name": "v0.1.0",
+    "target": "0e0f2ea85244cbc234498a7f8ee486c697f5c329",
+    "target_type": "tag",
+    "commit": {
+      "sha": "f50a0f5be2be4ba053d918e07a94e45cdae4e4c2",
+      "commit": {
+        "author": {
+          "name": "cnb.dYiF05kxAGA",
+          "email": "XYpmztfpCvez6l8z5BBAvJ+cnb.dYiF05kxAGA@noreply.cnb.cool",
+          "date": "2026-10-04T07:06:34+08:00"
+        },
+        "committer": {
+          "name": "cnb",
+          "email": "cnb@cnb.local",
+          "date": "2026-10-04T07:06:34+08:00"
+        },
+        "message": "Merge PR318: Growth 运行时与客户端源码整改 [T-2026-1002-0901]\n\n陌生访问、任务重复执行和审批时序缺陷可能让动作在权限核对前发生；客户端装配缺失、引导竞态和场景命中问题会导致客户启动失败或误选员工。本次修复前置身份/权限/审批检查、跨进程执行锁、参数修改和终态恢复，并修复影片子进程依赖、父通道绑定与产物验真。\n\n客户端修复覆盖工作区模块和载荷装配、引导迟到回调、2D/3D 员工命中与长姓名、舞台 Canvas 和地面几何。另补演示库重置的确认、客户识别、私有备份及事务检查，以及诊断导出的脱敏、权限和失败恢复；依赖审计新 HIGH 公告通过移除上游仅供文档发布的依赖边解决，原失败保留。\n\n验收绑定源码 `1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8`：24 张修复卡、38 条真实 repair 断言成功；独立 23 张 acceptance 卡、37 条真实断言成功；严格 gate/handoff 成功。当前 HEAD 三条必需 CI 成功。558 个功能控制用例按完整输入合同继承，本 HEAD 的该功能矩阵重跑数为 0，与本 HEAD 真实执行的 MCD 断言分开计量。\n\nMac arm64 QA `.6` 已完成全新默认与安全渲染、首次启动、重启、真实 `.5 → .6` 保留数据升级、DMG 挂载拷出及 2093 个载荷文件字节核对；实际系统保存窗口 9 项诊断控制通过。当前 Mac 包是 ad-hoc QA。\n\n按产品所有者本聊天最新指令，本 PR 即刻解除 WIP/待审并普通合入 main，避免继续阻塞后续研发和发布 PR。Windows 原生实测、正式双平台签名、Apple 公证、行业信任链、完整 RDAS 与真实业务验收单独登记后续 Issue；证据归档以后续文档提交完成，历史执行 SHA 保留。本次合并代表源码专项完成，正式安装器资格仍按实际平台回执记录。\n\n任务：T-2026-1002-0901，关闭 #316 的源码修复范围；后续事项见 #322。回滚可提交针对本合并提交的普通 Revert PR。\n",
+        "tree": {
+          "sha": "385bfacc4e997567b6265b61b4d6be53dbc82047"
+        },
+        "comment_count": 0,
+        "verification": {
+          "verified": true,
+          "reason": "valid",
+          "signature": "-----BEGIN PGP SIGNATURE-----\n\nwqsEABYIAF0FgmrBinsJEAdOnqi31aijNRQAAAAAABwAEHNhbHRAbm90YXRpb25z\nLm9wZW5wZ3Bqcy5vcmeOxQZCUrJDLsOitCm97sxHFiEEC7oxRA3+zWTzByPNB06e\nqLfVqKMAAKxTAQDIGS/mhDIQuRIvi9J3EpNrD7gpdcXseV+JURvMvTh9aQEA/0Vx\nLNbM99bBC8PuY3wNjKN9r8ERgXrwdKpBIlgKrwg=\n=1Aar\n-----END PGP SIGNATURE-----",
+          "payload": "tree 385bfacc4e997567b6265b61b4d6be53dbc82047\nparent 42ead347c65a5cc343bcd290702d53a7fcdb1687\nparent 1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8\nauthor cnb.dYiF05kxAGA <XYpmztfpCvez6l8z5BBAvJ+cnb.dYiF05kxAGA@noreply.cnb.cool> 1791068794 +0800\ncommitter cnb <cnb@cnb.local> 1791068794 +0800\n\nMerge PR318: Growth 运行时与客户端源码整改 [T-2026-1002-0901]\n\n陌生访问、任务重复执行和审批时序缺陷可能让动作在权限核对前发生；客户端装配缺失、引导竞态和场景命中问题会导致客户启动失败或误选员工。本次修复前置身份/权限/审批检查、跨进程执行锁、参数修改和终态恢复，并修复影片子进程依赖、父通道绑定与产物验真。\n\n客户端修复覆盖工作区模块和载荷装配、引导迟到回调、2D/3D 员工命中与长姓名、舞台 Canvas 和地面几何。另补演示库重置的确认、客户识别、私有备份及事务检查，以及诊断导出的脱敏、权限和失败恢复；依赖审计新 HIGH 公告通过移除上游仅供文档发布的依赖边解决，原失败保留。\n\n验收绑定源码 `1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8`：24 张修复卡、38 条真实 repair 断言成功；独立 23 张 acceptance 卡、37 条真实断言成功；严格 gate/handoff 成功。当前 HEAD 三条必需 CI 成功。558 个功能控制用例按完整输入合同继承，本 HEAD 的该功能矩阵重跑数为 0，与本 HEAD 真实执行的 MCD 断言分开计量。\n\nMac arm64 QA `.6` 已完成全新默认与安全渲染、首次启动、重启、真实 `.5 → .6` 保留数据升级、DMG 挂载拷出及 2093 个载荷文件字节核对；实际系统保存窗口 9 项诊断控制通过。当前 Mac 包是 ad-hoc QA。\n\n按产品所有者本聊天最新指令，本 PR 即刻解除 WIP/待审并普通合入 main，避免继续阻塞后续研发和发布 PR。Windows 原生实测、正式双平台签名、Apple 公证、行业信任链、完整 RDAS 与真实业务验收单独登记后续 Issue；证据归档以后续文档提交完成，历史执行 SHA 保留。本次合并代表源码专项完成，正式安装器资格仍按实际平台回执记录。\n\n任务：T-2026-1002-0901，关闭 #316 的源码修复范围；后续事项见 #322。回滚可提交针对本合并提交的普通 Revert PR。\n",
+          "verified_at": "2026-10-04T07:06:57+08:00"
+        }
+      },
+      "author": {
+        "username": "cnb.dYiF05kxAGA",
+        "nickname": "Genius",
+        "email": "XYpmztfpCvez6l8z5BBAvJ+cnb.dYiF05kxAGA@noreply.cnb.cool",
+        "is_npc": false
+      },
+      "committer": {
+        "nickname": "cnb",
+        "email": "cnb@cnb.local",
+        "is_npc": false
+      },
+      "parents": [
+        {
+          "sha": "42ead347c65a5cc343bcd290702d53a7fcdb1687"
+        },
+        {
+          "sha": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+        }
+      ]
+    },
+    "verification": null
+  }
+}

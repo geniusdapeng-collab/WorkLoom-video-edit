@@ -1,0 +1,16 @@
+{
+  "name": "portable-auth-fixture",
+  "command": [
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+    "--env-file=.env",
+    "--import",
+    "tsx",
+    "../portable-growth-stage/auth-fixture.mts",
+    "--repo",
+    "."
+  ],
+  "exit_code": 0,
+  "seconds": 3.234,
+  "ran_at": "2026-10-03T05:03:19.370748+08:00",
+  "log": "portable-auth-fixture.log"
+}

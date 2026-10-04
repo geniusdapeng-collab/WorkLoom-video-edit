@@ -1,0 +1,15 @@
+{
+  "at": "2026-10-03T19:39:43.881734+08:00",
+  "command": [
+    "python3",
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/independent-m6/execute-report-bytes.py",
+    "dd2671f8ecd15c239f1df25ccacbf9ea5d905f6cd986e1dd90fb7e50bc849509"
+  ],
+  "exit_code": 0,
+  "builder_sha256": "dd2671f8ecd15c239f1df25ccacbf9ea5d905f6cd986e1dd90fb7e50bc849509",
+  "guards_removed": 0,
+  "actual_native_UI_executed": false,
+  "actual_MCD_executed": false,
+  "purpose": "Refresh own metadata/helper hashes after prepared surface prefix support; actual source/native qualification unchanged",
+  "log": "surface-7fee-report-builder-native-preparation.log"
+}

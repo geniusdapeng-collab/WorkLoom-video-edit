@@ -1,0 +1,54 @@
+{
+  "total_files": 3104,
+  "baseline_files": 3102,
+  "new_source_files": 2,
+  "text_files": 2870,
+  "grades": {
+    "B": 2772,
+    "A": 92,
+    "D": 234,
+    "C": 6
+  },
+  "partial_files": [
+    {
+      "path": "apps/server/src/service/e2e.test.ts",
+      "read_lines": 200,
+      "total_lines": 1044,
+      "ranges": "1-200"
+    },
+    {
+      "path": "apps/server/src/trpc/accounts-router.ts",
+      "read_lines": 200,
+      "total_lines": 587,
+      "ranges": "1-200"
+    },
+    {
+      "path": "apps/server/src/video/production-authority.pg.test.ts",
+      "read_lines": 135,
+      "total_lines": 257,
+      "ranges": "1-135"
+    },
+    {
+      "path": "packages/runtime/src/runtime.test.ts",
+      "read_lines": 181,
+      "total_lines": 292,
+      "ranges": "112-292"
+    },
+    {
+      "path": "scripts/tools/compose-film.mts",
+      "read_lines": 28,
+      "total_lines": 549,
+      "ranges": "23-50"
+    },
+    {
+      "path": "scripts/tools/full-chain-film.mts",
+      "read_lines": 435,
+      "total_lines": 8160,
+      "ranges": "1-155;2076-2225;2076-2219;4791-4920"
+    }
+  ],
+  "scope": "审计基线全部跟踪文件加两个新修复源文件；不包含node_modules、下载二进制、打包载荷、审计生成物",
+  "method": "A/B/C/D按最佳证据互斥统计；文本全量机检与A/C重叠，不能与分类数字相加；人工完整阅读不等于全部功能实测。原生载荷扫描另算B。",
+  "baseline_commit": "42ead347c65a5cc343bcd290702d53a7fcdb1687",
+  "repair_commit": "5d0c83e3293dc3a71651210987c9a5b48023480d"
+}

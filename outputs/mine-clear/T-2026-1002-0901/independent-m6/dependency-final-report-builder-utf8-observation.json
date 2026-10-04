@@ -1,0 +1,17 @@
+{
+  "schema": "growth.independent-m6/report-entry-observation@1",
+  "source_commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+  "observed_at": "2026-10-04T04:58:48.250626+08:00",
+  "actual_normal_wrapper": "dependency-final-report-builder-normal-entry.json",
+  "actual_normal_exit_code": 1,
+  "actual_normal_log": "dependency-final-report-builder-normal-entry.log",
+  "actual_log_sha256": "3021685eb4271323d8898ac50f58968d3159b696f867c8501534509bb0830c1d",
+  "original_builder_sha256": "95f1b7f0c565f24e96dd9ede2df7cba80e581e9da86a733d3e558b1475edc821",
+  "strict_full_bytes_utf8_decode": true,
+  "full_ast_parse": true,
+  "complete_original_bytes_compile": true,
+  "cause_proven": false,
+  "product_source_changed": false,
+  "actual_full_byte_execution_yet": false,
+  "scope": "Retain the real normal-entry SyntaxError without invented root cause. Complete unmodified bytes are separately compiled/executed with original file context; no guard or text omitted."
+}

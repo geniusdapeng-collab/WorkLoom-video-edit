@@ -1,0 +1,23 @@
+{
+  "name": "mac-scene-dir-build",
+  "command": [
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+    "--env-file=.env",
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/pnpm/bin/pnpm.cjs",
+    "exec",
+    "electron-builder",
+    "--mac",
+    "--dir",
+    "--arm64",
+    "--publish",
+    "never",
+    "-c.mac.identity=-",
+    "-c.mac.notarize=false",
+    "-c.extraMetadata.version=0.1.0-fix.20261003.4",
+    "-c.electronDist=node_modules/electron/dist"
+  ],
+  "exit_code": 1,
+  "seconds": 291.148,
+  "ran_at": "2026-10-03T17:30:28.609524+08:00",
+  "log": "mac-scene-dir-build.log"
+}

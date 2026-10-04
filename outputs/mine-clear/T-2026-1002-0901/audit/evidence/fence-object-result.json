@@ -1,0 +1,11 @@
+{
+  "evidence_grade": "B",
+  "scope": "same three bundle object union and runtime exemptions as suite:geo A-10",
+  "missing": [
+    {
+      "rule": "G9b",
+      "type": "publish_job"
+    }
+  ],
+  "healthy": false
+}

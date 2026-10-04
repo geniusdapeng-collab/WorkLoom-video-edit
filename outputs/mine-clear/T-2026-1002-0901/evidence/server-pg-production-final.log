@@ -1,0 +1,275 @@
+COMMAND ["/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node", "--env-file=.env", "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/pnpm/bin/pnpm.cjs", "--filter", "@workloom/server", "test"]
+
+> @workloom/server@0.1.0 test /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/apps/server
+> ../../node_modules/.bin/vitest run --testTimeout 30000
+
+
+[1m[30m[46m RUN [49m[39m[22m [36mv4.1.11 [39m[90m/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/apps/server[39m
+
+ [32m✓[39m src/video/delivery.test.ts [2m([22m[2m27 tests[22m[2m)[22m[33m 981[2mms[22m[39m
+ [32m✓[39m src/video/delivery-trust.test.ts [2m([22m[2m55 tests[22m[2m)[22m[33m 642[2mms[22m[39m
+ [32m✓[39m src/video/delivery-router.test.ts [2m([22m[2m12 tests[22m[2m)[22m[33m 440[2mms[22m[39m
+[90mstdout[2m | src/video/studio-worker.test.ts[2m > [22m[2m预生产原始结果与诚实终态[2m > [22m[2m分流器加工出的 brief 不充当客户原始选型证据
+[22m[39m[studio-worker] run 日志开始落盘：/var/folders/dj/mkh6fwbd4mb6ycp933xfty4h0000gn/T/studio-result-PVW78R/logs/VID-9000.log
+
+[90mstdout[2m | src/video/studio-worker.test.ts[2m > [22m[2m预生产原始结果与诚实终态[2m > [22m[2m分流器加工出的 brief 不充当客户原始选型证据
+[22m[39m[media-ingest] 商品档案投影：商品（sha256 aaaaaaaaaaaa…，内容变化=true，主图新入库=false）
+
+[90mstdout[2m | src/video/studio-worker.test.ts[2m > [22m[2m预生产原始结果与诚实终态[2m > [22m[2m原始需求选出的 T1 进入建档事件、routeMeta、供应商入参与分镜/提示词包
+[22m[39m[studio-worker] run 日志开始落盘：/var/folders/dj/mkh6fwbd4mb6ycp933xfty4h0000gn/T/studio-result-PVW78R/logs/VID-9000.log
+
+[90mstderr[2m | src/video/studio-worker.test.ts[2m > [22m[2m预生产原始结果与诚实终态[2m > [22m[2m原始需求选出的 T1 进入建档事件、routeMeta、供应商入参与分镜/提示词包
+[22m[39m[archive] 档案身份漂移 ws-test/VID-9000：pipelineKind marketing→narrative（项目身份指纹不一致：档案夹可能被另一代数据库的同名 ID 复用）
+
+[90mstdout[2m | src/video/studio-worker.test.ts[2m > [22m[2m预生产原始结果与诚实终态[2m > [22m[2m供应商返回不合规镜头表时报告落档并在渲染前打回
+[22m[39m[studio-worker] run 日志开始落盘：/var/folders/dj/mkh6fwbd4mb6ycp933xfty4h0000gn/T/studio-result-PVW78R/logs/VID-9000.log
+
+[90mstdout[2m | src/video/studio-worker.test.ts[2m > [22m[2m预生产原始结果与诚实终态[2m > [22m[2m既有项目补跑重新选型并留下 routeMeta 变更事件
+[22m[39m[studio-worker] run 日志开始落盘：/var/folders/dj/mkh6fwbd4mb6ycp933xfty4h0000gn/T/studio-result-PVW78R/logs/VID-route-1.log
+
+[90mstdout[2m | src/video/studio-worker.test.ts[2m > [22m[2m预生产原始结果与诚实终态[2m > [22m[2m既有项目补跑重新选型并留下 routeMeta 变更事件
+[22m[39m[studio-worker] run 日志开始落盘：/var/folders/dj/mkh6fwbd4mb6ycp933xfty4h0000gn/T/studio-result-PVW78R/logs/VID-route-1.log
+
+[90mstdout[2m | src/video/studio-worker.test.ts[2m > [22m[2m预生产原始结果与诚实终态[2m > [22m[2m显式 VM_PRODUCER_RETRY=1 时才恢复有限重试；成功结果保留 stages.dataMining 驱动商品投影
+[22m[39m[studio-worker] run 日志开始落盘：/var/folders/dj/mkh6fwbd4mb6ycp933xfty4h0000gn/T/studio-result-PVW78R/logs/VID-result-2.log
+
+[90mstdout[2m | src/video/studio-worker.test.ts[2m > [22m[2m预生产原始结果与诚实终态[2m > [22m[2m显式 VM_PRODUCER_RETRY=1 时才恢复有限重试；成功结果保留 stages.dataMining 驱动商品投影
+[22m[39m[studio-worker] AI 监制打回 → 自动重跑第 2/2 次（同一项目、同一门口径）
+
+[90mstdout[2m | src/video/studio-worker.test.ts[2m > [22m[2m预生产原始结果与诚实终态[2m > [22m[2m显式 VM_PRODUCER_RETRY=1 时才恢复有限重试；成功结果保留 stages.dataMining 驱动商品投影
+[22m[39m[media-ingest] 商品档案投影：商品（sha256 aaaaaaaaaaaa…，内容变化=true，主图新入库=false）
+
+[90mstdout[2m | src/video/studio-worker.test.ts[2m > [22m[2m预生产原始结果与诚实终态[2m > [22m[2m默认：监制打回即停，不自动重跑（不再把 AI 打回变成重复烧钱）
+[22m[39m[studio-worker] run 日志开始落盘：/var/folders/dj/mkh6fwbd4mb6ycp933xfty4h0000gn/T/studio-result-PVW78R/logs/VID-result-3.log
+
+[90mstdout[2m | src/video/studio-worker.test.ts[2m > [22m[2m预生产原始结果与诚实终态[2m > [22m[2m业务软失败不得显示 finished
+[22m[39m[studio-worker] run 日志开始落盘：/var/folders/dj/mkh6fwbd4mb6ycp933xfty4h0000gn/T/studio-result-PVW78R/logs/VID-result-4.log
+
+[90mstdout[2m | src/video/studio-worker.test.ts[2m > [22m[2m预生产原始结果与诚实终态[2m > [22m[2mvendor 抛错保留原始错误，仍释放资源并写失败档案
+[22m[39m[studio-worker] run 日志开始落盘：/var/folders/dj/mkh6fwbd4mb6ycp933xfty4h0000gn/T/studio-result-PVW78R/logs/VID-result-5.log
+
+[90mstdout[2m | src/video/studio-worker.test.ts[2m > [22m[2m预生产原始结果与诚实终态[2m > [22m[2m归档输出写入失败时，不因已取得 rawResult 而伪称成功
+[22m[39m[studio-worker] run 日志开始落盘：/var/folders/dj/mkh6fwbd4mb6ycp933xfty4h0000gn/T/studio-result-PVW78R/logs/VID-result-6.log
+
+[90mstdout[2m | src/video/studio-worker.test.ts[2m > [22m[2m预生产原始结果与诚实终态[2m > [22m[2m租约 busy 不会无锁执行，并清理已安装的桥
+[22m[39m[studio-worker] run 日志开始落盘：/var/folders/dj/mkh6fwbd4mb6ycp933xfty4h0000gn/T/studio-result-PVW78R/logs/VID-result-7.log
+
+[90mstdout[2m | src/video/studio-worker.test.ts[2m > [22m[2m预生产原始结果与诚实终态[2m > [22m[2m租约 error 不会无锁执行，并清理已安装的桥
+[22m[39m[studio-worker] run 日志开始落盘：/var/folders/dj/mkh6fwbd4mb6ycp933xfty4h0000gn/T/studio-result-PVW78R/logs/VID-result-8.log
+
+[90mstdout[2m | src/video/studio-worker.test.ts[2m > [22m[2m预生产原始结果与诚实终态[2m > [22m[2m项目/档案初始化 missing 时不执行并释放租约
+[22m[39m[studio-worker] run 日志开始落盘：/var/folders/dj/mkh6fwbd4mb6ycp933xfty4h0000gn/T/studio-result-PVW78R/logs/VID-result-9.log
+
+[90mstdout[2m | src/video/studio-worker.test.ts[2m > [22m[2m预生产原始结果与诚实终态[2m > [22m[2m项目/档案初始化 error 时不执行并释放租约
+[22m[39m[studio-worker] run 日志开始落盘：/var/folders/dj/mkh6fwbd4mb6ycp933xfty4h0000gn/T/studio-result-PVW78R/logs/VID-result-10.log
+
+[90mstdout[2m | src/video/studio-worker.test.ts[2m > [22m[2m预生产原始结果与诚实终态[2m > [22m[2m项目/档案初始化 archive 时不执行并释放租约
+[22m[39m[studio-worker] run 日志开始落盘：/var/folders/dj/mkh6fwbd4mb6ycp933xfty4h0000gn/T/studio-result-PVW78R/logs/VID-result-11.log
+
+[90mstdout[2m | src/video/studio-worker.test.ts[2m > [22m[2m预生产原始结果与诚实终态[2m > [22m[2m完成回执未核实不投影商品也不自动重试
+[22m[39m[studio-worker] run 日志开始落盘：/var/folders/dj/mkh6fwbd4mb6ycp933xfty4h0000gn/T/studio-result-PVW78R/logs/VID-result-12.log
+
+[90mstdout[2m | src/video/studio-worker.test.ts[2m > [22m[2m预生产原始结果与诚实终态[2m > [22m[2m解锁和日志清理抛错仍清理绑定桥并写终态
+[22m[39m[studio-worker] run 日志开始落盘：/var/folders/dj/mkh6fwbd4mb6ycp933xfty4h0000gn/T/studio-result-PVW78R/logs/VID-result-13.log
+
+[90mstdout[2m | src/video/studio-worker.test.ts[2m > [22m[2m预生产原始结果与诚实终态[2m > [22m[2m解锁和日志清理抛错仍清理绑定桥并写终态
+[22m[39m[media-ingest] 商品档案投影：商品（sha256 aaaaaaaaaaaa…，内容变化=true，主图新入库=false）
+
+[90mstderr[2m | src/video/studio-worker.test.ts[2m > [22m[2m预生产原始结果与诚实终态[2m > [22m[2m解锁和日志清理抛错仍清理绑定桥并写终态
+[22m[39m[studio-worker] 运行清理失败：detach failed
+
+[90mstderr[2m | src/video/studio-worker.test.ts[2m > [22m[2m预生产原始结果与诚实终态[2m > [22m[2m解锁和日志清理抛错仍清理绑定桥并写终态
+[22m[39m[studio-worker] 运行清理失败：detach failed；运行清理失败：unlock failed
+
+[90mstdout[2m | src/video/studio-worker.test.ts[2m > [22m[2m预生产原始结果与诚实终态[2m > [22m[2m叙事成功档案保留本次六门证据；G5没有人物时明确不适用，G7使用prompt
+[22m[39m[studio-worker] run 日志开始落盘：/var/folders/dj/mkh6fwbd4mb6ycp933xfty4h0000gn/T/studio-result-PVW78R/logs/VID-result-14.log
+
+[90mstdout[2m | src/video/studio-worker.test.ts[2m > [22m[2m预生产原始结果与诚实终态[2m > [22m[2m只有vendor自报成功但没有本次服务门回执，叙事档案不得done
+[22m[39m[studio-worker] run 日志开始落盘：/var/folders/dj/mkh6fwbd4mb6ycp933xfty4h0000gn/T/studio-result-PVW78R/logs/VID-result-15.log
+
+[90mstdout[2m | src/video/studio-worker.test.ts[2m > [22m[2m预生产原始结果与诚实终态[2m > [22m[2m定妆照只完成计划却缺实际图片时，G5 事实核验先行失败关闭（不占用人类时间、不调 AI 评审）
+[22m[39m[studio-worker] run 日志开始落盘：/var/folders/dj/mkh6fwbd4mb6ycp933xfty4h0000gn/T/studio-result-PVW78R/logs/VID-result-16.log
+
+[90mstdout[2m | src/video/studio-worker.test.ts[2m > [22m[2m宿主营销G1必须先于vendor[2m > [22m[2m当前attempt事实G1通过后才调用vendor，最终完整镜头审核写回事实引用
+[22m[39m[studio-worker] run 日志开始落盘：/var/folders/dj/mkh6fwbd4mb6ycp933xfty4h0000gn/T/studio-result-PVW78R/logs/VID-result-17.log
+
+[90mstdout[2m | src/video/studio-worker.test.ts[2m > [22m[2m宿主营销G1必须先于vendor[2m > [22m[2m当前attempt事实G1通过后才调用vendor，最终完整镜头审核写回事实引用
+[22m[39m[media-ingest] 商品档案投影：商品（sha256 aaaaaaaaaaaa…，内容变化=true，主图新入库=false）
+
+[90mstdout[2m | src/video/studio-worker.test.ts[2m > [22m[2m宿主营销G1必须先于vendor[2m > [22m[2msource未核实不执行vendor或终态事实审核
+[22m[39m[studio-worker] run 日志开始落盘：/var/folders/dj/mkh6fwbd4mb6ycp933xfty4h0000gn/T/studio-result-PVW78R/logs/VID-result-18.log
+
+[90mstdout[2m | src/video/studio-worker.test.ts[2m > [22m[2m宿主营销G1必须先于vendor[2m > [22m[2mg1未核实不执行vendor或终态事实审核
+[22m[39m[studio-worker] run 日志开始落盘：/var/folders/dj/mkh6fwbd4mb6ycp933xfty4h0000gn/T/studio-result-PVW78R/logs/VID-result-19.log
+
+[90mstdout[2m | src/video/studio-worker.test.ts[2m > [22m[2m宿主营销G1必须先于vendor[2m > [22m[2munverified-proof未核实不执行vendor或终态事实审核
+[22m[39m[studio-worker] run 日志开始落盘：/var/folders/dj/mkh6fwbd4mb6ycp933xfty4h0000gn/T/studio-result-PVW78R/logs/VID-result-20.log
+
+[90mstdout[2m | src/video/studio-worker.test.ts[2m > [22m[2m宿主营销G1必须先于vendor[2m > [22m[2munbound-proof未核实不执行vendor或终态事实审核
+[22m[39m[studio-worker] run 日志开始落盘：/var/folders/dj/mkh6fwbd4mb6ycp933xfty4h0000gn/T/studio-result-PVW78R/logs/VID-result-21.log
+
+[90mstdout[2m | src/video/studio-worker.test.ts[2m > [22m[2m宿主营销G1必须先于vendor[2m > [22m[2m最终事实审核失败时不写done、不投影商品，保留失败原因
+[22m[39m[studio-worker] run 日志开始落盘：/var/folders/dj/mkh6fwbd4mb6ycp933xfty4h0000gn/T/studio-result-PVW78R/logs/VID-result-22.log
+
+ [32m✓[39m src/video/studio-worker.test.ts [2m([22m[2m28 tests[22m[2m)[22m[33m 334[2mms[22m[39m
+[90mstderr[2m | src/video/media/ingest-delivery.test.ts[2m > [22m[2msealed delivery to actual media copy[2m > [22m[2mcopies each verified asset, then registers generated provenance bound to the seal
+[22m[39m[media] 抽帧失败（缩略图留空，不影响入库）：test fixture has no real video
+
+[90mstderr[2m | src/video/media/ingest-delivery.test.ts[2m > [22m[2msealed delivery to actual media copy[2m > [22m[2mcopies each verified asset, then registers generated provenance bound to the seal
+[22m[39m[media] 抽帧失败（缩略图留空，不影响入库）：test fixture has no real video
+
+[90mstderr[2m | src/video/media/ingest-delivery.test.ts[2m > [22m[2msealed delivery to actual media copy[2m > [22m[2mcopies each verified asset, then registers generated provenance bound to the seal
+[22m[39m[media] 抽帧失败（缩略图留空，不影响入库）：test fixture has no real video
+
+[90mstderr[2m | src/video/media/ingest-delivery.test.ts[2m > [22m[2msealed delivery to actual media copy[2m > [22m[2mcopies each verified asset, then registers generated provenance bound to the seal
+[22m[39m[media] 抽帧失败（缩略图留空，不影响入库）：test fixture has no real video
+
+[90mstderr[2m | src/video/media/ingest-delivery.test.ts[2m > [22m[2msealed delivery to actual media copy[2m > [22m[2mreports a database failure honestly and stops later registration
+[22m[39m[media] 抽帧失败（缩略图留空，不影响入库）：test fixture has no real video
+
+ [32m✓[39m src/video/media/ingest-delivery.test.ts [2m([22m[2m11 tests[22m[2m)[22m[32m 260[2mms[22m[39m
+ [32m✓[39m src/video/production-authority.test.ts [2m([22m[2m40 tests[22m[2m)[22m[33m 818[2mms[22m[39m
+     [33m[2m✓[22m[39m 来源 failed 不得签发或调用监制 [33m 481[2mms[22m[39m
+ [32m✓[39m src/video/marketing-authority.test.ts [2m([22m[2m17 tests[22m[2m)[22m[32m 184[2mms[22m[39m
+ [32m✓[39m src/video/marketing-source-fetcher.test.ts [2m([22m[2m45 tests[22m[2m)[22m[32m 133[2mms[22m[39m
+ [32m✓[39m src/service/h5-session-auth.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 152[2mms[22m[39m
+字幕条: 11  总时长: 88.0s  建议场景: 3
+  幕 1     0.0-  32.1s (32.1s, 字幕1-4): 做过生意的人都懂这三笔账：流量越来越贵，询盘接不住，利润被平台抽走。 还有一笔正
+  幕 2    32.4-  64.0s (31.6s, 字幕5-8): WorkLoom 是系统化班组：老板一句话，系统自动分工、协作、交付。 它交付的
+  幕 3    64.3-  88.0s (23.7s, 字幕9-11): 断点档案让超长链路永不白跑，媒资库让素材越攒越值钱。 围栏治理、人审、事件账本，
+ [32m✓[39m src/video/whiteboard/whiteboard.test.ts [2m([22m[2m38 tests[22m[2m)[22m[32m 233[2mms[22m[39m
+ [32m✓[39m src/video/gen/submit.test.ts [2m([22m[2m35 tests[22m[2m)[22m[32m 108[2mms[22m[39m
+ [32m✓[39m src/video/explainer/explainer.test.ts [2m([22m[2m33 tests[22m[2m | [22m[33m1 skipped[39m[2m)[22m[32m 50[2mms[22m[39m
+ [32m✓[39m src/service/access-authority.test.ts [2m([22m[2m14 tests[22m[2m)[22m[32m 51[2mms[22m[39m
+ [32m✓[39m src/industry/geo-growth/jev/client.test.ts [2m([22m[2m18 tests[22m[2m)[22m[32m 33[2mms[22m[39m
+ [32m✓[39m src/industry/geo-growth/jev/shadow.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 35[2mms[22m[39m
+ [32m✓[39m src/video/gen/gen.test.ts [2m([22m[2m43 tests[22m[2m)[22m[32m 48[2mms[22m[39m
+ [32m✓[39m src/service/adapters/business-registry.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 36[2mms[22m[39m
+ [32m✓[39m src/service/inspection-adapter.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 18[2mms[22m[39m
+ [32m✓[39m src/video/media/media.test.ts [2m([22m[2m16 tests[22m[2m)[22m[32m 9[2mms[22m[39m
+ [32m✓[39m src/video/gate-policy.test.ts [2m([22m[2m14 tests[22m[2m)[22m[32m 15[2mms[22m[39m
+ [32m✓[39m src/video/gen/compiled-request.test.ts [2m([22m[2m15 tests[22m[2m)[22m[32m 23[2mms[22m[39m
+ [32m✓[39m src/trpc/context.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 17[2mms[22m[39m
+ [32m✓[39m src/voice/station.test.ts [2m([22m[2m11 tests[22m[2m)[22m[32m 12[2mms[22m[39m
+ [32m✓[39m src/runtime/tool-executor.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 7[2mms[22m[39m
+ [32m✓[39m src/service/channels-state.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 5[2mms[22m[39m
+ [32m✓[39m src/video/production-router.test.ts [2m([22m[2m18 tests[22m[2m)[22m[32m 11[2mms[22m[39m
+ [32m✓[39m src/service/desktop-auth.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 10[2mms[22m[39m
+ [32m✓[39m src/video/marketing-facts.test.ts [2m([22m[2m17 tests[22m[2m)[22m[32m 9[2mms[22m[39m
+ [32m✓[39m src/video/scene-policy-routing.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 7[2mms[22m[39m
+ [32m✓[39m src/video/data-mining-executor.test.ts [2m([22m[2m15 tests[22m[2m)[22m[32m 6[2mms[22m[39m
+ [32m✓[39m src/video/archive-resume.test.ts [2m([22m[2m15 tests[22m[2m)[22m[32m 7[2mms[22m[39m
+ [32m✓[39m src/video/scene-policy-render-gate.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 5[2mms[22m[39m
+ [32m✓[39m src/service/active-bundle.test.ts [2m([22m[2m17 tests[22m[2m)[22m[32m 4[2mms[22m[39m
+ [32m✓[39m src/service/onboarding-truth.test.ts [2m([22m[2m22 tests[22m[2m)[22m[32m 6[2mms[22m[39m
+ [32m✓[39m src/video/archive-host.test.ts [2m([22m[2m15 tests[22m[2m)[22m[32m 5[2mms[22m[39m
+ [32m✓[39m src/service/eval-source.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 11[2mms[22m[39m
+ [32m✓[39m src/service/router-governance.test.ts [2m([22m[2m1 test[22m[2m)[22m[32m 6[2mms[22m[39m
+[90mstderr[2m | src/service/adapters/business-display.test.ts[2m > [22m[2mC 端行业业务展示投影[2m > [22m[2m拒绝英文状态，且只抛稳定中文错误
+[22m[39m[service-c] 行业展示投影字段校验失败：orders.0.statusText
+
+[90mstderr[2m | src/service/adapters/business-display.test.ts[2m > [22m[2mC 端行业业务展示投影[2m > [22m[2m拒绝原始字段标签，且只抛稳定中文错误
+[22m[39m[service-c] 行业展示投影字段校验失败：orders.0.details.0.label
+
+[90mstderr[2m | src/service/adapters/business-display.test.ts[2m > [22m[2mC 端行业业务展示投影[2m > [22m[2m拒绝夹杂底层字段，且只抛稳定中文错误
+[22m[39m[service-c] 行业展示投影字段校验失败：orders.0.title
+
+[90mstderr[2m | src/service/adapters/business-display.test.ts[2m > [22m[2mC 端行业业务展示投影[2m > [22m[2m拒绝夹杂英文枚举，且只抛稳定中文错误
+[22m[39m[service-c] 行业展示投影字段校验失败：orders.0.statusText
+
+[90mstderr[2m | src/service/adapters/business-display.test.ts[2m > [22m[2mC 端行业业务展示投影[2m > [22m[2m拒绝英文行业值，且只抛稳定中文错误
+[22m[39m[service-c] 行业展示投影字段校验失败：orders.0.details.0.value
+
+[90mstderr[2m | src/service/adapters/business-display.test.ts[2m > [22m[2mC 端行业业务展示投影[2m > [22m[2m拒绝服务端异常，且只抛稳定中文错误
+[22m[39m[service-c] 行业展示投影字段校验失败：orders.0.title
+
+[90mstderr[2m | src/service/adapters/business-display.test.ts[2m > [22m[2mC 端行业业务展示投影[2m > [22m[2m对话动作、身份挑战等直达客户端的文案也经过同一中文边界
+[22m[39m[service-c] 行业展示投影字段校验失败：dialog.answer
+[service-c] 行业展示投影字段校验失败：identity.message
+
+ [32m✓[39m src/service/adapters/business-display.test.ts [2m([22m[2m9 tests[22m[2m)[22m[32m 5[2mms[22m[39m
+ [32m✓[39m src/video/gate-ledger-bridge.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 3[2mms[22m[39m
+ [32m✓[39m src/trpc/accounts-router.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 4[2mms[22m[39m
+ [32m✓[39m src/industry/hotel/acquisition-planner.test.ts [2m([22m[2m11 tests[22m[2m)[22m[32m 5[2mms[22m[39m
+ [32m✓[39m src/industry/geo-growth/jev/protocol.test.ts [2m([22m[2m14 tests[22m[2m)[22m[32m 8[2mms[22m[39m
+ [32m✓[39m src/industry/geo/service-front-adapter.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 3[2mms[22m[39m
+ [32m✓[39m src/trpc/router-surface.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 3[2mms[22m[39m
+ [32m✓[39m src/video/platform-routing.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 4[2mms[22m[39m
+ [32m✓[39m src/industry/geo-growth/jev/scenes.test.ts [2m([22m[2m17 tests[22m[2m)[22m[32m 5[2mms[22m[39m
+ [32m✓[39m src/industry/hotel/intent-rules.test.ts [2m([22m[2m19 tests[22m[2m)[22m[32m 4[2mms[22m[39m
+ [32m✓[39m src/service/service-front-publication.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 4[2mms[22m[39m
+ [32m✓[39m src/service/dialog.test.ts [2m([22m[2m13 tests[22m[2m)[22m[32m 3[2mms[22m[39m
+ [32m✓[39m src/industry/geo-growth/jev/metrics.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 2[2mms[22m[39m
+ [32m✓[39m src/service/onboarding-continuity.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 2[2mms[22m[39m
+ [32m✓[39m src/service/secretary.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 22[2mms[22m[39m
+ [32m✓[39m src/runtime/dispatch-routing.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 2[2mms[22m[39m
+ [32m✓[39m src/video/duration-submit.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 2[2mms[22m[39m
+ [32m✓[39m src/industry/geo-growth/jev/gating.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 2[2mms[22m[39m
+ [32m✓[39m src/service/workspace-routing.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 4[2mms[22m[39m
+ [32m✓[39m src/video/film-worker.test.ts [2m([22m[2m1 test[22m[2m)[22m[32m 2[2mms[22m[39m
+ [32m✓[39m src/service/neutral-industry-default.pg.test.ts [2m([22m[2m2 tests[22m[2m)[22m[33m 317[2mms[22m[39m
+ [32m✓[39m src/video/archive.pg.test.ts [2m([22m[2m11 tests[22m[2m)[22m[33m 515[2mms[22m[39m
+ [32m✓[39m src/video/film-ledger.pg.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 50[2mms[22m[39m
+ [32m✓[39m src/video/production-authority.pg.test.ts [2m([22m[2m12 tests[22m[2m)[22m[33m 674[2mms[22m[39m
+[90mstderr[2m | src/service/contract.test.ts
+[22m[39m[service-c] SERVICE_C_DEMO_AUTH 已开启：h5/openid 演示直登可用（生产环境必须置 false 并配置渠道 code 交换凭据）
+
+ [32m✓[39m src/service/contract.test.ts [2m([22m[2m13 tests[22m[2m)[22m[33m 972[2mms[22m[39m
+ [32m✓[39m src/service/e2e.test.ts [2m([22m[2m96 tests[22m[2m)[22m[33m 5409[2mms[22m[39m
+     [33m[2m✓[22m[39m chat 同用户第 61 次 → 429 [33m 618[2mms[22m[39m
+ [32m✓[39m src/service/eval-source.pg.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 856[2mms[22m[39m
+ [32m✓[39m src/service/onboarding-continuity.pg.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 56[2mms[22m[39m
+ [32m✓[39m src/service/overlay-runtime.pg.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 40[2mms[22m[39m
+ [32m✓[39m src/video/gen/submission-ledger.pg.test.ts [2m([22m[2m15 tests[22m[2m)[22m[32m 239[2mms[22m[39m
+[90mstderr[2m | src/video/media/media.pg.test.ts[2m > [22m[2m媒资库活库契约[2m > [22m[2m⑦ 上传：配额闸 + 归属/指纹复核
+[22m[39m[media] 抽帧失败（缩略图留空，不影响入库）：[mov,mp4,m4a,3gp,3g2,mj2 @ 0x130704580] moov atom not found
+/var/folders/dj/mkh6fwbd4mb6ycp933xfty4h0000gn/T/media-pg-qUO1vq/upload/ws-media-1790949703357-mm33ec/2f6e9d935b51ca56ef8a98534e8cafaf0c58d36b088302667094958bfd5f2c9c.mp4: Invalid data found when processing input
+
+[90mstderr[2m | src/video/media/media.pg.test.ts[2m > [22m[2m媒资库活库契约[2m > [22m[2m⑧ 交付包：母版/变体/封面登记为 final_cut/cover，重复登记幂等
+[22m[39m[media] 抽帧失败（缩略图留空，不影响入库）：[mov,mp4,m4a,3gp,3g2,mj2 @ 0x135f053c0] moov atom not found
+/var/folders/dj/mkh6fwbd4mb6ycp933xfty4h0000gn/T/media-pg-qUO1vq/video/ws-media-1790949703357-mm33ec/3527a20ad2f491fa73409f87e71ad589da0f425f2ab764912f52d40e1eb6c9a2.mp4: Invalid data found when processing input
+
+[90mstderr[2m | src/video/media/media.pg.test.ts[2m > [22m[2m媒资库活库契约[2m > [22m[2m⑧ 交付包：母版/变体/封面登记为 final_cut/cover，重复登记幂等
+[22m[39m[media] 抽帧失败（缩略图留空，不影响入库）：[mov,mp4,m4a,3gp,3g2,mj2 @ 0x152804750] moov atom not found
+/var/folders/dj/mkh6fwbd4mb6ycp933xfty4h0000gn/T/media-pg-qUO1vq/video/ws-media-1790949703357-mm33ec/0f0fa00e17ea5cd0e88195880742b50cd2a08dc72ef98afcc0974714babc24f7.mp4: Invalid data found when processing input
+
+[90mstderr[2m | src/video/media/media.pg.test.ts[2m > [22m[2m媒资库活库契约[2m > [22m[2m⑧ 交付包：母版/变体/封面登记为 final_cut/cover，重复登记幂等
+[22m[39m[media] 抽帧失败（缩略图留空，不影响入库）：[mov,mp4,m4a,3gp,3g2,mj2 @ 0x141e067b0] moov atom not found
+/var/folders/dj/mkh6fwbd4mb6ycp933xfty4h0000gn/T/media-pg-qUO1vq/video/ws-media-1790949703357-mm33ec/21dd5db0225014c825d5c6b88ee81ea0a3d9fc292906a6971a31207d4d393ea3.mp4: Invalid data found when processing input
+
+[90mstderr[2m | src/video/media/media.pg.test.ts[2m > [22m[2m媒资库活库契约[2m > [22m[2m⑧ 交付包：母版/变体/封面登记为 final_cut/cover，重复登记幂等
+[22m[39m[media] 抽帧失败（缩略图留空，不影响入库）：[mov,mp4,m4a,3gp,3g2,mj2 @ 0x12a004be0] moov atom not found
+/var/folders/dj/mkh6fwbd4mb6ycp933xfty4h0000gn/T/media-pg-qUO1vq/video/ws-media-1790949703357-mm33ec/e8f34f06b331ac6918e91972f58de436046bea8741375bd833006989abb42e39.mp4: Invalid data found when processing input
+
+[90mstderr[2m | src/video/media/media.pg.test.ts[2m > [22m[2m媒资库活库契约[2m > [22m[2m⑧ 交付包：母版/变体/封面登记为 final_cut/cover，重复登记幂等
+[22m[39m[media] 抽帧失败（缩略图留空，不影响入库）：[mov,mp4,m4a,3gp,3g2,mj2 @ 0x124704480] moov atom not found
+/var/folders/dj/mkh6fwbd4mb6ycp933xfty4h0000gn/T/media-pg-qUO1vq/video/ws-media-1790949703357-mm33ec/3527a20ad2f491fa73409f87e71ad589da0f425f2ab764912f52d40e1eb6c9a2.mp4: Invalid data found when processing input
+
+[90mstderr[2m | src/video/media/media.pg.test.ts[2m > [22m[2m媒资库活库契约[2m > [22m[2m⑧ 交付包：母版/变体/封面登记为 final_cut/cover，重复登记幂等
+[22m[39m[media] 抽帧失败（缩略图留空，不影响入库）：[mov,mp4,m4a,3gp,3g2,mj2 @ 0x14cf051a0] moov atom not found
+/var/folders/dj/mkh6fwbd4mb6ycp933xfty4h0000gn/T/media-pg-qUO1vq/video/ws-media-1790949703357-mm33ec/0f0fa00e17ea5cd0e88195880742b50cd2a08dc72ef98afcc0974714babc24f7.mp4: Invalid data found when processing input
+
+[90mstderr[2m | src/video/media/media.pg.test.ts[2m > [22m[2m媒资库活库契约[2m > [22m[2m⑧ 交付包：母版/变体/封面登记为 final_cut/cover，重复登记幂等
+[22m[39m[media] 抽帧失败（缩略图留空，不影响入库）：[mov,mp4,m4a,3gp,3g2,mj2 @ 0x14f004600] moov atom not found
+/var/folders/dj/mkh6fwbd4mb6ycp933xfty4h0000gn/T/media-pg-qUO1vq/video/ws-media-1790949703357-mm33ec/21dd5db0225014c825d5c6b88ee81ea0a3d9fc292906a6971a31207d4d393ea3.mp4: Invalid data found when processing input
+
+[90mstderr[2m | src/video/media/media.pg.test.ts[2m > [22m[2m媒资库活库契约[2m > [22m[2m⑧ 交付包：母版/变体/封面登记为 final_cut/cover，重复登记幂等
+[22m[39m[media] 抽帧失败（缩略图留空，不影响入库）：[mov,mp4,m4a,3gp,3g2,mj2 @ 0x121f04600] moov atom not found
+/var/folders/dj/mkh6fwbd4mb6ycp933xfty4h0000gn/T/media-pg-qUO1vq/video/ws-media-1790949703357-mm33ec/e8f34f06b331ac6918e91972f58de436046bea8741375bd833006989abb42e39.mp4: Invalid data found when processing input
+
+ [32m✓[39m src/video/media/media.pg.test.ts [2m([22m[2m20 tests[22m[2m)[22m[33m 2338[2mms[22m[39m
+     [33m[2m✓[22m[39m ⑧ 交付包：母版/变体/封面登记为 final_cut/cover，重复登记幂等 [33m 446[2mms[22m[39m
+     [33m[2m✓[22m[39m ⑪ 重剪：真实 ffmpeg 归一化拼接 → 新 final_cut（source_type=recut） [33m 1111[2mms[22m[39m
+[90mstderr[2m | src/service/adapters/business-registry.pg.test.ts[2m > [22m[2m活动 Bundle 服务前台适配器 PG 契约
+[22m[39m[service-c] SERVICE_C_DEMO_AUTH 已开启：h5/openid 演示直登可用（生产环境必须置 false 并配置渠道 code 交换凭据）
+
+ [32m✓[39m src/service/adapters/business-registry.pg.test.ts [2m([22m[2m3 tests[22m[2m)[22m[33m 1581[2mms[22m[39m
+     [33m[2m✓[22m[39m 同库活动装配经 RLS 分别选择 hotel；无适配器包不选择任何酒店实现 [33m 545[2mms[22m[39m
+     [33m[2m✓[22m[39m 获客用增演示工作区（ws-geo）解析到产品自己的前台适配器 [33m 326[2mms[22m[39m
+     [33m[2m✓[22m[39m 无适配器工作区的公开订单与权益端点返回明确空态，绝不读同库酒店夹具 [33m 578[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m69 passed[39m[22m[90m (69)[39m
+[2m      Tests [22m [1m[32m982 passed[39m[22m[2m | [22m[33m1 skipped[39m[90m (983)[39m
+[2m   Start at [22m 22:01:06
+[2m   Duration [22m 40.72s[2m (transform 3.05s, setup 0ms, import 16.47s, tests 17.87s, environment 4ms)[22m
+

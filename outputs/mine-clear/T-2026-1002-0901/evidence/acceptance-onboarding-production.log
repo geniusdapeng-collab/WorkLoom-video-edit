@@ -1,0 +1,21 @@
+COMMAND ["/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node", "--env-file=.env", "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/pnpm/bin/pnpm.cjs", "acceptance:onboarding"]
+
+> workloom-ai-acquisition@0.1.0 acceptance:onboarding /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit
+> tsx --env-file=.env scripts/acceptance/onboarding.mts
+
+✓ ① 开户即托管：组合装配完成（81/81 岗 · hotel+ai-video+geo-growth）
+✓ ① 默认进入影子档（shadow）
+✓ ① 组合围栏齐装（121 条）
+✓ ① 全员 ready 落库（81 人）
+✓ ② 影子周期产生 dry_run 决策（briefing=E-12963 queue=1 dry_run=2）
+✓ ② 影子期不落地执行（审批状态保持 pending，仅推理留痕）（pending）
+✓ ③ 影子对照报告落账（shadow_report 对象）（E-12965）
+✓ ③ 报告含判断与升级口径
+✓ ④ 首登即见影子报告（E-12965）
+✓ ④ 首登附带最新简报（E-12963）
+✓ ⑤ 转正进入试用（shadow→trial）（试用至 2026-10-09T14:23:06.765Z）
+✓ ⑤ 非法重复转正被拒（状态机守住）
+✓ ⑥ 账本 append-only：删除被触发器拒绝（L1.1）
+✓ ⑥ 非账本夹具已清理（账本事件保留）（ws-onboarding-mur1z2t7）
+
+acceptance:onboarding 通过

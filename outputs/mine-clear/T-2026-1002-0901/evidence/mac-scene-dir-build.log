@@ -1,0 +1,25 @@
+COMMAND ["/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node", "--env-file=.env", "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/pnpm/bin/pnpm.cjs", "exec", "electron-builder", "--mac", "--dir", "--arm64", "--publish", "never", "-c.mac.identity=-", "-c.mac.notarize=false", "-c.extraMetadata.version=0.1.0-fix.20261003.4", "-c.electronDist=node_modules/electron/dist"]
+  • electron-builder  version=26.15.3 os=24.6.0
+  • loaded configuration  file=/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/electron-builder.yml
+  • author is missed in the package.json  appPackageFile=/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/package.json
+  • detected workspace root for project using packageManager field  pm=pnpm config=pnpm@10.14.0 resolved=/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit projectDir=/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit
+  • executing @electron/rebuild  electronVersion=44.1.1 arch=arm64 buildFromSource=false workspaceRoot=/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit projectDir=./ appDir=./
+  • installing native dependencies  arch=arm64
+  • completed installing native dependencies
+  • packaging       platform=darwin arch=arm64 electron=44.1.1 appOutDir=release/mac-arm64
+  • using custom unpacked Electron distribution  electronDist=node_modules/electron/dist
+  • copying unpacked Electron  source=/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/node_modules/electron/dist/Electron.app destination=/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/release/mac-arm64/Electron.app
+  • searching for node modules  pm=pnpm searchDir=/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit
+  • file source doesn't exist  from=/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/build/bundle-trust.json
+  ⨯ connect ETIMEDOUT 20.205.243.166:443  failedTask=build stackTrace=RequestError: connect ETIMEDOUT 20.205.243.166:443
+    at ClientRequest.<anonymous> (/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/node_modules/.pnpm/got@11.8.6/node_modules/got/dist/source/core/index.js:970:111)
+    at Object.onceWrapper (node:events:631:26)
+    at ClientRequest.emit (node:events:521:24)
+    at ClientRequest.origin.emit (/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/node_modules/.pnpm/@szmarczak+http-timer@4.0.6/node_modules/@szmarczak/http-timer/dist/source/index.js:43:20)
+    at emitErrorEvent (node:_http_client:112:11)
+    at TLSSocket.socketErrorListener (node:_http_client:745:5)
+    at TLSSocket.emit (node:events:509:28)
+    at emitErrorNT (node:internal/streams/destroy:170:8)
+    at emitErrorCloseNT (node:internal/streams/destroy:129:3)
+    at processTicksAndRejections (node:internal/process/task_queues:90:21)
+    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1864:16)

@@ -1,0 +1,330 @@
+{
+  "schema": "growth.independent-m6/native-followup@1",
+  "verified_by": "growth_m6",
+  "source_commit": "955e2277ee1496cfc4b40bd30345d1ce1be1acf1",
+  "verified_at": "2026-10-03T03:48:42.921401+08:00",
+  "operation": "Read-only public retained receipts/images and private config stat; product/native/DB/Git unchanged",
+  "separate_warm_cdp_diagnostic": {
+    "public_files": [
+      {
+        "file": "inherited/evidence__native-welcome-access-diagnostic-render-default.json",
+        "root_file": "native-welcome-access-diagnostic-render-default.json",
+        "sha256": "9291770b6c8900ba6b85a8a86123378e50f541f859896320ef67116995a1aa95",
+        "bytes": 5530,
+        "origin": "root execution; independent contents and digest inspection by growth_m6"
+      },
+      {
+        "file": "inherited/evidence__native-welcome-access-diagnostic-render-default.png",
+        "root_file": "native-welcome-access-diagnostic-render-default.png",
+        "sha256": "cc7ae768c8991fa23e0f3f29ba8514ae96f72a8d845ae37c6e5e0a32116e72af",
+        "bytes": 1540023,
+        "origin": "root execution; independent contents and digest inspection by growth_m6"
+      },
+      {
+        "file": "inherited/evidence__native-welcome-access-diagnostic-stage-default.png",
+        "root_file": "native-welcome-access-diagnostic-stage-default.png",
+        "sha256": "97bf62162bfddbabbdbc1645c19039baeb040ce9fb86daded696ce9f33052f5c",
+        "bytes": 1098890,
+        "origin": "root execution; independent contents and digest inspection by growth_m6"
+      },
+      {
+        "file": "inherited/evidence__native-welcome-access-diagnostic-team-default.png",
+        "root_file": "native-welcome-access-diagnostic-team-default.png",
+        "sha256": "eecec1883b0e3b472014ba6405cae5614738584b989b0bb569260305cc3475aa",
+        "bytes": 1394140,
+        "origin": "root execution; independent contents and digest inspection by growth_m6"
+      },
+      {
+        "file": "inherited/evidence__native-welcome-access-diagnostic-workplace-default.png",
+        "root_file": "native-welcome-access-diagnostic-workplace-default.png",
+        "sha256": "886b4308788f66ecac487df2acc218d53dcafd968ccf831f379905550fd6109d",
+        "bytes": 1715208,
+        "origin": "root execution; independent contents and digest inspection by growth_m6"
+      }
+    ],
+    "retention_receipt": {
+      "file": "inherited/evidence__native-welcome-access-diagnostic-retention.json",
+      "root_file": "native-welcome-access-diagnostic-retention.json",
+      "sha256": "c8f2d4a53f729612e9642a4f3fb2add2da0fecd2ef8e452ce639ec7b019bdcd8",
+      "bytes": 3012,
+      "origin": "root execution; independent contents and digest inspection by growth_m6"
+    },
+    "private_config": {
+      "exists": true,
+      "file_mode": "0600",
+      "contents_opened": false,
+      "root_reported_sha256": "bfc3375f7defe1bbf37e3f3f9a7c49034216a03fb41b62184c719b076b4caf22",
+      "sha256_independently_recomputed": false
+    },
+    "controls": {
+      "product_ready": true,
+      "welcome_ready": true,
+      "avatar_ready": true,
+      "render_mode": "live2d-webgl",
+      "safe_rendering": false,
+      "team_actors": 65,
+      "guide_closed": true,
+      "workplace_actors": 18,
+      "stage_actors": 65,
+      "capture_before_and_after_overlay_absent": true,
+      "mouth_peak": 0.45,
+      "blink_count": 2,
+      "gesture_count": 1,
+      "parameter_write_failures": 0
+    },
+    "exit_code": 0,
+    "seconds": 167.315,
+    "diagnostic_only": true,
+    "reused_original_failed_fixture": true,
+    "cold_first_launch_proof": false,
+    "observer_exit_code": 1,
+    "observer_seconds": 170.634,
+    "page_samples": 39,
+    "network_records": 50,
+    "network_record_kinds": {
+      "request": 26,
+      "response": 23,
+      "failed": 1
+    },
+    "observer_errors": 2,
+    "original_cold_cause_proven": false,
+    "additional_public_files": [
+      {
+        "file": "inherited/evidence__mac-welcome-access-diagnostic.json",
+        "root_file": "mac-welcome-access-diagnostic.json",
+        "sha256": "9a6247734734223b83f8d6b2633bf791ca09aeae455698ac2f2f154a010f54b9",
+        "bytes": 467,
+        "origin": "root execution; independent contents and digest inspection by growth_m6"
+      },
+      {
+        "file": "inherited/evidence__mac-welcome-access-diagnostic.log",
+        "root_file": "mac-welcome-access-diagnostic.log",
+        "sha256": "bacb31ebbc738e566ff83080c8ca2054c61a1a22cca7d6884957b656c7b01d31",
+        "bytes": 6309,
+        "origin": "root execution; independent contents and digest inspection by growth_m6"
+      },
+      {
+        "file": "inherited/evidence__native-welcome-access-watch.json",
+        "root_file": "native-welcome-access-watch.json",
+        "sha256": "91d75c67f90b48bf68794b31cf2ee18cfa2631d743c90bef183f5db263ac5182",
+        "bytes": 391,
+        "origin": "root execution; independent contents and digest inspection by growth_m6"
+      },
+      {
+        "file": "inherited/evidence__native-welcome-access-watch.log",
+        "root_file": "native-welcome-access-watch.log",
+        "sha256": "6f4aef9a5d0ad1c8789ddc621e9f02dba5d6104b8d3bbf8a0ac86dbe41c3e207",
+        "bytes": 18926,
+        "origin": "root execution; independent contents and digest inspection by growth_m6"
+      },
+      {
+        "file": "inherited/evidence__native-welcome-access-observer.json",
+        "root_file": "native-welcome-access-observer.json",
+        "sha256": "c6c3ce5fb665e2f6408274c26a133dc42917ee04f843f8bb2395f9e42c454c62",
+        "bytes": 45973,
+        "origin": "root execution; independent contents and digest inspection by growth_m6"
+      }
+    ]
+  },
+  "cold_default_repeat": {
+    "public_files": [
+      {
+        "file": "inherited/evidence__native-welcome-default-repeat-render-default.json",
+        "root_file": "native-welcome-default-repeat-render-default.json",
+        "sha256": "cadc1816170b8a6d746afc3c3ac010a0e924534af53c86fab2a390a2251eef2c",
+        "bytes": 5507,
+        "origin": "root execution; independent contents and digest inspection by growth_m6"
+      },
+      {
+        "file": "inherited/evidence__native-welcome-default-repeat-render-default.png",
+        "root_file": "native-welcome-default-repeat-render-default.png",
+        "sha256": "9a1f70967b7cb1be741f6a920d542d1f96478aa31fbfe78a901bb7393a916ed3",
+        "bytes": 1474528,
+        "origin": "root execution; independent contents and digest inspection by growth_m6"
+      },
+      {
+        "file": "inherited/evidence__native-welcome-default-repeat-stage-default.png",
+        "root_file": "native-welcome-default-repeat-stage-default.png",
+        "sha256": "f5e975ac78bc1d5df12406468fadfe436bb2ad12c6e53831eee6f9d9e469600c",
+        "bytes": 1131280,
+        "origin": "root execution; independent contents and digest inspection by growth_m6"
+      },
+      {
+        "file": "inherited/evidence__native-welcome-default-repeat-team-default.png",
+        "root_file": "native-welcome-default-repeat-team-default.png",
+        "sha256": "d086471336ed200adbad2130f527e693528c878408666228d8b10a44365d3bed",
+        "bytes": 1380751,
+        "origin": "root execution; independent contents and digest inspection by growth_m6"
+      },
+      {
+        "file": "inherited/evidence__native-welcome-default-repeat-workplace-default.png",
+        "root_file": "native-welcome-default-repeat-workplace-default.png",
+        "sha256": "e65f672836b4044e896698fcdf15560e2b3171f9e763ed9334b003fec64b8772",
+        "bytes": 1878436,
+        "origin": "root execution; independent contents and digest inspection by growth_m6"
+      }
+    ],
+    "retention_receipt": {
+      "file": "inherited/evidence__native-welcome-default-repeat-retention.json",
+      "root_file": "native-welcome-default-repeat-retention.json",
+      "sha256": "398329c2ed55c27ba6a190c429c3f834e9e62a42b84b676cdbb3ea008370c127",
+      "bytes": 3062,
+      "origin": "root execution; independent contents and digest inspection by growth_m6"
+    },
+    "private_config": {
+      "exists": true,
+      "file_mode": "0600",
+      "contents_opened": false,
+      "root_reported_sha256": "704149d0f3d2b8119f42c3933cddaceb3748574bb4c643f01f8f3cb3482060d0",
+      "sha256_independently_recomputed": false
+    },
+    "controls": {
+      "product_ready": true,
+      "welcome_ready": true,
+      "avatar_ready": true,
+      "render_mode": "live2d-webgl",
+      "safe_rendering": false,
+      "team_actors": 65,
+      "guide_closed": true,
+      "workplace_actors": 18,
+      "stage_actors": 65,
+      "capture_before_and_after_overlay_absent": true,
+      "mouth_peak": 0.35887500000000006,
+      "blink_count": 2,
+      "gesture_count": 1,
+      "parameter_write_failures": 0
+    },
+    "exit_code": 0,
+    "seconds": 342.554,
+    "diagnostic_only": false,
+    "reused_failed_fixture": false,
+    "root_asserted_fresh_owned_fixture": true,
+    "not_an_independently_launched_application_by_verifier": true,
+    "original_failed_run_preserved": true,
+    "original_cold_cause_proven": false,
+    "additional_public_files": [
+      {
+        "file": "inherited/evidence__mac-welcome-default-repeat.json",
+        "root_file": "mac-welcome-default-repeat.json",
+        "sha256": "481e2002ca0864727c0317e8e85895d5061072fb6512453229b758c0cfedf9b7",
+        "bytes": 424,
+        "origin": "root execution; independent contents and digest inspection by growth_m6"
+      },
+      {
+        "file": "inherited/evidence__mac-welcome-default-repeat.log",
+        "root_file": "mac-welcome-default-repeat.log",
+        "sha256": "61e4f90fc44e097179c555c5c222b4641289d4adf969333784f13440ef4d1a56",
+        "bytes": 6934,
+        "origin": "root execution; independent contents and digest inspection by growth_m6"
+      }
+    ]
+  },
+  "cold_safe": {
+    "public_files": [
+      {
+        "file": "inherited/evidence__native-welcome-safe-render-safe.json",
+        "root_file": "native-welcome-safe-render-safe.json",
+        "sha256": "9dd66b3d53a5a27eb40b98ae7306dd97bc23a5144e96aacf1c581f3a3b9df6cf",
+        "bytes": 5433,
+        "origin": "root execution; independent contents and digest inspection by growth_m6"
+      },
+      {
+        "file": "inherited/evidence__native-welcome-safe-render-safe.png",
+        "root_file": "native-welcome-safe-render-safe.png",
+        "sha256": "ac017b1b08ef8a4029a4c6bef96d3b3113499555c4a3161b9a43e0525acb49b6",
+        "bytes": 1436686,
+        "origin": "root execution; independent contents and digest inspection by growth_m6"
+      },
+      {
+        "file": "inherited/evidence__native-welcome-safe-stage-safe.png",
+        "root_file": "native-welcome-safe-stage-safe.png",
+        "sha256": "99ea25018e08d4530665683afbc1d2288c04b3a16c0f0689385aa56b88a3d87b",
+        "bytes": 1052047,
+        "origin": "root execution; independent contents and digest inspection by growth_m6"
+      },
+      {
+        "file": "inherited/evidence__native-welcome-safe-team-safe.png",
+        "root_file": "native-welcome-safe-team-safe.png",
+        "sha256": "652f8572010695dfbd7d8c3012f2d72605b3ddd479be364f1ebb02b3323f6137",
+        "bytes": 1514107,
+        "origin": "root execution; independent contents and digest inspection by growth_m6"
+      },
+      {
+        "file": "inherited/evidence__native-welcome-safe-workplace-safe.png",
+        "root_file": "native-welcome-safe-workplace-safe.png",
+        "sha256": "f8144bc6854d2426a2e3fd699545d382d66fed1bba3b2e69746729b160251a21",
+        "bytes": 914125,
+        "origin": "root execution; independent contents and digest inspection by growth_m6"
+      }
+    ],
+    "retention_receipt": {
+      "file": "inherited/evidence__native-welcome-safe-retention.json",
+      "root_file": "native-welcome-safe-retention.json",
+      "sha256": "2d1c64f0dd3d0c57f3a4dd7029618ecb696776b464cbf78ef7b15be49423778a",
+      "bytes": 2905,
+      "origin": "root execution; independent contents and digest inspection by growth_m6"
+    },
+    "private_config": {
+      "exists": true,
+      "file_mode": "0600",
+      "contents_opened": false,
+      "root_reported_sha256": "94bc90641ae23e8d34d9c9993465e2b9bb3c2c4b1a9d2aba04a0603247be1ef1",
+      "sha256_independently_recomputed": false
+    },
+    "controls": {
+      "product_ready": true,
+      "welcome_ready": true,
+      "avatar_ready": true,
+      "render_mode": "vector2d",
+      "safe_rendering": true,
+      "team_actors": 65,
+      "guide_closed": true,
+      "workplace_actors": 18,
+      "stage_actors": 65,
+      "capture_before_and_after_overlay_absent": true,
+      "mouth_peak": 1,
+      "blink_count": 2,
+      "gesture_count": 2,
+      "parameter_write_failures": 0
+    },
+    "exit_code": 0,
+    "seconds": 278.35,
+    "diagnostic_only": false,
+    "reused_failed_fixture": false,
+    "root_asserted_fresh_owned_fixture": true,
+    "not_an_independently_launched_application_by_verifier": true,
+    "additional_public_files": [
+      {
+        "file": "inherited/evidence__mac-welcome-safe.json",
+        "root_file": "mac-welcome-safe.json",
+        "sha256": "a328a5823c1ac72b28e6933291af0644367291daf432c5cb7331faa146c4c75c",
+        "bytes": 403,
+        "origin": "root execution; independent contents and digest inspection by growth_m6"
+      },
+      {
+        "file": "inherited/evidence__mac-welcome-safe.log",
+        "root_file": "mac-welcome-safe.log",
+        "sha256": "bb8a706bdaa23a56203c39d7f62f53f7649359af92f10e208f387c3bf34edb77",
+        "bytes": 6829,
+        "origin": "root execution; independent contents and digest inspection by growth_m6"
+      }
+    ]
+  },
+  "application_metadata": {
+    "source": "955e2277ee1496cfc4b40bd30345d1ce1be1acf1",
+    "version": "0.1.0-fix.20261003.2",
+    "app_asar_sha256_root_reported": "844f8e4f964f26156972c0200370e255e0da74631ac7cf12671cb754e739b087",
+    "independent_app_bytes_checked_by_this_small_probe": false
+  },
+  "final_native_gate_verified": false,
+  "remaining": [
+    "exact final fresh install",
+    "restart",
+    "upgrade",
+    "app/payload byte recheck",
+    "final DMG"
+  ],
+  "real_paid_supplier_calls": 0,
+  "private_contents_opened": false,
+  "original_failure_is_not_rewritten_as_passed": true
+}

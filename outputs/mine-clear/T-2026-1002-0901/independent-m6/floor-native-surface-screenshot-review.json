@@ -1,0 +1,231 @@
+{
+  "schema": "growth.independent-m6/native-screenshot-review@1",
+  "source_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+  "reviewed_by": "growth_m6",
+  "reviewed_at": "2026-10-03T20:17:55.339878+08:00",
+  "scope_grade": "C",
+  "files": [
+    {
+      "root_file": "native-surface-default-repeat-render-default.png",
+      "file": "inherited/evidence__native-surface-default-repeat-render-default.png",
+      "sha256": "73513b482e6c679564ac0e2ddc09293a5c254734631fce7d165a6984796cc0d2",
+      "bytes": 1457532,
+      "viewed": true,
+      "view_method": "tools.view_image detail original; all8 direct original PNG views",
+      "review": "Live2D figure and skip-opening focus control are visible against the dark animated background; a single frame does not prove the complete opening interaction.",
+      "grade": "C"
+    },
+    {
+      "root_file": "native-surface-default-repeat-stage-default.png",
+      "file": "inherited/evidence__native-surface-default-repeat-stage-default.png",
+      "sha256": "86503fc778987146156457b00eaa1943da86754a2294b1d84b3dea23911b5a27",
+      "bytes": 2163608,
+      "viewed": true,
+      "view_method": "tools.view_image detail original; all8 direct original PNG views",
+      "review": "The default3D Stage has continuous concentric/radial ground lines and soft reflections, without the previously observed large torn black/blue patches and dense horizontal discontinuities. The panel is filled and CEO plaque is separate. This is one reviewed frame, not proof for every GPU/camera.",
+      "grade": "C"
+    },
+    {
+      "root_file": "native-surface-default-repeat-team-default.png",
+      "file": "inherited/evidence__native-surface-default-repeat-team-default.png",
+      "sha256": "ab9d700a9aa5030cadba21b18a81020471a688eff2006720907c2a58e338504e",
+      "bytes": 1584075,
+      "viewed": true,
+      "view_method": "tools.view_image detail original; all8 direct original PNG views",
+      "review": "Role/name cards and later/enter controls are visible/readable. Lower team rows use internal scrolling; all65 actor reachability is a separate DOM/runtime assertion.",
+      "grade": "C"
+    },
+    {
+      "root_file": "native-surface-default-repeat-workplace-default.png",
+      "file": "inherited/evidence__native-surface-default-repeat-workplace-default.png",
+      "sha256": "6f23e1cec096f3d6b7bd8576f4d109102306b25fb9fd877194e48eed1b2edd61",
+      "bytes": 1955481,
+      "viewed": true,
+      "view_method": "tools.view_image detail original; all8 direct original PNG views",
+      "review": "The default3D scene fills its intended panel without the earlier lower flat cutoff. CEO plaque is visually separate from staff role cards in this frame.",
+      "grade": "C"
+    },
+    {
+      "root_file": "native-surface-safe-render-safe.png",
+      "file": "inherited/evidence__native-surface-safe-render-safe.png",
+      "sha256": "e8129d4ea19476c50b560b3eaf2a258db7a5dd197ae5009fcd4b6edd65ba3981",
+      "bytes": 278475,
+      "viewed": true,
+      "view_method": "tools.view_image detail original; all8 direct original PNG views",
+      "review": "This frame samples a transition/loading dot over the central region and does not independently display the opening vector avatar. Runtime vector telemetry is separately available; complete opening timing/readability is not claimed.",
+      "grade": "C"
+    },
+    {
+      "root_file": "native-surface-safe-stage-safe.png",
+      "file": "inherited/evidence__native-surface-safe-stage-safe.png",
+      "sha256": "fab2ce9be609eef3a2949afab2c9751df5961ee4cf35e1dac959e35dbaf4df98",
+      "bytes": 630159,
+      "viewed": true,
+      "view_method": "tools.view_image detail original; all8 direct original PNG views",
+      "review": "The separate vector2d fallback Stage displays a central silhouette and surrounding blue points. It does not contain the reflective default3D floor and cannot clear its earlier depth-conflict defect.",
+      "grade": "C"
+    },
+    {
+      "root_file": "native-surface-safe-team-safe.png",
+      "file": "inherited/evidence__native-surface-safe-team-safe.png",
+      "sha256": "454ebca7d29222e40d3ff24416ca91544e88b90cbfdad5fec527595faaa99794",
+      "bytes": 1628150,
+      "viewed": true,
+      "view_method": "tools.view_image detail original; all8 direct original PNG views",
+      "review": "Dense role/name cards and later/enter controls are visible/readable in the sampled frame; lower rows require internal scrolling.",
+      "grade": "C"
+    },
+    {
+      "root_file": "native-surface-safe-workplace-safe.png",
+      "file": "inherited/evidence__native-surface-safe-workplace-safe.png",
+      "sha256": "9c6b693e38e5db2929446fd421ee54a36c40421190461a0baf8770ab6c495eb6",
+      "bytes": 559557,
+      "viewed": true,
+      "view_method": "tools.view_image detail original; all8 direct original PNG views",
+      "review": "The separate vector2d fallback workplace shows actor/role cards and CEO, without a blocked scene region. It does not prove default3D rendering.",
+      "grade": "C"
+    }
+  ],
+  "directly_viewed_pngs": 8,
+  "sampled_pngs": 0,
+  "unread_pngs": 0,
+  "final_corrected_native_review": true,
+  "full_ux_pass_claimed": false,
+  "blocking_visual_observations": [],
+  "actual_root_runtime_controls": {
+    "default-repeat": {
+      "root_exit_code": 0,
+      "root_seconds": 62.78,
+      "render_mode": "live2d-webgl",
+      "guide_closed": true,
+      "workplace": 18,
+      "stage": 65,
+      "overlay_absent_before_after_capture": true,
+      "root_runtime_source_binding": "Actual application receipt source7fee and exact wrapper executable; original renderer JSON has no sourceSHA field"
+    },
+    "safe": {
+      "root_exit_code": 0,
+      "root_seconds": 65.681,
+      "render_mode": "vector2d",
+      "guide_closed": true,
+      "workplace": 18,
+      "stage": 65,
+      "overlay_absent_before_after_capture": true,
+      "root_runtime_source_binding": "Actual application receipt source7fee and exact wrapper executable; original renderer JSON has no sourceSHA field"
+    }
+  },
+  "current_pixel_scope": "OBS16 Stage fill, OBS17 CEO plaque separation and OBS18 default floor torn fragments are corrected in these actual reviewed final .5 scene frames. Full initial opening timing and all UX are not proven.",
+  "safe_opening_avatar_pixel_proof_limited": true,
+  "original_surface_cold_default_red_preserved": "native-surface-default-original-red-review.json",
+  "original_default_failure_cause_proven": false,
+  "original_f951_v4_stage_pixel_red_preserved": "floor-native-f951-screenshot-review.json",
+  "source_app_byte_binding_origin": "Root source/version/asar/payload public fingerprint and exact command names; own actual large-byte probes still pending",
+  "root_app_asar_sha256": "d2853e56f03680d7eca3c24798ec58f482883908a30f649ef7f1dcaac0bab42a",
+  "independent_app_payload_dmg_byte_probes_executed": false,
+  "actual_verifier_gpu_native_pg_calls": 0,
+  "private_contents_opened": false,
+  "public_provenance": [
+    {
+      "root_file": "mac-surface-default-repeat.json",
+      "file": "inherited/evidence__mac-surface-default-repeat.json",
+      "sha256": "bb7cd1360af58d78ccff47f91eba3f28ac38b98e528321d541ce6d5a1338ce0e",
+      "bytes": 416
+    },
+    {
+      "root_file": "mac-surface-default-repeat.log",
+      "file": "inherited/evidence__mac-surface-default-repeat.log",
+      "sha256": "61b3c629d94c121b615a089e1e0bb14907f01dd300794913b85e6f33429986fa",
+      "bytes": 8464
+    },
+    {
+      "root_file": "native-surface-default-repeat-retention.json",
+      "file": "inherited/evidence__native-surface-default-repeat-retention.json",
+      "sha256": "c4ec25b053822b10462d4ca0f1342d6b7737cd4f3180a27a380be923277b8dc4",
+      "bytes": 3062
+    },
+    {
+      "root_file": "native-surface-default-repeat-render-default.json",
+      "file": "inherited/evidence__native-surface-default-repeat-render-default.json",
+      "sha256": "0bbe28e6a9bf8b650f7526b0355270854e92dd7830616576df5963174506ed79",
+      "bytes": 7975
+    },
+    {
+      "root_file": "native-surface-default-repeat-render-default.png",
+      "file": "inherited/evidence__native-surface-default-repeat-render-default.png",
+      "sha256": "73513b482e6c679564ac0e2ddc09293a5c254734631fce7d165a6984796cc0d2",
+      "bytes": 1457532
+    },
+    {
+      "root_file": "native-surface-default-repeat-stage-default.png",
+      "file": "inherited/evidence__native-surface-default-repeat-stage-default.png",
+      "sha256": "86503fc778987146156457b00eaa1943da86754a2294b1d84b3dea23911b5a27",
+      "bytes": 2163608
+    },
+    {
+      "root_file": "native-surface-default-repeat-team-default.png",
+      "file": "inherited/evidence__native-surface-default-repeat-team-default.png",
+      "sha256": "ab9d700a9aa5030cadba21b18a81020471a688eff2006720907c2a58e338504e",
+      "bytes": 1584075
+    },
+    {
+      "root_file": "native-surface-default-repeat-workplace-default.png",
+      "file": "inherited/evidence__native-surface-default-repeat-workplace-default.png",
+      "sha256": "6f23e1cec096f3d6b7bd8576f4d109102306b25fb9fd877194e48eed1b2edd61",
+      "bytes": 1955481
+    },
+    {
+      "root_file": "mac-surface-safe.json",
+      "file": "inherited/evidence__mac-surface-safe.json",
+      "sha256": "d70e7ee261d403e4afa04a47d987f73fe57d047664c50dd116423ca131254ed9",
+      "bytes": 397
+    },
+    {
+      "root_file": "mac-surface-safe.log",
+      "file": "inherited/evidence__mac-surface-safe.log",
+      "sha256": "fc6190b16f7b69899118798b3adda96da3d35833eb196c7f0978288f63b27fa4",
+      "bytes": 7343
+    },
+    {
+      "root_file": "native-surface-safe-retention.json",
+      "file": "inherited/evidence__native-surface-safe-retention.json",
+      "sha256": "1094d909b2d7e0cb17405da0f322ae66a359a727d1281d13dd723615ef49c90b",
+      "bytes": 2903
+    },
+    {
+      "root_file": "native-surface-safe-render-safe.json",
+      "file": "inherited/evidence__native-surface-safe-render-safe.json",
+      "sha256": "3a7ab640c2993126c1fa63b9276e740bcfc439997fc01507d11f9f0624da978d",
+      "bytes": 6668
+    },
+    {
+      "root_file": "native-surface-safe-render-safe.png",
+      "file": "inherited/evidence__native-surface-safe-render-safe.png",
+      "sha256": "e8129d4ea19476c50b560b3eaf2a258db7a5dd197ae5009fcd4b6edd65ba3981",
+      "bytes": 278475
+    },
+    {
+      "root_file": "native-surface-safe-stage-safe.png",
+      "file": "inherited/evidence__native-surface-safe-stage-safe.png",
+      "sha256": "fab2ce9be609eef3a2949afab2c9751df5961ee4cf35e1dac959e35dbaf4df98",
+      "bytes": 630159
+    },
+    {
+      "root_file": "native-surface-safe-team-safe.png",
+      "file": "inherited/evidence__native-surface-safe-team-safe.png",
+      "sha256": "454ebca7d29222e40d3ff24416ca91544e88b90cbfdad5fec527595faaa99794",
+      "bytes": 1628150
+    },
+    {
+      "root_file": "native-surface-safe-workplace-safe.png",
+      "file": "inherited/evidence__native-surface-safe-workplace-safe.png",
+      "sha256": "9c6b693e38e5db2929446fd421ee54a36c40421190461a0baf8770ab6c495eb6",
+      "bytes": 559557
+    },
+    {
+      "root_file": "surface-app-fingerprint.json",
+      "file": "inherited/evidence__surface-app-fingerprint.json",
+      "sha256": "b1b99cf9da08a687fff195d88a16c43f2cec6c7c479b668aa54b72cb6f0add2f",
+      "bytes": 1984
+    }
+  ]
+}

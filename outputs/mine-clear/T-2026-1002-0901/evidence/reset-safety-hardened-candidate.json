@@ -1,0 +1,12 @@
+{
+  "name": "reset-safety-hardened-candidate",
+  "command": [
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+    "--test",
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/reset-safety-controlled-candidate/reset-safety.test.mjs"
+  ],
+  "exit_code": 0,
+  "seconds": 12.402,
+  "ran_at": "2026-10-03T10:31:21.377641+08:00",
+  "log": "reset-safety-hardened-candidate.log"
+}
