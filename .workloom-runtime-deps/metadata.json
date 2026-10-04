@@ -32,7 +32,7 @@
     },
     {
       "path": "package.json",
-      "sha256": "cc378e32d27e55ca34753b5f62eddd844411526e6acb1981476f2e60e4e71a99"
+      "sha256": "a68f32fc925d77093e0dcc91ffaa71f63c5d5bb2aae722343d770398280774ed"
     },
     {
       "path": "packages/audit-engine/package.json",
@@ -64,7 +64,7 @@
     },
     {
       "path": "pnpm-lock.yaml",
-      "sha256": "e3cff62ba8aa8aa63a06f2efaeac1b830f34dc7098e8b7f1cdd428a6b5d1493f"
+      "sha256": "834833a61b50ff153fd0ed456a306d5fe0a3d2bffb51b8665fc0cf8b85d684e8"
     },
     {
       "path": "product.manifest.json",
