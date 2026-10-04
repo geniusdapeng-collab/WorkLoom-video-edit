@@ -1,0 +1,282 @@
+{
+  "origin": "selected snapshots retained from actual diagnostic stdout; complete 24-snapshot file was overwritten by runner metadata due shared filename",
+  "snapshots": [
+    {
+      "sampledAt": "2026-10-02T17:00:56.875Z",
+      "visibility": "visible",
+      "focused": true,
+      "avatars": [],
+      "live2dCore": false,
+      "cubismCore": false,
+      "pixi": false,
+      "readyHook": "undefined",
+      "error": null,
+      "telemetry": null,
+      "scripts": [
+        "/live2d/live2d.min.js",
+        "/live2d/live2dcubismcore.min.js"
+      ],
+      "assetTimings": []
+    },
+    {
+      "sampledAt": "2026-10-02T17:01:11.542Z",
+      "visibility": "visible",
+      "focused": true,
+      "avatars": [],
+      "live2dCore": true,
+      "cubismCore": true,
+      "pixi": false,
+      "readyHook": "undefined",
+      "error": null,
+      "telemetry": null,
+      "scripts": [
+        "/live2d/live2d.min.js",
+        "/live2d/live2dcubismcore.min.js"
+      ],
+      "assetTimings": [
+        {
+          "path": "/live2d/live2d.min.js",
+          "duration": 643,
+          "size": 34066
+        },
+        {
+          "path": "/live2d/live2dcubismcore.min.js",
+          "duration": 691,
+          "size": 62460
+        }
+      ]
+    },
+    {
+      "sampledAt": "2026-10-02T17:01:27.257Z",
+      "visibility": "visible",
+      "focused": true,
+      "avatars": [],
+      "live2dCore": true,
+      "cubismCore": true,
+      "pixi": false,
+      "readyHook": "undefined",
+      "error": null,
+      "telemetry": null,
+      "scripts": [
+        "/live2d/live2d.min.js",
+        "/live2d/live2dcubismcore.min.js"
+      ],
+      "assetTimings": [
+        {
+          "path": "/live2d/live2d.min.js",
+          "duration": 643,
+          "size": 34066
+        },
+        {
+          "path": "/live2d/live2dcubismcore.min.js",
+          "duration": 691,
+          "size": 62460
+        }
+      ]
+    },
+    {
+      "sampledAt": "2026-10-02T17:01:46.199Z",
+      "visibility": "visible",
+      "focused": true,
+      "avatars": [],
+      "live2dCore": true,
+      "cubismCore": true,
+      "pixi": false,
+      "readyHook": "undefined",
+      "error": null,
+      "telemetry": null,
+      "scripts": [
+        "/live2d/live2d.min.js",
+        "/live2d/live2dcubismcore.min.js"
+      ],
+      "assetTimings": [
+        {
+          "path": "/live2d/live2d.min.js",
+          "duration": 643,
+          "size": 34066
+        },
+        {
+          "path": "/live2d/live2dcubismcore.min.js",
+          "duration": 691,
+          "size": 62460
+        },
+        {
+          "path": "/live2d/mao/poster.png",
+          "duration": 167,
+          "size": 230785
+        }
+      ]
+    },
+    {
+      "sampledAt": "2026-10-02T17:01:59.152Z",
+      "visibility": "visible",
+      "focused": true,
+      "avatars": [],
+      "live2dCore": true,
+      "cubismCore": true,
+      "pixi": true,
+      "readyHook": "undefined",
+      "error": null,
+      "telemetry": null,
+      "scripts": [
+        "/live2d/live2d.min.js",
+        "/live2d/live2dcubismcore.min.js"
+      ],
+      "assetTimings": [
+        {
+          "path": "/live2d/live2d.min.js",
+          "duration": 643,
+          "size": 34066
+        },
+        {
+          "path": "/live2d/live2dcubismcore.min.js",
+          "duration": 691,
+          "size": 62460
+        },
+        {
+          "path": "/live2d/mao/poster.png",
+          "duration": 167,
+          "size": 230785
+        },
+        {
+          "path": "/live2d/mao/Mao.model3.json",
+          "duration": 64,
+          "size": 744
+        },
+        {
+          "path": "/live2d/mao/Mao.moc3",
+          "duration": 159,
+          "size": 378716
+        },
+        {
+          "path": "/live2d/mao/Mao.2048/texture_00.png",
+          "duration": 208,
+          "size": 3131253
+        },
+        {
+          "path": "/live2d/mao/motions/mtn_01.motion3.json",
+          "duration": 53,
+          "size": 2565
+        },
+        {
+          "path": "/live2d/mao/motions/sample_01.motion3.json",
+          "duration": 79,
+          "size": 2696
+        },
+        {
+          "path": "/live2d/mao/Mao.pose3.json",
+          "duration": 40,
+          "size": 554
+        },
+        {
+          "path": "/live2d/mao/Mao.physics3.json",
+          "duration": 48,
+          "size": 1627
+        },
+        {
+          "path": "/live2d/mao/expressions/exp_02.exp3.json",
+          "duration": 38,
+          "size": 589
+        },
+        {
+          "path": "/live2d/mao/motions/special_03.motion3.json",
+          "duration": 76,
+          "size": 7115
+        },
+        {
+          "path": "/live2d/mao/expressions/exp_06.exp3.json",
+          "duration": 1068,
+          "size": 595
+        }
+      ]
+    },
+    {
+      "sampledAt": "2026-10-02T17:02:05.392Z",
+      "visibility": "visible",
+      "focused": true,
+      "avatars": [],
+      "live2dCore": true,
+      "cubismCore": true,
+      "pixi": true,
+      "readyHook": "undefined",
+      "error": "TypeError: Cannot read properties of null (reading 'appendChild')\n    at http://127.0.0.1:29773/assets/index--a2CwCYm.js:5832:7160",
+      "telemetry": null,
+      "scripts": [
+        "/live2d/live2d.min.js",
+        "/live2d/live2dcubismcore.min.js"
+      ],
+      "assetTimings": [
+        {
+          "path": "/live2d/live2d.min.js",
+          "duration": 643,
+          "size": 34066
+        },
+        {
+          "path": "/live2d/live2dcubismcore.min.js",
+          "duration": 691,
+          "size": 62460
+        },
+        {
+          "path": "/live2d/mao/poster.png",
+          "duration": 167,
+          "size": 230785
+        },
+        {
+          "path": "/live2d/mao/Mao.model3.json",
+          "duration": 64,
+          "size": 744
+        },
+        {
+          "path": "/live2d/mao/Mao.moc3",
+          "duration": 159,
+          "size": 378716
+        },
+        {
+          "path": "/live2d/mao/Mao.2048/texture_00.png",
+          "duration": 208,
+          "size": 3131253
+        },
+        {
+          "path": "/live2d/mao/motions/mtn_01.motion3.json",
+          "duration": 53,
+          "size": 2565
+        },
+        {
+          "path": "/live2d/mao/motions/sample_01.motion3.json",
+          "duration": 79,
+          "size": 2696
+        },
+        {
+          "path": "/live2d/mao/Mao.pose3.json",
+          "duration": 40,
+          "size": 554
+        },
+        {
+          "path": "/live2d/mao/Mao.physics3.json",
+          "duration": 48,
+          "size": 1627
+        },
+        {
+          "path": "/live2d/mao/expressions/exp_02.exp3.json",
+          "duration": 38,
+          "size": 589
+        },
+        {
+          "path": "/live2d/mao/motions/special_03.motion3.json",
+          "duration": 76,
+          "size": 7115
+        },
+        {
+          "path": "/live2d/mao/expressions/exp_06.exp3.json",
+          "duration": 1068,
+          "size": 595
+        },
+        {
+          "path": "/live2d/mao/poster.png",
+          "duration": 183,
+          "size": 300
+        }
+      ]
+    }
+  ]
+}

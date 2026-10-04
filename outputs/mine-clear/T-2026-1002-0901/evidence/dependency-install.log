@@ -1,0 +1,20 @@
+COMMAND ["/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node", "--env-file=.env", "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/pnpm/bin/pnpm.cjs", "install", "--no-frozen-lockfile"]
+Scope: all 12 workspace projects
+Progress: resolved 0, reused 1, downloaded 0, added 0
+Progress: resolved 491, reused 391, downloaded 0, added 0
+Progress: resolved 661, reused 544, downloaded 1, added 0
+Progress: resolved 677, reused 554, downloaded 5, added 0
+Progress: resolved 689, reused 555, downloaded 15, added 0
+Progress: resolved 697, reused 557, downloaded 25, added 0
+Progress: resolved 703, reused 562, downloaded 27, added 0
+Progress: resolved 708, reused 567, downloaded 27, added 0
+ WARN  4 deprecated subdependencies found: boolean@3.2.0, glob@7.2.3, inflight@1.0.6, rimraf@2.6.3
+Packages: +27 -10
++++++++++++++++++++++++++++----------
+Progress: resolved 711, reused 570, downloaded 27, added 27, done
+. postinstall$ pnpm -C packages/industry-contract build && (node scripts/postinstall-note.js || true)
+. postinstall: > @workloom/industry-contract@2.0.0 build /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/packages/industry-contract
+. postinstall: > tsc -p tsconfig.build.json
+. postinstall: Done
+
+Done in 9.1s using pnpm v10.14.0

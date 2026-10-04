@@ -1,0 +1,90 @@
+{
+  "at": "2026-10-03T19:27:46.932008+08:00",
+  "product_source_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+  "evidence_prefix": "surface",
+  "version_plan": "v0.1.0-fix.20261003.5",
+  "prepared_only": true,
+  "final_native_executed": false,
+  "modern_mcd_executed": false,
+  "source_window_owned_by": "growth_m6",
+  "files": [
+    {
+      "file": "run_floor_mac.py",
+      "sha256": "9bbb372480607c08710666e37c92ec686ee7bbc4f10b2f4dc920f00b090ac0e0",
+      "lines": 47,
+      "ast_parse_passed": true
+    },
+    {
+      "file": "retain_floor_evidence.py",
+      "sha256": "8c95205421e3c9366d0d7041f232d502579d7372ecff08ada8ce2c3c76b7094c",
+      "lines": 76,
+      "ast_parse_passed": true
+    },
+    {
+      "file": "install_floor_dmg.py",
+      "sha256": "45b5b1bf04ef2ccee1094a5150d2a06001086867f62073628cbe3a5225fad4a6",
+      "lines": 76,
+      "ast_parse_passed": true
+    },
+    {
+      "file": "verify_current_payload.py",
+      "sha256": "945eb4311380056da380885cc39f1afb63f0c5f4ea7d32c10539f2b6b6d9fa34",
+      "lines": 77,
+      "ast_parse_passed": true
+    },
+    {
+      "file": "run_installed_film_load.py",
+      "sha256": "5b15f4fd5e159f34e8da4debf511beec588fc2ea5d576b541d600dd070215bcb",
+      "lines": 64,
+      "ast_parse_passed": true
+    },
+    {
+      "file": "native_diagnostic_fixture.py",
+      "sha256": "fee725effb366b1cf3e5b2c20e08f192f0e945605833e84c57c1433d3a223346",
+      "lines": 172,
+      "ast_parse_passed": true
+    },
+    {
+      "file": "archive_f951_pack.py",
+      "sha256": "cfd4a8fce3c0c4fe981b9094223f85fa63eca5827f23d630488635e308182e7b",
+      "lines": 85,
+      "ast_parse_passed": true
+    },
+    {
+      "file": "prepare_execution_ledger.py",
+      "sha256": "0f44718724deb97cd99b57c93cbf60b6f33972df755f23e168f161ab935d3263",
+      "lines": 184,
+      "ast_parse_passed": true
+    },
+    {
+      "file": "generate_repair_ledger.py",
+      "sha256": "155516aa5f053a125b226c511e5295faa045b04facf6f836cd1a34e011429fe3",
+      "lines": 187,
+      "ast_parse_passed": true
+    },
+    {
+      "file": "build_production_report.py",
+      "sha256": "95530c2c9fc1c4fc050cc89a95d0d506291ca569444a6ed003e950ddfe3ff70f",
+      "lines": 232,
+      "ast_parse_passed": true
+    },
+    {
+      "file": "build_public_growth_bundle.py",
+      "sha256": "f25030f1b0214de7f503593fee806bffea4d0e5723a8baca1f46a97be6e42615",
+      "lines": 344,
+      "ast_parse_passed": true
+    },
+    {
+      "file": "verify_current_app.cjs",
+      "sha256": "74301e7ae3483663b0c10b207583050d663e9f46f82eb1a75fe76929a9b5d415",
+      "lines": 57,
+      "node_syntax_passed": true
+    },
+    {
+      "file": "native_private_state.mjs",
+      "sha256": "d00506290f878f08833d69903354a9e54ae3f7c386e774df33433da1ef988954",
+      "lines": 116,
+      "node_syntax_passed": true
+    }
+  ]
+}

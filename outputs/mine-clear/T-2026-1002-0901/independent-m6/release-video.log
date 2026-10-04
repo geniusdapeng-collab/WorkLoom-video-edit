@@ -1,0 +1,26 @@
+COMMAND ["/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node", "--env-file=.env", "--test", "scripts/ci/cnb-desktop-release.test.mjs", "scripts/video-capabilities.test.mjs"]
+✔ CNB config has main-only signed producers and one locked publisher (636.708042ms)
+✔ Windows release runner calls pwsh and creates the pgvector source directory before git -C (207.360583ms)
+✔ context rejects wrong branch, source SHA, repo, role, or unsigned mode (33.797958ms)
+✔ preflight binds remote main and tag and refuses an existing Release (1243.997667ms)
+✔ Mac producer seals exact candidates, uploads them once, and reads back SHA-512 (986.225833ms)
+✔ producer rejects a substituted remote candidate and untrusted confirmation URL (70.804791ms)
+✔ publisher creates draft, uploads exactly five assets, verifies remote bytes, then makes Latest (689.456416ms)
+✔ publisher leaves a draft when remote Release bytes change; never makes it public (983.034416ms)
+✔ publisher rejects a coherently replaced installer and manifest before creating a draft (228.264875ms)
+✔ publisher refuses mixed-build candidates before creating any Release (34.5705ms)
+✔ publisher rejects unsafe remote candidate filenames before download (38.154417ms)
+✔ publisher rejects a corrupted downloaded installer before the first Release write (107.418ms)
+✔ publisher keeps an incomplete draft if main moves before public promotion (733.022208ms)
+✔ delivery hashes main, attachments and asset list; later tampering is detected (623.404417ms)
+✔ empty manifest, missing or empty main, directory and missing digest never pass (78.057542ms)
+✔ cross-project manifests, conflicting digests, invalid JSON and path escapes fail (181.873083ms)
+✔ suggested POSIX command preserves every argument literally and supplies a PowerShell representation (768.585959ms)
+ℹ tests 17
+ℹ suites 0
+ℹ pass 17
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 10082.820666

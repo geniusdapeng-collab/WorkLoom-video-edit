@@ -1,0 +1,16 @@
+{
+  "schema": "growth.independent-m6/source-resource-handback@1",
+  "verified_by": "growth_m6",
+  "source_commit": "f0a11286a49419fb7909088e2d170f4dde7b60c6",
+  "handed_back_at": "2026-10-03T10:51:55.486493+08:00",
+  "scope": "Source/GPU window after source report validation; future reset source belongs root until next exact clean handoff",
+  "browser_processes_owned_by_verifier": 0,
+  "pg_processes_owned_by_verifier": 0,
+  "native_processes_owned_by_verifier": 0,
+  "mcd_executions_so_far": 0,
+  "final_native_verified": false,
+  "source_scoped_merge_eligible": false,
+  "report_validation": "report-validation-f0a1.json",
+  "report_validation_sha256": "3c13bfa17d61f3a7185e1221ea859c8049f227f3957f4ea4444fa867c754ada1",
+  "next_required": "New MC017 source, final native, root repair and independent acceptance modern MCD"
+}

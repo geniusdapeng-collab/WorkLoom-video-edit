@@ -1,0 +1,10 @@
+{
+  "schema": "growth.independent-m6/observer-preparation-correction@1",
+  "source_commit": "c08386eb9993744a0cb0c2495a98fc1fc4ccbed9",
+  "failure": "Preparation AssertionError on assuming the existing edges observer still needed TaskDrop hash tracking; it already had that tracking. Follow-on syntax check saw the not-yet-created hover file.",
+  "actual_product_case_failures": 0,
+  "product_source_changed": false,
+  "first_default_run_unchanged": true,
+  "corrective_action": "Retained exact before bytes, treated the existing edges metadata as a no-op, and completed the independently rehosted legal Chinese hover observer with actual event trust checks.",
+  "original_failure_outputs_preserved": "Original tool outputs; immutable before-file snapshots and this explicit correction record."
+}

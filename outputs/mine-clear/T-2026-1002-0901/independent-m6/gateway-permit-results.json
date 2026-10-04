@@ -1,0 +1,200 @@
+{
+  "schema": "growth.independent-m6/gateway-permit@1",
+  "commit": "04099407ca73085e5d87f5c4d33ca9bba64f3374",
+  "scope": {
+    "tenantId": "audit-m6-tenant-mur3u9me-584407",
+    "workspaceId": "audit-m6-workspace-mur3u9me-584407"
+  },
+  "networkCalls": 0,
+  "tests": 20,
+  "passed": 20,
+  "failed": 0,
+  "results": [
+    {
+      "id": "PERMIT-SUCCESS-ONCE",
+      "pass": true,
+      "detail": {
+        "startedEventId": "E-13193",
+        "finalEventId": "E-13194",
+        "reuse": {
+          "name": "GatewayReject",
+          "stage": "authorization",
+          "message": "执行凭证不匹配或已经使用，拒绝落账"
+        }
+      }
+    },
+    {
+      "id": "PERMIT-FORGED",
+      "pass": true,
+      "detail": {
+        "name": "GatewayReject",
+        "stage": "authorization",
+        "message": "执行凭证不匹配或已经使用，拒绝落账"
+      }
+    },
+    {
+      "id": "PERMIT-CLONED",
+      "pass": true,
+      "detail": {
+        "name": "GatewayReject",
+        "stage": "authorization",
+        "message": "执行凭证不匹配或已经使用，拒绝落账"
+      }
+    },
+    {
+      "id": "PERMIT-BIND-PARAMS",
+      "pass": true,
+      "detail": {
+        "name": "GatewayReject",
+        "stage": "authorization",
+        "message": "执行凭证不匹配或已经使用，拒绝落账"
+      }
+    },
+    {
+      "id": "PERMIT-BIND-NESTED-PARAMS",
+      "pass": true,
+      "detail": {
+        "name": "GatewayReject",
+        "stage": "authorization",
+        "message": "执行凭证不匹配或已经使用，拒绝落账"
+      }
+    },
+    {
+      "id": "PERMIT-BIND-TENANT",
+      "pass": true,
+      "detail": {
+        "name": "GatewayReject",
+        "stage": "authorization",
+        "message": "执行凭证不匹配或已经使用，拒绝落账"
+      }
+    },
+    {
+      "id": "PERMIT-BIND-WORKSPACE",
+      "pass": true,
+      "detail": {
+        "name": "GatewayReject",
+        "stage": "authorization",
+        "message": "执行凭证不匹配或已经使用，拒绝落账"
+      }
+    },
+    {
+      "id": "PERMIT-BIND-ACTOR",
+      "pass": true,
+      "detail": {
+        "name": "GatewayReject",
+        "stage": "authorization",
+        "message": "执行凭证不匹配或已经使用，拒绝落账"
+      }
+    },
+    {
+      "id": "PERMIT-BIND-SESSION",
+      "pass": true,
+      "detail": {
+        "name": "GatewayReject",
+        "stage": "authorization",
+        "message": "执行凭证不匹配或已经使用，拒绝落账"
+      }
+    },
+    {
+      "id": "PERMIT-BIND-APPROVAL",
+      "pass": true,
+      "detail": {
+        "name": "GatewayReject",
+        "stage": "authorization",
+        "message": "执行凭证不匹配或已经使用，拒绝落账"
+      }
+    },
+    {
+      "id": "PERMIT-BIND-OBJECT",
+      "pass": true,
+      "detail": {
+        "name": "GatewayReject",
+        "stage": "authorization",
+        "message": "执行凭证不匹配或已经使用，拒绝落账"
+      }
+    },
+    {
+      "id": "PERMIT-BIND-ACTION",
+      "pass": true,
+      "detail": {
+        "name": "GatewayReject",
+        "stage": "authorization",
+        "message": "执行凭证不匹配或已经使用，拒绝落账"
+      }
+    },
+    {
+      "id": "PERMIT-BIND-TOOL",
+      "pass": true,
+      "detail": {
+        "name": "GatewayReject",
+        "stage": "authorization",
+        "message": "执行凭证不匹配或已经使用，拒绝落账"
+      }
+    },
+    {
+      "id": "PERMIT-BIND-STEP",
+      "pass": true,
+      "detail": {
+        "name": "GatewayReject",
+        "stage": "authorization",
+        "message": "执行凭证不匹配或已经使用，拒绝落账"
+      }
+    },
+    {
+      "id": "PERMIT-BIND-EFFECT",
+      "pass": true,
+      "detail": {
+        "name": "GatewayReject",
+        "stage": "authorization",
+        "message": "执行凭证不匹配或已经使用，拒绝落账"
+      }
+    },
+    {
+      "id": "PERMIT-BIND-WHO-VERSION",
+      "pass": true,
+      "detail": {
+        "name": "GatewayReject",
+        "stage": "authorization",
+        "message": "执行凭证不匹配或已经使用，拒绝落账"
+      }
+    },
+    {
+      "id": "PERMIT-BIND-FINAL-KIND",
+      "pass": true,
+      "detail": {
+        "name": "GatewayReject",
+        "stage": "authorization",
+        "message": "执行凭证不匹配或已经使用，拒绝落账"
+      }
+    },
+    {
+      "id": "PERMIT-READONLY",
+      "pass": true,
+      "detail": {
+        "name": "GatewayReject",
+        "stage": "permission",
+        "message": "只读 preset「m6-permit-agent」发起写类动作 audit.m6.write，拒绝（L9.1）"
+      }
+    },
+    {
+      "id": "APPROVAL-CANNOT-AUTHORIZE-TWICE",
+      "pass": true,
+      "detail": {
+        "name": "GatewayReject",
+        "stage": "authorization",
+        "message": "审批「m6-apr-mur3u9me-584407-19」已被消费（一次性授权，L3.5），同一审批不得驱动第二次写动作，须重新审批"
+      }
+    },
+    {
+      "id": "PERMIT-FAILED-FINAL-NO-REPLAY",
+      "pass": true,
+      "detail": {
+        "reuse": {
+          "name": "GatewayReject",
+          "stage": "authorization",
+          "message": "执行凭证不匹配或已经使用，拒绝落账"
+        }
+      }
+    }
+  ]
+}

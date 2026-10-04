@@ -1,0 +1,14 @@
+{
+  "name": "dependency-final-report-builder-byte-entry",
+  "command": [
+    "python3",
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/independent-m6/execute-report-bytes.py",
+    "95f1b7f0c565f24e96dd9ede2df7cba80e581e9da86a733d3e558b1475edc821"
+  ],
+  "exit_code": 1,
+  "seconds": 4.985,
+  "source_before": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+  "source_after": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+  "ran_at": "2026-10-04T04:59:14.974189+08:00",
+  "log": "dependency-final-report-builder-byte-entry.log"
+}

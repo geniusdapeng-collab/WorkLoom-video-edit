@@ -1,0 +1,15 @@
+{
+  "name": "desktop-final",
+  "command": [
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+    "--env-file=.env",
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/pnpm/bin/pnpm.cjs",
+    "test:desktop"
+  ],
+  "exit_code": 0,
+  "seconds": 8.49,
+  "source_before": "0f3e479e7b729e7ec669b34f28a8e14df0ddd005",
+  "source_after": "0f3e479e7b729e7ec669b34f28a8e14df0ddd005",
+  "ran_at": "2026-10-03T00:54:06.861840+08:00",
+  "log": "desktop-final.log"
+}

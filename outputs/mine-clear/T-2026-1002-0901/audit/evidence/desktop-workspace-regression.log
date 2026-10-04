@@ -1,0 +1,14 @@
+COMMAND ["/Users/mac/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node", "--env-file=.env", "--test", "scripts/pack-workspace-modules.test.mjs"]
+✔ 搬动原工作区副本会破坏仓库相对引用，新注册保留同一模块实例 (86.861042ms)
+✔ 子路径、条件 exports 和类型入口都引用保留的真实源文件 (30.224208ms)
+✔ 缺失构建产物在打包时失败，不留到客户启动时 (1.594333ms)
+✔ 包名称重复、路径越界和未支持的入口协议均失败关闭 (3.721042ms)
+✔ 行业载荷不会因目录存在而注册仙女座的 platform-ops (2.592417ms)
+ℹ tests 5
+ℹ suites 0
+ℹ pass 5
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 183.617459

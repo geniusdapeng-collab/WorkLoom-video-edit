@@ -1,0 +1,144 @@
+{
+  "source_commit": "87ab5781d381d19e9dc7e1f5caa98b6a6b410c58",
+  "read_by": "growth_m6",
+  "fresh_full_read_files": [
+    {
+      "path": "scripts/reset.sh",
+      "sha256": "f415b9f841253996746c19b6c827bc57fb1ee1ff23fb92b08d7a84879c1d260c",
+      "lines": 112,
+      "full_read": true,
+      "grade": "A complete source text read; B exact Git byte freeze"
+    },
+    {
+      "path": "scripts/reset-safety.test.mjs",
+      "sha256": "74318c0c8958d6fdf01d82e02e9792b1f6fcc889a50bf70f9d2974b6eeb456d6",
+      "lines": 225,
+      "full_read": true,
+      "grade": "A complete source text read; B exact Git byte freeze"
+    },
+    {
+      "path": "package.json",
+      "sha256": "c7344fc11289dc06c0d5a7a487b543e11a15ab36fc3f8cf1c951b3981b16eb24",
+      "lines": 112,
+      "full_read": true,
+      "grade": "A complete source text read; B exact Git byte freeze"
+    },
+    {
+      "path": ".workloom-runtime-deps/metadata.json",
+      "sha256": "216dfd1574541fc262eb79314df4004781f1826b2ad200a38db6f3e92c35484b",
+      "lines": 92,
+      "full_read": true,
+      "grade": "A complete source text read; B exact Git byte freeze"
+    },
+    {
+      "path": "docs/repairs/T-2026-1002-0901.md",
+      "sha256": "103d43f952de5c230299d98ccd227f09254c57029217a8b52b5ec8a72ebf7f4b",
+      "lines": 85,
+      "full_read": true,
+      "grade": "A complete source text read; B exact Git byte freeze"
+    },
+    {
+      "path": "scripts/migrate.ts",
+      "sha256": "3776b4efc5f2622bd0c55353652780290f3267dbd1d4d35b7f919328a473dacc",
+      "lines": 134,
+      "full_read": true,
+      "grade": "A complete source text read; B exact Git byte freeze"
+    },
+    {
+      "path": "scripts/seed.ts",
+      "sha256": "9b05ce3bc86aa27395d106341c8d0bf343c049d9e93ccb9478655c8d2c1eb176",
+      "lines": 1942,
+      "full_read": true,
+      "grade": "A complete source text read; B exact Git byte freeze"
+    },
+    {
+      "path": "scripts/skill-bindings.mts",
+      "sha256": "19c7377835bf35a4b34f6869211692d2ad2ebfb75d1b4226fe8bcb8211bd3776",
+      "lines": 104,
+      "full_read": true,
+      "grade": "A complete source text read; B exact Git byte freeze"
+    },
+    {
+      "path": "packages/base/bundles/index.ts",
+      "sha256": "5bae6b929e8921ea1e9c4fcabd0bc31ea44b0a5bdbfca78965b6b8a1704e060d",
+      "lines": 7,
+      "full_read": true,
+      "grade": "A complete source text read; B exact Git byte freeze"
+    },
+    {
+      "path": "packages/base/skills/index.ts",
+      "sha256": "c942ab1fa6f25d52c34ae3cf64566c23e7b642c542a367f00a7be81c2eca51e8",
+      "lines": 11,
+      "full_read": true,
+      "grade": "A complete source text read; B exact Git byte freeze"
+    },
+    {
+      "path": "packages/base/skills/official.ts",
+      "sha256": "57978c939822cebbfbf0c5a01e413ba737d2fed958120453519f9d842fe24835",
+      "lines": 64,
+      "full_read": true,
+      "grade": "A complete source text read; B exact Git byte freeze"
+    },
+    {
+      "path": "packages/base/workdata/readable-id.ts",
+      "sha256": "c66b34756ef5e42237e4e07c8f4e22180481643bc8115c97f723a2330680ff39",
+      "lines": 118,
+      "full_read": true,
+      "grade": "A complete source text read; B exact Git byte freeze"
+    },
+    {
+      "path": "packages/db/migrations/0022_bundle_mechanism.sql",
+      "sha256": "0bd0fef17aba902350b55f9ee161124504b8a6eab53265ce3ccf83e110c736ad",
+      "lines": 65,
+      "full_read": true,
+      "grade": "A complete source text read; B exact Git byte freeze"
+    }
+  ],
+  "unchanged_full_read_direct_dependencies": [
+    {
+      "path": "scripts/runtime-deps-lock.mjs",
+      "sha256": "38d5eba21ae509aec4de97000bda055ca632f0216473e1d1000eeba6b5e0a475",
+      "prior_full_read_commit": "f0a11286a49419fb7909088e2d170f4dde7b60c6",
+      "unchanged": true
+    },
+    {
+      "path": "scripts/seed-geo.ts",
+      "sha256": "9091bb26f40114e7fa38ce88686dd80adcf99c30fc2acff60c9ffdc27c3d092b",
+      "prior_full_read_commit": "f0a11286a49419fb7909088e2d170f4dde7b60c6",
+      "unchanged": true
+    },
+    {
+      "path": "packages/base/workdata/index.ts",
+      "sha256": "0d3c5b0483b528fcf57c137363aa5328ce78bf999bc44404b938bca476062a09",
+      "prior_full_read_commit": "f0a11286a49419fb7909088e2d170f4dde7b60c6",
+      "unchanged": true
+    },
+    {
+      "path": "packages/base/workdata/events.ts",
+      "sha256": "c2cea423e934037fa4e2802a83ebe69daca1facb1e6876434783d2b13a530ed5",
+      "prior_full_read_commit": "f0a11286a49419fb7909088e2d170f4dde7b60c6",
+      "unchanged": true
+    },
+    {
+      "path": "packages/base/package.json",
+      "sha256": "d6b309b67a0a23b7465b758210e3647194c44489ad2b9a3e19d68af8ebfe6e2a",
+      "prior_full_read_commit": "f0a11286a49419fb7909088e2d170f4dde7b60c6",
+      "unchanged": true
+    },
+    {
+      "path": "product.manifest.json",
+      "sha256": "1aa6bf2b967cf3e7f88f024ff913a3633fb17737a54c3f495872f6c56b008df9",
+      "prior_full_read_commit": "f0a11286a49419fb7909088e2d170f4dde7b60c6",
+      "unchanged": true
+    }
+  ],
+  "full_read_registry_count": 148,
+  "read_at": "2026-10-03T11:26:59.496665+08:00",
+  "seed_full_read_completion": "941..1200 and1201..1460 reread after prior truncation;1461..1700 and1701..1942 read;1730..1805 reread to close output truncation; complete1..1942 now read.",
+  "limited_direct_dependency": {
+    "path": "packages/base/bundles/assembly.ts",
+    "ranges": "510-665;805-940",
+    "mode": "C",
+    "reason": "Only composition and provision functions followed while reading unchanged seed; the other1870-line assembly behaviors were not reread in this specialized supplement."
+  }
+}

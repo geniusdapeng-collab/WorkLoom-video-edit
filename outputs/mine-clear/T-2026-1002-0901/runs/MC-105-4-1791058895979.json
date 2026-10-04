@@ -1,0 +1,77 @@
+{
+  "schema": "workloom.evidence-run/v1",
+  "id": "MC-105-4-1791058895979",
+  "command": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node --env-file=.env --test scripts/video-capabilities.test.mjs",
+  "exec": {
+    "file": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+    "args": [
+      "--test-reporter=/Users/mac/.codex/skills/mine-clear-delivery/assets/node-test-reporter.mjs",
+      "--test-reporter-destination=/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/evidence/MC-105-4-1791058895979-node-tests.jsonl",
+      "--test-reporter=tap",
+      "--test-reporter-destination=stdout",
+      "--env-file=.env",
+      "--test",
+      "scripts/video-capabilities.test.mjs"
+    ]
+  },
+  "requested_exec": {
+    "file": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+    "args": [
+      "--env-file=.env",
+      "--test",
+      "scripts/video-capabilities.test.mjs"
+    ]
+  },
+  "node_observer": {
+    "schema": "workloom.node-test-observer/v1",
+    "reporter_path": "/Users/mac/.codex/skills/mine-clear-delivery/assets/node-test-reporter.mjs",
+    "reporter_sha256": "286448a4dee571759fc1703564477d27bf5319bcb05ff66db2186deda60bc78f",
+    "destination": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/evidence/MC-105-4-1791058895979-node-tests.jsonl",
+    "summary": {
+      "path": "evidence/MC-105-4-1791058895979-node-tests.jsonl",
+      "sha256": "e763d58bcf901fa4b060fe458b591909d93abc9c90f019816c79703da04cc65d",
+      "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+    }
+  },
+  "node_executable": {
+    "path": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+    "sha256": "27db838bb204ef7c21df2931f5656e4c8fb32e6e947f363a402b49714d32b5b1"
+  },
+  "actor": "growth_m6",
+  "role": "acceptance",
+  "subject": {
+    "card_id": "MC-105",
+    "assertion_index": 4
+  },
+  "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+  "working_tree_dirty": false,
+  "started_at": "2026-10-03T20:21:35.979Z",
+  "finished_at": "2026-10-03T20:21:36.394Z",
+  "exit_code": 0,
+  "signal": null,
+  "validation": {
+    "ok": true,
+    "errors": [],
+    "testSummary": {
+      "total": 4,
+      "passed": 4,
+      "failed": 0,
+      "cancelled": 0,
+      "skipped": 0,
+      "todo": 0
+    }
+  },
+  "result": "pass",
+  "outputs": [
+    {
+      "path": "evidence/MC-105-4-1791058895979.txt",
+      "sha256": "5111d07070daa15888fa56adbe030471f0cc29b190032d8d1f8a33855fe3b252",
+      "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+    },
+    {
+      "path": "evidence/MC-105-4-1791058895979-node-tests.jsonl",
+      "sha256": "e763d58bcf901fa4b060fe458b591909d93abc9c90f019816c79703da04cc65d",
+      "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+    }
+  ]
+}

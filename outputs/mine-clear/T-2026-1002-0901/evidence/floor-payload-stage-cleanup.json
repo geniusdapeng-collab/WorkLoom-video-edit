@@ -1,0 +1,15 @@
+{
+  "at": "2026-10-03T09:25:31.955439+08:00",
+  "source": "c08386eb9993744a0cb0c2495a98fc1fc4ccbed9",
+  "removed_owned_rebuildable_stage": [
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/dist-payload/runtime",
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/dist-payload/node",
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/dist-payload/pg",
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/dist-payload/nats"
+  ],
+  "retained": [
+    "dist-payload.tar.gz",
+    "dist-payload/PAYLOAD_VERSION"
+  ],
+  "reason": "Exact product packer and 2092-file closure completed; installed/runtime data not touched"
+}

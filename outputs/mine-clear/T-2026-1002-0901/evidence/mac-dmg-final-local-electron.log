@@ -1,0 +1,23 @@
+COMMAND ["/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node", "--env-file=.env", "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/pnpm/bin/pnpm.cjs", "exec", "electron-builder", "--mac", "dmg", "--arm64", "--publish", "never", "-c.mac.identity=-", "-c.mac.notarize=false", "-c.extraMetadata.version=0.1.0-fix.20261002.2", "-c.electronDist=node_modules/electron/dist"]
+  • electron-builder  version=26.15.3 os=24.6.0
+  • loaded configuration  file=/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/electron-builder.yml
+  • author is missed in the package.json  appPackageFile=/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/package.json
+  • detected workspace root for project using packageManager field  pm=pnpm config=pnpm@10.14.0 resolved=/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit projectDir=/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit
+  • executing @electron/rebuild  electronVersion=44.1.1 arch=arm64 buildFromSource=false workspaceRoot=/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit projectDir=./ appDir=./
+  • installing native dependencies  arch=arm64
+  • completed installing native dependencies
+  • packaging       platform=darwin arch=arm64 electron=44.1.1 appOutDir=release/mac-arm64
+  • using custom unpacked Electron distribution  electronDist=node_modules/electron/dist
+  • copying unpacked Electron  source=/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/node_modules/electron/dist/Electron.app destination=/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/release/mac-arm64/Electron.app
+  • searching for node modules  pm=pnpm searchDir=/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit
+  • file source doesn't exist  from=/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/build/bundle-trust.json
+  • downloaded      label=icons-bundle.tar.gz progress=100%
+
+  • file source doesn't exist  from=/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/build/bundle-trust.json
+  • ad-hoc signing with hardenedRuntime enabled requires the com.apple.security.cs.disable-library-validation entitlement to prevent app launch failures due to library validation. See https://electron.build/code-signing for details.
+  • signing         file=release/mac-arm64/WorkLoom 获客增长系统（实验车道）.app platform=darwin type=distribution identityName=- identityHash=none provisioningProfile=none
+  • skipped macOS notarization  reason=`notarize` options were set explicitly `false`
+  • building        target=DMG arch=arm64 file=release/WorkLoom.GEO-mac-arm64.dmg
+  • downloaded      label=dmgbuild-bundle-arm64-75c8a6c.tar.gz progress=100%
+
+  • building block map  blockMapFile=release/WorkLoom.GEO-mac-arm64.dmg.blockmap

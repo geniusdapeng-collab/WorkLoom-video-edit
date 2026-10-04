@@ -1,0 +1,6 @@
+COMMAND ["/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node", "--env-file=.env", "scripts/delivery/mine-clear.mjs", "handoff", "--ledger", "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/ledger.json", "--env", "client-runtime", "--out", "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02"]
+✓ 交接单已生成：/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/handoff.json
+· 已闭环 23 项 / 未闭环 1 项 / 环境档位 client-runtime
+· 验收命令：node scripts/acceptance/fleet-run.mjs --repo workloom-growth --env client-runtime
+! 未闭环清单（验收报告需逐项给回归路径）：
+  - MC-106 [fixed] 清理间接依赖并完善渲染验收与平台发布硬门禁

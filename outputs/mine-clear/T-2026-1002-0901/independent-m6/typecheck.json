@@ -1,0 +1,13 @@
+{
+  "name": "typecheck",
+  "command": [
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+    "--env-file=.env",
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/pnpm/bin/pnpm.cjs",
+    "typecheck"
+  ],
+  "exit_code": 0,
+  "seconds": 333.068,
+  "ran_at": "2026-10-02T23:02:40.844046+08:00",
+  "log": "typecheck.log"
+}

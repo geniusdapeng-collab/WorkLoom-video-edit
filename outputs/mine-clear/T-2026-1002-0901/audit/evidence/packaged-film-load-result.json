@@ -1,0 +1,9 @@
+{
+  "source": "installed DMG runtime",
+  "exit_code": 1,
+  "timed_out": false,
+  "missing_module": false,
+  "reached_worker_guard": true,
+  "expected": "All imports load, then the current unimplemented worker guard exits 1 without any provider call",
+  "healthy": true
+}

@@ -1,0 +1,13 @@
+{
+  "name": "scripts-production-final",
+  "command": [
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+    "--env-file=.env",
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/pnpm/bin/pnpm.cjs",
+    "test:scripts"
+  ],
+  "exit_code": 1,
+  "seconds": 32.024,
+  "ran_at": "2026-10-02T21:56:52.016394+08:00",
+  "log": "scripts-production-final.log"
+}

@@ -1,0 +1,2 @@
+COMMAND ["/usr/bin/python3", "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/independent-m6/create-floor-native-verification.py", "--source", "7fee3a6a5563d41c568463994764d3883eb7667d", "--input", "final-native-surface-input.json"]
+{"source": "7fee3a6a5563d41c568463994764d3883eb7667d", "local_qa_verified": true, "public_receipts": 38, "retained_images_reviewed": 8, "production_release_eligible": false}

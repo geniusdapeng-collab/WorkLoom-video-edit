@@ -1,0 +1,16 @@
+{
+  "name": "mcd-contracts-1e471-repair-only",
+  "command": [
+    "python3",
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/prepare_execution_ledger.py",
+    "--source",
+    "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+    "--repair-only",
+    "--native-prefix",
+    "dependency"
+  ],
+  "exit_code": 0,
+  "seconds": 0.402,
+  "ran_at": "2026-10-04T03:13:59.251153+08:00",
+  "log": "mcd-contracts-1e471-repair-only.log"
+}

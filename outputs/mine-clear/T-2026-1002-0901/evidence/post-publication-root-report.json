@@ -1,0 +1,11 @@
+{
+  "name": "post-publication-root-report",
+  "command": [
+    "python3",
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/build_production_report.py"
+  ],
+  "exit_code": 0,
+  "seconds": 4.451,
+  "ran_at": "2026-10-04T07:58:05.040295+08:00",
+  "log": "post-publication-root-report.log"
+}

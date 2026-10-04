@@ -1,0 +1,67 @@
+COMMAND ["/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node", "--env-file=.env", "--test", "--test-reporter=tap", "--test-name-pattern=取消无写入|保存对话框和文件写入", "apps/desktop/electron/bootstrap.test.cjs"]
+TAP version 13
+# Subtest: 启动诊断秘密脱敏
+    # Subtest: 取消无写入；新建与覆盖后的诊断文件均为私有
+    not ok 1 - 取消无写入；新建与覆盖后的诊断文件均为私有
+      ---
+      duration_ms: 5.93475
+      type: 'test'
+      location: '/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/apps/desktop/electron/bootstrap.test.cjs:144:3'
+      failureType: 'testCodeFailure'
+      error: |-
+        Expected values to be strictly equal:
+        
+        420 !== 384
+        
+      code: 'ERR_ASSERTION'
+      name: 'AssertionError'
+      expected: 384
+      actual: 420
+      operator: 'strictEqual'
+      stack: |-
+        assertPrivateFile (/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/apps/desktop/electron/bootstrap.test.cjs:38:44)
+        TestContext.<anonymous> (/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/apps/desktop/electron/bootstrap.test.cjs:157:7)
+        async Test.run (node:internal/test_runner/test:1389:7)
+        async Promise.all (index 10)
+        async Suite.run (node:internal/test_runner/test:1869:7)
+        async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3)
+      ...
+    # Subtest: 保存对话框和文件写入失败均留在可恢复启动页
+    not ok 2 - 保存对话框和文件写入失败均留在可恢复启动页
+      ---
+      duration_ms: 0.6825
+      type: 'test'
+      location: '/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/apps/desktop/electron/bootstrap.test.cjs:164:3'
+      failureType: 'testCodeFailure'
+      error: 'synthetic save dialog failure'
+      code: 'ERR_TEST_FAILURE'
+      stack: |-
+        TestContext.<anonymous> (/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/apps/desktop/electron/bootstrap.test.cjs:166:22)
+        Test.runInAsyncScope (node:async_hooks:227:14)
+        Test.run (node:internal/test_runner/test:1382:25)
+        Suite.processPendingSubtests (node:internal/test_runner/test:960:18)
+        Test.postRun (node:internal/test_runner/test:1522:19)
+        Test.run (node:internal/test_runner/test:1447:12)
+        async Promise.all (index 10)
+        async Suite.run (node:internal/test_runner/test:1869:7)
+        async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3)
+      ...
+    1..2
+not ok 1 - 启动诊断秘密脱敏
+  ---
+  duration_ms: 7.325959
+  type: 'suite'
+  location: '/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/apps/desktop/electron/bootstrap.test.cjs:41:1'
+  failureType: 'subtestsFailed'
+  error: '2 subtests failed'
+  code: 'ERR_TEST_FAILURE'
+  ...
+1..1
+# tests 2
+# suites 1
+# pass 0
+# fail 2
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 74.175541

@@ -1,0 +1,24 @@
+{
+  "name": "mac-guide-dmg-build",
+  "command": [
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+    "--env-file=.env",
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/pnpm/bin/pnpm.cjs",
+    "exec",
+    "electron-builder",
+    "--mac",
+    "dmg",
+    "--arm64",
+    "--prepackaged",
+    "release/mac-arm64",
+    "--publish",
+    "never",
+    "-c.mac.identity=-",
+    "-c.mac.notarize=false",
+    "-c.extraMetadata.version=0.1.0-fix.20261002.3"
+  ],
+  "exit_code": 0,
+  "seconds": 356.086,
+  "ran_at": "2026-10-03T00:43:42.803605+08:00",
+  "log": "mac-guide-dmg-build.log"
+}

@@ -1,0 +1,20 @@
+{
+  "at": "2026-10-03T00:19:03.835374+08:00",
+  "private_support_state_unmodified": true,
+  "changes": [
+    {
+      "path": "outputs/growth-production-fix-2026-10-02/evidence/client-生产修复 首次客户/database-state.json",
+      "private_original_sha256": "b8934f29cd1d665f0f9a73eabdcdcb1fb4321ab43914bc0345ecb0e7d5e679eb",
+      "redacted_sha256": "110a07a561d4d0d7e03aec056cef50acdecc7add8853a4c908f399bc729eabc3",
+      "redacted_roles": 3,
+      "legacy_count": 0
+    },
+    {
+      "path": "outputs/growth-production-fix-2026-10-02/evidence/client-macos-bootstrap-clean/database-state.json",
+      "private_original_sha256": "90f738e22bce27e37fa4a9b9a8611abf668df5bec79898cde43eb68e00190e7e",
+      "redacted_sha256": "d656169f1cf02072505c708720dc76493fd6e6075bcea7fcdfa84a44c582e11c",
+      "redacted_roles": 3,
+      "legacy_count": 0
+    }
+  ]
+}

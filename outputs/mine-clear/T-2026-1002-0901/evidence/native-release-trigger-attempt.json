@@ -1,0 +1,9 @@
+{
+  "at": "2026-10-02T15:53:37.431Z",
+  "source": "a40340e54c486eacdb2386929cd0f6fb87aac0dd",
+  "event": "api_trigger_desktop_release",
+  "configured_pipeline": true,
+  "triggered": false,
+  "status": 422,
+  "reason": "CNB 422 https://api.cnb.cool/workloom-ai/WorkLoom-growth/-/build/start :: {\"errcode\":422,\"errmsg\":\"[CONFIG_EVENT_EMPTY]CI config file not found, or no api_trigger_desktop_release event config for branch task/T-2026-1002-0901 and $.\\nCI 配置文件不存在，或分支 ta"
+}

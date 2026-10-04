@@ -1,0 +1,211 @@
+{
+  "schema": "growth.independent-m6/native-private-state-review@1",
+  "reviewed_by": "growth_m6",
+  "reviewed_at": "2026-10-03T20:35:28.196812+08:00",
+  "source_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+  "app_version": "0.1.0-fix.20261003.5",
+  "root_actual_steps": [
+    {
+      "kind": "fresh",
+      "root_seconds": 47.389,
+      "root_exit_code": 0,
+      "wrapper": "mac-surface-fresh.json",
+      "root_actual_executable_equals_application_receipt": true,
+      "execution_source_origin": "Root exact source/version/app fingerprint plus wrapper executable and bootstrap v.5 log; original wrappers have no source_before/after fields"
+    },
+    {
+      "kind": "restart",
+      "root_seconds": 5.224,
+      "root_exit_code": 0,
+      "wrapper": "mac-surface-restart.json",
+      "root_actual_executable_equals_application_receipt": true,
+      "execution_source_origin": "Root exact source/version/app fingerprint plus wrapper executable and bootstrap v.5 log; original wrappers have no source_before/after fields"
+    },
+    {
+      "kind": "upgrade",
+      "root_seconds": 24.312,
+      "root_exit_code": 0,
+      "wrapper": "mac-surface-upgrade.json",
+      "root_actual_executable_equals_application_receipt": true,
+      "execution_source_origin": "Root exact source/version/app fingerprint plus wrapper executable and bootstrap v.5 log; original wrappers have no source_before/after fields"
+    }
+  ],
+  "preservation": {
+    "fresh": {
+      "public_before": "native-surface-fresh-state-before.json",
+      "public_after": "native-surface-fresh-state-after.json",
+      "compared_fields": [
+        "instanceId",
+        "systemIdentifier",
+        "credentialsHash",
+        "configurationHash",
+        "customerWorkspaceHash",
+        "fixtureId"
+      ],
+      "all_equal": true,
+      "before_payload_version": "v0.1.0-fix.20261003.5",
+      "after_payload_version": "v0.1.0-fix.20261003.5",
+      "POSIX_mode_root_actual_reported": "0600",
+      "paidProviderCalls": 0,
+      "fixtureOnly": true,
+      "private_data_read_origin": "Root reader actual execution; no independent private-content read or SQL",
+      "source_sha_added_to_original": false
+    },
+    "upgrade": {
+      "public_before": "native-welcome-upgrade-state-before.json",
+      "public_after": "native-surface-upgrade-state-after.json",
+      "compared_fields": [
+        "instanceId",
+        "systemIdentifier",
+        "credentialsHash",
+        "configurationHash",
+        "customerWorkspaceHash",
+        "fixtureId"
+      ],
+      "all_equal": true,
+      "before_payload_version": "v0.1.0-fix.20261002.1",
+      "after_payload_version": "v0.1.0-fix.20261003.5",
+      "POSIX_mode_root_actual_reported": "0600",
+      "paidProviderCalls": 0,
+      "fixtureOnly": true,
+      "private_data_read_origin": "Root reader actual execution; no independent private-content read or SQL",
+      "source_sha_added_to_original": false
+    }
+  },
+  "genuine_old_v1_before_snapshot_immutable_equal": true,
+  "genuine_upgrade_fixture_not_reseeded_parent_asserted": true,
+  "fresh_preservation_scope": "Root public before receipt is after the completed fresh installation and before restart; after receipt is after restart. It does not assert pre-install identity equality for an empty support directory.",
+  "retained_fresh_configuration_stat": {
+    "path": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/\u5730\u9762\u4fee\u590d \u9996\u6b21\u5ba2\u6237/qa-retained-config.env",
+    "exists": true,
+    "mode0600_independently_statted": true,
+    "configuration_hash_root_reported": "ee6c07a0e9a3f2d3c54ce435195cbca3a6c93a9815fef301eeca202ced0cc05d",
+    "configuration_hash_independently_recomputed": false
+  },
+  "private_contents_opened": false,
+  "actual_verifier_PG_calls": 0,
+  "actual_verifier_native_launches": 0,
+  "final_native_verified_by_this_metadata_review": false,
+  "public_provenance": [
+    {
+      "root_file": "mac-surface-fresh.json",
+      "file": "inherited/evidence__mac-surface-fresh.json",
+      "sha256": "5734bf80f63423cdac9239dc8a7a149ee9c19f6cc95ca4369b8daaec63adca51",
+      "bytes": 399,
+      "fully_read": true
+    },
+    {
+      "root_file": "mac-surface-fresh.log",
+      "file": "inherited/evidence__mac-surface-fresh.log",
+      "sha256": "476cf7fd4c3a4671920f31793a7b4a25b4b1978f35834d0f5b0214de4c4022ec",
+      "bytes": 1920,
+      "fully_read": true
+    },
+    {
+      "root_file": "mac-surface-restart.json",
+      "file": "inherited/evidence__mac-surface-restart.json",
+      "sha256": "9a9ae28022f5b1a88ba8930effb522fd7b40b2b57204bf3a540a79671f9f398e",
+      "bytes": 402,
+      "fully_read": true
+    },
+    {
+      "root_file": "mac-surface-restart.log",
+      "file": "inherited/evidence__mac-surface-restart.log",
+      "sha256": "a57812d5f5acae363efec5e7016e2fac2baf07d0c70e4c15d1374baecaef351d",
+      "bytes": 1054,
+      "fully_read": true
+    },
+    {
+      "root_file": "mac-surface-upgrade.json",
+      "file": "inherited/evidence__mac-surface-upgrade.json",
+      "sha256": "f38436d6e6583336b4f5485dbf11cc2e29a26038349fe6c065ea08ef9b6c2992",
+      "bytes": 403,
+      "fully_read": true
+    },
+    {
+      "root_file": "mac-surface-upgrade.log",
+      "file": "inherited/evidence__mac-surface-upgrade.log",
+      "sha256": "67c921ba7a0799da6e6747847524278ee0a86428da3659d5bd2b122270aaf500",
+      "bytes": 1756,
+      "fully_read": true
+    },
+    {
+      "root_file": "native-surface-fresh-state-before.json",
+      "file": "inherited/evidence__native-surface-fresh-state-before.json",
+      "sha256": "686a72f94296578d811a0ccadcea0e53429619a38bec6400ac6a0196cbca6c99",
+      "bytes": 651,
+      "fully_read": true
+    },
+    {
+      "root_file": "native-surface-fresh-state-after.json",
+      "file": "inherited/evidence__native-surface-fresh-state-after.json",
+      "sha256": "357aed8ebf7ab81a393abed4ca02d5e4b5a8dcb22b522242da87096ef15788f8",
+      "bytes": 867,
+      "fully_read": true
+    },
+    {
+      "root_file": "native-welcome-upgrade-state-before.json",
+      "file": "inherited/evidence__native-welcome-upgrade-state-before.json",
+      "sha256": "93939944010b012f7d25581c4fedf6c25f64cde1ddd25f33a31d60143fd42158",
+      "bytes": 705,
+      "fully_read": true
+    },
+    {
+      "root_file": "native-surface-upgrade-state-after.json",
+      "file": "inherited/evidence__native-surface-upgrade-state-after.json",
+      "sha256": "08936fa0962b0ddc21d5550e3b0ce68a35e82455cce30f43cecb7d56d183a4c7",
+      "bytes": 923,
+      "fully_read": true
+    },
+    {
+      "root_file": "mac-surface-fresh-private-before.json",
+      "file": "inherited/evidence__mac-surface-fresh-private-before.json",
+      "sha256": "675f42dd12d2630775d97e7e49ee3425b9f626a3d54fb48080f8431018248fd7",
+      "bytes": 513,
+      "fully_read": true
+    },
+    {
+      "root_file": "mac-surface-fresh-private-before.log",
+      "file": "inherited/evidence__mac-surface-fresh-private-before.log",
+      "sha256": "df626eea4200f33d72a56c310579d8c89066c7808401abe3d2993f5fd3b6845b",
+      "bytes": 549,
+      "fully_read": true
+    },
+    {
+      "root_file": "mac-surface-fresh-private-after.json",
+      "file": "inherited/evidence__mac-surface-fresh-private-after.json",
+      "sha256": "a10245ef0a17b4a22115c0d09338e67b60ad8f7b705a081acc59bfa99a34a84a",
+      "bytes": 512,
+      "fully_read": true
+    },
+    {
+      "root_file": "mac-surface-fresh-private-after.log",
+      "file": "inherited/evidence__mac-surface-fresh-private-after.log",
+      "sha256": "0d21a5bcd2cb725167104167679dfa36cfecd5ddffb971bc962a9315b0c90749",
+      "bytes": 546,
+      "fully_read": true
+    },
+    {
+      "root_file": "mac-surface-upgrade-private-after.json",
+      "file": "inherited/evidence__mac-surface-upgrade-private-after.json",
+      "sha256": "ec9b2fb8acbcabedf1b1aae8fb341256fee279d16495e5d0f2a87a89fa6bb5fe",
+      "bytes": 518,
+      "fully_read": true
+    },
+    {
+      "root_file": "mac-surface-upgrade-private-after.log",
+      "file": "inherited/evidence__mac-surface-upgrade-private-after.log",
+      "sha256": "5c4d7c871455d244cab7dec8c3cf51a03108d767279eb9f3ef0c20de538b22a1",
+      "bytes": 552,
+      "fully_read": true
+    },
+    {
+      "root_file": "native-surface-restart-retention.json",
+      "file": "inherited/evidence__native-surface-restart-retention.json",
+      "sha256": "9950204b3e954614e6d560ea07d20a1e2880677b716952471f9337595480c31d",
+      "bytes": 1288,
+      "fully_read": true
+    }
+  ],
+  "grade": "B root actual command/public field and immutable copy readback; no independent private-state query"
+}

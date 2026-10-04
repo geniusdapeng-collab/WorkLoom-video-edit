@@ -1,0 +1,4453 @@
+{
+  "schema": "growth.independent-m6/floor-final@1",
+  "verified_by": "growth_m6",
+  "fixed_by": "codex-root-T-2026-1002-0901 and authorized fresh floor_hit_repair",
+  "verified_at": "2026-10-04T01:43:24.551707+08:00",
+  "source_commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+  "tested_source_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+  "source_controls_verified": true,
+  "historical_955e_source_rebinding": {
+    "historical_accepted_commit": "955e2277ee1496cfc4b40bd30345d1ce1be1acf1",
+    "current_accepted_commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+    "historical_unique_cases": 296,
+    "new_execution_claimed": false,
+    "inherited_unique_cases": 192,
+    "replaced_historical_unique_cases": 104,
+    "current_core_unique_cases": 322,
+    "actual_reexecuted_groups": [
+      {
+        "old_run": "desktop-welcome",
+        "old_cases": 87,
+        "name": "surface-7fee-desktop",
+        "cases": 113,
+        "kind": "node-named",
+        "results": "surface-7fee-desktop.log",
+        "wrapper": "surface-7fee-desktop.json",
+        "executed_source_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+        "wrapper_sha256": "f1c2af294a8ee25071362c66d0843e6e5c2a172f76a86247a14f347e5668a71d",
+        "results_sha256": "8f1b904af7cf278a2d8d1c5f0639cc4a8a5f1ee39c46f05fa4f21c86e9d31522",
+        "old_execution_preserved": true,
+        "purpose": "Current exact desktop suite"
+      },
+      {
+        "old_run": "render-guide-lifecycle",
+        "old_cases": 9,
+        "name": "surface-7fee-guide-lifecycle",
+        "cases": 9,
+        "kind": "healthy-cases",
+        "results": "surface-7fee-guide-lifecycle-results.json",
+        "wrapper": "surface-7fee-guide-lifecycle.json",
+        "executed_source_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+        "wrapper_sha256": "ec4bbfd26ba32832c5c6a70e58bd6392988262179866c71b6ac6abf0711e1523",
+        "results_sha256": "b5602ead25cefd34f1cdc7891cc63173c8d4a315a98d2f0020800ba3a69d3471",
+        "old_execution_preserved": true,
+        "purpose": "Current actual guide/capture boundary controls"
+      },
+      {
+        "old_run": "render-guide-transient-after",
+        "old_cases": 8,
+        "name": "surface-7fee-guide-transient",
+        "cases": 8,
+        "kind": "healthy-cases",
+        "results": "surface-7fee-guide-transient-results.json",
+        "wrapper": "surface-7fee-guide-transient.json",
+        "executed_source_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+        "wrapper_sha256": "cc1b298af588b36e422a3b3c358dabb0b623c354f24b6c5ca3d8570e49286c0b",
+        "results_sha256": "3c93f7d461ce157e4e9358fba40923134b2faeb661e56a149ce71fcf12c1c502",
+        "old_execution_preserved": true,
+        "purpose": "Current actual guide/capture boundary controls"
+      }
+    ],
+    "frozen_baseline": "history/955e-before-floor-baseline-acceptance.json",
+    "frozen_baseline_sha256": "e84505146f75ff72daf7c81181514738d47392d281e497e19f927d6e22863b69",
+    "unchanged_input_trees_or_blobs": [
+      {
+        "file_or_tree": "packages",
+        "git_object": "aece029f0505366899d368273cf865e67caef6e8",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "bundles",
+        "git_object": "a15ea80f7fb508ea9bf0f92d0f2777e993919ffe",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "apps/server",
+        "git_object": "153f83db5edc73fb0d5d8b94816e6620d66266e6",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "apps/web/src/lib",
+        "git_object": "f4ae6ca0b39188c7a9f164c29787ff89bf1c0dbc",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "apps/web/src/onboarding",
+        "git_object": "c0c069a7eb796edc1ed864348ed32b089616a6d6",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "apps/web/src/components/loommate",
+        "git_object": "c67a2920065b35388857ace5a6a83d0dc6131f09",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "apps/web/src/onboarding/useQuestline.ts",
+        "git_object": "7d4afdb5c4f0bfc1301503a08275ae5b8b1c72c5",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "apps/web/src/onboarding/useQuestline.test.tsx",
+        "git_object": "844394e45b667e9b1f7bea558796fa2cbb97fa4a",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "apps/web/package.json",
+        "git_object": "6e82dd1893a86e39eea8d1f401d80cce9a186fd7",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "pnpm-lock.yaml",
+        "git_object": "cfd6e2b567eb12b920c53b15b6305df143f486ea",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "tsconfig.base.json",
+        "git_object": "7949149fc4f25ce91580123b89a597c67fcc885a",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/AGENT-CAPABILITIES.md",
+        "git_object": "330427690fc3acf29f0569cc6e2e33b6c5a630f0",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/acceptance-experience.mjs",
+        "git_object": "b622bec2ee4577706a2b5c36c5a1a2328dd7e00c",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/acceptance-matrix.mts",
+        "git_object": "32d3c02f3d6bda71586f9d80796b5cb22e49db83",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/acceptance-ui-probe.mjs",
+        "git_object": "09fe3279dcae47e690759310438407e7e70c5cf2",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/acceptance/README.md",
+        "git_object": "1bf9fbbce12a1f218f14a3a09f6100d33caed009",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/acceptance/autonomy.mjs",
+        "git_object": "b5d6c77605ccc8e899c213e948b27b7e05216fa5",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/acceptance/coverage.mjs",
+        "git_object": "5d8b9c0823ba91208d6f40b8edbace7244c52b1d",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/acceptance/experience.mjs",
+        "git_object": "0e3229b74649e16bb32a5c048235091ed1a470bf",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/acceptance/fleet-run.mjs",
+        "git_object": "fc437993ca4b92cc7861f2e717004a66551ad150",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/acceptance/lib/compose.mjs",
+        "git_object": "d3b615a19f14b545270c8d17c41de2d6dd5fb7e4",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/acceptance/lib/live/budget.mjs",
+        "git_object": "5c2afb400c2229bdb3373a99135a7ac0213bcb8a",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/acceptance/lib/live/providers.mjs",
+        "git_object": "c48726328bd74858141010a39460fce7b4ba0319",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/acceptance/lib/live/stub-provider.mjs",
+        "git_object": "1368d7f49f84cb0bb9454765e7b34cd862420d17",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/acceptance/lib/playwright.mjs",
+        "git_object": "e1d4362909513e1a0a476aa11a12e5ec768926fe",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/acceptance/lib/profile.mjs",
+        "git_object": "0240b179dda8985b66cc7ec94a658db37c3cdad1",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/acceptance/lib/target.mjs",
+        "git_object": "68915bb4befb2e982f662617a22b3cd07e297bca",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/acceptance/live.mjs",
+        "git_object": "acd30bf385739c523582065c1b3122968f279f13",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/acceptance/matrix.mts",
+        "git_object": "644e2b80dbe72f283395f1337de6281bcaf3aeb0",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/acceptance/onboarding.mts",
+        "git_object": "9e381c3805eeabe92bb67e36b94a2d78d307584c",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/acceptance/outcome.mjs",
+        "git_object": "03a7c0264113121f549c49518a067f7e3068ab44",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/acceptance/profile-check.mjs",
+        "git_object": "b961d02a0bf9d2083440bfa5ca5809f7d4e8bbf2",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/acceptance/redteam.mjs",
+        "git_object": "083706ea7dc30e369d3e1adae4b2794ae3b3f4c8",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/acceptance/report-v3.mjs",
+        "git_object": "202c684fda36fa5cdc0e2bdd1080ca760ac3d74b",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/acceptance/report.mjs",
+        "git_object": "803486b89013994439ba442fa28401753dd87c68",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/acceptance/scale-s8.mts",
+        "git_object": "ac85c3373d9a019b5f8070371e73898adf330a0c",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/acceptance/soak.mjs",
+        "git_object": "54540296e197a0f1b41483c8018fa51333f5b8f0",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/acceptance/ui-probe.mjs",
+        "git_object": "25339b85f2a588a1b1ec27c9facf50b7787ff592",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/acceptance/ux.mjs",
+        "git_object": "d9d4bc9cdd51cacf3a62c7331b57084881fe6735",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/acceptance/video-gen-realtest.mts",
+        "git_object": "5b065dddd080bc41f16eae426cb2d4ebfb39ecc6",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/acceptance/video-studio-ui-probe.mjs",
+        "git_object": "52b02e731d54b7ecae093c3f31d3d61e9bb91dae",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/agent-capabilities.core.json",
+        "git_object": "f986ee57e2d591cee2edbaffa4ebff88b49003b3",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/agent-capabilities.mjs",
+        "git_object": "8cc3c862ad30a33278858dc2f9b3ae284bc25658",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/agent-capabilities.test.mjs",
+        "git_object": "8c5005c4e7e7a02f9b545a16661c0bd6ffdb0810",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/agent-tour.sh",
+        "git_object": "4c2348ab5372c9e87751161420e2dd028b622a09",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/audit-scan.ts",
+        "git_object": "7e30c57e26ec963b52366af1521c39080aaa7db4",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/bgm-backfill-key-arc.mjs",
+        "git_object": "a0d01d0238078ddcc91d90e242f58932dada1053",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/bgm-curate-library.mjs",
+        "git_object": "baefe6c2e7ebb48d3cda813bb330c8256c2ded9e",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/bgm-library-build.mjs",
+        "git_object": "a16366696eb182499b6b6599b57cde7610b83ed4",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/bgm-tag-retry.mjs",
+        "git_object": "a22f952db0a954f7d9d2318b3495f7bd280075e6",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/bootstrap.sh",
+        "git_object": "4f05f5e214bd955620000c73834567fd4ec67fe0",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/build-capability-pptx.py",
+        "git_object": "09de5dd270b274f5af869ee4be65fbf38d7d9b22",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/build-overview-pptx.py",
+        "git_object": "9801c828af74dcb17b3357726a26e61ba9608b5e",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/build-pgvector-win.ps1",
+        "git_object": "9aea14e28b26ddb48cf9d23439824643e3b165c7",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/bundle-governance.mts",
+        "git_object": "363ddead5f322b8e7c7f6bf1322d34d41a624051",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/bundle-governance.test.ts",
+        "git_object": "cc3dbbeccf0bd65772f659210c9969cf1dac8551",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/c-layer/evaluate.mts",
+        "git_object": "300bf04f53a9aac0ab1fd50421c561685907384e",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/c-layer/scenarios.json",
+        "git_object": "9c0d112c4b4981a856102b168a17f23aa5192a1f",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/ci/cnb-desktop-release.mjs",
+        "git_object": "a8152ec80520f69675bd139481cc2cb9c976fc20",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/ci/cnb-desktop-release.test.mjs",
+        "git_object": "50d44a43580b1bdbe1d74c284126340bc359effb",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/ci/hard-gate-policy.mjs",
+        "git_object": "91bc5646981a50279ac4c433e00a66818487ad24",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/ci/hard-gate-policy.test.mjs",
+        "git_object": "8ef0ecec9289df9b1326d7e7407e3ef9d4e11358",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/ci/protocol-rules.mjs",
+        "git_object": "7ee0d720b120e19b0efae8e7f92fc3fbcd42b6d1",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/ci/protocol-rules.test.mjs",
+        "git_object": "41c6b1eed781d48217f21da99b10771b33bf9dcf",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/ci/verify-commit-msg.mjs",
+        "git_object": "066e6a65d367b9c79bc7d6f83eb574b6e5308ea0",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/ci/verify-hard-gate-policy.mjs",
+        "git_object": "861098ab35a2e5cf3f8a83c4a9087c16fe32d950",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/ci/verify-lock-conflict.mjs",
+        "git_object": "f6e9dbcc494a0165a506a207b98e40e9927b89f9",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/ci/verify-talkcraft-license.mjs",
+        "git_object": "26247b87d1357968e88df43dcc7a342156021834",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/cleanup-ttl.ts",
+        "git_object": "3df2a1356c0c80e4f3a9548a47ab1bce19287509",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/connectors-check.mts",
+        "git_object": "d2131d47e05f0132924b18c94930cd074a9cf1a1",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/delivery/README.md",
+        "git_object": "008a7cbde18f5e7e16cf7a154e91c3c7ea46f603",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/delivery/mine-clear.mjs",
+        "git_object": "402a29d08005e0c501d3792d048e3638266bc3cb",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/delivery/mine-clear.test.mjs",
+        "git_object": "0dcf096f75de79e03d3458e351ce1504f7984af2",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/demo-video.ts",
+        "git_object": "8d9786a9479d572a74985555beb6e9ec9be0a4fa",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/demo.ts",
+        "git_object": "5d3eee38823e2514063f3d50dc2546505b0efed2",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/desktop-app.mts",
+        "git_object": "792242100afca99487e9703072bb16c8e3a5eb4c",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/desktop-app.test.mts",
+        "git_object": "c65a1bc2b389cff61760c105ef58551f9fac2f5f",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/desktop-bootstrap-db.mjs",
+        "git_object": "980c749c42592836b65423be7d63c16ca71da7e3",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/desktop-bootstrap-db.test.mjs",
+        "git_object": "f052f59ae00a8d892b15e545ace769c221809341",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/desktop-release-finalizer.mjs",
+        "git_object": "8756b67f384e16b7de577c096b791e651a2a349b",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/desktop-release-finalizer.test.mjs",
+        "git_object": "71d553454a50fb246105fcf3096681dc900fc762",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/desktop-workflow-path.mjs",
+        "git_object": "4a9cb2fdf75813ece8043b4d6a2ce3361a7f3d79",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/dev-note.js",
+        "git_object": "d075188a1989a9ac9376223ea97f775c946b9b5b",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/devbox.sh",
+        "git_object": "26ddbdc2454c65afcc98fc747af147a2c412a44e",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/doctor.sh",
+        "git_object": "ade6b041ccfa25c883e8f1ab75d7279ccf047216",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/dsh-gate.sh",
+        "git_object": "4d61b9f54b0009e24a0977e9cf6dfa6669080c20",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/e2e-service-c.mjs",
+        "git_object": "be7f4485da85992659c411e5a341801ef9d74bd2",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/embedded-nats.mjs",
+        "git_object": "34d3ec7ec5edba6d7a086c3c5e2c936fbd0cb3d5",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/eval/golden-set.json",
+        "git_object": "bf2a4ac6631458e6a7ca4e76a02631e5cb0a2bd6",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/eval/report/report.md",
+        "git_object": "55244dbb7b8c9f793bcc29938d58742436d9deee",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/eval/report/result.json",
+        "git_object": "d30ce667a00c8f085762727d3e65b6dfa7faad6e",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/eval/report/samples.md",
+        "git_object": "fa4e7a03b924be39f826753f587f3047ce1e9f87",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/eval/service-c-eval.mjs",
+        "git_object": "0bc248cfaecf2b075689844f91efcb773eb31389",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/generate-capabilities.mjs",
+        "git_object": "7b485e65af4db5fbf0495426f58639f661002ca2",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/generate-client-projections.mts",
+        "git_object": "71100821a5d051bb62e8ecb7da9704747c4b99aa",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/geo-fusion-plan-doc-sync.test.ts",
+        "git_object": "c42eb0dda63400a27fee06ee44b8356882ebf18d",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/hardcode-scan.mjs",
+        "git_object": "e378cd05c26d3c4caba89b14b3a743de4f8ae4d7",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/install-im-channels.sh",
+        "git_object": "84ad21b5faafe8418e0b17714f63a7d03c7e567c",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/metrics.mts",
+        "git_object": "ec118cd8a16270a2f0d6af555b41c1de21c32dee",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/migrate.ts",
+        "git_object": "8bcb2f432c17b0c08883311037758f50f6e30043",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/onboarding.mts",
+        "git_object": "065160ccb52d38f5ae49913a22665949136f6335",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/oss-inventory.mjs",
+        "git_object": "9ca7a3a13c8cd8f96dd6d5ce7ffa3bc850b1b9b9",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/oss-inventory.test.mjs",
+        "git_object": "1fe3adf01eb7ddedc486e7967f37c1603114fb1e",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/oss-watch-ci.mjs",
+        "git_object": "e2ef1654c9491f6fbf4c936b86d9c66a5ca08c08",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/oss-watch.mjs",
+        "git_object": "57355a9b538d42aff6740b65271f7a9a4acbaa64",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/oss-watch.sh",
+        "git_object": "83c50057f8c3fd2f05365e420f10cf1307225b7d",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/pack-electron-payload.sh",
+        "git_object": "021af3ba64836f98e48d3c82ed35d379da5f2da8",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/pack-macos.sh",
+        "git_object": "e1c11cc287dc12ae027aec84ceb72bfe70c2734c",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/pack-nm-merge.mjs",
+        "git_object": "413670fd21cc968f562933f9bfc6c1da31bc4827",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/pack-nm-merge.test.mjs",
+        "git_object": "305dd96b1dd9ba76e87f1ccf3ad42825df7c6653",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/pack-windows.sh",
+        "git_object": "aff2b6ad8b12c3b62d1727f6e564a0c4d061b002",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/pack-workspace-modules.mjs",
+        "git_object": "b32a8ed07bad584c1a65b318f93981322b31a881",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/pack-workspace-modules.test.mjs",
+        "git_object": "8e3995fbb44d2b89e5f8d62f895684dde7a148bb",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/path-containment.mjs",
+        "git_object": "031019ae592be544a8cdd97b4e13675093117f0e",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/payload-policy.mjs",
+        "git_object": "ae43c8fd42c1abb3758d344997e491ca226782cf",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/payload-policy.test.mjs",
+        "git_object": "145f2f058edcd7b5cf02d3f725c201b37179a45b",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/postinstall-note.js",
+        "git_object": "957e09e8624b8187c6dd7140b301ff29125daac7",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/preview-all.sh",
+        "git_object": "543de3aada8e5e1d467716a4d4a50eef9cc63a9e",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/product-runtime.mjs",
+        "git_object": "c5a1b60a7397da4199818208a4ba9637c7f2d3d7",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/product-runtime.test.mjs",
+        "git_object": "aff3a6576660c1e6fd7e96a2b908e3d96f51b2e9",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/release-assets.json",
+        "git_object": "949aadd6c1f1919c6daac4635a3f1f74b6f3d6e1",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/release-assets.mjs",
+        "git_object": "b0b4d11cecb5bac0c815de1d898bd0a4447c8e9d",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/release-assets.sh",
+        "git_object": "bd6cbdf0a27f350842e18c5d9a4663b9b65762b4",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/release-assets.test.mjs",
+        "git_object": "4ee4ecc8528355d21fe8b4bcba2c98650e5fca95",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/release-gate.ts",
+        "git_object": "8e146aef3396f7c1046b18934ee7aa4c2c48b7b5",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/release.sh",
+        "git_object": "0a4068dd836fa95a2fcd4ac65b125b79265cd0db",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/runtime-deps-lock.mjs",
+        "git_object": "8c12be076e0f507fb9b6bddd08e81d45d1f86f7c",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/runtime-deps-lock.test.mjs",
+        "git_object": "d05d965e11c60daeb79d2f85fd0c0a99960d47bd",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/secret-scan.mjs",
+        "git_object": "340721b0ba111f0eb9428b7bf3728a971fea2312",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/seed-acquisition.ts",
+        "git_object": "fefecab2df8adc376a13303b0f486c6a0be09c77",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/seed-aipm.ts",
+        "git_object": "7f8dcc6efbb71d6d497700c498fa15bebb1e39ad",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/seed-geo.ts",
+        "git_object": "c3696334e5008aada632cf49cd9326f678854af0",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/seed-video.ts",
+        "git_object": "5081d26325a16921f22e526f519c5a86dcf43179",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/seed.ts",
+        "git_object": "5eb39012f385f077aa2b03d7241d191cf18d59cd",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/setup-lite.mts",
+        "git_object": "7ecba9620ed56b07ce342f5bf3abafbdcb24a587",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/skill-bindings.mts",
+        "git_object": "4302f9af39835c242ebc3d6853910f54f38461c9",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/skill-dist-demo.mts",
+        "git_object": "d63eb9422884d2c207417a091850c3bf4f1b6670",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/skill-forge.mts",
+        "git_object": "43d7df5f35c1203d9e19591bd34aa462bac7b904",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/start.sh",
+        "git_object": "29e3127f23e95371c1bcb99f2fb72301f562f88c",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/stop.sh",
+        "git_object": "ec827747b81b9eca3ab10045f73f69f3aa8a058a",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/suite-fixture-preflight.test.ts",
+        "git_object": "c356f79ccfd041f4fc63fe28863805175afbccd0",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/suite-fixture-preflight.ts",
+        "git_object": "128d507d7b76f1f34971d038aa920690fca350c0",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/suite-geo.ts",
+        "git_object": "70b47b66468849c8b4de4b5f9a530d4da3ce771a",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/suite-hotel.ts",
+        "git_object": "9e55e9278554ef70681b29bad9b029d1bf053547",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/suite.ts",
+        "git_object": "8319c799c3b750857320d35402d0960bf6779086",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/tools/agent-knowhow-audit.mts",
+        "git_object": "58378a8c538220e46064ca34829c10a2528ed7aa",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/tools/archive-resume.mts",
+        "git_object": "c6e31d13cf91fb72fe59bd7b2273a33fa961f982",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/tools/archive-watch.mts",
+        "git_object": "74f6c17e47a4ad9a6973913238902a2206596067",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/tools/audit-fence-coverage.mts",
+        "git_object": "aa6f8f8a63d04442e21d9310f59f8b905aa861e7",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/tools/bgm-bpm-backfill.mts",
+        "git_object": "ec01cf24adfb62e25cc4efba036e73f60b667c95",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/tools/character-archive.mts",
+        "git_object": "0a20e4dff03713793bd65286b0a39a721f7a9007",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/tools/color-compare.mts",
+        "git_object": "ce5855b0cfbce253c11fcb4e21ab14fc59c44fcb",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/tools/compose-film.mts",
+        "git_object": "f0fb462d5264797c5f7a78b15964451a052e8d77",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/tools/data-pipeline-run.mts",
+        "git_object": "95fd8662c34815e9e3f3248ba6b826ad8552dfee",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/tools/duration-projection-e2e.mts",
+        "git_object": "7f646622efb6f3fe27963e6a8e4995c88f1c3516",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/tools/enhance-engine-install.mjs",
+        "git_object": "de04b644d661a90a0e767049e784b32202b9ae21",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/tools/environment-realism-audit.mts",
+        "git_object": "c8167709d6b0378c7bd87d9fac9764f2c9416bc9",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/tools/environment-realism-audit.test.ts",
+        "git_object": "028b7082620d6529495a352ea47fa44ba4ceecc6",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/tools/explainer-run.mts",
+        "git_object": "fefb7a4c34b5e7f83b791ee8fd0a50c61e38e518",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/tools/fence-alias-scan.mts",
+        "git_object": "dd17fb9a51676142179ab6f8da101df081d18dd9",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/tools/film-voice-artifact.test.mjs",
+        "git_object": "48dc3b496515d6cb892e64233f9c7fe7029b747e",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/tools/film-voice-artifact.ts",
+        "git_object": "c28bc9739c5b132f1cd021a13d9e9d854c9481ac",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/tools/full-chain-film.mts",
+        "git_object": "8d73f43019a09b39eba43621846e513e0d8add3a",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/tools/gate-ledger-report.mts",
+        "git_object": "e0deb4ada7a78d6ccdc4770b7015647f1ddd1ab7",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/tools/generate-model-02-seedream.py",
+        "git_object": "0c987cef06db83dd4082ccd6793b6f8030d1c1ea",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/tools/knowhow-depth.mts",
+        "git_object": "444d5d1004b363b9c9d31407a9a9c41eceaf785a",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/tools/material-ledger.mts",
+        "git_object": "bb4bdfb100a1a33bc931bde7833bb2bda440f07b",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/tools/media-acceptance.mts",
+        "git_object": "801ab93f31e60f1496f3b660bad2513c955949ec",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/tools/media-backfill-kind.mts",
+        "git_object": "9a3eb116c5ba5abd1d8afc33fd048eff20595ef8",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/tools/media-embed.mts",
+        "git_object": "d85276f8889518ef49a2556a062cb37c7e834c77",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/tools/media-sync.mts",
+        "git_object": "d0e709f214a7e04f0f14897986030dde5af04392",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/tools/pdf-deck-extract.py",
+        "git_object": "670ab89d81e0bd14032e31770059b1c400052c94",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/tools/pipeline-agent-audit.mts",
+        "git_object": "6a2703cf807f96ecc52b7461be9d1c2707678750",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/tools/pipeline-audit.mts",
+        "git_object": "5053a51272ad757b864ad36d2282d825bcd6d1b9",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/tools/portrait-agent.mts",
+        "git_object": "720b6749e2454df5ee8f3761f926b87de8d01e7a",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/tools/portrait-set-from-asset.mts",
+        "git_object": "3ec6092e49f4e6658b57707f9c6d7f22159c3203",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/tools/portrait-set-install.mts",
+        "git_object": "442888147e8e43a3d7423aa1a4b070d64073ec4c",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/tools/post-production.mts",
+        "git_object": "326d6061e46036dabcb3fb43b9d73ba2355836c7",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/tools/product-archive.mts",
+        "git_object": "29b3bf6ef7988922a98d68ba1b9b52a9664b0c79",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/tools/real-person-assets.mts",
+        "git_object": "49c37ca24af6c8f72ddc4b079dcb2eedd0f5b2f1",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/tools/render-project.mts",
+        "git_object": "1c289a4e1a77144913af94a22693c55bd3f7949b",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/tools/route-video.mts",
+        "git_object": "103c8b1396ee431aad2b27e0c1d11cff54884f24",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/tools/talkcraft-asr-words.py",
+        "git_object": "d74f418b4e01ec0bee0669ed0d2b8fb4d3b48d77",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/tools/talkcraft-engine-install.mts",
+        "git_object": "09edfb0b2b697a8e16b53214265add485f261673",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/tools/verify-dossier-evidence.mts",
+        "git_object": "3d33c781ba53e6518426902b0372dcf3d9c3c212",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/tools/verify-truth-check-gate.mts",
+        "git_object": "4511762e905d7a40a10cf47a31bd50d9227a624a",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/tools/video-doctor.mts",
+        "git_object": "c1637cc9acb3c4faf2ebc329acb159383a48273d",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/tools/video-request-regression.test.ts",
+        "git_object": "ff684ab5fe06e4335c9a0d8863a7f3f1888ec0d8",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/tools/whiteboard-env-install.mts",
+        "git_object": "2f0e6ce49b29bde097c32110be19863152ad35fb",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/tools/whiteboard-film.mts",
+        "git_object": "10627fd2bdd6fd45533f3fe0075d19f825cbd2c4",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/tools/whiteboard-rollback-check.mts",
+        "git_object": "82d84e3e08215c38d47a92687afa49e965477ff7",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/ui-governance-rules.mjs",
+        "git_object": "6b00ea492bd46c805bbcc480ea7bd5d3b45610b8",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/unsigned-desktop-release.test.mjs",
+        "git_object": "83329dc2bc010c445ef7502f04dd77021582a934",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/verify-builtin-character-assets.mjs",
+        "git_object": "d6c71476f6de0e34bc5ee11d5c191db94d681f1f",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/verify-chain.ts",
+        "git_object": "886f04fc7c7846200965f57ad30960a8e1cb7867",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/verify-client-foundation-consumer.mjs",
+        "git_object": "59e7eac5c687b4708087a125947aadb487567a55",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/verify-client-foundation-extensions.test.ts",
+        "git_object": "329abb76657119f8a9e9963353c6e4f778efd282",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/verify-custom-tool.ts",
+        "git_object": "4a26490100a474d16b857ad90affb991e428b829",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/verify-devfabric.ts",
+        "git_object": "411c1f9e6f3f3929effedcd6dfc14963766233ca",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/verify-pc-shell.mjs",
+        "git_object": "25617c3368394deabc648fa8d37de4f12e4299bd",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/verify-product-content.mjs",
+        "git_object": "b47697f07de63691edaf808133c04e520619806b",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/verify-production-client-boundary.mjs",
+        "git_object": "65c478711cf29239fed148d52c39c4159ead814c",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/verify-secretary.ts",
+        "git_object": "2601d211d13cf3fa01a7bfa02f56ff03b93806b8",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/verify-ui-consumer.mjs",
+        "git_object": "c3417b93dae0a0b833b3742e2286e8e1e457bdc4",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/video-capabilities.test.mjs",
+        "git_object": "117b4f7fc25eaea50f06bee506d07f15295206ba",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/visual-kpi.mts",
+        "git_object": "53890eb8b922306caf2eb68918ba1cad2440f324",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/visual-quest-runner.mts",
+        "git_object": "136ff5546b86ade01fc8701138199d00e3bf6d53",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/vite-product.d.mts",
+        "git_object": "c089840d4635e17edbacf4eae00c7c49d0584cc4",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/vite-product.mjs",
+        "git_object": "efb8e9a7418790311fec3897e46d7a5dbfe07741",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/whiteboard/lineart_tools.py",
+        "git_object": "d3afe2e8617bcd578c0e126c02201c2a3ab1af4d",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/workloom-agent-mcp.mjs",
+        "git_object": "c8b684e40b888703ae92fd3574e0364a583f789a",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts/workloom-agent.mjs",
+        "git_object": "cf59059e22461b7bede79ed5ff665ef4cb8d423c",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": ".workloom-runtime-deps/package-lock.json",
+        "git_object": "7e6a6217cea91650c84a9005ef26c50bd8699ceb",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": ".workloom-runtime-deps/package.json",
+        "git_object": "8a395d636df6d773346e7030da68b02ba9869f96",
+        "unchanged": true,
+        "grade": "B"
+      }
+    ],
+    "unchanged_selected_blobs": [
+      {
+        "file": ".workloom-runtime-deps/package-lock.json",
+        "sha256": "5f43bade687d37f6f28df174310bf5bd693fcb22bc846243204ce2fc11859440",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file": ".workloom-runtime-deps/package.json",
+        "sha256": "e0340ff5a9ac4cb175dfe90c7af0507a3ff10bd9e77e0bd5e7ebc72443180502",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file": "AGENTS.md",
+        "sha256": "cc4b3ff324ecf404473397d9d538fb93193ad811ba6624d38390d65f7ef21f9a",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file": "AGENTS.repo.md",
+        "sha256": "545b15dd35eb8fbe01b211b7abbb94080d8ffbd78227a762b1262f4ad2c61d2d",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file": "CHANGELOG.md",
+        "sha256": "daf5aaad50cf2f5e4c49f478033a8a48aad4950111683e8ecff9f8279beb3a57",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file": "WORKLOOM_PRODUCT_CONTEXT.md",
+        "sha256": "59667533f52d296468d152eb7bc05908fef64decc8e6a5415b48938c79410e51",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file": "apps/desktop/electron/bootstrap.cjs",
+        "sha256": "aca7f94eacd643cc223a40ce15443321b6b2ce2814621d3ce89ea57ee7018c46",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file": "apps/desktop/electron/preload.cjs",
+        "sha256": "a7f42b647d6188b5dc2da06f6602207aa631da7952c2f2a0c52747b47b0532d4",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file": "apps/desktop/electron/render-smoke.cjs",
+        "sha256": "c287cb424fc0ed5f20fbacceab1e999705e3081838952ca8a806787530738fe3",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file": "apps/server/package.json",
+        "sha256": "e394b4853e18c6b52f3f54090d291b64bc4ea94067915aeab2ca65bcca51750b",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file": "apps/server/src/index.ts",
+        "sha256": "aaade3806bebe0001e8c46af0e7f0076f1fc2b098f741736a6a92dd0f81f3274",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file": "apps/server/src/runtime/scheduler.ts",
+        "sha256": "07ee0471b81ab18934729d5280d38cfe6f36ed8d364317709df4c789913774e5",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file": "apps/server/src/runtime/thread-runner.ts",
+        "sha256": "316144ae275e8ac0a086c97aa9305fcebedf43f46c6177f88962195e740e3344",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file": "apps/server/src/service/access-authority.ts",
+        "sha256": "e3b4d8b16e3c937fd7101386fb7498f73994cf21adb6bbb550d875e4d4c17148",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file": "apps/server/src/service/desktop-auth.test.ts",
+        "sha256": "5d48644fdcc3fa39f7bb41aa3fcb884fd25bcdd4fcc5ad363f7371f7b6965c12",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file": "apps/server/src/service/desktop-auth.ts",
+        "sha256": "fa09c74915b27200e73378d191268d7d1ad43256111a78051cfc9e08b1a348dd",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file": "apps/server/src/service/events.ts",
+        "sha256": "0de38cb1019bcd9280e71809f7756a0cda4506d66f36553efdfeb6d6f9258499",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file": "apps/server/src/service/onboarding-continuity.pg.test.ts",
+        "sha256": "653d52e9fa92cf0c13940b1573879bf315bfaa33ddfbb19785b7957e421eb3bc",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file": "apps/server/src/service/onboarding-continuity.test.ts",
+        "sha256": "0873f0fedc697713b16038a6ac804bac9b9d5f9fda96c854751666b1d8c3ceda",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file": "apps/server/src/service/onboarding-continuity.ts",
+        "sha256": "b9b26723f24bcacdfb925d9ef420385a29e52bdb30553e2d3f9621d3bb2811da",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file": "apps/server/src/trpc/context.ts",
+        "sha256": "60c5f70cae897c34c789a8c8aa0479552cc110b9ae04dff639f02c0d1e244c89",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file": "apps/server/src/trpc/router.ts",
+        "sha256": "e6bc963831c986cd5d671a024a3882586494be8d016ca5677d5cf796c6d0340a",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file": "apps/server/src/video/film-ledger.ts",
+        "sha256": "f8a1d7c9d1b77058b5ceccb1f1511b93c85d85a406639be04d9505f9bee48b42",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file": "apps/server/src/video/film-router.ts",
+        "sha256": "be176e9c058e987ae7285335362cc80ad80aec89c1d25c851476b23b94e8fb89",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file": "apps/server/src/video/film-worker.test.ts",
+        "sha256": "3679bbd674617f96ab5884c4d0c1da745856e286945e1eba9dff7efbf201810d",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file": "apps/server/src/video/film-worker.ts",
+        "sha256": "6e2eb96c595f811cabae5e0aac4e905c12ac2af2dba037bdb78b376259134311",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file": "apps/server/src/video/gen/db.ts",
+        "sha256": "44ff4a9c803a4899e8f9239cc9ffc0c345e17811e91cbbe6a9ec1e61e7243e9c",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file": "apps/server/src/video/gen/submission-ledger.ts",
+        "sha256": "c4ec9d7df53b103e3e1eb4d5684726fbd26db472e307ae844d908d96e7b14738",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file": "apps/server/vitest.config.ts",
+        "sha256": "0c9448c7020ad554d33623089f8b94adfd13e127e8b2b398f0e3482e066ec543",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file": "apps/web/package.json",
+        "sha256": "17273b001dea29afe53c13a4f3cdd17685cea4081bde2521ab5157ec45a1081b",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file": "apps/web/src/components/AgentAvatar.tsx",
+        "sha256": "020697d93c854d2f88417225b0255d7600dbe0f936c1e69d13c264a3859e8c8f",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file": "apps/web/src/components/BusinessAvatar3D.tsx",
+        "sha256": "6bf778c0f5091335b4d8709f9e5b9d9eb6df3f820b79319d46253b043f683c2d",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file": "apps/web/src/components/CeremonyStage.tsx",
+        "sha256": "0535fa4243b2a998c7afcb38b967fcb26f0e755093cfba80574600b489807299",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file": "apps/web/src/components/MateWelcome.tsx",
+        "sha256": "38e43512c36a38505877c3570a04ea04deaa6fb6a395b9c2d9beded98b4c4981",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file": "apps/web/src/components/WelcomeCeremony.tsx",
+        "sha256": "8811918a8b0b36680a96e079479f94ab3992c2c578ef03874cfa40aedbbef2b7",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file": "apps/web/src/components/cinematic.tsx",
+        "sha256": "e9e9f5875654f6f700bdf39b3d3908b31105188580b10a612f7bb8e52d4f6fc2",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file": "apps/web/src/components/loommate/LoomMate.tsx",
+        "sha256": "988f92a5584d59746c86f1effebffacdd318184132c868bf5001a0a650512b5c",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file": "apps/web/src/components/loommate/MateLive2D.test.tsx",
+        "sha256": "ed35d73ed6936c4c78f0934a04e29ec29757a346868a61398840e24ad0540635",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file": "apps/web/src/components/loommate/MateLive2D.tsx",
+        "sha256": "6a292be27b875f4780bf47bf4e773006391b911c5df4f8160638d07285e313ec",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file": "apps/web/src/components/mate-guide/QuestlineHud.tsx",
+        "sha256": "02a8156ddea72eb3a6972aa279759c326af073acb22ab4c512254b11e695c692",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file": "apps/web/src/components/mate-guide/QuestlineOverlay.tsx",
+        "sha256": "e598093ec41078aa9e93a4058ac2fc71fc7a95b4c58ac6249d37e472327513fb",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file": "apps/web/src/components/welcomeScripts.ts",
+        "sha256": "30ec5892ddaee54b2dadbbe6fb7c8d4cdc9d023c74128f43f8d1dc36491e8d75",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file": "apps/web/src/lib/trpc.ts",
+        "sha256": "c5bc01427be530f8c9b5affec7d68eb56c2e4385aab746d661372c38d7c9c0f1",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file": "apps/web/src/onboarding/QuestlineContent.tsx",
+        "sha256": "b4e8c5b1d02052ba607ab29f4566c631b0c3fe77c0f50697f1d4738a5dc83192",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file": "apps/web/src/onboarding/questline.config.ts",
+        "sha256": "cf992950b56ff5e77fd488041d4c14c6d1ffdfaf7b4962da63e26f07e372153b",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file": "apps/web/src/onboarding/questline.test.ts",
+        "sha256": "721f2f102759e28104b8b2a4ec0a22d4ebe97e589d9bd18d685e41be8cd0ca78",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file": "apps/web/src/onboarding/questline.ts",
+        "sha256": "e7e81fbe1555316135e1a7ad916ee97b8871e102096e12c12a03ae7642312289",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file": "apps/web/src/onboarding/useQuestline.test.tsx",
+        "sha256": "87bcf30f0c9cb2399df250b69ddc36502de1977143febf92357033c96fff1f60",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file": "apps/web/src/onboarding/useQuestline.ts",
+        "sha256": "497adb51545890214b3770c40d84edcabec372e760da67498641d5d2e5928478",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file": "apps/web/src/onboarding/useWelcomeProgress.test.tsx",
+        "sha256": "fff027758cb82a141ef24a7368a97307bc725bea639c57df4ef67eacad1d47dc",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file": "apps/web/src/onboarding/useWelcomeProgress.ts",
+        "sha256": "af7199560c287547c2d45ddea5dc33a95cef87546d0c8fe80ad52d60a64bbba6",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file": "apps/web/src/voice/VoiceEngine.ts",
+        "sha256": "3d6bb09d4f593dcff24f7da0b151d669da945257abcb0880e819ca05e167cfc8",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file": "apps/web/src/voice/mateVoice.ts",
+        "sha256": "7fbd64c35c9321f08f59bfc14bb1b5695c989993424a42bf55d0da9e7c24dd20",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file": "apps/web/tsconfig.json",
+        "sha256": "b10d871fcdc0061dde770a1f473a06213c6c7cd1df966c31b680ef90c1deab1a",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file": "apps/web/vite.config.ts",
+        "sha256": "54b67032309c054459a1946f43009d5f7869748c60c6fb6cd461569da549e221",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file": "apps/web/vitest.config.ts",
+        "sha256": "6304966b68891894642a5f33c2ae57a176de46b7a78f604e881722539ab3490d",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file": "apps/webc/public/industry/service-front.config.json",
+        "sha256": "fd66b505e45bfb1a1e25174e3d74a65af80e64303efcb757bfed64f008905dff",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file": "bundles/geo-growth/bundle.json",
+        "sha256": "e2f6197f72a6743c26f5ff7d540c0f72de8dc497abf9203ad0b626afb89c1ac0",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file": "bundles/geo-growth/capabilities/video.mjs",
+        "sha256": "97a5c1f8def3beae54e807b1ad25bcffc0c4906f1c0fc10cc6ad5fba922eb8cc",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file": "bundles/geo-growth/fences/geo-growth-baseline.yml",
+        "sha256": "4a06d0a472be51a3e8922bc77e8834ef9f1f31e752b4ef3d345058ca908970c7",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file": "bundles/geo-growth/schemas/objects.json",
+        "sha256": "56a7fd4260455e7ad73ca0dbc0f6f6bb630f6f5131e2042f14c86e5e5eae66dc",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file": "docs/OPEN_SOURCE_COMPONENTS.md",
+        "sha256": "71ca9cb33de041fbe624509591d0b9cb4f756d77648fd5508e95f3f18ec6db8b",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file": "packages/base/accounts/tokens.ts",
+        "sha256": "ae3e4f7f8da91fe3e6e4115491f368231737071970b22c376eac7ffa05c1bf4b",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file": "packages/base/bundles/bundles.test.ts",
+        "sha256": "9fae7130394e8ea9417a248f55c6e355062f7e29876ec814be3439d4011f83d9",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file": "packages/base/fence-engine/index.ts",
+        "sha256": "b87bec63850cfb4bac4768c3d8449b57e14e7d82f2d8b4c02ab8498063c6c764",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file": "packages/base/fence-engine/judge.ts",
+        "sha256": "6a42d2b45ca3cd88874919179f5321fa5f9ab27819313a5ebfd4707ae6a7f3d6",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file": "packages/base/package.json",
+        "sha256": "d6b309b67a0a23b7465b758210e3647194c44489ad2b9a3e19d68af8ebfe6e2a",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file": "packages/base/review-console/approvals.test.ts",
+        "sha256": "be7a7443fb88a5559daeec2f97d29a4bf6845a4c3179113224fc501442197e4d",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file": "packages/base/review-console/approvals.ts",
+        "sha256": "8c08a6824b8da0f5fd82103a35f5e0da71ebdf7ad3808b9b9e9969a96665452c",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file": "packages/base/tenancy/auth.ts",
+        "sha256": "d1be9c71cc3620ba6990e81115f0b2c5a9d40b2758117f21c7bbdb4f64f018ce",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file": "packages/base/tenancy/tenancy.test.ts",
+        "sha256": "8c2608913fb16668f95b0f608cf05f4e328bf07f67132791c177d1a1813b3a10",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file": "packages/base/vitest.config.ts",
+        "sha256": "d8dc29a43309dccf1cf9ef1f3754c4d47b994a39b132a540d6583f4f8444ad35",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file": "packages/base/workdata/events.ts",
+        "sha256": "c2cea423e934037fa4e2802a83ebe69daca1facb1e6876434783d2b13a530ed5",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file": "packages/base/workdata/gateway.ts",
+        "sha256": "1f7b60fb592d716b556d57ed59589726296cb97b1667bf6e3e3ce9fb03189785",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file": "packages/base/workdata/index.ts",
+        "sha256": "0d3c5b0483b528fcf57c137363aa5328ce78bf999bc44404b938bca476062a09",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file": "packages/base/workdata/pii.ts",
+        "sha256": "2c9f18d1a220ecaab52e904486b6c2b9872336d6080303f86c928786d7fbadec",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file": "packages/db/src/client.ts",
+        "sha256": "67b8b3b34049046cb4449e9e05975cb8549f81acbb856b6e91b425ef20798e7d",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file": "packages/runtime/package.json",
+        "sha256": "9ec1a6bbfded34938f35b57ea94d9cfdd98ed6b29c93836a86e3df92b123ec81",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file": "packages/runtime/src/assembly.ts",
+        "sha256": "24dc365fb6eade190f825a5bc1effd2ae78c84bf65def0891c7bbaa4723a3007",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file": "packages/runtime/src/loop.test.ts",
+        "sha256": "ff10709cfc6eb4bded1fe97577203630941127b7fae32d8d6d660c5684ac0193",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file": "packages/runtime/src/loop.ts",
+        "sha256": "ae4ec887d54baf5af27591f6c1a1a3684e761bf6c2c31a622b2fa2f3bfbc9d7e",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file": "packages/runtime/src/runtime.test.ts",
+        "sha256": "c299bc006e531f6247c16a97715fbcdfd0bde22eb5ff8cc80f8e9a37a68fe573",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file": "packages/runtime/src/tools.ts",
+        "sha256": "78d110dfcf5281024d10e3dfac06c9cf719624a68b5adddf51ecb5605c03902e",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file": "packages/video-studio/src/film-worker-channel.ts",
+        "sha256": "c6545f197263a445c2686e5ae809ee1f483adac5dd99bd614040f48f7b07831f",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file": "packages/video-studio/src/film-worker-runtime.test.ts",
+        "sha256": "a2b903af54e827b33f0c14e5821544934df8c4fb1e16be1786bdde03fd79750b",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file": "packages/video-studio/src/film-worker-runtime.ts",
+        "sha256": "35f0be522be7f6dfa6b28d661e0bd350b66a32a646d77db05d26fce1ef540c36",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file": "packages/video-studio/src/index.ts",
+        "sha256": "fbacc818f5d8e01f30e36f8a14c012c253dc6ac68d773659b7d54e0dfc5a88ea",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file": "packages/video-studio/src/portrait-decision.test.ts",
+        "sha256": "985f4b90f29ecf2292a013e82a4426778af9709ccadd18274936b8deae47c59b",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file": "packages/video-studio/src/portrait-decision.ts",
+        "sha256": "6846ad0975cafc89d5efc890e4e842b67c63050a815ea5e99c5cad7160436607",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file": "pnpm-lock.yaml",
+        "sha256": "9d7b2c2748491e948ef19856ff1503118b01aa43fa4381e3cb342add3e11ee5a",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file": "product.manifest.json",
+        "sha256": "1aa6bf2b967cf3e7f88f024ff913a3633fb17737a54c3f495872f6c56b008df9",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file": "scripts/ci/cnb-desktop-release.mjs",
+        "sha256": "789236137878fa0335da659307f73ce4249bbc981f1c291444d941e46316347f",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file": "scripts/ci/cnb-desktop-release.test.mjs",
+        "sha256": "5a1809dfae4a89b81c1d93529c52d3bbe5efea085e8286f082758763db6d08f5",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file": "scripts/pack-electron-payload.sh",
+        "sha256": "0e91155a79c6147ee944e00987235caa9e5d8df368875970d8ad8e9a33441b01",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file": "scripts/pack-macos.sh",
+        "sha256": "3d28254b2fde730ac6b192c317715f4f9de0aa9271650cce37cd1ad244d6d5f6",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file": "scripts/pack-windows.sh",
+        "sha256": "21be99dc7b0968de17287b59064b508caf10d47abfcc5b04da35f100253947cb",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file": "scripts/pack-workspace-modules.mjs",
+        "sha256": "b28d5fc4e31dadd2f9567f6e65da95cd1e2595a4097e2fc7c6d2935127cb313a",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file": "scripts/pack-workspace-modules.test.mjs",
+        "sha256": "8393d9fe80337be3d80794b176ba42ff1032b868c288cca200ead77301dc50a6",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file": "scripts/payload-policy.mjs",
+        "sha256": "be1035d6c7f1e12f739bbc8e94e97c3aa8a45c2fc38a605537f2eb18916a6118",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file": "scripts/payload-policy.test.mjs",
+        "sha256": "b7b73308491882ff2a6da9dec0893ce9703bc1c2c942a62aeea42add1426bd7c",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file": "scripts/product-runtime.mjs",
+        "sha256": "bf8a446d4a600424b8d38189fa4cbe61a36126dc051124c71012a1ec46c439e3",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file": "scripts/suite-geo.ts",
+        "sha256": "95e3db37c577417cb98eb7f4fab9e2c98c447d44c197b185c10e8d7075d07ebc",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file": "scripts/suite.ts",
+        "sha256": "b95429d47bdf91fdba5519d57a15e04690c5489e208b56b5396b912b72518bbc",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file": "scripts/tools/full-chain-film.mts",
+        "sha256": "0a085ccbeb3d195d39f915d49aa4aa3c3ad6e9aa5f381eeb8e01fc83c4e4617f",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file": "scripts/tools/portrait-agent.mts",
+        "sha256": "43add6b5f59b7618de8b820e098aa4e37d5ad47f6f526dcfe129210025618074",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file": "scripts/video-capabilities.test.mjs",
+        "sha256": "b71f319eeafc8c31a19dfc9c8c32f221d2f41cf35b462873bec15339f4ed6aec",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file": "scripts/vite-product.mjs",
+        "sha256": "c8b4cdfac57632871322911e8a5882b5114c2e9a26d862cb7e96a663e388a538",
+        "unchanged": true,
+        "grade": "B"
+      }
+    ],
+    "excluded_changed_files": {
+      "apps/web/src/pages/p0/P0.tsx": "The floor UI caller changed. Current floor/browser/native controls are required; no inheritance of its old caller behavior is claimed.",
+      "docs/repairs/T-2026-1002-0901.md": "Repair documentation changed and is independently read at the final commit; it is not an executable input to the historical controls.",
+      "package.json": "Only test:desktop gained the reset test file. All other parsed manifest fields are identical; the full new desktop command is actually executed.",
+      ".workloom-runtime-deps/metadata.json": "Only inputs[package.json].sha256 changed. The16 ordered inputs and all other fields are identical; both lock graphs/declarations are identical and the current input lock is actually verified.",
+      "apps/desktop/electron/main.cjs": "Current scene geometry and collapse observer changed; current full desktop and verbatim extraction groups actually rerun.",
+      "apps/desktop/electron/bootstrap.test.cjs": "Current desktop observer and export tests changed. Complete current desktop cases are derived from their actual named log; independently executed bootstrap/export subsets are not added again."
+    },
+    "reviewed_changed_nonruntime_inputs": [
+      {
+        "file": "package.json",
+        "sha256": "c7344fc11289dc06c0d5a7a487b543e11a15ab36fc3f8cf1c951b3981b16eb24",
+        "changed_keys": [
+          "scripts.test:desktop"
+        ],
+        "other_fields_equal": true,
+        "actual_control": "surface-7fee-desktop",
+        "grade": "A full current source; B parsed equivalence and actual run"
+      },
+      {
+        "file": ".workloom-runtime-deps/metadata.json",
+        "sha256": "216dfd1574541fc262eb79314df4004781f1826b2ad200a38db6f3e92c35484b",
+        "changed_keys": [
+          "inputs[package.json].sha256"
+        ],
+        "ordered_input_rows": 16,
+        "other_fields_equal": true,
+        "actual_control": "surface-7fee-runtime-lock",
+        "grade": "A full current source; B exact lock verification"
+      }
+    ],
+    "scope": "B Git bytes/tree metadata support inheritance of the previously accepted source contracts. Original argv, timestamp and any present or missing executed-source fields remain unchanged. These are historical cases, not new executions or new business samples.",
+    "exact_legacy_comparisons_target": "7fee3a6a5563d41c568463994764d3883eb7667d"
+  },
+  "floor_input_inheritance": {
+    "executed_source_commit": "f0a11286a49419fb7909088e2d170f4dde7b60c6",
+    "accepted_source_commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+    "new_browser_execution_claimed": false,
+    "complete_unchanged_input_trees_or_blobs": [
+      {
+        "file_or_tree": "apps/server",
+        "git_object": "153f83db5edc73fb0d5d8b94816e6620d66266e6",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "packages",
+        "git_object": "aece029f0505366899d368273cf865e67caef6e8",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "bundles",
+        "git_object": "a15ea80f7fb508ea9bf0f92d0f2777e993919ffe",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "pnpm-lock.yaml",
+        "git_object": "cfd6e2b567eb12b920c53b15b6305df143f486ea",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "tsconfig.base.json",
+        "git_object": "7949149fc4f25ce91580123b89a597c67fcc885a",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": ".workloom-runtime-deps/package.json",
+        "git_object": "8a395d636df6d773346e7030da68b02ba9869f96",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": ".workloom-runtime-deps/package-lock.json",
+        "git_object": "7e6a6217cea91650c84a9005ef26c50bd8699ceb",
+        "unchanged": true,
+        "grade": "B"
+      }
+    ],
+    "complete_recursive_web_comparison_with_actual_stage_replacement": {
+      "file_or_tree": "apps/web",
+      "whole_tree_unchanged": false,
+      "comparison": "Every recursive tracked blob compared; only the actual reexecuted Stage source and new geometry test are excluded",
+      "unchanged_recursive_blobs": [
+        {
+          "file": "apps/web/consumer-e2e/clients.playwright.ts",
+          "git_object": "4bf7b6cdfe10787f0bf8302ba989ed05a1e4be79",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/index.html",
+          "git_object": "85a596394554b26fe5cc843b1b781fb730b51c5e",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/package.json",
+          "git_object": "6e82dd1893a86e39eea8d1f401d80cce9a186fd7",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/playwright.consumer.config.ts",
+          "git_object": "3a60e12cd160b53eefd926c39028bb249a36d4b2",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/public/live2d/live2d.min.js",
+          "git_object": "8d3c0a9847251a16cffc38d107176e94fc86765f",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/public/live2d/live2dcubismcore.min.js",
+          "git_object": "d225300ecbe93495868d52e0e12e3baf27d5d7d1",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/public/live2d/mao/Mao.2048/texture_00.png",
+          "git_object": "3d0b037d2aa7541de9b3213ab6be0420c8f4f301",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/public/live2d/mao/Mao.cdi3.json",
+          "git_object": "543be7c7dd054d53e5bbf22196726d298450d829",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/public/live2d/mao/Mao.moc3",
+          "git_object": "fc4cf72230f9046f8a9df3337f1ab4fb43ba1b58",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/public/live2d/mao/Mao.model3.json",
+          "git_object": "69c2be0ee9241e30daa029e5b8974df233ae870c",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/public/live2d/mao/Mao.physics3.json",
+          "git_object": "2d9fb490cd7fef4f2b1e73f04c72cb304d314dd6",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/public/live2d/mao/Mao.pose3.json",
+          "git_object": "76fd2fdc6ade2d75830a4b46d0fd2446627884cf",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/public/live2d/mao/expressions/exp_01.exp3.json",
+          "git_object": "bad34d90ed6439da3549b8771f10bfd12656ceae",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/public/live2d/mao/expressions/exp_02.exp3.json",
+          "git_object": "137d0bee37102e6d1b3ab592011a4115df02cd42",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/public/live2d/mao/expressions/exp_03.exp3.json",
+          "git_object": "032bdb1c201aa0fe709c56d2fdef467189eb56d0",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/public/live2d/mao/expressions/exp_04.exp3.json",
+          "git_object": "6d23927f03fe67c544bc03361c99d35f462bafed",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/public/live2d/mao/expressions/exp_05.exp3.json",
+          "git_object": "1d44e13901b5cbe2f177309cd4271ddf85773648",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/public/live2d/mao/expressions/exp_06.exp3.json",
+          "git_object": "551a0ae0c4dffdfa2aea7e04399cf69336927721",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/public/live2d/mao/expressions/exp_07.exp3.json",
+          "git_object": "cff53e1d8cdd9fdc742920342cebec7f3072250a",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/public/live2d/mao/expressions/exp_08.exp3.json",
+          "git_object": "38d376d63edb1453e5f07f37a3a998a80e916a87",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/public/live2d/mao/motions/mtn_01.motion3.json",
+          "git_object": "854b3c25d52ee2fb6a90bee11d660031274067d5",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/public/live2d/mao/motions/mtn_02.motion3.json",
+          "git_object": "40ae6e646235c915d60a3114e1fd34b536e0da1d",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/public/live2d/mao/motions/mtn_03.motion3.json",
+          "git_object": "c15f90cf5951c40f33bb43b3e34f4fe1c19ca807",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/public/live2d/mao/motions/mtn_04.motion3.json",
+          "git_object": "09eea78ce5ff4357e9faab57c40d27c1e6629229",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/public/live2d/mao/motions/sample_01.motion3.json",
+          "git_object": "b24f6f93cf5edbdf478633f813076ad3cd964268",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/public/live2d/mao/motions/special_01.motion3.json",
+          "git_object": "4b6cc16712923165b36578377d89d656d958a182",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/public/live2d/mao/motions/special_02.motion3.json",
+          "git_object": "c0c7ac1b824b2e2b76eb7e86c99bf87ec26ec58a",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/public/live2d/mao/motions/special_03.motion3.json",
+          "git_object": "018154512e6b875d4dd6378e45d4834651d75806",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/public/live2d/mao/poster.png",
+          "git_object": "26feaba293f8dfadbe0a214856db734310a87b1c",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/public/live2d/shizuku/expressions/f01.exp.json",
+          "git_object": "cc8e48ddb535061199d3b17bdf55db7c3a994e1b",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/public/live2d/shizuku/expressions/f02.exp.json",
+          "git_object": "8b49c8d0e9095cc4e2fb9411208bc61483f83b68",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/public/live2d/shizuku/expressions/f03.exp.json",
+          "git_object": "40222f526c5086cb23adff4469132dc5b423f80a",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/public/live2d/shizuku/expressions/f04.exp.json",
+          "git_object": "f0d4e93a3824ad8058117650c806152d2d84136b",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/public/live2d/shizuku/motions/idle/idle_00.mtn",
+          "git_object": "a2ca1b322c7d512850454d43e1aec0c0f407f9e6",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/public/live2d/shizuku/motions/idle/idle_01.mtn",
+          "git_object": "1d34e64233660b5bd41bade34485b3808735664d",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/public/live2d/shizuku/motions/idle/idle_02.mtn",
+          "git_object": "4051d51d4c92638c14b2b808261e3983df593168",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/public/live2d/shizuku/motions/idle/idle_03.mtn",
+          "git_object": "bcc47bc814a141e124b8ec88d2d7385c01dd953c",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/public/live2d/shizuku/motions/idle_00.mtn",
+          "git_object": "a2ca1b322c7d512850454d43e1aec0c0f407f9e6",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/public/live2d/shizuku/motions/idle_01.mtn",
+          "git_object": "1d34e64233660b5bd41bade34485b3808735664d",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/public/live2d/shizuku/motions/idle_02.mtn",
+          "git_object": "4051d51d4c92638c14b2b808261e3983df593168",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/public/live2d/shizuku/motions/tapBody_00.mtn",
+          "git_object": "2ebafd52c9d99806234848551db20466943dc3aa",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/public/live2d/shizuku/motions/tapBody_01.mtn",
+          "git_object": "cdd5a368a6922801892eb5e8005b84bddab663ff",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/public/live2d/shizuku/motions/tapBody_02.mtn",
+          "git_object": "3c88082f9cf07a117f98bb6e95886fbfce451c39",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/public/live2d/shizuku/shizuku.1024/texture_00.png",
+          "git_object": "34c612222a5dbf566973f22e483a24ead8739aab",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/public/live2d/shizuku/shizuku.1024/texture_01.png",
+          "git_object": "5960dde76a9e81c8e7e364e8717d94d3852e93e8",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/public/live2d/shizuku/shizuku.1024/texture_02.png",
+          "git_object": "9ee5a4713c17a427aa196a0e52c04f9282b03172",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/public/live2d/shizuku/shizuku.1024/texture_03.png",
+          "git_object": "c0c70a9ba6b4d3c2454addfd378a85011423484a",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/public/live2d/shizuku/shizuku.1024/texture_04.png",
+          "git_object": "e7a26e917836744967850931a3e7d6ebabd6da59",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/public/live2d/shizuku/shizuku.1024/texture_05.png",
+          "git_object": "1a1a423eb40eb0eab41bf551db83bfdc3417c12c",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/public/live2d/shizuku/shizuku.moc",
+          "git_object": "5b3a592499a85189a0ff349926d2c7db42ef03aa",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/public/live2d/shizuku/shizuku.model.json",
+          "git_object": "a024bdc40b25fc39edf1fd16eca589f881d922fe",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/public/live2d/shizuku/shizuku.physics.json",
+          "git_object": "72255fc61feaeefb3c591472adf0c9e845b7b068",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/public/live2d/shizuku/shizuku.pose.json",
+          "git_object": "28017b41e8b71088e736d8b9ea6fe812709818e8",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/public/models/kaykit/Barbarian.glb",
+          "git_object": "66d312ab6dc02b35fb648e7585bfdddb4e02eeef",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/public/models/kaykit/Knight.glb",
+          "git_object": "717b56ca2b5ff5392679774725201ba03a3eefab",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/public/models/kaykit/Mage.glb",
+          "git_object": "c89f19f6e707f6e07e4632a08876bd6d0172b082",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/public/models/kaykit/Rogue.glb",
+          "git_object": "c8827661105eef7b2bfbef3bc676d41a47625733",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/public/models/kaykit/Rogue_Hooded.glb",
+          "git_object": "5d2b1403240d5f9ffff12e02c007572038eca2a8",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/public/models/kaykit/mug_full.bin",
+          "git_object": "514dba14bac0771f9369442dbfd02644981ebeb3",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/public/models/kaykit/mug_full.gltf",
+          "git_object": "5646fcca80b4a37740b694147d8e89843ddb6fbf",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/public/models/kaykit/shield_badge.bin",
+          "git_object": "b035daa7c9aff96d3a87d2f82da1d4ca3655954d",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/public/models/kaykit/shield_badge.gltf",
+          "git_object": "ea24d093f903e4b0eec8131a112e3699c6297da9",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/public/models/kaykit/spellbook_open.bin",
+          "git_object": "78ac7238dc8c4462d1c1c89cb30c50ec99465c3d",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/public/models/kaykit/spellbook_open.gltf",
+          "git_object": "2a35e30896d0ef68a4fac4d7e939ec3bb8c2acff",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/App.tsx",
+          "git_object": "236481e1f9a918523a53c3a5cea77f4bdbe35f91",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/audio/AudioEngine.ts",
+          "git_object": "1e199fe961d4094fc2573932cd954329f2c28ee5",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/audio/ambience.ts",
+          "git_object": "eb0f3e7d4aac87395dcc4b230e891ecbc4075278",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/audio/sfx.ts",
+          "git_object": "0a406e5328fd9353b9a500b56a7151e827fcbaeb",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/components/AIFeedback.tsx",
+          "git_object": "6bdfb4af541d682576a6aeed9d64e0d2ee84759c",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/components/AgentAvatar.tsx",
+          "git_object": "c399a2db71041939877bdb3aff357ddd83b22878",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/components/AudioSettings.tsx",
+          "git_object": "6df7a7c5e5c6cb01469b03388489e246a2497ae0",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/components/Avatar3D.tsx",
+          "git_object": "fdd1c40227047a33728512f3d4e2f5ddf4037b36",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/components/BackendGate.tsx",
+          "git_object": "84005dc6e69647d1103ce030ea461a9b8f2c8a76",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/components/BusinessAvatar3D.tsx",
+          "git_object": "6a33a9c6e8e877761e19ebb0ee36adb3cf28f7c3",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/components/CeremonyStage.tsx",
+          "git_object": "52c55e811d9c94966ee2cd62d6fa7a74a186ad25",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/components/CineDirector.tsx",
+          "git_object": "cd6814138959135aee07044bb74f7c64a7b1914d",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/components/CommandCard.tsx",
+          "git_object": "90ff317d6d6529c3e9d725db673b796fa3e52ad3",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/components/CreditsPanel.tsx",
+          "git_object": "89fa3ac42489a7aa4abc4a165e2f13df44dbce68",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/components/Floor3D.tsx",
+          "git_object": "dd2353c61dd77e5e019265712fc7eadc5ebcd0e8",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/components/Floor3DLabels.test.tsx",
+          "git_object": "5db28b376713f8c9981c0c00d2e7427d2addfd59",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/components/Floor3DLabels.tsx",
+          "git_object": "a8c30ef14cc4b1771f79b22d3bf80827997ab515",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/components/Floor3DTaskDrop.test.tsx",
+          "git_object": "bc3d25cdf2793469944117d01a6fa4ed9e9aa08d",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/components/Floor3DTaskDrop.tsx",
+          "git_object": "b67ab33c067356709ac2b69f2d11cb945782f727",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/components/GazeSystem.tsx",
+          "git_object": "f8c30037febdef72d82ae39b8b1eb024ab65c0ac",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/components/HoverBubble.tsx",
+          "git_object": "ff3707d1a321fbf948b5bc8de9021f9096e11ac9",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/components/MateWelcome.tsx",
+          "git_object": "dc4a2b0f3aeeac7d665a5f9eb434b2188e01db30",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/components/RejectDialog.tsx",
+          "git_object": "997eabb2ba5b706fe60a03ea1a4857d5182eda6c",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/components/SimBanner.tsx",
+          "git_object": "85843c37c4930654fbd2851b7823e8a47b03791f",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/components/SkillDistBanner.tsx",
+          "git_object": "f7ac8c9ec79f696c372cc223a970ee4cf017d1af",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/components/UrlQrCode.test.ts",
+          "git_object": "f97d934f54366d57b7d081a7cb2ebfc4a009dfec",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/components/UrlQrCode.tsx",
+          "git_object": "01b50745b74947969748da9ff5a7e3f477938bb6",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/components/ValueCounters.tsx",
+          "git_object": "3b03871867e0afb3f59d313ebe72e22ec93b5ade",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/components/WelcomeCeremony.tsx",
+          "git_object": "8c7d17a3ebd61ee6307620966780e8789ddcb8da",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/components/cinematic.tsx",
+          "git_object": "cd1269a696803c9775e058ff68a8007ac326b3ef",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/components/floor3d-layout.test.ts",
+          "git_object": "9e3f92efc39f4b816adacf105ddd5d90af2a67b9",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/components/floor3d-layout.ts",
+          "git_object": "0815a77c5b26880f90efecbc94cac5c6e04638f3",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/components/hud/DispatchBar.tsx",
+          "git_object": "9f9372a41b6ad3745e07ba1fe8a112c75f890d51",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/components/hud/EmergencyBrake.tsx",
+          "git_object": "fbb0dbeb4c8750dfee55cfcbbb1d2745556e4101",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/components/hud/EventIdChip.tsx",
+          "git_object": "6f6475c1e9468bee6d1d24ffd3c020c6b24fc973",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/components/hud/FenceLight.tsx",
+          "git_object": "64f541f61cb3842c560d50da98c49ce623c49f7f",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/components/hud/HandoffCard.tsx",
+          "git_object": "c6d308015eac8ee9efd5bd5077dc789b4620d04f",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/components/hud/KpiGauge.tsx",
+          "git_object": "abdc24b4cbb41db951d035a7118c450f6f730f1b",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/components/hud/NightStatusPill.tsx",
+          "git_object": "dfda4e84f7476c6d36ae69f51390b69c32288dda",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/components/hud/PlanCompareCard.tsx",
+          "git_object": "14af845f6ecc817d78035489808ab46d0bbde347",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/components/hud/QuestCard.tsx",
+          "git_object": "3ce564db67f81cc61e6b0af0431682c1f4db59c5",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/components/hud/RadarAlertCard.tsx",
+          "git_object": "c5bad217096479de848212bef72590bb7d599f90",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/components/hud/TriGestureBar.tsx",
+          "git_object": "c0020b4969fdf9bdde5f3d114338f91dd213a51e",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/components/hud/XpBar.tsx",
+          "git_object": "fa7ddc4275466e167ed05b9fa10ff3192aa5b834",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/components/hud/feedback.tsx",
+          "git_object": "782cca9edc7051709218e4fe04c8cdc13df5f358",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/components/hud/gamification.tsx",
+          "git_object": "30edbc2aa3b87cb0665f955dcb568ba7d7e12971",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/components/hud/index.ts",
+          "git_object": "825684bab5e496176f03ba5147e8e77ae78be87c",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/components/hud/messages.tsx",
+          "git_object": "16e57ea343955fed5ff8fc2fd3cef54c634d1688",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/components/loomball/LoomBall.disabled.test.tsx",
+          "git_object": "acb1a76fb10f8940f153684ef74414bb47e1c9a1",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/components/loomball/LoomBall.test.tsx",
+          "git_object": "90c6e82e5ee984c8dd0bb6812252bfebde6b562b",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/components/loomball/LoomBall.tsx",
+          "git_object": "c766f39dc63eff9a433d1cad207789c4c64f69fd",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/components/loomball/agent-emotion.test.ts",
+          "git_object": "d44ef688e56baafc54a7dcb1f80ba819e1346ce5",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/components/loomball/agent-emotion.ts",
+          "git_object": "fd908a5373d3cdfde9a17946c1b74cf12217b5d1",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/components/loomball/emotions-workloom.ts",
+          "git_object": "aa0d0901ec34e79ca68f62855f3107eea38eeb2c",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/components/loomball/engine.test.ts",
+          "git_object": "a2534104498f58be6d5ef9b50d30cd84c02a45ef",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/components/loomball/engine.ts",
+          "git_object": "7af651fe1b3ca33184ee4e185ebbbc544b3b552e",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/components/loomball/index.ts",
+          "git_object": "fe137be6cb2660144918e66e346833d6b5fa1f41",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/components/loomball/provenance.test.ts",
+          "git_object": "2bd1045dad53215e1f128722654da19d3ec73154",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/components/loomball/useStableEmotion.ts",
+          "git_object": "ccf153e9a474dc4838bf7107d033f15d3278587f",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/components/loommate/LoomMate.tsx",
+          "git_object": "1738bdb4b4e66281d00db44d2197736f2d7e9976",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/components/loommate/MateLive2D.test.tsx",
+          "git_object": "d678771eb414f572100044d56d8bfccb7bd2f6b2",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/components/loommate/MateLive2D.tsx",
+          "git_object": "ae0db0681abbc3e04d7c714ecdb113f7cacc7bb9",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/components/loommate/VENDOR.md",
+          "git_object": "6ad3486a71300a5bfd9033ca6099267a02f837ef",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/components/loommate/speechText.test.ts",
+          "git_object": "b96909f48a9b4cabc4dac453187fc14f0acf51db",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/components/loommate/speechText.ts",
+          "git_object": "9beac25ad6a9ebcfff471068d6c5388d3a71b82c",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/components/mate-guide/MateGuideAvatar.tsx",
+          "git_object": "f751d978bb1f8be585932acb36812786b1ea9ddf",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/components/mate-guide/MateGuideBubble.tsx",
+          "git_object": "b9a989c0fcf6230ba73338ab8387ba6e2f835a8e",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/components/mate-guide/QuestlineHud.tsx",
+          "git_object": "6f47acc46268e0618929f3eb2a0a80755db3e335",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/components/mate-guide/QuestlineOverlay.tsx",
+          "git_object": "61ad40537bbe91f2b4fe0d048ec04f99a87b3c44",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/components/mate-guide/QuestlineStages.tsx",
+          "git_object": "d27e065202170d26cf9ded68ee79b2c887e10821",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/components/star-ring/StarRing.tsx",
+          "git_object": "9057b54e626ea2fdfb57827e7061b651d6a6ca91",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/components/welcomeScripts.test.ts",
+          "git_object": "c2f3433872c669e853976f1ef2d2ad3196bcadf8",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/components/welcomeScripts.ts",
+          "git_object": "d03a114083df4bc52428e81d2a1296f7687396b7",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/extensions/ai-video/components/activity/LiveTicker.tsx",
+          "git_object": "ce436beae509616cc72c5a2db69762ac3071e1ac",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/extensions/ai-video/components/review/gateAgentMap.ts",
+          "git_object": "762a4db2b64b6fec453cc8d5a498b62abf21ba31",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/extensions/ai-video/components/skills/EvolutionZone.tsx",
+          "git_object": "e1d1eb09caae1c19a0e94b61862308fb881066cf",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/extensions/ai-video/components/skills/ProductionEntry.tsx",
+          "git_object": "d6c9fe460f37a889b2ae89d9a042bbba3ef1c6ec",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/extensions/ai-video/components/skills/SkillChains.tsx",
+          "git_object": "0c3132315cbff8d7a020f260f03dfc1449b6d20c",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/extensions/ai-video/components/skills/StageRecommendBar.tsx",
+          "git_object": "a48691083c9da10f8cfd398d3ca3e8e642d3bef5",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/extensions/ai-video/components/skills/skillShared.ts",
+          "git_object": "f5a7a37b6338a26f472338815e4b8cf8ebaf7cdf",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/extensions/ai-video/components/team/EmployeeCardDrawer.tsx",
+          "git_object": "fd78c5acdf59500437ca99d8006be115a0aff6a6",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/extensions/ai-video/components/team/HostAgent.tsx",
+          "git_object": "8036d0ac0a8e92f406ac73ae69991c2739b1ec0e",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/extensions/ai-video/components/team/employeeScorecard.ts",
+          "git_object": "3f4fdd7eb6a7631897edaf40729735c442bc8164",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/extensions/ai-video/pages/Activity.tsx",
+          "git_object": "2fe0381e4f52789405a8606209773765f4cd2869",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/extensions/ai-video/pages/Assets.tsx",
+          "git_object": "242861a50cc3d77ee845e3d8bcf36473182f908e",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/extensions/ai-video/pages/AssetsOrStudio.tsx",
+          "git_object": "d0a555878a779ecd49ee61f6d89e3fd91022e355",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/extensions/ai-video/pages/Delivery.tsx",
+          "git_object": "cf23c4f7121dec51400c32833742e753253020d2",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/extensions/ai-video/pages/MediaCollections.tsx",
+          "git_object": "9959bd5353b4d9f48f922e578f1a386816812f9d",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/extensions/ai-video/pages/MediaFilms.tsx",
+          "git_object": "8e594f1d50918a02c917c13a465d91eca560e5e4",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/extensions/ai-video/pages/MediaLibrary.tsx",
+          "git_object": "4454782860c3551cbe95282ff54b11bafebf3749",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/extensions/ai-video/pages/MediaProducts.tsx",
+          "git_object": "ef6c71fd7f08878771ca2b9c9add0556a4634d93",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/extensions/ai-video/pages/ReviewGuide.tsx",
+          "git_object": "6a44d8cd3a6a513a9832a336f038c80e853f611a",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/extensions/ai-video/pages/SkillOperations.tsx",
+          "git_object": "b4a1b6d4036c93668f5000f3d727d63eb2eed3e9",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/extensions/ai-video/pages/Studio.tsx",
+          "git_object": "a7c5ebbfefa7cc6bd0d2f65cf4dc0ed24f95987f",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/extensions/ai-video/pages/TeamPerformance.tsx",
+          "git_object": "245559e940b72be3ca16a69a09c7ba580f3f2ff6",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/extensions/ai-video/routes.tsx",
+          "git_object": "e1aadb99e4ee002b8e18ab60faffc4dc32005521",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/extensions/hotel/console.tsx",
+          "git_object": "e858c28a2f4daa49163052908adc843f7ffaf87c",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/extensions/hotel/pages/Breakpoints.tsx",
+          "git_object": "1f19147569e9e4a5f95ba87ef0668abf92ff6103",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/extensions/hotel/pages/Channels.tsx",
+          "git_object": "8b63a3a691efb93ff58e598c0d8973b14200e94c",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/extensions/hotel/pages/Fleet.tsx",
+          "git_object": "06af6871846b452160287e09d5fb9ea68187132e",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/extensions/hotel/pages/Goals.tsx",
+          "git_object": "69a7700bfd12d45d947c65188153fd0c5481e895",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/extensions/hotel/pages/Housekeeping.tsx",
+          "git_object": "1febb25fbf6e4be183bfa302fe0b7cd70a2f906d",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/extensions/hotel/pages/OrderFlow.tsx",
+          "git_object": "86cc1a1485d8369e674749c5d2a00400137b86a3",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/extensions/hotel/pages/PriceHealth.tsx",
+          "git_object": "6d85fdda865e6ed77685a1f47ca65ad7c721eed3",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/extensions/hotel/pages/ProfileOverview.tsx",
+          "git_object": "fdc08cff2f09f904895cbc535e2c23792c9fa2de",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/extensions/hotel/pages/Revenue.tsx",
+          "git_object": "c41342d080e2248f4beecaacbfb3ed7b399118ec",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/extensions/hotel/pages/ReviewSla.tsx",
+          "git_object": "201db9124e22b02b8545227f2977de68397943bb",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/extensions/hotel/pages/ServiceFront.tsx",
+          "git_object": "0521a15d855f6e79cbc3b4adeacede819b60da82",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/extensions/hotel/routes.tsx",
+          "git_object": "90beb4e66880fdcff9940e7410bf85f5aa0437ab",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/lib/clientText.test.ts",
+          "git_object": "0023d4eccb4a69f17a14bbbc502f9167af2f69e7",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/lib/clientText.ts",
+          "git_object": "3051901267b473655fb6557d601463c1443f4ded",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/lib/display.test.ts",
+          "git_object": "e69ed73464776a64bc4e3baaf35dae43e75ae691",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/lib/display.ts",
+          "git_object": "8a5752c9a798c67d35aa76f5a6599455369cebf4",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/lib/naming.test.ts",
+          "git_object": "e6a514863383555d057ed951b4ea6398c660b3f4",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/lib/naming.ts",
+          "git_object": "fd0d0bedf207707de1ddf509b03d744397dd0684",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/lib/product.ts",
+          "git_object": "c1c41abb50dfc4741dd539f60ce160ad574986f2",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/lib/theaterDiff.test.ts",
+          "git_object": "712fb4482ba1f9fc419d2d573242930dd232f47a",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/lib/theaterDiff.ts",
+          "git_object": "c7f67f626d4c46f5dc0c525cf01ece5bde0cb0e4",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/lib/trpc.test.ts",
+          "git_object": "883d71ccb34be099bf450a79e5b78a31f64813e4",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/lib/trpc.ts",
+          "git_object": "f88b8220df400be24b7b3bb450ff8d52dc50ed1f",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/lib/ui-state.test.ts",
+          "git_object": "22956080108c3418dbd4e82a2fb5da3ba9c3b0d3",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/lib/ui-state.ts",
+          "git_object": "c908f311a9c6e23be5b015812227612a4f6ef29f",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/lib/useAskRail.ts",
+          "git_object": "e0fdef28f7f2bd6af5ecc6373d4f256909179042",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/lib/useNightTime.ts",
+          "git_object": "a87898a5029c3885448d8bcd57c5e9dd82efd297",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/main.tsx",
+          "git_object": "08be9fedf3056503eb22922bbc6312e32396767a",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/onboarding/QuestlineContent.tsx",
+          "git_object": "0aeaaaca91535eddb2261febeeca23818eb50745",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/onboarding/questline.config.ts",
+          "git_object": "d810a34c29ec80e17e2cb7dd253902218e3ed04f",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/onboarding/questline.test.ts",
+          "git_object": "5d22fcf607006b5833cc4cedde1f41c315281a7f",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/onboarding/questline.ts",
+          "git_object": "7d4307bd220e4505cab91fe6e2872307a692f770",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/onboarding/useQuestline.test.tsx",
+          "git_object": "844394e45b667e9b1f7bea558796fa2cbb97fa4a",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/onboarding/useQuestline.ts",
+          "git_object": "7d4afdb5c4f0bfc1301503a08275ae5b8b1c72c5",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/onboarding/useWelcomeProgress.test.tsx",
+          "git_object": "cf53b48be2c5a4b99438ec7fb7fb169615c0cf17",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/onboarding/useWelcomeProgress.ts",
+          "git_object": "d4b5093ba993e6f6b429379ec096ab231e92ba9a",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/pages/accounts/Activate.tsx",
+          "git_object": "57d4e4bced282e1a90031946757a42b08f96cda1",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/pages/accounts/InviteAccept.tsx",
+          "git_object": "7fa006d3e3adae872291d5ecd71901aa1d0e7d7f",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/pages/accounts/Login.tsx",
+          "git_object": "b5c1fbe6fd047101f14a13fbac95f14d438578a6",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/pages/accounts/Workspaces.tsx",
+          "git_object": "b1d83682f05b7fbfe5f13e6c32111f3ec9294455",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/pages/accounts/systemText.test.ts",
+          "git_object": "2edd8074df5ec68a8855b94ba2f53983058ff15e",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/pages/accounts/systemText.ts",
+          "git_object": "942d9a968b47afff6728ddf0cf146848cc182544",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/pages/dev/DevMatrix.tsx",
+          "git_object": "71ec887906b94606274198876202345a2a451e1f",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/pages/observability/Observability.tsx",
+          "git_object": "cedcb2b1e4d9331716871a033be3651bf12570fb",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/pages/onboarding/CustomizeWizard.tsx",
+          "git_object": "32e06948cc428c94922344eb902aa462abb11a7d",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/pages/onboarding/Onboarding.tsx",
+          "git_object": "bb4fa80bdbad1f5b77cf4857c86f7b6b0d37036b",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/pages/onboarding/systemText.test.ts",
+          "git_object": "16680dc45685bd810e3303b7afb4a630bbe04b37",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/pages/onboarding/systemText.ts",
+          "git_object": "5860cd07570b85fc9a1d6631285f40897d244eaf",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/pages/p0/Floor.test.tsx",
+          "git_object": "98bc8bc0b9e4600f0f850f2a87267fb72a222012",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/pages/p0/Floor.tsx",
+          "git_object": "18d656657018d6f0ee4a50b40b0b26e05721e975",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/pages/p0/P0.tsx",
+          "git_object": "d9ef9bbc2c16f7d890813295434037e782a07791",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/pages/p0/floor-layout.test.ts",
+          "git_object": "888de36039d030b88dd45b764afcd2dc6b8058a8",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/pages/p0/floor-layout.ts",
+          "git_object": "ee9b08828eba05db93f1b558cba3dc6d0ce2da12",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/pages/p1/P1.tsx",
+          "git_object": "df13d4097d5834282695de80f71c3fe8f37ba799",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/pages/p2/P2.tsx",
+          "git_object": "fe1d5ea8e200aa1da953473acc5d056cf2837c08",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/pages/p21/P21.tsx",
+          "git_object": "d4d6d859c2fe813c0c5c1e8d963b728bdce805fe",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/pages/p23/P23.tsx",
+          "git_object": "b0fd86fd19cc440ee099e5f4a6f50c5885febea0",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/pages/p23/systemText.test.ts",
+          "git_object": "2df55beabb0183751e1694c7817061874954107b",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/pages/p23/systemText.ts",
+          "git_object": "145da40387266188d911632194a5ac275738a32a",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/pages/p24/P24.tsx",
+          "git_object": "7c5307bc92febce92bdc4aa0161863c85c6795c9",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/pages/p26/P26.tsx",
+          "git_object": "98240f05c2cf0b8e95f91a67363e6c9991c91afd",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/pages/p27/P27.tsx",
+          "git_object": "e7bd94b34768eb380a145710ddb9c79faa2884a1",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/pages/p28/P28.tsx",
+          "git_object": "947adacb1245fffbd47db0c76fb901fa3ce42405",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/pages/p3/P3.tsx",
+          "git_object": "96026092d4c82db78a7a5b1d7e26aa0751cfb308",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/pages/p5/P5.tsx",
+          "git_object": "5a554456ae0f42439a643c0fdcf325b65e155a1f",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/pages/p6/P6.tsx",
+          "git_object": "5f59bf58f495f461e873bf3aba825f94894c320e",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/pages/p7/P7.tsx",
+          "git_object": "557c81306e21215f70dd5396b65377c9a195c6ea",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/pages/p8/P8.tsx",
+          "git_object": "c187e6a5f9e6c2138225c51bdbfe31b89ccb8579",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/pages/p9/P9.tsx",
+          "git_object": "9bc3bf629d29291d6d23b4cbe85eca72708db5df",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/pages/portfolio/Portfolio.tsx",
+          "git_object": "ab442cb262fdcc7da2aaa2d66a9e249bcf5f9331",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/shell/AffordanceConsistency.test.ts",
+          "git_object": "9c1c2116d90926e9d8e3db147d632e8c5ffe0643",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/shell/Bridge.tsx",
+          "git_object": "953fa83e34d25256960db4a7249c2567d9c06286",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/shell/IndustryRoutes.test.tsx",
+          "git_object": "f9abdb3cfe4ef8bd58dd58b7a1d367b82833154c",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/shell/IndustryRoutes.tsx",
+          "git_object": "38b94594d48b7f7b9ca1398e9e16a5199aabcf20",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/shell/NavMenu.test.ts",
+          "git_object": "272bcd9ac0193820634b31a6ce6b0a1d089cb76c",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/shell/NavMenu.tsx",
+          "git_object": "9f32da736f894cc2f02c15548f0622a736f771a4",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/shell/NavigationAccess.tsx",
+          "git_object": "7de5e42bb8ff6e1ec450eb453dd9b9c398161d41",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/shell/OverlayExitAffordance.test.ts",
+          "git_object": "6096aca1c78b5045184be2391573881b7404f64c",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/shell/PageExitAffordance.test.ts",
+          "git_object": "d2ac76ec34fa606571c165f236eff7fe3c1149b7",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/shell/PageExitLink.tsx",
+          "git_object": "b5cfeed52d19e55b1148c93402411bd9a4380e4c",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/shell/SideNav.tsx",
+          "git_object": "192de3fbf545d8db4ff580ad65c232c6a159e6c6",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/styles/subtitle.css",
+          "git_object": "2b52d270ed0cbd8738e1a3d75253509c42c6b8ef",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/styles/tokens.css",
+          "git_object": "099aa0c6e3eb6dcebf3767a80550417b42cd5771",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/vendor/loomball/LICENSE",
+          "git_object": "b77590a906d7fe5069d2d835ce033faa4d7d50cd",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/vendor/loomball/NOTICE.md",
+          "git_object": "ab2f14464eb6b8c36d600ea5a8b80cf2148ee4c5",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/vendor/loomball/PINNED",
+          "git_object": "22e1912947fbe485008305b7c0b90c232b76b571",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/vendor/loomball/grok-ball.js",
+          "git_object": "9628dfce2cd35722dc472adde4defa24291b377f",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/vendor/loomball/grok-ball.ts",
+          "git_object": "7efaf26ab08e41aa52662dd30c7a9c3d160652dd",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/vendor/loomball/index.ts",
+          "git_object": "7216fdffbd31ff77c0276e78a271c9e80ef36b65",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/voice/SubtitleBar.test.tsx",
+          "git_object": "b02e184cabd515d9a5e74033b8b8f13b8578ba91",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/voice/SubtitleBar.tsx",
+          "git_object": "ce87cbefc240bea920dadcd6686efb5e9b765c47",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/voice/VoiceEngine.test.ts",
+          "git_object": "d0efc68100d9cf76423778bec8c0700a71843197",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/voice/VoiceEngine.ts",
+          "git_object": "f9a7f1771e8172c95da4053460f57c1aeb66e704",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/voice/mateVoice.ts",
+          "git_object": "bc737d045b9d72b1236eeef0da9b9c1149e61f7a",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/voice/neuralVoice.test.ts",
+          "git_object": "d4c963921a8b5ff405d7a91922f7252775f181b8",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/voice/neuralVoice.ts",
+          "git_object": "3e9b8474f5d31abcaf78baebe3385ffdbf9a9be8",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/src/voice/voiceLibrary.ts",
+          "git_object": "d64227ccd21c9a103153ad4e865a3aff0f6b6ac3",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/tsconfig.json",
+          "git_object": "aafaef53fd7d4c1760c650443402f2f25c9bd6ad",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/vite.config.ts",
+          "git_object": "d1dbd3e02ccdcee07d7ed9295a233c2238134587",
+          "unchanged": true,
+          "grade": "B"
+        },
+        {
+          "file": "apps/web/vitest.config.ts",
+          "git_object": "98ef50c41e3725a6b6da5ad4a149c9e4f95fd898",
+          "unchanged": true,
+          "grade": "B"
+        }
+      ],
+      "changed_and_actually_reexecuted_files": [
+        {
+          "file": "apps/web/src/components/Stage3D.test.tsx",
+          "old_git_object": null,
+          "current_git_object": "aa6bbf8a836462e739ee7ff26fc4b684c3285534",
+          "actual_control": "surface-7fee-product-tests",
+          "current_sha256": "c017765433a4cceb8245886f28f4413c0dfa010eba9af0db98f47fd928ea7bfb"
+        },
+        {
+          "file": "apps/web/src/components/Stage3D.tsx",
+          "old_git_object": "d922543d60e2925fc60064666c4c870281a6b422",
+          "current_git_object": "1a4d053eb6b96e16591169a71ccf34ed51ffd9a7",
+          "actual_control": "surface-7fee-layout",
+          "current_sha256": "c49d9cbfd21bd376dcdd2c9f540e269e59cf796de2143bc29153026a8976e647"
+        }
+      ],
+      "source_review": "stage-surface-source-review.json",
+      "source_review_sha256": "ce9b92dbefdb6a4e4ce6f6d17334ec9b06501e8cb82f467503792ce9b592f79e",
+      "grade": "B"
+    },
+    "scope": "Actual Floor/Canvas controls retain their original execution SHA and complete unchanged source closure. Every recursive tracked web blob is compared; the only changed Stage source and new geometry test are actually reexecuted at the current source, with new Stage/Floor screenshots. Desktop main/test inputs are separately reexecuted. Historical browser results are never renamed as current executions.",
+    "exact_legacy_comparisons_target": "7fee3a6a5563d41c568463994764d3883eb7667d"
+  },
+  "reset_control_subset": {
+    "name": "surface-7fee-reset",
+    "cases": 12,
+    "wrapper": "surface-7fee-reset.json",
+    "wrapper_sha256": "26968e7f6c5855dc9dceba696193d2ef9b52814fc99949d22fce2e5b3ccbe2ca",
+    "log": "surface-7fee-reset.log",
+    "log_sha256": "69e73a5ceebb33b6c29a18dcf2fe3ed6c0fe9907268e4cc2ab4d05a37453b33d",
+    "executed_source_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+    "included_in_current_desktop_cases": true,
+    "counted_as_extra_unique_cases": false,
+    "runtime_lock_wrapper": "surface-7fee-runtime-lock.json",
+    "runtime_lock_wrapper_sha256": "da826c701ba6440de10ec69590421b953ef78542ff8eb7deed36f79144a65ed0",
+    "scope": "Actual PATH-only commands with synthetic configuration; no real reset or customer database; all12 are also included in the complete113-case desktop suite."
+  },
+  "diagnostic_control_subset": {
+    "name": "surface-7fee-diagnostic",
+    "cases": 12,
+    "wrapper": "surface-7fee-diagnostic.json",
+    "wrapper_sha256": "f236b61f26388c11e6444e08db38d3f95a005a2f25f096d6c19111a93827140a",
+    "log": "surface-7fee-diagnostic.log",
+    "log_sha256": "106da3e6e913fa14146a78f14fabcc71016128867fb6b53510049494bea4e46f",
+    "named_cases": [
+      "原有文本 JWT、盐和 Bearer",
+      "JSON 引号与大小写字段",
+      "引号内的空格和分隔符",
+      "带编码密码的连接 URI",
+      "libpq 密码与 URI 查询密码",
+      "Basic 授权和 Cookie",
+      "JSON 转义引号和 Unicode 密码",
+      "错误摘要和日志读取失败也经过脱敏",
+      "读取异常关闭自己的文件句柄并保留失败信息",
+      "空日志和有界尾部仍保留版本、主机和错误上下文",
+      "取消无写入；新建与覆盖后的诊断文件均为私有",
+      "保存对话框和文件写入失败均留在可恢复启动页"
+    ],
+    "executed_source_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+    "included_in_current_desktop_cases": true,
+    "counted_as_extra_unique_cases": false,
+    "actual_installed_startup_action_save_panel_verified": false,
+    "discovery_card": "diagnostic-card-discovery.json",
+    "discovery_card_sha256": "38cda7e911461255ba9dff54e0aa17bdd5acf67da8b2a385604a83077a7a69f5",
+    "discovered_at_source_commit": "87ab5781d381d19e9dc7e1f5caa98b6a6b410c58",
+    "scope": "Actual source controls with synthetic log content and local filesystem failure injection. Original diagnostic failure and slowdown receipts remain historical evidence. Source controls do not substitute for the current installed startup-failure-page export action and native save-panel gate."
+  },
+  "stage_surface_review": {
+    "file": "stage-surface-source-review.json",
+    "sha256": "ce9b92dbefdb6a4e4ce6f6d17334ec9b06501e8cb82f467503792ce9b592f79e",
+    "selected_geometry_cases": 2,
+    "current_stage_browser_cases": 7,
+    "original_native_red_preserved": true,
+    "final_native_verified": false
+  },
+  "current_core_control_replacements": [
+    {
+      "old_run": "desktop-welcome",
+      "old_cases": 87,
+      "name": "surface-7fee-desktop",
+      "cases": 113,
+      "kind": "node-named",
+      "results": "surface-7fee-desktop.log",
+      "wrapper": "surface-7fee-desktop.json",
+      "executed_source_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+      "wrapper_sha256": "f1c2af294a8ee25071362c66d0843e6e5c2a172f76a86247a14f347e5668a71d",
+      "results_sha256": "8f1b904af7cf278a2d8d1c5f0639cc4a8a5f1ee39c46f05fa4f21c86e9d31522",
+      "old_execution_preserved": true,
+      "purpose": "Current exact desktop suite"
+    },
+    {
+      "old_run": "render-guide-lifecycle",
+      "old_cases": 9,
+      "name": "surface-7fee-guide-lifecycle",
+      "cases": 9,
+      "kind": "healthy-cases",
+      "results": "surface-7fee-guide-lifecycle-results.json",
+      "wrapper": "surface-7fee-guide-lifecycle.json",
+      "executed_source_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+      "wrapper_sha256": "ec4bbfd26ba32832c5c6a70e58bd6392988262179866c71b6ac6abf0711e1523",
+      "results_sha256": "b5602ead25cefd34f1cdc7891cc63173c8d4a315a98d2f0020800ba3a69d3471",
+      "old_execution_preserved": true,
+      "purpose": "Current actual guide/capture boundary controls"
+    },
+    {
+      "old_run": "render-guide-transient-after",
+      "old_cases": 8,
+      "name": "surface-7fee-guide-transient",
+      "cases": 8,
+      "kind": "healthy-cases",
+      "results": "surface-7fee-guide-transient-results.json",
+      "wrapper": "surface-7fee-guide-transient.json",
+      "executed_source_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+      "wrapper_sha256": "cc1b298af588b36e422a3b3c358dabb0b623c354f24b6c5ca3d8570e49286c0b",
+      "results_sha256": "3c93f7d461ce157e4e9358fba40923134b2faeb661e56a149ce71fcf12c1c502",
+      "old_execution_preserved": true,
+      "purpose": "Current actual guide/capture boundary controls"
+    }
+  ],
+  "native_observer_subset": {
+    "name": "surface-7fee-native-observer",
+    "wrapper": "surface-7fee-native-observer.json",
+    "wrapper_sha256": "a6c85e930f436cc0ca18d70fe604fb4f22b0403897b5eb92f6b2df792784d2d8",
+    "log": "surface-7fee-native-observer.log",
+    "log_sha256": "3ae6cc4da4f0d1c91185c1cd857c124f742051d6f255a2f88721a29237eb4076",
+    "cases": 60,
+    "counted_as_extra_unique_cases": false,
+    "included_in_current_desktop_cases": true,
+    "executed_source_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+    "named_cases": [
+      "原有文本 JWT、盐和 Bearer",
+      "JSON 引号与大小写字段",
+      "引号内的空格和分隔符",
+      "带编码密码的连接 URI",
+      "libpq 密码与 URI 查询密码",
+      "Basic 授权和 Cookie",
+      "JSON 转义引号和 Unicode 密码",
+      "错误摘要和日志读取失败也经过脱敏",
+      "读取异常关闭自己的文件句柄并保留失败信息",
+      "空日志和有界尾部仍保留版本、主机和错误上下文",
+      "取消无写入；新建与覆盖后的诊断文件均为私有",
+      "保存对话框和文件写入失败均留在可恢复启动页",
+      "WebGL2 检测后立即释放临时上下文，不再检测 WebGL1",
+      "WebGL1 回退同样释放，扩展未提供时仍如实报告能力",
+      "无上下文、创建异常、释放异常均报告不可用",
+      "欢迎层退出的空帧不能跳过下一次 React 提交才出现的引导",
+      "存在引导入口却一直不出现引导时不能标成退出成功",
+      "点了关闭仍持续覆盖时在原截止时间内失败关闭",
+      "未安装引导内容包时稳定无遮挡仍可验收",
+      "缺退出按钮或 renderer 执行失败均不吞异常",
+      "renderer 永不返回时也必须到截止即结束且不遗留定时器",
+      "等待后实际无遮挡且完整时仍通过",
+      "稳定等待中重新出现引导层时拒绝旧无遮挡状态",
+      "稳定等待中卸载场景或员工减少时拒绝旧完整状态",
+      "截图捕获期间出现遮罩或内置人名也必须失败",
+      "场景就绪但实际舞台 Canvas 只占 150 像素时不能用整页像素健康转绿",
+      "负责人固定牌与员工名牌相交、Canvas 缺失或上下文失效时拒绝验收",
+      "同版本标记不能跳过缺失运行目录、错误运行版本或缺失 Node 的恢复",
+      "解析物理路径后向 tar 传相对路径，并为 Windows 跨盘符暂存归档",
+      "正式打包入口缺少载荷时在启动任何服务前失败关闭",
+      "正式打包入口不会把源码 dist-payload 双重嵌套误认作 Resources",
+      "完整暂存后换入；提交前可回滚，提交后清理临时目录",
+      "提交清理故障发生在不可逆边界之后，不会重新开放旧载荷回滚",
+      "换入第一项后故障会恢复旧版目录、版本和首航状态",
+      "首装暂存失败不会留下半套运行时",
+      "安装阶段检查点以机器可读中文状态落盘",
+      "启动页使用确定进度语义，不再显示循环假进度",
+      "源码主进程只复用已验活服务，正式安装包与渲染冒烟不能绕过载荷",
+      "发布渲染冒烟使用稳定动作标记走完真实欢迎流程",
+      "严格拒绝空白、小数、非数字和越界端口",
+      "只有 pg_ctl 确认运行且 postmaster 数据目录与端口同时匹配才允许复用",
+      "pg_ctl 未确认运行时不读取残留 PID，也不把端口监听者当作自有实例",
+      "退出前重新复验实例归属，PID 文件被替换时绝不发送 stop",
+      "托管环境只重写数据库与服务端口，保留其他用户配置",
+      "首装与升级分别从当前载荷生成桥注册表，不引用其他实例的运行目录",
+      "干净 GUI PATH 下仍能启动当前随包 Node，且保留系统工具路径",
+      "Windows 只传一个不区分大小写的 Path；POSIX 不改其他同名变量",
+      "0600 状态文件生成三份互异随机凭据，重复启动不轮换",
+      "损坏状态失败关闭；绑定 system_identifier 后才能完成并清除旧凭据",
+      "pending 状态可从恢复后的旧配置补充候选；hardened 后绝不重新收录",
+      "initdb 只接受 pwfile + SCRAM，HBA 只允许本机 SCRAM",
+      "pending 迁移复验失败会原子恢复旧 HBA 并再次 reload",
+      "即使磁盘 HBA 未变化也强制 reload，再以正反向凭据复验结果为准",
+      "源码固定先提交新 payload 再创建状态或改库，且不含 trust initdb",
+      "payload commit 前用内置 Node 语法检查安全 helper，校验失败立即阻断",
+      "所有 migrate 入口在轮换 app/gateway 角色前固定本会话 SCRAM",
+      "原子单实例锁拒绝活进程，并可接管死进程遗留锁",
+      "两端旧启动器只委托 bootstrap，不再维护 trust/helper 分支",
+      "浏览器壳按平台使用无 shell 拼接的固定打开命令",
+      "CLI 在启动前注册 INT/TERM/HUP，并用 AbortSignal 驱动初始化清理"
+    ]
+  },
+  "controls": [
+    {
+      "name": "floor-canvas-production-final",
+      "wrapper": "floor-canvas-production-final.json",
+      "results": "floor-canvas-production-final-results.json",
+      "kind": "cases",
+      "cases": 24,
+      "purpose": "Canvas original physical layout/profile/card counterexamples",
+      "precondition": "Actual product Floor/installed naming/GEO scene plus exact production CSS; desktop Chromium; controlled300 native product frames; no external network.",
+      "steps": "Measure actual native Canvas filled paths and TextMetrics; map painted points to actual CSS coordinates; real mouse at every avatar and plaque; compare own callback deltas.",
+      "executed_source_commit": "d6a100b60218173cdae6f5a5de7f66452bbbd884",
+      "related_source_hashes": {
+        "apps/web/src/pages/p0/Floor.tsx": "3a90bb297bebf658241b0028970ec467f700d08a8531708144221b815a9a3301",
+        "apps/web/src/lib/naming.ts": "8d05e0df3b163ab4186e577af1555d1b9e389ded97a0ad1faad3f3a993b946bd",
+        "bundles/geo-growth/floor-scene.json": "944aef23a59f2eaffa4899edb3aaf8895bcade8dac81926a4b32ef4ff37bee32",
+        "apps/web/src/pages/p0/floor-layout.ts": "d4b435b40ffaf11077ba0906ecbda3a9291165a7fb6ea59f2f611441443cfaa2",
+        "apps/web/src/main.tsx": "9ec9eea9ce0a5ae01330512e7ca202b07ee3d725fbb1ffeaed00f3a094e289ec",
+        "apps/web/src/styles/tokens.css": "cc8a4da15772a62b9d122ea6afbe49262ec6d12f301c0450ed019ca9a407302e",
+        "apps/web/src/styles/subtitle.css": "20729481d6a885c54e6c381810cd00f0b30871fc6b3ad4a5e49fac8e7cef4bf1",
+        "apps/web/vite.config.ts": "54b67032309c054459a1946f43009d5f7869748c60c6fb6cd461569da549e221",
+        "apps/web/package.json": "17273b001dea29afe53c13a4f3cdd17685cea4081bde2521ab5157ec45a1081b",
+        "pnpm-lock.yaml": "9d7b2c2748491e948ef19856ff1503118b01aa43fa4381e3cb342add3e11ee5a"
+      },
+      "wrapper_sha256": "fd546b00993fbc5779550aea6c23cb5c5558682e5a952239ba2d0e7aea6a349c",
+      "results_sha256": "5268885c9f738da6d143ed634850ddf558e151a52265cdaaaefb446862bc5fff",
+      "inherited_by_unchanged_git_bytes": true
+    },
+    {
+      "name": "floor-canvas-boundary-production-final",
+      "wrapper": "floor-canvas-boundary-production-final.json",
+      "results": "floor-canvas-boundary-production-final-results.json",
+      "kind": "cases",
+      "cases": 14,
+      "purpose": "Canvas first painted frame, long names,65 actors,card edges and mutation boundaries",
+      "precondition": "Actual product first native painted frame, same production CSS; independent65 long-role/Unicode fixtures; desktop and390 narrow widths.",
+      "steps": "Commit the same product frame with a native browser paint, assert no extra product RAF frame, measure CSS/native scale1, click all65, hover Unicode and all card corners, reorder/resize/disable.",
+      "executed_source_commit": "d6a100b60218173cdae6f5a5de7f66452bbbd884",
+      "related_source_hashes": {
+        "apps/web/src/pages/p0/Floor.tsx": "3a90bb297bebf658241b0028970ec467f700d08a8531708144221b815a9a3301",
+        "apps/web/src/lib/naming.ts": "8d05e0df3b163ab4186e577af1555d1b9e389ded97a0ad1faad3f3a993b946bd",
+        "bundles/geo-growth/floor-scene.json": "944aef23a59f2eaffa4899edb3aaf8895bcade8dac81926a4b32ef4ff37bee32",
+        "apps/web/src/pages/p0/floor-layout.ts": "d4b435b40ffaf11077ba0906ecbda3a9291165a7fb6ea59f2f611441443cfaa2",
+        "apps/web/src/main.tsx": "9ec9eea9ce0a5ae01330512e7ca202b07ee3d725fbb1ffeaed00f3a094e289ec",
+        "apps/web/src/styles/tokens.css": "cc8a4da15772a62b9d122ea6afbe49262ec6d12f301c0450ed019ca9a407302e",
+        "apps/web/src/styles/subtitle.css": "20729481d6a885c54e6c381810cd00f0b30871fc6b3ad4a5e49fac8e7cef4bf1",
+        "apps/web/vite.config.ts": "54b67032309c054459a1946f43009d5f7869748c60c6fb6cd461569da549e221",
+        "apps/web/package.json": "17273b001dea29afe53c13a4f3cdd17685cea4081bde2521ab5157ec45a1081b",
+        "pnpm-lock.yaml": "9d7b2c2748491e948ef19856ff1503118b01aa43fa4381e3cb342add3e11ee5a"
+      },
+      "wrapper_sha256": "563af664d1a70cec3e0321d4e70383f9fa1b80e165af8d5a9cb33186956998ba",
+      "results_sha256": "68b871d4e6f9e4beda866b6e7f6d73d78534672fea8eeb1fa114d496fb830c52",
+      "inherited_by_unchanged_git_bytes": true
+    },
+    {
+      "name": "floor-canvas-initial-viewport-production-final",
+      "wrapper": "floor-canvas-initial-viewport-production-final.json",
+      "results": "floor-canvas-initial-viewport-production-final-results.json",
+      "kind": "cases",
+      "cases": 7,
+      "purpose": "Canvas initial visibility and preserving real manual scroll through poll/resize",
+      "precondition": "Actual product first frame at65 idle390 and working1440, original production CSS and reduced-motion preference; no verifier initial scroll.",
+      "steps": "Measure first-frame visible plaques and real container position; use actual mouse wheel, then real fixture polling/reorder and width change; compare scroll preservation and error/network state.",
+      "executed_source_commit": "d6a100b60218173cdae6f5a5de7f66452bbbd884",
+      "related_source_hashes": {
+        "apps/web/src/pages/p0/Floor.tsx": "3a90bb297bebf658241b0028970ec467f700d08a8531708144221b815a9a3301",
+        "apps/web/src/lib/naming.ts": "8d05e0df3b163ab4186e577af1555d1b9e389ded97a0ad1faad3f3a993b946bd",
+        "bundles/geo-growth/floor-scene.json": "944aef23a59f2eaffa4899edb3aaf8895bcade8dac81926a4b32ef4ff37bee32",
+        "apps/web/src/pages/p0/floor-layout.ts": "d4b435b40ffaf11077ba0906ecbda3a9291165a7fb6ea59f2f611441443cfaa2",
+        "apps/web/src/main.tsx": "9ec9eea9ce0a5ae01330512e7ca202b07ee3d725fbb1ffeaed00f3a094e289ec",
+        "apps/web/src/styles/tokens.css": "cc8a4da15772a62b9d122ea6afbe49262ec6d12f301c0450ed019ca9a407302e",
+        "apps/web/src/styles/subtitle.css": "20729481d6a885c54e6c381810cd00f0b30871fc6b3ad4a5e49fac8e7cef4bf1",
+        "apps/web/vite.config.ts": "54b67032309c054459a1946f43009d5f7869748c60c6fb6cd461569da549e221",
+        "apps/web/package.json": "17273b001dea29afe53c13a4f3cdd17685cea4081bde2521ab5157ec45a1081b",
+        "pnpm-lock.yaml": "9d7b2c2748491e948ef19856ff1503118b01aa43fa4381e3cb342add3e11ee5a"
+      },
+      "wrapper_sha256": "10896fc1e730fb2ad54bdbab1306f766be153cddb60d6433c63585ee57b99fb7",
+      "results_sha256": "0796f85770c9ed81afd92bd5305780999e0e1cb95326c55eeacfc08be12804cf",
+      "inherited_by_unchanged_git_bytes": true
+    },
+    {
+      "name": "scene-f0-default",
+      "wrapper": "scene-f0-default.json",
+      "results": "scene-f0-default-results.json",
+      "kind": "cases",
+      "cases": 28,
+      "purpose": "3D actual production-CSS plaques,glyphs,body/profile and task/idle plaque clicks",
+      "precondition": "Actual imported Floor3D/R3F/Drei/BusinessAvatar/cinematic, original exact CSS; native WebGL/RAF; nine original fake18/single actor scenes; default optional-drop disabled.",
+      "steps": "Read actual camera/Gaze registered world points and DOM Range/label bounds; pause auto rotation with the real blank product Canvas pointer; scroll real container; physically click every current body point and plaque center; inspect exact own-id callback once.",
+      "executed_source_commit": "f0a11286a49419fb7909088e2d170f4dde7b60c6",
+      "related_source_hashes": {
+        "apps/web/src/components/BusinessAvatar3D.tsx": "6bf778c0f5091335b4d8709f9e5b9d9eb6df3f820b79319d46253b043f683c2d",
+        "apps/web/src/components/GazeSystem.tsx": "6a62489c452e77594e1990df6cd530307416ef0390429eb1f607c4e14abfa424",
+        "apps/web/src/components/cinematic.tsx": "e9e9f5875654f6f700bdf39b3d3908b31105188580b10a612f7bb8e52d4f6fc2",
+        "apps/web/src/components/CineDirector.tsx": "b72d38e0781af780afcb48796c9d3efa3029c98a9f63b927c2650feb5363f083",
+        "apps/web/src/components/HoverBubble.tsx": "f31aac61c489193fe9892d21613c132af1c4db1608b1dfe0e2cc3d6d484f3ad5",
+        "apps/web/src/audio/AudioEngine.ts": "05713d66be1a78f2832c0dece19475baefd5f23fad288ee48f69b33d219501f1",
+        "apps/web/src/audio/sfx.ts": "38b93e0be2b21df095469741b3d0e91f57d933987576fe1c49fd61798643a8ea",
+        "apps/web/src/lib/useNightTime.ts": "ccf604d36908f893f183f97df9381f1c1d50ee3fbc5e92fdf85cd0eae3ef6a29",
+        "apps/web/src/lib/naming.ts": "8d05e0df3b163ab4186e577af1555d1b9e389ded97a0ad1faad3f3a993b946bd",
+        "bundles/geo-growth/floor-scene.json": "944aef23a59f2eaffa4899edb3aaf8895bcade8dac81926a4b32ef4ff37bee32",
+        "apps/web/src/components/Floor3D.tsx": "40e8bfa0f688eb527edec2ba10f040afc91a72b1730eb4383d707687fd1bf740",
+        "apps/web/src/components/Floor3DTaskDrop.tsx": "1c9a40bf5dec879f5896eff88263efedc885de4919b3e4a8d42ecb43e337a81f",
+        "apps/web/src/components/Floor3DLabels.tsx": "0d2505a53e6e1e2811a6cc68d8124669cb4656e658d16e5e9a2eb8cf691e123b",
+        "apps/web/src/components/floor3d-layout.ts": "4a8ace04880cc9995a44ff6780a122eaad38b3b2057115f3d25ded45a18e803a",
+        "apps/web/src/pages/p0/floor-layout.ts": "d4b435b40ffaf11077ba0906ecbda3a9291165a7fb6ea59f2f611441443cfaa2",
+        "apps/web/src/main.tsx": "9ec9eea9ce0a5ae01330512e7ca202b07ee3d725fbb1ffeaed00f3a094e289ec",
+        "apps/web/src/styles/tokens.css": "cc8a4da15772a62b9d122ea6afbe49262ec6d12f301c0450ed019ca9a407302e",
+        "apps/web/src/styles/subtitle.css": "20729481d6a885c54e6c381810cd00f0b30871fc6b3ad4a5e49fac8e7cef4bf1",
+        "apps/web/vite.config.ts": "54b67032309c054459a1946f43009d5f7869748c60c6fb6cd461569da549e221",
+        "apps/web/package.json": "17273b001dea29afe53c13a4f3cdd17685cea4081bde2521ab5157ec45a1081b",
+        "pnpm-lock.yaml": "9d7b2c2748491e948ef19856ff1503118b01aa43fa4381e3cb342add3e11ee5a"
+      },
+      "wrapper_sha256": "1f50e225d8d78396081214a782ec634942da9576ff05c4231bdf587007ccb0f9",
+      "results_sha256": "1ce3fa4843bc00f4eb70d5521048b456ad4944e063d4f6618af5030d8efb7b0e",
+      "inherited_by_unchanged_git_bytes": true
+    },
+    {
+      "name": "scene-f0-drop",
+      "wrapper": "scene-f0-drop.json",
+      "results": "scene-f0-drop-results.json",
+      "kind": "cases",
+      "cases": 55,
+      "purpose": "Optional onDropTask original28 plus27 actual synthetic browser delivery boundaries",
+      "precondition": "Same actual nine production-CSS/WebGL scenes with the supported component onDropTask prop enabled; currentP0 does not pass this prop; public synthetic task payloads only.",
+      "steps": "Retain all original28 layout/body/plaque assertions; for each actor use browser-native DataTransfer/DragEvent at actual elementFromPoint for Unicode task,empty and unrelatedtext/plain; inspect correct once-only callback or no dispatch. Synthetic DOM event, not OS drag or business dispatch.",
+      "executed_source_commit": "f0a11286a49419fb7909088e2d170f4dde7b60c6",
+      "related_source_hashes": {
+        "apps/web/src/components/BusinessAvatar3D.tsx": "6bf778c0f5091335b4d8709f9e5b9d9eb6df3f820b79319d46253b043f683c2d",
+        "apps/web/src/components/GazeSystem.tsx": "6a62489c452e77594e1990df6cd530307416ef0390429eb1f607c4e14abfa424",
+        "apps/web/src/components/cinematic.tsx": "e9e9f5875654f6f700bdf39b3d3908b31105188580b10a612f7bb8e52d4f6fc2",
+        "apps/web/src/components/CineDirector.tsx": "b72d38e0781af780afcb48796c9d3efa3029c98a9f63b927c2650feb5363f083",
+        "apps/web/src/components/HoverBubble.tsx": "f31aac61c489193fe9892d21613c132af1c4db1608b1dfe0e2cc3d6d484f3ad5",
+        "apps/web/src/audio/AudioEngine.ts": "05713d66be1a78f2832c0dece19475baefd5f23fad288ee48f69b33d219501f1",
+        "apps/web/src/audio/sfx.ts": "38b93e0be2b21df095469741b3d0e91f57d933987576fe1c49fd61798643a8ea",
+        "apps/web/src/lib/useNightTime.ts": "ccf604d36908f893f183f97df9381f1c1d50ee3fbc5e92fdf85cd0eae3ef6a29",
+        "apps/web/src/lib/naming.ts": "8d05e0df3b163ab4186e577af1555d1b9e389ded97a0ad1faad3f3a993b946bd",
+        "bundles/geo-growth/floor-scene.json": "944aef23a59f2eaffa4899edb3aaf8895bcade8dac81926a4b32ef4ff37bee32",
+        "apps/web/src/components/Floor3D.tsx": "40e8bfa0f688eb527edec2ba10f040afc91a72b1730eb4383d707687fd1bf740",
+        "apps/web/src/components/Floor3DTaskDrop.tsx": "1c9a40bf5dec879f5896eff88263efedc885de4919b3e4a8d42ecb43e337a81f",
+        "apps/web/src/components/Floor3DLabels.tsx": "0d2505a53e6e1e2811a6cc68d8124669cb4656e658d16e5e9a2eb8cf691e123b",
+        "apps/web/src/components/floor3d-layout.ts": "4a8ace04880cc9995a44ff6780a122eaad38b3b2057115f3d25ded45a18e803a",
+        "apps/web/src/pages/p0/floor-layout.ts": "d4b435b40ffaf11077ba0906ecbda3a9291165a7fb6ea59f2f611441443cfaa2",
+        "apps/web/src/main.tsx": "9ec9eea9ce0a5ae01330512e7ca202b07ee3d725fbb1ffeaed00f3a094e289ec",
+        "apps/web/src/styles/tokens.css": "cc8a4da15772a62b9d122ea6afbe49262ec6d12f301c0450ed019ca9a407302e",
+        "apps/web/src/styles/subtitle.css": "20729481d6a885c54e6c381810cd00f0b30871fc6b3ad4a5e49fac8e7cef4bf1",
+        "apps/web/vite.config.ts": "54b67032309c054459a1946f43009d5f7869748c60c6fb6cd461569da549e221",
+        "apps/web/package.json": "17273b001dea29afe53c13a4f3cdd17685cea4081bde2521ab5157ec45a1081b",
+        "pnpm-lock.yaml": "9d7b2c2748491e948ef19856ff1503118b01aa43fa4381e3cb342add3e11ee5a"
+      },
+      "wrapper_sha256": "be139e356e84b1e9d4e4d8dbd3fc3051bb03ffca2c974cdc840439f588e8479e",
+      "results_sha256": "879e71047ac79ac6d3b5b6407f21c86535b28bfac0aeda827933678b64d44040",
+      "inherited_by_unchanged_git_bytes": true
+    },
+    {
+      "name": "scene-f0-edges",
+      "wrapper": "scene-f0-edges.json",
+      "results": "scene-f0-edges-results.json",
+      "kind": "cases",
+      "cases": 29,
+      "purpose": "Additional65-person and queued/collab interactions, fresh polling,resize,zoom and disabled-roster boundaries",
+      "precondition": "Actual product/productionCSS/WebGL at65 idle390 and working1440 plus18 queued390 and collab1440. Supported onDropTask prop enabled; synthetic task payloads and actual native mouse/wheel/RAF.",
+      "steps": "Measure all actual role/glyph bounds and own-id physical body/plaque callbacks; deliver Unicode/empty/unrelated synthetic drop data. Reverse fresh polling objects, resize390 to1440, use real camera wheel zoom, then disable all agents and assert no active hit/drop registry.",
+      "executed_source_commit": "f0a11286a49419fb7909088e2d170f4dde7b60c6",
+      "related_source_hashes": {
+        "apps/web/src/components/BusinessAvatar3D.tsx": "6bf778c0f5091335b4d8709f9e5b9d9eb6df3f820b79319d46253b043f683c2d",
+        "apps/web/src/components/GazeSystem.tsx": "6a62489c452e77594e1990df6cd530307416ef0390429eb1f607c4e14abfa424",
+        "apps/web/src/components/cinematic.tsx": "e9e9f5875654f6f700bdf39b3d3908b31105188580b10a612f7bb8e52d4f6fc2",
+        "apps/web/src/components/CineDirector.tsx": "b72d38e0781af780afcb48796c9d3efa3029c98a9f63b927c2650feb5363f083",
+        "apps/web/src/components/HoverBubble.tsx": "f31aac61c489193fe9892d21613c132af1c4db1608b1dfe0e2cc3d6d484f3ad5",
+        "apps/web/src/audio/AudioEngine.ts": "05713d66be1a78f2832c0dece19475baefd5f23fad288ee48f69b33d219501f1",
+        "apps/web/src/audio/sfx.ts": "38b93e0be2b21df095469741b3d0e91f57d933987576fe1c49fd61798643a8ea",
+        "apps/web/src/lib/useNightTime.ts": "ccf604d36908f893f183f97df9381f1c1d50ee3fbc5e92fdf85cd0eae3ef6a29",
+        "apps/web/src/lib/naming.ts": "8d05e0df3b163ab4186e577af1555d1b9e389ded97a0ad1faad3f3a993b946bd",
+        "bundles/geo-growth/floor-scene.json": "944aef23a59f2eaffa4899edb3aaf8895bcade8dac81926a4b32ef4ff37bee32",
+        "apps/web/src/components/Floor3D.tsx": "40e8bfa0f688eb527edec2ba10f040afc91a72b1730eb4383d707687fd1bf740",
+        "apps/web/src/components/Floor3DTaskDrop.tsx": "1c9a40bf5dec879f5896eff88263efedc885de4919b3e4a8d42ecb43e337a81f",
+        "apps/web/src/components/Floor3DLabels.tsx": "0d2505a53e6e1e2811a6cc68d8124669cb4656e658d16e5e9a2eb8cf691e123b",
+        "apps/web/src/components/floor3d-layout.ts": "4a8ace04880cc9995a44ff6780a122eaad38b3b2057115f3d25ded45a18e803a",
+        "apps/web/src/pages/p0/floor-layout.ts": "d4b435b40ffaf11077ba0906ecbda3a9291165a7fb6ea59f2f611441443cfaa2",
+        "apps/web/src/main.tsx": "9ec9eea9ce0a5ae01330512e7ca202b07ee3d725fbb1ffeaed00f3a094e289ec",
+        "apps/web/src/styles/tokens.css": "cc8a4da15772a62b9d122ea6afbe49262ec6d12f301c0450ed019ca9a407302e",
+        "apps/web/src/styles/subtitle.css": "20729481d6a885c54e6c381810cd00f0b30871fc6b3ad4a5e49fac8e7cef4bf1",
+        "apps/web/vite.config.ts": "54b67032309c054459a1946f43009d5f7869748c60c6fb6cd461569da549e221",
+        "apps/web/package.json": "17273b001dea29afe53c13a4f3cdd17685cea4081bde2521ab5157ec45a1081b",
+        "pnpm-lock.yaml": "9d7b2c2748491e948ef19856ff1503118b01aa43fa4381e3cb342add3e11ee5a"
+      },
+      "wrapper_sha256": "0eeafc18a536ce75f54917c5a79227961ff6129eebf20d47728b1bab620faedf",
+      "results_sha256": "6e9c5897cefacdfc1977613d6ef01db4d4466632076fbef641d9b61914ca261b",
+      "inherited_by_unchanged_git_bytes": true
+    },
+    {
+      "name": "scene-f0-hover",
+      "wrapper": "scene-f0-hover.json",
+      "results": "scene-f0-hover-results.json",
+      "kind": "cases",
+      "cases": 33,
+      "purpose": "Actual short/long legal Chinese hover text and complete bubble/glyph viewport containment at1440 and390, with profile/plaque and optionaldrop controls",
+      "precondition": "Actual product HoverBubble/Floor3D/productionCSS; four single-agent scenes with short Chinese or long Chinese plus Unicode state text, supported optionaldrop enabled. Browser pointer and actual product gaze/hover listeners; actual computed visibility must be visible.",
+      "steps": "Pause gaze via the actual wheel listener, move the real pointer out then to the live actor point, observe the actual500ms hover bubble. Retain all29 controls and add four complete bubble/glyph containment controls inside the actual Canvas/scroll-region/viewport intersection; physically click body/plaque; exercise each scene Unicode/empty/unrelated synthetic drop boundary. No timer/source implementation replaced.",
+      "executed_source_commit": "f0a11286a49419fb7909088e2d170f4dde7b60c6",
+      "related_source_hashes": {
+        "apps/web/src/components/BusinessAvatar3D.tsx": "6bf778c0f5091335b4d8709f9e5b9d9eb6df3f820b79319d46253b043f683c2d",
+        "apps/web/src/components/GazeSystem.tsx": "6a62489c452e77594e1990df6cd530307416ef0390429eb1f607c4e14abfa424",
+        "apps/web/src/components/cinematic.tsx": "e9e9f5875654f6f700bdf39b3d3908b31105188580b10a612f7bb8e52d4f6fc2",
+        "apps/web/src/components/CineDirector.tsx": "b72d38e0781af780afcb48796c9d3efa3029c98a9f63b927c2650feb5363f083",
+        "apps/web/src/components/HoverBubble.tsx": "f31aac61c489193fe9892d21613c132af1c4db1608b1dfe0e2cc3d6d484f3ad5",
+        "apps/web/src/audio/AudioEngine.ts": "05713d66be1a78f2832c0dece19475baefd5f23fad288ee48f69b33d219501f1",
+        "apps/web/src/audio/sfx.ts": "38b93e0be2b21df095469741b3d0e91f57d933987576fe1c49fd61798643a8ea",
+        "apps/web/src/lib/useNightTime.ts": "ccf604d36908f893f183f97df9381f1c1d50ee3fbc5e92fdf85cd0eae3ef6a29",
+        "apps/web/src/lib/naming.ts": "8d05e0df3b163ab4186e577af1555d1b9e389ded97a0ad1faad3f3a993b946bd",
+        "bundles/geo-growth/floor-scene.json": "944aef23a59f2eaffa4899edb3aaf8895bcade8dac81926a4b32ef4ff37bee32",
+        "apps/web/src/components/Floor3D.tsx": "40e8bfa0f688eb527edec2ba10f040afc91a72b1730eb4383d707687fd1bf740",
+        "apps/web/src/components/Floor3DTaskDrop.tsx": "1c9a40bf5dec879f5896eff88263efedc885de4919b3e4a8d42ecb43e337a81f",
+        "apps/web/src/components/Floor3DLabels.tsx": "0d2505a53e6e1e2811a6cc68d8124669cb4656e658d16e5e9a2eb8cf691e123b",
+        "apps/web/src/components/floor3d-layout.ts": "4a8ace04880cc9995a44ff6780a122eaad38b3b2057115f3d25ded45a18e803a",
+        "apps/web/src/pages/p0/floor-layout.ts": "d4b435b40ffaf11077ba0906ecbda3a9291165a7fb6ea59f2f611441443cfaa2",
+        "apps/web/src/main.tsx": "9ec9eea9ce0a5ae01330512e7ca202b07ee3d725fbb1ffeaed00f3a094e289ec",
+        "apps/web/src/styles/tokens.css": "cc8a4da15772a62b9d122ea6afbe49262ec6d12f301c0450ed019ca9a407302e",
+        "apps/web/src/styles/subtitle.css": "20729481d6a885c54e6c381810cd00f0b30871fc6b3ad4a5e49fac8e7cef4bf1",
+        "apps/web/vite.config.ts": "54b67032309c054459a1946f43009d5f7869748c60c6fb6cd461569da549e221",
+        "apps/web/package.json": "17273b001dea29afe53c13a4f3cdd17685cea4081bde2521ab5157ec45a1081b",
+        "pnpm-lock.yaml": "9d7b2c2748491e948ef19856ff1503118b01aa43fa4381e3cb342add3e11ee5a"
+      },
+      "wrapper_sha256": "d94521aa784c83a89b64da50f7ab6d9aef6b9c62da513b02c8b872d9b4478ccf",
+      "results_sha256": "d047ced349aa46eb47ca4c50b2d8cb96cad0a6a8c4c8fe202d93516fa246b4ae",
+      "inherited_by_unchanged_git_bytes": true
+    },
+    {
+      "name": "scene-f0-safety",
+      "wrapper": "scene-f0-safety.json",
+      "results": "scene-f0-safety-results.json",
+      "kind": "cases",
+      "cases": 3,
+      "purpose": "Separate unregistered English/camel status uses the actual Chinese safety fallback at1440 and390",
+      "precondition": "Actual imported Floor3D/HoverBubble/installed clientChineseText and exact productionCSS; original unregistered English status string retained in a separate fixture. No optional drop or paid/provider/database I/O.",
+      "steps": "Use actual mouse/wheel/gaze listeners and native RAF to show each two-width hover bubble. Compare actual displayed text with the source-defined Chinese fallback and verify the original unregistered English string is absent, pointer hits remain available and complete bubble/glyph bounds stay visible; separately assert no page error/external network request.",
+      "executed_source_commit": "f0a11286a49419fb7909088e2d170f4dde7b60c6",
+      "related_source_hashes": {
+        "apps/web/src/components/Floor3D.tsx": "40e8bfa0f688eb527edec2ba10f040afc91a72b1730eb4383d707687fd1bf740",
+        "apps/web/src/components/Floor3DTaskDrop.tsx": "1c9a40bf5dec879f5896eff88263efedc885de4919b3e4a8d42ecb43e337a81f",
+        "apps/web/src/components/Floor3DLabels.tsx": "0d2505a53e6e1e2811a6cc68d8124669cb4656e658d16e5e9a2eb8cf691e123b",
+        "apps/web/src/components/floor3d-layout.ts": "4a8ace04880cc9995a44ff6780a122eaad38b3b2057115f3d25ded45a18e803a",
+        "apps/web/src/pages/p0/floor-layout.ts": "d4b435b40ffaf11077ba0906ecbda3a9291165a7fb6ea59f2f611441443cfaa2",
+        "apps/web/src/components/BusinessAvatar3D.tsx": "6bf778c0f5091335b4d8709f9e5b9d9eb6df3f820b79319d46253b043f683c2d",
+        "apps/web/src/components/GazeSystem.tsx": "6a62489c452e77594e1990df6cd530307416ef0390429eb1f607c4e14abfa424",
+        "apps/web/src/components/cinematic.tsx": "e9e9f5875654f6f700bdf39b3d3908b31105188580b10a612f7bb8e52d4f6fc2",
+        "apps/web/src/components/CineDirector.tsx": "b72d38e0781af780afcb48796c9d3efa3029c98a9f63b927c2650feb5363f083",
+        "apps/web/src/components/HoverBubble.tsx": "f31aac61c489193fe9892d21613c132af1c4db1608b1dfe0e2cc3d6d484f3ad5",
+        "apps/web/src/audio/AudioEngine.ts": "05713d66be1a78f2832c0dece19475baefd5f23fad288ee48f69b33d219501f1",
+        "apps/web/src/audio/sfx.ts": "38b93e0be2b21df095469741b3d0e91f57d933987576fe1c49fd61798643a8ea",
+        "apps/web/src/lib/useNightTime.ts": "ccf604d36908f893f183f97df9381f1c1d50ee3fbc5e92fdf85cd0eae3ef6a29",
+        "apps/web/src/lib/naming.ts": "8d05e0df3b163ab4186e577af1555d1b9e389ded97a0ad1faad3f3a993b946bd",
+        "bundles/geo-growth/floor-scene.json": "944aef23a59f2eaffa4899edb3aaf8895bcade8dac81926a4b32ef4ff37bee32",
+        "apps/web/src/main.tsx": "9ec9eea9ce0a5ae01330512e7ca202b07ee3d725fbb1ffeaed00f3a094e289ec",
+        "apps/web/src/styles/tokens.css": "cc8a4da15772a62b9d122ea6afbe49262ec6d12f301c0450ed019ca9a407302e",
+        "apps/web/src/styles/subtitle.css": "20729481d6a885c54e6c381810cd00f0b30871fc6b3ad4a5e49fac8e7cef4bf1",
+        "apps/web/vite.config.ts": "54b67032309c054459a1946f43009d5f7869748c60c6fb6cd461569da549e221",
+        "apps/web/package.json": "17273b001dea29afe53c13a4f3cdd17685cea4081bde2521ab5157ec45a1081b",
+        "pnpm-lock.yaml": "9d7b2c2748491e948ef19856ff1503118b01aa43fa4381e3cb342add3e11ee5a"
+      },
+      "wrapper_sha256": "8ce619c8846af649c6e2c9865332a54229ff1a85ab5d40860e9388f2fd5a4ee5",
+      "results_sha256": "7847b94ed5ae296621875e8f47d19f12af72766ab4669857e3c0a6e68c84cca6",
+      "inherited_by_unchanged_git_bytes": true
+    },
+    {
+      "name": "surface-7fee-product-tests",
+      "wrapper": "surface-7fee-product-tests.json",
+      "results": "surface-7fee-product-test-results.json",
+      "kind": "vitest",
+      "cases": 36,
+      "purpose": "Actual selected product floor component and layout regressions, including dynamic it.each cases",
+      "precondition": "Actual committed Vitest/React/jsdom or pure allocator tests; original product test timeout; no real GPU/task model inference in this selected group.",
+      "steps": "Execute every actual selected test file unchanged with JSON reporter; enumerate assertionResults including it.each states; compare source-defined rejection/layout/scroll/hit contracts. Native browser controls are separate groups.",
+      "executed_source_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+      "related_source_hashes": {
+        "apps/web/src/main.tsx": "9ec9eea9ce0a5ae01330512e7ca202b07ee3d725fbb1ffeaed00f3a094e289ec",
+        "apps/web/src/components/floor3d-layout.ts": "4a8ace04880cc9995a44ff6780a122eaad38b3b2057115f3d25ded45a18e803a",
+        "apps/web/src/components/Floor3DLabels.test.tsx": "381a1dbc257f2983cb61ca80b62eefe219bd7420ebde06f8d0f9920f8aa04ecd",
+        "apps/web/src/components/CineDirector.tsx": "b72d38e0781af780afcb48796c9d3efa3029c98a9f63b927c2650feb5363f083",
+        "apps/web/package.json": "17273b001dea29afe53c13a4f3cdd17685cea4081bde2521ab5157ec45a1081b",
+        "apps/web/src/components/cinematic.tsx": "e9e9f5875654f6f700bdf39b3d3908b31105188580b10a612f7bb8e52d4f6fc2",
+        "apps/web/src/pages/p0/floor-layout.test.ts": "1cdceca77b9a7e216d10082944b35d924e411d45b6421d8d94573bbd1d9b0fa8",
+        "apps/web/src/components/HoverBubble.tsx": "f31aac61c489193fe9892d21613c132af1c4db1608b1dfe0e2cc3d6d484f3ad5",
+        "apps/web/src/components/Floor3DTaskDrop.tsx": "1c9a40bf5dec879f5896eff88263efedc885de4919b3e4a8d42ecb43e337a81f",
+        "bundles/geo-growth/floor-scene.json": "944aef23a59f2eaffa4899edb3aaf8895bcade8dac81926a4b32ef4ff37bee32",
+        "apps/web/src/pages/p0/Floor.test.tsx": "d80f041dc3377034fd45ca78b596485509cccf435bf4e67f2a44d7ccae7dd6d3",
+        "apps/web/src/components/Floor3DTaskDrop.test.tsx": "eaa4854a3694bbc0538dd66fae95470c11b0c9c7572996971b54fe4e5c102024",
+        "apps/web/src/audio/sfx.ts": "38b93e0be2b21df095469741b3d0e91f57d933987576fe1c49fd61798643a8ea",
+        "apps/web/vite.config.ts": "54b67032309c054459a1946f43009d5f7869748c60c6fb6cd461569da549e221",
+        "apps/web/src/components/floor3d-layout.test.ts": "ee4667f023d1d8d0950af51322d910f8c628677017a95c9f8b13180b9be1d440",
+        "apps/web/src/components/BusinessAvatar3D.tsx": "6bf778c0f5091335b4d8709f9e5b9d9eb6df3f820b79319d46253b043f683c2d",
+        "apps/web/src/audio/AudioEngine.ts": "05713d66be1a78f2832c0dece19475baefd5f23fad288ee48f69b33d219501f1",
+        "apps/web/src/pages/p0/Floor.tsx": "3a90bb297bebf658241b0028970ec467f700d08a8531708144221b815a9a3301",
+        "apps/web/src/components/Floor3DLabels.tsx": "0d2505a53e6e1e2811a6cc68d8124669cb4656e658d16e5e9a2eb8cf691e123b",
+        "apps/web/src/lib/useNightTime.ts": "ccf604d36908f893f183f97df9381f1c1d50ee3fbc5e92fdf85cd0eae3ef6a29",
+        "apps/web/src/pages/p0/floor-layout.ts": "d4b435b40ffaf11077ba0906ecbda3a9291165a7fb6ea59f2f611441443cfaa2",
+        "apps/web/src/styles/tokens.css": "cc8a4da15772a62b9d122ea6afbe49262ec6d12f301c0450ed019ca9a407302e",
+        "apps/web/src/components/Floor3D.tsx": "40e8bfa0f688eb527edec2ba10f040afc91a72b1730eb4383d707687fd1bf740",
+        "apps/web/src/components/Stage3D.test.tsx": "c017765433a4cceb8245886f28f4413c0dfa010eba9af0db98f47fd928ea7bfb",
+        "apps/web/src/styles/subtitle.css": "20729481d6a885c54e6c381810cd00f0b30871fc6b3ad4a5e49fac8e7cef4bf1",
+        "pnpm-lock.yaml": "9d7b2c2748491e948ef19856ff1503118b01aa43fa4381e3cb342add3e11ee5a",
+        "apps/web/src/components/GazeSystem.tsx": "6a62489c452e77594e1990df6cd530307416ef0390429eb1f607c4e14abfa424",
+        "apps/web/src/lib/naming.ts": "8d05e0df3b163ab4186e577af1555d1b9e389ded97a0ad1faad3f3a993b946bd"
+      },
+      "wrapper_sha256": "08f29d1c282136c1a0b93a4c3f4205a45e908a10e672c3e1bccce69c703bb920",
+      "results_sha256": "13c8756b6851ba0c327d9c9173a049f9432fae9a22b00b35099a4fc88ed06a44",
+      "inherited_by_unchanged_git_bytes": false
+    },
+    {
+      "name": "surface-7fee-layout",
+      "wrapper": "surface-7fee-layout.json",
+      "results": "surface-7fee-layout-results.json",
+      "kind": "cases",
+      "cases": 7,
+      "purpose": "Actual current Stage definite440 and connected-portal CEO boundaries under production CSS",
+      "precondition": "Actual imported Stage3D/Floor3D/cinematic/BusinessAvatar; deterministic64 stage team/18 workplace; actual production CSS and desktop Chromium1440/390; no provider/DB/native cold claim.",
+      "steps": "Measure the real scene/Canvas/drawingBuffer after actual product animation; compare both440 dimensions, all18 physical worker plaque rectangles with the actual scoped CEO plaque, CSS loading, viewport overflow, page errors and blocked requests.",
+      "executed_source_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+      "related_source_hashes": {
+        "apps/web/src/components/Stage3D.tsx": "c49d9cbfd21bd376dcdd2c9f540e269e59cf796de2143bc29153026a8976e647",
+        "apps/web/src/components/BusinessAvatar3D.tsx": "6bf778c0f5091335b4d8709f9e5b9d9eb6df3f820b79319d46253b043f683c2d",
+        "apps/web/src/components/cinematic.tsx": "e9e9f5875654f6f700bdf39b3d3908b31105188580b10a612f7bb8e52d4f6fc2",
+        "apps/web/src/components/Floor3D.tsx": "40e8bfa0f688eb527edec2ba10f040afc91a72b1730eb4383d707687fd1bf740",
+        "apps/web/src/components/Floor3DLabels.tsx": "0d2505a53e6e1e2811a6cc68d8124669cb4656e658d16e5e9a2eb8cf691e123b",
+        "apps/web/src/components/floor3d-layout.ts": "4a8ace04880cc9995a44ff6780a122eaad38b3b2057115f3d25ded45a18e803a",
+        "apps/web/src/pages/p0/floor-layout.ts": "d4b435b40ffaf11077ba0906ecbda3a9291165a7fb6ea59f2f611441443cfaa2",
+        "apps/web/src/lib/naming.ts": "8d05e0df3b163ab4186e577af1555d1b9e389ded97a0ad1faad3f3a993b946bd",
+        "apps/web/src/lib/useNightTime.ts": "ccf604d36908f893f183f97df9381f1c1d50ee3fbc5e92fdf85cd0eae3ef6a29",
+        "bundles/geo-growth/floor-scene.json": "944aef23a59f2eaffa4899edb3aaf8895bcade8dac81926a4b32ef4ff37bee32",
+        "apps/web/src/main.tsx": "9ec9eea9ce0a5ae01330512e7ca202b07ee3d725fbb1ffeaed00f3a094e289ec",
+        "apps/web/src/styles/tokens.css": "cc8a4da15772a62b9d122ea6afbe49262ec6d12f301c0450ed019ca9a407302e",
+        "apps/web/src/styles/subtitle.css": "20729481d6a885c54e6c381810cd00f0b30871fc6b3ad4a5e49fac8e7cef4bf1",
+        "apps/web/vite.config.ts": "54b67032309c054459a1946f43009d5f7869748c60c6fb6cd461569da549e221",
+        "apps/web/package.json": "17273b001dea29afe53c13a4f3cdd17685cea4081bde2521ab5157ec45a1081b",
+        "pnpm-lock.yaml": "9d7b2c2748491e948ef19856ff1503118b01aa43fa4381e3cb342add3e11ee5a"
+      },
+      "wrapper_sha256": "d87377a7c41050bb46735bb1f13b5b132b5dffe651aee1f24a8cbf5e26ee5963",
+      "results_sha256": "25ef0cf8a00299d2d75b04d8aa14ba27d26cefec8b46b8352431cd8e4b007038",
+      "inherited_by_unchanged_git_bytes": false
+    }
+  ],
+  "total_cases": 236,
+  "typecheck": {
+    "name": "surface-7fee-web-typecheck",
+    "seconds": 2.533,
+    "log": "surface-7fee-web-typecheck.log",
+    "wrapper": "surface-7fee-web-typecheck.json",
+    "executed_source_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+    "source_inputs_unchanged_after_execution": true
+  },
+  "build": {
+    "name": "surface-7fee-web-build",
+    "seconds": 2.992,
+    "log": "surface-7fee-web-build.log",
+    "wrapper": "surface-7fee-web-build.json",
+    "wrapper_sha256": "f1d2e387e4b7d3b6b65cb74758e3dcc3d7ba3f209256e2b7bbfcd47bef228306",
+    "executed_source_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+    "actual_css_sha256": "bc5b185ab487ec8441ca19a29646b603a15f2382cb4d48a73263fc81e76ad777",
+    "production_client_boundary_passed": true
+  },
+  "fresh_fullread": {
+    "file": "dependency-1e47-source-fullread.json",
+    "sha256": "3f6872885b2a0b5e0eb089788287cbf8aeeeecdb10c7a51c052e652793c36d5a"
+  },
+  "observer_provenance": {
+    "file": "scene-f0-all-observer-provenance.json",
+    "sha256": "8369436bb9aa445836072134be666ee4c1e9ecdc100162be5b2101763a610142"
+  },
+  "safety_provenance": {
+    "file": "scene-f0-safety-provenance.json",
+    "sha256": "8ca95de65751d652b0565e48b7f00031037a83e517ebef1017b79a8d449d45ac"
+  },
+  "screenshot_review": {
+    "file": "surface-7fee-screenshot-review.json",
+    "sha256": "3f33a6b3c09fa44da8db41547616b0abefc027b8199da95d60bfd44ab470e80a",
+    "viewed": 36,
+    "grade": "C",
+    "actual_review_source_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+    "inherited_for_unchanged_source_inputs": false
+  },
+  "production_css_loaded": true,
+  "production_css": {
+    "file": "floor-production-7d5.css",
+    "sha256": "bc5b185ab487ec8441ca19a29646b603a15f2382cb4d48a73263fc81e76ad777",
+    "bytes": 139675,
+    "original_build_source": "7d5f02049cc75a692d4eaac33916633cb2192f01",
+    "unchanged_source_styles_and_dependency_lock": [
+      "apps/web/src/main.tsx",
+      "apps/web/src/styles/tokens.css",
+      "apps/web/src/styles/subtitle.css",
+      "apps/web/vite.config.ts",
+      "apps/web/package.json",
+      "pnpm-lock.yaml"
+    ],
+    "external_files": [
+      {
+        "path": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/node_modules/.pnpm/@workloom+ui@https+++cnb.cool+workloom-ai+workloom-im+-+releases+download+ui-v0.1.19+wo_086870d384add426af4f926c44614b7c/node_modules/@workloom/ui/package.json",
+        "sha256": "195c346ca2dc3a10d9cd274413b1bcc74e0b74874644caac9e7f6e5a478ed663",
+        "source_origin": "actual installed dependency text; independently read and hashed"
+      },
+      {
+        "path": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/node_modules/.pnpm/@workloom+ui@https+++cnb.cool+workloom-ai+workloom-im+-+releases+download+ui-v0.1.19+wo_086870d384add426af4f926c44614b7c/node_modules/@workloom/ui/dist/index.js",
+        "sha256": "4e5bcb73b537dff41cc25b7c14ab30dd53930b53d8200c5dc4b13db54f553fed",
+        "source_origin": "actual installed dependency text; independently read and hashed"
+      },
+      {
+        "path": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/node_modules/.pnpm/@workloom+ui@https+++cnb.cool+workloom-ai+workloom-im+-+releases+download+ui-v0.1.19+wo_086870d384add426af4f926c44614b7c/node_modules/@workloom/ui/dist/language.js",
+        "sha256": "f6a052cc7994cfe68430f353f8d09b0cecf2dcb005a74a64b0d7257d457bdec2",
+        "source_origin": "actual installed dependency text; independently read and hashed"
+      },
+      {
+        "path": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/node_modules/.pnpm/@workloom+ui@https+++cnb.cool+workloom-ai+workloom-im+-+releases+download+ui-v0.1.19+wo_086870d384add426af4f926c44614b7c/node_modules/@workloom/ui/dist/tokens.css",
+        "sha256": "f0ea76e55488e114556ee0dcd8abd40cdfaa63caca4eb833dec43a65c32fbc29",
+        "source_origin": "actual installed dependency text; independently read and hashed"
+      },
+      {
+        "path": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/node_modules/.pnpm/@workloom+ui@https+++cnb.cool+workloom-ai+workloom-im+-+releases+download+ui-v0.1.19+wo_086870d384add426af4f926c44614b7c/node_modules/@workloom/ui/dist/content-safety.css",
+        "sha256": "457c11f8fcfec43c8bf4ab0136313b97fbb26a924da615d2f3196fbc892f6020",
+        "source_origin": "actual installed dependency text; independently read and hashed"
+      },
+      {
+        "path": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/node_modules/.pnpm/@workloom+ui@https+++cnb.cool+workloom-ai+workloom-im+-+releases+download+ui-v0.1.19+wo_086870d384add426af4f926c44614b7c/node_modules/@workloom/ui/dist/components.css",
+        "sha256": "11c5d3aea838f0227b47c594701f13a20da3ce93cd4d13731001ef141eb21df6",
+        "source_origin": "actual installed dependency text; independently read and hashed"
+      }
+    ]
+  },
+  "original_failures_preserved": true,
+  "preserved_originals_and_observer_corrections": [
+    {
+      "file": "floor-canvas-before-results.json",
+      "sha256": "0a9c56aff9f5068756d24d3ae09d15f7ca85d907c904650f0d91eb9f8c986787"
+    },
+    {
+      "file": "floor-canvas-painted-before-results.json",
+      "sha256": "66ce69a6244f5e677394b3ffe59edacd2e057cd23e540dbf4d8314930a3fa108"
+    },
+    {
+      "file": "floor-canvas-production-before-results.json",
+      "sha256": "6d906579c7bf656757a7cbbfd134e7c27085e1bdecc0b22fb5d7d53635b812e8"
+    },
+    {
+      "file": "floor-canvas-production-physical-before-results.json",
+      "sha256": "ee4e0dc643bfc5bd1c0507e972856bd40651d1571d4888473b47efbdc4795fcc"
+    },
+    {
+      "file": "floor-canvas-boundary-production-results.json",
+      "sha256": "ec018e30ae8cce877497be96d5da35dd453871a574757fa121733bb28e0618d4"
+    },
+    {
+      "file": "floor-canvas-initial-viewport-production-results.json",
+      "sha256": "04f1de0daf97d3e808e4b616df85ab18468b346cfdbaf7d48fa8824705232ea7"
+    },
+    {
+      "file": "floor-canvas-scroll-trace-results.json",
+      "sha256": "18ad8a652559765b67756fb6c03215f32a4bd9bd99c296a7dc7abb0aa690592b"
+    },
+    {
+      "file": "floor3d-production-before-corrected-results.json",
+      "sha256": "7bc18f71c38e0f18b366585335b4eaa55dc613025e04feddd6d16daa334e4eef"
+    },
+    {
+      "file": "floor3d-production-final-results.json",
+      "sha256": "4a1e7fe04db7671c7f64067c5aae95107e6e44cb314effece96860f9d9779cea"
+    },
+    {
+      "file": "floor3d-production-drop-final-results.json",
+      "sha256": "452fd570379e251cfd32a04e7e88c424f6d458e5e69a8a51418985bd2849bc04"
+    },
+    {
+      "file": "floor-production-css-correction.json",
+      "sha256": "c48979363826f1cfa0ca56a7bc01f6582dcdd68b0bb209c5cbbcd7756b685a95"
+    },
+    {
+      "file": "floor-css-coordinate-observer-correction.json",
+      "sha256": "bcd16486985a534afc32bfbbf93e30fb73b30f304128806f9dacceb5e866d4ec"
+    },
+    {
+      "file": "floor-browser-first-paint-observer-correction.json",
+      "sha256": "fe1c8355a2cd3b3ba8b3ba45136cec653c8a1e9f0edf52147e2524247add8c69"
+    },
+    {
+      "file": "floor-content-observer-dom-correction.json",
+      "sha256": "9a5b6399ce8acbdf6a8c503b6e8541670cd703644f9803a6c358fcf336b75df7"
+    },
+    {
+      "file": "floor3d-harness-live-correction.json",
+      "sha256": "af846669f7a6a5829798809617eac16b2e4525408286ce330060b7788d374a89"
+    },
+    {
+      "file": "floor3d-drop-harness-syntax-correction.json",
+      "sha256": "e1e2c51b8f623a8d8c9f54f94fc1f42c439c5baa7aa4140b116c6bb2f610ffcf"
+    },
+    {
+      "file": "floor3d-drop-observer-extension.json",
+      "sha256": "d998fd5d4909997ea870b40b6209975e12a81d3a67ad6ca51093e806100d0922"
+    },
+    {
+      "file": "floor3d-drop-delivery-observer-extension.json",
+      "sha256": "efac6f05a88557058c81e5e574308767ceeec49580cc6d781424629bdf756fe5"
+    },
+    {
+      "file": "floor3d-drop-trust-observer-extension.json",
+      "sha256": "55d84887d373ad212a1db2da193393841c6ff6d125b8a478bdff71a0a7737fad"
+    },
+    {
+      "file": "floor3d-supplement-observer-provenance.json",
+      "sha256": "417ee054e9999b5720196c703efd944b9f685f6ba50a3c96017e1108ccc8e409"
+    },
+    {
+      "file": "floor-observer-c083-provenance.json",
+      "sha256": "2f61ee7bbdeb52b6492001cc660299dfd60f92ea04a412ab866dcc686009c2c0"
+    },
+    {
+      "file": "floor-c083-observer-preparation-correction.json",
+      "sha256": "477742d06d72986e600eee1ad5e1bcd1f0e9211116f93a114d5bd9e2aa08d6e5"
+    },
+    {
+      "file": "floor-c083-safety-provenance.json",
+      "sha256": "7913b41f34171d2f61aa1bd280c01e9bd7f99b5119a0cc9579e064bd4b41112e"
+    },
+    {
+      "file": "floor-c083-safety-alias-correction.json",
+      "sha256": "66eca5daa0c0bba34c726e6ed4230fcc7921ab228a5d2c990d86af0edc5295a6"
+    },
+    {
+      "file": "floor-c083-safety-final-provenance.json",
+      "sha256": "782e2ef9afeacb497f72e086a124674cbf849b193ebabde56a6269022b310817"
+    },
+    {
+      "file": "floor-c083-screenshot-review.json",
+      "sha256": "a97febd639eb3ed2ea3be7e7e0745df34cf1085720dd3ee220aac2c200bd4e69"
+    },
+    {
+      "file": "floor-c083-manifest-path-correction.json",
+      "sha256": "1b189660c8e0a7d29d17b7158427edb06f174c203953ff542829e85527d103e5"
+    },
+    {
+      "file": "scene-f0-historical-red-origin.json",
+      "sha256": "4295e8acff459d639d6652f20bdc1f05dbbabb701b06cc14d7efd6ff8f2e23f7",
+      "scope": "Preserved inherited actualc083 native visual red and source counterexamples; not currentnative success"
+    },
+    {
+      "file": "floor-native-c083-screenshot-review.json",
+      "sha256": "60f25f9ee5bc82bf2ed04797cbde853199f34e4d6bfa4b52cceba442a9c991f8",
+      "scope": "Preserved inherited actualc083 native visual red and source counterexamples; not currentnative success"
+    },
+    {
+      "file": "native-followup-c083-v3.json",
+      "sha256": "badde7e266eb0a8661cde11c0bec9ce45d4b698a83895a1ae19b36b912a2efb9",
+      "scope": "Preserved inherited actualc083 native visual red and source counterexamples; not currentnative success"
+    },
+    {
+      "file": "native-c083-default-origin.json",
+      "sha256": "7041eb016c96ff097bfeca92cbcee80b50ef92f3d08152fa8cff2adb4a34c663",
+      "scope": "Preserved inherited actualc083 native visual red and source counterexamples; not currentnative success"
+    },
+    {
+      "file": "native-c083-safe-origin.json",
+      "sha256": "e1aac880f164d524fa4ca49f3586fa48e03860679eeadd9c4cfceed9e0491a19",
+      "scope": "Preserved inherited actualc083 native visual red and source counterexamples; not currentnative success"
+    },
+    {
+      "file": "inherited/repair-obs17__floor3d-edges-results.json",
+      "sha256": "74f8050e98c5f6407d54c7c1e702db625b4f140d5d321d014ed2d7483cb9518c",
+      "origin": "authorized fresh fixer; inherited actual historical result, not independently executed here"
+    },
+    {
+      "file": "inherited/repair-obs17__floor3d-hover-viewport-before-results.json",
+      "sha256": "8782b723988c6ef69d01785550c2f2b6770b4fce41679770f36ef37be0524454",
+      "origin": "authorized fresh fixer; inherited actual historical result, not independently executed here"
+    },
+    {
+      "file": "inherited/repair-obs17__floor3d-hover-viewport-v4-before-results.json",
+      "sha256": "4f448788f9ff7e9a9495cb0f4b97e174d774f7ed64e2928be8304c270ae8a320",
+      "origin": "authorized fresh fixer; inherited actual historical result, not independently executed here"
+    },
+    {
+      "file": "inherited/repair-obs17__hover-fixture-correction.json",
+      "sha256": "f82dac390e585a010358b5e102f64a144366c5d4eb22100dae5fe09170c7a744",
+      "origin": "authorized fresh fixer; inherited actual historical result, not independently executed here"
+    },
+    {
+      "file": "inherited/repair-obs17__floor3d-final-camera-bubbles-results.json",
+      "sha256": "ee8887cbd34255fa08346877a4d4399f80c63a836aff5e6b2c14f03fa8a82e6e",
+      "origin": "authorized fresh fixer; inherited actual historical result, not independently executed here"
+    }
+  ],
+  "assertions_or_deadlines_relaxed": false,
+  "product_algorithms_copied_or_replaced": false,
+  "private_credentials_read": false,
+  "real_provider_calls": 0,
+  "real_business_delivery_denominator": 0,
+  "current_ci": {
+    "source_commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+    "statuses_sha": "85dd94e78f9da5c85aaf16fc7b98716bf4d3f565",
+    "all_three_gates_green": true,
+    "evidence": "cnb-dependency-source-1e47.json",
+    "sha256": "57324fb4866c279ab748458f2b972a948941afa0840b08a56c0f29062b87fd32",
+    "origin": "Root API receipt independently read and hash-bound; no verifier API call or credential access",
+    "is_wip": true,
+    "is_merged": false
+  },
+  "final_native_verified": false,
+  "scope": "Source-specialized floor geometry and actual browser component interactions. Optionaldrop synthetic DOM dispatch is not OS gesture/business dispatch; narrow desktop is not a real mobile device; no full UX/RDAS/production platform claim. All558 functional cases remain at their original executed SHA and are inherited at this accepted dependency-only source through the separately strict whole-metadata/input comparison. Security audit, exact new native .6 and actual MCD sessions are not inherited.",
+  "dependency_functional_inheritance": {
+    "file": "dependency-functional-input-inheritance.json",
+    "sha256": "1a93da0c703b7e0559517e726e0016fe6084d608111ad6960cdfdc1e9e664609",
+    "source_commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+    "previous_accepted_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+    "functional_cases_inherited": 558,
+    "functional_cases_actually_executed_at_accepted_commit": 0,
+    "new_functional_execution_claimed": false
+  }
+}

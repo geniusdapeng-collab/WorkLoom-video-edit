@@ -1,0 +1,11 @@
+{
+  "name": "mac-welcome-access-diagnostic",
+  "command": [
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/引导竞态修复 客户应用/WorkLoom 获客增长系统（实验车道）.app/Contents/MacOS/WorkLoom 获客增长系统（实验车道）",
+    "--remote-debugging-port=29822"
+  ],
+  "exit_code": 0,
+  "seconds": 167.315,
+  "ran_at": "2026-10-03T03:28:08.262036+08:00",
+  "log": "mac-welcome-access-diagnostic.log"
+}

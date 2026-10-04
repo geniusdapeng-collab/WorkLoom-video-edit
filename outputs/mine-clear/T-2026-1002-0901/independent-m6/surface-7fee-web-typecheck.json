@@ -1,0 +1,17 @@
+{
+  "name": "surface-7fee-web-typecheck",
+  "command": [
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+    "--env-file=.env",
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/pnpm/bin/pnpm.cjs",
+    "-C",
+    "apps/web",
+    "typecheck"
+  ],
+  "exit_code": 0,
+  "seconds": 2.533,
+  "source_before": "7fee3a6a5563d41c568463994764d3883eb7667d",
+  "source_after": "7fee3a6a5563d41c568463994764d3883eb7667d",
+  "ran_at": "2026-10-03T19:14:21.572393+08:00",
+  "log": "surface-7fee-web-typecheck.log"
+}

@@ -1,0 +1,60 @@
+{
+  "source_head": "87ab5781d381d19e9dc7e1f5caa98b6a6b410c58",
+  "at": "2026-10-03T11:07:43.228855+08:00",
+  "files": [
+    {
+      "path": "scripts/reset.sh",
+      "sha256": "f415b9f841253996746c19b6c827bc57fb1ee1ff23fb92b08d7a84879c1d260c",
+      "lines": 112,
+      "evidence_grade": "A",
+      "method": "complete content read and reviewed; metadata generated input inspected; patch reviewed to end"
+    },
+    {
+      "path": "scripts/reset-safety.test.mjs",
+      "sha256": "74318c0c8958d6fdf01d82e02e9792b1f6fcc889a50bf70f9d2974b6eeb456d6",
+      "lines": 225,
+      "evidence_grade": "A",
+      "method": "complete content read and reviewed; metadata generated input inspected; patch reviewed to end"
+    },
+    {
+      "path": "package.json",
+      "sha256": "c7344fc11289dc06c0d5a7a487b543e11a15ab36fc3f8cf1c951b3981b16eb24",
+      "lines": 112,
+      "evidence_grade": "A",
+      "method": "complete content read and reviewed; metadata generated input inspected; patch reviewed to end"
+    },
+    {
+      "path": ".workloom-runtime-deps/metadata.json",
+      "sha256": "216dfd1574541fc262eb79314df4004781f1826b2ad200a38db6f3e92c35484b",
+      "lines": 92,
+      "evidence_grade": "A",
+      "method": "complete content read and reviewed; metadata generated input inspected; patch reviewed to end"
+    },
+    {
+      "path": "docs/repairs/T-2026-1002-0901.md",
+      "sha256": "103d43f952de5c230299d98ccd227f09254c57029217a8b52b5ec8a72ebf7f4b",
+      "lines": 85,
+      "evidence_grade": "A",
+      "method": "complete content read and reviewed; metadata generated input inspected; patch reviewed to end"
+    },
+    {
+      "path": "scripts/runtime-deps-lock.mjs",
+      "sha256": "38d5eba21ae509aec4de97000bda055ca632f0216473e1d1000eeba6b5e0a475",
+      "lines": 408,
+      "evidence_grade": "A",
+      "method": "complete content read and reviewed; metadata generated input inspected; patch reviewed to end"
+    }
+  ],
+  "checks": [
+    "reset-env-declaration-green.json",
+    "reset-env-desktop-final.json",
+    "reset-runtime-lock-final.json",
+    "reset-staged-secret-scan.json"
+  ],
+  "retained_red": [
+    "reset-safety-before.json",
+    "reset-env-declaration-red.json"
+  ],
+  "limitations": "Reset safety controls use synthetic command stubs; no real customer restore or destructive database reset performed. Original failures kept.",
+  "official_source": "https://raw.githubusercontent.com/nodejs/node/v24.19.0/doc/api/util.md"
+}

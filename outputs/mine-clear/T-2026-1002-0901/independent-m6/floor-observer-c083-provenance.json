@@ -1,0 +1,45 @@
+{
+  "schema": "growth.independent-m6/floor-observer-c083-provenance@1",
+  "source_commit": "c08386eb9993744a0cb0c2495a98fc1fc4ccbed9",
+  "generated_at": "2026-10-03T09:05:32.850959+08:00",
+  "modified_by": "growth_m6",
+  "records": [
+    {
+      "file": "floor3d-probe.mjs",
+      "before_sha256": "a10fdc94914151d3a66458427787b0d8cf0b7c50ae90a489b77f80b1a2e460db",
+      "after_sha256": "4dc17d49b84fe5898e62c06555b9d5f3cf9732e0d883c8da5bf207979360d6c0",
+      "change": "Only source hash tracking adds the now completely read TaskDrop module; all original assertions and deadlines unchanged"
+    },
+    {
+      "file": "floor3d-edges-probe.mjs",
+      "before_sha256": "df8fe700381a625072f6a5c71b084a49da2556891219092eab3d872b887a6e4d",
+      "after_sha256": "df8fe700381a625072f6a5c71b084a49da2556891219092eab3d872b887a6e4d",
+      "change": "Already tracked TaskDrop before this preparation; no metadata or assertion changes"
+    },
+    {
+      "file": "floor3d-bubble-c083-fixture/fixture.tsx",
+      "root_original_sha256": "c50f44213fc9245930b4ffb5af00f76a3c1b4c774c9d6ad593fd6119c0a51ab7",
+      "owned_sha256": "c50f44213fc9245930b4ffb5af00f76a3c1b4c774c9d6ad593fd6119c0a51ab7",
+      "change": "Exact legal Chinese/emoji payload"
+    },
+    {
+      "file": "floor3d-bubble-c083-fixture/index.html",
+      "root_original_sha256": "cab5cbcf551b1ac9ed17a55b7fd6f88b0ab0bd9afe7b224c59f356b169e1bb5d",
+      "owned_sha256": "63d755ea7ac40c0efa75a4469b8d0494930dc77a32bc041efc1cb2873f7859e5",
+      "change": "Only absolute stylesheet path relocated to identical owned CSS"
+    },
+    {
+      "file": "floor3d-bubble-c083-probe.mjs",
+      "root_original_sha256": "e90e0c1732a44e5d84b18ff1f8645a04c0783873e71032b907d0187bb4c168f7",
+      "owned_sha256": "921a0cf9b5f120bc77aec004fd1f71fdbff2cac43fa16fb12f63a4c4ac3efe48",
+      "change": "Fixture/cache/port/schema/actor rehosting and additional actual event trust observations only; legal 33 assertions, glyph containment and original deadlines retained"
+    }
+  ],
+  "original_default_assertions": 28,
+  "original_enabled_assertions": 55,
+  "edges_assertions": 29,
+  "legal_hover_assertions": 33,
+  "product_source_changed": false,
+  "actual_original_english_fixture_retained": true,
+  "scope": "Observer metadata/rehosting and explicit event trust only; no replacement of product camera, collision, rendering, events, Chinese safety or thresholds"
+}

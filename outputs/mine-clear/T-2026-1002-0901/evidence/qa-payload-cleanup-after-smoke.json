@@ -1,0 +1,17 @@
+{
+  "at": "2026-10-02T22:43:39.744614+08:00",
+  "removed_only_owned_qa_payloads": [
+    "work/生产修复 首次客户/runtime",
+    "work/生产修复 首次客户/node",
+    "work/生产修复 首次客户/pg",
+    "work/生产修复 首次客户/nats",
+    "work/生产修复 首次客户/.payload-cache",
+    "work/macos-bootstrap-clean/runtime",
+    "work/macos-bootstrap-clean/node",
+    "work/macos-bootstrap-clean/pg",
+    "work/macos-bootstrap-clean/nats",
+    "work/macos-bootstrap-clean/.payload-cache"
+  ],
+  "retained": "test DBs, logs, state, screenshots, source and original QA DMG",
+  "skipped": "old installed QA copy has open files; preserved without terminating its process"
+}

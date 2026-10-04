@@ -1,0 +1,156 @@
+COMMAND ["/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node", "--env-file=.env", "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/pnpm/bin/pnpm.cjs", "test:desktop"]
+
+> workloom-ai-acquisition@0.1.0 test:desktop /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit
+> node --test apps/desktop/electron/bootstrap.test.cjs scripts/desktop-bootstrap-db.test.mjs scripts/runtime-deps-lock.test.mjs scripts/pack-nm-merge.test.mjs scripts/payload-policy.test.mjs scripts/pack-workspace-modules.test.mjs scripts/reset-safety.test.mjs
+
+▶ 渲染探针不占用产品 GPU 上下文
+  ✔ WebGL2 检测后立即释放临时上下文，不再检测 WebGL1 (1.996041ms)
+  ✔ WebGL1 回退同样释放，扩展未提供时仍如实报告能力 (0.094083ms)
+  ✔ 无上下文、创建异常、释放异常均报告不可用 (0.08175ms)
+✔ 渲染探针不占用产品 GPU 上下文 (2.629708ms)
+▶ 真实首日引导退出的渲染冒烟
+  ✔ 欢迎层退出的空帧不能跳过下一次 React 提交才出现的引导 (0.356834ms)
+  ✔ 存在引导入口却一直不出现引导时不能标成退出成功 (0.531083ms)
+  ✔ 点了关闭仍持续覆盖时在原截止时间内失败关闭 (0.527916ms)
+  ✔ 未安装引导内容包时稳定无遮挡仍可验收 (0.303208ms)
+  ✔ 缺退出按钮或 renderer 执行失败均不吞异常 (0.3375ms)
+11:14:08 == WorkLoom 织元 · 引导启动（resources=/var/folders/dj/mkh6fwbd4mb6ycp933xfty4h0000gn/T/workloom-bootstrap-453b9X/payload）==
+11:14:08 正在检查本机版本与安装载荷…
+11:14:08 → 装配运行时载荷（2.0.0）…
+11:14:08 正在校验并安全换入运行时载荷…
+11:14:08 正在校验并安全换入运行时载荷…
+11:14:08 == WorkLoom 织元 · 引导启动（resources=/var/folders/dj/mkh6fwbd4mb6ycp933xfty4h0000gn/T/workloom-bootstrap-odCA9t/payload）==
+11:14:08 正在检查本机版本与安装载荷…
+11:14:08 → 装配运行时载荷（2.0.0）…
+11:14:08 正在校验并安全换入运行时载荷…
+11:14:08 正在校验并安全换入运行时载荷…
+11:14:08 == WorkLoom 织元 · 引导启动（resources=/var/folders/dj/mkh6fwbd4mb6ycp933xfty4h0000gn/T/workloom-bootstrap-OnbktT/payload）==
+11:14:08 正在检查本机版本与安装载荷…
+11:14:08 → 装配运行时载荷（2.0.0）…
+11:14:08 正在校验并安全换入运行时载荷…
+11:14:08 正在校验并安全换入运行时载荷…
+11:14:08 == WorkLoom 织元 · 引导启动（resources=/var/folders/dj/mkh6fwbd4mb6ycp933xfty4h0000gn/T/workloom-packaged-payload-missing-XiflWE/resources）==
+11:14:08 正在检查本机版本与安装载荷…
+11:14:08 == WorkLoom 织元 · 引导启动（resources=/var/folders/dj/mkh6fwbd4mb6ycp933xfty4h0000gn/T/workloom-packaged-no-double-payload-VpyUoK/resources）==
+11:14:08 正在检查本机版本与安装载荷…
+  ✔ renderer 永不返回时也必须到截止即结束且不遗留定时器 (23.776ms)
+✔ 真实首日引导退出的渲染冒烟 (26.201042ms)
+▶ 产品截图采用捕获时的可见场景
+  ✔ 等待后实际无遮挡且完整时仍通过 (2.349459ms)
+  ✔ 稳定等待中重新出现引导层时拒绝旧无遮挡状态 (3.005208ms)
+  ✔ 稳定等待中卸载场景或员工减少时拒绝旧完整状态 (0.948042ms)
+  ✔ 截图捕获期间出现遮罩或内置人名也必须失败 (0.766583ms)
+  ✔ 场景就绪但实际舞台 Canvas 只占 150 像素时不能用整页像素健康转绿 (0.374583ms)
+  ✔ 负责人固定牌与员工名牌相交、Canvas 缺失或上下文失效时拒绝验收 (9.934583ms)
+✔ 产品截图采用捕获时的可见场景 (17.571125ms)
+▶ 桌面载荷原子装配
+  ✔ 同版本标记不能跳过缺失运行目录、错误运行版本或缺失 Node 的恢复 (153.854792ms)
+  ✔ 解析物理路径后向 tar 传相对路径，并为 Windows 跨盘符暂存归档 (3.374334ms)
+  ✔ 正式打包入口缺少载荷时在启动任何服务前失败关闭 (12.931875ms)
+  ✔ 正式打包入口不会把源码 dist-payload 双重嵌套误认作 Resources (15.75925ms)
+  ✔ 完整暂存后换入；提交前可回滚，提交后清理临时目录 (16.915334ms)
+  ✔ 提交清理故障发生在不可逆边界之后，不会重新开放旧载荷回滚 (10.704292ms)
+  ✔ 换入第一项后故障会恢复旧版目录、版本和首航状态 (11.939833ms)
+  ✔ 首装暂存失败不会留下半套运行时 (8.913042ms)
+  ✔ 安装阶段检查点以机器可读中文状态落盘 (3.713208ms)
+  ✔ 启动页使用确定进度语义，不再显示循环假进度 (0.619375ms)
+  ✔ 源码主进程只复用已验活服务，正式安装包与渲染冒烟不能绕过载荷 (0.510542ms)
+  ✔ 发布渲染冒烟使用稳定动作标记走完真实欢迎流程 (7.748792ms)
+✔ 桌面载荷原子装配 (248.465458ms)
+▶ 桌面 PostgreSQL 实例归属与端口契约
+  ✔ 严格拒绝空白、小数、非数字和越界端口 (0.269375ms)
+  ✔ 只有 pg_ctl 确认运行且 postmaster 数据目录与端口同时匹配才允许复用 (2.597458ms)
+  ✔ pg_ctl 未确认运行时不读取残留 PID，也不把端口监听者当作自有实例 (0.7635ms)
+  ✔ 退出前重新复验实例归属，PID 文件被替换时绝不发送 stop (0.8685ms)
+  ✔ 托管环境只重写数据库与服务端口，保留其他用户配置 (31.930208ms)
+  ✔ 首装与升级分别从当前载荷生成桥注册表，不引用其他实例的运行目录 (3.98825ms)
+✔ 桌面 PostgreSQL 实例归属与端口契约 (42.060542ms)
+▶ 桌面本机渲染子进程的 Node 路径
+  ✔ 干净 GUI PATH 下仍能启动当前随包 Node，且保留系统工具路径 (111.3055ms)
+  ✔ Windows 只传一个不区分大小写的 Path；POSIX 不改其他同名变量 (1.338208ms)
+✔ 桌面本机渲染子进程的 Node 路径 (112.771459ms)
+▶ 桌面 PostgreSQL 凭据状态与 SCRAM 围栏
+  ✔ 0600 状态文件生成三份互异随机凭据，重复启动不轮换 (3.432666ms)
+  ✔ 损坏状态失败关闭；绑定 system_identifier 后才能完成并清除旧凭据 (8.839959ms)
+  ✔ pending 状态可从恢复后的旧配置补充候选；hardened 后绝不重新收录 (13.957958ms)
+  ✔ initdb 只接受 pwfile + SCRAM，HBA 只允许本机 SCRAM (1.776125ms)
+  ✔ pending 迁移复验失败会原子恢复旧 HBA 并再次 reload (86.176792ms)
+  ✔ 即使磁盘 HBA 未变化也强制 reload，再以正反向凭据复验结果为准 (22.203833ms)
+  ✔ 源码固定先提交新 payload 再创建状态或改库，且不含 trust initdb (0.37675ms)
+  ✔ payload commit 前用内置 Node 语法检查安全 helper，校验失败立即阻断 (0.518917ms)
+  ✔ 所有 migrate 入口在轮换 app/gateway 角色前固定本会话 SCRAM (4.749583ms)
+✔ 桌面 PostgreSQL 凭据状态与 SCRAM 围栏 (142.425167ms)
+▶ 应急浏览器壳与正式 Electron 共用安全引导
+  ✔ 原子单实例锁拒绝活进程，并可接管死进程遗留锁 (2.53675ms)
+  ✔ 两端旧启动器只委托 bootstrap，不再维护 trust/helper 分支 (2.14425ms)
+  ✔ 浏览器壳按平台使用无 shell 拼接的固定打开命令 (0.569625ms)
+  ✔ CLI 在启动前注册 INT/TERM/HUP，并用 AbortSignal 驱动初始化清理 (0.471292ms)
+✔ 应急浏览器壳与正式 Electron 共用安全引导 (5.868333ms)
+workloom-db-identity {"dataDirectory":"/private/var/folders/dj/mkh6fwbd4mb6ycp933xfty4h0000gn/T/workloom-helper-inspect-ERuuhN/pgdata","port":55432,"hbaFile":"/var/folders/dj/mkh6fwbd4mb6ycp933xfty4h0000gn/T/workloom-helper-inspect-ERuuhN/pgdata/pg_hba.conf","systemIdentifier":"7654321098765432109","postmasterStartTime":"2026-09-16 16:52:18.418+00"}
+bootstrap-db prepare ok
+bootstrap-db verify ok
+▶ 客户端投影路径围栏
+  ✔ 同时接受 POSIX 与 Windows 的目录分隔符 (1.039625ms)
+  ✔ 拒绝同目录、父目录逃逸和 Windows 跨盘路径 (0.079625ms)
+✔ 客户端投影路径围栏 (1.615042ms)
+▶ 桌面数据库安全引导
+  ✔ 经符号链接路径执行 helper 时仍识别为 CLI 入口 (0.692708ms)
+  ✔ 要求三模式、端口、PGDATA、HBA 与三角色凭据全部由启动器显式注入 (0.492084ms)
+  ✔ inspect 用旧 owner 候选只读绑定非默认端口、PGDATA、HBA 与 system_identifier (4.296084ms)
+  ✔ legacy prepare 先验归属，再轮换 owner/app/gateway 为 SCRAM 并准备业务库 (1.106417ms)
+  ✔ verify 对三角色正向连接、错误凭据反向拒绝，且全过程零写 (3.039625ms)
+  ✔ trust 仍接受错误凭据时 verify 失败，不会误标为 SCRAM 生效 (0.732291ms)
+  ✔ 错误凭据探测若得到非认证错误则失败关闭，不把网络故障当成安全证明 (0.634ms)
+  ✔ 未知 data_directory、活动 HBA 或 system_identifier 时首条查询后零写失败 (0.684416ms)
+  ✔ 实例报告端口不符时失败且零写入 (0.345167ms)
+✔ 桌面数据库安全引导 (12.297791ms)
+✔ pnpm 锁文件在 Windows CRLF 检出后保持同一解析语义 (2.580083ms)
+✔ 基座物理存在 platform-ops 时依赖合成仍排除平台工程 (14.692042ms)
+✔ 仙女座精确身份收集 platform-ops，缺包则阻断 (2.98875ms)
+✔ 范围 specifier 只输出 pnpm 锁定的精确版本 (1.612125ms)
+✔ 缺锁、specifier 漂移与同名解析版本冲突均失败关闭 (13.17275ms)
+✔ 包目录创建顺序不影响依赖清单输出 (9.534541ms)
+✔ 搬动原工作区副本会破坏仓库相对引用，新注册保留同一模块实例 (301.422917ms)
+✔ 子路径、条件 exports 和类型入口都引用保留的真实源文件 (140.378167ms)
+✔ 缺失构建产物在打包时失败，不留到客户启动时 (16.422125ms)
+✔ 包名称重复、路径越界和未支持的入口协议均失败关闭 (119.510541ms)
+✔ 行业载荷不会因目录存在而注册仙女座的 platform-ops (5.762417ms)
+✔ 源码装配不遍历 pnpm 循环链接或嵌套开发依赖，仍保留实际构建产物 (8.54375ms)
+✔ 源码装配拒绝仓库越界和目标递归，不读取外部链接 (14.627208ms)
+✔ 源码复制 CLI 保留中文空格路径并以失败退出码报告缺参 (123.258625ms)
+✔ 只有仙女座精确身份允许携带 platform-ops (0.859375ms)
+✔ 基座即使物理存在平台源码和内部包也会被装包后检查阻断 (153.967625ms)
+✔ 归档清单对大小写、Windows 分隔符和相对段统一失败关闭 (1.704458ms)
+✔ 缺失或不可校验的产品清单不能生成载荷策略 (395.814667ms)
+✔ 仙女座载荷检查允许平台源码，但不放宽其他产品 (78.411833ms)
+✔ 非 Git 运行时缺少任一身份闭包文件时，目录与归档检查均失败关闭 (67.121083ms)
+✔ 非 Git 运行时伪造产品身份时与源策略精确比对失败 (11.01025ms)
+✔ 产品清单未投影字段被篡改时摘要校验仍失败关闭 (2.021625ms)
+✔ 身份闭包目录与归档完整且产品身份一致时通过 (10.571167ms)
+✔ 归档中的身份闭包必须是精确文件路径，目录或大小写伪装不能通过 (0.478375ms)
+✔ 非交互调用没有 --yes 时 fail closed，且不访问数据库 (276.369ms)
+✔ 远端、生产和数据库名不匹配目标始终拒绝 (1738.462833ms)
+✔ 检测到非演示工作区时拒绝删除 (877.669916ms)
+✔ 本机 workloom 纯演示库先备份，再事务重建并执行迁移种子 (2977.761708ms)
+✔ 未知参数 fail closed (4.093417ms)
+✔ 备份失败时禁止删除和后续迁移种子 (1397.633708ms)
+✔ 空备份不能证明可恢复，禁止删除 (1296.540041ms)
+✔ 客户类型查询失败或不可识别时禁止备份与删除 (3854.532042ms)
+✔ 明确的 IPv6 环回和 .env 后备目标可以重置，缺少配置拒绝 (8102.32625ms)
+✔ 同名容器和连接路由环境变量不能替换已校验的目标 (5024.021542ms)
+✔ 删除事务发现并发客户工作区或 SQL 失败时禁止迁移和种子 (3209.24725ms)
+✔ 迁移失败立即停止，备份保留且不继续种子 (3725.378541ms)
+✔ 运行依赖锁输入摘要忽略 Git 工作树 LF/CRLF 差异 (0.921459ms)
+✔ 正式装配跨平台直接调用 Node 随附 npm CLI (0.318792ms)
+✔ 仓库提交的每产品 runtime lock 与当前依赖输入完全一致 (15.63ms)
+✔ package-lock 必须锁定完整三目标原生包与 registry integrity (0.504667ms)
+✔ 安装后目标校验拒绝宿主架构原生包并生成稳定 inventory 摘要 (46.805875ms)
+✔ 正式与应急装配线统一使用每产品 lock、目标 OS/CPU 和身份闭包 (3.006541ms)
+ℹ tests 101
+ℹ suites 10
+ℹ pass 101
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 32636.495834

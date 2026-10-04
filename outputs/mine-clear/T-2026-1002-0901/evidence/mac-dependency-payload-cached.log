@@ -1,0 +1,9 @@
+COMMAND ["bash", "scripts/pack-electron-payload.sh", "--platform", "mac", "--arch", "arm64", "--version", "v0.1.0-fix.20261003.6"]
+== 装配 Electron 自包含载荷（v0.1.0-fix.20261003.6 · mac-arm64）==
+→ 装配产品载荷…
+✓ 已复制 9 项载荷源码，未遍历开发依赖目录
+→ 运行期依赖：npm 扁平化安装…
+npm error code ENOTCACHED
+npm error request to https://registry.npmjs.org/drizzle-orm/-/drizzle-orm-0.45.2.tgz failed: cache mode is 'only-if-cached' but no cached response is available.
+npm error A complete log of this run can be found in: /Users/mac/.npm/_logs/2026-10-03T15_34_27_561Z-debug-0.log
+Command failed: /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/lib/node_modules/npm/bin/npm-cli.js ci --ignore-scripts --legacy-peer-deps --include=optional --no-audit --no-fund --os=darwin --cpu=arm64 --registry=https://registry.npmjs.org

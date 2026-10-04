@@ -1,0 +1,19 @@
+{
+  "verifier": "growth_m6",
+  "production_css_original": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/apps/web/dist/assets/index-gX1Is29W.css",
+  "production_css_snapshot": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/independent-m6/floor-production-7d5.css",
+  "production_css_bytes": 139675,
+  "production_css_sha256": "bc5b185ab487ec8441ca19a29646b603a15f2382cb4d48a73263fc81e76ad777",
+  "compiled_source_commit": "7d5f02049cc75a692d4eaac33916633cb2192f01",
+  "style_source_diff_since_955e": "none; actual git diff of src/styles/main/vite returned empty",
+  "prior_fixture_limitation": "Earlier 2D/3D isolated fixtures did not load full actual global/Tailwind/shared CSS. 3D CEO nowrap class was absent; actual content-safety Canvas max-inline-size could invalidate expanded 2D CSS-coordinate assumptions. Historical raw receipts/screens remain but are not accepted as actual-global-CSS passes.",
+  "prior_7d_3d_receipt": "floor3d-current.json",
+  "prior_7d_3d_diagnostic_pass": 26,
+  "prior_7d_3d_diagnostic_fail": 2,
+  "prior_fixtures_and_observers_snapshot": "history/floor-fixtures-no-production-css",
+  "fix": "Load byte-identical actual compiled production CSS in all three owned fixture pages, retain actual dark theme/client data attributes, use product stylesheet font family, and hash the CSS before and after each run.",
+  "css_external_urls": [],
+  "css_imports": [],
+  "product_source_mutations": false,
+  "no_threshold_relaxation": true
+}

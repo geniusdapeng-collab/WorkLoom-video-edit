@@ -1,0 +1,15 @@
+{
+  "source": "a40340e54c486eacdb2386929cd0f6fb87aac0dd",
+  "dmg": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/release/WorkLoom.GEO-mac-arm64.dmg",
+  "dmg_bytes": 630673906,
+  "dmg_sha256": "b549b50818d04bf87fd04675518d3a3a81fe598e7b2ea64ef8b3fed2896c0484",
+  "application": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/最终验证 客户应用/WorkLoom 获客增长系统（实验车道）.app",
+  "executable": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/最终验证 客户应用/WorkLoom 获客增长系统（实验车道）.app/Contents/MacOS/WorkLoom 获客增长系统（实验车道）",
+  "bundle_version": "0.1.0-fix.20261002.2",
+  "payload_sha256": "f0a9e7c32b1b7e8895cd008fcb29cc609454c19a39bac374cd11d56ed3c96995",
+  "payload_equals_verified_source": true,
+  "hdiutil_verify": "正在检查“Protective Master Boot Record（MBR：0）”的校验和…\nProtective Master Boot Record（MBR：0）：已验证CRC32 $BD45FC54\n正在检查“GPT Header（Primary GPT Header：1）”的校验和…\n    GPT Header（Primary GPT Header：1）：已验证CRC32 $97733469\n正在检查“GPT Partition Data（Primary GPT Table：2）”的校验和…\nGPT Partition Data（Primary GPT Table：已验证CRC32 $42FE238D\n正在检查“（Apple_Free：3）”的校验和…\n                      （Apple_Free：3）：已验证CRC32 $00000000\n正在检查“disk image（Apple_HFS：4）”的校验和…\n             disk image（Apple_HFS：4）：已验证CRC32 $FD4FF45F\n正在检查“（Apple_Free：5）”的校验和…\n                      （Apple_Free：5）：已验证CRC32 $00000000\n正在检查“GPT Partition Data（Backup GPT Table：6）”的校验和…\nGPT Partition Data（Backup GPT Table：：已验证CRC32 $42FE238D\n正在检查“GPT Header（Backup GPT Header：7）”的校验和…\n     GPT Header（Backup GPT Header：7）：已验证CRC32 $6C05A9C6\n已验证CRC32 $7376DA64\nhdiutil: verify: checksum of \"/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/release/WorkLoom.GEO-mac-arm64.dmg\" is VALID\n",
+  "codesign_verify": "",
+  "signing": "ad-hoc QA only; Apple notarization and bundle trust absent",
+  "signed_platform_release": false
+}

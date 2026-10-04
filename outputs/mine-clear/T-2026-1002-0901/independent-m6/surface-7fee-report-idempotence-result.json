@@ -1,0 +1,13 @@
+{
+  "at": "2026-10-03T19:46:16.593710+08:00",
+  "source_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+  "builder_sha256_before_after": "0aaefc0a8396a2d66cec60fd44fc54ec598319f1a345e07d3b33734c207278c6",
+  "full_builder_bytes_unchanged": true,
+  "two_actual_complete_builder_executions_passed": true,
+  "all_report_prose_identical_except_generation_time": true,
+  "card_and_observation_values_identical": true,
+  "native_suffix_duplicated": false,
+  "guards_omitted": 0,
+  "actual_native_UI_or_MCD_executed": false,
+  "scope": "Own report generator idempotence only; source/native/MCD acceptance remains HOLD"
+}

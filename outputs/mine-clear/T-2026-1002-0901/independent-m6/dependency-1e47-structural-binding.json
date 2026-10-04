@@ -1,0 +1,109 @@
+{
+  "schema": "growth.independent-m6/dependency-cut-structural-binding@1",
+  "reviewed_by": "growth_m6",
+  "reviewed_at": "2026-10-03T15:40:57.732Z",
+  "previous_source_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+  "source_commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+  "exact_clean_current_source": true,
+  "git_changed_files": [
+    ".workloom-runtime-deps/metadata.json",
+    "docs/repairs/T-2026-1002-0901.md",
+    "package.json",
+    "pnpm-lock.yaml"
+  ],
+  "full_yaml_parse": true,
+  "generated_lock_evidence_grade": "B",
+  "whole_lock_equivalence_except_exact_unused_edge": true,
+  "root_manifest_only_exact_override_changed": true,
+  "pnpm_input_sha256": {
+    "before": "9d7b2c2748491e948ef19856ff1503118b01aa43fa4381e3cb342add3e11ee5a",
+    "after": "834833a61b50ff153fd0ed456a306d5fe0a3d2bffb51b8665fc0cf8b85d684e8"
+  },
+  "lock_counts": {
+    "importers": 12,
+    "packages": 711,
+    "snapshots": 718
+  },
+  "actual_changed_semantic_fields": [
+    "overrides[pixi-live2d-display>gh-pages] replaced by exact0.4.0 selector removal",
+    "snapshots[pixi-live2d-display@0.4.0(0736f5bd67d2e4de7e9fff36ad63fa2e)].dependencies[gh-pages] removed"
+  ],
+  "all_importers_and_package_integrities_and_other_snapshots_unchanged": true,
+  "runtime_npm_lock_unchanged": {
+    "sha256": "5f43bade687d37f6f28df174310bf5bd693fcb22bc846243204ce2fc11859440",
+    "packages": 134,
+    "all_bytes_equal": true
+  },
+  "runtime_metadata_only_exact_two_input_hashes_changed": true,
+  "unchanged_source_trees": [
+    {
+      "file_or_tree": "apps/web",
+      "git_object": "19038b867ff705ae38dfe19b73d90062404a5480",
+      "unchanged": true,
+      "grade": "B exact recursive Git metadata"
+    },
+    {
+      "file_or_tree": "apps/server",
+      "git_object": "153f83db5edc73fb0d5d8b94816e6620d66266e6",
+      "unchanged": true,
+      "grade": "B exact recursive Git metadata"
+    },
+    {
+      "file_or_tree": "packages",
+      "git_object": "aece029f0505366899d368273cf865e67caef6e8",
+      "unchanged": true,
+      "grade": "B exact recursive Git metadata"
+    },
+    {
+      "file_or_tree": "bundles",
+      "git_object": "a15ea80f7fb508ea9bf0f92d0f2777e993919ffe",
+      "unchanged": true,
+      "grade": "B exact recursive Git metadata"
+    },
+    {
+      "file_or_tree": "scripts",
+      "git_object": "fbd91d9d5a427da8bd47a4cea54bd7986720d9e3",
+      "unchanged": true,
+      "grade": "B exact recursive Git metadata"
+    },
+    {
+      "file_or_tree": "apps/desktop",
+      "git_object": "b64732685621dab6b36d6a5f65f81593d638ba5b",
+      "unchanged": true,
+      "grade": "B exact recursive Git metadata"
+    },
+    {
+      "file_or_tree": "tsconfig.base.json",
+      "git_object": "7949149fc4f25ce91580123b89a597c67fcc885a",
+      "unchanged": true,
+      "grade": "B exact recursive Git metadata"
+    },
+    {
+      "file_or_tree": ".workloom-runtime-deps/package.json",
+      "git_object": "8a395d636df6d773346e7030da68b02ba9869f96",
+      "unchanged": true,
+      "grade": "B exact recursive Git metadata"
+    },
+    {
+      "file_or_tree": ".workloom-runtime-deps/package-lock.json",
+      "git_object": "7e6a6217cea91650c84a9005ef26c50bd8699ceb",
+      "unchanged": true,
+      "grade": "B exact recursive Git metadata"
+    }
+  ],
+  "root_candidate_inspection_origin": {
+    "executed_head_retained": "7fee3a6a5563d41c568463994764d3883eb7667d",
+    "candidate_inspection_not_relabelled_to_new_clean_execution": true,
+    "accepted_pnpm_blob_matches_after_inspection": true,
+    "published_runtime_artifacts": 12,
+    "published_runtime_artifact_metadata_same": true,
+    "module_reference_scan_scope": "Root helper enumerates literal ES import/export and single string-literal require expressions. It is B static metadata, not complete semantic source reading or proof of every dynamic behavior."
+  },
+  "no_new_product_test_execution": true,
+  "no_PG_GPU_native_or_large_artifact_IO": true,
+  "private_contents_opened": false,
+  "source_controls_final_verified": false,
+  "final_native_verified": false,
+  "modern_MCD_verified": false,
+  "source_scoped_merge_eligible": false
+}

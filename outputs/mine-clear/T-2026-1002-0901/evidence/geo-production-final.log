@@ -1,0 +1,88 @@
+COMMAND ["/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node", "--env-file=.env", "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/pnpm/bin/pnpm.cjs", "suite:geo"]
+
+> workloom-ai-acquisition@0.1.0 suite:geo /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit
+> tsx --env-file=.env scripts/suite-geo.ts
+
+✓ A-01 bundle.json 声明的全部资产路径存在
+✓ A-02 27 个 preset（双域 16 + 视觉栈 2 + 获客用增 9，含 2 个 P2 条件岗）且 preset_key 唯一
+✓ A-03 preset 必填字段完整（含 prompt 三要素）
+✓ A-04 fence_bindings 引用的围栏均存在
+✓ A-05 夜班编制覆盖跨时区值守（≥5 员 night_shift）
+✓ A-06 围栏包与 bundle 声明一致，且全部 is_baseline（只可加严）
+✓ A-07 GEO 三闸到位：G-GEO1 review / G-GEO2 block / G-GEO3 block
+✓ A-08 对象模型 ≥28 类且双域核心对象在场
+✓ A-09 阶段机：六阶段 + 三层客户 + 三条交付线
+✓ A-10 围栏 match 引用的对象类型均在对象模型内
+✓ A-11 技能 frontmatter 完整且与 bundle.json 对齐
+✓ A-12 ui/cases 页码落在 web 实际路由 p1-p9
+✓ A-13 floor-scene 双域作战室工位 ≥10（16 员工循环分配）
+✓ B-01 G9 公网发布 → review
+✓ B-02 G9a 新平台首发 → review（首发标记命中）
+✓ B-03 G9b 日发第 5 条 → block 熔断
+✓ B-04 G9b 边界：日发第 4 条不熔断（仍 G9 review）
+✓ B-05 G10a 夸赞评论 → auto 放行
+✓ B-06 G10b 咨询评论 → review
+✓ B-07 G10c 负面评论 → review（告警语义）
+✓ B-08 G10c 投诉关键词命中（即使 intent 非负面）
+✓ B-09 G10d 敏感评论 → block
+✓ B-10 G12 投放加投 → review（不可降级）
+✓ B-11 G15 报价文件外发 → review
+✓ B-12 G15 兼容底座 deal_order/deal.send_external 口径
+✓ B-13 G15 非对外文件类型不命中（内部草稿 → default review 但不触发 G15）
+✓ B-14 G16 异常登录 → block
+✓ B-15 G16 防关联违规 → block
+✓ B-16 G16 正常登录放行（default review 不触发 G16）
+✓ B-17 G-GEO1 GEO 内容外发 → review
+✓ B-18 G-GEO2 事实红线未过 → block（一票否决压过 G-GEO1）
+✓ B-19 G-GEO2 实体锚点不一致（undefined 视为未过）
+✓ B-20 G-GEO3 语料污染 → block
+✓ B-21 G-GEO3 灰帽变种 fake_multi_source → block
+✓ B-22 G-GEO3 灰帽变种 machine_seeding → block
+✓ B-23 G-GEO3 灰帽变种 mass_ai_spam → block
+✓ B-24 G20 涉人设内容 → block（强制 L4）
+✓ B-25 G20 涉品牌表态评论回复 → block（压过 G10a 自动）
+✓ B-26 G17 未授权放宽围栏 → block
+✓ B-27 G17 L4 已批放宽 → 不触发 G17（放行或落 default）
+✓ B-28 G-GEO4 信源日发第 3 条 → block 熔断（对称 G9b）
+✓ B-29 G-GEO4 边界：geo_content 外发不触发信源日发熔断（仍 G-GEO1 review）
+✓ B-30 G18 熔断触发 → auto 放行但留痕
+✓ B-31 未命中读类动作 → 恒 auto（不进 default）
+✓ B-32 未命中写类动作 → default_level review
+✓ B-33 DSL 求值异常 → block（宁可错杀）
+✓ B-34 G-GROW7 生命周期岗未激活 → block
+✓ B-35 G-GROW7 生命周期岗激活后放行（未命中其他规则 → 写类 default review）
+✓ B-36 G-GROW8 渠道增长岗未激活 → block
+✓ B-37 G-GROW8 渠道增长岗激活后放行（未命中其他规则 → 写类 default review）
+✓ C-01 工作区存在且行业为 geo-growth
+✓ C-02 组合编制全部 ready 落库（本包 27 岗 ⊆ 组合编制，无缺岗）
+✓ C-03 员工 fence_bindings 原样落库（F2.10）
+✓ C-04 围栏按基线包全量 active 装载（库表 = 磁盘规则数）
+✓ C-05 29 个 GEO 技能已安装（双域 6 + 视觉 14 + 获客用增 9）
+✓ C-06 14 个触发器 enable
+✓ C-07 一客一档 v2 七模块齐全
+✓ C-08 品牌实体卡已经客户确认（confirmed=true）
+✓ C-09 query 集覆盖四词类（brand/category/scene/compare）
+✓ C-10 能见度基线五平台口径与存证纪律
+✓ C-11 数据边界声明在场（红线 R4）
+✓ C-12 宪章 escalate 含 G20/G-GEO3/G17 条款
+✓ C-13 评论四档分流 route_level 正确映射
+✓ C-14 待批请示 tier 分层正确（G-GEO1→L2 / G12、G20→L4）
+✓ C-15 账号指标时序 7 天 × 2 账号
+✓ C-16 种子幂等：复跑后事件数不膨胀
+✓ C-17 哈希链完整（ws-geo 段）
+✓ D-01 4 条管线 YAML 可解析且 quest key 唯一
+✓ D-02 管线 owner 全部在 16 员编制内
+✓ D-03 管线 gate 引用的围栏存在
+✓ D-04 管线 outputs 对象类型在对象模型内
+✓ D-05 能见度日频 cron 与种子触发器一致（0 21）
+✓ D-06 全量周频 cron 与种子触发器一致（周一 09:00）
+✓ D-07 清晨决策包 08:30 与晨报节拍一致
+✓ D-08 月度回测节拍存在（每月 1 日）
+✓ E-01 ws-geo 事件 ≥60 条且五元字段完整（容忍门禁活火写入）
+✓ E-02 事件 GEO 对象类型全部在对象模型内（系统对象豁免）
+✓ E-03 事件 who 全部在编制内（系统/人类豁免）
+✓ E-04 rule_impact 引用的规则存在且级别一致
+✓ E-05 能见度采集事件带原始答案截图存证
+✓ E-06 双入口询盘打标事件两种入口均在（social + ai_search）
+
+════════ GEO 双域用例：81/81 通过 ════════

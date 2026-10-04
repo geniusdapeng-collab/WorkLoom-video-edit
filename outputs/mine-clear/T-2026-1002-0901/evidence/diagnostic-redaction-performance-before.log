@@ -1,0 +1,47 @@
+COMMAND ["/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node", "--env-file=.env", "--test", "--test-reporter=tap", "--test-name-pattern=空日志和有界尾部", "apps/desktop/electron/bootstrap.test.cjs"]
+TAP version 13
+# Subtest: 启动诊断秘密脱敏
+    # Subtest: 空日志和有界尾部仍保留版本、主机和错误上下文
+    not ok 1 - 空日志和有界尾部仍保留版本、主机和错误上下文
+      ---
+      duration_ms: 21582.065541
+      type: 'test'
+      location: '/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/apps/desktop/electron/bootstrap.test.cjs:108:3'
+      failureType: 'testCodeFailure'
+      error: '单个 200KB 日志的脱敏不得因长文本冻结诊断导出'
+      code: 'ERR_ASSERTION'
+      name: 'AssertionError'
+      expected: true
+      actual: false
+      operator: '=='
+      stack: |-
+        TestContext.<anonymous> (/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/apps/desktop/electron/bootstrap.test.cjs:111:12)
+        Test.runInAsyncScope (node:async_hooks:227:14)
+        Test.run (node:internal/test_runner/test:1382:25)
+        Test.start (node:internal/test_runner/test:1242:17)
+        node:internal/test_runner/test:1867:71
+        node:internal/per_context/primordials:504:82
+        new Promise (<anonymous>)
+        new SafePromise (node:internal/per_context/primordials:478:3)
+        node:internal/per_context/primordials:504:9
+        Array.map (<anonymous>)
+      ...
+    1..1
+not ok 1 - 启动诊断秘密脱敏
+  ---
+  duration_ms: 21582.577792
+  type: 'suite'
+  location: '/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/apps/desktop/electron/bootstrap.test.cjs:41:1'
+  failureType: 'subtestsFailed'
+  error: '1 subtest failed'
+  code: 'ERR_TEST_FAILURE'
+  ...
+1..1
+# tests 1
+# suites 1
+# pass 0
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 21639.514167

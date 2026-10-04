@@ -1,0 +1,15 @@
+{
+  "name": "welcome-portable-web-typecheck",
+  "command": [
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+    "--env-file=.env",
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/pnpm/bin/pnpm.cjs",
+    "-C",
+    "apps/web",
+    "typecheck"
+  ],
+  "exit_code": 0,
+  "seconds": 18.337,
+  "ran_at": "2026-10-03T02:37:07.986901+08:00",
+  "log": "welcome-portable-web-typecheck.log"
+}

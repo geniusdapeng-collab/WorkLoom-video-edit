@@ -1,0 +1,26 @@
+{
+  "source_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+  "reviewed_by": "growth_m6",
+  "files": [
+    {
+      "mode": "default-repeat",
+      "path": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/\u5730\u9762\u4fee\u590d \u9ed8\u8ba4\u590d\u6d4b\u5ba2\u6237/qa-retained-config.env",
+      "exists": true,
+      "mode0600_independently_statted": true,
+      "configuration_sha256_root_reported": "7082938d2938d71448eb2910c52b534190d9fdc3e65613bdb4d04f6df19e7011",
+      "configuration_hash_independently_recomputed": false,
+      "private_contents_opened": false
+    },
+    {
+      "mode": "safe",
+      "path": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/\u5730\u9762\u4fee\u590d \u5b89\u5168\u5ba2\u6237/qa-retained-config.env",
+      "exists": true,
+      "mode0600_independently_statted": true,
+      "configuration_sha256_root_reported": "2ad773d966bcbc07a90ff7d6b6261b1b2fc77692d50afc3ef24850d11ee64958",
+      "configuration_hash_independently_recomputed": false,
+      "private_contents_opened": false
+    }
+  ],
+  "private_contents_opened": false,
+  "scope": "Only actual POSIX stat; root hashes kept distinct from independent hash execution"
+}

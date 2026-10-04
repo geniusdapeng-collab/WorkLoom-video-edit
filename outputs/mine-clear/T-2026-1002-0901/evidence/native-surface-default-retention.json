@@ -1,0 +1,28 @@
+{
+  "mode": "default",
+  "at": "2026-10-03T19:52:31.139361+08:00",
+  "command_exit_code": 1,
+  "evidence": [
+    {
+      "source": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/地面修复 默认客户/logs/render-default.json",
+      "retained": "native-surface-default-render-default.json",
+      "sha256": "786dc51c6e2a4559d556c8fdba893522bd95096a485d2e5556247bdb90a927c3",
+      "bytes": 4315
+    },
+    {
+      "source": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/地面修复 默认客户/logs/render-default.png",
+      "retained": "native-surface-default-render-default.png",
+      "sha256": "91422a4597d0c44bdc0f0c0e874a11432729a4957de6420fd9dacac94c203810",
+      "bytes": 1470683
+    },
+    {
+      "source": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/地面修复 默认客户/logs/team-default.png",
+      "retained": "native-surface-default-team-default.png",
+      "sha256": "1c7f5da064eeb1f1ceb22994849b0f8e15ca0d0b71f5ef704a53ef8a8c26d2bb",
+      "bytes": 1594312
+    }
+  ],
+  "private_state_retained": true,
+  "diagnosticOnly": false,
+  "reused_failed_fixture": false
+}

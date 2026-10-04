@@ -1,0 +1,23 @@
+COMMAND ["bash", "scripts/pack-electron-payload.sh", "--platform", "mac", "--arch", "arm64", "--version", "v0.1.0-fix.20261002.2"]
+== 装配 Electron 自包含载荷（v0.1.0-fix.20261002.2 · mac-arm64）==
+→ 装配产品载荷…
+✓ 已复制 9 项载荷源码，未遍历开发依赖目录
+→ 运行期依赖：npm 扁平化安装…
+
+added 58 packages in 5s
+✅ runtime npm ci：darwin-arm64 · 58 包 · a4d60e2bed8cb3613e6c99b91abbe821b41e1afa63ce20aa8b907e9f240f7aa2
+✓ 7 个工作区包已注册为实体 ESM 入口：@workloom/audit-engine, @workloom/base, @workloom/db, @workloom/industry-contract, @workloom/runtime, @workloom/shared, @hyperreality/video-studio
+→ Node 24.19.0 mac-arm64…
+  ↓ https://nodejs.org/dist/v24.19.0/node-v24.19.0-darwin-arm64.tar.gz
+  local public asset cache; product SHA-256 validation follows
+✓ SHA-256 node-v24.19.0-darwin-arm64.tar.gz 8294b7aa9b03997481c06babf1e8b270c859358f27da57a11509afe537ac381d
+→ PostgreSQL + pgvector…
+  ↓ https://github.com/PostgresApp/PostgresApp/releases/download/v2.9.6/Postgres-2.9.6-17.dmg
+  local public asset cache; product SHA-256 validation follows
+✓ SHA-256 Postgres-2.9.6-17.dmg b38bb00b8c8702a568270aab85995c550f7f93d1503b818efdc5ff9a519b7168
+→ nats-server v2.11.4…
+  ↓ https://github.com/nats-io/nats-server/releases/download/v2.11.4/nats-server-v2.11.4-darwin-arm64.tar.gz
+  local public asset cache; product SHA-256 validation follows
+✓ SHA-256 nats-server-v2.11.4-darwin-arm64.tar.gz 151d47377ddb2cdffb4474a30494be493923e2f8d0d390db7244f0509b5c759f
+✓ 载荷自检通过
+✅ 载荷就绪：dist-payload（1.2G）+ dist-payload.tar.gz（478M）

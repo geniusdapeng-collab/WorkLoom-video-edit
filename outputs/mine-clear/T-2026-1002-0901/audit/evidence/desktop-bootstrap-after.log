@@ -1,0 +1,55 @@
+COMMAND ["/Users/mac/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node", "--env-file=.env", "--test", "apps/desktop/electron/bootstrap.test.cjs"]
+09:32:50 == WorkLoom 织元 · 引导启动（resources=/var/folders/dj/mkh6fwbd4mb6ycp933xfty4h0000gn/T/workloom-packaged-payload-missing-zWs7qX/resources）==
+09:32:50 正在检查本机版本与安装载荷…
+09:32:50 == WorkLoom 织元 · 引导启动（resources=/var/folders/dj/mkh6fwbd4mb6ycp933xfty4h0000gn/T/workloom-packaged-no-double-payload-vPlCyv/resources）==
+09:32:50 正在检查本机版本与安装载荷…
+▶ 桌面载荷原子装配
+  ✔ 解析物理路径后向 tar 传相对路径，并为 Windows 跨盘符暂存归档 (1.745166ms)
+  ✔ 正式打包入口缺少载荷时在启动任何服务前失败关闭 (9.962958ms)
+  ✔ 正式打包入口不会把源码 dist-payload 双重嵌套误认作 Resources (2.515209ms)
+  ✔ 完整暂存后换入；提交前可回滚，提交后清理临时目录 (9.385833ms)
+  ✔ 提交清理故障发生在不可逆边界之后，不会重新开放旧载荷回滚 (4.897417ms)
+  ✔ 换入第一项后故障会恢复旧版目录、版本和首航状态 (3.889667ms)
+  ✔ 首装暂存失败不会留下半套运行时 (2.594ms)
+  ✔ 安装阶段检查点以机器可读中文状态落盘 (1.235458ms)
+  ✔ 启动页使用确定进度语义，不再显示循环假进度 (0.490666ms)
+  ✔ 源码主进程只复用已验活服务，正式安装包与渲染冒烟不能绕过载荷 (0.432833ms)
+  ✔ 发布渲染冒烟使用稳定动作标记走完真实欢迎流程 (0.503542ms)
+✔ 桌面载荷原子装配 (38.745208ms)
+▶ 桌面 PostgreSQL 实例归属与端口契约
+  ✔ 严格拒绝空白、小数、非数字和越界端口 (0.154625ms)
+  ✔ 只有 pg_ctl 确认运行且 postmaster 数据目录与端口同时匹配才允许复用 (1.68075ms)
+  ✔ pg_ctl 未确认运行时不读取残留 PID，也不把端口监听者当作自有实例 (0.465125ms)
+  ✔ 退出前重新复验实例归属，PID 文件被替换时绝不发送 stop (0.850583ms)
+  ✔ 托管环境只重写数据库与服务端口，保留其他用户配置 (3.651417ms)
+  ✔ 首装与升级分别从当前载荷生成桥注册表，不引用其他实例的运行目录 (2.423916ms)
+✔ 桌面 PostgreSQL 实例归属与端口契约 (9.832834ms)
+▶ 桌面本机渲染子进程的 Node 路径
+  ✔ 干净 GUI PATH 下仍能启动当前随包 Node，且保留系统工具路径 (28.856667ms)
+  ✔ Windows 只传一个不区分大小写的 Path；POSIX 不改其他同名变量 (0.079709ms)
+✔ 桌面本机渲染子进程的 Node 路径 (28.98175ms)
+▶ 桌面 PostgreSQL 凭据状态与 SCRAM 围栏
+  ✔ 0600 状态文件生成三份互异随机凭据，重复启动不轮换 (1.039625ms)
+  ✔ 损坏状态失败关闭；绑定 system_identifier 后才能完成并清除旧凭据 (1.631666ms)
+  ✔ pending 状态可从恢复后的旧配置补充候选；hardened 后绝不重新收录 (1.24075ms)
+  ✔ initdb 只接受 pwfile + SCRAM，HBA 只允许本机 SCRAM (0.419875ms)
+  ✔ pending 迁移复验失败会原子恢复旧 HBA 并再次 reload (0.942792ms)
+  ✔ 即使磁盘 HBA 未变化也强制 reload，再以正反向凭据复验结果为准 (0.599209ms)
+  ✔ 源码固定先提交新 payload 再创建状态或改库，且不含 trust initdb (0.203625ms)
+  ✔ payload commit 前用内置 Node 语法检查安全 helper，校验失败立即阻断 (0.184458ms)
+  ✔ 所有 migrate 入口在轮换 app/gateway 角色前固定本会话 SCRAM (0.168041ms)
+✔ 桌面 PostgreSQL 凭据状态与 SCRAM 围栏 (6.533875ms)
+▶ 应急浏览器壳与正式 Electron 共用安全引导
+  ✔ 原子单实例锁拒绝活进程，并可接管死进程遗留锁 (1.441916ms)
+  ✔ 两端旧启动器只委托 bootstrap，不再维护 trust/helper 分支 (0.697291ms)
+  ✔ 浏览器壳按平台使用无 shell 拼接的固定打开命令 (0.07725ms)
+  ✔ CLI 在启动前注册 INT/TERM/HUP，并用 AbortSignal 驱动初始化清理 (0.128791ms)
+✔ 应急浏览器壳与正式 Electron 共用安全引导 (2.394667ms)
+ℹ tests 32
+ℹ suites 5
+ℹ pass 32
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 147.423167

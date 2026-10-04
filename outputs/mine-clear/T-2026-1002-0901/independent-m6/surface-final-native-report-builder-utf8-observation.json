@@ -1,0 +1,17 @@
+{
+  "schema": "growth.independent-m6/report-entry-observation@1",
+  "observed_at": "2026-10-03T21:15:09.416491+08:00",
+  "source_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+  "ordinary_file_entry_actually_executed": true,
+  "ordinary_entry_exit_code": 1,
+  "ordinary_entry_log": "surface-final-native-report-builder-normal-entry.log",
+  "ordinary_entry_error": "Actual Non-UTF-8 SyntaxError at line512",
+  "builder_sha256": "29d544f7c65d2a485244c04909ddc9d5b95841c1552a2768d009e97008d3974b",
+  "strict_original_byte_utf8_decode_passed": true,
+  "original_complete_AST_and_byte_compile_passed": true,
+  "cause_proven": false,
+  "actual_source_or_native_or_MCD_product_tests": false,
+  "guard_omissions": 0,
+  "full_byte_fallback_execution_yet": false,
+  "scope": "Report metadata entry observation only; original actual failure retained; no inferred interpreter/filesystem cause"
+}

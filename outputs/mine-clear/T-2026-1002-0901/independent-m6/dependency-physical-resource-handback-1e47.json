@@ -1,0 +1,74 @@
+{
+  "schema": "growth.independent-m6/resource-handback@1",
+  "generated_at": "2026-10-04T03:16:28.518932+08:00",
+  "source_commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+  "handed_back_by": "growth_m6",
+  "handed_back_to": "root",
+  "physical_source_PG_GPU_native_large_IO_window_released": true,
+  "own_active_process_sessions": [],
+  "all_owned_actual_byte_checks_complete": true,
+  "readonly_DMG_mount_actually_detached": true,
+  "source_clean_verified": true,
+  "actual_native_source_bytes_QA_verified": true,
+  "native_prefix": "dependency",
+  "local_qa_verified": true,
+  "source_scoped_merge_eligible": false,
+  "actual_MCD_acceptance_executed": false,
+  "current_23_card_acceptance_requires_parent_new_repair_snapshot": true,
+  "private_contents_opened": false,
+  "real_provider_calls": 0,
+  "formal_REPORT_generated": false,
+  "original_7fee_surface_history_retained": true,
+  "files": [
+    {
+      "file": "floor-final-verification.json",
+      "sha256": "fa5c94c910b44e3b54703eb56e269cd1588b5889072111a19086233d56cd5533",
+      "bytes": 180711
+    },
+    {
+      "file": "floor-native-verification.json",
+      "sha256": "b231141b8eb8209176ca7005ec64cb98de326e6088a04433ad9534df1c7e4df4",
+      "bytes": 21026
+    },
+    {
+      "file": "final-native-dependency-input.json",
+      "sha256": "58d94fc804373b14d9068d4568d00eea55150e3058ebe26cc00ff2c8f24d477c",
+      "bytes": 1709
+    },
+    {
+      "file": "native-dependency-diagnostic-export-independent-review.json",
+      "sha256": "84a7275f8d44030291b41a19dab9b307f6ff089f732a2d72465b544d19a95973",
+      "bytes": 5073
+    },
+    {
+      "file": "dependency-final-app-byte-probe-results.json",
+      "sha256": "9808394abbacc985928df3080bdc586f21eeb418abdcbe841ca27e1e1d11bdd4",
+      "bytes": 2564
+    },
+    {
+      "file": "dependency-final-payload-byte-probe-results.json",
+      "sha256": "bbe33ba8ed77327ee3922af06805cbb968abce991b71062416a984f6093da30e",
+      "bytes": 1406493
+    },
+    {
+      "file": "dependency-final-dmg-byte-probe-results.json",
+      "sha256": "c33b830a1d466adbf1da170bf354e0b630e548deb3e1dff929fa3036ec55d83a",
+      "bytes": 1405
+    },
+    {
+      "file": "native-dependency-screenshot-review.json",
+      "sha256": "39f2c8b24fe345fa38981f268f11fe348a98365371b23e8298e199d8adb80e51",
+      "bytes": 4617
+    },
+    {
+      "file": "native-dependency-diagnostic-screenshot-review.json",
+      "sha256": "4abb8ce15486dd7cce5acbc9c6c10491a93113bc15ab318e40cc9c2f661d19c2",
+      "bytes": 2866
+    },
+    {
+      "file": "native-dependency-state-preservation-review.json",
+      "sha256": "f9186ea4ec285f7e5bb4f9578c1c3dd57350d8f125ab5d5231b81135b64972da",
+      "bytes": 1958
+    }
+  ]
+}

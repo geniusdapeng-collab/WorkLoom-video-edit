@@ -1,0 +1,13 @@
+{
+  "name": "oss-refresh-production",
+  "command": [
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+    "--env-file=.env",
+    "scripts/oss-inventory.mjs",
+    "--write"
+  ],
+  "exit_code": 0,
+  "seconds": 4.446,
+  "ran_at": "2026-10-02T21:56:24.437498+08:00",
+  "log": "oss-refresh-production.log"
+}

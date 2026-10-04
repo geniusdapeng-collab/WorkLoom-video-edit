@@ -1,0 +1,23 @@
+WorkLoom 启动诊断
+导出时间：2026-10-03T17:36:28.325Z
+应用版本：0.1.0-fix.20261003.6
+系统：darwin arm64
+支持参考：启动-MUSO4QMT
+最近错误：载荷版本标记缺失（resources=/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/依赖修复 诊断空资源）
+
+===== launch-1791048665039.log（末尾 223 字节）=====
+01:31:05 == WorkLoom 织元 · 引导启动（resources=/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/依赖修复 诊断空资源）==
+01:31:05 正在检查本机版本与安装载荷…
+
+
+===== zz-qa-synthetic.log（末尾 766 字节）=====
+QA 本机诊断中文上下文保留
+stage=synthetic-no-customer
+error_code=QA_SYNTHETIC_CONTEXT
+{"accessToken": "[已脱敏]", "clientSecret": "[已脱敏]", "privateKey": "[已脱敏]", "ordinary": "healthy context"}
+PASSWORD="[已脱敏]"
+API_KEY=[已脱敏]
+DATABASE_URL=postgresql://[已脱敏]@127.0.0.1:29632/qa_only
+Authorization: [已脱敏]]
+Cookie: [已脱敏]]
+Proxy-Authorization: [已脱敏]]

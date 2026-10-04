@@ -1,0 +1,23 @@
+{
+  "read_by": "growth_m6",
+  "read_at": "2026-10-03T10:42:24.677542+08:00",
+  "rows": [
+    {
+      "file": "official-drei-v10.7.8-Html.tsx",
+      "url": "https://raw.githubusercontent.com/pmndrs/drei/v10.7.8/src/web/Html.tsx",
+      "sha256": "346879bcb92a9a09bfb41a5b7a61496417463b9bd4f3e70840abfdce49378087",
+      "lines": 470,
+      "tool": "anonymous official raw_file",
+      "read_scope": "complete returned source text; source-specific portal/container contract, not entire dependency library"
+    },
+    {
+      "file": "official-fiber-v9.7.0-Canvas.tsx",
+      "url": "https://raw.githubusercontent.com/pmndrs/react-three-fiber/v9.7.0/packages/fiber/src/web/Canvas.tsx",
+      "sha256": "fde9d62ce3a9bff07a238a9c488a058cf766f0c4fc557d604ff7a101cbe8f526",
+      "lines": 179,
+      "tool": "anonymous official raw_file",
+      "read_scope": "complete returned source text; source-specific portal/container contract, not entire dependency library"
+    }
+  ],
+  "scope": "Primary technical references only; current product behavior independently tested and actual installed versions separately recorded. No dependency upgrade/latest-version claim."
+}

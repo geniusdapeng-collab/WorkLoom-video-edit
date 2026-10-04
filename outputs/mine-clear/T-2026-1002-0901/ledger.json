@@ -1,0 +1,2902 @@
+{
+  "schema": "workloom.mine-clear/ledger@1",
+  "task_id": "T-2026-1002-0901",
+  "repo": "workloom-growth",
+  "title": "Growth 全问题修复与客户交付回归",
+  "created_at": "2026-10-02T01:02:50.221Z",
+  "updated_at": "2026-10-03T23:43:56.176Z",
+  "baseline": {
+    "audit": {
+      "commit": "42ead347c65a5cc343bcd290702d53a7fcdb1687",
+      "branch": "task/T-2026-1002-0901",
+      "remote": "origin",
+      "fetched_at": null,
+      "notes": "匿名 CNB main 已核对；具体结束核对时间见final-source-state.json，不虚填fetch时间。原镜像 main 保持未改。审计源码42ead347，客户端修复后5d0c83e，未修业务代码字节未变。"
+    },
+    "repair": {
+      "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+      "reverified_problem_ids": [
+        "MC-001",
+        "MC-002",
+        "MC-003",
+        "MC-004",
+        "MC-005",
+        "MC-006",
+        "MC-007",
+        "MC-008",
+        "MC-009",
+        "MC-010",
+        "MC-011",
+        "MC-012",
+        "MC-013",
+        "MC-014",
+        "MC-015",
+        "MC-016",
+        "MC-017",
+        "MC-018"
+      ],
+      "notes": "修复前证据保留在原审计目录；本目录记录修复后实际回归及独立 M6 专项结论。"
+    },
+    "acceptance": {
+      "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+      "is_descendant_of_repair": true,
+      "notes": "独立源码专项验收；正式 Windows/Mac 签名及 RDAS 生产域仍另设硬门槛。"
+    }
+  },
+  "environment": {
+    "kind": "client-runtime",
+    "notes": "隔离 PostgreSQL 与本地计数连接器；Mac arm64 实际 DMG。真实供应商成片、Windows 原生运行和平台签名另验。"
+  },
+  "invariants": [
+    {
+      "id": "INV-1",
+      "text": "租户边界覆盖数据库 RLS、运行时上下文、事件、缓存和外部连接器。",
+      "source": "AGENTS.md#4.1"
+    },
+    {
+      "id": "INV-2",
+      "text": "经营事件、审批和关键回执只增不改；纠正通过新事件表达，不静默覆盖证据。",
+      "source": "AGENTS.md#4.2"
+    },
+    {
+      "id": "INV-3",
+      "text": "所有外部或变更性动作及其子调用，统一经过权限、PII、围栏和审批链路。",
+      "source": "AGENTS.md#4.3"
+    },
+    {
+      "id": "INV-4",
+      "text": "涉钱、敏感数据、群发、公开发布、交易和破坏性变更必须按高风险处理并由人审批。",
+      "source": "AGENTS.md#4.4"
+    },
+    {
+      "id": "INV-5",
+      "text": "没有真实回执就不能标记完成；mock、模拟和体验模式在数据结构与界面上都要明确区分。",
+      "source": "AGENTS.md#4.5"
+    },
+    {
+      "id": "INV-6",
+      "text": "客户原始经营数据不得上行；蜂群只接受白名单化、最小化、匿名化且可审计的元数据或派生经验。",
+      "source": "AGENTS.md#4.6"
+    },
+    {
+      "id": "INV-7",
+      "text": "租户覆盖层只能收紧围栏，不能放宽平台不可变红线。",
+      "source": "AGENTS.md#4.7"
+    },
+    {
+      "id": "INV-8",
+      "text": "模型、提示词、技能、bundle、策略和热更新必须先评测再灰度，且始终可回滚。",
+      "source": "AGENTS.md#4.8"
+    },
+    {
+      "id": "INV-9",
+      "text": "platform-ops、平台账户运营和平台秘密只属于 Andromeda。",
+      "source": "AGENTS.md#4.9"
+    },
+    {
+      "id": "INV-10",
+      "text": "Tiger 在获得单独的合规审查和用户明确授权前，只能模拟或纸面交易。",
+      "source": "AGENTS.md#4.10"
+    },
+    {
+      "id": "INV-11",
+      "text": "令牌、密码、API key、私钥、客户凭证和私密客户数据不得进入源码、文档、上下文、提示词、日志或提交。",
+      "source": "AGENTS.md#4.11"
+    },
+    {
+      "id": "INV-12",
+      "text": "个性化与行业扩展不得形成公共机制的第二事实源。",
+      "source": "AGENTS.md#4.12"
+    }
+  ],
+  "cards": [
+    {
+      "id": "MC-001",
+      "kind": "problem",
+      "severity": "P1",
+      "level": "L1",
+      "batch": 0,
+      "state": "verified",
+      "title": "桌面环境构造引用作用域外的 RUNTIME，首次启动抛异常",
+      "evidence_grade": "A",
+      "root_cause": {
+        "file": "apps/desktop/electron/bootstrap.cjs",
+        "line": 395,
+        "commit": "42ead347c65a5cc343bcd290702d53a7fcdb1687",
+        "symbol": "buildDesktopEnvironment"
+      },
+      "trigger_path": "在初装/重建环境时调用 buildDesktopEnvironment；执行原 bootstrap.test.cjs 环境构造用例即可复现。",
+      "expected": "返回数据库与服务配置，桥模块按安装后的 runtime 绝对目录解析，无 ReferenceError。",
+      "actual": "基线测试 exit 1，ReferenceError: RUNTIME is not defined；修复后同测试和真实 DMG 首启 exit 0。",
+      "fix_direction": "显式传入 runtimeDir，校验其为绝对路径，bootstrap 调用方传入本次运行目录。",
+      "coupling": "环境重写、中文路径、桥注册和已有配置保留共同受影响；不能只移除桥解析以躲过异常。",
+      "invariant_ids": [
+        "INV-3",
+        "INV-5"
+      ],
+      "assertions": [
+        {
+          "kind": "sample",
+          "given": "修复提交中的 bootstrap 单测与隔离中文 runtime",
+          "expect": "环境构造用例通过且桥模块路径来自传入目录",
+          "command": "pnpm test:desktop",
+          "last_result": "pass",
+          "evidence": "evidence/diagnostic-desktop-suite.log"
+        }
+      ],
+      "evidence": [
+        {
+          "type": "code",
+          "ref": "apps/desktop/electron/bootstrap.cjs:395@42ead347c65a5cc343bcd290702d53a7fcdb1687",
+          "note": "buildDesktopEnvironment"
+        },
+        {
+          "type": "runtime",
+          "ref": "evidence/desktop-bootstrap-before.log",
+          "note": "隔离实测或记录的元数据；具体证据等级见卡片"
+        },
+        {
+          "type": "runtime",
+          "ref": "evidence/desktop-bootstrap-after.log",
+          "note": "隔离实测或记录的元数据；具体证据等级见卡片"
+        },
+        {
+          "type": "runtime",
+          "ref": "evidence/installed-app-first.json",
+          "note": "隔离实测或记录的元数据；具体证据等级见卡片"
+        }
+      ],
+      "notes": "原根因位置和失败证据保留在审计基线；verified 限定本问题的源码合同，不代表全平台正式发行或真实供应商经营能力通过。",
+      "fixed_by": "codex-root-T-2026-1002-0901",
+      "fix_commit": "5d0c83e3293dc3a71651210987c9a5b48023480d",
+      "regression": {
+        "command": "pnpm test:desktop",
+        "evidence": "evidence/diagnostic-desktop-suite.log"
+      },
+      "repair_evidence": [
+        {
+          "type": "regression",
+          "ref": "evidence/diagnostic-desktop-suite.log",
+          "current_verified_source_commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+          "run_provenance": "Original retained execution, with its original argv/source in the receipt. This field binds the independently reviewed current implementation; it does not relabel an older run as a new execution."
+        }
+      ],
+      "baseline_assertions": [
+        {
+          "kind": "sample",
+          "given": "修复提交中的 bootstrap 单测与隔离中文 runtime",
+          "expect": "环境构造用例通过且桥模块路径来自传入目录",
+          "command": "node --test apps/desktop/electron/bootstrap.test.cjs",
+          "last_result": "pass",
+          "evidence": "evidence/desktop-bootstrap-after.log"
+        }
+      ],
+      "fixed_at": "2026-10-04T05:40:08.105116+08:00",
+      "verified_by": "growth_m6",
+      "verified_at": "2026-10-04T05:32:31.451409+08:00",
+      "verification_evidence": "independent-m6/ledger-verification.json",
+      "source_verification": {
+        "id": "MC-001",
+        "kind": "problem",
+        "title": "桌面环境构造引用作用域外的 RUNTIME，首次启动抛异常",
+        "severity": "P1",
+        "verified_by": "growth_m6",
+        "fixed_by": "codex-root-T-2026-1002-0901",
+        "acceptance_commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+        "source_status": "verified-with-stated-scope",
+        "grade": "A",
+        "evidence": "surface-7fee-desktop.log",
+        "implementation": "buildDesktopEnvironment / bootstrap.cjs",
+        "conclusion": "Source path construction verified; actual native versions remain separately bound in the native addendum. Current exact native status: 当前精确新客户包的源、实际 app/payload/DMG 字节、冷默认/安全模式、首装/重启和真实旧版升级已独立复核；本地 QA 专项放行，正式 Windows/Apple trust/模型/UX 条件仍保留。",
+        "delivery_conditions": true
+      },
+      "baseline_actual": "基线测试 exit 1，ReferenceError: RUNTIME is not defined；修复后同测试和真实 DMG 首启 exit 0。",
+      "repair_actual": "Source path construction verified; actual native versions remain separately bound in the native addendum. Current exact native status: 当前精确新客户包的源、实际 app/payload/DMG 字节、冷默认/安全模式、首装/重启和真实旧版升级已独立复核；本地 QA 专项放行，正式 Windows/Apple trust/模型/UX 条件仍保留。",
+      "delivery_conditions": true,
+      "execution_contract": "Source acceptance has separate actual modern MCD argv runs/output hashes in execution-ledger.json and evidence-index.json. The repository legacy gate validates metadata only. MC-106 remains conditional on real native platform release.",
+      "portable_replay_readme": "replay/README.md",
+      "modern_execution_ledger": "execution-ledger.json"
+    },
+    {
+      "id": "MC-002",
+      "kind": "problem",
+      "severity": "P1",
+      "level": "L2",
+      "batch": 0,
+      "state": "verified",
+      "title": "客户端精确依赖锁未随仓库实际依赖更新，载荷门禁失败",
+      "evidence_grade": "B",
+      "root_cause": {
+        "file": ".workloom-runtime-deps/metadata.json",
+        "line": 28,
+        "commit": "42ead347c65a5cc343bcd290702d53a7fcdb1687",
+        "symbol": "runtime-deps-lock verify 输入指纹"
+      },
+      "trigger_path": "基线运行 node scripts/runtime-deps-lock.mjs verify；装配脚本在依赖 stage 前检查当前产品精确 manifest。",
+      "expected": "锁中的 manifest 和输入指纹与产品源码一致，verify exit 0。",
+      "actual": "基线 exit 1，runtime 精确 manifest 已过期；按仓库实际依赖刷新后 exit 0，Windows x64 目标安装 58 个包成功。",
+      "fix_direction": "通过现有刷新器重建每产品精确 manifest、package-lock 与输入指纹，保持根 pnpm-lock；未另起一套依赖源。",
+      "coupling": "根 package.json 的门禁脚本变化也改变指纹；打包、更新、各平台原生可选包安装共同依赖此锁。",
+      "invariant_ids": [
+        "INV-8",
+        "INV-12"
+      ],
+      "assertions": [
+        {
+          "kind": "sample",
+          "given": "修复源码与精确 runtime 锁",
+          "expect": "verify exit 0，输入指纹与当前产品一致",
+          "command": "node scripts/runtime-deps-lock.mjs verify",
+          "last_result": "pass",
+          "evidence": "evidence/runtime-lock-production-refresh-final.log"
+        }
+      ],
+      "evidence": [
+        {
+          "type": "code",
+          "ref": ".workloom-runtime-deps/metadata.json:28@42ead347c65a5cc343bcd290702d53a7fcdb1687",
+          "note": "runtime-deps-lock verify 输入指纹"
+        },
+        {
+          "type": "runtime",
+          "ref": "evidence/runtime-lock-baseline.log",
+          "note": "隔离实测或记录的元数据；具体证据等级见卡片"
+        },
+        {
+          "type": "runtime",
+          "ref": "evidence/runtime-lock-verify-final.json",
+          "note": "隔离实测或记录的元数据；具体证据等级见卡片"
+        },
+        {
+          "type": "runtime",
+          "ref": "evidence/runtime-lock-stage-windows-fixed-env.json",
+          "note": "隔离实测或记录的元数据；具体证据等级见卡片"
+        }
+      ],
+      "notes": "原根因位置和失败证据保留在审计基线；verified 限定本问题的源码合同，不代表全平台正式发行或真实供应商经营能力通过。",
+      "fixed_by": "codex-root-T-2026-1002-0901",
+      "fix_commit": "5d0c83e3293dc3a71651210987c9a5b48023480d",
+      "regression": {
+        "command": "node scripts/runtime-deps-lock.mjs verify",
+        "evidence": "evidence/runtime-lock-production-refresh-final.log"
+      },
+      "repair_evidence": [
+        {
+          "type": "regression",
+          "ref": "evidence/runtime-lock-production-refresh-final.log",
+          "current_verified_source_commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+          "run_provenance": "Original retained execution, with its original argv/source in the receipt. This field binds the independently reviewed current implementation; it does not relabel an older run as a new execution."
+        }
+      ],
+      "baseline_assertions": [
+        {
+          "kind": "sample",
+          "given": "修复源码与精确 runtime 锁",
+          "expect": "verify exit 0，输入指纹与当前产品一致",
+          "command": "node scripts/runtime-deps-lock.mjs verify",
+          "last_result": "pass",
+          "evidence": "evidence/runtime-lock-verify-final.log"
+        }
+      ],
+      "fixed_at": "2026-10-04T05:40:08.105116+08:00",
+      "verified_by": "growth_m6",
+      "verified_at": "2026-10-04T05:32:31.451409+08:00",
+      "verification_evidence": "independent-m6/ledger-verification.json",
+      "source_verification": {
+        "id": "MC-002",
+        "kind": "problem",
+        "title": "客户端精确依赖锁未随仓库实际依赖更新，载荷门禁失败",
+        "severity": "P1",
+        "verified_by": "growth_m6",
+        "fixed_by": "codex-root-T-2026-1002-0901",
+        "acceptance_commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+        "source_status": "verified-with-stated-scope",
+        "grade": "B",
+        "evidence": "mcd-acceptance-verification.json;dependency-1e47-structural-binding.json;locks-parser.json",
+        "implementation": ".workloom-runtime-deps/metadata.json and precise manifest",
+        "conclusion": "The exact accepted dependency inputs and both complete lock graphs are machine-compared; metadata differs only in the two input hashes. Actual current runtime-lock execution is separately recorded by the real MCD roles. Historical desktop113 and its subsets keep7fee execution metadata; Windows native remains unverified.",
+        "delivery_conditions": true
+      },
+      "baseline_actual": "基线 exit 1，runtime 精确 manifest 已过期；按仓库实际依赖刷新后 exit 0，Windows x64 目标安装 58 个包成功。",
+      "repair_actual": "The exact accepted dependency inputs and both complete lock graphs are machine-compared; metadata differs only in the two input hashes. Actual current runtime-lock execution is separately recorded by the real MCD roles. Historical desktop113 and its subsets keep7fee execution metadata; Windows native remains unverified.",
+      "delivery_conditions": true,
+      "execution_contract": "Source acceptance has separate actual modern MCD argv runs/output hashes in execution-ledger.json and evidence-index.json. The repository legacy gate validates metadata only. MC-106 remains conditional on real native platform release.",
+      "portable_replay_readme": "replay/README.md",
+      "modern_execution_ledger": "execution-ledger.json"
+    },
+    {
+      "id": "MC-003",
+      "kind": "problem",
+      "severity": "P1",
+      "level": "L2",
+      "batch": 0,
+      "state": "verified",
+      "title": "工作区源码复制进 node_modules 后破坏相对路径与模块单例",
+      "evidence_grade": "A",
+      "root_cause": {
+        "file": "scripts/pack-electron-payload.sh",
+        "line": 127,
+        "commit": "42ead347c65a5cc343bcd290702d53a7fcdb1687",
+        "symbol": "内部工作区包实体注册循环"
+      },
+      "trigger_path": "按原脚本打包，再从独立 support 目录启动；视频包从 node_modules 的复制位置解析 ../../../bundles。",
+      "expected": "安装 runtime 保留源码相对路径，同一个工作区模块只有一个实体实例，服务健康检查通过。",
+      "actual": "首个完整载荷启动因 shot-intent.mjs 的 bundles 路径偏移而 ERR_MODULE_NOT_FOUND，健康检查超时；新载荷真实安装启动成功。",
+      "fix_direction": "保留 packages 原位置，在 node_modules 生成 ESM 重导出入口；三个打包脚本共用新 helper。对不支持的 default、通配和 CJS exports 失败关闭。",
+      "coupling": "行业契约 dist、跨包相对依赖、重复包名、条件 exports、模块状态单例和中文空格重定位均需检查。",
+      "invariant_ids": [
+        "INV-5",
+        "INV-12"
+      ],
+      "assertions": [
+        {
+          "kind": "sample",
+          "given": "包复制旧布局与中文重定位后的实体入口",
+          "expect": "5 个回归用例通过，旧复制布局的相对路径失败被复现，入口重导出保持同一实例",
+          "command": "pnpm test:desktop",
+          "last_result": "pass",
+          "evidence": "evidence/diagnostic-desktop-suite.log"
+        }
+      ],
+      "evidence": [
+        {
+          "type": "code",
+          "ref": "scripts/pack-electron-payload.sh:127@42ead347c65a5cc343bcd290702d53a7fcdb1687",
+          "note": "内部工作区包实体注册循环"
+        },
+        {
+          "type": "runtime",
+          "ref": "evidence/packaged-bootstrap-first.log",
+          "note": "隔离实测或记录的元数据；具体证据等级见卡片"
+        },
+        {
+          "type": "runtime",
+          "ref": "evidence/desktop-workspace-regression.log",
+          "note": "隔离实测或记录的元数据；具体证据等级见卡片"
+        },
+        {
+          "type": "runtime",
+          "ref": "evidence/installed-app-first.json",
+          "note": "隔离实测或记录的元数据；具体证据等级见卡片"
+        }
+      ],
+      "notes": "原根因位置和失败证据保留在审计基线；verified 限定本问题的源码合同，不代表全平台正式发行或真实供应商经营能力通过。",
+      "fixed_by": "codex-root-T-2026-1002-0901",
+      "fix_commit": "5d0c83e3293dc3a71651210987c9a5b48023480d",
+      "regression": {
+        "command": "pnpm test:desktop",
+        "evidence": "evidence/diagnostic-desktop-suite.log"
+      },
+      "repair_evidence": [
+        {
+          "type": "regression",
+          "ref": "evidence/diagnostic-desktop-suite.log",
+          "current_verified_source_commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+          "run_provenance": "Original retained execution, with its original argv/source in the receipt. This field binds the independently reviewed current implementation; it does not relabel an older run as a new execution."
+        }
+      ],
+      "baseline_assertions": [
+        {
+          "kind": "sample",
+          "given": "包复制旧布局与中文重定位后的实体入口",
+          "expect": "5 个回归用例通过，旧复制布局的相对路径失败被复现，入口重导出保持同一实例",
+          "command": "node --test scripts/pack-workspace-modules.test.mjs",
+          "last_result": "pass",
+          "evidence": "evidence/desktop-workspace-regression.log"
+        }
+      ],
+      "fixed_at": "2026-10-04T05:40:08.105116+08:00",
+      "verified_by": "growth_m6",
+      "verified_at": "2026-10-04T05:32:31.451409+08:00",
+      "verification_evidence": "independent-m6/ledger-verification.json",
+      "source_verification": {
+        "id": "MC-003",
+        "kind": "problem",
+        "title": "工作区源码复制进 node_modules 后破坏相对路径与模块单例",
+        "severity": "P1",
+        "verified_by": "growth_m6",
+        "fixed_by": "codex-root-T-2026-1002-0901",
+        "acceptance_commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+        "source_status": "verified-with-stated-scope",
+        "grade": "A",
+        "evidence": "surface-7fee-desktop.log",
+        "implementation": "registerWorkspaceModules / copyRuntimeSources",
+        "conclusion": "Canonical identity and relocation test plus all eight module/source-copy tests pass; native rendering is separately gated in the exact-version addendum. Current exact native status: 当前精确新客户包的源、实际 app/payload/DMG 字节、冷默认/安全模式、首装/重启和真实旧版升级已独立复核；本地 QA 专项放行，正式 Windows/Apple trust/模型/UX 条件仍保留。",
+        "delivery_conditions": true
+      },
+      "baseline_actual": "首个完整载荷启动因 shot-intent.mjs 的 bundles 路径偏移而 ERR_MODULE_NOT_FOUND，健康检查超时；新载荷真实安装启动成功。",
+      "repair_actual": "Canonical identity and relocation test plus all eight module/source-copy tests pass; native rendering is separately gated in the exact-version addendum. Current exact native status: 当前精确新客户包的源、实际 app/payload/DMG 字节、冷默认/安全模式、首装/重启和真实旧版升级已独立复核；本地 QA 专项放行，正式 Windows/Apple trust/模型/UX 条件仍保留。",
+      "delivery_conditions": true,
+      "execution_contract": "Source acceptance has separate actual modern MCD argv runs/output hashes in execution-ledger.json and evidence-index.json. The repository legacy gate validates metadata only. MC-106 remains conditional on real native platform release.",
+      "portable_replay_readme": "replay/README.md",
+      "modern_execution_ledger": "execution-ledger.json"
+    },
+    {
+      "id": "MC-004",
+      "kind": "problem",
+      "severity": "P1",
+      "level": "L2",
+      "batch": 0,
+      "state": "verified",
+      "title": "载荷漏影片辅助模块，备线遗漏种子与白板工具依赖",
+      "evidence_grade": "A",
+      "root_cause": {
+        "file": "scripts/pack-electron-payload.sh",
+        "line": 91,
+        "commit": "42ead347c65a5cc343bcd290702d53a7fcdb1687",
+        "symbol": "Film CLI 文件白名单"
+      },
+      "trigger_path": "使用原独立安装 runtime 加 tsx loader 调用 full-chain-film.mts --worker；Mac/Windows 备线装配种子和工具。",
+      "expected": "工具导入闭包完整；已知未实现的 worker 分支返回 WORKER_MODE_NOT_WIRED，而非模块缺失；所需种子与契约 dist 随包。",
+      "actual": "旧独立 runtime 缺 film-voice-artifact.js，ERR_MODULE_NOT_FOUND；新 DMG runtime 无缺模块并到达 worker 守卫。备线 skill-bindings、Windows 工具白名单与 Mac dist 已补，备线整包未实跑。",
+      "fix_direction": "补 film-voice-artifact.ts、skill-bindings.mts、备线行业契约 dist 和 Windows 影片/白板源码白名单，将关键文件列入载荷自检。",
+      "coupling": "补导入依赖不等于实现影片工位；FFmpeg、Python、原生增强和供应商仍属于另外的业务依赖。",
+      "invariant_ids": [
+        "INV-5"
+      ],
+      "assertions": [
+        {
+          "kind": "sample",
+          "given": "修复后的源码和隔离验收夹具",
+          "expect": "命令退出 0 且载荷或对应功能断言通过",
+          "command": "bash scripts/pack-electron-payload.sh --platform mac --arch arm64",
+          "last_result": "pass",
+          "evidence": "evidence/mac-dependency-payload-cached-proxy.log"
+        }
+      ],
+      "evidence": [
+        {
+          "type": "code",
+          "ref": "scripts/pack-electron-payload.sh:91@42ead347c65a5cc343bcd290702d53a7fcdb1687",
+          "note": "Film CLI 文件白名单"
+        },
+        {
+          "type": "runtime",
+          "ref": "evidence/packaged-film-cli-red.log",
+          "note": "隔离实测或记录的元数据；具体证据等级见卡片"
+        },
+        {
+          "type": "runtime",
+          "ref": "evidence/packaged-film-load-result.json",
+          "note": "隔离实测或记录的元数据；具体证据等级见卡片"
+        },
+        {
+          "type": "runtime",
+          "ref": "evidence/shell-pack-syntax.json",
+          "note": "隔离实测或记录的元数据；具体证据等级见卡片"
+        }
+      ],
+      "notes": "原根因位置和失败证据保留在审计基线；verified 限定本问题的源码合同，不代表全平台正式发行或真实供应商经营能力通过。",
+      "fixed_by": "codex-root-T-2026-1002-0901",
+      "fix_commit": "5d0c83e3293dc3a71651210987c9a5b48023480d",
+      "regression": {
+        "command": "bash scripts/pack-electron-payload.sh --platform mac --arch arm64",
+        "evidence": "evidence/mac-dependency-payload-cached-proxy.log"
+      },
+      "repair_evidence": [
+        {
+          "type": "regression",
+          "ref": "evidence/mac-dependency-payload-cached-proxy.log",
+          "current_verified_source_commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+          "run_provenance": "Original retained execution, with its original argv/source in the receipt. This field binds the independently reviewed current implementation; it does not relabel an older run as a new execution."
+        }
+      ],
+      "baseline_assertions": [
+        {
+          "kind": "sample",
+          "given": "新 DMG 解包后的 runtime 与内置 Node",
+          "expect": "导入成功，到达 WORKER_MODE_NOT_WIRED，missing_module=false",
+          "command": "node \"/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-audit-2026-10-02/evidence/packaged-film-load-assert.mjs\" \"/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/安装验收 全新用户/runtime\" \"/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/安装验收 全新用户/node/bin/node\"",
+          "last_result": "pass",
+          "evidence": "evidence/packaged-film-load-result.json"
+        }
+      ],
+      "fixed_at": "2026-10-04T05:40:08.105116+08:00",
+      "verified_by": "growth_m6",
+      "verified_at": "2026-10-04T05:32:31.451409+08:00",
+      "verification_evidence": "independent-m6/ledger-verification.json",
+      "source_verification": {
+        "id": "MC-004",
+        "kind": "problem",
+        "title": "载荷漏影片辅助模块，备线遗漏种子与白板工具依赖",
+        "severity": "P1",
+        "verified_by": "growth_m6",
+        "fixed_by": "codex-root-T-2026-1002-0901",
+        "acceptance_commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+        "source_status": "verified-with-stated-scope",
+        "grade": "A source / B payload",
+        "evidence": "surface-7fee-desktop.log;film-public-success-results.json",
+        "implementation": "pack-electron-payload.sh / pack-macos.sh / pack-windows.sh",
+        "conclusion": "Required helper and dist whitelist reviewed; child imports and local stages run. Entire Windows/emergency installers were not executed. Current exact native status: 当前精确新客户包的源、实际 app/payload/DMG 字节、冷默认/安全模式、首装/重启和真实旧版升级已独立复核；本地 QA 专项放行，正式 Windows/Apple trust/模型/UX 条件仍保留。",
+        "delivery_conditions": true
+      },
+      "baseline_actual": "旧独立 runtime 缺 film-voice-artifact.js，ERR_MODULE_NOT_FOUND；新 DMG runtime 无缺模块并到达 worker 守卫。备线 skill-bindings、Windows 工具白名单与 Mac dist 已补，备线整包未实跑。",
+      "repair_actual": "Required helper and dist whitelist reviewed; child imports and local stages run. Entire Windows/emergency installers were not executed. Current exact native status: 当前精确新客户包的源、实际 app/payload/DMG 字节、冷默认/安全模式、首装/重启和真实旧版升级已独立复核；本地 QA 专项放行，正式 Windows/Apple trust/模型/UX 条件仍保留。",
+      "delivery_conditions": true,
+      "execution_contract": "Source acceptance has separate actual modern MCD argv runs/output hashes in execution-ledger.json and evidence-index.json. The repository legacy gate validates metadata only. MC-106 remains conditional on real native platform release.",
+      "portable_replay_readme": "replay/README.md",
+      "modern_execution_ledger": "execution-ledger.json"
+    },
+    {
+      "id": "MC-005",
+      "kind": "problem",
+      "severity": "P0",
+      "level": "L1",
+      "batch": 0,
+      "state": "verified",
+      "title": "生产环境公共 loginAs 无身份验证，非示例工作区可取得 owner 身份",
+      "evidence_grade": "A",
+      "root_cause": {
+        "file": "apps/server/src/trpc/router.ts",
+        "line": 851,
+        "commit": "42ead347c65a5cc343bcd290702d53a7fcdb1687",
+        "symbol": "authRouter.loginAs / publicProcedure"
+      },
+      "trigger_path": "NODE_ENV=production，使用随机签名密钥、loopback 隔离服务器；创建 is_example=false、dataMode=real 的假资产，用 slug 与 memberNo 发匿名 HTTP 请求，再请求 threads.list。",
+      "expected": "非示例工作区匿名登录被拒绝，不签发成员 JWT；需独立可验证身份与账号绑定。",
+      "actual": "HTTP 200，owner JWT 已签发，保护接口 threads.list HTTP 200；JWT 内容不进入证据。隔离假资产，无客户真实数据。",
+      "fix_direction": "把 loginAs 限制在显式体验身份并绑定示例数据；正式成员走真实身份验证。生产默认拒开发 JWT 占位，授权从可信成员关系派生。",
+      "coupling": "桌面示例体验、邀请、会话恢复、Web B/C 及多工作区入口需一起回归；不能仅隐藏按钮或靠 SERVER_HOST 限制代替认证。",
+      "invariant_ids": [
+        "INV-1",
+        "INV-4",
+        "INV-11"
+      ],
+      "assertions": [
+        {
+          "kind": "sample",
+          "given": "生产模式隔离服务与非示例假资产",
+          "expect": "匿名请求 status>=400，token_issued=false",
+          "command": "node --env-file=.env ../auth-production-acceptance.mjs --repo .",
+          "last_result": "pass",
+          "evidence": "evidence/auth-production-http.json"
+        }
+      ],
+      "evidence": [
+        {
+          "type": "code",
+          "ref": "apps/server/src/trpc/router.ts:851@42ead347c65a5cc343bcd290702d53a7fcdb1687",
+          "note": "authRouter.loginAs / publicProcedure"
+        },
+        {
+          "type": "runtime",
+          "ref": "evidence/production-login-nonexample.json",
+          "note": "隔离实测或记录的元数据；具体证据等级见卡片"
+        },
+        {
+          "type": "runtime",
+          "ref": "evidence/production-login-nonexample-assert-final.json",
+          "note": "隔离实测或记录的元数据；具体证据等级见卡片"
+        },
+        {
+          "type": "runtime",
+          "ref": "evidence/source-server-c-ready.json",
+          "note": "隔离实测或记录的元数据；具体证据等级见卡片"
+        }
+      ],
+      "notes": "原根因位置和失败证据保留在审计基线；verified 限定本问题的源码合同，不代表全平台正式发行或真实供应商经营能力通过。",
+      "baseline_assertions": [
+        {
+          "kind": "sample",
+          "given": "生产模式隔离服务与非示例假资产",
+          "expect": "匿名请求 status>=400，token_issued=false",
+          "command": "node --env-file=.env \"/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-audit-2026-10-02/evidence/production-login-probe.mjs\" --base http://127.0.0.1:28787 --fixture \"/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-audit-2026-10-02/evidence/auth-nonexample-input.json\" --assert",
+          "last_result": "fail",
+          "evidence": "evidence/production-login-nonexample-assert-final.log"
+        }
+      ],
+      "fixed_by": "codex-root-T-2026-1002-0901",
+      "fixed_at": "2026-10-04T05:40:08.105116+08:00",
+      "verified_by": "growth_m6",
+      "verified_at": "2026-10-04T05:32:31.451409+08:00",
+      "verification_evidence": "independent-m6/ledger-verification.json",
+      "source_verification": {
+        "id": "MC-005",
+        "kind": "problem",
+        "title": "生产环境公共 loginAs 无身份验证，非示例工作区可取得 owner 身份",
+        "severity": "P0",
+        "verified_by": "growth_m6",
+        "fixed_by": "codex-root-T-2026-1002-0901",
+        "acceptance_commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+        "source_status": "verified-with-stated-scope",
+        "grade": "A / router C",
+        "evidence": "auth-http-results.json",
+        "implementation": "desktop-auth.ts / tenancy/auth.ts / trpc/context.ts; authRouter selected handler",
+        "conclusion": "Anonymous production owner login is 403; protected anonymous and malformed JWT cases are 401; trusted capability only selects server-configured identity.",
+        "delivery_conditions": false
+      },
+      "regression": {
+        "command": "node --env-file=.env ../auth-production-acceptance.mjs --repo .",
+        "evidence": "evidence/auth-production-http.json"
+      },
+      "repair_evidence": [
+        {
+          "type": "regression",
+          "ref": "evidence/auth-production-http.json",
+          "current_verified_source_commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+          "run_provenance": "Original retained execution, with its original argv/source in the receipt. This field binds the independently reviewed current implementation; it does not relabel an older run as a new execution."
+        }
+      ],
+      "baseline_actual": "HTTP 200，owner JWT 已签发，保护接口 threads.list HTTP 200；JWT 内容不进入证据。隔离假资产，无客户真实数据。",
+      "repair_actual": "Anonymous production owner login is 403; protected anonymous and malformed JWT cases are 401; trusted capability only selects server-configured identity.",
+      "delivery_conditions": false,
+      "execution_contract": "Source acceptance has separate actual modern MCD argv runs/output hashes in execution-ledger.json and evidence-index.json. The repository legacy gate validates metadata only. MC-106 remains conditional on real native platform release.",
+      "portable_replay_readme": "replay/README.md",
+      "modern_execution_ledger": "execution-ledger.json"
+    },
+    {
+      "id": "MC-006",
+      "kind": "problem",
+      "severity": "P0",
+      "level": "L3",
+      "batch": 1,
+      "state": "verified",
+      "title": "外部动作先执行后授权，审批并发可产生重复副作用",
+      "evidence_grade": "A",
+      "root_cause": {
+        "file": "packages/runtime/src/loop.ts",
+        "line": 1038,
+        "commit": "42ead347c65a5cc343bcd290702d53a7fcdb1687",
+        "symbol": "runTool → gateway authorization / thread runner CAS"
+      },
+      "trigger_path": "使用真实 PG 和本地计数连接器：无 fence_bindings 的 agent 调写工具；一张高危审批对应 pending_review 线程并发续跑两次；另测 edited 高危审批。",
+      "expected": "拒绝权限、非法/已消费审批时工具调用数为 0；同一高危审批并发最多执行一次；失败线程有确定回收状态。",
+      "actual": "无权限工具已调用 1 次才 GatewayReject；并发工具调用 2 次，第二次落账才拒“审批已消费”；edited 高危调用 1 次后拒状态 edited，线程留 running。",
+      "fix_direction": "线程续跑统一原子认领；外部动作前完成权限/PII/围栏/审批内容快照校验和一次性授权预占；连接器携带幂等键并记录 started/succeeded/failed 回执。",
+      "coupling": "DB 事务不能包住任意远程副作用；必须设计失败重试与预占补偿。主循环、runner、scheduler、审批服务、gateway 与 connector 全链同改。",
+      "invariant_ids": [
+        "INV-2",
+        "INV-3",
+        "INV-4",
+        "INV-5"
+      ],
+      "assertions": [
+        {
+          "kind": "sample",
+          "given": "无权限 agent",
+          "expect": "工具调用次数=0",
+          "command": "pnpm exec tsx --env-file=.env ../../outputs/growth-production-fix-2026-10-02/evidence/runtime-repro.mts --repo . --assert",
+          "last_result": "pass",
+          "evidence": "evidence/runtime-repro-results.json"
+        },
+        {
+          "kind": "property",
+          "given": "同一张高危审批的两次并发续跑",
+          "expect": "本地执行器调用次数<=1",
+          "command": "pnpm exec tsx --env-file=.env ../../outputs/growth-production-fix-2026-10-02/evidence/runtime-repro.mts --repo . --assert",
+          "last_result": "pass",
+          "evidence": "evidence/runtime-repro-results.json"
+        },
+        {
+          "kind": "sample",
+          "given": "编辑后的高危审批",
+          "expect": "执行前一致解析审批，非法状态下调用次数=0",
+          "command": "pnpm exec tsx --env-file=.env ../../outputs/growth-production-fix-2026-10-02/evidence/runtime-repro.mts --repo . --assert",
+          "last_result": "pass",
+          "evidence": "evidence/runtime-repro-results.json"
+        }
+      ],
+      "evidence": [
+        {
+          "type": "code",
+          "ref": "packages/runtime/src/loop.ts:1038@42ead347c65a5cc343bcd290702d53a7fcdb1687",
+          "note": "runTool → gateway authorization / thread runner CAS"
+        },
+        {
+          "type": "runtime",
+          "ref": "evidence/runtime-repro-results.json",
+          "note": "隔离实测或记录的元数据；具体证据等级见卡片"
+        },
+        {
+          "type": "runtime",
+          "ref": "evidence/runtime-health-assert-final.json",
+          "note": "隔离实测或记录的元数据；具体证据等级见卡片"
+        }
+      ],
+      "notes": "原根因位置和失败证据保留在审计基线；verified 限定本问题的源码合同，不代表全平台正式发行或真实供应商经营能力通过。",
+      "baseline_assertions": [
+        {
+          "kind": "sample",
+          "given": "无权限 agent",
+          "expect": "工具调用次数=0",
+          "command": "pnpm exec tsx --env-file=.env \"/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-audit-2026-10-02/evidence/runtime-repro.mts\" --repo \"/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit\" --case PERMISSION-BEFORE-ACTION --assert",
+          "last_result": "fail",
+          "evidence": "evidence/runtime-repro-results.json"
+        },
+        {
+          "kind": "property",
+          "given": "同一张高危审批的两次并发续跑",
+          "expect": "本地执行器调用次数<=1",
+          "command": "pnpm exec tsx --env-file=.env \"/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-audit-2026-10-02/evidence/runtime-repro.mts\" --repo \"/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit\" --case PENDING-CONCURRENCY --assert",
+          "last_result": "fail",
+          "evidence": "evidence/runtime-repro-results.json"
+        },
+        {
+          "kind": "sample",
+          "given": "编辑后的高危审批",
+          "expect": "执行前一致解析审批，非法状态下调用次数=0",
+          "command": "pnpm exec tsx --env-file=.env \"/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-audit-2026-10-02/evidence/runtime-repro.mts\" --repo \"/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit\" --case EDIT-HIGH-RISK --assert",
+          "last_result": "fail",
+          "evidence": "evidence/runtime-repro-results.json"
+        }
+      ],
+      "fixed_by": "codex-root-T-2026-1002-0901",
+      "fixed_at": "2026-10-04T05:40:08.105116+08:00",
+      "verified_by": "growth_m6",
+      "verified_at": "2026-10-04T05:32:31.451409+08:00",
+      "verification_evidence": "independent-m6/ledger-verification.json",
+      "source_verification": {
+        "id": "MC-006",
+        "kind": "problem",
+        "title": "外部动作先执行后授权，审批并发可产生重复副作用",
+        "severity": "P0",
+        "verified_by": "growth_m6",
+        "fixed_by": "codex-root-T-2026-1002-0901",
+        "acceptance_commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+        "source_status": "verified-with-stated-scope",
+        "grade": "A",
+        "evidence": "runtime-repro-results.json;gateway-permit-results.json",
+        "implementation": "runQuest / authorizeToolExecution / gatewayAppend / runQuestForThread",
+        "conclusion": "Before-action denial, one approved execution, permit binding and failed-final non-replay pass; supplier side effects are replaced by local counters.",
+        "delivery_conditions": false
+      },
+      "regression": {
+        "command": "pnpm exec tsx --env-file=.env ../../outputs/growth-production-fix-2026-10-02/evidence/runtime-repro.mts --repo . --assert",
+        "evidence": "evidence/runtime-repro-results.json"
+      },
+      "repair_evidence": [
+        {
+          "type": "regression",
+          "ref": "evidence/runtime-repro-results.json",
+          "current_verified_source_commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+          "run_provenance": "Original retained execution, with its original argv/source in the receipt. This field binds the independently reviewed current implementation; it does not relabel an older run as a new execution."
+        }
+      ],
+      "baseline_actual": "无权限工具已调用 1 次才 GatewayReject；并发工具调用 2 次，第二次落账才拒“审批已消费”；edited 高危调用 1 次后拒状态 edited，线程留 running。",
+      "repair_actual": "Before-action denial, one approved execution, permit binding and failed-final non-replay pass; supplier side effects are replaced by local counters.",
+      "delivery_conditions": false,
+      "execution_contract": "Source acceptance has separate actual modern MCD argv runs/output hashes in execution-ledger.json and evidence-index.json. The repository legacy gate validates metadata only. MC-106 remains conditional on real native platform release.",
+      "portable_replay_readme": "replay/README.md",
+      "modern_execution_ledger": "execution-ledger.json"
+    },
+    {
+      "id": "MC-007",
+      "kind": "problem",
+      "severity": "P0",
+      "level": "L1",
+      "batch": 1,
+      "state": "verified",
+      "title": "缺参和低相关性标记跳过全部围栏，人工审批可越过 block 红线",
+      "evidence_grade": "A",
+      "root_cause": {
+        "file": "packages/runtime/src/loop.ts",
+        "line": 778,
+        "commit": "42ead347c65a5cc343bcd290702d53a7fcdb1687",
+        "symbol": "needsHumanCheck 分支跳过 judge"
+      },
+      "trigger_path": "同一 unconditional block 规则下，对照普通计划与 context.params_incomplete=true 计划；实际调用 decide 采纳再续跑。",
+      "expected": "block 始终拒绝执行；缺参只能增加审核要求，不能把不可审批红线转成人工可放行。",
+      "actual": "对照 paused；带标记 pending_review；批准后 completed，本地写工具 1 次。",
+      "fix_direction": "先评估不可放宽红线再叠加审核要求；缺参/相关性标记由机制层生成，不信任模型标记；批准后仍重新校验当前红线。",
+      "coupling": "规则优先级、参数未知的判定、租户覆盖层与审批快照必须一致；不能删除缺参保护让所有步骤直接执行。",
+      "invariant_ids": [
+        "INV-3",
+        "INV-4",
+        "INV-7"
+      ],
+      "assertions": [
+        {
+          "kind": "property",
+          "given": "block 规则加缺参/相关性标记并经人工批准",
+          "expect": "工具调用次数=0，线程不进入 completed",
+          "command": "pnpm exec tsx --env-file=.env ../../outputs/growth-production-fix-2026-10-02/evidence/runtime-repro.mts --repo . --case BLOCK-FLAG --assert",
+          "last_result": "pass",
+          "evidence": "evidence/runtime-repro-results.json"
+        }
+      ],
+      "evidence": [
+        {
+          "type": "code",
+          "ref": "packages/runtime/src/loop.ts:778@42ead347c65a5cc343bcd290702d53a7fcdb1687",
+          "note": "needsHumanCheck 分支跳过 judge"
+        },
+        {
+          "type": "runtime",
+          "ref": "evidence/runtime-repro-results.json",
+          "note": "隔离实测或记录的元数据；具体证据等级见卡片"
+        },
+        {
+          "type": "runtime",
+          "ref": "evidence/runtime-health-assert-final.json",
+          "note": "隔离实测或记录的元数据；具体证据等级见卡片"
+        }
+      ],
+      "notes": "原根因位置和失败证据保留在审计基线；verified 限定本问题的源码合同，不代表全平台正式发行或真实供应商经营能力通过。",
+      "baseline_assertions": [
+        {
+          "kind": "property",
+          "given": "block 规则加缺参/相关性标记并经人工批准",
+          "expect": "工具调用次数=0，线程不进入 completed",
+          "command": "pnpm exec tsx --env-file=.env \"/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-audit-2026-10-02/evidence/runtime-repro.mts\" --repo \"/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit\" --case BLOCK-FLAG --assert",
+          "last_result": "fail",
+          "evidence": "evidence/runtime-repro-results.json"
+        }
+      ],
+      "fixed_by": "codex-root-T-2026-1002-0901",
+      "fixed_at": "2026-10-04T05:40:08.105116+08:00",
+      "verified_by": "growth_m6",
+      "verified_at": "2026-10-04T05:32:31.451409+08:00",
+      "verification_evidence": "independent-m6/ledger-verification.json",
+      "source_verification": {
+        "id": "MC-007",
+        "kind": "problem",
+        "title": "缺参和低相关性标记跳过全部围栏，人工审批可越过 block 红线",
+        "severity": "P0",
+        "verified_by": "growth_m6",
+        "fixed_by": "codex-root-T-2026-1002-0901",
+        "acceptance_commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+        "source_status": "verified-with-stated-scope",
+        "grade": "A",
+        "evidence": "runtime-repro-results.json;gateway-permit-results.json",
+        "implementation": "runQuest fence waterfall and final permit validation",
+        "conclusion": "Unconditional block remains paused before/after approval and flagged contexts; prohibited tool-call count is zero.",
+        "delivery_conditions": false
+      },
+      "regression": {
+        "command": "pnpm exec tsx --env-file=.env ../../outputs/growth-production-fix-2026-10-02/evidence/runtime-repro.mts --repo . --case BLOCK-FLAG --assert",
+        "evidence": "evidence/runtime-repro-results.json"
+      },
+      "repair_evidence": [
+        {
+          "type": "regression",
+          "ref": "evidence/runtime-repro-results.json",
+          "current_verified_source_commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+          "run_provenance": "Original retained execution, with its original argv/source in the receipt. This field binds the independently reviewed current implementation; it does not relabel an older run as a new execution."
+        }
+      ],
+      "baseline_actual": "对照 paused；带标记 pending_review；批准后 completed，本地写工具 1 次。",
+      "repair_actual": "Unconditional block remains paused before/after approval and flagged contexts; prohibited tool-call count is zero.",
+      "delivery_conditions": false,
+      "execution_contract": "Source acceptance has separate actual modern MCD argv runs/output hashes in execution-ledger.json and evidence-index.json. The repository legacy gate validates metadata only. MC-106 remains conditional on real native platform release.",
+      "portable_replay_readme": "replay/README.md",
+      "modern_execution_ledger": "execution-ledger.json"
+    },
+    {
+      "id": "MC-008",
+      "kind": "problem",
+      "severity": "P1",
+      "level": "L3",
+      "batch": 2,
+      "state": "verified",
+      "title": "plan_unverified 在存计划之后才标记，重放可绕过未批准的审核",
+      "evidence_grade": "A",
+      "root_cause": {
+        "file": "packages/runtime/src/loop.ts",
+        "line": 677,
+        "commit": "42ead347c65a5cc343bcd290702d53a7fcdb1687",
+        "symbol": "saveThreadPlan → relevance annotation"
+      },
+      "trigger_path": "创建目标与写计划零相关的线程，第一次挂起；不决定审批，第二次复用 DB 中计划运行。",
+      "expected": "plan_unverified 随计划版本持久化；未批准重放仍挂起，工具调用次数为 0。",
+      "actual": "首次 pending_review；存储的 context 没有 plan_unverified；第二次 completed，工具调用 1 次。",
+      "fix_direction": "所有机制层标记在计划持久化前完成，计划版本与审核 hash 绑定，旧版本重放重新验证并失效过期审批。",
+      "coupling": "新计划、复用、replan、数据库 JSON 迁移、批准快照和已完成步骤去重需同测。",
+      "invariant_ids": [
+        "INV-3",
+        "INV-4",
+        "INV-5"
+      ],
+      "assertions": [
+        {
+          "kind": "sample",
+          "given": "第一次挂起后未经批准重放",
+          "expect": "第二次仍 pending_review 且工具调用次数=0",
+          "command": "pnpm exec tsx --env-file=.env ../../outputs/growth-production-fix-2026-10-02/evidence/runtime-repro.mts --repo . --case RELEVANCE-REPLAY --assert",
+          "last_result": "pass",
+          "evidence": "evidence/runtime-repro-results.json"
+        }
+      ],
+      "evidence": [
+        {
+          "type": "code",
+          "ref": "packages/runtime/src/loop.ts:677@42ead347c65a5cc343bcd290702d53a7fcdb1687",
+          "note": "saveThreadPlan → relevance annotation"
+        },
+        {
+          "type": "runtime",
+          "ref": "evidence/runtime-repro-results.json",
+          "note": "隔离实测或记录的元数据；具体证据等级见卡片"
+        },
+        {
+          "type": "runtime",
+          "ref": "evidence/runtime-health-assert-final.json",
+          "note": "隔离实测或记录的元数据；具体证据等级见卡片"
+        }
+      ],
+      "notes": "原根因位置和失败证据保留在审计基线；verified 限定本问题的源码合同，不代表全平台正式发行或真实供应商经营能力通过。",
+      "baseline_assertions": [
+        {
+          "kind": "sample",
+          "given": "第一次挂起后未经批准重放",
+          "expect": "第二次仍 pending_review 且工具调用次数=0",
+          "command": "pnpm exec tsx --env-file=.env \"/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-audit-2026-10-02/evidence/runtime-repro.mts\" --repo \"/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit\" --case RELEVANCE-REPLAY --assert",
+          "last_result": "fail",
+          "evidence": "evidence/runtime-repro-results.json"
+        }
+      ],
+      "fixed_by": "codex-root-T-2026-1002-0901",
+      "fixed_at": "2026-10-04T05:40:08.105116+08:00",
+      "verified_by": "growth_m6",
+      "verified_at": "2026-10-04T05:32:31.451409+08:00",
+      "verification_evidence": "independent-m6/ledger-verification.json",
+      "source_verification": {
+        "id": "MC-008",
+        "kind": "problem",
+        "title": "plan_unverified 在存计划之后才标记，重放可绕过未批准的审核",
+        "severity": "P1",
+        "verified_by": "growth_m6",
+        "fixed_by": "codex-root-T-2026-1002-0901",
+        "acceptance_commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+        "source_status": "verified-with-stated-scope",
+        "grade": "A",
+        "evidence": "runtime-repro-results.json",
+        "implementation": "runQuest plan persistence and relevance replay",
+        "conclusion": "Stored plan contains plan_unverified; first and repeated run stay pending_review without tool execution.",
+        "delivery_conditions": false
+      },
+      "regression": {
+        "command": "pnpm exec tsx --env-file=.env ../../outputs/growth-production-fix-2026-10-02/evidence/runtime-repro.mts --repo . --case RELEVANCE-REPLAY --assert",
+        "evidence": "evidence/runtime-repro-results.json"
+      },
+      "repair_evidence": [
+        {
+          "type": "regression",
+          "ref": "evidence/runtime-repro-results.json",
+          "current_verified_source_commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+          "run_provenance": "Original retained execution, with its original argv/source in the receipt. This field binds the independently reviewed current implementation; it does not relabel an older run as a new execution."
+        }
+      ],
+      "baseline_actual": "首次 pending_review；存储的 context 没有 plan_unverified；第二次 completed，工具调用 1 次。",
+      "repair_actual": "Stored plan contains plan_unverified; first and repeated run stay pending_review without tool execution.",
+      "delivery_conditions": false,
+      "execution_contract": "Source acceptance has separate actual modern MCD argv runs/output hashes in execution-ledger.json and evidence-index.json. The repository legacy gate validates metadata only. MC-106 remains conditional on real native platform release.",
+      "portable_replay_readme": "replay/README.md",
+      "modern_execution_ledger": "execution-ledger.json"
+    },
+    {
+      "id": "MC-009",
+      "kind": "problem",
+      "severity": "P1",
+      "level": "L4",
+      "batch": 2,
+      "state": "verified",
+      "title": "编辑后采纳只记录新值，实际工具继续执行原参数",
+      "evidence_grade": "A",
+      "root_cause": {
+        "file": "packages/base/review-console/approvals.ts",
+        "line": 246,
+        "commit": "42ead347c65a5cc343bcd290702d53a7fcdb1687",
+        "symbol": "gesture.edited_after 与 loop 审批快照读取"
+      },
+      "trigger_path": "审批中将 amount=1 编辑为 amount=2，真实 decide 编辑后采纳，再运行同一步。",
+      "expected": "授权快照和工具参数均为 amount=2，旧值不可执行。",
+      "actual": "线程 completed，工具实际收到 amount=1；edited_after 已落事件但未用于实际 step.params。",
+      "fix_direction": "把编辑结果规范化为最终授权动作与参数，执行器只接受经过 hash 绑定的最终快照；编辑后重做参数与围栏校验。",
+      "coupling": "审批 UI 文案、金额/平台/收件人、事件原始值与最终值、MC-006 edited 状态冲突共同处理。",
+      "invariant_ids": [
+        "INV-3",
+        "INV-4",
+        "INV-5"
+      ],
+      "assertions": [
+        {
+          "kind": "sample",
+          "given": "amount 从1编辑为2后采纳",
+          "expect": "唯一工具调用 params.amount=2",
+          "command": "pnpm exec tsx --env-file=.env ../../outputs/growth-production-fix-2026-10-02/evidence/runtime-repro.mts --repo . --case EDIT-PARAMS --assert",
+          "last_result": "pass",
+          "evidence": "evidence/runtime-repro-results.json"
+        }
+      ],
+      "evidence": [
+        {
+          "type": "code",
+          "ref": "packages/base/review-console/approvals.ts:246@42ead347c65a5cc343bcd290702d53a7fcdb1687",
+          "note": "gesture.edited_after 与 loop 审批快照读取"
+        },
+        {
+          "type": "runtime",
+          "ref": "evidence/runtime-repro-results.json",
+          "note": "隔离实测或记录的元数据；具体证据等级见卡片"
+        }
+      ],
+      "notes": "原根因位置和失败证据保留在审计基线；verified 限定本问题的源码合同，不代表全平台正式发行或真实供应商经营能力通过。",
+      "baseline_assertions": [
+        {
+          "kind": "sample",
+          "given": "amount 从1编辑为2后采纳",
+          "expect": "唯一工具调用 params.amount=2",
+          "command": "pnpm exec tsx --env-file=.env \"/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-audit-2026-10-02/evidence/runtime-repro.mts\" --repo \"/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit\" --case EDIT-PARAMS --assert",
+          "last_result": "fail",
+          "evidence": "evidence/runtime-repro-results.json"
+        }
+      ],
+      "fixed_by": "codex-root-T-2026-1002-0901",
+      "fixed_at": "2026-10-04T05:40:08.105116+08:00",
+      "verified_by": "growth_m6",
+      "verified_at": "2026-10-04T05:32:31.451409+08:00",
+      "verification_evidence": "independent-m6/ledger-verification.json",
+      "source_verification": {
+        "id": "MC-009",
+        "kind": "problem",
+        "title": "编辑后采纳只记录新值，实际工具继续执行原参数",
+        "severity": "P1",
+        "verified_by": "growth_m6",
+        "fixed_by": "codex-root-T-2026-1002-0901",
+        "acceptance_commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+        "source_status": "verified-with-stated-scope",
+        "grade": "A",
+        "evidence": "runtime-repro-results.json",
+        "implementation": "decide / edited plan validation / runQuest",
+        "conclusion": "Both ordinary and high-risk edited approvals execute amount=2, exactly once.",
+        "delivery_conditions": false
+      },
+      "regression": {
+        "command": "pnpm exec tsx --env-file=.env ../../outputs/growth-production-fix-2026-10-02/evidence/runtime-repro.mts --repo . --case EDIT-PARAMS --assert",
+        "evidence": "evidence/runtime-repro-results.json"
+      },
+      "repair_evidence": [
+        {
+          "type": "regression",
+          "ref": "evidence/runtime-repro-results.json",
+          "current_verified_source_commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+          "run_provenance": "Original retained execution, with its original argv/source in the receipt. This field binds the independently reviewed current implementation; it does not relabel an older run as a new execution."
+        }
+      ],
+      "baseline_actual": "线程 completed，工具实际收到 amount=1；edited_after 已落事件但未用于实际 step.params。",
+      "repair_actual": "Both ordinary and high-risk edited approvals execute amount=2, exactly once.",
+      "delivery_conditions": false,
+      "execution_contract": "Source acceptance has separate actual modern MCD argv runs/output hashes in execution-ledger.json and evidence-index.json. The repository legacy gate validates metadata only. MC-106 remains conditional on real native platform release.",
+      "portable_replay_readme": "replay/README.md",
+      "modern_execution_ledger": "execution-ledger.json"
+    },
+    {
+      "id": "MC-010",
+      "kind": "problem",
+      "severity": "P1",
+      "level": "L3",
+      "batch": 2,
+      "state": "verified",
+      "title": "把 queued 算进运行并发，十条待办且零运行时队列停滞",
+      "evidence_grade": "A",
+      "root_cause": {
+        "file": "apps/server/src/runtime/scheduler.ts",
+        "line": 72,
+        "commit": "42ead347c65a5cc343bcd290702d53a7fcdb1687",
+        "symbol": "sweepQueuedThreads 并发计数"
+      },
+      "trigger_path": "同工作区插入 10 queued、0 running，连续执行真实 sweepQueuedThreads 两次。",
+      "expected": "有运行空位时至少认领一条 queued；运行数最多 MAX_CONCURRENT_THREADS。",
+      "actual": "两次 picked=[]，queued 始终10。入口与调度都以 running+queued 门禁形成停滞。",
+      "fix_direction": "运行并发与待办容量分开计数，原子认领 queued 并限制 active running；独立定义排队上限和过载反馈。",
+      "coupling": "threads dispatch、自动审批续跑、租户公平性、异常回收、同时多个 scheduler 均影响并发口径。",
+      "invariant_ids": [
+        "INV-5"
+      ],
+      "assertions": [
+        {
+          "kind": "sample",
+          "given": "0 running 和10 queued",
+          "expect": "两次扫描至少一次 picked 非空",
+          "command": "pnpm exec tsx --env-file=.env ../../outputs/growth-production-fix-2026-10-02/evidence/runtime-repro.mts --repo . --case QUEUE-10 --assert",
+          "last_result": "pass",
+          "evidence": "evidence/runtime-repro-results.json"
+        }
+      ],
+      "evidence": [
+        {
+          "type": "code",
+          "ref": "apps/server/src/runtime/scheduler.ts:72@42ead347c65a5cc343bcd290702d53a7fcdb1687",
+          "note": "sweepQueuedThreads 并发计数"
+        },
+        {
+          "type": "runtime",
+          "ref": "evidence/runtime-repro-results.json",
+          "note": "隔离实测或记录的元数据；具体证据等级见卡片"
+        }
+      ],
+      "notes": "原根因位置和失败证据保留在审计基线；verified 限定本问题的源码合同，不代表全平台正式发行或真实供应商经营能力通过。",
+      "baseline_assertions": [
+        {
+          "kind": "sample",
+          "given": "0 running 和10 queued",
+          "expect": "两次扫描至少一次 picked 非空",
+          "command": "pnpm exec tsx --env-file=.env \"/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-audit-2026-10-02/evidence/runtime-repro.mts\" --repo \"/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit\" --case QUEUE-10 --assert",
+          "last_result": "fail",
+          "evidence": "evidence/runtime-repro-results.json"
+        }
+      ],
+      "fixed_by": "codex-root-T-2026-1002-0901",
+      "fixed_at": "2026-10-04T05:40:08.105116+08:00",
+      "verified_by": "growth_m6",
+      "verified_at": "2026-10-04T05:32:31.451409+08:00",
+      "verification_evidence": "independent-m6/ledger-verification.json",
+      "source_verification": {
+        "id": "MC-010",
+        "kind": "problem",
+        "title": "把 queued 算进运行并发，十条待办且零运行时队列停滞",
+        "severity": "P1",
+        "verified_by": "growth_m6",
+        "fixed_by": "codex-root-T-2026-1002-0901",
+        "acceptance_commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+        "source_status": "verified-with-stated-scope",
+        "grade": "A",
+        "evidence": "runtime-repro-results.json",
+        "implementation": "sweepQueuedThreads",
+        "conclusion": "0-running/10-queued fixture advances. Global scan also touched existing fake T-154/T-155; residue is disclosed.",
+        "delivery_conditions": false
+      },
+      "regression": {
+        "command": "pnpm exec tsx --env-file=.env ../../outputs/growth-production-fix-2026-10-02/evidence/runtime-repro.mts --repo . --case QUEUE-10 --assert",
+        "evidence": "evidence/runtime-repro-results.json"
+      },
+      "repair_evidence": [
+        {
+          "type": "regression",
+          "ref": "evidence/runtime-repro-results.json",
+          "current_verified_source_commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+          "run_provenance": "Original retained execution, with its original argv/source in the receipt. This field binds the independently reviewed current implementation; it does not relabel an older run as a new execution."
+        }
+      ],
+      "baseline_actual": "两次 picked=[]，queued 始终10。入口与调度都以 running+queued 门禁形成停滞。",
+      "repair_actual": "0-running/10-queued fixture advances. Global scan also touched existing fake T-154/T-155; residue is disclosed.",
+      "delivery_conditions": false,
+      "execution_contract": "Source acceptance has separate actual modern MCD argv runs/output hashes in execution-ledger.json and evidence-index.json. The repository legacy gate validates metadata only. MC-106 remains conditional on real native platform release.",
+      "portable_replay_readme": "replay/README.md",
+      "modern_execution_ledger": "execution-ledger.json"
+    },
+    {
+      "id": "MC-011",
+      "kind": "problem",
+      "severity": "P1",
+      "level": "L3",
+      "batch": 2,
+      "state": "verified",
+      "title": "已驳回的 cancelled 线程可被普通 run 重新挂起",
+      "evidence_grade": "A",
+      "root_cause": {
+        "file": "apps/server/src/runtime/thread-runner.ts",
+        "line": 244,
+        "commit": "42ead347c65a5cc343bcd290702d53a7fcdb1687",
+        "symbol": "runQuestForThread CAS 与终态检查"
+      },
+      "trigger_path": "真实 decide reject 将审批关联线程置 cancelled；对原线程调用普通 runner。",
+      "expected": "普通 run 拒绝终态，仍 cancelled；显式重启另建尝试与审批版本。",
+      "actual": "调用后 pending_review，数据库终态被覆盖，未走显式重启协议。",
+      "fix_direction": "规定允许的状态转移并通过 CAS 统一认领；终态不可普通续跑；需要重试时生成新 attempt 和审批。",
+      "coupling": "驳回、取消、失败重试、人工暂停、审批自动续跑、旧回执去重共用状态机。",
+      "invariant_ids": [
+        "INV-2",
+        "INV-3",
+        "INV-5"
+      ],
+      "assertions": [
+        {
+          "kind": "sample",
+          "given": "已取消线程再次普通运行",
+          "expect": "线程仍 cancelled，拒绝普通续跑",
+          "command": "pnpm exec tsx --env-file=.env ../../outputs/growth-production-fix-2026-10-02/evidence/runtime-repro.mts --repo . --case REJECT-TERMINAL --assert",
+          "last_result": "pass",
+          "evidence": "evidence/runtime-repro-results.json"
+        }
+      ],
+      "evidence": [
+        {
+          "type": "code",
+          "ref": "apps/server/src/runtime/thread-runner.ts:244@42ead347c65a5cc343bcd290702d53a7fcdb1687",
+          "note": "runQuestForThread CAS 与终态检查"
+        },
+        {
+          "type": "runtime",
+          "ref": "evidence/runtime-repro-results.json",
+          "note": "隔离实测或记录的元数据；具体证据等级见卡片"
+        }
+      ],
+      "notes": "原根因位置和失败证据保留在审计基线；verified 限定本问题的源码合同，不代表全平台正式发行或真实供应商经营能力通过。",
+      "baseline_assertions": [
+        {
+          "kind": "sample",
+          "given": "已取消线程再次普通运行",
+          "expect": "线程仍 cancelled，拒绝普通续跑",
+          "command": "pnpm exec tsx --env-file=.env \"/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-audit-2026-10-02/evidence/runtime-repro.mts\" --repo \"/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit\" --case REJECT-TERMINAL --assert",
+          "last_result": "fail",
+          "evidence": "evidence/runtime-repro-results.json"
+        }
+      ],
+      "fixed_by": "codex-root-T-2026-1002-0901",
+      "fixed_at": "2026-10-04T05:40:08.105116+08:00",
+      "verified_by": "growth_m6",
+      "verified_at": "2026-10-04T05:32:31.451409+08:00",
+      "verification_evidence": "independent-m6/ledger-verification.json",
+      "source_verification": {
+        "id": "MC-011",
+        "kind": "problem",
+        "title": "已驳回的 cancelled 线程可被普通 run 重新挂起",
+        "severity": "P1",
+        "verified_by": "growth_m6",
+        "fixed_by": "codex-root-T-2026-1002-0901",
+        "acceptance_commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+        "source_status": "verified-with-stated-scope",
+        "grade": "A",
+        "evidence": "runtime-repro-results.json",
+        "implementation": "runQuestForThread terminal-state guard",
+        "conclusion": "Rejected thread remains cancelled and executor calls remain empty.",
+        "delivery_conditions": false
+      },
+      "regression": {
+        "command": "pnpm exec tsx --env-file=.env ../../outputs/growth-production-fix-2026-10-02/evidence/runtime-repro.mts --repo . --case REJECT-TERMINAL --assert",
+        "evidence": "evidence/runtime-repro-results.json"
+      },
+      "repair_evidence": [
+        {
+          "type": "regression",
+          "ref": "evidence/runtime-repro-results.json",
+          "current_verified_source_commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+          "run_provenance": "Original retained execution, with its original argv/source in the receipt. This field binds the independently reviewed current implementation; it does not relabel an older run as a new execution."
+        }
+      ],
+      "baseline_actual": "调用后 pending_review，数据库终态被覆盖，未走显式重启协议。",
+      "repair_actual": "Rejected thread remains cancelled and executor calls remain empty.",
+      "delivery_conditions": false,
+      "execution_contract": "Source acceptance has separate actual modern MCD argv runs/output hashes in execution-ledger.json and evidence-index.json. The repository legacy gate validates metadata only. MC-106 remains conditional on real native platform release.",
+      "portable_replay_readme": "replay/README.md",
+      "modern_execution_ledger": "execution-ledger.json"
+    },
+    {
+      "id": "MC-012",
+      "kind": "problem",
+      "severity": "P1",
+      "level": "L3",
+      "batch": 2,
+      "state": "verified",
+      "title": "驳回记忆 ID 不含工作区，同原因在第二工作区导致审批回滚",
+      "evidence_grade": "A",
+      "root_cause": {
+        "file": "packages/base/review-console/approvals.ts",
+        "line": 282,
+        "commit": "42ead347c65a5cc343bcd290702d53a7fcdb1687",
+        "symbol": "mem-reject-${reasonEnum} 与 org_memory 全局主键"
+      },
+      "trigger_path": "两个新工作区用相同 reasonEnum 驳回各自审批；org_memory 全局主键冲突与 RLS 同时触发。",
+      "expected": "两区审批均 rejected、线程均 cancelled，各区记忆独立写入。",
+      "actual": "第一工作区正常；第二工作区 42501 new row violates row-level security，审批仍 pending、线程 pending_review，事务回滚。",
+      "fix_direction": "记忆 ID 包含租户/工作区与稳定原因键，或改为复合唯一约束；迁移现有引用，保留 RLS。",
+      "coupling": "记忆引用事件、upsert、RLS、迁移回滚与多次同原因驳回去重需一起验证。",
+      "invariant_ids": [
+        "INV-1",
+        "INV-2",
+        "INV-5"
+      ],
+      "assertions": [
+        {
+          "kind": "sample",
+          "given": "两个隔离工作区用相同驳回原因",
+          "expect": "两区审批 rejected 且两线程 cancelled，无42501",
+          "command": "pnpm exec tsx --env-file=.env ../../outputs/growth-production-fix-2026-10-02/evidence/runtime-repro.mts --repo . --case REJECT-WORKSPACE-COLLISION --assert",
+          "last_result": "pass",
+          "evidence": "evidence/runtime-repro-results.json"
+        }
+      ],
+      "evidence": [
+        {
+          "type": "code",
+          "ref": "packages/base/review-console/approvals.ts:282@42ead347c65a5cc343bcd290702d53a7fcdb1687",
+          "note": "mem-reject-${reasonEnum} 与 org_memory 全局主键"
+        },
+        {
+          "type": "runtime",
+          "ref": "evidence/runtime-repro-results.json",
+          "note": "隔离实测或记录的元数据；具体证据等级见卡片"
+        }
+      ],
+      "notes": "原根因位置和失败证据保留在审计基线；verified 限定本问题的源码合同，不代表全平台正式发行或真实供应商经营能力通过。",
+      "baseline_assertions": [
+        {
+          "kind": "sample",
+          "given": "两个隔离工作区用相同驳回原因",
+          "expect": "两区审批 rejected 且两线程 cancelled，无42501",
+          "command": "pnpm exec tsx --env-file=.env \"/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-audit-2026-10-02/evidence/runtime-repro.mts\" --repo \"/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit\" --case REJECT-WORKSPACE-COLLISION --assert",
+          "last_result": "fail",
+          "evidence": "evidence/runtime-repro-results.json"
+        }
+      ],
+      "fixed_by": "codex-root-T-2026-1002-0901",
+      "fixed_at": "2026-10-04T05:40:08.105116+08:00",
+      "verified_by": "growth_m6",
+      "verified_at": "2026-10-04T05:32:31.451409+08:00",
+      "verification_evidence": "independent-m6/ledger-verification.json",
+      "source_verification": {
+        "id": "MC-012",
+        "kind": "problem",
+        "title": "驳回记忆 ID 不含工作区，同原因在第二工作区导致审批回滚",
+        "severity": "P1",
+        "verified_by": "growth_m6",
+        "fixed_by": "codex-root-T-2026-1002-0901",
+        "acceptance_commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+        "source_status": "verified-with-stated-scope",
+        "grade": "A",
+        "evidence": "runtime-repro-results.json",
+        "implementation": "decide workspace-bound rejection preference memory",
+        "conclusion": "Same rejection enum in two separate workspaces succeeds; both approvals are rejected and both threads cancelled.",
+        "delivery_conditions": false
+      },
+      "regression": {
+        "command": "pnpm exec tsx --env-file=.env ../../outputs/growth-production-fix-2026-10-02/evidence/runtime-repro.mts --repo . --case REJECT-WORKSPACE-COLLISION --assert",
+        "evidence": "evidence/runtime-repro-results.json"
+      },
+      "repair_evidence": [
+        {
+          "type": "regression",
+          "ref": "evidence/runtime-repro-results.json",
+          "current_verified_source_commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+          "run_provenance": "Original retained execution, with its original argv/source in the receipt. This field binds the independently reviewed current implementation; it does not relabel an older run as a new execution."
+        }
+      ],
+      "baseline_actual": "第一工作区正常；第二工作区 42501 new row violates row-level security，审批仍 pending、线程 pending_review，事务回滚。",
+      "repair_actual": "Same rejection enum in two separate workspaces succeeds; both approvals are rejected and both threads cancelled.",
+      "delivery_conditions": false,
+      "execution_contract": "Source acceptance has separate actual modern MCD argv runs/output hashes in execution-ledger.json and evidence-index.json. The repository legacy gate validates metadata only. MC-106 remains conditional on real native platform release.",
+      "portable_replay_readme": "replay/README.md",
+      "modern_execution_ledger": "execution-ledger.json"
+    },
+    {
+      "id": "MC-013",
+      "kind": "problem",
+      "severity": "P1",
+      "level": "L2",
+      "batch": 2,
+      "state": "verified",
+      "title": "影片工位子进程缺 TypeScript 加载器，worker 分支仍未接通",
+      "evidence_grade": "A（worker）/C（8160行CLI）",
+      "root_cause": {
+        "file": "apps/server/src/video/film-worker.ts",
+        "line": 383,
+        "commit": "42ead347c65a5cc343bcd290702d53a7fcdb1687",
+        "symbol": "runFilmJob child spawn / full-chain-film --worker"
+      },
+      "trigger_path": "真实公开 filmRouter.start/status，种子 owner 和有效 eraProfile；仅 storyboard，供应商 key 清空，mock，不产生供应商请求。另从修复后的安装 runtime 加 tsx loader 调 --worker。",
+      "expected": "子进程可加载源文件并产生规定组件/明确就绪判定；未接通的入口启动前返回可判定的不支持错误。",
+      "actual": "start 回 running，随后 failed / WORKER_EXIT_NONZERO，0 components；原生 Node 无 .js 到 .ts 的映射。显式加 loader 后到 WORKER_MODE_NOT_WIRED。",
+      "fix_direction": "子进程明确传 --import=tsx 或构建成 JS；实现 worker 协议与阶段回执后才开放入口；真正完成后测试归档、成本、错误和重试。",
+      "coupling": "影片 ledger、素材归档、声纹、portrait、预算、供应商幂等、FFmpeg/Python 与实际成片是后续独立闭环；本次未生产成片。",
+      "invariant_ids": [
+        "INV-5"
+      ],
+      "assertions": [
+        {
+          "kind": "sample",
+          "given": "修复后的源码和隔离验收夹具",
+          "expect": "命令退出 0 且绑定阶段与产物回归断言通过",
+          "command": "pnpm exec tsx --env-file=.env ../film-worker-acceptance.mts --repo .",
+          "last_result": "pass",
+          "evidence": "evidence/film-channel-public-bounded.log"
+        }
+      ],
+      "evidence": [
+        {
+          "type": "code",
+          "ref": "apps/server/src/video/film-worker.ts:383@42ead347c65a5cc343bcd290702d53a7fcdb1687",
+          "note": "runFilmJob child spawn / full-chain-film --worker"
+        },
+        {
+          "type": "runtime",
+          "ref": "evidence/film-route-result.json",
+          "note": "隔离实测或记录的元数据；具体证据等级见卡片"
+        },
+        {
+          "type": "runtime",
+          "ref": "evidence/film-route-assert-final.json",
+          "note": "隔离实测或记录的元数据；具体证据等级见卡片"
+        },
+        {
+          "type": "runtime",
+          "ref": "evidence/packaged-film-load-result.json",
+          "note": "隔离实测或记录的元数据；具体证据等级见卡片"
+        }
+      ],
+      "notes": "原根因位置和失败证据保留在审计基线；verified 限定本问题的源码合同，不代表全平台正式发行或真实供应商经营能力通过。",
+      "baseline_assertions": [
+        {
+          "kind": "sample",
+          "given": "无供应商 storyboard 夹具",
+          "expect": "预定义阶段结束并有可验证回执；当前 healthy=status finished",
+          "command": "pnpm exec tsx --env-file=.env \"/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-audit-2026-10-02/evidence/film-route-probe.mts\" --repo \"/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit\" --assert",
+          "last_result": "fail",
+          "evidence": "evidence/film-route-assert-final.log"
+        }
+      ],
+      "fixed_by": "codex-root-T-2026-1002-0901",
+      "fixed_at": "2026-10-04T05:40:08.105116+08:00",
+      "verified_by": "growth_m6",
+      "verified_at": "2026-10-04T05:32:31.451409+08:00",
+      "verification_evidence": "independent-m6/ledger-verification.json",
+      "source_verification": {
+        "id": "MC-013",
+        "kind": "problem",
+        "title": "影片工位子进程缺 TypeScript 加载器，worker 分支仍未接通",
+        "severity": "P1",
+        "verified_by": "growth_m6",
+        "fixed_by": "codex-root-T-2026-1002-0901",
+        "acceptance_commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+        "source_status": "verified-with-stated-scope",
+        "grade": "A / full-chain C",
+        "evidence": "film-public-success-results.json;film-public-missing-output-results.json;film-public-deadline-results.json;parent-channel-after-results.json",
+        "implementation": "startFilmJob / handleComponentRequest / FullChainFilmWorker / FilmLedger",
+        "conclusion": "Public child local stages and frozen hashes pass; missing output/deadline fail closed. Newly found component scope defect is fixed and independently tested; paid generation remains unverified.",
+        "delivery_conditions": true
+      },
+      "regression": {
+        "command": "pnpm exec tsx --env-file=.env ../film-worker-acceptance.mts --repo .",
+        "evidence": "evidence/film-channel-public-bounded.log"
+      },
+      "repair_evidence": [
+        {
+          "type": "regression",
+          "ref": "evidence/film-channel-public-bounded.log",
+          "current_verified_source_commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+          "run_provenance": "Original retained execution, with its original argv/source in the receipt. This field binds the independently reviewed current implementation; it does not relabel an older run as a new execution."
+        }
+      ],
+      "baseline_actual": "start 回 running，随后 failed / WORKER_EXIT_NONZERO，0 components；原生 Node 无 .js 到 .ts 的映射。显式加 loader 后到 WORKER_MODE_NOT_WIRED。",
+      "repair_actual": "Public child local stages and frozen hashes pass; missing output/deadline fail closed. Newly found component scope defect is fixed and independently tested; paid generation remains unverified.",
+      "delivery_conditions": true,
+      "execution_contract": "Source acceptance has separate actual modern MCD argv runs/output hashes in execution-ledger.json and evidence-index.json. The repository legacy gate validates metadata only. MC-106 remains conditional on real native platform release.",
+      "portable_replay_readme": "replay/README.md",
+      "modern_execution_ledger": "execution-ledger.json"
+    },
+    {
+      "id": "MC-014",
+      "kind": "problem",
+      "severity": "P2",
+      "level": "L2",
+      "batch": 2,
+      "state": "verified",
+      "title": "GEO 围栏引用 publish_job，组合对象模型没有该类型",
+      "evidence_grade": "B",
+      "root_cause": {
+        "file": "bundles/geo-growth/fences/geo-growth-baseline.yml",
+        "line": 42,
+        "commit": "42ead347c65a5cc343bcd290702d53a7fcdb1687",
+        "symbol": "G9b 与 suite:geo A-10 对象并集"
+      },
+      "trigger_path": "运行 suite:geo；将 geo-growth/ai-video/hotel schemas 和 runtime 豁免对象合并后检查围栏 match.object_types。",
+      "expected": "每个引用对象存在于规定对象模型或显式映射，suite:geo 对象校验通过。",
+      "actual": "80/81 通过，A-10 因 G9b publish_job 失败；只证明模型一致性漂移，不等于整个发布功能不能执行。",
+      "fix_direction": "按语义选定 canonical 发布对象，补显式别名或 schema 类型，围栏、工具对象、回执和 suite 使用同一映射。",
+      "coupling": "字段重命名影响权限匹配与联动；不能仅把 publish_job 加进测试豁免而不审其真实对象语义。",
+      "invariant_ids": [
+        "INV-3",
+        "INV-12"
+      ],
+      "assertions": [
+        {
+          "kind": "sample",
+          "given": "三bundle对象并集与围栏",
+          "expect": "missing.length=0",
+          "command": "pnpm suite:geo",
+          "last_result": "pass",
+          "evidence": "evidence/geo-system-telemetry-final.log"
+        }
+      ],
+      "evidence": [
+        {
+          "type": "code",
+          "ref": "bundles/geo-growth/fences/geo-growth-baseline.yml:42@42ead347c65a5cc343bcd290702d53a7fcdb1687",
+          "note": "G9b 与 suite:geo A-10 对象并集"
+        },
+        {
+          "type": "runtime",
+          "ref": "evidence/suite-geo.json",
+          "note": "隔离实测或记录的元数据；具体证据等级见卡片"
+        },
+        {
+          "type": "runtime",
+          "ref": "evidence/fence-object-result.json",
+          "note": "隔离实测或记录的元数据；具体证据等级见卡片"
+        }
+      ],
+      "notes": "原根因位置和失败证据保留在审计基线；verified 限定本问题的源码合同，不代表全平台正式发行或真实供应商经营能力通过。",
+      "baseline_assertions": [
+        {
+          "kind": "sample",
+          "given": "三bundle对象并集与围栏",
+          "expect": "missing.length=0",
+          "command": "node \"/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-audit-2026-10-02/evidence/fence-object-probe.mjs\" --repo \"/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit\" --assert",
+          "last_result": "fail",
+          "evidence": "evidence/fence-object-assert.log"
+        }
+      ],
+      "fixed_by": "codex-root-T-2026-1002-0901",
+      "fixed_at": "2026-10-04T05:40:08.105116+08:00",
+      "verified_by": "growth_m6",
+      "verified_at": "2026-10-04T05:32:31.451409+08:00",
+      "verification_evidence": "independent-m6/ledger-verification.json",
+      "source_verification": {
+        "id": "MC-014",
+        "kind": "problem",
+        "title": "GEO 围栏引用 publish_job，组合对象模型没有该类型",
+        "severity": "P2",
+        "verified_by": "growth_m6",
+        "fixed_by": "codex-root-T-2026-1002-0901",
+        "acceptance_commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+        "source_status": "verified-with-stated-scope",
+        "grade": "A source / B suite",
+        "evidence": "geo-supplement.log;environment-db.json",
+        "implementation": "geo-growth/schemas/objects.json and suite-geo.ts",
+        "conclusion": "publish_job now has a declared object model; A10 and B03/B04 pass. Strict system-error contract fixes unrelated E01..03 false failures without deleting original rows.",
+        "delivery_conditions": false
+      },
+      "regression": {
+        "command": "pnpm suite:geo",
+        "evidence": "evidence/geo-system-telemetry-final.log"
+      },
+      "repair_evidence": [
+        {
+          "type": "regression",
+          "ref": "evidence/geo-system-telemetry-final.log",
+          "current_verified_source_commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+          "run_provenance": "Original retained execution, with its original argv/source in the receipt. This field binds the independently reviewed current implementation; it does not relabel an older run as a new execution."
+        }
+      ],
+      "baseline_actual": "80/81 通过，A-10 因 G9b publish_job 失败；只证明模型一致性漂移，不等于整个发布功能不能执行。",
+      "repair_actual": "publish_job now has a declared object model; A10 and B03/B04 pass. Strict system-error contract fixes unrelated E01..03 false failures without deleting original rows.",
+      "delivery_conditions": false,
+      "execution_contract": "Source acceptance has separate actual modern MCD argv runs/output hashes in execution-ledger.json and evidence-index.json. The repository legacy gate validates metadata only. MC-106 remains conditional on real native platform release.",
+      "portable_replay_readme": "replay/README.md",
+      "modern_execution_ledger": "execution-ledger.json"
+    },
+    {
+      "id": "MC-015",
+      "kind": "problem",
+      "severity": "P2",
+      "level": "L4",
+      "batch": 2,
+      "state": "verified",
+      "title": "影片预览建议命令未转义用户字符串，中文路径和分号破坏参数",
+      "evidence_grade": "A",
+      "root_cause": {
+        "file": "bundles/geo-growth/capabilities/video.mjs",
+        "line": 329,
+        "commit": "42ead347c65a5cc343bcd290702d53a7fcdb1687",
+        "symbol": "productionPlan recommendedCommand"
+      },
+      "trigger_path": "只调用 productionPlan，传 projectId 含分号与标记文本、路径和平台含中文空格；未执行返回命令。",
+      "expected": "可复制命令保留每个参数的字面值，或返回安全 argv 结构和执行器；审批策略明确。",
+      "actual": "recommendedCommand 把分号与空格原样插入且带 --review-policy off；用户直接复制到 shell 时参数拆分。预览本身没有执行，本次无 RCE。",
+      "fix_direction": "返回结构化 argv；如保留 POSIX 文本则统一安全 quoting，Windows 单独生成对应表示，审核策略由用户显式选定。",
+      "coupling": "路径、项目 ID、平台、key-file 展开和 review-policy 默认值都影响可复制性；不能把 quoting 视为真实审批链。",
+      "invariant_ids": [
+        "INV-3",
+        "INV-4",
+        "INV-5"
+      ],
+      "assertions": [
+        {
+          "kind": "sample",
+          "given": "中文空格与分号字符串作为预览输入",
+          "expect": "返回命令不会原样嵌入 --project audit; printf INERT_MARKER",
+          "command": "pnpm test:video-capabilities",
+          "last_result": "pass",
+          "evidence": "evidence/video-capabilities-core.log"
+        }
+      ],
+      "evidence": [
+        {
+          "type": "code",
+          "ref": "bundles/geo-growth/capabilities/video.mjs:329@42ead347c65a5cc343bcd290702d53a7fcdb1687",
+          "note": "productionPlan recommendedCommand"
+        },
+        {
+          "type": "runtime",
+          "ref": "evidence/video-plan-result.json",
+          "note": "隔离实测或记录的元数据；具体证据等级见卡片"
+        },
+        {
+          "type": "runtime",
+          "ref": "evidence/video-plan-assert.json",
+          "note": "隔离实测或记录的元数据；具体证据等级见卡片"
+        }
+      ],
+      "notes": "原根因位置和失败证据保留在审计基线；verified 限定本问题的源码合同，不代表全平台正式发行或真实供应商经营能力通过。",
+      "baseline_assertions": [
+        {
+          "kind": "sample",
+          "given": "中文空格与分号字符串作为预览输入",
+          "expect": "返回命令不会原样嵌入 --project audit; printf INERT_MARKER",
+          "command": "node \"/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-audit-2026-10-02/evidence/video-plan-probe.mjs\" --repo \"/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit\" --assert",
+          "last_result": "fail",
+          "evidence": "evidence/video-plan-assert.log"
+        }
+      ],
+      "fixed_by": "codex-root-T-2026-1002-0901",
+      "fixed_at": "2026-10-04T05:40:08.105116+08:00",
+      "verified_by": "growth_m6",
+      "verified_at": "2026-10-04T05:32:31.451409+08:00",
+      "verification_evidence": "independent-m6/ledger-verification.json",
+      "source_verification": {
+        "id": "MC-015",
+        "kind": "problem",
+        "title": "影片预览建议命令未转义用户字符串，中文路径和分号破坏参数",
+        "severity": "P2",
+        "verified_by": "growth_m6",
+        "fixed_by": "codex-root-T-2026-1002-0901",
+        "acceptance_commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+        "source_status": "verified-with-stated-scope",
+        "grade": "A",
+        "evidence": "release-video.log",
+        "implementation": "video.mjs preview command and structured argv",
+        "conclusion": "POSIX command preserves special characters literally, and PowerShell representation is present.",
+        "delivery_conditions": false
+      },
+      "regression": {
+        "command": "pnpm test:video-capabilities",
+        "evidence": "evidence/video-capabilities-core.log"
+      },
+      "repair_evidence": [
+        {
+          "type": "regression",
+          "ref": "evidence/video-capabilities-core.log",
+          "current_verified_source_commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+          "run_provenance": "Original retained execution, with its original argv/source in the receipt. This field binds the independently reviewed current implementation; it does not relabel an older run as a new execution."
+        }
+      ],
+      "baseline_actual": "recommendedCommand 把分号与空格原样插入且带 --review-policy off；用户直接复制到 shell 时参数拆分。预览本身没有执行，本次无 RCE。",
+      "repair_actual": "POSIX command preserves special characters literally, and PowerShell representation is present.",
+      "delivery_conditions": false,
+      "execution_contract": "Source acceptance has separate actual modern MCD argv runs/output hashes in execution-ledger.json and evidence-index.json. The repository legacy gate validates metadata only. MC-106 remains conditional on real native platform release.",
+      "portable_replay_readme": "replay/README.md",
+      "modern_execution_ledger": "execution-ledger.json"
+    },
+    {
+      "id": "MC-016",
+      "kind": "problem",
+      "severity": "P2",
+      "level": "L2",
+      "batch": 3,
+      "state": "verified",
+      "title": "Live2D 间接工具链含四个安全公告，需按实际可达面处理",
+      "evidence_grade": "B",
+      "root_cause": {
+        "file": "apps/web/package.json",
+        "line": 24,
+        "commit": "42ead347c65a5cc343bcd290702d53a7fcdb1687",
+        "symbol": "pixi-live2d-display → gh-pages → brace-expansion"
+      },
+      "trigger_path": "基线 pnpm audit --prod 查询 registry，锁定的 gh-pages4.0.0 和 brace-expansion1.1.18 命中公告；检查实际 runtime 精确安装树。",
+      "expected": "生产依赖树无未处理的安全公告，或具有可审计的不可达证明与构建隔离；精确锁保持一致。",
+      "actual": "1 critical、2 high、1 moderate 公告；客户端扁平 runtime58包无 gh-pages/brace-expansion。本次未做浏览器 bundle 数据流利用证明，不直接判定客户端远程 critical。",
+      "fix_direction": "优先移除 Live2D 包错误携带的发布工具或使用受支持版本/受控 overrides；构建环境限制不可信输入，升级后回归渲染与载荷锁。",
+      "coupling": "Live2D 兼容、浏览器 bundle 内容、构建依赖与产品 runtime 清单、锁指纹、公告随时间变化均需复查。",
+      "invariant_ids": [
+        "INV-8",
+        "INV-11"
+      ],
+      "assertions": [
+        {
+          "kind": "sample",
+          "given": "当前仓依赖与在线 registry",
+          "expect": "pnpm audit --prod exit 0，或审查后有明确可达性处理记录",
+          "command": "pnpm audit --prod --json",
+          "last_result": "pass",
+          "evidence": "evidence/live2d-dependency-cut-audit-proxy.log"
+        }
+      ],
+      "evidence": [
+        {
+          "type": "code",
+          "ref": "apps/web/package.json:24@42ead347c65a5cc343bcd290702d53a7fcdb1687",
+          "note": "pixi-live2d-display → gh-pages → brace-expansion"
+        },
+        {
+          "type": "runtime",
+          "ref": "evidence/dependency-audit.log",
+          "note": "隔离实测或记录的元数据；具体证据等级见卡片"
+        },
+        {
+          "type": "runtime",
+          "ref": "evidence/runtime-lock-stage-windows-fixed-env.json",
+          "note": "隔离实测或记录的元数据；具体证据等级见卡片"
+        }
+      ],
+      "notes": "原根因位置和失败证据保留在审计基线；verified 限定本问题的源码合同，不代表全平台正式发行或真实供应商经营能力通过。",
+      "baseline_assertions": [
+        {
+          "kind": "sample",
+          "given": "当前仓依赖与在线 registry",
+          "expect": "pnpm audit --prod exit 0，或审查后有明确可达性处理记录",
+          "command": "pnpm audit --prod",
+          "last_result": "fail",
+          "evidence": "evidence/dependency-audit.log"
+        }
+      ],
+      "fixed_by": "codex-root-T-2026-1002-0901",
+      "fixed_at": "2026-10-04T05:40:08.105116+08:00",
+      "verified_by": "growth_m6",
+      "verified_at": "2026-10-04T05:32:31.451409+08:00",
+      "verification_evidence": "independent-m6/ledger-verification.json",
+      "source_verification": {
+        "id": "MC-016",
+        "kind": "problem",
+        "title": "Live2D 间接工具链含四个安全公告，需按实际可达面处理",
+        "severity": "P2",
+        "verified_by": "growth_m6",
+        "fixed_by": "codex-root-T-2026-1002-0901",
+        "acceptance_commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+        "source_status": "verified-with-stated-scope",
+        "grade": "B",
+        "evidence": "mcd-acceptance-verification.json;mc016-red-readback-official-7fee.json;dependency-official-provenance.json",
+        "implementation": "Exact pixi-live2d-display@0.4.0 deployment-only dependency removal; actual registry production audit",
+        "conclusion": "Actual exact-source registry audits returned197 production dependencies, zero advisories at every severity and no muted findings; original7fee High run remains failed. Old245/zero-advisory receipts are historical only. Literal published-module reference inspection does not establish every dynamic behavior or exploit reachability; no future-advisory assurance is made.",
+        "delivery_conditions": false
+      },
+      "regression": {
+        "command": "pnpm audit --prod --json",
+        "evidence": "evidence/live2d-dependency-cut-audit-proxy.log"
+      },
+      "repair_evidence": [
+        {
+          "type": "regression",
+          "ref": "evidence/live2d-dependency-cut-audit-proxy.log",
+          "current_verified_source_commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+          "run_provenance": "Original retained execution, with its original argv/source in the receipt. This field binds the independently reviewed current implementation; it does not relabel an older run as a new execution."
+        }
+      ],
+      "baseline_actual": "1 critical、2 high、1 moderate 公告；客户端扁平 runtime58包无 gh-pages/brace-expansion。本次未做浏览器 bundle 数据流利用证明，不直接判定客户端远程 critical。",
+      "repair_actual": "Actual exact-source registry audits returned197 production dependencies, zero advisories at every severity and no muted findings; original7fee High run remains failed. Old245/zero-advisory receipts are historical only. Literal published-module reference inspection does not establish every dynamic behavior or exploit reachability; no future-advisory assurance is made.",
+      "delivery_conditions": false,
+      "execution_contract": "Source acceptance has separate actual modern MCD argv runs/output hashes in execution-ledger.json and evidence-index.json. The repository legacy gate validates metadata only. MC-106 remains conditional on real native platform release.",
+      "portable_replay_readme": "replay/README.md",
+      "modern_execution_ledger": "execution-ledger.json"
+    },
+    {
+      "id": "MC-101",
+      "kind": "fix",
+      "state": "verified",
+      "batch": 0,
+      "title": "修复客户端启动和各载荷工作区模块装配",
+      "covers": [
+        "MC-001",
+        "MC-002",
+        "MC-003",
+        "MC-004"
+      ],
+      "fix_plan": "显式 runtimeDir、刷新现有精确锁、统一 ESM facade、补齐 helper/dist/工具白名单、test:scripts 纳入 desktop 门禁。",
+      "conflict_paths": [
+        "apps/desktop/electron/bootstrap.cjs",
+        "scripts/pack-electron-payload.sh",
+        "scripts/pack-macos.sh",
+        "scripts/pack-windows.sh",
+        "scripts/pack-workspace-modules.mjs",
+        ".workloom-runtime-deps",
+        "package.json"
+      ],
+      "blast_radius": "改变安装模块解析、环境桥和打包文件闭包；Mac 主线实装通过，Windows/备线整包未实测。回滚源码不回滚客户数据库。",
+      "rollback": "git revert 5d0c83e3293dc3a71651210987c9a5b48023480d，仅撤销源码提交；已有客户数据目录单独备份，不自动降级数据库。",
+      "evidence": [
+        {
+          "type": "code",
+          "ref": "apps/desktop/electron/bootstrap.cjs:395@42ead347c65a5cc343bcd290702d53a7fcdb1687",
+          "note": "buildDesktopEnvironment"
+        }
+      ],
+      "assertions": [
+        {
+          "kind": "sample",
+          "given": "修复后的源码和隔离验收夹具",
+          "expect": "命令退出 0 且载荷或对应功能断言通过",
+          "command": "pnpm test:desktop",
+          "last_result": "pass",
+          "evidence": "evidence/diagnostic-desktop-suite.log"
+        }
+      ],
+      "fixed_by": "codex-root-T-2026-1002-0901",
+      "verified_by": "growth_m6",
+      "notes": "原根因位置和失败证据保留在审计基线；verified 限定本问题的源码合同，不代表全平台正式发行或真实供应商经营能力通过。",
+      "fix_commit": "5d0c83e3293dc3a71651210987c9a5b48023480d",
+      "regression": {
+        "command": "pnpm test:desktop",
+        "evidence": "evidence/diagnostic-desktop-suite.log"
+      },
+      "baseline_assertions": [
+        {
+          "kind": "sample",
+          "given": "修复提交中的 bootstrap 单测与隔离中文 runtime",
+          "expect": "环境构造用例通过且桥模块路径来自传入目录",
+          "command": "node --test apps/desktop/electron/bootstrap.test.cjs",
+          "last_result": "pass",
+          "evidence": "evidence/desktop-bootstrap-after.log"
+        },
+        {
+          "kind": "sample",
+          "given": "修复源码与精确 runtime 锁",
+          "expect": "verify exit 0，输入指纹与当前产品一致",
+          "command": "node scripts/runtime-deps-lock.mjs verify",
+          "last_result": "pass",
+          "evidence": "evidence/runtime-lock-verify-final.log"
+        },
+        {
+          "kind": "sample",
+          "given": "包复制旧布局与中文重定位后的实体入口",
+          "expect": "5 个回归用例通过，旧复制布局的相对路径失败被复现，入口重导出保持同一实例",
+          "command": "node --test scripts/pack-workspace-modules.test.mjs",
+          "last_result": "pass",
+          "evidence": "evidence/desktop-workspace-regression.log"
+        },
+        {
+          "kind": "sample",
+          "given": "新 DMG 解包后的 runtime 与内置 Node",
+          "expect": "导入成功，到达 WORKER_MODE_NOT_WIRED，missing_module=false",
+          "command": "node \"/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-audit-2026-10-02/evidence/packaged-film-load-assert.mjs\" \"/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/安装验收 全新用户/runtime\" \"/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/安装验收 全新用户/node/bin/node\"",
+          "last_result": "pass",
+          "evidence": "evidence/packaged-film-load-result.json"
+        }
+      ],
+      "fixed_at": "2026-10-04T05:40:08.105116+08:00",
+      "verified_at": "2026-10-04T05:32:31.451409+08:00",
+      "verification_evidence": "independent-m6/ledger-verification.json",
+      "source_verification": {
+        "id": "MC-101",
+        "kind": "fix",
+        "title": "修复客户端启动和各载荷工作区模块装配",
+        "severity": null,
+        "verified_by": "growth_m6",
+        "fixed_by": "codex-root-T-2026-1002-0901",
+        "acceptance_commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+        "source_status": "verified-with-stated-scope",
+        "grade": "See each covered issue; not a broader assurance",
+        "evidence": "surface-7fee-desktop.log;mcd-acceptance-verification.json;dependency-1e47-structural-binding.json;locks-parser.json;surface-7fee-desktop.log;surface-7fee-desktop.log;film-public-success-results.json",
+        "implementation": "MC-001 + MC-002 + MC-003 + MC-004",
+        "conclusion": "Source implementation and listed regressions verified within this specialized round. Current exact native status: 当前精确新客户包的源、实际 app/payload/DMG 字节、冷默认/安全模式、首装/重启和真实旧版升级已独立复核；本地 QA 专项放行，正式 Windows/Apple trust/模型/UX 条件仍保留。",
+        "delivery_conditions": true
+      },
+      "repair_evidence": [
+        {
+          "type": "regression",
+          "ref": "evidence/diagnostic-desktop-suite.log",
+          "current_verified_source_commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+          "run_provenance": "Original retained execution, with its original argv/source in the receipt. This field binds the independently reviewed current implementation; it does not relabel an older run as a new execution."
+        },
+        {
+          "type": "regression",
+          "ref": "evidence/runtime-lock-production-refresh-final.log",
+          "current_verified_source_commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+          "run_provenance": "Original retained execution, with its original argv/source in the receipt. This field binds the independently reviewed current implementation; it does not relabel an older run as a new execution."
+        },
+        {
+          "type": "regression",
+          "ref": "evidence/diagnostic-desktop-suite.log",
+          "current_verified_source_commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+          "run_provenance": "Original retained execution, with its original argv/source in the receipt. This field binds the independently reviewed current implementation; it does not relabel an older run as a new execution."
+        },
+        {
+          "type": "regression",
+          "ref": "evidence/mac-dependency-payload-cached-proxy.log",
+          "current_verified_source_commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+          "run_provenance": "Original retained execution, with its original argv/source in the receipt. This field binds the independently reviewed current implementation; it does not relabel an older run as a new execution."
+        }
+      ],
+      "baseline_actual": null,
+      "repair_actual": "Source implementation and listed regressions verified within this specialized round. Current exact native status: 当前精确新客户包的源、实际 app/payload/DMG 字节、冷默认/安全模式、首装/重启和真实旧版升级已独立复核；本地 QA 专项放行，正式 Windows/Apple trust/模型/UX 条件仍保留。",
+      "delivery_conditions": true,
+      "execution_contract": "Source acceptance has separate actual modern MCD argv runs/output hashes in execution-ledger.json and evidence-index.json. The repository legacy gate validates metadata only. MC-106 remains conditional on real native platform release.",
+      "portable_replay_readme": "replay/README.md",
+      "modern_execution_ledger": "execution-ledger.json"
+    },
+    {
+      "id": "MC-102",
+      "kind": "fix",
+      "state": "verified",
+      "batch": 0,
+      "title": "封闭生产匿名成员登录与占位签名配置",
+      "covers": [
+        "MC-005"
+      ],
+      "fix_plan": "生产环境拒绝公共演示成员登录；可信本机 capability 只授予预配身份；签发与验证统一拒绝弱配置并核对算法、issuer、iat、exp。没有修改外部生产秘密。",
+      "conflict_paths": [
+        "apps/server/src/trpc/router.ts",
+        "packages/base/tenancy/auth.ts",
+        "apps/webb/src",
+        "apps/webc/src"
+      ],
+      "blast_radius": "体验引导和已有会话可能失效；不能拿桌面本地绑定说明网络认证安全。",
+      "rollback": "以功能旗标收紧入口为止血，认证提交可 revert，但禁止恢复无验证的正式登录。",
+      "evidence": [
+        {
+          "type": "code",
+          "ref": "apps/server/src/trpc/router.ts:851@42ead347c65a5cc343bcd290702d53a7fcdb1687",
+          "note": "authRouter.loginAs / publicProcedure"
+        }
+      ],
+      "assertions": [
+        {
+          "kind": "sample",
+          "given": "修复后的源码和隔离验收夹具",
+          "expect": "命令退出 0 且载荷或对应功能断言通过",
+          "command": "node --env-file=.env ../auth-production-acceptance.mjs --repo .",
+          "last_result": "pass",
+          "evidence": "evidence/auth-production-http.json"
+        }
+      ],
+      "fixed_by": "codex-root-T-2026-1002-0901",
+      "verified_by": "growth_m6",
+      "notes": "原根因位置和失败证据保留在审计基线；verified 限定本问题的源码合同，不代表全平台正式发行或真实供应商经营能力通过。",
+      "baseline_assertions": [
+        {
+          "kind": "sample",
+          "given": "生产模式隔离服务与非示例假资产",
+          "expect": "匿名请求 status>=400，token_issued=false",
+          "command": "node --env-file=.env \"/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-audit-2026-10-02/evidence/production-login-probe.mjs\" --base http://127.0.0.1:28787 --fixture \"/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-audit-2026-10-02/evidence/auth-nonexample-input.json\" --assert",
+          "last_result": "fail",
+          "evidence": "evidence/production-login-nonexample-assert-final.log"
+        }
+      ],
+      "fixed_at": "2026-10-04T05:40:08.105116+08:00",
+      "verified_at": "2026-10-04T05:32:31.451409+08:00",
+      "verification_evidence": "independent-m6/ledger-verification.json",
+      "source_verification": {
+        "id": "MC-102",
+        "kind": "fix",
+        "title": "封闭生产匿名成员登录与占位签名配置",
+        "severity": null,
+        "verified_by": "growth_m6",
+        "fixed_by": "codex-root-T-2026-1002-0901",
+        "acceptance_commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+        "source_status": "verified-with-stated-scope",
+        "grade": "See each covered issue; not a broader assurance",
+        "evidence": "auth-http-results.json",
+        "implementation": "MC-005",
+        "conclusion": "Source implementation and listed regressions verified within this specialized round.",
+        "delivery_conditions": false
+      },
+      "regression": {
+        "command": "node --env-file=.env ../auth-production-acceptance.mjs --repo .",
+        "evidence": "evidence/auth-production-http.json"
+      },
+      "repair_evidence": [
+        {
+          "type": "regression",
+          "ref": "evidence/auth-production-http.json",
+          "current_verified_source_commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+          "run_provenance": "Original retained execution, with its original argv/source in the receipt. This field binds the independently reviewed current implementation; it does not relabel an older run as a new execution."
+        }
+      ],
+      "baseline_actual": null,
+      "repair_actual": "Source implementation and listed regressions verified within this specialized round.",
+      "delivery_conditions": false,
+      "execution_contract": "Source acceptance has separate actual modern MCD argv runs/output hashes in execution-ledger.json and evidence-index.json. The repository legacy gate validates metadata only. MC-106 remains conditional on real native platform release.",
+      "portable_replay_readme": "replay/README.md",
+      "modern_execution_ledger": "execution-ledger.json"
+    },
+    {
+      "id": "MC-103",
+      "kind": "fix",
+      "state": "verified",
+      "batch": 1,
+      "title": "统一线程认领与外部动作前的权限审批红线检查",
+      "covers": [
+        "MC-006",
+        "MC-007"
+      ],
+      "fix_plan": "会话数据库锁与线程 CAS 先取得执行权；权限、PII 和绑定实际参数的审批在外部调用前检查并单次消费；追加开始和最终事件，未知写结果不自动重发。",
+      "conflict_paths": [
+        "packages/runtime/src/loop.ts",
+        "apps/server/src/runtime/thread-runner.ts",
+        "apps/server/src/runtime/scheduler.ts",
+        "packages/base/workdata/gateway.ts",
+        "packages/base/review-console/approvals.ts",
+        "apps/server/src/runtime/tool-executor.ts"
+      ],
+      "blast_radius": "与 MC-104 共改 loop/runner/scheduler。先统一状态与授权契约，再修参数与重放；授权预占失败不得执行，网络失败也不能永久锁死线程。",
+      "rollback": "按授权协议版本灰度；紧急关闭变更性 connector；保持 started/failed 证据，不删除已产生的副作用回执。",
+      "evidence": [
+        {
+          "type": "code",
+          "ref": "packages/runtime/src/loop.ts:1038@42ead347c65a5cc343bcd290702d53a7fcdb1687",
+          "note": "runTool → gateway authorization / thread runner CAS"
+        }
+      ],
+      "assertions": [
+        {
+          "kind": "sample",
+          "given": "修复后的源码和隔离验收夹具",
+          "expect": "命令退出 0 且载荷或对应功能断言通过",
+          "command": "pnpm exec tsx --env-file=.env ../../outputs/growth-production-fix-2026-10-02/evidence/runtime-repro.mts --repo . --assert",
+          "last_result": "pass",
+          "evidence": "evidence/runtime-repro-results.json"
+        }
+      ],
+      "fixed_by": "codex-root-T-2026-1002-0901",
+      "verified_by": "growth_m6",
+      "notes": "原根因位置和失败证据保留在审计基线；verified 限定本问题的源码合同，不代表全平台正式发行或真实供应商经营能力通过。",
+      "baseline_assertions": [
+        {
+          "kind": "sample",
+          "given": "无权限 agent",
+          "expect": "工具调用次数=0",
+          "command": "pnpm exec tsx --env-file=.env \"/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-audit-2026-10-02/evidence/runtime-repro.mts\" --repo \"/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit\" --case PERMISSION-BEFORE-ACTION --assert",
+          "last_result": "fail",
+          "evidence": "evidence/runtime-repro-results.json"
+        },
+        {
+          "kind": "property",
+          "given": "block 规则加缺参/相关性标记并经人工批准",
+          "expect": "工具调用次数=0，线程不进入 completed",
+          "command": "pnpm exec tsx --env-file=.env \"/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-audit-2026-10-02/evidence/runtime-repro.mts\" --repo \"/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit\" --case BLOCK-FLAG --assert",
+          "last_result": "fail",
+          "evidence": "evidence/runtime-repro-results.json"
+        }
+      ],
+      "fixed_at": "2026-10-04T05:40:08.105116+08:00",
+      "verified_at": "2026-10-04T05:32:31.451409+08:00",
+      "verification_evidence": "independent-m6/ledger-verification.json",
+      "source_verification": {
+        "id": "MC-103",
+        "kind": "fix",
+        "title": "统一线程认领与外部动作前的权限审批红线检查",
+        "severity": null,
+        "verified_by": "growth_m6",
+        "fixed_by": "codex-root-T-2026-1002-0901",
+        "acceptance_commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+        "source_status": "verified-with-stated-scope",
+        "grade": "See each covered issue; not a broader assurance",
+        "evidence": "runtime-repro-results.json;gateway-permit-results.json;runtime-repro-results.json;gateway-permit-results.json",
+        "implementation": "MC-006 + MC-007",
+        "conclusion": "Source implementation and listed regressions verified within this specialized round.",
+        "delivery_conditions": false
+      },
+      "regression": {
+        "command": "pnpm exec tsx --env-file=.env ../../outputs/growth-production-fix-2026-10-02/evidence/runtime-repro.mts --repo . --assert",
+        "evidence": "evidence/runtime-repro-results.json"
+      },
+      "repair_evidence": [
+        {
+          "type": "regression",
+          "ref": "evidence/runtime-repro-results.json",
+          "current_verified_source_commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+          "run_provenance": "Original retained execution, with its original argv/source in the receipt. This field binds the independently reviewed current implementation; it does not relabel an older run as a new execution."
+        },
+        {
+          "type": "regression",
+          "ref": "evidence/runtime-repro-results.json",
+          "current_verified_source_commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+          "run_provenance": "Original retained execution, with its original argv/source in the receipt. This field binds the independently reviewed current implementation; it does not relabel an older run as a new execution."
+        }
+      ],
+      "baseline_actual": null,
+      "repair_actual": "Source implementation and listed regressions verified within this specialized round.",
+      "delivery_conditions": false,
+      "execution_contract": "Source acceptance has separate actual modern MCD argv runs/output hashes in execution-ledger.json and evidence-index.json. The repository legacy gate validates metadata only. MC-106 remains conditional on real native platform release.",
+      "portable_replay_readme": "replay/README.md",
+      "modern_execution_ledger": "execution-ledger.json"
+    },
+    {
+      "id": "MC-104",
+      "kind": "fix",
+      "state": "verified",
+      "batch": 2,
+      "title": "修复计划持久化审批编辑队列终态与跨工作区记忆",
+      "covers": [
+        "MC-008",
+        "MC-009",
+        "MC-010",
+        "MC-011",
+        "MC-012"
+      ],
+      "fix_plan": "保存审核标记并在重入时重新判断；执行 edited 参数；并发只计 running；终态保持；新的驳回记忆按租户工作区分域，保留旧记忆。",
+      "conflict_paths": [
+        "packages/runtime/src/loop.ts",
+        "apps/server/src/runtime/thread-runner.ts",
+        "apps/server/src/runtime/scheduler.ts",
+        "packages/base/review-console/approvals.ts",
+        "packages/base/workdata/memory.ts",
+        "packages/db/migrations"
+      ],
+      "blast_radius": "旧未批计划、既有记忆 ID、审批状态和自动续跑受影响；迁移要先写兼容读取，不可把状态机改动与MC-103分头覆盖。",
+      "rollback": "迁移前备份测试库，保留双读期与旧键映射；计划版本不可静默回退为无标记版本。",
+      "evidence": [
+        {
+          "type": "code",
+          "ref": "packages/runtime/src/loop.ts:677@42ead347c65a5cc343bcd290702d53a7fcdb1687",
+          "note": "saveThreadPlan → relevance annotation"
+        }
+      ],
+      "assertions": [
+        {
+          "kind": "sample",
+          "given": "修复后的源码和隔离验收夹具",
+          "expect": "命令退出 0 且载荷或对应功能断言通过",
+          "command": "pnpm exec tsx --env-file=.env ../../outputs/growth-production-fix-2026-10-02/evidence/runtime-repro.mts --repo . --case RELEVANCE-REPLAY --assert",
+          "last_result": "pass",
+          "evidence": "evidence/runtime-repro-results.json"
+        }
+      ],
+      "fixed_by": "codex-root-T-2026-1002-0901",
+      "verified_by": "growth_m6",
+      "notes": "原根因位置和失败证据保留在审计基线；verified 限定本问题的源码合同，不代表全平台正式发行或真实供应商经营能力通过。",
+      "baseline_assertions": [
+        {
+          "kind": "sample",
+          "given": "第一次挂起后未经批准重放",
+          "expect": "第二次仍 pending_review 且工具调用次数=0",
+          "command": "pnpm exec tsx --env-file=.env \"/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-audit-2026-10-02/evidence/runtime-repro.mts\" --repo \"/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit\" --case RELEVANCE-REPLAY --assert",
+          "last_result": "fail",
+          "evidence": "evidence/runtime-repro-results.json"
+        },
+        {
+          "kind": "sample",
+          "given": "amount 从1编辑为2后采纳",
+          "expect": "唯一工具调用 params.amount=2",
+          "command": "pnpm exec tsx --env-file=.env \"/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-audit-2026-10-02/evidence/runtime-repro.mts\" --repo \"/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit\" --case EDIT-PARAMS --assert",
+          "last_result": "fail",
+          "evidence": "evidence/runtime-repro-results.json"
+        },
+        {
+          "kind": "sample",
+          "given": "0 running 和10 queued",
+          "expect": "两次扫描至少一次 picked 非空",
+          "command": "pnpm exec tsx --env-file=.env \"/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-audit-2026-10-02/evidence/runtime-repro.mts\" --repo \"/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit\" --case QUEUE-10 --assert",
+          "last_result": "fail",
+          "evidence": "evidence/runtime-repro-results.json"
+        },
+        {
+          "kind": "sample",
+          "given": "已取消线程再次普通运行",
+          "expect": "线程仍 cancelled，拒绝普通续跑",
+          "command": "pnpm exec tsx --env-file=.env \"/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-audit-2026-10-02/evidence/runtime-repro.mts\" --repo \"/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit\" --case REJECT-TERMINAL --assert",
+          "last_result": "fail",
+          "evidence": "evidence/runtime-repro-results.json"
+        },
+        {
+          "kind": "sample",
+          "given": "两个隔离工作区用相同驳回原因",
+          "expect": "两区审批 rejected 且两线程 cancelled，无42501",
+          "command": "pnpm exec tsx --env-file=.env \"/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-audit-2026-10-02/evidence/runtime-repro.mts\" --repo \"/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit\" --case REJECT-WORKSPACE-COLLISION --assert",
+          "last_result": "fail",
+          "evidence": "evidence/runtime-repro-results.json"
+        }
+      ],
+      "fixed_at": "2026-10-04T05:40:08.105116+08:00",
+      "verified_at": "2026-10-04T05:32:31.451409+08:00",
+      "verification_evidence": "independent-m6/ledger-verification.json",
+      "source_verification": {
+        "id": "MC-104",
+        "kind": "fix",
+        "title": "修复计划持久化审批编辑队列终态与跨工作区记忆",
+        "severity": null,
+        "verified_by": "growth_m6",
+        "fixed_by": "codex-root-T-2026-1002-0901",
+        "acceptance_commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+        "source_status": "verified-with-stated-scope",
+        "grade": "See each covered issue; not a broader assurance",
+        "evidence": "runtime-repro-results.json;runtime-repro-results.json;runtime-repro-results.json;runtime-repro-results.json;runtime-repro-results.json",
+        "implementation": "MC-008 + MC-009 + MC-010 + MC-011 + MC-012",
+        "conclusion": "Source implementation and listed regressions verified within this specialized round.",
+        "delivery_conditions": false
+      },
+      "regression": {
+        "command": "pnpm exec tsx --env-file=.env ../../outputs/growth-production-fix-2026-10-02/evidence/runtime-repro.mts --repo . --case RELEVANCE-REPLAY --assert",
+        "evidence": "evidence/runtime-repro-results.json"
+      },
+      "repair_evidence": [
+        {
+          "type": "regression",
+          "ref": "evidence/runtime-repro-results.json",
+          "current_verified_source_commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+          "run_provenance": "Original retained execution, with its original argv/source in the receipt. This field binds the independently reviewed current implementation; it does not relabel an older run as a new execution."
+        },
+        {
+          "type": "regression",
+          "ref": "evidence/runtime-repro-results.json",
+          "current_verified_source_commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+          "run_provenance": "Original retained execution, with its original argv/source in the receipt. This field binds the independently reviewed current implementation; it does not relabel an older run as a new execution."
+        },
+        {
+          "type": "regression",
+          "ref": "evidence/runtime-repro-results.json",
+          "current_verified_source_commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+          "run_provenance": "Original retained execution, with its original argv/source in the receipt. This field binds the independently reviewed current implementation; it does not relabel an older run as a new execution."
+        },
+        {
+          "type": "regression",
+          "ref": "evidence/runtime-repro-results.json",
+          "current_verified_source_commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+          "run_provenance": "Original retained execution, with its original argv/source in the receipt. This field binds the independently reviewed current implementation; it does not relabel an older run as a new execution."
+        },
+        {
+          "type": "regression",
+          "ref": "evidence/runtime-repro-results.json",
+          "current_verified_source_commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+          "run_provenance": "Original retained execution, with its original argv/source in the receipt. This field binds the independently reviewed current implementation; it does not relabel an older run as a new execution."
+        }
+      ],
+      "baseline_actual": null,
+      "repair_actual": "Source implementation and listed regressions verified within this specialized round.",
+      "delivery_conditions": false,
+      "execution_contract": "Source acceptance has separate actual modern MCD argv runs/output hashes in execution-ledger.json and evidence-index.json. The repository legacy gate validates metadata only. MC-106 remains conditional on real native platform release.",
+      "portable_replay_readme": "replay/README.md",
+      "modern_execution_ledger": "execution-ledger.json"
+    },
+    {
+      "id": "MC-105",
+      "kind": "fix",
+      "state": "verified",
+      "batch": 2,
+      "title": "接通影片入口并统一对象语义与安全命令输出",
+      "covers": [
+        "MC-013",
+        "MC-014",
+        "MC-015"
+      ],
+      "fix_plan": "完整 worker CLI 经父通道执行，原生 Node 显式装载 tsx；父通道前置核对方法阶段镜号；阶段和交付摘要验真；补发布对象与安全 argv。",
+      "conflict_paths": [
+        "apps/server/src/video/film-worker.ts",
+        "scripts/tools/full-chain-film.mts",
+        "bundles/geo-growth/fences/geo-growth-baseline.yml",
+        "bundles/geo-growth/schemas/objects.json",
+        "bundles/geo-growth/capabilities/video.mjs"
+      ],
+      "blast_radius": "不得将进口通等同成片闭环；影响预算、供应商成本、归档、人物与配音、外部工具。真实供应商单独走小额配额硬闸。",
+      "rollback": "阶段开关关闭新增工位，已生成组件与账本只追加；命令输出恢复结构化安全表示。",
+      "evidence": [
+        {
+          "type": "code",
+          "ref": "apps/server/src/video/film-worker.ts:383@42ead347c65a5cc343bcd290702d53a7fcdb1687",
+          "note": "runFilmJob child spawn / full-chain-film --worker"
+        }
+      ],
+      "assertions": [
+        {
+          "kind": "sample",
+          "given": "修复后的源码和隔离验收夹具",
+          "expect": "命令退出 0 且载荷或对应功能断言通过",
+          "command": "pnpm exec tsx --env-file=.env ../film-worker-acceptance.mts --repo .",
+          "last_result": "pass",
+          "evidence": "evidence/film-channel-public-bounded.log"
+        }
+      ],
+      "fixed_by": "codex-root-T-2026-1002-0901",
+      "verified_by": "growth_m6",
+      "notes": "原根因位置和失败证据保留在审计基线；verified 限定本问题的源码合同，不代表全平台正式发行或真实供应商经营能力通过。",
+      "baseline_assertions": [
+        {
+          "kind": "sample",
+          "given": "无供应商 storyboard 夹具",
+          "expect": "预定义阶段结束并有可验证回执；当前 healthy=status finished",
+          "command": "pnpm exec tsx --env-file=.env \"/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-audit-2026-10-02/evidence/film-route-probe.mts\" --repo \"/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit\" --assert",
+          "last_result": "fail",
+          "evidence": "evidence/film-route-assert-final.log"
+        },
+        {
+          "kind": "sample",
+          "given": "三bundle对象并集与围栏",
+          "expect": "missing.length=0",
+          "command": "node \"/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-audit-2026-10-02/evidence/fence-object-probe.mjs\" --repo \"/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit\" --assert",
+          "last_result": "fail",
+          "evidence": "evidence/fence-object-assert.log"
+        },
+        {
+          "kind": "sample",
+          "given": "中文空格与分号字符串作为预览输入",
+          "expect": "返回命令不会原样嵌入 --project audit; printf INERT_MARKER",
+          "command": "node \"/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-audit-2026-10-02/evidence/video-plan-probe.mjs\" --repo \"/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit\" --assert",
+          "last_result": "fail",
+          "evidence": "evidence/video-plan-assert.log"
+        }
+      ],
+      "fixed_at": "2026-10-04T05:40:08.105116+08:00",
+      "verified_at": "2026-10-04T05:32:31.451409+08:00",
+      "verification_evidence": "independent-m6/ledger-verification.json",
+      "source_verification": {
+        "id": "MC-105",
+        "kind": "fix",
+        "title": "接通影片入口并统一对象语义与安全命令输出",
+        "severity": null,
+        "verified_by": "growth_m6",
+        "fixed_by": "codex-root-T-2026-1002-0901",
+        "acceptance_commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+        "source_status": "verified-with-stated-scope",
+        "grade": "See each covered issue; not a broader assurance",
+        "evidence": "film-public-success-results.json;film-public-missing-output-results.json;film-public-deadline-results.json;parent-channel-after-results.json;geo-supplement.log;environment-db.json;release-video.log",
+        "implementation": "MC-013 + MC-014 + MC-015",
+        "conclusion": "Source implementation and listed regressions verified within this specialized round. Local worker integration is verified; provider quality and paid-production output remain unverified.",
+        "delivery_conditions": true
+      },
+      "regression": {
+        "command": "pnpm exec tsx --env-file=.env ../film-worker-acceptance.mts --repo .",
+        "evidence": "evidence/film-channel-public-bounded.log"
+      },
+      "repair_evidence": [
+        {
+          "type": "regression",
+          "ref": "evidence/film-channel-public-bounded.log",
+          "current_verified_source_commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+          "run_provenance": "Original retained execution, with its original argv/source in the receipt. This field binds the independently reviewed current implementation; it does not relabel an older run as a new execution."
+        },
+        {
+          "type": "regression",
+          "ref": "evidence/geo-system-telemetry-final.log",
+          "current_verified_source_commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+          "run_provenance": "Original retained execution, with its original argv/source in the receipt. This field binds the independently reviewed current implementation; it does not relabel an older run as a new execution."
+        },
+        {
+          "type": "regression",
+          "ref": "evidence/video-capabilities-core.log",
+          "current_verified_source_commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+          "run_provenance": "Original retained execution, with its original argv/source in the receipt. This field binds the independently reviewed current implementation; it does not relabel an older run as a new execution."
+        }
+      ],
+      "baseline_actual": null,
+      "repair_actual": "Source implementation and listed regressions verified within this specialized round. Local worker integration is verified; provider quality and paid-production output remain unverified.",
+      "delivery_conditions": true,
+      "execution_contract": "Source acceptance has separate actual modern MCD argv runs/output hashes in execution-ledger.json and evidence-index.json. The repository legacy gate validates metadata only. MC-106 remains conditional on real native platform release.",
+      "portable_replay_readme": "replay/README.md",
+      "modern_execution_ledger": "execution-ledger.json"
+    },
+    {
+      "id": "MC-106",
+      "kind": "fix",
+      "state": "fixed",
+      "batch": 3,
+      "title": "清理间接依赖并完善渲染验收与平台发布硬门禁",
+      "covers": [
+        "MC-016"
+      ],
+      "fix_plan": "清理 Live2D 间接依赖；渲染冒烟退出首日遮罩并验证场景，数字人窄区收起；正式 Windows/Mac 签名和真机发行硬门禁保留，缺环境项目明确未验证。",
+      "conflict_paths": [
+        "apps/web/package.json",
+        "pnpm-lock.yaml",
+        ".workloom-runtime-deps",
+        "apps/desktop/electron/main.cjs",
+        "apps/webb/src"
+      ],
+      "blast_radius": "升级可能影响角色渲染；不能为 audit 绿屏移除产品角色。UI 局部观察不是本16卡之外新的实证安全问题。",
+      "rollback": "保留渲染 fallback 与旧包回滚渠道，依赖锁与输入指纹一起回滚，客户数据不被删除。",
+      "evidence": [
+        {
+          "type": "code",
+          "ref": "apps/web/package.json:24@42ead347c65a5cc343bcd290702d53a7fcdb1687",
+          "note": "pixi-live2d-display → gh-pages → brace-expansion"
+        }
+      ],
+      "assertions": [
+        {
+          "kind": "sample",
+          "given": "修复后的源码和隔离验收夹具",
+          "expect": "命令退出 0 且载荷或对应功能断言通过",
+          "command": "pnpm audit --prod --json",
+          "last_result": "pass",
+          "evidence": "evidence/live2d-dependency-cut-audit-proxy.log"
+        }
+      ],
+      "fixed_by": "codex-root-T-2026-1002-0901",
+      "verified_by": null,
+      "notes": "原根因位置和失败证据保留在审计基线；verified 限定本问题的源码合同，不代表全平台正式发行或真实供应商经营能力通过。",
+      "baseline_assertions": [
+        {
+          "kind": "sample",
+          "given": "当前仓依赖与在线 registry",
+          "expect": "pnpm audit --prod exit 0，或审查后有明确可达性处理记录",
+          "command": "pnpm audit --prod",
+          "last_result": "fail",
+          "evidence": "evidence/dependency-audit.log"
+        }
+      ],
+      "fixed_at": "2026-10-04T05:40:08.105116+08:00",
+      "verified_at": null,
+      "verification_evidence": "independent-m6/ledger-verification.json",
+      "source_verification": {
+        "id": "MC-106",
+        "kind": "fix",
+        "title": "清理间接依赖并完善渲染验收与平台发布硬门禁",
+        "severity": null,
+        "verified_by": "growth_m6",
+        "fixed_by": "codex-root-T-2026-1002-0901",
+        "acceptance_commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+        "source_status": "source-verified; local QA native verified with formal platform conditions",
+        "grade": "See each covered issue; not a broader assurance",
+        "evidence": "mcd-acceptance-verification.json;mc016-red-readback-official-7fee.json;dependency-official-provenance.json;surface-7fee-desktop.log;surface-7fee-guide-lifecycle-results.json;release-video.log;inherited/evidence__client-生产修复 首次客户__render-default.json",
+        "implementation": "MC-016 + main.cjs/render-smoke.cjs rendering gate + cnb-desktop-release.mjs publication gate",
+        "conclusion": "Exact-lock advisory and failed-closed release contracts reviewed. Original guide deadline, capture-time state, Welcome terminal/response ownership, ready-once, missing-runtime recovery, team density and floor interaction counterexamples independently revalidated. Historical native failures remain preserved. 当前精确新客户包的源、实际 app/payload/DMG 字节、冷默认/安全模式、首装/重启和真实旧版升级已独立复核；本地 QA 专项放行，正式 Windows/Apple trust/模型/UX 条件仍保留。 Formal Windows execution, Apple signing/notarization and production model/business/complete UX qualifications remain unverified.",
+        "delivery_conditions": true
+      },
+      "regression": {
+        "command": "pnpm audit --prod --json",
+        "evidence": "evidence/live2d-dependency-cut-audit-proxy.log"
+      },
+      "repair_evidence": [
+        {
+          "type": "regression",
+          "ref": "evidence/live2d-dependency-cut-audit-proxy.log",
+          "current_verified_source_commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+          "run_provenance": "Original retained execution, with its original argv/source in the receipt. This field binds the independently reviewed current implementation; it does not relabel an older run as a new execution."
+        }
+      ],
+      "baseline_actual": null,
+      "repair_actual": "Exact-lock advisory and failed-closed release contracts reviewed. Original guide deadline, capture-time state, Welcome terminal/response ownership, ready-once, missing-runtime recovery, team density and floor interaction counterexamples independently revalidated. Historical native failures remain preserved. 当前精确新客户包的源、实际 app/payload/DMG 字节、冷默认/安全模式、首装/重启和真实旧版升级已独立复核；本地 QA 专项放行，正式 Windows/Apple trust/模型/UX 条件仍保留。 Formal Windows execution, Apple signing/notarization and production model/business/complete UX qualifications remain unverified.",
+      "delivery_conditions": true,
+      "execution_contract": "Source acceptance has separate actual modern MCD argv runs/output hashes in execution-ledger.json and evidence-index.json. The repository legacy gate validates metadata only. MC-106 remains conditional on real native platform release.",
+      "portable_replay_readme": "replay/README.md",
+      "modern_execution_ledger": "execution-ledger.json"
+    },
+    {
+      "id": "MC-017",
+      "kind": "problem",
+      "severity": "P0",
+      "level": "L1",
+      "batch": 0,
+      "state": "verified",
+      "title": "演示重置在非交互模式绕过确认，未识别客户工作区且缺少删除前备份",
+      "evidence_grade": "A",
+      "root_cause": {
+        "file": "scripts/reset.sh",
+        "line": 12,
+        "commit": "42ead347c65a5cc343bcd290702d53a7fcdb1687",
+        "symbol": "confirmation / DROP SCHEMA"
+      },
+      "discovered_at_source_commit": "f0a11286a49419fb7909088e2d170f4dde7b60c6",
+      "trigger_path": "已存在合成.env的非交互环境，无--yes调用原脚本；psql/pg_dump/pnpm/docker均为PATH替身；不访问真实数据库。",
+      "expected": "未显式确认、生产/远端目标、客户或未知库、探测/备份失败均不进入删除；先生成私有备份，删除事务重查客户状态，SQL或迁移失败停止。",
+      "actual": "f0a脚本与审计42ead完整Git blob相同；8组实际替身断言0通过/8失败。旧脚本未经确认进入DROP替身，忽略客户和备份错误。无真实DROP。",
+      "fix_direction": "显式确认；校验唯一实际PostgreSQL loopback workloom目标；拒绝生产和未知库，备份0600并检查非空；事务锁定工作区并重查客户行，再迁移种子。",
+      "fix_plan": "用12组有真实.env的替身控制恢复并收紧本仓安全策略；接入test:desktop/CI；独立角色重新运行；保留原失败和Git字节绑定。",
+      "coupling": "数据删除、URL重定向、同名Docker、连接环境变量、并发客户开户、备份和迁移失败联动；不能仅补交互提示。",
+      "invariant_ids": [
+        "INV-1",
+        "INV-4",
+        "INV-5",
+        "INV-11"
+      ],
+      "assertions": [
+        {
+          "kind": "sample",
+          "given": "原f0a脚本及含合成.env的PATH替身夹具",
+          "expect": "未确认、客户和备份失败均不删除",
+          "command": "node --test scripts/reset-safety.test.mjs",
+          "last_result": "pass",
+          "evidence": "evidence/reset-env-declaration-green.log"
+        }
+      ],
+      "evidence": [
+        {
+          "type": "code",
+          "ref": "scripts/reset.sh:12@42ead347c65a5cc343bcd290702d53a7fcdb1687",
+          "note": "后续f0a发现；完整Git blob与原审计相同，未改写复现时间"
+        },
+        {
+          "type": "runtime",
+          "ref": "evidence/reset-safety-before.json",
+          "note": "实际后续发现运行，8失败；原argv保留"
+        },
+        {
+          "type": "runtime",
+          "ref": "evidence/reset-safety-before.log",
+          "note": "真实Node原输出；PATH命令为替身"
+        },
+        {
+          "type": "runtime",
+          "ref": "evidence/reset-safety-controls-final.json",
+          "note": "原源码与发现来源；候选12绿不等于独立验收"
+        }
+      ],
+      "regression": {
+        "command": "node --test scripts/reset-safety.test.mjs",
+        "evidence": "evidence/reset-env-declaration-green.log"
+      },
+      "rollback": "按已发表修复提交普通revert；禁止通过reset.sh恢复客户库；人工审核备份后使用受控恢复流程。",
+      "notes": "原根因位置和失败证据保留在审计基线；verified 限定本问题的源码合同，不代表全平台正式发行或真实供应商经营能力通过。",
+      "baseline_assertions": [
+        {
+          "kind": "sample",
+          "given": "原f0a脚本及含合成.env的PATH替身夹具",
+          "expect": "未确认、客户和备份失败均不删除",
+          "command": "node --test work/reset-safety-before/reset-safety.test.mjs",
+          "last_result": "fail",
+          "evidence": "evidence/reset-safety-before.log"
+        }
+      ],
+      "fixed_by": "codex-root-T-2026-1002-0901",
+      "fixed_at": "2026-10-04T05:40:08.105116+08:00",
+      "verified_by": "growth_m6",
+      "verified_at": "2026-10-04T05:32:31.451409+08:00",
+      "verification_evidence": "independent-m6/ledger-verification.json",
+      "source_verification": {
+        "id": "MC-017",
+        "kind": "problem",
+        "title": "演示重置在非交互模式绕过确认，未识别客户工作区且缺少删除前备份",
+        "severity": "P0",
+        "verified_by": "growth_m6",
+        "fixed_by": "codex-root-T-2026-1002-0901",
+        "acceptance_commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+        "source_status": "verified-with-stated-scope",
+        "grade": "A source / B PATH-only controls",
+        "evidence": "surface-7fee-reset.log;reset-discovery-origin.json;surface-7fee-runtime-lock.json",
+        "implementation": "scripts/reset.sh confirmation / connection target / backup / transaction and scripts/reset-safety.test.mjs",
+        "conclusion": "Actual original8/8 failed discovery and later dotenv counterexample remain retained. Retained12/12 reset controls are included in complete desktop113/113 at the actual7fee execution source with synthetic configuration and PATH command substitutes; no customer or real database was reset. Explicit confirmation, production/remote/unknown/customer refusal, private nonempty backup and pre-deletion transaction recheck are source/test contracts. A statically observed seed log/default mismatch remains unexecuted; reset refusal for workspaces not explicitly marked as examples is preserved. Real production restore/backup operational quality is not established by these controls. These retained desktop113/subset controls keep their7fee execution provenance and are inherited only through the complete effective-input comparison; actual current MCD card runs are separately recorded.",
+        "delivery_conditions": false
+      },
+      "repair_evidence": [
+        {
+          "type": "regression",
+          "ref": "evidence/reset-env-declaration-green.log",
+          "current_verified_source_commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+          "run_provenance": "Original retained execution, with its original argv/source in the receipt. This field binds the independently reviewed current implementation; it does not relabel an older run as a new execution."
+        }
+      ],
+      "baseline_actual": "f0a脚本与审计42ead完整Git blob相同；8组实际替身断言0通过/8失败。旧脚本未经确认进入DROP替身，忽略客户和备份错误。无真实DROP。",
+      "repair_actual": "Actual original8/8 failed discovery and later dotenv counterexample remain retained. Retained12/12 reset controls are included in complete desktop113/113 at the actual7fee execution source with synthetic configuration and PATH command substitutes; no customer or real database was reset. Explicit confirmation, production/remote/unknown/customer refusal, private nonempty backup and pre-deletion transaction recheck are source/test contracts. A statically observed seed log/default mismatch remains unexecuted; reset refusal for workspaces not explicitly marked as examples is preserved. Real production restore/backup operational quality is not established by these controls. These retained desktop113/subset controls keep their7fee execution provenance and are inherited only through the complete effective-input comparison; actual current MCD card runs are separately recorded.",
+      "delivery_conditions": false,
+      "execution_contract": "Source acceptance has separate actual modern MCD argv runs/output hashes in execution-ledger.json and evidence-index.json. The repository legacy gate validates metadata only. MC-106 remains conditional on real native platform release.",
+      "portable_replay_readme": "replay/README.md",
+      "modern_execution_ledger": "execution-ledger.json"
+    },
+    {
+      "id": "MC-018",
+      "kind": "problem",
+      "severity": "P1",
+      "level": "L1",
+      "batch": 1,
+      "state": "verified",
+      "title": "启动诊断导出遗漏 JSON/连接串秘密，覆盖文件未收紧权限且保存错误逃出恢复流程",
+      "evidence_grade": "A",
+      "root_cause": {
+        "file": "apps/desktop/electron/main.cjs",
+        "line": 188,
+        "commit": "42ead347c65a5cc343bcd290702d53a7fcdb1687",
+        "symbol": "diagnosticText / handleSplashAction(export)"
+      },
+      "discovered_at_source_commit": "87ab5781d381d19e9dc7e1f5caa98b6a6b410c58",
+      "trigger_path": "Synthetic log fields and startup/read errors -> actual diagnosticText; cancel/new/existing file and dialog/open/write faults -> actual export action function. Original full Git source retained; no real secrets or customer data.",
+      "expected": "Known secret values removed from all diagnostic sections; keep version/host/error context; long bounded input returns promptly; own handles close on read/write failure; canceled export makes no file; POSIX new and overwritten files private before writing; save failure retains recovery page.",
+      "actual": "Original full 87ab runtime bytes with final 12 assertions: 2 pass / 10 fail. Additional corrected 10-group red 2/10, export red0/2, candidate long-text red0/1 retained separately.",
+      "fix_direction": "Quote-aware field values and URI/authorization redaction with token-boundary scan; finally close handles; private fd before write; catch save errors into recovery UI.",
+      "fix_plan": "12 contract controls in existing desktop suite, actual independent source rerun and final packaged-menu export.",
+      "coupling": "JSON serializers, URI encoding, long log performance, startup/read failure text, file permissions, dialog cancel and async recovery.",
+      "invariant_ids": [
+        "INV-5",
+        "INV-11"
+      ],
+      "assertions": [
+        {
+          "kind": "sample",
+          "given": "Clean source and synthetic temporary diagnostic logs/files; known secret fields plus failed save paths",
+          "expect": "12 real Node cases pass with no skip/todo",
+          "command": "node --test --test-name-pattern=启动诊断秘密脱敏 apps/desktop/electron/bootstrap.test.cjs",
+          "exec": {
+            "file": "node",
+            "args": [
+              "--test",
+              "--test-name-pattern=启动诊断秘密脱敏",
+              "apps/desktop/electron/bootstrap.test.cjs"
+            ]
+          },
+          "last_result": "pass",
+          "evidence": "evidence/diagnostic-contract-after.log"
+        }
+      ],
+      "evidence": [
+        {
+          "type": "code",
+          "ref": "apps/desktop/electron/main.cjs:188@42ead347c65a5cc343bcd290702d53a7fcdb1687",
+          "note": "Exact diagnosis/export functions are identical in audit42ead and actual discovery87ab; runtime argv/time remains87ab and is separately retained."
+        },
+        {
+          "type": "runtime",
+          "ref": "evidence/diagnostic-complete-original-before.json",
+          "note": "Actual pre-fix 12 controls:2pass10fail"
+        },
+        {
+          "type": "runtime",
+          "ref": "evidence/diagnostic-contract-after.json",
+          "note": "Actual repair-owned 12 controls green; independent/native not yet run"
+        },
+        {
+          "type": "runtime",
+          "ref": "evidence/diagnostic-redaction-performance-before.json",
+          "note": "Actual candidate performance failure, not original-source red"
+        }
+      ],
+      "regression": {
+        "command": "node --test --test-name-pattern=启动诊断秘密脱敏 apps/desktop/electron/bootstrap.test.cjs",
+        "evidence": "evidence/diagnostic-contract-after.log"
+      },
+      "rollback": "Normal revert with reviewed source and rebuilt matching payload; preserve existing diagnostics and business data.",
+      "notes": "原根因位置和失败证据保留在审计基线；verified 限定本问题的源码合同，不代表全平台正式发行或真实供应商经营能力通过。",
+      "original_discovery_root_cause": {
+        "file": "apps/desktop/electron/main.cjs",
+        "line": 197,
+        "commit": "87ab5781d381d19e9dc7e1f5caa98b6a6b410c58",
+        "symbol": "diagnosticText / handleSplashAction(export)"
+      },
+      "baseline_assertions": [
+        {
+          "kind": "sample",
+          "given": "Clean source and synthetic temporary diagnostic logs/files; known secret fields plus failed save paths",
+          "expect": "12 real Node cases pass with no skip/todo",
+          "command": "node --test --test-name-pattern=启动诊断秘密脱敏 apps/desktop/electron/bootstrap.test.cjs",
+          "exec": {
+            "file": "node",
+            "args": [
+              "--test",
+              "--test-name-pattern=启动诊断秘密脱敏",
+              "apps/desktop/electron/bootstrap.test.cjs"
+            ]
+          },
+          "last_result": "fail",
+          "evidence": "evidence/diagnostic-complete-original-before.log"
+        }
+      ],
+      "fixed_by": "codex-root-T-2026-1002-0901",
+      "fixed_at": "2026-10-04T05:40:08.105116+08:00",
+      "verified_by": "growth_m6",
+      "verified_at": "2026-10-04T05:32:31.451409+08:00",
+      "verification_evidence": "independent-m6/ledger-verification.json",
+      "source_verification": {
+        "id": "MC-018",
+        "kind": "problem",
+        "title": "启动诊断导出遗漏 JSON/连接串秘密，覆盖文件未收紧权限且保存错误逃出恢复流程",
+        "severity": "P1",
+        "verified_by": "growth_m6",
+        "fixed_by": "codex-root-T-2026-1002-0901",
+        "acceptance_commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+        "source_status": "verified-with-stated-scope",
+        "grade": "A source / B actual synthetic controls and function-byte equality",
+        "evidence": "surface-7fee-diagnostic.log;diagnostic-discovery-origin.json;diagnostic-official-provenance.json",
+        "implementation": "apps/desktop/electron/main.cjs diagnosticText / handleSplashAction(export) and bootstrap.test.cjs diagnostic group",
+        "conclusion": "Original complete87ab runtime with the final12 assertions actually passed2 and failed10; initial fixture correction, separate0/2 export red and candidate0/1 long-text slowdown are retained separately. Retained12/12 source controls are included in desktop113/113, use synthetic fields/local temporary files and cover quoted/escaped secrets, connection URI/auth headers, bounded200KB context, read-handle cleanup, cancel, new/overwritten0600 files and dialog/open/write failures. Function-byte equality links the audit42ead code location to discovery87ab, without relabeling a runtime. Actual installed startup-failure-page action and native save-panel execution remain a separate current-native gate. This is field masking, not arbitrary log anonymization; Windows ACL and real customer diagnostics remain unverified. These retained desktop113/subset controls keep their7fee execution provenance and are inherited only through the complete effective-input comparison; actual current MCD card runs are separately recorded.",
+        "delivery_conditions": true
+      },
+      "repair_evidence": [
+        {
+          "type": "regression",
+          "ref": "evidence/diagnostic-contract-after.log",
+          "current_verified_source_commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+          "run_provenance": "Original retained execution, with its original argv/source in the receipt. This field binds the independently reviewed current implementation; it does not relabel an older run as a new execution."
+        }
+      ],
+      "baseline_actual": "Original full 87ab runtime bytes with final 12 assertions: 2 pass / 10 fail. Additional corrected 10-group red 2/10, export red0/2, candidate long-text red0/1 retained separately.",
+      "repair_actual": "Original complete87ab runtime with the final12 assertions actually passed2 and failed10; initial fixture correction, separate0/2 export red and candidate0/1 long-text slowdown are retained separately. Retained12/12 source controls are included in desktop113/113, use synthetic fields/local temporary files and cover quoted/escaped secrets, connection URI/auth headers, bounded200KB context, read-handle cleanup, cancel, new/overwritten0600 files and dialog/open/write failures. Function-byte equality links the audit42ead code location to discovery87ab, without relabeling a runtime. Actual installed startup-failure-page action and native save-panel execution remain a separate current-native gate. This is field masking, not arbitrary log anonymization; Windows ACL and real customer diagnostics remain unverified. These retained desktop113/subset controls keep their7fee execution provenance and are inherited only through the complete effective-input comparison; actual current MCD card runs are separately recorded.",
+      "delivery_conditions": true,
+      "execution_contract": "Source acceptance has separate actual modern MCD argv runs/output hashes in execution-ledger.json and evidence-index.json. The repository legacy gate validates metadata only. MC-106 remains conditional on real native platform release.",
+      "portable_replay_readme": "replay/README.md",
+      "modern_execution_ledger": "execution-ledger.json"
+    }
+  ],
+  "gates": [],
+  "coverage_file": "file-coverage.csv",
+  "release_status": "independent source controls verified; exact Mac native passed; signed Windows/Mac release and RDAS production outcomes remain gated",
+  "additional_repairs": [
+    {
+      "id": "OBS-01",
+      "title": "机器意见不抹除定妆照人类否决，新增 CLI 具名驳回",
+      "evidence": "evidence/portrait-cli.json"
+    },
+    {
+      "id": "OBS-02",
+      "title": "交付检查验证必需产物 SHA-256，拒空清单和摘要不匹配",
+      "evidence": "evidence/video-capabilities-core.log"
+    },
+    {
+      "id": "OBS-03",
+      "title": "织伴窄区收起与自动公告后恢复",
+      "evidence": "evidence/ui-responsive.json"
+    },
+    {
+      "id": "OBS-04",
+      "title": "首日引导后验证无遮罩实际场景",
+      "evidence": "evidence/client-生产修复 首次客户/render-default.json"
+    },
+    {
+      "id": "OBS-05",
+      "title": "CNB 完整分支和标签引用正确绑定",
+      "evidence": "evidence/release-contract-production-final.log"
+    },
+    {
+      "id": "OBS-06",
+      "title": "C 端生成投影与 UI/行业包摘要一致",
+      "evidence": "evidence/static-release-production-final.log"
+    },
+    {
+      "id": "OBS-07",
+      "title": "独立 M6 发现的父通道方法、阶段和镜号绑定缺口已补修",
+      "severity": "P1",
+      "evidence": "evidence/film-channel-parent-unit.log",
+      "red_evidence": "independent-m6/parent-channel-results.json",
+      "covered_by": "MC-013"
+    },
+    {
+      "id": "OBS-08",
+      "title": "遍历前排除开发依赖并拒绝源码链接越界",
+      "evidence": "independent-m6/desktop-supplement.log",
+      "covered_by": "MC-003"
+    },
+    {
+      "id": "OBS-09",
+      "title": "系统遥测完整合同与13个反例保留业务动作留痕要求",
+      "evidence": "independent-m6/geo-supplement.log",
+      "covered_by": "MC-014"
+    },
+    {
+      "id": "OBS-10",
+      "title": "等待实际引导退出并给永不返回的renderer绑定硬截止",
+      "evidence": "independent-m6/render-guide-bounded.log",
+      "red_evidence": "independent-m6/history/09bc-render-guide-probe-results.json"
+    },
+    {
+      "id": "OBS-11",
+      "title": "卸载后迟到模型销毁且WebGL能力探针只分配一次并释放",
+      "evidence": "evidence/avatar-lifecycle-green.log",
+      "red_evidence": "evidence/avatar-lifecycle-red.log"
+    },
+    {
+      "id": "OBS-12",
+      "title": "截图前后重新检查实际场景，拒绝等待期间已失效的旧采样",
+      "evidence": "evidence/desktop-scene-stale-after.log",
+      "red_evidence": "independent-m6/render-guide-transient-results.json",
+      "independent_evidence": "independent-m6/render-guide-transient-after-results.json"
+    },
+    {
+      "id": "OBS-13",
+      "title": "完成引导后迟到请求不降级状态，关闭首日引导后不被就绪抖动重新打开",
+      "evidence": "evidence/welcome-terminal-real-pg-corrected.log",
+      "red_evidence": "independent-m6/welcome-progress-before-results.json",
+      "independent_evidence": "independent-m6/welcome-progress-after-results.json",
+      "client_evidence": "independent-m6/welcome-client-after.log",
+      "ready_evidence": "independent-m6/questline-ready-after.log"
+    },
+    {
+      "id": "OBS-14",
+      "title": "同版本标记存在但运行资产缺失时重建载荷，保留客户数据库和配置",
+      "evidence": "evidence/desktop-recovery-marker-after.log",
+      "red_evidence": "evidence/desktop-recovery-marker-before.log"
+    },
+    {
+      "id": "OBS-15",
+      "title": "65人仪式按可滚动网格完整显示长姓名和角色标签，桌面和390窄视口均可到达末项",
+      "evidence": "independent-m6/ceremony-density-final-repeat-results.json",
+      "red_evidence": "independent-m6/ceremony-density-text-before-results.json",
+      "retained_timeout": "independent-m6/ceremony-density-final-results.json",
+      "scope": "原冻结运行3/4含390 ready超时；同脚本、同15s就绪与90s导航阈值窄复测4/4，未证明唯一超时根因"
+    },
+    {
+      "id": "OBS-16",
+      "title": "2D职场按原生文字边界分配人物与名牌，完整卡片点击、首帧可见及用户滚动保留；生产CSS与绘制坐标一致",
+      "evidence": "independent-m6/floor-final-verification.json",
+      "red_evidence": "independent-m6/floor-canvas-painted-before-results.json",
+      "production_css_red_evidence": "independent-m6/floor-canvas-production-before-results.json",
+      "component_red": "evidence/floor-content-safety-red.log",
+      "retained_timeout": "evidence/floor-content-safety-green.log",
+      "component_same_threshold_repeat": "evidence/floor-content-safety-repeat.log",
+      "scope": "无完整CSS夹具的历史绿不作为最终生产CSS通过；原始outside数量是缩放坐标基准差异，不等同实际屏外人数"
+    },
+    {
+      "id": "OBS-17",
+      "title": "3D职场名牌避让身体，实际身体点击和Canvas原生拖放按员工自身命中，65人相机覆盖边界",
+      "evidence": "independent-m6/floor-final-verification.json",
+      "red_evidence": "independent-m6/floor3d-before-corrected-results.json",
+      "production_body_red": "independent-m6/floor3d-production-final-results.json",
+      "production_drop_red": "independent-m6/floor3d-production-drop-final-results.json",
+      "repair_actor": "/root/floor_hit_repair",
+      "scope": "完整生产CSS原28、启用拖放原28+27合成DOM事件、65人边界和短长中文hover各自按实际执行SHA留证；移除透明HTML接收区，严格名牌避让与相机边界另验。合成DragEvent证明当前处理器交付，不冒充OS拖拽或真实业务派单；不外推任意相机/设备/团队规模"
+    },
+    {
+      "id": "OBS-18",
+      "title": "舞台使用明确440px高度，实际Canvas填满场景且截图前后核对绘制区",
+      "evidence": "independent-m6/floor-final-verification.json",
+      "red_evidence": "evidence/scene-layout-before-production-results.json",
+      "native_red_evidence": "independent-m6/floor-native-c083-screenshot-review.json",
+      "repair_evidence": "evidence/scene-layout-after-results.json",
+      "scope": "实际生产CSS下1440与390宽度旧Canvas150/Scene440，新场景/Canvas均440；原生观察器核对真实Canvas、有效WebGL与截图前后几何。源码控制、DOM机检和实际Mac像素分别留证，不外推任意设备或完整舞台交互"
+    },
+    {
+      "id": "OBS-19",
+      "title": "员工名牌在所属职场场景查找公司负责人牌匾，覆盖Fiber连接portal并保持场景隔离",
+      "evidence": "independent-m6/floor-final-verification.json",
+      "red_evidence": "evidence/floor-native-ceo-portal-red-results.json",
+      "native_red_evidence": "independent-m6/floor-native-c083-screenshot-review.json",
+      "repair_evidence": "evidence/scene-layout-after-results.json",
+      "scope": "原connected portal反例失败且两个真实视口旧CEO相交16/18，新单测含跨场景隔离、实际DOM CEO相交为空；原生截图前后再核对。查询限定当前场景，不采用全局document搜索"
+    },
+    {
+      "id": "OBS-20",
+      "title": "演示重置确认、目标、客户识别、私有备份与事务并发检查失败关闭",
+      "evidence": "independent-m6/ledger-verification.json",
+      "covered_by": "MC-017",
+      "red_evidence": "evidence/reset-safety-before.log",
+      "configuration_red_evidence": "evidence/reset-env-declaration-red.log",
+      "repair_evidence": "evidence/reset-env-declaration-green.log",
+      "scope": "12组PATH替身控制，原8组红和.env生产声明11/12反例均保留；同时校验继承环境和配置文件，不执行.env。没有真实客户数据库删除或供应商调用"
+    },
+    {
+      "id": "OBS-21",
+      "title": "诊断导出覆盖JSON/连接串秘密、私有文件、长文本和保存失败恢复",
+      "evidence": "independent-m6/ledger-verification.json",
+      "covered_by": "MC-018",
+      "red_evidence": "evidence/diagnostic-complete-original-before.log",
+      "performance_red_evidence": "evidence/diagnostic-redaction-performance-before.log",
+      "repair_evidence": "evidence/diagnostic-contract-after.log",
+      "scope": "原完整Git源12项2pass10fail；修复12pass及完整113桌面套件。源函数用例与实际安装包菜单/保存对话框另验；字段脱敏不等同任意日志匿名化，Windows ACL不由POSIX mode推断"
+    },
+    {
+      "id": "OBS-22",
+      "title": "舞台实体地台与反射平面保持实际间距，消除原生截图地面撕裂",
+      "evidence": "independent-m6/floor-final-verification.json",
+      "red_evidence": "evidence/stage-surface-unit-red-corrected.log",
+      "native_red_evidence": "independent-m6/floor-native-f951-screenshot-review.json",
+      "repair_evidence": "evidence/stage-surface-unit-green.log",
+      "counterfactual_evidence": "independent-m6/stage-floor-counterfactual-pixel-review.json",
+      "scope": "原实体地台顶面与反射平面重合；两条实际树几何控制旧源0/2、新源2/2，最小位置变化在1440与390截图独立复核。最终surface原生像素另验；原撕裂唯一GPU原因仍为推断，不从SSR或文档直接推出"
+    },
+    {
+      "id": "OBS-23",
+      "title": "移除Live2D仅供上游文档部署使用的gh-pages边，关闭新HIGH依赖链",
+      "evidence": "independent-m6/dependency-1e47-structural-binding.json",
+      "covered_by": "MC-016",
+      "red_evidence": "runs/MC-016-0-1791033810501.json",
+      "repair_evidence": "evidence/live2d-dependency-cut-audit-proxy.log",
+      "scope": "官方新HIGH审计红结果保留；精确0.4.0覆盖移除无用部署依赖，不屏蔽公告。12 importer和134运行锁逐字节/全量解析一致，发布JS的静态导入解析及构建字节一致仅作B级继承证据；当前MCD审计重新实际执行，不外推任意动态行为不可达"
+    }
+  ],
+  "independent_observation_mapping": {
+    "OBS-07": "independent OBS-07",
+    "OBS-08": "independent MC-003",
+    "OBS-09": "independent MC-014",
+    "OBS-10": "independent OBS-04 + OBS-08",
+    "OBS-11": "independent OBS-09",
+    "OBS-12": "independent OBS-10",
+    "OBS-13": "independent OBS-11",
+    "OBS-14": "independent OBS-12 + MC-001 + MC-003",
+    "OBS-15": "independent OBS-13; ceremony density browser controls",
+    "OBS-16": "independent OBS-14; Canvas label/click/viewport and full-production-CSS controls",
+    "OBS-17": "independent OBS-15; actual 3D projection/label/pointer controls",
+    "OBS-18": "independent OBS-16; actual production stage and native canvas geometry",
+    "OBS-19": "independent OBS-17; connected-portal CEO avoidance and scene isolation",
+    "OBS-20": "independent MC-017; separately discovered reset P0 controls",
+    "OBS-21": "independent MC-018; separately discovered diagnostic P1 controls",
+    "OBS-22": "independent OBS-18; actual stage solid/reflection geometry and pixel counterfactual",
+    "OBS-23": "independent MC-016; official new HIGH advisory and exact unused doc deployment edge removal"
+  },
+  "acceptance_qualifications": {
+    "final_mac_native": true,
+    "windows_native": false,
+    "signed_platform_release": false,
+    "paid_supplier_generation": false,
+    "full_rdas": false
+  },
+  "handoff": {
+    "generated_at": "2026-10-03T23:43:56.143Z",
+    "acceptance_command": "node scripts/acceptance/fleet-run.mjs --repo workloom-growth --env client-runtime",
+    "open_problem_ids": [
+      "MC-106"
+    ]
+  }
+}

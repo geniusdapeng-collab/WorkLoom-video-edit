@@ -1,0 +1,82 @@
+{
+  "schema": "growth.independent-m6/candidate-security-receipts-not-final@1",
+  "reviewed_by": "growth_m6",
+  "reviewed_at": "2026-10-03T22:16:10.554500+08:00",
+  "source_commit": null,
+  "exact_new_source_handoff_received": false,
+  "original_receipts_have_executed_source_commit_fields": false,
+  "candidate_audit": {
+    "exit_code": 0,
+    "seconds": 6.177,
+    "ran_at": "2026-10-03T22:06:41.412418+08:00",
+    "metadata": {
+      "vulnerabilities": {
+        "info": 0,
+        "low": 0,
+        "moderate": 0,
+        "high": 0,
+        "critical": 0
+      },
+      "dependencies": 197,
+      "devDependencies": 0,
+      "optionalDependencies": 0,
+      "totalDependencies": 197
+    },
+    "advisories": {},
+    "muted": []
+  },
+  "candidate_web_build": {
+    "exit_code": 0,
+    "seconds": 5.166,
+    "ran_at": "2026-10-03T22:09:09.733636+08:00",
+    "client_boundary_passed_in_actual_log": true
+  },
+  "candidate_only": true,
+  "new_source_control_pass": false,
+  "final_native_reverified_for_new_source": false,
+  "modern_MCD_accepted": false,
+  "source_scoped_merge_eligible": false,
+  "actual_commands_executed_by_growth_m6_in_this_review": 0,
+  "source_PG_GPU_native_large_IO_window_owner": "root",
+  "product_or_root_ledger_writes": false,
+  "private_contents_opened": false,
+  "evidence": [
+    {
+      "root_file": "evidence/live2d-dependency-cut-audit-proxy.json",
+      "file": "inherited/mc016_candidate__live2d-dependency-cut-audit-proxy.json",
+      "sha256": "9aed9a126f31fcb148c960d5d5581b5f5c092378d337c1c6a22119bb7d042156",
+      "bytes": 509,
+      "fully_read": true,
+      "source_commit_present_in_original_wrapper": false,
+      "grade": "B actual root public command/output metadata"
+    },
+    {
+      "root_file": "evidence/live2d-dependency-cut-audit-proxy.log",
+      "file": "inherited/mc016_candidate__live2d-dependency-cut-audit-proxy.log",
+      "sha256": "a6c7f6a3a49f9700e753981e1e30d9a2d762aa05f41d36f6966060cd05ff5a0a",
+      "bytes": 599,
+      "fully_read": true,
+      "source_commit_present_in_original_wrapper": false,
+      "grade": "B actual root public command/output metadata"
+    },
+    {
+      "root_file": "evidence/live2d-dependency-cut-web-build.json",
+      "file": "inherited/mc016_candidate__live2d-dependency-cut-web-build.json",
+      "sha256": "f590a344c9eb5b6563a4b722421b3caf3ce242bb1eea4979444d26fdd026e141",
+      "bytes": 503,
+      "fully_read": true,
+      "source_commit_present_in_original_wrapper": false,
+      "grade": "B actual root public command/output metadata"
+    },
+    {
+      "root_file": "evidence/live2d-dependency-cut-web-build.log",
+      "file": "inherited/mc016_candidate__live2d-dependency-cut-web-build.log",
+      "sha256": "f1a585c3a98363b1631a9a5d7a2a0d6ced46a5812b7ce83c5f76dd2b507a71bb",
+      "bytes": 1357,
+      "fully_read": true,
+      "source_commit_present_in_original_wrapper": false,
+      "grade": "B actual root public command/output metadata"
+    }
+  ],
+  "evidence_grade": "B public actual receipts, not an accepted-source closure or final gate"
+}

@@ -1,0 +1,1118 @@
+{
+  "diagnosticOnly": true,
+  "ownedEndpoint": true,
+  "records": [
+    {
+      "at": 1790964668811,
+      "guide": false,
+      "hud": false,
+      "button": null,
+      "events": [],
+      "clicks": [],
+      "scenes": []
+    },
+    {
+      "at": 1790964669160,
+      "guide": false,
+      "hud": false,
+      "button": null,
+      "events": [],
+      "clicks": [],
+      "scenes": []
+    },
+    {
+      "at": 1790964669552,
+      "guide": false,
+      "hud": false,
+      "button": null,
+      "events": [],
+      "clicks": [],
+      "scenes": []
+    },
+    {
+      "at": 1790964670193,
+      "guide": false,
+      "hud": false,
+      "button": null,
+      "events": [],
+      "clicks": [],
+      "scenes": []
+    },
+    {
+      "at": 1790964671269,
+      "guide": false,
+      "hud": false,
+      "button": null,
+      "events": [],
+      "clicks": [],
+      "scenes": []
+    },
+    {
+      "at": 1790964671640,
+      "guide": false,
+      "hud": false,
+      "button": null,
+      "events": [],
+      "clicks": [],
+      "scenes": []
+    },
+    {
+      "at": 1790964671916,
+      "guide": false,
+      "hud": false,
+      "button": null,
+      "events": [],
+      "clicks": [],
+      "scenes": []
+    },
+    {
+      "at": 1790964672184,
+      "guide": false,
+      "hud": false,
+      "button": null,
+      "events": [],
+      "clicks": [],
+      "scenes": []
+    },
+    {
+      "at": 1790964672445,
+      "guide": false,
+      "hud": false,
+      "button": null,
+      "events": [],
+      "clicks": [],
+      "scenes": []
+    },
+    {
+      "at": 1790964672822,
+      "guide": false,
+      "hud": false,
+      "button": null,
+      "events": [],
+      "clicks": [],
+      "scenes": []
+    },
+    {
+      "at": 1790964673095,
+      "guide": false,
+      "hud": false,
+      "button": null,
+      "events": [],
+      "clicks": [],
+      "scenes": []
+    },
+    {
+      "at": 1790964673361,
+      "guide": false,
+      "hud": false,
+      "button": null,
+      "events": [],
+      "clicks": [],
+      "scenes": []
+    },
+    {
+      "at": 1790964673656,
+      "guide": false,
+      "hud": false,
+      "button": null,
+      "events": [],
+      "clicks": [],
+      "scenes": []
+    },
+    {
+      "at": 1790964673927,
+      "guide": false,
+      "hud": false,
+      "button": null,
+      "events": [],
+      "clicks": [],
+      "scenes": []
+    },
+    {
+      "at": 1790964674187,
+      "guide": false,
+      "hud": false,
+      "button": null,
+      "events": [],
+      "clicks": [],
+      "scenes": []
+    },
+    {
+      "at": 1790964674468,
+      "guide": false,
+      "hud": false,
+      "button": null,
+      "events": [],
+      "clicks": [],
+      "scenes": []
+    },
+    {
+      "at": 1790964674743,
+      "guide": false,
+      "hud": false,
+      "button": null,
+      "events": [],
+      "clicks": [],
+      "scenes": []
+    },
+    {
+      "at": 1790964675001,
+      "guide": false,
+      "hud": false,
+      "button": null,
+      "events": [],
+      "clicks": [],
+      "scenes": []
+    },
+    {
+      "at": 1790964675268,
+      "guide": false,
+      "hud": false,
+      "button": null,
+      "events": [],
+      "clicks": [],
+      "scenes": []
+    },
+    {
+      "at": 1790964675525,
+      "guide": false,
+      "hud": false,
+      "button": null,
+      "events": [],
+      "clicks": [],
+      "scenes": []
+    },
+    {
+      "at": 1790964675811,
+      "guide": false,
+      "hud": false,
+      "button": null,
+      "events": [],
+      "clicks": [],
+      "scenes": []
+    },
+    {
+      "at": 1790964676251,
+      "guide": false,
+      "hud": false,
+      "button": null,
+      "events": [],
+      "clicks": [],
+      "scenes": []
+    },
+    {
+      "at": 1790964676564,
+      "guide": false,
+      "hud": false,
+      "button": null,
+      "events": [],
+      "clicks": [],
+      "scenes": []
+    },
+    {
+      "at": 1790964676894,
+      "guide": false,
+      "hud": false,
+      "button": null,
+      "events": [],
+      "clicks": [],
+      "scenes": []
+    },
+    {
+      "at": 1790964677174,
+      "guide": false,
+      "hud": false,
+      "button": null,
+      "events": [],
+      "clicks": [],
+      "scenes": []
+    },
+    {
+      "at": 1790964677438,
+      "guide": false,
+      "hud": false,
+      "button": null,
+      "events": [],
+      "clicks": [],
+      "scenes": []
+    },
+    {
+      "at": 1790964677727,
+      "guide": false,
+      "hud": false,
+      "button": null,
+      "events": [],
+      "clicks": [],
+      "scenes": []
+    },
+    {
+      "at": 1790964678153,
+      "guide": false,
+      "hud": false,
+      "button": null,
+      "events": [],
+      "clicks": [],
+      "scenes": []
+    },
+    {
+      "at": 1790964679435,
+      "guide": false,
+      "hud": false,
+      "button": null,
+      "events": [],
+      "clicks": [],
+      "scenes": []
+    },
+    {
+      "at": 1790964680943,
+      "guide": false,
+      "hud": false,
+      "button": null,
+      "events": [],
+      "clicks": [],
+      "scenes": []
+    },
+    {
+      "at": 1790964681198,
+      "guide": false,
+      "hud": false,
+      "button": null,
+      "events": [],
+      "clicks": [],
+      "scenes": []
+    },
+    {
+      "at": 1790964681796,
+      "guide": false,
+      "hud": false,
+      "button": null,
+      "events": [],
+      "clicks": [],
+      "scenes": []
+    },
+    {
+      "at": 1790964685660,
+      "guide": false,
+      "hud": false,
+      "button": null,
+      "events": [],
+      "clicks": [],
+      "scenes": []
+    },
+    {
+      "at": 1790964686054,
+      "guide": false,
+      "hud": false,
+      "button": null,
+      "events": [],
+      "clicks": [],
+      "scenes": []
+    },
+    {
+      "at": 1790964687000,
+      "guide": false,
+      "hud": false,
+      "button": null,
+      "events": [],
+      "clicks": [],
+      "scenes": []
+    },
+    {
+      "at": 1790964687329,
+      "guide": false,
+      "hud": false,
+      "button": null,
+      "events": [],
+      "clicks": [],
+      "scenes": []
+    },
+    {
+      "at": 1790964687665,
+      "guide": false,
+      "hud": false,
+      "button": null,
+      "events": [],
+      "clicks": [],
+      "scenes": []
+    },
+    {
+      "at": 1790964687933,
+      "guide": false,
+      "hud": false,
+      "button": null,
+      "events": [],
+      "clicks": [],
+      "scenes": []
+    },
+    {
+      "at": 1790964688200,
+      "guide": false,
+      "hud": false,
+      "button": null,
+      "events": [],
+      "clicks": [],
+      "scenes": []
+    },
+    {
+      "at": 1790964688727,
+      "guide": false,
+      "hud": false,
+      "button": null,
+      "events": [],
+      "clicks": [],
+      "scenes": []
+    },
+    {
+      "at": 1790964689008,
+      "guide": false,
+      "hud": false,
+      "button": null,
+      "events": [],
+      "clicks": [],
+      "scenes": []
+    },
+    {
+      "at": 1790964689295,
+      "guide": false,
+      "hud": false,
+      "button": null,
+      "events": [],
+      "clicks": [],
+      "scenes": []
+    },
+    {
+      "at": 1790964689614,
+      "guide": false,
+      "hud": false,
+      "button": null,
+      "events": [],
+      "clicks": [],
+      "scenes": []
+    },
+    {
+      "at": 1790964689880,
+      "guide": false,
+      "hud": false,
+      "button": null,
+      "events": [],
+      "clicks": [],
+      "scenes": []
+    },
+    {
+      "at": 1790964690137,
+      "guide": false,
+      "hud": false,
+      "button": null,
+      "events": [],
+      "clicks": [],
+      "scenes": []
+    },
+    {
+      "at": 1790964690398,
+      "guide": false,
+      "hud": false,
+      "button": null,
+      "events": [],
+      "clicks": [],
+      "scenes": []
+    },
+    {
+      "at": 1790964692338,
+      "guide": false,
+      "hud": false,
+      "button": null,
+      "events": [],
+      "clicks": [],
+      "scenes": []
+    },
+    {
+      "at": 1790964692723,
+      "guide": false,
+      "hud": false,
+      "button": null,
+      "events": [],
+      "clicks": [],
+      "scenes": []
+    },
+    {
+      "at": 1790964693084,
+      "guide": false,
+      "hud": false,
+      "button": null,
+      "events": [],
+      "clicks": [],
+      "scenes": []
+    },
+    {
+      "at": 1790964693346,
+      "guide": false,
+      "hud": false,
+      "button": null,
+      "events": [],
+      "clicks": [],
+      "scenes": []
+    },
+    {
+      "at": 1790964693629,
+      "guide": false,
+      "hud": false,
+      "button": null,
+      "events": [],
+      "clicks": [],
+      "scenes": []
+    },
+    {
+      "at": 1790964693887,
+      "guide": false,
+      "hud": false,
+      "button": null,
+      "events": [],
+      "clicks": [],
+      "scenes": []
+    },
+    {
+      "at": 1790964695162,
+      "guide": false,
+      "hud": true,
+      "button": null,
+      "events": [],
+      "clicks": [],
+      "scenes": []
+    },
+    {
+      "at": 1790964706319,
+      "guide": false,
+      "hud": true,
+      "button": null,
+      "events": [],
+      "clicks": [],
+      "scenes": []
+    },
+    {
+      "at": 1790964712868,
+      "welcome": "mate",
+      "guide": false,
+      "hud": false,
+      "button": null,
+      "events": [],
+      "clicks": [],
+      "scenes": [
+        "workplace-2d"
+      ]
+    },
+    {
+      "at": 1790964714210,
+      "welcome": "mate",
+      "guide": false,
+      "hud": false,
+      "button": null,
+      "events": [],
+      "clicks": [],
+      "scenes": [
+        "workplace-2d"
+      ]
+    },
+    {
+      "at": 1790964716669,
+      "welcome": "mate",
+      "guide": false,
+      "hud": false,
+      "button": null,
+      "events": [],
+      "clicks": [],
+      "scenes": [
+        "workplace-2d"
+      ]
+    },
+    {
+      "at": 1790964721217,
+      "welcome": "mate",
+      "guide": false,
+      "hud": false,
+      "button": null,
+      "events": [],
+      "clicks": [],
+      "scenes": [
+        "workplace-2d"
+      ]
+    },
+    {
+      "at": 1790964721615,
+      "welcome": "mate",
+      "guide": false,
+      "hud": false,
+      "button": null,
+      "events": [],
+      "clicks": [],
+      "scenes": [
+        "workplace-2d"
+      ]
+    },
+    {
+      "at": 1790964721919,
+      "welcome": "mate",
+      "guide": false,
+      "hud": false,
+      "button": null,
+      "events": [],
+      "clicks": [],
+      "scenes": [
+        "workplace-2d"
+      ]
+    },
+    {
+      "at": 1790964722288,
+      "welcome": "mate",
+      "guide": false,
+      "hud": false,
+      "button": null,
+      "events": [],
+      "clicks": [],
+      "scenes": [
+        "workplace-2d"
+      ]
+    },
+    {
+      "at": 1790964722677,
+      "welcome": "mate",
+      "guide": false,
+      "hud": false,
+      "button": null,
+      "events": [],
+      "clicks": [],
+      "scenes": [
+        "workplace-2d"
+      ]
+    },
+    {
+      "at": 1790964723922,
+      "welcome": "mate",
+      "guide": false,
+      "hud": false,
+      "button": null,
+      "events": [],
+      "clicks": [],
+      "scenes": [
+        "workplace-2d"
+      ]
+    },
+    {
+      "at": 1790964724288,
+      "welcome": "mate",
+      "guide": false,
+      "hud": false,
+      "button": null,
+      "events": [],
+      "clicks": [],
+      "scenes": [
+        "workplace-2d"
+      ]
+    },
+    {
+      "at": 1790964724554,
+      "welcome": "mate",
+      "guide": false,
+      "hud": false,
+      "button": null,
+      "events": [],
+      "clicks": [],
+      "scenes": [
+        "workplace-2d"
+      ]
+    },
+    {
+      "at": 1790964724901,
+      "welcome": "mate",
+      "guide": false,
+      "hud": false,
+      "button": null,
+      "events": [],
+      "clicks": [],
+      "scenes": [
+        "workplace-2d"
+      ]
+    },
+    {
+      "at": 1790964727467,
+      "welcome": "entrance",
+      "guide": false,
+      "hud": false,
+      "button": null,
+      "events": [],
+      "clicks": [],
+      "scenes": [
+        "workplace-2d"
+      ]
+    },
+    {
+      "at": 1790964727848,
+      "welcome": "entrance",
+      "guide": false,
+      "hud": false,
+      "button": null,
+      "events": [],
+      "clicks": [],
+      "scenes": [
+        "workplace-2d"
+      ]
+    },
+    {
+      "at": 1790964728137,
+      "welcome": "entrance",
+      "guide": false,
+      "hud": false,
+      "button": null,
+      "events": [],
+      "clicks": [],
+      "scenes": [
+        "workplace-2d"
+      ]
+    },
+    {
+      "at": 1790964728460,
+      "welcome": "entrance",
+      "guide": false,
+      "hud": false,
+      "button": null,
+      "events": [],
+      "clicks": [],
+      "scenes": [
+        "workplace-2d"
+      ]
+    },
+    {
+      "at": 1790964728782,
+      "welcome": "entrance",
+      "guide": false,
+      "hud": false,
+      "button": null,
+      "events": [],
+      "clicks": [],
+      "scenes": [
+        "workplace-2d"
+      ]
+    },
+    {
+      "at": 1790964730503,
+      "welcome": "dance",
+      "guide": false,
+      "hud": false,
+      "button": null,
+      "events": [],
+      "clicks": [
+        {
+          "at": 1790964730492,
+          "label": "直接进入",
+          "guide": false,
+          "inert": false,
+          "disabled": false
+        }
+      ],
+      "scenes": [
+        "workplace-2d"
+      ]
+    },
+    {
+      "at": 1790964735744,
+      "welcome": "dance",
+      "guide": false,
+      "hud": false,
+      "button": null,
+      "events": [],
+      "clicks": [
+        {
+          "at": 1790964730492,
+          "label": "直接进入",
+          "guide": false,
+          "inert": false,
+          "disabled": false
+        }
+      ],
+      "scenes": [
+        "workplace-2d"
+      ]
+    },
+    {
+      "at": 1790964736301,
+      "welcome": "dance",
+      "guide": false,
+      "hud": false,
+      "button": null,
+      "events": [],
+      "clicks": [
+        {
+          "at": 1790964730492,
+          "label": "直接进入",
+          "guide": false,
+          "inert": false,
+          "disabled": false
+        }
+      ],
+      "scenes": [
+        "workplace-2d"
+      ]
+    },
+    {
+      "at": 1790964738031,
+      "guide": false,
+      "hud": true,
+      "button": null,
+      "events": [],
+      "clicks": [
+        {
+          "at": 1790964730492,
+          "label": "直接进入",
+          "guide": false,
+          "inert": false,
+          "disabled": false
+        }
+      ],
+      "scenes": [
+        "workplace-3d"
+      ]
+    },
+    {
+      "at": 1790964740605,
+      "guide": false,
+      "hud": true,
+      "button": null,
+      "events": [
+        {
+          "name": "questline.stage.viewed",
+          "at": 1790964738176,
+          "payload": {
+            "stage": "meet"
+          }
+        },
+        {
+          "name": "questline.started",
+          "at": 1790964738188,
+          "payload": {
+            "journey_version": 1,
+            "from": "welcome"
+          }
+        },
+        {
+          "name": "questline.achievement.unlocked",
+          "at": 1790964738188,
+          "payload": {
+            "achievement_id": "aboard"
+          }
+        },
+        {
+          "name": "questline.closed",
+          "at": 1790964740521,
+          "payload": {
+            "stage": "meet"
+          }
+        }
+      ],
+      "clicks": [
+        {
+          "at": 1790964730492,
+          "label": "直接进入",
+          "guide": false,
+          "inert": false,
+          "disabled": false
+        },
+        {
+          "at": 1790964740518,
+          "label": "稍后再来",
+          "guide": true,
+          "inert": false,
+          "disabled": false
+        }
+      ],
+      "scenes": [
+        "workplace-3d"
+      ]
+    },
+    {
+      "at": 1790964744546,
+      "guide": false,
+      "hud": true,
+      "button": null,
+      "events": [
+        {
+          "name": "questline.stage.viewed",
+          "at": 1790964738176,
+          "payload": {
+            "stage": "meet"
+          }
+        },
+        {
+          "name": "questline.started",
+          "at": 1790964738188,
+          "payload": {
+            "journey_version": 1,
+            "from": "welcome"
+          }
+        },
+        {
+          "name": "questline.achievement.unlocked",
+          "at": 1790964738188,
+          "payload": {
+            "achievement_id": "aboard"
+          }
+        },
+        {
+          "name": "questline.closed",
+          "at": 1790964740521,
+          "payload": {
+            "stage": "meet"
+          }
+        }
+      ],
+      "clicks": [
+        {
+          "at": 1790964730492,
+          "label": "直接进入",
+          "guide": false,
+          "inert": false,
+          "disabled": false
+        },
+        {
+          "at": 1790964740518,
+          "label": "稍后再来",
+          "guide": true,
+          "inert": false,
+          "disabled": false
+        }
+      ],
+      "scenes": [
+        "workplace-3d"
+      ]
+    },
+    {
+      "at": 1790964747247,
+      "guide": false,
+      "hud": true,
+      "button": null,
+      "events": [
+        {
+          "name": "questline.stage.viewed",
+          "at": 1790964738176,
+          "payload": {
+            "stage": "meet"
+          }
+        },
+        {
+          "name": "questline.started",
+          "at": 1790964738188,
+          "payload": {
+            "journey_version": 1,
+            "from": "welcome"
+          }
+        },
+        {
+          "name": "questline.achievement.unlocked",
+          "at": 1790964738188,
+          "payload": {
+            "achievement_id": "aboard"
+          }
+        },
+        {
+          "name": "questline.closed",
+          "at": 1790964740521,
+          "payload": {
+            "stage": "meet"
+          }
+        }
+      ],
+      "clicks": [
+        {
+          "at": 1790964730492,
+          "label": "直接进入",
+          "guide": false,
+          "inert": false,
+          "disabled": false
+        },
+        {
+          "at": 1790964740518,
+          "label": "稍后再来",
+          "guide": true,
+          "inert": false,
+          "disabled": false
+        }
+      ],
+      "scenes": [
+        "workplace-3d"
+      ]
+    },
+    {
+      "at": 1790964756262,
+      "guide": false,
+      "hud": true,
+      "button": null,
+      "events": [
+        {
+          "name": "questline.stage.viewed",
+          "at": 1790964738176,
+          "payload": {
+            "stage": "meet"
+          }
+        },
+        {
+          "name": "questline.started",
+          "at": 1790964738188,
+          "payload": {
+            "journey_version": 1,
+            "from": "welcome"
+          }
+        },
+        {
+          "name": "questline.achievement.unlocked",
+          "at": 1790964738188,
+          "payload": {
+            "achievement_id": "aboard"
+          }
+        },
+        {
+          "name": "questline.closed",
+          "at": 1790964740521,
+          "payload": {
+            "stage": "meet"
+          }
+        }
+      ],
+      "clicks": [
+        {
+          "at": 1790964730492,
+          "label": "直接进入",
+          "guide": false,
+          "inert": false,
+          "disabled": false
+        },
+        {
+          "at": 1790964740518,
+          "label": "稍后再来",
+          "guide": true,
+          "inert": false,
+          "disabled": false
+        }
+      ],
+      "scenes": [
+        "workplace-3d"
+      ]
+    },
+    {
+      "at": 1790964758142,
+      "guide": false,
+      "hud": true,
+      "button": null,
+      "events": [
+        {
+          "name": "questline.stage.viewed",
+          "at": 1790964738176,
+          "payload": {
+            "stage": "meet"
+          }
+        },
+        {
+          "name": "questline.started",
+          "at": 1790964738188,
+          "payload": {
+            "journey_version": 1,
+            "from": "welcome"
+          }
+        },
+        {
+          "name": "questline.achievement.unlocked",
+          "at": 1790964738188,
+          "payload": {
+            "achievement_id": "aboard"
+          }
+        },
+        {
+          "name": "questline.closed",
+          "at": 1790964740521,
+          "payload": {
+            "stage": "meet"
+          }
+        }
+      ],
+      "clicks": [
+        {
+          "at": 1790964730492,
+          "label": "直接进入",
+          "guide": false,
+          "inert": false,
+          "disabled": false
+        },
+        {
+          "at": 1790964740518,
+          "label": "稍后再来",
+          "guide": true,
+          "inert": false,
+          "disabled": false
+        }
+      ],
+      "scenes": [
+        "report-stage-3d"
+      ]
+    }
+  ],
+  "responses": [
+    {
+      "at": 1790964712991,
+      "route": "/trpc/onboarding.status,onboarding.status,skills.skillOps.status,onboarding.status,onboarding.welcomeStatus,captain.theater",
+      "httpStatus": 200,
+      "progress": {
+        "status": "not_started",
+        "currentStep": "start",
+        "shouldShow": true,
+        "persisted": false
+      }
+    },
+    {
+      "at": 1790964714264,
+      "route": "/trpc/onboarding.saveWelcomeProgress",
+      "httpStatus": 200,
+      "progress": {
+        "status": "in_progress",
+        "currentStep": "mate",
+        "shouldShow": true,
+        "persisted": true
+      }
+    },
+    {
+      "at": 1790964733854,
+      "route": "/trpc/onboarding.saveWelcomeProgress",
+      "httpStatus": 200,
+      "progress": {
+        "status": "in_progress",
+        "currentStep": "team",
+        "shouldShow": true,
+        "persisted": true
+      }
+    },
+    {
+      "at": 1790964738086,
+      "route": "/trpc/onboarding.saveWelcomeProgress",
+      "httpStatus": 200,
+      "progress": {
+        "status": "completed",
+        "currentStep": "done",
+        "shouldShow": false,
+        "persisted": true
+      }
+    },
+    {
+      "at": 1790964741000,
+      "route": "/trpc/onboarding.saveWelcomeProgress",
+      "httpStatus": 200,
+      "progress": {
+        "status": "in_progress",
+        "currentStep": "summary",
+        "shouldShow": true,
+        "persisted": true
+      }
+    }
+  ],
+  "errors": [
+    {
+      "at": 1790964757614,
+      "error": "Failed to execute 'json' on 'Response': Unexpected end of JSON input"
+    }
+  ]
+}

@@ -1,0 +1,100 @@
+{
+  "schema": "growth.independent-m6/owned-preparation-history@1",
+  "recorded_at": "2026-10-03T18:31:53.922726+08:00",
+  "verified_by": "growth_m6",
+  "frozen_source_commit": "f9515d09ee6de9b34f38b93d3769654fe4869391",
+  "new_source_tests_or_formal_report_executed": false,
+  "native_or_mcd_pass_generated": false,
+  "files": [
+    {
+      "file": "create-floor-final-verification.py",
+      "bytes": 47095,
+      "sha256": "ce5f2c37532475e7af2ba78f13d8c6bc69b733cc3fff2a0f745dc8863aaa685e",
+      "immutable_copy": "history/f951-source-formal-before-stage-surface/create-floor-final-verification.py"
+    },
+    {
+      "file": "prepare_report.py",
+      "bytes": 66131,
+      "sha256": "a901a61810aebc4f5be32a6a5c30bb391ebb36f64749d6f0a56fb0c0c1685cae",
+      "immutable_copy": "history/f951-source-formal-before-stage-surface/prepare_report.py"
+    },
+    {
+      "file": "build_report.py",
+      "bytes": 107494,
+      "sha256": "02a2a83d50c43e370d66381c482d80987f8eb21b2c8b6350d3e7a02cbfdde539",
+      "immutable_copy": "history/f951-source-formal-before-stage-surface/build_report.py"
+    },
+    {
+      "file": "validate_report.py",
+      "bytes": 27648,
+      "sha256": "09b89a6d9827b1fc3e71ff8d32290c5d0cb47a92310183522333687138d5b36e",
+      "immutable_copy": "history/f951-source-formal-before-stage-surface/validate_report.py"
+    },
+    {
+      "file": "REPORT.md",
+      "bytes": 119770,
+      "sha256": "88f928f9382179b3df07666e9c5a8ed026f33577b1b785df54cb6b46b7e7e598",
+      "immutable_copy": "history/f951-source-formal-before-stage-surface/REPORT.md"
+    },
+    {
+      "file": "summary.json",
+      "bytes": 283819,
+      "sha256": "514472140133eaa106dd8a067999c7d08924d0d193012ffccfb84c9d9cd563e4",
+      "immutable_copy": "history/f951-source-formal-before-stage-surface/summary.json"
+    },
+    {
+      "file": "floor-final-verification.json",
+      "bytes": 124330,
+      "sha256": "2e3b26f40d8870e5c2292c025ac83c3bd0e76ee198750e57eb793bda8c1d00fc",
+      "immutable_copy": "history/f951-source-formal-before-stage-surface/floor-final-verification.json"
+    },
+    {
+      "file": "baseline-acceptance.json",
+      "bytes": 219299,
+      "sha256": "2ddc5ee79c4620a7ca058e02044e53c982bd3d6a847cfd88c69943c797491e2b",
+      "immutable_copy": "history/f951-source-formal-before-stage-surface/baseline-acceptance.json"
+    },
+    {
+      "file": "asset-fingerprint.json",
+      "bytes": 47744,
+      "sha256": "fa2107c85f6639bc660f9eb9da76d152f5bbbd5565250d9701a8f296bfc8297e",
+      "immutable_copy": "history/f951-source-formal-before-stage-surface/asset-fingerprint.json"
+    },
+    {
+      "file": "case-matrix.json",
+      "bytes": 3385635,
+      "sha256": "75a755292db53f85a6e1433a3538a6c87d6645151598d51bd28214ea3a6488bc",
+      "immutable_copy": "history/f951-source-formal-before-stage-surface/case-matrix.json"
+    },
+    {
+      "file": "coverage.json",
+      "bytes": 290718,
+      "sha256": "98e25122d33b1d8877ebbf5403029dda85cd333016c055ba93edb1a4282e695f",
+      "immutable_copy": "history/f951-source-formal-before-stage-surface/coverage.json"
+    },
+    {
+      "file": "evidence-index.json",
+      "bytes": 841181,
+      "sha256": "95ab4e253c5b872e60b2010072c0c448ac0caf86e69a44d41125f9eae4660fe6",
+      "immutable_copy": "history/f951-source-formal-before-stage-surface/evidence-index.json"
+    },
+    {
+      "file": "report-validation-f951.json",
+      "bytes": 1587,
+      "sha256": "8d17b82586ed01246389277cfbf4ae27efde62f8426895e53cfb3a6c02edef91",
+      "immutable_copy": "history/f951-source-formal-before-stage-surface/report-validation-f951.json"
+    },
+    {
+      "file": "file-coverage.csv",
+      "bytes": 34902,
+      "sha256": "77efbcaf55b14c0d083946efca706bff969ebd1e4fe8861cccebb24170a0a68d",
+      "immutable_copy": "history/f951-source-formal-before-stage-surface/file-coverage.csv"
+    },
+    {
+      "file": "read-files.json",
+      "bytes": 6036,
+      "sha256": "a9329f3744734f18ef8da8517da7325060e01aff3995d55dfc3873fab90417aa",
+      "immutable_copy": "history/f951-source-formal-before-stage-surface/read-files.json"
+    }
+  ]
+}

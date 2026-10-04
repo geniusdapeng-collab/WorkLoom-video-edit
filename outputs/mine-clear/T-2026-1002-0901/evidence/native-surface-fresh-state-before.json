@@ -1,0 +1,17 @@
+{
+  "schema": "growth.native-private-state@1",
+  "mode": "before",
+  "group": "fresh",
+  "fixtureOnly": true,
+  "outsideCustomerData": false,
+  "paidProviderCalls": 0,
+  "instanceId": "8764ed6cf3a9a44b9c8150f8253749f8",
+  "systemIdentifier": "7692413807521191660",
+  "credentialsHash": "397ed972e65e9afa5eaca1240bbb368909e9847e639a8988143ac1ed477a0037",
+  "configurationHash": "ee6c07a0e9a3f2d3c54ce435195cbca3a6c93a9815fef301eeca202ced0cc05d",
+  "configurationMode": 384,
+  "fixtureId": null,
+  "customerWorkspaceHash": "24b91ff610b53fdc25bbab8723a0ea77460ff15e64fbba8c1c43cc4b686afefa",
+  "payloadVersion": "v0.1.0-fix.20261003.5",
+  "pass": true
+}

@@ -1,0 +1,20 @@
+COMMAND ["/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node", "--env-file=.env", "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/pnpm/bin/pnpm.cjs", "--dir", "apps/web", "test", "--config", "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/independent-m6/live2d-independent.config.mjs"]
+
+> @workloom/web@0.1.0 test /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/apps/web
+> vitest run --config /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/independent-m6/live2d-independent.config.mjs
+
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - import "./vite.config" without a file extension (vitest.config.ts:10:24). Add the file extension
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+
+[1m[30m[46m RUN [49m[39m[22m [36mv4.1.11 [39m[90m/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/apps/web[39m
+
+ [32m✓[39m ../../../../outputs/growth-production-fix-2026-10-02/independent-m6/live2d-independent.test.tsx[2m > [22m独立异步组件归属控制[2m > [22mcore script 仍未完成时卸载，迟到双 core 不再创建产品实例[33m 565[2mms[22m[39m
+ [32m✓[39m ../../../../outputs/growth-production-fix-2026-10-02/independent-m6/live2d-independent.test.tsx[2m > [22m独立异步组件归属控制[2m > [22m模型仍在加载时连续改变 size，旧模型销毁且新画布保持 ready[32m 58[2mms[22m[39m
+ [32m✓[39m ../../../../outputs/growth-production-fix-2026-10-02/independent-m6/live2d-independent.test.tsx[2m > [22m独立异步组件归属控制[2m > [22m旧表情晚到与新 frame 重载交错，旧生命周期不能替换新动作和时钟[32m 33[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m1 passed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[32m3 passed[39m[22m[90m (3)[39m
+[2m   Start at [22m 01:27:54
+[2m   Duration [22m 50.52s[2m (transform 3.57s, setup 0ms, import 5.62s, tests 661ms, environment 38.57s)[22m
+

@@ -1,0 +1,152 @@
+{
+  "schema": "growth.independent-m6/diagnostic-discovery@1",
+  "verified_by": "growth_m6",
+  "reviewed_at": "2026-10-03T17:14:02.580929+08:00",
+  "accepted_source_commit": "f9515d09ee6de9b34f38b93d3769654fe4869391",
+  "synthetic_only": true,
+  "original_runtime_bytes_bound": true,
+  "actual_installed_menu_execution_claimed_for_source_controls": false,
+  "original_complete_replay": {
+    "actual_tests": 12,
+    "pass": 2,
+    "fail": 10,
+    "skipped": 0,
+    "executed_source_commit": "87ab5781d381d19e9dc7e1f5caa98b6a6b410c58",
+    "receipt": "inherited/diagnostic__diagnostic-complete-original-before.json",
+    "log": "inherited/diagnostic__diagnostic-complete-original-before.log",
+    "origin": "root actual execution; independently read and bound here"
+  },
+  "audit_function_inheritance": {
+    "audit_source_commit": "42ead347c65a5cc343bcd290702d53a7fcdb1687",
+    "discovery_source_commit": "87ab5781d381d19e9dc7e1f5caa98b6a6b410c58",
+    "equal": true,
+    "whole_main_equal": false,
+    "function_sha256": "5aad80904da2588d079e3943b2f599a7b4a0ecdb2d7f7b2a8034f91596d12df8",
+    "audit_line": 188,
+    "discovery_line": 197,
+    "audit_whole_main_sha256": "deef7f37e40bf09886f1cf0712b8225b033d2b8958e5b053f7cf5a47c5e04c0f",
+    "discovery_whole_main_sha256": "efe4d3c42c76c0b1af4353ad77906f9d5843f562c096076aad6d2cd38c1adf3d",
+    "scope": "diagnosticText through handleSplashAction, before closeSplash; exact bytes only, no relabeled runtime"
+  },
+  "runtime_original_git_bytes": [
+    {
+      "file": "apps/desktop/electron/main.cjs",
+      "owned_snapshot": "inherited/diagnostic__original-87ab-main.cjs",
+      "source_commit": "87ab5781d381d19e9dc7e1f5caa98b6a6b410c58",
+      "sha256": "efe4d3c42c76c0b1af4353ad77906f9d5843f562c096076aad6d2cd38c1adf3d",
+      "lines": 716,
+      "retained_original_equal": true
+    },
+    {
+      "file": "apps/desktop/electron/bootstrap.cjs",
+      "owned_snapshot": "inherited/diagnostic__original-87ab-bootstrap.cjs",
+      "source_commit": "87ab5781d381d19e9dc7e1f5caa98b6a6b410c58",
+      "sha256": "aca7f94eacd643cc223a40ce15443321b6b2ce2814621d3ce89ea57ee7018c46",
+      "lines": 1329,
+      "retained_original_equal": true
+    },
+    {
+      "file": "apps/desktop/electron/render-smoke.cjs",
+      "owned_snapshot": "inherited/diagnostic__original-87ab-render-smoke.cjs",
+      "source_commit": "87ab5781d381d19e9dc7e1f5caa98b6a6b410c58",
+      "sha256": "c287cb424fc0ed5f20fbacceab1e999705e3081838952ca8a806787530738fe3",
+      "lines": 59,
+      "retained_original_equal": true
+    },
+    {
+      "file": "apps/desktop/electron/bootstrap.test.cjs",
+      "owned_snapshot": "inherited/diagnostic__original-final-controls-bootstrap.test.cjs",
+      "origin": "final12 assertions actually executed against unchanged87ab runtime; current test bytes identical",
+      "sha256": "ee5aa1da3a27ccdacf17a91c75602680bc5b30b9b06a7cedc970fedf57f3cafa",
+      "lines": 984,
+      "current_test_equal": true
+    }
+  ],
+  "originals_and_corrections": [
+    {
+      "file": "inherited/diagnostic__diagnostic-complete-original-before.json",
+      "sha256": "fc23a39d08e1ca5369c39d2731a5a9e70453aa2895e7fcef78e72351a3a66e9b",
+      "bytes": 591,
+      "origin": "root actual execution; growth_m6 independently read/hashed, not independent replay"
+    },
+    {
+      "file": "inherited/diagnostic__diagnostic-complete-original-before.log",
+      "sha256": "7678496e3f846734baed631246df91beb5e4dc5b9e265b6620671967354d012a",
+      "bytes": 12881,
+      "origin": "root actual execution; growth_m6 independently read/hashed, not independent replay"
+    },
+    {
+      "file": "inherited/diagnostic__diagnostic-redaction-before.json",
+      "sha256": "8fb1ba3c176b186d07bf0621d47d26a6cd62af5afaa9994e2e1fc3985814690d",
+      "bytes": 491,
+      "origin": "root actual execution; growth_m6 independently read/hashed, not independent replay"
+    },
+    {
+      "file": "inherited/diagnostic__diagnostic-redaction-before.log",
+      "sha256": "e20e9cf1a2161a02807b0fe5617b47dd968ce4406c1fb432af36059f17daaa98",
+      "bytes": 11829,
+      "origin": "root actual execution; growth_m6 independently read/hashed, not independent replay"
+    },
+    {
+      "file": "inherited/diagnostic__diagnostic-redaction-before-corrected.json",
+      "sha256": "b261ae4a86d91f3658048b0696610114917d32bb3e1e4a579234b506faec9ed6",
+      "bytes": 510,
+      "origin": "root actual execution; growth_m6 independently read/hashed, not independent replay"
+    },
+    {
+      "file": "inherited/diagnostic__diagnostic-redaction-before-corrected.log",
+      "sha256": "fae333486df250166873c57dacae12263f7d4f4c4a427255dceca48d6a2fc9d8",
+      "bytes": 10781,
+      "origin": "root actual execution; growth_m6 independently read/hashed, not independent replay"
+    },
+    {
+      "file": "inherited/diagnostic__diagnostic-export-before.json",
+      "sha256": "a2455fa7d86fcf870938bf4bbd66a3b761cc3673ad851e142ae596eb7a3ee482",
+      "bytes": 507,
+      "origin": "root actual execution; growth_m6 independently read/hashed, not independent replay"
+    },
+    {
+      "file": "inherited/diagnostic__diagnostic-export-before.log",
+      "sha256": "fbe6d6187e96d1eece9fa7f82a405cb0ae3512e0b80b20bf8e45c6e2ee13a9d3",
+      "bytes": 3231,
+      "origin": "root actual execution; growth_m6 independently read/hashed, not independent replay"
+    },
+    {
+      "file": "inherited/diagnostic__diagnostic-redaction-performance-before.json",
+      "sha256": "00b8073f63515011fd1548b9aebd597baf77ae4964c67281d75a7d9481abc694",
+      "bytes": 516,
+      "origin": "root actual execution; growth_m6 independently read/hashed, not independent replay"
+    },
+    {
+      "file": "inherited/diagnostic__diagnostic-redaction-performance-before.log",
+      "sha256": "0bc5538df655cbfa680fdba6c94d8c341c1521dfdbbb96e093d7b812f4d13873",
+      "bytes": 2065,
+      "origin": "root actual execution; growth_m6 independently read/hashed, not independent replay"
+    },
+    {
+      "file": "inherited/diagnostic__diagnostic-contract-after.json",
+      "sha256": "a7021fa478339f6521a792d13f07b38fd95a80c564c850c04daad45e8b392ee1",
+      "bytes": 487,
+      "origin": "root actual execution; growth_m6 independently read/hashed, not independent replay"
+    },
+    {
+      "file": "inherited/diagnostic__diagnostic-contract-after.log",
+      "sha256": "810e991b3f220be10b43a33942fe4ccf3d52388359acf6c26179f1e7f8774861",
+      "bytes": 2691,
+      "origin": "root actual execution; growth_m6 independently read/hashed, not independent replay"
+    },
+    {
+      "file": "inherited/diagnostic__diagnostic-discovery-origin.json",
+      "sha256": "4202afe62fac1cb89864b1fe126a6612ecefeb8705275c4a8c70cc64fddd1858",
+      "bytes": 2136,
+      "origin": "root actual execution; growth_m6 independently read/hashed, not independent replay"
+    },
+    {
+      "file": "inherited/diagnostic__diagnostic-audit-function-inheritance.json",
+      "sha256": "4802e052aa02f2d7faaaec609bad2e35dac37b9e4682cc7da739571d2ccd6121",
+      "bytes": 709,
+      "origin": "root actual execution; growth_m6 independently read/hashed, not independent replay"
+    }
+  ],
+  "boundary": "Synthetic local source controls and POSIX temporary files only. Startup-failure-page actions and native save panel must be separately exercised in the actual current installed app; Windows ACL remains unverified."
+}

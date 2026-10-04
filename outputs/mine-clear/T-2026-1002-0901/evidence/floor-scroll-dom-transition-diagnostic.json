@@ -1,0 +1,65 @@
+{
+  "scope": "root diagnostic of equivalent DOM and exact production CSS; no source algorithm copied; not product acceptance",
+  "browser_surface": "actual headless Chrome",
+  "records": [
+    {
+      "strategy": "geometry-with-transitions-disabled",
+      "result": [
+        {
+          "name": "initial",
+          "left": 0,
+          "top": 0,
+          "scrollWidth": 358,
+          "scrollHeight": 380,
+          "clientWidth": 358,
+          "clientHeight": 380,
+          "contentWidth": 358,
+          "contentHeight": 380,
+          "cssWidth": "358px",
+          "cssHeight": "380px",
+          "contain": "none",
+          "transitionProperty": "all",
+          "transitionDuration": "1e-05s",
+          "bitmapWidth": 300,
+          "bitmapHeight": 150
+        },
+        {
+          "name": "after-setter",
+          "left": 653,
+          "top": 363,
+          "scrollWidth": 1590,
+          "scrollHeight": 1686,
+          "clientWidth": 358,
+          "clientHeight": 380,
+          "contentWidth": 1590,
+          "contentHeight": 1686,
+          "cssWidth": "1590px",
+          "cssHeight": "1686px",
+          "contain": "none",
+          "transitionProperty": "none",
+          "transitionDuration": "1e-05s",
+          "bitmapWidth": 1590,
+          "bitmapHeight": 1686
+        },
+        {
+          "name": "next-native-frame",
+          "left": 653,
+          "top": 363,
+          "scrollWidth": 1590,
+          "scrollHeight": 1686,
+          "clientWidth": 358,
+          "clientHeight": 380,
+          "contentWidth": 1590,
+          "contentHeight": 1686,
+          "cssWidth": "1590px",
+          "cssHeight": "1686px",
+          "contain": "none",
+          "transitionProperty": "none",
+          "transitionDuration": "1e-05s",
+          "bitmapWidth": 1590,
+          "bitmapHeight": 1686
+        }
+      ]
+    }
+  ]
+}

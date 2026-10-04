@@ -1,0 +1,254 @@
+{
+  "at": "2026-10-04T03:35:16.045483+08:00",
+  "source_commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+  "repair_snapshot": "evidence/execution-ledger-repair-1e471.json",
+  "repair_snapshot_sha256": "efb4c201a19fcc7a558c9e838fdf18af4d2c2e26379ba2fe1d0391936f62a0f2",
+  "actual_cards": 24,
+  "actual_assertion_runs": 38,
+  "runs": [
+    {
+      "card": "MC-001",
+      "path": "runs/MC-001-0-1791055877590.json",
+      "sha256": "50158925699891a06ddec6889f0e530add1ec1215ce901d9777f01d93c891180",
+      "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+    },
+    {
+      "card": "MC-002",
+      "path": "runs/MC-002-0-1791055878428.json",
+      "sha256": "3c06e2e6c94e42bae2e71e8be6c0787f9aed2d8fae272a0354992a6a0a73369a",
+      "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+    },
+    {
+      "card": "MC-003",
+      "path": "runs/MC-003-0-1791055878823.json",
+      "sha256": "c94303bbafc1cd0eafe18b851a84a5182d3d653e97a117604886ec5f4091aa22",
+      "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+    },
+    {
+      "card": "MC-004",
+      "path": "runs/MC-004-0-1791055879637.json",
+      "sha256": "cad69b17292c55b84835be75bf185d2fe8c4f7374f1dff9218b8abbade9d5ed3",
+      "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+    },
+    {
+      "card": "MC-005",
+      "path": "runs/MC-005-0-1791055880820.json",
+      "sha256": "12f3205c14be8bc6c30a71294f1ab60c77a995dc4c9ea90faa43720b487091ab",
+      "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+    },
+    {
+      "card": "MC-006",
+      "path": "runs/MC-006-0-1791055887797.json",
+      "sha256": "a3bd5e518a8a312e6d1b7b9c612fd86b220cd5c4b3d55c08156d26606d1f0773",
+      "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+    },
+    {
+      "card": "MC-007",
+      "path": "runs/MC-007-0-1791055893101.json",
+      "sha256": "fcb7c456c60689658aa6ed730799e2a48b4d27cf6d73e9d82f8b7ab34ea8b757",
+      "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+    },
+    {
+      "card": "MC-008",
+      "path": "runs/MC-008-0-1791055894058.json",
+      "sha256": "7246b5d9f7a178b2d221331d29fa16150e1bee943765acfb937023bec225ca3f",
+      "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+    },
+    {
+      "card": "MC-009",
+      "path": "runs/MC-009-0-1791055894945.json",
+      "sha256": "4a718b5a8aad114f5017a066e261322f81c4dcc9b15222b81d0be5162b9da599",
+      "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+    },
+    {
+      "card": "MC-010",
+      "path": "runs/MC-010-0-1791055896008.json",
+      "sha256": "6ae65f6c38dd66cec1e335a0cda848212a5119c6434ba885318e7a4a72b0d01b",
+      "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+    },
+    {
+      "card": "MC-011",
+      "path": "runs/MC-011-0-1791055897204.json",
+      "sha256": "ac8d159fe2984f3a74abcbfc843b4430ed47be5c895139e35bb534e55abbcbd9",
+      "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+    },
+    {
+      "card": "MC-012",
+      "path": "runs/MC-012-0-1791055898166.json",
+      "sha256": "8db8b41ace4b96987d023717802a776d8dc9f781240b2f85f85ffb8b727492ac",
+      "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+    },
+    {
+      "card": "MC-013",
+      "path": "runs/MC-013-0-1791055899123.json",
+      "sha256": "3b2a98eb3032ea095eb9d187f25027c418ff7bf1f9a1ba87668a4082bbd0fa78",
+      "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+    },
+    {
+      "card": "MC-013",
+      "path": "runs/MC-013-1-1791055900978.json",
+      "sha256": "c47f2e0868500b16d0ed458e5da8c124c61941af3355a11b182375e580124f95",
+      "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+    },
+    {
+      "card": "MC-013",
+      "path": "runs/MC-013-2-1791055902465.json",
+      "sha256": "77dc7c5d98b6d10861612ea336ab9e0261970b7ea7df8323bca15b79d695763d",
+      "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+    },
+    {
+      "card": "MC-014",
+      "path": "runs/MC-014-0-1791055903545.json",
+      "sha256": "0882ce6e768f1d49f00185bb599106cc7797991eb01c19f32a6807aec51d5145",
+      "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+    },
+    {
+      "card": "MC-015",
+      "path": "runs/MC-015-0-1791055906428.json",
+      "sha256": "bd28de6fc9704e40af21afca246ac5f0c81c980629422b3a708271ae737dafb5",
+      "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+    },
+    {
+      "card": "MC-016",
+      "path": "runs/MC-016-0-1791055907114.json",
+      "sha256": "e1221b09b62dbfd326dd9aec24b1cc1e12dcd7d9cd645cb0b434c8df29ae90aa",
+      "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+    },
+    {
+      "card": "MC-101",
+      "path": "runs/MC-101-0-1791055922810.json",
+      "sha256": "c819473c054e93ddc4ec95115dceccad6695defd932d65db267a9ae3bb1450a2",
+      "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+    },
+    {
+      "card": "MC-101",
+      "path": "runs/MC-101-1-1791055923405.json",
+      "sha256": "9e3da98d4990e3b6bfb74158e2ffedb1da065d88b08d5da4569dd0ab91fd6881",
+      "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+    },
+    {
+      "card": "MC-101",
+      "path": "runs/MC-101-2-1791055923620.json",
+      "sha256": "89bdad532a6045550c2aadc4711fcdb7ffb117e86b0a996d0c2c47477a001e8c",
+      "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+    },
+    {
+      "card": "MC-101",
+      "path": "runs/MC-101-3-1791055924259.json",
+      "sha256": "a5f4df016def439ec3d4577f7b35abc4ccb8f0a11690d94d001ea136332c8456",
+      "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+    },
+    {
+      "card": "MC-102",
+      "path": "runs/MC-102-0-1791055925539.json",
+      "sha256": "7df4efed7f0e9d045637869bdb1fd312db17afa60104a6dba793c119a42df5b3",
+      "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+    },
+    {
+      "card": "MC-103",
+      "path": "runs/MC-103-0-1791055932448.json",
+      "sha256": "1fc790b1c2c95e29c6711aaf7d07d1e2aa229e3837c8513059be66e4acd2b29f",
+      "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+    },
+    {
+      "card": "MC-103",
+      "path": "runs/MC-103-1-1791055937589.json",
+      "sha256": "dc818b8ff64989910b92bfe7770439830412f980899c517d165c28f9b417bf71",
+      "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+    },
+    {
+      "card": "MC-104",
+      "path": "runs/MC-104-0-1791055938582.json",
+      "sha256": "ecc5b1b0b40d72685edc36f02ead4dc1ba28973d9a30286ec1426221943ad61e",
+      "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+    },
+    {
+      "card": "MC-104",
+      "path": "runs/MC-104-1-1791055939318.json",
+      "sha256": "d48bd43e8ea2cea99b801e87aec746b6066b8f6183be3189b02201812bcc18a9",
+      "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+    },
+    {
+      "card": "MC-104",
+      "path": "runs/MC-104-2-1791055940080.json",
+      "sha256": "fc3b7f395deb9e74a19e520b9c4fa96c125f1238b30137f546f7e4c9f88b9990",
+      "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+    },
+    {
+      "card": "MC-104",
+      "path": "runs/MC-104-3-1791055940964.json",
+      "sha256": "2d09a446ad855c2db5118ec8aaf35b5fcdb06e56dbc7aa261749f846313756da",
+      "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+    },
+    {
+      "card": "MC-104",
+      "path": "runs/MC-104-4-1791055941696.json",
+      "sha256": "4347b81189608abb826e3d58c0b798313b10c89418a74ef358ee5a70647b368b",
+      "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+    },
+    {
+      "card": "MC-105",
+      "path": "runs/MC-105-0-1791055942611.json",
+      "sha256": "c3da204b3790066bb3e64ad86749d9149c2495eb3068749e33541fc34542b456",
+      "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+    },
+    {
+      "card": "MC-105",
+      "path": "runs/MC-105-1-1791055944354.json",
+      "sha256": "0d5ec93a3af7d9faad087b64a14d17f267c1b6fdc5d8fa36f100dff9d370eeaf",
+      "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+    },
+    {
+      "card": "MC-105",
+      "path": "runs/MC-105-2-1791055945839.json",
+      "sha256": "cd26af080d827e510738d9441cf1497e8c752fe39ceb2db2365c687d619d83e2",
+      "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+    },
+    {
+      "card": "MC-105",
+      "path": "runs/MC-105-3-1791055946701.json",
+      "sha256": "a051e2bee5d4e22a99c2a7f6de4e462ce3244d5ea99c77e37e4907d4931bc2b7",
+      "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+    },
+    {
+      "card": "MC-105",
+      "path": "runs/MC-105-4-1791055949608.json",
+      "sha256": "b5f54f0d73bddd08a5b13b303ecb22caa74e3f827e92333869a03f9c78505ccf",
+      "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+    },
+    {
+      "card": "MC-106",
+      "path": "runs/MC-106-0-1791055950221.json",
+      "sha256": "bf20ed82376ef84c797e278885f75163410754ebe120e174db43859f328876e1",
+      "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+    },
+    {
+      "card": "MC-017",
+      "path": "runs/MC-017-0-1791055953242.json",
+      "sha256": "21a3ae5da9c59dc11bae119a0c1cda6d09eb5ccf0099e4b6b82e0f8e0ab76842",
+      "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+    },
+    {
+      "card": "MC-018",
+      "path": "runs/MC-018-0-1791055970961.json",
+      "sha256": "927fcb26b91f419360eb906656bd2a4b01ed7d76cf35e923b82bbe573a87ddb9",
+      "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+    }
+  ],
+  "driver_sha256": "3127292a77093f7a02ee0a914aa81ca5bc2c4c92abb4f9f8d474cab0342c7d74",
+  "original_failed_evidence_retained": [
+    "runs/MC-014-0-1791055106674.json",
+    "evidence/mcd-repair-1e471-index-current.log",
+    "history/7fee-modern-partial-before-1e471/execution-ledger.json"
+  ],
+  "owned_pg": {
+    "database": "growth_audit",
+    "host": "127.0.0.1",
+    "port": 25432,
+    "data_directory": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/audit-pg"
+  },
+  "parent_owned_pg_window_released": true,
+  "exclusive_acceptance_actor": "growth_m6",
+  "native_independent_gate_still_required": true,
+  "acceptance_pass_imported": false
+}

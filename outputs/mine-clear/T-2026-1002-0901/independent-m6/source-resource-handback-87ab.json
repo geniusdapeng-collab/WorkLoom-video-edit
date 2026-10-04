@@ -1,0 +1,78 @@
+{
+  "source_commit": "87ab5781d381d19e9dc7e1f5caa98b6a6b410c58",
+  "verified_by": "growth_m6",
+  "reason": "Root requested source window for synthetic diagnostic red and minimum fix; source report generation deferred until next exact SHA.",
+  "checks_completed": [
+    {
+      "name": "reset-87ab-reset",
+      "exit_code": 0,
+      "seconds": 32.632,
+      "cases": 12,
+      "files": [
+        {
+          "file": "reset-87ab-reset.json",
+          "sha256": "7ca22312406d746e316bc96af70f7f6c8c6e2d64ba23c3f88ba95ecb0cdb85b9",
+          "immutable_copy": "history/87ab-cpu-before-diagnostic/reset-87ab-reset.json"
+        },
+        {
+          "file": "reset-87ab-reset.log",
+          "sha256": "ce01fb1fa36596125eecf72de1569ba0377fa34841c489def407ff2dd7a4c998",
+          "immutable_copy": "history/87ab-cpu-before-diagnostic/reset-87ab-reset.log"
+        }
+      ]
+    },
+    {
+      "name": "reset-87ab-desktop",
+      "exit_code": 0,
+      "seconds": 33.076,
+      "cases": 101,
+      "files": [
+        {
+          "file": "reset-87ab-desktop.json",
+          "sha256": "dd0d62472639bd5ce37b222a892b02d0545834fea5c36096375e7407d49b8a7f",
+          "immutable_copy": "history/87ab-cpu-before-diagnostic/reset-87ab-desktop.json"
+        },
+        {
+          "file": "reset-87ab-desktop.log",
+          "sha256": "c61bea3b68c607b1a31b15e3c7bb82561acfcf802fd469a88ad16345a79d0c79",
+          "immutable_copy": "history/87ab-cpu-before-diagnostic/reset-87ab-desktop.log"
+        }
+      ]
+    },
+    {
+      "name": "reset-87ab-runtime-lock",
+      "exit_code": 0,
+      "seconds": 0.286,
+      "cases": null,
+      "files": [
+        {
+          "file": "reset-87ab-runtime-lock.json",
+          "sha256": "f66cbbaae5148c64b50a6b39dce5fda3bc380191af0832d24ae9fd85ccc873f7",
+          "immutable_copy": "history/87ab-cpu-before-diagnostic/reset-87ab-runtime-lock.json"
+        },
+        {
+          "file": "reset-87ab-runtime-lock.log",
+          "sha256": "caa054f47a5a44f253405cab50813ff5c62d8159c5b4ac82de125505bd177a97",
+          "immutable_copy": "history/87ab-cpu-before-diagnostic/reset-87ab-runtime-lock.log"
+        }
+      ]
+    }
+  ],
+  "reset_is_subset_of_desktop": true,
+  "unique_desktop_cases": 101,
+  "product_or_gpu_or_pg_processes_owned_by_verifier": [],
+  "source_window_released": true,
+  "gpu_reexecution_required": false,
+  "formal_report_current_source": "f0a11286a49419fb7909088e2d170f4dde7b60c6",
+  "formal_87ab_report_generated": false,
+  "secret_export_static_hint_is_not_yet_verified_bug": true,
+  "network_doc_download_failed": {
+    "tool": "curl direct official Node util v24.19.0",
+    "exit_code": 28,
+    "bytes_partial": 26602,
+    "full_bytes_reported": 113938,
+    "file": "reset-official-node-util-v24.19.0.md",
+    "used_as_complete_document": false
+  },
+  "generated_at": "2026-10-03T11:19:32.764954+08:00"
+}

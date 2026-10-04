@@ -1,0 +1,14 @@
+{
+  "name": "static-release-checks-corrected",
+  "command": [
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+    "--env-file=.env",
+    "--input-type=module",
+    "-e",
+    "const {spawnSync}=await import(\"node:child_process\"); for (const name of [\"product:verify\",\"projections:check\",\"scan:fences\",\"scan:knowhow\",\"oss:check\"]) { const r=spawnSync(process.execPath,[\"--env-file=.env\",\"../pnpm/bin/pnpm.cjs\",name],{stdio:\"inherit\"}); if(r.status!==0) process.exit(r.status??1); }"
+  ],
+  "exit_code": 1,
+  "seconds": 0.891,
+  "ran_at": "2026-10-02T22:17:30.121194+08:00",
+  "log": "static-release-checks-corrected.log"
+}

@@ -1,0 +1,9 @@
+{
+  "schema": "growth.independent-m6/provenance-description-correction@1",
+  "source_commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+  "reviewed_by": "growth_m6",
+  "original_receipt": "history/dependency-formal-before-final-1e471/mcd-exec-helper-fullread.json",
+  "original_unchanged": true,
+  "correction": "Correct the prose line-count203 to243; lines and current helper byte hash already matched actual243-line full read. No product/helper/assertion/semantic gate changed.",
+  "original_fullread_scope_at_generated_time_kept": true
+}

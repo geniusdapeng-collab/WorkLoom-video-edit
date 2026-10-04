@@ -1,0 +1,17 @@
+{
+  "name": "scene-f0-default",
+  "command": [
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+    "--env-file=.env",
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/independent-m6/floor3d-probe.mjs",
+    "f0a11286a49419fb7909088e2d170f4dde7b60c6",
+    "scene-f0-default-results.json",
+    "scene-f0-default"
+  ],
+  "exit_code": 0,
+  "seconds": 59.462,
+  "source_before": "f0a11286a49419fb7909088e2d170f4dde7b60c6",
+  "source_after": "f0a11286a49419fb7909088e2d170f4dde7b60c6",
+  "ran_at": "2026-10-03T10:12:35.705546+08:00",
+  "log": "scene-f0-default.log"
+}

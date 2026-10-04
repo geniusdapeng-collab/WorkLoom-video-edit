@@ -1,0 +1,128 @@
+{
+  "schema": "growth.independent-m6/stage-floor-counterfactual-pixel-review@1",
+  "reviewed_by": "growth_m6",
+  "reviewed_at": "2026-10-03T18:27:34.792466+08:00",
+  "directly_viewed_pngs": 4,
+  "sampled_pngs": 0,
+  "unread_pngs": 0,
+  "pixel_grade": "C",
+  "observation": "OBS-18",
+  "original_native_failure": "floor-native-f951-screenshot-review.json",
+  "root_before_execution": {
+    "source_commit": "f9515d09ee6de9b34f38b93d3769654fe4869391",
+    "source_status_before": "",
+    "stage_sha256": "12cc2603a8b265de77053f8cfb0d4a36b2f3e79b1b15b69ed927ca4d76ca8429",
+    "passed_layout_cases": 7
+  },
+  "root_after_execution": {
+    "HEAD_commit": "f9515d09ee6de9b34f38b93d3769654fe4869391",
+    "source_status_before": " M apps/web/src/components/Stage3D.tsx\n?? apps/web/src/components/Stage3D.test.tsx\n",
+    "stage_sha256": "c49d9cbfd21bd376dcdd2c9f540e269e59cf796de2143bc29153026a8976e647",
+    "passed_layout_cases": 7,
+    "execution_has_uncommitted_product_change": true,
+    "not_relabelled_as_final_accepted_commit": true
+  },
+  "parsed_related_source_difference": [
+    "apps/web/src/components/Stage3D.tsx"
+  ],
+  "source_input_equivalence_grade": "B actual retained hash metadata; complete minimal diff/source implementation not yet independently read at accepted new commit",
+  "root_reported_minimal_change": "Theater cylinder center y=-0.09 to -0.12; cap y=-0.02 to -0.05 relative to reflector y=-0.02. Exact new code and source unit controls will be verified after root source-window handoff.",
+  "prior_visible_fragmentation_absent_in_both_after_samples": true,
+  "actual_counterfactual_executed_by_verifier": false,
+  "actual_counterfactual_executed_by_root": true,
+  "new_native_pixel_gate_passed": false,
+  "final_native_verified": false,
+  "all_stage_frames_or_full_ux_claimed": false,
+  "causal_conclusion": "Controlled retained pixels strongly support the coplanar-depth-conflict candidate. Final accepted-source code, independent source geometry controls, actual current browser run and newly packaged cold native samples remain required.",
+  "public_evidence": [
+    {
+      "root_file": "stage-surface-before-stage-1440.png",
+      "file": "inherited/stage-floor-control__stage-surface-before-stage-1440.png",
+      "bytes": 503231,
+      "sha256": "7035fbac94a8ed58a441cefde364df68f89aa3c6c3de43ddcffd0daca33a07e1",
+      "origin": "root actual execution; verifier read-only inheritance",
+      "directly_viewed": true,
+      "view_method": "tools.view_image original; each of all four images directly reviewed",
+      "grade": "C",
+      "review": "Large black/blue irregular strips and angular discontinuities are visible across the left and central foreground floor. Thin radial/concentric design lines are separately visible."
+    },
+    {
+      "root_file": "stage-surface-after-stage-1440.png",
+      "file": "inherited/stage-floor-control__stage-surface-after-stage-1440.png",
+      "bytes": 489322,
+      "sha256": "9732b8d79965d829663f89c0fd81758080e9b5b3f335229962af6163c255afa8",
+      "origin": "root actual execution; verifier read-only inheritance",
+      "directly_viewed": true,
+      "view_method": "tools.view_image original; each of all four images directly reviewed",
+      "grade": "C",
+      "review": "The prior large irregular fragments and dense torn stripes are absent in this retained frame. Soft vertical reflections, concentric/radial lines and intended fine grain remain."
+    },
+    {
+      "root_file": "stage-surface-before-stage-390.png",
+      "file": "inherited/stage-floor-control__stage-surface-before-stage-390.png",
+      "bytes": 234398,
+      "sha256": "1c6f0dc0c70d476a1af57bb4730d9ae08061708d7d25aba4bc27831fb3e62213",
+      "origin": "root actual execution; verifier read-only inheritance",
+      "directly_viewed": true,
+      "view_method": "tools.view_image original; each of all four images directly reviewed",
+      "grade": "C",
+      "review": "The same irregular dark strips and dense horizontal discontinuities remain clearly visible in the narrow foreground sample."
+    },
+    {
+      "root_file": "stage-surface-after-stage-390.png",
+      "file": "inherited/stage-floor-control__stage-surface-after-stage-390.png",
+      "bytes": 227396,
+      "sha256": "9af29c1ec80d7dd1c9c28b8bb7391d1e9a8e1aa262765622665e0313f120ae04",
+      "origin": "root actual execution; verifier read-only inheritance",
+      "directly_viewed": true,
+      "view_method": "tools.view_image original; each of all four images directly reviewed",
+      "grade": "C",
+      "review": "The prior large irregular strips and tears are absent in the narrow retained sample; intended ring/grid lines and soft reflection remain."
+    },
+    {
+      "root_file": "stage-surface-before.json",
+      "file": "inherited/stage-floor-control__stage-surface-before.json",
+      "bytes": 476,
+      "sha256": "25b3cd97509343b946d225c7ddcce5a7304933eb519c379a012432fd5c3f3ea1",
+      "origin": "root actual execution; verifier read-only inheritance"
+    },
+    {
+      "root_file": "stage-surface-before-results.json",
+      "file": "inherited/stage-floor-control__stage-surface-before-results.json",
+      "bytes": 32095,
+      "sha256": "edc204773a128568762fbb0faa78282c18c5dfbdaa484e31f74f5c3352dea75e",
+      "origin": "root actual execution; verifier read-only inheritance"
+    },
+    {
+      "root_file": "stage-surface-before.log",
+      "file": "inherited/stage-floor-control__stage-surface-before.log",
+      "bytes": 1128,
+      "sha256": "463a3f43c8e1d984470e7003d0fb1fff8affca68a4e7729145e32b62b8d9f565",
+      "origin": "root actual execution; verifier read-only inheritance"
+    },
+    {
+      "root_file": "stage-surface-after.json",
+      "file": "inherited/stage-floor-control__stage-surface-after.json",
+      "bytes": 473,
+      "sha256": "65104ab121b9a5369d1fa0eb0e5b37e55af947ad65f877fb28cc6a529ecc5efa",
+      "origin": "root actual execution; verifier read-only inheritance"
+    },
+    {
+      "root_file": "stage-surface-after-results.json",
+      "file": "inherited/stage-floor-control__stage-surface-after-results.json",
+      "bytes": 32184,
+      "sha256": "1b5d1b0b8e44d8382f0c0639f5468bdcb23559c11ac362016be60c2a2fe28e8c",
+      "origin": "root actual execution; verifier read-only inheritance"
+    },
+    {
+      "root_file": "stage-surface-after.log",
+      "file": "inherited/stage-floor-control__stage-surface-after.log",
+      "bytes": 1127,
+      "sha256": "8a404248d541a6a9c3410ecb469b867a619d828ca5cd56e21135529341460ffc",
+      "origin": "root actual execution; verifier read-only inheritance"
+    }
+  ],
+  "real_provider_calls": 0,
+  "private_contents_opened": false,
+  "product_gpu_native_or_pg_executed_by_verifier": false
+}

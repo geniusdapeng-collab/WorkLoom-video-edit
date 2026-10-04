@@ -1,0 +1,24 @@
+{
+  "source": "aad8700daa0991555b9792db80f4703e3322f4f1",
+  "original_receipt": "floor-canvas-boundary-production-results.json",
+  "original_counts": {
+    "pass": 12,
+    "fail": 2
+  },
+  "method": "Read actual CSS dimensions at compositor screenshot boundary of the same controlled product frame; preserves immediate pre-paint dimensions and asserts product frame count unchanged. Original14 expectations unchanged; no extra product frames, native source or timeout changes.",
+  "status": "Actual same-frame boundary14/14 at aad; original12/14 retained",
+  "scripts": [
+    {
+      "script": "floor-canvas-painted-probe.mjs",
+      "before_sha256": "16ccde41b1f03dad12a0f9f427aba20d3961c0d24cc509180d98c7108e3be23c",
+      "after_sha256": "9014a39fc114bc521344e1ac0f7c17fa25c38083aecc753ffb68e2dffa11bfa3"
+    },
+    {
+      "script": "floor-canvas-boundary-probe.mjs",
+      "before_sha256": "d778f3e989c13cd8512d50180087473ebb51dce507d6fead0ff08ad9566c28f2",
+      "after_sha256": "2983a93175b998402fedee0750d4c7f7a74b540ec037b7e8e3f1909fd12c4a89"
+    }
+  ],
+  "actual_pass_receipt": "floor-canvas-boundary-production-nativepaint-results.json",
+  "viewport_same_frame_method_applied": "floor-canvas-initial-viewport-probe.mjs"
+}

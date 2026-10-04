@@ -1,0 +1,14 @@
+{
+  "at": "2026-10-03T19:44:32.331178+08:00",
+  "source_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+  "verified_non_dependency_files": 2093,
+  "payload_archive_sha256": "ae3480215c5a72f4c890aaf9e0fa942b613037b11c580ffeb9802fb7e309c673",
+  "removed_reinstallable_owned_staging": [
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/dist-payload/runtime",
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/dist-payload/node",
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/dist-payload/pg",
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/dist-payload/nats"
+  ],
+  "archive_and_version_retained": true,
+  "customer_directories_touched": false
+}

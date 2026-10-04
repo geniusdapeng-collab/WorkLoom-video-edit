@@ -1,0 +1,2 @@
+COMMAND ["/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node", "--env-file=.env", "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/independent-m6/render-guide-probe.cjs", "09bc1d176f1afcd5586b30707736ac383cd8d780"]
+{"passed":8,"failed":2,"source_commit":"09bc1d176f1afcd5586b30707736ac383cd8d780"}

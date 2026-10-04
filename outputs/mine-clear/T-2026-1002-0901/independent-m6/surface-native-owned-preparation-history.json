@@ -1,0 +1,117 @@
+{
+  "at": "2026-10-03T19:37:09.230435+08:00",
+  "source_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+  "files": [
+    {
+      "file": "REPORT.md",
+      "sha256": "5c0855799e4bf89a2cd14d5a889849bfbcbc46cdd5fbe8494e323fa1e7e26c72",
+      "bytes": 124267,
+      "owned_frozen_file": "history/7fee-source-formal-before-surface-native-preparation/REPORT.md"
+    },
+    {
+      "file": "summary.json",
+      "sha256": "6220faba1506d2d4636cd1e051331c8f578fecfc27ddfa1cf041763c8d0ffbbe",
+      "bytes": 413133,
+      "owned_frozen_file": "history/7fee-source-formal-before-surface-native-preparation/summary.json"
+    },
+    {
+      "file": "baseline-acceptance.json",
+      "sha256": "dc3241710d1ea481f575febecddcf6070ae1c152ed139034185254a09240cfdb",
+      "bytes": 278095,
+      "owned_frozen_file": "history/7fee-source-formal-before-surface-native-preparation/baseline-acceptance.json"
+    },
+    {
+      "file": "evidence-index.json",
+      "sha256": "ea45394e5331076801571373af171b038f6ad1dfec12e6a181389e9813d9a8e7",
+      "bytes": 912014,
+      "owned_frozen_file": "history/7fee-source-formal-before-surface-native-preparation/evidence-index.json"
+    },
+    {
+      "file": "report-validation-7fee.json",
+      "sha256": "35ccef433f9f6e1c53527bb416ca17bfe3346dbab6fe8502b55006a7c4bdef00",
+      "bytes": 1587,
+      "owned_frozen_file": "history/7fee-source-formal-before-surface-native-preparation/report-validation-7fee.json"
+    },
+    {
+      "file": "file-coverage.csv",
+      "sha256": "e0e28855018c2c1a419df20f8e5bd70f85d76d467c118a16e3ced550ee90f398",
+      "bytes": 35126,
+      "owned_frozen_file": "history/7fee-source-formal-before-surface-native-preparation/file-coverage.csv"
+    },
+    {
+      "file": "asset-fingerprint.json",
+      "sha256": "e6aaeb78eb8146c1867d806d5b8f8eed89d8ca71e26e42056c87a918832076b3",
+      "bytes": 47744,
+      "owned_frozen_file": "history/7fee-source-formal-before-surface-native-preparation/asset-fingerprint.json"
+    },
+    {
+      "file": "case-matrix.json",
+      "sha256": "03d9a167754acd648f21376904e6d1fb9132d69996b1d674eb2d8754c64c9452",
+      "bytes": 3387958,
+      "owned_frozen_file": "history/7fee-source-formal-before-surface-native-preparation/case-matrix.json"
+    },
+    {
+      "file": "case-matrix.csv",
+      "sha256": "e2bb8a75798f5957a0179899737fd9265af46cfb561bae9a72c3eb7032fc0144",
+      "bytes": 2045916,
+      "owned_frozen_file": "history/7fee-source-formal-before-surface-native-preparation/case-matrix.csv"
+    },
+    {
+      "file": "coverage.json",
+      "sha256": "cba28a7c462425d83692527e4b1381029933bca99ef629079d25be72bd9c693b",
+      "bytes": 290718,
+      "owned_frozen_file": "history/7fee-source-formal-before-surface-native-preparation/coverage.json"
+    },
+    {
+      "file": "coverage.csv",
+      "sha256": "5d16a1d72386cf21ff4eabccd203d1b2dadc8800b0705322dbf8663211e8ce2a",
+      "bytes": 135689,
+      "owned_frozen_file": "history/7fee-source-formal-before-surface-native-preparation/coverage.csv"
+    },
+    {
+      "file": "ledger-verification.json",
+      "sha256": "67295e07cea3fd8dcb5f857b2be5139d2987155c5e6267e7278e174950ff0681",
+      "bytes": 35714,
+      "owned_frozen_file": "history/7fee-source-formal-before-surface-native-preparation/ledger-verification.json"
+    },
+    {
+      "file": "acceptance-debt.json",
+      "sha256": "70aac6a7277806506fd0cef92438e73e550a346b27dadfa8e90c16b0e71095fa",
+      "bytes": 3797,
+      "owned_frozen_file": "history/7fee-source-formal-before-surface-native-preparation/acceptance-debt.json"
+    },
+    {
+      "file": "observation-mapping.json",
+      "sha256": "b9fedb8a0d8e21de33da97fee7aa54fb2862e8a1913e93fada58d83b2db6ea15",
+      "bytes": 3241,
+      "owned_frozen_file": "history/7fee-source-formal-before-surface-native-preparation/observation-mapping.json"
+    },
+    {
+      "file": "floor-final-verification.json",
+      "sha256": "8879a49993ad24d7eb6932aa3b8b37fd3d270f6f16469b23f504d32148acea7c",
+      "bytes": 179805,
+      "owned_frozen_file": "history/7fee-source-formal-before-surface-native-preparation/floor-final-verification.json"
+    },
+    {
+      "file": "create-floor-native-verification.py",
+      "sha256": "19bad9ff14d5bdad893d455225df0bca499c890094022bde0a2b052ea592ed2c",
+      "bytes": 16839,
+      "owned_frozen_file": "history/7fee-source-formal-before-surface-native-preparation/create-floor-native-verification.py"
+    },
+    {
+      "file": "review-native-diagnostic-export.py",
+      "sha256": "e67fb5e3a9f4d6f00c472a5ff89923c9a8200d1861d4bf04f0fe448cc216665c",
+      "bytes": 11226,
+      "owned_frozen_file": "history/7fee-source-formal-before-surface-native-preparation/review-native-diagnostic-export.py"
+    },
+    {
+      "file": "verify-modern-mcd-runs.mjs",
+      "sha256": "76d66b1b9b8100156c61cb7edba28106b9fd8614de6b34223a580155abe41891",
+      "bytes": 21727,
+      "owned_frozen_file": "history/7fee-source-formal-before-surface-native-preparation/verify-modern-mcd-runs.mjs"
+    }
+  ],
+  "source_GPU_window_already_released": true,
+  "actual_native_or_GUI_controls_executed": false,
+  "actual_MCD_executed": false
+}

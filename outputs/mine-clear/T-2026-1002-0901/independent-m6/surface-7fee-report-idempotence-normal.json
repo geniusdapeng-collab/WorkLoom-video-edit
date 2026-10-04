@@ -1,0 +1,9 @@
+{
+  "at": "2026-10-03T19:46:11.097963+08:00",
+  "builder_sha256": "0aaefc0a8396a2d66cec60fd44fc54ec598319f1a345e07d3b33734c207278c6",
+  "normal_entry_exit_code": 1,
+  "strict_UTF8_and_complete_AST_and_byte_compile_passed": true,
+  "cause_proven": false,
+  "actual_native_or_MCD_case_run": false,
+  "log": "surface-7fee-report-idempotence-normal.log"
+}

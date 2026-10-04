@@ -1,0 +1,36 @@
+{
+  "schema": "growth.independent-m6/official-diagnostic@1",
+  "reviewed_by": "growth_m6",
+  "reviewed_at": "2026-10-03T17:14:02.580929+08:00",
+  "official_source": "https://raw.githubusercontent.com/nodejs/node/v24.19.0/doc/api/fs.md",
+  "retrieval": "actual curl via local proxy completed exit0; original exact official file retained",
+  "file": "diagnostic-official-node-fs-v24.19.0.md",
+  "sha256": "325f36dcfa680e1608749a5bf8ba5f68ea82ecb1bd983a027c71ee25bf79c885",
+  "bytes": 287326,
+  "lines": 9007,
+  "semantic_scope": "Only cited API sections read; no full-file semantic claim",
+  "sections_read": [
+    {
+      "range": "5788-5800",
+      "api": "fs.fchmodSync",
+      "fact": "Changes descriptor permissions."
+    },
+    {
+      "range": "6172-6200",
+      "api": "fs.openSync",
+      "fact": "Returns a file descriptor."
+    },
+    {
+      "range": "6690-6741",
+      "api": "fs.writeFileSync",
+      "fact": "mode only affects newly created files, so overwriting an existing file needs explicit permission handling."
+    },
+    {
+      "range": "8775-8800",
+      "api": "descriptor lifetime",
+      "fact": "Allocated descriptors must be closed."
+    }
+  ],
+  "source_assertions_separate": true,
+  "actual_installed_native_action_unverified": true
+}

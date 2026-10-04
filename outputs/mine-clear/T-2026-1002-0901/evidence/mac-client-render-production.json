@@ -1,0 +1,10 @@
+{
+  "name": "mac-client-render-production",
+  "command": [
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/生产修复 客户应用/WorkLoom 获客增长系统（实验车道）.app/Contents/MacOS/WorkLoom 获客增长系统（实验车道）"
+  ],
+  "exit_code": 0,
+  "seconds": 34.635,
+  "ran_at": "2026-10-02T22:25:51.602546+08:00",
+  "log": "mac-client-render-production.log"
+}

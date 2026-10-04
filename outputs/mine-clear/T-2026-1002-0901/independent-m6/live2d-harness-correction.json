@@ -1,0 +1,7 @@
+{
+  "first_result": "web-lifecycle-independent.json",
+  "first_error": "Failed to resolve react/jsx-dev-runtime; zero product cases ran",
+  "cause": "Own config used a prefix react alias and did not declare the JSX development-runtime alias",
+  "fix": "Exact regex aliases with installed JSX runtime entry paths; product source unchanged",
+  "official_source": "https://vite.dev/config/shared-options.html#resolve-alias"
+}

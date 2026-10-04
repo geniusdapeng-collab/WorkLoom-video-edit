@@ -1,0 +1,143 @@
+{
+  "schema": "growth.native-diagnostic-export@1",
+  "source_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+  "pass": true,
+  "synthetic_only": true,
+  "real_customer_data_used": false,
+  "customer_data_opened": false,
+  "paid_provider_calls": 0,
+  "application": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/地面修复 客户应用/WorkLoom 获客增长系统（实验车道）.app",
+  "app_asar_sha256": "d2853e56f03680d7eca3c24798ec58f482883908a30f649ef7f1dcaac0bab42a",
+  "payload_sha256": "ae3480215c5a72f4c890aaf9e0fa942b613037b11c580ffeb9802fb7e309c673",
+  "main_sha256": "231d1e1c9621c9408393aee430ff80008eb5548d3c734ce96e329cff5f588ad2",
+  "actual_startup_failure_page_observed": true,
+  "actual_native_menu": true,
+  "actual_save_dialog": true,
+  "actual_cancel_observed": true,
+  "actual_overwrite_confirmation_observed": true,
+  "actual_recovery_page_retained": true,
+  "action_surface": "startup-failure-page-actions",
+  "export_file": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/地面修复 诊断导出/本机诊断 覆盖测试.txt",
+  "export_sha256": "088c4588934fd277de846c07c2274cd51da89cf68bc253d740cb46482b07e4eb",
+  "export_bytes": 1062,
+  "export_mode": "0600",
+  "synthetic_fields_absent": [
+    {
+      "field_name": "jsonToken",
+      "absent": true
+    },
+    {
+      "field_name": "clientSecret",
+      "absent": true
+    },
+    {
+      "field_name": "quotedPassword",
+      "absent": true
+    },
+    {
+      "field_name": "apiKey",
+      "absent": true
+    },
+    {
+      "field_name": "uriUser",
+      "absent": true
+    },
+    {
+      "field_name": "uriPassword",
+      "absent": true
+    },
+    {
+      "field_name": "authorization",
+      "absent": true
+    },
+    {
+      "field_name": "cookie",
+      "absent": true
+    },
+    {
+      "field_name": "privateKey",
+      "absent": true
+    },
+    {
+      "field_name": "proxyAuthorization",
+      "absent": true
+    }
+  ],
+  "benign_context_preserved": {
+    "QA 本机诊断中文上下文保留": true,
+    "stage=synthetic-no-customer": true,
+    "error_code=QA_SYNTHETIC_CONTEXT": true
+  },
+  "actual_cases": [
+    {
+      "id": "actual_startup_failure_page_observed",
+      "passed": true
+    },
+    {
+      "id": "actual_native_menu",
+      "passed": true
+    },
+    {
+      "id": "actual_save_dialog",
+      "passed": true
+    },
+    {
+      "id": "actual_cancel_observed",
+      "passed": true
+    },
+    {
+      "id": "actual_overwrite_confirmation_observed",
+      "passed": true
+    },
+    {
+      "id": "actual_recovery_page_retained",
+      "passed": true
+    },
+    {
+      "id": "all-synthetic-fields-redacted",
+      "passed": true
+    },
+    {
+      "id": "benign-context-preserved",
+      "passed": true
+    },
+    {
+      "id": "actual-overwrite-mode-0600",
+      "passed": true
+    }
+  ],
+  "all_actual_cases_passed": true,
+  "root_actual_seconds": 633.415,
+  "public_evidence": [
+    {
+      "path": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/evidence/native-surface-diagnostic-failure.png",
+      "sha256": "9c86352501994af86ef9f8924e0d9cc11fb17e8a21d9ff3fa5762dfa92352aa0",
+      "bytes": 112612
+    },
+    {
+      "path": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/evidence/native-surface-diagnostic-save-dialog.png",
+      "sha256": "508901f6f3208d3311da27e9137807ab665b15d3a4e183bf37b33dff433d3f72",
+      "bytes": 35572
+    },
+    {
+      "path": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/evidence/native-surface-diagnostic-overwrite.png",
+      "sha256": "e5628abf1efdfab8da67174b6f2dd45166c10da1a7fd96aae78f6fd8118f287a",
+      "bytes": 49841
+    },
+    {
+      "path": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/evidence/native-surface-diagnostic-recovery.png",
+      "sha256": "bd351e57112cdafceb5091f04c0df693926cbafc82d047568b289721baab937e",
+      "bytes": 113491
+    },
+    {
+      "path": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/evidence/native-surface-diagnostic-export.txt",
+      "sha256": "088c4588934fd277de846c07c2274cd51da89cf68bc253d740cb46482b07e4eb",
+      "bytes": 1062
+    }
+  ],
+  "observation_file": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/evidence/native-surface-diagnostic-gui-observation.json",
+  "observation_sha256": "b4836536d7023492490aa292b1ccd5404871545d07a04e3af8a057390f1db3ae",
+  "source_unit_controls_kept_separate_from_ui": true,
+  "signed_platform_release": false,
+  "windows_acl_verified": false
+}

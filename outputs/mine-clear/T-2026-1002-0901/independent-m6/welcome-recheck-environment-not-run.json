@@ -1,0 +1,13 @@
+{
+  "schema": "growth.independent-m6/recheck-not-run@1",
+  "at": "2026-10-03T03:25:08.325077+08:00",
+  "source_expected": "955e2277ee1496cfc4b40bd30345d1ce1be1acf1",
+  "operation": "Preparation of independent installed artifact byte recheck",
+  "execution_started": false,
+  "environment_error": "zsh unable to create heredoc temp file and run_check unable to open its own log: ENOSPC",
+  "not_a_product_recheck_failure": true,
+  "actual_product_client_action": false,
+  "private_state_read": false,
+  "parent_instruction": "Defer large artifact reads until parent frees stopped owned QA caches and finishes its read-only diagnosis",
+  "related_receipt": "density-cache-cleanup.json"
+}

@@ -1,0 +1,12 @@
+{
+  "name": "mac-dependency-dmg-source-check",
+  "command": [
+    "python3",
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/install_floor_dmg.py",
+    "dependency"
+  ],
+  "exit_code": 0,
+  "seconds": 7.876,
+  "ran_at": "2026-10-04T01:38:22.941183+08:00",
+  "log": "mac-dependency-dmg-source-check.log"
+}

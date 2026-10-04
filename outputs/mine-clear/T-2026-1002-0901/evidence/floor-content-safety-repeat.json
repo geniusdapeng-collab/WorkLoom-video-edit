@@ -1,0 +1,18 @@
+{
+  "name": "floor-content-safety-repeat",
+  "command": [
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+    "--env-file=.env",
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/pnpm/bin/pnpm.cjs",
+    "--filter",
+    "@workloom/web",
+    "exec",
+    "vitest",
+    "run",
+    "src/pages/p0/Floor.test.tsx"
+  ],
+  "exit_code": 0,
+  "seconds": 30.476,
+  "ran_at": "2026-10-03T05:24:24.382299+08:00",
+  "log": "floor-content-safety-repeat.log"
+}

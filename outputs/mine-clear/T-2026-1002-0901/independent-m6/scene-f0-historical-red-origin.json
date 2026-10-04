@@ -1,0 +1,257 @@
+{
+  "source_commit": "f0a11286a49419fb7909088e2d170f4dde7b60c6",
+  "generated_at": "2026-10-03T10:31:58.017795+08:00",
+  "copied_receipts": [
+    {
+      "original": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/evidence/scene-layout-before-production.json",
+      "snapshot": "inherited/evidence__scene-layout-before-production.json",
+      "sha256": "5fdb600cac9189a634b4d1f51e4c9b2463dca0119df37d6cb6054aa6c0e199a3",
+      "origin": "root",
+      "grade": "B metadata/actual inheritedrun; no independentexecutionclaimed"
+    },
+    {
+      "original": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/evidence/scene-layout-before-production-results.json",
+      "snapshot": "inherited/evidence__scene-layout-before-production-results.json",
+      "sha256": "bef6adcb2249b31fddea36b54f9d7512fa5be73c205c0f05aee69404258d8d83",
+      "origin": "root",
+      "grade": "B metadata/actual inheritedrun; no independentexecutionclaimed"
+    },
+    {
+      "original": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/evidence/scene-layout-before-production.log",
+      "snapshot": "inherited/evidence__scene-layout-before-production.log",
+      "sha256": "7d1273550c2952320dd0723827bab6b1e645c06a506bb72413a27aa3dc4496d7",
+      "origin": "root",
+      "grade": "B metadata/actual inheritedrun; no independentexecutionclaimed"
+    },
+    {
+      "original": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/evidence/scene-native-observer-red.json",
+      "snapshot": "inherited/evidence__scene-native-observer-red.json",
+      "sha256": "e5c0170931036de6b6c88bac2fe36e677112e6d393a620e831e917a417a95bdd",
+      "origin": "root",
+      "grade": "B metadata/actual inheritedrun; no independentexecutionclaimed"
+    },
+    {
+      "original": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/evidence/scene-native-observer-red.log",
+      "snapshot": "inherited/evidence__scene-native-observer-red.log",
+      "sha256": "ba36871248cd6fcfa464540057d437ba259507856657b466d7dbceb5f1f291b2",
+      "origin": "root",
+      "grade": "B metadata/actual inheritedrun; no independentexecutionclaimed"
+    },
+    {
+      "original": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/evidence/floor-native-ceo-portal-red-corrected.json",
+      "snapshot": "inherited/evidence__floor-native-ceo-portal-red-corrected.json",
+      "sha256": "ae290c369690d8ec2567eb486cd0aec36940458a8bf1893f890c18755242b0ee",
+      "origin": "root",
+      "grade": "B metadata/actual inheritedrun; no independentexecutionclaimed"
+    },
+    {
+      "original": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/evidence/floor-native-ceo-portal-red-results.json",
+      "snapshot": "inherited/evidence__floor-native-ceo-portal-red-results.json",
+      "sha256": "9307f48a41a622d55a0e172b312c59334a279d54e292a2cb99f46a34a6444c52",
+      "origin": "root",
+      "grade": "B metadata/actual inheritedrun; no independentexecutionclaimed"
+    },
+    {
+      "original": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/evidence/floor-native-ceo-portal-red-corrected.log",
+      "snapshot": "inherited/evidence__floor-native-ceo-portal-red-corrected.log",
+      "sha256": "1c00c62b6306a07d8f789f2823b73356c27a2e78cbd3ba8fbc8805564f0cee5e",
+      "origin": "root",
+      "grade": "B metadata/actual inheritedrun; no independentexecutionclaimed"
+    },
+    {
+      "original": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/evidence/scene-css-observer-correction.json",
+      "snapshot": "inherited/evidence__scene-css-observer-correction.json",
+      "sha256": "6f1f2897a6fe88a26b11e2dc28791cc90bba2adeb116c09b47e5773b17336c46",
+      "origin": "root",
+      "grade": "B metadata/actual inheritedrun; no independentexecutionclaimed"
+    }
+  ],
+  "layout_red": {
+    "executed_source": "c08386eb9993744a0cb0c2495a98fc1fc4ccbed9",
+    "working_tree": " M apps/web/src/components/Floor3DLabels.test.tsx\n",
+    "pass": 3,
+    "fail": 4,
+    "production_css_sha256": "bc5b185ab487ec8441ca19a29646b603a15f2382cb4d48a73263fc81e76ad777",
+    "case_summaries": [
+      {
+        "id": "stage-1440-actual-canvas-fills-scene",
+        "pass": false,
+        "expected": "The actual rendered WebGL Canvas fills its own visible scene at desktop and narrow width; no collapsed percentage-height region",
+        "region": {
+          "x": 336,
+          "y": 16,
+          "width": 768,
+          "height": 440,
+          "right": 1104,
+          "bottom": 456
+        },
+        "canvas": {
+          "x": 336,
+          "y": 16,
+          "width": 768,
+          "height": 150,
+          "right": 1104,
+          "bottom": 166
+        },
+        "ceoOverlaps": []
+      },
+      {
+        "id": "stage-390-actual-canvas-fills-scene",
+        "pass": false,
+        "expected": "The actual rendered WebGL Canvas fills its own visible scene at desktop and narrow width; no collapsed percentage-height region",
+        "region": {
+          "x": 16,
+          "y": 16,
+          "width": 358,
+          "height": 440,
+          "right": 374,
+          "bottom": 456
+        },
+        "canvas": {
+          "x": 16,
+          "y": 16,
+          "width": 358,
+          "height": 150,
+          "right": 374,
+          "bottom": 166
+        },
+        "ceoOverlaps": []
+      },
+      {
+        "id": "floor-1440-actual-canvas-fills-scene",
+        "pass": true,
+        "expected": "The actual rendered WebGL Canvas fills its own visible scene at desktop and narrow width; no collapsed percentage-height region",
+        "region": {
+          "x": 336,
+          "y": 16,
+          "width": 768,
+          "height": 440,
+          "right": 1104,
+          "bottom": 456
+        },
+        "canvas": {
+          "x": 336,
+          "y": 16,
+          "width": 768,
+          "height": 440,
+          "right": 1104,
+          "bottom": 456
+        },
+        "ceoOverlaps": [
+          "scene-worker-16",
+          "scene-worker-18"
+        ]
+      },
+      {
+        "id": "floor-1440-actual-ceo-plaque-separate",
+        "pass": false,
+        "expected": "The actual CEO HTML plaque is included in collision avoidance and does not intersect any worker plaque",
+        "region": {
+          "x": 336,
+          "y": 16,
+          "width": 768,
+          "height": 440,
+          "right": 1104,
+          "bottom": 456
+        },
+        "canvas": {
+          "x": 336,
+          "y": 16,
+          "width": 768,
+          "height": 440,
+          "right": 1104,
+          "bottom": 456
+        },
+        "ceoOverlaps": [
+          "scene-worker-16",
+          "scene-worker-18"
+        ]
+      },
+      {
+        "id": "floor-390-actual-canvas-fills-scene",
+        "pass": true,
+        "expected": "The actual rendered WebGL Canvas fills its own visible scene at desktop and narrow width; no collapsed percentage-height region",
+        "region": {
+          "x": 16,
+          "y": 16,
+          "width": 358,
+          "height": 440,
+          "right": 374,
+          "bottom": 456
+        },
+        "canvas": {
+          "x": -138,
+          "y": 16,
+          "width": 640,
+          "height": 440,
+          "right": 502,
+          "bottom": 456
+        },
+        "ceoOverlaps": [
+          "scene-worker-16",
+          "scene-worker-18"
+        ]
+      },
+      {
+        "id": "floor-390-actual-ceo-plaque-separate",
+        "pass": false,
+        "expected": "The actual CEO HTML plaque is included in collision avoidance and does not intersect any worker plaque",
+        "region": {
+          "x": 16,
+          "y": 16,
+          "width": 358,
+          "height": 440,
+          "right": 374,
+          "bottom": 456
+        },
+        "canvas": {
+          "x": -138,
+          "y": 16,
+          "width": 640,
+          "height": 440,
+          "right": 502,
+          "bottom": 456
+        },
+        "ceoOverlaps": [
+          "scene-worker-16",
+          "scene-worker-18"
+        ]
+      },
+      {
+        "id": "scene-no-errors-or-external-network",
+        "pass": true,
+        "expected": "No browser error or external request in the actual imported scene fixture",
+        "region": null,
+        "canvas": null,
+        "ceoOverlaps": null
+      }
+    ]
+  },
+  "portal_red": {
+    "pass": 2,
+    "fail": 1,
+    "actual_assertions": [
+      {
+        "name": "3D 名牌的真实分配组件 在 connected-portal 容器的公司负责人固定牌旁分配员工名牌",
+        "status": "failed"
+      },
+      {
+        "name": "3D 名牌的真实分配组件 在 canvas-parent 容器的公司负责人固定牌旁分配员工名牌",
+        "status": "passed"
+      },
+      {
+        "name": "3D 名牌的真实分配组件 名字单独能放下但人物预留空间不足时仍扩容，后续帧持续重试，扩容后保留身体命中空间",
+        "status": "passed"
+      }
+    ]
+  },
+  "native_observer_red": {
+    "pass": 4,
+    "fail": 2,
+    "selected_cases": 6,
+    "exit_code": 1
+  },
+  "origin": "Rootexecution; immutable bytes and parsed actual case metadata independently reviewed. No claim of root original JSON fullsemanticread of repeated nested label coordinates.",
+  "historical_c083_native_visual_red": "floor-native-c083-screenshot-review.json",
+  "original_failures_rewritten": false
+}

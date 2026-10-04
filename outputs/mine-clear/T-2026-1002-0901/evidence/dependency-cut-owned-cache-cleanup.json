@@ -1,0 +1,16 @@
+{
+  "at": "2026-10-03T21:45:44.069799+08:00",
+  "source_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+  "removed_rebuildable_duplicate_qa_paths": [
+    "work/终态修复 升级客户/.payload-cache",
+    "work/地面修复 客户应用/WorkLoom 获客增长系统（实验车道）.app",
+    "work/growth-audit/dist-payload.tar.gz"
+  ],
+  "retained_actual_dmg_application": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/地面修复 DMG客户应用/WorkLoom 获客增长系统（实验车道）.app",
+  "retained_actual_dmg": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/release/WorkLoom.GEO-mac-arm64.dmg",
+  "retained_payload_sha256": "ae3480215c5a72f4c890aaf9e0fa942b613037b11c580ffeb9802fb7e309c673",
+  "retained_app_asar_sha256": "d2853e56f03680d7eca3c24798ec58f482883908a30f649ef7f1dcaac0bab42a",
+  "upgrade_customer_runtime_database_configuration_unchanged": true,
+  "other_customer_or_chat_directories_touched": false,
+  "reason": "Free duplicates before scoped dependency fix; .5 original execution records remain unchanged and its actual bytes remain in the installed DMG application and DMG"
+}

@@ -1,0 +1,63 @@
+{
+  "card_id": "MC-104",
+  "actor": "growth_m6",
+  "role": "acceptance",
+  "source_commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+  "argv": [
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+    "--env-file=.env",
+    "/Users/mac/.codex/skills/mine-clear-delivery/assets/mine-clear.mjs",
+    "run-assertions",
+    "--ledger",
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/execution-ledger.json",
+    "--card",
+    "MC-104",
+    "--actor",
+    "growth_m6",
+    "--role",
+    "acceptance",
+    "--repo",
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit",
+    "--timeout-ms",
+    "180000"
+  ],
+  "exit_code": 0,
+  "seconds": 4.286,
+  "started_at": "2026-10-04T04:21:24.810455+08:00",
+  "finished_at": "2026-10-04T04:21:29.096724+08:00",
+  "stdout": "mcd-acceptance-mc-104.stdout",
+  "stdout_sha256": "1f810b7a9aac1b0fb56fd048947abd8dd4bec133ac79fd1a0fe77317b2b4ae59",
+  "stderr": "mcd-acceptance-mc-104.stderr",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "registry_proxy_used": null,
+  "registry_proxy_scope": "Only this audit-containing card; no credential forwarding or product argv/deadline changes",
+  "assertion_count": 5,
+  "actual_runs": [
+    {
+      "path": "runs/MC-104-0-1791058884970.json",
+      "sha256": "8a02c198e0d5a585535e65d2ea61cc21d492af6f3b924f0737d045f026d520be",
+      "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+    },
+    {
+      "path": "runs/MC-104-1-1791058885755.json",
+      "sha256": "6ffa1b7257c15a6ee00c2e620c332c0e1cbbd67afc190b5a0507783ad666218d",
+      "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+    },
+    {
+      "path": "runs/MC-104-2-1791058886533.json",
+      "sha256": "0d64682960fc558a84bbe81634cf0d728b6dfe2e0d792329363f34306bc578fc",
+      "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+    },
+    {
+      "path": "runs/MC-104-3-1791058887524.json",
+      "sha256": "d4a4e5eb73182e6b3a60fd9639f4eaa007dc9a44342ab2c00210542af38d3bd0",
+      "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+    },
+    {
+      "path": "runs/MC-104-4-1791058888302.json",
+      "sha256": "a7ca301b6cd40a6a379a7170d9deb9b01f4667f378fac29add4fb5da866011fd",
+      "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+    }
+  ],
+  "pass": true
+}

@@ -1,0 +1,15 @@
+{
+  "source_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+  "command": [
+    "python3",
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/independent-m6/execute-report-bytes.py",
+    "dd2671f8ecd15c239f1df25ccacbf9ea5d905f6cd986e1dd90fb7e50bc849509"
+  ],
+  "exit_code": 0,
+  "seconds": 2.538,
+  "builder_sha256_before_after": "dd2671f8ecd15c239f1df25ccacbf9ea5d905f6cd986e1dd90fb7e50bc849509",
+  "full_original_builder_bytes_unchanged": true,
+  "guards_removed": 0,
+  "log": "surface-7fee-report-builder-byte-entry.log",
+  "ordinary_entry_failure_retained": true
+}

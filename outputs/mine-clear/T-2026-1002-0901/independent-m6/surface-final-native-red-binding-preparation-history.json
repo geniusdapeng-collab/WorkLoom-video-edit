@@ -1,0 +1,85 @@
+{
+  "schema": "growth.independent-m6/owned-preparation-history@1",
+  "prepared_at": "2026-10-03T20:42:08.300685+08:00",
+  "scope": "Own generator/validator red-binding preparation only; no product or actual native/MCD pass fabricated",
+  "source_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+  "prior_formal_source_report": "source-only HOLD",
+  "frozen_directory": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/independent-m6/history/7fee-source-formal-before-final-native-red-binding",
+  "files": [
+    {
+      "file": "create-floor-native-verification.py",
+      "sha256": "42fbbec4ee2643bf1a8d256261c71b96fdb54ce687e1bc7557591ce036a3a77c",
+      "bytes": 17071
+    },
+    {
+      "file": "build_report.py",
+      "sha256": "0aaefc0a8396a2d66cec60fd44fc54ec598319f1a345e07d3b33734c207278c6",
+      "bytes": 111521
+    },
+    {
+      "file": "validate_report.py",
+      "sha256": "6a13397c03db60f5e2bbe0f3a415ef9936ec88e2020e5efd63786484d794f414",
+      "bytes": 32889
+    },
+    {
+      "file": "prepare_report.py",
+      "sha256": "3cede5f2178c5242048f0ca8064f186fc170a58e0a6c38b59bc5fc4dca67937c",
+      "bytes": 69877
+    },
+    {
+      "file": "REPORT.md",
+      "sha256": "ad52acff4b8ec9bd71195ed42d01d6af49816551a6b178216d283c4e3c02c30c",
+      "bytes": 124267
+    },
+    {
+      "file": "summary.json",
+      "sha256": "a1015ff05d5a1021dbcd3c094e12ab6484296b6eb3a13cce7c2b1f1603275917",
+      "bytes": 413133
+    },
+    {
+      "file": "ledger-verification.json",
+      "sha256": "f7e528cba0779a3860b84108c7c30dafd79380183a9aa4fd2fcd3243cf48030f",
+      "bytes": 35714
+    },
+    {
+      "file": "case-matrix.json",
+      "sha256": "8f236f55556922f280aae6a119244d61a186abfd11e1c563480528ea3b6aafc9",
+      "bytes": 3387958
+    },
+    {
+      "file": "acceptance-debt.json",
+      "sha256": "803ccefc85524f71bb775d94fd4e77ca4b737496c80157f3d82914dbd751d448",
+      "bytes": 3797
+    },
+    {
+      "file": "coverage.json",
+      "sha256": "11a0c0c64a89a1a5d01a63215b91e734eeff5da823d27a700420d0d3db4cfb85",
+      "bytes": 290718
+    },
+    {
+      "file": "coverage.csv",
+      "sha256": "5d16a1d72386cf21ff4eabccd203d1b2dadc8800b0705322dbf8663211e8ce2a",
+      "bytes": 135689
+    },
+    {
+      "file": "file-coverage.csv",
+      "sha256": "e0e28855018c2c1a419df20f8e5bd70f85d76d467c118a16e3ced550ee90f398",
+      "bytes": 35126
+    },
+    {
+      "file": "baseline-acceptance.json",
+      "sha256": "469da8c6d1375fbe67518125f8b6e7f957f81b4a259451a08e6b48317236984b",
+      "bytes": 278095
+    },
+    {
+      "file": "evidence-index.json",
+      "sha256": "ce5949d21b930469042428c62fc8747fd375aa69e0bcb5a7fac1d10ed9c39607",
+      "bytes": 938225
+    },
+    {
+      "file": "report-validation-7fee.json",
+      "sha256": "ec80782a1e395632dcd8dc044a8af08693225c4b1adce4a71cd19dd3b79011bd",
+      "bytes": 1587
+    }
+  ]
+}

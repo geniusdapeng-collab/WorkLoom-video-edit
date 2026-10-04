@@ -1,0 +1,13 @@
+{
+  "name": "native-guide-diagnostic-v2",
+  "command": [
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+    "--env-file=.env",
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/native_guide_diagnostic.mjs",
+    "native-guide-diagnostic-v2-frames"
+  ],
+  "exit_code": 0,
+  "seconds": 265.836,
+  "ran_at": "2026-10-03T02:12:42.047457+08:00",
+  "log": "native-guide-diagnostic-v2.log"
+}

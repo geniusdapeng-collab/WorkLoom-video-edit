@@ -1,0 +1,56 @@
+{
+  "U": {
+    "state": "unverified",
+    "actual_user_count": 0,
+    "task_success_rate": null,
+    "desktop_viewport_width": 1440,
+    "narrow_viewport_width": 390,
+    "real_mobile": false,
+    "SUS": null,
+    "UMUX_Lite": null,
+    "SEQ": null,
+    "NASA_TLX": null,
+    "accessibility_complete": false
+  },
+  "O": {
+    "state": "structural compliance / capability unverified",
+    "real_delivery_n": 0,
+    "pass_at_1": null,
+    "pass_pow_k": null,
+    "ROI": null,
+    "business_delta": null,
+    "paid_supplier_receipts": 0,
+    "local_failed_job_controls": 2
+  },
+  "P": {
+    "state": "unverified",
+    "real_provider_tasks": 0,
+    "image_count": 0,
+    "video_count": 0,
+    "paid_cost": null,
+    "provider_returned_model_version": null,
+    "chain_depth": "source / local public dispatch only; no production model-gateway or gen-http receipt"
+  },
+  "ADR": {
+    "role": "GEO/影片相关岗位（真实业务未取样）",
+    "AL_declared": null,
+    "AL_measured": null,
+    "N": 0,
+    "coverage": null,
+    "ADR_0": null,
+    "ADR_1": null,
+    "ADR_2": null,
+    "HIR": null,
+    "HIR_NI": null,
+    "H1_load": null,
+    "H2_H3_H4": null,
+    "H3_plus_H4": null,
+    "HMPO_median": null,
+    "HMPO_P90": null,
+    "Wilson_CI": null,
+    "business_delta_CI": null,
+    "fixture_filter": "all deterministic fixtures excluded; 13 known own workspaces/3 film jobs retained; 5 shared integration-prefix workspaces listed without inferred caller; 0 real deliveries before and after",
+    "offline_adjustment": "not applied; no human/business records",
+    "AVR_quadrant": "unmeasured"
+  }
+}

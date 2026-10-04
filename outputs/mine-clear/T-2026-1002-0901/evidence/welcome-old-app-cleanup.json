@@ -1,0 +1,10 @@
+{
+  "removed": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/生命周期修复 客户应用/WorkLoom 获客增长系统（实验车道）.app",
+  "historical_source": "ad4a7a0ba65845a8b401d3cbae7c8981c2ddfb4b",
+  "retained_asar": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/evidence/historical-ad4a-app.asar",
+  "payload_hash_receipt": "avatar-app-fingerprint.json",
+  "old_payload_bytes_retained": false,
+  "reason": "Stopped generated old QA application; public payload can be rebuilt from frozen source and original pinned assets; free disk for current actual cold checks",
+  "customer_support_touched": false,
+  "old_upgrade_application_retained": true
+}

@@ -1,0 +1,12 @@
+{
+  "name": "residue",
+  "command": [
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+    "--env-file=.env",
+    "../../outputs/growth-production-fix-2026-10-02/independent-m6/residue-probe.mjs"
+  ],
+  "exit_code": 0,
+  "seconds": 4.245,
+  "ran_at": "2026-10-03T00:06:57.061859+08:00",
+  "log": "residue.log"
+}

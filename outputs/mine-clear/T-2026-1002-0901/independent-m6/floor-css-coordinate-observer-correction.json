@@ -1,0 +1,26 @@
+{
+  "source": "7d5f02049cc75a692d4eaac33916633cb2192f01",
+  "frozen_files": [
+    {
+      "file": "apps/web/src/pages/p0/Floor.tsx",
+      "sha256": "44dd968cf17e5b1d6c8583ae438259423110e1ac73b1452031008f67e5f4f433"
+    },
+    {
+      "file": "apps/web/src/pages/p0/floor-layout.ts",
+      "sha256": "d4b435b40ffaf11077ba0906ecbda3a9291165a7fb6ea59f2f611441443cfaa2"
+    },
+    {
+      "file": "apps/web/src/lib/naming.ts",
+      "sha256": "8d05e0df3b163ab4186e577af1555d1b9e389ded97a0ad1faad3f3a993b946bd"
+    },
+    {
+      "file": "bundles/geo-growth/floor-scene.json",
+      "sha256": "944aef23a59f2eaffa4899edb3aaf8895bcade8dac81926a4b32ef4ff37bee32"
+    }
+  ],
+  "method": "Actual canvas CSS rectangle divided by native canvas dimensions/context transform; painted points scale to physical mouse coordinates. No product hitboxes copied. Original expectations unchanged 24; layout inside bounds measured in native logical coordinate basis.",
+  "original_receipt": "floor-canvas-production-before-results.json",
+  "raw_basis_limit": "Original outside count compares logical bounds to CSS rectangle and cannot show physical offscreen glyphs. Original raw pointer count is not physical painted-center click proof.",
+  "history_observer": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/independent-m6/history/floor-observer-before-css-coordinates/floor-canvas-painted-probe.mjs",
+  "new_observer_sha256": "16ccde41b1f03dad12a0f9f427aba20d3961c0d24cc509180d98c7108e3be23c"
+}

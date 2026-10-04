@@ -1,0 +1,266 @@
+{
+  "evidence_grade": "B",
+  "source_baseline": "42ead347c65a5cc343bcd290702d53a7fcdb1687",
+  "repair_baseline": "04099407ca73085e5d87f5c4d33ca9bba64f3374",
+  "target_baseline": "da06fdf1e1ead0cafc078ea27695397d2e9209db",
+  "total_union": 3102,
+  "same_blobs": 3102,
+  "different": [],
+  "repair_scope": [
+    {
+      "path": ".workloom-runtime-deps/metadata.json",
+      "new": false,
+      "matches_before_repair": true
+    },
+    {
+      "path": ".workloom-runtime-deps/package-lock.json",
+      "new": false,
+      "matches_before_repair": true
+    },
+    {
+      "path": ".workloom-runtime-deps/package.json",
+      "new": false,
+      "matches_before_repair": true
+    },
+    {
+      "path": "CHANGELOG.md",
+      "new": false,
+      "matches_before_repair": true
+    },
+    {
+      "path": "apps/desktop/electron/bootstrap.cjs",
+      "new": false,
+      "matches_before_repair": true
+    },
+    {
+      "path": "apps/desktop/electron/bootstrap.test.cjs",
+      "new": false,
+      "matches_before_repair": true
+    },
+    {
+      "path": "apps/desktop/electron/main.cjs",
+      "new": false,
+      "matches_before_repair": true
+    },
+    {
+      "path": "apps/desktop/electron/preload.cjs",
+      "new": true,
+      "matches_before_repair": true
+    },
+    {
+      "path": "apps/server/src/runtime/scheduler.ts",
+      "new": false,
+      "matches_before_repair": true
+    },
+    {
+      "path": "apps/server/src/runtime/thread-runner.ts",
+      "new": false,
+      "matches_before_repair": true
+    },
+    {
+      "path": "apps/server/src/service/desktop-auth.test.ts",
+      "new": true,
+      "matches_before_repair": true
+    },
+    {
+      "path": "apps/server/src/service/desktop-auth.ts",
+      "new": true,
+      "matches_before_repair": true
+    },
+    {
+      "path": "apps/server/src/trpc/router.ts",
+      "new": false,
+      "matches_before_repair": true
+    },
+    {
+      "path": "apps/server/src/video/film-worker.test.ts",
+      "new": true,
+      "matches_before_repair": true
+    },
+    {
+      "path": "apps/server/src/video/film-worker.ts",
+      "new": false,
+      "matches_before_repair": true
+    },
+    {
+      "path": "apps/web/src/components/loommate/LoomMate.tsx",
+      "new": false,
+      "matches_before_repair": true
+    },
+    {
+      "path": "apps/web/src/lib/trpc.ts",
+      "new": false,
+      "matches_before_repair": true
+    },
+    {
+      "path": "apps/webc/public/industry/service-front.config.json",
+      "new": false,
+      "matches_before_repair": true
+    },
+    {
+      "path": "bundles/geo-growth/bundle.json",
+      "new": false,
+      "matches_before_repair": true
+    },
+    {
+      "path": "bundles/geo-growth/capabilities/video.mjs",
+      "new": false,
+      "matches_before_repair": true
+    },
+    {
+      "path": "bundles/geo-growth/schemas/objects.json",
+      "new": false,
+      "matches_before_repair": true
+    },
+    {
+      "path": "docs/OPEN_SOURCE_COMPONENTS.md",
+      "new": false,
+      "matches_before_repair": true
+    },
+    {
+      "path": "docs/repairs/T-2026-1002-0901.md",
+      "new": true,
+      "matches_before_repair": true
+    },
+    {
+      "path": "package.json",
+      "new": false,
+      "matches_before_repair": true
+    },
+    {
+      "path": "packages/base/accounts/tokens.ts",
+      "new": false,
+      "matches_before_repair": true
+    },
+    {
+      "path": "packages/base/review-console/approvals.test.ts",
+      "new": false,
+      "matches_before_repair": true
+    },
+    {
+      "path": "packages/base/review-console/approvals.ts",
+      "new": false,
+      "matches_before_repair": true
+    },
+    {
+      "path": "packages/base/tenancy/auth.ts",
+      "new": false,
+      "matches_before_repair": true
+    },
+    {
+      "path": "packages/base/tenancy/tenancy.test.ts",
+      "new": false,
+      "matches_before_repair": true
+    },
+    {
+      "path": "packages/base/workdata/gateway.ts",
+      "new": false,
+      "matches_before_repair": true
+    },
+    {
+      "path": "packages/runtime/src/assembly.ts",
+      "new": false,
+      "matches_before_repair": true
+    },
+    {
+      "path": "packages/runtime/src/loop.test.ts",
+      "new": false,
+      "matches_before_repair": true
+    },
+    {
+      "path": "packages/runtime/src/loop.ts",
+      "new": false,
+      "matches_before_repair": true
+    },
+    {
+      "path": "packages/runtime/src/runtime.test.ts",
+      "new": false,
+      "matches_before_repair": true
+    },
+    {
+      "path": "packages/video-studio/src/film-worker-runtime.test.ts",
+      "new": true,
+      "matches_before_repair": true
+    },
+    {
+      "path": "packages/video-studio/src/film-worker-runtime.ts",
+      "new": true,
+      "matches_before_repair": true
+    },
+    {
+      "path": "packages/video-studio/src/index.ts",
+      "new": false,
+      "matches_before_repair": true
+    },
+    {
+      "path": "packages/video-studio/src/portrait-decision.test.ts",
+      "new": false,
+      "matches_before_repair": true
+    },
+    {
+      "path": "packages/video-studio/src/portrait-decision.ts",
+      "new": false,
+      "matches_before_repair": true
+    },
+    {
+      "path": "pnpm-lock.yaml",
+      "new": false,
+      "matches_before_repair": true
+    },
+    {
+      "path": "scripts/ci/cnb-desktop-release.mjs",
+      "new": false,
+      "matches_before_repair": true
+    },
+    {
+      "path": "scripts/ci/cnb-desktop-release.test.mjs",
+      "new": false,
+      "matches_before_repair": true
+    },
+    {
+      "path": "scripts/pack-electron-payload.sh",
+      "new": false,
+      "matches_before_repair": true
+    },
+    {
+      "path": "scripts/pack-macos.sh",
+      "new": false,
+      "matches_before_repair": true
+    },
+    {
+      "path": "scripts/pack-windows.sh",
+      "new": false,
+      "matches_before_repair": true
+    },
+    {
+      "path": "scripts/pack-workspace-modules.mjs",
+      "new": true,
+      "matches_before_repair": true
+    },
+    {
+      "path": "scripts/pack-workspace-modules.test.mjs",
+      "new": true,
+      "matches_before_repair": true
+    },
+    {
+      "path": "scripts/suite.ts",
+      "new": false,
+      "matches_before_repair": true
+    },
+    {
+      "path": "scripts/tools/full-chain-film.mts",
+      "new": false,
+      "matches_before_repair": true
+    },
+    {
+      "path": "scripts/tools/portrait-agent.mts",
+      "new": false,
+      "matches_before_repair": true
+    },
+    {
+      "path": "scripts/video-capabilities.test.mjs",
+      "new": true,
+      "matches_before_repair": true
+    }
+  ]
+}

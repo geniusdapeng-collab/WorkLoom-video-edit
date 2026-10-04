@@ -1,0 +1,296 @@
+{
+  "schema": "growth.independent-m6/new-security-advisory-hold@1",
+  "reviewed_at": "2026-10-03T21:41:27.824149+08:00",
+  "reviewed_by": "growth_m6",
+  "source_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+  "original_root_repair_wrapper_exit_code": 1,
+  "original_root_repair_seconds": 87.573,
+  "actual_root_cards_passed_before_failure": [
+    "MC-001",
+    "MC-002",
+    "MC-003",
+    "MC-004",
+    "MC-005",
+    "MC-006",
+    "MC-007",
+    "MC-008",
+    "MC-009",
+    "MC-010",
+    "MC-011",
+    "MC-012",
+    "MC-013",
+    "MC-014",
+    "MC-015"
+  ],
+  "actual_root_failed_card": "MC-016",
+  "actual_card_failure_preserved": true,
+  "advisory": {
+    "id": "GHSA-vfj7-8cjw-p6xm",
+    "cve": [
+      "CVE-2026-93687"
+    ],
+    "severity": "high",
+    "module": "braces",
+    "actual_installed_version": "3.0.3",
+    "affected_range_registry_reported": "<=3.0.3",
+    "patched_versions_registry_reported": "<0.0.0",
+    "recommendation_registry_reported": "None",
+    "updated_at_registry_reported": "2026-10-02T22:36:34.000Z",
+    "official_advisory_url": "https://github.com/advisories/GHSA-vfj7-8cjw-p6xm",
+    "actual_dependency_path": "apps__web>pixi-live2d-display>gh-pages>globby>fast-glob>micromatch>braces",
+    "registry_counts": {
+      "vulnerabilities": {
+        "info": 0,
+        "low": 0,
+        "moderate": 0,
+        "high": 1,
+        "critical": 0
+      },
+      "dependencies": 245,
+      "devDependencies": 0,
+      "optionalDependencies": 0,
+      "totalDependencies": 245
+    }
+  },
+  "older_dependency_audit_zero_advisory_historical_only": true,
+  "current_dependency_audit_pass": false,
+  "historical_exact7fee_native_QA_pass_preserved": true,
+  "native_QA_pass_does_not_override_new_security_failure": true,
+  "formal_first_native_report_generated_exit0_but_latest_index_validation_incomplete": true,
+  "final_7fee_formal_release_approved": false,
+  "source_scoped_merge_eligible": false,
+  "actual_growth_m6_MCD_acceptance_executed": false,
+  "original_assertions_or_advisory_policy_relaxed": false,
+  "source_PG_GPU_native_large_IO_window_owner": "root",
+  "new_source_handoff_required_before_more_verification": true,
+  "no_root_product_or_ledger_writes_by_verifier": true,
+  "private_contents_opened": false,
+  "real_provider_calls_by_verifier": 0,
+  "historical_frozen_directory": "history/7fee-native-actual-before-new-MC016-high-advisory",
+  "frozen_files": [
+    {
+      "file": "floor-final-verification.json",
+      "sha256": "8879a49993ad24d7eb6932aa3b8b37fd3d270f6f16469b23f504d32148acea7c",
+      "bytes": 179805
+    },
+    {
+      "file": "floor-native-verification.json",
+      "sha256": "c9e6b235665f0ae2dd2dbf4a58ec4e927b55dc870e783abb87f230d1ec74c38a",
+      "bytes": 19778
+    },
+    {
+      "file": "final-native-surface-input.json",
+      "sha256": "f257f80198868335d51eb306a6b2e334216fb2c24991e44fb6a591eb4a863724",
+      "bytes": 1677
+    },
+    {
+      "file": "surface-final-app-byte-probe.json",
+      "sha256": "1150618e37ad1f96d5970f6e1672fb18d561ad010fd838f36c7488993e9e19ab",
+      "bytes": 791
+    },
+    {
+      "file": "surface-final-app-byte-probe.log",
+      "sha256": "3db4552c958e42d534f86fdc7ded7ab618bc1364c9ee98c577c1ff8dea447b39",
+      "bytes": 2736
+    },
+    {
+      "file": "surface-final-app-byte-probe-results.json",
+      "sha256": "bc904590e70295d85ba7d65f01404b3fa3d43eb1ea8d25ab9b4b554fa6ba16ff",
+      "bytes": 2558
+    },
+    {
+      "file": "surface-final-payload-byte-probe.json",
+      "sha256": "4b6e6059550a72d93306f5e6302e44a243d94a295bd7741fe24fcb8436384365",
+      "bytes": 842
+    },
+    {
+      "file": "surface-final-payload-byte-probe.log",
+      "sha256": "394eea8d920e8b55bb9e5afccf543c7275df5b823c78dc12f21f45c2609c6008",
+      "bytes": 2018
+    },
+    {
+      "file": "surface-final-payload-byte-probe-results.json",
+      "sha256": "f4d21bedffaad1312f977acaa85165927487b603223d890d0a975cdf6ddd030a",
+      "bytes": 1406483
+    },
+    {
+      "file": "surface-final-dmg-byte-probe.json",
+      "sha256": "eb78cd528484c498360ce510e0ef88a59c1f24e006e0cd12aea3a44100202521",
+      "bytes": 762
+    },
+    {
+      "file": "surface-final-dmg-byte-probe.log",
+      "sha256": "69f51a49926d5a77350efdb74c8a0d1eea9b4bfb6409d1691246f323e62f7790",
+      "bytes": 1757
+    },
+    {
+      "file": "surface-final-dmg-byte-probe-results.json",
+      "sha256": "5ec12656775d0a220969f0f950f28308aea2b445a95f32a01d0b75c94398af38",
+      "bytes": 1394
+    },
+    {
+      "file": "native-surface-diagnostic-screenshot-review.json",
+      "sha256": "b3fbfaeb90ded1708b64e48fe757ca7c1c5f652485f6593e6759673510f9131a",
+      "bytes": 3872
+    },
+    {
+      "file": "native-surface-diagnostic-export-independent-review.json",
+      "sha256": "028dc76445d50057fdb87239ab297b86ae1e8dde629bcd57d76a2fad4acc7015",
+      "bytes": 4970
+    },
+    {
+      "file": "surface-diagnostic-export-review.json",
+      "sha256": "c360cb404244734567580c77970dc7f8b9ba6b3000b3f722ce60e772ec2f77d2",
+      "bytes": 853
+    },
+    {
+      "file": "surface-diagnostic-export-review.log",
+      "sha256": "82b5d2009ec9ec1b00676709753648b41ea0f997bc8bdce1a33849fd83821977",
+      "bytes": 866
+    },
+    {
+      "file": "surface-native-verification.json",
+      "sha256": "f4b84cf47bbea521f4d7edbe432183897c9b7b26953a3f9760c0937af0f9143d",
+      "bytes": 635
+    },
+    {
+      "file": "surface-native-verification.log",
+      "sha256": "25aabbb75294f34348a534972e64df9fdcf02f5582458071576df09a72b7d7e7",
+      "bytes": 476
+    },
+    {
+      "file": "native-surface-default-original-red-review.json",
+      "sha256": "4c4e088f48b89d61a5e54a7d4b241d3d09fb43b82ff8672fd75ee20ab72121d4",
+      "bytes": 3680
+    },
+    {
+      "file": "floor-native-surface-screenshot-review.json",
+      "sha256": "cabc330d9bfe11143a0d952943462adba5a7ad0cde30eb77519d48777e787829",
+      "bytes": 11284
+    },
+    {
+      "file": "native-surface-state-preservation-review.json",
+      "sha256": "0d321eb4c49253390900388281683c3aadb1345cfe9a56feb9e86eb044789d5c",
+      "bytes": 8971
+    },
+    {
+      "file": "native-surface-build-attempt-preservation-review.json",
+      "sha256": "c701afabc5260fa03f0a377b903deb957389679db2ce326b41329de19e2dc921",
+      "bytes": 3837
+    },
+    {
+      "file": "surface-physical-resource-handback-7fee.json",
+      "sha256": "09544535f8a4128ad583e4935f01df885a5f8e2e8d2e9b3172c64472c2b04c32",
+      "bytes": 2448
+    },
+    {
+      "file": "mcd-exec-helper-fullread.json",
+      "sha256": "17f7c6fe4a14b0b5471c8a698234e9d9675985700b60b5bac35b775a9a5f22b9",
+      "bytes": 5928
+    },
+    {
+      "file": "mcd-exec-helper-fullread-7fee-final-native.json",
+      "sha256": "17f7c6fe4a14b0b5471c8a698234e9d9675985700b60b5bac35b775a9a5f22b9",
+      "bytes": 5928
+    },
+    {
+      "file": "REPORT.md",
+      "sha256": "1b95acc2857f073c95301f371319fb28e50c6ce282ba6f2596f6a5f5f87f9946",
+      "bytes": 131655
+    },
+    {
+      "file": "summary.json",
+      "sha256": "307c97a71fde2c79fb38746187bc325361c4afd5ace6f8d05522da6aea3edeeb",
+      "bytes": 440777
+    },
+    {
+      "file": "ledger-verification.json",
+      "sha256": "13efc59b391c60523cbb47b6b8882acb3ce78e9f9f7ee3f76459d908541569ba",
+      "bytes": 35763
+    },
+    {
+      "file": "evidence-index.json",
+      "sha256": "9bb4e003943db2db3baa7513848d829c3f0118b6267f3b10d94bd20d91ef1a07",
+      "bytes": 1006765
+    },
+    {
+      "file": "report-validation-7fee.json",
+      "sha256": "ec80782a1e395632dcd8dc044a8af08693225c4b1adce4a71cd19dd3b79011bd",
+      "bytes": 1587
+    },
+    {
+      "file": "baseline-acceptance.json",
+      "sha256": "c14de179325868f903822d21fde7fda8fec6db3933eb6f8f70d8a8a22a8b8bdb",
+      "bytes": 278095
+    },
+    {
+      "file": "create-floor-native-verification.py",
+      "sha256": "065356af4a193673d09afcc8997f145940b5af659f698decdd4e706b772c32b2",
+      "bytes": 20163
+    },
+    {
+      "file": "create-floor-final-verification.py",
+      "sha256": "bfa52e1ea2dae087964eeb497f73ec8cf5b891295fe8e89e17cd34e64fa00077",
+      "bytes": 51956
+    },
+    {
+      "file": "prepare_report.py",
+      "sha256": "3cede5f2178c5242048f0ca8064f186fc170a58e0a6c38b59bc5fc4dca67937c",
+      "bytes": 69877
+    },
+    {
+      "file": "build_report.py",
+      "sha256": "0924220cba185db940705503f5a6239a26ed2276ac90ee41ae82cbc1d462da82",
+      "bytes": 118929
+    },
+    {
+      "file": "validate_report.py",
+      "sha256": "f454cdd0bc76917e59c47835295137d148c44f209b3232b86e14cf451c492cd3",
+      "bytes": 35863
+    },
+    {
+      "file": "run-modern-mcd-acceptance.py",
+      "sha256": "f435807ccef9b88c79b8b5ccd5bf0491e4b2a2b3b7e38a55a0e3afd104b310ff",
+      "bytes": 10466
+    },
+    {
+      "file": "verify-modern-mcd-runs.mjs",
+      "sha256": "4f52cbe075592e6f4803f47ad59432c8c668ac683ea14dc31afa220ad5266bb7",
+      "bytes": 22077
+    }
+  ],
+  "public_new_red_evidence": [
+    {
+      "root_relative_file": "runs/MC-016-0-1791033810501.json",
+      "file": "inherited/mcd_high_red__MC-016-0-1791033810501.json",
+      "sha256": "be6a1d83714e81eaa0bba5e9e46c9edb2df8fb768ba01c72d588af4ec4d0b022",
+      "bytes": 1320,
+      "fully_read": true,
+      "grade": "B actual root execution/registry audit and independent hash readback"
+    },
+    {
+      "root_relative_file": "evidence/MC-016-0-1791033810501.txt",
+      "file": "inherited/mcd_high_red__MC-016-0-1791033810501.txt",
+      "sha256": "dbca63ea81bc6835508e0114cfeb7cb4cb544a5eab260429047973ce25f511ff",
+      "bytes": 2595,
+      "fully_read": true,
+      "grade": "B actual root execution/registry audit and independent hash readback"
+    },
+    {
+      "root_relative_file": "evidence/mcd-execution-repair-7fee.json",
+      "file": "inherited/mcd_high_red__mcd-execution-repair-7fee.json",
+      "sha256": "8c7e9d19719be39cd90860ee92a01e70f10b74b039be94f86cbc59799dc567c0",
+      "bytes": 390,
+      "fully_read": true,
+      "grade": "B actual root execution/registry audit and independent hash readback"
+    },
+    {
+      "root_relative_file": "evidence/mcd-execution-repair-7fee.log",
+      "file": "inherited/mcd_high_red__mcd-execution-repair-7fee.log",
+      "sha256": "4681df9427590397ed6aaa59cffe259fcf74a73292c4642806da748412628cae",
+      "bytes": 2906,
+      "fully_read": true,
+      "grade": "B actual root execution/registry audit and independent hash readback"
+    }
+  ]
+}

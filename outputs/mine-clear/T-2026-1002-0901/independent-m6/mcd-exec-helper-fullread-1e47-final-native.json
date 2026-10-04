@@ -1,0 +1,95 @@
+{
+  "schema": "growth.independent-m6/mcd-helper-fullread@1",
+  "read_by": "growth_m6",
+  "generated_at": "2026-10-04T04:03:54.021727+08:00",
+  "source_commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+  "files": [
+    {
+      "path": "work/prepare_execution_ledger.py",
+      "sha256": "eb6a3207f6b8fad1418917680e2ec4f92e22c5197bbfe29fb7d25495cae24696",
+      "lines": 243,
+      "full_read": true,
+      "grade": "A full source read; B hash binding",
+      "read_origin": "Current complete203-line preparer text read; includes explicit repair-only prerequisite with pending independent state kept separate",
+      "previous_sha256": "0f44718724deb97cd99b57c93cbf60b6f33972df755f23e168f161ab935d3263"
+    },
+    {
+      "path": "work/run_isolated_replay.py",
+      "sha256": "d341079a1973b4ad690ffe866b11eb3ecd022ac88ac577da8fac4a9b489eab87",
+      "lines": 134,
+      "full_read": true,
+      "grade": "A full source read; B hash binding",
+      "read_origin": "Earlier complete source read retained after exact byte equality",
+      "previous_sha256": "d341079a1973b4ad690ffe866b11eb3ecd022ac88ac577da8fac4a9b489eab87"
+    },
+    {
+      "path": "work/run_installed_film_load.py",
+      "sha256": "c36d8395abee281c56e74cc76d23d4a531c5a6e947255ce66ee2fd7be95f70b4",
+      "lines": 64,
+      "full_read": true,
+      "grade": "A full source read; B hash binding",
+      "read_origin": "Current complete text independently reread; no execution",
+      "previous_sha256": "5b15f4fd5e159f34e8da4debf511beec588fc2ea5d576b541d600dd070215bcb"
+    },
+    {
+      "path": "work/portable-growth-stage/runtime-repro.mts",
+      "sha256": "83a3b21fc694f0eecd965ca3425bd29dcf9a2d2f280cce18148b9f683f9c4d13",
+      "lines": 159,
+      "full_read": true,
+      "grade": "A full source read; B hash binding",
+      "read_origin": "Earlier complete source read retained after exact byte equality",
+      "previous_sha256": "83a3b21fc694f0eecd965ca3425bd29dcf9a2d2f280cce18148b9f683f9c4d13"
+    },
+    {
+      "path": "work/portable-growth-stage/local-counter.mjs",
+      "sha256": "403b6c4e48e39fdcd6020cf952d3fadba132b6eb93774a820eadf472fa6db126",
+      "lines": 12,
+      "full_read": true,
+      "grade": "A full source read; B hash binding",
+      "read_origin": "Earlier complete source read retained after exact byte equality",
+      "previous_sha256": "403b6c4e48e39fdcd6020cf952d3fadba132b6eb93774a820eadf472fa6db126"
+    },
+    {
+      "path": "work/portable-growth-stage/auth-fixture.mts",
+      "sha256": "29ff8edaf40cf37bdeede3b2b0a2f3edf094bc554ffd224a18cf701037edf275",
+      "lines": 21,
+      "full_read": true,
+      "grade": "A full source read; B hash binding",
+      "read_origin": "Earlier complete source read retained after exact byte equality",
+      "previous_sha256": "29ff8edaf40cf37bdeede3b2b0a2f3edf094bc554ffd224a18cf701037edf275"
+    },
+    {
+      "path": "work/portable-growth-stage/auth-production-probe.mjs",
+      "sha256": "e4a12ae18f095990d1c38649ae37bce8da45d585f9ce243ed4c02a457f7e757d",
+      "lines": 83,
+      "full_read": true,
+      "grade": "A full source read; B hash binding",
+      "read_origin": "Earlier complete source read retained after exact byte equality",
+      "previous_sha256": "e4a12ae18f095990d1c38649ae37bce8da45d585f9ce243ed4c02a457f7e757d"
+    },
+    {
+      "path": "work/portable-growth-stage/film-public-probe.mts",
+      "sha256": "7ed72a23b6f3e49ff85046099a4edf48d673ed70939a9edbea92c16fd79ae459",
+      "lines": 56,
+      "full_read": true,
+      "grade": "A full source read; B hash binding",
+      "read_origin": "Earlier complete source read retained after exact byte equality",
+      "previous_sha256": "7ed72a23b6f3e49ff85046099a4edf48d673ed70939a9edbea92c16fd79ae459"
+    }
+  ],
+  "capture_wrapper": {
+    "path": "work/run_fix_check.py",
+    "sha256": "6c88c57fc41d2910c936ebe6078bf4b9edd9286bfa2ecceba134611111e70386",
+    "lines": 65,
+    "full_read": true,
+    "owned_timeout_seconds": 1800,
+    "unique_label_required": true,
+    "collision_separate_command_receipt": true,
+    "child_process_group_only": true,
+    "read_scope": "Complete65-line current source, no wrapper or product execution"
+  },
+  "actual_product_assertions_executed": false,
+  "canonical_receipt_replaced_yet": true,
+  "all_execution_resources_owner": "root",
+  "scope": "Current preparer fully reread; other7 prior full reads retained through exact current hash equality. Root actual24 complete and explicit PG handoff examined; independent acceptance not yet run."
+}

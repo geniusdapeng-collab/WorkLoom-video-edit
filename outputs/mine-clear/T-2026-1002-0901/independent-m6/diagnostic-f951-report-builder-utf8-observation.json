@@ -1,0 +1,21 @@
+{
+  "schema": "growth.independent-m6/report-builder-observation@1",
+  "source_commit": "f9515d09ee6de9b34f38b93d3769654fe4869391",
+  "observed_at": "2026-10-03T17:19:52.564512+08:00",
+  "normal_entry_actual_tool_result": {
+    "command": [
+      "python3",
+      "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/independent-m6/build_report.py"
+    ],
+    "exit_code": 1,
+    "stderr": "SyntaxError: Non-UTF-8 code starting with '\\xe9' in file build_report.py on line 444, but no encoding declared; see http://python.org/dev/peps/pep-0263/ for details"
+  },
+  "strict_utf8_decode_passed": true,
+  "entire_file_ast_passed": true,
+  "compile_exact_bytes_passed": true,
+  "builder_sha256": "42f6b31138d60562246704d91c6b61dbe7e4c15e9003789d22ae309197b43004",
+  "root_cause_proven": false,
+  "official_source": "https://docs.python.org/3/reference/lexical_analysis.html#encoding-declarations",
+  "official_read_scope": "Default UTF8 and encoding declarations only; it does not prove cause of the observed entry error.",
+  "workaround": "execute-report-bytes.py reads, strictly decodes, compiles and executes the entire exact same builder with original __file__/__name__; no guard or content omitted."
+}

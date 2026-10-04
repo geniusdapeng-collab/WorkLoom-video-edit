@@ -1,0 +1,6 @@
+{
+  "at": "2026-10-03T02:08:14.621160+08:00",
+  "reason": "Prior own QA cache cleanup retained support VERSION but removed runtime/config; old bootstrap failed closed. Restore test uses a separate truly fresh support, not a final retry pass. Private .env in deleted runtime was QA generated; no customer config or supplier credentials.",
+  "removed_reinstallable_cache": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/生命周期 默认客户/.payload-cache",
+  "existing_DB_logs_VERSION_kept": true
+}

@@ -1,0 +1,10 @@
+{
+  "before_source_sha256": "a1656582f7959424b6b0d1aa894b2e4ad8f6af5dc404d1e1bd0c4232ede1de94",
+  "after_source_sha256": "0535fa4243b2a998c7afcb38b967fcb26f0e755093cfba80574600b489807299",
+  "frozen_before_source": "history/density-before-CeremonyStage.tsx",
+  "method": "Reversed only the three post-red row-height/flexShrink additions into an owned copy; SHA matches the component byte hash recorded during both original runs. Product source was not changed.",
+  "before_receipt": "ceremony-density-text-before-results.json",
+  "after_receipt": "ceremony-density-text-after-results.json",
+  "detail_diagnostic": "ceremony-density-text-detail-before.json",
+  "detail_validity": "Source file changed during detailed run; source hash assertion rejected the run. No acceptance result is inferred."
+}

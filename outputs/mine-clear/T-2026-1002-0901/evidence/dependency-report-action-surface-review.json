@@ -1,0 +1,22 @@
+{
+  "at": "2026-10-04T03:05:31.419769+08:00",
+  "files": [
+    {
+      "path": "work/build_production_report.py",
+      "sha256": "b2ac421224b0056a29da23025825db47a511b8293c92209c5dbbdfc049043131",
+      "syntax": "pass",
+      "reading": "root complete file",
+      "scope": "outside-product report helper"
+    },
+    {
+      "path": "work/build_public_growth_bundle.py",
+      "sha256": "f8a49fe4a16f552448878a7b21524975be13a95845fdd2e0c682c75e68246b42",
+      "syntax": "pass",
+      "reading": "root complete file",
+      "scope": "outside-product report helper"
+    }
+  ],
+  "reason": "Actual diagnostic action is startup failure-page export; macOS system menu not observed",
+  "product_source_changed": false,
+  "full_report_generated": false
+}

@@ -1,0 +1,13 @@
+{
+  "case": "missing-stage",
+  "provider_mode": "isolated, no provider credentials or calls; local stage only",
+  "passed": false,
+  "checks": [
+    {
+      "name": "Requested revision without required work cannot report a successful job",
+      "healthy": false,
+      "status": "finished",
+      "log": "s-empty]、locker-cooler[photo-missing]、premium-vertical[photos-empty]、simple-vertical[photos-empty]、tablet-butler[photos-empty]\n[13:50:34] 未显式指定模特 → 使用系统默认模特：陈卓（chen-zhuo，1 号）\n[13:50:34]   ⇢ [gate] ok 0ms\n[13:50:34]   ⇢ [gate G5 g5-portrait-confirm] ok（deterministic） — 门通过（5 项判据，硬闸 3 条）\n[13:50:34] 项目 repair-film-c05d29bd-adb8-45f1-9bca-3eea98297cc5｜镜头 1 个｜目标 5s｜9:16 源 1080p → 交付 1080p (1080x1920)@30fps\n[13:50:34] 媒体工具：ffmpeg=/Users/mac/.workloom-color/bin/ffmpeg｜ffprobe=/Users/mac/.workloom-color/bin/ffprobe\n[13:50:34] 后期缓存：/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/work/repair-film-route/archive/ws-yunqi/repair-film-c05d29bd-adb8-45f1-9bca-3eea98297cc5/stages/film/attempt-1/work/post/repair-film-c05d29bd-adb8-45f1-9bca-3eea98297cc5｜交付目录：/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/work/repair-film-route/archive/ws-yunqi/repair-film-c05d29bd-adb8-45f1-9bca-3eea98297cc5/stages/film/attempt-1/delivery\n[13:50:34] 角色档案：陈卓（chen-zhuo）角度 front/threeQuarter/closeup/side/back/actionPose/emotionCloseup/handDetail\n[13:50:34] 阶段：revise｜监制：fail-closed\n[13:50:34]   ⇢ [revise] ok 0ms\n[13:50:34] 阶段日志：/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/work/repair-film-route/archive/ws-yunqi/repair-film-c05d29bd-adb8-45f1-9bca-3eea98297cc5/stages/film/attempt-1/work/logs/repair-film-c05d29bd-adb8-45f1-9bca-3eea98297cc5/stages.jsonl\n[13:50:34]   · route          invoked=1 ok=1 failed=0 degraded=0 cached=0\n[13:50:34]   · scene-policy-audit invoked=1 ok=1 failed=0 degraded=0 cached=0\n[13:50:34]   · env-audit      invoked=1 ok=1 failed=0 degraded=0 cached=0\n[13:50:34]   · hook-audit     invoked=1 ok=1 failed=0 degraded=0 cached=0\n[13:50:34]   · speech-rate    invoked=1 ok=1 failed=0 degraded=0 cached=0\n[13:50:34]   · gate           invoked=3 ok=3 failed=0 degraded=0 cached=0\n[13:50:34]   · revise         invoked=0 ok=1 failed=0 degraded=0 cached=0\n"
+    }
+  ]
+}

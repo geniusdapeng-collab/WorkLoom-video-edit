@@ -1,0 +1,2 @@
+COMMAND ["python3", "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/generate_repair_ledger.py"]
+{"ledger": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/ledger.json", "repair_commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8", "fixed": 1, "independent_verified": 23, "final_mac_native": true}

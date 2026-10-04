@@ -1,0 +1,167 @@
+{
+  "at": "2026-10-03T18:56:23.000595+08:00",
+  "parent_source_commit": "f9515d09ee6de9b34f38b93d3769654fe4869391",
+  "runtime_change_scope": "Only Stage3D Theater base y from -0.09 to -0.12 plus its explanatory comment; two product geometry regressions and repair documentation",
+  "files": [
+    {
+      "file": "apps/web/src/components/Stage3D.tsx",
+      "evidence_grade": "A",
+      "method": "Actual entire-file read and final source/diff review; library implementations and browser observations have separately declared boundaries",
+      "lines": 283,
+      "sha256": "c49d9cbfd21bd376dcdd2c9f540e269e59cf796de2143bc29153026a8976e647"
+    },
+    {
+      "file": "apps/web/src/components/Stage3D.test.tsx",
+      "evidence_grade": "A",
+      "method": "Actual entire-file read and final source/diff review; library implementations and browser observations have separately declared boundaries",
+      "lines": 71,
+      "sha256": "c017765433a4cceb8245886f28f4413c0dfa010eba9af0db98f47fd928ea7bfb"
+    },
+    {
+      "file": "apps/web/src/components/cinematic.tsx",
+      "evidence_grade": "A",
+      "method": "Actual entire-file read and final source/diff review; library implementations and browser observations have separately declared boundaries",
+      "lines": 251,
+      "sha256": "e9e9f5875654f6f700bdf39b3d3908b31105188580b10a612f7bb8e52d4f6fc2"
+    },
+    {
+      "file": "apps/web/src/components/BusinessAvatar3D.tsx",
+      "evidence_grade": "A",
+      "method": "Actual entire-file read and final source/diff review; library implementations and browser observations have separately declared boundaries",
+      "lines": 129,
+      "sha256": "6bf778c0f5091335b4d8709f9e5b9d9eb6df3f820b79319d46253b043f683c2d"
+    },
+    {
+      "file": "apps/web/src/components/Avatar3D.tsx",
+      "evidence_grade": "A",
+      "method": "Actual entire-file read and final source/diff review; library implementations and browser observations have separately declared boundaries",
+      "lines": 183,
+      "sha256": "8f21118320959db5b40c99cf05e7facb69ef9517805df01f069697e15c37a28a"
+    },
+    {
+      "file": "apps/web/src/lib/naming.ts",
+      "evidence_grade": "A",
+      "method": "Actual entire-file read and final source/diff review; library implementations and browser observations have separately declared boundaries",
+      "lines": 169,
+      "sha256": "8d05e0df3b163ab4186e577af1555d1b9e389ded97a0ad1faad3f3a993b946bd"
+    },
+    {
+      "file": "apps/web/src/lib/useNightTime.ts",
+      "evidence_grade": "A",
+      "method": "Actual entire-file read and final source/diff review; library implementations and browser observations have separately declared boundaries",
+      "lines": 22,
+      "sha256": "ccf604d36908f893f183f97df9381f1c1d50ee3fbc5e92fdf85cd0eae3ef6a29"
+    },
+    {
+      "file": "apps/web/vite.config.ts",
+      "evidence_grade": "A",
+      "method": "Actual entire-file read and final source/diff review; library implementations and browser observations have separately declared boundaries",
+      "lines": 30,
+      "sha256": "54b67032309c054459a1946f43009d5f7869748c60c6fb6cd461569da549e221"
+    },
+    {
+      "file": "apps/web/vitest.config.ts",
+      "evidence_grade": "A",
+      "method": "Actual entire-file read and final source/diff review; library implementations and browser observations have separately declared boundaries",
+      "lines": 19,
+      "sha256": "6304966b68891894642a5f33c2ae57a176de46b7a78f604e881722539ab3490d"
+    },
+    {
+      "file": "apps/web/package.json",
+      "evidence_grade": "A",
+      "method": "Actual entire-file read and final source/diff review; library implementations and browser observations have separately declared boundaries",
+      "lines": 45,
+      "sha256": "17273b001dea29afe53c13a4f3cdd17685cea4081bde2521ab5157ec45a1081b"
+    },
+    {
+      "file": "package.json",
+      "evidence_grade": "A",
+      "method": "Actual entire-file read and final source/diff review; library implementations and browser observations have separately declared boundaries",
+      "lines": 112,
+      "sha256": "c7344fc11289dc06c0d5a7a487b543e11a15ab36fc3f8cf1c951b3981b16eb24"
+    },
+    {
+      "file": "docs/repairs/T-2026-1002-0901.md",
+      "evidence_grade": "A",
+      "method": "Actual entire-file read and final source/diff review; library implementations and browser observations have separately declared boundaries",
+      "lines": 91,
+      "sha256": "1419687b965ff5cba8d08a66922dbbc92005fdde09d1083974b955e52b389e7d"
+    }
+  ],
+  "file_count": 12,
+  "all_listed_files_read_entirely": true,
+  "checks": {
+    "stage-surface-unit-red-corrected": {
+      "exit_code": 1,
+      "seconds": 1.564,
+      "sha256": "a784f2cc7edc18fcfbb7110cbf94fb100f02e19e681e780b35a84cd75e192dc3",
+      "tests": {
+        "numTotalTests": 2,
+        "numPassedTests": 0,
+        "numFailedTests": 2,
+        "numPendingTests": 0,
+        "success": false
+      }
+    },
+    "stage-surface-unit-green": {
+      "exit_code": 0,
+      "seconds": 1.624,
+      "sha256": "6ad018bd54fe6f8863086a36b17319f0324ee0fb136c4c1583a36dbb26dd4e2e",
+      "tests": {
+        "numTotalTests": 2,
+        "numPassedTests": 2,
+        "numFailedTests": 0,
+        "numPendingTests": 0,
+        "success": true
+      }
+    },
+    "stage-surface-product-tests": {
+      "exit_code": 0,
+      "seconds": 3.203,
+      "sha256": "84e3cb0cfad3bb3d8252140daa1b49517ffa592702aad7478e6d11e497a15e1b",
+      "tests": {
+        "numTotalTests": 36,
+        "numPassedTests": 36,
+        "numFailedTests": 0,
+        "numPendingTests": 0,
+        "success": true
+      }
+    },
+    "stage-surface-web-types": {
+      "exit_code": 0,
+      "seconds": 3.026,
+      "sha256": "f16147866f407634a144bf89468ae0cd60ddaf01b6afb56aff2b031a9b70e76c"
+    },
+    "stage-surface-web-build": {
+      "exit_code": 0,
+      "seconds": 1.696,
+      "sha256": "80171162163df2d587739cb678e89e8d7df76d2ebfa609ec1958e5821a6bfeec"
+    },
+    "stage-surface-runtime-lock": {
+      "exit_code": 0,
+      "seconds": 0.253,
+      "sha256": "bb7a882f9fc7d5efc2590912eee60791727a3ef941fe6438950fa974f9e11f97"
+    },
+    "stage-surface-main-freshness": {
+      "exit_code": 0,
+      "seconds": 0.564,
+      "sha256": "d6f558fbc7dc151e4353b4df017187cec29a64d64e0dfba935e2afd5fb834123"
+    },
+    "stage-surface-before": {
+      "exit_code": 0,
+      "seconds": 28.596,
+      "sha256": "25b3cd97509343b946d225c7ddcce5a7304933eb519c379a012432fd5c3f3ea1"
+    },
+    "stage-surface-after": {
+      "exit_code": 0,
+      "seconds": 23.095,
+      "sha256": "65104ab121b9a5369d1fa0eb0e5b37e55af947ad65f877fb28cc6a529ecc5efa"
+    }
+  },
+  "visual_evidence_grade": "C",
+  "geometry_test_limit": "SSR resolves actual product JSX positions and Three cylinder bounding box with rendering adapters mocked; not a native pixel test",
+  "observer_failure": "stage-surface-unit-red is a boolean geometry-argument parser failure; never used as product regression proof",
+  "effective_product_red": "stage-surface-unit-red-corrected-results.json",
+  "native_v4_state": "Historical actual startup/state preservation receipts; visual HOLD because stage ground tearing",
+  "root_cause_limit": "Minimal spatial separation removed sampled tearing in both actual WebGL widths; exact native new-package pixel acceptance remains required"
+}

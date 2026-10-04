@@ -1,0 +1,231 @@
+{
+  "ran_at": "2026-10-02T18:49:13.446Z",
+  "database": "growth_audit",
+  "operation": "BEGIN READ ONLY / SELECT only",
+  "runtime_run_id": "mur33osl-658091",
+  "workspaces": [
+    {
+      "id": "audit-m6-workspace-mur3u9me-584407",
+      "tenant_id": "audit-m6-tenant-mur3u9me-584407",
+      "data_mode": null,
+      "audit_only": null,
+      "threads": "0",
+      "approvals": "20",
+      "events": "41"
+    },
+    {
+      "id": "audit-w-mur33osl-658091-block",
+      "tenant_id": "audit-t-mur33osl-658091-block",
+      "data_mode": "real",
+      "audit_only": "true",
+      "threads": "2",
+      "approvals": "0",
+      "events": "3"
+    },
+    {
+      "id": "audit-w-mur33osl-658091-concurrency",
+      "tenant_id": "audit-t-mur33osl-658091-concurrency",
+      "data_mode": "real",
+      "audit_only": "true",
+      "threads": "1",
+      "approvals": "1",
+      "events": "4"
+    },
+    {
+      "id": "audit-w-mur33osl-658091-edit",
+      "tenant_id": "audit-t-mur33osl-658091-edit",
+      "data_mode": "real",
+      "audit_only": "true",
+      "threads": "1",
+      "approvals": "1",
+      "events": "4"
+    },
+    {
+      "id": "audit-w-mur33osl-658091-edit-high",
+      "tenant_id": "audit-t-mur33osl-658091-edit-high",
+      "data_mode": "real",
+      "audit_only": "true",
+      "threads": "1",
+      "approvals": "1",
+      "events": "4"
+    },
+    {
+      "id": "audit-w-mur33osl-658091-permission",
+      "tenant_id": "audit-t-mur33osl-658091-permission",
+      "data_mode": "real",
+      "audit_only": "true",
+      "threads": "1",
+      "approvals": "0",
+      "events": "0"
+    },
+    {
+      "id": "audit-w-mur33osl-658091-queue",
+      "tenant_id": "audit-t-mur33osl-658091-queue",
+      "data_mode": "real",
+      "audit_only": "true",
+      "threads": "10",
+      "approvals": "6",
+      "events": "6"
+    },
+    {
+      "id": "audit-w-mur33osl-658091-reject",
+      "tenant_id": "audit-t-mur33osl-658091-reject",
+      "data_mode": "real",
+      "audit_only": "true",
+      "threads": "1",
+      "approvals": "1",
+      "events": "2"
+    },
+    {
+      "id": "audit-w-mur33osl-658091-reject-left",
+      "tenant_id": "audit-t-mur33osl-658091-reject-left",
+      "data_mode": "real",
+      "audit_only": "true",
+      "threads": "1",
+      "approvals": "1",
+      "events": "2"
+    },
+    {
+      "id": "audit-w-mur33osl-658091-reject-right",
+      "tenant_id": "audit-t-mur33osl-658091-reject-right",
+      "data_mode": "real",
+      "audit_only": "true",
+      "threads": "1",
+      "approvals": "1",
+      "events": "2"
+    },
+    {
+      "id": "audit-w-mur33osl-658091-relevance",
+      "tenant_id": "audit-t-mur33osl-658091-relevance",
+      "data_mode": "real",
+      "audit_only": "true",
+      "threads": "1",
+      "approvals": "1",
+      "events": "1"
+    },
+    {
+      "id": "m6-welcome-workspace-90d0ec824a2e",
+      "tenant_id": "m6-welcome-tenant-90d0ec824a2e",
+      "data_mode": null,
+      "audit_only": null,
+      "threads": "0",
+      "approvals": "0",
+      "events": "7"
+    },
+    {
+      "id": "m6-welcome-workspace-fc21de67289f",
+      "tenant_id": "m6-welcome-tenant-fc21de67289f",
+      "data_mode": null,
+      "audit_only": null,
+      "threads": "0",
+      "approvals": "0",
+      "events": "9"
+    }
+  ],
+  "film_projects": [
+    "m6-film-560bb79d-1e0e-4951-9ae4-29b992ed14ae",
+    "m6-film-897c44a7-04f7-4659-aa0e-d26ddb6bb599",
+    "m6-film-8da86f50-4e3a-40b7-bc19-a78aaedc4d1c"
+  ],
+  "jobs": [
+    {
+      "id": "FJ-mur4o880-ue0ybkcc",
+      "workspace_id": "ws-yunqi",
+      "project_id": "m6-film-560bb79d-1e0e-4951-9ae4-29b992ed14ae",
+      "attempt": 1,
+      "status": "finished",
+      "error_class": null,
+      "input_sha256": "ed637ae7d9e4fb052dd57082d1ee521f7b12141234129cd35e8a6586ba5a11bb",
+      "worker_entry_sha256": "0a085ccbeb3d195d39f915d49aa4aa3c3ad6e9aa5f381eeb8e01fc83c4e4617f",
+      "result_sha256": "6063c4e48b1e3a1aaaddb61474c3cb5190ec59f90a480752f8b402afaa82c20f"
+    },
+    {
+      "id": "FJ-mur4rb4h-saekovzg",
+      "workspace_id": "ws-yunqi",
+      "project_id": "m6-film-897c44a7-04f7-4659-aa0e-d26ddb6bb599",
+      "attempt": 1,
+      "status": "failed",
+      "error_class": "WORKER_EXIT_NONZERO",
+      "input_sha256": "8cfa585aad01611295c0245455620b0a0d65f221e2eec07900558a29ee314fa2",
+      "worker_entry_sha256": "0a085ccbeb3d195d39f915d49aa4aa3c3ad6e9aa5f381eeb8e01fc83c4e4617f",
+      "result_sha256": null
+    },
+    {
+      "id": "FJ-mur4umh3-0yf1gfey",
+      "workspace_id": "ws-yunqi",
+      "project_id": "m6-film-8da86f50-4e3a-40b7-bc19-a78aaedc4d1c",
+      "attempt": 1,
+      "status": "failed",
+      "error_class": "JOB_DEADLINE_EXCEEDED",
+      "input_sha256": "b3db1da1746e1cba739988cad42f3cf48c894ada457bc7cb479830c7e9401600",
+      "worker_entry_sha256": "0a085ccbeb3d195d39f915d49aa4aa3c3ad6e9aa5f381eeb8e01fc83c4e4617f",
+      "result_sha256": null
+    }
+  ],
+  "own_welcome_scopes": [
+    "m6-welcome-workspace-90d0ec824a2e",
+    "m6-welcome-workspace-fc21de67289f"
+  ],
+  "integration_test_fixture_workspaces": [
+    {
+      "id": "it-onb-ws-20958fef7b2d",
+      "tenant_id": "it-onb-tenant-20958fef7b2d",
+      "events": "7"
+    },
+    {
+      "id": "it-onb-ws-7c836638b6be",
+      "tenant_id": "it-onb-tenant-7c836638b6be",
+      "events": "7"
+    },
+    {
+      "id": "it-onb-ws-851833810c58",
+      "tenant_id": "it-onb-tenant-851833810c58",
+      "events": "10"
+    },
+    {
+      "id": "it-onb-ws-9a406c139758",
+      "tenant_id": "it-onb-tenant-9a406c139758",
+      "events": "10"
+    },
+    {
+      "id": "it-onb-ws-a73fc169de5e",
+      "tenant_id": "it-onb-tenant-a73fc169de5e",
+      "events": "7"
+    }
+  ],
+  "integration_fixture_provenance": "Known committed-test prefix; shared owned fake database includes root and verifier runs. Caller attribution was not inferred from the prefix.",
+  "global_queue_scan_also_picked_existing_fake_threads": [
+    {
+      "id": "T-154",
+      "workspace_id": "ws-yunqi",
+      "status": "failed"
+    },
+    {
+      "id": "T-155",
+      "workspace_id": "ws-yunqi",
+      "status": "failed"
+    }
+  ],
+  "original_picked_evidence": {
+    "first": {
+      "picked": [
+        "audit-th-mur33osl-658091-queue-q0",
+        "audit-th-mur33osl-658091-queue-q1",
+        "audit-th-mur33osl-658091-queue-q2",
+        "T-154",
+        "T-155"
+      ],
+      "failed": []
+    },
+    "second": {
+      "picked": [
+        "audit-th-mur33osl-658091-queue-q3",
+        "audit-th-mur33osl-658091-queue-q4",
+        "audit-th-mur33osl-658091-queue-q5"
+      ],
+      "failed": []
+    },
+    "queued": 4
+  },
+  "disclosure": "Fixtures and append-only events were retained. The global queued-thread scan also picked T-154 and T-155 in the same owned fake database. Runtime executor was replaced by the local counter; these are excluded from all business and autonomy measurements."
+}

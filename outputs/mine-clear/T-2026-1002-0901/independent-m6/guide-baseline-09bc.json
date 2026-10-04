@@ -1,0 +1,17 @@
+{
+  "source_commit": "09bc1d176f1afcd5586b30707736ac383cd8d780",
+  "paths": {
+    "apps/desktop/electron/main.cjs": "13f8a2abffd6458a1ff3c52144288b939e205a0ad9be5ead547b0623ad780387",
+    "apps/desktop/electron/bootstrap.test.cjs": "7eacf01f774a5066467c8f12d575b006c31ff3dafd7ab81e74da2ba24fe0f799",
+    "apps/desktop/electron/render-smoke.cjs": "a9ed4447eb85c2845bc0f88495400bfbe8813631b70cc9a1edfe807cb6149773",
+    "docs/repairs/T-2026-1002-0901.md": "add90bfcd16a1fb17289f2f1fb28921af0de1b0ab0ce497ca2b93ec4f60b96f6"
+  },
+  "full_read": true,
+  "independent_suite": {
+    "name": "desktop-guide-supplement",
+    "tests": 78,
+    "exit_code": 0,
+    "seconds": 7.52
+  },
+  "new_failure": "single pending-renderer deadline control; original receipt preserved"
+}

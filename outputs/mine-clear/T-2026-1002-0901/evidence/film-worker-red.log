@@ -1,0 +1,20 @@
+COMMAND ["/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node", "--env-file=.env", "--import", "tsx", "../film-worker-acceptance.mts", "--repo", "."]
+[film-worker FJ-muqysyqs-2xxee0v5/stderr] node:internal/modules/esm/resolve:271
+[film-worker FJ-muqysyqs-2xxee0v5/stderr]     throw new ERR_MODULE_NOT_FOUND(
+[film-worker FJ-muqysyqs-2xxee0v5/stderr]           ^
+[film-worker FJ-muqysyqs-2xxee0v5/stderr] Error [ERR_MODULE_NOT_FOUND]: Cannot find module '/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/packages/video-studio/src/film-contracts.js' imported from /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/scripts/tools/full-chain-film.mts
+[film-worker FJ-muqysyqs-2xxee0v5/stderr]     at finalizeResolution (node:internal/modules/esm/resolve:271:11)
+[film-worker FJ-muqysyqs-2xxee0v5/stderr]     at moduleResolve (node:internal/modules/esm/resolve:865:10)
+[film-worker FJ-muqysyqs-2xxee0v5/stderr]     at defaultResolve (node:internal/modules/esm/resolve:992:11)
+[film-worker FJ-muqysyqs-2xxee0v5/stderr]     at #cachedDefaultResolve (node:internal/modules/esm/loader:701:20)
+[film-worker FJ-muqysyqs-2xxee0v5/stderr]     at #resolveAndMaybeBlockOnLoaderThread (node:internal/modules/esm/loader:721:38)
+[film-worker FJ-muqysyqs-2xxee0v5/stderr]     at ModuleLoader.resolveSync (node:internal/modules/esm/loader:759:56)
+[film-worker FJ-muqysyqs-2xxee0v5/stderr]     at #resolve (node:internal/modules/esm/loader:683:17)
+[film-worker FJ-muqysyqs-2xxee0v5/stderr]     at ModuleLoader.getOrCreateModuleJob (node:internal/modules/esm/loader:603:35)
+[film-worker FJ-muqysyqs-2xxee0v5/stderr]     at ModuleJob.syncLink (node:internal/modules/esm/module_job:163:33)
+[film-worker FJ-muqysyqs-2xxee0v5/stderr]     at ModuleJob.link (node:internal/modules/esm/module_job:253:17) {
+[film-worker FJ-muqysyqs-2xxee0v5/stderr]   code: 'ERR_MODULE_NOT_FOUND',
+[film-worker FJ-muqysyqs-2xxee0v5/stderr]   url: 'file:///Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/packages/video-studio/src/film-contracts.js'
+[film-worker FJ-muqysyqs-2xxee0v5/stderr] }
+[film-worker FJ-muqysyqs-2xxee0v5/stderr] Node.js v24.19.0
+{"provider_mode":"isolated, no provider credentials or calls; local stage only","passed":false,"checks":[{"name":"Public film start/status executes registered local stage with frozen source","healthy":false,"status":"failed","log":"node:internal/modules/esm/resolve:271\n    throw new ERR_MODULE_NOT_FOUND(\n          ^\n\nError [ERR_MODULE_NOT_FOUND]: Cannot find module '/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/packages/video-studio/src/film-contracts.js' imported from /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/scripts/tools/full-chain-film.mts\n    at finalizeResolution (node:internal/modules/esm/resolve:271:11)\n    at moduleResolve (node:internal/modules/esm/resolve:865:10)\n    at defaultResolve (node:internal/modules/esm/resolve:992:11)\n    at #cachedDefaultResolve (node:internal/modules/esm/loader:701:20)\n    at #resolveAndMaybeBlockOnLoaderThread (node:internal/modules/esm/loader:721:38)\n    at ModuleLoader.resolveSync (node:internal/modules/esm/loader:759:56)\n    at #resolve (node:internal/modules/esm/loader:683:17)\n    at ModuleLoader.getOrCreateModuleJob (node:internal/modules/esm/loader:603:35)\n    at ModuleJob.syncLink (node:internal/modules/esm/module_job:163:33)\n    at ModuleJob.link (node:internal/modules/esm/module_job:253:17) {\n  code: 'ERR_MODULE_NOT_FOUND',\n  url: 'file:///Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/packages/video-studio/src/film-contracts.js'\n}\n\nNode.js v24.19.0\n","components":[]}]}

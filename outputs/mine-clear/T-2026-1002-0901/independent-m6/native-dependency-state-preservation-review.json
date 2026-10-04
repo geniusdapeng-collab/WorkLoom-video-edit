@@ -1,0 +1,48 @@
+{
+  "schema": "growth.independent-m6/native-private-metadata-review@1",
+  "source_commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+  "reviewed_by": "growth_m6",
+  "reviewed_at": "2026-10-04T03:10:39.321520+08:00",
+  "private_contents_opened": false,
+  "actual_before_after_fields_independently_compared": true,
+  "fields_compared": [
+    "instanceId",
+    "systemIdentifier",
+    "credentialsHash",
+    "configurationHash",
+    "customerWorkspaceHash",
+    "fixtureId"
+  ],
+  "all_equal": true,
+  "fresh_restart_same_version": true,
+  "upgrade_before_payload_version": "v0.1.0-fix.20261003.5",
+  "upgrade_after_payload_version": "v0.1.0-fix.20261003.6",
+  "public_evidence": [
+    {
+      "root_file": "native-dependency-fresh-state-before.json",
+      "file": "inherited/evidence__native-dependency-fresh-state-before.json",
+      "sha256": "a792356f2d589e40856e4ef000f1801ac24e3954b4f3a3f655bac7ec602732a0",
+      "bytes": 651
+    },
+    {
+      "root_file": "native-dependency-fresh-state-after.json",
+      "file": "inherited/evidence__native-dependency-fresh-state-after.json",
+      "sha256": "a293dc317196ff7565e2fa8a20a7378da54527a712627e9cedb5b00b034af0cc",
+      "bytes": 870
+    },
+    {
+      "root_file": "native-dependency-upgrade-state-before.json",
+      "file": "inherited/evidence__native-dependency-upgrade-state-before.json",
+      "sha256": "005e934676070eceaae2bb71a9d7208aec367d672b3b31bbe6e2154a15809f79",
+      "bytes": 705
+    },
+    {
+      "root_file": "native-dependency-upgrade-state-after.json",
+      "file": "inherited/evidence__native-dependency-upgrade-state-after.json",
+      "sha256": "8d6fddc1876be68d15d77f5b11cc7671837d607e5ef0634a9c988cfb90997358",
+      "bytes": 926
+    }
+  ],
+  "original_v1_history_kept_separate": true,
+  "scope": "Actual immediate .5before to .6after public hash/identity metadata compared; original v1 history not relabeled. Private contents and credentials never opened or recomputed."
+}

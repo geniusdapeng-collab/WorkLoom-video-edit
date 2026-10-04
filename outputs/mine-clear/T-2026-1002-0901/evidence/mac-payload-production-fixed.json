@@ -1,0 +1,17 @@
+{
+  "name": "mac-payload-production-fixed",
+  "command": [
+    "bash",
+    "scripts/pack-electron-payload.sh",
+    "--platform",
+    "mac",
+    "--arch",
+    "arm64",
+    "--version",
+    "v0.1.0-fix.20261002.1"
+  ],
+  "exit_code": 0,
+  "seconds": 143.733,
+  "ran_at": "2026-10-02T22:03:29.386800+08:00",
+  "log": "mac-payload-production-fixed.log"
+}

@@ -1,0 +1,13 @@
+{
+  "input": {
+    "projectId": "audit; printf INERT_MARKER",
+    "platform": "中文 平台",
+    "shotlistPath": "work/中文 空格/shotlist.json",
+    "routePath": "work/route.json",
+    "outDir": "work/中文 空格/out"
+  },
+  "previewOnly": true,
+  "recommendedCommand": "pnpm exec tsx scripts/tools/full-chain-film.mts \\\n  --shots work/中文 空格/shotlist.json --project audit; printf INERT_MARKER \\\n  --work-dir work/vm-audit; printf INERT_MARKER --out work/中文 空格/out \\\n  --route work/route.json --keys-file ~/.workloom/live.env --platform 中文 平台 --fps 24 \\\n  --subtitle-mode both --review-policy off",
+  "command_executed": false,
+  "healthy": false
+}

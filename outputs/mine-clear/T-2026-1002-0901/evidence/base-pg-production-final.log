@@ -1,0 +1,163 @@
+COMMAND ["/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node", "--env-file=.env", "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/pnpm/bin/pnpm.cjs", "--filter", "@workloom/base", "test"]
+
+> @workloom/base@0.1.0 test /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/packages/base
+> vitest run
+
+
+[1m[30m[46m RUN [49m[39m[22m [36mv4.1.11 [39m[90m/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/packages/base[39m
+
+ [32m✓[39m event-bus/event-bus.test.ts [2m([22m[2m30 tests[22m[2m)[22m[33m 14084[2mms[22m[39m
+         [33m[2m✓[22m[39m 扇出：一条事件 N 个消费组各自独立位点收全 [33m 1022[2mms[22m[39m
+         [33m[2m✓[22m[39m ack 语义：ack 后不重投；未 ack redeliver 重投且计数递增 [33m 1300[2mms[22m[39m
+         [33m[2m✓[22m[39m 背压：pending 达上限 pull 返回空，积压留在总线 [33m 1015[2mms[22m[39m
+         [33m[2m✓[22m[39m deliver-at：到点前不可见，到点必达（pullDueDelayed） [33m 1297[2mms[22m[39m
+         [33m[2m✓[22m[39m 位点重放：fromSeq 之后全量有序返回 [33m 759[2mms[22m[39m
+         [33m[2m✓[22m[39m 四流隔离：流名拼错即抛（不静默写错流） [33m 504[2mms[22m[39m
+         [33m[2m✓[22m[39m 多字节负载：中文/emoji 事件全链路不失真（字节组帧回归） [33m 1769[2mms[22m[39m
+         [33m[2m✓[22m[39m flush 重入安全：并发 flush 不产生重复发布（演练实证回归） [33m 1278[2mms[22m[39m
+         [33m[2m✓[22m[39m 崩溃重启：在途消息不丢，镜像从服务器重建 [33m 1286[2mms[22m[39m
+         [33m[2m✓[22m[39m 崩溃重启：未 ack 重投、已 ack 不重投 [33m 2016[2mms[22m[39m
+         [33m[2m✓[22m[39m 崩溃重启：延迟消息仍必达 [33m 1779[2mms[22m[39m
+ [32m✓[39m bundles/post-audio-stems.test.ts [2m([22m[2m2 tests[22m[2m)[22m[33m 14782[2mms[22m[39m
+   [33m[2m✓[22m[39m renders and replays independent stems; exercises the real mixer, CLI and HTTP idempotency [33m 14703[2mms[22m[39m
+ [32m✓[39m bundles/bgm-tag.test.ts [2m([22m[2m28 tests[22m[2m)[22m[33m 6779[2mms[22m[39m
+     [33m[2m✓[22m[39m 合成曲目打标 → 索引/证据/报告三件套齐备，且拍速/响度来自实测 [33m 2885[2mms[22m[39m
+     [33m[2m✓[22m[39m 真机量测的清单与报告落在库里，低置信与剔除项都可追溯 [33m 3846[2mms[22m[39m
+warning: adding embedded git repository: .workloom/t-conflict
+hint: You've added another git repository inside your current repository.
+hint: Clones of the outer repository will not contain the contents of
+hint: the embedded repository and will not know how to obtain it.
+hint: If you meant to add a submodule, use:
+hint: 
+hint: 	git submodule add <url> .workloom/t-conflict
+hint: 
+hint: If you added this path by mistake, you can remove it from the
+hint: index with:
+hint: 
+hint: 	git rm --cached .workloom/t-conflict
+hint: 
+hint: See "git help submodule" for more information.
+ [32m✓[39m dev-bridge/dev-bridge.test.ts [2m([22m[2m30 tests[22m[2m)[22m[33m 2508[2mms[22m[39m
+     [33m[2m✓[22m[39m 超时熔断：长睡眠进程被 timeout 击杀 [33m 1507[2mms[22m[39m
+     [33m[2m✓[22m[39m 取消：cancel 后 exitReason=canceled [33m 319[2mms[22m[39m
+     [33m[2m✓[22m[39m 全链路：建隔离→机床改代码→回收 diff→提交→合并基线→打标签 [33m 428[2mms[22m[39m
+ [32m✓[39m bundles/bgm-capability.test.ts [2m([22m[2m38 tests[22m[2m)[22m[33m 1866[2mms[22m[39m
+     [33m[2m✓[22m[39m 确定性合成：同配方 + 同种子 → 同 sha256（可复现、可核验） [33m 1425[2mms[22m[39m
+ [32m✓[39m service-channels/service-channels.test.ts [2m([22m[2m13 tests[22m[2m)[22m[33m 1117[2mms[22m[39m
+     [33m[2m✓[22m[39m 过期令牌抛 EXPIRED [33m 1105[2mms[22m[39m
+ [32m✓[39m bundles/post-delivery-integrity.test.ts [2m([22m[2m1 test[22m[2m)[22m[33m 646[2mms[22m[39m
+   [33m[2m✓[22m[39m rejects a replaced normalization cache and a modified prior variant during reedit [33m 645[2mms[22m[39m
+ [32m✓[39m bundles/post-av-sync.test.ts [2m([22m[2m12 tests[22m[2m)[22m[33m 556[2mms[22m[39m
+     [33m[2m✓[22m[39m 互相关求时延：两侧实现对同一输入给出相同结果（±80 样点 = +5ms） [33m 550[2mms[22m[39m
+ [32m✓[39m bundles/cover-capability.test.ts [2m([22m[2m11 tests[22m[2m)[22m[32m 278[2mms[22m[39m
+ [32m✓[39m bundles/post-delivery-capability.test.ts [2m([22m[2m35 tests[22m[2m)[22m[32m 138[2mms[22m[39m
+[90mstderr[2m | accounts/accounts.test.ts[2m > [22m[2mproviders（开发通道）[2m > [22m[2mDevEchoSms 记录发送内容（不自真发短信）
+[22m[39m[accounts][dev-sms] → 13800001111: 验证码 123456
+
+[90mstderr[2m | accounts/accounts.test.ts[2m > [22m[2mPG 集成 · 账号全链路（0027 迁移后）[2m > [22m[2m自助开通：注册→建租户→首店→owner 身份→签发双令牌
+[22m[39m[accounts][dev-sms] → 13962436210: 【WorkLoom】验证码 636059，5 分钟内有效。请勿泄露给他人。
+
+[90mstderr[2m | accounts/accounts.test.ts[2m > [22m[2mPG 集成 · 账号全链路（0027 迁移后）[2m > [22m[2m高风险验证码绑定具体动作，且消费后不能重放
+[22m[39m[accounts][dev-sms] → 13962436210: 【WorkLoom】验证码 438877，5 分钟内有效。请勿泄露给他人。
+
+[90mstderr[2m | accounts/accounts.test.ts[2m > [22m[2mPG 集成 · 账号全链路（0027 迁移后）[2m > [22m[2m验证码登录 + 每日限发 5 次
+[22m[39m[accounts][dev-sms] → 13962436210: 【WorkLoom】验证码 401377，5 分钟内有效。请勿泄露给他人。
+
+[90mstderr[2m | accounts/accounts.test.ts[2m > [22m[2mPG 集成 · 账号全链路（0027 迁移后）[2m > [22m[2m验证码登录 + 每日限发 5 次
+[22m[39m[accounts][dev-sms] → 13962436210: 【WorkLoom】验证码 386044，5 分钟内有效。请勿泄露给他人。
+
+[90mstderr[2m | accounts/accounts.test.ts[2m > [22m[2mPG 集成 · 账号全链路（0027 迁移后）[2m > [22m[2m验证码登录 + 每日限发 5 次
+[22m[39m[accounts][dev-sms] → 13962436210: 【WorkLoom】验证码 328168，5 分钟内有效。请勿泄露给他人。
+
+[90mstderr[2m | accounts/accounts.test.ts[2m > [22m[2mPG 集成 · 账号全链路（0027 迁移后）[2m > [22m[2m验证码登录 + 每日限发 5 次
+[22m[39m[accounts][dev-sms] → 13962436210: 【WorkLoom】验证码 941663，5 分钟内有效。请勿泄露给他人。
+
+[90mstderr[2m | accounts/accounts.test.ts[2m > [22m[2mPG 集成 · 账号全链路（0027 迁移后）[2m > [22m[2m验证码登录 + 每日限发 5 次
+[22m[39m[accounts][dev-sms] → 13962436210: 【WorkLoom】验证码 971925，5 分钟内有效。请勿泄露给他人。
+
+[90mstderr[2m | accounts/accounts.test.ts[2m > [22m[2mPG 集成 · 账号全链路（0027 迁移后）[2m > [22m[2m邀请→接受→成员生效；移除后立即失去身份
+[22m[39m[accounts][dev-sms] → 13811490062: 【WorkLoom】邀请码 408370：您被邀请加入工作区，72 小时内有效。
+
+[90mstderr[2m | accounts/accounts.test.ts[2m > [22m[2mPG 集成 · 账号全链路（0027 迁移后）[2m > [22m[2m伙伴域：登记→授权→伙伴登录→能力校验→吊销即时生效
+[22m[39m[accounts][dev-sms] → 13786871667: 【WorkLoom】验证码 253651，5 分钟内有效。请勿泄露给他人。
+
+[90mstderr[2m | accounts/accounts.test.ts[2m > [22m[2mPG 集成 · 账号全链路（0027 迁移后）[2m > [22m[2m一次性工单通行证：单工单+短时效+仅 workorder.self
+[22m[39m[accounts][dev-sms] → 13666355847: 【WorkLoom】工单通行码 516998：您有一张工单待处理，48 小时内有效。
+
+ [32m✓[39m accounts/accounts.test.ts [2m([22m[2m31 tests[22m[2m)[22m[33m 315[2mms[22m[39m
+ [32m✓[39m bundles/subtitle-capability.test.ts [2m([22m[2m44 tests[22m[2m)[22m[32m 117[2mms[22m[39m
+ [32m✓[39m overlay/overlay.test.ts [2m([22m[2m14 tests[22m[2m)[22m[32m 57[2mms[22m[39m
+ [32m✓[39m skills/official.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 3[2mms[22m[39m
+ [32m✓[39m workdata/recall.test.ts [2m([22m[2m14 tests[22m[2m)[22m[32m 69[2mms[22m[39m
+ [32m✓[39m bundles/agent-knowhow.test.ts [2m([22m[2m231 tests[22m[2m)[22m[32m 41[2mms[22m[39m
+ [32m✓[39m overlay/store.test.ts [2m([22m[2m1 test[22m[2m)[22m[32m 19[2mms[22m[39m
+ [32m✓[39m tenancy/tenancy.test.ts [2m([22m[2m15 tests[22m[2m)[22m[32m 28[2mms[22m[39m
+ [32m✓[39m model-router/gen-pool.test.ts [2m([22m[2m21 tests[22m[2m)[22m[32m 38[2mms[22m[39m
+ [32m✓[39m service-kb/scenarios.test.ts [2m([22m[2m51 tests[22m[2m)[22m[32m 22[2mms[22m[39m
+ [32m✓[39m bundles/projection-composition.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 24[2mms[22m[39m
+ [32m✓[39m model-router/router-v3.test.ts [2m([22m[2m27 tests[22m[2m)[22m[32m 19[2mms[22m[39m
+ [32m✓[39m publish-rpa/publish-rpa.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 18[2mms[22m[39m
+ [32m✓[39m overlay/pipeline.integration.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 16[2mms[22m[39m
+ [32m✓[39m skill-ops/skill-ops.test.ts [2m([22m[2m28 tests[22m[2m)[22m[32m 175[2mms[22m[39m
+ [32m✓[39m asset-cms/asset-cms.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 15[2mms[22m[39m
+ [32m✓[39m evolve/evolve.test.ts [2m([22m[2m15 tests[22m[2m)[22m[32m 111[2mms[22m[39m
+ [32m✓[39m overlay/doc-intake.test.ts [2m([22m[2m25 tests[22m[2m)[22m[32m 11[2mms[22m[39m
+ [32m✓[39m night-shift/night-shift.test.ts [2m([22m[2m12 tests[22m[2m | [22m[33m7 skipped[39m[2m)[22m[32m 12[2mms[22m[39m
+ [32m✓[39m connectors/connectors.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 13[2mms[22m[39m
+ [32m✓[39m model-router/model-router.test.ts [2m([22m[2m11 tests[22m[2m)[22m[32m 30[2mms[22m[39m
+ [32m✓[39m bundles/voice-capability.test.ts [2m([22m[2m23 tests[22m[2m)[22m[32m 12[2mms[22m[39m
+ [32m✓[39m fence-engine/hardening.test.ts [2m([22m[2m18 tests[22m[2m)[22m[32m 51[2mms[22m[39m
+ [32m✓[39m bundles/whiteboard-capability.test.ts [2m([22m[2m16 tests[22m[2m)[22m[32m 12[2mms[22m[39m
+ [32m✓[39m bundles/eval-questions-coverage.test.ts [2m([22m[2m10 tests[22m[2m)[22m[32m 3[2mms[22m[39m
+ [32m✓[39m bundles/segment.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 9[2mms[22m[39m
+ [32m✓[39m service-channels/scenarios.test.ts [2m([22m[2m26 tests[22m[2m)[22m[32m 9[2mms[22m[39m
+ [32m✓[39m overlay/pipeline.test.ts [2m([22m[2m16 tests[22m[2m)[22m[32m 8[2mms[22m[39m
+ [32m✓[39m workdata/memory.test.ts [2m([22m[2m9 tests[22m[2m)[22m[32m 34[2mms[22m[39m
+ [32m✓[39m audit-core/audit-core.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 8[2mms[22m[39m
+ [32m✓[39m service-ticket/scenarios.test.ts [2m([22m[2m52 tests[22m[2m)[22m[32m 9[2mms[22m[39m
+ [32m✓[39m deal-flow/deal-flow.test.ts [2m([22m[2m12 tests[22m[2m)[22m[32m 8[2mms[22m[39m
+ [32m✓[39m social-listening/social-listening.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 8[2mms[22m[39m
+ [32m✓[39m cost-ledger/cost-ledger.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 8[2mms[22m[39m
+ [32m✓[39m service-kb/service-kb.test.ts [2m([22m[2m13 tests[22m[2m)[22m[32m 7[2mms[22m[39m
+ [32m✓[39m bundles/bundles.test.ts [2m([22m[2m11 tests[22m[2m)[22m[33m 2868[2mms[22m[39m
+     [33m[2m✓[22m[39m 融合装配：组合主包激活 = 三包编制齐装（81 岗）+ 围栏并集 + 遮蔽留痕 [33m 2508[2mms[22m[39m
+ [32m✓[39m service-dialog/scenarios.test.ts [2m([22m[2m47 tests[22m[2m)[22m[32m 7[2mms[22m[39m
+ [32m✓[39m service-ticket/service-ticket.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 5[2mms[22m[39m
+ [32m✓[39m captain/captain.test.ts [2m([22m[2m22 tests[22m[2m)[22m[32m 5[2mms[22m[39m
+ [32m✓[39m overlay/hardening.test.ts [2m([22m[2m18 tests[22m[2m)[22m[32m 38[2mms[22m[39m
+ [32m✓[39m service-dialog/service-dialog.test.ts [2m([22m[2m13 tests[22m[2m)[22m[32m 6[2mms[22m[39m
+ [32m✓[39m workdata/workdata.test.ts [2m([22m[2m30 tests[22m[2m)[22m[32m 34[2mms[22m[39m
+ [32m✓[39m captain/charter-autonomy.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 5[2mms[22m[39m
+ [32m✓[39m fence-engine/fence-engine.test.ts [2m([22m[2m18 tests[22m[2m)[22m[33m 533[2mms[22m[39m
+     [33m[2m✓[22m[39m 对象写锁：持锁期间他人超时转「需介入」（E2.5） [33m 510[2mms[22m[39m
+ [32m✓[39m wizard/wizard.test.ts [2m([22m[2m18 tests[22m[2m)[22m[32m 4[2mms[22m[39m
+ [32m✓[39m eval-core/eval-core.test.ts [2m([22m[2m19 tests[22m[2m)[22m[32m 4[2mms[22m[39m
+ [32m✓[39m model-router/credits-service.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 2[2mms[22m[39m
+ [32m✓[39m skills/skills.test.ts [2m([22m[2m14 tests[22m[2m)[22m[32m 72[2mms[22m[39m
+ [32m✓[39m bundles/acquisition-loop.test.ts [2m([22m[2m11 tests[22m[2m)[22m[32m 4[2mms[22m[39m
+ [32m✓[39m bundles/truth-check-bridge.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 3[2mms[22m[39m
+ [32m✓[39m social-listening/accounting.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 3[2mms[22m[39m
+ [32m✓[39m computer-use/computer-use.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 3[2mms[22m[39m
+ [32m✓[39m im-channels/im-channels.test.ts [2m([22m[2m13 tests[22m[2m)[22m[32m 43[2mms[22m[39m
+ [32m✓[39m inspection/inspection.test.ts [2m([22m[2m11 tests[22m[2m)[22m[32m 38[2mms[22m[39m
+ [32m✓[39m collaboration/collaboration.test.ts [2m([22m[2m9 tests[22m[2m)[22m[32m 3[2mms[22m[39m
+ [32m✓[39m captain/captain-v2.test.ts [2m([22m[2m10 tests[22m[2m)[22m[32m 3[2mms[22m[39m
+ [32m✓[39m workdata/pii-boundary.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 2[2mms[22m[39m
+ [32m✓[39m bundles/dossier-evidence.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 2[2mms[22m[39m
+ [32m✓[39m review-console/approvals.test.ts [2m([22m[2m14 tests[22m[2m)[22m[32m 48[2mms[22m[39m
+ [32m✓[39m workdata/event-sequence.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 22[2mms[22m[39m
+ [32m✓[39m social-listening/normalize.test.ts [2m([22m[2m11 tests[22m[2m)[22m[32m 3[2mms[22m[39m
+ [32m✓[39m model-router/router-review.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 2[2mms[22m[39m
+ [32m✓[39m captain/arbitration.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 2[2mms[22m[39m
+ [32m✓[39m captain/trust.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 2[2mms[22m[39m
+ [32m✓[39m service-dialog/industry-neutral.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 2[2mms[22m[39m
+ [32m✓[39m captain/onboarding.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 2[2mms[22m[39m
+ [32m✓[39m accounts/role-access.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 52[2mms[22m[39m
+ [32m✓[39m workdata/atomicity.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 20[2mms[22m[39m
+ [32m✓[39m workdata/security-audit.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 53[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m79 passed[39m[22m[90m (79)[39m
+[2m      Tests [22m [1m[32m1363 passed[39m[22m[2m | [22m[33m7 skipped[39m[90m (1370)[39m
+[2m   Start at [22m 21:58:46
+[2m   Duration [22m 57.60s[2m (transform 1.12s, setup 0ms, import 4.65s, tests 47.99s, environment 3ms)[22m
+

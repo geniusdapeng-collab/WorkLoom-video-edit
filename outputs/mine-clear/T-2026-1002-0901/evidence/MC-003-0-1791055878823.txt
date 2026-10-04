@@ -1,0 +1,62 @@
+TAP version 13
+# Subtest: 搬动原工作区副本会破坏仓库相对引用，新注册保留同一模块实例
+ok 1 - 搬动原工作区副本会破坏仓库相对引用，新注册保留同一模块实例
+  ---
+  duration_ms: 94.819833
+  type: 'test'
+  ...
+# Subtest: 子路径、条件 exports 和类型入口都引用保留的真实源文件
+ok 2 - 子路径、条件 exports 和类型入口都引用保留的真实源文件
+  ---
+  duration_ms: 36.512833
+  type: 'test'
+  ...
+# Subtest: 缺失构建产物在打包时失败，不留到客户启动时
+ok 3 - 缺失构建产物在打包时失败，不留到客户启动时
+  ---
+  duration_ms: 1.824625
+  type: 'test'
+  ...
+# Subtest: 包名称重复、路径越界和未支持的入口协议均失败关闭
+ok 4 - 包名称重复、路径越界和未支持的入口协议均失败关闭
+  ---
+  duration_ms: 3.439708
+  type: 'test'
+  ...
+# Subtest: 行业载荷不会因目录存在而注册仙女座的 platform-ops
+ok 5 - 行业载荷不会因目录存在而注册仙女座的 platform-ops
+  ---
+  duration_ms: 3.24825
+  type: 'test'
+  ...
+# Subtest: 源码装配不遍历 pnpm 循环链接或嵌套开发依赖，仍保留实际构建产物
+ok 6 - 源码装配不遍历 pnpm 循环链接或嵌套开发依赖，仍保留实际构建产物
+  ---
+  duration_ms: 6.500417
+  type: 'test'
+  ...
+# Subtest: 源码装配拒绝仓库越界和目标递归，不读取外部链接
+ok 7 - 源码装配拒绝仓库越界和目标递归，不读取外部链接
+  ---
+  duration_ms: 3.367666
+  type: 'test'
+  ...
+# Subtest: 源码复制 CLI 保留中文空格路径并以失败退出码报告缺参
+ok 8 - 源码复制 CLI 保留中文空格路径并以失败退出码报告缺参
+  ---
+  duration_ms: 69.478917
+  type: 'test'
+  ...
+1..8
+# tests 8
+# suites 0
+# pass 8
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 271.278291
+
+
+exit_code=0 signal=none error=none
+assertion_validation={"ok":true,"errors":[],"testSummary":{"total":8,"passed":8,"failed":0,"cancelled":0,"skipped":0,"todo":0}}

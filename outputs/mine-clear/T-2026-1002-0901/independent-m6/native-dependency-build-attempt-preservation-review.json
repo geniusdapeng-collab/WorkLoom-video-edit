@@ -1,0 +1,109 @@
+{
+  "schema": "growth.independent-m6/native-build-history@1",
+  "source_commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+  "reviewed_by": "growth_m6",
+  "reviewed_at": "2026-10-04T03:10:39.321520+08:00",
+  "attempts": [
+    {
+      "root_file": "mac-dependency-payload.json",
+      "file": "inherited/evidence__mac-dependency-payload.json",
+      "sha256": "ac9c9a4fb1dae906ec2f81b55eaab44b1199722e88862d2d89393bda4cb1042b",
+      "bytes": 342,
+      "exit_code": 124,
+      "seconds": 1800.327,
+      "log": {
+        "root_file": "mac-dependency-payload.log",
+        "file": "inherited/evidence__mac-dependency-payload.log",
+        "sha256": "119f85e387ad14efaf1797b190e28d33e835d979eb61de6665c0853913fd2091",
+        "bytes": 1089
+      }
+    },
+    {
+      "root_file": "mac-dependency-payload-cached.json",
+      "file": "inherited/evidence__mac-dependency-payload-cached.json",
+      "sha256": "2f4c64e4599e0683fa7db0407af07f280e49e954b73ff30b657484d4c80d8afa",
+      "bytes": 351,
+      "exit_code": 1,
+      "seconds": 5.867,
+      "log": {
+        "root_file": "mac-dependency-payload-cached.log",
+        "file": "inherited/evidence__mac-dependency-payload-cached.log",
+        "sha256": "aa1419f0e203fcedaabe55f0176bba8b2ef610680e45eef153eacfa64dd0ee67",
+        "bytes": 1079
+      }
+    },
+    {
+      "root_file": "mac-dependency-payload-cached-proxy.json",
+      "file": "inherited/evidence__mac-dependency-payload-cached-proxy.json",
+      "sha256": "9b0a1db9ebc242fb57ca5d0803183e69c8b43d8cd4b1f73552cfd1f446e5a1a9",
+      "bytes": 365,
+      "exit_code": 0,
+      "seconds": 215.768,
+      "log": {
+        "root_file": "mac-dependency-payload-cached-proxy.log",
+        "file": "inherited/evidence__mac-dependency-payload-cached-proxy.log",
+        "sha256": "41dfefed6c952eb34fd28e4ffb182be1cf10a935f03e6779e3520e2de8a35388",
+        "bytes": 1656
+      }
+    },
+    {
+      "root_file": "mac-dependency-dir-build.json",
+      "file": "inherited/evidence__mac-dependency-dir-build.json",
+      "sha256": "ba15c8bf86b75ae05c2f3ce6b1826a1c01331d75c38820b121dda64a8f55bbd2",
+      "bytes": 763,
+      "exit_code": 1,
+      "seconds": 223.73,
+      "log": {
+        "root_file": "mac-dependency-dir-build.log",
+        "file": "inherited/evidence__mac-dependency-dir-build.log",
+        "sha256": "8e378de97f171f2c2b23d0ac1577e0ee8fb2b6bef1ca7db8923c0e69540f272e",
+        "bytes": 3416
+      }
+    },
+    {
+      "root_file": "mac-dependency-dir-build-cached.json",
+      "file": "inherited/evidence__mac-dependency-dir-build-cached.json",
+      "sha256": "10f7879240c8ebbb7f9bc62b1926b21d93d4204cd86a058c2b43534f5c7a082e",
+      "bytes": 777,
+      "exit_code": 1,
+      "seconds": 244.22,
+      "log": {
+        "root_file": "mac-dependency-dir-build-cached.log",
+        "file": "inherited/evidence__mac-dependency-dir-build-cached.log",
+        "sha256": "8e378de97f171f2c2b23d0ac1577e0ee8fb2b6bef1ca7db8923c0e69540f272e",
+        "bytes": 3416
+      }
+    },
+    {
+      "root_file": "mac-dependency-dir-build-cached-final.json",
+      "file": "inherited/evidence__mac-dependency-dir-build-cached-final.json",
+      "sha256": "63b5849a6d769d16229665ce56c5c9b0d0eeeed130f2be9bcc38b225ae8f1632",
+      "bytes": 789,
+      "exit_code": 0,
+      "seconds": 17.647,
+      "log": {
+        "root_file": "mac-dependency-dir-build-cached-final.log",
+        "file": "inherited/evidence__mac-dependency-dir-build-cached-final.log",
+        "sha256": "a653778cfec043a6bdb6e7e6b441e2f5a5f0e8dbfadb32a5f0f4b21df1a9ab5b",
+        "bytes": 3235
+      }
+    },
+    {
+      "root_file": "mac-dependency-dmg-build-cached.json",
+      "file": "inherited/evidence__mac-dependency-dmg-build-cached.json",
+      "sha256": "1614eff32125eb5e4c897394179ef9beca6d516189354a477a79026366b4f65c",
+      "bytes": 910,
+      "exit_code": 0,
+      "seconds": 30.608,
+      "log": {
+        "root_file": "mac-dependency-dmg-build-cached.log",
+        "file": "inherited/evidence__mac-dependency-dmg-build-cached.log",
+        "sha256": "1b928a03c91ddbce3b4508428b023e612e80bb1734ed7ab0375fbda9bdd41771",
+        "bytes": 1914
+      }
+    }
+  ],
+  "original_failure_preserved": true,
+  "original_failed_build_rewritten_as_passed": false,
+  "scope": "Actual root wrappers parsed and original log bytes preserved; failed payload124/1800.327,offline1/5.867 and two dir builds1/223.73,1/244.22 remain distinct from successful cached-proxy payload0/215.768, finaldir0/17.647 and DMG0/30.608. No singular failure-cause conclusion or whole-log semantic reading is claimed."
+}

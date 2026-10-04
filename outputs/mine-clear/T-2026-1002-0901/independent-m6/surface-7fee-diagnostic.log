@@ -1,0 +1,23 @@
+COMMAND ["/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node", "--env-file=.env", "--test", "--test-name-pattern=启动诊断秘密脱敏", "apps/desktop/electron/bootstrap.test.cjs"]
+▶ 启动诊断秘密脱敏
+  ✔ 原有文本 JWT、盐和 Bearer (9.40975ms)
+  ✔ JSON 引号与大小写字段 (3.562ms)
+  ✔ 引号内的空格和分隔符 (2.553708ms)
+  ✔ 带编码密码的连接 URI (2.365083ms)
+  ✔ libpq 密码与 URI 查询密码 (1.558125ms)
+  ✔ Basic 授权和 Cookie (2.227625ms)
+  ✔ JSON 转义引号和 Unicode 密码 (1.859083ms)
+  ✔ 错误摘要和日志读取失败也经过脱敏 (1.63875ms)
+  ✔ 读取异常关闭自己的文件句柄并保留失败信息 (1.160083ms)
+  ✔ 空日志和有界尾部仍保留版本、主机和错误上下文 (8.066042ms)
+  ✔ 取消无写入；新建与覆盖后的诊断文件均为私有 (5.78225ms)
+  ✔ 保存对话框和文件写入失败均留在可恢复启动页 (3.38025ms)
+✔ 启动诊断秘密脱敏 (45.160334ms)
+ℹ tests 12
+ℹ suites 1
+ℹ pass 12
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 138.652084

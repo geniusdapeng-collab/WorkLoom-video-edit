@@ -1,0 +1,15 @@
+{
+  "name": "desktop-scene-stale-after",
+  "command": [
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+    "--env-file=.env",
+    "--test",
+    "--test-name-pattern",
+    "产品截图采用捕获时的可见场景",
+    "apps/desktop/electron/bootstrap.test.cjs"
+  ],
+  "exit_code": 0,
+  "seconds": 3.643,
+  "ran_at": "2026-10-03T02:04:55.017204+08:00",
+  "log": "desktop-scene-stale-after.log"
+}

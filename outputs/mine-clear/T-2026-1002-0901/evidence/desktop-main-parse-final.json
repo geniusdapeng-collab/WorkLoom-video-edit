@@ -1,0 +1,13 @@
+{
+  "name": "desktop-main-parse-final",
+  "command": [
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+    "--env-file=.env",
+    "--check",
+    "apps/desktop/electron/main.cjs"
+  ],
+  "exit_code": 0,
+  "seconds": 0.298,
+  "ran_at": "2026-10-02T22:34:00.892855+08:00",
+  "log": "desktop-main-parse-final.log"
+}

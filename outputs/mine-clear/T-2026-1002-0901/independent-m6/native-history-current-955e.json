@@ -1,0 +1,13 @@
+{
+  "name": "native-history-current-955e",
+  "command": [
+    "python3",
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/independent-m6/verify-native-history.py"
+  ],
+  "exit_code": 0,
+  "seconds": 1.822,
+  "source_before": "955e2277ee1496cfc4b40bd30345d1ce1be1acf1",
+  "source_after": "955e2277ee1496cfc4b40bd30345d1ce1be1acf1",
+  "ran_at": "2026-10-03T03:27:01.683100+08:00",
+  "log": "native-history-current-955e.log"
+}

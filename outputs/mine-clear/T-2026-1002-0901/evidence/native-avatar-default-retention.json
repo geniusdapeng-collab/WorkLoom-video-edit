@@ -1,0 +1,34 @@
+{
+  "mode": "default",
+  "at": "2026-10-03T01:52:03.275905+08:00",
+  "command_exit_code": 1,
+  "evidence": [
+    {
+      "source": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/生命周期 默认客户/logs/render-default.json",
+      "retained": "native-avatar-default-render-default.json",
+      "sha256": "69aeff17e3c6cc7318ce99f9801f57504b4c9c5ad1b1b056441c4a9970cf3329",
+      "bytes": 4439
+    },
+    {
+      "source": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/生命周期 默认客户/logs/render-default.png",
+      "retained": "native-avatar-default-render-default.png",
+      "sha256": "e6ba4fae04a7456888922521651a46f5905a8243e5d19fba35aba1d91fb25020",
+      "bytes": 1527215
+    },
+    {
+      "source": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/生命周期 默认客户/logs/team-default.png",
+      "retained": "native-avatar-default-team-default.png",
+      "sha256": "a177bbc36a5a36b5e614bdac944f301a8f72494dd0f7a50ad50106600d94b8b3",
+      "bytes": 1487250
+    }
+  ],
+  "private_state_retained": true,
+  "removed_reinstallable_runtime_cache": [
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/生命周期 默认客户/runtime",
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/生命周期 默认客户/node",
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/生命周期 默认客户/pg",
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/生命周期 默认客户/nats",
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/生命周期 默认客户/.payload-cache"
+  ],
+  "reason": "Owned completed QA fixture only; preserve private DB/config/version/logs and uniquely retained screenshots"
+}

@@ -1,0 +1,20 @@
+{
+  "schema": "growth.independent-m6/resource-handback@1",
+  "source_commit": "c08386eb9993744a0cb0c2495a98fc1fc4ccbed9",
+  "actor": "growth_m6",
+  "at": "2026-10-03T09:22:42.073812+08:00",
+  "browser_groups_passed": {
+    "default": 28,
+    "drop": 55,
+    "edges": 29,
+    "legal_hover": 33,
+    "unsafe_language": 3
+  },
+  "product_tests_passed": 32,
+  "web_types_exit": 0,
+  "web_build_exit": 0,
+  "screens_directly_viewed": 32,
+  "css_sha256": "bc5b185ab487ec8441ca19a29646b603a15f2382cb4d48a73263fc81e76ad777",
+  "gpu_released_to": "codex-root-T-2026-1002-0901",
+  "remaining_verifier_work": "Pure own metadata manifest/prepare/report/validation followed later by independent current native receipt/bytes and authorized actual MCD acceptance. This handback is resource ownership, not final native or source-report gate approval."
+}

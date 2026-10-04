@@ -1,0 +1,7 @@
+{
+  "original_run": "floor3d-production-before.json",
+  "failure": "Own optional callback extension introduced duplicate trailing comma in JSX. Vite compile failed before any of28 product controls; original log/JSON retained.",
+  "product_cases_executed": 0,
+  "correction": "Single trailing comma restored; TSX will be parsed with installed esbuild before rerun. No product source or expectations changed.",
+  "fixture_sha256": "1bac428b533487734cf131cc6b7938cfad9debac5f3d5535af302d0e5090e819"
+}

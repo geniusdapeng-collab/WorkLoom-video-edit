@@ -1,0 +1,15 @@
+{
+  "name": "mine-clear-pre-independent",
+  "command": [
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+    "--env-file=.env",
+    "scripts/delivery/mine-clear.mjs",
+    "gate",
+    "--ledger",
+    "../../outputs/growth-production-fix-2026-10-02/ledger.json"
+  ],
+  "exit_code": 0,
+  "seconds": 0.264,
+  "ran_at": "2026-10-02T23:20:28.712014+08:00",
+  "log": "mine-clear-pre-independent.log"
+}

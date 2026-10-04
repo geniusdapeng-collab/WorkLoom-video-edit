@@ -1,0 +1,14 @@
+{
+  "name": "ci-protocol-production",
+  "command": [
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+    "--env-file=.env",
+    "--input-type=module",
+    "-e",
+    "const {spawnSync}=await import(\"node:child_process\"); for (const args of [[\"--test\",\"scripts/ci/protocol-rules.test.mjs\",\"scripts/ci/cnb-desktop-release.test.mjs\",\"scripts/ci/hard-gate-policy.test.mjs\",\"scripts/oss-inventory.test.mjs\"],[\"scripts/ci/verify-hard-gate-policy.mjs\"],[\"scripts/ci/verify-commit-msg.mjs\",\"--self-test\"],[\"scripts/ci/verify-lock-conflict.mjs\",\"--self-test\"],[\"scripts/verify-builtin-character-assets.mjs\"],[\"scripts/verify-client-foundation-consumer.mjs\"]]) { const r=spawnSync(process.execPath,args,{stdio:\"inherit\"}); if(r.status!==0) process.exit(r.status??1); }"
+  ],
+  "exit_code": 0,
+  "seconds": 1.571,
+  "ran_at": "2026-10-02T22:23:03.162427+08:00",
+  "log": "ci-protocol-production.log"
+}

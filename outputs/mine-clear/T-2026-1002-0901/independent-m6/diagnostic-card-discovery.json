@@ -1,0 +1,79 @@
+{
+  "id": "MC-018",
+  "kind": "problem",
+  "severity": "P1",
+  "level": "L1",
+  "batch": 1,
+  "state": "unfixed",
+  "title": "启动诊断导出遗漏 JSON/连接串秘密，覆盖文件未收紧权限且保存错误逃出恢复流程",
+  "evidence_grade": "A",
+  "root_cause": {
+    "file": "apps/desktop/electron/main.cjs",
+    "line": 188,
+    "commit": "42ead347c65a5cc343bcd290702d53a7fcdb1687",
+    "symbol": "diagnosticText / handleSplashAction(export)"
+  },
+  "discovered_at_source_commit": "87ab5781d381d19e9dc7e1f5caa98b6a6b410c58",
+  "trigger_path": "Synthetic log fields and startup/read errors -> actual diagnosticText; cancel/new/existing file and dialog/open/write faults -> actual export action function. Original full Git source retained; no real secrets or customer data.",
+  "expected": "Known secret values removed from all diagnostic sections; keep version/host/error context; long bounded input returns promptly; own handles close on read/write failure; canceled export makes no file; POSIX new and overwritten files private before writing; save failure retains recovery page.",
+  "actual": "Original full 87ab runtime bytes with final 12 assertions: 2 pass / 10 fail. Additional corrected 10-group red 2/10, export red0/2, candidate long-text red0/1 retained separately.",
+  "fix_direction": "Quote-aware field values and URI/authorization redaction with token-boundary scan; finally close handles; private fd before write; catch save errors into recovery UI.",
+  "fix_plan": "12 contract controls in existing desktop suite, actual independent source rerun and final packaged-menu export.",
+  "coupling": "JSON serializers, URI encoding, long log performance, startup/read failure text, file permissions, dialog cancel and async recovery.",
+  "invariant_ids": [
+    "INV-5",
+    "INV-11"
+  ],
+  "assertions": [
+    {
+      "kind": "sample",
+      "given": "Clean source and synthetic temporary diagnostic logs/files; known secret fields plus failed save paths",
+      "expect": "12 real Node cases pass with no skip/todo",
+      "command": "node --test --test-name-pattern=启动诊断秘密脱敏 apps/desktop/electron/bootstrap.test.cjs",
+      "exec": {
+        "file": "node",
+        "args": [
+          "--test",
+          "--test-name-pattern=启动诊断秘密脱敏",
+          "apps/desktop/electron/bootstrap.test.cjs"
+        ]
+      },
+      "last_result": "fail",
+      "evidence": "evidence/diagnostic-complete-original-before.log"
+    }
+  ],
+  "evidence": [
+    {
+      "type": "code",
+      "ref": "apps/desktop/electron/main.cjs:188@42ead347c65a5cc343bcd290702d53a7fcdb1687",
+      "note": "Exact diagnosis/export functions are identical in audit42ead and actual discovery87ab; runtime argv/time remains87ab and is separately retained."
+    },
+    {
+      "type": "runtime",
+      "ref": "evidence/diagnostic-complete-original-before.json",
+      "note": "Actual pre-fix 12 controls:2pass10fail"
+    },
+    {
+      "type": "runtime",
+      "ref": "evidence/diagnostic-contract-after.json",
+      "note": "Actual repair-owned 12 controls green; independent/native not yet run"
+    },
+    {
+      "type": "runtime",
+      "ref": "evidence/diagnostic-redaction-performance-before.json",
+      "note": "Actual candidate performance failure, not original-source red"
+    }
+  ],
+  "regression": {
+    "command": "node --test --test-name-pattern=启动诊断秘密脱敏 apps/desktop/electron/bootstrap.test.cjs",
+    "evidence": null
+  },
+  "rollback": "Normal revert with reviewed source and rebuilt matching payload; preserve existing diagnostics and business data.",
+  "notes": "No real credential, provider or business task used. POSIX permissions are not Windows ACL proof. Arbitrary user data in logs remains outside secret-field masking; final actual native export pending.",
+  "original_discovery_root_cause": {
+    "file": "apps/desktop/electron/main.cjs",
+    "line": 197,
+    "commit": "87ab5781d381d19e9dc7e1f5caa98b6a6b410c58",
+    "symbol": "diagnosticText / handleSplashAction(export)"
+  }
+}

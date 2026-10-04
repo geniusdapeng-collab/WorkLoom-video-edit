@@ -1,0 +1,17 @@
+{
+  "name": "production-login-nonexample-assert-final",
+  "command": [
+    "/Users/mac/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node",
+    "--env-file=.env",
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-audit-2026-10-02/evidence/production-login-probe.mjs",
+    "--base",
+    "http://127.0.0.1:28787",
+    "--fixture",
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-audit-2026-10-02/evidence/auth-nonexample-input.json",
+    "--assert"
+  ],
+  "exit_code": 1,
+  "seconds": 0.132,
+  "ran_at": "2026-10-02T11:08:02.748846+08:00",
+  "log": "production-login-nonexample-assert-final.log"
+}

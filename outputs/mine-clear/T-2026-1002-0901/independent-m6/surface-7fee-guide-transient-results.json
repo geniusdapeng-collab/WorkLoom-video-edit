@@ -1,0 +1,1132 @@
+{
+  "source_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+  "verifier": "growth_m6",
+  "source_main_sha256": "231d1e1c9621c9408393aee430ff80008eb5548d3c734ce96e329cff5f588ad2",
+  "exact_scene_function_sha256": "dd9af4a3ffa710411a898a3527b5a41ece11664021b37643e3614b38db1785aa",
+  "boundary": "Actual helper and verbatim nested captureProductScene. Controlled page/clock, no product/Git/support/DB/network writes or real screenshots.",
+  "cases": [
+    {
+      "id": "clear-then-reappears-before-stable-window",
+      "expected": "A 500ms clear gap followed by another overlay resets the required 750ms absence",
+      "actual": {
+        "result": {
+          "shown": true,
+          "clicked": true,
+          "supported": true,
+          "closed": true
+        },
+        "milliseconds": 2250,
+        "frames": [
+          {
+            "at": 0,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 250,
+            "supported": true,
+            "shown": false,
+            "clicked": false
+          },
+          {
+            "at": 500,
+            "supported": true,
+            "shown": false,
+            "clicked": false
+          },
+          {
+            "at": 750,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 1000,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 1250,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 1500,
+            "supported": true,
+            "shown": false,
+            "clicked": false
+          },
+          {
+            "at": 1750,
+            "supported": true,
+            "shown": false,
+            "clicked": false
+          },
+          {
+            "at": 2000,
+            "supported": true,
+            "shown": false,
+            "clicked": false
+          },
+          {
+            "at": 2250,
+            "supported": true,
+            "shown": false,
+            "clicked": false
+          }
+        ]
+      },
+      "healthy": true
+    },
+    {
+      "id": "clear-then-persistent-reappearance",
+      "expected": "After a short clear gap, an overlay lasting to the deadline remains closed=false",
+      "actual": {
+        "result": {
+          "shown": true,
+          "clicked": true,
+          "supported": true,
+          "closed": false
+        },
+        "milliseconds": 10000,
+        "frames": [
+          {
+            "at": 0,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 250,
+            "supported": true,
+            "shown": false,
+            "clicked": false
+          },
+          {
+            "at": 500,
+            "supported": true,
+            "shown": false,
+            "clicked": false
+          },
+          {
+            "at": 750,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 1000,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 1250,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 1500,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 1750,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 2000,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 2250,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 2500,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 2750,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 3000,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 3250,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 3500,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 3750,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 4000,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 4250,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 4500,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 4750,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 5000,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 5250,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 5500,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 5750,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 6000,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 6250,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 6500,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 6750,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 7000,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 7250,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 7500,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 7750,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 8000,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 8250,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 8500,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 8750,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 9000,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 9250,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 9500,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 9750,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          }
+        ]
+      },
+      "healthy": true
+    },
+    {
+      "id": "slow-cleanup-insufficient-clear-time",
+      "expected": "Cleanup at 9500ms cannot satisfy 750ms of absence within the unchanged 10s deadline",
+      "actual": {
+        "result": {
+          "shown": true,
+          "clicked": true,
+          "supported": true,
+          "closed": false
+        },
+        "milliseconds": 10000,
+        "frames": [
+          {
+            "at": 0,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 250,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 500,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 750,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 1000,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 1250,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 1500,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 1750,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 2000,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 2250,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 2500,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 2750,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 3000,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 3250,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 3500,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 3750,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 4000,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 4250,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 4500,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 4750,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 5000,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 5250,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 5500,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 5750,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 6000,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 6250,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 6500,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 6750,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 7000,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 7250,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 7500,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 7750,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 8000,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 8250,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 8500,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 8750,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 9000,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 9250,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 9500,
+            "supported": true,
+            "shown": false,
+            "clicked": false
+          },
+          {
+            "at": 9750,
+            "supported": true,
+            "shown": false,
+            "clicked": false
+          }
+        ]
+      },
+      "healthy": true
+    },
+    {
+      "id": "slow-cleanup-within-existing-deadline",
+      "expected": "Cleanup at 9000ms with 750ms stable absence succeeds at 9750ms without extending the deadline",
+      "actual": {
+        "result": {
+          "shown": true,
+          "clicked": true,
+          "supported": true,
+          "closed": true
+        },
+        "milliseconds": 9750,
+        "frames": [
+          {
+            "at": 0,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 250,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 500,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 750,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 1000,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 1250,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 1500,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 1750,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 2000,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 2250,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 2500,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 2750,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 3000,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 3250,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 3500,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 3750,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 4000,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 4250,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 4500,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 4750,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 5000,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 5250,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 5500,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 5750,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 6000,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 6250,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 6500,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 6750,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 7000,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 7250,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 7500,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 7750,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 8000,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 8250,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 8500,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 8750,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 9000,
+            "supported": true,
+            "shown": false,
+            "clicked": false
+          },
+          {
+            "at": 9250,
+            "supported": true,
+            "shown": false,
+            "clicked": false
+          },
+          {
+            "at": 9500,
+            "supported": true,
+            "shown": false,
+            "clicked": false
+          },
+          {
+            "at": 9750,
+            "supported": true,
+            "shown": false,
+            "clicked": false
+          }
+        ]
+      },
+      "healthy": true
+    },
+    {
+      "id": "late-probe-clean-frame-rejected",
+      "expected": "A clear state arriving at the deadline cannot retroactively close the guide",
+      "actual": {
+        "result": {
+          "shown": true,
+          "clicked": true,
+          "supported": true,
+          "closed": false
+        },
+        "probes": 2,
+        "milliseconds": 10000
+      },
+      "healthy": true
+    },
+    {
+      "id": "scene-clear-positive-control",
+      "expected": "An actually clear and complete scene succeeds",
+      "actual": {
+        "result": {
+          "ready": true,
+          "overlayVisible": false,
+          "actors": 14,
+          "labels": [],
+          "geometry": {
+            "scene": {
+              "width": 768,
+              "height": 440
+            },
+            "canvas": {
+              "width": 768,
+              "height": 440
+            },
+            "contextLost": false,
+            "ceoOverlapIds": []
+          },
+          "beforeCapture": {
+            "ready": true,
+            "overlayVisible": false,
+            "actors": 14,
+            "labels": [],
+            "geometry": {
+              "scene": {
+                "width": 768,
+                "height": 440
+              },
+              "canvas": {
+                "width": 768,
+                "height": 440
+              },
+              "contextLost": false,
+              "ceoOverlapIds": []
+            }
+          },
+          "pixels": {
+            "variance": 100,
+            "visibleRatio": 1
+          },
+          "screenshotPath": "/owned-fake-scene/workplace-default.png"
+        },
+        "error": null,
+        "sampled": [
+          {
+            "at": 0,
+            "ready": true,
+            "overlayVisible": false,
+            "actors": 14,
+            "labels": [],
+            "geometry": {
+              "scene": {
+                "width": 768,
+                "height": 440
+              },
+              "canvas": {
+                "width": 768,
+                "height": 440
+              },
+              "contextLost": false,
+              "ceoOverlapIds": []
+            }
+          },
+          {
+            "at": 3600,
+            "ready": true,
+            "overlayVisible": false,
+            "actors": 14,
+            "labels": [],
+            "geometry": {
+              "scene": {
+                "width": 768,
+                "height": 440
+              },
+              "canvas": {
+                "width": 768,
+                "height": 440
+              },
+              "contextLost": false,
+              "ceoOverlapIds": []
+            }
+          },
+          {
+            "at": 3600,
+            "ready": true,
+            "overlayVisible": false,
+            "actors": 14,
+            "labels": [],
+            "geometry": {
+              "scene": {
+                "width": 768,
+                "height": 440
+              },
+              "canvas": {
+                "width": 768,
+                "height": 440
+              },
+              "contextLost": false,
+              "ceoOverlapIds": []
+            }
+          }
+        ],
+        "captures": [
+          {
+            "at": 3600,
+            "overlayVisible": false
+          }
+        ]
+      },
+      "healthy": true
+    },
+    {
+      "id": "scene-sticky-overlay-negative-control",
+      "expected": "An overlay visible when the scene screenshot is captured must reject",
+      "actual": {
+        "result": null,
+        "error": "Error: workplace-3d 仍被引导层遮挡：{\"ready\":true,\"overlayVisible\":true,\"actors\":14,\"labels\":[],\"geometry\":{\"scene\":{\"width\":768,\"height\":440},\"canvas\":{\"width\":768,\"height\":440},\"contextLost\":false,\"ceoOverlapIds\":[]},\"beforeCapture\":{\"ready\":true,\"overlayVisible\":true,\"actors\":14,\"labels\":[],\"geometry\":{\"scene\":{\"width\":768,\"height\":440},\"canvas\":{\"width\":768,\"height\":440},\"contextLost\":false,\"ceoOverlapIds\":[]}},\"pixels\":{\"variance\":100,\"visibleRatio\":1},\"screenshotPath\":\"/owned-fake-scene/workplace-default.png\"}",
+        "sampled": [
+          {
+            "at": 0,
+            "ready": true,
+            "overlayVisible": true,
+            "actors": 14,
+            "labels": [],
+            "geometry": {
+              "scene": {
+                "width": 768,
+                "height": 440
+              },
+              "canvas": {
+                "width": 768,
+                "height": 440
+              },
+              "contextLost": false,
+              "ceoOverlapIds": []
+            }
+          },
+          {
+            "at": 3600,
+            "ready": true,
+            "overlayVisible": true,
+            "actors": 14,
+            "labels": [],
+            "geometry": {
+              "scene": {
+                "width": 768,
+                "height": 440
+              },
+              "canvas": {
+                "width": 768,
+                "height": 440
+              },
+              "contextLost": false,
+              "ceoOverlapIds": []
+            }
+          },
+          {
+            "at": 3600,
+            "ready": true,
+            "overlayVisible": true,
+            "actors": 14,
+            "labels": [],
+            "geometry": {
+              "scene": {
+                "width": 768,
+                "height": 440
+              },
+              "canvas": {
+                "width": 768,
+                "height": 440
+              },
+              "contextLost": false,
+              "ceoOverlapIds": []
+            }
+          }
+        ],
+        "captures": [
+          {
+            "at": 3600,
+            "overlayVisible": true
+          }
+        ]
+      },
+      "healthy": true
+    },
+    {
+      "id": "scene-overlay-reappears-during-settle",
+      "expected": "An overlay visible when the scene screenshot is captured must reject",
+      "actual": {
+        "result": null,
+        "error": "Error: workplace-3d 仍被引导层遮挡：{\"ready\":true,\"overlayVisible\":true,\"actors\":14,\"labels\":[],\"geometry\":{\"scene\":{\"width\":768,\"height\":440},\"canvas\":{\"width\":768,\"height\":440},\"contextLost\":false,\"ceoOverlapIds\":[]},\"beforeCapture\":{\"ready\":true,\"overlayVisible\":true,\"actors\":14,\"labels\":[],\"geometry\":{\"scene\":{\"width\":768,\"height\":440},\"canvas\":{\"width\":768,\"height\":440},\"contextLost\":false,\"ceoOverlapIds\":[]}},\"pixels\":{\"variance\":100,\"visibleRatio\":1},\"screenshotPath\":\"/owned-fake-scene/workplace-default.png\"}",
+        "sampled": [
+          {
+            "at": 0,
+            "ready": true,
+            "overlayVisible": false,
+            "actors": 14,
+            "labels": [],
+            "geometry": {
+              "scene": {
+                "width": 768,
+                "height": 440
+              },
+              "canvas": {
+                "width": 768,
+                "height": 440
+              },
+              "contextLost": false,
+              "ceoOverlapIds": []
+            }
+          },
+          {
+            "at": 3600,
+            "ready": true,
+            "overlayVisible": true,
+            "actors": 14,
+            "labels": [],
+            "geometry": {
+              "scene": {
+                "width": 768,
+                "height": 440
+              },
+              "canvas": {
+                "width": 768,
+                "height": 440
+              },
+              "contextLost": false,
+              "ceoOverlapIds": []
+            }
+          },
+          {
+            "at": 3600,
+            "ready": true,
+            "overlayVisible": true,
+            "actors": 14,
+            "labels": [],
+            "geometry": {
+              "scene": {
+                "width": 768,
+                "height": 440
+              },
+              "canvas": {
+                "width": 768,
+                "height": 440
+              },
+              "contextLost": false,
+              "ceoOverlapIds": []
+            }
+          }
+        ],
+        "captures": [
+          {
+            "at": 3600,
+            "overlayVisible": true
+          }
+        ]
+      },
+      "healthy": true
+    }
+  ],
+  "passed": 8,
+  "failed": 0
+}

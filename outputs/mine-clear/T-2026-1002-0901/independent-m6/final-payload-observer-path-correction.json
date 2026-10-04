@@ -1,0 +1,10 @@
+{
+  "created_at": "2026-10-03T07:00:38.154261+08:00",
+  "event": "New verifier script initially placed one artifact directory above own directory; immediately moved before any execution.",
+  "corrected_path": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/independent-m6/final-payload-byte-probe.py",
+  "prior_file_removed": true,
+  "product_or_git_files_mutated": false,
+  "private_files_opened": false,
+  "product_cases_executed_before_correction": 0,
+  "source_deadlines_or_assertions_changed": false
+}

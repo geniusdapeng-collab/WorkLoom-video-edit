@@ -1,0 +1,12 @@
+{
+  "source_commit": "f0a11286a49419fb7909088e2d170f4dde7b60c6",
+  "adapted_by": "growth_m6",
+  "original_file": "render-guide-transient-probe.cjs",
+  "original_sha256": "dd7be1f0b33423a7f58ab3b8745eccb186e394150998d5871de544c91be47b0c",
+  "file": "scene-f0-render-guide-transient-probe.cjs",
+  "sha256": "e8cb47a9ec14477503010f6f43b5a9c0d8bda7bc236b449a73cab5120bfed7c3",
+  "change": "The new actual native function requires geometry on its positive fixture. Added 768x440/live-context/empty-overlap geometry to the independent page state; all original eight assertions, timelines, deadlines and exact extraction boundaries unchanged. Negative overlay states still compared at original capture-time frames.",
+  "product_mutated": false,
+  "assertions_or_deadlines_relaxed": false,
+  "prepared_at": "2026-10-03T10:14:17.954547+08:00"
+}

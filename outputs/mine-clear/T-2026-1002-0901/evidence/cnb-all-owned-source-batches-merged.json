@@ -1,0 +1,105 @@
+{
+  "at": "2026-10-04T07:41:18.907845+08:00",
+  "repository": "workloom-ai/WorkLoom-growth",
+  "pull": 318,
+  "merge": "f50a0f5be2be4ba053d918e07a94e45cdae4e4c2",
+  "audit_baseline": "42ead347c65a5cc343bcd290702d53a7fcdb1687",
+  "source": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+  "owned_source_batches": [
+    {
+      "sha": "5d0c83e3293dc3a71651210987c9a5b48023480d",
+      "subject": "fix(desktop): 修复客户端首次启动与载荷模块路径 [T-2026-1002-0901]",
+      "in_own_main_merge": true
+    },
+    {
+      "sha": "04099407ca73085e5d87f5c4d33ca9bba64f3374",
+      "subject": "fix(growth): 修复权限审批、影片工位与客户端交付链路 [T-2026-1002-0901]",
+      "in_own_main_merge": true
+    },
+    {
+      "sha": "3bfb89d3285b1e5e4c475b830e12f2c9c54b590b",
+      "subject": "fix(video): 绑定影片组件方法、阶段与冻结镜号 [T-2026-1002-0901]",
+      "in_own_main_merge": true
+    },
+    {
+      "sha": "a40340e54c486eacdb2386929cd0f6fb87aac0dd",
+      "subject": "fix(desktop): 排除源码开发依赖并校准系统遥测验收 [T-2026-1002-0901]",
+      "in_own_main_merge": true
+    },
+    {
+      "sha": "09bc1d176f1afcd5586b30707736ac383cd8d780",
+      "subject": "fix(desktop): 等待实际首日引导退出再验收场景 [T-2026-1002-0901]",
+      "in_own_main_merge": true
+    },
+    {
+      "sha": "0f3e479e7b729e7ec669b34f28a8e14df0ddd005",
+      "subject": "fix(desktop): 为 renderer 引导探针绑定硬截止 [T-2026-1002-0901]",
+      "in_own_main_merge": true
+    },
+    {
+      "sha": "ad4a7a0ba65845a8b401d3cbae7c8981c2ddfb4b",
+      "subject": "fix(growth): 清理数字人迟到加载并释放探针资源 [T-2026-1002-0901]",
+      "in_own_main_merge": true
+    },
+    {
+      "sha": "955e2277ee1496cfc4b40bd30345d1ce1be1acf1",
+      "subject": "fix(growth): 保持引导终态并恢复完整客户载荷 [T-2026-1002-0901]",
+      "in_own_main_merge": true
+    },
+    {
+      "sha": "b8b349fc88a3ed0b873d23720bf4d3d845500408",
+      "subject": "fix(growth): 分离职场名牌并修复完整点击区域 [T-2026-1002-0901]",
+      "in_own_main_merge": true
+    },
+    {
+      "sha": "7d5f02049cc75a692d4eaac33916633cb2192f01",
+      "subject": "fix(growth): separate 3D employee labels and focus expanded floors [T-2026-1002-0901]",
+      "in_own_main_merge": true
+    },
+    {
+      "sha": "aad8700daa0991555b9792db80f4703e3322f4f1",
+      "subject": "fix(growth): preserve canvas geometry under production styles [T-2026-1002-0901]",
+      "in_own_main_merge": true
+    },
+    {
+      "sha": "d6a100b60218173cdae6f5a5de7f66452bbbd884",
+      "subject": "fix(T-2026-1002-0901): apply floor geometry before initial scroll",
+      "in_own_main_merge": true
+    },
+    {
+      "sha": "c08386eb9993744a0cb0c2495a98fc1fc4ccbed9",
+      "subject": "fix(growth): align 3D employee hit targets and visible status bubbles [T-2026-1002-0901]",
+      "in_own_main_merge": true
+    },
+    {
+      "sha": "f0a11286a49419fb7909088e2d170f4dde7b60c6",
+      "subject": "fix(growth): correct native stage dimensions and CEO plaque boundaries [T-2026-1002-0901]",
+      "in_own_main_merge": true
+    },
+    {
+      "sha": "87ab5781d381d19e9dc7e1f5caa98b6a6b410c58",
+      "subject": "fix(growth): protect demo resets with target checks and backups [T-2026-1002-0901]",
+      "in_own_main_merge": true
+    },
+    {
+      "sha": "f9515d09ee6de9b34f38b93d3769654fe4869391",
+      "subject": "fix(growth): redact diagnostics and recover save failures [T-2026-1002-0901]",
+      "in_own_main_merge": true
+    },
+    {
+      "sha": "7fee3a6a5563d41c568463994764d3883eb7667d",
+      "subject": "fix(growth): separate stage reflector and solid base [T-2026-1002-0901]",
+      "in_own_main_merge": true
+    },
+    {
+      "sha": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+      "subject": "fix(growth): remove unused Live2D docs deployment dependency [T-2026-1002-0901]",
+      "in_own_main_merge": true
+    }
+  ],
+  "count": 18,
+  "all_owned_source_batches_merged": true,
+  "other_session_prs_modified": false,
+  "followup_issue": 322,
+  "evidence_grade": "B complete Git ancestor verification and primary platform merge readback"
+}

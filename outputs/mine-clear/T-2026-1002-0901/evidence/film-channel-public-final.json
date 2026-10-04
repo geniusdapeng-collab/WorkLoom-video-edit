@@ -1,0 +1,16 @@
+{
+  "name": "film-channel-public-final",
+  "command": [
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+    "--env-file=.env",
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/pnpm/bin/pnpm.cjs",
+    "exec",
+    "tsx",
+    "--env-file=.env",
+    "../film-worker-acceptance.mts"
+  ],
+  "exit_code": 1,
+  "seconds": 1.993,
+  "ran_at": "2026-10-02T23:11:24.244212+08:00",
+  "log": "film-channel-public-final.log"
+}

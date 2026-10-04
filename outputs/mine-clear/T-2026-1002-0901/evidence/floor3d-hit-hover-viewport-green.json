@@ -1,0 +1,16 @@
+{
+  "name": "floor3d-hit-hover-viewport-green",
+  "command": [
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/repair-obs17/floor3d-bubble-probe-v3.mjs",
+    "d6a100b60218173cdae6f5a5de7f66452bbbd884+uncommitted-obs17-final-visible-bubble",
+    "floor3d-hover-viewport-after-results.json",
+    "floor3d-hover-viewport-after",
+    "with-drop",
+    "drop-delivery"
+  ],
+  "exit_code": 1,
+  "seconds": 33.456,
+  "ran_at": "2026-10-03T08:18:26.154767+08:00",
+  "log": "floor3d-hit-hover-viewport-green.log"
+}

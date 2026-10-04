@@ -1,0 +1,11 @@
+{
+  "name": "mcd-geo-date-drift-owned-restore",
+  "command": [
+    "python3",
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/restore_owned_geo_fixture_window.py"
+  ],
+  "exit_code": 0,
+  "seconds": 0.291,
+  "ran_at": "2026-10-04T03:30:59.033860+08:00",
+  "log": "mcd-geo-date-drift-owned-restore.log"
+}

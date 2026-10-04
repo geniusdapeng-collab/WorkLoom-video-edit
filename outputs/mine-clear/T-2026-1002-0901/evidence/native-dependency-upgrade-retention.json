@@ -1,0 +1,9 @@
+{
+  "mode": "upgrade",
+  "at": "2026-10-04T01:30:45.207430+08:00",
+  "command_exit_code": 0,
+  "evidence": [],
+  "private_state_retained": true,
+  "diagnosticOnly": false,
+  "reused_failed_fixture": false
+}

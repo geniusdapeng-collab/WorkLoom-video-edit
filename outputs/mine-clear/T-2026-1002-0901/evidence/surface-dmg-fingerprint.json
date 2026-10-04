@@ -1,0 +1,17 @@
+{
+  "source": "7fee3a6a5563d41c568463994764d3883eb7667d",
+  "dmg": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/release/WorkLoom.GEO-mac-arm64.dmg",
+  "dmg_bytes": 630732441,
+  "dmg_sha256": "d86f0289eff53853ec171cedf728b30d8dffa615d4f5371a5d79472241ea1c8c",
+  "application": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/地面修复 DMG客户应用/WorkLoom 获客增长系统（实验车道）.app",
+  "executable": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/地面修复 DMG客户应用/WorkLoom 获客增长系统（实验车道）.app/Contents/MacOS/WorkLoom 获客增长系统（实验车道）",
+  "bundle_version": "0.1.0-fix.20261003.5",
+  "payload_sha256": "ae3480215c5a72f4c890aaf9e0fa942b613037b11c580ffeb9802fb7e309c673",
+  "app_asar_sha256": "d2853e56f03680d7eca3c24798ec58f482883908a30f649ef7f1dcaac0bab42a",
+  "payload_equals_verified_source": true,
+  "application_equals_tested_source": true,
+  "hdiutil_verify": "正在检查“Protective Master Boot Record（MBR：0）”的校验和…\nProtective Master Boot Record（MBR：0）：已验证CRC32 $4AC5619C\n正在检查“GPT Header（Primary GPT Header：1）”的校验和…\n    GPT Header（Primary GPT Header：1）：已验证CRC32 $63254016\n正在检查“GPT Partition Data（Primary GPT Table：2）”的校验和…\nGPT Partition Data（Primary GPT Table：已验证CRC32 $BA994DA1\n正在检查“（Apple_Free：3）”的校验和…\n                      （Apple_Free：3）：已验证CRC32 $00000000\n正在检查“disk image（Apple_HFS：4）”的校验和…\n             disk image（Apple_HFS：4）：已验证CRC32 $550061B4\n正在检查“（Apple_Free：5）”的校验和…\n                      （Apple_Free：5）：已验证CRC32 $00000000\n正在检查“GPT Partition Data（Backup GPT Table：6）”的校验和…\nGPT Partition Data（Backup GPT Table：：已验证CRC32 $BA994DA1\n正在检查“GPT Header（Backup GPT Header：7）”的校验和…\n     GPT Header（Backup GPT Header：7）：已验证CRC32 $9D2C7319\n已验证CRC32 $9403DDBB\nhdiutil: verify: checksum of \"/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/release/WorkLoom.GEO-mac-arm64.dmg\" is VALID\n",
+  "codesign_verify": "",
+  "signing": "ad-hoc QA only; Apple notarization and bundle trust absent",
+  "signed_platform_release": false
+}

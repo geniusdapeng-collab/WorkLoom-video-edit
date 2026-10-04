@@ -1,0 +1,14 @@
+{
+  "at": "2026-10-03T01:50:12.754355+08:00",
+  "source": "ad4a7a0ba65845a8b401d3cbae7c8981c2ddfb4b",
+  "removed": [
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/dist-payload/runtime",
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/dist-payload/node",
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/dist-payload/pg",
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/dist-payload/nats"
+  ],
+  "preserved_archive": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/dist-payload.tar.gz",
+  "archive_sha256": "2a32c85d22f64db30c9e13b8b5241c8be969eac814980bdf0b4e0a325099a54b",
+  "payload_version_marker_preserved": true,
+  "reason": "Completed ignored staging duplicates only; actual installed app and active support are separate, exact archive and B byte closure retained"
+}

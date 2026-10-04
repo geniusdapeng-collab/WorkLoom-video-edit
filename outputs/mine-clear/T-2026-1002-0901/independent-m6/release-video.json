@@ -1,0 +1,14 @@
+{
+  "name": "release-video",
+  "command": [
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+    "--env-file=.env",
+    "--test",
+    "scripts/ci/cnb-desktop-release.test.mjs",
+    "scripts/video-capabilities.test.mjs"
+  ],
+  "exit_code": 0,
+  "seconds": 11.341,
+  "ran_at": "2026-10-02T23:18:08.488052+08:00",
+  "log": "release-video.log"
+}

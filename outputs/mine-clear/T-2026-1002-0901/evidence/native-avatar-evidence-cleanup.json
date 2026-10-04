@@ -1,0 +1,33 @@
+{
+  "at": "2026-10-02T17:11:45.430295+00:00",
+  "evidence": [
+    {
+      "file": "native-avatar-diagnostic-render-default.json",
+      "sha256": "13928c1d9d4d6eea8bac5b7c65e2a8f92fb48103905c89fce937acdd01ebcb89"
+    },
+    {
+      "file": "native-avatar-diagnostic-render-default.png",
+      "sha256": "5f2c7ea9fbb385282761c559f4d1d81195e793f17a0e9375639bfa438f2920d8"
+    },
+    {
+      "file": "native-avatar-diagnostic-team-default.png",
+      "sha256": "24413a32083aea81347364073be8564b87d32f595c6bfd387d7e04be13419bea"
+    },
+    {
+      "file": "native-avatar-diagnostic-workplace-default.png",
+      "sha256": "41e42f9e81962d7f164cc922812c7ed3ac2359d34a79d10692d9926349936dc2"
+    },
+    {
+      "file": "native-avatar-diagnostic-stage-default.png",
+      "sha256": "7eddff4160d294b5d78e659f430438f8750a13d1aa64cfd67b3a696f0a9d4c5d"
+    }
+  ],
+  "removed_owned_test_payloads": [
+    "work/引导修复 默认客户/runtime",
+    "work/引导修复 默认客户/node",
+    "work/引导修复 默认客户/pg",
+    "work/引导修复 默认客户/nats",
+    "work/引导修复 默认客户/.payload-cache"
+  ],
+  "preserved": "private test DB data/config/version and logs; earlier cold failure log+JSON remain, its screenshot bytes were overwritten by diagnostic and not claimed retained"
+}

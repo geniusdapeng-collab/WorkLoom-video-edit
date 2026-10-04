@@ -1,0 +1,14 @@
+{
+  "name": "parent-channel-after",
+  "command": [
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+    "--env-file=.env",
+    "--import",
+    "./node_modules/tsx/dist/loader.mjs",
+    "../../outputs/growth-production-fix-2026-10-02/independent-m6/parent-channel-after-probe.mts"
+  ],
+  "exit_code": 0,
+  "seconds": 4.045,
+  "ran_at": "2026-10-02T23:20:00.964372+08:00",
+  "log": "parent-channel-after.log"
+}

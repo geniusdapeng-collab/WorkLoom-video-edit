@@ -1,0 +1,3189 @@
+{
+  "schema": "growth.independent-m6/mcd-repair-review@1",
+  "reviewed_by": "growth_m6",
+  "source_commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+  "generated_at": "2026-10-03T20:03:56.749Z",
+  "actor": "growth_m6",
+  "role": "repair",
+  "actual_fix_actor": "codex-root-T-2026-1002-0901",
+  "root_repair_role_actual_executed": true,
+  "execution_ledger_sha256": "efb4c201a19fcc7a558c9e838fdf18af4d2c2e26379ba2fe1d0391936f62a0f2",
+  "repair_snapshot": "evidence/execution-ledger-repair-1e471.json",
+  "repair_snapshot_sha256": "efb4c201a19fcc7a558c9e838fdf18af4d2c2e26379ba2fe1d0391936f62a0f2",
+  "execution_evidence_index": "evidence-index.json",
+  "execution_evidence_index_sha256": "e8e2cd7a62c01e289f78bf2d8eca97f11a04717c0573a9da4879e4d945d2699f",
+  "executor_closure": {
+    "mine-clear.mjs": "f2c0e0d200b32ffc7822c0f802afc8460c8c0f48afe261b656559bf1eb1596f5",
+    "evidence.mjs": "bb408f4b0257f2dbbf05a8bc072b6feda455fe39d371fa82c01166cf6772891a",
+    "node-test-reporter.mjs": "286448a4dee571759fc1703564477d27bf5319bcb05ff66db2186deda60bc78f"
+  },
+  "full_read_execution_helpers": {
+    "work/prepare_execution_ledger.py": "eb6a3207f6b8fad1418917680e2ec4f92e22c5197bbfe29fb7d25495cae24696",
+    "work/run_isolated_replay.py": "d341079a1973b4ad690ffe866b11eb3ecd022ac88ac577da8fac4a9b489eab87",
+    "work/run_installed_film_load.py": "c36d8395abee281c56e74cc76d23d4a531c5a6e947255ce66ee2fd7be95f70b4",
+    "work/portable-growth-stage/runtime-repro.mts": "83a3b21fc694f0eecd965ca3425bd29dcf9a2d2f280cce18148b9f683f9c4d13",
+    "work/portable-growth-stage/local-counter.mjs": "403b6c4e48e39fdcd6020cf952d3fadba132b6eb93774a820eadf472fa6db126",
+    "work/portable-growth-stage/auth-fixture.mts": "29ff8edaf40cf37bdeede3b2b0a2f3edf094bc554ffd224a18cf701037edf275",
+    "work/portable-growth-stage/auth-production-probe.mjs": "e4a12ae18f095990d1c38649ae37bce8da45d585f9ce243ed4c02a457f7e757d",
+    "work/portable-growth-stage/film-public-probe.mts": "7ed72a23b6f3e49ff85046099a4edf48d673ed70939a9edbea92c16fd79ae459"
+  },
+  "actual_runs": [
+    {
+      "card_id": "MC-001",
+      "assertion_index": 0,
+      "actor": "codex-root-T-2026-1002-0901",
+      "role": "repair",
+      "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+      "run": {
+        "path": "runs/MC-001-0-1791055877590.json",
+        "sha256": "50158925699891a06ddec6889f0e530add1ec1215ce901d9777f01d93c891180",
+        "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+      },
+      "evidence": {
+        "path": "evidence/MC-001-0-1791055877590.txt",
+        "sha256": "9594b1fbe586d8ef867b80a71009f6de4f40aa559b9c5f30ade95843bc39dcb4",
+        "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+      },
+      "command": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node --env-file=.env --test apps/desktop/electron/bootstrap.test.cjs",
+      "declared_exec": {
+        "file": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+        "args": [
+          "--env-file=.env",
+          "--test",
+          "apps/desktop/electron/bootstrap.test.cjs"
+        ]
+      },
+      "actual_exec": {
+        "file": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+        "args": [
+          "--test-reporter=/Users/mac/.codex/skills/mine-clear-delivery/assets/node-test-reporter.mjs",
+          "--test-reporter-destination=/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/evidence/MC-001-0-1791055877590-node-tests.jsonl",
+          "--test-reporter=tap",
+          "--test-reporter-destination=stdout",
+          "--env-file=.env",
+          "--test",
+          "apps/desktop/electron/bootstrap.test.cjs"
+        ]
+      },
+      "started_at": "2026-10-03T19:31:17.590Z",
+      "finished_at": "2026-10-03T19:31:18.189Z",
+      "exit_code": 0,
+      "validation": {
+        "ok": true,
+        "errors": [],
+        "testSummary": {
+          "total": 60,
+          "passed": 60,
+          "failed": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        }
+      },
+      "node_test_summary": {
+        "total": 60,
+        "passed": 60,
+        "failed": 0,
+        "cancelled": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "replay_observations": null,
+      "current_dependency_audit": null,
+      "actual_outputs_hash_verified": true,
+      "pass": true
+    },
+    {
+      "card_id": "MC-002",
+      "assertion_index": 0,
+      "actor": "codex-root-T-2026-1002-0901",
+      "role": "repair",
+      "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+      "run": {
+        "path": "runs/MC-002-0-1791055878428.json",
+        "sha256": "3c06e2e6c94e42bae2e71e8be6c0787f9aed2d8fae272a0354992a6a0a73369a",
+        "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+      },
+      "evidence": {
+        "path": "evidence/MC-002-0-1791055878428.txt",
+        "sha256": "d31c099b9e136dc1d0e6b3c8e4de74ad1781ba1d066317e7b7e39a85f27d037d",
+        "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+      },
+      "command": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node --env-file=.env scripts/runtime-deps-lock.mjs verify",
+      "declared_exec": {
+        "file": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+        "args": [
+          "--env-file=.env",
+          "scripts/runtime-deps-lock.mjs",
+          "verify"
+        ]
+      },
+      "actual_exec": {
+        "file": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+        "args": [
+          "--env-file=.env",
+          "scripts/runtime-deps-lock.mjs",
+          "verify"
+        ]
+      },
+      "started_at": "2026-10-03T19:31:18.428Z",
+      "finished_at": "2026-10-03T19:31:18.609Z",
+      "exit_code": 0,
+      "validation": {
+        "ok": true,
+        "errors": []
+      },
+      "node_test_summary": null,
+      "replay_observations": null,
+      "current_dependency_audit": null,
+      "actual_outputs_hash_verified": true,
+      "pass": true
+    },
+    {
+      "card_id": "MC-003",
+      "assertion_index": 0,
+      "actor": "codex-root-T-2026-1002-0901",
+      "role": "repair",
+      "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+      "run": {
+        "path": "runs/MC-003-0-1791055878823.json",
+        "sha256": "c94303bbafc1cd0eafe18b851a84a5182d3d653e97a117604886ec5f4091aa22",
+        "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+      },
+      "evidence": {
+        "path": "evidence/MC-003-0-1791055878823.txt",
+        "sha256": "3b8a94e72f3a66424c851148a107cf4f9f892d96eb3f284030bb24a7f85a4b58",
+        "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+      },
+      "command": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node --env-file=.env --test scripts/pack-workspace-modules.test.mjs",
+      "declared_exec": {
+        "file": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+        "args": [
+          "--env-file=.env",
+          "--test",
+          "scripts/pack-workspace-modules.test.mjs"
+        ]
+      },
+      "actual_exec": {
+        "file": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+        "args": [
+          "--test-reporter=/Users/mac/.codex/skills/mine-clear-delivery/assets/node-test-reporter.mjs",
+          "--test-reporter-destination=/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/evidence/MC-003-0-1791055878823-node-tests.jsonl",
+          "--test-reporter=tap",
+          "--test-reporter-destination=stdout",
+          "--env-file=.env",
+          "--test",
+          "scripts/pack-workspace-modules.test.mjs"
+        ]
+      },
+      "started_at": "2026-10-03T19:31:18.824Z",
+      "finished_at": "2026-10-03T19:31:19.412Z",
+      "exit_code": 0,
+      "validation": {
+        "ok": true,
+        "errors": [],
+        "testSummary": {
+          "total": 8,
+          "passed": 8,
+          "failed": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        }
+      },
+      "node_test_summary": {
+        "total": 8,
+        "passed": 8,
+        "failed": 0,
+        "cancelled": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "replay_observations": null,
+      "current_dependency_audit": null,
+      "actual_outputs_hash_verified": true,
+      "pass": true
+    },
+    {
+      "card_id": "MC-004",
+      "assertion_index": 0,
+      "actor": "codex-root-T-2026-1002-0901",
+      "role": "repair",
+      "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+      "run": {
+        "path": "runs/MC-004-0-1791055879637.json",
+        "sha256": "cad69b17292c55b84835be75bf185d2fe8c4f7374f1dff9218b8abbade9d5ed3",
+        "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+      },
+      "evidence": {
+        "path": "evidence/MC-004-0-1791055879637.txt",
+        "sha256": "5320e3689334d33e4a2b14286ee884b6ecd52395838f7c80d57c6127bb6544b8",
+        "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+      },
+      "command": "/Library/Developer/CommandLineTools/usr/bin/python3 /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/run_installed_film_load.py --source 1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8 --prefix dependency",
+      "declared_exec": {
+        "file": "/Library/Developer/CommandLineTools/usr/bin/python3",
+        "args": [
+          "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/run_installed_film_load.py",
+          "--source",
+          "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+          "--prefix",
+          "dependency"
+        ]
+      },
+      "actual_exec": {
+        "file": "/Library/Developer/CommandLineTools/usr/bin/python3",
+        "args": [
+          "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/run_installed_film_load.py",
+          "--source",
+          "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+          "--prefix",
+          "dependency"
+        ]
+      },
+      "started_at": "2026-10-03T19:31:19.637Z",
+      "finished_at": "2026-10-03T19:31:20.598Z",
+      "exit_code": 0,
+      "validation": {
+        "ok": true,
+        "errors": []
+      },
+      "node_test_summary": null,
+      "replay_observations": null,
+      "current_dependency_audit": null,
+      "actual_outputs_hash_verified": true,
+      "pass": true
+    },
+    {
+      "card_id": "MC-005",
+      "assertion_index": 0,
+      "actor": "codex-root-T-2026-1002-0901",
+      "role": "repair",
+      "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+      "run": {
+        "path": "runs/MC-005-0-1791055880820.json",
+        "sha256": "12f3205c14be8bc6c30a71294f1ab60c77a995dc4c9ea90faa43720b487091ab",
+        "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+      },
+      "evidence": {
+        "path": "evidence/MC-005-0-1791055880820.txt",
+        "sha256": "b23e0555dee629149b07f2d9a920d31b2d839639377c62362c19198433ee5b20",
+        "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+      },
+      "command": "/Library/Developer/CommandLineTools/usr/bin/python3 /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/run_isolated_replay.py --repo /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit --source 1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8 --group auth",
+      "declared_exec": {
+        "file": "/Library/Developer/CommandLineTools/usr/bin/python3",
+        "args": [
+          "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/run_isolated_replay.py",
+          "--repo",
+          "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit",
+          "--source",
+          "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+          "--group",
+          "auth"
+        ]
+      },
+      "actual_exec": {
+        "file": "/Library/Developer/CommandLineTools/usr/bin/python3",
+        "args": [
+          "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/run_isolated_replay.py",
+          "--repo",
+          "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit",
+          "--source",
+          "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+          "--group",
+          "auth"
+        ]
+      },
+      "started_at": "2026-10-03T19:31:20.821Z",
+      "finished_at": "2026-10-03T19:31:27.561Z",
+      "exit_code": 0,
+      "validation": {
+        "ok": true,
+        "errors": []
+      },
+      "node_test_summary": null,
+      "replay_observations": [
+        {
+          "name": "Anonymous production owner impersonation denied on non-example real-mode fixture",
+          "healthy": true,
+          "actual": {
+            "http": 403
+          }
+        },
+        {
+          "name": "Protected API rejects anonymous requests",
+          "healthy": true,
+          "actual": {
+            "http": 401
+          }
+        },
+        {
+          "name": "Desktop capability is mandatory",
+          "healthy": true,
+          "actual": {
+            "http": 401
+          }
+        },
+        {
+          "name": "Wrong desktop capability rejected",
+          "healthy": true,
+          "actual": {
+            "http": 401
+          }
+        },
+        {
+          "name": "Trusted local capability signs only the configured identity",
+          "healthy": true,
+          "actual": {
+            "http": 200,
+            "targetMatches": true
+          }
+        },
+        {
+          "name": "Trusted local session can access the real protected API",
+          "healthy": true,
+          "actual": {
+            "http": 200
+          }
+        },
+        {
+          "name": "Unsupported JWT algorithm denied",
+          "healthy": true,
+          "actual": {
+            "http": 401
+          }
+        },
+        {
+          "name": "JWT without expiration denied",
+          "healthy": true,
+          "actual": {
+            "http": 401
+          }
+        },
+        {
+          "name": "JWT without issue time denied",
+          "healthy": true,
+          "actual": {
+            "http": 401
+          }
+        },
+        {
+          "name": "Expired JWT denied",
+          "healthy": true,
+          "actual": {
+            "http": 401
+          }
+        },
+        {
+          "name": "Wrong product issuer denied",
+          "healthy": true,
+          "actual": {
+            "http": 401
+          }
+        }
+      ],
+      "current_dependency_audit": null,
+      "actual_outputs_hash_verified": true,
+      "pass": true
+    },
+    {
+      "card_id": "MC-006",
+      "assertion_index": 0,
+      "actor": "codex-root-T-2026-1002-0901",
+      "role": "repair",
+      "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+      "run": {
+        "path": "runs/MC-006-0-1791055887797.json",
+        "sha256": "a3bd5e518a8a312e6d1b7b9c612fd86b220cd5c4b3d55c08156d26606d1f0773",
+        "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+      },
+      "evidence": {
+        "path": "evidence/MC-006-0-1791055887797.txt",
+        "sha256": "8f8f131f26ca518be094916edc4a888be13b467092730aa4f7912bbd4b05ceaa",
+        "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+      },
+      "command": "/Library/Developer/CommandLineTools/usr/bin/python3 /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/run_isolated_replay.py --repo /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit --source 1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8 --group runtime",
+      "declared_exec": {
+        "file": "/Library/Developer/CommandLineTools/usr/bin/python3",
+        "args": [
+          "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/run_isolated_replay.py",
+          "--repo",
+          "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit",
+          "--source",
+          "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+          "--group",
+          "runtime"
+        ]
+      },
+      "actual_exec": {
+        "file": "/Library/Developer/CommandLineTools/usr/bin/python3",
+        "args": [
+          "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/run_isolated_replay.py",
+          "--repo",
+          "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit",
+          "--source",
+          "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+          "--group",
+          "runtime"
+        ]
+      },
+      "started_at": "2026-10-03T19:31:27.797Z",
+      "finished_at": "2026-10-03T19:31:32.886Z",
+      "exit_code": 0,
+      "validation": {
+        "ok": true,
+        "errors": []
+      },
+      "node_test_summary": null,
+      "replay_observations": [
+        {
+          "id": "QUEUE-10",
+          "expected": "Queue advances with 0 running and 10 queued",
+          "actual": {
+            "first": {
+              "picked": [
+                "audit-th-mussfk6h-922577-queue-q0",
+                "audit-th-mussfk6h-922577-queue-q1",
+                "audit-th-mussfk6h-922577-queue-q2"
+              ],
+              "failed": []
+            },
+            "second": {
+              "picked": [
+                "audit-th-mussfk6h-922577-queue-q3",
+                "audit-th-mussfk6h-922577-queue-q4",
+                "audit-th-mussfk6h-922577-queue-q5"
+              ],
+              "failed": []
+            },
+            "queued": 4
+          },
+          "healthy": true
+        },
+        {
+          "id": "BLOCK-FLAG",
+          "expected": "Unconditional block remains blocked regardless of context flags or approval",
+          "actual": {
+            "control": "paused",
+            "flagged": "paused",
+            "afterApproval": "paused",
+            "calls": []
+          },
+          "healthy": true
+        },
+        {
+          "id": "PENDING-CONCURRENCY",
+          "expected": "One approved high risk step invokes the executor at most once",
+          "actual": {
+            "statusReads": 3,
+            "calls": [
+              {
+                "name": "audit.write",
+                "params": {
+                  "amount": 1
+                },
+                "scope": {
+                  "tenantId": "audit-t-mussfk6h-922577-concurrency",
+                  "workspaceId": "audit-w-mussfk6h-922577-concurrency"
+                },
+                "at": 1791055888596
+              }
+            ],
+            "runs": [
+              {
+                "status": "fulfilled",
+                "value": "completed"
+              },
+              {
+                "status": "fulfilled",
+                "value": "running"
+              }
+            ],
+            "approval": {
+              "status": "approved",
+              "consumed_at": "2026-10-03T19:31:28.587Z"
+            },
+            "threadStatus": "completed"
+          },
+          "healthy": true
+        },
+        {
+          "id": "EDIT-PARAMS",
+          "expected": "Edited amount=2 is what the tool executes",
+          "actual": {
+            "status": "completed",
+            "requested": {
+              "amount": 2
+            },
+            "calls": [
+              {
+                "name": "audit.write",
+                "params": {
+                  "amount": 2
+                },
+                "scope": {
+                  "tenantId": "audit-t-mussfk6h-922577-edit",
+                  "workspaceId": "audit-w-mussfk6h-922577-edit"
+                },
+                "at": 1791055892608
+              }
+            ]
+          },
+          "healthy": true
+        },
+        {
+          "id": "EDIT-HIGH-RISK",
+          "expected": "Edited approval is handled consistently before any side effect",
+          "actual": {
+            "result": "completed",
+            "calls": [
+              {
+                "name": "audit.write",
+                "params": {
+                  "amount": 2
+                },
+                "scope": {
+                  "tenantId": "audit-t-mussfk6h-922577-edit-high",
+                  "workspaceId": "audit-w-mussfk6h-922577-edit-high"
+                },
+                "at": 1791055892626
+              }
+            ],
+            "threadStatus": "completed"
+          },
+          "healthy": true
+        },
+        {
+          "id": "RELEVANCE-REPLAY",
+          "expected": "Unapproved plan_unverified persists and still requires human approval on replay",
+          "actual": {
+            "first": "pending_review",
+            "stored": [
+              {
+                "tool": "audit.write",
+                "label": "本地计数动作",
+                "action": "audit.write",
+                "params": {},
+                "stepId": "s1",
+                "context": {
+                  "plan_unverified": true
+                },
+                "objectType": "audit_resource"
+              }
+            ],
+            "second": "pending_review",
+            "calls": []
+          },
+          "healthy": true
+        },
+        {
+          "id": "REJECT-TERMINAL",
+          "expected": "Rejected cancelled thread remains terminated unless explicit restart policy is invoked",
+          "actual": {
+            "before": "cancelled",
+            "after": "cancelled",
+            "storedStatus": "cancelled",
+            "calls": []
+          },
+          "healthy": true
+        },
+        {
+          "id": "PERMISSION-BEFORE-ACTION",
+          "expected": "An agent with no fence bindings cannot execute a write tool",
+          "actual": {
+            "error": "GatewayReject: Agent「audit-operator」未声明 fence_bindings，系统级禁写（F2.10），动作 audit.write 拒绝",
+            "calls": [],
+            "threadStatus": "failed"
+          },
+          "healthy": true
+        },
+        {
+          "id": "REJECT-WORKSPACE-COLLISION",
+          "expected": "Two workspaces reject with the same enum independently, with both approvals rejected and both threads cancelled",
+          "actual": [
+            {
+              "workspaceId": "audit-w-mussfk6h-922577-reject-left",
+              "approvalStatus": "rejected",
+              "threadStatus": "cancelled"
+            },
+            {
+              "workspaceId": "audit-w-mussfk6h-922577-reject-right",
+              "approvalStatus": "rejected",
+              "threadStatus": "cancelled"
+            }
+          ],
+          "healthy": true
+        }
+      ],
+      "current_dependency_audit": null,
+      "actual_outputs_hash_verified": true,
+      "pass": true
+    },
+    {
+      "card_id": "MC-007",
+      "assertion_index": 0,
+      "actor": "codex-root-T-2026-1002-0901",
+      "role": "repair",
+      "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+      "run": {
+        "path": "runs/MC-007-0-1791055893101.json",
+        "sha256": "fcb7c456c60689658aa6ed730799e2a48b4d27cf6d73e9d82f8b7ab34ea8b757",
+        "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+      },
+      "evidence": {
+        "path": "evidence/MC-007-0-1791055893101.txt",
+        "sha256": "e74e29cd1a4e18b4e38cc03e020c06c3a8986280e8c5b26650433a13590c3eb0",
+        "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+      },
+      "command": "/Library/Developer/CommandLineTools/usr/bin/python3 /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/run_isolated_replay.py --repo /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit --source 1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8 --group runtime --case BLOCK-FLAG",
+      "declared_exec": {
+        "file": "/Library/Developer/CommandLineTools/usr/bin/python3",
+        "args": [
+          "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/run_isolated_replay.py",
+          "--repo",
+          "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit",
+          "--source",
+          "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+          "--group",
+          "runtime",
+          "--case",
+          "BLOCK-FLAG"
+        ]
+      },
+      "actual_exec": {
+        "file": "/Library/Developer/CommandLineTools/usr/bin/python3",
+        "args": [
+          "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/run_isolated_replay.py",
+          "--repo",
+          "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit",
+          "--source",
+          "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+          "--group",
+          "runtime",
+          "--case",
+          "BLOCK-FLAG"
+        ]
+      },
+      "started_at": "2026-10-03T19:31:33.102Z",
+      "finished_at": "2026-10-03T19:31:33.839Z",
+      "exit_code": 0,
+      "validation": {
+        "ok": true,
+        "errors": []
+      },
+      "node_test_summary": null,
+      "replay_observations": [
+        {
+          "id": "BLOCK-FLAG",
+          "expected": "Unconditional block remains blocked regardless of context flags or approval",
+          "actual": {
+            "control": "paused",
+            "flagged": "paused",
+            "afterApproval": "paused",
+            "calls": []
+          },
+          "healthy": true
+        }
+      ],
+      "current_dependency_audit": null,
+      "actual_outputs_hash_verified": true,
+      "pass": true
+    },
+    {
+      "card_id": "MC-008",
+      "assertion_index": 0,
+      "actor": "codex-root-T-2026-1002-0901",
+      "role": "repair",
+      "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+      "run": {
+        "path": "runs/MC-008-0-1791055894058.json",
+        "sha256": "7246b5d9f7a178b2d221331d29fa16150e1bee943765acfb937023bec225ca3f",
+        "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+      },
+      "evidence": {
+        "path": "evidence/MC-008-0-1791055894058.txt",
+        "sha256": "cade9de2728c1c105a29ce874e9952fc0ed87750203201d98050d725638ac3d2",
+        "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+      },
+      "command": "/Library/Developer/CommandLineTools/usr/bin/python3 /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/run_isolated_replay.py --repo /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit --source 1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8 --group runtime --case RELEVANCE-REPLAY",
+      "declared_exec": {
+        "file": "/Library/Developer/CommandLineTools/usr/bin/python3",
+        "args": [
+          "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/run_isolated_replay.py",
+          "--repo",
+          "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit",
+          "--source",
+          "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+          "--group",
+          "runtime",
+          "--case",
+          "RELEVANCE-REPLAY"
+        ]
+      },
+      "actual_exec": {
+        "file": "/Library/Developer/CommandLineTools/usr/bin/python3",
+        "args": [
+          "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/run_isolated_replay.py",
+          "--repo",
+          "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit",
+          "--source",
+          "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+          "--group",
+          "runtime",
+          "--case",
+          "RELEVANCE-REPLAY"
+        ]
+      },
+      "started_at": "2026-10-03T19:31:34.058Z",
+      "finished_at": "2026-10-03T19:31:34.731Z",
+      "exit_code": 0,
+      "validation": {
+        "ok": true,
+        "errors": []
+      },
+      "node_test_summary": null,
+      "replay_observations": [
+        {
+          "id": "RELEVANCE-REPLAY",
+          "expected": "Unapproved plan_unverified persists and still requires human approval on replay",
+          "actual": {
+            "first": "pending_review",
+            "stored": [
+              {
+                "tool": "audit.write",
+                "label": "本地计数动作",
+                "action": "audit.write",
+                "params": {},
+                "stepId": "s1",
+                "context": {
+                  "plan_unverified": true
+                },
+                "objectType": "audit_resource"
+              }
+            ],
+            "second": "pending_review",
+            "calls": []
+          },
+          "healthy": true
+        }
+      ],
+      "current_dependency_audit": null,
+      "actual_outputs_hash_verified": true,
+      "pass": true
+    },
+    {
+      "card_id": "MC-009",
+      "assertion_index": 0,
+      "actor": "codex-root-T-2026-1002-0901",
+      "role": "repair",
+      "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+      "run": {
+        "path": "runs/MC-009-0-1791055894945.json",
+        "sha256": "4a718b5a8aad114f5017a066e261322f81c4dcc9b15222b81d0be5162b9da599",
+        "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+      },
+      "evidence": {
+        "path": "evidence/MC-009-0-1791055894945.txt",
+        "sha256": "0fdfbfa8c790fac77afb18839770e09db0854258c69d88905c51958f04d80e8c",
+        "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+      },
+      "command": "/Library/Developer/CommandLineTools/usr/bin/python3 /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/run_isolated_replay.py --repo /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit --source 1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8 --group runtime --case EDIT-PARAMS",
+      "declared_exec": {
+        "file": "/Library/Developer/CommandLineTools/usr/bin/python3",
+        "args": [
+          "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/run_isolated_replay.py",
+          "--repo",
+          "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit",
+          "--source",
+          "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+          "--group",
+          "runtime",
+          "--case",
+          "EDIT-PARAMS"
+        ]
+      },
+      "actual_exec": {
+        "file": "/Library/Developer/CommandLineTools/usr/bin/python3",
+        "args": [
+          "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/run_isolated_replay.py",
+          "--repo",
+          "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit",
+          "--source",
+          "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+          "--group",
+          "runtime",
+          "--case",
+          "EDIT-PARAMS"
+        ]
+      },
+      "started_at": "2026-10-03T19:31:34.945Z",
+      "finished_at": "2026-10-03T19:31:35.776Z",
+      "exit_code": 0,
+      "validation": {
+        "ok": true,
+        "errors": []
+      },
+      "node_test_summary": null,
+      "replay_observations": [
+        {
+          "id": "EDIT-PARAMS",
+          "expected": "Edited amount=2 is what the tool executes",
+          "actual": {
+            "status": "completed",
+            "requested": {
+              "amount": 2
+            },
+            "calls": [
+              {
+                "name": "audit.write",
+                "params": {
+                  "amount": 2
+                },
+                "scope": {
+                  "tenantId": "audit-t-mussfpqp-676123-edit",
+                  "workspaceId": "audit-w-mussfpqp-676123-edit"
+                },
+                "at": 1791055895633
+              }
+            ]
+          },
+          "healthy": true
+        }
+      ],
+      "current_dependency_audit": null,
+      "actual_outputs_hash_verified": true,
+      "pass": true
+    },
+    {
+      "card_id": "MC-010",
+      "assertion_index": 0,
+      "actor": "codex-root-T-2026-1002-0901",
+      "role": "repair",
+      "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+      "run": {
+        "path": "runs/MC-010-0-1791055896008.json",
+        "sha256": "6ae65f6c38dd66cec1e335a0cda848212a5119c6434ba885318e7a4a72b0d01b",
+        "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+      },
+      "evidence": {
+        "path": "evidence/MC-010-0-1791055896008.txt",
+        "sha256": "0483bd96b39160cec2ff46482e95efe852f20d276285025a95c66c7e20b0c5ce",
+        "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+      },
+      "command": "/Library/Developer/CommandLineTools/usr/bin/python3 /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/run_isolated_replay.py --repo /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit --source 1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8 --group runtime --case QUEUE-10",
+      "declared_exec": {
+        "file": "/Library/Developer/CommandLineTools/usr/bin/python3",
+        "args": [
+          "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/run_isolated_replay.py",
+          "--repo",
+          "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit",
+          "--source",
+          "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+          "--group",
+          "runtime",
+          "--case",
+          "QUEUE-10"
+        ]
+      },
+      "actual_exec": {
+        "file": "/Library/Developer/CommandLineTools/usr/bin/python3",
+        "args": [
+          "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/run_isolated_replay.py",
+          "--repo",
+          "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit",
+          "--source",
+          "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+          "--group",
+          "runtime",
+          "--case",
+          "QUEUE-10"
+        ]
+      },
+      "started_at": "2026-10-03T19:31:36.008Z",
+      "finished_at": "2026-10-03T19:31:36.976Z",
+      "exit_code": 0,
+      "validation": {
+        "ok": true,
+        "errors": []
+      },
+      "node_test_summary": null,
+      "replay_observations": [
+        {
+          "id": "QUEUE-10",
+          "expected": "Queue advances with 0 running and 10 queued",
+          "actual": {
+            "first": {
+              "picked": [
+                "audit-th-mussfqk0-523640-queue-q0",
+                "audit-th-mussfqk0-523640-queue-q1",
+                "audit-th-mussfqk0-523640-queue-q2"
+              ],
+              "failed": []
+            },
+            "second": {
+              "picked": [
+                "audit-th-mussfqk0-523640-queue-q3",
+                "audit-th-mussfqk0-523640-queue-q4",
+                "audit-th-mussfqk0-523640-queue-q5"
+              ],
+              "failed": []
+            },
+            "queued": 4
+          },
+          "healthy": true
+        }
+      ],
+      "current_dependency_audit": null,
+      "actual_outputs_hash_verified": true,
+      "pass": true
+    },
+    {
+      "card_id": "MC-011",
+      "assertion_index": 0,
+      "actor": "codex-root-T-2026-1002-0901",
+      "role": "repair",
+      "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+      "run": {
+        "path": "runs/MC-011-0-1791055897204.json",
+        "sha256": "ac8d159fe2984f3a74abcbfc843b4430ed47be5c895139e35bb534e55abbcbd9",
+        "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+      },
+      "evidence": {
+        "path": "evidence/MC-011-0-1791055897204.txt",
+        "sha256": "ca55bee2e994aa7b5f8bdceaeb0657b64014ec3c89b0ed02a4782928c0514a6e",
+        "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+      },
+      "command": "/Library/Developer/CommandLineTools/usr/bin/python3 /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/run_isolated_replay.py --repo /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit --source 1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8 --group runtime --case REJECT-TERMINAL",
+      "declared_exec": {
+        "file": "/Library/Developer/CommandLineTools/usr/bin/python3",
+        "args": [
+          "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/run_isolated_replay.py",
+          "--repo",
+          "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit",
+          "--source",
+          "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+          "--group",
+          "runtime",
+          "--case",
+          "REJECT-TERMINAL"
+        ]
+      },
+      "actual_exec": {
+        "file": "/Library/Developer/CommandLineTools/usr/bin/python3",
+        "args": [
+          "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/run_isolated_replay.py",
+          "--repo",
+          "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit",
+          "--source",
+          "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+          "--group",
+          "runtime",
+          "--case",
+          "REJECT-TERMINAL"
+        ]
+      },
+      "started_at": "2026-10-03T19:31:37.204Z",
+      "finished_at": "2026-10-03T19:31:37.943Z",
+      "exit_code": 0,
+      "validation": {
+        "ok": true,
+        "errors": []
+      },
+      "node_test_summary": null,
+      "replay_observations": [
+        {
+          "id": "REJECT-TERMINAL",
+          "expected": "Rejected cancelled thread remains terminated unless explicit restart policy is invoked",
+          "actual": {
+            "before": "cancelled",
+            "after": "cancelled",
+            "storedStatus": "cancelled",
+            "calls": []
+          },
+          "healthy": true
+        }
+      ],
+      "current_dependency_audit": null,
+      "actual_outputs_hash_verified": true,
+      "pass": true
+    },
+    {
+      "card_id": "MC-012",
+      "assertion_index": 0,
+      "actor": "codex-root-T-2026-1002-0901",
+      "role": "repair",
+      "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+      "run": {
+        "path": "runs/MC-012-0-1791055898166.json",
+        "sha256": "8db8b41ace4b96987d023717802a776d8dc9f781240b2f85f85ffb8b727492ac",
+        "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+      },
+      "evidence": {
+        "path": "evidence/MC-012-0-1791055898166.txt",
+        "sha256": "614ba0d13d97daaec850075e2ac28c254c8dd9f8f7c3ccca0b4f01b2e5007eb0",
+        "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+      },
+      "command": "/Library/Developer/CommandLineTools/usr/bin/python3 /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/run_isolated_replay.py --repo /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit --source 1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8 --group runtime --case REJECT-WORKSPACE-COLLISION",
+      "declared_exec": {
+        "file": "/Library/Developer/CommandLineTools/usr/bin/python3",
+        "args": [
+          "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/run_isolated_replay.py",
+          "--repo",
+          "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit",
+          "--source",
+          "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+          "--group",
+          "runtime",
+          "--case",
+          "REJECT-WORKSPACE-COLLISION"
+        ]
+      },
+      "actual_exec": {
+        "file": "/Library/Developer/CommandLineTools/usr/bin/python3",
+        "args": [
+          "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/run_isolated_replay.py",
+          "--repo",
+          "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit",
+          "--source",
+          "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+          "--group",
+          "runtime",
+          "--case",
+          "REJECT-WORKSPACE-COLLISION"
+        ]
+      },
+      "started_at": "2026-10-03T19:31:38.166Z",
+      "finished_at": "2026-10-03T19:31:38.897Z",
+      "exit_code": 0,
+      "validation": {
+        "ok": true,
+        "errors": []
+      },
+      "node_test_summary": null,
+      "replay_observations": [
+        {
+          "id": "REJECT-WORKSPACE-COLLISION",
+          "expected": "Two workspaces reject with the same enum independently, with both approvals rejected and both threads cancelled",
+          "actual": [
+            {
+              "workspaceId": "audit-w-mussfs5r-320110-reject-left",
+              "approvalStatus": "rejected",
+              "threadStatus": "cancelled"
+            },
+            {
+              "workspaceId": "audit-w-mussfs5r-320110-reject-right",
+              "approvalStatus": "rejected",
+              "threadStatus": "cancelled"
+            }
+          ],
+          "healthy": true
+        }
+      ],
+      "current_dependency_audit": null,
+      "actual_outputs_hash_verified": true,
+      "pass": true
+    },
+    {
+      "card_id": "MC-013",
+      "assertion_index": 0,
+      "actor": "codex-root-T-2026-1002-0901",
+      "role": "repair",
+      "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+      "run": {
+        "path": "runs/MC-013-0-1791055899123.json",
+        "sha256": "3b2a98eb3032ea095eb9d187f25027c418ff7bf1f9a1ba87668a4082bbd0fa78",
+        "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+      },
+      "evidence": {
+        "path": "evidence/MC-013-0-1791055899123.txt",
+        "sha256": "cb85ea62d75583387ed3d4f729f0fba087cdef48f8b75e7792d6036e3465010b",
+        "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+      },
+      "command": "/Library/Developer/CommandLineTools/usr/bin/python3 /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/run_isolated_replay.py --repo /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit --source 1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8 --group film",
+      "declared_exec": {
+        "file": "/Library/Developer/CommandLineTools/usr/bin/python3",
+        "args": [
+          "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/run_isolated_replay.py",
+          "--repo",
+          "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit",
+          "--source",
+          "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+          "--group",
+          "film"
+        ]
+      },
+      "actual_exec": {
+        "file": "/Library/Developer/CommandLineTools/usr/bin/python3",
+        "args": [
+          "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/run_isolated_replay.py",
+          "--repo",
+          "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit",
+          "--source",
+          "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+          "--group",
+          "film"
+        ]
+      },
+      "started_at": "2026-10-03T19:31:39.123Z",
+      "finished_at": "2026-10-03T19:31:40.939Z",
+      "exit_code": 0,
+      "validation": {
+        "ok": true,
+        "errors": []
+      },
+      "node_test_summary": null,
+      "replay_observations": [
+        {
+          "name": "Public film start/status executes registered local stage with frozen source",
+          "healthy": true,
+          "status": "finished",
+          "error": null,
+          "log": "7-787c-434a-ada7-5bd96018a4ff.json\n[19:31:40] 开场钩子：未登记钩子卡\n[19:31:40]   窗口：前 5s｜判据：硬失败 0 · 软提示 1｜钩子音：关闭\n[19:31:40]   ✗ [hook-card] 缺钩子卡：建议在 shotlist 顶层加 hook（类型/承诺/兑现镜/首镜模板）\n[19:31:40]   ⇢ [hook-audit] ok 0ms\n[19:31:40] 平台语速：YouTube → standard 档（目标 3.5 · 上限 4.2 字/秒 · 配音基础速率 1×）\n[19:31:40]   台词镜 0 个｜念不完 0 · 节奏偏松 0 · 无法判定 0\n[19:31:40]   ⇢ [speech-rate] ok 0ms\n[19:31:40] 一次过就绪度 G-FP1 通过（渲染顺序按风险降序：SC-01）\n[19:31:40]   ⇢ [gate SC-01] ok 0ms\n[19:31:40]   ⇢ [gate G-FP1 g-first-pass] ok（deterministic） — workloom.first-pass-readiness/v1：就绪\n[19:31:40]   ⇢ [gate SC-01] ok 0ms\n[19:31:40]   ⇢ [gate G-RL1 g-prompt-redlines] ok（deterministic） — 提示词红线 workloom.prompt-redlines/v1：hard 0 · soft 1\n[19:31:40] ⚠ 提示词红线（软）hands-negative：SC-01：含手部动作，但负面清单缺「无多余手指/六指」\n[19:31:40] ⚠ 商品档案库有 9 份档案存在硬问题（本片未引用则不拦截）：ble-checkin[photos-empty]、cxz-01[photos-empty]、embedded-desktop[photos-empty]、face-checkin[photos-empty]、hotel-ai-agent[photos-empty]、locker-cooler[photo-missing]、premium-vertical[photos-empty]、simple-vertical[photos-empty]、tablet-butler[photos-empty]\n[19:31:40] 未显式指定模特 → 使用系统默认模特：陈卓（chen-zhuo，1 号）\n[19:31:40]   ⇢ [gate G5 g5-portrait-confirm] ok（deterministic） — 门通过（5 项判据，硬闸 3 条）\n[19:31:40] 项目 m6-film-6c7b5517-787c-434a-ada7-5bd96018a4ff｜镜头 1 个｜目标 5s｜9:16 源 1080p → 交付 1080p (1080x1920)@30fps\n[19:31:40] 媒体工具：ffmpeg=/Users/mac/.workloom-color/bin/ffmpeg｜ffprobe=/Users/mac/.workloom-color/bin/ffprobe\n[19:31:40] 后期缓存：/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/mcd-replay-attempts/film-by8z7ikk/film-fixtures/archive/ws-yunqi/m6-film-6c7b5517-787c-434a-ada7-5bd96018a4ff/stages/film/attempt-1/work/post/m6-film-6c7b5517-787c-434a-ada7-5bd96018a4ff｜交付目录：/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/mcd-replay-attempts/film-by8z7ikk/film-fixtures/archive/ws-yunqi/m6-film-6c7b5517-787c-434a-ada7-5bd96018a4ff/stages/film/attempt-1/delivery\n[19:31:40] 角色档案：陈卓（chen-zhuo）角度 front/threeQuarter/closeup/side/back/actionPose/emotionCloseup/handDetail\n[19:31:40] 阶段：cine-kb → continuity｜监制：fail-closed\n[19:31:40]   ⇢ [gate] ok 0ms\n[19:31:40] 摄影知识库：19 篇 / 388 条映射\n[19:31:40]   SC-01: passed · 光圈 f/2.8–f/4（环境人像（要带场景））· 实际写入 3 个字段 → depth_of_field/lighting/camera_movement\n[19:31:40]   ⇢ [cine-kb SC-01] ok 32ms → /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/mcd-replay-attempts/film-by8z7ikk/film-fixtures/archive/ws-yunqi/m6-film-6c7b5517-787c-434a-ada7-5bd96018a4ff/stages/film/attempt-1/work/cine-kb/001-SC-01.json\n[19:31:40]   ⇢ [cine-kb] ok 33ms → /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/mcd-replay-attempts/film-by8z7ikk/film-fixtures/archive/ws-yunqi/m6-film-6c7b5517-787c-434a-ada7-5bd96018a4ff/stages/film/attempt-1/work/shotlist-enriched-m6-film-6c7b5517-787c-434a-ada7-5bd96018a4ff.json\n[19:31:40]   ⇢ [continuity] ok 17ms → /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/mcd-replay-attempts/film-by8z7ikk/film-fixtures/archive/ws-yunqi/m6-film-6c7b5517-787c-434a-ada7-5bd96018a4ff/stages/film/attempt-1/inputs/source.json\n[19:31:40] 阶段日志：/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/mcd-replay-attempts/film-by8z7ikk/film-fixtures/archive/ws-yunqi/m6-film-6c7b5517-787c-434a-ada7-5bd96018a4ff/stages/film/attempt-1/work/logs/m6-film-6c7b5517-787c-434a-ada7-5bd96018a4ff/stages.jsonl\n[19:31:40]   · route          invoked=1 ok=1 failed=0 degraded=0 cached=0\n[19:31:40]   · scene-policy-audit invoked=1 ok=1 failed=0 degraded=0 cached=0\n[19:31:40]   · env-audit      invoked=1 ok=1 failed=0 degraded=0 cached=0\n[19:31:40]   · hook-audit     invoked=1 ok=1 failed=0 degraded=0 cached=0\n[19:31:40]   · speech-rate    invoked=1 ok=1 failed=0 degraded=0 cached=0\n[19:31:40]   · gate           invoked=3 ok=3 failed=0 degraded=0 cached=0\n[19:31:40]   · cine-kb        invoked=2 ok=2 failed=0 degraded=0 cached=0\n[19:31:40]   · continuity     invoked=1 ok=1 failed=0 degraded=0 cached=0\n",
+          "components": [
+            {
+              "component": "review",
+              "stepKey": "continuity",
+              "shotId": null,
+              "state": "accepted",
+              "reservedCny": 0.05,
+              "actualCny": null,
+              "updatedAt": "2026-10-03T19:31:40.686Z"
+            }
+          ]
+        },
+        {
+          "name": "Result is bound to the job, run and frozen input",
+          "healthy": true
+        },
+        {
+          "name": "Registered component capability reaches the parent review ledger",
+          "healthy": true
+        },
+        {
+          "name": "Unknown stage fails before spawning",
+          "healthy": true
+        },
+        {
+          "name": "Options cannot read a secret file or replace job paths",
+          "healthy": true
+        }
+      ],
+      "current_dependency_audit": null,
+      "actual_outputs_hash_verified": true,
+      "pass": true
+    },
+    {
+      "card_id": "MC-013",
+      "assertion_index": 1,
+      "actor": "codex-root-T-2026-1002-0901",
+      "role": "repair",
+      "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+      "run": {
+        "path": "runs/MC-013-1-1791055900978.json",
+        "sha256": "c47f2e0868500b16d0ed458e5da8c124c61941af3355a11b182375e580124f95",
+        "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+      },
+      "evidence": {
+        "path": "evidence/MC-013-1-1791055900978.txt",
+        "sha256": "b84ec34f5d6d1d21963cf7b1d7826c2086cab9b78e53cbaf32105e80a7a72684",
+        "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+      },
+      "command": "/Library/Developer/CommandLineTools/usr/bin/python3 /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/run_isolated_replay.py --repo /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit --source 1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8 --group film --case missing-output",
+      "declared_exec": {
+        "file": "/Library/Developer/CommandLineTools/usr/bin/python3",
+        "args": [
+          "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/run_isolated_replay.py",
+          "--repo",
+          "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit",
+          "--source",
+          "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+          "--group",
+          "film",
+          "--case",
+          "missing-output"
+        ]
+      },
+      "actual_exec": {
+        "file": "/Library/Developer/CommandLineTools/usr/bin/python3",
+        "args": [
+          "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/run_isolated_replay.py",
+          "--repo",
+          "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit",
+          "--source",
+          "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+          "--group",
+          "film",
+          "--case",
+          "missing-output"
+        ]
+      },
+      "started_at": "2026-10-03T19:31:40.978Z",
+      "finished_at": "2026-10-03T19:31:42.426Z",
+      "exit_code": 0,
+      "validation": {
+        "ok": true,
+        "errors": []
+      },
+      "node_test_summary": null,
+      "replay_observations": [
+        {
+          "name": "Composition without upstream clips cannot report a successful job",
+          "healthy": true,
+          "status": "failed",
+          "error": "WORKER_EXIT_NONZERO",
+          "log": "empty]、tablet-butler[photos-empty]\n[19:31:42] 未显式指定模特 → 使用系统默认模特：陈卓（chen-zhuo，1 号）\n[19:31:42]   ⇢ [gate] ok 0ms\n[19:31:42]   ⇢ [gate G5 g5-portrait-confirm] ok（deterministic） — 门通过（5 项判据，硬闸 3 条）\n[19:31:42] 项目 m6-film-ae71e48e-d517-4102-9420-3789e8d9f4eb｜镜头 1 个｜目标 5s｜9:16 源 1080p → 交付 1080p (1080x1920)@30fps\n[19:31:42] 媒体工具：ffmpeg=/Users/mac/.workloom-color/bin/ffmpeg｜ffprobe=/Users/mac/.workloom-color/bin/ffprobe\n[19:31:42] 后期缓存：/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/mcd-replay-attempts/film-7gkx2td5/film-fixtures/archive/ws-yunqi/m6-film-ae71e48e-d517-4102-9420-3789e8d9f4eb/stages/film/attempt-1/work/post/m6-film-ae71e48e-d517-4102-9420-3789e8d9f4eb｜交付目录：/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/mcd-replay-attempts/film-7gkx2td5/film-fixtures/archive/ws-yunqi/m6-film-ae71e48e-d517-4102-9420-3789e8d9f4eb/stages/film/attempt-1/delivery\n[19:31:42] 角色档案：陈卓（chen-zhuo）角度 front/threeQuarter/closeup/side/back/actionPose/emotionCloseup/handDetail\n[19:31:42] 阶段：compose｜监制：fail-closed\n[19:31:42] ⛔ 缺少当前镜头或人声的通过回执，合成中止：SC-01\n[19:31:42]   ⇢ [compose] FAIL 0ms\n[19:31:42] 阶段日志：/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/mcd-replay-attempts/film-7gkx2td5/film-fixtures/archive/ws-yunqi/m6-film-ae71e48e-d517-4102-9420-3789e8d9f4eb/stages/film/attempt-1/work/logs/m6-film-ae71e48e-d517-4102-9420-3789e8d9f4eb/stages.jsonl\n[19:31:42]   · route          invoked=1 ok=1 failed=0 degraded=0 cached=0\n[19:31:42]   · scene-policy-audit invoked=1 ok=1 failed=0 degraded=0 cached=0\n[19:31:42]   · env-audit      invoked=1 ok=1 failed=0 degraded=0 cached=0\n[19:31:42]   · hook-audit     invoked=1 ok=1 failed=0 degraded=0 cached=0\n[19:31:42]   · speech-rate    invoked=1 ok=1 failed=0 degraded=0 cached=0\n[19:31:42]   · gate           invoked=3 ok=3 failed=0 degraded=0 cached=0\n[19:31:42]   · compose        invoked=0 ok=0 failed=0 degraded=0 cached=0\n[19:31:42] ⛔ 请求未完成：缺阶段 无；未通过 compose\n"
+        }
+      ],
+      "current_dependency_audit": null,
+      "actual_outputs_hash_verified": true,
+      "pass": true
+    },
+    {
+      "card_id": "MC-013",
+      "assertion_index": 2,
+      "actor": "codex-root-T-2026-1002-0901",
+      "role": "repair",
+      "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+      "run": {
+        "path": "runs/MC-013-2-1791055902465.json",
+        "sha256": "77dc7c5d98b6d10861612ea336ab9e0261970b7ea7df8323bca15b79d695763d",
+        "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+      },
+      "evidence": {
+        "path": "evidence/MC-013-2-1791055902465.txt",
+        "sha256": "ef6fa23e6202ed91b7e927dd95646d1bd838456a55abcde24d81446c669c6f8d",
+        "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+      },
+      "command": "/Library/Developer/CommandLineTools/usr/bin/python3 /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/run_isolated_replay.py --repo /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit --source 1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8 --group film --case deadline",
+      "declared_exec": {
+        "file": "/Library/Developer/CommandLineTools/usr/bin/python3",
+        "args": [
+          "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/run_isolated_replay.py",
+          "--repo",
+          "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit",
+          "--source",
+          "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+          "--group",
+          "film",
+          "--case",
+          "deadline"
+        ]
+      },
+      "actual_exec": {
+        "file": "/Library/Developer/CommandLineTools/usr/bin/python3",
+        "args": [
+          "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/run_isolated_replay.py",
+          "--repo",
+          "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit",
+          "--source",
+          "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+          "--group",
+          "film",
+          "--case",
+          "deadline"
+        ]
+      },
+      "started_at": "2026-10-03T19:31:42.465Z",
+      "finished_at": "2026-10-03T19:31:43.308Z",
+      "exit_code": 0,
+      "validation": {
+        "ok": true,
+        "errors": []
+      },
+      "node_test_summary": null,
+      "replay_observations": [
+        {
+          "name": "Hard deadline stops the worker and cannot become a successful exit",
+          "healthy": true,
+          "status": "failed",
+          "error": "JOB_DEADLINE_EXCEEDED"
+        }
+      ],
+      "current_dependency_audit": null,
+      "actual_outputs_hash_verified": true,
+      "pass": true
+    },
+    {
+      "card_id": "MC-014",
+      "assertion_index": 0,
+      "actor": "codex-root-T-2026-1002-0901",
+      "role": "repair",
+      "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+      "run": {
+        "path": "runs/MC-014-0-1791055903545.json",
+        "sha256": "0882ce6e768f1d49f00185bb599106cc7797991eb01c19f32a6807aec51d5145",
+        "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+      },
+      "evidence": {
+        "path": "evidence/MC-014-0-1791055903545.txt",
+        "sha256": "bc95813e097cf389594dee663c313a1fc77b23cd796e38f81e4d3098e913dd10",
+        "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+      },
+      "command": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node --env-file=.env --import tsx scripts/suite-geo.ts",
+      "declared_exec": {
+        "file": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+        "args": [
+          "--env-file=.env",
+          "--import",
+          "tsx",
+          "scripts/suite-geo.ts"
+        ]
+      },
+      "actual_exec": {
+        "file": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+        "args": [
+          "--env-file=.env",
+          "--import",
+          "tsx",
+          "scripts/suite-geo.ts"
+        ]
+      },
+      "started_at": "2026-10-03T19:31:43.545Z",
+      "finished_at": "2026-10-03T19:31:46.204Z",
+      "exit_code": 0,
+      "validation": {
+        "ok": true,
+        "errors": []
+      },
+      "node_test_summary": null,
+      "replay_observations": null,
+      "current_dependency_audit": null,
+      "actual_outputs_hash_verified": true,
+      "pass": true
+    },
+    {
+      "card_id": "MC-015",
+      "assertion_index": 0,
+      "actor": "codex-root-T-2026-1002-0901",
+      "role": "repair",
+      "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+      "run": {
+        "path": "runs/MC-015-0-1791055906428.json",
+        "sha256": "bd28de6fc9704e40af21afca246ac5f0c81c980629422b3a708271ae737dafb5",
+        "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+      },
+      "evidence": {
+        "path": "evidence/MC-015-0-1791055906428.txt",
+        "sha256": "2c989dff5c39751b3871c484d377a13bdffad1c777d5488598f455547abe2462",
+        "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+      },
+      "command": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node --env-file=.env --test scripts/video-capabilities.test.mjs",
+      "declared_exec": {
+        "file": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+        "args": [
+          "--env-file=.env",
+          "--test",
+          "scripts/video-capabilities.test.mjs"
+        ]
+      },
+      "actual_exec": {
+        "file": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+        "args": [
+          "--test-reporter=/Users/mac/.codex/skills/mine-clear-delivery/assets/node-test-reporter.mjs",
+          "--test-reporter-destination=/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/evidence/MC-015-0-1791055906428-node-tests.jsonl",
+          "--test-reporter=tap",
+          "--test-reporter-destination=stdout",
+          "--env-file=.env",
+          "--test",
+          "scripts/video-capabilities.test.mjs"
+        ]
+      },
+      "started_at": "2026-10-03T19:31:46.429Z",
+      "finished_at": "2026-10-03T19:31:46.848Z",
+      "exit_code": 0,
+      "validation": {
+        "ok": true,
+        "errors": [],
+        "testSummary": {
+          "total": 4,
+          "passed": 4,
+          "failed": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        }
+      },
+      "node_test_summary": {
+        "total": 4,
+        "passed": 4,
+        "failed": 0,
+        "cancelled": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "replay_observations": null,
+      "current_dependency_audit": null,
+      "actual_outputs_hash_verified": true,
+      "pass": true
+    },
+    {
+      "card_id": "MC-016",
+      "assertion_index": 0,
+      "actor": "codex-root-T-2026-1002-0901",
+      "role": "repair",
+      "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+      "run": {
+        "path": "runs/MC-016-0-1791055907114.json",
+        "sha256": "e1221b09b62dbfd326dd9aec24b1cc1e12dcd7d9cd645cb0b434c8df29ae90aa",
+        "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+      },
+      "evidence": {
+        "path": "evidence/MC-016-0-1791055907114.txt",
+        "sha256": "eb5d94bcb000d4d42a0cc12b07cba6deb9be53f5b3eddd20d9caee95eeeb36bb",
+        "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+      },
+      "command": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/pnpm/bin/pnpm.cjs audit --prod --json",
+      "declared_exec": {
+        "file": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+        "args": [
+          "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/pnpm/bin/pnpm.cjs",
+          "audit",
+          "--prod",
+          "--json"
+        ]
+      },
+      "actual_exec": {
+        "file": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+        "args": [
+          "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/pnpm/bin/pnpm.cjs",
+          "audit",
+          "--prod",
+          "--json"
+        ]
+      },
+      "started_at": "2026-10-03T19:31:47.114Z",
+      "finished_at": "2026-10-03T19:32:02.568Z",
+      "exit_code": 0,
+      "validation": {
+        "ok": true,
+        "errors": []
+      },
+      "node_test_summary": null,
+      "replay_observations": null,
+      "current_dependency_audit": {
+        "source_commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+        "actual_role": "repair",
+        "metadata": {
+          "vulnerabilities": {
+            "info": 0,
+            "low": 0,
+            "moderate": 0,
+            "high": 0,
+            "critical": 0
+          },
+          "dependencies": 197,
+          "devDependencies": 0,
+          "optionalDependencies": 0,
+          "totalDependencies": 197
+        },
+        "advisory_count": 0,
+        "muted_count": 0,
+        "registry_backed_actual_run": true,
+        "inherited_from_old_zero_advisory_receipt": false,
+        "original_high_advisory_run_not_overwritten": true
+      },
+      "actual_outputs_hash_verified": true,
+      "pass": true
+    },
+    {
+      "card_id": "MC-017",
+      "assertion_index": 0,
+      "actor": "codex-root-T-2026-1002-0901",
+      "role": "repair",
+      "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+      "run": {
+        "path": "runs/MC-017-0-1791055953242.json",
+        "sha256": "21a3ae5da9c59dc11bae119a0c1cda6d09eb5ccf0099e4b6b82e0f8e0ab76842",
+        "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+      },
+      "evidence": {
+        "path": "evidence/MC-017-0-1791055953242.txt",
+        "sha256": "f1c29ebb0067e6f61ad16d4b8cc223744d3ba3d189ec3adb194d0382ec621a74",
+        "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+      },
+      "command": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node --env-file=.env --test scripts/reset-safety.test.mjs",
+      "declared_exec": {
+        "file": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+        "args": [
+          "--env-file=.env",
+          "--test",
+          "scripts/reset-safety.test.mjs"
+        ]
+      },
+      "actual_exec": {
+        "file": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+        "args": [
+          "--test-reporter=/Users/mac/.codex/skills/mine-clear-delivery/assets/node-test-reporter.mjs",
+          "--test-reporter-destination=/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/evidence/MC-017-0-1791055953242-node-tests.jsonl",
+          "--test-reporter=tap",
+          "--test-reporter-destination=stdout",
+          "--env-file=.env",
+          "--test",
+          "scripts/reset-safety.test.mjs"
+        ]
+      },
+      "started_at": "2026-10-03T19:32:33.242Z",
+      "finished_at": "2026-10-03T19:32:50.728Z",
+      "exit_code": 0,
+      "validation": {
+        "ok": true,
+        "errors": [],
+        "testSummary": {
+          "total": 12,
+          "passed": 12,
+          "failed": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        }
+      },
+      "node_test_summary": {
+        "total": 12,
+        "passed": 12,
+        "failed": 0,
+        "cancelled": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "replay_observations": null,
+      "current_dependency_audit": null,
+      "actual_outputs_hash_verified": true,
+      "pass": true
+    },
+    {
+      "card_id": "MC-018",
+      "assertion_index": 0,
+      "actor": "codex-root-T-2026-1002-0901",
+      "role": "repair",
+      "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+      "run": {
+        "path": "runs/MC-018-0-1791055970961.json",
+        "sha256": "927fcb26b91f419360eb906656bd2a4b01ed7d76cf35e923b82bbe573a87ddb9",
+        "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+      },
+      "evidence": {
+        "path": "evidence/MC-018-0-1791055970961.txt",
+        "sha256": "ee4b06730f804df6062f03d9971d1184d6732137724b0a059fd2338ceef07bc2",
+        "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+      },
+      "command": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node --env-file=.env --test --test-name-pattern=启动诊断秘密脱敏 apps/desktop/electron/bootstrap.test.cjs",
+      "declared_exec": {
+        "file": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+        "args": [
+          "--env-file=.env",
+          "--test",
+          "--test-name-pattern=启动诊断秘密脱敏",
+          "apps/desktop/electron/bootstrap.test.cjs"
+        ]
+      },
+      "actual_exec": {
+        "file": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+        "args": [
+          "--test-reporter=/Users/mac/.codex/skills/mine-clear-delivery/assets/node-test-reporter.mjs",
+          "--test-reporter-destination=/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/evidence/MC-018-0-1791055970961-node-tests.jsonl",
+          "--test-reporter=tap",
+          "--test-reporter-destination=stdout",
+          "--env-file=.env",
+          "--test",
+          "--test-name-pattern=启动诊断秘密脱敏",
+          "apps/desktop/electron/bootstrap.test.cjs"
+        ]
+      },
+      "started_at": "2026-10-03T19:32:50.961Z",
+      "finished_at": "2026-10-03T19:32:51.370Z",
+      "exit_code": 0,
+      "validation": {
+        "ok": true,
+        "errors": [],
+        "testSummary": {
+          "total": 12,
+          "passed": 12,
+          "failed": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        }
+      },
+      "node_test_summary": {
+        "total": 12,
+        "passed": 12,
+        "failed": 0,
+        "cancelled": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "replay_observations": null,
+      "current_dependency_audit": null,
+      "actual_outputs_hash_verified": true,
+      "pass": true
+    },
+    {
+      "card_id": "MC-101",
+      "assertion_index": 0,
+      "actor": "codex-root-T-2026-1002-0901",
+      "role": "repair",
+      "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+      "run": {
+        "path": "runs/MC-101-0-1791055922810.json",
+        "sha256": "c819473c054e93ddc4ec95115dceccad6695defd932d65db267a9ae3bb1450a2",
+        "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+      },
+      "evidence": {
+        "path": "evidence/MC-101-0-1791055922810.txt",
+        "sha256": "2a50bd50329890f137b6207439f4f6a2e928cf9b3f5275557653a74dddc2c763",
+        "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+      },
+      "command": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node --env-file=.env --test apps/desktop/electron/bootstrap.test.cjs",
+      "declared_exec": {
+        "file": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+        "args": [
+          "--env-file=.env",
+          "--test",
+          "apps/desktop/electron/bootstrap.test.cjs"
+        ]
+      },
+      "actual_exec": {
+        "file": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+        "args": [
+          "--test-reporter=/Users/mac/.codex/skills/mine-clear-delivery/assets/node-test-reporter.mjs",
+          "--test-reporter-destination=/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/evidence/MC-101-0-1791055922810-node-tests.jsonl",
+          "--test-reporter=tap",
+          "--test-reporter-destination=stdout",
+          "--env-file=.env",
+          "--test",
+          "apps/desktop/electron/bootstrap.test.cjs"
+        ]
+      },
+      "started_at": "2026-10-03T19:32:02.810Z",
+      "finished_at": "2026-10-03T19:32:03.363Z",
+      "exit_code": 0,
+      "validation": {
+        "ok": true,
+        "errors": [],
+        "testSummary": {
+          "total": 60,
+          "passed": 60,
+          "failed": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        }
+      },
+      "node_test_summary": {
+        "total": 60,
+        "passed": 60,
+        "failed": 0,
+        "cancelled": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "replay_observations": null,
+      "current_dependency_audit": null,
+      "actual_outputs_hash_verified": true,
+      "pass": true
+    },
+    {
+      "card_id": "MC-101",
+      "assertion_index": 1,
+      "actor": "codex-root-T-2026-1002-0901",
+      "role": "repair",
+      "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+      "run": {
+        "path": "runs/MC-101-1-1791055923405.json",
+        "sha256": "9e3da98d4990e3b6bfb74158e2ffedb1da065d88b08d5da4569dd0ab91fd6881",
+        "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+      },
+      "evidence": {
+        "path": "evidence/MC-101-1-1791055923405.txt",
+        "sha256": "d31c099b9e136dc1d0e6b3c8e4de74ad1781ba1d066317e7b7e39a85f27d037d",
+        "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+      },
+      "command": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node --env-file=.env scripts/runtime-deps-lock.mjs verify",
+      "declared_exec": {
+        "file": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+        "args": [
+          "--env-file=.env",
+          "scripts/runtime-deps-lock.mjs",
+          "verify"
+        ]
+      },
+      "actual_exec": {
+        "file": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+        "args": [
+          "--env-file=.env",
+          "scripts/runtime-deps-lock.mjs",
+          "verify"
+        ]
+      },
+      "started_at": "2026-10-03T19:32:03.405Z",
+      "finished_at": "2026-10-03T19:32:03.579Z",
+      "exit_code": 0,
+      "validation": {
+        "ok": true,
+        "errors": []
+      },
+      "node_test_summary": null,
+      "replay_observations": null,
+      "current_dependency_audit": null,
+      "actual_outputs_hash_verified": true,
+      "pass": true
+    },
+    {
+      "card_id": "MC-101",
+      "assertion_index": 2,
+      "actor": "codex-root-T-2026-1002-0901",
+      "role": "repair",
+      "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+      "run": {
+        "path": "runs/MC-101-2-1791055923620.json",
+        "sha256": "89bdad532a6045550c2aadc4711fcdb7ffb117e86b0a996d0c2c47477a001e8c",
+        "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+      },
+      "evidence": {
+        "path": "evidence/MC-101-2-1791055923620.txt",
+        "sha256": "861c75b914bed460078fe5bcd47e0fec395473061a0ad1f315fb4a421e67b825",
+        "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+      },
+      "command": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node --env-file=.env --test scripts/pack-workspace-modules.test.mjs",
+      "declared_exec": {
+        "file": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+        "args": [
+          "--env-file=.env",
+          "--test",
+          "scripts/pack-workspace-modules.test.mjs"
+        ]
+      },
+      "actual_exec": {
+        "file": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+        "args": [
+          "--test-reporter=/Users/mac/.codex/skills/mine-clear-delivery/assets/node-test-reporter.mjs",
+          "--test-reporter-destination=/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/evidence/MC-101-2-1791055923620-node-tests.jsonl",
+          "--test-reporter=tap",
+          "--test-reporter-destination=stdout",
+          "--env-file=.env",
+          "--test",
+          "scripts/pack-workspace-modules.test.mjs"
+        ]
+      },
+      "started_at": "2026-10-03T19:32:03.620Z",
+      "finished_at": "2026-10-03T19:32:04.218Z",
+      "exit_code": 0,
+      "validation": {
+        "ok": true,
+        "errors": [],
+        "testSummary": {
+          "total": 8,
+          "passed": 8,
+          "failed": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        }
+      },
+      "node_test_summary": {
+        "total": 8,
+        "passed": 8,
+        "failed": 0,
+        "cancelled": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "replay_observations": null,
+      "current_dependency_audit": null,
+      "actual_outputs_hash_verified": true,
+      "pass": true
+    },
+    {
+      "card_id": "MC-101",
+      "assertion_index": 3,
+      "actor": "codex-root-T-2026-1002-0901",
+      "role": "repair",
+      "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+      "run": {
+        "path": "runs/MC-101-3-1791055924259.json",
+        "sha256": "a5f4df016def439ec3d4577f7b35abc4ccb8f0a11690d94d001ea136332c8456",
+        "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+      },
+      "evidence": {
+        "path": "evidence/MC-101-3-1791055924259.txt",
+        "sha256": "5320e3689334d33e4a2b14286ee884b6ecd52395838f7c80d57c6127bb6544b8",
+        "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+      },
+      "command": "/Library/Developer/CommandLineTools/usr/bin/python3 /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/run_installed_film_load.py --source 1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8 --prefix dependency",
+      "declared_exec": {
+        "file": "/Library/Developer/CommandLineTools/usr/bin/python3",
+        "args": [
+          "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/run_installed_film_load.py",
+          "--source",
+          "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+          "--prefix",
+          "dependency"
+        ]
+      },
+      "actual_exec": {
+        "file": "/Library/Developer/CommandLineTools/usr/bin/python3",
+        "args": [
+          "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/run_installed_film_load.py",
+          "--source",
+          "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+          "--prefix",
+          "dependency"
+        ]
+      },
+      "started_at": "2026-10-03T19:32:04.259Z",
+      "finished_at": "2026-10-03T19:32:05.301Z",
+      "exit_code": 0,
+      "validation": {
+        "ok": true,
+        "errors": []
+      },
+      "node_test_summary": null,
+      "replay_observations": null,
+      "current_dependency_audit": null,
+      "actual_outputs_hash_verified": true,
+      "pass": true
+    },
+    {
+      "card_id": "MC-102",
+      "assertion_index": 0,
+      "actor": "codex-root-T-2026-1002-0901",
+      "role": "repair",
+      "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+      "run": {
+        "path": "runs/MC-102-0-1791055925539.json",
+        "sha256": "7df4efed7f0e9d045637869bdb1fd312db17afa60104a6dba793c119a42df5b3",
+        "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+      },
+      "evidence": {
+        "path": "evidence/MC-102-0-1791055925539.txt",
+        "sha256": "6353c291f6c23afd784a1c074c4ebe5c3ec0052fd4e2a5c0fb8d15d01070e63f",
+        "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+      },
+      "command": "/Library/Developer/CommandLineTools/usr/bin/python3 /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/run_isolated_replay.py --repo /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit --source 1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8 --group auth",
+      "declared_exec": {
+        "file": "/Library/Developer/CommandLineTools/usr/bin/python3",
+        "args": [
+          "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/run_isolated_replay.py",
+          "--repo",
+          "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit",
+          "--source",
+          "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+          "--group",
+          "auth"
+        ]
+      },
+      "actual_exec": {
+        "file": "/Library/Developer/CommandLineTools/usr/bin/python3",
+        "args": [
+          "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/run_isolated_replay.py",
+          "--repo",
+          "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit",
+          "--source",
+          "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+          "--group",
+          "auth"
+        ]
+      },
+      "started_at": "2026-10-03T19:32:05.539Z",
+      "finished_at": "2026-10-03T19:32:12.215Z",
+      "exit_code": 0,
+      "validation": {
+        "ok": true,
+        "errors": []
+      },
+      "node_test_summary": null,
+      "replay_observations": [
+        {
+          "name": "Anonymous production owner impersonation denied on non-example real-mode fixture",
+          "healthy": true,
+          "actual": {
+            "http": 403
+          }
+        },
+        {
+          "name": "Protected API rejects anonymous requests",
+          "healthy": true,
+          "actual": {
+            "http": 401
+          }
+        },
+        {
+          "name": "Desktop capability is mandatory",
+          "healthy": true,
+          "actual": {
+            "http": 401
+          }
+        },
+        {
+          "name": "Wrong desktop capability rejected",
+          "healthy": true,
+          "actual": {
+            "http": 401
+          }
+        },
+        {
+          "name": "Trusted local capability signs only the configured identity",
+          "healthy": true,
+          "actual": {
+            "http": 200,
+            "targetMatches": true
+          }
+        },
+        {
+          "name": "Trusted local session can access the real protected API",
+          "healthy": true,
+          "actual": {
+            "http": 200
+          }
+        },
+        {
+          "name": "Unsupported JWT algorithm denied",
+          "healthy": true,
+          "actual": {
+            "http": 401
+          }
+        },
+        {
+          "name": "JWT without expiration denied",
+          "healthy": true,
+          "actual": {
+            "http": 401
+          }
+        },
+        {
+          "name": "JWT without issue time denied",
+          "healthy": true,
+          "actual": {
+            "http": 401
+          }
+        },
+        {
+          "name": "Expired JWT denied",
+          "healthy": true,
+          "actual": {
+            "http": 401
+          }
+        },
+        {
+          "name": "Wrong product issuer denied",
+          "healthy": true,
+          "actual": {
+            "http": 401
+          }
+        }
+      ],
+      "current_dependency_audit": null,
+      "actual_outputs_hash_verified": true,
+      "pass": true
+    },
+    {
+      "card_id": "MC-103",
+      "assertion_index": 0,
+      "actor": "codex-root-T-2026-1002-0901",
+      "role": "repair",
+      "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+      "run": {
+        "path": "runs/MC-103-0-1791055932448.json",
+        "sha256": "1fc790b1c2c95e29c6711aaf7d07d1e2aa229e3837c8513059be66e4acd2b29f",
+        "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+      },
+      "evidence": {
+        "path": "evidence/MC-103-0-1791055932448.txt",
+        "sha256": "f241ea67cdcf7ad77e8b1a734ac6b8435a3d5f45e3c3e5ab3fef3bd92e5df5b6",
+        "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+      },
+      "command": "/Library/Developer/CommandLineTools/usr/bin/python3 /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/run_isolated_replay.py --repo /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit --source 1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8 --group runtime",
+      "declared_exec": {
+        "file": "/Library/Developer/CommandLineTools/usr/bin/python3",
+        "args": [
+          "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/run_isolated_replay.py",
+          "--repo",
+          "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit",
+          "--source",
+          "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+          "--group",
+          "runtime"
+        ]
+      },
+      "actual_exec": {
+        "file": "/Library/Developer/CommandLineTools/usr/bin/python3",
+        "args": [
+          "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/run_isolated_replay.py",
+          "--repo",
+          "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit",
+          "--source",
+          "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+          "--group",
+          "runtime"
+        ]
+      },
+      "started_at": "2026-10-03T19:32:12.448Z",
+      "finished_at": "2026-10-03T19:32:17.546Z",
+      "exit_code": 0,
+      "validation": {
+        "ok": true,
+        "errors": []
+      },
+      "node_test_summary": null,
+      "replay_observations": [
+        {
+          "id": "QUEUE-10",
+          "expected": "Queue advances with 0 running and 10 queued",
+          "actual": {
+            "first": {
+              "picked": [
+                "audit-th-mussgink-164936-queue-q0",
+                "audit-th-mussgink-164936-queue-q1",
+                "audit-th-mussgink-164936-queue-q2"
+              ],
+              "failed": []
+            },
+            "second": {
+              "picked": [
+                "audit-th-mussgink-164936-queue-q3",
+                "audit-th-mussgink-164936-queue-q4",
+                "audit-th-mussgink-164936-queue-q5"
+              ],
+              "failed": []
+            },
+            "queued": 4
+          },
+          "healthy": true
+        },
+        {
+          "id": "BLOCK-FLAG",
+          "expected": "Unconditional block remains blocked regardless of context flags or approval",
+          "actual": {
+            "control": "paused",
+            "flagged": "paused",
+            "afterApproval": "paused",
+            "calls": []
+          },
+          "healthy": true
+        },
+        {
+          "id": "PENDING-CONCURRENCY",
+          "expected": "One approved high risk step invokes the executor at most once",
+          "actual": {
+            "statusReads": 3,
+            "calls": [
+              {
+                "name": "audit.write",
+                "params": {
+                  "amount": 1
+                },
+                "scope": {
+                  "tenantId": "audit-t-mussgink-164936-concurrency",
+                  "workspaceId": "audit-w-mussgink-164936-concurrency"
+                },
+                "at": 1791055933303
+              }
+            ],
+            "runs": [
+              {
+                "status": "fulfilled",
+                "value": "completed"
+              },
+              {
+                "status": "fulfilled",
+                "value": "running"
+              }
+            ],
+            "approval": {
+              "status": "approved",
+              "consumed_at": "2026-10-03T19:32:13.294Z"
+            },
+            "threadStatus": "completed"
+          },
+          "healthy": true
+        },
+        {
+          "id": "EDIT-PARAMS",
+          "expected": "Edited amount=2 is what the tool executes",
+          "actual": {
+            "status": "completed",
+            "requested": {
+              "amount": 2
+            },
+            "calls": [
+              {
+                "name": "audit.write",
+                "params": {
+                  "amount": 2
+                },
+                "scope": {
+                  "tenantId": "audit-t-mussgink-164936-edit",
+                  "workspaceId": "audit-w-mussgink-164936-edit"
+                },
+                "at": 1791055937314
+              }
+            ]
+          },
+          "healthy": true
+        },
+        {
+          "id": "EDIT-HIGH-RISK",
+          "expected": "Edited approval is handled consistently before any side effect",
+          "actual": {
+            "result": "completed",
+            "calls": [
+              {
+                "name": "audit.write",
+                "params": {
+                  "amount": 2
+                },
+                "scope": {
+                  "tenantId": "audit-t-mussgink-164936-edit-high",
+                  "workspaceId": "audit-w-mussgink-164936-edit-high"
+                },
+                "at": 1791055937330
+              }
+            ],
+            "threadStatus": "completed"
+          },
+          "healthy": true
+        },
+        {
+          "id": "RELEVANCE-REPLAY",
+          "expected": "Unapproved plan_unverified persists and still requires human approval on replay",
+          "actual": {
+            "first": "pending_review",
+            "stored": [
+              {
+                "tool": "audit.write",
+                "label": "本地计数动作",
+                "action": "audit.write",
+                "params": {},
+                "stepId": "s1",
+                "context": {
+                  "plan_unverified": true
+                },
+                "objectType": "audit_resource"
+              }
+            ],
+            "second": "pending_review",
+            "calls": []
+          },
+          "healthy": true
+        },
+        {
+          "id": "REJECT-TERMINAL",
+          "expected": "Rejected cancelled thread remains terminated unless explicit restart policy is invoked",
+          "actual": {
+            "before": "cancelled",
+            "after": "cancelled",
+            "storedStatus": "cancelled",
+            "calls": []
+          },
+          "healthy": true
+        },
+        {
+          "id": "PERMISSION-BEFORE-ACTION",
+          "expected": "An agent with no fence bindings cannot execute a write tool",
+          "actual": {
+            "error": "GatewayReject: Agent「audit-operator」未声明 fence_bindings，系统级禁写（F2.10），动作 audit.write 拒绝",
+            "calls": [],
+            "threadStatus": "failed"
+          },
+          "healthy": true
+        },
+        {
+          "id": "REJECT-WORKSPACE-COLLISION",
+          "expected": "Two workspaces reject with the same enum independently, with both approvals rejected and both threads cancelled",
+          "actual": [
+            {
+              "workspaceId": "audit-w-mussgink-164936-reject-left",
+              "approvalStatus": "rejected",
+              "threadStatus": "cancelled"
+            },
+            {
+              "workspaceId": "audit-w-mussgink-164936-reject-right",
+              "approvalStatus": "rejected",
+              "threadStatus": "cancelled"
+            }
+          ],
+          "healthy": true
+        }
+      ],
+      "current_dependency_audit": null,
+      "actual_outputs_hash_verified": true,
+      "pass": true
+    },
+    {
+      "card_id": "MC-103",
+      "assertion_index": 1,
+      "actor": "codex-root-T-2026-1002-0901",
+      "role": "repair",
+      "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+      "run": {
+        "path": "runs/MC-103-1-1791055937589.json",
+        "sha256": "dc818b8ff64989910b92bfe7770439830412f980899c517d165c28f9b417bf71",
+        "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+      },
+      "evidence": {
+        "path": "evidence/MC-103-1-1791055937589.txt",
+        "sha256": "486f73bf8422283911c6b1df024db511a7adb2b2490ad5191ac4e20d20a0a451",
+        "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+      },
+      "command": "/Library/Developer/CommandLineTools/usr/bin/python3 /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/run_isolated_replay.py --repo /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit --source 1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8 --group runtime --case BLOCK-FLAG",
+      "declared_exec": {
+        "file": "/Library/Developer/CommandLineTools/usr/bin/python3",
+        "args": [
+          "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/run_isolated_replay.py",
+          "--repo",
+          "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit",
+          "--source",
+          "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+          "--group",
+          "runtime",
+          "--case",
+          "BLOCK-FLAG"
+        ]
+      },
+      "actual_exec": {
+        "file": "/Library/Developer/CommandLineTools/usr/bin/python3",
+        "args": [
+          "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/run_isolated_replay.py",
+          "--repo",
+          "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit",
+          "--source",
+          "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+          "--group",
+          "runtime",
+          "--case",
+          "BLOCK-FLAG"
+        ]
+      },
+      "started_at": "2026-10-03T19:32:17.589Z",
+      "finished_at": "2026-10-03T19:32:18.364Z",
+      "exit_code": 0,
+      "validation": {
+        "ok": true,
+        "errors": []
+      },
+      "node_test_summary": null,
+      "replay_observations": [
+        {
+          "id": "BLOCK-FLAG",
+          "expected": "Unconditional block remains blocked regardless of context flags or approval",
+          "actual": {
+            "control": "paused",
+            "flagged": "paused",
+            "afterApproval": "paused",
+            "calls": []
+          },
+          "healthy": true
+        }
+      ],
+      "current_dependency_audit": null,
+      "actual_outputs_hash_verified": true,
+      "pass": true
+    },
+    {
+      "card_id": "MC-104",
+      "assertion_index": 0,
+      "actor": "codex-root-T-2026-1002-0901",
+      "role": "repair",
+      "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+      "run": {
+        "path": "runs/MC-104-0-1791055938582.json",
+        "sha256": "ecc5b1b0b40d72685edc36f02ead4dc1ba28973d9a30286ec1426221943ad61e",
+        "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+      },
+      "evidence": {
+        "path": "evidence/MC-104-0-1791055938582.txt",
+        "sha256": "e06ecc765023680ec043bc2f3096f772c73369380ef122dea386445a464dbb68",
+        "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+      },
+      "command": "/Library/Developer/CommandLineTools/usr/bin/python3 /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/run_isolated_replay.py --repo /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit --source 1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8 --group runtime --case RELEVANCE-REPLAY",
+      "declared_exec": {
+        "file": "/Library/Developer/CommandLineTools/usr/bin/python3",
+        "args": [
+          "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/run_isolated_replay.py",
+          "--repo",
+          "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit",
+          "--source",
+          "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+          "--group",
+          "runtime",
+          "--case",
+          "RELEVANCE-REPLAY"
+        ]
+      },
+      "actual_exec": {
+        "file": "/Library/Developer/CommandLineTools/usr/bin/python3",
+        "args": [
+          "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/run_isolated_replay.py",
+          "--repo",
+          "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit",
+          "--source",
+          "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+          "--group",
+          "runtime",
+          "--case",
+          "RELEVANCE-REPLAY"
+        ]
+      },
+      "started_at": "2026-10-03T19:32:18.582Z",
+      "finished_at": "2026-10-03T19:32:19.277Z",
+      "exit_code": 0,
+      "validation": {
+        "ok": true,
+        "errors": []
+      },
+      "node_test_summary": null,
+      "replay_observations": [
+        {
+          "id": "RELEVANCE-REPLAY",
+          "expected": "Unapproved plan_unverified persists and still requires human approval on replay",
+          "actual": {
+            "first": "pending_review",
+            "stored": [
+              {
+                "tool": "audit.write",
+                "label": "本地计数动作",
+                "action": "audit.write",
+                "params": {},
+                "stepId": "s1",
+                "context": {
+                  "plan_unverified": true
+                },
+                "objectType": "audit_resource"
+              }
+            ],
+            "second": "pending_review",
+            "calls": []
+          },
+          "healthy": true
+        }
+      ],
+      "current_dependency_audit": null,
+      "actual_outputs_hash_verified": true,
+      "pass": true
+    },
+    {
+      "card_id": "MC-104",
+      "assertion_index": 1,
+      "actor": "codex-root-T-2026-1002-0901",
+      "role": "repair",
+      "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+      "run": {
+        "path": "runs/MC-104-1-1791055939318.json",
+        "sha256": "d48bd43e8ea2cea99b801e87aec746b6066b8f6183be3189b02201812bcc18a9",
+        "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+      },
+      "evidence": {
+        "path": "evidence/MC-104-1-1791055939318.txt",
+        "sha256": "40a10c3442abb7d2bab4c7c6611f3cdc47c2d1ea764e1c9b2a0e6a21d765e611",
+        "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+      },
+      "command": "/Library/Developer/CommandLineTools/usr/bin/python3 /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/run_isolated_replay.py --repo /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit --source 1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8 --group runtime --case EDIT-PARAMS",
+      "declared_exec": {
+        "file": "/Library/Developer/CommandLineTools/usr/bin/python3",
+        "args": [
+          "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/run_isolated_replay.py",
+          "--repo",
+          "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit",
+          "--source",
+          "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+          "--group",
+          "runtime",
+          "--case",
+          "EDIT-PARAMS"
+        ]
+      },
+      "actual_exec": {
+        "file": "/Library/Developer/CommandLineTools/usr/bin/python3",
+        "args": [
+          "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/run_isolated_replay.py",
+          "--repo",
+          "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit",
+          "--source",
+          "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+          "--group",
+          "runtime",
+          "--case",
+          "EDIT-PARAMS"
+        ]
+      },
+      "started_at": "2026-10-03T19:32:19.318Z",
+      "finished_at": "2026-10-03T19:32:20.042Z",
+      "exit_code": 0,
+      "validation": {
+        "ok": true,
+        "errors": []
+      },
+      "node_test_summary": null,
+      "replay_observations": [
+        {
+          "id": "EDIT-PARAMS",
+          "expected": "Edited amount=2 is what the tool executes",
+          "actual": {
+            "status": "completed",
+            "requested": {
+              "amount": 2
+            },
+            "calls": [
+              {
+                "name": "audit.write",
+                "params": {
+                  "amount": 2
+                },
+                "scope": {
+                  "tenantId": "audit-t-mussgnwr-974339-edit",
+                  "workspaceId": "audit-w-mussgnwr-974339-edit"
+                },
+                "at": 1791055939913
+              }
+            ]
+          },
+          "healthy": true
+        }
+      ],
+      "current_dependency_audit": null,
+      "actual_outputs_hash_verified": true,
+      "pass": true
+    },
+    {
+      "card_id": "MC-104",
+      "assertion_index": 2,
+      "actor": "codex-root-T-2026-1002-0901",
+      "role": "repair",
+      "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+      "run": {
+        "path": "runs/MC-104-2-1791055940080.json",
+        "sha256": "fc3b7f395deb9e74a19e520b9c4fa96c125f1238b30137f546f7e4c9f88b9990",
+        "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+      },
+      "evidence": {
+        "path": "evidence/MC-104-2-1791055940080.txt",
+        "sha256": "4e4556606a4f50ddd47cdd111696720980fbcf2c4719b8035028725f73cd7b3f",
+        "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+      },
+      "command": "/Library/Developer/CommandLineTools/usr/bin/python3 /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/run_isolated_replay.py --repo /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit --source 1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8 --group runtime --case QUEUE-10",
+      "declared_exec": {
+        "file": "/Library/Developer/CommandLineTools/usr/bin/python3",
+        "args": [
+          "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/run_isolated_replay.py",
+          "--repo",
+          "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit",
+          "--source",
+          "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+          "--group",
+          "runtime",
+          "--case",
+          "QUEUE-10"
+        ]
+      },
+      "actual_exec": {
+        "file": "/Library/Developer/CommandLineTools/usr/bin/python3",
+        "args": [
+          "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/run_isolated_replay.py",
+          "--repo",
+          "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit",
+          "--source",
+          "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+          "--group",
+          "runtime",
+          "--case",
+          "QUEUE-10"
+        ]
+      },
+      "started_at": "2026-10-03T19:32:20.080Z",
+      "finished_at": "2026-10-03T19:32:20.925Z",
+      "exit_code": 0,
+      "validation": {
+        "ok": true,
+        "errors": []
+      },
+      "node_test_summary": null,
+      "replay_observations": [
+        {
+          "id": "QUEUE-10",
+          "expected": "Queue advances with 0 running and 10 queued",
+          "actual": {
+            "first": {
+              "picked": [
+                "audit-th-mussgoha-180990-queue-q0",
+                "audit-th-mussgoha-180990-queue-q1",
+                "audit-th-mussgoha-180990-queue-q2"
+              ],
+              "failed": []
+            },
+            "second": {
+              "picked": [
+                "audit-th-mussgoha-180990-queue-q3",
+                "audit-th-mussgoha-180990-queue-q4",
+                "audit-th-mussgoha-180990-queue-q5"
+              ],
+              "failed": []
+            },
+            "queued": 4
+          },
+          "healthy": true
+        }
+      ],
+      "current_dependency_audit": null,
+      "actual_outputs_hash_verified": true,
+      "pass": true
+    },
+    {
+      "card_id": "MC-104",
+      "assertion_index": 3,
+      "actor": "codex-root-T-2026-1002-0901",
+      "role": "repair",
+      "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+      "run": {
+        "path": "runs/MC-104-3-1791055940964.json",
+        "sha256": "2d09a446ad855c2db5118ec8aaf35b5fcdb06e56dbc7aa261749f846313756da",
+        "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+      },
+      "evidence": {
+        "path": "evidence/MC-104-3-1791055940964.txt",
+        "sha256": "0821323f0c797c0e98adaa4c9c68ab810ab8af07a44b3ab89f5b8986c88afed3",
+        "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+      },
+      "command": "/Library/Developer/CommandLineTools/usr/bin/python3 /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/run_isolated_replay.py --repo /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit --source 1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8 --group runtime --case REJECT-TERMINAL",
+      "declared_exec": {
+        "file": "/Library/Developer/CommandLineTools/usr/bin/python3",
+        "args": [
+          "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/run_isolated_replay.py",
+          "--repo",
+          "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit",
+          "--source",
+          "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+          "--group",
+          "runtime",
+          "--case",
+          "REJECT-TERMINAL"
+        ]
+      },
+      "actual_exec": {
+        "file": "/Library/Developer/CommandLineTools/usr/bin/python3",
+        "args": [
+          "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/run_isolated_replay.py",
+          "--repo",
+          "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit",
+          "--source",
+          "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+          "--group",
+          "runtime",
+          "--case",
+          "REJECT-TERMINAL"
+        ]
+      },
+      "started_at": "2026-10-03T19:32:20.964Z",
+      "finished_at": "2026-10-03T19:32:21.658Z",
+      "exit_code": 0,
+      "validation": {
+        "ok": true,
+        "errors": []
+      },
+      "node_test_summary": null,
+      "replay_observations": [
+        {
+          "id": "REJECT-TERMINAL",
+          "expected": "Rejected cancelled thread remains terminated unless explicit restart policy is invoked",
+          "actual": {
+            "before": "cancelled",
+            "after": "cancelled",
+            "storedStatus": "cancelled",
+            "calls": []
+          },
+          "healthy": true
+        }
+      ],
+      "current_dependency_audit": null,
+      "actual_outputs_hash_verified": true,
+      "pass": true
+    },
+    {
+      "card_id": "MC-104",
+      "assertion_index": 4,
+      "actor": "codex-root-T-2026-1002-0901",
+      "role": "repair",
+      "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+      "run": {
+        "path": "runs/MC-104-4-1791055941696.json",
+        "sha256": "4347b81189608abb826e3d58c0b798313b10c89418a74ef358ee5a70647b368b",
+        "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+      },
+      "evidence": {
+        "path": "evidence/MC-104-4-1791055941696.txt",
+        "sha256": "7c8b0cb6328423bd4b9856cce0799e45bd70f7281921c1bd84e5e63f333cad1a",
+        "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+      },
+      "command": "/Library/Developer/CommandLineTools/usr/bin/python3 /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/run_isolated_replay.py --repo /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit --source 1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8 --group runtime --case REJECT-WORKSPACE-COLLISION",
+      "declared_exec": {
+        "file": "/Library/Developer/CommandLineTools/usr/bin/python3",
+        "args": [
+          "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/run_isolated_replay.py",
+          "--repo",
+          "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit",
+          "--source",
+          "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+          "--group",
+          "runtime",
+          "--case",
+          "REJECT-WORKSPACE-COLLISION"
+        ]
+      },
+      "actual_exec": {
+        "file": "/Library/Developer/CommandLineTools/usr/bin/python3",
+        "args": [
+          "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/run_isolated_replay.py",
+          "--repo",
+          "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit",
+          "--source",
+          "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+          "--group",
+          "runtime",
+          "--case",
+          "REJECT-WORKSPACE-COLLISION"
+        ]
+      },
+      "started_at": "2026-10-03T19:32:21.696Z",
+      "finished_at": "2026-10-03T19:32:22.394Z",
+      "exit_code": 0,
+      "validation": {
+        "ok": true,
+        "errors": []
+      },
+      "node_test_summary": null,
+      "replay_observations": [
+        {
+          "id": "REJECT-WORKSPACE-COLLISION",
+          "expected": "Two workspaces reject with the same enum independently, with both approvals rejected and both threads cancelled",
+          "actual": [
+            {
+              "workspaceId": "audit-w-mussgpq7-109644-reject-left",
+              "approvalStatus": "rejected",
+              "threadStatus": "cancelled"
+            },
+            {
+              "workspaceId": "audit-w-mussgpq7-109644-reject-right",
+              "approvalStatus": "rejected",
+              "threadStatus": "cancelled"
+            }
+          ],
+          "healthy": true
+        }
+      ],
+      "current_dependency_audit": null,
+      "actual_outputs_hash_verified": true,
+      "pass": true
+    },
+    {
+      "card_id": "MC-105",
+      "assertion_index": 0,
+      "actor": "codex-root-T-2026-1002-0901",
+      "role": "repair",
+      "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+      "run": {
+        "path": "runs/MC-105-0-1791055942611.json",
+        "sha256": "c3da204b3790066bb3e64ad86749d9149c2495eb3068749e33541fc34542b456",
+        "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+      },
+      "evidence": {
+        "path": "evidence/MC-105-0-1791055942611.txt",
+        "sha256": "4294543b96c17372ef916cb24ffa171ec6755426054bdf0321adc4033c5ad203",
+        "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+      },
+      "command": "/Library/Developer/CommandLineTools/usr/bin/python3 /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/run_isolated_replay.py --repo /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit --source 1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8 --group film",
+      "declared_exec": {
+        "file": "/Library/Developer/CommandLineTools/usr/bin/python3",
+        "args": [
+          "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/run_isolated_replay.py",
+          "--repo",
+          "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit",
+          "--source",
+          "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+          "--group",
+          "film"
+        ]
+      },
+      "actual_exec": {
+        "file": "/Library/Developer/CommandLineTools/usr/bin/python3",
+        "args": [
+          "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/run_isolated_replay.py",
+          "--repo",
+          "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit",
+          "--source",
+          "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+          "--group",
+          "film"
+        ]
+      },
+      "started_at": "2026-10-03T19:32:22.611Z",
+      "finished_at": "2026-10-03T19:32:24.314Z",
+      "exit_code": 0,
+      "validation": {
+        "ok": true,
+        "errors": []
+      },
+      "node_test_summary": null,
+      "replay_observations": [
+        {
+          "name": "Public film start/status executes registered local stage with frozen source",
+          "healthy": true,
+          "status": "finished",
+          "error": null,
+          "log": "3-9ed0-4093-a8e9-cdfd3ceaafc0.json\n[19:32:23] 开场钩子：未登记钩子卡\n[19:32:23]   窗口：前 5s｜判据：硬失败 0 · 软提示 1｜钩子音：关闭\n[19:32:23]   ✗ [hook-card] 缺钩子卡：建议在 shotlist 顶层加 hook（类型/承诺/兑现镜/首镜模板）\n[19:32:23]   ⇢ [hook-audit] ok 0ms\n[19:32:23] 平台语速：YouTube → standard 档（目标 3.5 · 上限 4.2 字/秒 · 配音基础速率 1×）\n[19:32:23]   台词镜 0 个｜念不完 0 · 节奏偏松 0 · 无法判定 0\n[19:32:23]   ⇢ [speech-rate] ok 0ms\n[19:32:23]   ⇢ [gate SC-01] ok 0ms\n[19:32:23]   ⇢ [gate G-FP1 g-first-pass] ok（deterministic） — workloom.first-pass-readiness/v1：就绪\n[19:32:23] 一次过就绪度 G-FP1 通过（渲染顺序按风险降序：SC-01）\n[19:32:23]   ⇢ [gate SC-01] ok 0ms\n[19:32:23]   ⇢ [gate G-RL1 g-prompt-redlines] ok（deterministic） — 提示词红线 workloom.prompt-redlines/v1：hard 0 · soft 1\n[19:32:23] ⚠ 提示词红线（软）hands-negative：SC-01：含手部动作，但负面清单缺「无多余手指/六指」\n[19:32:24] ⚠ 商品档案库有 9 份档案存在硬问题（本片未引用则不拦截）：ble-checkin[photos-empty]、cxz-01[photos-empty]、embedded-desktop[photos-empty]、face-checkin[photos-empty]、hotel-ai-agent[photos-empty]、locker-cooler[photo-missing]、premium-vertical[photos-empty]、simple-vertical[photos-empty]、tablet-butler[photos-empty]\n[19:32:24] 未显式指定模特 → 使用系统默认模特：陈卓（chen-zhuo，1 号）\n[19:32:24]   ⇢ [gate] ok 0ms\n[19:32:24]   ⇢ [gate G5 g5-portrait-confirm] ok（deterministic） — 门通过（5 项判据，硬闸 3 条）\n[19:32:24] 项目 m6-film-0af74183-9ed0-4093-a8e9-cdfd3ceaafc0｜镜头 1 个｜目标 5s｜9:16 源 1080p → 交付 1080p (1080x1920)@30fps\n[19:32:24] 媒体工具：ffmpeg=/Users/mac/.workloom-color/bin/ffmpeg｜ffprobe=/Users/mac/.workloom-color/bin/ffprobe\n[19:32:24] 后期缓存：/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/mcd-replay-attempts/film-sh6xglyp/film-fixtures/archive/ws-yunqi/m6-film-0af74183-9ed0-4093-a8e9-cdfd3ceaafc0/stages/film/attempt-1/work/post/m6-film-0af74183-9ed0-4093-a8e9-cdfd3ceaafc0｜交付目录：/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/mcd-replay-attempts/film-sh6xglyp/film-fixtures/archive/ws-yunqi/m6-film-0af74183-9ed0-4093-a8e9-cdfd3ceaafc0/stages/film/attempt-1/delivery\n[19:32:24] 角色档案：陈卓（chen-zhuo）角度 front/threeQuarter/closeup/side/back/actionPose/emotionCloseup/handDetail\n[19:32:24] 阶段：cine-kb → continuity｜监制：fail-closed\n[19:32:24] 摄影知识库：19 篇 / 388 条映射\n[19:32:24]   SC-01: passed · 光圈 f/2.8–f/4（环境人像（要带场景））· 实际写入 3 个字段 → depth_of_field/lighting/camera_movement\n[19:32:24]   ⇢ [cine-kb SC-01] ok 30ms → /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/mcd-replay-attempts/film-sh6xglyp/film-fixtures/archive/ws-yunqi/m6-film-0af74183-9ed0-4093-a8e9-cdfd3ceaafc0/stages/film/attempt-1/work/cine-kb/001-SC-01.json\n[19:32:24]   ⇢ [cine-kb] ok 31ms → /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/mcd-replay-attempts/film-sh6xglyp/film-fixtures/archive/ws-yunqi/m6-film-0af74183-9ed0-4093-a8e9-cdfd3ceaafc0/stages/film/attempt-1/work/shotlist-enriched-m6-film-0af74183-9ed0-4093-a8e9-cdfd3ceaafc0.json\n[19:32:24]   ⇢ [continuity] ok 15ms → /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/mcd-replay-attempts/film-sh6xglyp/film-fixtures/archive/ws-yunqi/m6-film-0af74183-9ed0-4093-a8e9-cdfd3ceaafc0/stages/film/attempt-1/inputs/source.json\n[19:32:24] 阶段日志：/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/mcd-replay-attempts/film-sh6xglyp/film-fixtures/archive/ws-yunqi/m6-film-0af74183-9ed0-4093-a8e9-cdfd3ceaafc0/stages/film/attempt-1/work/logs/m6-film-0af74183-9ed0-4093-a8e9-cdfd3ceaafc0/stages.jsonl\n[19:32:24]   · route          invoked=1 ok=1 failed=0 degraded=0 cached=0\n[19:32:24]   · scene-policy-audit invoked=1 ok=1 failed=0 degraded=0 cached=0\n[19:32:24]   · env-audit      invoked=1 ok=1 failed=0 degraded=0 cached=0\n[19:32:24]   · hook-audit     invoked=1 ok=1 failed=0 degraded=0 cached=0\n[19:32:24]   · speech-rate    invoked=1 ok=1 failed=0 degraded=0 cached=0\n[19:32:24]   · gate           invoked=3 ok=3 failed=0 degraded=0 cached=0\n[19:32:24]   · cine-kb        invoked=2 ok=2 failed=0 degraded=0 cached=0\n[19:32:24]   · continuity     invoked=1 ok=1 failed=0 degraded=0 cached=0\n",
+          "components": [
+            {
+              "component": "review",
+              "stepKey": "continuity",
+              "shotId": null,
+              "state": "accepted",
+              "reservedCny": 0.05,
+              "actualCny": null,
+              "updatedAt": "2026-10-03T19:32:24.103Z"
+            }
+          ]
+        },
+        {
+          "name": "Result is bound to the job, run and frozen input",
+          "healthy": true
+        },
+        {
+          "name": "Registered component capability reaches the parent review ledger",
+          "healthy": true
+        },
+        {
+          "name": "Unknown stage fails before spawning",
+          "healthy": true
+        },
+        {
+          "name": "Options cannot read a secret file or replace job paths",
+          "healthy": true
+        }
+      ],
+      "current_dependency_audit": null,
+      "actual_outputs_hash_verified": true,
+      "pass": true
+    },
+    {
+      "card_id": "MC-105",
+      "assertion_index": 1,
+      "actor": "codex-root-T-2026-1002-0901",
+      "role": "repair",
+      "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+      "run": {
+        "path": "runs/MC-105-1-1791055944354.json",
+        "sha256": "0d5ec93a3af7d9faad087b64a14d17f267c1b6fdc5d8fa36f100dff9d370eeaf",
+        "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+      },
+      "evidence": {
+        "path": "evidence/MC-105-1-1791055944354.txt",
+        "sha256": "da9f8ff61ee5af52f6751d721a0b68f34fd69b99ce70bf9022c0d5a205c84ec4",
+        "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+      },
+      "command": "/Library/Developer/CommandLineTools/usr/bin/python3 /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/run_isolated_replay.py --repo /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit --source 1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8 --group film --case missing-output",
+      "declared_exec": {
+        "file": "/Library/Developer/CommandLineTools/usr/bin/python3",
+        "args": [
+          "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/run_isolated_replay.py",
+          "--repo",
+          "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit",
+          "--source",
+          "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+          "--group",
+          "film",
+          "--case",
+          "missing-output"
+        ]
+      },
+      "actual_exec": {
+        "file": "/Library/Developer/CommandLineTools/usr/bin/python3",
+        "args": [
+          "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/run_isolated_replay.py",
+          "--repo",
+          "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit",
+          "--source",
+          "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+          "--group",
+          "film",
+          "--case",
+          "missing-output"
+        ]
+      },
+      "started_at": "2026-10-03T19:32:24.354Z",
+      "finished_at": "2026-10-03T19:32:25.801Z",
+      "exit_code": 0,
+      "validation": {
+        "ok": true,
+        "errors": []
+      },
+      "node_test_summary": null,
+      "replay_observations": [
+        {
+          "name": "Composition without upstream clips cannot report a successful job",
+          "healthy": true,
+          "status": "failed",
+          "error": "WORKER_EXIT_NONZERO",
+          "log": "empty]、tablet-butler[photos-empty]\n[19:32:25] 未显式指定模特 → 使用系统默认模特：陈卓（chen-zhuo，1 号）\n[19:32:25]   ⇢ [gate] ok 0ms\n[19:32:25]   ⇢ [gate G5 g5-portrait-confirm] ok（deterministic） — 门通过（5 项判据，硬闸 3 条）\n[19:32:25] 项目 m6-film-c62a3156-a2fa-40b3-a3e0-a1028d7b615e｜镜头 1 个｜目标 5s｜9:16 源 1080p → 交付 1080p (1080x1920)@30fps\n[19:32:25] 媒体工具：ffmpeg=/Users/mac/.workloom-color/bin/ffmpeg｜ffprobe=/Users/mac/.workloom-color/bin/ffprobe\n[19:32:25] 后期缓存：/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/mcd-replay-attempts/film-_3o_jmsl/film-fixtures/archive/ws-yunqi/m6-film-c62a3156-a2fa-40b3-a3e0-a1028d7b615e/stages/film/attempt-1/work/post/m6-film-c62a3156-a2fa-40b3-a3e0-a1028d7b615e｜交付目录：/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/mcd-replay-attempts/film-_3o_jmsl/film-fixtures/archive/ws-yunqi/m6-film-c62a3156-a2fa-40b3-a3e0-a1028d7b615e/stages/film/attempt-1/delivery\n[19:32:25] 角色档案：陈卓（chen-zhuo）角度 front/threeQuarter/closeup/side/back/actionPose/emotionCloseup/handDetail\n[19:32:25] 阶段：compose｜监制：fail-closed\n[19:32:25] ⛔ 缺少当前镜头或人声的通过回执，合成中止：SC-01\n[19:32:25]   ⇢ [compose] FAIL 0ms\n[19:32:25]   · route          invoked=1 ok=1 failed=0 degraded=0 cached=0\n[19:32:25]   · scene-policy-audit invoked=1 ok=1 failed=0 degraded=0 cached=0\n[19:32:25]   · env-audit      invoked=1 ok=1 failed=0 degraded=0 cached=0\n[19:32:25]   · hook-audit     invoked=1 ok=1 failed=0 degraded=0 cached=0\n[19:32:25]   · speech-rate    invoked=1 ok=1 failed=0 degraded=0 cached=0\n[19:32:25]   · gate           invoked=3 ok=3 failed=0 degraded=0 cached=0\n[19:32:25]   · compose        invoked=0 ok=0 failed=0 degraded=0 cached=0\n[19:32:25] 阶段日志：/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/mcd-replay-attempts/film-_3o_jmsl/film-fixtures/archive/ws-yunqi/m6-film-c62a3156-a2fa-40b3-a3e0-a1028d7b615e/stages/film/attempt-1/work/logs/m6-film-c62a3156-a2fa-40b3-a3e0-a1028d7b615e/stages.jsonl\n[19:32:25] ⛔ 请求未完成：缺阶段 无；未通过 compose\n"
+        }
+      ],
+      "current_dependency_audit": null,
+      "actual_outputs_hash_verified": true,
+      "pass": true
+    },
+    {
+      "card_id": "MC-105",
+      "assertion_index": 2,
+      "actor": "codex-root-T-2026-1002-0901",
+      "role": "repair",
+      "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+      "run": {
+        "path": "runs/MC-105-2-1791055945839.json",
+        "sha256": "cd26af080d827e510738d9441cf1497e8c752fe39ceb2db2365c687d619d83e2",
+        "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+      },
+      "evidence": {
+        "path": "evidence/MC-105-2-1791055945839.txt",
+        "sha256": "9da1358fb9c407212bdff3848728c5eee9758a63ca2d527bf98b33e7a520ef95",
+        "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+      },
+      "command": "/Library/Developer/CommandLineTools/usr/bin/python3 /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/run_isolated_replay.py --repo /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit --source 1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8 --group film --case deadline",
+      "declared_exec": {
+        "file": "/Library/Developer/CommandLineTools/usr/bin/python3",
+        "args": [
+          "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/run_isolated_replay.py",
+          "--repo",
+          "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit",
+          "--source",
+          "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+          "--group",
+          "film",
+          "--case",
+          "deadline"
+        ]
+      },
+      "actual_exec": {
+        "file": "/Library/Developer/CommandLineTools/usr/bin/python3",
+        "args": [
+          "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/run_isolated_replay.py",
+          "--repo",
+          "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit",
+          "--source",
+          "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+          "--group",
+          "film",
+          "--case",
+          "deadline"
+        ]
+      },
+      "started_at": "2026-10-03T19:32:25.839Z",
+      "finished_at": "2026-10-03T19:32:26.662Z",
+      "exit_code": 0,
+      "validation": {
+        "ok": true,
+        "errors": []
+      },
+      "node_test_summary": null,
+      "replay_observations": [
+        {
+          "name": "Hard deadline stops the worker and cannot become a successful exit",
+          "healthy": true,
+          "status": "failed",
+          "error": "JOB_DEADLINE_EXCEEDED"
+        }
+      ],
+      "current_dependency_audit": null,
+      "actual_outputs_hash_verified": true,
+      "pass": true
+    },
+    {
+      "card_id": "MC-105",
+      "assertion_index": 3,
+      "actor": "codex-root-T-2026-1002-0901",
+      "role": "repair",
+      "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+      "run": {
+        "path": "runs/MC-105-3-1791055946701.json",
+        "sha256": "a051e2bee5d4e22a99c2a7f6de4e462ce3244d5ea99c77e37e4907d4931bc2b7",
+        "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+      },
+      "evidence": {
+        "path": "evidence/MC-105-3-1791055946701.txt",
+        "sha256": "bc95813e097cf389594dee663c313a1fc77b23cd796e38f81e4d3098e913dd10",
+        "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+      },
+      "command": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node --env-file=.env --import tsx scripts/suite-geo.ts",
+      "declared_exec": {
+        "file": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+        "args": [
+          "--env-file=.env",
+          "--import",
+          "tsx",
+          "scripts/suite-geo.ts"
+        ]
+      },
+      "actual_exec": {
+        "file": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+        "args": [
+          "--env-file=.env",
+          "--import",
+          "tsx",
+          "scripts/suite-geo.ts"
+        ]
+      },
+      "started_at": "2026-10-03T19:32:26.701Z",
+      "finished_at": "2026-10-03T19:32:29.566Z",
+      "exit_code": 0,
+      "validation": {
+        "ok": true,
+        "errors": []
+      },
+      "node_test_summary": null,
+      "replay_observations": null,
+      "current_dependency_audit": null,
+      "actual_outputs_hash_verified": true,
+      "pass": true
+    },
+    {
+      "card_id": "MC-105",
+      "assertion_index": 4,
+      "actor": "codex-root-T-2026-1002-0901",
+      "role": "repair",
+      "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+      "run": {
+        "path": "runs/MC-105-4-1791055949608.json",
+        "sha256": "b5f54f0d73bddd08a5b13b303ecb22caa74e3f827e92333869a03f9c78505ccf",
+        "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+      },
+      "evidence": {
+        "path": "evidence/MC-105-4-1791055949608.txt",
+        "sha256": "d46ac22547b99f4663b7af8b804e4128c56bf86dc7363f9d913cbe1123b30141",
+        "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+      },
+      "command": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node --env-file=.env --test scripts/video-capabilities.test.mjs",
+      "declared_exec": {
+        "file": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+        "args": [
+          "--env-file=.env",
+          "--test",
+          "scripts/video-capabilities.test.mjs"
+        ]
+      },
+      "actual_exec": {
+        "file": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+        "args": [
+          "--test-reporter=/Users/mac/.codex/skills/mine-clear-delivery/assets/node-test-reporter.mjs",
+          "--test-reporter-destination=/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/evidence/MC-105-4-1791055949608-node-tests.jsonl",
+          "--test-reporter=tap",
+          "--test-reporter-destination=stdout",
+          "--env-file=.env",
+          "--test",
+          "scripts/video-capabilities.test.mjs"
+        ]
+      },
+      "started_at": "2026-10-03T19:32:29.608Z",
+      "finished_at": "2026-10-03T19:32:29.999Z",
+      "exit_code": 0,
+      "validation": {
+        "ok": true,
+        "errors": [],
+        "testSummary": {
+          "total": 4,
+          "passed": 4,
+          "failed": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        }
+      },
+      "node_test_summary": {
+        "total": 4,
+        "passed": 4,
+        "failed": 0,
+        "cancelled": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "replay_observations": null,
+      "current_dependency_audit": null,
+      "actual_outputs_hash_verified": true,
+      "pass": true
+    },
+    {
+      "card_id": "MC-106",
+      "assertion_index": 0,
+      "actor": "codex-root-T-2026-1002-0901",
+      "role": "repair",
+      "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+      "run": {
+        "path": "runs/MC-106-0-1791055950221.json",
+        "sha256": "bf20ed82376ef84c797e278885f75163410754ebe120e174db43859f328876e1",
+        "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+      },
+      "evidence": {
+        "path": "evidence/MC-106-0-1791055950221.txt",
+        "sha256": "eb5d94bcb000d4d42a0cc12b07cba6deb9be53f5b3eddd20d9caee95eeeb36bb",
+        "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+      },
+      "command": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/pnpm/bin/pnpm.cjs audit --prod --json",
+      "declared_exec": {
+        "file": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+        "args": [
+          "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/pnpm/bin/pnpm.cjs",
+          "audit",
+          "--prod",
+          "--json"
+        ]
+      },
+      "actual_exec": {
+        "file": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+        "args": [
+          "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/pnpm/bin/pnpm.cjs",
+          "audit",
+          "--prod",
+          "--json"
+        ]
+      },
+      "started_at": "2026-10-03T19:32:30.221Z",
+      "finished_at": "2026-10-03T19:32:33.011Z",
+      "exit_code": 0,
+      "validation": {
+        "ok": true,
+        "errors": []
+      },
+      "node_test_summary": null,
+      "replay_observations": null,
+      "current_dependency_audit": {
+        "source_commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+        "actual_role": "repair",
+        "metadata": {
+          "vulnerabilities": {
+            "info": 0,
+            "low": 0,
+            "moderate": 0,
+            "high": 0,
+            "critical": 0
+          },
+          "dependencies": 197,
+          "devDependencies": 0,
+          "optionalDependencies": 0,
+          "totalDependencies": 197
+        },
+        "advisory_count": 0,
+        "muted_count": 0,
+        "registry_backed_actual_run": true,
+        "inherited_from_old_zero_advisory_receipt": false,
+        "original_high_advisory_run_not_overwritten": true
+      },
+      "actual_outputs_hash_verified": true,
+      "pass": true
+    }
+  ],
+  "private_credentials_opened": false,
+  "real_provider_calls": 0,
+  "original_ledger_unchanged": true,
+  "original_results_unchanged": true,
+  "protected_original_hashes": {
+    "ledger.json": "094384c5502fd73355bd64f5645245c77ae23fc8ee37c3f7da988ba11104c887",
+    "evidence/runtime-repro-results.json": "1c1398a852535f96a29407965a5e488d613e9ab01be7094f9dbfcd1db66046b5",
+    "evidence/auth-production-http.json": "98a10d2017284d7c51db2a8633d98c825f4c41458bd3ca3c12a6ffde066e6d36",
+    "evidence/film-worker-public-success.json": "6641d6581bc76a604778dae6b2c7c37357a9171c08fe180cfae5b29467822cce"
+  },
+  "metadata_identity_limit": "Actor and role are actual invocation records and agent-session provenance; this is not platform identity authentication.",
+  "current_dependency_security": {
+    "source_commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+    "actual_registry_audits": [
+      {
+        "card_id": "MC-016",
+        "actor": "codex-root-T-2026-1002-0901",
+        "role": "repair",
+        "command": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/pnpm/bin/pnpm.cjs audit --prod --json",
+        "run": {
+          "path": "runs/MC-016-0-1791055907114.json",
+          "sha256": "e1221b09b62dbfd326dd9aec24b1cc1e12dcd7d9cd645cb0b434c8df29ae90aa",
+          "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+        },
+        "evidence": {
+          "path": "evidence/MC-016-0-1791055907114.txt",
+          "sha256": "eb5d94bcb000d4d42a0cc12b07cba6deb9be53f5b3eddd20d9caee95eeeb36bb",
+          "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+        },
+        "started_at": "2026-10-03T19:31:47.114Z",
+        "finished_at": "2026-10-03T19:32:02.568Z",
+        "exit_code": 0,
+        "audit": {
+          "source_commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+          "actual_role": "repair",
+          "metadata": {
+            "vulnerabilities": {
+              "info": 0,
+              "low": 0,
+              "moderate": 0,
+              "high": 0,
+              "critical": 0
+            },
+            "dependencies": 197,
+            "devDependencies": 0,
+            "optionalDependencies": 0,
+            "totalDependencies": 197
+          },
+          "advisory_count": 0,
+          "muted_count": 0,
+          "registry_backed_actual_run": true,
+          "inherited_from_old_zero_advisory_receipt": false,
+          "original_high_advisory_run_not_overwritten": true
+        }
+      },
+      {
+        "card_id": "MC-106",
+        "actor": "codex-root-T-2026-1002-0901",
+        "role": "repair",
+        "command": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/pnpm/bin/pnpm.cjs audit --prod --json",
+        "run": {
+          "path": "runs/MC-106-0-1791055950221.json",
+          "sha256": "bf20ed82376ef84c797e278885f75163410754ebe120e174db43859f328876e1",
+          "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+        },
+        "evidence": {
+          "path": "evidence/MC-106-0-1791055950221.txt",
+          "sha256": "eb5d94bcb000d4d42a0cc12b07cba6deb9be53f5b3eddd20d9caee95eeeb36bb",
+          "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+        },
+        "started_at": "2026-10-03T19:32:30.221Z",
+        "finished_at": "2026-10-03T19:32:33.011Z",
+        "exit_code": 0,
+        "audit": {
+          "source_commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+          "actual_role": "repair",
+          "metadata": {
+            "vulnerabilities": {
+              "info": 0,
+              "low": 0,
+              "moderate": 0,
+              "high": 0,
+              "critical": 0
+            },
+            "dependencies": 197,
+            "devDependencies": 0,
+            "optionalDependencies": 0,
+            "totalDependencies": 197
+          },
+          "advisory_count": 0,
+          "muted_count": 0,
+          "registry_backed_actual_run": true,
+          "inherited_from_old_zero_advisory_receipt": false,
+          "original_high_advisory_run_not_overwritten": true
+        }
+      }
+    ],
+    "actual_independent_acceptance_audit_executed": false,
+    "old_zero_audit_is_historical_only": true,
+    "original_high_failure_preserved": true,
+    "scope": "Actual registry metadata at each captured run. No exploit-reachability, future-advisory or arbitrary dynamic-behavior assurance."
+  },
+  "evidence_grade": "B actual run and artifact/hash readback; underlying source semantics were separately read at A",
+  "review_command_execution_scope": "Readonly Git and evidence validation only; no product assertion execution, DB call, provider call, or ledger write.",
+  "all_exec_contracts_full_read": true,
+  "root_repair_role_actual_completed": true,
+  "parent_owned_pg_window_released": true,
+  "actual_repair_cards": 24,
+  "actual_repair_assertions": 38
+}

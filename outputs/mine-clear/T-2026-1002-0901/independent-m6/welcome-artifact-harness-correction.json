@@ -1,0 +1,1 @@
+{"initial_artifact_shell_invocation_exit":127,"reason":"node binary not on non-login shell PATH; no verifier executed and no product case ran","correction":"Use configured absolute runtime via isolated run_check; expected historical source declaration restored before first actual execution"}

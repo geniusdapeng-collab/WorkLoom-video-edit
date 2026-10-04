@@ -1,0 +1,33 @@
+{
+  "schema": "growth.independent-m6/owned-native-red-gate-preparation@1",
+  "source_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+  "original_failures_preserved": true,
+  "original_default_red_required_for_surface_native": true,
+  "default_success_requires_exact_new_cold_repeat": true,
+  "safe_initial_png_pixel_scope_limited": true,
+  "files": [
+    {
+      "file": "create-floor-native-verification.py",
+      "sha256": "065356af4a193673d09afcc8997f145940b5af659f698decdd4e706b772c32b2",
+      "bytes": 20163,
+      "strict_utf8_ast_compile_passed": true,
+      "actual_native_or_MCD_execution": false
+    },
+    {
+      "file": "build_report.py",
+      "sha256": "73bbadcfafc4fb1379b8364b82ddfb5a1488052f45d6142e864cb18b49981165",
+      "bytes": 114203,
+      "strict_utf8_ast_compile_passed": true,
+      "actual_native_or_MCD_execution": false
+    },
+    {
+      "file": "validate_report.py",
+      "sha256": "f454cdd0bc76917e59c47835295137d148c44f209b3232b86e14cf451c492cd3",
+      "bytes": 35863,
+      "strict_utf8_ast_compile_passed": true,
+      "actual_native_or_MCD_execution": false
+    }
+  ],
+  "native_pass_produced": false,
+  "MCD_pass_produced": false
+}

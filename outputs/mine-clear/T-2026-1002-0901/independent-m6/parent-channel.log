@@ -1,0 +1,177 @@
+COMMAND ["/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node", "--env-file=.env", "--import", "./node_modules/tsx/dist/loader.mjs", "../../outputs/growth-production-fix-2026-10-02/independent-m6/parent-channel-probe.mts"]
+{
+  "sourceBaseline": "04099407ca73085e5d87f5c4d33ca9bba64f3374",
+  "source": "apps/server/src/video/film-worker.ts#handleChannelRequest",
+  "copiedSourceRewrites": "only absolute imports, REPO_ROOT relocation, and private-handler export",
+  "supplierEnv": "empty",
+  "networkCalls": 0,
+  "cases": [
+    {
+      "id": "image-under-cine-kb",
+      "method": "image.generate",
+      "stages": [
+        "cine-kb"
+      ],
+      "stepKey": "cine-kb:S1",
+      "shotId": "S1",
+      "shouldReject": true,
+      "reservations": 1,
+      "error": {
+        "code": "PROVIDER_UNCONFIGURED",
+        "message": "PROVIDER_UNCONFIGURED: 服务未配置火山方舟密钥，拒绝在工位侧直连供应商"
+      },
+      "rejectedBeforeReservation": false,
+      "pass": false,
+      "failures": [
+        {
+          "state": "failed",
+          "failureClass": "PROVIDER_UNCONFIGURED",
+          "evidence": {
+            "message": "PROVIDER_UNCONFIGURED: 服务未配置火山方舟密钥，拒绝在工位侧直连供应商"
+          }
+        }
+      ]
+    },
+    {
+      "id": "video-under-plates",
+      "method": "video.generate",
+      "stages": [
+        "plates"
+      ],
+      "stepKey": "plates:S1",
+      "shotId": "S1",
+      "shouldReject": true,
+      "reservations": 1,
+      "error": {
+        "code": "PROVIDER_UNCONFIGURED",
+        "message": "PROVIDER_UNCONFIGURED: 服务未配置火山方舟密钥，拒绝在工位侧直连供应商"
+      },
+      "rejectedBeforeReservation": false,
+      "pass": false,
+      "failures": [
+        {
+          "state": "failed",
+          "failureClass": "PROVIDER_UNCONFIGURED",
+          "evidence": {
+            "message": "PROVIDER_UNCONFIGURED: 服务未配置火山方舟密钥，拒绝在工位侧直连供应商"
+          }
+        }
+      ]
+    },
+    {
+      "id": "image-shot-suffix-mismatch",
+      "method": "image.generate",
+      "stages": [
+        "plates"
+      ],
+      "stepKey": "plates:S1",
+      "shotId": "S2",
+      "shouldReject": true,
+      "reservations": 1,
+      "error": {
+        "code": "PROVIDER_UNCONFIGURED",
+        "message": "PROVIDER_UNCONFIGURED: 服务未配置火山方舟密钥，拒绝在工位侧直连供应商"
+      },
+      "rejectedBeforeReservation": false,
+      "pass": false,
+      "failures": [
+        {
+          "state": "failed",
+          "failureClass": "PROVIDER_UNCONFIGURED",
+          "evidence": {
+            "message": "PROVIDER_UNCONFIGURED: 服务未配置火山方舟密钥，拒绝在工位侧直连供应商"
+          }
+        }
+      ]
+    },
+    {
+      "id": "image-shot-suffix-missing",
+      "method": "image.generate",
+      "stages": [
+        "plates"
+      ],
+      "stepKey": "plates",
+      "shotId": "S1",
+      "shouldReject": true,
+      "reservations": 1,
+      "error": {
+        "code": "PROVIDER_UNCONFIGURED",
+        "message": "PROVIDER_UNCONFIGURED: 服务未配置火山方舟密钥，拒绝在工位侧直连供应商"
+      },
+      "rejectedBeforeReservation": false,
+      "pass": false,
+      "failures": [
+        {
+          "state": "failed",
+          "failureClass": "PROVIDER_UNCONFIGURED",
+          "evidence": {
+            "message": "PROVIDER_UNCONFIGURED: 服务未配置火山方舟密钥，拒绝在工位侧直连供应商"
+          }
+        }
+      ]
+    },
+    {
+      "id": "correct-image-control",
+      "method": "image.generate",
+      "stages": [
+        "plates"
+      ],
+      "stepKey": "plates:S1",
+      "shotId": "S1",
+      "shouldReject": false,
+      "reservations": 1,
+      "error": {
+        "code": "PROVIDER_UNCONFIGURED",
+        "message": "PROVIDER_UNCONFIGURED: 服务未配置火山方舟密钥，拒绝在工位侧直连供应商"
+      },
+      "rejectedBeforeReservation": false,
+      "pass": true,
+      "failures": [
+        {
+          "state": "failed",
+          "failureClass": "PROVIDER_UNCONFIGURED",
+          "evidence": {
+            "message": "PROVIDER_UNCONFIGURED: 服务未配置火山方舟密钥，拒绝在工位侧直连供应商"
+          }
+        }
+      ]
+    },
+    {
+      "id": "outside-stage-control",
+      "method": "image.generate",
+      "stages": [
+        "cine-kb"
+      ],
+      "stepKey": "plates:S1",
+      "shotId": "S1",
+      "shouldReject": true,
+      "reservations": 0,
+      "error": {
+        "code": "STEP_OUT_OF_SCOPE",
+        "message": "STEP_OUT_OF_SCOPE: 步骤 plates:S1 不在本次作业冻结阶段内"
+      },
+      "rejectedBeforeReservation": true,
+      "pass": true,
+      "failures": []
+    },
+    {
+      "id": "unknown-shot-control",
+      "method": "image.generate",
+      "stages": [
+        "plates"
+      ],
+      "stepKey": "plates:S3",
+      "shotId": "S3",
+      "shouldReject": true,
+      "reservations": 0,
+      "error": {
+        "code": "SHOT_NOT_FOUND",
+        "message": "SHOT_NOT_FOUND: 镜号 S3 不在冻结原稿内"
+      },
+      "rejectedBeforeReservation": true,
+      "pass": true,
+      "failures": []
+    }
+  ],
+  "pass": false
+}

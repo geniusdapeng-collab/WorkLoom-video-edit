@@ -1,0 +1,22 @@
+{
+  "source_head": "f9515d09ee6de9b34f38b93d3769654fe4869391",
+  "clean": true,
+  "files": [
+    {
+      "path": "apps/desktop/electron/main.cjs",
+      "git_blob": "630c29c0a5434ecaa057919f3ba86fbafd3c141c",
+      "sha256": "231d1e1c9621c9408393aee430ff80008eb5548d3c734ce96e329cff5f588ad2"
+    },
+    {
+      "path": "apps/desktop/electron/bootstrap.test.cjs",
+      "git_blob": "79b1356a95f18c0bd02b5056138c0da485157871",
+      "sha256": "ee5aa1da3a27ccdacf17a91c75602680bc5b30b9b06a7cedc970fedf57f3cafa"
+    },
+    {
+      "path": "docs/repairs/T-2026-1002-0901.md",
+      "git_blob": "e3afb63275ba4053f8177629b955a5455e4c09e5",
+      "sha256": "e2edfd240fe76a1208a7d43fbc7f9fcc84d4700aa6874751effd944e7805dae1"
+    }
+  ],
+  "execution_provenance": "Root functional/suite executed preceding dirty candidate, same full Git blob bytes; does not relabel original execution as clean source rerun."
+}

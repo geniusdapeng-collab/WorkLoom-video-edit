@@ -1,0 +1,18 @@
+{
+  "name": "floor-canvas-production-physical-before",
+  "command": [
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+    "--env-file=.env",
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/independent-m6/floor-canvas-painted-probe.mjs",
+    "7d5f02049cc75a692d4eaac33916633cb2192f01",
+    "floor-canvas-production-physical-before-results.json",
+    "floor-canvas-production-physical-before",
+    "7d-frozen"
+  ],
+  "exit_code": 1,
+  "seconds": 75.274,
+  "source_before": "7d5f02049cc75a692d4eaac33916633cb2192f01",
+  "source_after": "7d5f02049cc75a692d4eaac33916633cb2192f01",
+  "ran_at": "2026-10-03T05:24:42.685774+08:00",
+  "log": "floor-canvas-production-physical-before.log"
+}

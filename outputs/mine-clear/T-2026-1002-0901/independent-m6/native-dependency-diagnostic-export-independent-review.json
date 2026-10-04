@@ -1,0 +1,131 @@
+{
+  "schema": "growth.independent-m6/native-diagnostic-review@1",
+  "source_commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+  "reviewed_by": "growth_m6",
+  "evidence_prefix": "dependency",
+  "reviewed_at": "2026-10-04T03:10:39.545253+08:00",
+  "action_surface": "startup-failure-page-actions",
+  "actual_installed_startup_action_save_panel_executed": true,
+  "actual_startup_failure_page_observed": true,
+  "actual_exported_synthetic_text_independently_reviewed": true,
+  "actual_posix_private_file_mode_verified": true,
+  "source_unit_controls_kept_separate_from_ui": true,
+  "app_asar_sha256": "68f4c953a300237a55ceedb0e0dc7c77f361c581cbac046aed8a49431471706c",
+  "payload_sha256": "89d813bd9bee83c7471b623dbb43c7c9d702afa78e3fe06bcf94adec02a33a53",
+  "root_receipt_file": "native-dependency-diagnostic-export.json",
+  "root_receipt_sha256": "d33d673e7889e9bb37be208db56b25e81b216c6ffa14770674ea76c88f7d8075",
+  "root_actual_seconds": 374.362,
+  "actual_cases": [
+    {
+      "id": "actual_startup_failure_page_observed",
+      "passed": true
+    },
+    {
+      "id": "actual_native_menu",
+      "passed": true
+    },
+    {
+      "id": "actual_save_dialog",
+      "passed": true
+    },
+    {
+      "id": "actual_cancel_observed",
+      "passed": true
+    },
+    {
+      "id": "actual_overwrite_confirmation_observed",
+      "passed": true
+    },
+    {
+      "id": "actual_recovery_page_retained",
+      "passed": true
+    },
+    {
+      "id": "all-synthetic-fields-redacted",
+      "passed": true
+    },
+    {
+      "id": "benign-context-preserved",
+      "passed": true
+    },
+    {
+      "id": "actual-overwrite-mode-0600",
+      "passed": true
+    }
+  ],
+  "all_actual_cases_passed": true,
+  "public_evidence": [
+    {
+      "file": "inherited/evidence__native-dependency-diagnostic-export.json",
+      "root_file": "native-dependency-diagnostic-export.json",
+      "sha256": "d33d673e7889e9bb37be208db56b25e81b216c6ffa14770674ea76c88f7d8075",
+      "bytes": 4854
+    },
+    {
+      "file": "inherited/evidence__native-dependency-diagnostic-preparation.json",
+      "root_file": "native-dependency-diagnostic-preparation.json",
+      "sha256": "aa92f4f337fbc76c7e76cd772868b1408ab073211e23cf4de01da950471fcbe0",
+      "bytes": 2258
+    },
+    {
+      "file": "inherited/evidence__mac-dependency-diagnostic-ui.json",
+      "root_file": "mac-dependency-diagnostic-ui.json",
+      "sha256": "3056b086024c800a4e5fc3f8fc82c02bb7f8612ecfcc9e12232a5744f4ba1f95",
+      "bytes": 422
+    },
+    {
+      "file": "inherited/evidence__native-dependency-diagnostic-failure-page.png",
+      "root_file": "native-dependency-diagnostic-failure-page.png",
+      "sha256": "ce9962bccaa98e79864fca14ee6e714177fc58f5d221ce8024fac795d74006ad",
+      "bytes": 112700
+    },
+    {
+      "file": "inherited/evidence__native-dependency-diagnostic-save-dialog.png",
+      "root_file": "native-dependency-diagnostic-save-dialog.png",
+      "sha256": "2378e81007baca3d7c0b0231133f30647f008025010e2fb276670adaf60890dd",
+      "bytes": 35557
+    },
+    {
+      "file": "inherited/evidence__native-dependency-diagnostic-overwrite-confirmation.png",
+      "root_file": "native-dependency-diagnostic-overwrite-confirmation.png",
+      "sha256": "559be5efdd42ac92de10e47bf7252edcc6cb880d6a6a02f0c89c74be2e6d22e0",
+      "bytes": 49860
+    },
+    {
+      "file": "inherited/evidence__native-dependency-diagnostic-recovery-page.png",
+      "root_file": "native-dependency-diagnostic-recovery-page.png",
+      "sha256": "56d8230c517058839b9a295df7dcc5a882b2676ee314c1b6ac4a93f19178884d",
+      "bytes": 113564
+    },
+    {
+      "file": "inherited/evidence__native-dependency-diagnostic-export.txt",
+      "root_file": "native-dependency-diagnostic-export.txt",
+      "sha256": "a744ca84fb3d45a010f74cf04475609d3000506225ffa73b2791a906210ca130",
+      "bytes": 1062
+    }
+  ],
+  "screenshot_review": {
+    "file": "native-dependency-diagnostic-screenshot-review.json",
+    "sha256": "4abb8ce15486dd7cce5acbc9c6c10491a93113bc15ab318e40cc9c2f661d19c2"
+  },
+  "root_observation_sha256": "6785e4f26dbc949ee4652add8bf4dd4b9405b75b5387f2414da53859bde1c05d",
+  "actual_export_sha256": "a744ca84fb3d45a010f74cf04475609d3000506225ffa73b2791a906210ca130",
+  "actual_export_bytes": 1062,
+  "actual_export_mode": "0600",
+  "public_export_credential_pattern_hits": 0,
+  "cancel_preserved_original_bytes_and_mode_root_receipt_bound": true,
+  "private_customer_contents_opened": false,
+  "synthetic_secret_fixture_opened": false,
+  "root_execution_kept_distinct_from_verifier_inspection": true,
+  "legacy_field_meaning": "actual_native_menu is the root legacy key for the failure-page export action; this receipt does not claim an operating-system menu interaction",
+  "grades": {
+    "source_bytes_and_receipt_fields": "B",
+    "actual_export_bytes_permissions_and_pattern_checks": "B",
+    "direct_pixel_reviews": "C",
+    "formal_platform_and_full_ux": "D"
+  },
+  "paid_provider_calls_by_verifier": 0,
+  "windows_acl_verified": false,
+  "formal_signed_release_verified": false,
+  "full_ux_pass_claimed": false
+}

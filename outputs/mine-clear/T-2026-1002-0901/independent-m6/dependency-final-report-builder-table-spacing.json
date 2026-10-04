@@ -1,0 +1,18 @@
+{
+  "name": "dependency-final-report-builder-table-spacing",
+  "command": [
+    "python3",
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/independent-m6/execute-report-bytes.py",
+    "defaa5e97424b69ad69a693db51ab0a105f531d689a265ba1b39fba04e47a8e5"
+  ],
+  "exit_code": 0,
+  "seconds": 7.831,
+  "source_before": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+  "source_after": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+  "ran_at": "2026-10-04T05:32:39.240795+08:00",
+  "log": "dependency-final-report-builder-table-spacing.log",
+  "builder_sha256_before_after": "defaa5e97424b69ad69a693db51ab0a105f531d689a265ba1b39fba04e47a8e5",
+  "active_generator_log_written_after_completion": true,
+  "guards_omitted": 0,
+  "only_report_change_since_prior_pass": "Two newlines separate the actual build-history paragraph and Markdown table header; all assertions, gates, counts and receipt sources retained."
+}

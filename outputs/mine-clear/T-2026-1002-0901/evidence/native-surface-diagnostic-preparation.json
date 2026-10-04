@@ -1,0 +1,30 @@
+{
+  "schema": "growth.native-diagnostic-preparation@1",
+  "prepared_at": "2026-10-03T20:29:52.574790+08:00",
+  "source_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+  "synthetic_only": true,
+  "actual_native_ui_executed": false,
+  "application": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/地面修复 客户应用/WorkLoom 获客增长系统（实验车道）.app",
+  "executable": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/地面修复 客户应用/WorkLoom 获客增长系统（实验车道）.app/Contents/MacOS/WorkLoom 获客增长系统（实验车道）",
+  "app_asar_sha256": "d2853e56f03680d7eca3c24798ec58f482883908a30f649ef7f1dcaac0bab42a",
+  "payload_sha256": "ae3480215c5a72f4c890aaf9e0fa942b613037b11c580ffeb9802fb7e309c673",
+  "main_sha256": "231d1e1c9621c9408393aee430ff80008eb5548d3c734ce96e329cff5f588ad2",
+  "support_directory": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/地面修复 诊断客户",
+  "empty_resources_directory": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/地面修复 诊断空资源",
+  "synthetic_log_sha256": "a122141c6021272936f377a8d6abe8929e07e5c58e68545ebb46eb9c32df9f32",
+  "synthetic_log_bytes": 766,
+  "overwrite_destination": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/地面修复 诊断导出/本机诊断 覆盖测试.txt",
+  "initial_destination_mode": "0644",
+  "initial_destination_sha256": "30e690d9684d6b68dab2051d2298ff7d451087023eaa95449ddbbd056992dddc",
+  "launch_environment": {
+    "WORKLOOM_SUPPORT_DIR": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/地面修复 诊断客户",
+    "WORKLOOM_RESOURCES": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/地面修复 诊断空资源",
+    "WORKLOOM_PG_PORT": "29632",
+    "WORKLOOM_SERVER_PORT": "29887",
+    "WORKLOOM_WEB_PORT": "29773",
+    "WORKLOOM_NATS_PORT": "29422",
+    "SCHEDULER_ENABLED": "0",
+    "HR_PORTRAIT_AUTO_ENABLED": "0"
+  },
+  "boundary": "Real packaged app with an intentionally empty QA Resources directory; no source mocks, database or providers"
+}

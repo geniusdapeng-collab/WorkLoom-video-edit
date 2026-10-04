@@ -1,0 +1,2 @@
+COMMAND ["/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node", "--env-file=.env", "scripts/oss-inventory.mjs", "--write"]
+✓ 已生成 docs/OPEN_SOURCE_COMPONENTS.md（登记组件 98，npm 直接依赖 172）

@@ -1,0 +1,91 @@
+{
+  "schema": "growth.public-evidence-preflight@1",
+  "scope": "Static privacy shape check of immutable required current/native and retained failed execution receipts; no new product test or acceptance claim",
+  "rows": [
+    {
+      "file": "outputs/growth-production-fix-2026-10-02/evidence/execution-ledger-repair-1e471.json",
+      "available": true,
+      "safe_by_shape": true,
+      "reason": null
+    },
+    {
+      "file": "outputs/growth-production-fix-2026-10-02/evidence/native-dependency-fresh-state-before.json",
+      "available": true,
+      "safe_by_shape": true,
+      "reason": null
+    },
+    {
+      "file": "outputs/growth-production-fix-2026-10-02/evidence/native-dependency-fresh-state-after.json",
+      "available": true,
+      "safe_by_shape": true,
+      "reason": null
+    },
+    {
+      "file": "outputs/growth-production-fix-2026-10-02/evidence/native-dependency-upgrade-state-before.json",
+      "available": true,
+      "safe_by_shape": true,
+      "reason": null
+    },
+    {
+      "file": "outputs/growth-production-fix-2026-10-02/evidence/native-dependency-upgrade-state-after.json",
+      "available": true,
+      "safe_by_shape": true,
+      "reason": null
+    },
+    {
+      "file": "outputs/growth-production-fix-2026-10-02/evidence/native-dependency-diagnostic-export.json",
+      "available": true,
+      "safe_by_shape": true,
+      "reason": null
+    },
+    {
+      "file": "outputs/growth-production-fix-2026-10-02/evidence/native-dependency-diagnostic-export.txt",
+      "available": true,
+      "safe_by_shape": true,
+      "reason": null
+    },
+    {
+      "file": "outputs/growth-production-fix-2026-10-02/evidence/mcd-geo-date-drift-original-synthetic-metrics.json",
+      "available": true,
+      "safe_by_shape": true,
+      "reason": null
+    },
+    {
+      "file": "outputs/growth-production-fix-2026-10-02/evidence/mcd-geo-date-drift-prerequisite-restored.json",
+      "available": true,
+      "safe_by_shape": true,
+      "reason": null
+    },
+    {
+      "file": "outputs/growth-production-fix-2026-10-02/evidence/mcd-geo-date-drift-owned-restore.json",
+      "available": true,
+      "safe_by_shape": true,
+      "reason": null
+    },
+    {
+      "file": "outputs/growth-production-fix-2026-10-02/runs/MC-016-0-1791033810501.json",
+      "available": true,
+      "safe_by_shape": true,
+      "reason": null
+    },
+    {
+      "file": "outputs/growth-production-fix-2026-10-02/runs/MC-014-0-1791055106674.json",
+      "available": true,
+      "safe_by_shape": true,
+      "reason": null
+    },
+    {
+      "file": "outputs/growth-production-fix-2026-10-02/evidence/MC-016-0-1791033810501.txt",
+      "available": true,
+      "safe_by_shape": true,
+      "reason": null
+    },
+    {
+      "file": "outputs/growth-production-fix-2026-10-02/evidence/MC-014-0-1791055106674.txt",
+      "available": true,
+      "safe_by_shape": true,
+      "reason": null
+    }
+  ],
+  "pass": true
+}

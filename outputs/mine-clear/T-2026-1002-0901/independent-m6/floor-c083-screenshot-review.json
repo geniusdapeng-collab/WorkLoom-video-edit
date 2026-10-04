@@ -1,0 +1,213 @@
+{
+  "schema": "growth.independent-m6/floor-screenshot-review@1",
+  "source_commit": "c08386eb9993744a0cb0c2495a98fc1fc4ccbed9",
+  "reviewed_by": "growth_m6",
+  "reviewed_at": "2026-10-03T09:18:52.895680+08:00",
+  "total_current_owned_pngs": 32,
+  "directly_viewed_pngs": 32,
+  "sampled_pngs": 0,
+  "unread_pngs": 0,
+  "grade": "C",
+  "method": "Each full PNG directly viewed through view_image, in seven batches; no montage or substitute image",
+  "observations": [
+    "Desktop18 idle,working,asking,blocked,celebrating and collab role plaques are separated and horizontal; supported task status/title uses deliberate ellipsis while role names remain readable.",
+    "Expanded390 and65actor virtual floor is scrollable and shows a subset of actors at each captured position; boundary actors are intentionally clipped by the local scroll viewport. The assertion covers all actual plaques in the full virtual Canvas and every actor after explicit real scroll, not every actor visible in a single screenshot.",
+    "Short Chinese hover is one horizontal line; long Chinese plus emoji wraps within the complete visible box at both widths. Safety negative visibly shows the source-defined Chinese fallback at both widths.",
+    "Pointer callbacks, complete glyph containment, disabled registry cleanup and delivery rejection derive from actual case JSON and native DOM/Canvas observations, not from static images."
+  ],
+  "limits": "C visual inspection of synthetic component payloads on desktop Chromium. No native package cold startup, real mobile device, whole user journey, all camera orientations or real business results.",
+  "images": [
+    {
+      "file": "floor-c083-default-asking-null-1440.png",
+      "sha256": "a1115825e7d94bfb4a8a03a5c0e016b30dde2a623820fce0111dec2a81aed5d3",
+      "visually_viewed": true,
+      "grade": "C"
+    },
+    {
+      "file": "floor-c083-default-blocked-null-1440.png",
+      "sha256": "78d1184e526a2c37a1d5d77fa4f3f589e6b9ee1604e3d5d068c1482fb1c4c234",
+      "visually_viewed": true,
+      "grade": "C"
+    },
+    {
+      "file": "floor-c083-default-celebrating-null-1440.png",
+      "sha256": "ba3ea3e9dbed1b28bb92753ca274af40f6f10e7429842b5c4406d381f8019dca",
+      "visually_viewed": true,
+      "grade": "C"
+    },
+    {
+      "file": "floor-c083-default-idle-null-1440.png",
+      "sha256": "2ac73e5166f310b77eeb47d553845b61b54e6722445bbdcfa4b2958fb7c07b2d",
+      "visually_viewed": true,
+      "grade": "C"
+    },
+    {
+      "file": "floor-c083-default-idle-null-390.png",
+      "sha256": "dc67f1589a5b0a1ce6bacca31fb4fd6bef6da355adfbd3b31003b9a734be787c",
+      "visually_viewed": true,
+      "grade": "C"
+    },
+    {
+      "file": "floor-c083-default-idle-shared-1440.png",
+      "sha256": "afd67be6a756d34e693d9080e72c7d4150e01170f61db1c16d724a2705e29be0",
+      "visually_viewed": true,
+      "grade": "C"
+    },
+    {
+      "file": "floor-c083-default-single-idle-positive.png",
+      "sha256": "f711c5ffda7390170ddc7e5ddd9eb8ead1f8ce93c8d0a64b59ac72572e6a6275",
+      "visually_viewed": true,
+      "grade": "C"
+    },
+    {
+      "file": "floor-c083-default-single-task-positive.png",
+      "sha256": "dced3ceec91595e12f8614a64100fc9d0c0ba82842e98bfa9ff43c33aacdbb40",
+      "visually_viewed": true,
+      "grade": "C"
+    },
+    {
+      "file": "floor-c083-default-working-shared-1440.png",
+      "sha256": "a4cb3829b5ffe8d82ccf9307e506c739236ad96d1fec9a8f10765a02118c278b",
+      "visually_viewed": true,
+      "grade": "C"
+    },
+    {
+      "file": "floor-c083-drop-asking-null-1440.png",
+      "sha256": "49638ebf47dbe9452cd4572c10d15292e15023f3cfeaed76043bf442131f5f4b",
+      "visually_viewed": true,
+      "grade": "C"
+    },
+    {
+      "file": "floor-c083-drop-blocked-null-1440.png",
+      "sha256": "4fb182f7cdc450cd009f94279aa334ff9e9c83d811fd9dd3bcaf2c16aef87c59",
+      "visually_viewed": true,
+      "grade": "C"
+    },
+    {
+      "file": "floor-c083-drop-celebrating-null-1440.png",
+      "sha256": "d8faaccc06e820546fce0425b809f88be9e106a26bd3adaf1ea70a6ec03403e0",
+      "visually_viewed": true,
+      "grade": "C"
+    },
+    {
+      "file": "floor-c083-drop-idle-null-1440.png",
+      "sha256": "62fa12c3091fbaa8d7ceedfb591567dbd5e2910b53c66e4fa1f4c93d20511938",
+      "visually_viewed": true,
+      "grade": "C"
+    },
+    {
+      "file": "floor-c083-drop-idle-null-390.png",
+      "sha256": "4d3ef2baa38a26faa36aca71e8dc838b2b028dd7fd458029796d2308ffadd481",
+      "visually_viewed": true,
+      "grade": "C"
+    },
+    {
+      "file": "floor-c083-drop-idle-shared-1440.png",
+      "sha256": "1315e134295eb36fdd7b84ad9acd86e96f00789d6bfbea4df45b1641a65e8a4e",
+      "visually_viewed": true,
+      "grade": "C"
+    },
+    {
+      "file": "floor-c083-drop-single-idle-positive.png",
+      "sha256": "98cbc27bf78a2331ed8100ec13aafe152fbbe268fb43523db7108fe4c934e005",
+      "visually_viewed": true,
+      "grade": "C"
+    },
+    {
+      "file": "floor-c083-drop-single-task-positive.png",
+      "sha256": "b904500d8d5d213afa45b6421a006a3029d3309fff43f959f4cbf24a1d2cd08c",
+      "visually_viewed": true,
+      "grade": "C"
+    },
+    {
+      "file": "floor-c083-drop-working-shared-1440.png",
+      "sha256": "78fd2b14291cc59ed887c3a257321949293914040fe06a0b78dba72ecbb35478",
+      "visually_viewed": true,
+      "grade": "C"
+    },
+    {
+      "file": "floor-c083-edges-collab-null-1440.png",
+      "sha256": "eca84f5d49c61aeab42f46fac82134460a8dba7523407737ddd0f7720e92f24a",
+      "visually_viewed": true,
+      "grade": "C"
+    },
+    {
+      "file": "floor-c083-edges-idle-null-65-390.png",
+      "sha256": "a28e2f05f24127a5df9accbc140904115a42571982769fad61eb37e0063976d5",
+      "visually_viewed": true,
+      "grade": "C"
+    },
+    {
+      "file": "floor-c083-edges-queued-shared-390.png",
+      "sha256": "6b9168dc840c7558773a0e5fe55fafb6f164302f1db3f98d52e14115a1c1c5bf",
+      "visually_viewed": true,
+      "grade": "C"
+    },
+    {
+      "file": "floor-c083-edges-working-shared-65-1440.png",
+      "sha256": "502efb98a19c4afc15c0919a7a8978148060d04fb734ba12030b85e9fe43c21c",
+      "visually_viewed": true,
+      "grade": "C"
+    },
+    {
+      "file": "floor-c083-hover-long-hover-1440-bubble.png",
+      "sha256": "6b288b0cef04cf01804b3e363115b46204a2419ce87010e1b9e49ec61812ca77",
+      "visually_viewed": true,
+      "grade": "C"
+    },
+    {
+      "file": "floor-c083-hover-long-hover-1440.png",
+      "sha256": "a9a10c860e975294eba97f0256743da5896e8b3f17be0d56df602166b77d008c",
+      "visually_viewed": true,
+      "grade": "C"
+    },
+    {
+      "file": "floor-c083-hover-long-hover-390-bubble.png",
+      "sha256": "3de840b0cc0bc64f1d52642596060694019184e3b21d7f5532be2f68a64db02d",
+      "visually_viewed": true,
+      "grade": "C"
+    },
+    {
+      "file": "floor-c083-hover-long-hover-390.png",
+      "sha256": "e3e43ce589fc0986ca1136cfee14501d2b7e66aad5e34315eab85cdfa19abb6c",
+      "visually_viewed": true,
+      "grade": "C"
+    },
+    {
+      "file": "floor-c083-hover-short-hover-1440-bubble.png",
+      "sha256": "97dce706496b16360dcbd9867ff86e2056f8fc01ddbab411d213d6ea90dc8c70",
+      "visually_viewed": true,
+      "grade": "C"
+    },
+    {
+      "file": "floor-c083-hover-short-hover-1440.png",
+      "sha256": "5bd06cf95d4798dbb82f52d2467789f4fb96372135230e558510e8aa9df5f3b7",
+      "visually_viewed": true,
+      "grade": "C"
+    },
+    {
+      "file": "floor-c083-hover-short-hover-390-bubble.png",
+      "sha256": "d5918755cd335f7003b9959e0040587de1f30ffc251e7b1105927e36987a49e3",
+      "visually_viewed": true,
+      "grade": "C"
+    },
+    {
+      "file": "floor-c083-hover-short-hover-390.png",
+      "sha256": "8cc27e4139578844f4fe42a7faea137ee21d20b128582269c226f4d3e9d5e8fd",
+      "visually_viewed": true,
+      "grade": "C"
+    },
+    {
+      "file": "floor-c083-safety-fixed-unsafe-status-hover-1440.png",
+      "sha256": "6045b24d03c229f655afb0b17004f6c4ccb3060f540e56095e4810862c9e7c8a",
+      "visually_viewed": true,
+      "grade": "C"
+    },
+    {
+      "file": "floor-c083-safety-fixed-unsafe-status-hover-390.png",
+      "sha256": "4dcca6bc3fe8ad3f228a430b0d32aaf32a3d5ac03d6a42ea622497ea626dc808",
+      "visually_viewed": true,
+      "grade": "C"
+    }
+  ]
+}

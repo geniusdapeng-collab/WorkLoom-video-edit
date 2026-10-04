@@ -1,0 +1,13 @@
+COMMAND ["/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node", "--env-file=.env", "--test", "scripts/video-capabilities.test.mjs"]
+✔ delivery hashes main, attachments and asset list; later tampering is detected (7.264125ms)
+✔ empty manifest, missing or empty main, directory and missing digest never pass (4.472791ms)
+✔ cross-project manifests, conflicting digests, invalid JSON and path escapes fail (4.409292ms)
+✔ suggested POSIX command preserves every argument literally and supplies a PowerShell representation (42.363709ms)
+ℹ tests 4
+ℹ suites 0
+ℹ pass 4
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 124.303667

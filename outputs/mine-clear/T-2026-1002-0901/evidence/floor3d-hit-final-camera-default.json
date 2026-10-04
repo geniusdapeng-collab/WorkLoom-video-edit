@@ -1,0 +1,14 @@
+{
+  "name": "floor3d-hit-final-camera-default",
+  "command": [
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/repair-obs17/floor3d-probe.mjs",
+    "d6a100b60218173cdae6f5a5de7f66452bbbd884+uncommitted-obs17-bubble-camera",
+    "floor3d-final-camera-default-results.json",
+    "floor3d-final-camera-default"
+  ],
+  "exit_code": 0,
+  "seconds": 237.187,
+  "ran_at": "2026-10-03T07:35:08.077739+08:00",
+  "log": "floor3d-hit-final-camera-default.log"
+}

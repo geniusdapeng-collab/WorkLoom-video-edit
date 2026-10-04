@@ -1,0 +1,35 @@
+{
+  "schema": "growth.independent-m6/observer-correction@1",
+  "at": "2026-10-04T01:43:22.624445+08:00",
+  "reviewed_by": "growth_m6",
+  "source_commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+  "actual_first_app_wrapper": "dependency-final-app-byte-probe.json",
+  "actual_first_app_exit_code": 1,
+  "first_app_error": "Owned caller erroneously used outputs-not-used as Node filename; original log and wrapper preserved. Corrected unique invocation passed actual app bytes.",
+  "corrected_app_wrapper": "dependency-final-app-byte-probe-corrected.json",
+  "actual_first_rebind_command": [
+    "python3",
+    "rebind-dependency-functional-controls.py",
+    "--source",
+    "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+    "--fresh-fullread",
+    "dependency-1e47-source-fullread.json",
+    "--ci",
+    "cnb-dependency-source-1e47.json"
+  ],
+  "actual_first_rebind_exit_code": 1,
+  "actual_first_rebind_error": "Semantic verifier line71 expected Object.keys(packages).length134; actual135. Direct terminal output was observed and not captured by a wrapper; no missing raw transcript is claimed.",
+  "actual_readonly_git_recheck": {
+    "old_and_new_total_package_records_including_root": 135,
+    "root_record_present": true,
+    "old_and_new_nonroot_dependency_records": 134,
+    "whole_runtime_lock_bytes_equal": true
+  },
+  "erroneous_semantic_verifier_preserved_file": "history/dependency-rebind-root-record-observer-before-correction/verify-dependency-binding.mjs",
+  "erroneous_semantic_verifier_sha256": "06ac73cfe3688667a9b405fc9c50940f5e18cbb449381366cb34e1904ec1ed2c",
+  "guard_correction_scope": "Require exactly135 package records including the root and134 nonroot dependency records; preserve whole-byte equality and every other metadata/input guard.",
+  "product_source_changed": false,
+  "new_native_proof_generated": false,
+  "real_provider_calls": 0,
+  "private_contents_opened": false
+}

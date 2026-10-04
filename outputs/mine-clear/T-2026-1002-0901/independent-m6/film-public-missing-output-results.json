@@ -1,0 +1,14 @@
+{
+  "case": "missing-output",
+  "provider_mode": "isolated, no provider credentials or calls; local stage only",
+  "passed": true,
+  "checks": [
+    {
+      "name": "Composition without upstream clips cannot report a successful job",
+      "healthy": true,
+      "status": "failed",
+      "error": "WORKER_EXIT_NONZERO",
+      "log": "模特 → 使用系统默认模特：陈卓（chen-zhuo，1 号）\n[15:41:07]   ⇢ [gate] ok 0ms\n[15:41:07]   ⇢ [gate G5 g5-portrait-confirm] ok（deterministic） — 门通过（5 项判据，硬闸 3 条）\n[15:41:07] 项目 m6-film-897c44a7-04f7-4659-aa0e-d26ddb6bb599｜镜头 1 个｜目标 5s｜9:16 源 1080p → 交付 1080p (1080x1920)@30fps\n[15:41:07] 媒体工具：ffmpeg=/Users/mac/.workloom-color/bin/ffmpeg｜ffprobe=/Users/mac/.workloom-color/bin/ffprobe\n[15:41:07] 后期缓存：/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/independent-m6/film-fixtures/archive/ws-yunqi/m6-film-897c44a7-04f7-4659-aa0e-d26ddb6bb599/stages/film/attempt-1/work/post/m6-film-897c44a7-04f7-4659-aa0e-d26ddb6bb599｜交付目录：/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/independent-m6/film-fixtures/archive/ws-yunqi/m6-film-897c44a7-04f7-4659-aa0e-d26ddb6bb599/stages/film/attempt-1/delivery\n[15:41:07] 角色档案：陈卓（chen-zhuo）角度 front/threeQuarter/closeup/side/back/actionPose/emotionCloseup/handDetail\n[15:41:07] 阶段：compose｜监制：fail-closed\n[15:41:07] ⛔ 缺少当前镜头或人声的通过回执，合成中止：SC-01\n[15:41:07]   ⇢ [compose] FAIL 0ms\n[15:41:07] 阶段日志：/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/independent-m6/film-fixtures/archive/ws-yunqi/m6-film-897c44a7-04f7-4659-aa0e-d26ddb6bb599/stages/film/attempt-1/work/logs/m6-film-897c44a7-04f7-4659-aa0e-d26ddb6bb599/stages.jsonl\n[15:41:07]   · route          invoked=1 ok=1 failed=0 degraded=0 cached=0\n[15:41:07]   · scene-policy-audit invoked=1 ok=1 failed=0 degraded=0 cached=0\n[15:41:07]   · env-audit      invoked=1 ok=1 failed=0 degraded=0 cached=0\n[15:41:07]   · hook-audit     invoked=1 ok=1 failed=0 degraded=0 cached=0\n[15:41:07]   · speech-rate    invoked=1 ok=1 failed=0 degraded=0 cached=0\n[15:41:07]   · gate           invoked=3 ok=3 failed=0 degraded=0 cached=0\n[15:41:07]   · compose        invoked=0 ok=0 failed=0 degraded=0 cached=0\n[15:41:07] ⛔ 请求未完成：缺阶段 无；未通过 compose\n"
+    }
+  ]
+}

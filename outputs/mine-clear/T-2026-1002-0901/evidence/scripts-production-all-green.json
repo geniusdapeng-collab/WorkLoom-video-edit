@@ -1,0 +1,13 @@
+{
+  "name": "scripts-production-all-green",
+  "command": [
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+    "--env-file=.env",
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/pnpm/bin/pnpm.cjs",
+    "test:scripts"
+  ],
+  "exit_code": 0,
+  "seconds": 55.485,
+  "ran_at": "2026-10-02T22:29:07.760832+08:00",
+  "log": "scripts-production-all-green.log"
+}

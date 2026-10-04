@@ -1,0 +1,13 @@
+{
+  "name": "oss-verify-production-final",
+  "command": [
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+    "--env-file=.env",
+    "scripts/oss-inventory.mjs",
+    "--check"
+  ],
+  "exit_code": 0,
+  "seconds": 1.682,
+  "ran_at": "2026-10-02T22:02:12.145705+08:00",
+  "log": "oss-verify-production-final.log"
+}

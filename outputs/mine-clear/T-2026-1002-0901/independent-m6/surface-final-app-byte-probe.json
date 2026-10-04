@@ -1,0 +1,17 @@
+{
+  "name": "surface-final-app-byte-probe",
+  "command": [
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/independent-m6/final-app-byte-probe.cjs",
+    "7fee3a6a5563d41c568463994764d3883eb7667d",
+    "surface-app-fingerprint.json",
+    "surface-payload-fingerprint.json",
+    "surface-final-app-byte-probe-results.json"
+  ],
+  "exit_code": 0,
+  "seconds": 2.785,
+  "source_before": "7fee3a6a5563d41c568463994764d3883eb7667d",
+  "source_after": "7fee3a6a5563d41c568463994764d3883eb7667d",
+  "ran_at": "2026-10-03T20:59:57.774425+08:00",
+  "log": "surface-final-app-byte-probe.log"
+}

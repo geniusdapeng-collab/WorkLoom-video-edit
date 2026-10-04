@@ -1,0 +1,58 @@
+{
+  "schema": "growth.independent-m6/report-editorial-review@1",
+  "reviewed_by": "growth_m6",
+  "reviewed_at": "2026-10-03T17:34:26.618883+08:00",
+  "source_commit": "f9515d09ee6de9b34f38b93d3769654fe4869391",
+  "report": {
+    "file": "REPORT.md",
+    "sha256": "88f928f9382179b3df07666e9c5a8ed026f33577b1b785df54cb6b46b7e7e598",
+    "lines": 430
+  },
+  "validation": {
+    "file": "report-validation-f951.json",
+    "sha256": "8d17b82586ed01246389277cfbf4ae27efde62f8426895e53cfb3a6c02edef91",
+    "validated_at": "2026-10-03T17:29:07.270252+08:00",
+    "all_actual_checks_passed": true
+  },
+  "builder": {
+    "file": "build_report.py",
+    "sha256": "02a2a83d50c43e370d66381c482d80987f8eb21b2c8b6350d3e7a02cbfdde539",
+    "actual_entry": "complete unchanged UTF8 bytes compile and exec",
+    "guards_omitted": 0,
+    "log": "diagnostic-f951-report-byte-execution-native-guard.log",
+    "log_sha256": "b41d6a5908bf33016dc9bc6a2b027a82d9f976d76dbe2cee94dc82b6664bd7c3"
+  },
+  "complete_preceding_report_read_retained": true,
+  "freshly_reviewed_changed_sections": [
+    "opening source/native HOLD, source164 and inherited392",
+    "OBS16/17 current CPU and actual f0a browser SHA inheritance",
+    "root OBS20->MC017 and OBS21->MC018 mappings",
+    "MC018 startup failure page action area and native save panel scope",
+    "exact official Node fs documentation, POSIX overwrite and Windows ACL unverified",
+    "native appendix, outstanding work and self checks"
+  ],
+  "source_unique_cases": 556,
+  "current_source_actual_cases": 164,
+  "inherited_cases": 392,
+  "source_cards": 24,
+  "actual_acceptance_expected_cards": 23,
+  "selected_files": 156,
+  "file_modes": {
+    "A": 148,
+    "B": 2,
+    "C": 6,
+    "unread": 0
+  },
+  "actual_native_verified": false,
+  "actual_mcd_acceptance_executed": false,
+  "source_scoped_merge_eligible": false,
+  "production_release_eligible": false,
+  "private_contents_opened": false,
+  "product_or_git_mutated": false,
+  "limitations": [
+    "Root current native v4 packaging/runtime/diagnostic GUI receipts still pending",
+    "Full RDAS276 remains9 pass100 not-run167 manual-missing",
+    "Original broad/density/native failures remain historical observations without invented causes"
+  ],
+  "normal_file_entry_error_cause_proven": false
+}

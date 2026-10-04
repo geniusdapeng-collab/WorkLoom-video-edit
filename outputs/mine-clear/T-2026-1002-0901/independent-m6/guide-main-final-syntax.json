@@ -1,0 +1,15 @@
+{
+  "name": "guide-main-final-syntax",
+  "command": [
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+    "--env-file=.env",
+    "--check",
+    "apps/desktop/electron/main.cjs"
+  ],
+  "exit_code": 0,
+  "seconds": 0.526,
+  "source_before": "0f3e479e7b729e7ec669b34f28a8e14df0ddd005",
+  "source_after": "0f3e479e7b729e7ec669b34f28a8e14df0ddd005",
+  "ran_at": "2026-10-03T00:53:58.899191+08:00",
+  "log": "guide-main-final-syntax.log"
+}
