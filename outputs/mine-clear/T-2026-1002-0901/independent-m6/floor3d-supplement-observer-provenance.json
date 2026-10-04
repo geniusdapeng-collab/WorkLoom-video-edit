@@ -1,0 +1,43 @@
+{
+  "schema": "growth.independent-m6/floor-observer-supplement-copy@1",
+  "generated_at": "2026-10-03T07:37:16.127328+08:00",
+  "origin_author": "authorized floor_hit_repair",
+  "executing_verifier": "growth_m6",
+  "full_origin_text_read": true,
+  "product_cases_executed": 0,
+  "product_source_modified": false,
+  "deadlines_or_assertions_changed": false,
+  "files": [
+    {
+      "origin": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/repair-obs17/floor3d-edges-probe.mjs",
+      "origin_sha256": "6373cc5db1a410981c21280ec4ffd9458760879dc5f438a07afac8d1688601ef",
+      "immutable_origin_copy": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/independent-m6/inherited/repair-obs17__floor3d-edges-probe.mjs",
+      "owned_copy": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/independent-m6/floor3d-edges-probe.mjs",
+      "owned_sha256": "899358cc26db4d6c5af2e9ac06ab120ce8cedb40f4bc2cd7a9919133d66cf66b",
+      "changes": "Result schema/verifier attribution, isolated loopback port29228. Product imports, cases, observations and deadlines unchanged."
+    },
+    {
+      "origin": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/repair-obs17/floor3d-bubble-probe.mjs",
+      "origin_sha256": "0c27725c77bf5bc733d0ea718afc80842fc54e9d60ac1d9f912d7fdcd4039ebb",
+      "immutable_origin_copy": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/independent-m6/inherited/repair-obs17__floor3d-bubble-probe.mjs",
+      "owned_copy": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/independent-m6/floor3d-bubble-probe.mjs",
+      "owned_sha256": "149c4f3c7d13d99749f67f9a6c5b2ec1c969238bf4ced94292fe73ca744f3e70",
+      "changes": "Result schema/verifier attribution, isolated loopback port29228. Product imports, cases, observations and deadlines unchanged."
+    },
+    {
+      "origin": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/repair-obs17/floor3d-edges-fixture/fixture.tsx",
+      "origin_sha256": "baa03dd511f005176dd4e3ea61d6c6fa97d0a89b506a7e49664c047c3baecba2",
+      "owned_copy": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/independent-m6/floor3d-edges-fixture/fixture.tsx",
+      "owned_sha256": "baa03dd511f005176dd4e3ea61d6c6fa97d0a89b506a7e49664c047c3baecba2",
+      "changes": "Only frozen production-CSS absolute path in HTML; actual imported component, Gaze observer, task/Unicode payload and polling fixture unchanged."
+    },
+    {
+      "origin": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/repair-obs17/floor3d-edges-fixture/index.html",
+      "origin_sha256": "cab5cbcf551b1ac9ed17a55b7fd6f88b0ab0bd9afe7b224c59f356b169e1bb5d",
+      "owned_copy": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/independent-m6/floor3d-edges-fixture/index.html",
+      "owned_sha256": "63d755ea7ac40c0efa75a4469b8d0494930dc77a32bc041efc1cb2873f7859e5",
+      "changes": "Only frozen production-CSS absolute path in HTML; actual imported component, Gaze observer, task/Unicode payload and polling fixture unchanged."
+    }
+  ],
+  "intended_execution": "After exact clean source fullread, execute extra65/queued/collab/poll/resize/zoom/disabled and short/long hover actual component controls separately from unchanged original28/drop55. No native cold/GPU production capability conclusion yet."
+}

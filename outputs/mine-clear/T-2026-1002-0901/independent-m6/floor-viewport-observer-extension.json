@@ -1,0 +1,10 @@
+{
+  "original_observer_sha256": "a3321659ad9b570f13cdd772cd587611d792840d5ec0e8a32e276c56b860781d",
+  "snapshot": "history/floor-viewport-observer-v1/floor-canvas-initial-viewport-probe.mjs",
+  "original_receipt": "floor-canvas-initial-viewport-before.json",
+  "original_results": "floor-canvas-initial-viewport-before-results.json",
+  "original_three_expectations_unchanged": true,
+  "new_controls": "Real mouse wheel at both widths; reverse actual payload then resize; actual scroll position is compared within valid new extent.",
+  "new_distinct_cases": 4,
+  "source_product_mutations": false
+}

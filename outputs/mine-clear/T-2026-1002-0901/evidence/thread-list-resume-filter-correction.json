@@ -1,0 +1,8 @@
+{
+  "schema": "growth.tool-output-privacy-correction@1",
+  "at": "2026-10-04T05:01:12.219365+08:00",
+  "cause": "Resumed task list returned unrelated old summaries containing credential fields before filtering",
+  "secret_values_in_this_record": false,
+  "saved_to_product_or_bundle": false,
+  "correction": "Stopped broad thread output. Scoped own rollout reads redact before display. No external account changes. Staged bytes will compare every human repository credential and provider-key patterns."
+}

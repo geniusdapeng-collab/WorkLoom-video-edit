@@ -1,0 +1,11 @@
+{
+  "prepared_at": "2026-10-03T17:24:53.579861+08:00",
+  "source_commit": "f9515d09ee6de9b34f38b93d3769654fe4869391",
+  "file": "create-floor-native-verification.py",
+  "sha256": "19bad9ff14d5bdad893d455225df0bca499c890094022bde0a2b052ea592ed2c",
+  "AST_only": true,
+  "actual_native_verification_executed": false,
+  "action_surface": "startup-failure-page-actions",
+  "root_expected_case_count": 9,
+  "scope": "Prepared own guard only; exact current GUI receipt and independently read exported text/images/mode must arrive before actual execution."
+}

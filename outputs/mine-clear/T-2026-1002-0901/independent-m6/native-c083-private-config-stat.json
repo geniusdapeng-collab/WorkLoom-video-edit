@@ -1,0 +1,26 @@
+{
+  "source_commit": "c08386eb9993744a0cb0c2495a98fc1fc4ccbed9",
+  "checked_by": "growth_m6",
+  "private_contents_read": false,
+  "configurations": [
+    {
+      "mode": "default",
+      "configuration_path": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/职场修复 默认客户/qa-retained-config.env",
+      "exists": true,
+      "mode_octal": "0600",
+      "private_contents_read": false,
+      "configuration_hash_independently_recomputed": false,
+      "configuration_sha256_root_reported": "bac7a2d041b8da973fdffae10a0f52504c59cccebd983a1583d51f336b4d50ff"
+    },
+    {
+      "mode": "safe",
+      "configuration_path": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/职场修复 安全客户/qa-retained-config.env",
+      "exists": true,
+      "mode_octal": "0600",
+      "private_contents_read": false,
+      "configuration_hash_independently_recomputed": false,
+      "configuration_sha256_root_reported": "f9a7998fd28e648fa7c5dbe6ee0cf1afea26e15545c31a9198e802533571407b"
+    }
+  ],
+  "claim_boundary": "Only path/mode existence independently statted. Hash is from root public retention receipt and is not independently recomputed."
+}

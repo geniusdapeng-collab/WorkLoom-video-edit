@@ -1,0 +1,345 @@
+{
+  "schema": "growth.independent-m6/welcome-continuity@1",
+  "source_commit": "955e2277ee1496cfc4b40bd30345d1ce1be1acf1",
+  "verifier": "growth_m6",
+  "scope": {
+    "tenantId": "m6-welcome-tenant-90d0ec824a2e",
+    "workspaceId": "m6-welcome-workspace-90d0ec824a2e"
+  },
+  "identities": [
+    {
+      "memberId": "m6-welcome-member-90d0ec824a2e-1",
+      "memberNo": "M6-WELCOME-90d0ec824a2e-1",
+      "role": "owner"
+    },
+    {
+      "memberId": "m6-welcome-member-90d0ec824a2e-2",
+      "memberNo": "M6-WELCOME-90d0ec824a2e-2",
+      "role": "owner"
+    },
+    {
+      "memberId": "m6-welcome-member-90d0ec824a2e-3",
+      "memberNo": "M6-WELCOME-90d0ec824a2e-3",
+      "role": "owner"
+    },
+    {
+      "memberId": "m6-welcome-member-90d0ec824a2e-4",
+      "memberNo": "M6-WELCOME-90d0ec824a2e-4",
+      "role": "owner"
+    },
+    {
+      "memberId": "m6-welcome-member-90d0ec824a2e-5",
+      "memberNo": "M6-WELCOME-90d0ec824a2e-5",
+      "role": "owner"
+    },
+    {
+      "memberId": "m6-welcome-member-90d0ec824a2e-6",
+      "memberNo": "M6-WELCOME-90d0ec824a2e-6",
+      "role": "manager"
+    }
+  ],
+  "networkCalls": 0,
+  "cases": [
+    {
+      "id": "normal-progress-positive",
+      "expected": "A member's normal team progress persists with shouldShow=true",
+      "actual": {
+        "saved": {
+          "persisted": true,
+          "status": "in_progress",
+          "currentStep": "team",
+          "journeyVersion": 1,
+          "replayCount": 0,
+          "shouldShow": true,
+          "updatedAt": "2026-10-02T18:43:42.455Z"
+        },
+        "progress": {
+          "persisted": true,
+          "status": "in_progress",
+          "currentStep": "team",
+          "journeyVersion": 1,
+          "replayCount": 0,
+          "shouldShow": true,
+          "updatedAt": "2026-10-02T18:43:42.455Z"
+        },
+        "row": {
+          "status": "in_progress",
+          "current_step": "team",
+          "replay_count": 0,
+          "completed_at": null
+        }
+      },
+      "pass": true
+    },
+    {
+      "id": "completed-then-late-in_progress",
+      "expected": "Once completed/done commits, late nonterminal progress preserves completion until an explicit replay",
+      "actual": {
+        "completed": {
+          "persisted": true,
+          "status": "completed",
+          "currentStep": "done",
+          "journeyVersion": 1,
+          "replayCount": 0,
+          "shouldShow": false,
+          "updatedAt": "2026-10-02T18:43:42.838Z"
+        },
+        "before": {
+          "progress": {
+            "persisted": true,
+            "status": "completed",
+            "currentStep": "done",
+            "journeyVersion": 1,
+            "replayCount": 0,
+            "shouldShow": false,
+            "updatedAt": "2026-10-02T18:43:42.838Z"
+          },
+          "row": {
+            "status": "completed",
+            "current_step": "done",
+            "replay_count": 0,
+            "completed_at": "2026-10-03 02:43:42.838017+08"
+          }
+        },
+        "late": {
+          "persisted": true,
+          "status": "completed",
+          "currentStep": "done",
+          "journeyVersion": 1,
+          "replayCount": 0,
+          "shouldShow": false,
+          "updatedAt": "2026-10-02T18:43:42.838Z"
+        },
+        "after": {
+          "progress": {
+            "persisted": true,
+            "status": "completed",
+            "currentStep": "done",
+            "journeyVersion": 1,
+            "replayCount": 0,
+            "shouldShow": false,
+            "updatedAt": "2026-10-02T18:43:42.838Z"
+          },
+          "row": {
+            "status": "completed",
+            "current_step": "done",
+            "replay_count": 0,
+            "completed_at": "2026-10-03 02:43:42.838017+08"
+          }
+        }
+      },
+      "pass": true
+    },
+    {
+      "id": "completed-then-late-paused",
+      "expected": "Once completed/done commits, late nonterminal progress preserves completion until an explicit replay",
+      "actual": {
+        "completed": {
+          "persisted": true,
+          "status": "completed",
+          "currentStep": "done",
+          "journeyVersion": 1,
+          "replayCount": 0,
+          "shouldShow": false,
+          "updatedAt": "2026-10-02T18:43:42.903Z"
+        },
+        "before": {
+          "progress": {
+            "persisted": true,
+            "status": "completed",
+            "currentStep": "done",
+            "journeyVersion": 1,
+            "replayCount": 0,
+            "shouldShow": false,
+            "updatedAt": "2026-10-02T18:43:42.903Z"
+          },
+          "row": {
+            "status": "completed",
+            "current_step": "done",
+            "replay_count": 0,
+            "completed_at": "2026-10-03 02:43:42.90357+08"
+          }
+        },
+        "late": {
+          "persisted": true,
+          "status": "completed",
+          "currentStep": "done",
+          "journeyVersion": 1,
+          "replayCount": 0,
+          "shouldShow": false,
+          "updatedAt": "2026-10-02T18:43:42.903Z"
+        },
+        "after": {
+          "progress": {
+            "persisted": true,
+            "status": "completed",
+            "currentStep": "done",
+            "journeyVersion": 1,
+            "replayCount": 0,
+            "shouldShow": false,
+            "updatedAt": "2026-10-02T18:43:42.903Z"
+          },
+          "row": {
+            "status": "completed",
+            "current_step": "done",
+            "replay_count": 0,
+            "completed_at": "2026-10-03 02:43:42.90357+08"
+          }
+        }
+      },
+      "pass": true
+    },
+    {
+      "id": "explicit-replay-positive",
+      "expected": "An explicit replay resets completion and then allows real progress with replayCount=1",
+      "actual": {
+        "replay": {
+          "persisted": true,
+          "status": "not_started",
+          "currentStep": "start",
+          "journeyVersion": 1,
+          "replayCount": 1,
+          "shouldShow": true,
+          "updatedAt": "2026-10-02T18:43:43.762Z"
+        },
+        "saved": {
+          "persisted": true,
+          "status": "in_progress",
+          "currentStep": "team",
+          "journeyVersion": 1,
+          "replayCount": 1,
+          "shouldShow": true,
+          "updatedAt": "2026-10-02T18:43:43.767Z"
+        },
+        "progress": {
+          "persisted": true,
+          "status": "in_progress",
+          "currentStep": "team",
+          "journeyVersion": 1,
+          "replayCount": 1,
+          "shouldShow": true,
+          "updatedAt": "2026-10-02T18:43:43.767Z"
+        },
+        "row": {
+          "status": "in_progress",
+          "current_step": "team",
+          "replay_count": 1,
+          "completed_at": null
+        }
+      },
+      "pass": true
+    },
+    {
+      "id": "separate-role-positive",
+      "expected": "Owner completion does not create a manager's completed journey",
+      "actual": {
+        "owner": {
+          "progress": {
+            "persisted": true,
+            "status": "completed",
+            "currentStep": "done",
+            "journeyVersion": 1,
+            "replayCount": 0,
+            "shouldShow": false,
+            "updatedAt": "2026-10-02T18:43:43.780Z"
+          },
+          "row": {
+            "status": "completed",
+            "current_step": "done",
+            "replay_count": 0,
+            "completed_at": "2026-10-03 02:43:43.780965+08"
+          }
+        },
+        "manager": {
+          "progress": {
+            "persisted": false,
+            "status": "not_started",
+            "currentStep": "start",
+            "journeyVersion": 1,
+            "replayCount": 0,
+            "shouldShow": true,
+            "updatedAt": null
+          },
+          "row": null
+        }
+      },
+      "pass": true
+    }
+  ],
+  "passed": 5,
+  "failed": 0,
+  "events": [
+    {
+      "event_id": "E-13268",
+      "seq": "4353",
+      "action": "onboarding.welcome.progress",
+      "after": {
+        "status": "in_progress",
+        "current_step": "team",
+        "journey_version": 1
+      }
+    },
+    {
+      "event_id": "E-13269",
+      "seq": "4354",
+      "action": "onboarding.welcome.completed",
+      "after": {
+        "status": "completed",
+        "current_step": "done",
+        "journey_version": 1
+      }
+    },
+    {
+      "event_id": "E-13270",
+      "seq": "4355",
+      "action": "onboarding.welcome.completed",
+      "after": {
+        "status": "completed",
+        "current_step": "done",
+        "journey_version": 1
+      }
+    },
+    {
+      "event_id": "E-13271",
+      "seq": "4356",
+      "action": "onboarding.welcome.completed",
+      "after": {
+        "status": "completed",
+        "current_step": "done",
+        "journey_version": 1
+      }
+    },
+    {
+      "event_id": "E-13272",
+      "seq": "4357",
+      "action": "onboarding.welcome.replayed",
+      "after": {
+        "current_step": "start",
+        "journey_version": 1
+      }
+    },
+    {
+      "event_id": "E-13273",
+      "seq": "4358",
+      "action": "onboarding.welcome.progress",
+      "after": {
+        "status": "in_progress",
+        "current_step": "team",
+        "journey_version": 1
+      }
+    },
+    {
+      "event_id": "E-13274",
+      "seq": "4359",
+      "action": "onboarding.welcome.completed",
+      "after": {
+        "status": "completed",
+        "current_step": "done",
+        "journey_version": 1
+      }
+    }
+  ],
+  "fixture_retained": true,
+  "fixture_filter": "m6-welcome-*; deterministic fake fixtures excluded from ADR/HIR",
+  "limitation": "Actual local PostgreSQL/service behavior. Late requests are submitted after completion commits; no causal claim about the native failure or old browser response order."
+}

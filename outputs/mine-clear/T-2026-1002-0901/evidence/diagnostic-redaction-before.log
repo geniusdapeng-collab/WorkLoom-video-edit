@@ -1,0 +1,263 @@
+COMMAND ["/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node", "--env-file=.env", "--test", "--test-reporter=tap", "--test-name-pattern=启动诊断秘密脱敏", "apps/desktop/electron/bootstrap.test.cjs"]
+TAP version 13
+# Subtest: 启动诊断秘密脱敏
+    # Subtest: 原有文本 JWT、盐和 Bearer
+    ok 1 - 原有文本 JWT、盐和 Bearer
+      ---
+      duration_ms: 7.329291
+      type: 'test'
+      ...
+    # Subtest: JSON 引号与大小写字段
+    not ok 2 - JSON 引号与大小写字段
+      ---
+      duration_ms: 1.529208
+      type: 'test'
+      location: '/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/apps/desktop/electron/bootstrap.test.cjs:72:5'
+      failureType: 'testCodeFailure'
+      error: |-
+        JSON 引号与大小写字段 不得保留合成秘密
+        
+        true !== false
+        
+      code: 'ERR_ASSERTION'
+      name: 'AssertionError'
+      expected: false
+      actual: true
+      operator: 'strictEqual'
+      stack: |-
+        TestContext.<anonymous> (/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/apps/desktop/electron/bootstrap.test.cjs:74:44)
+        Test.runInAsyncScope (node:async_hooks:227:14)
+        Test.run (node:internal/test_runner/test:1382:25)
+        Suite.processPendingSubtests (node:internal/test_runner/test:960:18)
+        Test.postRun (node:internal/test_runner/test:1522:19)
+        Test.run (node:internal/test_runner/test:1447:12)
+        async Promise.all (index 0)
+        async Suite.run (node:internal/test_runner/test:1869:7)
+        async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3)
+      ...
+    # Subtest: 引号内的空格和分隔符
+    not ok 3 - 引号内的空格和分隔符
+      ---
+      duration_ms: 0.968083
+      type: 'test'
+      location: '/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/apps/desktop/electron/bootstrap.test.cjs:72:5'
+      failureType: 'testCodeFailure'
+      error: |-
+        引号内的空格和分隔符 不得保留合成秘密
+        
+        true !== false
+        
+      code: 'ERR_ASSERTION'
+      name: 'AssertionError'
+      expected: false
+      actual: true
+      operator: 'strictEqual'
+      stack: |-
+        TestContext.<anonymous> (/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/apps/desktop/electron/bootstrap.test.cjs:74:44)
+        Test.runInAsyncScope (node:async_hooks:227:14)
+        Test.run (node:internal/test_runner/test:1382:25)
+        Suite.processPendingSubtests (node:internal/test_runner/test:960:18)
+        Test.postRun (node:internal/test_runner/test:1522:19)
+        Test.run (node:internal/test_runner/test:1447:12)
+        async Suite.processPendingSubtests (node:internal/test_runner/test:960:7)
+      ...
+    # Subtest: 带编码密码的连接 URI
+    not ok 4 - 带编码密码的连接 URI
+      ---
+      duration_ms: 0.733958
+      type: 'test'
+      location: '/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/apps/desktop/electron/bootstrap.test.cjs:72:5'
+      failureType: 'testCodeFailure'
+      error: |-
+        带编码密码的连接 URI 不得保留合成秘密
+        
+        true !== false
+        
+      code: 'ERR_ASSERTION'
+      name: 'AssertionError'
+      expected: false
+      actual: true
+      operator: 'strictEqual'
+      stack: |-
+        TestContext.<anonymous> (/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/apps/desktop/electron/bootstrap.test.cjs:74:44)
+        Test.runInAsyncScope (node:async_hooks:227:14)
+        Test.run (node:internal/test_runner/test:1382:25)
+        Suite.processPendingSubtests (node:internal/test_runner/test:960:18)
+        Test.postRun (node:internal/test_runner/test:1522:19)
+        Test.run (node:internal/test_runner/test:1447:12)
+        async Suite.processPendingSubtests (node:internal/test_runner/test:960:7)
+      ...
+    # Subtest: libpq 密码与 URI 查询密码
+    not ok 5 - libpq 密码与 URI 查询密码
+      ---
+      duration_ms: 0.663083
+      type: 'test'
+      location: '/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/apps/desktop/electron/bootstrap.test.cjs:72:5'
+      failureType: 'testCodeFailure'
+      error: |-
+        libpq 密码与 URI 查询密码 不得保留合成秘密
+        
+        true !== false
+        
+      code: 'ERR_ASSERTION'
+      name: 'AssertionError'
+      expected: false
+      actual: true
+      operator: 'strictEqual'
+      stack: |-
+        TestContext.<anonymous> (/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/apps/desktop/electron/bootstrap.test.cjs:74:44)
+        Test.runInAsyncScope (node:async_hooks:227:14)
+        Test.run (node:internal/test_runner/test:1382:25)
+        Suite.processPendingSubtests (node:internal/test_runner/test:960:18)
+        Test.postRun (node:internal/test_runner/test:1522:19)
+        Test.run (node:internal/test_runner/test:1447:12)
+        async Suite.processPendingSubtests (node:internal/test_runner/test:960:7)
+      ...
+    # Subtest: Basic 授权和 Cookie
+    not ok 6 - Basic 授权和 Cookie
+      ---
+      duration_ms: 0.985292
+      type: 'test'
+      location: '/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/apps/desktop/electron/bootstrap.test.cjs:72:5'
+      failureType: 'testCodeFailure'
+      error: |-
+        Basic 授权和 Cookie 不得保留合成秘密
+        
+        true !== false
+        
+      code: 'ERR_ASSERTION'
+      name: 'AssertionError'
+      expected: false
+      actual: true
+      operator: 'strictEqual'
+      stack: |-
+        TestContext.<anonymous> (/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/apps/desktop/electron/bootstrap.test.cjs:74:44)
+        Test.runInAsyncScope (node:async_hooks:227:14)
+        Test.run (node:internal/test_runner/test:1382:25)
+        Suite.processPendingSubtests (node:internal/test_runner/test:960:18)
+        Test.postRun (node:internal/test_runner/test:1522:19)
+        Test.run (node:internal/test_runner/test:1447:12)
+        async Suite.processPendingSubtests (node:internal/test_runner/test:960:7)
+      ...
+    # Subtest: JSON 转义引号和 Unicode 密码
+    not ok 7 - JSON 转义引号和 Unicode 密码
+      ---
+      duration_ms: 0.913959
+      type: 'test'
+      location: '/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/apps/desktop/electron/bootstrap.test.cjs:72:5'
+      failureType: 'testCodeFailure'
+      error: |-
+        JSON 转义引号和 Unicode 密码 不得保留合成秘密
+        
+        true !== false
+        
+      code: 'ERR_ASSERTION'
+      name: 'AssertionError'
+      expected: false
+      actual: true
+      operator: 'strictEqual'
+      stack: |-
+        TestContext.<anonymous> (/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/apps/desktop/electron/bootstrap.test.cjs:74:44)
+        Test.runInAsyncScope (node:async_hooks:227:14)
+        Test.run (node:internal/test_runner/test:1382:25)
+        Suite.processPendingSubtests (node:internal/test_runner/test:960:18)
+        Test.postRun (node:internal/test_runner/test:1522:19)
+        Test.run (node:internal/test_runner/test:1447:12)
+        async Suite.processPendingSubtests (node:internal/test_runner/test:960:7)
+      ...
+    # Subtest: 错误摘要和日志读取失败也经过脱敏
+    not ok 8 - 错误摘要和日志读取失败也经过脱敏
+      ---
+      duration_ms: 0.927042
+      type: 'test'
+      location: '/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/apps/desktop/electron/bootstrap.test.cjs:81:3'
+      failureType: 'testCodeFailure'
+      error: |-
+        Expected values to be strictly equal:
+        
+        true !== false
+        
+      code: 'ERR_ASSERTION'
+      name: 'AssertionError'
+      expected: false
+      actual: true
+      operator: 'strictEqual'
+      stack: |-
+        TestContext.<anonymous> (/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/apps/desktop/electron/bootstrap.test.cjs:86:12)
+        Test.runInAsyncScope (node:async_hooks:227:14)
+        Test.run (node:internal/test_runner/test:1382:25)
+        Suite.processPendingSubtests (node:internal/test_runner/test:960:18)
+        Test.postRun (node:internal/test_runner/test:1522:19)
+        Test.run (node:internal/test_runner/test:1447:12)
+        async Suite.processPendingSubtests (node:internal/test_runner/test:960:7)
+      ...
+    # Subtest: 读取异常关闭自己的文件句柄并保留失败信息
+    not ok 9 - 读取异常关闭自己的文件句柄并保留失败信息
+      ---
+      duration_ms: 0.762666
+      type: 'test'
+      location: '/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/apps/desktop/electron/bootstrap.test.cjs:91:3'
+      failureType: 'testCodeFailure'
+      error: |-
+        Expected values to be strictly equal:
+        
+        undefined !== 14
+        
+      code: 'ERR_ASSERTION'
+      name: 'AssertionError'
+      expected: 14
+      operator: 'strictEqual'
+      stack: |-
+        TestContext.<anonymous> (/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/apps/desktop/electron/bootstrap.test.cjs:101:14)
+        Test.runInAsyncScope (node:async_hooks:227:14)
+        Test.run (node:internal/test_runner/test:1382:25)
+        Suite.processPendingSubtests (node:internal/test_runner/test:960:18)
+        Test.postRun (node:internal/test_runner/test:1522:19)
+        Test.run (node:internal/test_runner/test:1447:12)
+        async Suite.processPendingSubtests (node:internal/test_runner/test:960:7)
+      ...
+    # Subtest: 空日志和有界尾部仍保留版本、主机和错误上下文
+    not ok 10 - 空日志和有界尾部仍保留版本、主机和错误上下文
+      ---
+      duration_ms: 5.880167
+      type: 'test'
+      location: '/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/apps/desktop/electron/bootstrap.test.cjs:108:3'
+      failureType: 'testCodeFailure'
+      error: |-
+        The expression evaluated to a falsy value:
+        
+          assert.ok(empty.includes("最近错误：无"))
+        
+      code: 'ERR_ASSERTION'
+      name: 'AssertionError'
+      expected: true
+      actual: false
+      operator: '=='
+      stack: |-
+        TestContext.<anonymous> (/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/apps/desktop/electron/bootstrap.test.cjs:114:12)
+        Test.runInAsyncScope (node:async_hooks:227:14)
+        Test.run (node:internal/test_runner/test:1382:25)
+        Suite.processPendingSubtests (node:internal/test_runner/test:960:18)
+        Test.postRun (node:internal/test_runner/test:1522:19)
+        Test.run (node:internal/test_runner/test:1447:12)
+        async Suite.processPendingSubtests (node:internal/test_runner/test:960:7)
+      ...
+    1..10
+not ok 1 - 启动诊断秘密脱敏
+  ---
+  duration_ms: 21.33275
+  type: 'suite'
+  location: '/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/apps/desktop/electron/bootstrap.test.cjs:41:1'
+  failureType: 'subtestsFailed'
+  error: '9 subtests failed'
+  code: 'ERR_TEST_FAILURE'
+  ...
+1..1
+# tests 10
+# suites 1
+# pass 1
+# fail 9
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 85.868583

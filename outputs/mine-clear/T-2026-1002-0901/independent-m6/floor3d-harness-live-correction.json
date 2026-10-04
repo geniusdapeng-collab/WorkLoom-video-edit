@@ -1,0 +1,16 @@
+{
+  "verifier": "growth_m6",
+  "original_observer_sha256": "fcc0dafcf532a9589b250fd7d2fb23253d1f889dd06b7fa8d467688ed3c2f965",
+  "original_observer_snapshot": "history/floor3d-observer-v1/floor3d-probe.mjs",
+  "original_run": "floor3d-before-corrected.json",
+  "original_result": "floor3d-before-corrected-results.json",
+  "original_pass": 5,
+  "original_fail": 23,
+  "original_single_avatar_layout_controls_pass": true,
+  "observation_error": "The original observer reused DOM/actor coordinates measured before screenshot and camera auto-rotation; both single plaque controls failed despite correct single avatar/layout controls. These failures are not accepted as product defects without live-coordinate retest.",
+  "correction": "Read actual actor projection and actual rendered DOM plaque at click time. Wait 4.5s after actual camera exposure within unchanged20s readiness. Pause auto-rotation by an actual blank Canvas pointer click invoking the existing product handler. No camera/renderer/target/hitbox implementation is copied/replaced.",
+  "expected_cases_unchanged": 28,
+  "thresholds_changed": false,
+  "product_mutations": false,
+  "original_layout_collision_evidence_retained": true
+}

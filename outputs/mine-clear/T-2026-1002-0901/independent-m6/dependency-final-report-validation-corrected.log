@@ -1,0 +1,5 @@
+COMMAND ["python3", "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/independent-m6/validate_report.py"]
+Traceback (most recent call last):
+  File "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/independent-m6/validate_report.py", line 485, in <module>
+    assert 'OBS18（rootOBS22）' in report and '0.03' in report and '整个web树未变' in report
+AssertionError

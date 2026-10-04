@@ -1,0 +1,88 @@
+{
+  "at": "2026-10-03T01:04:27.544Z",
+  "repository": "workloom-ai/WorkLoom-growth",
+  "source_head": "c08386eb9993744a0cb0c2495a98fc1fc4ccbed9",
+  "source_matches": true,
+  "all_three_gates_green": true,
+  "pull": {
+    "number": "318",
+    "title": "[WIP] fix(growth): 完成运行时与客户端交付整改 [T-2026-1002-0901]",
+    "head": {
+      "ref": "refs/heads/task/T-2026-1002-0901",
+      "sha": "c08386eb9993744a0cb0c2495a98fc1fc4ccbed9",
+      "repo": {
+        "id": "2100917893030621184",
+        "name": "WorkLoom-growth",
+        "path": "workloom-ai/WorkLoom-growth",
+        "web_url": "https://cnb.cool/workloom-ai/WorkLoom-growth"
+      }
+    },
+    "base": {
+      "ref": "refs/heads/main",
+      "sha": "42ead347c65a5cc343bcd290702d53a7fcdb1687",
+      "repo": {
+        "id": "2100917893030621184",
+        "name": "WorkLoom-growth",
+        "path": "workloom-ai/WorkLoom-growth",
+        "web_url": "https://cnb.cool/workloom-ai/WorkLoom-growth"
+      }
+    },
+    "is_wip": true,
+    "mergeable_state": "mergeable",
+    "is_merged": false,
+    "labels": [
+      {
+        "id": "2100968353592967168",
+        "name": "risk/review",
+        "description": "WorkLoom 开发协议（CNB 上限 10）",
+        "color": "#fd7e14",
+        "creator": {
+          "username": "cnb.dYiF05kxAGA",
+          "nickname": "Genius",
+          "email": "XYpmztfpCvez6l8z5BBAvJ+cnb.dYiF05kxAGA@noreply.cnb.cool",
+          "is_npc": false
+        },
+        "applied_by": {
+          "username": "cnb.dYiF05kxAGA",
+          "nickname": "Genius",
+          "email": "XYpmztfpCvez6l8z5BBAvJ+cnb.dYiF05kxAGA@noreply.cnb.cool",
+          "is_npc": false
+        }
+      }
+    ]
+  },
+  "statuses": {
+    "state": "success",
+    "statuses": [
+      {
+        "state": "success",
+        "context": "cnb/pull_request/pipeline-1(static-gate)",
+        "description": "success [20s]",
+        "target_url": "https://cnb.cool/workloom-ai/WorkLoom-growth/-/build/logs/cnb-ut8-1k3vk90s2#001",
+        "created_at": "2026-10-03T00:57:56Z",
+        "updated_at": "2026-10-03T00:58:15Z"
+      },
+      {
+        "state": "success",
+        "context": "cnb/pull_request/pipeline-2(db-gate)",
+        "description": "success [37.2s]",
+        "target_url": "https://cnb.cool/workloom-ai/WorkLoom-growth/-/build/logs/cnb-ut8-1k3vk90s2#002",
+        "created_at": "2026-10-03T00:57:56Z",
+        "updated_at": "2026-10-03T00:58:32Z"
+      },
+      {
+        "state": "success",
+        "context": "cnb/pull_request/pipeline-3(test-gate)",
+        "description": "success [3m 16s]",
+        "target_url": "https://cnb.cool/workloom-ai/WorkLoom-growth/-/build/logs/cnb-ut8-1k3vk90s2#003",
+        "created_at": "2026-10-03T00:57:55Z",
+        "updated_at": "2026-10-03T01:01:12Z"
+      }
+    ],
+    "sha": "8e81216c76b6fbe0d84a58f600760f3358a02519"
+  },
+  "main": {
+    "name": "refs/heads/main",
+    "sha": "42ead347c65a5cc343bcd290702d53a7fcdb1687"
+  }
+}

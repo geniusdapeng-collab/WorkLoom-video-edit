@@ -1,0 +1,2928 @@
+{
+  "schema": "workloom.mine-clear/ledger@1",
+  "task_id": "T-2026-1002-0901",
+  "repo": "workloom-growth",
+  "title": "Growth 原16问题、重置P0、诊断P1和六修复卡的 MCD 实际 argv 台账",
+  "created_at": "2026-10-02T01:02:50.221Z",
+  "updated_at": "2026-10-03T13:24:30.797Z",
+  "baseline": {
+    "audit": {
+      "commit": "42ead347c65a5cc343bcd290702d53a7fcdb1687",
+      "branch": "task/T-2026-1002-0901",
+      "remote": "origin",
+      "fetched_at": null,
+      "notes": "匿名 CNB main 已核对；具体结束核对时间见final-source-state.json，不虚填fetch时间。原镜像 main 保持未改。审计源码42ead347，客户端修复后5d0c83e，未修业务代码字节未变。"
+    },
+    "repair": {
+      "commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+      "reverified_problem_ids": [],
+      "notes": "Set by actual repair-role executions; no prior green was imported"
+    },
+    "acceptance": {
+      "commit": null,
+      "is_descendant_of_repair": null
+    }
+  },
+  "environment": {
+    "kind": "client-runtime",
+    "notes": "Dedicated fake loopback PostgreSQL/source HTTP and current real Mac QA runtime; no paid business outcomes or formal platform release"
+  },
+  "invariants": [
+    {
+      "id": "INV-1",
+      "text": "租户边界覆盖数据库 RLS、运行时上下文、事件、缓存和外部连接器。",
+      "source": "AGENTS.md#4.1"
+    },
+    {
+      "id": "INV-2",
+      "text": "经营事件、审批和关键回执只增不改；纠正通过新事件表达，不静默覆盖证据。",
+      "source": "AGENTS.md#4.2"
+    },
+    {
+      "id": "INV-3",
+      "text": "所有外部或变更性动作及其子调用，统一经过权限、PII、围栏和审批链路。",
+      "source": "AGENTS.md#4.3"
+    },
+    {
+      "id": "INV-4",
+      "text": "涉钱、敏感数据、群发、公开发布、交易和破坏性变更必须按高风险处理并由人审批。",
+      "source": "AGENTS.md#4.4"
+    },
+    {
+      "id": "INV-5",
+      "text": "没有真实回执就不能标记完成；mock、模拟和体验模式在数据结构与界面上都要明确区分。",
+      "source": "AGENTS.md#4.5"
+    },
+    {
+      "id": "INV-6",
+      "text": "客户原始经营数据不得上行；蜂群只接受白名单化、最小化、匿名化且可审计的元数据或派生经验。",
+      "source": "AGENTS.md#4.6"
+    },
+    {
+      "id": "INV-7",
+      "text": "租户覆盖层只能收紧围栏，不能放宽平台不可变红线。",
+      "source": "AGENTS.md#4.7"
+    },
+    {
+      "id": "INV-8",
+      "text": "模型、提示词、技能、bundle、策略和热更新必须先评测再灰度，且始终可回滚。",
+      "source": "AGENTS.md#4.8"
+    },
+    {
+      "id": "INV-9",
+      "text": "platform-ops、平台账户运营和平台秘密只属于 Andromeda。",
+      "source": "AGENTS.md#4.9"
+    },
+    {
+      "id": "INV-10",
+      "text": "Tiger 在获得单独的合规审查和用户明确授权前，只能模拟或纸面交易。",
+      "source": "AGENTS.md#4.10"
+    },
+    {
+      "id": "INV-11",
+      "text": "令牌、密码、API key、私钥、客户凭证和私密客户数据不得进入源码、文档、上下文、提示词、日志或提交。",
+      "source": "AGENTS.md#4.11"
+    },
+    {
+      "id": "INV-12",
+      "text": "个性化与行业扩展不得形成公共机制的第二事实源。",
+      "source": "AGENTS.md#4.12"
+    }
+  ],
+  "cards": [
+    {
+      "id": "MC-001",
+      "kind": "problem",
+      "severity": "P1",
+      "level": "L1",
+      "batch": 0,
+      "state": "fixed",
+      "title": "桌面环境构造引用作用域外的 RUNTIME，首次启动抛异常",
+      "evidence_grade": "A",
+      "root_cause": {
+        "file": "apps/desktop/electron/bootstrap.cjs",
+        "line": 395,
+        "commit": "42ead347c65a5cc343bcd290702d53a7fcdb1687",
+        "symbol": "buildDesktopEnvironment"
+      },
+      "trigger_path": "在初装/重建环境时调用 buildDesktopEnvironment；执行原 bootstrap.test.cjs 环境构造用例即可复现。",
+      "expected": "返回数据库与服务配置，桥模块按安装后的 runtime 绝对目录解析，无 ReferenceError。",
+      "actual": "基线测试 exit 1，ReferenceError: RUNTIME is not defined；修复后同测试和真实 DMG 首启 exit 0。",
+      "fix_direction": "显式传入 runtimeDir，校验其为绝对路径，bootstrap 调用方传入本次运行目录。",
+      "coupling": "环境重写、中文路径、桥注册和已有配置保留共同受影响；不能只移除桥解析以躲过异常。",
+      "invariant_ids": [
+        "INV-3",
+        "INV-5"
+      ],
+      "assertions": [
+        {
+          "kind": "sample",
+          "given": "Exact clean source and owned isolated test configuration",
+          "expect": "Bootstrap Node tests report real nonzero passes and no failures",
+          "command": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node --env-file=.env --test apps/desktop/electron/bootstrap.test.cjs",
+          "exec": {
+            "file": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+            "args": [
+              "--env-file=.env",
+              "--test",
+              "apps/desktop/electron/bootstrap.test.cjs"
+            ]
+          },
+          "last_result": "pass",
+          "run": {
+            "path": "runs/MC-001-0-1791033783718.json",
+            "sha256": "d87c8971190278c0b4ea288bc5cedb4445ea5a4a4f6fd1947e8d7754d4471e0a",
+            "commit": "7fee3a6a5563d41c568463994764d3883eb7667d"
+          },
+          "evidence": {
+            "path": "evidence/MC-001-0-1791033783718.txt",
+            "sha256": "cd1dc9a793a63d49ed72530310f78ead2ed2edf8d2259f5de1bf46026d2849af",
+            "commit": "7fee3a6a5563d41c568463994764d3883eb7667d"
+          }
+        }
+      ],
+      "evidence": [
+        {
+          "type": "code",
+          "ref": "apps/desktop/electron/bootstrap.cjs:395@42ead347c65a5cc343bcd290702d53a7fcdb1687",
+          "note": "buildDesktopEnvironment",
+          "sha256": "6a8161a5fc24d55592f74cf29a7f1c921052a23fadd735d7ad71501b6522a715"
+        },
+        {
+          "type": "runtime",
+          "ref": "audit/evidence/desktop-bootstrap-before.log",
+          "note": "隔离实测或记录的元数据；具体证据等级见卡片",
+          "commit": "42ead347c65a5cc343bcd290702d53a7fcdb1687",
+          "sha256": "7c92deafc2ca46c95772f4ab82e9d40b9e288695a7ad805e5361b40a90c90ca5",
+          "provenance": "Exact retained original audit bytes; separately discovered controls retain their own execution source/time"
+        },
+        {
+          "type": "runtime",
+          "ref": "audit/evidence/desktop-bootstrap-after.log",
+          "note": "隔离实测或记录的元数据；具体证据等级见卡片",
+          "commit": "42ead347c65a5cc343bcd290702d53a7fcdb1687",
+          "sha256": "aa53b85ef145ad64cd94fba3e3b626e5687cc10153a3047b752dca060aa90013",
+          "provenance": "Exact retained original audit bytes; separately discovered controls retain their own execution source/time"
+        },
+        {
+          "type": "runtime",
+          "ref": "audit/evidence/installed-app-first.json",
+          "note": "隔离实测或记录的元数据；具体证据等级见卡片",
+          "commit": "42ead347c65a5cc343bcd290702d53a7fcdb1687",
+          "sha256": "d700eaa3bfa71a09e29d41d34280b9d852782ff20896bf8bb5a706236414d035",
+          "provenance": "Exact retained original audit bytes; separately discovered controls retain their own execution source/time"
+        }
+      ],
+      "notes": "New actual argv executions only; legacy descriptions/observations retained. Formal Windows/Mac signing, native Windows and paid outcomes are outside source closure.",
+      "fixed_by": "codex-root-T-2026-1002-0901",
+      "fix_commit": "5d0c83e3293dc3a71651210987c9a5b48023480d",
+      "regression": {
+        "command": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node --env-file=.env --test apps/desktop/electron/bootstrap.test.cjs",
+        "evidence": null
+      },
+      "repair_evidence": [
+        {
+          "type": "code",
+          "ref": "apps/desktop/electron/bootstrap.cjs:371@5d0c83e3293dc3a71651210987c9a5b48023480d",
+          "note": "当前修复定位；root_cause保留历史失败基线"
+        }
+      ],
+      "baseline_assertions": [
+        {
+          "kind": "sample",
+          "given": "修复提交中的 bootstrap 单测与隔离中文 runtime",
+          "expect": "环境构造用例通过且桥模块路径来自传入目录",
+          "command": "node --test apps/desktop/electron/bootstrap.test.cjs",
+          "last_result": "pass",
+          "evidence": "evidence/desktop-bootstrap-after.log"
+        }
+      ],
+      "verified_by": null,
+      "verified_at": null,
+      "verification_evidence": null,
+      "supplemental_discovery_evidence": [],
+      "unavailable_legacy_evidence": [],
+      "last_assertion_attempt": {
+        "actor": "codex-root-T-2026-1002-0901",
+        "role": "repair",
+        "result": "pass",
+        "at": "2026-10-03T13:23:03.713Z",
+        "commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+        "finished_at": "2026-10-03T13:23:04.228Z"
+      }
+    },
+    {
+      "id": "MC-002",
+      "kind": "problem",
+      "severity": "P1",
+      "level": "L2",
+      "batch": 0,
+      "state": "fixed",
+      "title": "客户端精确依赖锁未随仓库实际依赖更新，载荷门禁失败",
+      "evidence_grade": "B",
+      "root_cause": {
+        "file": ".workloom-runtime-deps/metadata.json",
+        "line": 28,
+        "commit": "42ead347c65a5cc343bcd290702d53a7fcdb1687",
+        "symbol": "runtime-deps-lock verify 输入指纹"
+      },
+      "trigger_path": "基线运行 node scripts/runtime-deps-lock.mjs verify；装配脚本在依赖 stage 前检查当前产品精确 manifest。",
+      "expected": "锁中的 manifest 和输入指纹与产品源码一致，verify exit 0。",
+      "actual": "基线 exit 1，runtime 精确 manifest 已过期；按仓库实际依赖刷新后 exit 0，Windows x64 目标安装 58 个包成功。",
+      "fix_direction": "通过现有刷新器重建每产品精确 manifest、package-lock 与输入指纹，保持根 pnpm-lock；未另起一套依赖源。",
+      "coupling": "根 package.json 的门禁脚本变化也改变指纹；打包、更新、各平台原生可选包安装共同依赖此锁。",
+      "invariant_ids": [
+        "INV-8",
+        "INV-12"
+      ],
+      "assertions": [
+        {
+          "kind": "sample",
+          "given": "Exact clean source and owned isolated test configuration",
+          "expect": "Exact runtime dependency lock verifies current declared inputs with exit 0",
+          "command": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node --env-file=.env scripts/runtime-deps-lock.mjs verify",
+          "exec": {
+            "file": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+            "args": [
+              "--env-file=.env",
+              "scripts/runtime-deps-lock.mjs",
+              "verify"
+            ]
+          },
+          "last_result": "pass",
+          "run": {
+            "path": "runs/MC-002-0-1791033784371.json",
+            "sha256": "a9060d5aff06d5475db98513aa924a28fad50b539f22f173d9896324a6fc8c0b",
+            "commit": "7fee3a6a5563d41c568463994764d3883eb7667d"
+          },
+          "evidence": {
+            "path": "evidence/MC-002-0-1791033784371.txt",
+            "sha256": "d31c099b9e136dc1d0e6b3c8e4de74ad1781ba1d066317e7b7e39a85f27d037d",
+            "commit": "7fee3a6a5563d41c568463994764d3883eb7667d"
+          }
+        }
+      ],
+      "evidence": [
+        {
+          "type": "code",
+          "ref": ".workloom-runtime-deps/metadata.json:28@42ead347c65a5cc343bcd290702d53a7fcdb1687",
+          "note": "runtime-deps-lock verify 输入指纹",
+          "sha256": "4ad62c73bbda83a593b9a7f6bf00bdb07771ad31f5c706984afc032a6be4e6ea"
+        },
+        {
+          "type": "runtime",
+          "ref": "audit/evidence/runtime-lock-baseline.log",
+          "note": "隔离实测或记录的元数据；具体证据等级见卡片",
+          "commit": "42ead347c65a5cc343bcd290702d53a7fcdb1687",
+          "sha256": "211ed29b0fb0215ef987fdb5fc1ba7559c55fecaa1a03dadccd60363f2e26fb4",
+          "provenance": "Exact retained original audit bytes; separately discovered controls retain their own execution source/time"
+        },
+        {
+          "type": "runtime",
+          "ref": "audit/evidence/runtime-lock-verify-final.json",
+          "note": "隔离实测或记录的元数据；具体证据等级见卡片",
+          "commit": "42ead347c65a5cc343bcd290702d53a7fcdb1687",
+          "sha256": "b8f119d4f06ad426f86af61eb35ff5cf4d01de6986d05ef8c02f95bb376f991a",
+          "provenance": "Exact retained original audit bytes; separately discovered controls retain their own execution source/time"
+        },
+        {
+          "type": "runtime",
+          "ref": "audit/evidence/runtime-lock-stage-windows-fixed-env.json",
+          "note": "隔离实测或记录的元数据；具体证据等级见卡片",
+          "commit": "42ead347c65a5cc343bcd290702d53a7fcdb1687",
+          "sha256": "2a5c7a9500ff87003ac09663c5e41fa78a9ce30783bcfd3a2c2f6ea446342fa7",
+          "provenance": "Exact retained original audit bytes; separately discovered controls retain their own execution source/time"
+        }
+      ],
+      "notes": "New actual argv executions only; legacy descriptions/observations retained. Formal Windows/Mac signing, native Windows and paid outcomes are outside source closure.",
+      "fixed_by": "codex-root-T-2026-1002-0901",
+      "fix_commit": "5d0c83e3293dc3a71651210987c9a5b48023480d",
+      "regression": {
+        "command": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node --env-file=.env scripts/runtime-deps-lock.mjs verify",
+        "evidence": null
+      },
+      "repair_evidence": [
+        {
+          "type": "code",
+          "ref": ".workloom-runtime-deps/metadata.json:28@5d0c83e3293dc3a71651210987c9a5b48023480d",
+          "note": "当前修复定位；root_cause保留历史失败基线"
+        }
+      ],
+      "baseline_assertions": [
+        {
+          "kind": "sample",
+          "given": "修复源码与精确 runtime 锁",
+          "expect": "verify exit 0，输入指纹与当前产品一致",
+          "command": "node scripts/runtime-deps-lock.mjs verify",
+          "last_result": "pass",
+          "evidence": "evidence/runtime-lock-verify-final.log"
+        }
+      ],
+      "verified_by": null,
+      "verified_at": null,
+      "verification_evidence": null,
+      "supplemental_discovery_evidence": [],
+      "unavailable_legacy_evidence": [],
+      "last_assertion_attempt": {
+        "actor": "codex-root-T-2026-1002-0901",
+        "role": "repair",
+        "result": "pass",
+        "at": "2026-10-03T13:23:04.370Z",
+        "commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+        "finished_at": "2026-10-03T13:23:04.537Z"
+      }
+    },
+    {
+      "id": "MC-003",
+      "kind": "problem",
+      "severity": "P1",
+      "level": "L2",
+      "batch": 0,
+      "state": "fixed",
+      "title": "工作区源码复制进 node_modules 后破坏相对路径与模块单例",
+      "evidence_grade": "A",
+      "root_cause": {
+        "file": "scripts/pack-electron-payload.sh",
+        "line": 127,
+        "commit": "42ead347c65a5cc343bcd290702d53a7fcdb1687",
+        "symbol": "内部工作区包实体注册循环"
+      },
+      "trigger_path": "按原脚本打包，再从独立 support 目录启动；视频包从 node_modules 的复制位置解析 ../../../bundles。",
+      "expected": "安装 runtime 保留源码相对路径，同一个工作区模块只有一个实体实例，服务健康检查通过。",
+      "actual": "首个完整载荷启动因 shot-intent.mjs 的 bundles 路径偏移而 ERR_MODULE_NOT_FOUND，健康检查超时；新载荷真实安装启动成功。",
+      "fix_direction": "保留 packages 原位置，在 node_modules 生成 ESM 重导出入口；三个打包脚本共用新 helper。对不支持的 default、通配和 CJS exports 失败关闭。",
+      "coupling": "行业契约 dist、跨包相对依赖、重复包名、条件 exports、模块状态单例和中文空格重定位均需检查。",
+      "invariant_ids": [
+        "INV-5",
+        "INV-12"
+      ],
+      "assertions": [
+        {
+          "kind": "sample",
+          "given": "Exact clean source and owned isolated test configuration",
+          "expect": "Workspace packaging Node tests pass real relocation/instance/policy controls",
+          "command": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node --env-file=.env --test scripts/pack-workspace-modules.test.mjs",
+          "exec": {
+            "file": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+            "args": [
+              "--env-file=.env",
+              "--test",
+              "scripts/pack-workspace-modules.test.mjs"
+            ]
+          },
+          "last_result": "pass",
+          "run": {
+            "path": "runs/MC-003-0-1791033784852.json",
+            "sha256": "243bec2794b18885451e5ea5a40727fdb520931f312e4f7197da8d745a3c4719",
+            "commit": "7fee3a6a5563d41c568463994764d3883eb7667d"
+          },
+          "evidence": {
+            "path": "evidence/MC-003-0-1791033784852.txt",
+            "sha256": "18e6b068732662dba867a4b347d6faf06040df39185b7867a1a0ec6878d7a66f",
+            "commit": "7fee3a6a5563d41c568463994764d3883eb7667d"
+          }
+        }
+      ],
+      "evidence": [
+        {
+          "type": "code",
+          "ref": "scripts/pack-electron-payload.sh:127@42ead347c65a5cc343bcd290702d53a7fcdb1687",
+          "note": "内部工作区包实体注册循环",
+          "sha256": "5b9879d9df5258a77e3d6b3c34dadaae5900798f01f487a817949c6dd602ca72"
+        },
+        {
+          "type": "runtime",
+          "ref": "audit/evidence/packaged-bootstrap-first.log",
+          "note": "隔离实测或记录的元数据；具体证据等级见卡片",
+          "commit": "42ead347c65a5cc343bcd290702d53a7fcdb1687",
+          "sha256": "65f224522f9f970b07a37ee29819047454d2a3f37a0c21448734871cb182dfd8",
+          "provenance": "Exact retained original audit bytes; separately discovered controls retain their own execution source/time"
+        },
+        {
+          "type": "runtime",
+          "ref": "audit/evidence/desktop-workspace-regression.log",
+          "note": "隔离实测或记录的元数据；具体证据等级见卡片",
+          "commit": "42ead347c65a5cc343bcd290702d53a7fcdb1687",
+          "sha256": "a988f2a58e3dfe5cd769ccf5f86e6546da691700a98308eab9d27d7ff1b5d943",
+          "provenance": "Exact retained original audit bytes; separately discovered controls retain their own execution source/time"
+        },
+        {
+          "type": "runtime",
+          "ref": "audit/evidence/installed-app-first.json",
+          "note": "隔离实测或记录的元数据；具体证据等级见卡片",
+          "commit": "42ead347c65a5cc343bcd290702d53a7fcdb1687",
+          "sha256": "d700eaa3bfa71a09e29d41d34280b9d852782ff20896bf8bb5a706236414d035",
+          "provenance": "Exact retained original audit bytes; separately discovered controls retain their own execution source/time"
+        }
+      ],
+      "notes": "New actual argv executions only; legacy descriptions/observations retained. Formal Windows/Mac signing, native Windows and paid outcomes are outside source closure.",
+      "fixed_by": "codex-root-T-2026-1002-0901",
+      "fix_commit": "5d0c83e3293dc3a71651210987c9a5b48023480d",
+      "regression": {
+        "command": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node --env-file=.env --test scripts/pack-workspace-modules.test.mjs",
+        "evidence": null
+      },
+      "repair_evidence": [
+        {
+          "type": "code",
+          "ref": "scripts/pack-workspace-modules.mjs:14@5d0c83e3293dc3a71651210987c9a5b48023480d",
+          "note": "当前修复定位；root_cause保留历史失败基线"
+        }
+      ],
+      "baseline_assertions": [
+        {
+          "kind": "sample",
+          "given": "包复制旧布局与中文重定位后的实体入口",
+          "expect": "5 个回归用例通过，旧复制布局的相对路径失败被复现，入口重导出保持同一实例",
+          "command": "node --test scripts/pack-workspace-modules.test.mjs",
+          "last_result": "pass",
+          "evidence": "evidence/desktop-workspace-regression.log"
+        }
+      ],
+      "verified_by": null,
+      "verified_at": null,
+      "verification_evidence": null,
+      "supplemental_discovery_evidence": [],
+      "unavailable_legacy_evidence": [],
+      "last_assertion_attempt": {
+        "actor": "codex-root-T-2026-1002-0901",
+        "role": "repair",
+        "result": "pass",
+        "at": "2026-10-03T13:23:04.850Z",
+        "commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+        "finished_at": "2026-10-03T13:23:05.561Z"
+      }
+    },
+    {
+      "id": "MC-004",
+      "kind": "problem",
+      "severity": "P1",
+      "level": "L2",
+      "batch": 0,
+      "state": "fixed",
+      "title": "载荷漏影片辅助模块，备线遗漏种子与白板工具依赖",
+      "evidence_grade": "A",
+      "root_cause": {
+        "file": "scripts/pack-electron-payload.sh",
+        "line": 91,
+        "commit": "42ead347c65a5cc343bcd290702d53a7fcdb1687",
+        "symbol": "Film CLI 文件白名单"
+      },
+      "trigger_path": "使用原独立安装 runtime 加 tsx loader 调用 full-chain-film.mts --worker；Mac/Windows 备线装配种子和工具。",
+      "expected": "工具导入闭包完整；已知未实现的 worker 分支返回 WORKER_MODE_NOT_WIRED，而非模块缺失；所需种子与契约 dist 随包。",
+      "actual": "旧独立 runtime 缺 film-voice-artifact.js，ERR_MODULE_NOT_FOUND；新 DMG runtime 无缺模块并到达 worker 守卫。备线 skill-bindings、Windows 工具白名单与 Mac dist 已补，备线整包未实跑。",
+      "fix_direction": "补 film-voice-artifact.ts、skill-bindings.mts、备线行业契约 dist 和 Windows 影片/白板源码白名单，将关键文件列入载荷自检。",
+      "coupling": "补导入依赖不等于实现影片工位；FFmpeg、Python、原生增强和供应商仍属于另外的业务依赖。",
+      "invariant_ids": [
+        "INV-5"
+      ],
+      "assertions": [
+        {
+          "kind": "sample",
+          "given": "Actual final upgraded QA runtime and bundled Node; no parent or provider",
+          "expect": "Frozen installed modules import successfully and reach CHANNEL_UNAVAILABLE; no missing module",
+          "command": "/Library/Developer/CommandLineTools/usr/bin/python3 /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/run_installed_film_load.py --source 7fee3a6a5563d41c568463994764d3883eb7667d --prefix surface",
+          "exec": {
+            "file": "/Library/Developer/CommandLineTools/usr/bin/python3",
+            "args": [
+              "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/run_installed_film_load.py",
+              "--source",
+              "7fee3a6a5563d41c568463994764d3883eb7667d",
+              "--prefix",
+              "surface"
+            ]
+          },
+          "last_result": "pass",
+          "run": {
+            "path": "runs/MC-004-0-1791033785713.json",
+            "sha256": "ce176f6379724275fd13670f920b5454e6b1f4416925a3ba390c1d40de1328a5",
+            "commit": "7fee3a6a5563d41c568463994764d3883eb7667d"
+          },
+          "evidence": {
+            "path": "evidence/MC-004-0-1791033785713.txt",
+            "sha256": "2f7f8daff6096ed4d68895e1ebd61e9419c004abfcb8e3713761e75593e3cc1e",
+            "commit": "7fee3a6a5563d41c568463994764d3883eb7667d"
+          }
+        }
+      ],
+      "evidence": [
+        {
+          "type": "code",
+          "ref": "scripts/pack-electron-payload.sh:91@42ead347c65a5cc343bcd290702d53a7fcdb1687",
+          "note": "Film CLI 文件白名单",
+          "sha256": "5b9879d9df5258a77e3d6b3c34dadaae5900798f01f487a817949c6dd602ca72"
+        },
+        {
+          "type": "runtime",
+          "ref": "audit/evidence/packaged-film-cli-red.log",
+          "note": "隔离实测或记录的元数据；具体证据等级见卡片",
+          "commit": "42ead347c65a5cc343bcd290702d53a7fcdb1687",
+          "sha256": "7545d7e53ad7e19fbe59154c04a2bb7dce84f9570c1b32056272b25ef1b89ae8",
+          "provenance": "Exact retained original audit bytes; separately discovered controls retain their own execution source/time"
+        },
+        {
+          "type": "runtime",
+          "ref": "audit/evidence/packaged-film-load-result.json",
+          "note": "隔离实测或记录的元数据；具体证据等级见卡片",
+          "commit": "42ead347c65a5cc343bcd290702d53a7fcdb1687",
+          "sha256": "8e42d7fc721cf499b1804f3c2c86f0880f3411da8951c691f95cb713469bf982",
+          "provenance": "Exact retained original audit bytes; separately discovered controls retain their own execution source/time"
+        },
+        {
+          "type": "runtime",
+          "ref": "audit/evidence/shell-pack-syntax.json",
+          "note": "隔离实测或记录的元数据；具体证据等级见卡片",
+          "commit": "42ead347c65a5cc343bcd290702d53a7fcdb1687",
+          "sha256": "80c9890505e5079119febd4d8fedcb356faa683e55b4d7fca33d2f91b6f8294a",
+          "provenance": "Exact retained original audit bytes; separately discovered controls retain their own execution source/time"
+        }
+      ],
+      "notes": "New actual argv executions only; legacy descriptions/observations retained. Formal Windows/Mac signing, native Windows and paid outcomes are outside source closure.",
+      "fixed_by": "codex-root-T-2026-1002-0901",
+      "fix_commit": "5d0c83e3293dc3a71651210987c9a5b48023480d",
+      "regression": {
+        "command": "/Library/Developer/CommandLineTools/usr/bin/python3 /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/run_installed_film_load.py --source 7fee3a6a5563d41c568463994764d3883eb7667d --prefix surface",
+        "evidence": null
+      },
+      "repair_evidence": [
+        {
+          "type": "code",
+          "ref": "scripts/pack-electron-payload.sh:91@5d0c83e3293dc3a71651210987c9a5b48023480d",
+          "note": "当前修复定位；root_cause保留历史失败基线"
+        }
+      ],
+      "baseline_assertions": [
+        {
+          "kind": "sample",
+          "given": "新 DMG 解包后的 runtime 与内置 Node",
+          "expect": "导入成功，到达 WORKER_MODE_NOT_WIRED，missing_module=false",
+          "command": "node \"/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-audit-2026-10-02/evidence/packaged-film-load-assert.mjs\" \"/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/安装验收 全新用户/runtime\" \"/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/安装验收 全新用户/node/bin/node\"",
+          "last_result": "pass",
+          "evidence": "evidence/packaged-film-load-result.json"
+        }
+      ],
+      "verified_by": null,
+      "verified_at": null,
+      "verification_evidence": null,
+      "supplemental_discovery_evidence": [],
+      "unavailable_legacy_evidence": [],
+      "last_assertion_attempt": {
+        "actor": "codex-root-T-2026-1002-0901",
+        "role": "repair",
+        "result": "pass",
+        "at": "2026-10-03T13:23:05.711Z",
+        "commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+        "finished_at": "2026-10-03T13:23:06.677Z"
+      }
+    },
+    {
+      "id": "MC-005",
+      "kind": "problem",
+      "severity": "P0",
+      "level": "L1",
+      "batch": 0,
+      "state": "fixed",
+      "title": "生产环境公共 loginAs 无身份验证，非示例工作区可取得 owner 身份",
+      "evidence_grade": "A",
+      "root_cause": {
+        "file": "apps/server/src/trpc/router.ts",
+        "line": 851,
+        "commit": "42ead347c65a5cc343bcd290702d53a7fcdb1687",
+        "symbol": "authRouter.loginAs / publicProcedure"
+      },
+      "trigger_path": "NODE_ENV=production，使用随机签名密钥、loopback 隔离服务器；创建 is_example=false、dataMode=real 的假资产，用 slug 与 memberNo 发匿名 HTTP 请求，再请求 threads.list。",
+      "expected": "非示例工作区匿名登录被拒绝，不签发成员 JWT；需独立可验证身份与账号绑定。",
+      "actual": "HTTP 200，owner JWT 已签发，保护接口 threads.list HTTP 200；JWT 内容不进入证据。隔离假资产，无客户真实数据。",
+      "fix_direction": "把 loginAs 限制在显式体验身份并绑定示例数据；正式成员走真实身份验证。生产默认拒开发 JWT 占位，授权从可信成员关系派生。",
+      "coupling": "桌面示例体验、邀请、会话恢复、Web B/C 及多工作区入口需一起回归；不能仅隐藏按钮或靠 SERVER_HOST 限制代替认证。",
+      "invariant_ids": [
+        "INV-1",
+        "INV-4",
+        "INV-11"
+      ],
+      "assertions": [
+        {
+          "kind": "sample",
+          "given": "New per-attempt directory; dedicated loopback growth_audit; no providers",
+          "expect": "11个真实production HTTP控制通过：匿名与非法JWT拒绝，可信本机登录只绑定预配身份",
+          "command": "/Library/Developer/CommandLineTools/usr/bin/python3 /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/run_isolated_replay.py --repo /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit --source 7fee3a6a5563d41c568463994764d3883eb7667d --group auth",
+          "exec": {
+            "file": "/Library/Developer/CommandLineTools/usr/bin/python3",
+            "args": [
+              "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/run_isolated_replay.py",
+              "--repo",
+              "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit",
+              "--source",
+              "7fee3a6a5563d41c568463994764d3883eb7667d",
+              "--group",
+              "auth"
+            ]
+          },
+          "last_result": "pass",
+          "run": {
+            "path": "runs/MC-005-0-1791033786822.json",
+            "sha256": "f7aee3cb015f3f9f439074a8552953d5925db2e9b46667af5d562e648fabd64c",
+            "commit": "7fee3a6a5563d41c568463994764d3883eb7667d"
+          },
+          "evidence": {
+            "path": "evidence/MC-005-0-1791033786822.txt",
+            "sha256": "b5512c7672bcce1a53a7f8a82e67df6fa5911a08c792e3547f744c7008b4fd31",
+            "commit": "7fee3a6a5563d41c568463994764d3883eb7667d"
+          }
+        }
+      ],
+      "evidence": [
+        {
+          "type": "code",
+          "ref": "apps/server/src/trpc/router.ts:851@42ead347c65a5cc343bcd290702d53a7fcdb1687",
+          "note": "authRouter.loginAs / publicProcedure",
+          "sha256": "3f61c16f5f676b47832d23b3e11efad3ef25f4bd4ce729f4bf6fd3bdcc0d74d1"
+        },
+        {
+          "type": "runtime",
+          "ref": "audit/evidence/production-login-nonexample.json",
+          "note": "隔离实测或记录的元数据；具体证据等级见卡片",
+          "commit": "42ead347c65a5cc343bcd290702d53a7fcdb1687",
+          "sha256": "899bcc1a7540873ff35848041a9fa2bfa5b89c53395ac7c7d86e7dd079b51f6b",
+          "provenance": "Exact retained original audit bytes; separately discovered controls retain their own execution source/time"
+        },
+        {
+          "type": "runtime",
+          "ref": "audit/evidence/production-login-nonexample-assert-final.json",
+          "note": "隔离实测或记录的元数据；具体证据等级见卡片",
+          "commit": "42ead347c65a5cc343bcd290702d53a7fcdb1687",
+          "sha256": "7c9d2d81080c4781f51030efab7788fba27069f4644236f65a446f7022dc6935",
+          "provenance": "Exact retained original audit bytes; separately discovered controls retain their own execution source/time"
+        },
+        {
+          "type": "runtime",
+          "ref": "audit/evidence/source-server-c-ready.json",
+          "note": "隔离实测或记录的元数据；具体证据等级见卡片",
+          "commit": "42ead347c65a5cc343bcd290702d53a7fcdb1687",
+          "sha256": "bbf8c9c3ee1c32d446d91512e8c83f0f15b9cee8d5d59584f1e0f3eee349de06",
+          "provenance": "Exact retained original audit bytes; separately discovered controls retain their own execution source/time"
+        }
+      ],
+      "notes": "New actual argv executions only; legacy descriptions/observations retained. Formal Windows/Mac signing, native Windows and paid outcomes are outside source closure.",
+      "baseline_assertions": [
+        {
+          "kind": "sample",
+          "given": "生产模式隔离服务与非示例假资产",
+          "expect": "匿名请求 status>=400，token_issued=false",
+          "command": "node --env-file=.env \"/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-audit-2026-10-02/evidence/production-login-probe.mjs\" --base http://127.0.0.1:28787 --fixture \"/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-audit-2026-10-02/evidence/auth-nonexample-input.json\" --assert",
+          "last_result": "fail",
+          "evidence": "evidence/production-login-nonexample-assert-final.log"
+        }
+      ],
+      "fixed_by": "codex-root-T-2026-1002-0901",
+      "verified_by": null,
+      "verified_at": null,
+      "verification_evidence": null,
+      "regression": {
+        "command": "/Library/Developer/CommandLineTools/usr/bin/python3 /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/run_isolated_replay.py --repo /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit --source 7fee3a6a5563d41c568463994764d3883eb7667d --group auth",
+        "evidence": null
+      },
+      "supplemental_discovery_evidence": [],
+      "unavailable_legacy_evidence": [],
+      "last_assertion_attempt": {
+        "actor": "codex-root-T-2026-1002-0901",
+        "role": "repair",
+        "result": "pass",
+        "at": "2026-10-03T13:23:06.821Z",
+        "commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+        "finished_at": "2026-10-03T13:23:14.219Z"
+      }
+    },
+    {
+      "id": "MC-006",
+      "kind": "problem",
+      "severity": "P0",
+      "level": "L3",
+      "batch": 1,
+      "state": "fixed",
+      "title": "外部动作先执行后授权，审批并发可产生重复副作用",
+      "evidence_grade": "A",
+      "root_cause": {
+        "file": "packages/runtime/src/loop.ts",
+        "line": 1038,
+        "commit": "42ead347c65a5cc343bcd290702d53a7fcdb1687",
+        "symbol": "runTool → gateway authorization / thread runner CAS"
+      },
+      "trigger_path": "使用真实 PG 和本地计数连接器：无 fence_bindings 的 agent 调写工具；一张高危审批对应 pending_review 线程并发续跑两次；另测 edited 高危审批。",
+      "expected": "拒绝权限、非法/已消费审批时工具调用数为 0；同一高危审批并发最多执行一次；失败线程有确定回收状态。",
+      "actual": "无权限工具已调用 1 次才 GatewayReject；并发工具调用 2 次，第二次落账才拒“审批已消费”；edited 高危调用 1 次后拒状态 edited，线程留 running。",
+      "fix_direction": "线程续跑统一原子认领；外部动作前完成权限/PII/围栏/审批内容快照校验和一次性授权预占；连接器携带幂等键并记录 started/succeeded/failed 回执。",
+      "coupling": "DB 事务不能包住任意远程副作用；必须设计失败重试与预占补偿。主循环、runner、scheduler、审批服务、gateway 与 connector 全链同改。",
+      "invariant_ids": [
+        "INV-2",
+        "INV-3",
+        "INV-4",
+        "INV-5"
+      ],
+      "assertions": [
+        {
+          "kind": "sample",
+          "given": "New per-attempt directory; dedicated loopback growth_audit; no providers",
+          "expect": "实际计数器断言全部通过；block不completed、replay仍pending_review、并发只执行一次且终态completed",
+          "command": "/Library/Developer/CommandLineTools/usr/bin/python3 /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/run_isolated_replay.py --repo /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit --source 7fee3a6a5563d41c568463994764d3883eb7667d --group runtime",
+          "exec": {
+            "file": "/Library/Developer/CommandLineTools/usr/bin/python3",
+            "args": [
+              "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/run_isolated_replay.py",
+              "--repo",
+              "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit",
+              "--source",
+              "7fee3a6a5563d41c568463994764d3883eb7667d",
+              "--group",
+              "runtime"
+            ]
+          },
+          "last_result": "pass",
+          "run": {
+            "path": "runs/MC-006-0-1791033794371.json",
+            "sha256": "f9184f08fe67dddc705b261ee40647af889f7698afb100cbfee659fd8cfdaa11",
+            "commit": "7fee3a6a5563d41c568463994764d3883eb7667d"
+          },
+          "evidence": {
+            "path": "evidence/MC-006-0-1791033794371.txt",
+            "sha256": "3c3581f22878c17a65b885aed80c4cd7d336ff2cebe25cafdc81e16c5d554b9c",
+            "commit": "7fee3a6a5563d41c568463994764d3883eb7667d"
+          }
+        }
+      ],
+      "evidence": [
+        {
+          "type": "code",
+          "ref": "packages/runtime/src/loop.ts:1038@42ead347c65a5cc343bcd290702d53a7fcdb1687",
+          "note": "runTool → gateway authorization / thread runner CAS",
+          "sha256": "7c8bcda691f416a6b625283c2dab5d7db7393986597117e639007b8ac5df13d9"
+        },
+        {
+          "type": "runtime",
+          "ref": "audit/evidence/runtime-repro-results.json",
+          "note": "隔离实测或记录的元数据；具体证据等级见卡片",
+          "commit": "42ead347c65a5cc343bcd290702d53a7fcdb1687",
+          "sha256": "e7821b9ab94d2f874bb6844d983690683a5923f7c1fb0f1f58cc6b528af5998c",
+          "provenance": "Exact retained original audit bytes; separately discovered controls retain their own execution source/time"
+        },
+        {
+          "type": "runtime",
+          "ref": "audit/evidence/runtime-health-assert-final.json",
+          "note": "隔离实测或记录的元数据；具体证据等级见卡片",
+          "commit": "42ead347c65a5cc343bcd290702d53a7fcdb1687",
+          "sha256": "701349c0831759d9159576a5579d05baea3c9310a2a76dab9b13389970710b41",
+          "provenance": "Exact retained original audit bytes; separately discovered controls retain their own execution source/time"
+        }
+      ],
+      "notes": "New actual argv executions only; legacy descriptions/observations retained. Formal Windows/Mac signing, native Windows and paid outcomes are outside source closure.",
+      "baseline_assertions": [
+        {
+          "kind": "sample",
+          "given": "无权限 agent",
+          "expect": "工具调用次数=0",
+          "command": "pnpm exec tsx --env-file=.env \"/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-audit-2026-10-02/evidence/runtime-repro.mts\" --repo \"/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit\" --case PERMISSION-BEFORE-ACTION --assert",
+          "last_result": "fail",
+          "evidence": "evidence/runtime-repro-results.json"
+        },
+        {
+          "kind": "property",
+          "given": "同一张高危审批的两次并发续跑",
+          "expect": "本地执行器调用次数<=1",
+          "command": "pnpm exec tsx --env-file=.env \"/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-audit-2026-10-02/evidence/runtime-repro.mts\" --repo \"/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit\" --case PENDING-CONCURRENCY --assert",
+          "last_result": "fail",
+          "evidence": "evidence/runtime-repro-results.json"
+        },
+        {
+          "kind": "sample",
+          "given": "编辑后的高危审批",
+          "expect": "执行前一致解析审批，非法状态下调用次数=0",
+          "command": "pnpm exec tsx --env-file=.env \"/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-audit-2026-10-02/evidence/runtime-repro.mts\" --repo \"/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit\" --case EDIT-HIGH-RISK --assert",
+          "last_result": "fail",
+          "evidence": "evidence/runtime-repro-results.json"
+        }
+      ],
+      "fixed_by": "codex-root-T-2026-1002-0901",
+      "verified_by": null,
+      "verified_at": null,
+      "verification_evidence": null,
+      "regression": {
+        "command": "/Library/Developer/CommandLineTools/usr/bin/python3 /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/run_isolated_replay.py --repo /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit --source 7fee3a6a5563d41c568463994764d3883eb7667d --group runtime",
+        "evidence": null
+      },
+      "supplemental_discovery_evidence": [],
+      "unavailable_legacy_evidence": [],
+      "last_assertion_attempt": {
+        "actor": "codex-root-T-2026-1002-0901",
+        "role": "repair",
+        "result": "pass",
+        "at": "2026-10-03T13:23:14.370Z",
+        "commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+        "finished_at": "2026-10-03T13:23:19.310Z"
+      }
+    },
+    {
+      "id": "MC-007",
+      "kind": "problem",
+      "severity": "P0",
+      "level": "L1",
+      "batch": 1,
+      "state": "fixed",
+      "title": "缺参和低相关性标记跳过全部围栏，人工审批可越过 block 红线",
+      "evidence_grade": "A",
+      "root_cause": {
+        "file": "packages/runtime/src/loop.ts",
+        "line": 778,
+        "commit": "42ead347c65a5cc343bcd290702d53a7fcdb1687",
+        "symbol": "needsHumanCheck 分支跳过 judge"
+      },
+      "trigger_path": "同一 unconditional block 规则下，对照普通计划与 context.params_incomplete=true 计划；实际调用 decide 采纳再续跑。",
+      "expected": "block 始终拒绝执行；缺参只能增加审核要求，不能把不可审批红线转成人工可放行。",
+      "actual": "对照 paused；带标记 pending_review；批准后 completed，本地写工具 1 次。",
+      "fix_direction": "先评估不可放宽红线再叠加审核要求；缺参/相关性标记由机制层生成，不信任模型标记；批准后仍重新校验当前红线。",
+      "coupling": "规则优先级、参数未知的判定、租户覆盖层与审批快照必须一致；不能删除缺参保护让所有步骤直接执行。",
+      "invariant_ids": [
+        "INV-3",
+        "INV-4",
+        "INV-7"
+      ],
+      "assertions": [
+        {
+          "kind": "sample",
+          "given": "New per-attempt directory; dedicated loopback growth_audit; no providers",
+          "expect": "实际计数器断言全部通过；block不completed、replay仍pending_review、并发只执行一次且终态completed；selected=BLOCK-FLAG",
+          "command": "/Library/Developer/CommandLineTools/usr/bin/python3 /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/run_isolated_replay.py --repo /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit --source 7fee3a6a5563d41c568463994764d3883eb7667d --group runtime --case BLOCK-FLAG",
+          "exec": {
+            "file": "/Library/Developer/CommandLineTools/usr/bin/python3",
+            "args": [
+              "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/run_isolated_replay.py",
+              "--repo",
+              "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit",
+              "--source",
+              "7fee3a6a5563d41c568463994764d3883eb7667d",
+              "--group",
+              "runtime",
+              "--case",
+              "BLOCK-FLAG"
+            ]
+          },
+          "last_result": "pass",
+          "run": {
+            "path": "runs/MC-007-0-1791033799443.json",
+            "sha256": "c256c79c2a0521d2d470d7f1f4f6f463405cdd4f8a30cdd76eaea8e5105390f2",
+            "commit": "7fee3a6a5563d41c568463994764d3883eb7667d"
+          },
+          "evidence": {
+            "path": "evidence/MC-007-0-1791033799443.txt",
+            "sha256": "e05f6314b6471de430c43bb7f177f81377559082167845d52f42095188cf2e95",
+            "commit": "7fee3a6a5563d41c568463994764d3883eb7667d"
+          }
+        }
+      ],
+      "evidence": [
+        {
+          "type": "code",
+          "ref": "packages/runtime/src/loop.ts:778@42ead347c65a5cc343bcd290702d53a7fcdb1687",
+          "note": "needsHumanCheck 分支跳过 judge",
+          "sha256": "7c8bcda691f416a6b625283c2dab5d7db7393986597117e639007b8ac5df13d9"
+        },
+        {
+          "type": "runtime",
+          "ref": "audit/evidence/runtime-repro-results.json",
+          "note": "隔离实测或记录的元数据；具体证据等级见卡片",
+          "commit": "42ead347c65a5cc343bcd290702d53a7fcdb1687",
+          "sha256": "e7821b9ab94d2f874bb6844d983690683a5923f7c1fb0f1f58cc6b528af5998c",
+          "provenance": "Exact retained original audit bytes; separately discovered controls retain their own execution source/time"
+        },
+        {
+          "type": "runtime",
+          "ref": "audit/evidence/runtime-health-assert-final.json",
+          "note": "隔离实测或记录的元数据；具体证据等级见卡片",
+          "commit": "42ead347c65a5cc343bcd290702d53a7fcdb1687",
+          "sha256": "701349c0831759d9159576a5579d05baea3c9310a2a76dab9b13389970710b41",
+          "provenance": "Exact retained original audit bytes; separately discovered controls retain their own execution source/time"
+        }
+      ],
+      "notes": "New actual argv executions only; legacy descriptions/observations retained. Formal Windows/Mac signing, native Windows and paid outcomes are outside source closure.",
+      "baseline_assertions": [
+        {
+          "kind": "property",
+          "given": "block 规则加缺参/相关性标记并经人工批准",
+          "expect": "工具调用次数=0，线程不进入 completed",
+          "command": "pnpm exec tsx --env-file=.env \"/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-audit-2026-10-02/evidence/runtime-repro.mts\" --repo \"/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit\" --case BLOCK-FLAG --assert",
+          "last_result": "fail",
+          "evidence": "evidence/runtime-repro-results.json"
+        }
+      ],
+      "fixed_by": "codex-root-T-2026-1002-0901",
+      "verified_by": null,
+      "verified_at": null,
+      "verification_evidence": null,
+      "regression": {
+        "command": "/Library/Developer/CommandLineTools/usr/bin/python3 /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/run_isolated_replay.py --repo /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit --source 7fee3a6a5563d41c568463994764d3883eb7667d --group runtime --case BLOCK-FLAG",
+        "evidence": null
+      },
+      "supplemental_discovery_evidence": [],
+      "unavailable_legacy_evidence": [],
+      "last_assertion_attempt": {
+        "actor": "codex-root-T-2026-1002-0901",
+        "role": "repair",
+        "result": "pass",
+        "at": "2026-10-03T13:23:19.442Z",
+        "commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+        "finished_at": "2026-10-03T13:23:20.032Z"
+      }
+    },
+    {
+      "id": "MC-008",
+      "kind": "problem",
+      "severity": "P1",
+      "level": "L3",
+      "batch": 2,
+      "state": "fixed",
+      "title": "plan_unverified 在存计划之后才标记，重放可绕过未批准的审核",
+      "evidence_grade": "A",
+      "root_cause": {
+        "file": "packages/runtime/src/loop.ts",
+        "line": 677,
+        "commit": "42ead347c65a5cc343bcd290702d53a7fcdb1687",
+        "symbol": "saveThreadPlan → relevance annotation"
+      },
+      "trigger_path": "创建目标与写计划零相关的线程，第一次挂起；不决定审批，第二次复用 DB 中计划运行。",
+      "expected": "plan_unverified 随计划版本持久化；未批准重放仍挂起，工具调用次数为 0。",
+      "actual": "首次 pending_review；存储的 context 没有 plan_unverified；第二次 completed，工具调用 1 次。",
+      "fix_direction": "所有机制层标记在计划持久化前完成，计划版本与审核 hash 绑定，旧版本重放重新验证并失效过期审批。",
+      "coupling": "新计划、复用、replan、数据库 JSON 迁移、批准快照和已完成步骤去重需同测。",
+      "invariant_ids": [
+        "INV-3",
+        "INV-4",
+        "INV-5"
+      ],
+      "assertions": [
+        {
+          "kind": "sample",
+          "given": "New per-attempt directory; dedicated loopback growth_audit; no providers",
+          "expect": "实际计数器断言全部通过；block不completed、replay仍pending_review、并发只执行一次且终态completed；selected=RELEVANCE-REPLAY",
+          "command": "/Library/Developer/CommandLineTools/usr/bin/python3 /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/run_isolated_replay.py --repo /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit --source 7fee3a6a5563d41c568463994764d3883eb7667d --group runtime --case RELEVANCE-REPLAY",
+          "exec": {
+            "file": "/Library/Developer/CommandLineTools/usr/bin/python3",
+            "args": [
+              "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/run_isolated_replay.py",
+              "--repo",
+              "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit",
+              "--source",
+              "7fee3a6a5563d41c568463994764d3883eb7667d",
+              "--group",
+              "runtime",
+              "--case",
+              "RELEVANCE-REPLAY"
+            ]
+          },
+          "last_result": "pass",
+          "run": {
+            "path": "runs/MC-008-0-1791033800171.json",
+            "sha256": "59e58b5a6724969e9965189f383961abf667b7f905c4a1723e25f54435c2c714",
+            "commit": "7fee3a6a5563d41c568463994764d3883eb7667d"
+          },
+          "evidence": {
+            "path": "evidence/MC-008-0-1791033800171.txt",
+            "sha256": "771051f514cfe8cb6db281d514a88316e52321aed7cbf785649b53c4382f171e",
+            "commit": "7fee3a6a5563d41c568463994764d3883eb7667d"
+          }
+        }
+      ],
+      "evidence": [
+        {
+          "type": "code",
+          "ref": "packages/runtime/src/loop.ts:677@42ead347c65a5cc343bcd290702d53a7fcdb1687",
+          "note": "saveThreadPlan → relevance annotation",
+          "sha256": "7c8bcda691f416a6b625283c2dab5d7db7393986597117e639007b8ac5df13d9"
+        },
+        {
+          "type": "runtime",
+          "ref": "audit/evidence/runtime-repro-results.json",
+          "note": "隔离实测或记录的元数据；具体证据等级见卡片",
+          "commit": "42ead347c65a5cc343bcd290702d53a7fcdb1687",
+          "sha256": "e7821b9ab94d2f874bb6844d983690683a5923f7c1fb0f1f58cc6b528af5998c",
+          "provenance": "Exact retained original audit bytes; separately discovered controls retain their own execution source/time"
+        },
+        {
+          "type": "runtime",
+          "ref": "audit/evidence/runtime-health-assert-final.json",
+          "note": "隔离实测或记录的元数据；具体证据等级见卡片",
+          "commit": "42ead347c65a5cc343bcd290702d53a7fcdb1687",
+          "sha256": "701349c0831759d9159576a5579d05baea3c9310a2a76dab9b13389970710b41",
+          "provenance": "Exact retained original audit bytes; separately discovered controls retain their own execution source/time"
+        }
+      ],
+      "notes": "New actual argv executions only; legacy descriptions/observations retained. Formal Windows/Mac signing, native Windows and paid outcomes are outside source closure.",
+      "baseline_assertions": [
+        {
+          "kind": "sample",
+          "given": "第一次挂起后未经批准重放",
+          "expect": "第二次仍 pending_review 且工具调用次数=0",
+          "command": "pnpm exec tsx --env-file=.env \"/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-audit-2026-10-02/evidence/runtime-repro.mts\" --repo \"/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit\" --case RELEVANCE-REPLAY --assert",
+          "last_result": "fail",
+          "evidence": "evidence/runtime-repro-results.json"
+        }
+      ],
+      "fixed_by": "codex-root-T-2026-1002-0901",
+      "verified_by": null,
+      "verified_at": null,
+      "verification_evidence": null,
+      "regression": {
+        "command": "/Library/Developer/CommandLineTools/usr/bin/python3 /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/run_isolated_replay.py --repo /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit --source 7fee3a6a5563d41c568463994764d3883eb7667d --group runtime --case RELEVANCE-REPLAY",
+        "evidence": null
+      },
+      "supplemental_discovery_evidence": [],
+      "unavailable_legacy_evidence": [],
+      "last_assertion_attempt": {
+        "actor": "codex-root-T-2026-1002-0901",
+        "role": "repair",
+        "result": "pass",
+        "at": "2026-10-03T13:23:20.170Z",
+        "commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+        "finished_at": "2026-10-03T13:23:20.760Z"
+      }
+    },
+    {
+      "id": "MC-009",
+      "kind": "problem",
+      "severity": "P1",
+      "level": "L4",
+      "batch": 2,
+      "state": "fixed",
+      "title": "编辑后采纳只记录新值，实际工具继续执行原参数",
+      "evidence_grade": "A",
+      "root_cause": {
+        "file": "packages/base/review-console/approvals.ts",
+        "line": 246,
+        "commit": "42ead347c65a5cc343bcd290702d53a7fcdb1687",
+        "symbol": "gesture.edited_after 与 loop 审批快照读取"
+      },
+      "trigger_path": "审批中将 amount=1 编辑为 amount=2，真实 decide 编辑后采纳，再运行同一步。",
+      "expected": "授权快照和工具参数均为 amount=2，旧值不可执行。",
+      "actual": "线程 completed，工具实际收到 amount=1；edited_after 已落事件但未用于实际 step.params。",
+      "fix_direction": "把编辑结果规范化为最终授权动作与参数，执行器只接受经过 hash 绑定的最终快照；编辑后重做参数与围栏校验。",
+      "coupling": "审批 UI 文案、金额/平台/收件人、事件原始值与最终值、MC-006 edited 状态冲突共同处理。",
+      "invariant_ids": [
+        "INV-3",
+        "INV-4",
+        "INV-5"
+      ],
+      "assertions": [
+        {
+          "kind": "sample",
+          "given": "New per-attempt directory; dedicated loopback growth_audit; no providers",
+          "expect": "实际计数器断言全部通过；block不completed、replay仍pending_review、并发只执行一次且终态completed；selected=EDIT-PARAMS",
+          "command": "/Library/Developer/CommandLineTools/usr/bin/python3 /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/run_isolated_replay.py --repo /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit --source 7fee3a6a5563d41c568463994764d3883eb7667d --group runtime --case EDIT-PARAMS",
+          "exec": {
+            "file": "/Library/Developer/CommandLineTools/usr/bin/python3",
+            "args": [
+              "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/run_isolated_replay.py",
+              "--repo",
+              "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit",
+              "--source",
+              "7fee3a6a5563d41c568463994764d3883eb7667d",
+              "--group",
+              "runtime",
+              "--case",
+              "EDIT-PARAMS"
+            ]
+          },
+          "last_result": "pass",
+          "run": {
+            "path": "runs/MC-009-0-1791033800896.json",
+            "sha256": "194e7021496b82834d379683dbf4bb7d4f6e07bf14fb7324964279adf5fea81c",
+            "commit": "7fee3a6a5563d41c568463994764d3883eb7667d"
+          },
+          "evidence": {
+            "path": "evidence/MC-009-0-1791033800896.txt",
+            "sha256": "8cd396e239919bc78d7ba4e529177a4b959baeb078421ee9144ba9d115567122",
+            "commit": "7fee3a6a5563d41c568463994764d3883eb7667d"
+          }
+        }
+      ],
+      "evidence": [
+        {
+          "type": "code",
+          "ref": "packages/base/review-console/approvals.ts:246@42ead347c65a5cc343bcd290702d53a7fcdb1687",
+          "note": "gesture.edited_after 与 loop 审批快照读取",
+          "sha256": "c38ea7321210b1c1e93b746d51f9b94b1a5f41d7df4348c63faf6941a9c505c9"
+        },
+        {
+          "type": "runtime",
+          "ref": "audit/evidence/runtime-repro-results.json",
+          "note": "隔离实测或记录的元数据；具体证据等级见卡片",
+          "commit": "42ead347c65a5cc343bcd290702d53a7fcdb1687",
+          "sha256": "e7821b9ab94d2f874bb6844d983690683a5923f7c1fb0f1f58cc6b528af5998c",
+          "provenance": "Exact retained original audit bytes; separately discovered controls retain their own execution source/time"
+        }
+      ],
+      "notes": "New actual argv executions only; legacy descriptions/observations retained. Formal Windows/Mac signing, native Windows and paid outcomes are outside source closure.",
+      "baseline_assertions": [
+        {
+          "kind": "sample",
+          "given": "amount 从1编辑为2后采纳",
+          "expect": "唯一工具调用 params.amount=2",
+          "command": "pnpm exec tsx --env-file=.env \"/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-audit-2026-10-02/evidence/runtime-repro.mts\" --repo \"/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit\" --case EDIT-PARAMS --assert",
+          "last_result": "fail",
+          "evidence": "evidence/runtime-repro-results.json"
+        }
+      ],
+      "fixed_by": "codex-root-T-2026-1002-0901",
+      "verified_by": null,
+      "verified_at": null,
+      "verification_evidence": null,
+      "regression": {
+        "command": "/Library/Developer/CommandLineTools/usr/bin/python3 /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/run_isolated_replay.py --repo /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit --source 7fee3a6a5563d41c568463994764d3883eb7667d --group runtime --case EDIT-PARAMS",
+        "evidence": null
+      },
+      "supplemental_discovery_evidence": [],
+      "unavailable_legacy_evidence": [],
+      "last_assertion_attempt": {
+        "actor": "codex-root-T-2026-1002-0901",
+        "role": "repair",
+        "result": "pass",
+        "at": "2026-10-03T13:23:20.895Z",
+        "commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+        "finished_at": "2026-10-03T13:23:21.525Z"
+      }
+    },
+    {
+      "id": "MC-010",
+      "kind": "problem",
+      "severity": "P1",
+      "level": "L3",
+      "batch": 2,
+      "state": "fixed",
+      "title": "把 queued 算进运行并发，十条待办且零运行时队列停滞",
+      "evidence_grade": "A",
+      "root_cause": {
+        "file": "apps/server/src/runtime/scheduler.ts",
+        "line": 72,
+        "commit": "42ead347c65a5cc343bcd290702d53a7fcdb1687",
+        "symbol": "sweepQueuedThreads 并发计数"
+      },
+      "trigger_path": "同工作区插入 10 queued、0 running，连续执行真实 sweepQueuedThreads 两次。",
+      "expected": "有运行空位时至少认领一条 queued；运行数最多 MAX_CONCURRENT_THREADS。",
+      "actual": "两次 picked=[]，queued 始终10。入口与调度都以 running+queued 门禁形成停滞。",
+      "fix_direction": "运行并发与待办容量分开计数，原子认领 queued 并限制 active running；独立定义排队上限和过载反馈。",
+      "coupling": "threads dispatch、自动审批续跑、租户公平性、异常回收、同时多个 scheduler 均影响并发口径。",
+      "invariant_ids": [
+        "INV-5"
+      ],
+      "assertions": [
+        {
+          "kind": "sample",
+          "given": "New per-attempt directory; dedicated loopback growth_audit; no providers",
+          "expect": "实际计数器断言全部通过；block不completed、replay仍pending_review、并发只执行一次且终态completed；selected=QUEUE-10",
+          "command": "/Library/Developer/CommandLineTools/usr/bin/python3 /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/run_isolated_replay.py --repo /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit --source 7fee3a6a5563d41c568463994764d3883eb7667d --group runtime --case QUEUE-10",
+          "exec": {
+            "file": "/Library/Developer/CommandLineTools/usr/bin/python3",
+            "args": [
+              "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/run_isolated_replay.py",
+              "--repo",
+              "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit",
+              "--source",
+              "7fee3a6a5563d41c568463994764d3883eb7667d",
+              "--group",
+              "runtime",
+              "--case",
+              "QUEUE-10"
+            ]
+          },
+          "last_result": "pass",
+          "run": {
+            "path": "runs/MC-010-0-1791033801664.json",
+            "sha256": "523d628e0646e80486af7d8916e88361520e32b06520a332cfebeb69b098e927",
+            "commit": "7fee3a6a5563d41c568463994764d3883eb7667d"
+          },
+          "evidence": {
+            "path": "evidence/MC-010-0-1791033801664.txt",
+            "sha256": "ff19a877357ec02adad7d0a8d08304c3ecc6fa0a40ba6ff8c295bfbd4a049d83",
+            "commit": "7fee3a6a5563d41c568463994764d3883eb7667d"
+          }
+        }
+      ],
+      "evidence": [
+        {
+          "type": "code",
+          "ref": "apps/server/src/runtime/scheduler.ts:72@42ead347c65a5cc343bcd290702d53a7fcdb1687",
+          "note": "sweepQueuedThreads 并发计数",
+          "sha256": "075bf86d9adf1c2df885080fcfca1fc8cb24aa23b96f81fb8c75b4b2815f6c87"
+        },
+        {
+          "type": "runtime",
+          "ref": "audit/evidence/runtime-repro-results.json",
+          "note": "隔离实测或记录的元数据；具体证据等级见卡片",
+          "commit": "42ead347c65a5cc343bcd290702d53a7fcdb1687",
+          "sha256": "e7821b9ab94d2f874bb6844d983690683a5923f7c1fb0f1f58cc6b528af5998c",
+          "provenance": "Exact retained original audit bytes; separately discovered controls retain their own execution source/time"
+        }
+      ],
+      "notes": "New actual argv executions only; legacy descriptions/observations retained. Formal Windows/Mac signing, native Windows and paid outcomes are outside source closure.",
+      "baseline_assertions": [
+        {
+          "kind": "sample",
+          "given": "0 running 和10 queued",
+          "expect": "两次扫描至少一次 picked 非空",
+          "command": "pnpm exec tsx --env-file=.env \"/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-audit-2026-10-02/evidence/runtime-repro.mts\" --repo \"/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit\" --case QUEUE-10 --assert",
+          "last_result": "fail",
+          "evidence": "evidence/runtime-repro-results.json"
+        }
+      ],
+      "fixed_by": "codex-root-T-2026-1002-0901",
+      "verified_by": null,
+      "verified_at": null,
+      "verification_evidence": null,
+      "regression": {
+        "command": "/Library/Developer/CommandLineTools/usr/bin/python3 /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/run_isolated_replay.py --repo /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit --source 7fee3a6a5563d41c568463994764d3883eb7667d --group runtime --case QUEUE-10",
+        "evidence": null
+      },
+      "supplemental_discovery_evidence": [],
+      "unavailable_legacy_evidence": [],
+      "last_assertion_attempt": {
+        "actor": "codex-root-T-2026-1002-0901",
+        "role": "repair",
+        "result": "pass",
+        "at": "2026-10-03T13:23:21.663Z",
+        "commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+        "finished_at": "2026-10-03T13:23:22.368Z"
+      }
+    },
+    {
+      "id": "MC-011",
+      "kind": "problem",
+      "severity": "P1",
+      "level": "L3",
+      "batch": 2,
+      "state": "fixed",
+      "title": "已驳回的 cancelled 线程可被普通 run 重新挂起",
+      "evidence_grade": "A",
+      "root_cause": {
+        "file": "apps/server/src/runtime/thread-runner.ts",
+        "line": 244,
+        "commit": "42ead347c65a5cc343bcd290702d53a7fcdb1687",
+        "symbol": "runQuestForThread CAS 与终态检查"
+      },
+      "trigger_path": "真实 decide reject 将审批关联线程置 cancelled；对原线程调用普通 runner。",
+      "expected": "普通 run 拒绝终态，仍 cancelled；显式重启另建尝试与审批版本。",
+      "actual": "调用后 pending_review，数据库终态被覆盖，未走显式重启协议。",
+      "fix_direction": "规定允许的状态转移并通过 CAS 统一认领；终态不可普通续跑；需要重试时生成新 attempt 和审批。",
+      "coupling": "驳回、取消、失败重试、人工暂停、审批自动续跑、旧回执去重共用状态机。",
+      "invariant_ids": [
+        "INV-2",
+        "INV-3",
+        "INV-5"
+      ],
+      "assertions": [
+        {
+          "kind": "sample",
+          "given": "New per-attempt directory; dedicated loopback growth_audit; no providers",
+          "expect": "实际计数器断言全部通过；block不completed、replay仍pending_review、并发只执行一次且终态completed；selected=REJECT-TERMINAL",
+          "command": "/Library/Developer/CommandLineTools/usr/bin/python3 /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/run_isolated_replay.py --repo /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit --source 7fee3a6a5563d41c568463994764d3883eb7667d --group runtime --case REJECT-TERMINAL",
+          "exec": {
+            "file": "/Library/Developer/CommandLineTools/usr/bin/python3",
+            "args": [
+              "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/run_isolated_replay.py",
+              "--repo",
+              "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit",
+              "--source",
+              "7fee3a6a5563d41c568463994764d3883eb7667d",
+              "--group",
+              "runtime",
+              "--case",
+              "REJECT-TERMINAL"
+            ]
+          },
+          "last_result": "pass",
+          "run": {
+            "path": "runs/MC-011-0-1791033802503.json",
+            "sha256": "2f5343d40d7ec41b15a2b221ebad45863d07014cfcfbe1eedace755d08a73abe",
+            "commit": "7fee3a6a5563d41c568463994764d3883eb7667d"
+          },
+          "evidence": {
+            "path": "evidence/MC-011-0-1791033802503.txt",
+            "sha256": "074461a8d823033ecd0b44d443e9bd78b9950f17601df7a48c7810453645c4ba",
+            "commit": "7fee3a6a5563d41c568463994764d3883eb7667d"
+          }
+        }
+      ],
+      "evidence": [
+        {
+          "type": "code",
+          "ref": "apps/server/src/runtime/thread-runner.ts:244@42ead347c65a5cc343bcd290702d53a7fcdb1687",
+          "note": "runQuestForThread CAS 与终态检查",
+          "sha256": "06fa73ffdf83a2a34e83411b9cb76f4e43337eae9175393b7806cd96007b0f70"
+        },
+        {
+          "type": "runtime",
+          "ref": "audit/evidence/runtime-repro-results.json",
+          "note": "隔离实测或记录的元数据；具体证据等级见卡片",
+          "commit": "42ead347c65a5cc343bcd290702d53a7fcdb1687",
+          "sha256": "e7821b9ab94d2f874bb6844d983690683a5923f7c1fb0f1f58cc6b528af5998c",
+          "provenance": "Exact retained original audit bytes; separately discovered controls retain their own execution source/time"
+        }
+      ],
+      "notes": "New actual argv executions only; legacy descriptions/observations retained. Formal Windows/Mac signing, native Windows and paid outcomes are outside source closure.",
+      "baseline_assertions": [
+        {
+          "kind": "sample",
+          "given": "已取消线程再次普通运行",
+          "expect": "线程仍 cancelled，拒绝普通续跑",
+          "command": "pnpm exec tsx --env-file=.env \"/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-audit-2026-10-02/evidence/runtime-repro.mts\" --repo \"/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit\" --case REJECT-TERMINAL --assert",
+          "last_result": "fail",
+          "evidence": "evidence/runtime-repro-results.json"
+        }
+      ],
+      "fixed_by": "codex-root-T-2026-1002-0901",
+      "verified_by": null,
+      "verified_at": null,
+      "verification_evidence": null,
+      "regression": {
+        "command": "/Library/Developer/CommandLineTools/usr/bin/python3 /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/run_isolated_replay.py --repo /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit --source 7fee3a6a5563d41c568463994764d3883eb7667d --group runtime --case REJECT-TERMINAL",
+        "evidence": null
+      },
+      "supplemental_discovery_evidence": [],
+      "unavailable_legacy_evidence": [],
+      "last_assertion_attempt": {
+        "actor": "codex-root-T-2026-1002-0901",
+        "role": "repair",
+        "result": "pass",
+        "at": "2026-10-03T13:23:22.502Z",
+        "commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+        "finished_at": "2026-10-03T13:23:23.125Z"
+      }
+    },
+    {
+      "id": "MC-012",
+      "kind": "problem",
+      "severity": "P1",
+      "level": "L3",
+      "batch": 2,
+      "state": "fixed",
+      "title": "驳回记忆 ID 不含工作区，同原因在第二工作区导致审批回滚",
+      "evidence_grade": "A",
+      "root_cause": {
+        "file": "packages/base/review-console/approvals.ts",
+        "line": 282,
+        "commit": "42ead347c65a5cc343bcd290702d53a7fcdb1687",
+        "symbol": "mem-reject-${reasonEnum} 与 org_memory 全局主键"
+      },
+      "trigger_path": "两个新工作区用相同 reasonEnum 驳回各自审批；org_memory 全局主键冲突与 RLS 同时触发。",
+      "expected": "两区审批均 rejected、线程均 cancelled，各区记忆独立写入。",
+      "actual": "第一工作区正常；第二工作区 42501 new row violates row-level security，审批仍 pending、线程 pending_review，事务回滚。",
+      "fix_direction": "记忆 ID 包含租户/工作区与稳定原因键，或改为复合唯一约束；迁移现有引用，保留 RLS。",
+      "coupling": "记忆引用事件、upsert、RLS、迁移回滚与多次同原因驳回去重需一起验证。",
+      "invariant_ids": [
+        "INV-1",
+        "INV-2",
+        "INV-5"
+      ],
+      "assertions": [
+        {
+          "kind": "sample",
+          "given": "New per-attempt directory; dedicated loopback growth_audit; no providers",
+          "expect": "实际计数器断言全部通过；block不completed、replay仍pending_review、并发只执行一次且终态completed；selected=REJECT-WORKSPACE-COLLISION",
+          "command": "/Library/Developer/CommandLineTools/usr/bin/python3 /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/run_isolated_replay.py --repo /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit --source 7fee3a6a5563d41c568463994764d3883eb7667d --group runtime --case REJECT-WORKSPACE-COLLISION",
+          "exec": {
+            "file": "/Library/Developer/CommandLineTools/usr/bin/python3",
+            "args": [
+              "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/run_isolated_replay.py",
+              "--repo",
+              "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit",
+              "--source",
+              "7fee3a6a5563d41c568463994764d3883eb7667d",
+              "--group",
+              "runtime",
+              "--case",
+              "REJECT-WORKSPACE-COLLISION"
+            ]
+          },
+          "last_result": "pass",
+          "run": {
+            "path": "runs/MC-012-0-1791033803266.json",
+            "sha256": "621cd856271bdb3936b5b447152c42c960c16afd753455c70194ab373f3ac107",
+            "commit": "7fee3a6a5563d41c568463994764d3883eb7667d"
+          },
+          "evidence": {
+            "path": "evidence/MC-012-0-1791033803266.txt",
+            "sha256": "44d40c6bd6faf37e2fdcf1a7ac1bfd0ec73b9df49270cfc56af000898f48b423",
+            "commit": "7fee3a6a5563d41c568463994764d3883eb7667d"
+          }
+        }
+      ],
+      "evidence": [
+        {
+          "type": "code",
+          "ref": "packages/base/review-console/approvals.ts:282@42ead347c65a5cc343bcd290702d53a7fcdb1687",
+          "note": "mem-reject-${reasonEnum} 与 org_memory 全局主键",
+          "sha256": "c38ea7321210b1c1e93b746d51f9b94b1a5f41d7df4348c63faf6941a9c505c9"
+        },
+        {
+          "type": "runtime",
+          "ref": "audit/evidence/runtime-repro-results.json",
+          "note": "隔离实测或记录的元数据；具体证据等级见卡片",
+          "commit": "42ead347c65a5cc343bcd290702d53a7fcdb1687",
+          "sha256": "e7821b9ab94d2f874bb6844d983690683a5923f7c1fb0f1f58cc6b528af5998c",
+          "provenance": "Exact retained original audit bytes; separately discovered controls retain their own execution source/time"
+        }
+      ],
+      "notes": "New actual argv executions only; legacy descriptions/observations retained. Formal Windows/Mac signing, native Windows and paid outcomes are outside source closure.",
+      "baseline_assertions": [
+        {
+          "kind": "sample",
+          "given": "两个隔离工作区用相同驳回原因",
+          "expect": "两区审批 rejected 且两线程 cancelled，无42501",
+          "command": "pnpm exec tsx --env-file=.env \"/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-audit-2026-10-02/evidence/runtime-repro.mts\" --repo \"/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit\" --case REJECT-WORKSPACE-COLLISION --assert",
+          "last_result": "fail",
+          "evidence": "evidence/runtime-repro-results.json"
+        }
+      ],
+      "fixed_by": "codex-root-T-2026-1002-0901",
+      "verified_by": null,
+      "verified_at": null,
+      "verification_evidence": null,
+      "regression": {
+        "command": "/Library/Developer/CommandLineTools/usr/bin/python3 /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/run_isolated_replay.py --repo /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit --source 7fee3a6a5563d41c568463994764d3883eb7667d --group runtime --case REJECT-WORKSPACE-COLLISION",
+        "evidence": null
+      },
+      "supplemental_discovery_evidence": [],
+      "unavailable_legacy_evidence": [],
+      "last_assertion_attempt": {
+        "actor": "codex-root-T-2026-1002-0901",
+        "role": "repair",
+        "result": "pass",
+        "at": "2026-10-03T13:23:23.265Z",
+        "commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+        "finished_at": "2026-10-03T13:23:23.918Z"
+      }
+    },
+    {
+      "id": "MC-013",
+      "kind": "problem",
+      "severity": "P1",
+      "level": "L2",
+      "batch": 2,
+      "state": "fixed",
+      "title": "影片工位子进程缺 TypeScript 加载器，worker 分支仍未接通",
+      "evidence_grade": "A（worker）/C（8160行CLI）",
+      "root_cause": {
+        "file": "apps/server/src/video/film-worker.ts",
+        "line": 383,
+        "commit": "42ead347c65a5cc343bcd290702d53a7fcdb1687",
+        "symbol": "runFilmJob child spawn / full-chain-film --worker"
+      },
+      "trigger_path": "真实公开 filmRouter.start/status，种子 owner 和有效 eraProfile；仅 storyboard，供应商 key 清空，mock，不产生供应商请求。另从修复后的安装 runtime 加 tsx loader 调 --worker。",
+      "expected": "子进程可加载源文件并产生规定组件/明确就绪判定；未接通的入口启动前返回可判定的不支持错误。",
+      "actual": "start 回 running，随后 failed / WORKER_EXIT_NONZERO，0 components；原生 Node 无 .js 到 .ts 的映射。显式加 loader 后到 WORKER_MODE_NOT_WIRED。",
+      "fix_direction": "子进程明确传 --import=tsx 或构建成 JS；实现 worker 协议与阶段回执后才开放入口；真正完成后测试归档、成本、错误和重试。",
+      "coupling": "影片 ledger、素材归档、声纹、portrait、预算、供应商幂等、FFmpeg/Python 与实际成片是后续独立闭环；本次未生产成片。",
+      "invariant_ids": [
+        "INV-5"
+      ],
+      "assertions": [
+        {
+          "kind": "sample",
+          "given": "New per-attempt directory; dedicated loopback growth_audit; no providers",
+          "expect": "公开start/status及真实子进程通过5个本地阶段/产物/绑定合同，或正确拒绝缺产物与截止",
+          "command": "/Library/Developer/CommandLineTools/usr/bin/python3 /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/run_isolated_replay.py --repo /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit --source 7fee3a6a5563d41c568463994764d3883eb7667d --group film",
+          "exec": {
+            "file": "/Library/Developer/CommandLineTools/usr/bin/python3",
+            "args": [
+              "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/run_isolated_replay.py",
+              "--repo",
+              "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit",
+              "--source",
+              "7fee3a6a5563d41c568463994764d3883eb7667d",
+              "--group",
+              "film"
+            ]
+          },
+          "last_result": "pass",
+          "run": {
+            "path": "runs/MC-013-0-1791033804062.json",
+            "sha256": "6977f7bdd35118b6001470a4123d401d769056fe643b4f50c0dab011b4552ce8",
+            "commit": "7fee3a6a5563d41c568463994764d3883eb7667d"
+          },
+          "evidence": {
+            "path": "evidence/MC-013-0-1791033804062.txt",
+            "sha256": "62bd2452127afe52c78b11a08c9eb1f932a687f6acc7edef3c6c006608691921",
+            "commit": "7fee3a6a5563d41c568463994764d3883eb7667d"
+          }
+        },
+        {
+          "kind": "sample",
+          "given": "New per-attempt directory; dedicated loopback growth_audit; no providers",
+          "expect": "公开start/status及真实子进程通过5个本地阶段/产物/绑定合同，或正确拒绝缺产物与截止；selected=missing-output",
+          "command": "/Library/Developer/CommandLineTools/usr/bin/python3 /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/run_isolated_replay.py --repo /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit --source 7fee3a6a5563d41c568463994764d3883eb7667d --group film --case missing-output",
+          "exec": {
+            "file": "/Library/Developer/CommandLineTools/usr/bin/python3",
+            "args": [
+              "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/run_isolated_replay.py",
+              "--repo",
+              "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit",
+              "--source",
+              "7fee3a6a5563d41c568463994764d3883eb7667d",
+              "--group",
+              "film",
+              "--case",
+              "missing-output"
+            ]
+          },
+          "last_result": "pass",
+          "run": {
+            "path": "runs/MC-013-1-1791033805592.json",
+            "sha256": "ed8807eef2247a0ccaf275f4337019e2bf4299946ab7e5d2c1ff432546122120",
+            "commit": "7fee3a6a5563d41c568463994764d3883eb7667d"
+          },
+          "evidence": {
+            "path": "evidence/MC-013-1-1791033805592.txt",
+            "sha256": "1c758aff4b46f9e5d238a4346ae0a70eb9436e65506dd16e69757a01bab2803f",
+            "commit": "7fee3a6a5563d41c568463994764d3883eb7667d"
+          }
+        },
+        {
+          "kind": "sample",
+          "given": "New per-attempt directory; dedicated loopback growth_audit; no providers",
+          "expect": "公开start/status及真实子进程通过5个本地阶段/产物/绑定合同，或正确拒绝缺产物与截止；selected=deadline",
+          "command": "/Library/Developer/CommandLineTools/usr/bin/python3 /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/run_isolated_replay.py --repo /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit --source 7fee3a6a5563d41c568463994764d3883eb7667d --group film --case deadline",
+          "exec": {
+            "file": "/Library/Developer/CommandLineTools/usr/bin/python3",
+            "args": [
+              "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/run_isolated_replay.py",
+              "--repo",
+              "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit",
+              "--source",
+              "7fee3a6a5563d41c568463994764d3883eb7667d",
+              "--group",
+              "film",
+              "--case",
+              "deadline"
+            ]
+          },
+          "last_result": "pass",
+          "run": {
+            "path": "runs/MC-013-2-1791033806720.json",
+            "sha256": "07ca69cd2e360f12ea69b830f78ba6a9e3e7f167b1700420f13a45c1b0c6fc42",
+            "commit": "7fee3a6a5563d41c568463994764d3883eb7667d"
+          },
+          "evidence": {
+            "path": "evidence/MC-013-2-1791033806720.txt",
+            "sha256": "926631f7fbf914218de990f2e27fbe9a87cffb2b3a9273c931d817f56f19b089",
+            "commit": "7fee3a6a5563d41c568463994764d3883eb7667d"
+          }
+        }
+      ],
+      "evidence": [
+        {
+          "type": "code",
+          "ref": "apps/server/src/video/film-worker.ts:383@42ead347c65a5cc343bcd290702d53a7fcdb1687",
+          "note": "runFilmJob child spawn / full-chain-film --worker",
+          "sha256": "d5059b20b89cb456578593a3b7288b65616ba20e69217194bd0b8e7711c5b54c"
+        },
+        {
+          "type": "runtime",
+          "ref": "audit/evidence/film-route-result.json",
+          "note": "隔离实测或记录的元数据；具体证据等级见卡片",
+          "commit": "42ead347c65a5cc343bcd290702d53a7fcdb1687",
+          "sha256": "6a5b027b27e349b581115452a3407fcc10a940c5c6fe62845b170956c6ebc3b1",
+          "provenance": "Exact retained original audit bytes; separately discovered controls retain their own execution source/time"
+        },
+        {
+          "type": "runtime",
+          "ref": "audit/evidence/film-route-assert-final.json",
+          "note": "隔离实测或记录的元数据；具体证据等级见卡片",
+          "commit": "42ead347c65a5cc343bcd290702d53a7fcdb1687",
+          "sha256": "46a6d192c175faa8f6ff6e0f0cc93662334c26105eb9edfa85515962a6e4ca7b",
+          "provenance": "Exact retained original audit bytes; separately discovered controls retain their own execution source/time"
+        },
+        {
+          "type": "runtime",
+          "ref": "audit/evidence/packaged-film-load-result.json",
+          "note": "隔离实测或记录的元数据；具体证据等级见卡片",
+          "commit": "42ead347c65a5cc343bcd290702d53a7fcdb1687",
+          "sha256": "8e42d7fc721cf499b1804f3c2c86f0880f3411da8951c691f95cb713469bf982",
+          "provenance": "Exact retained original audit bytes; separately discovered controls retain their own execution source/time"
+        }
+      ],
+      "notes": "New actual argv executions only; legacy descriptions/observations retained. Formal Windows/Mac signing, native Windows and paid outcomes are outside source closure.",
+      "baseline_assertions": [
+        {
+          "kind": "sample",
+          "given": "无供应商 storyboard 夹具",
+          "expect": "预定义阶段结束并有可验证回执；当前 healthy=status finished",
+          "command": "pnpm exec tsx --env-file=.env \"/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-audit-2026-10-02/evidence/film-route-probe.mts\" --repo \"/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit\" --assert",
+          "last_result": "fail",
+          "evidence": "evidence/film-route-assert-final.log"
+        }
+      ],
+      "fixed_by": "codex-root-T-2026-1002-0901",
+      "verified_by": null,
+      "verified_at": null,
+      "verification_evidence": null,
+      "regression": {
+        "command": "/Library/Developer/CommandLineTools/usr/bin/python3 /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/run_isolated_replay.py --repo /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit --source 7fee3a6a5563d41c568463994764d3883eb7667d --group film",
+        "evidence": null
+      },
+      "supplemental_discovery_evidence": [],
+      "unavailable_legacy_evidence": [],
+      "last_assertion_attempt": {
+        "actor": "codex-root-T-2026-1002-0901",
+        "role": "repair",
+        "result": "pass",
+        "at": "2026-10-03T13:23:24.061Z",
+        "commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+        "finished_at": "2026-10-03T13:23:27.448Z"
+      }
+    },
+    {
+      "id": "MC-014",
+      "kind": "problem",
+      "severity": "P2",
+      "level": "L2",
+      "batch": 2,
+      "state": "fixed",
+      "title": "GEO 围栏引用 publish_job，组合对象模型没有该类型",
+      "evidence_grade": "B",
+      "root_cause": {
+        "file": "bundles/geo-growth/fences/geo-growth-baseline.yml",
+        "line": 42,
+        "commit": "42ead347c65a5cc343bcd290702d53a7fcdb1687",
+        "symbol": "G9b 与 suite:geo A-10 对象并集"
+      },
+      "trigger_path": "运行 suite:geo；将 geo-growth/ai-video/hotel schemas 和 runtime 豁免对象合并后检查围栏 match.object_types。",
+      "expected": "每个引用对象存在于规定对象模型或显式映射，suite:geo 对象校验通过。",
+      "actual": "80/81 通过，A-10 因 G9b publish_job 失败；只证明模型一致性漂移，不等于整个发布功能不能执行。",
+      "fix_direction": "按语义选定 canonical 发布对象，补显式别名或 schema 类型，围栏、工具对象、回执和 suite 使用同一映射。",
+      "coupling": "字段重命名影响权限匹配与联动；不能仅把 publish_job 加进测试豁免而不审其真实对象语义。",
+      "invariant_ids": [
+        "INV-3",
+        "INV-12"
+      ],
+      "assertions": [
+        {
+          "kind": "sample",
+          "given": "Exact clean source and owned isolated test configuration",
+          "expect": "GEO suite passes its declared object/fence/telemetry checks in the dedicated seeded audit database",
+          "command": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node --env-file=.env --import tsx scripts/suite-geo.ts",
+          "exec": {
+            "file": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+            "args": [
+              "--env-file=.env",
+              "--import",
+              "tsx",
+              "scripts/suite-geo.ts"
+            ]
+          },
+          "last_result": "pass",
+          "run": {
+            "path": "runs/MC-014-0-1791033807588.json",
+            "sha256": "3b64f19aa8144a0cfd50a6ceb1240e3eb135b7e890846971f3f5a110b437d9c6",
+            "commit": "7fee3a6a5563d41c568463994764d3883eb7667d"
+          },
+          "evidence": {
+            "path": "evidence/MC-014-0-1791033807588.txt",
+            "sha256": "bc95813e097cf389594dee663c313a1fc77b23cd796e38f81e4d3098e913dd10",
+            "commit": "7fee3a6a5563d41c568463994764d3883eb7667d"
+          }
+        }
+      ],
+      "evidence": [
+        {
+          "type": "code",
+          "ref": "bundles/geo-growth/fences/geo-growth-baseline.yml:42@42ead347c65a5cc343bcd290702d53a7fcdb1687",
+          "note": "G9b 与 suite:geo A-10 对象并集",
+          "sha256": "4a06d0a472be51a3e8922bc77e8834ef9f1f31e752b4ef3d345058ca908970c7"
+        },
+        {
+          "type": "runtime",
+          "ref": "audit/evidence/suite-geo.json",
+          "note": "隔离实测或记录的元数据；具体证据等级见卡片",
+          "commit": "42ead347c65a5cc343bcd290702d53a7fcdb1687",
+          "sha256": "182683d2721817e7709acf150cee728f147fa774feb2c3dc08091b007136211b",
+          "provenance": "Exact retained original audit bytes; separately discovered controls retain their own execution source/time"
+        },
+        {
+          "type": "runtime",
+          "ref": "audit/evidence/fence-object-result.json",
+          "note": "隔离实测或记录的元数据；具体证据等级见卡片",
+          "commit": "42ead347c65a5cc343bcd290702d53a7fcdb1687",
+          "sha256": "12fce58f8196f81814cddde0421566f37e82ab54e5f4b3f17fef3507e4c190d4",
+          "provenance": "Exact retained original audit bytes; separately discovered controls retain their own execution source/time"
+        }
+      ],
+      "notes": "New actual argv executions only; legacy descriptions/observations retained. Formal Windows/Mac signing, native Windows and paid outcomes are outside source closure.",
+      "baseline_assertions": [
+        {
+          "kind": "sample",
+          "given": "三bundle对象并集与围栏",
+          "expect": "missing.length=0",
+          "command": "node \"/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-audit-2026-10-02/evidence/fence-object-probe.mjs\" --repo \"/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit\" --assert",
+          "last_result": "fail",
+          "evidence": "evidence/fence-object-assert.log"
+        }
+      ],
+      "fixed_by": "codex-root-T-2026-1002-0901",
+      "verified_by": null,
+      "verified_at": null,
+      "verification_evidence": null,
+      "regression": {
+        "command": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node --env-file=.env --import tsx scripts/suite-geo.ts",
+        "evidence": null
+      },
+      "supplemental_discovery_evidence": [],
+      "unavailable_legacy_evidence": [],
+      "last_assertion_attempt": {
+        "actor": "codex-root-T-2026-1002-0901",
+        "role": "repair",
+        "result": "pass",
+        "at": "2026-10-03T13:23:27.587Z",
+        "commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+        "finished_at": "2026-10-03T13:23:29.856Z"
+      }
+    },
+    {
+      "id": "MC-015",
+      "kind": "problem",
+      "severity": "P2",
+      "level": "L4",
+      "batch": 2,
+      "state": "fixed",
+      "title": "影片预览建议命令未转义用户字符串，中文路径和分号破坏参数",
+      "evidence_grade": "A",
+      "root_cause": {
+        "file": "bundles/geo-growth/capabilities/video.mjs",
+        "line": 329,
+        "commit": "42ead347c65a5cc343bcd290702d53a7fcdb1687",
+        "symbol": "productionPlan recommendedCommand"
+      },
+      "trigger_path": "只调用 productionPlan，传 projectId 含分号与标记文本、路径和平台含中文空格；未执行返回命令。",
+      "expected": "可复制命令保留每个参数的字面值，或返回安全 argv 结构和执行器；审批策略明确。",
+      "actual": "recommendedCommand 把分号与空格原样插入且带 --review-policy off；用户直接复制到 shell 时参数拆分。预览本身没有执行，本次无 RCE。",
+      "fix_direction": "返回结构化 argv；如保留 POSIX 文本则统一安全 quoting，Windows 单独生成对应表示，审核策略由用户显式选定。",
+      "coupling": "路径、项目 ID、平台、key-file 展开和 review-policy 默认值都影响可复制性；不能把 quoting 视为真实审批链。",
+      "invariant_ids": [
+        "INV-3",
+        "INV-4",
+        "INV-5"
+      ],
+      "assertions": [
+        {
+          "kind": "sample",
+          "given": "Exact clean source and owned isolated test configuration",
+          "expect": "Video capability Node tests pass actual safe argv and delivery-hash negative controls",
+          "command": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node --env-file=.env --test scripts/video-capabilities.test.mjs",
+          "exec": {
+            "file": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+            "args": [
+              "--env-file=.env",
+              "--test",
+              "scripts/video-capabilities.test.mjs"
+            ]
+          },
+          "last_result": "pass",
+          "run": {
+            "path": "runs/MC-015-0-1791033809993.json",
+            "sha256": "0c0e22eeefac7e84424c18dd0045f1d0696c6c3e49443d3268effbe2db79f500",
+            "commit": "7fee3a6a5563d41c568463994764d3883eb7667d"
+          },
+          "evidence": {
+            "path": "evidence/MC-015-0-1791033809993.txt",
+            "sha256": "174b041c6c1ec4179c753217b32ceecc37363c325d5078c8202fb8f12462afd1",
+            "commit": "7fee3a6a5563d41c568463994764d3883eb7667d"
+          }
+        }
+      ],
+      "evidence": [
+        {
+          "type": "code",
+          "ref": "bundles/geo-growth/capabilities/video.mjs:329@42ead347c65a5cc343bcd290702d53a7fcdb1687",
+          "note": "productionPlan recommendedCommand",
+          "sha256": "f3cf0ffc9e9ce24cd0401a570c68755eade5dff623a901cbb01d2d105773bdee"
+        },
+        {
+          "type": "runtime",
+          "ref": "audit/evidence/video-plan-result.json",
+          "note": "隔离实测或记录的元数据；具体证据等级见卡片",
+          "commit": "42ead347c65a5cc343bcd290702d53a7fcdb1687",
+          "sha256": "7c5c3c650df7672db7c8f335371f50fda3e80cd95e510fe4d651f41da5ac579b",
+          "provenance": "Exact retained original audit bytes; separately discovered controls retain their own execution source/time"
+        },
+        {
+          "type": "runtime",
+          "ref": "audit/evidence/video-plan-assert.json",
+          "note": "隔离实测或记录的元数据；具体证据等级见卡片",
+          "commit": "42ead347c65a5cc343bcd290702d53a7fcdb1687",
+          "sha256": "5e074e3fd27a595d0b076017f304b706d370132520f5bfaf7d07b3a059e6ff22",
+          "provenance": "Exact retained original audit bytes; separately discovered controls retain their own execution source/time"
+        }
+      ],
+      "notes": "New actual argv executions only; legacy descriptions/observations retained. Formal Windows/Mac signing, native Windows and paid outcomes are outside source closure.",
+      "baseline_assertions": [
+        {
+          "kind": "sample",
+          "given": "中文空格与分号字符串作为预览输入",
+          "expect": "返回命令不会原样嵌入 --project audit; printf INERT_MARKER",
+          "command": "node \"/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-audit-2026-10-02/evidence/video-plan-probe.mjs\" --repo \"/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit\" --assert",
+          "last_result": "fail",
+          "evidence": "evidence/video-plan-assert.log"
+        }
+      ],
+      "fixed_by": "codex-root-T-2026-1002-0901",
+      "verified_by": null,
+      "verified_at": null,
+      "verification_evidence": null,
+      "regression": {
+        "command": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node --env-file=.env --test scripts/video-capabilities.test.mjs",
+        "evidence": null
+      },
+      "supplemental_discovery_evidence": [],
+      "unavailable_legacy_evidence": [],
+      "last_assertion_attempt": {
+        "actor": "codex-root-T-2026-1002-0901",
+        "role": "repair",
+        "result": "pass",
+        "at": "2026-10-03T13:23:29.992Z",
+        "commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+        "finished_at": "2026-10-03T13:23:30.362Z"
+      }
+    },
+    {
+      "id": "MC-016",
+      "kind": "problem",
+      "severity": "P2",
+      "level": "L2",
+      "batch": 3,
+      "state": "unfixed",
+      "title": "Live2D 间接工具链含四个安全公告，需按实际可达面处理",
+      "evidence_grade": "B",
+      "root_cause": {
+        "file": "apps/web/package.json",
+        "line": 24,
+        "commit": "42ead347c65a5cc343bcd290702d53a7fcdb1687",
+        "symbol": "pixi-live2d-display → gh-pages → brace-expansion"
+      },
+      "trigger_path": "基线 pnpm audit --prod 查询 registry，锁定的 gh-pages4.0.0 和 brace-expansion1.1.18 命中公告；检查实际 runtime 精确安装树。",
+      "expected": "生产依赖树无未处理的安全公告，或具有可审计的不可达证明与构建隔离；精确锁保持一致。",
+      "actual": "1 critical、2 high、1 moderate 公告；客户端扁平 runtime58包无 gh-pages/brace-expansion。本次未做浏览器 bundle 数据流利用证明，不直接判定客户端远程 critical。",
+      "fix_direction": "优先移除 Live2D 包错误携带的发布工具或使用受支持版本/受控 overrides；构建环境限制不可信输入，升级后回归渲染与载荷锁。",
+      "coupling": "Live2D 兼容、浏览器 bundle 内容、构建依赖与产品 runtime 清单、锁指纹、公告随时间变化均需复查。",
+      "invariant_ids": [
+        "INV-8",
+        "INV-11"
+      ],
+      "assertions": [
+        {
+          "kind": "sample",
+          "given": "Current pinned production dependency graph and official registry audit",
+          "expect": "Production dependency audit exits 0",
+          "command": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/pnpm/bin/pnpm.cjs audit --prod --json",
+          "exec": {
+            "file": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+            "args": [
+              "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/pnpm/bin/pnpm.cjs",
+              "audit",
+              "--prod",
+              "--json"
+            ]
+          },
+          "last_result": "fail",
+          "run": {
+            "path": "runs/MC-016-0-1791033810501.json",
+            "sha256": "be6a1d83714e81eaa0bba5e9e46c9edb2df8fb768ba01c72d588af4ec4d0b022",
+            "commit": "7fee3a6a5563d41c568463994764d3883eb7667d"
+          },
+          "evidence": {
+            "path": "evidence/MC-016-0-1791033810501.txt",
+            "sha256": "dbca63ea81bc6835508e0114cfeb7cb4cb544a5eab260429047973ce25f511ff",
+            "commit": "7fee3a6a5563d41c568463994764d3883eb7667d"
+          }
+        }
+      ],
+      "evidence": [
+        {
+          "type": "code",
+          "ref": "apps/web/package.json:24@42ead347c65a5cc343bcd290702d53a7fcdb1687",
+          "note": "pixi-live2d-display → gh-pages → brace-expansion",
+          "sha256": "17273b001dea29afe53c13a4f3cdd17685cea4081bde2521ab5157ec45a1081b"
+        },
+        {
+          "type": "runtime",
+          "ref": "audit/evidence/dependency-audit.log",
+          "note": "隔离实测或记录的元数据；具体证据等级见卡片",
+          "commit": "42ead347c65a5cc343bcd290702d53a7fcdb1687",
+          "sha256": "6b3e5b5fad1877635ee326f7d608aa0aedb8e083cd1de6fa0b4f851e9cea6a07",
+          "provenance": "Exact retained original audit bytes; separately discovered controls retain their own execution source/time"
+        },
+        {
+          "type": "runtime",
+          "ref": "audit/evidence/runtime-lock-stage-windows-fixed-env.json",
+          "note": "隔离实测或记录的元数据；具体证据等级见卡片",
+          "commit": "42ead347c65a5cc343bcd290702d53a7fcdb1687",
+          "sha256": "2a5c7a9500ff87003ac09663c5e41fa78a9ce30783bcfd3a2c2f6ea446342fa7",
+          "provenance": "Exact retained original audit bytes; separately discovered controls retain their own execution source/time"
+        }
+      ],
+      "notes": "New actual argv executions only; legacy descriptions/observations retained. Formal Windows/Mac signing, native Windows and paid outcomes are outside source closure.",
+      "baseline_assertions": [
+        {
+          "kind": "sample",
+          "given": "当前仓依赖与在线 registry",
+          "expect": "pnpm audit --prod exit 0，或审查后有明确可达性处理记录",
+          "command": "pnpm audit --prod",
+          "last_result": "fail",
+          "evidence": "evidence/dependency-audit.log"
+        }
+      ],
+      "fixed_by": "codex-root-T-2026-1002-0901",
+      "verified_by": null,
+      "verified_at": null,
+      "verification_evidence": null,
+      "regression": {
+        "command": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/pnpm/bin/pnpm.cjs audit --prod --json",
+        "evidence": null
+      },
+      "supplemental_discovery_evidence": [],
+      "unavailable_legacy_evidence": [],
+      "last_assertion_attempt": {
+        "actor": "codex-root-T-2026-1002-0901",
+        "role": "repair",
+        "result": "fail",
+        "at": "2026-10-03T13:23:30.500Z",
+        "commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+        "finished_at": "2026-10-03T13:24:30.797Z"
+      }
+    },
+    {
+      "id": "MC-101",
+      "kind": "fix",
+      "state": "open",
+      "batch": 0,
+      "title": "修复客户端启动和各载荷工作区模块装配",
+      "covers": [
+        "MC-001",
+        "MC-002",
+        "MC-003",
+        "MC-004"
+      ],
+      "fix_plan": "显式 runtimeDir、刷新现有精确锁、统一 ESM facade、补齐 helper/dist/工具白名单、test:scripts 纳入 desktop 门禁。",
+      "conflict_paths": [
+        "apps/desktop/electron/bootstrap.cjs",
+        "scripts/pack-electron-payload.sh",
+        "scripts/pack-macos.sh",
+        "scripts/pack-windows.sh",
+        "scripts/pack-workspace-modules.mjs",
+        ".workloom-runtime-deps",
+        "package.json"
+      ],
+      "blast_radius": "改变安装模块解析、环境桥和打包文件闭包；Mac 主线实装通过，Windows/备线整包未实测。回滚源码不回滚客户数据库。",
+      "rollback": "git revert 5d0c83e3293dc3a71651210987c9a5b48023480d，仅撤销源码提交；已有客户数据目录单独备份，不自动降级数据库。",
+      "evidence": [
+        {
+          "type": "code",
+          "ref": "apps/desktop/electron/bootstrap.cjs:395@42ead347c65a5cc343bcd290702d53a7fcdb1687",
+          "note": "buildDesktopEnvironment",
+          "sha256": "6a8161a5fc24d55592f74cf29a7f1c921052a23fadd735d7ad71501b6522a715"
+        }
+      ],
+      "assertions": [
+        {
+          "kind": "sample",
+          "given": "Exact clean source and owned isolated test configuration",
+          "expect": "Bootstrap Node tests report real nonzero passes and no failures",
+          "command": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node --env-file=.env --test apps/desktop/electron/bootstrap.test.cjs",
+          "exec": {
+            "file": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+            "args": [
+              "--env-file=.env",
+              "--test",
+              "apps/desktop/electron/bootstrap.test.cjs"
+            ]
+          },
+          "last_result": "not-run"
+        },
+        {
+          "kind": "sample",
+          "given": "Exact clean source and owned isolated test configuration",
+          "expect": "Exact runtime dependency lock verifies current declared inputs with exit 0",
+          "command": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node --env-file=.env scripts/runtime-deps-lock.mjs verify",
+          "exec": {
+            "file": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+            "args": [
+              "--env-file=.env",
+              "scripts/runtime-deps-lock.mjs",
+              "verify"
+            ]
+          },
+          "last_result": "not-run"
+        },
+        {
+          "kind": "sample",
+          "given": "Exact clean source and owned isolated test configuration",
+          "expect": "Workspace packaging Node tests pass real relocation/instance/policy controls",
+          "command": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node --env-file=.env --test scripts/pack-workspace-modules.test.mjs",
+          "exec": {
+            "file": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+            "args": [
+              "--env-file=.env",
+              "--test",
+              "scripts/pack-workspace-modules.test.mjs"
+            ]
+          },
+          "last_result": "not-run"
+        },
+        {
+          "kind": "sample",
+          "given": "Actual final upgraded QA runtime and bundled Node; no parent or provider",
+          "expect": "Frozen installed modules import successfully and reach CHANNEL_UNAVAILABLE; no missing module",
+          "command": "/Library/Developer/CommandLineTools/usr/bin/python3 /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/run_installed_film_load.py --source 7fee3a6a5563d41c568463994764d3883eb7667d --prefix surface",
+          "exec": {
+            "file": "/Library/Developer/CommandLineTools/usr/bin/python3",
+            "args": [
+              "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/run_installed_film_load.py",
+              "--source",
+              "7fee3a6a5563d41c568463994764d3883eb7667d",
+              "--prefix",
+              "surface"
+            ]
+          },
+          "last_result": "not-run"
+        }
+      ],
+      "fixed_by": null,
+      "verified_by": null,
+      "notes": "New actual argv executions only; legacy descriptions/observations retained. Formal Windows/Mac signing, native Windows and paid outcomes are outside source closure.",
+      "fix_commit": "5d0c83e3293dc3a71651210987c9a5b48023480d",
+      "regression": {
+        "command": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node --env-file=.env --test apps/desktop/electron/bootstrap.test.cjs",
+        "evidence": null
+      },
+      "baseline_assertions": [
+        {
+          "kind": "sample",
+          "given": "修复提交中的 bootstrap 单测与隔离中文 runtime",
+          "expect": "环境构造用例通过且桥模块路径来自传入目录",
+          "command": "node --test apps/desktop/electron/bootstrap.test.cjs",
+          "last_result": "pass",
+          "evidence": "evidence/desktop-bootstrap-after.log"
+        },
+        {
+          "kind": "sample",
+          "given": "修复源码与精确 runtime 锁",
+          "expect": "verify exit 0，输入指纹与当前产品一致",
+          "command": "node scripts/runtime-deps-lock.mjs verify",
+          "last_result": "pass",
+          "evidence": "evidence/runtime-lock-verify-final.log"
+        },
+        {
+          "kind": "sample",
+          "given": "包复制旧布局与中文重定位后的实体入口",
+          "expect": "5 个回归用例通过，旧复制布局的相对路径失败被复现，入口重导出保持同一实例",
+          "command": "node --test scripts/pack-workspace-modules.test.mjs",
+          "last_result": "pass",
+          "evidence": "evidence/desktop-workspace-regression.log"
+        },
+        {
+          "kind": "sample",
+          "given": "新 DMG 解包后的 runtime 与内置 Node",
+          "expect": "导入成功，到达 WORKER_MODE_NOT_WIRED，missing_module=false",
+          "command": "node \"/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-audit-2026-10-02/evidence/packaged-film-load-assert.mjs\" \"/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/安装验收 全新用户/runtime\" \"/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/安装验收 全新用户/node/bin/node\"",
+          "last_result": "pass",
+          "evidence": "evidence/packaged-film-load-result.json"
+        }
+      ],
+      "verified_at": null,
+      "verification_evidence": null,
+      "supplemental_discovery_evidence": [],
+      "unavailable_legacy_evidence": []
+    },
+    {
+      "id": "MC-102",
+      "kind": "fix",
+      "state": "open",
+      "batch": 0,
+      "title": "封闭生产匿名成员登录与占位签名配置",
+      "covers": [
+        "MC-005"
+      ],
+      "fix_plan": "将体验登录限定示例资产和显式体验配置，正式成员身份必须由可信认证建立；替换已暴露/占位密钥并失效旧会话，逐租户回归。",
+      "conflict_paths": [
+        "apps/server/src/trpc/router.ts",
+        "packages/base/tenancy/auth.ts",
+        "apps/webb/src",
+        "apps/webc/src"
+      ],
+      "blast_radius": "体验引导和已有会话可能失效；不能拿桌面本地绑定说明网络认证安全。",
+      "rollback": "以功能旗标收紧入口为止血，认证提交可 revert，但禁止恢复无验证的正式登录。",
+      "evidence": [
+        {
+          "type": "code",
+          "ref": "apps/server/src/trpc/router.ts:851@42ead347c65a5cc343bcd290702d53a7fcdb1687",
+          "note": "authRouter.loginAs / publicProcedure",
+          "sha256": "3f61c16f5f676b47832d23b3e11efad3ef25f4bd4ce729f4bf6fd3bdcc0d74d1"
+        }
+      ],
+      "assertions": [
+        {
+          "kind": "sample",
+          "given": "New per-attempt directory; dedicated loopback growth_audit; no providers",
+          "expect": "11个真实production HTTP控制通过：匿名与非法JWT拒绝，可信本机登录只绑定预配身份",
+          "command": "/Library/Developer/CommandLineTools/usr/bin/python3 /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/run_isolated_replay.py --repo /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit --source 7fee3a6a5563d41c568463994764d3883eb7667d --group auth",
+          "exec": {
+            "file": "/Library/Developer/CommandLineTools/usr/bin/python3",
+            "args": [
+              "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/run_isolated_replay.py",
+              "--repo",
+              "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit",
+              "--source",
+              "7fee3a6a5563d41c568463994764d3883eb7667d",
+              "--group",
+              "auth"
+            ]
+          },
+          "last_result": "not-run"
+        }
+      ],
+      "fixed_by": null,
+      "verified_by": null,
+      "notes": "New actual argv executions only; legacy descriptions/observations retained. Formal Windows/Mac signing, native Windows and paid outcomes are outside source closure.",
+      "baseline_assertions": [
+        {
+          "kind": "sample",
+          "given": "生产模式隔离服务与非示例假资产",
+          "expect": "匿名请求 status>=400，token_issued=false",
+          "command": "node --env-file=.env \"/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-audit-2026-10-02/evidence/production-login-probe.mjs\" --base http://127.0.0.1:28787 --fixture \"/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-audit-2026-10-02/evidence/auth-nonexample-input.json\" --assert",
+          "last_result": "fail",
+          "evidence": "evidence/production-login-nonexample-assert-final.log"
+        }
+      ],
+      "verified_at": null,
+      "verification_evidence": null,
+      "regression": {
+        "command": "/Library/Developer/CommandLineTools/usr/bin/python3 /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/run_isolated_replay.py --repo /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit --source 7fee3a6a5563d41c568463994764d3883eb7667d --group auth",
+        "evidence": null
+      },
+      "supplemental_discovery_evidence": [],
+      "unavailable_legacy_evidence": []
+    },
+    {
+      "id": "MC-103",
+      "kind": "fix",
+      "state": "open",
+      "batch": 1,
+      "title": "统一线程认领与外部动作前的权限审批红线检查",
+      "covers": [
+        "MC-006",
+        "MC-007"
+      ],
+      "fix_plan": "先原子 claim，再生成最终授权快照并前置检查；高危授权预占一次，外部连接器携带幂等键，失败/超时有补偿状态；block 不得审批放行。",
+      "conflict_paths": [
+        "packages/runtime/src/loop.ts",
+        "apps/server/src/runtime/thread-runner.ts",
+        "apps/server/src/runtime/scheduler.ts",
+        "packages/base/workdata/gateway.ts",
+        "packages/base/review-console/approvals.ts",
+        "apps/server/src/runtime/tool-executor.ts"
+      ],
+      "blast_radius": "与 MC-104 共改 loop/runner/scheduler。先统一状态与授权契约，再修参数与重放；授权预占失败不得执行，网络失败也不能永久锁死线程。",
+      "rollback": "按授权协议版本灰度；紧急关闭变更性 connector；保持 started/failed 证据，不删除已产生的副作用回执。",
+      "evidence": [
+        {
+          "type": "code",
+          "ref": "packages/runtime/src/loop.ts:1038@42ead347c65a5cc343bcd290702d53a7fcdb1687",
+          "note": "runTool → gateway authorization / thread runner CAS",
+          "sha256": "7c8bcda691f416a6b625283c2dab5d7db7393986597117e639007b8ac5df13d9"
+        }
+      ],
+      "assertions": [
+        {
+          "kind": "sample",
+          "given": "New per-attempt directory; dedicated loopback growth_audit; no providers",
+          "expect": "实际计数器断言全部通过；block不completed、replay仍pending_review、并发只执行一次且终态completed",
+          "command": "/Library/Developer/CommandLineTools/usr/bin/python3 /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/run_isolated_replay.py --repo /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit --source 7fee3a6a5563d41c568463994764d3883eb7667d --group runtime",
+          "exec": {
+            "file": "/Library/Developer/CommandLineTools/usr/bin/python3",
+            "args": [
+              "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/run_isolated_replay.py",
+              "--repo",
+              "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit",
+              "--source",
+              "7fee3a6a5563d41c568463994764d3883eb7667d",
+              "--group",
+              "runtime"
+            ]
+          },
+          "last_result": "not-run"
+        },
+        {
+          "kind": "sample",
+          "given": "New per-attempt directory; dedicated loopback growth_audit; no providers",
+          "expect": "实际计数器断言全部通过；block不completed、replay仍pending_review、并发只执行一次且终态completed；selected=BLOCK-FLAG",
+          "command": "/Library/Developer/CommandLineTools/usr/bin/python3 /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/run_isolated_replay.py --repo /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit --source 7fee3a6a5563d41c568463994764d3883eb7667d --group runtime --case BLOCK-FLAG",
+          "exec": {
+            "file": "/Library/Developer/CommandLineTools/usr/bin/python3",
+            "args": [
+              "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/run_isolated_replay.py",
+              "--repo",
+              "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit",
+              "--source",
+              "7fee3a6a5563d41c568463994764d3883eb7667d",
+              "--group",
+              "runtime",
+              "--case",
+              "BLOCK-FLAG"
+            ]
+          },
+          "last_result": "not-run"
+        }
+      ],
+      "fixed_by": null,
+      "verified_by": null,
+      "notes": "New actual argv executions only; legacy descriptions/observations retained. Formal Windows/Mac signing, native Windows and paid outcomes are outside source closure.",
+      "baseline_assertions": [
+        {
+          "kind": "sample",
+          "given": "无权限 agent",
+          "expect": "工具调用次数=0",
+          "command": "pnpm exec tsx --env-file=.env \"/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-audit-2026-10-02/evidence/runtime-repro.mts\" --repo \"/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit\" --case PERMISSION-BEFORE-ACTION --assert",
+          "last_result": "fail",
+          "evidence": "evidence/runtime-repro-results.json"
+        },
+        {
+          "kind": "property",
+          "given": "block 规则加缺参/相关性标记并经人工批准",
+          "expect": "工具调用次数=0，线程不进入 completed",
+          "command": "pnpm exec tsx --env-file=.env \"/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-audit-2026-10-02/evidence/runtime-repro.mts\" --repo \"/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit\" --case BLOCK-FLAG --assert",
+          "last_result": "fail",
+          "evidence": "evidence/runtime-repro-results.json"
+        }
+      ],
+      "verified_at": null,
+      "verification_evidence": null,
+      "regression": {
+        "command": "/Library/Developer/CommandLineTools/usr/bin/python3 /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/run_isolated_replay.py --repo /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit --source 7fee3a6a5563d41c568463994764d3883eb7667d --group runtime",
+        "evidence": null
+      },
+      "supplemental_discovery_evidence": [],
+      "unavailable_legacy_evidence": []
+    },
+    {
+      "id": "MC-104",
+      "kind": "fix",
+      "state": "open",
+      "batch": 2,
+      "title": "修复计划持久化审批编辑队列终态与跨工作区记忆",
+      "covers": [
+        "MC-008",
+        "MC-009",
+        "MC-010",
+        "MC-011",
+        "MC-012"
+      ],
+      "fix_plan": "持久化最终计划标记和版本；执行最终 edited 快照；分开 running 与 queue 容量；终态显式重启；记忆 key 改工作区隔离并迁移引用。",
+      "conflict_paths": [
+        "packages/runtime/src/loop.ts",
+        "apps/server/src/runtime/thread-runner.ts",
+        "apps/server/src/runtime/scheduler.ts",
+        "packages/base/review-console/approvals.ts",
+        "packages/base/workdata/memory.ts",
+        "packages/db/migrations"
+      ],
+      "blast_radius": "旧未批计划、既有记忆 ID、审批状态和自动续跑受影响；迁移要先写兼容读取，不可把状态机改动与MC-103分头覆盖。",
+      "rollback": "迁移前备份测试库，保留双读期与旧键映射；计划版本不可静默回退为无标记版本。",
+      "evidence": [
+        {
+          "type": "code",
+          "ref": "packages/runtime/src/loop.ts:677@42ead347c65a5cc343bcd290702d53a7fcdb1687",
+          "note": "saveThreadPlan → relevance annotation",
+          "sha256": "7c8bcda691f416a6b625283c2dab5d7db7393986597117e639007b8ac5df13d9"
+        }
+      ],
+      "assertions": [
+        {
+          "kind": "sample",
+          "given": "New per-attempt directory; dedicated loopback growth_audit; no providers",
+          "expect": "实际计数器断言全部通过；block不completed、replay仍pending_review、并发只执行一次且终态completed；selected=RELEVANCE-REPLAY",
+          "command": "/Library/Developer/CommandLineTools/usr/bin/python3 /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/run_isolated_replay.py --repo /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit --source 7fee3a6a5563d41c568463994764d3883eb7667d --group runtime --case RELEVANCE-REPLAY",
+          "exec": {
+            "file": "/Library/Developer/CommandLineTools/usr/bin/python3",
+            "args": [
+              "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/run_isolated_replay.py",
+              "--repo",
+              "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit",
+              "--source",
+              "7fee3a6a5563d41c568463994764d3883eb7667d",
+              "--group",
+              "runtime",
+              "--case",
+              "RELEVANCE-REPLAY"
+            ]
+          },
+          "last_result": "not-run"
+        },
+        {
+          "kind": "sample",
+          "given": "New per-attempt directory; dedicated loopback growth_audit; no providers",
+          "expect": "实际计数器断言全部通过；block不completed、replay仍pending_review、并发只执行一次且终态completed；selected=EDIT-PARAMS",
+          "command": "/Library/Developer/CommandLineTools/usr/bin/python3 /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/run_isolated_replay.py --repo /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit --source 7fee3a6a5563d41c568463994764d3883eb7667d --group runtime --case EDIT-PARAMS",
+          "exec": {
+            "file": "/Library/Developer/CommandLineTools/usr/bin/python3",
+            "args": [
+              "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/run_isolated_replay.py",
+              "--repo",
+              "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit",
+              "--source",
+              "7fee3a6a5563d41c568463994764d3883eb7667d",
+              "--group",
+              "runtime",
+              "--case",
+              "EDIT-PARAMS"
+            ]
+          },
+          "last_result": "not-run"
+        },
+        {
+          "kind": "sample",
+          "given": "New per-attempt directory; dedicated loopback growth_audit; no providers",
+          "expect": "实际计数器断言全部通过；block不completed、replay仍pending_review、并发只执行一次且终态completed；selected=QUEUE-10",
+          "command": "/Library/Developer/CommandLineTools/usr/bin/python3 /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/run_isolated_replay.py --repo /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit --source 7fee3a6a5563d41c568463994764d3883eb7667d --group runtime --case QUEUE-10",
+          "exec": {
+            "file": "/Library/Developer/CommandLineTools/usr/bin/python3",
+            "args": [
+              "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/run_isolated_replay.py",
+              "--repo",
+              "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit",
+              "--source",
+              "7fee3a6a5563d41c568463994764d3883eb7667d",
+              "--group",
+              "runtime",
+              "--case",
+              "QUEUE-10"
+            ]
+          },
+          "last_result": "not-run"
+        },
+        {
+          "kind": "sample",
+          "given": "New per-attempt directory; dedicated loopback growth_audit; no providers",
+          "expect": "实际计数器断言全部通过；block不completed、replay仍pending_review、并发只执行一次且终态completed；selected=REJECT-TERMINAL",
+          "command": "/Library/Developer/CommandLineTools/usr/bin/python3 /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/run_isolated_replay.py --repo /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit --source 7fee3a6a5563d41c568463994764d3883eb7667d --group runtime --case REJECT-TERMINAL",
+          "exec": {
+            "file": "/Library/Developer/CommandLineTools/usr/bin/python3",
+            "args": [
+              "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/run_isolated_replay.py",
+              "--repo",
+              "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit",
+              "--source",
+              "7fee3a6a5563d41c568463994764d3883eb7667d",
+              "--group",
+              "runtime",
+              "--case",
+              "REJECT-TERMINAL"
+            ]
+          },
+          "last_result": "not-run"
+        },
+        {
+          "kind": "sample",
+          "given": "New per-attempt directory; dedicated loopback growth_audit; no providers",
+          "expect": "实际计数器断言全部通过；block不completed、replay仍pending_review、并发只执行一次且终态completed；selected=REJECT-WORKSPACE-COLLISION",
+          "command": "/Library/Developer/CommandLineTools/usr/bin/python3 /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/run_isolated_replay.py --repo /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit --source 7fee3a6a5563d41c568463994764d3883eb7667d --group runtime --case REJECT-WORKSPACE-COLLISION",
+          "exec": {
+            "file": "/Library/Developer/CommandLineTools/usr/bin/python3",
+            "args": [
+              "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/run_isolated_replay.py",
+              "--repo",
+              "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit",
+              "--source",
+              "7fee3a6a5563d41c568463994764d3883eb7667d",
+              "--group",
+              "runtime",
+              "--case",
+              "REJECT-WORKSPACE-COLLISION"
+            ]
+          },
+          "last_result": "not-run"
+        }
+      ],
+      "fixed_by": null,
+      "verified_by": null,
+      "notes": "New actual argv executions only; legacy descriptions/observations retained. Formal Windows/Mac signing, native Windows and paid outcomes are outside source closure.",
+      "baseline_assertions": [
+        {
+          "kind": "sample",
+          "given": "第一次挂起后未经批准重放",
+          "expect": "第二次仍 pending_review 且工具调用次数=0",
+          "command": "pnpm exec tsx --env-file=.env \"/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-audit-2026-10-02/evidence/runtime-repro.mts\" --repo \"/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit\" --case RELEVANCE-REPLAY --assert",
+          "last_result": "fail",
+          "evidence": "evidence/runtime-repro-results.json"
+        },
+        {
+          "kind": "sample",
+          "given": "amount 从1编辑为2后采纳",
+          "expect": "唯一工具调用 params.amount=2",
+          "command": "pnpm exec tsx --env-file=.env \"/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-audit-2026-10-02/evidence/runtime-repro.mts\" --repo \"/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit\" --case EDIT-PARAMS --assert",
+          "last_result": "fail",
+          "evidence": "evidence/runtime-repro-results.json"
+        },
+        {
+          "kind": "sample",
+          "given": "0 running 和10 queued",
+          "expect": "两次扫描至少一次 picked 非空",
+          "command": "pnpm exec tsx --env-file=.env \"/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-audit-2026-10-02/evidence/runtime-repro.mts\" --repo \"/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit\" --case QUEUE-10 --assert",
+          "last_result": "fail",
+          "evidence": "evidence/runtime-repro-results.json"
+        },
+        {
+          "kind": "sample",
+          "given": "已取消线程再次普通运行",
+          "expect": "线程仍 cancelled，拒绝普通续跑",
+          "command": "pnpm exec tsx --env-file=.env \"/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-audit-2026-10-02/evidence/runtime-repro.mts\" --repo \"/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit\" --case REJECT-TERMINAL --assert",
+          "last_result": "fail",
+          "evidence": "evidence/runtime-repro-results.json"
+        },
+        {
+          "kind": "sample",
+          "given": "两个隔离工作区用相同驳回原因",
+          "expect": "两区审批 rejected 且两线程 cancelled，无42501",
+          "command": "pnpm exec tsx --env-file=.env \"/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-audit-2026-10-02/evidence/runtime-repro.mts\" --repo \"/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit\" --case REJECT-WORKSPACE-COLLISION --assert",
+          "last_result": "fail",
+          "evidence": "evidence/runtime-repro-results.json"
+        }
+      ],
+      "verified_at": null,
+      "verification_evidence": null,
+      "regression": {
+        "command": "/Library/Developer/CommandLineTools/usr/bin/python3 /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/run_isolated_replay.py --repo /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit --source 7fee3a6a5563d41c568463994764d3883eb7667d --group runtime --case RELEVANCE-REPLAY",
+        "evidence": null
+      },
+      "supplemental_discovery_evidence": [],
+      "unavailable_legacy_evidence": []
+    },
+    {
+      "id": "MC-105",
+      "kind": "fix",
+      "state": "open",
+      "batch": 2,
+      "title": "接通影片入口并统一对象语义与安全命令输出",
+      "covers": [
+        "MC-013",
+        "MC-014",
+        "MC-015"
+      ],
+      "fix_plan": "实现/禁用未接通 worker；显式 loader 或 JS build；使阶段回执可验；统一发布对象映射；预览返回 argv 与明确审核策略。",
+      "conflict_paths": [
+        "apps/server/src/video/film-worker.ts",
+        "scripts/tools/full-chain-film.mts",
+        "bundles/geo-growth/fences/geo-growth-baseline.yml",
+        "bundles/geo-growth/schemas/objects.json",
+        "bundles/geo-growth/capabilities/video.mjs"
+      ],
+      "blast_radius": "不得将进口通等同成片闭环；影响预算、供应商成本、归档、人物与配音、外部工具。真实供应商单独走小额配额硬闸。",
+      "rollback": "阶段开关关闭新增工位，已生成组件与账本只追加；命令输出恢复结构化安全表示。",
+      "evidence": [
+        {
+          "type": "code",
+          "ref": "apps/server/src/video/film-worker.ts:383@42ead347c65a5cc343bcd290702d53a7fcdb1687",
+          "note": "runFilmJob child spawn / full-chain-film --worker",
+          "sha256": "d5059b20b89cb456578593a3b7288b65616ba20e69217194bd0b8e7711c5b54c"
+        }
+      ],
+      "assertions": [
+        {
+          "kind": "sample",
+          "given": "New per-attempt directory; dedicated loopback growth_audit; no providers",
+          "expect": "公开start/status及真实子进程通过5个本地阶段/产物/绑定合同，或正确拒绝缺产物与截止",
+          "command": "/Library/Developer/CommandLineTools/usr/bin/python3 /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/run_isolated_replay.py --repo /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit --source 7fee3a6a5563d41c568463994764d3883eb7667d --group film",
+          "exec": {
+            "file": "/Library/Developer/CommandLineTools/usr/bin/python3",
+            "args": [
+              "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/run_isolated_replay.py",
+              "--repo",
+              "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit",
+              "--source",
+              "7fee3a6a5563d41c568463994764d3883eb7667d",
+              "--group",
+              "film"
+            ]
+          },
+          "last_result": "not-run"
+        },
+        {
+          "kind": "sample",
+          "given": "New per-attempt directory; dedicated loopback growth_audit; no providers",
+          "expect": "公开start/status及真实子进程通过5个本地阶段/产物/绑定合同，或正确拒绝缺产物与截止；selected=missing-output",
+          "command": "/Library/Developer/CommandLineTools/usr/bin/python3 /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/run_isolated_replay.py --repo /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit --source 7fee3a6a5563d41c568463994764d3883eb7667d --group film --case missing-output",
+          "exec": {
+            "file": "/Library/Developer/CommandLineTools/usr/bin/python3",
+            "args": [
+              "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/run_isolated_replay.py",
+              "--repo",
+              "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit",
+              "--source",
+              "7fee3a6a5563d41c568463994764d3883eb7667d",
+              "--group",
+              "film",
+              "--case",
+              "missing-output"
+            ]
+          },
+          "last_result": "not-run"
+        },
+        {
+          "kind": "sample",
+          "given": "New per-attempt directory; dedicated loopback growth_audit; no providers",
+          "expect": "公开start/status及真实子进程通过5个本地阶段/产物/绑定合同，或正确拒绝缺产物与截止；selected=deadline",
+          "command": "/Library/Developer/CommandLineTools/usr/bin/python3 /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/run_isolated_replay.py --repo /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit --source 7fee3a6a5563d41c568463994764d3883eb7667d --group film --case deadline",
+          "exec": {
+            "file": "/Library/Developer/CommandLineTools/usr/bin/python3",
+            "args": [
+              "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/run_isolated_replay.py",
+              "--repo",
+              "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit",
+              "--source",
+              "7fee3a6a5563d41c568463994764d3883eb7667d",
+              "--group",
+              "film",
+              "--case",
+              "deadline"
+            ]
+          },
+          "last_result": "not-run"
+        },
+        {
+          "kind": "sample",
+          "given": "Exact clean source and owned isolated test configuration",
+          "expect": "GEO suite passes its declared object/fence/telemetry checks in the dedicated seeded audit database",
+          "command": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node --env-file=.env --import tsx scripts/suite-geo.ts",
+          "exec": {
+            "file": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+            "args": [
+              "--env-file=.env",
+              "--import",
+              "tsx",
+              "scripts/suite-geo.ts"
+            ]
+          },
+          "last_result": "not-run"
+        },
+        {
+          "kind": "sample",
+          "given": "Exact clean source and owned isolated test configuration",
+          "expect": "Video capability Node tests pass actual safe argv and delivery-hash negative controls",
+          "command": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node --env-file=.env --test scripts/video-capabilities.test.mjs",
+          "exec": {
+            "file": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+            "args": [
+              "--env-file=.env",
+              "--test",
+              "scripts/video-capabilities.test.mjs"
+            ]
+          },
+          "last_result": "not-run"
+        }
+      ],
+      "fixed_by": null,
+      "verified_by": null,
+      "notes": "New actual argv executions only; legacy descriptions/observations retained. Formal Windows/Mac signing, native Windows and paid outcomes are outside source closure.",
+      "baseline_assertions": [
+        {
+          "kind": "sample",
+          "given": "无供应商 storyboard 夹具",
+          "expect": "预定义阶段结束并有可验证回执；当前 healthy=status finished",
+          "command": "pnpm exec tsx --env-file=.env \"/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-audit-2026-10-02/evidence/film-route-probe.mts\" --repo \"/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit\" --assert",
+          "last_result": "fail",
+          "evidence": "evidence/film-route-assert-final.log"
+        },
+        {
+          "kind": "sample",
+          "given": "三bundle对象并集与围栏",
+          "expect": "missing.length=0",
+          "command": "node \"/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-audit-2026-10-02/evidence/fence-object-probe.mjs\" --repo \"/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit\" --assert",
+          "last_result": "fail",
+          "evidence": "evidence/fence-object-assert.log"
+        },
+        {
+          "kind": "sample",
+          "given": "中文空格与分号字符串作为预览输入",
+          "expect": "返回命令不会原样嵌入 --project audit; printf INERT_MARKER",
+          "command": "node \"/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-audit-2026-10-02/evidence/video-plan-probe.mjs\" --repo \"/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit\" --assert",
+          "last_result": "fail",
+          "evidence": "evidence/video-plan-assert.log"
+        }
+      ],
+      "verified_at": null,
+      "verification_evidence": null,
+      "regression": {
+        "command": "/Library/Developer/CommandLineTools/usr/bin/python3 /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/run_isolated_replay.py --repo /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit --source 7fee3a6a5563d41c568463994764d3883eb7667d --group film",
+        "evidence": null
+      },
+      "supplemental_discovery_evidence": [],
+      "unavailable_legacy_evidence": []
+    },
+    {
+      "id": "MC-106",
+      "kind": "fix",
+      "state": "open",
+      "batch": 3,
+      "title": "清理间接依赖并补客户渲染与全平台验收缺口",
+      "covers": [
+        "MC-016"
+      ],
+      "fix_plan": "核对官方公告并清理 Live2D 依赖；补首日引导后的可见 scene、avatar 遮挡与失败恢复验收；Windows 真机 NSIS、vector DLL、普通用户中文路径及 Mac 签名公证单独完成。",
+      "conflict_paths": [
+        "apps/web/package.json",
+        "pnpm-lock.yaml",
+        ".workloom-runtime-deps",
+        "apps/desktop/electron/main.cjs",
+        "apps/webb/src"
+      ],
+      "blast_radius": "升级可能影响角色渲染；不能为 audit 绿屏移除产品角色。UI 局部观察不是本16卡之外新的实证安全问题。",
+      "rollback": "保留渲染 fallback 与旧包回滚渠道，依赖锁与输入指纹一起回滚，客户数据不被删除。",
+      "evidence": [
+        {
+          "type": "code",
+          "ref": "apps/web/package.json:24@42ead347c65a5cc343bcd290702d53a7fcdb1687",
+          "note": "pixi-live2d-display → gh-pages → brace-expansion",
+          "sha256": "17273b001dea29afe53c13a4f3cdd17685cea4081bde2521ab5157ec45a1081b"
+        }
+      ],
+      "assertions": [
+        {
+          "kind": "sample",
+          "given": "Current pinned production dependency graph and official registry audit",
+          "expect": "Production dependency audit exits 0",
+          "command": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/pnpm/bin/pnpm.cjs audit --prod --json",
+          "exec": {
+            "file": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+            "args": [
+              "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/pnpm/bin/pnpm.cjs",
+              "audit",
+              "--prod",
+              "--json"
+            ]
+          },
+          "last_result": "not-run"
+        }
+      ],
+      "fixed_by": null,
+      "verified_by": null,
+      "notes": "New actual argv executions only; legacy descriptions/observations retained. Formal Windows/Mac signing, native Windows and paid outcomes are outside source closure.",
+      "baseline_assertions": [
+        {
+          "kind": "sample",
+          "given": "当前仓依赖与在线 registry",
+          "expect": "pnpm audit --prod exit 0，或审查后有明确可达性处理记录",
+          "command": "pnpm audit --prod",
+          "last_result": "fail",
+          "evidence": "evidence/dependency-audit.log"
+        }
+      ],
+      "verified_at": null,
+      "verification_evidence": null,
+      "regression": {
+        "command": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/pnpm/bin/pnpm.cjs audit --prod --json",
+        "evidence": null
+      },
+      "supplemental_discovery_evidence": [],
+      "unavailable_legacy_evidence": [],
+      "delivery_conditions": [
+        "Native Windows x64 execution",
+        "Formal Windows signing",
+        "Apple signing/notarization and bundle trust"
+      ],
+      "acceptance_policy": "Keep fixed after actual repair-role source audit; do not upgrade to unconditional verified while platform conditions are unmet"
+    },
+    {
+      "id": "MC-017",
+      "kind": "problem",
+      "severity": "P0",
+      "level": "L1",
+      "batch": 0,
+      "state": "open",
+      "title": "演示重置在非交互模式绕过确认，未识别客户工作区且缺少删除前备份",
+      "evidence_grade": "A",
+      "root_cause": {
+        "file": "scripts/reset.sh",
+        "line": 12,
+        "commit": "42ead347c65a5cc343bcd290702d53a7fcdb1687",
+        "symbol": "confirmation / DROP SCHEMA"
+      },
+      "discovered_at_source_commit": "f0a11286a49419fb7909088e2d170f4dde7b60c6",
+      "trigger_path": "已存在合成.env的非交互环境，无--yes调用原脚本；psql/pg_dump/pnpm/docker均为PATH替身；不访问真实数据库。",
+      "expected": "未显式确认、生产/远端目标、客户或未知库、探测/备份失败均不进入删除；先生成私有备份，删除事务重查客户状态，SQL或迁移失败停止。",
+      "actual": "f0a脚本与审计42ead完整Git blob相同；8组实际替身断言0通过/8失败。旧脚本未经确认进入DROP替身，忽略客户和备份错误。无真实DROP。",
+      "fix_direction": "显式确认；校验唯一实际PostgreSQL loopback workloom目标；拒绝生产和未知库，备份0600并检查非空；事务锁定工作区并重查客户行，再迁移种子。",
+      "fix_plan": "用12组有真实.env的替身控制恢复并收紧本仓安全策略；接入test:desktop/CI；独立角色重新运行；保留原失败和Git字节绑定。",
+      "coupling": "数据删除、URL重定向、同名Docker、连接环境变量、并发客户开户、备份和迁移失败联动；不能仅补交互提示。",
+      "invariant_ids": [
+        "INV-1",
+        "INV-4",
+        "INV-5",
+        "INV-11"
+      ],
+      "assertions": [
+        {
+          "kind": "sample",
+          "given": "Exact clean source and owned isolated test configuration",
+          "expect": "12 actual nonzero reset safety tests pass using PATH-only synthetic commands; no real database access",
+          "command": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node --env-file=.env --test scripts/reset-safety.test.mjs",
+          "exec": {
+            "file": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+            "args": [
+              "--env-file=.env",
+              "--test",
+              "scripts/reset-safety.test.mjs"
+            ]
+          },
+          "last_result": "not-run"
+        }
+      ],
+      "evidence": [
+        {
+          "type": "code",
+          "ref": "scripts/reset.sh:12@42ead347c65a5cc343bcd290702d53a7fcdb1687",
+          "note": "后续f0a发现；完整Git blob与原审计相同，未改写复现时间",
+          "sha256": "836b988ed3dd8eb234b164489fa22325125f32ccb9d0ed87bc091493a6233131"
+        }
+      ],
+      "regression": {
+        "command": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node --env-file=.env --test scripts/reset-safety.test.mjs",
+        "evidence": null
+      },
+      "rollback": "按已发表修复提交普通revert；禁止通过reset.sh恢复客户库；人工审核备份后使用受控恢复流程。",
+      "notes": "New actual argv executions only; legacy descriptions/observations retained. Formal Windows/Mac signing, native Windows and paid outcomes are outside source closure.",
+      "baseline_assertions": [
+        {
+          "kind": "sample",
+          "given": "原f0a脚本及含合成.env的PATH替身夹具",
+          "expect": "未确认、客户和备份失败均不删除",
+          "command": "node --test work/reset-safety-before/reset-safety.test.mjs",
+          "last_result": "fail",
+          "evidence": "evidence/reset-safety-before.log"
+        }
+      ],
+      "fixed_by": null,
+      "verified_by": null,
+      "verified_at": null,
+      "verification_evidence": null,
+      "supplemental_discovery_evidence": [
+        {
+          "type": "runtime",
+          "ref": "evidence/reset-safety-before.json",
+          "note": "实际后续发现运行，8失败；原argv保留",
+          "commit": "f0a11286a49419fb7909088e2d170f4dde7b60c6",
+          "sha256": "34682ef773641a2713c60be146dc3982ada155297914c812541fd20081c017f7",
+          "provenance": "Later actual discovery retained separately; original raw argv/time/source not relabeled"
+        },
+        {
+          "type": "runtime",
+          "ref": "evidence/reset-safety-before.log",
+          "note": "真实Node原输出；PATH命令为替身",
+          "commit": "f0a11286a49419fb7909088e2d170f4dde7b60c6",
+          "sha256": "f8d71ab1812d7e75f1ee754e5b9e7af23728239d041f92af5b53c9ff96ac3493",
+          "provenance": "Later actual discovery retained separately; original raw argv/time/source not relabeled"
+        },
+        {
+          "type": "runtime",
+          "ref": "evidence/reset-safety-controls-final.json",
+          "note": "原源码与发现来源；候选12绿不等于独立验收",
+          "commit": "f0a11286a49419fb7909088e2d170f4dde7b60c6",
+          "sha256": "1bd5bea1664a0b906dcbcc83c3c5904d66b58088b305af94db8f727770258e8b",
+          "provenance": "Later actual discovery retained separately; original raw argv/time/source not relabeled"
+        }
+      ],
+      "unavailable_legacy_evidence": []
+    },
+    {
+      "id": "MC-018",
+      "kind": "problem",
+      "severity": "P1",
+      "level": "L1",
+      "batch": 1,
+      "state": "open",
+      "title": "启动诊断导出遗漏 JSON/连接串秘密，覆盖文件未收紧权限且保存错误逃出恢复流程",
+      "evidence_grade": "A",
+      "root_cause": {
+        "file": "apps/desktop/electron/main.cjs",
+        "line": 188,
+        "commit": "42ead347c65a5cc343bcd290702d53a7fcdb1687",
+        "symbol": "diagnosticText / handleSplashAction(export)"
+      },
+      "discovered_at_source_commit": "87ab5781d381d19e9dc7e1f5caa98b6a6b410c58",
+      "trigger_path": "Synthetic log fields and startup/read errors -> actual diagnosticText; cancel/new/existing file and dialog/open/write faults -> actual export action function. Original full Git source retained; no real secrets or customer data.",
+      "expected": "Known secret values removed from all diagnostic sections; keep version/host/error context; long bounded input returns promptly; own handles close on read/write failure; canceled export makes no file; POSIX new and overwritten files private before writing; save failure retains recovery page.",
+      "actual": "Original full 87ab runtime bytes with final 12 assertions: 2 pass / 10 fail. Additional corrected 10-group red 2/10, export red0/2, candidate long-text red0/1 retained separately.",
+      "fix_direction": "Quote-aware field values and URI/authorization redaction with token-boundary scan; finally close handles; private fd before write; catch save errors into recovery UI.",
+      "fix_plan": "12 contract controls in existing desktop suite, actual independent source rerun and final packaged-menu export.",
+      "coupling": "JSON serializers, URI encoding, long log performance, startup/read failure text, file permissions, dialog cancel and async recovery.",
+      "invariant_ids": [
+        "INV-5",
+        "INV-11"
+      ],
+      "assertions": [
+        {
+          "kind": "sample",
+          "given": "Exact clean source and owned isolated test configuration",
+          "expect": "12 actual diagnostic controls pass without skip/todo: synthetic secret fields, bounded log, private files and recoverable dialog/open/write failure",
+          "command": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node --env-file=.env --test --test-name-pattern=启动诊断秘密脱敏 apps/desktop/electron/bootstrap.test.cjs",
+          "exec": {
+            "file": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+            "args": [
+              "--env-file=.env",
+              "--test",
+              "--test-name-pattern=启动诊断秘密脱敏",
+              "apps/desktop/electron/bootstrap.test.cjs"
+            ]
+          },
+          "last_result": "not-run"
+        }
+      ],
+      "evidence": [
+        {
+          "type": "code",
+          "ref": "apps/desktop/electron/main.cjs:188@42ead347c65a5cc343bcd290702d53a7fcdb1687",
+          "note": "Exact diagnosis/export functions are identical in audit42ead and actual discovery87ab; runtime argv/time remains87ab and is separately retained.",
+          "sha256": "deef7f37e40bf09886f1cf0712b8225b033d2b8958e5b053f7cf5a47c5e04c0f"
+        }
+      ],
+      "regression": {
+        "command": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node --env-file=.env --test --test-name-pattern=启动诊断秘密脱敏 apps/desktop/electron/bootstrap.test.cjs",
+        "evidence": null
+      },
+      "rollback": "Normal revert with reviewed source and rebuilt matching payload; preserve existing diagnostics and business data.",
+      "notes": "New actual argv executions only; legacy descriptions/observations retained. Formal Windows/Mac signing, native Windows and paid outcomes are outside source closure.",
+      "original_discovery_root_cause": {
+        "file": "apps/desktop/electron/main.cjs",
+        "line": 197,
+        "commit": "87ab5781d381d19e9dc7e1f5caa98b6a6b410c58",
+        "symbol": "diagnosticText / handleSplashAction(export)"
+      },
+      "baseline_assertions": [
+        {
+          "kind": "sample",
+          "given": "Clean source and synthetic temporary diagnostic logs/files; known secret fields plus failed save paths",
+          "expect": "12 real Node cases pass with no skip/todo",
+          "command": "node --test --test-name-pattern=启动诊断秘密脱敏 apps/desktop/electron/bootstrap.test.cjs",
+          "exec": {
+            "file": "node",
+            "args": [
+              "--test",
+              "--test-name-pattern=启动诊断秘密脱敏",
+              "apps/desktop/electron/bootstrap.test.cjs"
+            ]
+          },
+          "last_result": "fail",
+          "evidence": "evidence/diagnostic-complete-original-before.log"
+        }
+      ],
+      "fixed_by": null,
+      "verified_by": null,
+      "verified_at": null,
+      "verification_evidence": null,
+      "supplemental_discovery_evidence": [
+        {
+          "type": "runtime",
+          "ref": "evidence/diagnostic-complete-original-before.json",
+          "note": "Actual pre-fix 12 controls:2pass10fail",
+          "commit": "87ab5781d381d19e9dc7e1f5caa98b6a6b410c58",
+          "sha256": "fc23a39d08e1ca5369c39d2731a5a9e70453aa2895e7fcef78e72351a3a66e9b",
+          "provenance": "Later actual discovery retained separately; original raw argv/time/source not relabeled"
+        },
+        {
+          "type": "runtime",
+          "ref": "evidence/diagnostic-contract-after.json",
+          "note": "Actual repair-owned 12 controls green; independent/native not yet run",
+          "commit": "87ab5781d381d19e9dc7e1f5caa98b6a6b410c58",
+          "sha256": "a7021fa478339f6521a792d13f07b38fd95a80c564c850c04daad45e8b392ee1",
+          "provenance": "Later actual discovery retained separately; original raw argv/time/source not relabeled"
+        },
+        {
+          "type": "runtime",
+          "ref": "evidence/diagnostic-redaction-performance-before.json",
+          "note": "Actual candidate performance failure, not original-source red",
+          "commit": "87ab5781d381d19e9dc7e1f5caa98b6a6b410c58",
+          "sha256": "00b8073f63515011fd1548b9aebd597baf77ae4964c67281d75a7d9481abc694",
+          "provenance": "Later actual discovery retained separately; original raw argv/time/source not relabeled"
+        }
+      ],
+      "unavailable_legacy_evidence": []
+    }
+  ],
+  "gates": [],
+  "coverage_file": "file-coverage.csv",
+  "release_status": "blocked: MC-005 / MC-006 / MC-007 P0 unclosed",
+  "repo_path": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit",
+  "scope": "Original 16 audit problems plus separately discovered MC-017 reset P0, MC-018 diagnostic P1 and six repair cards; additional OBS controls use their separate independent source/native manifests",
+  "executor_provenance": {
+    "path": "/Users/mac/.codex/skills/mine-clear-delivery/assets/mine-clear.mjs",
+    "sha256": "f2c0e0d200b32ffc7822c0f802afc8460c8c0f48afe261b656559bf1eb1596f5",
+    "mode": "explicit offline skill executor; repository governance files not changed",
+    "legacy_status_imported": false,
+    "real_role_sessions": {
+      "repair": "/root",
+      "acceptance": "/root/growth_m6"
+    }
+  }
+}

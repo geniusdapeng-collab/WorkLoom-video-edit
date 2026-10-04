@@ -1,0 +1,14 @@
+{
+  "name": "scene-web-build",
+  "command": [
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/pnpm/bin/pnpm.cjs",
+    "-C",
+    "apps/web",
+    "build"
+  ],
+  "exit_code": 0,
+  "seconds": 1.79,
+  "ran_at": "2026-10-03T09:55:54.844623+08:00",
+  "log": "scene-web-build.log"
+}

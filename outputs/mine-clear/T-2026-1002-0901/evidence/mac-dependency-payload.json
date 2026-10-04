@@ -1,0 +1,17 @@
+{
+  "name": "mac-dependency-payload",
+  "command": [
+    "bash",
+    "scripts/pack-electron-payload.sh",
+    "--platform",
+    "mac",
+    "--arch",
+    "arm64",
+    "--version",
+    "v0.1.0-fix.20261003.6"
+  ],
+  "exit_code": 124,
+  "seconds": 1800.327,
+  "ran_at": "2026-10-03T22:53:57.579358+08:00",
+  "log": "mac-dependency-payload.log"
+}

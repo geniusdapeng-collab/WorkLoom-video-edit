@@ -1,0 +1,475 @@
+{
+  "schema": "workloom.mine-clear/handoff@1",
+  "task_id": "T-2026-1002-0901",
+  "repo": "workloom-growth",
+  "generated_at": "2026-10-03T23:43:56.143Z",
+  "audit_baseline": "42ead347c65a5cc343bcd290702d53a7fcdb1687",
+  "repair_baseline": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+  "acceptance_baseline": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+  "environment_claim": "client-runtime",
+  "invariants": [
+    {
+      "id": "INV-1",
+      "text": "租户边界覆盖数据库 RLS、运行时上下文、事件、缓存和外部连接器。",
+      "source": "AGENTS.md#4.1"
+    },
+    {
+      "id": "INV-2",
+      "text": "经营事件、审批和关键回执只增不改；纠正通过新事件表达，不静默覆盖证据。",
+      "source": "AGENTS.md#4.2"
+    },
+    {
+      "id": "INV-3",
+      "text": "所有外部或变更性动作及其子调用，统一经过权限、PII、围栏和审批链路。",
+      "source": "AGENTS.md#4.3"
+    },
+    {
+      "id": "INV-4",
+      "text": "涉钱、敏感数据、群发、公开发布、交易和破坏性变更必须按高风险处理并由人审批。",
+      "source": "AGENTS.md#4.4"
+    },
+    {
+      "id": "INV-5",
+      "text": "没有真实回执就不能标记完成；mock、模拟和体验模式在数据结构与界面上都要明确区分。",
+      "source": "AGENTS.md#4.5"
+    },
+    {
+      "id": "INV-6",
+      "text": "客户原始经营数据不得上行；蜂群只接受白名单化、最小化、匿名化且可审计的元数据或派生经验。",
+      "source": "AGENTS.md#4.6"
+    },
+    {
+      "id": "INV-7",
+      "text": "租户覆盖层只能收紧围栏，不能放宽平台不可变红线。",
+      "source": "AGENTS.md#4.7"
+    },
+    {
+      "id": "INV-8",
+      "text": "模型、提示词、技能、bundle、策略和热更新必须先评测再灰度，且始终可回滚。",
+      "source": "AGENTS.md#4.8"
+    },
+    {
+      "id": "INV-9",
+      "text": "platform-ops、平台账户运营和平台秘密只属于 Andromeda。",
+      "source": "AGENTS.md#4.9"
+    },
+    {
+      "id": "INV-10",
+      "text": "Tiger 在获得单独的合规审查和用户明确授权前，只能模拟或纸面交易。",
+      "source": "AGENTS.md#4.10"
+    },
+    {
+      "id": "INV-11",
+      "text": "令牌、密码、API key、私钥、客户凭证和私密客户数据不得进入源码、文档、上下文、提示词、日志或提交。",
+      "source": "AGENTS.md#4.11"
+    },
+    {
+      "id": "INV-12",
+      "text": "个性化与行业扩展不得形成公共机制的第二事实源。",
+      "source": "AGENTS.md#4.12"
+    }
+  ],
+  "closed_problems": [
+    {
+      "id": "MC-001",
+      "title": "桌面环境构造引用作用域外的 RUNTIME，首次启动抛异常",
+      "verified_by": "growth_m6",
+      "verified_at": "2026-10-04T05:32:31.451409+08:00",
+      "verification_evidence": "independent-m6/ledger-verification.json",
+      "assertions": [
+        {
+          "kind": "sample",
+          "given": "修复提交中的 bootstrap 单测与隔离中文 runtime",
+          "expect": "环境构造用例通过且桥模块路径来自传入目录",
+          "command": "pnpm test:desktop",
+          "last_result": "pass"
+        }
+      ]
+    },
+    {
+      "id": "MC-002",
+      "title": "客户端精确依赖锁未随仓库实际依赖更新，载荷门禁失败",
+      "verified_by": "growth_m6",
+      "verified_at": "2026-10-04T05:32:31.451409+08:00",
+      "verification_evidence": "independent-m6/ledger-verification.json",
+      "assertions": [
+        {
+          "kind": "sample",
+          "given": "修复源码与精确 runtime 锁",
+          "expect": "verify exit 0，输入指纹与当前产品一致",
+          "command": "node scripts/runtime-deps-lock.mjs verify",
+          "last_result": "pass"
+        }
+      ]
+    },
+    {
+      "id": "MC-003",
+      "title": "工作区源码复制进 node_modules 后破坏相对路径与模块单例",
+      "verified_by": "growth_m6",
+      "verified_at": "2026-10-04T05:32:31.451409+08:00",
+      "verification_evidence": "independent-m6/ledger-verification.json",
+      "assertions": [
+        {
+          "kind": "sample",
+          "given": "包复制旧布局与中文重定位后的实体入口",
+          "expect": "5 个回归用例通过，旧复制布局的相对路径失败被复现，入口重导出保持同一实例",
+          "command": "pnpm test:desktop",
+          "last_result": "pass"
+        }
+      ]
+    },
+    {
+      "id": "MC-004",
+      "title": "载荷漏影片辅助模块，备线遗漏种子与白板工具依赖",
+      "verified_by": "growth_m6",
+      "verified_at": "2026-10-04T05:32:31.451409+08:00",
+      "verification_evidence": "independent-m6/ledger-verification.json",
+      "assertions": [
+        {
+          "kind": "sample",
+          "given": "修复后的源码和隔离验收夹具",
+          "expect": "命令退出 0 且载荷或对应功能断言通过",
+          "command": "bash scripts/pack-electron-payload.sh --platform mac --arch arm64",
+          "last_result": "pass"
+        }
+      ]
+    },
+    {
+      "id": "MC-005",
+      "title": "生产环境公共 loginAs 无身份验证，非示例工作区可取得 owner 身份",
+      "verified_by": "growth_m6",
+      "verified_at": "2026-10-04T05:32:31.451409+08:00",
+      "verification_evidence": "independent-m6/ledger-verification.json",
+      "assertions": [
+        {
+          "kind": "sample",
+          "given": "生产模式隔离服务与非示例假资产",
+          "expect": "匿名请求 status>=400，token_issued=false",
+          "command": "node --env-file=.env ../auth-production-acceptance.mjs --repo .",
+          "last_result": "pass"
+        }
+      ]
+    },
+    {
+      "id": "MC-006",
+      "title": "外部动作先执行后授权，审批并发可产生重复副作用",
+      "verified_by": "growth_m6",
+      "verified_at": "2026-10-04T05:32:31.451409+08:00",
+      "verification_evidence": "independent-m6/ledger-verification.json",
+      "assertions": [
+        {
+          "kind": "sample",
+          "given": "无权限 agent",
+          "expect": "工具调用次数=0",
+          "command": "pnpm exec tsx --env-file=.env ../../outputs/growth-production-fix-2026-10-02/evidence/runtime-repro.mts --repo . --assert",
+          "last_result": "pass"
+        },
+        {
+          "kind": "property",
+          "given": "同一张高危审批的两次并发续跑",
+          "expect": "本地执行器调用次数<=1",
+          "command": "pnpm exec tsx --env-file=.env ../../outputs/growth-production-fix-2026-10-02/evidence/runtime-repro.mts --repo . --assert",
+          "last_result": "pass"
+        },
+        {
+          "kind": "sample",
+          "given": "编辑后的高危审批",
+          "expect": "执行前一致解析审批，非法状态下调用次数=0",
+          "command": "pnpm exec tsx --env-file=.env ../../outputs/growth-production-fix-2026-10-02/evidence/runtime-repro.mts --repo . --assert",
+          "last_result": "pass"
+        }
+      ]
+    },
+    {
+      "id": "MC-007",
+      "title": "缺参和低相关性标记跳过全部围栏，人工审批可越过 block 红线",
+      "verified_by": "growth_m6",
+      "verified_at": "2026-10-04T05:32:31.451409+08:00",
+      "verification_evidence": "independent-m6/ledger-verification.json",
+      "assertions": [
+        {
+          "kind": "property",
+          "given": "block 规则加缺参/相关性标记并经人工批准",
+          "expect": "工具调用次数=0，线程不进入 completed",
+          "command": "pnpm exec tsx --env-file=.env ../../outputs/growth-production-fix-2026-10-02/evidence/runtime-repro.mts --repo . --case BLOCK-FLAG --assert",
+          "last_result": "pass"
+        }
+      ]
+    },
+    {
+      "id": "MC-008",
+      "title": "plan_unverified 在存计划之后才标记，重放可绕过未批准的审核",
+      "verified_by": "growth_m6",
+      "verified_at": "2026-10-04T05:32:31.451409+08:00",
+      "verification_evidence": "independent-m6/ledger-verification.json",
+      "assertions": [
+        {
+          "kind": "sample",
+          "given": "第一次挂起后未经批准重放",
+          "expect": "第二次仍 pending_review 且工具调用次数=0",
+          "command": "pnpm exec tsx --env-file=.env ../../outputs/growth-production-fix-2026-10-02/evidence/runtime-repro.mts --repo . --case RELEVANCE-REPLAY --assert",
+          "last_result": "pass"
+        }
+      ]
+    },
+    {
+      "id": "MC-009",
+      "title": "编辑后采纳只记录新值，实际工具继续执行原参数",
+      "verified_by": "growth_m6",
+      "verified_at": "2026-10-04T05:32:31.451409+08:00",
+      "verification_evidence": "independent-m6/ledger-verification.json",
+      "assertions": [
+        {
+          "kind": "sample",
+          "given": "amount 从1编辑为2后采纳",
+          "expect": "唯一工具调用 params.amount=2",
+          "command": "pnpm exec tsx --env-file=.env ../../outputs/growth-production-fix-2026-10-02/evidence/runtime-repro.mts --repo . --case EDIT-PARAMS --assert",
+          "last_result": "pass"
+        }
+      ]
+    },
+    {
+      "id": "MC-010",
+      "title": "把 queued 算进运行并发，十条待办且零运行时队列停滞",
+      "verified_by": "growth_m6",
+      "verified_at": "2026-10-04T05:32:31.451409+08:00",
+      "verification_evidence": "independent-m6/ledger-verification.json",
+      "assertions": [
+        {
+          "kind": "sample",
+          "given": "0 running 和10 queued",
+          "expect": "两次扫描至少一次 picked 非空",
+          "command": "pnpm exec tsx --env-file=.env ../../outputs/growth-production-fix-2026-10-02/evidence/runtime-repro.mts --repo . --case QUEUE-10 --assert",
+          "last_result": "pass"
+        }
+      ]
+    },
+    {
+      "id": "MC-011",
+      "title": "已驳回的 cancelled 线程可被普通 run 重新挂起",
+      "verified_by": "growth_m6",
+      "verified_at": "2026-10-04T05:32:31.451409+08:00",
+      "verification_evidence": "independent-m6/ledger-verification.json",
+      "assertions": [
+        {
+          "kind": "sample",
+          "given": "已取消线程再次普通运行",
+          "expect": "线程仍 cancelled，拒绝普通续跑",
+          "command": "pnpm exec tsx --env-file=.env ../../outputs/growth-production-fix-2026-10-02/evidence/runtime-repro.mts --repo . --case REJECT-TERMINAL --assert",
+          "last_result": "pass"
+        }
+      ]
+    },
+    {
+      "id": "MC-012",
+      "title": "驳回记忆 ID 不含工作区，同原因在第二工作区导致审批回滚",
+      "verified_by": "growth_m6",
+      "verified_at": "2026-10-04T05:32:31.451409+08:00",
+      "verification_evidence": "independent-m6/ledger-verification.json",
+      "assertions": [
+        {
+          "kind": "sample",
+          "given": "两个隔离工作区用相同驳回原因",
+          "expect": "两区审批 rejected 且两线程 cancelled，无42501",
+          "command": "pnpm exec tsx --env-file=.env ../../outputs/growth-production-fix-2026-10-02/evidence/runtime-repro.mts --repo . --case REJECT-WORKSPACE-COLLISION --assert",
+          "last_result": "pass"
+        }
+      ]
+    },
+    {
+      "id": "MC-013",
+      "title": "影片工位子进程缺 TypeScript 加载器，worker 分支仍未接通",
+      "verified_by": "growth_m6",
+      "verified_at": "2026-10-04T05:32:31.451409+08:00",
+      "verification_evidence": "independent-m6/ledger-verification.json",
+      "assertions": [
+        {
+          "kind": "sample",
+          "given": "修复后的源码和隔离验收夹具",
+          "expect": "命令退出 0 且绑定阶段与产物回归断言通过",
+          "command": "pnpm exec tsx --env-file=.env ../film-worker-acceptance.mts --repo .",
+          "last_result": "pass"
+        }
+      ]
+    },
+    {
+      "id": "MC-014",
+      "title": "GEO 围栏引用 publish_job，组合对象模型没有该类型",
+      "verified_by": "growth_m6",
+      "verified_at": "2026-10-04T05:32:31.451409+08:00",
+      "verification_evidence": "independent-m6/ledger-verification.json",
+      "assertions": [
+        {
+          "kind": "sample",
+          "given": "三bundle对象并集与围栏",
+          "expect": "missing.length=0",
+          "command": "pnpm suite:geo",
+          "last_result": "pass"
+        }
+      ]
+    },
+    {
+      "id": "MC-015",
+      "title": "影片预览建议命令未转义用户字符串，中文路径和分号破坏参数",
+      "verified_by": "growth_m6",
+      "verified_at": "2026-10-04T05:32:31.451409+08:00",
+      "verification_evidence": "independent-m6/ledger-verification.json",
+      "assertions": [
+        {
+          "kind": "sample",
+          "given": "中文空格与分号字符串作为预览输入",
+          "expect": "返回命令不会原样嵌入 --project audit; printf INERT_MARKER",
+          "command": "pnpm test:video-capabilities",
+          "last_result": "pass"
+        }
+      ]
+    },
+    {
+      "id": "MC-016",
+      "title": "Live2D 间接工具链含四个安全公告，需按实际可达面处理",
+      "verified_by": "growth_m6",
+      "verified_at": "2026-10-04T05:32:31.451409+08:00",
+      "verification_evidence": "independent-m6/ledger-verification.json",
+      "assertions": [
+        {
+          "kind": "sample",
+          "given": "当前仓依赖与在线 registry",
+          "expect": "pnpm audit --prod exit 0，或审查后有明确可达性处理记录",
+          "command": "pnpm audit --prod --json",
+          "last_result": "pass"
+        }
+      ]
+    },
+    {
+      "id": "MC-101",
+      "title": "修复客户端启动和各载荷工作区模块装配",
+      "verified_by": "growth_m6",
+      "verified_at": "2026-10-04T05:32:31.451409+08:00",
+      "verification_evidence": "independent-m6/ledger-verification.json",
+      "assertions": [
+        {
+          "kind": "sample",
+          "given": "修复后的源码和隔离验收夹具",
+          "expect": "命令退出 0 且载荷或对应功能断言通过",
+          "command": "pnpm test:desktop",
+          "last_result": "pass"
+        }
+      ]
+    },
+    {
+      "id": "MC-102",
+      "title": "封闭生产匿名成员登录与占位签名配置",
+      "verified_by": "growth_m6",
+      "verified_at": "2026-10-04T05:32:31.451409+08:00",
+      "verification_evidence": "independent-m6/ledger-verification.json",
+      "assertions": [
+        {
+          "kind": "sample",
+          "given": "修复后的源码和隔离验收夹具",
+          "expect": "命令退出 0 且载荷或对应功能断言通过",
+          "command": "node --env-file=.env ../auth-production-acceptance.mjs --repo .",
+          "last_result": "pass"
+        }
+      ]
+    },
+    {
+      "id": "MC-103",
+      "title": "统一线程认领与外部动作前的权限审批红线检查",
+      "verified_by": "growth_m6",
+      "verified_at": "2026-10-04T05:32:31.451409+08:00",
+      "verification_evidence": "independent-m6/ledger-verification.json",
+      "assertions": [
+        {
+          "kind": "sample",
+          "given": "修复后的源码和隔离验收夹具",
+          "expect": "命令退出 0 且载荷或对应功能断言通过",
+          "command": "pnpm exec tsx --env-file=.env ../../outputs/growth-production-fix-2026-10-02/evidence/runtime-repro.mts --repo . --assert",
+          "last_result": "pass"
+        }
+      ]
+    },
+    {
+      "id": "MC-104",
+      "title": "修复计划持久化审批编辑队列终态与跨工作区记忆",
+      "verified_by": "growth_m6",
+      "verified_at": "2026-10-04T05:32:31.451409+08:00",
+      "verification_evidence": "independent-m6/ledger-verification.json",
+      "assertions": [
+        {
+          "kind": "sample",
+          "given": "修复后的源码和隔离验收夹具",
+          "expect": "命令退出 0 且载荷或对应功能断言通过",
+          "command": "pnpm exec tsx --env-file=.env ../../outputs/growth-production-fix-2026-10-02/evidence/runtime-repro.mts --repo . --case RELEVANCE-REPLAY --assert",
+          "last_result": "pass"
+        }
+      ]
+    },
+    {
+      "id": "MC-105",
+      "title": "接通影片入口并统一对象语义与安全命令输出",
+      "verified_by": "growth_m6",
+      "verified_at": "2026-10-04T05:32:31.451409+08:00",
+      "verification_evidence": "independent-m6/ledger-verification.json",
+      "assertions": [
+        {
+          "kind": "sample",
+          "given": "修复后的源码和隔离验收夹具",
+          "expect": "命令退出 0 且载荷或对应功能断言通过",
+          "command": "pnpm exec tsx --env-file=.env ../film-worker-acceptance.mts --repo .",
+          "last_result": "pass"
+        }
+      ]
+    },
+    {
+      "id": "MC-017",
+      "title": "演示重置在非交互模式绕过确认，未识别客户工作区且缺少删除前备份",
+      "verified_by": "growth_m6",
+      "verified_at": "2026-10-04T05:32:31.451409+08:00",
+      "verification_evidence": "independent-m6/ledger-verification.json",
+      "assertions": [
+        {
+          "kind": "sample",
+          "given": "原f0a脚本及含合成.env的PATH替身夹具",
+          "expect": "未确认、客户和备份失败均不删除",
+          "command": "node --test scripts/reset-safety.test.mjs",
+          "last_result": "pass"
+        }
+      ]
+    },
+    {
+      "id": "MC-018",
+      "title": "启动诊断导出遗漏 JSON/连接串秘密，覆盖文件未收紧权限且保存错误逃出恢复流程",
+      "verified_by": "growth_m6",
+      "verified_at": "2026-10-04T05:32:31.451409+08:00",
+      "verification_evidence": "independent-m6/ledger-verification.json",
+      "assertions": [
+        {
+          "kind": "sample",
+          "given": "Clean source and synthetic temporary diagnostic logs/files; known secret fields plus failed save paths",
+          "expect": "12 real Node cases pass with no skip/todo",
+          "command": "node --test --test-name-pattern=启动诊断秘密脱敏 apps/desktop/electron/bootstrap.test.cjs",
+          "last_result": "pass"
+        }
+      ]
+    }
+  ],
+  "open_problems": [
+    {
+      "id": "MC-106",
+      "kind": "fix",
+      "state": "fixed",
+      "severity": null,
+      "title": "清理间接依赖并完善渲染验收与平台发布硬门禁",
+      "evidence": "apps/web/package.json:24@42ead347c65a5cc343bcd290702d53a7fcdb1687",
+      "root_cause": null,
+      "fix_plan": "清理 Live2D 间接依赖；渲染冒烟退出首日遮罩并验证场景，数字人窄区收起；正式 Windows/Mac 签名和真机发行硬门禁保留，缺环境项目明确未验证。",
+      "regression": "pnpm audit --prod --json"
+    }
+  ],
+  "acceptance_commands": [
+    "pnpm acceptance:profile:check",
+    "node scripts/acceptance/fleet-run.mjs --repo workloom-growth --env client-runtime",
+    "node scripts/acceptance/fleet-run.mjs --repo workloom-growth --env client-runtime --live-only   # 生产最小侵入档"
+  ],
+  "notes": "交接前确认验收基线是修复基线的后代：git merge-base --is-ancestor <修复commit> <验收commit>"
+}

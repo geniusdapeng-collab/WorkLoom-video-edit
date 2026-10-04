@@ -1,0 +1,194 @@
+{
+  "schema": "growth.independent-m6/stage-surface-source-review@1",
+  "reviewed_at": "2026-10-03T19:23:05.571790+08:00",
+  "source_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+  "reviewed_by": "growth_m6",
+  "parent_source_commit": "f9515d09ee6de9b34f38b93d3769654fe4869391",
+  "exact_minimal_geometry_change_independently_verified": true,
+  "changed_files": [
+    "apps/web/src/components/Stage3D.test.tsx",
+    "apps/web/src/components/Stage3D.tsx",
+    "docs/repairs/T-2026-1002-0901.md"
+  ],
+  "source_old_stage_sha256": "12cc2603a8b265de77053f8cfb0d4a36b2f3e79b1b15b69ed927ca4d76ca8429",
+  "source_current_stage_sha256": "c49d9cbfd21bd376dcdd2c9f540e269e59cf796de2143bc29153026a8976e647",
+  "geometry": {
+    "original_center_y": -0.09,
+    "current_center_y": -0.12,
+    "height": 0.14,
+    "reflector_y": -0.02,
+    "nominal_original_cap_y": -0.02,
+    "nominal_current_cap_y": -0.05,
+    "nominal_current_gap": 0.03,
+    "current_actual_geometry_cases": [
+      "汇报舞台反射面与实体底座的空间分离 night=false 时底座顶面低于实际可见反射面",
+      "汇报舞台反射面与实体底座的空间分离 night=true 时底座顶面低于实际可见反射面"
+    ]
+  },
+  "valid_original_geometry_red": {
+    "tests": 2,
+    "passed": 0,
+    "failed": 2,
+    "execution_has_uncommitted_test_source": true,
+    "source_fields_missing_in_original_wrapper": true,
+    "root_reported_original_geometry_source": "f9515d09ee6de9b34f38b93d3769654fe4869391",
+    "source_binding": "Root trusted actual step sequence; clean before browser has original immutable Stage hash; current exact minimal replacement and the original near-zero actual geometry errors agree. The original unit wrapper itself has no source_before/source_after, and no new fields are inserted into it.",
+    "source_attribution_grade": "B retained before-browser source/geometry metadata plus trusted root sequence; D for exact missing original-unit whole-source runtime hash",
+    "actual_original_red_executed_by_verifier": false,
+    "actual_original_red_seconds": 1.564
+  },
+  "limited_first_observer_red": {
+    "tests": 2,
+    "failed": 2,
+    "is_product_geometry_regression_proof": false,
+    "reason": "Boolean openEnded cylinder argument parsed as number before geometry assertion"
+  },
+  "selected_geometry_cases": 2,
+  "counted_inside_current_product36": true,
+  "SSR_renderer_adapters_mocked": true,
+  "actual_Three_cylinder_bounding_box_used": true,
+  "source_unit_controls_not_native_pixels": true,
+  "original_native_execution_commit": "f9515d09ee6de9b34f38b93d3769654fe4869391",
+  "original_native_red_preserved": true,
+  "original_counterfactual_dirty_HEAD_not_relabelled": true,
+  "final_native_verified": false,
+  "real_provider_calls": 0,
+  "private_contents_opened": false,
+  "public_evidence": [
+    {
+      "file": "inherited/stage-surface-original-f951-Stage3D.tsx",
+      "sha256": "12cc2603a8b265de77053f8cfb0d4a36b2f3e79b1b15b69ed927ca4d76ca8429",
+      "bytes": 13262,
+      "origin": "immutable Git blob queried by growth_m6",
+      "git_source": "f9515d09ee6de9b34f38b93d3769654fe4869391"
+    },
+    {
+      "file": "inherited/stage-surface-accepted-7fee-Stage3D.tsx",
+      "sha256": "c49d9cbfd21bd376dcdd2c9f540e269e59cf796de2143bc29153026a8976e647",
+      "bytes": 13299,
+      "origin": "immutable Git blob queried by growth_m6",
+      "git_source": "7fee3a6a5563d41c568463994764d3883eb7667d"
+    },
+    {
+      "file": "inherited/stage-surface-accepted-7fee-Stage3D.test.tsx",
+      "sha256": "c017765433a4cceb8245886f28f4413c0dfa010eba9af0db98f47fd928ea7bfb",
+      "bytes": 3317,
+      "origin": "immutable Git blob queried by growth_m6",
+      "git_source": "7fee3a6a5563d41c568463994764d3883eb7667d"
+    },
+    {
+      "file": "stage-surface-accepted-source-diff.patch",
+      "sha256": "746bc8a640c91fef798ccd21b5431cec6d47ff7587ef16b70092dc7eba5de07f",
+      "bytes": 6926,
+      "origin": "independent exact Git diff; changed implementation and test text read entirely"
+    },
+    {
+      "file": "inherited/stage-surface__stage-surface-committed-source-binding.json",
+      "sha256": "d0f882a7ca1f8bc6cbb9fda2e6558a522bde41a510343ba031d0073e61211002",
+      "bytes": 9274,
+      "origin": "root actual execution receipt; immutable independently inspected copy"
+    },
+    {
+      "file": "inherited/stage-surface__stage-surface-unit-red.json",
+      "sha256": "c28deeb340e019c16ae325684ba42b69723103341070d4878ae66685bb52ee57",
+      "bytes": 764,
+      "origin": "root actual execution receipt; immutable independently inspected copy"
+    },
+    {
+      "file": "inherited/stage-surface__stage-surface-unit-red.log",
+      "sha256": "2c9ae2d9a99f4e9e3943595a71f90f526e610ea38b76ddce0b5a06d4348fc259",
+      "bytes": 7683,
+      "origin": "root actual execution receipt; immutable independently inspected copy"
+    },
+    {
+      "file": "inherited/stage-surface__stage-surface-unit-red-results.json",
+      "sha256": "11bd27c2fe9fa1ca3a8f1221a5f277c909a9c657c2a794671dc3d78c30f9d8cc",
+      "bytes": 4823,
+      "origin": "root actual execution receipt; immutable independently inspected copy"
+    },
+    {
+      "file": "inherited/stage-surface__stage-surface-unit-red-corrected.json",
+      "sha256": "a784f2cc7edc18fcfbb7110cbf94fb100f02e19e681e780b35a84cd75e192dc3",
+      "bytes": 794,
+      "origin": "root actual execution receipt; immutable independently inspected copy"
+    },
+    {
+      "file": "inherited/stage-surface__stage-surface-unit-red-corrected.log",
+      "sha256": "f3d97c0faf104920fe986b4e9b87f2f5ad42885b86e23dd7f19ab4aad53f85db",
+      "bytes": 7713,
+      "origin": "root actual execution receipt; immutable independently inspected copy"
+    },
+    {
+      "file": "inherited/stage-surface__stage-surface-unit-red-corrected-results.json",
+      "sha256": "da29bc01811a1ad703bebb881ceabaaa132e4e9f48595b1c36f16de2cccfec1c",
+      "bytes": 5028,
+      "origin": "root actual execution receipt; immutable independently inspected copy"
+    },
+    {
+      "file": "inherited/stage-surface__stage-surface-unit-green.json",
+      "sha256": "6ad018bd54fe6f8863086a36b17319f0324ee0fb136c4c1583a36dbb26dd4e2e",
+      "bytes": 770,
+      "origin": "root actual execution receipt; immutable independently inspected copy"
+    },
+    {
+      "file": "inherited/stage-surface__stage-surface-unit-green.log",
+      "sha256": "58416c6ada45bca82aa32d869458ba886a37ee61c0438c9cb7cbabceac615b92",
+      "bytes": 7265,
+      "origin": "root actual execution receipt; immutable independently inspected copy"
+    },
+    {
+      "file": "inherited/stage-surface__stage-surface-unit-green-results.json",
+      "sha256": "f9dd91071601fc69aa12592458980c0f6507e46f50160a89d8bbb17082a97fb0",
+      "bytes": 1428,
+      "origin": "root actual execution receipt; immutable independently inspected copy"
+    },
+    {
+      "file": "stage-floor-counterfactual-pixel-review.json",
+      "sha256": "f8973fc51e324b964894481e1e9ad6bcc9f16c93f07689a6784e757265acb82a",
+      "bytes": 6713,
+      "origin": "growth_m6 actual execution or explicitly attributed direct review/byte proof"
+    },
+    {
+      "file": "floor-native-f951-screenshot-review.json",
+      "sha256": "d7588ca3fc61fb2b319102f84440292b577fa1977888967a16a09b0e89b682f0",
+      "bytes": 12139,
+      "origin": "growth_m6 actual execution or explicitly attributed direct review/byte proof"
+    },
+    {
+      "file": "stage-floor-official-provenance.json",
+      "sha256": "fcf5a652a87b1cb432d91445df52a4de0dce5fbe078a53180fb55006ca0c7432",
+      "bytes": 3260,
+      "origin": "growth_m6 actual execution or explicitly attributed direct review/byte proof"
+    },
+    {
+      "file": "surface-7fee-product-tests.json",
+      "sha256": "08f29d1c282136c1a0b93a4c3f4205a45e908a10e672c3e1bccce69c703bb920",
+      "bytes": 1108,
+      "origin": "growth_m6 actual execution or explicitly attributed direct review/byte proof"
+    },
+    {
+      "file": "surface-7fee-product-test-results.json",
+      "sha256": "13c8756b6851ba0c327d9c9173a049f9432fae9a22b00b35099a4fc88ed06a44",
+      "bytes": 14975,
+      "origin": "growth_m6 actual execution or explicitly attributed direct review/byte proof"
+    },
+    {
+      "file": "surface-7fee-layout.json",
+      "sha256": "d87377a7c41050bb46735bb1f13b5b132b5dffe651aee1f24a8cbf5e26ee5963",
+      "bytes": 645,
+      "origin": "growth_m6 actual execution or explicitly attributed direct review/byte proof"
+    },
+    {
+      "file": "surface-7fee-layout-results.json",
+      "sha256": "25ef0cf8a00299d2d75b04d8aa14ba27d26cefec8b46b8352431cd8e4b007038",
+      "bytes": 32139,
+      "origin": "growth_m6 actual execution or explicitly attributed direct review/byte proof"
+    },
+    {
+      "file": "surface-7fee-source-fullread.json",
+      "sha256": "a640c46fe5dc26536423dd26041750f54204c9397ca6ea34bf42b7c4aeb29a45",
+      "bytes": 74853,
+      "origin": "growth_m6 actual execution or explicitly attributed direct review/byte proof"
+    }
+  ]
+}

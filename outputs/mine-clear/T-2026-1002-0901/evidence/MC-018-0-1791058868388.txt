@@ -1,0 +1,93 @@
+TAP version 13
+# Subtest: 启动诊断秘密脱敏
+    # Subtest: 原有文本 JWT、盐和 Bearer
+    ok 1 - 原有文本 JWT、盐和 Bearer
+      ---
+      duration_ms: 3.314125
+      type: 'test'
+      ...
+    # Subtest: JSON 引号与大小写字段
+    ok 2 - JSON 引号与大小写字段
+      ---
+      duration_ms: 1.101375
+      type: 'test'
+      ...
+    # Subtest: 引号内的空格和分隔符
+    ok 3 - 引号内的空格和分隔符
+      ---
+      duration_ms: 2.2725
+      type: 'test'
+      ...
+    # Subtest: 带编码密码的连接 URI
+    ok 4 - 带编码密码的连接 URI
+      ---
+      duration_ms: 1.190791
+      type: 'test'
+      ...
+    # Subtest: libpq 密码与 URI 查询密码
+    ok 5 - libpq 密码与 URI 查询密码
+      ---
+      duration_ms: 0.979833
+      type: 'test'
+      ...
+    # Subtest: Basic 授权和 Cookie
+    ok 6 - Basic 授权和 Cookie
+      ---
+      duration_ms: 1.091125
+      type: 'test'
+      ...
+    # Subtest: JSON 转义引号和 Unicode 密码
+    ok 7 - JSON 转义引号和 Unicode 密码
+      ---
+      duration_ms: 0.873458
+      type: 'test'
+      ...
+    # Subtest: 错误摘要和日志读取失败也经过脱敏
+    ok 8 - 错误摘要和日志读取失败也经过脱敏
+      ---
+      duration_ms: 1.131417
+      type: 'test'
+      ...
+    # Subtest: 读取异常关闭自己的文件句柄并保留失败信息
+    ok 9 - 读取异常关闭自己的文件句柄并保留失败信息
+      ---
+      duration_ms: 1.0095
+      type: 'test'
+      ...
+    # Subtest: 空日志和有界尾部仍保留版本、主机和错误上下文
+    ok 10 - 空日志和有界尾部仍保留版本、主机和错误上下文
+      ---
+      duration_ms: 3.809209
+      type: 'test'
+      ...
+    # Subtest: 取消无写入；新建与覆盖后的诊断文件均为私有
+    ok 11 - 取消无写入；新建与覆盖后的诊断文件均为私有
+      ---
+      duration_ms: 2.295792
+      type: 'test'
+      ...
+    # Subtest: 保存对话框和文件写入失败均留在可恢复启动页
+    ok 12 - 保存对话框和文件写入失败均留在可恢复启动页
+      ---
+      duration_ms: 1.678792
+      type: 'test'
+      ...
+    1..12
+ok 1 - 启动诊断秘密脱敏
+  ---
+  duration_ms: 21.477625
+  type: 'suite'
+  ...
+1..1
+# tests 12
+# suites 1
+# pass 12
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 77.005417
+
+
+exit_code=0 signal=none error=none
+assertion_validation={"ok":true,"errors":[],"testSummary":{"total":12,"passed":12,"failed":0,"cancelled":0,"skipped":0,"todo":0}}

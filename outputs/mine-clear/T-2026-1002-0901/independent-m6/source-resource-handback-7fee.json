@@ -1,0 +1,62 @@
+{
+  "schema": "growth.independent-m6/source-resource-handback@1",
+  "at": "2026-10-03T19:32:45.334649+08:00",
+  "released_by": "growth_m6",
+  "returned_to": "codex-root-T-2026-1002-0901",
+  "source_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+  "working_tree": "",
+  "source_GPU_CPU_window_released": true,
+  "own_long_running_processes": [],
+  "own_all_exec_sessions_collected": true,
+  "component_port29258_closed": true,
+  "all_actual_current_source_control_cases_passed": true,
+  "actual_current_unique_cases": 173,
+  "inherited_unique_cases": 385,
+  "total_unique_scoped_cases": 558,
+  "bootstrap60_reset12_diagnostic12_counted_only_inside_desktop113": true,
+  "cards": 24,
+  "expected_actual_MCD_acceptance_cards": 23,
+  "independent_observations": 18,
+  "parent_observation_mapping": 22,
+  "source_report_integrity_validator_passed": true,
+  "final_native_verified": false,
+  "actual_MCD_acceptance_role_executed": false,
+  "merge_eligible": false,
+  "next_native_evidence_prefix_expected": "surface",
+  "next_native_version_expected": "v0.1.0-fix.20261003.5",
+  "source_is_read_only_to_verifier": true,
+  "files": {
+    "REPORT.md": {
+      "sha256": "5c0855799e4bf89a2cd14d5a889849bfbcbc46cdd5fbe8494e323fa1e7e26c72",
+      "bytes": 124267
+    },
+    "summary.json": {
+      "sha256": "6220faba1506d2d4636cd1e051331c8f578fecfc27ddfa1cf041763c8d0ffbbe",
+      "bytes": 413133
+    },
+    "baseline-acceptance.json": {
+      "sha256": "dc3241710d1ea481f575febecddcf6070ae1c152ed139034185254a09240cfdb",
+      "bytes": 278095
+    },
+    "evidence-index.json": {
+      "sha256": "ea45394e5331076801571373af171b038f6ad1dfec12e6a181389e9813d9a8e7",
+      "bytes": 912014
+    },
+    "report-validation-7fee.json": {
+      "sha256": "35ccef433f9f6e1c53527bb416ca17bfe3346dbab6fe8502b55006a7c4bdef00",
+      "bytes": 1587
+    },
+    "floor-final-verification.json": {
+      "sha256": "8879a49993ad24d7eb6932aa3b8b37fd3d270f6f16469b23f504d32148acea7c",
+      "bytes": 179805
+    },
+    "stage-surface-source-review.json": {
+      "sha256": "ce9b92dbefdb6a4e4ce6f6d17334ec9b06501e8cb82f467503792ce9b592f79e",
+      "bytes": 8990
+    },
+    "surface-7fee-screenshot-review.json": {
+      "sha256": "3f33a6b3c09fa44da8db41547616b0abefc027b8199da95d60bfd44ab470e80a",
+      "bytes": 21461
+    }
+  }
+}

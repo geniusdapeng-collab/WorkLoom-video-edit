@@ -1,0 +1,30 @@
+{
+  "at": "2026-10-03T20:04:18.850850+08:00",
+  "source_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+  "original_failed_retention": "native-surface-default-retention.json",
+  "original_failed_retention_sha256": "57cdf603ac36d8a5c5bb634f164e87fa17e13fb4ebb7ba5175018fe413c70101",
+  "original_red_evidence_unchanged": true,
+  "private_configuration": {
+    "path": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/地面修复 默认客户/qa-retained-config.env",
+    "mode": "0600",
+    "sha256": "93ccc8b554a382e57186142d2897eebc6e3b69c8f5be9a93f6b29c87228fe012"
+  },
+  "private_state_sha256": {
+    "VERSION": "3d77c5613f16023197204a32b1a295ad0966125006e3c9eceb5259ff7e27eedf",
+    "database-state.json": "4941b407f8845f7ac4d7dc5e85f501cdf9986b597326d8ec045f57a388c220c3",
+    "install-state.json": "5ad8bb5b211b46ab8c7f10a476b091c8ffed28d5e1f9c71ef89bb5d3cf5c509f",
+    ".bootstrapped": "a4c3ed04a95a3da14a9d235c83d868bed7c0f45cf7f3faa751ee8f50598d2211"
+  },
+  "database_retained": true,
+  "removed_reinstallable_owned_caches_and_duplicate_shell": [
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/地面修复 默认客户/runtime",
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/地面修复 默认客户/node",
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/地面修复 默认客户/pg",
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/地面修复 默认客户/nats",
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/地面修复 默认客户/.payload-cache",
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/release/mac-arm64"
+  ],
+  "installed_current_application_retained": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/地面修复 客户应用/WorkLoom 获客增长系统（实验车道）.app",
+  "other_customer_or_chat_directories_touched": false,
+  "reason": "Original actual cold failure is preserved; free only stopped rebuildable task-owned caches. Disk was low, but this operation does not establish the cause of the failed run."
+}

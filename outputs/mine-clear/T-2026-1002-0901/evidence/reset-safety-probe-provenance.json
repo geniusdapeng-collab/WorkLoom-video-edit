@@ -1,0 +1,13 @@
+{
+  "current_product_source": "f0a11286a49419fb7909088e2d170f4dde7b60c6",
+  "audit_baseline": "42ead347c65a5cc343bcd290702d53a7fcdb1687",
+  "controlled_base_source": "e35625d856697ba95edf7cde8d294b35cea0de2f",
+  "current_old_script_sha256": "836b988ed3dd8eb234b164489fa22325125f32ccb9d0ed87bc091493a6233131",
+  "controlled_script_sha256": "a1819ae4a21d410f46bfa4c3e4d0f3f77dc78f19a57fd127dc033288ec68165f",
+  "test_sha256": "5955b60be62de1300ef2687d4cd10d11f35d5a6eb44cd63922e69dc97bb44420",
+  "tests": 8,
+  "real_database_calls": 0,
+  "fixture": "Actual source script with PATH-only synthetic psql/pg_dump/pnpm/docker. Existing .env present with a credential-free synthetic loopback URI; no actual customer or supplier access.",
+  "product_files_changed": false,
+  "proof_not_yet_executed": true
+}

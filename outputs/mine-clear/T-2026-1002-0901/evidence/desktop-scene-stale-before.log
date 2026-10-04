@@ -1,0 +1,59 @@
+COMMAND ["/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node", "--env-file=.env", "--test", "--test-name-pattern", "产品截图采用捕获时的可见场景", "apps/desktop/electron/bootstrap.test.cjs"]
+▶ 产品截图采用捕获时的可见场景
+  ✔ 等待后实际无遮挡且完整时仍通过 (10.786416ms)
+  ✖ 稳定等待中重新出现引导层时拒绝旧无遮挡状态 (3.294083ms)
+  ✖ 稳定等待中卸载场景或员工减少时拒绝旧完整状态 (2.495958ms)
+  ✖ 截图捕获期间出现遮罩或内置人名也必须失败 (1.909375ms)
+✖ 产品截图采用捕获时的可见场景 (20.755667ms)
+ℹ tests 4
+ℹ suites 1
+ℹ pass 1
+ℹ fail 3
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 424.586
+
+✖ failing tests:
+
+test at apps/desktop/electron/bootstrap.test.cjs:170:3
+✖ 稳定等待中重新出现引导层时拒绝旧无遮挡状态 (3.294083ms)
+  AssertionError [ERR_ASSERTION]: Missing expected rejection.
+      at async TestContext.<anonymous> (/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/apps/desktop/electron/bootstrap.test.cjs:171:5)
+      at async Test.run (node:internal/test_runner/test:1389:7)
+      at async Suite.processPendingSubtests (node:internal/test_runner/test:960:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: undefined,
+    expected: /仍被引导层遮挡/u,
+    operator: 'rejects',
+    diff: 'simple'
+  }
+
+test at apps/desktop/electron/bootstrap.test.cjs:174:3
+✖ 稳定等待中卸载场景或员工减少时拒绝旧完整状态 (2.495958ms)
+  AssertionError [ERR_ASSERTION]: Missing expected rejection.
+      at async TestContext.<anonymous> (/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/apps/desktop/electron/bootstrap.test.cjs:175:5)
+      at async Test.run (node:internal/test_runner/test:1389:7)
+      at async Suite.processPendingSubtests (node:internal/test_runner/test:960:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: undefined,
+    expected: /未就绪/u,
+    operator: 'rejects',
+    diff: 'simple'
+  }
+
+test at apps/desktop/electron/bootstrap.test.cjs:179:3
+✖ 截图捕获期间出现遮罩或内置人名也必须失败 (1.909375ms)
+  AssertionError [ERR_ASSERTION]: Missing expected rejection.
+      at async TestContext.<anonymous> (/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/apps/desktop/electron/bootstrap.test.cjs:181:5)
+      at async Test.run (node:internal/test_runner/test:1389:7)
+      at async Suite.processPendingSubtests (node:internal/test_runner/test:960:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: undefined,
+    expected: /仍被引导层遮挡/u,
+    operator: 'rejects',
+    diff: 'simple'
+  }

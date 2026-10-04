@@ -1,0 +1,13 @@
+{
+  "name": "live2d-dependency-cut-after",
+  "command": [
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+    "--env-file=.env",
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/review_live2d_dependencies.mjs",
+    "after"
+  ],
+  "exit_code": 0,
+  "seconds": 0.62,
+  "ran_at": "2026-10-03T21:54:24.909444+08:00",
+  "log": "live2d-dependency-cut-after.log"
+}

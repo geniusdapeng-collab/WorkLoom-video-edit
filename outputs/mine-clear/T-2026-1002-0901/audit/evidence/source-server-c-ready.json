@@ -1,0 +1,16 @@
+{
+  "name": "source-server-c-ready",
+  "command": [
+    "/Users/mac/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node",
+    "--env-file=.env",
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/pnpm/bin/pnpm.cjs",
+    "exec",
+    "tsx",
+    "--env-file=.env",
+    "apps/server/src/index.ts"
+  ],
+  "exit_code": 124,
+  "seconds": 900.02,
+  "ran_at": "2026-10-02T10:27:38.780922+08:00",
+  "log": "source-server-c-ready.log"
+}

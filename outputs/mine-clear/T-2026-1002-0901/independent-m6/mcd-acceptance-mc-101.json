@@ -1,0 +1,58 @@
+{
+  "card_id": "MC-101",
+  "actor": "growth_m6",
+  "role": "acceptance",
+  "source_commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+  "argv": [
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+    "--env-file=.env",
+    "/Users/mac/.codex/skills/mine-clear-delivery/assets/mine-clear.mjs",
+    "run-assertions",
+    "--ledger",
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/execution-ledger.json",
+    "--card",
+    "MC-101",
+    "--actor",
+    "growth_m6",
+    "--role",
+    "acceptance",
+    "--repo",
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit",
+    "--timeout-ms",
+    "180000"
+  ],
+  "exit_code": 0,
+  "seconds": 2.745,
+  "started_at": "2026-10-04T04:21:08.918488+08:00",
+  "finished_at": "2026-10-04T04:21:11.663258+08:00",
+  "stdout": "mcd-acceptance-mc-101.stdout",
+  "stdout_sha256": "d7d61f011e27cd47b9b6164684ee39efb5bd2b5793f8bad9d5c7d2ff442bdf2b",
+  "stderr": "mcd-acceptance-mc-101.stderr",
+  "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "registry_proxy_used": null,
+  "registry_proxy_scope": "Only this audit-containing card; no credential forwarding or product argv/deadline changes",
+  "assertion_count": 4,
+  "actual_runs": [
+    {
+      "path": "runs/MC-101-0-1791058869087.json",
+      "sha256": "5bc05dddfbcd11e697e024748e24e5901eba2265fade9f076390d9803fe3def4",
+      "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+    },
+    {
+      "path": "runs/MC-101-1-1791058869661.json",
+      "sha256": "294bc60a11b6929455e5f34f8cae6cd642e9312aa0f689057da5a4b9729f5a8d",
+      "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+    },
+    {
+      "path": "runs/MC-101-2-1791058869903.json",
+      "sha256": "370b207b627e2cd4e1b7216ab187e5be7a9ba0fc9520114a342d7ad56f9eb18f",
+      "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+    },
+    {
+      "path": "runs/MC-101-3-1791058870526.json",
+      "sha256": "d3d53ab5f2636936be3e9dc718edd7344898d8ba9cefc2fa0b67f1ac14ac85aa",
+      "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+    }
+  ],
+  "pass": true
+}

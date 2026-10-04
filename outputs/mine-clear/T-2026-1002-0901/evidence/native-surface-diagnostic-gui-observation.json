@@ -1,0 +1,42 @@
+{
+  "source_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+  "observed_at": "2026-10-03T20:42:25.298769+08:00",
+  "observation_origin": "Actual cua_repl bound installed app: failure-page export, native Cancel, Go to QA directory, Save, Replace, retained same support reference, safe-exit action",
+  "actual_startup_failure_page_observed": true,
+  "actual_native_menu": true,
+  "actual_save_dialog": true,
+  "actual_cancel_observed": true,
+  "actual_overwrite_confirmation_observed": true,
+  "actual_recovery_page_retained": true,
+  "action_surface": "startup-failure-page-actions",
+  "after_cancel_destination_sha256": "30e690d9684d6b68dab2051d2298ff7d451087023eaa95449ddbbd056992dddc",
+  "after_cancel_destination_mode": "0644",
+  "screenshots": [
+    {
+      "file": "native-surface-diagnostic-failure.png",
+      "sha256": "9c86352501994af86ef9f8924e0d9cc11fb17e8a21d9ff3fa5762dfa92352aa0",
+      "bytes": 112612,
+      "provenance": "Actual cua_repl App.getScreenshot/getAXStateAndScreenshot PNG bytes saved without modification"
+    },
+    {
+      "file": "native-surface-diagnostic-save-dialog.png",
+      "sha256": "508901f6f3208d3311da27e9137807ab665b15d3a4e183bf37b33dff433d3f72",
+      "bytes": 35572,
+      "provenance": "Actual cua_repl App.getScreenshot/getAXStateAndScreenshot PNG bytes saved without modification"
+    },
+    {
+      "file": "native-surface-diagnostic-overwrite.png",
+      "sha256": "e5628abf1efdfab8da67174b6f2dd45166c10da1a7fd96aae78f6fd8118f287a",
+      "bytes": 49841,
+      "provenance": "Actual cua_repl App.getScreenshot/getAXStateAndScreenshot PNG bytes saved without modification"
+    },
+    {
+      "file": "native-surface-diagnostic-recovery.png",
+      "sha256": "bd351e57112cdafceb5091f04c0df693926cbafc82d047568b289721baab937e",
+      "bytes": 113491,
+      "provenance": "Actual cua_repl App.getScreenshot/getAXStateAndScreenshot PNG bytes saved without modification"
+    }
+  ],
+  "ui_accessibility_evidence": "native-surface-diagnostic-ui-ax.txt",
+  "safe_exit_observation": "Actual failure-page safe-exit click followed by cua error App quit; actual runner receipt must independently report exit0"
+}

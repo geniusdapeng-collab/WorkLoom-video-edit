@@ -1,0 +1,126 @@
+{
+  "schema": "growth.independent-m6/dependency-functional-inheritance@1",
+  "reviewed_by": "growth_m6",
+  "reviewed_at": "2026-10-04T01:43:24.551707+08:00",
+  "source_commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+  "previous_accepted_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+  "grade": "B",
+  "previous_frozen_manifest": {
+    "file": "history/7fee-native-actual-before-new-MC016-high-advisory/floor-final-verification.json",
+    "sha256": "8879a49993ad24d7eb6932aa3b8b37fd3d270f6f16469b23f504d32148acea7c"
+  },
+  "semantic_verifier": {
+    "file": "verify-dependency-binding.mjs",
+    "sha256": "186e819e02680bf4316644bf2436508fced65211ae825f072c2950b6a0d4529c"
+  },
+  "complete_semantic_verification": {
+    "schema": "growth.independent-m6/dependency-input-verification@1",
+    "previous_source_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+    "source_commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+    "changed_files": [
+      ".workloom-runtime-deps/metadata.json",
+      "docs/repairs/T-2026-1002-0901.md",
+      "package.json",
+      "pnpm-lock.yaml"
+    ],
+    "exact_manifest_override_only": true,
+    "exact_lock_selector_and_single_snapshot_edge_only": true,
+    "importers_packages_integrities_and_other_snapshots_equal": true,
+    "lock_counts": {
+      "importers": 12,
+      "packages": 711,
+      "snapshots": 718
+    },
+    "live2d_snapshot": "pixi-live2d-display@0.4.0(0736f5bd67d2e4de7e9fff36ad63fa2e)",
+    "previous_lock_sha256": "9d7b2c2748491e948ef19856ff1503118b01aa43fa4381e3cb342add3e11ee5a",
+    "current_lock_sha256": "834833a61b50ff153fd0ed456a306d5fe0a3d2bffb51b8665fc0cf8b85d684e8",
+    "runtime_metadata_only_two_ordered_input_hashes_changed": true,
+    "runtime_npm_lock_equal": true,
+    "runtime_npm_lock_packages": 134,
+    "runtime_npm_lock_records_including_root": 135,
+    "runtime_npm_lock_root_record_present": true,
+    "runtime_npm_lock_sha256": "5f43bade687d37f6f28df174310bf5bd693fcb22bc846243204ce2fc11859440",
+    "unchanged_trees_or_blobs": [
+      {
+        "file_or_tree": "apps/web",
+        "git_object": "19038b867ff705ae38dfe19b73d90062404a5480",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "apps/server",
+        "git_object": "153f83db5edc73fb0d5d8b94816e6620d66266e6",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "packages",
+        "git_object": "aece029f0505366899d368273cf865e67caef6e8",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "bundles",
+        "git_object": "a15ea80f7fb508ea9bf0f92d0f2777e993919ffe",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "scripts",
+        "git_object": "fbd91d9d5a427da8bd47a4cea54bd7986720d9e3",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "apps/desktop",
+        "git_object": "b64732685621dab6b36d6a5f65f81593d638ba5b",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": "tsconfig.base.json",
+        "git_object": "7949149fc4f25ce91580123b89a597c67fcc885a",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": ".workloom-runtime-deps/package.json",
+        "git_object": "8a395d636df6d773346e7030da68b02ba9869f96",
+        "unchanged": true,
+        "grade": "B"
+      },
+      {
+        "file_or_tree": ".workloom-runtime-deps/package-lock.json",
+        "git_object": "7e6a6217cea91650c84a9005ef26c50bd8699ceb",
+        "unchanged": true,
+        "grade": "B"
+      }
+    ],
+    "no_product_assertion_or_native_execution": true,
+    "scope": "Complete parsed metadata equality. Published literal module-reference inspection is separately graded B; no complete dynamic-behavior or arbitrary exploit-reachability claim."
+  },
+  "prior_structural_review": {
+    "file": "dependency-1e47-structural-binding.json",
+    "sha256": "c7e4263c318641cf2268cd9ef97f18469615d630c6834fe0c58b24350c3ec2ac"
+  },
+  "functional_cases_inherited": 558,
+  "functional_cases_actually_executed_at_accepted_commit": 0,
+  "historical_case_breakdown": {
+    "old_unchanged_core": 192,
+    "actual_7fee_core_replacements": 130,
+    "actual_7fee_product_and_Stage": 43,
+    "actual_f0a_Floor3D": 148,
+    "actual_d6_Canvas": 45
+  },
+  "new_functional_execution_claimed": false,
+  "old_wrapper_arguments_times_and_source_fields_preserved": true,
+  "original_high_advisory_review": {
+    "file": "mc016-red-readback-official-7fee.json",
+    "sha256": "ddd5c924d0678a0a404b0a4b991776e696a9e2c8e72f61e715a1aaef8b1b56db"
+  },
+  "original_high_advisory_failure_preserved": true,
+  "current_security_audit_inherited_from_old_zero_receipt": false,
+  "native_7fee_history_not_current_package": true,
+  "modern_card_run_denominator_separate": true,
+  "bounded_scope": "Complete immutable source inputs and all lock metadata are compared. Only the exact unused published package deployment dependency edge and its two input hashes differ. Literal upstream module-reference inspection is B metadata; no proof of arbitrary dynamic behavior, current audit result, new native package or real MCD execution is inferred."
+}

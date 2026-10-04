@@ -1,0 +1,10 @@
+{
+  "at": "2026-10-03T03:11:48.900696+08:00",
+  "removed_old_generated_dmg": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/release/WorkLoom.GEO-mac-arm64.dmg",
+  "bytes": 630674315,
+  "sha256": "284f820aa91c3130e6f09c309c1be2a72e9276e17bcfb40a8d049ec26f88c701",
+  "reason": "Stale generated DMG is about to be replaced by the verified welcome application; free space for cold client bootstrap",
+  "source_changed": false,
+  "tested_application_removed": false,
+  "customer_support_touched": false
+}

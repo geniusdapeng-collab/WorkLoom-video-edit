@@ -1,0 +1,55 @@
+{
+  "source_commit": "87ab5781d381d19e9dc7e1f5caa98b6a6b410c58",
+  "synthetic_only": true,
+  "runtime_original_git_bytes": [
+    {
+      "file": "apps/desktop/electron/main.cjs",
+      "origin_commit": "87ab5781d381d19e9dc7e1f5caa98b6a6b410c58",
+      "sha256": "efe4d3c42c76c0b1af4353ad77906f9d5843f562c096076aad6d2cd38c1adf3d",
+      "lines": 716
+    },
+    {
+      "file": "apps/desktop/electron/bootstrap.cjs",
+      "origin_commit": "87ab5781d381d19e9dc7e1f5caa98b6a6b410c58",
+      "sha256": "aca7f94eacd643cc223a40ce15443321b6b2ce2814621d3ce89ea57ee7018c46",
+      "lines": 1329
+    },
+    {
+      "file": "apps/desktop/electron/render-smoke.cjs",
+      "origin_commit": "87ab5781d381d19e9dc7e1f5caa98b6a6b410c58",
+      "sha256": "c287cb424fc0ed5f20fbacceab1e999705e3081838952ca8a806787530738fe3",
+      "lines": 59
+    },
+    {
+      "file": "diagnostic-safety-before/bootstrap.test.cjs",
+      "origin": "actual final diagnostic assertions against unchanged 87ab source; other groups not selected",
+      "sha256": "ee5aa1da3a27ccdacf17a91c75602680bc5b30b9b06a7cedc970fedf57f3cafa",
+      "lines": 984
+    }
+  ],
+  "observer_correction": {
+    "initial_result": "1/10; empty lastBootstrapError was string instead of null",
+    "corrected_result": "2/10 pass;8/10 fail; log preserved",
+    "changes": "fixture default error null; synthetic HTTPS URL constructed without literal credential URL in staged bytes"
+  },
+  "scope": "No real credentials, database, provider, customer data or Electron menu execution. VM invokes actual source diagnostic function with synthetic temporary logs; full source is retained.",
+  "complete_original_replay": {
+    "tests": 12,
+    "pass": 2,
+    "fail": 10,
+    "skipped": 0
+  },
+  "repair_owned_final": {
+    "tests": 12,
+    "pass": 12,
+    "fail": 0,
+    "skipped": 0
+  },
+  "freshness_current": {
+    "checked": "2026-10-03T11:30+08:00",
+    "branch_head": "87ab5781d381d19e9dc7e1f5caa98b6a6b410c58",
+    "main": "42ead347c65a5cc343bcd290702d53a7fcdb1687",
+    "pass": true,
+    "timing": "after initial synthetic-red/candidate edit; no claim that this refresh preceded first edit"
+  }
+}

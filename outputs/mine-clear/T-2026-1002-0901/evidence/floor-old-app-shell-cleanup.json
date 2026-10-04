@@ -1,0 +1,26 @@
+{
+  "at": "2026-10-03T05:33:45.294267+08:00",
+  "source": "955e2277ee1496cfc4b40bd30345d1ce1be1acf1",
+  "independent_checks": [
+    "welcome-artifact-cjs-recheck-results.json",
+    "welcome-payload-stream-recheck-results.json"
+  ],
+  "retained": [
+    {
+      "file": "historical-955e-app.asar",
+      "bytes": 20477190,
+      "sha256": "844f8e4f964f26156972c0200370e255e0da74631ac7cf12671cb754e739b087"
+    },
+    {
+      "file": "historical-955e-payload.tar.gz",
+      "bytes": 500729046,
+      "sha256": "439aa48a173f14bca43f8b6a58c1e9f6a0eb68fa105e9dc982ee12218c8edb37"
+    }
+  ],
+  "removed": [
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/引导竞态修复 客户应用/WorkLoom 获客增长系统（实验车道）.app",
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/release/mac-arm64/WorkLoom 获客增长系统（实验车道）.app"
+  ],
+  "private_customer_directories_touched": false,
+  "reason": "Historical955e immutable asar/payload bytes retained; only stopped duplicate task-owned QA application shells removed to stage the final verified source. Upgrade fixture and all DB/config/log evidence kept."
+}

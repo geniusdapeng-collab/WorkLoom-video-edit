@@ -1,0 +1,44 @@
+{
+  "source_commit": "955e2277ee1496cfc4b40bd30345d1ce1be1acf1",
+  "verifier": "growth_m6",
+  "origin_of_execution": "growth_m6",
+  "application": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/引导竞态修复 客户应用/WorkLoom 获客增长系统（实验车道）.app",
+  "app_version": "0.1.0-fix.20261003.2",
+  "source_checks": [
+    {
+      "file": "apps/desktop/electron/main.cjs",
+      "source_sha256": "b958a0408aa810f02cce8353650eff260d6e518bcac47f4174e0af01d6b98279",
+      "shipped_sha256": "b958a0408aa810f02cce8353650eff260d6e518bcac47f4174e0af01d6b98279",
+      "equal": true
+    },
+    {
+      "file": "apps/desktop/electron/bootstrap.cjs",
+      "source_sha256": "aca7f94eacd643cc223a40ce15443321b6b2ce2814621d3ce89ea57ee7018c46",
+      "shipped_sha256": "aca7f94eacd643cc223a40ce15443321b6b2ce2814621d3ce89ea57ee7018c46",
+      "equal": true
+    },
+    {
+      "file": "apps/desktop/electron/preload.cjs",
+      "source_sha256": "a7f42b647d6188b5dc2da06f6602207aa631da7952c2f2a0c52747b47b0532d4",
+      "shipped_sha256": "a7f42b647d6188b5dc2da06f6602207aa631da7952c2f2a0c52747b47b0532d4",
+      "equal": true
+    },
+    {
+      "file": "apps/desktop/electron/render-smoke.cjs",
+      "source_sha256": "c287cb424fc0ed5f20fbacceab1e999705e3081838952ca8a806787530738fe3",
+      "shipped_sha256": "c287cb424fc0ed5f20fbacceab1e999705e3081838952ca8a806787530738fe3",
+      "equal": true
+    }
+  ],
+  "app_asar_sha256": "844f8e4f964f26156972c0200370e255e0da74631ac7cf12671cb754e739b087",
+  "payload_sha256_root_reported": "439aa48a173f14bca43f8b6a58c1e9f6a0eb68fa105e9dc982ee12218c8edb37",
+  "payload_archive_bytes": 500729046,
+  "source_counterparts_claimed_by_packer": 2083,
+  "actual_CJS_source_counterparts_compared": 4,
+  "source_hash_mismatches": [],
+  "codesign": "--verify --deep --strict exited 0; ad-hoc QA; not Apple notarization",
+  "reported_closure_sha256": "c4c4ae067ad633f9bf1455fa2133ab6dffc3690fe6b3f5e375b4574a884ae90b",
+  "limitation": "Actual historical955e app.asar and four installed CJS compared with immutable git blobs; payload stream comparison is a separate independent Python receipt. Does not verify current7d native source or any cold UI behavior.",
+  "grade": "B",
+  "final_native_verified": false
+}

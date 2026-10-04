@@ -1,0 +1,14 @@
+{
+  "server_mode": "production (audit server launch record)",
+  "address_scope": "loopback-only audit server",
+  "unauthenticated_login_status": 200,
+  "token_issued": true,
+  "role_granted": "owner",
+  "workspace_granted": "audit-auth-ef5cc292-2112-4b94-9ccb-175b3b65861c",
+  "authenticated_read_status": 200,
+  "fixture_mode": {
+    "isExample": false,
+    "dataMode": "real"
+  },
+  "healthy": false
+}

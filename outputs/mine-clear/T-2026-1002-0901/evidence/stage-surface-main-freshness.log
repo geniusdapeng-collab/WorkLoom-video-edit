@@ -1,0 +1,3 @@
+COMMAND ["git", "-c", "credential.helper=", "fetch", "origin", "main"]
+From https://cnb.cool/workloom-ai/WorkLoom-growth
+ * branch            main       -> FETCH_HEAD

@@ -1,0 +1,72 @@
+{
+  "source_commit": "c08386eb9993744a0cb0c2495a98fc1fc4ccbed9",
+  "copied_at": "2026-10-03T09:41:57.353823+08:00",
+  "files": [
+    {
+      "root_file": "mac-floor-safe.json",
+      "file": "inherited/evidence__mac-floor-safe.json",
+      "sha256": "68bcfc01517a232d96b91d3a18b6901eddea8d8600be7da9b8e30a4a4ecc12ff",
+      "bytes": 393,
+      "source_commit": "c08386eb9993744a0cb0c2495a98fc1fc4ccbed9",
+      "origin": "root actual native v.3; independent public receipt and pixel inspection; no verifier UI launch"
+    },
+    {
+      "root_file": "mac-floor-safe.log",
+      "file": "inherited/evidence__mac-floor-safe.log",
+      "sha256": "99c086321da4820b816bc680e9d6c5f1d11121a806024e812c47b415d25c14dd",
+      "bytes": 6669,
+      "source_commit": "c08386eb9993744a0cb0c2495a98fc1fc4ccbed9",
+      "origin": "root actual native v.3; independent public receipt and pixel inspection; no verifier UI launch"
+    },
+    {
+      "root_file": "native-floor-safe-render-safe.json",
+      "file": "inherited/evidence__native-floor-safe-render-safe.json",
+      "sha256": "c0804f727b1031ad320833ad5a163cc40587d393f2c467f358279050408d1eef",
+      "bytes": 5521,
+      "source_commit": "c08386eb9993744a0cb0c2495a98fc1fc4ccbed9",
+      "origin": "root actual native v.3; independent public receipt and pixel inspection; no verifier UI launch"
+    },
+    {
+      "root_file": "native-floor-safe-retention.json",
+      "file": "inherited/evidence__native-floor-safe-retention.json",
+      "sha256": "7999317f3d7924df0a86e13bb6fb8bfd26604aa66cb0e580f534777f99e6c330",
+      "bytes": 2896,
+      "source_commit": "c08386eb9993744a0cb0c2495a98fc1fc4ccbed9",
+      "origin": "root actual native v.3; independent public receipt and pixel inspection; no verifier UI launch"
+    },
+    {
+      "root_file": "native-floor-safe-render-safe.png",
+      "file": "inherited/evidence__native-floor-safe-render-safe.png",
+      "sha256": "065481a8bbdf5b94c8a75002320279211960899ef65ffcb2c1284347b0df667a",
+      "bytes": 1355258,
+      "source_commit": "c08386eb9993744a0cb0c2495a98fc1fc4ccbed9",
+      "origin": "root actual native v.3; independent public receipt and pixel inspection; no verifier UI launch"
+    },
+    {
+      "root_file": "native-floor-safe-team-safe.png",
+      "file": "inherited/evidence__native-floor-safe-team-safe.png",
+      "sha256": "26853f838b96b4494c21403f3d399eef1c94f7bf01f25416b6ee4834411dd3d4",
+      "bytes": 1515152,
+      "source_commit": "c08386eb9993744a0cb0c2495a98fc1fc4ccbed9",
+      "origin": "root actual native v.3; independent public receipt and pixel inspection; no verifier UI launch"
+    },
+    {
+      "root_file": "native-floor-safe-workplace-safe.png",
+      "file": "inherited/evidence__native-floor-safe-workplace-safe.png",
+      "sha256": "e991454db47d787756dfb7b9a3c9aee76b9e40b9f8db4ad80b09e46222d0bfd7",
+      "bytes": 1010753,
+      "source_commit": "c08386eb9993744a0cb0c2495a98fc1fc4ccbed9",
+      "origin": "root actual native v.3; independent public receipt and pixel inspection; no verifier UI launch"
+    },
+    {
+      "root_file": "native-floor-safe-stage-safe.png",
+      "file": "inherited/evidence__native-floor-safe-stage-safe.png",
+      "sha256": "34661d7aaff7eee1ea606dcc52d4485aad3856334b67283786e581be5224b474",
+      "bytes": 1076823,
+      "source_commit": "c08386eb9993744a0cb0c2495a98fc1fc4ccbed9",
+      "origin": "root actual native v.3; independent public receipt and pixel inspection; no verifier UI launch"
+    }
+  ],
+  "local_qa_verified": false,
+  "reason": "Actual safe frame/receipt review done; exact-source integration defects and lifecycle/byte/MCD follow-up pending"
+}

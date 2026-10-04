@@ -1,0 +1,38 @@
+{
+  "source": "c08386eb9993744a0cb0c2495a98fc1fc4ccbed9",
+  "application": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/职场修复 客户应用/WorkLoom 获客增长系统（实验车道）.app",
+  "executable": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/职场修复 客户应用/WorkLoom 获客增长系统（实验车道）.app/Contents/MacOS/WorkLoom 获客增长系统（实验车道）",
+  "app_version": "0.1.0-fix.20261003.3",
+  "app_asar_sha256": "86fe16b5eaf75faa6e0e894f9ae3f9a80eb70dd30a8f618340eafd5beb5b18bc",
+  "source_checks": [
+    {
+      "file": "apps/desktop/electron/main.cjs",
+      "source_sha256": "b958a0408aa810f02cce8353650eff260d6e518bcac47f4174e0af01d6b98279",
+      "shipped_sha256": "b958a0408aa810f02cce8353650eff260d6e518bcac47f4174e0af01d6b98279",
+      "equal": true
+    },
+    {
+      "file": "apps/desktop/electron/bootstrap.cjs",
+      "source_sha256": "aca7f94eacd643cc223a40ce15443321b6b2ce2814621d3ce89ea57ee7018c46",
+      "shipped_sha256": "aca7f94eacd643cc223a40ce15443321b6b2ce2814621d3ce89ea57ee7018c46",
+      "equal": true
+    },
+    {
+      "file": "apps/desktop/electron/preload.cjs",
+      "source_sha256": "a7f42b647d6188b5dc2da06f6602207aa631da7952c2f2a0c52747b47b0532d4",
+      "shipped_sha256": "a7f42b647d6188b5dc2da06f6602207aa631da7952c2f2a0c52747b47b0532d4",
+      "equal": true
+    },
+    {
+      "file": "apps/desktop/electron/render-smoke.cjs",
+      "source_sha256": "c287cb424fc0ed5f20fbacceab1e999705e3081838952ca8a806787530738fe3",
+      "shipped_sha256": "c287cb424fc0ed5f20fbacceab1e999705e3081838952ca8a806787530738fe3",
+      "equal": true
+    }
+  ],
+  "payload_version": "v0.1.0-fix.20261003.3",
+  "payload_sha256": "79b6fdffc5f452f17ed821fbc8f0515984d5e07a00362f0b630d6fd65f19933e",
+  "source_counterparts_compared": 2092,
+  "signing": "ad-hoc QA; no Apple notarization or industry bundle trust",
+  "signed_platform_release": false
+}

@@ -1,0 +1,22 @@
+COMMAND ["/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node", "--env-file=.env", "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/independent-m6/ceremony-density-probe.mjs", "ad4a7a0ba65845a8b401d3cbae7c8981c2ddfb4b", "ceremony-density-text-detail-before-results.json", "ceremony-density-text-detail-before"]
+2:35:02 AM [vite] (client) page reload /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/apps/web/src/components/CeremonyStage.tsx
+node:internal/modules/run_main:107
+    triggerUncaughtException(
+    ^
+
+AssertionError [ERR_ASSERTION]: The source component changed during this browser run
++ actual - expected
+
++ '0535fa4243b2a998c7afcb38b967fcb26f0e755093cfba80574600b489807299'
+- 'a1656582f7959424b6b0d1aa894b2e4ad8f6af5dc404d1e1bd0c4232ede1de94'
+
+    at file:///Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/independent-m6/ceremony-density-probe.mjs:123:10 {
+  generatedMessage: false,
+  code: 'ERR_ASSERTION',
+  actual: '0535fa4243b2a998c7afcb38b967fcb26f0e755093cfba80574600b489807299',
+  expected: 'a1656582f7959424b6b0d1aa894b2e4ad8f6af5dc404d1e1bd0c4232ede1de94',
+  operator: 'strictEqual',
+  diff: 'simple'
+}
+
+Node.js v24.19.0

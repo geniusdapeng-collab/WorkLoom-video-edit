@@ -1,0 +1,110 @@
+{
+  "schema": "growth.independent-m6/mcd-helper-fullread@1",
+  "read_by": "growth_m6",
+  "generated_at": "2026-10-03T21:10:22.095786+08:00",
+  "source_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+  "files": [
+    {
+      "path": "work/prepare_execution_ledger.py",
+      "sha256": "0f44718724deb97cd99b57c93cbf60b6f33972df755f23e168f161ab935d3263",
+      "lines": 184,
+      "full_read": true,
+      "grade": "A complete source read; B exact hash binding",
+      "read_origin": "Current full text independently reread during final native window",
+      "previous_sha256": "0f44718724deb97cd99b57c93cbf60b6f33972df755f23e168f161ab935d3263"
+    },
+    {
+      "path": "work/run_isolated_replay.py",
+      "sha256": "d341079a1973b4ad690ffe866b11eb3ecd022ac88ac577da8fac4a9b489eab87",
+      "lines": 134,
+      "full_read": true,
+      "grade": "A complete source read; B exact hash binding",
+      "read_origin": "Current full text independently reread during final native window",
+      "previous_sha256": "d341079a1973b4ad690ffe866b11eb3ecd022ac88ac577da8fac4a9b489eab87"
+    },
+    {
+      "path": "work/run_installed_film_load.py",
+      "sha256": "5b15f4fd5e159f34e8da4debf511beec588fc2ea5d576b541d600dd070215bcb",
+      "lines": 64,
+      "full_read": true,
+      "grade": "A complete source read; B exact hash binding",
+      "read_origin": "Current full text independently reread during final native window",
+      "previous_sha256": "5b15f4fd5e159f34e8da4debf511beec588fc2ea5d576b541d600dd070215bcb"
+    },
+    {
+      "path": "work/portable-growth-stage/runtime-repro.mts",
+      "sha256": "83a3b21fc694f0eecd965ca3425bd29dcf9a2d2f280cce18148b9f683f9c4d13",
+      "lines": 159,
+      "full_read": true,
+      "grade": "A complete source read; B exact hash binding",
+      "read_origin": "Earlier complete semantic read retained only after current exact byte equality",
+      "previous_sha256": "83a3b21fc694f0eecd965ca3425bd29dcf9a2d2f280cce18148b9f683f9c4d13"
+    },
+    {
+      "path": "work/portable-growth-stage/local-counter.mjs",
+      "sha256": "403b6c4e48e39fdcd6020cf952d3fadba132b6eb93774a820eadf472fa6db126",
+      "lines": 12,
+      "full_read": true,
+      "grade": "A complete source read; B exact hash binding",
+      "read_origin": "Earlier complete semantic read retained only after current exact byte equality",
+      "previous_sha256": "403b6c4e48e39fdcd6020cf952d3fadba132b6eb93774a820eadf472fa6db126"
+    },
+    {
+      "path": "work/portable-growth-stage/auth-fixture.mts",
+      "sha256": "29ff8edaf40cf37bdeede3b2b0a2f3edf094bc554ffd224a18cf701037edf275",
+      "lines": 21,
+      "full_read": true,
+      "grade": "A complete source read; B exact hash binding",
+      "read_origin": "Earlier complete semantic read retained only after current exact byte equality",
+      "previous_sha256": "29ff8edaf40cf37bdeede3b2b0a2f3edf094bc554ffd224a18cf701037edf275"
+    },
+    {
+      "path": "work/portable-growth-stage/auth-production-probe.mjs",
+      "sha256": "e4a12ae18f095990d1c38649ae37bce8da45d585f9ce243ed4c02a457f7e757d",
+      "lines": 83,
+      "full_read": true,
+      "grade": "A complete source read; B exact hash binding",
+      "read_origin": "Earlier complete semantic read retained only after current exact byte equality",
+      "previous_sha256": "e4a12ae18f095990d1c38649ae37bce8da45d585f9ce243ed4c02a457f7e757d"
+    },
+    {
+      "path": "work/portable-growth-stage/film-public-probe.mts",
+      "sha256": "7ed72a23b6f3e49ff85046099a4edf48d673ed70939a9edbea92c16fd79ae459",
+      "lines": 56,
+      "full_read": true,
+      "grade": "A complete source read; B exact hash binding",
+      "read_origin": "Earlier complete semantic read retained only after current exact byte equality",
+      "previous_sha256": "7ed72a23b6f3e49ff85046099a4edf48d673ed70939a9edbea92c16fd79ae459"
+    }
+  ],
+  "executor_full_read_closure": [
+    {
+      "file": "/Users/mac/.codex/skills/mine-clear-delivery/assets/mine-clear.mjs",
+      "sha256": "f2c0e0d200b32ffc7822c0f802afc8460c8c0f48afe261b656559bf1eb1596f5",
+      "lines": 910,
+      "current_bytes_equal_prior_complete_semantic_read": true,
+      "prior_complete_read_provenance": "regression-command-output-assessment.json; STATE.md prior full read 910/336/17 and later command-method reread",
+      "grade": "A prior complete source read carried only after current B exact hash equality"
+    },
+    {
+      "file": "/Users/mac/.codex/skills/mine-clear-delivery/assets/evidence.mjs",
+      "sha256": "bb408f4b0257f2dbbf05a8bc072b6feda455fe39d371fa82c01166cf6772891a",
+      "lines": 336,
+      "current_bytes_equal_prior_complete_semantic_read": true,
+      "prior_complete_read_provenance": "regression-command-output-assessment.json; STATE.md prior full read 910/336/17 and later command-method reread",
+      "grade": "A prior complete source read carried only after current B exact hash equality"
+    },
+    {
+      "file": "/Users/mac/.codex/skills/mine-clear-delivery/assets/node-test-reporter.mjs",
+      "sha256": "286448a4dee571759fc1703564477d27bf5319bcb05ff66db2186deda60bc78f",
+      "lines": 17,
+      "current_bytes_equal_prior_complete_semantic_read": true,
+      "prior_complete_read_provenance": "regression-command-output-assessment.json; STATE.md prior full read 910/336/17 and later command-method reread",
+      "grade": "A prior complete source read carried only after current B exact hash equality"
+    }
+  ],
+  "actual_product_assertions_executed": false,
+  "canonical_receipt_replaced_yet": true,
+  "prior_canonical_preserved": "history/mcd-exec-helper-fullread-before-final-native-c439fd8e3aa7.json",
+  "scope": "Final native window current full preparer/replay/installed helper read, five other portable helpers byte-identical to prior complete reads. Three offline executor sources byte-identical to earlier complete semantic reads. Execution preparation only; no actual MCD repair or acceptance claim."
+}

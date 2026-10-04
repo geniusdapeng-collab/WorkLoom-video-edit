@@ -1,0 +1,58 @@
+{
+  "source_commit": "c08386eb9993744a0cb0c2495a98fc1fc4ccbed9",
+  "reviewed_by": "growth_m6",
+  "reviewed_at": "2026-10-03T09:37:01.299810+08:00",
+  "scope_grade": "C",
+  "full_ux_pass_claimed": false,
+  "provisional": true,
+  "all_modes_reviewed": false,
+  "files": [
+    {
+      "root_file": "native-floor-default-render-default.png",
+      "sha256": "45a2d16151ea9b0b9a1dff0ea37620380fe52f8ddada9dfcba440cb6dc084ea5",
+      "bytes": 1488262,
+      "viewed": true,
+      "review": "Actual default Live2D opening image: character and skip control visible, no blank image. This frame precedes entry and does not prove the full UX task.",
+      "scope_grade": "C",
+      "runtime_origin": "root",
+      "viewed_by": "growth_m6"
+    },
+    {
+      "root_file": "native-floor-default-team-default.png",
+      "sha256": "969a4fc279b74a16ee2bf6b9826547adf713c9907d33468f7c3e0cc2ea6b6e0f",
+      "bytes": 1488621,
+      "viewed": true,
+      "review": "Actual welcome team grid and entry buttons visible; lower rows continue below the captured viewport. 65 actors is a receipt count; this pixel sample does not establish all 65 simultaneously readable or scrolling usability.",
+      "scope_grade": "C",
+      "runtime_origin": "root",
+      "viewed_by": "growth_m6"
+    },
+    {
+      "root_file": "native-floor-default-workplace-default.png",
+      "sha256": "63201bcf8724234f137b082b67c83ff47c395d41b0f38d907c9ec3f734750fea",
+      "bytes": 2210167,
+      "viewed": true,
+      "review": "Workplace scene and state labels visible. Company owner gold plaque intersects the entity-consistency-manager label. Expanded mate covers several lower-right labels/actors, including conversion designer and Lu Jibai. The ready/18-actor receipt does not establish no visual obstruction.",
+      "scope_grade": "C",
+      "runtime_origin": "root",
+      "viewed_by": "growth_m6"
+    },
+    {
+      "root_file": "native-floor-default-stage-default.png",
+      "sha256": "178e360eba2f27b887e7644e73a7d8fe2b90b71443aa290a6063c423b8d1beac",
+      "bytes": 1263917,
+      "viewed": true,
+      "review": "Actual report-stage scene occupies upper portion of the scene box; lower roughly 40 percent is a flat black region. Team figures are very small and compressed in the upper scene; expanded mate covers lower-right area. Exact rendering cause and clickable reachability unverified; ready/65-actor receipt is retained separately.",
+      "scope_grade": "C",
+      "runtime_origin": "root",
+      "viewed_by": "growth_m6"
+    }
+  ],
+  "findings": {
+    "stage_black_region_observed": true,
+    "workplace_fixed_plaque_label_intersection_observed": true,
+    "expanded_mate_scene_obstruction_observed": true,
+    "rendering_root_cause_confirmed": false,
+    "permission_or_paid_provider_calls": 0
+  }
+}

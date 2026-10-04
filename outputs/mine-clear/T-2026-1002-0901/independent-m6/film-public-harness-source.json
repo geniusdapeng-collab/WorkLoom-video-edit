@@ -1,0 +1,9 @@
+{
+  "source": "work/film-worker-acceptance.mts",
+  "source_sha256": "b796e49273c92300debd146dd6672e03d70444dc0d5cbf69b34db5d6a511f535",
+  "changes": [
+    "owned HR fixture directory inside independent-m6",
+    "owned result filename",
+    "owned project prefix m6-film"
+  ]
+}

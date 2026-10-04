@@ -1,0 +1,12 @@
+{
+  "at": "2026-10-03T00:44:17.222017+08:00",
+  "removed_only_owned_qa_payloads": [
+    "work/最终验证 首次客户/runtime",
+    "work/最终验证 首次客户/node",
+    "work/最终验证 首次客户/pg",
+    "work/最终验证 首次客户/nats",
+    "work/最终验证 首次客户/.payload-cache"
+  ],
+  "retained": "test databases, logs, failure snapshots, source and actual installed applications",
+  "reason": "Render modes need independent fresh fixture databases matching native CI; no customer directory touched."
+}

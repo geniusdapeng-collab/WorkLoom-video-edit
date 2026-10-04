@@ -1,0 +1,72 @@
+{
+  "schema": "growth.independent-m6/ceremony-density@1",
+  "verifier": "growth_m6",
+  "source_commit": "ad4a7a0ba65845a8b401d3cbae7c8981c2ddfb4b",
+  "source_hash": "a1656582f7959424b6b0d1aa894b2e4ad8f6af5dc404d1e1bd0c4232ede1de94",
+  "browser": "154.0.8037.95",
+  "cases": [
+    {
+      "id": "dense-team-1440",
+      "expected": "All 65 actual team actors persist, labels do not overlap, scroll reaches the last actor, and the page stays inside the viewport",
+      "actual": {
+        "actorCount": 65,
+        "labelCount": 65,
+        "overlaps": [],
+        "scrollHeight": 732,
+        "clientHeight": 616,
+        "scrollTop": 116,
+        "lastActorFullyVisible": true,
+        "horizontalOverflow": 0,
+        "minimumLabelHeight": 32,
+        "regionRole": "region",
+        "regionTabIndex": 0,
+        "layout": "grid",
+        "renderMode": "vector2d"
+      },
+      "pass": true
+    },
+    {
+      "id": "dense-team-390",
+      "expected": "All 65 actual team actors persist, labels do not overlap, scroll reaches the last actor, and the page stays inside the viewport",
+      "actual": {
+        "actorCount": 65,
+        "labelCount": 65,
+        "overlaps": [],
+        "scrollHeight": 2644,
+        "clientHeight": 598,
+        "scrollTop": 2046,
+        "lastActorFullyVisible": true,
+        "horizontalOverflow": 0,
+        "minimumLabelHeight": 32,
+        "regionRole": "region",
+        "regionTabIndex": 0,
+        "layout": "grid",
+        "renderMode": "vector2d"
+      },
+      "pass": true
+    },
+    {
+      "id": "compact-team-positive",
+      "expected": "The actual compact 14-person team keeps its existing vector layout without a dense grid",
+      "actual": {
+        "actorCount": "14",
+        "denseGridCount": 0
+      },
+      "pass": true
+    },
+    {
+      "id": "owned-browser-no-errors",
+      "expected": "No page error or external request occurred in the isolated actual component fixture",
+      "actual": {
+        "errors": [],
+        "blockedRequests": []
+      },
+      "pass": true
+    }
+  ],
+  "passed": 4,
+  "failed": 0,
+  "errors": [],
+  "blockedRequests": [],
+  "limitation": "Actual CeremonyStage rendered in an isolated desktop Chromium fixture at two widths. This is not a cold native receipt, a real mobile device, a user study, or a complete accessibility audit."
+}

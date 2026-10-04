@@ -1,0 +1,121 @@
+{
+  "source_commit": "0f3e479e7b729e7ec669b34f28a8e14df0ddd005",
+  "boundary": "independent actual helper, no product source writes, no network or database",
+  "cases": [
+    {
+      "id": "delayed-guide",
+      "expected": "Supported HUD waits for observed guide, real click and 750ms clear frames",
+      "actual": {
+        "result": {
+          "shown": true,
+          "clicked": true,
+          "supported": true,
+          "closed": true
+        },
+        "probes": 8,
+        "milliseconds": 1750
+      },
+      "healthy": true
+    },
+    {
+      "id": "absence-with-supported-hud",
+      "expected": "HUD without any guide observation returns closed=false at 10s",
+      "actual": {
+        "result": {
+          "shown": false,
+          "clicked": false,
+          "supported": true,
+          "closed": false
+        },
+        "milliseconds": 10000
+      },
+      "healthy": true
+    },
+    {
+      "id": "sticky-overlay",
+      "expected": "Repeated click cannot mark a persistent overlay as closed",
+      "actual": {
+        "result": {
+          "shown": true,
+          "clicked": true,
+          "supported": true,
+          "closed": false
+        },
+        "milliseconds": 10000
+      },
+      "healthy": true
+    },
+    {
+      "id": "overlay-reappears",
+      "expected": "Guide reappearance resets the 750ms stable-absence window",
+      "actual": {
+        "result": {
+          "shown": true,
+          "clicked": true,
+          "supported": true,
+          "closed": true
+        },
+        "probes": 8,
+        "milliseconds": 1750
+      },
+      "healthy": true
+    },
+    {
+      "id": "no-content-package",
+      "expected": "A product without HUD/guide must still have 750ms stable absence",
+      "actual": {
+        "result": {
+          "shown": false,
+          "clicked": false,
+          "supported": false,
+          "closed": true
+        },
+        "milliseconds": 750
+      },
+      "healthy": true
+    },
+    {
+      "id": "missing-exit-button",
+      "expected": "An observed guide without a real clicked exit rejects immediately",
+      "actual": {
+        "rejected": true
+      },
+      "healthy": true
+    },
+    {
+      "id": "renderer-evaluation-rejects",
+      "expected": "Renderer evaluation failures propagate instead of being turned into absence",
+      "actual": {
+        "rejected": true
+      },
+      "healthy": true
+    },
+    {
+      "id": "malformed-probe-state",
+      "expected": "Nonboolean or missing probe fields fail closed",
+      "actual": {
+        "rejected_variants": 3
+      },
+      "healthy": true
+    },
+    {
+      "id": "hung-renderer-deadline",
+      "expected": "Even a never-resolving renderer evaluation must settle by the configured deadline",
+      "actual": {
+        "outcome": {
+          "settled": true,
+          "result": {
+            "shown": false,
+            "clicked": false,
+            "supported": false,
+            "closed": false
+          }
+        },
+        "milliseconds": 21
+      },
+      "healthy": true
+    }
+  ],
+  "passed": 9,
+  "failed": 0
+}

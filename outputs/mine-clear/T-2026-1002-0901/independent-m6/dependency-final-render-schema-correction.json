@@ -1,0 +1,13 @@
+{
+  "source_commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+  "at": "2026-10-04T05:02:36.688520+08:00",
+  "kind": "Owned report renderer schema mismatch",
+  "original_builder": "history/dependency-final-render-before-build-history-schema-correction/build_report.py",
+  "original_builder_sha256": "95f1b7f0c565f24e96dd9ede2df7cba80e581e9da86a733d3e558b1475edc821",
+  "original_actual_wrapper": "dependency-final-report-builder-byte-entry.json",
+  "original_exit_code": 1,
+  "error": "KeyError name: actual native-build-history attempts have root_file/file/sha256/bytes/exit_code/seconds/log, with name in the original wrapper. No per-attempt scope field exists.",
+  "correction": "Render actual name from fully read hash-bound original wrapper; show explicit root execution / independent receipt inspection. Preserve original history and failures.",
+  "product_changed": false,
+  "assertions_changed": false
+}

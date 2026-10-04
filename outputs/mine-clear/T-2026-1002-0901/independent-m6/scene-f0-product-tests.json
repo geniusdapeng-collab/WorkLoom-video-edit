@@ -1,0 +1,26 @@
+{
+  "name": "scene-f0-product-tests",
+  "command": [
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+    "--env-file=.env",
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/pnpm/bin/pnpm.cjs",
+    "-C",
+    "apps/web",
+    "exec",
+    "vitest",
+    "run",
+    "src/components/Floor3DLabels.test.tsx",
+    "src/components/Floor3DTaskDrop.test.tsx",
+    "src/components/floor3d-layout.test.ts",
+    "src/pages/p0/floor-layout.test.ts",
+    "src/pages/p0/Floor.test.tsx",
+    "--reporter=json",
+    "--outputFile=/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/independent-m6/scene-f0-product-test-results.json"
+  ],
+  "exit_code": 0,
+  "seconds": 1.936,
+  "source_before": "f0a11286a49419fb7909088e2d170f4dde7b60c6",
+  "source_after": "f0a11286a49419fb7909088e2d170f4dde7b60c6",
+  "ran_at": "2026-10-03T10:04:05.289997+08:00",
+  "log": "scene-f0-product-tests.log"
+}

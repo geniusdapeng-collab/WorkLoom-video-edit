@@ -1,0 +1,45 @@
+{
+  "schema": "growth.independent-m6/diagnostic-owned-preparation@1",
+  "prepared_by": "growth_m6",
+  "prepared_at": "2026-10-03T11:40:02.139463+08:00",
+  "formal_generation_executed": false,
+  "product_or_source_execution": false,
+  "frozen_owned_generators": [
+    {
+      "file": "create-floor-final-verification.py",
+      "sha256": "641005847b709a5bb8fb825b6d40799a30232454693b0cab3623d3ed098b8d28",
+      "history": "history/mc018-owned-preparation-before-scoping/create-floor-final-verification.py"
+    },
+    {
+      "file": "create-floor-native-verification.py",
+      "sha256": "f359822e93cffbf2f267f8857299d9f9de0f1001c5bc37da8c30e9492dc97e56",
+      "history": "history/mc018-owned-preparation-before-scoping/create-floor-native-verification.py"
+    },
+    {
+      "file": "prepare_report.py",
+      "sha256": "f763fe467f11ade67233dbc55857d1065e37df0b935f19adfcab2758679fe374",
+      "history": "history/mc018-owned-preparation-before-scoping/prepare_report.py"
+    },
+    {
+      "file": "build_report.py",
+      "sha256": "32dc55a04493c3eb4db4b1d63585cad41c85be3a089fb9a6ffa4c82b7447189b",
+      "history": "history/mc018-owned-preparation-before-scoping/build_report.py"
+    },
+    {
+      "file": "validate_report.py",
+      "sha256": "34fa2acca1be58042723e9005e4220aecbb5bf3338c4ac34b87db3d4ff082ea0",
+      "history": "history/mc018-owned-preparation-before-scoping/validate_report.py"
+    },
+    {
+      "file": "run-modern-mcd-acceptance.py",
+      "sha256": "79fe79ddbd4017d1f6927bda98f6ccd136f9219f61280fb113468823a6dd51c2",
+      "history": "history/mc018-owned-preparation-before-scoping/run-modern-mcd-acceptance.py"
+    },
+    {
+      "file": "verify-modern-mcd-runs.mjs",
+      "sha256": "441926dfe48d98feea00686238278d4e7e1e85dcfe000e3daa1d38e426a8909f",
+      "history": "history/mc018-owned-preparation-before-scoping/verify-modern-mcd-runs.mjs"
+    }
+  ],
+  "scope": "Only owned generator preparation for MC018. Formal f0a HOLD artifacts remain unchanged."
+}

@@ -1,0 +1,135 @@
+{
+  "independent_numbering_retained": true,
+  "shared_parent_independent_ids": [
+    "OBS-01",
+    "OBS-02",
+    "OBS-03",
+    "OBS-04",
+    "OBS-05",
+    "OBS-06"
+  ],
+  "explicit_mapping_for_new_parent_ids": [
+    {
+      "parent_observation": "OBS-07",
+      "independent_refs": [
+        "OBS-07"
+      ],
+      "topic": "Parent component method/stage/shot binding"
+    },
+    {
+      "parent_observation": "OBS-08",
+      "independent_refs": [
+        "MC-003"
+      ],
+      "topic": "Source-copy exclusion of developer dependencies"
+    },
+    {
+      "parent_observation": "OBS-09",
+      "independent_refs": [
+        "MC-014"
+      ],
+      "topic": "Complete server telemetry exception contract"
+    },
+    {
+      "parent_observation": "OBS-10",
+      "independent_refs": [
+        "OBS-04",
+        "OBS-08"
+      ],
+      "topic": "Delayed guide mounting and remaining renderer deadline"
+    },
+    {
+      "parent_observation": "OBS-11",
+      "independent_refs": [
+        "OBS-09"
+      ],
+      "topic": "Live2D unmount ownership and temporary WebGL release"
+    },
+    {
+      "parent_observation": "OBS-12",
+      "independent_refs": [
+        "OBS-10"
+      ],
+      "topic": "Scene screenshot capture-time DOM state"
+    },
+    {
+      "parent_observation": "OBS-13",
+      "independent_refs": [
+        "OBS-11"
+      ],
+      "topic": "Welcome terminal-write, stale-response and ready-edge races"
+    },
+    {
+      "parent_observation": "OBS-14",
+      "independent_refs": [
+        "OBS-12"
+      ],
+      "topic": "Same-version missing-runtime recovery"
+    },
+    {
+      "parent_observation": "OBS-15",
+      "independent_refs": [
+        "OBS-13"
+      ],
+      "topic": "65-person team grid and long-label overflow"
+    },
+    {
+      "parent_observation": "OBS-16",
+      "independent_refs": [
+        "OBS-14"
+      ],
+      "topic": "Canvas labels, production CSS coordinates and initial visible viewport"
+    },
+    {
+      "parent_observation": "OBS-17",
+      "independent_refs": [
+        "OBS-15"
+      ],
+      "topic": "3D projected label allocation, physical body/plaque clicks and optional drop branch"
+    },
+    {
+      "parent_observation": "OBS-18",
+      "independent_refs": [
+        "OBS-16"
+      ],
+      "topic": "Stage collapsed Canvas height and actual native capture-time geometry"
+    },
+    {
+      "parent_observation": "OBS-19",
+      "independent_refs": [
+        "OBS-17"
+      ],
+      "topic": "CEO plaque collision through the actual connected Fiber HTML portal"
+    },
+    {
+      "parent_observation": "OBS-20",
+      "independent_refs": [
+        "MC-017"
+      ],
+      "topic": "Confirmed local example reset, private backup and transactional customer recheck"
+    },
+    {
+      "parent_observation": "OBS-21",
+      "independent_refs": [
+        "MC-018"
+      ],
+      "topic": "Diagnostic field redaction, private export and startup-failure-page recovery"
+    },
+    {
+      "parent_observation": "OBS-22",
+      "independent_refs": [
+        "OBS-18"
+      ],
+      "topic": "Native Stage floor coplanar depth conflict and minimal vertical separation"
+    },
+    {
+      "parent_observation": "OBS-23",
+      "independent_refs": [
+        "MC-016",
+        "OBS-19"
+      ],
+      "topic": "New High production advisory and exact unused live2d deployment-dependency removal"
+    }
+  ],
+  "rule": "Never infer identical meaning from a matching numeric ID; use the topic and mapped refs."
+}

@@ -1,0 +1,13 @@
+{
+  "name": "payload-source-filter-unit",
+  "command": [
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+    "--env-file=.env",
+    "--test",
+    "scripts/pack-workspace-modules.test.mjs"
+  ],
+  "exit_code": 0,
+  "seconds": 2.267,
+  "ran_at": "2026-10-02T23:35:41.320397+08:00",
+  "log": "payload-source-filter-unit.log"
+}

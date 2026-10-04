@@ -1,0 +1,962 @@
+{
+  "source_commit": "ad4a7a0ba65845a8b401d3cbae7c8981c2ddfb4b",
+  "verifier": "growth_m6",
+  "source_main_sha256": "1e4e09cbc1014e1a5759989207cfa7b03ca1c6d277daa61b21f32e98f520fb5b",
+  "exact_scene_function_sha256": "434ad99b50f561a20314a67600a7c361d80fddde9e37ddefce257e5895d849d6",
+  "boundary": "Actual helper and verbatim nested captureProductScene. Controlled page/clock, no product/Git/support/DB/network writes or real screenshots.",
+  "cases": [
+    {
+      "id": "clear-then-reappears-before-stable-window",
+      "expected": "A 500ms clear gap followed by another overlay resets the required 750ms absence",
+      "actual": {
+        "result": {
+          "shown": true,
+          "clicked": true,
+          "supported": true,
+          "closed": true
+        },
+        "milliseconds": 2250,
+        "frames": [
+          {
+            "at": 0,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 250,
+            "supported": true,
+            "shown": false,
+            "clicked": false
+          },
+          {
+            "at": 500,
+            "supported": true,
+            "shown": false,
+            "clicked": false
+          },
+          {
+            "at": 750,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 1000,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 1250,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 1500,
+            "supported": true,
+            "shown": false,
+            "clicked": false
+          },
+          {
+            "at": 1750,
+            "supported": true,
+            "shown": false,
+            "clicked": false
+          },
+          {
+            "at": 2000,
+            "supported": true,
+            "shown": false,
+            "clicked": false
+          },
+          {
+            "at": 2250,
+            "supported": true,
+            "shown": false,
+            "clicked": false
+          }
+        ]
+      },
+      "healthy": true
+    },
+    {
+      "id": "clear-then-persistent-reappearance",
+      "expected": "After a short clear gap, an overlay lasting to the deadline remains closed=false",
+      "actual": {
+        "result": {
+          "shown": true,
+          "clicked": true,
+          "supported": true,
+          "closed": false
+        },
+        "milliseconds": 10000,
+        "frames": [
+          {
+            "at": 0,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 250,
+            "supported": true,
+            "shown": false,
+            "clicked": false
+          },
+          {
+            "at": 500,
+            "supported": true,
+            "shown": false,
+            "clicked": false
+          },
+          {
+            "at": 750,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 1000,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 1250,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 1500,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 1750,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 2000,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 2250,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 2500,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 2750,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 3000,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 3250,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 3500,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 3750,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 4000,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 4250,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 4500,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 4750,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 5000,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 5250,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 5500,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 5750,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 6000,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 6250,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 6500,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 6750,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 7000,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 7250,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 7500,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 7750,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 8000,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 8250,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 8500,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 8750,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 9000,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 9250,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 9500,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 9750,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          }
+        ]
+      },
+      "healthy": true
+    },
+    {
+      "id": "slow-cleanup-insufficient-clear-time",
+      "expected": "Cleanup at 9500ms cannot satisfy 750ms of absence within the unchanged 10s deadline",
+      "actual": {
+        "result": {
+          "shown": true,
+          "clicked": true,
+          "supported": true,
+          "closed": false
+        },
+        "milliseconds": 10000,
+        "frames": [
+          {
+            "at": 0,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 250,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 500,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 750,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 1000,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 1250,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 1500,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 1750,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 2000,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 2250,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 2500,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 2750,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 3000,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 3250,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 3500,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 3750,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 4000,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 4250,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 4500,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 4750,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 5000,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 5250,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 5500,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 5750,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 6000,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 6250,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 6500,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 6750,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 7000,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 7250,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 7500,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 7750,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 8000,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 8250,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 8500,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 8750,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 9000,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 9250,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 9500,
+            "supported": true,
+            "shown": false,
+            "clicked": false
+          },
+          {
+            "at": 9750,
+            "supported": true,
+            "shown": false,
+            "clicked": false
+          }
+        ]
+      },
+      "healthy": true
+    },
+    {
+      "id": "slow-cleanup-within-existing-deadline",
+      "expected": "Cleanup at 9000ms with 750ms stable absence succeeds at 9750ms without extending the deadline",
+      "actual": {
+        "result": {
+          "shown": true,
+          "clicked": true,
+          "supported": true,
+          "closed": true
+        },
+        "milliseconds": 9750,
+        "frames": [
+          {
+            "at": 0,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 250,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 500,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 750,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 1000,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 1250,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 1500,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 1750,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 2000,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 2250,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 2500,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 2750,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 3000,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 3250,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 3500,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 3750,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 4000,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 4250,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 4500,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 4750,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 5000,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 5250,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 5500,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 5750,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 6000,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 6250,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 6500,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 6750,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 7000,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 7250,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 7500,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 7750,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 8000,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 8250,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 8500,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 8750,
+            "supported": true,
+            "shown": true,
+            "clicked": true
+          },
+          {
+            "at": 9000,
+            "supported": true,
+            "shown": false,
+            "clicked": false
+          },
+          {
+            "at": 9250,
+            "supported": true,
+            "shown": false,
+            "clicked": false
+          },
+          {
+            "at": 9500,
+            "supported": true,
+            "shown": false,
+            "clicked": false
+          },
+          {
+            "at": 9750,
+            "supported": true,
+            "shown": false,
+            "clicked": false
+          }
+        ]
+      },
+      "healthy": true
+    },
+    {
+      "id": "late-probe-clean-frame-rejected",
+      "expected": "A clear state arriving at the deadline cannot retroactively close the guide",
+      "actual": {
+        "result": {
+          "shown": true,
+          "clicked": true,
+          "supported": true,
+          "closed": false
+        },
+        "probes": 2,
+        "milliseconds": 10000
+      },
+      "healthy": true
+    },
+    {
+      "id": "scene-clear-positive-control",
+      "expected": "An actually clear and complete scene succeeds",
+      "actual": {
+        "result": {
+          "ready": true,
+          "overlayVisible": false,
+          "actors": 14,
+          "labels": [],
+          "pixels": {
+            "variance": 100,
+            "visibleRatio": 1
+          },
+          "screenshotPath": "/owned-fake-scene/workplace-default.png"
+        },
+        "error": null,
+        "sampled": [
+          {
+            "at": 0,
+            "ready": true,
+            "overlayVisible": false,
+            "actors": 14,
+            "labels": []
+          }
+        ],
+        "captures": [
+          {
+            "at": 3600,
+            "overlayVisible": false
+          }
+        ]
+      },
+      "healthy": true
+    },
+    {
+      "id": "scene-sticky-overlay-negative-control",
+      "expected": "An overlay visible when the scene screenshot is captured must reject",
+      "actual": {
+        "result": null,
+        "error": "Error: workplace-3d 仍被引导层遮挡：{\"ready\":true,\"overlayVisible\":true,\"actors\":14,\"labels\":[],\"pixels\":{\"variance\":100,\"visibleRatio\":1},\"screenshotPath\":\"/owned-fake-scene/workplace-default.png\"}",
+        "sampled": [
+          {
+            "at": 0,
+            "ready": true,
+            "overlayVisible": true,
+            "actors": 14,
+            "labels": []
+          }
+        ],
+        "captures": [
+          {
+            "at": 3600,
+            "overlayVisible": true
+          }
+        ]
+      },
+      "healthy": true
+    },
+    {
+      "id": "scene-overlay-reappears-during-settle",
+      "expected": "An overlay visible when the scene screenshot is captured must reject",
+      "actual": {
+        "result": {
+          "ready": true,
+          "overlayVisible": false,
+          "actors": 14,
+          "labels": [],
+          "pixels": {
+            "variance": 100,
+            "visibleRatio": 1
+          },
+          "screenshotPath": "/owned-fake-scene/workplace-default.png"
+        },
+        "error": null,
+        "sampled": [
+          {
+            "at": 0,
+            "ready": true,
+            "overlayVisible": false,
+            "actors": 14,
+            "labels": []
+          }
+        ],
+        "captures": [
+          {
+            "at": 3600,
+            "overlayVisible": true
+          }
+        ]
+      },
+      "healthy": false
+    }
+  ],
+  "passed": 7,
+  "failed": 1
+}

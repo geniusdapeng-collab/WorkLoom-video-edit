@@ -1,0 +1,445 @@
+{
+  "schema": "growth.independent-m6/root-report-review@1",
+  "reviewed_at": "2026-10-03T03:20:20.640192+08:00",
+  "verifier": "growth_m6",
+  "source_commit": "955e2277ee1496cfc4b40bd30345d1ce1be1acf1",
+  "report_original": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/REPORT.md",
+  "snapshot": "inherited/root-REPORT-955e-d8df35a287d3.md",
+  "snapshot_sha256": "d8df35a287d30db794ca4c94a6fe9d2973e2fb43b159de487076dc80b82180fa",
+  "snapshot_bytes": 33520,
+  "report_lines": 156,
+  "reading": "Complete parent report read1..156; snapshot retained. Machine links/source/counts below do not substitute for that reading.",
+  "links_checked": 58,
+  "missing_links": [],
+  "links": [
+    {
+      "line": 5,
+      "target": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/file-coverage.csv",
+      "exists": true
+    },
+    {
+      "line": 5,
+      "target": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/coverage-summary.json",
+      "exists": true
+    },
+    {
+      "line": 10,
+      "target": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/independent-m6/coverage.csv",
+      "exists": true
+    },
+    {
+      "line": 56,
+      "target": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/independent-m6/ledger-verification.json",
+      "exists": true
+    },
+    {
+      "line": 57,
+      "target": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/independent-m6/ledger-verification.json",
+      "exists": true
+    },
+    {
+      "line": 58,
+      "target": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/independent-m6/ledger-verification.json",
+      "exists": true
+    },
+    {
+      "line": 59,
+      "target": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/independent-m6/ledger-verification.json",
+      "exists": true
+    },
+    {
+      "line": 60,
+      "target": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/independent-m6/ledger-verification.json",
+      "exists": true
+    },
+    {
+      "line": 61,
+      "target": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/independent-m6/ledger-verification.json",
+      "exists": true
+    },
+    {
+      "line": 62,
+      "target": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/independent-m6/ledger-verification.json",
+      "exists": true
+    },
+    {
+      "line": 63,
+      "target": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/independent-m6/ledger-verification.json",
+      "exists": true
+    },
+    {
+      "line": 64,
+      "target": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/independent-m6/ledger-verification.json",
+      "exists": true
+    },
+    {
+      "line": 65,
+      "target": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/independent-m6/ledger-verification.json",
+      "exists": true
+    },
+    {
+      "line": 66,
+      "target": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/independent-m6/ledger-verification.json",
+      "exists": true
+    },
+    {
+      "line": 67,
+      "target": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/independent-m6/ledger-verification.json",
+      "exists": true
+    },
+    {
+      "line": 68,
+      "target": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/independent-m6/ledger-verification.json",
+      "exists": true
+    },
+    {
+      "line": 69,
+      "target": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/independent-m6/ledger-verification.json",
+      "exists": true
+    },
+    {
+      "line": 70,
+      "target": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/independent-m6/ledger-verification.json",
+      "exists": true
+    },
+    {
+      "line": 71,
+      "target": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/independent-m6/ledger-verification.json",
+      "exists": true
+    },
+    {
+      "line": 73,
+      "target": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/ledger.json",
+      "exists": true
+    },
+    {
+      "line": 79,
+      "target": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/evidence/portrait-cli.json",
+      "exists": true
+    },
+    {
+      "line": 80,
+      "target": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/evidence/video-capabilities-core.log",
+      "exists": true
+    },
+    {
+      "line": 81,
+      "target": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/evidence/ui-responsive.json",
+      "exists": true
+    },
+    {
+      "line": 82,
+      "target": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/evidence/client-生产修复 首次客户/render-default.json",
+      "exists": true
+    },
+    {
+      "line": 83,
+      "target": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/evidence/release-contract-production-final.log",
+      "exists": true
+    },
+    {
+      "line": 84,
+      "target": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/evidence/static-release-production-final.log",
+      "exists": true
+    },
+    {
+      "line": 85,
+      "target": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/evidence/film-channel-parent-unit.log",
+      "exists": true
+    },
+    {
+      "line": 86,
+      "target": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/independent-m6/desktop-supplement.log",
+      "exists": true
+    },
+    {
+      "line": 87,
+      "target": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/independent-m6/geo-supplement.log",
+      "exists": true
+    },
+    {
+      "line": 88,
+      "target": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/independent-m6/render-guide-bounded.log",
+      "exists": true
+    },
+    {
+      "line": 89,
+      "target": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/evidence/avatar-lifecycle-green.log",
+      "exists": true
+    },
+    {
+      "line": 90,
+      "target": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/evidence/desktop-scene-stale-after.log",
+      "exists": true
+    },
+    {
+      "line": 91,
+      "target": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/evidence/welcome-terminal-real-pg-corrected.log",
+      "exists": true
+    },
+    {
+      "line": 92,
+      "target": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/evidence/desktop-recovery-marker-after.log",
+      "exists": true
+    },
+    {
+      "line": 93,
+      "target": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/independent-m6/ceremony-density-final-repeat-results.json",
+      "exists": true
+    },
+    {
+      "line": 95,
+      "target": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/independent-m6/observation-mapping.json",
+      "exists": true
+    },
+    {
+      "line": 101,
+      "target": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/independent-m6/auth-http-results.json",
+      "exists": true
+    },
+    {
+      "line": 102,
+      "target": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/independent-m6/runtime-repro-results.json",
+      "exists": true
+    },
+    {
+      "line": 103,
+      "target": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/independent-m6/gateway-permit-results.json",
+      "exists": true
+    },
+    {
+      "line": 104,
+      "target": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/independent-m6/film-public-success-results.json",
+      "exists": true
+    },
+    {
+      "line": 104,
+      "target": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/independent-m6/parent-channel-after-results.json",
+      "exists": true
+    },
+    {
+      "line": 105,
+      "target": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/independent-m6/geo-supplement.log",
+      "exists": true
+    },
+    {
+      "line": 106,
+      "target": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/independent-m6/desktop-welcome.log",
+      "exists": true
+    },
+    {
+      "line": 106,
+      "target": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/independent-m6/web-lifecycle-independent-fixed.log",
+      "exists": true
+    },
+    {
+      "line": 107,
+      "target": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/independent-m6/welcome-client-after.log",
+      "exists": true
+    },
+    {
+      "line": 107,
+      "target": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/independent-m6/questline-ready-after.log",
+      "exists": true
+    },
+    {
+      "line": 107,
+      "target": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/independent-m6/welcome-progress-after-results.json",
+      "exists": true
+    },
+    {
+      "line": 108,
+      "target": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/independent-m6/render-guide-transient-after-results.json",
+      "exists": true
+    },
+    {
+      "line": 108,
+      "target": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/evidence/desktop-recovery-marker-after.log",
+      "exists": true
+    },
+    {
+      "line": 109,
+      "target": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/independent-m6/ceremony-density-final-results.json",
+      "exists": true
+    },
+    {
+      "line": 109,
+      "target": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/independent-m6/ceremony-density-final-repeat-results.json",
+      "exists": true
+    },
+    {
+      "line": 111,
+      "target": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/evidence/ui-responsive.json",
+      "exists": true
+    },
+    {
+      "line": 113,
+      "target": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/independent-m6/case-matrix.csv",
+      "exists": true
+    },
+    {
+      "line": 115,
+      "target": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/independent-m6/REPORT.md",
+      "exists": true
+    },
+    {
+      "line": 119,
+      "target": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/evidence/welcome-payload-fingerprint.json",
+      "exists": true
+    },
+    {
+      "line": 119,
+      "target": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/evidence/welcome-payload-source-closure.json",
+      "exists": true
+    },
+    {
+      "line": 119,
+      "target": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/evidence/welcome-app-fingerprint.json",
+      "exists": true
+    },
+    {
+      "line": 138,
+      "target": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/evidence/cnb-welcome-source-status.json",
+      "exists": true
+    }
+  ],
+  "finding_count": 5,
+  "findings": [
+    {
+      "id": "RPT-01",
+      "priority": "P1",
+      "line": 130,
+      "topic": "Latest failed native run and separate instrumented diagnostic omitted",
+      "actual": "The historical paragraph only names a403/09bc. It omits ad4a cold default exit1/721.660s with avatar/team ready and guide.closed=false, and the separate fresh-support CDP v2 old-ad4a run exit0/276.612s with80frames/5responses/1observerEOF.",
+      "required": "Name both retained exact-source native runs and state that the CDP diagnostic does not prove the original cold failure fixed.",
+      "evidence": [
+        "inherited/evidence__mac-avatar-default.json",
+        "inherited/evidence__native-avatar-default-render-default.json",
+        "inherited/evidence__mac-avatar-guide-diagnostic-v2.json",
+        "native-955e-history-integrity.json"
+      ],
+      "grade": "A full report reading plus B retained receipts"
+    },
+    {
+      "id": "RPT-02",
+      "priority": "P2",
+      "line": 92,
+      "topic": "Stable observation references incomplete in table",
+      "actual": "ParentOBS14 row only refers to MC001+MC003, while the exact map is independentOBS12; parentOBS15 row names density controls without stable independentOBS13.",
+      "required": "Add independentOBS12 and independentOBS13 to the respective table rows; associated MC links may remain supplementary.",
+      "evidence": [
+        "observation-mapping.json"
+      ],
+      "grade": "A full report reading plus B exact mapping"
+    },
+    {
+      "id": "RPT-03",
+      "priority": "P2",
+      "line": 93,
+      "topic": "Mobile wording exceeds desktop viewport evidence",
+      "actual": "OBS15 says desktop/mobile completion, but the actual browser fixture is desktopChromium at1440/390 and explicitly excludes real phones.",
+      "required": "Use desktop and390-wide viewport, preserving the real-device unverified boundary.",
+      "evidence": [
+        "ceremony-density-final-repeat-results.json"
+      ],
+      "grade": "A report wording plus B fixture environment"
+    },
+    {
+      "id": "RPT-04",
+      "priority": "P2",
+      "line": 103,
+      "topic": "PII label lacks a matching control",
+      "actual": "All20 permit IDs cover authentic/forged/cloned/binding/reuse/readonly/approval/final-write boundaries. No standalonePII control exists in this run.",
+      "required": "RemovePII or cite a separately executed PII test; the20-count must stay tied to the actual permit cases.",
+      "evidence": [
+        "gateway-permit-results.json"
+      ],
+      "grade": "A report reading plus B complete case inventory"
+    },
+    {
+      "id": "RPT-05",
+      "priority": "P2",
+      "line": 140,
+      "topic": "Retention evidence should distinguish policy from completed action",
+      "actual": "The correction is named as plain text without a direct link or two fixture names. The statement about finalwelcome retention is currently a policy while the completed mode0600 receipt belongs to v2diagnostic.",
+      "required": "Link the final correction and name the two affected ownedfixtures; describe welcome retention as a required cleanup condition until its actual receipt exists, or cite the completed v2 action separately.",
+      "evidence": [
+        "inherited/evidence__native-config-preservation-correction.json",
+        "inherited/evidence__native-guide-diagnostic-v2-retention.json",
+        "native-955e-history-integrity.json"
+      ],
+      "grade": "A report wording plus B corrected provenance"
+    }
+  ],
+  "independent_unique_cases": 296,
+  "independent_observations": 13,
+  "explicit_parent_mapping": [
+    {
+      "parent_observation": "OBS-07",
+      "independent_refs": [
+        "OBS-07"
+      ],
+      "topic": "Parent component method/stage/shot binding"
+    },
+    {
+      "parent_observation": "OBS-08",
+      "independent_refs": [
+        "MC-003"
+      ],
+      "topic": "Source-copy exclusion of developer dependencies"
+    },
+    {
+      "parent_observation": "OBS-09",
+      "independent_refs": [
+        "MC-014"
+      ],
+      "topic": "Complete server telemetry exception contract"
+    },
+    {
+      "parent_observation": "OBS-10",
+      "independent_refs": [
+        "OBS-04",
+        "OBS-08"
+      ],
+      "topic": "Delayed guide mounting and remaining renderer deadline"
+    },
+    {
+      "parent_observation": "OBS-11",
+      "independent_refs": [
+        "OBS-09"
+      ],
+      "topic": "Live2D unmount ownership and temporary WebGL release"
+    },
+    {
+      "parent_observation": "OBS-12",
+      "independent_refs": [
+        "OBS-10"
+      ],
+      "topic": "Scene screenshot capture-time DOM state"
+    },
+    {
+      "parent_observation": "OBS-13",
+      "independent_refs": [
+        "OBS-11"
+      ],
+      "topic": "Welcome terminal-write, stale-response and ready-edge races"
+    },
+    {
+      "parent_observation": "OBS-14",
+      "independent_refs": [
+        "OBS-12"
+      ],
+      "topic": "Same-version missing-runtime recovery"
+    },
+    {
+      "parent_observation": "OBS-15",
+      "independent_refs": [
+        "OBS-13"
+      ],
+      "topic": "65-person team grid and long-label overflow"
+    }
+  ],
+  "permit_cases": 20,
+  "parent_report_mutated": false,
+  "private_state_read": false
+}

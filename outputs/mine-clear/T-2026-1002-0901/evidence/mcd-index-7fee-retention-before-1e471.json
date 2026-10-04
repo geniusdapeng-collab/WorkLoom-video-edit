@@ -1,0 +1,19 @@
+{
+  "at": "2026-10-04T03:17:59.815755+08:00",
+  "old_index": "history/7fee-modern-partial-before-1e471/evidence-index.json",
+  "old_source": "7fee3a6a5563d41c568463994764d3883eb7667d",
+  "sha256": "4923de43cae9da50b8e59d7ec49a365b988248635b107ca7c29961186ad7f76a",
+  "prior_index_runs": 18,
+  "observer_failure": "First current source MC001 executed but executor rejected mixing with old 7fee index; canonical card unfixed; real failure retained",
+  "new_unregistered_runs": [
+    {
+      "file": "runs/MC-001-0-1791054877865.json",
+      "sha256": "76037c9224d33f21f1d3926c25fc458aecb9a0037db4dc9e4f597e530f24b4f2",
+      "result": "pass",
+      "registered_in_current_index": false,
+      "retained": true
+    }
+  ],
+  "original_error_log": "evidence/mcd-repair-1e471-current.log",
+  "no_old_green_imported": true
+}

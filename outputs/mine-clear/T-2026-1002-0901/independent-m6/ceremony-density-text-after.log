@@ -1,0 +1,2 @@
+COMMAND ["/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node", "--env-file=.env", "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/independent-m6/ceremony-density-probe.mjs", "ad4a7a0ba65845a8b401d3cbae7c8981c2ddfb4b", "ceremony-density-text-after-results.json", "ceremony-density-text-after"]
+{"passed":4,"failed":0,"browser":"154.0.8037.95"}

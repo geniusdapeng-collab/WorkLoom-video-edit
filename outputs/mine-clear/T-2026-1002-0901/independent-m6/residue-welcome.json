@@ -1,0 +1,15 @@
+{
+  "name": "residue-welcome",
+  "command": [
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+    "--env-file=.env",
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/independent-m6/residue-probe.mjs",
+    "fixture-residue-welcome.json"
+  ],
+  "exit_code": 0,
+  "seconds": 6.497,
+  "source_before": "955e2277ee1496cfc4b40bd30345d1ce1be1acf1",
+  "source_after": "955e2277ee1496cfc4b40bd30345d1ce1be1acf1",
+  "ran_at": "2026-10-03T02:49:14.905479+08:00",
+  "log": "residue-welcome.log"
+}

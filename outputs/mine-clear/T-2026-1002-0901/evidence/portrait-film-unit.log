@@ -1,0 +1,17 @@
+COMMAND ["/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node", "--env-file=.env", "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/pnpm/bin/pnpm.cjs", "--filter", "@hyperreality/video-studio", "test", "src/portrait-decision.test.ts", "src/film-worker-runtime.test.ts", "src/film-worker-channel.test.ts"]
+
+> @hyperreality/video-studio@0.1.0 test /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/packages/video-studio
+> vitest run src/portrait-decision.test.ts src/film-worker-runtime.test.ts src/film-worker-channel.test.ts
+
+
+ RUN  v3.2.7 /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/packages/video-studio
+
+ ✓ src/portrait-decision.test.ts (7 tests) 3ms
+ ✓ src/film-worker-channel.test.ts (8 tests) 26ms
+ ✓ src/film-worker-runtime.test.ts (8 tests) 48ms
+
+ Test Files  3 passed (3)
+      Tests  23 passed (23)
+   Start at  21:30:29
+   Duration  381ms (transform 136ms, setup 0ms, collect 187ms, tests 76ms, environment 0ms, prepare 187ms)
+

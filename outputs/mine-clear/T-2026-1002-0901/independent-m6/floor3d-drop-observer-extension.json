@@ -1,0 +1,7 @@
+{
+  "source": "aad8700daa0991555b9792db80f4703e3322f4f1",
+  "method": "Same28 real WebGL/DOM/profile/task controls with optional onDropTask prop enabled. Original no-drop defaults and frozen955e controls preserved; own callback only records locally. No drag event/provider/DB business action. Current actual P0 does not pass this prop, sourceP0 lines432..444 fully read; supported component branch is additional authorized scope.",
+  "original_expectations_unchanged": true,
+  "fixture_sha256": "f70209155262d570e38ea3ee1efd400102152964a5c2ef732d3303ab19b8467e",
+  "observer_sha256": "7c5d78ffc0551f0c97dbcbdd92ee7feeb3ffc924d09959df21abd94307a223d3"
+}

@@ -1,0 +1,43 @@
+{
+  "source": "ad4a7a0ba65845a8b401d3cbae7c8981c2ddfb4b",
+  "at": "2026-10-03T02:13:57.677349+08:00",
+  "diagnostic_only": true,
+  "separate_fresh_fixture_CDP_instrumented": true,
+  "closed_true_does_not_prove_original_native_closed_false_fixed": true,
+  "evidence": [
+    {
+      "name": "native-guide-diagnostic-v2-render-default.json",
+      "sha256": "8c772c472633fca1dfe594bfd183c1f82f87c4c0655c1437cc9ba4cf9a588537",
+      "bytes": 5177
+    },
+    {
+      "name": "native-guide-diagnostic-v2-render-default.png",
+      "sha256": "2a03b36951db4bf5c8e2f2aafc120127f1f75d68a25ee981e07348601ce7bb15",
+      "bytes": 1510031
+    },
+    {
+      "name": "native-guide-diagnostic-v2-stage-default.png",
+      "sha256": "ec06afc134e484a0b91ff76f9e4dda97e48603e4d8af70bac958df11663d14bb",
+      "bytes": 569657
+    },
+    {
+      "name": "native-guide-diagnostic-v2-team-default.png",
+      "sha256": "2865b4af3b854d0cc083f32d0f59fa961417ecebf7e717e052b5c187b3df225d",
+      "bytes": 1500306
+    },
+    {
+      "name": "native-guide-diagnostic-v2-workplace-default.png",
+      "sha256": "d86c9e24b6cc6373906000e767c5b05c7a8685360baefcceac7d0c62e7e1113c",
+      "bytes": 1714424
+    }
+  ],
+  "private_QA_config_retained": true,
+  "private_config_sha256": "efb19ffe30f710c03aa3d5b6f90538d3e4b9381dfefbdcd06eaf8fe0a763fdb2",
+  "removed_owned_reinstallable_runtime_cache": [
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/引导诊断 新客户/runtime",
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/引导诊断 新客户/node",
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/引导诊断 新客户/pg",
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/引导诊断 新客户/nats",
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/引导诊断 新客户/.payload-cache"
+  ]
+}

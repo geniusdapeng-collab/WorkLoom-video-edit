@@ -1,0 +1,6 @@
+COMMAND ["/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node", "--env-file=.env", "scripts/ci/verify-commit-msg.mjs"]
+✗ d6a100b60218 fix(T-2026-1002-0901): apply floor geometry before initial scroll
+    - 格式不符：期望 "<type>(<layer>): <摘要> [T-YYYYMMDD-XXXX]"，实际 "fix(T-2026-1002-0901): apply floor geometry before initial scroll"
+
+拒绝：1/1 条提交不符合 docs/DEVELOPMENT-PROTOCOL.md §5
+提示：任务号来自 CNB Issue 标题 [T-YYYYMMDD-XXXX]；自动化提交请用 sync(...) / chore(ci) 或设 PROTOCOL_TASK_ID_OPTIONAL=1。

@@ -1,0 +1,8 @@
+COMMAND ["bash", "scripts/pack-electron-payload.sh", "--platform", "mac", "--arch", "arm64", "--version", "v0.1.0-fix.20261002.2"]
+== 装配 Electron 自包含载荷（v0.1.0-fix.20261002.2 · mac-arm64）==
+→ 装配产品载荷…
+→ 运行期依赖：npm 扁平化安装…
+
+added 58 packages in 57s
+✅ runtime npm ci：darwin-arm64 · 58 包 · a4d60e2bed8cb3613e6c99b91abbe821b41e1afa63ce20aa8b907e9f240f7aa2
+scripts/pack-electron-payload.sh: line 126: 真实源文件保留在: command not found

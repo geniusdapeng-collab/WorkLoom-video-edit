@@ -1,0 +1,24 @@
+{
+  "name": "dependency-mcd-handoff-actual",
+  "command": [
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+    "--env-file=.env",
+    "/Users/mac/.codex/skills/mine-clear-delivery/assets/mine-clear.mjs",
+    "handoff",
+    "--ledger",
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/execution-ledger.json",
+    "--repo",
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit",
+    "--out",
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/independent-m6/mcd-handoff-1e471",
+    "--env",
+    "client-runtime",
+    "--json"
+  ],
+  "exit_code": 0,
+  "seconds": 2.487,
+  "source_before": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+  "source_after": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+  "ran_at": "2026-10-04T04:43:43.736149+08:00",
+  "log": "dependency-mcd-handoff-actual.log"
+}

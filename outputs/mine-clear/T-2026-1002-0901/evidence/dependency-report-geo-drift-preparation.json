@@ -1,0 +1,15 @@
+{
+  "files": [
+    {
+      "file": "work/build_production_report.py",
+      "sha256": "eda19fe7340007ce40d2592b11e26a1eaddcd6cd47f1187d5ad39772aa770ea8",
+      "syntax": true
+    },
+    {
+      "file": "work/build_public_growth_bundle.py",
+      "sha256": "44030785f6fd92a86dac82e5b9c8362247f1a9d8ee2db047dcfbb1b0747307e2",
+      "syntax": true
+    }
+  ],
+  "scope": "syntax and explicit original failed run retention preparation; final generation waits independent actual acceptance"
+}

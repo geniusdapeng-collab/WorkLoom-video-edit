@@ -1,0 +1,45 @@
+{
+  "at": "2026-10-03T23:11:55.065Z",
+  "repository": "workloom-ai/WorkLoom-growth",
+  "pull": {
+    "number": "321",
+    "title": "fix(industry): 修复证据、预算及治理交付缺口 [T-2026-1002-9001]",
+    "head": {
+      "ref": "refs/heads/task/T-2026-1002-9001",
+      "sha": "4cf5d8d08a40708f1111c89753f31c135ae846dd",
+      "repo": {
+        "id": "2100917893030621184",
+        "name": "WorkLoom-growth",
+        "path": "workloom-ai/WorkLoom-growth",
+        "web_url": "https://cnb.cool/workloom-ai/WorkLoom-growth"
+      }
+    },
+    "base": {
+      "ref": "refs/heads/main",
+      "sha": "f50a0f5be2be4ba053d918e07a94e45cdae4e4c2",
+      "repo": {
+        "id": "2100917893030621184",
+        "name": "WorkLoom-growth",
+        "path": "workloom-ai/WorkLoom-growth",
+        "web_url": "https://cnb.cool/workloom-ai/WorkLoom-growth"
+      }
+    },
+    "is_wip": false,
+    "mergeable_state": "conflict",
+    "is_merged": false,
+    "labels": [
+      "protocol",
+      "risk/review"
+    ]
+  },
+  "statuses": {
+    "state": "",
+    "statuses": [],
+    "sha": ""
+  },
+  "main": {
+    "name": "refs/heads/main",
+    "sha": "f50a0f5be2be4ba053d918e07a94e45cdae4e4c2"
+  },
+  "source_head": "4cf5d8d08a40708f1111c89753f31c135ae846dd"
+}

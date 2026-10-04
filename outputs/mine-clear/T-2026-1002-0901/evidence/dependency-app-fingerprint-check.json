@@ -1,0 +1,13 @@
+{
+  "name": "dependency-app-fingerprint-check",
+  "command": [
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+    "--env-file=.env",
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/verify_current_app.cjs",
+    "dependency"
+  ],
+  "exit_code": 0,
+  "seconds": 3.131,
+  "ran_at": "2026-10-04T00:27:41.744212+08:00",
+  "log": "dependency-app-fingerprint-check.log"
+}

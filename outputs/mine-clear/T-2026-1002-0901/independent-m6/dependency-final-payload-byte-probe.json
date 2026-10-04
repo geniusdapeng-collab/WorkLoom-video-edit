@@ -1,0 +1,23 @@
+{
+  "name": "dependency-final-payload-byte-probe",
+  "command": [
+    "python3",
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/independent-m6/final-payload-byte-probe.py",
+    "--source",
+    "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+    "--app-receipt",
+    "dependency-app-fingerprint.json",
+    "--payload-receipt",
+    "dependency-payload-fingerprint.json",
+    "--closure-receipt",
+    "dependency-payload-source-closure.json",
+    "--result",
+    "dependency-final-payload-byte-probe-results.json"
+  ],
+  "exit_code": 0,
+  "seconds": 4.641,
+  "source_before": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+  "source_after": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+  "ran_at": "2026-10-04T01:43:27.345183+08:00",
+  "log": "dependency-final-payload-byte-probe.log"
+}

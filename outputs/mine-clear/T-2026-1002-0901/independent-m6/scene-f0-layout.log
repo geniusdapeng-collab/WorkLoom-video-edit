@@ -1,0 +1,6 @@
+COMMAND ["/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node", "--env-file=.env", "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/independent-m6/scene-f0-probe.mjs", "scene-f0-layout"]
+{"id":"stage-1440","canvas":{"x":336,"y":16,"width":768,"height":440,"right":1104,"bottom":456},"region":{"x":336,"y":16,"width":768,"height":440,"right":1104,"bottom":456},"ceoOverlaps":[]}
+{"id":"stage-390","canvas":{"x":16,"y":16,"width":358,"height":440,"right":374,"bottom":456},"region":{"x":16,"y":16,"width":358,"height":440,"right":374,"bottom":456},"ceoOverlaps":[]}
+{"id":"floor-1440","canvas":{"x":336,"y":16,"width":768,"height":440,"right":1104,"bottom":456},"region":{"x":336,"y":16,"width":768,"height":440,"right":1104,"bottom":456},"ceoOverlaps":[]}
+{"id":"floor-390","canvas":{"x":-138,"y":16,"width":640,"height":440,"right":502,"bottom":456},"region":{"x":16,"y":16,"width":358,"height":440,"right":374,"bottom":456},"ceoOverlaps":[]}
+{"passed":7,"failed":0,"source_commit":"f0a11286a49419fb7909088e2d170f4dde7b60c6"}

@@ -1,0 +1,37 @@
+{
+  "at": "2026-10-02T15:51:46.191Z",
+  "number": "318",
+  "head": "a40340e54c486eacdb2386929cd0f6fb87aac0dd",
+  "wip": true,
+  "mergeable": "mergeable",
+  "statuses": {
+    "state": "success",
+    "statuses": [
+      {
+        "state": "success",
+        "context": "cnb/pull_request/pipeline-1(static-gate)",
+        "description": "success [20.2s]",
+        "target_url": "https://cnb.cool/workloom-ai/WorkLoom-growth/-/build/logs/cnb-sh5-1k3ukhs03#001",
+        "created_at": "2026-10-02T15:43:31Z",
+        "updated_at": "2026-10-02T15:43:51Z"
+      },
+      {
+        "state": "success",
+        "context": "cnb/pull_request/pipeline-2(db-gate)",
+        "description": "success [37.3s]",
+        "target_url": "https://cnb.cool/workloom-ai/WorkLoom-growth/-/build/logs/cnb-sh5-1k3ukhs03#002",
+        "created_at": "2026-10-02T15:43:31Z",
+        "updated_at": "2026-10-02T15:44:08Z"
+      },
+      {
+        "state": "success",
+        "context": "cnb/pull_request/pipeline-3(test-gate)",
+        "description": "success [3m 14s]",
+        "target_url": "https://cnb.cool/workloom-ai/WorkLoom-growth/-/build/logs/cnb-sh5-1k3ukhs03#003",
+        "created_at": "2026-10-02T15:43:31Z",
+        "updated_at": "2026-10-02T15:46:45Z"
+      }
+    ],
+    "sha": "a661e9d3378c92bed92099d470cee0613f054670"
+  }
+}

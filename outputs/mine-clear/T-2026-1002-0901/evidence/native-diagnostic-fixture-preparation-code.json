@@ -1,0 +1,9 @@
+{
+  "at": "2026-10-03T17:27:55.752338+08:00",
+  "helper": "work/native_diagnostic_fixture.py",
+  "sha256": "23c9f66a52d179680accdfefba3e74d78165917c7288e7d67094c749197a80ff",
+  "syntax_valid": true,
+  "actual_fixture_executed": false,
+  "actual_gui_executed": false,
+  "purpose": "Real packaged startup failure-page actions and macOS save dialog; no source emulation. Actual receipt still required."
+}

@@ -1,0 +1,20 @@
+{
+  "source_commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+  "independent_resource_handback": "independent-m6/source-resource-handback-1e47-final.json",
+  "original_root_derivatives_archived": "history/pre-final-root-generated-1e471",
+  "copies": [
+    {
+      "origin": "independent-m6/mcd-handoff-1e471/gate-output.json",
+      "destination": "execution-gate.json",
+      "sha256": "d244ee314b85e7a116019ad319dc633235e8b878b490d8dffa0f7bbefa891604",
+      "transformation": "none; exact independent actual bytes"
+    },
+    {
+      "origin": "independent-m6/mcd-handoff-1e471/handoff.json",
+      "destination": "execution-handoff/handoff.json",
+      "sha256": "7186f24f60107802491ec35dcc7bbeb1922faa3df626600283b4391e58c6b385",
+      "transformation": "none; exact independent actual bytes"
+    }
+  ],
+  "modern_execution_bytes_unchanged": true
+}

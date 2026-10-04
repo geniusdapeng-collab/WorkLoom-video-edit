@@ -1,0 +1,14 @@
+{
+  "name": "runner-collision-control",
+  "command": [
+    "/Library/Developer/CommandLineTools/usr/bin/python3",
+    "-c",
+    "from pathlib import Path; import json; Path('/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/evidence/runner-collision-control.json').write_text(json.dumps({\"owned_child_artifact\":True,\"value\":\"preserve\"})+\"\\n\")"
+  ],
+  "exit_code": 0,
+  "seconds": 0.024,
+  "ran_at": "2026-10-04T00:29:06.865449+08:00",
+  "log": "runner-collision-control.log",
+  "separate_child_artifact": "runner-collision-control.json",
+  "receipt_name_collision_avoided": true
+}

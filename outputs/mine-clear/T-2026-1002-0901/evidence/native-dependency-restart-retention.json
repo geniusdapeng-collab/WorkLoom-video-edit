@@ -1,0 +1,9 @@
+{
+  "mode": "restart",
+  "at": "2026-10-04T01:27:33.054234+08:00",
+  "command_exit_code": 0,
+  "evidence": [],
+  "private_state_retained": true,
+  "diagnosticOnly": false,
+  "reused_failed_fixture": false
+}

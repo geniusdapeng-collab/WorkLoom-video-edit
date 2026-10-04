@@ -1,0 +1,68 @@
+{
+  "at": "2026-10-03T08:57:01.791680+08:00",
+  "evidence_grade": "B",
+  "source_base": "d6a100b60218173cdae6f5a5de7f66452bbbd884",
+  "candidate_bytes_frozen": true,
+  "bound_files_checked": 52,
+  "mismatches": [],
+  "checks": [
+    {
+      "group": "default",
+      "passed": 28,
+      "failed": 0,
+      "exit_code": 0
+    },
+    {
+      "group": "drop",
+      "passed": 55,
+      "failed": 0,
+      "exit_code": 0
+    },
+    {
+      "group": "edges",
+      "passed": 29,
+      "failed": 0,
+      "exit_code": 0
+    },
+    {
+      "group": "hover",
+      "passed": 33,
+      "failed": 0,
+      "exit_code": 0
+    },
+    {
+      "group": "language",
+      "passed": 9,
+      "failed": 0,
+      "exit_code": 0
+    },
+    {
+      "group": "unit",
+      "passed": 32,
+      "failed": 0,
+      "exit_code": 0
+    },
+    {
+      "group": "types",
+      "passed": null,
+      "failed": null,
+      "exit_code": 0
+    },
+    {
+      "group": "build",
+      "passed": null,
+      "failed": null,
+      "exit_code": 0
+    }
+  ],
+  "actual_unit_result": {
+    "numTotalTests": 32,
+    "numPassedTests": 32,
+    "numFailedTests": 0,
+    "numPendingTests": 0,
+    "numTodoTests": 0,
+    "success": true
+  },
+  "scope": "Root validates exact repair-owned source/results/receipts/probes/fixtures; actual repair actor remains floor_hit_repair; independent acceptance and final native package pending",
+  "passed": true
+}

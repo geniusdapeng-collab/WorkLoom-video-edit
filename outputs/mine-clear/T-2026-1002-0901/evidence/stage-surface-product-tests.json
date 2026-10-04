@@ -1,0 +1,25 @@
+{
+  "name": "stage-surface-product-tests",
+  "command": [
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+    "--env-file=.env",
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/pnpm/bin/pnpm.cjs",
+    "--filter",
+    "@workloom/web",
+    "exec",
+    "vitest",
+    "run",
+    "src/pages/p0/floor-layout.test.ts",
+    "src/pages/p0/Floor.test.tsx",
+    "src/components/floor3d-layout.test.ts",
+    "src/components/Floor3DLabels.test.tsx",
+    "src/components/Floor3DTaskDrop.test.tsx",
+    "src/components/Stage3D.test.tsx",
+    "--reporter=json",
+    "--outputFile=/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/evidence/stage-surface-product-tests-results.json"
+  ],
+  "exit_code": 0,
+  "seconds": 3.203,
+  "ran_at": "2026-10-03T18:25:56.852426+08:00",
+  "log": "stage-surface-product-tests.log"
+}

@@ -1,0 +1,83 @@
+{
+  "schema": "growth.independent-m6/mcd-helper-fullread@1",
+  "read_by": "growth_m6",
+  "generated_at": "2026-10-03T17:35:53.479595+08:00",
+  "source_commit": "f9515d09ee6de9b34f38b93d3769654fe4869391",
+  "files": [
+    {
+      "path": "work/prepare_execution_ledger.py",
+      "sha256": "7b850457ea5f11a7c1bc7ea3f7f19730656d593bc7a3d5850950c8b8ad4e1081",
+      "lines": 184,
+      "full_read": true,
+      "grade": "A full source read; B hash binding",
+      "read_origin": "current complete184-line source",
+      "previous_sha256": "99ef10f31a215a63d853fd29816824eaa611ac5f866955e0d7c361c8f867c5ac"
+    },
+    {
+      "path": "work/run_isolated_replay.py",
+      "sha256": "d341079a1973b4ad690ffe866b11eb3ecd022ac88ac577da8fac4a9b489eab87",
+      "lines": 134,
+      "full_read": true,
+      "grade": "A full source read; B hash binding",
+      "read_origin": "byte-identical preceding complete source read",
+      "previous_sha256": "d341079a1973b4ad690ffe866b11eb3ecd022ac88ac577da8fac4a9b489eab87"
+    },
+    {
+      "path": "work/run_installed_film_load.py",
+      "sha256": "656bfc45630cd52d1c61eb2b5c86cbf27273766e0c198c0361ae8fe984b37be9",
+      "lines": 64,
+      "full_read": true,
+      "grade": "A full source read; B hash binding",
+      "read_origin": "byte-identical preceding complete source read",
+      "previous_sha256": "656bfc45630cd52d1c61eb2b5c86cbf27273766e0c198c0361ae8fe984b37be9"
+    },
+    {
+      "path": "work/portable-growth-stage/runtime-repro.mts",
+      "sha256": "83a3b21fc694f0eecd965ca3425bd29dcf9a2d2f280cce18148b9f683f9c4d13",
+      "lines": 159,
+      "full_read": true,
+      "grade": "A full source read; B hash binding",
+      "read_origin": "byte-identical preceding complete source read",
+      "previous_sha256": "83a3b21fc694f0eecd965ca3425bd29dcf9a2d2f280cce18148b9f683f9c4d13"
+    },
+    {
+      "path": "work/portable-growth-stage/local-counter.mjs",
+      "sha256": "403b6c4e48e39fdcd6020cf952d3fadba132b6eb93774a820eadf472fa6db126",
+      "lines": 12,
+      "full_read": true,
+      "grade": "A full source read; B hash binding",
+      "read_origin": "byte-identical preceding complete source read",
+      "previous_sha256": "403b6c4e48e39fdcd6020cf952d3fadba132b6eb93774a820eadf472fa6db126"
+    },
+    {
+      "path": "work/portable-growth-stage/auth-fixture.mts",
+      "sha256": "29ff8edaf40cf37bdeede3b2b0a2f3edf094bc554ffd224a18cf701037edf275",
+      "lines": 21,
+      "full_read": true,
+      "grade": "A full source read; B hash binding",
+      "read_origin": "byte-identical preceding complete source read",
+      "previous_sha256": "29ff8edaf40cf37bdeede3b2b0a2f3edf094bc554ffd224a18cf701037edf275"
+    },
+    {
+      "path": "work/portable-growth-stage/auth-production-probe.mjs",
+      "sha256": "e4a12ae18f095990d1c38649ae37bce8da45d585f9ce243ed4c02a457f7e757d",
+      "lines": 83,
+      "full_read": true,
+      "grade": "A full source read; B hash binding",
+      "read_origin": "byte-identical preceding complete source read",
+      "previous_sha256": "e4a12ae18f095990d1c38649ae37bce8da45d585f9ce243ed4c02a457f7e757d"
+    },
+    {
+      "path": "work/portable-growth-stage/film-public-probe.mts",
+      "sha256": "7ed72a23b6f3e49ff85046099a4edf48d673ed70939a9edbea92c16fd79ae459",
+      "lines": 56,
+      "full_read": true,
+      "grade": "A full source read; B hash binding",
+      "read_origin": "byte-identical preceding complete source read",
+      "previous_sha256": "7ed72a23b6f3e49ff85046099a4edf48d673ed70939a9edbea92c16fd79ae459"
+    }
+  ],
+  "actual_product_assertions_executed": false,
+  "scope": "Current complete prepare_execution_ledger184 read, changed reset/diagnostic24 repair23 acceptance contracts; installed64 reread and other six prior complete reads retained only for identical current bytes. This is preparation only, not real MCD execution.",
+  "canonical_receipt_replaced_yet": false
+}

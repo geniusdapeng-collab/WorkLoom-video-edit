@@ -1,0 +1,22 @@
+{
+  "source_origin": "owned verifier metadata only, not product code",
+  "preserved": [
+    {
+      "file": "history/87ab-pre-diagnostic-owned-preparation/create-floor-final-verification.py",
+      "sha256": "ceb3597aad3b9d7550c807da322bd88e906f77b4a4353b1db570fab054d33270"
+    },
+    {
+      "file": "history/87ab-pre-diagnostic-owned-preparation/prepare_report.py",
+      "sha256": "c093b742fbf94998d8a3eb2668b56310eba9019f44d77289fc3a833da1db3fcc"
+    },
+    {
+      "file": "history/87ab-pre-diagnostic-owned-preparation/build_report.py",
+      "sha256": "32b99975319c9b3755c9623d46b046a49f437e87d102669823793aca1130d56f"
+    },
+    {
+      "file": "history/87ab-pre-diagnostic-owned-preparation/validate_report.py",
+      "sha256": "9d9ad33c1284eb8be58bf96e8b41bbb14718be908fed22607eed97e806314179"
+    }
+  ],
+  "formal_report_generated_at_87ab": false
+}

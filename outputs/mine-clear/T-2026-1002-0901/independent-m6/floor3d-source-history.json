@@ -1,0 +1,11 @@
+{
+  "source_commit": "955e2277ee1496cfc4b40bd30345d1ce1be1acf1",
+  "method": "git show exact original tracked blobs; no product mutations",
+  "files": [
+    {
+      "path": "apps/web/src/components/Floor3D.tsx",
+      "sha256": "a49a8431c28add8e30531cc0ba587b5cbfc86f6bc7bf3f4ffacd4d924fade84d",
+      "snapshot": "history/955e-floor3d-original/apps/web/src/components/Floor3D.tsx"
+    }
+  ]
+}

@@ -1,0 +1,33 @@
+COMMAND ["/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node", "--env-file=.env", "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/pnpm/bin/pnpm.cjs", "-C", "apps/server", "exec", "vitest", "run", "src/service/onboarding-continuity.pg.test.ts", "src/service/onboarding-continuity.test.ts", "--no-file-parallelism"]
+
+[1m[30m[46m RUN [49m[39m[22m [36mv4.1.11 [39m[90m/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/apps/server[39m
+
+ [31m❯[39m src/service/onboarding-continuity.pg.test.ts [2m([22m[2m4 tests[22m[2m | [22m[31m1 failed[39m[2m)[22m[33m 1338[2mms[22m[39m
+     [33m[2m✓[22m[39m 欢迎进度真实落库，并按账号、角色与工作区隔离后可重播 [33m 784[2mms[22m[39m
+[31m     [31m×[31m 完成终态拒绝迟到进度、暂停与重复完成；事件只记一次真实完成[39m[32m 82[2mms[22m[39m
+     [32m✓[39m 草稿真实续办、乐观锁、责任人交接与秘密白名单均生效[32m 188[2mms[22m[39m
+     [32m✓[39m RLS 隔离错误工作区读取，且 0030 从数据库层拒绝双 active[32m 83[2mms[22m[39m
+ [32m✓[39m src/service/onboarding-continuity.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 9[2mms[22m[39m
+
+[31m⎯⎯⎯⎯⎯⎯⎯[39m[1m[41m Failed Tests 1 [49m[22m[31m⎯⎯⎯⎯⎯⎯⎯[39m
+
+[41m[1m FAIL [22m[49m src/service/onboarding-continuity.pg.test.ts[2m > [22mOnboarding PostgreSQL 集成[2m > [22m完成终态拒绝迟到进度、暂停与重复完成；事件只记一次真实完成
+[31m[1merror[22m: relation "workdata_events" does not exist[39m
+[90m [2m❯[22m ../../node_modules/.pnpm/pg-pool@3.14.0_pg@8.23.0/node_modules/pg-pool/index.js:[2m45:11[22m[39m
+[36m [2m❯[22m count src/service/onboarding-continuity.pg.test.ts:[2m112:32[22m[39m
+    [90m110|[39m
+    [90m111|[39m   [34mit[39m([32m"完成终态拒绝迟到进度、暂停与重复完成；事件只记一次真实完成"[39m[33m,[39m [35masync[39m () [33m=>[39m {
+    [90m112|[39m     [35mconst[39m count [33m=[39m [35masync[39m () [33m=>[39m ([35mawait[39m owner[33m.[39mquery[33m<[39m{ n[33m:[39m number }[33m>[39m(
+    [90m   |[39m                                [31m^[39m
+    [90m113|[39m       `SELECT count(*)::int AS n FROM workdata_events WHERE workspace_…
+    [90m114|[39m     ))[33m.[39mrows[[34m0[39m][33m![39m[33m.[39mn[33m;[39m
+[90m [2m❯[22m src/service/onboarding-continuity.pg.test.ts:[2m115:20[22m[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯[22m[39m
+
+
+[2m Test Files [22m [1m[31m1 failed[39m[22m[2m | [22m[1m[32m1 passed[39m[22m[90m (2)[39m
+[2m      Tests [22m [1m[31m1 failed[39m[22m[2m | [22m[1m[32m7 passed[39m[22m[90m (8)[39m
+[2m   Start at [22m 02:19:36
+[2m   Duration [22m 6.93s[2m (transform 759ms, setup 0ms, import 4.46s, tests 1.35s, environment 1ms)[22m
+

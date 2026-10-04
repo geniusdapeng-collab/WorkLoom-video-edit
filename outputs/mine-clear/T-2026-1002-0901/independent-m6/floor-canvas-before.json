@@ -1,0 +1,17 @@
+{
+  "name": "floor-canvas-before",
+  "command": [
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+    "--env-file=.env",
+    "../../outputs/growth-production-fix-2026-10-02/independent-m6/floor-canvas-probe.mjs",
+    "955e2277ee1496cfc4b40bd30345d1ce1be1acf1",
+    "floor-canvas-before-results.json",
+    "floor-canvas-before"
+  ],
+  "exit_code": 1,
+  "seconds": 218.387,
+  "source_before": "955e2277ee1496cfc4b40bd30345d1ce1be1acf1",
+  "source_after": "955e2277ee1496cfc4b40bd30345d1ce1be1acf1",
+  "ran_at": "2026-10-03T04:06:07.437441+08:00",
+  "log": "floor-canvas-before.log"
+}

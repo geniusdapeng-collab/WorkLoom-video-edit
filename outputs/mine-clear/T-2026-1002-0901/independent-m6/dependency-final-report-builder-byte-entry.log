@@ -1,0 +1,9 @@
+COMMAND ["python3", "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/independent-m6/execute-report-bytes.py", "95f1b7f0c565f24e96dd9ede2df7cba80e581e9da86a733d3e558b1475edc821"]
+Traceback (most recent call last):
+  File "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/independent-m6/execute-report-bytes.py", line 15, in <module>
+    exec(code, namespace)
+  File "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/independent-m6/build_report.py", line 253, in <module>
+    + table(['实际构建/观察步骤', '退出码/耗时', '性质', '原证据'], [[item['name'], f"exit{item['exit_code']}/{item['seconds']:.3f}s", item['scope'], link(item['file'])] for item in build_attempts['attempts']])
+  File "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/independent-m6/build_report.py", line 253, in <listcomp>
+    + table(['实际构建/观察步骤', '退出码/耗时', '性质', '原证据'], [[item['name'], f"exit{item['exit_code']}/{item['seconds']:.3f}s", item['scope'], link(item['file'])] for item in build_attempts['attempts']])
+KeyError: 'name'

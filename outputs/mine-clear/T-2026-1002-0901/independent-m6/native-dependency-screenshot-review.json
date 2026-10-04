@@ -1,0 +1,80 @@
+{
+  "schema": "growth.independent-m6/native-pixel-review@1",
+  "source_commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+  "reviewed_by": "growth_m6",
+  "reviewed_at": "2026-10-04T03:10:39.321520+08:00",
+  "scope_grade": "C",
+  "directly_viewed_pngs": 8,
+  "files": [
+    {
+      "root_file": "native-dependency-default-render-default.png",
+      "file": "inherited/evidence__native-dependency-default-render-default.png",
+      "sha256": "ce14f053cd7b6bc385d33d5619d593ad6bf07d12ab393788d94666853163915b",
+      "bytes": 1497177,
+      "viewed": true,
+      "review": "Directly viewed current Live2D character fully visible on its dark opening background; no static layout obstruction in this frame. Animation counts come from separate telemetry, not a still frame."
+    },
+    {
+      "root_file": "native-dependency-default-team-default.png",
+      "file": "inherited/evidence__native-dependency-default-team-default.png",
+      "sha256": "1e7cfcd904ee767a504bb0fcd4077a79413b9a15b91c9e55d8d46f029950cf9e",
+      "bytes": 1615061,
+      "viewed": true,
+      "review": "Directly viewed welcome card grid and top controls. Lower final row extends beyond this captured viewport; this frame alone does not prove all65 cards simultaneously visible."
+    },
+    {
+      "root_file": "native-dependency-default-workplace-default.png",
+      "file": "inherited/evidence__native-dependency-default-workplace-default.png",
+      "sha256": "2e3fbd9591e03039db54242fb6ed2c2673b4d5e80add39a6b85bc84e40edc288",
+      "bytes": 1664619,
+      "viewed": true,
+      "review": "Directly viewed3D workplace with separated company-owner label and employee labels, scene fills its region. No previous owner-name overlap visible in this captured frame."
+    },
+    {
+      "root_file": "native-dependency-default-stage-default.png",
+      "file": "inherited/evidence__native-dependency-default-stage-default.png",
+      "sha256": "5711b02f37d1c98b15097a7e9fe282ec49112c8440f95f70e99e9cfc7f9426ab",
+      "bytes": 2077961,
+      "viewed": true,
+      "review": "Directly viewed current3D Stage foreground: circular grid and floor are continuous, without the former large torn blue/black fragments; owner nameplate separated. Static sampled frame only."
+    },
+    {
+      "root_file": "native-dependency-safe-render-safe.png",
+      "file": "inherited/evidence__native-dependency-safe-render-safe.png",
+      "sha256": "733f99f018f54dea43e141e8f1ad426ba617afbef5f81469b2c384c456d65576",
+      "bytes": 278479,
+      "viewed": true,
+      "review": "Directly viewed opening sample showing central red dot and normal page shell; avatar pixel proof is limited at this particular animation frame. Positive vector mouth/blink/gesture comes from separate actual telemetry and later team/workplace/Stage samples."
+    },
+    {
+      "root_file": "native-dependency-safe-team-safe.png",
+      "file": "inherited/evidence__native-dependency-safe-team-safe.png",
+      "sha256": "26853f838b96b4494c21403f3d399eef1c94f7bf01f25416b6ee4834411dd3d4",
+      "bytes": 1515152,
+      "viewed": true,
+      "review": "Directly viewed vector welcome grid and enter controls. Header/last-row visibility is limited in this animation frame;65actor count is separate runtime metadata."
+    },
+    {
+      "root_file": "native-dependency-safe-workplace-safe.png",
+      "file": "inherited/evidence__native-dependency-safe-workplace-safe.png",
+      "sha256": "48416fbfc30554af81afa16c4be98a20aef8766ca5079d04785a0521d63071a4",
+      "bytes": 554548,
+      "viewed": true,
+      "review": "Directly viewed populated vector workplace and owner disc; labels and scene visible, no sampled owner-label overlap. Vector fallback does not prove3D floor behavior."
+    },
+    {
+      "root_file": "native-dependency-safe-stage-safe.png",
+      "file": "inherited/evidence__native-dependency-safe-stage-safe.png",
+      "sha256": "2459c12bbd5cdb7fef524ec466c478e273cb675c96ed9f2836cda8ac061e778d",
+      "bytes": 629161,
+      "viewed": true,
+      "review": "Directly viewed vector Stage with owner and surrounding actor dots; normal fallback frame, separate from default3D floor evidence."
+    }
+  ],
+  "blocking_visual_observations": [],
+  "final_corrected_native_review": true,
+  "full_ux_pass_claimed": false,
+  "original_surface_cold_default_red_preserved": "native-surface-default-original-red-review.json",
+  "safe_opening_avatar_pixel_proof_limited": true,
+  "scope": "Actual current retained8PNG were each directly viewed using view_image. Source/browser/telemetry and root UI execution remain separate evidence; no full UX or arbitrary animation proof."
+}

@@ -1,0 +1,22 @@
+{
+  "schema": "growth.owned-runner-observer-controls@1",
+  "actual_cases": [
+    {
+      "id": "child-result-json-preserved",
+      "pass": true
+    },
+    {
+      "id": "command-receipt-separated",
+      "pass": true
+    },
+    {
+      "id": "reused-label-refused-without-overwrite",
+      "pass": true
+    }
+  ],
+  "runner_sha256": "6c88c57fc41d2910c936ebe6078bf4b9edd9286bfa2ecceba134611111e70386",
+  "child_sha256": "ddd9e57c1f09162b58223ff1345f9ca17cf3f3d47559b7be23851c089775d854",
+  "actual_first_exit": 0,
+  "actual_reused_exit": 1,
+  "source_or_customer_changes": false
+}

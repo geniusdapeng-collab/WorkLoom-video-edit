@@ -1,0 +1,22 @@
+{
+  "product_source_commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+  "product_source_modified": false,
+  "actual_report_generation": false,
+  "changes": [
+    "Strict independently bound 7fee desktop inheritance; preserve original execution source",
+    "Actual immediate .5 to .6 upgrade before record and historical v1 separation",
+    "Include exact native GUI public evidence paths without filename guessing"
+  ],
+  "files": [
+    {
+      "file": "work/build_production_report.py",
+      "sha256": "2141b2edd1b8b0d117805fe7c864060c010ed967c9fb5863a4949dc59f6988b2",
+      "python_ast_and_compile": true
+    },
+    {
+      "file": "work/build_public_growth_bundle.py",
+      "sha256": "5fd272777aab2f58b1808c9348cb277574c772234ea8491e0c5c2722ee29e47c",
+      "python_ast_and_compile": true
+    }
+  ]
+}

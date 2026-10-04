@@ -1,0 +1,13 @@
+{
+  "name": "reset-safety-production-final",
+  "command": [
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+    "--env-file=.env",
+    "--test",
+    "scripts/reset-safety.test.mjs"
+  ],
+  "exit_code": 0,
+  "seconds": 10.13,
+  "ran_at": "2026-10-03T10:53:43.690691+08:00",
+  "log": "reset-safety-production-final.log"
+}

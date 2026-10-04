@@ -1,0 +1,28 @@
+{
+  "schema": "growth.independent-m6/floor-safety-final-provenance@1",
+  "source_commit": "c08386eb9993744a0cb0c2495a98fc1fc4ccbed9",
+  "verified_by": "growth_m6",
+  "generated_at": "2026-10-03T09:16:28.115905+08:00",
+  "original_preparation": "floor-c083-safety-provenance.json",
+  "correction": "floor-c083-safety-alias-correction.json",
+  "observer": {
+    "file": "floor3d-safety-c083-probe.mjs",
+    "sha256": "e0aac4c845238162b503962d608b02a0fd9001eee705f40bca8b5ee3e6a2bce1",
+    "full_read_original_and_single_alias_delta": true
+  },
+  "wrapper": {
+    "file": "floor-c083-safety-fixed.json",
+    "sha256": "aab9764b672cec719c108ca2f7768cf1ef6800978be5987b1da4e81faf8a52a5"
+  },
+  "results": {
+    "file": "floor-c083-safety-fixed-results.json",
+    "sha256": "2339332dbb7ba654d4f656ac322e3f8deddf31d88c78ce245ed0de3b3387464e"
+  },
+  "failed_preparation_cases": 0,
+  "actual_passed_cases": 3,
+  "original_english_fixture_sha256": "baa03dd511f005176dd4e3ea61d6c6fa97d0a89b506a7e49664c047c3baecba2",
+  "original_raw_fixture_retained": true,
+  "legal_chinese_positive_unchanged": true,
+  "test_expectations_or_deadlines_relaxed": false,
+  "product_mutated": false
+}

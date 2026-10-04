@@ -1,0 +1,17 @@
+COMMAND ["bash", "scripts/pack-electron-payload.sh", "--platform", "mac", "--arch", "arm64", "--version", "v0.1.0-fix.20261003.6"]
+== 装配 Electron 自包含载荷（v0.1.0-fix.20261003.6 · mac-arm64）==
+→ 装配产品载荷…
+✓ 已复制 9 项载荷源码，未遍历开发依赖目录
+→ 运行期依赖：npm 扁平化安装…
+scripts/pack-electron-payload.sh: line 121: 45037 Terminated: 15          node scripts/runtime-deps-lock.mjs stage "$NM_STAGE" --os "$TARGET_OS" --cpu "$TARGET_CPU" --registry "$NPM_REG"
+
+REPAIR_CHECK_TIMEOUT owned_process_group=44999
+npm error code ETIMEDOUT
+npm error syscall read
+npm error errno -60
+npm error network read ETIMEDOUT
+npm error network This is a problem related to network connectivity.
+npm error network In most cases you are behind a proxy or have bad network settings.
+npm error network
+npm error network If you are behind a proxy, please make sure that the 'proxy' config is set properly.  See: 'npm help config'
+npm error A complete log of this run can be found in: /Users/mac/.npm/_logs/2026-10-03T14_24_00_820Z-debug-0.log

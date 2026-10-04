@@ -1,0 +1,12 @@
+{
+  "file": "apps/desktop/electron/main.cjs",
+  "audit": "42ead347c65a5cc343bcd290702d53a7fcdb1687",
+  "discovery": "87ab5781d381d19e9dc7e1f5caa98b6a6b410c58",
+  "function_range": "diagnosticText through handleSplashAction; excludes closeSplash",
+  "audit_line": 188,
+  "equal": true,
+  "function_sha256": "5aad80904da2588d079e3943b2f599a7b4a0ecdb2d7f7b2a8034f91596d12df8",
+  "full_audit_file_sha256": "deef7f37e40bf09886f1cf0712b8225b033d2b8958e5b053f7cf5a47c5e04c0f",
+  "full_discovery_file_sha256": "efe4d3c42c76c0b1af4353ad77906f9d5843f562c096076aad6d2cd38c1adf3d",
+  "scope": "Exact function byte equivalence only; no claim entire main unchanged or original audit runtime tested this later discovery."
+}

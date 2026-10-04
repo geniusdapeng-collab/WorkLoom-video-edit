@@ -1,0 +1,88 @@
+{
+  "schema": "growth.independent-m6/final-floor-fullread@1",
+  "read_by": "growth_m6",
+  "source_commit": "c08386eb9993744a0cb0c2495a98fc1fc4ccbed9",
+  "generated_at": "2026-10-03T09:01:16.322021+08:00",
+  "fresh_full_read_files": [
+    {
+      "path": "apps/web/src/components/Floor3D.tsx",
+      "lines": 596,
+      "sha256": "40e8bfa0f688eb527edec2ba10f040afc91a72b1730eb4383d707687fd1bf740",
+      "full_read": true,
+      "grade": "A full source read; B byte binding"
+    },
+    {
+      "path": "apps/web/src/components/Floor3DLabels.test.tsx",
+      "lines": 46,
+      "sha256": "ca2411b9e698bc63d2b22b84ab51e6f3804c2d53492ffdf462f6adeeda76b71a",
+      "full_read": true,
+      "grade": "A full source read; B byte binding"
+    },
+    {
+      "path": "apps/web/src/components/Floor3DLabels.tsx",
+      "lines": 95,
+      "sha256": "3188a20fc7b40580e5e958301ba1ca0913a3165d06a2e4615001546e84412e46",
+      "full_read": true,
+      "grade": "A full source read; B byte binding"
+    },
+    {
+      "path": "apps/web/src/components/Floor3DTaskDrop.test.tsx",
+      "lines": 93,
+      "sha256": "eaa4854a3694bbc0538dd66fae95470c11b0c9c7572996971b54fe4e5c102024",
+      "full_read": true,
+      "grade": "A full source read; B byte binding"
+    },
+    {
+      "path": "apps/web/src/components/Floor3DTaskDrop.tsx",
+      "lines": 55,
+      "sha256": "1c9a40bf5dec879f5896eff88263efedc885de4919b3e4a8d42ecb43e337a81f",
+      "full_read": true,
+      "grade": "A full source read; B byte binding"
+    },
+    {
+      "path": "apps/web/src/components/HoverBubble.tsx",
+      "lines": 60,
+      "sha256": "f31aac61c489193fe9892d21613c132af1c4db1608b1dfe0e2cc3d6d484f3ad5",
+      "full_read": true,
+      "grade": "A full source read; B byte binding"
+    },
+    {
+      "path": "apps/web/src/components/floor3d-layout.test.ts",
+      "lines": 63,
+      "sha256": "ee4667f023d1d8d0950af51322d910f8c628677017a95c9f8b13180b9be1d440",
+      "full_read": true,
+      "grade": "A full source read; B byte binding"
+    },
+    {
+      "path": "apps/web/src/components/floor3d-layout.ts",
+      "lines": 83,
+      "sha256": "4a8ace04880cc9995a44ff6780a122eaad38b3b2057115f3d25ded45a18e803a",
+      "full_read": true,
+      "grade": "A full source read; B byte binding"
+    },
+    {
+      "path": "docs/repairs/T-2026-1002-0901.md",
+      "lines": 75,
+      "sha256": "12349ad1dfc9854e125dcf8d2eb7cbbc6661282ebfa0671f18701cedccf2dca6",
+      "full_read": true,
+      "grade": "A full source read; B byte binding"
+    },
+    {
+      "path": "apps/web/src/components/Avatar3D.tsx",
+      "lines": 183,
+      "sha256": "8f21118320959db5b40c99cf05e7facb69ef9517805df01f069697e15c37a28a",
+      "full_read": true,
+      "grade": "A full source read; B byte binding"
+    },
+    {
+      "path": "apps/web/src/lib/theaterDiff.ts",
+      "lines": 104,
+      "sha256": "2dc17c972130c8a27fbb8201419dc6219cc281e47b7dae2235f799d3e31a103f",
+      "full_read": true,
+      "grade": "A full source read; B byte binding"
+    }
+  ],
+  "prior_full_read_registry_before": 131,
+  "prior_full_read_registry_after": 136,
+  "fullread_statement": "All final nine changed/new source, direct tests and repair documentation were fully read; unchanged direct dependencies use earlier complete reads plus exact Git comparison."
+}

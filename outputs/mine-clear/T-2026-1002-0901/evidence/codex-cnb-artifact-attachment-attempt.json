@@ -1,0 +1,9 @@
+{
+  "action": "mcp__codex_app__attach_artifact",
+  "artifact_type": "pull_request",
+  "url": "https://cnb.cool/workloom-ai/WorkLoom-growth/-/pulls/318",
+  "result": "attach_artifact requires a supported artifact type and valid pull request URL.",
+  "attached": false,
+  "source_or_remote_change": false,
+  "conclusion": "Current Codex attachment tool rejected this CNB URL; no unsupported attachment success claimed"
+}

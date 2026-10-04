@@ -1,0 +1,7 @@
+{
+  "source_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+  "after_cancel_destination_sha256": "30e690d9684d6b68dab2051d2298ff7d451087023eaa95449ddbbd056992dddc",
+  "after_cancel_destination_mode": "0644",
+  "pass": true,
+  "ui_origin": "Actual CUA click on native Save Cancel followed by retained startup failure page"
+}

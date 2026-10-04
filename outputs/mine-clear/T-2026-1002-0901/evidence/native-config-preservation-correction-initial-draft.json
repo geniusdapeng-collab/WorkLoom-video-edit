@@ -1,0 +1,30 @@
+{
+  "schema": "growth.native-config-preservation-correction@1",
+  "recorded_at": "2026-10-03T02:50:53.171603+08:00",
+  "corrects": "native-avatar-evidence-cleanup.json",
+  "affected_owned_fixture": "work/生命周期 默认客户",
+  "old_claim": "All private configuration was preserved during owned runtime cleanup",
+  "old_claim_is_correct": false,
+  "actual_action": "Deleting this stopped task-owned runtime directory also deleted runtime/.env",
+  "lost_file": "runtime/.env",
+  "scope": "Randomly generated configuration for this isolated QA fixture; not a customer configuration or supplier credential source",
+  "retained_actions": [
+    "Retained owned pgdata and database-state.json",
+    "Retained VERSION and install-state.json",
+    "Retained logs and unique original failed render receipts"
+  ],
+  "later_same_version_bootstrap_failure": "The VERSION marker remained while runtime had been deleted; original installer skipped assembly and failed to read runtime/VERSION",
+  "source_repair": "955e2277ee1496cfc4b40bd30345d1ce1be1acf1 checks actual installed runtime and required binaries before skipping assembly",
+  "later_cleanup_policy": "Copy runtime/.env to private mode0600 qa-retained-config.env before deleting only stopped owned runtime and caches; retain the correction and original failed runs",
+  "related_receipts": [
+    "native-guide-recovery-fixture.json",
+    "native-guide-diagnostic-v2-retention.json",
+    "desktop-recovery-marker-before.json",
+    "desktop-recovery-marker-after.json"
+  ],
+  "customer_data_touched": false,
+  "paid_provider_calls": 0,
+  "private_values_included": false,
+  "draft_only": true,
+  "discarded_reason": "Mapped the oldest cleanup receipt to the later fixture; final correction below distinguishes both records."
+}

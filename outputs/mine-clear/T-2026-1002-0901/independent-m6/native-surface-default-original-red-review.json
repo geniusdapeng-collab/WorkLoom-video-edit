@@ -1,0 +1,93 @@
+{
+  "schema": "growth.independent-m6/native-failed-control-review@1",
+  "reviewed_at": "2026-10-03T19:55:45.104377+08:00",
+  "reviewed_by": "growth_m6",
+  "root_execution_source_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+  "source_commit_origin": "Parent explicitly asserted exact clean source; original runtime wrapper and partial renderer JSON have no source SHA field",
+  "source_sha_added_to_original": false,
+  "root_exit_code": 1,
+  "root_seconds": 56.336,
+  "original_failure_not_rewritten_as_passed": true,
+  "partial_runtime_observations": {
+    "product_ready": true,
+    "welcome_ready": true,
+    "avatar_ready": true,
+    "render_mode": "live2d-webgl",
+    "mouth_peak": 0.45,
+    "blink_count": 1,
+    "gesture_count": 1,
+    "parameter_write_failures": 0,
+    "team_actors": 65,
+    "first_day_guide_field_present": false,
+    "workplace_field_present": false,
+    "report_stage_field_present": false
+  },
+  "directly_viewed_pngs": 2,
+  "pixel_review": {
+    "opening": "Live2D figure and focusable skip-opening control visible; sampled dark animated background. Static frame does not prove full opening interaction.",
+    "team": "Dense role/name cards and later/enter buttons visible/readable; lower rows extend into internally scrolling region. No actual Stage image exists in this failed run."
+  },
+  "failure_stop_location": "After retained team evidence and before a firstDayGuide/workplace/reportStage result was persisted; exact thrown cause absent from command log",
+  "root_cause_proven": false,
+  "disk_pressure_attribution_proven": false,
+  "all_final_native_cases_passed": false,
+  "stage_geometry_pixels_verified_by_this_run": false,
+  "actual_verifier_GPU_native_PG_calls": 0,
+  "private_contents_opened": false,
+  "public_evidence": [
+    {
+      "root_file": "mac-surface-default.json",
+      "file": "inherited/evidence__mac-surface-default.json",
+      "sha256": "7326239456805016ce01381b6aaad6c0d9916fbefdba4f51691ff7d657587ce5",
+      "bytes": 403,
+      "fully_read": true,
+      "viewed": false,
+      "grade": "B"
+    },
+    {
+      "root_file": "mac-surface-default.log",
+      "file": "inherited/evidence__mac-surface-default.log",
+      "sha256": "a86b36f1113216937c0bffcb70fa8317baa8a03fdc54868d6418e4a54faffec9",
+      "bytes": 1866,
+      "fully_read": true,
+      "viewed": false,
+      "grade": "B"
+    },
+    {
+      "root_file": "native-surface-default-retention.json",
+      "file": "inherited/evidence__native-surface-default-retention.json",
+      "sha256": "57cdf603ac36d8a5c5bb634f164e87fa17e13fb4ebb7ba5175018fe413c70101",
+      "bytes": 1203,
+      "fully_read": true,
+      "viewed": false,
+      "grade": "B"
+    },
+    {
+      "root_file": "native-surface-default-render-default.json",
+      "file": "inherited/evidence__native-surface-default-render-default.json",
+      "sha256": "786dc51c6e2a4559d556c8fdba893522bd95096a485d2e5556247bdb90a927c3",
+      "bytes": 4315,
+      "fully_read": true,
+      "viewed": false,
+      "grade": "B"
+    },
+    {
+      "root_file": "native-surface-default-render-default.png",
+      "file": "inherited/evidence__native-surface-default-render-default.png",
+      "sha256": "91422a4597d0c44bdc0f0c0e874a11432729a4957de6420fd9dacac94c203810",
+      "bytes": 1470683,
+      "fully_read": false,
+      "viewed": true,
+      "grade": "C"
+    },
+    {
+      "root_file": "native-surface-default-team-default.png",
+      "file": "inherited/evidence__native-surface-default-team-default.png",
+      "sha256": "1c7f5da064eeb1f1ceb22994849b0f8e15ca0d0b71f5ef704a53ef8a8c26d2bb",
+      "bytes": 1594312,
+      "fully_read": false,
+      "viewed": true,
+      "grade": "C"
+    }
+  ]
+}

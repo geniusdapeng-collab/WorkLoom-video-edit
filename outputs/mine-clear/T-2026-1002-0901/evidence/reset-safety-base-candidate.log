@@ -1,0 +1,17 @@
+COMMAND ["/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node", "--test", "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/reset-safety-controlled-candidate/reset-safety.test.mjs"]
+✔ 非交互调用没有 --yes 时 fail closed，且不访问数据库 (73.911209ms)
+✔ 远端、生产和数据库名不匹配目标始终拒绝 (144.566417ms)
+✔ 检测到非演示工作区时拒绝删除 (849.643917ms)
+✔ 本机 workloom 纯演示库先备份，再事务重建并执行迁移种子 (1406.291084ms)
+✔ 未知参数 fail closed (8.424167ms)
+✔ 备份失败时禁止删除和后续迁移种子 (1023.041208ms)
+✔ 空备份不能证明可恢复，禁止删除 (1047.102375ms)
+✔ 客户类型查询失败或不可识别时禁止备份与删除 (3003.045209ms)
+ℹ tests 8
+ℹ suites 0
+ℹ pass 8
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 7607.67275

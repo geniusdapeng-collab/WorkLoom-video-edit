@@ -1,0 +1,342 @@
+COMMAND ["/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node", "--env-file=.env", "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/pnpm/bin/pnpm.cjs", "--filter", "@workloom/base", "test"]
+
+> @workloom/base@0.1.0 test /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/packages/base
+> vitest run
+
+
+[1m[30m[46m RUN [49m[39m[22m [36mv4.1.11 [39m[90m/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/packages/base[39m
+
+ [31m❯[39m bundles/post-audio-stems.test.ts [2m([22m[2m2 tests[22m[2m | [22m[31m1 failed[39m[2m)[22m[33m 183569[2mms[22m[39m
+   [33m[2m✓[22m[39m validates real receipt signatures, binding mutations, host tenant and expiry without media tools [33m 2961[2mms[22m[39m
+[31m   [31m×[31m renders and replays independent stems; exercises the real mixer, CLI and HTTP idempotency[39m[33m 180597[2mms[22m[39m
+ [32m✓[39m event-bus/event-bus.test.ts [2m([22m[2m30 tests[22m[2m)[22m[33m 23398[2mms[22m[39m
+         [33m[2m✓[22m[39m 扇出：一条事件 N 个消费组各自独立位点收全 [33m 2056[2mms[22m[39m
+         [33m[2m✓[22m[39m ack 语义：ack 后不重投；未 ack redeliver 重投且计数递增 [33m 1705[2mms[22m[39m
+         [33m[2m✓[22m[39m 背压：pending 达上限 pull 返回空，积压留在总线 [33m 1610[2mms[22m[39m
+         [33m[2m✓[22m[39m deliver-at：到点前不可见，到点必达（pullDueDelayed） [33m 1661[2mms[22m[39m
+         [33m[2m✓[22m[39m 位点重放：fromSeq 之后全量有序返回 [33m 892[2mms[22m[39m
+         [33m[2m✓[22m[39m 四流隔离：流名拼错即抛（不静默写错流） [33m 597[2mms[22m[39m
+         [33m[2m✓[22m[39m 多字节负载：中文/emoji 事件全链路不失真（字节组帧回归） [33m 1916[2mms[22m[39m
+         [33m[2m✓[22m[39m flush 重入安全：并发 flush 不产生重复发布（演练实证回归） [33m 1723[2mms[22m[39m
+         [33m[2m✓[22m[39m 崩溃重启：在途消息不丢，镜像从服务器重建 [33m 1569[2mms[22m[39m
+         [33m[2m✓[22m[39m 崩溃重启：未 ack 重投、已 ack 不重投 [33m 2735[2mms[22m[39m
+         [33m[2m✓[22m[39m 崩溃重启：延迟消息仍必达 [33m 2398[2mms[22m[39m
+         [33m[2m✓[22m[39m 扇出：一条事件 N 个消费组各自独立位点收全 [33m 860[2mms[22m[39m
+         [33m[2m✓[22m[39m ack 语义：ack 后不重投；未 ack redeliver 重投且计数递增 [33m 708[2mms[22m[39m
+         [33m[2m✓[22m[39m flush 重入安全：并发 flush 不产生重复发布（演练实证回归） [33m 786[2mms[22m[39m
+         [33m[2m✓[22m[39m 崩溃重启：未 ack 重投、已 ack 不重投 [33m 504[2mms[22m[39m
+ [32m✓[39m bundles/bgm-tag.test.ts [2m([22m[2m28 tests[22m[2m)[22m[33m 218191[2mms[22m[39m
+     [33m[2m✓[22m[39m 风格表与目录先验自洽：每个先验风格都在风格族表里，标签不重复 [33m 510[2mms[22m[39m
+     [33m[2m✓[22m[39m rebind：素材换位置后按文件名+大小重新绑定（sha256 模式严格核验内容） [33m 516[2mms[22m[39m
+     [33m[2m✓[22m[39m 写盘后运行时加载器能直接读到（三级曲库合并的第一级） [33m 1024[2mms[22m[39m
+     [33m[2m✓[22m[39m 合成曲目打标 → 索引/证据/报告三件套齐备，且拍速/响度来自实测 [33m 89597[2mms[22m[39m
+     [33m[2m✓[22m[39m 真机量测的清单与报告落在库里，低置信与剔除项都可追溯 [33m 125910[2mms[22m[39m
+ [31m❯[39m bundles/bundles.test.ts [2m([22m[2m11 tests[22m[2m | [22m[31m5 failed[39m[2m)[22m[33m 92650[2mms[22m[39m
+     [32m✓[39m 五要素向导产出草稿骨架：五槽目录 + bundle.json status=draft（不进分发）[32m 36[2mms[22m[39m
+     [32m✓[39m slug 非法拒绝；重复 slug 拒绝（幂等键保护）[32m 14[2mms[22m[39m
+     [32m✓[39m 已激活/已分发 profile 不可移除（§2.3 保护）[32m 2[2mms[22m[39m
+     [32m✓[39m 页面注册表覆盖工作台九大页 + 获客控制台 p10–p20（UI 用例同步校验基准）[32m 4[2mms[22m[39m
+[31m     [31m×[31m hotel profile：七槽 7/7 已装配 + 起飞前检查单七项全绿（F2.10 + v3.0 第⑦槽）[39m[33m 5145[2mms[22m[39m
+[31m     [31m×[31m 校验留痕：recheck 写 bundle.check_run 事件（P7E3 留痕可查）[39m[33m 5037[2mms[22m[39m
+[31m     [31m×[31m 融合装配：组合主包激活 = 三包编制齐装（81 岗）+ 围栏并集 + 遮蔽留痕[39m[33m 31645[2mms[22m[39m
+[31m     [31m×[31m 校验留痕：recheck 写 bundle.check_run 事件（P7E3 留痕可查）[39m[33m 25459[2mms[22m[39m
+     [33m[2m✓[22m[39m 激活幂等：hotel 已激活仍可重激活并留痕 bundle.activate [33m 1416[2mms[22m[39m
+[31m     [31m×[31m H-15 第三行业五要素填充即可运行：填满五槽 → 6/6 全绿 → 激活切换 → 底座代码零改动（§2.3/§2.4）[39m[33m 22333[2mms[22m[39m
+     [33m[2m✓[22m[39m 草稿 Bundle：六槽待填充 + 校验五项全红（第⑦槽骨架自带不阻断）+ 拒绝激活（F2.10 不静默 L9.2） [33m 1499[2mms[22m[39m
+ [31m❯[39m dev-bridge/dev-bridge.test.ts [2m([22m[2m30 tests[22m[2m | [22m[31m2 failed[39m[2m)[22m[33m 106697[2mms[22m[39m
+     [32m✓[39m codex：exec --json --sandbox workspace-write（不用废弃的 --full-auto）[32m 12[2mms[22m[39m
+     [32m✓[39m codex：返修续跑走 exec resume <thread_id>[32m 6[2mms[22m[39m
+     [32m✓[39m claude-code：stream-json + acceptEdits（绝不用 dangerously-skip）[32m 2[2mms[22m[39m
+     [32m✓[39m aider：--no-git（git 由系统自管）+ --yes-always[32m 7[2mms[22m[39m
+     [32m✓[39m codex JSONL：thread/命令/文件/用量/错误[32m 5[2mms[22m[39m
+     [32m✓[39m claude stream-json：init/工具调用/文件编辑/result[32m 2[2mms[22m[39m
+     [32m✓[39m aider 文本流：编辑行/命令行/普通叙述/装饰行过滤[32m 49[2mms[22m[39m
+     [32m✓[39m deny：毁灭性与凭据外泄[32m 48[2mms[22m[39m
+     [32m✓[39m escalate：影响面超出 worktree[32m 53[2mms[22m[39m
+     [32m✓[39m allow：常规开发命令[32m 1[2mms[22m[39m
+     [32m✓[39m 按变更性质递进[32m 1[2mms[22m[39m
+     [32m✓[39m 变更性质推断[32m 89[2mms[22m[39m
+     [32m✓[39m 含验收标准编号与全部红线[32m 1[2mms[22m[39m
+     [33m[2m✓[22m[39m 正常会话：事件流完整归一 + 用量汇总 + done 退出 [33m 1374[2mms[22m[39m
+     [33m[2m✓[22m[39m 围栏熔断：连续 3 次违禁命令 → fence_break 击杀 [33m 1063[2mms[22m[39m
+     [33m[2m✓[22m[39m 超时熔断：长睡眠进程被 timeout 击杀 [33m 1625[2mms[22m[39m
+     [33m[2m✓[22m[39m 取消：cancel 后 exitReason=canceled [33m 358[2mms[22m[39m
+[31m     [31m×[31m 全链路：建隔离→机床改代码→回收 diff→提交→合并基线→打标签[39m[33m 33010[2mms[22m[39m
+[31m     [31m×[31m 合并冲突：自动中止并抛错（转人工，绝不强合）[39m[33m 67723[2mms[22m[39m
+     [32m✓[39m 契约校验：缺 {{prompt}} 模板位拒收[32m 169[2mms[22m[39m
+     [33m[2m✓[22m[39m argv 模板替换 + resume_id 缺省剔除空参 [33m 402[2mms[22m[39m
+     [32m✓[39m text 协议正则映射[32m 10[2mms[22m[39m
+     [32m✓[39m json-result 协议：结果对象=done，过程行=progress[32m 3[2mms[22m[39m
+     [33m[2m✓[22m[39m 自定义目录热加载：YAML 落盘即接入；坏文件跳过不拖垮 [33m 407[2mms[22m[39m
+     [32m✓[39m 注册表：Codex 优先，Qoder/Kimi 随后，自定义末尾[32m 6[2mms[22m[39m
+     [32m✓[39m qoder：-p + stream-json + accept_edits（不用 yolo/bypass）[32m 7[2mms[22m[39m
+     [32m✓[39m kimi：-p + stream-json；续跑 --session[32m 1[2mms[22m[39m
+     [32m✓[39m kimi stream-json 变体解析：OpenAI 风格 tool_calls[32m 12[2mms[22m[39m
+     [32m✓[39m zai：json-result 协议 + -V 版本握手[32m 1[2mms[22m[39m
+     [32m✓[39m 同名自定义不覆盖内置（纪律）[32m 17[2mms[22m[39m
+ [32m✓[39m bundles/bgm-capability.test.ts [2m([22m[2m38 tests[22m[2m)[22m[33m 20734[2mms[22m[39m
+     [33m[2m✓[22m[39m 事件前缀 bgm. 在本包内未被其它岗位占用 [33m 357[2mms[22m[39m
+     [33m[2m✓[22m[39m 曲库检索：商用场景自动过滤 NC 曲目，并给出 TASL 署名 [33m 2110[2mms[22m[39m
+     [33m[2m✓[22m[39m findTracks 返回条数上限可配（默认 20；显式 limit 可拿全量候选池） [33m 560[2mms[22m[39m
+     [33m[2m✓[22m[39m 确定性合成：同配方 + 同种子 → 同 sha256（可复现、可核验） [33m 16477[2mms[22m[39m
+     [33m[2m✓[22m[39m 每首选段的 sha256 与磁盘文件一致，且能按三级合并被加载器读到 [33m 357[2mms[22m[39m
+ [32m✓[39m service-channels/service-channels.test.ts [2m([22m[2m13 tests[22m[2m)[22m[33m 1250[2mms[22m[39m
+     [33m[2m✓[22m[39m 过期令牌抛 EXPIRED [33m 1121[2mms[22m[39m
+ [32m✓[39m bundles/post-delivery-integrity.test.ts [2m([22m[2m1 test[22m[2m)[22m[33m 5760[2mms[22m[39m
+   [33m[2m✓[22m[39m rejects a replaced normalization cache and a modified prior variant during reedit [33m 5757[2mms[22m[39m
+ [32m✓[39m bundles/post-av-sync.test.ts [2m([22m[2m12 tests[22m[2m)[22m[33m 2803[2mms[22m[39m
+     [33m[2m✓[22m[39m 互相关求时延：两侧实现对同一输入给出相同结果（±80 样点 = +5ms） [33m 2737[2mms[22m[39m
+ [32m✓[39m fence-engine/fence-engine.test.ts [2m([22m[2m18 tests[22m[2m)[22m[33m 815[2mms[22m[39m
+     [33m[2m✓[22m[39m 对象写锁：持锁期间他人超时转「需介入」（E2.5） [33m 599[2mms[22m[39m
+[90mstderr[2m | accounts/accounts.test.ts[2m > [22m[2mproviders（开发通道）[2m > [22m[2mDevEchoSms 记录发送内容（不自真发短信）
+[22m[39m[accounts][dev-sms] → 13800001111: 验证码 123456
+
+[90mstderr[2m | accounts/accounts.test.ts[2m > [22m[2mPG 集成 · 账号全链路（0027 迁移后）[2m > [22m[2m自助开通：注册→建租户→首店→owner 身份→签发双令牌
+[22m[39m[accounts][dev-sms] → 13902557858: 【WorkLoom】验证码 983916，5 分钟内有效。请勿泄露给他人。
+
+[90mstderr[2m | accounts/accounts.test.ts[2m > [22m[2mPG 集成 · 账号全链路（0027 迁移后）[2m > [22m[2m高风险验证码绑定具体动作，且消费后不能重放
+[22m[39m[accounts][dev-sms] → 13902557858: 【WorkLoom】验证码 652482，5 分钟内有效。请勿泄露给他人。
+
+[90mstderr[2m | accounts/accounts.test.ts[2m > [22m[2mPG 集成 · 账号全链路（0027 迁移后）[2m > [22m[2m验证码登录 + 每日限发 5 次
+[22m[39m[accounts][dev-sms] → 13902557858: 【WorkLoom】验证码 165225，5 分钟内有效。请勿泄露给他人。
+
+[90mstderr[2m | accounts/accounts.test.ts[2m > [22m[2mPG 集成 · 账号全链路（0027 迁移后）[2m > [22m[2m验证码登录 + 每日限发 5 次
+[22m[39m[accounts][dev-sms] → 13902557858: 【WorkLoom】验证码 990280，5 分钟内有效。请勿泄露给他人。
+
+[90mstderr[2m | accounts/accounts.test.ts[2m > [22m[2mPG 集成 · 账号全链路（0027 迁移后）[2m > [22m[2m验证码登录 + 每日限发 5 次
+[22m[39m[accounts][dev-sms] → 13902557858: 【WorkLoom】验证码 263354，5 分钟内有效。请勿泄露给他人。
+
+[90mstderr[2m | accounts/accounts.test.ts[2m > [22m[2mPG 集成 · 账号全链路（0027 迁移后）[2m > [22m[2m验证码登录 + 每日限发 5 次
+[22m[39m[accounts][dev-sms] → 13902557858: 【WorkLoom】验证码 767252，5 分钟内有效。请勿泄露给他人。
+
+[90mstderr[2m | accounts/accounts.test.ts[2m > [22m[2mPG 集成 · 账号全链路（0027 迁移后）[2m > [22m[2m验证码登录 + 每日限发 5 次
+[22m[39m[accounts][dev-sms] → 13902557858: 【WorkLoom】验证码 354543，5 分钟内有效。请勿泄露给他人。
+
+[90mstderr[2m | accounts/accounts.test.ts[2m > [22m[2mPG 集成 · 账号全链路（0027 迁移后）[2m > [22m[2m邀请→接受→成员生效；移除后立即失去身份
+[22m[39m[accounts][dev-sms] → 13858009701: 【WorkLoom】邀请码 963090：您被邀请加入工作区，72 小时内有效。
+
+[90mstderr[2m | accounts/accounts.test.ts[2m > [22m[2mPG 集成 · 账号全链路（0027 迁移后）[2m > [22m[2m伙伴域：登记→授权→伙伴登录→能力校验→吊销即时生效
+[22m[39m[accounts][dev-sms] → 13703028546: 【WorkLoom】验证码 107252，5 分钟内有效。请勿泄露给他人。
+
+[90mstderr[2m | accounts/accounts.test.ts[2m > [22m[2mPG 集成 · 账号全链路（0027 迁移后）[2m > [22m[2m一次性工单通行证：单工单+短时效+仅 workorder.self
+[22m[39m[accounts][dev-sms] → 13663981492: 【WorkLoom】工单通行码 397259：您有一张工单待处理，48 小时内有效。
+
+ [32m✓[39m accounts/accounts.test.ts [2m([22m[2m31 tests[22m[2m)[22m[33m 2467[2mms[22m[39m
+     [33m[2m✓[22m[39m scrypt 往返：正确口令通过、错误口令拒绝、盐互不相同 [33m 554[2mms[22m[39m
+     [33m[2m✓[22m[39m 错误密码登录累计 5 次锁定 15 分钟 [33m 1332[2mms[22m[39m
+ [32m✓[39m bundles/cover-capability.test.ts [2m([22m[2m11 tests[22m[2m)[22m[33m 2446[2mms[22m[39m
+     [33m[2m✓[22m[39m 考试院题集含 ≥6 道封面题，且题题有硬断言与评分口径 [33m 2408[2mms[22m[39m
+ [32m✓[39m skill-ops/skill-ops.test.ts [2m([22m[2m28 tests[22m[2m)[22m[33m 1580[2mms[22m[39m
+     [33m[2m✓[22m[39m L0 知识型首装：silent 策略下静默热装载 + 快照 + 事件留痕 [33m 512[2mms[22m[39m
+     [33m[2m✓[22m[39m 回流发送：outbox 落库 + skill.reflux.sent 留痕；脱敏管道遇凭据词拒发 [33m 302[2mms[22m[39m
+ [32m✓[39m bundles/post-delivery-capability.test.ts [2m([22m[2m35 tests[22m[2m)[22m[33m 861[2mms[22m[39m
+     [33m[2m✓[22m[39m 选曲支持 曲目 id / 风格关键词 / 情绪 三种口径，且找不到就报错（不静默换曲） [33m 777[2mms[22m[39m
+ [32m✓[39m bundles/subtitle-capability.test.ts [2m([22m[2m44 tests[22m[2m)[22m[33m 736[2mms[22m[39m
+     [33m[2m✓[22m[39m 29 款字体已随仓分发，且文件字节与档案 sha256 逐一致（A 级：真实文件哈希） [33m 337[2mms[22m[39m
+ [32m✓[39m evolve/evolve.test.ts [2m([22m[2m15 tests[22m[2m)[22m[33m 1789[2mms[22m[39m
+     [33m[2m✓[22m[39m 提炼器：≥阈值驳回聚类 → 偏好记忆强化 + memory.calibrate 事件（做实 G3） [33m 400[2mms[22m[39m
+     [33m[2m✓[22m[39m 生命周期：编辑 → 影响预览 → 禁用/重新启用 → 来源清算/撤销，全程留痕 [33m 763[2mms[22m[39m
+ [32m✓[39m skills/skills.test.ts [2m([22m[2m14 tests[22m[2m)[22m[33m 1507[2mms[22m[39m
+     [33m[2m✓[22m[39m F8.4 高频检测建议 → 一键确认生成触发器 → 不再重复建议；E8.3 驳回后阈值 ×2 [33m 935[2mms[22m[39m
+ [32m✓[39m workdata/recall.test.ts [2m([22m[2m14 tests[22m[2m)[22m[33m 521[2mms[22m[39m
+ [32m✓[39m overlay/overlay.test.ts [2m([22m[2m14 tests[22m[2m)[22m[33m 469[2mms[22m[39m
+     [33m[2m✓[22m[39m 云栖亲子店 vs 云栖商务店：同一酒店包两种脾气 [33m 414[2mms[22m[39m
+ [32m✓[39m workdata/security-audit.test.ts [2m([22m[2m6 tests[22m[2m)[22m[33m 1430[2mms[22m[39m
+     [33m[2m✓[22m[39m H-11：全部事件 payload / Agent 提示词 / 技能正文均不含凭据密文（只记引用 ID） [33m 1203[2mms[22m[39m
+ [32m✓[39m accounts/role-access.test.ts [2m([22m[2m6 tests[22m[2m)[22m[33m 579[2mms[22m[39m
+ [32m✓[39m fence-engine/hardening.test.ts [2m([22m[2m18 tests[22m[2m)[22m[33m 356[2mms[22m[39m
+ [32m✓[39m review-console/approvals.test.ts [2m([22m[2m14 tests[22m[2m)[22m[33m 333[2mms[22m[39m
+ [32m✓[39m im-channels/im-channels.test.ts [2m([22m[2m13 tests[22m[2m)[22m[33m 1887[2mms[22m[39m
+     [33m[2m✓[22m[39m 入站消息落五元事件可检索（G8）；重复投递幂等丢弃（L1.4 同口径） [33m 956[2mms[22m[39m
+     [33m[2m✓[22m[39m 手势回调闭环：approve 生效 → 重复回调 deduped（L5.3）；未映射 openid 拒绝（E5.2）；readonly 无权（L5.1） [33m 358[2mms[22m[39m
+ [32m✓[39m bundles/agent-knowhow.test.ts [2m([22m[2m231 tests[22m[2m)[22m[33m 659[2mms[22m[39m
+ [32m✓[39m inspection/inspection.test.ts [2m([22m[2m11 tests[22m[2m)[22m[33m 826[2mms[22m[39m
+     [33m[2m✓[22m[39m L9.1 只读前置通过 + F9.2 异常分级事件 + G3 高优推送 + F9.4 状态条 [33m 470[2mms[22m[39m
+ [32m✓[39m model-router/gen-pool.test.ts [2m([22m[2m21 tests[22m[2m)[22m[32m 266[2mms[22m[39m
+ [32m✓[39m overlay/hardening.test.ts [2m([22m[2m18 tests[22m[2m)[22m[32m 265[2mms[22m[39m
+ [32m✓[39m workdata/memory.test.ts [2m([22m[2m9 tests[22m[2m)[22m[32m 240[2mms[22m[39m
+ [32m✓[39m workdata/workdata.test.ts [2m([22m[2m30 tests[22m[2m)[22m[33m 410[2mms[22m[39m
+ [32m✓[39m model-router/model-router.test.ts [2m([22m[2m11 tests[22m[2m)[22m[32m 288[2mms[22m[39m
+ [32m✓[39m tenancy/tenancy.test.ts [2m([22m[2m15 tests[22m[2m)[22m[32m 231[2mms[22m[39m
+ [32m✓[39m bundles/projection-composition.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 191[2mms[22m[39m
+ [32m✓[39m service-kb/scenarios.test.ts [2m([22m[2m51 tests[22m[2m)[22m[33m 376[2mms[22m[39m
+ [32m✓[39m workdata/event-sequence.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 181[2mms[22m[39m
+ [32m✓[39m workdata/atomicity.test.ts [2m([22m[2m5 tests[22m[2m)[22m[33m 327[2mms[22m[39m
+ [32m✓[39m overlay/store.test.ts [2m([22m[2m1 test[22m[2m)[22m[32m 171[2mms[22m[39m
+ [32m✓[39m model-router/router-v3.test.ts [2m([22m[2m27 tests[22m[2m)[22m[33m 364[2mms[22m[39m
+ [32m✓[39m publish-rpa/publish-rpa.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 144[2mms[22m[39m
+ [32m✓[39m overlay/pipeline.integration.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 344[2mms[22m[39m
+     [33m[2m✓[22m[39m L1 意图 → 草稿 → 考试 → 灰度 → 全量 → 回滚 → 健康汇总 全链路 [33m 323[2mms[22m[39m
+ [32m✓[39m asset-cms/asset-cms.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 71[2mms[22m[39m
+ [32m✓[39m connectors/connectors.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 120[2mms[22m[39m
+ [32m✓[39m night-shift/night-shift.test.ts [2m([22m[2m12 tests[22m[2m | [22m[33m7 skipped[39m[2m)[22m[32m 53[2mms[22m[39m
+ [32m✓[39m bundles/whiteboard-capability.test.ts [2m([22m[2m16 tests[22m[2m)[22m[32m 30[2mms[22m[39m
+ [32m✓[39m bundles/voice-capability.test.ts [2m([22m[2m23 tests[22m[2m)[22m[32m 88[2mms[22m[39m
+ [32m✓[39m overlay/doc-intake.test.ts [2m([22m[2m25 tests[22m[2m)[22m[32m 62[2mms[22m[39m
+ [32m✓[39m bundles/segment.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 46[2mms[22m[39m
+ [32m✓[39m service-channels/scenarios.test.ts [2m([22m[2m26 tests[22m[2m)[22m[32m 68[2mms[22m[39m
+ [32m✓[39m service-ticket/scenarios.test.ts [2m([22m[2m52 tests[22m[2m)[22m[32m 35[2mms[22m[39m
+ [32m✓[39m audit-core/audit-core.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 20[2mms[22m[39m
+ [32m✓[39m deal-flow/deal-flow.test.ts [2m([22m[2m12 tests[22m[2m)[22m[32m 20[2mms[22m[39m
+ [32m✓[39m overlay/pipeline.test.ts [2m([22m[2m16 tests[22m[2m)[22m[33m 337[2mms[22m[39m
+ [32m✓[39m cost-ledger/cost-ledger.test.ts [2m([22m[2m7 tests[22m[2m)[22m[32m 33[2mms[22m[39m
+ [32m✓[39m social-listening/social-listening.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 31[2mms[22m[39m
+ [32m✓[39m service-dialog/scenarios.test.ts [2m([22m[2m47 tests[22m[2m)[22m[32m 25[2mms[22m[39m
+ [32m✓[39m service-kb/service-kb.test.ts [2m([22m[2m13 tests[22m[2m)[22m[32m 18[2mms[22m[39m
+ [32m✓[39m service-dialog/service-dialog.test.ts [2m([22m[2m13 tests[22m[2m)[22m[32m 17[2mms[22m[39m
+ [32m✓[39m service-ticket/service-ticket.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 24[2mms[22m[39m
+ [32m✓[39m captain/captain.test.ts [2m([22m[2m22 tests[22m[2m)[22m[32m 15[2mms[22m[39m
+ [32m✓[39m captain/charter-autonomy.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 16[2mms[22m[39m
+ [32m✓[39m wizard/wizard.test.ts [2m([22m[2m18 tests[22m[2m)[22m[32m 9[2mms[22m[39m
+ [32m✓[39m eval-core/eval-core.test.ts [2m([22m[2m19 tests[22m[2m)[22m[32m 10[2mms[22m[39m
+ [32m✓[39m bundles/acquisition-loop.test.ts [2m([22m[2m11 tests[22m[2m)[22m[32m 37[2mms[22m[39m
+ [32m✓[39m computer-use/computer-use.test.ts [2m([22m[2m8 tests[22m[2m)[22m[32m 15[2mms[22m[39m
+ [32m✓[39m social-listening/normalize.test.ts [2m([22m[2m11 tests[22m[2m)[22m[32m 50[2mms[22m[39m
+ [32m✓[39m bundles/truth-check-bridge.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 12[2mms[22m[39m
+ [32m✓[39m skills/official.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 27[2mms[22m[39m
+ [32m✓[39m bundles/eval-questions-coverage.test.ts [2m([22m[2m10 tests[22m[2m)[22m[32m 33[2mms[22m[39m
+ [32m✓[39m collaboration/collaboration.test.ts [2m([22m[2m9 tests[22m[2m)[22m[32m 21[2mms[22m[39m
+ [32m✓[39m captain/captain-v2.test.ts [2m([22m[2m10 tests[22m[2m)[22m[32m 69[2mms[22m[39m
+ [32m✓[39m social-listening/accounting.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 70[2mms[22m[39m
+ [32m✓[39m model-router/credits-service.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 149[2mms[22m[39m
+ [32m✓[39m workdata/pii-boundary.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 70[2mms[22m[39m
+ [32m✓[39m model-router/router-review.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 13[2mms[22m[39m
+ [32m✓[39m bundles/dossier-evidence.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 14[2mms[22m[39m
+ [32m✓[39m captain/arbitration.test.ts [2m([22m[2m5 tests[22m[2m)[22m[32m 9[2mms[22m[39m
+ [32m✓[39m service-dialog/industry-neutral.test.ts [2m([22m[2m2 tests[22m[2m)[22m[32m 6[2mms[22m[39m
+ [32m✓[39m captain/onboarding.test.ts [2m([22m[2m3 tests[22m[2m)[22m[32m 8[2mms[22m[39m
+ [32m✓[39m captain/trust.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 11[2mms[22m[39m
+
+[31m⎯⎯⎯⎯⎯⎯⎯[39m[1m[41m Failed Tests 8 [49m[22m[31m⎯⎯⎯⎯⎯⎯⎯[39m
+
+[41m[1m FAIL [22m[49m bundles/bundles.test.ts[2m > [22m行业装配 PG 集成（F2.10 铁律）[2m > [22mhotel profile：七槽 7/7 已装配 + 起飞前检查单七项全绿（F2.10 + v3.0 第⑦槽）
+[31m[1mError[22m: Test timed out in 5000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".[39m
+[36m [2m❯[22m bundles/bundles.test.ts:[2m90:3[22m[39m
+    [90m 88|[39m
+    [90m 89|[39m
+    [90m 90|[39m   it("hotel profile：七槽 7/7 已装配 + 起飞前检查单七项全绿（F2.10 + v3.0 第⑦槽）", async …
+    [90m   |[39m   [31m^[39m
+    [90m 91|[39m     [35mconst[39m p [33m=[39m [35mawait[39m [34mcomputeAssembly[39m(app[33m,[39m scope[33m,[39m [32m"hotel"[39m)[33m;[39m
+    [90m 92|[39m     [34mexpect[39m(p[33m.[39mstatus)[33m.[39m[34mtoBe[39m([32m"active"[39m)[33m;[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/8]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m bundles/bundles.test.ts[2m > [22m行业装配 PG 集成（F2.10 铁律）[2m > [22m校验留痕：recheck 写 bundle.check_run 事件（P7E3 留痕可查）
+[31m[1mError[22m: Test timed out in 5000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".[39m
+[36m [2m❯[22m bundles/bundles.test.ts:[2m116:3[22m[39m
+    [90m114|[39m   })[33m;[39m
+    [90m115|[39m
+    [90m116|[39m   [34mit[39m([32m"校验留痕：recheck 写 bundle.check_run 事件（P7E3 留痕可查）"[39m[33m,[39m [35masync[39m () [33m=>[39m {
+    [90m   |[39m   [31m^[39m
+    [90m117|[39m     [35mconst[39m r [33m=[39m [35mawait[39m [34mrecheckBundle[39m(app[33m,[39m gw[33m,[39m scope[33m,[39m [32m"hotel"[39m[33m,[39m [32m"MEM-001"[39m)[33m;[39m
+    [90m118|[39m     [34mexpect[39m(r[33m.[39meventId)[33m.[39m[34mtoMatch[39m([36m/^E-\d+$/[39m)[33m;[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/8]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m bundles/bundles.test.ts[2m > [22m行业装配 PG 集成（F2.10 铁律）[2m > [22m融合装配：组合主包激活 = 三包编制齐装（81 岗）+ 围栏并集 + 遮蔽留痕
+[31m[1mError[22m: Test timed out in 30000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".[39m
+[36m [2m❯[22m bundles/bundles.test.ts:[2m129:3[22m[39m
+    [90m127|[39m    * 这条用例独立建工作区，避免污染演示租户（ws-yunqi）。
+    [90m128|[39m    */[39m
+    [90m129|[39m   [34mit[39m([32m"融合装配：组合主包激活 = 三包编制齐装（81 岗）+ 围栏并集 + 遮蔽留痕"[39m[33m,[39m [35masync[39m () [33m=>[39m {
+    [90m   |[39m   [31m^[39m
+    [90m130|[39m     const { provisionComposedWorkforce } = await import("./assembly.js…
+    [90m131|[39m     [35mconst[39m suffix [33m=[39m [33mDate[39m[33m.[39m[34mnow[39m()[33m.[39m[34mtoString[39m([34m36[39m)[33m;[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/8]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m bundles/bundles.test.ts[2m > [22m行业装配 PG 集成（F2.10 铁律）[2m > [22m校验留痕：recheck 写 bundle.check_run 事件（P7E3 留痕可查）
+[31m[1mError[22m: Test timed out in 5000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".[39m
+[36m [2m❯[22m bundles/bundles.test.ts:[2m205:3[22m[39m
+    [90m203|[39m   }[33m,[39m [34m30000[39m)[33m;[39m
+    [90m204|[39m
+    [90m205|[39m   [34mit[39m([32m"校验留痕：recheck 写 bundle.check_run 事件（P7E3 留痕可查）"[39m[33m,[39m [35masync[39m () [33m=>[39m {
+    [90m   |[39m   [31m^[39m
+    [90m206|[39m     [35mconst[39m r [33m=[39m [35mawait[39m [34mrecheckBundle[39m(app[33m,[39m gw[33m,[39m scope[33m,[39m [32m"hotel"[39m[33m,[39m [32m"MEM-001"[39m)[33m;[39m
+    [90m207|[39m     [34mexpect[39m(r[33m.[39meventId)[33m.[39m[34mtoMatch[39m([36m/^E-\d+$/[39m)[33m;[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/8]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m bundles/bundles.test.ts[2m > [22m行业装配 PG 集成（F2.10 铁律）[2m > [22mH-15 第三行业五要素填充即可运行：填满五槽 → 6/6 全绿 → 激活切换 → 底座代码零改动（§2.3/§2.4）
+[31m[1mError[22m: Test timed out in 20000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".[39m
+[36m [2m❯[22m bundles/bundles.test.ts:[2m220:3[22m[39m
+    [90m218|[39m   })[33m;[39m
+    [90m219|[39m
+    [90m220|[39m   it("H-15 第三行业五要素填充即可运行：填满五槽 → 6/6 全绿 → 激活切换 → 底座代码零改动（§2.3/§2.4）", a…
+    [90m   |[39m   [31m^[39m
+    [90m221|[39m     [35mconst[39m root [33m=[39m [34mmkdtempSync[39m([34mjoin[39m([34mtmpdir[39m()[33m,[39m [32m"wl-bundles-h15-"[39m))[33m;[39m
+    [90m222|[39m     [90m// 五要素填充 = 复制 hotel 实物资产作为第三行业草稿内容（演示口径：资产由行业方提供，非底座代码）[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/8]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m bundles/post-audio-stems.test.ts[2m > [22mrenders and replays independent stems; exercises the real mixer, CLI and HTTP idempotency
+[31m[1mAssertionError[22m: spawnSync /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node ETIMEDOUT: expected Error: spawnSync /Users/mac/Documents/Cod… { …(5) } to be undefined[39m
+
+[32m- Expected:[39m
+undefined
+
+[31m+ Received:[39m
+Error {
+  "message": "spawnSync /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node ETIMEDOUT",
+  "errno": -60,
+  "code": "ETIMEDOUT",
+  "syscall": "spawnSync /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+  "path": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+  "spawnargs": [
+    "--test",
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/bundles/ai-video/connectors/post-bridge/audio-stems.test.mjs",
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/bundles/ai-video/connectors/bgm-bridge/audio-stems-mix.test.mjs",
+  ],
+}
+
+[36m [2m❯[22m native bundles/post-audio-stems.test.ts:[2m14:41[22m[39m
+    [90m 12|[39m     cwd: root, env: process.env, encoding: "utf8", timeout: 180000, ma…
+    [90m 13|[39m   })[33m;[39m
+    [90m 14|[39m   [34mexpect[39m(run[33m.[39merror[33m,[39m run[33m.[39merror[33m?.[39mmessage)[33m.[39m[34mtoBeUndefined[39m()[33m;[39m
+    [90m   |[39m                                         [31m^[39m
+    [90m 15|[39m   [34mexpect[39m(run[33m.[39mstatus[33m,[39m [32m`[39m[36m${[39mrun[33m.[39mstdout[36m}[39m[32m\n[39m[36m${[39mrun[33m.[39mstderr[36m}[39m[32m`[39m)[33m.[39m[34mtoBe[39m([34m0[39m)[33m;[39m
+    [90m 16|[39m   [34mexpect[39m(run[33m.[39mstdout)[33m.[39m[34mtoMatch[39m([36m/(?:#|ℹ) fail 0/[39m)[33m;[39m
+[90m [2m❯[22m bundles/post-audio-stems.test.ts:[2m23:3[22m[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/8]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m dev-bridge/dev-bridge.test.ts[2m > [22mworktree 隔离 / 快照 / 合并 / 标签[2m > [22m全链路：建隔离→机床改代码→回收 diff→提交→合并基线→打标签
+[31m[1mError[22m: Test timed out in 30000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".[39m
+[36m [2m❯[22m dev-bridge/dev-bridge.test.ts:[2m236:3[22m[39m
+    [90m234|[39m   }
+    [90m235|[39m
+    [90m236|[39m   [34mit[39m([32m"全链路：建隔离→机床改代码→回收 diff→提交→合并基线→打标签"[39m[33m,[39m [35masync[39m () [33m=>[39m {
+    [90m   |[39m   [31m^[39m
+    [90m237|[39m     [35mconst[39m repo [33m=[39m [34minitRepo[39m()[33m;[39m
+    [90m238|[39m     [35mawait[39m [34massertGitRepo[39m(repo)[33m;[39m
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/8]⎯[22m[39m
+
+[41m[1m FAIL [22m[49m dev-bridge/dev-bridge.test.ts[2m > [22mworktree 隔离 / 快照 / 合并 / 标签[2m > [22m合并冲突：自动中止并抛错（转人工，绝不强合）
+[31m[1mError[22m: Test timed out in 30000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".[39m
+[36m [2m❯[22m dev-bridge/dev-bridge.test.ts:[2m272:3[22m[39m
+    [90m270|[39m   }[33m,[39m [34m30_000[39m)[33m;[39m
+    [90m271|[39m
+    [90m272|[39m   [34mit[39m([32m"合并冲突：自动中止并抛错（转人工，绝不强合）"[39m[33m,[39m [35masync[39m () [33m=>[39m {
+    [90m   |[39m   [31m^[39m
+    [90m273|[39m     [35mconst[39m repo [33m=[39m [34minitRepo[39m()[33m;[39m
+    [90m274|[39m     const { worktreePath } = await worktreeAdd(repo, "t-conflict", "ma…
+
+[31m[2m⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[8/8]⎯[22m[39m
+
+
+[2m Test Files [22m [1m[31m3 failed[39m[22m[2m | [22m[1m[32m76 passed[39m[22m[90m (79)[39m
+[2m      Tests [22m [1m[31m8 failed[39m[22m[2m | [22m[1m[32m1355 passed[39m[22m[2m | [22m[33m7 skipped[39m[90m (1370)[39m
+[2m   Start at [22m 22:57:26
+[2m   Duration [22m 814.75s[2m (transform 27.44s, setup 0ms, import 71.18s, tests 679.88s, environment 58ms)[22m
+
+/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/packages/base:
+ ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @workloom/base@0.1.0 test: `vitest run`
+Exit status 1

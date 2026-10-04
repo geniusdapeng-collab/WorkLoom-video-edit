@@ -1,0 +1,58 @@
+{
+  "schema": "growth.independent-m6/dependency-owned-preparation@1",
+  "reviewed_by": "growth_m6",
+  "at": "2026-10-04T00:42:25.094151+08:00",
+  "old_7fee_original_high_failure_preserved": true,
+  "old_frozen_files_not_modified": true,
+  "files": [
+    {
+      "file": "prepare_report.py",
+      "old_frozen_file": "history/7fee-native-actual-before-new-MC016-high-advisory/prepare_report.py",
+      "sha256": "3cede5f2178c5242048f0ca8064f186fc170a58e0a6c38b59bc5fc4dca67937c",
+      "bytes": 69877,
+      "fully_read_before_edit": true
+    },
+    {
+      "file": "build_report.py",
+      "old_frozen_file": "history/7fee-native-actual-before-new-MC016-high-advisory/build_report.py",
+      "sha256": "0924220cba185db940705503f5a6239a26ed2276ac90ee41ae82cbc1d462da82",
+      "bytes": 118929,
+      "fully_read_before_edit": true
+    },
+    {
+      "file": "validate_report.py",
+      "old_frozen_file": "history/7fee-native-actual-before-new-MC016-high-advisory/validate_report.py",
+      "sha256": "f454cdd0bc76917e59c47835295137d148c44f209b3232b86e14cf451c492cd3",
+      "bytes": 35863,
+      "fully_read_before_edit": true
+    },
+    {
+      "file": "create-floor-native-verification.py",
+      "old_frozen_file": "history/7fee-native-actual-before-new-MC016-high-advisory/create-floor-native-verification.py",
+      "sha256": "065356af4a193673d09afcc8997f145940b5af659f698decdd4e706b772c32b2",
+      "bytes": 20163,
+      "fully_read_before_edit": true
+    },
+    {
+      "file": "verify-modern-mcd-runs.mjs",
+      "old_frozen_file": "history/7fee-native-actual-before-new-MC016-high-advisory/verify-modern-mcd-runs.mjs",
+      "sha256": "4f52cbe075592e6f4803f47ad59432c8c668ac683ea14dc31afa220ad5266bb7",
+      "bytes": 22077,
+      "fully_read_before_edit": true
+    },
+    {
+      "file": "run-modern-mcd-acceptance.py",
+      "old_frozen_file": "history/7fee-native-actual-before-new-MC016-high-advisory/run-modern-mcd-acceptance.py",
+      "sha256": "f435807ccef9b88c79b8b5ccd5bf0491e4b2a2b3b7e38a55a0e3afd104b310ff",
+      "bytes": 10466,
+      "fully_read_before_edit": true
+    }
+  ],
+  "current_ci_snapshot": {
+    "file": "cnb-dependency-source-1e47.json",
+    "origin": "root API receipt, independently read and hash-bound",
+    "sha256": "57324fb4866c279ab748458f2b972a948941afa0840b08a56c0f29062b87fd32"
+  },
+  "product_tests_PG_GPU_native_or_large_IO_executed": false,
+  "new_formal_report_generated": false
+}

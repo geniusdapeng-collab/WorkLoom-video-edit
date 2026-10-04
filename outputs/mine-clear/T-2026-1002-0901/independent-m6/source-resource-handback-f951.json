@@ -1,0 +1,29 @@
+{
+  "schema": "growth.independent-m6/source-handback@1",
+  "at": "2026-10-03T17:21:48.905205+08:00",
+  "actor": "growth_m6",
+  "source_commit": "f9515d09ee6de9b34f38b93d3769654fe4869391",
+  "tree_clean": true,
+  "source_build_and_cpu_test_window_complete": true,
+  "current_actual_unique_cpu_cases": 164,
+  "inherited_unique_cases": 392,
+  "total_unique_cases": 556,
+  "desktop113_includes_reset12_diagnostic12_and_bootstrap60": true,
+  "no_active_owned_tool_sessions": true,
+  "process_basis": "All newly launched CPU test/build wrappers ended exit0 and sessions were collected; no GPU, native or PostgreSQL process was launched during this source window. No all-host process attribution is claimed.",
+  "native_pack_window_returned_to": "root",
+  "root_must_preserve_tracked_and_dist_bytes": true,
+  "native_verified": false,
+  "mcd_acceptance_role_executed": false,
+  "merge_eligible": false,
+  "proofs": {
+    "REPORT.md": "da1c2e8543411d32719114aec6cc03276c209223cd768ae73b6eedbbcc82d8bb",
+    "summary.json": "ed964f1082c536d3786ae39d92c4fb1b8a14b780d11db75fe45a4245207eb18f",
+    "floor-final-verification.json": "2e3b26f40d8870e5c2292c025ac83c3bd0e76ee198750e57eb793bda8c1d00fc",
+    "diagnostic-f951-source-fullread.json": "49356f1fe7badc62a8712e9ab119e54ee67deb4d00ddb6ecef39c5fadb347064",
+    "diagnostic-discovery-origin.json": "3af1893c4c127611157c1746f927fa1337e9a9cba0b191cf5f6e8da44917e96a",
+    "cnb-diagnostic-source-f951.json": "0f4dbcf1443ed44f867c7fa5ba17cf04db679d18873f8a08d57815b87e60343e",
+    "report-validation-f951.json": "78a588d5e8f8aa6795c0df9e3bd3a50ccfd6980b12a02cadb2a19bd446cbee54",
+    "evidence-index.json": "3a1e4a0e2f001d5a2300bab9bcd418ada7fef885474b97c8da412b3be7321f9c"
+  }
+}

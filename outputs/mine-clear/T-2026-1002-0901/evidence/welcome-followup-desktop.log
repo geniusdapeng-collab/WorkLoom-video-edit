@@ -1,0 +1,90 @@
+COMMAND ["/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node", "--env-file=.env", "--test", "apps/desktop/electron/bootstrap.test.cjs"]
+▶ 渲染探针不占用产品 GPU 上下文
+  ✔ WebGL2 检测后立即释放临时上下文，不再检测 WebGL1 (19.595416ms)
+  ✔ WebGL1 回退同样释放，扩展未提供时仍如实报告能力 (0.277375ms)
+  ✔ 无上下文、创建异常、释放异常均报告不可用 (0.162208ms)
+✔ 渲染探针不占用产品 GPU 上下文 (24.583666ms)
+▶ 真实首日引导退出的渲染冒烟
+  ✔ 欢迎层退出的空帧不能跳过下一次 React 提交才出现的引导 (6.826375ms)
+  ✔ 存在引导入口却一直不出现引导时不能标成退出成功 (1.331333ms)
+  ✔ 点了关闭仍持续覆盖时在原截止时间内失败关闭 (0.897875ms)
+  ✔ 未安装引导内容包时稳定无遮挡仍可验收 (0.171958ms)
+  ✔ 缺退出按钮或 renderer 执行失败均不吞异常 (0.530417ms)
+02:25:03 == WorkLoom 织元 · 引导启动（resources=/var/folders/dj/mkh6fwbd4mb6ycp933xfty4h0000gn/T/workloom-bootstrap-ObVDXG/payload）==
+02:25:03 正在检查本机版本与安装载荷…
+02:25:03 → 装配运行时载荷（2.0.0）…
+02:25:03 正在校验并安全换入运行时载荷…
+02:25:03 正在校验并安全换入运行时载荷…
+02:25:03 == WorkLoom 织元 · 引导启动（resources=/var/folders/dj/mkh6fwbd4mb6ycp933xfty4h0000gn/T/workloom-bootstrap-IeSw5X/payload）==
+02:25:03 正在检查本机版本与安装载荷…
+02:25:03 → 装配运行时载荷（2.0.0）…
+02:25:03 正在校验并安全换入运行时载荷…
+02:25:03 正在校验并安全换入运行时载荷…
+02:25:03 == WorkLoom 织元 · 引导启动（resources=/var/folders/dj/mkh6fwbd4mb6ycp933xfty4h0000gn/T/workloom-bootstrap-zqCbTD/payload）==
+02:25:03 正在检查本机版本与安装载荷…
+02:25:03 → 装配运行时载荷（2.0.0）…
+02:25:03 正在校验并安全换入运行时载荷…
+02:25:03 正在校验并安全换入运行时载荷…
+02:25:03 == WorkLoom 织元 · 引导启动（resources=/var/folders/dj/mkh6fwbd4mb6ycp933xfty4h0000gn/T/workloom-packaged-payload-missing-TtKKds/resources）==
+02:25:03 正在检查本机版本与安装载荷…
+02:25:04 == WorkLoom 织元 · 引导启动（resources=/var/folders/dj/mkh6fwbd4mb6ycp933xfty4h0000gn/T/workloom-packaged-no-double-payload-3mUzYn/resources）==
+02:25:04 正在检查本机版本与安装载荷…
+  ✔ renderer 永不返回时也必须到截止即结束且不遗留定时器 (23.786583ms)
+✔ 真实首日引导退出的渲染冒烟 (34.379083ms)
+▶ 产品截图采用捕获时的可见场景
+  ✔ 等待后实际无遮挡且完整时仍通过 (26.601166ms)
+  ✔ 稳定等待中重新出现引导层时拒绝旧无遮挡状态 (5.368666ms)
+  ✔ 稳定等待中卸载场景或员工减少时拒绝旧完整状态 (2.828541ms)
+  ✔ 截图捕获期间出现遮罩或内置人名也必须失败 (4.595375ms)
+✔ 产品截图采用捕获时的可见场景 (39.994708ms)
+▶ 桌面载荷原子装配
+  ✔ 同版本标记不能跳过缺失运行目录、错误运行版本或缺失 Node 的恢复 (392.235708ms)
+  ✔ 解析物理路径后向 tar 传相对路径，并为 Windows 跨盘符暂存归档 (3.091708ms)
+  ✔ 正式打包入口缺少载荷时在启动任何服务前失败关闭 (8.996583ms)
+  ✔ 正式打包入口不会把源码 dist-payload 双重嵌套误认作 Resources (57.16675ms)
+  ✔ 完整暂存后换入；提交前可回滚，提交后清理临时目录 (84.381334ms)
+  ✔ 提交清理故障发生在不可逆边界之后，不会重新开放旧载荷回滚 (23.335084ms)
+  ✔ 换入第一项后故障会恢复旧版目录、版本和首航状态 (45.9365ms)
+  ✔ 首装暂存失败不会留下半套运行时 (11.547792ms)
+  ✔ 安装阶段检查点以机器可读中文状态落盘 (9.444416ms)
+  ✔ 启动页使用确定进度语义，不再显示循环假进度 (1.092125ms)
+  ✔ 源码主进程只复用已验活服务，正式安装包与渲染冒烟不能绕过载荷 (2.1205ms)
+  ✔ 发布渲染冒烟使用稳定动作标记走完真实欢迎流程 (1.942792ms)
+✔ 桌面载荷原子装配 (647.329709ms)
+▶ 桌面 PostgreSQL 实例归属与端口契约
+  ✔ 严格拒绝空白、小数、非数字和越界端口 (0.480458ms)
+  ✔ 只有 pg_ctl 确认运行且 postmaster 数据目录与端口同时匹配才允许复用 (17.285792ms)
+  ✔ pg_ctl 未确认运行时不读取残留 PID，也不把端口监听者当作自有实例 (0.796792ms)
+  ✔ 退出前重新复验实例归属，PID 文件被替换时绝不发送 stop (6.852542ms)
+  ✔ 托管环境只重写数据库与服务端口，保留其他用户配置 (37.55125ms)
+  ✔ 首装与升级分别从当前载荷生成桥注册表，不引用其他实例的运行目录 (18.381375ms)
+✔ 桌面 PostgreSQL 实例归属与端口契约 (83.519666ms)
+▶ 桌面本机渲染子进程的 Node 路径
+  ✔ 干净 GUI PATH 下仍能启动当前随包 Node，且保留系统工具路径 (169.240417ms)
+  ✔ Windows 只传一个不区分大小写的 Path；POSIX 不改其他同名变量 (0.784542ms)
+✔ 桌面本机渲染子进程的 Node 路径 (170.411625ms)
+▶ 桌面 PostgreSQL 凭据状态与 SCRAM 围栏
+  ✔ 0600 状态文件生成三份互异随机凭据，重复启动不轮换 (4.457417ms)
+  ✔ 损坏状态失败关闭；绑定 system_identifier 后才能完成并清除旧凭据 (7.873ms)
+  ✔ pending 状态可从恢复后的旧配置补充候选；hardened 后绝不重新收录 (13.150833ms)
+  ✔ initdb 只接受 pwfile + SCRAM，HBA 只允许本机 SCRAM (4.705583ms)
+  ✔ pending 迁移复验失败会原子恢复旧 HBA 并再次 reload (5.905833ms)
+  ✔ 即使磁盘 HBA 未变化也强制 reload，再以正反向凭据复验结果为准 (2.485584ms)
+  ✔ 源码固定先提交新 payload 再创建状态或改库，且不含 trust initdb (1.67675ms)
+  ✔ payload commit 前用内置 Node 语法检查安全 helper，校验失败立即阻断 (1.913166ms)
+  ✔ 所有 migrate 入口在轮换 app/gateway 角色前固定本会话 SCRAM (1.580792ms)
+✔ 桌面 PostgreSQL 凭据状态与 SCRAM 围栏 (44.937458ms)
+▶ 应急浏览器壳与正式 Electron 共用安全引导
+  ✔ 原子单实例锁拒绝活进程，并可接管死进程遗留锁 (8.591167ms)
+  ✔ 两端旧启动器只委托 bootstrap，不再维护 trust/helper 分支 (10.244875ms)
+  ✔ 浏览器壳按平台使用无 shell 拼接的固定打开命令 (0.918042ms)
+  ✔ CLI 在启动前注册 INT/TERM/HUP，并用 AbortSignal 驱动初始化清理 (0.933917ms)
+✔ 应急浏览器壳与正式 Electron 共用安全引导 (21.341791ms)
+ℹ tests 46
+ℹ suites 8
+ℹ pass 46
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1537.054542

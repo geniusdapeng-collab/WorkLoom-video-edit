@@ -1,0 +1,14 @@
+{
+  "schema": "growth.independent-m6/manifest-path-correction@1",
+  "source_commit": "c08386eb9993744a0cb0c2495a98fc1fc4ccbed9",
+  "actor": "growth_m6",
+  "observed_at": "2026-10-03T09:24:25.010566+08:00",
+  "failed_tool_exit_code": 1,
+  "observed_failure": "fatal: path apps/web/src/pages/p0/useQuestline.ts does not exist in 955e2277ee1496cfc4b40bd30345d1ce1be1acf1; generator stopped before writing a pass manifest",
+  "original_generator_sha256": "bce03ef3b3d991f252efbc88f4af8ae2d4b9886a3effd04d4a8dd1eb1642b2a9",
+  "corrected_generator_sha256": "c006eee21dccb49cf980f73f0db95c8055dd4e9400c81f9711f0f5c221b322a8",
+  "correction": "Use both actual onboarding/useQuestline source/test paths in the same full Git object guard. Existing complete onboarding subtree guard remains. No historical hash/source/argv/test result modified, no assertion omitted or threshold relaxed.",
+  "original_preserved": "history/c083-manifest-path-original/create-floor-final-verification.py",
+  "source_controls_reexecuted": false,
+  "product_mutated": false
+}

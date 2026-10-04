@@ -1,0 +1,11 @@
+{
+  "at": "2026-10-03T09:49:21.684505+08:00",
+  "original_file": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/evidence/history/scene-css-initial-probe/scene-layout-probe.mjs",
+  "original_sha256": "dc395a61729fffa720367d3140ec26b5764e1940e27cd84742034f1b87ec88d8",
+  "corrected_sha256": "88c3108ae72ca1c6fe0babb8d069483e8859b325318570634cd038cc5b63852e",
+  "original_log": "scene-layout-before.log",
+  "original_results": "scene-layout-before-results.json",
+  "cause": "Owned Vite allow list omitted the repair directory containing frozen CSS; original actual controls ran without required production CSS, so those results do not prove production-style behavior.",
+  "correction": "Allow the exact evidence parent containing the already pinned CSS; require actual stylesheet cssRules length greater than zero and record computed body font. No product source, layout, camera, assertion count or deadline changed.",
+  "official_source": "https://vite.dev/config/server-options.html#server-fs-allow"
+}

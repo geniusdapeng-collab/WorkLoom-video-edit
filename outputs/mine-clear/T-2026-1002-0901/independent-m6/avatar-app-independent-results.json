@@ -1,0 +1,42 @@
+{
+  "source_commit": "ad4a7a0ba65845a8b401d3cbae7c8981c2ddfb4b",
+  "origin": "growth_m6",
+  "evidence_grade": "B",
+  "application": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/生命周期修复 客户应用/WorkLoom 获客增长系统（实验车道）.app",
+  "app_version": "0.1.0-fix.20261003.1",
+  "actual_app_asar_sha256": "7cdf0a883ecaff415a5525be3387ccb57a45f179e3cf6918f48742bac8246613",
+  "actual_payload_archive_sha256": "2a32c85d22f64db30c9e13b8b5241c8be969eac814980bdf0b4e0a325099a54b",
+  "executable_checks": [
+    {
+      "file": "apps/desktop/electron/main.cjs",
+      "frozen_source_sha256": "1e4e09cbc1014e1a5759989207cfa7b03ca1c6d277daa61b21f32e98f520fb5b",
+      "installed_sha256": "1e4e09cbc1014e1a5759989207cfa7b03ca1c6d277daa61b21f32e98f520fb5b",
+      "equal": true
+    },
+    {
+      "file": "apps/desktop/electron/bootstrap.cjs",
+      "frozen_source_sha256": "ca6aa0053e09bab2962f761cdb699ffab6b56a2a6c0e5d77d46b78c62070ae71",
+      "installed_sha256": "ca6aa0053e09bab2962f761cdb699ffab6b56a2a6c0e5d77d46b78c62070ae71",
+      "equal": true
+    },
+    {
+      "file": "apps/desktop/electron/preload.cjs",
+      "frozen_source_sha256": "a7f42b647d6188b5dc2da06f6602207aa631da7952c2f2a0c52747b47b0532d4",
+      "installed_sha256": "a7f42b647d6188b5dc2da06f6602207aa631da7952c2f2a0c52747b47b0532d4",
+      "equal": true
+    },
+    {
+      "file": "apps/desktop/electron/render-smoke.cjs",
+      "frozen_source_sha256": "c287cb424fc0ed5f20fbacceab1e999705e3081838952ca8a806787530738fe3",
+      "installed_sha256": "c287cb424fc0ed5f20fbacceab1e999705e3081838952ca8a806787530738fe3",
+      "equal": true
+    }
+  ],
+  "current_source_build_counterparts_rehashed": 2080,
+  "all_parent_payload_comparison_hashes_equal_current_counterparts": true,
+  "payload_comparison_execution_origin": "root; independent verifier rehashed all source/build counterparts and installed archive, but did not independently decompress/recompare all 2080 payload files",
+  "codesign_structure_verified": true,
+  "signing": "ad-hoc QA; not Apple trust or notarization",
+  "platform_release_verified": false,
+  "native_runtime_tests_by_this_probe": false
+}

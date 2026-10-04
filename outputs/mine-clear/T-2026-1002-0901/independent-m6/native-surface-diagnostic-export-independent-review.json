@@ -1,0 +1,131 @@
+{
+  "schema": "growth.independent-m6/native-diagnostic-review@1",
+  "source_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+  "reviewed_by": "growth_m6",
+  "evidence_prefix": "surface",
+  "reviewed_at": "2026-10-03T21:03:15.659591+08:00",
+  "action_surface": "startup-failure-page-actions",
+  "actual_installed_startup_action_save_panel_executed": true,
+  "actual_startup_failure_page_observed": true,
+  "actual_exported_synthetic_text_independently_reviewed": true,
+  "actual_posix_private_file_mode_verified": true,
+  "source_unit_controls_kept_separate_from_ui": true,
+  "app_asar_sha256": "d2853e56f03680d7eca3c24798ec58f482883908a30f649ef7f1dcaac0bab42a",
+  "payload_sha256": "ae3480215c5a72f4c890aaf9e0fa942b613037b11c580ffeb9802fb7e309c673",
+  "root_receipt_file": "native-surface-diagnostic-export.json",
+  "root_receipt_sha256": "6db045c1bb03d09622b245b534a1790252ae65233e46bf394386ae7632942c05",
+  "root_actual_seconds": 633.415,
+  "actual_cases": [
+    {
+      "id": "actual_startup_failure_page_observed",
+      "passed": true
+    },
+    {
+      "id": "actual_native_menu",
+      "passed": true
+    },
+    {
+      "id": "actual_save_dialog",
+      "passed": true
+    },
+    {
+      "id": "actual_cancel_observed",
+      "passed": true
+    },
+    {
+      "id": "actual_overwrite_confirmation_observed",
+      "passed": true
+    },
+    {
+      "id": "actual_recovery_page_retained",
+      "passed": true
+    },
+    {
+      "id": "all-synthetic-fields-redacted",
+      "passed": true
+    },
+    {
+      "id": "benign-context-preserved",
+      "passed": true
+    },
+    {
+      "id": "actual-overwrite-mode-0600",
+      "passed": true
+    }
+  ],
+  "all_actual_cases_passed": true,
+  "public_evidence": [
+    {
+      "file": "inherited/evidence__native-surface-diagnostic-export.json",
+      "root_file": "native-surface-diagnostic-export.json",
+      "sha256": "6db045c1bb03d09622b245b534a1790252ae65233e46bf394386ae7632942c05",
+      "bytes": 4889
+    },
+    {
+      "file": "inherited/evidence__native-surface-diagnostic-preparation.json",
+      "root_file": "native-surface-diagnostic-preparation.json",
+      "sha256": "f4ffe5602d4ba4e766f0dbdce607378a8e427994f7e07df98d4437e97aa1012d",
+      "bytes": 2258
+    },
+    {
+      "file": "inherited/evidence__mac-surface-diagnostic-ui.json",
+      "root_file": "mac-surface-diagnostic-ui.json",
+      "sha256": "4a1f9e756bd92e7cfa1828cd5836534375dcae1274dfc8da9cd7495629091ab7",
+      "bytes": 416
+    },
+    {
+      "file": "inherited/evidence__native-surface-diagnostic-failure.png",
+      "root_file": "native-surface-diagnostic-failure.png",
+      "sha256": "9c86352501994af86ef9f8924e0d9cc11fb17e8a21d9ff3fa5762dfa92352aa0",
+      "bytes": 112612
+    },
+    {
+      "file": "inherited/evidence__native-surface-diagnostic-save-dialog.png",
+      "root_file": "native-surface-diagnostic-save-dialog.png",
+      "sha256": "508901f6f3208d3311da27e9137807ab665b15d3a4e183bf37b33dff433d3f72",
+      "bytes": 35572
+    },
+    {
+      "file": "inherited/evidence__native-surface-diagnostic-overwrite.png",
+      "root_file": "native-surface-diagnostic-overwrite.png",
+      "sha256": "e5628abf1efdfab8da67174b6f2dd45166c10da1a7fd96aae78f6fd8118f287a",
+      "bytes": 49841
+    },
+    {
+      "file": "inherited/evidence__native-surface-diagnostic-recovery.png",
+      "root_file": "native-surface-diagnostic-recovery.png",
+      "sha256": "bd351e57112cdafceb5091f04c0df693926cbafc82d047568b289721baab937e",
+      "bytes": 113491
+    },
+    {
+      "file": "inherited/evidence__native-surface-diagnostic-export.txt",
+      "root_file": "native-surface-diagnostic-export.txt",
+      "sha256": "088c4588934fd277de846c07c2274cd51da89cf68bc253d740cb46482b07e4eb",
+      "bytes": 1062
+    }
+  ],
+  "screenshot_review": {
+    "file": "native-surface-diagnostic-screenshot-review.json",
+    "sha256": "b3fbfaeb90ded1708b64e48fe757ca7c1c5f652485f6593e6759673510f9131a"
+  },
+  "root_observation_sha256": "b4836536d7023492490aa292b1ccd5404871545d07a04e3af8a057390f1db3ae",
+  "actual_export_sha256": "088c4588934fd277de846c07c2274cd51da89cf68bc253d740cb46482b07e4eb",
+  "actual_export_bytes": 1062,
+  "actual_export_mode": "0600",
+  "public_export_credential_pattern_hits": 0,
+  "cancel_preserved_original_bytes_and_mode_root_receipt_bound": true,
+  "private_customer_contents_opened": false,
+  "synthetic_secret_fixture_opened": false,
+  "root_execution_kept_distinct_from_verifier_inspection": true,
+  "legacy_field_meaning": "actual_native_menu is the root legacy key for the failure-page export action; this receipt does not claim an operating-system menu interaction",
+  "grades": {
+    "source_bytes_and_receipt_fields": "B",
+    "actual_export_bytes_permissions_and_pattern_checks": "B",
+    "direct_pixel_reviews": "C",
+    "formal_platform_and_full_ux": "D"
+  },
+  "paid_provider_calls_by_verifier": 0,
+  "windows_acl_verified": false,
+  "formal_signed_release_verified": false,
+  "full_ux_pass_claimed": false
+}

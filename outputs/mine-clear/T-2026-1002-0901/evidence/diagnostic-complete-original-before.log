@@ -1,0 +1,284 @@
+COMMAND ["/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node", "--env-file=.env", "--test", "--test-reporter=tap", "--test-name-pattern=启动诊断秘密脱敏", "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/diagnostic-safety-before/bootstrap.test.cjs"]
+TAP version 13
+# Subtest: 启动诊断秘密脱敏
+    # Subtest: 原有文本 JWT、盐和 Bearer
+    ok 1 - 原有文本 JWT、盐和 Bearer
+      ---
+      duration_ms: 8.408584
+      type: 'test'
+      ...
+    # Subtest: JSON 引号与大小写字段
+    not ok 2 - JSON 引号与大小写字段
+      ---
+      duration_ms: 1.624334
+      type: 'test'
+      location: '/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/diagnostic-safety-before/bootstrap.test.cjs:72:5'
+      failureType: 'testCodeFailure'
+      error: |-
+        JSON 引号与大小写字段 不得保留合成秘密
+        
+        true !== false
+        
+      code: 'ERR_ASSERTION'
+      name: 'AssertionError'
+      expected: false
+      actual: true
+      operator: 'strictEqual'
+      stack: |-
+        TestContext.<anonymous> (/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/diagnostic-safety-before/bootstrap.test.cjs:74:44)
+        Test.runInAsyncScope (node:async_hooks:227:14)
+        Test.run (node:internal/test_runner/test:1382:25)
+        Suite.processPendingSubtests (node:internal/test_runner/test:960:18)
+        Test.postRun (node:internal/test_runner/test:1522:19)
+        Test.run (node:internal/test_runner/test:1447:12)
+        async Promise.all (index 0)
+        async Suite.run (node:internal/test_runner/test:1869:7)
+        async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3)
+      ...
+    # Subtest: 引号内的空格和分隔符
+    not ok 3 - 引号内的空格和分隔符
+      ---
+      duration_ms: 0.789083
+      type: 'test'
+      location: '/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/diagnostic-safety-before/bootstrap.test.cjs:72:5'
+      failureType: 'testCodeFailure'
+      error: |-
+        引号内的空格和分隔符 不得保留合成秘密
+        
+        true !== false
+        
+      code: 'ERR_ASSERTION'
+      name: 'AssertionError'
+      expected: false
+      actual: true
+      operator: 'strictEqual'
+      stack: |-
+        TestContext.<anonymous> (/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/diagnostic-safety-before/bootstrap.test.cjs:74:44)
+        Test.runInAsyncScope (node:async_hooks:227:14)
+        Test.run (node:internal/test_runner/test:1382:25)
+        Suite.processPendingSubtests (node:internal/test_runner/test:960:18)
+        Test.postRun (node:internal/test_runner/test:1522:19)
+        Test.run (node:internal/test_runner/test:1447:12)
+        async Suite.processPendingSubtests (node:internal/test_runner/test:960:7)
+      ...
+    # Subtest: 带编码密码的连接 URI
+    not ok 4 - 带编码密码的连接 URI
+      ---
+      duration_ms: 0.830375
+      type: 'test'
+      location: '/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/diagnostic-safety-before/bootstrap.test.cjs:72:5'
+      failureType: 'testCodeFailure'
+      error: |-
+        带编码密码的连接 URI 不得保留合成秘密
+        
+        true !== false
+        
+      code: 'ERR_ASSERTION'
+      name: 'AssertionError'
+      expected: false
+      actual: true
+      operator: 'strictEqual'
+      stack: |-
+        TestContext.<anonymous> (/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/diagnostic-safety-before/bootstrap.test.cjs:74:44)
+        Test.runInAsyncScope (node:async_hooks:227:14)
+        Test.run (node:internal/test_runner/test:1382:25)
+        Suite.processPendingSubtests (node:internal/test_runner/test:960:18)
+        Test.postRun (node:internal/test_runner/test:1522:19)
+        Test.run (node:internal/test_runner/test:1447:12)
+        async Suite.processPendingSubtests (node:internal/test_runner/test:960:7)
+      ...
+    # Subtest: libpq 密码与 URI 查询密码
+    not ok 5 - libpq 密码与 URI 查询密码
+      ---
+      duration_ms: 0.815958
+      type: 'test'
+      location: '/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/diagnostic-safety-before/bootstrap.test.cjs:72:5'
+      failureType: 'testCodeFailure'
+      error: |-
+        libpq 密码与 URI 查询密码 不得保留合成秘密
+        
+        true !== false
+        
+      code: 'ERR_ASSERTION'
+      name: 'AssertionError'
+      expected: false
+      actual: true
+      operator: 'strictEqual'
+      stack: |-
+        TestContext.<anonymous> (/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/diagnostic-safety-before/bootstrap.test.cjs:74:44)
+        Test.runInAsyncScope (node:async_hooks:227:14)
+        Test.run (node:internal/test_runner/test:1382:25)
+        Suite.processPendingSubtests (node:internal/test_runner/test:960:18)
+        Test.postRun (node:internal/test_runner/test:1522:19)
+        Test.run (node:internal/test_runner/test:1447:12)
+        async Suite.processPendingSubtests (node:internal/test_runner/test:960:7)
+      ...
+    # Subtest: Basic 授权和 Cookie
+    not ok 6 - Basic 授权和 Cookie
+      ---
+      duration_ms: 0.795458
+      type: 'test'
+      location: '/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/diagnostic-safety-before/bootstrap.test.cjs:72:5'
+      failureType: 'testCodeFailure'
+      error: |-
+        Basic 授权和 Cookie 不得保留合成秘密
+        
+        true !== false
+        
+      code: 'ERR_ASSERTION'
+      name: 'AssertionError'
+      expected: false
+      actual: true
+      operator: 'strictEqual'
+      stack: |-
+        TestContext.<anonymous> (/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/diagnostic-safety-before/bootstrap.test.cjs:74:44)
+        Test.runInAsyncScope (node:async_hooks:227:14)
+        Test.run (node:internal/test_runner/test:1382:25)
+        Suite.processPendingSubtests (node:internal/test_runner/test:960:18)
+        Test.postRun (node:internal/test_runner/test:1522:19)
+        Test.run (node:internal/test_runner/test:1447:12)
+        async Suite.processPendingSubtests (node:internal/test_runner/test:960:7)
+      ...
+    # Subtest: JSON 转义引号和 Unicode 密码
+    not ok 7 - JSON 转义引号和 Unicode 密码
+      ---
+      duration_ms: 0.976958
+      type: 'test'
+      location: '/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/diagnostic-safety-before/bootstrap.test.cjs:72:5'
+      failureType: 'testCodeFailure'
+      error: |-
+        JSON 转义引号和 Unicode 密码 不得保留合成秘密
+        
+        true !== false
+        
+      code: 'ERR_ASSERTION'
+      name: 'AssertionError'
+      expected: false
+      actual: true
+      operator: 'strictEqual'
+      stack: |-
+        TestContext.<anonymous> (/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/diagnostic-safety-before/bootstrap.test.cjs:74:44)
+        Test.runInAsyncScope (node:async_hooks:227:14)
+        Test.run (node:internal/test_runner/test:1382:25)
+        Suite.processPendingSubtests (node:internal/test_runner/test:960:18)
+        Test.postRun (node:internal/test_runner/test:1522:19)
+        Test.run (node:internal/test_runner/test:1447:12)
+        async Suite.processPendingSubtests (node:internal/test_runner/test:960:7)
+      ...
+    # Subtest: 错误摘要和日志读取失败也经过脱敏
+    not ok 8 - 错误摘要和日志读取失败也经过脱敏
+      ---
+      duration_ms: 0.914084
+      type: 'test'
+      location: '/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/diagnostic-safety-before/bootstrap.test.cjs:81:3'
+      failureType: 'testCodeFailure'
+      error: |-
+        Expected values to be strictly equal:
+        
+        true !== false
+        
+      code: 'ERR_ASSERTION'
+      name: 'AssertionError'
+      expected: false
+      actual: true
+      operator: 'strictEqual'
+      stack: |-
+        TestContext.<anonymous> (/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/diagnostic-safety-before/bootstrap.test.cjs:86:12)
+        Test.runInAsyncScope (node:async_hooks:227:14)
+        Test.run (node:internal/test_runner/test:1382:25)
+        Suite.processPendingSubtests (node:internal/test_runner/test:960:18)
+        Test.postRun (node:internal/test_runner/test:1522:19)
+        Test.run (node:internal/test_runner/test:1447:12)
+        async Suite.processPendingSubtests (node:internal/test_runner/test:960:7)
+      ...
+    # Subtest: 读取异常关闭自己的文件句柄并保留失败信息
+    not ok 9 - 读取异常关闭自己的文件句柄并保留失败信息
+      ---
+      duration_ms: 1.092833
+      type: 'test'
+      location: '/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/diagnostic-safety-before/bootstrap.test.cjs:91:3'
+      failureType: 'testCodeFailure'
+      error: |-
+        Expected values to be strictly equal:
+        
+        undefined !== 14
+        
+      code: 'ERR_ASSERTION'
+      name: 'AssertionError'
+      expected: 14
+      operator: 'strictEqual'
+      stack: |-
+        TestContext.<anonymous> (/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/diagnostic-safety-before/bootstrap.test.cjs:101:14)
+        Test.runInAsyncScope (node:async_hooks:227:14)
+        Test.run (node:internal/test_runner/test:1382:25)
+        Suite.processPendingSubtests (node:internal/test_runner/test:960:18)
+        Test.postRun (node:internal/test_runner/test:1522:19)
+        Test.run (node:internal/test_runner/test:1447:12)
+        async Suite.processPendingSubtests (node:internal/test_runner/test:960:7)
+      ...
+    # Subtest: 空日志和有界尾部仍保留版本、主机和错误上下文
+    ok 10 - 空日志和有界尾部仍保留版本、主机和错误上下文
+      ---
+      duration_ms: 3.6655
+      type: 'test'
+      ...
+    # Subtest: 取消无写入；新建与覆盖后的诊断文件均为私有
+    not ok 11 - 取消无写入；新建与覆盖后的诊断文件均为私有
+      ---
+      duration_ms: 2.503708
+      type: 'test'
+      location: '/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/diagnostic-safety-before/bootstrap.test.cjs:144:3'
+      failureType: 'testCodeFailure'
+      error: |-
+        Expected values to be strictly equal:
+        
+        420 !== 384
+        
+      code: 'ERR_ASSERTION'
+      name: 'AssertionError'
+      expected: 384
+      actual: 420
+      operator: 'strictEqual'
+      stack: |-
+        assertPrivateFile (/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/diagnostic-safety-before/bootstrap.test.cjs:38:44)
+        TestContext.<anonymous> (/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/diagnostic-safety-before/bootstrap.test.cjs:157:7)
+        async Test.run (node:internal/test_runner/test:1389:7)
+        async Suite.processPendingSubtests (node:internal/test_runner/test:960:7)
+      ...
+    # Subtest: 保存对话框和文件写入失败均留在可恢复启动页
+    not ok 12 - 保存对话框和文件写入失败均留在可恢复启动页
+      ---
+      duration_ms: 0.904125
+      type: 'test'
+      location: '/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/diagnostic-safety-before/bootstrap.test.cjs:164:3'
+      failureType: 'testCodeFailure'
+      error: 'synthetic save dialog failure'
+      code: 'ERR_TEST_FAILURE'
+      stack: |-
+        TestContext.<anonymous> (/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/diagnostic-safety-before/bootstrap.test.cjs:169:24)
+        Test.runInAsyncScope (node:async_hooks:227:14)
+        Test.run (node:internal/test_runner/test:1382:25)
+        Suite.processPendingSubtests (node:internal/test_runner/test:960:18)
+        Test.postRun (node:internal/test_runner/test:1522:19)
+        Test.run (node:internal/test_runner/test:1447:12)
+        async Suite.processPendingSubtests (node:internal/test_runner/test:960:7)
+      ...
+    1..12
+not ok 1 - 启动诊断秘密脱敏
+  ---
+  duration_ms: 23.96525
+  type: 'suite'
+  location: '/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/diagnostic-safety-before/bootstrap.test.cjs:41:1'
+  failureType: 'subtestsFailed'
+  error: '10 subtests failed'
+  code: 'ERR_TEST_FAILURE'
+  ...
+1..1
+# tests 12
+# suites 1
+# pass 2
+# fail 10
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 88.342166

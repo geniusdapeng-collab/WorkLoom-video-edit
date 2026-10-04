@@ -1,0 +1,233 @@
+[
+  {
+    "origin": "codex-root-T-2026-1002-0901",
+    "original": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/evidence/mac-final-fresh.json",
+    "snapshot": "inherited/evidence__mac-final-fresh.json",
+    "sha256": "f984b074d8c7b31d857a7975a7f1f0ddfc503bab647e0473abe1aa4fb352165e",
+    "review": "independent receipt/log inspection only; execution was by root"
+  },
+  {
+    "origin": "codex-root-T-2026-1002-0901",
+    "original": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/evidence/mac-final-fresh.log",
+    "snapshot": "inherited/evidence__mac-final-fresh.log",
+    "sha256": "53fb541d809b8c48ac3f60c28f1f98ee9f1afb5f4ec91315d9767df48ed52be6",
+    "review": "independent receipt/log inspection only; execution was by root"
+  },
+  {
+    "origin": "codex-root-T-2026-1002-0901",
+    "original": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/evidence/mac-final-restart.json",
+    "snapshot": "inherited/evidence__mac-final-restart.json",
+    "sha256": "cc12003645c3c7ccf7e7a81abec49ec4cc15a52c9a4aaca3065cd4a3e068d9fa",
+    "review": "independent receipt/log inspection only; execution was by root"
+  },
+  {
+    "origin": "codex-root-T-2026-1002-0901",
+    "original": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/evidence/mac-final-restart.log",
+    "snapshot": "inherited/evidence__mac-final-restart.log",
+    "sha256": "e2acc0ac8a595a8b1590cea0ea6457d85b91585055d42ada29e7c03eeef0a196",
+    "review": "independent receipt/log inspection only; execution was by root"
+  },
+  {
+    "origin": "codex-root-T-2026-1002-0901",
+    "original": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/evidence/mac-final-default.json",
+    "snapshot": "inherited/evidence__mac-final-default.json",
+    "sha256": "01de97bc3924f2c1a028dc73469bf286c0e857aaba316391da9e943c554d5ed4",
+    "review": "independent receipt/log inspection only; execution was by root"
+  },
+  {
+    "origin": "codex-root-T-2026-1002-0901",
+    "original": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/evidence/mac-final-default.log",
+    "snapshot": "inherited/evidence__mac-final-default.log",
+    "sha256": "e55c1ea3076c2a2f2bf5c071658b3d7d32a8d2230e769e5db051a7cc1799b9e1",
+    "review": "independent receipt/log inspection only; execution was by root"
+  },
+  {
+    "origin": "codex-root-T-2026-1002-0901",
+    "original": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/evidence/guide-app-fingerprint.json",
+    "snapshot": "inherited/evidence__guide-app-fingerprint.json",
+    "sha256": "351ee2b23f4eccd7f565e8ecdd165bc2336d402b8744625eabe245449f9d4f91",
+    "review": "independent receipt/log inspection only; execution was by root"
+  },
+  {
+    "origin": "codex-root-T-2026-1002-0901",
+    "original": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/evidence/mac-guide-default.json",
+    "snapshot": "inherited/evidence__mac-guide-default.json",
+    "sha256": "84f213a6ba48952ae1cf98f25888f6567728846bd4e7d3bbb65da46f43b94dd3",
+    "review": "independent receipt/log inspection only; execution was by root"
+  },
+  {
+    "origin": "codex-root-T-2026-1002-0901",
+    "original": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/evidence/mac-guide-default.log",
+    "snapshot": "inherited/evidence__mac-guide-default.log",
+    "sha256": "d2d8b6e93a9c45441bdf1daf948ac61c0357a0200d9bc591e99485ad3fd07fc4",
+    "review": "independent receipt/log inspection only; execution was by root"
+  },
+  {
+    "origin": "codex-root-T-2026-1002-0901",
+    "original": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/evidence/mac-guide-clean-default.json",
+    "snapshot": "inherited/evidence__mac-guide-clean-default.json",
+    "sha256": "54c58f475843a300189919f1d1080d1d2ad8c037e161637ce8fe814a1316ca30",
+    "review": "independent receipt/log inspection only; execution was by root"
+  },
+  {
+    "origin": "codex-root-T-2026-1002-0901",
+    "original": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/evidence/mac-guide-clean-default.log",
+    "snapshot": "inherited/evidence__mac-guide-clean-default.log",
+    "sha256": "b404be066eba225a3fba91a08c88f6480a7800ae37e1b94b16400f68c595bb7a",
+    "review": "independent receipt/log inspection only; execution was by root"
+  },
+  {
+    "origin": "codex-root-T-2026-1002-0901",
+    "original": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/evidence/mac-guide-reused-fixture-failed-render-default.json",
+    "snapshot": "inherited/evidence__mac-guide-reused-fixture-failed-render-default.json",
+    "sha256": "f720885265c4fbc7c35f767736d87a8a91f58f06198bb13ee92018c798a9993c",
+    "review": "independent receipt/log inspection only; execution was by root"
+  },
+  {
+    "origin": "codex-root-T-2026-1002-0901",
+    "original": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/evidence/mac-guide-reused-fixture-failed-render-default.png",
+    "snapshot": "inherited/evidence__mac-guide-reused-fixture-failed-render-default.png",
+    "sha256": "38a480d315113336c8a23f7e637d3a0ece5843e545ffea80fbcc5b95f3b5d29f",
+    "review": "independent receipt/log inspection only; execution was by root"
+  },
+  {
+    "origin": "codex-root-T-2026-1002-0901",
+    "original": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/evidence/cnb-deadline-source-status.json",
+    "snapshot": "inherited/evidence__cnb-deadline-source-status.json",
+    "sha256": "bfa9728620efcf6521563f23b584583dd124b0c30f9b19edfc3196986732fea1",
+    "review": "independent receipt/log inspection only; execution was by root"
+  },
+  {
+    "origin": "codex-root-T-2026-1002-0901",
+    "original": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/evidence/mac-guide-loading-diagnostic.json",
+    "snapshot": "inherited/evidence__mac-guide-loading-diagnostic.json",
+    "sha256": "261d794da60b6d9076e76438251cccdfb27fe7ba90b6e2744891a44c958ca8cf",
+    "review": "independent receipt/log inspection only; execution was by root"
+  },
+  {
+    "origin": "codex-root-T-2026-1002-0901",
+    "original": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/evidence/mac-guide-loading-diagnostic.log",
+    "snapshot": "inherited/evidence__mac-guide-loading-diagnostic.log",
+    "sha256": "0bd374d71ea82de8785da4284960431cb7c7ab0de670f4de3c856be0c238647c",
+    "review": "independent receipt/log inspection only; execution was by root"
+  },
+  {
+    "origin": "codex-root-T-2026-1002-0901",
+    "original": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/evidence/native-avatar-diagnostic.json",
+    "snapshot": "inherited/evidence__native-avatar-diagnostic.json",
+    "sha256": "373b1262479907499d7ecf5c16b6b5a18633017a11f06427bc6c5dd0f808bfb6",
+    "review": "independent receipt/log inspection only; execution was by root"
+  },
+  {
+    "origin": "codex-root-T-2026-1002-0901",
+    "original": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/evidence/native-avatar-diagnostic.log",
+    "snapshot": "inherited/evidence__native-avatar-diagnostic.log",
+    "sha256": "27650b2c6ae6fbe857fda0bc6ae066a2af86f957e362c430bf36e98e77dae7ee",
+    "review": "independent receipt/log inspection only; execution was by root"
+  },
+  {
+    "origin": "codex-root-T-2026-1002-0901",
+    "original": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/evidence/cnb-avatar-source-status.json",
+    "snapshot": "inherited/evidence__cnb-avatar-source-status.json",
+    "sha256": "75afb212b95f1089e7c8620029a944a2d0d4e9ac7ac35b79c136bcc47d0f7af9",
+    "review": "independent receipt/log inspection only; execution was by root"
+  },
+  {
+    "origin": "codex-root-T-2026-1002-0901",
+    "original": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/evidence/native-avatar-evidence-cleanup.json",
+    "snapshot": "inherited/evidence__native-avatar-evidence-cleanup.json",
+    "sha256": "ddad653f6e9e29cdf9c6cc9899f9355d13aea4374b7bbb7fe708c9324555e56c",
+    "review": "independent receipt/log inspection only; execution was by root"
+  },
+  {
+    "origin": "codex-root-T-2026-1002-0901",
+    "original": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/evidence/native-avatar-diagnostic-snapshots-retained.json",
+    "snapshot": "inherited/evidence__native-avatar-diagnostic-snapshots-retained.json",
+    "sha256": "7c1908267efb015a4ad57b94ba09028d1d4d25b3f8958302876ef2eef1800524",
+    "review": "independent receipt/log inspection only; execution was by root"
+  },
+  {
+    "origin": "codex-root-T-2026-1002-0901",
+    "original": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/evidence/native-avatar-diagnostic-render-default.json",
+    "snapshot": "inherited/evidence__native-avatar-diagnostic-render-default.json",
+    "sha256": "13928c1d9d4d6eea8bac5b7c65e2a8f92fb48103905c89fce937acdd01ebcb89",
+    "review": "independent receipt/log inspection only; execution was by root"
+  },
+  {
+    "origin": "codex-root-T-2026-1002-0901",
+    "original": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/evidence/native-avatar-diagnostic-render-default.png",
+    "snapshot": "inherited/evidence__native-avatar-diagnostic-render-default.png",
+    "sha256": "5f2c7ea9fbb385282761c559f4d1d81195e793f17a0e9375639bfa438f2920d8",
+    "review": "independent receipt/log inspection only; execution was by root"
+  },
+  {
+    "origin": "codex-root-T-2026-1002-0901",
+    "original": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/evidence/native-avatar-diagnostic-team-default.png",
+    "snapshot": "inherited/evidence__native-avatar-diagnostic-team-default.png",
+    "sha256": "24413a32083aea81347364073be8564b87d32f595c6bfd387d7e04be13419bea",
+    "review": "independent receipt/log inspection only; execution was by root"
+  },
+  {
+    "origin": "codex-root-T-2026-1002-0901",
+    "original": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/evidence/native-avatar-diagnostic-workplace-default.png",
+    "snapshot": "inherited/evidence__native-avatar-diagnostic-workplace-default.png",
+    "sha256": "41e42f9e81962d7f164cc922812c7ed3ac2359d34a79d10692d9926349936dc2",
+    "review": "independent receipt/log inspection only; execution was by root"
+  },
+  {
+    "origin": "codex-root-T-2026-1002-0901",
+    "original": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/evidence/native-avatar-diagnostic-stage-default.png",
+    "snapshot": "inherited/evidence__native-avatar-diagnostic-stage-default.png",
+    "sha256": "7eddff4160d294b5d78e659f430438f8750a13d1aa64cfd67b3a696f0a9d4c5d",
+    "review": "independent receipt/log inspection only; execution was by root"
+  },
+  {
+    "origin": "codex-root-T-2026-1002-0901",
+    "original": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/evidence/avatar-lifecycle-red.json",
+    "snapshot": "inherited/evidence__avatar-lifecycle-red.json",
+    "sha256": "1de3c736a1fd6d57207f92f101adcd354bf26b75e65abb72c93a77c66b8510c4",
+    "review": "independent receipt/log inspection only; execution was by root"
+  },
+  {
+    "origin": "codex-root-T-2026-1002-0901",
+    "original": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/evidence/avatar-lifecycle-red.log",
+    "snapshot": "inherited/evidence__avatar-lifecycle-red.log",
+    "sha256": "e05cc8fd7bb6d7f7e986c3662552149bcef398f7847eb45d127d3aca857e6daf",
+    "review": "independent receipt/log inspection only; execution was by root"
+  },
+  {
+    "origin": "codex-root-T-2026-1002-0901",
+    "original": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/evidence/avatar-lifecycle-green.json",
+    "snapshot": "inherited/evidence__avatar-lifecycle-green.json",
+    "sha256": "ed96ddb8b651421d6e6b4ffa5a503a1dc4bc79a71e40a7e37591fc7f364764a7",
+    "review": "independent receipt/log inspection only; execution was by root"
+  },
+  {
+    "origin": "codex-root-T-2026-1002-0901",
+    "original": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/evidence/avatar-lifecycle-green.log",
+    "snapshot": "inherited/evidence__avatar-lifecycle-green.log",
+    "sha256": "697d6493d4fa55fb32f49bb0c285a63e5ce6d35396946510a6a1df4504e70475",
+    "review": "independent receipt/log inspection only; execution was by root"
+  },
+  {
+    "origin": "codex-root-T-2026-1002-0901",
+    "original": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/evidence/avatar-payload-fingerprint.json",
+    "snapshot": "inherited/evidence__avatar-payload-fingerprint.json",
+    "sha256": "15c5d7373c58652e667cd7846199c3aeeb6b79c52f0db909ab271d6e36a70596",
+    "review": "independent receipt/log inspection only; execution was by root"
+  },
+  {
+    "origin": "codex-root-T-2026-1002-0901",
+    "original": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/evidence/avatar-payload-source-closure.json",
+    "snapshot": "inherited/evidence__avatar-payload-source-closure.json",
+    "sha256": "53ac93d76a6f895f78507b23629d22006bbafef145221e7105c2b75fdac176e3",
+    "review": "independent receipt/log inspection only; execution was by root"
+  },
+  {
+    "origin": "codex-root-T-2026-1002-0901",
+    "original": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/evidence/avatar-app-fingerprint.json",
+    "snapshot": "inherited/evidence__avatar-app-fingerprint.json",
+    "sha256": "97332af48b3444cf9ac23f1ee9a1ef2cab2a7a653c60b06a7dccc9d14d38df58",
+    "review": "independent receipt/log inspection only; execution was by root"
+  }
+]

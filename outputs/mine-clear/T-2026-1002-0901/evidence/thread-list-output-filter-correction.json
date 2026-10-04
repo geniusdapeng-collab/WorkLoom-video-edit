@@ -1,0 +1,11 @@
+{
+  "schema": "growth.output-filter-correction@1",
+  "at": "2026-10-04T04:24:52.155356+08:00",
+  "action": "Read-only list_threads while locating independent-verifier progress",
+  "finding": "An older unrelated chat title contained a plaintext provider-key-shaped field, which reached the tool output because the initial filter excluded summaries but not titles/cwd",
+  "correction": "Stopped broad chat-list outputs; cleared temporary in-memory tool result stores; subsequent reads restricted to known authorized client chat IDs with output redaction",
+  "private_value_retained_in_this_record": false,
+  "private_value_in_repository_evidence_bundle": false,
+  "credentials_rotated": false,
+  "rotation_requires_owner_instruction": true
+}

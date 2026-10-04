@@ -1,0 +1,52 @@
+{
+  "source_commit": "ad4a7a0ba65845a8b401d3cbae7c8981c2ddfb4b",
+  "verified_by": "growth_m6",
+  "fixed_by": "codex-root-T-2026-1002-0901",
+  "state": "HOLD",
+  "final_native_verified": false,
+  "source_scoped_merge_eligible": false,
+  "production_release_eligible": false,
+  "new_independent_observation": {
+    "id": "OBS-10",
+    "parent_observation": "pending parent mapping",
+    "title": "captureProductScene uses pre-settle overlay state to accept a later screenshot",
+    "severity": "P1 acceptance false-success risk",
+    "source_function": "apps/desktop/electron/main.cjs#runRenderSmoke/captureProductScene",
+    "source_grade": "A actual function, B controlled source-faithful execution",
+    "reproduction": "Initial scene query at 0ms says overlayVisible=false; overlay reappears at 1000ms; capturePage at 3600ms sees overlayVisible=true; actual function returns success with old overlayVisible=false.",
+    "control_run": "render-guide-transient.json",
+    "control_results": "render-guide-transient-results.json",
+    "actual": "7 cases passed, 1 case failed; helper controls 5/5, scene positive/sticky controls 2/2, reappearance case failed.",
+    "fix_status": "Delivered to root for repair and source/negative-control retest; no verifier product changes.",
+    "causal_limit": "This acceptance-probe stale observation is not a proven cause of the actual native guide closed=false failure."
+  },
+  "exact_ad4a_native": {
+    "command": "mac-avatar-default.json",
+    "origin": "root; independent receipt inspection",
+    "exit_code": 1,
+    "seconds": 721.66,
+    "retained_render": "native-avatar-default-render-default.json",
+    "avatarReady": true,
+    "renderMode": "live2d-webgl",
+    "actorCount": 64,
+    "mouthPeak": 0.45,
+    "blinkCount": 2,
+    "gestureCount": 1,
+    "parameterWriteFailures": 0,
+    "teamActors": 65,
+    "firstDayGuide": { "shown": true, "clicked": true, "supported": true, "closed": false },
+    "conclusion": "Actual cold default remains failed at guide exit; completed avatar/team subchecks do not make the full run pass."
+  },
+  "artifact_recheck": {
+    "origin": "growth_m6",
+    "execution": "current-artifact-recheck.json",
+    "exit_code": 0,
+    "seconds": 101.688,
+    "source_counterparts_compared": 2080,
+    "installed_cjs_source_checks": 4,
+    "payload_archive_bytes": 500725222,
+    "payload_sha256": "2a32c85d22f64db30c9e13b8b5241c8be969eac814980bdf0b4e0a325099a54b",
+    "signing": "codesign verify --deep --strict passed; ad-hoc QA only"
+  },
+  "older_report": "REPORT.md and report-validation-ad4a.json cover the earlier 258 passing cases. They must be refreshed after OBS-10 closes and the exact native receipts are available; this file is a continuation record, not final acceptance."
+}

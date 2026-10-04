@@ -1,0 +1,42 @@
+COMMAND ["/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node", "--env-file=.env", "--test", "--test-name-pattern", "同版本标记不能跳过", "apps/desktop/electron/bootstrap.test.cjs"]
+02:10:49 == WorkLoom 织元 · 引导启动（resources=/var/folders/dj/mkh6fwbd4mb6ycp933xfty4h0000gn/T/workloom-bootstrap-DWxHi6/payload）==
+02:10:49 正在检查本机版本与安装载荷…
+▶ 桌面载荷原子装配
+  ✖ 同版本标记不能跳过缺失运行目录、错误运行版本或缺失 Node 的恢复 (242.813041ms)
+✖ 桌面载荷原子装配 (245.878833ms)
+ℹ tests 1
+ℹ suites 1
+ℹ pass 0
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 828.210209
+
+✖ failing tests:
+
+test at apps/desktop/electron/bootstrap.test.cjs:214:3
+✖ 同版本标记不能跳过缺失运行目录、错误运行版本或缺失 Node 的恢复 (242.813041ms)
+  AssertionError [ERR_ASSERTION]: 必须进入原子恢复，不能停在缺版本/二进制错误
+      at async TestContext.<anonymous> (/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/apps/desktop/electron/bootstrap.test.cjs:225:9)
+      at async Test.run (node:internal/test_runner/test:1389:7)
+      at async Promise.all (index 0)
+      at async Suite.run (node:internal/test_runner/test:1869:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: Error: 载荷版本不一致：期望 2.0.0，实际 缺失
+        at bootstrap (/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/apps/desktop/electron/bootstrap.cjs:915:11)
+        at TestContext.<anonymous> (/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/apps/desktop/electron/bootstrap.test.cjs:225:30)
+        at Test.runInAsyncScope (node:async_hooks:227:14)
+        at Test.run (node:internal/test_runner/test:1382:25)
+        at Test.start (node:internal/test_runner/test:1242:17)
+        at node:internal/test_runner/test:1867:71
+        at node:internal/per_context/primordials:504:82
+        at new Promise (<anonymous>)
+        at new SafePromise (node:internal/per_context/primordials:478:3)
+        at node:internal/per_context/primordials:504:9,
+    expected: /安装故障注入：after-first-swap/u,
+    operator: 'rejects',
+    diff: 'simple'
+  }

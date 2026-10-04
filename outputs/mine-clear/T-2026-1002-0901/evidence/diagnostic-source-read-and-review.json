@@ -1,0 +1,71 @@
+{
+  "pre_commit_head": "87ab5781d381d19e9dc7e1f5caa98b6a6b410c58",
+  "source_dirty_candidate": true,
+  "files": [
+    {
+      "path": "apps/desktop/electron/main.cjs",
+      "lines": 738,
+      "sha256": "231d1e1c9621c9408393aee430ff80008eb5548d3c734ce96e329cff5f588ad2",
+      "evidence_grade": "A",
+      "method": "Complete source reads before edits; full diff reviewed; unchanged dependencies completely read"
+    },
+    {
+      "path": "apps/desktop/electron/bootstrap.test.cjs",
+      "lines": 984,
+      "sha256": "ee5aa1da3a27ccdacf17a91c75602680bc5b30b9b06a7cedc970fedf57f3cafa",
+      "evidence_grade": "A",
+      "method": "Complete source reads before edits; full diff reviewed; unchanged dependencies completely read"
+    },
+    {
+      "path": "apps/desktop/electron/bootstrap.cjs",
+      "lines": 1329,
+      "sha256": "aca7f94eacd643cc223a40ce15443321b6b2ce2814621d3ce89ea57ee7018c46",
+      "evidence_grade": "A",
+      "method": "Complete source reads before edits; full diff reviewed; unchanged dependencies completely read"
+    },
+    {
+      "path": "apps/desktop/electron/render-smoke.cjs",
+      "lines": 59,
+      "sha256": "c287cb424fc0ed5f20fbacceab1e999705e3081838952ca8a806787530738fe3",
+      "evidence_grade": "A",
+      "method": "Complete source reads before edits; full diff reviewed; unchanged dependencies completely read"
+    },
+    {
+      "path": "apps/desktop/electron/preload.cjs",
+      "lines": 5,
+      "sha256": "a7f42b647d6188b5dc2da06f6602207aa631da7952c2f2a0c52747b47b0532d4",
+      "evidence_grade": "A",
+      "method": "Complete source reads before edits; full diff reviewed; unchanged dependencies completely read"
+    },
+    {
+      "path": "docs/repairs/T-2026-1002-0901.md",
+      "lines": 89,
+      "sha256": "e2edfd240fe76a1208a7d43fbc7f9fcc84d4700aa6874751effd944e7805dae1",
+      "evidence_grade": "A",
+      "method": "Complete source reads before edits; full diff reviewed; unchanged dependencies completely read"
+    },
+    {
+      "path": "AGENTS.md",
+      "lines": 125,
+      "sha256": "cc4b3ff324ecf404473397d9d538fb93193ad811ba6624d38390d65f7ef21f9a",
+      "evidence_grade": "A",
+      "method": "Complete source reads before edits; full diff reviewed; unchanged dependencies completely read"
+    },
+    {
+      "path": "AGENTS.repo.md",
+      "lines": 48,
+      "sha256": "545b15dd35eb8fbe01b211b7abbb94080d8ffbd78227a762b1262f4ad2c61d2d",
+      "evidence_grade": "A",
+      "method": "Complete source reads before edits; full diff reviewed; unchanged dependencies completely read"
+    }
+  ],
+  "checks": {
+    "selected_diagnostic": 12,
+    "desktop": 113,
+    "runtime_lock": 0
+  },
+  "limits": [
+    "Actual synthetic local files and extracted product functions; UI dialogs/failure injection are fixtures. Native menu and Windows ACL are pending.",
+    "Secret-field redaction is not arbitrary-log anonymization."
+  ]
+}

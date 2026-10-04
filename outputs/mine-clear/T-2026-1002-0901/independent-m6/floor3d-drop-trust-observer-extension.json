@@ -1,0 +1,39 @@
+{
+  "schema": "growth.independent-m6/drop-trust-observation@1",
+  "at": "2026-10-03T07:51:03.402487+08:00",
+  "method": "Record actual DOM isTrusted and assert false for browser-constructor synthetic dispatch; existing physical clicks and drop correct-id/once/empty/type assertions retained. No product algorithms or event handlers replaced.",
+  "product_cases_executed": 0,
+  "deadlines_relaxed": false,
+  "official_primary_sources": [
+    {
+      "title": "WHATWG DOM Event.isTrusted and dispatchEvent",
+      "url": "https://dom.spec.whatwg.org/#dom-event-istrusted",
+      "read": "Application dispatch initializes isTrusted false; native constructor alone does not prove native user gesture."
+    },
+    {
+      "title": "WHATWG HTML DragEvent processing model",
+      "url": "https://html.spec.whatwg.org/multipage/dnd.html#the-dragevent-interface",
+      "read": "Script DragEvent constructor differs from browser-coordinated real drag-and-drop processing/security model."
+    }
+  ],
+  "files": [
+    {
+      "file": "floor3d-probe.mjs",
+      "prior_sha256": "b247c013bd0026d828de6f00b8fbdebb50fe00661c289a9a808d95786da242b1",
+      "current_sha256": "a10fdc94914151d3a66458427787b0d8cf0b7c50ae90a489b77f80b1a2e460db",
+      "immutable_prior": "history/before-drop-trust-observation/floor3d-probe.mjs"
+    },
+    {
+      "file": "floor3d-edges-probe.mjs",
+      "prior_sha256": "899358cc26db4d6c5af2e9ac06ab120ce8cedb40f4bc2cd7a9919133d66cf66b",
+      "current_sha256": "df8fe700381a625072f6a5c71b084a49da2556891219092eab3d872b887a6e4d",
+      "immutable_prior": "history/before-drop-trust-observation/floor3d-edges-probe.mjs"
+    },
+    {
+      "file": "floor3d-bubble-probe.mjs",
+      "prior_sha256": "149c4f3c7d13d99749f67f9a6c5b2ec1c969238bf4ced94292fe73ca744f3e70",
+      "current_sha256": "68795402ece1c2e14402d04182aa935a5579cfaaa397f0342523082b1e1a19e0",
+      "immutable_prior": "history/before-drop-trust-observation/floor3d-bubble-probe.mjs"
+    }
+  ]
+}

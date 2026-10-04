@@ -1,0 +1,16 @@
+{
+  "name": "portable-auth-probe",
+  "command": [
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+    "--env-file=.env",
+    "--import",
+    "tsx",
+    "../portable-growth-stage/auth-production-probe.mjs",
+    "--repo",
+    "."
+  ],
+  "exit_code": 0,
+  "seconds": 12.857,
+  "ran_at": "2026-10-03T05:05:32.306148+08:00",
+  "log": "portable-auth-probe.log"
+}

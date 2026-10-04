@@ -1,0 +1,10 @@
+{
+  "at": "2026-10-04T00:05:03.916826+08:00",
+  "source_commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+  "path": "/Users/mac/WorkLoom-fleet/WorkLoom-growth/.git/info/exclude",
+  "before_sha256": "f6cf1b3265e0c4e204ea9aac1463fe6cf253a76d2c62cf28180509d9a7d3411c",
+  "after_sha256": "a4a7debe1a7ef714b11a171abe236cf2d0d17b7d4fe07f5bc863d80aa2dc3ffd",
+  "appended_local_pattern": "/release-dependency/",
+  "purpose": "Separate owned QA output namespace preserves old .5 artifact; exclude build output from source clean check without changing any tracked product or published governance byte",
+  "tracked_source_changed": false
+}

@@ -1,0 +1,478 @@
+{
+  "schema": "growth.independent-m6/regression-output-assessment@1",
+  "created_at": "2026-10-02T23:27:39.101578+00:00",
+  "verified_by": "growth_m6",
+  "assessment_only": true,
+  "executor_invoked": false,
+  "commands_executed": 0,
+  "product_code_or_ledger_modified": false,
+  "provider_calls": 0,
+  "current_head_snapshot": "d6a100b60218173cdae6f5a5de7f66452bbbd884",
+  "current_worktree_dirty": true,
+  "current_source_or_native_accepted_by_this_assessment": false,
+  "scope": {
+    "files_total": 20,
+    "full_read": 19,
+    "machine_parse": 1,
+    "sample": 0,
+    "unread": 0,
+    "original_problem_cards": 16,
+    "all_cards": 22,
+    "original_assertions": 18,
+    "all_assertions": 24
+  },
+  "files": [
+    {
+      "file": "/Users/mac/.codex/skills/mine-clear-delivery/assets/mine-clear.mjs",
+      "grade": "A",
+      "reading": "complete",
+      "lines": 910,
+      "sha256": "f2c0e0d200b32ffc7822c0f802afc8460c8c0f48afe261b656559bf1eb1596f5"
+    },
+    {
+      "file": "/Users/mac/.codex/skills/mine-clear-delivery/assets/evidence.mjs",
+      "grade": "A",
+      "reading": "complete",
+      "lines": 336,
+      "sha256": "bb408f4b0257f2dbbf05a8bc072b6feda455fe39d371fa82c01166cf6772891a"
+    },
+    {
+      "file": "/Users/mac/.codex/skills/mine-clear-delivery/assets/node-test-reporter.mjs",
+      "grade": "A",
+      "reading": "complete",
+      "lines": 17,
+      "sha256": "286448a4dee571759fc1703564477d27bf5319bcb05ff66db2186deda60bc78f"
+    },
+    {
+      "file": "/Users/mac/.codex/skills/mine-clear-delivery/scripts/run-mine-clear.sh",
+      "grade": "A",
+      "reading": "complete",
+      "lines": 56,
+      "sha256": "fb571a32331b6cabca58d11b78594ee688e6bb2fb13defbc65bd166dda545ae2"
+    },
+    {
+      "file": "/Users/mac/.codex/skills/mine-clear-delivery/assets/README.md",
+      "grade": "A",
+      "reading": "complete",
+      "lines": 104,
+      "sha256": "816318aa71540baf64d6f2af36a61a1c96760434cbf85883cd6165ae4e3c19e6"
+    },
+    {
+      "file": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/scripts/delivery/mine-clear.mjs",
+      "grade": "A",
+      "reading": "complete",
+      "lines": 753,
+      "sha256": "c314bfdb9c3310ed1f14976e46e9ddbf612bfde9f0938fabfcdb9b164fa43c7f"
+    },
+    {
+      "file": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/package.json",
+      "grade": "A",
+      "reading": "complete",
+      "lines": 112,
+      "sha256": "151ac3e3bcf026e58e37f392664b6367c282f1ddd47daf6eb0d29c0861c2d00d"
+    },
+    {
+      "file": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/evidence/runtime-repro.mts",
+      "grade": "A",
+      "reading": "complete",
+      "lines": 159,
+      "sha256": "e49d925a78ebfcf8c389a24f470b14de82029d62a22ba210c0b46750937169f4"
+    },
+    {
+      "file": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/evidence/local-counter.mjs",
+      "grade": "A",
+      "reading": "complete",
+      "lines": 12,
+      "sha256": "403b6c4e48e39fdcd6020cf952d3fadba132b6eb93774a820eadf472fa6db126"
+    },
+    {
+      "file": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/auth-production-acceptance.mjs",
+      "grade": "A",
+      "reading": "complete",
+      "lines": 81,
+      "sha256": "9bafa9b3cb50647dcac71496842634d923d4ae05d2b2321fcd3dbfa7e83688c8"
+    },
+    {
+      "file": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/film-worker-acceptance.mts",
+      "grade": "A",
+      "reading": "complete",
+      "lines": 56,
+      "sha256": "b796e49273c92300debd146dd6672e03d70444dc0d5cbf69b34db5d6a511f535"
+    },
+    {
+      "file": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/scripts/runtime-deps-lock.mjs",
+      "grade": "A",
+      "reading": "complete",
+      "lines": 408,
+      "sha256": "38d5eba21ae509aec4de97000bda055ca632f0216473e1d1000eeba6b5e0a475"
+    },
+    {
+      "file": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/scripts/pack-nm-merge.mjs",
+      "grade": "A",
+      "reading": "complete",
+      "lines": 272,
+      "sha256": "8e7aa9c1e7fe10e13165802f27c6162bbda9d45ae95c97841e9484e2560856ce"
+    },
+    {
+      "file": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/scripts/product-runtime.mjs",
+      "grade": "A",
+      "reading": "complete",
+      "lines": 184,
+      "sha256": "bf8a446d4a600424b8d38189fa4cbe61a36126dc051124c71012a1ec46c439e3"
+    },
+    {
+      "file": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/scripts/payload-policy.mjs",
+      "grade": "A",
+      "reading": "complete",
+      "lines": 193,
+      "sha256": "be1035d6c7f1e12f739bbc8e94e97c3aa8a45c2fc38a605537f2eb18916a6118"
+    },
+    {
+      "file": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/scripts/suite-geo.ts",
+      "grade": "A",
+      "reading": "complete",
+      "lines": 612,
+      "sha256": "95e3db37c577417cb98eb7f4fab9e2c98c447d44c197b185c10e8d7075d07ebc"
+    },
+    {
+      "file": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/scripts/seed-geo.ts",
+      "grade": "A",
+      "reading": "complete",
+      "lines": 776,
+      "sha256": "9091bb26f40114e7fa38ce88686dd80adcf99c30fc2acff60c9ffdc27c3d092b"
+    },
+    {
+      "file": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/scripts/verify-chain.ts",
+      "grade": "A",
+      "reading": "complete",
+      "lines": 256,
+      "sha256": "20119360fc90c5d0fe60c42d3402fab027a0d8d8047a8f78c9b93b4b5d558cb8"
+    },
+    {
+      "file": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/scripts/video-capabilities.test.mjs",
+      "grade": "A",
+      "reading": "complete",
+      "lines": 77,
+      "sha256": "b71f319eeafc8c31a19dfc9c8c32f221d2f41cf35b462873bec15339f4ed6aec"
+    },
+    {
+      "file": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/ledger.json",
+      "grade": "B",
+      "reading": "complete JSON parsing",
+      "sha256": "094384c5502fd73355bd64f5645245c77ae23fc8ee37c3f7da988ba11104c887"
+    }
+  ],
+  "historical_outputs_before_assessment": {
+    "runtime-repro-results.json": {
+      "file": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/evidence/runtime-repro-results.json",
+      "sha256": "1c1398a852535f96a29407965a5e488d613e9ab01be7094f9dbfcd1db66046b5",
+      "bytes": 5127,
+      "current_snapshot_cases": 9,
+      "current_snapshot_is_historical_only": true
+    },
+    "auth-production-http.json": {
+      "file": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/evidence/auth-production-http.json",
+      "sha256": "98a10d2017284d7c51db2a8633d98c825f4c41458bd3ca3c12a6ffde066e6d36",
+      "bytes": 1707,
+      "current_snapshot_cases": 11,
+      "current_snapshot_is_historical_only": true
+    },
+    "film-worker-public-success.json": {
+      "file": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/evidence/film-worker-public-success.json",
+      "sha256": "6641d6581bc76a604778dae6b2c7c37357a9171c08fe180cfae5b29467822cce",
+      "bytes": 5761,
+      "current_snapshot_cases": 5,
+      "current_snapshot_is_historical_only": true
+    }
+  },
+  "card_output_matrix": [
+    {
+      "id": "MC-001",
+      "state_snapshot": "verified",
+      "human_command_snapshot": "pnpm test:desktop",
+      "assertion_count": 1,
+      "declared_historic_evidence": "evidence/welcome-followup-desktop.log",
+      "actual_output_from_source": "stdout/stderr of six Node test files; stated .log is only an outer capture destination",
+      "risk": "No fixed evidence file written by the command itself; redirecting to the stated historic .log would overwrite it",
+      "safe_control_proposal": "Use actual pinned Node --test with the six unchanged package.json test paths, unique MCD capture; record exact argv and real TestsStream counts",
+      "required_precondition": "Clean pinned source; installed dependencies; isolated temporary test fixtures",
+      "limit": "Desktop source tests do not establish actual current package installation or native UI success",
+      "grade": "A source / B ledger snapshot / D proposed future execution"
+    },
+    {
+      "id": "MC-002",
+      "state_snapshot": "verified",
+      "human_command_snapshot": "node scripts/runtime-deps-lock.mjs verify",
+      "assertion_count": 1,
+      "declared_historic_evidence": "evidence/runtime-lock-production-refresh-final.log",
+      "actual_output_from_source": "stdout/stderr; verifyRuntimeDepsLock reads manifest/locks/input files",
+      "risk": "verify does not call refresh/stage or write those files; an outer redirect to historic .log would overwrite it",
+      "safe_control_proposal": "Pinned Node scripts/runtime-deps-lock.mjs verify; unique capture; retain exact input digests",
+      "required_precondition": "Clean pinned source with exact runtime metadata/locks",
+      "limit": "Do not substitute refresh/stage; those have write/download behavior",
+      "grade": "A source / B ledger snapshot / D proposed future execution"
+    },
+    {
+      "id": "MC-003",
+      "state_snapshot": "verified",
+      "human_command_snapshot": "pnpm test:desktop",
+      "assertion_count": 1,
+      "declared_historic_evidence": "evidence/welcome-followup-desktop.log",
+      "actual_output_from_source": "stdout/stderr of six Node test files; stated .log is only an outer capture destination",
+      "risk": "No fixed evidence file written by the command itself; redirecting to the stated historic .log would overwrite it",
+      "safe_control_proposal": "Use actual pinned Node --test with the six unchanged package.json test paths, unique MCD capture; record exact argv and real TestsStream counts",
+      "required_precondition": "Clean pinned source; installed dependencies; isolated temporary test fixtures",
+      "limit": "Desktop source tests do not establish actual current package installation or native UI success",
+      "grade": "A source / B ledger snapshot / D proposed future execution"
+    },
+    {
+      "id": "MC-004",
+      "state_snapshot": "verified",
+      "human_command_snapshot": "pnpm test:desktop",
+      "assertion_count": 1,
+      "declared_historic_evidence": "evidence/mac-welcome-payload.log",
+      "actual_output_from_source": "stdout/stderr of six Node test files; stated .log is only an outer capture destination",
+      "risk": "No fixed evidence file written by the command itself; redirecting to the stated historic .log would overwrite it",
+      "safe_control_proposal": "Use actual pinned Node --test with the six unchanged package.json test paths, unique MCD capture; record exact argv and real TestsStream counts",
+      "required_precondition": "Clean pinned source; installed dependencies; isolated temporary test fixtures",
+      "limit": "Desktop source tests do not establish actual current package installation or native UI success",
+      "grade": "A source / B ledger snapshot / D proposed future execution"
+    },
+    {
+      "id": "MC-005",
+      "state_snapshot": "verified",
+      "human_command_snapshot": "node --env-file=.env ../auth-production-acceptance.mjs",
+      "assertion_count": 1,
+      "declared_historic_evidence": "evidence/auth-production-http.json",
+      "actual_output_from_source": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/evidence/auth-production-http.json",
+      "risk": "Fixed JSON replaced on successful completion; fixed loopback port 28878 must be exclusively owned",
+      "safe_control_proposal": "Copy reviewed harness into a new per-attempt directory; explicitly bind fixture absolute path, unique result path and available port; add --repo with absolute source",
+      "required_precondition": "Three loopback growth_audit URLs, fake nonexample fixture, scheduler/portrait off, provider credentials removed, no competing HTTP/native/PG work",
+      "limit": "Current human command is missing --repo; source line 9 falls back to process.argv[0] rather than checkout, making manifest lookup invalid",
+      "grade": "A source / B ledger snapshot / D proposed future execution"
+    },
+    {
+      "id": "MC-006",
+      "state_snapshot": "verified",
+      "human_command_snapshot": "pnpm exec tsx --env-file=.env ../../outputs/growth-production-fix-2026-10-02/evidence/runtime-repro.mts --repo . --assert",
+      "assertion_count": 3,
+      "declared_historic_evidence": "evidence/runtime-repro-results.json",
+      "actual_output_from_source": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/evidence/runtime-repro-results.json",
+      "risk": "Every --case and full run writes the same file; later single case replaces current nine-case aggregate",
+      "safe_control_proposal": "Copy runtime-repro.mts plus local-counter.mjs byte-for-byte into a fresh per-card/per-assertion/per-role directory; its self-relative JSON then stays unique; keep --assert and actual --case",
+      "required_precondition": "Three loopback growth_audit URLs, local audit-only counter, mock planner, fixture-only DB under exclusive ownership; preserve all append-only receipts",
+      "limit": "QUEUE-10 and an unfiltered run pause every queued thread in the fixture DB before adding own jobs; no claim of only affecting the run prefix",
+      "grade": "A source / B ledger snapshot / D proposed future execution"
+    },
+    {
+      "id": "MC-007",
+      "state_snapshot": "verified",
+      "human_command_snapshot": "pnpm exec tsx --env-file=.env ../../outputs/growth-production-fix-2026-10-02/evidence/runtime-repro.mts --repo . --case BLOCK-FLAG --assert",
+      "assertion_count": 1,
+      "declared_historic_evidence": "evidence/runtime-repro-results.json",
+      "actual_output_from_source": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/evidence/runtime-repro-results.json",
+      "risk": "Every --case and full run writes the same file; later single case replaces current nine-case aggregate",
+      "safe_control_proposal": "Copy runtime-repro.mts plus local-counter.mjs byte-for-byte into a fresh per-card/per-assertion/per-role directory; its self-relative JSON then stays unique; keep --assert and actual --case",
+      "required_precondition": "Three loopback growth_audit URLs, local audit-only counter, mock planner, fixture-only DB under exclusive ownership; preserve all append-only receipts",
+      "limit": "QUEUE-10 and an unfiltered run pause every queued thread in the fixture DB before adding own jobs; no claim of only affecting the run prefix",
+      "grade": "A source / B ledger snapshot / D proposed future execution"
+    },
+    {
+      "id": "MC-008",
+      "state_snapshot": "verified",
+      "human_command_snapshot": "pnpm exec tsx --env-file=.env ../../outputs/growth-production-fix-2026-10-02/evidence/runtime-repro.mts --repo . --case RELEVANCE-REPLAY --assert",
+      "assertion_count": 1,
+      "declared_historic_evidence": "evidence/runtime-repro-results.json",
+      "actual_output_from_source": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/evidence/runtime-repro-results.json",
+      "risk": "Every --case and full run writes the same file; later single case replaces current nine-case aggregate",
+      "safe_control_proposal": "Copy runtime-repro.mts plus local-counter.mjs byte-for-byte into a fresh per-card/per-assertion/per-role directory; its self-relative JSON then stays unique; keep --assert and actual --case",
+      "required_precondition": "Three loopback growth_audit URLs, local audit-only counter, mock planner, fixture-only DB under exclusive ownership; preserve all append-only receipts",
+      "limit": "QUEUE-10 and an unfiltered run pause every queued thread in the fixture DB before adding own jobs; no claim of only affecting the run prefix",
+      "grade": "A source / B ledger snapshot / D proposed future execution"
+    },
+    {
+      "id": "MC-009",
+      "state_snapshot": "verified",
+      "human_command_snapshot": "pnpm exec tsx --env-file=.env ../../outputs/growth-production-fix-2026-10-02/evidence/runtime-repro.mts --repo . --case EDIT-PARAMS --assert",
+      "assertion_count": 1,
+      "declared_historic_evidence": "evidence/runtime-repro-results.json",
+      "actual_output_from_source": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/evidence/runtime-repro-results.json",
+      "risk": "Every --case and full run writes the same file; later single case replaces current nine-case aggregate",
+      "safe_control_proposal": "Copy runtime-repro.mts plus local-counter.mjs byte-for-byte into a fresh per-card/per-assertion/per-role directory; its self-relative JSON then stays unique; keep --assert and actual --case",
+      "required_precondition": "Three loopback growth_audit URLs, local audit-only counter, mock planner, fixture-only DB under exclusive ownership; preserve all append-only receipts",
+      "limit": "QUEUE-10 and an unfiltered run pause every queued thread in the fixture DB before adding own jobs; no claim of only affecting the run prefix",
+      "grade": "A source / B ledger snapshot / D proposed future execution"
+    },
+    {
+      "id": "MC-010",
+      "state_snapshot": "verified",
+      "human_command_snapshot": "pnpm exec tsx --env-file=.env ../../outputs/growth-production-fix-2026-10-02/evidence/runtime-repro.mts --repo . --case QUEUE-10 --assert",
+      "assertion_count": 1,
+      "declared_historic_evidence": "evidence/runtime-repro-results.json",
+      "actual_output_from_source": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/evidence/runtime-repro-results.json",
+      "risk": "Every --case and full run writes the same file; later single case replaces current nine-case aggregate",
+      "safe_control_proposal": "Copy runtime-repro.mts plus local-counter.mjs byte-for-byte into a fresh per-card/per-assertion/per-role directory; its self-relative JSON then stays unique; keep --assert and actual --case",
+      "required_precondition": "Three loopback growth_audit URLs, local audit-only counter, mock planner, fixture-only DB under exclusive ownership; preserve all append-only receipts",
+      "limit": "QUEUE-10 and an unfiltered run pause every queued thread in the fixture DB before adding own jobs; no claim of only affecting the run prefix",
+      "grade": "A source / B ledger snapshot / D proposed future execution"
+    },
+    {
+      "id": "MC-011",
+      "state_snapshot": "verified",
+      "human_command_snapshot": "pnpm exec tsx --env-file=.env ../../outputs/growth-production-fix-2026-10-02/evidence/runtime-repro.mts --repo . --case REJECT-TERMINAL --assert",
+      "assertion_count": 1,
+      "declared_historic_evidence": "evidence/runtime-repro-results.json",
+      "actual_output_from_source": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/evidence/runtime-repro-results.json",
+      "risk": "Every --case and full run writes the same file; later single case replaces current nine-case aggregate",
+      "safe_control_proposal": "Copy runtime-repro.mts plus local-counter.mjs byte-for-byte into a fresh per-card/per-assertion/per-role directory; its self-relative JSON then stays unique; keep --assert and actual --case",
+      "required_precondition": "Three loopback growth_audit URLs, local audit-only counter, mock planner, fixture-only DB under exclusive ownership; preserve all append-only receipts",
+      "limit": "QUEUE-10 and an unfiltered run pause every queued thread in the fixture DB before adding own jobs; no claim of only affecting the run prefix",
+      "grade": "A source / B ledger snapshot / D proposed future execution"
+    },
+    {
+      "id": "MC-012",
+      "state_snapshot": "verified",
+      "human_command_snapshot": "pnpm exec tsx --env-file=.env ../../outputs/growth-production-fix-2026-10-02/evidence/runtime-repro.mts --repo . --case REJECT-WORKSPACE-COLLISION --assert",
+      "assertion_count": 1,
+      "declared_historic_evidence": "evidence/runtime-repro-results.json",
+      "actual_output_from_source": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/evidence/runtime-repro-results.json",
+      "risk": "Every --case and full run writes the same file; later single case replaces current nine-case aggregate",
+      "safe_control_proposal": "Copy runtime-repro.mts plus local-counter.mjs byte-for-byte into a fresh per-card/per-assertion/per-role directory; its self-relative JSON then stays unique; keep --assert and actual --case",
+      "required_precondition": "Three loopback growth_audit URLs, local audit-only counter, mock planner, fixture-only DB under exclusive ownership; preserve all append-only receipts",
+      "limit": "QUEUE-10 and an unfiltered run pause every queued thread in the fixture DB before adding own jobs; no claim of only affecting the run prefix",
+      "grade": "A source / B ledger snapshot / D proposed future execution"
+    },
+    {
+      "id": "MC-013",
+      "state_snapshot": "verified",
+      "human_command_snapshot": "pnpm exec tsx --env-file=.env ../film-worker-acceptance.mts --repo .",
+      "assertion_count": 1,
+      "declared_historic_evidence": "evidence/film-channel-public-bounded.log",
+      "actual_output_from_source": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/evidence/film-worker-public-success.json",
+      "risk": "Success JSON is fixed; HR_WORK_DIR defaults to repo/work/repair-film-route even though each job has a UUID",
+      "safe_control_proposal": "Copy reviewed harness to a new attempt directory; bind unique result and HR_WORK_DIR outside product; retain source/rewritten-path hashes and success/missing-output/deadline cases separately",
+      "required_precondition": "Loopback growth_audit seeded fake ws-yunqi owner, local cine-kb/continuity plus mock review, provider secrets removed, exclusive worker/PG window",
+      "limit": "The command writes a DB project/job and launches an actual owned child; stated bounded .log requires outer capture and is not the direct writer JSON",
+      "grade": "A source / B ledger snapshot / D proposed future execution"
+    },
+    {
+      "id": "MC-014",
+      "state_snapshot": "verified",
+      "human_command_snapshot": "pnpm suite:geo",
+      "assertion_count": 1,
+      "declared_historic_evidence": "evidence/geo-system-telemetry-final.log",
+      "actual_output_from_source": "stdout/stderr; suite internally invokes db:seed:geo and db:verify-chain",
+      "risk": "No fixed result JSON/log writer in suite; seed mutates fixture DB, so a unique output path alone cannot isolate effects",
+      "safe_control_proposal": "Use exact owned fake database and exclusive PG window; unique capture; preserve five original system-error rows/hashes, snapshot mode/identity before and after",
+      "required_precondition": "Source-bound bundles, migrated seeded fake ws-geo; no native client/customer DB target",
+      "limit": "Seed rewrites ws-geo profile archive to simulated, roster/status/meta, baseline fence level/status, skill/install snapshots and aligns global readable ID sequences; verify-chain reads all fixture segments",
+      "grade": "A source / B ledger snapshot / D proposed future execution"
+    },
+    {
+      "id": "MC-015",
+      "state_snapshot": "verified",
+      "human_command_snapshot": "pnpm test:video-capabilities",
+      "assertion_count": 1,
+      "declared_historic_evidence": "evidence/video-capabilities-core.log",
+      "actual_output_from_source": "stdout/stderr from scripts/video-capabilities.test.mjs; owned mkdtemp fixtures cleaned in finally",
+      "risk": "No fixed historical evidence writer; outer redirect to existing video-capabilities-core.log would replace it",
+      "safe_control_proposal": "Pinned actual Node --test scripts/video-capabilities.test.mjs; unique TestsStream capture",
+      "required_precondition": "Installed source dependency; controlled temporary artifact root; keys file fixed to /dev/null by test",
+      "limit": "Four meaningful delivery-integrity/safe-argv tests; no real media supplier or actual PowerShell execution from this run",
+      "grade": "A source / B ledger snapshot / D proposed future execution"
+    },
+    {
+      "id": "MC-016",
+      "state_snapshot": "verified",
+      "human_command_snapshot": "pnpm audit --prod",
+      "assertion_count": 1,
+      "declared_historic_evidence": "evidence/dependency-audit.json",
+      "actual_output_from_source": "pnpm stdout/stderr from current online registry advisory request",
+      "risk": "Command has no stated fixed JSON writer; outer redirect to historical dependency-audit.json would replace it",
+      "safe_control_proposal": "Pinned Node plus pinned pnpm CLI argv audit --prod; unique capture, registry/time/lock digest and actual result recorded",
+      "required_precondition": "Public registry network availability and frozen lock; no provider/private account access",
+      "limit": "Advisory state may change; historic zero-advisory result is not a current-run claim; exit0 does not prove native/platform release",
+      "grade": "A source / B ledger snapshot / D proposed future execution"
+    }
+  ],
+  "risks": [
+    {
+      "id": "REG-01",
+      "grade": "A",
+      "finding": "Unique MCD stdout capture does not sandbox internal fixed result writers",
+      "source": "assets/evidence.mjs:230-262; runtime-repro.mts:156; auth-production-acceptance.mjs:79; film-worker-acceptance.mts:54",
+      "action": "Keep original files/hash snapshots intact; isolate reviewed harness closure and output for every attempt"
+    },
+    {
+      "id": "REG-02",
+      "grade": "A",
+      "finding": "Existing repository executor has no run-assertions entry; skill shell wrapper chooses it whenever present",
+      "source": "scripts/delivery/mine-clear.mjs:729-739; skill scripts/run-mine-clear.sh:31-34",
+      "action": "If later authorized, call the fixed offline assets/mine-clear.mjs directly and preserve hashes for evidence.mjs/reporter; do not mutate governance source"
+    },
+    {
+      "id": "REG-03",
+      "grade": "B/A",
+      "finding": "22 cards, 24 assertions have zero exec fields and zero run fields; discovery references have no SHA256; verification_evidence is a bare path",
+      "source": "ledger.json full JSON parse; assets/mine-clear.mjs:184-219, 295-332, 608",
+      "action": "Build a separate versioned execution-ledger with real argv and actual runs; old schema gate remains only metadata proof; do not import old green as actual new execution"
+    },
+    {
+      "id": "REG-04",
+      "grade": "A",
+      "finding": "MC005/MC102 human regression lacks --repo required by the actual auth harness",
+      "source": "auth-production-acceptance.mjs:9,16",
+      "action": "Record the actual absolute repo argument and explicit old-command correction in the independent execution-ledger"
+    },
+    {
+      "id": "REG-05",
+      "grade": "A",
+      "finding": "GEO suite runs a seed subprocess; a read-only comment is not its actual behavior",
+      "source": "scripts/suite-geo.ts:412-423; scripts/seed-geo.ts:344-776",
+      "action": "Reserve fixture-only DB window after source/native work; preserve mode, event hashes and mutation scope"
+    },
+    {
+      "id": "REG-06",
+      "grade": "A",
+      "finding": "Runtime QUEUE-10 pauses all queued fixture DB threads, not only its newly created prefix",
+      "source": "runtime-repro.mts:66-73",
+      "action": "Do not run with active native/business/other fixture jobs; retain immutable effects and exclude fixtures from ADR"
+    },
+    {
+      "id": "REG-07",
+      "grade": "A",
+      "finding": "Node TestsStream protection applies to actual --test exec; indirect pnpm runners only capture process exit/output",
+      "source": "assets/evidence.mjs:25-39, 233-254",
+      "action": "For Node suites use the exact actual Node binary and unchanged test list; for standalone TS probes separately assert nonzero named cases and card-specific expected observations"
+    },
+    {
+      "id": "REG-08",
+      "grade": "A",
+      "finding": "MCD index binds one exact commit and existing run IDs are immutable; ledger is invalidated before actual process start",
+      "source": "assets/evidence.mjs:213-225; assets/mine-clear.mjs:610-622",
+      "action": "Fresh directory per clean full source SHA; same binary/actor/role/subject bind; never mix old index or conceal a failed/aborted attempt"
+    },
+    {
+      "id": "REG-09",
+      "grade": "A/D",
+      "finding": "Original assertion human expectations can include more conditions than their old harness healthy boolean enforces",
+      "source": "runtime-repro.mts:82,125,132; ledger MC007/008/011",
+      "action": "Before any future MCD closure, actual test wrapper must enforce the stated terminal/replay/call observations, retain raw old output, and avoid exit0-only success claims"
+    },
+    {
+      "id": "REG-10",
+      "grade": "A/D",
+      "finding": "MC004 desktop unit and MC106 audit argv alone cannot satisfy final exact native install/render/platform qualification",
+      "source": "package.json:29; ledger MC004/MC106; actual native acceptance remains separate",
+      "action": "Keep current source/native/default/safe/fresh/restart/genuine-old-upgrade/DMG/private identity gate independent; Windows and formal trust unverified"
+    }
+  ],
+  "safe_future_root": "A new unique per-source execution-ledger and per-card/assertion/role harness closure outside product; no direct original command rerun",
+  "future_execution_order": "Only after final source/3D/native work is complete and owner opens a dedicated fake DB window",
+  "source_native_priority_preserved": true,
+  "mc106_duplicate_conclusion_control": {
+    "builder": "build_report.py:218-224",
+    "method": "Whole conclusion assignment replaces prior text; no incremental concatenation on prior generated MC106 conclusion",
+    "formal_current_report_not_regenerated_while_source_dirty": true
+  }
+}

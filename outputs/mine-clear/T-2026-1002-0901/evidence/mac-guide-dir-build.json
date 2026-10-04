@@ -1,0 +1,23 @@
+{
+  "name": "mac-guide-dir-build",
+  "command": [
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+    "--env-file=.env",
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/pnpm/bin/pnpm.cjs",
+    "exec",
+    "electron-builder",
+    "--mac",
+    "--dir",
+    "--arm64",
+    "--publish",
+    "never",
+    "-c.mac.identity=-",
+    "-c.mac.notarize=false",
+    "-c.extraMetadata.version=0.1.0-fix.20261002.3",
+    "-c.electronDist=node_modules/electron/dist"
+  ],
+  "exit_code": 0,
+  "seconds": 149.336,
+  "ran_at": "2026-10-03T00:34:26.338497+08:00",
+  "log": "mac-guide-dir-build.log"
+}

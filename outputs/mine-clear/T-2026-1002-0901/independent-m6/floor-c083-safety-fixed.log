@@ -1,0 +1,2 @@
+COMMAND ["/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node", "--env-file=.env", "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/independent-m6/floor3d-safety-c083-probe.mjs", "c08386eb9993744a0cb0c2495a98fc1fc4ccbed9", "floor-c083-safety-fixed-results.json", "floor-c083-safety-fixed"]
+{"passed":3,"failed":0,"source":"c08386eb9993744a0cb0c2495a98fc1fc4ccbed9"}

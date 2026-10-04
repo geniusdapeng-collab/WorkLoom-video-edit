@@ -1,0 +1,39 @@
+{
+  "schema": "workloom.mine-clear/baseline@1",
+  "task_id": "T-2026-1002-0901",
+  "repo": "growth-audit",
+  "repo_path": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit",
+  "remote": "origin",
+  "audit": {
+    "commit": "42ead347c65a5cc343bcd290702d53a7fcdb1687",
+    "branch": "task/T-2026-1002-0901",
+    "remote": "origin",
+    "remote_main": "42ead347c65a5cc343bcd290702d53a7fcdb1687",
+    "fetched_at": null,
+    "dirty_count": 0,
+    "notes": [
+      "审计HEAD取自匿名CNB main；本地原镜像保持clean。",
+      "时间精度到分钟的fetch记录见初始过程证据；最终HEAD核对另见final-source-state.json。"
+    ]
+  },
+  "smoke": {
+    "status": "pass",
+    "notes": "隔离PG56迁移和种子成功，三Web构建；实际DMG首启/重启/升级/默认与安全渲染通过。只说明客户端专项结构与安装，9运行时健康断言失败、整体生产不可交付。",
+    "evidence": [
+      "evidence/installed-app-first.json",
+      "evidence/installed-client-matrix.json",
+      "evidence/runtime-repro-results.json"
+    ]
+  },
+  "created_at": "2026-10-02T01:02:50.213Z",
+  "repair": {
+    "commit": "5d0c83e3293dc3a71651210987c9a5b48023480d",
+    "branch": "task/T-2026-1002-0901",
+    "pushed": false
+  },
+  "acceptance": {
+    "commit": null,
+    "status": "not-entered",
+    "reason": "3 P0未闭环；本会话回归不是独立M6；Windows、真实供应商与正式信任链未验。"
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "name": "scene-native-observer-red",
+  "command": [
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+    "--test",
+    "--test-name-pattern=产品截图采用",
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/apps/desktop/electron/bootstrap.test.cjs"
+  ],
+  "exit_code": 1,
+  "seconds": 0.262,
+  "ran_at": "2026-10-03T09:52:13.737098+08:00",
+  "log": "scene-native-observer-red.log"
+}

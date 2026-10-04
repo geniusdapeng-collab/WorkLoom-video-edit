@@ -1,0 +1,17 @@
+{
+  "name": "mac-payload-sources-filtered-proxy",
+  "command": [
+    "bash",
+    "scripts/pack-electron-payload.sh",
+    "--platform",
+    "mac",
+    "--arch",
+    "arm64",
+    "--version",
+    "v0.1.0-fix.20261002.2"
+  ],
+  "exit_code": -15,
+  "seconds": 181.714,
+  "ran_at": "2026-10-02T23:45:44.872913+08:00",
+  "log": "mac-payload-sources-filtered-proxy.log"
+}

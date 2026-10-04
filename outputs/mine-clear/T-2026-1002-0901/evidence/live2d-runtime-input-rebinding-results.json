@@ -1,0 +1,42 @@
+{
+  "at": "2026-10-03T13:54:24.200Z",
+  "evidence_grade": "B",
+  "pass": true,
+  "actual_generation": "Recomputed each existing metadata input with the product exported hash rule; exact runtime manifest and npm package-lock unchanged, product verifier then executed",
+  "metadata_before_sha256": "216dfd1574541fc262eb79314df4004781f1826b2ad200a38db6f3e92c35484b",
+  "metadata_after_sha256": "7b31857358fb40b4ad0dcd75b4dac9f3d4f547fb0aaa43c64cf95de7dece7208",
+  "changed_inputs": [
+    {
+      "path": "package.json",
+      "before_sha256": "c7344fc11289dc06c0d5a7a487b543e11a15ab36fc3f8cf1c951b3981b16eb24",
+      "after_sha256": "d899406147668e66293738b2dcf2fbf516f91def2676bfbde6aba9bd6f949bae"
+    },
+    {
+      "path": "pnpm-lock.yaml",
+      "before_sha256": "9d7b2c2748491e948ef19856ff1503118b01aa43fa4381e3cb342add3e11ee5a",
+      "after_sha256": "834833a61b50ff153fd0ed456a306d5fe0a3d2bffb51b8665fc0cf8b85d684e8"
+    }
+  ],
+  "runtime_manifest_sha256": "e0340ff5a9ac4cb175dfe90c7af0507a3ff10bd9e77e0bd5e7ebc72443180502",
+  "runtime_package_lock_sha256": "5f43bade687d37f6f28df174310bf5bd693fcb22bc846243204ce2fc11859440",
+  "targets": [
+    {
+      "platform": "darwin",
+      "arch": "arm64"
+    },
+    {
+      "platform": "darwin",
+      "arch": "x64"
+    },
+    {
+      "platform": "win32",
+      "arch": "x64"
+    }
+  ],
+  "product": {
+    "productId": "workloom-ai-growth",
+    "role": "industry",
+    "repository": "workloom-ai/WorkLoom-growth",
+    "includePlatformOps": false
+  }
+}

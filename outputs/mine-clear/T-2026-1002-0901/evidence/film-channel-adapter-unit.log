@@ -1,0 +1,11 @@
+COMMAND ["/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node", "--env-file=.env", "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/pnpm/bin/pnpm.cjs", "-C", "packages/video-studio", "exec", "vitest", "run", "src/film-worker-runtime.test.ts"]
+
+ RUN  v3.2.7 /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/packages/video-studio
+
+ ✓ src/film-worker-runtime.test.ts (10 tests) 337ms
+
+ Test Files  1 passed (1)
+      Tests  10 passed (10)
+   Start at  23:12:38
+   Duration  3.39s (transform 931ms, setup 0ms, collect 997ms, tests 337ms, environment 0ms, prepare 833ms)
+

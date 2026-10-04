@@ -1,0 +1,173 @@
+COMMAND ["/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node", "--test", "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/reset-safety-before/reset-safety.test.mjs"]
+✖ 非交互调用没有 --yes 时 fail closed，且不访问数据库 (2437.134167ms)
+✖ 远端、生产和数据库名不匹配目标始终拒绝 (1053.412167ms)
+✖ 检测到非演示工作区时拒绝删除 (996.148542ms)
+✖ 本机 workloom 纯演示库先备份，再事务重建并执行迁移种子 (914.773917ms)
+✖ 未知参数 fail closed (1019.17675ms)
+✖ 备份失败时禁止删除和后续迁移种子 (934.405334ms)
+✖ 空备份不能证明可恢复，禁止删除 (1040.599042ms)
+✖ 客户类型查询失败或不可识别时禁止备份与删除 (1718.080666ms)
+ℹ tests 8
+ℹ suites 0
+ℹ pass 0
+ℹ fail 8
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 10175.009584
+
+✖ failing tests:
+
+test at ../reset-safety-before/reset-safety.test.mjs:74:1
+✖ 非交互调用没有 --yes 时 fail closed，且不访问数据库 (2437.134167ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  0 !== 64
+  
+      at TestContext.<anonymous> (file:///Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/reset-safety-before/reset-safety.test.mjs:77:10)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1382:25)
+      at Test.start (node:internal/test_runner/test:1242:17)
+      at startSubtestAfterBootstrap (node:internal/test_runner/harness:387:17) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 0,
+    expected: 64,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at ../reset-safety-before/reset-safety.test.mjs:82:1
+✖ 远端、生产和数据库名不匹配目标始终拒绝 (1053.412167ms)
+  AssertionError [ERR_ASSERTION]: Expected "actual" to be strictly unequal to: 0
+      at TestContext.<anonymous> (file:///Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/reset-safety-before/reset-safety.test.mjs:90:12)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1382:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:960:18)
+      at Test.postRun (node:internal/test_runner/test:1522:19)
+      at Test.run (node:internal/test_runner/test:1447:12)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 0,
+    expected: 0,
+    operator: 'notStrictEqual',
+    diff: 'simple'
+  }
+
+test at ../reset-safety-before/reset-safety.test.mjs:95:1
+✖ 检测到非演示工作区时拒绝删除 (996.148542ms)
+  AssertionError [ERR_ASSERTION]: Expected "actual" to be strictly unequal to: 0
+      at TestContext.<anonymous> (file:///Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/reset-safety-before/reset-safety.test.mjs:98:10)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1382:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:960:18)
+      at Test.postRun (node:internal/test_runner/test:1522:19)
+      at Test.run (node:internal/test_runner/test:1447:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:960:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 0,
+    expected: 0,
+    operator: 'notStrictEqual',
+    diff: 'simple'
+  }
+
+test at ../reset-safety-before/reset-safety.test.mjs:103:1
+✖ 本机 workloom 纯演示库先备份，再事务重建并执行迁移种子 (914.773917ms)
+  AssertionError [ERR_ASSERTION]: The input did not match the regular expression /backup/. Input:
+  
+  'psql postgres://demo@127.0.0.1:5432/workloom -c DROP SCHEMA public CASCADE; CREATE SCHEMA public;\n' +
+    'drop\n' +
+    'pnpm db:migrate\n' +
+    'pnpm db:seed\n'
+  
+      at TestContext.<anonymous> (file:///Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/reset-safety-before/reset-safety.test.mjs:107:10)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1382:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:960:18)
+      at Test.postRun (node:internal/test_runner/test:1522:19)
+      at Test.run (node:internal/test_runner/test:1447:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:960:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'psql postgres://demo@127.0.0.1:5432/workloom -c DROP SCHEMA public CASCADE; CREATE SCHEMA public;\ndrop\npnpm db:migrate\npnpm db:seed\n',
+    expected: /backup/,
+    operator: 'match',
+    diff: 'simple'
+  }
+
+test at ../reset-safety-before/reset-safety.test.mjs:117:1
+✖ 未知参数 fail closed (1019.17675ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  0 !== 64
+  
+      at TestContext.<anonymous> (file:///Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/reset-safety-before/reset-safety.test.mjs:120:10)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1382:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:960:18)
+      at Test.postRun (node:internal/test_runner/test:1522:19)
+      at Test.run (node:internal/test_runner/test:1447:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:960:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 0,
+    expected: 64,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at ../reset-safety-before/reset-safety.test.mjs:125:1
+✖ 备份失败时禁止删除和后续迁移种子 (934.405334ms)
+  AssertionError [ERR_ASSERTION]: Expected "actual" to be strictly unequal to: 0
+      at TestContext.<anonymous> (file:///Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/reset-safety-before/reset-safety.test.mjs:128:10)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1382:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:960:18)
+      at Test.postRun (node:internal/test_runner/test:1522:19)
+      at Test.run (node:internal/test_runner/test:1447:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:960:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 0,
+    expected: 0,
+    operator: 'notStrictEqual',
+    diff: 'simple'
+  }
+
+test at ../reset-safety-before/reset-safety.test.mjs:133:1
+✖ 空备份不能证明可恢复，禁止删除 (1040.599042ms)
+  AssertionError [ERR_ASSERTION]: Expected "actual" to be strictly unequal to: 0
+      at TestContext.<anonymous> (file:///Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/reset-safety-before/reset-safety.test.mjs:136:10)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1382:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:960:18)
+      at Test.postRun (node:internal/test_runner/test:1522:19)
+      at Test.run (node:internal/test_runner/test:1447:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:960:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 0,
+    expected: 0,
+    operator: 'notStrictEqual',
+    diff: 'simple'
+  }
+
+test at ../reset-safety-before/reset-safety.test.mjs:141:1
+✖ 客户类型查询失败或不可识别时禁止备份与删除 (1718.080666ms)
+  AssertionError [ERR_ASSERTION]: Expected "actual" to be strictly unequal to: 0
+      at TestContext.<anonymous> (file:///Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/reset-safety-before/reset-safety.test.mjs:145:12)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1382:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:960:18)
+      at Test.postRun (node:internal/test_runner/test:1522:19)
+      at Test.run (node:internal/test_runner/test:1447:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:960:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 0,
+    expected: 0,
+    operator: 'notStrictEqual',
+    diff: 'simple'
+  }

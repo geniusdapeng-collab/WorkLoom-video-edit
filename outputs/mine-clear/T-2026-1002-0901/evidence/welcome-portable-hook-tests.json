@@ -1,0 +1,19 @@
+{
+  "name": "welcome-portable-hook-tests",
+  "command": [
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+    "--env-file=.env",
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/pnpm/bin/pnpm.cjs",
+    "-C",
+    "apps/web",
+    "exec",
+    "vitest",
+    "run",
+    "src/onboarding/useQuestline.test.tsx",
+    "src/onboarding/useWelcomeProgress.test.tsx"
+  ],
+  "exit_code": 0,
+  "seconds": 29.538,
+  "ran_at": "2026-10-03T02:37:18.394007+08:00",
+  "log": "welcome-portable-hook-tests.log"
+}

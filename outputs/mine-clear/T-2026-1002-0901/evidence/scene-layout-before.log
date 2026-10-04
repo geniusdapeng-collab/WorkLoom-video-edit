@@ -1,0 +1,17 @@
+COMMAND ["/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node", "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/scene-layout-probe.mjs", "scene-layout-before"]
+The request id "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/repair-obs17/floor-production-7d5.css" is outside of Vite serving allow list.
+
+- /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit
+- /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/scene-layout-fixture
+- /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/evidence
+
+Refer to docs https://vite.dev/config/server-options.html#server-fs-allow for configurations and more details.
+
+{"id":"stage-1440","canvas":{"x":336,"y":16,"width":768,"height":150,"right":1104,"bottom":166},"region":{"x":336,"y":16,"width":768,"height":440,"right":1104,"bottom":456},"ceoOverlaps":[]}
+The request id "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/repair-obs17/floor-production-7d5.css" is outside of Vite serving allow list.
+{"id":"stage-390","canvas":{"x":16,"y":16,"width":358,"height":150,"right":374,"bottom":166},"region":{"x":16,"y":16,"width":358,"height":440,"right":374,"bottom":456},"ceoOverlaps":[]}
+The request id "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/repair-obs17/floor-production-7d5.css" is outside of Vite serving allow list.
+{"id":"floor-1440","canvas":{"x":336,"y":16,"width":768,"height":440,"right":1104,"bottom":456},"region":{"x":336,"y":16,"width":768,"height":440,"right":1104,"bottom":456},"ceoOverlaps":["scene-worker-9","scene-worker-16","scene-worker-18"]}
+The request id "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/repair-obs17/floor-production-7d5.css" is outside of Vite serving allow list.
+{"id":"floor-390","canvas":{"x":-138,"y":16,"width":640,"height":440,"right":502,"bottom":456},"region":{"x":16,"y":16,"width":358,"height":440,"right":374,"bottom":456},"ceoOverlaps":["scene-worker-9","scene-worker-16","scene-worker-18"]}
+{"passed":3,"failed":4,"source_commit":"c08386eb9993744a0cb0c2495a98fc1fc4ccbed9"}

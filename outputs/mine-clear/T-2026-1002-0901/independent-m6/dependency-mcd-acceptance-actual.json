@@ -1,0 +1,21 @@
+{
+  "name": "dependency-mcd-acceptance-actual",
+  "command": [
+    "python3",
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/independent-m6/run-modern-mcd-acceptance.py",
+    "--source",
+    "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+    "--repair-snapshot",
+    "evidence/execution-ledger-repair-1e471.json",
+    "--review",
+    "mcd-repair-run-readback-review.json",
+    "--registry-proxy",
+    "http://127.0.0.1:7890"
+  ],
+  "exit_code": 0,
+  "seconds": 75.905,
+  "source_before": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+  "source_after": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+  "ran_at": "2026-10-04T04:21:36.591907+08:00",
+  "log": "dependency-mcd-acceptance-actual.log"
+}

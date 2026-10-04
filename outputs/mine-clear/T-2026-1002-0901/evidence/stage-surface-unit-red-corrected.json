@@ -1,0 +1,20 @@
+{
+  "name": "stage-surface-unit-red-corrected",
+  "command": [
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+    "--env-file=.env",
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/pnpm/bin/pnpm.cjs",
+    "--filter",
+    "@workloom/web",
+    "exec",
+    "vitest",
+    "run",
+    "src/components/Stage3D.test.tsx",
+    "--reporter=json",
+    "--outputFile=/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/evidence/stage-surface-unit-red-corrected-results.json"
+  ],
+  "exit_code": 1,
+  "seconds": 1.564,
+  "ran_at": "2026-10-03T18:10:02.163344+08:00",
+  "log": "stage-surface-unit-red-corrected.log"
+}

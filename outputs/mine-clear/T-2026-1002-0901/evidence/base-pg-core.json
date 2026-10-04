@@ -1,0 +1,15 @@
+{
+  "name": "base-pg-core",
+  "command": [
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+    "--env-file=.env",
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/pnpm/bin/pnpm.cjs",
+    "--filter",
+    "@workloom/base",
+    "test"
+  ],
+  "exit_code": 0,
+  "seconds": 54.082,
+  "ran_at": "2026-10-02T20:37:09.627707+08:00",
+  "log": "base-pg-core.log"
+}

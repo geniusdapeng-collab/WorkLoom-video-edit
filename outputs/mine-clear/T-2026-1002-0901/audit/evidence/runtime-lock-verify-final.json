@@ -1,0 +1,13 @@
+{
+  "name": "runtime-lock-verify-final",
+  "command": [
+    "/Users/mac/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node",
+    "--env-file=.env",
+    "scripts/runtime-deps-lock.mjs",
+    "verify"
+  ],
+  "exit_code": 0,
+  "seconds": 0.089,
+  "ran_at": "2026-10-02T10:59:51.735886+08:00",
+  "log": "runtime-lock-verify-final.log"
+}

@@ -1,0 +1,253 @@
+{
+  "at": "2026-10-02T22:08:05.002Z",
+  "repository": "workloom-ai/WorkLoom-growth",
+  "sn": "cnb-hui-1k3va6l1v",
+  "result": {
+    "status": "error",
+    "pipelinesStatus": {
+      "cnb-hui-1k3va6l1v-001": {
+        "id": "cnb-hui-1k3va6l1v-001",
+        "name": "static-gate",
+        "status": "error",
+        "duration": 11134,
+        "metricCoreHours": 0.02,
+        "metricDuration": 8795,
+        "stages": [
+          {
+            "status": "success",
+            "duration": 5231,
+            "name": "Prepare",
+            "id": "prepare"
+          },
+          {
+            "status": "success",
+            "duration": 4436,
+            "name": "依赖安装（frozen lockfile）",
+            "id": "stage-0"
+          },
+          {
+            "status": "error",
+            "duration": 833,
+            "name": "协议门禁（提交规范 + 并发冲突）",
+            "id": "stage-1"
+          },
+          {
+            "status": "skipped",
+            "duration": 0,
+            "name": "开源组件清单一致性（oss-watch）",
+            "id": "stage-2"
+          },
+          {
+            "status": "skipped",
+            "duration": 0,
+            "name": "产品身份与行业包治理（含内置角色资产与声明一致性）",
+            "id": "stage-3"
+          },
+          {
+            "status": "skipped",
+            "duration": 0,
+            "name": "三端生产构建",
+            "id": "stage-4"
+          },
+          {
+            "status": "success",
+            "duration": 558,
+            "name": "BeforeEnd",
+            "id": "beforeEnd"
+          },
+          {
+            "status": "skipped",
+            "duration": 0,
+            "name": "DebugDetection",
+            "id": "debugDetection"
+          },
+          {
+            "status": "success",
+            "duration": 696,
+            "name": "End",
+            "id": "end"
+          }
+        ],
+        "labels": [
+          {
+            "key": "ARCH",
+            "value": [
+              "amd64"
+            ]
+          },
+          {
+            "key": "cpus",
+            "value": [
+              8
+            ]
+          },
+          {
+            "key": "memory",
+            "value": [
+              16
+            ]
+          }
+        ],
+        "ip": "10.235.16.30"
+      },
+      "cnb-hui-1k3va6l1v-002": {
+        "id": "cnb-hui-1k3va6l1v-002",
+        "name": "db-gate",
+        "status": "success",
+        "duration": 33833,
+        "metricCoreHours": 0.07,
+        "metricDuration": 33427,
+        "stages": [
+          {
+            "status": "success",
+            "duration": 5323,
+            "name": "Prepare",
+            "id": "prepare"
+          },
+          {
+            "status": "success",
+            "duration": 14326,
+            "name": "准备 Node 24 与 pnpm",
+            "id": "stage-0"
+          },
+          {
+            "status": "success",
+            "duration": 891,
+            "name": "启动 PostgreSQL 17 + pgvector",
+            "id": "stage-1"
+          },
+          {
+            "status": "success",
+            "duration": 12579,
+            "name": "迁移 + 种子（幂等复跑）+ 哈希链",
+            "id": "stage-2"
+          },
+          {
+            "status": "success",
+            "duration": 661,
+            "name": "BeforeEnd",
+            "id": "beforeEnd"
+          },
+          {
+            "status": "skipped",
+            "duration": 0,
+            "name": "DebugDetection",
+            "id": "debugDetection"
+          },
+          {
+            "status": "success",
+            "duration": 2602,
+            "name": "End",
+            "id": "end"
+          }
+        ],
+        "labels": [
+          {
+            "key": "ARCH",
+            "value": [
+              "amd64"
+            ]
+          },
+          {
+            "key": "cpus",
+            "value": [
+              8
+            ]
+          },
+          {
+            "key": "memory",
+            "value": [
+              16
+            ]
+          }
+        ],
+        "ip": "10.235.16.30"
+      },
+      "cnb-hui-1k3va6l1v-003": {
+        "id": "cnb-hui-1k3va6l1v-003",
+        "name": "test-gate",
+        "status": "success",
+        "duration": 192040,
+        "metricCoreHours": 0.43,
+        "metricDuration": 193233,
+        "stages": [
+          {
+            "status": "success",
+            "duration": 4473,
+            "name": "Prepare",
+            "id": "prepare"
+          },
+          {
+            "status": "success",
+            "duration": 21285,
+            "name": "准备 Node 24 与 pnpm",
+            "id": "stage-0"
+          },
+          {
+            "status": "success",
+            "duration": 12937,
+            "name": "typecheck 全包（非阻断）",
+            "id": "stage-1"
+          },
+          {
+            "status": "success",
+            "duration": 130919,
+            "name": "主测试套件（非阻断）",
+            "id": "stage-2"
+          },
+          {
+            "status": "success",
+            "duration": 16924,
+            "name": "全场景套件（非阻断）",
+            "id": "stage-3"
+          },
+          {
+            "status": "success",
+            "duration": 4776,
+            "name": "P0 门禁：开户即托管验收 + 围栏别名扫描（S9）",
+            "id": "stage-4"
+          },
+          {
+            "status": "success",
+            "duration": 652,
+            "name": "BeforeEnd",
+            "id": "beforeEnd"
+          },
+          {
+            "status": "skipped",
+            "duration": 0,
+            "name": "DebugDetection",
+            "id": "debugDetection"
+          },
+          {
+            "status": "success",
+            "duration": 3953,
+            "name": "End",
+            "id": "end"
+          }
+        ],
+        "labels": [
+          {
+            "key": "ARCH",
+            "value": [
+              "amd64"
+            ]
+          },
+          {
+            "key": "cpus",
+            "value": [
+              8
+            ]
+          },
+          {
+            "key": "memory",
+            "value": [
+              16
+            ]
+          }
+        ],
+        "ip": "10.235.16.37"
+      }
+    }
+  }
+}

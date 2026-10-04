@@ -1,0 +1,69 @@
+{
+  "at": "2026-10-02T17:20:29.631Z",
+  "repository": "workloom-ai/WorkLoom-growth",
+  "pull": {
+    "number": "318",
+    "title": "[WIP] fix(growth): 完成运行时与客户端交付整改 [T-2026-1002-0901]",
+    "head": {
+      "ref": "refs/heads/task/T-2026-1002-0901",
+      "sha": "ad4a7a0ba65845a8b401d3cbae7c8981c2ddfb4b",
+      "repo": {
+        "id": "2100917893030621184",
+        "name": "WorkLoom-growth",
+        "path": "workloom-ai/WorkLoom-growth",
+        "web_url": "https://cnb.cool/workloom-ai/WorkLoom-growth"
+      }
+    },
+    "base": {
+      "ref": "refs/heads/main",
+      "sha": "42ead347c65a5cc343bcd290702d53a7fcdb1687",
+      "repo": {
+        "id": "2100917893030621184",
+        "name": "WorkLoom-growth",
+        "path": "workloom-ai/WorkLoom-growth",
+        "web_url": "https://cnb.cool/workloom-ai/WorkLoom-growth"
+      }
+    },
+    "is_wip": true,
+    "mergeable_state": "mergeable",
+    "is_merged": false,
+    "labels": [
+      "risk/review"
+    ]
+  },
+  "statuses": {
+    "state": "success",
+    "statuses": [
+      {
+        "state": "success",
+        "context": "cnb/pull_request/pipeline-1(static-gate)",
+        "description": "success [20.4s]",
+        "target_url": "https://cnb.cool/workloom-ai/WorkLoom-growth/-/build/logs/cnb-fri-1k3upo88u#001",
+        "created_at": "2026-10-02T17:14:23Z",
+        "updated_at": "2026-10-02T17:14:43Z"
+      },
+      {
+        "state": "success",
+        "context": "cnb/pull_request/pipeline-2(db-gate)",
+        "description": "success [35.4s]",
+        "target_url": "https://cnb.cool/workloom-ai/WorkLoom-growth/-/build/logs/cnb-fri-1k3upo88u#002",
+        "created_at": "2026-10-02T17:14:23Z",
+        "updated_at": "2026-10-02T17:14:58Z"
+      },
+      {
+        "state": "success",
+        "context": "cnb/pull_request/pipeline-3(test-gate)",
+        "description": "success [3m 12s]",
+        "target_url": "https://cnb.cool/workloom-ai/WorkLoom-growth/-/build/logs/cnb-fri-1k3upo88u#003",
+        "created_at": "2026-10-02T17:14:23Z",
+        "updated_at": "2026-10-02T17:17:35Z"
+      }
+    ],
+    "sha": "01ed0a2c033c381bfc85e328d31eb5ac2944b950"
+  },
+  "main": {
+    "name": "refs/heads/main",
+    "sha": "42ead347c65a5cc343bcd290702d53a7fcdb1687"
+  },
+  "source_head": "ad4a7a0ba65845a8b401d3cbae7c8981c2ddfb4b"
+}

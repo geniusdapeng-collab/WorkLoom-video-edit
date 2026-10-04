@@ -1,0 +1,18 @@
+{
+  "name": "floor3d-before",
+  "command": [
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+    "--env-file=.env",
+    "../../outputs/growth-production-fix-2026-10-02/independent-m6/floor3d-probe.mjs",
+    "955e2277ee1496cfc4b40bd30345d1ce1be1acf1",
+    "floor3d-before-results.json",
+    "floor3d-before",
+    "955e-frozen"
+  ],
+  "exit_code": 1,
+  "seconds": 46.299,
+  "source_before": "b8b349fc88a3ed0b873d23720bf4d3d845500408",
+  "source_after": "b8b349fc88a3ed0b873d23720bf4d3d845500408",
+  "ran_at": "2026-10-03T04:51:19.672452+08:00",
+  "log": "floor3d-before.log"
+}

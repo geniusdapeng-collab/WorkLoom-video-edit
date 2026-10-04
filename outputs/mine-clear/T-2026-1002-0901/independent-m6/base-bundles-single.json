@@ -1,0 +1,18 @@
+{
+  "name": "base-bundles-single",
+  "command": [
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+    "--env-file=.env",
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/pnpm/bin/pnpm.cjs",
+    "--filter",
+    "@workloom/base",
+    "exec",
+    "vitest",
+    "run",
+    "bundles/bundles.test.ts"
+  ],
+  "exit_code": 0,
+  "seconds": 17.095,
+  "ran_at": "2026-10-02T23:20:36.805166+08:00",
+  "log": "base-bundles-single.log"
+}

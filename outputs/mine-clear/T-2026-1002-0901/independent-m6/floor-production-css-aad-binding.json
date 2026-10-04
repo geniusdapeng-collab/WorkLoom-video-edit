@@ -1,0 +1,14 @@
+{
+  "source": "aad8700daa0991555b9792db80f4703e3322f4f1",
+  "actual_current_built_css": [
+    {
+      "path": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/apps/web/dist/assets/index-gX1Is29W.css",
+      "bytes": 139675,
+      "sha256": "bc5b185ab487ec8441ca19a29646b603a15f2382cb4d48a73263fc81e76ad777"
+    }
+  ],
+  "frozen_css": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/independent-m6/floor-production-7d5.css",
+  "frozen_sha256": "bc5b185ab487ec8441ca19a29646b603a15f2382cb4d48a73263fc81e76ad777",
+  "identical_bytes": true,
+  "limitation": "Build source attribution inherits root build receipt; actual files independently compared B. Global styles unchanged, browsers load exact bytes."
+}

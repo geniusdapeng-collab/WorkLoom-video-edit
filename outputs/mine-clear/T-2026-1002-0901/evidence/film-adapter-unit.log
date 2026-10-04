@@ -1,0 +1,72 @@
+COMMAND ["/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node", "--env-file=.env", "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/pnpm/bin/pnpm.cjs", "--filter", "@hyperreality/video-studio", "test", "src/film-worker-runtime.test.ts", "src/film-worker-channel.test.ts"]
+
+> @hyperreality/video-studio@0.1.0 test /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/packages/video-studio
+> vitest run src/film-worker-runtime.test.ts src/film-worker-channel.test.ts
+
+
+ RUN  v3.2.7 /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/packages/video-studio
+
+ ❯ src/film-worker-runtime.test.ts (7 tests | 3 failed) 19ms
+   ✓ frozen full-chain worker adapter > normalizes complete stage dependencies and rejects unknown stages, paths, code and bypass options 2ms
+   × frozen full-chain worker adapter > copies exact frozen bytes and constructs arguments only under the current job 6ms
+     → expected [ '--shots', …(13) ] to include '/var/folders/dj/mkh6fwbd4mb6ycp933xft…'
+   ✓ frozen full-chain worker adapter > rejects changed input, expired jobs, symlink escape and child stage expansion 2ms
+   × frozen full-chain worker adapter > image/video use scoped parent methods and downloads verify the actual bytes without another paid call 2ms
+     → ARTIFACT_CHANGED: 产物字节与父服务回执不符
+   ✓ frozen full-chain worker adapter > parent rejection, ungranted methods and references outside the archive fail before another call 2ms
+   × frozen full-chain worker adapter > voice and design requests stay on the parent channel and carry the shot 2ms
+     → ARTIFACT_CHANGED: 产物字节与父服务回执不符
+   ✓ frozen full-chain worker adapter > review excludes process environment and functions and requires a parent contract receipt 2ms
+ ✓ src/film-worker-channel.test.ts (8 tests) 28ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 3 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/film-worker-runtime.test.ts > frozen full-chain worker adapter > copies exact frozen bytes and constructs arguments only under the current job
+AssertionError: expected [ '--shots', …(13) ] to include '/var/folders/dj/mkh6fwbd4mb6ycp933xft…'
+ ❯ src/film-worker-runtime.test.ts:54:25
+     52|     expect(hash(readFileSync(worker.inputPath))).toBe(context.inputSha…
+     53|     expect(worker.args).toContain(context.projectId);
+     54|     expect(worker.args).toContain(join(context.workDir, "delivery"));
+       |                         ^
+     55|     expect(worker.args).toContain("--only"); expect(worker.args).toCon…
+     56|     worker.channel.dispose();
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/3]⎯
+
+ FAIL  src/film-worker-runtime.test.ts > frozen full-chain worker adapter > image/video use scoped parent methods and downloads verify the actual bytes without another paid call
+FilmChannelError: ARTIFACT_CHANGED: 产物字节与父服务回执不符
+ ❯ FullChainFilmWorker.accept src/film-worker-runtime.ts:112:144
+    110|     const file = join(this.context.workDir, artifact.ref);
+    111|     this.ref(file);
+    112|     if (!within(this.context.workDir, realpathSync(file)) || statSync(…
+       |                                                                                                                                                ^
+    113|     this.artifacts.set(`film-artifact:${artifact.ref}`, artifact);
+    114|     if (artifact.hostedUrl) this.artifacts.set(artifact.hostedUrl, art…
+ ❯ FullChainFilmWorker.image src/film-worker-runtime.ts:118:27
+ ❯ src/film-worker-runtime.test.ts:70:17
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/3]⎯
+
+ FAIL  src/film-worker-runtime.test.ts > frozen full-chain worker adapter > voice and design requests stay on the parent channel and carry the shot
+FilmChannelError: ARTIFACT_CHANGED: 产物字节与父服务回执不符
+ ❯ FullChainFilmWorker.accept src/film-worker-runtime.ts:112:144
+    110|     const file = join(this.context.workDir, artifact.ref);
+    111|     this.ref(file);
+    112|     if (!within(this.context.workDir, realpathSync(file)) || statSync(…
+       |                                                                                                                                                ^
+    113|     this.artifacts.set(`film-artifact:${artifact.ref}`, artifact);
+    114|     if (artifact.hostedUrl) this.artifacts.set(artifact.hostedUrl, art…
+ ❯ FullChainFilmWorker.dub src/film-worker-runtime.ts:163:27
+ ❯ src/film-worker-runtime.test.ts:100:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/3]⎯
+
+
+ Test Files  1 failed | 1 passed (2)
+      Tests  3 failed | 12 passed (15)
+   Start at  21:08:47
+   Duration  334ms (transform 88ms, setup 0ms, collect 111ms, tests 47ms, environment 0ms, prepare 117ms)
+
+/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/packages/video-studio:
+ ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @hyperreality/video-studio@0.1.0 test: `vitest run src/film-worker-runtime.test.ts src/film-worker-channel.test.ts`
+Exit status 1

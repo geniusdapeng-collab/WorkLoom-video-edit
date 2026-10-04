@@ -1,0 +1,17 @@
+COMMAND ["/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node", "--env-file=.env", "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/pnpm/bin/pnpm.cjs", "exec", "vitest", "run", "--config", "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/independent-m6/questline-ready-independent.config.mjs"]
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - import "./vite.config" without a file extension (apps/web/vitest.config.ts:10:24). Add the file extension
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+
+[1m[30m[46m RUN [49m[39m[22m [36mv4.1.11 [39m[90m/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/apps/web[39m
+
+ [32m✓[39m ../../../../outputs/growth-production-fix-2026-10-02/independent-m6/questline-ready-independent.test.tsx[2m > [22m独立实际hook关闭与ready边沿[2m > [22m初次ready真正打开；点击稍后再来后相同ready重渲染保持关闭[32m 170[2mms[22m[39m
+ [32m✓[39m ../../../../outputs/growth-production-fix-2026-10-02/independent-m6/questline-ready-independent.test.tsx[2m > [22m独立实际hook关闭与ready边沿[2m > [22m同一会话关闭后ready短暂false再true不能抢回引导[32m 13[2mms[22m[39m
+ [32m✓[39m ../../../../outputs/growth-production-fix-2026-10-02/independent-m6/questline-ready-independent.test.tsx[2m > [22m独立实际hook关闭与ready边沿[2m > [22m关闭后客户手动打开仍可继续原有进度[32m 20[2mms[22m[39m
+ [32m✓[39m ../../../../outputs/growth-production-fix-2026-10-02/independent-m6/questline-ready-independent.test.tsx[2m > [22m独立实际hook关闭与ready边沿[2m > [22m已完成旅程不自动打开；客户仍能手动查看完成面板[32m 13[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m1 passed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[32m4 passed[39m[22m[90m (4)[39m
+[2m   Start at [22m 02:43:38
+[2m   Duration [22m 18.81s[2m (transform 7.06s, setup 0ms, import 10.33s, tests 221ms, environment 6.84s)[22m
+

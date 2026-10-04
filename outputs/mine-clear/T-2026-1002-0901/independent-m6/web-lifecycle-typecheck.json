@@ -1,0 +1,17 @@
+{
+  "name": "web-lifecycle-typecheck",
+  "command": [
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+    "--env-file=.env",
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/pnpm/bin/pnpm.cjs",
+    "--dir",
+    "apps/web",
+    "typecheck"
+  ],
+  "exit_code": 0,
+  "seconds": 21.979,
+  "source_before": "ad4a7a0ba65845a8b401d3cbae7c8981c2ddfb4b",
+  "source_after": "ad4a7a0ba65845a8b401d3cbae7c8981c2ddfb4b",
+  "ran_at": "2026-10-03T01:19:40.341242+08:00",
+  "log": "web-lifecycle-typecheck.log"
+}

@@ -1,0 +1,44 @@
+[
+  {
+    "origin": "root",
+    "snapshot": "outputs/growth-production-fix-2026-10-02/independent-m6/inherited/evidence__mac-avatar-default.json",
+    "sha256": "4618c4549bfa365e05a0b5dade68b10e0fb7a9b4f6081c388d1e693ea75bdadd",
+    "review": "independent inspection only, not native execution"
+  },
+  {
+    "origin": "root",
+    "snapshot": "outputs/growth-production-fix-2026-10-02/independent-m6/inherited/evidence__mac-avatar-default.log",
+    "sha256": "3426d5b2a6f69e57e4999b8cf43fd738224fae957e0771cbed9db92a8d7171fd",
+    "review": "independent inspection only, not native execution"
+  },
+  {
+    "origin": "root",
+    "snapshot": "outputs/growth-production-fix-2026-10-02/independent-m6/inherited/evidence__native-avatar-default-render-default.json",
+    "sha256": "69aeff17e3c6cc7318ce99f9801f57504b4c9c5ad1b1b056441c4a9970cf3329",
+    "review": "independent inspection only, not native execution"
+  },
+  {
+    "origin": "root",
+    "snapshot": "outputs/growth-production-fix-2026-10-02/independent-m6/inherited/evidence__native-avatar-default-render-default.png",
+    "sha256": "e6ba4fae04a7456888922521651a46f5905a8243e5d19fba35aba1d91fb25020",
+    "review": "independent inspection only, not native execution"
+  },
+  {
+    "origin": "root",
+    "snapshot": "outputs/growth-production-fix-2026-10-02/independent-m6/inherited/evidence__native-avatar-default-team-default.png",
+    "sha256": "a177bbc36a5a36b5e614bdac944f301a8f72494dd0f7a50ad50106600d94b8b3",
+    "review": "independent inspection only, not native execution"
+  },
+  {
+    "origin": "root",
+    "snapshot": "outputs/growth-production-fix-2026-10-02/independent-m6/inherited/evidence__native-avatar-default-retention.json",
+    "sha256": "25e8e410c96f55dd1bc032240b2e36a15ff9af856c9dd3ece9bd0982402178ce",
+    "review": "independent inspection only, not native execution"
+  },
+  {
+    "origin": "root",
+    "snapshot": "outputs/growth-production-fix-2026-10-02/independent-m6/inherited/evidence__obsolete-native-app-cleanup.json",
+    "sha256": "46a53134a233ba60e8d37082877ff433208b94b9953cc4c6eb5b02632856ce6e",
+    "review": "independent inspection only, not native execution"
+  }
+]

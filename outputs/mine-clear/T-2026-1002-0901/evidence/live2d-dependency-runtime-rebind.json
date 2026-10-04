@@ -1,0 +1,12 @@
+{
+  "name": "live2d-dependency-runtime-rebind",
+  "command": [
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+    "--env-file=.env",
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/rebind_runtime_inputs.mjs"
+  ],
+  "exit_code": 0,
+  "seconds": 0.339,
+  "ran_at": "2026-10-03T21:54:24.221223+08:00",
+  "log": "live2d-dependency-runtime-rebind.log"
+}

@@ -1,0 +1,7 @@
+{
+  "kind": "verifier-harness-error",
+  "receipt": "floor3d-before.json",
+  "product_cases_executed": 0,
+  "error": "relocated frozen source could not resolve actual installed @react-three/fiber and drei from the owned artifact directory; readiness timeout followed failed import",
+  "correction": "Exact aliases to installed module entries; unchanged product implementations and original deadlines. Original JSON/log kept."
+}

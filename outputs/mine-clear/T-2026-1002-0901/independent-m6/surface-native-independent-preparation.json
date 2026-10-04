@@ -1,0 +1,42 @@
+{
+  "at": "2026-10-03T19:38:51.554537+08:00",
+  "source_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+  "files": [
+    {
+      "file": "create-floor-native-verification.py",
+      "sha256": "42fbbec4ee2643bf1a8d256261c71b96fdb54ce687e1bc7557591ce036a3a77c",
+      "lines": 283,
+      "syntax_only": true,
+      "actual_runtime_case_executed": false
+    },
+    {
+      "file": "review-native-diagnostic-export.py",
+      "sha256": "ae32cd9b93cc1d13c19f40d69b95ba643d06124c0f51b3d268f406fa7be7f2d2",
+      "lines": 200,
+      "syntax_only": true,
+      "actual_runtime_case_executed": false
+    },
+    {
+      "file": "verify-modern-mcd-runs.mjs",
+      "sha256": "4f52cbe075592e6f4803f47ad59432c8c668ac683ea14dc31afa220ad5266bb7",
+      "lines": 297,
+      "syntax_only": true,
+      "actual_runtime_case_executed": false
+    }
+  ],
+  "evidence_prefix_allowed": [
+    "floor",
+    "scene",
+    "surface"
+  ],
+  "diagnostic_prefixes": [
+    "scene",
+    "surface"
+  ],
+  "MC004_argv_prefix_derived_from_actual_native_receipt": true,
+  "actual_native_UI_executed": false,
+  "actual_MCD_executed": false,
+  "root_resource_window_respected": true,
+  "strict_nine_native_export_cases_unchanged": true,
+  "original_native_and_source_histories_retained": true
+}

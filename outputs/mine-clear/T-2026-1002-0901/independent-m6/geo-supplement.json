@@ -1,0 +1,13 @@
+{
+  "name": "geo-supplement",
+  "command": [
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+    "--env-file=.env",
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/pnpm/bin/pnpm.cjs",
+    "suite:geo"
+  ],
+  "exit_code": 0,
+  "seconds": 23.202,
+  "ran_at": "2026-10-02T23:48:02.760345+08:00",
+  "log": "geo-supplement.log"
+}

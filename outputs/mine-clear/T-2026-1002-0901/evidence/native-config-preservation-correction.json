@@ -1,0 +1,37 @@
+{
+  "schema": "growth.native-config-preservation-correction@1",
+  "recorded_at": "2026-10-03T02:51:51.613215+08:00",
+  "corrections": [
+    {
+      "corrects": "native-avatar-evidence-cleanup.json",
+      "affected_owned_fixture": "work/引导修复 默认客户",
+      "old_claim_is_correct": false,
+      "actual_action": "Removing the stopped owned runtime directory also removed runtime/.env; the blanket DB/config/version/logs preservation claim is false for that generated config."
+    },
+    {
+      "corrects": "native-avatar-default-retention.json",
+      "affected_owned_fixture": "work/生命周期 默认客户",
+      "old_claim_is_correct": false,
+      "actual_action": "Removing the stopped owned runtime directory also removed runtime/.env; private_state_retained does not mean that generated config survived."
+    }
+  ],
+  "scope": "Randomly generated configurations for isolated QA fixtures created by this task; no customer configuration or supplier credential values included.",
+  "retained_actions": [
+    "Owned pgdata, database-state.json, VERSION and logs remained",
+    "Unique ad4 original failed render receipts remained; earlier overwritten screenshot gaps remain explicitly disclosed"
+  ],
+  "later_same_version_bootstrap_failure": "The later fixture kept VERSION while runtime had been deleted; old bootstrap skipped assembly and failed to read runtime/VERSION.",
+  "source_repair": "955e2277ee1496cfc4b40bd30345d1ce1be1acf1 checks actual installed runtime and required binaries before skipping assembly.",
+  "later_cleanup_policy": "Copy runtime/.env into private mode0600 qa-retained-config.env before removing only stopped owned runtime and caches.",
+  "related_receipts": [
+    "native-guide-recovery-fixture.json",
+    "native-guide-diagnostic-v2-retention.json",
+    "desktop-recovery-marker-before.json",
+    "desktop-recovery-marker-after.json"
+  ],
+  "discarded_draft": "native-config-preservation-correction-initial-draft.json",
+  "discarded_draft_is_evidence": false,
+  "customer_data_touched": false,
+  "paid_provider_calls": 0,
+  "private_values_included": false
+}

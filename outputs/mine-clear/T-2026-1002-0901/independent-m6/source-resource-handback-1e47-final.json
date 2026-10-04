@@ -1,0 +1,163 @@
+{
+  "schema": "growth.independent-m6/resource-handback@1",
+  "source_commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+  "handed_back_by": "growth_m6",
+  "handed_back_to": "root",
+  "handed_back_at": "2026-10-04T05:38:48.730261+08:00",
+  "source_working_tree_clean": true,
+  "all_tracked_execution_sessions_collected_and_closed": true,
+  "source_tests_native_gpu_pg_heavy_io_window_released": true,
+  "no_task_binary_process_rows": [],
+  "no_task_dmg_mounts": [],
+  "pg_kept_running_for_parent": {
+    "pid": 33795,
+    "process_metadata": "33795     1 /Users/mac/Library/Application Support/WorkLoom 织元/pg/bin/postgres",
+    "cwd_metadata": "p33795\nfcwd\nn/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/audit-pg",
+    "listen_metadata": "p33795\nf5\nn127.0.0.1:25432",
+    "stopped_by_verifier": false
+  },
+  "final_actual_builder_exit_code": 0,
+  "final_actual_builder_seconds": 7.831,
+  "final_actual_validator_exit_code": 0,
+  "final_actual_validator_seconds": 13.949,
+  "final_indexed_files": 1720,
+  "final_report_lines": 488,
+  "source_scoped_merge_eligible": true,
+  "final_native_verified": true,
+  "actual_current_ci_verified": true,
+  "actual_execution_ledger_gate_handoff_verified": true,
+  "production_release_eligible": false,
+  "full_rdas_pass": false,
+  "actual_repair_cards": 24,
+  "actual_repair_assertions": 38,
+  "actual_acceptance_cards": 23,
+  "actual_acceptance_assertions": 37,
+  "actual_unique_role_runs": 75,
+  "open_formal_condition_card": "MC-106",
+  "retained_functional_case_count": 558,
+  "actual_functional_matrix_cases_at_accepted_source": 0,
+  "bounded_inherited_functional_case_count": 558,
+  "file_coverage": {
+    "total": 157,
+    "full": 149,
+    "machine": 2,
+    "sample": 6,
+    "unread": 0,
+    "changed_total": 79,
+    "changed_full": 72
+  },
+  "full_protocol_coverage": {
+    "not-run": 100,
+    "manual-missing": 167,
+    "pass": 9
+  },
+  "source_or_platform_mutation_by_verifier": false,
+  "private_contents_opened_by_verifier": false,
+  "real_paid_provider_calls": 0,
+  "dedicated_ledger_mutation": "Actual authorized acceptance and handoff only; original ledger/results protected at execution time.",
+  "live_modern_execution_ledger": {
+    "file": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/execution-ledger.json",
+    "sha256": "df7bfd19351619b95a59871c5ffeb46e718137ab92b87cfe32dd76b0dc459249",
+    "bytes": 191698
+  },
+  "live_modern_execution_index": {
+    "file": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/evidence-index.json",
+    "sha256": "298907bffaf894b4d3a6b15e6c015c0c559f8bdbc2bf463a765e763009dfc8c9",
+    "bytes": 41899
+  },
+  "final_artifacts": [
+    {
+      "file": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/independent-m6/REPORT.md",
+      "sha256": "4d8e1d3ab3f00063777b1ed351e4da643bf72a18770d716ca1eb4559132ace5e",
+      "bytes": 147284
+    },
+    {
+      "file": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/independent-m6/summary.json",
+      "sha256": "8210619845c4548abd07584aaa32eee533f836a27597bfa32c4964cf588e8150",
+      "bytes": 759022
+    },
+    {
+      "file": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/independent-m6/ledger-verification.json",
+      "sha256": "7c684961be34f1e07049a04d02cbefa650ea48d6a9525ded04ac4ca39c371682",
+      "bytes": 39281
+    },
+    {
+      "file": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/independent-m6/evidence-index.json",
+      "sha256": "4260b264f784de1d4dcc049a3ac5cf826e541facca63648d1e23193ae651ec5c",
+      "bytes": 1212791
+    },
+    {
+      "file": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/independent-m6/file-coverage.csv",
+      "sha256": "a84b8cedea354cd8221075dd164ad06919d235013faf9e04552d235fdd55e26c",
+      "bytes": 35126
+    },
+    {
+      "file": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/independent-m6/case-matrix.json",
+      "sha256": "3f24022e17f6ab2c0f7358e96e81eb732532a57f699a379015d61fc0ead764b6",
+      "bytes": 3540248
+    },
+    {
+      "file": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/independent-m6/coverage.json",
+      "sha256": "a8ff72d789996a70f0b3d3c2473920af68eab67b9b390e1a3dfeaf82de39d2a6",
+      "bytes": 290861
+    },
+    {
+      "file": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/independent-m6/acceptance-debt.json",
+      "sha256": "bd76a6328ffd7a3f4f66e3182e09561241d085cbc71f0c2acdd1d4e154e70602",
+      "bytes": 3779
+    },
+    {
+      "file": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/independent-m6/floor-final-verification.json",
+      "sha256": "fa5c94c910b44e3b54703eb56e269cd1588b5889072111a19086233d56cd5533",
+      "bytes": 180711
+    },
+    {
+      "file": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/independent-m6/floor-native-verification.json",
+      "sha256": "b231141b8eb8209176ca7005ec64cb98de326e6088a04433ad9534df1c7e4df4",
+      "bytes": 21026
+    },
+    {
+      "file": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/independent-m6/mcd-acceptance-verification.json",
+      "sha256": "16768ab3b47c3b1b387ac3b7898dccd25834d763b6ed1298c6aba02ec9d461b7",
+      "bytes": 265129
+    },
+    {
+      "file": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/independent-m6/mcd-gate-handoff-verification.json",
+      "sha256": "c0e2fa3135860113aed04bb0289353809dbf88ea7895beb151409ad0cc1d772e",
+      "bytes": 10844
+    },
+    {
+      "file": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/independent-m6/report-validation-1e47.json",
+      "sha256": "c423b5421ac8847ff68efddbf0b9a30d59bbc72458b5d5d1508cb2b16e0c1e66",
+      "bytes": 1670
+    },
+    {
+      "file": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/independent-m6/dependency-final-report-builder-table-spacing.json",
+      "sha256": "8f135544f5ad5388249b7ed1648d954a65ef15b7625b026c873a5dbd7b2aa342",
+      "bytes": 973
+    },
+    {
+      "file": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/independent-m6/dependency-final-report-validation-table-spacing.json",
+      "sha256": "9a23dad21e4383a8b9010dec4eb09d9f1405e634bee02f563fa84d10cc77ae6d",
+      "bytes": 534
+    },
+    {
+      "file": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/independent-m6/report-dependency-1e47-editorial-review.json",
+      "sha256": "f51faa0f484ed618919bb394ccf8d28b3080aa9699fcb5c8283b654a53cca8d6",
+      "bytes": 2888
+    },
+    {
+      "file": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/independent-m6/mcd-handoff-1e471/gate-output.json",
+      "sha256": "d244ee314b85e7a116019ad319dc633235e8b878b490d8dffa0f7bbefa891604",
+      "bytes": 187
+    },
+    {
+      "file": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/independent-m6/mcd-handoff-1e471/handoff.json",
+      "sha256": "7186f24f60107802491ec35dcc7bbeb1922faa3df626600283b4391e58c6b385",
+      "bytes": 73784
+    }
+  ],
+  "index_boundary": "The final index captures build-time 1720 evidence files. Its own current validation and this later editorial/resource receipt are external finalization receipts; no recursive self-hash is claimed.",
+  "legacy_original_guard_boundary": "Standard validate_report.py requires modern ledger/index post-handoff hashes. Original-guard MCD readback receipts protect old root ledger/results at the actual execution time; do not rerun those readers after parent archives and updates legacy exports.",
+  "parent_next_action": "Preserve legacy originals; copy exact actual gate/handoff bytes; generate root current report, then authorized Growth merge and later Growthtest/Growthmatrix work."
+}

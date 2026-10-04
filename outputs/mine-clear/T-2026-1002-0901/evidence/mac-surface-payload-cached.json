@@ -1,0 +1,17 @@
+{
+  "name": "mac-surface-payload-cached",
+  "command": [
+    "bash",
+    "scripts/pack-electron-payload.sh",
+    "--platform",
+    "mac",
+    "--arch",
+    "arm64",
+    "--version",
+    "v0.1.0-fix.20261003.5"
+  ],
+  "exit_code": 0,
+  "seconds": 66.685,
+  "ran_at": "2026-10-03T19:42:39.041725+08:00",
+  "log": "mac-surface-payload-cached.log"
+}

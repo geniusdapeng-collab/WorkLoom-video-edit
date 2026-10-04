@@ -1,0 +1,15 @@
+{
+  "name": "desktop-recovery-marker-before",
+  "command": [
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+    "--env-file=.env",
+    "--test",
+    "--test-name-pattern",
+    "同版本标记不能跳过",
+    "apps/desktop/electron/bootstrap.test.cjs"
+  ],
+  "exit_code": 1,
+  "seconds": 1.996,
+  "ran_at": "2026-10-03T02:10:49.761002+08:00",
+  "log": "desktop-recovery-marker-before.log"
+}

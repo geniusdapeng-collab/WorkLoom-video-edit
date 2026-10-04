@@ -1,0 +1,13 @@
+COMMAND ["/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node", "--env-file=.env", "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/pnpm/bin/pnpm.cjs", "-C", "apps/server", "exec", "vitest", "run", "src/service/onboarding-continuity.test.ts", "src/service/onboarding-continuity.pg.test.ts", "--no-file-parallelism"]
+
+[1m[30m[46m RUN [49m[39m[22m [36mv4.1.11 [39m[90m/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit/apps/server[39m
+
+ [32m✓[39m src/service/onboarding-continuity.pg.test.ts [2m([22m[2m4 tests[22m[2m)[22m[33m 1211[2mms[22m[39m
+     [33m[2m✓[22m[39m 草稿真实续办、乐观锁、责任人交接与秘密白名单均生效 [32m 300[2mms[22m[39m
+ [32m✓[39m src/service/onboarding-continuity.test.ts [2m([22m[2m4 tests[22m[2m)[22m[32m 37[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m2 passed[39m[22m[90m (2)[39m
+[2m      Tests [22m [1m[32m8 passed[39m[22m[90m (8)[39m
+[2m   Start at [22m 02:25:06
+[2m   Duration [22m 18.69s[2m (transform 1.99s, setup 0ms, import 13.25s, tests 1.25s, environment 1ms)[22m
+

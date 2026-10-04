@@ -1,0 +1,99 @@
+{
+  "verified_by": "growth_m6",
+  "generated_at": "2026-10-03T11:26:59.496665+08:00",
+  "immutable_public_origins": [
+    {
+      "origin": "root actual execution; growth_m6 full receipt/log read and byte comparison",
+      "original": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/evidence/reset-safety-before.json",
+      "snapshot": "inherited/reset__reset-safety-before.json",
+      "sha256": "34682ef773641a2713c60be146dc3982ada155297914c812541fd20081c017f7"
+    },
+    {
+      "origin": "root actual execution; growth_m6 full receipt/log read and byte comparison",
+      "original": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/evidence/reset-safety-before.log",
+      "snapshot": "inherited/reset__reset-safety-before.log",
+      "sha256": "f8d71ab1812d7e75f1ee754e5b9e7af23728239d041f92af5b53c9ff96ac3493"
+    },
+    {
+      "origin": "root actual execution; growth_m6 full receipt/log read and byte comparison",
+      "original": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/evidence/reset-env-declaration-red.json",
+      "snapshot": "inherited/reset__reset-env-declaration-red.json",
+      "sha256": "5db46fa4724b28029dd25f1b1f182fe5e6f780c5701ca65fa6475325525ef61d"
+    },
+    {
+      "origin": "root actual execution; growth_m6 full receipt/log read and byte comparison",
+      "original": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/evidence/reset-env-declaration-red.log",
+      "snapshot": "inherited/reset__reset-env-declaration-red.log",
+      "sha256": "0de84971d8bdb0724100b473b66078d1da9cc3518b357bd8444fa507359786af"
+    },
+    {
+      "origin": "root actual execution; growth_m6 full receipt/log read and byte comparison",
+      "original": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/evidence/reset-env-declaration-green.json",
+      "snapshot": "inherited/reset__reset-env-declaration-green.json",
+      "sha256": "d890fc95dfca0ba45fe9e9ddb86291e54bb53669e37b7f49cfcc5a538b56b07f"
+    },
+    {
+      "origin": "root actual execution; growth_m6 full receipt/log read and byte comparison",
+      "original": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/evidence/reset-env-declaration-green.log",
+      "snapshot": "inherited/reset__reset-env-declaration-green.log",
+      "sha256": "b824ae7e5075c5310af17e6136bb1099d5a760fc45dada0b813022b9d3029a78"
+    },
+    {
+      "origin": "root actual execution; growth_m6 full receipt/log read and byte comparison",
+      "original": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/evidence/reset-safety-probe-provenance.json",
+      "snapshot": "inherited/reset__reset-safety-probe-provenance.json",
+      "sha256": "1109c0efb87c57679f827bc963cf647a8bf1958133eb330b154dcc0070b04a34"
+    },
+    {
+      "origin": "root actual execution; growth_m6 full receipt/log read and byte comparison",
+      "original": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/evidence/reset-safety-controls-final.json",
+      "snapshot": "inherited/reset__reset-safety-controls-final.json",
+      "sha256": "1bd5bea1664a0b906dcbcc83c3c5904d66b58088b305af94db8f727770258e8b"
+    },
+    {
+      "origin": "root actual execution; growth_m6 full receipt/log read and byte comparison",
+      "original": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/evidence/reset-source-read-and-review.json",
+      "snapshot": "inherited/reset__reset-source-read-and-review.json",
+      "sha256": "de060481c0e1d82e680ffc44a755aca08f07f318ead5f445fb67f1447c38949a"
+    },
+    {
+      "origin": "root actual execution; growth_m6 full receipt/log read and byte comparison",
+      "original": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/evidence/cnb-reset-source-status-final.json",
+      "snapshot": "inherited/reset__cnb-reset-source-status-final.json",
+      "sha256": "eceb9752765fab81ecf73e219ce7d98d5603e67ce61eca3b77fee2c2c7007f53"
+    },
+    {
+      "origin": "root original actual P0 discovery; no original ledger alteration",
+      "original": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/reset-problem-card.json",
+      "snapshot": "reset-card-discovery.json",
+      "sha256": "d19fc03bbcbb1dc9c114451a4896a6c03cf194de62afc7b31ab4589aeb4c10a7"
+    }
+  ],
+  "original_discovery": {
+    "source_commit": "f0a11286a49419fb7909088e2d170f4dde7b60c6",
+    "audit_commit": "42ead347c65a5cc343bcd290702d53a7fcdb1687",
+    "old_script_bytes_equal": true,
+    "actual_tests": 8,
+    "pass": 0,
+    "fail": 8,
+    "independently_executed_here": false
+  },
+  "later_production_dotenv_counterexample": {
+    "pass": 11,
+    "fail": 1,
+    "independently_executed_here": false
+  },
+  "actual_independent_87ab_subset": "reset-87ab-reset.json",
+  "reset_cases_already_in_desktop": true,
+  "real_customer_reset_or_restore_executed": false,
+  "seed_static_boundary": {
+    "code_grade": "A seed/migration text; C partial assembly",
+    "source_commit": "87ab5781d381d19e9dc7e1f5caa98b6a6b410c58",
+    "seed_source": "scripts/seed.ts:757 and774",
+    "migration_source": "packages/db/migrations/0022_bundle_mechanism.sql:13",
+    "observation": "Workspace insert omits is_example while console text says true; migration default is false. Reset refuses a workspace that is not explicitly marked as example. This static observation was not reproduced against a real seed/reset database.",
+    "reproduced": false,
+    "example_semantics_changed": false,
+    "root_directive": "Retain refusal for workspaces not explicitly identified as examples; do not change old workspace semantics."
+  }
+}

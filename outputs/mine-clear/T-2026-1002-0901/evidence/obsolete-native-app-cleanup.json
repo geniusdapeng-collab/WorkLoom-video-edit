@@ -1,0 +1,21 @@
+{
+  "at": "2026-10-03T01:45:24.122494+08:00",
+  "rows": [
+    {
+      "removed_owned_app": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/最终验证 客户应用",
+      "asar_retained": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/evidence/obsolete-native-package-parts/a403-app.asar",
+      "asar_sha256": "96b2ac03bf03ea885906eaa9c2188dd67118633e51815780bc9124dcb41c6d84",
+      "original_payload_retained": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/evidence/obsolete-native-package-parts/a403-payload.tar.gz",
+      "payload_sha256": "f0a9e7c32b1b7e8895cd008fcb29cc609454c19a39bac374cd11d56ed3c96995"
+    },
+    {
+      "removed_owned_app": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/引导修复 客户应用",
+      "asar_retained": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/evidence/obsolete-native-package-parts/09bc-app.asar",
+      "asar_sha256": "4a24d28bf998d7b880591ee562a5c770157466fa81f126531ae47f0ba38dc997",
+      "original_payload_retained": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/evidence/obsolete-native-package-parts/a403-payload.tar.gz",
+      "payload_sha256": "f0a9e7c32b1b7e8895cd008fcb29cc609454c19a39bac374cd11d56ed3c96995"
+    }
+  ],
+  "preserved": "Original app.asar and exact common payload bytes; prior receipts/logs/screenshots remain. Obsolete full .app shells removed.",
+  "reason": "Free owned duplicate QA space for true cold native acceptance; current app and upgrade seed app untouched"
+}

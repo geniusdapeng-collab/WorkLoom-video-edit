@@ -1,0 +1,15 @@
+{
+  "name": "video-plan-assert",
+  "command": [
+    "/Users/mac/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node",
+    "--env-file=.env",
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-audit-2026-10-02/evidence/video-plan-probe.mjs",
+    "--repo",
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit",
+    "--assert"
+  ],
+  "exit_code": 1,
+  "seconds": 0.086,
+  "ran_at": "2026-10-02T10:38:29.565748+08:00",
+  "log": "video-plan-assert.log"
+}

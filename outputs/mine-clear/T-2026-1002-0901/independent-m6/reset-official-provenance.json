@@ -1,0 +1,24 @@
+{
+  "retrieved_at": "2026-10-03T11:26:59.496665+08:00",
+  "sources": [
+    {
+      "url": "https://raw.githubusercontent.com/nodejs/node/v24.19.0/doc/api/util.md",
+      "file": "reset-official-node-util-v24.19.0-proxy.md",
+      "sha256": "f2f35f643bb5cf1bcfe18275b43fdf96f99b8cebbba5012a81c69aaeb8aecd6a",
+      "full_bytes_downloaded": 113938,
+      "read_lines": "2246-2280",
+      "contract": "util.parseEnv parses raw .env content and returns an object. Only this section read semantically.",
+      "failed_direct_partial_file": "reset-official-node-util-v24.19.0.md",
+      "failed_direct_exit_code": 28
+    },
+    {
+      "url": "https://www.postgresql.org/docs/17/app-psql.html",
+      "contract_read": "-X bypasses startup rc files; -w no password prompt; ON_ERROR_STOP section partly retrieved in previous window; no full documentation semantic review."
+    },
+    {
+      "url": "https://www.postgresql.org/docs/17/app-pgdump.html",
+      "contract_read": "-Fc custom archive is for pg_restore; nonempty synthetic output proves control ordering only, not real valid backup or recovery."
+    }
+  ],
+  "complete_document_semantic_review_claimed": false
+}

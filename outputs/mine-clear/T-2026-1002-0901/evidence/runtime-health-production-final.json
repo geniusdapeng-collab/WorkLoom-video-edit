@@ -1,0 +1,17 @@
+{
+  "name": "runtime-health-production-final",
+  "command": [
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+    "--env-file=.env",
+    "--import",
+    "tsx",
+    "../../outputs/growth-production-fix-2026-10-02/evidence/runtime-repro.mts",
+    "--repo",
+    ".",
+    "--assert"
+  ],
+  "exit_code": 0,
+  "seconds": 5.125,
+  "ran_at": "2026-10-02T22:04:27.921013+08:00",
+  "log": "runtime-health-production-final.log"
+}

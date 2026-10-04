@@ -1,0 +1,48 @@
+COMMAND ["python3", "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/independent-m6/run-modern-mcd-acceptance.py", "--source", "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8", "--repair-snapshot", "evidence/execution-ledger-repair-1e471.json", "--review", "mcd-repair-run-readback-review.json", "--registry-proxy", "http://127.0.0.1:7890"]
+{"card": "MC-001", "role": "acceptance", "actor": "growth_m6", "assertions": 1, "state": "actually-starting"}
+{"card": "MC-001", "exit_code": 0, "pass": true, "seconds": 1.012}
+{"card": "MC-002", "role": "acceptance", "actor": "growth_m6", "assertions": 1, "state": "actually-starting"}
+{"card": "MC-002", "exit_code": 0, "pass": true, "seconds": 0.439}
+{"card": "MC-003", "role": "acceptance", "actor": "growth_m6", "assertions": 1, "state": "actually-starting"}
+{"card": "MC-003", "exit_code": 0, "pass": true, "seconds": 0.864}
+{"card": "MC-004", "role": "acceptance", "actor": "growth_m6", "assertions": 1, "state": "actually-starting"}
+{"card": "MC-004", "exit_code": 0, "pass": true, "seconds": 1.245}
+{"card": "MC-005", "role": "acceptance", "actor": "growth_m6", "assertions": 1, "state": "actually-starting"}
+{"card": "MC-005", "exit_code": 0, "pass": true, "seconds": 6.971}
+{"card": "MC-006", "role": "acceptance", "actor": "growth_m6", "assertions": 1, "state": "actually-starting"}
+{"card": "MC-006", "exit_code": 0, "pass": true, "seconds": 5.414}
+{"card": "MC-007", "role": "acceptance", "actor": "growth_m6", "assertions": 1, "state": "actually-starting"}
+{"card": "MC-007", "exit_code": 0, "pass": true, "seconds": 1.04}
+{"card": "MC-008", "role": "acceptance", "actor": "growth_m6", "assertions": 1, "state": "actually-starting"}
+{"card": "MC-008", "exit_code": 0, "pass": true, "seconds": 0.992}
+{"card": "MC-009", "role": "acceptance", "actor": "growth_m6", "assertions": 1, "state": "actually-starting"}
+{"card": "MC-009", "exit_code": 0, "pass": true, "seconds": 0.99}
+{"card": "MC-010", "role": "acceptance", "actor": "growth_m6", "assertions": 1, "state": "actually-starting"}
+{"card": "MC-010", "exit_code": 0, "pass": true, "seconds": 1.225}
+{"card": "MC-011", "role": "acceptance", "actor": "growth_m6", "assertions": 1, "state": "actually-starting"}
+{"card": "MC-011", "exit_code": 0, "pass": true, "seconds": 1.009}
+{"card": "MC-012", "role": "acceptance", "actor": "growth_m6", "assertions": 1, "state": "actually-starting"}
+{"card": "MC-012", "exit_code": 0, "pass": true, "seconds": 1.061}
+{"card": "MC-013", "role": "acceptance", "actor": "growth_m6", "assertions": 3, "state": "actually-starting"}
+{"card": "MC-013", "exit_code": 0, "pass": true, "seconds": 4.419}
+{"card": "MC-014", "role": "acceptance", "actor": "growth_m6", "assertions": 1, "state": "actually-starting"}
+{"card": "MC-014", "exit_code": 0, "pass": true, "seconds": 2.787}
+{"card": "MC-015", "role": "acceptance", "actor": "growth_m6", "assertions": 1, "state": "actually-starting"}
+{"card": "MC-015", "exit_code": 0, "pass": true, "seconds": 0.704}
+{"card": "MC-016", "role": "acceptance", "actor": "growth_m6", "assertions": 1, "state": "actually-starting"}
+{"card": "MC-016", "exit_code": 0, "pass": true, "seconds": 8.124}
+{"card": "MC-017", "role": "acceptance", "actor": "growth_m6", "assertions": 1, "state": "actually-starting"}
+{"card": "MC-017", "exit_code": 0, "pass": true, "seconds": 8.455}
+{"card": "MC-018", "role": "acceptance", "actor": "growth_m6", "assertions": 1, "state": "actually-starting"}
+{"card": "MC-018", "exit_code": 0, "pass": true, "seconds": 0.667}
+{"card": "MC-101", "role": "acceptance", "actor": "growth_m6", "assertions": 4, "state": "actually-starting"}
+{"card": "MC-101", "exit_code": 0, "pass": true, "seconds": 2.745}
+{"card": "MC-102", "role": "acceptance", "actor": "growth_m6", "assertions": 1, "state": "actually-starting"}
+{"card": "MC-102", "exit_code": 0, "pass": true, "seconds": 6.865}
+{"card": "MC-103", "role": "acceptance", "actor": "growth_m6", "assertions": 2, "state": "actually-starting"}
+{"card": "MC-103", "exit_code": 0, "pass": true, "seconds": 6.19}
+{"card": "MC-104", "role": "acceptance", "actor": "growth_m6", "assertions": 5, "state": "actually-starting"}
+{"card": "MC-104", "exit_code": 0, "pass": true, "seconds": 4.286}
+{"card": "MC-105", "role": "acceptance", "actor": "growth_m6", "assertions": 5, "state": "actually-starting"}
+{"card": "MC-105", "exit_code": 0, "pass": true, "seconds": 7.361}
+{"actual_cards": 23, "all_green": true, "source": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8", "original_results_unchanged": true}

@@ -1,0 +1,17 @@
+{
+  "name": "floor-web-typecheck",
+  "command": [
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+    "--env-file=.env",
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/pnpm/bin/pnpm.cjs",
+    "--filter",
+    "@workloom/web",
+    "typecheck"
+  ],
+  "exit_code": 0,
+  "seconds": 25.158,
+  "source_before": "b8b349fc88a3ed0b873d23720bf4d3d845500408",
+  "source_after": "b8b349fc88a3ed0b873d23720bf4d3d845500408",
+  "ran_at": "2026-10-03T04:35:38.186115+08:00",
+  "log": "floor-web-typecheck.log"
+}

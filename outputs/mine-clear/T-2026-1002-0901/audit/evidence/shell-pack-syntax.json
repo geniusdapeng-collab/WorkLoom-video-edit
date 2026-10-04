@@ -1,0 +1,14 @@
+{
+  "name": "shell-pack-syntax",
+  "command": [
+    "bash",
+    "-n",
+    "scripts/pack-electron-payload.sh",
+    "scripts/pack-macos.sh",
+    "scripts/pack-windows.sh"
+  ],
+  "exit_code": 0,
+  "seconds": 0.005,
+  "ran_at": "2026-10-02T10:00:15.973943+08:00",
+  "log": "shell-pack-syntax.log"
+}

@@ -1,0 +1,15 @@
+COMMAND ["/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node", "--env-file=.env", "--test", "--test-name-pattern", "产品截图采用捕获时的可见场景", "apps/desktop/electron/bootstrap.test.cjs"]
+▶ 产品截图采用捕获时的可见场景
+  ✔ 等待后实际无遮挡且完整时仍通过 (16.822875ms)
+  ✔ 稳定等待中重新出现引导层时拒绝旧无遮挡状态 (14.633125ms)
+  ✔ 稳定等待中卸载场景或员工减少时拒绝旧完整状态 (9.307583ms)
+  ✔ 截图捕获期间出现遮罩或内置人名也必须失败 (10.713959ms)
+✔ 产品截图采用捕获时的可见场景 (55.459709ms)
+ℹ tests 4
+ℹ suites 1
+ℹ pass 4
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 587.69

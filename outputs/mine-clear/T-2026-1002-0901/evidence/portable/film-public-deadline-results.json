@@ -1,0 +1,13 @@
+{
+  "case": "deadline",
+  "provider_mode": "isolated, no provider credentials or calls; local stage only",
+  "passed": true,
+  "checks": [
+    {
+      "name": "Hard deadline stops the worker and cannot become a successful exit",
+      "healthy": true,
+      "status": "failed",
+      "error": "JOB_DEADLINE_EXCEEDED"
+    }
+  ]
+}

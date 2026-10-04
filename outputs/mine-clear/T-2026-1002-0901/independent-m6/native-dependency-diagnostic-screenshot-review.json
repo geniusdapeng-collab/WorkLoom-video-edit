@@ -1,0 +1,59 @@
+{
+  "schema": "growth.independent-m6/native-diagnostic-pixels@1",
+  "source_commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+  "reviewed_by": "growth_m6",
+  "reviewed_at": "2026-10-04T03:10:39.321520+08:00",
+  "scope_grade": "C",
+  "files": [
+    {
+      "root_file": "native-dependency-diagnostic-failure-page.png",
+      "file": "inherited/evidence__native-dependency-diagnostic-failure-page.png",
+      "sha256": "ce9962bccaa98e79864fca14ee6e714177fc58f5d221ce8024fac795d74006ad",
+      "bytes": 112700,
+      "viewed": true,
+      "review": "Failure page shows actionable export/retry/log/exit and support reference MUSO4QMT."
+    },
+    {
+      "root_file": "native-dependency-diagnostic-save-dialog.png",
+      "file": "inherited/evidence__native-dependency-diagnostic-save-dialog.png",
+      "sha256": "2378e81007baca3d7c0b0231133f30647f008025010e2fb276670adaf60890dd",
+      "bytes": 35557,
+      "viewed": true,
+      "review": "Native save panel and actual Cancel/Save controls visible."
+    },
+    {
+      "root_file": "native-dependency-diagnostic-overwrite-confirmation.png",
+      "file": "inherited/evidence__native-dependency-diagnostic-overwrite-confirmation.png",
+      "sha256": "559be5efdd42ac92de10e47bf7252edcc6cb880d6a6a02f0c89c74be2e6d22e0",
+      "bytes": 49860,
+      "viewed": true,
+      "review": "Native overwrite alert shows dependency fixture folder and actual Cancel/Replace controls."
+    },
+    {
+      "root_file": "native-dependency-diagnostic-recovery-page.png",
+      "file": "inherited/evidence__native-dependency-diagnostic-recovery-page.png",
+      "sha256": "56d8230c517058839b9a295df7dcc5a882b2676ee314c1b6ac4a93f19178884d",
+      "bytes": 113564,
+      "viewed": true,
+      "review": "Failure recovery page remains after export with identical support reference and visible retry/export/exit actions."
+    }
+  ],
+  "directly_viewed_pngs": 4,
+  "actual_startup_failure_page_observed": true,
+  "actual_native_save_panel_observed": true,
+  "actual_overwrite_confirmation_observed": true,
+  "actual_recovery_page_observed": true,
+  "blocking_visual_observations": [],
+  "full_ux_pass_claimed": false,
+  "actual_AX_state_steps": 10,
+  "actual_root_control_cases": 9,
+  "system_macos_menu_verified": false,
+  "legacy_actual_native_menu_semantics": "startup-failure-page export action, not operating-system menu",
+  "public_receipt_review": {
+    "root_file": "native-dependency-diagnostic-gui-states.json",
+    "file": "inherited/evidence__native-dependency-diagnostic-gui-states.json",
+    "sha256": "0c4680fbf2e18167d8120ebc631b6e04b57729123ca4b6ecd7ea06f948be3c04",
+    "bytes": 11288
+  },
+  "scope": "Actual four pixels and complete ten captured AX states read; root CUA execution and independent inspection are separate. Stale AX id error recovered using refreshed tree; safe exit separately bound to actual exit0."
+}

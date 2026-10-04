@@ -1,0 +1,14 @@
+{
+  "source_commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+  "at": "2026-10-04T05:07:46.906989+08:00",
+  "original_validator": "dependency-final-report-validation-corrected.json",
+  "original_validator_exit_code": 1,
+  "failed_guard_line": 485,
+  "issue": "Dependency paragraph replaced the prior Stage inheritance paragraph and omitted its explicit complete recursive web comparison boundary, while the underlying complete web/source/input guards still passed.",
+  "correction": "Restore that f0a-to7fee changes exactly Stage source and added Stage test; no claim whole web tree unchanged. Clarify authorized MCD fake-fixture state writes apart from unchanged product/customer/original-ledger.",
+  "guards_omitted": 0,
+  "product_source_changed": false,
+  "native_or_functional_tests_reexecuted": false,
+  "original_report": "history/dependency-final-report-before-inheritance-boundary-wording/REPORT.md",
+  "original_report_sha256": "2feef583c30446e83086d05c4000df736d336b748837ad96a035e8b500e73f63"
+}

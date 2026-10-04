@@ -1,0 +1,857 @@
+{
+  "schema": "growth.independent-m6/floor-canvas@1",
+  "verifier": "growth_m6",
+  "source_commit": "955e2277ee1496cfc4b40bd30345d1ce1be1acf1",
+  "source_hashes": {
+    "apps/web/src/pages/p0/Floor.tsx": "3ee3d6727e1c8bd770dbda414d9b55fc5891069de112ec90dfb84dc3a6efe7c7",
+    "apps/web/src/lib/naming.ts": "8d05e0df3b163ab4186e577af1555d1b9e389ded97a0ad1faad3f3a993b946bd",
+    "bundles/geo-growth/floor-scene.json": "944aef23a59f2eaffa4899edb3aaf8895bcade8dac81926a4b32ef4ff37bee32"
+  },
+  "actual_installed_ui_language_sha256": "f6a052cc7994cfe68430f353f8d09b0cecf2dcb005a74a64b0d7257d457bdec2",
+  "browser": "154.0.8037.95",
+  "passed": 6,
+  "failed": 18,
+  "fixture": "Actual imported FloorView and installed clientChineseText; real Canvas2D pixels/text metrics and real mouse events. RAF scheduling is controlled to perform 300 real frames; no product layout/target/hitbox method is copied or replaced.",
+  "limitation": "Local isolated desktop component fixture, not a native cold run, real phone or complete UX study. Synthetic valid 18-person floor payloads test the contract; no production DB/provider calls.",
+  "metrics_reference": "https://html.spec.whatwg.org/multipage/canvas.html#textmetrics",
+  "errors": [],
+  "blockedRequests": [],
+  "root_id": "OBS16",
+  "independent_id": "OBS14",
+  "cases": [
+    {
+      "id": "idle-null-1440-label-pixels",
+      "expected": "All active actors' actual painted label/glyph rectangles are separate and inside the Canvas after 300 controlled real paint frames",
+      "pass": false,
+      "actual": {
+        "frames": 300,
+        "labelCount": 18,
+        "canvas": {
+          "x": 336,
+          "y": 16,
+          "width": 768,
+          "height": 440,
+          "pixelWidth": 768,
+          "pixelHeight": 440
+        },
+        "viewportHorizontalOverflow": 0,
+        "card_overlap_pairs": 153,
+        "glyph_overlap_pairs": 129,
+        "outside": [],
+        "first_card_overlap": [
+          [
+            "m6-floor-03",
+            "m6-floor-12"
+          ]
+        ],
+        "first_glyph_overlap": [
+          [
+            "m6-floor-03",
+            "m6-floor-12"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "idle-null-1440-real-profile-clicks",
+      "expected": "A real mouse click on each actor's painted avatar center opens that actor's own profile exactly once",
+      "pass": false,
+      "actual": {
+        "expectedIds": [
+          "m6-floor-03",
+          "m6-floor-12",
+          "m6-floor-07",
+          "m6-floor-16",
+          "m6-floor-04",
+          "m6-floor-13",
+          "m6-floor-08",
+          "m6-floor-17",
+          "m6-floor-05",
+          "m6-floor-14",
+          "m6-floor-01",
+          "m6-floor-10",
+          "m6-floor-09",
+          "m6-floor-18",
+          "m6-floor-06",
+          "m6-floor-15",
+          "m6-floor-02",
+          "m6-floor-11"
+        ],
+        "observedIds": [
+          "m6-floor-15",
+          "m6-floor-15",
+          "m6-floor-11",
+          "m6-floor-11",
+          "m6-floor-15",
+          "m6-floor-15",
+          "m6-floor-11",
+          "m6-floor-11",
+          "m6-floor-15",
+          "m6-floor-15",
+          "m6-floor-11",
+          "m6-floor-11",
+          "m6-floor-11",
+          "m6-floor-11",
+          "m6-floor-15",
+          "m6-floor-15",
+          "m6-floor-11",
+          "m6-floor-11"
+        ],
+        "uniqueReachable": 2,
+        "attempted": 18
+      }
+    },
+    {
+      "id": "idle-null-390-label-pixels",
+      "expected": "All active actors' actual painted label/glyph rectangles are separate and inside the Canvas after 300 controlled real paint frames",
+      "pass": false,
+      "actual": {
+        "frames": 300,
+        "labelCount": 18,
+        "canvas": {
+          "x": 16,
+          "y": 16,
+          "width": 358,
+          "height": 380,
+          "pixelWidth": 358,
+          "pixelHeight": 380
+        },
+        "viewportHorizontalOverflow": 0,
+        "card_overlap_pairs": 153,
+        "glyph_overlap_pairs": 153,
+        "outside": [],
+        "first_card_overlap": [
+          [
+            "m6-floor-03",
+            "m6-floor-12"
+          ]
+        ],
+        "first_glyph_overlap": [
+          [
+            "m6-floor-03",
+            "m6-floor-12"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "idle-null-390-real-profile-clicks",
+      "expected": "A real mouse click on each actor's painted avatar center opens that actor's own profile exactly once",
+      "pass": false,
+      "actual": {
+        "expectedIds": [
+          "m6-floor-03",
+          "m6-floor-12",
+          "m6-floor-07",
+          "m6-floor-16",
+          "m6-floor-04",
+          "m6-floor-13",
+          "m6-floor-08",
+          "m6-floor-17",
+          "m6-floor-05",
+          "m6-floor-14",
+          "m6-floor-01",
+          "m6-floor-10",
+          "m6-floor-09",
+          "m6-floor-18",
+          "m6-floor-06",
+          "m6-floor-15",
+          "m6-floor-02",
+          "m6-floor-11"
+        ],
+        "observedIds": [
+          "m6-floor-11",
+          "m6-floor-11",
+          "m6-floor-11",
+          "m6-floor-11",
+          "m6-floor-11",
+          "m6-floor-11",
+          "m6-floor-11",
+          "m6-floor-11",
+          "m6-floor-11",
+          "m6-floor-11",
+          "m6-floor-11",
+          "m6-floor-11",
+          "m6-floor-11",
+          "m6-floor-11",
+          "m6-floor-11",
+          "m6-floor-11",
+          "m6-floor-11",
+          "m6-floor-11"
+        ],
+        "uniqueReachable": 1,
+        "attempted": 18
+      }
+    },
+    {
+      "id": "idle-shared-1440-label-pixels",
+      "expected": "All active actors' actual painted label/glyph rectangles are separate and inside the Canvas after 300 controlled real paint frames",
+      "pass": false,
+      "actual": {
+        "frames": 300,
+        "labelCount": 18,
+        "canvas": {
+          "x": 336,
+          "y": 16,
+          "width": 768,
+          "height": 440,
+          "pixelWidth": 768,
+          "pixelHeight": 440
+        },
+        "viewportHorizontalOverflow": 0,
+        "card_overlap_pairs": 153,
+        "glyph_overlap_pairs": 67,
+        "outside": [],
+        "first_card_overlap": [
+          [
+            "m6-floor-08",
+            "m6-floor-17"
+          ]
+        ],
+        "first_glyph_overlap": [
+          [
+            "m6-floor-08",
+            "m6-floor-17"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "idle-shared-1440-real-profile-clicks",
+      "expected": "A real mouse click on each actor's painted avatar center opens that actor's own profile exactly once",
+      "pass": false,
+      "actual": {
+        "expectedIds": [
+          "m6-floor-08",
+          "m6-floor-17",
+          "m6-floor-04",
+          "m6-floor-13",
+          "m6-floor-03",
+          "m6-floor-12",
+          "m6-floor-09",
+          "m6-floor-18",
+          "m6-floor-05",
+          "m6-floor-14",
+          "m6-floor-01",
+          "m6-floor-10",
+          "m6-floor-07",
+          "m6-floor-16",
+          "m6-floor-06",
+          "m6-floor-15",
+          "m6-floor-02",
+          "m6-floor-11"
+        ],
+        "observedIds": [
+          "m6-floor-14",
+          "m6-floor-14",
+          "m6-floor-15",
+          "m6-floor-15",
+          "m6-floor-18",
+          "m6-floor-18",
+          "m6-floor-15",
+          "m6-floor-15",
+          "m6-floor-11",
+          "m6-floor-11",
+          "m6-floor-11",
+          "m6-floor-11",
+          "m6-floor-11",
+          "m6-floor-11",
+          "m6-floor-11",
+          "m6-floor-11",
+          "m6-floor-11",
+          "m6-floor-11"
+        ],
+        "uniqueReachable": 4,
+        "attempted": 18
+      }
+    },
+    {
+      "id": "idle-normal-1440-label-pixels",
+      "expected": "All active actors' actual painted label/glyph rectangles are separate and inside the Canvas after 300 controlled real paint frames",
+      "pass": false,
+      "actual": {
+        "frames": 300,
+        "labelCount": 18,
+        "canvas": {
+          "x": 336,
+          "y": 16,
+          "width": 768,
+          "height": 440,
+          "pixelWidth": 768,
+          "pixelHeight": 440
+        },
+        "viewportHorizontalOverflow": 0,
+        "card_overlap_pairs": 8,
+        "glyph_overlap_pairs": 4,
+        "outside": [],
+        "first_card_overlap": [
+          [
+            "m6-floor-12",
+            "m6-floor-01"
+          ]
+        ],
+        "first_glyph_overlap": [
+          [
+            "m6-floor-12",
+            "m6-floor-01"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "idle-normal-1440-real-profile-clicks",
+      "expected": "A real mouse click on each actor's painted avatar center opens that actor's own profile exactly once",
+      "pass": false,
+      "actual": {
+        "expectedIds": [
+          "m6-floor-12",
+          "m6-floor-01",
+          "m6-floor-13",
+          "m6-floor-02",
+          "m6-floor-05",
+          "m6-floor-16",
+          "m6-floor-03",
+          "m6-floor-14",
+          "m6-floor-17",
+          "m6-floor-04",
+          "m6-floor-06",
+          "m6-floor-09",
+          "m6-floor-15",
+          "m6-floor-18",
+          "m6-floor-07",
+          "m6-floor-08",
+          "m6-floor-10",
+          "m6-floor-11"
+        ],
+        "observedIds": [
+          "m6-floor-12",
+          "m6-floor-01",
+          "m6-floor-13",
+          "m6-floor-02",
+          "m6-floor-05",
+          "m6-floor-16",
+          "m6-floor-03",
+          "m6-floor-14",
+          "m6-floor-17",
+          "m6-floor-15",
+          "m6-floor-06",
+          "m6-floor-09",
+          "m6-floor-15",
+          "m6-floor-18",
+          "m6-floor-07",
+          "m6-floor-08",
+          "m6-floor-10",
+          "m6-floor-11"
+        ],
+        "uniqueReachable": 17,
+        "attempted": 18
+      }
+    },
+    {
+      "id": "asking-null-1440-label-pixels",
+      "expected": "All active actors' actual painted label/glyph rectangles are separate and inside the Canvas after 300 controlled real paint frames",
+      "pass": false,
+      "actual": {
+        "frames": 300,
+        "labelCount": 18,
+        "canvas": {
+          "x": 336,
+          "y": 16,
+          "width": 768,
+          "height": 440,
+          "pixelWidth": 768,
+          "pixelHeight": 440
+        },
+        "viewportHorizontalOverflow": 0,
+        "card_overlap_pairs": 153,
+        "glyph_overlap_pairs": 111,
+        "outside": [],
+        "first_card_overlap": [
+          [
+            "m6-floor-04",
+            "m6-floor-13"
+          ]
+        ],
+        "first_glyph_overlap": [
+          [
+            "m6-floor-04",
+            "m6-floor-13"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "asking-null-1440-real-profile-clicks",
+      "expected": "A real mouse click on each actor's painted avatar center opens that actor's own profile exactly once",
+      "pass": false,
+      "actual": {
+        "expectedIds": [
+          "m6-floor-04",
+          "m6-floor-13",
+          "m6-floor-08",
+          "m6-floor-17",
+          "m6-floor-03",
+          "m6-floor-12",
+          "m6-floor-01",
+          "m6-floor-10",
+          "m6-floor-05",
+          "m6-floor-14",
+          "m6-floor-09",
+          "m6-floor-18",
+          "m6-floor-07",
+          "m6-floor-16",
+          "m6-floor-02",
+          "m6-floor-11",
+          "m6-floor-06",
+          "m6-floor-15"
+        ],
+        "observedIds": [
+          "m6-floor-15",
+          "m6-floor-15",
+          "m6-floor-15",
+          "m6-floor-15",
+          "m6-floor-15",
+          "m6-floor-15",
+          "m6-floor-15",
+          "m6-floor-15",
+          "m6-floor-15",
+          "m6-floor-15",
+          "m6-floor-15",
+          "m6-floor-15",
+          "m6-floor-15",
+          "m6-floor-15",
+          "m6-floor-15",
+          "m6-floor-15",
+          "m6-floor-15",
+          "m6-floor-15"
+        ],
+        "uniqueReachable": 1,
+        "attempted": 18
+      }
+    },
+    {
+      "id": "blocked-shared-1440-label-pixels",
+      "expected": "All active actors' actual painted label/glyph rectangles are separate and inside the Canvas after 300 controlled real paint frames",
+      "pass": false,
+      "actual": {
+        "frames": 300,
+        "labelCount": 18,
+        "canvas": {
+          "x": 336,
+          "y": 16,
+          "width": 768,
+          "height": 440,
+          "pixelWidth": 768,
+          "pixelHeight": 440
+        },
+        "viewportHorizontalOverflow": 0,
+        "card_overlap_pairs": 151,
+        "glyph_overlap_pairs": 90,
+        "outside": [],
+        "first_card_overlap": [
+          [
+            "m6-floor-04",
+            "m6-floor-13"
+          ]
+        ],
+        "first_glyph_overlap": [
+          [
+            "m6-floor-04",
+            "m6-floor-13"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "blocked-shared-1440-real-profile-clicks",
+      "expected": "A real mouse click on each actor's painted avatar center opens that actor's own profile exactly once",
+      "pass": false,
+      "actual": {
+        "expectedIds": [
+          "m6-floor-04",
+          "m6-floor-13",
+          "m6-floor-08",
+          "m6-floor-17",
+          "m6-floor-03",
+          "m6-floor-12",
+          "m6-floor-01",
+          "m6-floor-10",
+          "m6-floor-05",
+          "m6-floor-14",
+          "m6-floor-09",
+          "m6-floor-18",
+          "m6-floor-07",
+          "m6-floor-16",
+          "m6-floor-02",
+          "m6-floor-11",
+          "m6-floor-06",
+          "m6-floor-15"
+        ],
+        "observedIds": [
+          "m6-floor-15",
+          "m6-floor-15",
+          "m6-floor-15",
+          "m6-floor-15",
+          "m6-floor-18",
+          "m6-floor-15",
+          "m6-floor-11",
+          "m6-floor-15",
+          "m6-floor-15",
+          "m6-floor-15",
+          "m6-floor-18",
+          "m6-floor-15",
+          "m6-floor-11",
+          "m6-floor-11",
+          "m6-floor-15",
+          "m6-floor-15",
+          "m6-floor-15",
+          "m6-floor-15"
+        ],
+        "uniqueReachable": 3,
+        "attempted": 18
+      }
+    },
+    {
+      "id": "working-shared-1440-label-pixels",
+      "expected": "All active actors' actual painted label/glyph rectangles are separate and inside the Canvas after 300 controlled real paint frames",
+      "pass": false,
+      "actual": {
+        "frames": 300,
+        "labelCount": 18,
+        "canvas": {
+          "x": 336,
+          "y": 16,
+          "width": 768,
+          "height": 440,
+          "pixelWidth": 768,
+          "pixelHeight": 440
+        },
+        "viewportHorizontalOverflow": 0,
+        "card_overlap_pairs": 153,
+        "glyph_overlap_pairs": 109,
+        "outside": [],
+        "first_card_overlap": [
+          [
+            "m6-floor-08",
+            "m6-floor-17"
+          ]
+        ],
+        "first_glyph_overlap": [
+          [
+            "m6-floor-08",
+            "m6-floor-17"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "working-shared-1440-real-profile-clicks",
+      "expected": "A real mouse click on each actor's painted avatar center opens that actor's own profile exactly once",
+      "pass": false,
+      "actual": {
+        "expectedIds": [
+          "m6-floor-08",
+          "m6-floor-17",
+          "m6-floor-04",
+          "m6-floor-13",
+          "m6-floor-03",
+          "m6-floor-12",
+          "m6-floor-09",
+          "m6-floor-18",
+          "m6-floor-05",
+          "m6-floor-14",
+          "m6-floor-01",
+          "m6-floor-10",
+          "m6-floor-07",
+          "m6-floor-16",
+          "m6-floor-06",
+          "m6-floor-15",
+          "m6-floor-02",
+          "m6-floor-11"
+        ],
+        "observedIds": [
+          "m6-floor-15",
+          "m6-floor-15",
+          "m6-floor-11",
+          "m6-floor-11",
+          "m6-floor-15",
+          "m6-floor-15",
+          "m6-floor-15",
+          "m6-floor-15",
+          "m6-floor-11",
+          "m6-floor-11",
+          "m6-floor-11",
+          "m6-floor-11",
+          "m6-floor-11",
+          "m6-floor-11",
+          "m6-floor-11",
+          "m6-floor-11",
+          "m6-floor-11",
+          "m6-floor-11"
+        ],
+        "uniqueReachable": 2,
+        "attempted": 18
+      }
+    },
+    {
+      "id": "queued-shared-1440-label-pixels",
+      "expected": "All active actors' actual painted label/glyph rectangles are separate and inside the Canvas after 300 controlled real paint frames",
+      "pass": false,
+      "actual": {
+        "frames": 300,
+        "labelCount": 18,
+        "canvas": {
+          "x": 336,
+          "y": 16,
+          "width": 768,
+          "height": 440,
+          "pixelWidth": 768,
+          "pixelHeight": 440
+        },
+        "viewportHorizontalOverflow": 0,
+        "card_overlap_pairs": 153,
+        "glyph_overlap_pairs": 109,
+        "outside": [],
+        "first_card_overlap": [
+          [
+            "m6-floor-08",
+            "m6-floor-17"
+          ]
+        ],
+        "first_glyph_overlap": [
+          [
+            "m6-floor-08",
+            "m6-floor-17"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "queued-shared-1440-real-profile-clicks",
+      "expected": "A real mouse click on each actor's painted avatar center opens that actor's own profile exactly once",
+      "pass": false,
+      "actual": {
+        "expectedIds": [
+          "m6-floor-08",
+          "m6-floor-17",
+          "m6-floor-04",
+          "m6-floor-13",
+          "m6-floor-03",
+          "m6-floor-12",
+          "m6-floor-09",
+          "m6-floor-18",
+          "m6-floor-05",
+          "m6-floor-14",
+          "m6-floor-01",
+          "m6-floor-10",
+          "m6-floor-07",
+          "m6-floor-16",
+          "m6-floor-06",
+          "m6-floor-15",
+          "m6-floor-02",
+          "m6-floor-11"
+        ],
+        "observedIds": [
+          "m6-floor-15",
+          "m6-floor-15",
+          "m6-floor-11",
+          "m6-floor-11",
+          "m6-floor-15",
+          "m6-floor-15",
+          "m6-floor-15",
+          "m6-floor-15",
+          "m6-floor-11",
+          "m6-floor-11",
+          "m6-floor-11",
+          "m6-floor-11",
+          "m6-floor-11",
+          "m6-floor-11",
+          "m6-floor-11",
+          "m6-floor-11",
+          "m6-floor-11",
+          "m6-floor-11"
+        ],
+        "uniqueReachable": 2,
+        "attempted": 18
+      }
+    },
+    {
+      "id": "celebrating-null-1440-label-pixels",
+      "expected": "All active actors' actual painted label/glyph rectangles are separate and inside the Canvas after 300 controlled real paint frames",
+      "pass": false,
+      "actual": {
+        "frames": 300,
+        "labelCount": 18,
+        "canvas": {
+          "x": 336,
+          "y": 16,
+          "width": 768,
+          "height": 440,
+          "pixelWidth": 768,
+          "pixelHeight": 440
+        },
+        "viewportHorizontalOverflow": 0,
+        "card_overlap_pairs": 108,
+        "glyph_overlap_pairs": 41,
+        "outside": [],
+        "first_card_overlap": [
+          [
+            "m6-floor-04",
+            "m6-floor-13"
+          ]
+        ],
+        "first_glyph_overlap": [
+          [
+            "m6-floor-04",
+            "m6-floor-13"
+          ]
+        ]
+      }
+    },
+    {
+      "id": "celebrating-null-1440-real-profile-clicks",
+      "expected": "A real mouse click on each actor's painted avatar center opens that actor's own profile exactly once",
+      "pass": false,
+      "actual": {
+        "expectedIds": [
+          "m6-floor-04",
+          "m6-floor-13",
+          "m6-floor-08",
+          "m6-floor-17",
+          "m6-floor-03",
+          "m6-floor-12",
+          "m6-floor-01",
+          "m6-floor-10",
+          "m6-floor-05",
+          "m6-floor-14",
+          "m6-floor-09",
+          "m6-floor-18",
+          "m6-floor-07",
+          "m6-floor-16",
+          "m6-floor-02",
+          "m6-floor-11",
+          "m6-floor-06",
+          "m6-floor-15"
+        ],
+        "observedIds": [
+          "m6-floor-14",
+          "m6-floor-14",
+          "m6-floor-18",
+          "m6-floor-18",
+          "m6-floor-18",
+          "m6-floor-18",
+          "m6-floor-11",
+          "m6-floor-11",
+          "m6-floor-15",
+          "m6-floor-15",
+          "m6-floor-18",
+          "m6-floor-18",
+          "m6-floor-11",
+          "m6-floor-11",
+          "m6-floor-11",
+          "m6-floor-11",
+          "m6-floor-15",
+          "m6-floor-15"
+        ],
+        "uniqueReachable": 4,
+        "attempted": 18
+      }
+    },
+    {
+      "id": "single-idle-positive-label-pixels",
+      "expected": "All active actors' actual painted label/glyph rectangles are separate and inside the Canvas after 300 controlled real paint frames",
+      "pass": true,
+      "actual": {
+        "frames": 300,
+        "labelCount": 1,
+        "canvas": {
+          "x": 336,
+          "y": 16,
+          "width": 768,
+          "height": 440,
+          "pixelWidth": 768,
+          "pixelHeight": 440
+        },
+        "viewportHorizontalOverflow": 0,
+        "card_overlap_pairs": 0,
+        "glyph_overlap_pairs": 0,
+        "outside": [],
+        "first_card_overlap": [],
+        "first_glyph_overlap": []
+      }
+    },
+    {
+      "id": "single-idle-positive-real-profile-clicks",
+      "expected": "A real mouse click on each actor's painted avatar center opens that actor's own profile exactly once",
+      "pass": true,
+      "actual": {
+        "expectedIds": [
+          "m6-floor-01"
+        ],
+        "observedIds": [
+          "m6-floor-01"
+        ],
+        "uniqueReachable": 1,
+        "attempted": 1
+      }
+    },
+    {
+      "id": "single-task-positive-label-pixels",
+      "expected": "All active actors' actual painted label/glyph rectangles are separate and inside the Canvas after 300 controlled real paint frames",
+      "pass": true,
+      "actual": {
+        "frames": 300,
+        "labelCount": 1,
+        "canvas": {
+          "x": 336,
+          "y": 16,
+          "width": 768,
+          "height": 440,
+          "pixelWidth": 768,
+          "pixelHeight": 440
+        },
+        "viewportHorizontalOverflow": 0,
+        "card_overlap_pairs": 0,
+        "glyph_overlap_pairs": 0,
+        "outside": [],
+        "first_card_overlap": [],
+        "first_glyph_overlap": []
+      }
+    },
+    {
+      "id": "single-task-positive-real-profile-clicks",
+      "expected": "A real mouse click on each actor's painted avatar center opens that actor's own profile exactly once",
+      "pass": true,
+      "actual": {
+        "expectedIds": [
+          "m6-floor-01"
+        ],
+        "observedIds": [
+          "m6-floor-01"
+        ],
+        "uniqueReachable": 1,
+        "attempted": 1
+      }
+    },
+    {
+      "id": "single-task-positive-real-task-click",
+      "expected": "A real mouse click on a task plaque opens its own task without a second profile callback",
+      "pass": true,
+      "actual": {
+        "selected": [
+          "m6-floor-task-1"
+        ],
+        "profileCount": 1
+      }
+    },
+    {
+      "id": "owned-canvas-no-errors-or-network",
+      "expected": "No page error or external network request occurred in the actual isolated Floor component fixture",
+      "pass": true,
+      "actual": {
+        "errors": [],
+        "blockedRequests": []
+      }
+    }
+  ]
+}

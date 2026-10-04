@@ -1,0 +1,330 @@
+{
+  "source_commit": "f9515d09ee6de9b34f38b93d3769654fe4869391",
+  "at": "2026-10-03T17:23:41.593851+08:00",
+  "tracked_clean": true,
+  "owned_ports_closed": true,
+  "web_dist_frozen": [
+    {
+      "file": "apps/web/dist/assets/index-BpUd6keX.js",
+      "bytes": 2699330,
+      "sha256": "88429cf472a575b08bf66470880ae7a291e68b8aafa1d27a4e369f2176ab13db"
+    },
+    {
+      "file": "apps/web/dist/assets/index-gX1Is29W.css",
+      "bytes": 139675,
+      "sha256": "bc5b185ab487ec8441ca19a29646b603a15f2382cb4d48a73263fc81e76ad777"
+    },
+    {
+      "file": "apps/web/dist/assets/index.es-C5yN-oX3.js",
+      "bytes": 123227,
+      "sha256": "801ad19672739aa03304f25bbf723d6d0dcc3f07b12b2b30f5e59b80de018536"
+    },
+    {
+      "file": "apps/web/dist/index.html",
+      "bytes": 783,
+      "sha256": "8077afb2f074fbb5440c4ec5a4f099a615958e5baec21fbfdbafdf02b6e87b61"
+    },
+    {
+      "file": "apps/web/dist/live2d/live2d.min.js",
+      "bytes": 129056,
+      "sha256": "e4ea1f18bdd44b65394ffd5a1bab16982e88757d45134d1bd0737c8a6b3ddd08"
+    },
+    {
+      "file": "apps/web/dist/live2d/live2dcubismcore.min.js",
+      "bytes": 207155,
+      "sha256": "25ae938cb4fe282ce189b357bcc97e603d1e1f7ec78bf04150d401c23cdc792f"
+    },
+    {
+      "file": "apps/web/dist/live2d/mao/Mao.2048/texture_00.png",
+      "bytes": 3130953,
+      "sha256": "0b97283d69e62d346bcca25f8a91a5dd477f2e668ad9801b15fa7f108631c624"
+    },
+    {
+      "file": "apps/web/dist/live2d/mao/Mao.cdi3.json",
+      "bytes": 16797,
+      "sha256": "f261069f302c013f1c60b48045aa4bf5ac2cb086ebb54917f7e5c3f47e5c8f81"
+    },
+    {
+      "file": "apps/web/dist/live2d/mao/Mao.moc3",
+      "bytes": 879680,
+      "sha256": "ad5195b39e35e0da8ba0c825ad9cc2d60571502007f6f7d4f00963b768bb90d8"
+    },
+    {
+      "file": "apps/web/dist/live2d/mao/Mao.model3.json",
+      "bytes": 1699,
+      "sha256": "d5fb29f93ef3cf3eba96b5aa9538eca063abbebee81a8d2dbeecea0cef4fecba"
+    },
+    {
+      "file": "apps/web/dist/live2d/mao/Mao.physics3.json",
+      "bytes": 21838,
+      "sha256": "27de73695ca6418a84953a0b2776e78160f9d0b988521e9bbfa02ff913f20a6d"
+    },
+    {
+      "file": "apps/web/dist/live2d/mao/Mao.pose3.json",
+      "bytes": 254,
+      "sha256": "efac160eccb7183ee6555d4e53a739042e1c55b92f59a99c2e4bed8e73a5ab91"
+    },
+    {
+      "file": "apps/web/dist/live2d/mao/expressions/exp_01.exp3.json",
+      "bytes": 1981,
+      "sha256": "afbe54559e428acdaf43190d1c497792048c35ed37979f33d9a37c70181ddf5b"
+    },
+    {
+      "file": "apps/web/dist/live2d/mao/expressions/exp_02.exp3.json",
+      "bytes": 1981,
+      "sha256": "6d35132627f9e362e526c0ce8c2152ece2b305c9abd3368da43460c2af8538f6"
+    },
+    {
+      "file": "apps/web/dist/live2d/mao/expressions/exp_03.exp3.json",
+      "bytes": 1981,
+      "sha256": "460a3077d61adfdd1e6b9a062d0d7c3fcc2fb74c80f67ec3649982a9fab49bee"
+    },
+    {
+      "file": "apps/web/dist/live2d/mao/expressions/exp_04.exp3.json",
+      "bytes": 1985,
+      "sha256": "abad61f4ec7f1a157d6b914643e5bd4ffb29964e67f538cace420ebc9f69a716"
+    },
+    {
+      "file": "apps/web/dist/live2d/mao/expressions/exp_05.exp3.json",
+      "bytes": 1986,
+      "sha256": "331fe0d9c78861496a9cc9acba9650f295a72af8c36df7036ab8a372840d2cc1"
+    },
+    {
+      "file": "apps/web/dist/live2d/mao/expressions/exp_06.exp3.json",
+      "bytes": 1985,
+      "sha256": "52f1e391008d61efb17a33602c004a637a42bdb8af8aca3d2319ac5dac215ed1"
+    },
+    {
+      "file": "apps/web/dist/live2d/mao/expressions/exp_07.exp3.json",
+      "bytes": 1987,
+      "sha256": "8bf587d3d7bef509166c8ff95cc9f47c23c895eaf55f9d95110263e44452a53a"
+    },
+    {
+      "file": "apps/web/dist/live2d/mao/expressions/exp_08.exp3.json",
+      "bytes": 1982,
+      "sha256": "761190452e48d22727fce91e76270af2c27b0bb0ee3d04b2c6b0dc6cec49f88d"
+    },
+    {
+      "file": "apps/web/dist/live2d/mao/motions/mtn_01.motion3.json",
+      "bytes": 27661,
+      "sha256": "4a17c9b0b4ffd42ee5b8386cba0ae18916953ac693d79f44cd831bf5d59877f6"
+    },
+    {
+      "file": "apps/web/dist/live2d/mao/motions/mtn_02.motion3.json",
+      "bytes": 24274,
+      "sha256": "aa8c78c03f1d5fe143eedecfb7d077e7e4a7804c93723ba661eef2dd6a5d5ae0"
+    },
+    {
+      "file": "apps/web/dist/live2d/mao/motions/mtn_03.motion3.json",
+      "bytes": 22934,
+      "sha256": "e31eab8c371a253322c68968dbe5895e3029562f31a5b8d277012e94b0a6badd"
+    },
+    {
+      "file": "apps/web/dist/live2d/mao/motions/mtn_04.motion3.json",
+      "bytes": 27346,
+      "sha256": "a95f67d35c81755dee7f3be1e5e60171f090026725f628c99a1e3585985a1ac1"
+    },
+    {
+      "file": "apps/web/dist/live2d/mao/motions/sample_01.motion3.json",
+      "bytes": 28330,
+      "sha256": "21293d1d7c91f8d8b055f5215274df663e345a198517ebf8e3d26613ba37324a"
+    },
+    {
+      "file": "apps/web/dist/live2d/mao/motions/special_01.motion3.json",
+      "bytes": 34229,
+      "sha256": "141320d2e8913097156bf61aa2c27cd51ffcf8ba5d288172da288d2afcc164db"
+    },
+    {
+      "file": "apps/web/dist/live2d/mao/motions/special_02.motion3.json",
+      "bytes": 41809,
+      "sha256": "68e6e12c14d2c06504891971dcdce7771637aedbda9ef5edc616fd4f6972d20c"
+    },
+    {
+      "file": "apps/web/dist/live2d/mao/motions/special_03.motion3.json",
+      "bytes": 48041,
+      "sha256": "fe6b990b6d26a48955c0b33e27c3de8e020c98d2d06be41dcdfecdd053e6dd0f"
+    },
+    {
+      "file": "apps/web/dist/live2d/mao/poster.png",
+      "bytes": 230485,
+      "sha256": "80ef1589325a341fab7fd91a3370be8418f2491dace7e7849c27ccdbe6323da9"
+    },
+    {
+      "file": "apps/web/dist/live2d/shizuku/expressions/f01.exp.json",
+      "bytes": 71,
+      "sha256": "2ad7b7c52d8cd1775e0252dde662b7a23903b93be6cab5c652a893ae65b01a89"
+    },
+    {
+      "file": "apps/web/dist/live2d/shizuku/expressions/f02.exp.json",
+      "bytes": 895,
+      "sha256": "15402fd2ec5058f408dee8e7707b92530c2448fd1221a63e906b376e7e69e42d"
+    },
+    {
+      "file": "apps/web/dist/live2d/shizuku/expressions/f03.exp.json",
+      "bytes": 533,
+      "sha256": "d060d1d61fd031b511157e63f51defb384909c54a71d6c9f12335a5a19cb9eaa"
+    },
+    {
+      "file": "apps/web/dist/live2d/shizuku/expressions/f04.exp.json",
+      "bytes": 653,
+      "sha256": "d51cfe70251a5a74bc09a9389b184b5b93911d49938a038146fe365cc791ad35"
+    },
+    {
+      "file": "apps/web/dist/live2d/shizuku/motions/idle/idle_00.mtn",
+      "bytes": 13654,
+      "sha256": "18f93d1c4516217f64ed49d0f47cd57bccc8e8e0003de0ccd55afc477812c139"
+    },
+    {
+      "file": "apps/web/dist/live2d/shizuku/motions/idle/idle_01.mtn",
+      "bytes": 13619,
+      "sha256": "86a42dc5e0b8e6405ab9705f167335373a5cd8ccf518029ef1619f5787e6df64"
+    },
+    {
+      "file": "apps/web/dist/live2d/shizuku/motions/idle/idle_02.mtn",
+      "bytes": 16656,
+      "sha256": "d957990d9a0339fa9916cb4cd5f20489d66a8415a9f666029d6f6daf28660d65"
+    },
+    {
+      "file": "apps/web/dist/live2d/shizuku/motions/idle/idle_03.mtn",
+      "bytes": 105,
+      "sha256": "b03769c810512f4ed119bdb5130ab3a590169009434bf937757eb19ab1f7f42d"
+    },
+    {
+      "file": "apps/web/dist/live2d/shizuku/motions/idle_00.mtn",
+      "bytes": 13654,
+      "sha256": "18f93d1c4516217f64ed49d0f47cd57bccc8e8e0003de0ccd55afc477812c139"
+    },
+    {
+      "file": "apps/web/dist/live2d/shizuku/motions/idle_01.mtn",
+      "bytes": 13619,
+      "sha256": "86a42dc5e0b8e6405ab9705f167335373a5cd8ccf518029ef1619f5787e6df64"
+    },
+    {
+      "file": "apps/web/dist/live2d/shizuku/motions/idle_02.mtn",
+      "bytes": 16656,
+      "sha256": "d957990d9a0339fa9916cb4cd5f20489d66a8415a9f666029d6f6daf28660d65"
+    },
+    {
+      "file": "apps/web/dist/live2d/shizuku/motions/tapBody_00.mtn",
+      "bytes": 11288,
+      "sha256": "d22ef1d7bf6846a73a1189ca390ccf3fc0ca5e7ae0406928b93dce06f50e3d2c"
+    },
+    {
+      "file": "apps/web/dist/live2d/shizuku/motions/tapBody_01.mtn",
+      "bytes": 13643,
+      "sha256": "d2a245397b7e439d740ea207e95f7e82a35964dbcb1c129c93f47df63df65316"
+    },
+    {
+      "file": "apps/web/dist/live2d/shizuku/motions/tapBody_02.mtn",
+      "bytes": 7652,
+      "sha256": "bcc843c49d0bfd65c5e06fc367c7f01f83096e3e5e748b55df6aa669674be42a"
+    },
+    {
+      "file": "apps/web/dist/live2d/shizuku/shizuku.1024/texture_00.png",
+      "bytes": 557947,
+      "sha256": "cb52df3b6446e4a97050cbf0e9e37806465ea19c6088e61313710cb8d9b0e30b"
+    },
+    {
+      "file": "apps/web/dist/live2d/shizuku/shizuku.1024/texture_01.png",
+      "bytes": 1007486,
+      "sha256": "77520e0ab5142684d26056f5e1db3c2818a6029fdae3ba80ef3edf2a26f01feb"
+    },
+    {
+      "file": "apps/web/dist/live2d/shizuku/shizuku.1024/texture_02.png",
+      "bytes": 1208257,
+      "sha256": "bcb74693673aff40bb2cfd291b9af3354c8c527532f16e75c7610b101eec07ff"
+    },
+    {
+      "file": "apps/web/dist/live2d/shizuku/shizuku.1024/texture_03.png",
+      "bytes": 512035,
+      "sha256": "cf5fec0e0313de969adbaa90aa34a727f554629c54ec35ca19a9cb7bc6db7c4d"
+    },
+    {
+      "file": "apps/web/dist/live2d/shizuku/shizuku.1024/texture_04.png",
+      "bytes": 1009881,
+      "sha256": "1de262a22378c0e7b6ae40b72908cff47921b323d54cf33695ace219a28412d8"
+    },
+    {
+      "file": "apps/web/dist/live2d/shizuku/shizuku.1024/texture_05.png",
+      "bytes": 543838,
+      "sha256": "5ff56ae4328935b8d27136d827ee6a4f7fd4ca80761ab845a1e5c61c5a3ffa39"
+    },
+    {
+      "file": "apps/web/dist/live2d/shizuku/shizuku.moc",
+      "bytes": 691643,
+      "sha256": "56addfb6698bff6e2bc10eb0b2a54f72f6c955858a07574deaf6d4d3a6de8782"
+    },
+    {
+      "file": "apps/web/dist/live2d/shizuku/shizuku.model.json",
+      "bytes": 2357,
+      "sha256": "488c8350e4daee4dc7aefef03bafede682b4384a4a42a4f706bc3c3655f64b4a"
+    },
+    {
+      "file": "apps/web/dist/live2d/shizuku/shizuku.physics.json",
+      "bytes": 3002,
+      "sha256": "ad2ff633945d54adc32e9e563319fed0a77ae689f09a5ee187c3241920aee63a"
+    },
+    {
+      "file": "apps/web/dist/live2d/shizuku/shizuku.pose.json",
+      "bytes": 277,
+      "sha256": "07b05afa0f990797553e7970f6d0b73653a04e7f5b7e274c27beb0ef906c2275"
+    },
+    {
+      "file": "apps/web/dist/models/kaykit/Barbarian.glb",
+      "bytes": 3613268,
+      "sha256": "cefc311a0e10c7858b6141f5ada7e33268727564fb8ac1347aab97d000669cc6"
+    },
+    {
+      "file": "apps/web/dist/models/kaykit/Knight.glb",
+      "bytes": 3659532,
+      "sha256": "60428e3abc09ba83e595d256e3af8c5c976b46cdae599f0802fc82b4a3445168"
+    },
+    {
+      "file": "apps/web/dist/models/kaykit/Mage.glb",
+      "bytes": 3589240,
+      "sha256": "cf898585da33fab50c724d31605fb931eb2912e6d2280092141e98ca81ad507d"
+    },
+    {
+      "file": "apps/web/dist/models/kaykit/Rogue.glb",
+      "bytes": 3616284,
+      "sha256": "e825437cd4d2ee9c1960b517a74a69101e33eb409ae7fa8cedc7134a998fbb7d"
+    },
+    {
+      "file": "apps/web/dist/models/kaykit/Rogue_Hooded.glb",
+      "bytes": 3597652,
+      "sha256": "93e6e25213009952276d9cf34f5d96a243767334c66f280db0433ddfabb91545"
+    },
+    {
+      "file": "apps/web/dist/models/kaykit/mug_full.bin",
+      "bytes": 15772,
+      "sha256": "b79442e95a5f2d02aec88fca5ea16574e5a5210daf1bc6e294a39a4c7d1aeecb"
+    },
+    {
+      "file": "apps/web/dist/models/kaykit/mug_full.gltf",
+      "bytes": 3084,
+      "sha256": "354aa166f25c2e2f88b309129fb5638f98f852358f638293865c7b8767516fda"
+    },
+    {
+      "file": "apps/web/dist/models/kaykit/shield_badge.bin",
+      "bytes": 10628,
+      "sha256": "3c0f04767c839868df1f852cb335848c3ba7d94da3078e4c7f8a422f2369560c"
+    },
+    {
+      "file": "apps/web/dist/models/kaykit/shield_badge.gltf",
+      "bytes": 3080,
+      "sha256": "51b687316b2f9bfe89e586a6ef5f91cface8a326c9d604c8acea7699d6f3523d"
+    },
+    {
+      "file": "apps/web/dist/models/kaykit/spellbook_open.bin",
+      "bytes": 15128,
+      "sha256": "888e45aff64aba1bea6ef3abfad27024b2697f7adbab319c089bc70c077c4a5b"
+    },
+    {
+      "file": "apps/web/dist/models/kaykit/spellbook_open.gltf",
+      "bytes": 3076,
+      "sha256": "5a7891f8fe12a0c84dfbb64454b0b6b51328894011021e5c664bc8701aaf40ad"
+    }
+  ],
+  "native_source_controls_receipt": "independent-m6/source-resource-handback-f951.json",
+  "actual_native_execution_yet": false
+}

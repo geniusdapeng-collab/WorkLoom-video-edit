@@ -1,0 +1,45 @@
+{
+  "source_commit": "c08386eb9993744a0cb0c2495a98fc1fc4ccbed9",
+  "verified_by": "growth_m6",
+  "state": "HOLD",
+  "final_native_verified": false,
+  "source_scoped_merge_eligible": false,
+  "production_release_eligible": false,
+  "source_controls_status": "Actual c083 source controls verified: floor225 and historical core296 with immutable blob inheritance; final acceptance source will change after integration visual repairs.",
+  "actual_native_v3": {
+    "default": {
+      "exit_code": 0,
+      "seconds": 61.78,
+      "source": "native-c083-default-origin.json"
+    },
+    "safe": {
+      "exit_code": 0,
+      "seconds": 56.198,
+      "source": "native-c083-safe-origin.json"
+    },
+    "actual_pixel_review": "floor-native-c083-screenshot-review.json",
+    "images_directly_viewed": 8,
+    "private_config_stat_only": "native-c083-private-config-stat.json",
+    "private_contents_read": false
+  },
+  "visual_findings": {
+    "stage_partial_canvas_black_region": {
+      "grade": "C actual retained PNG; A Stage3D/P0 code location",
+      "status": "discovered, root actual red control/fix in progress",
+      "cause_confirmed_by_verifier": false
+    },
+    "ceo_fixed_plaque_intersection": {
+      "grade": "C actual retained workplace PNG",
+      "status": "discovered, root connected-portal/canvas-parent red control in progress",
+      "cause_confirmed_by_verifier": false
+    },
+    "expanded_mate_scene_occlusion": {
+      "grade": "C actual pixels",
+      "status": "observed in both native modes; close/hide controls visible; permanent inaccessibility not inferred"
+    }
+  },
+  "parent_window_owner": "root",
+  "verifier_product_gpu_pg_native_assertions_deferred": true,
+  "modern_mcd_actual_execution": "pending root repair execution and explicit PG window release after corrected native closure",
+  "recorded_at": "2026-10-03T09:44:18.327052+08:00"
+}

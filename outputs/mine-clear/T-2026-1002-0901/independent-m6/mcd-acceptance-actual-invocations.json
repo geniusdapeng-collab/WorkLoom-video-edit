@@ -1,0 +1,1121 @@
+{
+  "schema": "growth.independent-m6/mcd-actual-invocations@1",
+  "actor": "growth_m6",
+  "role": "acceptance",
+  "source_commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+  "started_at": "2026-10-04T04:20:20.853839+08:00",
+  "finished_at": "2026-10-04T04:21:36.528213+08:00",
+  "actual_invocations": [
+    {
+      "card_id": "MC-001",
+      "actor": "growth_m6",
+      "role": "acceptance",
+      "source_commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+      "argv": [
+        "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+        "--env-file=.env",
+        "/Users/mac/.codex/skills/mine-clear-delivery/assets/mine-clear.mjs",
+        "run-assertions",
+        "--ledger",
+        "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/execution-ledger.json",
+        "--card",
+        "MC-001",
+        "--actor",
+        "growth_m6",
+        "--role",
+        "acceptance",
+        "--repo",
+        "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit",
+        "--timeout-ms",
+        "180000"
+      ],
+      "exit_code": 0,
+      "seconds": 1.012,
+      "started_at": "2026-10-04T04:20:20.885349+08:00",
+      "finished_at": "2026-10-04T04:20:21.897454+08:00",
+      "stdout": "mcd-acceptance-mc-001.stdout",
+      "stdout_sha256": "5a60fdd4b5f6409ada4840bab003c0a2479416fd5f915b499c604423764a5d02",
+      "stderr": "mcd-acceptance-mc-001.stderr",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "registry_proxy_used": null,
+      "registry_proxy_scope": "Only this audit-containing card; no credential forwarding or product argv/deadline changes",
+      "assertion_count": 1,
+      "actual_runs": [
+        {
+          "path": "runs/MC-001-0-1791058821220.json",
+          "sha256": "9776290eca02f009c717cba67009745da147aea9334ddbf0c09a1659da9e7c33",
+          "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+        }
+      ],
+      "pass": true
+    },
+    {
+      "card_id": "MC-002",
+      "actor": "growth_m6",
+      "role": "acceptance",
+      "source_commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+      "argv": [
+        "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+        "--env-file=.env",
+        "/Users/mac/.codex/skills/mine-clear-delivery/assets/mine-clear.mjs",
+        "run-assertions",
+        "--ledger",
+        "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/execution-ledger.json",
+        "--card",
+        "MC-002",
+        "--actor",
+        "growth_m6",
+        "--role",
+        "acceptance",
+        "--repo",
+        "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit",
+        "--timeout-ms",
+        "180000"
+      ],
+      "exit_code": 0,
+      "seconds": 0.439,
+      "started_at": "2026-10-04T04:20:21.930689+08:00",
+      "finished_at": "2026-10-04T04:20:22.369745+08:00",
+      "stdout": "mcd-acceptance-mc-002.stdout",
+      "stdout_sha256": "636f3ff59249f578fee87b9abe9707482a0f5e53cc12522b16d0febd140ae5a3",
+      "stderr": "mcd-acceptance-mc-002.stderr",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "registry_proxy_used": null,
+      "registry_proxy_scope": "Only this audit-containing card; no credential forwarding or product argv/deadline changes",
+      "assertion_count": 1,
+      "actual_runs": [
+        {
+          "path": "runs/MC-002-0-1791058822097.json",
+          "sha256": "401608672dc24b8f47e2663b76824bb8e43bc7328dcbff31d8f7b31aeb39f304",
+          "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+        }
+      ],
+      "pass": true
+    },
+    {
+      "card_id": "MC-003",
+      "actor": "growth_m6",
+      "role": "acceptance",
+      "source_commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+      "argv": [
+        "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+        "--env-file=.env",
+        "/Users/mac/.codex/skills/mine-clear-delivery/assets/mine-clear.mjs",
+        "run-assertions",
+        "--ledger",
+        "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/execution-ledger.json",
+        "--card",
+        "MC-003",
+        "--actor",
+        "growth_m6",
+        "--role",
+        "acceptance",
+        "--repo",
+        "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit",
+        "--timeout-ms",
+        "180000"
+      ],
+      "exit_code": 0,
+      "seconds": 0.864,
+      "started_at": "2026-10-04T04:20:22.400249+08:00",
+      "finished_at": "2026-10-04T04:20:23.264499+08:00",
+      "stdout": "mcd-acceptance-mc-003.stdout",
+      "stdout_sha256": "873359c60b28307a5a9552d17ebf65672cc4edc68de692971ff0b96be610fdbb",
+      "stderr": "mcd-acceptance-mc-003.stderr",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "registry_proxy_used": null,
+      "registry_proxy_scope": "Only this audit-containing card; no credential forwarding or product argv/deadline changes",
+      "assertion_count": 1,
+      "actual_runs": [
+        {
+          "path": "runs/MC-003-0-1791058822561.json",
+          "sha256": "e63dfb22280dc4cfc9e54c0d32fbea66dbb6bfcc52b86b1830a4aa9141b8533e",
+          "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+        }
+      ],
+      "pass": true
+    },
+    {
+      "card_id": "MC-004",
+      "actor": "growth_m6",
+      "role": "acceptance",
+      "source_commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+      "argv": [
+        "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+        "--env-file=.env",
+        "/Users/mac/.codex/skills/mine-clear-delivery/assets/mine-clear.mjs",
+        "run-assertions",
+        "--ledger",
+        "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/execution-ledger.json",
+        "--card",
+        "MC-004",
+        "--actor",
+        "growth_m6",
+        "--role",
+        "acceptance",
+        "--repo",
+        "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit",
+        "--timeout-ms",
+        "180000"
+      ],
+      "exit_code": 0,
+      "seconds": 1.245,
+      "started_at": "2026-10-04T04:20:23.296357+08:00",
+      "finished_at": "2026-10-04T04:20:24.541327+08:00",
+      "stdout": "mcd-acceptance-mc-004.stdout",
+      "stdout_sha256": "4cfe2878172ace95fa877e6a044f5fc1e79875dfe146a06189915eee8caddb82",
+      "stderr": "mcd-acceptance-mc-004.stderr",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "registry_proxy_used": null,
+      "registry_proxy_scope": "Only this audit-containing card; no credential forwarding or product argv/deadline changes",
+      "assertion_count": 1,
+      "actual_runs": [
+        {
+          "path": "runs/MC-004-0-1791058823458.json",
+          "sha256": "2e5337bbccf4293b90d0568e9c40a368c746219c5176626855a80097f884b895",
+          "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+        }
+      ],
+      "pass": true
+    },
+    {
+      "card_id": "MC-005",
+      "actor": "growth_m6",
+      "role": "acceptance",
+      "source_commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+      "argv": [
+        "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+        "--env-file=.env",
+        "/Users/mac/.codex/skills/mine-clear-delivery/assets/mine-clear.mjs",
+        "run-assertions",
+        "--ledger",
+        "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/execution-ledger.json",
+        "--card",
+        "MC-005",
+        "--actor",
+        "growth_m6",
+        "--role",
+        "acceptance",
+        "--repo",
+        "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit",
+        "--timeout-ms",
+        "180000"
+      ],
+      "exit_code": 0,
+      "seconds": 6.971,
+      "started_at": "2026-10-04T04:20:24.571585+08:00",
+      "finished_at": "2026-10-04T04:20:31.542984+08:00",
+      "stdout": "mcd-acceptance-mc-005.stdout",
+      "stdout_sha256": "f5d1d216387ba7e036299a6007d13f8151456497588bb5e5318658faefaf850b",
+      "stderr": "mcd-acceptance-mc-005.stderr",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "registry_proxy_used": null,
+      "registry_proxy_scope": "Only this audit-containing card; no credential forwarding or product argv/deadline changes",
+      "assertion_count": 1,
+      "actual_runs": [
+        {
+          "path": "runs/MC-005-0-1791058824729.json",
+          "sha256": "bfa39305bb5d66c913b8ad852ad7022f77f3b75f567ef3fc1f1b33a6778592ce",
+          "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+        }
+      ],
+      "pass": true
+    },
+    {
+      "card_id": "MC-006",
+      "actor": "growth_m6",
+      "role": "acceptance",
+      "source_commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+      "argv": [
+        "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+        "--env-file=.env",
+        "/Users/mac/.codex/skills/mine-clear-delivery/assets/mine-clear.mjs",
+        "run-assertions",
+        "--ledger",
+        "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/execution-ledger.json",
+        "--card",
+        "MC-006",
+        "--actor",
+        "growth_m6",
+        "--role",
+        "acceptance",
+        "--repo",
+        "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit",
+        "--timeout-ms",
+        "180000"
+      ],
+      "exit_code": 0,
+      "seconds": 5.414,
+      "started_at": "2026-10-04T04:20:31.573739+08:00",
+      "finished_at": "2026-10-04T04:20:36.987776+08:00",
+      "stdout": "mcd-acceptance-mc-006.stdout",
+      "stdout_sha256": "2fc024a2cddd878e7f9cfe4584715b2bdd2382cf043af51f03eb9d29c54f9ed3",
+      "stderr": "mcd-acceptance-mc-006.stderr",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "registry_proxy_used": null,
+      "registry_proxy_scope": "Only this audit-containing card; no credential forwarding or product argv/deadline changes",
+      "assertion_count": 1,
+      "actual_runs": [
+        {
+          "path": "runs/MC-006-0-1791058831737.json",
+          "sha256": "413861101597e3f7456206b0886152ec11332392b821c6ad842efa72e39795a0",
+          "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+        }
+      ],
+      "pass": true
+    },
+    {
+      "card_id": "MC-007",
+      "actor": "growth_m6",
+      "role": "acceptance",
+      "source_commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+      "argv": [
+        "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+        "--env-file=.env",
+        "/Users/mac/.codex/skills/mine-clear-delivery/assets/mine-clear.mjs",
+        "run-assertions",
+        "--ledger",
+        "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/execution-ledger.json",
+        "--card",
+        "MC-007",
+        "--actor",
+        "growth_m6",
+        "--role",
+        "acceptance",
+        "--repo",
+        "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit",
+        "--timeout-ms",
+        "180000"
+      ],
+      "exit_code": 0,
+      "seconds": 1.04,
+      "started_at": "2026-10-04T04:20:37.018693+08:00",
+      "finished_at": "2026-10-04T04:20:38.058912+08:00",
+      "stdout": "mcd-acceptance-mc-007.stdout",
+      "stdout_sha256": "3a47dbafabe2c28f1933d0c0909ef229d9e8a71d967d5943400296a626363cb7",
+      "stderr": "mcd-acceptance-mc-007.stderr",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "registry_proxy_used": null,
+      "registry_proxy_scope": "Only this audit-containing card; no credential forwarding or product argv/deadline changes",
+      "assertion_count": 1,
+      "actual_runs": [
+        {
+          "path": "runs/MC-007-0-1791058837188.json",
+          "sha256": "76c6b197b8ad506614e802282aa2a7fb10681e2ea075fa6ea9e37f76f9dcb98b",
+          "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+        }
+      ],
+      "pass": true
+    },
+    {
+      "card_id": "MC-008",
+      "actor": "growth_m6",
+      "role": "acceptance",
+      "source_commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+      "argv": [
+        "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+        "--env-file=.env",
+        "/Users/mac/.codex/skills/mine-clear-delivery/assets/mine-clear.mjs",
+        "run-assertions",
+        "--ledger",
+        "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/execution-ledger.json",
+        "--card",
+        "MC-008",
+        "--actor",
+        "growth_m6",
+        "--role",
+        "acceptance",
+        "--repo",
+        "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit",
+        "--timeout-ms",
+        "180000"
+      ],
+      "exit_code": 0,
+      "seconds": 0.992,
+      "started_at": "2026-10-04T04:20:38.091462+08:00",
+      "finished_at": "2026-10-04T04:20:39.083234+08:00",
+      "stdout": "mcd-acceptance-mc-008.stdout",
+      "stdout_sha256": "6b7cc6d91f4b4f0dbf77dcf96f35137049554ba45114d4190e32f2da11f99a21",
+      "stderr": "mcd-acceptance-mc-008.stderr",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "registry_proxy_used": null,
+      "registry_proxy_scope": "Only this audit-containing card; no credential forwarding or product argv/deadline changes",
+      "assertion_count": 1,
+      "actual_runs": [
+        {
+          "path": "runs/MC-008-0-1791058838252.json",
+          "sha256": "d255a402f7c63a663092024c764179dfbfdd9ed247769fe54b0ea30f3689e86c",
+          "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+        }
+      ],
+      "pass": true
+    },
+    {
+      "card_id": "MC-009",
+      "actor": "growth_m6",
+      "role": "acceptance",
+      "source_commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+      "argv": [
+        "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+        "--env-file=.env",
+        "/Users/mac/.codex/skills/mine-clear-delivery/assets/mine-clear.mjs",
+        "run-assertions",
+        "--ledger",
+        "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/execution-ledger.json",
+        "--card",
+        "MC-009",
+        "--actor",
+        "growth_m6",
+        "--role",
+        "acceptance",
+        "--repo",
+        "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit",
+        "--timeout-ms",
+        "180000"
+      ],
+      "exit_code": 0,
+      "seconds": 0.99,
+      "started_at": "2026-10-04T04:20:39.114786+08:00",
+      "finished_at": "2026-10-04T04:20:40.105029+08:00",
+      "stdout": "mcd-acceptance-mc-009.stdout",
+      "stdout_sha256": "4a138c1c42e83a1d2f883d93f17f381a47e3f24a9be8ef425991c98042d4984f",
+      "stderr": "mcd-acceptance-mc-009.stderr",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "registry_proxy_used": null,
+      "registry_proxy_scope": "Only this audit-containing card; no credential forwarding or product argv/deadline changes",
+      "assertion_count": 1,
+      "actual_runs": [
+        {
+          "path": "runs/MC-009-0-1791058839278.json",
+          "sha256": "90704260140df591cb72c6cc991d1625b858bd9707a1b73983fbd30181579c0d",
+          "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+        }
+      ],
+      "pass": true
+    },
+    {
+      "card_id": "MC-010",
+      "actor": "growth_m6",
+      "role": "acceptance",
+      "source_commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+      "argv": [
+        "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+        "--env-file=.env",
+        "/Users/mac/.codex/skills/mine-clear-delivery/assets/mine-clear.mjs",
+        "run-assertions",
+        "--ledger",
+        "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/execution-ledger.json",
+        "--card",
+        "MC-010",
+        "--actor",
+        "growth_m6",
+        "--role",
+        "acceptance",
+        "--repo",
+        "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit",
+        "--timeout-ms",
+        "180000"
+      ],
+      "exit_code": 0,
+      "seconds": 1.225,
+      "started_at": "2026-10-04T04:20:40.136496+08:00",
+      "finished_at": "2026-10-04T04:20:41.361395+08:00",
+      "stdout": "mcd-acceptance-mc-010.stdout",
+      "stdout_sha256": "5c31146dec829801636265c94965363429d0e074acf5b90395b3bbe6b4fd8680",
+      "stderr": "mcd-acceptance-mc-010.stderr",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "registry_proxy_used": null,
+      "registry_proxy_scope": "Only this audit-containing card; no credential forwarding or product argv/deadline changes",
+      "assertion_count": 1,
+      "actual_runs": [
+        {
+          "path": "runs/MC-010-0-1791058840302.json",
+          "sha256": "8d71d217a3863d259def5bc57c845327d1161c4fc494fb82ea2ed1da2cd5b0de",
+          "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+        }
+      ],
+      "pass": true
+    },
+    {
+      "card_id": "MC-011",
+      "actor": "growth_m6",
+      "role": "acceptance",
+      "source_commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+      "argv": [
+        "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+        "--env-file=.env",
+        "/Users/mac/.codex/skills/mine-clear-delivery/assets/mine-clear.mjs",
+        "run-assertions",
+        "--ledger",
+        "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/execution-ledger.json",
+        "--card",
+        "MC-011",
+        "--actor",
+        "growth_m6",
+        "--role",
+        "acceptance",
+        "--repo",
+        "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit",
+        "--timeout-ms",
+        "180000"
+      ],
+      "exit_code": 0,
+      "seconds": 1.009,
+      "started_at": "2026-10-04T04:20:41.391731+08:00",
+      "finished_at": "2026-10-04T04:20:42.400843+08:00",
+      "stdout": "mcd-acceptance-mc-011.stdout",
+      "stdout_sha256": "13d19874216b5c03768d9d3fdf325413a093934de659f8c242d84af4c7fdc740",
+      "stderr": "mcd-acceptance-mc-011.stderr",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "registry_proxy_used": null,
+      "registry_proxy_scope": "Only this audit-containing card; no credential forwarding or product argv/deadline changes",
+      "assertion_count": 1,
+      "actual_runs": [
+        {
+          "path": "runs/MC-011-0-1791058841553.json",
+          "sha256": "a5bffc93bbf369215d0406a540bf59c9fa3898e871d7a0d30721fe44c445001c",
+          "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+        }
+      ],
+      "pass": true
+    },
+    {
+      "card_id": "MC-012",
+      "actor": "growth_m6",
+      "role": "acceptance",
+      "source_commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+      "argv": [
+        "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+        "--env-file=.env",
+        "/Users/mac/.codex/skills/mine-clear-delivery/assets/mine-clear.mjs",
+        "run-assertions",
+        "--ledger",
+        "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/execution-ledger.json",
+        "--card",
+        "MC-012",
+        "--actor",
+        "growth_m6",
+        "--role",
+        "acceptance",
+        "--repo",
+        "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit",
+        "--timeout-ms",
+        "180000"
+      ],
+      "exit_code": 0,
+      "seconds": 1.061,
+      "started_at": "2026-10-04T04:20:42.476459+08:00",
+      "finished_at": "2026-10-04T04:20:43.537948+08:00",
+      "stdout": "mcd-acceptance-mc-012.stdout",
+      "stdout_sha256": "d9efab73eac7fc3e9ace2567fb41d9e0d2e58c0c504297e45c1045f2a2455595",
+      "stderr": "mcd-acceptance-mc-012.stderr",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "registry_proxy_used": null,
+      "registry_proxy_scope": "Only this audit-containing card; no credential forwarding or product argv/deadline changes",
+      "assertion_count": 1,
+      "actual_runs": [
+        {
+          "path": "runs/MC-012-0-1791058842649.json",
+          "sha256": "3e8d77dd2e1eec29a59ef2642d26ffd6de9743f933734f461a72c13cd47fcf35",
+          "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+        }
+      ],
+      "pass": true
+    },
+    {
+      "card_id": "MC-013",
+      "actor": "growth_m6",
+      "role": "acceptance",
+      "source_commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+      "argv": [
+        "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+        "--env-file=.env",
+        "/Users/mac/.codex/skills/mine-clear-delivery/assets/mine-clear.mjs",
+        "run-assertions",
+        "--ledger",
+        "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/execution-ledger.json",
+        "--card",
+        "MC-013",
+        "--actor",
+        "growth_m6",
+        "--role",
+        "acceptance",
+        "--repo",
+        "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit",
+        "--timeout-ms",
+        "180000"
+      ],
+      "exit_code": 0,
+      "seconds": 4.419,
+      "started_at": "2026-10-04T04:20:43.568744+08:00",
+      "finished_at": "2026-10-04T04:20:47.987841+08:00",
+      "stdout": "mcd-acceptance-mc-013.stdout",
+      "stdout_sha256": "8cacb94682bb0f838591dbedea6cc1d7060517eb73f761a4df45505f69196cf6",
+      "stderr": "mcd-acceptance-mc-013.stderr",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "registry_proxy_used": null,
+      "registry_proxy_scope": "Only this audit-containing card; no credential forwarding or product argv/deadline changes",
+      "assertion_count": 3,
+      "actual_runs": [
+        {
+          "path": "runs/MC-013-0-1791058843734.json",
+          "sha256": "76a312da0d0e06580e58b64ceb7dcf8918df0adcc6f4991520be0352633b7a46",
+          "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+        },
+        {
+          "path": "runs/MC-013-1-1791058845523.json",
+          "sha256": "5e325dc1c757896103e24830f40e28f3b8b28eb69e96ce6f0d30a03a0df4b821",
+          "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+        },
+        {
+          "path": "runs/MC-013-2-1791058847061.json",
+          "sha256": "96d18701b99f924050a18ca4d65a33e8dee0caacd05a5407ae6e188b530ffc94",
+          "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+        }
+      ],
+      "pass": true
+    },
+    {
+      "card_id": "MC-014",
+      "actor": "growth_m6",
+      "role": "acceptance",
+      "source_commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+      "argv": [
+        "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+        "--env-file=.env",
+        "/Users/mac/.codex/skills/mine-clear-delivery/assets/mine-clear.mjs",
+        "run-assertions",
+        "--ledger",
+        "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/execution-ledger.json",
+        "--card",
+        "MC-014",
+        "--actor",
+        "growth_m6",
+        "--role",
+        "acceptance",
+        "--repo",
+        "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit",
+        "--timeout-ms",
+        "180000"
+      ],
+      "exit_code": 0,
+      "seconds": 2.787,
+      "started_at": "2026-10-04T04:20:48.018248+08:00",
+      "finished_at": "2026-10-04T04:20:50.805464+08:00",
+      "stdout": "mcd-acceptance-mc-014.stdout",
+      "stdout_sha256": "398d603d536bfde9f97cc48ae8d4803f4f2498b5693fd3e23033696de132616a",
+      "stderr": "mcd-acceptance-mc-014.stderr",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "registry_proxy_used": null,
+      "registry_proxy_scope": "Only this audit-containing card; no credential forwarding or product argv/deadline changes",
+      "assertion_count": 1,
+      "actual_runs": [
+        {
+          "path": "runs/MC-014-0-1791058848183.json",
+          "sha256": "604edb2e77af52edc004fae51b0932f833bcf3b054f50b4c0ed8cbc9e8c904d2",
+          "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+        }
+      ],
+      "pass": true
+    },
+    {
+      "card_id": "MC-015",
+      "actor": "growth_m6",
+      "role": "acceptance",
+      "source_commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+      "argv": [
+        "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+        "--env-file=.env",
+        "/Users/mac/.codex/skills/mine-clear-delivery/assets/mine-clear.mjs",
+        "run-assertions",
+        "--ledger",
+        "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/execution-ledger.json",
+        "--card",
+        "MC-015",
+        "--actor",
+        "growth_m6",
+        "--role",
+        "acceptance",
+        "--repo",
+        "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit",
+        "--timeout-ms",
+        "180000"
+      ],
+      "exit_code": 0,
+      "seconds": 0.704,
+      "started_at": "2026-10-04T04:20:50.838285+08:00",
+      "finished_at": "2026-10-04T04:20:51.542133+08:00",
+      "stdout": "mcd-acceptance-mc-015.stdout",
+      "stdout_sha256": "f28a656b8b12e0574382f92764e8f7ba703fc5fce64df6b24dd8226f90117cec",
+      "stderr": "mcd-acceptance-mc-015.stderr",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "registry_proxy_used": null,
+      "registry_proxy_scope": "Only this audit-containing card; no credential forwarding or product argv/deadline changes",
+      "assertion_count": 1,
+      "actual_runs": [
+        {
+          "path": "runs/MC-015-0-1791058851006.json",
+          "sha256": "315f6683458a37374f0775c37e258c5be3570a863ee330490a15c4a9b6d895f3",
+          "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+        }
+      ],
+      "pass": true
+    },
+    {
+      "card_id": "MC-016",
+      "actor": "growth_m6",
+      "role": "acceptance",
+      "source_commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+      "argv": [
+        "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+        "--env-file=.env",
+        "/Users/mac/.codex/skills/mine-clear-delivery/assets/mine-clear.mjs",
+        "run-assertions",
+        "--ledger",
+        "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/execution-ledger.json",
+        "--card",
+        "MC-016",
+        "--actor",
+        "growth_m6",
+        "--role",
+        "acceptance",
+        "--repo",
+        "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit",
+        "--timeout-ms",
+        "180000"
+      ],
+      "exit_code": 0,
+      "seconds": 8.124,
+      "started_at": "2026-10-04T04:20:51.574317+08:00",
+      "finished_at": "2026-10-04T04:20:59.697857+08:00",
+      "stdout": "mcd-acceptance-mc-016.stdout",
+      "stdout_sha256": "b92833ca337f8366a34ad93a55fa4cb8de72ce2e28003266c0edaf56a5d195f8",
+      "stderr": "mcd-acceptance-mc-016.stderr",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "registry_proxy_used": "http://127.0.0.1:7890",
+      "registry_proxy_scope": "Only this audit-containing card; no credential forwarding or product argv/deadline changes",
+      "assertion_count": 1,
+      "actual_runs": [
+        {
+          "path": "runs/MC-016-0-1791058851741.json",
+          "sha256": "af758a585cc66455f34c3dadac55a512592a97f4dd7ae0af318013f55c4fcded",
+          "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+        }
+      ],
+      "pass": true
+    },
+    {
+      "card_id": "MC-017",
+      "actor": "growth_m6",
+      "role": "acceptance",
+      "source_commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+      "argv": [
+        "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+        "--env-file=.env",
+        "/Users/mac/.codex/skills/mine-clear-delivery/assets/mine-clear.mjs",
+        "run-assertions",
+        "--ledger",
+        "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/execution-ledger.json",
+        "--card",
+        "MC-017",
+        "--actor",
+        "growth_m6",
+        "--role",
+        "acceptance",
+        "--repo",
+        "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit",
+        "--timeout-ms",
+        "180000"
+      ],
+      "exit_code": 0,
+      "seconds": 8.455,
+      "started_at": "2026-10-04T04:20:59.729068+08:00",
+      "finished_at": "2026-10-04T04:21:08.183961+08:00",
+      "stdout": "mcd-acceptance-mc-017.stdout",
+      "stdout_sha256": "c564ef9a8eaac2bcd6f67266dad619d47188ed1e5c730282ac4c864c4da859e2",
+      "stderr": "mcd-acceptance-mc-017.stderr",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "registry_proxy_used": null,
+      "registry_proxy_scope": "Only this audit-containing card; no credential forwarding or product argv/deadline changes",
+      "assertion_count": 1,
+      "actual_runs": [
+        {
+          "path": "runs/MC-017-0-1791058859898.json",
+          "sha256": "125e7ba50ec2ab3a83813a0ef1404f4d6ed822968297031a4bc619faf89a4889",
+          "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+        }
+      ],
+      "pass": true
+    },
+    {
+      "card_id": "MC-018",
+      "actor": "growth_m6",
+      "role": "acceptance",
+      "source_commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+      "argv": [
+        "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+        "--env-file=.env",
+        "/Users/mac/.codex/skills/mine-clear-delivery/assets/mine-clear.mjs",
+        "run-assertions",
+        "--ledger",
+        "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/execution-ledger.json",
+        "--card",
+        "MC-018",
+        "--actor",
+        "growth_m6",
+        "--role",
+        "acceptance",
+        "--repo",
+        "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit",
+        "--timeout-ms",
+        "180000"
+      ],
+      "exit_code": 0,
+      "seconds": 0.667,
+      "started_at": "2026-10-04T04:21:08.219801+08:00",
+      "finished_at": "2026-10-04T04:21:08.887031+08:00",
+      "stdout": "mcd-acceptance-mc-018.stdout",
+      "stdout_sha256": "2a3206dff19ca5eb804ef3175ea212fe791b7b1b3914900d01f25d7b125a6dee",
+      "stderr": "mcd-acceptance-mc-018.stderr",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "registry_proxy_used": null,
+      "registry_proxy_scope": "Only this audit-containing card; no credential forwarding or product argv/deadline changes",
+      "assertion_count": 1,
+      "actual_runs": [
+        {
+          "path": "runs/MC-018-0-1791058868388.json",
+          "sha256": "12b57950637e88907e2196268a8d9323a341b515dade9d8b06544ffa317dc19e",
+          "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+        }
+      ],
+      "pass": true
+    },
+    {
+      "card_id": "MC-101",
+      "actor": "growth_m6",
+      "role": "acceptance",
+      "source_commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+      "argv": [
+        "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+        "--env-file=.env",
+        "/Users/mac/.codex/skills/mine-clear-delivery/assets/mine-clear.mjs",
+        "run-assertions",
+        "--ledger",
+        "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/execution-ledger.json",
+        "--card",
+        "MC-101",
+        "--actor",
+        "growth_m6",
+        "--role",
+        "acceptance",
+        "--repo",
+        "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit",
+        "--timeout-ms",
+        "180000"
+      ],
+      "exit_code": 0,
+      "seconds": 2.745,
+      "started_at": "2026-10-04T04:21:08.918488+08:00",
+      "finished_at": "2026-10-04T04:21:11.663258+08:00",
+      "stdout": "mcd-acceptance-mc-101.stdout",
+      "stdout_sha256": "d7d61f011e27cd47b9b6164684ee39efb5bd2b5793f8bad9d5c7d2ff442bdf2b",
+      "stderr": "mcd-acceptance-mc-101.stderr",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "registry_proxy_used": null,
+      "registry_proxy_scope": "Only this audit-containing card; no credential forwarding or product argv/deadline changes",
+      "assertion_count": 4,
+      "actual_runs": [
+        {
+          "path": "runs/MC-101-0-1791058869087.json",
+          "sha256": "5bc05dddfbcd11e697e024748e24e5901eba2265fade9f076390d9803fe3def4",
+          "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+        },
+        {
+          "path": "runs/MC-101-1-1791058869661.json",
+          "sha256": "294bc60a11b6929455e5f34f8cae6cd642e9312aa0f689057da5a4b9729f5a8d",
+          "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+        },
+        {
+          "path": "runs/MC-101-2-1791058869903.json",
+          "sha256": "370b207b627e2cd4e1b7216ab187e5be7a9ba0fc9520114a342d7ad56f9eb18f",
+          "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+        },
+        {
+          "path": "runs/MC-101-3-1791058870526.json",
+          "sha256": "d3d53ab5f2636936be3e9dc718edd7344898d8ba9cefc2fa0b67f1ac14ac85aa",
+          "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+        }
+      ],
+      "pass": true
+    },
+    {
+      "card_id": "MC-102",
+      "actor": "growth_m6",
+      "role": "acceptance",
+      "source_commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+      "argv": [
+        "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+        "--env-file=.env",
+        "/Users/mac/.codex/skills/mine-clear-delivery/assets/mine-clear.mjs",
+        "run-assertions",
+        "--ledger",
+        "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/execution-ledger.json",
+        "--card",
+        "MC-102",
+        "--actor",
+        "growth_m6",
+        "--role",
+        "acceptance",
+        "--repo",
+        "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit",
+        "--timeout-ms",
+        "180000"
+      ],
+      "exit_code": 0,
+      "seconds": 6.865,
+      "started_at": "2026-10-04T04:21:11.694995+08:00",
+      "finished_at": "2026-10-04T04:21:18.559563+08:00",
+      "stdout": "mcd-acceptance-mc-102.stdout",
+      "stdout_sha256": "0ce309570010d018de682f746cea50008db2ab28f5665a0651de411434220eaf",
+      "stderr": "mcd-acceptance-mc-102.stderr",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "registry_proxy_used": null,
+      "registry_proxy_scope": "Only this audit-containing card; no credential forwarding or product argv/deadline changes",
+      "assertion_count": 1,
+      "actual_runs": [
+        {
+          "path": "runs/MC-102-0-1791058871855.json",
+          "sha256": "5e888e14f787a79cfbcd1c081f6210beece39b44dccfd0e5eab32df402cbbef2",
+          "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+        }
+      ],
+      "pass": true
+    },
+    {
+      "card_id": "MC-103",
+      "actor": "growth_m6",
+      "role": "acceptance",
+      "source_commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+      "argv": [
+        "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+        "--env-file=.env",
+        "/Users/mac/.codex/skills/mine-clear-delivery/assets/mine-clear.mjs",
+        "run-assertions",
+        "--ledger",
+        "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/execution-ledger.json",
+        "--card",
+        "MC-103",
+        "--actor",
+        "growth_m6",
+        "--role",
+        "acceptance",
+        "--repo",
+        "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit",
+        "--timeout-ms",
+        "180000"
+      ],
+      "exit_code": 0,
+      "seconds": 6.19,
+      "started_at": "2026-10-04T04:21:18.590599+08:00",
+      "finished_at": "2026-10-04T04:21:24.780263+08:00",
+      "stdout": "mcd-acceptance-mc-103.stdout",
+      "stdout_sha256": "384fdd7bbceb21aa5ad6f0e8588bba0200d33a948bd1f242329903c140377fe2",
+      "stderr": "mcd-acceptance-mc-103.stderr",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "registry_proxy_used": null,
+      "registry_proxy_scope": "Only this audit-containing card; no credential forwarding or product argv/deadline changes",
+      "assertion_count": 2,
+      "actual_runs": [
+        {
+          "path": "runs/MC-103-0-1791058878760.json",
+          "sha256": "d99466d3816d8d934f203d8ce454f3f7f05eeead969069d32c855e732b0aa47f",
+          "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+        },
+        {
+          "path": "runs/MC-103-1-1791058883968.json",
+          "sha256": "fafac5a7e63413d39b3deb5f5e3f753374312309fd4c21b78baa21af685d21e6",
+          "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+        }
+      ],
+      "pass": true
+    },
+    {
+      "card_id": "MC-104",
+      "actor": "growth_m6",
+      "role": "acceptance",
+      "source_commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+      "argv": [
+        "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+        "--env-file=.env",
+        "/Users/mac/.codex/skills/mine-clear-delivery/assets/mine-clear.mjs",
+        "run-assertions",
+        "--ledger",
+        "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/execution-ledger.json",
+        "--card",
+        "MC-104",
+        "--actor",
+        "growth_m6",
+        "--role",
+        "acceptance",
+        "--repo",
+        "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit",
+        "--timeout-ms",
+        "180000"
+      ],
+      "exit_code": 0,
+      "seconds": 4.286,
+      "started_at": "2026-10-04T04:21:24.810455+08:00",
+      "finished_at": "2026-10-04T04:21:29.096724+08:00",
+      "stdout": "mcd-acceptance-mc-104.stdout",
+      "stdout_sha256": "1f810b7a9aac1b0fb56fd048947abd8dd4bec133ac79fd1a0fe77317b2b4ae59",
+      "stderr": "mcd-acceptance-mc-104.stderr",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "registry_proxy_used": null,
+      "registry_proxy_scope": "Only this audit-containing card; no credential forwarding or product argv/deadline changes",
+      "assertion_count": 5,
+      "actual_runs": [
+        {
+          "path": "runs/MC-104-0-1791058884970.json",
+          "sha256": "8a02c198e0d5a585535e65d2ea61cc21d492af6f3b924f0737d045f026d520be",
+          "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+        },
+        {
+          "path": "runs/MC-104-1-1791058885755.json",
+          "sha256": "6ffa1b7257c15a6ee00c2e620c332c0e1cbbd67afc190b5a0507783ad666218d",
+          "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+        },
+        {
+          "path": "runs/MC-104-2-1791058886533.json",
+          "sha256": "0d64682960fc558a84bbe81634cf0d728b6dfe2e0d792329363f34306bc578fc",
+          "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+        },
+        {
+          "path": "runs/MC-104-3-1791058887524.json",
+          "sha256": "d4a4e5eb73182e6b3a60fd9639f4eaa007dc9a44342ab2c00210542af38d3bd0",
+          "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+        },
+        {
+          "path": "runs/MC-104-4-1791058888302.json",
+          "sha256": "a7ca301b6cd40a6a379a7170d9deb9b01f4667f378fac29add4fb5da866011fd",
+          "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+        }
+      ],
+      "pass": true
+    },
+    {
+      "card_id": "MC-105",
+      "actor": "growth_m6",
+      "role": "acceptance",
+      "source_commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+      "argv": [
+        "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+        "--env-file=.env",
+        "/Users/mac/.codex/skills/mine-clear-delivery/assets/mine-clear.mjs",
+        "run-assertions",
+        "--ledger",
+        "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/execution-ledger.json",
+        "--card",
+        "MC-105",
+        "--actor",
+        "growth_m6",
+        "--role",
+        "acceptance",
+        "--repo",
+        "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/growth-audit",
+        "--timeout-ms",
+        "180000"
+      ],
+      "exit_code": 0,
+      "seconds": 7.361,
+      "started_at": "2026-10-04T04:21:29.126370+08:00",
+      "finished_at": "2026-10-04T04:21:36.488263+08:00",
+      "stdout": "mcd-acceptance-mc-105.stdout",
+      "stdout_sha256": "a11c39d6dc601ce245d461a9b76854f71f1a04e5a0526b90c5d392ca91bcccd1",
+      "stderr": "mcd-acceptance-mc-105.stderr",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "registry_proxy_used": null,
+      "registry_proxy_scope": "Only this audit-containing card; no credential forwarding or product argv/deadline changes",
+      "assertion_count": 5,
+      "actual_runs": [
+        {
+          "path": "runs/MC-105-0-1791058889285.json",
+          "sha256": "6e3b1bb065e58449dd0c5687046ad9bfc98419a991e401823f697564df702b05",
+          "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+        },
+        {
+          "path": "runs/MC-105-1-1791058891029.json",
+          "sha256": "905c4b0f0e90021d09ede778210cd048d8de48489af2d74e75ba3e4c69623a9b",
+          "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+        },
+        {
+          "path": "runs/MC-105-2-1791058892533.json",
+          "sha256": "5c7686fbfc93b88dfac8a53ab38cf376196173f84137f17d24d091fede6f788b",
+          "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+        },
+        {
+          "path": "runs/MC-105-3-1791058893438.json",
+          "sha256": "8044a6c20cf32197dc57a6126a3f42caf9c9c1f938504e480bd714f946e9ef53",
+          "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+        },
+        {
+          "path": "runs/MC-105-4-1791058895979.json",
+          "sha256": "03e4ad27118ee33f328a7bcab44fe6afae98a857b3639db92ce7b9faf09f9323",
+          "commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8"
+        }
+      ],
+      "pass": true
+    }
+  ],
+  "all_green": true,
+  "expected_card_ids": [
+    "MC-001",
+    "MC-002",
+    "MC-003",
+    "MC-004",
+    "MC-005",
+    "MC-006",
+    "MC-007",
+    "MC-008",
+    "MC-009",
+    "MC-010",
+    "MC-011",
+    "MC-012",
+    "MC-013",
+    "MC-014",
+    "MC-015",
+    "MC-016",
+    "MC-017",
+    "MC-018",
+    "MC-101",
+    "MC-102",
+    "MC-103",
+    "MC-104",
+    "MC-105"
+  ],
+  "repair_snapshot": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/evidence/execution-ledger-repair-1e471.json",
+  "repair_snapshot_sha256": "efb4c201a19fcc7a558c9e838fdf18af4d2c2e26379ba2fe1d0391936f62a0f2",
+  "own_pre_execution_snapshot": "mcd-acceptance-pre-execution-ledger.json",
+  "own_pre_execution_snapshot_sha256": "efb4c201a19fcc7a558c9e838fdf18af4d2c2e26379ba2fe1d0391936f62a0f2",
+  "execution_ledger": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/execution-ledger.json",
+  "execution_ledger_sha256": "07ac66a8fcc08cd78477c9c199d0641f19b076bb474bc69bfc49d6029c45fa5e",
+  "protected_original_hashes": {
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/ledger.json": "094384c5502fd73355bd64f5645245c77ae23fc8ee37c3f7da988ba11104c887",
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/evidence/runtime-repro-results.json": "1c1398a852535f96a29407965a5e488d613e9ab01be7094f9dbfcd1db66046b5",
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/evidence/auth-production-http.json": "98a10d2017284d7c51db2a8633d98c825f4c41458bd3ca3c12a6ffde066e6d36",
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/evidence/film-worker-public-success.json": "6641d6581bc76a604778dae6b2c7c37357a9171c08fe180cfae5b29467822cce"
+  },
+  "original_ledger_unchanged": true,
+  "original_results_unchanged": true,
+  "executor_closure": {
+    "mine-clear.mjs": "f2c0e0d200b32ffc7822c0f802afc8460c8c0f48afe261b656559bf1eb1596f5",
+    "evidence.mjs": "bb408f4b0257f2dbbf05a8bc072b6feda455fe39d371fa82c01166cf6772891a",
+    "node-test-reporter.mjs": "286448a4dee571759fc1703564477d27bf5319bcb05ff66db2186deda60bc78f"
+  },
+  "real_provider_calls": 0,
+  "source_and_native_proofs_checked": true,
+  "registry_proxy": "http://127.0.0.1:7890",
+  "registry_proxy_scope": "Explicit loopback proxy only on actual audit argv cards; other invocations retain the original minimal environment",
+  "role_identity_scope": "Actual driver invocation in the growth_m6 agent session; actor metadata is not platform identity authentication.",
+  "mc106_not_executed_by_acceptance": true,
+  "scope": "Only dedicated execution-ledger and unique executor outputs are mutated; no product/Git/CNB/private-config/original-evidence writes."
+}

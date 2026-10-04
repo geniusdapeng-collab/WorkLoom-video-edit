@@ -1,0 +1,15 @@
+{
+  "name": "diagnostic-redaction-before-corrected",
+  "command": [
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+    "--env-file=.env",
+    "--test",
+    "--test-reporter=tap",
+    "--test-name-pattern=启动诊断秘密脱敏",
+    "apps/desktop/electron/bootstrap.test.cjs"
+  ],
+  "exit_code": 1,
+  "seconds": 0.29,
+  "ran_at": "2026-10-03T11:28:08.535824+08:00",
+  "log": "diagnostic-redaction-before-corrected.log"
+}

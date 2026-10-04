@@ -1,0 +1,17 @@
+{
+  "name": "floor3d-current",
+  "command": [
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+    "--env-file=.env",
+    "../../outputs/growth-production-fix-2026-10-02/independent-m6/floor3d-probe.mjs",
+    "7d5f02049cc75a692d4eaac33916633cb2192f01",
+    "floor3d-current-results.json",
+    "floor3d-current"
+  ],
+  "exit_code": 1,
+  "seconds": 201.931,
+  "source_before": "7d5f02049cc75a692d4eaac33916633cb2192f01",
+  "source_after": "7d5f02049cc75a692d4eaac33916633cb2192f01",
+  "ran_at": "2026-10-03T05:11:23.864066+08:00",
+  "log": "floor3d-current.log"
+}

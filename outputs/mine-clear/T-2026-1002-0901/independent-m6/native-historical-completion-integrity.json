@@ -1,0 +1,297 @@
+{
+  "schema": "growth.independent-m6/historical-native-completion@1",
+  "source_commit": "955e2277ee1496cfc4b40bd30345d1ce1be1acf1",
+  "verified_by": "growth_m6",
+  "verified_at": "2026-10-03T06:36:19.789363+08:00",
+  "historical_only": true,
+  "current_final_native_gate_verified": false,
+  "executions": {
+    "mac-welcome-fresh": {
+      "exit_code": 0,
+      "seconds": 249.425,
+      "source_commit": "955e2277ee1496cfc4b40bd30345d1ce1be1acf1",
+      "files": [
+        {
+          "root_file": "mac-welcome-fresh.json",
+          "snapshot": "inherited/evidence__mac-welcome-fresh.json",
+          "sha256": "fb65e2b11ac53b13bf553ba757fac453eb7f7eba64abe1acd6a3daa28296160b",
+          "bytes": 406,
+          "origin": "root execution; growth_m6 receipt contents and digest inspection"
+        },
+        {
+          "root_file": "mac-welcome-fresh.log",
+          "snapshot": "inherited/evidence__mac-welcome-fresh.log",
+          "sha256": "aedb966ddd7abcab098b1519e547e12ad9ad489652aad9ceaeefdd48d54f9a53",
+          "bytes": 2293,
+          "origin": "root execution; growth_m6 receipt contents and digest inspection"
+        }
+      ]
+    },
+    "mac-welcome-restart": {
+      "exit_code": 0,
+      "seconds": 33.789,
+      "source_commit": "955e2277ee1496cfc4b40bd30345d1ce1be1acf1",
+      "files": [
+        {
+          "root_file": "mac-welcome-restart.json",
+          "snapshot": "inherited/evidence__mac-welcome-restart.json",
+          "sha256": "0fa45db536a41343847119d8683c28a05356f1af421d6c1b672e8914bbc53a10",
+          "bytes": 409,
+          "origin": "root execution; growth_m6 receipt contents and digest inspection"
+        },
+        {
+          "root_file": "mac-welcome-restart.log",
+          "snapshot": "inherited/evidence__mac-welcome-restart.log",
+          "sha256": "26073bee8892f8d73359c9babc730a90f4308bab9026b0751a71528f6c725982",
+          "bytes": 1172,
+          "origin": "root execution; growth_m6 receipt contents and digest inspection"
+        }
+      ]
+    },
+    "mac-welcome-upgrade-seed": {
+      "exit_code": 0,
+      "seconds": 234.076,
+      "source_commit": "old-v1 installation receipt; not final upgrade",
+      "files": [
+        {
+          "root_file": "mac-welcome-upgrade-seed.json",
+          "snapshot": "inherited/evidence__mac-welcome-upgrade-seed.json",
+          "sha256": "53aad1e20ca9583af282fb337b2fa3eeac9db4dabb29be747b08568dbc06b543",
+          "bytes": 414,
+          "origin": "root execution; growth_m6 receipt contents and digest inspection"
+        },
+        {
+          "root_file": "mac-welcome-upgrade-seed.log",
+          "snapshot": "inherited/evidence__mac-welcome-upgrade-seed.log",
+          "sha256": "7edd91d7893f15c8ac9b36248a11ac72a7b4064a74a55e84944b2b6173c26153",
+          "bytes": 2132,
+          "origin": "root execution; growth_m6 receipt contents and digest inspection"
+        }
+      ]
+    }
+  },
+  "private_preservation": {
+    "fresh_before_after_equal": true,
+    "old_seed_before_equal": true,
+    "fields": [
+      "instanceId",
+      "systemIdentifier",
+      "credentialsHash",
+      "configurationHash",
+      "customerWorkspaceHash",
+      "fixtureId"
+    ],
+    "fresh_retained_config_exists": true,
+    "mode": "0600",
+    "private_contents_opened": false,
+    "configuration_hashes_origin": "root public receipts; private contents not independently hashed",
+    "old_upgrade_after_current_final_package_present": false,
+    "state_files": [
+      {
+        "root_file": "native-welcome-fresh-state-before.json",
+        "snapshot": "inherited/evidence__native-welcome-fresh-state-before.json",
+        "sha256": "270e7c7faf5a435532207d20d5299d0fd507db92e1c4e2f06c5e0d2506283275",
+        "bytes": 651,
+        "origin": "root execution; growth_m6 receipt contents and digest inspection"
+      },
+      {
+        "root_file": "native-welcome-fresh-state-after.json",
+        "snapshot": "inherited/evidence__native-welcome-fresh-state-after.json",
+        "sha256": "541c6c0ad795d07f5c23b7e2bfa00973d25698f75187beb5c989e4f3d671a85f",
+        "bytes": 867,
+        "origin": "root execution; growth_m6 receipt contents and digest inspection"
+      },
+      {
+        "root_file": "native-welcome-upgrade-state-seed.json",
+        "snapshot": "inherited/evidence__native-welcome-upgrade-state-seed.json",
+        "sha256": "7b8b44d9aa4c2b74ec2ea3e3e884a75c83a13697f7d5f77be1c55d8478c17fa2",
+        "bytes": 703,
+        "origin": "root execution; growth_m6 receipt contents and digest inspection"
+      },
+      {
+        "root_file": "native-welcome-upgrade-state-before.json",
+        "snapshot": "inherited/evidence__native-welcome-upgrade-state-before.json",
+        "sha256": "93939944010b012f7d25581c4fedf6c25f64cde1ddd25f33a31d60143fd42158",
+        "bytes": 705,
+        "origin": "root execution; growth_m6 receipt contents and digest inspection"
+      },
+      {
+        "root_file": "native-welcome-fresh-retention.json",
+        "snapshot": "inherited/evidence__native-welcome-fresh-retention.json",
+        "sha256": "3e995efb70c2a1467a8b45662d454287d48799158659492fbe6533cab09223b9",
+        "bytes": 1286,
+        "origin": "root execution; growth_m6 receipt contents and digest inspection"
+      }
+    ]
+  },
+  "prior_followup_integrity_files_checked": [
+    {
+      "file": "inherited/evidence__native-welcome-access-diagnostic-render-default.json",
+      "sha256": "9291770b6c8900ba6b85a8a86123378e50f541f859896320ef67116995a1aa95"
+    },
+    {
+      "file": "inherited/evidence__native-welcome-access-diagnostic-render-default.png",
+      "sha256": "cc7ae768c8991fa23e0f3f29ba8514ae96f72a8d845ae37c6e5e0a32116e72af"
+    },
+    {
+      "file": "inherited/evidence__native-welcome-access-diagnostic-stage-default.png",
+      "sha256": "97bf62162bfddbabbdbc1645c19039baeb040ce9fb86daded696ce9f33052f5c"
+    },
+    {
+      "file": "inherited/evidence__native-welcome-access-diagnostic-team-default.png",
+      "sha256": "eecec1883b0e3b472014ba6405cae5614738584b989b0bb569260305cc3475aa"
+    },
+    {
+      "file": "inherited/evidence__native-welcome-access-diagnostic-workplace-default.png",
+      "sha256": "886b4308788f66ecac487df2acc218d53dcafd968ccf831f379905550fd6109d"
+    },
+    {
+      "file": "inherited/evidence__native-welcome-access-diagnostic-retention.json",
+      "sha256": "c8f2d4a53f729612e9642a4f3fb2add2da0fecd2ef8e452ce639ec7b019bdcd8"
+    },
+    {
+      "file": "inherited/evidence__mac-welcome-access-diagnostic.json",
+      "sha256": "9a6247734734223b83f8d6b2633bf791ca09aeae455698ac2f2f154a010f54b9"
+    },
+    {
+      "file": "inherited/evidence__mac-welcome-access-diagnostic.log",
+      "sha256": "bacb31ebbc738e566ff83080c8ca2054c61a1a22cca7d6884957b656c7b01d31"
+    },
+    {
+      "file": "inherited/evidence__native-welcome-access-watch.json",
+      "sha256": "91d75c67f90b48bf68794b31cf2ee18cfa2631d743c90bef183f5db263ac5182"
+    },
+    {
+      "file": "inherited/evidence__native-welcome-access-watch.log",
+      "sha256": "6f4aef9a5d0ad1c8789ddc621e9f02dba5d6104b8d3bbf8a0ac86dbe41c3e207"
+    },
+    {
+      "file": "inherited/evidence__native-welcome-access-observer.json",
+      "sha256": "c6c3ce5fb665e2f6408274c26a133dc42917ee04f843f8bb2395f9e42c454c62"
+    },
+    {
+      "file": "inherited/evidence__native-welcome-default-repeat-render-default.json",
+      "sha256": "cadc1816170b8a6d746afc3c3ac010a0e924534af53c86fab2a390a2251eef2c"
+    },
+    {
+      "file": "inherited/evidence__native-welcome-default-repeat-render-default.png",
+      "sha256": "9a1f70967b7cb1be741f6a920d542d1f96478aa31fbfe78a901bb7393a916ed3"
+    },
+    {
+      "file": "inherited/evidence__native-welcome-default-repeat-stage-default.png",
+      "sha256": "f5e975ac78bc1d5df12406468fadfe436bb2ad12c6e53831eee6f9d9e469600c"
+    },
+    {
+      "file": "inherited/evidence__native-welcome-default-repeat-team-default.png",
+      "sha256": "d086471336ed200adbad2130f527e693528c878408666228d8b10a44365d3bed"
+    },
+    {
+      "file": "inherited/evidence__native-welcome-default-repeat-workplace-default.png",
+      "sha256": "e65f672836b4044e896698fcdf15560e2b3171f9e763ed9334b003fec64b8772"
+    },
+    {
+      "file": "inherited/evidence__native-welcome-default-repeat-retention.json",
+      "sha256": "398329c2ed55c27ba6a190c429c3f834e9e62a42b84b676cdbb3ea008370c127"
+    },
+    {
+      "file": "inherited/evidence__mac-welcome-default-repeat.json",
+      "sha256": "481e2002ca0864727c0317e8e85895d5061072fb6512453229b758c0cfedf9b7"
+    },
+    {
+      "file": "inherited/evidence__mac-welcome-default-repeat.log",
+      "sha256": "61e4f90fc44e097179c555c5c222b4641289d4adf969333784f13440ef4d1a56"
+    },
+    {
+      "file": "inherited/evidence__native-welcome-safe-render-safe.json",
+      "sha256": "9dd66b3d53a5a27eb40b98ae7306dd97bc23a5144e96aacf1c581f3a3b9df6cf"
+    },
+    {
+      "file": "inherited/evidence__native-welcome-safe-render-safe.png",
+      "sha256": "ac017b1b08ef8a4029a4c6bef96d3b3113499555c4a3161b9a43e0525acb49b6"
+    },
+    {
+      "file": "inherited/evidence__native-welcome-safe-stage-safe.png",
+      "sha256": "99ea25018e08d4530665683afbc1d2288c04b3a16c0f0689385aa56b88a3d87b"
+    },
+    {
+      "file": "inherited/evidence__native-welcome-safe-team-safe.png",
+      "sha256": "652f8572010695dfbd7d8c3012f2d72605b3ddd479be364f1ebb02b3323f6137"
+    },
+    {
+      "file": "inherited/evidence__native-welcome-safe-workplace-safe.png",
+      "sha256": "f8144bc6854d2426a2e3fd699545d382d66fed1bba3b2e69746729b160251a21"
+    },
+    {
+      "file": "inherited/evidence__native-welcome-safe-retention.json",
+      "sha256": "2d1c64f0dd3d0c57f3a4dd7029618ecb696776b464cbf78ef7b15be49423778a"
+    },
+    {
+      "file": "inherited/evidence__mac-welcome-safe.json",
+      "sha256": "a328a5823c1ac72b28e6933291af0644367291daf432c5cb7331faa146c4c75c"
+    },
+    {
+      "file": "inherited/evidence__mac-welcome-safe.log",
+      "sha256": "bb8a706bdaa23a56203c39d7f62f53f7649359af92f10e208f387c3bf34edb77"
+    }
+  ],
+  "prior_byte_probes": [
+    {
+      "file": "welcome-artifact-cjs-recheck-results.json",
+      "sha256": "47071f6d65c60b13d9bfec6ad7f918d575cbe2142665420a4c556d2cbb0660b8",
+      "actual_byte_probe_previously_executed": true,
+      "not_reexecuted_here": true
+    },
+    {
+      "file": "welcome-payload-stream-recheck-results.json",
+      "sha256": "961a2f6d93acc4091f2641d81cb23c74b4c4ce1a6cfd83f5c0048af68d5054ed",
+      "actual_byte_probe_previously_executed": true,
+      "not_reexecuted_here": true
+    }
+  ],
+  "historical_955e_byte_probe_counts": {
+    "installed_CJS": 4,
+    "payload_regular_counterparts": 2083,
+    "immutable_git_source_counterparts": 2011,
+    "root_reported_build_counterparts": 72,
+    "unselected_runtime_regular_files_not_hashed": 14227,
+    "mismatches": 0
+  },
+  "cleanup_public_receipts": [
+    {
+      "root_file": "floor-pre-pack-owned-cleanup.json",
+      "snapshot": "inherited/evidence__floor-pre-pack-owned-cleanup.json",
+      "sha256": "cd2dad5ed12e885390b2e358ad9dc741c99e0729ca8f75587ad731a6a248fb86",
+      "bytes": 1512,
+      "origin": "root execution; growth_m6 receipt contents and digest inspection"
+    },
+    {
+      "root_file": "floor-old-app-shell-cleanup.json",
+      "snapshot": "inherited/evidence__floor-old-app-shell-cleanup.json",
+      "sha256": "8bf5447cd256886b4a5248f8612e8b2b551d869f1bee8f330d57f8b6506a1154",
+      "bytes": 1215,
+      "origin": "root execution; growth_m6 receipt contents and digest inspection"
+    }
+  ],
+  "old_v1_payload_full_bytes_retained": false,
+  "old_v1_actual_customer_runtime_database_config_version_retained": "root cleanup receipt; no private contents opened",
+  "root_minimal_css_diagnostics": {
+    "files": [
+      {
+        "root_file": "floor-scroll-dom-diagnostic.json",
+        "snapshot": "inherited/evidence__floor-scroll-dom-diagnostic.json",
+        "sha256": "526e5d76e5ad46138e54a08926b24455cedd54094c052152e3c1db962dd31bdf",
+        "bytes": 4361,
+        "origin": "root execution; growth_m6 receipt contents and digest inspection"
+      },
+      {
+        "root_file": "floor-scroll-dom-transition-diagnostic.json",
+        "snapshot": "inherited/evidence__floor-scroll-dom-transition-diagnostic.json",
+        "sha256": "ea7e601f28a45ae1b8695b8460fdd034f18e23b802a99d4a0751f0b137dcda55",
+        "bytes": 1856,
+        "origin": "root execution; growth_m6 receipt contents and digest inspection"
+      }
+    ],
+    "scope": "equivalent DOM diagnostic by root; not the actual product acceptance run"
+  },
+  "original_955e_cold_failure_rewritten_as_passed": false
+}

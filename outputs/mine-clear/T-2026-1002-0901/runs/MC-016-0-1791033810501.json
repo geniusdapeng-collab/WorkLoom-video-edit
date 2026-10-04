@@ -1,0 +1,38 @@
+{
+  "schema": "workloom.evidence-run/v1",
+  "id": "MC-016-0-1791033810501",
+  "command": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/pnpm/bin/pnpm.cjs audit --prod --json",
+  "exec": {
+    "file": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+    "args": [
+      "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/pnpm/bin/pnpm.cjs",
+      "audit",
+      "--prod",
+      "--json"
+    ]
+  },
+  "actor": "codex-root-T-2026-1002-0901",
+  "role": "repair",
+  "subject": {
+    "card_id": "MC-016",
+    "assertion_index": 0
+  },
+  "commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+  "working_tree_dirty": false,
+  "started_at": "2026-10-03T13:23:30.501Z",
+  "finished_at": "2026-10-03T13:24:30.762Z",
+  "exit_code": 1,
+  "signal": null,
+  "validation": {
+    "ok": true,
+    "errors": []
+  },
+  "result": "fail",
+  "outputs": [
+    {
+      "path": "evidence/MC-016-0-1791033810501.txt",
+      "sha256": "dbca63ea81bc6835508e0114cfeb7cb4cb544a5eab260429047973ce25f511ff",
+      "commit": "7fee3a6a5563d41c568463994764d3883eb7667d"
+    }
+  ]
+}

@@ -1,0 +1,280 @@
+{
+  "sourceBaseline": "3bfb89d3285b1e5e4c475b830e12f2c9c54b590b",
+  "source": "apps/server/src/video/film-worker.ts#handleChannelRequest",
+  "copiedSourceRewrites": "only absolute imports, REPO_ROOT relocation, and private-handler export",
+  "supplierEnv": "empty",
+  "networkCalls": 0,
+  "cases": [
+    {
+      "id": "image-under-cine-kb",
+      "method": "image.generate",
+      "stages": [
+        "cine-kb"
+      ],
+      "stepKey": "cine-kb:S1",
+      "shotId": "S1",
+      "shouldReject": true,
+      "reservations": 0,
+      "error": {
+        "code": "METHOD_STAGE_MISMATCH",
+        "message": "METHOD_STAGE_MISMATCH: 方法 image.generate 不属于阶段 cine-kb"
+      },
+      "rejectedBeforeReservation": true,
+      "pass": true,
+      "failures": []
+    },
+    {
+      "id": "video-under-plates",
+      "method": "video.generate",
+      "stages": [
+        "plates"
+      ],
+      "stepKey": "plates:S1",
+      "shotId": "S1",
+      "shouldReject": true,
+      "reservations": 0,
+      "error": {
+        "code": "METHOD_STAGE_MISMATCH",
+        "message": "METHOD_STAGE_MISMATCH: 方法 video.generate 不属于阶段 plates"
+      },
+      "rejectedBeforeReservation": true,
+      "pass": true,
+      "failures": []
+    },
+    {
+      "id": "image-shot-suffix-mismatch",
+      "method": "image.generate",
+      "stages": [
+        "plates"
+      ],
+      "stepKey": "plates:S1",
+      "shotId": "S2",
+      "shouldReject": true,
+      "reservations": 0,
+      "error": {
+        "code": "STEP_SHOT_MISMATCH",
+        "message": "STEP_SHOT_MISMATCH: 步骤键与请求镜号不一致"
+      },
+      "rejectedBeforeReservation": true,
+      "pass": true,
+      "failures": []
+    },
+    {
+      "id": "image-shot-suffix-missing",
+      "method": "image.generate",
+      "stages": [
+        "plates"
+      ],
+      "stepKey": "plates",
+      "shotId": "S1",
+      "shouldReject": true,
+      "reservations": 0,
+      "error": {
+        "code": "STEP_SHOT_MISMATCH",
+        "message": "STEP_SHOT_MISMATCH: 步骤键与请求镜号不一致"
+      },
+      "rejectedBeforeReservation": true,
+      "pass": true,
+      "failures": []
+    },
+    {
+      "id": "correct-image-control",
+      "method": "image.generate",
+      "stages": [
+        "plates"
+      ],
+      "stepKey": "plates:S1",
+      "shotId": "S1",
+      "shouldReject": false,
+      "reservations": 1,
+      "error": {
+        "code": "PROVIDER_UNCONFIGURED",
+        "message": "PROVIDER_UNCONFIGURED: 服务未配置火山方舟密钥，拒绝在工位侧直连供应商"
+      },
+      "rejectedBeforeReservation": false,
+      "pass": true,
+      "failures": [
+        {
+          "state": "failed",
+          "failureClass": "PROVIDER_UNCONFIGURED",
+          "evidence": {
+            "message": "PROVIDER_UNCONFIGURED: 服务未配置火山方舟密钥，拒绝在工位侧直连供应商"
+          }
+        }
+      ]
+    },
+    {
+      "id": "outside-stage-control",
+      "method": "image.generate",
+      "stages": [
+        "cine-kb"
+      ],
+      "stepKey": "plates:S1",
+      "shotId": "S1",
+      "shouldReject": true,
+      "reservations": 0,
+      "error": {
+        "code": "STEP_OUT_OF_SCOPE",
+        "message": "STEP_OUT_OF_SCOPE: 步骤 plates:S1 不在本次作业冻结阶段内"
+      },
+      "rejectedBeforeReservation": true,
+      "pass": true,
+      "failures": []
+    },
+    {
+      "id": "unknown-shot-control",
+      "method": "image.generate",
+      "stages": [
+        "plates"
+      ],
+      "stepKey": "plates:S3",
+      "shotId": "S3",
+      "shouldReject": true,
+      "reservations": 0,
+      "error": {
+        "code": "SHOT_NOT_FOUND",
+        "message": "SHOT_NOT_FOUND: 镜号 S3 不在本次作业冻结镜头范围内"
+      },
+      "rejectedBeforeReservation": true,
+      "pass": true,
+      "failures": []
+    },
+    {
+      "id": "image-shot-extra-suffix",
+      "method": "image.generate",
+      "stages": [
+        "plates"
+      ],
+      "stepKey": "plates:S1:extra",
+      "shotId": "S1",
+      "shouldReject": true,
+      "reservations": 0,
+      "error": {
+        "code": "STEP_SHOT_MISMATCH",
+        "message": "STEP_SHOT_MISMATCH: 步骤键与请求镜号不一致"
+      },
+      "rejectedBeforeReservation": true,
+      "pass": true,
+      "failures": []
+    },
+    {
+      "id": "image-outside-only-selection",
+      "method": "image.generate",
+      "stages": [
+        "plates"
+      ],
+      "stepKey": "plates:S2",
+      "shotId": "S2",
+      "options": {
+        "only": "S1"
+      },
+      "shouldReject": true,
+      "reservations": 0,
+      "error": {
+        "code": "SHOT_NOT_FOUND",
+        "message": "SHOT_NOT_FOUND: 镜号 S2 不在本次作业冻结镜头范围内"
+      },
+      "rejectedBeforeReservation": true,
+      "pass": true,
+      "failures": []
+    },
+    {
+      "id": "review-wrong-stage",
+      "method": "gate.review",
+      "stages": [
+        "spec",
+        "plates"
+      ],
+      "stepKey": "plates",
+      "shotId": null,
+      "params": {
+        "stage": "prompt",
+        "projectId": "m6-project"
+      },
+      "shouldReject": true,
+      "reservations": 0,
+      "error": {
+        "code": "METHOD_STAGE_MISMATCH",
+        "message": "METHOD_STAGE_MISMATCH: 评审阶段与冻结步骤不一致"
+      },
+      "rejectedBeforeReservation": true,
+      "pass": true,
+      "failures": []
+    },
+    {
+      "id": "review-wrong-project",
+      "method": "gate.review",
+      "stages": [
+        "spec"
+      ],
+      "stepKey": "spec",
+      "shotId": null,
+      "params": {
+        "stage": "prompt",
+        "projectId": "other-project"
+      },
+      "shouldReject": true,
+      "reservations": 0,
+      "error": {
+        "code": "REVIEW_SCOPE_INVALID",
+        "message": "REVIEW_SCOPE_INVALID: 评审项目必须与冻结作业一致"
+      },
+      "rejectedBeforeReservation": true,
+      "pass": true,
+      "failures": []
+    },
+    {
+      "id": "review-wrong-shot-context",
+      "method": "gate.review",
+      "stages": [
+        "plates"
+      ],
+      "stepKey": "plates:S1",
+      "shotId": "S1",
+      "params": {
+        "stage": "keyframe",
+        "projectId": "m6-project",
+        "context": {
+          "shotId": "S2"
+        }
+      },
+      "shouldReject": true,
+      "reservations": 0,
+      "error": {
+        "code": "REVIEW_SCOPE_INVALID",
+        "message": "REVIEW_SCOPE_INVALID: 评审镜号必须与请求作用域一致"
+      },
+      "rejectedBeforeReservation": true,
+      "pass": true,
+      "failures": []
+    },
+    {
+      "id": "review-wrong-source-stage",
+      "method": "gate.review",
+      "stages": [
+        "material-gen",
+        "videos"
+      ],
+      "stepKey": "material-gen:S1",
+      "shotId": "S1",
+      "params": {
+        "stage": "shot",
+        "projectId": "m6-project",
+        "context": {
+          "shotId": "S1",
+          "sourceStage": "videos"
+        }
+      },
+      "shouldReject": true,
+      "reservations": 0,
+      "error": {
+        "code": "REVIEW_SCOPE_INVALID",
+        "message": "REVIEW_SCOPE_INVALID: 评审来源阶段必须与冻结步骤一致"
+      },
+      "rejectedBeforeReservation": true,
+      "pass": true,
+      "failures": []
+    }
+  ],
+  "pass": true
+}

@@ -1,0 +1,17 @@
+{
+  "schema": "growth.native-private-state@1",
+  "mode": "before",
+  "group": "upgrade",
+  "fixtureOnly": true,
+  "outsideCustomerData": false,
+  "paidProviderCalls": 0,
+  "instanceId": "489fafc2b65611601dcf7a61464fefd4",
+  "systemIdentifier": "7692161415456284082",
+  "credentialsHash": "77fcdf20c847863a5d39b1a9621cb0fed58b108bcfc7e883146e7dbd3b87e310",
+  "configurationHash": "e01dd36e5cf14e1b7151c34e046e412afe1be927f049befa5e35cb285d3294b5",
+  "configurationMode": 384,
+  "fixtureId": "native-qa-upgrade-e1cb4511-cd84-4caa-ad42-c1661b4a202b",
+  "customerWorkspaceHash": "c85d958ed8e7e14f68f96977be76fc06786126aea0c345d63833224dd1f15300",
+  "payloadVersion": "v0.1.0-fix.20261003.5",
+  "pass": true
+}

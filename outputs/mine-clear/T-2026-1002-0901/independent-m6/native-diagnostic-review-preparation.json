@@ -1,0 +1,13 @@
+{
+  "schema": "growth.independent-m6/native-diagnostic-review-preparation@1",
+  "prepared_at": "2026-10-03T17:41:43.147386+08:00",
+  "helper": "review-native-diagnostic-export.py",
+  "helper_sha256": "e67fb5e3a9f4d6f00c472a5ff89923c9a8200d1861d4bf04f0fe448cc216665c",
+  "lines": 196,
+  "syntax_valid": true,
+  "actual_gui_receipt_review_executed": false,
+  "actual_export_opened": false,
+  "pixel_review_gate_required": true,
+  "private_fixture_opened": false,
+  "scope": "Own read-only public receipt/export-byte/POSIX-mode/pixel-review binding; no product, app, database or provider execution."
+}

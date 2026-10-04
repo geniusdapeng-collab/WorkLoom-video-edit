@@ -1,0 +1,23 @@
+{
+  "name": "mac-surface-dir-build",
+  "command": [
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+    "--env-file=.env",
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/pnpm/bin/pnpm.cjs",
+    "exec",
+    "electron-builder",
+    "--mac",
+    "--dir",
+    "--arm64",
+    "--publish",
+    "never",
+    "-c.mac.identity=-",
+    "-c.mac.notarize=false",
+    "-c.extraMetadata.version=0.1.0-fix.20261003.5",
+    "-c.electronDist=node_modules/electron/dist"
+  ],
+  "exit_code": 0,
+  "seconds": 20.92,
+  "ran_at": "2026-10-03T19:45:51.725744+08:00",
+  "log": "mac-surface-dir-build.log"
+}

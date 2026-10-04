@@ -1,0 +1,53 @@
+{
+  "schema": "growth.independent-m6/editorial-review@1",
+  "source_commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+  "reviewed_by": "growth_m6",
+  "reviewed_at": "2026-10-04T05:38:47.698627+08:00",
+  "report": {
+    "file": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/independent-m6/REPORT.md",
+    "sha256": "4d8e1d3ab3f00063777b1ed351e4da643bf72a18770d716ca1eb4559132ace5e",
+    "bytes": 147284
+  },
+  "report_lines_completely_read": 488,
+  "report_source": "Current complete report body with prior full sectional readings and final sections/changed boundary/table/tail reread.",
+  "actual_final_builder": {
+    "file": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/independent-m6/dependency-final-report-builder-table-spacing.json",
+    "sha256": "8f135544f5ad5388249b7ed1648d954a65ef15b7625b026c873a5dbd7b2aa342",
+    "bytes": 973
+  },
+  "actual_final_validator": {
+    "file": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/independent-m6/dependency-final-report-validation-table-spacing.json",
+    "sha256": "9a23dad21e4383a8b9010dec4eb09d9f1405e634bee02f563fa84d10cc77ae6d",
+    "bytes": 534
+  },
+  "actual_final_validation": {
+    "file": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/independent-m6/report-validation-1e47.json",
+    "sha256": "c423b5421ac8847ff68efddbf0b9a30d59bbc72458b5d5d1508cb2b16e0c1e66",
+    "bytes": 1670
+  },
+  "table_header_on_separate_line": true,
+  "only_change_since_prior_strict_pass": "Two newlines before native build-history Markdown table; assertions and gates unchanged.",
+  "case_provenance_explicit": {
+    "targeted_functional_cases": 558,
+    "executed_at_accepted_source_in_that_matrix": 0,
+    "bounded_contract_inherited": 558,
+    "separate_actual_repair_cards": 24,
+    "separate_actual_repair_assertions": 38,
+    "separate_actual_acceptance_cards": 23,
+    "separate_actual_acceptance_assertions": 37
+  },
+  "actual_native_gui_action_surface": "startup-failure-page diagnostic export and save dialog",
+  "legacy_menu_boolean_not_os_menu_claim": true,
+  "system_os_menu_not_executed": true,
+  "actual_gui_cases": 9,
+  "actual_accessibility_states": 10,
+  "exact_native_version": "0.1.0-fix.20261003.6",
+  "immediate_upgrade_chain": ".5 -> .6; original v1 -> .5 retained separately",
+  "original_failures_preserved": true,
+  "evidence_grades_checked": true,
+  "all_required_sections_and_four_self_checks_present": true,
+  "source_scoped_merge_eligible": true,
+  "production_release_eligible": false,
+  "full_rdas_pass": false,
+  "scope": "Editorial and immutable receipt review only; no product, tests, native UI, PG, Git or CNB action."
+}

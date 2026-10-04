@@ -1,0 +1,15 @@
+{
+  "schema": "growth.independent-m6/handback-observer-correction@1",
+  "source_commit": "7fee3a6a5563d41c568463994764d3883eb7667d",
+  "observed_original_error": "AssertionError at current_num==173, line14 of inline handback preparation",
+  "cause": "Metadata projection assumed executed_source_commit in summary.targeted_groups. Actual wrappers use source_before/source_after; the count was zero under the wrong key.",
+  "product_cases_executed_in_failed_preparation": 0,
+  "formal_report_untouched": true,
+  "original_runtime_results_unchanged": true,
+  "corrected_fields": [
+    "source_before",
+    "source_after"
+  ],
+  "actual_corrected_current_case_count": 173,
+  "native_gate_not_relaxed": true
+}

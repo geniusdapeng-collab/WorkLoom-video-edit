@@ -1,0 +1,19 @@
+{
+  "schema": "growth.native-private-state@1",
+  "mode": "after",
+  "group": "fresh",
+  "fixtureOnly": true,
+  "outsideCustomerData": false,
+  "paidProviderCalls": 0,
+  "instanceId": "7a7a053091abc4d049145d01b48c5179",
+  "systemIdentifier": "7692159691651856334",
+  "credentialsHash": "0cfc91b849365042b69f0b2db32fc718c3598461a3ae17099dff954978288baf",
+  "configurationHash": "35ec947be7b9212874d0259540352ec140d7b7b83a2160d9c4d4ddfe76a77db5",
+  "configurationMode": 384,
+  "fixtureId": null,
+  "customerWorkspaceHash": "24b91ff610b53fdc25bbab8723a0ea77460ff15e64fbba8c1c43cc4b686afefa",
+  "payloadVersion": "v0.1.0-fix.20261003.2",
+  "preservationPassed": true,
+  "beforeReceipt": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/evidence/native-welcome-fresh-state-before.json",
+  "pass": true
+}

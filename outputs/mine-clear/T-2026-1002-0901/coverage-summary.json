@@ -1,0 +1,1242 @@
+{
+  "source": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+  "scope": "entire tracked product tree at this repair source; separately generated delivery records excluded",
+  "total": 3127,
+  "counts": {
+    "B": 2687,
+    "A": 196,
+    "C": 10,
+    "D": 234
+  },
+  "changed": 79,
+  "changed_counts": {
+    "A": 72,
+    "B": 2,
+    "C": 5
+  },
+  "text": 2893,
+  "binaries": 234,
+  "policy": "A full reading; B current entire hash/metadata or machine inspection; C partial reading; D binary content uninspected. A retained across revisions only with exact unchanged bytes or current independently frozen full-reading record.",
+  "limited_files": [
+    {
+      "path": "CHANGELOG.md",
+      "grade": "C",
+      "reason": "Only this repair entry and adjacent context are relevant; historical claims are outside this source-specialized acceptance."
+    },
+    {
+      "path": "apps/desktop/electron/assets/icon-256.png",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "apps/desktop/electron/assets/icon.png",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "apps/desktop/electron/assets/tray.png",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "apps/server/src/service/e2e.test.ts",
+      "grade": "C",
+      "reason": "Prior audit reading retained only for exactly unchanged bytes"
+    },
+    {
+      "path": "apps/server/src/trpc/accounts-router.ts",
+      "grade": "C",
+      "reason": "Prior audit reading retained only for exactly unchanged bytes"
+    },
+    {
+      "path": "apps/server/src/trpc/router.ts",
+      "grade": "C",
+      "reason": "Auth/onboarding handlers were followed to actual service SQL and real HTTP/PG probes; other router domains were not reread in this specialized round."
+    },
+    {
+      "path": "apps/server/src/video/production-authority.pg.test.ts",
+      "grade": "C",
+      "reason": "Prior audit reading retained only for exactly unchanged bytes"
+    },
+    {
+      "path": "apps/site/assets/scene-bridge.jpg",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "apps/site/assets/scene-fleet.jpg",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "apps/site/assets/scene-nebula.jpg",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "apps/site/assets/scene-squad.jpg",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "apps/site/shots/p1.jpg",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "apps/site/shots/p9.jpg",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "apps/web/public/live2d/mao/Mao.2048/texture_00.png",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "apps/web/public/live2d/mao/Mao.moc3",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "apps/web/public/live2d/mao/poster.png",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "apps/web/public/live2d/shizuku/shizuku.1024/texture_00.png",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "apps/web/public/live2d/shizuku/shizuku.1024/texture_01.png",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "apps/web/public/live2d/shizuku/shizuku.1024/texture_02.png",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "apps/web/public/live2d/shizuku/shizuku.1024/texture_03.png",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "apps/web/public/live2d/shizuku/shizuku.1024/texture_04.png",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "apps/web/public/live2d/shizuku/shizuku.1024/texture_05.png",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "apps/web/public/live2d/shizuku/shizuku.moc",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "apps/web/public/models/kaykit/Barbarian.glb",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "apps/web/public/models/kaykit/Knight.glb",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "apps/web/public/models/kaykit/Mage.glb",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "apps/web/public/models/kaykit/Rogue.glb",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "apps/web/public/models/kaykit/Rogue_Hooded.glb",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "apps/web/public/models/kaykit/mug_full.bin",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "apps/web/public/models/kaykit/shield_badge.bin",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "apps/web/public/models/kaykit/spellbook_open.bin",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "assets/whiteboard/drawing-hand-workloom.png",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/bgm-library-curated/acoustic-warm-ghostrifter-official-zeal-456.m4a",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/bgm-library-curated/acoustic-warm-john-bartmann-a-kwela-fella-461.m4a",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/bgm-library-curated/acoustic-warm-liqwyd-shine-552.m4a",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/bgm-library-curated/acoustic-warm-sillyvillain-320bit-516.m4a",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/bgm-library-curated/ambient-calm-cumulonimbus-67.m4a",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/bgm-library-curated/ambient-calm-desert-crossing-71.m4a",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/bgm-library-curated/ambient-calm-icicles-looping-80.m4a",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/bgm-library-curated/ambient-calm-primitive-life-emerges-looping-88.m4a",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/bgm-library-curated/cinematic-build-chasing-daylight-672.m4a",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/bgm-library-curated/cinematic-build-discovery-676.m4a",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/bgm-library-curated/cinematic-build-march-of-midnight-695.m4a",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/bgm-library-curated/cinematic-build-spirit-of-the-dream-700.m4a",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/bgm-library-curated/cinematic-build-the-summoning-705.m4a",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/bgm-library-curated/corporate-clean-track-570.m4a",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/bgm-library-curated/corporate-clean-track-576.m4a",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/bgm-library-curated/corporate-clean-track-577.m4a",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/bgm-library-curated/corporate-clean-track-582.m4a",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/bgm-library-curated/documentary-bed-track-1028.m4a",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/bgm-library-curated/documentary-bed-track-921.m4a",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/bgm-library-curated/documentary-bed-track-926.m4a",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/bgm-library-curated/documentary-bed-track-927.m4a",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/bgm-library-curated/electronic-pulse-city-beneath-the-waves-v001-133.m4a",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/bgm-library-curated/electronic-pulse-kingdom-of-lost-dreams-looping-183.m4a",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/bgm-library-curated/electronic-pulse-mystical-open-211.m4a",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/bgm-library-curated/electronic-pulse-rpg-battle-climax-v001-231.m4a",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/bgm-library-curated/electronic-pulse-secret-journey-looping-243.m4a",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/bgm-library-curated/festive-bright-city-sunshine-998.m4a",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/bgm-library-curated/festive-bright-floating-oompa-982.m4a",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/bgm-library-curated/festive-bright-the-drunk-pelican-duet-looping-388.m4a",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/bgm-library-curated/festive-bright-track-1016.m4a",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/bgm-library-curated/festive-bright-track-579.m4a",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/bgm-library-curated/lo-fi-chill-affirmations-719.m4a",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/bgm-library-curated/lo-fi-chill-calm-waters-744.m4a",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/bgm-library-curated/lo-fi-chill-sad-walk-with-sad-melodica-861.m4a",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/bgm-library-curated/lo-fi-chill-se-recourber-862.m4a",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/bgm-library-curated/lo-fi-chill-skogur-871.m4a",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/bgm-library-curated/modern-pop-guardians-of-the-fallen-epic-soundtrack-598.m4a",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/bgm-library-curated/modern-pop-in-dreams-600.m4a",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/bgm-library-curated/modern-pop-keys-of-moon-the-success-633.m4a",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/bgm-library-curated/modern-pop-salvation-inspiring-uplifting-orchestra-617.m4a",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/bgm-library-curated/modern-pop-scott-buckley-soar-640.m4a",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/bgm-library-curated/sports-hype-crusaders-approaching-104.m4a",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/bgm-library-curated/sports-hype-luke-bergs-tropical-soulmp3-496.m4a",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/bgm-library-curated/sports-hype-red-convertible-35.m4a",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/bgm-library-curated/sports-hype-wild-west-coast-racing-7-54.m4a",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/bgm-library-curated/tension-dark-dusty-memories-940.m4a",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/bgm-library-curated/tension-dark-eternal-sleep-941.m4a",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/bgm-library-curated/tension-dark-lake-of-destiny-948.m4a",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/bgm-library-curated/tension-dark-sorrow-963.m4a",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/bgm-library-curated/tension-dark-sundae-sunset-966.m4a",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/characters/model-01-chen-zhuo/portraits/v3/平江路讲述人-actionPose.png",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/characters/model-01-chen-zhuo/portraits/v3/平江路讲述人-back.png",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/characters/model-01-chen-zhuo/portraits/v3/平江路讲述人-closeup.png",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/characters/model-01-chen-zhuo/portraits/v3/平江路讲述人-emotionCloseup.png",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/characters/model-01-chen-zhuo/portraits/v3/平江路讲述人-front.png",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/characters/model-01-chen-zhuo/portraits/v3/平江路讲述人-handDetail.png",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/characters/model-01-chen-zhuo/portraits/v3/平江路讲述人-side.png",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/characters/model-01-chen-zhuo/portraits/v3/平江路讲述人-threeQuarter.png",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/characters/model-02-lin-yu-an/portraits/v1/林予安-actionPose.jpg",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/characters/model-02-lin-yu-an/portraits/v1/林予安-back.jpg",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/characters/model-02-lin-yu-an/portraits/v1/林予安-closeup.jpg",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/characters/model-02-lin-yu-an/portraits/v1/林予安-emotionCloseup.jpg",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/characters/model-02-lin-yu-an/portraits/v1/林予安-front.jpg",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/characters/model-02-lin-yu-an/portraits/v1/林予安-handDetail.jpg",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/characters/model-02-lin-yu-an/portraits/v1/林予安-side.jpg",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/characters/model-02-lin-yu-an/portraits/v1/林予安-threeQuarter.jpg",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/characters/model-03-ceo-future-frontdesk/portraits/v1/未来前台CEO-closeup.jpg",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/characters/model-03-ceo-future-frontdesk/portraits/v1/未来前台CEO-front.jpg",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/characters/model-03-ceo-future-frontdesk/portraits/v1/未来前台CEO-frontFull.jpg",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/characters/model-03-ceo-future-frontdesk/portraits/v1/未来前台CEO-side.jpg",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/characters/model-03-ceo-future-frontdesk/portraits/v1/未来前台CEO-smileCloseup.jpg",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/characters/model-03-ceo-future-frontdesk/portraits/v1/未来前台CEO-threeQuarter.jpg",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/characters/model-03-ceo-future-frontdesk/portraits/v1/未来前台CEO-threeQuarterLeft.jpg",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/characters/model-03-ceo-future-frontdesk/portraits/v1/未来前台CEO-threeQuarterRight.jpg",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/characters/model-03-ceo-future-frontdesk/sources/未来前台CEO-anchor.jpg",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/characters/nc-commuter-metro/portraits/portrait.png",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/characters/nc-elder-taichi/portraits/portrait.png",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/characters/nc-vendor-noodle/portraits/portrait.png",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/characters/nc-vendor-soup/portraits/portrait.png",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/characters/nc-visitor-tower/portraits/portrait.png",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/fonts/cn/LXGWWenKai-Regular.ttf",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/fonts/cn/LiuJianMaoCao-Regular.ttf",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/fonts/cn/LongCang-Regular.ttf",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/fonts/cn/MaShanZheng-Regular.ttf",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/fonts/cn/NotoSansSC-Variable.ttf",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/fonts/cn/NotoSerifSC-Variable.ttf",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/fonts/cn/SmileySans-Oblique.ttf",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/fonts/cn/SourceHanSansCN-ExtraLight.otf",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/fonts/cn/SourceHanSansCN-Heavy.otf",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/fonts/cn/ZCOOLKuaiLe-Regular.ttf",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/fonts/cn/ZCOOLQingKeHuangYou-Regular.ttf",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/fonts/cn/ZCOOLXiaoWei-Regular.ttf",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/fonts/cn/ZhiMangXing-Regular.ttf",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/fonts/en/Anton-Regular.ttf",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/fonts/en/ArchivoBlack-Regular.ttf",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/fonts/en/Bangers-Regular.ttf",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/fonts/en/BebasNeue-Regular.ttf",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/fonts/en/Caveat-Variable.ttf",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/fonts/en/Cinzel-Variable.ttf",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/fonts/en/DancingScript-Variable.ttf",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/fonts/en/Inter-Variable.ttf",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/fonts/en/Lobster-Regular.ttf",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/fonts/en/Montserrat-Variable.ttf",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/fonts/en/Oswald-Variable.ttf",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/fonts/en/Pacifico-Regular.ttf",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/fonts/en/PlayfairDisplay-Variable.ttf",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/fonts/en/Poppins-Bold.ttf",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/fonts/en/Poppins-Regular.ttf",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/fonts/en/Roboto-Variable.ttf",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/products/ai-frontdesk/photos/ai-frontdesk-01-web.jpg",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/products/ai-frontdesk/photos/ai-frontdesk-02-web.jpg",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/products/ai-frontdesk/photos/ai-frontdesk-03.jpg",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/products/ai-frontdesk/photos/ai-frontdesk-04.jpg",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/products/ai-frontdesk/photos/ai-frontdesk-05.jpg",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/products/ai-frontdesk/photos/ai-frontdesk-06.jpg",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/products/ai-frontdesk/photos/ai-frontdesk-07.jpg",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/products/ai-frontdesk/photos/ai-frontdesk-09.jpg",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/products/ai-frontdesk/photos/ai-frontdesk-10.jpg",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/products/ble-door/photos/ble-door-01.jpg",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/products/ble-door/photos/ble-door-02.jpg",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/products/ble-door/photos/ble-door-03.jpg",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/products/ble-door/photos/ble-door-04-web.jpg",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/products/ble-door/photos/ble-door-05-web.jpg",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/products/cardless-power/photos/cardless-power-01-web.jpg",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/products/cardless-power/photos/cardless-power-02-web.jpg",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/products/cardless-power/photos/cardless-power-03.jpg",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/products/cardless-power/photos/cardless-power-04.jpg",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/products/cxz-02/photos/cxz-02-01-web2.jpg",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/products/cxz-03/photos/cxz-03-01-web.jpg",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/products/cxz-t001/photos/cxz-t001-01-web.jpg",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/products/cxz-t001/photos/cxz-t001-02-web.jpg",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/products/face-door/photos/face-door-01.jpg",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/products/face-door/photos/face-door-02.jpg",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/products/face-door/photos/face-door-03.jpg",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/products/face-door/photos/face-door-04.jpg",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/products/geo-promo/photos/geo-promo-01-web2.jpg",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/products/locker-cooler/photos/locker-cooler-01-web.jpg",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/products/locker-cooler/photos/locker-cooler-02-web.jpg",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/products/locker-cooler/photos/locker-cooler-03-web.jpg",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/products/locker-cooler/photos/locker-cooler-05-web-c.jpg",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/products/ota-ops/photos/ota-ops-01-web.jpg",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/products/ota-ops/photos/ota-ops-02-web.jpg",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/products/ota-ops/photos/ota-ops-03.jpg",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/products/ota-ops/photos/ota-ops-04.jpg",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/products/ota-ops/photos/ota-ops-05.jpg",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/products/ota-ops/photos/ota-ops-06-web.jpg",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/products/ota-ops/photos/ota-ops-07-web2.jpg",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/products/ota-ops/photos/ota-ops-08-web2.jpg",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/products/ota-ops/photos/ota-ops-09.jpg",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/products/pms-agent/photos/pms-agent-01.jpg",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/products/pms-agent/photos/pms-agent-02.jpg",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/products/pms-agent/photos/pms-agent-03.jpg",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/products/visual-ip/photos/visual-ip-01-web-c.jpg",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/products/visual-ip/photos/visual-ip-02-web-c.jpg",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/products/visual-ip/photos/visual-ip-03-web.jpg",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/products/visual-ip/photos/visual-ip-04-web2.jpg",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/products/携住科技/photos/01-data-op-y-d9ebc9ee-data--web2.jpg",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/products/携住科技/photos/02-data-op-y-d9ebc9ee-data--web2.jpg",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/products/携住科技/photos/03-data-op-y-d9ebc9ee-data--web2.jpg",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "bundles/ai-video/library/products/携住科技/photos/04-data-op-y-d9ebc9ee-data--web.jpg",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "docs/OPEN_SOURCE_COMPONENTS.md",
+      "grade": "C",
+      "reason": "Generated inventory metadata and modified dependency entry checked; older upstream-version claims were not revalidated."
+    },
+    {
+      "path": "docs/capability-tour.pptx",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "docs/demo/preview-shots/mobile-b-3001.png",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "docs/demo/preview-shots/mobile-c-3002.png",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "docs/demo/preview-shots/pc-3000.png",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "docs/demo/preview-shots/shell-guest.png",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "docs/images/architecture.png",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "docs/images/business-loop.png",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "docs/images/shots/mb-agents.png",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "docs/images/shots/mb-guest.png",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "docs/images/shots/mb-owner.png",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "docs/images/shots/mc-chat.png",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "docs/images/shots/mc-service.png",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "docs/images/shots/pc-agents.png",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "docs/images/shots/pc-approval.png",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "docs/images/shots/pc-chairman.png",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "docs/images/shots/pc-cms.png",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "docs/images/shots/pc-events.png",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "docs/images/shots/pc-home.png",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "docs/images/shots/pc-inbox.png",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "docs/images/shots/pc-mate-chat.png",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "docs/images/shots/pc-mate-welcome.png",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "docs/images/shots/pc-memory.png",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "docs/images/shots/pc-night.png",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "docs/images/shots/pc-onboarding.png",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "docs/images/shots/pc-reports.png",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "docs/images/shots/pc-rules.png",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "docs/images/shots/pc-service.png",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "docs/images/shots/pc-skills.png",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "docs/images/shots/pc-workbench.png",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "docs/images/workdata.png",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "docs/system-overview.pptx",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "packages/base/bundles/assembly.ts",
+      "grade": "C",
+      "reason": "Only composition/provision call segments inspected while reading unchanged seed; other assembly domains were not reread. This is an explicitly added direct dependency sample, not a full source review."
+    },
+    {
+      "path": "scripts/suite.ts",
+      "grade": "C",
+      "reason": "Affected regression cases and assertion changes reviewed; the entire 4424-line general suite was not read."
+    },
+    {
+      "path": "scripts/tools/compose-film.mts",
+      "grade": "C",
+      "reason": "Prior audit reading retained only for exactly unchanged bytes"
+    },
+    {
+      "path": "scripts/tools/full-chain-film.mts",
+      "grade": "C",
+      "reason": "Worker integration and public local stages tested; unrelated production stages were not reread across all 8184 lines."
+    },
+    {
+      "path": "vendor/srt-whiteboard/assets/drawing-hand.png",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "vendor/srt-whiteboard/examples/scene-01-monkey-mountain-banana-whiteboard.gif",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "vendor/srt-whiteboard/examples/scene-01-monkey-mountain-banana-whiteboard.mp4",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "vendor/srt-whiteboard/examples/scene-01-monkey-mountain-banana.png",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "vendor/srt-whiteboard/examples/scene-01-monkey-mountain-stream.gif",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "vendor/srt-whiteboard/examples/scene-01-monkey-mountain.png",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "vendor/supermickey/hyperreality-system/assets/agent-timeline.png",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "vendor/supermickey/hyperreality-system/assets/architecture.png",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "vendor/supermickey/hyperreality-system/assets/data-flow.png",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "vendor/supermickey/hyperreality-system/assets/features.png",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "vendor/supermickey/hyperreality-system/assets/logo.jpg",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "vendor/supermickey/hyperreality-system/assets/pipeline-overview.png",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "vendor/supermickey/hyperreality-system/assets/prompt-schema.png",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "vendor/supermickey/hyperreality-system/assets/tech-stack.png",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    },
+    {
+      "path": "vendor/supermickey/hyperreality-system/assets/workflow-guide.png",
+      "grade": "D",
+      "reason": "Binary existence, size and hash only; content not inspected"
+    }
+  ]
+}

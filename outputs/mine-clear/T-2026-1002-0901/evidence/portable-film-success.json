@@ -1,0 +1,18 @@
+{
+  "name": "portable-film-success",
+  "command": [
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/downloads/node-v24.19.0-darwin-arm64/bin/node",
+    "--env-file=.env",
+    "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/pnpm/bin/pnpm.cjs",
+    "exec",
+    "tsx",
+    "--env-file=.env",
+    "../portable-growth-stage/film-public-probe.mts",
+    "--repo",
+    "."
+  ],
+  "exit_code": 0,
+  "seconds": 28.971,
+  "ran_at": "2026-10-03T05:06:02.218456+08:00",
+  "log": "portable-film-success.log"
+}

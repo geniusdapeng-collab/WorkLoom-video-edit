@@ -1,0 +1,1205 @@
+{
+  "schema": "growth.scene-layout@1",
+  "source_commit": "f9515d09ee6de9b34f38b93d3769654fe4869391",
+  "source_status_before": "",
+  "source_hashes": {
+    "apps/web/src/components/Stage3D.tsx": "12cc2603a8b265de77053f8cfb0d4a36b2f3e79b1b15b69ed927ca4d76ca8429",
+    "apps/web/src/components/BusinessAvatar3D.tsx": "6bf778c0f5091335b4d8709f9e5b9d9eb6df3f820b79319d46253b043f683c2d",
+    "apps/web/src/components/cinematic.tsx": "e9e9f5875654f6f700bdf39b3d3908b31105188580b10a612f7bb8e52d4f6fc2",
+    "apps/web/src/components/Floor3D.tsx": "40e8bfa0f688eb527edec2ba10f040afc91a72b1730eb4383d707687fd1bf740",
+    "apps/web/src/components/Floor3DLabels.tsx": "0d2505a53e6e1e2811a6cc68d8124669cb4656e658d16e5e9a2eb8cf691e123b",
+    "apps/web/src/components/floor3d-layout.ts": "4a8ace04880cc9995a44ff6780a122eaad38b3b2057115f3d25ded45a18e803a",
+    "apps/web/src/pages/p0/floor-layout.ts": "d4b435b40ffaf11077ba0906ecbda3a9291165a7fb6ea59f2f611441443cfaa2",
+    "apps/web/src/lib/naming.ts": "8d05e0df3b163ab4186e577af1555d1b9e389ded97a0ad1faad3f3a993b946bd",
+    "apps/web/src/lib/useNightTime.ts": "ccf604d36908f893f183f97df9381f1c1d50ee3fbc5e92fdf85cd0eae3ef6a29",
+    "bundles/geo-growth/floor-scene.json": "944aef23a59f2eaffa4899edb3aaf8895bcade8dac81926a4b32ef4ff37bee32"
+  },
+  "fixture_hashes": {
+    "fixture.tsx": "729417f88479b5895b927887a34c3799ec799f4c459c7119da1f0927edcc64e6",
+    "index.html": "ab5736eb783e241bb5ca4193033096807cc1f02f44bdda0dfba99334c1fb0218"
+  },
+  "production_css": {
+    "file": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/repair-obs17/floor-production-7d5.css",
+    "sha256": "bc5b185ab487ec8441ca19a29646b603a15f2382cb4d48a73263fc81e76ad777"
+  },
+  "browser": "154.0.8037.95",
+  "method": "Actual imported Stage3D/Floor3D and production CSS; browser native WebGL/RAF and DOM rectangles; no replaced Canvas, camera, scene geometry, label allocation, or hitbox implementation.",
+  "limitations": "Deterministic owned component payload; desktop Chromium widths 1440 and 390, not native cold startup, real phone, supplier tasks, full UX, or all stage member hit targets.",
+  "cases": [
+    {
+      "id": "stage-1440-actual-canvas-fills-scene",
+      "expected": "The actual rendered WebGL Canvas fills its own visible scene at desktop and narrow width; no collapsed percentage-height region",
+      "actual": {
+        "mode": "stage",
+        "region": {
+          "x": 336,
+          "y": 16,
+          "width": 768,
+          "height": 440,
+          "right": 1104,
+          "bottom": 456
+        },
+        "canvas": {
+          "x": 336,
+          "y": 16,
+          "width": 768,
+          "height": 440,
+          "right": 1104,
+          "bottom": 456
+        },
+        "connected": {
+          "x": 336,
+          "y": 16,
+          "width": 768,
+          "height": 440,
+          "right": 1104,
+          "bottom": 456
+        },
+        "measure": {
+          "x": 336,
+          "y": 16,
+          "width": 768,
+          "height": 440,
+          "right": 1104,
+          "bottom": 456
+        },
+        "drawingBuffer": {
+          "width": 768,
+          "height": 440,
+          "contextLost": false
+        },
+        "ceo": {
+          "x": 654.303466796875,
+          "y": 100.49430084228516,
+          "width": 132.1593017578125,
+          "height": 49.47136688232422,
+          "right": 786.4627685546875,
+          "bottom": 149.96566772460938
+        },
+        "ceoInCanvasParent": false,
+        "ceoInScene": true,
+        "labels": [],
+        "ceoOverlaps": [],
+        "actors": "65",
+        "productionCssLoaded": true,
+        "bodyFont": "\"PingFang SC\", \"Microsoft YaHei\", \"Source Han Sans SC\", system-ui, sans-serif",
+        "horizontalOverflow": 0
+      },
+      "pass": true
+    },
+    {
+      "id": "stage-390-actual-canvas-fills-scene",
+      "expected": "The actual rendered WebGL Canvas fills its own visible scene at desktop and narrow width; no collapsed percentage-height region",
+      "actual": {
+        "mode": "stage",
+        "region": {
+          "x": 16,
+          "y": 16,
+          "width": 358,
+          "height": 440,
+          "right": 374,
+          "bottom": 456
+        },
+        "canvas": {
+          "x": 16,
+          "y": 16,
+          "width": 358,
+          "height": 440,
+          "right": 374,
+          "bottom": 456
+        },
+        "connected": {
+          "x": 16,
+          "y": 16,
+          "width": 358,
+          "height": 440,
+          "right": 374,
+          "bottom": 456
+        },
+        "measure": {
+          "x": 16,
+          "y": 16,
+          "width": 358,
+          "height": 440,
+          "right": 374,
+          "bottom": 456
+        },
+        "drawingBuffer": {
+          "width": 358,
+          "height": 440,
+          "contextLost": false
+        },
+        "ceo": {
+          "x": 129.35110473632812,
+          "y": 100.4942626953125,
+          "width": 132.1590576171875,
+          "height": 49.47129821777344,
+          "right": 261.5101623535156,
+          "bottom": 149.96556091308594
+        },
+        "ceoInCanvasParent": false,
+        "ceoInScene": true,
+        "labels": [],
+        "ceoOverlaps": [],
+        "actors": "65",
+        "productionCssLoaded": true,
+        "bodyFont": "\"PingFang SC\", \"Microsoft YaHei\", \"Source Han Sans SC\", system-ui, sans-serif",
+        "horizontalOverflow": 0
+      },
+      "pass": true
+    },
+    {
+      "id": "floor-1440-actual-canvas-fills-scene",
+      "expected": "The actual rendered WebGL Canvas fills its own visible scene at desktop and narrow width; no collapsed percentage-height region",
+      "actual": {
+        "mode": "floor",
+        "region": {
+          "x": 336,
+          "y": 16,
+          "width": 768,
+          "height": 440,
+          "right": 1104,
+          "bottom": 456
+        },
+        "canvas": {
+          "x": 336,
+          "y": 16,
+          "width": 768,
+          "height": 440,
+          "right": 1104,
+          "bottom": 456
+        },
+        "connected": {
+          "x": 336,
+          "y": 16,
+          "width": 768,
+          "height": 440,
+          "right": 1104,
+          "bottom": 456
+        },
+        "measure": {
+          "x": 336,
+          "y": 16,
+          "width": 768,
+          "height": 440,
+          "right": 1104,
+          "bottom": 456
+        },
+        "drawingBuffer": {
+          "width": 768,
+          "height": 440,
+          "contextLost": false
+        },
+        "ceo": {
+          "x": 759.6165771484375,
+          "y": 128.9013214111328,
+          "width": 93.5,
+          "height": 35,
+          "right": 853.1165771484375,
+          "bottom": 163.9013214111328
+        },
+        "ceoInCanvasParent": false,
+        "ceoInScene": true,
+        "labels": [
+          {
+            "id": "scene-worker-1",
+            "rect": {
+              "x": 686,
+              "y": 389.828125,
+              "width": 82,
+              "height": 34.34375,
+              "right": 768,
+              "bottom": 424.171875
+            }
+          },
+          {
+            "id": "scene-worker-2",
+            "rect": {
+              "x": 598,
+              "y": 101.828125,
+              "width": 93,
+              "height": 34.34375,
+              "right": 691,
+              "bottom": 136.171875
+            }
+          },
+          {
+            "id": "scene-worker-3",
+            "rect": {
+              "x": 862,
+              "y": 157.828125,
+              "width": 71,
+              "height": 34.34375,
+              "right": 933,
+              "bottom": 192.171875
+            }
+          },
+          {
+            "id": "scene-worker-4",
+            "rect": {
+              "x": 886,
+              "y": 117.828125,
+              "width": 71,
+              "height": 34.34375,
+              "right": 957,
+              "bottom": 152.171875
+            }
+          },
+          {
+            "id": "scene-worker-5",
+            "rect": {
+              "x": 614,
+              "y": 21.828125,
+              "width": 82,
+              "height": 34.34375,
+              "right": 696,
+              "bottom": 56.171875
+            }
+          },
+          {
+            "id": "scene-worker-6",
+            "rect": {
+              "x": 486,
+              "y": 149.828125,
+              "width": 104,
+              "height": 34.34375,
+              "right": 590,
+              "bottom": 184.171875
+            }
+          },
+          {
+            "id": "scene-worker-7",
+            "rect": {
+              "x": 510,
+              "y": 109.828125,
+              "width": 82,
+              "height": 34.34375,
+              "right": 592,
+              "bottom": 144.171875
+            }
+          },
+          {
+            "id": "scene-worker-8",
+            "rect": {
+              "x": 598,
+              "y": 61.828125,
+              "width": 93,
+              "height": 34.34375,
+              "right": 691,
+              "bottom": 96.171875
+            }
+          },
+          {
+            "id": "scene-worker-9",
+            "rect": {
+              "x": 702,
+              "y": 53.828125,
+              "width": 93,
+              "height": 34.34375,
+              "right": 795,
+              "bottom": 88.171875
+            }
+          },
+          {
+            "id": "scene-worker-10",
+            "rect": {
+              "x": 606,
+              "y": 357.828125,
+              "width": 71,
+              "height": 34.34375,
+              "right": 677,
+              "bottom": 392.171875
+            }
+          },
+          {
+            "id": "scene-worker-11",
+            "rect": {
+              "x": 822,
+              "y": 301.828125,
+              "width": 71,
+              "height": 34.34375,
+              "right": 893,
+              "bottom": 336.171875
+            }
+          },
+          {
+            "id": "scene-worker-12",
+            "rect": {
+              "x": 766,
+              "y": 341.828125,
+              "width": 71,
+              "height": 34.34375,
+              "right": 837,
+              "bottom": 376.171875
+            }
+          },
+          {
+            "id": "scene-worker-13",
+            "rect": {
+              "x": 494,
+              "y": 253.828125,
+              "width": 71,
+              "height": 34.34375,
+              "right": 565,
+              "bottom": 288.171875
+            }
+          },
+          {
+            "id": "scene-worker-14",
+            "rect": {
+              "x": 558,
+              "y": 317.828125,
+              "width": 82,
+              "height": 34.34375,
+              "right": 640,
+              "bottom": 352.171875
+            }
+          },
+          {
+            "id": "scene-worker-15",
+            "rect": {
+              "x": 870,
+              "y": 261.828125,
+              "width": 71,
+              "height": 34.34375,
+              "right": 941,
+              "bottom": 296.171875
+            }
+          },
+          {
+            "id": "scene-worker-16",
+            "rect": {
+              "x": 806,
+              "y": 93.828125,
+              "width": 71,
+              "height": 34.34375,
+              "right": 877,
+              "bottom": 128.171875
+            }
+          },
+          {
+            "id": "scene-worker-17",
+            "rect": {
+              "x": 454,
+              "y": 205.828125,
+              "width": 71,
+              "height": 34.34375,
+              "right": 525,
+              "bottom": 240.171875
+            }
+          },
+          {
+            "id": "scene-worker-18",
+            "rect": {
+              "x": 702,
+              "y": 93.828125,
+              "width": 93,
+              "height": 34.34375,
+              "right": 795,
+              "bottom": 128.171875
+            }
+          }
+        ],
+        "ceoOverlaps": [],
+        "actors": "18",
+        "productionCssLoaded": true,
+        "bodyFont": "\"PingFang SC\", \"Microsoft YaHei\", \"Source Han Sans SC\", system-ui, sans-serif",
+        "horizontalOverflow": 0
+      },
+      "pass": true
+    },
+    {
+      "id": "floor-1440-actual-ceo-plaque-separate",
+      "expected": "The actual CEO HTML plaque is included in collision avoidance and does not intersect any worker plaque",
+      "actual": {
+        "mode": "floor",
+        "region": {
+          "x": 336,
+          "y": 16,
+          "width": 768,
+          "height": 440,
+          "right": 1104,
+          "bottom": 456
+        },
+        "canvas": {
+          "x": 336,
+          "y": 16,
+          "width": 768,
+          "height": 440,
+          "right": 1104,
+          "bottom": 456
+        },
+        "connected": {
+          "x": 336,
+          "y": 16,
+          "width": 768,
+          "height": 440,
+          "right": 1104,
+          "bottom": 456
+        },
+        "measure": {
+          "x": 336,
+          "y": 16,
+          "width": 768,
+          "height": 440,
+          "right": 1104,
+          "bottom": 456
+        },
+        "drawingBuffer": {
+          "width": 768,
+          "height": 440,
+          "contextLost": false
+        },
+        "ceo": {
+          "x": 759.6165771484375,
+          "y": 128.9013214111328,
+          "width": 93.5,
+          "height": 35,
+          "right": 853.1165771484375,
+          "bottom": 163.9013214111328
+        },
+        "ceoInCanvasParent": false,
+        "ceoInScene": true,
+        "labels": [
+          {
+            "id": "scene-worker-1",
+            "rect": {
+              "x": 686,
+              "y": 389.828125,
+              "width": 82,
+              "height": 34.34375,
+              "right": 768,
+              "bottom": 424.171875
+            }
+          },
+          {
+            "id": "scene-worker-2",
+            "rect": {
+              "x": 598,
+              "y": 101.828125,
+              "width": 93,
+              "height": 34.34375,
+              "right": 691,
+              "bottom": 136.171875
+            }
+          },
+          {
+            "id": "scene-worker-3",
+            "rect": {
+              "x": 862,
+              "y": 157.828125,
+              "width": 71,
+              "height": 34.34375,
+              "right": 933,
+              "bottom": 192.171875
+            }
+          },
+          {
+            "id": "scene-worker-4",
+            "rect": {
+              "x": 886,
+              "y": 117.828125,
+              "width": 71,
+              "height": 34.34375,
+              "right": 957,
+              "bottom": 152.171875
+            }
+          },
+          {
+            "id": "scene-worker-5",
+            "rect": {
+              "x": 614,
+              "y": 21.828125,
+              "width": 82,
+              "height": 34.34375,
+              "right": 696,
+              "bottom": 56.171875
+            }
+          },
+          {
+            "id": "scene-worker-6",
+            "rect": {
+              "x": 486,
+              "y": 149.828125,
+              "width": 104,
+              "height": 34.34375,
+              "right": 590,
+              "bottom": 184.171875
+            }
+          },
+          {
+            "id": "scene-worker-7",
+            "rect": {
+              "x": 510,
+              "y": 109.828125,
+              "width": 82,
+              "height": 34.34375,
+              "right": 592,
+              "bottom": 144.171875
+            }
+          },
+          {
+            "id": "scene-worker-8",
+            "rect": {
+              "x": 598,
+              "y": 61.828125,
+              "width": 93,
+              "height": 34.34375,
+              "right": 691,
+              "bottom": 96.171875
+            }
+          },
+          {
+            "id": "scene-worker-9",
+            "rect": {
+              "x": 702,
+              "y": 53.828125,
+              "width": 93,
+              "height": 34.34375,
+              "right": 795,
+              "bottom": 88.171875
+            }
+          },
+          {
+            "id": "scene-worker-10",
+            "rect": {
+              "x": 606,
+              "y": 357.828125,
+              "width": 71,
+              "height": 34.34375,
+              "right": 677,
+              "bottom": 392.171875
+            }
+          },
+          {
+            "id": "scene-worker-11",
+            "rect": {
+              "x": 822,
+              "y": 301.828125,
+              "width": 71,
+              "height": 34.34375,
+              "right": 893,
+              "bottom": 336.171875
+            }
+          },
+          {
+            "id": "scene-worker-12",
+            "rect": {
+              "x": 766,
+              "y": 341.828125,
+              "width": 71,
+              "height": 34.34375,
+              "right": 837,
+              "bottom": 376.171875
+            }
+          },
+          {
+            "id": "scene-worker-13",
+            "rect": {
+              "x": 494,
+              "y": 253.828125,
+              "width": 71,
+              "height": 34.34375,
+              "right": 565,
+              "bottom": 288.171875
+            }
+          },
+          {
+            "id": "scene-worker-14",
+            "rect": {
+              "x": 558,
+              "y": 317.828125,
+              "width": 82,
+              "height": 34.34375,
+              "right": 640,
+              "bottom": 352.171875
+            }
+          },
+          {
+            "id": "scene-worker-15",
+            "rect": {
+              "x": 870,
+              "y": 261.828125,
+              "width": 71,
+              "height": 34.34375,
+              "right": 941,
+              "bottom": 296.171875
+            }
+          },
+          {
+            "id": "scene-worker-16",
+            "rect": {
+              "x": 806,
+              "y": 93.828125,
+              "width": 71,
+              "height": 34.34375,
+              "right": 877,
+              "bottom": 128.171875
+            }
+          },
+          {
+            "id": "scene-worker-17",
+            "rect": {
+              "x": 454,
+              "y": 205.828125,
+              "width": 71,
+              "height": 34.34375,
+              "right": 525,
+              "bottom": 240.171875
+            }
+          },
+          {
+            "id": "scene-worker-18",
+            "rect": {
+              "x": 702,
+              "y": 93.828125,
+              "width": 93,
+              "height": 34.34375,
+              "right": 795,
+              "bottom": 128.171875
+            }
+          }
+        ],
+        "ceoOverlaps": [],
+        "actors": "18",
+        "productionCssLoaded": true,
+        "bodyFont": "\"PingFang SC\", \"Microsoft YaHei\", \"Source Han Sans SC\", system-ui, sans-serif",
+        "horizontalOverflow": 0
+      },
+      "pass": true
+    },
+    {
+      "id": "floor-390-actual-canvas-fills-scene",
+      "expected": "The actual rendered WebGL Canvas fills its own visible scene at desktop and narrow width; no collapsed percentage-height region",
+      "actual": {
+        "mode": "floor",
+        "region": {
+          "x": 16,
+          "y": 16,
+          "width": 358,
+          "height": 440,
+          "right": 374,
+          "bottom": 456
+        },
+        "canvas": {
+          "x": -138,
+          "y": 16,
+          "width": 640,
+          "height": 440,
+          "right": 502,
+          "bottom": 456
+        },
+        "connected": {
+          "x": -138,
+          "y": 16,
+          "width": 640,
+          "height": 440,
+          "right": 502,
+          "bottom": 456
+        },
+        "measure": {
+          "x": -138,
+          "y": 16,
+          "width": 640,
+          "height": 440,
+          "right": 502,
+          "bottom": 456
+        },
+        "drawingBuffer": {
+          "width": 640,
+          "height": 440,
+          "contextLost": false
+        },
+        "ceo": {
+          "x": 221.6165771484375,
+          "y": 128.9013214111328,
+          "width": 93.5,
+          "height": 35,
+          "right": 315.1165771484375,
+          "bottom": 163.9013214111328
+        },
+        "ceoInCanvasParent": false,
+        "ceoInScene": true,
+        "labels": [
+          {
+            "id": "scene-worker-1",
+            "rect": {
+              "x": 148,
+              "y": 389.828125,
+              "width": 82,
+              "height": 34.34375,
+              "right": 230,
+              "bottom": 424.171875
+            }
+          },
+          {
+            "id": "scene-worker-2",
+            "rect": {
+              "x": 60,
+              "y": 101.828125,
+              "width": 93,
+              "height": 34.34375,
+              "right": 153,
+              "bottom": 136.171875
+            }
+          },
+          {
+            "id": "scene-worker-3",
+            "rect": {
+              "x": 324,
+              "y": 157.828125,
+              "width": 71,
+              "height": 34.34375,
+              "right": 395,
+              "bottom": 192.171875
+            }
+          },
+          {
+            "id": "scene-worker-4",
+            "rect": {
+              "x": 348,
+              "y": 117.828125,
+              "width": 71,
+              "height": 34.34375,
+              "right": 419,
+              "bottom": 152.171875
+            }
+          },
+          {
+            "id": "scene-worker-5",
+            "rect": {
+              "x": 76,
+              "y": 21.828125,
+              "width": 82,
+              "height": 34.34375,
+              "right": 158,
+              "bottom": 56.171875
+            }
+          },
+          {
+            "id": "scene-worker-6",
+            "rect": {
+              "x": -52,
+              "y": 149.828125,
+              "width": 104,
+              "height": 34.34375,
+              "right": 52,
+              "bottom": 184.171875
+            }
+          },
+          {
+            "id": "scene-worker-7",
+            "rect": {
+              "x": -28,
+              "y": 109.828125,
+              "width": 82,
+              "height": 34.34375,
+              "right": 54,
+              "bottom": 144.171875
+            }
+          },
+          {
+            "id": "scene-worker-8",
+            "rect": {
+              "x": 60,
+              "y": 61.828125,
+              "width": 93,
+              "height": 34.34375,
+              "right": 153,
+              "bottom": 96.171875
+            }
+          },
+          {
+            "id": "scene-worker-9",
+            "rect": {
+              "x": 164,
+              "y": 53.828125,
+              "width": 93,
+              "height": 34.34375,
+              "right": 257,
+              "bottom": 88.171875
+            }
+          },
+          {
+            "id": "scene-worker-10",
+            "rect": {
+              "x": 68,
+              "y": 357.828125,
+              "width": 71,
+              "height": 34.34375,
+              "right": 139,
+              "bottom": 392.171875
+            }
+          },
+          {
+            "id": "scene-worker-11",
+            "rect": {
+              "x": 284,
+              "y": 301.828125,
+              "width": 71,
+              "height": 34.34375,
+              "right": 355,
+              "bottom": 336.171875
+            }
+          },
+          {
+            "id": "scene-worker-12",
+            "rect": {
+              "x": 228,
+              "y": 341.828125,
+              "width": 71,
+              "height": 34.34375,
+              "right": 299,
+              "bottom": 376.171875
+            }
+          },
+          {
+            "id": "scene-worker-13",
+            "rect": {
+              "x": -44,
+              "y": 253.828125,
+              "width": 71,
+              "height": 34.34375,
+              "right": 27,
+              "bottom": 288.171875
+            }
+          },
+          {
+            "id": "scene-worker-14",
+            "rect": {
+              "x": 20,
+              "y": 317.828125,
+              "width": 82,
+              "height": 34.34375,
+              "right": 102,
+              "bottom": 352.171875
+            }
+          },
+          {
+            "id": "scene-worker-15",
+            "rect": {
+              "x": 332,
+              "y": 261.828125,
+              "width": 71,
+              "height": 34.34375,
+              "right": 403,
+              "bottom": 296.171875
+            }
+          },
+          {
+            "id": "scene-worker-16",
+            "rect": {
+              "x": 268,
+              "y": 93.828125,
+              "width": 71,
+              "height": 34.34375,
+              "right": 339,
+              "bottom": 128.171875
+            }
+          },
+          {
+            "id": "scene-worker-17",
+            "rect": {
+              "x": -84,
+              "y": 205.828125,
+              "width": 71,
+              "height": 34.34375,
+              "right": -13,
+              "bottom": 240.171875
+            }
+          },
+          {
+            "id": "scene-worker-18",
+            "rect": {
+              "x": 164,
+              "y": 93.828125,
+              "width": 93,
+              "height": 34.34375,
+              "right": 257,
+              "bottom": 128.171875
+            }
+          }
+        ],
+        "ceoOverlaps": [],
+        "actors": "18",
+        "productionCssLoaded": true,
+        "bodyFont": "\"PingFang SC\", \"Microsoft YaHei\", \"Source Han Sans SC\", system-ui, sans-serif",
+        "horizontalOverflow": 0
+      },
+      "pass": true
+    },
+    {
+      "id": "floor-390-actual-ceo-plaque-separate",
+      "expected": "The actual CEO HTML plaque is included in collision avoidance and does not intersect any worker plaque",
+      "actual": {
+        "mode": "floor",
+        "region": {
+          "x": 16,
+          "y": 16,
+          "width": 358,
+          "height": 440,
+          "right": 374,
+          "bottom": 456
+        },
+        "canvas": {
+          "x": -138,
+          "y": 16,
+          "width": 640,
+          "height": 440,
+          "right": 502,
+          "bottom": 456
+        },
+        "connected": {
+          "x": -138,
+          "y": 16,
+          "width": 640,
+          "height": 440,
+          "right": 502,
+          "bottom": 456
+        },
+        "measure": {
+          "x": -138,
+          "y": 16,
+          "width": 640,
+          "height": 440,
+          "right": 502,
+          "bottom": 456
+        },
+        "drawingBuffer": {
+          "width": 640,
+          "height": 440,
+          "contextLost": false
+        },
+        "ceo": {
+          "x": 221.6165771484375,
+          "y": 128.9013214111328,
+          "width": 93.5,
+          "height": 35,
+          "right": 315.1165771484375,
+          "bottom": 163.9013214111328
+        },
+        "ceoInCanvasParent": false,
+        "ceoInScene": true,
+        "labels": [
+          {
+            "id": "scene-worker-1",
+            "rect": {
+              "x": 148,
+              "y": 389.828125,
+              "width": 82,
+              "height": 34.34375,
+              "right": 230,
+              "bottom": 424.171875
+            }
+          },
+          {
+            "id": "scene-worker-2",
+            "rect": {
+              "x": 60,
+              "y": 101.828125,
+              "width": 93,
+              "height": 34.34375,
+              "right": 153,
+              "bottom": 136.171875
+            }
+          },
+          {
+            "id": "scene-worker-3",
+            "rect": {
+              "x": 324,
+              "y": 157.828125,
+              "width": 71,
+              "height": 34.34375,
+              "right": 395,
+              "bottom": 192.171875
+            }
+          },
+          {
+            "id": "scene-worker-4",
+            "rect": {
+              "x": 348,
+              "y": 117.828125,
+              "width": 71,
+              "height": 34.34375,
+              "right": 419,
+              "bottom": 152.171875
+            }
+          },
+          {
+            "id": "scene-worker-5",
+            "rect": {
+              "x": 76,
+              "y": 21.828125,
+              "width": 82,
+              "height": 34.34375,
+              "right": 158,
+              "bottom": 56.171875
+            }
+          },
+          {
+            "id": "scene-worker-6",
+            "rect": {
+              "x": -52,
+              "y": 149.828125,
+              "width": 104,
+              "height": 34.34375,
+              "right": 52,
+              "bottom": 184.171875
+            }
+          },
+          {
+            "id": "scene-worker-7",
+            "rect": {
+              "x": -28,
+              "y": 109.828125,
+              "width": 82,
+              "height": 34.34375,
+              "right": 54,
+              "bottom": 144.171875
+            }
+          },
+          {
+            "id": "scene-worker-8",
+            "rect": {
+              "x": 60,
+              "y": 61.828125,
+              "width": 93,
+              "height": 34.34375,
+              "right": 153,
+              "bottom": 96.171875
+            }
+          },
+          {
+            "id": "scene-worker-9",
+            "rect": {
+              "x": 164,
+              "y": 53.828125,
+              "width": 93,
+              "height": 34.34375,
+              "right": 257,
+              "bottom": 88.171875
+            }
+          },
+          {
+            "id": "scene-worker-10",
+            "rect": {
+              "x": 68,
+              "y": 357.828125,
+              "width": 71,
+              "height": 34.34375,
+              "right": 139,
+              "bottom": 392.171875
+            }
+          },
+          {
+            "id": "scene-worker-11",
+            "rect": {
+              "x": 284,
+              "y": 301.828125,
+              "width": 71,
+              "height": 34.34375,
+              "right": 355,
+              "bottom": 336.171875
+            }
+          },
+          {
+            "id": "scene-worker-12",
+            "rect": {
+              "x": 228,
+              "y": 341.828125,
+              "width": 71,
+              "height": 34.34375,
+              "right": 299,
+              "bottom": 376.171875
+            }
+          },
+          {
+            "id": "scene-worker-13",
+            "rect": {
+              "x": -44,
+              "y": 253.828125,
+              "width": 71,
+              "height": 34.34375,
+              "right": 27,
+              "bottom": 288.171875
+            }
+          },
+          {
+            "id": "scene-worker-14",
+            "rect": {
+              "x": 20,
+              "y": 317.828125,
+              "width": 82,
+              "height": 34.34375,
+              "right": 102,
+              "bottom": 352.171875
+            }
+          },
+          {
+            "id": "scene-worker-15",
+            "rect": {
+              "x": 332,
+              "y": 261.828125,
+              "width": 71,
+              "height": 34.34375,
+              "right": 403,
+              "bottom": 296.171875
+            }
+          },
+          {
+            "id": "scene-worker-16",
+            "rect": {
+              "x": 268,
+              "y": 93.828125,
+              "width": 71,
+              "height": 34.34375,
+              "right": 339,
+              "bottom": 128.171875
+            }
+          },
+          {
+            "id": "scene-worker-17",
+            "rect": {
+              "x": -84,
+              "y": 205.828125,
+              "width": 71,
+              "height": 34.34375,
+              "right": -13,
+              "bottom": 240.171875
+            }
+          },
+          {
+            "id": "scene-worker-18",
+            "rect": {
+              "x": 164,
+              "y": 93.828125,
+              "width": 93,
+              "height": 34.34375,
+              "right": 257,
+              "bottom": 128.171875
+            }
+          }
+        ],
+        "ceoOverlaps": [],
+        "actors": "18",
+        "productionCssLoaded": true,
+        "bodyFont": "\"PingFang SC\", \"Microsoft YaHei\", \"Source Han Sans SC\", system-ui, sans-serif",
+        "horizontalOverflow": 0
+      },
+      "pass": true
+    },
+    {
+      "id": "scene-no-errors-or-external-network",
+      "expected": "No browser error or external request in the actual imported scene fixture",
+      "actual": {
+        "errors": [],
+        "blockedRequests": []
+      },
+      "pass": true
+    }
+  ],
+  "passed": 7,
+  "failed": 0,
+  "errors": [],
+  "blockedRequests": []
+}

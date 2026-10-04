@@ -1,0 +1,2 @@
+COMMAND ["python3", "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/build_production_report.py"]
+SyntaxError: Non-UTF-8 code starting with '\xe5' in file /Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/work/build_production_report.py on line 182, but no encoding declared; see http://python.org/dev/peps/pep-0263/ for details

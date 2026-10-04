@@ -1,0 +1,99 @@
+{
+  "schema": "growth.independent-m6/formal-history@1",
+  "at": "2026-10-04T04:51:28.191923+08:00",
+  "source_commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+  "files": [
+    {
+      "file": "REPORT.md",
+      "sha256": "1b95acc2857f073c95301f371319fb28e50c6ce282ba6f2596f6a5f5f87f9946",
+      "bytes": 131655
+    },
+    {
+      "file": "summary.json",
+      "sha256": "307c97a71fde2c79fb38746187bc325361c4afd5ace6f8d05522da6aea3edeeb",
+      "bytes": 440777
+    },
+    {
+      "file": "baseline-acceptance.json",
+      "sha256": "c14de179325868f903822d21fde7fda8fec6db3933eb6f8f70d8a8a22a8b8bdb",
+      "bytes": 278095
+    },
+    {
+      "file": "asset-fingerprint.json",
+      "sha256": "5e518ecf4552b78f09ef63bda898ae9be55df9fb3a81c8780654d3f1659b9d3a",
+      "bytes": 47744
+    },
+    {
+      "file": "coverage.json",
+      "sha256": "595ad193344eec9b7a33bc85f09ed17d1e06f2a69ae5d1d33624a4cedbf7e48c",
+      "bytes": 290718
+    },
+    {
+      "file": "coverage.csv",
+      "sha256": "5d16a1d72386cf21ff4eabccd203d1b2dadc8800b0705322dbf8663211e8ce2a",
+      "bytes": 135689
+    },
+    {
+      "file": "case-matrix.json",
+      "sha256": "1c446ab714a0615eb946e4e30becb394c5bd36834f539621a28d6132f074ced8",
+      "bytes": 3387958
+    },
+    {
+      "file": "case-matrix.csv",
+      "sha256": "e2bb8a75798f5957a0179899737fd9265af46cfb561bae9a72c3eb7032fc0144",
+      "bytes": 2045916
+    },
+    {
+      "file": "file-coverage.csv",
+      "sha256": "e0e28855018c2c1a419df20f8e5bd70f85d76d467c118a16e3ced550ee90f398",
+      "bytes": 35126
+    },
+    {
+      "file": "locks-parser.json",
+      "sha256": "76389685f640ec9678dafbb4ea382ca64674460c1c93eed8efd9c0ab507644c3",
+      "bytes": 179
+    },
+    {
+      "file": "observation-mapping.json",
+      "sha256": "b9fedb8a0d8e21de33da97fee7aa54fb2862e8a1913e93fada58d83b2db6ea15",
+      "bytes": 3241
+    },
+    {
+      "file": "scorecards.json",
+      "sha256": "e0e9e3f4ba17fb72c26da1cb43233ceafae7d5653fbd900172acf318126b8bc4",
+      "bytes": 1607
+    },
+    {
+      "file": "acceptance-debt.json",
+      "sha256": "9a1dd1a31ccec8b1bc4e1acb4bef25ea80abe582c3d097c3eae136cedaba6069",
+      "bytes": 3779
+    },
+    {
+      "file": "ledger-verification.json",
+      "sha256": "13efc59b391c60523cbb47b6b8882acb3ce78e9f9f7ee3f76459d908541569ba",
+      "bytes": 35763
+    },
+    {
+      "file": "evidence-index.json",
+      "sha256": "9bb4e003943db2db3baa7513848d829c3f0118b6267f3b10d94bd20d91ef1a07",
+      "bytes": 1006765
+    },
+    {
+      "file": "build_report.py",
+      "sha256": "b6826996aa7339afeb47a3de57a8128136ebfdc7b91fb32e1b6e4dc3aedaee25",
+      "bytes": 128701
+    },
+    {
+      "file": "validate_report.py",
+      "sha256": "d23e226c24e567d20acbc51e04989e0d23a67ef252ad1c92379f0c2135447fd8",
+      "bytes": 40279
+    },
+    {
+      "file": "mcd-exec-helper-fullread.json",
+      "sha256": "b3115bdac352abbf3e2198731a0b61a435cbdde0502de8c4a732ee43d6773bb2",
+      "bytes": 4511
+    }
+  ],
+  "historical_directory": "history/dependency-formal-before-final-1e471",
+  "formal_current_report_generated_yet": false
+}

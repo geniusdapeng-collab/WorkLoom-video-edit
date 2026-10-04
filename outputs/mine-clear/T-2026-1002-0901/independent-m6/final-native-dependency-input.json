@@ -1,0 +1,39 @@
+{
+  "source_commit": "1e471c34ed5c05c5ac6d791ac5b7aa731d3e8de8",
+  "evidence_prefix": "dependency",
+  "app_result": "dependency-final-app-byte-probe-results.json",
+  "payload_result": "dependency-final-payload-byte-probe-results.json",
+  "dmg_result": "dependency-final-dmg-byte-probe-results.json",
+  "application_receipt": "dependency-app-fingerprint.json",
+  "default": {
+    "wrapper": "mac-dependency-default.json",
+    "render": "native-dependency-default-render-default.json",
+    "retention": "native-dependency-default-retention.json"
+  },
+  "safe": {
+    "wrapper": "mac-dependency-safe.json",
+    "render": "native-dependency-safe-render-safe.json",
+    "retention": "native-dependency-safe-retention.json"
+  },
+  "fresh": {
+    "wrapper": "mac-dependency-fresh.json"
+  },
+  "restart": {
+    "wrapper": "mac-dependency-restart.json"
+  },
+  "upgrade": {
+    "wrapper": "mac-dependency-upgrade.json"
+  },
+  "private_states": {
+    "fresh_before": "native-dependency-fresh-state-before.json",
+    "fresh_after": "native-dependency-fresh-state-after.json",
+    "upgrade_before": "native-dependency-upgrade-state-before.json",
+    "upgrade_after": "native-dependency-upgrade-state-after.json"
+  },
+  "diagnostic_export_review": "native-dependency-diagnostic-export-independent-review.json",
+  "screenshot_review": "native-dependency-screenshot-review.json",
+  "original_default_red_review": "native-surface-default-original-red-review.json",
+  "historical_high_advisory_hold_review": "mc016-new-high-advisory-red-review-7fee.json",
+  "state_preservation_review": "native-dependency-state-preservation-review.json",
+  "build_attempts_review": "native-dependency-build-attempt-preservation-review.json"
+}

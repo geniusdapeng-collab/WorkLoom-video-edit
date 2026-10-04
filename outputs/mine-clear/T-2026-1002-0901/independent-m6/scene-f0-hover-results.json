@@ -1,0 +1,3395 @@
+{
+  "schema": "growth.independent-m6/floor3d-status-bubble@4",
+  "verifier": "growth_m6",
+  "source_commit": "f0a11286a49419fb7909088e2d170f4dde7b60c6",
+  "frozen_original_955e": false,
+  "source_hashes": {
+    "apps/web/src/components/BusinessAvatar3D.tsx": "6bf778c0f5091335b4d8709f9e5b9d9eb6df3f820b79319d46253b043f683c2d",
+    "apps/web/src/components/GazeSystem.tsx": "6a62489c452e77594e1990df6cd530307416ef0390429eb1f607c4e14abfa424",
+    "apps/web/src/components/cinematic.tsx": "e9e9f5875654f6f700bdf39b3d3908b31105188580b10a612f7bb8e52d4f6fc2",
+    "apps/web/src/components/CineDirector.tsx": "b72d38e0781af780afcb48796c9d3efa3029c98a9f63b927c2650feb5363f083",
+    "apps/web/src/components/HoverBubble.tsx": "f31aac61c489193fe9892d21613c132af1c4db1608b1dfe0e2cc3d6d484f3ad5",
+    "apps/web/src/audio/AudioEngine.ts": "05713d66be1a78f2832c0dece19475baefd5f23fad288ee48f69b33d219501f1",
+    "apps/web/src/audio/sfx.ts": "38b93e0be2b21df095469741b3d0e91f57d933987576fe1c49fd61798643a8ea",
+    "apps/web/src/lib/useNightTime.ts": "ccf604d36908f893f183f97df9381f1c1d50ee3fbc5e92fdf85cd0eae3ef6a29",
+    "apps/web/src/lib/naming.ts": "8d05e0df3b163ab4186e577af1555d1b9e389ded97a0ad1faad3f3a993b946bd",
+    "bundles/geo-growth/floor-scene.json": "944aef23a59f2eaffa4899edb3aaf8895bcade8dac81926a4b32ef4ff37bee32",
+    "apps/web/src/components/Floor3D.tsx": "40e8bfa0f688eb527edec2ba10f040afc91a72b1730eb4383d707687fd1bf740",
+    "apps/web/src/components/Floor3DTaskDrop.tsx": "1c9a40bf5dec879f5896eff88263efedc885de4919b3e4a8d42ecb43e337a81f",
+    "apps/web/src/components/Floor3DLabels.tsx": "0d2505a53e6e1e2811a6cc68d8124669cb4656e658d16e5e9a2eb8cf691e123b",
+    "apps/web/src/components/floor3d-layout.ts": "4a8ace04880cc9995a44ff6780a122eaad38b3b2057115f3d25ded45a18e803a",
+    "apps/web/src/pages/p0/floor-layout.ts": "d4b435b40ffaf11077ba0906ecbda3a9291165a7fb6ea59f2f611441443cfaa2"
+  },
+  "on_drop_task_enabled": true,
+  "drop_delivery_enabled": true,
+  "fixture_source_sha256": "c50f44213fc9245930b4ffb5af00f76a3c1b4c774c9d6ad593fd6119c0a51ab7",
+  "production_css": {
+    "file": "/Users/mac/Documents/Codex/2026-10-02/growth-growth-https-cnb-cool-workloom/outputs/growth-production-fix-2026-10-02/independent-m6/floor-production-7d5.css",
+    "sha256": "bc5b185ab487ec8441ca19a29646b603a15f2382cb4d48a73263fc81e76ad777",
+    "compiled_source_commit": "7d5f02049cc75a692d4eaac33916633cb2192f01",
+    "method": "Exact frozen production build CSS; source global styles unchanged since955e; actual computed styles observed."
+  },
+  "browser": "154.0.8037.95",
+  "scenarios": [
+    {
+      "id": "short-hover-1440",
+      "state": "idle",
+      "stations": "normal",
+      "width": 1440,
+      "count": 1,
+      "bubble": "short"
+    },
+    {
+      "id": "long-hover-1440",
+      "state": "idle",
+      "stations": "normal",
+      "width": 1440,
+      "count": 1,
+      "bubble": "long"
+    },
+    {
+      "id": "short-hover-390",
+      "state": "idle",
+      "stations": "normal",
+      "width": 390,
+      "count": 1,
+      "bubble": "short"
+    },
+    {
+      "id": "long-hover-390",
+      "state": "idle",
+      "stations": "normal",
+      "width": 390,
+      "count": 1,
+      "bubble": "long"
+    }
+  ],
+  "cases": [
+    {
+      "id": "short-hover-1440-actual-bubble-readable",
+      "expected": "Actual real hover text uses a horizontal readable width, wraps long multilingual content, remains bounded and leaves body pointer hits available",
+      "actual": {
+        "text": "正在整理客户日报",
+        "width": 134,
+        "height": 29,
+        "rows": [
+          8
+        ],
+        "rect": {
+          "left": 507.19293212890625,
+          "top": 195.40943908691406,
+          "right": 641.1929321289062,
+          "bottom": 224.40943908691406
+        },
+        "visible": {
+          "left": 336,
+          "top": 16,
+          "right": 1104,
+          "bottom": 456
+        },
+        "glyphs": [
+          {
+            "left": 518.1929321289062,
+            "top": 199.40943908691406,
+            "right": 532.1929321289062,
+            "bottom": 219.40943908691406
+          },
+          {
+            "left": 532.1929321289062,
+            "top": 199.40943908691406,
+            "right": 546.1929321289062,
+            "bottom": 219.40943908691406
+          },
+          {
+            "left": 546.1929321289062,
+            "top": 199.40943908691406,
+            "right": 560.1929321289062,
+            "bottom": 219.40943908691406
+          },
+          {
+            "left": 560.1929321289062,
+            "top": 199.40943908691406,
+            "right": 574.1929321289062,
+            "bottom": 219.40943908691406
+          },
+          {
+            "left": 574.1929321289062,
+            "top": 199.40943908691406,
+            "right": 588.1929321289062,
+            "bottom": 219.40943908691406
+          },
+          {
+            "left": 588.1929321289062,
+            "top": 199.40943908691406,
+            "right": 602.1929321289062,
+            "bottom": 219.40943908691406
+          },
+          {
+            "left": 602.1929321289062,
+            "top": 199.40943908691406,
+            "right": 616.1929321289062,
+            "bottom": 219.40943908691406
+          },
+          {
+            "left": 616.1929321289062,
+            "top": 199.40943908691406,
+            "right": 630.1929321289062,
+            "bottom": 219.40943908691406
+          }
+        ],
+        "scrollWidth": 132,
+        "clientWidth": 132,
+        "scrollHeight": 27,
+        "clientHeight": 27,
+        "pointerEvents": "none",
+        "maxWidth": "260px",
+        "expected": "正在整理客户日报",
+        "viewport": 1440,
+        "elementAtBody": "CANVAS"
+      },
+      "pass": true
+    },
+    {
+      "id": "short-hover-1440-actual-bubble-fully-visible",
+      "expected": "The complete bubble and every actual glyph stay inside the visible Canvas, scroll region and browser viewport intersection",
+      "actual": {
+        "text": "正在整理客户日报",
+        "width": 134,
+        "height": 29,
+        "rows": [
+          8
+        ],
+        "rect": {
+          "left": 507.19293212890625,
+          "top": 195.40943908691406,
+          "right": 641.1929321289062,
+          "bottom": 224.40943908691406
+        },
+        "visible": {
+          "left": 336,
+          "top": 16,
+          "right": 1104,
+          "bottom": 456
+        },
+        "glyphs": [
+          {
+            "left": 518.1929321289062,
+            "top": 199.40943908691406,
+            "right": 532.1929321289062,
+            "bottom": 219.40943908691406
+          },
+          {
+            "left": 532.1929321289062,
+            "top": 199.40943908691406,
+            "right": 546.1929321289062,
+            "bottom": 219.40943908691406
+          },
+          {
+            "left": 546.1929321289062,
+            "top": 199.40943908691406,
+            "right": 560.1929321289062,
+            "bottom": 219.40943908691406
+          },
+          {
+            "left": 560.1929321289062,
+            "top": 199.40943908691406,
+            "right": 574.1929321289062,
+            "bottom": 219.40943908691406
+          },
+          {
+            "left": 574.1929321289062,
+            "top": 199.40943908691406,
+            "right": 588.1929321289062,
+            "bottom": 219.40943908691406
+          },
+          {
+            "left": 588.1929321289062,
+            "top": 199.40943908691406,
+            "right": 602.1929321289062,
+            "bottom": 219.40943908691406
+          },
+          {
+            "left": 602.1929321289062,
+            "top": 199.40943908691406,
+            "right": 616.1929321289062,
+            "bottom": 219.40943908691406
+          },
+          {
+            "left": 616.1929321289062,
+            "top": 199.40943908691406,
+            "right": 630.1929321289062,
+            "bottom": 219.40943908691406
+          }
+        ],
+        "scrollWidth": 132,
+        "clientWidth": 132,
+        "scrollHeight": 27,
+        "clientHeight": 27,
+        "pointerEvents": "none",
+        "maxWidth": "260px",
+        "expected": "正在整理客户日报",
+        "viewport": 1440,
+        "elementAtBody": "CANVAS"
+      },
+      "pass": true
+    },
+    {
+      "id": "short-hover-1440-actual-label-layout",
+      "expected": "All actual HTML plaques/role text stay separate, fully readable, visible and within the actual 3D Canvas",
+      "actual": {
+        "labels": [
+          {
+            "id": "m6-floor-01",
+            "role": "客户成功专员第1岗",
+            "card": {
+              "x": 182.2421875,
+              "y": 125.828125,
+              "width": 108.515625,
+              "height": 34.34375
+            },
+            "glyph": {
+              "x": 190.2421875,
+              "y": 127.828125,
+              "width": 92.515625,
+              "height": 16
+            },
+            "labelOverflow": {
+              "width": 0,
+              "height": 0
+            },
+            "visible": "visible",
+            "task": null,
+            "title": "客户成功专员第1岗 · 打开员工档案",
+            "clientWidth": 107,
+            "clientHeight": 32
+          }
+        ],
+        "labelCount": 1,
+        "cardOverlaps": [],
+        "glyphOverlaps": [],
+        "outside": [],
+        "canvas": {
+          "x": 336,
+          "y": 16,
+          "width": 768,
+          "height": 440
+        },
+        "region": {
+          "x": 336,
+          "y": 16,
+          "width": 768,
+          "height": 440,
+          "scrollLeft": 0,
+          "scrollTop": 0
+        },
+        "viewportHorizontalOverflow": 0,
+        "computedCSS": {
+          "bodyFont": "\"PingFang SC\", \"Microsoft YaHei\", \"Source Han Sans SC\", system-ui, sans-serif",
+          "canvasMaxInline": "100%",
+          "ceoWhiteSpace": "nowrap",
+          "ceoFontSize": "14px",
+          "productionStyleLinkLoaded": true
+        },
+        "actors": [
+          {
+            "id": "m6-floor-01",
+            "world": [
+              -2.04,
+              0.85,
+              2.04
+            ],
+            "x": 239.31251486638033,
+            "y": 200.03282266567453,
+            "ndc": [
+              -0.37679032586880123,
+              0.09075989697420672,
+              0.983601002468539
+            ]
+          }
+        ],
+        "camera": [
+          6.776387763576519,
+          7.987175174401821,
+          7.041579635175243
+        ],
+        "webgl": true
+      },
+      "pass": true
+    },
+    {
+      "id": "short-hover-1440-actual-avatar-clicks",
+      "expected": "A real mouse click at each actual registered avatar point opens the corresponding profile exactly once",
+      "actual": {
+        "expectedIds": [
+          "m6-floor-01"
+        ],
+        "observedIds": [
+          "m6-floor-01"
+        ],
+        "observations": [
+          {
+            "id": "m6-floor-01",
+            "screen": {
+              "x": 575.3109202480748,
+              "y": 216.03841404505928,
+              "scrollLeft": 0,
+              "scrollTop": 0,
+              "element": "CANVAS",
+              "elementAgent": null,
+              "elementDrop": null,
+              "beforeProfiles": 0,
+              "beforeTasks": 0
+            },
+            "callbacks": {
+              "profiles": [
+                "m6-floor-01"
+              ],
+              "tasks": []
+            }
+          }
+        ]
+      },
+      "pass": true
+    },
+    {
+      "id": "short-hover-1440-actual-plaque-clicks",
+      "expected": "A real click at every actual plaque center opens its own task or its own idle profile exactly once",
+      "actual": [
+        {
+          "id": "m6-floor-01",
+          "task": null,
+          "screen": {
+            "x": 572.5,
+            "y": 159,
+            "scrollLeft": 0,
+            "scrollTop": 0,
+            "element": "SPAN",
+            "elementAgent": "m6-floor-01",
+            "elementDrop": null,
+            "beforeProfiles": 1,
+            "beforeTasks": 0
+          },
+          "callbacks": {
+            "profiles": [
+              "m6-floor-01"
+            ],
+            "tasks": []
+          }
+        }
+      ],
+      "pass": true
+    },
+    {
+      "id": "short-hover-1440-drop-delivery-task",
+      "expected": "Browser DataTransfer/DragEvent at each actual avatar point delivers the Unicode task to that actor once",
+      "actual": {
+        "kind": "task",
+        "observations": [
+          {
+            "id": "m6-floor-01",
+            "kind": "task",
+            "payload": "中文 空格与😀独立任务 m6-floor-01",
+            "x": 575.3106475869411,
+            "y": 216.0393703220738,
+            "element": "CANVAS",
+            "elementAgent": null,
+            "elementDrop": null,
+            "delivered": [
+              {
+                "id": "m6-floor-01",
+                "task": "中文 空格与😀独立任务 m6-floor-01"
+              }
+            ],
+            "dragoverPrevented": true,
+            "dropPrevented": true,
+            "dragoverIsTrusted": false,
+            "dropIsTrusted": false
+          }
+        ],
+        "event_source": "Browser-native constructors with synthetic dispatch to actual elementFromPoint; not an OS-native drag gesture"
+      },
+      "pass": true
+    },
+    {
+      "id": "short-hover-1440-drop-delivery-empty",
+      "expected": "Empty or unrelated data type at every actual avatar point does not dispatch a task",
+      "actual": {
+        "kind": "empty",
+        "observations": [
+          {
+            "id": "m6-floor-01",
+            "kind": "empty",
+            "payload": "中文 空格与😀独立任务 m6-floor-01",
+            "x": 575.3106475869411,
+            "y": 216.0393703220738,
+            "element": "CANVAS",
+            "elementAgent": null,
+            "elementDrop": null,
+            "delivered": [],
+            "dragoverPrevented": false,
+            "dropPrevented": false,
+            "dragoverIsTrusted": false,
+            "dropIsTrusted": false
+          }
+        ],
+        "event_source": "Browser-native constructors with synthetic dispatch to actual elementFromPoint; not an OS-native drag gesture"
+      },
+      "pass": true
+    },
+    {
+      "id": "short-hover-1440-drop-delivery-other-type",
+      "expected": "Empty or unrelated data type at every actual avatar point does not dispatch a task",
+      "actual": {
+        "kind": "other-type",
+        "observations": [
+          {
+            "id": "m6-floor-01",
+            "kind": "other-type",
+            "payload": "中文 空格与😀独立任务 m6-floor-01",
+            "x": 575.3106475869411,
+            "y": 216.0393703220738,
+            "element": "CANVAS",
+            "elementAgent": null,
+            "elementDrop": null,
+            "delivered": [],
+            "dragoverPrevented": false,
+            "dropPrevented": false,
+            "dragoverIsTrusted": false,
+            "dropIsTrusted": false
+          }
+        ],
+        "event_source": "Browser-native constructors with synthetic dispatch to actual elementFromPoint; not an OS-native drag gesture"
+      },
+      "pass": true
+    },
+    {
+      "id": "long-hover-1440-actual-bubble-readable",
+      "expected": "Actual real hover text uses a horizontal readable width, wraps long multilingual content, remains bounded and leaves body pointer hits available",
+      "actual": {
+        "text": "正在整理本周客户素材、核对投放授权并复核跨平台发布范围。这句话包含很长的中文说明与客户特殊素材😀，需要在窄窗口内正常换行，并且完整保留每个可核对的业务信息。",
+        "width": 260,
+        "height": 113,
+        "rows": [
+          17,
+          17,
+          17,
+          17,
+          11
+        ],
+        "rect": {
+          "left": 444.17218017578125,
+          "top": 153.48077392578125,
+          "right": 704.1721801757812,
+          "bottom": 266.48077392578125
+        },
+        "visible": {
+          "left": 336,
+          "top": 16,
+          "right": 1104,
+          "bottom": 456
+        },
+        "glyphs": [
+          {
+            "left": 455.17218017578125,
+            "top": 157.48077392578125,
+            "right": 469.17218017578125,
+            "bottom": 177.48077392578125
+          },
+          {
+            "left": 469.17218017578125,
+            "top": 157.48077392578125,
+            "right": 483.17218017578125,
+            "bottom": 177.48077392578125
+          },
+          {
+            "left": 483.17218017578125,
+            "top": 157.48077392578125,
+            "right": 497.17218017578125,
+            "bottom": 177.48077392578125
+          },
+          {
+            "left": 497.17218017578125,
+            "top": 157.48077392578125,
+            "right": 511.17218017578125,
+            "bottom": 177.48077392578125
+          },
+          {
+            "left": 511.17218017578125,
+            "top": 157.48077392578125,
+            "right": 525.1721801757812,
+            "bottom": 177.48077392578125
+          },
+          {
+            "left": 525.1721801757812,
+            "top": 157.48077392578125,
+            "right": 539.1721801757812,
+            "bottom": 177.48077392578125
+          },
+          {
+            "left": 539.1721801757812,
+            "top": 157.48077392578125,
+            "right": 553.1721801757812,
+            "bottom": 177.48077392578125
+          },
+          {
+            "left": 553.1721801757812,
+            "top": 157.48077392578125,
+            "right": 567.1721801757812,
+            "bottom": 177.48077392578125
+          },
+          {
+            "left": 567.1721801757812,
+            "top": 157.48077392578125,
+            "right": 581.1721801757812,
+            "bottom": 177.48077392578125
+          },
+          {
+            "left": 581.1721801757812,
+            "top": 157.48077392578125,
+            "right": 595.1721801757812,
+            "bottom": 177.48077392578125
+          },
+          {
+            "left": 595.1721801757812,
+            "top": 157.48077392578125,
+            "right": 609.1721801757812,
+            "bottom": 177.48077392578125
+          },
+          {
+            "left": 609.1721801757812,
+            "top": 157.48077392578125,
+            "right": 623.1721801757812,
+            "bottom": 177.48077392578125
+          },
+          {
+            "left": 623.1721801757812,
+            "top": 157.48077392578125,
+            "right": 637.1721801757812,
+            "bottom": 177.48077392578125
+          },
+          {
+            "left": 637.1721801757812,
+            "top": 157.48077392578125,
+            "right": 651.1721801757812,
+            "bottom": 177.48077392578125
+          },
+          {
+            "left": 651.1721801757812,
+            "top": 157.48077392578125,
+            "right": 665.1721801757812,
+            "bottom": 177.48077392578125
+          },
+          {
+            "left": 665.1721801757812,
+            "top": 157.48077392578125,
+            "right": 679.1721801757812,
+            "bottom": 177.48077392578125
+          },
+          {
+            "left": 679.1721801757812,
+            "top": 157.48077392578125,
+            "right": 693.1721801757812,
+            "bottom": 177.48077392578125
+          },
+          {
+            "left": 455.17218017578125,
+            "top": 178.48077392578125,
+            "right": 469.17218017578125,
+            "bottom": 198.48077392578125
+          },
+          {
+            "left": 469.17218017578125,
+            "top": 178.48077392578125,
+            "right": 483.17218017578125,
+            "bottom": 198.48077392578125
+          },
+          {
+            "left": 483.17218017578125,
+            "top": 178.48077392578125,
+            "right": 497.17218017578125,
+            "bottom": 198.48077392578125
+          },
+          {
+            "left": 497.17218017578125,
+            "top": 178.48077392578125,
+            "right": 511.17218017578125,
+            "bottom": 198.48077392578125
+          },
+          {
+            "left": 511.17218017578125,
+            "top": 178.48077392578125,
+            "right": 525.1721801757812,
+            "bottom": 198.48077392578125
+          },
+          {
+            "left": 525.1721801757812,
+            "top": 178.48077392578125,
+            "right": 539.1721801757812,
+            "bottom": 198.48077392578125
+          },
+          {
+            "left": 539.1721801757812,
+            "top": 178.48077392578125,
+            "right": 553.1721801757812,
+            "bottom": 198.48077392578125
+          },
+          {
+            "left": 553.1721801757812,
+            "top": 178.48077392578125,
+            "right": 567.1721801757812,
+            "bottom": 198.48077392578125
+          },
+          {
+            "left": 567.1721801757812,
+            "top": 178.48077392578125,
+            "right": 581.1721801757812,
+            "bottom": 198.48077392578125
+          },
+          {
+            "left": 581.1721801757812,
+            "top": 178.48077392578125,
+            "right": 595.1721801757812,
+            "bottom": 198.48077392578125
+          },
+          {
+            "left": 595.1721801757812,
+            "top": 178.48077392578125,
+            "right": 609.1721801757812,
+            "bottom": 198.48077392578125
+          },
+          {
+            "left": 609.1721801757812,
+            "top": 178.48077392578125,
+            "right": 623.1721801757812,
+            "bottom": 198.48077392578125
+          },
+          {
+            "left": 623.1721801757812,
+            "top": 178.48077392578125,
+            "right": 637.1721801757812,
+            "bottom": 198.48077392578125
+          },
+          {
+            "left": 637.1721801757812,
+            "top": 178.48077392578125,
+            "right": 651.1721801757812,
+            "bottom": 198.48077392578125
+          },
+          {
+            "left": 651.1721801757812,
+            "top": 178.48077392578125,
+            "right": 665.1721801757812,
+            "bottom": 198.48077392578125
+          },
+          {
+            "left": 665.1721801757812,
+            "top": 178.48077392578125,
+            "right": 679.1721801757812,
+            "bottom": 198.48077392578125
+          },
+          {
+            "left": 679.1721801757812,
+            "top": 178.48077392578125,
+            "right": 693.1721801757812,
+            "bottom": 198.48077392578125
+          },
+          {
+            "left": 455.17218017578125,
+            "top": 199.48077392578125,
+            "right": 469.17218017578125,
+            "bottom": 219.48077392578125
+          },
+          {
+            "left": 469.17218017578125,
+            "top": 199.48077392578125,
+            "right": 483.17218017578125,
+            "bottom": 219.48077392578125
+          },
+          {
+            "left": 483.17218017578125,
+            "top": 199.48077392578125,
+            "right": 497.17218017578125,
+            "bottom": 219.48077392578125
+          },
+          {
+            "left": 497.17218017578125,
+            "top": 199.48077392578125,
+            "right": 511.17218017578125,
+            "bottom": 219.48077392578125
+          },
+          {
+            "left": 511.17218017578125,
+            "top": 199.48077392578125,
+            "right": 525.1721801757812,
+            "bottom": 219.48077392578125
+          },
+          {
+            "left": 525.1721801757812,
+            "top": 199.48077392578125,
+            "right": 539.1721801757812,
+            "bottom": 219.48077392578125
+          },
+          {
+            "left": 539.1721801757812,
+            "top": 199.48077392578125,
+            "right": 553.1721801757812,
+            "bottom": 219.48077392578125
+          },
+          {
+            "left": 553.1721801757812,
+            "top": 199.48077392578125,
+            "right": 567.1721801757812,
+            "bottom": 219.48077392578125
+          },
+          {
+            "left": 567.1721801757812,
+            "top": 199.48077392578125,
+            "right": 581.1721801757812,
+            "bottom": 219.48077392578125
+          },
+          {
+            "left": 581.1721801757812,
+            "top": 199.48077392578125,
+            "right": 595.1721801757812,
+            "bottom": 219.48077392578125
+          },
+          {
+            "left": 595.1721801757812,
+            "top": 199.48077392578125,
+            "right": 609.1721801757812,
+            "bottom": 219.48077392578125
+          },
+          {
+            "left": 609.1721801757812,
+            "top": 199.48077392578125,
+            "right": 623.1721801757812,
+            "bottom": 219.48077392578125
+          },
+          {
+            "left": 623.1721801757812,
+            "top": 199.48077392578125,
+            "right": 637.1721801757812,
+            "bottom": 219.48077392578125
+          },
+          {
+            "left": 637.1721801757812,
+            "top": 199.48077392578125,
+            "right": 655.1721801757812,
+            "bottom": 219.48077392578125
+          },
+          {
+            "left": 637.1721801757812,
+            "top": 199.48077392578125,
+            "right": 655.1721801757812,
+            "bottom": 219.48077392578125
+          },
+          {
+            "left": 655.1721801757812,
+            "top": 199.48077392578125,
+            "right": 669.1721801757812,
+            "bottom": 219.48077392578125
+          },
+          {
+            "left": 669.1721801757812,
+            "top": 199.48077392578125,
+            "right": 683.1721801757812,
+            "bottom": 219.48077392578125
+          },
+          {
+            "left": 455.17218017578125,
+            "top": 220.48077392578125,
+            "right": 469.17218017578125,
+            "bottom": 240.48077392578125
+          },
+          {
+            "left": 469.17218017578125,
+            "top": 220.48077392578125,
+            "right": 483.17218017578125,
+            "bottom": 240.48077392578125
+          },
+          {
+            "left": 483.17218017578125,
+            "top": 220.48077392578125,
+            "right": 497.17218017578125,
+            "bottom": 240.48077392578125
+          },
+          {
+            "left": 497.17218017578125,
+            "top": 220.48077392578125,
+            "right": 511.17218017578125,
+            "bottom": 240.48077392578125
+          },
+          {
+            "left": 511.17218017578125,
+            "top": 220.48077392578125,
+            "right": 525.1721801757812,
+            "bottom": 240.48077392578125
+          },
+          {
+            "left": 525.1721801757812,
+            "top": 220.48077392578125,
+            "right": 539.1721801757812,
+            "bottom": 240.48077392578125
+          },
+          {
+            "left": 539.1721801757812,
+            "top": 220.48077392578125,
+            "right": 553.1721801757812,
+            "bottom": 240.48077392578125
+          },
+          {
+            "left": 553.1721801757812,
+            "top": 220.48077392578125,
+            "right": 567.1721801757812,
+            "bottom": 240.48077392578125
+          },
+          {
+            "left": 567.1721801757812,
+            "top": 220.48077392578125,
+            "right": 581.1721801757812,
+            "bottom": 240.48077392578125
+          },
+          {
+            "left": 581.1721801757812,
+            "top": 220.48077392578125,
+            "right": 595.1721801757812,
+            "bottom": 240.48077392578125
+          },
+          {
+            "left": 595.1721801757812,
+            "top": 220.48077392578125,
+            "right": 609.1721801757812,
+            "bottom": 240.48077392578125
+          },
+          {
+            "left": 609.1721801757812,
+            "top": 220.48077392578125,
+            "right": 623.1721801757812,
+            "bottom": 240.48077392578125
+          },
+          {
+            "left": 623.1721801757812,
+            "top": 220.48077392578125,
+            "right": 637.1721801757812,
+            "bottom": 240.48077392578125
+          },
+          {
+            "left": 637.1721801757812,
+            "top": 220.48077392578125,
+            "right": 651.1721801757812,
+            "bottom": 240.48077392578125
+          },
+          {
+            "left": 651.1721801757812,
+            "top": 220.48077392578125,
+            "right": 665.1721801757812,
+            "bottom": 240.48077392578125
+          },
+          {
+            "left": 665.1721801757812,
+            "top": 220.48077392578125,
+            "right": 679.1721801757812,
+            "bottom": 240.48077392578125
+          },
+          {
+            "left": 679.1721801757812,
+            "top": 220.48077392578125,
+            "right": 693.1721801757812,
+            "bottom": 240.48077392578125
+          },
+          {
+            "left": 455.17218017578125,
+            "top": 241.48077392578125,
+            "right": 469.17218017578125,
+            "bottom": 261.48077392578125
+          },
+          {
+            "left": 469.17218017578125,
+            "top": 241.48077392578125,
+            "right": 483.17218017578125,
+            "bottom": 261.48077392578125
+          },
+          {
+            "left": 483.17218017578125,
+            "top": 241.48077392578125,
+            "right": 497.17218017578125,
+            "bottom": 261.48077392578125
+          },
+          {
+            "left": 497.17218017578125,
+            "top": 241.48077392578125,
+            "right": 511.17218017578125,
+            "bottom": 261.48077392578125
+          },
+          {
+            "left": 511.17218017578125,
+            "top": 241.48077392578125,
+            "right": 525.1721801757812,
+            "bottom": 261.48077392578125
+          },
+          {
+            "left": 525.1721801757812,
+            "top": 241.48077392578125,
+            "right": 539.1721801757812,
+            "bottom": 261.48077392578125
+          },
+          {
+            "left": 539.1721801757812,
+            "top": 241.48077392578125,
+            "right": 553.1721801757812,
+            "bottom": 261.48077392578125
+          },
+          {
+            "left": 553.1721801757812,
+            "top": 241.48077392578125,
+            "right": 567.1721801757812,
+            "bottom": 261.48077392578125
+          },
+          {
+            "left": 567.1721801757812,
+            "top": 241.48077392578125,
+            "right": 581.1721801757812,
+            "bottom": 261.48077392578125
+          },
+          {
+            "left": 581.1721801757812,
+            "top": 241.48077392578125,
+            "right": 595.1721801757812,
+            "bottom": 261.48077392578125
+          },
+          {
+            "left": 595.1721801757812,
+            "top": 241.48077392578125,
+            "right": 609.1721801757812,
+            "bottom": 261.48077392578125
+          }
+        ],
+        "scrollWidth": 258,
+        "clientWidth": 258,
+        "scrollHeight": 111,
+        "clientHeight": 111,
+        "pointerEvents": "none",
+        "maxWidth": "260px",
+        "expected": "正在整理本周客户素材、核对投放授权并复核跨平台发布范围。这句话包含很长的中文说明与客户特殊素材😀，需要在窄窗口内正常换行，并且完整保留每个可核对的业务信息。",
+        "viewport": 1440,
+        "elementAtBody": "CANVAS"
+      },
+      "pass": true
+    },
+    {
+      "id": "long-hover-1440-actual-bubble-fully-visible",
+      "expected": "The complete bubble and every actual glyph stay inside the visible Canvas, scroll region and browser viewport intersection",
+      "actual": {
+        "text": "正在整理本周客户素材、核对投放授权并复核跨平台发布范围。这句话包含很长的中文说明与客户特殊素材😀，需要在窄窗口内正常换行，并且完整保留每个可核对的业务信息。",
+        "width": 260,
+        "height": 113,
+        "rows": [
+          17,
+          17,
+          17,
+          17,
+          11
+        ],
+        "rect": {
+          "left": 444.17218017578125,
+          "top": 153.48077392578125,
+          "right": 704.1721801757812,
+          "bottom": 266.48077392578125
+        },
+        "visible": {
+          "left": 336,
+          "top": 16,
+          "right": 1104,
+          "bottom": 456
+        },
+        "glyphs": [
+          {
+            "left": 455.17218017578125,
+            "top": 157.48077392578125,
+            "right": 469.17218017578125,
+            "bottom": 177.48077392578125
+          },
+          {
+            "left": 469.17218017578125,
+            "top": 157.48077392578125,
+            "right": 483.17218017578125,
+            "bottom": 177.48077392578125
+          },
+          {
+            "left": 483.17218017578125,
+            "top": 157.48077392578125,
+            "right": 497.17218017578125,
+            "bottom": 177.48077392578125
+          },
+          {
+            "left": 497.17218017578125,
+            "top": 157.48077392578125,
+            "right": 511.17218017578125,
+            "bottom": 177.48077392578125
+          },
+          {
+            "left": 511.17218017578125,
+            "top": 157.48077392578125,
+            "right": 525.1721801757812,
+            "bottom": 177.48077392578125
+          },
+          {
+            "left": 525.1721801757812,
+            "top": 157.48077392578125,
+            "right": 539.1721801757812,
+            "bottom": 177.48077392578125
+          },
+          {
+            "left": 539.1721801757812,
+            "top": 157.48077392578125,
+            "right": 553.1721801757812,
+            "bottom": 177.48077392578125
+          },
+          {
+            "left": 553.1721801757812,
+            "top": 157.48077392578125,
+            "right": 567.1721801757812,
+            "bottom": 177.48077392578125
+          },
+          {
+            "left": 567.1721801757812,
+            "top": 157.48077392578125,
+            "right": 581.1721801757812,
+            "bottom": 177.48077392578125
+          },
+          {
+            "left": 581.1721801757812,
+            "top": 157.48077392578125,
+            "right": 595.1721801757812,
+            "bottom": 177.48077392578125
+          },
+          {
+            "left": 595.1721801757812,
+            "top": 157.48077392578125,
+            "right": 609.1721801757812,
+            "bottom": 177.48077392578125
+          },
+          {
+            "left": 609.1721801757812,
+            "top": 157.48077392578125,
+            "right": 623.1721801757812,
+            "bottom": 177.48077392578125
+          },
+          {
+            "left": 623.1721801757812,
+            "top": 157.48077392578125,
+            "right": 637.1721801757812,
+            "bottom": 177.48077392578125
+          },
+          {
+            "left": 637.1721801757812,
+            "top": 157.48077392578125,
+            "right": 651.1721801757812,
+            "bottom": 177.48077392578125
+          },
+          {
+            "left": 651.1721801757812,
+            "top": 157.48077392578125,
+            "right": 665.1721801757812,
+            "bottom": 177.48077392578125
+          },
+          {
+            "left": 665.1721801757812,
+            "top": 157.48077392578125,
+            "right": 679.1721801757812,
+            "bottom": 177.48077392578125
+          },
+          {
+            "left": 679.1721801757812,
+            "top": 157.48077392578125,
+            "right": 693.1721801757812,
+            "bottom": 177.48077392578125
+          },
+          {
+            "left": 455.17218017578125,
+            "top": 178.48077392578125,
+            "right": 469.17218017578125,
+            "bottom": 198.48077392578125
+          },
+          {
+            "left": 469.17218017578125,
+            "top": 178.48077392578125,
+            "right": 483.17218017578125,
+            "bottom": 198.48077392578125
+          },
+          {
+            "left": 483.17218017578125,
+            "top": 178.48077392578125,
+            "right": 497.17218017578125,
+            "bottom": 198.48077392578125
+          },
+          {
+            "left": 497.17218017578125,
+            "top": 178.48077392578125,
+            "right": 511.17218017578125,
+            "bottom": 198.48077392578125
+          },
+          {
+            "left": 511.17218017578125,
+            "top": 178.48077392578125,
+            "right": 525.1721801757812,
+            "bottom": 198.48077392578125
+          },
+          {
+            "left": 525.1721801757812,
+            "top": 178.48077392578125,
+            "right": 539.1721801757812,
+            "bottom": 198.48077392578125
+          },
+          {
+            "left": 539.1721801757812,
+            "top": 178.48077392578125,
+            "right": 553.1721801757812,
+            "bottom": 198.48077392578125
+          },
+          {
+            "left": 553.1721801757812,
+            "top": 178.48077392578125,
+            "right": 567.1721801757812,
+            "bottom": 198.48077392578125
+          },
+          {
+            "left": 567.1721801757812,
+            "top": 178.48077392578125,
+            "right": 581.1721801757812,
+            "bottom": 198.48077392578125
+          },
+          {
+            "left": 581.1721801757812,
+            "top": 178.48077392578125,
+            "right": 595.1721801757812,
+            "bottom": 198.48077392578125
+          },
+          {
+            "left": 595.1721801757812,
+            "top": 178.48077392578125,
+            "right": 609.1721801757812,
+            "bottom": 198.48077392578125
+          },
+          {
+            "left": 609.1721801757812,
+            "top": 178.48077392578125,
+            "right": 623.1721801757812,
+            "bottom": 198.48077392578125
+          },
+          {
+            "left": 623.1721801757812,
+            "top": 178.48077392578125,
+            "right": 637.1721801757812,
+            "bottom": 198.48077392578125
+          },
+          {
+            "left": 637.1721801757812,
+            "top": 178.48077392578125,
+            "right": 651.1721801757812,
+            "bottom": 198.48077392578125
+          },
+          {
+            "left": 651.1721801757812,
+            "top": 178.48077392578125,
+            "right": 665.1721801757812,
+            "bottom": 198.48077392578125
+          },
+          {
+            "left": 665.1721801757812,
+            "top": 178.48077392578125,
+            "right": 679.1721801757812,
+            "bottom": 198.48077392578125
+          },
+          {
+            "left": 679.1721801757812,
+            "top": 178.48077392578125,
+            "right": 693.1721801757812,
+            "bottom": 198.48077392578125
+          },
+          {
+            "left": 455.17218017578125,
+            "top": 199.48077392578125,
+            "right": 469.17218017578125,
+            "bottom": 219.48077392578125
+          },
+          {
+            "left": 469.17218017578125,
+            "top": 199.48077392578125,
+            "right": 483.17218017578125,
+            "bottom": 219.48077392578125
+          },
+          {
+            "left": 483.17218017578125,
+            "top": 199.48077392578125,
+            "right": 497.17218017578125,
+            "bottom": 219.48077392578125
+          },
+          {
+            "left": 497.17218017578125,
+            "top": 199.48077392578125,
+            "right": 511.17218017578125,
+            "bottom": 219.48077392578125
+          },
+          {
+            "left": 511.17218017578125,
+            "top": 199.48077392578125,
+            "right": 525.1721801757812,
+            "bottom": 219.48077392578125
+          },
+          {
+            "left": 525.1721801757812,
+            "top": 199.48077392578125,
+            "right": 539.1721801757812,
+            "bottom": 219.48077392578125
+          },
+          {
+            "left": 539.1721801757812,
+            "top": 199.48077392578125,
+            "right": 553.1721801757812,
+            "bottom": 219.48077392578125
+          },
+          {
+            "left": 553.1721801757812,
+            "top": 199.48077392578125,
+            "right": 567.1721801757812,
+            "bottom": 219.48077392578125
+          },
+          {
+            "left": 567.1721801757812,
+            "top": 199.48077392578125,
+            "right": 581.1721801757812,
+            "bottom": 219.48077392578125
+          },
+          {
+            "left": 581.1721801757812,
+            "top": 199.48077392578125,
+            "right": 595.1721801757812,
+            "bottom": 219.48077392578125
+          },
+          {
+            "left": 595.1721801757812,
+            "top": 199.48077392578125,
+            "right": 609.1721801757812,
+            "bottom": 219.48077392578125
+          },
+          {
+            "left": 609.1721801757812,
+            "top": 199.48077392578125,
+            "right": 623.1721801757812,
+            "bottom": 219.48077392578125
+          },
+          {
+            "left": 623.1721801757812,
+            "top": 199.48077392578125,
+            "right": 637.1721801757812,
+            "bottom": 219.48077392578125
+          },
+          {
+            "left": 637.1721801757812,
+            "top": 199.48077392578125,
+            "right": 655.1721801757812,
+            "bottom": 219.48077392578125
+          },
+          {
+            "left": 637.1721801757812,
+            "top": 199.48077392578125,
+            "right": 655.1721801757812,
+            "bottom": 219.48077392578125
+          },
+          {
+            "left": 655.1721801757812,
+            "top": 199.48077392578125,
+            "right": 669.1721801757812,
+            "bottom": 219.48077392578125
+          },
+          {
+            "left": 669.1721801757812,
+            "top": 199.48077392578125,
+            "right": 683.1721801757812,
+            "bottom": 219.48077392578125
+          },
+          {
+            "left": 455.17218017578125,
+            "top": 220.48077392578125,
+            "right": 469.17218017578125,
+            "bottom": 240.48077392578125
+          },
+          {
+            "left": 469.17218017578125,
+            "top": 220.48077392578125,
+            "right": 483.17218017578125,
+            "bottom": 240.48077392578125
+          },
+          {
+            "left": 483.17218017578125,
+            "top": 220.48077392578125,
+            "right": 497.17218017578125,
+            "bottom": 240.48077392578125
+          },
+          {
+            "left": 497.17218017578125,
+            "top": 220.48077392578125,
+            "right": 511.17218017578125,
+            "bottom": 240.48077392578125
+          },
+          {
+            "left": 511.17218017578125,
+            "top": 220.48077392578125,
+            "right": 525.1721801757812,
+            "bottom": 240.48077392578125
+          },
+          {
+            "left": 525.1721801757812,
+            "top": 220.48077392578125,
+            "right": 539.1721801757812,
+            "bottom": 240.48077392578125
+          },
+          {
+            "left": 539.1721801757812,
+            "top": 220.48077392578125,
+            "right": 553.1721801757812,
+            "bottom": 240.48077392578125
+          },
+          {
+            "left": 553.1721801757812,
+            "top": 220.48077392578125,
+            "right": 567.1721801757812,
+            "bottom": 240.48077392578125
+          },
+          {
+            "left": 567.1721801757812,
+            "top": 220.48077392578125,
+            "right": 581.1721801757812,
+            "bottom": 240.48077392578125
+          },
+          {
+            "left": 581.1721801757812,
+            "top": 220.48077392578125,
+            "right": 595.1721801757812,
+            "bottom": 240.48077392578125
+          },
+          {
+            "left": 595.1721801757812,
+            "top": 220.48077392578125,
+            "right": 609.1721801757812,
+            "bottom": 240.48077392578125
+          },
+          {
+            "left": 609.1721801757812,
+            "top": 220.48077392578125,
+            "right": 623.1721801757812,
+            "bottom": 240.48077392578125
+          },
+          {
+            "left": 623.1721801757812,
+            "top": 220.48077392578125,
+            "right": 637.1721801757812,
+            "bottom": 240.48077392578125
+          },
+          {
+            "left": 637.1721801757812,
+            "top": 220.48077392578125,
+            "right": 651.1721801757812,
+            "bottom": 240.48077392578125
+          },
+          {
+            "left": 651.1721801757812,
+            "top": 220.48077392578125,
+            "right": 665.1721801757812,
+            "bottom": 240.48077392578125
+          },
+          {
+            "left": 665.1721801757812,
+            "top": 220.48077392578125,
+            "right": 679.1721801757812,
+            "bottom": 240.48077392578125
+          },
+          {
+            "left": 679.1721801757812,
+            "top": 220.48077392578125,
+            "right": 693.1721801757812,
+            "bottom": 240.48077392578125
+          },
+          {
+            "left": 455.17218017578125,
+            "top": 241.48077392578125,
+            "right": 469.17218017578125,
+            "bottom": 261.48077392578125
+          },
+          {
+            "left": 469.17218017578125,
+            "top": 241.48077392578125,
+            "right": 483.17218017578125,
+            "bottom": 261.48077392578125
+          },
+          {
+            "left": 483.17218017578125,
+            "top": 241.48077392578125,
+            "right": 497.17218017578125,
+            "bottom": 261.48077392578125
+          },
+          {
+            "left": 497.17218017578125,
+            "top": 241.48077392578125,
+            "right": 511.17218017578125,
+            "bottom": 261.48077392578125
+          },
+          {
+            "left": 511.17218017578125,
+            "top": 241.48077392578125,
+            "right": 525.1721801757812,
+            "bottom": 261.48077392578125
+          },
+          {
+            "left": 525.1721801757812,
+            "top": 241.48077392578125,
+            "right": 539.1721801757812,
+            "bottom": 261.48077392578125
+          },
+          {
+            "left": 539.1721801757812,
+            "top": 241.48077392578125,
+            "right": 553.1721801757812,
+            "bottom": 261.48077392578125
+          },
+          {
+            "left": 553.1721801757812,
+            "top": 241.48077392578125,
+            "right": 567.1721801757812,
+            "bottom": 261.48077392578125
+          },
+          {
+            "left": 567.1721801757812,
+            "top": 241.48077392578125,
+            "right": 581.1721801757812,
+            "bottom": 261.48077392578125
+          },
+          {
+            "left": 581.1721801757812,
+            "top": 241.48077392578125,
+            "right": 595.1721801757812,
+            "bottom": 261.48077392578125
+          },
+          {
+            "left": 595.1721801757812,
+            "top": 241.48077392578125,
+            "right": 609.1721801757812,
+            "bottom": 261.48077392578125
+          }
+        ],
+        "scrollWidth": 258,
+        "clientWidth": 258,
+        "scrollHeight": 111,
+        "clientHeight": 111,
+        "pointerEvents": "none",
+        "maxWidth": "260px",
+        "expected": "正在整理本周客户素材、核对投放授权并复核跨平台发布范围。这句话包含很长的中文说明与客户特殊素材😀，需要在窄窗口内正常换行，并且完整保留每个可核对的业务信息。",
+        "viewport": 1440,
+        "elementAtBody": "CANVAS"
+      },
+      "pass": true
+    },
+    {
+      "id": "long-hover-1440-actual-label-layout",
+      "expected": "All actual HTML plaques/role text stay separate, fully readable, visible and within the actual 3D Canvas",
+      "actual": {
+        "labels": [
+          {
+            "id": "m6-floor-01",
+            "role": "客户成功专员第1岗",
+            "card": {
+              "x": 182.2421875,
+              "y": 125.828125,
+              "width": 108.515625,
+              "height": 34.34375
+            },
+            "glyph": {
+              "x": 190.2421875,
+              "y": 127.828125,
+              "width": 92.515625,
+              "height": 16
+            },
+            "labelOverflow": {
+              "width": 0,
+              "height": 0
+            },
+            "visible": "visible",
+            "task": null,
+            "title": "客户成功专员第1岗 · 打开员工档案",
+            "clientWidth": 107,
+            "clientHeight": 32
+          }
+        ],
+        "labelCount": 1,
+        "cardOverlaps": [],
+        "glyphOverlaps": [],
+        "outside": [],
+        "canvas": {
+          "x": 336,
+          "y": 16,
+          "width": 768,
+          "height": 440
+        },
+        "region": {
+          "x": 336,
+          "y": 16,
+          "width": 768,
+          "height": 440,
+          "scrollLeft": 0,
+          "scrollTop": 0
+        },
+        "viewportHorizontalOverflow": 0,
+        "computedCSS": {
+          "bodyFont": "\"PingFang SC\", \"Microsoft YaHei\", \"Source Han Sans SC\", system-ui, sans-serif",
+          "canvasMaxInline": "100%",
+          "ceoWhiteSpace": "nowrap",
+          "ceoFontSize": "14px",
+          "productionStyleLinkLoaded": true
+        },
+        "actors": [
+          {
+            "id": "m6-floor-01",
+            "world": [
+              -2.04,
+              0.85,
+              2.04
+            ],
+            "x": 239.292094838314,
+            "y": 200.10458764423686,
+            "ndc": [
+              -0.3768435030252239,
+              0.09043369252619618,
+              0.9835983872203381
+            ]
+          }
+        ],
+        "camera": [
+          6.770489470084877,
+          7.987175174401821,
+          7.047251039684488
+        ],
+        "webgl": true
+      },
+      "pass": true
+    },
+    {
+      "id": "long-hover-1440-actual-avatar-clicks",
+      "expected": "A real mouse click at each actual registered avatar point opens the corresponding profile exactly once",
+      "actual": {
+        "expectedIds": [
+          "m6-floor-01"
+        ],
+        "observedIds": [
+          "m6-floor-01"
+        ],
+        "observations": [
+          {
+            "id": "m6-floor-01",
+            "screen": {
+              "x": 575.2905051358671,
+              "y": 216.11018956474012,
+              "scrollLeft": 0,
+              "scrollTop": 0,
+              "element": "CANVAS",
+              "elementAgent": null,
+              "elementDrop": null,
+              "beforeProfiles": 0,
+              "beforeTasks": 0
+            },
+            "callbacks": {
+              "profiles": [
+                "m6-floor-01"
+              ],
+              "tasks": []
+            }
+          }
+        ]
+      },
+      "pass": true
+    },
+    {
+      "id": "long-hover-1440-actual-plaque-clicks",
+      "expected": "A real click at every actual plaque center opens its own task or its own idle profile exactly once",
+      "actual": [
+        {
+          "id": "m6-floor-01",
+          "task": null,
+          "screen": {
+            "x": 572.5,
+            "y": 159,
+            "scrollLeft": 0,
+            "scrollTop": 0,
+            "element": "SPAN",
+            "elementAgent": "m6-floor-01",
+            "elementDrop": null,
+            "beforeProfiles": 1,
+            "beforeTasks": 0
+          },
+          "callbacks": {
+            "profiles": [
+              "m6-floor-01"
+            ],
+            "tasks": []
+          }
+        }
+      ],
+      "pass": true
+    },
+    {
+      "id": "long-hover-1440-drop-delivery-task",
+      "expected": "Browser DataTransfer/DragEvent at each actual avatar point delivers the Unicode task to that actor once",
+      "actual": {
+        "kind": "task",
+        "observations": [
+          {
+            "id": "m6-floor-01",
+            "kind": "task",
+            "payload": "中文 空格与😀独立任务 m6-floor-01",
+            "x": 575.2905051358671,
+            "y": 216.11018956474012,
+            "element": "CANVAS",
+            "elementAgent": null,
+            "elementDrop": null,
+            "delivered": [
+              {
+                "id": "m6-floor-01",
+                "task": "中文 空格与😀独立任务 m6-floor-01"
+              }
+            ],
+            "dragoverPrevented": true,
+            "dropPrevented": true,
+            "dragoverIsTrusted": false,
+            "dropIsTrusted": false
+          }
+        ],
+        "event_source": "Browser-native constructors with synthetic dispatch to actual elementFromPoint; not an OS-native drag gesture"
+      },
+      "pass": true
+    },
+    {
+      "id": "long-hover-1440-drop-delivery-empty",
+      "expected": "Empty or unrelated data type at every actual avatar point does not dispatch a task",
+      "actual": {
+        "kind": "empty",
+        "observations": [
+          {
+            "id": "m6-floor-01",
+            "kind": "empty",
+            "payload": "中文 空格与😀独立任务 m6-floor-01",
+            "x": 575.290233315687,
+            "y": 216.1111476445631,
+            "element": "CANVAS",
+            "elementAgent": null,
+            "elementDrop": null,
+            "delivered": [],
+            "dragoverPrevented": false,
+            "dropPrevented": false,
+            "dragoverIsTrusted": false,
+            "dropIsTrusted": false
+          }
+        ],
+        "event_source": "Browser-native constructors with synthetic dispatch to actual elementFromPoint; not an OS-native drag gesture"
+      },
+      "pass": true
+    },
+    {
+      "id": "long-hover-1440-drop-delivery-other-type",
+      "expected": "Empty or unrelated data type at every actual avatar point does not dispatch a task",
+      "actual": {
+        "kind": "other-type",
+        "observations": [
+          {
+            "id": "m6-floor-01",
+            "kind": "other-type",
+            "payload": "中文 空格与😀独立任务 m6-floor-01",
+            "x": 575.290233315687,
+            "y": 216.1111476445631,
+            "element": "CANVAS",
+            "elementAgent": null,
+            "elementDrop": null,
+            "delivered": [],
+            "dragoverPrevented": false,
+            "dropPrevented": false,
+            "dragoverIsTrusted": false,
+            "dropIsTrusted": false
+          }
+        ],
+        "event_source": "Browser-native constructors with synthetic dispatch to actual elementFromPoint; not an OS-native drag gesture"
+      },
+      "pass": true
+    },
+    {
+      "id": "short-hover-390-actual-bubble-readable",
+      "expected": "Actual real hover text uses a horizontal readable width, wraps long multilingual content, remains bounded and leaves body pointer hits available",
+      "actual": {
+        "text": "正在整理客户日报",
+        "width": 134,
+        "height": 29,
+        "rows": [
+          8
+        ],
+        "rect": {
+          "left": 24,
+          "top": 195.48077392578125,
+          "right": 158,
+          "bottom": 224.48077392578125
+        },
+        "visible": {
+          "left": 16,
+          "top": 16,
+          "right": 374,
+          "bottom": 456
+        },
+        "glyphs": [
+          {
+            "left": 35,
+            "top": 199.48077392578125,
+            "right": 49,
+            "bottom": 219.48077392578125
+          },
+          {
+            "left": 49,
+            "top": 199.48077392578125,
+            "right": 63,
+            "bottom": 219.48077392578125
+          },
+          {
+            "left": 63,
+            "top": 199.48077392578125,
+            "right": 77,
+            "bottom": 219.48077392578125
+          },
+          {
+            "left": 77,
+            "top": 199.48077392578125,
+            "right": 91,
+            "bottom": 219.48077392578125
+          },
+          {
+            "left": 91,
+            "top": 199.48077392578125,
+            "right": 105,
+            "bottom": 219.48077392578125
+          },
+          {
+            "left": 105,
+            "top": 199.48077392578125,
+            "right": 119,
+            "bottom": 219.48077392578125
+          },
+          {
+            "left": 119,
+            "top": 199.48077392578125,
+            "right": 133,
+            "bottom": 219.48077392578125
+          },
+          {
+            "left": 133,
+            "top": 199.48077392578125,
+            "right": 147,
+            "bottom": 219.48077392578125
+          }
+        ],
+        "scrollWidth": 132,
+        "clientWidth": 132,
+        "scrollHeight": 27,
+        "clientHeight": 27,
+        "pointerEvents": "none",
+        "maxWidth": "260px",
+        "expected": "正在整理客户日报",
+        "viewport": 390,
+        "elementAtBody": "CANVAS"
+      },
+      "pass": true
+    },
+    {
+      "id": "short-hover-390-actual-bubble-fully-visible",
+      "expected": "The complete bubble and every actual glyph stay inside the visible Canvas, scroll region and browser viewport intersection",
+      "actual": {
+        "text": "正在整理客户日报",
+        "width": 134,
+        "height": 29,
+        "rows": [
+          8
+        ],
+        "rect": {
+          "left": 24,
+          "top": 195.48077392578125,
+          "right": 158,
+          "bottom": 224.48077392578125
+        },
+        "visible": {
+          "left": 16,
+          "top": 16,
+          "right": 374,
+          "bottom": 456
+        },
+        "glyphs": [
+          {
+            "left": 35,
+            "top": 199.48077392578125,
+            "right": 49,
+            "bottom": 219.48077392578125
+          },
+          {
+            "left": 49,
+            "top": 199.48077392578125,
+            "right": 63,
+            "bottom": 219.48077392578125
+          },
+          {
+            "left": 63,
+            "top": 199.48077392578125,
+            "right": 77,
+            "bottom": 219.48077392578125
+          },
+          {
+            "left": 77,
+            "top": 199.48077392578125,
+            "right": 91,
+            "bottom": 219.48077392578125
+          },
+          {
+            "left": 91,
+            "top": 199.48077392578125,
+            "right": 105,
+            "bottom": 219.48077392578125
+          },
+          {
+            "left": 105,
+            "top": 199.48077392578125,
+            "right": 119,
+            "bottom": 219.48077392578125
+          },
+          {
+            "left": 119,
+            "top": 199.48077392578125,
+            "right": 133,
+            "bottom": 219.48077392578125
+          },
+          {
+            "left": 133,
+            "top": 199.48077392578125,
+            "right": 147,
+            "bottom": 219.48077392578125
+          }
+        ],
+        "scrollWidth": 132,
+        "clientWidth": 132,
+        "scrollHeight": 27,
+        "clientHeight": 27,
+        "pointerEvents": "none",
+        "maxWidth": "260px",
+        "expected": "正在整理客户日报",
+        "viewport": 390,
+        "elementAtBody": "CANVAS"
+      },
+      "pass": true
+    },
+    {
+      "id": "short-hover-390-actual-label-layout",
+      "expected": "All actual HTML plaques/role text stay separate, fully readable, visible and within the actual 3D Canvas",
+      "actual": {
+        "labels": [
+          {
+            "id": "m6-floor-01",
+            "role": "客户成功专员第1岗",
+            "card": {
+              "x": 14.2421875,
+              "y": 125.828125,
+              "width": 108.515625,
+              "height": 34.34375
+            },
+            "glyph": {
+              "x": 22.2421875,
+              "y": 127.828125,
+              "width": 92.515625,
+              "height": 16
+            },
+            "labelOverflow": {
+              "width": 0,
+              "height": 0
+            },
+            "visible": "visible",
+            "task": null,
+            "title": "客户成功专员第1岗 · 打开员工档案",
+            "clientWidth": 107,
+            "clientHeight": 32
+          }
+        ],
+        "labelCount": 1,
+        "cardOverlaps": [],
+        "glyphOverlaps": [],
+        "outside": [],
+        "canvas": {
+          "x": 16,
+          "y": 16,
+          "width": 440,
+          "height": 440
+        },
+        "region": {
+          "x": 16,
+          "y": 16,
+          "width": 358,
+          "height": 440,
+          "scrollLeft": 0,
+          "scrollTop": 0
+        },
+        "viewportHorizontalOverflow": 0,
+        "computedCSS": {
+          "bodyFont": "\"PingFang SC\", \"Microsoft YaHei\", \"Source Han Sans SC\", system-ui, sans-serif",
+          "canvasMaxInline": "100%",
+          "ceoWhiteSpace": "nowrap",
+          "ceoFontSize": "14px",
+          "productionStyleLinkLoaded": true
+        },
+        "actors": [
+          {
+            "id": "m6-floor-01",
+            "world": [
+              -2.04,
+              0.85,
+              2.04
+            ],
+            "x": 75.29285422212816,
+            "y": 200.10191243547658,
+            "ndc": [
+              -0.6577597535357811,
+              0.09044585256601559,
+              0.98359848470988
+            ]
+          }
+        ],
+        "camera": [
+          6.770709396469779,
+          7.987175174401821,
+          7.047039743709419
+        ],
+        "webgl": true
+      },
+      "pass": true
+    },
+    {
+      "id": "short-hover-390-actual-avatar-clicks",
+      "expected": "A real mouse click at each actual registered avatar point opens the corresponding profile exactly once",
+      "actual": {
+        "expectedIds": [
+          "m6-floor-01"
+        ],
+        "observedIds": [
+          "m6-floor-01"
+        ],
+        "observations": [
+          {
+            "id": "m6-floor-01",
+            "screen": {
+              "x": 91.29174342477702,
+              "y": 216.105825795797,
+              "scrollLeft": 0,
+              "scrollTop": 0,
+              "element": "CANVAS",
+              "elementAgent": null,
+              "elementDrop": null,
+              "beforeProfiles": 0,
+              "beforeTasks": 0
+            },
+            "callbacks": {
+              "profiles": [
+                "m6-floor-01"
+              ],
+              "tasks": []
+            }
+          }
+        ]
+      },
+      "pass": true
+    },
+    {
+      "id": "short-hover-390-actual-plaque-clicks",
+      "expected": "A real click at every actual plaque center opens its own task or its own idle profile exactly once",
+      "actual": [
+        {
+          "id": "m6-floor-01",
+          "task": null,
+          "screen": {
+            "x": 84.5,
+            "y": 159,
+            "scrollLeft": 0,
+            "scrollTop": 0,
+            "element": "SPAN",
+            "elementAgent": "m6-floor-01",
+            "elementDrop": null,
+            "beforeProfiles": 1,
+            "beforeTasks": 0
+          },
+          "callbacks": {
+            "profiles": [
+              "m6-floor-01"
+            ],
+            "tasks": []
+          }
+        }
+      ],
+      "pass": true
+    },
+    {
+      "id": "short-hover-390-drop-delivery-task",
+      "expected": "Browser DataTransfer/DragEvent at each actual avatar point delivers the Unicode task to that actor once",
+      "actual": {
+        "kind": "task",
+        "observations": [
+          {
+            "id": "m6-floor-01",
+            "kind": "task",
+            "payload": "中文 空格与😀独立任务 m6-floor-01",
+            "x": 91.29140960821529,
+            "y": 216.10700204568118,
+            "element": "CANVAS",
+            "elementAgent": null,
+            "elementDrop": null,
+            "delivered": [
+              {
+                "id": "m6-floor-01",
+                "task": "中文 空格与😀独立任务 m6-floor-01"
+              }
+            ],
+            "dragoverPrevented": true,
+            "dropPrevented": true,
+            "dragoverIsTrusted": false,
+            "dropIsTrusted": false
+          }
+        ],
+        "event_source": "Browser-native constructors with synthetic dispatch to actual elementFromPoint; not an OS-native drag gesture"
+      },
+      "pass": true
+    },
+    {
+      "id": "short-hover-390-drop-delivery-empty",
+      "expected": "Empty or unrelated data type at every actual avatar point does not dispatch a task",
+      "actual": {
+        "kind": "empty",
+        "observations": [
+          {
+            "id": "m6-floor-01",
+            "kind": "empty",
+            "payload": "中文 空格与😀独立任务 m6-floor-01",
+            "x": 91.29140960821529,
+            "y": 216.10700204568118,
+            "element": "CANVAS",
+            "elementAgent": null,
+            "elementDrop": null,
+            "delivered": [],
+            "dragoverPrevented": false,
+            "dropPrevented": false,
+            "dragoverIsTrusted": false,
+            "dropIsTrusted": false
+          }
+        ],
+        "event_source": "Browser-native constructors with synthetic dispatch to actual elementFromPoint; not an OS-native drag gesture"
+      },
+      "pass": true
+    },
+    {
+      "id": "short-hover-390-drop-delivery-other-type",
+      "expected": "Empty or unrelated data type at every actual avatar point does not dispatch a task",
+      "actual": {
+        "kind": "other-type",
+        "observations": [
+          {
+            "id": "m6-floor-01",
+            "kind": "other-type",
+            "payload": "中文 空格与😀独立任务 m6-floor-01",
+            "x": 91.29140960821529,
+            "y": 216.10700204568118,
+            "element": "CANVAS",
+            "elementAgent": null,
+            "elementDrop": null,
+            "delivered": [],
+            "dragoverPrevented": false,
+            "dropPrevented": false,
+            "dragoverIsTrusted": false,
+            "dropIsTrusted": false
+          }
+        ],
+        "event_source": "Browser-native constructors with synthetic dispatch to actual elementFromPoint; not an OS-native drag gesture"
+      },
+      "pass": true
+    },
+    {
+      "id": "long-hover-390-actual-bubble-readable",
+      "expected": "Actual real hover text uses a horizontal readable width, wraps long multilingual content, remains bounded and leaves body pointer hits available",
+      "actual": {
+        "text": "正在整理本周客户素材、核对投放授权并复核跨平台发布范围。这句话包含很长的中文说明与客户特殊素材😀，需要在窄窗口内正常换行，并且完整保留每个可核对的业务信息。",
+        "width": 260,
+        "height": 113,
+        "rows": [
+          17,
+          17,
+          17,
+          17,
+          11
+        ],
+        "rect": {
+          "left": 24,
+          "top": 153.45932006835938,
+          "right": 284,
+          "bottom": 266.4593200683594
+        },
+        "visible": {
+          "left": 16,
+          "top": 16,
+          "right": 374,
+          "bottom": 456
+        },
+        "glyphs": [
+          {
+            "left": 35,
+            "top": 157.45932006835938,
+            "right": 49,
+            "bottom": 177.45932006835938
+          },
+          {
+            "left": 49,
+            "top": 157.45932006835938,
+            "right": 63,
+            "bottom": 177.45932006835938
+          },
+          {
+            "left": 63,
+            "top": 157.45932006835938,
+            "right": 77,
+            "bottom": 177.45932006835938
+          },
+          {
+            "left": 77,
+            "top": 157.45932006835938,
+            "right": 91,
+            "bottom": 177.45932006835938
+          },
+          {
+            "left": 91,
+            "top": 157.45932006835938,
+            "right": 105,
+            "bottom": 177.45932006835938
+          },
+          {
+            "left": 105,
+            "top": 157.45932006835938,
+            "right": 119,
+            "bottom": 177.45932006835938
+          },
+          {
+            "left": 119,
+            "top": 157.45932006835938,
+            "right": 133,
+            "bottom": 177.45932006835938
+          },
+          {
+            "left": 133,
+            "top": 157.45932006835938,
+            "right": 147,
+            "bottom": 177.45932006835938
+          },
+          {
+            "left": 147,
+            "top": 157.45932006835938,
+            "right": 161,
+            "bottom": 177.45932006835938
+          },
+          {
+            "left": 161,
+            "top": 157.45932006835938,
+            "right": 175,
+            "bottom": 177.45932006835938
+          },
+          {
+            "left": 175,
+            "top": 157.45932006835938,
+            "right": 189,
+            "bottom": 177.45932006835938
+          },
+          {
+            "left": 189,
+            "top": 157.45932006835938,
+            "right": 203,
+            "bottom": 177.45932006835938
+          },
+          {
+            "left": 203,
+            "top": 157.45932006835938,
+            "right": 217,
+            "bottom": 177.45932006835938
+          },
+          {
+            "left": 217,
+            "top": 157.45932006835938,
+            "right": 231,
+            "bottom": 177.45932006835938
+          },
+          {
+            "left": 231,
+            "top": 157.45932006835938,
+            "right": 245,
+            "bottom": 177.45932006835938
+          },
+          {
+            "left": 245,
+            "top": 157.45932006835938,
+            "right": 259,
+            "bottom": 177.45932006835938
+          },
+          {
+            "left": 259,
+            "top": 157.45932006835938,
+            "right": 273,
+            "bottom": 177.45932006835938
+          },
+          {
+            "left": 35,
+            "top": 178.45932006835938,
+            "right": 49,
+            "bottom": 198.45932006835938
+          },
+          {
+            "left": 49,
+            "top": 178.45932006835938,
+            "right": 63,
+            "bottom": 198.45932006835938
+          },
+          {
+            "left": 63,
+            "top": 178.45932006835938,
+            "right": 77,
+            "bottom": 198.45932006835938
+          },
+          {
+            "left": 77,
+            "top": 178.45932006835938,
+            "right": 91,
+            "bottom": 198.45932006835938
+          },
+          {
+            "left": 91,
+            "top": 178.45932006835938,
+            "right": 105,
+            "bottom": 198.45932006835938
+          },
+          {
+            "left": 105,
+            "top": 178.45932006835938,
+            "right": 119,
+            "bottom": 198.45932006835938
+          },
+          {
+            "left": 119,
+            "top": 178.45932006835938,
+            "right": 133,
+            "bottom": 198.45932006835938
+          },
+          {
+            "left": 133,
+            "top": 178.45932006835938,
+            "right": 147,
+            "bottom": 198.45932006835938
+          },
+          {
+            "left": 147,
+            "top": 178.45932006835938,
+            "right": 161,
+            "bottom": 198.45932006835938
+          },
+          {
+            "left": 161,
+            "top": 178.45932006835938,
+            "right": 175,
+            "bottom": 198.45932006835938
+          },
+          {
+            "left": 175,
+            "top": 178.45932006835938,
+            "right": 189,
+            "bottom": 198.45932006835938
+          },
+          {
+            "left": 189,
+            "top": 178.45932006835938,
+            "right": 203,
+            "bottom": 198.45932006835938
+          },
+          {
+            "left": 203,
+            "top": 178.45932006835938,
+            "right": 217,
+            "bottom": 198.45932006835938
+          },
+          {
+            "left": 217,
+            "top": 178.45932006835938,
+            "right": 231,
+            "bottom": 198.45932006835938
+          },
+          {
+            "left": 231,
+            "top": 178.45932006835938,
+            "right": 245,
+            "bottom": 198.45932006835938
+          },
+          {
+            "left": 245,
+            "top": 178.45932006835938,
+            "right": 259,
+            "bottom": 198.45932006835938
+          },
+          {
+            "left": 259,
+            "top": 178.45932006835938,
+            "right": 273,
+            "bottom": 198.45932006835938
+          },
+          {
+            "left": 35,
+            "top": 199.45932006835938,
+            "right": 49,
+            "bottom": 219.45932006835938
+          },
+          {
+            "left": 49,
+            "top": 199.45932006835938,
+            "right": 63,
+            "bottom": 219.45932006835938
+          },
+          {
+            "left": 63,
+            "top": 199.45932006835938,
+            "right": 77,
+            "bottom": 219.45932006835938
+          },
+          {
+            "left": 77,
+            "top": 199.45932006835938,
+            "right": 91,
+            "bottom": 219.45932006835938
+          },
+          {
+            "left": 91,
+            "top": 199.45932006835938,
+            "right": 105,
+            "bottom": 219.45932006835938
+          },
+          {
+            "left": 105,
+            "top": 199.45932006835938,
+            "right": 119,
+            "bottom": 219.45932006835938
+          },
+          {
+            "left": 119,
+            "top": 199.45932006835938,
+            "right": 133,
+            "bottom": 219.45932006835938
+          },
+          {
+            "left": 133,
+            "top": 199.45932006835938,
+            "right": 147,
+            "bottom": 219.45932006835938
+          },
+          {
+            "left": 147,
+            "top": 199.45932006835938,
+            "right": 161,
+            "bottom": 219.45932006835938
+          },
+          {
+            "left": 161,
+            "top": 199.45932006835938,
+            "right": 175,
+            "bottom": 219.45932006835938
+          },
+          {
+            "left": 175,
+            "top": 199.45932006835938,
+            "right": 189,
+            "bottom": 219.45932006835938
+          },
+          {
+            "left": 189,
+            "top": 199.45932006835938,
+            "right": 203,
+            "bottom": 219.45932006835938
+          },
+          {
+            "left": 203,
+            "top": 199.45932006835938,
+            "right": 217,
+            "bottom": 219.45932006835938
+          },
+          {
+            "left": 217,
+            "top": 199.45932006835938,
+            "right": 235,
+            "bottom": 219.45932006835938
+          },
+          {
+            "left": 217,
+            "top": 199.45932006835938,
+            "right": 235,
+            "bottom": 219.45932006835938
+          },
+          {
+            "left": 235,
+            "top": 199.45932006835938,
+            "right": 249,
+            "bottom": 219.45932006835938
+          },
+          {
+            "left": 249,
+            "top": 199.45932006835938,
+            "right": 263,
+            "bottom": 219.45932006835938
+          },
+          {
+            "left": 35,
+            "top": 220.45932006835938,
+            "right": 49,
+            "bottom": 240.45932006835938
+          },
+          {
+            "left": 49,
+            "top": 220.45932006835938,
+            "right": 63,
+            "bottom": 240.45932006835938
+          },
+          {
+            "left": 63,
+            "top": 220.45932006835938,
+            "right": 77,
+            "bottom": 240.45932006835938
+          },
+          {
+            "left": 77,
+            "top": 220.45932006835938,
+            "right": 91,
+            "bottom": 240.45932006835938
+          },
+          {
+            "left": 91,
+            "top": 220.45932006835938,
+            "right": 105,
+            "bottom": 240.45932006835938
+          },
+          {
+            "left": 105,
+            "top": 220.45932006835938,
+            "right": 119,
+            "bottom": 240.45932006835938
+          },
+          {
+            "left": 119,
+            "top": 220.45932006835938,
+            "right": 133,
+            "bottom": 240.45932006835938
+          },
+          {
+            "left": 133,
+            "top": 220.45932006835938,
+            "right": 147,
+            "bottom": 240.45932006835938
+          },
+          {
+            "left": 147,
+            "top": 220.45932006835938,
+            "right": 161,
+            "bottom": 240.45932006835938
+          },
+          {
+            "left": 161,
+            "top": 220.45932006835938,
+            "right": 175,
+            "bottom": 240.45932006835938
+          },
+          {
+            "left": 175,
+            "top": 220.45932006835938,
+            "right": 189,
+            "bottom": 240.45932006835938
+          },
+          {
+            "left": 189,
+            "top": 220.45932006835938,
+            "right": 203,
+            "bottom": 240.45932006835938
+          },
+          {
+            "left": 203,
+            "top": 220.45932006835938,
+            "right": 217,
+            "bottom": 240.45932006835938
+          },
+          {
+            "left": 217,
+            "top": 220.45932006835938,
+            "right": 231,
+            "bottom": 240.45932006835938
+          },
+          {
+            "left": 231,
+            "top": 220.45932006835938,
+            "right": 245,
+            "bottom": 240.45932006835938
+          },
+          {
+            "left": 245,
+            "top": 220.45932006835938,
+            "right": 259,
+            "bottom": 240.45932006835938
+          },
+          {
+            "left": 259,
+            "top": 220.45932006835938,
+            "right": 273,
+            "bottom": 240.45932006835938
+          },
+          {
+            "left": 35,
+            "top": 241.45932006835938,
+            "right": 49,
+            "bottom": 261.4593200683594
+          },
+          {
+            "left": 49,
+            "top": 241.45932006835938,
+            "right": 63,
+            "bottom": 261.4593200683594
+          },
+          {
+            "left": 63,
+            "top": 241.45932006835938,
+            "right": 77,
+            "bottom": 261.4593200683594
+          },
+          {
+            "left": 77,
+            "top": 241.45932006835938,
+            "right": 91,
+            "bottom": 261.4593200683594
+          },
+          {
+            "left": 91,
+            "top": 241.45932006835938,
+            "right": 105,
+            "bottom": 261.4593200683594
+          },
+          {
+            "left": 105,
+            "top": 241.45932006835938,
+            "right": 119,
+            "bottom": 261.4593200683594
+          },
+          {
+            "left": 119,
+            "top": 241.45932006835938,
+            "right": 133,
+            "bottom": 261.4593200683594
+          },
+          {
+            "left": 133,
+            "top": 241.45932006835938,
+            "right": 147,
+            "bottom": 261.4593200683594
+          },
+          {
+            "left": 147,
+            "top": 241.45932006835938,
+            "right": 161,
+            "bottom": 261.4593200683594
+          },
+          {
+            "left": 161,
+            "top": 241.45932006835938,
+            "right": 175,
+            "bottom": 261.4593200683594
+          },
+          {
+            "left": 175,
+            "top": 241.45932006835938,
+            "right": 189,
+            "bottom": 261.4593200683594
+          }
+        ],
+        "scrollWidth": 258,
+        "clientWidth": 258,
+        "scrollHeight": 111,
+        "clientHeight": 111,
+        "pointerEvents": "none",
+        "maxWidth": "260px",
+        "expected": "正在整理本周客户素材、核对投放授权并复核跨平台发布范围。这句话包含很长的中文说明与客户特殊素材😀，需要在窄窗口内正常换行，并且完整保留每个可核对的业务信息。",
+        "viewport": 390,
+        "elementAtBody": "CANVAS"
+      },
+      "pass": true
+    },
+    {
+      "id": "long-hover-390-actual-bubble-fully-visible",
+      "expected": "The complete bubble and every actual glyph stay inside the visible Canvas, scroll region and browser viewport intersection",
+      "actual": {
+        "text": "正在整理本周客户素材、核对投放授权并复核跨平台发布范围。这句话包含很长的中文说明与客户特殊素材😀，需要在窄窗口内正常换行，并且完整保留每个可核对的业务信息。",
+        "width": 260,
+        "height": 113,
+        "rows": [
+          17,
+          17,
+          17,
+          17,
+          11
+        ],
+        "rect": {
+          "left": 24,
+          "top": 153.45932006835938,
+          "right": 284,
+          "bottom": 266.4593200683594
+        },
+        "visible": {
+          "left": 16,
+          "top": 16,
+          "right": 374,
+          "bottom": 456
+        },
+        "glyphs": [
+          {
+            "left": 35,
+            "top": 157.45932006835938,
+            "right": 49,
+            "bottom": 177.45932006835938
+          },
+          {
+            "left": 49,
+            "top": 157.45932006835938,
+            "right": 63,
+            "bottom": 177.45932006835938
+          },
+          {
+            "left": 63,
+            "top": 157.45932006835938,
+            "right": 77,
+            "bottom": 177.45932006835938
+          },
+          {
+            "left": 77,
+            "top": 157.45932006835938,
+            "right": 91,
+            "bottom": 177.45932006835938
+          },
+          {
+            "left": 91,
+            "top": 157.45932006835938,
+            "right": 105,
+            "bottom": 177.45932006835938
+          },
+          {
+            "left": 105,
+            "top": 157.45932006835938,
+            "right": 119,
+            "bottom": 177.45932006835938
+          },
+          {
+            "left": 119,
+            "top": 157.45932006835938,
+            "right": 133,
+            "bottom": 177.45932006835938
+          },
+          {
+            "left": 133,
+            "top": 157.45932006835938,
+            "right": 147,
+            "bottom": 177.45932006835938
+          },
+          {
+            "left": 147,
+            "top": 157.45932006835938,
+            "right": 161,
+            "bottom": 177.45932006835938
+          },
+          {
+            "left": 161,
+            "top": 157.45932006835938,
+            "right": 175,
+            "bottom": 177.45932006835938
+          },
+          {
+            "left": 175,
+            "top": 157.45932006835938,
+            "right": 189,
+            "bottom": 177.45932006835938
+          },
+          {
+            "left": 189,
+            "top": 157.45932006835938,
+            "right": 203,
+            "bottom": 177.45932006835938
+          },
+          {
+            "left": 203,
+            "top": 157.45932006835938,
+            "right": 217,
+            "bottom": 177.45932006835938
+          },
+          {
+            "left": 217,
+            "top": 157.45932006835938,
+            "right": 231,
+            "bottom": 177.45932006835938
+          },
+          {
+            "left": 231,
+            "top": 157.45932006835938,
+            "right": 245,
+            "bottom": 177.45932006835938
+          },
+          {
+            "left": 245,
+            "top": 157.45932006835938,
+            "right": 259,
+            "bottom": 177.45932006835938
+          },
+          {
+            "left": 259,
+            "top": 157.45932006835938,
+            "right": 273,
+            "bottom": 177.45932006835938
+          },
+          {
+            "left": 35,
+            "top": 178.45932006835938,
+            "right": 49,
+            "bottom": 198.45932006835938
+          },
+          {
+            "left": 49,
+            "top": 178.45932006835938,
+            "right": 63,
+            "bottom": 198.45932006835938
+          },
+          {
+            "left": 63,
+            "top": 178.45932006835938,
+            "right": 77,
+            "bottom": 198.45932006835938
+          },
+          {
+            "left": 77,
+            "top": 178.45932006835938,
+            "right": 91,
+            "bottom": 198.45932006835938
+          },
+          {
+            "left": 91,
+            "top": 178.45932006835938,
+            "right": 105,
+            "bottom": 198.45932006835938
+          },
+          {
+            "left": 105,
+            "top": 178.45932006835938,
+            "right": 119,
+            "bottom": 198.45932006835938
+          },
+          {
+            "left": 119,
+            "top": 178.45932006835938,
+            "right": 133,
+            "bottom": 198.45932006835938
+          },
+          {
+            "left": 133,
+            "top": 178.45932006835938,
+            "right": 147,
+            "bottom": 198.45932006835938
+          },
+          {
+            "left": 147,
+            "top": 178.45932006835938,
+            "right": 161,
+            "bottom": 198.45932006835938
+          },
+          {
+            "left": 161,
+            "top": 178.45932006835938,
+            "right": 175,
+            "bottom": 198.45932006835938
+          },
+          {
+            "left": 175,
+            "top": 178.45932006835938,
+            "right": 189,
+            "bottom": 198.45932006835938
+          },
+          {
+            "left": 189,
+            "top": 178.45932006835938,
+            "right": 203,
+            "bottom": 198.45932006835938
+          },
+          {
+            "left": 203,
+            "top": 178.45932006835938,
+            "right": 217,
+            "bottom": 198.45932006835938
+          },
+          {
+            "left": 217,
+            "top": 178.45932006835938,
+            "right": 231,
+            "bottom": 198.45932006835938
+          },
+          {
+            "left": 231,
+            "top": 178.45932006835938,
+            "right": 245,
+            "bottom": 198.45932006835938
+          },
+          {
+            "left": 245,
+            "top": 178.45932006835938,
+            "right": 259,
+            "bottom": 198.45932006835938
+          },
+          {
+            "left": 259,
+            "top": 178.45932006835938,
+            "right": 273,
+            "bottom": 198.45932006835938
+          },
+          {
+            "left": 35,
+            "top": 199.45932006835938,
+            "right": 49,
+            "bottom": 219.45932006835938
+          },
+          {
+            "left": 49,
+            "top": 199.45932006835938,
+            "right": 63,
+            "bottom": 219.45932006835938
+          },
+          {
+            "left": 63,
+            "top": 199.45932006835938,
+            "right": 77,
+            "bottom": 219.45932006835938
+          },
+          {
+            "left": 77,
+            "top": 199.45932006835938,
+            "right": 91,
+            "bottom": 219.45932006835938
+          },
+          {
+            "left": 91,
+            "top": 199.45932006835938,
+            "right": 105,
+            "bottom": 219.45932006835938
+          },
+          {
+            "left": 105,
+            "top": 199.45932006835938,
+            "right": 119,
+            "bottom": 219.45932006835938
+          },
+          {
+            "left": 119,
+            "top": 199.45932006835938,
+            "right": 133,
+            "bottom": 219.45932006835938
+          },
+          {
+            "left": 133,
+            "top": 199.45932006835938,
+            "right": 147,
+            "bottom": 219.45932006835938
+          },
+          {
+            "left": 147,
+            "top": 199.45932006835938,
+            "right": 161,
+            "bottom": 219.45932006835938
+          },
+          {
+            "left": 161,
+            "top": 199.45932006835938,
+            "right": 175,
+            "bottom": 219.45932006835938
+          },
+          {
+            "left": 175,
+            "top": 199.45932006835938,
+            "right": 189,
+            "bottom": 219.45932006835938
+          },
+          {
+            "left": 189,
+            "top": 199.45932006835938,
+            "right": 203,
+            "bottom": 219.45932006835938
+          },
+          {
+            "left": 203,
+            "top": 199.45932006835938,
+            "right": 217,
+            "bottom": 219.45932006835938
+          },
+          {
+            "left": 217,
+            "top": 199.45932006835938,
+            "right": 235,
+            "bottom": 219.45932006835938
+          },
+          {
+            "left": 217,
+            "top": 199.45932006835938,
+            "right": 235,
+            "bottom": 219.45932006835938
+          },
+          {
+            "left": 235,
+            "top": 199.45932006835938,
+            "right": 249,
+            "bottom": 219.45932006835938
+          },
+          {
+            "left": 249,
+            "top": 199.45932006835938,
+            "right": 263,
+            "bottom": 219.45932006835938
+          },
+          {
+            "left": 35,
+            "top": 220.45932006835938,
+            "right": 49,
+            "bottom": 240.45932006835938
+          },
+          {
+            "left": 49,
+            "top": 220.45932006835938,
+            "right": 63,
+            "bottom": 240.45932006835938
+          },
+          {
+            "left": 63,
+            "top": 220.45932006835938,
+            "right": 77,
+            "bottom": 240.45932006835938
+          },
+          {
+            "left": 77,
+            "top": 220.45932006835938,
+            "right": 91,
+            "bottom": 240.45932006835938
+          },
+          {
+            "left": 91,
+            "top": 220.45932006835938,
+            "right": 105,
+            "bottom": 240.45932006835938
+          },
+          {
+            "left": 105,
+            "top": 220.45932006835938,
+            "right": 119,
+            "bottom": 240.45932006835938
+          },
+          {
+            "left": 119,
+            "top": 220.45932006835938,
+            "right": 133,
+            "bottom": 240.45932006835938
+          },
+          {
+            "left": 133,
+            "top": 220.45932006835938,
+            "right": 147,
+            "bottom": 240.45932006835938
+          },
+          {
+            "left": 147,
+            "top": 220.45932006835938,
+            "right": 161,
+            "bottom": 240.45932006835938
+          },
+          {
+            "left": 161,
+            "top": 220.45932006835938,
+            "right": 175,
+            "bottom": 240.45932006835938
+          },
+          {
+            "left": 175,
+            "top": 220.45932006835938,
+            "right": 189,
+            "bottom": 240.45932006835938
+          },
+          {
+            "left": 189,
+            "top": 220.45932006835938,
+            "right": 203,
+            "bottom": 240.45932006835938
+          },
+          {
+            "left": 203,
+            "top": 220.45932006835938,
+            "right": 217,
+            "bottom": 240.45932006835938
+          },
+          {
+            "left": 217,
+            "top": 220.45932006835938,
+            "right": 231,
+            "bottom": 240.45932006835938
+          },
+          {
+            "left": 231,
+            "top": 220.45932006835938,
+            "right": 245,
+            "bottom": 240.45932006835938
+          },
+          {
+            "left": 245,
+            "top": 220.45932006835938,
+            "right": 259,
+            "bottom": 240.45932006835938
+          },
+          {
+            "left": 259,
+            "top": 220.45932006835938,
+            "right": 273,
+            "bottom": 240.45932006835938
+          },
+          {
+            "left": 35,
+            "top": 241.45932006835938,
+            "right": 49,
+            "bottom": 261.4593200683594
+          },
+          {
+            "left": 49,
+            "top": 241.45932006835938,
+            "right": 63,
+            "bottom": 261.4593200683594
+          },
+          {
+            "left": 63,
+            "top": 241.45932006835938,
+            "right": 77,
+            "bottom": 261.4593200683594
+          },
+          {
+            "left": 77,
+            "top": 241.45932006835938,
+            "right": 91,
+            "bottom": 261.4593200683594
+          },
+          {
+            "left": 91,
+            "top": 241.45932006835938,
+            "right": 105,
+            "bottom": 261.4593200683594
+          },
+          {
+            "left": 105,
+            "top": 241.45932006835938,
+            "right": 119,
+            "bottom": 261.4593200683594
+          },
+          {
+            "left": 119,
+            "top": 241.45932006835938,
+            "right": 133,
+            "bottom": 261.4593200683594
+          },
+          {
+            "left": 133,
+            "top": 241.45932006835938,
+            "right": 147,
+            "bottom": 261.4593200683594
+          },
+          {
+            "left": 147,
+            "top": 241.45932006835938,
+            "right": 161,
+            "bottom": 261.4593200683594
+          },
+          {
+            "left": 161,
+            "top": 241.45932006835938,
+            "right": 175,
+            "bottom": 261.4593200683594
+          },
+          {
+            "left": 175,
+            "top": 241.45932006835938,
+            "right": 189,
+            "bottom": 261.4593200683594
+          }
+        ],
+        "scrollWidth": 258,
+        "clientWidth": 258,
+        "scrollHeight": 111,
+        "clientHeight": 111,
+        "pointerEvents": "none",
+        "maxWidth": "260px",
+        "expected": "正在整理本周客户素材、核对投放授权并复核跨平台发布范围。这句话包含很长的中文说明与客户特殊素材😀，需要在窄窗口内正常换行，并且完整保留每个可核对的业务信息。",
+        "viewport": 390,
+        "elementAtBody": "CANVAS"
+      },
+      "pass": true
+    },
+    {
+      "id": "long-hover-390-actual-label-layout",
+      "expected": "All actual HTML plaques/role text stay separate, fully readable, visible and within the actual 3D Canvas",
+      "actual": {
+        "labels": [
+          {
+            "id": "m6-floor-01",
+            "role": "客户成功专员第1岗",
+            "card": {
+              "x": 14.2421875,
+              "y": 125.828125,
+              "width": 108.515625,
+              "height": 34.34375
+            },
+            "glyph": {
+              "x": 22.2421875,
+              "y": 127.828125,
+              "width": 92.515625,
+              "height": 16
+            },
+            "labelOverflow": {
+              "width": 0,
+              "height": 0
+            },
+            "visible": "visible",
+            "task": null,
+            "title": "客户成功专员第1岗 · 打开员工档案",
+            "clientWidth": 107,
+            "clientHeight": 32
+          }
+        ],
+        "labelCount": 1,
+        "cardOverlaps": [],
+        "glyphOverlaps": [],
+        "outside": [],
+        "canvas": {
+          "x": 16,
+          "y": 16,
+          "width": 440,
+          "height": 440
+        },
+        "region": {
+          "x": 16,
+          "y": 16,
+          "width": 358,
+          "height": 440,
+          "scrollLeft": 0,
+          "scrollTop": 0
+        },
+        "viewportHorizontalOverflow": 0,
+        "computedCSS": {
+          "bodyFont": "\"PingFang SC\", \"Microsoft YaHei\", \"Source Han Sans SC\", system-ui, sans-serif",
+          "canvasMaxInline": "100%",
+          "ceoWhiteSpace": "nowrap",
+          "ceoFontSize": "14px",
+          "productionStyleLinkLoaded": true
+        },
+        "actors": [
+          {
+            "id": "m6-floor-01",
+            "world": [
+              -2.04,
+              0.85,
+              2.04
+            ],
+            "x": 75.29924808720479,
+            "y": 200.0794073598299,
+            "ndc": [
+              -0.6577306905127055,
+              0.09054814836440946,
+              0.983599304836351
+            ]
+          }
+        ],
+        "camera": [
+          6.772559353213564,
+          7.98717517440182,
+          7.0452618608582505
+        ],
+        "webgl": true
+      },
+      "pass": true
+    },
+    {
+      "id": "long-hover-390-actual-avatar-clicks",
+      "expected": "A real mouse click at each actual registered avatar point opens the corresponding profile exactly once",
+      "actual": {
+        "expectedIds": [
+          "m6-floor-01"
+        ],
+        "observedIds": [
+          "m6-floor-01"
+        ],
+        "observations": [
+          {
+            "id": "m6-floor-01",
+            "screen": {
+              "x": 91.29795110774162,
+              "y": 216.08396961947224,
+              "scrollLeft": 0,
+              "scrollTop": 0,
+              "element": "CANVAS",
+              "elementAgent": null,
+              "elementDrop": null,
+              "beforeProfiles": 0,
+              "beforeTasks": 0
+            },
+            "callbacks": {
+              "profiles": [
+                "m6-floor-01"
+              ],
+              "tasks": []
+            }
+          }
+        ]
+      },
+      "pass": true
+    },
+    {
+      "id": "long-hover-390-actual-plaque-clicks",
+      "expected": "A real click at every actual plaque center opens its own task or its own idle profile exactly once",
+      "actual": [
+        {
+          "id": "m6-floor-01",
+          "task": null,
+          "screen": {
+            "x": 84.5,
+            "y": 159,
+            "scrollLeft": 0,
+            "scrollTop": 0,
+            "element": "SPAN",
+            "elementAgent": "m6-floor-01",
+            "elementDrop": null,
+            "beforeProfiles": 1,
+            "beforeTasks": 0
+          },
+          "callbacks": {
+            "profiles": [
+              "m6-floor-01"
+            ],
+            "tasks": []
+          }
+        }
+      ],
+      "pass": true
+    },
+    {
+      "id": "long-hover-390-drop-delivery-task",
+      "expected": "Browser DataTransfer/DragEvent at each actual avatar point delivers the Unicode task to that actor once",
+      "actual": {
+        "kind": "task",
+        "observations": [
+          {
+            "id": "m6-floor-01",
+            "kind": "task",
+            "payload": "中文 空格与😀独立任务 m6-floor-01",
+            "x": 91.29756135039153,
+            "y": 216.0853409132961,
+            "element": "CANVAS",
+            "elementAgent": null,
+            "elementDrop": null,
+            "delivered": [
+              {
+                "id": "m6-floor-01",
+                "task": "中文 空格与😀独立任务 m6-floor-01"
+              }
+            ],
+            "dragoverPrevented": true,
+            "dropPrevented": true,
+            "dragoverIsTrusted": false,
+            "dropIsTrusted": false
+          }
+        ],
+        "event_source": "Browser-native constructors with synthetic dispatch to actual elementFromPoint; not an OS-native drag gesture"
+      },
+      "pass": true
+    },
+    {
+      "id": "long-hover-390-drop-delivery-empty",
+      "expected": "Empty or unrelated data type at every actual avatar point does not dispatch a task",
+      "actual": {
+        "kind": "empty",
+        "observations": [
+          {
+            "id": "m6-floor-01",
+            "kind": "empty",
+            "payload": "中文 空格与😀独立任务 m6-floor-01",
+            "x": 91.29756135039153,
+            "y": 216.0853409132961,
+            "element": "CANVAS",
+            "elementAgent": null,
+            "elementDrop": null,
+            "delivered": [],
+            "dragoverPrevented": false,
+            "dropPrevented": false,
+            "dragoverIsTrusted": false,
+            "dropIsTrusted": false
+          }
+        ],
+        "event_source": "Browser-native constructors with synthetic dispatch to actual elementFromPoint; not an OS-native drag gesture"
+      },
+      "pass": true
+    },
+    {
+      "id": "long-hover-390-drop-delivery-other-type",
+      "expected": "Empty or unrelated data type at every actual avatar point does not dispatch a task",
+      "actual": {
+        "kind": "other-type",
+        "observations": [
+          {
+            "id": "m6-floor-01",
+            "kind": "other-type",
+            "payload": "中文 空格与😀独立任务 m6-floor-01",
+            "x": 91.29756135039153,
+            "y": 216.0853409132961,
+            "element": "CANVAS",
+            "elementAgent": null,
+            "elementDrop": null,
+            "delivered": [],
+            "dragoverPrevented": false,
+            "dropPrevented": false,
+            "dragoverIsTrusted": false,
+            "dropIsTrusted": false
+          }
+        ],
+        "event_source": "Browser-native constructors with synthetic dispatch to actual elementFromPoint; not an OS-native drag gesture"
+      },
+      "pass": true
+    },
+    {
+      "id": "owned-floor3d-no-errors-or-network",
+      "expected": "No actual page error or external network request in the isolated real WebGL/Floor3D fixture",
+      "actual": {
+        "errors": [],
+        "blockedRequests": []
+      },
+      "pass": true
+    }
+  ],
+  "passed": 33,
+  "failed": 0,
+  "observer_version": 2,
+  "readiness_seconds_after_actual_camera_exposure": 4.5,
+  "setup": "Real blank Canvas click pauses auto rotation via the existing product handler; callbacks are measured by deltas. Live actor/DOM plaque coordinates are read immediately before each mouse click rather than reused across a screenshot.",
+  "method": "Actual imported Floor3D/React Three Fiber/Drei/BusinessAvatar3D/cinematic with real browser WebGL and native RAF. Exact original source uses import-path-only rewrite; no layout, target, hitbox, camera or Three model implementation is copied or replaced. Actual rendered HTML/Range bounds, actual GazeRegistry world points projected by the product camera, and actual mouse callback deltas are observed.",
+  "limitations": "Optional drop delivery uses actual browser-native DataTransfer/DragEvent constructors, synthetically dispatched at the actual elementFromPoint; it is not an OS-native drag gesture. Owned synthetic component payload and desktop Chromium, not native cold startup/real phone/full UX; AudioEngine mute preference and no director event; no model/provider/DB requests.",
+  "errors": [],
+  "blockedRequests": []
+}
