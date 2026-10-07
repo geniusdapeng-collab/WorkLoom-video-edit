@@ -13,7 +13,7 @@
  *   bgm-cli mix       --in clip.mp4 --out scored.mp4 --bgm bgm.wav [--policy keep-dialogue]
  *                     [--audio-stems pinned-audio-reference.json | --declared-program-mix]
  *                     # --declared-program-mix：源片是对白+环境混音成品、无可独立取证的干净分轨时，
- *                     # 调用方**显式声明**直混；回执写 sourceAuthority=declared-unverified（不冒充签章分轨）
+ *                     # 默认保留原片实际音轨；显式声明旧模式仍记录 declared-unverified（不冒充签章分轨）
  *                     [--music-level -22] [--ducking 12] [--lufs -14] [--evidence-dir dir]
  *                     [--track-license cc-by-4.0] [--attribution-out CREDITS.md]
  *   bgm-cli separate  --in clip.mp4 --out-dir dir [--engine auto|demucs|ffmpeg]
@@ -27,7 +27,7 @@
  *   bgm-cli library   --rebind ~/Documents/新位置 --library ~/.workloom-bgm/library --allow-overwrite [--verify sha256]
  *   bgm-cli library   --pack --library ~/.workloom-bgm/library [--out ~/Downloads/1200可商用纯音乐]
  *   bgm-cli best      --in clip.mp4 --out scored.mp4 [--genre 美食] [--mood 诱人温暖]
- *                     [--policy keep-dialogue] [--min-score 92] [--evidence-dir dir]
+ *                     [--policy keep-dialogue] [--evidence-dir dir]
  *                     [--prompt "..."] [--source-policy online-first] [--catalog cinematic-score]
  *
  * 目录预设（catalog）：western-pop（欧美流行风格）/ chinese-classical（中国古典·国风）/
@@ -85,9 +85,25 @@ function catalogFlag(value) {
 }
 
 function audioStemsFlag(value) {
+  if (value === undefined) return null;
   if (typeof value !== "string" || !value) throw new BgmError("--audio-stems 需要工程固定的签章分轨引用 JSON", "audio_stems_source_unverified", false);
-  try { return JSON.parse(fs.readFileSync(value, "utf8")); }
-  catch (error) { throw new BgmError(`音轨引用无法读取：${error.message}`, "bad_request", false); }
+  try {
+    const reference = JSON.parse(fs.readFileSync(value, "utf8"));
+    if (!reference || typeof reference !== "object" || Array.isArray(reference)) {
+      throw new BgmError("--audio-stems 必须是非空对象形式的签章分轨引用，不能降级为原声直混", "bad_request", false);
+    }
+    return reference;
+  } catch (error) {
+    if (error instanceof BgmError) throw error;
+    throw new BgmError(`音轨引用无法读取：${error.message}`, "bad_request", false);
+  }
+}
+
+function audioSourceFlags(flags) {
+  if (Object.hasOwn(flags, "declared-program-mix") && Object.hasOwn(flags, "audio-stems")) {
+    throw new BgmError("--declared-program-mix 与 --audio-stems 不能同时指定；显式签章来源不得被丢弃", "bad_request", false);
+  }
+  return { declaredProgramMix: flags["declared-program-mix"] === true, audioStems: audioStemsFlag(flags["audio-stems"]) };
 }
 
 async function main() {
@@ -204,10 +220,9 @@ async function main() {
       return 0;
     }
     case "mix": {
-      const declaredProgramMix = flags["declared-program-mix"] === true;
+      const source = audioSourceFlags(flags);
       const result = await mix({
-        audioStems: declaredProgramMix ? null : audioStemsFlag(flags["audio-stems"]),
-        declaredProgramMix,
+        ...source,
         input: flags.in,
         output: flags.out,
         bgmPath: flags.bgm,
@@ -236,9 +251,9 @@ async function main() {
         sectionEndSec: number(flags["section-end"]),
       });
       line(`已配乐：${result.output.path}`);
-      line(`  策略 ${result.policy} · BGM ${result.mix.musicLevelDb}dB · 让位 ${result.levels.duckingDepthDb}dB · 人声余量 ${result.levels.speechToMusicMarginDb}dB · 配乐可闻度 ${result.levels.musicPresenceDb}dB`);
-      line(`  响度 ${result.loudness.after.integratedLufs} LUFS / 真峰值 ${result.loudness.after.truePeakDbtp} dBTP（目标 ${result.mix.targetLufs} / ${result.mix.truePeak}）`);
-      line(`  卡点：${result.alignment.verdict}（${result.alignment.alignedCount}/${result.alignment.cuts.length} 落在 ±${result.alignment.toleranceMs}ms 内，平均 ${result.alignment.meanAbsErrorMs}ms，BPM ${result.alignment.bpm}）`);
+      line(`  策略 ${result.policy} · BGM ${result.mix.musicLevelDb}dB · 请求让位 ${result.mix.duckingDbTarget}dB`);
+      line(`  已执行单次混音及请求响度处理（目标 ${result.mix.targetLufs} LUFS / ${result.mix.truePeak} dBTP）；未进行源音质比较`);
+      line(`  请求网格：${result.alignment.cuts.length} 个切点 · BPM ${result.alignment.bpm}`);
       if (result.section?.chosen) {
         line(`  选段：${result.section.mode} → ${result.section.chosen.type} ${result.section.played?.startSec ?? result.section.chosen.startSec}s→${result.section.chosen.endSec}s`);
         line(`        理由：${result.section.reason}`);
@@ -376,16 +391,14 @@ async function main() {
       return 2;
     }
     case "best": {
-      const declaredProgramMix = flags["declared-program-mix"] === true;
+      const source = audioSourceFlags(flags);
       const result = await best({
-        audioStems: declaredProgramMix ? null : audioStemsFlag(flags["audio-stems"]),
-        declaredProgramMix,
+        ...source,
         input: flags.in,
         output: flags.out,
         genre: typeof flags.genre === "string" ? flags.genre : null,
         mood: typeof flags.mood === "string" ? flags.mood : null,
         policy: typeof flags.policy === "string" ? flags.policy : "keep-dialogue",
-        minScore: number(flags["min-score"], 92),
         evidenceDir: typeof flags["evidence-dir"] === "string" ? flags["evidence-dir"] : null,
         seed: number(flags.seed, 0),
         promptText: typeof flags.prompt === "string" ? flags.prompt : null,
@@ -396,9 +409,9 @@ async function main() {
         line(`结论：无需配乐 —— ${result.reason}`);
         return 0;
       }
-      line(`结论：已配乐（择优）`);
-      line(`  赢家 ${result.winnerLabel} · 预估分 ${result.score}（阈值 ${result.minScore}）`);
-      line(`  成片 ${result.report.output.path} · 响度 ${result.report.loudness.after.integratedLufs} LUFS · 让位 ${result.report.levels.duckingDepthDb}dB · 人声余量 ${result.report.levels.speechToMusicMarginDb}dB`);
+      line(`结论：已按请求配方配乐`);
+      line(`  配方 ${result.winnerLabel} · 未进行源音质评分`);
+      line(`  成片 ${result.report.output.path} · 时长 ${result.report.output.durationSeconds}s · 单次混音完成`);
       line(`  sha256 ${result.sha256}`);
       return 0;
     }

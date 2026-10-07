@@ -1,103 +1,191 @@
-/**
- * 声明式直混真机冒烟（T-2026-0930-0014/0015）。
- *
- * 背景（2026-09-30 复盘）：本机没有"独立音轨签发者"（`WORKLOOM_AUDIO_STEM_SIGNING_SECRET` 未配置）时，
- * 旧行为是 fail-closed 直接拒绝 —— 结果"本地无版权曲库直接选曲混音"这条**正常交付路径被卡死**
- * （真机：成片迟迟出不来，配乐环节报 `audio_stems_source_unverified`）。
- * 现在：调用方**显式声明** `--declared-program-mix` 就能直混，但回执必须如实标注未取证，不冒充签章分轨。
- *
- * 本测试是"happy path 冒烟"：没有签发者时也必须能出片；同时守住 fail-closed 的另一半——
- * 不声明、也没有签章时，仍然必须拒绝。
- */
+/** Real offline mix regression: rendered pictures/audio are accepted without quality measurements. */
 import assert from "node:assert/strict";
-import { before, describe, it } from "node:test";
-import { execFileSync } from "node:child_process";
+import { before, after, describe, it } from "node:test";
+import { execFileSync, spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { mix } from "./core.mjs";
+import { fileURLToPath } from "node:url";
+import { mix, best } from "./core.mjs";
 
-const bins = {
-  ffmpeg: process.env.WORKLOOM_POST_FFMPEG_PATH || process.env.WL_FFMPEG || "ffmpeg",
-  ffprobe: process.env.WORKLOOM_POST_FFPROBE_PATH || process.env.WL_FFPROBE || "ffprobe"
-};
-const hasMedia = (() => {
-  try {
-    execFileSync(bins.ffmpeg, ["-version"], { stdio: "ignore" });
-    execFileSync(bins.ffprobe, ["-version"], { stdio: "ignore" });
-    return true;
-  } catch {
-    return false;
-  }
-})();
+const bins = { ffmpeg: process.env.WORKLOOM_POST_FFMPEG_PATH || process.env.WL_FFMPEG || "ffmpeg",
+  ffprobe: process.env.WORKLOOM_POST_FFPROBE_PATH || process.env.WL_FFPROBE || "ffprobe" };
+const hasMedia = [bins.ffmpeg, bins.ffprobe].every((bin) => spawnSync(bin, ["-version"], { stdio: "ignore" }).status === 0);
 const suite = hasMedia ? describe : describe.skip;
-const encode = (args) => execFileSync(bins.ffmpeg, ["-hide_banner", "-v", "error", "-y", ...args], { timeout: 60000, stdio: "pipe" });
+const hash = (file) => createHash("sha256").update(fs.readFileSync(file)).digest("hex");
+const encode = (args) => execFileSync(bins.ffmpeg, ["-hide_banner", "-v", "error", "-n", ...args], { timeout: 60000, stdio: "pipe" });
+let root, source, silent, quiet, longSource, music, shortMusic, env, originalHash;
+const options = (name) => ({ input: source, output: path.join(root, name + ".mp4"), bgmPath: music,
+  policy: "keep-dialogue", musicLevelDb: -24, duckingDb: 12, fadeInSec: 0.1, fadeOutSec: 0.1,
+  align: false, section: "full", env, bins });
 
-let root, source, music;
-
-suite("配乐声明式直混（无签章签发者时的正常交付路径）", () => {
+suite("rendered source default acceptance in BGM CLI/core", () => {
   before(() => {
-    root = fs.mkdtempSync(path.join(os.tmpdir(), "bgm-declared-"));
-    source = path.join(root, "source.mp4");
-    music = path.join(root, "music.wav");
-    /**
-     * 源片 = 对白（440Hz）+ 环境混音成品；曲库曲目 = 1760Hz（与对白频段错开，便于复检）。
-     * 1.0–2.0s 留一段静音当"安静窗口"：配乐可闻度复检需要它，否则会以"无法测量"拒绝出片（fail-closed）。
-     */
-    encode(["-f", "lavfi", "-i", "color=c=black:s=320x240:d=3",
-      "-f", "lavfi", "-i", "sine=frequency=440:duration=3",
-      "-filter_complex", "[1:a]volume='if(between(t,1,2),0,1)':eval=frame[a]",
-      "-map", "0:v", "-map", "[a]",
+    root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "bgm-rendered-")));
+    source = path.join(root, "连续原声 片.mp4"); silent = path.join(root, "无音轨片.mp4"); music = path.join(root, "music.wav");
+    quiet = path.join(root, "安静原音轨.mp4"); longSource = path.join(root, "long-source.mp4"); shortMusic = path.join(root, "short-music.wav");
+    encode(["-f", "lavfi", "-i", "color=c=black:s=96x64:r=24000/1001:d=1.083",
+      "-f", "lavfi", "-i", "sine=frequency=440:duration=1.083", "-map", "0:v", "-map", "1:a",
       "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac", "-shortest", source]);
-    encode(["-f", "lavfi", "-i", "sine=frequency=1760:duration=3", "-c:a", "pcm_s16le", music]);
+    encode(["-f", "lavfi", "-i", "color=c=black:s=80x60:r=17:d=1.117", "-c:v", "libx264", "-pix_fmt", "yuv420p", silent]);
+    encode(["-f", "lavfi", "-i", "sine=frequency=1760:duration=1.2", "-c:a", "pcm_s16le", music]);
+    encode(["-f", "lavfi", "-i", "color=c=black:s=96x64:r=29:d=1.2", "-f", "lavfi", "-i", "anullsrc=r=48000:cl=stereo", "-t", "1.2",
+      "-map", "0:v", "-map", "1:a", "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac", quiet]);
+    encode(["-f", "lavfi", "-i", "color=c=black:s=96x64:r=24000/1001:d=7.509", "-f", "lavfi", "-i", "sine=frequency=440:duration=7.509",
+      "-map", "0:v", "-map", "1:a", "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac", "-shortest", longSource]);
+    encode(["-f", "lavfi", "-i", "sine=frequency=1760:duration=0.2", "-c:a", "pcm_s16le", shortMusic]);
+    originalHash = hash(source);
+    env = { ...process.env, WORKLOOM_AUDIO_STEM_SIGNING_SECRET: "", WORKLOOM_AUDIO_STEM_SIGNING_KEY_ID: "",
+      WORKLOOM_BGM_DISCOVER: "0", WORKLOOM_BGM_ALLOWED_ROOTS: root };
   });
-
-  it("无签发者 + 显式声明：直混出片，回执如实标注 declared-unverified", async () => {
-    const env = {
-      ...process.env,
-      /** 明确模拟"本机没有签发者" */
-      WORKLOOM_AUDIO_STEM_SIGNING_SECRET: "",
-      WORKLOOM_AUDIO_STEM_SIGNING_KEY_ID: "",
-      WORKLOOM_BGM_DISCOVER: "0",
-      /** 路径监狱：本地曲库根（正是真机被拦的那类路径）必须放行 */
-      WORKLOOM_BGM_ALLOWED_ROOTS: root
-    };
-    const output = path.join(root, "declared.mp4");
-    const result = await mix({
-      input: source, output, bgmPath: music, declaredProgramMix: true,
-      policy: "keep-dialogue", musicLevelDb: -24, duckingDb: 12,
-      fadeInSec: 0.1, fadeOutSec: 0.1, align: false, section: "full",
-      env, bins
-    });
-    assert.ok(fs.existsSync(result.output.path), "声明式直混必须产出成片");
+  after(() => fs.rmSync(root, { recursive: true, force: true }));
+  it("preserves legacy declared authority and never claims signed stems", async () => {
+    const result = await mix({ ...options("legacy"), declaredProgramMix: true });
     assert.equal(result.independentAudio.sourceAuthority, "declared-unverified");
     assert.equal(result.independentAudio.stemsVerified, false);
-    assert.equal(result.independentAudio.retainedMusicExcluded, false);
-    assert.equal(result.independentAudio.dialogueStatus, "declared-unverified");
-    assert.match(String(result.independentAudio.duckingSource ?? ""), /program-mix/);
-    /** 不冒充签章：声明路径不得出现 signed/passed 的来源口径 */
-    assert.notEqual(result.independentAudio.sourceAuthority, "passed");
+    assert.equal(result.independentAudio.dialogueStatus, "original-program-unseparated");
+    assert.equal(result.qualityReviewed, false);
+    assert.equal(result.qualityScore, null);
+    assert.equal(hash(source), originalHash);
   });
-
-  it("不声明、也没有签章：仍然 fail-closed（audio_stems_source_unverified）", async () => {
-    const env = {
-      ...process.env,
-      WORKLOOM_AUDIO_STEM_SIGNING_SECRET: "",
-      WORKLOOM_AUDIO_STEM_SIGNING_KEY_ID: "",
-      WORKLOOM_BGM_DISCOVER: "0",
-      WORKLOOM_BGM_ALLOWED_ROOTS: root
-    };
-    await assert.rejects(
-      () => mix({
-        input: source, output: path.join(root, "unsigned.mp4"), bgmPath: music,
-        policy: "keep-dialogue", musicLevelDb: -24, duckingDb: 12,
-        fadeInSec: 0.1, fadeOutSec: 0.1, align: false, section: "full",
-        env, bins
-      }),
-      (error) => {
-        assert.equal(error?.code, "audio_stems_source_unverified");
-        return true;
+  it("accepts continuous original audio and black/odd FPS source without signed stems or quiet windows", async () => {
+    const result = await mix(options("default"));
+    assert.equal(result.independentAudio.sourceAuthority, "original-media-bytes");
+    assert.equal(result.independentAudio.sourceSha256, originalHash);
+    assert.equal(result.output.hash, hash(result.output.path));
+    assert.equal(result.loudness.after, null);
+    assert.equal(result.levels.speechToMusicMarginDb, null);
+    assert.equal(result.voiceActivity.method, "not-reviewed");
+    assert.equal(hash(source), originalHash);
+  });
+  it("handles a clip with no source audio by making only the requested post audio bed", async () => {
+    const original = hash(silent);
+    const result = await mix({ ...options("no-audio"), input: silent });
+    assert.equal(result.independentAudio.embeddedAudioUsed, false);
+    assert.equal(result.independentAudio.dialogueStatus, "not_applicable");
+    assert.ok(result.output.audio);
+    assert.equal(hash(silent), original);
+  });
+  it("finishes finite short-music loops for continuous, quiet and no-audio programs with real binary receipts", { timeout: 20000 }, async () => {
+    const realBins = Object.fromEntries(Object.entries(bins).map(([name, bin]) => [name,
+      fs.realpathSync(path.isAbsolute(bin) ? bin : execFileSync("which", [bin], { encoding: "utf8" }).trim())]));
+    const trace = path.join(root, "actual-media-commands.jsonl");
+    const tracedBins = {};
+    for (const [name, bin] of Object.entries(realBins)) {
+      const wrapper = path.join(root, name + "-trace");
+      fs.writeFileSync(wrapper, "#!" + process.execPath + "\n"
+        + "const fs=require('node:fs'),cp=require('node:child_process');const args=process.argv.slice(2);"
+        + "fs.appendFileSync(" + JSON.stringify(trace) + ",JSON.stringify({binary:" + JSON.stringify(bin) + ",args})+'\\n');"
+        + "const r=cp.spawnSync(" + JSON.stringify(bin) + ",args,{timeout:8000,stdio:'inherit'});process.exit(r.status===null?124:r.status);\n");
+      fs.chmodSync(wrapper, 0o755); tracedBins[name] = wrapper;
+    }
+    const binaryReceipts = Object.fromEntries(Object.entries(realBins).map(([name, bin]) => [name, {
+      path: bin, sha256: hash(bin), version: execFileSync(bin, ["-version"], { encoding: "utf8" }).split("\n")[0], commandTimeoutMs: 8000 }]));
+    const cases = [];
+    for (const [name, input] of [["continuous", longSource], ["quiet", quiet], ["no-audio", silent]]) {
+      const sourceHash = hash(input), started = Date.now();
+      const result = await mix({ ...options("short-loop-" + name), input, bgmPath: shortMusic, bins: tracedBins });
+      assert.ok(result.output.audio); assert.equal(result.qualityReviewed, false); assert.equal(result.qualityScore, null);
+      assert.equal(hash(input), sourceHash);
+      cases.push({ case: name, sourceHash, outputHash: hash(result.output.path), duration: result.output.durationSeconds,
+        elapsedMs: Date.now() - started, timeoutMs: 8000, qualityReviewed: result.qualityReviewed });
+    }
+    const commands = fs.readFileSync(trace, "utf8").trim().split("\n").map((line) => JSON.parse(line));
+    assert.ok(commands.some((command) => command.args.includes("concat")), "short music must actually render a finite loop bed");
+    assert.equal(commands.filter((command) => command.args.includes("-stream_loop")).length, 0);
+    const evidence = { binaryReceipts, cases, commands, expected: "each finite loop produces a readable audio output within 8s and preserves the source" };
+    if (process.env.WORKLOOM_BGM_TEST_EVIDENCE) fs.writeFileSync(process.env.WORKLOOM_BGM_TEST_EVIDENCE, JSON.stringify(evidence, null, 2));
+  });
+  it("performs requested recipe once without source-quality score or network calls", async () => {
+    let calls = 0;
+    const result = await best({ ...options("recipe"), recipeIds: ["interview"], sourcePolicy: "compose-only",
+      fetchImpl: async () => { calls++; throw new Error("network forbidden"); } });
+    assert.equal(result.verdict, "processed");
+    assert.equal(result.score, null);
+    assert.equal(result.qualityReviewed, false);
+    assert.equal(calls, 0);
+    assert.equal(result.sha256, hash(result.report.output.path));
+  });
+  it("actual CLI succeeds without --audio-stems and reports no invented measurements", () => {
+    const cli = fileURLToPath(new URL("./cli.mjs", import.meta.url));
+    const output = path.join(root, "actual CLI.mp4");
+    const result = spawnSync(process.execPath, [cli, "mix", "--in", source, "--out", output, "--bgm", music],
+      { env: { ...env, WL_FFMPEG: bins.ffmpeg, WL_FFPROBE: bins.ffprobe }, encoding: "utf8", timeout: 60000 });
+    assert.equal(result.status, 0, result.stdout + result.stderr);
+    assert.match(result.stdout, /未进行源音质比较/);
+    assert.equal(hash(source), originalHash);
+  });
+  it("rejects conflicting CLI source flags before reference reads, media work or output writes", () => {
+    const cli = fileURLToPath(new URL("./cli.mjs", import.meta.url));
+    const malicious = path.join(root, "invalid-signed-reference.json");
+    fs.writeFileSync(malicious, JSON.stringify({ dir: root, scope: { tenantId: "attacker" }, manifestSha256: "a".repeat(64), recipeSha256: "b".repeat(64) }));
+    const trace = path.join(root, "unexpected-conflict-media.log"), sentinel = path.join(root, "must-not-run-media");
+    fs.writeFileSync(sentinel, "#!" + process.execPath + "\nrequire('node:fs').appendFileSync(" + JSON.stringify(trace)
+      + ",JSON.stringify(process.argv.slice(2))+'\\n');process.exit(98);\n"); fs.chmodSync(sentinel, 0o755);
+    const cases = [];
+    for (const command of ["mix", "best"]) {
+      for (const [name, reference] of [["no-value", undefined], ["nonexistent", path.join(root, "missing-signed-reference.json")], ["malicious-json", malicious]]) {
+        const output = path.join(root, `conflict-${command}-${name}.mp4`);
+        const before = fs.readdirSync(root).sort();
+        const result = spawnSync(process.execPath, [cli, command, "--in", source, "--out", output, "--bgm", music,
+          "--source-policy", "compose-only", "--declared-program-mix", "--audio-stems", ...(reference === undefined ? [] : [reference])],
+        { env: { ...env, WL_FFMPEG: sentinel, WL_FFPROBE: sentinel, WORKLOOM_BGM_FFMPEG_PATH: sentinel,
+          WORKLOOM_BGM_FFPROBE_PATH: sentinel }, encoding: "utf8", timeout: 8000 });
+        assert.equal(result.status, 3, result.stdout + result.stderr);
+        assert.match(result.stderr, /^bad_request:.*不能同时指定/m);
+        assert.doesNotMatch(result.stderr, /ENOENT|音轨引用无法读取/);
+        assert.equal(fs.existsSync(output), false); assert.equal(fs.existsSync(trace), false);
+        assert.deepEqual(fs.readdirSync(root).sort(), before); assert.equal(hash(source), originalHash);
+        cases.push({ command, referenceCase: name, exitCode: result.status, error: result.stderr.trim(),
+          mediaInvoked: false, outputCreated: false, sourceUnchanged: true });
       }
-    );
+    }
+    if (process.env.WORKLOOM_BGM_TEST_CLI_EVIDENCE) fs.writeFileSync(process.env.WORKLOOM_BGM_TEST_CLI_EVIDENCE, JSON.stringify({ conflicts: cases }, null, 2));
+  });
+  it("rejects independent invalid signed CLI references and tenant mismatch without falling back to original audio", () => {
+    const cli = fileURLToPath(new URL("./cli.mjs", import.meta.url));
+    const invalid = path.join(root, "standalone-invalid-reference.json"), otherTenant = path.join(root, "standalone-other-tenant.json");
+    fs.writeFileSync(invalid, JSON.stringify({ dir: root })); fs.writeFileSync(otherTenant, JSON.stringify({ dir: root, scope: { tenantId: "another" } }));
+    const scalarRefs = [null, false, "discard-this-reference", []].map((value, index) => {
+      const file = path.join(root, `invalid-reference-value-${index}.json`); fs.writeFileSync(file, JSON.stringify(value)); return file;
+    });
+    const cases = [];
+    for (const command of ["mix", "best"]) {
+      for (const [index, reference] of [undefined, path.join(root, "missing-signed.json"), invalid, ...scalarRefs, otherTenant].entries()) {
+        const output = path.join(root, `invalid-signed-${command}-${index}.mp4`);
+        const result = spawnSync(process.execPath, [cli, command, "--in", source, "--out", output, "--bgm", music,
+          "--source-policy", "compose-only", "--audio-stems", ...(reference === undefined ? [] : [reference])],
+        { env: { ...env, WL_FFMPEG: bins.ffmpeg, WL_FFPROBE: bins.ffprobe, WORKLOOM_BGM_FFMPEG_PATH: bins.ffmpeg,
+          WORKLOOM_BGM_FFPROBE_PATH: bins.ffprobe, WORKLOOM_BGM_BRIDGE_TENANT: "owner" }, encoding: "utf8", timeout: 8000 });
+        assert.equal(result.status, 3, result.stdout + result.stderr); assert.equal(fs.existsSync(output), false);
+        assert.match(result.stderr, /bad_request|audio_stems_|tenant_mismatch/);
+        if (reference === otherTenant) assert.match(result.stderr, /^tenant_mismatch:/m);
+        assert.equal(hash(source), originalHash);
+        cases.push({ command, referenceCase: index, exitCode: result.status, error: result.stderr.trim(), outputCreated: false, sourceUnchanged: true });
+      }
+    }
+    if (process.env.WORKLOOM_BGM_TEST_CLI_EVIDENCE) {
+      const file = process.env.WORKLOOM_BGM_TEST_CLI_EVIDENCE, evidence = fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, "utf8")) : {};
+      fs.writeFileSync(file, JSON.stringify({ ...evidence, invalidSigned: cases }, null, 2));
+    }
+  });
+  it("retains explicit signed-source verification, source permission and tenant authority", async () => {
+    await assert.rejects(() => mix({ ...options("bad-signed"), audioStems: { dir: root } }),
+      (error) => /audio_stems|source|bad_request|verify/.test(error.code));
+    await assert.rejects(() => mix({ ...options("music-only"), policy: "music-only" }),
+      (error) => error.code === "audio_stems_source_unverified");
+    await assert.rejects(() => mix({ ...options("tenant"), audioStems: { scope: { tenantId: "another" } },
+      env: { ...env, WORKLOOM_BGM_BRIDGE_TENANT: "owner" } }), (error) => error.code === "tenant_mismatch");
+  });
+  it("fails explicitly for missing/corrupt sources, illegal paths, overwrite, duplicate output and invalid request", async () => {
+    const corrupt = path.join(root, "corrupt.mp4"); fs.writeFileSync(corrupt, "not media");
+    for (const changed of [{ input: source + ".missing" }, { input: corrupt }, { bgmPath: music + ".missing" },
+      { output: source }, { input: path.resolve(root, "..", "outside.mp4") }, { musicLevelDb: Number.NaN },
+      { policy: "unknown" }, { sectionStartSec: 0, sectionEndSec: 99 }]) {
+      await assert.rejects(() => mix({ ...options("invalid-" + Math.random().toString(16).slice(2)), ...changed }));
+    }
+    await assert.rejects(() => mix(options("default")), (error) => error.code === "idempotency_conflict");
+    assert.equal(hash(source), originalHash);
   });
 });
