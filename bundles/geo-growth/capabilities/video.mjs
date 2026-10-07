@@ -18,6 +18,7 @@
 import { createHash } from "node:crypto";
 import { closeSync, existsSync, lstatSync, openSync, readFileSync, readSync, realpathSync, statSync } from "node:fs";
 import { join, relative, resolve, sep } from "node:path";
+import { GUIDE_CAPABILITY_ID, GUIDE_PATH } from "./workbench-guide.mjs";
 
 const MAX_FILE_BYTES = 8 * 1024 * 1024;
 const MAX_LINES = 20_000;
@@ -362,10 +363,12 @@ export function productionPlan(input) {
     platform,
     checklist,
     ready: checklist.every((entry) => entry.ok),
+    workbenchGuide: { capabilityId: GUIDE_CAPABILITY_ID, path: GUIDE_PATH, mustReadBeforeProduction: true },
     recommendedCommand: command,
     recommendedPowerShellCommand: `& ${["pnpm", ...argv].map(powershellQuote).join(" ")}`,
     execution: { command: "pnpm", args: argv },
     beforeRun: [
+      `node scripts/workloom-agent.mjs invoke ${GUIDE_CAPABILITY_ID}（先读本仓固定项、官方流程与声音边界）`,
       "pnpm video:doctor（环境自检：ffmpeg/密钥/配音工位/曲库路径监狱）",
       "营销片：product-archive.mts 建/取商品档案；真人出镜：video:assets reconcile 对账素材清单",
       "账户欠费（AccountOverdueError 403）会拦住提交：先充值再跑，不要连点重试",
