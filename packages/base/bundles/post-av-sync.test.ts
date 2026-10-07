@@ -126,7 +126,8 @@ describe("源码守卫：拼接分支不许再整条 demuxer copy", () => {
   it("assembleTimeline 走 assembleSampleAccurate（样点级）", () => {
     expect(source).toContain("assembleSampleAccurate(");
     expect(source).toContain("buildSampleAccurateConcatPlan");
-    expect(source).toContain("verifyAssembledAvSync");
+    expect(source).not.toMatch(/await\s+verifyAssembledAvSync\s*\(/);
+    expect(source).toContain("qualityReviewed: false");
   });
 
   it("不再出现「concat demuxer + 双流 -c copy」的历史写法", () => {
@@ -176,11 +177,15 @@ describe("实测不可执行的降级路径（三态口径：达标 / 偏移 / �
     expect(String(degraded.reason)).toMatch(/解码母版失败/);
   });
 
-  it("源码守卫：平台侧拼接会写 <output>.av-sync.json 并显式区分降级开关", () => {
+  it("源码守卫：平台侧实际拼接留回执，不调用品质互相关放行；真正工具失败仍会传播", () => {
     const core = readFileSync(join(BRIDGE_DIR, "core.mjs"), "utf8");
     expect(core).toContain("writeAvSyncReport");
     expect(core).toContain(".av-sync.json");
-    expect(core).toContain("allowUnverifiedAvSync");
-    expect(core).toContain("av_sync_unverifiable");
+    expect(core).not.toContain("allowUnverifiedAvSync");
+    expect(core).not.toMatch(/await\s+verifyAssembledAvSync\s*\(/);
+    expect(core).not.toMatch(/await\s+measureAssembledAvSync\s*\(/);
+    expect(core).toContain("rendered-source-default-acceptance");
+    expect(core).toContain("correlation: null");
+    expect(core).toContain("await runBin(bins.ffmpeg");
   });
 });

@@ -7,7 +7,7 @@
  *   shotbook  → 规则/LLM 产数据 + 确定性校验 → 新版本（validated）
  *   submit    → 准备段（配音 → 对齐 → 语义 → 分镜 → 装配 → 素材体检）→ G8 围栏 + 额度预算
  *               → `submitGenJob(modelId='remotion-talkcraft')`；渲染与回填交给既有 render-poller
- *   finalize  → 渲染 done 后：机器闸六条 → 两遍 loudnorm → 媒资库 final_cut（registerLocalAsset）
+ *   finalize  → 渲染 done 后：原产物绑定 + 实际导出回执 → 默认原片原声 → 媒资库 final_cut（registerLocalAsset）
  *   versions / engine → 版本链只读面 + 引擎体检
  */
 import { existsSync, readFileSync } from "node:fs";
@@ -382,9 +382,9 @@ export const explainerRouter = router({
       };
     }),
 
-  /** 收尾：渲染完成 → 机器闸 → 两遍 loudnorm → 媒资库 final_cut */
+  /** 收尾：真实渲染完成 → 文件与导出回执 → 原片原声（或明确请求响度处理）→ 媒资库 final_cut */
   finalize: writeProcedure
-    .input(z.object({ projectId: z.string().min(1).max(120), shotbookId: z.string().min(1).max(120).optional() }))
+    .input(z.object({ projectId: z.string().min(1).max(120), shotbookId: z.string().min(1).max(120).optional(), audioNormalization: z.enum(["preserve", "loudnorm"]).default("preserve") }))
     .mutation(async ({ ctx, input }) => {
       const scope = scopeOf(ctx.identity);
       const row = input.shotbookId ? await shotbookById(scope, input.shotbookId) : await latestShotbook(scope, input.projectId);
@@ -407,25 +407,21 @@ export const explainerRouter = router({
             : "仍在渲染（render-poller 负责回填），稍后再调 finalize",
         };
       }
-      const engineDir = engineDirOf();
-      const cards = [...new Set(row.shotbook.shots.map((s) => s.card))];
-      const cuesPath = join(row.job_dir, "remotion", "cues.json");
-      const cueCount = existsSync(cuesPath) ? (JSON.parse(readFileSync(cuesPath, "utf8")) as unknown[]).length : 0;
       const { report } = await runMachineGates({
-        jobDir: row.job_dir, cards, cueCount, engineDir,
+        jobDir: row.job_dir, cards: [], cueCount: 0,
+        requireProviderState: true,
         aspect,
         quality,
-        shots: JSON.parse(readFileSync(join(row.job_dir, "remotion", "shots.json"), "utf8")) as Array<{ id: string; start: number; end: number }>,
         onLog: (line) => console.log(`[explainer:finalize] ${line}`),
       });
       await updateShotbook(scope, row.id, { qaReport: report });
       if (!report.pass) {
         throw new TRPCError({
           code: "PRECONDITION_FAILED",
-          message: `机器闸未过（P0 禁止交付）：${report.gates.filter((g) => g.status === "fail").map((g) => `${g.gate}(${g.summary})`).join("；")}`,
+          message: `实际媒体处理失败：${report.gates.filter((g) => g.status === "fail").map((g) => `${g.gate}(${g.summary})`).join("；")}`,
         });
       }
-      const delivery = await deliverFilm({ jobDir: row.job_dir });
+      const delivery = await deliverFilm({ jobDir: row.job_dir, normalize: input.audioNormalization === "loudnorm", sourceSha256: report.sourceArtifact?.sha256 });
       const registered = await registerLocalAsset(getAppPool(), getGatewayPool(), scope, {
         absPath: delivery.deliveryPath,
         kind: "final_cut",

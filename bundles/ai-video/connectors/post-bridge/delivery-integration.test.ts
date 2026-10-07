@@ -1,12 +1,13 @@
 /** 实际总装回归：本地 FFmpeg、仓内调色/字体/配乐，不替换生产函数。 */
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { createHash, createHmac, randomBytes } from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { assembleTimeline, buildDeliveryPackage, readRevisionBase, reedit, resolveBinaries } from "./core.mjs";
+import { assembleTimeline, buildDeliveryPackage, callTool, normaliseShots, readRevisionBase, reedit, resolveBinaries } from "./core.mjs";
 import { describeAudioStemSources } from "../bgm-bridge/audio-stems.mjs";
 import { audioStemReceiptPayload } from "../bgm-bridge/audio-stems-trust.mjs";
 
@@ -23,10 +24,29 @@ const hasMediaTools = (() => {
 
 const hash = (file: string) => createHash("sha256").update(fs.readFileSync(file)).digest("hex");
 const readJson = (file: string) => JSON.parse(fs.readFileSync(file, "utf8"));
+const readJsonProbe = (file: string) => JSON.parse(execFileSync(bins.ffprobe,
+  ["-v", "error", "-show_streams", "-show_format", "-of", "json", file], { encoding: "utf8" }));
 const expectedBase = (file: string) => {
   const base = readRevisionBase(file);
   return { expectedVersion: base.version, expectedProjectSha256: base.sha256 };
 };
+
+const cliPath = fileURLToPath(new URL("./cli.mjs", import.meta.url));
+function testLibrary(root: string) {
+  const dir = path.join(root, "custom-library");
+  fs.mkdirSync(dir);
+  const tracks = [
+    ["acoustic-warm", "温暖自在"], ["corporate-clean", "干净可信"], ["sports-hype", "激昂有力"],
+  ].map(([style, mood], index) => {
+    const file = `${style}.wav`;
+    execFileSync(bins.ffmpeg, ["-hide_banner", "-v", "error", "-n", "-f", "lavfi", "-i",
+      `sine=frequency=${600 + index * 200}:duration=8`, "-c:a", "pcm_s16le", path.join(dir, file)]);
+    return { id: `000-growth-${style}`, title: style, style, mood, file, durationSec: 8,
+      license: "workloom-self-generated", source: "offline-synthetic-fixture", artist: "test fixture" };
+  });
+  fs.writeFileSync(path.join(dir, "tracks.json"), JSON.stringify({ tracks }));
+  return dir;
+}
 
 describe.skipIf(!hasMediaTools)("后期真实总装与连续返修（需 FFmpeg/FFprobe）", () => {
   let root: string;
@@ -85,8 +105,8 @@ describe.skipIf(!hasMediaTools)("后期真实总装与连续返修（需 FFmpeg/
   beforeAll(() => {
     root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "post-p1-")));
     env.WORKLOOM_POST_ALLOWED_ROOTS = root;
-    env.WORKLOOM_BGM_ALLOWED_ROOTS = [root, path.resolve("bundles/ai-video/library")].join(path.delimiter);
-    env.WORKLOOM_BGM_LIBRARY_DIR = path.join(root, "custom-library");
+    env.WORKLOOM_BGM_ALLOWED_ROOTS = root;
+    env.WORKLOOM_BGM_LIBRARY_DIR = testLibrary(root);
     env.WORKLOOM_BGM_HOME = path.join(root, "bgm-home");
     shots = [11, 29, 47].map((seed, index) => {
       const file = path.join(root, `镜头 ${index + 1}.mp4`);
@@ -100,17 +120,20 @@ describe.skipIf(!hasMediaTools)("后期真实总装与连续返修（需 FFmpeg/
     if (root) fs.rmSync(root, { recursive: true, force: true });
   });
 
-  it("硬切与淡入淡出将 duration 送入样点拼接和实测，三镜均有有效窗口", async () => {
+  it("硬切与淡入淡出实际拼接三镜并记录加工事实，不默认测品质窗口", async () => {
     for (const mode of ["hard", "fade"]) {
       const output = path.join(root, `assemble-${mode}`, "result.mp4");
       const result = await assembleTimeline({
         clips: shots.map((shot) => ({ ...shot, duration: 2.5 })),
         transitions: { mode, fadeSec: 0.3 }, output, resolution: [320, 240], fps: 30, bins,
       });
-      expect(result.avSync.ok).toBe(true);
-      expect(result.avSync.measured).toBe(3);
-      expect(result.avSync.maxAbsLagMs).toBeLessThanOrEqual(40);
-      expect(readJson(output.replace(/\.mp4$/, ".av-sync.json"))).toMatchObject({ ok: true, degraded: false });
+      expect(result.avSync).toMatchObject({ qualityReviewed: false, sourceClips: 3, correlation: null });
+      expect(readJson(output.replace(/\.mp4$/, ".av-sync.json"))).toMatchObject({ processed: true,
+        report: { qualityReviewed: false, sourceClips: 3, correlation: null } });
+      const probe = readJsonProbe(output);
+      expect(probe.streams.some((stream: any) => stream.codec_type === "video")).toBe(true);
+      expect(probe.streams.some((stream: any) => stream.codec_type === "audio")).toBe(true);
+      expect(Number(probe.format.duration)).toBeCloseTo(7.5, 1);
     }
   }, 120_000);
 
@@ -124,18 +147,52 @@ describe.skipIf(!hasMediaTools)("后期真实总装与连续返修（需 FFmpeg/
       .rejects.toMatchObject({ code: "bad_request" });
   });
 
+  it("母版交叉转场不二次扣除各变体源时间轴，三镜真实导出按各自装配时长核对", async () => {
+    const sourceHashes = shots.map((shot) => hash(shot.path));
+    const outcome = await buildDeliveryPackage({
+      project: { ...project, transitions: { mode: "xfade", fadeSec: 0.6 } }, shots,
+      variants: ["clean-tech", "bold-promo"], outDir: path.join(root, "xfade-base"), bins, env,
+    });
+    const sourceSeconds = outcome.normalised.reduce((sum: number, clip: { duration: number }) => sum + clip.duration, 0);
+    const check = outcome.checks.find((entry: { kind: string }) => entry.kind === "duration_consistent");
+    expect(outcome.passed).toBe(true);
+    expect(check.ok).toBe(true);
+    expect(check.detail.sourceTimelineSeconds).toBeCloseTo(sourceSeconds, 3);
+    expect(outcome.master.output).toBeDefined();
+    expect(Number(readJsonProbe(outcome.master.output).format.duration)).toBeCloseTo(sourceSeconds - 1.2, 1);
+    for (const variant of outcome.variants) {
+      const detail = check.detail.variants.find((entry: { id: string }) => entry.id === variant.id);
+      const overlap = variant.style.transitions.mode === "xfade" ? 2 * variant.style.transitions.fadeSec : 0;
+      expect(detail.expected).toBeCloseTo(variant.layers.assembly.durationSeconds, 3);
+      // Encoded frame/sample clocks quantize xfade boundaries; compare the theoretical
+      // overlap separately without pretending it is the actual rendered stream clock.
+      const probe = readJsonProbe(variant.artifacts.video.path);
+      const videoStream = probe.streams.find((stream: any) => stream.codec_type === "video");
+      const [rateNumerator, rateDenominator] = videoStream.avg_frame_rate.split("/").map(Number);
+      const frameSeconds = rateDenominator / rateNumerator;
+      expect(Math.abs(detail.expected - (sourceSeconds - overlap))).toBeLessThanOrEqual(frameSeconds + 0.001);
+      expect(Math.abs(detail.duration - detail.expected)).toBeLessThanOrEqual(frameSeconds + 0.001);
+      expect(detail.duration).toBeCloseTo(Number(probe.format.duration), 3);
+      expect(variant.artifacts.video.duration).toBeCloseTo(Number(probe.format.duration), 3);
+      expect(hash(variant.artifacts.video.path)).toBe(variant.artifacts.video.sha256);
+      expect(videoStream).toMatchObject({ width: 320, height: 240 });
+      expect(probe.streams.some((stream: any) => stream.codec_type === "audio")).toBe(true);
+    }
+    expect(shots.map((shot) => hash(shot.path))).toEqual(sourceHashes);
+  }, 150_000);
+
   it("真实交付同时验证有计划和无计划分支，净时长不再抛 ReferenceError", async () => {
     const outDir = path.join(root, "交付 包");
     const sourceHashes = shots.map((shot) => hash(shot.path));
     delivery = await buildDeliveryPackage({
       project, shots, subtitles, variants: ["warm-story", "clean-tech"], outDir, bins, env,
     });
-    const duration = delivery.checks.find((check: { kind: string }) => check.kind === "duration_plan_consistent");
+    const duration = delivery.checks.find((check: { kind: string }) => check.kind === "planned_duration_reference");
     const measured = delivery.normalised.reduce((sum: number, clip: { duration: number }) => sum + clip.duration, 0);
     expect(duration.ok).toBe(true);
-    expect(duration.detail.actualSeconds).toBeCloseTo(measured, 5);
+    expect(duration.detail.actualSourceSeconds).toBeCloseTo(measured, 5);
     expect(duration.detail.plannedSeconds).toBe(7.5);
-    expect(delivery.master.avSync.measured).toBe(3);
+    expect(delivery.master.avSync.sourceClips).toBe(3);
     expect(fs.existsSync(delivery.manifestPath)).toBe(true);
     expect(shots.map((shot) => hash(shot.path))).toEqual(sourceHashes);
 
@@ -143,25 +200,21 @@ describe.skipIf(!hasMediaTools)("后期真实总装与连续返修（需 FFmpeg/
       project: { ...project, targetDurationSec: undefined }, shots, subtitles,
       variants: ["warm-story", "clean-tech"], outDir: path.join(root, "unplanned"), bins, env,
     });
-    expect(unplanned.checks.find((check: { kind: string }) => check.kind === "duration_plan_consistent").detail)
-      .toMatchObject({ plannedSeconds: null, actualSeconds: measured, note: "计划时长未提供（未校验）" });
+    expect(unplanned.checks.find((check: { kind: string }) => check.kind === "planned_duration_reference").detail)
+      .toMatchObject({ plannedSeconds: null, actualSourceSeconds: measured, basis: "planning-reference-only" });
     const tooLong = await buildDeliveryPackage({
       project: { ...project, targetDurationSec: 20 }, shots, subtitles,
       variants: ["warm-story", "clean-tech"], outDir: path.join(root, "too-long"), bins, env,
     });
-    expect(tooLong.checks.find((check: { kind: string }) => check.kind === "duration_plan_consistent").ok).toBe(false);
-    expect(tooLong.passed).toBe(false);
-    // 配乐质量是独立闸门；如音频合成样本不足以通过，必须在整包结果和报告中如实失败。
-    const audioFailures = delivery.manifest.variants.filter((variant: { audio?: { failed?: boolean } }) => variant.audio?.failed);
-    expect(delivery.checks.find((check: { kind: string }) => check.kind === "bgm_layer").ok).toBe(audioFailures.length === 0);
-    if (audioFailures.length) {
-      expect(delivery.passed).toBe(false);
-      expect(fs.readFileSync(delivery.reportPath, "utf8")).toContain("未冒充带配乐成片");
-    }
+    expect(tooLong.checks.find((check: { kind: string }) => check.kind === "planned_duration_reference"))
+      .toMatchObject({ ok: true, detail: { plannedSeconds: 20 } });
+    expect(tooLong.passed).toBe(true);
+    expect(delivery.checks.find((check: { kind: string }) => check.kind === "bgm_layer").ok).toBe(true);
+    for (const variant of delivery.variants) expect(hash(variant.artifacts.video.path)).toBe(variant.artifacts.video.sha256);
     console.info("P1 media evidence", JSON.stringify({
       measuredSeconds: measured, avSync: delivery.master.avSync,
       checks: delivery.checks.map((check: { kind: string; ok: boolean }) => ({ kind: check.kind, ok: check.ok })),
-      audioFailures: audioFailures.map((variant: { id: string; audio: { code?: string } }) => ({ variant: variant.id, code: variant.audio.code })),
+      sourceQualityReviewed: false,
     }));
   }, 300_000);
 
@@ -240,4 +293,147 @@ describe.skipIf(!hasMediaTools)("后期真实总装与连续返修（需 FFmpeg/
     expect(copyOnly.variants.map((variant: any) => variant.video.sha256)).toEqual(noMusic.variants.map((variant: any) => variant.video.sha256));
     expect(copyOnly.revision.checks.find((check: { kind: string }) => check.kind === "bgm_layer").ok).toBe(true);
   }, 300_000);
+});
+
+describe.skipIf(!hasMediaTools)("后期显式音轨边界和原节目默认路径", () => {
+  let root: string;
+  let source: string;
+  let nativeDelivery: Awaited<ReturnType<typeof buildDeliveryPackage>>;
+  let sourceHash: string;
+  const project = { projectId: "native-post", title: "原节目", resolution: [320, 240], fps: 17,
+    targetDurationSec: 30, copy: { title: "原节目", hook: "黑帧无声也可加工" } };
+  const env: NodeJS.ProcessEnv = { ...process.env, WORKLOOM_BGM_DISCOVER: "0" };
+  const badSources = [null, false, 0, "", [], {}, { dialogue: {} }];
+  beforeAll(() => {
+    root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "growth-post-boundary-")));
+    source = path.join(root, "original.mp4");
+    execFileSync(bins.ffmpeg, ["-hide_banner", "-v", "error", "-y", "-f", "lavfi", "-i",
+      "color=black:size=160x120:rate=17:duration=0.6", "-an", "-c:v", "libx264", "-preset", "ultrafast", source]);
+    sourceHash = hash(source);
+    env.WORKLOOM_POST_ALLOWED_ROOTS = root;
+    env.WORKLOOM_BGM_ALLOWED_ROOTS = root;
+    env.WORKLOOM_BGM_HOME = path.join(root, "bgm-home");
+    env.WORKLOOM_BGM_LIBRARY_DIR = testLibrary(root);
+    fs.writeFileSync(path.join(root, "project.json"), JSON.stringify(project));
+    delete env.WORKLOOM_AUDIO_STEM_SIGNING_SECRET;
+  });
+  afterAll(() => { if (root) fs.rmSync(root, { recursive: true, force: true }); });
+
+  it("显式 null/false/空或缺角色来源在 core/tool/真实 CLI 创建交付目录前失败", async () => {
+    for (const [index, audioStems] of badSources.entries()) {
+      const shots = [{ shotId: "S1", path: source, audioStems }];
+      for (const entry of ["core", "tool", "cli"]) {
+        const outDir = path.join(root, `invalid-${index}-${entry}`);
+        if (entry === "core") {
+          await expect(buildDeliveryPackage({ project, shots, outDir, bins, env }))
+            .rejects.toMatchObject({ code: "audio_stems_source_unverified" });
+        } else if (entry === "tool") {
+          await expect(callTool("postwrite.package", { project, shots, out_dir: outDir }, { bins, env }))
+            .rejects.toMatchObject({ code: "audio_stems_source_unverified" });
+        } else {
+          const file = path.join(root, `shots-${index}.json`);
+          fs.writeFileSync(file, JSON.stringify(shots));
+          const result = spawnSync(process.execPath, [cliPath,
+            "deliver", "--project", path.join(root, "project.json"), "--shots", file, "--out-dir", outDir],
+          { env, encoding: "utf8", timeout: 30_000 });
+          expect(result.status).toBe(3);
+          expect(result.stderr).toContain("audio_stems_source_unverified");
+        }
+        expect(fs.existsSync(outDir)).toBe(false);
+      }
+    }
+    expect(hash(source)).toBe(sourceHash);
+  }, 120_000);
+
+  it("省略音轨实际加工黑帧无声原片并返修，不要求分轨密钥或品质复检", async () => {
+    nativeDelivery = await buildDeliveryPackage({ project, shots: [{ shotId: "S1", path: source }],
+      subtitles: { zhText: "1\n00:00:00,100 --> 00:00:00,500\n原片后期\n\n" },
+      variants: ["warm-story", "clean-tech"], outDir: path.join(root, "native"), bins, env });
+    expect(nativeDelivery.passed).toBe(true);
+    expect(nativeDelivery.manifest.independentAudio).toBeNull();
+    expect(nativeDelivery.manifest.variants.every((variant: any) => variant.independentAudio === null)).toBe(true);
+    expect(nativeDelivery.manifest.master.duration).toBeLessThan(1);
+    expect(nativeDelivery.manifest.checks.find((check: any) => check.kind === "planned_duration_reference"))
+      .toMatchObject({ ok: true, detail: { plannedSeconds: 30, basis: "planning-reference-only" } });
+    const revision = await reedit({ projectPath: nativeDelivery.projectPath, ...expectedBase(nativeDelivery.projectPath),
+      patch: { copy: { body: "文字返修" } }, bins, env });
+    expect(revision.executed).toBe(true);
+    expect(revision.variants.map((variant: any) => variant.video.sha256))
+      .toEqual(nativeDelivery.variants.map((variant: any) => variant.artifacts.video.sha256));
+    expect(hash(source)).toBe(sourceHash);
+  }, 120_000);
+
+  it.each(["core", "tool", "cli"])("%s 交付长标题保留版式建议失败并接受真实封面产物", async (entry) => {
+    const title = "成功原片完整长标题不因建议行宽被拒收".repeat(4);
+    const requested = { ...project, title, copy: { ...project.copy, title } };
+    const outDir = path.join(root, `long-title-${entry}`);
+    const options = { project: requested, shots: [{ shotId: "S1", path: source }],
+      variants: ["warm-story", "clean-tech"], outDir, bins, env };
+    if (entry === "core") {
+      const outcome = await buildDeliveryPackage(options);
+      expect(outcome.passed).toBe(true);
+    } else if (entry === "tool") {
+      const outcome = await callTool("postwrite.package", { project: requested, shots: options.shots,
+        variants: options.variants, out_dir: outDir }, { bins, env });
+      expect(outcome.result.passed).toBe(true);
+      expect(outcome.receipt.synced).toBe(true);
+    } else {
+      const projectFile = path.join(root, "long-title-project.json");
+      const shotsFile = path.join(root, "long-title-shots.json");
+      fs.writeFileSync(projectFile, JSON.stringify(requested)); fs.writeFileSync(shotsFile, JSON.stringify(options.shots));
+      const outcome = spawnSync(process.execPath, [cliPath, "deliver", "--project", projectFile,
+        "--shots", shotsFile, "--variants", "warm-story,clean-tech", "--out-dir", outDir], { env, encoding: "utf8", timeout: 120000 });
+      expect(outcome.status, outcome.stdout + outcome.stderr).toBe(0);
+    }
+    const manifest = readJson(path.join(outDir, "delivery-manifest.json"));
+    expect(manifest.checks.find((check: any) => check.kind === "covers_valid").ok).toBe(true);
+    for (const variant of manifest.variants) {
+      const cover = variant.cover;
+      expect(cover.text).toContain(title);
+      expect(cover.checks.find((check: any) => check.kind === "cover_layout")).toMatchObject({ ok: false, hard: false });
+      expect(cover.checks.find((check: any) => check.kind === "cover_font_resolved")).toMatchObject({ ok: true, hard: true });
+      expect(hash(path.join(outDir, cover.path))).toBe(cover.sha256);
+      const probe = readJsonProbe(path.join(outDir, cover.path));
+      expect(probe.streams.find((stream: any) => stream.codec_type === "video")).toMatchObject({ width: 320, height: 240 });
+    }
+    expect(hash(source)).toBe(sourceHash);
+  }, 150_000);
+
+  it("显式错误 audioStemsByShot 在 core/tool/真实返修 CLI 占版本前失败", async () => {
+    const baseDir = path.join(root, "invalid-reedit-base");
+    fs.mkdirSync(baseDir);
+    const projectPath = path.join(baseDir, "film-project.json");
+    fs.writeFileSync(projectPath, JSON.stringify({ schemaVersion: "workloom.film-project/v1", projectId: "native-post",
+      version: 1, resolution: [320, 240], fps: 17, layers: { shots: [{ shotId: "S1" }], variants: [] } }));
+    const patch = { shots: { replace: [{ shotId: "S1" }] } };
+    const patchFile = path.join(root, "patch.json");
+    fs.writeFileSync(patchFile, JSON.stringify(patch));
+    for (const [index, invalid] of [...badSources, { S1: null }, { S1: false }, { S1: {} }].entries()) {
+      await expect(reedit({ projectPath, ...expectedBase(projectPath), patch, shotPaths: { S1: source },
+        audioStemsByShot: invalid, bins, env })).rejects.toMatchObject({ code: "audio_stems_source_unverified" });
+      await expect(callTool("postwrite.reedit", { project_path: projectPath,
+        expected_version: 1, expected_project_sha256: hash(projectPath), patch, shot_paths: { S1: source },
+        audio_stems_by_shot: invalid }, { bins, env })).rejects.toMatchObject({ code: "audio_stems_source_unverified" });
+      const mapFile = path.join(root, `invalid-stems-${index}.json`);
+      fs.writeFileSync(mapFile, JSON.stringify(invalid));
+      const result = spawnSync(process.execPath, [cliPath,
+        "reedit", "--project", projectPath, "--patch", patchFile, "--shot", `S1=${source}`,
+        "--audio-stems-by-shot", mapFile], { env, encoding: "utf8", timeout: 30_000 });
+      expect(result.status).toBe(3);
+      expect(result.stderr).toContain("audio_stems_source_unverified");
+      expect(fs.existsSync(path.join(baseDir, "versions"))).toBe(false);
+      expect(fs.existsSync(path.join(baseDir, ".revision.lock"))).toBe(false);
+    }
+  }, 120_000);
+
+  it("UHD 请求是本地目标画布加工，低分辨率文字或原片不自动启动增强模型", async () => {
+    const normalized = await normaliseShots({ shots: [{ shotId: "S1", path: source, kind: "text" }],
+      project: { projectId: "native-uhd", quality: "uhd", resolution: [3840, 2160], fps: 2 },
+      workDir: path.join(root, "uhd-work"), bins, env });
+    expect(normalized[0].enhancement).toMatchObject({ status: "not-requested", sourceSha256: sourceHash,
+      sourceResolution: [160, 120], method: "local-canvas-resize" });
+    const probe = JSON.parse(execFileSync(bins.ffprobe, ["-v", "error", "-show_streams", "-of", "json", normalized[0].path], { encoding: "utf8" }));
+    expect(probe.streams.find((stream: any) => stream.codec_type === "video")).toMatchObject({ width: 3840, height: 2160 });
+    expect(hash(source)).toBe(sourceHash);
+  }, 120_000);
 });

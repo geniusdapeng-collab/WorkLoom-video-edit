@@ -10,16 +10,342 @@
  *
  * 真实引擎（vendor/talkcraft）在场时，追加一条装配契约测试（模板复制 + 卡保真 + props 结构）。
  */
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, dirname, join, resolve } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { buildCardRegistry, extractConstSlots, extractDisplayStrings, parseFrontmatter, patchCardSource } from "./card-registry.js";
 import { alignScriptToTimestamps, expandToTiming, intToChinese, normalizeSpoken } from "./aligner.js";
 import { licenseStateOf, engineStatus, REQUIRED_ENGINE_FILES } from "./engine.js";
 import { deriveAnchors, deriveBeats, validateShotbook } from "./shotbook.js";
-import { renderShotsArgs, renderWorkerCount, remotionSubmitParams, RemotionProvider } from "./remotion-provider.js";
+import { renderShotsArgs, renderWorkerCount, remotionSubmitParams, RemotionProvider, readJobState } from "./remotion-provider.js";
 import { explainerOutputSize, type ExplainerShotbook, type ExplainerScript, type SemanticsFile, type TimestampsFile } from "./types.js";
+import { runMachineGates } from "./qa-gates.js";
+import { deliverFilm } from "./deliver.js";
+import { renderPreparedProject, runExplainerPipeline } from "./pipeline.js";
+import * as voicePreparation from "./voice-prep.js";
+import * as timestampPreparation from "./asr-aligner.js";
+import * as semanticsPreparation from "./semantics.js";
+import * as shotbookPreparation from "./shotbook.js";
+import * as projectPreparation from "./project-builder.js";
+
+describe("真实解说片默认后期接受与原声交付", () => {
+  const ffmpeg = process.env.WL_FFMPEG || "ffmpeg";
+  const ffprobe = process.env.WL_FFPROBE || "ffprobe";
+  const sha = (file: string) => createHash("sha256").update(readFileSync(file)).digest("hex");
+  function fixture(silent = false): { jobDir: string; video: string; env: NodeJS.ProcessEnv } {
+    const jobDir = mkdtempSync(join(tmpdir(), "growth explainer 中文 后期-"));
+    mkdirSync(join(jobDir, "out"));
+    const video = join(jobDir, "out", "v1.mp4");
+    const result = spawnSync(ffmpeg, ["-hide_banner", "-v", "error", "-n", "-f", "lavfi", "-i", "color=black:s=1080x1920:r=17:d=0.3",
+      ...(silent ? ["-f", "lavfi", "-i", "anullsrc=r=48000:cl=stereo", "-t", "0.3", "-c:a", "aac"] : ["-an"]),
+      "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p", video], { encoding: "utf8", timeout: 30_000 });
+    expect(result.status, result.stderr).toBe(0);
+    return { jobDir, video, env: { ...process.env, WL_FFPROBE: ffprobe, WL_FFMPEG: ffmpeg } };
+  }
+  it("黑屏静止、无音轨与缺创作评审材料都直接接受，不启动运动/声音检查或额外解码", async () => {
+    const f = fixture();
+    try {
+      const source = sha(f.video);
+      const { report, qaFramesDir, sheetsDir } = await runMachineGates({ jobDir: f.jobDir, cards: ["old-card"], cueCount: 9,
+        baseline: "/missing/identity.mp4", engineDir: "/missing/quality-engine", env: { ...f.env, WL_FFMPEG: "/must-not-execute-ffmpeg" } });
+      expect(report.pass).toBe(true); expect(report.qualityReviewed).toBe(false); expect(report.qualityScore).toBeNull();
+      expect(report.sourceArtifact?.sha256).toBe(source);
+      expect(report.gates.filter((gate) => gate.status === "skip")).toHaveLength(6);
+      expect(existsSync(qaFramesDir)).toBe(false); expect(existsSync(sheetsDir)).toBe(false); expect(sha(f.video)).toBe(source);
+    } finally { rmSync(f.jobDir, { recursive: true, force: true }); }
+  });
+  it("实际缺片、不可读媒体与请求画布未导出会返回真实失败，不能伪造接受", async () => {
+    const f = fixture();
+    try {
+      expect((await runMachineGates({ jobDir: f.jobDir, cards: [], cueCount: 0, quality: "uhd", env: f.env })).report.pass).toBe(false);
+      writeFileSync(f.video, "corrupt supplier bytes");
+      expect((await runMachineGates({ jobDir: f.jobDir, cards: [], cueCount: 0, env: f.env })).report.pass).toBe(false);
+      rmSync(f.video);
+      expect((await runMachineGates({ jobDir: f.jobDir, cards: [], cueCount: 0, env: f.env })).report.pass).toBe(false);
+    } finally { rmSync(f.jobDir, { recursive: true, force: true }); }
+  });
+  it.each([false, true])("默认交付保留所有原始视频与原声字节，静音=%s，响度未测而非假分", async (silent) => {
+    const f = fixture(silent);
+    try {
+      const source = sha(f.video);
+      const result = await deliverFilm({ jobDir: f.jobDir, sourceSha256: source, env: { ...f.env, WL_FFMPEG: "/must-not-execute-ffmpeg" } });
+      expect(result.sha256).toBe(source); expect(result.measurement).toBeNull(); expect(sha(f.video)).toBe(source);
+      const receipt = JSON.parse(readFileSync(join(f.jobDir, "out", "delivery-loudnorm.json"), "utf8"));
+      expect(receipt.requested).toBe(false); expect(receipt.measured).toBeNull(); expect(receipt.qualityReviewed).toBe(false);
+      await deliverFilm({ jobDir: f.jobDir, sourceSha256: source });
+      expect(readdirSync(join(f.jobDir, "out")).filter((name) => name.startsWith("delivery.mp4.previous-"))).toHaveLength(1);
+    } finally { rmSync(f.jobDir, { recursive: true, force: true }); }
+  });
+  it("接受后的当前字节变化拒绝，显式响度操作真实失败也不发布旧成片冒充新结果", async () => {
+    const f = fixture(true);
+    try {
+      const source = sha(f.video);
+      await expect(deliverFilm({ jobDir: f.jobDir, sourceSha256: "0".repeat(64) })).rejects.toThrow("POST_DELIVERY_SOURCE_CHANGED");
+      const first = await deliverFilm({ jobDir: f.jobDir, sourceSha256: source });
+      await expect(deliverFilm({ jobDir: f.jobDir, sourceSha256: source, normalize: true,
+        env: { ...f.env, WL_FFMPEG: "/actual-missing-tool" } })).rejects.toThrow();
+      expect(sha(first.deliveryPath)).toBe(source); expect(sha(f.video)).toBe(source);
+      expect(readdirSync(join(f.jobDir, "out")).some((name) => name.includes("pending"))).toBe(false);
+    } finally { rmSync(f.jobDir, { recursive: true, force: true }); }
+  });
+  it("明确请求响度只作一次真实滤镜，合法静音不因 -inf 品质量测被拒绝", async () => {
+    const f = fixture(true);
+    try {
+      const source = sha(f.video), trace = join(f.jobDir, "media-commands.jsonl"), wrapper = join(f.jobDir, "ffmpeg.cjs");
+      writeFileSync(wrapper, `#!${process.execPath}\nconst fs=require('node:fs'),cp=require('node:child_process');const a=process.argv.slice(2);fs.appendFileSync(${JSON.stringify(trace)},JSON.stringify(a)+'\\n');const r=cp.spawnSync(${JSON.stringify(ffmpeg)},a,{stdio:'inherit'});process.exit(r.status??1);`);
+      chmodSync(wrapper, 0o755);
+      const result = await deliverFilm({ jobDir: f.jobDir, sourceSha256: source, normalize: true, env: { ...f.env, WL_FFMPEG: wrapper } });
+      expect(existsSync(result.deliveryPath)).toBe(true); expect(result.measurement).toBeNull(); expect(sha(f.video)).toBe(source);
+      const commands = readFileSync(trace, "utf8").trim().split("\n").map((line) => JSON.parse(line));
+      expect(commands).toHaveLength(1); expect(commands[0].some((arg: string) => arg.startsWith("loudnorm=I=-15:TP=-1.5:LRA=11"))).toBe(true);
+      const info = spawnSync(ffprobe, ["-v", "error", "-show_streams", "-of", "json", result.deliveryPath], { encoding: "utf8" });
+      expect(info.status).toBe(0); expect(JSON.parse(info.stdout).streams.some((stream: any) => stream.codec_type === "audio")).toBe(true);
+    } finally { rmSync(f.jobDir, { recursive: true, force: true }); }
+  });
+
+  const resumeInput = (f: ReturnType<typeof fixture>, provider: any, quality: "hd" | "uhd" = "hd") => ({
+    provider, taskId: "same-job", jobDir: f.jobDir, scriptText: "已经渲染的正文", audioSeconds: 30, scope: "full",
+    aspect: "9:16" as const, quality, resume: true, env: { ...f.env, FFPROBE_PATH: ffprobe }, timeoutMs: 1000, log: () => undefined,
+  });
+  const succeededReceipt = (f: ReturnType<typeof fixture>) => ({ status: "succeeded", taskId: "actual-issued-task",
+    jobDir: f.jobDir, outputPath: f.video, outputSha256: sha(f.video), outputBytes: statSync(f.video).size,
+    updatedAt: "2026-10-01T00:00:00Z" });
+
+  it.each(["issued-binding", "samepath-replacement", "success-error", "invalid-status"])("真实 RemotionProvider 首次产物 %s 保持来源绑定与真实失败，不隐式重渲", async (kind) => {
+    const f = fixture(), engine = join(f.jobDir, "controlled-engine"), jobs = join(f.jobDir, "issued-jobs");
+    mkdirSync(join(engine, "scripts"), { recursive: true }); mkdirSync(join(f.jobDir, "remotion"));
+    writeFileSync(join(engine, "LICENSE"), "PolyForm Noncommercial License 1.0.0 -- controlled offline fixture");
+    writeFileSync(join(f.jobDir, "remotion", "props.json"), JSON.stringify({ width: 1080, height: 1920 }));
+    rmSync(f.video); // The actual provider child creates the original result, not a hand-written success state.
+    const trace = join(f.jobDir, "render-calls.jsonl");
+    writeFileSync(join(engine, "scripts", "render_shots.mjs"), `import{spawnSync}from'node:child_process';import{appendFileSync}from'node:fs';appendFileSync(${JSON.stringify(trace)},'actual local render\\n');const r=spawnSync(${JSON.stringify(ffmpeg)},['-hide_banner','-v','error','-n','-f','lavfi','-i','color=black:s=1080x1920:r=17:d=0.3','-an','-c:v','libx264','-preset','ultrafast','-pix_fmt','yuv420p','../out/v1.mp4'],{stdio:'inherit'});process.exitCode=r.status??1;`);
+    const env = { ...f.env, PATH: `${dirname(process.execPath)}:${process.env.PATH ?? ""}`,
+      TALKCRAFT_ENGINE_DIR: engine, TALKCRAFT_JOBS_DIR: jobs, TALKCRAFT_LICENSE_SCOPE: "noncommercial", FFPROBE_PATH: ffprobe };
+    const real = new RemotionProvider({ env }), denied = { submit: vi.fn().mockRejectedValue(new Error("IMPLICIT_RESUBMIT")), poll: vi.fn() };
+    const network = vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("UNEXPECTED_NETWORK"));
+    try {
+      const issued = await real.submit({ prompt: "controlled offline render", estimatedUnits: 1,
+        params: { jobDir: f.jobDir, audioSeconds: 0.3, scope: "full", resolution: "1080x1920" } });
+      const deadline = Date.now() + 30_000;
+      let state = readJobState(f.jobDir);
+      while (state?.status === "running" && Date.now() < deadline) {
+        await new Promise((done) => setTimeout(done, 50)); state = readJobState(f.jobDir);
+      }
+      expect(state?.status, JSON.stringify(state)).toBe("succeeded"); expect(state?.taskId).toBe(issued.taskId);
+      const produced = sha(f.video), originalStatus = readFileSync(join(f.jobDir, "status.json"));
+      if (kind === "issued-binding") {
+        expect(state).toMatchObject({ outputPath: f.video, outputSha256: produced, outputBytes: statSync(f.video).size });
+        expect((await real.poll(issued.taskId)).status).toBe("succeeded");
+        expect((await renderPreparedProject({ ...resumeInput(f, denied), env })).resumed).toBe(true);
+        expect((await runMachineGates({ jobDir: f.jobDir, cards: [], cueCount: 0, env, requireProviderState: true })).report.pass).toBe(true);
+      } else {
+        if (kind === "samepath-replacement") {
+          const replacement = spawnSync(ffmpeg, ["-hide_banner", "-v", "error", "-y", "-f", "lavfi", "-i", "color=blue:s=1080x1920:r=17:d=0.3",
+            "-an", "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p", f.video], { encoding: "utf8", timeout: 30_000 });
+          expect(replacement.status, replacement.stderr).toBe(0); expect(sha(f.video)).not.toBe(produced);
+          expect(readFileSync(join(f.jobDir, "status.json"))).toEqual(originalStatus);
+        } else writeFileSync(join(f.jobDir, "status.json"), JSON.stringify({ ...state,
+          ...(kind === "success-error" ? { error: "actual renderer error evidence" } : { status: "unexpected" }) }));
+        const current = sha(f.video), before = readFileSync(join(f.jobDir, "status.json"));
+        await expect(renderPreparedProject({ ...resumeInput(f, denied), env })).rejects.toThrow(/POST_RESUME_/);
+        expect((await real.poll(issued.taskId)).status).toBe("failed");
+        const processing = await runMachineGates({ jobDir: f.jobDir, cards: [], cueCount: 0, env, requireProviderState: true });
+        expect(processing.report.pass).toBe(false); expect(processing.report.sourceArtifact).toBeNull();
+        expect(sha(f.video)).toBe(current); expect(readFileSync(join(f.jobDir, "status.json"))).toEqual(before);
+      }
+      expect(readFileSync(trace, "utf8").trim().split("\n")).toHaveLength(1);
+      expect(denied.submit).not.toHaveBeenCalled(); expect(denied.poll).not.toHaveBeenCalled(); expect(network).not.toHaveBeenCalled();
+    } finally { network.mockRestore(); rmSync(f.jobDir, { recursive: true, force: true }); }
+  }, 45_000);
+
+  it.each(["missing", "partial", "invalid", "mismatched", "legacy-summary"])("旧 Remotion 成片 %s 的来源证明明确核对，不给当前片补发认证", async (kind) => {
+    const f = fixture(), { outputSha256, outputBytes, ...legacy } = succeededReceipt(f);
+    const provider = { submit: vi.fn().mockRejectedValue(new Error("IMPLICIT_RESUBMIT")), poll: vi.fn() };
+    try {
+      const receipt = kind === "partial" ? { ...legacy, outputSha256 } : kind === "invalid" ? { ...legacy, outputSha256: "invalid", outputBytes }
+        : kind === "mismatched" ? { ...legacy, outputSha256: "0".repeat(64), outputBytes } : legacy;
+      writeFileSync(join(f.jobDir, "status.json"), JSON.stringify(receipt));
+      const oldSummary = { jobId: f.jobDir, pass: false, gates: [{ gate: "motion_check", status: "fail" }],
+        sourceArtifact: { path: f.video, sha256: outputSha256, bytes: outputBytes, duration: 0.3, width: 1080, height: 1920 } };
+      if (kind === "legacy-summary" || kind === "partial" || kind === "invalid") {
+        writeFileSync(join(f.jobDir, "out", "qa-report.json"), JSON.stringify(oldSummary));
+      }
+      const statusBefore = readFileSync(join(f.jobDir, "status.json")), source = sha(f.video);
+      if (kind === "legacy-summary") {
+        expect((await renderPreparedProject(resumeInput(f, provider))).resumed).toBe(true);
+        expect(JSON.parse(readFileSync(join(f.jobDir, "out", "qa-report.json"), "utf8"))).toEqual(oldSummary);
+      } else await expect(renderPreparedProject(resumeInput(f, provider))).rejects.toThrow(/POST_RESUME_SOURCE_BINDING_|POST_RESUME_SOURCE_CHANGED/);
+      expect(readFileSync(join(f.jobDir, "status.json"))).toEqual(statusBefore); expect(sha(f.video)).toBe(source);
+      expect(provider.submit).not.toHaveBeenCalled(); expect(provider.poll).not.toHaveBeenCalled();
+    } finally { rmSync(f.jobDir, { recursive: true, force: true }); }
+  });
+
+  function archivedPreparation(f: ReturnType<typeof fixture>, text = "已经渲染的正文。") {
+    mkdirSync(join(f.jobDir, "audio")); mkdirSync(join(f.jobDir, "remotion"));
+    const script: ExplainerScript = { sentences: [{ i: 1, text }] };
+    const timestamps: TimestampsFile = { sr: 16000, total: 0.3, sentences: [{ i: 1, text, start: 0, end: 0.3,
+      asr: "旧版不匹配识别", match: 0.1, ok: false, words: [] }] };
+    const semantics: SemanticsFile = { sentences: [{ i: 1, text, sem: "论点", weight: "main", entities: [], need: "", shot: "s01" }] };
+    const shotbook: ExplainerShotbook = { style: { domain: "历史解说片", tone: "原稿", palette: { base: "#000", accent: "#fff", ink: "#eee" }, font: "sans", energy: "低" },
+      rhythmTable: [{ shotId: "s01", hostForm: "无人物", container: "无", card: "historical-card" }],
+      shots: [{ id: "s01", start: 0, end: 0.3, text, card: "historical-card", content: {}, replace: [], skin: {}, material: { kind: "文" }, sfx: [], notes: "历史成功片不再按当前最短镜头规则重审" }] };
+    const documents: Record<string, unknown> = { "script.json": script, "audio/timestamps.json": timestamps,
+      "semantics.json": semantics, "shotbook.json": shotbook,
+      "job.json": { schema: "workloom.explainer-job/v1", jobDir: f.jobDir, aspect: "9:16", quality: "hd", width: 1080, height: 1920, fps: 17, total: 0.3, cards: ["historical-card"], audio: "audio/full.wav", props: "remotion/props.json" },
+      "remotion/props.json": { width: 1080, height: 1920, fps: 17, total: 0.3, shots: [{ id: "s01", hostSrc: null }], voice: null },
+      "remotion/shots.json": [{ id: "s01", start: 0, end: 0.3 }], "remotion/beats.json": [], "remotion/anchors.json": [], "remotion/cues.json": [],
+    };
+    for (const [file, value] of Object.entries(documents)) writeFileSync(join(f.jobDir, file), JSON.stringify(value));
+    writeFileSync(join(f.jobDir, "status.json"), JSON.stringify(succeededReceipt(f)));
+    return { script, documents };
+  }
+
+  it.each([false, true])("外层 runExplainerPipeline 恢复档案与原片，静音=%s，TTS/ASR/模型/装配/预检/submit 均零调用", async (silent) => {
+    const f = fixture(silent);
+    const archived = archivedPreparation(f, silent ? "旧稿已有3个段落。" : undefined);
+    const spies = [vi.spyOn(voicePreparation, "prepareVoice").mockRejectedValue(new Error("UNEXPECTED_TTS")),
+      vi.spyOn(timestampPreparation, "alignTimestamps").mockRejectedValue(new Error("UNEXPECTED_ASR")),
+      vi.spyOn(semanticsPreparation, "annotateSemantics").mockRejectedValue(new Error("UNEXPECTED_SEMANTIC_MODEL")),
+      vi.spyOn(shotbookPreparation, "generateShotbook").mockRejectedValue(new Error("UNEXPECTED_SHOTBOOK_MODEL")),
+      vi.spyOn(projectPreparation, "buildProject").mockImplementation(() => { throw new Error("UNEXPECTED_BUILD"); }),
+      vi.spyOn(RemotionProvider.prototype, "submit").mockRejectedValue(new Error("UNEXPECTED_SUBMIT")),
+      vi.spyOn(RemotionProvider.prototype, "poll").mockRejectedValue(new Error("UNEXPECTED_POLL")),
+      vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("UNEXPECTED_NETWORK"))];
+    try {
+      const source = sha(f.video), before = Object.fromEntries(Object.keys(archived.documents).map((file) => [file, sha(join(f.jobDir, file))]));
+      const trace = join(f.jobDir, "denied-tools.jsonl"), denied = join(f.jobDir, "deny-preparation.cjs");
+      writeFileSync(denied, `#!${process.execPath}\nrequire('node:fs').appendFileSync(${JSON.stringify(trace)},JSON.stringify(process.argv)+'\\n');process.exit(29);`); chmodSync(denied, 0o755);
+      const llm = vi.fn().mockRejectedValue(new Error("UNEXPECTED_LLM")), events: any[] = [];
+      const result = await runExplainerPipeline({ taskId: "same-job", jobDir: f.jobDir, script: archived.script,
+        resumeFrom: "render", voice: { source: "tts", profile: "obsolete-profile" }, llm,
+        engineDir: "/removed-historical-engine", templateDir: "/removed-historical-template",
+        baselineHost: "/missing-identity-reference", env: { ...f.env, FFPROBE_PATH: ffprobe, FFMPEG_PATH: denied, WL_FFMPEG: denied, TALKCRAFT_PYTHON: denied },
+        onStage: (event) => { events.push(event); } });
+      expect(result.qa).toMatchObject({ pass: true, qualityReviewed: false, qualityScore: null });
+      expect(result.delivery?.sha256).toBe(source); expect(result.renderVideoPath).toBe(f.video);
+      expect(sha(f.video)).toBe(source); expect(result.timestamps.sentences[0]?.match).toBe(0.1);
+      expect(result.shotbook.shots[0]?.end).toBe(0.3); // old successful short shot is not revalidated as new generation
+      for (const spy of spies) expect(spy).not.toHaveBeenCalled(); expect(llm).not.toHaveBeenCalled();
+      expect(existsSync(trace)).toBe(false);
+      expect(events.find((event) => event.stageId === "preflight")).toMatchObject({ status: "skipped" });
+      expect(Object.fromEntries(Object.keys(archived.documents).map((file) => [file, sha(join(f.jobDir, file))]))).toEqual(before);
+    } finally { for (const spy of spies) spy.mockRestore(); rmSync(f.jobDir, { recursive: true, force: true }); }
+  });
+
+  it.each(["missing-archive", "changed-input", "failed-provider", "missing-video", "unreadable-video", "canvas", "partial-render", "changed-during-post"])("外层恢复 %s 明确失败，原片不变且不开始准备或重提交", async (kind) => {
+    const f = fixture();
+    const archived = archivedPreparation(f);
+    const spies = [vi.spyOn(voicePreparation, "prepareVoice").mockRejectedValue(new Error("UNEXPECTED_TTS")),
+      vi.spyOn(timestampPreparation, "alignTimestamps").mockRejectedValue(new Error("UNEXPECTED_ASR")),
+      vi.spyOn(semanticsPreparation, "annotateSemantics").mockRejectedValue(new Error("UNEXPECTED_SEMANTIC_MODEL")),
+      vi.spyOn(shotbookPreparation, "generateShotbook").mockRejectedValue(new Error("UNEXPECTED_SHOTBOOK_MODEL")),
+      vi.spyOn(projectPreparation, "buildProject").mockImplementation(() => { throw new Error("UNEXPECTED_BUILD"); }),
+      vi.spyOn(RemotionProvider.prototype, "submit").mockRejectedValue(new Error("UNEXPECTED_SUBMIT")),
+      vi.spyOn(RemotionProvider.prototype, "poll").mockRejectedValue(new Error("UNEXPECTED_POLL")),
+      vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("UNEXPECTED_NETWORK"))];
+    try {
+      if (kind === "missing-archive") rmSync(join(f.jobDir, "semantics.json"));
+      if (kind === "failed-provider") writeFileSync(join(f.jobDir, "status.json"), JSON.stringify({ ...succeededReceipt(f), status: "failed" }));
+      if (kind === "missing-video") rmSync(f.video);
+      if (kind === "unreadable-video") writeFileSync(f.video, "corrupt original supplier bytes");
+      const current = existsSync(f.video) ? sha(f.video) : null;
+      const llm = vi.fn().mockRejectedValue(new Error("UNEXPECTED_LLM"));
+      await expect(runExplainerPipeline({ taskId: "same-job", jobDir: f.jobDir,
+        script: kind === "changed-input" ? { sentences: [{ i: 1, text: "新稿不能被旧成片冒充完成。" }] } : archived.script,
+        quality: kind === "canvas" ? "uhd" : "hd", renderScope: kind === "partial-render" ? "changed:s01" : "full",
+        resumeFrom: "render", voice: { source: "tts" }, llm,
+        engineDir: "/removed-historical-engine", templateDir: "/removed-historical-template",
+        env: { ...f.env, FFPROBE_PATH: ffprobe, WL_FFMPEG: "/must-not-execute-ffmpeg", TALKCRAFT_PYTHON: "/must-not-execute-python" },
+        onStage: (event) => {
+          if (kind === "changed-during-post" && event.stageId === "machineGates" && event.status === "done") {
+            writeFileSync(join(f.jobDir, "script.json"), "archive bytes changed by concurrent writer");
+          }
+        },
+      })).rejects.toThrow(/POST_RESUME_|POST_EXPORT_/);
+      for (const spy of spies) expect(spy).not.toHaveBeenCalled(); expect(llm).not.toHaveBeenCalled();
+      expect(existsSync(join(f.jobDir, "out", "delivery.mp4"))).toBe(false);
+      if (current) expect(sha(f.video)).toBe(current); else expect(existsSync(f.video)).toBe(false);
+    } finally { for (const spy of spies) spy.mockRestore(); rmSync(f.jobDir, { recursive: true, force: true }); }
+  });
+
+  it.each([false, true])("实际 explainer-run --resume 不依赖当前引擎/模板/语音/模型，静音=%s", (silent) => {
+    const f = fixture(silent);
+    const archived = archivedPreparation(f, "旧稿已有3个段落。");
+    try {
+      const repository = resolve(dirname(fileURLToPath(import.meta.url)), "../../../../..");
+      const source = sha(f.video), trace = join(f.jobDir, "denied-cli-calls.jsonl");
+      const denied = join(f.jobDir, "deny-cli-tool.cjs"), preload = join(f.jobDir, "deny-cli-models.mjs");
+      writeFileSync(denied, `#!${process.execPath}\nrequire('node:fs').appendFileSync(${JSON.stringify(trace)},JSON.stringify(process.argv)+'\\n');process.exit(29);`); chmodSync(denied, 0o755);
+      writeFileSync(preload, `import{appendFileSync}from'node:fs';import{RemotionProvider}from${JSON.stringify(pathToFileURL(join(repository, "apps/server/src/video/explainer/remotion-provider.ts")).href)};const deny=(name)=>(...args)=>{appendFileSync(${JSON.stringify(trace)},JSON.stringify({name,args})+'\\n');throw Error('UNEXPECTED_CLI_CALL:'+name);};globalThis.fetch=deny('network');RemotionProvider.prototype.submit=deny('submit');RemotionProvider.prototype.poll=deny('poll');`);
+      const before = Object.fromEntries(Object.keys(archived.documents).map((file) => [file, sha(join(f.jobDir, file))]));
+      const result = spawnSync(process.execPath, ["--import", "tsx", "--import", preload,
+        "scripts/tools/explainer-run.mts", "--resume", "--task-id", basename(f.jobDir), "--llm", "deepseek"], {
+        cwd: repository, encoding: "utf8", timeout: 30_000,
+        env: { ...f.env, TALKCRAFT_JOBS_DIR: dirname(f.jobDir), TALKCRAFT_ENGINE_DIR: "/removed-historical-engine",
+          TALKCRAFT_PYTHON: denied, FFMPEG_PATH: denied, WL_FFMPEG: denied, FFPROBE_PATH: ffprobe,
+          LLM_BASE_URL: "https://must-not-contact.example", LLM_API_KEY: "offline-only-denied-fixture" },
+      });
+      expect(result.status, `${result.error ?? ""}\n${result.stdout}\n${result.stderr}`).toBe(0);
+      expect(existsSync(trace)).toBe(false); expect(sha(f.video)).toBe(source);
+      const report = JSON.parse(readFileSync(join(f.jobDir, "run-report.json"), "utf8"));
+      expect(report).toMatchObject({ qaPass: true, deliverySha256: source, quality: "hd", loudnorm: null });
+      expect(Object.fromEntries(Object.keys(archived.documents).map((file) => [file, sha(join(f.jobDir, file))]))).toEqual(before);
+      expect(sha(join(f.jobDir, "out", "delivery.mp4"))).toBe(source);
+    } finally { rmSync(f.jobDir, { recursive: true, force: true }); }
+  }, 40_000);
+
+  it("实际 render 断点复用成功原片，即使旧品质检查失败也不 submit；旧失败记录与原 SHA 保留", async () => {
+    const f = fixture();
+    try {
+      const source = sha(f.video), old = Buffer.from('{"pass":false,"gates":[{"gate":"motion_check","status":"fail"}],"qualityScore":1}\n');
+      const reportFile = join(f.jobDir, "out", "qa-report.json");
+      writeFileSync(join(f.jobDir, "status.json"), JSON.stringify(succeededReceipt(f)));
+      writeFileSync(reportFile, old);
+      const provider = { submit: vi.fn().mockRejectedValue(new Error("IMPLICIT_RESUBMIT")), poll: vi.fn() };
+      const resumed = await renderPreparedProject(resumeInput(f, provider));
+      expect(resumed.resumed).toBe(true); expect(resumed.uri).toBe(f.video);
+      expect(provider.submit).not.toHaveBeenCalled(); expect(provider.poll).not.toHaveBeenCalled();
+      const { report } = await runMachineGates({ jobDir: f.jobDir, cards: [], cueCount: 0, env: f.env });
+      expect(report.pass).toBe(true); expect(report.sourceArtifact?.sha256).toBe(source);
+      const previous = readdirSync(join(f.jobDir, "out")).filter((name) => name.startsWith("qa-report.previous-"));
+      expect(previous).toHaveLength(1); expect(readFileSync(join(f.jobDir, "out", previous[0]!))).toEqual(old);
+      expect(sha(f.video)).toBe(source);
+    } finally { rmSync(f.jobDir, { recursive: true, force: true }); }
+  });
+
+  it.each(["missing", "unreadable", "canvas", "failed-provider", "missing-receipt", "other-output"])("断点 %s 是明确技术失败，绝不重新 submit 或改写成功源片", async (kind) => {
+    const f = fixture();
+    try {
+      const receipt = succeededReceipt(f);
+      if (kind === "failed-provider") receipt.status = "failed";
+      if (kind === "other-output") receipt.outputPath = f.video + ".other";
+      if (kind !== "missing-receipt") writeFileSync(join(f.jobDir, "status.json"), JSON.stringify(receipt));
+      if (kind === "missing") rmSync(f.video);
+      if (kind === "unreadable") writeFileSync(f.video, "unreadable supplier bytes");
+      const current = existsSync(f.video) ? sha(f.video) : null;
+      const provider = { submit: vi.fn().mockRejectedValue(new Error("IMPLICIT_RESUBMIT")), poll: vi.fn() };
+      await expect(renderPreparedProject(resumeInput(f, provider, kind === "canvas" ? "uhd" : "hd"))).rejects.toThrow(/POST_RESUME_|POST_EXPORT_CANVAS_MISMATCH/);
+      expect(provider.submit).not.toHaveBeenCalled(); expect(provider.poll).not.toHaveBeenCalled();
+      if (current) expect(sha(f.video)).toBe(current);
+      else expect(existsSync(f.video)).toBe(false);
+    } finally { rmSync(f.jobDir, { recursive: true, force: true }); }
+  });
+
+  it("只有明确首渲分支才提交，沿用同一个 provider 和请求参数", async () => {
+    const f = fixture();
+    try {
+      const provider = { submit: vi.fn().mockResolvedValue({ taskId: "explicit-new-task" }),
+        poll: vi.fn().mockResolvedValue({ status: "succeeded", uri: f.video }) };
+      const result = await renderPreparedProject({ ...resumeInput(f, provider), resume: false });
+      expect(result.resumed).toBe(false); expect(provider.submit).toHaveBeenCalledTimes(1); expect(provider.poll).toHaveBeenCalledTimes(1);
+      expect(provider.submit.mock.calls[0]?.[0]).toMatchObject({ refId: "same-job", params: { jobDir: f.jobDir, audioSeconds: 30, scope: "full" } });
+    } finally { rmSync(f.jobDir, { recursive: true, force: true }); }
+  });
+});
 
 describe("输出画布契约", () => {
   it("默认 HD，UHD 竖屏与横屏均为原生尺寸", () => {
@@ -387,7 +713,7 @@ describe("解说片 submit 路由不可变请求复放", () => {
   const scope = { tenantId: "tenant-ex", workspaceId: "workspace-ex" };
   let saved: any;
   let row: any;
-  const prepare = vi.fn(), submit = vi.fn(), create = vi.fn(), approve = vi.fn(), update = vi.fn(), renderJob = vi.fn();
+  const prepare = vi.fn(), submit = vi.fn(), create = vi.fn(), approve = vi.fn(), update = vi.fn(), renderJob = vi.fn(), register = vi.fn();
   const query = vi.fn();
   beforeAll(async () => {
     const { initTRPC } = await import("@trpc/server");
@@ -396,6 +722,7 @@ describe("解说片 submit 路由不可变请求复放", () => {
       writeProcedure: t.procedure, scopeOf: (identity: any) => ({ tenantId: identity.tenantId, workspaceId: identity.workspaceId }) }));
     vi.doMock("@workloom/db", () => ({ getAppPool: () => ({}), getGatewayPool: () => ({}) }));
     vi.doMock("../gen/submit.js", () => ({ submitGenJob: submit }));
+    vi.doMock("../media/register-local.js", () => ({ registerLocalAsset: register }));
     vi.doMock("@workloom/base/asset-cms", () => ({ create, approve }));
     vi.doMock("@workloom/base/fence-engine", () => ({ judge: () => ({ level: "auto", impacts: [], triggeredBy: [] }) }));
     vi.doMock("@workloom/base/model-router", () => ({ checkRenderBudget: () => ({ allowed: true }), planTierToPlanId: () => "pro" }));
@@ -411,6 +738,7 @@ describe("解说片 submit 路由不可变请求复放", () => {
     prepare.mockReset().mockResolvedValue({ jobDir: "/tmp/prepared-project", voice: { sha256: "voice" }, timestamps: { total: 5.4, sentences: [{ i: 1, ok: true }] } });
     submit.mockReset().mockResolvedValue({ taskId: "accepted-task" }); update.mockReset();
     renderJob.mockReset().mockResolvedValue(null);
+    register.mockReset().mockResolvedValue({ assetId: "registered-final-cut", sha256: "registered-sha", bytes: 1 });
     create.mockReset().mockImplementation(async (_a, _g, _s, input) => {
       saved = { id: `${input.scriptKey}-v1`, project_id: input.projectId, shot_id: input.shotId, script_key: input.scriptKey,
         version: 1, md: input.md, fields: input.fields, status: "draft" };
@@ -469,6 +797,42 @@ describe("解说片 submit 路由不可变请求复放", () => {
     await expect(caller.submit({ projectId: "project-ex", shotbookId: "shotbook" })).rejects.toThrow("不属于");
     await expect(caller.finalize({ projectId: "project-ex", shotbookId: "shotbook" })).rejects.toThrow("当前项目");
     expect(prepare).not.toHaveBeenCalled(); expect(submit).not.toHaveBeenCalled();
+  });
+  it.each(["original", "samepath-replacement", "success-error", "missing-state", "missing-binding"])("真实 HTTP finalize %s 核对原产物再交付，不靠 DB done 给当前片补发成功", async (kind) => {
+    const root = mkdtempSync(join(tmpdir(), "growth explainer finalize 中文-")), video = join(root, "out", "v1.mp4");
+    mkdirSync(join(root, "out"));
+    const ffmpeg = process.env.WL_FFMPEG || "ffmpeg", ffprobe = process.env.WL_FFPROBE || "ffprobe";
+    const generate = (color: string) => {
+      const r = spawnSync(ffmpeg, ["-hide_banner", "-v", "error", "-y", "-f", "lavfi", "-i", `color=${color}:s=1080x1920:r=17:d=0.3`,
+        "-an", "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p", video], { encoding: "utf8", timeout: 30_000 });
+      expect(r.status, r.stderr).toBe(0);
+    };
+    generate("black");
+    const hash = () => createHash("sha256").update(readFileSync(video)).digest("hex"), original = hash();
+    const state: Record<string, unknown> = { status: "succeeded", taskId: "original-issued", jobDir: root, outputPath: video,
+      outputSha256: original, outputBytes: statSync(video).size };
+    if (kind === "samepath-replacement") generate("blue");
+    if (kind === "success-error") state.error = "actual renderer error";
+    if (kind === "missing-binding") { delete state.outputSha256; delete state.outputBytes; }
+    if (kind !== "missing-state") writeFileSync(join(root, "status.json"), JSON.stringify(state));
+    writeFileSync(join(root, "job.json"), JSON.stringify({ quality: "hd", aspect: "9:16" }));
+    row = { ...row, job_dir: root, shotbook: { ...row.shotbook, style: { domain: "真实恢复" } } };
+    renderJob.mockResolvedValue({ id: "db-done-job", status: "done" });
+    const current = hash(), previousProbe = process.env.WL_FFPROBE;
+    process.env.WL_FFPROBE = ffprobe;
+    try {
+      if (kind === "original") {
+        expect(await caller.finalize({ projectId: "project-ex" })).toMatchObject({ ready: true, status: "delivered" });
+        expect(createHash("sha256").update(readFileSync(join(root, "out", "delivery.mp4"))).digest("hex")).toBe(original);
+        expect(register).toHaveBeenCalledTimes(1);
+      } else {
+        await expect(caller.finalize({ projectId: "project-ex" })).rejects.toThrow(/POST_RESUME_/);
+        expect(existsSync(join(root, "out", "delivery.mp4"))).toBe(false); expect(register).not.toHaveBeenCalled();
+        const report = JSON.parse(readFileSync(join(root, "out", "qa-report.json"), "utf8"));
+        expect(report).toMatchObject({ pass: false, sourceArtifact: null, qualityReviewed: false });
+      }
+      expect(hash()).toBe(current); expect(prepare).not.toHaveBeenCalled(); expect(submit).not.toHaveBeenCalled();
+    } finally { if (previousProbe === undefined) delete process.env.WL_FFPROBE; else process.env.WL_FFPROBE = previousProbe; rmSync(root, { recursive: true, force: true }); }
   });
   it("旧脚本缺少不可变请求凭据时拒绝重建和重发", async () => {
     saved = { id: "legacy", version: 6, md: "old", fields: {} };

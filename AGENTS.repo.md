@@ -11,7 +11,7 @@
 `workloom_growth_video_workbench_guide`，参数 `{}`。返回的仓库身份必须是 `workloom-ai/WorkLoom-growth`。
 按指南冻结用户指定人、商品、平台、时长、账号调性、声音和特殊要求，再走正式系统前期、渲染、后期和交付核验。
 指南是工作台纪律，本次不新增生产硬闸；Growth 当前没有 Growthtest 的 standard-post/nativeaudio 专用契约，
-普通 voice 可能补 TTS。用户要求原生声音/指定声线时，能力不符须在付费前保留阻塞，不能替声。
+普通全链默认保留原节目声音、不隐式 ASR/TTS；明确配音或换声才进入授权的新声音请求，不能静默替代。成功源片核验真实任务/来源/授权与当前字节后直接正式后期，历史品质失败保留，不因组件变化重新付费。
 
 ## 一、视频工位：内置角色资产（新接手最容易踩的一条）
 
@@ -20,9 +20,9 @@
 用户已经指定人物时必须显式绑定对应档案，不能依赖默认模特补位；已批准资产复用，已有属性与授权记录不重复询问。
 
 - 资产位置：`bundles/ai-video/library/characters/`（`registry.json` + `model-01-chen-zhuo/`，8 角度定妆照随仓分发）。
-- 默认规则：镜头卡**不写** `character` / `characters` 时，出片链路自动使用 `registry.json#defaultModel`；
+- 默认规则：镜头卡**不写** `character` / `characters` 时，待新生成镜头的出片链路自动使用 `registry.json#defaultModel`；
   运行日志会打印 `未显式指定模特 → 使用系统默认模特：陈卓（chen-zhuo，1 号）`。
-- 装载方式：`scripts/tools/full-chain-film.mts` 固定装载 `bundles/ai-video/library/characters/**`
+- 装载方式：`scripts/tools/full-chain-film.mts` 仅待新生成需要角色时装载 `bundles/ai-video/library/characters/**`
   （再叠加 `--library` 指向的项目自有档案），因此**无需额外参数**。
 - 真人边界：真人肖像只能走平台授权通道（火山方舟「私域真人人像库」→ `asset://<asset ID>`）；
   **直传真人照片会被平台隐私闸拦**（`InputImageSensitiveContentDetected.PrivacyInformation`），本仓不提供绕过手段。
@@ -53,7 +53,11 @@
 1. 拿到 assetId 的**第一动作是问属性**（性别/年龄段/授权范围/有效期）并建主档
    `bundles/ai-video/library/real-person-assets/<assetId>/profile.json`；**不许"先渲一版看看"**。
 2. 镜头卡（含代词）必须与主档一致；`g-real-person`（G-RP1）门在出片前逐镜核对，冲突即硬阻断。
-3. 多镜真人片**先渲 1 镜 canary** 并通过身份比对，再渲其余镜头。
+3. 新生成多镜真人片先取得首个真实供应商任务结果和字节回执，再推进授权内其余新任务；不按身份/服装/画质品质比对拒绝成功片或自动重做。
 4. 缺属性、缺授权、素材未登记 → fail-closed；禁止在文案里临时代替平台事实。
 
 细则见 `docs/real-person-asset.md`。
+
+## 四、成功原片与正式后期
+
+已有成功任务的原片先核对来源、项目/镜号、作用域与当前 SHA256，再追加接受回执。旧提示词、当前属性库、定妆照到期、名义时长及旧品质失败不重新打开成功原片的前期审批。原片与旧日志只读，post-only/普通 resume/--no-resume 均不得因此重新付费。默认保留节目声音，不运行额外 LLM/ASR/TTS、品质抽帧或人工放行；实际缺件、权限/授权/支付/来源不符与请求加工失败继续明确失败。

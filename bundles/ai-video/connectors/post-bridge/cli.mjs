@@ -55,7 +55,8 @@ function parseArgs(argv) {
 function readJson(file, label) {
   if (typeof file !== "string") throw new PostError(`${label} 缺失`, "bad_request");
   if (!fs.existsSync(file)) throw new PostError(`${label} 不存在：${file}`, "not_found");
-  return JSON.parse(fs.readFileSync(file, "utf8"));
+  try { return JSON.parse(fs.readFileSync(file, "utf8")); }
+  catch (error) { throw new PostError(`${label} 无法读取有效 JSON：${error.message}`, "bad_request"); }
 }
 
 /** 镜头清单：--shots a.mp4,b.mp4（按顺序生成 SC-01…）或 --shots shots.json（[{shotId,path}]）。 */
@@ -65,11 +66,14 @@ function readShots(value) {
     const doc = readJson(value, "shots");
     const list = Array.isArray(doc) ? doc : doc.shots;
     if (!Array.isArray(list)) throw new PostError("shots.json 必须是数组或 { shots: [...] }", "bad_request");
+    if (list.some((shot) => !shot || typeof shot !== "object" || Array.isArray(shot))) {
+      throw new PostError("shots.json 每项必须是镜头对象", "bad_request");
+    }
     return list.map((shot, index) => ({
       shotId: String(shot.shotId ?? shot.shot_id ?? `SC-${String(index + 1).padStart(2, "0")}`),
       path: String(shot.path ?? shot.localPath ?? ""),
       ...(shot.kind ? { kind: String(shot.kind) } : {}),
-      ...(shot.audioStems ? { audioStems: shot.audioStems } : {}),
+      ...(Object.hasOwn(shot, "audioStems") ? { audioStems: shot.audioStems } : {}),
     }));
   }
   return value.split(",").map((file, index) => ({
@@ -133,10 +137,7 @@ async function main() {
       for (const variant of outcome.manifest.variants) {
         line(`  变体 ${variant.id}：${variant.video.path}${variant.softsub ? ` + ${variant.softsub.path.split("/").pop()}（软字幕轨）` : ""}`);
       }
-      line("  变体差异（实测）：");
-      for (const row of outcome.manifest.divergence) {
-        line(`    ${row.a} × ${row.b}：画面平均像素差 ${row.visual.meanAbsDiff}/255（${row.visual.verdict}）· 音频 ${row.audio.differs ? "不同" : "相同"}`);
-      }
+      line("  变体按声明配方加工；画面差值和音频品质未测，当前产物 SHA 与规格见清单。");
       line(`  清单：${outcome.manifestPath}`);
       line(`  工程文件：${outcome.projectPath}（返修入口）`);
       return outcome.passed ? 0 : 3;
@@ -177,7 +178,8 @@ async function main() {
         patch,
         outDir: typeof flags["out-dir"] === "string" ? flags["out-dir"] : null,
         shotPaths: Object.keys(shotPaths).length ? shotPaths : null,
-        audioStemsByShot: flags["audio-stems-by-shot"] ? readJson(flags["audio-stems-by-shot"], "--audio-stems-by-shot") : null,
+        ...(Object.hasOwn(flags, "audio-stems-by-shot")
+          ? { audioStemsByShot: readJson(flags["audio-stems-by-shot"], "--audio-stems-by-shot") } : {}),
         dryRun: flags["dry-run"] === true,
       });
       if (!outcome.executed) {

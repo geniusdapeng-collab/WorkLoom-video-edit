@@ -58,7 +58,7 @@
     {
       "type": "color_report",
       "label": "色彩报告",
-      "note": "调色师产物：前后指标（YMIN/YAVG/YMAX/UAVG/VAVG/SATAVG）、滤镜链、profile/LUT 版本、scope 与前后对比帧引用、产物 sha256；无回执不得进入入库/发布队列（G-COL3）"
+      "note": "实际调色滤镜链、profile/LUT、输出标签/尺寸/时长、原声保持与当前 sha256；qualityReviewed=false，质量分 null；不以抽帧品质拒收成功源片。"
     },
     {
       "type": "bgm_track",
@@ -68,7 +68,7 @@
     {
       "type": "bgm_report",
       "label": "配乐报告",
-      "note": "配乐师产物：分层策略、BGM 电平与让位深度、人声-音乐余量、配乐可闻度、响度（LUFS/dBTP/LRA）、卡点达标率与采用 BPM、署名文件、产物 sha256；无回执不得进入入库/发布队列（G-BGM3）"
+      "note": "实际原声策略、请求音乐来源/许可/选段/混音参数、当前输出与源片 sha256 及轨道规格；默认使用原片完整音轨，显式分轨仍核验签章和当前字节；未测品质指标为 null。"
     },
     {
       "type": "subtitle_track",
@@ -78,7 +78,7 @@
     {
       "type": "subtitle_report",
       "label": "字幕报告",
-      "note": "字幕师产物：选型理由（含被否候选）、版式体检（实测墨迹外接框/字号占短边/行宽/安全区/遮挡区/对比度）、字幕可现度增量、时间轴回读一致性、fontselect 字体解析命中、编码器、证据帧与成片 sha256；无回执不得进入入库/发布队列（G-SUB3）"
+      "note": "实际字体许可与 fontselect、ASS/文字/时间轴/请求安全区、编码器、目标画布/音轨与 sha256；默认不抽帧测可现度，presence.reviewed=false，未测品质值 null。"
     },
     {
       "type": "publish_task",
@@ -176,7 +176,7 @@
     {
       "type": "voice_report",
       "label": "配音报告",
-      "note": "配音师产物：音色档案引用、原声保留策略与让位深度、响度（LUFS/dBTP/LRA）、音画时长漂移、逐段时窗表、引擎与模型版本、RTF 与产物 sha256；对外发布还需授权范围覆盖 external-publish（G-VOICE6）"
+      "note": "显式请求的音色/授权、逐段文字与时间窗、实际引擎和当前输出 sha256/轨道规格；普通后期直接原声，默认无 ASR/TTS 或品质复核；对外发布授权仍前置。"
     },
     {
       "type": "delivery_package",

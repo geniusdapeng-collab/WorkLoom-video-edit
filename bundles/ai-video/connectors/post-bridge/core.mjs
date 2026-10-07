@@ -12,20 +12,18 @@
  * - 原片只读：任何写入都落到新文件，覆盖原片直接拒绝；版本只增不覆盖（v1 → v2 → v3）；
  * - 无回执=未核实：每个产物带 sha256；"复用"必须给出"未被重算"的证据（哈希 + mtime 未变）；
  * - 不猜：未知的 patch 键、缺失的字体、找不到的曲目一律抛稳定 code 的错误，不静默兜底；
- * - 风格差异必须**可测**：变体之间若画面与音轨都测不出差别，拒绝作为"多版本"交付；
+ * - 风格配方必须如实执行；不默认测源片品质或变体差异，未测字段保持明确；
  * - 花钱的动作不自动跑：需要重生成镜头时只产出计划 + 审批闸（G8），不擅自烧额度。
  *
  * 依赖关系：本工位是**总装工位**，复用三个专业工位的内核（同仓同 bundle，进程内 import）：
  *   subtitle-bridge/core.mjs  → 旁挂字幕（sidecar）、软字幕轨（softmux）、标题版式
- *   color-bridge/core.mjs     → 调色（grade，自带可见性校验）
- *   bgm-bridge/core.mjs       → 选曲与混音（findTracks / mix，自带 LUFS 复检）
+ *   color-bridge/core.mjs     → 单次声明配方调色（grade）
+ *   bgm-bridge/core.mjs       → 选曲与单次混音（findTracks / mix）
  */
 
 import { createHash, randomUUID } from "node:crypto";
 import {
-  AV_SYNC_POLICY,
   buildSampleAccurateConcatPlan,
-  verifyAssembledAvSync,
 } from "./av-sync.mjs";
 import fs from "node:fs";
 import fsp from "node:fs/promises";
@@ -34,15 +32,15 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import {
-  extractFrame, probeMedia, regionStats, round, runBin, sha256File, tempDir,
+  extractFrame, probeMedia, round, runBin, sha256File, tempDir,
 } from "../subtitle-bridge/measure.mjs";
 import {
   buildAssDocument, exportSidecars, loadFontCatalog, plan as planSubtitle,
   softMux, srtSecondsToAss, SubtitleError,
 } from "../subtitle-bridge/core.mjs";
-import { frameDifference, grade as colorGrade } from "../color-bridge/core.mjs";
+import { grade as colorGrade } from "../color-bridge/core.mjs";
 import { findTracks, loadAllLocalTracks, mix as bgmMix } from "../bgm-bridge/core.mjs";
-import { audioStemDigest, renderAudioStems, verifyAudioStemBundle,
+import { AUDIO_STEM_ROLES, audioStemDigest, renderAudioStems, verifyAudioStemBundle,
   muxAudioProgram, snapshotAudioStemArtifact } from "../bgm-bridge/audio-stems.mjs";
 import { createAudioStemReceiptVerifier } from "../bgm-bridge/audio-stems-trust.mjs";
 
@@ -214,6 +212,41 @@ function optionalNumber(value, fallback = null) {
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
+function audioSourceObject(value) {
+  return value !== null && typeof value === "object" && !Array.isArray(value)
+    && [Object.prototype, null].includes(Object.getPrototypeOf(value));
+}
+
+/** Presence is an instruction: an explicit invalid source may never become original-audio fallback. */
+function assertAudioStemDescriptors(value, label) {
+  const reject = () => { throw new PostError(`${label} 必须提供完整独立音轨角色、来源和回执；省略该字段才采用原节目`, "audio_stems_source_unverified"); };
+  if (!audioSourceObject(value) || Object.keys(value).length !== AUDIO_STEM_ROLES.length
+    || Object.keys(value).some((role) => !AUDIO_STEM_ROLES.includes(role))) reject();
+  for (const role of AUDIO_STEM_ROLES) {
+    const descriptor = value[role];
+    if (!audioSourceObject(descriptor) || !audioSourceObject(descriptor.receipt)
+      || Object.keys(descriptor.receipt).length === 0) reject();
+    if (descriptor.status === "not_applicable") {
+      if (typeof descriptor.reason !== "string" || !descriptor.reason.trim()
+        || descriptor.path != null || descriptor.sha256 != null || descriptor.sourceKind != null) reject();
+    } else if (descriptor.status === "ready") {
+      if (typeof descriptor.path !== "string" || !descriptor.path.trim()
+        || !/^[a-f0-9]{64}$/.test(descriptor.sha256 ?? "")
+        || typeof descriptor.sourceKind !== "string" || !descriptor.sourceKind.trim()) reject();
+    } else reject();
+  }
+}
+
+function explicitShotAudio(shots) {
+  if (!Array.isArray(shots) || shots.length === 0
+    || shots.some((shot) => !audioSourceObject(shot))) throw new PostError("shots 必须是非空镜头对象数组", "bad_request");
+  const explicit = shots.some((shot) => Object.hasOwn(shot, "audioStems"));
+  if (explicit) {
+    for (const shot of shots) assertAudioStemDescriptors(shot.audioStems, `镜头 ${shot.shotId ?? shot.shot_id ?? "?"}.audioStems`);
+  }
+  return explicit;
+}
+
 export const ASPECT_PRESETS = {
   "9:16": [1080, 1920],
   "16:9": [1920, 1080],
@@ -262,7 +295,7 @@ export async function planDelivery({
   project = {}, shots = [], variants = null, bins = resolveBinaries(),
 } = {}) {
   const projectId = text(project.projectId ?? project.project_id, "project.projectId");
-  if (!Array.isArray(shots) || shots.length === 0) throw new PostError("shots 不能为空（交付要从镜头产物出发）", "bad_request");
+  explicitShotAudio(shots);
   const index = loadVariantIndex();
   const wanted = Array.isArray(variants) && variants.length ? variants : index.defaults ?? index.variants.map((item) => item.id);
   const packs = wanted.map((id) => findVariantPack(id));
@@ -308,14 +341,14 @@ export async function planDelivery({
       },
     })),
     steps: [
-      ...(resolveQuality(project) === "uhd" ? ["⓪ 低于目标画幅的镜头先在本机逐帧增强，带模型与哈希回执；文字位图拒绝 AI 超分"] : []),
+      ...(resolveQuality(project) === "uhd" ? ["⓪ 按请求输出 UHD 画布；普通本地缩放，不自动启动增强模型"] : []),
       "① 归一化镜头（一次，全部变体共用）",
       "② 按变体拼接（转场风格差异）",
-      "③ 按变体调色（自带可见性校验）",
-      "④ 按变体选曲混音（自带 LUFS 复检）",
+      "③ 按变体执行声明的调色配方（不对源片评分）",
+      "④ 按变体选曲混音（真实加工回执，不测源片品质）",
       "⑤ 旁挂字幕包（srt/ass/vtt + 清单，母版不烧字）",
       "⑥ 封面 + 文案包（按变体差异）",
-      "⑦ 软字幕轨版（画面逐帧零改动复检）",
+      "⑦ 软字幕轨版（原编码画面/声音 copy，附当前字节回执）",
       "⑧ 交付清单 + 工程文件（film-project.json，供后续本地返修）",
     ],
     cost: {
@@ -339,10 +372,16 @@ async function contentKey(value) {
 export async function normaliseShots({
   shots = [], project = {}, workDir, bins = resolveBinaries(), reuse = true, force = false, env = process.env,
 }) {
+  explicitShotAudio(shots);
   const [width, height] = resolveResolution(project);
   const quality = resolveQuality(project);
   const fps = optionalNumber(project.fps, 30);
-  const dir = path.join(workDir, "norm");
+  const canonicalWorkDir = assertPathAllowed(workDir, allowedRoots(env), "workDir");
+  const dir = path.join(canonicalWorkDir, "norm");
+  if (fs.existsSync(dir) && fs.lstatSync(dir).isSymbolicLink()) {
+    throw new PostError("归一化工作目录不能是符号链接", "path_not_allowed");
+  }
+  assertPathAllowed(dir, allowedRoots(env), "normDir");
   await fsp.mkdir(dir, { recursive: true });
   const out = [];
   for (const shot of shots) {
@@ -351,7 +390,7 @@ export async function normaliseShots({
     const shotId = String(shot.shotId ?? shot.shot_id ?? path.basename(source));
     const sourceHash = await sha256File(source);
     let frozenSource = source;
-    if (shot.audioStems) {
+    {
       const snapshotDir = await fsp.mkdtemp(path.join(dir, ".source-"));
       frozenSource = (await snapshotAudioStemArtifact({ file: source, sha256: sourceHash,
         output: path.join(snapshotDir, "original"), allowedRoots: allowedRoots(env) })).path;
@@ -364,64 +403,10 @@ export async function normaliseShots({
       throw new PostError(`镜头 ${shotId} 的素材类型未知：${sourceKind}`, "bad_request");
     }
     let input = frozenSource;
-    let enhancement = null;
-    if (quality === "uhd") {
-      const scaleNeeded = Math.min(width / probe.width, height / probe.height);
-      if (scaleNeeded > 1.001) {
-        if (sourceKind === "text") {
-          throw new PostError(`镜头 ${shotId} 是文字位图：请在目标画布重排版，不能用 AI 超分冒充清晰文字`, "text_raster_unsupported");
-        }
-        let enhanced;
-        try {
-          const { enhanceVideo } = await import("../enhance-bridge/core.mjs");
-          enhanced = await enhanceVideo({
-            input: frozenSource,
-            outputDir: path.join(workDir, "enhanced"),
-            scopeId: `${project.projectId ?? project.project_id ?? "film"}:${shotId}`,
-            targetWidth: width,
-            targetHeight: height,
-            kind: sourceKind,
-            bins,
-          });
-        } catch (error) {
-          throw new PostError(
-            `镜头 ${shotId} 本机增强失败：${error instanceof Error ? error.message : String(error)}`,
-            error?.code ?? "enhance_failed",
-            error?.retryable === true,
-          );
-        }
-        input = enhanced.output;
-        enhancement = {
-          status: "enhanced",
-          kind: sourceKind,
-          sourceResolution: [probe.width, probe.height],
-          outputResolution: [enhanced.probe.width, enhanced.probe.height],
-          output: enhanced.output,
-          sha256: enhanced.sha256,
-          sourceSha256: enhanced.sourceSha256,
-          key: enhanced.key,
-          reused: enhanced.reused === true,
-          model: enhanced.model,
-          modelScale: enhanced.modelScale,
-          processingMode: enhanced.processingMode,
-          engine: enhanced.engine,
-          engineSha256: enhanced.engine?.binarySha256 ?? null,
-          diskPreflight: enhanced.diskPreflight,
-          provenancePath: enhanced.provenancePath,
-          receipt: enhanced.receipt,
-        };
-        if (enhanced.probe.width !== width || enhanced.probe.height !== height
-            || enhanced.receipt?.localVerified !== true || enhanced.processingMode !== "ai-upscale"
-            || !enhanced.model || !enhanced.engine?.binarySha256) {
-          throw new PostError(`镜头 ${shotId} 增强回读未到 ${width}×${height} 或未通过本地核验`, "verify_failed");
-        }
-      } else {
-        enhancement = {
-          status: "source-sufficient", kind: sourceKind,
-          sourceResolution: [probe.width, probe.height], sourceSha256: sourceHash,
-        };
-      }
-    }
+    const enhancement = quality === "uhd" ? {
+      status: "not-requested", kind: sourceKind, sourceResolution: [probe.width, probe.height],
+      sourceSha256: sourceHash, method: "local-canvas-resize", model: null, qualityReviewed: false,
+    } : null;
     const inputHash = input === frozenSource ? sourceHash : enhancement.sha256;
     const key = await contentKey({ sourceHash, inputHash, width, height, fps, quality, v: 3 });
     const target = path.join(dir, `${shotId}-${key}.mp4`);
@@ -448,7 +433,8 @@ export async function normaliseShots({
         throw new PostError(`镜头 ${shotId} 归一化缓存读取期间原素材发生变化`, "verify_failed");
       }
       out.push({
-        shotId, source, sourceHash, sourceDuration, audioStems: shot.audioStems ?? null, sourceKind, enhancement, quality, path: target, reused: true,
+        shotId, source, sourceHash, sourceDuration, sourceHasAudio: probe.hasAudio,
+        audioStems: shot.audioStems ?? null, sourceKind, enhancement, quality, path: target, reused: true,
         sha256: cachedHash, bytes: stat.size, mtimeMs: Math.round(stat.mtimeMs),
         duration: cachedProbe.videoDuration,
       });
@@ -496,7 +482,8 @@ export async function normaliseShots({
       await fsp.rm(tempTarget, { force: true });
     }
     out.push({
-      shotId, source, sourceHash, sourceDuration, audioStems: shot.audioStems ?? null, sourceKind, enhancement, quality, path: target, reused: false,
+      shotId, source, sourceHash, sourceDuration, sourceHasAudio: probe.hasAudio,
+      audioStems: shot.audioStems ?? null, sourceKind, enhancement, quality, path: target, reused: false,
       sha256: outputHash, bytes: stat.size, mtimeMs: Math.round((await fsp.stat(target)).mtimeMs),
       duration: outputProbe.videoDuration,
     });
@@ -516,6 +503,13 @@ async function verifyUhdEvidence(clips, [width, height], bins) {
     const item = clip.enhancement;
     if (!item || item.sourceSha256 !== clip.sourceHash || !Array.isArray(item.sourceResolution)) {
       throw new PostError(`镜头 ${clip.shotId} 缺 UHD 来源与源哈希`, "verify_failed");
+    }
+    if (item.status === "not-requested" && item.method === "local-canvas-resize") {
+      if (!clip.source || !fs.existsSync(clip.source) || await sha256File(clip.source) !== clip.sourceHash
+        || item.sourceResolution.some((dimension) => !Number.isInteger(dimension) || dimension <= 0)) {
+        throw new PostError(`镜头 ${clip.shotId} 本地画布加工的原片来源发生变化`, "verify_failed");
+      }
+      continue;
     }
     if (item.status === "source-sufficient") {
       const [sourceWidth, sourceHeight] = item.sourceResolution;
@@ -555,26 +549,9 @@ async function verifyUhdEvidence(clips, [width, height], bins) {
  * - fade：逐镜淡入淡出后直拼（情绪连贯，适合叙事/文旅）；
  * - xfade：真交叉溶解（镜头之间重叠过渡，最"精致"但需重编码）。
  */
-/**
- * 样点级拼接 + 拼完**实测**（音画对齐机制的平台侧落点）。
- * ① 画面 `-c:v copy`（帧级无损）；② 声音按每段画面时长 atrim+apad 到精确长度后走 concat 滤镜；
- * ③ 合流后逐镜实测偏移与累计漂移，超阈值直接抛 `av_sync_failed`（不静默出厂）。
- *
- * 实测的三态口径（**没有"静默通过"这一态**）：
- *   · 达标 → 返回报告；
- *   · 测到偏移（`kind: "drift"`）→ 抛 `av_sync_failed`，**永不降级**；
- *   · 测不了（`kind: "unverifiable"`，如环境缺 ffmpeg）→ 默认抛 `av_sync_unverifiable`；
- *     只有在 `transitions.allowUnverifiedAvSync === true`（调用方显式声明"本环境确实无法实测"）时，
- *     才返回 `{ degraded: true, reason }` 并在 `<output>.av-sync.json` 留下"未验证"报告。
- * 关闭自检：`transitions.verifyAvSync === false`（留痕口径：调用方必须自己说明为什么跳过）。
- */
-async function assembleSampleAccurate({
-  bins, list, clips, output, workDir, fps = 30, verify = true, allowUnverified = false,
-}) {
-  // 归一化产物使用 duration；音画模块使用 durationSec。两段命令与实测必须共享同一时长。
-  const measuredClips = clips.map((clip) => ({
-    ...clip, durationSec: Number(clip.durationSec ?? clip.duration ?? 0),
-  }));
+/** Assemble the requested timeline; no source-audio correlation or speech-quality review. */
+async function assembleSampleAccurate({ bins, list, clips, output, workDir, fps = 30 }) {
+  const measuredClips = clips.map((clip) => ({ ...clip, durationSec: Number(clip.durationSec ?? clip.duration ?? 0) }));
   if (measuredClips.some((clip) => !Number.isFinite(clip.durationSec) || clip.durationSec <= 0)) {
     throw new PostError("样点级拼接需要每个镜头的有效时长", "bad_media");
   }
@@ -583,45 +560,9 @@ async function assembleSampleAccurate({
   await runBin(bins.ffmpeg, plan.videoArgs, { label: "ffmpeg(concat-video)", timeoutMs: 900_000 });
   await runBin(bins.ffmpeg, plan.audioArgs, { label: "ffmpeg(concat-audio)", timeoutMs: 900_000 });
   await runBin(bins.ffmpeg, plan.muxArgs, { label: "ffmpeg(concat-mux)", timeoutMs: 900_000 });
-  if (!verify) return null;
-  const durations = measuredClips.map((clip) => clip.durationSec);
-  const starts = [];
-  let cursor = 0;
-  for (let index = 0; index < clips.length; index += 1) {
-    starts.push(cursor);
-    cursor += durations[index] > 0 ? durations[index] : 0;
-  }
-  let report;
-  try {
-    report = await verifyAssembledAvSync({
-      ffmpeg: bins.ffmpeg, output,
-      clips: clips.map((clip, index) => ({
-        shotId: clip.shotId ?? `#${index + 1}`,
-        path: clip.path,
-        durationSec: durations[index],
-      })),
-      starts,
-      policy: AV_SYNC_POLICY,
-      allowUnverified,
-    });
-  } catch (error) {
-    /** 失败也要留报告（审计要能看到"哪一镜偏了多少/为什么测不了"），再原样抛出 */
-    try {
-      await writeAvSyncReport(output, {
-        ok: false, degraded: false, error: error?.code ?? "av_sync_error",
-        detail: error?.message ?? String(error), report: error?.report ?? null,
-      });
-    } catch (reportError) {
-      error.reportWriteError = reportError instanceof Error ? reportError.message : String(reportError);
-    }
-    throw error;
-  }
-  await writeAvSyncReport(output, {
-    ok: report?.ok === true,
-    degraded: Boolean(report?.degraded),
-    detail: report?.degraded ? `未验证：${report.reason}` : "实测完成",
-    report,
-  });
+  const report = { policy: "rendered-source-default-acceptance", qualityReviewed: false,
+    correlation: null, method: "sample-accurate-timeline", sourceClips: measuredClips.length };
+  await writeAvSyncReport(output, { processed: true, report });
   return report;
 }
 
@@ -648,6 +589,7 @@ export async function assembleTimeline({
     : ["-c:v", "libx264", "-preset", "veryfast", "-crf", "18", "-pix_fmt", "yuv420p"];
   for (const clip of clips) {
     if (!fs.existsSync(clip.path)) throw new PostError(`归一化产物缺失：${clip.path}`, "not_found");
+    if (path.resolve(clip.path) === path.resolve(output)) throw new PostError("拼接禁止覆盖输入镜头", "overwrite_source_forbidden");
   }
   await fsp.mkdir(path.dirname(path.resolve(output)), { recursive: true });
   const dir = path.join(path.dirname(path.resolve(output)), "assemble");
@@ -663,8 +605,6 @@ export async function assembleTimeline({
      */
     const avSync = await assembleSampleAccurate({
       bins, list, clips, output, workDir: dir, fps,
-      verify: transitions.verifyAvSync !== false,
-      allowUnverified: transitions.allowUnverifiedAvSync === true,
     });
     return { output, mode, fadeSec: 0, shots: clips.length, avSync };
   }
@@ -698,8 +638,6 @@ export async function assembleTimeline({
         return { ...clip, path: file, duration: fadedProbe.videoDuration };
       })),
       output, workDir: dir, fps,
-      verify: transitions.verifyAvSync !== false,
-      allowUnverified: transitions.allowUnverifiedAvSync === true,
     });
     return { output, mode, fadeSec: round(fadeSec, 3), shots: clips.length, avSync };
   }
@@ -737,41 +675,9 @@ export async function assembleTimeline({
     "-s", `${width}x${height}`, "-r", String(fps), "-movflags", "+faststart", output,
   );
   await runBin(bins.ffmpeg, args, { label: "ffmpeg(xfade)", timeoutMs: 1_800_000 });
-  /**
-   * 交叉溶解路径同样要**实测**音画对齐（转场吃掉的重叠量与视频 xfade 的 offset 必须一致；
-   * 真机里"转场 + 时长补偿"叠加时最容易出偏差）。
-   */
-  let avSync = null;
-  if (transitions.verifyAvSync !== false) {
-    const starts = [];
-    let cursor = 0;
-    for (let index = 0; index < clips.length; index += 1) {
-      starts.push(cursor);
-      if (index < clips.length - 1) {
-        const fade = Math.min(fadeSec, Math.max(0.05, Math.min(durations[index], durations[index + 1]) / 2));
-        cursor += durations[index] - fade;
-      }
-    }
-    try {
-      avSync = await verifyAssembledAvSync({
-        ffmpeg: bins.ffmpeg, output,
-        clips: clips.map((clip, index) => ({ shotId: clip.shotId ?? `#${index + 1}`, path: clip.path, durationSec: durations[index] })),
-        starts,
-        policy: AV_SYNC_POLICY,
-        allowUnverified: transitions.allowUnverifiedAvSync === true,
-      });
-      await writeAvSyncReport(output, {
-        ok: avSync?.ok === true, degraded: Boolean(avSync?.degraded),
-        detail: avSync?.degraded ? `未验证：${avSync.reason}` : "实测完成", report: avSync,
-      });
-    } catch (error) {
-      await writeAvSyncReport(output, {
-        ok: false, degraded: false, error: error?.code ?? "av_sync_error",
-        detail: error?.message ?? String(error), report: error?.report ?? null,
-      });
-      throw error;
-    }
-  }
+  const avSync = { policy: "rendered-source-default-acceptance", qualityReviewed: false,
+    correlation: null, method: "requested-xfade-timeline", sourceClips: clips.length };
+  await writeAvSyncReport(output, { processed: true, report: avSync });
   return { output, mode, fadeSec: round(fadeSec, 3), shots: clips.length, avSync };
 }
 
@@ -910,7 +816,7 @@ export function buildCopyPack({ project = {}, variant = {} }) {
 
 /**
  * 封面：从已调色母版抽一帧 → 按平台版式渲标题（与字幕同源字体/字号体系）→ PNG。
- * 复检：墨迹外接框必须真的检出（"封面上只有背景、没有字"不算封面），字体必须命中工位字体目录。
+ * 校验实际 PNG、请求尺寸、标题文本和已解析字体；版式建议保留在报告中。
  */
 export async function buildCover({
   input, output, project = {}, variant = {}, resolution, platform = null,
@@ -923,35 +829,9 @@ export async function buildCover({
   const requestedAt = round(Math.min(maxAt, Math.max(0, duration * optionalNumber(variant.cover?.at, 0.35))), 3);
   const dir = path.join(workDir, "cover");
   await fsp.mkdir(dir, { recursive: true });
-  const frameAt = async (time, index) => {
-    const file = await extractFrame({
-      input, at: time, output: path.join(dir, `${variant.id}-frame-${index}.png`), bins,
-    });
-    const stats = await regionStats({ input: file, bins });
-    if (stats.lumaAvg === null || stats.lumaSpreadUnit === null) {
-      throw new PostError("封面背景亮度无法实测", "verify_failed");
-    }
-    return { at: time, file, stats };
-  };
-  const isBlankFade = ({ stats }) => stats.lumaAvg < 38 && stats.lumaSpreadUnit < 0.04;
-  let selected = await frameAt(requestedAt, 0);
-  if (isBlankFade(selected)) {
-    const step = Math.min(1, Math.max(0.2, duration * 0.08));
-    const candidates = [-1, 1, -2, 2, -3, 3]
-      .map((offset) => round(Math.min(maxAt, Math.max(0, requestedAt + offset * step)), 3))
-      .filter((time, index, times) => time !== requestedAt && times.indexOf(time) === index);
-    for (const [index, time] of candidates.entries()) {
-      const candidate = await frameAt(time, index + 1);
-      if (!isBlankFade(candidate)) {
-        selected = candidate;
-        break;
-      }
-    }
-    if (isBlankFade(selected)) {
-      throw new PostError("封面候选帧均为近黑纯色画面，请调整封面取帧位置或素材", "verify_failed");
-    }
-  }
-  const { at, file: frame, stats: background } = selected;
+  const at = requestedAt;
+  const frame = await extractFrame({ input, at, output: path.join(dir, `${variant.id}-frame-0.png`), bins });
+  const background = null;
   const titleLine = String(project.copy?.title ?? project.title ?? project.projectId ?? "");
   const hookLine = String(variant.cover?.subtitle ?? project.copy?.hook ?? "");
   const titleText = [titleLine, hookLine].filter(Boolean).join("\\N");
@@ -1018,11 +898,12 @@ export async function buildCover({
   if (!fs.existsSync(output)) throw new PostError(`封面未产出：${output}`, "ffmpeg_failed", true);
   const coverProbe = await probeMedia(output, { bins });
   const coverPlanChecks = planOutcome.checks.filter((check) => check.ok === false);
+  const fontChecks = planOutcome.checks.filter((check) => check.kind === "font_resolution");
   const checks = [
-    { kind: "cover_size", ok: coverProbe.width === (resolution?.[0] ?? coverProbe.width) && coverProbe.height === (resolution?.[1] ?? coverProbe.height), detail: { width: coverProbe.width, height: coverProbe.height } },
-    { kind: "cover_title_present", ok: Boolean(titleText), detail: { text: titleText.replace("\\N", " / ") } },
-    { kind: "cover_layout", ok: coverPlanChecks.length === 0, detail: coverPlanChecks.map((check) => check.kind) },
-    { kind: "cover_background_visible", ok: !isBlankFade(selected), detail: { requestedAt, selectedAt: at, lumaAvg: background.lumaAvg, lumaSpreadUnit: background.lumaSpreadUnit } },
+    { kind: "cover_size", hard: true, ok: coverProbe.width === (resolution?.[0] ?? coverProbe.width) && coverProbe.height === (resolution?.[1] ?? coverProbe.height), detail: { width: coverProbe.width, height: coverProbe.height } },
+    { kind: "cover_title_present", hard: true, ok: Boolean(titleText), detail: { text: titleText.replace("\\N", " / ") } },
+    { kind: "cover_font_resolved", hard: true, ok: fontChecks.length > 0 && fontChecks.every((check) => check.ok === true), detail: fontChecks },
+    { kind: "cover_layout", hard: false, ok: coverPlanChecks.length === 0, detail: coverPlanChecks.map((check) => check.kind) },
   ];
   return {
     output,
@@ -1086,6 +967,7 @@ function audioScope(project) {
   return scope;
 }
 function stemReference(bundle, base = null) {
+  if (!bundle) return null;
   return { dir: base ? path.relative(base, bundle.dir) : bundle.dir,
     manifestSha256: bundle.manifestSha256, recipeSha256: bundle.recipeSha256, scope: bundle.recipe.scope };
 }
@@ -1125,6 +1007,13 @@ async function timelineStems({ project, clips, transitions, workDir, env, bins }
     verifySource: createAudioStemReceiptVerifier({ env, expectedTenant: env.WORKLOOM_POST_BRIDGE_TENANT }), bins });
 }
 async function cleanProgramOutput({ gradedInput, stems, output, env, bins }) {
+  if (!stems) {
+    await fsp.mkdir(path.dirname(output), { recursive: true });
+    const sourceHash = await sha256File(gradedInput);
+    const result = await snapshotAudioStemArtifact({ file: gradedInput, sha256: sourceHash, output, allowedRoots: allowedRoots(env) });
+    await probeMedia(result.path, { bins });
+    return { ...result, embeddedAudioUsed: true, sourceAuthority: "original-media-bytes" };
+  }
   const reauthorize = async () => {
     const verify = createAudioStemReceiptVerifier({ env, expectedTenant: env.WORKLOOM_POST_BRIDGE_TENANT });
     for (const { binding, bindingSha256, receipt, receiptSha256 } of stems.sources) {
@@ -1140,59 +1029,35 @@ async function cleanProgramOutput({ gradedInput, stems, output, env, bins }) {
   return result;
 }
 
-/** Actual remixes are always rebuilt. A self-reported mixer cache cannot authorize output bytes. */
+/** Mix the requested new music once, retaining original audio unless independent sources are explicitly supplied. */
 async function mixVariantAudio({ pack, gradedInput, workDir, output, bins, env, stems }) {
-  if (!stems) throw new PostError("重混缺少已核实的独立音轨；不能沿用成片内的旧配乐", "audio_stems_source_unverified");
   if (pack.bgm?.enabled === false) {
     await cleanProgramOutput({ gradedInput, stems, output, env, bins });
     return { output, track: null, report: null, reused: false, failure: null, cacheKey: null };
   }
   const requestedLevel = optionalNumber(pack.bgm?.musicLevelDb, null);
-  const attempts = requestedLevel === null ? [{ level: null, autoTrimDb: 0 }]
-    : [{ level: requestedLevel, autoTrimDb: 0 }, { level: Math.max(-30, requestedLevel - 3), autoTrimDb: -3 }];
-  let cacheKey = null;
-  try {
-    const track = pickTrackForVariant(pack, { env });
-    const trackHash = await sha256File(track.path);
-    cacheKey = await contentKey({ picture: await sha256File(gradedInput),
-      sourceManifest: stems.manifestSha256, sourceRecipe: stems.recipeSha256,
-      trackSha256: trackHash, bgm: pack.bgm ?? null, v: 4 });
-    const audioDir = path.join(workDir, "audio");
-    await fsp.mkdir(audioDir, { recursive: true });
-    let report = null;
-    let applied = attempts[0];
-    for (const attempt of attempts) {
-      try {
-        const candidate = path.join(audioDir, `${pack.id}-${cacheKey}-${randomUUID()}.mp4`);
-        report = await bgmMix({ input: gradedInput, output: candidate, bgmPath: track.path,
-          audioStems: stemReference(stems), env,
-          policy: pack.bgm?.policy ?? "keep-dialogue", musicLevelDb: attempt.level,
-          targetLufs: optionalNumber(pack.bgm?.targetLufs, -14), fadeInSec: optionalNumber(pack.bgm?.fadeInSec, 1.2),
-          fadeOutSec: optionalNumber(pack.bgm?.fadeOutSec, 1.6), section: pack.bgm?.section ?? "auto", bins });
-        applied = attempt;
-        break;
-      } catch (error) {
-        if (error?.code !== "verify_failed" || error.retryable === false || attempt.autoTrimDb !== 0
-          || error.failedChecks?.length !== 1 || error.failedChecks[0] !== "dialogue_preserved") throw error;
-      }
-    }
-    assertBgmReportPassed(report);
-    const slimTrack = { id: track.id, title: track.title, artist: track.artist, mood: track.mood, genre: track.genre,
-      license: track.license, licenseLabel: track.licenseLabel, bpm: track.bpm, attribution: track.attribution, sourceSha256: trackHash };
-    const slimReport = { loudness: report.loudness, checks: report.checks, levels: report.levels,
-      applicability: report.applicability, retainedTracks: report.retainedTracks, independentAudio: report.independentAudio,
-      output: { path: report.output.path, sha256: report.output.hash, duration: report.output.durationSeconds },
-      mixing: { requestedMusicLevelDb: requestedLevel, appliedMusicLevelDb: applied.level, autoTrimDb: applied.autoTrimDb,
-        note: applied.autoTrimDb < 0 ? "人声余量不足，降 3dB 后重新实测" : "按配方电平通过实测" } };
-    await snapshotAudioStemArtifact({ file: report.output.path, sha256: report.output.hash, output, allowedRoots: allowedRoots(env) });
-    return { output, track: slimTrack, report: slimReport, reused: false, failure: null, cacheKey, mixing: slimReport.mixing };
-  } catch (error) {
-    // Source authority failures are hard errors. Only artistic/measurement failures may produce a clearly failed clean-program draft.
-    if (String(error?.code ?? "").startsWith("audio_stems_") || error?.code === "path_not_allowed") throw error;
-    const failure = { variant: pack.id, code: error?.code ?? "engine_failed", message: error instanceof Error ? error.message : String(error) };
-    await cleanProgramOutput({ gradedInput, stems, output, env, bins });
-    return { output, track: null, report: null, reused: false, failure, cacheKey };
-  }
+  const track = pickTrackForVariant(pack, { env });
+  const trackHash = await sha256File(track.path);
+  const cacheKey = await contentKey({ picture: await sha256File(gradedInput),
+    sourceManifest: stems?.manifestSha256 ?? null, sourceRecipe: stems?.recipeSha256 ?? null,
+    trackSha256: trackHash, bgm: pack.bgm ?? null, v: 5 });
+  const audioDir = path.join(workDir, "audio");
+  await fsp.mkdir(audioDir, { recursive: true });
+  const candidate = path.join(audioDir, `${pack.id}-${cacheKey}-${randomUUID()}.mp4`);
+  const report = await bgmMix({ input: gradedInput, output: candidate, bgmPath: track.path,
+    ...(stems ? { audioStems: stemReference(stems) } : {}), env, policy: pack.bgm?.policy ?? "keep-all", musicLevelDb: requestedLevel,
+    targetLufs: optionalNumber(pack.bgm?.targetLufs, -14), fadeInSec: optionalNumber(pack.bgm?.fadeInSec, 1.2),
+    fadeOutSec: optionalNumber(pack.bgm?.fadeOutSec, 1.6), section: pack.bgm?.section ?? "full", bins });
+  assertBgmReportPassed(report);
+  const slimTrack = { id: track.id, title: track.title, artist: track.artist, mood: track.mood, genre: track.genre,
+    license: track.license, licenseLabel: track.licenseLabel, bpm: track.bpm, attribution: track.attribution, sourceSha256: trackHash };
+  const slimReport = { loudness: report.loudness, checks: report.checks, levels: report.levels,
+    applicability: report.applicability, retainedTracks: report.retainedTracks, independentAudio: report.independentAudio,
+    output: { path: report.output.path, sha256: report.output.hash, duration: report.output.durationSeconds },
+    mixing: { requestedMusicLevelDb: requestedLevel, appliedMusicLevelDb: report.mix.musicLevelDb, autoTrimDb: 0,
+      note: "按请求执行混音；不评审源片音频品质，不自动重混" } };
+  await snapshotAudioStemArtifact({ file: report.output.path, sha256: report.output.hash, output, allowedRoots: allowedRoots(env) });
+  return { output, track: slimTrack, report: slimReport, reused: false, failure: null, cacheKey, mixing: slimReport.mixing };
 }
 
 function normalizePatchKeys(patch, allowed, label = "patch") {
@@ -1234,9 +1099,9 @@ export async function buildDeliveryPackage({
   env = process.env,
 } = {}) {
   const projectId = text(project.projectId ?? project.project_id, "project.projectId");
-  audioScope(project);
-  if (!shots.length || shots.some((shot) => !shot.audioStems)) throw new PostError("每镜必须提供独立音轨或已签署的不适用决定", "audio_stems_source_unverified");
-  const target = path.resolve(text(outDir, "outDir"));
+  const hasIndependentAudio = explicitShotAudio(shots);
+  if (hasIndependentAudio) audioScope(project);
+  const target = assertPathAllowed(text(outDir, "outDir"), allowedRoots(env), "outDir");
   await fsp.mkdir(target, { recursive: true });
   const plan = await planDelivery({ project, shots, variants, bins });
   const packs = plan.variants.map((entry) => findVariantPack(entry.id));
@@ -1256,7 +1121,7 @@ export async function buildDeliveryPackage({
   const totalSeconds = normalised.reduce((sum, clip) => sum + Number(clip.duration), 0);
   if (quality === "uhd") await verifyUhdEvidence(normalised, [width, height], bins);
   const baseTransitions = { mode: project.transitions?.mode ?? "hard", fadeSec: project.transitions?.fadeSec ?? 0.5 };
-  const masterStems = await timelineStems({ project, clips: normalised, transitions: baseTransitions, workDir, env, bins });
+  const masterStems = hasIndependentAudio ? await timelineStems({ project, clips: normalised, transitions: baseTransitions, workDir, env, bins }) : null;
   const masterAssembly = await assembleTimeline({
     clips: normalised,
     transitions: baseTransitions,
@@ -1320,7 +1185,7 @@ export async function buildDeliveryPackage({
       if (meta.key !== assemblyHash || cachedProbe.width !== width || cachedProbe.height !== height || !cachedProbe.hasAudio) {
         throw new PostError(`变体 ${pack.id} 拼接缓存规格或回执不一致`, "verify_failed");
       }
-      assembly = { ...meta, output: assemblyPath, reused: true };
+      assembly = { ...meta, output: assemblyPath, durationSeconds: cachedProbe.videoDuration ?? cachedProbe.duration, reused: true };
     } else {
       await assembleTimeline({
         clips: normalised, transitions, output: assemblyPath, resolution: [width, height], fps, quality, bins,
@@ -1329,11 +1194,11 @@ export async function buildDeliveryPackage({
       if (assembledProbe.width !== width || assembledProbe.height !== height || !assembledProbe.hasAudio) {
         throw new PostError(`变体 ${pack.id} 拼接产物规格不符`, "verify_failed");
       }
-      assembly = { output: assemblyPath, mode: transitions.mode, fadeSec: transitions.fadeSec ?? 0, shots: normalised.length, reused: false, key: assemblyHash, sha256: await sha256File(assemblyPath) };
+      assembly = { output: assemblyPath, durationSeconds: assembledProbe.videoDuration ?? assembledProbe.duration, mode: transitions.mode, fadeSec: transitions.fadeSec ?? 0, shots: normalised.length, reused: false, key: assemblyHash, sha256: await sha256File(assemblyPath) };
       await writeJson(assemblyMetaPath, assembly);
     }
 
-    // 调色（color-bridge，自带"调了跟没调一样"的可见性拒绝）
+    // 调色（color-bridge，按请求加工，不做源片质量比较）
     const lutPath = pack.color?.lut ? resolveLut(pack.color.lut) : null;
     const colorKey = await contentKey({
       assemblySha256: assembly.sha256,
@@ -1382,7 +1247,7 @@ export async function buildDeliveryPackage({
 
     // 音频层（BGM 选曲 + 混音；按内容哈希缓存，返修时可直接复用）
     const scoredPath = path.join(variantDir, `${pack.id}.mp4`);
-    const stems = audioStemDigest(transitions) === audioStemDigest(baseTransitions) ? masterStems
+    const stems = !hasIndependentAudio ? null : audioStemDigest(transitions) === audioStemDigest(baseTransitions) ? masterStems
       : await timelineStems({ project, clips: normalised, transitions, workDir, env, bins });
     const audioOutcome = await mixVariantAudio({ pack, gradedInput, workDir, output: scoredPath, bins, env, stems });
     const audioReport = audioOutcome.report;
@@ -1513,50 +1378,20 @@ export async function buildDeliveryPackage({
       },
       layers: {
         audioStems: stemReference(stems),
-        assembly: { path: assemblyPath, key: assemblyKey, sha256: assembly.sha256, reused: assembly.reused === true, mode: transitions.mode },
+        assembly: { path: assemblyPath, key: assemblyKey, sha256: assembly.sha256, durationSeconds: assembly.durationSeconds, reused: assembly.reused === true, mode: transitions.mode },
         color: gradeReport ? { path: gradeReport.output, sha256: gradeReport.sha256, reused: gradeReport.reused === true, profile: gradeReport.profile ?? null, lut: gradeReport.lut ?? null, intensity: gradeReport.intensity ?? null, visibility: gradeReport.visibility ?? null } : null,
       },
     });
   }
 
-  /* ④ 风格差异必须可测：两两比对画面（像素差）与音频（曲目/混音指纹） */
+  // Requested variant settings are recorded; source pictures/audio are not rescored against one another.
   const divergence = [];
-  for (let i = 0; i < variantsOut.length; i += 1) {
-    for (let j = i + 1; j < variantsOut.length; j += 1) {
-      const a = variantsOut[i];
-      const b = variantsOut[j];
-      const shotCount = Math.max(1, normalised.length);
-      const at = [...new Set([0.5, round(masterProbe.duration * 0.5, 2), round(Math.max(0.2, masterProbe.duration - 0.5), 2)].map((value) => Math.min(value, Math.max(0.1, (masterProbe.duration ?? 1) - 0.05))))];
-      const visual = await frameDifference({ before: a.artifacts.video.path, after: b.artifacts.video.path, at, bins });
-      const audioA = a.artifacts.audio?.trackId ?? null;
-      const audioB = b.artifacts.audio?.trackId ?? null;
-      const audioDiffers = audioA !== audioB || (a.artifacts.audio?.policy ?? null) !== (b.artifacts.audio?.policy ?? null);
-      const visualsDiffer = visual.verdict !== "negligible";
-      divergence.push({
-        a: a.id,
-        b: b.id,
-        visual,
-        audio: { a: audioA, b: audioB, differs: audioDiffers },
-        distinct: visualsDiffer || audioDiffers,
-        shotCount,
-      });
-    }
-  }
-  const indistinct = divergence.filter((row) => !row.distinct);
   const coverDivergence = [];
-  for (let i = 0; i < variantsOut.length; i += 1) {
-    for (let j = i + 1; j < variantsOut.length; j += 1) {
-      const diff = await frameDifference({
-        before: variantsOut[i].artifacts.cover.path,
-        after: variantsOut[j].artifacts.cover.path,
-        at: [0], bins,
-      });
-      coverDivergence.push({ a: variantsOut[i].id, b: variantsOut[j].id, diff, distinct: diff.verdict !== "negligible" });
-    }
-  }
-
   const packageChecks = [
-    { kind: "independent_audio_sources", ok: true, detail: { sourceScope: audioScope(project), embeddedAudioUsed: false, storedMusicExcluded: true } },
+    { kind: "audio_sources", ok: true, detail: { sourceScope: hasIndependentAudio ? audioScope(project) : null,
+      embeddedAudioUsed: !hasIndependentAudio && normalised.some((clip) => clip.sourceHasAudio),
+      silenceInsertedForSources: !hasIndependentAudio ? normalised.filter((clip) => !clip.sourceHasAudio).map((clip) => clip.shotId) : [],
+      storedMusicExcluded: hasIndependentAudio, qualityReviewed: false } },
     {
       kind: "resolution_exact",
       ok: masterProbe.width === width && masterProbe.height === height
@@ -1565,7 +1400,8 @@ export async function buildDeliveryPackage({
     },
     {
       kind: "enhancement_provenance",
-      ok: quality !== "uhd" || normalised.every((clip) => clip.enhancement?.status === "source-sufficient"
+      ok: quality !== "uhd" || normalised.every((clip) => clip.enhancement?.status === "not-requested"
+        || clip.enhancement?.status === "source-sufficient"
         || (clip.enhancement?.status === "enhanced" && clip.enhancement.processingMode === "ai-upscale"
           && clip.enhancement.receipt?.localVerified === true && clip.enhancement.sha256
           && clip.enhancement.engineSha256 && clip.enhancement.provenancePath)),
@@ -1574,74 +1410,39 @@ export async function buildDeliveryPackage({
     { kind: "master_no_burn_in", ok: Boolean(masterAssembly.output), detail: { note: "干净母版不含任何烧录字幕；字幕只以旁挂文件 + 可开关字幕轨交付", subtitles: sidecar ? sidecar.files.length : 0 } },
     { kind: "sidecar_files", ok: sidecar ? sidecar.passed : true, detail: sidecar ? { files: sidecar.files.map((file) => path.basename(file.path)), timeline: sidecar.manifest.timeline } : { note: "本次未提供字幕，跳过旁挂交付" } },
     { kind: "variant_count", ok: variantsOut.length >= 2, detail: { variants: variantsOut.map((variant) => variant.id) } },
-    { kind: "variants_distinct", ok: indistinct.length === 0, detail: { indistinct: indistinct.map((row) => `${row.a}~${row.b}`), divergence } },
-    { kind: "covers_distinct", ok: coverDivergence.every((row) => row.distinct), detail: coverDivergence },
     {
       kind: "covers_valid",
-      ok: variantsOut.every((variant) => variant.artifacts.cover.checks.every((check) => check.ok === true)),
+      ok: variantsOut.every((variant) => variant.artifacts.cover.checks.filter((check) => check.hard !== false).every((check) => check.ok === true)),
       detail: variantsOut.map((variant) => ({ id: variant.id, checks: variant.artifacts.cover.checks })),
     },
     { kind: "bgm_layer", ok: audioFailures.length === 0, detail: { failed: audioFailures, note: "失败的变体已按原声降级交付，不冒充带配乐成片" } },
     { kind: "softsub_video_unchanged", ok: variantsOut.every((variant) => !variant.artifacts.softsub || variant.artifacts.softsub.checks.every((check) => check.ok === true)), detail: variantsOut.filter((variant) => variant.artifacts.softsub).map((variant) => ({ id: variant.id, checks: variant.artifacts.softsub.checks.map((check) => check.kind) })) },
 {
 kind: "duration_consistent",
-      // xfade 会在镜头之间做重叠过渡，成片比"母版"短 (镜数-1)×转场时长——这是设计使然，不是误差。
-      // 因此基准按每个变体自己的转场口径算期望时长，再比对实测（±0.4s 容差）。
+      // 每个变体都由完整归一化源时间轴独立装配；母版可能已做 xfade，不能再从它扣重叠。
+      // 后续调色/配乐以该变体实际装配的视频轨时长为基准，保留真实加工时长检查。
       ok: variantsOut.every((variant) => {
-        const transitions = variant.style.transitions ?? {};
-        const overlap = String(transitions.mode) === "xfade"
-          ? Math.max(0, normalised.length - 1) * Number(transitions.fadeSec ?? 0)
-          : 0;
-        const expected = Math.max(0, (masterProbe.duration ?? 0) - overlap);
-        return Math.abs((variant.artifacts.video.duration ?? 0) - expected) <= 0.4;
+        const expected = variant.layers.assembly.durationSeconds;
+        return Number.isFinite(expected) && expected > 0
+          && Math.abs((variant.artifacts.video.duration ?? 0) - expected) <= 0.4;
       }),
       detail: {
         master: masterProbe.duration,
+        sourceTimelineSeconds: totalSeconds,
         variants: variantsOut.map((variant) => {
           const transitions = variant.style.transitions ?? {};
-          const overlap = String(transitions.mode) === "xfade"
-            ? Math.max(0, normalised.length - 1) * Number(transitions.fadeSec ?? 0)
-            : 0;
           return {
             id: variant.id,
             duration: variant.artifacts.video.duration,
-            expected: round(Math.max(0, (masterProbe.duration ?? 0) - overlap), 3),
+            expected: round(variant.layers.assembly.durationSeconds, 3),
             transitions: `${transitions.mode}${transitions.fadeSec ? ` ${transitions.fadeSec}s` : ""}`,
           };
         }),
 },
 },
-{
-/**
- * 计划 vs 实际（T-2026-0925-0001）：
- * 镜头卡/PRD 给出的计划总时长（`project.targetDurationSec` / `target_duration_sec` / `briefDurationSec`）
- * 与本次实际素材总时长比对（±1s/镜，至少 ±2s）。
- * 计划缺失时**不静默通过**：ok=true 但 detail.note 明确写"计划时长未提供（未校验）"，
- * 报告与前端据此可区分"校验通过"与"未校验"。
- */
-kind: "duration_plan_consistent",
-ok: (() => {
-const planned = Number(project.targetDurationSec ?? project.target_duration_sec ?? project.briefDurationSec);
-if (!Number.isFinite(planned) || planned <= 0) return true;
-const tolerance = Math.max(2, normalised.length * 1);
-return Math.abs(totalSeconds - planned) <= tolerance;
-})(),
-detail: (() => {
-const plannedRaw = project.targetDurationSec ?? project.target_duration_sec ?? project.briefDurationSec;
-const planned = Number(plannedRaw);
-if (!Number.isFinite(planned) || planned <= 0) {
-return { plannedSeconds: null, actualSeconds: totalSeconds, note: "计划时长未提供（未校验）" };
-}
-const tolerance = Math.max(2, normalised.length * 1);
-return {
-plannedSeconds: planned,
-actualSeconds: totalSeconds,
-deltaSeconds: round(totalSeconds - planned, 2),
-toleranceSeconds: tolerance,
-note: "计划口径 = 镜头卡/PRD 的目标总时长；实际口径 = 逐镜素材净时长合计",
-};
-})(),
-},
+{ kind: "planned_duration_reference", ok: true,
+  detail: { plannedSeconds: project.targetDurationSec ?? project.target_duration_sec ?? project.briefDurationSec ?? null,
+    actualSourceSeconds: totalSeconds, basis: "planning-reference-only", qualityReviewed: false } },
   ];
   if (quality === "uhd") {
     const failedUhdChecks = packageChecks.filter((check) =>
@@ -1649,12 +1450,6 @@ note: "计划口径 = 镜头卡/PRD 的目标总时长；实际口径 = 逐镜�
     if (failedUhdChecks.length > 0) {
       throw new PostError(`UHD 交付硬闸未通过：${failedUhdChecks.map((check) => check.kind).join("、")}`, "verify_failed");
     }
-  }
-  if (indistinct.length) {
-    throw new PostError(
-      `变体之间测不出差异（${indistinct.map((row) => `${row.a}~${row.b}`).join("、")}）：多风格交付必须是"能看出差别"的版本，拒绝交付雷同版本`,
-      "verify_failed",
-    );
   }
 
   /* ⑤ 工程文件 + 交付清单（返修的输入；也是"哪些层可复用"的事实源） */
@@ -1666,7 +1461,7 @@ note: "计划口径 = 镜头卡/PRD 的目标总时长；实际口径 = 逐镜�
   const filmProject = {
     schemaVersion: FILM_PROJECT_SCHEMA,
     projectId,
-    audioScope: audioScope(project),
+    audioScope: hasIndependentAudio ? audioScope(project) : null,
     version: 1,
     deliveryRoot: ".",
     createdAt: new Date().toISOString(),
@@ -1680,6 +1475,7 @@ note: "计划口径 = 镜头卡/PRD 的目标总时长；实际口径 = 逐镜�
       shots: normalised.map((clip) => ({
         shotId: clip.shotId, source: clip.source, normalised: path.relative(target, clip.path),
         sha256: clip.sha256, sourceSha256: clip.sourceHash, duration: clip.duration, sourceDuration: clip.sourceDuration,
+        sourceHasAudio: clip.sourceHasAudio,
         kind: clip.sourceKind,
         enhancement: clip.enhancement ? {
           ...clip.enhancement,
@@ -1696,7 +1492,7 @@ note: "计划口径 = 镜头卡/PRD 的目标总时长；实际口径 = 逐镜�
       variants: variantsOut.map((variant) => ({
         id: variant.id,
         style: variant.style,
-        audioStems: { ...variant.layers.audioStems, dir: path.relative(target, variant.layers.audioStems.dir) },
+        audioStems: variant.layers.audioStems ? { ...variant.layers.audioStems, dir: path.relative(target, variant.layers.audioStems.dir) } : null,
         // 工程文件里的路径一律**相对交付根**（交付包可整体搬走；返修时再按根解析回来）
         color: variant.layers.color
           ? { ...variant.layers.color, path: path.relative(target, variant.layers.color.path) }
@@ -1733,7 +1529,7 @@ note: "计划口径 = 镜头卡/PRD 的目标总时长；实际口径 = 逐镜�
     quality,
     resolution: [width, height],
     fps,
-    audioScope: audioScope(project),
+    audioScope: hasIndependentAudio ? audioScope(project) : null,
     independentAudio: stemReference(masterStems, target),
     master: {
       path: path.relative(target, masterAssembly.output),
@@ -1779,7 +1575,7 @@ note: "计划口径 = 镜头卡/PRD 的目标总时长；实际口径 = 逐镜�
         }
         : null,
       style: variant.style,
-      independentAudio: { ...variant.layers.audioStems, dir: path.relative(target, variant.layers.audioStems.dir) },
+      independentAudio: variant.layers.audioStems ? { ...variant.layers.audioStems, dir: path.relative(target, variant.layers.audioStems.dir) } : null,
     })),
     divergence,
     coverDivergence: coverDivergence.map((row) => ({ a: row.a, b: row.b, meanAbsDiff: row.diff.meanAbsDiff, verdict: row.diff.verdict })),
@@ -1808,7 +1604,7 @@ note: "计划口径 = 镜头卡/PRD 的目标总时长；实际口径 = 逐镜�
     `# 交付包 · ${manifest.title}`,
     "",
     `- 项目：${projectId} · 平台：${platform ?? "默认"} · 画幅：${width}×${height} @${fps}fps · 时长：${masterProbe.duration}s`,
-    `- 清晰度档位：${quality === "uhd" ? "UHD（本机增强低分辨率镜头）" : "HD"}；逐镜来源和模型记录见 \`delivery-manifest.json\` 的 \`enhancements\``,
+    `- 清晰度档位：${quality === "uhd" ? "UHD（本地目标画布加工，未请求模型增强）" : "HD"}；逐镜来源见 \`delivery-manifest.json\` 的 \`enhancements\``,
     `- 干净母版：\`${manifest.master.path}\`（**不含字幕**；字幕只以旁挂文件/可开关字幕轨交付）`,
     sidecar ? `- 字幕文件：${manifest.subtitles.files.map((file) => file.path.split("/").pop()).join("、")}（时间轴回读 ${sidecar.manifest.timeline.readback.ass ? "ok" : "fail"}）` : "- 字幕文件：本次未提供字幕",
     "",
@@ -1827,11 +1623,9 @@ note: "计划口径 = 镜头卡/PRD 的目标总时长；实际口径 = 逐镜�
       `\`${variant.cover.path}\``,
     ].join(" | ")),
     "",
-    "## 变体差异（实测，不是声明）",
+    "## 变体配方与加工证据",
     "",
-    "| 对比 | 画面平均像素差 | 判定 | 音频 |",
-    "|---|---:|---|---|",
-    ...divergence.map((row) => `| ${row.a} × ${row.b} | ${row.visual.meanAbsDiff}/255 | ${row.visual.verdict} | ${row.audio.differs ? "曲目/分层不同" : "相同"} |`),
+    "本包按上表声明的配方分别加工；未测画面差值或音频品质，也不据此拒收成功源片。各当前文件 SHA 和输出规格见清单。",
     "",
     "## 返修怎么走（不用重新生成镜头）",
     "",
@@ -2194,7 +1988,8 @@ async function withRevisionClaim({ base, snapshot, expectedVersion, expectedProj
  * shotPaths?: Record<string, string>|null, bins?: {ffmpeg: string, ffprobe: string},
  * dryRun?: boolean, env?: NodeJS.ProcessEnv}} options
  */
-export async function reedit({
+export async function reedit(options = {}) {
+  const {
   projectPath,
   deliveryDir = null,
   expectedVersion = null,
@@ -2202,15 +1997,42 @@ export async function reedit({
   patch = {},
   outDir = null,
   shotPaths = null,
-  audioStemsByShot = null,
+  audioStemsByShot,
   bins = resolveBinaries(),
   dryRun = false,
   env = process.env,
-} = {}) {
+  } = options;
+  const explicitAudioSources = Object.hasOwn(options, "audioStemsByShot");
+  if (explicitAudioSources) {
+    if (!audioSourceObject(audioStemsByShot) || Object.keys(audioStemsByShot).length === 0) {
+      throw new PostError("audioStemsByShot 必须是非空镜头来源映射；省略该字段才采用已有节目音轨", "audio_stems_source_unverified");
+    }
+    for (const [shotId, descriptors] of Object.entries(audioStemsByShot)) {
+      assertAudioStemDescriptors(descriptors, `audioStemsByShot.${shotId}`);
+    }
+  }
   const snapshot = readRevisionBase(projectPath);
   const projectFile = snapshot.file;
   const project = snapshot.project;
   const impact = analyzeImpact({ project, patch });
+  const knownShots = new Set((project.layers?.shots ?? []).map((shot) => shot.shotId));
+  if (shotPaths && (!audioSourceObject(shotPaths) || Object.entries(shotPaths).some(([shotId, file]) =>
+    !knownShots.has(shotId) || typeof file !== "string" || !file.trim()))) {
+    throw new PostError("shotPaths 含未知镜头或无效文件路径", "bad_request");
+  }
+  if (explicitAudioSources) {
+    if (!project.layers?.audioStems || !shotPaths || Object.keys(audioStemsByShot).some((shotId) => !Object.hasOwn(shotPaths, shotId))) {
+      throw new PostError("显式音轨替换必须绑定已有独立音轨工程及本次替换镜头，不能被忽略或回退原声", "audio_stems_source_unverified");
+    }
+    audioScope(project);
+  }
+  if (project.layers?.audioStems && shotPaths) {
+    for (const shotId of Object.keys(shotPaths)) {
+      if (!explicitAudioSources || !Object.hasOwn(audioStemsByShot, shotId)) {
+        throw new PostError(`替换镜头 ${shotId} 缺新的独立音轨来源回执`, "audio_stems_source_unverified");
+      }
+    }
+  }
   /**
    * 两个基准必须分开（2026-09-24 真机修复）：
    *   · `projectDir`：工程文件所在目录——**产物路径按它解析**（约定：路径相对工程文件自己所在目录）；
@@ -2265,9 +2087,6 @@ export async function reedit({
     const rebuilt = [];
     const reused = [];
     const hasIndependentAudio = Boolean(project.layers?.audioStems);
-    if (!hasIndependentAudio && (plan.rebuild.audio || plan.rebuild.assemble || plan.rebuild.color || plan.rebuild.normalise)) {
-      throw new PostError("旧工程缺独立音轨，不能从带配乐成片重混；需先补权威来源", "audio_stems_source_unverified");
-    }
     const priorMasterStems = hasIndependentAudio
       ? await verifyStoredStems(project.layers.audioStems, project, projectDir, env, bins) : null;
     const priorSources = priorMasterStems ? descriptorsFromBundle(priorMasterStems) : {};
@@ -2283,9 +2102,9 @@ export async function reedit({
     for (const entry of projectShots) {
       const replacement = shotPaths?.[entry.shotId];
       if (replacement) {
-        if (!audioStemsByShot?.[entry.shotId]) throw new PostError(`替换镜头 ${entry.shotId} 缺新的音轨来源回执`, "audio_stems_source_unverified");
         const [clip] = await normaliseShots({
-          shots: [{ shotId: entry.shotId, path: replacement, kind: entry.stored.kind ?? "live-action", audioStems: audioStemsByShot?.[entry.shotId] }],
+          shots: [{ shotId: entry.shotId, path: replacement, kind: entry.stored.kind ?? "live-action",
+            ...(hasIndependentAudio ? { audioStems: audioStemsByShot[entry.shotId] } : {}) }],
           project: { projectId: project.projectId, resolution: [width, height], quality, fps },
           workDir,
           bins,
@@ -2310,6 +2129,7 @@ export async function reedit({
         source: resolveStored(projectDir, entry.stored.source ?? entry.stored.normalised),
         sourceHash: entry.stored.sourceSha256 ?? null,
         sourceDuration: entry.stored.sourceDuration ?? entry.stored.duration,
+        sourceHasAudio: entry.stored.sourceHasAudio ?? null,
         audioStems: priorSources[entry.shotId] ?? null,
         sourceKind: entry.stored.kind ?? "live-action",
         quality,
@@ -2323,6 +2143,7 @@ export async function reedit({
         duration: reusedProbe.videoDuration,
         reused: true,
       };
+      await assertStoredArtifact(clip.source, clip.sourceHash, `返修镜头 ${entry.shotId} 原素材`);
       normalised.push(clip);
       reused.push({ layer: "shots", shotId: clip.shotId, path: file, sha256, note: "复用上次归一化产物（哈希与工程文件一致）" });
     }
@@ -2509,10 +2330,10 @@ export async function reedit({
           await assertStoredArtifact(previousAudio, stored.artifacts.audio.sha256, `返修变体 ${variantId} 音频回执`);
           await fsp.copyFile(previousAudio, audioReceiptPath);
           const priorAudio = JSON.parse(await fsp.readFile(audioReceiptPath, "utf8"));
-          audioPassed = priorAudio.failed !== true && (pack.bgm?.enabled === false
-            || Boolean(priorAudio.checks) && Object.values(priorAudio.checks).every((ok) => ok === true));
+          audioPassed = priorAudio.failed !== true;
         } else {
-          await writeJson(audioReceiptPath, { failed: true, code: "audio_stems_source_unverified", note: "旧工程缺少冻结音频回执，仅保留草稿" });
+          audioPassed = true;
+          await writeJson(audioReceiptPath, { output: { sha256: await sha256File(videoTarget) }, sourceAuthority: "stored-original-media-bytes", qualityReviewed: false });
         }
         reused.push({ layer: "audio", variant: variantId, path: previousVideo, sha256: stored?.artifacts?.video?.sha256 ?? null });
       }
@@ -2636,7 +2457,7 @@ export async function reedit({
       reused,
       quality,
       resolution: [width, height],
-      checks: [{ kind: "independent_audio_sources", ok: hasIndependentAudio, detail: { legacyDraft: !hasIndependentAudio, embeddedAudioUsed: false } },
+      checks: [{ kind: "audio_sources", ok: true, detail: { embeddedAudioUsed: !hasIndependentAudio, independentStems: hasIndependentAudio, qualityReviewed: false } },
         { kind: "bgm_layer", ok: variantsOut.every((variant) => variant.audioReceipt.passed === true), detail: variantsOut.map((variant) => ({ id: variant.id, passed: variant.audioReceipt.passed })) },
         { kind: "resolution_exact", ok: variantsOut.every((variant) => variant.video.resolution[0] === width && variant.video.resolution[1] === height), detail: { requested: [width, height], variants: variantsOut.map((variant) => ({ id: variant.id, resolution: variant.video.resolution })) } }],
       outDir: targetDir,
@@ -2665,6 +2486,7 @@ export async function reedit({
             sha256: fresh.sha256,
             sourceSha256: fresh.sourceHash,
             sourceDuration: fresh.sourceDuration,
+            sourceHasAudio: fresh.sourceHasAudio,
             duration: fresh.duration,
             kind: fresh.sourceKind ?? shot.kind ?? "live-action",
             enhancement: fresh.enhancement ? {
@@ -3022,7 +2844,7 @@ export async function callTool(name, params = {}, { bins = resolveBinaries(), en
         patch: params.patch ?? {},
         outDir: params.out_dir ? assertPathAllowed(params.out_dir, roots, "out_dir") : null,
         shotPaths,
-        audioStemsByShot: params.audio_stems_by_shot ?? null,
+        ...(Object.hasOwn(params, "audio_stems_by_shot") ? { audioStemsByShot: params.audio_stems_by_shot } : {}),
         bins,
         dryRun: params.dry_run === true,
         env,

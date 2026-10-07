@@ -3,7 +3,7 @@ import { mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileS
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawn } from "node:child_process";
-import { filmReviewContracts, loadOrCreateFilmAuthorContext, reviewFilmStage, storyDateAt, type FilmContractSource } from "./film-contracts.js";
+import { filmReviewContracts, loadOrCreateFilmAuthorContext, reviewFilmStage, postRenderFilmStageVerdict, storyDateAt, type FilmContractSource } from "./film-contracts.js";
 import { resolveEraProfile } from "./era-profile.js";
 import { buildProducerReviewContract, type ProducerGateOptions, type ProducerVerdict } from "./producer-gate.js";
 const dirs: string[] = [];
@@ -69,8 +69,46 @@ describe("first-authored frozen film context", () => {
     expect(readdirSync(dir)).toEqual(["context.json"]);
   }, 20_000);
 });
+describe("post-render default acceptance", () => {
+  it("does not compile source quality contracts or veto successfully issued media", () => {
+    const path = join(directory(), "source.mp4"); writeFileSync(path, "issued source bytes");
+    const s = source(); s.shots[0]!.devices = [{ malformed: "quality rubric irrelevant after rendering" }];
+    const v = postRenderFilmStageVerdict(s, { stage: "shot", projectId: "project", context: { shotId: "E" },
+      artifacts: [{ path, kind: "video" }], deterministic: ["identity", "duration", "resolution", "audio-track", "motion-evidence", "narration-coverage"]
+        .map((id) => ({ id, pass: false, hard: true, detail: "owner accepts successful source" })) });
+    expect(v).toMatchObject({ approved: true, via: "deterministic", rerun: false, hardFailures: [] });
+    expect(v.contractHash).toMatch(/^[a-f0-9]{64}$/);
+    expect(v.evidence?.[0]?.path).toBe(path);
+  });
+  it("keeps actual post output and requested transform failures explicit", () => {
+    const path = join(directory(), "post.mp4"); writeFileSync(path, "post bytes");
+    const v = postRenderFilmStageVerdict(source(), { stage: "compose", projectId: "project", artifacts: [{ path, kind: "video" }],
+      deterministic: [{ id: "tool-exit", pass: false, hard: true, detail: "ffmpeg failed" },
+        { id: "character-consistency", pass: false, hard: true, detail: "clothing changed" }] });
+    expect(v.approved).toBe(false); expect(v.hardFailures).toEqual(["tool-exit：ffmpeg failed"]);
+    expect(() => postRenderFilmStageVerdict(source(), { stage: "shot", projectId: "other", artifacts: [], deterministic: [] })).toThrow("PROJECT_MISMATCH");
+    expect(postRenderFilmStageVerdict(source(), { stage: "shot", projectId: "project", artifacts: [{ path: path + ".missing", kind: "video" }], deterministic: [] }).approved).toBe(false);
+  });
+});
 
 describe("full source contracts reach each review", () => {
+  it("keeps reused source facts intact and reviews complete pending cards only", async () => {
+    const s = source(); s.shots[0]!.devices = [{ malformed: "already issued source" }];
+    s.shots.push({ ...empty, shotId: "NEW", customAuthorFact: "pending author tail" });
+    const before = JSON.stringify(s);
+    const result = await reviewFilmStage(s, { ...options(), context: { preRenderShotIds: ["NEW"] } }, async (o) => {
+      expect(o.contracts!.shots).toEqual([s.shots[1]]);
+      expect(o.context!.authorContracts).toMatchObject({ shots: [s.shots[1]] });
+      return approved(o);
+    });
+    expect(result.approved).toBe(true); expect(JSON.stringify(s)).toBe(before);
+  });
+  it.each([[], ["missing"], ["E", "E"], [1], null])("rejects invalid pending scopes before review %j", async (preRenderShotIds) => {
+    let calls = 0;
+    await expect(reviewFilmStage(source(), { ...options(), context: { preRenderShotIds } }, async (o) => { calls++; return approved(o); }))
+      .rejects.toThrow("PRE_RENDER_SCOPE_INVALID");
+    expect(calls).toBe(0);
+  });
   it("selects one original shot without losing its local era or special text, and does not mutate it", () => {
     const s = source(); s.shots.push({ ...empty, shotId: "FLASH", eraProfile: { storyDate: "1995-01-01" }, action: '原文\n"片尾约束"<> &' });
     const contracts = filmReviewContracts(s, "FLASH");

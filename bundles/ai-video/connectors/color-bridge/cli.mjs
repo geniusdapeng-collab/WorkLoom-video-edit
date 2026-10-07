@@ -104,25 +104,22 @@ function printHuman(command, result) {
     line(`滤镜链：${r.chain}`);
     line(`强度：${r.intensity}${r.profile ? ` · profile=${r.profile}` : ""}${r.lut ? ` · lut=${path.basename(r.lut)}` : ""}`);
     line(`时长：${fmt(r.durationSeconds)}s · 体积：${(r.sizeBytes / 1024 / 1024).toFixed(2)}MB`);
-    line(`指标：YAVG ${fmt(r.before.YAVG)} → ${fmt(r.after.YAVG)}（Δ${fmt(r.delta.YAVG)}）  SATAVG ${fmt(r.before.SATAVG)} → ${fmt(r.after.SATAVG)}`);
+    line("素材已按请求进入后期；未进行画面质量评分");
     line(`sha256：${r.sha256}`);
     for (const w of r.verifyWarnings) line(`⚠ ${w}`);
     return;
   }
   if (command === "best") {
     const r = result;
-    line(`结论：${r.verdict === "graded" ? `已调色（选中 ${r.winnerLabel}）` : "无需调色（原片不动，未产出文件）"}`);
+    line(`结论：已执行本次配方（${r.winnerLabel}）`);
     if (r.recipe) line(`配方：${r.recipe}${r.recipeContext ? ` · ${r.recipeContext.genre} · ${r.recipeContext.scene}` : ""}`);
-    line(`理由：${r.reason ?? `最佳候选比原片高 ${r.improvement} 分（阈值 ${r.minImprovement}）`}`);
-    line("");
-    line("候选得分（基准 100 = 原片）");
-    for (const c of [...r.candidates].sort((a, b) => b.score - a.score).slice(0, 6)) {
-      line(`  ${String(c.score).padStart(6)}  ${String(c.id).padEnd(22)} 对比度×${c.reasons.contrastRatio} 饱和×${c.reasons.satRatio} 裁切${c.reasons.clipDeltaPct >= 0 ? "+" : ""}${c.reasons.clipDeltaPct}% 亮度${c.reasons.lumaDrift >= 0 ? "+" : ""}${c.reasons.lumaDrift}`);
-    }
+    line(`理由：${r.reason}`);
+    line("源镜与成片品质未评审；没有候选评分或改进分数");
     if (r.verdict === "graded") {
       line("");
       line(`成片：${r.output}`);
-      line(`成片得分：${r.finalScore.score}（原片 100）｜可见性 ${r.visibility.meanAbsDiff}/255 ${r.visibility.verdict}`);
+      line("已执行配方；未进行源镜/成片质量评分");
+      line(`sha256：${r.sha256}`);
     }
     return;
   }
@@ -136,9 +133,10 @@ function printHuman(command, result) {
     line(`参考：${r.reference}`);
     line(`参考指标：YAVG ${fmt(r.referenceSummary.YAVG)} UAVG ${fmt(r.referenceSummary.UAVG)} VAVG ${fmt(r.referenceSummary.VAVG)}`);
     for (const item of r.results) {
-      if (!item.ok) { line(`  ✗ ${item.target} — ${item.error}`); continue; }
+      if (!item.ok) { line(`  ✗ ${item.target} — ${item.error}${item.message ? `：${item.message}` : ""}`); continue; }
       line(`  ✓ ${item.output}`);
-      line(`    残差 YAVG ${fmt(item.residual.YAVG, 2)} / UAVG ${fmt(item.residual.UAVG, 2)} / VAVG ${fmt(item.residual.VAVG, 2)}`);
+      line("    已执行参考匹配；成片残差和品质未评审");
+      line(`    sha256：${item.sha256}`);
     }
     return;
   }
@@ -289,13 +287,14 @@ async function main() {
         "  scope   --in <file> [--at s] [--kinds waveform,vectorscope,histogram] [--out dir]",
         "  recipes [--list] [--genre <题材>] [--platform <平台>] [--keyword <词>] [--id <配方 id>]",
         "                                  题材×场景调色配方（含 profile/LUT/强度/目标区间/避免事项）",
-        "  grade   --in <file> --out <file> [--profile <p>] [--lut <cube>] [--intensity 0..1] [--corrections-json <json>]",
-        "                                        [--auto] [--denoise]  自动校正（曝光/饱和/偏色，先校正后创作）；降噪仅在噪点命中时插入",
+        "  grade   --in <file> --out <file> [--profile <p>] [--lut <cube>] [--intensity >0且<=1] [--corrections-json <json>]",
+        "                                        [--auto] [--denoise]  显式自动校正与降噪按请求执行；成片不做质量复检",
         "  best    --in <file> [--out <file>] [--at a,b] [--min-improvement 2]",
         "                                  可加 [--recipe <id>] / [--genre <题材>] / [--platform <平台>] 走配方驱动",
-        "                                  候选择优+画质打分；判「无需调色」时不产出文件（do no harm）",
+        "                                  按配方或显式参数执行一次调色，回执不含画面质量评分",
         "  match   --ref <file> --in <file> [--in <file>...] --out-dir <dir> [--profile <p>]",
         "                                  [--histogram-check warn|fail|off] [--denoise]",
+        "                                  保留全部批次结果；任一项处理失败退出 3，全成功退出 0",
         "  compare --before <file> --after <file> [--at s] --out <png>",
         "",
         `可用 profile：${Object.keys(PROFILES).join(", ")}`,
@@ -309,6 +308,7 @@ async function main() {
 
   if (json) process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
   else printHuman(command, result);
+  if (command === "match" && result.results.some((item) => item.ok !== true)) process.exitCode = 3;
 }
 
 main().catch((error) => {

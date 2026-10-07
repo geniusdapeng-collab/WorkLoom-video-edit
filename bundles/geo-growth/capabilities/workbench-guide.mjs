@@ -78,7 +78,7 @@ export function workbenchGuide(input = {}) {
     limitations: [
       "只读固定指南，不创建项目、不调用模型或供应商、不执行渲染与后期。",
       "Growth 当前没有 Growthtest 的 standard-post 或 nativeaudio 专用契约。",
-      "普通 voice 阶段可能补 TTS；原生声音或指定声线不得被静默替代。",
+      "普通全链默认保留原节目声音，不隐式 ASR/TTS；明确新声音请求仍需授权，禁止静默替声。",
       "production.plan 的 ready 只是本地前置清单结果，不代表正式生产资格或交付。",
       "成片交付与社交平台发布须分别核验真实回执。",
     ],

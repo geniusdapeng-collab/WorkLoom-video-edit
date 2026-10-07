@@ -10,7 +10,7 @@
  *   ② `parseCoverPlan` —— 严格校验设计稿（越界/过长/缺人物位即判非法，退回确定性兜底稿）；
  *   ③ `coverDeterministicChecks` —— 渲染后的**机检**：标题真的画上去了、人物层真的合成进去了、
  *      底图来自未烧字的干净母版、文字没有落进平台 UI 遮挡区。
- * 只有 ②③ 都过、再经监制（LLM）看整图，封面才算合格——"只有标题"的封面会在第 ③ 步被拦下。
+ * 固定影片后期默认使用 `requestedCoverPlan` 本地出稿；模型设计与质量诊断函数仅供显式调用。
  *
  * 2026-09-27 平台化 + 知识库注入（方案：视频封面链路强化）：
  *   · 平台规格（画幅/安全区/标题带/文案政策）改由 `cover-platforms.ts` 的 `getCoverSpec()` 驱动，
@@ -124,7 +124,7 @@ export interface CoverPlan {
   /** 设计理由（进日志与交付清单，便于复核"设计师到底想干什么"） */
   rationale: string;
   /** 设计稿来源：llm=封面设计师出的稿；fallback=设计师不可用时的确定性兜底稿 */
-  source: "llm" | "fallback";
+  source: "llm" | "fallback" | "requested";
   /**
    * 校验期的**非致命**告警（如偏离账号视觉锤但未开 strict）。
    * 落盘进设计稿与 stages.jsonl：告警必须留痕，不允许静默丢弃（"无回执不算完成"）。
@@ -534,6 +534,39 @@ export function fallbackCoverPlan(
     source: "fallback"
   };
   return validateCoverPlan(plan, input);
+}
+
+/** Build one local processing plan from the requested title/account choices, without source quality review. */
+export function requestedCoverPlan(
+  input: CoverDesignInput,
+  options: { headline: string; heroShotId: string; personShotId?: string; atSec?: number }
+): CoverPlan {
+  const headline = String(options.headline ?? "").trim();
+  if (!headline || headline.split("\n").length > 2) {
+    throw new CoverDesignError("封面请求需要非空标题，最多两行", "cover_request_invalid");
+  }
+  if (!input.shots.some((shot) => shot.shotId === options.heroShotId)) {
+    throw new CoverDesignError("封面请求引用了不存在的镜头", "cover_request_invalid");
+  }
+  if (options.personShotId && !input.shots.some((shot) => shot.shotId === options.personShotId)) {
+    throw new CoverDesignError("封面人物图层引用了不存在的镜头", "cover_request_invalid");
+  }
+  const atSec = options.atSec ?? 0.3;
+  if (!Number.isFinite(atSec) || atSec < 0) throw new CoverDesignError("封面取帧时间非法", "cover_request_invalid");
+  const hammer = input.accountProfile?.visual_hammer;
+  const fontId = hammer?.fontId ?? "source-han-heavy";
+  if (!Object.hasOwn(COVER_FONTS, fontId)) throw new CoverDesignError("账号请求的封面字体不存在", "cover_request_invalid");
+  const palette = hammer?.palette ?? ["#FFFFFF", "#FFD166"];
+  if (palette.some((color) => !HEX.test(color))) throw new CoverDesignError("账号请求的封面色板非法", "cover_request_invalid");
+  return {
+    headline, layout: "person-right",
+    background: { shotId: options.heroShotId, atSec, treatment: "grade" },
+    person: { enabled: Boolean(options.personShotId), shotId: options.personShotId, atSec, widthRatio: 0.42 },
+    typography: { fontId: fontId as CoverFontId, headlineSizeRatio: 0.075, sublineSizeRatio: 0.034,
+      color: palette[0] ?? "#FFFFFF", accentColor: palette[1] ?? "#FFD166", align: "left" },
+    rationale: "按请求标题、平台与账号选项执行一次本地合成；不评审源片品质，不调用模型选帧或重做",
+    source: "requested"
+  };
 }
 
 /**

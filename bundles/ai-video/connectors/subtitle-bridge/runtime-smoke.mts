@@ -3,8 +3,8 @@
  * 字幕工位运行时端到端（真实 PG + 真实围栏 + 真实 bridge + 真实 ffmpeg + 真实字体）：
  *
  *   runQuest(注入 createSubtitleBridgeExecutor)
- *     → 每步围栏判定（G-SUB0/1/2/3/4/5）
- *     → HTTP 调本机 subtitle-bridge → ffmpeg/libass 诊断/烧录出片
+ *     → 每步围栏判定（G-SUB0..G-SUB6）
+ *     → HTTP 调本机 subtitle-bridge → 显式独立诊断 / ffmpeg/libass 烧录出片
  *     → 回执写入 biz_events（无回执=未核实）
  *
  * 场景：
@@ -12,7 +12,7 @@
  *   review          —— 品牌视觉锤变更（许可未核验）：G-SUB1 review，线程 pending_review，产生审批行
  *   blocked         —— 覆盖原片：G-SUB2 block，线程 paused，不执行工具
  *   blocked-license —— 非白名单字体许可：G-SUB5 block，线程 paused
- *   danmaku         —— 弹幕轨渲染：G-SUB0 直通，产出弹幕成片，复检全绿
+ *   danmaku         —— 弹幕轨渲染：G-SUB0 直通，产出弹幕成片，处理检查通过
  *   blocked-flood   —— 关闭弹幕刷屏熔断（allow_flood）：G-SUB6 block，线程 paused
  *   outage          —— 工位不可达：软失败，步骤标未核实，线程 failed（不伪造回执）
  *
@@ -30,6 +30,7 @@ import { fileURLToPath } from "node:url";
 import pg from "pg";
 import { runQuest } from "@workloom/runtime";
 import { createSubtitleBridgeExecutor } from "./executor.ts";
+import { SUBTITLE_TOOLS } from "./core.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const WORK_DIR = process.env.SUBTITLE_SMOKE_DIR ?? join(tmpdir(), `subtitle-smoke-${Date.now().toString(36)}`);
@@ -256,7 +257,8 @@ async function main(): Promise<number> {
     if (!(await waitForHealth(BASE_URL))) throw new Error("字幕 bridge 未在 15s 内就绪");
     // 健康探针走 HTTP，确认工位（含字体与 libass）真的可用；不可用就直接失败，不进入"看起来在跑"的假象
     const health = await fetch(`${BASE_URL}/health`).then((res) => res.json() as Promise<Record<string, unknown>>);
-    if (!Array.isArray(health.tools) || (health.tools as string[]).length !== 12) {
+    if (!Array.isArray(health.tools) || health.tools.length !== SUBTITLE_TOOLS.length
+      || SUBTITLE_TOOLS.some((tool: string) => !(health.tools as string[]).includes(tool))) {
       throw new Error(`字幕 bridge 工具面异常：${JSON.stringify(health.tools)}`);
     }
 
@@ -272,8 +274,8 @@ async function main(): Promise<number> {
       [SCOPE.workspaceId],
     );
     const subtitleFenceRules = Number(fenceCount.rows[0]?.c ?? 0);
-    if (subtitleFenceRules < 6) {
-      throw new Error(`标题字幕围栏未装载（期望 6 条 G-SUB*，实际 ${subtitleFenceRules}），请先跑 pnpm db:seed:video`);
+    if (subtitleFenceRules < 7) {
+      throw new Error(`标题字幕围栏未装载（期望 7 条 G-SUB*，实际 ${subtitleFenceRules}），请先跑 pnpm db:seed:video`);
     }
 
     const executor = createSubtitleBridgeExecutor({
@@ -311,7 +313,10 @@ async function main(): Promise<number> {
                 payload->'receipt' AS receipt, payload->'rule_impact' AS rule_impact,
                 payload->'decision'->'after'->'result'->>'sha256' AS "resultSha256",
                 payload->'decision'->'after'->'result'->'checks' AS checks,
+                payload->'decision'->'after'->'result'->'processingChecks' AS "processingChecks",
                 payload->'decision'->'after'->'result'->'presence' AS presence,
+                payload->'decision'->'after'->'result'->'qualityReviewed' AS "qualityReviewed",
+                payload->'decision'->'after'->'result'->'qualityScore' AS "qualityScore",
                 payload->'decision'->'after'->'result'->'fonts' AS fonts
            FROM biz_events WHERE session_id=$1 ORDER BY seq`,
         [threadId],
@@ -333,7 +338,10 @@ async function main(): Promise<number> {
         rule_impact: Array<{ rule_id: string; result: string }> | null;
         resultSha256?: string | null;
         checks?: Record<string, boolean> | null;
-        presence?: { delta?: number; threshold?: number; ok?: boolean } | null;
+        processingChecks?: Record<string, boolean> | null;
+        presence?: { reviewed?: boolean; delta?: number | null; threshold?: number | null; ok?: boolean | null } | null;
+        qualityReviewed?: boolean | null;
+        qualityScore?: number | null;
         fonts?: Record<string, { name?: string }> | null;
       }>;
     }
@@ -365,12 +373,13 @@ async function main(): Promise<number> {
       && (receiptUri ?? "").includes(burnedHash),
     ),
     burned_video_geometry_preserved: probe.startsWith("720,1280"),
-    subtitle_report_all_checks_green: Boolean(
-      burnEvent?.checks && Object.values(burnEvent.checks).every((value) => value === true),
+    subtitle_processing_checks_passed: Boolean(
+      burnEvent?.processingChecks && Object.keys(burnEvent.processingChecks).length > 0
+      && Object.values(burnEvent.processingChecks).every((value) => value === true),
     ),
-    subtitle_presence_measured: Boolean(
-      burnEvent?.presence && typeof burnEvent.presence.delta === "number"
-      && (burnEvent.presence.delta ?? 0) >= (burnEvent.presence.threshold ?? 1),
+    subtitle_quality_not_reviewed: Boolean(
+      burnEvent?.qualityReviewed === false && burnEvent.qualityScore === null
+      && burnEvent?.presence?.reviewed === false && burnEvent.presence.delta === null,
     ),
     subtitle_font_resolved: Boolean(burnEvent?.fonts?.字幕?.name || burnEvent?.fonts?.Sub),
     review_pending: review?.outcome.status === "pending_review" && Boolean(review?.outcome.pendingApprovalId),
@@ -389,7 +398,7 @@ async function main(): Promise<number> {
     checks,
     workspace: SCOPE.workspaceId,
     preset: PRESET_KEY,
-    subtitle_fence_rules: "G-SUB0..G-SUB5（6 条，active）",
+    subtitle_fence_rules: "G-SUB0..G-SUB6（7 条，active）",
     artifacts: {
       source: SOURCE,
       srt: SRT,

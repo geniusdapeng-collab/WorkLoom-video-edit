@@ -32,6 +32,8 @@ import {
   resolveEraProfile,
   storyDateAt,
   reviewFilmStage,
+  isPostRenderFilmStage,
+  postRenderFilmStageVerdict,
   type FilmChannelFrame,
   type FilmChannelMethod,
   type FilmChannelRequestFrame,
@@ -530,14 +532,14 @@ async function handleChildFrame(ctx: RunContext, raw: unknown): Promise<void> {
     ctx.send({ kind: "film.response", id: frame.id, ok: false, error: { code, message } });
   };
   try {
-    const result = await handleChannelRequest(ctx, frame);
+    const result = await handleFilmChannelRequest(ctx, frame);
     respond(result);
   } catch (error) {
     respondError(error);
   }
 }
 
-async function handleChannelRequest(ctx: RunContext, frame: FilmChannelRequestFrame): Promise<unknown> {
+export async function handleFilmChannelRequest(ctx: RunContext, frame: FilmChannelRequestFrame): Promise<unknown> {
   if (!(FILM_CHANNEL_METHODS as readonly string[]).includes(frame.method)) fail("METHOD_NOT_ALLOWED", `未知通道方法 ${String(frame.method)}`);
   if (ctx.signal.aborted || Date.now() >= ctx.deadlineAt) fail("JOB_DEADLINE_EXCEEDED", "工位作业已关闭或超时");
   if (!workerAllows(ctx.worker, frame.method)) fail("METHOD_NOT_ALLOWED", `工位未登记能力 ${frame.method}`);
@@ -632,7 +634,11 @@ function reserveFor(frame: FilmChannelRequestFrame): number {
     const seconds = Number(params.seconds ?? 5);
     return Math.max(0.5, seconds * VIDEO_RESERVE_CNY_PER_SECOND);
   }
-  if (frame.method === "llm.chat" || frame.method === "gate.review") return LLM_RESERVE_CNY;
+  if (frame.method === "gate.review") {
+    const stage = record(frame.params).stage;
+    return typeof stage === "string" && isPostRenderFilmStage(stage as ProducerGateOptions["stage"]) ? 0 : LLM_RESERVE_CNY;
+  }
+  if (frame.method === "llm.chat") return LLM_RESERVE_CNY;
   return 0;
 }
 
@@ -863,6 +869,25 @@ async function runVideo(ctx: RunContext, frame: FilmChannelRequestFrame, compone
   return { ...written, taskId: submitted.taskId, hostedUrl: last.uri, provider: "seedance", providerModel: model };
 }
 
+/** The service and CLI apply the same post-render acceptance policy, even with old blocking options. */
+export async function filmWorkerStageVerdict(source: FilmContractSource,
+  options: Omit<ProducerGateOptions, "contracts">, policy: string): Promise<ProducerVerdict> {
+  const verdict = isPostRenderFilmStage(options.stage) ? postRenderFilmStageVerdict(source, options)
+    : await reviewFilmStage(source, options, policy === "off" ? async (reviewOptions): Promise<ProducerVerdict> => {
+    const contractHash = buildProducerReviewContract(reviewOptions.contracts!).contractHash;
+    const hardFailures = reviewOptions.deterministic.filter((check) => check.hard && (check.pass !== true || check.status === "unverified" || check.status === "failed"))
+      .map((check) => `${check.id}：${check.detail}`);
+    const missing = (reviewOptions.requiredCheckIds ?? []).filter((id) => !reviewOptions.deterministic.some((check) => check.id === id && check.pass === true));
+    hardFailures.push(...missing.map((id) => `${id}：缺少实测检查`));
+    if (!reviewOptions.artifacts.length) hardFailures.push("缺少可读产物");
+    return { stage: reviewOptions.stage, contractHash, approved: !hardFailures.length, status: hardFailures.length ? "failed" : "passed", score: hardFailures.length ? 0 : 100,
+      hardFailures, issues: reviewOptions.deterministic.filter((check) => !check.pass).map((check) => check.detail), suggestions: [], rerun: Boolean(hardFailures.length),
+      via: "deterministic", ms: 0, reason: hardFailures.length ? "事实性交付检查未通过" : "冻结合同与事实性交付检查通过；画面质量由客户验收", degraded: false };
+  } : undefined);
+  return policy === "advisory" && verdict.hardFailures.length === 0 && verdict.contractHash
+    ? { ...verdict, approved: true, status: "passed" as const, rerun: false, degraded: false, reason: `[advisory] ${verdict.reason}` } : verdict;
+ }
+
 async function runGateReview(ctx: RunContext, frame: FilmChannelRequestFrame, componentId: string): Promise<unknown> {
   const params = record(frame.params);
   const stage = text(params.stage, "gate.review 需要 stage", 64);
@@ -921,24 +946,14 @@ async function runGateReview(ctx: RunContext, frame: FilmChannelRequestFrame, co
     context: { ...context, filmJobId: ctx.job.id, attempt: Number(ctx.job.attempt), stepKey: frame.stepKey },
     env: ctx.env,
   };
-  const policy = ctx.job.options["review-policy"] ?? "off";
-  const verdict = await reviewFilmStage(ctx.contractSource, options, policy === "off" ? async (reviewOptions): Promise<ProducerVerdict> => {
-    const contractHash = buildProducerReviewContract(filmReviewContracts(ctx.contractSource, frame.shotId ?? undefined)).contractHash;
-    const hardFailures = reviewOptions.deterministic.filter((check) => check.hard && (check.pass !== true || check.status === "unverified" || check.status === "failed"))
-      .map((check) => `${check.id}：${check.detail}`);
-    const missing = (reviewOptions.requiredCheckIds ?? []).filter((id) => !reviewOptions.deterministic.some((check) => check.id === id && check.pass === true));
-    hardFailures.push(...missing.map((id) => `${id}：缺少实测检查`));
-    if (!resolvedArtifacts.length) hardFailures.push("缺少可读产物");
-    return { stage: reviewOptions.stage, contractHash, approved: !hardFailures.length, status: hardFailures.length ? "failed" : "passed", score: hardFailures.length ? 0 : 100,
-      hardFailures, issues: reviewOptions.deterministic.filter((check) => !check.pass).map((check) => check.detail), suggestions: [], rerun: Boolean(hardFailures.length),
-      via: "deterministic", ms: 0, reason: hardFailures.length ? "事实性交付检查未通过" : "冻结合同与事实性交付检查通过；画面质量由客户验收", degraded: false };
-  } : undefined);
-  const effectiveVerdict = policy === "advisory" && verdict.hardFailures.length === 0 && verdict.contractHash
-    ? { ...verdict, approved: true, status: "passed" as const, rerun: false, degraded: false, reason: `[advisory] ${verdict.reason}` } : verdict;
+  const policy = text(ctx.job.options["review-policy"] ?? "off", "review-policy 必须是合法字符串", 16);
+  if (!["off", "advisory", "blocking"].includes(policy)) fail("REQUEST_INVALID", "review-policy 取值非法");
+  const verdict = await filmWorkerStageVerdict(ctx.contractSource, options, policy);
+  const effectiveVerdict = verdict;
   await ctx.ledger.recordComponentAccepted(componentId, ctx.ownerToken, {
     provider: "workloom.producer-gate",
     providerModel: String((verdict as { model?: unknown }).model ?? stage),
-    actualCny: null,
+    actualCny: isPostRenderFilmStage(options.stage) ? 0 : null,
     evidence: {
       artifactSha256: sha256Bytes(canonicalRenderJson({ stage, approved: effectiveVerdict.approved, status: effectiveVerdict.status,
         contractHash: effectiveVerdict.contractHash ?? null })),

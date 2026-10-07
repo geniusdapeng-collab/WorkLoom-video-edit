@@ -5,6 +5,7 @@ import { dirname, join } from "node:path";
 import { resolveEraProfile, type ResolvedEraProfile } from "./era-profile.js";
 import { buildProducerReviewContract, reviewStage, REVIEW_CONTEXT_BUDGET, type ProducerGateOptions, type ProducerReviewContracts, type ProducerVerdict } from "./producer-gate.js";
 import type { SceneBible } from "./scene-bible.js";
+import { fingerprintArtifact, productionHash } from "./production-lineage.js";
 
 export interface FilmAuthorContext {
   schemaVersion: "workloom.film-author-context/v1";
@@ -62,13 +63,66 @@ export function filmReviewContracts(source: FilmContractSource, shotId?: string)
   if (!selected.length || (shotId !== undefined && selected.length !== 1)) throw new Error("FILM_REVIEW_SCOPE_INVALID");
   return structuredClone({ shots: selected, eraProfile: source.eraProfile, ...(source.sceneBible === undefined ? {} : { sceneBible: source.sceneBible }) });
 }
-/** A passed review without the exact author contract cannot become a stage receipt. */
-export async function reviewFilmStage(source: FilmContractSource, options: Omit<ProducerGateOptions, "contracts">,
-  reviewer: (options: ProducerGateOptions) => Promise<ProducerVerdict> = reviewStage): Promise<ProducerVerdict> {
+/** A mixed reuse/generation run reviews only the explicitly selected, still unsubmitted source cards. */
+function preRenderReviewSource(source: FilmContractSource, options: Omit<ProducerGateOptions, "contracts">): FilmContractSource {
+  const ids = options.context?.preRenderShotIds;
+  if (ids === undefined) return source;
+  if (!Array.isArray(ids) || !ids.length || ids.some((id) => typeof id !== "string" || !id)
+    || new Set(ids).size !== ids.length || ids.some((id) => !source.shots.some((shot) => shot.shotId === id))
+    || (options.context?.shotId !== undefined && !ids.includes(options.context.shotId))) {
+    throw new Error("FILM_PRE_RENDER_SCOPE_INVALID");
+  }
+  return { ...source, shots: source.shots.filter((shot) => ids.includes(shot.shotId)) };
+}
+/** Production reviews stop at submission. Issued source clips proceed to the actual post tools. */
+export function isPostRenderFilmStage(stage: ProducerGateOptions["stage"]): boolean {
+  return ["shot", "compose", "color", "subtitle", "mux", "danmaku", "bgm", "sfx", "cover", "master"].includes(stage);
+}
+const POST_TECHNICAL_CHECKS = new Set([
+  "exists", "tool-exit", "color-tool-exit", "original-present", "grade-produced", "sidecar-produced",
+  "master-untouched", "burned", "punctuation", "timeline", "rendered", "scored", "audio-track",
+  "sfx-produced", "video-untouched",
+  "softsub-produced", "video-unchanged", "subtitle-files", "subtitle-delivery", "subtitle-punctuation",
+  "post-chain-lineage", "enhancement-lineage", "deliverable-naming", "source-receipts", "requested-post-stages",
+  "master-resolution", "variant-resolutions", "variants-produced", "variants-distinct", "variant-axes",
+]);
+/** Readable output/actual transform failures stay explicit; shot quality and nominal specs cannot veto. */
+export function postRenderFilmStageVerdict(source: FilmContractSource,
+  options: Omit<ProducerGateOptions, "contracts">): ProducerVerdict {
   if (options.projectId !== source.projectId) throw new Error("FILM_REVIEW_PROJECT_MISMATCH");
+  if (!isPostRenderFilmStage(options.stage)) throw new Error("FILM_POST_RENDER_STAGE_INVALID");
   const requested = options.context?.shotId;
   if (requested !== undefined && (typeof requested !== "string" || !requested)) throw new Error("FILM_REVIEW_SCOPE_INVALID");
   const contracts = filmReviewContracts(source, requested as string | undefined);
+  // Preserve complete raw author facts without recompiling visual/identity rubrics after rendering.
+  const contractHash = productionHash(JSON.parse(JSON.stringify(contracts)));
+  const checks = options.stage === "shot" ? [] : options.deterministic.filter((check) =>
+    POST_TECHNICAL_CHECKS.has(check.id) || (["resolution", "duration"].includes(check.id) && ["compose", "master"].includes(options.stage)));
+  const hardFailures = checks.filter((check) => check.hard && (check.pass !== true || check.status === "failed" || check.status === "unverified"))
+    .map((check) => `${check.id}：${check.detail}`);
+  const evidence: NonNullable<ProducerVerdict["evidence"]> = [];
+  for (const artifact of options.artifacts) {
+    // Append-only logs are evidence supplied by the caller; media/text outputs get byte receipts.
+    if (/\.jsonl$/i.test(artifact.path)) continue;
+    try { const actual = fingerprintArtifact(artifact.path); evidence.push({ path: actual.path, sha256: actual.sha256, scope: options.stage }); }
+    catch (error) { hardFailures.push(error instanceof Error ? error.message : String(error)); }
+  }
+  if (!options.artifacts.length) hardFailures.push("FILM_POST_OUTPUT_REQUIRED");
+  return { stage: options.stage, contractHash, approved: hardFailures.length === 0,
+    status: hardFailures.length ? "failed" : "passed", score: null,
+    hardFailures, issues: checks.filter((check) => !check.pass).map((check) => `${check.id}：${check.detail}`),
+    suggestions: [], rerun: false, via: "deterministic", ms: 0,
+    reason: hardFailures.length ? "正式后期的文件或执行回执失败" : "成功渲染素材默认接受；仅核对正式后期文件与执行回执",
+    degraded: false, evidence };
+}
+/** A passed review without the exact author contract cannot become a stage receipt. */
+export async function reviewFilmStage(source: FilmContractSource, options: Omit<ProducerGateOptions, "contracts">,
+  reviewer: (options: ProducerGateOptions) => Promise<ProducerVerdict> = reviewStage): Promise<ProducerVerdict> {
+  if (isPostRenderFilmStage(options.stage)) return postRenderFilmStageVerdict(source, options);
+  if (options.projectId !== source.projectId) throw new Error("FILM_REVIEW_PROJECT_MISMATCH");
+  const requested = options.context?.shotId;
+  if (requested !== undefined && (typeof requested !== "string" || !requested)) throw new Error("FILM_REVIEW_SCOPE_INVALID");
+  const contracts = filmReviewContracts(preRenderReviewSource(source, options), requested as string | undefined);
   // reviewStage performs structured validation and returns failed/unverified with the cause.
   /**
    * 原稿合同（authorContracts）与结构化合同（reviewStage 里的 contractText）会同时进入评审上下文，
@@ -89,7 +143,7 @@ export async function reviewFilmStage(source: FilmContractSource, options: Omit<
   /**
    * 合同哈希必须在评审**之后**重算：源稿在评审期间被改动时（TOCTOU），裁决不得被采信。
    */
-  const expected = buildProducerReviewContract(filmReviewContracts(source, requested as string | undefined)).contractHash;
+  const expected = buildProducerReviewContract(filmReviewContracts(preRenderReviewSource(source, options), requested as string | undefined)).contractHash;
   if (verdict.contractHash !== expected) return { ...verdict, status: "unverified", approved: false, degraded: true, rerun: true,
     reason: "FILM_REVIEW_CONTRACT_MISMATCH", issues: [...verdict.issues, "监制裁决没有绑定当前完整源合同"] };
   return verdict;

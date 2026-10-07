@@ -1,7 +1,8 @@
 /**
  * Delivery trust is a server-side verification boundary, not a manifest flag.
  * No signing API is exported here. Only the internal production authority may
- * issue delivery-seal.json after final review; local CLI output remains draft.
+ * issue delivery-seal.json for actual processing/provenance receipts; local CLI
+ * output remains draft when it has no server authority signature.
  */
 import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 import {
@@ -36,19 +37,29 @@ export interface DeliveryManifestIdentity {
   checks?: Array<{ kind?: string; ok?: boolean }>;
 }
 export const DELIVERY_SEAL_SCHEMA = "workloom.delivery-seal/v1";
-export const DELIVERY_CHECK_SET = "workloom.delivery-required/v1";
+export const DELIVERY_CHECK_SET = "workloom.delivery-required/v2";
+const LEGACY_DELIVERY_CHECK_SET = "workloom.delivery-required/v1";
 export const DELIVERY_REQUIRED_CHECKS: Record<DeliveryArtifactRole | "package", readonly string[]> = {
+  master: ["processing", "provenance"],
+  variant: ["processing", "provenance"],
+  softsub: ["processing", "provenance"],
+  burned: ["processing", "provenance"],
+  cover: ["processing", "provenance"],
+  subtitle: ["processing", "provenance"],
+  package: ["requested_exports"],
+};
+/** Historical signed v1 evidence remains authenticated as history, never re-run. */
+const LEGACY_REQUIRED_CHECKS: Record<DeliveryArtifactRole | "package", readonly string[]> = {
   master: ["visual", "audio", "subtitle", "provenance", "final_review"],
   variant: ["visual", "audio", "subtitle", "provenance", "final_review"],
   softsub: ["visual", "audio", "subtitle", "provenance", "final_review"],
   burned: ["visual", "audio", "subtitle", "provenance", "final_review"],
-  cover: ["visual", "provenance"],
-  subtitle: ["subtitle", "provenance"],
+  cover: ["visual", "provenance"], subtitle: ["subtitle", "provenance"],
   package: ["variant_axes", "variant_distinctness"],
 };
 export interface DeliverySealPayload {
   issuer: "workloom.production-authority";
-  checkSet: typeof DELIVERY_CHECK_SET;
+  checkSet: typeof DELIVERY_CHECK_SET | typeof LEGACY_DELIVERY_CHECK_SET;
   scope: { tenantId: string; workspaceId: string };
   projectId: string;
   revision: number;
@@ -245,7 +256,7 @@ export function inspectDeliveryTrust(packageDir: string, scope: DeliveryScope, e
     const actual = Buffer.from(seal.signature!, "hex");
     if (actual.length !== expected.length || !timingSafeEqual(actual, expected)) fail("交付封签签名不匹配");
     const payload = seal.payload;
-    if (payload.issuer !== "workloom.production-authority" || payload.checkSet !== DELIVERY_CHECK_SET
+    if (payload.issuer !== "workloom.production-authority" || ![DELIVERY_CHECK_SET, LEGACY_DELIVERY_CHECK_SET].includes(payload.checkSet)
       || payload.scope?.tenantId !== scope.tenantId || payload.scope?.workspaceId !== scope.workspaceId
       || manifest.scope?.tenantId !== scope.tenantId || manifest.scope?.workspaceId !== scope.workspaceId
       || payload.projectId !== manifest.projectId || payload.revision !== revision || revision === null
@@ -254,7 +265,8 @@ export function inspectDeliveryTrust(packageDir: string, scope: DeliveryScope, e
       || !Number.isFinite(Date.parse(payload.expiresAt)) || Date.parse(payload.expiresAt) <= Date.now()
       || Date.parse(payload.expiresAt) <= Date.parse(payload.issuedAt)
       || payload.packageRealPath !== realpathSync(packageDir)) fail("交付封签归属、版本、配方或清单指纹不匹配");
-    if (!Array.isArray(manifest.checks) || manifest.checks.length === 0 || manifest.checks.some((check) => check?.ok !== true)) fail("交付清单检查缺失或未显式通过");
+    if (payload.checkSet === LEGACY_DELIVERY_CHECK_SET && (!Array.isArray(manifest.checks)
+      || manifest.checks.length === 0 || manifest.checks.some((check) => check?.ok !== true))) fail("历史交付清单检查缺失或未显式通过");
     const registered = registeredDeliveryArtifacts(manifest);
     if (!registered.some((row) => row.role === "master") || registered.filter((row) => row.role === "variant").length < 3
       || (manifest.variants ?? []).some((variant) => !variant.video || !variant.cover)) fail("交付主件、三支变体或封面缺失");
@@ -269,7 +281,8 @@ export function inspectDeliveryTrust(packageDir: string, scope: DeliveryScope, e
       actualFiles.set(row.ref, file.sha256);
     }
     const required = [{ ref: null, role: "package" as const, sha256: manifestSha256 }, ...registered];
-    const expectedKeys = new Set(required.flatMap((row) => DELIVERY_REQUIRED_CHECKS[row.role].map((id) => `${row.ref ?? "package"}\0${id}`)));
+    const checkDefinitions = payload.checkSet === LEGACY_DELIVERY_CHECK_SET ? LEGACY_REQUIRED_CHECKS : DELIVERY_REQUIRED_CHECKS;
+    const expectedKeys = new Set(required.flatMap((row) => checkDefinitions[row.role].map((id) => `${row.ref ?? "package"}\0${id}`)));
     const seen = new Set<string>();
     for (const check of payload.checks) {
       const key = `${check.artifactRef ?? "package"}\0${check.id}`;

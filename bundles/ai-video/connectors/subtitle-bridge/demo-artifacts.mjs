@@ -3,7 +3,7 @@
  * 字幕工位 · 真机演示与产物导出（不依赖数据库）
  *
  * 用途：给出一条"可反复复现"的端到端证据链——自己造一条竖屏素材（含深色/浅色/复杂三种底），
- * 走完 诊断 → 选型 → 方案 → 烧录 → 复检 → 择优，并把中间产物全部落盘。
+ * 显式演示独立诊断，再走 选型 → 方案 → 单次烧录 → 处理回读，把中间产物全部落盘。
  *
  *   node bundles/ai-video/connectors/subtitle-bridge/demo-artifacts.mjs --out /path/to/outputs [--platform 抖音/快手]
  *
@@ -14,7 +14,7 @@
  *   subtitle-plan.json   方案：选型理由、字号/描边/边距、平台版式、版式体检
  *   subtitle-plan.ass    方案落地的 ASS 样式与事件（可直接给剪辑软件复用）
  *   burned.mp4           烧录成片（字幕 + 片头标题）
- *   best.mp4             择优出片（候选池打分后的赢家方案）
+ *   best.mp4             按声明版式单次出片（字体匹配排序，不做成片品质打分）
  *   evidence-*.png       交付证据帧（标题帧 / 首条字幕 / 末条字幕）
  *   analyze-*.png        画面可读性诊断抽帧
  *   report.json          全量报告（选型/体检/可现度/时间轴回读/哈希）
@@ -215,7 +215,7 @@ async function main() {
     bins,
   });
 
-process.stderr.write("⑥ 择优出片（候选池打分）\n");
+  process.stderr.write("⑥ 按声明版式单次出片（未做成片品质打分）\n");
   const bestOutcome = await best({
     input: source,
     output: path.join(outDir, "best.mp4"),
@@ -299,21 +299,14 @@ process.stderr.write("⑥ 择优出片（候选池打分）\n");
       encoder: burned.encoder,
       timeline: burned.timeline,
       presence: burned.presence,
+      qualityReviewed: burned.qualityReviewed,
+      qualityScore: burned.qualityScore,
       checks: burned.checks,
+      processingChecks: burned.processingChecks,
       layoutChecks: burned.layoutChecks,   // kit/selftest.sh 的指标核验读这一段（版式体检逐项）
       evidence: burned.evidence,
     },
-    best: bestOutcome.verdict === "scored"
-      ? {
-        verdict: bestOutcome.verdict,
-        winner: bestOutcome.winner,
-        output: bestOutcome.output,
-        candidates: bestOutcome.candidates.map((item) => ({
-          fontName: item.fontName, variant: item.variant, composite: item.composite,
-          contrast: item.contrast, edgeDensityUnit: item.edgeDensityUnit,
-        })),
-      }
-      : bestOutcome,
+    best: bestOutcome,
     danmaku: {
       path: danmakuReport.output.path,
       sha256: danmakuReport.output.hash,
@@ -321,6 +314,8 @@ process.stderr.write("⑥ 择优出片（候选池打分）\n");
       density: danmakuReport.density,
       tracks: danmakuReport.tracks,
       presence: danmakuReport.presence,
+      qualityReviewed: danmakuReport.qualityReviewed,
+      qualityScore: danmakuReport.qualityScore,
       checks: danmakuReport.checks,
     },
     sticker: {
@@ -329,6 +324,8 @@ process.stderr.write("⑥ 择优出片（候选池打分）\n");
       placements: stickerReport.placements,
       entranceMs: stickerReport.entranceMs,
       presence: stickerReport.presence,
+      qualityReviewed: stickerReport.qualityReviewed,
+      qualityScore: stickerReport.qualityScore,
       checks: stickerReport.checks,
     },
     karaoke: {
@@ -337,13 +334,18 @@ process.stderr.write("⑥ 择优出片（候选池打分）\n");
       timing: karaokeReport.timing,
       highlightColour: karaokeReport.highlightColour,
       presence: karaokeReport.presence,
+      qualityReviewed: karaokeReport.qualityReviewed,
+      qualityScore: karaokeReport.qualityScore,
       checks: karaokeReport.checks,
     },
     bilingual: {
       path: bilingualReport.output.path,
       sha256: bilingualReport.output.hash,
       checks: bilingualReport.checks,
-      presence: bilingualReport.presence.delta,
+      processingChecks: bilingualReport.processingChecks,
+      presence: bilingualReport.presence,
+      qualityReviewed: bilingualReport.qualityReviewed,
+      qualityScore: bilingualReport.qualityScore,
     },
   };
   fs.writeFileSync(path.join(outDir, "report.json"), `${JSON.stringify(report, null, 2)}\n`, "utf8");
@@ -359,15 +361,15 @@ process.stderr.write("⑥ 择优出片（候选池打分）\n");
     "| `subtitle.srt` | 演示字幕（含长句与中英混排） |",
     "| `brief.json` | 视频简报（生活vlog / 文艺旅行 / 快节奏 / 抖音） |",
     "| `subtitle-plan.json` / `.ass` | 选型与版式方案：字体、字号、描边、边距、版式体检 |",
-    "| `burned.mp4` | 烧录成片（字幕 + 片头标题），带复检回执 |",
-    "| `best.mp4` | 择优出片（字体×描边候选池打分后的赢家） |",
-    "| `danmaku.mp4` | 弹幕轨（滚动 + 顶部/底部固定，密度熔断） |",
+    "| `burned.mp4` | 烧录成片（字幕 + 片头标题），带真实处理回执 |",
+    "| `best.mp4` | 按声明版式单次出片，字体匹配分用于选型，成片未做品质评分 |",
+    "| `danmaku.mp4` | 弹幕轨（滚动 + 顶部/底部固定，完整保留传入条目） |",
     "| `sticker.mp4` | 贴纸/花字（200ms 弹入 + 安全区校验） |",
     "| `karaoke.mp4` | 卡拉OK 逐字扫过（\\kf） |",
     "| `bilingual.mp4` | 双语字幕（中文主行 + 英文次行） |",
     "| `evidence-*.png` | 交付证据帧（标题帧 / 首条字幕 / 末条字幕） |",
     "| `analyze-*.png` | 画面可读性诊断抽帧 |",
-    "| `report.json` | 全量指标：选型理由、版式体检、字幕可现度、时间轴回读、sha256 |",
+    "| `report.json` | 选型理由、版式建议、实际处理检查、时间轴回读、sha256；品质未检查 |",
     "",
     "## 复现",
     "",
@@ -378,10 +380,10 @@ process.stderr.write("⑥ 择优出片（候选池打分）\n");
     "",
     "## 关键指标",
     "",
-    `- 字幕字体：${burned.fonts.字幕?.name ?? "-"}（${burned.fonts.字幕?.score ?? "-"} 分）；标题字体：${burned.fonts.标题?.name ?? "-"}（${burned.fonts.标题?.score ?? "-"} 分）`,
+    `- 字幕字体：${burned.fonts.字幕?.name ?? "-"}（匹配分 ${burned.fonts.字幕?.score ?? "-"}）；标题字体：${burned.fonts.标题?.name ?? "-"}（匹配分 ${burned.fonts.标题?.score ?? "-"}）`,
     `- 字幕字号：${burned.styles.find((style) => style.name === "Sub")?.fontSize ?? "-"}px；标题字号：${burned.styles.find((style) => style.name === "Title")?.fontSize ?? "-"}px`,
-    `- 版式体检：${burned.layoutChecks.map((check) => `${check.kind}=${check.ok ? "ok" : "fail"}`).join(" ")}`,
-    `- 字幕可现度：Δ${burned.presence.delta}（阈值 ${burned.presence.threshold}）`,
+    `- 版式建议：${burned.layoutChecks.map((check) => `${check.kind}=${check.ok ? "ok" : "fail"}${check.hard ? "（字体处理检查）" : "（建议）"}`).join(" ")}`,
+    "- 成片品质与字幕可现度未检查：qualityReviewed=false、qualityScore=null、presence.delta=null",
     `- 时间轴回读：${burned.timeline.cues}/${burned.timeline.sourceCues} 条一致`,
     `- 成片 sha256：\`${burned.output.hash}\``,
     "",
@@ -395,10 +397,13 @@ process.stderr.write("⑥ 择优出片（候选池打分）\n");
     source,
     srt,
     burned: { path: burned.output.path, sha256: burned.output.hash },
-    best: bestOutcome.verdict === "scored" ? { path: bestOutcome.output.path, winner: bestOutcome.winner } : bestOutcome,
+    best: bestOutcome,
     fonts: { 字幕: burned.fonts.字幕?.name, 标题: burned.fonts.标题?.name },
     checks: burned.checks,
-    presence: { delta: burned.presence.delta, threshold: burned.presence.threshold },
+    qualityReviewed: burned.qualityReviewed,
+    qualityScore: burned.qualityScore,
+    presence: burned.presence,
+    processingChecks: burned.processingChecks,
     timeline: { cues: burned.timeline.cues, sourceCues: burned.timeline.sourceCues, ok: burned.timeline.ok },
   }, null, 2)}\n`);
   return 0;

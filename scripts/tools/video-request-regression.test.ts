@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
@@ -10,6 +11,7 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const ffmpeg = process.env.WL_FFMPEG ?? "ffmpeg";
 const ffprobe = process.env.WL_FFPROBE ?? "ffprobe";
 const temporary: string[] = [];
+const mediaSha256 = (file: string) => createHash("sha256").update(readFileSync(file)).digest("hex");
 afterEach(() => { for (const dir of temporary.splice(0)) rmSync(dir, { recursive: true, force: true }); });
 
 type Card = Record<string, unknown>;
@@ -188,8 +190,8 @@ describe("全链路当前血缘与返修范围", () => {
       expect(run.diagnostic).toContain("SHOT_REGISTRY_INVALID");
     }
   }, 40_000);
-  it("生产执行不能用豁免开关把缺测变合格", () => {
-    const run = runChain([emptyShot], { stages: "master", dryRun: false, args: ["--accept-rejected", "master"] });
+  it("尚未生成镜头的生产执行不能用豁免开关把缺测变合格", () => {
+    const run = runChain([emptyShot], { stages: "videos", dryRun: false, args: ["--accept-rejected", "G7"] });
     expect(run.result.status, run.diagnostic).not.toBe(0);
     expect(run.diagnostic).toContain("PRODUCTION_BYPASS_REJECTED");
   }, 40_000);
@@ -198,8 +200,9 @@ describe("全链路当前血缘与返修范围", () => {
     mkdirSync(join(dir, "logs/regression"), { recursive: true });
     writeFileSync(join(dir, "logs/regression/stages.jsonl"), JSON.stringify({ stage: "master", ok: true, shotId: null }) + "\n");
     const run = runChain([emptyShot], { dir, stages: "master", dryRun: false });
-    expect(run.result.status, run.diagnostic).toBe(6);
-    expect(run.diagnostic).toContain("缺阶段 master");
+    expect(run.result.status, run.diagnostic).not.toBe(0);
+    expect(run.diagnostic).toContain("MASTER_POST_OUTPUT_MISSING");
+    expect(readFileSync(join(dir, "logs/regression/stages.jsonl"), "utf8").split("\n")[0]).toBe(JSON.stringify({ stage: "master", ok: true, shotId: null }));
     expect(existsSync(join(dir, "out/regression-30s-final.mp4"))).toBe(false);
   }, 40_000);
   it("不同项目在同一work目录独立记账且当前输入输出含实际指纹", () => {
@@ -258,6 +261,7 @@ describe("成片硬切 CFR 接缝", () => {
       expect(made.status, `${made.error ?? ""}\n${made.stderr}`).toBe(0);
       clips.push(file);
     }
+    const sourceSha256 = clips.map(mediaSha256);
     const master = join(dir, "master.mp4");
     const result = spawnSync(process.execPath, ["--import", "tsx", "scripts/tools/compose-film.mts",
       "--clips", clips.join(","), "--out", master, "--width", "64", "--height", "96",
@@ -287,9 +291,24 @@ describe("成片硬切 CFR 接缝", () => {
         expect(pts[index]! - pts[index - 1]!, `${file}: frame ${index}`).toBeCloseTo(0.125, 4);
       }
     }
-    const sync = JSON.parse(readFileSync(join(dir, "master.av-sync.json"), "utf8")) as { ok: boolean; measured: number };
-    expect(sync.ok).toBe(true);
-    expect(sync.measured).toBe(3);
+    const sync = JSON.parse(readFileSync(join(dir, "master.av-sync.json"), "utf8"));
+    expect(sync.schemaVersion).toBe("workloom.compose-timeline/v1");
+    expect(sync.timelineSeconds).toEqual([1, 1, 1]);
+    expect(sync.retimeFactor).toBe(1);
+    expect(sync.outputSha256).toBe(mediaSha256(master));
+    expect(sync.acousticComparison).toBe("not_performed");
+    const clock = spawnSync(ffprobe, ["-v", "error", "-show_streams", "-show_format", "-of", "json", master], { encoding: "utf8" });
+    expect(clock.status, clock.stderr).toBe(0);
+    const clockDoc = JSON.parse(clock.stdout);
+    const video = clockDoc.streams.find((stream: { codec_type: string }) => stream.codec_type === "video");
+    const audio = clockDoc.streams.find((stream: { codec_type: string }) => stream.codec_type === "audio");
+    expect(sync.outputDurationSec).toBe(Number(clockDoc.format.duration));
+    expect(sync.outputVideoDurationSec).toBe(Number(video.duration));
+    expect(sync.outputAudioDurationSec).toBe(Number(audio.duration));
+    expect(Number(video.duration)).toBe(3);
+    expect(audio.sample_rate).toBe("48000"); expect(audio.channels).toBe(2);
+    expect(Math.abs(Number(audio.duration) - 3)).toBeLessThanOrEqual(1024 / 48000);
+    expect(clips.map(mediaSha256)).toEqual(sourceSha256);
   }, 100_000);
 
   it.skipIf(!available)("--transition-at 3 只在第三镜入点转场，音画起点与刀数同源", () => {
@@ -306,6 +325,7 @@ describe("成片硬切 CFR 接缝", () => {
       expect(made.status, `${made.error ?? ""}\n${made.stderr}`).toBe(0);
       clips.push(file);
     }
+    const sourceSha256 = clips.map(mediaSha256);
     const master = join(dir, "master.mp4");
     const result = spawnSync(process.execPath, ["--import", "tsx", "scripts/tools/compose-film.mts",
       "--clips", clips.join(","), "--out", master, "--width", "64", "--height", "96", "--fps", "8",
@@ -317,9 +337,22 @@ describe("成片硬切 CFR 接缝", () => {
     const duration = spawnSync(ffprobe, ["-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", master], { encoding: "utf8" });
     expect(Math.abs(Number(duration.stdout.trim()) - 2.75)).toBeLessThanOrEqual(0.13); // ≤1 frame @8fps
     const report = JSON.parse(readFileSync(join(dir, "master.av-sync.json"), "utf8"));
-    expect(report.outputSha256).toMatch(/^[a-f0-9]{64}$/);
+    expect(report.outputSha256).toBe(mediaSha256(master));
     expect(report.clipCount).toBe(3);
-    expect(report.samples.map((sample: { index: number }) => sample.index)).toEqual([0, 1, 2]);
+    expect(report.schemaVersion).toBe("workloom.compose-timeline/v1");
+    expect(report.timelineSeconds).toEqual([1, 1, 1]);
+    expect(report.outputDurationSec).toBeCloseTo(Number(duration.stdout.trim()), 6);
+    expect(report.acousticComparison).toBe("not_performed");
+    const clock = spawnSync(ffprobe, ["-v", "error", "-show_streams", "-of", "json", master], { encoding: "utf8" });
+    expect(clock.status, clock.stderr).toBe(0);
+    const streams = JSON.parse(clock.stdout).streams as Array<{ codec_type: string; duration: string; sample_rate?: string }>;
+    const video = streams.find((stream) => stream.codec_type === "video")!;
+    const audio = streams.find((stream) => stream.codec_type === "audio")!;
+    expect(report.outputVideoDurationSec).toBe(Number(video.duration));
+    expect(report.outputAudioDurationSec).toBe(Number(audio.duration));
+    expect(audio.sample_rate).toBe("48000");
+    expect(Math.abs(Number(audio.duration) - Number(video.duration))).toBeLessThanOrEqual(1024 / 48000);
+    expect(clips.map(mediaSha256)).toEqual(sourceSha256);
     const pixel = (at: number) => {
       const frame = spawnSync(ffmpeg, ["-v", "error", "-ss", String(at), "-i", master, "-frames:v", "1",
         "-vf", "scale=1:1", "-f", "rawvideo", "-pix_fmt", "rgb24", "-"], { encoding: "buffer" });

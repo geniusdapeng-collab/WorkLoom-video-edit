@@ -7,11 +7,11 @@
  * 纪律（与 geo-growth/connectors/visual-bridge 同构）：
  * - 原片只读：任何写入都落到新文件，覆盖原片直接拒绝（overwrite_source_forbidden）；
  * - 路径监狱：只允许访问白名单根目录内的路径（WORKLOOM_COLOR_ALLOWED_ROOTS）；
- * - 无回执=未核实：产物必须能给出 sha256 与指标复检结果；
+ * - 无回执=未核实：产物给出当前 sha256 与实际加工参数；品质未评审时明确为 null；
  * - 不伪造：失败一律抛带稳定 code 的 ColorError，由上层决定重试或转人工。
  *
  * 调色知识来自公开的 ffmpeg 滤镜语义与行业通行做法（先校正后创作、LUT 最后套、
- * 强度默认不满档、肤色单独复检），参数集为本仓自有取值。
+ * 强度默认不满档），参数集为本仓自有取值；肤色等诊断由明确调用的只读工具提供。
  */
 
 import { spawn } from "node:child_process";
@@ -1099,7 +1099,7 @@ export function sceneSampleTimes({ segments, maxSamples = SCENE_MAX_SAMPLES }) {
 }
 
 /**
- * 抽样计划（analyze / grade / best 的默认帧来源）：
+ * 显式 analyze 诊断的抽样计划；grade / best 普通加工不调用它：
  *   sampling="scene"（默认）：先切场景；场景数 ≤4 时退回均匀抽样（与历史行为逐位一致）；
  *   sampling="uniform"：始终四帧均匀（历史口径；对照与回滚用）。
  * 显式 `at` 始终优先，不走本函数。
@@ -1585,7 +1585,7 @@ export async function sha256File(file) {
 }
 
 /**
- * 应用调色并出片；返回产物信息、实测指标与前后差值（不带指标的回执不算回执）。
+ * 应用请求的调色并返回实际产物、处理参数与字节回执；不复审源镜质量。
  */
 export async function grade({
   input, output, profile = null, lutPath = null, corrections = {}, intensity = 0.8,
@@ -1610,13 +1610,11 @@ export async function grade({
     }
   }
 
-  // 校验帧（T-02）：默认按场景切分取每场中段代表帧；单镜/少切点退回均匀四帧（历史口径）。
-  // 显式 verifyAt 优先（调用方点名帧时不做场景推断）。
-  const samplingPlan = Array.isArray(verifyAt) && verifyAt.length
-    ? { times: verifyAt, weights: null, mode: "explicit", sceneCount: null, cuts: [], threshold: null, segments: [], note: null }
-    : await planSampling({ input, duration: probe.duration, sampling, threshold: sceneThreshold, maxSamples, bins });
-  const at = samplingPlan.times.length ? samplingPlan.times : [0];
-
+  // 仅在请求自动校正或降噪时读取变换所需参数；普通调色不做素材质量评审。
+  const at = Array.isArray(verifyAt) && verifyAt.length
+    ? verifyAt : (auto || denoise ? defaultTimestamps(probe.duration).slice(0, 2) : []);
+  const samplingPlan = { times: at, weights: null, mode: auto || denoise ? "transform-parameters" : "none",
+    sceneCount: null, cuts: [], threshold: null, segments: [], note: null };
   let effectiveCorrections = corrections ?? {};
   let autoUsed = null;
   if (auto) {
@@ -1652,9 +1650,6 @@ export async function grade({
   }
 
   const chain = buildChain({ profile, lutPath, corrections: effectiveCorrections, intensity, conversionLuts: conversion.luts, denoise: denoiseSpec });
-
-  const before = [];
-  for (const t of at) before.push({ at: t, ...(await frameStats({ input, at: t, bins })) });
 
   const args = [
     "-hide_banner", "-v", "error", "-y",
@@ -1694,50 +1689,11 @@ export async function grade({
     ? `输出色彩标签未核实：ffprobe 未返回 ${missingTags.map(([, label]) => label).join("/")}（已按 bt709 写入，请用带该字段的 ffprobe 复核）`
     : null;
   outputColor.verified = missingTags.length === 0;
-  const after = [];
-  for (const t of at) after.push({ at: t, ...(await frameStats({ input: output, at: t, bins })) });
-
-  const beforeSummary = summarize(before);
-  const afterSummary = summarize(after);
+  const beforeSummary = {};
+  const afterSummary = {};
   const delta = {};
-  for (const key of ["YAVG", "UAVG", "VAVG", "SATAVG"]) {
-    if (Number.isFinite(beforeSummary[key]) && Number.isFinite(afterSummary[key])) {
-      delta[key] = Math.round((afterSummary[key] - beforeSummary[key]) * 100) / 100;
-    }
-  }
-
-  // 可见性校验（fail-closed）：调用方要了创作 look（profile/LUT），画面却几乎没变 → 拒绝交付。
-  // 这条是"调了跟没调一样"事故的直接防线：宁可报失败，也不产出看不出差别的"成片"。
-  const visibility = await frameDifference({ before: input, after: output, at, bins });
-  const lookRequested = Boolean(profile || lutPath);
-  if (lookRequested && visibility.verdict === "negligible") {
-    await fsp.rm(output, { force: true });
-    throw new ColorError(
-      `调色未产生可见变化（平均像素差 ${visibility.meanAbsDiff}/255 < ${visibility.thresholds.subtle}）：`
-      + "look 参数过弱或滤镜未生效，拒绝作为成片交付（可显式提高参数后重试）",
-      "verify_failed",
-    );
-  }
-
-  // 缺陷检测（T-03）：默认 report（进证据 + verifyWarnings，绝不静默）；交付线要硬闸时传 onUnfixable="block"，
-  // 命中不可修复缺陷即删产物并 fail-closed（不得产出「调过了」的坏镜头）。
-  let defectReport = null;
-  if (defects) {
-    defectReport = await detectDefects({ input, at, bins }).catch((error) => ({
-      checks: null, defects: [], unfixable: [],
-      note: `缺陷检测未执行：${error instanceof Error ? error.message.slice(0, 120) : String(error)}`,
-    }));
-    defectReport.unfixable = defectReport.defects.filter((defect) => defect.fixable === false && defect.severity !== "info");
-    if (onUnfixable === "block" && defectReport.unfixable.length) {
-      await fsp.rm(output, { force: true });
-      throw new ColorError(
-        `素材存在不可修复缺陷（${defectReport.unfixable.map((defect) => `${defect.kind}:${defect.detail}`).join("；")}）：`
-        + "按交付纪律拒绝出片并退回上游（如属创作意图请改用 onUnfixable=report 并写明理由）",
-        "verify_failed",
-      );
-    }
-  }
-
+  const visibility = null;
+  const defectReport = null;
   return {
     input,
     output,
@@ -1765,6 +1721,8 @@ export async function grade({
     outputColor,
     defects: defectReport,
     visibility,
+    qualityReviewed: false,
+    qualityScore: null,
     sha256: await sha256File(output),
     verifyWarnings: [
       ...(denoiseNote ? [denoiseNote] : []),
@@ -1772,8 +1730,7 @@ export async function grade({
       ...(colorTagWarning ? [colorTagWarning] : []),
       ...(defectReport?.note ? [defectReport.note] : []),
       ...((defectReport?.defects ?? []).map((defect) => `${defect.fixable === false ? "不可修复" : "提示"}：${defect.detail} → ${defect.action}`)),
-      ...collectVerifyWarnings(afterSummary),
-      ...(visibility.verdict === "subtle" ? [`调色幅度偏弱（平均像素差 ${visibility.meanAbsDiff}/255）：如需明显观感请提高 intensity 或换更强的 look`] : []),
+
     ],
   };
 }
@@ -1854,10 +1811,8 @@ function deriveMatchCorrections(reference, target) {
 }
 
 /**
- * 多镜匹配：以参考镜为准，为每个目标镜派生校正并复检残差。
- * 残差判据两层：均值（ΔYAVG/UAVG/VAVG，既有硬线口径）+ 直方图形状（T-24，补均值陷阱）。
- * histogramCheck：warn（默认，超限写入 residual.histogram.warning 上报）
- *               | fail（超限判该镜失败 ok=false）| off（关闭直方图判据）。
+ * 多镜匹配：参考镜与目标镜统计只用于计算请求的校正，一次输出，不复检成片品质。
+ * histogramCheck 保留旧请求兼容，但不影响素材接受；未测残差明确为 null。
  */
 export async function match({
   reference, targets, outDir, profile = null, intensity = 1, bins = resolveBinaries(),
@@ -1876,83 +1831,48 @@ export async function match({
   for (const t of refTimes) refFrames.push(await frameStats({ input: reference, at: t, bins }));
   const referenceSummary = summarize(refFrames);
 
-  // 参考镜直方图基线（与均值基线同样的抽样帧口径）
-  let refHistogram = null;
-  if (histogramCheck !== "off") {
-    const hists = [];
-    for (const t of refTimes) hists.push(await yuvHistogram({ input: reference, at: t, bins }));
-    refHistogram = averageHistograms(hists);
-  }
-
   const results = [];
   for (const target of targets) {
     if (!fs.existsSync(target)) {
       results.push({ target, ok: false, error: "not_found" });
       continue;
     }
-    const targetProbe = await probeMedia(target, { bins });
-    const targetTimes = Array.isArray(at) && at.length ? at : defaultTimestamps(targetProbe.duration).slice(0, 2);
-    const targetFrames = [];
-    for (const t of targetTimes) targetFrames.push(await frameStats({ input: target, at: t, bins }));
-    const targetSummary = summarize(targetFrames);
+    try {
+      const targetProbe = await probeMedia(target, { bins });
+      const targetTimes = Array.isArray(at) && at.length ? at : defaultTimestamps(targetProbe.duration).slice(0, 2);
+      const targetFrames = [];
+      for (const t of targetTimes) targetFrames.push(await frameStats({ input: target, at: t, bins }));
+      const targetSummary = summarize(targetFrames);
 
-    const corrections = deriveMatchCorrections(referenceSummary, targetSummary);
-    const outPath = path.join(outDir, `${path.basename(target, path.extname(target))}-matched${path.extname(target) || ".mp4"}`);
-    const graded = await grade({ input: target, output: outPath, profile, corrections, intensity, verifyAt: targetTimes, bins, denoise });
-    const residual = {
-      YAVG: Number.isFinite(graded.after.YAVG) ? Math.round((graded.after.YAVG - referenceSummary.YAVG) * 100) / 100 : null,
-      UAVG: Number.isFinite(graded.after.UAVG) ? Math.round((graded.after.UAVG - referenceSummary.UAVG) * 100) / 100 : null,
-      VAVG: Number.isFinite(graded.after.VAVG) ? Math.round((graded.after.VAVG - referenceSummary.VAVG) * 100) / 100 : null,
-    };
+      const corrections = deriveMatchCorrections(referenceSummary, targetSummary);
+      const outPath = path.join(outDir, `${path.basename(target, path.extname(target))}-matched${path.extname(target) || ".mp4"}`);
+      const graded = await grade({ input: target, output: outPath, profile, corrections, intensity, verifyAt: targetTimes, bins, denoise });
+      // 参考/目标统计只用于计算明确请求的匹配变换；不再抽取成片做残差或直方图品质裁决。
+      const residual = { reviewed: false, YAVG: null, UAVG: null, VAVG: null, histogram: null };
 
-    // 直方图形状残差（T-24）：均值达标但分布不匹配时兜底告警/判负，写入既有 residual 字段
-    let histOver = false;
-    if (refHistogram) {
-      const afterHists = [];
-      for (const t of targetTimes) afterHists.push(await yuvHistogram({ input: outPath, at: t, bins }));
-      const { chi2, weighted } = histResidual(averageHistograms(afterHists), refHistogram);
-      const round = (v) => Math.round(v * 1000) / 1000;
-      histOver = weighted > HIST_RESIDUAL_THRESHOLD;
-      residual.histogram = {
-        chi2Y: round(chi2.Y),
-        chi2U: round(chi2.U),
-        chi2V: round(chi2.V),
-        weighted: round(weighted),
-        threshold: HIST_RESIDUAL_THRESHOLD,
-        over: histOver,
-        warning: histOver
-          ? `直方图残差 ${round(weighted)} > 阈值 ${HIST_RESIDUAL_THRESHOLD}：均值达标但分布不匹配（均值陷阱），`
-            + "先按参考镜三准则复查参考镜，再人工连播复核"
-          : null,
-      };
-    }
-
-    if (histOver && histogramCheck === "fail") {
       results.push({
         target,
-        ok: false,
-        error: "histogram_residual",
+        ok: true,
         output: graded.output,
         corrections,
+        reference: referenceSummary,
+        before: targetSummary,
+        after: null,
         residual,
         sha256: graded.sha256,
+        qualityReviewed: false,
+        qualityScore: null,
       });
-      continue;
+    } catch (error) {
+      results.push({
+        target, ok: false, error: error instanceof ColorError ? error.code : "engine_failed",
+        message: error instanceof Error ? error.message : String(error),
+        retryable: error instanceof ColorError ? error.retryable : false,
+      });
     }
-    results.push({
-      target,
-      ok: true,
-      output: graded.output,
-      corrections,
-      reference: referenceSummary,
-      before: graded.before,
-      after: graded.after,
-      residual,
-      sha256: graded.sha256,
-    });
   }
 
-  return { reference, referenceSummary, results };
+  return { reference, referenceSummary, results, qualityReviewed: false, qualityScore: null };
 }
 
 /* ============================ scope / 对比帧 ============================ */
@@ -1999,7 +1919,7 @@ export async function compareFrames({ before, after, at = 0, output, bins = reso
 
 /* ============================ 可见性度量 ============================ */
 
-/* ---------- 画质度量与择优（"最佳效果"要用可计算的分数说话） ---------- */
+/* ---------- 显式诊断与历史度量接口；不参与 grade / best 的素材接受 ---------- */
 
 /**
  * 单帧画质指标（单次遍历，纯 JS）：
@@ -2172,8 +2092,8 @@ async function rawFrame(input, at, bins, width = 640) {
 }
 
 /**
- * 默认候选池：原片不动 / 仅自动校正 / 各内置 look × [0.5, 0.8] 强度。
- * 数量刻意收敛（~18 个），只在抽样静帧上评估——先比效果，再整片渲染一次。
+ * 声明配方候选池：各内置 look × [0.5, 0.8] 强度。
+ * 兼容 best 只执行调用方选中的首个声明候选，不抽帧比较或评分。
  */
 export function defaultCandidates({ profiles = null, intensities = [0.5, 0.8] } = {}) {
   const list = [];
@@ -2202,13 +2122,8 @@ function averageMetrics(samples, weights = null) {
 }
 
 /**
- * 择优调色（"最佳效果"的实现路径）：候选择优 + 客观打分 + 允许「不动」。
- *
- *   1. 抽 N 张静帧（look dev，不整片渲染）；
- *   2. 候选池（原片不动 / 仅校正 / look×强度）在静帧上逐一评估；
- *   3. scoreQuality 打分（基准 100 = 原片）；
- *   4. **最高分没过阈值 → 判定"无需调色"，不产出任何文件**（do no harm）；
- *   5. 确有更优候选时，才整片渲染一次，并对成片复测画质。
+ * 兼容 best 入口按声明配方执行一次调色；没有候选择优、抽帧评分或品质复审。
+ * 旧评分参数保留兼容读取，但不参与执行或素材接受。
  */
 export async function best({
   input, output = null, sampleAt = null, candidates = null,
@@ -2216,151 +2131,27 @@ export async function best({
   recipe = null, genre = null, platform = null,
   sampling = "scene", sceneThreshold = SCENE_CUT_THRESHOLD, defects = true, onUnfixable = "report",
 }) {
-  const probe = await probeMedia(input, { bins });
-  // 抽样（T-02）：显式 sampleAt 优先；否则按场景切分取每场中段，场景权重用于候选打分聚合。
-  const samplingPlan = Array.isArray(sampleAt) && sampleAt.length
-    ? { times: sampleAt.slice(0, maxSamples), weights: null, mode: "explicit", sceneCount: null, cuts: [], threshold: null, segments: [], note: null }
-    : await planSampling({ input, duration: probe.duration, sampling, threshold: sceneThreshold, maxSamples, bins });
-  const at = samplingPlan.times.length ? samplingPlan.times : [0];
-
-  const frameDir = await fsp.mkdtemp(path.join(os.tmpdir(), "color-best-"));
-  try {
-    const frames = [];
-    for (let i = 0; i < at.length; i += 1) {
-      const still = path.join(frameDir, `f${i}.png`);
-      await runBin(bins.ffmpeg, [
-        "-hide_banner", "-v", "error", "-y", "-ss", String(at[i]), "-i", input, "-frames:v", "1", still,
-      ], { label: "ffmpeg(still)", timeoutMs: 60_000 });
-      frames.push(still);
-    }
-
-    // 「仅校正」候选：由量化诊断推导（只在确有欠曝/偏色/低饱和时才有非空参数）
-    const statsFrames = [];
-    for (const t of at) statsFrames.push(await frameStats({ input, at: t, bins }));
-    const autoApplied = autoCorrections(summarize(statsFrames, samplingPlan.weights));
-
-    // 配方驱动候选：给出题材/配方时，以该配方的 look 与强度为中心生成候选（± 一档），
-    // 并额外提供「配方 LUT」候选——这就是"不同片子/场景自动出方案"的落点：
-    // 题材决定方向，择优决定力度，画质分决定动不动。
-    let recipeUsed = null;
-    const recipePool = [];
-    if (recipe || genre || platform) {
-      const found = findRecipes({ recipeId: recipe, genre, platform, list: false });
-      recipeUsed = found.recipe ?? null;
-      if (recipeUsed) {
-        const base = Number(recipeUsed.intensity) || 0.7;
-        for (const raw of [base - 0.2, base, base + 0.2]) {
-          const intensity = Math.round(Math.min(1, Math.max(0.3, raw)) * 100) / 100;
-          recipePool.push({
-            id: `recipe:${recipeUsed.id}@${intensity}`,
-            label: `${recipeUsed.genre}·${recipeUsed.id} 强度 ${intensity}`,
-            spec: { profile: recipeUsed.profile, intensity },
-          });
-        }
-        if (recipeUsed.lut && recipeUsed.lutExists) {
-          recipePool.push({
-            id: `recipe-lut:${recipeUsed.id}`,
-            label: `${recipeUsed.genre}·${recipeUsed.id}（LUT）`,
-            spec: { lutPath: recipeUsed.lut, intensity: 1 },
-          });
-        }
-      }
-    }
-
-    const pool = [
-      { id: "identity", label: "原片不动（不调色）", spec: null },
-      ...(Object.keys(autoApplied).length
-        ? [{ id: "auto-correct", label: "仅自动校正（白平衡/曝光/裁切）", spec: { corrections: autoApplied, intensity: 1 } }]
-        : []),
-      ...recipePool,
-      ...(Array.isArray(candidates) && candidates.length ? candidates : defaultCandidates()),
-    ];
-    // 去重：同 id 只保留第一个（identity > auto-correct > 配方候选 > 通用候选）
-    const seen = new Set();
-    const deduped = pool.filter((entry) => (seen.has(entry.id) ? false : (seen.add(entry.id), true)));
-
-    const evaluated = [];
-    for (const candidate of deduped) {
-      const chain = candidate.spec ? buildChain(candidate.spec) : "null";
-      // 同一候选的抽样帧并行评估（4 帧并发），候选之间串行——总耗时从分钟级降到十几秒。
-      const perFrame = await Promise.all(
-        frames.map((still) => qualityWithChain({ framePath: still, chain, width, bins })),
-      );
-      evaluated.push({ id: candidate.id, label: candidate.label, spec: candidate.spec, chain, quality: averageMetrics(perFrame, samplingPlan.weights) });
-    }
-
-    const baseline = evaluated[0];
-    for (const item of evaluated) {
-      item.scoring = item.id === "identity"
-        ? { score: 100, reasons: { contrastRatio: 1, detailRatio: 1, satRatio: 1, clipDeltaPct: 0, oversatDeltaPct: 0, lumaDrift: 0, brokeHealthyExposure: false } }
-        : scoreQuality(item.quality, baseline.quality);
-    }
-    const winner = evaluated.reduce((a, b) => (b.scoring.score > a.scoring.score ? b : a));
-    const improvement = Math.round((winner.scoring.score - 100) * 100) / 100;
-    const table = evaluated.map((e) => ({ id: e.id, label: e.label, score: e.scoring.score, reasons: e.scoring.reasons, quality: e.quality }));
-
-    if (winner.id === "identity" || improvement < minImprovement) {
-      return {
-        verdict: "no_change_needed",
-        winner: winner.id,
-        improvement,
-        minImprovement,
-        reason: `最佳候选「${winner.label}」仅比原片高 ${improvement} 分（阈值 ${minImprovement}）：按「不劣化优先」纪律判定无需调色，未产出新文件`,
-        source: baseline.quality,
-        recipe: recipeUsed?.id ?? null,
-        recipeContext: recipeUsed ? { genre: recipeUsed.genre, scene: recipeUsed.scene, mood: recipeUsed.mood, avoid: recipeUsed.avoid } : null,
-        sampledAt: at,
-        sampling: {
-          mode: samplingPlan.mode, sceneCount: samplingPlan.sceneCount, threshold: samplingPlan.threshold,
-          cuts: samplingPlan.cuts, segments: samplingPlan.segments, weights: samplingPlan.weights, note: samplingPlan.note,
-        },
-        candidates: table,
-        sha256: await sha256File(input),
-      };
-    }
-
-    if (!output) throw new ColorError("已有更优候选，但未提供 output_path（择优调色需要输出路径）", "bad_request");
-    const graded = await grade({
-      input,
-      output,
-      profile: winner.spec?.profile ?? null,
-      lutPath: winner.spec?.lutPath ?? null,
-      corrections: winner.spec?.corrections ?? {},
-      intensity: winner.spec?.intensity ?? 1,
-      verifyAt: at,
-      bins,
-      defects,
-      onUnfixable,
-    });
-    const outQuality = (await qualityOfFile({ input: output, at, width, bins })).avg;
-    return {
-      verdict: "graded",
-      winner: winner.id,
-      winnerLabel: winner.label,
-      recipe: recipeUsed?.id ?? null,
-      recipeContext: recipeUsed ? { genre: recipeUsed.genre, scene: recipeUsed.scene, mood: recipeUsed.mood, avoid: recipeUsed.avoid } : null,
-      improvement,
-      minImprovement,
-      source: baseline.quality,
-      after: outQuality,
-      finalScore: scoreQuality(outQuality, baseline.quality),
-      chain: graded.chain,
-      outputColor: graded.outputColor,
-      defects: graded.defects,
-      visibility: graded.visibility,
-      delta: graded.delta,
-      sha256: graded.sha256,
-      sampledAt: at,
-      sampling: {
-        mode: samplingPlan.mode, sceneCount: samplingPlan.sceneCount, threshold: samplingPlan.threshold,
-        cuts: samplingPlan.cuts, segments: samplingPlan.segments, weights: samplingPlan.weights, note: samplingPlan.note,
-      },
-      candidates: table,
-      output: graded.output,
-    };
-  } finally {
-    await fsp.rm(frameDir, { recursive: true, force: true }).catch(() => {});
-  }
+  await probeMedia(input, { bins });
+  if (!output) throw new ColorError("调色需要 output_path", "bad_request");
+  const recipeUsed = recipe || genre || platform
+    ? findRecipes({ recipeId: recipe, genre, platform, list: false }).recipe : null;
+  const requestedCandidate = Array.isArray(candidates) && candidates.length ? candidates[0] : null;
+  const requested = requestedCandidate?.spec ?? null;
+  const chosen = requested ?? (recipeUsed
+    ? { profile: recipeUsed.profile, intensity: recipeUsed.intensity }
+    : { profile: "natural", intensity: 0.3 });
+  const graded = await grade({ input, output, ...chosen, bins });
+  return {
+    verdict: "graded", winner: requested ? requestedCandidate.id ?? "requested-look" : recipeUsed ? `recipe:${recipeUsed.id}` : "requested-look",
+    winnerLabel: requested ? requestedCandidate.label ?? requestedCandidate.id ?? chosen.profile ?? "requested-look" : recipeUsed?.id ?? chosen.profile ?? "requested-look",
+    recipe: requested ? null : recipeUsed?.id ?? null,
+    recipeContext: !requested && recipeUsed ? { genre: recipeUsed.genre, scene: recipeUsed.scene, mood: recipeUsed.mood, avoid: recipeUsed.avoid } : null,
+    reason: "按本次配方或显式参数执行调色，不对成功渲染素材抽帧评分或再次拒收",
+    improvement: null, minImprovement: null, source: null, after: null, finalScore: null,
+    chain: graded.chain, outputColor: graded.outputColor, defects: null, visibility: null, delta: {},
+    sha256: graded.sha256, sampledAt: [], sampling: graded.sampling, candidates: [], output: graded.output,
+    qualityReviewed: false, qualityScore: null,
+  };
 }
 
 /**
@@ -2526,7 +2317,7 @@ export async function callTool(name, params = {}, { bins = resolveBinaries(), en
     }
 
     case "colorwrite.best": {
-      // 择优调色：先比效果再渲染；判"无需调色"时不写任何文件（do no harm）。
+      // 兼容 best 入口执行本次声明配方一次；不比较画质，不隐式跳过产物。
       const input = assertPathAllowed(text(params.input_path, "input_path"), roots, "input_path");
       const output = params.output_path
         ? assertPathAllowed(String(params.output_path), roots, "output_path")

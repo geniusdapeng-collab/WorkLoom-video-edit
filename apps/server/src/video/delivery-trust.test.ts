@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
-  canonicalDeliveryJson, deliverySha256, inspectDeliveryTrust, inspectRegisteredDeliveryArtifact,
+  canonicalDeliveryJson, DELIVERY_REQUIRED_CHECKS, deliverySha256, inspectDeliveryTrust, inspectRegisteredDeliveryArtifact,
   readDeliveryManifestFile, requireDeliveryTrust, scopedDeliveryRoot, type DeliverySealPayload,
 } from "./delivery-trust.js";
 import {
@@ -80,11 +80,38 @@ describe("service seal and real bytes", () => {
     sealTestPackage(pkg, scope);
     expect(verdict().reason).toMatch(/三支变体/);
   });
-  it.each([{ checks: [] }, { checks: [{ kind: "foo" }] }, { checks: [{ kind: "foo", ok: false }] }])("does not treat absent or false manifest checks as approval %#", ({ checks }) => {
+  it.each([{ checks: [] }, { checks: [{ kind: "foo" }] }, { checks: [{ kind: "visual", ok: false }] }])("v2 requires signed technical receipts independently of untrusted/legacy quality flags %#", ({ checks }) => {
     const manifest = readDeliveryManifestFile(pkg).manifest;
     writeFixtureJson(join(pkg, "delivery-manifest.json"), { ...manifest, checks });
     sealTestPackage(pkg, scope);
-    expect(verdict().reason).toMatch(/未显式通过/);
+    expect(verdict().status).toBe("verified");
+    const p = payload(); p.checks.pop(); writeTestSeal(pkg, p);
+    expect(verdict().status).toBe("invalid");
+  });
+  it("new receipt set has actual processing/provenance and requested exports without source quality or human/model approval", () => {
+    const p = payload();
+    expect(p.checkSet).toBe("workloom.delivery-required/v2");
+    expect(DELIVERY_REQUIRED_CHECKS.master).toEqual(["processing", "provenance"]);
+    expect(DELIVERY_REQUIRED_CHECKS.package).toEqual(["requested_exports"]);
+    expect(p.checks.some((check) => /visual|audio|subtitle|final_review|distinctness/.test(check.id))).toBe(false);
+    expect(verdict().status).toBe("verified");
+  });
+  it("authenticates a complete historical v1 seal without rerunning its quality checks, and still rejects missing historical evidence", () => {
+    const p = payload(); p.checkSet = "workloom.delivery-required/v1";
+    const template = JSON.parse(readFileSync(join(pkg, p.checks[0]!.evidence.ref), "utf8"));
+    const old = { master: ["visual", "audio", "subtitle", "provenance", "final_review"],
+      variant: ["visual", "audio", "subtitle", "provenance", "final_review"], softsub: [], burned: [],
+      cover: ["visual", "provenance"], subtitle: [], package: ["variant_axes", "variant_distinctness"] };
+    p.checks = [];
+    for (const row of [{ ref: null, role: "package" as const, sha256: p.manifestSha256 }, ...p.artifacts]) {
+      for (const id of old[row.role]) {
+        const ref = `evidence/historical-${p.checks.length}.json`;
+        writeFixtureJson(join(pkg, ref), { ...template, artifactRef: row.ref, artifactSha256: row.sha256, checkId: id });
+        p.checks.push({ id, artifactRef: row.ref, artifactSha256: row.sha256, status: "passed", evidence: { ref, sha256: deliverySha256(readFileSync(join(pkg, ref))) } });
+      }
+    }
+    writeTestSeal(pkg, p); expect(verdict().status).toBe("verified");
+    p.checks.pop(); writeTestSeal(pkg, p); expect(verdict().status).toBe("invalid");
   });
   it.each([
     ["expiry", (p: DeliverySealPayload) => { p.expiresAt = new Date(Date.now() - 1000).toISOString(); }],

@@ -1,10 +1,12 @@
 /**
  * 调色内核单测：纯函数（滤镜链/路径监狱/自动校正）+ 真实 ffmpeg 端到端（有 ffmpeg 才跑）。
  */
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import {
@@ -384,7 +386,7 @@ describe("配方库与平台微调（T-14）", () => {
 });
 
 describe.runIf(hasFfmpeg)("真实 ffmpeg 端到端", () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "colore2e-"));
+  const dir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "colore2e-")));
   const source = path.join(dir, "src.mp4");
   const gradedOut = path.join(dir, "graded.mp4");
 
@@ -409,7 +411,7 @@ describe.runIf(hasFfmpeg)("真实 ffmpeg 端到端", () => {
     expect(probe.duration).toBeGreaterThan(2);
   }, 60_000);
 
-  it("grade 出片并给出前后指标与哈希；覆盖原片被拒", async () => {
+  it("grade 执行明确自动校正并返回真实哈希，不做成片品质复审；覆盖原片被拒", async () => {
     const result = await grade({
       input: source,
       output: gradedOut,
@@ -420,20 +422,23 @@ describe.runIf(hasFfmpeg)("真实 ffmpeg 端到端", () => {
     });
     expect(fs.existsSync(gradedOut)).toBe(true);
     expect(result.sha256).toHaveLength(64);
-    expect(result.after.YAVG).toBeGreaterThan(result.before.YAVG);
+    expect(result.qualityReviewed).toBe(false);
+    expect(result.qualityScore).toBeNull();
+    expect(result.after).toEqual({});
     expect(result.chain).toContain("eq=");
-    // 可见性：这是"调了跟没调一样"事故的回归防线
-    expect(result.visibility.verdict).not.toBe("negligible");
-    expect(result.visibility.meanAbsDiff).toBeGreaterThanOrEqual(2);
+    expect(result.visibility).toBeNull();
+    // 测试明确调用独立诊断，证明变换真实执行，而非要求生产路径自己复审。
+    const comparison = await frameDifference({ before: source, after: gradedOut, at: [1], bins });
+    expect(comparison.meanAbsDiff).toBeGreaterThanOrEqual(2);
     await expect(grade({ input: source, output: source, bins })).rejects.toThrow(/禁止覆盖原片/);
   }, 120_000);
 
   it("look 参数可辨：teal-orange 满档必须产生肉眼可见差异（visible）", async () => {
     const out = path.join(dir, "graded-teal.mp4");
     const result = await grade({ input: source, output: out, profile: "teal-orange", intensity: 1, bins });
-    expect(result.visibility.verdict).toBe("visible");
-    expect(result.visibility.meanAbsDiff).toBeGreaterThanOrEqual(4);
+    expect(result.visibility).toBeNull();
     const diff = await frameDifference({ before: source, after: out, at: [1], bins });
+    expect(diff.meanAbsDiff).toBeGreaterThanOrEqual(4);
     expect(diff.frames[0]?.pctOver5).toBeGreaterThan(20);
   }, 120_000);
 
@@ -442,15 +447,19 @@ describe.runIf(hasFfmpeg)("真实 ffmpeg 端到端", () => {
     const full = path.join(dir, "graded-i100.mp4");
     const a = await grade({ input: source, output: weak, profile: "teal-orange", intensity: 0.25, bins });
     const b = await grade({ input: source, output: full, profile: "teal-orange", intensity: 1, bins });
-    expect(a.visibility.meanAbsDiff).toBeLessThan(b.visibility.meanAbsDiff * 0.6);
-    expect(a.visibility.meanAbsDiff).toBeLessThan(6);
+    expect(a.visibility).toBeNull(); expect(b.visibility).toBeNull();
+    const weakDiff = await frameDifference({ before: source, after: weak, at: [1], bins });
+    const fullDiff = await frameDifference({ before: source, after: full, at: [1], bins });
+    expect(weakDiff.meanAbsDiff).toBeLessThan(fullDiff.meanAbsDiff * 0.6);
+    expect(weakDiff.meanAbsDiff).toBeLessThan(6);
   }, 180_000);
 
-  it("看不出变化就拒绝交付（verify_failed，且不留产物）", async () => {
+  it("很轻的请求仍实际执行，不以看不出变化拒绝成功镜头", async () => {
     const out = path.join(dir, "graded-invisible.mp4");
-    await expect(grade({ input: source, output: out, profile: "natural", intensity: 0.02, bins }))
-      .rejects.toThrow(/未产生可见变化/);
-    expect(fs.existsSync(out)).toBe(false);
+    const result = await grade({ input: source, output: out, profile: "natural", intensity: 0.02, bins });
+    expect(fs.existsSync(out)).toBe(true);
+    expect(result.qualityReviewed).toBe(false); expect(result.visibility).toBeNull();
+    expect((await probeMedia(out, { bins })).duration).toBeGreaterThan(2);
   }, 120_000);
 
   it("scope 渲染三种图并各自带哈希", async () => {
@@ -467,19 +476,21 @@ describe.runIf(hasFfmpeg)("真实 ffmpeg 端到端", () => {
       .rejects.toThrow(/LUT 不存在/);
   }, 60_000);
 
-  it("择优：健康素材判「无需调色」且不产出文件（do no harm）", async () => {
+  it("best 执行显式单一配方，不复核健康素材或试渲候选", async () => {
     const out = path.join(dir, "best-none.mp4");
     const result = await best({
       input: source, output: out, sampleAt: [1],
       candidates: [{ id: "moody-dark@1", label: "moody-dark", spec: { profile: "moody-dark", intensity: 1 } }],
       bins,
     });
-    expect(result.verdict).toBe("no_change_needed");
-    expect(result.candidates.length).toBeGreaterThanOrEqual(2);
-    expect(fs.existsSync(out)).toBe(false);
+    expect(result.verdict).toBe("graded");
+    expect(result.winner).toBe("moody-dark@1");
+    expect(result.candidates).toEqual([]);
+    expect(result.finalScore).toBeNull();
+    expect(fs.existsSync(out)).toBe(true);
   }, 180_000);
 
-  it("择优：扁平素材会选出「提升对比度」的候选并出片（且不是靠拉饱和骗分）", async () => {
+  it("best 接受扁平素材，执行首个明确方案；旧候选和分数不影响接受", async () => {
     const flat = path.join(dir, "flat.mp4");
     execFileSync(bins.ffmpeg, [
       "-hide_banner", "-v", "error", "-y",
@@ -501,24 +512,115 @@ describe.runIf(hasFfmpeg)("真实 ffmpeg 端到端", () => {
     });
     expect(result.verdict).toBe("graded");
     expect(fs.existsSync(out)).toBe(true);
-    expect(result.finalScore.score).toBeGreaterThan(100);
-    expect((result.finalScore.reasons.contrastRatio as number)).toBeGreaterThanOrEqual(1);
-    expect((result.finalScore.reasons.clipDeltaPct as number)).toBeLessThanOrEqual(0.5);
+    expect(result.winner).toBe("natural@1");
+    expect(result.finalScore).toBeNull();
+    expect(result.qualityReviewed).toBe(false);
+    expect(result.sha256).toBe(createHash("sha256").update(fs.readFileSync(out)).digest("hex"));
   }, 240_000);
 
-  it("配方驱动：给出题材后候选池包含该配方的强度梯度与 LUT，并在结果里回报所用配方", async () => {
+  it("配方驱动：给出题材后执行一条真实配方并回报来源，不生成强度候选池", async () => {
     const out = path.join(dir, "recipe-best.mp4");
     const result = await best({
       input: source, output: out, sampleAt: [1], genre: "美食",
-      candidates: [{ id: "natural@0.5", label: "natural", spec: { profile: "natural", intensity: 0.5 } }],
       bins,
     });
-    const ids = result.candidates.map((c) => c.id);
     expect(result.recipe).toBe("food-appetite");
-    expect(ids).toContain("recipe:food-appetite@0.65");
-    expect(ids).toContain("recipe-lut:food-appetite");
+    expect(result.winner).toBe("recipe:food-appetite");
+    expect(result.candidates).toEqual([]);
+    expect(result.finalScore).toBeNull();
     expect(result.recipeContext?.genre).toContain("美食");
   }, 180_000);
+
+  it("真实 CLI 的 best 与 match 输出诚实未评审，不把 null 残差或空候选打印成分数", () => {
+    const cli = fileURLToPath(new URL("./cli.mjs", import.meta.url));
+    const env = { ...process.env, FFMPEG_PATH: bins.ffmpeg, FFPROBE_PATH: bins.ffprobe, WORKLOOM_COLOR_ALLOWED_ROOTS: dir };
+    const bestOut = path.join(dir, "cli-best.mp4");
+    const human = execFileSync(process.execPath, [cli, "best", "--in", source, "--out", bestOut, "--genre", "美食"], { env, encoding: "utf8", timeout: 60000 });
+    expect(human).toContain("没有候选评分或改进分数");
+    expect(human).not.toContain("候选得分");
+    expect(human).toContain(createHash("sha256").update(fs.readFileSync(bestOut)).digest("hex"));
+    const matched = execFileSync(process.execPath, [cli, "match", "--ref", source, "--in", source,
+      "--out-dir", path.join(dir, "cli-match"), "--histogram-check", "fail"], { env, encoding: "utf8", timeout: 60000 });
+    expect(matched).toContain("成片残差和品质未评审");
+    expect(matched).not.toMatch(/残差 YAVG|UAVG 0\.00/);
+  }, 120000);
+
+  it("真实 match CLI 的普通/JSON 全部失败保留每项结果并返回工具失败", () => {
+    const cli = fileURLToPath(new URL("./cli.mjs", import.meta.url));
+    const originalSha = createHash("sha256").update(fs.readFileSync(source)).digest("hex");
+    for (const json of [false, true]) {
+      const missing = [path.join(dir, "missing-a.mp4"), path.join(dir, "missing-b.mp4")];
+      const outputDir = path.join(dir, `cli-all-failed-${json}`);
+      const result = spawnSync(process.execPath, [cli, "match", "--ref", source,
+        ...missing.flatMap((file) => ["--in", file]), "--out-dir", outputDir, ...(json ? ["--json"] : [])], {
+        env: { ...process.env, FFMPEG_PATH: bins.ffmpeg, FFPROBE_PATH: bins.ffprobe, WORKLOOM_COLOR_ALLOWED_ROOTS: dir },
+        encoding: "utf8", timeout: 60000,
+      });
+      expect(result.error).toBeUndefined();
+      expect(result.status).toBe(3);
+      if (json) {
+        expect(JSON.parse(result.stdout).results).toEqual(missing.map((target) => ({ target, ok: false, error: "not_found" })));
+      } else {
+        for (const target of missing) expect(result.stdout).toContain(`✗ ${target} — not_found`);
+      }
+      expect(fs.readdirSync(outputDir)).toEqual([]);
+    }
+    expect(createHash("sha256").update(fs.readFileSync(source)).digest("hex")).toBe(originalSha);
+  }, 120000);
+
+  it("真实 match CLI 的普通/JSON 混合批次继续成功项，失败项不被退出 0 掩盖", () => {
+    const cli = fileURLToPath(new URL("./cli.mjs", import.meta.url));
+    const corrupt = path.join(dir, "corrupt.mp4");
+    fs.writeFileSync(corrupt, "not a media container");
+    const missing = path.join(dir, "mixed-missing.mp4");
+    const before = createHash("sha256").update(fs.readFileSync(source)).digest("hex");
+    for (const json of [false, true]) {
+      const outputDir = path.join(dir, `cli-mixed-${json}`);
+      const result = spawnSync(process.execPath, [cli, "match", "--ref", source,
+        "--in", missing, "--in", corrupt, "--in", source, "--out-dir", outputDir, ...(json ? ["--json"] : [])], {
+        env: { ...process.env, FFMPEG_PATH: bins.ffmpeg, FFPROBE_PATH: bins.ffprobe, WORKLOOM_COLOR_ALLOWED_ROOTS: dir },
+        encoding: "utf8", timeout: 60000,
+      });
+      expect(result.error).toBeUndefined();
+      expect(result.status).toBe(3);
+      const output = path.join(outputDir, "src-matched.mp4");
+      expect(fs.existsSync(output)).toBe(true);
+      const sha = createHash("sha256").update(fs.readFileSync(output)).digest("hex");
+      if (json) {
+        const items = JSON.parse(result.stdout).results;
+        expect(items).toHaveLength(3);
+        expect(items[0]).toMatchObject({ target: missing, ok: false, error: "not_found" });
+        expect(items[1]).toMatchObject({ target: corrupt, ok: false, error: "ffmpeg_failed" });
+        expect(items[1].message).toMatch(/ffprobe|读取|格式/);
+        expect(items[2]).toMatchObject({ target: source, ok: true, output, sha256: sha, qualityReviewed: false, qualityScore: null });
+      } else {
+        expect(result.stdout).toContain(`✗ ${missing} — not_found`);
+        expect(result.stdout).toContain(`✗ ${corrupt} — ffmpeg_failed`);
+        expect(result.stdout).toContain(`✓ ${output}`);
+        expect(result.stdout).toContain(sha);
+      }
+      expect(fs.existsSync(path.join(outputDir, "corrupt-matched.mp4"))).toBe(false);
+    }
+    expect(createHash("sha256").update(fs.readFileSync(source)).digest("hex")).toBe(before);
+  }, 120000);
+
+  it("真实 match CLI 的普通/JSON 全成功退出 0 并保留真实产物哈希", () => {
+    const cli = fileURLToPath(new URL("./cli.mjs", import.meta.url));
+    for (const json of [false, true]) {
+      const outputDir = path.join(dir, `cli-all-ok-${json}`);
+      const result = spawnSync(process.execPath, [cli, "match", "--ref", source, "--in", source,
+        "--out-dir", outputDir, ...(json ? ["--json"] : [])], {
+        env: { ...process.env, FFMPEG_PATH: bins.ffmpeg, FFPROBE_PATH: bins.ffprobe, WORKLOOM_COLOR_ALLOWED_ROOTS: dir },
+        encoding: "utf8", timeout: 60000,
+      });
+      expect(result.error).toBeUndefined();
+      expect(result.status).toBe(0);
+      const output = path.join(outputDir, "src-matched.mp4");
+      const sha = createHash("sha256").update(fs.readFileSync(output)).digest("hex");
+      if (json) expect(JSON.parse(result.stdout).results[0]).toMatchObject({ ok: true, output, sha256: sha });
+      else expect(result.stdout).toContain(sha);
+    }
+  }, 120000);
 });
 
 /**
@@ -613,38 +715,34 @@ describe.runIf(hasX264)("镜间匹配端到端：直方图残差 + 可选降噪�
     fs.rmSync(dir, { recursive: true, force: true });
   });
 
-  it("①亮度均值相同但分布不同：旧均值判据通过、新残差识别；fail 判负、off 关闭", async () => {
+  it("①参考匹配实际执行，旧 warn/fail/off 均不运行成片品质否决", async () => {
     const res = await match({ reference: files.grad, targets: [files.bimodal], outDir: p("m-warn"), bins });
     const item = res.results[0];
     expect(item.ok).toBe(true);
-    // 旧均值判据：同均值合成素材必须过线（证明旧判据确实漏检这类素材）
-    expect(Math.abs(item.residual.YAVG as number)).toBeLessThanOrEqual(5);
-    // 新直方图判据：默认 warn 上报，写入既有 residual 字段
-    expect(item.residual.histogram.over).toBe(true);
-    expect(item.residual.histogram.weighted).toBeGreaterThan(HIST_RESIDUAL_THRESHOLD);
-    expect(item.residual.histogram.warning).toContain("均值陷阱");
+    expect(item.residual).toEqual({ reviewed: false, YAVG: null, UAVG: null, VAVG: null, histogram: null });
+    expect(item.qualityReviewed).toBe(false);
+    expect(fs.existsSync(item.output)).toBe(true);
 
     const failed = await match({
       reference: files.grad, targets: [files.bimodal], outDir: p("m-fail"), histogramCheck: "fail", bins,
     });
-    expect(failed.results[0].ok).toBe(false);
-    expect(failed.results[0].error).toBe("histogram_residual");
+    expect(failed.results[0].ok).toBe(true);
+    expect(failed.results[0].residual.histogram).toBeNull();
 
     const off = await match({
       reference: files.grad, targets: [files.bimodal], outDir: p("m-off"), histogramCheck: "off", bins,
     });
     expect(off.results[0].ok).toBe(true);
-    expect(off.results[0].residual.histogram).toBeUndefined();
+    expect(off.results[0].residual.histogram).toBeNull();
   }, 360_000);
 
-  it("②正常匹配素材：均值与直方图判据双双过线，零误报", async () => {
+  it("②正常匹配素材：变换真实完成，成片残差诚实未测", async () => {
     const res = await match({ reference: files.grad, targets: [files.gradDark], outDir: p("m-ok"), bins });
     const item = res.results[0];
     expect(item.ok).toBe(true);
-    expect(Math.abs(item.residual.YAVG as number)).toBeLessThanOrEqual(5);
-    expect(item.residual.histogram.over).toBe(false);
-    expect(item.residual.histogram.weighted).toBeLessThanOrEqual(HIST_RESIDUAL_THRESHOLD);
-    expect(item.residual.histogram.warning).toBeNull();
+    expect(item.residual.YAVG).toBeNull();
+    expect(item.residual.histogram).toBeNull();
+    expect(item.sha256).toBe(createHash("sha256").update(fs.readFileSync(item.output)).digest("hex"));
   }, 240_000);
 
   it("③降噪默认关闭；开启且噪点命中时插入 hqdn3d 且 luma_spatial≤2.0；干净素材不插入", async () => {
@@ -830,20 +928,23 @@ describe.runIf(hasX264)("P0 防线端到端：肤色 / 场景抽样 / 缺陷 / R
     expect(report.issues.some((i) => i.kind === "defect_blur")).toBe(true);
   }, 180_000);
 
-  it("T-03 交付闸：onUnfixable=block 时拒出片且不留产物，默认 report 只如实上报", async () => {
+  it("T-03 独立缺陷诊断不接入出片：旧 block 也不否决真实请求变换", async () => {
     const blocked = p("blocked.mp4");
-    await expect(grade({
+    const accepted = await grade({
       input: files.blurred, output: blocked,
       corrections: { eq: { brightness: 0.06 } }, onUnfixable: "block", bins,
-    })).rejects.toThrow(/不可修复/);
-    expect(fs.existsSync(blocked)).toBe(false);
+    });
+    expect(fs.existsSync(blocked)).toBe(true);
+    expect(accepted.defects).toBeNull();
+    expect(accepted.qualityReviewed).toBe(false);
 
     const reported = await grade({
       input: files.blurred, output: p("reported.mp4"),
       corrections: { eq: { brightness: 0.06 } }, bins,
     });
-    expect(reported.defects?.unfixable.some((d) => d.kind === "blur")).toBe(true);
-    expect(reported.verifyWarnings.join("\n")).toContain("不可修复");
+    expect(reported.defects).toBeNull();
+    expect(reported.qualityReviewed).toBe(false);
+    expect(reported.verifyWarnings.join("\n")).not.toContain("不可修复");
   }, 300_000);
 
   it("T-04 交付元数据：输出 bt709 三标签齐全且 ffprobe 回读一致", async () => {

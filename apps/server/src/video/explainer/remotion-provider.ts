@@ -12,8 +12,9 @@
  *   任务目录 `var/talkcraft-jobs/<taskId>/` 是**唯一事实源**：进程崩溃后 poller 照常恢复（读 status.json）。
  */
 import { execFile, spawn } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { createHash } from "node:crypto";
+import { closeSync, constants, existsSync, fstatSync, mkdirSync, openSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { join, resolve } from "node:path";
 import { z } from "zod";
 import { promisify } from "node:util";
 import type { GenProvider, GenRequest, GenTaskStatus } from "@workloom/base/model-router";
@@ -39,6 +40,9 @@ export interface RemotionJobState {
   taskId: string;
   jobDir: string;
   outputPath?: string;
+  /** 首次成功渲染的实际产物绑定；恢复不能只认同一路径。 */
+  outputSha256?: string;
+  outputBytes?: number;
   seconds?: number;
   scope?: string;
   error?: string;
@@ -107,6 +111,60 @@ export function readJobState(jobDir: string): RemotionJobState | null {
 export function writeJobState(jobDir: string, state: RemotionJobState): void {
   mkdirSync(jobDir, { recursive: true });
   writeFileSync(statePathOf(jobDir), JSON.stringify({ ...state, updatedAt: new Date().toISOString() }, null, 1));
+}
+
+export interface RenderedOutputFingerprint { sha256: string; bytes: number }
+
+/** Read real bytes from one ordinary file descriptor and reject a concurrent path replacement. */
+export function renderedOutputFingerprint(file: string): RenderedOutputFingerprint {
+  const fd = openSync(file, constants.O_RDONLY | constants.O_NOFOLLOW);
+  try {
+    const before = fstatSync(fd);
+    if (!before.isFile() || before.size <= 0) throw new Error("POST_RESUME_FILE_UNREADABLE: 空文件或非普通文件");
+    const bytes = readFileSync(fd), after = fstatSync(fd), current = statSync(file);
+    if (bytes.length !== before.size || before.size !== after.size || before.mtimeMs !== after.mtimeMs
+      || before.ctimeMs !== after.ctimeMs || current.dev !== before.dev || current.ino !== before.ino
+      || current.size !== before.size || current.mtimeMs !== before.mtimeMs || current.ctimeMs !== before.ctimeMs) {
+      throw new Error("POST_RESUME_SOURCE_CHANGED_DURING_READ");
+    }
+    return { sha256: createHash("sha256").update(bytes).digest("hex"), bytes: bytes.length };
+  } finally { closeSync(fd); }
+}
+
+/** Validate already recorded provenance. This never creates a binding from today's current file. */
+export function assertRemotionSourceBinding(state: RemotionJobState | null, jobDir: string, outputPath: string,
+  current: RenderedOutputFingerprint): void {
+  if (state?.status !== "succeeded" || typeof state.taskId !== "string" || !state.taskId.trim()
+    || typeof state.jobDir !== "string" || resolve(state.jobDir) !== resolve(jobDir)
+    || typeof state.outputPath !== "string" || resolve(state.outputPath) !== resolve(outputPath)
+    || (state.error !== undefined && (typeof state.error !== "string" || Boolean(state.error.trim())))) {
+    throw new Error("POST_RESUME_PROVIDER_SUCCESS_REQUIRED: 缺少同一工程、同一路径且无实际错误的成功渲染凭据");
+  }
+  let binding: { sha256?: unknown; bytes?: unknown };
+  if (state.outputSha256 !== undefined || state.outputBytes !== undefined) {
+    binding = { sha256: state.outputSha256, bytes: state.outputBytes };
+  } else {
+    // Legacy successful jobs may have an existing byte-bound processing summary.
+    // A past creative-quality failure does not invalidate that original byte record.
+    const reportPath = join(jobDir, "out", "qa-report.json");
+    if (!existsSync(reportPath)) throw new Error("POST_RESUME_SOURCE_BINDING_REQUIRED: 旧任务没有原始产物摘要，无法证明当前片就是成功原片");
+    let report: { jobId?: unknown; sourceArtifact?: { path?: unknown; sha256?: unknown; bytes?: unknown } };
+    try { report = JSON.parse(readFileSync(reportPath, "utf8")) as typeof report; }
+    catch (error) { throw new Error(`POST_RESUME_SOURCE_BINDING_INVALID: 旧摘要不可读：${error instanceof Error ? error.message : String(error)}`); }
+    const source = report?.sourceArtifact;
+    if (typeof report?.jobId !== "string" || resolve(report.jobId) !== resolve(jobDir)
+      || typeof source?.path !== "string" || resolve(source.path) !== resolve(outputPath)) {
+      throw new Error("POST_RESUME_SOURCE_BINDING_INVALID: 旧摘要没有绑定同一工程和原片路径");
+    }
+    binding = source;
+  }
+  if (typeof binding.sha256 !== "string" || !/^[a-f0-9]{64}$/.test(binding.sha256)
+    || !Number.isSafeInteger(binding.bytes) || Number(binding.bytes) <= 0) {
+    throw new Error("POST_RESUME_SOURCE_BINDING_INVALID: 原始产物 SHA 或字节数缺失/非法");
+  }
+  if (binding.sha256 !== current.sha256 || binding.bytes !== current.bytes) {
+    throw new Error("POST_RESUME_SOURCE_CHANGED: 当前片与成功渲染时记录的原始产物不同");
+  }
 }
 
 /** 渲染命令组装（独立导出便于单测与审计；参数顺序即真实 CLI 口径） */
@@ -216,14 +274,19 @@ export class RemotionProvider implements GenProvider {
         const out = join(jobDir, "out", "v1.mp4");
         let error = startError ? `渲染进程启动失败：${startError.message}` : "";
         if (!error && (code !== 0 || !existsSync(out))) error = `render_shots 退出码 ${code}：${tail.slice(-500)}`;
+        let outputFingerprint: RenderedOutputFingerprint | undefined;
         if (!error) {
           try {
+            const before = renderedOutputFingerprint(out);
             const actual = await probeRenderedSize(out, env);
             if (`${actual.width}x${actual.height}` !== expected) {
               error = `渲染尺寸不符：期望 ${expected}，实际 ${actual.width}x${actual.height}`;
             }
+            const after = renderedOutputFingerprint(out);
+            if (before.sha256 !== after.sha256 || before.bytes !== after.bytes) throw new Error("POST_RESUME_SOURCE_CHANGED_DURING_READ");
+            if (!error) outputFingerprint = after;
           } catch (err) {
-            error = `渲染尺寸无法核验：${err instanceof Error ? err.message : String(err)}`;
+            error = `渲染产物无法核验：${err instanceof Error ? err.message : String(err)}`;
           }
         }
         const ok = !error;
@@ -233,6 +296,8 @@ export class RemotionProvider implements GenProvider {
           jobDir,
           scope,
           outputPath: ok ? out : undefined,
+          outputSha256: ok ? outputFingerprint?.sha256 : undefined,
+          outputBytes: ok ? outputFingerprint?.bytes : undefined,
           seconds: params.audioSeconds,
           logTail: tail,
           error: ok ? undefined : error,
@@ -256,6 +321,11 @@ export class RemotionProvider implements GenProvider {
     }
     if (state.status === "running") return { status: "running" };
     if (state.status === "failed") return { status: "failed", error: state.error ?? "渲染失败（无错误文本）" };
+    try {
+      if (state.taskId !== taskId) throw new Error("POST_RESUME_PROVIDER_SUCCESS_REQUIRED: 任务指针与成功状态 taskId 不一致");
+      const outputPath = join(jobDir, "out", "v1.mp4");
+      assertRemotionSourceBinding(state, jobDir, outputPath, renderedOutputFingerprint(outputPath));
+    } catch (error) { return { status: "failed", error: error instanceof Error ? error.message : String(error) }; }
     return { status: "succeeded", uri: state.outputPath, actualUnits: state.seconds };
   }
 }

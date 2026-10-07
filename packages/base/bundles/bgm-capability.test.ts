@@ -53,7 +53,7 @@ const evaluate = (ruleId: string, params: Record<string, unknown> = {}, context:
 
 describe("配乐围栏（G-BGM0..G-BGM9）语义", () => {
   it("十条规则齐备，级别与基线口径正确", () => {
-    expect(fencePack.version).toBe("ai-video-bgm/v1");
+    expect(fencePack.version).toBe("ai-video-bgm/v2");
     expect(fencePack.rules.map((rule) => rule.rule_id)).toEqual([
       "G-BGM0", "G-BGM1", "G-BGM2", "G-BGM3", "G-BGM4", "G-BGM5", "G-BGM6", "G-BGM7", "G-BGM8", "G-BGM9",
     ]);
@@ -81,9 +81,9 @@ describe("配乐围栏（G-BGM0..G-BGM9）语义", () => {
     expect(evaluate("G-BGM2", { output_path: "/a.mp4", input_path: "/a.mp4" })).toBe(true);
     expect(evaluate("G-BGM2", { output_path: "/b.mp4", input_path: "/a.mp4" })).toBe(false);
 
-    // G-BGM3：关闭复检 / 丢弃原声 → block
-    expect(evaluate("G-BGM3", { skip_verify: true })).toBe(true);
-    expect(evaluate("G-BGM3", { verify: false })).toBe(true);
+    // G-BGM3：不以质量复检开关阻断，未授权丢弃原声仍阻断
+    expect(evaluate("G-BGM3", { skip_verify: true })).toBe(false);
+    expect(evaluate("G-BGM3", { verify: false })).toBe(false);
     expect(evaluate("G-BGM3", { mute_dialogue: true })).toBe(true);
     expect(evaluate("G-BGM3", { policy: "music-only" })).toBe(true);
     expect(evaluate("G-BGM3", { policy: "music-only", allow_discard_original: true })).toBe(false);

@@ -9,8 +9,9 @@
  * 差异只在装配面（LLM 来源 / 档案句柄 / 媒资库句柄），由 input 注入。
  */
 import { spawn } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { createHash } from "node:crypto";
+import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { basename, join, resolve } from "node:path";
 import type { LlmCall } from "./semantics.js";
 import { alignTimestamps, verifyTimingParity } from "./asr-aligner.js";
 import { deliverFilm, type DeliverResult } from "./deliver.js";
@@ -18,13 +19,13 @@ import { buildCardRegistry, type CardRegistry } from "./card-registry.js";
 import { engineDirOf, jobsDirOf } from "./engine.js";
 import { buildProject, templateDirOf, type BuildProjectResult } from "./project-builder.js";
 import { runMachineGates } from "./qa-gates.js";
-import { RemotionProvider, probeRenderedSize, readJobState } from "./remotion-provider.js";
+import { RemotionProvider, assertRemotionSourceBinding, probeRenderedSize, readJobState, renderedOutputFingerprint } from "./remotion-provider.js";
 import { annotateSemantics } from "./semantics.js";
 import { generateShotbook, validateShotbook } from "./shotbook.js";
 import { shotbookFromPlan, type ShotPlan } from "./shotbook.js";
 import { prepareVoice, probeDurationSec, textFingerprint } from "./voice-prep.js";
 import {
-  assertSpokenNumbers, explainerOutputSize, ExplainerScriptSchema, SemanticsFileSchema, type ExplainerQuality, type ExplainerScript,
+  assertSpokenNumbers, CardEntrySchema, explainerOutputSize, ExplainerScriptSchema, ExplainerShotbookSchema, SemanticsFileSchema, TimestampsFileSchema, type ExplainerQuality, type ExplainerScript,
   type ExplainerShotbook, type QaReport, type SemanticsFile, type TimestampsFile,
 } from "./types.js";
 
@@ -79,9 +80,9 @@ export interface ExplainerRunInput {
   /** 渲染范围（返修：changed:<shotId>）；首渲 full */
   renderScope?: string;
   /**
-   * 断点续跑：`"render"` = 已有 `out/v1.mp4` 时跳过渲染，直接跑机器闸与交付。
+   * 断点续跑：`"render"` = 复用成功任务的 `out/v1.mp4`，直接记录实际导出与交付回执。
    * 场景：渲染已完成但后续步骤（闸/交付）中断，或渲染进程被外部杀掉——
-   * 段缓存与成片都在盘上，重渲一次要十几分钟，没必要（talkcraft 断点纪律的同构落地）。
+   * 缺件、解码失败或明确要求的最终导出画布不符时返回技术失败，不自动重提交。
    */
   resumeFrom?: "render";
   /** 只渲染不交付（首镜先做先确认 / 单镜返修预览） */
@@ -104,6 +105,121 @@ export interface ExplainerRunOutput {
   voice: { source: string; sha256: string; durationSec: number | null };
 }
 
+interface PreparedExplainerProject {
+  script: ExplainerScript; shotbook: ExplainerShotbook; timestamps: TimestampsFile;
+  semantics: SemanticsFile; build: BuildProjectResult; cards: CardRegistry;
+  voice: ExplainerRunOutput["voice"];
+  assertArchivedInputsUnchanged?: () => void;
+}
+
+/** Read the existing preparation archive; never rebuild it against today's model, card or timing policies. */
+function readPreparedExplainerProject(input: ExplainerRunInput, jobDir: string, engineDir: string,
+  aspect: "9:16" | "16:9", quality: ExplainerQuality): PreparedExplainerProject {
+  if (input.stopAfterAssemble) throw new Error("POST_RESUME_OPTIONS_CONFLICT: resumeFrom=render 不能重新请求装配");
+  if (input.renderScope && input.renderScope !== "full") throw new Error("POST_RESUME_OPTIONS_CONFLICT: 成功成片恢复不能隐式开始局部重渲");
+  const snapshots: Array<{ file: string; sha256: string }> = [];
+  const read = (ref: string): unknown => {
+    const file = join(jobDir, ref);
+    try {
+      const bytes = readFileSync(file);
+      if (!statSync(file).isFile() || !bytes.length) throw new Error("不是非空普通文件");
+      snapshots.push({ file, sha256: createHash("sha256").update(bytes).digest("hex") });
+      return JSON.parse(bytes.toString("utf8"));
+    } catch (error) { throw new Error(`POST_RESUME_ARCHIVE_UNREADABLE: ${ref}: ${error instanceof Error ? error.message : String(error)}`); }
+  };
+  const script = ExplainerScriptSchema.parse(read("script.json"));
+  if (JSON.stringify(ExplainerScriptSchema.parse(input.script)) !== JSON.stringify(script)) {
+    throw new Error("POST_RESUME_INPUT_CONFLICT: 当前口播稿与成功成片的原档案不同");
+  }
+  const timestamps = TimestampsFileSchema.parse(read("audio/timestamps.json"));
+  const semantics = SemanticsFileSchema.parse(read("semantics.json"));
+  const shotbook = ExplainerShotbookSchema.parse(read("shotbook.json"));
+  if ((input.shotbook && JSON.stringify(ExplainerShotbookSchema.parse(input.shotbook)) !== JSON.stringify(shotbook))
+    || (input.semantics && JSON.stringify(SemanticsFileSchema.parse(input.semantics)) !== JSON.stringify(semantics))) {
+    throw new Error("POST_RESUME_INPUT_CONFLICT: 当前分镜或语义数据与成功成片的原档案不同");
+  }
+  const manifest = read("job.json") as { schema?: unknown; jobDir?: unknown; aspect?: unknown; quality?: unknown };
+  if (manifest.schema !== "workloom.explainer-job/v1" || typeof manifest.jobDir !== "string"
+    || resolve(manifest.jobDir) !== resolve(jobDir)) throw new Error("POST_RESUME_ARCHIVE_SCOPE_MISMATCH");
+  if (manifest.aspect !== aspect || (manifest.quality ?? "hd") !== quality) throw new Error("POST_RESUME_EXPORT_REQUEST_CONFLICT");
+  const props = read("remotion/props.json") as { shots?: Array<{ id?: unknown; hostSrc?: unknown }> };
+  const shots = read("remotion/shots.json");
+  const cues = read("remotion/cues.json");
+  if (!Array.isArray(shots) || !Array.isArray(cues) || !Array.isArray(props.shots)) throw new Error("POST_RESUME_ARCHIVE_SHAPE_INVALID");
+  read("status.json"); // Keep the provider's original success record unchanged as well.
+  const cards = [...new Set(shotbook.shots.map((shot) => shot.card))];
+  const remotionDir = join(jobDir, "remotion");
+  const build: BuildProjectResult = { jobDir, remotionDir, propsPath: join(remotionDir, "props.json"),
+    shotsPath: join(remotionDir, "shots.json"), beatsPath: join(remotionDir, "beats.json"),
+    anchorsPath: join(remotionDir, "anchors.json"), cuesPath: join(remotionDir, "cues.json"),
+    cards, scenes: shotbook.shots.map((shot) => shot.id), sfxFiles: [...new Set(cues.flatMap((cue) =>
+      cue && typeof cue === "object" && typeof cue.src === "string" ? [basename(cue.src)] : []))],
+    hostSrcByShot: Object.fromEntries(props.shots.flatMap((shot) => typeof shot.id === "string"
+      ? [[shot.id, typeof shot.hostSrc === "string" ? shot.hostSrc : null]] : [])),
+  };
+  // Only archived slugs are known here. No current engine/card registry is consulted or quality-reviewed.
+  const entries = cards.map((slug) => CardEntrySchema.parse({ slug }));
+  const archiveAudio = join(jobDir, "audio", "full.wav");
+  const voice: ExplainerRunOutput["voice"] = existsSync(archiveAudio)
+    ? { source: "archived", sha256: createHash("sha256").update(readFileSync(archiveAudio)).digest("hex"), durationSec: timestamps.total }
+    : { source: "rendered-program", sha256: "", durationSec: null };
+  return { script, timestamps, semantics, shotbook, build, voice,
+    cards: { engineDir, entries, bySlug: new Map(entries.map((entry) => [entry.slug, entry])) },
+    assertArchivedInputsUnchanged: () => {
+      for (const snapshot of snapshots) {
+        if (createHash("sha256").update(readFileSync(snapshot.file)).digest("hex") !== snapshot.sha256) {
+          throw new Error(`POST_RESUME_ARCHIVE_CHANGED_DURING_POST: ${snapshot.file}`);
+        }
+      }
+    },
+  };
+}
+
+/** The same render/resume decision is used by the pipeline and its offline media regressions. */
+export async function renderPreparedProject(input: {
+  provider: Pick<RemotionProvider, "submit" | "poll">;
+  taskId: string; jobDir: string; scriptText: string; audioSeconds: number; scope: string;
+  aspect: "9:16" | "16:9"; quality: ExplainerQuality; resume: boolean;
+  env: NodeJS.ProcessEnv; timeoutMs: number; log: (line: string) => void;
+}) {
+  const renderedPath = join(input.jobDir, "out", "v1.mp4");
+  if (input.resume) {
+    if (!existsSync(renderedPath)) throw new Error(`POST_RESUME_FILE_MISSING: ${renderedPath}`);
+    const state = readJobState(input.jobDir);
+    const original = renderedOutputFingerprint(renderedPath);
+    assertRemotionSourceBinding(state, input.jobDir, renderedPath, original);
+    const before = statSync(renderedPath);
+    if (!before.isFile() || before.size <= 0) throw new Error("POST_RESUME_FILE_UNREADABLE: 空文件或非普通文件");
+    const hash = () => createHash("sha256").update(readFileSync(renderedPath)).digest("hex");
+    const sourceSha256 = original.sha256;
+    const expected = explainerOutputSize(input.aspect, input.quality);
+    let actual: { width: number; height: number };
+    try {
+      actual = await probeRenderedSize(renderedPath, input.env);
+    } catch (error) {
+      throw new Error(`POST_RESUME_FILE_UNREADABLE: ${error instanceof Error ? error.message : String(error)}`);
+    }
+    const after = statSync(renderedPath);
+    if (before.size !== after.size || before.mtimeMs !== after.mtimeMs || hash() !== sourceSha256) {
+      throw new Error("POST_RESUME_SOURCE_CHANGED_DURING_READ");
+    }
+    // v1.mp4 is this renderer's final composition, not an incoming source shot. The caller
+    // explicitly requested this export canvas; a mismatch is an export failure, never a rerender trigger.
+    if (actual.width !== expected.width || actual.height !== expected.height) {
+      throw new Error(`POST_EXPORT_CANVAS_MISMATCH: ${actual.width}x${actual.height} != ${expected.width}x${expected.height}`);
+    }
+    input.log(`[render] 当前成功成片与实际导出画布可读，原 SHA ${sourceSha256}；未运行品质复核`);
+    return { status: "succeeded" as const, uri: renderedPath, error: undefined as string | undefined, resumed: true };
+  }
+  const submitted = await input.provider.submit({
+    prompt: input.scriptText, estimatedUnits: Math.round(input.audioSeconds), refId: input.taskId,
+    params: { jobDir: input.jobDir, audioSeconds: input.audioSeconds, scope: input.scope, providerModel: "remotion-4.0.519" },
+  });
+  const result = await pollUntilDone(input.provider, submitted.taskId, input.jobDir,
+    { log: input.log, timeoutMs: input.timeoutMs });
+  return { ...result, resumed: false };
+}
+
 export async function runExplainerPipeline(input: ExplainerRunInput): Promise<ExplainerRunOutput> {
   const env = input.env ?? process.env;
   const log = input.onLog ?? (() => undefined);
@@ -111,14 +227,28 @@ export async function runExplainerPipeline(input: ExplainerRunInput): Promise<Ex
   const templateDir = input.templateDir ?? templateDirOf();
   const quality = input.quality ?? "hd";
   const aspect = input.aspect ?? "9:16";
-  const script = ExplainerScriptSchema.parse(input.script);
-  for (const sentence of script.sentences) assertSpokenNumbers(sentence.text);
   const jobDir = input.jobDir ?? join(jobsDirOf(env), input.taskId);
-  mkdirSync(jobDir, { recursive: true });
+  if (!input.resumeFrom) mkdirSync(jobDir, { recursive: true });
   const stage = async (event: StageEvent): Promise<void> => {
     log(`[stage] ${event.stageId} ${event.status}${event.errorMsg ? `：${event.errorMsg}` : ""}`);
     await input.onStage?.(event);
   };
+
+  if (input.resumeFrom === "render") {
+    let prepared: PreparedExplainerProject;
+    try { prepared = readPreparedExplainerProject(input, jobDir, engineDir, aspect, quality); }
+    catch (error) {
+      await stage({ stageId: "render", status: "failed", errorClass: "POST_RESUME_ARCHIVE_FAILED",
+        errorMsg: error instanceof Error ? error.message : String(error) });
+      throw error;
+    }
+    for (const stageId of ["scriptIntake", "voiceProduce", "voiceTrim", "align", "semantics", "shotbook", "assemble", "preflight"] as const) {
+      await stage({ stageId, status: "skipped", output: { reason: "成功渲染恢复：复用原档案，不重做语音/模型/装配/预检" } });
+    }
+    return finishPreparedExplainerProject(input, prepared, { env, log, stage, jobDir, engineDir, aspect, quality });
+  }
+  const script = ExplainerScriptSchema.parse(input.script);
+  for (const sentence of script.sentences) assertSpokenNumbers(sentence.text);
 
   /* ---------- ① 口播稿入档 ---------- */
   await stage({ stageId: "scriptIntake", status: "running" });
@@ -281,54 +411,51 @@ export async function runExplainerPipeline(input: ExplainerRunInput): Promise<Ex
       semantics: semanticsResult.semantics,
       build,
       renderVideoPath: "",
-      qa: { jobId: jobDir, totalFrames: null, gates: [], pass: false },
+      qa: { jobId: jobDir, totalFrames: null, gates: [], pass: false,
+        qualityReviewed: false, qualityScore: null, sourceArtifact: null },
       delivery: null,
       cards: registry,
       voice: { source: voiceRef.source, sha256: voiceRef.sha256, durationSec: voiceRef.durationSec },
     };
   }
 
+  return finishPreparedExplainerProject(input, { script, shotbook, timestamps: align.timestamps,
+    semantics: semanticsResult.semantics, build, cards: registry,
+    voice: { source: voiceRef.source, sha256: voiceRef.sha256, durationSec: voiceRef.durationSec } },
+    { env, log, stage, jobDir, engineDir, aspect, quality });
+}
+
+/** New generation and archive resume share the same actual render/export/delivery tail. */
+async function finishPreparedExplainerProject(input: ExplainerRunInput, prepared: PreparedExplainerProject,
+  context: { env: NodeJS.ProcessEnv; log: (line: string) => void; stage: (event: StageEvent) => Promise<void>;
+    jobDir: string; engineDir: string; aspect: "9:16" | "16:9"; quality: ExplainerQuality }): Promise<ExplainerRunOutput> {
+  const { env, log, stage, jobDir, engineDir, aspect, quality } = context;
+  const { script, shotbook, timestamps, semantics, build, cards, voice } = prepared;
   /* ---------- ⑧ 渲染（真实 provider 路径） ---------- */
   await stage({ stageId: "render", status: "running", output: { scope: input.renderScope ?? "full" } });
-  const provider = new RemotionProvider({ env });
-  const audioSeconds = align.total;
-  const renderedPath = join(jobDir, "out", "v1.mp4");
-  let canResume = false;
-  if (input.resumeFrom === "render" && existsSync(renderedPath)) {
-    const expected = explainerOutputSize(aspect, quality);
-    try {
-      const actual = await probeRenderedSize(renderedPath, env);
-      canResume = actual.width === expected.width && actual.height === expected.height;
-      if (!canResume) log(`[render] 已有成片尺寸 ${actual.width}×${actual.height} 与 ${expected.width}×${expected.height} 不符 → 重新渲染`);
-    } catch (err) {
-      log(`[render] 已有成片尺寸无法核验（${err instanceof Error ? err.message : String(err)}）→ 重新渲染`);
-    }
+  let polled: Awaited<ReturnType<typeof renderPreparedProject>>;
+  try {
+    polled = await renderPreparedProject({ provider: new RemotionProvider({ env }), taskId: input.taskId,
+      jobDir, scriptText: script.sentences.map((sentence) => sentence.text).join(""), audioSeconds: timestamps.total,
+      scope: input.renderScope ?? "full", aspect, quality, resume: input.resumeFrom === "render", env,
+      timeoutMs: Number(env.TALKCRAFT_RENDER_TIMEOUT_MS ?? 3_600_000), log });
+  } catch (error) {
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    await stage({ stageId: "render", status: "failed", errorClass: "RENDER_PROCESSING_FAILED", errorMsg });
+    throw error;
   }
-  const polled = canResume
-    ? { status: "succeeded" as const, uri: renderedPath, error: undefined as string | undefined }
-    : await (async () => {
-        const submitted = await provider.submit({
-          prompt: script.sentences.map((s) => s.text).join(""),
-          estimatedUnits: Math.round(audioSeconds),
-          refId: input.taskId,
-          params: { jobDir, audioSeconds, scope: input.renderScope ?? "full", providerModel: "remotion-4.0.519" },
-        });
-        return await pollUntilDone(provider, submitted.taskId, jobDir, {
-          log,
-          timeoutMs: Number(env.TALKCRAFT_RENDER_TIMEOUT_MS ?? 3_600_000),
-        });
-      })();
-  if (canResume) log(`[render] 断点续跑：复用已在盘的成片 ${renderedPath}（跳过渲染）`);
+  if (polled.resumed) log(`[render] 断点续跑：复用已在盘的成片 ${polled.uri}（跳过渲染）`);
   if (polled.status !== "succeeded" || !polled.uri) {
     await stage({ stageId: "render", status: "failed", errorClass: "RENDER_FAILED", errorMsg: polled.error ?? "渲染失败" });
     throw new Error(`渲染失败：${polled.error ?? "未知原因"}`);
   }
-  await stage({ stageId: "render", status: "done", output: { video: polled.uri, frames: null, resumed: canResume } });
+  await stage({ stageId: "render", status: "done", output: { video: polled.uri, frames: null, resumed: polled.resumed } });
 
-  /* ---------- ⑨ 机器闸六条 ---------- */
+  /* ---------- ⑨ 实际加工与导出回执（成功原片不再运行品质六闸） ---------- */
   await stage({ stageId: "machineGates", status: "running" });
   const { report } = await runMachineGates({
     jobDir, cards: build.cards, cueCount: build.sfxFiles.length > 0 ? countCues(build) : 0,
+    requireProviderState: true,
     baseline: input.baselineHost ?? null, engineDir, env, onLog: log,
     aspect,
     quality,
@@ -341,14 +468,15 @@ export async function runExplainerPipeline(input: ExplainerRunInput): Promise<Ex
     errorMsg: report.pass ? null : report.gates.filter((g) => g.status === "fail").map((g) => `${g.gate}:${g.summary}`).join("；").slice(0, 400),
   });
   if (!report.pass) {
-    throw new Error(`机器闸未过（P0 级禁止交付）：${report.gates.filter((g) => g.status === "fail").map((g) => g.gate).join("、")}`);
+    throw new Error(`正式后期实际文件或导出失败：${report.gates.filter((g) => g.status === "fail").map((g) => `${g.gate}:${g.summary}`).join("；")}`);
   }
+  prepared.assertArchivedInputsUnchanged?.();
 
-  /* ---------- ⑩ 交付（两遍 loudnorm） ---------- */
+  /* ---------- ⑩ 本地交付（默认保留原节目声音，不隐式 loudnorm） ---------- */
   let delivery: DeliverResult | null = null;
   if (!input.stopAfterRender) {
     await stage({ stageId: "deliver", status: "running" });
-    delivery = await deliverFilm({ jobDir, env, onLog: log });
+    delivery = await deliverFilm({ jobDir, env, onLog: log, sourceSha256: report.sourceArtifact?.sha256 });
     await stage({
       stageId: "deliver", status: "done",
       output: { path: delivery.deliveryPath, sha256: delivery.sha256, bytes: delivery.bytes, loudnorm: delivery.measurement },
@@ -357,23 +485,25 @@ export async function runExplainerPipeline(input: ExplainerRunInput): Promise<Ex
     await stage({ stageId: "deliver", status: "skipped", output: { reason: "stopAfterRender（首镜确认/返修预览）" } });
   }
 
+  prepared.assertArchivedInputsUnchanged?.();
   return {
     taskId: input.taskId,
     jobDir,
     shotbook,
-    timestamps: align.timestamps,
-    semantics: semanticsResult.semantics,
+    timestamps,
+    semantics,
     build,
     renderVideoPath: polled.uri,
     qa: report,
     delivery,
-    cards: registry,
-    voice: { source: voiceRef.source, sha256: voiceRef.sha256, durationSec: voiceRef.durationSec },
+    cards,
+    voice: voice.source === "rendered-program" ? { source: voice.source,
+      sha256: report.sourceArtifact?.sha256 ?? "", durationSec: report.sourceArtifact?.duration ?? null } : voice,
   };
 }
 
 async function pollUntilDone(
-  provider: RemotionProvider,
+  provider: Pick<RemotionProvider, "poll">,
   taskId: string,
   jobDir: string,
   opts: { log: (line: string) => void; timeoutMs: number },

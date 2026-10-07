@@ -4,6 +4,8 @@ import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { FullChainFilmWorker, normalizeFilmJobRequest, assertFilmStageCoverage } from "./film-worker-runtime.js";
+import { postRenderFilmStageVerdict } from "./film-contracts.js";
+import { resolveEraProfile } from "./era-profile.js";
 import type { FilmWorkerJobContext, FilmChannelRequestFrame, FilmChannelTransport } from "./film-worker-channel.js";
 const dirs: string[] = [];
 const hash = (data: Buffer | string): string => createHash("sha256").update(data).digest("hex");
@@ -142,6 +144,22 @@ describe("frozen full-chain worker adapter", () => {
     await worker.review({ stage: "shot", projectId: context.projectId, artifacts: [{ path: file, kind: "video" }],
       deterministic: [], context: { shotId: "S1", sourceStage: "material-gen" } });
     expect(frames[0]!.stepKey).toBe("material-gen:S1");
+    worker.channel.dispose();
+  });
+  it.each(["cover", "bgm", "sfx", "subtitle", "compose", "master"] as const)("accepts the real parent post receipt for %s without a creative score", async (stage) => {
+    const { context, worker, frames, setReply } = fixture();
+    context.stages.push(stage);
+    const file = join(context.workDir, "post.mp4"); writeFileSync(file, "actual processing output");
+    const source = { projectId: context.projectId, shots: [{ shotId: "S1", devices: [{ malformed: "not a post criterion" }] }],
+      eraProfile: resolveEraProfile({ storyDate: "2026-10-01" }) };
+    const request = { stage, projectId: context.projectId, artifacts: [{ path: file, kind: "video" as const }],
+      deterministic: [{ id: "identity", pass: false, hard: true, detail: "source accepted" }] };
+    const parentVerdict = postRenderFilmStageVerdict(source, request);
+    setReply(() => parentVerdict);
+    const result = await worker.review(request);
+    expect(result).toMatchObject({ approved: true, score: null, rerun: false });
+    expect(result.contractHash).toMatch(/^[a-f0-9]{64}$/);
+    expect(frames.map((frame) => frame.method)).toEqual(["gate.review"]);
     worker.channel.dispose();
   });
 });
