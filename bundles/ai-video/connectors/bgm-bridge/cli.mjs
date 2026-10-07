@@ -87,8 +87,23 @@ function catalogFlag(value) {
 function audioStemsFlag(value) {
   if (value === undefined) return null;
   if (typeof value !== "string" || !value) throw new BgmError("--audio-stems 需要工程固定的签章分轨引用 JSON", "audio_stems_source_unverified", false);
-  try { return JSON.parse(fs.readFileSync(value, "utf8")); }
-  catch (error) { throw new BgmError(`音轨引用无法读取：${error.message}`, "bad_request", false); }
+  try {
+    const reference = JSON.parse(fs.readFileSync(value, "utf8"));
+    if (!reference || typeof reference !== "object" || Array.isArray(reference)) {
+      throw new BgmError("--audio-stems 必须是非空对象形式的签章分轨引用，不能降级为原声直混", "bad_request", false);
+    }
+    return reference;
+  } catch (error) {
+    if (error instanceof BgmError) throw error;
+    throw new BgmError(`音轨引用无法读取：${error.message}`, "bad_request", false);
+  }
+}
+
+function audioSourceFlags(flags) {
+  if (Object.hasOwn(flags, "declared-program-mix") && Object.hasOwn(flags, "audio-stems")) {
+    throw new BgmError("--declared-program-mix 与 --audio-stems 不能同时指定；显式签章来源不得被丢弃", "bad_request", false);
+  }
+  return { declaredProgramMix: flags["declared-program-mix"] === true, audioStems: audioStemsFlag(flags["audio-stems"]) };
 }
 
 async function main() {
@@ -205,10 +220,9 @@ async function main() {
       return 0;
     }
     case "mix": {
-      const declaredProgramMix = flags["declared-program-mix"] === true;
+      const source = audioSourceFlags(flags);
       const result = await mix({
-        audioStems: declaredProgramMix ? null : audioStemsFlag(flags["audio-stems"]),
-        declaredProgramMix,
+        ...source,
         input: flags.in,
         output: flags.out,
         bgmPath: flags.bgm,
@@ -377,10 +391,9 @@ async function main() {
       return 2;
     }
     case "best": {
-      const declaredProgramMix = flags["declared-program-mix"] === true;
+      const source = audioSourceFlags(flags);
       const result = await best({
-        audioStems: declaredProgramMix ? null : audioStemsFlag(flags["audio-stems"]),
-        declaredProgramMix,
+        ...source,
         input: flags.in,
         output: flags.out,
         genre: typeof flags.genre === "string" ? flags.genre : null,

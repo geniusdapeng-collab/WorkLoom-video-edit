@@ -116,6 +116,60 @@ suite("rendered source default acceptance in BGM CLI/core", () => {
     assert.match(result.stdout, /未进行源音质比较/);
     assert.equal(hash(source), originalHash);
   });
+  it("rejects conflicting CLI source flags before reference reads, media work or output writes", () => {
+    const cli = fileURLToPath(new URL("./cli.mjs", import.meta.url));
+    const malicious = path.join(root, "invalid-signed-reference.json");
+    fs.writeFileSync(malicious, JSON.stringify({ dir: root, scope: { tenantId: "attacker" }, manifestSha256: "a".repeat(64), recipeSha256: "b".repeat(64) }));
+    const trace = path.join(root, "unexpected-conflict-media.log"), sentinel = path.join(root, "must-not-run-media");
+    fs.writeFileSync(sentinel, "#!" + process.execPath + "\nrequire('node:fs').appendFileSync(" + JSON.stringify(trace)
+      + ",JSON.stringify(process.argv.slice(2))+'\\n');process.exit(98);\n"); fs.chmodSync(sentinel, 0o755);
+    const cases = [];
+    for (const command of ["mix", "best"]) {
+      for (const [name, reference] of [["no-value", undefined], ["nonexistent", path.join(root, "missing-signed-reference.json")], ["malicious-json", malicious]]) {
+        const output = path.join(root, `conflict-${command}-${name}.mp4`);
+        const before = fs.readdirSync(root).sort();
+        const result = spawnSync(process.execPath, [cli, command, "--in", source, "--out", output, "--bgm", music,
+          "--source-policy", "compose-only", "--declared-program-mix", "--audio-stems", ...(reference === undefined ? [] : [reference])],
+        { env: { ...env, WL_FFMPEG: sentinel, WL_FFPROBE: sentinel, WORKLOOM_BGM_FFMPEG_PATH: sentinel,
+          WORKLOOM_BGM_FFPROBE_PATH: sentinel }, encoding: "utf8", timeout: 8000 });
+        assert.equal(result.status, 3, result.stdout + result.stderr);
+        assert.match(result.stderr, /^bad_request:.*不能同时指定/m);
+        assert.doesNotMatch(result.stderr, /ENOENT|音轨引用无法读取/);
+        assert.equal(fs.existsSync(output), false); assert.equal(fs.existsSync(trace), false);
+        assert.deepEqual(fs.readdirSync(root).sort(), before); assert.equal(hash(source), originalHash);
+        cases.push({ command, referenceCase: name, exitCode: result.status, error: result.stderr.trim(),
+          mediaInvoked: false, outputCreated: false, sourceUnchanged: true });
+      }
+    }
+    if (process.env.WORKLOOM_BGM_TEST_CLI_EVIDENCE) fs.writeFileSync(process.env.WORKLOOM_BGM_TEST_CLI_EVIDENCE, JSON.stringify({ conflicts: cases }, null, 2));
+  });
+  it("rejects independent invalid signed CLI references and tenant mismatch without falling back to original audio", () => {
+    const cli = fileURLToPath(new URL("./cli.mjs", import.meta.url));
+    const invalid = path.join(root, "standalone-invalid-reference.json"), otherTenant = path.join(root, "standalone-other-tenant.json");
+    fs.writeFileSync(invalid, JSON.stringify({ dir: root })); fs.writeFileSync(otherTenant, JSON.stringify({ dir: root, scope: { tenantId: "another" } }));
+    const scalarRefs = [null, false, "discard-this-reference", []].map((value, index) => {
+      const file = path.join(root, `invalid-reference-value-${index}.json`); fs.writeFileSync(file, JSON.stringify(value)); return file;
+    });
+    const cases = [];
+    for (const command of ["mix", "best"]) {
+      for (const [index, reference] of [undefined, path.join(root, "missing-signed.json"), invalid, ...scalarRefs, otherTenant].entries()) {
+        const output = path.join(root, `invalid-signed-${command}-${index}.mp4`);
+        const result = spawnSync(process.execPath, [cli, command, "--in", source, "--out", output, "--bgm", music,
+          "--source-policy", "compose-only", "--audio-stems", ...(reference === undefined ? [] : [reference])],
+        { env: { ...env, WL_FFMPEG: bins.ffmpeg, WL_FFPROBE: bins.ffprobe, WORKLOOM_BGM_FFMPEG_PATH: bins.ffmpeg,
+          WORKLOOM_BGM_FFPROBE_PATH: bins.ffprobe, WORKLOOM_BGM_BRIDGE_TENANT: "owner" }, encoding: "utf8", timeout: 8000 });
+        assert.equal(result.status, 3, result.stdout + result.stderr); assert.equal(fs.existsSync(output), false);
+        assert.match(result.stderr, /bad_request|audio_stems_|tenant_mismatch/);
+        if (reference === otherTenant) assert.match(result.stderr, /^tenant_mismatch:/m);
+        assert.equal(hash(source), originalHash);
+        cases.push({ command, referenceCase: index, exitCode: result.status, error: result.stderr.trim(), outputCreated: false, sourceUnchanged: true });
+      }
+    }
+    if (process.env.WORKLOOM_BGM_TEST_CLI_EVIDENCE) {
+      const file = process.env.WORKLOOM_BGM_TEST_CLI_EVIDENCE, evidence = fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, "utf8")) : {};
+      fs.writeFileSync(file, JSON.stringify({ ...evidence, invalidSigned: cases }, null, 2));
+    }
+  });
   it("retains explicit signed-source verification, source permission and tenant authority", async () => {
     await assert.rejects(() => mix({ ...options("bad-signed"), audioStems: { dir: root } }),
       (error) => /audio_stems|source|bad_request|verify/.test(error.code));
