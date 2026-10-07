@@ -5698,309 +5698,56 @@ if (DANMAKU_ENABLED && STAGES.has("danmaku") && existsSync(subtitled)) {
   });
 }
 
-/* ---------- ⑧ 配乐（bgm-bridge） ---------- */
-/** 未重跑配乐时沿用磁盘上不早于上游的配乐版；重跑则由下面的 bgm 环节覆盖 */
+/* ---------- ⑧ 配乐（bgm-bridge：按请求混音一次） ---------- */
 let scored = STAGES.has("bgm") ? danmakuOut : preferDownstream(join(POST_DIR, "master-scored.mp4"), danmakuOut, "bgm");
 if (STAGES.has("bgm") && existsSync(danmakuOut)) {
   rememberInputs("bgm", [danmakuOut]);
   const started = Date.now();
   const out = join(POST_DIR, "master-scored.mp4");
+  const pending = join(POST_DIR, `master-scored-${RUN_ID}.pending.mp4`);
   const genre = arg("--bgm-genre", "旅行");
   const mood = arg("--bgm-mood", "温润治愈");
   const policy = arg("--bgm-policy", "keep-dialogue");
-  const sourcePolicy = arg("--bgm-source-policy", "online-first");
-  /**
-   * 指定曲目（2026-09-24 真机补）：`--bgm-track <曲库 id | 绝对路径>`。
-   *
-   * 背景：`best` 的自动选曲在"题材"维度上不够硬——真机把「运动/高燃」的曲目选给了江南水乡口播片
-   * （match.reasons 明确写着"题材未命中"，但因为能量/BPM 命中仍被采信）。
-   * 产品所有者本地曲库（`~/.workloom-bgm/library`，1034 首，已打标）里本就有题材贴合的曲子，
-   * 因此监制可以直接点名曲目：这条路径**跳过自动择优**，但仍走工位的混音/让位/响度/选段全套复检。
-   */
-  /**
-   * 真峰值目标（2026-09-27 真机）：默认 -1.5 dBTP 而不是混音器默认的 -1.0——
-   * AAC 编码后会有 ~0.1dB 过冲，直接按 -1.0 出片会变成 -0.9，越过终审的"真峰值 ≤ -1.0 dBTP"硬上限。
-   */
-  const BGM_TRUE_PEAK = arg("--bgm-true-peak", "-1.5");
   const chosenTrack = arg("--bgm-track", "");
-  if (BGM_DECLARED_PROGRAM_MIX) {
-    log("ℹ 配乐：本机无独立音轨签发者 → 走**声明式直混**（declared-program-mix，回执标注 stemsVerified=false，不冒充签章分轨）");
+  let trackPath = chosenTrack;
+  let trackBpm: number | null = null;
+  if (chosenTrack && !existsSync(trackPath)) {
+    const core = await import(join(REPO_ROOT, "bundles/ai-video/connectors/bgm-bridge/core.mjs"));
+    const found = core.findTracks({ trackId: chosenTrack, commercialUse: true });
+    if (!found.track?.path || !existsSync(found.track.path)) throw new Error(`BGM_TRACK_NOT_FOUND: ${chosenTrack}`);
+    trackPath = found.track.path;
+    trackBpm = Number.isFinite(Number(found.track.bpm)) ? Number(found.track.bpm) : null;
   }
-  const result = runCli(BGM_CLI, [
-    "best", "--in", danmakuOut, "--out", out, "--genre", genre, "--mood", mood, "--policy", policy,
-    "--source-policy", sourcePolicy,
-    ...(BGM_DECLARED_PROGRAM_MIX ? ["--declared-program-mix"] : []),
-    "--evidence-dir", join(POST_DIR, "bgm-evidence")
-  ]);
-  /**
-   * 「最佳候选」判定无需配乐时的**监制兜底路径**（2026-09-24）：
-   * 真机结果：口播片人声太满 → `best` 按"不劣化优先"给出 `no_bgm_needed`（无产物）。
-   * 这类结论在纯质量口径下是对的，但产品口径里"成片必须带配乐轨"，所以监制显式接管：
-   * 用**自算作曲**（叙事/口播配方）+ **让位混音**（keep-dialogue、低于人声若干 dB、母版 −14 LUFS）手工出一版，
-   * 并在阶段记录里写明这是"监制决定"，不是工具自动结论。
-   */
-  let bgmVia = "best";
-  let bgmDetail = result.out.slice(-800);
-  if (chosenTrack) {
-    /** 监制点名曲目：id → 走曲库索引解析出绝对路径；已是绝对路径则直用 */
-    let trackPath = chosenTrack;
-    /** 点名曲目的真实 BPM（交混音器当基准；解析不到时留空，不硬编造） */
-    let trackBpm: number | null = null;
-    if (!existsSync(trackPath)) {
-      try {
-        const core = await import(join(REPO_ROOT, "bundles/ai-video/connectors/bgm-bridge/core.mjs"));
-        const found = (core as { findTracks: (q: Record<string, unknown>) => { track?: { path?: string; bpm?: number } } })
-          .findTracks({ trackId: chosenTrack, commercialUse: true });
-        if (found.track?.path && existsSync(found.track.path)) {
-          trackPath = found.track.path;
-          trackBpm = Number.isFinite(Number(found.track.bpm)) ? Number(found.track.bpm) : null;
-        }
-        else throw new Error(`曲库中未找到可用曲目：${chosenTrack}`);
-      } catch (err) {
-        throw new Error(`--bgm-track 解析失败（${chosenTrack}）：${err instanceof Error ? err.message : String(err)}`);
-      }
-    }
-      const mix = runCli(BGM_CLI, [
-        "mix", "--in", danmakuOut, "--out", out, "--bgm", trackPath, "--policy", policy,
-        "--music-level", arg("--bgm-level", "-26"), "--ducking", arg("--bgm-ducking", "14"), "--lufs", "-14",
-        "--true-peak", BGM_TRUE_PEAK,
-        ...(BGM_DECLARED_PROGRAM_MIX ? ["--declared-program-mix"] : []),
-        "--section", arg("--bgm-section", "auto"),
-        /** 同理：点名曲目也要把真实 BPM 交给混音器（否则基准落到默认 100，卡点判定失真） */
-        ...(trackBpm ? ["--bgm-bpm", String(trackBpm)] : []),
-        /**
-         * 剪辑网格 + 剪辑驱动 BPM（2026-09-25 真机）：成片方最清楚自己的剪辑点（每镜固定时长、硬切），
-         * 把网格直接交给混音器反推 BPM（5s 切点 → 96BPM = 8 拍/镜）——卡点平均误差从 116ms 降到 0ms。
-         * 不传的话它只能从"音轨起音"猜剪辑点，会把台词音节当切点，BPM 反推整体落空并退回 100BPM 默认值。
-         */
-        "--bpm-strategy", "cut-driven",
-        "--cut-times", CUT_GRID.join(","),
-        "--evidence-dir", join(POST_DIR, "bgm-evidence")
-      ]);
-    bgmVia = "library-track";
-    bgmDetail = `监制点名曲目（跳过自动择优）：${trackPath}\n--- mix ---\n${mix.out.slice(-900)}`;
-    log(`↻ 配乐：监制点名曲库曲目 → ${trackPath.split("/").slice(-1)[0]}（走混音/让位/响度/选段复检）`);
-  } else if (!existsSync(out)) {
-    /**
-     * **不再退回自算作曲**（2026-09-26 产品所有者口径："最早那批纯音乐质量太差，去掉"）。
-     *
-     * `best` 判 no_bgm_needed 的常见理由是"人声太满、配乐会添乱"——这是**质量口径**的判断，
-     * 但产品口径要求"成片必须有配乐轨"。正确做法不是让宿主临时合成一首（那正是被打回的那批），
-     * 而是**降低择优门槛、仍然只从曲库里选**：优先低密度、纯器乐、BPM 与剪辑网格相容的曲子当"音乐床"，
-     * 用更低的音乐电平（-28dB）与更深的让位（16dB）保证不抢人声。
-     */
-    const bed = await pickGridCompatibleBed(Number(probe(danmakuOut).duration ?? 0), CUT_GRID);
-    if (bed) {
-      const mix = runCli(BGM_CLI, [
-        "mix", "--in", danmakuOut, "--out", out, "--bgm", bed.path, "--policy", policy,
-        "--music-level", arg("--bgm-bed-level", "-28"), "--ducking", arg("--bgm-bed-ducking", "16"), "--lufs", "-14",
-        "--true-peak", BGM_TRUE_PEAK,
-        ...(BGM_DECLARED_PROGRAM_MIX ? ["--declared-program-mix"] : []),
-        "--section", arg("--bgm-section", "auto"),
-        /**
-         * **把曲目真实 BPM 交给混音器**（2026-09-26 真机修复）：
-         * 不传时 `deriveTempoFromCuts` 的基准会落到默认 100，反推出的 BPM 与剪辑网格自相矛盾
-         * （VID-GR01：标称 120BPM 的曲子被判 99.6BPM、卡点 7/17、平均 122ms → 监制连续打回配乐）。
-         */
-        "--bgm-bpm", String(bed.bpm),
-        "--bpm-strategy", "cut-driven",
-        "--cut-times", CUT_GRID.join(","),
-        "--evidence-dir", join(POST_DIR, "bgm-evidence")
-      ]);
-      if (mix.ok && existsSync(out)) {
-        bgmVia = "library-bed";
-        bgmDetail = `best 严格阈值未过（人声太满）→ **曲库音乐床**（不自算作曲）\n`
-          + `曲目 ${bed.id} · ${bed.title} · 标签 ${bed.bpm}BPM / **实测 ${bed.measuredBpm}BPM** · `
-          + `卡点实测平均误差 ${bed.gridErrorMs}ms · 评分 ${bed.score}\n`
-          + `评分依据：${bed.reasons.join("；")}\n--- mix ---\n${mix.out.slice(-700)}`;
-        log(`↻ 配乐：严格选曲未过阈值 → 曲库音乐床 ${bed.id}（标签 ${bed.bpm}BPM / 实测 ${bed.measuredBpm}BPM，`
-          + `卡点平均误差 ${bed.gridErrorMs}ms，评分 ${bed.score}；不再自算作曲）`);
-      } else {
-        bgmDetail = `曲库音乐床混音失败：${mix.out.slice(-500)}`;
-      }
-    } else if (flag("--allow-synth-bgm")) {
-      const recipe = arg("--bgm-recipe", "interview");
-      const bgmFile = join(POST_DIR, "bgm-composed.wav");
-      const compose = runCli(BGM_CLI, ["compose", "--out", bgmFile, "--in", danmakuOut, "--id", recipe, "--seed", "20260924"]);
-      if (compose.ok && existsSync(bgmFile)) {
-        const mix = runCli(BGM_CLI, [
-          "mix", "--in", danmakuOut, "--out", out, "--bgm", bgmFile, "--policy", policy,
-          "--music-level", arg("--bgm-level", "-26"), "--ducking", arg("--bgm-ducking", "14"), "--lufs", "-14",
-        "--true-peak", BGM_TRUE_PEAK,
-          "--bpm-strategy", "cut-driven",
-          "--cut-times", CUT_GRID.join(","),
-          "--evidence-dir", join(POST_DIR, "bgm-evidence")
-        ]);
-        bgmVia = "producer-compose+mix";
-        bgmDetail = `显式 --allow-synth-bgm：自算作曲(${recipe}) + mix\n--- mix ---\n${mix.out.slice(-500)}`;
-        log(`⚠ 配乐：显式启用了自算作曲兜底（${recipe}）——非默认路径`);
-      } else {
-        bgmDetail = `compose 失败：${compose.out.slice(-400)}`;
-      }
-    } else {
-      bgmDetail = "曲库里没有与剪辑网格相容（BPM 60/120/240 ±5）且时长足够的曲目；"
-        + "按产品口径**不自算作曲**，本环节判失败（不静默降级）。"
-        + "处理办法：把新曲目打标进本地曲库（bgm-cli tag），或改用与曲库 BPM 相容的剪辑网格。";
-      log("⛔ 配乐：曲库内无网格相容曲目，且未允许自算作曲 → 本环节判失败（不静默降级）");
-    }
+  const command = chosenTrack
+    ? ["mix", "--in", danmakuOut, "--out", pending, "--bgm", trackPath, "--policy", policy,
+      "--music-level", arg("--bgm-level", "-26"), "--ducking", arg("--bgm-ducking", "14"), "--lufs", "-14",
+      "--true-peak", arg("--bgm-true-peak", "-1.5"), "--section", arg("--bgm-section", "full"),
+      ...(trackBpm ? ["--bgm-bpm", String(trackBpm)] : []), "--cut-times", CUT_GRID.join(",")]
+    : ["best", "--in", danmakuOut, "--out", pending, "--genre", genre, "--mood", mood, "--policy", policy,
+      "--source-policy", arg("--bgm-source-policy", "online-first")];
+  const result = runCli(BGM_CLI, [...command, ...(BGM_DECLARED_PROGRAM_MIX ? ["--declared-program-mix"] : [])]);
+  const info = result.ok && existsSync(pending) ? probe(pending) : {};
+  const completed = result.ok && existsSync(pending) && Boolean(info.hasAudio) && Number(info.duration) > 0;
+  if (!completed) {
+    record({ stage: "bgm", shotId: null, invoked: true, ok: false, cached: false, degraded: false,
+      attempt: 1, ms: Date.now() - started, artifact: null,
+      evidence: { error: result.out.slice(-500), qualityReviewed: false, qualityScore: null }, verdict: null });
+    throw new Error(`BGM_PROCESSING_FAILED: ${result.out.slice(-500)}`);
   }
-  const info = existsSync(out) ? probe(out) : {};
-  /**
-   * 独立音轨纪律（T-2026-0927-0037）下的**声明关闭**通路：
-   * 配乐工位要求"签章分轨引用"（audio-stems），而该签章**没有生产者**（bridge 里明确没有签发者）。
-   * 本机没有内部媒体验证工位的密钥时，工位会 fail-closed 拒收——此时正确做法**不是**伪造干净轨，
-   * 也不是把整片卡死，而是：**不加配乐（bgm_layer=false）、留痕声明、继续走完后期链交付**；
-   * 恢复路径 = 接入签发者（WORKLOOM_AUDIO_STEM_SIGNING_SECRET）后重跑 bgm 环节补上音乐层。
-   */
-  /**
-   * 「工位判定无需配乐」的声明降级（T-2026-0930-0015）。
-   *
-   * 真机（2026-09-30 post-only 复跑）：`best` 按"不劣化优先"给出 `no_bgm_needed`（人声太满 /
-   * 找不到安全可闻窗口），曲库里也没有与剪辑网格相容的音乐床 → 工位**退出码 0 但没有产物**。
-   * 旧口径把这种情况判成硬失败（`scored：配乐版未产出` + `audio-track：无音轨`），整片被卡在母版终审。
-   * 按产品口径（渲后不做质量裁决、能交付先交付），这里记为"配乐层不适用"：
-   *   如实写明工位结论与曲库原因，不伪造音乐轨；需要旧口径时用 `--review-policy blocking`。
-   */
-  const bgmNoBgmDeclared = !existsSync(out)
-    && /no_bgm_needed|无需配乐/.test(`${bgmDetail}\n${String(result.out ?? "")}`);
-  const bgmDeclaredOff = (!existsSync(out)
-    && /audio_stems_source_unverified|签章分轨引用|独立音轨.*(未配置|缺失)/.test(bgmDetail))
-    || bgmNoBgmDeclared;
-  /**
-   * 实际出产物的是 `mix`（点名曲目/音乐床两条路径）；`best` 只是自动择曲的前置探测。
-   * 声明式直混下 `best` 的择曲探测失败不该判"配乐工位失败"——判据落在**产物是否产出**上，
-   * 前置探测的结论单独留痕（preselectTool）。
-   */
-  const bgmToolOk = existsSync(out) || result.ok;
-  /** 配乐层状态（交付清单留痕）：声明式直混 / 工位判定无需配乐 / 签章路径，三态如实写 */
-  bgmManifestInfo = {
-    layer: bgmDeclaredOff ? "off" : "on",
-    via: bgmVia,
-    notRequired: bgmNoBgmDeclared,
-    declaredOff: bgmDeclaredOff,
-    reason: bgmDeclaredOff
-      ? (bgmNoBgmDeclared
-        ? "配乐工位按「不劣化优先」判定无需配乐（人声太满 / 无可闻窗口），且曲库无网格相容音乐床——不伪造音乐轨"
-        : "本机无独立音轨签发者（WORKLOOM_AUDIO_STEM_SIGNING_SECRET 未配置）→ 声明式关闭配乐层，不冒充签章分轨")
-      : null,
-    sourceAuthority: bgmDeclaredOff ? "declared-unverified" : "signed-stems",
-    stemsVerified: !bgmDeclaredOff,
-    output: existsSync(out) ? basename(out) : null,
-    evidence: bgmDetail.slice(-400)
-  };
-  if (bgmDeclaredOff) {
-    log(bgmNoBgmDeclared
-      ? "⚠ 配乐层不适用（bgm_layer=false）：工位按「不劣化优先」判定无需配乐（人声太满/无可闻窗口），"
-        + "且曲库无网格相容音乐床——不伪造音乐轨，交付清单如实标注（--review-policy blocking 可恢复硬失败）"
-      : "⚠ 配乐层按独立音轨纪律关闭（bgm_layer=false）：工位要求签章分轨引用，本机未配置签发者（不伪造干净轨）；"
-        + " 恢复路径：接入签发者后重跑 bgm 环节");
-  }
-  const lufs = (result.out.match(/-?\d+(\.\d+)?\s*LUFS/) ?? ["无响度读数"])[0] ?? "";
-  const mixLufs = (bgmDetail.match(/-?\d+(\.\d+)?\s*LUFS/) ?? ["无响度读数"])[0] ?? lufs;
-  /** 成品响度实测（工位没给读数时由宿主补测，避免"无证据"卡门） */
-  const measured = existsSync(out)
-    ? measureLoudness(out)
-    : (bgmDeclaredOff ? measureLoudness(danmakuOut) : { lufs: null, peakDb: null, detail: "无产物" });
-  const verdict = await reviewStage({
-    stage: "bgm", projectId: PROJECT,
-    artifacts: [{ path: existsSync(out) ? out : danmakuOut, kind: "video", probe: info }],
-    deterministic: [
-      { id: "scored", pass: existsSync(out) || bgmDeclaredOff,
-        detail: existsSync(out) ? "配乐版已产出"
-          : bgmNoBgmDeclared ? "配乐层不适用（工位判定无需配乐：人声太满/无可闻窗口，曲库无相容音乐床）——不伪造音乐轨"
-          : bgmDeclaredOff ? "配乐层不适用（声明降级 bgm_layer=false）：无签章分轨引用，不伪造干净轨"
-            : "配乐版未产出",
-        hard: !bgmDeclaredOff || REVIEW_POLICY === "blocking" },
-      { id: "tool-exit", pass: bgmToolOk || bgmDeclaredOff,
-        detail: existsSync(out) ? "配乐版已产出（混音工位退出码 0）"
-          : result.ok ? "配乐工位退出码 0"
-          : bgmDeclaredOff ? "配乐工位按独立音轨纪律拒收（预期边界：本机无签发者）"
-            : `配乐工位失败：${result.out.slice(-300)}`,
-        hard: !bgmToolOk && !bgmDeclaredOff },
-      {
-        id: "audio-track",
-        pass: bgmNoBgmDeclared ? true : Boolean(info.hasAudio),
-        detail: bgmNoBgmDeclared
-          ? "配乐层不适用（bgm_layer=false）：母版音轨继承上游调色/字幕版（对白+环境），不叠加音乐"
-          : info.hasAudio ? `音轨 ${info.acodec}` : "无音轨",
-        hard: !info.hasAudio && !bgmNoBgmDeclared
-      },
-      {
-        id: "loudness", pass: measured.lufs === null ? false : measured.lufs >= -17 && measured.lufs <= -12,
-        detail: `${measured.detail}（母版口径 −14 LUFS ±2）`
-      },
-      {
-        id: "true-peak", pass: measured.peakDb === null ? false : measured.peakDb <= -1,
-        detail: `真峰值 ${measured.peakDb === null ? "未读到" : `${measured.peakDb.toFixed(1)} dBFS`}（上限 −1 dBTP）`
-      }
-    ],
-    context: {
-      genre, mood, policy, via: bgmVia, loudness: mixLufs, measuredLoudness: measured.detail, toolOutput: bgmDetail,
-      /**
-       * 曲风判据的事实依据（2026-09-25）：把 brief 的题材/平台/剪辑风格交给监制，
-       * 免得它拿"上一部片子的题材"当标准（真机：给滕王阁城市地标片挑的电子律动曲被判"不符江南水乡温润题材"）。
-       */
-      briefTone: shotlist.title, platform: arg("--platform", "抖音/快手"),
-      briefHint: BRIEF_FILE && existsSync(abs(BRIEF_FILE)) ? readFileSync(abs(BRIEF_FILE), "utf8").slice(0, 900) : null,
-      /** 人声分布与剪点网格是判"让位/卡点"的事实依据（否则监制只能凭感觉） */
-      dialogueShots: shots.filter((s) => (s.dialogue ?? []).length > 0).map((s) => s.shotId),
-      /** 真实切点（含逐刀转场补偿）：与 CUT_GRID / 音效层同源，避免"交给监制的网格是错的" */
-      cutGridSeconds: CUT_GRID,
-      styleIntent: (() => {
-        try {
-          return BRIEF_FILE && existsSync(abs(BRIEF_FILE))
-            ? (JSON.parse(readFileSync(abs(BRIEF_FILE), "utf8")) as { editingStyle?: string }).editingStyle ?? null
-            : null;
-        } catch { return null; }
-      })(),
-      discipline: "曲风是否合适以 brief 的题材/平台/剪辑风格为准；不要用与本片无关的其他题材（如水乡/纪实）当作标准。"
-        + "让位深度只按**有台词的镜头**衡量（其余是无对白的音乐段）；卡点看剪辑点是否落在曲子的节拍上。"
-    },
-    env: ENV, allowFallbackApprove: ALLOW_FALLBACK_APPROVE, log
-  });
-  if (existsSync(out)) scored = out;
-  /**
-   * **时长守恒闸**（2026-09-25 南昌片真机）：配乐工位按选段/节拍对齐时会把音频裁到曲子边界，
-   * 结果是 master-scored 比 master-subtitled 短了 1.15s（49.90 → 48.75），终审直接判"时长不符"。
-   * 这里在配乐产物落地后做一次守恒校验：短了就用 `apad` 把音轨补到原长（视频轨 copy，画面零改动）。
-   */
-  if (existsSync(out)) {
-    const before = Number(probe(danmakuOut).duration ?? 0);
-    const after = Number(probe(out).duration ?? 0);
-    if (before > 0 && after > 0 && before - after > 0.05) {
-      const fixed = `${out}.padded.mp4`;
-      run(FFMPEG, ["-y", "-i", out, "-map", "0:v:0", "-map", "0:a:0",
-        "-c:v", "copy", "-af", "apad", "-t", before.toFixed(3),
-        "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart", fixed]);
-      execFileSync("mv", [fixed, out]);
-      scored = out;
-      log(`  ⚖ 配乐时长守恒：${after.toFixed(2)}s → ${before.toFixed(2)}s（apad 补足，画面零改动）`);
-    }
-  }
-  record({
-    /**
-     * 声明关闭（bgmDeclaredOff）时按 `not_applicable` 记账：不是"配乐做失败了"，而是"配乐层不适用"。
-     * `invoked: false` + `evidence.applicable === false` + `attempted: true` 让审计能同时看到
-     * "这一层没有配乐"与"工位确实被调用过、且因为缺签发者被拒"。
-     */
-    stage: "bgm", shotId: null, invoked: !bgmDeclaredOff, ok: bgmDeclaredOff ? true : Boolean(existsSync(out) && bgmToolOk),
-    cached: false, degraded: false,
-    attempt: 1, ms: Date.now() - started, artifact: existsSync(out) ? out : (bgmDeclaredOff ? danmakuOut : null),
-    evidence: {
-      genre, mood, policy, via: bgmVia, loudness: mixLufs, measured: measured.detail, tool: `bgm-bridge ${bgmVia}`,
-      /** 音轨来源口径（如实）：声明式直混 = 独立分轨未取证，不得被读成"签章通过" */
-      sourceAuthority: BGM_DECLARED_PROGRAM_MIX ? "declared-unverified" : "signed-stems",
-      stemsVerified: !BGM_DECLARED_PROGRAM_MIX,
-      /** 自动择曲前置探测的结论（失败不影响"混音已产出"这一事实，但必须留痕） */
-      preselectTool: { ok: result.ok, detail: String(result.out ?? "").slice(-300) },
-      ...(bgmDeclaredOff ? {
-        applicable: false, attempted: true,
-        skipReason: "独立音轨签章签发者未接入：按 fail-closed 纪律关闭配乐层（bgm_layer=false），不伪造干净轨；接入签发者后重跑 bgm 可补回音乐层",
-        layer: { bgm: false, dialogue: true },
-        toolError: bgmDetail.slice(-400)
-      } : {})
-    }, verdict
-  });
+  if (existsSync(out)) copyFileSync(out, `${out}.before-${RUN_ID}.mp4`, fsConstants.COPYFILE_EXCL);
+  const sha256 = sha256FileSync(pending);
+  execFileSync("mv", [pending, out]);
+  if (sha256FileSync(out) !== sha256) throw new Error("BGM_OUTPUT_CHANGED_DURING_PUBLICATION");
+  scored = out;
+  bgmManifestInfo = { layer: "on", via: chosenTrack ? "requested-track" : "requested-recipe", declaredOff: false,
+    sourceAuthority: BGM_DECLARED_PROGRAM_MIX ? "declared-unverified" : "original-media-bytes", stemsVerified: false,
+    output: basename(out), qualityReviewed: false };
+  record({ stage: "bgm", shotId: null, invoked: true, ok: true, cached: false, degraded: false,
+    attempt: 1, ms: Date.now() - started, artifact: out,
+    evidence: { genre, mood, policy, tool: "bgm-bridge single-pass", sourceAuthority: bgmManifestInfo.sourceAuthority,
+      stemsVerified: false, qualityReviewed: false, qualityScore: null, outputSha256: sha256,
+      checks: { toolExited: result.ok, outputHasAudio: Boolean(info.hasAudio), outputReadable: Number(info.duration) > 0 },
+      toolOutput: result.out.slice(-800) }, verdict: null });
 }
 
 /* ---------- ⑧-2 转场音效层（step_key: sfx，《瞭望塔》式城市片的第三层声音，2026-09-25 新增） ---------- */

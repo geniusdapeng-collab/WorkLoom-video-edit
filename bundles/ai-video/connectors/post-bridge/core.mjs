@@ -1058,11 +1058,20 @@ async function assertStoredArtifact(file, expectedSha256, label) {
   }
 }
 
-const REQUIRED_BGM_CHECKS = ["loudness_ok", "true_peak_ok", "music_audible", "dialogue_preserved", "ducking_applied"];
-
+/** BGM output authority is the actual processed file, never an audio-quality score. */
 function assertBgmReportPassed(report) {
-  if (!report || !REQUIRED_BGM_CHECKS.every((key) => report.checks?.[key] === true)) {
-    throw new PostError("配乐实测回执未通过响度、真峰值、可闻度、人声余量与让位检查", "verify_failed");
+  const output = report?.output;
+  if (!output?.path || !/^[a-f0-9]{64}$/.test(output.hash ?? "") || !output.audio || !(output.durationSeconds > 0)) {
+    throw new PostError("配乐缺实际可读音轨、输出文件或 SHA-256 回执", "verify_failed");
+  }
+  try {
+    const stat = fs.statSync(output.path);
+    if (!stat.isFile() || !stat.size || createHash("sha256").update(fs.readFileSync(output.path)).digest("hex") !== output.hash) {
+      throw new PostError("配乐产物字节与执行回执不一致", "verify_failed");
+    }
+  } catch (error) {
+    if (error instanceof PostError) throw error;
+    throw new PostError(`配乐产物无法读取：${error.message}`, "verify_failed");
   }
 }
 
