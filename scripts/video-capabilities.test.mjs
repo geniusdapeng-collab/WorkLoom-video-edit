@@ -6,6 +6,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import { deliveryInspect, productionPlan } from "../bundles/geo-growth/capabilities/video.mjs";
+// test:scripts runs this entry in the original repository CI.
+import "./ai-video-workbench-guide.test.mjs";
 
 const hash = (text) => createHash("sha256").update(text).digest("hex");
 function fixture(run) {

@@ -4,9 +4,20 @@
 > 开始实质性工作前，必须先完整阅读根级 `AGENTS.md` 与 `WORKLOOM_PRODUCT_CONTEXT.md`；
 > 本文件只补充本仓的运行、验证与目录约定，**不替代、也不放宽**共享安全不变量与产品边界。
 
+## 视频任务先读：本仓 AI 工作台调用指南
+
+接到视频制作、返修或交付请求，先完整读取 [`docs/ai-video-workbench-guide.md`](docs/ai-video-workbench-guide.md)，
+或调用 `node scripts/workloom-agent.mjs invoke growth.video.workbench.guide`；MCP 对应
+`workloom_growth_video_workbench_guide`，参数 `{}`。返回的仓库身份必须是 `workloom-ai/WorkLoom-growth`。
+按指南冻结用户指定人、商品、平台、时长、账号调性、声音和特殊要求，再走正式系统前期、渲染、后期和交付核验。
+指南是工作台纪律，本次不新增生产硬闸；Growth 当前没有 Growthtest 的 standard-post/nativeaudio 专用契约，
+普通 voice 可能补 TTS。用户要求原生声音/指定声线时，能力不符须在付费前保留阻塞，不能替声。
+
 ## 一、视频工位：内置角色资产（新接手最容易踩的一条）
 
 **本仓自带默认模特「陈卓」（`chen-zhuo`），开箱即用——不要以为"仓库里没有人物资产"而重复建档。**
+
+用户已经指定人物时必须显式绑定对应档案，不能依赖默认模特补位；已批准资产复用，已有属性与授权记录不重复询问。
 
 - 资产位置：`bundles/ai-video/library/characters/`（`registry.json` + `model-01-chen-zhuo/`，8 角度定妆照随仓分发）。
 - 默认规则：镜头卡**不写** `character` / `characters` 时，出片链路自动使用 `registry.json#defaultModel`；

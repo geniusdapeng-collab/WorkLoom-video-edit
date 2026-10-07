@@ -427,6 +427,25 @@
         "properties": {},
         "additionalProperties": false
       }
+    },
+    {
+      "id": "growth.video.workbench.guide",
+      "version": "1.0.0",
+      "title": "先读本仓视频调用指南",
+      "description": "视频制作、返修或交付前先读取：固定用户指定人、商品、平台、时长、账号与声音，按本仓正式前期/渲染/后期/回执流程执行；返回全文、版本、路径、SHA-256和能力限制。只读固定文档，不启动任务、不调用模型或供应商。",
+      "operation": "read",
+      "transport": {
+        "kind": "local",
+        "module": "bundles/geo-growth/capabilities/workbench-guide.mjs",
+        "export": "workbenchGuide"
+      },
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      },
+      "risk": "low",
+      "dataMode": "unverified"
     }
   ]
 }

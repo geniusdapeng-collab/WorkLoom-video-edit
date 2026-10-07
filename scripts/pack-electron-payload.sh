@@ -74,6 +74,19 @@ done
 [ -f "$PRODUCT_MANIFEST_PATH" ] || { echo "❌ 缺受保护产品清单"; exit 1; }
 cp "$PRODUCT_MANIFEST_PATH" "$R/product.manifest.json"
 [ -f "$R/.env.defaults" ] || cp .env.example "$R/.env.defaults"
+# VIDEO_WORKBENCH_ASSETS:BEGIN
+# Only the fixed video guide and its reviewed CLI/MCP readers enter runtime.
+# Do not copy the docs tree or customer work/outputs into an installed payload.
+WORKBENCH_ASSET_PATHS=(
+  docs/ai-video-workbench-guide.md
+  scripts/workloom-agent.mjs scripts/workloom-agent-mcp.mjs
+  scripts/agent-capabilities.mjs scripts/agent-capabilities.core.json
+)
+node scripts/pack-workspace-modules.mjs --copy-sources "$R" "${WORKBENCH_ASSET_PATHS[@]}"
+for workbench_asset in "${WORKBENCH_ASSET_PATHS[@]}"; do
+  [ -f "$R/$workbench_asset" ] || { echo "❌ 视频指南载荷缺件：$workbench_asset"; exit 1; }
+done
+# VIDEO_WORKBENCH_ASSETS:END
 RUNTIME_SOURCE_DIRS=(
   apps/server apps/web/src apps/web/index.html apps/web/public apps/web/package.json
   apps/web/vite.config.ts apps/web/tsconfig.json packages bundles

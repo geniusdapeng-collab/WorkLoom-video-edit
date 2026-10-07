@@ -4,8 +4,13 @@
 > 目的：**别跳步**。真机事故（2026-09-30 女 CEO 片）的根因就是"直接跑出片命令、
 > 没先判视频类型、也没让分镜卡过字段规范闸"。
 
+> **任何视频制作、返修或交付先读** [`AI 工作台视频调用指南`](../../docs/ai-video-workbench-guide.md)，
+> 或 `node scripts/workloom-agent.mjs invoke growth.video.workbench.guide`；MCP 对应
+> `workloom_growth_video_workbench_guide`，参数 `{}`。先冻结指定人、商品、平台、时长、账号调性、声音和特殊要求。
+> 本仓没有 Growthtest 的 standard-post/nativeaudio 专用契约；普通 voice 可能补 TTS，不能静默替代原生声音或指定声线。
+>
 > **要把本仓能力接进桌面客户端（Codex / DeepSeek Harness）**：见 [`docs/AGENT-CLIENTS.md`](../../docs/AGENT-CLIENTS.md)
-> —— 里面有 5 分钟接入（`list`/`invoke`/MCP 冒烟）、MCP 配置片段、**视频能力清单**（只读/预览 6 条）
+> —— 里面有 5 分钟接入（`list`/`invoke`/MCP 冒烟）、MCP 配置片段、**视频能力清单**（以 `list` / `tools/list` 为准，含固定指南读取）
 > 与安全边界。本文（runbook）负责"怎么出片"，那份文档负责"怎么被 Agent 调起来"。
 
 ---
@@ -104,9 +109,10 @@ cine-kb → continuity → micromotion → spec（25 字段交付闸）→ plate
 4. **不要手工做封面 / 手工混音绕过管线**：交付清单要能核对（`delivery-manifest.json` 里有
    `reviewPolicy` / `assembly` / 封面来源 / 各变体 sha256）。
 5. **账户欠费**：`AccountOverdueError` 403 会拦住提交；**先充值**，不要连点重试。
-6. **服务端固定影片工位（`--worker`）第二批未接线**：CLI 侧还没有解析 `FILM_JOB_CONTEXT`
-   与受限通道（llm/image/video/media/voice/review）的实现，本 CLI 会显式报
-   `WORKER_MODE_NOT_WIRED`。需要"客户端 UI 派活 → 工位出片"时先完成第二批（`docs/repairs/T-2026-0927-0037.md` / `-0039.md`）。
+6. **服务端固定影片工位（`--worker`）已有接线**：`video.film.start` 经 `film-worker.ts`
+   启动固定入口并建立真实 IPC 父通道；CLI 从环境装载 `FullChainFilmWorker`，后续资格与调用留账由正式服务通道校验。
+   不要在终端伪造 `FILM_JOB_CONTEXT` 或直接手跑 `--worker`；缺少真实父通道会被拒绝。
+   当前通用 Agent CLI/MCP 菜单未暴露 `video.film.start`，不能把服务接口已实现写成桌面 MCP 已可执行。
 7. **创作口径不得写成硬闸**：片型配比、运镜强弱、造型主色这类"好不好看"的问题默认只做咨询项，
    硬闸只允许事实类（产物/时长/分辨率/音轨/音画对齐/字幕/命名/授权与素材用途）。CI 会拦（`scripts/ci/verify-hard-gate-policy.mjs`）。
 

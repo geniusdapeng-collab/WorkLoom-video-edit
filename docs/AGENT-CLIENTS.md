@@ -2,6 +2,7 @@
 
 > 读者：要把本仓能力接进**桌面 Agent**的人（或 Agent 自己）。目标是**5 分钟能跑通**：
 > 先 `list` 看到能力 → 再 `invoke` 读一条真实状态 → 最后把 stdio MCP 挂进客户端。
+> **接到视频任务先读** [`AI 工作台视频调用指南`](ai-video-workbench-guide.md)，或 invoke `growth.video.workbench.guide`；冻结用户固定项后再执行。
 > 视频链路的完整操作手册在 [`bundles/ai-video/README.md`](../bundles/ai-video/README.md)（§0–§6），本文只讲**接入**。
 
 ---
@@ -14,21 +15,24 @@
 # ① 看能力清单（每项含 ID / 操作类别 / 风险 / 数据模式）
 node scripts/workloom-agent.mjs list
 
-# ② 看单项契约（输入 JSON Schema、传输方式）
+# ② 先读取本仓视频指南全文与 SHA-256（无网络、无模型、无渲染）
+node scripts/workloom-agent.mjs invoke growth.video.workbench.guide
+
+# ③ 看单项契约（输入 JSON Schema、传输方式）
 node scripts/workloom-agent.mjs describe growth.video.production.status
 
-# ③ 真跑一条只读能力（读本仓产物的阶段账本）
+# ④ 真跑一条只读能力（读本仓产物的阶段账本）
 printf '%s' '{"projectId":"VID-FF02-FULL","workDir":"work"}' \
   | node scripts/workloom-agent.mjs invoke growth.video.production.status --input-file -
 
-# ④ MCP 冒烟（stdio JSON-RPC，两个请求：initialize + tools/list）
+# ⑤ MCP 冒烟（stdio JSON-RPC，两个请求：initialize + tools/list）
 printf '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"probe","version":"1"}}}\n{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}\n' \
   | node scripts/workloom-agent-mcp.mjs
 ```
 
-成功标志：`list` 打印**本仓清单**（本仓为 22 条：核心 8 + 服务 4 + 视频 6 + 仓库通用只读 4）；`invoke` 返回单行 JSON，形如
-`{"schemaVersion":"workloom.agent-capability-result/v1","status":"succeeded",...}`；MCP 冒烟返回
-`tools/list`（本仓 21 个工具，禁用项不出现在列表里）。
+成功标志：`list` 打印本仓清单且含 `growth.video.workbench.guide`；指南 invoke 返回全文、仓库身份、路径和 SHA-256；通用 envelope 为
+`{"schemaVersion":"workloom.capability-result/v1","status":"succeeded",...}`。MCP `tools/list` 含 `workloom_growth_video_workbench_guide`，
+再以 `{}` 调用该工具读取正文。工具数量以实际清单为准，禁用项不出现在列表里。
 
 > 产物根：默认 = 仓库根。若你的工作目录在仓外（客户常见），用**运行者**环境变量指定：
 > `WORKLOOM_VIDEO_ARTIFACT_ROOT=/abs/path/to/work`（调用方仍只能给相对路径，边界由环境变量而非请求决定）。
@@ -65,16 +69,14 @@ startup_timeout_sec = 60
 [mcp_servers.workloom-growth.env]
 WORKLOOM_PRODUCT_ROOT = "/abs/path/to/WorkLoom-growth"
 # 只读能力可不配下面两项；要用服务端过程时按需配置（**不要写进仓库/日志**）
-# WORKLOOM_BASE_URL = "http://127.0.0.1:4295"      # 本机回环；远程必须 HTTPS
+# WORKLOOM_BASE_URL = "http://127.0.0.1:9207"      # 打包产品默认8787+420；源码服务8787须显式填写
 # WORKLOOM_ACCESS_TOKEN = "<B 端成员令牌>"          # 远程地址时必须
 # WORKLOOM_C_TOKEN = "<C 端令牌>"                   # 仅 C 端能力需要，与 B 端令牌不可互换
 ```
 
-> **核实状态（如实标注）**：`[mcp_servers.<name>]` + `command/args/env/cwd/startup_timeout_sec`
-> 的写法取自**本机正在使用的 Codex 配置实例**（本机 `~/.codex/config.toml` 中的 MCP 条目），
-> 并且本文命令均已实跑。撰写本文时 `learn.chatgpt.com` / `developers.openai.com` 直连超时或 403、
-> 本地代理未运行，**未能对照官方文档二次核实**；请在落地前按你当前 Codex 版本的官方文档确认键名
-> （尤其是 `env` 子表与超时字段）。
+> **官方核实（2026-10-07）**：STDIO 的 `command/args/env/cwd`、`startup_timeout_sec` 以及 `[mcp_servers.<name>]`
+> 取自 [OpenAI 官方 MCP 文档](https://learn.chatgpt.com/docs/extend/mcp)。本任务实际验证本仓 CLI 与 stdio JSON-RPC 读取；
+> 不把协议回读算作 Codex/DSH 桌面界面已经逐机验收。更换客户端版本时重新核对配置。
 
 ---
 
@@ -84,9 +86,9 @@ WORKLOOM_PRODUCT_ROOT = "/abs/path/to/WorkLoom-growth"
 
 | | **内置 DSH 组件**（本仓自带，产品自己在用） | **DSH 桌面端**（DeepSeek 官方客户端，人用） |
 |---|---|---|
-| 是什么 | 运行时 Agent 底座：`vendor/dsh`（审计基线）+ `packages/runtime` 的 **dsh seam**（意图路由 / Ask·Agent·Quest 循环 / 装配 / 工具 / 剧本）+ 围栏插件 + 事件桥 | DeepSeek 官方桌面应用（macOS / Windows，v0.2 预览版，MIT 开源） |
+| 是什么 | 运行时 Agent 底座：`vendor/dsh`（审计基线）+ `packages/runtime` 的 **dsh seam**（意图路由 / Ask·Agent·Quest 循环 / 装配 / 工具 / 剧本）+ 围栏插件 + 事件桥 | DeepSeek Harness 官方客户端；安装版本以官方发布说明为准 |
 | 谁在用 | **产品自己**：服务端派活、通用任务循环、夜班 | **人**：资深用户 / 内部同事的工作台 |
-| 版本 | **`0.2.0-rc.2`**：`packages/runtime/dsh-gate/package.json` 的 pin；`vendor/dsh` 审计基线同为该版本 | v0.2 预览版（上游 npm `@deepseek-ai/dsh@0.2.0-rc.2`，2026-09-29） |
+| 版本 | 查本仓 `packages/runtime/dsh-gate/package.json` 与 `vendor/dsh` 的当前锁定资料 | 以 [官方 Releases](https://github.com/deepseek-ai/deepseek-harness/releases) 与实际安装版本为准；仓内 pin 不代表桌面版本 |
 | 怎么验收 | `bash scripts/dsh-gate.sh`：headless → 工具调用过围栏瀑布 → 事件落哈希链 → `kill -9` 重放零重复 | 客户端侧：`tools/list` 能看到本仓工具（见 §4.2） |
 | 怎么"接本仓能力" | **不需要 MCP**：它就在进程内，走服务端过程 + 围栏 + 事件账本（与 `scripts/AGENT-CAPABILITIES.md` 同一批过程） | 需要接入：§4.1 用 `bash` 跑 CLI；§4.2 用 MCP 插件挂 `workloom-agent-mcp.mjs` |
 
@@ -95,26 +97,39 @@ WORKLOOM_PRODUCT_ROOT = "/abs/path/to/WorkLoom-growth"
 
 ### 4.1 桌面端接入 · 路线 A（用它的终端工具直接跑本仓 CLI，最省事）
 
-DSH 桌面端（v0.2 预览版，macOS/Windows 安装包，MIT 开源）"一切皆插件"。两条路线：
+DSH 客户端与本仓内置运行时分别配置。可用终端调用或 MCP 工具注册两条路线：
 
 1. 在 DSH 里把本仓目录设为工作区；
-2. 让它读 `bundles/ai-video/README.md`（§0–§6 是给 Agent 的 runbook）；
+2. 先 invoke `growth.video.workbench.guide` 读取本仓完整指南，再读 `bundles/ai-video/README.md`；
 3. 用它的 `bash` 工具执行同一套命令（`pnpm video:doctor` → `route-video.mts` → `full-chain-film.mts`）。
 
 ### 4.2 桌面端接入 · 路线 B（把本仓 MCP 挂成 DSH 插件，能力进菜单）
 
-DSH 官方扩展手册明确："**MCP：每个服务器一个插件：发现工具 → `ctx.tools.register()`**"
-（见 [extension-cookbook.zh.md](https://github.com/deepseek-ai/deepseek-harness/blob/master/docs/cookbook/extension-cookbook.zh.md)）。
-桌面端插件管理页支持**按 npm 包名安装插件**，也支持在"创造模式"里对话生成插件。做法：
+本次对照 [DSH 官方 MCP 客户端说明](https://github.com/deepseek-ai/deepseek-harness/blob/master/packages/mcp/mcp-client/README.md)（2026-10-07）：每个服务器一项配置，使用 `@deepseek-ai/dsh-mcp-client`。在当前 profile 支持的插件配置位置加入以下条目；不把旧桌面界面按钮名当成跨版本保证：
 
-1. 在 DSH 插件页装一个 MCP 客户端插件（或让 DSH 现写一个），把服务器命令配成本仓入口：
+```yaml
+- id: workloom-growth-mcp
+  name: '@deepseek-ai/dsh-mcp-client'
+  config:
+    serverName: workloom_growth
+    transport: stdio
+    command: node
+    args: ['/abs/path/to/WorkLoom-growth/scripts/workloom-agent-mcp.mjs']
+    cwd: /abs/path/to/WorkLoom-growth
+    env:
+      WORKLOOM_PRODUCT_ROOT: /abs/path/to/WorkLoom-growth
+```
+
+DSH 会清理继承环境中的秘密变量；需要访问服务时，按该客户端当前配置机制显式注入成员令牌和服务地址，不能把令牌字面量保存到仓库。接通检查：
+
+1. 核对上面条目的 Node 可执行路径和本仓绝对入口，等价服务命令为：
 
    ```bash
    node /abs/path/to/WorkLoom-growth/scripts/workloom-agent-mcp.mjs
    ```
 
    并把 `WORKLOOM_PRODUCT_ROOT=/abs/path/to/WorkLoom-growth` 等环境变量注入插件进程；
-2. 重新加载插件后，在 DSH 的工具列表里应能看到 `workloom_growth_*` 工具（本仓 21 个：视频 6 + 仓库通用只读 4，另加核心 8 与服务 3）。
+2. 重新加载插件后，以实际 `tools/list` 核对原始工具；DSH 显示名会加 `mcp__workloom_growth__` 前缀。先读取原始工具 `workloom_growth_video_workbench_guide`，参数 `{}`，再以实际结果对账。
 
 > 说明：DSH 侧"自定义 STDIO MCP"的具体配置键以**你所用 DSH 版本的官方文档/插件页为准**；
 > 我们这侧只保证"标准 stdio JSON-RPC + 工具清单"这一契约（协议版本含 2024-11-05 / 2025-03-26 /
@@ -122,12 +137,13 @@ DSH 官方扩展手册明确："**MCP：每个服务器一个插件：发现工�
 
 ---
 
-## 5. 能力速查：视频 6 条 + 仓库通用 4 条（DSH/Codex 通用）
+## 5. 能力速查（DSH/Codex 通用，以本仓清单为准）
 
-### 5.0 视频链路（6 条）
+### 5.0 视频链路
 
 | 能力 | 何时用 | 备注 |
 |---|---|---|
+| `growth.video.workbench.guide` | 任何视频制作、返修或交付前第一步 | 固定指南全文、仓库身份、版本、路径、SHA-256；无模型调用 |
 | `growth.video.route.record` | 出片前：确认本项目的分流结论 | 读 `work/route.json`；没有就让 Agent 先跑分流 |
 | `growth.video.production.plan` | 出片前：拿"建议命令 + 检查清单" | **预览**：不执行、不花钱 |
 | `growth.video.gen.catalog` | 选模型/看限额 | 服务端只读 |
@@ -137,7 +153,7 @@ DSH 官方扩展手册明确："**MCP：每个服务器一个插件：发现工�
 
 典型对话（DSH 里）：
 
-> "先 `production.plan` 看出片计划；把缺的前置补齐后按计划跑；跑完用 `production.status` 汇报，再用 `delivery.inspect` 核验交付包。"
+> "先 `workbench.guide` 读本仓指南，冻结指定人、商品、平台、时长、账号调性和声音；走系统正式前期，再 `production.plan` 核对预览参数；按官方流程执行后，用 `production.status` 读账本、`delivery.inspect` 核验交付。指南说能力不支持就保留阻塞，不替声或改剧情凑结果。"
 
 ---
 
@@ -158,7 +174,7 @@ DSH 官方扩展手册明确："**MCP：每个服务器一个插件：发现工�
   本地开发可用 `auth.loginAs` 演示身份；**令牌只经环境变量**，不得写进仓库、命令行参数、日志或提示词；
 - **地址**：默认 `127.0.0.1:8787+portOffset`（本仓 `product.manifest.json`）；**非回环必须 HTTPS**；
 - **禁用能力**：`enabled=false` 的能力会从 MCP `tools/list` 消失，调用返回 `DISABLED` + 原因；
-- **错误码**：清单/契约类错误返回 `{"error":{"code":...}}`；本地能力自身抛错会显示为 `INTERNAL_ERROR` + 可读原因
+- **错误码**：清单/契约类错误返回 `{"error":{"code":...}}`；指南契约错误保留 `INVALID_INPUT` / `GUIDE_UNAVAILABLE`；其它本地能力自身抛错可能显示为 `INTERNAL_ERROR` + 可读原因
   （例如"路径监狱""超过读取上限"）；
 - **路径监狱**：视频只读能力默认只允许**本仓相对路径**；仓外产物根需运行者显式设
   `WORKLOOM_VIDEO_ARTIFACT_ROOT`；绝对路径与 `../` 逃逸一律拒绝；
@@ -171,7 +187,6 @@ DSH 官方扩展手册明确："**MCP：每个服务器一个插件：发现工�
 - 入口：`scripts/AGENT-CAPABILITIES.md`（基座受控资产，随 base-sync 下发）+ `scripts/workloom-agent.mjs`
   + `scripts/workloom-agent-mcp.mjs` + `scripts/agent-capabilities.{mjs,core.json,test.mjs}`；
 - 仓库通用只读模块：`bundles/geo-growth/capabilities/repo.mjs`（4 条：`repo.status` / `repo.docs` / `bundle.summary` / `repo.readiness`，只读/预览；路径监狱 + 8MB/2 万行上限，不回显密钥值）；
-- 视频能力模块：`bundles/geo-growth/capabilities/video.mjs`（只读/预览；本仓 6 条视频能力，见 §5）；
+- 视频能力模块：`bundles/geo-growth/capabilities/video.mjs`（只读/预览；另有固定指南模块 `workbench-guide.mjs`，见 §5）；
 - 自检：`node --test scripts/agent-capabilities.test.mjs`（清单驱动的断言，基座与行业仓共用同一份）。
-- **内置 DSH 组件升级到 `0.2.0-rc.2`**：`packages/runtime/dsh-gate/**` 与 `scripts/dsh-gate.sh` 同步自基座
-  （`vendor/dsh` 审计基线一并同步）；真机跑过 `bash scripts/dsh-gate.sh`（24 条哈希链 + `kill -9` 后 18 条链 + 重放零重复）。
+- 内置 DSH 组件版本与历史同步/验收记录另查本仓锁定文件；本次只修改指南和发现/载荷接线，没有升级该组件或重跑其真机验收。

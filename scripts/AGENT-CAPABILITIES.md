@@ -32,6 +32,12 @@ node scripts/workloom-agent-mcp.mjs
 `WORKLOOM_C_TOKEN`；它与 B 端成员令牌不能互换。令牌只读环境变量，
 不得放进命令参数、仓库文件或日志。
 
+## 视频任务的本仓指南
+
+目标行业清单若提供 `growth.video.workbench.guide`，视频制作、返修或交付前先 invoke 它，
+再按返回的仓库身份、全文和能力边界执行。MCP 用 `workloom_growth_video_workbench_guide`，参数 `{}`。
+指南入口和路径由目标仓行业清单提供；可发现指南不代表模型、供应商、渲染或交付已经接通。
+
 ## 能力与完成判定
 
 每项清单提供稳定 ID、版本、输入 JSON Schema、操作类别、风险、数据模式和受控传输。
