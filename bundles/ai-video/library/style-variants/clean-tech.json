@@ -3,13 +3,18 @@
   "id": "clean-tech",
   "name": "干净科技版",
   "positioning": "产品/科技/知识：冷净调、硬切、信息优先文案",
-  "platforms": ["抖音/快手", "视频号", "B站", "官网"],
+  "platforms": [
+    "抖音/快手",
+    "视频号",
+    "B站",
+    "官网"
+  ],
   "color": {
     "profile": "cool-technical",
     "lut": "look-cool-technical.cube",
     "intensity": 0.7,
     "lookLabel": "冷净精密",
-    "note": "屏幕白必须仍读作白；去饱和不压暗"
+    "note": "冷净配方服务产品与界面；按请求参数执行一次，不按屏幕白、饱和度或清晰度测量拒绝成功原镜。"
   },
   "transitions": {
     "mode": "hard",
@@ -25,7 +30,7 @@
     "fadeInSec": 0.8,
     "fadeOutSec": 1.0,
     "section": "auto",
-    "note": "极简律动；人声是主角，音乐只做底噪衔接"
+    "note": "极简律动；原节目声音默认保留，声明的 -25dB 音乐参数一次执行，品质未评审，不自动判断配乐安全窗口。"
   },
   "cover": {
     "template": "参数卡",
@@ -40,7 +45,11 @@
     "opening": "三个数据先说结论。",
     "closing": "细节写在评论区置顶，需要的自取。",
     "cta": "还有想看的参数，评论区点名",
-    "hashtags": ["#科技数码", "#产品实测", "#硬核科普"]
+    "hashtags": [
+      "#科技数码",
+      "#产品实测",
+      "#硬核科普"
+    ]
   },
   "subtitleStyle": {
     "scene": "字幕",

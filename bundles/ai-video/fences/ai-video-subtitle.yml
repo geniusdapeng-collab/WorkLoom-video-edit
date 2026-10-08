@@ -2,7 +2,7 @@
 # 与 ai-video-baseline.yml / ai-video-color.yml / ai-video-bgm.yml 同口径：默认基线、只可加严、
 # 命中取严（block > review > auto）；求值语义：匹配命中后求值 when（沙箱，禁任意代码），
 # 写类动作无命中按 default_level。
-version: ai-video-subtitle/v3
+version: ai-video-subtitle/v4
 default_level: review
 rules:
   - rule_id: G-SUB0
@@ -13,7 +13,7 @@ rules:
       object_types: [final_video, subtitle_track, subtitle_report, video_asset]
       actions: [subtitlewrite.plan, subtitlewrite.burn, subtitlewrite.title, subtitlewrite.danmaku, subtitlewrite.sticker, subtitlewrite.karaoke, subtitlewrite.best, subtitlewrite.sidecar, subtitlewrite.softmux]
     when: "true"
-    note: 字幕/标题/弹幕/贴纸/卡拉OK/旁挂字幕文件（sidecar）/软字幕轨（softmux）都是工位本地、非破坏性、可回滚动作（原片只读 + 新文件 + 版本链），默认直通；品牌视觉锤变更（G-SUB1）、覆盖原片（G-SUB2）、关闭复检或无视安全区（G-SUB3）、日配额（G-SUB4）、字体许可不合规（G-SUB5）、弹幕刷屏（G-SUB6）叠加升级，deny 优先并集取严。未命中写动作的保守默认是 review，故此处必须显式声明 auto，否则干净渲染也被挂起。
+    note: 字幕/标题/弹幕/贴纸/卡拉OK/旁挂字幕文件（sidecar）/软字幕轨（softmux）都是工位本地、非破坏性、可回滚动作（原片只读 + 新文件 + 版本链），默认直通；品牌视觉锤变更（G-SUB1）、覆盖原片（G-SUB2）、绕过明确安全区约束（G-SUB3）、日配额（G-SUB4）、字体许可不合规（G-SUB5）、弹幕刷屏（G-SUB6）叠加升级，deny 优先并集取严。未命中写动作的保守默认是 review，故此处必须显式声明 auto，否则干净渲染也被挂起。
 
   - rule_id: G-SUB1
     name: 品牌视觉锤（账号锁定字体）变更 / 字体库首次入片必审
@@ -32,18 +32,18 @@ rules:
     match:
       object_types: [final_video, video_asset]
       actions: [subtitlewrite.burn, subtitlewrite.title, subtitlewrite.danmaku, subtitlewrite.sticker, subtitlewrite.karaoke, subtitlewrite.best, subtitlewrite.sidecar, subtitlewrite.softmux]
-    when: "params.overwrite_source == true or params.output_path == params.input_path"
+    when: "params.overwrite_source == true or params.output_path in [params.input_path]"
     note: 原片只读是硬红线：字幕一律产出新文件并进版本链（画面重编码、音轨 copy），任何覆盖原片的调用一票否决。
 
   - rule_id: G-SUB3
-    name: 交付必须带版式复检，且不得无视安全区
+    name: 请求版式不得绕过明确安全区约束
     level: block
     is_baseline: true
     match:
       object_types: [final_video, subtitle_report]
       actions: [subtitlewrite.burn, subtitlewrite.title, subtitlewrite.danmaku, subtitlewrite.sticker, subtitlewrite.karaoke, subtitlewrite.best, subtitlewrite.sidecar, subtitlewrite.softmux]
-    when: "params.skip_verify == true or params.verify == false or params.ignore_safe_area == true or params.allow_ui_overlap == true"
-    note: 两条硬线：① 字幕交付必须带版式复检（实测字号/行宽/安全区/对比度/时间轴回读/字体解析），关闭校验的调用禁止执行（无回执=未核实）；② 平台 UI 遮挡区（点赞栏/底部文案/进度条/顶部关注位）不得用参数强行忽略——字幕压在遮挡区等于没交付，工具与围栏同时拦。
+    when: "params.ignore_safe_area == true or params.allow_ui_overlap == true"
+    note: 明确请求的文字位置和平台安全区必须落实，实际字体、ASS 时间轴、输出轨道和哈希由连接器强制核对。源画面亮度、细节密度、字幕前后像素增量不进入生产验收；legacy verify/skip_verify 不触发质量审批，也不关闭技术检查。显式 analyze 仅用于独立诊断。
 
   - rule_id: G-SUB4
     name: 单租户日字幕渲染配额熔断
@@ -73,4 +73,4 @@ rules:
       object_types: [subtitle_report, final_video, video_asset]
       actions: [subtitlewrite.danmaku, subtitlewrite.sticker, subtitlewrite.best]
     when: "params.allow_flood == true or params.ignore_density == true or params.skip_safe_area == true"
-    note: "弹幕/贴纸不允许用参数绕过密度与安全区红线：`allow_flood`（关闭刷屏熔断）、`ignore_density`（无视 1s 窗口并发上限）、`skip_safe_area`（跳过安全区与遮挡区校验）任一为 true 即阻断。正常出片走 G-SUB0 直通，密度按 params.max_concurrent（默认 8）裁剪并如实报告抽稀条数。"
+    note: "弹幕/贴纸不允许用参数绕过密度与安全区红线：`allow_flood`（关闭刷屏熔断）、`ignore_density`（无视 1s 窗口并发上限）、`skip_safe_area`（跳过安全区与遮挡区校验）任一为 true 即阻断。正常出片走 G-SUB0 直通，默认保留完整文字与全部弹幕；仅明确传入 params.max_concurrent 时按请求裁剪，并如实报告抽稀条数。"

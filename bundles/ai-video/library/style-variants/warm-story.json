@@ -3,13 +3,18 @@
   "id": "warm-story",
   "name": "暖调故事版",
   "positioning": "情感/文旅/民宿/人物：暖调胶片、慢转场、留白文案",
-  "platforms": ["抖音/快手", "视频号", "小红书", "B站"],
+  "platforms": [
+    "抖音/快手",
+    "视频号",
+    "小红书",
+    "B站"
+  ],
   "color": {
     "profile": "warm-film",
     "lut": "look-warm-film.cube",
     "intensity": 0.75,
     "lookLabel": "暖调胶片",
-    "note": "肤色友好、轻提黑位；调色在拼接之后、配乐之前（音轨不受影响）"
+    "note": "暖调胶片与轻提黑位是请求的创作参数；拼接后执行一次调色，保留原节目声音并记录实际音频编码，不测画面/声音品质。"
   },
   "transitions": {
     "mode": "fade",
@@ -25,7 +30,7 @@
     "fadeInSec": 1.4,
     "fadeOutSec": 2.0,
     "section": "auto",
-    "note": "木质原声；人声出现时让位（ducking），母版 -14 LUFS"
+    "note": "木质原声；按声明 -23dB 电平、让位和单次 -14 LUFS 请求滤镜执行，不把目标值当实测，不按人声余量自动重试。"
   },
   "cover": {
     "template": "留白题签",
@@ -40,7 +45,11 @@
     "opening": "有些地方，值得慢一点看。",
     "closing": "收藏起来，等一个合适的周末。",
     "cta": "想去的扣个「想去」，我把路线发你",
-    "hashtags": ["#旅行推荐", "#慢生活", "#周末去哪儿"]
+    "hashtags": [
+      "#旅行推荐",
+      "#慢生活",
+      "#周末去哪儿"
+    ]
   },
   "subtitleStyle": {
     "scene": "字幕",

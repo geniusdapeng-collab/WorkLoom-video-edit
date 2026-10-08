@@ -79,11 +79,17 @@ test("本仓固定指南返回全文、版本、产品身份及原始字节摘�
   assert.equal(result.markdown, GUIDE_BYTES.toString("utf8"));
   assert.equal(result.sha256, hash(GUIDE_BYTES));
   assert.equal(result.byteCount, GUIDE_BYTES.length);
-  assert.equal(result.guideVersion, "2026-10-07.1");
+  assert.equal(result.guideVersion, "2026-10-07.2");
   assert.equal(result.repository, "workloom-ai/WorkLoom-growth");
   assert.match(result.markdown, /rawIntent/u);
   assert.match(result.markdown, /没有 Growthtest 的 nativeaudio 专用契约/u);
   assert.ok(result.limitations.some((item) => item.includes("TTS")));
+  assert.match(result.markdown, /qualityReviewed=false/u);
+  assert.match(result.markdown, /原节目音频默认保留/u);
+  assert.match(result.markdown, /弹幕没有默认 20 字\/8 并发抽稀/u);
+  assert.match(result.markdown, /有失败时 CLI 非零退出/u);
+  assert.match(result.markdown, /真实加工、来源\/权限、版本和请求导出/u);
+  assert.match(result.markdown, /高完成度\/时长策略属于后续独立阶段/u);
 });
 
 test("指南锚定模块所在产品根，不被cwd或产物根替换", (t) => {
@@ -264,3 +270,5 @@ test("计划指向指南并保留安全argv，不把指南当生产资格", () =
     else process.env.WORKLOOM_KEYS_FILE = keyFile;
   }
 });
+
+import './tools/full-chain-failure.test.mjs';

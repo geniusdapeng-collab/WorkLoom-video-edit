@@ -53,7 +53,7 @@ const evaluate = (ruleId: string, params: Record<string, unknown> = {}, context:
 
 describe("标题字幕围栏（G-SUB0..G-SUB5）语义", () => {
   it("六条规则齐备，级别与基线口径正确", () => {
-    expect(fencePack.version).toBe("ai-video-subtitle/v3");
+    expect(fencePack.version).toBe("ai-video-subtitle/v4");
     expect(fencePack.rules.map((rule) => rule.rule_id)).toEqual([
       "G-SUB0", "G-SUB1", "G-SUB2", "G-SUB3", "G-SUB4", "G-SUB5", "G-SUB6",
     ]);
@@ -80,9 +80,9 @@ describe("标题字幕围栏（G-SUB0..G-SUB5）语义", () => {
     expect(evaluate("G-SUB2", { output_path: "/a.mp4", input_path: "/a.mp4" })).toBe(true);
     expect(evaluate("G-SUB2", { output_path: "/b.mp4", input_path: "/a.mp4" })).toBe(false);
 
-    // G-SUB3：关闭复检 / 无视安全区 → block
-    expect(evaluate("G-SUB3", { skip_verify: true })).toBe(true);
-    expect(evaluate("G-SUB3", { verify: false })).toBe(true);
+    // G-SUB3：源质量不投票，明确安全区约束保留
+    expect(evaluate("G-SUB3", { skip_verify: true })).toBe(false);
+    expect(evaluate("G-SUB3", { verify: false })).toBe(false);
     expect(evaluate("G-SUB3", { ignore_safe_area: true })).toBe(true);
     expect(evaluate("G-SUB3", { allow_ui_overlap: true })).toBe(true);
     expect(evaluate("G-SUB3", { verify: true })).toBe(false);

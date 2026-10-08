@@ -40,6 +40,16 @@ describe("多风格交付包（deliver · G-DLV1 变体雷同否决）", () => {
     expect(report.detail).toContain("差异达标");
   });
 
+  it("默认清单不把未评审的变体品质写成已测量或已批准", () => {
+    const manifest = buildDeliveryManifest({ projectId: "VID-raw", platform: "抖音",
+      deliverable: { path: "/out/final.mp4", sha256: "a", bytes: 1 },
+      subtitles: { sidecarDir: null, softsub: null, burned: false }, cover: { path: null, hook: "" },
+      variants: [], distinctness: null, samples: [] });
+    expect(manifest.distinctness).toBeNull();
+    expect(manifest.qualityReviewed).toBe(false);
+    expect(manifest.samples).toEqual([]);
+  });
+
   it("交付清单记录：母版/字幕/封面/变体指纹 + G-DLV1 判定 + 复用纪律", () => {
     const distinctness = assessVariantDistinctness([
       { variantId: "cool-tech", frames: [gray(60)], loudness: { lufs: -14, peakDb: -1.2 } },
@@ -56,7 +66,8 @@ describe("多风格交付包（deliver · G-DLV1 变体雷同否决）", () => {
     expect(manifest.generatedAt).toBe("2026-09-25T00:00:00Z");
     expect(manifest.variants[0]!.sha256).toBe("v1");
     expect(manifest.reuseDiscipline).toContain("零 token");
-    expect(manifest.distinctness.approved).toBe(true);
+    expect(manifest.distinctness?.approved).toBe(true);
+    expect(manifest.qualityReviewed).toBe(true);
   });
 });
 

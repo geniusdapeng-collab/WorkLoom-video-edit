@@ -2,8 +2,8 @@
 # 每步 = Quest 任务卡；断点续跑继承 dsh replay；每步产物写 biz_events 五元事件
 quest: narrative-film
 name: 叙事片管线
-version: v1
-description: 剧本→场景→片头→视听→连贯审查→提示词融合→字段质检→定妆照→预生产确认→渲染→后期→调色→字幕→配音→配乐→多风格交付→成片入库→返修闭环
+version: v2
+description: 剧本→场景→片头→视听→连贯审查→提示词融合→字段质检→定妆照→预生产确认→渲染→后期→调色→字幕→原声保留或显式配音→配乐→多风格交付→成片入库→返修闭环
 steps:
   - step_key: script
     name: 剧本蓝图
@@ -67,7 +67,7 @@ steps:
   - step_key: material-generate
     name: 真实素材 → 构建视频场景（素材只作实景依据）
     owner: render-operator
-    gate: G-MAT1                    # 素材用途门：用途声明 + 生成溯源 + 非静态直出 + **场景构建（非参考图复刻）**一票否决
+    gate: G-MAT1                    # 新提交前的用途/参考形态/授权门；成功渲染后只保存任务与来源字节回执
     outputs: [render_job, video_asset]   # 真实实拍素材只作**实景依据**（reference_image，不作 first_frame）：
                                          # 由生成模型构建**完整视频场景**（自有机位/视差/环境运动），
                                          # **严禁把素材当镜头直接入时间线**，也**严禁把参考图做成"被推动的照片"**
@@ -82,7 +82,7 @@ steps:
     owner: render-operator
     outputs: [render_job, video_asset]
   - step_key: post
-    name: 后期合成
+    name: 成功素材直接后期合成
     owner: post-editor
     outputs: [final_video]
   - step_key: color
@@ -92,11 +92,11 @@ steps:
   - step_key: subtitle
     name: 标题字幕制作
     owner: subtitle-stylist
-    outputs: [subtitle_track, subtitle_report, final_video]   # 文字层收口：字体选型 + 平台版式 + 版式体检 + 可现度复检。**字幕以旁挂文件交付（srt/ass/vtt + 清单），母版不烧字**（G-DLV2）；要带字幕的片子由软字幕轨（softmux，画面逐帧零改动）或另存烧字副本派生
+    outputs: [subtitle_track, subtitle_report, final_video]   # 文字层收口：字体许可与解析、ASS/时间轴、平台请求版式与实际文件。**字幕以旁挂文件交付（srt/ass/vtt + 清单），母版不烧字**（G-DLV2）；要带字幕的片子由软字幕轨（softmux，画面逐帧零改动）或另存烧字副本派生
   - step_key: voice
-    name: 成片配音
+    name: 原声保留或显式配音
     owner: voice-artist
-    outputs: [voice_track, voice_report, final_video]   # 克隆音色配音：时窗对齐 + 原声让位 + 视频轨 copy；授权不清不得建音色档案
+    outputs: [voice_track, voice_report, final_video]   # 默认保留原声；仅显式请求时调用配音引擎，视频轨 copy；克隆授权仍前置
   - step_key: bgm
     name: 成片配乐
     owner: bgm-composer
@@ -104,8 +104,8 @@ steps:
   - step_key: deliver
     name: 多风格交付包
     owner: post-editor
-    gate: G-DLV1                  # 变体雷同（画面与音轨都测不出差别）一票否决
-    outputs: [delivery_package, final_video, subtitle_track]   # 干净母版 + 旁挂字幕 + 2–3 个风格变体（封面/文案/BGM/调色/转场）+ 软字幕轨版 + 交付清单 + 工程文件；quality=uhd 时先在本机增强低分辨率镜头，再实测目标画布与来源（G-DLV8/9）；镜头只生成一次，变体零 token
+    gate: G-DLV1                  # 核对请求的变体文件、目标规格、来源与实际工具执行，不做品质差异评分
+    outputs: [delivery_package, final_video, subtitle_track]   # 干净母版 + 旁挂字幕 + 2–3 个风格变体（封面/文案/BGM/调色/转场）+ 软字幕轨版 + 交付清单 + 工程文件；quality=uhd 按目标画布编码；仅显式增强请求才调用本地模型并核对来源（G-DLV8/9）；镜头只生成一次，变体零 token
   - step_key: archive
     name: 成片入库
     owner: post-editor

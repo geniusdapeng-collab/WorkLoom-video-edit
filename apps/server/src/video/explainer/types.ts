@@ -210,5 +210,8 @@ export const QaReportSchema = z.object({
   totalFrames: z.number().nullable().default(null),
   gates: z.array(GateResultSchema),
   pass: z.boolean(),
+  qualityReviewed: z.boolean().default(false),
+  qualityScore: z.number().nullable().default(null),
+  sourceArtifact: z.object({ path: z.string(), sha256: z.string(), bytes: z.number(), duration: z.number(), width: z.number(), height: z.number() }).nullable().default(null),
 });
 export type QaReport = z.infer<typeof QaReportSchema>;

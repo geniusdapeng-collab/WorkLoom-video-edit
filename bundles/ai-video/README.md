@@ -7,7 +7,7 @@
 > **任何视频制作、返修或交付先读** [`AI 工作台视频调用指南`](../../docs/ai-video-workbench-guide.md)，
 > 或 `node scripts/workloom-agent.mjs invoke growth.video.workbench.guide`；MCP 对应
 > `workloom_growth_video_workbench_guide`，参数 `{}`。先冻结指定人、商品、平台、时长、账号调性、声音和特殊要求。
-> 本仓没有 Growthtest 的 standard-post/nativeaudio 专用契约；普通 voice 可能补 TTS，不能静默替代原生声音或指定声线。
+> 本仓没有 Growthtest 的 standard-post/nativeaudio 专用契约；普通全链默认保留原节目声音，不隐式 ASR/TTS；新声音只有明确请求才生成，不能静默替代原生声音或指定声线。
 >
 > **要把本仓能力接进桌面客户端（Codex / DeepSeek Harness）**：见 [`docs/AGENT-CLIENTS.md`](../../docs/AGENT-CLIENTS.md)
 > —— 里面有 5 分钟接入（`list`/`invoke`/MCP 冒烟）、MCP 配置片段、**视频能力清单**（以 `list` / `tools/list` 为准，含固定指南读取）
@@ -15,9 +15,11 @@
 
 ---
 
-## 0. 先做一件事：判断这是哪一类视频
+## 0. 先核对成功原片；仅新生成先判断视频类型
 
-**不要上来就跑出片命令。** 先跑分流：
+已有供应商成功记录和实际源片时，先核对项目/镜号、任务来源、当前 SHA256 与授权；历史品质拒绝只读，追加独立接受回执并走本仓正式后期。没有新的生成需求时不运行分流模型、不要求新的 provider key、不重新验证旧镜头卡/定妆照。
+
+**待新生成镜头**才先跑分流：
 
 ```bash
 pnpm exec tsx scripts/tools/route-video.mts --title "<用户需求原文>" --llm --out work/route.json
@@ -27,10 +29,10 @@ pnpm exec tsx scripts/tools/route-video.mts --title "<用户需求原文>" --llm
 `explainer`（口播解说片）/ `clarify`（**判不准 → 先问用户，不要替用户花钱**），
 并打印对应的**建议命令**与意图清理后的文本。
 
-> **出片入口的硬约束（T-2026-0930-0015）**：`full-chain-film.mts` 现在**要求分流结论**——
+> **出片入口的硬约束（T-2026-0930-0015）**：`full-chain-film.mts` 在待新生成路径**要求分流结论**——
 > 要么 `--route work/route.json`（上面这条命令的 `--out` 产物），要么对已确认过的补跑项目显式
 > `--route-kind marketing|narrative`。两者都没有会直接 `ROUTE_PREFLIGHT_ROUTE_REQUIRED` 拒绝出片；
-> 判不准（`clarify`）时也会拒绝并提示"先问用户"。营销片缺商品锚点同样 fail-closed。
+> 判不准（`clarify`）时也会拒绝并提示"先问用户"。待新生成营销镜头缺商品锚点同样 fail-closed；已成功原片不因旧商品/卡片元数据被重新生成。
 
 - 判据与口径：`packages/video-studio/src/pipeline-router.ts`；设计说明：`docs/video-pipeline-routing-and-dossier-2026-09-25.md`
 - **营销片必需商品锚点**（商品名只能来自用户显式声明 / metadata / 模型抽取，**不许猜**）；
@@ -54,8 +56,8 @@ pnpm exec tsx scripts/tools/video-doctor.mts   # 出片环境自检（缺什么�
 
 | 依赖 | 位置 / 变量 | 说明 |
 |---|---|---|
-| 视频/图片生成（火山方舟） | `~/.workloom/live.env`：`VOLCENGINE_ARK_API_KEY`、`SEEDANCE_MODEL`、`SEEDREAM_MODEL` | 出片/出图必需；**欠费时提交会被 403 `AccountOverdueError` 拒绝**（先充值再跑，别反复提交） |
-| 评审/仲裁模型 | `DEEPSEEK_API_KEY`（同文件） | 仅 `--review-policy advisory|blocking` 与 `route-video --llm` 用 |
+| 视频/图片生成（火山方舟） | `~/.workloom/live.env`：`VOLCENGINE_ARK_API_KEY`、`SEEDANCE_MODEL`、`SEEDREAM_MODEL` | 仅新生成出片/出图必需；**欠费时提交会被 403 `AccountOverdueError` 拒绝**（先充值再跑，别反复提交） |
+| 评审/仲裁模型 | `DEEPSEEK_API_KEY`（同文件） | 仅明确新前期的模型调用/分流需要；成功原片后期不调用模型品质评审 |
 | 调色/字幕/配乐工位 | `bundles/ai-video/connectors/{color,subtitle,bgm}-bridge` | 纯本地；ffmpeg 走 `~/.workloom-color/bin`（管线的 `WL_FFMPEG/WL_FFPROBE`） |
 | 配音/人声核查 | `~/.workloom/voice-station`（本地 MLX 引擎，**不联网不花钱**） | `voice-bridge health` 可自检；音色档默认 `zh-xiaozhi` |
 | 真人素材 | 火山方舟"私域真人人像库"的 `asset://...` | 参考图只能以 `asset://` 提交（平台禁止直传真人照片） |
@@ -75,37 +77,23 @@ pnpm exec tsx scripts/tools/video-doctor.mts   # 出片环境自检（缺什么�
 
 ```
 cine-kb → continuity → micromotion → spec（25 字段交付闸）→ plates → material-gen → videos
-        → voice（逐镜人声核查/补旁白）→ compose → color → subtitle → bgm → cover → mux → master → deliver
+        → voice（默认保留原声；新配音仅显式请求）→ compose → color → subtitle → bgm → cover → mux → master → deliver
 ```
 
-> **post-only 组装自动带 `spec`**（T-2026-0930-0015）：`--assembly-mode post-only` 时管线会**自动补上**
-> `spec` 阶段；此时它按"25 字段 P0 规范"判（不要求生成用提示词）。真机事故：手写组装卡的 `character`
-> 只写"这位女士…"、没写主角名/ID（P0 字段），一路漏到封面才炸。
+> **成功原片只走实际请求后期**：不自动补 `spec`，不重新做旧身份/服装/动作/画质/嘴型/台词/声音品质评审。来源核验通过后直接采用原字节；默认保留完整节目声音。部分镜头已成功时，前期规范和素材检查只作用于待新生成镜头，已成功镜不重新打开。
 
-## 3. 三条已定稿的执行口径（2026-09-30 / 10-01，产品所有者）
+## 3. 默认成功原片接受与明确后期请求
 
-1. **渲染后不做"合格/不合格"裁决**：`--review-policy off`（默认）。渲染成功就**直接走完整后期链并交付**，
-   质量由客户验收。只保留**事实性硬闸**（产物存在/时长/分辨率/音轨/音画对齐/字幕文件/命名/变体差异）。
-   需要时用 `--review-policy advisory`（只记录不阻断）/ `blocking`（旧口径）。
-2. **渲染前一次性过关**：红线 linter（屏幕文字/证件文字/道具重复/落幅/帧率）、合同字段与参数、
-   授权与素材用途、商品绑定、就绪度（风险优先渲染）——这些是 fail-closed 的**事前**闸；
-   默认 `--max-attempts 1`，**禁止同提示词重试**（要重试必须先改卡）。
-3. **定妆照（G5）决策交人类**（T-2026-1001-0007）：8 张出满后**直接交人类验收**
-   （`portrait-agent accept`，`via=owner-acceptance`）；机器像不像/监制结论只留证，**不参与放行、不触发自动重做**。
-   服务端 Web 预生产同样默认在 G5 停下等人放行（G5 已移出 `HR_AUTO_GATES` 默认表），AI 打回也不再自动重跑。
+1. **供应商成功就正式后期**：真实任务/项目/镜号、原输入与当前源片 SHA256、授权匹配后直接接受。身份、服装、动作、源画质、名义时长、嘴型、台词、声音品质均不阻断；不调用额外模型、ASR/TTS、抽帧评分或人工放行。`review-policy` 元数据不重新启用后期品质闸。
+2. **保留真实失败**：供应商 failed、任务来源/租户/支付/授权不符、缺件、文件读取/实际工具执行失败、请求导出缺失仍明确失败。原片和历史品质失败只读，新接受/加工以新回执表示；qualityReviewed=false、qualityScore=null，不把未测写通过。
+3. **前置授权与新任务保持明确**：只有未生成或用户明确授权改变的点名镜头进入当前分流/字段/素材用途/人物商品绑定/G8/支付流程。定妆照的已批准档案复用，旧成功镜不因当前属性库或组件变化再次付费。
+4. **请求加工一次**：compose/color/subtitle/BGM/cover/mux/master/deliver 按实际请求各执行一次，不按品质评分候选投票、自动重试或静默降级。默认 UHD 是本地目标画布处理；显式模型增强是独立新请求。
 
 ## 4. 踩过的坑（务必遵守）
 
-1. **post-only 组装（复用既有成品片段）**：必须显式 `--assembly-mode post-only --assembly-reason "<≥8 字>"`；
-   同时**把 `spec` 阶段带上**，让手写的组装卡也过 25 字段规范（本次事故：`character` 字段没写主角名/ID →
-   封面人物卡找不到来源镜 → 封面退化 → 母版终审被上游放行闸拦下）。
-2. **`character` 字段必须写主角名/ID**（如 `未来前台CEO（ceo-future-frontdesk…）`），
-   否则封面"人物为主"版式、造型一致性判定都会失配。
-   现在管线会在封面环节**显式报错**（`COVER_PERSON_SOURCE_MISSING`）而不是静默退化成"仅标题"。
-3. **配乐**：本机没有独立音轨签发者（`WORKLOOM_AUDIO_STEM_SIGNING_SECRET` 未配置）时，
-   管线自动走**声明式直混** `--declared-program-mix`：本地无版权曲库直接可用，
-   回执如实标注 `sourceAuthority=declared-unverified`、`stemsVerified=false`（不冒充签章分轨）。
-   接入内部签发者后自动切回签章路径。
+1. **post-only 组装与复用**：按实际入口提供合法组装声明与原因，成功原片来源先核对；不额外补前期 `spec` 或要求旧卡字段通过新规范。普通 resume 与 `--no-resume` 都不能重付同一成功镜。
+2. **封面按明确请求本地出稿**：指定主视觉镜号、时刻与标题，人物层只有明确请求才添加；没有人物的成功片不补人物，不调用模型选帧或整图品质复审。
+3. **原节目音频是默认真实来源**：省略分轨时保留原片完整节目，不需要独立分轨签发密钥。显式提供四角色分轨则必须真实有效、来源/租户/授权/签章匹配，null/false/空或非法包不能静默降成默认路径。BGM 配方一次处理，不按余量降 3dB 重试或按原声降级交付。
 4. **不要手工做封面 / 手工混音绕过管线**：交付清单要能核对（`delivery-manifest.json` 里有
    `reviewPolicy` / `assembly` / 封面来源 / 各变体 sha256）。
 5. **账户欠费**：`AccountOverdueError` 403 会拦住提交；**先充值**，不要连点重试。
@@ -114,13 +102,13 @@ cine-kb → continuity → micromotion → spec（25 字段交付闸）→ plate
    不要在终端伪造 `FILM_JOB_CONTEXT` 或直接手跑 `--worker`；缺少真实父通道会被拒绝。
    当前通用 Agent CLI/MCP 菜单未暴露 `video.film.start`，不能把服务接口已实现写成桌面 MCP 已可执行。
 7. **创作口径不得写成硬闸**：片型配比、运镜强弱、造型主色这类"好不好看"的问题默认只做咨询项，
-   硬闸只允许事实类（产物/时长/分辨率/音轨/音画对齐/字幕/命名/授权与素材用途）。CI 会拦（`scripts/ci/verify-hard-gate-policy.mjs`）。
+   默认闸只保留实际请求加工与来源/权限事实（真实任务/当前字节/读取与工具成功/请求字幕和导出存在/授权与素材用途），不把源时长、画布、音轨品质或同步诊断阈值当默认素材接受条件。CI 会拦（`scripts/ci/verify-hard-gate-policy.mjs`）。
 
 ## 5. 交付物与验收
 
 交付目录（`--out`）应包含：`*-<实测时长>s-final.mp4`（母版，名称与实测时长一致）、
 `subtitles/`（srt/ass/vtt + 清单）、`*-softsub.mp4`、变体 3 支 + 变体封面、
-`*-cover.png`、`*-delivery-manifest.json`（sha256/变体差异/审核口径/组装声明/**分流结论**/**渲染台账**）、
+`*-cover.png`、`*-delivery-manifest.json`（sha256/声明配方与品质未评审/组装声明/**分流结论**/**渲染台账**）、
 `*-render-ledger.md`（每一次花钱的账：提交几次、判不合格几次、平台拒收几次、canary 止损几次、后期返工几次）。
 质量口径见 `docs/video-delivery-and-revision.md`；监制门设计见 `docs/producer-gate-design.md`。
 
@@ -150,7 +138,7 @@ pnpm video:assets reconcile --asset <assetId> --from <清单.txt> --primary <主
 > （纯函数、无客户常量），CLI 在 `scripts/tools/real-person-assets.mts`。**不要为某个客户写死 ID。**
 
 真人素材在本地只有主档 ID，**没有图片文件**；角色档案的角度槽位必须由"客户导出的原图"或
-"以授权素材为参考的派生图"逐张落实，否则"像不像门/首镜身份锚"没有真实基准：
+"以授权素材为参考的派生图"逐张落实，作为本次新前期引用来源，不用于重新评审已成功源片：
 
 ```bash
 # 客户从平台导出原图后（保留原文件名即可）：
@@ -185,7 +173,7 @@ pnpm exec tsx scripts/tools/portrait-set-from-asset.mts \
   --asset asset://asset-xxxxxxxx --character <角色ID> --library <角色库> \
   --out-dir <角色目录>/portraits/_derived --angles front,threeQuarter,closeup,side \
   --engine two-stage --stage-a-angles front --refs 2 \
-  --verify-against <已验收成片帧.jpg> --install --activate   # 机器像不像只留证；--require-likeness 才整批拒绝（旧行为）
+  --verify-against <已验收成片帧.jpg> --install --activate   # 机器像不像只留证；独立诊断不接入成功原片正式接受
 
 # ③ 人类看过 8 张后记录验收（机器不代替签字；人类明确否决才阻断）
 pnpm exec tsx scripts/tools/portrait-agent.mts accept --character <角色ID> \
@@ -206,7 +194,7 @@ pnpm exec tsx scripts/tools/portrait-agent.mts accept --character <角色ID> \
 | 主档 `assetId` / `referenceAssets` / `referenceAssetSources` 的写回 | **清单对账层** | 同上（`reconcile --apply`，写前备份、写后自检） |
 | 每个**角度槽位**怎么来、"像不像"谁判、产物写哪 | **出图/装机层**（§6.1） | `portrait-set-from-asset.mts`（两段式出图 + 机器像不像**只留证**）→ `portrait-set-install.mts`（写档 + `verifyPortraitSet` 复核）→ `portrait-agent accept`（**人类验收放行**，机器不决策） |
 | 角色档案 `portraitSets`（`files`/`artifacts`/`active`/`source-map.json`） | **出图/装机层** | 同上；本层不对 `referenceAssets` 做任何推断 |
-| 管线消费 | G-RP1/像不像门读**主档**（对账层）；封面/关键帧读**角色档案**（装机层） | `scripts/tools/full-chain-film.mts` |
+| 管线消费 | 待新生成 G-RP1 读**主档**（对账层）；明确请求的前期关键帧读**角色档案**（装机层），成功原片后期不重开身份评审 | `scripts/tools/full-chain-film.mts` |
 
 **唯一顺序约束**：`reconcile` 会按清单重排 `referenceAssets`，并把**同 ID 保留的 `angleGuess` 之外的新 ID 标成"待客户确认"**。
 因此正确顺序是：**先 §6.0 对账（ID 对了）→ 再 §6.1 出图装机（角度对了）**；对账后发现 ID 有变化，必须重跑角度映射那一遍，
@@ -218,5 +206,5 @@ pnpm exec tsx scripts/tools/portrait-agent.mts accept --character <角色ID> \
 3. **只对"人脸是真的"负责**（客户口径 2026-10-01）：发型/发色/妆造/服装/配饰/品牌标识/背景灰调差异**不得**判不合格
    （真人本来就会变），造型只作软性偏好；主素材若是古装/生活照，也**不要**因此把造型一致性当硬闸；
 4. **机器像不像只留证、不决策**（T-2026-1001-0007）：阈值 88 的逐张实测保留为证据，但**不阻断、不触发重做**；
-   8 张直接交人类验收（`portrait-agent accept`，`via=owner-acceptance`），人类明确否决才可以退回；只有显式 `--require-likeness` 才恢复"整批拒绝"旧口径；
+   8 张直接交人类验收（`portrait-agent accept`，`via=owner-acceptance`），人类明确否决才可以退回；该独立工具的旧参数不得接回已成功原片的正式后期接受；
 5. **追加不重来**：后续补角度用 `--archive-refs <角色目录>`，以**已发布定妆照**为参考、旧版本保留——保证客户先后发布的视频人物一致。

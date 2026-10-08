@@ -6,8 +6,8 @@
 # 本包守的是三条与"人的声音"有关的红线：
 #   ① 声音是有主权的——克隆/配音前必须有明确授权（G-VOICE1，对外发布再叠一道 G-VOICE6）；
 #   ② 声纹不出域——参考音频、音色档案与授权回执只留工位本机（G-VOICE5）；
-#   ③ 无回执不算完成——产物必须带响度/真峰值/时长复检（G-VOICE3）。
-version: ai-video-voice/v1
+#   ③ 无回执不算完成——产物必须带实际执行与 sha256 回执（G-VOICE3）。
+version: ai-video-voice/v2
 default_level: review
 rules:
   - rule_id: G-VOICE0
@@ -20,7 +20,7 @@ rules:
         [voiceread.health, voiceread.devices, voiceread.voices, voiceread.probe,
          voicewrite.record, voicewrite.register, voicewrite.speak, voicewrite.dub, voicewrite.verify]
     when: "true"
-    note: 录音、克隆、播报与配音都是工位本地、非破坏性、可回滚动作（原片只读 + 新文件 + sha256 回执），默认直通；授权（G-VOICE1）、对外发布（G-VOICE6）、覆盖原片（G-VOICE2）、关闭校验（G-VOICE3）、日配额（G-VOICE4）、声纹出域（G-VOICE5）叠加升级，deny 优先并集取严。未命中写动作的保守默认是 review，故此处必须显式声明 auto，否则干净配音也被挂起。
+    note: 录音、克隆、播报与配音都是工位本地、非破坏性、可回滚动作（原片只读 + 新文件 + sha256 回执），默认直通；授权（G-VOICE1）、对外发布（G-VOICE6）、覆盖原片（G-VOICE2）、实际执行回执（G-VOICE3）、日配额（G-VOICE4）、声纹出域（G-VOICE5）叠加升级，deny 优先并集取严。未命中写动作的保守默认是 review，故此处必须显式声明 auto，否则干净配音也被挂起。
 
   - rule_id: G-VOICE1
     name: 声音克隆授权必审（没有授权声明不得建音色档案）
@@ -43,14 +43,14 @@ rules:
     note: "原片与参考音频一律只读：配音产出新文件并进版本链（视频轨 copy，不动画面），重建音色档案只替换档案内的 reference.wav 而不动调用方给的原始录音；任何覆盖原片/参考音频的调用一票否决。DSL 写法说明：路径相同判定用 `a in [b]` 而不是 `a == b`——求值器里缺失路径是 undefined，`undefined == undefined` 为真，会让「未传 output_path/input_path」的调用被误判成覆盖原片（本工位工具口径是 video/out 命名，必踩）；`in` 的左值缺失直接不命中，正是这里要的语义。"
 
   - rule_id: G-VOICE3
-    name: 配音与播报必须可核验（禁止关闭校验）
+    name: 配音和播报的实际执行回执由连接器核对
     level: block
     is_baseline: true
     match:
       object_types: [voice_track, voice_report, final_video]
       actions: [voicewrite.speak, voicewrite.dub, voicewrite.verify]
-    when: "params.skip_verify == true or params.verify == false"
-    note: 播报与配音必须带响度/真峰值/时长复检与 sha256 回执（无回执=未核实，不得进入入库/发布队列）；关闭校验的调用禁止执行——声音交付里"听起来差不多"不是证据。
+    when: "false"
+    note: 默认后期保留源声音，只有明确请求配音/播报才执行该操作。强制核对实际执行、可读音轨与 sha256；响度、音色相似度、台词和口型质量不触发返工或替换，legacy verify/skip_verify 不阻断处理。克隆授权、隐私、额度和外发授权保持原规则。
 
   - rule_id: G-VOICE4
     name: 单租户日配音时长配额熔断

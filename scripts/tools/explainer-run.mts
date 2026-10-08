@@ -26,7 +26,7 @@ import { join, resolve } from "node:path";
 import { runExplainerPipeline } from "../../apps/server/src/video/explainer/pipeline.js";
 import { ExplainerQualitySchema, explainerOutputSize, ExplainerScriptSchema } from "../../apps/server/src/video/explainer/types.js";
 import { templateDirOf } from "../../apps/server/src/video/explainer/project-builder.js";
-import { engineStatus } from "../../apps/server/src/video/explainer/engine.js";
+import { engineStatus, jobsDirOf } from "../../apps/server/src/video/explainer/engine.js";
 import type { LlmCall } from "../../apps/server/src/video/explainer/semantics.js";
 import type { ExplainerShotbook } from "../../apps/server/src/video/explainer/types.js";
 import type { ShotPlan } from "../../apps/server/src/video/explainer/shotbook.js";
@@ -155,23 +155,36 @@ function buildHostPlanks(portraitsDir: string, outDir: string): Record<string, s
 }
 
 async function main(): Promise<void> {
-  const status = engineStatus();
-  log(`[cli] 引擎：installed=${status.installed} ready=${status.ready} 卡=${status.cardCount} 许可=${status.license.scope}`);
-  if (!status.installed || !status.runtimeInstalled) {
-    throw new Error(`引擎未就绪：${status.reason}（先跑 pnpm talkcraft:install -- --with-runtime）`);
+  const resume = has("resume");
+  if (!resume) {
+    const status = engineStatus();
+    log(`[cli] 引擎：installed=${status.installed} ready=${status.ready} 卡=${status.cardCount} 许可=${status.license.scope}`);
+    if (!status.installed || !status.runtimeInstalled) {
+      throw new Error(`引擎未就绪：${status.reason}（先跑 pnpm talkcraft:install -- --with-runtime）`);
+    }
+  } else {
+    if (!opt("task-id")) throw new Error("--resume 需要 --task-id <已有成功工程>，不能猜测源工程");
+    if (has("shotbook-plan") || has("assets") || has("host-portraits")) {
+      throw new Error("POST_RESUME_OPTIONS_CONFLICT: 成功成片恢复只使用原档案，新的素材或分镜计划应明确作为新返修执行");
+    }
+    log("[cli] 成功成片恢复：直接复用原档案与原片，不启动引擎准备、人物底板、语音或模型");
   }
   const scriptPath = opt("script");
-  if (!scriptPath) throw new Error("缺少 --script <口播稿文件>");
+  if (!scriptPath && !resume) throw new Error("缺少 --script <口播稿文件>");
   const taskId = opt("task-id", `run-${Date.now().toString(36)}`)!;
+  const archivedJobDir = join(jobsDirOf(), taskId);
+  const archive = resume ? JSON.parse(readFileSync(join(archivedJobDir, "job.json"), "utf8")) as { aspect?: string; quality?: string } : null;
   const profile = opt("profile", process.env.WORKLOOM_VOICE_PROFILE ?? "zh-myvoice")!;
-  const aspect = (opt("aspect", "9:16") as "9:16" | "16:9");
-  const quality = ExplainerQualitySchema.parse(opt("quality", "hd"));
+  const aspect = (opt("aspect", archive?.aspect ?? "9:16") as "9:16" | "16:9");
+  if (!["9:16", "16:9"].includes(aspect)) throw new Error("--aspect 只允许 9:16 或 16:9");
+  const quality = ExplainerQualitySchema.parse(opt("quality", archive?.quality ?? "hd"));
   const brandProduct = opt("brand-product", "WorkLoom 获客增长系统")!;
-  const script = ExplainerScriptSchema.parse({ sentences: readScript(resolve(scriptPath)) });
+  const script = ExplainerScriptSchema.parse(scriptPath ? { sentences: readScript(resolve(scriptPath)) }
+    : JSON.parse(readFileSync(join(archivedJobDir, "script.json"), "utf8")));
   log(`[cli] 口播稿 ${script.sentences.length} 句 / ${script.sentences.map((s) => s.text.replace(/\s/g, "").length).reduce((a, b) => a + b, 0)} 字`);
 
   const hostPortraits = opt("host-portraits");
-  const hostAssets = hostPortraits
+  const hostAssets = !resume && hostPortraits
     ? buildHostPlanks(resolve(hostPortraits), join(REPO_ROOT, "var/talkcraft-assets/host"))
     : undefined;
 
@@ -193,7 +206,7 @@ async function main(): Promise<void> {
     script,
     shotbook,
     shotbookPlan,
-    voice: { source: "tts", profile },
+    voice: resume ? undefined : { source: "tts", profile },
     aspect,
     quality,
     brand: {
@@ -205,12 +218,12 @@ async function main(): Promise<void> {
     },
     hostAssets,
     assets,
-    llm: llmOf(shotbook, shotbookPlan),
+    llm: resume ? undefined : llmOf(shotbook, shotbookPlan),
     allowRuleShotbook: true,
     templateDir: templateDirOf(),
     renderScope: opt("render-scope", "full"),
     stopAfterRender: has("stop-after-render"),
-    resumeFrom: has("resume") ? "render" : undefined,
+    resumeFrom: resume ? "render" : undefined,
     onLog: log,
   });
 

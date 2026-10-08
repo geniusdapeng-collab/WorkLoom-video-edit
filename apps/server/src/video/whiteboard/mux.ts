@@ -1,21 +1,12 @@
 /**
- * video/whiteboard/mux.ts —— 白板成片混流（T-2026-0926-0020）
- *
- * 为什么必须有这一环（规格书 §2.3 只写了一句"两遍 loudnorm"，实测不足）：
- * 上游渲染器 `render_stream_whiteboard.py` 用 `cv2.VideoWriter(mp4v)` 写视频、再转 H.264，
- * **全程不写音轨**；`merge_scenes.py` 也只是视频轨拼接。因此"白板引擎的产物"是**无声片**，
- * 配音必须由接入方自己混进来，否则交付的就是一条没声音的片子。
- *
- * 本模块做三件事：
- *   ① 两遍 loudnorm（先测量、再按测量值归一化）——与仓内 `full-chain-film.mts` 的
- *      「响度是交付项」口径一致，默认目标 I=-16 LUFS（`WHITEBOARD_VOICE_LUFS` 可覆盖）；
- *   ② 视频轨 `-c:v copy`（不重编码：白板片是逐帧生成的，重编码只会白掉画质）；
- *   ③ 音频 `apad` 补到画面长度 + `-shortest`：配音短于画面时补静音，长于画面时以画面为准
- *      （正常情况下两者由 narration.ts 的时间轴铺满保证一致，这里是兜底）。
+ * 白板交付按请求把旁白和软字幕装入真实渲染片。默认保留已有原声，
+ * 不测量响度或检查品质；明确请求响度处理时只在这一次混流中应用滤镜。
+ * measureLoudness 保留为独立诊断，不参与默认交付。
  */
 import { execFile } from "node:child_process";
-import { existsSync, mkdirSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { existsSync, lstatSync, mkdirSync, readFileSync, renameSync, rmSync, statSync } from "node:fs";
+import { createHash, randomUUID } from "node:crypto";
+import { dirname, resolve } from "node:path";
 import { promisify } from "node:util";
 import { WhiteboardEngineError, whiteboardEnv } from "./engine.js";
 
@@ -87,6 +78,7 @@ export interface MuxOptions {
   /** 可选 SRT 软字幕轨（不烧字：母版保持干净，字幕作为可开关轨道） */
   srtPath?: string;
   targetLufs?: number;
+  normalize?: boolean;
   env?: NodeJS.ProcessEnv;
   timeoutMs?: number;
 }
@@ -99,58 +91,66 @@ export interface MuxResult {
   loudnessAfter: number | null;
   /** 视频与音频时长差（秒）；绝对值 > 0.2s 视为异常，调用方需显式对待 */
   avDriftSec: number;
+  qualityReviewed: false;
+  qualityScore: null;
+  normalizationRequested: boolean;
+  sha256: string;
+  bytes: number;
+  sourceFiles: Array<{ path: string; sha256: string; bytes: number }>;
 }
 
-/** 两遍 loudnorm + 混流；输出 H.264 + AAC 交付母版（视频轨 copy，不重编码） */
+/** 一次请求混流：原视频 copy、原声保留、旁白与可选软字幕同次处理。 */
 export async function muxWhiteboardFilm(opts: MuxOptions): Promise<MuxResult> {
   const env = opts.env ?? process.env;
   const cfg = whiteboardEnv(env);
   const target = opts.targetLufs ?? Number(env.WHITEBOARD_VOICE_LUFS ?? "-16");
-  for (const f of [opts.silentVideo, opts.narrationWav]) {
-    if (!existsSync(f)) throw new WhiteboardEngineError(`混流输入缺失：${f}`);
-  }
-  mkdirSync(dirname(opts.output), { recursive: true });
-
-  // ① 第一遍：测量
-  const before = await measureLoudness(opts.narrationWav, { env, targetLufs: target });
-  // ② 第二遍：按测量值归一化（linear=true 在读数可信时走线性增益，避免动态压缩改变音色）
-  const normalized = join(dirname(opts.output), "narration.norm.wav");
-  await ffmpeg([
-    "-y", "-v", "error", "-i", opts.narrationWav,
-    "-af", `loudnorm=I=${target}:TP=-1.5:LRA=11:linear=true:`
-      + `measured_I=${before.input_i}:measured_TP=${before.input_tp}:`
-      + `measured_LRA=${before.input_lra}:measured_thresh=${before.input_thresh}:`
-      + `offset=${before.target_offset}:print_format=summary`,
-    "-ar", "48000", "-ac", "2", "-c:a", "pcm_s16le", normalized,
-  ], 10 * 60_000, cfg.ffmpeg);
-  const after = await measureLoudness(normalized, { env, targetLufs: target }).catch(() => null);
-
-  // ③ 混流：视频 copy + 音频 apad 到画面长度（防止尾帧无声）+ 可选软字幕轨
-  const args = [
-    "-y", "-v", "error",
-    "-i", opts.silentVideo,
-    "-i", normalized,
-    ...(opts.srtPath ? ["-i", opts.srtPath] : []),
-    "-filter_complex", "[1:a]apad[a]",
-    "-map", "0:v:0", "-map", "[a]",
-    ...(opts.srtPath ? ["-map", "2:0", "-c:s", "mov_text", "-metadata:s:s:0", "language=chi"] : []),
-    "-c:v", "copy", "-c:a", "aac", "-b:a", "192k", "-ar", "48000", "-ac", "2",
-    "-shortest", "-movflags", "+faststart",
-    opts.output,
-  ];
-  await ffmpeg(args, opts.timeoutMs ?? 15 * 60_000, cfg.ffmpeg);
-  if (!existsSync(opts.output)) throw new WhiteboardEngineError(`混流未产出文件：${opts.output}`);
-
+  if (opts.normalize && (!Number.isFinite(target) || target < -70 || target > -5)) throw new WhiteboardEngineError("请求响度参数非法");
+  const files = [opts.silentVideo, opts.narrationWav, ...(opts.srtPath ? [opts.srtPath] : [])];
+  const sha = (file: string) => createHash("sha256").update(readFileSync(file)).digest("hex");
+  const sources = files.map(file => {
+    if (resolve(file) === resolve(opts.output)) throw new WhiteboardEngineError("禁止覆盖白板混流输入");
+    if (!existsSync(file) || !lstatSync(file).isFile() || lstatSync(file).isSymbolicLink() || statSync(file).size <= 0) throw new WhiteboardEngineError(`混流输入缺失或非法：${file}`);
+    const stat = statSync(file);
+    return { path: resolve(file), sha256: sha(file), bytes: stat.size, mtimeMs: stat.mtimeMs };
+  });
   const videoSeconds = await probeSeconds(opts.silentVideo, cfg.ffprobe);
-  const audioSeconds = await probeSeconds(normalized, cfg.ffprobe);
-  return {
-    output: opts.output,
-    videoSeconds,
-    audioSeconds,
-    loudnessBefore: before.normalizedI,
-    loudnessAfter: after?.normalizedI ?? null,
+  const audioSeconds = await probeSeconds(opts.narrationWav, cfg.ffprobe);
+  if (!await hasAudioStream(opts.narrationWav, cfg.ffprobe)) throw new WhiteboardEngineError("请求的旁白输入缺少音轨");
+  const originalAudio = await hasAudioStream(opts.silentVideo, cfg.ffprobe);
+  mkdirSync(dirname(opts.output), { recursive: true });
+  const candidate = `${opts.output}.${randomUUID()}.pending.mp4`;
+  const filters = [`[1:a]apad,atrim=duration=${videoSeconds},asetpts=N/SR/TB[narration]`];
+  if (originalAudio) {
+    filters.push(`[0:a:0]apad,atrim=duration=${videoSeconds},asetpts=N/SR/TB[original]`);
+    filters.push("[original][narration]amix=inputs=2:duration=first:dropout_transition=0:normalize=0[mixed]");
+  } else filters.push("[narration]anull[mixed]");
+  filters.push(opts.normalize
+    ? `[mixed]loudnorm=I=${target}:TP=-1.5:LRA=11,aeval=if(isnan(val(ch))+isinf(val(ch))\\,0\\,val(ch)):c=same,aresample=48000[a]`
+    : "[mixed]anull[a]");
+  try {
+    await ffmpeg(["-n", "-v", "error", "-i", opts.silentVideo, "-i", opts.narrationWav,
+      ...(opts.srtPath ? ["-i", opts.srtPath] : []), "-filter_complex", filters.join(";"),
+      "-map", "0:v:0", "-map", "[a]",
+      ...(opts.srtPath ? ["-map", "2:0", "-c:s", "mov_text", "-metadata:s:s:0", "language=chi"] : []),
+      "-c:v", "copy", "-c:a", "aac", "-b:a", "192k", "-ar", "48000", "-ac", "2",
+      "-t", String(videoSeconds), "-movflags", "+faststart", candidate], opts.timeoutMs ?? 15 * 60_000, cfg.ffmpeg);
+    if (!existsSync(candidate) || !statSync(candidate).isFile() || statSync(candidate).size <= 0
+      || !await hasAudioStream(candidate, cfg.ffprobe) || !(await probeSeconds(candidate, cfg.ffprobe) > 0)) throw new WhiteboardEngineError("混流未产出真实可读音视频");
+    for (const source of sources) {
+      const stat = statSync(source.path);
+      if (stat.size !== source.bytes || stat.mtimeMs !== source.mtimeMs || sha(source.path) !== source.sha256) throw new WhiteboardEngineError(`混流期间输入字节变化：${source.path}`);
+    }
+    if (existsSync(opts.output)) {
+      if (!lstatSync(opts.output).isFile() || lstatSync(opts.output).isSymbolicLink()) throw new WhiteboardEngineError("混流输出路径非法");
+      renameSync(opts.output, `${opts.output}.previous-${randomUUID()}`);
+    }
+    renameSync(candidate, opts.output);
+  } catch (error) { rmSync(candidate, { force: true }); throw error; }
+  return { output: opts.output, videoSeconds, audioSeconds, loudnessBefore: null, loudnessAfter: null,
     avDriftSec: Math.round((videoSeconds - audioSeconds) * 1000) / 1000,
-  };
+    qualityReviewed: false, qualityScore: null, normalizationRequested: opts.normalize === true,
+    sha256: sha(opts.output), bytes: statSync(opts.output).size,
+    sourceFiles: sources.map(({ path, sha256, bytes }) => ({ path, sha256, bytes })) };
 }
 
 /** 时长探测（交付对账面：音画不同长要在报告里显式暴露，不能"看着差不多"） */
@@ -160,9 +160,10 @@ export async function probeSeconds(file: string, ffprobe = "ffprobe"): Promise<n
       "-v", "error", "-show_entries", "format=duration", "-of", "default=nw=1:nk=1", file,
     ], { timeout: 60_000 });
     const value = Number(stdout.trim());
-    return Number.isFinite(value) ? value : 0;
-  } catch {
-    return 0;
+    if (!Number.isFinite(value) || value <= 0) throw new Error("媒体时间线不可读");
+    return value;
+  } catch (error) {
+    throw new WhiteboardEngineError(`媒体时间线探测失败：${file}`, error instanceof Error ? error.message : String(error));
   }
 }
 
@@ -174,7 +175,7 @@ export async function hasAudioStream(file: string, ffprobe = "ffprobe"): Promise
       "-of", "csv=p=0", file,
     ], { timeout: 60_000 });
     return stdout.trim().length > 0;
-  } catch {
-    return false;
+  } catch (error) {
+    throw new WhiteboardEngineError(`媒体音轨探测失败：${file}`, error instanceof Error ? error.message : String(error));
   }
 }

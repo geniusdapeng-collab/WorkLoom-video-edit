@@ -1,7 +1,7 @@
 # 成片配乐围栏包（视频经理 · 配乐工位）
 # 与 ai-video-baseline.yml / ai-video-color.yml 同口径：默认基线、只可加严、命中取严（block > review > auto）；
 # 求值语义：匹配命中后求值 when（沙箱，禁任意代码），写类动作无命中按 default_level。
-version: ai-video-bgm/v1
+version: ai-video-bgm/v2
 default_level: review
 rules:
   - rule_id: G-BGM0
@@ -31,7 +31,7 @@ rules:
     match:
       object_types: [final_video, video_asset]
       actions: [bgmwrite.mix, bgmwrite.compose, bgmwrite.best]
-    when: "params.overwrite_source == true or params.output_path == params.input_path"
+    when: "params.overwrite_source == true or params.output_path in [params.input_path]"
     note: 原片只读是硬红线：配乐一律产出新文件并进版本链（视频轨 copy 不改画面），任何覆盖原片的调用一票否决。
 
   - rule_id: G-BGM3
@@ -41,8 +41,8 @@ rules:
     match:
       object_types: [final_video, bgm_report]
       actions: [bgmwrite.mix, bgmwrite.best]
-    when: "params.skip_verify == true or params.verify == false or params.mute_dialogue == true or (params.policy == \"music-only\" and params.allow_discard_original != true) or params.remove_vocals_full == true"
-    note: 两条硬线：① 配乐必须带复检（响度/人声余量/配乐可闻度），关闭校验的调用禁止执行（无回执=未核实）；② 不许把"声音全去掉再盖音乐"当默认做法——丢弃原声（含人声）必须显式声明 allow_discard_original=true，且不得声称为标准流程。
+    when: "params.mute_dialogue == true or (params.policy == \"music-only\" and params.allow_discard_original != true) or params.remove_vocals_full == true"
+    note: 默认保留原文件内嵌声音，执行一次请求的配乐混音并核对真实产物、音轨、时钟与哈希。响度、人声余量、可闻度与原声质量不进行后置投票；legacy verify/skip_verify 不阻断处理。不许把声音全去掉再盖音乐当默认做法，丢弃原声必须显式授权 allow_discard_original=true。
 
   - rule_id: G-BGM4
     name: 单租户日配乐配额熔断

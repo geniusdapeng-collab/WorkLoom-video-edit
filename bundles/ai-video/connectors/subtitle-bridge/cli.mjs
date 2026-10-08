@@ -57,6 +57,13 @@ function number(value, fallback = null) {
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
+function requestedLimit(flags, name) {
+  if (!Object.hasOwn(flags, name)) return null;
+  const value = typeof flags[name] === "string" ? Number(flags[name]) : NaN;
+  if (!Number.isInteger(value) || value <= 0) throw new SubtitleError(`--${name} 必须是正整数`, "bad_request", false);
+  return value;
+}
+
 function readBrief(flags) {
   if (typeof flags.brief === "string") return JSON.parse(fs.readFileSync(flags.brief, "utf8"));
   const brief = {};
@@ -185,7 +192,7 @@ async function main() {
       line(`已烧录：${report.output.path}（${report.encoder}）`);
       line(`  字幕字体 ${report.fonts.字幕?.name ?? "-"} · 标题字体 ${report.fonts.标题?.name ?? "-"}`);
       line(`  时间轴回读 ${report.timeline.cues}/${report.timeline.sourceCues} 条（${report.timeline.ok ? "一致" : "不一致"}）`);
-      line(`  字幕可现度 Δ${report.presence.delta}（阈值 ${report.presence.threshold}，t=${report.presence.at}s）`);
+      line("  源画面质量未复检；已核对真实渲染、时间轴、字体与输出轨道");
       line(`  标点体检 ${report.checks.punctuation_ok ? "ok" : "fail"}（口径：字幕不带标点；数字内的 . : - / 保留）`);
       line(`  版式体检：${report.layoutChecks.map((check) => `${check.kind}=${check.ok ? "ok" : "fail"}`).join(" ")}`);
       line(`  sha256 ${report.output.hash}`);
@@ -215,11 +222,11 @@ async function main() {
         brief: readBrief(flags),
         evidenceDir: typeof flags["evidence-dir"] === "string" ? flags["evidence-dir"] : null,
         opacity: number(flags.opacity, 0.85),
-        maxChars: number(flags["max-chars"], 20),
-        maxConcurrent: number(flags["max-concurrent"], 8),
+        maxChars: requestedLimit(flags, "max-chars"),
+        maxConcurrent: requestedLimit(flags, "max-concurrent"),
       });
       line(`已渲染弹幕：${report.output.path}`);
-      line(`  条数 ${report.density.kept}/${report.density.total}（窗口 ${report.density.windowSec}s 并发峰值 ${report.density.peakConcurrent}/${report.density.maxConcurrent}${report.density.trimmed ? `，抽稀 ${report.density.trimmed}` : ""}）`);
+      line(`  条数 ${report.density.kept}/${report.density.total}（窗口 ${report.density.windowSec}s 并发峰值 ${report.density.peakConcurrent}，${report.density.requested ? `请求上限 ${report.density.maxConcurrent}` : "未请求限制"}${report.density.trimmed ? `，按请求抽稀 ${report.density.trimmed}` : ""}）`);
       line(`  字体 ${report.font.name} · 字号 ${report.style.fontSize}px · 透明度 ${report.opacity}`);
       line(`  复检：${Object.entries(report.checks).map(([k, v]) => `${k}=${v ? "ok" : "fail"}`).join(" ")}`);
       line(`  sha256 ${report.output.hash}`);
@@ -280,7 +287,7 @@ async function main() {
         platform: typeof flags.platform === "string" ? flags.platform : null,
         brief: readBrief(flags),
         evidenceDir: typeof flags["evidence-dir"] === "string" ? flags["evidence-dir"] : null,
-        analyze: flags["no-analyze"] !== true,
+        analyze: flags.analyze === true,
       });
       line(`旁挂字幕交付：${outcome.outputDir}`);
       for (const file of outcome.files) {
@@ -324,8 +331,8 @@ async function main() {
         line(`结论：无需加字幕/无需改动 —— ${outcome.reason}`);
         return 0;
       }
-      line("结论：已出片（择优）");
-      line(`  赢家 ${outcome.winner.fontName} / ${outcome.winner.variant} · 得分 ${outcome.winner.score}（阈值 ${outcome.minScore}）`);
+      line("结论：按声明版式单次出片");
+      line(`  字体 ${outcome.winner.fontName} / ${outcome.winner.variant} · 源画面质量未复检`);
       line(`  成片 ${outcome.output.path} · sha256 ${outcome.sha256}`);
       return 0;
     }

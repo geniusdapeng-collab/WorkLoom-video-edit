@@ -57,7 +57,7 @@ const preset = YAML.parse(readFileSync(join(BUNDLE_DIR, "presets/voice-artist.ym
 
 describe("配音围栏（G-VOICE0..G-VOICE6）语义", () => {
   it("七条规则齐备，级别与基线口径正确", () => {
-    expect(fencePack.version).toBe("ai-video-voice/v1");
+    expect(fencePack.version).toBe("ai-video-voice/v2");
     expect(fencePack.rules.map((rule) => rule.rule_id)).toEqual([
       "G-VOICE0", "G-VOICE1", "G-VOICE2", "G-VOICE3", "G-VOICE4", "G-VOICE5", "G-VOICE6",
     ]);
@@ -93,9 +93,9 @@ describe("配音围栏（G-VOICE0..G-VOICE6）语义", () => {
     expect(evaluate("G-VOICE2", { out: "/out.mp4", video: "/in.mp4" })).toBe(false);
   });
 
-  it("G-VOICE3：关闭校验禁止执行", () => {
-    expect(evaluate("G-VOICE3", { skip_verify: true })).toBe(true);
-    expect(evaluate("G-VOICE3", { verify: false })).toBe(true);
+  it("G-VOICE3：legacy 源品质复检开关不阻断真实配音", () => {
+    expect(evaluate("G-VOICE3", { skip_verify: true })).toBe(false);
+    expect(evaluate("G-VOICE3", { verify: false })).toBe(false);
     expect(evaluate("G-VOICE3", { verify: true })).toBe(false);
   });
 

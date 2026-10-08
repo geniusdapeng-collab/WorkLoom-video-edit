@@ -13,6 +13,8 @@ import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { describe, expect, it } from "vitest";
 import YAML from "yaml";
+// Required base CI exercises actual processing/source failures as well as the contract DSL.
+import "../../../bundles/ai-video/connectors/post-bridge/delivery-integration.test.js";
 
 import { evalCondition } from "../fence-engine/expr.js";
 import { bundlesRoot } from "./assembly.js";
@@ -61,7 +63,7 @@ const preset = YAML.parse(readFileSync(join(BUNDLE_DIR, "presets/post-editor.yml
 
 describe("交付与返修围栏（G-DLV0..G-DLV9）语义", () => {
   it("十条规则齐备、级别与基线口径正确", () => {
-    expect(fencePack.version).toBe("ai-video-delivery/v1");
+    expect(fencePack.version).toBe("ai-video-delivery/v2");
     expect(fencePack.rules.map((rule) => rule.rule_id)).toEqual([
       "G-DLV0", "G-DLV1", "G-DLV2", "G-DLV3", "G-DLV4", "G-DLV5", "G-DLV6", "G-DLV7", "G-DLV8", "G-DLV9",
     ]);
@@ -80,10 +82,12 @@ describe("交付与返修围栏（G-DLV0..G-DLV9）语义", () => {
     }
   });
 
-  it("G-DLV1：变体雷同或数量不足即拒（这是多版本交付的唯一理由）", () => {
-    expect(evaluate("G-DLV1", { variants_distinct: false })).toBe(true);
-    expect(evaluate("G-DLV1", { identical_variants: true })).toBe(true);
-    expect(evaluate("G-DLV1", { variant_count: 1 })).toBe(true);
+  it("G-DLV1：只按真实缺件阻断，不对源画面或变体区别进行投票", () => {
+    expect(evaluate("G-DLV1", { variants_distinct: false })).toBe(false);
+    expect(evaluate("G-DLV1", { identical_variants: true })).toBe(false);
+    expect(evaluate("G-DLV1", { variant_count: 1 })).toBe(false);
+    expect(evaluate("G-DLV1", { output_missing: true })).toBe(true);
+    expect(evaluate("G-DLV1", { output_unreadable: true })).toBe(true);
     expect(evaluate("G-DLV1", { variant_count: 3, variants_distinct: true })).toBe(false);
     // 缺字段不命中（走 default_level 的保守 review），不会把正常交付一律熔断
     expect(evaluate("G-DLV1", {})).toBe(false);
@@ -97,9 +101,9 @@ describe("交付与返修围栏（G-DLV0..G-DLV9）语义", () => {
     expect(evaluate("G-DLV2", { output_path: "/a.mp4", input_path: "/b.mp4" })).toBe(false);
   });
 
-  it("G-DLV3：软字幕轨必须带画面零改动复检", () => {
-    expect(evaluate("G-DLV3", { skip_verify: true })).toBe(true);
-    expect(evaluate("G-DLV3", { verify: false })).toBe(true);
+  it("G-DLV3：软字幕必须 copy 原编码轨道，品质开关不阻断处理", () => {
+    expect(evaluate("G-DLV3", { skip_verify: true })).toBe(false);
+    expect(evaluate("G-DLV3", { verify: false })).toBe(false);
     expect(evaluate("G-DLV3", { reencode_video: true })).toBe(true);
     expect(evaluate("G-DLV3", { allow_video_reencode: true })).toBe(true);
     expect(evaluate("G-DLV3", {})).toBe(false);
@@ -129,11 +133,13 @@ describe("交付与返修围栏（G-DLV0..G-DLV9）语义", () => {
     expect(evaluate("G-DLV7", {})).toBe(false);
   });
 
-  it("G-DLV8/G-DLV9：UHD 实测画布与本地增强来源缺一即阻断", () => {
+  it("G-DLV8/G-DLV9：核对请求画布与显式增强执行，不自动要求源质量增强", () => {
     expect(evaluate("G-DLV8", { uhd_requested: true, resolution_exact: false })).toBe(true);
     expect(evaluate("G-DLV8", { uhd_requested: true, resolution_exact: true })).toBe(false);
     expect(evaluate("G-DLV8", { uhd_requested: false, resolution_exact: false })).toBe(false);
-    expect(evaluate("G-DLV9", { uhd_requested: true, enhancement_verified: false })).toBe(true);
+    expect(evaluate("G-DLV9", { uhd_requested: true, enhancement_verified: false })).toBe(false);
+    expect(evaluate("G-DLV9", { enhancement_requested: true, enhancement_execution_succeeded: false })).toBe(true);
+    expect(evaluate("G-DLV9", { enhancement_requested: true, enhancement_execution_succeeded: true })).toBe(false);
     expect(evaluate("G-DLV9", { uhd_requested: true, enhancement_verified: true })).toBe(false);
     expect(evaluate("G-DLV9", { uhd_requested: false, enhancement_verified: false })).toBe(false);
   });

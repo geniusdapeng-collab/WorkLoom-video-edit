@@ -7,7 +7,7 @@
  *        ──lineart──▶ 逐幕线稿（seedream / sketch）──annotate──▶ 逐幕标注
  *        ──preview（确认关）──▶ 编号检查图 ──render──▶ 逐幕渲染 + 合并
  *        （经 submitGenJob + render-poller：台账 / 事件 / 成本 / 媒资 / 档案全部复用）
- *        ──deliver──▶ 两遍 loudnorm 混流 + 软字幕轨 ──▶ 媒资库 kind='final_cut'
+ *        ──deliver──▶ 按请求旁白混流 + 软字幕轨 ──▶ 媒资库 kind='final_cut'
  *
  * 与规格书 §2.3 的三处实施期修正：
  *   ① 规格书的三步链没有"配音"的落点，而 SRT 是从配音时长派生的——本实现把 `narrate`
@@ -774,7 +774,7 @@ export const whiteboardRouter = router({
     }),
 
   /**
-   * 环节 ⑥：交付 —— 两遍 loudnorm 混流 + 软字幕轨 + 媒资库 final_cut。
+   * 环节 ⑥：交付 —— 按请求旁白混流 + 软字幕轨 + 媒资库 final_cut。
    *
    * 取片顺序：job 目录里的 `whiteboard-silent.mp4`（分幕合并产物）→ 找不到则回退 poller
    * 已入库的本地副本。混流后**重新入库**为 final_cut（clip 是素材，final_cut 是交付物）。
@@ -783,6 +783,7 @@ export const whiteboardRouter = router({
     .input(z.object({
       filmId: z.string().min(1),
       withSubtitle: z.boolean().default(true),
+      audioNormalization: z.enum(["preserve", "loudnorm"]).default("preserve"),
       title: z.string().max(120).optional(),
     }))
     .mutation(async ({ ctx, input }) => {
@@ -817,6 +818,7 @@ export const whiteboardRouter = router({
         output,
         srtPath,
         targetLufs: Number(film.voice_lufs),
+        normalize: input.audioNormalization === "loudnorm",
         env: process.env,
       });
       if (whiteboardQualityOf(film.cap_long_edge) === "uhd") {

@@ -335,7 +335,9 @@ export async function segmentSpectralStats({ input, start = 0, duration = null, 
   const args = ["-hide_banner", "-nostats", "-v", "info"];
   if (start > 0) args.push("-ss", String(start));
   if (duration !== null) args.push("-t", String(duration));
-  args.push("-i", input, "-vn", "-sn", "-dn", "-map", "0:a:0", "-af", "aspectralstats=measure=centroid+flatness:win_size=2048,ametadata=print", "-f", "null", "-");
+  // FFmpeg 5.1 emits centroid/flatness by default and has no `measure` option.
+  // Request the common window option; the parser selects the required fields.
+  args.push("-i", input, "-vn", "-sn", "-dn", "-map", "0:a:0", "-af", "aspectralstats=win_size=2048,ametadata=print", "-f", "null", "-");
   const { stderr } = await runBin(bins.ffmpeg, args, { label: "ffmpeg(aspectralstats)", timeoutMs: 300_000 });
   return parseSpectralStats(stderr);
 }

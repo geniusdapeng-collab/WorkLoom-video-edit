@@ -1,18 +1,16 @@
 /**
- * explainer/deliver.ts —— 交付段：两遍 loudnorm + 媒资库入库 · T-2026-0926-0008
- *
- * 为什么两遍（SKILL.md ⑧ 原命令）：单遍 loudnorm 是**动态**归一，会把片子的强弱对比压平；
- * 第一遍只量测（`-f null -` 读 stderr JSON），第二遍带 `measured_*` + `linear=true` 做线性归一——
- * 音色与动态都保住，只有整体电平落到 I=-15 / TP=-1.5 / LRA=11。
+ * explainer/deliver.ts —— 默认保留原片原声，明确请求时执行一次响度处理。
+ * measureLoudness/normalizeLoudness 是独立诊断与处理函数，不参与默认交付。
  *
  * 入库口径（spec §6.7 + 媒资库 0039）：`kind='final_cut'`、`source_type='generated'`、
  * `pipeline_kind='explainer'`、prompt=口播稿摘要、tags 带「口播/解说/片名」，
  * 走 `registerLocalAsset`（sha256 幂等 + 版本链 + D16 同事务事件）——**不新开第二条入库路径**。
  */
 import { spawn } from "node:child_process";
-import { existsSync, statSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { createHash, randomUUID } from "node:crypto";
 import { join } from "node:path";
-import { audioFingerprint } from "./asr-aligner.js";
+
 
 export interface LoudnormMeasurement {
   input_i: number;
@@ -44,7 +42,7 @@ function run(
 }
 
 export function ffmpegBin(env: NodeJS.ProcessEnv = process.env): string {
-  return env.FFMPEG_PATH?.trim() || "ffmpeg";
+  return env.WL_FFMPEG?.trim() || env.FFMPEG_PATH?.trim() || "ffmpeg";
 }
 
 /** 第一遍：只量测（读 stderr 里 loudnorm 的 JSON 块） */
@@ -102,28 +100,53 @@ export async function normalizeLoudness(
 export interface DeliverResult {
   deliveryPath: string;
   rawPath: string;
-  measurement: LoudnormMeasurement;
+  measurement: LoudnormMeasurement | null;
   bytes: number;
   sha256: string;
 }
 
-/** 交付段主流程：量测 → 归一 → 落 delivery.mp4（入库由调用方决定走 DB 还是离线记录） */
+/** 默认原视频/原音字节直接交付；响度归一仅在 normalize=true 明确请求时执行。 */
 export async function deliverFilm(input: {
   jobDir: string;
   env?: NodeJS.ProcessEnv;
   onLog?: (line: string) => void;
+  normalize?: boolean;
+  sourceSha256?: string;
 }): Promise<DeliverResult> {
   const raw = join(input.jobDir, "out", "v1.mp4");
   if (!existsSync(raw)) throw new Error(`成片不存在：${raw}（先渲染）`);
   const delivery = join(input.jobDir, "out", "delivery.mp4");
-  const measurement = await measureLoudness(raw, { env: input.env, onLog: input.onLog });
-  await normalizeLoudness(raw, delivery, measurement, { env: input.env, onLog: input.onLog });
-  const fp = await audioFingerprint(delivery);
-  writeFileSync(join(input.jobDir, "out", "delivery-loudnorm.json"), JSON.stringify({
-    measured: measurement,
-    target: { I: -15, TP: -1.5, LRA: 11 },
-    delivery: { sha256: fp.sha256, bytes: fp.bytes, path: "out/delivery.mp4" },
-  }, null, 1));
+  const before = statSync(raw);
+  if (!before.isFile() || before.size <= 0) throw new Error("POST_DELIVERY_SOURCE_REQUIRED");
+  const sourceSha256 = createHash("sha256").update(readFileSync(raw)).digest("hex");
+  if (input.sourceSha256 && input.sourceSha256 !== sourceSha256) throw new Error("POST_DELIVERY_SOURCE_CHANGED");
+  let measurement: LoudnormMeasurement | null = null;
+  const candidate = `${delivery}.${randomUUID()}.pending.mp4`;
+  try {
+    if (input.normalize === true) {
+      const result = await run(ffmpegBin(input.env), ["-hide_banner", "-nostats", "-n", "-i", raw,
+        "-map", "0:v:0", "-map", "0:a?", "-c:v", "copy", "-af",
+        "loudnorm=I=-15:TP=-1.5:LRA=11,aeval=if(isnan(val(ch))+isinf(val(ch))\\,0\\,val(ch)):c=same",
+        "-ar", "48000", "-c:a", "aac", "-b:a", "192k", candidate], { env: input.env, onLog: input.onLog });
+      if (result.code !== 0) throw new Error(`POST_DELIVERY_PROCESSING_FAILED: ${result.stderr.slice(-1000)}`);
+    } else copyFileSync(raw, candidate);
+    const after = statSync(raw);
+    if (before.size !== after.size || before.mtimeMs !== after.mtimeMs
+      || createHash("sha256").update(readFileSync(raw)).digest("hex") !== sourceSha256) throw new Error("POST_DELIVERY_SOURCE_CHANGED_DURING_PROCESS");
+    if (!statSync(candidate).isFile() || statSync(candidate).size <= 0) throw new Error("POST_DELIVERY_OUTPUT_REQUIRED");
+    const sha256 = createHash("sha256").update(readFileSync(candidate)).digest("hex");
+    if (!input.normalize && sha256 !== sourceSha256) throw new Error("POST_DELIVERY_ORIGINAL_BYTES_CHANGED");
+    if (existsSync(delivery)) renameSync(delivery, `${delivery}.previous-${randomUUID()}`);
+    renameSync(candidate, delivery);
+    writeFileSync(join(input.jobDir, "out", "delivery-loudnorm.json"), JSON.stringify({
+      requested: input.normalize === true, measured: measurement, qualityReviewed: false, qualityScore: null,
+      target: input.normalize ? { I: -15, TP: -1.5, LRA: 11 } : null,
+      source: { sha256: sourceSha256, bytes: before.size, path: "out/v1.mp4" },
+      delivery: { sha256, bytes: statSync(delivery).size, path: "out/delivery.mp4" },
+    }, null, 1));
+  } catch (error) { rmSync(candidate, { force: true }); throw error; }
+  const fp = { sha256: createHash("sha256").update(readFileSync(delivery)).digest("hex"), bytes: statSync(delivery).size };
+
   return {
     deliveryPath: delivery,
     rawPath: raw,

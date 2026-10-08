@@ -3,12 +3,12 @@
  *
  * 管线 yml 的口径：**干净母版 + 旁挂字幕 + 2–3 个风格变体（封面/文案/BGM/调色/转场）+ 软字幕轨版 +
  * 交付清单 + 工程文件；镜头只生成一次，变体零 token**（只做后期层派生，绝不重跑渲染）。
- * gate `G-DLV1`：**变体雷同（画面与音轨都测不出差别）一票否决**。
+ * 正式后期按请求生成变体并记录文件指纹；不会自动比较画面或音轨品质。
  *
  * 本模块只做"决定 + 判定"的纯逻辑（可单测），真正的 ffmpeg/工位调用在 runner 里：
  *   · `DELIVERY_VARIANTS`   变体配方（调色档 + 文案后缀 + 音乐电平偏移）
  *   · `buildVariantPlan()`  把母版派生成变体的执行计划（含 ffmpeg/工位参数）
- *   · `assessVariantDistinctness()` 画面/音轨双维度差异判定 → G-DLV1 的判据
+ *   · `assessVariantDistinctness()` 显式诊断时比较调用方提供的画面/音轨测量；不属于默认交付门禁
  *   · `buildDeliveryManifest()`     交付清单（哪支母版、哪些变体、字幕与软轨在哪、各自的指纹）
  */
 
@@ -24,7 +24,7 @@ export interface DeliveryVariant {
   copySuffix: string;
   /** 该变体封面的强调色（#RRGGBB）——三支变体的封面必须互相可区分 */
   coverAccent: string;
-  /** 该变体配乐的曲库检索线索（实测 BPM 命中剪辑网格后才允许入选） */
+  /** 该变体配乐的曲库检索线索；默认按已声明题材与许可选曲 */
   bgmGenre: string;
   bgmMood: string;
   note: string;
@@ -309,11 +309,12 @@ export interface DeliveryManifest {
     id: string; label: string; path: string; sha256: string; note: string; gradeProfile: string | null;
     /** 该变体自己的封面（三轴口径：封面必须互相可区分） */
     cover?: { path: string; sha256: string } | null;
-    /** 该变体自己的配乐（曲库曲目 + 实测 BPM/卡点偏差） */
+    /** 该变体自己的配乐；BPM/卡点字段仅在显式诊断已有实际结果时填写 */
     bgm?: { track: string; sha256: string; measuredBpm?: number; gridErrorMs?: number } | null;
   }>;
-  /** G-DLV1 判定结果（雷同一票否决） */
-  distinctness: DistinctnessReport;
+  /** Explicit diagnostic result; null when ordinary post does not review source/variant quality. */
+  distinctness: DistinctnessReport | null;
+  qualityReviewed: boolean;
   /** 三轴判据（数量 ≥3 且 调色/封面/配乐 两两不同） */
   variantAxes?: VariantAxesReport;
   /** 证据：变体测量原始值（审计可复核） */
@@ -328,7 +329,7 @@ export function buildDeliveryManifest(input: {
   subtitles: { sidecarDir: string | null; softsub: string | null; burned: boolean };
   cover: { path: string | null; hook: string };
   variants: DeliveryManifest["variants"];
-  distinctness: DistinctnessReport;
+  distinctness: DistinctnessReport | null;
   variantAxes?: VariantAxesReport;
   samples: VariantSample[];
   at?: string;
@@ -342,6 +343,7 @@ export function buildDeliveryManifest(input: {
     cover: input.cover,
     variants: input.variants,
     distinctness: input.distinctness,
+    qualityReviewed: input.distinctness !== null,
     ...(input.variantAxes ? { variantAxes: input.variantAxes } : {}),
     samples: input.samples,
     reuseDiscipline: "变体只做后期层派生（调色/混音/文案），镜头不重新生成（零 token）；每支变体带 sha256 便于发布方核对"

@@ -5,6 +5,9 @@
 
 const fs = require('fs').promises;
 const path = require('path');
+const localFs = require('fs');
+const { createHash } = require('crypto');
+const { execFileSync } = require('child_process');
 
 // v2.0.2-fix: HTML转义工具，防止XSS和结构破坏
 function escapeHtml(text) {
@@ -95,10 +98,57 @@ class PostProductionEngine {
       versions: {},
       stages: {},
       errors: [],
-      timing: {}
+      timing: {},
+      artifactKind: 'hyperframes-composition', mediaRendered: false, qualityReviewed: false
     };
 
     try {
+      const shots = productionResult?.shots;
+      if (!Array.isArray(shots) || !shots.length || !Array.isArray(renderResult?.results)) throw new Error('POST_RENDER_REGISTRY_REQUIRED');
+      const ids = new Set();
+      const renderEntries = new Map();
+      for (const entry of renderResult.results) {
+        if (!entry || typeof entry.shotId !== 'string' || renderEntries.has(entry.shotId)) throw new Error('POST_RENDER_RECEIPT_DUPLICATE');
+        renderEntries.set(entry.shotId, entry);
+      }
+      for (const shot of shots) {
+        if (!shot || typeof shot.shotId !== 'string' || !shot.shotId || ids.has(shot.shotId)) throw new Error('POST_RENDER_SHOT_INVALID');
+        ids.add(shot.shotId);
+        const entry = renderEntries.get(shot.shotId);
+        if (!entry || entry.success !== true || !['done', 'succeeded'].includes(entry.status)
+          || entry.mock === true || entry.error || typeof entry.taskId !== 'string' || !entry.taskId.trim()
+          || /^SIMULATED-/i.test(entry.taskId)) throw new Error(`POST_RENDER_PROVIDER_SUCCESS_REQUIRED: ${shot.shotId}`);
+        const file = entry.videoPath;
+        if (typeof file !== 'string' || !file || !localFs.statSync(file).isFile() || localFs.statSync(file).size <= 0) throw new Error(`POST_RENDER_FILE_REQUIRED: ${shot.shotId}`);
+        const sha256 = createHash('sha256').update(localFs.readFileSync(file)).digest('hex');
+        const bytes = localFs.statSync(file).size;
+        const currentBytes = { path: path.resolve(file), sha256, bytes, shotId: shot.shotId, taskId: entry.taskId };
+        if (Object.prototype.hasOwnProperty.call(entry, 'currentBytes')) {
+          const issued = entry.currentBytes;
+          if (!issued || typeof issued !== 'object' || Array.isArray(issued)
+            || issued.path !== currentBytes.path || issued.sha256 !== sha256 || issued.bytes !== bytes
+            || issued.shotId !== shot.shotId || issued.taskId !== entry.taskId) {
+            throw new Error(`POST_RENDER_CURRENT_BYTES_MISMATCH: ${shot.shotId}`);
+          }
+        }
+        if (Object.prototype.hasOwnProperty.call(entry, 'renderedShotAcceptance')) {
+          const accepted = entry.renderedShotAcceptance;
+          if (!accepted || accepted.taskId !== entry.taskId || accepted.shotId !== shot.shotId
+            || accepted.artifact?.sha256 !== sha256 || accepted.artifact?.bytes !== bytes
+            || accepted.artifact?.path !== currentBytes.path) throw new Error(`POST_RENDER_CURRENT_BYTES_MISMATCH: ${shot.shotId}`);
+        }
+        const metadata = JSON.parse(execFileSync(process.env.WL_FFPROBE || 'ffprobe', ['-v', 'error', '-show_streams', '-show_format', '-of', 'json', file],
+          { encoding: 'utf8', timeout: 30000, maxBuffer: 4 * 1024 * 1024 }));
+        const duration = Number(metadata.format?.duration);
+        if (!(duration > 0) || !metadata.streams?.some(stream => stream.codec_type === 'video')) throw new Error(`POST_RENDER_MEDIA_UNREADABLE: ${shot.shotId}`);
+        if (localFs.statSync(file).size !== bytes || createHash('sha256').update(localFs.readFileSync(file)).digest('hex') !== sha256) {
+          throw new Error(`POST_RENDER_CURRENT_BYTES_MISMATCH: ${shot.shotId}`);
+        }
+        entry.renderedDuration = duration;
+        // A persisted task/file binding is immutable; current pixels are never a new receipt for an old task.
+        if (!Object.prototype.hasOwnProperty.call(entry, 'currentBytes')) entry.currentBytes = currentBytes;
+      }
+      result.sourceReceipts = [...renderEntries.values()].map(entry => ({ shotId: entry.shotId, taskId: entry.taskId, ...entry.currentBytes }));
       // 【2026-07-17 修复】Layer 4 创意指数 → 剪辑节奏与声音设计（此前无人消费）
       const ci = productionResult._creativeIntensity;
       const ppCfg = ci?.engineConfigs?.postProductionEngine;
@@ -171,19 +221,20 @@ class PostProductionEngine {
       };
       this.log('POST-PROD', `✅ 版本组装完成: ${this.config.versions.length} 个版本`);
 
-      // ========== Stage 5: 质量检查 ==========
-      this.log('POST-PROD', '\n🛡️ [Stage 5] 质量检查');
+      // ========== Stage 5: 实际工程文件与引用 ==========
+      this.log('POST-PROD', '\n[Stage 5] 实际工程文件与引用');
       const stage5Start = Date.now();
       
-      const qualityCheck = await this.qualityCheck(result.versions);
-      result.stages.quality = {
+      const qualityCheck = await this.checkCompositionFiles(result.versions);
+      result.stages.processing = {
         passed: qualityCheck.passed,
         issues: qualityCheck.issues,
         timing: Date.now() - stage5Start
       };
-      this.log('POST-PROD', `✅ 质量检查: ${qualityCheck.passed ? '通过' : '未通过'} (${qualityCheck.issues.length} 问题)`);
+      this.log('POST-PROD', `工程文件检查: ${qualityCheck.passed ? '完成' : '失败'} (${qualityCheck.issues.length} 问题)`);
 
       result.success = qualityCheck.passed;
+      result.processingChecks = { ...qualityCheck, qualityReviewed: false };
       result.timing.total = Date.now() - startTime;
       
       this.log('POST-PROD', `\n🏁 后期制作完成: ${result.timing.total}ms | ${this.config.versions.length} 版本`);
@@ -528,11 +579,14 @@ class PostProductionEngine {
     
     return {
       version,
+      artifactKind: 'hyperframes-composition', mediaRendered: false, qualityReviewed: false,
       htmlPath,
       configPath,
       features: versionConfig,
-      // 【P0-3 修复】透传 shots 和 musicTracks，供 qualityCheck 做实质性检查
-      shots: (productionResult && productionResult.shots) || [],
+      shots: (productionResult?.shots || []).map(shot => {
+        const entry = renderResult.results.find(item => item.shotId === shot.shotId);
+        return { ...shot, videoPath: entry.videoPath, duration: entry.renderedDuration };
+      }),
       musicTracks: musicTracks || [],
       // 渲染命令（实际使用时）
       renderCommand: `${this.config.hyperframesBin} render ${htmlPath} --output ${path.join(versionDir, 'output.mp4')}`,
@@ -659,7 +713,8 @@ class PostProductionEngine {
     for (let i = 0; i < shots.length; i++) {
       const shot = shots[i];
       // B10-fix: 优先使用顶层 duration 字段
-      const duration = shot.duration || shot.timing?.duration || 25;
+      const duration = Number(renderMap.get(shot.shotId)?.renderedDuration ?? shot.renderedDuration ?? shot.duration ?? shot.timing?.duration);
+      if (!(duration > 0)) throw new Error(`POST_RENDER_TIMELINE_UNREADABLE: ${shot.shotId}`);
       
       // 【P0-11 修复】视频源优先使用 renderResult 真实路径，非硬编码文件名
       const renderEntry = renderMap.get(shot.shotId);
@@ -668,7 +723,7 @@ class PostProductionEngine {
       // 视频片段
       html.push(`  <!-- Shot ${shot.shotId} -->`);
       html.push(`  <video class="clip" data-start="${currentTime}" data-duration="${duration}" data-track-index="${trackIndex++}"`);
-      html.push(`         src="${videoSrc}" muted playsinline style="width:100%; height:100%;"></video>`);
+      html.push(`         src="${escapeHtml(videoSrc)}" playsinline style="width:100%; height:100%;"></video>`);
       html.push('');
       
       // 转场效果（镜头之间）
@@ -782,13 +837,14 @@ class PostProductionEngine {
   }
 
   /**
-   * 质量检查
+   * 实际合成工程文件及引用检查；不复核原片画面或声音品质。
    */
-  async qualityCheck(versions) {
+  async checkCompositionFiles(versions) {
     const fs = require('fs');
     const issues = [];
+    if (!versions || !Object.keys(versions).length) issues.push('合成工程版本为空');
     
-    // 【P1-21 修复】qualityCheck 改为实质性检查：文件存在、引用有效、shots非空
+    // 已在入口验证供应商成功和实际字节，这里只检查保存出的工程引用。
     for (const [version, data] of Object.entries(versions)) {
       // 1. 检查 HTML 文件真实存在
       if (!data.htmlPath) {
@@ -822,15 +878,10 @@ class PostProductionEngine {
         }
       }
       
-      // 5. 特征配置保留为辅助检查（非阻塞）
-      const expectedFeatures = this.getVersionConfig(version);
-      if (JSON.stringify(expectedFeatures) !== JSON.stringify(data.features)) {
-        issues.push(`版本 ${version}: 特征配置不匹配(警告)`);
-      }
     }
     
     return {
-      passed: issues.filter(i => !i.includes('(警告)')).length === 0,
+      passed: issues.length === 0,
       issues
     };
   }
@@ -844,7 +895,8 @@ class PostProductionEngine {
     lines.push('# 🎬 后期制作报告');
     lines.push('');
     lines.push(`**版本**: ${this.config.versions.join(', ')}`);
-    lines.push(`**状态**: ${postResult.success ? '✅ 成功' : '❌ 失败'}`);
+    lines.push(`**合成工程**: ${postResult.success ? '✅ HTML/config 已生成' : '❌ 失败'}；MP4 尚未渲染`);
+    lines.push('**品质复核**: 未执行；原片原声默认保留，处理检查仅核对实际文件及引用。');
     lines.push(`**总耗时**: ${postResult.timing?.total}ms`);
     lines.push('');
     

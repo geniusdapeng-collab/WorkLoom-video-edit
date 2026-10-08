@@ -10,9 +10,9 @@
  * 纪律：不 mock 被测逻辑本身；需要外部解释器的一例（parse_srt 比对）在缺 python 时**显式跳过**
  * 并在断言里写明跳过原因，而不是静默通过。
  */
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -24,6 +24,70 @@ import { reusableSegment, splitSentences, type SegmentManifest } from "./narrati
 import { resumableScene } from "./store.js";
 import { projectedWhiteboardSize, readImageSize, whiteboardEngineReady, whiteboardEnv } from "./engine.js";
 import { readWhiteboardParams } from "./provider.js";
+import { hasAudioStream, muxWhiteboardFilm, probeSeconds } from "./mux.js";
+
+describe("真实白板后期单次请求混流", () => {
+  const ffmpeg = process.env.WL_FFMPEG || "ffmpeg", ffprobe = process.env.WL_FFPROBE || "ffprobe";
+  const sha = (file: string) => createHash("sha256").update(readFileSync(file)).digest("hex");
+  function fixture(audio: boolean, silentNarration = false) {
+    const root = mkdtempSync(join(tmpdir(), "growth 白板 post-")), video = join(root, "rendered.mp4"), narration = join(root, "narration.wav"), output = join(root, "final.mp4");
+    for (const args of [["-f", "lavfi", "-i", "color=black:s=80x60:r=17:d=0.4", ...(audio ? ["-f", "lavfi", "-i", "sine=frequency=411:sample_rate=48000:duration=0.4", "-c:a", "aac", "-shortest"] : ["-an"]),
+      "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p", video],
+    ["-f", "lavfi", "-i", silentNarration ? "anullsrc=r=48000:cl=stereo" : "sine=frequency=701:sample_rate=48000:duration=0.4", "-t", "0.4", "-c:a", "pcm_s16le", narration]]) {
+      const result = spawnSync(ffmpeg, ["-v", "error", "-n", ...args], { encoding: "utf8", timeout: 30_000 }); expect(result.status, result.stderr).toBe(0);
+    }
+    const trace = join(root, "actual-command.jsonl"), wrapper = join(root, "ffmpeg.cjs");
+    writeFileSync(wrapper, `#!${process.execPath}\nconst fs=require('node:fs'),cp=require('node:child_process');const a=process.argv.slice(2);fs.appendFileSync(${JSON.stringify(trace)},JSON.stringify(a)+'\\n');const r=cp.spawnSync(${JSON.stringify(ffmpeg)},a,{stdio:'inherit'});process.exit(r.status??1);`); chmodSync(wrapper, 0o755);
+    return { root, video, narration, output, trace, env: { ...process.env, WHITEBOARD_FFMPEG: wrapper, WHITEBOARD_FFPROBE: ffprobe } };
+  }
+  it.each([false, true])("默认原声保留=%s，真实黑屏静止/17FPS与无音轨不复检品质，实际只混流一次", async (audio) => {
+    const f = fixture(audio);
+    try {
+      const before = [sha(f.video), sha(f.narration)];
+      const result = await muxWhiteboardFilm({ silentVideo: f.video, narrationWav: f.narration, output: f.output, env: f.env });
+      expect(result.qualityReviewed).toBe(false); expect(result.qualityScore).toBeNull(); expect(result.normalizationRequested).toBe(false);
+      expect(result.loudnessBefore).toBeNull(); expect(result.loudnessAfter).toBeNull(); expect([sha(f.video), sha(f.narration)]).toEqual(before);
+      expect(result.sha256).toBe(sha(f.output)); expect(await hasAudioStream(f.output, ffprobe)).toBe(true);
+      const commands = readFileSync(f.trace, "utf8").trim().split("\n").map((line) => JSON.parse(line));
+      expect(commands).toHaveLength(1); expect(commands[0].join(" ")).not.toMatch(/loudnorm|volumedetect|silencedetect|null -/);
+      const packetHash = (file: string) => createHash("sha256").update(execFileSync(ffmpeg, ["-v", "error", "-i", file, "-map", "0:v:0", "-c:v", "copy", "-f", "data", "-"])).digest("hex");
+      expect(packetHash(f.output)).toBe(packetHash(f.video));
+      if (audio) {
+        const pcm = execFileSync(ffmpeg, ["-v", "error", "-i", f.output, "-vn", "-ac", "1", "-ar", "48000", "-f", "f32le", "-"]);
+        for (const frequency of [411, 701]) {
+          let real = 0, imaginary = 0; const count = pcm.length / 4;
+          for (let i = 0; i < count; i += 1) { const sample = pcm.readFloatLE(i * 4); real += sample * Math.cos(2 * Math.PI * frequency * i / 48000); imaginary += sample * Math.sin(2 * Math.PI * frequency * i / 48000); }
+          expect(Math.hypot(real, imaginary) / count).toBeGreaterThan(0.01);
+        }
+      }
+    } finally { rmSync(f.root, { recursive: true, force: true }); }
+  });
+  it("合法静音的明确响度请求只作同次滤镜，未测值保持 null，原文件不动", async () => {
+    const f = fixture(false, true);
+    try {
+      const before = [sha(f.video), sha(f.narration)];
+      const result = await muxWhiteboardFilm({ silentVideo: f.video, narrationWav: f.narration, output: f.output, normalize: true, env: f.env });
+      expect(result.normalizationRequested).toBe(true); expect(result.loudnessBefore).toBeNull(); expect(result.loudnessAfter).toBeNull();
+      expect([sha(f.video), sha(f.narration)]).toEqual(before);
+      const commands = readFileSync(f.trace, "utf8").trim().split("\n"); expect(commands).toHaveLength(1); expect(commands[0]).toContain("loudnorm");
+    } finally { rmSync(f.root, { recursive: true, force: true }); }
+  });
+  it("缺失/损坏媒体、覆盖源文件、真实处理失败关闭，保留旧成片不冒充新成功", async () => {
+    const f = fixture(false);
+    try {
+      const request = { silentVideo: f.video, narrationWav: f.narration, output: f.output, env: f.env };
+      await expect(muxWhiteboardFilm({ ...request, output: f.video })).rejects.toThrow("禁止覆盖");
+      await expect(muxWhiteboardFilm({ ...request, narrationWav: join(f.root, "missing.wav") })).rejects.toThrow("缺失");
+      const old = await muxWhiteboardFilm(request);
+      await expect(muxWhiteboardFilm({ ...request, env: { ...f.env, WHITEBOARD_FFMPEG: "/actual-missing-encoder" } })).rejects.toThrow("ffmpeg 失败");
+      expect(sha(f.output)).toBe(old.sha256); expect(readdirSync(f.root).some((file) => file.includes("pending"))).toBe(false);
+      writeFileSync(f.video, "current corrupt bytes");
+      await expect(muxWhiteboardFilm(request)).rejects.toThrow("探测失败");
+      await expect(probeSeconds(f.video, ffprobe)).rejects.toThrow(); await expect(hasAudioStream(f.video, ffprobe)).rejects.toThrow();
+      expect(existsSync(f.output)).toBe(true); expect(sha(f.output)).toBe(old.sha256);
+    } finally { rmSync(f.root, { recursive: true, force: true }); }
+  });
+});
 
 describe("白板输出画布契约", () => {
   it("UHD 线稿按引擎网格对齐后为原生 3840×2160", () => {

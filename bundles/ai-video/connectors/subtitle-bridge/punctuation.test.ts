@@ -8,6 +8,7 @@
  * 同时钉住三条不许误伤的细则：数字分隔符保留、纯西文不强制、整行只剩标点时不产出空字幕。
  */
 import { describe, expect, it } from "vitest";
+import "./processing.test.ts";
 import {
   findSubtitlePunctuation,
   isCjkText,

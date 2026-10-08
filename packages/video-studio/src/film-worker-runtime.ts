@@ -8,7 +8,7 @@ import type { ProducerGateOptions, ProducerVerdict } from "./producer-gate.js";
 
 export const FILM_CLI_STAGES = Object.freeze(["cine-kb", "continuity", "micromotion", "spec", "plates", "material-gen", "videos", "voice", "compose", "color", "subtitle", "danmaku", "bgm", "sfx", "cover", "mux", "master", "deliver", "revise"]);
 const valueOptions = new Set(["aspect", "resolution", "quality", "platform", "fps", "max-attempts", "xfade", "cut-transition", "cut-transition-duration", "cut-transition-at", "subtitle-mode", "subtitle-lang", "cover-platform", "cover-hero", "cover-hook", "theme", "account", "only", "review-policy", "route-kind", "assembly-mode", "assembly-reason", "revise-note", "revision-context", "narration-profile", "enhance-kind"]);
-const flagOptions = new Set(["no-resume", "no-danmaku", "no-open-with-cover", "no-cover-kb", "unified-narration", "prompt-english-gloss", "material-post-only", "material-speed-ramp", "bgm-declared-program-mix"]);
+const flagOptions = new Set(["enhance", "no-resume", "no-danmaku", "no-open-with-cover", "no-cover-kb", "unified-narration", "prompt-english-gloss", "material-post-only", "material-speed-ramp", "bgm-declared-program-mix"]);
 const enumOptions: Record<string, readonly string[]> = {
   aspect: ["9:16", "16:9", "1:1", "4:5"], resolution: ["720p", "1080p", "2160p"], quality: ["hd", "uhd"],
   "subtitle-mode": ["sidecar", "burn", "both"], "review-policy": ["off", "advisory", "blocking"],

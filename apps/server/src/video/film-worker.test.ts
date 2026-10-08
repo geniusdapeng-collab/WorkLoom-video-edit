@@ -1,10 +1,62 @@
 import { describe, expect, it } from "vitest";
-import { filmWorkerEnvironment, validateFilmChannelScope } from "./film-worker.js";
-import { FILM_CHANNEL_METHOD_COMPONENT, type FilmChannelRequestFrame } from "@hyperreality/video-studio";
+import { filmWorkerEnvironment, handleFilmChannelRequest, validateFilmChannelScope } from "./film-worker.js";
+import { FILM_CHANNEL_METHOD_COMPONENT, filmRequestHash, resolveEraProfile, type FilmChannelRequestFrame } from "@hyperreality/video-studio";
+import { mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 describe("film worker child environment", () => {
   it("keeps public local tools while dropping every account, database, model and signing credential", () => {
     const env = filmWorkerEnvironment({ PATH: "/local/bin", WL_FFMPEG: "/local/ffmpeg", SEEDANCE_MODEL: "test-model", LLM_API_KEY: "test-secret", JWT_SECRET: "test-secret", CNB_TOKEN: "test-secret", DATABASE_URL: "test-secret", CUSTOMER_OAUTH_TOKEN: "test-secret", NODE_OPTIONS: "--import arbitrary" });
     expect(env).toEqual({ PATH: "/local/bin", WL_FFMPEG: "/local/ffmpeg", SEEDANCE_MODEL: "test-model" });
+  });
+});
+
+describe("film parent local post budget", () => {
+  it.each(["shot", "compose", "color", "subtitle", "mux", "danmaku", "bgm", "sfx", "cover", "master"])("%s completes the actual parent channel with no model budget", async (stage) => {
+    const dir = realpathSync(mkdtempSync(join(tmpdir(), "film-post-zero-budget-")));
+    try {
+      writeFileSync(join(dir, "actual-post-receipt.json"), JSON.stringify({ processing: "actual-local-post" }));
+      const frozenStage = stage === "shot" ? "videos" : stage;
+      const shotId = stage === "shot" ? "S1" : null;
+      const stepKey = shotId ? `${frozenStage}:${shotId}` : frozenStage;
+      const accepted: Array<Record<string, unknown>> = [];
+      const reserved: number[] = [];
+      const dispatched: string[] = [];
+      const params = { stage, projectId: "project-a", context: shotId ? { shotId } : {},
+        artifacts: [{ ref: "actual-post-receipt.json", kind: "json" }],
+        deterministic: [{ id: "tool-exit", hard: true, pass: true, detail: "local command completed" }],
+      };
+      const requestHash = filmRequestHash({ method: "gate.review", stepKey, shotId, params });
+      const frame: FilmChannelRequestFrame = { kind: "film.request", id: "actual-parent-request",
+        method: "gate.review", component: FILM_CHANNEL_METHOD_COMPONENT["gate.review"]!,
+        stepKey, shotId, params, requestHash, idempotencyKey: `post:${stage}` };
+      const ctx = {
+        scope: { workspaceId: "workspace-a", tenantId: "tenant-a" }, env: {},
+        job: { id: "job-a", project_id: "project-a", stages: [frozenStage], options: { "review-policy": "blocking" }, attempt: 1 },
+        worker: { capabilities: ["gate.review"] }, workDir: dir, archiveRoot: dir,
+        shots: new Map([["S1", { shotId: "S1", scene: "black silent source" }]]), frozen: {},
+        contractSource: { projectId: "project-a", shots: [{ shotId: "S1", scene: "black silent source" }], eraProfile: resolveEraProfile({ storyDate: "2026-10-07" }) },
+        signal: new AbortController().signal, deadlineAt: Date.now() + 60_000,
+        ownerToken: "parent-owner", issuedUrls: new Map(), log: () => undefined, send: () => undefined,
+        ledger: {
+          reserveComponent: async (input: { reservedCny: number }) => {
+            reserved.push(input.reservedCny);
+            if (input.reservedCny > 0) throw new Error("ZERO_MODEL_BUDGET: no funds for a model call");
+            return { row: { id: "component-a" }, deduped: false };
+          },
+          claimComponent: async () => ({ id: "component-a" }),
+          recordDispatch: async (_id: string, _owner: string, provider: string) => { dispatched.push(provider); },
+          recordComponentAccepted: async (_id: string, _owner: string, receipt: Record<string, unknown>) => { accepted.push(receipt); },
+          recordComponentFailure: async () => { throw new Error("unexpected local-post failure"); },
+        },
+      } as unknown as Parameters<typeof handleFilmChannelRequest>[0];
+      const verdict = await handleFilmChannelRequest(ctx, frame) as { approved: boolean; score: number | null };
+      expect(verdict).toMatchObject({ approved: true, score: null });
+      expect(reserved).toEqual([0]);
+      expect(dispatched).toEqual(["workloom.producer-gate"]);
+      expect(accepted).toHaveLength(1);
+      expect(accepted[0]).toMatchObject({ actualCny: 0, evidence: { score: null, approved: true } });
+    } finally { rmSync(dir, { recursive: true, force: true }); }
   });
 });
 

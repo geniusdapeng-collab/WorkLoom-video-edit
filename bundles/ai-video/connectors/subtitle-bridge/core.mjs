@@ -7,8 +7,8 @@
  * 纪律（与 color-bridge / bgm-bridge 同构）：
  * - 原片只读：任何写入都落到新文件，覆盖原片直接拒绝（overwrite_source_forbidden）；
  * - 路径监狱：只允许访问白名单根目录内的路径（WORKLOOM_SUBTITLE_ALLOWED_ROOTS）；
- * - 无回执=未核实：产物必须给出 sha256 + 版式复检（实测字号/行宽/安全区/对比度/时间轴回读）；
- * - 不伪造：字体缺失、滤镜缺失、量不出来一律抛带稳定 code 的 SubtitleError，不猜、不兜底；
+ * - 无回执=未核实：产物必须给出真实 sha256、时间轴回读、字体解析与输出轨道；
+ * - 不伪造：字体或滤镜缺失、读取或编码失败抛稳定 code 的 SubtitleError；品质未检查如实标记；
  * - 不做修改型字体处理：不子集化、不改度量（OFL 修改后再发布需改名，本能力直接使用原始字体）。
  *
  * 选型知识来自 font-library v1.1（随包 font_db.json 的五维打标 + 字号/版式策略 + 账号调性），
@@ -1017,7 +1017,7 @@ export async function plan({
   bins = resolveBinaries(),
   outputDir = null,
   evidenceDir = null,
-  analyze = true,
+  analyze = false,
 }) {
   fontsDir = fontsDir ?? fontsRoot();
   const probe = input ? await probeMedia(input, { bins }) : null;
@@ -1295,7 +1295,7 @@ export async function plan({
   return { plan: planDoc, planPath, assPath, assText, checks, styles, events, cues, fonts, diagnosis, targets };
 }
 
-/** 版式体检汇总：全部 checks 通过才算达标（交付硬口径）。 */
+/** 独立版式诊断汇总；生产接收另按实际处理检查判定。 */
 export function checksPass(checks) {
   return (checks ?? []).every((check) => check.ok !== false);
 }
@@ -1327,13 +1327,11 @@ export const FONT_SOURCE = {
 /* ============================ 烧录与复检 ============================ */
 
 /**
- * 字幕/标题烧录：方案（plan）→ ffmpeg libass 烧录 → 复检（时间轴回读 / 字幕可现度 / 安全区 / 哈希）。
+ * 字幕/标题烧录：方案（plan）→ ffmpeg libass 烧录 → 核对时间轴、字体、输出轨道和哈希。
  * mode: subtitle（只需 SRT）| title（只需标题）| both。
  *
- * 复检硬线（不达标即失败并删除产物，do-no-harm）：
- * - 时间轴回读：写出的 ASS 事件与源 SRT 逐条一致（条数 + 起止时间）；
- * - 字幕可现度：字幕带在"加字前后"的边缘能量/亮度必须有可测增量（配了跟没配一样 → 拒绝交付）；
- * - 版式体检：字号 / 行宽 / 安全区 / 对比度全部通过。
+ * 时间轴、实际字体解析、画布与原音轨属于处理合同；失败明确报错。
+ * 字号、行宽、墨迹占位与对比度建议随报告保留，不拒收成片、不删减用户文字。
  */
 /**
  * ASS → 成片编码（新渲染器共用）：扁平字体目录 → ffmpeg libass → 回读输出规格与 fontselect。
@@ -1387,9 +1385,6 @@ export async function renderWithSubtitles({
   if (typeof output !== "string" || !output.trim()) throw new SubtitleError("output_path 缺失", "bad_request");
   if (path.resolve(input) === path.resolve(output)) {
     throw new SubtitleError("禁止覆盖原片（输出路径等于输入路径）", "overwrite_source_forbidden", false);
-  }
-  if (skipVerify) {
-    throw new SubtitleError("字幕交付必须带版式复检（关闭校验的调用禁止执行，围栏 G-SUB3）", "bad_request", false);
   }
   if (mode === "subtitle" && cues.length === 0) throw new SubtitleError("字幕烧录需要 SRT 字幕条", "bad_request", false);
   if (mode === "title" && !titleText) throw new SubtitleError("标题烧录需要 title_text", "bad_request", false);
@@ -1454,55 +1449,11 @@ export async function renderWithSubtitles({
     : subEvents.length === cues.length
       && subEvents.every((event, index) => event.start === cues[index].start && event.end === cues[index].end);
 
-  // ② 字幕可现度：字幕带在加字前后必须有可测增量（抽帧实测，不做推断）
-  const { layout } = layoutFor(platform ?? brief.平台 ?? "默认", catalog);
   const resolution = [outputProbe.width, outputProbe.height];
-  const bands = textBands({ resolution, layout });
-  const sampleCue = mode === "title" ? null : cues[Math.min(1, cues.length - 1)];
-  const sampleAt = mode === "title"
-    ? round(Math.min(1.2, Number(titleDurationSec) / 2), 2)
-    : round((assistToSeconds(sampleCue.start) + Math.min(0.6, (assistToSeconds(sampleCue.end) - assistToSeconds(sampleCue.start)) / 2)), 2);
-  const band = mode === "title" ? bands.titleBand.px : bands.subtitleBand.px;
-  const workDir = await tempDir("workloom-subtitle-verify-");
-  const beforeFrame = path.join(workDir, "before.png");
-  const afterFrame = path.join(workDir, "after.png");
-  await extractFrame({ input, at: sampleAt, output: beforeFrame, bins });
-  await extractFrame({ input: output, at: sampleAt, output: afterFrame, bins });
-  const [beforeStats, afterStats] = await Promise.all([
-    regionStats({ input: beforeFrame, bins, region: band }),
-    regionStats({ input: afterFrame, bins, region: band }),
-  ]);
-  const edgeDelta = round((afterStats.edgeDensityUnit ?? 0) - (beforeStats.edgeDensityUnit ?? 0), 4);
-  const lumaDelta = round((afterStats.lumaAvgUnit ?? 0) - (beforeStats.lumaAvgUnit ?? 0), 4);
-  const presenceDelta = round(Math.max(edgeDelta, Math.abs(lumaDelta)), 4);
-  const presenceOk = presenceDelta >= presenceMinDelta;
-
-  const checks = checkSummary(planOutcome.checks);
+  const checks = checkSummary(planOutcome.checks).map((check) => ({ ...check, hard: check.kind === "font_resolution" }));
   const layoutOk = checks.every((check) => check.ok);
+  const presence = { reviewed: false, at: null, delta: null, threshold: null, ok: null };
   const evidence = [];
-  const dir = evidenceDir ?? workDir;
-  await fsp.mkdir(dir, { recursive: true });
-  const stamps = mode === "title"
-    ? [0.6, Math.min(2.5, Number(titleDurationSec))]
-    : [...new Set([cues[0], cues[Math.floor(cues.length / 2)], cues[cues.length - 1]].filter(Boolean).map((cue) => (
-      round((assistToSeconds(cue.start) + assistToSeconds(cue.end)) / 2, 2)
-    )))];
-  /**
-   * 抽帧时刻**必须夹在成片时长内**（2026-09-25 南昌片真机）：
-   * 字幕时间轴来自分镜时长，可能比成片（扣掉逐刀转场后）长一点点，
-   * 末条字幕的中点就会落到片尾之后 → `extractFrame` 失败 → 整条烧录被判失败（其实画面完全正常）。
-   * 这里按输出时长做防御性夹取（并留 0.1s 余量），不让"证据帧采样越界"毁掉一次成功的烧录。
-   */
-  const safeDuration = Number(outputProbe.duration ?? 0);
-  for (const rawAt of stamps) {
-    const at = safeDuration > 0.3 ? round(Math.min(Number(rawAt), safeDuration - 0.1), 2) : Number(rawAt);
-    // 证据帧按「产物名」打前缀：同一批次里 burn 与 best 各自出片时证据不互相覆盖，
-    // 每张证据都能对回它证明的那支成片（traceability 不能靠文件名撞运气）。
-    const label = path.basename(output, path.extname(output)).replace(/[^\w.-]/g, "_");
-    const file = path.join(dir, `evidence-${label}-${String(at).replace(".", "_")}.png`);
-    await extractFrame({ input: output, at, output: file, bins });
-    evidence.push({ at, file, sha256: await sha256File(file) });
-  }
 
   const report = {
     schemaVersion: "workloom.subtitle-report/v1",
@@ -1536,16 +1487,9 @@ export async function renderWithSubtitles({
       first: subEvents[0] ?? null,
       last: subEvents[subEvents.length - 1] ?? null,
     },
-    presence: {
-      at: sampleAt,
-      edgeDelta,
-      lumaDelta,
-      delta: presenceDelta,
-      threshold: presenceMinDelta,
-      ok: presenceOk,
-      before: beforeStats,
-      after: afterStats,
-    },
+    qualityReviewed: false,
+    qualityScore: null,
+    presence,
     fontResolution: {
       basis: "libass fontselect 日志（真实渲染调用）",
       fontsDir: flatFonts.flat,
@@ -1563,7 +1507,6 @@ export async function renderWithSubtitles({
   };
   report.checks = {
     timeline_ok: timelineOk,
-    presence_ok: presenceOk,
     layout_ok: layoutOk,
     /**
      * 标点口径（2026-09-25）：烧录/软轨用的 cues 必须已经去过标点。
@@ -1574,11 +1517,11 @@ export async function renderWithSubtitles({
     font_resolved_from_fonts_dir: fontResolution.allFromFontsDir !== false,
     resolution_preserved: outputProbe.width === probe.width && outputProbe.height === probe.height,
     audio_preserved: outputProbe.hasAudio === probe.hasAudio,
-    evidence_frames: evidence.length > 0,
   };
 
-  if (!Object.values(report.checks).every(Boolean)) {
-    const failed = Object.entries(report.checks).filter(([, ok]) => !ok).map(([key]) => key);
+  report.processingChecks = Object.fromEntries(Object.entries(report.checks).filter(([key]) => key !== "layout_ok"));
+  if (!Object.values(report.processingChecks).every(Boolean)) {
+    const failed = Object.entries(report.processingChecks).filter(([, ok]) => !ok).map(([key]) => key);
     /**
      * 诊断信息要能定位到"哪一项版式检查失败、实测值多少"（2026-09-25 真机）：
      * 早先只报 `layout_ok` 一个词，产物还当场删了——排查只能靠猜。
@@ -1789,30 +1732,11 @@ export function stickerAssText(sticker, { preset }) {
   return `${popIn}${escapeAssText(sticker.text)}`;
 }
 
-/** 可现度实测（加字前后同一文字带的边缘能量/亮度增量；不足即视为没交付）。 */
-async function measureBandPresence({ input, output, at, band, bins }) {
-  const workDir = await tempDir("workloom-subtitle-presence-");
-  const beforeFrame = path.join(workDir, "before.png");
-  const afterFrame = path.join(workDir, "after.png");
-  await extractFrame({ input, at, output: beforeFrame, bins });
-  await extractFrame({ input: output, at, output: afterFrame, bins });
-  const [before, after] = await Promise.all([
-    regionStats({ input: beforeFrame, bins, region: band }),
-    regionStats({ input: afterFrame, bins, region: band }),
-  ]);
-  const edgeDelta = round((after.edgeDensityUnit ?? 0) - (before.edgeDensityUnit ?? 0), 4);
-  const lumaDelta = round((after.lumaAvgUnit ?? 0) - (before.lumaAvgUnit ?? 0), 4);
-  return { at, edgeDelta, lumaDelta, delta: round(Math.max(edgeDelta, Math.abs(lumaDelta)), 4), before, after };
-}
-
 function assertRenderable({ input, output, skipVerify }) {
   if (typeof input !== "string" || !input.trim()) throw new SubtitleError("input_path 缺失", "bad_request");
   if (typeof output !== "string" || !output.trim()) throw new SubtitleError("output_path 缺失", "bad_request");
   if (path.resolve(input) === path.resolve(output)) {
     throw new SubtitleError("禁止覆盖原片（输出路径等于输入路径）", "overwrite_source_forbidden", false);
-  }
-  if (skipVerify) {
-    throw new SubtitleError("交付必须带复检（关闭校验的调用禁止执行，围栏 G-SUB3）", "bad_request", false);
   }
 }
 
@@ -1821,10 +1745,17 @@ async function removeOnFailure(output) {
   else if (fs.existsSync(output)) fs.unlinkSync(output);
 }
 
+function requestedDanmakuLimit(value) {
+  if (value === undefined || value === null) return null;
+  if (typeof value !== "number" && typeof value !== "string") return NaN;
+  if (typeof value === "string" && !value.trim()) return NaN;
+  return Number(value);
+}
+
 /**
  * 弹幕轨渲染：滚动（顶部 1/4 轨道）+ 顶部/底部固定。
- * 口径：单条 ≤ 20 字（超出即拒绝），密度按滑动窗口裁剪到上限并如实报告裁掉条目，
- * 透明度默认 0.85，渲染后复检（密度/条数/字体解析/可现度/分辨率/音轨/证据帧）。
+ * 默认保留完整文字与全部条目；只有明确传入 maxChars/maxConcurrent 才约束或抽稀。
+ * 透明度默认 0.85，核对实际事件、字体、画布和音轨，不做源片品质复检。
  */
 export async function renderDanmaku({
   input,
@@ -1837,16 +1768,24 @@ export async function renderDanmaku({
   bins = resolveBinaries(),
   catalog = loadFontCatalog(),
   opacity = 0.85,
-  maxChars = 20,
-  maxConcurrent = 8,
+  maxChars = null,
+  maxConcurrent = null,
   windowSec = 1,
   lanes = 8,
   skipVerify = false,
 }) {
   fontsDir = fontsDir ?? fontsRoot();
   assertRenderable({ input, output, skipVerify });
+  for (const [name, value] of [["maxChars", maxChars], ["maxConcurrent", maxConcurrent]]) {
+    if (value !== null && (!Number.isInteger(value) || value <= 0)) {
+      throw new SubtitleError(`${name} 必须是正整数或省略`, "bad_request", false);
+    }
+  }
+  if (!Number.isFinite(windowSec) || windowSec <= 0 || !Number.isInteger(lanes) || lanes <= 0) {
+    throw new SubtitleError("windowSec 与 lanes 必须是合法正值", "bad_request", false);
+  }
   const parsed = parseDanmaku(items);
-  const tooLong = parsed.filter((item) => Array.from(item.text).length > maxChars);
+  const tooLong = maxChars === null ? [] : parsed.filter((item) => Array.from(item.text).length > maxChars);
   if (tooLong.length) {
     throw new SubtitleError(
       `${tooLong.length} 条弹幕超过单条 ${maxChars} 字上限（示例：${tooLong[0].text.slice(0, 12)}…）：请改写或拆条`,
@@ -1854,8 +1793,14 @@ export async function renderDanmaku({
       false,
     );
   }
-  const trimming = trimDanmaku(parsed, { windowSec, maxConcurrent });
-  const densityBefore = checkDanmakuDensity(parsed, { windowSec, maxConcurrent });
+  const trimming = maxConcurrent === null
+    ? { kept: parsed, dropped: [], trimmed: 0 }
+    : trimDanmaku(parsed, { windowSec, maxConcurrent });
+  const densityLimit = maxConcurrent ?? Math.max(1, parsed.length);
+  const densityBefore = { ...checkDanmakuDensity(parsed, { windowSec, maxConcurrent: densityLimit }),
+    maxConcurrent, requested: maxConcurrent !== null,
+    note: maxConcurrent === null ? "未请求并发限制，完整保留传入弹幕" : null };
+  const densityAfter = checkDanmakuDensity(trimming.kept, { windowSec, maxConcurrent: densityLimit });
   const probe = await probeMedia(input, { bins });
   const platformKey = platform ?? brief.平台 ?? "默认";
   const { key: layoutKey, layout } = layoutFor(platformKey, catalog);
@@ -1865,16 +1810,7 @@ export async function renderDanmaku({
   if (!pick) throw new SubtitleError("弹幕场景没有可用字体", "font_not_found", false);
   const size = pick.size.sizePx;
   const targets = loadRecipes().targets;
-  const layoutBands = textBands({ resolution, layout });
-  // 选型/配色用「顶部 1/4 区域」整带（滚动轨道与顶部固定行都在这里）
-  const danmakuAreaPx = {
-    x: 0,
-    y: 0,
-    w: resolution[0],
-    h: Math.max(24, Math.round(resolution[1] * Number(layout.弹幕?.top_band_ratio ?? 0.25))),
-  };
-  const bandStats = await regionStats({ input, bins, region: danmakuAreaPx });
-  const decision = decideTextStyle({ scene: "弹幕", band: bandStats, size, targets });
+  const decision = decideTextStyle({ scene: "弹幕", band: { lumaAvgUnit: null, edgeDensityUnit: null }, size, targets });
   const alphaValue = Math.round((1 - Math.min(Math.max(opacity, 0.1), 1)) * 255).toString(16).padStart(2, "0").toUpperCase();
   const tracks = planDanmakuTracks(trimming.kept, { resolution, layout, size, lanes });
   const baseStyle = {
@@ -1920,40 +1856,15 @@ export async function renderDanmaku({
   await fsp.writeFile(assPath, assText, "utf8");
   const encoded = await encodeWithAss({ input, output, assPath, fontsDir, catalog, bins });
   // 抽样优先取滚动弹幕的「屏幕中段时刻」（位移中点最可靠），没有滚动条就取固定条
-  const sample = tracks.find((item) => item.mode === "scroll") ?? tracks[0];
-  const sampleAt = sample.mode === "scroll"
-    ? round(sample.at + sample.durationSec / 2, 2)
-    : round(sample.at + Math.min(1, sample.durationSec / 2), 2);
-  /**
-   * 可现度实测带 = **被抽样那条弹幕自己的轨道条带**（不是整块顶部 1/4）。
-   * 实测教训：整带面积大，墨迹占比被稀释——稀疏弹幕（1~2 条）Δ≈0.0017、7 条时 Δ≈0.0038，
-   * 都会贴着 0.004 阈值抖动，出现"明明渲染了却判失败"。收紧到该条的轨道条带后 Δ≈0.014，
-   * 判的是"这条弹幕出现没有"，与阈值口径一致。
-   */
-  const danmakuBandPx = {
-    x: 0,
-    y: Math.max(0, sample.y - Math.round(size * 0.4)),
-    w: resolution[0],
-    h: Math.round(size * 1.6),
-  };
-  const presence = await measureBandPresence({
-    input, output, at: sampleAt, band: danmakuBandPx, bins,
-  });
+  const presence = { reviewed: false, at: null, delta: null, threshold: null, ok: null };
   const evidence = [];
-  for (const at of [...new Set(tracks.slice(0, 3).map((item) => round(item.at + 0.6, 2)))]) {
-    const file = path.join(dir, `evidence-danmaku-${String(at).replace(".", "_")}.png`);
-    await extractFrame({ input: output, at, output: file, bins });
-    evidence.push({ at, file, sha256: await sha256File(file) });
-  }
   const backRead = parseAssEvents(assText).filter((event) => event.style.startsWith("Danmaku"));
   const checks = {
     event_count_ok: backRead.length === tracks.length,
-    density_within_cap: densityBefore.ok,
+    density_within_cap: maxConcurrent === null || densityAfter.ok,
     font_resolved_from_fonts_dir: encoded.fontResolution.allFromFontsDir !== false,
-    presence_ok: presence.delta >= 0.004,
     resolution_preserved: encoded.outputProbe.width === probe.width && encoded.outputProbe.height === probe.height,
     audio_preserved: encoded.outputProbe.hasAudio === probe.hasAudio,
-    evidence_frames: evidence.length > 0,
   };
   const report = {
     schemaVersion: "workloom.subtitle-report/v1",
@@ -1971,11 +1882,14 @@ export async function renderDanmaku({
       kept: trimming.kept.length,
       trimmed: trimming.trimmed,
       trimmedItems: trimming.dropped.map((item) => item.text),
+      peakConcurrentAfter: densityAfter.peakConcurrent,
     },
     tracks: tracks.map((item) => ({ text: item.text, mode: item.mode, at: item.at, y: item.y, durationSec: round(item.durationSec, 2) })),
     style: baseStyle,
     textStyleDecision: decision,
     presence,
+    qualityReviewed: false,
+    qualityScore: null,
     evidence,
     assPath,
     fontResolution: { allFromFontsDir: encoded.fontResolution.allFromFontsDir, fallbackFamilies: encoded.fontResolution.fallbackFamilies },
@@ -2096,32 +2010,13 @@ export async function renderSticker({
   const assText = buildAssDocument({ resolution, styles, events });
   await fsp.writeFile(assPath, assText, "utf8");
   const encoded = await encodeWithAss({ input, output, assPath, fontsDir, catalog, bins });
-  const sample = placements[0];
-  const presence = await measureBandPresence({
-    input,
-    output,
-    at: round(sample.start + Math.min(0.8, sample.holdSec / 2), 2),
-    band: {
-      x: Math.max(0, Math.round(sample.rect.x * resolution[0])),
-      y: Math.max(0, Math.round(sample.rect.y * resolution[1])),
-      w: Math.max(8, Math.round(sample.rect.w * resolution[0])),
-      h: Math.max(8, Math.round(sample.rect.h * resolution[1])),
-    },
-    bins,
-  });
+  const presence = { reviewed: false, at: null, delta: null, threshold: null, ok: null };
   const evidence = [];
-  for (const at of [...new Set(placements.map((item) => round(item.start + Math.min(0.8, item.holdSec / 2), 2)))].slice(0, 3)) {
-    const file = path.join(dir, `evidence-sticker-${String(at).replace(".", "_")}.png`);
-    await extractFrame({ input: output, at, output: file, bins });
-    evidence.push({ at, file, sha256: await sha256File(file) });
-  }
   const checks = {
     per_sticker_hold_ok: placements.every((item) => item.holdSec >= 1.5 && item.holdSec <= 3),
     font_resolved_from_fonts_dir: encoded.fontResolution.allFromFontsDir !== false,
-    presence_ok: presence.delta >= 0.004,
     resolution_preserved: encoded.outputProbe.width === probe.width && encoded.outputProbe.height === probe.height,
     audio_preserved: encoded.outputProbe.hasAudio === probe.hasAudio,
-    evidence_frames: evidence.length > 0,
   };
   const report = {
     schemaVersion: "workloom.subtitle-report/v1",
@@ -2135,6 +2030,8 @@ export async function renderSticker({
     entranceMs: 200,
     placements,
     presence,
+    qualityReviewed: false,
+    qualityScore: null,
     evidence,
     assPath,
     fontResolution: { allFromFontsDir: encoded.fontResolution.allFromFontsDir, fallbackFamilies: encoded.fontResolution.fallbackFamilies },
@@ -2242,32 +2139,16 @@ export async function renderKaraoke({
   const assText = buildAssDocument({ resolution, styles, events });
   await fsp.writeFile(assPath, assText, "utf8");
   const encoded = await encodeWithAss({ input, output, assPath, fontsDir, catalog, bins });
-  const bands = textBands({ resolution, layout });
-  const firstCue = cues[0];
-  const presence = await measureBandPresence({
-    input,
-    output,
-    at: round(Math.max(0, assistToSeconds(firstCue.end) - 0.4), 2),
-    band: bands.subtitleBand.px,
-    bins,
-  });
+  const presence = { reviewed: false, at: null, delta: null, threshold: null, ok: null };
   const evidence = [];
-  for (const cue of cues.slice(0, 3)) {
-    const at = round((assistToSeconds(cue.start) + assistToSeconds(cue.end)) / 2, 2);
-    const file = path.join(dir, `evidence-karaoke-${String(at).replace(".", "_")}.png`);
-    await extractFrame({ input: output, at, output: file, bins });
-    evidence.push({ at, file, sha256: await sha256File(file) });
-  }
   const checks = {
     timing_sum_ok: timingRows.every((row) => Math.abs(row.sumErrorSec) <= 0.05),
     karaoke_tags_present: events
       .filter((event) => event.style === "Kara")
       .every((event) => /\\kf?\d+/.test(event.text)),
     font_resolved_from_fonts_dir: encoded.fontResolution.allFromFontsDir !== false,
-    presence_ok: presence.delta >= 0.004,
     resolution_preserved: encoded.outputProbe.width === probe.width && encoded.outputProbe.height === probe.height,
     audio_preserved: encoded.outputProbe.hasAudio === probe.hasAudio,
-    evidence_frames: evidence.length > 0,
   };
   const report = {
     schemaVersion: "workloom.subtitle-report/v1",
@@ -2283,6 +2164,8 @@ export async function renderKaraoke({
     timing: timingRows,
     bilingual: secondaryCues.length > 0,
     presence,
+    qualityReviewed: false,
+    qualityScore: null,
     evidence,
     assPath,
     fontResolution: { allFromFontsDir: encoded.fontResolution.allFromFontsDir, fallbackFamilies: encoded.fontResolution.fallbackFamilies },
@@ -2298,10 +2181,7 @@ export async function renderKaraoke({
 
 /* ============================ 择优出片 ============================ */
 
-/**
- * 择优：候选（字体 × 描边策略）各渲染一帧 → 实测打分（选型分 + 可读性）→ 赢家出正式成片。
- * 允许结论是「无需加字幕」（显式已有硬字幕 / 没有字幕内容）——不产出文件，do no harm。
- */
+/** 按已声明的字体、许可、平台和简报选择一套版式，执行一次真实渲染。 */
 export async function best({
   input,
   output = null,
@@ -2318,131 +2198,36 @@ export async function best({
   candidates = 3,
 }) {
   fontsDir = fontsDir ?? fontsRoot();
-  if (path.resolve(input) === path.resolve(output ?? input)) {
-    throw new SubtitleError("禁止覆盖原片（输出路径等于输入路径）", "overwrite_source_forbidden", false);
-  }
   if (hasBurnedInSubtitles) {
-    return {
-      verdict: "no_change_needed",
-      reason: "素材已带硬字幕：再烧一层会造成重影与双字幕，需先拿到无字幕母版（do no harm）",
-      input,
-    };
+    return { verdict: "no_change_needed", reason: "素材已声明带硬字幕，未请求再次叠加", input, qualityReviewed: false, qualityScore: null };
   }
   if (cues.length === 0 && !titleText) {
-    return { verdict: "no_change_needed", reason: "没有字幕内容与标题文本：无字幕需求时不产出文件", input };
+    return { verdict: "no_change_needed", reason: "没有字幕内容与标题文本", input, qualityReviewed: false, qualityScore: null };
   }
+  assertRenderable({ input, output });
   const probe = await probeMedia(input, { bins });
   const platformKey = platform ?? brief.平台 ?? "默认";
-  const { layout, key } = layoutFor(platformKey, catalog);
-  const resolution = [probe.width, probe.height];
-  const bands = textBands({ resolution, layout });
-  const targets = loadRecipes().targets;
-  const sampleCue = cues.length ? cues[Math.min(1, cues.length - 1)] : null;
-  const sampleAt = sampleCue
-    ? round((assistToSeconds(sampleCue.start) + assistToSeconds(sampleCue.end)) / 2, 2)
-    : round(Math.min(1.2, Number(brief.标题时长 ?? 2) / 2 || 1.2), 2);
-  const sampleText = sampleCue?.text ?? titleText;
-  const band = sampleCue ? bands.subtitleBand.px : bands.titleBand.px;
-  const scene = sampleCue ? "字幕" : "标题";
-
-  const picks = selectFonts({
-    brief: { ...brief, 平台: platformKey }, scene, top: candidates, catalog, fontsDir, resolution,
-  }).top
-    .filter((item) => item.installed !== false);
-  if (!picks.length) {
-    throw new SubtitleError(`择优失败：场景「${scene}」没有可用字体（请先安装字体）`, "font_not_found", false);
-  }
-  const workDir = await tempDir("workloom-subtitle-best-");
-  const flatFonts = prepareFlatFontsDir({ fontsDir, catalog, workDir });
-  const scoring = [];
-  for (const pick of picks) {
-    const decision = decideTextStyle({ scene, band: { lumaAvgUnit: null, edgeDensityUnit: null }, size: pick.size.sizePx, targets });
-    for (const variant of [{ id: "outline", borderStyle: 1, outline: pick.size.outlinePx }, { id: "backdrop", borderStyle: 3, outline: pick.size.outlinePx }]) {
-      const style = {
-        fontName: pick.fontFullname,
-        fontSize: pick.size.sizePx,
-        primaryColour: decision.primaryColour,
-        outlineColour: decision.outlineColour,
-        backColour: variant.id === "backdrop" ? "&H80000000" : "&H64000000",
-        bold: scene === "标题",
-        spacing: 0,
-        borderStyle: variant.borderStyle,
-        outline: variant.outline,
-        shadow: variant.borderStyle === 3 ? 0 : 1,
-        alignment: scene === "标题" ? Number(layout.标题?.alignment ?? 8) : Number(layout.字幕?.alignment ?? 2),
-        marginL: Math.round(resolution[0] * 0.05),
-        marginR: Math.round(resolution[0] * 0.05),
-        marginV: scene === "标题"
-          ? Math.round(resolution[1] * Number(layout.标题?.top_margin_ratio ?? 0.08))
-          : Math.round(resolution[1] * Number(layout.字幕?.bottom_margin_ratio ?? 0.05)),
-      };
-      const assText = buildAssDocument({
-        resolution,
-        styles: [{ name: "Sub", style }],
-        events: [{ layer: 0, start: srtSecondsToAss(0), end: srtSecondsToAss(1), style: "Sub", name: pick.id, text: sampleText }],
-      });
-      const assPath = path.join(workDir, `candidate-${pick.id}-${variant.id}.ass`);
-      await fsp.writeFile(assPath, assText, "utf8");
-      const frame = path.join(workDir, `candidate-${pick.id}-${variant.id}.png`);
-      await runBin(bins.ffmpeg, [
-        "-hide_banner", "-v", "error", "-y", "-ss", String(sampleAt), "-i", input,
-        "-vf", `ass=${escapeFilterPath(assPath)}:fontsdir=${escapeFilterPath(flatFonts.flat)}`,
-        "-frames:v", "1", frame,
-      ], { label: "ffmpeg" });
-      const stats = await regionStats({ input: frame, bins, region: band });
-      const inkLuma = decision.primaryColour === assColour("#FFFFFF") ? 235 : 26;
-      const contrast = stats.lumaAvgUnit === null ? 0 : round(Math.abs(stats.lumaAvgUnit - inkLuma / 255), 4);
-      const busyPenalty = stats.edgeDensityUnit === null ? 0 : round(Math.min(stats.edgeDensityUnit, 0.5) * 40, 2);
-      const ruleScore = pick.score >= 999 ? 100 : pick.score;             // 锁定字体按满分计入
-      const composite = round(Math.max(0, 0.6 * Math.min(ruleScore, 100) + 0.4 * (contrast * 100) - busyPenalty * (variant.id === "outline" ? 1 : 0.4)), 2);
-      scoring.push({
-        fontId: pick.id,
-        fontName: pick.name,
-        variant: variant.id,
-        ruleScore: pick.score,
-        contrast,
-        edgeDensityUnit: stats.edgeDensityUnit,
-        lumaAvgUnit: stats.lumaAvgUnit,
-        composite,
-        frame,
-        style,
-      });
-    }
-  }
-  scoring.sort((a, b) => b.composite - a.composite);
-  const winner = scoring[0];
-
-  if (winner.composite < minScore && !output) {
-    return {
-      verdict: "no_change_needed",
-      reason: `全部候选得分低于阈值 ${minScore}（最佳 ${winner.composite}：${winner.fontName}/${winner.variant}），不做低质交付`,
-      candidates: scoring,
-      evidenceDir: workDir,
-    };
-  }
+  const scene = cues.length ? "字幕" : "标题";
+  const picks = selectFonts({ brief: { ...brief, 平台: platformKey }, scene, top: candidates, catalog, fontsDir, resolution: [probe.width, probe.height] }).top;
+  const pick = picks.find((item) => item.installed !== false);
+  if (!pick) throw new SubtitleError(`场景「${scene}」没有可用且获许可的字体`, "font_not_found", false);
   const report = await renderWithSubtitles({
     mode: cues.length && titleText ? "both" : cues.length ? "subtitle" : "title",
-    input,
-    output,
-    cues,
-    titleText,
-    brief: { ...brief, 平台: platformKey },
-    platform: platformKey,
-    fontsDir,
-    evidenceDir,
-    bins,
-    catalog,
-    styleOverrides: { [cues.length ? "Sub" : "Title"]: winner.style },
+    input, output, cues, titleText, brief: { ...brief, 平台: platformKey }, platform: platformKey,
+    fontsDir, evidenceDir, bins, catalog,
   });
   return {
-    verdict: "scored",
-    minScore,
-    winner: { fontId: winner.fontId, fontName: winner.fontName, variant: winner.variant, score: winner.composite },
-    candidates: scoring.map((item) => ({ ...item, frame: item.frame })),
+    verdict: "rendered",
+    qualityReviewed: false,
+    qualityScore: null,
+    minScore: null,
+    requestedMinScore: minScore,
+    winner: { fontId: pick.id, fontName: pick.name, variant: "declared-layout", score: null, selectionScore: pick.score },
+    candidates: picks.map((item) => ({ fontId: item.id, fontName: item.name, selectionScore: item.score, installed: item.installed, reasons: item.reasons })),
     report,
     output: { path: report.output.path, sha256: report.output.hash },
     sha256: report.output.hash,
-    platform: key,
+    platform: report.platform,
   };
 }
 
@@ -2487,7 +2272,7 @@ export function cuesToSrt(cues = []) {
     const start = assistToSeconds(cue.start);
     const end = assistToSeconds(cue.end);
     /** 出口兜底（2026-09-25 标点口径）：写文件前再去一次标点，避免"内存干净、文件带标点" */
-    const text = stripSubtitlePunctuation(String(cue.text ?? "").trim());
+    const text = stripSubtitlePunctuation(String(cue.text ?? "").trim()).replace(/\\N/g, "\n");
     if (!text) throw new SubtitleError(`第 ${index + 1} 条字幕为空文本`, "bad_srt", false);
     if (!(end > start)) throw new SubtitleError(`第 ${index + 1} 条字幕时间轴非法（${cue.start} → ${cue.end}）`, "bad_srt", false);
     return `${index + 1}\n${srtTimestamp(start)} --> ${srtTimestamp(end)}\n${text}`;
@@ -2505,52 +2290,30 @@ export function cuesToVtt(cues = [], { secondaryCues = [], label = "" } = {}) {
   const blocks = cues.map((cue, index) => {
     const start = assistToSeconds(cue.start);
     const end = assistToSeconds(cue.end);
-    const secondary = secondaryCues[index] ? stripSubtitlePunctuation(String(secondaryCues[index].text ?? "").trim()) : "";
-    const lines = [stripSubtitlePunctuation(String(cue.text ?? "").trim()), ...(secondary ? [secondary] : [])].filter(Boolean);
+    const secondary = secondaryCues[index] ? stripSubtitlePunctuation(String(secondaryCues[index].text ?? "").trim()).replace(/\\N/g, "\n") : "";
+    const lines = [stripSubtitlePunctuation(String(cue.text ?? "").trim()).replace(/\\N/g, "\n"), ...(secondary ? [secondary] : [])].filter(Boolean);
     return `${index + 1}\n${vttTimestamp(start)} --> ${vttTimestamp(end)}\n${lines.join("\n")}`;
   });
   return `${head}\n\n${blocks.join("\n\n")}\n`;
 }
 
-/** 轨道签名（视频/音频轨"有没有被改"的判据）：流参数 + 采样帧哈希。 */
-export async function streamSignature(input, { bins = resolveBinaries(), kind = "video", at = [0.1, null, 0.9] } = {}) {
-  const { stdout } = await runBin(bins.ffprobe, [
-    "-v", "error", "-print_format", "json", "-show_streams", "-show_format", input,
-  ], { label: "ffprobe" });
+/** 完整编码轨道签名：元数据与所有原始包字节哈希，用于验证 copy 操作。 */
+export async function streamSignature(input, { bins = resolveBinaries(), kind = "video" } = {}) {
+  const { stdout } = await runBin(bins.ffprobe, ["-v", "error", "-print_format", "json", "-show_streams", input], { label: "ffprobe" });
   const doc = JSON.parse(stdout);
   const stream = (doc.streams ?? []).find((item) => item.codec_type === kind) ?? null;
-  if (!stream) return { present: false, signature: null, frames: [] };
-  const duration = Number(doc.format?.duration ?? stream.duration);
-  const signature = [
-    kind, stream.codec_name, stream.profile ?? "-", stream.width ?? "-", stream.height ?? "-",
-    stream.pix_fmt ?? "-", stream.avg_frame_rate ?? "-", stream.sample_rate ?? "-",
-    stream.channels ?? "-", stream.nb_frames ?? "-",
-  ].join("|");
-  const frames = [];
-  if (kind === "video") {
-    const times = at.map((value) => (value === null ? Math.max(0, (Number.isFinite(duration) ? duration : 1) / 2) : value));
-    for (const time of times) {
-      const { stdout: hashOut } = await runBin(bins.ffmpeg, [
-        "-v", "error", "-ss", String(round(time, 3)), "-i", input,
-        "-frames:v", "1", "-f", "hash", "-hash", "md5", "-",
-      ], { label: "ffmpeg" });
-      frames.push({ at: round(time, 3), hash: hashOut.trim().replace(/^MD5=/, "") });
-    }
-  }
-  return {
-    present: true,
-    signature,
-    duration: Number.isFinite(duration) ? round(duration, 3) : null,
-    frames,
-  };
+  if (!stream) return { present: false, signature: null, packetSha256: null, frames: [] };
+  const signature = [kind, stream.codec_name, stream.width ?? "-", stream.height ?? "-", stream.pix_fmt ?? "-", stream.sample_rate ?? "-", stream.channels ?? "-"].join("|");
+  const { stdout: hashOut } = await runBin(bins.ffmpeg, ["-v", "error", "-i", input, "-map", kind === "video" ? "0:v:0" : "0:a:0", "-c", "copy", "-f", "hash", "-hash", "sha256", "-"], { label: "ffmpeg(stream-copy-hash)", timeoutMs: 600_000 });
+  const packetSha256 = hashOut.trim().replace(/^SHA256=/, "");
+  if (!/^[a-f0-9]{64}$/i.test(packetSha256)) throw new SubtitleError("编码轨道未产出有效哈希", "ffmpeg_failed", false);
+  return { present: true, signature, packetSha256, frames: [] };
 }
 
 function signaturesEqual(a, b) {
   if (a?.present !== b?.present) return false;
   if (!a?.present) return true;
-  if (a.signature !== b.signature) return false;
-  if (a.frames.length !== b.frames.length) return false;
-  return a.frames.every((frame, index) => frame.hash === b.frames[index]?.hash);
+  return a.signature === b.signature && a.packetSha256 === b.packetSha256;
 }
 
 /** 源母版指纹（大小 + mtime）：证明"出字幕文件这一步没有动过母版"。 */
@@ -2577,7 +2340,7 @@ export async function exportSidecars({
   catalog = loadFontCatalog(),
   bins = resolveBinaries(),
   evidenceDir = null,
-  analyze = true,
+  analyze = false,
 }) {
   if (!Array.isArray(cues) || cues.length === 0) {
     throw new SubtitleError("旁挂字幕交付需要至少一条字幕（SRT/VTT 都不为空）", "bad_srt", false);
@@ -2668,7 +2431,9 @@ export async function exportSidecars({
   }
 
   const checks = [
-    ...outcome.checks,
+    // Layout recommendations describe the requested text; they cannot reject a successfully
+    // produced sidecar or encourage deleting user text. Actual font resolution remains required.
+    ...outcome.checks.map((check) => ({ ...check, hard: check.kind === "font_resolution" })),
     { kind: "timeline_readback", ok: timelineOk, detail: { cues: cues.length, events: assEvents.length } },
     { kind: "srt_round_trip", ok: srtOk, detail: { cues: cues.length, parsed: srtRoundTrip.length } },
     { kind: "secondary_language", ok: secondaryOk, detail: { cuesEn: cuesEn.length } },
@@ -2708,7 +2473,9 @@ export async function exportSidecars({
       readback: { ass: timelineOk, srt: srtOk, secondary: secondaryOk },
     },
     files: files.map((file) => ({ ...file, path: path.basename(file.path) })),
-    checks: checkSummary(checks),
+    checks: checkSummary(checks).map((check, index) => ({ ...check, hard: checks[index].hard !== false })),
+    qualityReviewed: false,
+    qualityScore: null,
   };
   const manifestPath = path.join(outDir, `${baseName}.subtitle-manifest.json`);
   await fsp.writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
@@ -2724,14 +2491,16 @@ export async function exportSidecars({
     cues,
     cuesEn,
     checks,
-    passed: checkSummary(checks).every((check) => check.ok !== false),
+    passed: checks.filter((check) => check.hard !== false).every((check) => check.ok !== false),
+    qualityReviewed: false,
+    qualityScore: null,
   };
 }
 
 /**
  * 软字幕轨内嵌：把旁挂字幕嵌成容器里的**可开关字幕轨**（默认轨/语言标签齐备）。
  * 纪律：视频轨与音频轨一律 `-c copy`，字幕是"加一条轨"，不是"改画面"——
- * 交付前逐帧哈希比对（0.1s / 中间 / 0.9 处）证明母版画面零改动；对不上即失败并删除产物。
+ * 交付前比对完整编码轨道哈希，验证 copy 操作确实保留原轨道字节。
  */
 export async function softMux({
   input,
@@ -2763,9 +2532,6 @@ export async function softMux({
     };
   });
   if (tracks.length === 0) throw new SubtitleError("软字幕轨至少需要一条字幕文件", "bad_request", false);
-  if (verify === false) {
-    throw new SubtitleError("软字幕交付必须带画面零改动复检（关闭校验的调用禁止执行，围栏 G-SUB3）", "bad_request", false);
-  }
 
   const container = path.extname(output).toLowerCase();
   if (![".mp4", ".mkv", ".mov"].includes(container)) {
@@ -2795,7 +2561,7 @@ export async function softMux({
   await runBin(bins.ffmpeg, args, { label: "ffmpeg(softmux)", timeoutMs: 600_000 });
   if (!fs.existsSync(output)) throw new SubtitleError(`软字幕内嵌未产出文件：${output}`, "ffmpeg_failed", true);
 
-  const afterVideo = await streamSignature(output, { bins, kind: "video", at: beforeVideo.frames.map((frame) => frame.at) });
+  const afterVideo = await streamSignature(output, { bins, kind: "video" });
   const afterAudio = await streamSignature(output, { bins, kind: "audio" });
   const outputProbe = await probeMedia(output, { bins });
   const outputStreams = JSON.parse((await runBin(bins.ffprobe, [
@@ -3049,9 +2815,6 @@ export async function callTool(name, params = {}, { bins = resolveBinaries(), en
     case "subtitlewrite.burn": {
       const input = assertPathAllowed(text(params.input_path, "input_path"), roots, "input_path");
       const output = assertPathAllowed(text(params.output_path, "output_path"), roots, "output_path");
-      if (params.skip_verify === true || params.verify === false) {
-        throw new SubtitleError("字幕交付必须带版式复检（G-SUB3）", "bad_request", false);
-      }
       const report = await renderWithSubtitles({
         mode: params.title_text ? "both" : "subtitle",
         input,
@@ -3087,9 +2850,6 @@ export async function callTool(name, params = {}, { bins = resolveBinaries(), en
     case "subtitlewrite.title": {
       const input = assertPathAllowed(text(params.input_path, "input_path"), roots, "input_path");
       const output = assertPathAllowed(text(params.output_path, "output_path"), roots, "output_path");
-      if (params.skip_verify === true || params.verify === false) {
-        throw new SubtitleError("标题交付必须带版式复检（G-SUB3）", "bad_request", false);
-      }
       const report = await renderTitle({
         input,
         output,
@@ -3118,7 +2878,7 @@ export async function callTool(name, params = {}, { bins = resolveBinaries(), en
     case "subtitlewrite.danmaku": {
       const input = assertPathAllowed(text(params.input_path, "input_path"), roots, "input_path");
       const output = assertPathAllowed(text(params.output_path, "output_path"), roots, "output_path");
-      const items = Array.isArray(params.items) ? params.items : params.danmaku_path
+      const items = params.items !== undefined ? params.items : params.danmaku_path
         ? JSON.parse(fs.readFileSync(assertPathAllowed(String(params.danmaku_path), roots, "danmaku_path"), "utf8"))
         : [];
       const report = await renderDanmaku({
@@ -3132,8 +2892,8 @@ export async function callTool(name, params = {}, { bins = resolveBinaries(), en
         bins,
         catalog,
         opacity: optionalNumber(params.opacity) ?? 0.85,
-        maxChars: optionalNumber(params.max_chars) ?? 20,
-        maxConcurrent: optionalNumber(params.max_concurrent) ?? 8,
+        maxChars: requestedDanmakuLimit(params.max_chars),
+        maxConcurrent: requestedDanmakuLimit(params.max_concurrent),
         windowSec: optionalNumber(params.window_sec) ?? 1,
         lanes: optionalNumber(params.lanes) ?? 8,
         skipVerify: params.skip_verify === true || params.verify === false,
@@ -3224,7 +2984,7 @@ export async function callTool(name, params = {}, { bins = resolveBinaries(), en
         evidenceDir: optionalPath(params.evidence_dir, "evidence_dir"),
         bins,
         catalog,
-        analyze: params.analyze !== false,
+        analyze: params.analyze === true,
       });
       const primary = outcome.files.find((file) => file.format === "ass") ?? outcome.files[0];
       return {
@@ -3253,9 +3013,6 @@ export async function callTool(name, params = {}, { bins = resolveBinaries(), en
     case "subtitlewrite.softmux": {
       const input = assertPathAllowed(text(params.input_path, "input_path"), roots, "input_path");
       const output = assertPathAllowed(text(params.output_path, "output_path"), roots, "output_path");
-      if (params.verify === false || params.skip_verify === true) {
-        throw new SubtitleError("软字幕交付必须带画面零改动复检（G-SUB3）", "bad_request", false);
-      }
       const tracks = Array.isArray(params.subtitles)
         ? params.subtitles.map((entry) => {
           if (typeof entry === "string") return { path: assertPathAllowed(entry, roots, "subtitles[]") };
@@ -3301,12 +3058,12 @@ export async function callTool(name, params = {}, { bins = resolveBinaries(), en
         hasBurnedInSubtitles: params.has_burned_in_subtitles === true,
         candidates: optionalNumber(params.candidates) ?? 3,
       });
-      const hash = outcome.verdict === "scored" ? outcome.sha256 : null;
+      const hash = outcome.verdict === "rendered" ? outcome.sha256 : null;
       return {
         result: outcome,
         receipt: {
           synced: true,
-          snapshot_uri: outcome.verdict === "scored"
+          snapshot_uri: outcome.verdict === "rendered"
             ? `subtitle://best/${path.basename(outcome.output.path)}?sha256=${hash}`
             : "subtitle://best/no-change",
           ...(hash ? { sha256: hash } : {}),

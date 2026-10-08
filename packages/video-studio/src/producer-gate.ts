@@ -29,6 +29,7 @@ export type ProducerStage =
   | "mux"
   | "danmaku"
   | "bgm"
+  | "sfx"
   | "cover"
   | "master";
 
@@ -69,8 +70,8 @@ export interface ProducerVerdict {
   evidence?: Array<{ path: string; sha256: string; scope: string }>;
   stage: ProducerStage;
   approved: boolean;
-  /** 0–100；硬闸失败为 0 */
-  score: number;
+  /** 0–100 for an actual quality review; null when no quality review applies. */
+  score: number | null;
   hardFailures: string[];
   issues: string[];
   suggestions: string[];
@@ -131,6 +132,7 @@ export const PRODUCER_RUBRICS: Record<ProducerStage, string[]> = {
   mux: ["软字幕版可播放且字幕轨可开关，视频和音频与审核母版保持一致", "旁挂字幕及语言清单齐备，软轨内容与旁挂文件一致，时长符合合同"],
   danmaku: ["按本片明确启用的弹幕规格检查内容、密度、分层和遮挡", "未启用或不适用时不为了凑后期能力添加弹幕"],
   bgm: ["响度、真峰值及音乐与人声的关系符合明确音频交付合同", "曲风、节拍、唱词适用性与本片brief一致；实际听音证据独立提供，图像模型不冒充听音"],
+  sfx: ["核对用户请求的音效工具执行、实际文件和原视频字节回执；不再评判已渲染镜头品质"],
   cover: ["文案与成片一致并在平台安全区内可读，避免遮挡本片关键主体", "封面风格和色彩符合成片与平台规格；主体不必是人脸"],
   master: [
     "整片播放、时长、画幅、帧率、字幕和音轨符合交付合同，无黑帧或编码事故",
