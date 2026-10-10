@@ -19,7 +19,17 @@
   "transitions": {
     "mode": "hard",
     "fadeSec": 0,
-    "note": "硬切不打断信息密度；卖点与数据段不加入场动画"
+    "note": "硬切不打断信息密度；卖点与数据段不加入场动画（整段口径；有逐切计划时按 intentMap 逐刀执行）",
+    "scale": 0.85,
+    "intentMap": {
+      "dissolve": { "type": "fade", "durationSec": 0.35 },
+      "fade_from_black": { "type": "fadeblack", "durationSec": 0.45 },
+      "fade_to_black": { "type": "fadeblack", "durationSec": 0.45 },
+      "wipe": { "type": "wipeleft", "durationSec": 0.3 },
+      "whip_pan": { "type": "smoothleft", "durationSec": 0.28 },
+      "zoom_blur": { "type": "zoomin", "durationSec": 0.3 }
+    },
+    "intentNote": "干净科技版：短促、方向明确；擦除优先硬边 wipeleft，避免情绪化的慢叠化"
   },
   "bgm": {
     "mood": "干净可信",

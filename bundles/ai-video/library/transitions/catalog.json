@@ -1,0 +1,152 @@
+{
+  "schemaVersion": "workloom.transition-catalog/v1",
+  "updatedAt": "2026-10-11",
+  "engine": {
+    "name": "ffmpeg-xfade",
+    "filter": "xfade",
+    "audioFilter": "acrossfade",
+    "minVersion": "6.0",
+    "customExprMinVersion": "5.1",
+    "customExprVars": ["X", "Y", "W", "H", "P", "PLANE", "A", "B"],
+    "note": "命名转场直接使用 FFmpeg xfade 内置实现（零新依赖、纯 CPU、4K 可跑）；custom 表达式用于逐像素缓动叠化，代价是每像素求值（实测 4K 约 7 倍耗时），仅在显式开启 easing=smooth 时使用。"
+  },
+  "sources": [
+    {
+      "name": "FFmpeg xfade",
+      "url": "https://github.com/FFmpeg/FFmpeg",
+      "path": "libavfilter/vf_xfade.c",
+      "license": "LGPL-2.1-or-later / GPL（按编译配置）",
+      "role": "默认引擎：命名转场 + custom 表达式",
+      "verifiedAt": "2026-10-11",
+      "evidence": "本机 ffmpeg 6.0 -h filter=xfade 实测 46 种命名转场 + custom；对照 FFmpeg master 源码 doc/filters.texi 的 custom 变量表（X/Y/W/H/P/PLANE/A/B）"
+    },
+    {
+      "name": "gl-transitions",
+      "url": "https://github.com/gl-transitions/gl-transitions",
+      "license": "MIT（集合）",
+      "role": "备选引擎（未集成）：100+ GLSL 着色器转场集合",
+      "verifiedAt": "2026-10-11",
+      "evidence": "GitHub API：2149 stars，最近推送 2026-10-10；需要 GL 渲染器（浏览器 WebGL 或 headless-gl）才能落地，见 docs/video-edit-transitions.md 的方案对比"
+    },
+    {
+      "name": "ffmpeg-gl-transition",
+      "url": "https://github.com/transitive-bullshit/ffmpeg-gl-transition",
+      "license": "未声明（仓库根 LICENSE 缺失）",
+      "role": "备选引擎（未集成）：给 FFmpeg 加 gltransition 滤镜的补丁",
+      "verifiedAt": "2026-10-11",
+      "evidence": "GitHub API：720 stars，最近推送 2024-07-23；要求自编译 FFmpeg，无官方预编译产物；见方案对比"
+    }
+  ],
+  "durationPolicy": {
+    "minSec": 0.15,
+    "maxSec": 2,
+    "maxShareOfClip": 0.3333,
+    "minFrames": 2,
+    "note": "上限 2s 与 edit-timeline 契约一致（timeline.ts#MAX_TRANSITION_SECONDS）；下限取 0.15s 与 2 帧的较大者；转场最多吃掉相邻较短镜头的 1/3，否则降级硬切"
+  },
+  "intents": {
+    "cut": { "type": null, "durationSec": 0, "easing": "native", "note": "硬切：不进入转场渲染，拼接点保持帧精确" },
+    "dissolve": { "type": "fade", "durationSec": 0.5, "easing": "native", "fallbackType": "fade", "note": "叠化：叙事最通用的情绪过渡" },
+    "fade_from_black": { "type": "fadeblack", "durationSec": 0.5, "easing": "native", "fallbackType": "fade", "blackDip": true, "note": "黑场进入：仅用于时间/空间跳变，绝不作为镜头间默认转场" },
+    "fade_to_black": { "type": "fadeblack", "durationSec": 0.5, "easing": "native", "fallbackType": "fade", "blackDip": true, "note": "黑场收束：段尾/片尾使用" },
+    "wipe": {
+      "type": "wipeleft",
+      "durationSec": 0.4,
+      "easing": "native",
+      "fallbackType": "wipeleft",
+      "directions": { "left": "wipeleft", "right": "wiperight", "up": "wipeup", "down": "wipedown" },
+      "note": "方向擦除：默认左向；params.direction 可指定 left/right/up/down"
+    },
+    "match_cut": { "type": null, "durationSec": 0, "easing": "native", "note": "匹配剪辑：动作/形状对齐，必须硬切，不做混合" },
+    "jump_cut": { "type": null, "durationSec": 0, "easing": "native", "note": "跳切：口播/快节奏，必须硬切" },
+    "whip_pan": {
+      "type": "smoothleft",
+      "durationSec": 0.25,
+      "easing": "native",
+      "fallbackType": "slideleft",
+      "directions": { "left": "smoothleft", "right": "smoothright", "up": "smoothup", "down": "smoothdown" },
+      "note": "甩镜感：短视频快节奏转场；保持 ≤0.35s，过长会像幻灯片"
+    },
+    "zoom_blur": {
+      "type": "zoomin",
+      "durationSec": 0.3,
+      "easing": "native",
+      "fallbackType": "hblur",
+      "note": "推近/模糊感：产品与动作爆点；zoomin 自带 smoothstep 曲线（FFmpeg 6.0 起）"
+    }
+  },
+  "packs": {
+    "documentary": { "sceneIntent": "dissolve", "scale": 1.15, "note": "纪实/文旅：场景切换用慢叠化，镜头内保持硬切" },
+    "vlog": { "sceneIntent": "whip_pan", "scale": 1.0, "note": "生活 Vlog：场景切换用柔边推移（甩镜感），镜头内硬切" },
+    "fast_cut": { "sceneIntent": "wipe", "scale": 0.7, "note": "快剪/卡点：场景切换用短擦除，其余硬切" },
+    "information": { "sceneIntent": "dissolve", "scale": 0.8, "note": "信息流/产品：场景切换用短叠化，信息优先" },
+    "talk": { "sceneIntent": "dissolve", "scale": 0.8, "note": "口播精剪：段内句子级硬切（跳切），仅话题/场景切换用一次短叠化" }
+  },
+  "transitions": [
+    { "name": "fade", "family": "dissolve", "since": "6.0", "energy": "calm", "direction": "none", "editorial": "通用叠化；情绪连贯、时间流逝" },
+    { "name": "fadefast", "family": "dissolve", "since": "6.0", "energy": "neutral", "direction": "none", "editorial": "快进慢出的叠化；比 fade 更有推进感" },
+    { "name": "fadeslow", "family": "dissolve", "since": "6.0", "energy": "calm", "direction": "none", "editorial": "慢入快出的叠化；抒情、结尾" },
+    { "name": "dissolve", "family": "dissolve", "since": "6.0", "energy": "energetic", "direction": "none", "editorial": "颗粒溶解；促销、混剪的快速换场" },
+    { "name": "fadeblack", "family": "dissolve", "since": "6.0", "energy": "calm", "direction": "none", "blackDip": true, "editorial": "黑场过渡；只用于章节/时空跳变" },
+    { "name": "fadewhite", "family": "dissolve", "since": "6.0", "energy": "neutral", "direction": "none", "editorial": "白闪过渡；回忆、闪光、转场爆点" },
+    { "name": "fadegrays", "family": "dissolve", "since": "6.0", "energy": "calm", "direction": "none", "editorial": "灰场过渡；梦境与回忆的柔化跳变" },
+    { "name": "distance", "family": "dissolve", "since": "6.0", "energy": "neutral", "direction": "none", "editorial": "距离场溶解；虚实切换" },
+    { "name": "pixelize", "family": "dissolve", "since": "6.0", "energy": "energetic", "direction": "none", "editorial": "像素化溶解；科技、故障感" },
+    { "name": "hblur", "family": "blur", "since": "6.0", "energy": "energetic", "direction": "none", "editorial": "水平模糊扫过；速度感" },
+    { "name": "wipeleft", "family": "wipe", "since": "6.0", "energy": "neutral", "direction": "left", "editorial": "左向硬边擦除；信息型切换" },
+    { "name": "wiperight", "family": "wipe", "since": "6.0", "energy": "neutral", "direction": "right", "editorial": "右向硬边擦除" },
+    { "name": "wipeup", "family": "wipe", "since": "6.0", "energy": "neutral", "direction": "up", "editorial": "向上擦除" },
+    { "name": "wipedown", "family": "wipe", "since": "6.0", "energy": "neutral", "direction": "down", "editorial": "向下擦除" },
+    { "name": "wipetl", "family": "wipe", "since": "6.0", "energy": "neutral", "direction": "diag", "editorial": "左上对角擦除" },
+    { "name": "wipetr", "family": "wipe", "since": "6.0", "energy": "neutral", "direction": "diag", "editorial": "右上对角擦除" },
+    { "name": "wipebl", "family": "wipe", "since": "6.0", "energy": "neutral", "direction": "diag", "editorial": "左下对角擦除" },
+    { "name": "wipebr", "family": "wipe", "since": "6.0", "energy": "neutral", "direction": "diag", "editorial": "右下对角擦除" },
+    { "name": "diagtl", "family": "wipe", "since": "6.0", "energy": "neutral", "direction": "diag", "editorial": "左上斜向推移" },
+    { "name": "diagtr", "family": "wipe", "since": "6.0", "energy": "neutral", "direction": "diag", "editorial": "右上斜向推移" },
+    { "name": "diagbl", "family": "wipe", "since": "6.0", "energy": "neutral", "direction": "diag", "editorial": "左下斜向推移" },
+    { "name": "diagbr", "family": "wipe", "since": "6.0", "energy": "neutral", "direction": "diag", "editorial": "右下斜向推移" },
+    { "name": "hlslice", "family": "slice", "since": "6.0", "energy": "energetic", "direction": "left", "editorial": "横向切片扫过；快剪卡点" },
+    { "name": "hrslice", "family": "slice", "since": "6.0", "energy": "energetic", "direction": "right", "editorial": "右向横向切片" },
+    { "name": "vuslice", "family": "slice", "since": "6.0", "energy": "energetic", "direction": "up", "editorial": "向上纵向切片" },
+    { "name": "vdslice", "family": "slice", "since": "6.0", "energy": "energetic", "direction": "down", "editorial": "向下纵向切片" },
+    { "name": "slideleft", "family": "slide", "since": "6.0", "energy": "neutral", "direction": "left", "editorial": "左滑入：相邻场景的空间关系" },
+    { "name": "slideright", "family": "slide", "since": "6.0", "energy": "neutral", "direction": "right", "editorial": "右滑入" },
+    { "name": "slideup", "family": "slide", "since": "6.0", "energy": "neutral", "direction": "up", "editorial": "上滑入" },
+    { "name": "slidedown", "family": "slide", "since": "6.0", "energy": "neutral", "direction": "down", "editorial": "下滑入" },
+    { "name": "smoothleft", "family": "slide", "since": "6.0", "energy": "neutral", "direction": "left", "editorial": "柔边左推移；甩镜感（whip_pan）" },
+    { "name": "smoothright", "family": "slide", "since": "6.0", "energy": "neutral", "direction": "right", "editorial": "柔边右推移" },
+    { "name": "smoothup", "family": "slide", "since": "6.0", "energy": "neutral", "direction": "up", "editorial": "柔边上推移" },
+    { "name": "smoothdown", "family": "slide", "since": "6.0", "energy": "neutral", "direction": "down", "editorial": "柔边下推移" },
+    { "name": "squeezeh", "family": "squeeze", "since": "6.0", "energy": "energetic", "direction": "lr", "editorial": "水平挤压；夸张促销" },
+    { "name": "squeezev", "family": "squeeze", "since": "6.0", "energy": "energetic", "direction": "ud", "editorial": "垂直挤压" },
+    { "name": "circlecrop", "family": "geometric", "since": "6.0", "energy": "neutral", "direction": "none", "editorial": "圆形裁切；重点强调" },
+    { "name": "rectcrop", "family": "geometric", "since": "6.0", "energy": "neutral", "direction": "none", "editorial": "矩形裁切；画框感" },
+    { "name": "circleopen", "family": "geometric", "since": "6.0", "energy": "calm", "direction": "none", "editorial": "圆形扩张揭开；回忆/聚焦" },
+    { "name": "circleclose", "family": "geometric", "since": "6.0", "energy": "calm", "direction": "none", "editorial": "圆形收拢闭合" },
+    { "name": "vertopen", "family": "geometric", "since": "6.0", "energy": "neutral", "direction": "lr", "editorial": "垂直中线揭开" },
+    { "name": "vertclose", "family": "geometric", "since": "6.0", "energy": "neutral", "direction": "lr", "editorial": "垂直中线闭合" },
+    { "name": "horzopen", "family": "geometric", "since": "6.0", "energy": "neutral", "direction": "ud", "editorial": "水平中线揭开" },
+    { "name": "horzclose", "family": "geometric", "since": "6.0", "energy": "neutral", "direction": "ud", "editorial": "水平中线闭合" },
+    { "name": "radial", "family": "geometric", "since": "6.0", "energy": "neutral", "direction": "none", "editorial": "径向扫描；钟表感" },
+    { "name": "zoomin", "family": "zoom", "since": "6.0", "energy": "energetic", "direction": "none", "editorial": "推近穿越；爆点转场（自带缓动）" },
+    { "name": "hlwind", "family": "wind", "since": "7.0", "energy": "energetic", "direction": "left", "editorial": "风扫左推（FFmpeg 7.0+）" },
+    { "name": "hrwind", "family": "wind", "since": "7.0", "energy": "energetic", "direction": "right", "editorial": "风扫右推（FFmpeg 7.0+）" },
+    { "name": "vuwind", "family": "wind", "since": "7.0", "energy": "energetic", "direction": "up", "editorial": "风扫上推（FFmpeg 7.0+）" },
+    { "name": "vdwind", "family": "wind", "since": "7.0", "energy": "energetic", "direction": "down", "editorial": "风扫下推（FFmpeg 7.0+）" },
+    { "name": "coverleft", "family": "cover", "since": "7.0", "energy": "neutral", "direction": "left", "editorial": "左向覆盖（FFmpeg 7.0+）" },
+    { "name": "coverright", "family": "cover", "since": "7.0", "energy": "neutral", "direction": "right", "editorial": "右向覆盖（FFmpeg 7.0+）" },
+    { "name": "coverup", "family": "cover", "since": "7.0", "energy": "neutral", "direction": "up", "editorial": "向上覆盖（FFmpeg 7.0+）" },
+    { "name": "coverdown", "family": "cover", "since": "7.0", "energy": "neutral", "direction": "down", "editorial": "向下覆盖（FFmpeg 7.0+）" },
+    { "name": "revealleft", "family": "reveal", "since": "7.0", "energy": "neutral", "direction": "left", "editorial": "左向揭示（FFmpeg 7.0+）" },
+    { "name": "revealright", "family": "reveal", "since": "7.0", "energy": "neutral", "direction": "right", "editorial": "右向揭示（FFmpeg 7.0+）" },
+    { "name": "revealup", "family": "reveal", "since": "7.0", "energy": "neutral", "direction": "up", "editorial": "向上揭示（FFmpeg 7.0+）" },
+    { "name": "revealdown", "family": "reveal", "since": "7.0", "energy": "neutral", "direction": "down", "editorial": "向下揭示（FFmpeg 7.0+）" }
+  ],
+  "blackDipAllowed": ["fadeblack", "fadewhite", "fadegrays"],
+  "receiptPolicy": {
+    "durationToleranceSec": 0.4,
+    "blackScreenLumaThreshold": 16,
+    "blendEvidenceMinDiff": 1.5,
+    "note": "转场机检：中点帧亮度 + 与前后端点的像素差；黑场类转场（fadeblack/fadewhite/fadegrays）豁免亮度项，仅校验混合证据"
+  }
+}
