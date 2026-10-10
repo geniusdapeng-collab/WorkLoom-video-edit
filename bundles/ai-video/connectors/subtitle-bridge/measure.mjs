@@ -60,7 +60,11 @@ export function resolveBinaries(env = process.env) {
 }
 
 /** 跑一个子进程并收集输出；超时/非零退出都转成稳定错误码。 */
-export function runBin(bin, args, { timeoutMs = 300_000, label = "ffmpeg" } = {}) {
+/**
+ * 默认超时 15 分钟（2026-10-11 调整）：4K（3840×2160）的字幕烧录/弹幕渲染实测超过旧默认 5 分钟，
+ * 触发了 "ffmpeg 超时（300000ms）"；画质参数不变，仅放宽等待窗口。
+ */
+export function runBin(bin, args, { timeoutMs = 900_000, label = "ffmpeg" } = {}) {
   return new Promise((resolve, reject) => {
     let child;
     try {

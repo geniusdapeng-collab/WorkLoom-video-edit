@@ -304,8 +304,15 @@ async function main(): Promise<void> {
 
   const covers: Array<Record<string, unknown>> = [];
   const checksAll: Array<Record<string, unknown>> = [];
+  /**
+   * 字号随画幅缩放（2026-10-11 修复）：STYLES 里的 124/112/128px 与副题 52px 是 **1080p 参考值**；
+   * 4K 成片封面若不缩放，字会相对变小 4 倍——封面排版必须按 `canvas.height / 1080` 等比放大。
+   */
+  const fontScale = canvas.height / 1080;
   for (const variantId of variants) {
     const style = STYLES[variantId] ?? STYLES["warm-story"]!;
+    const headlinePx = Math.round(style.headlineSize * fontScale);
+    const sublinePx = Math.round(52 * fontScale);
     const heroSec = Number(arg("--hero-sec", String(style.heroSec)));
     const heroShot = shots.find((shot) => (shot.masterIn ?? 0) <= heroSec && heroSec < (shot.masterIn ?? 0) + (shot.duration ?? 0)) ?? shots[0]!;
     const heroSourceSec = Number(((heroShot.sourceIn ?? 0) + Math.max(0, heroSec - (heroShot.masterIn ?? 0))).toFixed(3));
@@ -319,8 +326,8 @@ async function main(): Promise<void> {
       person: style.archetype === "person-led" ? { enabled: true, shotId: heroShot.shotId, atSec: heroSourceSec, widthRatio: 0.42 } : { enabled: false, widthRatio: 0.42 },
       typography: {
         fontId: style.fontId,
-        headlineSizeRatio: Number((style.headlineSize / canvas.height).toFixed(4)),
-        sublineSizeRatio: Number((52 / canvas.height).toFixed(4)),
+        headlineSizeRatio: Number((headlinePx / canvas.height).toFixed(4)),
+        sublineSizeRatio: Number((sublinePx / canvas.height).toFixed(4)),
         color: style.colors.title,
         accentColor: style.colors.accent,
       },
@@ -347,7 +354,7 @@ async function main(): Promise<void> {
     scrimLayers.forEach((layer, index) => { layer.y = Math.round(canvas.height * (0.42 + index * 0.085)); });
     const titleY = Math.round(canvas.height * (landscape ? 0.63 : 0.7));
     const badgeY = Math.round(canvas.height * 0.08);
-    const subtitleY = titleY + Math.round(style.headlineSize * 1.25);
+    const subtitleY = titleY + Math.round(headlinePx * 1.25);
     const recipeBody = {
       recipe_version: 1,
       name: `cover-${variantId}`,
@@ -357,8 +364,8 @@ async function main(): Promise<void> {
         ...scrimLayers,
         ...(style.accentBar ? [{ type: "solid", name: "accent-bar", color: style.colors.accent, x: Math.round(canvas.width * 0.08), y: titleY - Math.round(canvas.height * 0.08), width: Math.round(canvas.width * 0.1), height: Math.round(canvas.height * 0.012), opacity: 1 }] : []),
         { type: "text", name: "badge", text: String(plan.badge ?? ""), font: style.fontFamily, size: Math.round(canvas.height * 0.038), weight: "bold", color: style.colors.badge, align: "right", x: Math.round(canvas.width * 0.62), y: badgeY, width: Math.round(canvas.width * 0.3) },
-        { type: "text", name: "headline", text: title, font: style.fontFamily, size: style.headlineSize, weight: "bold", color: style.colors.title, align: "left", x: Math.round(canvas.width * 0.08), y: titleY, width: Math.round(canvas.width * 0.84) },
-        ...(plan.subline ? [{ type: "text", name: "subline", text: plan.subline, font: style.fontFamily, size: 52, weight: "regular", color: style.colors.sub, align: "left", x: Math.round(canvas.width * 0.08), y: subtitleY, width: Math.round(canvas.width * 0.84) }] : []),
+        { type: "text", name: "headline", text: title, font: style.fontFamily, size: headlinePx, weight: "bold", color: style.colors.title, align: "left", x: Math.round(canvas.width * 0.08), y: titleY, width: Math.round(canvas.width * 0.84) },
+        ...(plan.subline ? [{ type: "text", name: "subline", text: plan.subline, font: style.fontFamily, size: sublinePx, weight: "regular", color: style.colors.sub, align: "left", x: Math.round(canvas.width * 0.08), y: subtitleY, width: Math.round(canvas.width * 0.84) }] : []),
       ],
       exports: [{ format: "png", path: `cover-${variantId}.png` }],
     };
@@ -395,8 +402,8 @@ async function main(): Promise<void> {
       const textFilters = [
         ...(style.accentBar ? [`drawbox=x=${Math.round(canvas.width * 0.08)}:y=${titleY - Math.round(canvas.height * 0.08)}:w=${Math.round(canvas.width * 0.1)}:h=${Math.round(canvas.height * 0.012)}:color=${style.colors.accent}@1:t=fill`] : []),
         `drawtext=fontfile='${fontFile}':text='${String(plan.badge ?? "").replace(/'/gu, "")}':fontcolor=${style.colors.badge}:fontsize=${Math.round(canvas.height * 0.038)}:borderw=4:bordercolor=black@0.5:x=w-text_w-${Math.round(canvas.width * 0.08)}:y=${badgeY}`,
-        `drawtext=fontfile='${fontFile}':text='${title.replace(/'/gu, "")}':fontcolor=${style.colors.title}:fontsize=${style.headlineSize}:borderw=6:bordercolor=black@0.55:x=${Math.round(canvas.width * 0.08)}:y=${titleY}`,
-        ...(plan.subline ? [`drawtext=fontfile='${fontFile}':text='${plan.subline.replace(/'/gu, "")}':fontcolor=${style.colors.sub}:fontsize=52:borderw=4:bordercolor=black@0.5:x=${Math.round(canvas.width * 0.08)}:y=${subtitleY}`] : []),
+        `drawtext=fontfile='${fontFile}':text='${title.replace(/'/gu, "")}':fontcolor=${style.colors.title}:fontsize=${headlinePx}:borderw=${Math.round(6 * fontScale)}:bordercolor=black@0.55:x=${Math.round(canvas.width * 0.08)}:y=${titleY}`,
+        ...(plan.subline ? [`drawtext=fontfile='${fontFile}':text='${plan.subline.replace(/'/gu, "")}':fontcolor=${style.colors.sub}:fontsize=${sublinePx}:borderw=${Math.round(4 * fontScale)}:bordercolor=black@0.5:x=${Math.round(canvas.width * 0.08)}:y=${subtitleY}`] : []),
       ];
       run(FFMPEG, ["-hide_banner", "-loglevel", "error", "-y", "-i", baseImage, "-vf", textFilters.join(","), "-frames:v", "1", "-update", "1", target]);
     }
@@ -404,7 +411,7 @@ async function main(): Promise<void> {
 
     const probed = probeMedia(target);
     const bytes = statSync(target).size;
-    const titleBand = { x: 0, y: Math.max(0, titleY - 20), w: canvas.width, h: Math.min(canvas.height - titleY, style.headlineSize + 90) };
+    const titleBand = { x: 0, y: Math.max(0, titleY - Math.round(20 * fontScale)), w: canvas.width, h: Math.min(canvas.height - titleY, headlinePx + Math.round(90 * fontScale)) };
     const personBox = { x: 0, y: Math.round(canvas.height * 0.3), w: Math.round(canvas.width * 0.5), h: Math.round(canvas.height * 0.4) };
     const titlePsnr = bandPsnr(target, baseImage, titleBand);
     const personPsnr = plan.person?.enabled ? bandPsnr(target, baseImage, personBox) : null;
