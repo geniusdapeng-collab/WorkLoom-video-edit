@@ -15,3 +15,4 @@ export * from "./probe-parse.js";
 export * from "./highlight.js";
 export * from "./timeline.js";
 export * from "./audio.js";
+export * from "./caption.js";
