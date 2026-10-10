@@ -1,11 +1,11 @@
 {
  "schema": "workloom.capabilities/v2",
- "repo": "workloom-ai-acquisition",
- "productId": "workloom-ai-growth",
- "repository": "workloom-ai/WorkLoom-growth",
- "displayName": "WorkLoom 获客增长系统（实验车道）",
+ "repo": "workloom-ai-video-edit",
+ "productId": "workloom-ai-video-edit",
+ "repository": "workloom-ai/WorkLoom-video-edit",
+ "displayName": "WorkLoom 视频AI剪辑系统（实验车道）",
  "description": "企业获客与内容运营工作系统：工作台、行业包声明、内容生产工位与共享治理组件。",
- "generatedAt": "2026-10-07T00:25:21.314Z",
+ "generatedAt": "2026-10-10T13:28:51.097Z",
  "evidenceNotice": "本导览检查 manifest、脚本和文件入口。目录可发现、实际可调用、结果已验证分别记录；缺少同提交独立运行证据时后两项为未验证。岗位、技能与管线数是声明资产数，不是生产实测通过数。",
  "bundleDeclarations": [
   {
@@ -125,13 +125,35 @@
     "company-ceo"
    ],
    "sourcePath": "bundles/hotel/bundle.json"
+  },
+  {
+   "bundle": "video-edit",
+   "version": "0.1.0",
+   "status": "candidate",
+   "presets": 11,
+   "skills": 9,
+   "pipelines": 1,
+   "presetKeys": [
+    "footage-librarian",
+    "signal-analyst",
+    "shot-understander",
+    "highlight-scout",
+    "creative-weaver",
+    "story-architect",
+    "edit-director",
+    "caption-writer",
+    "cut-inspector",
+    "edit-compositor",
+    "edit-producer"
+   ],
+   "sourcePath": "bundles/video-edit/bundle.json"
   }
  ],
  "declarationTotals": {
-  "presets": 85,
-  "skills": 94,
-  "pipelines": 11,
-  "uniquePresetKeys": 81
+  "presets": 96,
+  "skills": 103,
+  "pipelines": 12,
+  "uniquePresetKeys": 92
  },
  "demoPages": [
   "geo-customer-app.html",
@@ -240,7 +262,8 @@
      "sourcePaths": [
       "bundles/ai-video/bundle.json",
       "bundles/geo-growth/bundle.json",
-      "bundles/hotel/bundle.json"
+      "bundles/hotel/bundle.json",
+      "bundles/video-edit/bundle.json"
      ],
      "id": "cap:ff70108c12d005c7",
      "availability": {
@@ -260,7 +283,8 @@
      "sourcePaths": [
       "bundles/ai-video/bundle.json",
       "bundles/geo-growth/bundle.json",
-      "bundles/hotel/bundle.json"
+      "bundles/hotel/bundle.json",
+      "bundles/video-edit/bundle.json"
      ],
      "id": "cap:842ce95f7dc7f2ac",
      "availability": {
@@ -280,9 +304,31 @@
      "sourcePaths": [
       "bundles/ai-video/bundle.json",
       "bundles/geo-growth/bundle.json",
-      "bundles/hotel/bundle.json"
+      "bundles/hotel/bundle.json",
+      "bundles/video-edit/bundle.json"
      ],
      "id": "cap:df5179c73c964310",
+     "availability": {
+      "discoverable": true,
+      "callable": "unverified",
+      "verified": "unverified",
+      "environment": null,
+      "lastSuccess": null,
+      "evidence": null,
+      "reason": "仅目录与入口元数据；没有对应运行证据"
+     }
+    },
+    {
+     "name": "bundles/video-edit/",
+     "how": "[manifest](../bundles/video-edit/bundle.json)",
+     "desc": "11 条岗位定义 / 9 项技能路径 / 1 条管线；版本 0.1.0，状态 candidate；不等于已接通功能数",
+     "sourcePaths": [
+      "bundles/ai-video/bundle.json",
+      "bundles/geo-growth/bundle.json",
+      "bundles/hotel/bundle.json",
+      "bundles/video-edit/bundle.json"
+     ],
+     "id": "cap:92434473c63f463f",
      "availability": {
       "discoverable": true,
       "callable": "unverified",
@@ -297,7 +343,8 @@
    "sourcePaths": [
     "bundles/ai-video/bundle.json",
     "bundles/geo-growth/bundle.json",
-    "bundles/hotel/bundle.json"
+    "bundles/hotel/bundle.json",
+    "bundles/video-edit/bundle.json"
    ]
   },
   {

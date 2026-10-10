@@ -1,5 +1,5 @@
 {
-  "name": "workloom-ai-acquisition",
+  "name": "workloom-ai-video-edit",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -62,6 +62,9 @@
     "computer:mcp": "tsx packages/base/computer-use/mcp.ts",
     "computer:smoke": "tsx packages/base/computer-use/smoke.ts",
     "video:doctor": "tsx scripts/tools/video-doctor.mts",
+    "edit:probe": "tsx scripts/tools/edit-probe.mts",
+    "edit:verify": "tsx scripts/tools/edit-verify.mts",
+    "edit:assemble": "tsx scripts/tools/edit-assemble.mts",
     "video:assets": "tsx scripts/tools/real-person-assets.mts",
     "setup": "bash scripts/bootstrap.sh",
     "setup:full": "bash scripts/bootstrap.sh --with-computer",

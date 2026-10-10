@@ -17,6 +17,8 @@ export const LAYER_BY_REPO = {
   "workroom-tiger": "tiger",
   "workroom-eagle": "eagle",
   "workroom-fox": "fox",
+  // 2026-10-10：视频AI剪辑（真实素材二次创作）独立仓；与 hyperreality-system（生成式视频）区分 layer。
+  "WorkLoom-video-edit": "video-edit",
 };
 
 export const TASK_ID_RE = /\[T-\d{4}-\d{4}-\d{4}\]/;

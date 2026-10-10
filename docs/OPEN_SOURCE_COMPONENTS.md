@@ -1,4 +1,4 @@
-# WorkLoom 开源组件清单 · workloom-ai-growth
+# WorkLoom 开源组件清单 · workloom-ai-video-edit
 
 <!-- 自动生成，请勿手改：node scripts/oss-inventory.mjs --write -->
 

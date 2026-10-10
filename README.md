@@ -1,8 +1,13 @@
-# WorkLoom Growth · 获客增长系统（实验车道）
+# WorkLoom 视频AI剪辑系统 · 真实素材二次创作（实验车道）
 
-WorkLoom Growth 面向企业增长与内容运营团队，把目标、数字员工岗位、内容生产、任务协作和过程记录放进同一个工作空间。产品目标是连接意图洞察、社媒与 GEO 触达、线索承接、转化和复盘；当前代码中，**视频生产与交付有专用执行链，通用工作台和行业包提供组织与治理机制，部分增长工具仍处于声明或接入阶段**。
+本仓复制自 **WorkLoom-growth@7509809**，在既有 AI 视频生产链路之前新增一条 **视频AI剪辑管线**：真实拍摄（或既有 AI 素材）→ 多模态理解 → 高光与关键帧挖掘 → 镜头重组与文案 → 帧级剪辑时间轴 → 本地合成 → 交回既有后期（调色/字幕/配音/配乐/封面/多风格交付）。
 
-[CNB 仓库](https://cnb.cool/workloom-ai/WorkLoom-growth) · [产品身份](product.manifest.json) · [代码入口导览](docs/capabilities.auto.md) · [开发指引](AGENTS.md) · [Apache-2.0](LICENSE)
+换句话说：**替换掉"视频提示词生成"与"视频渲染"两个环节**，其余后期环节与 AI 视频生成管线共用同一批工位与同一份交付纪律。剪辑包本身是本地算力（免费、可重跑），模型只花在"理解"和"创作"上。
+
+[CNB 仓库](https://cnb.cool/workloom-ai/WorkLoom-video-edit) · [产品身份](product.manifest.json) · [剪辑架构升级](docs/video-edit-architecture.md) · [提示词套件](docs/video-edit-prompt-suite.md) · [代码入口导览](docs/capabilities.auto.md) · [开发指引](AGENTS.md) · [Apache-2.0](LICENSE)
+
+> 新管线入口：`bundles/video-edit/`（10+ 岗位 / 1 条管线 / 9 条围栏 / 5 份契约）+ `packages/video-studio/src/edit/`（参考实现）
+> + `pnpm edit:probe|edit:verify|edit:assemble`（本地信号解析与合成）。原获客（GEO）能力与页面**原样保留**，可直接复用其治理机制与工作台。
 
 > 本页按当前源码说明“有什么、从哪里进入、还依赖什么”，不把岗位或技能数量当作已交付能力数，也不把模拟结果当作生产效果。旧方案、截图和演示 PPT 可帮助理解背景；发生差异时，以 manifest、当前路由和实际执行代码为准。
 
@@ -103,14 +108,14 @@ NATS/Redis 的事件总线库可在源码中找到，但当前主业务入口未
 同名岗位由主包 `composition.presetOwners` 裁决：`ads-optimizer`、`publish-operator`、`review-analyst` 归 `geo-growth`，`company-ceo` 归 `hotel`。下方数量从 manifest 和岗位标识自动派生，避免手工维护另一套总数。当前三包均为 `candidate`；稳定包签名校验能力的存在不能变成“这些候选包已经完成生产验收”的结论。
 
 <!-- CAPABILITIES:BEGIN -->
-<!-- 本区块由 scripts/generate-capabilities.mjs 自动生成（2026-10-07），请勿手改；重跑 pnpm capabilities 更新 -->
+<!-- 本区块由 scripts/generate-capabilities.mjs 自动生成（2026-10-10），请勿手改；重跑 pnpm capabilities 更新 -->
 
 ## 代码与资产速览（自动生成）
 
 本导览检查 manifest、脚本和文件入口。目录可发现、实际可调用、结果已验证分别记录；缺少同提交独立运行证据时后两项为未验证。岗位、技能与管线数是声明资产数，不是生产实测通过数。
 
 - 🖥 **三端应用入口**：PC 工作台 · 员工移动工作台 · 客户 H5 服务前台
-- 📦 **行业包声明资产**：bundles/ai-video/ · bundles/geo-growth/ · bundles/hotel/
+- 📦 **行业包声明资产**：bundles/ai-video/ · bundles/geo-growth/ · bundles/hotel/ · bundles/video-edit/
 - 🧑‍💼 **岗位与交互入口**：数字员工中心（`/agents`） · 织伴数字人组件 · 语音与口型引擎
 - 🖐 **电脑操作接口**：浏览器与桌面驱动接口 · HTTP / MCP 工位入口
 - ⚙ **共享基础模块（目录存在性）**：围栏判定 · 技能分发组件 · 任务编排基础组件 · 夜班状态与调度 · 模型路由与用量记录 · 发布适配层（默认演练） 等 15 项
@@ -118,7 +123,7 @@ NATS/Redis 的事件总线库可在源码中找到，但当前主业务入口未
 - ✅ **验证与维护命令**：环境安装脚本 · 主测试套件 · GEO 域套件 · 酒店域套件 · 发布门禁 · 五元事件验链 等 8 项
 - 📚 **演示与说明资产**：静态演示原型 ×12 · 官网静态页面 · official 技能目录 ×9 · 历史能力导览 PPT · 模拟数据说明
 
-本仓 manifest 共声明 **85 条岗位定义、94 项技能路径、11 条管线**；岗位按 `preset_key` 去重为 **81 个不同标识**。实际组合以主包与装配器为准。
+本仓 manifest 共声明 **96 条岗位定义、103 项技能路径、12 条管线**；岗位按 `preset_key` 去重为 **92 个不同标识**。实际组合以主包与装配器为准。
 
 完整来源与边界见 [自动导览](docs/capabilities.auto.md) 和 [机器清单](docs/capabilities.auto.json)；首次体验按下文“快速开始”准备隔离环境。
 <!-- CAPABILITIES:END -->

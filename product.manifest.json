@@ -1,21 +1,21 @@
 {
   "schemaVersion": "workloom.product/v1",
-  "productId": "workloom-ai-growth",
+  "productId": "workloom-ai-video-edit",
   "role": "industry",
-  "displayName": "WorkLoom 获客增长系统（实验车道）",
-  "packageName": "workloom-ai-acquisition",
-  "repository": "workloom-ai/WorkLoom-growth",
+  "displayName": "WorkLoom 视频AI剪辑系统（实验车道）",
+  "packageName": "workloom-ai-video-edit",
+  "repository": "workloom-ai/WorkLoom-video-edit",
   "defaultBundle": "geo-growth",
   "demoWorkspaceSlug": "geo-growth",
   "demoMemberNo": "MEM-G01",
   "release": {
-    "appId": "com.geniusdapeng.workloomgrowth",
+    "appId": "com.geniusdapeng.workloomvideoedit",
     "channel": "stable",
-    "artifactPrefix": "WorkLoom 获客增长系统",
+    "artifactPrefix": "WorkLoom 视频AI剪辑系统",
     "website": "apps/site"
   },
   "desktop": {
-    "portOffset": 420
+    "portOffset": 430
   },
   "clients": {
     "bPc": {

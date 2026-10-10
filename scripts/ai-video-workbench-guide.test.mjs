@@ -68,7 +68,7 @@ function assertBody(output) {
   assert.equal(output.dataMode, "unverified");
   assert.equal(output.status, "succeeded");
   assert.equal(output.result.path, GUIDE_PATH);
-  assert.equal(output.result.repository, "workloom-ai/WorkLoom-growth");
+  assert.equal(output.result.repository, "workloom-ai/WorkLoom-video-edit");
   assert.equal(output.result.markdown, GUIDE_BYTES.toString("utf8"));
   assert.equal(output.result.byteCount, GUIDE_BYTES.length);
   assert.equal(output.result.sha256, hash(GUIDE_BYTES));
@@ -80,7 +80,7 @@ test("本仓固定指南返回全文、版本、产品身份及原始字节摘�
   assert.equal(result.sha256, hash(GUIDE_BYTES));
   assert.equal(result.byteCount, GUIDE_BYTES.length);
   assert.equal(result.guideVersion, "2026-10-07.2");
-  assert.equal(result.repository, "workloom-ai/WorkLoom-growth");
+  assert.equal(result.repository, "workloom-ai/WorkLoom-video-edit");
   assert.match(result.markdown, /rawIntent/u);
   assert.match(result.markdown, /没有 Growthtest 的 nativeaudio 专用契约/u);
   assert.ok(result.limitations.some((item) => item.includes("TTS")));

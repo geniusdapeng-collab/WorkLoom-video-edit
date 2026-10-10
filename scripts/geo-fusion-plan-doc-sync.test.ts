@@ -9,6 +9,9 @@
  * 本用例把这一行钉到**装配器运行结果**上：任何人改岗位 / 围栏而忘了同步文档，
  * `pnpm test:scripts` 直接红——口径只有一个事实源，不靠记忆维护。
  * （README 统计块与围栏包头注释由 `pnpm capabilities --check` 守着，本用例只补文档正文。）
+ *
+ * 2026-10-10：组合参与包从三包扩展到四包（新增 video-edit 视频AI剪辑包），
+ * 本用例改为**从主包依赖动态推导**参与包清单，避免再出现"加包忘改门禁"的漂移。
  */
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -18,7 +21,17 @@ import YAML from "yaml";
 import { composeWorkforce } from "@workloom/base/bundles";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
-const BUNDLES = ["hotel", "ai-video", "geo-growth"] as const;
+const PRIMARY_BUNDLE = "geo-growth";
+const CN_NUMERALS = ["零", "一", "二", "三", "四", "五", "六", "七", "八"] as const;
+
+/** 参与组合的包：主包 + 其声明的依赖（顺序与装配器一致：依赖在前、主包在后）。 */
+const BUNDLES: string[] = (() => {
+  const manifest = JSON.parse(readFileSync(join(ROOT, "bundles", PRIMARY_BUNDLE, "bundle.json"), "utf-8")) as {
+    workloom: { dependencies?: Array<{ bundleId: string }> };
+  };
+  return [...(manifest.workloom.dependencies ?? []).map((dep) => dep.bundleId), PRIMARY_BUNDLE];
+})();
+const BUNDLE_COUNT_LABEL = CN_NUMERALS[BUNDLES.length] ?? String(BUNDLES.length);
 
 interface Manifest {
   workloom: { provides: { presets: string[]; fences: string[] } };
@@ -42,7 +55,7 @@ function declaredPresetCounts(): Record<string, number> {
   return counts;
 }
 
-/** 三包 `provides.fences` 逐文件解析后的 `rule_id` 去重并集（文档写的就是这个口径）。 */
+/** 各包 `provides.fences` 逐文件解析后的 `rule_id` 去重并集（文档写的就是这个口径）。 */
 function fenceUnionSize(): number {
   const ids = new Set<string>();
   for (const bundleId of BUNDLES) {
@@ -63,7 +76,7 @@ describe("口径说明行与装配器实测同步（防复发）", () => {
   const line = (): string => {
     const found = readFileSync(join(ROOT, "docs/geo-fusion-plan.md"), "utf-8")
       .split("\n")
-      .find((row) => row.includes("的完整组合编制为三包合并"));
+      .find((row) => row.includes("的完整组合编制为") && row.includes("包合并"));
     expect(found, "docs/geo-fusion-plan.md 缺「口径说明」行（§2.2）").toBeTruthy();
     return found!;
   };
@@ -72,18 +85,17 @@ describe("口径说明行与装配器实测同步（防复发）", () => {
 
   it("组合编制总岗数 / 遮蔽处数 = 装配器运行结果", () => {
     const composed = composeWorkforce("geo-growth");
-    expect(plain()).toContain(`完整组合编制为三包合并 ${composed.presets.size} 岗`);
+    expect(plain()).toContain(`完整组合编制为${BUNDLE_COUNT_LABEL}包合并 ${composed.presets.size} 岗`);
     expect(plain()).toContain(`其中 ${composed.shadowed.length} 处同名遮蔽`);
   });
 
   it("各包声明岗数 = 各包 provides.presets 资产数", () => {
     const counts = declaredPresetCounts();
-    expect(plain()).toContain(
-      `各包声明 hotel ${counts.hotel} + ai-video ${counts["ai-video"]} + geo-growth ${counts["geo-growth"]}`,
-    );
+    const clause = BUNDLES.map((bundleId) => `${bundleId} ${counts[bundleId]}`).join(" + ");
+    expect(plain()).toContain(`各包声明 ${clause}`);
   });
 
-  it("三包围栏并集条数 = provides.fences 逐文件 rule_id 去重数", () => {
+  it("组合围栏并集条数 = provides.fences 逐文件 rule_id 去重数", () => {
     expect(plain()).toContain(`围栏并集 ${fenceUnionSize()} 条`);
   });
 });
