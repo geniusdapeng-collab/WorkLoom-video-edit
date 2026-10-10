@@ -19,7 +19,7 @@
  *     [--width 1920 --height 1080 --fps 30] [--crf 16] [--burn-subtitles] [--json]
  */
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 import {
@@ -55,6 +55,19 @@ async function main(): Promise<void> {
   const timelineFile = abs(timelinePath);
   if (!existsSync(timelineFile)) throw new Error(`时间轴不存在：${timelineFile}`);
   const outDir = abs(outDirArg);
+
+  /**
+   * `--clean`：清理上一次**失败**的交付目录（只在没有 delivery-manifest.json 时允许）。
+   * 为什么需要：post-bridge 的产物写入用独占创建（`wx`），失败重试会被残留文件挡住；
+   * 已完成的交付目录（有清单）一律拒绝清理——那是成果，不许覆盖。
+   */
+  if (flag("--clean")) {
+    const manifest = join(outDir, "delivery-manifest.json");
+    if (existsSync(manifest)) {
+      throw new Error(`交付目录已完成（存在 delivery-manifest.json）：${outDir}；如需返修请改用新版本目录`);
+    }
+    if (existsSync(outDir)) rmSync(outDir, { recursive: true, force: true });
+  }
   mkdirSync(outDir, { recursive: true });
 
   const timeline = JSON.parse(readFileSync(timelineFile, "utf8")) as EditTimeline;
@@ -91,23 +104,33 @@ async function main(): Promise<void> {
   }
 
   // ② 交回既有后期链路：post-bridge 的 buildDeliveryPackage（本地工位，不联网、不烧额度）
-  process.env.WORKLOOM_POST_ALLOWED_ROOTS = [
-    process.env.WORKLOOM_POST_ALLOWED_ROOTS?.trim(),
+  /**
+   * 路径监狱：post-bridge 与它调用的三个工位（调色/字幕/配乐）**各有自己的白名单环境变量**，
+   * 只设 post 的那一个会在"逐变体调色"一步被拒（实机教训：output 越出允许目录）。
+   * 这里一次性把工作目录、交付目录与全部源素材目录加进四个白名单。
+   */
+  const jailRoots = [
     REPO_ROOT,
     outDir,
     ...new Set(timeline.sources.map((source) => dirname(source.path))),
-  ].filter(Boolean).join(":");
+  ];
+  for (const key of ["WORKLOOM_POST_ALLOWED_ROOTS", "WORKLOOM_COLOR_ALLOWED_ROOTS", "WORKLOOM_SUBTITLE_ALLOWED_ROOTS", "WORKLOOM_BGM_ALLOWED_ROOTS"]) {
+    const existing = process.env[key]?.trim();
+    process.env[key] = [existing, ...jailRoots].filter(Boolean).join(":");
+  }
   process.env.WL_FFMPEG ??= FFMPEG;
 
   const core = await import("../../bundles/ai-video/connectors/post-bridge/core.mjs") as {
     buildDeliveryPackage: (options: Record<string, unknown>) => Promise<Record<string, unknown>>;
+    buildCover: (options: Record<string, unknown>) => Promise<{ output?: string }>;
+    findVariantPack: (id: string, options?: Record<string, unknown>) => Record<string, unknown>;
   };
   const project = {
     projectId: timeline.filmId ?? timeline.timelineId,
     title,
     resolution: [width, height],
     fps,
-    quality: "standard",
+    quality: arg("--quality", "hd"),   // post-bridge 只认 hd / uhd（ux 档位名不同，别再猜）
     platform,
     transitions: { mode: "hard", fadeSec: 0 },
     copy: {
@@ -126,6 +149,31 @@ async function main(): Promise<void> {
     softSubtitles: true,
   });
 
+  /**
+   * 封面帧可选覆盖：变体配方里的 `cover.at` 是"成片比例"，默认值未必落在最好看的那一帧
+   * （实机教训：默认 0.32 落在一个普通内景）。传 `--cover-at <0–1>` 时，用同一个封面工位
+   * （post-bridge 的 buildCover）按指定比例重出每个变体的封面，不自己拼图。
+   */
+  const coverAt = arg("--cover-at");
+  if (coverAt) {
+    const ratio = Number(coverAt);
+    if (!Number.isFinite(ratio) || ratio < 0 || ratio > 1) throw new Error("--cover-at 必须是 0–1 的比例");
+    for (const variantId of variants) {
+      const pack = core.findVariantPack(variantId) as { id: string; cover?: Record<string, unknown>; copy?: Record<string, unknown> };
+      const input = join(outDir, "variants", variantId, `${variantId}.mp4`);
+      if (!existsSync(input)) continue;
+      await core.buildCover({
+        input,
+        output: join(outDir, "variants", variantId, "cover.png"),
+        project,
+        variant: { ...pack, cover: { ...(pack.cover ?? {}), at: ratio } },
+        resolution: [width, height],
+        platform,
+        workDir: join(outDir, "work", "cover-override", variantId),
+      });
+    }
+  }
+
   const manifestPath = join(outDir, "delivery-manifest.json");
   const manifest = existsSync(manifestPath)
     ? JSON.parse(readFileSync(manifestPath, "utf8")) as Record<string, unknown>
@@ -136,6 +184,7 @@ async function main(): Promise<void> {
     clips: shots.length,
     variants: variants,
     subtitle: subtitlePath,
+    coverAt: coverAt ? Number(coverAt) : null,
     manifest: manifestPath,
     files: (manifest?.files ?? manifest?.artifacts ?? null),
     resultKeys: Object.keys(result ?? {}),
