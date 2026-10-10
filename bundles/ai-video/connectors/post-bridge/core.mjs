@@ -87,7 +87,13 @@ export function resolveBinaries(env = process.env) {
 const here = path.dirname(fileURLToPath(import.meta.url));
 /** `bundles/ai-video`（连接器目录的上两级）：变体包与 LUT 库都挂在这个 bundle 下。 */
 export const BUNDLE_ROOT = path.resolve(here, "../..");
-export const VARIANT_DIR = path.join(BUNDLE_ROOT, "library", "style-variants");
+/**
+ * 变体配方目录：默认随包；`WORKLOOM_POST_VARIANT_DIR` 可指向一份**覆盖副本**
+ * （例如"本片全部硬切"的临时配方：复制三份变体包并把 transitions.mode 改成 hard）。
+ * 覆盖只影响本次进程，不改随包资产。
+ */
+export const VARIANT_DIR = (process.env.WORKLOOM_POST_VARIANT_DIR ?? "").trim()
+  || path.join(BUNDLE_ROOT, "library", "style-variants");
 export const LUT_DIR = path.join(BUNDLE_ROOT, "library", "luts");
 export const FILM_PROJECT_SCHEMA = "workloom.film-project/v1";
 export const DELIVERY_SCHEMA = "workloom.delivery-package/v1";

@@ -82,6 +82,14 @@ async function main(): Promise<void> {
   const fps = Number(arg("--fps", String(timeline.target?.fps ?? 30)));
   const crf = Number(arg("--crf", "16"));
   const variants = arg("--variants", "warm-story,clean-tech,bold-promo").split(",").map((v) => v.trim()).filter(Boolean);
+  /**
+   * 转场口径：`pack`（默认，用变体配方，暖调故事版是 fade=经黑场叠化）或 `hard`（全部硬切）。
+   * 产品所有者口径（2026-10-10）：叙事剪辑默认硬切，叠化只在明确要求时使用。
+   * 实现方式：把三份变体配方复制到交付目录下的临时覆盖目录，改写 transitions 后交给
+   * post-bridge 的 `WORKLOOM_POST_VARIANT_DIR` 覆盖（不改随包资产）。
+   */
+  const transitionsMode = arg("--transitions", "hard");
+  if (!["hard", "pack"].includes(transitionsMode)) throw new Error("--transitions 只接受 hard / pack");
   const subtitlePath = arg("--subtitle") ? abs(arg("--subtitle")) : null;
   if (subtitlePath && !existsSync(subtitlePath)) throw new Error(`字幕文件不存在：${subtitlePath}`);
   const platform = arg("--platform", timeline.target?.platform ?? "微信视频号");
@@ -120,11 +128,32 @@ async function main(): Promise<void> {
   }
   process.env.WL_FFMPEG ??= FFMPEG;
 
-  const core = await import("../../bundles/ai-video/connectors/post-bridge/core.mjs") as {
+  /**
+   * 转场口径：`hard`（默认，产品所有者 2026-10-10 口径：叙事剪辑默认硬切）或 `pack`（用变体配方）。
+   * 实现：复制三份变体配方到交付目录下的覆盖副本、改写 transitions，再交给 post-bridge 的
+   * `WORKLOOM_POST_VARIANT_DIR`。**必须在动态 import 之前设置**——该模块在加载时解析这个环境变量。
+   */
+  if (transitionsMode === "hard") {
+    const baseVariantDir = join(REPO_ROOT, "bundles/ai-video/library/style-variants");
+    const overrideDir = join(outDir, "work", "variant-overrides");
+    mkdirSync(overrideDir, { recursive: true });
+    const index = JSON.parse(readFileSync(join(baseVariantDir, "index.json"), "utf8")) as { variants: Array<{ id: string; file: string }> };
+    for (const entry of index.variants) {
+      const pack = JSON.parse(readFileSync(join(baseVariantDir, entry.file), "utf8")) as Record<string, unknown>;
+      pack.transitions = { mode: "hard", fadeSec: 0, note: "本片全部硬切（覆盖配方默认的叠化/交叉转场）" };
+      writeFileSync(join(overrideDir, entry.file), `${JSON.stringify(pack, null, 2)}\n`, "utf8");
+    }
+    writeFileSync(join(overrideDir, "index.json"), `${JSON.stringify({ ...index, updatedAt: new Date().toISOString(), principle: "本片全部硬切（覆盖副本）" }, null, 2)}\n`, "utf8");
+    process.env.WORKLOOM_POST_VARIANT_DIR = overrideDir;
+  }
+
+  const core = await import("../../bundles/ai-video/connectors/post-bridge/core.mjs") as unknown as {
     buildDeliveryPackage: (options: Record<string, unknown>) => Promise<Record<string, unknown>>;
     buildCover: (options: Record<string, unknown>) => Promise<{ output?: string }>;
     findVariantPack: (id: string, options?: Record<string, unknown>) => Record<string, unknown>;
+    VARIANT_DIR: string;
   };
+
   const project = {
     projectId: timeline.filmId ?? timeline.timelineId,
     title,
@@ -183,6 +212,7 @@ async function main(): Promise<void> {
     outDir,
     clips: shots.length,
     variants: variants,
+    transitions: transitionsMode,
     subtitle: subtitlePath,
     coverAt: coverAt ? Number(coverAt) : null,
     manifest: manifestPath,
