@@ -68,6 +68,7 @@
     "edit:post": "tsx scripts/tools/edit-post.mts",
     "edit:subtitle": "tsx scripts/tools/edit-subtitle.mts",
     "edit:cover": "tsx scripts/tools/edit-cover.mts",
+    "edit:danmaku": "tsx scripts/tools/edit-danmaku.mts",
     "video:assets": "tsx scripts/tools/real-person-assets.mts",
     "setup": "bash scripts/bootstrap.sh",
     "setup:full": "bash scripts/bootstrap.sh --with-computer",

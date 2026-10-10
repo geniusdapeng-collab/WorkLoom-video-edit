@@ -91,30 +91,35 @@ interface StyleSpec {
   reason: string;
 }
 
+/**
+ * 字体族名（CoreText 实测，2026-10-10）：随包字体已安装到 `~/Library/Fonts/`。
+ * 注意 `SourceHanSansCN-Heavy.otf` 的**家族名是 "Source Han Sans CN"**（Heavy 是字重/全名的一部分），
+ * 用 "Source Han Sans CN Heavy" 当族名会静默回退系统字体——这正是上一版封面字体没落地的原因。
+ */
 const FONT_FAMILY: Record<string, string> = {
   "smiley-sans": "Smiley Sans",
-  "source-han-heavy": "Source Han Sans CN Heavy",
+  "source-han-heavy": "Source Han Sans CN",
   "zcool-qingke": "ZCOOL QingKe HuangYou",
   "noto-serif": "Noto Serif SC",
 };
 
 const STYLES: Record<string, StyleSpec> = {
   "warm-story": {
-    id: "warm-story", fontId: "zcool-qingke", fontFamily: "ZCOOL QingKe HuangYou",
+    id: "warm-story", fontId: "zcool-qingke", fontFamily: FONT_FAMILY["zcool-qingke"]!,
     archetype: "person-led", layout: "person-left", headlineSize: 124,
     colors: { title: "#FFFFFF", sub: "#FFE7B3", badge: "#FFD166", accent: "#FFD166" },
     heroSec: 35.5, accentBar: true,
     reason: "暖调故事版：果园峰值帧 + 圆润字体 + 暖色题签，与片子情绪一致（人物为主）",
   },
   "clean-tech": {
-    id: "clean-tech", fontId: "source-han-heavy", fontFamily: "Source Han Sans CN Heavy",
+    id: "clean-tech", fontId: "source-han-heavy", fontFamily: FONT_FAMILY["source-han-heavy"]!,
     archetype: "subject-led", layout: "person-right", headlineSize: 112,
     colors: { title: "#FFFFFF", sub: "#CFE8FF", badge: "#7DD3FC", accent: "#7DD3FC" },
     heroSec: 6.6, accentBar: true,
     reason: "冷净版：苹果特写 + 最稳的重标题，强调画面质感（物体为主，不放人物卡）",
   },
   "bold-promo": {
-    id: "bold-promo", fontId: "smiley-sans", fontFamily: "Smiley Sans",
+    id: "bold-promo", fontId: "smiley-sans", fontFamily: FONT_FAMILY["smiley-sans"]!,
     archetype: "person-led", layout: "person-right", headlineSize: 128,
     colors: { title: "#FFFFFF", sub: "#FFE1E1", badge: "#FF4D4F", accent: "#FF4D4F" },
     heroSec: 24.6, accentBar: true,
