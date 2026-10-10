@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
-  aspectRatioOf, buildFootageProbe, deriveShotBoundaries, parseFfprobeJson, parseRate,
-  parseRmsEnvelope, parseSceneCuts, parseSilences, parseVolumeDetect, peakMomentsOf,
+  aggregateShotTechnicals, aspectRatioOf, buildFootageProbe, confidenceFromSceneScore, deriveShotBoundaries,
+  deriveSilenceThresholdDb, exposureScore, parseFfprobeJson, parseFrameStats, parseRate, parseRmsEnvelope,
+  parseSceneCutDetails, parseSceneCuts, parseSilences, parseVolumeDetect, peakMomentsOf, sharpnessScore,
 } from "./probe-parse.js";
 
 const FFPROBE_FIXTURE = JSON.stringify({
@@ -16,6 +17,29 @@ const SCENE_LOG = [
   "[Parsed_showinfo_1 @ 0x1] config in time_base: 1/12800, frame_rate: 25/1",
   "[Parsed_showinfo_1 @ 0x1] n:   0 pts:  25894 pts_time:2.02297 duration:    512 fmt:yuv420p s:640x360",
   "[Parsed_showinfo_1 @ 0x1] n:  17 pts:  40102 pts_time:12.34500 duration:    512 fmt:yuv420p s:640x360",
+].join("\n");
+
+/** scdet 实机输出（ffmpeg 6.0，metadata=print 过滤到 stderr；这里给带分数的一行式） */
+const SCDET_LOG = [
+  "[scdet @ 0x13f610ed0] lavfi.scd.score: 15.887, lavfi.scd.time: 2",
+  "[scdet @ 0x13f610ed0] lavfi.scd.score: 42.500, lavfi.scd.time: 12.345",
+  "[scdet @ 0x13f610ed0] lavfi.scd.score: 9.200, lavfi.scd.time: 2",
+].join("\n");
+
+/** blurdetect+signalstats 的 frame 块（只取本函数需要的四类键） */
+const FRAME_STATS_LOG = [
+  "frame:0    pts:0       pts_time:0",
+  "lavfi.blur=5.046728",
+  "lavfi.signalstats.YAVG=42.2875",
+  "lavfi.signalstats.YHIGH=41",
+  "lavfi.signalstats.YLOW=41",
+  "lavfi.signalstats.SATAVG=112.262",
+  "frame:1    pts:512     pts_time:0.04",
+  "lavfi.blur=10.550354",
+  "lavfi.signalstats.YAVG=210.5",
+  "lavfi.signalstats.YHIGH=251",
+  "lavfi.signalstats.YLOW=8",
+  "lavfi.signalstats.SATAVG=60.5",
 ].join("\n");
 
 const SILENCE_LOG = [
@@ -48,6 +72,77 @@ describe("edit/probe-parse：信号层解析（确定性）", () => {
 
   it("场景切点解析：去重排序，忽略没有 pts_time 的配置行", () => {
     expect(parseSceneCuts(SCENE_LOG)).toEqual([2.02297, 12.345]);
+  });
+
+  it("metadata=print 的帧头 pts_time 不算切点（否则每个视频帧都会被当成一次切点）", () => {
+    const mixed = [
+      "frame:0    pts:0       pts_time:0",
+      "lavfi.blur=5.0",
+      "frame:1    pts:512     pts_time:0.04",
+      "lavfi.blur=5.1",
+      ...SCDET_LOG.split("\n"),
+    ].join("\n");
+    expect(parseSceneCuts(mixed)).toEqual([2, 12.345]);
+  });
+
+  it("数字静音（-inf）折算为可计算的响度下限，不丢采样点", () => {
+    const log = [
+      "[Parsed_ametadata_1 @ 0x3] frame:0    pts:0       pts_time:0",
+      "[Parsed_ametadata_1 @ 0x3] lavfi.astats.Overall.RMS_level=-inf",
+      "[Parsed_ametadata_1 @ 0x3] frame:1    pts:6656    pts_time:0.26",
+      "[Parsed_ametadata_1 @ 0x3] lavfi.astats.Overall.RMS_level=-58.20",
+    ].join("\n");
+    expect(parseRmsEnvelope(log, 0.25)).toEqual([{ t: 0, db: -120 }, { t: 0.25, db: -58.2 }]);
+  });
+
+  it("scdet 切点明细：同一时刻保留最大分数，置信度按 score/(score+threshold) 单调上升", () => {
+    const details = parseSceneCutDetails(SCDET_LOG);
+    expect(details).toEqual([{ time: 2, score: 15.887 }, { time: 12.345, score: 42.5 }]);
+    expect(confidenceFromSceneScore(15.887, 10)).toBeCloseTo(0.614, 2);
+    expect(confidenceFromSceneScore(42.5, 10)).toBeCloseTo(0.81, 2);
+    expect(confidenceFromSceneScore(42.5, 10)).toBeGreaterThan(confidenceFromSceneScore(15.887, 10));
+    // 旧通道无分数：不冒充概率，按"检出即 1"处理
+    expect(confidenceFromSceneScore(null, 10)).toBe(1);
+  });
+
+  it("带分数的切点进入镜头区间：其后镜头继承该切点置信度，首镜恒 1", () => {
+    const boundaries = deriveShotBoundaries(
+      { durationSeconds: 20, fps: 25 },
+      [{ time: 5, score: 15.887 }, { time: 12.5, score: 42.5 }],
+      { threshold: 10 },
+    );
+    expect(boundaries.map((b) => b.confidence)).toEqual([1, 0.614, 0.81]);
+  });
+
+  it("逐帧技术统计解析 + 逐镜中位数聚合：清晰度/曝光有值，未测指标保持 null", () => {
+    const frames = parseFrameStats(FRAME_STATS_LOG);
+    expect(frames).toHaveLength(2);
+    expect(frames[0]).toEqual({ t: 0, blur: 5.046728, yavg: 42.2875, yhigh: 41, ylow: 41, satavg: 112.262 });
+    expect(sharpnessScore(5)).toBe(1);
+    expect(sharpnessScore(11.5)).toBeCloseTo(0.5, 2);
+    expect(sharpnessScore(18)).toBe(0);
+    expect(sharpnessScore(null)).toBeNull();
+    expect(exposureScore(42.2875)).toBeCloseTo(0.53, 2);
+    expect(exposureScore(110)).toBe(1);
+    expect(exposureScore(210, { yhigh: 251 })).toBeCloseTo(0.24, 2);
+    const perShot = aggregateShotTechnicals(
+      [
+        { index: 0, inFrame: 0, outFrame: 1, inTimecode: "00:00:00.000", outTimecode: "00:00:00.020" },
+        { index: 1, inFrame: 1, outFrame: 25, inTimecode: "00:00:00.020", outTimecode: "00:00:01.000" },
+      ],
+      frames,
+    );
+    expect(perShot[0]!.sharpness).toBeCloseTo(0.996, 3);
+    expect(perShot[1]!.sharpness).toBeCloseTo(0.573, 2);
+    expect(perShot[1]!.stability).toBeNull();
+    expect(perShot[1]!.noise).toBeNull();
+  });
+
+  it("自适应静音阈值：高底噪抬阈值、无测量回退默认、结果夹取在区间内", () => {
+    expect(deriveSilenceThresholdDb({ noiseFloorDb: -45 })).toBe(-39);
+    expect(deriveSilenceThresholdDb({ noiseFloorDb: -70 })).toBe(-50);
+    expect(deriveSilenceThresholdDb({ noiseFloorDb: -18 })).toBe(-20);
+    expect(deriveSilenceThresholdDb({ noiseFloorDb: null })).toBe(-30);
   });
 
   it("静音解析：配对成区间；未闭合的静音不产出半条记录", () => {
