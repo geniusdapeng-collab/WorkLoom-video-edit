@@ -1,5 +1,34 @@
 # Changelog
 
+## [video-transitions] - 2026-10-11 · 剪辑转场引擎：逐切计划 + xfade 真渲染 + 非黑屏机检（T-2026-1011-0003）
+
+> 客户反馈：全片硬切没有转场，之前用过的"黑屏过渡"效果很差。本轮把时间轴里早已声明的 `transitionIn` 真正渲染出来，
+> 同时把"黑屏"从主观抱怨变成可回读的数字。
+
+- **转场计划层（纯函数）**：`packages/video-studio/src/edit/transitions.ts` 把剪辑脚本声明解析成逐切计划——
+  意图 → 引擎转场（dissolve→fade、wipe→wipeleft/方向可换、whip_pan→smoothleft、zoom_blur→zoomin、fade_from/to_black→fadeblack），
+  时长钳制（≤2s / ≥max(0.15s,2 帧) / ≤相邻较短镜头 1/3），相邻镜头过短**自动降级硬切**并写明原因；
+  `match_cut / jump_cut / cut` 保持真硬切。
+- **执行器真的渲染**：post-bridge 新增逐切 `xfade` 链（含 `smooth` 缓动的 custom 表达式叠化）；
+  硬切按 run 拆分后仍走**样点级 concat**（不用"1 帧 xfade"假装硬切）；`edit:post` 新增
+  `--transitions hard|pack|declared|auto`、`--transitions-easing native|smooth`、`--transition-pack documentary|vlog|fast_cut|information`；
+  **默认仍全片硬切**（2026-10-10 产品口径不变），`auto` 只在场景组切换处补默认转场，组内保持硬切。
+- **专业转场目录（受签名资产）**：`bundles/ai-video/library/transitions/catalog.json` 收录 FFmpeg 6.0 的 46 种命名转场 +
+  7.0 新增 12 种（家族/方向/能量/编辑用途）、意图映射、节奏档案、时长与机检阈值；已纳入 `bundle.json#integrity.assets`；
+  7.0 转场在 6.x 运行时按**版本闸**明确拒绝，不静默换类型。
+- **同一脚本 → 不同转场观感**：变体配方新增 `transitions.intentMap`（warm-story=fadeslow/smoothright、clean-tech=fade/wipeleft、
+  bold-promo=dissolve/hlslice、segmented-story 继承暖调），转场与调色/配乐/封面并列为风格轴。
+- **回执与机检**：逐刀 `transition-receipt.json`（类型/时长/起止/解析来源 + 窗口测量）＋交付面
+  `transitions/transition-receipt.json` 与 `delivery-manifest.json#transitions`；硬项＝转场窗口存在、
+  非黑场类转场不得出现**转场引入的**黑帧、成片时长符合计划；咨询项＝帧间差集中度（审美不作出厂否决）。
+- **实测**：legacy 黑场过渡首刀窗口内 **3** 个黑帧 / 邻域 0 个（客户反馈成立）；新 xfade 路径 **0** 黑帧；
+  `pnpm edit:post --transitions auto` 四路（master + 3 变体）各 3 刀转场、`delivery-manifest.json` 12/12 检查通过；
+  单刀性能：1080p 命名转场 3.0–3.7s、custom 缓动 5.3s，4K 命名 4.2s、custom 28.7s（缓动按需开）。
+- **方案调研**：对比 FFmpeg xfade / gl-transitions / ffmpeg-gl-transition / editly / MLT / Remotion，
+  记录未采纳原因（需自编译 FFmpeg、原生 GL/浏览器依赖、许可与供应链风险）与后续升级路径。
+
+口径、实测数据与回滚见 [剪辑转场](docs/video-edit-transitions.md)。
+
 ## [runtime-client-repair] - 2026-10-02 · 权限、审批、影片工位与客户首启整改（T-2026-1002-0901）
 
 - 外部写动作先检查角色、PII、围栏和绑定到实际参数的审批，再记录开始凭据并调用工具；同线程跨进程互斥，审批仅消费一次。开始后缺少最终回执的写动作停在未核实状态，普通重放不会重复发送。

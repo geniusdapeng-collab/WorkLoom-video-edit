@@ -214,4 +214,7 @@ pnpm edit:assemble -- --timeline <film>.timeline.json --out <film>.mp4
 2. **LUFS 未测**：`asset.audio.integratedLufs` 保持 `null`，只用 `volumedetect` 的 mean/max 作为参考（不冒充 R128）。
 3. **节拍检测**：`music.bpm/beatGrid` 目前需要外部 BPM 检测器（本地库已有 `library-bpm` 能力，尚未接线到 probe）。
 4. **UI 接线**：`ui/cases.json` 已声明剪辑台页面状态，三端页面尚未新增路由（当前版本以管线与契约为主）。
-5. **合成转场**：目前逐段硬拼（`concat`）；叠化/匹配剪辑等转场参数已在契约里，执行器尚未实现滤镜链。
+5. **合成转场**：已实现逐切滤镜链（T-2026-1011-0003）——`edit:post --transitions declared|auto` 把时间轴里的
+   `transitionIn` 计划渲染成 FFmpeg `xfade`（46+ 种命名转场 + custom 缓动），硬切处走样点级拼接（不做"1 帧幽灵过渡"），
+   每刀产出回执并机检黑屏/窗口/时长；默认仍是全片硬切（产品所有者 2026-10-10 口径）。口径与实测见
+   [`video-edit-transitions.md`](video-edit-transitions.md)。
