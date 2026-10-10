@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { computeMasterTimeline, planAssembly, validateEditTimeline, type EditTimeline } from "./timeline.js";
+import {
+  atempoChain, computeMasterTimeline, planAssembly, resolutionForAspect, resolveTimelineSourcePaths, validateEditTimeline, type EditTimeline,
+} from "./timeline.js";
 
 const SHA = "a".repeat(64);
 
@@ -160,5 +162,58 @@ describe("edit/timeline：合成计划", () => {
     expect(plan.normalize[0]!.args.join(" ")).toContain("setpts=");
     expect(plan.normalize[0]!.args.join(" ")).toContain("-t 15");
     expect(plan.totalDurationSeconds).toBeCloseTo(15, 3);
+  });
+
+  it("画幅跟随 target.aspectRatio：16:9 → 1920×1080，9:16 → 1080×1920，1:1/4:5 偶数对齐", () => {
+    expect(resolutionForAspect("16:9")).toEqual({ width: 1920, height: 1080 });
+    expect(resolutionForAspect("9:16")).toEqual({ width: 1080, height: 1920 });
+    expect(resolutionForAspect("1:1")).toEqual({ width: 1080, height: 1080 });
+    expect(resolutionForAspect("4:5")).toEqual({ width: 1080, height: 1350 });
+    expect(resolutionForAspect("bad")).toEqual({ width: 1080, height: 1920 });
+    const landscape = baseTimeline({ target: { durationSeconds: 30, aspectRatio: "16:9", fps: 30, platform: "bilibili" } });
+    const plan = planAssembly(landscape, { workDir: "/tmp/work", outputPath: "/tmp/out.mp4", fps: 30 });
+    expect(plan.normalize[0]!.args.join(" ")).toContain("scale=1920:1080:force_original_aspect_ratio=decrease");
+  });
+
+  it("无音轨素材补静音轨后再拼：输入顺序正确（源在前、anullsrc 在后）且显式映射 a:0", () => {
+    const timeline = baseTimeline({
+      sources: [{ sourceId: "src-1", sha256: SHA, path: "/tmp/src1.mp4", fps: 30, durationSeconds: 120, hasAudio: false }],
+      segments: [{ seq: 0, segmentId: "s1", sourceId: "src-1", sourceIn: 0, sourceOut: 15, durationSeconds: 15 }],
+    });
+    const plan = planAssembly(timeline, { workDir: "/tmp/work", outputPath: "/tmp/out.mp4", fps: 30 });
+    const args = plan.normalize[0]!.args;
+    const joined = args.join(" ");
+    expect(joined).toContain("-f lavfi -i anullsrc=channel_layout=stereo:sample_rate=48000");
+    expect(joined).toContain("-map 0:v:0 -map 1:a:0 -shortest");
+    expect(args.indexOf("/tmp/src1.mp4")).toBeLessThan(args.indexOf("anullsrc=channel_layout=stereo:sample_rate=48000"));
+  });
+
+  it("变速同时处理音轨：atempo 链与视频 PTS 同步（2× / 4× / 0.25×）", () => {
+    expect(atempoChain(2)).toEqual(["atempo=2"]);
+    expect(atempoChain(4)).toEqual(["atempo=2", "atempo=2"]);
+    expect(atempoChain(0.25)).toEqual(["atempo=0.5", "atempo=0.5"]);
+    expect(atempoChain(1.5)).toEqual(["atempo=1.5"]);
+    const timeline = baseTimeline({
+      sources: [{ sourceId: "src-1", sha256: SHA, path: "/tmp/src1.mp4", fps: 30, durationSeconds: 120, hasAudio: true }],
+      segments: [{ seq: 0, segmentId: "s1", sourceId: "src-1", sourceIn: 0, sourceOut: 30, durationSeconds: 15, speed: 2 }],
+    });
+    const plan = planAssembly(timeline, { workDir: "/tmp/work", outputPath: "/tmp/out.mp4", fps: 30 });
+    const joined = plan.normalize[0]!.args.join(" ");
+    expect(joined).toContain("setpts=0.5*PTS");
+    expect(joined).toContain("-filter:a atempo=2");
+  });
+
+  it("素材路径归一：相对时间轴文件的路径解析为绝对路径，绝对路径保持不变", () => {
+    const timeline = baseTimeline({
+      sources: [
+        { sourceId: "src-1", sha256: SHA, path: "clips/a.mp4", fps: 30, durationSeconds: 120 },
+        { sourceId: "src-2", sha256: SHA, path: "/abs/b.mp4", fps: 30, durationSeconds: 120 },
+      ],
+      segments: [{ seq: 0, segmentId: "s1", sourceId: "src-1", sourceIn: 0, sourceOut: 15, durationSeconds: 15 }],
+    });
+    const resolved = resolveTimelineSourcePaths(timeline, "/projects/demo/");
+    expect(resolved.sources[0]!.path).toBe("/projects/demo/clips/a.mp4");
+    expect(resolved.sources[1]!.path).toBe("/abs/b.mp4");
+    expect(timeline.sources[0]!.path).toBe("clips/a.mp4");
   });
 });
