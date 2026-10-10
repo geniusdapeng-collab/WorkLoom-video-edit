@@ -126,7 +126,7 @@ describe.runIf(RUN_DB)("行业装配 PG 集成（F2.10 铁律）", async () => {
    * （酒店经营 + 内容生产 + GEO 分发），围栏取组合并集，同名岗位按主包裁决留痕。
    * 这条用例独立建工作区，避免污染演示租户（ws-yunqi）。
    */
-  it("融合装配：组合主包激活 = 四包编制齐装（92 岗）+ 围栏并集 + 遮蔽留痕", async () => {
+  it("融合装配：组合主包激活 = 四包编制齐装（96 岗）+ 围栏并集 + 遮蔽留痕", async () => {
     const { provisionComposedWorkforce } = await import("./assembly.js");
     const suffix = Date.now().toString(36);
     const wsId = `ws-fusion-${suffix}`;
@@ -168,32 +168,33 @@ describe.runIf(RUN_DB)("行业装配 PG 集成（F2.10 铁律）", async () => {
       const scope2 = { tenantId, workspaceId: wsId };
       const provision = await provisionComposedWorkforce(app, scope2, "geo-growth", "MEM-FUSION");
       expect(provision.bundleIds).toEqual(["hotel", "ai-video", "video-edit", "geo-growth"]);
-      expect(provision.rosterSize).toBe(92);
+      expect(provision.rosterSize).toBe(96);
       // 每个 preset_key 只由一个包提供（同名按主包裁决）：hotel 16 / ai-video 39 / geo-growth 26
       // 口径随各包编制演进（2026-09-24 新增 ai-video「摄影指导 cinematographer」→ 78 岗；
       // 2026-09-25 新增 ai-video「封面设计师 cover-designer」→ 79 岗；
       // 2026-09-26 新增 ai-video「口播编导 explainer-director」（口播解说片产品化）→ 80 岗；
       // 2026-09-27 新增 ai-video「开场钩子设计师 hook-designer」（短平台前 3 秒钩子）→ 81 岗）；
       // 2026-10-10 新增 video-edit「视频AI剪辑」11 岗（真实素材理解/高光/重组/剪辑/合成 + 剪辑制片）→ 92 岗；
-      // 数量以装配器实测为准，改包即需同步此处（历史值：76 → 77 → 78 → 79 → 80 → 81）
-      expect(provision.perBundle).toEqual({ hotel: 16, "ai-video": 39, "video-edit": 11, "geo-growth": 26 });
+      // 2026-10-11 新增 video-edit「AI 口播精剪」4 岗（逐字稿师/口播精剪师/情绪导演/点睛设计师）→ 96 岗；
+      // 数量以装配器实测为准，改包即需同步此处（历史值：76 → 77 → 78 → 79 → 80 → 81 → 92）
+      expect(provision.perBundle).toEqual({ hotel: 16, "ai-video": 39, "video-edit": 15, "geo-growth": 26 });
       expect(provision.shadowed.length).toBe(4);
       expect(provision.fenceRules).toBeGreaterThanOrEqual(68);
 
       const profile = await computeAssembly(app, scope2, "geo-growth");
       expect(profile.checks.map((c) => c.ok)).toEqual([true, true, true, true, true, true, true]);
       expect(profile.canActivate).toBe(true);
-      expect(profile.agents.length).toBe(92);
+      expect(profile.agents.length).toBe(96);
 
       const activated = await activateBundle(app, gw, scope2, "geo-growth", "MEM-FUSION");
-      expect(activated.composition.rosterSize).toBe(92);
+      expect(activated.composition.rosterSize).toBe(96);
       const ev = await qScope<{ payload: { decision: { after: { composition?: { bundles?: string[]; rosterSize?: number } } } } }>(
         `SELECT payload FROM biz_events WHERE workspace_id=$1 AND payload->'decision'->>'action'='bundle.activate'
           ORDER BY seq DESC LIMIT 1`,
         [wsId],
       );
       expect(ev.rows[0]!.payload.decision.after.composition?.bundles).toEqual(["hotel", "ai-video", "video-edit", "geo-growth"]);
-      expect(ev.rows[0]!.payload.decision.after.composition?.rosterSize).toBe(92);
+      expect(ev.rows[0]!.payload.decision.after.composition?.rosterSize).toBe(96);
     } finally {
       await qScope(`DELETE FROM agents WHERE workspace_id=$1`, [wsId]).catch(() => undefined);
       await qScope(`DELETE FROM fence_rules WHERE workspace_id=$1`, [wsId]).catch(() => undefined);
