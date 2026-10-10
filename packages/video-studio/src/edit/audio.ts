@@ -85,10 +85,36 @@ export function estimateTempo(
     }
   }
   const meanScore = scoreCount > 0 ? scoreSum / scoreCount : 0;
+  // 置信度 = 峰值/均值（按 3 倍均值为满分）。门槛 0.5：宁可返回 null，也不给风噪/人声标一个假 BPM
+  // （实机教训：门槛 0.3 时，行车噪音/厨房环境音也会被标成 60/80/120 BPM）。
   const confidence = meanScore > 0 ? Math.min(1, bestScore / (meanScore * 3)) : 0;
-  if (bestLag === 0 || confidence < 0.3) return { bpm: null, confidence: Number(confidence.toFixed(3)), beatGrid: [] };
+  const onsetEvents = onset.filter((value) => value > 0.5).length;
+  if (bestLag === 0 || confidence < 0.5 || onsetEvents < 12) {
+    return { bpm: null, confidence: Number(confidence.toFixed(3)), beatGrid: [] };
+  }
 
   const period = bestLag * hop;
+  /**
+   * 起音间隔规律性闸（把"说话节奏"挡在音乐之外）：
+   *   取局部极值作为起音点，算相邻间隔（IOI）的变异系数 CV；CV > 0.3 视为非律动（对话/环境音），
+   *   同时要求中位间隔与候选周期相差 ≤25%。实机教训：只靠自相关峰值，说话与市集噪音也会被标成 60/80 BPM。
+   */
+  const onsets: number[] = [];
+  for (let i = 1; i < count - 1; i += 1) {
+    if (onset[i]! > 0.5 && onset[i]! >= onset[i - 1]! && onset[i]! >= onset[i + 1]!) onsets.push(i * hop);
+  }
+  const intervals = onsets.slice(1).map((t, index) => t - onsets[index]!).filter((value) => value > 0);
+  if (intervals.length < 8) return { bpm: null, confidence: Number(confidence.toFixed(3)), beatGrid: [] };
+  const meanInterval = intervals.reduce((sum, value) => sum + value, 0) / intervals.length;
+  const varianceInterval = intervals.reduce((sum, value) => sum + (value - meanInterval) ** 2, 0) / intervals.length;
+  const cv = meanInterval > 0 ? Math.sqrt(varianceInterval) / meanInterval : 1;
+  const sortedIntervals = [...intervals].sort((a, b) => a - b);
+  const medianInterval = sortedIntervals[Math.floor(sortedIntervals.length / 2)]!;
+  const periodMismatch = Math.abs(medianInterval - period) / period;
+  if (cv > 0.3 || periodMismatch > 0.25) {
+    return { bpm: null, confidence: Number(confidence.toFixed(3)), beatGrid: [] };
+  }
+
   const bpm = Number((60 / period).toFixed(1));
   let bestOffset = 0;
   let bestPhaseScore = -1;

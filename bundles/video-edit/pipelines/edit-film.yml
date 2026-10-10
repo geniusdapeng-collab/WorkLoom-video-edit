@@ -20,12 +20,16 @@ steps:
   - step_key: probe
     name: 信号解析（确定性，不花模型钱）
     owner: signal-analyst
-    outputs: [footage_probe]            # 镜头边界/词级转写/节拍网格/音量包络/技术指标
+    outputs: [footage_probe]            # 镜头边界/节拍网格/音量包络/技术指标 + 环境音画像（噪声底/动态/静音与人声覆盖）
+                                        # 画面文字与人声的**主通道是多模态模型**（见 understand 步）；本步的 --asr/--ocr 只是无模型能力时的兜底，产出标 channel=fallback
   - step_key: understand
     name: 逐镜多模态理解
     owner: shot-understander
     gates: [G-ED4]
     outputs: [shot_record]              # 语义结论带证据帧与置信度；与信号层冲突以信号层为准
+                                        # 模型侧必做三件事：① 画面文字全量转写 → content.onScreenText（带证据帧）
+                                        # ② 人声按句听写 → content.speechText + probe.speech.sentences（模型有音频模态时 channel=model）
+                                        # ③ 环境音描述 → audio.ambience（含留白/铺底/降噪/与 BGM 冲突的判断）
   - step_key: highlight
     name: 高光挖掘与关键帧
     owner: highlight-scout
@@ -62,11 +66,13 @@ steps:
     name: 字幕与文案
     owner: caption-writer
     outputs: [caption_script]           # 与时间轴逐段绑定；字数带/无标点/结尾话术位
+                                        # 文案只允许引用三字段证据：画面文字（店铺/商品/路牌）、人声转写、环境音描述
   - step_key: cutcheck
     name: 剪辑质检
     owner: cut-inspector
     gates: [G-ED3, G-ED6]
-    outputs: [cut_report]               # 合法性/连续性/可执行性/合规；不合格给可执行返修动作
+    outputs: [cut_report]               # 合法性/连续性/可执行性/合规 + **三字段核对**（画面文字/人声/环境音是否采集并标注 channel）
+                                        # 本地执行对应 `pnpm edit:verify -- --timeline … --analysis <probe.json>…`
   - step_key: g-ed8-roughcut
     name: 粗剪锁定确认
     owner: edit-producer

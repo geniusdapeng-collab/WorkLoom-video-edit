@@ -11,7 +11,7 @@ describe("edit/audio：节拍估计（可复现）", () => {
     const tempo = estimateTempo(envelope, { minBpm: 60, maxBpm: 180 });
     expect(tempo.bpm).toBeGreaterThan(112);
     expect(tempo.bpm).toBeLessThan(128);
-    expect(tempo.confidence).toBeGreaterThan(0.3);
+    expect(tempo.confidence).toBeGreaterThan(0.5);
     expect(tempo.beatGrid.length).toBeGreaterThan(20);
     const gaps = tempo.beatGrid.slice(1).map((t, i) => Number((t - tempo.beatGrid[i]!).toFixed(3)));
     expect(new Set(gaps).size).toBe(1);
@@ -22,6 +22,19 @@ describe("edit/audio：节拍估计（可复现）", () => {
     expect(estimateTempo(flat).bpm).toBeNull();
     expect(estimateTempo([{ t: 0, db: -20 }, { t: 1, db: -10 }]).bpm).toBeNull();
     expect(estimateTempo([]).confidence).toBe(0);
+  });
+
+  it("非律动（说话节奏）：起音间隔不规律 → 返回 null，不硬报 BPM", () => {
+    // 模拟"说话"：脉冲间隔在 0.5–1.5s 之间抖动，自相关仍会有峰，但 IOI 变异系数高
+    const envelope: Array<{ t: number; db: number }> = [];
+    const gaps = [0.5, 1.25, 0.75, 1.5, 0.6, 1.1, 0.9, 1.4, 0.55, 1.2, 0.8, 1.35, 0.65, 1.05];
+    let t = 0;
+    for (let i = 0; i < 60; i += 1) {
+      const pulse = gaps.some((gap, index) => Math.abs(t - gaps.slice(0, index + 1).reduce((sum, value) => sum + value, 0)) < 0.13);
+      envelope.push({ t, db: pulse ? -12 : -34 });
+      t = Number((t + 0.25).toFixed(2));
+    }
+    expect(estimateTempo(envelope).bpm).toBeNull();
   });
 });
 

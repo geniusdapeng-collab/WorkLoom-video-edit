@@ -25,7 +25,7 @@
       },
       {
         "bundleId": "video-edit",
-        "version": "0.1.0"
+        "version": "0.2.0"
       }
     ],
     "composition": {
@@ -228,7 +228,7 @@
   },
   "integrity": {
     "algorithm": "sha256",
-    "digest": "5edbf86ef17ec21e5bc9f31878825706dcfd8c57611d6a09033bed50962b973b",
+    "digest": "23a2502259aacdcfe3433f524aa1b90931f1f91a406c3350dedd01e6739410ba",
     "assets": {
       "eval/questions.json": "49e7b69803ac4c398b812e93758d136332c9312041d894ca7b74a8a1623e7993",
       "fences/geo-growth-baseline.yml": "4a06d0a472be51a3e8922bc77e8834ef9f1f31e752b4ef3d345058ca908970c7",

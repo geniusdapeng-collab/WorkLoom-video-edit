@@ -1,7 +1,7 @@
 {
   "schemaVersion": "workloom.bundle/v1",
   "name": "@workloom/video-edit",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "workloom": {
     "industry": "video-edit",
     "displayName": "剪辑台 · 视频AI剪辑与二次创作系统",
@@ -158,12 +158,12 @@
   },
   "integrity": {
     "algorithm": "sha256",
-    "digest": "7f0e5f9615c8ef25859e398e99ce607afb482639a7972d1234a94341d2fd7e25",
+    "digest": "76beba71113afc369e6fbeeb59de0aecb11615dd5e1047c8bc9a9308285f7780",
     "assets": {
       "eval/questions.json": "7b942c9f8ade853cd6c1c2bf446f122b3c00e10c6e54bd374a4719473d5817fa",
       "fences/video-edit-baseline.yml": "b2849c70b2d5df25ebb3098a5da2cdaf6d331e1a6833d825bce0ecb2d10e6636",
       "model-policy.yml": "515f7d2dbbff6aa94297abf15e5195d3544b81ea09a3dc22219242de6c934e94",
-      "pipelines/edit-film.yml": "ec51f73811062692fd00e11faa907fd38dfe7500e63a75d0ef512a91f2c53630",
+      "pipelines/edit-film.yml": "b9952ce061d6c7ffaaf6d52da16d0045253348328d4894d9212a74fcc0213b49",
       "presets/caption-writer.yml": "622c9bb961b94cba20aff4cdf7e6d7d7c8f0298ae98b7b0b19464fae263fadeb",
       "presets/creative-weaver.yml": "bc45ff9ce9e31aae3e8a6978a1f2c7c10530914f7180c45219b8c3e17d3ee86f",
       "presets/cut-inspector.yml": "238529a09acd36bb23b7f46b4c5233f684a57423d30ec6378a5dd498045b85a2",

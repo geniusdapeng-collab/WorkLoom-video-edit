@@ -89,6 +89,19 @@ pnpm edit:verify -- --timeline work/edit/<film>.timeline.json
 3. 跑 `pnpm edit:probe` 看一份真实素材的结构化结果，确认契约符合预期。
 4. 按 `pipelines/edit-film.yml` 顺序推进；每一步产物先落 `work/edit/`，再进正式账本。
 
+## 5.1 三个"隐形素材"：画面文字 / 人声 / 环境音（v0.2.0 起为流水线必备）
+
+这三类信息决定"地点/店铺/商品是谁""文案怎么写""声音怎么设计"，是本包 v0.2.0 起的**必备字段**：
+
+| 字段 | 契约位置 | 主通道 | 兜底通道（无模型能力时） |
+|---|---|---|---|
+| 画面文字 | `probe.onScreenText[]` → `shots[].content.onScreenText` | **多模态模型**直接读关键帧（带证据帧；看不清标 `[模糊]`） | `pnpm edit:probe -- --ocr`（Apple Vision，离线；回执 `channel=fallback`） |
+| 人声转写 | `probe.speech.{sentences,words}` → `shots[].content.speechText` | **多模态模型**直接听写（需模型具备音频模态；回执 `channel=model`） | `pnpm edit:probe -- --asr auto`（本机 mlx-audio 引擎，离线；`channel=fallback`） |
+| 环境音 | `probe.ambience`（噪声底/动态/静音与人声覆盖）+ `shots[].audio.ambience`（语义：风噪/市集/厨房…） | 量化部分本地计算；**语义标签由多模态模型**写 | 无需兜底（本地计算始终可用） |
+
+**质检**：`pnpm edit:verify -- --timeline <film>.timeline.json --analysis <probe.json>…` 会核对这三字段是否已采集、
+通道是否如实标注；素材没有解析结果直接硬失败（不许"没看懂就剪"），字段缺采按咨询项逐条列出。
+
 ## 6. 常见坑（务必遵守）
 
 1. **不要跳过信号层**：模型不做切点检测；时间码以信号层为权威，模型只能"建议"。
