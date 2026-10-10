@@ -19,8 +19,24 @@ import type { EditTimeline } from "./timeline.js";
 export interface CaptionShotInput {
   segmentId?: string;
   original_timestamp?: string;
+  /** 源素材时间码（口播字幕版会写）：口播口径的逐字一致校验用它，而不是成片时间码 */
+  source_timestamp?: string;
   subtitle_text?: Array<{ text?: string }>;
   role?: string;
+}
+
+/**
+ * 口播字幕口径（2026-10-11 随 AI 口播精剪管线新增）。
+ *
+ * 口播的字幕是「跟着人说话走」的：段多短都要出字，不套通用剪辑的 ≥2s 门槛与字数带；
+ * 取而代之的是三条**口播专属**事实纪律：一屏 ≤2 行、每行 ≤12 字、总字数 ≤24，
+ * 且字幕必须逐字等于 ASR 逐字稿原文（需要 `transcript` 才能校验；缺失时只出咨询提示）。
+ */
+export interface CaptionTalkOptions {
+  mode?: "standard" | "talk";
+  transcript?: {
+    sentences?: Array<{ id?: string; words?: Array<{ text?: string; start?: number; end?: number }> }>;
+  } | null;
 }
 
 export interface CaptionDocInput {
@@ -95,6 +111,10 @@ export const CAPTION_DENSITY_MAX_RATIO = 1.6;
 export const CAPTION_MAX_CUE_SECONDS = 10;
 /** 两条字幕之间建议至少留出的间隔（防止闪断） */
 export const CAPTION_MIN_CUE_GAP_SECONDS = 0.2;
+/** 口播字幕上限：一屏两行 × 每行 12 字 */
+export const TALK_CAPTION_MAX_LINE_CHARS = 12;
+export const TALK_CAPTION_MAX_CHARS = 24;
+export const TALK_CAPTION_MAX_LINES = 2;
 
 const INLINE_FORBIDDEN = /[，。！？、,.!?;；:："'“”‘’()（）[\]【】…—\-·~@#$%^&*+=|\\/<>{}]/u;
 const LATIN = /[A-Za-z]{2,}/u;
@@ -110,6 +130,11 @@ export function captionCharBand(durationSeconds: number): { min: number; max: nu
 
 export function countVisualChars(text: string): number {
   return [...String(text ?? "").replace(/\n/gu, "")].length;
+}
+
+/** 逐字比对用的归一化：去空白与标点，只保留汉字/字母/数字（口播字幕的"逐字一致"口径） */
+export function normalizeCaptionText(text: string): string {
+  return String(text ?? "").replace(/[\s，。！？、,.!?;；:："'“”‘’()（）\[\]【】…—\-·~@#$%^&*+=|\\/<>{}]/gu, "");
 }
 
 function parseDurationText(value: string | undefined): number {
@@ -157,9 +182,15 @@ export function analyzeCaption(input: {
   timeline: EditTimeline;
   caption: CaptionDocInput;
   analyses?: AnalysisDoc[];
+  /** 口播口径开关（缺省为通用剪辑口径，行为与既有完全一致） */
+  mode?: "standard" | "talk";
+  /** 口播模式下用于逐字一致校验的 ASR 逐字稿 */
+  transcript?: CaptionTalkOptions["transcript"];
 }): CaptionAnalysis {
   const { timeline, caption } = input;
   const analyses = input.analyses ?? [];
+  const talkMode = input.mode === "talk";
+  const talkTranscript = talkMode ? input.transcript ?? null : null;
   const issues: CaptionIssue[] = [];
   const cues: CaptionCue[] = [];
   const density: CaptionDensityRow[] = [];
@@ -204,6 +235,8 @@ export function analyzeCaption(input: {
   // —— 字幕条目：定位、归属、字数带 —— 
   const seen = new Set<string>();
   const textOf = new Map<string, { text: string; role: string }>();
+  /** 口播口径的逐字比对原料：源轨区间 → 逐字稿原文 */
+  const sourceRangeOf = new Map<string, { from: number; to: number }>();
   for (const group of caption.video_groups ?? []) {
     let groupSum = 0;
     for (const shot of group.shots ?? []) {
@@ -223,6 +256,11 @@ export function analyzeCaption(input: {
       const text = String(shot.subtitle_text?.[0]?.text ?? "");
       const role = shot.role ?? "normal";
       textOf.set(segmentId, { text, role });
+      const sourceTimestamp = shot.source_timestamp;
+      if (talkMode && sourceTimestamp) {
+        const [from, to] = sourceTimestamp.split("-").map((value) => Number(value));
+        if (Number.isFinite(from) && Number.isFinite(to)) sourceRangeOf.set(segmentId, { from: from!, to: to! });
+      }
     }
     const declared = parseDurationText(group.group_duration);
     if (Number.isFinite(declared) && Math.abs(declared - groupSum) > 1.0) {
@@ -232,13 +270,21 @@ export function analyzeCaption(input: {
 
   for (const segment of timeline.segments ?? []) {
     const entry = textOf.get(segment.segmentId);
-    const vmg = vmgOf.get(segment.segmentId) ?? null;
+    /** 口播口径下不走 VMG：口播的每一段就是一条字幕（跟着说话出字）。 */
+    const vmg = talkMode ? null : vmgOf.get(segment.segmentId) ?? null;
     const text = entry?.text ?? "";
     const role = entry?.role ?? "normal";
     const duration = segment.durationSeconds;
 
     if (!text) {
-      if (duration >= CAPTION_MIN_SHOT_SECONDS) {
+      if (talkMode) {
+        issues.push({
+          id: `caption.missing:${segment.segmentId}`,
+          severity: "hard",
+          detail: `${segment.segmentId} 口播段缺字幕：口播字幕必须跟着说话出字（段多短都不例外）`,
+          segmentId: segment.segmentId,
+        });
+      } else if (duration >= CAPTION_MIN_SHOT_SECONDS) {
         issues.push({ id: `caption.missing:${segment.segmentId}`, severity: "hard", detail: `${segment.segmentId} 时长 ${duration}s ≥2s 必须有字幕`, segmentId: segment.segmentId });
       } else if (vmg && vmg.head && vmg.totalSeconds > VMG_SUMMARY_MIN_SECONDS) {
         issues.push({
@@ -273,7 +319,74 @@ export function analyzeCaption(input: {
     const chars = countVisualChars(text);
     if (text) {
       const band = captionCharBand(bandSeconds);
-      if (role === "ending-cta") {
+      if (talkMode) {
+        /**
+         * 口播口径：不套字数带与 ≥2s 门槛，改守三条可读性上限 + 逐字一致。
+         * 理由：口播字幕是"他说的话"，人为压到字数带里等于改写原话（G-TK1）。
+         */
+        if (role !== "ending-cta") {
+          const lines = text.split("\n");
+          if (chars > TALK_CAPTION_MAX_CHARS) {
+            issues.push({
+              id: `caption.talkLength:${segment.segmentId}`,
+              severity: "hard",
+              detail: `${segment.segmentId} 口播字幕 ${chars} 字超过一屏上限 ${TALK_CAPTION_MAX_CHARS} 字（拆段或拆句）`,
+              segmentId: segment.segmentId,
+            });
+          }
+          if (lines.length > TALK_CAPTION_MAX_LINES) {
+            issues.push({
+              id: `caption.talkLines:${segment.segmentId}`,
+              severity: "hard",
+              detail: `${segment.segmentId} 口播字幕 ${lines.length} 行超过一屏 ${TALK_CAPTION_MAX_LINES} 行`,
+              segmentId: segment.segmentId,
+            });
+          }
+          for (const line of lines) {
+            if ([...line].length > TALK_CAPTION_MAX_LINE_CHARS) {
+              issues.push({
+                id: `caption.talkLineChars:${segment.segmentId}`,
+                severity: "hard",
+                detail: `${segment.segmentId} 行宽 ${[...line].length} 字超过 ${TALK_CAPTION_MAX_LINE_CHARS} 字（竖屏一屏读不完）`,
+                segmentId: segment.segmentId,
+              });
+            }
+          }
+        }
+        /** 逐字一致：字幕必须等于逐字稿在该源区间内的原文（去标点逐字比对）。 */
+        const range = sourceRangeOf.get(segment.segmentId);
+        if (!talkTranscript) {
+          issues.push({
+            id: `caption.verbatimUnchecked:${segment.segmentId}`,
+            severity: "advisory",
+            detail: `${segment.segmentId} 未提供逐字稿（--transcript）：逐字一致未校验`,
+            segmentId: segment.segmentId,
+          });
+        } else if (!range) {
+          issues.push({
+            id: `caption.verbatimSource:${segment.segmentId}`,
+            severity: "advisory",
+            detail: `${segment.segmentId} 缺源素材时间码（source_timestamp）：无法做逐字一致校验`,
+            segmentId: segment.segmentId,
+          });
+        } else {
+          const expected = (talkTranscript.sentences ?? [])
+            .flatMap((sentence) => sentence.words ?? [])
+            .filter((word) => Number(word.start) >= range.from - 0.02 && Number(word.end) <= range.to + 0.02)
+            .map((word) => String(word.text ?? ""))
+            .join("");
+          const normalizedExpected = normalizeCaptionText(expected);
+          const normalizedActual = normalizeCaptionText(text);
+          if (normalizedExpected !== normalizedActual) {
+            issues.push({
+              id: `caption.verbatim:${segment.segmentId}`,
+              severity: "hard",
+              detail: `${segment.segmentId} 字幕与逐字稿不一致：稿=「${expected}」字幕=「${text.replace(/\n/gu, "")}」`,
+              segmentId: segment.segmentId,
+            });
+          }
+        }
+      } else if (role === "ending-cta") {
         const start = masterStart.get(segment.segmentId)!;
         if (start < totalSeconds - 10.5) {
           issues.push({ id: `caption.ctaWindow:${segment.segmentId}`, severity: "advisory", detail: `结尾话术应在最后 10s 内（当前起于 ${start.toFixed(1)}s / 全片 ${totalSeconds}s）`, segmentId: segment.segmentId });

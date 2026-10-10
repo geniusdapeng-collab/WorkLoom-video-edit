@@ -12,12 +12,16 @@
  *      total_duration ≥ 镜头结束时间；结尾话术留最后 ~10s；
  *   ⑤ 信息密度与语速（2026-10-11 增补）：带 `--analysis` 时，把字幕字数与该段**实测口语**对比——
  *      低于口语内容 40% 提示"信息密度不够"，并给出按语速推算的建议最小字数；不改契约字段，只出咨询项。
+ *   ⑥ 口播口径（`--talk`，2026-10-11 随 AI 口播精剪管线新增）：口播字幕跟着说话出字——
+ *      不套 ≥2s 门槛与字数带，改守一屏 ≤2 行 / 每行 ≤12 字 / 总字数 ≤24；
+ *      带 `--transcript <逐字稿.json>` 时做**逐字一致**硬校验（字幕必须等于 ASR 原文）。
  *
  * 判定全部收在 `packages/video-studio/src/edit/caption.ts`（纯函数，可复算）；本执行器只做 IO 与报告。
  *
  * 用法：
  *   pnpm edit:subtitle -- --timeline <film.timeline.json> --caption <剪辑脚本字幕版.json> \
  *     --out <成片字幕.srt> [--analysis <probe.json>]… [--report <字幕校验报告.json>] [--json]
+ *   pnpm edit:subtitle -- --talk --timeline … --caption … --transcript <talk.transcript.json> --out …
  */
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, isAbsolute, resolve } from "node:path";
@@ -46,13 +50,23 @@ function main(): void {
   const timelinePath = arg("--timeline");
   const captionPath = arg("--caption");
   const outPath = arg("--out");
+  const talkMode = flag("--talk");
   if (!timelinePath || !captionPath || !outPath) {
-    throw new Error("用法：pnpm edit:subtitle -- --timeline <film.timeline.json> --caption <剪辑脚本字幕版.json> --out <字幕.srt>");
+    throw new Error("用法：pnpm edit:subtitle -- --timeline <film.timeline.json> --caption <剪辑脚本字幕版.json> --out <字幕.srt> [--talk --transcript <逐字稿.json>]");
   }
   const timeline = readJson(abs(timelinePath), "时间轴") as unknown as EditTimeline;
   const caption = readJson(abs(captionPath), "字幕脚本");
   const validation = validateEditTimeline(timeline);
   if (!validation.ok) throw new Error("时间轴未通过契约校验，先修正时间轴再出字幕");
+
+  /**
+   * 口播口径（`--talk`）：逐字稿是唯一事实源；提供它时逐字一致是**硬闸**，
+   * 未提供时该项只出咨询提示（不得伪称已校验）。
+   */
+  const transcriptPath = talkMode ? arg("--transcript") : "";
+  const talkTranscript = transcriptPath
+    ? readJson(abs(transcriptPath), "口播逐字稿") as { sentences?: Array<{ id?: string; words?: Array<{ text?: string; start?: number; end?: number }> }> }
+    : null;
 
   const analyses: Array<Record<string, unknown>> = [];
   for (let index = 0; index < process.argv.length; index += 1) {
@@ -61,7 +75,13 @@ function main(): void {
     }
   }
 
-  const analysis = analyzeCaption({ timeline, caption: caption as never, analyses: analyses as never });
+  const analysis = analyzeCaption({
+    timeline,
+    caption: caption as never,
+    analyses: analyses as never,
+    mode: talkMode ? "talk" : "standard",
+    transcript: talkTranscript,
+  });
 
   const srt = cuesToSrtBody(analysis.cues);
   const target = abs(outPath);
@@ -85,6 +105,8 @@ function main(): void {
 
   const report = {
     schema: "workloom.video-edit/subtitle-report/v1",
+    mode: talkMode ? "talk" : "standard",
+    transcript: transcriptPath ? abs(transcriptPath) : null,
     caption: abs(captionPath),
     timeline: abs(timelinePath),
     analyses: analyses.map((doc) => String((doc.asset as { localPath?: string } | undefined)?.localPath ?? (doc.asset as { filename?: string } | undefined)?.filename ?? "?")),
