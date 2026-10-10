@@ -15,6 +15,7 @@
  * 用法：
  *   pnpm edit:post -- --timeline <film.timeline.json> --out-dir <交付目录>
  *     [--variants warm-story,clean-tech,bold-promo] [--subtitle <字幕.srt>]
+ *     [--analysis <probe.json>]…（封面自动取帧与分段调色投票用）
  *     [--title "标题"] [--hook "一句话钩子"] [--platform "微信视频号"]
  *     [--width <显式宽> --height <显式高>] [--fps 30] [--crf 16] [--burn-subtitles] [--json]
  *   输出分辨率默认**跟随素材原生分辨率**（取与目标画幅一致的最大素材档位；4K 素材 → 3840×2160，
@@ -26,7 +27,8 @@ import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, renameS
 import { homedir } from "node:os";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 import {
-  planAssembly, validateEditTimeline, type EditTimeline,
+  planAssembly, planCoverMoment, planSegmentColor, validateEditTimeline,
+  resolveTimelineSourcePaths, type EditTimeline, type PostAnalysisDoc,
 } from "../../packages/video-studio/src/edit/index.js";
 
 const REPO_ROOT = resolve(import.meta.dirname ?? process.cwd(), "../..");
@@ -85,11 +87,29 @@ async function main(): Promise<void> {
   }
   mkdirSync(outDir, { recursive: true });
 
-  const timeline = JSON.parse(readFileSync(timelineFile, "utf8")) as EditTimeline;
+  const timeline = resolveTimelineSourcePaths(
+    JSON.parse(readFileSync(timelineFile, "utf8")) as EditTimeline,
+    dirname(timelineFile),
+  );
   const validation = validateEditTimeline(timeline);
   if (!validation.ok) {
     const failed = validation.checks.filter((c) => c.hard && !c.pass).map((c) => `${c.id}：${c.detail}`);
     throw new Error(`时间轴未通过契约校验，拒绝进入后期（${failed.length} 项硬失败）：\n  - ${failed.join("\n  - ")}`);
+  }
+
+  /**
+   * 素材解析结果（`--analysis <probe.json>`，可重复）：供两条自动决策使用——
+   *   · 封面取帧：优先吃关键帧候选（composition_best / emotion_peak）；
+   *   · 分段调色：吃镜头理解的调色建议/场景类型/情绪效价。
+   * 不传也能跑（回退配方默认），但会把 `--segment-color` 降级为关键词投票。
+   */
+  const analyses: PostAnalysisDoc[] = [];
+  for (let index = 0; index < process.argv.length; index += 1) {
+    if (process.argv[index] === "--analysis" && process.argv[index + 1]) {
+      const file = abs(process.argv[index + 1]!);
+      if (!existsSync(file)) throw new Error(`解析结果不存在：${file}`);
+      analyses.push(JSON.parse(readFileSync(file, "utf8")) as PostAnalysisDoc);
+    }
   }
 
   /**
@@ -188,35 +208,74 @@ async function main(): Promise<void> {
   }
 
   /**
-   * 分段调色：按时间轴的场景组给每段预调色（家里暖 / 城市冷），强度用 `blend(all_opacity)` 混合实现，
+   * 分段调色：按场景组"内容投票"给每段预调色（家里暖 / 城市冷），强度用 `blend(all_opacity)` 混合实现，
    * 调色只发生一次；配套的 `segmented-story` 变体配方已关闭统一 LUT，避免二次调色。
+   *
+   * 2026-10-11 升级：投票来源 = 镜头理解的 `editing.colorGradeBase` + sceneType + 情绪效价 + 组名/情绪关键词
+   * （`packages/video-studio/src/edit/post-auto.ts`）；老的"场景1..4 → 固定 LUT"只作为显式覆盖保留，
+   * 不再对任意项目生效。中性/证据不足的场景组**不叠加**统一调色（宁少不滥）。
    */
-  const segmentColorNotes: Array<{ segmentId: string; groupId: string; lut: string; intensity: number; sha256: string }> = [];
+  const segmentColorNotes: Array<{ segmentId: string; groupId: string; lut: string | null; intensity: number; basis: string; sha256: string | null }> = [];
   if (segmentColor) {
     const lutDir = join(REPO_ROOT, "bundles/ai-video/library/luts");
-    const groupLut: Record<string, { lut: string; intensity: number; label: string }> = {
-      "场景1": { lut: "look-warm-film.cube", intensity: 0.7, label: "到家·暖" },
-      "场景2": { lut: "look-warm-film.cube", intensity: 0.75, label: "饭桌·暖" },
-      "场景3": { lut: "look-warm-film.cube", intensity: 0.75, label: "果园·暖" },
-      "场景4": { lut: "look-cool-technical.cube", intensity: 0.6, label: "假期与人潮·冷" },
+    const availableLuts = readdirSync(lutDir).filter((file) => file.toLowerCase().endsWith(".cube"));
+    const recipeDoc = JSON.parse(readFileSync(join(REPO_ROOT, "bundles/ai-video/library/color-recipes/recipes.json"), "utf8")) as { recipes?: Array<Record<string, unknown>> };
+    const recipes = (recipeDoc.recipes ?? []).map((recipe) => ({
+      id: String(recipe.id ?? ""),
+      genre: recipe.genre ? String(recipe.genre) : undefined,
+      scene: recipe.scene ? String(recipe.scene) : undefined,
+      mood: recipe.mood ? String(recipe.mood) : undefined,
+      profile: String(recipe.profile ?? ""),
+      lut: String(recipe.lut ?? ""),
+      intensity: Number(recipe.intensity ?? 0.7),
+    })).filter((recipe) => recipe.id && recipe.profile && recipe.lut);
+    /**
+     * 显式覆盖仅保留给历史演示场景名（场景1..4）。
+     * 新项目一律走内容投票；确需指定时用时间轴 groupId 命名或改造 `--color-map`（后续任务）。
+     */
+    const legacyGroupMap: Record<string, { lut: string; intensity: number }> = {
+      "场景1": { lut: "look-warm-film.cube", intensity: 0.7 },
+      "场景2": { lut: "look-warm-film.cube", intensity: 0.75 },
+      "场景3": { lut: "look-warm-film.cube", intensity: 0.75 },
+      "场景4": { lut: "look-cool-technical.cube", intensity: 0.6 },
     };
-    const fallbackLut = groupLut["场景1"]!;
+    const colorPlan = planSegmentColor({ timeline, analyses, recipes, availableLuts, legacyGroupMap });
+    for (const warning of colorPlan.warnings) console.warn(`⚠ ${warning}`);
+    const assignmentOf = new Map(colorPlan.assignments.map((entry) => [entry.segmentId, entry]));
     for (const [index, step] of plan.normalize.entries()) {
       const segment = timeline.segments[index]!;
-      const mapping = groupLut[segment.groupId ?? ""] ?? fallbackLut;
-      const lutFile = join(lutDir, mapping.lut);
+      const assignment = assignmentOf.get(segment.segmentId);
+      if (!assignment || !assignment.lut) {
+        segmentColorNotes.push({
+          segmentId: step.segmentId,
+          groupId: segment.groupId ?? "",
+          lut: null,
+          intensity: 0,
+          basis: assignment?.basis ?? "无调色计划（保持原色）",
+          sha256: null,
+        });
+        continue;
+      }
+      const lutFile = join(lutDir, assignment.lut);
       if (!existsSync(lutFile)) throw new Error(`LUT 不存在：${lutFile}`);
       const target = join(clipsDir, `${step.segmentId}.mp4`);
       const graded = join(clipsDir, `${step.segmentId}.graded.mp4`);
       run(FFMPEG, [
         "-hide_banner", "-loglevel", "error", "-y", "-i", target,
-        "-vf", `split=2[a][b];[b]lut3d=file=${lutFile}[b2];[a][b2]blend=all_mode=normal:all_opacity=${mapping.intensity},format=yuv420p`,
+        "-vf", `split=2[a][b];[b]lut3d=file=${lutFile}[b2];[a][b2]blend=all_mode=normal:all_opacity=${assignment.intensity},format=yuv420p`,
         "-c:v", "libx264", "-preset", "veryfast", "-crf", "18", "-c:a", "copy", graded,
       ]);
       renameSync(graded, target);
       const shot = shots.find((entry) => entry.shotId === step.segmentId);
       if (shot) shot.path = target;
-      segmentColorNotes.push({ segmentId: step.segmentId, groupId: segment.groupId ?? "", lut: mapping.lut, intensity: mapping.intensity, sha256: createHash("sha256").update(readFileSync(target)).digest("hex") });
+      segmentColorNotes.push({
+        segmentId: step.segmentId,
+        groupId: segment.groupId ?? "",
+        lut: assignment.lut,
+        intensity: assignment.intensity,
+        basis: assignment.basis,
+        sha256: createHash("sha256").update(readFileSync(target)).digest("hex"),
+      });
     }
   }
 
@@ -229,6 +288,13 @@ async function main(): Promise<void> {
   const jailRoots = [
     REPO_ROOT,
     outDir,
+    /**
+     * 配乐工位的本地曲库是"用户资产"，天然在仓外（~/Downloads/…、~/.workloom-bgm）：
+     * 不把它加进 BGM 白名单时，`loadAllLocalTracks` 选出的曲目会被路径监狱拦下
+     * （实机：bgmPath 越出允许目录），"本地 1034 首大库优先"实际不可用。
+     */
+    bgmPack,
+    join(homedir(), ".workloom-bgm"),
     ...new Set(timeline.sources.map((source) => dirname(source.path))),
   ];
   for (const key of ["WORKLOOM_POST_ALLOWED_ROOTS", "WORKLOOM_COLOR_ALLOWED_ROOTS", "WORKLOOM_SUBTITLE_ALLOWED_ROOTS", "WORKLOOM_BGM_ALLOWED_ROOTS"]) {
@@ -399,14 +465,20 @@ async function main(): Promise<void> {
   });
 
   /**
-   * 封面帧可选覆盖：变体配方里的 `cover.at` 是"成片比例"，默认值未必落在最好看的那一帧
-   * （实机教训：默认 0.32 落在一个普通内景）。传 `--cover-at <0–1>` 时，用同一个封面工位
-   * （post-bridge 的 buildCover）按指定比例重出每个变体的封面，不自己拼图。
+   * 封面取帧：变体配方里的 `cover.at` 是"成片比例"，默认值未必落在最好看的那一帧
+   * （实机教训：默认 0.32 落在一个普通内景）。顺序：
+   *   ① 显式 `--cover-at <0–1>`（人指定，最高优先）；
+   *   ② 自动：从素材理解的关键帧候选（composition_best → emotion_peak）映射到主轨比例；
+   *   ③ 回退：配方默认比例（0.35），basis=fallback，在回执里如实标注。
+   * 选定后用同一个封面工位（post-bridge 的 buildCover）重出每个变体的封面，不自己拼图。
    */
-  const coverAt = arg("--cover-at");
-  if (coverAt) {
-    const ratio = Number(coverAt);
-    if (!Number.isFinite(ratio) || ratio < 0 || ratio > 1) throw new Error("--cover-at 必须是 0–1 的比例");
+  const explicitCoverAt = arg("--cover-at");
+  const autoCover = explicitCoverAt
+    ? { ratio: Number(explicitCoverAt), basis: "explicit", note: "调用方显式指定 --cover-at", keyframeId: undefined as string | undefined, segmentId: undefined as string | undefined }
+    : planCoverMoment({ timeline, analyses, fallbackRatio: 0.35 });
+  if (!Number.isFinite(autoCover.ratio) || autoCover.ratio < 0 || autoCover.ratio > 1) throw new Error("--cover-at 必须是 0–1 的比例");
+  {
+    const ratio = autoCover.ratio;
     for (const variantId of variants) {
       const pack = core.findVariantPack(variantId) as { id: string; cover?: Record<string, unknown>; copy?: Record<string, unknown> };
       const input = join(outDir, "variants", variantId, `${variantId}.mp4`);
@@ -444,7 +516,15 @@ async function main(): Promise<void> {
     },
     transitions: transitionsMode,
     subtitle: subtitlePath,
-    coverAt: coverAt ? Number(coverAt) : null,
+    coverAtSource: {
+      ratio: Number(autoCover.ratio.toFixed(4)),
+      basis: autoCover.basis,
+      keyframeId: autoCover.keyframeId ?? null,
+      segmentId: autoCover.segmentId ?? null,
+      note: autoCover.note,
+      explicit: Boolean(explicitCoverAt),
+    },
+    analyses: analyses.length,
     segmentColor: segmentColor ? { applied: segmentColorNotes.length, plan: segmentColorNotes } : null,
     bgmAgent: bgmAgent ? { libraryTotal: null, picks: bgmAgentReceipt } : null,
     manifest: manifestPath,
@@ -456,6 +536,11 @@ async function main(): Promise<void> {
   } else {
     console.log(`✓ 正式后期完成：${shots.length} 段 → 母版 + ${variants.length} 个风格变体`);
     console.log(`  交付目录：${outDir}`);
+    console.log(`  封面取帧：${(autoCover.ratio * 100).toFixed(1)}%（${autoCover.basis}${autoCover.keyframeId ? ` · ${autoCover.keyframeId}` : ""}）`);
+    if (segmentColor) {
+      const graded = segmentColorNotes.filter((entry) => entry.lut);
+      console.log(`  分段调色：${graded.length}/${segmentColorNotes.length} 段落 LUT（其余保持原色）`);
+    }
     if (subtitlePath) console.log(`  旁挂字幕：${subtitlePath}（已生成 srt/ass/vtt + 清单）`);
     console.log(`  交付清单：${manifestPath}`);
     console.log("  说明：调色/封面/配乐/软字幕轨均由既有后期链路（post-bridge）按变体配方执行。");
