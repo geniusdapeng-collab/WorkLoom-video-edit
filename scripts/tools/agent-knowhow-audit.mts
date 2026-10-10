@@ -22,8 +22,23 @@ import { join, resolve } from "node:path";
 import YAML from "yaml";
 
 const ROOT = resolve(import.meta.dirname, "..", "..");
-const BUNDLES = ["ai-video", "geo-growth", "hotel"] as const;
-type Bundle = (typeof BUNDLES)[number];
+/**
+ * 审计目标包：主包依赖（含主包）优先，其后纳入 bundles/ 下全部已登记行业包；
+ * 新增包自动纳入（2026-10-10 纳入 video-edit 视频AI剪辑包）。
+ */
+const BUNDLES: string[] = (() => {
+  const product = JSON.parse(readFileSync(join(ROOT, "product.manifest.json"), "utf-8")) as { defaultBundle?: string };
+  const primary = product.defaultBundle ?? "geo-growth";
+  const primaryManifest = JSON.parse(readFileSync(join(ROOT, "bundles", primary, "bundle.json"), "utf-8")) as {
+    workloom?: { dependencies?: Array<{ bundleId?: string }> };
+  };
+  const composed = [...(primaryManifest.workloom?.dependencies ?? []).map((dep) => String(dep.bundleId)), primary];
+  const all = readdirSync(join(ROOT, "bundles"), { withFileTypes: true })
+    .filter((entry) => entry.isDirectory() && existsSync(join(ROOT, "bundles", entry.name, "bundle.json")))
+    .map((entry) => entry.name);
+  return [...new Set([...composed, ...all])].sort();
+})();
+type Bundle = string;
 
 const arg = (name: string, fallback = ""): string => {
   const i = process.argv.indexOf(name);

@@ -24,7 +24,11 @@ import YAML from "yaml";
 import { actionMatches } from "../../packages/base/fence-engine/judge.js";
 
 const ROOT = resolve(import.meta.dirname, "..", "..");
-const BUNDLES = ["ai-video", "geo-growth", "hotel"] as const;
+/** 审计目标包：动态发现 bundles/ 下全部已登记行业包（新增包自动纳入）。 */
+const BUNDLES: string[] = readdirSync(join(ROOT, "bundles"), { withFileTypes: true })
+  .filter((entry) => entry.isDirectory() && existsSync(join(ROOT, "bundles", entry.name, "bundle.json")))
+  .map((entry) => entry.name)
+  .sort();
 const arg = (name: string, fallback = ""): string => {
   const i = process.argv.indexOf(name);
   return i >= 0 ? (process.argv[i + 1] ?? fallback) : fallback;

@@ -66,6 +66,19 @@ const PRODUCT_PRIMARY_BUNDLE = JSON.parse(
   readFileSync(join(REPO_ROOT, "product.manifest.json"), "utf-8"),
 ).defaultBundle as string;
 
+/**
+ * 组合参与包（依赖在前、主包在后，与装配器 `loadProjectionSources` 同序）。
+ * 2026-10-10：原先在装配台账与技能过滤里手写三包名单，新增 video-edit（视频AI剪辑）后
+ * 会漏装其 9 项技能（表现是"技能已声明未装备"），故改为从主包依赖推导，避免再次漂移。
+ */
+const PRODUCT_BUNDLE_IDS: string[] = (() => {
+  const manifest = JSON.parse(
+    readFileSync(join(REPO_ROOT, "bundles", PRODUCT_PRIMARY_BUNDLE, "bundle.json"), "utf-8"),
+  ) as { workloom?: { dependencies?: Array<{ bundleId?: string }> } };
+  const dependencies = (manifest.workloom?.dependencies ?? []).map((dep) => String(dep.bundleId));
+  return [...dependencies, PRODUCT_PRIMARY_BUNDLE];
+})();
+
 const MEMBERS = [
   { id: "MEM-001", name: "王店长", role: "owner" },
   { id: "MEM-002", name: "陈经理", role: "manager" },
@@ -919,7 +932,7 @@ async function main(): Promise<void> {
        JOIN skills s ON s.id = si.skill_id
       WHERE si.workspace_id=$1 AND s.level='official' AND (s.bundle = ANY($2::text[]) OR s.bundle IS NULL)
       ORDER BY si.skill_id`,
-    [WS_ID, ["hotel", "ai-video", "geo-growth"]],
+    [WS_ID, PRODUCT_BUNDLE_IDS],
   );
   const ledgerAssets = {
     preset_ids: agentRows.rows.map((r) => String(r.id)),

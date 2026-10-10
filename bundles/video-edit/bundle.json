@@ -158,7 +158,7 @@
   },
   "integrity": {
     "algorithm": "sha256",
-    "digest": "a2d61000971c860886740fb8a7378db5cfed0b782c8a4ebafe84df021af7a052",
+    "digest": "592367db570579ba997a3ca59fd84520c8959b129a0baf3e6b06e011a9ba026c",
     "assets": {
       "eval/questions.json": "7b942c9f8ade853cd6c1c2bf446f122b3c00e10c6e54bd374a4719473d5817fa",
       "fences/video-edit-baseline.yml": "b2849c70b2d5df25ebb3098a5da2cdaf6d331e1a6833d825bce0ecb2d10e6636",
@@ -182,15 +182,15 @@
       "schemas/keyframe-candidate.schema.json": "15f213ef8269714765da7d2a2dfc934b7b9e3ccd17e81f619b659ae79c42e871",
       "schemas/objects.json": "96ef42013f426a3a8b74076ac28af4d54d30fa6a293b2eaa70ca3f8541664e29",
       "schemas/stages.json": "f41bf9060f3731da960271c40661566b1567f2874d714bcfb68691fdd5071743",
-      "skills/caption-craft/SKILL.md": "72eb669b9eb68dbb9c55d02f18771cb542279dc82540f8d0be78181eed730f2a",
-      "skills/creative-ideation/SKILL.md": "46df121f0eb344c116a5a22c3acf0fc64804e38e646d57ae3015f537ac284f9f",
-      "skills/cut-review/SKILL.md": "755a39bc454fb9033a4a72302256b3275f28d48fe02e2f33d70abd494fc22199",
-      "skills/edit-scripting/SKILL.md": "57736056d37f542eee0fa83072ee2cf7bd9a3552fbc6bbc5c17e6db19a4aefea",
+      "skills/caption-craft/SKILL.md": "64cda17f86c3aff09012bc01f486175cce7f39c1f429879322089af211286e10",
+      "skills/creative-ideation/SKILL.md": "36efc8197f9817326033310af13c5f703451e6da56b846c4744252f1976edc80",
+      "skills/cut-review/SKILL.md": "e72f756a96218d011909c26e19471a3906bbd2ffad0d6e2f83412ccbf71e11da",
+      "skills/edit-scripting/SKILL.md": "8923bfb563309f620ef787bc7ec6a4e08b7bfaaa7caf1a30f84ab89bb34c6092",
       "skills/footage-ingest/SKILL.md": "bbd618627aa33a9b2d61096e639a36a6718e021b17d6de3a65bd2ae161f82097",
-      "skills/highlight-mining/SKILL.md": "0b6553b18596b2aaa43ce6e2dc22ce05dbe96461f688d936e6a9896f214c30ea",
-      "skills/media-indexing/SKILL.md": "e68b1638f86e6f75f698b977321169816d820968aa5558065e1ec9714da570b1",
-      "skills/narrative-structure/SKILL.md": "794ca26369a7f07bc84851a72fdaa5b579126783f700d44989d931e765ce8145",
-      "skills/shot-understanding/SKILL.md": "42a7a28c206795c8ffb0ea95b9b7adde2a19284126c585916f2a9781ad9f0372",
+      "skills/highlight-mining/SKILL.md": "ddb6ea7d2b41615db51752db2aceec27295865fc4387b9af5e5029d97ab7cc1d",
+      "skills/media-indexing/SKILL.md": "2552945bb701d26b196141c849d9c529598541ed4327a4ebb2c0624ec2f27e15",
+      "skills/narrative-structure/SKILL.md": "45b1845bec225b961c3e673ccafb89abb4ba4c9a66868a3ca95805c27ebfc642",
+      "skills/shot-understanding/SKILL.md": "3762ea98415a191cce210eecb622f40882a6cd0627d2235dd7bb23d6bdff3958",
       "ui/cases.json": "1538b11ca74db14adf78b49a4b28e0d43fdd383ff6a027f45a7599c7041f8eb6"
     }
   }

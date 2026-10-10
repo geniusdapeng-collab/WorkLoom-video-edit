@@ -150,9 +150,21 @@ function loadSkills(): SkillDoc[] {
  * 这里按各包 bundle.json 的 provides.skills 逐条落 skills 行 + ws-geo 安装行，
  * 与基座 seed.ts 的组合技能安装同口径（安装快照取 skills 表当前值）。
  */
+/**
+ * 组合参与包（依赖在前、主包在后）：从 geo-growth 主包依赖推导；新增行业包自动纳入，
+ * 不再手写名单（2026-10-10 新增 video-edit 视频AI剪辑包时修正，否则其技能不会被安装）。
+ */
+function composedBundleIds(): string[] {
+  const manifest = JSON.parse(readFileSync(join(BUNDLE_DIR, "bundle.json"), "utf-8")) as {
+    workloom?: { dependencies?: Array<{ bundleId?: string }> };
+  };
+  const dependencies = (manifest.workloom?.dependencies ?? []).map((dep) => String(dep.bundleId));
+  return [...dependencies, "geo-growth"];
+}
+
 function loadComposedSkillDocs(): Array<{ bundle: string | null; doc: SkillDoc }> {
   const out: Array<{ bundle: string | null; doc: SkillDoc }> = [];
-  for (const bundleId of ["hotel", "ai-video", "geo-growth"]) {
+  for (const bundleId of composedBundleIds()) {
     const manifestPath = join(REPO_ROOT, "bundles", bundleId, "bundle.json");
     if (!existsSync(manifestPath)) continue;
     const manifest = JSON.parse(readFileSync(manifestPath, "utf-8")) as {

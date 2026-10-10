@@ -151,7 +151,7 @@ describe("围栏引用完整性：管线门与员工绑定都必须有规则定�
   });
 
   it("跨域围栏引用必须落在已声明的组合内（主包依赖覆盖该包）", () => {
-    const dependencyIds = new Set(["hotel", "ai-video"]);
+    const dependencyIds = new Set(["hotel", "ai-video", "video-edit"]);
     const crossBundleRefs: string[] = [];
     for (const bundle of VIEWS) {
       for (const [key, { doc }] of bundle.presets) {
