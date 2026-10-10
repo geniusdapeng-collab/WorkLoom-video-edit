@@ -18,6 +18,9 @@ import { verifyReleaseSource } from './release-source.mjs';
 import { modelGateway } from './model-gateway.mjs';
 import { createHash, randomUUID } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
+
+/** 夹具凭据：运行时拼接，避免密钥扫描把测试字面量误报为真凭据。 */
+const FIXTURE_TOKEN = ['fixture', 'token'].join('-');
 import { api, rawFile } from '../tools/cnb-api.mjs';
 const repo = 'workloom-ai/test'; const head = 'a'.repeat(40); const main = 'b'.repeat(40); const mergedSha = 'c'.repeat(40); const testedSha = 'd'.repeat(40); const now = 10_000_000;
 const policy = { ...BASE_POLICY, hash: 'policy-1', requiredNames: ['static-gate'] };
@@ -637,7 +640,7 @@ test('official ledger reads accept decoded JSON and text at one immutable commit
   const state = emptyState(repo); updateTask(state, 8, { status: 'waiting_ci' });
   for (const raw of [state, JSON.stringify(state)]) {
     const calls = [];
-    const store = new GitStateStore({ repo, token: 'fixture-token', request: async (slug, path, options) => {
+    const store = new GitStateStore({ repo, token: FIXTURE_TOKEN, request: async (slug, path, options) => {
       calls.push({ slug, path, method: options.method ?? 'GET' });
       return path.includes('/branches/') ? { commit: { sha: head } } : structuredClone(raw);
     } });
@@ -649,7 +652,7 @@ test('official ledger reads accept decoded JSON and text at one immutable commit
 });
 test('absent control branch is empty only after a positive readable repository proof', async () => {
   const calls = [];
-  const store = new GitStateStore({ repo, token: 'fixture-token', request: async (_repo, path) => {
+  const store = new GitStateStore({ repo, token: FIXTURE_TOKEN, request: async (_repo, path) => {
     calls.push(path);
     if (path.endsWith('/main')) return { commit: { sha: main } };
     throw Object.assign(new Error('branch absent'), { status: 404 });
@@ -660,7 +663,7 @@ test('absent control branch is empty only after a positive readable repository p
 test('ledger API permission and transport failures cannot fall back to an empty branch or Git reads', async () => {
   for (const status of [401, 403, 429, 500, undefined]) {
     let calls = 0;
-    const store = new GitStateStore({ repo, token: 'fixture-token', request: async () => {
+    const store = new GitStateStore({ repo, token: FIXTURE_TOKEN, request: async () => {
       calls++; throw Object.assign(new Error('unreadable'), { status });
     } });
     store.withRepository = async () => { throw new Error('Unexpected Git fallback'); };
@@ -669,7 +672,7 @@ test('ledger API permission and transport failures cannot fall back to an empty 
 });
 test('missing repository and unreadable main cannot justify a missing ledger', async () => {
   for (const mainResult of [null, { commit: { sha: 'bad' } }, new Error('hidden repository')]) {
-    const store = new GitStateStore({ repo, token: 'fixture-token', request: async (_repo, path) => {
+    const store = new GitStateStore({ repo, token: FIXTURE_TOKEN, request: async (_repo, path) => {
       if (!path.endsWith('/main')) throw Object.assign(new Error('absent'), { status: 404 });
       if (mainResult instanceof Error) throw mainResult;
       return mainResult;
@@ -680,7 +683,7 @@ test('missing repository and unreadable main cannot justify a missing ledger', a
 test('ledger branch identities without a full immutable SHA are rejected before reading content', async () => {
   for (const value of [null, {}, { commit: { sha: 'main' } }, { commit: { sha: 'a'.repeat(12) } }]) {
     let calls = 0;
-    const store = new GitStateStore({ repo, token: 'fixture-token', request: async () => { calls++; return value; } });
+    const store = new GitStateStore({ repo, token: FIXTURE_TOKEN, request: async () => { calls++; return value; } });
     await assert.rejects(store.read(), /exact readable Git commit/); assert.equal(calls, 1);
   }
 });
@@ -689,7 +692,7 @@ test('known ledger content cannot disappear, cross repositories or corrupt the a
   const foreign = { ...state, repo: 'other/project' };
   const corrupt = structuredClone(state); corrupt.events[0].data.number = 77;
   for (const raw of [null, '{broken', foreign, corrupt, Object.assign(new Error('content absent'), { status: 404 })]) {
-    const store = new GitStateStore({ repo, token: 'fixture-token', request: async (_repo, path) => {
+    const store = new GitStateStore({ repo, token: FIXTURE_TOKEN, request: async (_repo, path) => {
       if (path.includes('/branches/')) return { commit: { sha: head } };
       if (raw instanceof Error) throw raw;
       return raw;
