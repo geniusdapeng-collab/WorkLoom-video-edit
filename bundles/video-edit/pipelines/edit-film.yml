@@ -1,35 +1,37 @@
-# 视频AI剪辑管线 · 架构升级 v2（感知环 → 索引环 → 创作环 → 复用既有后期）
+# 视频AI剪辑管线 v3 · 创作优先（素材=命题，剪辑=解题）
 #
-# 与既有两条生成管线的分工：
+# 与两条生成管线的分工：
 #   narrative-film / marketing-film：AI 生成式出片（提示词 → 定妆照 → 渲染 → 后期）
-#   edit-film（本管线）：真实拍摄/AI 素材二次创作（理解 → 高光 → 重组 → 剪辑 → 后期）
-# 本管线**替换掉**"视频提示词生成 + 视频渲染"两个环节，其余后期环节（调色/字幕/配音/配乐/封面/多风格交付/返修）
-# 与 ai-video 既有链路共用同一批工位与同一份交付纪律。
+#   edit-film（本管线）：真实/既有素材的二次创作（看懂 → 重新创作 → 剪辑脚本 → 本地粗剪 → 交回既有后期）
+# 本管线替换"视频提示词生成 + 视频渲染"两步；调色/字幕版式/配音/配乐/封面/多风格交付/返修与 ai-video 共用同一批工位。
 #
+# 创作宪章：docs/video-edit-creation-doctrine.md（三条创作纪律 / 编剧与导演视角 / 节奏档案 / 字幕即剪辑 / 取舍法则）
 # 每步 = Quest 任务卡；产物写 biz_events 五元事件；gates 引用的规则定义在 fences/video-edit-baseline.yml。
 quest: edit-film
 name: 视频AI剪辑管线
-version: v2
-description: 素材入库→信号解析→镜头理解→高光/关键帧挖掘→媒资索引→创作意图→方向确认(G-ED7)→创意发散→叙事结构→剪辑脚本→字幕文案→剪辑质检→粗剪锁定(G-ED8)→本地合成→后期交接→成片入库；返修走层增量重合成
+version: v3
+description: 素材入库→信号解析→逐镜理解(含画面文字/人声/环境音)→高光与关键帧→媒资索引→命题卡→七个创意主题→选题确认(G-ED7)→创作模板→故事大纲→制作剧本→剪辑脚本与帧级时间轴(含节奏档案)→剪辑脚本字幕版(音画强关联)→剪辑质检→粗剪锁定(G-ED8)→本地粗剪→交回既有后期(调色/字幕版式/封面/多变体/弹幕轨)→入库→返修
 steps:
   - step_key: ingest
     name: 素材入库与登记
     owner: footage-librarian
     gates: [G-ED2]
-    outputs: [footage_asset]            # 指纹/规格/授权/用途/代理文件；原件只读（G-ED1）
+    outputs: [footage_asset]            # 指纹/规格/授权/用途/代理；原件只读（G-ED1）
   - step_key: probe
     name: 信号解析（确定性，不花模型钱）
     owner: signal-analyst
     outputs: [footage_probe]            # 镜头边界/节拍网格/音量包络/技术指标 + 环境音画像（噪声底/动态/静音与人声覆盖）
-                                        # 画面文字与人声的**主通道是多模态模型**（见 understand 步）；本步的 --asr/--ocr 只是无模型能力时的兜底，产出标 channel=fallback
+                                        # 画面文字与人声的主通道是多模态模型（见 understand 步）；本步 --asr/--ocr 仅为无模型能力时的兜底，产出标 channel=fallback
   - step_key: understand
-    name: 逐镜多模态理解
+    name: 逐镜多模态理解（创作的事实底座）
     owner: shot-understander
     gates: [G-ED4]
-    outputs: [shot_record]              # 语义结论带证据帧与置信度；与信号层冲突以信号层为准
-                                        # 模型侧必做三件事：① 画面文字全量转写 → content.onScreenText（带证据帧）
-                                        # ② 人声按句听写 → content.speechText + probe.speech.sentences（模型有音频模态时 channel=model）
-                                        # ③ 环境音描述 → audio.ambience（含留白/铺底/降噪/与 BGM 冲突的判断）
+    outputs: [shot_record]              # 逐镜约 20 字段（VisionCut 口径：景别/运镜/光线/稳定性/切分理由/入出点特征/音频波形状态/
+                                        # 视觉稳定性/质量分/转场建议/调色建议/音频优先级/字幕安全区/使用建议/核心信息/情绪强度/
+                                        # 传播潜力/复用弹性），以及模型侧必做三件事：
+                                        # ① 画面文字全量转写 → content.onScreenText（带证据帧）
+                                        # ② 人声按句听写 → content.speechText + probe.speech.sentences
+                                        # ③ 环境音描述 → audio.ambience（留白/铺底/降噪/与 BGM 冲突）
   - step_key: highlight
     name: 高光挖掘与关键帧
     owner: highlight-scout
@@ -40,54 +42,67 @@ steps:
     owner: footage-librarian
     gates: [G-ED2]
     outputs: [media_index_entry]        # 标签/实体/可用性/复用建议；支持跨项目复用
-  - step_key: intent
-    name: 创作意图固化
+  - step_key: brief
+    name: 命题卡（素材边界 + 需求 + 平台/受众）
     owner: creative-weaver
-    outputs: [edit_intent]              # 受众/平台/时长带/情绪目标/必须与禁止出现
+    outputs: [creative_brief]           # 命题 = 素材给什么、没有什么（禁引入素材外元素）+ 用户需求 + 平台/时长带/受众
+  - step_key: themes
+    name: 七个创意主题（同一命题的七种解题）
+    owner: creative-weaver
+    outputs: [creative_set]             # T01–T07：差异化标签（视角/结构/情感/节奏/开场）+ 推荐分 + 一句话概念 + 核心故事 + 素材映射
   - step_key: g-ed7-direction
     name: 创作方向确认
     owner: edit-producer
     gates: [G-ED7]
-    outputs: [edit_intent, creative_set]  # 人在环：给方案与依据，不替用户定方向
-  - step_key: ideate
-    name: 创意发散（不含自评）
+    outputs: [creative_brief, creative_set]  # 人在环：给七个主题与依据，由人选定一个
+  - step_key: template
+    name: 创作模板（受众/目标/时长/视角/字体）
     owner: creative-weaver
-    outputs: [creative_set]             # 差异化候选：人称/结构/情绪/节奏/开场各自拉开
-  - step_key: structure
-    name: 叙事结构与评审
+    outputs: [style_template]           # short_style_definer 口径：每项带 comment 改写与 reason；时长与平台锁定
+  - step_key: outline
+    name: 故事大纲（脉络 + 情感曲线 + 核心创作指令）
     owner: story-architect
-    outputs: [story_plan, creative_set] # 结构 + 可执行情绪曲线 + 素材映射 + 节奏图 + 分视角评审
+    outputs: [story_outline]            # 故事脉络 500–700 字 / 情感曲线 3–4 节点 / 情绪主线 / 一句核心创作指令
+  - step_key: screenplay
+    name: 制作剧本（场景 ×N）
+    owner: story-architect
+    outputs: [screenplay]               # 场景字段：时间(mm:ss-mm:ss 从 0:00 连续)/素材来源/故事线/知识点或痛点/情绪主线/
+                                        # 叙事描述/详细故事(400–700 字)/剪辑建议；场景数与镜头密度按节奏档案默认值
   - step_key: edit-script
     name: 剪辑脚本与帧级时间轴
     owner: edit-director
     gates: [G-ED3]
-    outputs: [edit_script, edit_timeline]  # 主轨连续、源轨不重叠、转场与声音设计落到字段
-  - step_key: caption
-    name: 字幕与文案
+    outputs: [edit_script, edit_timeline]  # 影片级：overall_style / music_selection / color_grading / story_overview；
+                                        # 场景组：storyline / emotional_arc / editing_suggestions；片段：帧级源轨 in/out + 转场 + 声音设计；
+                                        # 节奏档案（documentary/vlog/fast_cut/information）随轴声明，偏离只出咨询项
+  - step_key: caption-script
+    name: 剪辑脚本字幕版（音画强关联）
     owner: caption-writer
-    outputs: [caption_script]           # 与时间轴逐段绑定；字数带/无标点/结尾话术位
-                                        # 文案只允许引用三字段证据：画面文字（店铺/商品/路牌）、人声转写、环境音描述
+    outputs: [caption_script]           # 字幕按原始素材时间码绑定镜头：≥2s 必上 / <2s 不上 / VMG 合并 >3.9s 取首镜概括 /
+                                        # 字数带 ceil(时长×2)–floor(时长×2.5) / 每句独占一行无标点 / 结尾话术固定块
+                                        # 本地执行对应 pnpm edit:subtitle
   - step_key: cutcheck
     name: 剪辑质检
     owner: cut-inspector
     gates: [G-ED3, G-ED6]
-    outputs: [cut_report]               # 合法性/连续性/可执行性/合规 + **三字段核对**（画面文字/人声/环境音是否采集并标注 channel）
-                                        # 本地执行对应 `pnpm edit:verify -- --timeline … --analysis <probe.json>…`
+    outputs: [cut_report]               # 硬项（合法性/授权/时长/规格）+ 三字段核对（画面文字/人声/环境音）+ 节奏档案咨询项 + 字幕规则校验
+                                        # 本地执行对应 pnpm edit:verify --analysis … 与 pnpm edit:subtitle
   - step_key: g-ed8-roughcut
     name: 粗剪锁定确认
     owner: edit-producer
     gates: [G-ED8]
     outputs: [edit_timeline]            # 锁定后改结构 = 新版本 + 重新确认（只增不改）
   - step_key: compose
-    name: 本地合成（裁切/归一化/拼接/垫音）
+    name: 本地粗剪（裁切/归一化/拼接/垫音）
     owner: edit-compositor
     gates: [G-ED1, G-ED3]
-    outputs: [final_video]              # 纯本地算力、可重跑；失败显式报错，不产出半成品
+    outputs: [final_video]              # 纯本地算力、可重跑；产出"画面母版"，用于预览与迭代
   - step_key: handoff-post
-    name: 后期交接（复用 AI 视频既有后期链路）
+    name: 交回既有后期链路（正式交付）
     owner: edit-compositor
     gates: [G-ED6]
-    outputs: [edit_handoff]             # 调色/字幕/配音/配乐/封面/多风格交付需求单 + 来源与授权声明
+    outputs: [edit_handoff]             # post-bridge 一次产出：干净母版 → 旁挂字幕/弹幕轨 → 逐变体调色(LUT) → 逐变体配乐(曲库+让位)
+                                        # → 逐变体封面 + 文案包 → 软字幕轨版 → 交付清单 + 工程文件；本地执行对应 pnpm edit:post
   - step_key: archive
     name: 成片入库与素材回写
     owner: footage-librarian
@@ -95,4 +110,4 @@ steps:
   - step_key: revise
     name: 返修闭环（反馈 → 分诊 → 层增量重合成）
     owner: edit-producer
-    outputs: [cut_report, final_video]  # 能在本地层重合成的绝不动画面素材选择；点名画面才回高光/选镜
+    outputs: [cut_report, final_video]  # 能在本地层重合成的绝不动画面选择；点名画面才回高光/选镜

@@ -5,6 +5,11 @@ description: 剪辑脚本官方套件（v2）：把"制作剧本 + 剪辑脚本�
 
 # 剪辑脚本与帧级时间轴（edit-scripting v2）
 
+> **创作前提（先读）**：`docs/video-edit-creation-doctrine.md`。剪辑脚本的影片级字段沿用封板口径：
+> `overall_style`（风格）/ `music_selection`（音乐选择）/ `color_grading`（调色口径）/ `story_overview`（故事概述）；
+> 每个场景组带 `storyline` / `emotional_arc` / `editing_suggestions`；时间轴里声明**节奏档案**（pacing profile），
+> 档案默认值不达标只出咨询项。字幕不在这里写——它由《剪辑脚本字幕版》按**原始素材时间码**绑定镜头（见 caption-craft）。
+
 ## 1. 从"文字脚本"到"可执行契约"
 
 旧链路把"制作剧本"（场景字段）与"剪辑脚本初稿"（`original_timestamp` + 时长）分开写，问题是：

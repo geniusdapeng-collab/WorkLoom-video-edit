@@ -38,6 +38,26 @@
       "note": "创作三问的结构化答案：给谁看（受众/平台）、希望感受什么（情绪目标/传播目标）、用什么证据支撑（必须出现/禁止出现的内容）；含时长带与硬约束（平台规格、授权边界、禁忌清单）。"
     },
     {
+      "type": "creative_brief",
+      "label": "命题卡",
+      "note": "创作前把\"命题\"写清楚：素材给什么（可用镜头/实体/场景清单）+ **没有什么**（严禁引入的素材外元素）+ 用户需求 + 平台/时长带/受众。素材是命题，剪辑是解题——命题不清不许动剪刀。"
+    },
+    {
+      "type": "style_template",
+      "label": "创作模板",
+      "note": "short_style_definer 口径的创作模板：视频类型/目标受众/传播目标/语言/时长/主角设定/字幕视角/字体选择；每项带 comment（本次定制说明）与 reason（为什么这么设计）。"
+    },
+    {
+      "type": "story_outline",
+      "label": "故事大纲",
+      "note": "故事脉络（500–700 字）+ 情感曲线（3–4 节点，含节点名称/情感描述/核心画面手法提示）+ 情绪情感主线（1–2 句）+ 一句核心创作指令。"
+    },
+    {
+      "type": "screenplay",
+      "label": "制作剧本",
+      "note": "场景化剧本：时间（mm:ss-mm:ss，从 0:00 连续覆盖不重叠）/素材来源（素材 id）/故事线/具体知识点或用户痛点/情绪情感主线/叙事描述/详细故事（400–700 字）/剪辑建议；场景数与镜头密度随节奏档案（pacing profile）。"
+    },
+    {
       "type": "creative_set",
       "label": "创意方案集",
       "note": "N 个差异化创作方案（视角/结构/情绪/节奏/开场方式各自不同）+ 分视角评审矩阵（叙事/情绪/平台/执行）+ 推荐序；发散与评估分离，方案必须只使用已入库素材。"
@@ -50,7 +70,7 @@
     {
       "type": "edit_script",
       "label": "剪辑脚本",
-      "note": "人可读的剪辑脚本：逐段故事线、镜头选择、转场、声音设计（原声/BGM/J-cut/L-cut/静音留白）、字幕策略与本期封面建议。"
+      "note": "人可读的剪辑脚本（剪辑脚本初稿口径）：影片级 overall_style / music_selection / color_grading / story_overview；场景组 storyline / emotional_arc / editing_suggestions；镜头明细 original_timestamp（M:SS.sss-M:SS.sss）/ shot_duration / focus；节奏档案随轴声明。"
     },
     {
       "type": "edit_timeline",
@@ -60,7 +80,7 @@
     {
       "type": "caption_script",
       "label": "字幕与文案",
-      "note": "与时间轴逐段绑定的字幕文案：行分隔、字数带、无标点空格、结尾话术位；标题/封面文案与平台规格一致，不写素材中不存在的事实。"
+      "note": "剪辑脚本字幕版（音画强关联）：video_title（≤12 字无标点）/ video_id（日期+8 位哈希）/ total_duration / video_groups[{group_name, group_duration, shots[{original_timestamp（绑原始素材时间码）, subtitle_text}]}]；≥2s 必上字幕、<2s 不上/VMG 合并、字数带 ceil(时长×2)–floor(时长×2.5)、行分隔无标点、结尾话术固定块。"
     },
     {
       "type": "cut_report",

@@ -13,6 +13,21 @@
     "revision": { "type": "integer", "minimum": 1 },
     "prevRevision": { "type": ["integer", "null"], "minimum": 1 },
     "createdAt": { "type": "string" },
+    "pacing": {
+      "type": ["object", "null"],
+      "description": "节奏档案：按体裁给默认值（documentary/vlog/fast_cut/information），偏离只出咨询项；enforce=true 时升级为硬项。",
+      "additionalProperties": false,
+      "required": ["profile"],
+      "properties": {
+        "profile": { "enum": ["documentary", "vlog", "fast_cut", "information"] },
+        "enforce": { "type": "boolean" },
+        "overrides": { "type": ["object", "null"], "additionalProperties": true }
+      }
+    },
+    "overallStyle": { "type": ["string", "null"], "description": "整片风格（沿用剪辑脚本初稿 overall_style）" },
+    "musicSelection": { "type": ["string", "null"], "description": "整片音乐选择（music_selection）" },
+    "colorGrading": { "type": ["string", "null"], "description": "整片调色口径（color_grading）" },
+    "storyOverview": { "type": ["string", "null"], "description": "故事概述（story_overview）" },
     "target": {
       "type": "object",
       "additionalProperties": false,
@@ -63,6 +78,8 @@
           "name": { "type": "string", "minLength": 1 },
           "storyline": { "type": ["string", "null"] },
           "emotion": { "type": ["string", "null"] },
+          "emotionalArc": { "type": ["string", "null"], "description": "本组情绪弧（emotional_arc）" },
+          "editingSuggestions": { "type": ["string", "null"], "description": "本组剪辑建议（editing_suggestions）" },
           "intensity": { "type": ["number", "null"], "minimum": 0, "maximum": 1 }
         }
       }

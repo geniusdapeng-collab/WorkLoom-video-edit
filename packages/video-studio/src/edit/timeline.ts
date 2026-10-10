@@ -64,6 +64,8 @@ export interface EditTimeline {
   filmId?: string | null;
   revision?: number;
   prevRevision?: number | null;
+  /** 节奏档案（可选）：缺省按 documentary 咨询项给出；不写也能出片 */
+  pacing?: PacingSpec | null;
   target: {
     durationSeconds: number;
     aspectRatio: string;
@@ -104,6 +106,30 @@ const MIN_SEGMENT_SECONDS = 0.4;
 const MIN_SAME_SOURCE_GAP_SECONDS = 1;
 const IDEAL_SAME_SOURCE_GAP_SECONDS = 2;
 const MAX_TRANSITION_SECONDS = 2;
+
+/**
+ * 节奏档案（pacing profile）——把封板资产里的"≤4 场景 / 每场景 ≤5 片段"重新评估为**按体裁的默认值**：
+ *   · 那组数字来自口播型营销短片的实践，不等于所有体裁的上限；快剪/信息流片的镜头密度天然更大；
+ *   · 档案只产出**咨询项**（可见、可解释、可覆盖），不阻断出片；真正的硬闸只有事实类
+ *     （素材溯源、同源不重叠、主轨连续、单镜 0.4–15s、字幕 ≥2s 等）。
+ *   · 需要严格卡住时，在时间轴里写 `pacing.enforce = true`，对应项升级为硬项。
+ */
+export const PACING_PROFILES = {
+  /** 纪录/纪实（封板默认档）：慢燃，镜头长、场景少 —— 本片使用此档 */
+  documentary: { maxScenes: 4, maxClipsPerScene: 5, clipSeconds: [2.0, 6.0] as [number, number], cutsPerMinute: [12, 20] as [number, number], scene1MinSeconds: 15, hookSeconds: 5 },
+  /** 生活 Vlog：中速，场景略多、镜头略短 */
+  vlog: { maxScenes: 5, maxClipsPerScene: 6, clipSeconds: [1.5, 5.0] as [number, number], cutsPerMinute: [18, 30] as [number, number], scene1MinSeconds: 6, hookSeconds: 3 },
+  /** 快剪/卡点：高密度，镜头短、切点密（营销混剪、运动、节庆） */
+  fast_cut: { maxScenes: 8, maxClipsPerScene: 10, clipSeconds: [0.5, 3.0] as [number, number], cutsPerMinute: [30, 70] as [number, number], scene1MinSeconds: 3, hookSeconds: 3 },
+  /** 信息流/产品：前 3 秒给结论，之后按信息点推进 */
+  information: { maxScenes: 6, maxClipsPerScene: 8, clipSeconds: [1.0, 4.0] as [number, number], cutsPerMinute: [20, 40] as [number, number], scene1MinSeconds: 3, hookSeconds: 3 },
+} as const;
+export type PacingProfileId = keyof typeof PACING_PROFILES;
+export interface PacingSpec {
+  profile: PacingProfileId;
+  enforce?: boolean;
+  overrides?: Partial<{ maxScenes: number; maxClipsPerScene: number; clipSeconds: [number, number]; cutsPerMinute: [number, number]; scene1MinSeconds: number; hookSeconds: number }>;
+}
 
 function round(value: number, digits = 3): number {
   const factor = 10 ** digits;
@@ -286,6 +312,54 @@ export function validateEditTimeline(timeline: EditTimeline): TimelineValidation
       ? undefined
       : { segmentId: "-", field: "audioDesign.originalAudioPolicy", action: `改用 ${ORIGINAL_AUDIO_POLICIES.join("/")}`, severity: "hard" });
 
+  // —— 节奏档案（咨询项；pacing.enforce=true 时升级为硬项）——
+  const spec: PacingSpec = timeline.pacing ?? { profile: "documentary" };
+  const profile = PACING_PROFILES[spec.profile];
+  if (!profile) {
+    add("pacing.profile", false, true, `未知节奏档案：${String(spec.profile)}`,
+      { segmentId: "-", field: "pacing.profile", action: `改用 ${Object.keys(PACING_PROFILES).join(" / ")}`, severity: "hard" });
+  } else {
+    const hard = spec.enforce === true;
+    const limits = { ...profile, ...(spec.overrides ?? {}) };
+    const sceneIds = [...new Set((timeline.groups ?? []).map((group) => group.groupId))];
+    const clipsPerScene = new Map<string, number>();
+    for (const segment of timeline.segments ?? []) {
+      const key = segment.groupId ?? "(未分组)";
+      clipsPerScene.set(key, (clipsPerScene.get(key) ?? 0) + 1);
+    }
+    const sceneCount = Math.max(sceneIds.length, clipsPerScene.size);
+    add("pacing.scenes", sceneCount <= limits.maxScenes, hard,
+      `场景数 ${sceneCount}（档案 ${spec.profile} 默认 ≤${limits.maxScenes}）`,
+      sceneCount > limits.maxScenes
+        ? { segmentId: "-", field: "groups", action: `合并相邻场景到 ≤${limits.maxScenes}，或改用更高密度的档案（vlog / fast_cut / information）`, severity: hard ? "hard" : "advisory" }
+        : undefined);
+    const crowded = [...clipsPerScene.entries()].filter(([, count]) => count > limits.maxClipsPerScene);
+    add("pacing.clipsPerScene", crowded.length === 0, hard,
+      crowded.length === 0 ? `每场景片段数 ≤${limits.maxClipsPerScene}` : `${crowded.map(([id, n]) => `${id}=${n}`).join("、")} 超出 ≤${limits.maxClipsPerScene}`,
+      crowded.length > 0
+        ? { segmentId: crowded[0]![0], field: "segments[].groupId", action: `把高密度场景改为 fast_cut 档案，或把镜头归纳为镜头组`, severity: hard ? "hard" : "advisory" }
+        : undefined);
+    const durations = (timeline.segments ?? []).map((segment) => outputDurationOf(segment));
+    const shortCount = durations.filter((value) => value < limits.clipSeconds[0]).length;
+    const longCount = durations.filter((value) => value > limits.clipSeconds[1]).length;
+    add("pacing.clipSeconds", shortCount === 0 && longCount === 0, hard,
+      `单镜时长 ${limits.clipSeconds[0]}–${limits.clipSeconds[1]}s（偏短 ${shortCount} 个 / 偏长 ${longCount} 个）`, undefined);
+    const cutsPerMinute = totalDuration > 0 ? Number(((timeline.segments?.length ?? 0) / totalDuration * 60).toFixed(1)) : 0;
+    const [cutLo, cutHi] = limits.cutsPerMinute;
+    add("pacing.cutsPerMinute", cutsPerMinute >= cutLo && cutsPerMinute <= cutHi, hard,
+      `切点密度 ${cutsPerMinute}/min（档案 ${spec.profile} 目标 ${cutLo}–${cutHi}）`, undefined);
+    const firstSceneEnd = (() => {
+      const firstSceneId = timeline.segments?.[0]?.groupId;
+      if (!firstSceneId) return 0;
+      return (timeline.segments ?? []).filter((segment) => segment.groupId === firstSceneId)
+        .reduce((sum, segment) => sum + outputDurationOf(segment), 0);
+    })();
+    add("pacing.scene1", firstSceneEnd >= limits.scene1MinSeconds, hard,
+      `首场景 ${round(firstSceneEnd)}s（档案 ${spec.profile} 目标 ≥${limits.scene1MinSeconds}s；素材不足时保留短首场景并在回执说明）`, undefined);
+    add("pacing.hook", (timeline.segments?.length ?? 0) > 0, false,
+      `钩子窗口：档案 ${spec.profile} 建议前 ${limits.hookSeconds}s 内给出信息/情绪钩子（人工确认）`, undefined);
+  }
+  // 结论在所有检查（含节奏档案）之后统一计算：enforce=true 时节奏项参与硬判定
   const ok = checks.every((check) => check.pass || !check.hard);
   return { ok, checks, fixes, totalDurationSeconds: totalDuration };
 }

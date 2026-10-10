@@ -64,6 +64,24 @@
         "notes": { "type": ["string", "null"] }
       }
     },
+    "contentDomain": {
+      "type": ["string", "null"],
+      "description": "整片内容领域（知识科普/旅行 Vlog/产品评测/剧情短片/教学课程/生活记录/其他）——沿用 VisionCut 口径。"
+    },
+    "preSelectedRanges": {
+      "type": "array",
+      "description": "预筛选高质量片段时间范围（帧级，VisionCut 的 pre_selected_ranges 升级为帧级）。",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["inTimecode", "outTimecode"],
+        "properties": {
+          "inTimecode": { "type": "string", "pattern": "^[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}$" },
+          "outTimecode": { "type": "string", "pattern": "^[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}$" },
+          "reason": { "type": ["string", "null"] }
+        }
+      }
+    },
     "probe": {
       "type": "object",
       "additionalProperties": false,
@@ -280,6 +298,10 @@
                 }
               },
               "setting": { "type": ["string", "null"] }
+              ,
+              "coreMessage": { "type": ["string", "null"], "description": "本镜核心信息/价值点（VisionCut content_value.core_message）" },
+              "engagementPotential": { "enum": ["high", "medium", "low", "unknown"], "description": "传播潜力（信息密度+情绪+视觉吸引力）" },
+              "reuseFlexibility": { "enum": ["high", "medium", "low", "unknown"], "description": "二次剪辑复用弹性" }
             }
           },
           "tech": {
@@ -334,7 +356,15 @@
             "properties": {
               "cutInReason": { "type": ["string", "null"] },
               "cutOutReason": { "type": ["string", "null"] },
+              "cutReason": { "enum": ["action_landing", "speech_pause", "visual_hard_cut", "emotion_peak", "information_node", "unknown"], "description": "切分理由（动作落点/语音气口/视觉硬切/情绪峰值/信息节点）" },
+              "inPointFeature": { "type": ["string", "null"], "description": "入点特征（如：手势起始帧/句子开头）" },
+              "outPointFeature": { "type": ["string", "null"], "description": "出点特征（如：动作完成停顿/语句结束换气）" },
+              "audioWaveStatus": { "enum": ["silence", "low_noise", "speech_dominant", "music_dominant", "unknown"], "description": "音频波形状态" },
+              "visualStability": { "enum": ["high", "medium", "low", "unknown"], "description": "视觉稳定性（高/中/低）" },
               "transitionSuggestion": { "type": ["string", "null"] },
+              "colorGradeBase": { "type": ["string", "null"], "description": "调色建议（保持原色/暖调/冷调/去灰/风格化）" },
+              "audioMixPriority": { "type": ["string", "null"], "description": "音频处理优先级（人声主轨/环境音铺底/音乐主导/静音）" },
+              "textSafeZone": { "type": ["string", "null"], "description": "字幕/图形安全区（是/否/被遮挡/需注意区域）" },
               "usage": { "type": "array", "items": { "type": "string" } }
             }
           },

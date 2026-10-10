@@ -65,6 +65,8 @@
     "edit:probe": "tsx scripts/tools/edit-probe.mts",
     "edit:verify": "tsx scripts/tools/edit-verify.mts",
     "edit:assemble": "tsx scripts/tools/edit-assemble.mts",
+    "edit:post": "tsx scripts/tools/edit-post.mts",
+    "edit:subtitle": "tsx scripts/tools/edit-subtitle.mts",
     "video:assets": "tsx scripts/tools/real-person-assets.mts",
     "setup": "bash scripts/bootstrap.sh",
     "setup:full": "bash scripts/bootstrap.sh --with-computer",

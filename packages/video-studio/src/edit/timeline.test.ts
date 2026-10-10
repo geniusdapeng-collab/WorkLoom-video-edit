@@ -87,6 +87,53 @@ describe("edit/timeline：时间轴校验", () => {
 });
 
 describe("edit/timeline：合成计划", () => {
+  it("节奏档案：默认只给咨询项（不阻断），enforce=true 才升级为硬项", () => {
+    const dense = baseTimeline({
+      groups: [
+        { groupId: "g1", name: "一" }, { groupId: "g2", name: "二" }, { groupId: "g3", name: "三" },
+        { groupId: "g4", name: "四" }, { groupId: "g5", name: "五" },
+      ],
+      segments: Array.from({ length: 6 }, (_, index) => ({
+        seq: index,
+        segmentId: `s${index + 1}`,
+        groupId: `g${(index % 5) + 1}`,
+        sourceId: "src-1",
+        sourceIn: index * 6,
+        sourceOut: index * 6 + 5,
+        durationSeconds: 5,
+      })),
+    });
+    const advisory = validateEditTimeline(dense);
+    const sceneCheck = advisory.checks.find((check) => check.id === "pacing.scenes")!;
+    expect(sceneCheck.pass).toBe(false);
+    expect(sceneCheck.hard).toBe(false);
+    expect(advisory.ok).toBe(true);
+
+    const strict = validateEditTimeline({ ...dense, pacing: { profile: "documentary", enforce: true } });
+    const strictCheck = strict.checks.find((check) => check.id === "pacing.scenes")!;
+    expect(strictCheck.hard).toBe(true);
+    expect(strict.ok).toBe(false);
+  });
+
+  it("节奏档案：快剪片切到 fast_cut 后，同样的密度不再报警（档案是默认值不是硬闸）", () => {
+    const dense = baseTimeline({
+      groups: Array.from({ length: 8 }, (_, index) => ({ groupId: `g${index + 1}`, name: `${index + 1}` })),
+      segments: Array.from({ length: 16 }, (_, index) => ({
+        seq: index,
+        segmentId: `s${index + 1}`,
+        groupId: `g${(index % 8) + 1}`,
+        sourceId: "src-1",
+        sourceIn: index * 4,
+        sourceOut: index * 4 + 2,
+        durationSeconds: 2,
+      })),
+    });
+    const doc = validateEditTimeline({ ...dense, pacing: { profile: "documentary" } });
+    const fast = validateEditTimeline({ ...dense, pacing: { profile: "fast_cut" } });
+    expect(doc.checks.find((c) => c.id === "pacing.scenes")!.pass).toBe(false);
+    expect(fast.checks.find((c) => c.id === "pacing.scenes")!.pass).toBe(true);
+  });
+
   it("主轨由片段顺序推导且与声明值一致", () => {
     const master = computeMasterTimeline(baseTimeline().segments);
     expect(master).toEqual([

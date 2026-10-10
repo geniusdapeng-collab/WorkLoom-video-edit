@@ -5,6 +5,13 @@ description: 字幕与文案官方套件（v2）：与时间轴逐段绑定的�
 
 # 字幕与文案（caption-craft v2）
 
+> **与生成链路的区别（重要）**：AI 剪辑链路的字幕**是剪辑的一部分**，不交给后期去"补一层字"。
+> 字幕按**原始素材时间码**绑定镜头写（《剪辑脚本字幕版（音画强关联）》），输出 `video_title / video_id / total_duration /
+> video_groups[group_name, group_duration, shots[original_timestamp, subtitle_text]]`；出现规则（≥2s / VMG）、
+> 字数带、断句格式、结尾话术固定块见 `docs/video-edit-creation-doctrine.md` §5。
+> 本地把字幕版转成交付字幕文件：`pnpm edit:subtitle -- --timeline … --caption … --out ….srt`；
+> 字体/版式/平台安全区仍由后期字幕工位执行。
+
 ## 1. 定位
 
 字幕不是"把台词抄一遍"，而是**画面信息的第二层表达**：补足画外信息、加强节奏、给出钩子与落点。
