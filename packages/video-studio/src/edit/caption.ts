@@ -294,6 +294,8 @@ export function analyzeCaption(input: {
           segmentId: segment.segmentId,
         });
       }
+    } else if (talkMode) {
+      /** 口播口径：不套"≥2s 必上 / <2s 不上"的出现规则——字幕跟着说话走，段多短都出字。 */
     } else if (!vmg) {
       if (duration < CAPTION_MIN_SHOT_SECONDS) {
         issues.push({ id: `caption.tooShort:${segment.segmentId}`, severity: "hard", detail: `${segment.segmentId} 时长 ${duration}s <2s 不应有字幕（连续短镜请走 VMG 合并）`, segmentId: segment.segmentId });
@@ -487,7 +489,11 @@ export function analyzeCaption(input: {
     minGap = minGap === null ? gap : Math.min(minGap, gap);
     if (gap < 0) {
       issues.push({ id: `caption.overlap:${cue.segmentId}`, severity: "hard", detail: `${previous.segmentId} 与 ${cue.segmentId} 的字幕时间重叠 ${Math.abs(gap)}s`, segmentId: cue.segmentId });
-    } else if (gap < CAPTION_MIN_CUE_GAP_SECONDS) {
+    } else if (gap < CAPTION_MIN_CUE_GAP_SECONDS && !talkMode) {
+      /**
+       * 口播口径下不提示"字幕间隙"：口播的段是首尾相接的（字幕跟着说话走），
+       * 0 秒间隙是常态而不是闪断——真要留间隙，说明这段语音被剪掉了一截。
+       */
       issues.push({ id: `caption.gap:${cue.segmentId}`, severity: "advisory", detail: `${previous.segmentId} → ${cue.segmentId} 间隔仅 ${gap}s（建议 ≥${CAPTION_MIN_CUE_GAP_SECONDS}s，避免闪断）`, segmentId: cue.segmentId });
     }
   }
