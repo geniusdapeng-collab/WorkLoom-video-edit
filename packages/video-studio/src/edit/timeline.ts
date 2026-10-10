@@ -371,6 +371,59 @@ export interface AssemblyPlan {
 }
 
 /**
+ * 时间轴素材路径归一：相对路径按**时间轴文件所在目录**解析成绝对路径。
+ * 为什么：执行器（assemble/post/verify）都以进程 cwd 解析相对路径；项目目录搬走后，
+ * "timeline 在同级、素材在同级"的相对写法会在别的 cwd 下解析失败（实机踩坑：t.mp4 not found）。
+ * 只做字符串归一（不查文件是否存在），是否可用仍由执行器的存在性检查负责。
+ */
+export function resolveTimelineSourcePaths(timeline: EditTimeline, baseDir: string): EditTimeline {
+  const isAbsolutePath = (value: string) => value.startsWith("/") || /^[A-Za-z]:[\\/]/u.test(value);
+  const normalize = (value: string): string => {
+    if (!value || isAbsolutePath(value)) return value;
+    return `${baseDir.replace(/\/+$/u, "")}/${value.replace(/^\.\//u, "")}`;
+  };
+  return {
+    ...timeline,
+    sources: (timeline.sources ?? []).map((source) => ({ ...source, path: normalize(source.path) })),
+  };
+}
+
+/**
+ * 目标画幅 → 输出分辨率（短边默认 1080，偶数对齐）。
+ * `planAssembly` 的旧默认是写死的 1080×1920（竖屏）——对 16:9 项目会静默竖屏化，
+ * 属于"主流程没变、但成片被悄悄改画幅"的事故。这里把画幅跟随 `timeline.target.aspectRatio`。
+ */
+export function resolutionForAspect(aspectRatio: string, options: { shortSide?: number } = {}): { width: number; height: number } {
+  const shortSide = Number.isFinite(options.shortSide) && (options.shortSide as number) > 0 ? Math.round(options.shortSide as number) : 1080;
+  const matched = /^\s*(\d+)\s*:\s*(\d+)\s*$/u.exec(String(aspectRatio ?? ""));
+  if (!matched) return { width: 1080, height: 1920 };
+  const a = Number(matched[1]);
+  const b = Number(matched[2]);
+  if (!(a > 0) || !(b > 0)) return { width: 1080, height: 1920 };
+  const even = (value: number) => Math.max(2, Math.round(value / 2) * 2);
+  return a >= b
+    ? { width: even(shortSide * (a / b)), height: even(shortSide) }
+    : { width: even(shortSide), height: even(shortSide * (b / a)) };
+}
+
+/** 变速时的 atempo 链（atempo 单实例只支持 0.5–2.0，超出必须串接） */
+export function atempoChain(speed: number): string[] {
+  if (!Number.isFinite(speed) || speed <= 0) throw new Error(`speed 非法：${String(speed)}`);
+  const filters: string[] = [];
+  let remaining = speed;
+  while (remaining > 2.0) {
+    filters.push("atempo=2");
+    remaining /= 2;
+  }
+  while (remaining < 0.5) {
+    filters.push("atempo=0.5");
+    remaining /= 0.5;
+  }
+  if (Math.abs(remaining - 1) > 1e-9 || filters.length === 0) filters.push(`atempo=${Number(remaining.toFixed(6))}`);
+  return filters;
+}
+
+/**
  * 生成合成计划（纯函数，不执行）。
  * 逐段裁切 + 归一化（画幅/帧率/像素格式/音轨统一）→ concat demuxer 无损拼接。
  * `-ss/-to` 放在 `-i` 之前（快速定位）+ 结尾 `-t` 精确裁剪，避免长素材定位误差。
@@ -382,8 +435,9 @@ export function planAssembly(
   const { workDir, outputPath } = options;
   const fps = options.fps ?? timeline.target.fps;
   const crf = options.crf ?? 20;
-  const width = options.width ?? 1080;
-  const height = options.height ?? 1920;
+  const derived = resolutionForAspect(timeline.target?.aspectRatio ?? "");
+  const width = options.width ?? derived.width;
+  const height = options.height ?? derived.height;
   if (!Number.isFinite(fps) || fps <= 0) throw new Error(`fps 非法：${String(fps)}`);
   const sources = new Map(timeline.sources.map((s) => [s.sourceId, s]));
   const normalize = (timeline.segments ?? []).map((segment, index) => {
@@ -399,16 +453,35 @@ export function planAssembly(
     ];
     if (speed !== 1) filters.unshift(`setpts=${round(1 / speed, 6)}*PTS`);
     const output = `${workDir}/seg-${String(index).padStart(3, "0")}-${segment.segmentId}.mp4`;
-    const args = [
-      "-hide_banner", "-loglevel", "error", "-y",
+    /**
+     * 音轨口径（2026-10-11）：
+     *   · 声明 `hasAudio:false` 的素材补 `anullsrc` 静音轨，避免 concat 时"有轨/无轨"混拼出错；
+     *   · 未声明 `hasAudio` 时用 `-map 0:a:0?`（可选映射），有音轨就带、没有也不失败；
+     *   · 变速 2× 只改视频 PTS 会把音轨留在原速 → 音画不同步；这里同时给音轨串 atempo 链。
+     */
+    const args = ["-hide_banner", "-loglevel", "error", "-y"];
+    args.push(
       "-ss", String(round(segment.sourceIn, 3)), "-to", String(round(segment.sourceOut, 3)),
       "-i", source.path,
+    );
+    if (source.hasAudio === false) args.push("-f", "lavfi", "-i", "anullsrc=channel_layout=stereo:sample_rate=48000");
+    args.push(
       "-t", String(round(duration, 3)),
       "-vf", filters.join(","),
+    );
+    if (source.hasAudio === false) {
+      args.push("-map", "0:v:0", "-map", "1:a:0", "-shortest");
+    } else if (source.hasAudio === true) {
+      args.push("-map", "0:v:0", "-map", "0:a:0");
+    } else {
+      args.push("-map", "0:v:0", "-map", "0:a:0?");
+    }
+    if (speed !== 1) args.push("-filter:a", atempoChain(speed).join(","));
+    args.push(
       "-c:v", "libx264", "-preset", "veryfast", "-crf", String(crf), "-pix_fmt", "yuv420p",
       "-c:a", "aac", "-ar", "48000", "-ac", "2",
       output,
-    ];
+    );
     return { segmentId: segment.segmentId, input: source.path, sourceIn: segment.sourceIn, sourceOut: segment.sourceOut, output, args };
   });
   const listPath = `${workDir}/concat.txt`;

@@ -20,7 +20,7 @@ import { createReadStream, existsSync, mkdirSync, readFileSync, rmSync, writeFil
 import { createHash } from "node:crypto";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 import {
-  parseFfprobeJson, planAssembly, validateEditTimeline, type EditTimeline,
+  parseFfprobeJson, planAssembly, resolutionForAspect, resolveTimelineSourcePaths, validateEditTimeline, type EditTimeline,
 } from "../../packages/video-studio/src/edit/index.js";
 
 const REPO_ROOT = resolve(import.meta.dirname ?? process.cwd(), "../..");
@@ -68,7 +68,10 @@ async function main(): Promise<void> {
   const outPath = abs(outArg);
   const workDir = abs(arg("--work", `${dirname(outPath)}/.edit-work-${Date.now().toString(36)}`));
 
-  const timeline = JSON.parse(readFileSync(timelineFile, "utf8")) as EditTimeline;
+  const timeline = resolveTimelineSourcePaths(
+    JSON.parse(readFileSync(timelineFile, "utf8")) as EditTimeline,
+    dirname(timelineFile),
+  );
   const validation = validateEditTimeline(timeline);
   if (!validation.ok) {
     const failed = validation.checks.filter((c) => c.hard && !c.pass).map((c) => `${c.id}：${c.detail}`);
@@ -78,8 +81,15 @@ async function main(): Promise<void> {
   assertAvailable(FFMPEG);
   assertAvailable(FFPROBE);
 
-  const width = Number(arg("--width", "1080"));
-  const height = Number(arg("--height", "1920"));
+  /**
+   * 画幅口径（2026-10-11）：默认跟随时间轴 `target.aspectRatio`（16:9 → 1920×1080，9:16 → 1080×1920），
+   * 只有显式 `--width/--height` 才覆盖。旧默认写死 1080×1920，会把横屏项目静默竖屏化。
+   */
+  const explicitWidth = arg("--width", "");
+  const explicitHeight = arg("--height", "");
+  const derived = resolutionForAspect(timeline.target?.aspectRatio ?? "");
+  const width = explicitWidth ? Number(explicitWidth) : derived.width;
+  const height = explicitHeight ? Number(explicitHeight) : derived.height;
   const fps = Number(arg("--fps", String(timeline.target?.fps ?? 30)));
   const crf = Number(arg("--crf", "20"));
 

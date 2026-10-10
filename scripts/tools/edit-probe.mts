@@ -4,9 +4,10 @@
  *
  * 干什么：把一条视频素材变成 footage-analysis 契约里的"可解释骨架"——
  *   · 媒体规格（时长/帧率/画幅/音轨）+ 内容指纹
- *   · 镜头边界（ffmpeg 内容感知检测，帧级 in/out）
- *   · 静音/停顿（供切点与字幕使用）
+ *   · 镜头边界（ffmpeg scdet 内容感知检测，帧级 in/out + 每切点分数置信度）
+ *   · 静音/停顿（阈值由实测噪声底自适应推导，供切点与字幕使用）
  *   · 响度包络与峰值时刻（供高光与卡点使用）
+ *   · 逐镜清晰度/曝光代理指标（blurdetect + signalstats，一次解码，不花模型钱）
  *   · 峰值电平（mean/max dB）
  *   · 人声转写（`--asr`：**兜底通道**，本机 mlx-audio/whisper 引擎，离线）→ probe.speech（如实标注 channel=fallback）
  *   · 画面文字（`--ocr`：**兜底通道**，本机 Vision OCR，离线）→ probe.onScreenText（channel=fallback）
@@ -18,7 +19,7 @@
  *
  * 用法：
  *   pnpm edit:probe -- --input <素材> --out work/edit/<id>.analysis.json [--source-kind real-shot]
- *                    [--scene-threshold 0.3] [--bucket 0.25] [--scale 640]
+ *                    [--scene-threshold 30 | 0.3（旧刻度，自动 ×100）] [--silence-db -30] [--bucket 0.25] [--scale 640]
  *                    [--asr off|auto|<url>] [--asr-model <hf repo>] [--ocr] [--ocr-fps 0.5] [--json]
  *
  * `--scale`：场景检测前先缩到该宽度（默认 640；4K 原片必须降采样，否则解码慢一个数量级）。
@@ -33,8 +34,9 @@ import { createHash } from "node:crypto";
 import { homedir } from "node:os";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 import {
-  buildFootageProbe, deriveAmbienceMetrics, estimateTempo, normalizeAsrResponse, parseFfprobeJson,
-  parseOcrJsonl, parseRmsEnvelope, parseSceneCuts, parseSilences, parseVolumeDetect,
+  aggregateShotTechnicals, buildFootageProbe, deriveAmbienceMetrics, deriveSilenceThresholdDb, estimateTempo,
+  normalizeAsrResponse, parseFfprobeJson, parseFrameStats, parseOcrJsonl, parseRmsEnvelope,
+  parseSceneCutDetails, parseSilences, parseVolumeDetect,
 } from "../../packages/video-studio/src/edit/index.js";
 
 const REPO_ROOT = resolve(import.meta.dirname ?? process.cwd(), "../..");
@@ -123,7 +125,13 @@ async function main(): Promise<void> {
   const inputPath = abs(input);
   if (!existsSync(inputPath)) throw new Error(`素材不存在：${inputPath}`);
   const outPath = abs(arg("--out", `work/edit/${createHash("sha256").update(inputPath).digest("hex").slice(0, 12)}.analysis.json`));
-  const sceneThreshold = Number(arg("--scene-threshold", "0.3"));
+  /**
+   * 场景阈值：scdet 的量纲是 MAFD 百分比（0–100，ffmpeg 默认 10；本命令默认与之对齐）。
+   * 旧调用方传的是 select(scene,0.3) 的 0–1 刻度——小于 1 时自动 ×100 兼容，避免"阈值看起来一样、实际松 100 倍"。
+   */
+  const sceneThresholdRaw = Number(arg("--scene-threshold", "10"));
+  const sceneThreshold = sceneThresholdRaw > 0 && sceneThresholdRaw < 1 ? Number((sceneThresholdRaw * 100).toFixed(2)) : sceneThresholdRaw;
+  const silenceDbArg = arg("--silence-db", "");
   const bucketSeconds = Number(arg("--bucket", "0.25"));
   const sceneScaleWidth = Number(arg("--scale", "640"));
   const asrMode = arg("--asr", "off");                 // off | auto | http(s)://…
@@ -132,9 +140,10 @@ async function main(): Promise<void> {
   const wantOcr = flag("--ocr");
   const ocrFps = Number(arg("--ocr-fps", "0.5"));
   const sourceKind = arg("--source-kind", "real-shot");
-  if (!Number.isFinite(sceneThreshold) || sceneThreshold <= 0 || sceneThreshold >= 1) throw new Error("--scene-threshold 必须落在 (0,1)");
+  if (!Number.isFinite(sceneThreshold) || sceneThreshold <= 0 || sceneThreshold > 100) throw new Error("--scene-threshold 必须落在 (0,100]（旧 0–1 刻度会自动换算）");
   if (!Number.isFinite(sceneScaleWidth) || sceneScaleWidth < 160 || sceneScaleWidth > 3840) throw new Error("--scale 必须是 160–3840 之间的宽度");
   if (wantOcr && (!Number.isFinite(ocrFps) || ocrFps <= 0 || ocrFps > 5)) throw new Error("--ocr-fps 必须落在 (0,5]");
+  if (silenceDbArg && !Number.isFinite(Number(silenceDbArg))) throw new Error("--silence-db 必须是数字（dB，例：-30）");
 
   assertAvailable(FFPROBE);
   assertAvailable(FFMPEG);
@@ -149,21 +158,22 @@ async function main(): Promise<void> {
   const sceneLog = run(FFMPEG, [
     "-hide_banner", "-i", inputPath,
     // 先降采样再算场景分：4K 原片直算要多花一个数量级的解码时间，时间码不受影响
-    "-filter:v", `scale=${sceneScaleWidth}:-2,select='gt(scene,${sceneThreshold})',showinfo`,
+    "-filter:v", `scale=${sceneScaleWidth}:-2,scdet=threshold=${sceneThreshold},metadata=print`,
     "-an", "-f", "null", "-",
   ], { allowFailure: true }).stderr;
-  const cuts = parseSceneCuts(sceneLog);
+  const sceneCutDetails = parseSceneCutDetails(sceneLog);
 
   let silences: ReturnType<typeof parseSilences> = [];
   let envelope: ReturnType<typeof parseRmsEnvelope> = [];
   let volume: ReturnType<typeof parseVolumeDetect> = { meanDb: null, maxDb: null };
+  let silenceThresholdDb = Number(silenceDbArg) || -30;
   if (media.hasAudio) {
-    const silenceLog = run(FFMPEG, [
+    // 先测整片电平与包络，再由实测噪声底推导静音阈值（固定 -30dB 在高底噪素材上会把停顿全吃掉）
+    const volumeLog = run(FFMPEG, [
       "-hide_banner", "-i", inputPath,
-      "-af", "silencedetect=noise=-30dB:d=0.25",
-      "-f", "null", "-",
+      "-af", "volumedetect", "-vn", "-f", "null", "-",
     ], { allowFailure: true }).stderr;
-    silences = parseSilences(silenceLog);
+    volume = parseVolumeDetect(volumeLog);
 
     const rmsLog = run(FFMPEG, [
       "-hide_banner", "-i", inputPath,
@@ -171,23 +181,56 @@ async function main(): Promise<void> {
       "-vn", "-f", "null", "-",
     ], { allowFailure: true }).stderr;
     envelope = parseRmsEnvelope(rmsLog, bucketSeconds);
+    /**
+     * 噪声底只有在包络覆盖足够时长时才可信：合成素材/数字静音会让采点稀疏，
+     * 此时 10 分位不是"底噪"而是"唯一有信号的几段"，据此推阈值会误判。覆盖不足回退默认 -30dB。
+     */
+    const expectedBuckets = Math.max(1, Math.floor(media.durationSeconds / bucketSeconds));
+    if (!silenceDbArg && envelope.length > 0 && envelope.length / expectedBuckets >= 0.3) {
+      const dbs = envelope.map((point) => point.db).sort((a, b) => a - b);
+      const index = Math.min(dbs.length - 1, Math.max(0, Math.round((dbs.length - 1) * 0.1)));
+      silenceThresholdDb = deriveSilenceThresholdDb({ noiseFloorDb: dbs[index]! });
+    } else if (!silenceDbArg && envelope.length > 0) {
+      silenceThresholdDb = -30;
+    }
 
-    const volumeLog = run(FFMPEG, [
+    const silenceLog = run(FFMPEG, [
       "-hide_banner", "-i", inputPath,
-      "-af", "volumedetect", "-vn", "-f", "null", "-",
+      "-af", `silencedetect=noise=${silenceThresholdDb}dB:d=0.25`,
+      "-f", "null", "-",
     ], { allowFailure: true }).stderr;
-    volume = parseVolumeDetect(volumeLog);
+    silences = parseSilences(silenceLog);
+  }
+
+  /**
+   * 逐镜技术指标（代理）：blurdetect 给清晰度，signalstats 给曝光/饱和。
+   * 与语义层的关系：这里只做"明显糊帧/过曝帧"的免费粗筛；语义质量判断仍归镜头理解与人工复核。
+   * 失败不阻断信号解析（allowFailure），perShot 保持 null 并在回执里说明。
+   */
+  let frameStats: ReturnType<typeof parseFrameStats> = [];
+  let technicalStatus = "skipped";
+  if (media.width > 0) {
+    const technicalLog = run(FFMPEG, [
+      "-hide_banner", "-i", inputPath,
+      "-vf", "blurdetect,signalstats,metadata=print:file=-",
+      "-an", "-f", "null", "-",
+    ], { allowFailure: true }).stdout;
+    frameStats = parseFrameStats(technicalLog);
+    technicalStatus = frameStats.length > 0 ? "ran" : "unavailable";
   }
 
   const probe = buildFootageProbe({
     media,
-    cuts,
+    cuts: sceneCutDetails,
     silences,
     envelope,
     volume,
-    detector: "ffmpeg-scene",
+    detector: "ffmpeg-scdet",
     threshold: sceneThreshold,
   });
+  if (frameStats.length > 0) {
+    probe.technical.perShot = aggregateShotTechnicals(probe.shotBoundaries, frameStats);
+  }
 
   // —— 节拍估计（纯本地计算，估不出就如实 null）——
   const tempo = estimateTempo(probe.loudness.envelope);
@@ -300,7 +343,8 @@ async function main(): Promise<void> {
       totalShots: probe.shotBoundaries.length,
       skippedShots: [],
       promptVersion: "probe-only",
-      notes: "信号层解析完成；语义层（shot-understanding）与高光层尚未运行。",
+      notes: `信号层解析完成；语义层（shot-understanding）与高光层尚未运行。静音阈值 ${media.hasAudio ? `${silenceThresholdDb}dB（噪声底自适应，可用 --silence-db 覆盖）` : "不适用（无音轨）"}；`
+        + `逐镜技术指标 ${technicalStatus === "ran" ? `已算清晰度/曝光代理指标（${probe.technical.perShot.filter((item) => item.sharpness !== null).length}/${probe.shotBoundaries.length} 镜；stability/noise/colorTempK 未实现保持 null）` : "未产出（blurdetect/signalstats 不可用）"}。`,
       asr: coverageAsr,
       ocr: coverageOcr,
     },
@@ -337,6 +381,13 @@ async function main(): Promise<void> {
     bpm: probe.music.bpm,
     beats: probe.music.beatGrid.length,
     ambience: probe.ambience,
+    silenceThresholdDb: media.hasAudio ? silenceThresholdDb : null,
+    technical: {
+      status: technicalStatus,
+      frames: frameStats.length,
+      shotsWithSharpness: probe.technical.perShot.filter((item) => item.sharpness !== null).length,
+      shotsWithExposure: probe.technical.perShot.filter((item) => item.exposure !== null).length,
+    },
     asr: { status: coverageAsr.status, sentences: coverageAsr.sentences, precision: coverageAsr.precision, reason: coverageAsr.reason },
     ocr: { status: coverageOcr.status, hits: coverageOcr.hits, reason: coverageOcr.reason },
     note: "本次只跑确定性信号层（未调用任何模型）；语义理解请走 shot-understanding 阶段。",

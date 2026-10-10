@@ -17,7 +17,7 @@
  */
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, isAbsolute, resolve } from "node:path";
-import { validateEditTimeline, type EditTimeline } from "../../packages/video-studio/src/edit/index.js";
+import { resolveTimelineSourcePaths, validateEditTimeline, type EditTimeline } from "../../packages/video-studio/src/edit/index.js";
 
 const REPO_ROOT = resolve(import.meta.dirname ?? process.cwd(), "../..");
 const flag = (name: string) => process.argv.includes(name);
@@ -34,7 +34,7 @@ function main(): void {
   if (!existsSync(file)) throw new Error(`时间轴文件不存在：${file}`);
   let timeline: EditTimeline;
   try {
-    timeline = JSON.parse(readFileSync(file, "utf8")) as EditTimeline;
+    timeline = resolveTimelineSourcePaths(JSON.parse(readFileSync(file, "utf8")) as EditTimeline, dirname(file));
   } catch (err) {
     throw new Error(`时间轴不是合法 JSON：${err instanceof Error ? err.message : String(err)}`);
   }
