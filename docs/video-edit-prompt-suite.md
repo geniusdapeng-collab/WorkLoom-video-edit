@@ -72,6 +72,13 @@ live_stream | on_location | studio_talking | b_roll_insert | archive_footage | s
 - transitionSuggestion：与相邻镜头可能的转场（硬切/叠化/匹配剪辑/甩镜/跳切）
 - usage：主叙事线 / 情绪点 / 反应镜头 / 转场桥 / 背景填充 / 信息强调 / 封面候选
 
+【画面文字 / 人声 / 环境音（模型直接产出，主通道）】
+- 画面文字：逐帧读全部可见文字（招牌/门头/包装/横幅/路牌/屏幕/字幕），重复只记一次，看不清标 [模糊]；
+  写进 content.onScreenText，并在 evidence 中给证据帧。不要调用外部 OCR 工具替代这一步。
+- 人声：按句听写 content.speechText（保留口语、不润色），听不清标 [听不清]；具备音频模态时以模型听写为准。
+- 环境音：audio.ambience 写清环境声类型 + 对剪辑的用途（留白/铺底/降噪/与 BGM 冲突）。
+- 通道标注：模型自采写 channel=model；只有兜底工具时写 channel=fallback（不许冒充）。
+
 【输出 JSON】
 { "shotId": "{{ shot_id }}", "index": {{ shot_index }},
   "inTimecode": "{{ in_timecode }}", "outTimecode": "{{ out_timecode }}", "durationSeconds": {{ duration_seconds }},

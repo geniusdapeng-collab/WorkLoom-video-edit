@@ -69,6 +69,31 @@
       "additionalProperties": false,
       "required": ["shotBoundaries", "speech", "music", "loudness", "technical"],
       "properties": {
+        "onScreenText": {
+          "type": "array",
+          "description": "OCR 观测（离线画面文字提取）：`{t, texts[]}`；理解层按镜头时间范围汇总写进 shots[].content.onScreenText。没有 OCR 通道时为空数组，不伪造。",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["t", "texts"],
+            "properties": {
+              "t": { "type": "number", "minimum": 0 },
+              "texts": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } }
+            }
+          }
+        },
+        "ambience": {
+          "type": "object",
+          "description": "环境音画像（可量化部分，纯本地计算）：噪声底/动态范围/静音覆盖率/人声覆盖率/峰值点数量。语义标签（风声、市集、厨房、车流）由理解层写进 shots[].audio.ambience，不在本字段猜。",
+          "additionalProperties": false,
+          "properties": {
+            "noiseFloorDb": { "type": ["number", "null"] },
+            "loudnessRangeDb": { "type": ["number", "null"] },
+            "silenceCoverage": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+            "speechCoverage": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+            "peakCount": { "type": "integer", "minimum": 0 }
+          }
+        },
         "shotBoundaries": {
           "type": "array",
           "items": {
@@ -344,6 +369,31 @@
       "additionalProperties": false,
       "required": ["analyzedShots", "analyzedSeconds", "promptVersion"],
       "properties": {
+        "asr": {
+          "type": "object",
+          "description": "人声转写执行回执：status=ran/skipped/unavailable；precision=word（词级）/segment（句级）/none。",
+          "additionalProperties": false,
+          "required": ["status"],
+          "properties": {
+            "status": { "enum": ["ran", "skipped", "unavailable"] },
+            "engine": { "type": ["string", "null"] },
+            "precision": { "enum": ["word", "segment", "none"] },
+            "sentences": { "type": "integer", "minimum": 0 },
+            "reason": { "type": ["string", "null"] }
+          }
+        },
+        "ocr": {
+          "type": "object",
+          "description": "画面文字提取回执：status=ran/skipped/unavailable；hits=命中采样点数。",
+          "additionalProperties": false,
+          "required": ["status"],
+          "properties": {
+            "status": { "enum": ["ran", "skipped", "unavailable"] },
+            "engine": { "type": ["string", "null"] },
+            "hits": { "type": "integer", "minimum": 0 },
+            "reason": { "type": ["string", "null"] }
+          }
+        },
         "analyzedShots": { "type": "integer", "minimum": 0 },
         "analyzedSeconds": { "type": "number", "minimum": 0 },
         "totalShots": { "type": ["integer", "null"], "minimum": 0 },

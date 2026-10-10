@@ -65,6 +65,16 @@ export interface FootageProbeDocument {
   music: { detected: boolean; bpm: number | null; beatGrid: number[]; downbeats: number[]; sections: unknown[] };
   loudness: { envelope: LoudnessPoint[]; peakMoments: LoudnessPoint[] };
   technical: { perShot: Array<Record<string, number | null>> };
+  /** OCR 观测（`--ocr` 通道；未运行时为空数组） */
+  onScreenText?: Array<{ t: number; texts: string[] }>;
+  /** 环境音画像（可量化部分；语义标签由理解层写进 shots[].audio.ambience） */
+  ambience?: {
+    noiseFloorDb: number | null;
+    loudnessRangeDb: number | null;
+    silenceCoverage: number | null;
+    speechCoverage: number | null;
+    peakCount: number;
+  };
   volumeDetect?: VolumeDetect;
 }
 
