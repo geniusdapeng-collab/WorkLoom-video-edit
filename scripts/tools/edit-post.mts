@@ -16,7 +16,9 @@
  *   pnpm edit:post -- --timeline <film.timeline.json> --out-dir <交付目录>
  *     [--variants warm-story,clean-tech,bold-promo] [--subtitle <字幕.srt>]
  *     [--title "标题"] [--hook "一句话钩子"] [--platform "微信视频号"]
- *     [--width 1920 --height 1080 --fps 30] [--crf 16] [--burn-subtitles] [--json]
+ *     [--width <显式宽> --height <显式高>] [--fps 30] [--crf 16] [--burn-subtitles] [--json]
+ *   输出分辨率默认**跟随素材原生分辨率**（取与目标画幅一致的最大素材档位；4K 素材 → 3840×2160，
+ *   清晰度档随之推导为 uhd），只有显式 `--width/--height` 才覆盖——不允许管线自行降低分辨率（2026-10-11 产品所有者口径）。
  */
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
@@ -29,6 +31,7 @@ import {
 
 const REPO_ROOT = resolve(import.meta.dirname ?? process.cwd(), "../..");
 const FFMPEG = process.env.WL_FFMPEG ?? "ffmpeg";
+const FFPROBE = process.env.WL_FFPROBE ?? "ffprobe";
 
 const flag = (name: string) => process.argv.includes(name);
 function arg(name: string, fallback = ""): string {
@@ -44,6 +47,17 @@ function run(bin: string, args: string[], env?: NodeJS.ProcessEnv): void {
     const failure = err as { stderr?: string; message?: string };
     const detail = (failure.stderr || failure.message || "").toString().split("\n").slice(-6).join(" | ");
     throw new Error(`${bin} 执行失败：${detail}`);
+  }
+}
+
+/** 素材原生分辨率探测（输出分辨率默认跟随素材，避免把 4K 素材降成 1080p）。 */
+function probeVideoSize(file: string): { width: number; height: number } | null {
+  try {
+    const out = execFileSync(FFPROBE, ["-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width,height", "-of", "csv=p=0", file], { encoding: "utf8" }).trim();
+    const [w, h] = out.split(",").map((value) => Number(value.trim()));
+    return Number.isInteger(w) && Number.isInteger(h) && w > 0 && h > 0 ? { width: w, height: h } : null;
+  } catch {
+    return null;
   }
 }
 
@@ -78,10 +92,56 @@ async function main(): Promise<void> {
     throw new Error(`时间轴未通过契约校验，拒绝进入后期（${failed.length} 项硬失败）：\n  - ${failed.join("\n  - ")}`);
   }
 
-  const width = Number(arg("--width", "1920"));
-  const height = Number(arg("--height", "1080"));
+  /**
+   * 输出分辨率口径（2026-10-11 产品所有者）：**默认跟随素材原生分辨率**——取与目标画幅一致、
+   * 面积最大的素材档位（4K 素材默认输出 3840×2160，不再由管线"自行降低分辨率"）；
+   * 只有显式传 `--width/--height` 才覆盖。素材探测不到时退回 1920×1080 并在回执里如实标注。
+   */
+  const explicitWidth = arg("--width", "");
+  const explicitHeight = arg("--height", "");
+  const sourceSizes = (timeline.sources ?? []).map((source) => {
+    /** 时间轴源字段是 `path`（EditTimelineSource）；兼容历史 `file` 写法。 */
+    const rawPath = String((source as { path?: string }).path ?? (source as { file?: string }).file ?? "");
+    const file = rawPath ? abs(rawPath) : "";
+    const size = file && existsSync(file) ? probeVideoSize(file) : null;
+    return { sourceId: source.sourceId, file, width: size?.width ?? null, height: size?.height ?? null };
+  });
+  let width: number;
+  let height: number;
+  let resolutionPolicy: string;
+  if (explicitWidth && explicitHeight) {
+    width = Number(explicitWidth);
+    height = Number(explicitHeight);
+    resolutionPolicy = "explicit（调用方显式指定，尊重指定值）";
+  } else {
+    const targetAspect = (() => {
+      const raw = String(timeline.target?.aspectRatio ?? "");
+      const [a, b] = raw.split(":").map((value) => Number(value));
+      return Number.isFinite(a) && Number.isFinite(b) && a > 0 && b > 0 ? a / b : null;
+    })();
+    const usable = sourceSizes.filter((entry) => entry.width && entry.height);
+    const matching = targetAspect
+      ? usable.filter((entry) => Math.abs(entry.width! / entry.height! - targetAspect) < 0.05)
+      : usable;
+    const pool = matching.length > 0 ? matching : usable;
+    const best = [...pool].sort((a, b) => (b.width! * b.height!) - (a.width! * a.height!))[0];
+    if (best) {
+      width = best.width!;
+      height = best.height!;
+      resolutionPolicy = `source-max（${best.sourceId} ${best.width}×${best.height}）`;
+    } else {
+      width = 1920;
+      height = 1080;
+      resolutionPolicy = "fallback-1080p（素材不可探测）";
+    }
+  }
   const fps = Number(arg("--fps", String(timeline.target?.fps ?? 30)));
   const crf = Number(arg("--crf", "16"));
+  /** 清晰度档位随分辨率推导：4K 级默认 uhd，其余 hd；显式 `--quality` 优先。 */
+  const qualityArg = arg("--quality", "");
+  const quality = qualityArg || (Math.min(width, height) >= 2160 ? "uhd" : "hd");
+  if (!["hd", "uhd"].includes(quality)) throw new Error(`--quality 只接受 hd / uhd（收到：${quality}）`);
+  console.log(`分辨率：${width}×${height}（${resolutionPolicy}）· 清晰度档 ${quality} · ${fps}fps`);
   const variants = arg("--variants", "warm-story,clean-tech,bold-promo").split(",").map((v) => v.trim()).filter(Boolean);
   /**
    * 转场口径：`pack`（默认，用变体配方，暖调故事版是 fade=经黑场叠化）或 `hard`（全部硬切）。
@@ -319,7 +379,7 @@ async function main(): Promise<void> {
     title,
     resolution: [width, height],
     fps,
-    quality: arg("--quality", "hd"),   // post-bridge 只认 hd / uhd（ux 档位名不同，别再猜）
+    quality,   // 由分辨率推导（4K 级 → uhd）或显式 --quality；post-bridge 只认 hd / uhd
     platform,
     transitions: { mode: "hard", fadeSec: 0 },
     copy: {
@@ -372,6 +432,16 @@ async function main(): Promise<void> {
     outDir,
     clips: shots.length,
     variants: variants,
+    resolution: {
+      width,
+      height,
+      quality,
+      policy: resolutionPolicy,
+      sources: sourceSizes,
+      upscaledSources: sourceSizes
+        .filter((entry) => entry.width && entry.height && entry.width * entry.height < width * height)
+        .map((entry) => entry.sourceId),
+    },
     transitions: transitionsMode,
     subtitle: subtitlePath,
     coverAt: coverAt ? Number(coverAt) : null,

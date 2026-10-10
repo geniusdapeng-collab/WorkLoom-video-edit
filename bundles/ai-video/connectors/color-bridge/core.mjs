@@ -1656,7 +1656,8 @@ export async function grade({
     "-i", input,
     "-vf", chain,
     "-c:v", "libx264", "-preset", "medium", "-crf", quality === "uhd" ? "16" : "20",
-    ...(quality === "uhd" ? ["-threads", "2", "-filter_threads", "1"] : []), "-pix_fmt", "yuv420p",
+    /** 2026-10-11：uhd 调色不再人为限 2 线程（画质参数不变），4K 交付提速。 */
+    ...(quality === "uhd" ? ["-threads", "0", "-filter_threads", "0"] : []), "-pix_fmt", "yuv420p",
     // 交付元数据（T-04）：显式打 Rec.709 三标签，避免下游平台按容器默认值误判色域。
     "-color_primaries", "bt709", "-color_trc", "bt709", "-colorspace", "bt709",
   ];

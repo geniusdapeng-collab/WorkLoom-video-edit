@@ -48,6 +48,56 @@ function arg(name: string, fallback = ""): string {
 }
 const abs = (p: string) => (isAbsolute(p) ? p : resolve(REPO_ROOT, p));
 
+/**
+ * 封面文案机检（2026-10-11 升级，与 CRAFT-002 §10 / HOOK-001 §10 同口径）：
+ * 主标题必须含数字/动作/可指认物之一、禁抽象文艺腔与虚词开头；副标题必须信息增量、禁"时间+地名"白开水。
+ * 是启发式护栏（拦明显废稿），不是审美裁判；弱稿给出 reasons 与改写指引。
+ */
+function evaluateCoverCopy({ title, subline }: { title: string; subline?: string }): {
+  ok: boolean;
+  title: { visualLength: number; hasAnchor: boolean; abstractLead: boolean };
+  subline: { present: boolean; visualLength: number; isBareTimePlace: boolean; repeatsTitle: boolean };
+  reasons: string[];
+} {
+  const visualLength = (text: string): number => {
+    let total = 0;
+    for (const ch of text) {
+      if (/[\u4e00-\u9fff]/u.test(ch)) total += 1;
+      else if (/[0-9A-Za-z]/u.test(ch)) total += 0.5;
+    }
+    return total;
+  };
+  /** 强动作 = 具体物理动作（"回/来/走"这类泛位移不算锚点）；具体物 = 可指认的名词。 */
+  const ACTION_STRONG = /(开车|摘|吃|喝|煮|炖|夹|抱|背|爬|赶|抢|收|捡|装|买|做|拍|尝|烤|涮|端|剁|擀|包|晒|种|浇)/u;
+  const CONCRETE = /(羊汤|面|苹果园|果园|苹果|饺|馍|饼|汤|院|集市|老家|爸妈|院|锅|碗|树|山坡|车|路|店|旅|果园)/u;
+  const ABSTRACT_MARKERS = /(为了|意义|答案|真相|确认|治愈|美好|震撼|圆满|仪式感|情绪价值|所谓|证明|寻找|诠释)/u;
+  const ABSTRACT_LEAD = /^(为了|关于|其实|所谓|致|写|论|说|寻|问)/u;
+  const BARE_TIME_PLACE = /^[一二三四五六七八九十0-9两]*[年月日]?[·、,\s]*(国庆|五一|春节|元旦|周末|假期|十一)?[·、,\s]*[去回到往在至]?[\u4e00-\u9fa5]{2,6}(省|市|县|镇|村|山|岛|湖|区)?$/u;
+  const titleText = String(title ?? "").trim();
+  const subText = String(subline ?? "").trim();
+  const titleAnchored = /[0-9]/u.test(titleText) || ACTION_STRONG.test(titleText) || CONCRETE.test(titleText);
+  const abstractLead = ABSTRACT_LEAD.test(titleText);
+  const abstractMarker = ABSTRACT_MARKERS.test(titleText);
+  const bare = subText.length > 0 && BARE_TIME_PLACE.test(subText) && !/[0-9]/u.test(subText) && !ACTION_STRONG.test(subText) && !CONCRETE.test(subText);
+  const repeats = subText.length > 0 && (subText.includes(titleText) || titleText.includes(subText));
+  const reasons: string[] = [];
+  if (visualLength(titleText) > 12.5) reasons.push(`主标题 ${visualLength(titleText)} 视觉字 >12：砍字或改断行（CRAFT-002 §一）`);
+  if (!titleAnchored) reasons.push("主标题缺具体锚点（数字/动作/可指认物）：抽象感受词不算钩子，反例「回家是为了确认」→ 改「开10小时车，就为这口羊汤」");
+  if (abstractLead) reasons.push("主标题以虚词/文艺词开头（为了/关于/其实…）：一律重写");
+  if (abstractMarker) reasons.push("主标题含抽象文艺词（为了/确认/意义/治愈…）：换成数字/动作/可指认物（CRAFT-002 §10.4）");
+  if (subText) {
+    if (visualLength(subText) > 24.5) reasons.push(`副标题 ${visualLength(subText)} 视觉字 >24：收敛到一句`);
+    if (bare) reasons.push("副标题是「时间+地名」式白开水（反例「十一回山东」）：换成清单式/数字锚点式/情绪峰值式（CRAFT-002 §10.3）");
+    if (repeats) reasons.push("副标题与主标题语义重复：副标题必须提供增量信息（或留空）");
+  }
+  return {
+    ok: reasons.length === 0,
+    title: { visualLength: visualLength(titleText), hasAnchor: titleAnchored, abstractLead },
+    subline: { present: subText.length > 0, visualLength: visualLength(subText), isBareTimePlace: bare, repeatsTitle: repeats },
+    reasons,
+  };
+}
+
 function run(bin: string, args: string[]): { stdout: string; stderr: string } {
   const result = spawnSync(bin, args, { encoding: "utf8", maxBuffer: 64 * 1024 * 1024, stdio: ["ignore", "pipe", "pipe"] });
   if (result.error) throw new Error(`${bin} 启动失败：${result.error.message}`);
@@ -172,6 +222,16 @@ async function main(): Promise<void> {
   const hook = arg("--hook", "");
   const account = arg("--account");
   if (!title) throw new Error("--title 必填（封面主标题 ≤12 字）");
+  const copyCheck = evaluateCoverCopy({ title, subline: hook || undefined });
+  if (!copyCheck.ok) {
+    console.warn(`⚠ 封面文案机检未过（启发式护栏，CRAFT-002 §10）：\n  - ${copyCheck.reasons.join("\n  - ")}`);
+    if (flag("--strict-copy")) throw new Error("封面文案机检未过且指定了 --strict-copy：按 reasons 重写后再交付");
+  }
+  /** 可选：agent 候选表（`--copies <copy-deck.json>`）连同自检一起进设计稿，供复盘与 A/B。 */
+  const copiesPath = arg("--copies");
+  const copyDeck = copiesPath && existsSync(abs(copiesPath))
+    ? JSON.parse(readFileSync(abs(copiesPath), "utf8")) as Record<string, unknown>
+    : null;
   const rendererMode = arg("--renderer", "auto");
   const burnIntro = Number(arg("--burn-intro", "1.6"));
   if (!Number.isFinite(burnIntro) || burnIntro < 0 || burnIntro > 5) throw new Error("--burn-intro 需要 0–5 秒");
@@ -393,6 +453,8 @@ async function main(): Promise<void> {
     renderer: { mode: rendererMode, used: covers[0]?.renderer ?? null, bridgeUrl, bridgeAvailable: bridge.available, note: bridge.reason ?? null },
     account: accountProfile ? { account_id: accountProfile.account_id, visual_hammer: accountProfile.visual_hammer } : null,
     kb: { dir: KB_DIR, recipe: recipeDoc, hints },
+    copyCheck,
+    copyDeck,
     covers,
   }, null, 2)}\n`, "utf8");
   writeFileSync(reportFile, `${JSON.stringify({

@@ -448,7 +448,11 @@ export async function normaliseShots({
     }
     const scale = `scale=${width}:${height}:force_original_aspect_ratio=decrease`
       + `,pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2:color=black,setsar=1,fps=${fps},format=yuv420p`;
-    const args = ["-hide_banner", "-v", "error", "-y", "-filter_threads", "1", "-i", input];
+    /**
+     * 2026-10-11：uhd（4K）交付不再人为限 2 线程——旧值让 4K 成片交付耗时数小时；
+     * 只放开线程数，preset/crf 等画质参数一律不变。
+     */
+    const args = ["-hide_banner", "-v", "error", "-y", "-filter_threads", quality === "uhd" ? "0" : "1", "-i", input];
     if (!probe.hasAudio) args.push("-f", "lavfi", "-i", "anullsrc=channel_layout=stereo:sample_rate=48000");
     args.push("-vf", scale);
     if (probe.hasAudio) args.push("-map", "0:v:0", "-map", "0:a:0");
@@ -456,7 +460,7 @@ export async function normaliseShots({
     const tempTarget = path.join(dir, `${shotId}-${key}.${process.pid}.${Date.now()}.tmp.mp4`);
     args.push(
       "-c:v", "libx264", "-preset", quality === "uhd" ? "medium" : "veryfast",
-      "-crf", quality === "uhd" ? "16" : "18", "-threads", quality === "uhd" ? "2" : "0", "-pix_fmt", "yuv420p",
+      "-crf", quality === "uhd" ? "16" : "18", "-threads", "0", "-pix_fmt", "yuv420p",
       "-c:a", "aac", "-b:a", "192k", "-ar", "48000", "-ac", "2",
       "-movflags", "+faststart", tempTarget,
     );
@@ -591,7 +595,7 @@ export async function assembleTimeline({
   const [width, height] = resolution ?? [1080, 1920];
   if (!["hd", "uhd"].includes(quality)) throw new PostError(`未知清晰度档位：${quality}`, "bad_request");
   const videoEncode = quality === "uhd"
-    ? ["-c:v", "libx264", "-preset", "medium", "-crf", "16", "-threads", "2", "-pix_fmt", "yuv420p"]
+    ? ["-c:v", "libx264", "-preset", "medium", "-crf", "16", "-threads", "0", "-pix_fmt", "yuv420p"]
     : ["-c:v", "libx264", "-preset", "veryfast", "-crf", "18", "-pix_fmt", "yuv420p"];
   for (const clip of clips) {
     if (!fs.existsSync(clip.path)) throw new PostError(`归一化产物缺失：${clip.path}`, "not_found");
