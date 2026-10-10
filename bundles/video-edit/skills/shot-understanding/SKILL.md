@@ -1,0 +1,141 @@
+---
+name: shot-understanding
+description: 镜头理解官方套件（v2）：在确定性信号层之上做逐镜多模态语义结构化，产出带证据帧与置信度的 shot_record，供高光挖掘、剪辑设计与字幕文案消费。含可直接投喂的多模态提示词全文与自检清单，替换旧版"一次性全文理解 + 秒级时间码"的做法。
+---
+
+# 镜头理解（shot-understanding v2）
+
+## 1. 定位与边界
+
+- **在什么之后**：`probe` 阶段（ffprobe/场景检测/ASR/节拍）已经产出确定性切点与词级时间戳。
+- **在什么之前**：`highlight`（高光与关键帧）、`edit-script`（剪辑脚本）依赖本技能的字段。
+- **只做什么**：把每个镜头变成结构化文本字段（画面/人物/动作/实体/台词/文字/景别/运镜/光线/情绪/可用性）。
+- **不做什么**：不做切点检测（信号层的活）、不做选镜与排序（剪辑指导的活）、不做审美评分（评审链的活）。
+- **纪律**：本阶段**逐镜**调用模型，禁止"一次调用理解全片"。旧链路一次吐全片 JSON 的失败模式：长视频中后段字段坍缩、时间码漂移、镜头切分与画面不符。
+
+## 2. 输入 / 输出契约
+
+| 输入 | 来源 | 用途 |
+|---|---|---|
+| `probe.shotBoundaries[]` | signal-analyst | 镜头区间（帧级 in/out）——**唯一权威切点** |
+| `probe.speech.words[]` | ASR | 台词与切点复核（句末停顿优先） |
+| `probe.technical.perShot[]` | ffmpeg 指标 | 质量字段（清晰度/曝光/稳定性/噪声） |
+| 关键帧图（每镜 3–6 帧） | 抽帧器 | 多模态模型的视觉输入 |
+
+输出：`shot_record[]`，逐字段遵循 [`schemas/footage-analysis.schema.json`](../../schemas/footage-analysis.schema.json)。
+
+**每个镜头必须包含**：`shotId`、`index`、帧级 `inTimecode`/`outTimecode`、`durationSeconds`、`sceneType`、`content`（视觉描述/台词/画面文字/实体/动作）、`tech`（景别/运镜/光线/稳定性）、`evidence[]`（≥1 帧）、`confidence`。
+
+## 3. 执行 SOP
+
+1. **切点对齐**：以信号层切点为骨架；若模型认为切点有问题，只能"建议"（写进 `editing.cutInReason/cutOutReason` 备注），不得自行改时间码。
+2. **抽帧**：镜头内均匀抽 3 帧 + 运动峰值帧 + 首末帧（长镜头每 2 秒加抽 1 帧）。
+3. **逐镜调用**（并发 ≤4，单镜超时 90s，失败重试 1 次后进入 `skippedShots`，不静默跳过）：
+   - 输入：镜头首末时间码、抽帧图、该镜内的 ASR 词序列、该镜技术指标。
+   - 输出：严格 JSON（下方提示词给模板）。
+4. **一致性复核**：台词与 ASR 逐字比对（允许标点差异，不允许内容篡改）；技术指标以信号层为准（模型只能补充语义）。
+5. **落库**：写 `understand.` 事件 + `shot_record` 产物（带模型名与 promptVersion）。
+
+## 4. 提示词正文（可直接投喂，v2）
+
+> 使用方式：`{{ }}` 为注入位；要求模型只输出 JSON。逐镜调用，不要传入整片。
+
+```text
+你是"镜头理解师"。任务：把一个镜头（已由确定性工具切好）转写为结构化字段。
+
+【素材上下文】
+- 视频领域：{{ content_domain }}（知识/旅行/评测/剧情/教学/生活记录/其他）
+- 素材来源类型（整片级）：{{ source_kind }}（实拍 / AI 生成 / 录屏 / 资料）
+- 创作者画像：{{ creator_profile }}
+- 用户需求：{{ user_requirement }}
+
+【本镜头输入】
+- 镜头号：{{ shot_index }}
+- 时间码（帧级，权威，不得修改）：{{ in_timecode }} - {{ out_timecode }}（时长 {{ duration_seconds }}s，帧率 {{ fps }}）
+- 抽帧图：{{ frames }}（按时间顺序；含首帧、末帧、运动峰值帧）
+- 镜头内语音转写（词级，权威）：{{ asr_words }}
+- 技术指标（权威）：清晰度 {{ sharpness }} / 曝光 {{ exposure }} / 稳定性 {{ stability }} / 噪声 {{ noise }}
+
+【硬性纪律】
+1. 只描述抽帧图与语音转写能证明的内容；看不见的一律写 null 或空数组，严禁虚构人物、地点、品牌、数据。
+2. 不做内心活动推断：不写"他在想/她感到"这类无法证实的内容，只写可见的表情、姿态、动作与环境。
+3. 台词文本与 ASR 逐字一致（可去标点），不得润色、不得补句。
+4. 每条语义结论配 evidence（帧序号或秒点 + 为什么），confidence 为 0–1 的实数。
+5. 输出必须是合法 JSON，不追加解释、不使用 Markdown 代码块之外的内容。
+
+【场景分类（sceneType 单选，影响后期策略）】
+- live_stream：直播切片（直播间 UI/互动/压缩画质/需降噪）
+- on_location：实景拍摄（手持或稳定器/自然光或现场光/环境音）
+- studio_talking：棚拍口播或访谈（背景干净/收音清晰/专业布光）
+- b_roll_insert：空镜与辅助镜头（环境展示/细节特写/无人声）
+- archive_footage：资料素材（非本次拍摄/历史影像/网络素材）
+- screen_recording：屏幕录制（软件操作/PPT/游戏画面）
+
+【剪辑友好度判断（写进 editing）】
+- cutInReason / cutOutReason：本镜适合从哪里进、从哪里出（动作落点 / 语音气口 / 视觉硬切 / 情绪峰值 / 信息节点）
+- transitionSuggestion：与相邻镜头可能的转场（硬切/叠化/匹配剪辑/甩镜/跳切）
+- usage：主叙事线 / 情绪点 / 反应镜头 / 转场桥 / 背景填充 / 信息强调 / 封面候选
+
+【输出 JSON 模板】
+{
+  "shotId": "{{ shot_id }}",
+  "index": {{ shot_index }},
+  "inTimecode": "{{ in_timecode }}",
+  "outTimecode": "{{ out_timecode }}",
+  "durationSeconds": {{ duration_seconds }},
+  "sceneType": "on_location",
+  "content": {
+    "visualDesc": "画面内容（人物/动作/关键物体/环境/视觉焦点）",
+    "speechText": "对应台词（无则 null）",
+    "onScreenText": "画面中出现的文字（招牌/包装/字幕，无则 null）",
+    "keyEntities": ["人物/产品/概念/地点/数据点"],
+    "actions": [{ "who": "谁", "what": "做了什么", "start": 0.0, "end": 0.0 }],
+    "setting": "环境（室内/室外/天气/时段）"
+  },
+  "tech": {
+    "shotSize": "extreme_wide|wide|medium|close_up|extreme_close_up|unknown",
+    "cameraMove": "static|pan|tilt|push_in|pull_out|tracking|handheld|aerial|unknown",
+    "lighting": "自然光/室内光/专业布光/逆光/低光",
+    "stability": "stable|slight_shake|heavy_motion|unknown",
+    "composition": { "subjectPosition": "", "headroom": "", "leadRoom": "" }
+  },
+  "audio": { "speechClarity": 0.0, "ambience": "", "music": true, "clipping": false },
+  "emotion": { "dominant": "", "intensity": 0.0, "valence": 0.0 },
+  "quality": { "score": 0.0, "usable": true },
+  "editing": { "cutInReason": "", "cutOutReason": "", "transitionSuggestion": "", "usage": [] },
+  "evidence": [{ "t": 0.0, "frame": 0, "why": "结论依据" }],
+  "confidence": 0.0
+}
+```
+
+## 5. 自检清单（输出前逐条核对）
+
+- [ ] 时间码与输入完全一致（没有 ±0.5s 的"四舍五入"漂移）
+- [ ] `evidence` 至少 1 条，且每条能解释一个具体结论
+- [ ] 台词与 ASR 逐字一致；无台词镜头 `speechText` 为 null
+- [ ] 没有出现抽帧里看不到的人、物、地点
+- [ ] 情绪字段只有可见依据（表情/姿态/环境），无内心描写
+- [ ] `confidence < 0.6` 的结论已在 `editing` 或备注中标记为待复核
+- [ ] JSON 合法（无注释、无尾逗号、无 Markdown 包裹）
+
+## 6. 与旧链路的差异（升级记录）
+
+| 维度 | 旧版（2026-02 备份） | v2 |
+|---|---|---|
+| 调用粒度 | 一次调用理解全片 | **逐镜调用**（长视频不再坍缩） |
+| 时间码 | `mm:ss` 秒级 | **帧级** `HH:MM:SS.mmm` + 帧号 |
+| 切点来源 | 模型"看图猜" | **信号层权威切点**（内容感知检测 + 语音气口） |
+| 证据 | 无 | 每条结论带证据帧与置信度 |
+| 台词 | 模型转写（易错） | **ASR 词级时间戳**为准，模型只做语义补充 |
+| 质量 | 4–5 分主观打分 | 信号层量化指标 + 语义可用性判断分离 |
+| 输出对象 | 单份 `file_id` 大 JSON | `shot_record[]`（可增量、可单镜重跑、可版本化） |
+
+## 7. 失败模式与处置
+
+| 症状 | 首查 | 处置 |
+|---|---|---|
+| 中后段镜头描述变空/复制 | 是否退化成整片一次调用 | 改回逐镜调用；分批并发，单镜独立重试 |
+| 时间码与画面对不上 | 是否用了模型自报时间 | 时间码一律取信号层输入，模型输出忽略时间码修改 |
+| 台词牛头不对马嘴 | 抽帧与语音错配 | 用 ASR 词级区间反查镜头归属，重新对齐后再跑 |
+| 出现素材里没有的品牌/地名 | 模型幻觉 | 删除该结论；在提示词中强化"看不见就写 null"，并提高抽帧密度 |
+| 同一镜头两次结果差异大 | 温度或抽帧不同 | 固定温度与抽帧策略；`confidence` 差异 >0.3 时挂起复核 |

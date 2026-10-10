@@ -1,0 +1,197 @@
+{
+  "schemaVersion": "workloom.bundle/v1",
+  "name": "@workloom/video-edit",
+  "version": "0.1.0",
+  "workloom": {
+    "industry": "video-edit",
+    "displayName": "剪辑台 · 视频AI剪辑与二次创作系统",
+    "description": "真实拍摄与 AI 生成视频的 AI 剪辑候选包：素材入库→信号解析→镜头理解→高光/关键帧挖掘→媒资索引→创作意图→创意发散与评审→叙事结构→帧级剪辑脚本→字幕文案→剪辑质检→本地合成，再把成片交回 AI 视频既有后期链路（调色/字幕/配音/配乐/封面/多风格交付/返修）。",
+    "status": "candidate",
+    "owner": "WorkLoom 视频AI剪辑产品组",
+    "example": false,
+    "compatibility": {
+      "base": ">=0.1.0 <1.0.0",
+      "ui": ">=0.1.0 <1.0.0",
+      "contract": "2.0.0"
+    },
+    "provides": {
+      "presets": [
+        "presets/footage-librarian.yml",
+        "presets/signal-analyst.yml",
+        "presets/shot-understander.yml",
+        "presets/highlight-scout.yml",
+        "presets/creative-weaver.yml",
+        "presets/story-architect.yml",
+        "presets/edit-director.yml",
+        "presets/caption-writer.yml",
+        "presets/cut-inspector.yml",
+        "presets/edit-compositor.yml",
+        "presets/edit-producer.yml"
+      ],
+      "fences": [
+        "fences/video-edit-baseline.yml"
+      ],
+      "skills": [
+        "skills/footage-ingest/SKILL.md",
+        "skills/shot-understanding/SKILL.md",
+        "skills/highlight-mining/SKILL.md",
+        "skills/media-indexing/SKILL.md",
+        "skills/creative-ideation/SKILL.md",
+        "skills/narrative-structure/SKILL.md",
+        "skills/edit-scripting/SKILL.md",
+        "skills/caption-craft/SKILL.md",
+        "skills/cut-review/SKILL.md"
+      ],
+      "schemas": [
+        "schemas/objects.json",
+        "schemas/stages.json",
+        "schemas/footage-analysis.schema.json",
+        "schemas/highlight-pick.schema.json",
+        "schemas/keyframe-candidate.schema.json",
+        "schemas/edit-timeline.schema.json",
+        "schemas/creative-set.schema.json"
+      ],
+      "ui": [
+        "ui/cases.json"
+      ],
+      "pipelines": [
+        "pipelines/edit-film.yml"
+      ],
+      "modelPolicy": "model-policy.yml",
+      "evalQuestions": "eval/questions.json"
+    },
+    "ui": {
+      "schemaVersion": "workloom.bundle.ui/v1",
+      "terminology": {},
+      "navigation": {
+        "slots": [
+          {
+            "capabilityId": "video-edit.console",
+            "title": "剪辑台",
+            "route": "/video-edit/console",
+            "group": "operations",
+            "icon": "edit",
+            "clients": [
+              "pc"
+            ],
+            "permissions": [
+              "video-edit.console.read"
+            ]
+          },
+          {
+            "capabilityId": "video-edit.shots",
+            "title": "镜头与高光",
+            "route": "/video-edit/shots",
+            "group": "operations",
+            "icon": "play",
+            "clients": [
+              "pc"
+            ],
+            "permissions": [
+              "video-edit.console.read"
+            ]
+          },
+          {
+            "capabilityId": "video-edit.review",
+            "title": "剪辑评审",
+            "route": "/video-edit/review",
+            "group": "trust",
+            "icon": "approval",
+            "clients": [
+              "pc"
+            ],
+            "permissions": [
+              "video-edit.console.read"
+            ]
+          }
+        ]
+      },
+      "home": {
+        "widgets": []
+      },
+      "welcome": {
+        "system": [
+          "这是一套把真实拍摄素材与 AI 素材剪成片的经营系统：先看懂素材，再谈创作。"
+        ],
+        "keywords": [
+          "素材理解",
+          "高光挖掘",
+          "剪辑脚本",
+          "二次创作"
+        ]
+      },
+      "objects": [
+        "素材原件",
+        "镜头记录",
+        "高光条目",
+        "剪辑时间轴",
+        "剪辑质检报告"
+      ],
+      "workflows": [
+        "素材入库与理解",
+        "高光与关键帧挖掘",
+        "创意发散与评审",
+        "剪辑脚本与合成",
+        "复用后期与交付"
+      ],
+      "serviceFront": {
+        "enabled": false,
+        "identityPolicy": "disabled",
+        "tabs": [],
+        "services": []
+      },
+      "inspection": {
+        "enabled": false
+      },
+      "theme": {
+        "brand": {
+          "primary": "#6d28d9",
+          "onPrimary": "#ffffff",
+          "accent": "#f59e0b"
+        }
+      },
+      "permissions": [
+        "video-edit.console.read"
+      ],
+      "experiments": []
+    }
+  },
+  "integrity": {
+    "algorithm": "sha256",
+    "digest": "a2d61000971c860886740fb8a7378db5cfed0b782c8a4ebafe84df021af7a052",
+    "assets": {
+      "eval/questions.json": "7b942c9f8ade853cd6c1c2bf446f122b3c00e10c6e54bd374a4719473d5817fa",
+      "fences/video-edit-baseline.yml": "b2849c70b2d5df25ebb3098a5da2cdaf6d331e1a6833d825bce0ecb2d10e6636",
+      "model-policy.yml": "515f7d2dbbff6aa94297abf15e5195d3544b81ea09a3dc22219242de6c934e94",
+      "pipelines/edit-film.yml": "ec51f73811062692fd00e11faa907fd38dfe7500e63a75d0ef512a91f2c53630",
+      "presets/caption-writer.yml": "622c9bb961b94cba20aff4cdf7e6d7d7c8f0298ae98b7b0b19464fae263fadeb",
+      "presets/creative-weaver.yml": "bc45ff9ce9e31aae3e8a6978a1f2c7c10530914f7180c45219b8c3e17d3ee86f",
+      "presets/cut-inspector.yml": "238529a09acd36bb23b7f46b4c5233f684a57423d30ec6378a5dd498045b85a2",
+      "presets/edit-compositor.yml": "b2b5a1c6dc685419d0b0d1770467de161706d3d8ee7f34f392d71a4a7003cba2",
+      "presets/edit-director.yml": "16c8d37c1bf3be1c0ec46ff6101af7480fb4b774488cdb200c1dceb9f02e3adb",
+      "presets/edit-producer.yml": "82a7e89eac8683cc70eee6a0f3ed49e02c69df21aebd4568ac75e7259d1e6007",
+      "presets/footage-librarian.yml": "b0e9c64b564e257b8585fcd086154e73a4e0446a3ff721cb89c65be589f4cb44",
+      "presets/highlight-scout.yml": "12aae796a1e5ce448e24fd837941640e58feeb1b0f2452f2d36346476dcdb73a",
+      "presets/shot-understander.yml": "98fe8d736e4279d3f4450039ea558096c5a258715d00dbbc7e8e64f24ce324c5",
+      "presets/signal-analyst.yml": "ac854c3d02746bd7992f614ea87ffbd8eba7a12492039ba8958ea857a0a0d27f",
+      "presets/story-architect.yml": "5693f157f4487512b7fa84aea1904ab60c3ef4b70253553d53ed2e33338e513f",
+      "schemas/creative-set.schema.json": "76a375892ded1ec441d2370a8bcdef575fd6a604d015ce5f0d06d101f212ded4",
+      "schemas/edit-timeline.schema.json": "ff6f90912ba69f0e557fbffd376803dcf9bc91f48e2db73a06ee9afe42be7f90",
+      "schemas/footage-analysis.schema.json": "872d079cc0c141c69e11e5f4894929419410eb81913c2eef96adc3d6580915ef",
+      "schemas/highlight-pick.schema.json": "54a56a59456f53ca5f5543ec655447e660309ba3fa936622df7418ee4c887f7c",
+      "schemas/keyframe-candidate.schema.json": "15f213ef8269714765da7d2a2dfc934b7b9e3ccd17e81f619b659ae79c42e871",
+      "schemas/objects.json": "96ef42013f426a3a8b74076ac28af4d54d30fa6a293b2eaa70ca3f8541664e29",
+      "schemas/stages.json": "f41bf9060f3731da960271c40661566b1567f2874d714bcfb68691fdd5071743",
+      "skills/caption-craft/SKILL.md": "72eb669b9eb68dbb9c55d02f18771cb542279dc82540f8d0be78181eed730f2a",
+      "skills/creative-ideation/SKILL.md": "46df121f0eb344c116a5a22c3acf0fc64804e38e646d57ae3015f537ac284f9f",
+      "skills/cut-review/SKILL.md": "755a39bc454fb9033a4a72302256b3275f28d48fe02e2f33d70abd494fc22199",
+      "skills/edit-scripting/SKILL.md": "57736056d37f542eee0fa83072ee2cf7bd9a3552fbc6bbc5c17e6db19a4aefea",
+      "skills/footage-ingest/SKILL.md": "bbd618627aa33a9b2d61096e639a36a6718e021b17d6de3a65bd2ae161f82097",
+      "skills/highlight-mining/SKILL.md": "0b6553b18596b2aaa43ce6e2dc22ce05dbe96461f688d936e6a9896f214c30ea",
+      "skills/media-indexing/SKILL.md": "e68b1638f86e6f75f698b977321169816d820968aa5558065e1ec9714da570b1",
+      "skills/narrative-structure/SKILL.md": "794ca26369a7f07bc84851a72fdaa5b579126783f700d44989d931e765ce8145",
+      "skills/shot-understanding/SKILL.md": "42a7a28c206795c8ffb0ea95b9b7adde2a19284126c585916f2a9781ad9f0372",
+      "ui/cases.json": "1538b11ca74db14adf78b49a4b28e0d43fdd383ff6a027f45a7599c7041f8eb6"
+    }
+  }
+}

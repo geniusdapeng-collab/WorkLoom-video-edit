@@ -1,0 +1,189 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "workloom://bundles/video-edit/schemas/edit-timeline",
+  "title": "edit_timeline（剪辑时间轴 v2）",
+  "description": "机器可执行剪辑契约。源轨（source）与主轨（master）分离：源轨给帧级 in/out，主轨由片段顺序自然推导且必须连续无空隙。纪律：① 同一源素材的多个选段在源轨上不得重叠，间隔 ≥1s（理想 ≥2s）；② 每个片段必须引用已入库素材 sha256；③ 转场/速度/音量参数必须落在执行器支持的枚举与区间内。",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "timelineId", "target", "sources", "segments", "audioDesign", "validation"],
+  "properties": {
+    "schemaVersion": { "const": "workloom.video-edit/edit-timeline/v2" },
+    "timelineId": { "type": "string", "minLength": 3 },
+    "filmId": { "type": ["string", "null"] },
+    "revision": { "type": "integer", "minimum": 1 },
+    "prevRevision": { "type": ["integer", "null"], "minimum": 1 },
+    "createdAt": { "type": "string" },
+    "target": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["durationSeconds", "aspectRatio", "fps", "platform"],
+      "properties": {
+        "durationSeconds": { "type": "number", "exclusiveMinimum": 0 },
+        "aspectRatio": { "type": "string", "pattern": "^[0-9]+:[0-9]+$" },
+        "fps": { "type": "number", "exclusiveMinimum": 0 },
+        "platform": { "type": "string" },
+        "safeAreas": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "topPercent": { "type": ["number", "null"] },
+            "bottomPercent": { "type": ["number", "null"] },
+            "leftPercent": { "type": ["number", "null"] },
+            "rightPercent": { "type": ["number", "null"] }
+          }
+        },
+        "loudnessTargetLufs": { "type": ["number", "null"] }
+      }
+    },
+    "sources": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["sourceId", "sha256", "path", "fps"],
+        "properties": {
+          "sourceId": { "type": "string", "minLength": 3 },
+          "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+          "path": { "type": "string", "minLength": 1 },
+          "fps": { "type": "number", "exclusiveMinimum": 0 },
+          "durationSeconds": { "type": ["number", "null"], "exclusiveMinimum": 0 },
+          "hasAudio": { "type": ["boolean", "null"] }
+        }
+      }
+    },
+    "groups": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["groupId", "name"],
+        "properties": {
+          "groupId": { "type": "string", "minLength": 1 },
+          "name": { "type": "string", "minLength": 1 },
+          "storyline": { "type": ["string", "null"] },
+          "emotion": { "type": ["string", "null"] },
+          "intensity": { "type": ["number", "null"], "minimum": 0, "maximum": 1 }
+        }
+      }
+    },
+    "segments": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["seq", "segmentId", "sourceId", "sourceIn", "sourceOut", "durationSeconds"],
+        "properties": {
+          "seq": { "type": "integer", "minimum": 0 },
+          "segmentId": { "type": "string", "minLength": 3 },
+          "groupId": { "type": ["string", "null"] },
+          "sourceId": { "type": "string", "minLength": 3 },
+          "sourceIn": { "type": "number", "minimum": 0 },
+          "sourceOut": { "type": "number", "exclusiveMinimum": 0 },
+          "sourceInTimecode": { "type": ["string", "null"], "pattern": "^[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}$" },
+          "sourceOutTimecode": { "type": ["string", "null"], "pattern": "^[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}$" },
+          "sourceInFrame": { "type": ["integer", "null"], "minimum": 0 },
+          "sourceOutFrame": { "type": ["integer", "null"], "minimum": 0 },
+          "durationSeconds": { "type": "number", "exclusiveMinimum": 0 },
+          "masterIn": { "type": ["number", "null"], "minimum": 0 },
+          "masterOut": { "type": ["number", "null"], "minimum": 0 },
+          "speed": { "type": ["number", "null"], "exclusiveMinimum": 0, "maximum": 8 },
+          "motive": { "type": ["string", "null"] },
+          "highlightRef": { "type": ["string", "null"] },
+          "keyframeRef": { "type": ["string", "null"] },
+          "transitionIn": {
+            "type": ["object", "null"],
+            "additionalProperties": false,
+            "required": ["type"],
+            "properties": {
+              "type": { "enum": ["cut", "dissolve", "fade_from_black", "fade_to_black", "wipe", "match_cut", "jump_cut", "whip_pan", "zoom_blur"] },
+              "durationSeconds": { "type": ["number", "null"], "minimum": 0, "maximum": 2 },
+              "params": { "type": ["object", "null"], "additionalProperties": true }
+            }
+          },
+          "audio": {
+            "type": ["object", "null"],
+            "additionalProperties": false,
+            "properties": {
+              "mode": { "enum": ["original", "mute", "ambience_only", "bgm_only", "duck_original", "j_cut", "l_cut"] },
+              "gainDb": { "type": ["number", "null"] },
+              "fadeInSeconds": { "type": ["number", "null"], "minimum": 0 },
+              "fadeOutSeconds": { "type": ["number", "null"], "minimum": 0 },
+              "jCutOffsetSeconds": { "type": ["number", "null"] },
+              "note": { "type": ["string", "null"] }
+            }
+          },
+          "subtitle": {
+            "type": ["object", "null"],
+            "additionalProperties": false,
+            "properties": {
+              "lines": { "type": "array", "items": { "type": "string" } },
+              "placement": { "enum": ["bottom", "center", "top", "none"] },
+              "emphasis": { "type": ["string", "null"] }
+            }
+          }
+        }
+      }
+    },
+    "audioDesign": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["originalAudioPolicy"],
+      "properties": {
+        "originalAudioPolicy": { "enum": ["keep", "duck_under_bgm", "replace", "mute"] },
+        "bgm": {
+          "type": ["object", "null"],
+          "additionalProperties": false,
+          "properties": {
+            "needed": { "type": "boolean" },
+            "style": { "type": ["string", "null"] },
+            "energyCurve": { "type": ["string", "null"] },
+            "beatGridRef": { "type": ["string", "null"] },
+            "duckDb": { "type": ["number", "null"] },
+            "libraryTrackId": { "type": ["string", "null"] }
+          }
+        },
+        "soundEffects": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["at", "kind"],
+            "properties": {
+              "at": { "type": "number", "minimum": 0 },
+              "kind": { "type": "string" },
+              "note": { "type": ["string", "null"] }
+            }
+          }
+        },
+        "silenceNotes": { "type": ["string", "null"] }
+      }
+    },
+    "validation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["continuous", "noSourceOverlap", "totalDurationSeconds"],
+      "properties": {
+        "continuous": { "type": "boolean" },
+        "noSourceOverlap": { "type": "boolean" },
+        "minSameSourceGapSeconds": { "type": ["number", "null"] },
+        "totalDurationSeconds": { "type": "number", "exclusiveMinimum": 0 },
+        "checks": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "pass"],
+            "properties": {
+              "id": { "type": "string" },
+              "pass": { "type": "boolean" },
+              "hard": { "type": ["boolean", "string"] },
+              "detail": { "type": ["string", "null"] }
+            }
+          }
+        }
+      }
+    }
+  }
+}

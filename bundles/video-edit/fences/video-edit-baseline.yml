@@ -1,0 +1,102 @@
+# 视频AI剪辑版基线围栏包（video-edit）
+# 与 ai-video-baseline / geo-growth-baseline 同口径：行业阈值与红线默认值由行业 Bundle 提供，
+# 底座不内置；is_baseline=true 的规则只可被上层补丁加严（单调守卫，F2.3）。
+# 求值语义：match 命中后求值 when（沙箱 DSL，禁任意代码）；写类动作无命中按 default_level 处理；
+# 求值异常按 block（宁错杀，E2.1）。
+#
+# 与 ai-video-material 包的关键差异（要点）：AI 生成片的 G-MAT1 禁止把真实素材直接当镜头，
+# 因为那里的素材只是"生成参考"；而剪辑管线的产品语义正是把素材本身剪进时间线，所以：
+#   ① 本包不复用 G-MAT1/G-MAT4 的动作名（避免误命中生成片的静态直出红线）；
+#   ② 剪辑侧用"授权 + 用途声明 + 溯源证据"三件套替代"必须由生成模型产出"的约束。
+version: video-edit-baseline/v1
+default_level: review
+rules:
+  - rule_id: G-ED0
+    name: 剪辑工位本地非破坏动作直通
+    level: auto
+    is_baseline: true
+    match:
+      object_types: [footage_asset, footage_probe, shot_record, highlight_pick, keyframe_candidate, media_index_entry, edit_intent, creative_set, story_plan, edit_script, edit_timeline, caption_script, cut_report]
+      actions: [footage.register, footage.transcode, probe.scan, shot.describe, highlight.score, keyframe.pick, index.build, intent.parse, idea.diverge, story.design, story.review, edit.plan, edit.timeline, edit.script, caption.write, title.pick, cut.inspect, cut.report, produce.dispatch]
+    when: "true"
+    note: 素材登记/代理转码/信号解析/镜头理解/高光打分/索引/创意与脚本撰写都是工位本地、非破坏、可回滚动作（原文件只读 + 新文件 + sha256 回执），默认直通；授权（G-ED2）、原件保护（G-ED1）、证据（G-ED3/G-ED4）与付费授权（G-ED5）叠加升级，deny 优先并集取严。
+
+  - rule_id: G-ED1
+    name: 素材原件只读（禁止覆盖/删除/改写源文件）
+    level: block
+    is_baseline: true
+    match:
+      object_types: [footage_asset, video_asset, final_video]
+      actions: [footage.register, footage.transcode, editcompose.render, editcompose.verify]
+    when: "params.overwrite_source == true or params.delete_source == true or params.mutate_source == true"
+    note: 剪辑的一切加工都必须产出新文件；覆盖、删除或原地改写素材原件一律阻断（审批也不能放行）。缺字段（undefined）不命中本规则，原件保护由执行器双保险（只读打开 + 输出新路径）。
+
+  - rule_id: G-ED2
+    name: 素材进片必须登记授权与用途（缺一即阻断）
+    level: block
+    is_baseline: true
+    match:
+      object_types: [footage_asset, media_index_entry, edit_timeline, final_video]
+      actions: [footage.register, index.build, edit.timeline, editcompose.render]
+    when: "params.rights_status != 'cleared' or not contains(params.declared_usage, 'timeline-source')"
+    note: 素材要进时间线，必须同时满足：授权状态 cleared + 用途声明含 timeline-source。用途仅 reference-only / archive-only 的素材不得剪进成片；未登记、待授权、受限素材一律 fail-closed（缺字段同样阻断）。
+
+  - rule_id: G-ED3
+    name: 剪辑产物必须可追溯到源素材与帧级时间码
+    level: review
+    is_baseline: true
+    match:
+      object_types: [edit_timeline, edit_script, final_video]
+      actions: [edit.timeline, editcompose.render, cut.inspect]
+    when: "not contains(params.evidence, 'source_sha256') or not contains(params.evidence, 'source_timecode') or params.continuous != true"
+    note: 时间轴必须能证明三件事：每段引用源素材 sha256、每段带帧级源轨 in/out、主轨连续无空隙（前一段结束=后一段开始）。缺任一证据挂起人审；同源多选段重叠或间隔不足由执行器直接失败（不进人审）。
+
+  - rule_id: G-ED4
+    name: 语义与高光结论必须带证据帧与置信度
+    level: review
+    is_baseline: true
+    match:
+      object_types: [shot_record, highlight_pick, keyframe_candidate]
+      actions: [shot.describe, highlight.score, keyframe.pick]
+    when: "not contains(params.evidence, 'frames') or params.confidence < 0.6"
+    note: 镜头描述、高光评分、关键帧选择都必须给证据帧列表与置信度；置信度低于 0.6 或缺证据帧挂起人审，不允许"看起来不错"式结论。数值缺失按求值异常处理（block，宁错杀）。
+
+  - rule_id: G-ED5
+    name: 付费模型调用必须显式授权（未授权挂起）
+    level: review
+    is_baseline: true
+    match:
+      object_types: [footage_probe, highlight_pick, creative_set, shot_record]
+      actions: [probe.scan, shot.describe, highlight.score, idea.diverge, footage.transcode]
+    when: "params.paid == true and params.cost_authorized != true"
+    note: 多模态理解、创意发散、批量转码等会产生模型/算力费用的动作，必须带当前任务的显式授权；未授权挂起人审。免费本地动作（ffprobe / scene detect / 静音与节拍检测）不受影响。
+
+  - rule_id: G-ED6
+    name: 对外交付与发布不得绕过原授权链
+    level: block
+    is_baseline: true
+    match:
+      object_types: [edit_handoff, caption_script, final_video]
+      actions: [handoff.post, caption.write, editcompose.render]
+    when: "params.publish == true and params.publish_authorized != true"
+    note: 剪辑产物进入对外发布（含平台直发、群发、商单交付）时必须持有发布授权；后期的生成审批、支付、租户与人审约束不由本包解除，剪辑回执不授予发布权。
+
+  - rule_id: G-ED7
+    name: 创作方向确认必审（人在环，不可跳过）
+    level: review
+    is_baseline: true
+    match:
+      object_types: [edit_intent, creative_set]
+      actions: [intent.confirm, idea.confirm, produce.confirm]
+    when: "context.batch_mode != true"
+    note: 创作方向（受众/平台/时长/情绪目标/选定创意）必须由人确认后才进入叙事结构与剪辑设计；批量模式只对已验证账号与固定选题开放，且需当次显式授权。
+
+  - rule_id: G-ED8
+    name: 粗剪锁定确认必审（改结构要重新确认）
+    level: review
+    is_baseline: true
+    match:
+      object_types: [edit_timeline, edit_script]
+      actions: [edit.confirm, editcompose.render, produce.confirm]
+    when: "context.batch_mode != true"
+    note: 时间轴进入本地合成前必须锁定确认；锁定后再改结构（增删段/改顺序/改时长带）视为新版本，需重新确认并保留旧版本（只增不改）。

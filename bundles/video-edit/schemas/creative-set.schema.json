@@ -1,0 +1,173 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "workloom://bundles/video-edit/schemas/creative-set",
+  "title": "creative_set / story_plan（创意方案集与叙事方案）",
+  "description": "创作环契约。纪律：① 发散与评估分离（生成者不给自己打分）；② 方案只允许使用已入库素材 id；③ 情绪曲线必须是可执行分段（带时间带与强度），不是形容词；④ 每个方案给出「用户不要它会怎样」的差异化理由。",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["creativeSet", "storyPlan"],
+  "properties": {
+    "creativeSet": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["intent", "candidates", "review"],
+      "properties": {
+        "intent": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["audience", "platform", "durationBand", "emotionGoal"],
+          "properties": {
+            "audience": { "type": "string", "minLength": 1 },
+            "platform": { "type": "string", "minLength": 1 },
+            "durationBand": { "type": "string", "minLength": 1 },
+            "emotionGoal": { "type": "array", "minItems": 1, "items": { "type": "string" } },
+            "propagationGoal": { "type": ["string", "null"] },
+            "mustInclude": { "type": "array", "items": { "type": "string" } },
+            "mustAvoid": { "type": "array", "items": { "type": "string" } },
+            "unknowns": { "type": "array", "items": { "type": "string" } }
+          }
+        },
+        "candidates": {
+          "type": "array",
+          "minItems": 3,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["slot", "title", "logline", "differentiators", "openingMove", "turningPoint", "endingMove", "materialPlan"],
+            "properties": {
+              "slot": { "type": "string", "pattern": "^T[0-9]{2}$" },
+              "title": { "type": "string", "minLength": 1, "maxLength": 24 },
+              "logline": { "type": "string", "minLength": 10 },
+              "differentiators": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["narrativeVoice", "structure", "emotion", "tempo", "visualStyle"],
+                "properties": {
+                  "narrativeVoice": { "enum": ["first_person", "second_person", "third_person", "mixed"] },
+                  "structure": { "enum": ["linear", "flashback", "circular", "fragmented", "countdown", "question_driven"] },
+                  "emotion": { "type": "string" },
+                  "tempo": { "enum": ["slow_burn", "steady", "accelerating", "punchy", "wave"] },
+                  "visualStyle": { "type": "string" }
+                }
+              },
+              "openingMove": { "type": "string", "minLength": 5 },
+              "turningPoint": { "type": "string", "minLength": 5 },
+              "endingMove": { "type": "string", "minLength": 5 },
+              "materialPlan": {
+                "type": "array",
+                "minItems": 1,
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["beat", "role", "candidateShotIds"],
+                  "properties": {
+                    "beat": { "type": "string" },
+                    "role": { "type": "string" },
+                    "candidateShotIds": { "type": "array", "minItems": 1, "items": { "type": "string" } },
+                    "highlightRefs": { "type": "array", "items": { "type": "string" } }
+                  }
+                }
+              },
+              "withoutIt": { "type": "string" }
+            }
+          }
+        },
+        "review": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["slot", "scores", "total", "notes"],
+            "properties": {
+              "slot": { "type": "string", "pattern": "^T[0-9]{2}$" },
+              "scores": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["narrative", "emotion", "platform", "feasibility"],
+                "properties": {
+                  "narrative": { "type": "number", "minimum": 0, "maximum": 10 },
+                  "emotion": { "type": "number", "minimum": 0, "maximum": 10 },
+                  "platform": { "type": "number", "minimum": 0, "maximum": 10 },
+                  "feasibility": { "type": "number", "minimum": 0, "maximum": 10 }
+                }
+              },
+              "total": { "type": "number", "minimum": 0, "maximum": 10 },
+              "notes": { "type": "string" }
+            }
+          }
+        },
+        "recommendedOrder": { "type": "array", "items": { "type": "string", "pattern": "^T[0-9]{2}$" } }
+      }
+    },
+    "storyPlan": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["slot", "structure", "beats", "emotionCurve", "tempoMap"],
+      "properties": {
+        "slot": { "type": "string", "pattern": "^T[0-9]{2}$" },
+        "structure": { "type": "string" },
+        "narrativeVoice": { "type": ["string", "null"] },
+        "beats": {
+          "type": "array",
+          "minItems": 3,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["beatId", "name", "intent", "targetSeconds", "materialRefs"],
+            "properties": {
+              "beatId": { "type": "string" },
+              "name": { "type": "string" },
+              "intent": { "type": "string" },
+              "targetSeconds": { "type": "number", "exclusiveMinimum": 0 },
+              "emotionTarget": { "type": ["string", "null"] },
+              "intensity": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+              "materialRefs": { "type": "array", "minItems": 1, "items": { "type": "string" } },
+              "highlightRefs": { "type": "array", "items": { "type": "string" } },
+              "keyframeRefs": { "type": "array", "items": { "type": "string" } }
+            }
+          }
+        },
+        "emotionCurve": {
+          "type": "array",
+          "minItems": 3,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["t", "intensity"],
+            "properties": {
+              "t": { "type": "number", "minimum": 0 },
+              "intensity": { "type": "number", "minimum": 0, "maximum": 1 },
+              "label": { "type": ["string", "null"] }
+            }
+          }
+        },
+        "tempoMap": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["fromBeat", "toBeat", "avgShotSeconds", "cutsPerMinute"],
+            "properties": {
+              "fromBeat": { "type": "string" },
+              "toBeat": { "type": "string" },
+              "avgShotSeconds": { "type": "number", "exclusiveMinimum": 0 },
+              "cutsPerMinute": { "type": "number", "exclusiveMinimum": 0 }
+            }
+          }
+        },
+        "bgmPlan": {
+          "type": ["object", "null"],
+          "additionalProperties": false,
+          "properties": {
+            "needed": { "type": "boolean" },
+            "style": { "type": ["string", "null"] },
+            "energyCurve": { "type": ["string", "null"] },
+            "beatSync": { "type": ["boolean", "null"] }
+          }
+        },
+        "risks": { "type": "array", "items": { "type": "string" } }
+      }
+    }
+  }
+}

@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "workloom://bundles/video-edit/schemas/highlight-pick",
+  "title": "highlight_pick（高光条目）",
+  "description": "高光 = 多信号加权的可解释结论，不是模型拍脑袋的一句话。分数与证据一起交付，便于复核与返修。",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["highlightId", "shotId", "kind", "inTimecode", "outTimecode", "peakTimecode", "score", "signals", "evidence"],
+  "properties": {
+    "highlightId": { "type": "string", "minLength": 3 },
+    "shotId": { "type": "string", "minLength": 3 },
+    "kind": { "enum": ["hook", "emotion_peak", "action_peak", "insight", "transition_bridge", "ambience", "ending"] },
+    "inTimecode": { "type": "string", "pattern": "^[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}$" },
+    "outTimecode": { "type": "string", "pattern": "^[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}$" },
+    "peakTimecode": { "type": "string", "pattern": "^[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}$" },
+    "peakFrame": { "type": ["integer", "null"], "minimum": 0 },
+    "availableSeconds": { "type": ["number", "null"], "exclusiveMinimum": 0 },
+    "score": { "type": "number", "minimum": 0, "maximum": 1 },
+    "signals": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "speechEmphasis": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+        "audioEnergy": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+        "motion": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+        "faceExpression": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+        "visualSalience": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+        "semanticValue": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+        "novelty": { "type": ["number", "null"], "minimum": 0, "maximum": 1 }
+      }
+    },
+    "penalties": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "shake": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+        "blur": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+        "occlusion": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+        "repetition": { "type": ["number", "null"], "minimum": 0, "maximum": 1 }
+      }
+    },
+    "weights": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "profile": { "type": "string" },
+        "values": { "type": "object", "additionalProperties": { "type": "number" } }
+      }
+    },
+    "recommendedUse": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "enum": ["opening_hook", "main_story", "emotion_beat", "transition", "background_fill", "ending", "cover_candidate"] }
+    },
+    "evidence": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["t"],
+        "properties": {
+          "t": { "type": "number", "minimum": 0 },
+          "frame": { "type": ["integer", "null"], "minimum": 0 },
+          "why": { "type": ["string", "null"] }
+        }
+      }
+    },
+    "confidence": { "type": ["number", "null"], "minimum": 0, "maximum": 1 }
+  }
+}

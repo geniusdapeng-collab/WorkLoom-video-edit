@@ -1,0 +1,92 @@
+# 视频AI剪辑管线 · 架构升级 v2（感知环 → 索引环 → 创作环 → 复用既有后期）
+#
+# 与既有两条生成管线的分工：
+#   narrative-film / marketing-film：AI 生成式出片（提示词 → 定妆照 → 渲染 → 后期）
+#   edit-film（本管线）：真实拍摄/AI 素材二次创作（理解 → 高光 → 重组 → 剪辑 → 后期）
+# 本管线**替换掉**"视频提示词生成 + 视频渲染"两个环节，其余后期环节（调色/字幕/配音/配乐/封面/多风格交付/返修）
+# 与 ai-video 既有链路共用同一批工位与同一份交付纪律。
+#
+# 每步 = Quest 任务卡；产物写 biz_events 五元事件；gates 引用的规则定义在 fences/video-edit-baseline.yml。
+quest: edit-film
+name: 视频AI剪辑管线
+version: v2
+description: 素材入库→信号解析→镜头理解→高光/关键帧挖掘→媒资索引→创作意图→方向确认(G-ED7)→创意发散→叙事结构→剪辑脚本→字幕文案→剪辑质检→粗剪锁定(G-ED8)→本地合成→后期交接→成片入库；返修走层增量重合成
+steps:
+  - step_key: ingest
+    name: 素材入库与登记
+    owner: footage-librarian
+    gates: [G-ED2]
+    outputs: [footage_asset]            # 指纹/规格/授权/用途/代理文件；原件只读（G-ED1）
+  - step_key: probe
+    name: 信号解析（确定性，不花模型钱）
+    owner: signal-analyst
+    outputs: [footage_probe]            # 镜头边界/词级转写/节拍网格/音量包络/技术指标
+  - step_key: understand
+    name: 逐镜多模态理解
+    owner: shot-understander
+    gates: [G-ED4]
+    outputs: [shot_record]              # 语义结论带证据帧与置信度；与信号层冲突以信号层为准
+  - step_key: highlight
+    name: 高光挖掘与关键帧
+    owner: highlight-scout
+    gates: [G-ED4]
+    outputs: [highlight_pick, keyframe_candidate]   # 情绪峰值/动作峰值/构图最优三类关键帧
+  - step_key: index
+    name: 媒资索引
+    owner: footage-librarian
+    gates: [G-ED2]
+    outputs: [media_index_entry]        # 标签/实体/可用性/复用建议；支持跨项目复用
+  - step_key: intent
+    name: 创作意图固化
+    owner: creative-weaver
+    outputs: [edit_intent]              # 受众/平台/时长带/情绪目标/必须与禁止出现
+  - step_key: g-ed7-direction
+    name: 创作方向确认
+    owner: edit-producer
+    gates: [G-ED7]
+    outputs: [edit_intent, creative_set]  # 人在环：给方案与依据，不替用户定方向
+  - step_key: ideate
+    name: 创意发散（不含自评）
+    owner: creative-weaver
+    outputs: [creative_set]             # 差异化候选：人称/结构/情绪/节奏/开场各自拉开
+  - step_key: structure
+    name: 叙事结构与评审
+    owner: story-architect
+    outputs: [story_plan, creative_set] # 结构 + 可执行情绪曲线 + 素材映射 + 节奏图 + 分视角评审
+  - step_key: edit-script
+    name: 剪辑脚本与帧级时间轴
+    owner: edit-director
+    gates: [G-ED3]
+    outputs: [edit_script, edit_timeline]  # 主轨连续、源轨不重叠、转场与声音设计落到字段
+  - step_key: caption
+    name: 字幕与文案
+    owner: caption-writer
+    outputs: [caption_script]           # 与时间轴逐段绑定；字数带/无标点/结尾话术位
+  - step_key: cutcheck
+    name: 剪辑质检
+    owner: cut-inspector
+    gates: [G-ED3, G-ED6]
+    outputs: [cut_report]               # 合法性/连续性/可执行性/合规；不合格给可执行返修动作
+  - step_key: g-ed8-roughcut
+    name: 粗剪锁定确认
+    owner: edit-producer
+    gates: [G-ED8]
+    outputs: [edit_timeline]            # 锁定后改结构 = 新版本 + 重新确认（只增不改）
+  - step_key: compose
+    name: 本地合成（裁切/归一化/拼接/垫音）
+    owner: edit-compositor
+    gates: [G-ED1, G-ED3]
+    outputs: [final_video]              # 纯本地算力、可重跑；失败显式报错，不产出半成品
+  - step_key: handoff-post
+    name: 后期交接（复用 AI 视频既有后期链路）
+    owner: edit-compositor
+    gates: [G-ED6]
+    outputs: [edit_handoff]             # 调色/字幕/配音/配乐/封面/多风格交付需求单 + 来源与授权声明
+  - step_key: archive
+    name: 成片入库与素材回写
+    owner: footage-librarian
+    outputs: [final_video, video_asset] # 母版与变体入库，回链来源素材与脚本版本
+  - step_key: revise
+    name: 返修闭环（反馈 → 分诊 → 层增量重合成）
+    owner: edit-producer
+    outputs: [cut_report, final_video]  # 能在本地层重合成的绝不动画面素材选择；点名画面才回高光/选镜

@@ -1,0 +1,31 @@
+# 视频AI剪辑 · 模型路由策略（bundle 第⑦装配槽，v3.0 通用模型路由系统）
+# 档位：L1 轻量 0.2× / L2 中坚 1× / L3 旗舰 3×；谷时 22:00–08:00 非实时任务再 ×0.2
+# 行业特点：确定性信号层免费（本地 ffmpeg/ASR/节拍），模型只花在"语义理解"和"创作"上——
+#   理解批处理走谷时；创作与评审走中坚/旗舰；质检尽量用规则兜底。
+version: "v3.0"
+scenes:
+  # —— 高频轻量（能本地算就本地算）——
+  edit-probe:           { tier: L1, fallback: rule-template }   # 信号解析调度（计算在本地工具）
+  edit-highlight-score: { tier: L1, fallback: rule-template }   # 高光语义价值打分（其余信号本地加权）
+  edit-cutcheck:        { tier: L1, fallback: rule-template }   # 剪辑质检：规则优先，模型只补连续性判断
+  # —— 理解层（逐镜调用，量大，可谷时批量）——
+  edit-shot-understand: { tier: L2, window: off-peak-only, escalateOn: [low-confidence, parse-fail] }
+  edit-media-index:     { tier: L2, window: off-peak-only }
+  # —— 创作层（每片数十次调用，质量优先）——
+  edit-intent-parse:    { tier: L2, fallback: rule-template, escalateOn: [low-confidence] }  # 判不准先问用户
+  edit-ideate:          { tier: L3, escalateOn: [thumbs-down] }  # 创意发散：拉开差异最吃模型
+  edit-story-review:    { tier: L3, escalateOn: [thumbs-down] }  # 四视角评审：与生成分离
+  edit-script:          { tier: L2, escalateOn: [parse-fail] }
+  edit-caption:         { tier: L2 }
+plans:
+  lite:     { defaultShift: -1 }   # 智享版：整体压一档
+  standard: { defaultShift: 0 }    # 标准版：标准混合
+  smart:                           # 智能版：理解保底 L2，创作与评审走旗舰
+    defaultShift: 1
+    tierOverrides:
+      edit-probe: L1
+      edit-highlight-score: L1
+      edit-cutcheck: L1
+      edit-shot-understand: L2
+      edit-ideate: L3
+      edit-story-review: L3

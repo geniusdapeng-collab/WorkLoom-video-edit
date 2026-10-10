@@ -1,0 +1,380 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "workloom://bundles/video-edit/schemas/footage-analysis",
+  "title": "footage_analysis（素材理解结果 v2）",
+  "description": "感知环产物：确定性信号层（probe）+ 多模态语义层（shots）+ 高光层（highlights/keyframes）。纪律：① 一切时间码帧级；② 语义结论必须带 evidence 帧与 confidence；③ 只描述证据帧可见内容，不得虚构素材中不存在的人物/地点/事件。",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "asset", "source", "probe", "shots", "highlights", "keyframes", "coverage", "generatedBy"],
+  "properties": {
+    "schemaVersion": { "const": "workloom.video-edit/footage-analysis/v2" },
+    "asset": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["assetId", "sha256", "filename", "durationSeconds", "fps", "width", "height", "aspectRatio", "rights"],
+      "properties": {
+        "assetId": { "type": "string", "minLength": 3 },
+        "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "filename": { "type": "string", "minLength": 1 },
+        "durationSeconds": { "type": "number", "exclusiveMinimum": 0 },
+        "fps": { "type": "number", "exclusiveMinimum": 0 },
+        "width": { "type": "integer", "exclusiveMinimum": 0 },
+        "height": { "type": "integer", "exclusiveMinimum": 0 },
+        "aspectRatio": { "type": "string", "pattern": "^[0-9]+:[0-9]+$" },
+        "audio": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "channels": { "type": "integer", "minimum": 0 },
+            "sampleRate": { "type": "integer", "minimum": 0 },
+            "integratedLufs": { "type": ["number", "null"] },
+            "truePeakDb": { "type": ["number", "null"] }
+          }
+        },
+        "rights": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["status", "declaredUsage"],
+          "properties": {
+            "status": { "enum": ["cleared", "pending", "restricted", "unknown"] },
+            "declaredUsage": {
+              "type": "array",
+              "minItems": 1,
+              "items": { "enum": ["timeline-source", "reference-only", "cover", "thumbnail", "archive-only"] }
+            },
+            "license": { "type": ["string", "null"] },
+            "source": { "type": ["string", "null"] },
+            "expiresAt": { "type": ["string", "null"] }
+          }
+        },
+        "ingestedAt": { "type": "string" },
+        "proxyPath": { "type": ["string", "null"] },
+        "localPath": { "type": ["string", "null"] }
+      }
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind"],
+      "properties": {
+        "kind": { "enum": ["real-shot", "ai-generated", "screen-recording", "archive", "mixed"] },
+        "device": { "type": ["string", "null"] },
+        "capturedAt": { "type": ["string", "null"] },
+        "projectLink": { "type": ["string", "null"] },
+        "notes": { "type": ["string", "null"] }
+      }
+    },
+    "probe": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["shotBoundaries", "speech", "music", "loudness", "technical"],
+      "properties": {
+        "shotBoundaries": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["index", "inFrame", "outFrame", "inTimecode", "outTimecode", "durationSeconds", "detector"],
+            "properties": {
+              "index": { "type": "integer", "minimum": 0 },
+              "inFrame": { "type": "integer", "minimum": 0 },
+              "outFrame": { "type": "integer", "minimum": 0 },
+              "inTimecode": { "type": "string", "pattern": "^[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}$" },
+              "outTimecode": { "type": "string", "pattern": "^[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}$" },
+              "durationSeconds": { "type": "number", "exclusiveMinimum": 0 },
+              "detector": { "type": "string" },
+              "threshold": { "type": ["number", "null"] },
+              "confidence": { "type": "number", "minimum": 0, "maximum": 1 }
+            }
+          }
+        },
+        "silences": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["start", "end"],
+            "properties": {
+              "start": { "type": "number", "minimum": 0 },
+              "end": { "type": "number", "minimum": 0 },
+              "db": { "type": ["number", "null"] }
+            }
+          }
+        },
+        "speech": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["language", "words"],
+          "properties": {
+            "language": { "type": "string" },
+            "engine": { "type": ["string", "null"] },
+            "words": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["text", "start", "end"],
+                "properties": {
+                  "text": { "type": "string" },
+                  "start": { "type": "number", "minimum": 0 },
+                  "end": { "type": "number", "minimum": 0 },
+                  "confidence": { "type": ["number", "null"], "minimum": 0, "maximum": 1 }
+                }
+              }
+            },
+            "sentences": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["text", "start", "end"],
+                "properties": {
+                  "text": { "type": "string" },
+                  "start": { "type": "number", "minimum": 0 },
+                  "end": { "type": "number", "minimum": 0 },
+                  "pauseAfterSeconds": { "type": ["number", "null"] }
+                }
+              }
+            }
+          }
+        },
+        "music": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["detected"],
+          "properties": {
+            "detected": { "type": "boolean" },
+            "bpm": { "type": ["number", "null"], "exclusiveMinimum": 0 },
+            "beatGrid": { "type": "array", "items": { "type": "number", "minimum": 0 } },
+            "downbeats": { "type": "array", "items": { "type": "number", "minimum": 0 } },
+            "sections": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["start", "end", "label"],
+                "properties": {
+                  "start": { "type": "number", "minimum": 0 },
+                  "end": { "type": "number", "minimum": 0 },
+                  "label": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "loudness": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["envelope"],
+          "properties": {
+            "envelope": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["t", "db"],
+                "properties": {
+                  "t": { "type": "number", "minimum": 0 },
+                  "db": { "type": "number" }
+                }
+              }
+            },
+            "peakMoments": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["t", "db"],
+                "properties": {
+                  "t": { "type": "number", "minimum": 0 },
+                  "db": { "type": "number" }
+                }
+              }
+            }
+          }
+        },
+        "technical": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["perShot"],
+          "properties": {
+            "perShot": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["index"],
+                "properties": {
+                  "index": { "type": "integer", "minimum": 0 },
+                  "sharpness": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+                  "exposure": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+                  "stability": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+                  "noise": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+                  "colorTempK": { "type": ["integer", "null"] }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "shots": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["shotId", "index", "inTimecode", "outTimecode", "durationSeconds", "sceneType", "content", "tech", "confidence"],
+        "properties": {
+          "shotId": { "type": "string", "minLength": 3 },
+          "index": { "type": "integer", "minimum": 0 },
+          "inTimecode": { "type": "string", "pattern": "^[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}$" },
+          "outTimecode": { "type": "string", "pattern": "^[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}$" },
+          "durationSeconds": { "type": "number", "exclusiveMinimum": 0 },
+          "sceneType": { "enum": ["live_stream", "on_location", "studio_talking", "b_roll_insert", "archive_footage", "screen_recording"] },
+          "content": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["visualDesc"],
+            "properties": {
+              "visualDesc": { "type": "string", "minLength": 1 },
+              "speechText": { "type": ["string", "null"] },
+              "onScreenText": { "type": ["string", "null"] },
+              "keyEntities": { "type": "array", "items": { "type": "string" } },
+              "actions": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["who", "what"],
+                  "properties": {
+                    "who": { "type": "string" },
+                    "what": { "type": "string" },
+                    "start": { "type": ["number", "null"] },
+                    "end": { "type": ["number", "null"] }
+                  }
+                }
+              },
+              "setting": { "type": ["string", "null"] }
+            }
+          },
+          "tech": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "shotSize": { "enum": ["extreme_wide", "wide", "medium", "close_up", "extreme_close_up", "unknown"] },
+              "cameraMove": { "enum": ["static", "pan", "tilt", "push_in", "pull_out", "tracking", "handheld", "aerial", "unknown"] },
+              "lighting": { "type": ["string", "null"] },
+              "stability": { "enum": ["stable", "slight_shake", "heavy_motion", "unknown"] },
+              "composition": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "subjectPosition": { "type": ["string", "null"] },
+                  "headroom": { "type": ["string", "null"] },
+                  "leadRoom": { "type": ["string", "null"] }
+                }
+              }
+            }
+          },
+          "audio": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "speechClarity": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+              "ambience": { "type": ["string", "null"] },
+              "music": { "type": ["boolean", "null"] },
+              "clipping": { "type": ["boolean", "null"] }
+            }
+          },
+          "emotion": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "dominant": { "type": ["string", "null"] },
+              "intensity": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+              "valence": { "type": ["number", "null"], "minimum": -1, "maximum": 1 }
+            }
+          },
+          "quality": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "score": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+              "usable": { "type": ["boolean", "null"] }
+            }
+          },
+          "editing": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "cutInReason": { "type": ["string", "null"] },
+              "cutOutReason": { "type": ["string", "null"] },
+              "transitionSuggestion": { "type": ["string", "null"] },
+              "usage": { "type": "array", "items": { "type": "string" } }
+            }
+          },
+          "evidence": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["t"],
+              "properties": {
+                "t": { "type": "number", "minimum": 0 },
+                "frame": { "type": ["integer", "null"], "minimum": 0 },
+                "why": { "type": ["string", "null"] }
+              }
+            }
+          },
+          "confidence": { "type": "number", "minimum": 0, "maximum": 1 }
+        }
+      }
+    },
+    "highlights": {
+      "type": "array",
+      "items": { "$ref": "workloom://bundles/video-edit/schemas/highlight-pick" }
+    },
+    "keyframes": {
+      "type": "array",
+      "items": { "$ref": "workloom://bundles/video-edit/schemas/keyframe-candidate" }
+    },
+    "coverage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["analyzedShots", "analyzedSeconds", "promptVersion"],
+      "properties": {
+        "analyzedShots": { "type": "integer", "minimum": 0 },
+        "analyzedSeconds": { "type": "number", "minimum": 0 },
+        "totalShots": { "type": ["integer", "null"], "minimum": 0 },
+        "skippedShots": { "type": "array", "items": { "type": "integer", "minimum": 0 } },
+        "promptVersion": { "type": "string" },
+        "notes": { "type": ["string", "null"] }
+      }
+    },
+    "generatedBy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["pipeline", "stage"],
+      "properties": {
+        "pipeline": { "type": "string" },
+        "stage": { "type": "string" },
+        "tools": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["name"],
+            "properties": {
+              "name": { "type": "string" },
+              "version": { "type": ["string", "null"] }
+            }
+          }
+        },
+        "model": { "type": ["string", "null"] },
+        "startedAt": { "type": ["string", "null"] },
+        "finishedAt": { "type": ["string", "null"] }
+      }
+    }
+  }
+}

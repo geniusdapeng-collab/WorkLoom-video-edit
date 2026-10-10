@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "workloom://bundles/video-edit/schemas/keyframe-candidate",
+  "title": "keyframe_candidate（关键帧候选）",
+  "description": "三类关键帧各司其职：情绪峰值帧（封面/情绪点）、动作峰值帧（转场/节奏点）、构图最优帧（静态展示/封面底图）。帧级时间码 + 技术指标 + 选择理由。",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["keyframeId", "shotId", "kind", "timecode", "score", "reasons", "usage"],
+  "properties": {
+    "keyframeId": { "type": "string", "minLength": 3 },
+    "shotId": { "type": "string", "minLength": 3 },
+    "kind": { "enum": ["emotion_peak", "action_peak", "composition_best"] },
+    "timecode": { "type": "string", "pattern": "^[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}$" },
+    "frame": { "type": ["integer", "null"], "minimum": 0 },
+    "score": { "type": "number", "minimum": 0, "maximum": 1 },
+    "reasons": { "type": "array", "minItems": 1, "items": { "type": "string" } },
+    "technical": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "sharpness": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+        "stability": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+        "exposure": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+        "faceVisible": { "type": ["boolean", "null"] },
+        "textSafe": { "type": ["boolean", "null"] }
+      }
+    },
+    "usage": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "enum": ["cover", "thumbnail", "transition", "freeze", "beat_anchor", "subtitle_anchor"] }
+    }
+  }
+}
