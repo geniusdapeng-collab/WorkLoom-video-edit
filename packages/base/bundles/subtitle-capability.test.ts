@@ -154,7 +154,12 @@ describe("字体档案库（font-catalog）", () => {
 
   it("字号策略与版式策略齐备：六平台 + 遮挡区矩形合法 + 账号视觉锤示例", () => {
     const size = catalog.size_policy;
-    expect(size.base_ratio).toMatchObject({ 标题: 0.11, 字幕: 0.048, 弹幕: 0.04, 贴纸: 0.07 });
+    expect(size.base_ratio).toMatchObject({ 标题: 0.11, 字幕: 0.064, 弹幕: 0.054, 贴纸: 0.07 });
+    /** 分辨率×朝向规则表（2026-10-11「字幕/弹幕太小」修复）：五档短边 + 三朝向 + 上下限必须齐备。 */
+    expect(size.resolution_rules.tiers.length).toBeGreaterThanOrEqual(4);
+    expect(size.resolution_rules.orientation).toMatchObject({ portrait: expect.any(Number), landscape: 1 });
+    expect(size.resolution_rules.minPx["字幕"]).toBeGreaterThan(0);
+    expect(size.resolution_rules.maxRatio["弹幕"]).toBeGreaterThan(size.base_ratio["弹幕"]);
     expect(size.outline_ratio).toBeCloseTo(0.06, 5);
     expect(size.safe_margin_ratio).toBeCloseTo(0.05, 5);
 
@@ -226,8 +231,9 @@ describe("版式配方库（typography-recipes）", () => {
 
   it("交付目标值齐备（字号区间/行宽/对比/可现度/标题时长）", () => {
     const targets = doc.targets;
-    expect(targets.subtitleMinPxRatio).toBeCloseTo(0.038, 4);
-    expect(targets.subtitleMaxPxRatio).toBeCloseTo(0.075, 4);
+    // 2026-10-11 字号修复：下限 0.038→0.048（小于短边 4.8% 判"太小读不清"），上限 0.075→0.08
+    expect(targets.subtitleMinPxRatio).toBeCloseTo(0.048, 4);
+    expect(targets.subtitleMaxPxRatio).toBeCloseTo(0.08, 4);
     expect(targets.maxLineCharsZh).toBe(18);
     expect(targets.maxLineCharsEn).toBe(42);
     expect(targets.maxLinesSubtitle).toBe(2);
@@ -317,16 +323,40 @@ describe("选型规则引擎（纯函数，与附件 v1.1 口径一致）", () =
     }
   });
 
-  it("字号推导式与平台倍率：短边×基准比×粗细修正×倍率，可复算", () => {
+  it("字号推导式与平台倍率：短边×基准比×分辨率档×朝向×粗细×平台倍率，可复算", () => {
     const font = catalog.fonts.find((item: { 字体名称: string }) => item.字体名称 === "思源黑体CN（可变字重）");
     const size = recommendSize({ scene: "字幕", resolution: [1080, 1920], font, catalog, platform: "抖音/快手" });
-    // 短边 1080 × 0.048 × (1 + (2.5-2)*0.04 = 1.02) × 1.05 = 55.6 → 56
-    expect(size.sizePx).toBe(56);
+    // 短边 1080 × 0.064 × 1.0(分辨率档) × 1.05(竖屏) × (1 + (2.5-2)*0.04 = 1.02) × 1.05(抖音/快手) = 77.7 → 78
+    expect(size.sizePx).toBe(78);
     expect(size.basis).toContain("短边1080");
-    expect(size.outlinePx).toBe(Math.max(1, Math.round(56 * 0.06)));
+    expect(size.basis).toContain("portrait朝向");
+    expect(size.sizePx / 1080).toBeGreaterThanOrEqual(0.048);
+    expect(size.outlinePx).toBe(Math.max(1, Math.round(78 * 0.06)));
     expect(size.safeMarginPx).toBe(54);
     const titleSize = recommendSize({ scene: "标题", resolution: [1080, 1920], font, catalog, platform: "抖音/快手" });
     expect(titleSize.sizePx).toBeGreaterThan(size.sizePx);
+  });
+
+  it("分辨率×朝向字号规则：横竖屏与 720p/4K 档位按表推导（2026-10-11 修复）", () => {
+    const font = catalog.fonts.find((item: { 字体名称: string }) => item.字体名称 === "思源黑体CN（可变字重）");
+    // 横屏 1080p（未命中平台键 → 默认倍率 1.0）：1080 × 0.064 × 1.0 × 1.0 × 1.02 = 70.5 → 71
+    const landscape1080 = recommendSize({ scene: "字幕", resolution: [1920, 1080], font, catalog, platform: "默认" });
+    expect(landscape1080.sizePx).toBe(71);
+    expect(landscape1080.basis).toContain("landscape朝向");
+    // 竖向同短边再放大 5%：69.12 × 1.05 × 1.02 = 74.0 → 74
+    const portrait1080 = recommendSize({ scene: "字幕", resolution: [1080, 1920], font, catalog, platform: "默认" });
+    expect(portrait1080.sizePx).toBe(74);
+    expect(portrait1080.sizePx).toBeGreaterThan(landscape1080.sizePx);
+    // 低分辨率相对放大（720 档 1.08）：720 × 0.064 × 1.08 × 1.0 × 1.02 = 50.76 → 51
+    const landscape720 = recommendSize({ scene: "字幕", resolution: [1280, 720], font, catalog, platform: "默认" });
+    expect(landscape720.sizePx).toBe(51);
+    // 4K 档回落（2160 档 0.96）：2160 × 0.064 × 0.96 × 1.0 × 1.02 = 135.3 → 135
+    const uhd = recommendSize({ scene: "字幕", resolution: [3840, 2160], font, catalog, platform: "默认" });
+    expect(uhd.sizePx).toBe(135);
+    // 弹幕与字幕同一规则表，但基准比更克制：1080 横屏 0.054 × 1080 × 1.02 = 59.5 → 59
+    const danmaku = recommendSize({ scene: "弹幕", resolution: [1920, 1080], font, catalog, platform: "默认" });
+    expect(danmaku.sizePx).toBe(59);
+    expect(danmaku.sizePx).toBeLessThan(landscape1080.sizePx);
   });
 
   it("版式回落：未知平台回落「默认」，不静默用错平台的遮挡区", () => {

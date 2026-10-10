@@ -9,7 +9,10 @@
  *   ④ 设计稿：三风格独立封面（每份 CoverPlan：主标题/副标题/角标/主视觉镜头与取帧秒/字级/配色/版式/设计理由）；
  *   ⑤ 合成：**Compositor 视觉工位**（visual-bridge：配方 → .comp → PNG，带回执）；工位不可用时显式降级到本机 ffmpeg 并如实标注；
  *   ⑥ 机检：画幅/字节数/标题带 PSNR/人物位 PSNR/安全区/底图血缘 + 工位 `visualread.verify` 回执；
- *   ⑦ 烧封：把封面作为片头**烧进视频**（默认 1.6s，音轨沿用成片前 1.6s，保证 BGM 不断），产出 `*-cover.mp4`。
+ *   ⑦ 烧封：把封面作为片头**烧进视频**（默认 1.6s，**封面段静音**），产出 `*-cover.mp4`。
+ *      —— 2026-10-11 产品所有者反馈修复：旧实现让封面段复用成片前 1.6s 音轨，正片又从 0 起播，
+ *      听感上 BGM"起两次"（封面一次、第一个镜头又一次）。封面段改静音后，BGM 只在正片开始处起播一次，
+ *      剪辑点与 BGM 的对齐（cut-driven 混音）保持不变；封面仍是平台首帧展示图。
  *
  * 用法：
  *   pnpm edit:cover -- --input <交付目录/master/master-clean.mp4> --out-dir <交付目录>
@@ -368,14 +371,15 @@ async function main(): Promise<void> {
         if (!existsSync(source)) continue;
         const output = join(outDir, "variants", variantId, `${variantId}${form}.cover.mp4`);
         const intro = join(workRoot, `${variantId}${form}-intro.mp4`);
-        run(FFMPEG, ["-hide_banner", "-loglevel", "error", "-y", "-loop", "1", "-i", cover, "-ss", "0", "-t", String(burnIntro), "-i", source,
+        run(FFMPEG, ["-hide_banner", "-loglevel", "error", "-y", "-loop", "1", "-i", cover,
+          "-f", "lavfi", "-i", "anullsrc=channel_layout=stereo:sample_rate=48000",
           "-filter_complex", `[0:v]scale=${media.width}:${media.height},fps=${arg("--fps", "30")},format=yuv420p[v];[1:a]atrim=0:${burnIntro},asetpts=PTS-STARTPTS[a]`,
           "-map", "[v]", "-map", "[a]", "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-c:a", "aac", "-ar", "48000", "-ac", "2", "-t", String(burnIntro), "-movflags", "+faststart", intro]);
         // 用文本清单做 concat（/dev/stdin 在部分 ffmpeg 构建下不可用）
         const listFile = join(workRoot, `${variantId}${form}-list.txt`);
         writeFileSync(listFile, `file '${intro.replace(/'/gu, "'\\''")}'\nfile '${source.replace(/'/gu, "'\\''")}'\n`, "utf8");
         run(FFMPEG, ["-hide_banner", "-loglevel", "error", "-y", "-f", "concat", "-safe", "0", "-i", listFile, "-c", "copy", "-movflags", "+faststart", output]);
-        introReceipts.push({ variantId, form: form || "clean", output, introSeconds: burnIntro, sha256: sha256(output), duration: probeMedia(output).duration });
+        introReceipts.push({ variantId, form: form || "clean", output, introSeconds: burnIntro, introAudio: "silent", sha256: sha256(output), duration: probeMedia(output).duration });
       }
     }
   }

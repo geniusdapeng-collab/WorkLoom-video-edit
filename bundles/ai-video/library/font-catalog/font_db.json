@@ -13,12 +13,25 @@
     "note": "商用交付只允许白名单许可；单售字体文件被 OFL 禁止，修改后再发布必须改名。vendor-free-commercial 指厂商免费商用授权（如阿里妈妈/普惠体），登记时必须附许可证明链接。"
   },
   "size_policy": {
-    "_comment": "字号策略：字号 = 短边 × base_ratio[场景] × 粗细修正(1+(2.5-粗细)*0.04)；再乘平台字号倍率(见 layout_policy)",
+    "_comment": "字号策略：字号 = 短边 × base_ratio[场景] × 分辨率档修正 × 朝向修正 × 粗细修正(1+(2.5-粗细)*0.04) × 平台字号倍率(见 layout_policy)，最后按 minPx / maxRatio 夹取",
     "base_ratio": {
       "标题": 0.11,
-      "字幕": 0.048,
-      "弹幕": 0.04,
+      "字幕": 0.064,
+      "弹幕": 0.054,
       "贴纸": 0.07
+    },
+    "resolution_rules": {
+      "_comment": "分辨率×朝向字号规则（2026-10-11 产品所有者反馈『字幕和弹幕字体太小』后定型）：低分辨率相对再放大保证小屏可读，高分辨率按观看距离回落；竖屏在同短边下相对放大 5%。示例（横屏）：1080p 字幕≈69px/弹幕≈58px，720p 字幕≈50px/弹幕≈42px，4K 字幕≈133px/弹幕≈112px（均未计粗细与平台倍率）。",
+      "tiers": [
+        { "maxShortSide": 720, "scale": 1.08 },
+        { "maxShortSide": 1080, "scale": 1.0 },
+        { "maxShortSide": 1440, "scale": 0.98 },
+        { "maxShortSide": 2160, "scale": 0.96 },
+        { "maxShortSide": 0, "scale": 0.95 }
+      ],
+      "orientation": { "portrait": 1.05, "landscape": 1.0, "square": 1.02 },
+      "minPx": { "标题": 64, "字幕": 34, "弹幕": 32, "贴纸": 40 },
+      "maxRatio": { "标题": 0.16, "字幕": 0.075, "弹幕": 0.07, "贴纸": 0.09 }
     },
     "outline_ratio": 0.06,
     "safe_margin_ratio": 0.05,

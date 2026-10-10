@@ -396,22 +396,40 @@ export function layoutFor(platform, catalog = loadFontCatalog()) {
   };
 }
 
-/** 字号建议：短边 × 场景基准比 × 粗细修正 × 平台倍率；描边与安全边距同表推导。 */
+/**
+ * 字号建议（2026-10-11 规则化）：短边 × 场景基准比 × **分辨率档修正 × 朝向修正** × 粗细修正 × 平台倍率，
+ * 最后按 `resolution_rules.minPx / maxRatio` 夹取。规则表在 `library/font-catalog/font_db.json#size_policy.resolution_rules`，
+ * 由产品所有者反馈『字幕和弹幕字体太小』定型（低分辨率相对放大、竖屏相对放大、4K 回落）。
+ */
 export function recommendSize({ scene, resolution, font, catalog = loadFontCatalog(), platform = "默认" }) {
   const short = Math.min(resolution[0], resolution[1]);
   const policy = catalog.size_policy ?? {};
-  const ratio = (policy.base_ratio ?? { 标题: 0.11, 字幕: 0.048, 弹幕: 0.04, 贴纸: 0.07 })[scene] ?? 0.048;
+  const ratio = (policy.base_ratio ?? { 标题: 0.11, 字幕: 0.064, 弹幕: 0.054, 贴纸: 0.07 })[scene] ?? 0.064;
   const weight = Number(font.字体粗细程度 ?? 3);
   const adjust = 1 + (2.5 - weight) * 0.04;
   const { layout } = layoutFor(platform, catalog);
   const sceneLayout = layout[scene] ?? {};
   const multiplier = Number(sceneLayout.字号倍率 ?? 1);
-  const size = Math.round(short * ratio * adjust * multiplier);
+  /**
+   * 分辨率档：按短边落入第一个满足 `short <= maxShortSide` 的档位（maxShortSide=0 视作兜底无限大）。
+   * 朝向：高 > 宽 = 竖屏（portrait，相对再放大），宽 > 高 = 横屏（landscape），相等 = 方形。
+   */
+  const rules = policy.resolution_rules ?? {};
+  const tier = (Array.isArray(rules.tiers) ? rules.tiers : [])
+    .find((entry) => short <= (Number(entry?.maxShortSide) > 0 ? Number(entry.maxShortSide) : Number.POSITIVE_INFINITY));
+  const tierScale = Number(tier?.scale ?? 1);
+  const orientationKey = resolution[1] > resolution[0] ? "portrait" : resolution[1] < resolution[0] ? "landscape" : "square";
+  const orientationScale = Number(rules.orientation?.[orientationKey] ?? 1);
+  const raw = short * ratio * tierScale * orientationScale * adjust * multiplier;
+  const minPx = Number(rules.minPx?.[scene] ?? 0);
+  const maxPx = Math.max(minPx, Math.round(short * Number(rules.maxRatio?.[scene] ?? 1)));
+  const size = Math.min(Math.max(Math.round(raw), Math.round(minPx)), maxPx);
   return {
     sizePx: size,
     outlinePx: Math.max(1, Math.round(size * Number(policy.outline_ratio ?? 0.06))),
     safeMarginPx: Math.round(short * Number(policy.safe_margin_ratio ?? 0.05)),
-    basis: `短边${short}×${ratio}(场景基准)×${round(adjust, 2)}(粗细修正)×${multiplier}(平台倍率)`,
+    basis: `短边${short}×${ratio}(场景基准)×${tierScale}(分辨率档)×${orientationScale}(${orientationKey}朝向)×${round(adjust, 2)}(粗细修正)×${multiplier}(平台倍率)，夹取[${Math.round(minPx)},${maxPx}]`,
+    rule: { scene, tier: tier?.maxShortSide ?? null, tierScale, orientation: orientationKey, orientationScale, minPx: Math.round(minPx), maxPx },
     platform,
     layout: { ...sceneLayout },
   };

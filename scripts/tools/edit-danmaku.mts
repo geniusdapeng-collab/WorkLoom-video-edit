@@ -3,7 +3,9 @@
  * edit-danmaku —— 弹幕轨生成（复用字幕工位的弹幕能力：`subtitlewrite.danmaku` 同口径）。
  *
  * 参数口径（来自 `skills/subtitle-layout-design` + `subtitle-bridge`）：
- *   · 字号 = 0.04 × 画高（弹幕场景基线），2–4 条分道，滚动/顶部/底部三种模式；
+ *   · 字号走统一字号规则（2026-10-11）：短边 × 场景基准比(弹幕 0.054) × 分辨率档 × 朝向修正 × 粗细修正 × 平台倍率，
+ *     按 minPx/maxRatio 夹取（1080p 横屏约 58px，竖屏约 61px，详见 font_db.json#size_policy.resolution_rules）；
+ *     2–4 条分道，滚动/顶部/底部三种模式；
  *   · 默认**保留全部传入条目**，不隐式删减；传 `--max-concurrent` 才做密度裁剪并留痕；
  *   · 产出：烧弹幕的视频副本 + 弹幕计划 ASS + 密度体检报告（before/after 并发条数）。
  *
