@@ -1,0 +1,105 @@
+# AI 口播精剪版基线围栏包（video-edit · talk-edit-baseline/v1）
+#
+# 与 video-edit-baseline 的分工：通用剪辑红线（原件只读/授权/溯源/付费授权/发布授权）继续生效，
+# 本包只补**口播专属**的八条红线——围绕两件事：**逐字事实**（不能编、不能假）与**人味保护**
+#（不能为了"更顺"把真人剪成 AI 念稿）。
+#
+# 求值语义与既有围栏一致：match 命中后求值 when（沙箱 DSL，禁任意代码）；写类动作无命中按 default_level；
+# 求值异常按 block（宁错杀）。is_baseline=true 的规则只可被上层补丁加严（单调守卫）。
+version: talk-edit-baseline/v1
+default_level: review
+rules:
+  - rule_id: G-TK1
+    name: 逐字一致——字幕/弹幕/文案必须等于 ASR 逐字稿原文
+    level: block
+    is_baseline: true
+    match:
+      object_types: [talk_transcript, talk_annotation, caption_script, final_video]
+      actions: [talk.transcribe, talk.caption, talk.annotate, talk.inspect, editcompose.render]
+    when: "params.verbatim_checked != true or (contains(params.deviations, 'text-changed') and params.rewrite_authorized != true)"
+    note: 口播的字幕就是"他/她真正说的话"。字幕、弹幕、贴纸、封面引用的原句一律逐字取自 talk_transcript；
+      确实需要修字（错别字/口误）必须持有改写授权并在回执里逐条列出改了什么；
+      "把口语润色成书面语"属于篡改原话，直接阻断。
+
+  - rule_id: G-TK2
+    name: 不伪造原话——禁止 AI 补录/声音克隆/改口型来"补一句"
+    level: block
+    is_baseline: true
+    match:
+      object_types: [talk_transcript, final_video, edit_timeline]
+      actions: [talk.transcribe, talk.cut, edit.timeline, editcompose.render]
+    when: "params.synthetic_speech == true and params.synthetic_voice_authorized != true"
+    note: 素材里没说的话，不许用 TTS/声音克隆补进去，也不许换脸或改口型来"修"一句话。
+      经授权的 AI 语音/形象修改必须逐句标注并在成片与元数据里披露（与平台 AI 内容标识要求一致）；
+      未授权的合成语音一律阻断——这既是事实红线，也是真人形象权的法律边界。
+
+  - rule_id: G-TK3
+    name: 结论必须带证据——情绪标注与每个删留决定都要有依据
+    level: review
+    is_baseline: true
+    match:
+      object_types: [talk_cut_plan, edit_timeline]
+      actions: [talk.cut, edit.timeline, talk.inspect]
+    when: "not contains(params.evidence, 'decision_ledger') or params.decision_count < 1"
+    note: 两类结论都要证据：① **情绪标注**必须有声学指标（语速/能量/停顿）或显式标注通道，
+      没有通道的字段写 null，禁止"我觉得他很激动"式结论；② 任何 cut/trim/keep 都要能回答三件事：
+      删（留）的是哪一段、为什么、被删内容的"人味价值"是多少。缺台账挂起人审——
+      口播返修 80% 的争论是"这句为什么删了"，台账就是答案。
+
+  - rule_id: G-TK4
+    name: 选段与多片拆分必审（人在环）
+    level: review
+    is_baseline: true
+    match:
+      object_types: [talk_cut_plan, creative_brief]
+      actions: [talk.select, talk.confirm, produce.confirm]
+    when: "context.batch_mode != true"
+    note: 一条长口播可能拆成多条片子（不同主题/钩子），选哪几段、拆几条由人定；
+      系统给候选清单（主题/时长/情绪峰值/信息密度）与拆分理由，不替人做决定。
+      批量模式只对已验证账号与固定选题开放，且需当次显式授权。
+
+  - rule_id: G-TK5
+    name: 口播粗剪锁定（改结构 = 新版本 + 重新确认）
+    level: review
+    is_baseline: true
+    match:
+      object_types: [edit_timeline, talk_cut_plan]
+      actions: [talk.confirm, edit.confirm, editcompose.render]
+    when: "context.batch_mode != true"
+    note: 时间轴进入本地合成前必须锁定确认；锁定后增删句、改顺序、改时长带都算新版本，
+      保留旧版本（只增不改）——返修要能对照"上一版删了什么"。
+
+  - rule_id: G-TK6
+    name: 人味下限——删过头必须人审显式放行
+    level: review
+    is_baseline: true
+    match:
+      object_types: [talk_cut_plan, edit_timeline, cut_report]
+      actions: [talk.cut, talk.inspect, editcompose.render]
+    when: "params.humanness_below_floor == true and params.human_approved_below_floor != true"
+    note: 语气词保留率与停顿保留率各有下限（默认 ≥0.20 / ≥0.15，可按项目收紧或放宽）。
+      跌破下限说明"删得比真人说话更干净"，成片会像 AI 念稿——此时必须由人审显式放行（留痕），
+      系统不得以"更顺、更紧凑"为由自行删过头。注意：这是**人味护栏**而不是审美硬闸，
+      人审放行后只记录不阻断。
+
+  - rule_id: G-TK7
+    name: 跳切遮盖——同机位密集跳切必须有推近或切镜计划
+    level: review
+    is_baseline: true
+    match:
+      object_types: [edit_timeline, talk_cut_plan]
+      actions: [edit.timeline, editcompose.render, talk.inspect]
+    when: "params.jump_cut_count > 0 and params.punch_in_coverage < 0.5"
+    note: 口播精剪必然产生同机位跳切；没有景别变化（推近 punch-in 或切镜）时观众会看到"跳帧"。
+      覆盖率低于 50% 挂起复核；这项属于观感类，由人决定是否接受（不阻断交付，但必须显式确认）。
+
+  - rule_id: G-TK8
+    name: 点睛层不遮挡——弹幕/贴纸避开字幕带与人脸区，前 2 秒留白
+    level: review
+    is_baseline: true
+    match:
+      object_types: [talk_annotation, final_video]
+      actions: [talk.annotate, editcompose.render]
+    when: "params.overlaps_subtitle_band == true or params.overlaps_face_area == true or params.density_per_minute > 6 or params.bare_head_seconds < 2"
+    note: 知识点弹幕与贴纸卡的目的是"帮观众记住"，不是抢戏：不得压字幕带与人脸区，
+      密度 ≤6 条/分钟，前 2 秒留白（钩子画面必须干净）；文案逐字取自逐字稿（叠加 G-TK1）。

@@ -1,0 +1,123 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "workloom://bundles/video-edit/schemas/talk-cut-list",
+  "title": "talk_cut_plan（口播剪取决策台账 v1）",
+  "description": "口播精剪的核心交付物：每个保留/删除/压缩决定的理由、时间码与人味价值，加上人味指标（语气词与停顿保留率、平滑风险）与多片拆分候选。纪律：先保护后删除；删留必留台账；人味下限跌破必须人审放行。执行器：pnpm edit:talk-cut。",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "options", "decisions", "keepSpans", "cutSpans", "metrics", "splitCandidates", "notes"],
+  "properties": {
+    "schemaVersion": { "const": "workloom.video-edit/talk-cut-list/v1" },
+    "options": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["fillerKeepRateFloor", "pauseKeepRateFloor", "selfCorrectionPolicy", "splitTangents", "punchIn", "protectPeakSeconds", "targetDurationSeconds"],
+      "properties": {
+        "fillerKeepRateFloor": { "type": "number", "minimum": 0, "maximum": 1 },
+        "pauseKeepRateFloor": { "type": "number", "minimum": 0, "maximum": 1 },
+        "selfCorrectionPolicy": { "enum": ["keep", "trim-mistake"] },
+        "splitTangents": { "type": "boolean" },
+        "punchIn": { "enum": ["alternate", "none"] },
+        "protectPeakSeconds": { "type": "number", "minimum": 0 },
+        "targetDurationSeconds": { "type": ["number", "null"], "exclusiveMinimum": 0 }
+      }
+    },
+    "decisions": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "action", "target", "start", "end", "reason", "humanValue", "refs", "note"],
+        "properties": {
+          "id": { "type": "string" },
+          "action": { "enum": ["keep", "cut", "trim"] },
+          "target": { "enum": ["pause", "filler", "repetition", "self-correction", "block", "segment"] },
+          "start": { "type": "number", "minimum": 0 },
+          "end": { "type": "number", "exclusiveMinimum": 0 },
+          "keepFrom": { "type": "number", "minimum": 0 },
+          "keepTo": { "type": "number", "minimum": 0 },
+          "reason": {
+            "enum": [
+              "dead-air", "thinking-pause-trim", "breath-keep", "filler-noise", "filler-rhythm-keep",
+              "stumble", "repetition", "rhetorical-keep", "self-correction-keep", "humor-keep",
+              "emotion-peak-keep", "tangent", "human-floor-keep", "keep"
+            ]
+          },
+          "humanValue": { "type": "number", "minimum": 0, "maximum": 1 },
+          "refs": { "type": "array", "items": { "type": "string" } },
+          "note": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "keepSpans": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["start", "end"],
+        "properties": {
+          "start": { "type": "number", "minimum": 0 },
+          "end": { "type": "number", "exclusiveMinimum": 0 }
+        }
+      }
+    },
+    "cutSpans": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["start", "end", "reason"],
+        "properties": {
+          "start": { "type": "number", "minimum": 0 },
+          "end": { "type": "number", "exclusiveMinimum": 0 },
+          "reason": { "type": "string" }
+        }
+      }
+    },
+    "metrics": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["fillerTotal", "fillerKept", "fillerKeepRate", "pauseTotalSeconds", "pauseKeptSeconds", "pauseKeepRate", "removedSeconds", "keptSeconds", "humanSignalsKept", "smoothingRisk", "decisions"],
+      "properties": {
+        "fillerTotal": { "type": "integer", "minimum": 0 },
+        "fillerKept": { "type": "integer", "minimum": 0 },
+        "fillerKeepRate": { "type": "number", "minimum": 0, "maximum": 1 },
+        "pauseTotalSeconds": { "type": "number", "minimum": 0 },
+        "pauseKeptSeconds": { "type": "number", "minimum": 0 },
+        "pauseKeepRate": { "type": "number", "minimum": 0, "maximum": 1 },
+        "removedSeconds": { "type": "number", "minimum": 0 },
+        "keptSeconds": { "type": "number", "minimum": 0 },
+        "humanSignalsKept": { "type": "integer", "minimum": 0 },
+        "smoothingRisk": { "type": "number", "minimum": 0, "maximum": 1 },
+        "decisions": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["keep", "cut", "trim"],
+          "properties": {
+            "keep": { "type": "integer", "minimum": 0 },
+            "cut": { "type": "integer", "minimum": 0 },
+            "trim": { "type": "integer", "minimum": 0 }
+          }
+        }
+      }
+    },
+    "splitCandidates": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["blockId", "title", "start", "end", "reason"],
+        "properties": {
+          "blockId": { "type": "string" },
+          "title": { "type": "string" },
+          "start": { "type": "number", "minimum": 0 },
+          "end": { "type": "number", "exclusiveMinimum": 0 },
+          "reason": { "type": "string" }
+        }
+      }
+    },
+    "notes": { "type": "array", "items": { "type": "string" } }
+  }
+}

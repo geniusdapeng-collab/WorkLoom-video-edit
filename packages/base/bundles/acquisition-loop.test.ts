@@ -207,12 +207,14 @@ describe("多领域融合：组合岗位编制裁决", () => {
      * 2026-09-27 新增 ai-video「开场钩子设计师」（81）——短平台前 3 秒钩子（钩子卡/首镜模板/钩子音效）。
      * 2026-10-10 新增 video-edit「视频AI剪辑」11 岗（素材馆员/信号分析师/镜头理解师/高光猎手/创意织工/
      *             叙事架构师/剪辑指导/文案字幕师/剪辑质检师/剪辑合成师/剪辑制片）——真实素材二次创作管线（92）。
+     * 2026-10-11 新增 video-edit「AI 口播精剪」4 岗（逐字稿师/口播精剪师/情绪导演/点睛设计师）
+     *             ——口播管线：ASR 逐字稿 + 情绪与活人感双主轴，新增 8 条口播围栏 G-TK1..G-TK8（96）。
      */
     const declared = VIEWS.reduce((sum, bundle) => sum + bundle.presets.size, 0);
     const shadowed = composed.shadowed.length;
     expect(keys.length).toBe(declared - shadowed);
     expect(shadowed).toBe(4);
-    expect(keys.length).toBe(92);
+    expect(keys.length).toBe(96);
   });
 
   it("同名岗位按主包声明落到权威归属包", () => {

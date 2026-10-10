@@ -16,8 +16,8 @@ rules:
     level: auto
     is_baseline: true
     match:
-      object_types: [footage_asset, footage_probe, shot_record, highlight_pick, keyframe_candidate, media_index_entry, edit_intent, creative_set, story_plan, edit_script, edit_timeline, caption_script, cut_report]
-      actions: [footage.register, footage.transcode, probe.scan, shot.describe, highlight.score, keyframe.pick, index.build, intent.parse, idea.diverge, story.design, story.review, edit.plan, edit.timeline, edit.script, caption.write, title.pick, cut.inspect, cut.report, produce.dispatch]
+      object_types: [footage_asset, footage_probe, shot_record, highlight_pick, keyframe_candidate, media_index_entry, edit_intent, creative_set, story_plan, edit_script, edit_timeline, caption_script, cut_report, talk_transcript, talk_emotion, talk_cut_plan, talk_annotation]
+      actions: [footage.register, footage.transcode, probe.scan, shot.describe, highlight.score, keyframe.pick, index.build, intent.parse, idea.diverge, story.design, story.review, edit.plan, edit.timeline, edit.script, caption.write, title.pick, cut.inspect, cut.report, produce.dispatch, talk.transcribe, talk.mark, talk.emotion, talk.pace, talk.cut, talk.annotate]
     when: "true"
     note: 素材登记/代理转码/信号解析/镜头理解/高光打分/索引/创意与脚本撰写都是工位本地、非破坏、可回滚动作（原文件只读 + 新文件 + sha256 回执），默认直通；授权（G-ED2）、原件保护（G-ED1）、证据（G-ED3/G-ED4）与付费授权（G-ED5）叠加升级，deny 优先并集取严。
 

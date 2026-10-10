@@ -1,11 +1,11 @@
 {
   "schemaVersion": "workloom.bundle/v1",
   "name": "@workloom/video-edit",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "workloom": {
     "industry": "video-edit",
     "displayName": "剪辑台 · 视频AI剪辑与二次创作系统",
-    "description": "真实拍摄与 AI 生成视频的 AI 剪辑候选包：素材入库→信号解析→镜头理解→高光/关键帧挖掘→媒资索引→创作意图→创意发散与评审→叙事结构→帧级剪辑脚本→字幕文案→剪辑质检→本地合成，再把成片交回 AI 视频既有后期链路（调色/字幕/配音/配乐/封面/多风格交付/返修）。",
+    "description": "真实拍摄与 AI 生成视频的 AI 剪辑候选包：素材入库→信号解析→镜头理解→高光/关键帧挖掘→媒资索引→创作意图→创意发散与评审→叙事结构→帧级剪辑脚本→字幕文案→剪辑质检→本地合成，再把成片交回 AI 视频既有后期链路（调色/字幕/配音/配乐/封面/多风格交付/返修）。另含 AI 口播精剪管线（edit-talk）：逐字稿（ASR 词级）与情绪/活人感双主轴 → 逐句留删决策（人味台账与下限）→ 跳切推近遮盖 → 逐字字幕 → 知识点弹幕/贴纸/章节 → 口播质检。",
     "status": "candidate",
     "owner": "WorkLoom 视频AI剪辑产品组",
     "example": false,
@@ -26,10 +26,15 @@
         "presets/caption-writer.yml",
         "presets/cut-inspector.yml",
         "presets/edit-compositor.yml",
-        "presets/edit-producer.yml"
+        "presets/edit-producer.yml",
+        "presets/talk-transcriber.yml",
+        "presets/talk-editor.yml",
+        "presets/talk-emotion-director.yml",
+        "presets/talk-annotator.yml"
       ],
       "fences": [
-        "fences/video-edit-baseline.yml"
+        "fences/video-edit-baseline.yml",
+        "fences/talk-edit-baseline.yml"
       ],
       "skills": [
         "skills/footage-ingest/SKILL.md",
@@ -40,7 +45,11 @@
         "skills/narrative-structure/SKILL.md",
         "skills/edit-scripting/SKILL.md",
         "skills/caption-craft/SKILL.md",
-        "skills/cut-review/SKILL.md"
+        "skills/cut-review/SKILL.md",
+        "skills/talk-transcription/SKILL.md",
+        "skills/talk-cutting/SKILL.md",
+        "skills/talk-emotion/SKILL.md",
+        "skills/talk-annotation/SKILL.md"
       ],
       "schemas": [
         "schemas/objects.json",
@@ -49,13 +58,17 @@
         "schemas/highlight-pick.schema.json",
         "schemas/keyframe-candidate.schema.json",
         "schemas/edit-timeline.schema.json",
-        "schemas/creative-set.schema.json"
+        "schemas/creative-set.schema.json",
+        "schemas/talk-transcript.schema.json",
+        "schemas/talk-emotion.schema.json",
+        "schemas/talk-cut-list.schema.json"
       ],
       "ui": [
         "ui/cases.json"
       ],
       "pipelines": [
-        "pipelines/edit-film.yml"
+        "pipelines/edit-film.yml",
+        "pipelines/edit-talk.yml"
       ],
       "modelPolicy": "model-policy.yml",
       "evalQuestions": "eval/questions.json"
@@ -158,12 +171,14 @@
   },
   "integrity": {
     "algorithm": "sha256",
-    "digest": "811f72eb1c7450fdd2e49965f9362c2aa9e18f981955b0b17f89c05322238595",
+    "digest": "057c3e303f6713936523dfbd69e63e1dbdc4b60774a8bec2594e2c9d4602376b",
     "assets": {
-      "eval/questions.json": "7b942c9f8ade853cd6c1c2bf446f122b3c00e10c6e54bd374a4719473d5817fa",
-      "fences/video-edit-baseline.yml": "b2849c70b2d5df25ebb3098a5da2cdaf6d331e1a6833d825bce0ecb2d10e6636",
-      "model-policy.yml": "515f7d2dbbff6aa94297abf15e5195d3544b81ea09a3dc22219242de6c934e94",
+      "eval/questions.json": "b3f5ab1ec148a34d9e72bac1e9947de49e30d62417d6ede5734b12a8dccaf17f",
+      "fences/talk-edit-baseline.yml": "cf474c8f18b2b0547f45beab680ba3d101f3fb63e2bff7d4b2f5f0787bf60d26",
+      "fences/video-edit-baseline.yml": "fa34c9750621b790522acebe9d2d3332b45803965b84ca0cbb47e65b4d74869e",
+      "model-policy.yml": "84773cb9df3f02dd63a17c82d72acb8f4f2f5d686f3e218cea8497249e522e1b",
       "pipelines/edit-film.yml": "6985344b8b7a023453e083fe2c05943a0bf6e7affed92e46360987624c5c4e9f",
+      "pipelines/edit-talk.yml": "6a5d923a6f3c971ebc79ce0b2f1871b87f8dd015ae255f62c265352200e709b6",
       "presets/caption-writer.yml": "622c9bb961b94cba20aff4cdf7e6d7d7c8f0298ae98b7b0b19464fae263fadeb",
       "presets/creative-weaver.yml": "bc45ff9ce9e31aae3e8a6978a1f2c7c10530914f7180c45219b8c3e17d3ee86f",
       "presets/cut-inspector.yml": "238529a09acd36bb23b7f46b4c5233f684a57423d30ec6378a5dd498045b85a2",
@@ -175,13 +190,20 @@
       "presets/shot-understander.yml": "98fe8d736e4279d3f4450039ea558096c5a258715d00dbbc7e8e64f24ce324c5",
       "presets/signal-analyst.yml": "ac854c3d02746bd7992f614ea87ffbd8eba7a12492039ba8958ea857a0a0d27f",
       "presets/story-architect.yml": "5693f157f4487512b7fa84aea1904ab60c3ef4b70253553d53ed2e33338e513f",
+      "presets/talk-annotator.yml": "0ec53260f2de1098bce26a7d9891c5c0094489cdabc2abd845d9314bb7f349c7",
+      "presets/talk-editor.yml": "e3c2bbb2597d21a11e60a9fb14544880e04f9ee5e6741a9361c3f0144dfb93b1",
+      "presets/talk-emotion-director.yml": "75e8c97d92677a20c2cdf454e80a5e1d31b6a1ae2580c14611949c347a8ee186",
+      "presets/talk-transcriber.yml": "3367b99af616b10a0e23d8a28ed5c52ed4a3ed18601cd4090afdec8814a3b250",
       "schemas/creative-set.schema.json": "76a375892ded1ec441d2370a8bcdef575fd6a604d015ce5f0d06d101f212ded4",
-      "schemas/edit-timeline.schema.json": "5143efac8efd6b636e950b6c36d3dac7a6926f1e06ebbeb46e7db396dbc7016e",
+      "schemas/edit-timeline.schema.json": "00d62d5e591dc913623dc1a3c8594ef21489bea189005bb072d9d5d311d0c2c8",
       "schemas/footage-analysis.schema.json": "e4f2e11c0a9755eebda62e545e96db66961b71e4d4e8bc5e45b1d5f6ab170427",
       "schemas/highlight-pick.schema.json": "54a56a59456f53ca5f5543ec655447e660309ba3fa936622df7418ee4c887f7c",
       "schemas/keyframe-candidate.schema.json": "15f213ef8269714765da7d2a2dfc934b7b9e3ccd17e81f619b659ae79c42e871",
-      "schemas/objects.json": "2663e83f55f8ae98d1e53d40e9fca2ac695d5d69c4f465773665a8c17349f1ec",
-      "schemas/stages.json": "f41bf9060f3731da960271c40661566b1567f2874d714bcfb68691fdd5071743",
+      "schemas/objects.json": "1fd65d89aa47cdda9cd81c9e591be860c417397606c44546c299d10885b66bcb",
+      "schemas/stages.json": "87fb28ef8f1102b18a0c73c4cc3934e5142d5825daba8e1e033bb0456238b847",
+      "schemas/talk-cut-list.schema.json": "14328f5e7056ff0b0e74779ed9868576ced3a24f85f308ab3303be49be4f063e",
+      "schemas/talk-emotion.schema.json": "6f1c13abb84ca2eb24c89db0e67ecbce814307c58cac62f073f7c177bb9702c8",
+      "schemas/talk-transcript.schema.json": "72175c960337b4714676a1395d0c78b5e977e1d65eace400dd7ad675ee9d3622",
       "skills/caption-craft/SKILL.md": "0805f41ec10cf4e181ecc33f791bb6376994e2ac1850dc6d3035916e10f990ea",
       "skills/creative-ideation/SKILL.md": "7741a4fe350cf6d96dfad89c5fb41e7c8400fd7b64fc28cbd5b6465460587a4b",
       "skills/cut-review/SKILL.md": "d5e5a36b5e225d048185b79e18cb36385ebb255ad97c7d01603ca5c6d78c0f69",
@@ -191,6 +213,10 @@
       "skills/media-indexing/SKILL.md": "2552945bb701d26b196141c849d9c529598541ed4327a4ebb2c0624ec2f27e15",
       "skills/narrative-structure/SKILL.md": "73136242527dc67805d5051af874921bc127a2f64a0887f263681b0963609456",
       "skills/shot-understanding/SKILL.md": "8e7fe75cd1f857b3e74c092638140848c22e6ddaa773f9821fadd08e8df4b8c8",
+      "skills/talk-annotation/SKILL.md": "a650fa8b4f09a15acb9a9495a10b21b57b3943d85ac7fda3855f2c7c17be052a",
+      "skills/talk-cutting/SKILL.md": "3ca64fd8cf630f30b93640f2b512b485fbf6714914b8dab39c02cb9dce2689c8",
+      "skills/talk-emotion/SKILL.md": "db0b9c45c3973f016206dc390ffcfb62696d6305067744b458bc4e96e293472f",
+      "skills/talk-transcription/SKILL.md": "200062523919dc057f8e344b6f05a1d1d38df724648a2aa55d4eccd9e717a776",
       "ui/cases.json": "1538b11ca74db14adf78b49a4b28e0d43fdd383ff6a027f45a7599c7041f8eb6"
     }
   }

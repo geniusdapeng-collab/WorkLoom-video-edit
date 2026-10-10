@@ -1,0 +1,111 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "workloom://bundles/video-edit/schemas/talk-emotion",
+  "title": "talk_emotion（口播情绪与活人感 v1）",
+  "description": "口播第二主轴：句级情绪曲线（本地声学可复算）+ 三类峰值 + 活人感信号。通道纪律：效价与情绪词只有标注通道能给出，没有通道写空，不猜；笑声必须来自标注，不靠能量推断。执行器：pnpm edit:talk-emotion。",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "channel", "prosody", "curve", "peaks", "humanness"],
+  "properties": {
+    "schemaVersion": { "const": "workloom.video-edit/talk-emotion/v1" },
+    "channel": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["acoustic", "semantic"],
+      "properties": {
+        "acoustic": { "enum": ["local", "none"] },
+        "semantic": { "enum": ["model", "labels", "none"] }
+      }
+    },
+    "prosody": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sentences", "meanCharsPerSecond", "paceVariation"],
+      "properties": {
+        "meanCharsPerSecond": { "type": "number", "minimum": 0 },
+        "paceVariation": { "type": "number", "minimum": 0 },
+        "sentences": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["sentenceId", "text", "start", "end", "durationSeconds", "charsPerSecond", "paceRatio", "energyDb", "pauseAfterSeconds", "maxInnerPauseSeconds"],
+            "properties": {
+              "sentenceId": { "type": "string" },
+              "text": { "type": "string" },
+              "start": { "type": "number", "minimum": 0 },
+              "end": { "type": "number", "exclusiveMinimum": 0 },
+              "durationSeconds": { "type": "number", "minimum": 0 },
+              "charsPerSecond": { "type": "number", "minimum": 0 },
+              "paceRatio": { "type": "number", "minimum": 0 },
+              "energyDb": { "type": ["number", "null"] },
+              "pauseAfterSeconds": { "type": "number", "minimum": 0 },
+              "maxInnerPauseSeconds": { "type": "number", "minimum": 0 }
+            }
+          }
+        }
+      }
+    },
+    "curve": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["sentenceId", "t", "arousal", "intensity"],
+        "properties": {
+          "sentenceId": { "type": "string" },
+          "t": { "type": "number", "minimum": 0 },
+          "arousal": { "type": "number", "minimum": 0, "maximum": 1 },
+          "valence": { "type": ["number", "null"], "minimum": -1, "maximum": 1 },
+          "intensity": { "type": "number", "minimum": 0, "maximum": 1 },
+          "label": { "type": ["string", "null"] },
+          "evidence": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    },
+    "peaks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["sentenceId", "t", "intensity", "kind", "reason"],
+        "properties": {
+          "sentenceId": { "type": "string" },
+          "t": { "type": "number", "minimum": 0 },
+          "intensity": { "type": "number", "minimum": 0, "maximum": 1 },
+          "kind": { "enum": ["emotion_peak", "insight_peak", "humor_peak"] },
+          "reason": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "humanness": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["score", "signals"],
+      "properties": {
+        "score": { "type": "number", "minimum": 0, "maximum": 1 },
+        "signals": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["laughter", "sighs", "selfCorrections", "emphasisRepeats", "paceVariation"],
+          "properties": {
+            "laughter": { "type": "integer", "minimum": 0 },
+            "sighs": { "type": "integer", "minimum": 0 },
+            "selfCorrections": { "type": "integer", "minimum": 0 },
+            "emphasisRepeats": { "type": "integer", "minimum": 0 },
+            "paceVariation": { "type": "number", "minimum": 0 },
+            "loudnessRangeDb": { "type": ["number", "null"] }
+          }
+        },
+        "notes": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "source": {
+      "type": ["object", "null"],
+      "additionalProperties": true,
+      "description": "溯源块：逐字稿路径/通道/精度、包络来源、标注条数（执行器写入，供回执核对）"
+    }
+  }
+}

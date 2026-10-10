@@ -22,10 +22,10 @@
 | [ai-video](../bundles/ai-video/bundle.json) | 1.0.0 | candidate | 42 | 35 | 6 |
 | [geo-growth](../bundles/geo-growth/bundle.json) | 1.0.0 | candidate | 27 | 29 | 4 |
 | [hotel](../bundles/hotel/bundle.json) | 3.4.0 | candidate | 16 | 30 | 1 |
-| [video-edit](../bundles/video-edit/bundle.json) | 0.2.0 | candidate | 11 | 9 | 1 |
-| 声明合计 | — | — | 96 | 103 | 12 |
+| [video-edit](../bundles/video-edit/bundle.json) | 0.3.0 | candidate | 15 | 13 | 2 |
+| 声明合计 | — | — | 100 | 107 | 13 |
 
-岗位文件的 `preset_key` 去重得到 **92 个不同标识**；这是本仓声明去重计数，实际依赖装配和同名权威归属以主包 `composition.presetOwners` 与 [装配器](../packages/base/bundles/assembly.ts) 为准。
+岗位文件的 `preset_key` 去重得到 **96 个不同标识**；这是本仓声明去重计数，实际依赖装配和同名权威归属以主包 `composition.presetOwners` 与 [装配器](../packages/base/bundles/assembly.ts) 为准。
 
 ## 代码与资产入口（43 项）
 
@@ -48,7 +48,7 @@
 | **bundles/ai-video/** | 42 条岗位定义 / 35 项技能路径 / 6 条管线；版本 1.0.0，状态 candidate；不等于已接通功能数 | [manifest](../bundles/ai-video/bundle.json) | 是 | 未验证 | 未验证 |
 | **bundles/geo-growth/** | 27 条岗位定义 / 29 项技能路径 / 4 条管线；版本 1.0.0，状态 candidate；不等于已接通功能数 | [manifest](../bundles/geo-growth/bundle.json) | 是 | 未验证 | 未验证 |
 | **bundles/hotel/** | 16 条岗位定义 / 30 项技能路径 / 1 条管线；版本 3.4.0，状态 candidate；不等于已接通功能数 | [manifest](../bundles/hotel/bundle.json) | 是 | 未验证 | 未验证 |
-| **bundles/video-edit/** | 11 条岗位定义 / 9 项技能路径 / 1 条管线；版本 0.2.0，状态 candidate；不等于已接通功能数 | [manifest](../bundles/video-edit/bundle.json) | 是 | 未验证 | 未验证 |
+| **bundles/video-edit/** | 15 条岗位定义 / 13 项技能路径 / 2 条管线；版本 0.3.0，状态 candidate；不等于已接通功能数 | [manifest](../bundles/video-edit/bundle.json) | 是 | 未验证 | 未验证 |
 
 ### 🧑‍💼 岗位与交互入口
 

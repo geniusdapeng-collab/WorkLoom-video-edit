@@ -24,6 +24,16 @@ export type AudioMode = (typeof AUDIO_MODES)[number];
 
 export const ORIGINAL_AUDIO_POLICIES = ["keep", "duck_under_bgm", "replace", "mute"] as const;
 
+/**
+ * 同源片段间隔策略（2026-10-11 新增，口播精剪所需）：
+ *   · `standard`（默认）：同一源素材的多段选择必须间隔 ≥1s——防止"同一条素材反复用"造成跳帧感；
+ *   · `single-take-talking-head`：口播精剪场景。一条长镜头内按句删停顿/语气词，间隔天然 <1s，
+ *     这是**体裁本身的要求**，不是复用错误；此策略下间隔检查不再作为硬闸，取而代之的是
+ *     更严的"源轨顺序必须单调递增（不允许回跳）"与"跳切必须有遮盖计划"两条。
+ */
+export const SOURCE_GAP_POLICIES = ["standard", "single-take-talking-head"] as const;
+export type SourceGapPolicy = (typeof SOURCE_GAP_POLICIES)[number];
+
 export interface EditTimelineSource {
   sourceId: string;
   sha256: string;
@@ -54,6 +64,11 @@ export interface EditTimelineSegment {
   transitionIn?: EditTimelineTransition | null;
   audio?: { mode?: AudioMode | null; gainDb?: number | null; jCutOffsetSeconds?: number | null; note?: string | null } | null;
   subtitle?: { lines?: string[]; placement?: string | null; emphasis?: string | null } | null;
+  /**
+   * 跳切遮盖用的推近（punch-in）：scale 1.0–1.5（1.12 = 放大 12%），x/y 为裁切中心比例（0–1，缺省居中）。
+   * 口播精剪里"删掉停顿后的同机位跳切"必须靠推近或切镜遮盖，否则观众会看到"跳帧"。
+   */
+  punchIn?: { scale?: number | null; x?: number | null; y?: number | null; note?: string | null } | null;
   masterIn?: number | null;
   masterOut?: number | null;
 }
@@ -64,6 +79,8 @@ export interface EditTimeline {
   filmId?: string | null;
   revision?: number;
   prevRevision?: number | null;
+  /** 同源片段间隔策略（缺省 standard；口播精剪用 single-take-talking-head） */
+  sourceGapPolicy?: SourceGapPolicy | null;
   /** 节奏档案（可选）：缺省按 documentary 咨询项给出；不写也能出片 */
   pacing?: PacingSpec | null;
   target: {
@@ -123,6 +140,11 @@ export const PACING_PROFILES = {
   fast_cut: { maxScenes: 8, maxClipsPerScene: 10, clipSeconds: [0.5, 3.0] as [number, number], cutsPerMinute: [30, 70] as [number, number], scene1MinSeconds: 3, hookSeconds: 3 },
   /** 信息流/产品：前 3 秒给结论，之后按信息点推进 */
   information: { maxScenes: 6, maxClipsPerScene: 8, clipSeconds: [1.0, 4.0] as [number, number], cutsPerMinute: [20, 40] as [number, number], scene1MinSeconds: 3, hookSeconds: 3 },
+  /**
+   * 口播精剪（talking-head）：一条长镜头内按句子切分，段长天然比 Vlog 长（说话要成句），
+   * 切点密度也低于快剪——口播的节奏靠"内容与情绪推进"，不靠切点堆量。
+   */
+  talk: { maxScenes: 10, maxClipsPerScene: 12, clipSeconds: [1.0, 12.0] as [number, number], cutsPerMinute: [8, 30] as [number, number], scene1MinSeconds: 3, hookSeconds: 3 },
 } as const;
 export type PacingProfileId = keyof typeof PACING_PROFILES;
 export interface PacingSpec {
@@ -242,6 +264,22 @@ export function validateEditTimeline(timeline: EditTimeline): TimelineValidation
       add(`audio.mode:${segment.segmentId}`, false, true, `片段 ${segment.segmentId} 声音模式 ${String(segment.audio.mode)} 不在枚举内`,
         { segmentId: segment.segmentId, field: "audio.mode", action: `改用 ${AUDIO_MODES.join("/")} 之一`, severity: "hard" });
     }
+    const punchIn = segment.punchIn;
+    if (punchIn) {
+      const scale = punchIn.scale ?? 1;
+      if (!Number.isFinite(scale) || scale < 1 || scale > 1.5) {
+        add(`punchIn.scale:${segment.segmentId}`, false, true, `片段 ${segment.segmentId} 推近倍率 ${String(punchIn.scale)} 越界（1.0–1.5）`,
+          { segmentId: segment.segmentId, field: "punchIn.scale", action: "收窄到 1.0–1.5（口播跳切常用 1.08–1.15）", severity: "hard" });
+      }
+      for (const axis of ["x", "y"] as const) {
+        const value = punchIn[axis];
+        if (value === null || value === undefined) continue;
+        if (!Number.isFinite(value) || value < 0 || value > 1) {
+          add(`punchIn.${axis}:${segment.segmentId}`, false, true, `片段 ${segment.segmentId} 推近中心 ${axis}=${String(value)} 越界（0–1）`,
+            { segmentId: segment.segmentId, field: `punchIn.${axis}`, action: "改为 0–1 的比例（0.5 = 居中）", severity: "hard" });
+        }
+      }
+    }
     const list = bySource.get(segment.sourceId) ?? [];
     list.push({ segmentId: segment.segmentId, in: segment.sourceIn, out: segment.sourceOut });
     bySource.set(segment.sourceId, list);
@@ -251,7 +289,15 @@ export function validateEditTimeline(timeline: EditTimeline): TimelineValidation
 
   let overlapOk = true;
   let gapOk = true;
+  let jumpCutCount = 0;
+  let punchInCovered = 0;
   let minGap = Number.POSITIVE_INFINITY;
+  const gapPolicy: SourceGapPolicy = timeline.sourceGapPolicy ?? "standard";
+  if (timeline.sourceGapPolicy !== undefined && timeline.sourceGapPolicy !== null
+    && !SOURCE_GAP_POLICIES.includes(timeline.sourceGapPolicy)) {
+    add("timeline.sourceGapPolicy", false, true, `未知同源间隔策略：${String(timeline.sourceGapPolicy)}`,
+      { segmentId: "-", field: "sourceGapPolicy", action: `改用 ${SOURCE_GAP_POLICIES.join(" / ")}`, severity: "hard" });
+  }
   for (const [sourceId, spans] of bySource) {
     const sorted = [...spans].sort((a, b) => a.in - b.in);
     for (let i = 1; i < sorted.length; i += 1) {
@@ -266,6 +312,26 @@ export function validateEditTimeline(timeline: EditTimeline): TimelineValidation
       }
       const gap = current.in - previous.out;
       minGap = Math.min(minGap, gap);
+      if (gap > 0.02) {
+        jumpCutCount += 1;
+        /**
+         * 遮盖口径是"边界"而不是"单段"：跳切发生在两段之间，只要前后两段的推近倍率不同，
+         * 观众看到的就是一次景别变化（1.0 ↔ 1.12 交替即 100% 覆盖），而不是跳帧。
+         */
+        const currentSegment = (timeline.segments ?? []).find((entry) => entry.segmentId === current.segmentId);
+        const previousSegment = (timeline.segments ?? []).find((entry) => entry.segmentId === previous.segmentId);
+        const currentScale = currentSegment?.punchIn?.scale ?? 1;
+        const previousScale = previousSegment?.punchIn?.scale ?? 1;
+        if (Math.abs(currentScale - previousScale) > 0.001) punchInCovered += 1;
+      }
+      /**
+       * 口播策略：允许密集跳切（间隔天然 <1s），但要求"跳切有遮盖计划"（推近 punch-in），
+       * 遮盖不足只作咨询项——审美口径不得写成硬闸（T-2026-0930-0015）。
+       */
+      if (gapPolicy === "single-take-talking-head") {
+        /** 口播的密集跳切是体裁要求：逐条提示会淹没报告，改成末尾一条聚合项（talk.jumpCutCoverage）。 */
+        continue;
+      }
       if (gap < MIN_SAME_SOURCE_GAP_SECONDS) {
         gapOk = false;
         add(`source.gap:${sourceId}:${current.segmentId}`, false, true,
@@ -277,7 +343,27 @@ export function validateEditTimeline(timeline: EditTimeline): TimelineValidation
     }
   }
   add("timeline.noOverlap", overlapOk, true, overlapOk ? "同源片段无重叠" : "存在同源重叠", undefined);
-  add("timeline.sameSourceGap", gapOk, true, gapOk ? `同源最小间隔 ${Number.isFinite(minGap) ? `${round(minGap)}s` : "不适用"}` : "存在间隔不足", undefined);
+  if (gapPolicy === "single-take-talking-head") {
+    /** 口播的替代硬闸：源轨顺序必须单调递增（允许删中间，不允许回跳复用）。 */
+    let monotonic = true;
+    let previousStart = Number.NEGATIVE_INFINITY;
+    for (const segment of timeline.segments ?? []) {
+      if (segment.sourceIn < previousStart - 0.001) monotonic = false;
+      previousStart = segment.sourceIn;
+    }
+    add("talk.monotonicOrder", monotonic, true,
+      monotonic ? "口播策略：源轨顺序单调递增（无回跳复用）" : "口播策略下片段源轨出现回跳（同一段被复用）",
+      monotonic ? undefined : { segmentId: "-", field: "segments[].sourceIn", action: "按源轨时间顺序重排；确要复用同一句请显式声明新版本", severity: "hard" });
+    const coverage = jumpCutCount === 0 ? 1 : round(punchInCovered / jumpCutCount, 2);
+    add("talk.jumpCutCoverage", true, false,
+      `跳切 ${jumpCutCount} 处，推近遮盖 ${punchInCovered} 处（覆盖率 ${coverage}）；低于 50% 时同机位跳切会有"跳帧"观感`,
+      undefined);
+    add("timeline.sameSourceGap", true, false,
+      `口播精剪策略：允许同源密集跳切（最小间隔 ${Number.isFinite(minGap) ? `${round(minGap)}s` : "不适用"}）——由 talk.monotonicOrder 与 talk.jumpCutCoverage 替代管理`,
+      undefined);
+  } else {
+    add("timeline.sameSourceGap", gapOk, true, gapOk ? `同源最小间隔 ${Number.isFinite(minGap) ? `${round(minGap)}s` : "不适用"}` : "存在间隔不足", undefined);
+  }
 
   const master = computeMasterTimeline(timeline.segments ?? []);
   let continuous = true;
@@ -448,9 +534,19 @@ export function planAssembly(
     const filters = [
       `scale=${width}:${height}:force_original_aspect_ratio=decrease`,
       `pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2`,
-      "setsar=1",
-      `fps=${fps}`,
     ];
+    /**
+     * 跳切遮盖（punch-in）：把已归一化的画面再放大后中心裁切，产出同尺寸的"推近版"。
+     * 只放大不改变音频（口播靠推近给观众"换镜头"的错觉，避免密集跳切的跳帧感）。
+     */
+    const punchScale = segment.punchIn?.scale ?? 1;
+    if (Number.isFinite(punchScale) && punchScale > 1.0001) {
+      const xRatio = segment.punchIn?.x ?? 0.5;
+      const yRatio = segment.punchIn?.y ?? 0.5;
+      filters.push(`scale=w='ceil(iw*${round(punchScale, 4)}/2)*2':h='ceil(ih*${round(punchScale, 4)}/2)*2'`);
+      filters.push(`crop=w=${width}:h=${height}:x='(iw-ow)*${round(xRatio, 4)}':y='(ih-oh)*${round(yRatio, 4)}'`);
+    }
+    filters.push("setsar=1", `fps=${fps}`);
     if (speed !== 1) filters.unshift(`setpts=${round(1 / speed, 6)}*PTS`);
     const output = `${workDir}/seg-${String(index).padStart(3, "0")}-${segment.segmentId}.mp4`;
     /**

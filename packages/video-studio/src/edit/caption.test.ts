@@ -173,3 +173,117 @@ describe("edit/caption：字幕规则引擎", () => {
     expect(countVisualChars("一二三\n四")).toBe(4);
   });
 });
+
+/**
+ * 口播口径（2026-10-11，随 AI 口播精剪管线新增）：
+ * 口播字幕跟着说话出字——不套 ≥2s 门槛与字数带，改守"一屏两行 ≤24 字"与"逐字等于 ASR 稿"。
+ */
+describe("edit/caption：口播口径（--talk）", () => {
+  const talkTimeline = (durations: number[]): EditTimeline => timelineOf(durations);
+
+  const talkCaption = (
+    entries: Array<{ segmentId: string; text: string; source: string }>,
+    totalSeconds: number,
+  ): CaptionDocInput => ({
+    video_title: "口播测试",
+    video_id: "20261011-abcd1234",
+    total_duration: `00:${String(Math.round(totalSeconds)).padStart(2, "0")}`,
+    video_groups: [{
+      group_name: "口播正片",
+      /** 组时长必须与镜头时长之和一致（契约硬项），测试夹具按参数生成，避免与断言无关的硬失败。 */
+      group_duration: `00:${String(Math.round(totalSeconds)).padStart(2, "0")}`,
+      shots: entries.map((entry) => ({
+        segmentId: entry.segmentId,
+        original_timestamp: "00:00:00.000-00:00:10.000",
+        source_timestamp: entry.source,
+        subtitle_text: [{ text: entry.text }],
+      })),
+    }],
+  });
+
+  const transcript = {
+    sentences: [{
+      id: "s001",
+      words: [
+        { text: "大家", start: 0, end: 0.4 },
+        { text: "好", start: 0.4, end: 0.7 },
+        { text: "我", start: 0.8, end: 1.0 },
+        { text: "想说", start: 1.0, end: 1.3 },
+        { text: "三个", start: 10.0, end: 10.3 },
+        { text: "方法", start: 10.3, end: 10.6 },
+      ],
+    }],
+  };
+
+  it("短段也要出字：1.2s 段落的 5 字字幕在口播口径下通过（标准口径会报 tooShort）", () => {
+    const timeline = talkTimeline([1.2]);
+    const caption = talkCaption([{ segmentId: "seg-001", text: "大家好", source: "0.000-0.700" }], 1.2);
+    const talk = analyzeCaption({ timeline, caption, mode: "talk", transcript });
+    expect(talk.ok).toBe(true);
+    const standard = analyzeCaption({ timeline, caption });
+    expect(standard.ok).toBe(false);
+    /** 标准口径下 1.2s 单镜要么被判"太短不上字幕"，要么落在 VMG 里被判"合并太短"——两者都是硬失败。 */
+    expect(standard.issues.some((issue) => issue.severity === "hard" && /caption\.(tooShort|vmgTooShort)/u.test(issue.id))).toBe(true);
+  });
+
+  it("一屏上限：超过两行 / 24 字 / 单行 12 字都为硬失败", () => {
+    const timeline = talkTimeline([6]);
+    const tooLong = analyzeCaption({
+      timeline,
+      caption: talkCaption([{
+        segmentId: "seg-001",
+        text: "这是一句明显超过一屏两行限制的口播字幕内容特别长真的很长",
+        source: "0.000-0.700",
+      }], 6),
+      mode: "talk",
+      transcript,
+    });
+    expect(tooLong.ok).toBe(false);
+    expect(tooLong.issues.some((issue) => issue.id.startsWith("caption.talkLength:"))).toBe(true);
+
+    const threeLines = analyzeCaption({
+      timeline,
+      caption: talkCaption([{ segmentId: "seg-001", text: "第一行\n第二行\n第三行", source: "0.000-0.700" }], 6),
+      mode: "talk",
+      transcript,
+    });
+    expect(threeLines.ok).toBe(false);
+    expect(threeLines.issues.some((issue) => issue.id.startsWith("caption.talkLines:"))).toBe(true);
+
+    const wideLine = analyzeCaption({
+      timeline,
+      caption: talkCaption([{ segmentId: "seg-001", text: "这是一行超过十二个字的宽行", source: "0.000-0.700" }], 6),
+      mode: "talk",
+      transcript,
+    });
+    expect(wideLine.ok).toBe(false);
+    expect(wideLine.issues.some((issue) => issue.id.startsWith("caption.talkLineChars:"))).toBe(true);
+  });
+
+  it("逐字一致：字幕与 ASR 稿不一致即硬失败；一致时通过", () => {
+    const timeline = talkTimeline([1.5, 1.5]);
+    const good = talkCaption([
+      { segmentId: "seg-001", text: "大家好", source: "0.000-0.700" },
+      { segmentId: "seg-002", text: "我想说三个方法", source: "0.800-10.600" },
+    ], 3);
+    const goodResult = analyzeCaption({ timeline, caption: good, mode: "talk", transcript });
+    expect(goodResult.issues.filter((issue) => issue.id.startsWith("caption.verbatim"))).toEqual([]);
+    expect(goodResult.ok).toBe(true);
+
+    const rewritten = talkCaption([
+      { segmentId: "seg-001", text: "各位好", source: "0.000-0.700" },
+      { segmentId: "seg-002", text: "我想说三个方法", source: "0.800-10.600" },
+    ], 3);
+    const badResult = analyzeCaption({ timeline, caption: rewritten, mode: "talk", transcript });
+    expect(badResult.ok).toBe(false);
+    expect(badResult.issues.some((issue) => issue.id === "caption.verbatim:seg-001" && issue.severity === "hard")).toBe(true);
+  });
+
+  it("未提供逐字稿时只出咨询提示（不得伪称已校验）", () => {
+    const timeline = talkTimeline([1.5]);
+    const caption = talkCaption([{ segmentId: "seg-001", text: "大家好", source: "0.000-0.700" }], 1.5);
+    const result = analyzeCaption({ timeline, caption, mode: "talk" });
+    expect(result.ok).toBe(true);
+    expect(result.issues.some((issue) => issue.id === "caption.verbatimUnchecked:seg-001" && issue.severity === "advisory")).toBe(true);
+  });
+});

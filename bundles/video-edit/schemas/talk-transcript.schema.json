@@ -1,0 +1,186 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "workloom://bundles/video-edit/schemas/talk-transcript",
+  "title": "talk_transcript（口播逐字稿 v1）",
+  "description": "口播的唯一事实源：词级时间戳 + 原样文本 + 口语标记（语气词/停顿/重复/口误自纠）+ 话题块。纪律：① 逐字原样，不做书面化润色；② 精度如实标注（词级/句级），句级稿不得直接进精剪；③ 听不清标 [听不清]，禁止脑补。执行器：pnpm edit:talk-asr。",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "asset", "backend", "sentences", "words", "blocks", "marks", "stats"],
+  "properties": {
+    "schemaVersion": { "const": "workloom.video-edit/talk-transcript/v1" },
+    "asset": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["assetId", "sha256", "path", "language"],
+      "properties": {
+        "assetId": { "type": "string", "minLength": 3 },
+        "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "path": { "type": "string", "minLength": 1 },
+        "durationSeconds": { "type": ["number", "null"], "exclusiveMinimum": 0 },
+        "fps": { "type": ["number", "null"], "exclusiveMinimum": 0 },
+        "language": { "type": "string", "minLength": 2 }
+      }
+    },
+    "backend": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["channel", "engine", "precision"],
+      "properties": {
+        "channel": { "enum": ["imported", "local-mlx", "engine-http"] },
+        "engine": { "type": ["string", "null"] },
+        "precision": { "enum": ["word", "segment", "none"] },
+        "engineNote": { "type": ["string", "null"] }
+      }
+    },
+    "sentences": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "text", "start", "end", "words"],
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "text": { "type": "string" },
+          "start": { "type": "number", "minimum": 0 },
+          "end": { "type": "number", "exclusiveMinimum": 0 },
+          "pauseAfterSeconds": { "type": ["number", "null"], "minimum": 0 },
+          "words": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["text", "start", "end"],
+              "properties": {
+                "text": { "type": "string" },
+                "start": { "type": "number", "minimum": 0 },
+                "end": { "type": "number", "exclusiveMinimum": 0 }
+              }
+            }
+          }
+        }
+      }
+    },
+    "words": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["text", "start", "end"],
+        "properties": {
+          "text": { "type": "string" },
+          "start": { "type": "number", "minimum": 0 },
+          "end": { "type": "number", "exclusiveMinimum": 0 }
+        }
+      }
+    },
+    "blocks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "title", "start", "end", "sentenceIds"],
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "title": { "type": "string", "minLength": 1, "maxLength": 20 },
+          "start": { "type": "number", "minimum": 0 },
+          "end": { "type": "number", "exclusiveMinimum": 0 },
+          "sentenceIds": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+          "cue": { "type": ["string", "null"] }
+        }
+      }
+    },
+    "marks": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["fillers", "pauses", "repetitions", "selfCorrections"],
+      "properties": {
+        "fillers": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "text", "start", "end", "kind", "removability"],
+            "properties": {
+              "id": { "type": "string" },
+              "text": { "type": "string" },
+              "start": { "type": "number", "minimum": 0 },
+              "end": { "type": "number", "exclusiveMinimum": 0 },
+              "kind": { "enum": ["hesitation", "discourse"] },
+              "removability": { "type": "number", "minimum": 0, "maximum": 1 }
+            }
+          }
+        },
+        "pauses": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "start", "end", "kind", "durationSeconds", "betweenSentences"],
+            "properties": {
+              "id": { "type": "string" },
+              "text": { "type": "string" },
+              "start": { "type": "number", "minimum": 0 },
+              "end": { "type": "number", "exclusiveMinimum": 0 },
+              "kind": { "enum": ["breath", "thinking", "dead"] },
+              "durationSeconds": { "type": "number", "minimum": 0 },
+              "betweenSentences": { "type": "boolean" }
+            }
+          }
+        },
+        "repetitions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "text", "start", "end", "kind", "unitWords", "times", "gapSeconds", "keepOccurrence"],
+            "properties": {
+              "id": { "type": "string" },
+              "text": { "type": "string" },
+              "start": { "type": "number", "minimum": 0 },
+              "end": { "type": "number", "exclusiveMinimum": 0 },
+              "kind": { "enum": ["word-repeat", "phrase-repeat", "restart", "rhetorical"] },
+              "unitWords": { "type": "integer", "minimum": 1 },
+              "times": { "type": "integer", "minimum": 2 },
+              "gapSeconds": { "type": "number", "minimum": 0 },
+              "keepOccurrence": { "enum": ["first", "last", "all"] }
+            }
+          }
+        },
+        "selfCorrections": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "cue", "mistaken", "corrected", "start", "end", "durationSeconds"],
+            "properties": {
+              "id": { "type": "string" },
+              "cue": { "type": "string" },
+              "text": { "type": "string" },
+              "mistaken": { "type": "string" },
+              "corrected": { "type": "string" },
+              "start": { "type": "number", "minimum": 0 },
+              "end": { "type": "number", "exclusiveMinimum": 0 },
+              "durationSeconds": { "type": "number", "minimum": 0 }
+            }
+          }
+        }
+      }
+    },
+    "stats": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["wordCount", "sentenceCount", "speechSeconds", "fillerCount", "fillerRate", "pauseSeconds", "deadAirSeconds", "wpm"],
+      "properties": {
+        "wordCount": { "type": "integer", "minimum": 0 },
+        "sentenceCount": { "type": "integer", "minimum": 1 },
+        "speechSeconds": { "type": "number", "minimum": 0 },
+        "fillerCount": { "type": "integer", "minimum": 0 },
+        "fillerRate": { "type": "number", "minimum": 0, "maximum": 1 },
+        "pauseSeconds": { "type": "number", "minimum": 0 },
+        "deadAirSeconds": { "type": "number", "minimum": 0 },
+        "wpm": { "type": "integer", "minimum": 0 }
+      }
+    }
+  }
+}
