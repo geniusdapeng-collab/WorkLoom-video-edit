@@ -7,7 +7,10 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { assembleTimeline, buildDeliveryPackage, callTool, normaliseShots, readRevisionBase, reedit, resolveBinaries } from "./core.mjs";
+import {
+  assembleTimeline, buildDeliveryPackage, callTool, evaluateTransitionBlackCheck, loadTransitionCatalog, normaliseShots,
+  planXfadeCuts, readRevisionBase, reedit, resolveBinaries,
+} from "./core.mjs";
 import { describeAudioStemSources } from "../bgm-bridge/audio-stems.mjs";
 import { audioStemReceiptPayload } from "../bgm-bridge/audio-stems-trust.mjs";
 
@@ -32,6 +35,61 @@ const expectedBase = (file: string) => {
 };
 
 const cliPath = fileURLToPath(new URL("./cli.mjs", import.meta.url));
+
+describe("转场逐切计划解析（纯函数，不需要 FFmpeg）", () => {
+  const catalog = loadTransitionCatalog();
+  const version6 = { raw: "6.0", major: 6, minor: 0, banner: "ffmpeg version 6.0" };
+  const clipsAt = (seconds: number, count = 3) => Array.from({ length: count }, (_, index) => ({
+    shotId: `S${index + 1}`, duration: seconds, durationSec: seconds, path: `/tmp/s${index + 1}.mp4`,
+  }));
+
+  it("目录可加载且结构自检通过（意图与方向引用的转场都存在）", () => {
+    expect(catalog.schemaVersion).toBe("workloom.transition-catalog/v1");
+    expect(catalog.transitions.length).toBeGreaterThanOrEqual(46);
+    expect(catalog.intents.dissolve.type).toBe("fade");
+  });
+
+  it("未知转场名 fail-closed：明确报错而不是静默换一种", () => {
+    expect(() => planXfadeCuts({
+      clips: clipsAt(2.5), version: version6, catalog,
+      transitions: { mode: "xfade", perCut: { S2: { type: "flashy", durationSeconds: 0.5, explicit: true } } },
+    })).toThrowError(/未知转场/);
+  });
+
+  it("版本闸：FFmpeg 6.0 上使用 7.0 新增转场明确拒绝并指出所需版本", () => {
+    expect(() => planXfadeCuts({
+      clips: clipsAt(2.5), version: version6, catalog,
+      transitions: { mode: "xfade", perCut: { S2: { type: "hlwind", durationSeconds: 0.4, explicit: true } } },
+    })).toThrowError(/FFmpeg 7\.0/);
+  });
+
+  it("相邻镜头过短：降级硬切并留 note，不硬凑窗口", () => {
+    const planned = planXfadeCuts({
+      clips: clipsAt(0.4), version: version6, catalog,
+      transitions: { mode: "xfade", perCut: { S2: { intent: "dissolve", durationSeconds: 0.6 } } },
+    });
+    expect(planned.cuts).toEqual([]);
+    expect(planned.notes.join("\n")).toContain("降级为硬切");
+  });
+
+  it("legacy 口径保持历史钳制（下限 0.05s、不超过相邻镜头 1/2）", () => {
+    const planned = planXfadeCuts({
+      clips: clipsAt(1), version: version6, catalog,
+      transitions: { mode: "xfade", fadeSec: 0.8 },
+    });
+    expect(planned.cuts).toHaveLength(2);
+    expect(planned.cuts[0]!.durationSeconds).toBe(0.5);
+    expect(planned.cuts[0]!.type).toBe("fade");
+  });
+
+  it("黑场判定：只有转场引入的黑帧算缺陷，素材黑场与黑场类转场豁免", () => {
+    expect(evaluateTransitionBlackCheck({ blackFramesInside: 3, blackFramesOutside: 0 })).toMatchObject({ ok: false, introduced: true });
+    expect(evaluateTransitionBlackCheck({ blackFramesInside: 3, blackFramesOutside: 5 })).toMatchObject({ ok: true, introduced: false });
+    expect(evaluateTransitionBlackCheck({ blackFramesInside: 3, blackFramesOutside: 0 }, { blackDip: true })).toMatchObject({ ok: true, introduced: false });
+    expect(evaluateTransitionBlackCheck({ blackFramesInside: 0, blackFramesOutside: 0 })).toMatchObject({ ok: true, introduced: false });
+  });
+});
+
 function testLibrary(root: string) {
   const dir = path.join(root, "custom-library");
   fs.mkdirSync(dir);
@@ -180,6 +238,76 @@ describe.skipIf(!hasMediaTools)("后期真实总装与连续返修（需 FFmpeg/
     }
     expect(shots.map((shot) => hash(shot.path))).toEqual(sourceHashes);
   }, 150_000);
+
+  it("逐切转场计划真实渲染：类型/时长/缓动进回执，机检全过，成片时长按重叠收敛", async () => {
+    const output = path.join(root, "planned-transitions", "planned.mp4");
+    const sourceHashes = shots.map((shot) => hash(shot.path));
+    const result = await assembleTimeline({
+      clips: shots.map((shot) => ({ ...shot, duration: 2.5, durationSec: 2.5 })),
+      transitions: {
+        mode: "xfade",
+        perCut: {
+          // 第 1 刀：缓动叠化（custom 表达式，smoothstep）；第 2 刀：甩镜柔滑推移（native）
+          "NC-2": { intent: "dissolve", type: "fade", durationSeconds: 0.5, easing: "smooth", source: "declared", explicit: true, reason: "脚本声明 dissolve" },
+          "NC-3": { intent: "whip_pan", type: "smoothleft", durationSeconds: 0.25, easing: "native", source: "declared", explicit: true, reason: "脚本声明 whip_pan" },
+        },
+      },
+      output, resolution: [320, 240], fps: 30, bins,
+    });
+    const receipt = readJson(result.transitions.receiptPath);
+    expect(receipt.schemaVersion).toBe("workloom.transition-receipt/v1");
+    expect(receipt.mode).toBe("xfade");
+    expect(receipt.transitionCount).toBe(2);
+    expect(receipt.hardCutCount).toBe(0);
+    expect(receipt.cuts.map((cut: { type: string; easing: string }) => [cut.type, cut.easing]))
+      .toEqual([["fade", "smooth"], ["smoothleft", "native"]]);
+    expect(receipt.checks.filter((check: { hard?: boolean }) => check.hard === true).every((check: { ok: boolean }) => check.ok === true)).toBe(true);
+    expect(receipt.checks.map((check: { kind: string }) => check.kind)).toContain("transition_duration_matches_plan");
+    expect(receipt.evidence).toHaveLength(2);
+    for (const entry of receipt.evidence) {
+      expect(entry.measurement.frameSamples).toBeGreaterThanOrEqual(2);
+      expect(entry.measurement.blackFramesInside).toBe(0);
+    }
+    // 两刀重叠 0.5 + 0.25 → 7.5 - 0.75 = 6.75s（编码帧边界与 AAC 起始量化，容差 0.2s）
+    const plannedDuration = Number(readJsonProbe(output).format.duration);
+    expect(Math.abs(plannedDuration - 6.75)).toBeLessThanOrEqual(0.2);
+    expect(hash(result.transitions.receiptPath)).not.toBe(hash(output));
+    expect(shots.map((shot) => hash(shot.path))).toEqual(sourceHashes);
+  }, 180_000);
+
+  it("变体风格 intentMap 覆盖观感：同一剪辑意图在不同变体下渲染成不同转场", async () => {
+    const output = path.join(root, "planned-style", "warm.mp4");
+    const result = await assembleTimeline({
+      clips: shots.map((shot) => ({ ...shot, duration: 2.5, durationSec: 2.5 })),
+      transitions: {
+        mode: "xfade",
+        perCut: { "NC-2": { intent: "dissolve", type: "fade", durationSeconds: 0.5, easing: "native", source: "declared" } },
+        intentMap: { dissolve: { type: "fadeslow", durationSec: 0.6 } },
+        scale: 1,
+        styleId: "warm-story",
+      },
+      output, resolution: [320, 240], fps: 30, bins,
+    });
+    const receipt = readJson(result.transitions.receiptPath);
+    expect(receipt.styleId).toBe("warm-story");
+    expect(receipt.cuts[0]).toMatchObject({ intent: "dissolve", type: "fadeslow", resolvedBy: "variant-intentMap", durationSeconds: 0.6 });
+    expect(hash(output)).toBeDefined();
+  }, 180_000);
+
+  it("legacy fade 模式：黑场被量化取证（窗口内黑帧 >0），回执给出改用逐切计划的建议", async () => {
+    const output = path.join(root, "legacy-black", "fade.mp4");
+    const result = await assembleTimeline({
+      clips: shots.map((shot) => ({ ...shot, duration: 2.5, durationSec: 2.5 })),
+      transitions: { mode: "fade", fadeSec: 0.6 },
+      output, resolution: [320, 240], fps: 30, bins,
+    });
+    const receipt = readJson(result.transitions.receiptPath);
+    expect(receipt.mode).toBe("fade");
+    expect(receipt.transitionCount).toBe(0);
+    const measurement = receipt.evidence[0].measurement;
+    expect(measurement.blackFramesInside).toBeGreaterThan(0);
+    expect(receipt.notes.join("\n")).toContain("xfade");
+  }, 180_000);
 
   it("真实交付同时验证有计划和无计划分支，净时长不再抛 ReferenceError", async () => {
     const outDir = path.join(root, "交付 包");

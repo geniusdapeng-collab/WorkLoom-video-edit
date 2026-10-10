@@ -586,6 +586,469 @@ async function writeAvSyncReport(output, payload) {
   }
 }
 
+/* ============================ 转场引擎（逐切 xfade 计划） ============================ */
+/**
+ * 转场引擎口径（2026-10-11，T-2026-1011-0003）：
+ *
+ * - 目录与默认映射的唯一事实源是 `bundles/ai-video/library/transitions/catalog.json`
+ *   （FFmpeg 6.0 的 46 种命名转场 + 7.0 新增 12 种 + custom 表达式变量表）；
+ * - 逐切计划由剪辑层（`packages/video-studio/src/edit/transitions.ts`）产出，本引擎只忠实渲染，
+ *   变体配方的 `intentMap` 可按风格覆盖具体转场（同一剪辑脚本 → 三种风格转场）；
+ * - **硬切是真硬切**：按转场切点把时间轴拆成若干 run，run 内做 xfade，run 之间用样点级 concat，
+ *   不把硬切降级成"1 帧 xfade"（幽灵帧在快剪里看得见）；
+ * - 每刀转场都有回执：重叠窗口帧数、中点亮度、帧间差集中度、黑帧比例。
+ *   其中"窗口不存在"与"非黑场类转场出现黑帧"是**事实类硬失败**（产物缺陷），
+ *   缓动/集中度这类观感指标只作咨询项（硬闸只允许事实类，见 scripts/ci/hard-gate-policy.mjs）。
+ */
+export const TRANSITION_CATALOG_FILE = path.join(BUNDLE_ROOT, "library", "transitions", "catalog.json");
+export const TRANSITION_RECEIPT_SCHEMA = "workloom.transition-receipt/v1";
+
+/** 缓动叠化表达式：custom 逐像素求值（P=X 轴进度），smoothstep 让线性叠化不再"廉价"。 */
+export const EASED_DISSOLVE_EXPR = "A*(1-(P*P*(3-2*P)))+B*(P*P*(3-2*P))";
+
+const transitionCatalogCache = new Map();
+
+/** 读取并校验转场目录；结构或引用不合法直接 fail-closed（不猜、不兜底）。 */
+export function loadTransitionCatalog(file = TRANSITION_CATALOG_FILE) {
+  if (transitionCatalogCache.has(file)) return transitionCatalogCache.get(file);
+  if (!fs.existsSync(file)) throw new PostError(`转场目录不存在：${file}`, "not_configured");
+  const doc = JSON.parse(fs.readFileSync(file, "utf8"));
+  if (doc?.schemaVersion !== "workloom.transition-catalog/v1" || !Array.isArray(doc.transitions) || !doc.intents || !doc.durationPolicy) {
+    throw new PostError(`转场目录结构不合法：${file}`, "not_configured");
+  }
+  const names = new Set(doc.transitions.map((item) => item.name));
+  for (const [intent, spec] of Object.entries(doc.intents)) {
+    if (spec.type && !names.has(spec.type)) throw new PostError(`转场目录意图 ${intent} 指向未定义转场 ${spec.type}`, "not_configured");
+    for (const [direction, mapped] of Object.entries(spec.directions ?? {})) {
+      if (!names.has(mapped)) throw new PostError(`转场目录意图 ${intent} 的 ${direction} 方向指向未定义转场 ${mapped}`, "not_configured");
+    }
+  }
+  transitionCatalogCache.set(file, doc);
+  return doc;
+}
+
+/** 探测 ffmpeg 版本：7.0+ 新增的转场（wind/cover/reveal）按版本闸放行或明确拒绝。 */
+export async function probeFfmpegVersion(bins = resolveBinaries()) {
+  const { stdout } = await runBin(bins.ffmpeg, ["-version"], { label: "ffmpeg -version" });
+  const banner = String(stdout).split("\n")[0] ?? "";
+  const raw = /ffmpeg version\s+([^\s]+)/i.exec(banner)?.[1] ?? null;
+  const numeric = raw ? /^n?(\d+)\.(\d+)/.exec(raw) : null;
+  return { raw, major: numeric ? Number(numeric[1]) : null, minor: numeric ? Number(numeric[2]) : null, banner };
+}
+
+function versionSupportsTransition(entry, version) {
+  if (!entry || entry.since === "6.0") return true;
+  if (!version || version.major === null) return false;
+  const required = String(entry.since).split(".").map((value) => Number(value));
+  return version.major > required[0] || (version.major === required[0] && version.minor >= (required[1] ?? 0));
+}
+
+function round3(value) {
+  return Math.round(value * 1000) / 1000;
+}
+
+/**
+ * 逐切计划解析：把 `transitions.perCut`（以进入镜头 shotId 为键）解析成可渲染的切点。
+ * 解析优先级：计划显式指定（params.xfade）→ 变体 intentMap → 计划默认类型 → 调用方默认。
+ * 任何未知转场名、版本不支持的转场、时长越界都明确报错或按事实降级（绝不静默换类型）。
+ */
+export function planXfadeCuts({
+  clips = [], transitions = {}, fps = 30, catalog = loadTransitionCatalog(),
+  version = null, style = null,
+} = {}) {
+  const cuts = [];
+  const notes = [];
+  const perCutMap = transitions.perCut && typeof transitions.perCut === "object" && !Array.isArray(transitions.perCut)
+    ? transitions.perCut
+    : null;
+  const perCutList = Array.isArray(transitions.perCut) ? transitions.perCut
+    : (Array.isArray(transitions.plan?.cuts) ? transitions.plan.cuts : (Array.isArray(transitions.plan) ? transitions.plan : null));
+  const legacyChain = !perCutMap && !perCutList;
+  const fallbackType = typeof transitions.type === "string" && transitions.type.trim() ? transitions.type.trim() : (legacyChain ? "fade" : null);
+  const fallbackDuration = optionalNumber(transitions.fadeSec ?? transitions.durationSec, 0.5);
+  const intentMap = style?.intentMap ?? transitions.intentMap ?? null;
+  const styleScale = optionalNumber(style?.scale ?? transitions.scale, 1);
+  const limits = catalog.durationPolicy;
+  const names = new Map(catalog.transitions.map((item) => [item.name, item]));
+  const minSeconds = Math.max(limits.minSec, limits.minFrames / fps);
+
+  const durationOf = (clip) => optionalNumber(clip.durationSec ?? clip.duration, 0);
+
+  for (let index = 1; index < clips.length; index += 1) {
+    const before = clips[index - 1];
+    const after = clips[index];
+    const shotKey = String(after.shotId);
+    let raw = null;
+    if (perCutMap) raw = perCutMap[shotKey] ?? null;
+    if (!raw && perCutList) {
+      raw = perCutList.find((entry) => entry && (String(entry.incomingSegmentId ?? entry.shotId ?? "") === shotKey || Number(entry.cutIndex) === index)) ?? null;
+    }
+
+    const intent = typeof raw?.intent === "string" ? raw.intent : null;
+    const catalogIntent = intent ? catalog.intents[intent] ?? null : null;
+    const styleSpec = intent && intentMap?.[intent] && typeof intentMap[intent] === "object" ? intentMap[intent] : null;
+    const explicitType = raw?.explicit === true || (raw && intent === null && typeof raw.type === "string");
+    let type = null;
+    let resolvedBy = null;
+    if (raw) {
+      if (explicitType && typeof raw.type === "string") { type = raw.type; resolvedBy = "plan-explicit"; }
+      else if (typeof styleSpec?.type === "string") { type = styleSpec.type; resolvedBy = "variant-intentMap"; }
+      else if (typeof raw.type === "string" && raw.type !== "") { type = raw.type; resolvedBy = "plan-default"; }
+      else if (typeof catalogIntent?.type === "string") { type = catalogIntent.type; resolvedBy = "catalog-intent"; }
+      else if (raw.type === null || catalogIntent?.type === null) { type = null; resolvedBy = "plan-hard-cut"; }
+    } else if (fallbackType) {
+      type = fallbackType;
+      resolvedBy = "caller-default";
+    }
+    if (!type) {
+      if (raw && resolvedBy !== "plan-hard-cut" && !fallbackType) {
+        notes.push(`切点 ${index}（${before.shotId}→${after.shotId}）没有可解析的转场类型，已按硬切处理。`);
+      }
+      continue;
+    }
+
+    const entry = names.get(type);
+    if (!entry) {
+      throw new PostError(
+        `未知转场：${type}（切点 ${index} ${before.shotId}→${after.shotId}；可用转场见 transitions/catalog.json，共 ${names.size} 种）`,
+        "bad_recipe",
+      );
+    }
+    if (!versionSupportsTransition(entry, version)) {
+      throw new PostError(
+        `转场 ${type} 需要 FFmpeg ${entry.since}+（当前 ${version?.raw ?? "未知版本"}）：请改用 6.0 基线的转场，或升级 FFmpeg 后重跑`,
+        "bad_recipe",
+      );
+    }
+
+    let requestedDuration = optionalNumber(
+      styleSpec?.durationSec ?? raw?.durationSeconds ?? (catalogIntent ? catalogIntent.durationSec : undefined),
+      fallbackDuration,
+    );
+    const scale = raw ? optionalNumber(styleSpec?.scale ?? styleScale, 1) : 1;
+    requestedDuration *= Number.isFinite(scale) && scale > 0 ? scale : 1;
+
+    const share = limits.maxShareOfClip;
+    const headroom = Math.min(limits.maxSec, durationOf(before) * share, durationOf(after) * share);
+    let durationSeconds;
+    if (legacyChain) {
+      /** 旧口径（`{mode:"xfade", fadeSec}`）：保持历史行为——下限 0.05s、上限相邻镜头 1/2。 */
+      durationSeconds = Math.min(Math.max(0.05, fallbackDuration), Math.max(0.05, Math.min(durationOf(before), durationOf(after)) / 2));
+    } else {
+      if (headroom < minSeconds) {
+        notes.push(`切点 ${index}（${before.shotId}→${after.shotId}）相邻镜头过短（可用 ${round3(headroom)}s < 下限 ${round3(minSeconds)}s），已降级为硬切。`);
+        continue;
+      }
+      durationSeconds = Math.min(Math.max(requestedDuration, minSeconds), headroom);
+    }
+    durationSeconds = round3(Math.max(0.02, durationSeconds));
+
+    const requestedEasing = raw?.easing ?? styleSpec?.easing ?? "native";
+    let easing = requestedEasing === "smooth" ? "smooth" : "native";
+    if (easing === "smooth" && type !== "fade") {
+      notes.push(`切点 ${index} 的转场 ${type} 不支持 custom 缓动，已回退 native 曲线。`);
+      easing = "native";
+    }
+
+    cuts.push({
+      cutIndex: index,
+      fromShotId: String(before.shotId),
+      toShotId: shotKey,
+      intent,
+      type,
+      durationSeconds,
+      easing,
+      maxDurationSeconds: round3(headroom),
+      resolvedBy,
+      blackDip: entry.blackDip === true || catalog.blackDipAllowed?.includes(type) === true,
+      reason: typeof raw?.reason === "string" ? raw.reason : (legacyChain ? "调用方整段转场设置" : null),
+    });
+  }
+  return { cuts, notes };
+}
+
+/** 依据切点把时间轴拆分为 run：run 内相邻镜头有转场，run 之间是真硬切。 */
+function splitTransitionRuns(clipCount, cuts) {
+  const byCut = new Map(cuts.map((cut) => [cut.cutIndex, cut]));
+  const runs = [];
+  let current = [0];
+  for (let index = 1; index < clipCount; index += 1) {
+    if (byCut.has(index)) current.push(index);
+    else { runs.push(current); current = [index]; }
+  }
+  runs.push(current);
+  return runs;
+}
+
+/** 构建单个 run 的 xfade 过滤链（run 内全部切点都有转场）。 */
+function buildXfadeRunPlan({ clips, cuts, runIndexes }) {
+  const filters = [];
+  let lastVideo = "[0:v]";
+  let lastAudio = "[0:a]";
+  const runCuts = [];
+  let offset = optionalNumber(clips[runIndexes[0]]?.durationSec ?? clips[runIndexes[0]]?.duration, 0);
+  if (!(offset > 0)) throw new PostError(`镜头 ${clips[runIndexes[0]]?.shotId} 缺时长，无法计算转场重叠点`, "bad_media");
+  for (let local = 1; local < runIndexes.length; local += 1) {
+    const globalIndex = runIndexes[local];
+    const cut = cuts.find((entry) => entry.cutIndex === globalIndex);
+    if (!cut) throw new PostError(`内部错误：切点 ${globalIndex} 缺少转场计划`, "verify_failed");
+    const fade = cut.durationSeconds;
+    offset = Math.max(0, round3(offset - fade));
+    const videoOut = local === runIndexes.length - 1 ? "[vout]" : `[v${local}]`;
+    const audioOut = local === runIndexes.length - 1 ? "[aout]" : `[a${local}]`;
+    const expr = cut.easing === "smooth" ? `:expr=${EASED_DISSOLVE_EXPR}` : "";
+    filters.push(`${lastVideo}[${local}:v]xfade=transition=${cut.type}:duration=${fade}:offset=${offset}${expr}${videoOut}`);
+    filters.push(`${lastAudio}[${local}:a]acrossfade=d=${fade}:c1=tri:c2=tri${audioOut}`);
+    runCuts.push({ ...cut, runOffsetSeconds: offset });
+    lastVideo = videoOut;
+    lastAudio = audioOut;
+    offset = round3(offset + optionalNumber(clips[globalIndex]?.durationSec ?? clips[globalIndex]?.duration, 0));
+  }
+  return { filters, runCuts, expectedDurationSeconds: round3(offset) };
+}
+
+/**
+ * 转场窗口机检：读回执要能证明"这一刀真的做了转场，而且黑帧不是转场引入的"。
+ *
+ * 口径（避免误杀真实内容）：窗口内黑帧与窗口外邻域黑帧分别计数——
+ * 只有"窗口内有黑帧、邻域却没有"才判定为**转场引入的黑屏**（事实缺陷，硬失败）；
+ * 素材本身就是黑场（片头黑场、夜景）时邻域同样有黑帧，只记录不否决。
+ */
+async function measureTransitionWindow({ output, cut, bins, fps }) {
+  const pad = 0.6;
+  const windowStart = Math.max(0, cut.startSeconds - pad);
+  const windowEnd = cut.endSeconds + pad;
+  const { stdout, stderr } = await runBin(bins.ffmpeg, [
+    "-hide_banner", "-v", "info",
+    "-ss", String(round3(windowStart)), "-to", String(round3(windowEnd)), "-i", output,
+    /** blackframe 必须在 tblend 之前：它要判的是**原始帧**的黑场，不是帧间差图（差图本来就接近全黑）。 */
+    "-vf", "blackframe=amount=98:threshold=32,tblend=difference,signalstats,metadata=print:file=-",
+    "-an", "-f", "null", "-",
+  ], { label: "ffmpeg(transition-window)" });
+  const diffs = [];
+  for (const line of String(stdout).split("\n")) {
+    const match = /lavfi\.signalstats\.YAVG=([0-9.]+)/.exec(line);
+    if (!match) continue;
+    const value = Number(match[1]);
+    /** 链上是 `tblend=difference,signalstats`，因此 YAVG 是"与上一帧的差"；原始亮度由 blackframe 段提供。 */
+    if (Number.isFinite(value)) diffs.push(value);
+  }
+  const blackFrames = [];
+  for (const line of String(stderr).split("\n")) {
+    const match = /frame:(\d+)\s+pblack:([0-9.]+)/.exec(line);
+    if (match && Number(match[2]) >= 98) blackFrames.push(Number(match[1]));
+  }
+  const insideStart = cut.startSeconds - windowStart - 0.02;
+  const insideEnd = cut.endSeconds - windowStart + 0.02;
+  const isInside = (frame) => {
+    const seconds = (frame + 0.5) / fps;
+    return seconds >= insideStart && seconds <= insideEnd;
+  };
+  const blackFramesInside = blackFrames.filter(isInside).length;
+  const blackFramesOutside = blackFrames.length - blackFramesInside;
+  const samples = diffs.slice(1);
+  const total = samples.reduce((sum, value) => sum + value, 0);
+  const maxDiff = samples.length ? Math.max(...samples) : 0;
+  return {
+    windowStartSeconds: round3(windowStart),
+    windowEndSeconds: round3(windowEnd),
+    transitionStartSeconds: round3(cut.startSeconds),
+    transitionEndSeconds: round3(cut.endSeconds),
+    frameSamples: samples.length,
+    diffSamples: samples.map((value) => round3(value)),
+    meanFrameDiff: samples.length ? round3(total / samples.length) : 0,
+    maxFrameDiff: round3(maxDiff),
+    /** 集中度：单帧跳变（≈1）说明像硬切，多帧分摊（≈1/N）说明是渐变转场。 */
+    changeConcentration: total > 0 ? round3(maxDiff / total) : 1,
+    changedFrames: samples.filter((value) => value >= 1).length,
+    blackFrames: blackFrames.length,
+    blackFramesInside,
+    blackFramesOutside,
+    expectedMinFrames: Math.max(2, Math.floor(cut.durationSeconds * fps) - 1),
+  };
+}
+
+/**
+ * 黑场判定（纯函数，可单测）：只有"窗口内有黑帧、邻域没有"才算**转场引入的黑屏**。
+ * 黑场类转场（fadeblack/fadewhite/fadegrays）是有意为之，直接豁免。
+ */
+export function evaluateTransitionBlackCheck(measurement, { blackDip = false } = {}) {
+  const inside = Number(measurement?.blackFramesInside ?? 0);
+  const outside = Number(measurement?.blackFramesOutside ?? 0);
+  if (blackDip) {
+    return { ok: true, introduced: false, detail: `黑场类转场（有意为之，豁免黑帧检查；窗口内黑帧 ${inside}）` };
+  }
+  const introduced = inside > 0 && outside === 0;
+  return {
+    ok: !introduced,
+    introduced,
+    detail: introduced
+      ? `转场引入黑帧：窗口内 ${inside} 个黑帧、窗口外邻域 ${outside} 个（判定为黑屏过渡缺陷）`
+      : `窗口内黑帧 ${inside} / 邻域黑帧 ${outside}（未发现转场引入的黑屏）`,
+  };
+}
+
+/**
+ * 渲染带逐切转场的时间轴（run 内 xfade、run 间样点级 concat），并产出转场回执。
+ * 返回 { output, receiptPath, receipt, plan, runs }。
+ */
+async function assembleTransitionTimeline({
+  bins, clips, cuts, notes, output, resolution, fps, workDir, version, catalog, styleId, videoEncode,
+}) {
+  const dir = path.join(workDir, "assemble-transitions");
+  await fsp.mkdir(dir, { recursive: true });
+  const runs = splitTransitionRuns(clips.length, cuts);
+  const runOutputs = [];
+  for (const [runIndex, runIndexes] of runs.entries()) {
+    if (runIndexes.length === 1) {
+      const clip = clips[runIndexes[0]];
+      const probe = await probeMedia(clip.path, { bins });
+      if (!(probe.videoDuration > 0)) throw new PostError(`镜头 ${clip.shotId} 缺视频轨时长`, "bad_media");
+      runOutputs.push({ path: clip.path, durationSeconds: probe.videoDuration, runIndex, clips: runIndexes, single: true, cuts: [] });
+      continue;
+    }
+    const target = runs.length === 1
+      ? output
+      : path.join(dir, `run-${String(runIndex).padStart(2, "0")}.mp4`);
+    const plan = buildXfadeRunPlan({ clips, cuts, runIndexes });
+    const args = ["-hide_banner", "-v", "error", "-y"];
+    for (const index of runIndexes) args.push("-i", clips[index].path);
+    args.push("-filter_complex", plan.filters.join(";"), "-map", "[vout]", "-map", "[aout]",
+      ...videoEncode,
+      "-c:a", "aac", "-b:a", "192k", "-ar", "48000", "-ac", "2",
+      "-s", `${resolution[0]}x${resolution[1]}`, "-r", String(fps), "-movflags", "+faststart", target);
+    await runBin(bins.ffmpeg, args, { label: "ffmpeg(xfade-runs)", timeoutMs: 1_800_000 });
+    const probe = await probeMedia(target, { bins });
+    if (!(probe.videoDuration > 0)) throw new PostError(`run ${runIndex} 拼装后无有效时长`, "verify_failed");
+    runOutputs.push({ path: target, durationSeconds: probe.videoDuration, runIndex, clips: runIndexes, single: false, cuts: plan.runCuts });
+  }
+
+  if (runs.length > 1) {
+    const list = path.join(dir, "runs-concat.txt");
+    await assembleSampleAccurate({
+      bins, list,
+      clips: runOutputs.map((run) => ({
+        shotId: `run-${run.runIndex}`,
+        path: run.path,
+        duration: run.durationSeconds,
+        durationSec: run.durationSeconds,
+        sourceHasAudio: true,
+      })),
+      output, workDir: dir, fps,
+    });
+  }
+
+  const actualProbe = await probeMedia(output, { bins });
+  const actualDurationSeconds = actualProbe.videoDuration ?? actualProbe.duration ?? 0;
+  /** 把 run 内偏移换算成成片时间轴：运行间无重叠，直接累加。 */
+  const cumulative = [];
+  let acc = 0;
+  for (const run of runOutputs) { cumulative.push(acc); acc = round3(acc + run.durationSeconds); }
+  const timelineCuts = [];
+  for (const run of runOutputs) {
+    for (const cut of run.cuts ?? []) {
+      timelineCuts.push({
+        ...cut,
+        startSeconds: round3(cumulative[run.runIndex] + cut.runOffsetSeconds),
+        endSeconds: round3(cumulative[run.runIndex] + cut.runOffsetSeconds + cut.durationSeconds),
+      });
+    }
+  }
+
+  const tolerances = catalog.receiptPolicy ?? {};
+  const evidence = [];
+  const checks = [];
+  for (const cut of timelineCuts) {
+    const measurement = await measureTransitionWindow({ output, cut, bins, fps });
+    const blackVerdict = evaluateTransitionBlackCheck(measurement, { blackDip: cut.blackDip === true });
+    /** 事实类判定：转场窗口里必须真的有多帧可采样（证明存在重叠窗口，而不是一帧幽灵过渡）。 */
+    const windowOk = measurement.frameSamples >= 2;
+    const spreadAdvisory = measurement.frameSamples >= 3
+      ? measurement.changeConcentration <= 0.85
+      : null;
+    evidence.push({ cutIndex: cut.cutIndex, from: cut.fromShotId, to: cut.toShotId, type: cut.type, intent: cut.intent, resolvedBy: cut.resolvedBy, measurement });
+    checks.push({
+      kind: "transition_window_present",
+      ok: windowOk,
+      hard: true,
+      detail: `切点 ${cut.cutIndex}（${cut.fromShotId}→${cut.toShotId}）重叠窗口采样 ${measurement.frameSamples} 帧（预期 ≥2）`,
+    });
+    checks.push({
+      kind: "transition_no_black_screen",
+      ok: blackVerdict.ok,
+      hard: true,
+      detail: `切点 ${cut.cutIndex} 转场 ${cut.type}：${blackVerdict.detail}`,
+    });
+    if (spreadAdvisory !== null) {
+      checks.push({
+        kind: "transition_change_spread",
+        ok: spreadAdvisory,
+        hard: false,
+        detail: `切点 ${cut.cutIndex} 帧间差集中度 ${measurement.changeConcentration}（≤0.85 表示变化分摊在多帧；仅咨询项）`,
+      });
+    }
+  }
+  const expectedDurationSeconds = round3(
+    clips.reduce((sum, clip) => sum + optionalNumber(clip.durationSec ?? clip.duration, 0), 0)
+      - timelineCuts.reduce((sum, cut) => sum + cut.durationSeconds, 0),
+  );
+  const durationOk = Math.abs(actualDurationSeconds - expectedDurationSeconds) <= optionalNumber(tolerances.durationToleranceSec, 0.4);
+  checks.push({
+    kind: "transition_duration_matches_plan",
+    ok: durationOk,
+    hard: true,
+    detail: `实测 ${round3(actualDurationSeconds)}s / 计划 ${expectedDurationSeconds}s（容差 ±${optionalNumber(tolerances.durationToleranceSec, 0.4)}s）`,
+  });
+
+  const receipt = {
+    schemaVersion: TRANSITION_RECEIPT_SCHEMA,
+    generatedAt: new Date().toISOString(),
+    output,
+    mode: "xfade",
+    styleId: styleId ?? null,
+    engine: {
+      name: catalog.engine?.name ?? "ffmpeg-xfade",
+      filter: catalog.engine?.filter ?? "xfade",
+      audioFilter: catalog.engine?.audioFilter ?? "acrossfade",
+      ffmpegVersion: version?.raw ?? null,
+      ffmpegBanner: version?.banner ?? null,
+      catalogVersion: catalog.schemaVersion,
+      catalogUpdatedAt: catalog.updatedAt ?? null,
+    },
+    cuts: timelineCuts.map((cut) => ({
+      cutIndex: cut.cutIndex,
+      fromShotId: cut.fromShotId,
+      toShotId: cut.toShotId,
+      intent: cut.intent,
+      type: cut.type,
+      durationSeconds: cut.durationSeconds,
+      easing: cut.easing,
+      resolvedBy: cut.resolvedBy,
+      reason: cut.reason ?? null,
+      startSeconds: cut.startSeconds,
+      endSeconds: cut.endSeconds,
+    })),
+    hardCutCount: runs.filter((run) => run.length === 1).length,
+    transitionCount: timelineCuts.length,
+    totalTransitionSeconds: round3(timelineCuts.reduce((sum, cut) => sum + cut.durationSeconds, 0)),
+    expectedDurationSeconds,
+    actualDurationSeconds: round3(actualDurationSeconds),
+    checks,
+    evidence,
+    notes: [...notes],
+  };
+  const receiptPath = `${output}.transition-receipt.json`;
+  await writeJson(receiptPath, receipt);
+  const failures = checks.filter((check) => check.hard && check.ok !== true);
+  if (failures.length > 0) {
+    throw new PostError(
+      `转场机检未通过（${failures.length} 项硬失败）：${failures.map((check) => check.detail).join("；")}（回执：${receiptPath}）`,
+      "verify_failed",
+    );
+  }
+  return { output, receiptPath, receipt, cutCount: timelineCuts.length };
+}
+
 export async function assembleTimeline({
   clips = [], transitions = {}, output, resolution, fps = 30, quality = "hd", bins = resolveBinaries(),
 }) {
@@ -616,7 +1079,8 @@ export async function assembleTimeline({
     const avSync = await assembleSampleAccurate({
       bins, list, clips, output, workDir: dir, fps,
     });
-    return { output, mode, fadeSec: 0, shots: clips.length, avSync };
+    return { output, mode, fadeSec: 0, shots: clips.length, avSync,
+      transitions: { receiptPath: null, cutCount: 0, note: "全部硬切（样点级拼接，无转场窗口）" } };
   }
 
   if (mode === "fade") {
@@ -649,7 +1113,58 @@ export async function assembleTimeline({
       })),
       output, workDir: dir, fps,
     });
-    return { output, mode, fadeSec: round(fadeSec, 3), shots: clips.length, avSync };
+    /**
+     * 旧 fade 模式是"逐段淡入淡出经黑场"——镜头之间必然出现黑帧，观感廉价（2026-10-11 客户反馈）。
+     * 保留兼容，但写入回执明确标注该口径；新剪辑请改用 xfade 逐切计划（declared / auto）。
+     */
+    let blackGapEvidence = null;
+    try {
+      const firstProbe = await probeMedia(clips[0].path, { bins });
+      if (firstProbe.videoDuration > 0) {
+        blackGapEvidence = await measureTransitionWindow({
+          output,
+          cut: {
+            cutIndex: 1,
+            type: "legacy-per-clip-fade",
+            durationSeconds: round(fadeSec * 2, 3),
+            startSeconds: Math.max(0, round(firstProbe.videoDuration - fadeSec, 3)),
+            endSeconds: round(firstProbe.videoDuration + fadeSec, 3),
+            blackDip: true,
+          },
+          bins,
+          fps,
+        });
+      }
+    } catch (error) {
+      blackGapEvidence = { error: error instanceof Error ? error.message : String(error), scope: "first-cut-sample" };
+    }
+    const receipt = {
+      schemaVersion: TRANSITION_RECEIPT_SCHEMA,
+      generatedAt: new Date().toISOString(),
+      output,
+      mode: "fade",
+      styleId: null,
+      engine: { name: "legacy-per-clip-fade", filter: "fade", ffmpegVersion: null, catalogVersion: null },
+      cuts: [],
+      hardCutCount: Math.max(0, clips.length - 1),
+      transitionCount: 0,
+      totalTransitionSeconds: 0,
+      expectedDurationSeconds: round3(clips.reduce((sum, clip) => sum + Number(clip.duration ?? 0), 0)),
+      actualDurationSeconds: null,
+      checks: [],
+      evidence: blackGapEvidence ? [{ scope: "first-cut-sample", measurement: blackGapEvidence }] : [],
+      notes: [
+        `legacy fade 模式：逐段淡入淡出 ${round(fadeSec, 3)}s，镜头之间经黑场（fade-to-black / fade-from-black），不是交叉溶解。`,
+        blackGapEvidence && !blackGapEvidence.error
+          ? `第 1 刀抽样：窗口内黑帧 ${blackGapEvidence.blackFramesInside}、邻域黑帧 ${blackGapEvidence.blackFramesOutside}（黑场过渡的量化证据；仅咨询项，不阻断兼容路径）。`
+          : `黑场抽样未能完成：${blackGapEvidence?.error ?? "未执行"}`,
+        "如出现黑屏停顿感，请改用 mode=xfade 的逐切计划（编辑层 declared / auto），黑场只保留给章节跳变。",
+      ],
+    };
+    const receiptPath = `${output}.transition-receipt.json`;
+    await writeJson(receiptPath, receipt);
+    return { output, mode, fadeSec: round(fadeSec, 3), shots: clips.length, avSync,
+      transitions: { receiptPath, receipt, cutCount: 0 } };
   }
 
   if (mode !== "xfade") throw new PostError(`未知转场模式：${mode}（可用：hard / fade / xfade）`, "bad_request");
@@ -658,37 +1173,62 @@ export async function assembleTimeline({
   if (durations.some((value) => !(value > 0))) {
     throw new PostError("xfade 需要每个镜头的时长（时长缺失无法算重叠点）", "bad_media");
   }
-  const filters = [];
-  const videoInputs = clips.map((_, index) => (index === 0 ? "[0:v]" : null));
-  let lastVideo = "[0:v]";
-  let lastAudio = "[0:a]";
-  let offset = durations[0];
-  for (let index = 1; index < clips.length; index += 1) {
-    const fade = Math.min(fadeSec, Math.max(0.05, Math.min(durations[index], durations[index - 1]) / 2));
-    offset = round(offset - fade, 3);
-    const videoOut = index === clips.length - 1 ? "[vout]" : `[v${index}]`;
-    const audioOut = index === clips.length - 1 ? "[aout]" : `[a${index}]`;
-    filters.push(`${lastVideo}[${index}:v]xfade=transition=fade:duration=${fade}:offset=${offset}${videoOut}`);
-    filters.push(`${lastAudio}[${index}:a]acrossfade=d=${fade}:c1=tri:c2=tri${audioOut}`);
-    lastVideo = videoOut;
-    lastAudio = audioOut;
-    offset += durations[index];
+  /**
+   * 逐切转场引擎（2026-10-11 起）：计划 → run 拆分 → run 内 xfade → run 间真硬切 concat → 转场回执。
+   * 兼容旧调用：只给 `{mode:"xfade", fadeSec}` 时退化为"整条链一种转场"，但同样产出回执与机检。
+   */
+  const catalog = loadTransitionCatalog();
+  const version = await probeFfmpegVersion(bins);
+  const planned = planXfadeCuts({
+    clips, transitions, fps, catalog, version,
+    style: transitions.styleId || transitions.intentMap || transitions.scale
+      ? { intentMap: transitions.intentMap ?? null, scale: transitions.scale ?? 1 }
+      : null,
+  });
+  const legacyStyleId = typeof transitions.styleId === "string" ? transitions.styleId : null;
+
+  if (planned.cuts.length === 0) {
+    /** 计划里没有任何转场（全硬切）：走样点级 concat，不重编码、不引入幽灵帧。 */
+    const list = path.join(dir, "planned-hard-concat.txt");
+    const avSync = await assembleSampleAccurate({
+      bins, list,
+      clips: clips.map((clip) => ({ ...clip, duration: clip.duration ?? clip.durationSec, durationSec: clip.duration ?? clip.durationSec })),
+      output, workDir: dir, fps,
+    });
+    const receipt = {
+      schemaVersion: TRANSITION_RECEIPT_SCHEMA,
+      generatedAt: new Date().toISOString(),
+      output,
+      mode: "xfade",
+      styleId: legacyStyleId,
+      engine: { name: catalog.engine?.name ?? "ffmpeg-xfade", filter: catalog.engine?.filter ?? "xfade",
+        ffmpegVersion: version.raw, catalogVersion: catalog.schemaVersion },
+      cuts: [],
+      hardCutCount: Math.max(0, clips.length - 1),
+      transitionCount: 0,
+      totalTransitionSeconds: 0,
+      expectedDurationSeconds: round3(durations.reduce((sum, value) => sum + value, 0)),
+      actualDurationSeconds: null,
+      checks: [],
+      evidence: [],
+      notes: [...planned.notes, "本片没有任何转场（全部硬切）：走样点级无损拼接。"],
+    };
+    const receiptPath = `${output}.transition-receipt.json`;
+    await writeJson(receiptPath, receipt);
+    return { output, mode, fadeSec: 0, shots: clips.length, avSync, transitions: { receiptPath, receipt, cutCount: 0 } };
   }
-  void videoInputs;
-  const args = ["-hide_banner", "-v", "error", "-y"];
-  for (const clip of clips) args.push("-i", clip.path);
-  args.push(
-    "-filter_complex", filters.join(";"),
-    "-map", "[vout]", "-map", "[aout]",
-    ...videoEncode,
-    "-c:a", "aac", "-b:a", "192k", "-ar", "48000", "-ac", "2",
-    "-s", `${width}x${height}`, "-r", String(fps), "-movflags", "+faststart", output,
-  );
-  await runBin(bins.ffmpeg, args, { label: "ffmpeg(xfade)", timeoutMs: 1_800_000 });
+
+  const result = await assembleTransitionTimeline({
+    bins, clips, cuts: planned.cuts, notes: planned.notes, output,
+    resolution: [width, height], fps, workDir: dir, version, catalog, styleId: legacyStyleId, videoEncode,
+  });
   const avSync = { policy: "rendered-source-default-acceptance", qualityReviewed: false,
-    correlation: null, method: "requested-xfade-timeline", sourceClips: clips.length };
+    correlation: null, method: "planned-xfade-timeline", sourceClips: clips.length };
   await writeAvSyncReport(output, { processed: true, report: avSync });
-  return { output, mode, fadeSec: round(fadeSec, 3), shots: clips.length, avSync };
+  return {
+    output, mode, fadeSec: round(fadeSec, 3), shots: clips.length, avSync,
+    transitions: { receiptPath: result.receiptPath, receipt: result.receipt, cutCount: result.cutCount },
+  };
 }
 
 /* ============================ 音频层（选曲 + 混音） ============================ */
@@ -1139,7 +1679,19 @@ export async function buildDeliveryPackage({
   const normalised = await normaliseShots({ shots, project, workDir, bins, reuse, env });
   const totalSeconds = normalised.reduce((sum, clip) => sum + Number(clip.duration), 0);
   if (quality === "uhd") await verifyUhdEvidence(normalised, [width, height], bins);
-  const baseTransitions = { mode: project.transitions?.mode ?? "hard", fadeSec: project.transitions?.fadeSec ?? 0.5 };
+  /**
+   * 转场口径基线（2026-10-11 起支持逐切计划）：
+   *   · hard（默认）：全部硬切，样点级拼接；
+   *   · fade（legacy）：逐段淡入淡出经黑场，仅为兼容保留；
+   *   · xfade + perCut / plan：逐切专业转场（编辑层产出计划，引擎忠实渲染并机检）。
+   * 旧实现只取 mode/fadeSec，会把逐切计划静默丢掉——这里整表透传，且由 `plannedTransitions` 标记。
+   */
+  const baseTransitions = {
+    fadeSec: 0.5,
+    ...(project.transitions ?? {}),
+    mode: project.transitions?.mode ?? "hard",
+  };
+  const plannedTransitions = Boolean(baseTransitions.perCut || baseTransitions.plan);
   const masterStems = hasIndependentAudio ? await timelineStems({ project, clips: normalised, transitions: baseTransitions, workDir, env, bins }) : null;
   const masterAssembly = await assembleTimeline({
     clips: normalised,
@@ -1185,9 +1737,16 @@ export async function buildDeliveryPackage({
   for (const pack of packs) {
     const variantDir = path.join(target, "variants", pack.id);
     await fsp.mkdir(variantDir, { recursive: true });
-    const transitions = { ...baseTransitions, ...(pack.transitions ?? {}) };
+    /**
+     * 变体转场口径：有逐切计划时，变体只允许用 `intentMap` / `scale` 覆盖**观感**，
+     * 不能用旧 `mode/fadeSec` 把计划降级回"整条链一种转场"（那是静默丢弃编辑声明）。
+     */
+    const packTransitions = pack.transitions ?? {};
+    const transitions = plannedTransitions
+      ? { ...baseTransitions, intentMap: packTransitions.intentMap ?? null, scale: packTransitions.scale ?? 1, styleId: pack.id }
+      : { ...baseTransitions, ...packTransitions, styleId: pack.id };
     const assemblyKey = await contentKey({
-      shots: normalised.map((clip) => clip.sha256), transitions, v: 2,
+      shots: normalised.map((clip) => clip.sha256), transitions, v: 3,
     });
     const assemblyPath = path.join(workDir, "assemble", `${pack.id}-${assemblyKey}.mp4`);
     const assemblyHash = await contentKey({ key: assemblyKey, type: "assembly" });
@@ -1206,14 +1765,24 @@ export async function buildDeliveryPackage({
       }
       assembly = { ...meta, output: assemblyPath, durationSeconds: cachedProbe.videoDuration ?? cachedProbe.duration, reused: true };
     } else {
-      await assembleTimeline({
+      const assembled = await assembleTimeline({
         clips: normalised, transitions, output: assemblyPath, resolution: [width, height], fps, quality, bins,
       });
       const assembledProbe = await probeMedia(assemblyPath, { bins });
       if (assembledProbe.width !== width || assembledProbe.height !== height || !assembledProbe.hasAudio) {
         throw new PostError(`变体 ${pack.id} 拼接产物规格不符`, "verify_failed");
       }
-      assembly = { output: assemblyPath, durationSeconds: assembledProbe.videoDuration ?? assembledProbe.duration, mode: transitions.mode, fadeSec: transitions.fadeSec ?? 0, shots: normalised.length, reused: false, key: assemblyHash, sha256: await sha256File(assemblyPath) };
+      assembly = {
+        output: assemblyPath,
+        durationSeconds: assembledProbe.videoDuration ?? assembledProbe.duration,
+        mode: transitions.mode,
+        fadeSec: transitions.fadeSec ?? 0,
+        shots: normalised.length,
+        reused: false,
+        key: assemblyHash,
+        sha256: await sha256File(assemblyPath),
+        transitions: assembled.transitions ?? null,
+      };
       await writeJson(assemblyMetaPath, assembly);
     }
 
@@ -1366,6 +1935,7 @@ export async function buildDeliveryPackage({
       name: pack.name,
       positioning: pack.positioning,
       dir: variantDir,
+      transitions: assembly.transitions ?? null,
       artifacts: {
         video: { path: scoredPath, sha256: await sha256File(scoredPath), duration: scoredProbe.duration, resolution: [scoredProbe.width, scoredProbe.height] },
         softsub: softsub ? { path: softsub.output, sha256: softsub.sha256, tracks: softsub.tracks, checks: softsub.checks } : null,
@@ -1397,7 +1967,16 @@ export async function buildDeliveryPackage({
       },
       layers: {
         audioStems: stemReference(stems),
-        assembly: { path: assemblyPath, key: assemblyKey, sha256: assembly.sha256, durationSeconds: assembly.durationSeconds, reused: assembly.reused === true, mode: transitions.mode },
+        assembly: {
+          path: assemblyPath,
+          key: assemblyKey,
+          sha256: assembly.sha256,
+          durationSeconds: assembly.durationSeconds,
+          reused: assembly.reused === true,
+          mode: transitions.mode,
+          transitionReceipt: assembly.transitions?.receiptPath ?? null,
+          transitionCount: assembly.transitions?.cutCount ?? 0,
+        },
         color: gradeReport ? { path: gradeReport.output, sha256: gradeReport.sha256, reused: gradeReport.reused === true, profile: gradeReport.profile ?? null, lut: gradeReport.lut ?? null, intensity: gradeReport.intensity ?? null, visibility: gradeReport.visibility ?? null } : null,
       },
     });
@@ -1406,6 +1985,38 @@ export async function buildDeliveryPackage({
   // Requested variant settings are recorded; source pictures/audio are not rescored against one another.
   const divergence = [];
   const coverDivergence = [];
+  /**
+   * 转场回执汇总（母版 + 每个变体）：同一批镜头、不同风格转场，各留各的回执。
+   * 硬失败（黑屏 / 缺转场窗口 / 时长不符）在 assembleTimeline 内已抛出；这里只做交付面归档与状态汇总。
+   */
+  const transitionScopes = [
+    { scope: "master", receipt: masterAssembly.transitions?.receipt ?? null, receiptPath: masterAssembly.transitions?.receiptPath ?? null },
+    ...variantsOut.map((variant) => ({
+      scope: variant.id,
+      receipt: variant.transitions?.receipt ?? null,
+      receiptPath: variant.transitions?.receiptPath ?? null,
+    })),
+  ];
+  const transitionSummaryPath = path.join(target, "transitions", "transition-receipt.json");
+  await fsp.mkdir(path.dirname(transitionSummaryPath), { recursive: true });
+  await writeJson(transitionSummaryPath, {
+    schemaVersion: "workloom.transition-summary/v1",
+    generatedAt: new Date().toISOString(),
+    mode: baseTransitions.mode,
+    planned: plannedTransitions,
+    catalog: "bundles/ai-video/library/transitions/catalog.json",
+    scopes: transitionScopes.map((entry) => ({
+      scope: entry.scope,
+      receiptPath: entry.receiptPath ? path.relative(target, entry.receiptPath) : null,
+      mode: entry.receipt?.mode ?? null,
+      transitionCount: entry.receipt?.transitionCount ?? 0,
+      hardCutCount: entry.receipt?.hardCutCount ?? null,
+      types: [...new Set((entry.receipt?.cuts ?? []).map((cut) => cut.type))],
+      totalTransitionSeconds: entry.receipt?.totalTransitionSeconds ?? 0,
+      checks: (entry.receipt?.checks ?? []).map((check) => ({ kind: check.kind, ok: check.ok, hard: check.hard !== false })),
+    })),
+  });
+
   const packageChecks = [
     { kind: "audio_sources", ok: true, detail: { sourceScope: hasIndependentAudio ? audioScope(project) : null,
       embeddedAudioUsed: !hasIndependentAudio && normalised.some((clip) => clip.sourceHasAudio),
@@ -1436,6 +2047,20 @@ export async function buildDeliveryPackage({
     },
     { kind: "bgm_layer", ok: audioFailures.length === 0, detail: { failed: audioFailures, note: "失败的变体已按原声降级交付，不冒充带配乐成片" } },
     { kind: "softsub_video_unchanged", ok: variantsOut.every((variant) => !variant.artifacts.softsub || variant.artifacts.softsub.checks.every((check) => check.ok === true)), detail: variantsOut.filter((variant) => variant.artifacts.softsub).map((variant) => ({ id: variant.id, checks: variant.artifacts.softsub.checks.map((check) => check.kind) })) },
+    {
+      kind: "transition_receipts",
+      // 事实类硬项：每个 scope 的转场回执里，硬检查（转场窗口存在 / 非黑场类不得出现黑帧 / 时长符合计划）必须全过。
+      ok: transitionScopes.every((entry) => (entry.receipt?.checks ?? []).every((check) => check.hard !== true || check.ok === true)),
+      detail: transitionScopes.map((entry) => ({
+        scope: entry.scope,
+        mode: entry.receipt?.mode ?? null,
+        transitionCount: entry.receipt?.transitionCount ?? 0,
+        hardCutCount: entry.receipt?.hardCutCount ?? null,
+        types: [...new Set((entry.receipt?.cuts ?? []).map((cut) => cut.type))],
+        receipt: entry.receiptPath ? path.relative(target, entry.receiptPath) : null,
+        notes: entry.receipt?.notes ?? [],
+      })),
+    },
 {
 kind: "duration_consistent",
       // 每个变体都由完整归一化源时间轴独立装配；母版可能已做 xfade，不能再从它扣重叠。
@@ -1516,7 +2141,14 @@ kind: "duration_consistent",
         color: variant.layers.color
           ? { ...variant.layers.color, path: path.relative(target, variant.layers.color.path) }
           : null,
-        assembly: { ...variant.layers.assembly, path: path.relative(target, variant.layers.assembly.path) },
+        assembly: {
+          ...variant.layers.assembly,
+          path: path.relative(target, variant.layers.assembly.path),
+          // 工程文件里的路径一律相对交付根；转场回执同样如此（返修时按根解析回来）
+          transitionReceipt: variant.layers.assembly.transitionReceipt
+            ? path.relative(target, variant.layers.assembly.transitionReceipt)
+            : null,
+        },
         bgm: variant.artifacts.audio ? { trackId: variant.artifacts.audio.trackId, policy: variant.artifacts.audio.policy } : null,
         artifacts: {
           audio: { ...variant.artifacts.audioReceipt, path: path.relative(target, variant.artifacts.audioReceipt.path) },
@@ -1581,7 +2213,7 @@ kind: "duration_consistent",
         checks: variant.artifacts.cover.checks,
       },
       copy: { path: path.relative(target, variant.artifacts.copy.path), title: variant.artifacts.copy.title, hashtags: variant.artifacts.copy.hashtags, checks: variant.artifacts.copy.checks },
-      audio: variant.artifacts.audio
+        audio: variant.artifacts.audio
         ? {
           path: path.relative(target, variant.artifacts.audio.path),
           trackId: variant.artifacts.audio.trackId,
@@ -1596,6 +2228,20 @@ kind: "duration_consistent",
       style: variant.style,
       independentAudio: variant.layers.audioStems ? { ...variant.layers.audioStems, dir: path.relative(target, variant.layers.audioStems.dir) } : null,
     })),
+    transitions: {
+      mode: baseTransitions.mode,
+      planned: plannedTransitions,
+      summaryPath: path.relative(target, transitionSummaryPath),
+      catalog: "bundles/ai-video/library/transitions/catalog.json",
+      scopes: transitionScopes.map((entry) => ({
+        scope: entry.scope,
+        mode: entry.receipt?.mode ?? null,
+        transitionCount: entry.receipt?.transitionCount ?? 0,
+        hardCutCount: entry.receipt?.hardCutCount ?? null,
+        types: [...new Set((entry.receipt?.cuts ?? []).map((cut) => cut.type))],
+        receiptPath: entry.receiptPath ? path.relative(target, entry.receiptPath) : null,
+      })),
+    },
     divergence,
     coverDivergence: coverDivergence.map((row) => ({ a: row.a, b: row.b, meanAbsDiff: row.diff.meanAbsDiff, verdict: row.diff.verdict })),
     checks: packageChecks,
@@ -1638,7 +2284,13 @@ kind: "duration_consistent",
       variant.audio
         ? `${variant.audio.trackTitle ?? variant.audio.trackId}${variant.audio.mixing?.autoTrimDb < 0 ? `（自动降档 ${variant.audio.mixing.autoTrimDb}dB → ${variant.audio.mixing.appliedMusicLevelDb}dB）` : ""}${variant.audio.failed ? "（配乐未过检，按原声交付）" : ""}`
         : "原声",
-      `${variant.style.transitions.mode}${variant.style.transitions.fadeSec ? ` ${variant.style.transitions.fadeSec}s` : ""}`,
+      (() => {
+        const receipt = variant.transitions?.receipt ?? null;
+        if (!receipt) return `${variant.style.transitions.mode}${variant.style.transitions.fadeSec ? ` ${variant.style.transitions.fadeSec}s` : ""}`;
+        if (!receipt.transitionCount) return `${receipt.mode} · 全硬切${receipt.notes?.length ? "（见回执说明）" : ""}`;
+        const types = [...new Set(receipt.cuts.map((cut) => cut.type))];
+        return `${receipt.mode} · ${receipt.transitionCount} 刀（${types.join("/")}）+ 硬切 ${receipt.hardCutCount} 处`;
+      })(),
       `\`${variant.cover.path}\``,
     ].join(" | ")),
     "",
@@ -1721,7 +2373,11 @@ export function analyzeImpact({ project = null, patch = {} } = {}) {
     reasons.push("调色变化：从既有拼接母版重跑调色（镜头与拼接不动）");
   }
   if (patch.transitions) {
-    normalizePatchKeys(patch.transitions, ["variantId", "mode", "fadeSec"], "patch.transitions");
+    normalizePatchKeys(
+      patch.transitions,
+      ["variantId", "mode", "fadeSec", "type", "easing", "perCut", "plan", "intentMap", "scale"],
+      "patch.transitions",
+    );
     layers.add("assemble");
     reasons.push("转场/拼接变化：从既有镜头产物重拼接（镜头不动）");
   }

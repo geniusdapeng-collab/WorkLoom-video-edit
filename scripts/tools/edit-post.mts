@@ -18,6 +18,8 @@
  *     [--analysis <probe.json>]…（封面自动取帧与分段调色投票用）
  *     [--title "标题"] [--hook "一句话钩子"] [--platform "微信视频号"]
  *     [--width <显式宽> --height <显式高>] [--fps 30] [--crf 16] [--burn-subtitles] [--json]
+ *     [--transitions hard|pack|declared|auto] [--transitions-easing native|smooth]
+ *     [--transition-pack documentary|vlog|fast_cut|information]
  *   输出分辨率默认**跟随素材原生分辨率**（取与目标画幅一致的最大素材档位；4K 素材 → 3840×2160，
  *   清晰度档随之推导为 uhd），只有显式 `--width/--height` 才覆盖——不允许管线自行降低分辨率（2026-10-11 产品所有者口径）。
  */
@@ -27,8 +29,8 @@ import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, renameS
 import { homedir } from "node:os";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 import {
-  planAssembly, planCoverMoment, planSegmentColor, validateEditTimeline,
-  resolveTimelineSourcePaths, type EditTimeline, type PostAnalysisDoc,
+  describeTransitionPlan, planAssembly, planCoverMoment, planSegmentColor, planToPerCut, planTransitions,
+  resolveTimelineSourcePaths, validateEditTimeline, type EditTimeline, type PostAnalysisDoc,
 } from "../../packages/video-studio/src/edit/index.js";
 
 const REPO_ROOT = resolve(import.meta.dirname ?? process.cwd(), "../..");
@@ -164,13 +166,46 @@ async function main(): Promise<void> {
   console.log(`分辨率：${width}×${height}（${resolutionPolicy}）· 清晰度档 ${quality} · ${fps}fps`);
   const variants = arg("--variants", "warm-story,clean-tech,bold-promo").split(",").map((v) => v.trim()).filter(Boolean);
   /**
-   * 转场口径：`pack`（默认，用变体配方，暖调故事版是 fade=经黑场叠化）或 `hard`（全部硬切）。
-   * 产品所有者口径（2026-10-10）：叙事剪辑默认硬切，叠化只在明确要求时使用。
-   * 实现方式：把三份变体配方复制到交付目录下的临时覆盖目录，改写 transitions 后交给
-   * post-bridge 的 `WORKLOOM_POST_VARIANT_DIR` 覆盖（不改随包资产）。
+   * 转场口径（2026-10-11 升级为四档）：
+   *   · hard（默认，产品所有者 2026-10-10 口径）：全部硬切；
+   *   · pack：沿用变体配方里的整段转场（legacy 兼容：warm-story=fade 经黑场、clean-tech=hard、bold-promo=xfade）；
+   *   · declared：只渲染剪辑脚本声明的 `transitionIn`（未声明处硬切）；
+   *   · auto：声明优先 + 场景组切换处按节奏档案自动补（叙事片推荐；组内保持硬切）。
+   * declared/auto 的计划由 `packages/video-studio/src/edit/transitions.ts` 纯函数产出，
+   * 交给 post-bridge 逐刀渲染（变体配方再用 intentMap 决定各风格的观感）。
    */
-  const transitionsMode = arg("--transitions", "hard");
-  if (!["hard", "pack"].includes(transitionsMode)) throw new Error("--transitions 只接受 hard / pack");
+  const transitionsMode = (() => {
+    const value = arg("--transitions", "hard");
+    if (value !== "hard" && value !== "pack" && value !== "declared" && value !== "auto") {
+      throw new Error("--transitions 只接受 hard / pack / declared / auto");
+    }
+    return value;
+  })();
+  const transitionsEasing = (() => {
+    const value = arg("--transitions-easing", "native");
+    if (value !== "native" && value !== "smooth") throw new Error("--transitions-easing 只接受 native / smooth");
+    return value;
+  })();
+  const transitionPack = arg("--transition-pack", timeline.pacing?.profile ?? "documentary");
+  const transitionPlan = transitionsMode === "declared" || transitionsMode === "auto"
+    ? planTransitions({
+      segments: (timeline.segments ?? []).map((segment) => ({
+        segmentId: segment.segmentId,
+        groupId: segment.groupId ?? null,
+        durationSeconds: segment.durationSeconds,
+        transitionIn: segment.transitionIn ?? null,
+        motive: segment.motive ?? null,
+      })),
+      mode: transitionsMode,
+      pack: transitionPack as Parameters<typeof planTransitions>[0]["pack"],
+      pacing: timeline.pacing ?? null,
+      fps: timeline.target?.fps ?? 30,
+      easing: transitionsEasing,
+    })
+    : null;
+  if (transitionPlan) {
+    for (const line of describeTransitionPlan(transitionPlan)) console.log(line);
+  }
   /**
    * 分段调色（`--segment-color`）：把"家里暖 / 城市冷"落到**片段级**，而不是全片一个 LUT。
    * 做法：先按时间轴的场景组给每段预调色（warm-film / cool-technical，带强度混合），再交给后期装配；
@@ -424,7 +459,13 @@ async function main(): Promise<void> {
          */
         color: null,
         colorNote: "调色已在片段级完成（warm-film / cool-technical 分段执行）；变体不叠加统一调色",
-        transitions: { mode: "hard", fadeSec: 0, note: "本片全部硬切" },
+        transitions: {
+          mode: "hard",
+          fadeSec: 0,
+          note: "整段口径为硬切；有逐切计划（declared/auto）时按 warm-story 的 intentMap 逐刀执行",
+          scale: (base.transitions as { scale?: number } | undefined)?.scale ?? 1,
+          intentMap: (base.transitions as { intentMap?: Record<string, unknown> } | undefined)?.intentMap ?? null,
+        },
       };
       writeFileSync(join(overrideDir, "segmented-story.json"), `${JSON.stringify(segmented, null, 2)}\n`, "utf8");
       variantIndex.variants.push({ id: "segmented-story", file: "segmented-story.json", name: "分段调色版", positioning: segmented.positioning as string });
@@ -447,7 +488,13 @@ async function main(): Promise<void> {
     fps,
     quality,   // 由分辨率推导（4K 级 → uhd）或显式 --quality；post-bridge 只认 hd / uhd
     platform,
-    transitions: { mode: "hard", fadeSec: 0 },
+    /**
+     * 逐切转场计划（declared/auto）：交给 post-bridge 逐刀渲染；
+     * 变体配方通过 intentMap 决定各自观感（同一剪辑脚本 → 三种风格转场）。
+     */
+    transitions: transitionPlan && transitionPlan.cuts.length > 0
+      ? { mode: "xfade" as const, fadeSec: 0, perCut: planToPerCut(transitionPlan), easing: transitionsEasing }
+      : { mode: "hard" as const, fadeSec: 0 },
     copy: {
       title,
       hook,
@@ -499,6 +546,12 @@ async function main(): Promise<void> {
   const manifest = existsSync(manifestPath)
     ? JSON.parse(readFileSync(manifestPath, "utf8")) as Record<string, unknown>
     : null;
+  const transitionSummaryPath = join(outDir, "transitions", "transition-receipt.json");
+  const transitionSummary = existsSync(transitionSummaryPath)
+    ? JSON.parse(readFileSync(transitionSummaryPath, "utf8")) as {
+      scopes?: Array<{ scope: string; mode: string | null; transitionCount: number; hardCutCount: number | null; types: string[] }>;
+    }
+    : null;
   const summary = {
     ok: true,
     outDir,
@@ -514,7 +567,16 @@ async function main(): Promise<void> {
         .filter((entry) => entry.width && entry.height && entry.width * entry.height < width * height)
         .map((entry) => entry.sourceId),
     },
-    transitions: transitionsMode,
+    transitions: {
+      mode: transitionsMode,
+      easing: transitionsEasing,
+      pack: transitionPlan?.pack ?? transitionPack,
+      plannedCuts: transitionPlan?.cuts.length ?? 0,
+      expectedOutputDurationSeconds: transitionPlan?.expectedOutputDurationSeconds ?? null,
+      advisories: transitionPlan?.advisories ?? [],
+      summaryPath: transitionSummary ? transitionSummaryPath : null,
+      scopes: transitionSummary?.scopes ?? [],
+    },
     subtitle: subtitlePath,
     coverAtSource: {
       ratio: Number(autoCover.ratio.toFixed(4)),
@@ -543,6 +605,12 @@ async function main(): Promise<void> {
     }
     if (subtitlePath) console.log(`  旁挂字幕：${subtitlePath}（已生成 srt/ass/vtt + 清单）`);
     console.log(`  交付清单：${manifestPath}`);
+    if (transitionSummary?.scopes?.length) {
+      console.log("  转场回执：");
+      for (const scope of transitionSummary.scopes) {
+        console.log(`    - ${scope.scope}：${scope.mode ?? "-"} · 转场 ${scope.transitionCount} 刀 / 硬切 ${scope.hardCutCount ?? "-"} 处${scope.types.length ? `（${scope.types.join("/")}）` : ""}`);
+      }
+    }
     console.log("  说明：调色/封面/配乐/软字幕轨均由既有后期链路（post-bridge）按变体配方执行。");
   }
   void homedir;
