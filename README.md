@@ -4,7 +4,7 @@
 
 换句话说：**替换掉"视频提示词生成"与"视频渲染"两个环节**，其余后期环节与 AI 视频生成管线共用同一批工位与同一份交付纪律。剪辑包本身是本地算力（免费、可重跑），模型只花在"理解"和"创作"上。
 
-当前生产线包含 7 个本地执行器：`pnpm edit:probe / edit:verify / edit:assemble / edit:post / edit:subtitle / edit:cover / edit:danmaku`，并已支持**按场景组分段调色、配乐 agent 选曲（本地打标大库优先）、封面 agent 链路与烧封片头、弹幕轨、分辨率×朝向字号规则、多风格变体×三形态交付**，详见下文「AI 剪辑生产线」。
+当前生产线包含 11 个本地执行器：通用剪辑 7 个（`pnpm edit:probe / edit:verify / edit:assemble / edit:post / edit:subtitle / edit:cover / edit:danmaku`）+ **口播精剪 4 个**（`pnpm edit:talk-asr / edit:talk-emotion / edit:talk-cut / edit:talk-annotate`），并已支持**按场景组分段调色、配乐 agent 选曲（本地打标大库优先）、封面 agent 链路与烧封片头、弹幕轨、分辨率×朝向字号规则、多风格变体×三形态交付**，详见下文「AI 剪辑生产线」。
 
 [CNB 仓库](https://cnb.cool/workloom-ai/WorkLoom-video-edit) · [产品身份](product.manifest.json) · [剪辑架构升级](docs/video-edit-architecture.md) · [提示词套件](docs/video-edit-prompt-suite.md) · [代码入口导览](docs/capabilities.auto.md) · [开发指引](AGENTS.md) · [Apache-2.0](LICENSE)
 
@@ -27,6 +27,9 @@
 | 弹幕轨 | `pnpm edit:danmaku` | 复用字幕工位的弹幕能力：滚动/顶部/底部混合、2–4 分道、密度体检、回执含产物 sha256；默认**完整保留**传入条目、不隐式删减 |
 | 配乐选曲 | `pnpm edit:post --bgm agent` | 配乐选曲器在**本地打标大库**按变体风格匹配并复检可商用许可，`trackId` 钉进变体配方；**本地大库优先、随仓 50 首兜底**（回执 `bgm-agent-receipt.json`） |
 | 交付包 | `outputs/edit/delivery-<版本>/` | 母版 + 变体×三形态 + 封面 + 烧封 + 弹幕 + 全部回执：`delivery-manifest.json`、`covers/cover-plan.json`、`bgm-agent-receipt.json`、`segment-color-plan.json`、`danmaku/danmaku-receipt.json` |
+| **口播精剪（AI 口播管线）** | `pnpm edit:talk-asr` → `edit:talk-emotion` → `edit:talk-cut` → `edit:talk-annotate` | 口播专属前置链路：**词级 ASR 逐字稿**（语气词/停顿/卡壳/口误自纠全量标记，精度如实标注）+ **情绪与活人感**（句级情绪曲线、三类峰值、笑声/叹气/自纠信号）；逐句留删决策带**人味台账**（语气词保留率 ≥0.20、停顿保留率 ≥0.15，跌破必须人审放行）；同机位跳切用推近遮盖；产出 `talk-cut-list.json` / `talk.timeline.json` / `talk.captions.json` / `talk.srt` / `talk-qc.json`；点睛层出知识点弹幕/贴纸/章节 |
+
+**AI 口播精剪管线（2026-10-11 新增 · 产品口径：追求完美会摧毁信任）**：口播（怼脸随手拍、想到哪儿说到哪儿）与通用剪辑的主要矛盾不同——不是"从多素材里选故事"，而是**同一条长镜头内的逐句留删**。本管线把两根主轴做重：① **ASR 逐字稿是唯一事实源**（字幕/决策/弹幕全部逐字取自它，禁止润色改写）；② **情绪与活人感**决定选段与后期（删死停/卡壳/无信息重复，留换气/笑声/自问自答/口误自纠）。设计与行业调研（含 WhisperX 词级时间戳证据、auto-editor 的 `--margin` 留边距实践）见 [`docs/talking-head-pipeline.md`](docs/talking-head-pipeline.md)；行业包入口 [`bundles/video-edit/pipelines/edit-talk.yml`](bundles/video-edit/pipelines/edit-talk.yml)（4 个新岗位 + 4 个新技能 + 8 条口播围栏 G-TK1–G-TK8 + 3 份新契约）。成片后期与通用剪辑**完全共用**（轻度 BGM 让位人声、调色保留皮肤质感、逐字字幕、封面、多形态交付）。
 
 **字号规则（2026-10-11 定型，客户反馈“字幕/弹幕偏小”后回归修复）**：字号 = 短边 × 场景基准比（字幕 0.064 / 弹幕 0.054）× 分辨率档（720p×1.08 / 1080p×1.00 / 1440p×0.98 / 2160p×0.96）× 朝向（竖屏×1.05）× 粗细修正 × 平台倍率，再按 `minPx / maxRatio` 夹取。规则表与断言在 [`font_db.json#size_policy.resolution_rules`](bundles/ai-video/library/font-catalog/font_db.json)；1080p 横屏实测字幕 ≈71px、弹幕 ≈59px。
 
@@ -146,7 +149,7 @@ NATS/Redis 的事件总线库可在源码中找到，但当前主业务入口未
 - ✅ **验证与维护命令**：环境安装脚本 · 主测试套件 · GEO 域套件 · 酒店域套件 · 发布门禁 · 五元事件验链 等 8 项
 - 📚 **演示与说明资产**：静态演示原型 ×12 · 官网静态页面 · official 技能目录 ×9 · 历史能力导览 PPT · 模拟数据说明
 
-本仓 manifest 共声明 **96 条岗位定义、103 项技能路径、12 条管线**；岗位按 `preset_key` 去重为 **92 个不同标识**。实际组合以主包与装配器为准。
+本仓 manifest 共声明 **100 条岗位定义、107 项技能路径、13 条管线**；岗位按 `preset_key` 去重为 **96 个不同标识**。实际组合以主包与装配器为准。
 
 完整来源与边界见 [自动导览](docs/capabilities.auto.md) 和 [机器清单](docs/capabilities.auto.json)；首次体验按下文“快速开始”准备隔离环境。
 <!-- CAPABILITIES:END -->

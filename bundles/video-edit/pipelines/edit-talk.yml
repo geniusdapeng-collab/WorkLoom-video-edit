@@ -1,0 +1,109 @@
+# AI 口播精剪管线 v1（edit-talk）——"怼脸随手拍"的长素材 → 一条或多条最佳口播片
+#
+# 与 edit-film 的分工：
+#   edit-film：多素材二次创作（选镜、重组、叙事结构是主要矛盾）；
+#   edit-talk：**单条长镜头内的逐句精剪**（留什么、删什么、留多长停顿、情绪怎么走是主要矛盾）。
+#   两条管线共用：素材/信号层、后期交接（调色/字幕版式/配乐/封面/变体）、质检与返修纪律。
+#
+# 本管线两条强化主轴（产品所有者 2026-10-11 口径）：
+#   ① **ASR 逐字稿**是唯一事实源：字幕、剪取决策、弹幕知识点全部逐字来自它，禁止润色改写；
+#   ② **情绪与活人感**是选段与后期的第一权重：删的是"伤理解"的死停/卡壳/无信息重复，
+#      留的是"像人"的换气、笑声、自问自答、口误自纠——剪得越"完美"越像 AI 念稿。
+#
+# 创作纪律：docs/talking-head-pipeline.md；岗位技能：skills/talk-{transcription,cutting,emotion,annotation}。
+# 每步 = Quest 任务卡；产物写 biz_events 五元事件；gates 引用 fences/talk-edit-baseline.yml。
+quest: edit-talk
+name: AI 口播精剪管线
+version: v1
+description: 口播素材入库→信号解析→逐字稿（ASR 词级，语气词/停顿/卡壳/自纠全量标注）→情绪与活人感画像→话题块与知识洞察→口播命题卡→选段与多片拆分→逐句剪取决策（人味台账）→情绪节奏设计→帧级时间轴（跳切推近遮盖）→逐字字幕→点睛层（知识点弹幕/贴纸/章节）→口播质检（逐字一致/不剪残句/人味下限）→口播锁定（人审）→本地合成→交回既有后期（轻 BGM/调色/封面/多形态）→入库→返修
+steps:
+  - step_key: ingest
+    name: 口播素材入库与登记
+    owner: footage-librarian
+    gates: [G-ED2]
+    outputs: [footage_asset]            # 指纹/规格/授权/用途；真人出镜须登记肖像授权与 AI 披露口径
+  - step_key: probe
+    name: 信号解析（确定性，不花模型钱）
+    owner: signal-analyst
+    outputs: [footage_probe]            # 镜头边界/静音与停顿/响度包络/技术指标；口播多为单镜头长条
+  - step_key: transcribe
+    name: 逐字稿（ASR 词级时间戳 + 口语标记）
+    owner: talk-transcriber
+    gates: [G-TK1, G-TK2]
+    outputs: [talk_transcript]          # 词级时间戳（精度如实标注）+ 语气词/停顿/重复/卡壳/自纠标记 + 话题块
+                                        # 本地执行对应 pnpm edit:talk-asr；精度非词级时下游必须显式放行
+  - step_key: emotion
+    name: 情绪与活人感画像
+    owner: talk-emotion-director
+    gates: [G-TK3]
+    outputs: [talk_emotion]             # 句级唤起度曲线（本地声学）+ 效价（标注通道）+ 情绪峰值 + 活人感信号
+                                        # 本地执行对应 pnpm edit:talk-emotion；没有通道的字段写 null，不猜
+  - step_key: insights
+    name: 话题块与知识洞察
+    owner: talk-editor
+    outputs: [talk_insights]            # 话题块清单 + 金句/数字/结论/笑点清单（供选段、字幕强调与点睛层）
+  - step_key: brief
+    name: 口播命题卡（选题 + 受众 + 平台 + 时长）
+    owner: creative-weaver
+    outputs: [creative_brief]           # 素材给什么 / 没有什么（禁引入素材外元素）+ 目标时长带 + 平台规格
+  - step_key: g-tk4-selection
+    name: 选段与多片拆分确认（人在环）
+    owner: edit-producer
+    gates: [G-TK4]
+    outputs: [talk_cut_plan]            # 给候选选段与拆分方案（每条片子的主题/时长/峰值），由人选
+  - step_key: cut-plan
+    name: 逐句剪取决策与人味台账
+    owner: talk-editor
+    gates: [G-TK3, G-TK6]
+    outputs: [talk_cut_plan]            # 每个决定：保留/删除/压缩 + 时间码 + 理由 + 人味价值 + 指标
+                                        # 本地执行对应 pnpm edit:talk-cut（含人味下限补偿与平滑风险）
+  - step_key: structure
+    name: 情绪节奏设计（钩子/推进/峰值/落点）
+    owner: talk-emotion-director
+    outputs: [story_plan]               # 前 3 秒钩子取情绪或金句峰值；峰值后必须有回落；口播不卡 BGM 拍
+  - step_key: timeline
+    name: 帧级时间轴（跳切推近遮盖）
+    owner: edit-director
+    gates: [G-TK7]
+    outputs: [edit_timeline]            # 单素材 + sourceGapPolicy=single-take-talking-head + punch-in 遮盖
+  - step_key: caption
+    name: 逐字字幕（口播口径：一屏两行、逐字一致、不卡点）
+    owner: caption-writer
+    gates: [G-TK1]
+    outputs: [caption_script]           # 本地执行对应 pnpm edit:subtitle --talk（逐字校验需 --transcript）
+  - step_key: annotate
+    name: 点睛层（知识点弹幕 / 贴纸卡 / 章节）
+    owner: talk-annotator
+    gates: [G-TK8]
+    outputs: [talk_annotation]          # 前 2 秒留白、≤6 条/分钟、避开字幕带；文案逐字取自逐字稿
+                                        # 本地执行对应 pnpm edit:talk-annotate → danmaku/stickers/chapters
+  - step_key: cutcheck
+    name: 口播质检（逐字一致 / 不剪残句 / 人味下限）
+    owner: cut-inspector
+    gates: [G-TK1, G-TK3, G-TK6, G-TK7]
+    outputs: [cut_report]               # 硬项：逐字一致/删除端点对齐词边界/整句不剪残/时间轴合法
+                                        # 人味下限未达标挂起人审；平滑风险与语速只做咨询项
+  - step_key: g-tk5-roughcut
+    name: 口播粗剪锁定确认（人在环）
+    owner: edit-producer
+    gates: [G-TK5]
+    outputs: [edit_timeline]            # 锁定后改结构（增删句/改顺序/改时长带）= 新版本 + 重新确认
+  - step_key: compose
+    name: 本地合成（逐段裁切 + 跳切推近 + 拼接）
+    owner: edit-compositor
+    gates: [G-ED1, G-ED3]
+    outputs: [final_video]              # 纯本地算力、可重跑；产出带封面/字幕/弹幕前的"画面母版"
+  - step_key: handoff-post
+    name: 交回既有后期链路（轻 BGM / 调色 / 封面 / 多形态）
+    owner: edit-compositor
+    gates: [G-ED6, G-TK7]
+    outputs: [edit_handoff]             # BGM 轻度且让位人声、调色保留皮肤质感、封面走 cover-designer
+                                        # 本地执行对应 pnpm edit:post（与生成片共用同一批工位）
+  - step_key: archive
+    name: 成片入库与素材回写
+    owner: footage-librarian
+    outputs: [final_video, video_asset] # 母版/变体/逐字稿/剪取台账一并入库，回链源素材与版本
+  - step_key: revise
+    name: 返修闭环（反馈 → 分诊 → 层增量重剪）
+    owner: edit-producer
+    outputs: [cut_report, final_video]  # 点名到哪一句就重跑那一句的决策；能在字幕/点睛层解决的绝不动画面

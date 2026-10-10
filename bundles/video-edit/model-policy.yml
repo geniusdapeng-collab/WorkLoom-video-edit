@@ -17,6 +17,12 @@ scenes:
   edit-story-review:    { tier: L3, escalateOn: [thumbs-down] }  # 四视角评审：与生成分离
   edit-script:          { tier: L2, escalateOn: [parse-fail] }
   edit-caption:         { tier: L2 }
+  # —— 口播精剪（edit-talk）：本地能算的都是本地算，模型只补语义与判断 ——
+  talk-transcribe:      { tier: L1, fallback: rule-template }    # 转写走本机 ASR/引擎（不占模型额度）；通道不可用即失败关闭，不用模型假装转写
+  talk-emotion:         { tier: L2, fallback: rule-template, escalateOn: [low-confidence] }  # 声学本地算，情绪词/效价可升级
+  talk-cut:             { tier: L1, fallback: rule-template }    # 留删决策以规则+台账为主，歧义句才升级
+  talk-cut-ambiguous:   { tier: L2, escalateOn: [human-dispute] } # 人工对某句留删有争议时升级复核
+  talk-annotate:        { tier: L2 }                              # 金句/知识点抽取
 plans:
   lite:     { defaultShift: -1 }   # 智享版：整体压一档
   standard: { defaultShift: 0 }    # 标准版：标准混合

@@ -47,11 +47,13 @@ describe("video-edit：包内契约自洽（并入组合后不再漂移）", () 
     expect(missing).toEqual([]);
   });
 
-  it("presets 全部通过 WorkforcePreset 契约（11 个岗位）", () => {
+  it("presets 全部通过 WorkforcePreset 契约（数量与 provides 声明一致）", () => {
     const docs = manifest.workloom.provides.presets.map((assetPath) =>
       YAML.parse(readFileSync(join(BUNDLE_DIR, assetPath), "utf-8")));
     const presets = parseWorkforcePresets(docs);
-    expect(presets).toHaveLength(11);
+    /** 数量不写死：口播管线（edit-talk）会继续加岗，这里只守"提供项与可解析岗位一一对应"。 */
+    expect(presets).toHaveLength(manifest.workloom.provides.presets.length);
+    expect(presets.length).toBeGreaterThanOrEqual(11);
     expect(presets.map((preset) => preset.preset_key)).toContain("edit-compositor");
   });
 

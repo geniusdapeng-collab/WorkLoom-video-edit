@@ -13,13 +13,17 @@
     "revision": { "type": "integer", "minimum": 1 },
     "prevRevision": { "type": ["integer", "null"], "minimum": 1 },
     "createdAt": { "type": "string" },
+    "sourceGapPolicy": {
+      "description": "同源片段间隔策略：standard = 通用剪辑（同源多段间隔 ≥1s）；single-take-talking-head = 口播精剪（允许同一条长镜头内密集跳切，改由源轨单调性与跳切遮盖覆盖率管理）。缺省 standard。",
+      "enum": ["standard", "single-take-talking-head", null]
+    },
     "pacing": {
       "type": ["object", "null"],
       "description": "节奏档案：按体裁给默认值（documentary/vlog/fast_cut/information），偏离只出咨询项；enforce=true 时升级为硬项。",
       "additionalProperties": false,
       "required": ["profile"],
       "properties": {
-        "profile": { "enum": ["documentary", "vlog", "fast_cut", "information"] },
+        "profile": { "enum": ["documentary", "vlog", "fast_cut", "information", "talk"] },
         "enforce": { "type": "boolean" },
         "overrides": { "type": ["object", "null"], "additionalProperties": true }
       }
@@ -131,6 +135,17 @@
               "note": { "type": ["string", "null"] }
             }
           },
+          "punchIn": {
+            "description": "跳切遮盖用的推近（punch-in）：口播同机位跳切必须给观众「换镜头」的视觉理由。scale 1.0–1.5（1.12 = 放大 12%），x/y 为裁切中心比例（0–1，缺省居中）。",
+            "type": ["object", "null"],
+            "additionalProperties": false,
+            "properties": {
+              "scale": { "type": ["number", "null"], "minimum": 1, "maximum": 1.5 },
+              "x": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+              "y": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+              "note": { "type": ["string", "null"] }
+            }
+          },
           "subtitle": {
             "type": ["object", "null"],
             "additionalProperties": false,
@@ -186,6 +201,8 @@
         "noSourceOverlap": { "type": "boolean" },
         "minSameSourceGapSeconds": { "type": ["number", "null"] },
         "totalDurationSeconds": { "type": "number", "exclusiveMinimum": 0 },
+        "sourceGapPolicy": { "enum": ["standard", "single-take-talking-head", null] },
+        "generatedBy": { "type": ["string", "null"] },
         "checks": {
           "type": "array",
           "items": {
