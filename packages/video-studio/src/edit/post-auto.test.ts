@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { planCoverMoment, planSegmentColor, type ColorRecipe, type PostAnalysisDoc } from "./post-auto.js";
+import { planCoverMoment, planCoverMoments, planSegmentColor, type ColorRecipe, type PostAnalysisDoc } from "./post-auto.js";
 import type { EditTimeline } from "./timeline.js";
 
 const SHA_A = "a".repeat(64);
@@ -75,6 +75,30 @@ describe("edit/post-auto：后期自动决策", () => {
     expect(plan.masterSeconds).toBe(3);
     expect(plan.ratio).toBeCloseTo(0.5, 3);
     expect(planCoverMoment({ timeline: timeline() }).basis).toBe("fallback");
+  });
+
+  it("封面多帧：每个变体一个互不相同的时刻（同镜头只用一次，候选不足用分散兜底）", () => {
+    const analyses: PostAnalysisDoc[] = [
+      {
+        asset: { sha256: SHA_A },
+        keyframes: [
+          { keyframeId: "kf-a1", shotId: "s1", kind: "composition_best", timecode: "00:00:01.000", score: 0.9, technical: { textSafe: true } },
+          { keyframeId: "kf-a2", shotId: "s1b", kind: "emotion_peak", timecode: "00:00:01.800", score: 0.7, technical: { textSafe: true } },
+        ],
+      },
+      {
+        asset: { sha256: SHA_B },
+        keyframes: [{ keyframeId: "kf-b1", shotId: "s2", kind: "emotion_peak", timecode: "00:00:03.000", score: 0.8, technical: { textSafe: true } }],
+      },
+    ];
+    const moments = planCoverMoments({ timeline: timeline(), analyses, count: 4 });
+    expect(moments).toHaveLength(4);
+    expect(moments[0]!.basis).toBe("keyframe-composition");
+    // 同镜头候选只用一次：第一段只出 1 个（其余由兜底补齐），不同时刻互不相同
+    expect(new Set(moments.map((moment) => moment.ratio)).size).toBe(4);
+    const fallback = planCoverMoments({ timeline: timeline(), count: 4 });
+    expect(fallback.every((moment) => moment.basis === "fallback")).toBe(true);
+    expect(new Set(fallback.map((moment) => moment.ratio)).size).toBe(4);
   });
 
   it("分段调色：暖词/冷词/中性按组投票出 LUT 与强度，中性组不叠加统一调色", () => {
