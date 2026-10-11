@@ -14,10 +14,10 @@
  *     [--title "片名"] [--platform 视频号] [--out <输出目录>]
  */
 import { execFileSync } from "node:child_process";
-import { existsSync, linkSync, mkdirSync, copyFileSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, linkSync, mkdirSync, copyFileSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { basename, isAbsolute, join, resolve } from "node:path";
 import {
-  buildArtifactName, buildDeliveryIndexMarkdown, resolutionBadge, variantDisplayName,
+  buildArtifactName, buildDeliveryIndexMarkdown, resolutionBadge, variantDisplayName, VARIANT_DISPLAY_NAME,
   type DisplayArtifact, type PixelSize,
 } from "../../packages/video-studio/src/edit/naming.js";
 
@@ -104,8 +104,14 @@ function collect(delivery: string, previews: string | null): Candidate[] {
     }
   }
   if (previews && existsSync(previews)) {
+    const knownVariants = Object.keys(VARIANT_DISPLAY_NAME);
     for (const file of readdirSync(previews).sort()) {
-      if (/\.(mp4|mov|m4v)$/iu.test(file)) push(join(previews, file), "preview", "预览", undefined, true);
+      const variantId = knownVariants.find((id) => file.startsWith(id));
+      if (/\.(mp4|mov|m4v)$/iu.test(file)) {
+        /** 预览件说明"预览的是哪种形态"：烧字成片 → 带字幕；弹幕版 → 弹幕版。 */
+        const feature = /danmaku/iu.test(file) ? "弹幕版" : "带字幕";
+        push(join(previews, file), "preview", feature, variantId, true);
+      }
       else if (/\.(jpg|jpeg|png)$/iu.test(file)) push(join(previews, file), "other", "对比图", undefined, true);
     }
   }
@@ -132,12 +138,15 @@ function main(): void {
   const manifestRows: Array<Record<string, unknown>> = [];
   for (const candidate of candidates) {
     const ext = candidate.source.split(".").pop() ?? "bin";
-    const resolution = /\.(mp4|mov|m4v)$/iu.test(candidate.source) ? probeSize(candidate.source) : null;
+    /** 视频与图片都按实测标注分辨率（封面 PNG 也要写 4K，不能是"未知分辨率"）。 */
+    const resolution = /\.(mp4|mov|m4v|png|jpe?g|webp)$/iu.test(candidate.source) ? probeSize(candidate.source) : null;
     const displayName = buildArtifactName({
       title,
       variantName: candidate.variantId ? (names.get(candidate.variantId) ?? variantDisplayName(candidate.variantId)) : null,
       feature: candidate.feature,
       resolution,
+      /** 字幕文件这类没有像素尺寸的产物不写"未知分辨率"。 */
+      omitUnknownResolution: candidate.role === "subtitle",
       version,
       preview: candidate.preview,
       ext,
@@ -157,6 +166,13 @@ function main(): void {
   }
 
   const masterSize = probeSize(join(delivery, "master", "master-clean.mp4")) ?? null;
+  /** 清理上一轮命名残留（只删本工具pattern命名的旧文件，不动别的）。 */
+  const currentNames = new Set(artifacts.map((artifact) => artifact.displayName));
+  for (const file of readdirSync(outDir)) {
+    if (!/·V[^·]*\./u.test(file) && !/·未知分辨率/u.test(file)) continue;
+    if (currentNames.has(file)) continue;
+    try { rmSync(join(outDir, file), { force: true }); } catch { /* 清理失败不阻塞交付 */ }
+  }
   const indexMarkdown = buildDeliveryIndexMarkdown({ title, version, platform, resolution: masterSize, artifacts });
   writeFileSync(join(outDir, "交付说明.md"), indexMarkdown, "utf8");
   writeFileSync(join(outDir, "交付清单.json"), `${JSON.stringify({

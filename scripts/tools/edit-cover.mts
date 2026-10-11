@@ -223,7 +223,11 @@ const STYLES: Record<string, StyleSpec> = {
    */
   "segmented-story": {
     id: "segmented-story", fontId: "source-han-heavy", fontFamily: FONT_FAMILY["source-han-heavy"]!,
-    archetype: "subject-led", layout: "split-top-bottom", headlineSize: 118,
+    /**
+     * `layout` 只允许 person-left / person-right（设计稿契约）；双帧分段由图层实现（recipe 里上下两张主视觉），
+     * 不靠 layout 表达——写成旧值会让 validateCoverPlan 直接判"版式不在可选范围"。
+     */
+    archetype: "subject-led", layout: "person-right", headlineSize: 118,
     colors: { title: "#FFFFFF", sub: "#FFE9C7", badge: "#7DD3FC", accent: "#FFD166" },
     heroSec: 44.5, accentBar: true,
     split: { topSec: 35.5, bottomSec: 44.5 },
