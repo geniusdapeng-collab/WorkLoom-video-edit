@@ -18,18 +18,19 @@
  *   pnpm edit:cover -- --input <交付目录/master/master-clean.mp4> --out-dir <交付目录>
  *     [--timeline <film.timeline.json>] [--variants warm-story,clean-tech,bold-promo]
  *     [--platform 微信视频号] [--title "回家是为了确认"] [--hook "十一回山东"]
+ *     [--variant-copy <copy.json>]（逐版本主/副标题覆盖：{"warm-story":{"subline":"…"}}）
  *     [--hero-sec 35.5] [--account <账号档案>] [--burn-intro 1.6] [--renderer auto|compositor|ffmpeg] [--json]
  */
 import { execFileSync, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { copyFileSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, readFileSync, renameSync, statSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 import {
   COVER_FONTS, COVER_DIFF_PSNR_DB, validateCoverPlan, type CoverPlan,
 } from "../../packages/video-studio/src/cover-design.js";
 import { getCoverSpec } from "../../packages/video-studio/src/cover-platforms.js";
-import { deriveCoverTheme, planCoverMoment, type PostAnalysisDoc } from "../../packages/video-studio/src/edit/index.js";
+import { deriveCoverTheme, planCoverMoment, planCoverMoments, type PostAnalysisDoc } from "../../packages/video-studio/src/edit/index.js";
 import { scanBestFrame } from "./lib/frame-scan.mts";
 
 const REPO_ROOT = resolve(import.meta.dirname ?? process.cwd(), "../..");
@@ -121,6 +122,11 @@ function probeMedia(file: string): { width: number; height: number; duration: nu
   };
 }
 
+function probeStreams(file: string): Array<{ codec_type?: string; codec_name?: string }> {
+  const out = run(FFPROBE, ["-v", "error", "-show_entries", "stream=codec_type,codec_name", "-of", "json", file]).stdout;
+  return (JSON.parse(out) as { streams?: Array<{ codec_type?: string; codec_name?: string }> }).streams ?? [];
+}
+
 /** 标题带 / 人物位 PSNR：合成图 vs 无字底图（差异越大 = 越可能真的画了东西） */
 function bandPsnr(composed: string, base: string, box: { x: number; y: number; w: number; h: number }): number | null {
   const crop = `crop=${box.w}:${box.h}:${box.x}:${box.y}`;
@@ -133,6 +139,30 @@ function bandPsnr(composed: string, base: string, box: { x: number; y: number; w
   return matched[1] === "inf" ? Number.POSITIVE_INFINITY : Number(matched[1]);
 }
 
+/**
+ * 两张封面图的感知差异：缩到 64×36 灰度后求平均绝对差（MAD，0–255）。
+ * 为什么需要：客户反馈"几个版本的封面都还是用的同一个封面"——而当时的机检只查"单张封面是否合格"，
+ * 没有任何一项能发现"两张封面一模一样"。差异判定口径：
+ *   identical（sha 相同）/ near-duplicate（MAD < 2）/ similar（MAD < 6，提示）/ distinct。
+ */
+function imageDivergence(a: string, b: string): { meanAbsDiff: number; verdict: "identical" | "near-duplicate" | "similar" | "distinct" } {
+  if (sha256(a) === sha256(b)) return { meanAbsDiff: 0, verdict: "identical" };
+  const result = spawnSync(FFMPEG, [
+    "-v", "error", "-i", a, "-i", b,
+    "-lavfi", "[0:v]scale=64:36,format=gray[a];[1:v]scale=64:36,format=gray[b];[a][b]blend=all_mode=difference",
+    "-frames:v", "1", "-f", "rawvideo", "-pix_fmt", "gray", "-",
+  ], { maxBuffer: 4 * 1024 * 1024 });
+  if (result.status !== 0 || !result.stdout?.length) {
+    return { meanAbsDiff: Number.NaN, verdict: "similar" };
+  }
+  let total = 0;
+  for (const value of result.stdout) total += value;
+  const meanAbsDiff = Number((total / result.stdout.length).toFixed(2));
+  if (meanAbsDiff < 2) return { meanAbsDiff, verdict: "near-duplicate" };
+  if (meanAbsDiff < 6) return { meanAbsDiff, verdict: "similar" };
+  return { meanAbsDiff, verdict: "distinct" };
+}
+
 interface StyleSpec {
   id: string;
   fontId: keyof typeof COVER_FONTS;
@@ -143,6 +173,15 @@ interface StyleSpec {
   colors: { title: string; sub: string; badge: string; accent: string };
   accentBar: boolean;
   reason: string;
+  /** 该版本的默认副标题（信息增量）；缺省用 --hook */
+  subline?: string;
+  /**
+   * 双帧分段版式：**左右**两块主视觉（左暖右冷），中间冷暖分割线。
+   * 为什么是左右而不是上下（2026-10-11 客户反馈"这个封面太奇怪了"）：
+   * 16:9 画幅切上下两块后每块约 3.4:1，人像帧必然被裁掉头顶、标题被迫压在接缝上；
+   * 左右分屏每块约 0.89:1（竖构图），人像与城楼都放得下，文字压底部渐变带即可。
+   */
+  split?: { leftSec: number; rightSec: number };
 }
 
 /**
@@ -170,6 +209,7 @@ const STYLES: Record<string, StyleSpec> = {
     archetype: "subject-led", layout: "person-right", headlineSize: 112,
     colors: { title: "#FFFFFF", sub: "#CFE8FF", badge: "#7DD3FC", accent: "#7DD3FC" },
     accentBar: true,
+    subline: "果园里第一颗红苹果",
     reason: "冷净版：最稳的重标题 + 冷色题签，强调画面质感，适合产品/科技/知识（物体为主）",
   },
   "bold-promo": {
@@ -177,7 +217,29 @@ const STYLES: Record<string, StyleSpec> = {
     archetype: "person-led", layout: "person-right", headlineSize: 128,
     colors: { title: "#FFFFFF", sub: "#FFE1E1", badge: "#FF4D4F", accent: "#FF4D4F" },
     accentBar: true,
+    subline: "先吃热的 再摘苹果",
     reason: "高对比版：大字抓眼 + 强色题签，适合信息流首屏（带货/促销/强钩子）",
+  },
+  /**
+   * 分段调色版（2026-10-11 修复）：必须与暖调故事版**设计不同**。
+   * 旧实现的坑：STYLES 里没有这个 id → 回退到 warm-story 的同款版式与同帧 → 两张封面逐字节相同
+   * （客户反馈"几个版本的封面都还是用的同一个封面"）。
+   * 独立设计：**左右双帧**（左暖果园人物 / 右冷古城）+ 竖分割线 + 底部渐变压字 + 独立副标题，
+   * 一眼看出"同一趟路，两种颜色"；左右分屏（各约 0.89:1）不会像上下分屏那样把人物头顶裁掉。
+   */
+  "segmented-story": {
+    id: "segmented-story", fontId: "source-han-heavy", fontFamily: FONT_FAMILY["source-han-heavy"]!,
+    /**
+     * `layout` 只允许 person-left / person-right（设计稿契约）；双帧分段由图层实现（recipe 里上下两张主视觉），
+     * 不靠 layout 表达——写成旧值会让 validateCoverPlan 直接判"版式不在可选范围"。
+     */
+    archetype: "subject-led", layout: "person-right", headlineSize: 118,
+    colors: { title: "#FFFFFF", sub: "#FFE9C7", badge: "#FFFFFF", accent: "#FFD166" },
+    accentBar: true,
+    /** 左：果园人物（33.6s，人与苹果都在画面里）；右：古城城楼（44.5s，冷净）。 */
+    split: { leftSec: 33.6, rightSec: 44.5 },
+    subline: "果园是暖的 古城是冷的",
+    reason: "分段调色版：左半暖果园（人物完整）+ 右半冷古城，竖分割线直接表达『同一趟路两种颜色』；文字压底部渐变带保证可读",
   },
 };
 
@@ -335,6 +397,19 @@ async function main(): Promise<void> {
     ? null
     : scanBestFrame({ file: master, workDir: join(outDir, "covers", "work", "frame-scan"), ffmpeg: FFMPEG });
 
+  /**
+   * 逐变体封面时刻（2026-10-11 客户反馈"几个版本同一个封面"）：关键帧候选按"同一镜头只用一次"分配，
+   * 候选不足时用分散兜底比例补齐；这样四个版本的主视觉天然不同帧（而不是共用同一个 heroSec）。
+   */
+  const baseRatio = keyframePlan && keyframePlan.basis !== "fallback"
+    ? Number((keyframePlan.masterSeconds / Math.max(0.001, filmDuration)).toFixed(4))
+    : scannedFrame
+      ? scannedFrame.ratio
+      : 0.35;
+  const variantMoments = arg("--hero-sec")
+    ? null
+    : planCoverMoments({ timeline, analyses, count: variants.length, fallbackRatio: baseRatio });
+
   const covers: Array<Record<string, unknown>> = [];
   const checksAll: Array<Record<string, unknown>> = [];
   /**
@@ -342,19 +417,34 @@ async function main(): Promise<void> {
    * 4K 成片封面若不缩放，字会相对变小 4 倍——封面排版必须按 `canvas.height / 1080` 等比放大。
    */
   const fontScale = canvas.height / 1080;
-  for (const variantId of variants) {
+  /** 逐版本文案覆盖（`--variant-copy`）：允许每个版本的封面有独立主/副标题（信息增量不重复）。 */
+  const variantCopyPath = arg("--variant-copy");
+  const variantCopy = variantCopyPath && existsSync(abs(variantCopyPath))
+    ? JSON.parse(readFileSync(abs(variantCopyPath), "utf8")) as Record<string, { headline?: string; subline?: string }>
+    : {};
+  for (const [variantIndex, variantId] of variants.entries()) {
     const style = STYLES[variantId] ?? STYLES["warm-story"]!;
+    const variantMoment = variantMoments?.[variantIndex] ?? null;
+    const overrides = variantCopy[variantId] ?? {};
+    const headline = String(overrides.headline ?? title);
+    const subline = String(overrides.subline ?? style.subline ?? hook ?? "");
     const headlinePx = Math.round(style.headlineSize * fontScale);
     const sublinePx = Math.round(52 * fontScale);
     const explicitHero = arg("--hero-sec");
     if (explicitHero && (!Number.isFinite(Number(explicitHero)) || Number(explicitHero) < 0)) throw new Error("--hero-sec 需要非负秒数");
+    /** 分段调色版式（左右分屏）只在没有显式 --hero-sec 时启用：显式指定时退回单帧主视觉。 */
+    const split = style.split && !explicitHero ? style.split : null;
     const heroSec = explicitHero
       ? Number(explicitHero)
-      : keyframePlan && keyframePlan.basis !== "fallback"
-        ? keyframePlan.masterSeconds
-        : scannedFrame
-          ? scannedFrame.seconds
-          : Number((filmDuration * 0.35).toFixed(3));
+      : split
+        ? split.leftSec
+        : variantMoment
+          ? variantMoment.masterSeconds
+          : keyframePlan && keyframePlan.basis !== "fallback"
+            ? keyframePlan.masterSeconds
+            : scannedFrame
+              ? scannedFrame.seconds
+              : Number((filmDuration * 0.35).toFixed(3));
     const heroBasis = explicitHero
       ? "explicit（--hero-sec）"
       : keyframePlan && keyframePlan.basis !== "fallback"
@@ -366,8 +456,8 @@ async function main(): Promise<void> {
     const heroSourceSec = Number(((heroShot.sourceIn ?? 0) + Math.max(0, heroSec - (heroShot.masterIn ?? 0))).toFixed(3));
 
     const plan: CoverPlan = {
-      headline: title,
-      subline: hook || undefined,
+      headline,
+      subline: subline || undefined,
       /** 角标只来自账号视觉锤档案：没有档案就不编造系列角标（旧默认值"十一 · 回山东"是演示片专属）。 */
       badge: (accountProfile?.visual_hammer as { badge_series?: string } | undefined)?.badge_series ?? "",
       layout: style.layout,
@@ -390,9 +480,15 @@ async function main(): Promise<void> {
       kbHints: (Array.isArray((hints as { hints?: unknown }).hints) ? (hints as { hints: string[] }).hints : []).slice(0, 3),
     });
 
-    // 主视觉取帧（干净母版）→ 交给工位做底图
+    // 主视觉取帧（干净母版）→ 交给工位做底图；分段版式取左右两帧（左暖右冷）
     const frame = join(workRoot, `${variantId}-hero.png`);
     run(FFMPEG, ["-hide_banner", "-loglevel", "error", "-y", "-ss", String(heroSec), "-i", master, "-frames:v", "1", frame]);
+    const splitLeftFrame = split ? join(workRoot, `${variantId}-hero-left.png`) : null;
+    const splitRightFrame = split ? join(workRoot, `${variantId}-hero-right.png`) : null;
+    if (split) {
+      run(FFMPEG, ["-hide_banner", "-loglevel", "error", "-y", "-ss", String(split.leftSec), "-i", master, "-frames:v", "1", splitLeftFrame!]);
+      run(FFMPEG, ["-hide_banner", "-loglevel", "error", "-y", "-ss", String(split.rightSec), "-i", master, "-frames:v", "1", splitRightFrame!]);
+    }
 
     const scrimLayers = Array.from({ length: 7 }, (_, i) => ({
       type: "solid", name: `scrim-${i}`, color: "#000000",
@@ -404,18 +500,36 @@ async function main(): Promise<void> {
     const titleY = Math.round(canvas.height * (landscape ? 0.63 : 0.7));
     const badgeY = Math.round(canvas.height * 0.08);
     const subtitleY = titleY + Math.round(headlinePx * 1.25);
+    const splitX = Math.round(canvas.width * 0.5);
+    /**
+     * 分段版式的底部渐变压暗带：标题压在下三分之一，逐层加深（0.10→0.46），
+     * 保证"亮果园"和"暗城楼"两侧的文字都有对比（旧版只有固定的 7 条带，亮部那半读不清）。
+     */
+    const bottomBands = Array.from({ length: 6 }, (_, i) => ({
+      type: "solid", name: `bottom-shade-${i}`, color: "#000000",
+      x: 0, y: Math.round(canvas.height * (0.60 + i * 0.065)), width: canvas.width,
+      height: Math.round(canvas.height * 0.065),
+      opacity: Number((0.10 + i * 0.072).toFixed(3)),
+    }));
     const recipeBody = {
       recipe_version: 1,
       name: `cover-${variantId}`,
       canvas: { width: canvas.width, height: canvas.height, resolution: 72 },
       layers: [
-        { type: "image", name: "hero", source: frame, x: 0, y: 0, width: canvas.width, height: canvas.height, opacity: 1 },
+        ...(split
+          ? [
+            { type: "image", name: "hero-left", source: splitLeftFrame!, x: 0, y: 0, width: splitX, height: canvas.height, opacity: 1 },
+            { type: "image", name: "hero-right", source: splitRightFrame!, x: splitX, y: 0, width: canvas.width - splitX, height: canvas.height, opacity: 1 },
+            { type: "solid", name: "split-divider", color: "#FFFFFF", x: splitX - Math.round(canvas.width * 0.002), y: 0, width: Math.round(canvas.width * 0.004), height: canvas.height, opacity: 0.92 },
+            ...bottomBands,
+          ]
+          : [{ type: "image", name: "hero", source: frame, x: 0, y: 0, width: canvas.width, height: canvas.height, opacity: 1 }]),
         ...scrimLayers,
         ...(style.accentBar ? [{ type: "solid", name: "accent-bar", color: style.colors.accent, x: Math.round(canvas.width * 0.08), y: titleY - Math.round(canvas.height * 0.08), width: Math.round(canvas.width * 0.1), height: Math.round(canvas.height * 0.012), opacity: 1 }] : []),
         ...(String(plan.badge ?? "")
           ? [{ type: "text", name: "badge", text: String(plan.badge ?? ""), font: style.fontFamily, size: Math.round(canvas.height * 0.038), weight: "bold", color: style.colors.badge, align: "right", x: Math.round(canvas.width * 0.62), y: badgeY, width: Math.round(canvas.width * 0.3) }]
           : []),
-        { type: "text", name: "headline", text: title, font: style.fontFamily, size: headlinePx, weight: "bold", color: style.colors.title, align: "left", x: Math.round(canvas.width * 0.08), y: titleY, width: Math.round(canvas.width * 0.84) },
+        { type: "text", name: "headline", text: headline, font: style.fontFamily, size: headlinePx, weight: "bold", color: style.colors.title, align: "left", x: Math.round(canvas.width * 0.08), y: titleY, width: Math.round(canvas.width * 0.84) },
         ...(plan.subline ? [{ type: "text", name: "subline", text: plan.subline, font: style.fontFamily, size: sublinePx, weight: "regular", color: style.colors.sub, align: "left", x: Math.round(canvas.width * 0.08), y: subtitleY, width: Math.round(canvas.width * 0.84) }] : []),
       ],
       exports: [{ format: "png", path: `cover-${variantId}.png` }],
@@ -444,18 +558,32 @@ async function main(): Promise<void> {
       // 降级路径：本机 ffmpeg 渲染（如实标注 renderer，不冒充工位产物）
       const fontFile = join(FONT_DIR, COVER_FONTS[style.fontId].file);
       baseImage = join(workRoot, `${variantId}-base.png`);
+      /** 双帧分段版式：先把左右两帧横拼成一帧，再走同一套压暗/排版。 */
+      let fallbackSource = frame;
+      if (split) {
+        const splitBase = join(workRoot, `${variantId}-split.png`);
+        run(FFMPEG, ["-hide_banner", "-loglevel", "error", "-y", "-i", splitLeftFrame!, "-i", splitRightFrame!,
+          "-filter_complex",
+          `[0:v]scale=${splitX}:${canvas.height}:force_original_aspect_ratio=increase,crop=${splitX}:${canvas.height}[left];`
+          + `[1:v]scale=${canvas.width - splitX}:${canvas.height}:force_original_aspect_ratio=increase,crop=${canvas.width - splitX}:${canvas.height}[right];`
+          + "[left][right]hstack=inputs=2[out]",
+          "-map", "[out]", "-frames:v", "1", "-update", "1", splitBase]);
+        fallbackSource = splitBase;
+      }
       const baseFilters = [
         `scale=${canvas.width}:${canvas.height}:force_original_aspect_ratio=increase`, `crop=${canvas.width}:${canvas.height}`,
         "eq=contrast=1.04:saturation=1.06:brightness=0.01", "vignette=PI/5",
         ...scrimLayers.map((layer) => `drawbox=x=0:y=${layer.y}:w=${canvas.width}:h=${layer.height}:color=black@${layer.opacity}:t=fill`),
+        ...(split ? bottomBands.map((layer) => `drawbox=x=0:y=${layer.y}:w=${canvas.width}:h=${layer.height}:color=black@${layer.opacity}:t=fill`) : []),
+        ...(split ? [`drawbox=x=${splitX - Math.round(canvas.width * 0.002)}:y=0:w=${Math.round(canvas.width * 0.004)}:h=${canvas.height}:color=white@0.92:t=fill`] : []),
       ];
-      run(FFMPEG, ["-hide_banner", "-loglevel", "error", "-y", "-i", frame, "-vf", baseFilters.join(","), "-frames:v", "1", "-update", "1", baseImage]);
+      run(FFMPEG, ["-hide_banner", "-loglevel", "error", "-y", "-i", fallbackSource, "-vf", baseFilters.join(","), "-frames:v", "1", "-update", "1", baseImage]);
       const textFilters = [
         ...(style.accentBar ? [`drawbox=x=${Math.round(canvas.width * 0.08)}:y=${titleY - Math.round(canvas.height * 0.08)}:w=${Math.round(canvas.width * 0.1)}:h=${Math.round(canvas.height * 0.012)}:color=${style.colors.accent}@1:t=fill`] : []),
         ...(String(plan.badge ?? "")
           ? [`drawtext=fontfile='${fontFile}':text='${String(plan.badge ?? "").replace(/'/gu, "")}':fontcolor=${style.colors.badge}:fontsize=${Math.round(canvas.height * 0.038)}:borderw=4:bordercolor=black@0.5:x=w-text_w-${Math.round(canvas.width * 0.08)}:y=${badgeY}`]
           : []),
-        `drawtext=fontfile='${fontFile}':text='${title.replace(/'/gu, "")}':fontcolor=${style.colors.title}:fontsize=${headlinePx}:borderw=${Math.round(6 * fontScale)}:bordercolor=black@0.55:x=${Math.round(canvas.width * 0.08)}:y=${titleY}`,
+        `drawtext=fontfile='${fontFile}':text='${headline.replace(/'/gu, "")}':fontcolor=${style.colors.title}:fontsize=${headlinePx}:borderw=${Math.round(6 * fontScale)}:bordercolor=black@0.55:x=${Math.round(canvas.width * 0.08)}:y=${titleY}`,
         ...(plan.subline ? [`drawtext=fontfile='${fontFile}':text='${plan.subline.replace(/'/gu, "")}':fontcolor=${style.colors.sub}:fontsize=${sublinePx}:borderw=${Math.round(4 * fontScale)}:bordercolor=black@0.5:x=${Math.round(canvas.width * 0.08)}:y=${subtitleY}`] : []),
       ];
       run(FFMPEG, ["-hide_banner", "-loglevel", "error", "-y", "-i", baseImage, "-vf", textFilters.join(","), "-frames:v", "1", "-update", "1", target]);
@@ -486,6 +614,34 @@ async function main(): Promise<void> {
     checksAll.push({ variantId, ok: checks.every((c) => c.pass), checks });
   }
 
+  /**
+   * 变体间封面差异化机检（硬门）：任意两张封面 identical / near-duplicate 直接判不通过。
+   * 这条检查就是为了防止"回退到同一套版式/同一帧"的回归（2026-10-11 客户反馈根因）。
+   */
+  const coverDivergence: Array<{ a: string; b: string; meanAbsDiff: number; verdict: string }> = [];
+  for (let i = 0; i < covers.length; i += 1) {
+    for (let j = i + 1; j < covers.length; j += 1) {
+      const a = covers[i]!;
+      const b = covers[j]!;
+      const diff = imageDivergence(String(a.file), String(b.file));
+      coverDivergence.push({ a: String(a.variantId), b: String(b.variantId), ...diff });
+    }
+  }
+  const duplicatePairs = coverDivergence.filter((row) => row.verdict === "identical" || row.verdict === "near-duplicate");
+  checksAll.push({
+    variantId: "all",
+    ok: duplicatePairs.length === 0,
+    checks: [{
+      id: "cover-distinct",
+      pass: duplicatePairs.length === 0,
+      detail: {
+        basis: "变体封面两两 64×36 灰度平均绝对差（MAD）；identical/near-duplicate(<2) 判失败，similar(<6) 提示",
+        pairs: coverDivergence,
+        duplicates: duplicatePairs,
+      },
+    }],
+  });
+
   // ⑦ 烧封：封面作为片头烧进每条变体（干净/软字幕/烧字三种形态）
   const introReceipts: Array<Record<string, unknown>> = [];
   if (burnIntro > 0) {
@@ -505,7 +661,30 @@ async function main(): Promise<void> {
         const listFile = join(workRoot, `${variantId}${form}-list.txt`);
         writeFileSync(listFile, `file '${intro.replace(/'/gu, "'\\''")}'\nfile '${source.replace(/'/gu, "'\\''")}'\n`, "utf8");
         run(FFMPEG, ["-hide_banner", "-loglevel", "error", "-y", "-f", "concat", "-safe", "0", "-i", listFile, "-c", "copy", "-movflags", "+faststart", output]);
-        introReceipts.push({ variantId, form: form || "clean", output, introSeconds: burnIntro, introAudio: "silent", sha256: sha256(output), duration: probeMedia(output).duration });
+        /**
+         * 软字幕轨修复（2026-10-11）：concat demuxer 按"流索引交集"合并——片头只有 v/a，
+         * 源文件的 mov_text 字幕轨会被直接丢掉（实测 `*.softsub.cover.mp4` 一条字幕流都没有）。
+         * 这里拼接后把源字幕轨按片头时长平移重新挂回（-itsoffset），保住"播放器可开关字幕"的承诺。
+         */
+        let subtitleTracks = 0;
+        if (form === ".softsub") {
+          const sourceHasSubtitle = probeStreams(source).some((stream) => stream.codec_type === "subtitle");
+          if (sourceHasSubtitle) {
+            const remuxed = join(workRoot, `${variantId}${form}-remux.mp4`);
+            run(FFMPEG, [
+              "-hide_banner", "-loglevel", "error", "-y",
+              "-i", output, "-itsoffset", String(burnIntro), "-i", source,
+              "-map", "0:v:0", "-map", "0:a:0?", "-map", "1:s:0",
+              "-c", "copy", "-movflags", "+faststart", remuxed,
+            ]);
+            renameSync(remuxed, output);
+          }
+          subtitleTracks = probeStreams(output).filter((stream) => stream.codec_type === "subtitle").length;
+          if (sourceHasSubtitle && subtitleTracks === 0) {
+            throw new Error(`${variantId} 的软字幕版在烧封片头后丢失字幕轨（期望 1 条 mov_text）`);
+          }
+        }
+        introReceipts.push({ variantId, form: form || "clean", output, introSeconds: burnIntro, introAudio: "silent", subtitleTracks, sha256: sha256(output), duration: probeMedia(output).duration });
       }
     }
   }
@@ -533,16 +712,27 @@ async function main(): Promise<void> {
     schema: "workloom.video-edit/cover-report/v1",
     ok: checksAll.every((entry) => entry.ok),
     covers: checksAll,
+    coverDivergence,
+    duplicatePairs,
     introBurned: introReceipts,
     generatedAt: new Date().toISOString(),
   }, null, 2)}\n`, "utf8");
 
   const ok = checksAll.every((entry) => entry.ok) && introReceipts.every((entry) => Number(entry.duration) > burnIntro);
-  const summary = { ok, covers: covers.map((entry) => ({ variantId: entry.variantId, renderer: entry.renderer, file: entry.file })), introBurned: introReceipts.map((entry) => entry.output), planFile, reportFile };
+  const summary = {
+    ok,
+    covers: covers.map((entry) => ({ variantId: entry.variantId, renderer: entry.renderer, file: entry.file, heroSec: entry.heroSec })),
+    coverDivergence,
+    introBurned: introReceipts.map((entry) => entry.output),
+    planFile,
+    reportFile,
+  };
   if (flag("--json")) console.log(JSON.stringify(summary, null, 2));
   else {
     console.log(`✓ 封面链路完成：${covers.length} 张（画幅 ${canvas.width}×${canvas.height} / 渲染 ${covers[0]?.renderer ?? "?"}）`);
     for (const entry of covers) console.log(`  ${(checksAll.find((c) => c.variantId === entry.variantId)?.ok) ? "✓" : "✗"} ${entry.variantId} → ${entry.file}`);
+    for (const row of coverDivergence) console.log(`  差异 ${row.a} ↔ ${row.b}：MAD ${row.meanAbsDiff}（${row.verdict}）`);
+    if (duplicatePairs.length) console.warn(`⚠ 有 ${duplicatePairs.length} 对封面重复：${duplicatePairs.map((row) => `${row.a}↔${row.b}`).join("、")}`);
     if (introReceipts.length) console.log(`  烧封片头：${introReceipts.length} 个文件（每条变体 +${burnIntro}s）`);
     console.log(`  设计稿：${planFile}｜机检：${reportFile}`);
   }

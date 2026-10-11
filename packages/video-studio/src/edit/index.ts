@@ -24,3 +24,6 @@ export * from "./creative-check.js";
 export * from "./intent.js";
 export * from "./auto-plan.js";
 export * from "./talk.js";
+export * from "./naming.js";
+export * from "./entity-color.js";
+export * from "./copy-style.js";

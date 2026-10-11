@@ -1664,7 +1664,13 @@ export async function grade({
   if (probe.audio) args.push("-c:a", "aac", "-b:a", "192k");
   args.push("-movflags", "+faststart", output);
 
-  await runBin(bins.ffmpeg, args, { label: "ffmpeg(grade)", timeoutMs: 900_000 });
+  /**
+   * 调色超时（2026-10-11 实测）：4K（3840×2160）60 秒成片的一次 LUT 调色在负载机上会超过旧口径
+   * 15 分钟，直接判 timeout 硬失败（本片 V10 实测复现）。改为可按环境变量覆盖，uhd 默认 30 分钟、
+   * 其余保持 15 分钟——画质参数不变，只放宽等待窗口，与字幕/弹幕渲染同一处理思路。
+   */
+  const gradeTimeoutMs = Number(process.env.WORKLOOM_COLOR_GRADE_TIMEOUT_MS ?? (quality === "uhd" ? 1_800_000 : 900_000));
+  await runBin(bins.ffmpeg, args, { label: "ffmpeg(grade)", timeoutMs: Number.isFinite(gradeTimeoutMs) && gradeTimeoutMs > 0 ? gradeTimeoutMs : 900_000 });
 
   if (!fs.existsSync(output)) throw new ColorError("ffmpeg 未产出文件", "ffmpeg_failed", true);
   const outProbe = await probeMedia(output, { bins });

@@ -76,9 +76,47 @@ export function planCoverMoment(input: {
   analyses?: PostAnalysisDoc[];
   fallbackRatio?: number;
 }): CoverMomentPlan {
-  const { timeline } = input;
+  const { candidates, total } = collectCoverCandidates(input.timeline, input.analyses ?? []);
   const fallbackRatio = clampRatio(input.fallbackRatio ?? 0.35, 0.35);
-  const analyses = input.analyses ?? [];
+  if (!(total > 0)) {
+    return { ratio: fallbackRatio, masterSeconds: 0, basis: "fallback", note: "时间轴为空，使用配方默认比例" };
+  }
+  const best = [...candidates].sort((a, b) => kindRank(b.kind) - kindRank(a.kind) || b.score - a.score)[0];
+  if (!best) {
+    return {
+      ratio: fallbackRatio,
+      masterSeconds: Number((total * fallbackRatio).toFixed(3)),
+      basis: "fallback",
+      note: "没有可用的关键帧候选（未跑镜头理解/高光，或候选均未过安全与清晰度门槛）：回退配方默认比例",
+    };
+  }
+  const basis = best.kind === "composition_best" ? "keyframe-composition" : best.kind === "emotion_peak" ? "keyframe-emotion" : "keyframe-any";
+  return {
+    ratio: clampRatio(best.masterSeconds / total, fallbackRatio),
+    masterSeconds: best.masterSeconds,
+    basis,
+    keyframeId: best.keyframeId,
+    shotId: best.shotId,
+    segmentId: best.segmentId,
+    note: `封面取帧来自${best.kind}关键帧（score ${best.score}）映射到主轨 ${best.masterSeconds}s`,
+  };
+}
+
+interface CoverCandidate {
+  kind: string;
+  score: number;
+  keyframeId?: string;
+  shotId?: string;
+  segmentId: string;
+  masterSeconds: number;
+}
+
+function kindRank(kind: string): number {
+  return kind === "composition_best" ? 2 : kind === "emotion_peak" ? 1 : 0;
+}
+
+/** 关键帧候选收集：只收镜内、过安全与清晰度门槛的候选。 */
+function collectCoverCandidates(timeline: EditTimeline, analyses: PostAnalysisDoc[]): { candidates: CoverCandidate[]; total: number } {
   const segments = timeline.segments ?? [];
   let cursor = 0;
   const masterSpans = segments.map((segment) => {
@@ -87,18 +125,13 @@ export function planCoverMoment(input: {
     return { segment, start, end: cursor };
   });
   const total = cursor;
-  if (!(total > 0)) {
-    return { ratio: fallbackRatio, masterSeconds: 0, basis: "fallback", note: "时间轴为空，使用配方默认比例" };
-  }
   const sourceById = new Map((timeline.sources ?? []).map((source) => [source.sourceId, source]));
   const analysisFor = (sourceId: string): PostAnalysisDoc | null => {
     const source = sourceById.get(sourceId);
     if (!source) return null;
     return analyses.find((doc) => doc?.asset?.sha256 === source.sha256 || (doc?.asset?.localPath && doc.asset.localPath === source.path)) ?? null;
   };
-
-  type Candidate = { kind: string; score: number; keyframeId?: string; shotId?: string; segmentId: string; masterSeconds: number };
-  const candidates: Candidate[] = [];
+  const candidates: CoverCandidate[] = [];
   for (const span of masterSpans) {
     const doc = analysisFor(span.segment.sourceId);
     if (!doc) continue;
@@ -120,26 +153,61 @@ export function planCoverMoment(input: {
       });
     }
   }
-  const kindRank = (kind: string): number => (kind === "composition_best" ? 2 : kind === "emotion_peak" ? 1 : 0);
-  const best = [...candidates].sort((a, b) => kindRank(b.kind) - kindRank(a.kind) || b.score - a.score)[0];
-  if (!best) {
-    return {
-      ratio: fallbackRatio,
-      masterSeconds: Number((total * fallbackRatio).toFixed(3)),
-      basis: "fallback",
-      note: "没有可用的关键帧候选（未跑镜头理解/高光，或候选均未过安全与清晰度门槛）：回退配方默认比例",
-    };
+  return { candidates, total };
+}
+
+/**
+ * 一次选出**多个互不相同**的封面时刻（每个变体一张），这是"几个版本封面都一样"的正面修复：
+ *   · 优先吃关键帧候选（composition_best > emotion_peak），**同一镜头只用一次**；
+ *   · 候选不足时用一组分散的兜底比例补齐（0.35 / 0.62 / 0.18 / 0.82 …），保证变体之间不同帧；
+ *   · 每条都带 basis/note，进回执可复核。
+ */
+export function planCoverMoments(input: {
+  timeline: EditTimeline;
+  analyses?: PostAnalysisDoc[];
+  count: number;
+  fallbackRatio?: number;
+}): CoverMomentPlan[] {
+  const count = Math.max(1, Math.round(Number(input.count) || 1));
+  const fallbackRatio = clampRatio(input.fallbackRatio ?? 0.35, 0.35);
+  const { candidates, total } = collectCoverCandidates(input.timeline, input.analyses ?? []);
+  const ranked = [...candidates].sort((a, b) => kindRank(b.kind) - kindRank(a.kind) || b.score - a.score);
+  const chosen: CoverCandidate[] = [];
+  const usedSegments = new Set<string>();
+  for (const candidate of ranked) {
+    if (chosen.length >= count) break;
+    if (usedSegments.has(candidate.segmentId)) continue;
+    chosen.push(candidate);
+    usedSegments.add(candidate.segmentId);
   }
-  const basis = best.kind === "composition_best" ? "keyframe-composition" : best.kind === "emotion_peak" ? "keyframe-emotion" : "keyframe-any";
-  return {
-    ratio: clampRatio(best.masterSeconds / total, fallbackRatio),
-    masterSeconds: best.masterSeconds,
-    basis,
-    keyframeId: best.keyframeId,
-    shotId: best.shotId,
-    segmentId: best.segmentId,
-    note: `封面取帧来自${best.kind}关键帧（score ${best.score}）映射到主轨 ${best.masterSeconds}s`,
-  };
+  const moments: CoverMomentPlan[] = chosen.map((candidate) => ({
+    ratio: total > 0 ? clampRatio(candidate.masterSeconds / total, fallbackRatio) : fallbackRatio,
+    masterSeconds: candidate.masterSeconds,
+    basis: candidate.kind === "composition_best" ? "keyframe-composition" : candidate.kind === "emotion_peak" ? "keyframe-emotion" : "keyframe-any",
+    keyframeId: candidate.keyframeId,
+    shotId: candidate.shotId,
+    segmentId: candidate.segmentId,
+    note: `封面取帧来自${candidate.kind}关键帧（score ${candidate.score}）映射到主轨 ${candidate.masterSeconds}s`,
+  }));
+  /** 兜底比例：按"相隔足够远"填充，避免多个变体落在同一帧。 */
+  const spread = [0.35, 0.62, 0.18, 0.82, 0.48, 0.28, 0.72, 0.42];
+  let cursor = 0;
+  while (moments.length < count) {
+    let ratio = spread[cursor % spread.length]!;
+    cursor += 1;
+    let guard = 0;
+    while (moments.some((moment) => Math.abs(moment.ratio - ratio) < 0.04) && guard < spread.length) {
+      ratio = clampRatio(ratio + 0.06, fallbackRatio);
+      guard += 1;
+    }
+    moments.push({
+      ratio,
+      masterSeconds: Number((total * ratio).toFixed(3)),
+      basis: "fallback",
+      note: "关键帧候选不足：按分散兜底比例取帧（保证各变体封面不同帧）",
+    });
+  }
+  return moments.slice(0, count);
 }
 
 export interface ColorRecipe {

@@ -337,6 +337,36 @@
         "fullMarks": "说明先走逐字稿（词级）→ 情绪与活人感 → 话题块与峰值，再给选段与多片拆分候选；三件事对应三个话题块时建议拆成三条片子（各有钩子与落点），选段由人确认（G-TK4）；不硬把三件事塞进一条",
         "zeroMarks": "不拆也不解释，或直接按时间顺序从头切到尾"
       }
+    },
+    {
+      "subject": "skill",
+      "structure": "single-multi",
+      "primary_dimensions": ["quality", "completeness"],
+      "red_line": false,
+      "difficulty": "medium",
+      "source": "seed",
+      "tags": ["caption-craft", "copy-style", "persona", "vlog"],
+      "scenario": {
+        "turns": [
+          {
+            "role": "guest",
+            "input": "这条 60 秒 vlog 的字幕初稿是：「让我们一起感受美好的氛围。品尝当地的特色美食，非常值得一试。」博主是山东姑娘，口头禅是「真」，帮我改得像人说的话。"
+          },
+          {
+            "role": "guest",
+            "input": "这几条就按 vlog 风格定稿，顺便告诉我怎么验证。"
+          }
+        ]
+      },
+      "assertions": [
+        { "type": "fact_terms_present", "expected": ["edit:copy", "口语标记"] },
+        { "type": "turn_topic_terms", "expected": [{ "turn": 1, "present": ["人设"], "absent": [] }] }
+      ],
+      "judge_rubric": {
+        "dimension": "quality",
+        "fullMarks": "按「风格 × 目标 × 人设」改稿：说明书腔换成说人话的短句，口语标记与人设词自然出现（不是硬塞），禁用词零命中；给出 `edit:copy` 机检口径（评分 ≥90、口语标记 ≥60%、人设词 ≥20%、AI 腔零硬伤）与字数带（ceil(时长×2.0) ≤ 字数 ≤ floor(时长×2.5)）",
+        "zeroMarks": "保留「让我们一起/非常值得一试」这类 AI 腔，或只改标点不做风格化与人设化"
+      }
     }
   ]
 }
