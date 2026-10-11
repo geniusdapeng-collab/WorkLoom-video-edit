@@ -1,5 +1,22 @@
 # Changelog
 
+## [github-mirror-ci] - 2026-10-11 · GitHub 镜像两条常红检查转绿（装 ffmpeg + 分叉仓 UI 契约降级）（T-2026-1011-0005）
+
+> 背景：本仓在 GitHub 的镜像仓库有两条常红检查，与产品代码无关，但会让镜像 CI 永远不可信。
+
+- **`ci-gate`（缺媒体工具）**：GitHub runner 默认不带 ffmpeg/ffprobe，
+  `packages/base/bundles/bgm-measure-compatibility.test.ts` 的两条真机音频用例被误判为失败；
+  `.github/workflows/ci.yml` 增加 `apt-get install ffmpeg`（与 CNB test-gate 镜像同口径）。
+- **`workloom-ui-contract`（分叉仓误红）**：基座严格 UI 消费门禁对**产品分叉仓**的行业扩展面发现
+  （中文边界 / 文字出口 / 动态值映射 / 共享组件渲染）会永久判红，本仓实测 207 项、全部落在
+  本仓声明的行业扩展路径内。按舰队规范 §10.4 与基座 `sync/ui-upgrade-pr.mjs#splitForkContractAdvisories`
+  的同口径，新增 `.github/scripts/ui-consumer-fork-advisory.mjs`：
+  已声明分叉容差（`lane=experiment` 或 `tolerateExtensionSnapshotOverlap=true`）的仓把这些发现降级为
+  **advisories**（逐条保留可见、不阻断）；未声明的仓维持基座严格判红；门禁异常或分叉声明不可读时 fail-closed。
+  另有 1 项发现（`apps/webb 未实际渲染共享基座组件`）不在本仓声明扩展路径内，分类器会单独标出并建议另立迁移任务卡。
+- 本地验证：分类器 `--self-test` 通过；用本机真实复现的 207 项门禁输出分类 → 退出 0（advisories 可见）；
+  伪造"非分叉仓"输入 → 退出 1；两个 workflow 的 YAML 解析与 shell 片段模拟均通过。
+
 ## [video-transitions] - 2026-10-11 · 剪辑转场引擎：逐切计划 + xfade 真渲染 + 非黑屏机检（T-2026-1011-0003）
 
 > 客户反馈：全片硬切没有转场，之前用过的"黑屏过渡"效果很差。本轮把时间轴里早已声明的 `transitionIn` 真正渲染出来，
