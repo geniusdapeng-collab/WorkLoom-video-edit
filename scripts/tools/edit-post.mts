@@ -415,80 +415,10 @@ async function main(): Promise<void> {
     writeFileSync(join(overrideDir, "index.json"), `${JSON.stringify({ ...index, updatedAt: new Date().toISOString(), principle: "本片全部硬切（覆盖副本）" }, null, 2)}\n`, "utf8");
     process.env.WORKLOOM_POST_VARIANT_DIR = overrideDir;
   }
-  if (bgmAgent) {
-    const overrideDir = process.env.WORKLOOM_POST_VARIANT_DIR ?? join(outDir, "work", "variant-overrides");
-    mkdirSync(overrideDir, { recursive: true });
-    const libraryDir = join(homedir(), ".workloom-bgm", "library");
-    mkdirSync(libraryDir, { recursive: true });
-    const indexFile = join(libraryDir, "tracks.json");
-    const packFolders = existsSync(bgmPack)
-      ? readdirSync(bgmPack, { withFileTypes: true }).filter((entry) => entry.isDirectory()).map((entry) => entry.name)
-      : [];
-    // 已有打标索引（工位本地 1034 首）一律不覆盖：只在缺失时从素材包快速建一份
-    if (packFolders.length > 0 && !existsSync(indexFile)) {
-      const tracks: Array<Record<string, unknown>> = [];
-      for (const folder of packFolders) {
-        const dir = join(bgmPack, folder);
-        for (const file of readdirSync(dir)) {
-          if (!/\.(m4a|mp3|wav|flac|aac)$/iu.test(file)) continue;
-          const id = `${folder.replace(/[^\p{Script=Han}A-Za-z0-9]+/gu, "-").toLowerCase()}-${file.replace(/\.[^.]+$/u, "").replace(/[^\p{Script=Han}A-Za-z0-9]+/gu, "-").toLowerCase()}`.slice(0, 120);
-          tracks.push({
-            id, title: file.replace(/\.[^.]+$/u, ""), file: join(dir, file),
-            style: folder, mood: folder, genre: folder, tags: [folder],
-            license: "royalty-free",
-            licenseNote: "产品所有者提供的可商用曲库包（按情绪/题材文件夹打标；逐曲上游许可文件未随包，按所有者声明登记）",
-            source: "owner-provided-pack:~/Downloads/1200可商用纯音乐",
-          });
-        }
-      }
-      writeFileSync(indexFile, `${JSON.stringify({ schemaVersion: "workloom.bgm-library/v1", updatedAt: new Date().toISOString(), note: "由 edit:post --bgm agent 从本地打标曲库包生成", tracks }, null, 1)}\n`, "utf8");
-    }
-    process.env.WORKLOOM_BGM_LIBRARY_DIR = libraryDir;
-    // 选曲器来自后期链路（本地优先/随仓兜底的排序已在那里实现）；此处按需导入，避免与后面的主 import 顺序耦合
-    const bgmSelector = await import("../../bundles/ai-video/connectors/post-bridge/core.mjs") as unknown as {
-      pickTrackForVariant: (pack: Record<string, unknown>, options?: Record<string, unknown>) => Record<string, unknown> | null;
-    };
-    const bgmCore = await import(`file://${abs("bundles/ai-video/connectors/bgm-bridge/core.mjs")}`) as {
-      loadAllLocalTracks: (env?: NodeJS.ProcessEnv) => { total: number; sources: Array<{ kind: string; tracks: number; present: boolean }> };
-      findTracks: (query: Record<string, unknown>, env?: NodeJS.ProcessEnv) => { track?: Record<string, unknown>; items?: Array<Record<string, unknown>> };
-      licenseInfo: (license: unknown) => { key: string; commercialOk?: boolean; label?: string };
-    };
-    const inventory = bgmCore.loadAllLocalTracks(process.env);
-    const styleToFolderKeyword: Record<string, string> = {
-      "acoustic-warm": "Vlog-旅拍", "corporate-clean": "企业-宣传", "sports-hype": "卡点-节奏",
-      "cinematic-build": "史诗-震撼", "festive-bright": "欢快-轻松", "ambient-calm": "安静-舒缓",
-      "documentary-bed": "自然-特效", "tension-dark": "悲伤-负面", "lo-fi-chill": "安静-舒缓",
-      "modern-pop": "欢快-轻松", "electronic-pulse": "卡点-节奏",
-    };
-    if (!existsSync(overrideDir)) {
-      const baseVariantDir = join(REPO_ROOT, "bundles/ai-video/library/style-variants");
-      const baseIndex = JSON.parse(readFileSync(join(baseVariantDir, "index.json"), "utf8")) as { variants: Array<{ id: string; file: string }> };
-      for (const item of baseIndex.variants) copyFileSync(join(baseVariantDir, item.file), join(overrideDir, item.file));
-      writeFileSync(join(overrideDir, "index.json"), `${JSON.stringify({ ...baseIndex, updatedAt: new Date().toISOString() }, null, 2)}\n`, "utf8");
-      process.env.WORKLOOM_POST_VARIANT_DIR = overrideDir;
-    }
-    const variantIndexFile = join(overrideDir, "index.json");
-    const variantIndex = JSON.parse(readFileSync(variantIndexFile, "utf8")) as { variants: Array<{ id: string; file: string }> };
-    for (const variantId of variants) {
-      const entry = variantIndex.variants.find((item) => item.id === variantId);
-      if (!entry) continue;
-      const packFile = join(overrideDir, entry.file);
-      const pack = JSON.parse(readFileSync(packFile, "utf8")) as Record<string, unknown>;
-      const bgm = (pack.bgm ?? {}) as Record<string, unknown>;
-      const style = String(bgm.style ?? "");
-      const keyword = styleToFolderKeyword[style] ?? style;
-      // 用后期链路的配乐选曲器（全量库风格匹配 + 许可复检 + 本地优先/随仓兜底），而不是自己按文件夹猜
-      const picked = bgmSelector.pickTrackForVariant(pack, { env: process.env });
-      if (!picked) {
-        bgmAgentReceipt.push({ variantId, style, picked: null, reason: `曲库中未找到「${style}」可用候选（保持配方默认选曲）` });
-        continue;
-      }
-      pack.bgm = { ...bgm, trackId: picked.id, selectionBy: "bgm-agent", selectionNote: `按风格「${style}」匹配本地打标曲库（由配乐选曲器在合并曲库中按风格匹配并复检许可；本地大库优先、随仓 50 首兜底）` };
-      writeFileSync(packFile, `${JSON.stringify(pack, null, 2)}\n`, "utf8");
-      bgmAgentReceipt.push({ variantId, style, picked: picked.id, title: picked.title, license: picked.license, libraryKind: picked.libraryKind, libraryTotal: inventory.total });
-    }
-    process.env.WORKLOOM_BGM_LIBRARY_DIR = libraryDir;
-  }
+  /**
+   * 顺序关键（2026-10-11 修复）：segmented-story 配方必须先于配乐 agent 建好，
+   * 否则 agent 看不到第四条变体，segmented 会继承 warm 的 pinned 曲目（实测 BGM 重复的根因）。
+   */
   if (segmentColor) {
     // 变体配方目录（若上面已写过覆盖副本，则复用同一目录）
     const overrideDir = process.env.WORKLOOM_POST_VARIANT_DIR
@@ -531,6 +461,129 @@ async function main(): Promise<void> {
       writeFileSync(variantFile, `${JSON.stringify(variantIndex, null, 2)}\n`, "utf8");
     }
     process.env.WORKLOOM_POST_VARIANT_DIR = overrideDir;
+  }
+
+  if (bgmAgent) {
+    const overrideDir = process.env.WORKLOOM_POST_VARIANT_DIR ?? join(outDir, "work", "variant-overrides");
+    mkdirSync(overrideDir, { recursive: true });
+    const libraryDir = join(homedir(), ".workloom-bgm", "library");
+    mkdirSync(libraryDir, { recursive: true });
+    const indexFile = join(libraryDir, "tracks.json");
+    const packFolders = existsSync(bgmPack)
+      ? readdirSync(bgmPack, { withFileTypes: true }).filter((entry) => entry.isDirectory()).map((entry) => entry.name)
+      : [];
+    // 已有打标索引（工位本地 1034 首）一律不覆盖：只在缺失时从素材包快速建一份
+    if (packFolders.length > 0 && !existsSync(indexFile)) {
+      const tracks: Array<Record<string, unknown>> = [];
+      for (const folder of packFolders) {
+        const dir = join(bgmPack, folder);
+        for (const file of readdirSync(dir)) {
+          if (!/\.(m4a|mp3|wav|flac|aac)$/iu.test(file)) continue;
+          const id = `${folder.replace(/[^\p{Script=Han}A-Za-z0-9]+/gu, "-").toLowerCase()}-${file.replace(/\.[^.]+$/u, "").replace(/[^\p{Script=Han}A-Za-z0-9]+/gu, "-").toLowerCase()}`.slice(0, 120);
+          tracks.push({
+            id, title: file.replace(/\.[^.]+$/u, ""), file: join(dir, file),
+            style: folder, mood: folder, genre: folder, tags: [folder],
+            license: "royalty-free",
+            licenseNote: "产品所有者提供的可商用曲库包（按情绪/题材文件夹打标；逐曲上游许可文件未随包，按所有者声明登记）",
+            source: "owner-provided-pack:~/Downloads/1200可商用纯音乐",
+          });
+        }
+      }
+      writeFileSync(indexFile, `${JSON.stringify({ schemaVersion: "workloom.bgm-library/v1", updatedAt: new Date().toISOString(), note: "由 edit:post --bgm agent 从本地打标曲库包生成", tracks }, null, 1)}\n`, "utf8");
+    }
+    process.env.WORKLOOM_BGM_LIBRARY_DIR = libraryDir;
+    // 选曲器来自后期链路（本地优先/随仓兜底的排序已在那里实现）；此处按需导入，避免与后面的主 import 顺序耦合
+    const bgmSelector = await import("../../bundles/ai-video/connectors/post-bridge/core.mjs") as unknown as {
+      selectTrackForVariant: (pack: Record<string, unknown>, options?: Record<string, unknown>) => {
+        picked: Record<string, unknown>;
+        candidates: Array<Record<string, unknown>>;
+        notes: string[];
+      };
+    };
+    /**
+     * 成片剪辑网格 → 目标 BPM（配乐 agent 的打分依据，2026-10-11）：
+     * 取相邻切点间隔的众数，把它读作 1/2/4/8 拍中落在 [90,180] 且最接近 60/120/240 家族的 BPM。
+     * 本片切点间隔 4.0s/3.0s → 120 BPM（8/6 拍）。
+     */
+    const cutTimes: number[] = [];
+    {
+      let cursor = 0;
+      for (const segment of timeline.segments.slice(0, -1)) {
+        cursor += Number(segment.durationSeconds ?? 0);
+        cutTimes.push(cursor);
+      }
+    }
+    const filmSeconds = timeline.segments.reduce((total, segment) => total + Number(segment.durationSeconds ?? 0), 0);
+    const deriveTargetBpm = (cuts: number[]): number => {
+      if (cuts.length < 2) return 120;
+      const intervals: number[] = [];
+      for (let index = 1; index < cuts.length; index += 1) intervals.push(Number((cuts[index]! - cuts[index - 1]!).toFixed(2)));
+      const counts = new Map<number, number>();
+      for (const value of intervals) counts.set(value, (counts.get(value) ?? 0) + 1);
+      const modal = [...counts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? 4;
+      const scored = [1, 2, 4, 8].map((beats) => (60 * beats) / modal)
+        .filter((bpm) => bpm >= 90 && bpm <= 180)
+        .map((bpm) => ({ bpm, family: [60, 120, 240].reduce((best, value) => (Math.abs(bpm - value) < Math.abs(bpm - best) ? value : best), 60) }))
+        .sort((a, b) => Math.abs(a.bpm - a.family) - Math.abs(b.bpm - b.family));
+      return Math.round(scored[0]?.bpm ?? 120);
+    };
+    const targetBpm = deriveTargetBpm(cutTimes);
+    const bgmCore = await import(`file://${abs("bundles/ai-video/connectors/bgm-bridge/core.mjs")}`) as {
+      loadAllLocalTracks: (env?: NodeJS.ProcessEnv) => { total: number; sources: Array<{ kind: string; tracks: number; present: boolean }> };
+      findTracks: (query: Record<string, unknown>, env?: NodeJS.ProcessEnv) => { track?: Record<string, unknown>; items?: Array<Record<string, unknown>> };
+      licenseInfo: (license: unknown) => { key: string; commercialOk?: boolean; label?: string };
+    };
+    const inventory = bgmCore.loadAllLocalTracks(process.env);
+    const styleToFolderKeyword: Record<string, string> = {
+      "acoustic-warm": "Vlog-旅拍", "corporate-clean": "企业-宣传", "sports-hype": "卡点-节奏",
+      "cinematic-build": "史诗-震撼", "festive-bright": "欢快-轻松", "ambient-calm": "安静-舒缓",
+      "documentary-bed": "自然-特效", "tension-dark": "悲伤-负面", "lo-fi-chill": "安静-舒缓",
+      "modern-pop": "欢快-轻松", "electronic-pulse": "卡点-节奏",
+    };
+    if (!existsSync(overrideDir)) {
+      const baseVariantDir = join(REPO_ROOT, "bundles/ai-video/library/style-variants");
+      const baseIndex = JSON.parse(readFileSync(join(baseVariantDir, "index.json"), "utf8")) as { variants: Array<{ id: string; file: string }> };
+      for (const item of baseIndex.variants) copyFileSync(join(baseVariantDir, item.file), join(overrideDir, item.file));
+      writeFileSync(join(overrideDir, "index.json"), `${JSON.stringify({ ...baseIndex, updatedAt: new Date().toISOString() }, null, 2)}\n`, "utf8");
+      process.env.WORKLOOM_POST_VARIANT_DIR = overrideDir;
+    }
+    const variantIndexFile = join(overrideDir, "index.json");
+    const variantIndex = JSON.parse(readFileSync(variantIndexFile, "utf8")) as { variants: Array<{ id: string; file: string }> };
+    for (const variantId of variants) {
+      const entry = variantIndex.variants.find((item) => item.id === variantId);
+      if (!entry) continue;
+      const packFile = join(overrideDir, entry.file);
+      const pack = JSON.parse(readFileSync(packFile, "utf8")) as Record<string, unknown>;
+      const bgm = (pack.bgm ?? {}) as Record<string, unknown>;
+      const style = String(bgm.style ?? "");
+      const keyword = styleToFolderKeyword[style] ?? style;
+      // 配乐 agent：全量库风格匹配 + 许可复检 + **打分式最佳匹配**（BPM 网格/能量/情绪/时长/响度/本地优先）+ 跨变体去重
+      const selection = bgmSelector.selectTrackForVariant(pack, {
+        env: process.env,
+        hints: {
+          filmSeconds: Number(filmSeconds.toFixed(2)),
+          targetBpm,
+          themeTokens: [title, hook, String(timeline.target?.platform ?? ""), "旅行", "回家", "家庭"].filter(Boolean),
+          excludeIds: bgmAgentReceipt.map((entry) => entry.picked).filter((value): value is string => typeof value === "string"),
+          topN: 5,
+        },
+      });
+      const picked = selection.picked;
+      if (!picked) {
+        bgmAgentReceipt.push({ variantId, style, picked: null, reason: `曲库中未找到「${style}」可用候选（保持配方默认选曲）` });
+        continue;
+      }
+      pack.bgm = { ...bgm, trackId: picked.id, selectionBy: "bgm-agent-scored", selectionNote: `按风格「${style}」在本地打标大库打分选曲（BPM 网格 ${targetBpm}×能量档×情绪/题材×时长×响度×本地优先，跨变体去重；score=${String(picked.selectionScore ?? "?")}）` };
+      writeFileSync(packFile, `${JSON.stringify(pack, null, 2)}\n`, "utf8");
+      bgmAgentReceipt.push({
+        variantId, style, picked: picked.id, title: picked.title, license: picked.license,
+        libraryKind: picked.libraryKind, libraryTotal: inventory.total,
+        score: picked.selectionScore ?? null, reasons: picked.selectionReasons ?? [],
+        candidates: selection.candidates, notes: selection.notes,
+        targetBpm, filmSeconds: Number(filmSeconds.toFixed(2)),
+      });
+    }
+    process.env.WORKLOOM_BGM_LIBRARY_DIR = libraryDir;
   }
 
   const core = await import("../../bundles/ai-video/connectors/post-bridge/core.mjs") as unknown as {

@@ -773,7 +773,7 @@
   },
   "integrity": {
     "algorithm": "sha256",
-    "digest": "03c780e4b0e849b1d326ca668d45a323ae8930295a5d01ddd4373343e6fdfdd5",
+    "digest": "723082f933e80b4197693ddf0089e666bf10b3e4696c7beb5ed4e76a8dffdf4e",
     "assets": {
       "connectors/bgm-bridge/audio-stems-trust.mjs": "701b20e1705b16b026be2900bb49430ef875c8f01f83515f297a5b0b9a50cf93",
       "connectors/bgm-bridge/audio-stems.mjs": "9180a2cb1fbac95f4c5ec835041e98436ccc2de6d7a874abb651bf6b74124425",
@@ -812,7 +812,7 @@
       "connectors/enhance-bridge/README.md": "8a64b5efa892c5e1340aa49aa0901ba159c31a79f52092d938780f3841884738",
       "connectors/post-bridge/av-sync.mjs": "0ebb8c6dac823427a9f40ee4e2f9b992de0d710db4b9fcff1c373aada1a35f96",
       "connectors/post-bridge/cli.mjs": "2b21728c85eee7b22ba0179ec38ebfbda1e5a98c164cf5a908715c5ca2bf2d01",
-      "connectors/post-bridge/core.mjs": "ad4e93a34c23da0aac787eb1b2e2ccb0be79f7953361a68195ff9e96d6287daa",
+      "connectors/post-bridge/core.mjs": "f0dce51acc0237b5b9ab51a51d27e60698825b09c38aefbbd014d504ad27b184",
       "connectors/post-bridge/executor.ts": "5ff8081e9abc5c5a6ef6326f17daa979aa0b9e98179bcc56f61a16e3327fc272",
       "connectors/post-bridge/README.md": "ef6e71710e2d174c9f88cc1f3ef19f2e01950dfdbf38e3528351dcb6b7cf3510",
       "connectors/post-bridge/server-adapter.mts": "80780fbfef049f3690bdd14b591d59cd4e8ddfba6e9854344601a4ffb5073d48",
