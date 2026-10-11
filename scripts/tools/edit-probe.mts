@@ -206,17 +206,27 @@ async function main(): Promise<void> {
    * 逐镜技术指标（代理）：blurdetect 给清晰度，signalstats 给曝光/饱和。
    * 与语义层的关系：这里只做"明显糊帧/过曝帧"的免费粗筛；语义质量判断仍归镜头理解与人工复核。
    * 失败不阻断信号解析（allowFailure），perShot 保持 null 并在回执里说明。
+   *
+   * 本机生产补丁（2026-10-11）：4K 素材上 blurdetect 逐帧拉普拉斯方差是这一步的唯一瓶颈
+   * （实测 4K/681s 跑了 40+ 分钟仍未完）。新增 `--technical-scale <宽>` 先降到代理宽度再算代理指标——
+   * 这些指标本来就是"明显糊帧/过曝"的粗筛，不是画质裁判；降采样只影响绝对数值，不影响"哪一镜更糊"。
    */
   let frameStats: ReturnType<typeof parseFrameStats> = [];
   let technicalStatus = "skipped";
   if (media.width > 0) {
+    const technicalWidth = Number(arg("--technical-scale", "0"));
+    const technicalFilter = Number.isFinite(technicalWidth) && technicalWidth >= 320
+      ? `scale=${Math.round(technicalWidth)}:-2,blurdetect,signalstats,metadata=print:file=-`
+      : "blurdetect,signalstats,metadata=print:file=-";
     const technicalLog = run(FFMPEG, [
       "-hide_banner", "-i", inputPath,
-      "-vf", "blurdetect,signalstats,metadata=print:file=-",
+      "-vf", technicalFilter,
       "-an", "-f", "null", "-",
     ], { allowFailure: true }).stdout;
     frameStats = parseFrameStats(technicalLog);
-    technicalStatus = frameStats.length > 0 ? "ran" : "unavailable";
+    technicalStatus = frameStats.length > 0
+      ? `ran${Number.isFinite(technicalWidth) && technicalWidth >= 320 ? `@proxy${Math.round(technicalWidth)}w` : ""}`
+      : "unavailable";
   }
 
   const probe = buildFootageProbe({
@@ -344,7 +354,7 @@ async function main(): Promise<void> {
       skippedShots: [],
       promptVersion: "probe-only",
       notes: `信号层解析完成；语义层（shot-understanding）与高光层尚未运行。静音阈值 ${media.hasAudio ? `${silenceThresholdDb}dB（噪声底自适应，可用 --silence-db 覆盖）` : "不适用（无音轨）"}；`
-        + `逐镜技术指标 ${technicalStatus === "ran" ? `已算清晰度/曝光代理指标（${probe.technical.perShot.filter((item) => item.sharpness !== null).length}/${probe.shotBoundaries.length} 镜；stability/noise/colorTempK 未实现保持 null）` : "未产出（blurdetect/signalstats 不可用）"}。`,
+        + `逐镜技术指标 ${technicalStatus.startsWith("ran") ? `已算清晰度/曝光代理指标（${probe.technical.perShot.filter((item) => item.sharpness !== null).length}/${probe.shotBoundaries.length} 镜${technicalStatus.includes("@proxy") ? `，代理宽度 ${technicalStatus.split("@proxy")[1]}` : ""}；stability/noise/colorTempK 未实现保持 null）` : "未产出（blurdetect/signalstats 不可用）"}。`,
       asr: coverageAsr,
       ocr: coverageOcr,
     },

@@ -25,7 +25,7 @@ import { execFileSync, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { copyFileSync, existsSync, mkdirSync, readFileSync, renameSync, statSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { dirname, isAbsolute, join, resolve } from "node:path";
+import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import {
   COVER_FONTS, COVER_DIFF_PSNR_DB, validateCoverPlan, type CoverPlan,
 } from "../../packages/video-studio/src/cover-design.js";
@@ -415,8 +415,12 @@ async function main(): Promise<void> {
   /**
    * 字号随画幅缩放（2026-10-11 修复）：STYLES 里的 124/112/128px 与副题 52px 是 **1080p 参考值**；
    * 4K 成片封面若不缩放，字会相对变小 4 倍——封面排版必须按 `canvas.height / 1080` 等比放大。
+   *
+   * 本机生产补丁（2026-10-11 晚）：基准改为**短边**。旧口径按高算，在竖屏 1080×1920 上等于放大 1.78×，
+   * 标题直接溢出画布（实测"一条片子1-2块钱"被裁成"一条片子1-"）。这与仓内字幕/弹幕字号规则
+   * （短边 × 基准比）也不一致——封面必须同一口径。
    */
-  const fontScale = canvas.height / 1080;
+  const fontScale = Math.min(canvas.width, canvas.height) / 1080;
   /** 逐版本文案覆盖（`--variant-copy`）：允许每个版本的封面有独立主/副标题（信息增量不重复）。 */
   const variantCopyPath = arg("--variant-copy");
   const variantCopy = variantCopyPath && existsSync(abs(variantCopyPath))
@@ -717,6 +721,42 @@ async function main(): Promise<void> {
     introBurned: introReceipts,
     generatedAt: new Date().toISOString(),
   }, null, 2)}\n`, "utf8");
+
+  /**
+   * 本机生产补丁（2026-10-11 晚）：封面重出后同步交付清单。
+   * 事故：post 先写 delivery-manifest.json（含它自己那版封面的 sha256），封面链路随后覆盖 cover.png 并烧封，
+   * 清单里的封面指纹就与文件不一致——"清单说 A、文件是 B"。这里按实际产物回写 cover 字段，保证清单可核对。
+   */
+  const manifestFile = join(outDir, "delivery-manifest.json");
+  if (existsSync(manifestFile)) {
+    const manifest = JSON.parse(readFileSync(manifestFile, "utf8")) as {
+      variants?: Array<{ id?: string; cover?: Record<string, unknown> | null }>;
+      [key: string]: unknown;
+    };
+    let updated = 0;
+    for (const entry of manifest.variants ?? []) {
+      const produced = covers.find((cover) => cover.variantId === entry.id);
+      if (!produced) continue;
+      const checks = checksAll.find((item) => item.variantId === entry.id)?.checks ?? [];
+      entry.cover = {
+        ...(entry.cover ?? {}),
+        path: relative(outDir, String(produced.file)),
+        sha256: sha256(String(produced.file)),
+        text: `${title} / ${hook}`.trim(),
+        heroSec: arg("--hero-sec", "") ? Number(arg("--hero-sec")) : null,
+        checks,
+        renderer: produced.renderer,
+        coverReport: relative(outDir, reportFile),
+        updatedBy: "edit:cover（回写：封面在 post 之后重出）",
+      };
+      updated += 1;
+    }
+    if (updated > 0) {
+      manifest.coverSync = { updated, at: new Date().toISOString(), report: relative(outDir, reportFile) };
+      writeFileSync(manifestFile, `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
+      console.log(`  清单同步：delivery-manifest.json 回写 ${updated} 条封面指纹`);
+    }
+  }
 
   const ok = checksAll.every((entry) => entry.ok) && introReceipts.every((entry) => Number(entry.duration) > burnIntro);
   const summary = {
