@@ -35,6 +35,8 @@ jobs:
       IM_DRIVER: mock
       RUN_DB_TESTS: "1"
       TOOL_UNVERIFIED_RATE: "0"
+      # 与 CNB test-gate 同口径：服务契约/E2E 真库用例要求显式工作区（缺省 fail-closed）。
+      SERVICE_C_TEST_WORKSPACE_ID: ws-yunqi
     steps:
       - uses: actions/checkout@v4
       - name: Node 24 + pnpm
