@@ -356,6 +356,54 @@ async function main(): Promise<void> {
     writeFileSync(join(overrideDir, "index.json"), `${JSON.stringify({ ...index, updatedAt: new Date().toISOString(), principle: "本片全部硬切（覆盖副本）" }, null, 2)}\n`, "utf8");
     process.env.WORKLOOM_POST_VARIANT_DIR = overrideDir;
   }
+  /**
+   * 顺序关键（2026-10-11 修复）：segmented-story 配方必须先于配乐 agent 建好，
+   * 否则 agent 看不到第四条变体，segmented 会继承 warm 的 pinned 曲目（实测 BGM 重复的根因）。
+   */
+  if (segmentColor) {
+    // 变体配方目录（若上面已写过覆盖副本，则复用同一目录）
+    const overrideDir = process.env.WORKLOOM_POST_VARIANT_DIR
+      ?? join(outDir, "work", "variant-overrides");
+    mkdirSync(overrideDir, { recursive: true });
+    if (!process.env.WORKLOOM_POST_VARIANT_DIR) {
+      const baseVariantDir = join(REPO_ROOT, "bundles/ai-video/library/style-variants");
+      const index = JSON.parse(readFileSync(join(baseVariantDir, "index.json"), "utf8")) as { variants: Array<{ id: string; file: string }> };
+      for (const entry of index.variants) {
+        copyFileSync(join(baseVariantDir, entry.file), join(overrideDir, entry.file));
+      }
+      writeFileSync(join(overrideDir, "index.json"), `${JSON.stringify({ ...index, updatedAt: new Date().toISOString() }, null, 2)}\n`, "utf8");
+    }
+    const variantFile = join(overrideDir, "index.json");
+    const variantIndex = JSON.parse(readFileSync(variantFile, "utf8")) as { variants: Array<{ id: string; file: string; name?: string; positioning?: string }> };
+    if (!variantIndex.variants.some((entry) => entry.id === "segmented-story")) {
+      const base = JSON.parse(readFileSync(join(overrideDir, "warm-story.json"), "utf8")) as Record<string, unknown>;
+      const segmented = {
+        ...base,
+        id: "segmented-story",
+        name: "分段调色版",
+        positioning: "家里暖、城市冷：同一支片子按场景组分段调色（果园/饭桌暖调胶片，古城/人潮冷净）",
+        /**
+         * color=null：调色已在片段级完成（warm-film / cool-technical 按场景组执行），
+         * 变体层**必须不再叠加统一调色**——post-bridge 看到 pack.color 为空则记「不调色」。
+         * 不要在这里写自定义 profile 名：color-bridge 只认内置 profile 清单，会直接抛「未知 profile」。
+         */
+        color: null,
+        colorNote: "调色已在片段级完成（warm-film / cool-technical 分段执行）；变体不叠加统一调色",
+        transitions: {
+          mode: "hard",
+          fadeSec: 0,
+          note: "整段口径为硬切；有逐切计划（declared/auto）时按 warm-story 的 intentMap 逐刀执行",
+          scale: (base.transitions as { scale?: number } | undefined)?.scale ?? 1,
+          intentMap: (base.transitions as { intentMap?: Record<string, unknown> } | undefined)?.intentMap ?? null,
+        },
+      };
+      writeFileSync(join(overrideDir, "segmented-story.json"), `${JSON.stringify(segmented, null, 2)}\n`, "utf8");
+      variantIndex.variants.push({ id: "segmented-story", file: "segmented-story.json", name: "分段调色版", positioning: segmented.positioning as string });
+      writeFileSync(variantFile, `${JSON.stringify(variantIndex, null, 2)}\n`, "utf8");
+    }
+    process.env.WORKLOOM_POST_VARIANT_DIR = overrideDir;
+  }
+
   if (bgmAgent) {
     const overrideDir = process.env.WORKLOOM_POST_VARIANT_DIR ?? join(outDir, "work", "variant-overrides");
     mkdirSync(overrideDir, { recursive: true });
@@ -477,49 +525,6 @@ async function main(): Promise<void> {
       });
     }
     process.env.WORKLOOM_BGM_LIBRARY_DIR = libraryDir;
-  }
-  if (segmentColor) {
-    // 变体配方目录（若上面已写过覆盖副本，则复用同一目录）
-    const overrideDir = process.env.WORKLOOM_POST_VARIANT_DIR
-      ?? join(outDir, "work", "variant-overrides");
-    mkdirSync(overrideDir, { recursive: true });
-    if (!process.env.WORKLOOM_POST_VARIANT_DIR) {
-      const baseVariantDir = join(REPO_ROOT, "bundles/ai-video/library/style-variants");
-      const index = JSON.parse(readFileSync(join(baseVariantDir, "index.json"), "utf8")) as { variants: Array<{ id: string; file: string }> };
-      for (const entry of index.variants) {
-        copyFileSync(join(baseVariantDir, entry.file), join(overrideDir, entry.file));
-      }
-      writeFileSync(join(overrideDir, "index.json"), `${JSON.stringify({ ...index, updatedAt: new Date().toISOString() }, null, 2)}\n`, "utf8");
-    }
-    const variantFile = join(overrideDir, "index.json");
-    const variantIndex = JSON.parse(readFileSync(variantFile, "utf8")) as { variants: Array<{ id: string; file: string; name?: string; positioning?: string }> };
-    if (!variantIndex.variants.some((entry) => entry.id === "segmented-story")) {
-      const base = JSON.parse(readFileSync(join(overrideDir, "warm-story.json"), "utf8")) as Record<string, unknown>;
-      const segmented = {
-        ...base,
-        id: "segmented-story",
-        name: "分段调色版",
-        positioning: "家里暖、城市冷：同一支片子按场景组分段调色（果园/饭桌暖调胶片，古城/人潮冷净）",
-        /**
-         * color=null：调色已在片段级完成（warm-film / cool-technical 按场景组执行），
-         * 变体层**必须不再叠加统一调色**——post-bridge 看到 pack.color 为空则记「不调色」。
-         * 不要在这里写自定义 profile 名：color-bridge 只认内置 profile 清单，会直接抛「未知 profile」。
-         */
-        color: null,
-        colorNote: "调色已在片段级完成（warm-film / cool-technical 分段执行）；变体不叠加统一调色",
-        transitions: {
-          mode: "hard",
-          fadeSec: 0,
-          note: "整段口径为硬切；有逐切计划（declared/auto）时按 warm-story 的 intentMap 逐刀执行",
-          scale: (base.transitions as { scale?: number } | undefined)?.scale ?? 1,
-          intentMap: (base.transitions as { intentMap?: Record<string, unknown> } | undefined)?.intentMap ?? null,
-        },
-      };
-      writeFileSync(join(overrideDir, "segmented-story.json"), `${JSON.stringify(segmented, null, 2)}\n`, "utf8");
-      variantIndex.variants.push({ id: "segmented-story", file: "segmented-story.json", name: "分段调色版", positioning: segmented.positioning as string });
-      writeFileSync(variantFile, `${JSON.stringify(variantIndex, null, 2)}\n`, "utf8");
-    }
-    process.env.WORKLOOM_POST_VARIANT_DIR = overrideDir;
   }
 
   const core = await import("../../bundles/ai-video/connectors/post-bridge/core.mjs") as unknown as {
