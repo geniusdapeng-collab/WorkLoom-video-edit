@@ -97,7 +97,7 @@ pnpm exec tsx scripts/tools/portrait-agent.mts accept --character <角色ID> \
   `audio`(音频) 字段承载音频纪律（镜头内只允许台词人声/旁白/环境与动作音效，禁止画外配乐）。
 - **不要新增字段**：字段表是 vendor 基线（`engines/field-standardizer.js`），新增会破坏 25 字段交付闸与全部审计口径。
 - 音色：用 `--narration-profile <音色档>`；克隆档由 `voice-bridge register` 从**已验收成片里该真人的真实人声**登记
-  （例：`ceo-future-frontdesk-film`），默认内置档（`zh-xiaozhi`）音色机械，交付清单会如实记录用了哪一档。
+  （例：`<角色ID>-film`），默认内置档（`zh-xiaozhi`）音色机械，交付清单会如实记录用了哪一档。
 
 ## 7. 纪律清单（四条硬经验，别再踩）
 

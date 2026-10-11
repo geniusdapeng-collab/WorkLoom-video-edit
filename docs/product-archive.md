@@ -22,15 +22,15 @@
   "id": "archive-id（=目录名，稳定身份）",
   "displayName": "商品名",
   "type": "product | solution | company",   // 三层档案；缺省 product
-  "model": "CXZ-02",                        // 商品档案：型号，可用型号点单
-  "variants": [{ "name": "立式机", "model": "CXZ-02" }],
+  "model": "DEMO-02",                       // 商品档案：型号，可用型号点单
+  "variants": [{ "name": "立式机", "model": "DEMO-02" }],
   "relations": {
-    "companyId": "苏州未来前台",
-    "products": ["ai-frontdesk", "cxz-02"],       // company 档案用
-    "includes": [{ "id": "ai-frontdesk", "role": "自助入住终端" }]  // solution 档案用
+    "companyId": "示例公司",
+    "products": ["demo-kiosk", "demo-vertical"],  // company 档案用
+    "includes": [{ "id": "demo-kiosk", "role": "自助入住终端" }]  // solution 档案用
   },
-  "company": "苏州未来前台",
-  "brand": "畅享住",
+  "company": "示例公司",
+  "brand": "示例品牌",
   "aliases": ["别名、英文名、常用叫法"],
   "source": {
     "kind": "user-upload | system-generated",
@@ -38,12 +38,12 @@
     "generatedAt": "2026-09-29T…Z",
     "generator": "scripts/tools/product-archive.mts@build",
     "reviewStatus": "owner-confirmed | pending-owner-review",
-    "providedBy": "畅享住智慧酒店生态产品解决方案.pptx（客户提供的对外合作方案 PPT）",
+    "providedBy": "客户提供的对外合作方案 PPT（原件不入仓）",
     "extraction": { "method": "pptx-slide-keyword-mapping", "verified": false, "note": "机器判定，请客户抽查" },
     "searchedQueries": ["系统档案必填：实际用过的检索词"],
     "evidence": [
       { "query": "…", "url": "来源页面", "title": "…", "site": "host" },
-      { "query": "客户方案 PPT 第 3 页", "url": "pptx://方案.pptx#slide=3", "slide": 3, "slideTitle": "畅享住 - 自助机产品介绍", "deckSha256": "…", "quote": "原文摘录" }
+      { "query": "客户方案 PPT 第 3 页", "url": "pptx://方案.pptx#slide=3", "slide": 3, "slideTitle": "示例品牌 - 自助机产品介绍", "deckSha256": "…", "quote": "原文摘录" }
     ],
     "disclaimer": "系统档案必填：来自公开网页、授权与参数未核实"
   },
@@ -53,7 +53,7 @@
   "specs": {
     "appearance": "只写能核实的可见外观",
     "features": ["可见结构"],
-    "parameters": [{ "name": "型号", "value": "CXZ-02", "source": "slide 3" }],
+    "parameters": [{ "name": "型号", "value": "DEMO-02", "source": "slide 3" }],
     "notes": ["未核实参数不登记"]
   }
 }
@@ -68,7 +68,23 @@
 | 商品 | `product` | 型号、参数（带 slide 来源）、可见外观、真实产品图 | **必须有图**（hero 主图必需），否则该商品档案不可用于出片 |
 
 出片时镜头可以按 **id / 商品名 / 别名 / 公司 / 品牌 / 型号** 任一方式点单：
-`{ "shotId": "SC-02", "product": "CXZ-02" }` 或 `{ "product": "畅享住 AI 智慧前台（自助机 + 小程序）" }`。
+`{ "shotId": "SC-02", "product": "DEMO-02" }` 或 `{ "product": "示例品牌 AI 智慧前台（自助机 + 小程序）" }`。
+
+## 2.2 产品规则文件（import-pptx / import-pdf 的 `--rules`）
+
+批量导入客户方案 PPT / 产品 PDF 时，"页面 → 商品档案"的归属由**调用方提供的规则文件**判定——
+代码里不内置任何客户商品。规则文件随项目保存在仓外或 work-dir，不入仓：
+
+```jsonc
+[
+  { "id": "demo-kiosk", "name": "示例品牌 自助入住机", "model": "DEMO-01",
+    "keywords": "自助入住|自助机|入住终端", "role": "自助入住终端" }
+]
+```
+
+- `id`：稳定档案目录名（小写字母/数字/连字符）；`name`：商品名；
+- `keywords`：正则源码（字符串）或字符串数组（任一命中即归属）；`model` / `role` 可选；
+- 归属仍由机器按文案判定并标记 `extraction.verified=false`，投放前必须由客户抽查。
 
 ## 3. 硬纪律（与产品不变量的关系）
 
@@ -107,11 +123,12 @@ shotlist.json ──(company/brand/products/shot.product)──▶ 档案解析�
 
 | 场景 | 命令 | 结果 |
 |---|---|---|
-| 检索相关性硬闸（**反例**） | `product-archive.mts search --name "未来前台"` | 24 条结果全部与品牌无关 → **不建档**、退出码 2，提示改用客户照片（不拿别家产品冒充） |
+| 检索相关性硬闸（**反例**） | `product-archive.mts search --name "<无公开资料的小品牌>"` | 结果全部与品牌无关 → **不建档**、退出码 2，提示改用客户照片（不拿别家产品冒充） |
 | 检索到公开产品图 | `product-archive.mts search --name "携住科技"` | 命中官网 + 案例页，收 4 张真实产品图，生成 `system-generated` 档案（含来源页面与检索词），`verify` 无 hard 问题 |
 | 客户上传优先 | `product-archive.mts build …` | 生成 `user-upload`（priority=10）档案；同名解析取客户档案 |
-| **客户方案 PPT 导入** | `product-archive.mts import-pptx --file 畅享住智慧酒店生态产品解决方案.pptx --company 苏州未来前台 --brand 畅享住` | 拆成 1 份公司档案 + 1 份方案档案 + 12 份商品档案；AI 前台 5 张真实产品图（来自 PPT 第 2/3 页）、桌型机 4 张、门锁/寄存柜/运营页各若干；每条参数与图片都带 `slide N` 来源；归属标记 `extraction.verified=false` |
-| 出片绑定（真机） | `full-chain-film.mts … --stages cine-kb,micromotion,spec,material-gen,videos`（镜头写 `product`） | `G-PROD1 g-product-ref` 门通过（客户上传 priority=10），镜头自动变素材镜、绑定 hero 主图，`G-MAT1` 提交门通过；**渲染因平台账号欠费（403 AccountOverdueError）未出片**，充值后可直接续跑（产物与门记录都在 work-dir） |
+| **客户方案 PPT 导入** | `product-archive.mts import-pptx --file <方案.pptx> --company <公司名> --brand <品牌> --rules <产品规则.json>` | 拆成 1 份公司档案 + 1 份方案档案 + N 份商品档案；单商品页图片带 `slide N` 来源落到对应商品，多商品页图片只进方案档案；归属标记 `extraction.verified=false` |
+| **客户产品 PDF 导入** | `product-archive.mts import-pdf --file <产品资料.pdf> --work <解析目录> --company <公司名> --brand <品牌> --rules <产品规则.json>` | 逐页文本 + 内嵌图落到商品档案；参数与图片带 `page N` 来源；缺失页面不硬凑（如实失败） |
+| 出片绑定（真机） | `full-chain-film.mts … --stages cine-kb,micromotion,spec,material-gen,videos`（镜头写 `product`） | `G-PROD1 g-product-ref` 门通过（客户上传 priority=10），镜头自动变素材镜、绑定 hero 主图，`G-MAT1` 提交门通过；**渲染可能因平台账号欠费（403 AccountOverdueError）停在提交前**，充值后可直接续跑（产物与门记录都在 work-dir） |
 
 ## 6. 不做 / 留待后续
 

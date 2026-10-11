@@ -17,18 +17,9 @@
 | [`model-02-lin-yu-an/profile.json`](model-02-lin-yu-an/profile.json) | **2 号模特林予安**档案正文（`kind: generated`，原创虚构 AI 角色，非真人、非 1 号替身） |
 | `model-02-lin-yu-an/portraits/v1/*.jpg` | 林予安定妆照集 **8 个角度**（同上角度表，纯文生图，逐张过 `clean-background/v2` 背景闸） |
 | `model-02-lin-yu-an/provenance.json` | 逐角度生成溯源：实际模型/创建时间/HTTP 请求 id、提示词摘要与 SHA-256、产物 SHA-256、自定义 ProduceID（**不是**平台 task_id；隐式水印未验证） |
-| [`model-03-ceo-future-frontdesk/profile.json`](model-03-ceo-future-frontdesk/profile.json) | **3 号「未来前台CEO」**档案正文（`kind: authorized-real`，客户方 CEO；形象来自火山方舟私域真人人像库认证素材 `asset://asset-20260929120055-mk2gn` 的**派生定妆照**） |
-| `model-03-ceo-future-frontdesk/portraits/v1/*.jpg` | 该角色定妆照集：**已验收 8 张**（front / threeQuarter / closeup / side ＋ frontFull / threeQuarterLeft / threeQuarterRight / smileCloseup） |
-| `model-03-ceo-future-frontdesk/reviews/*.json`、`gates.jsonl` | 评审与门留痕：**客户验收放行**（`via=owner-acceptance`）＋ 机器监制记录（只留证、不裁决） |
-| `model-03-ceo-future-frontdesk/provenance.json`、`portraits/v1/source-map.json` | 生成方式与逐角度溯源（含未生成角度的如实登记） |
 
-> **3 号的待补角度（如实登记，不冒充齐备）**：标准 8 角度里的 `back / actionPose / emotionCloseup / handDetail`
-> 尚未生成——2026-10-01 平台账户欠费（403 AccountOverdueError），充值后用
-> `scripts/tools/portrait-set-from-asset.mts`（默认就是标准 8 角度）补出并装新版本即可。
->
 > **在册资产（完整性索引）**：`registry.json` + 1 号 `profile.json` + `portraits/v3/` 的 8 张定妆照、
-> 2 号 `profile.json` + `provenance.json` + `portraits/v1/` 的 8 张定妆照、
-> 3 号 `profile.json` + `provenance.json` + `portraits/v1/source-map.json` + `portraits/v1/` 的 8 张定妆照
+> 2 号 `profile.json` + `provenance.json` + `portraits/v1/` 的 8 张定妆照
 > 已登记在 `bundles/ai-video/bundle.json#provides.library`，装载时校验 sha256（稳定包另验 Ed25519 签名）。
 > **改动这些在册文件必须在同一提交重算摘要**：`tsx scripts/bundle-governance.mts --refresh-digests`
 > （稳定包另需 `BUNDLE_SIGNING_PRIVATE_KEY` / `BUNDLE_SIGNING_KEY_ID` 重签），否则行业包会装载失败。
@@ -78,7 +69,7 @@ tsx scripts/tools/full-chain-film.mts \
 
 ```bash
 tsx scripts/tools/portrait-set-from-asset.mts \
-  --asset asset://asset-20260929120055-mk2gn \
+  --asset asset://asset-<时间戳>-<后缀> \
   --character <角色目录名> --library <角色库目录> \
   --out-dir <产物目录> --install --activate      # 去掉 --install 只出图；--dry-run 先看不花钱
 ```
@@ -95,9 +86,6 @@ tsx scripts/tools/portrait-set-from-asset.mts \
    （同一批文件实测同一张图出现 92 / 15 / 86 三种结论）。验收用
    `portrait-agent.mts accept --character <id> --by <验收人> --note <依据>`，落账 `g5-portrait-confirm` 且
    `via=owner-acceptance`（**不写成监制通过**）；需要留机器证据时加 `--with-likeness`（仅记录）。
-
-> 本仓 3 号「未来前台CEO」就是这条路的产物：客户 2026-10-01 验收通过了 8 张（见该目录 `reviews/`）；
-> 标准 8 角度里的 4 个（back / actionPose / emotionCloseup / handDetail）因平台欠费待补。
 
 ## 五、合规红线（不可绕过）
 

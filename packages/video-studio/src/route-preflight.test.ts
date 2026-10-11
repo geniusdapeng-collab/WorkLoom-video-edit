@@ -19,7 +19,7 @@ function codeOf(fn: () => unknown): RoutePreflightErrorCode | null {
 describe("detectProductAnchor —— 只认显式声明，不猜商品", () => {
   it("brief.product 字符串 / 对象", () => {
     expect(detectProductAnchor({ brief: { product: "酒店自助入住机" } })).toBe("酒店自助入住机");
-    expect(detectProductAnchor({ brief: { product: { name: "畅享住 AI 智慧前台", brand: "畅享住" } } })).toBe("畅享住 AI 智慧前台");
+    expect(detectProductAnchor({ brief: { product: { name: "示例品牌 AI 智慧前台", brand: "示例品牌" } } })).toBe("示例品牌 AI 智慧前台");
   });
   it("brief.products[] / shotlist.products[]", () => {
     expect(detectProductAnchor({ brief: { products: [{ name: "自助入住机" }] } })).toBe("自助入住机");

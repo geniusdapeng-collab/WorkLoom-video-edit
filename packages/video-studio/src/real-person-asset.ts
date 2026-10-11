@@ -28,7 +28,7 @@ export type CertifiedGender = "female" | "male" | "unspecified";
 
 export interface RealPersonAsset {
   schemaVersion: typeof REAL_PERSON_ASSET_SCHEMA;
-  /** 平台素材 ID（形如 asset-20260929120055-mk2gn）；镜头卡的 assetRef 必须指向它 */
+  /** 平台素材 ID（形如 asset-<时间戳>-<后缀>）；镜头卡的 assetRef 必须指向它 */
   assetId: string;
   displayName: string;
   /** 客户/平台认证时声明的属性（唯一事实源，禁止从上下文猜） */

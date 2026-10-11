@@ -11,9 +11,9 @@
  * 用法：
  *   # 先干跑（不花钱）：打印逐角度提示词与将要发的请求
  *   pnpm exec tsx scripts/tools/portrait-set-from-asset.mts \
- *     --asset asset://asset-20260929120055-mk2gn \
- *     --character ceo-future-frontdesk --library work/film/library/characters \
- *     --out-dir work/film/library/characters/model-01-ceo-future-frontdesk/portraits/_derived-src \
+ *     --asset asset://asset-<时间戳>-<后缀> \
+ *     --character <角色ID> --library work/film/library/characters \
+ *     --out-dir work/film/library/characters/model-01-<角色ID>/portraits/_derived-src \
  *     --dry-run
  *
  *   # 充值后真跑（生成 → 落盘 → 自动调安装器写档案 + 复核）
@@ -365,7 +365,7 @@ async function generateViaImage(prompt: string, referenceImages: string[] = []):
  * 视频路：**多参考图**提交 → 轮询 → 取首帧（frames:v 1）。
  *
  * **失效参考自动剔除**（2026-09-30 真机）：主档里的"同组 11 张"清单可能已经过期——
- * 实测 `asset-20260929120055-d6xr` 被平台判 `not found`。这里从 400 错误里解析出失效 assetId、
+ * 实测过期 assetId 会被平台判 `not found`。这里从 400 错误里解析出失效 assetId、
  * 把它从参考集里去掉后重试（失败提交不计费），并把被剔除的 ID 记进报告，供主档校正。
  */
 async function generateViaVideo(prompt: string, refs: string[]): Promise<Buffer> {

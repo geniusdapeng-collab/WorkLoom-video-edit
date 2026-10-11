@@ -26,22 +26,22 @@ function base(dir: string, overrides: Partial<ProductArchive> = {}): ProductArch
   const image = photo(dir);
   return {
     schemaVersion: PRODUCT_ARCHIVE_SCHEMA,
-    id: "ai-frontdesk",
-    displayName: "畅享住 AI 智慧前台（自助机 + 小程序）",
+    id: "demo-kiosk",
+    displayName: "示例自助入住机（自助机 + 小程序）",
     type: "product",
-    model: "CXZ-02",
-    company: "苏州未来前台",
-    brand: "畅享住",
+    model: "DEMO-02",
+    company: "示例公司",
+    brand: "示例品牌",
     aliases: ["自助入住机"],
     source: {
       kind: "user-upload",
       priority: PRODUCT_ARCHIVE_SOURCE_PRIORITY["user-upload"],
       reviewStatus: "owner-confirmed",
-      providedBy: "畅享住智慧酒店生态产品解决方案.pptx",
+      providedBy: "示例产品方案.pptx",
       extraction: { method: "pptx-slide-keyword-mapping", verified: false }
     },
     photos: [{ id: "hero", file: image.file, role: "hero", sha256: image.sha256, bytes: image.bytes }],
-    specs: { parameters: [{ name: "型号", value: "CXZ-02", source: "slide 3" }] },
+    specs: { parameters: [{ name: "型号", value: "DEMO-02", source: "slide 3" }] },
     ...overrides
   };
 }
@@ -53,11 +53,11 @@ describe("多商品方案档案（company / solution / product）", () => {
     expect(verifyProductArchive(broken, { dir: productDir }).map((issue) => issue.code)).toContain("photos-empty");
 
     const companyDir = directory();
-    const company = base(companyDir, { id: "苏州未来前台", type: "company", photos: [], relations: { products: ["ai-frontdesk"], solutions: ["suit-1"] } });
+    const company = base(companyDir, { id: "示例公司", type: "company", photos: [], relations: { products: ["demo-kiosk"], solutions: ["suit-1"] } });
     expect(verifyProductArchive(company, { dir: companyDir }).filter((issue) => issue.hard)).toEqual([]);
 
     const solutionDir = directory();
-    const solution = base(solutionDir, { id: "suit-1", type: "solution", photos: [], relations: { includes: [{ id: "ai-frontdesk", role: "自助入住终端" }] } });
+    const solution = base(solutionDir, { id: "suit-1", type: "solution", photos: [], relations: { includes: [{ id: "demo-kiosk", role: "自助入住终端" }] } });
     expect(verifyProductArchive(solution, { dir: solutionDir }).filter((issue) => issue.hard)).toEqual([]);
   });
 
@@ -84,27 +84,27 @@ describe("多商品方案档案（company / solution / product）", () => {
 
   it("按型号点单命中商品档案（含 variants 型号）", () => {
     const root = directory();
-    const dir = join(root, "ai-frontdesk"); mkdirSync(dir, { recursive: true });
-    writeFileSync(join(dir, "profile.json"), JSON.stringify(base(dir, { variants: [{ name: "立式机", model: "CXZ-02" }] })), "utf8");
+    const dir = join(root, "demo-kiosk"); mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, "profile.json"), JSON.stringify(base(dir, { variants: [{ name: "立式机", model: "DEMO-02" }] })), "utf8");
     const library = loadProductArchives(root);
-    expect(selectProductArchive(library.archives, "CXZ-02")?.archive?.id).toBe("ai-frontdesk");
-    expect(selectProductArchive(library.archives, "自助入住机")?.archive?.id).toBe("ai-frontdesk");
+    expect(selectProductArchive(library.archives, "DEMO-02")?.archive?.id).toBe("demo-kiosk");
+    expect(selectProductArchive(library.archives, "自助入住机")?.archive?.id).toBe("demo-kiosk");
   });
 
   it("同一个商品在库里有公司/方案/商品三层时不互相顶替（各按 id/名称解析）", () => {
     const root = directory();
     for (const [id, type, extra] of [
-      ["苏州未来前台", "company", { relations: { products: ["ai-frontdesk"] }, photos: [] }],
-      ["畅享住-智慧酒店生态方案", "solution", { relations: { includes: [{ id: "ai-frontdesk" }] }, photos: [] }],
-      ["ai-frontdesk", "product", {}]
+      ["示例公司", "company", { relations: { products: ["demo-kiosk"] }, photos: [] }],
+      ["示例品牌-智慧酒店生态方案", "solution", { relations: { includes: [{ id: "demo-kiosk" }] }, photos: [] }],
+      ["demo-kiosk", "product", {}]
     ] as const) {
       const dir = join(root, id); mkdirSync(dir, { recursive: true });
       writeFileSync(join(dir, "profile.json"), JSON.stringify(base(dir, { id, type, ...(extra as object) })), "utf8");
     }
     const library = loadProductArchives(root);
     expect(library.archives).toHaveLength(3);
-    expect(selectProductArchive(library.archives, "苏州未来前台")?.archive?.type).toBe("company");
-    expect(selectProductArchive(library.archives, "畅享住-智慧酒店生态方案")?.archive?.type).toBe("solution");
-    expect(selectProductArchive(library.archives, "ai-frontdesk")?.archive?.type).toBe("product");
+    expect(selectProductArchive(library.archives, "示例公司")?.archive?.type).toBe("company");
+    expect(selectProductArchive(library.archives, "示例品牌-智慧酒店生态方案")?.archive?.type).toBe("solution");
+    expect(selectProductArchive(library.archives, "demo-kiosk")?.archive?.type).toBe("product");
   });
 });
