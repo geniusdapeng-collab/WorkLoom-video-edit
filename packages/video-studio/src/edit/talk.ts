@@ -21,6 +21,8 @@
  * 返工是"剪断半句话"，宁可在决策层报错，也不要在成片里发现。
  */
 
+import { srtTimestamp } from "./caption.js";
+
 /* ============================ 基础类型 ============================ */
 
 /** 词级转写单元（时间码为源素材秒数） */
@@ -192,6 +194,11 @@ export const TALK_DEFAULTS = {
   emotionPeakPercentile: 0.85,
   /** 平滑风险告警阈值（0–1，越高越像"AI 念稿"） */
   smoothingRiskWarn: 0.7,
+  /**
+   * 口播单段最短时长（秒）：与时间轴硬闸 `MIN_SEGMENT_SECONDS=0.4` 对齐。
+   * 旧值 0.3 会产出 0.3–0.39s 的"合法碎片"，被时间轴校验直接拒绝（实测：一句"就是"就让整条链路 ok:false）。
+   */
+  minSegmentSeconds: 0.4,
 } as const;
 
 /* ============================ 工具函数 ============================ */
@@ -391,6 +398,11 @@ export function detectTalkFillers(words: TalkWord[]): TalkFillerMark[] {
 /**
  * 停顿标记：取"相邻词之间的空档"与"句末到下句首的空档"。
  * 分级：breath（换气，保留）/ thinking（思考，压缩）/ dead（死停，压缩）。
+ *
+ * 2026-10-11 修复：**片头静音**（0s → 第一句话）也纳入停顿标记。
+ * 旧实现只看词与词之间的空档，随手拍常见的"开头 2–5 秒没说话"会原样进片；
+ * 实测里 2s 片头静音被完整保留，与"死停压缩到 0.4s、钩子画面干净"的口径冲突。
+ * 片尾静音不在本函数处理：planTalkCut 的 deadline 落在最后一句话末尾，尾部天然不保留。
  */
 export function detectTalkPauses(
   sentences: TalkSentence[],
@@ -423,6 +435,9 @@ export function detectTalkPauses(
     });
   };
   const words = flattenTalkWords(sentences);
+  if (words.length > 0 && words[0]!.start >= minPause) {
+    push(0, words[0]!.start, true);
+  }
   for (let i = 1; i < words.length; i += 1) {
     const previous = words[i - 1]!;
     const current = words[i]!;
@@ -495,16 +510,21 @@ export function detectTalkRepetitions(
       /** 语气词自身的重复（"这个这个"/"嗯嗯"）是口头禅，不是修辞；只有实词复述才算强调。 */
       const fillerToken = Boolean(FILLER_LEXICON[text]);
       const rhetorical = !singleChar && !fillerToken && run === 2 && gapSeconds <= TALK_DEFAULTS.rhetoricalGapSeconds;
-      marks.push({
-        id: `repeat-${String(marks.length).padStart(4, "0")}`,
-        text,
-        start: round(first.start),
-        end: round(last.end),
-        kind: rhetorical ? "rhetorical" : "word-repeat",
-        unitWords: 1,
-        times: run,
-        gapSeconds,
-        keepOccurrence: rhetorical ? "all" : "last",
+    marks.push({
+      id: `repeat-${String(marks.length).padStart(4, "0")}`,
+      text,
+      start: round(first.start),
+      end: round(last.end),
+      kind: rhetorical ? "rhetorical" : "word-repeat",
+      unitWords: 1,
+      times: run,
+      gapSeconds,
+      /**
+       * 保留哪一次要与**语气词口径**一致：填充词连续重复是卡壳/口头禅，只留第一次
+       * （skills/talk-cutting）；实词重复才是"重说一遍"，留更完整的最后一次。
+       * 旧实现一律 "last"，与语气词"只留第一次"打架——实测里被判定"保留"的语气词又被重复处理器删掉。
+       */
+      keepOccurrence: rhetorical ? "all" : fillerToken ? "first" : "last",
       });
     }
     cursor += run;
@@ -534,17 +554,17 @@ export function detectTalkRepetitions(
       const allFiller = words.slice(first.index, first.index + unit).every((word) => Boolean(FILLER_LEXICON[word.text]));
       const rhetorical = unit >= 2 && consecutive && !allFiller;
       const kind: TalkRepetitionKind = rhetorical ? "rhetorical" : "phrase-repeat";
-      marks.push({
-        id: `repeat-${String(marks.length).padStart(4, "0")}`,
-        text: first.text,
-        start: round(first.start),
-        end: round(last.end),
-        kind,
-        unitWords: unit,
-        times,
-        gapSeconds,
-        keepOccurrence: rhetorical ? "all" : "last",
-      });
+    marks.push({
+      id: `repeat-${String(marks.length).padStart(4, "0")}`,
+      text: first.text,
+      start: round(first.start),
+      end: round(last.end),
+      kind,
+      unitWords: unit,
+      times,
+      gapSeconds,
+      keepOccurrence: rhetorical ? "all" : allFiller ? "first" : "last",
+    });
     }
   }
   return marks.sort((a, b) => a.start - b.start);
@@ -590,21 +610,21 @@ export function detectTalkSelfCorrections(
       .slice(-10);
     const correctedWords = words.filter((entry) => entry.start >= word.end - 0.02 && entry.start <= sentence.end + 0.02);
     if (mistakenWords.length === 0 || correctedWords.length === 0) continue;
-    const start = mistakenWords[0]!.start;
-    const lastCorrected = correctedWords[correctedWords.length - 1]!;
-    const mistakenIndex = words.indexOf(mistakenWords[0]!);
-    const correctedIndex = words.indexOf(lastCorrected);
-    const innerPause = pauses.some((entry) => entry.start >= start - 0.05 && entry.end <= lastCorrected.end + 0.05);
-    marks.push({
-      id: `selfcorr-${String(marks.length).padStart(3, "0")}`,
-      cue,
-      text: words.slice(mistakenIndex, correctedIndex + 1).map((entry) => entry.text).join(""),
-      mistaken: mistakenWords.map((entry) => entry.text).join(""),
-      corrected: correctedWords.map((entry) => entry.text).join(""),
-      start: round(start),
-      end: round(lastCorrected.end),
-      durationSeconds: round(lastCorrected.end - start + (innerPause ? 0 : 0)),
-    });
+  const start = mistakenWords[0]!.start;
+  const lastCorrected = correctedWords[correctedWords.length - 1]!;
+  const mistakenIndex = words.indexOf(mistakenWords[0]!);
+  const correctedIndex = words.indexOf(lastCorrected);
+  marks.push({
+    id: `selfcorr-${String(marks.length).padStart(3, "0")}`,
+    cue,
+    text: words.slice(mistakenIndex, correctedIndex + 1).map((entry) => entry.text).join(""),
+    mistaken: mistakenWords.map((entry) => entry.text).join(""),
+    corrected: correctedWords.map((entry) => entry.text).join(""),
+    start: round(start),
+    end: round(lastCorrected.end),
+    /** 整段自纠的时长（含中间停顿）：start→纠正结束，供剪取时判断"太长会拖节奏"。 */
+    durationSeconds: round(lastCorrected.end - start),
+  });
   }
   return marks;
 }
@@ -997,8 +1017,12 @@ export interface TalkCutOptions {
   pauseKeepRateFloor?: number;
   /** 自纠处理：keep（默认，保留错句+纠正，只压缩死停）/ trim-mistake（只保留纠正后的说法） */
   selfCorrectionPolicy?: "keep" | "trim-mistake";
-  /** 是否把低分话题块剔出本片（true = 只列为拆分候选，不删素材） */
-  splitTangents?: boolean;
+/**
+ * 是否把低分话题块从本片**剔出**（true = 从本片删除该块）。
+ * 缺省 false：按 skills/talk-cutting 的口径"只列为拆分候选，不硬删素材"——
+ * 选段/多片拆分是 G-TK4 的人在环决定，系统不替人删掉一整块内容。
+ */
+splitTangents?: boolean;
   /** 跳切遮盖：alternate = 相邻段交替推近；none = 不推近（需人工确认） */
   punchIn?: "alternate" | "none";
   /** 情绪峰值保护窗口（秒）：峰值句前后不删气口 */
@@ -1040,7 +1064,7 @@ export interface TalkCutPlan {
 interface ProtectedWindow {
   start: number;
   end: number;
-  kind: "self-correction" | "emotion-peak" | "humor";
+  kind: "self-correction" | "emotion-peak" | "humor" | "rhetorical";
 }
 
 function overlaps(start: number, end: number, window: { start: number; end: number }): boolean {
@@ -1089,6 +1113,38 @@ export function subtractSpans(
   return keep.filter((span) => span.end - span.start > 0.01);
 }
 
+/** 区间重叠长度（秒）：用于"指标与区间互证"（不信任决策台账里的自报数） */
+export function overlapSeconds(span: { start: number; end: number }, interval: { start: number; end: number }): number {
+  return Math.max(0, Math.min(span.end, interval.end) - Math.max(span.start, interval.start));
+}
+
+/**
+ * 从删除区间列表中"抠掉"一段（可能切开一个合并区间）。
+ *
+ * 为什么必须切开而不是找完全相等的区间：删除区间会被 `mergeSpans` 合并
+ * （相邻 0.02s 内的两段合成一段）。人味下限补偿要恢复某个语气词/停顿的头几秒时，
+ * 它往往已经被合并进一大段删除区间——旧实现用 `findIndex` 找"完全相等"的区间，
+ * 找不到就**静默不恢复**，于是台账/指标说"保留了"，成片里却仍然被删掉（实测复现的假达标）。
+ */
+export function removeIntervalFromSpans(
+  spans: Array<{ start: number; end: number; reason: TalkCutReason }>,
+  interval: { start: number; end: number },
+): Array<{ start: number; end: number; reason: TalkCutReason }> {
+  const out: Array<{ start: number; end: number; reason: TalkCutReason }> = [];
+  for (const span of spans) {
+    const overlap = overlapSeconds(span, interval);
+    if (overlap <= 0.001) {
+      out.push({ ...span });
+      continue;
+    }
+    const head = { start: round(span.start), end: round(Math.max(span.start, interval.start)), reason: span.reason };
+    const tail = { start: round(Math.min(span.end, interval.end)), end: round(span.end), reason: span.reason };
+    if (head.end - head.start > 0.005) out.push(head);
+    if (tail.end - tail.start > 0.005) out.push(tail);
+  }
+  return out.sort((a, b) => a.start - b.start);
+}
+
 /**
  * 口播剪取决策树（核心）：逐项决定 保留 / 删除 / 压缩，并给出理由与人味价值。
  *
@@ -1101,13 +1157,15 @@ export function planTalkCut(
   emotion: TalkEmotionDoc,
   options: TalkCutOptions = {},
 ): TalkCutPlan {
-  const fillerFloor = options.fillerKeepRateFloor ?? TALK_DEFAULTS.fillerKeepRateFloor;
-  const pauseFloor = options.pauseKeepRateFloor ?? TALK_DEFAULTS.pauseKeepRateFloor;
-  const selfCorrectionPolicy = options.selfCorrectionPolicy ?? "keep";
-  const splitTangents = options.splitTangents ?? true;
+const fillerFloor = options.fillerKeepRateFloor ?? TALK_DEFAULTS.fillerKeepRateFloor;
+const pauseFloor = options.pauseKeepRateFloor ?? TALK_DEFAULTS.pauseKeepRateFloor;
+const selfCorrectionPolicy = options.selfCorrectionPolicy ?? "keep";
+/** 缺省"只列候选、不硬删"（与技能口径一致；要剔出必须显式传 true，执行器用 --drop-tangents 打开）。 */
+const splitTangents = options.splitTangents ?? false;
   const punchIn = options.punchIn ?? "alternate";
   const protectPeakSeconds = options.protectPeakSeconds ?? 1.5;
   const deadline = sentences[sentences.length - 1]!.end;
+  const notes: string[] = [];
 
   const decisions: TalkCutDecision[] = [];
   const protectedWindows: ProtectedWindow[] = [];
@@ -1124,14 +1182,15 @@ export function planTalkCut(
     });
   }
   for (const mark of analysis.repetitions) {
-    if (mark.kind === "rhetorical") protectedWindows.push({ start: mark.start, end: mark.end, kind: "humor" });
+    if (mark.kind === "rhetorical") protectedWindows.push({ start: mark.start, end: mark.end, kind: "rhetorical" });
   }
   const protectionOf = (start: number, end: number): ProtectedWindow | null =>
     protectedWindows.find((window) => overlaps(start, end, window)) ?? null;
   /** 保护窗口 → 决策理由：自纠/笑点/情绪峰值各有自己的理由，便于人工按类别复核。 */
   const protectionReason = (window: ProtectedWindow): TalkCutReason =>
     window.kind === "self-correction" ? "self-correction-keep"
-      : window.kind === "humor" ? "humor-keep" : "emotion-peak-keep";
+    : window.kind === "humor" ? "humor-keep"
+    : window.kind === "rhetorical" ? "rhetorical-keep" : "emotion-peak-keep";
 
   const cuts: Array<{ start: number; end: number; reason: TalkCutReason }> = [];
   const pushDecision = (decision: Omit<TalkCutDecision, "id">): TalkCutDecision => {
@@ -1140,49 +1199,75 @@ export function planTalkCut(
     return withId;
   };
 
-  /* ---- ① 语气词 ---- */
-  const keptFillers = new Set<string>();
-  const fillerRun = new Map<string, number>();
-  for (const [index, filler] of analysis.fillers.entries()) {
-    const previous = analysis.fillers[index - 1];
-    const runIndex = previous && previous.end >= filler.start - 0.25 && previous.text === filler.text
-      ? (fillerRun.get(previous.id) ?? 0) + 1
-      : 0;
-    fillerRun.set(filler.id, runIndex);
-    const protection = protectionOf(filler.start, filler.end);
-    const duration = filler.end - filler.start;
-    /** 规则：受保护窗口内、短促语气词（<0.25s，节奏功能）、语篇连接词（可删性 <0.5）默认保留。 */
-    const keepRule = Boolean(protection) || duration < 0.25 || filler.removability < 0.5;
-    if (keepRule) {
-      keptFillers.add(filler.id);
-      pushDecision({
-        action: "keep",
-        target: "filler",
-        start: filler.start,
-        end: filler.end,
-        reason: protection ? protectionReason(protection) : "filler-rhythm-keep",
-        humanValue: protection ? 0.9 : 0.5,
-        refs: [filler.id],
-        note: protection
-          ? `位于「${protection.kind}」保护窗口内：语气词是真实思考的一部分，保留`
-          : `「${filler.text}」时长 ${round(duration, 2)}s：短促语气词承担口语节奏，删除会更像念稿`,
-      });
-      continue;
-    }
-    cuts.push({ start: filler.start, end: filler.end, reason: "filler-noise" });
+/* ---- ① 语气词 ---- */
+const keptFillers = new Set<string>();
+const fillerRun = new Map<string, number>();
+/**
+ * 连续重复的"整段长度"（同文本、间隔 ≤0.25s）。
+ * 技能口径：语气词连续重复**只留第一次**；旧实现把整段都删了（备注却写"只留第一次"，自相矛盾），
+ * 结果连"嗯嗯嗯"这种卡壳的语气词一个都不剩，人味下限全靠事后回补。
+ */
+const fillerRunSize = new Map<string, number>();
+{
+  let start = 0;
+  while (start < analysis.fillers.length) {
+    let end = start + 1;
+    while (
+      end < analysis.fillers.length
+      && analysis.fillers[end]!.text === analysis.fillers[start]!.text
+      && analysis.fillers[end]!.start - analysis.fillers[end - 1]!.end <= 0.25
+    ) end += 1;
+    for (let index = start; index < end; index += 1) fillerRunSize.set(analysis.fillers[index]!.id, end - start);
+    start = end;
+  }
+}
+for (const [index, filler] of analysis.fillers.entries()) {
+  const previous = analysis.fillers[index - 1];
+  const runIndex = previous && previous.end >= filler.start - 0.25 && previous.text === filler.text
+    ? (fillerRun.get(previous.id) ?? 0) + 1
+    : 0;
+  fillerRun.set(filler.id, runIndex);
+  const runSize = fillerRunSize.get(filler.id) ?? 1;
+  const protection = protectionOf(filler.start, filler.end);
+  const duration = filler.end - filler.start;
+  /**
+   * 规则：受保护窗口内、短促语气词（<0.25s，节奏功能）、语篇连接词（可删性 <0.5）、
+   * 连续重复段的第一次（只留第一次）默认保留。
+   */
+  const keepFirstOfRun = runSize >= 2 && runIndex === 0;
+  const keepRule = Boolean(protection) || duration < 0.25 || filler.removability < 0.5 || keepFirstOfRun;
+  if (keepRule) {
+    keptFillers.add(filler.id);
     pushDecision({
+      action: "keep",
+      target: "filler",
+      start: filler.start,
+      end: filler.end,
+      reason: protection ? protectionReason(protection) : "filler-rhythm-keep",
+      humanValue: protection ? 0.9 : 0.5,
+      refs: [filler.id],
+      note: protection
+        ? `位于「${protection.kind}」保护窗口内：语气词是真实思考的一部分，保留`
+        : keepFirstOfRun
+          ? `「${filler.text}」连续出现 ${runSize} 次：按"连续重复只留第一次"保留第一次，其余删除`
+          : `「${filler.text}」时长 ${round(duration, 2)}s：短促语气词承担口语节奏，删除会更像念稿`,
+    });
+    continue;
+  }
+  cuts.push({ start: filler.start, end: filler.end, reason: "filler-noise" });
+  pushDecision({
       action: "cut",
       target: "filler",
       start: filler.start,
       end: filler.end,
       reason: "filler-noise",
-      humanValue: round(1 - filler.removability, 2),
-      refs: [filler.id],
-      note: runIndex > 0
-        ? `「${filler.text}」连续重复第 ${runIndex + 1} 次：只留第一次，其余删除`
-        : `「${filler.text}」为纯填充（可删性 ${filler.removability}），且不在保护窗口、无节奏功能`,
-    });
-  }
+    humanValue: round(1 - filler.removability, 2),
+    refs: [filler.id],
+    note: runIndex > 0
+      ? `「${filler.text}」连续重复第 ${runIndex + 1} 次（共 ${runSize} 次）：只留第一次，其余删除`
+      : `「${filler.text}」为纯填充（可删性 ${filler.removability}），且不在保护窗口、无节奏功能`,
+  });
+}
 
   /* ---- ② 停顿 ---- */
   let pauseKeptSeconds = 0;
@@ -1249,17 +1334,38 @@ export function planTalkCut(
       });
       continue;
     }
-    const inside = words.filter((word) => word.start >= mark.start - 0.02 && word.end <= mark.end + 0.02);
-    const occurrences: Array<{ start: number; end: number }> = [];
-    for (let i = 0; i + mark.unitWords <= inside.length; i += mark.unitWords) {
-      const slice = inside.slice(i, i + mark.unitWords);
-      occurrences.push({ start: slice[0]!.start, end: slice[slice.length - 1]!.end });
+  const inside = words.filter((word) => word.start >= mark.start - 0.02 && word.end <= mark.end + 0.02);
+  const occurrences: Array<{ start: number; end: number }> = [];
+  for (let i = 0; i + mark.unitWords <= inside.length; i += mark.unitWords) {
+    const slice = inside.slice(i, i + mark.unitWords);
+    occurrences.push({ start: slice[0]!.start, end: slice[slice.length - 1]!.end });
+  }
+  if (occurrences.length < 2) continue;
+  /**
+   * 与"语气词保留 / 保护窗口"联动：已被判定保留（含连续重复只留第一次）或落在保护窗口里的
+   * 出现次数，不允许再被重复处理器删掉——两套规则必须收敛到同一个成片事实。
+   */
+  const keptFillerSpans = analysis.fillers.filter((filler) => keptFillers.has(filler.id));
+  const alreadyKept = (start: number, end: number): boolean =>
+    Boolean(protectionOf(start, end))
+    || keptFillerSpans.some((filler) => start >= filler.start - 0.03 && end <= filler.end + 0.03);
+  const keepIndex = mark.keepOccurrence === "first" ? 0 : occurrences.length - 1;
+  for (const [index, occurrence] of occurrences.entries()) {
+    if (index === keepIndex) continue;
+    if (alreadyKept(occurrence.start, occurrence.end)) {
+      pushDecision({
+        action: "keep",
+        target: "repetition",
+        start: occurrence.start,
+        end: occurrence.end,
+        reason: "keep",
+        humanValue: 0.5,
+        refs: [mark.id],
+        note: `第 ${index + 1} 次「${mark.text}」已被语气词/保护窗口径判定保留：重复处理器不再重复删除（两套规则收敛）`,
+      });
+      continue;
     }
-    if (occurrences.length < 2) continue;
-    const keepIndex = mark.keepOccurrence === "first" ? 0 : occurrences.length - 1;
-    for (const [index, occurrence] of occurrences.entries()) {
-      if (index === keepIndex) continue;
-      cuts.push({ start: occurrence.start, end: occurrence.end, reason: mark.kind === "restart" ? "repetition" : "stumble" });
+    cuts.push({ start: occurrence.start, end: occurrence.end, reason: mark.kind === "restart" ? "repetition" : "stumble" });
       pushDecision({
         action: "cut",
         target: "repetition",
@@ -1318,19 +1424,33 @@ export function planTalkCut(
     const weak = block.score < 0.35;
     const protectedBlock = block.peakIntensity >= 0.7;
     if (!weak || protectedBlock) continue;
-    splitCandidates.push({
-      blockId: block.blockId,
-      title: block.title,
+  splitCandidates.push({
+    blockId: block.blockId,
+    title: block.title,
+    start: block.start,
+    end: block.end,
+    reason: `块评分 ${block.score}（信息密度/情绪/完整度综合偏低），建议拆成独立片子或舍弃`,
+  });
+  if (splitTangents) {
+    cuts.push({ start: block.start, end: block.end, reason: "tangent" });
+    pushDecision({
+      action: "cut",
+      target: "block",
       start: block.start,
       end: block.end,
-      reason: `块评分 ${block.score}（信息密度/情绪/完整度综合偏低），建议拆成独立片子或舍弃，不在本片硬删`,
+      reason: "tangent",
+      humanValue: 0.3,
+      refs: [block.blockId],
+      note: `按显式选择把低分块「${block.title}」从本片剔出（块评分 ${block.score}）；素材不删除，可单独成片`,
     });
-    if (splitTangents) cuts.push({ start: block.start, end: block.end, reason: "tangent" });
   }
+}
+if (splitCandidates.length > 0 && !splitTangents) {
+  notes.push(`发现 ${splitCandidates.length} 个低分话题块：仅列为拆分候选（不硬删）——是否剔出/独立成片由人选（G-TK4）`);
+}
 
   /* ---- ⑥ 合并删除区间 → 保留区间 ---- */
   const merged = mergeSpans(cuts, deadline);
-  const notes: string[] = [];
   let fillerKept = keptFillers.size;
   let fillerKeepRate = analysis.fillers.length > 0 ? round(fillerKept / analysis.fillers.length, 3) : 1;
   let pauseKeepRate = pauseTotalSeconds > 0 ? round(pauseKeptSeconds / pauseTotalSeconds, 3) : 1;
@@ -1344,11 +1464,15 @@ export function planTalkCut(
     for (const filler of byValue) {
       if (needed <= 0) break;
       keptFillers.add(filler.id);
+      /**
+       * 关键修复（实测假达标）：恢复必须**真的从删除区间里抠掉这一段**。
+       * 旧实现按"完全相等"找区间，一旦该语气词已被 mergeSpans 并入更大的删除区间就找不到，
+       * 于是台账与指标显示"已恢复"，成片里却仍被删掉。这里用区间减法（可切开合并区间）保证一致。
+       */
+      const restored = removeIntervalFromSpans(merged, { start: filler.start, end: filler.end });
+      merged.splice(0, merged.length, ...restored);
       fillerKept = keptFillers.size;
       fillerKeepRate = round(fillerKept / analysis.fillers.length, 3);
-      const cutIndex = merged.findIndex((span) =>
-        Math.abs(span.start - filler.start) < 0.03 && Math.abs(span.end - filler.end) < 0.03);
-      if (cutIndex >= 0) merged.splice(cutIndex, 1);
       pushDecision({
         action: "keep",
         target: "filler",
@@ -1371,12 +1495,19 @@ export function planTalkCut(
       if (pauseKeepRate >= pauseFloor) break;
       const currentCut = merged.find((span) => span.start >= pause.start - 0.03 && span.end <= pause.end + 0.03);
       if (!currentCut) continue;
-      const keepSoFar = round(pause.durationSeconds - (currentCut.end - currentCut.start));
+      const cutInPause = merged.reduce((sum, span) => sum + overlapSeconds(span, pause), 0);
+      const keepSoFar = round(pause.durationSeconds - cutInPause);
       const add = Math.min(currentCut.end - currentCut.start, round(TALK_DEFAULTS.protectedPauseKeepSeconds - keepSoFar));
       if (add <= 0.05) continue;
-      currentCut.start = round(currentCut.start + add);
-      pauseKeptSeconds = round(pauseKeptSeconds + add);
-      pauseKeepRate = round(pauseKeptSeconds / pauseTotalSeconds, 3);
+      /** 同样用区间减法恢复（从被删部分的第一秒往回restore），保证指标与区间一致。 */
+      const restored = removeIntervalFromSpans(merged, { start: currentCut.start, end: round(currentCut.start + add) });
+      merged.splice(0, merged.length, ...restored);
+      /** 立刻按最终区间重算指标：循环的停止条件与决策备注都要用真数，不能用自报数。 */
+      pauseKeptSeconds = round(analysis.pauses.reduce((sum, entry) => {
+        const cut = merged.reduce((acc, span) => acc + overlapSeconds(span, entry), 0);
+        return sum + Math.max(0, entry.durationSeconds - cut);
+      }, 0), 3);
+      pauseKeepRate = pauseTotalSeconds > 0 ? round(pauseKeptSeconds / pauseTotalSeconds, 3) : 1;
       pushDecision({
         action: "keep",
         target: "pause",
@@ -1390,6 +1521,20 @@ export function planTalkCut(
     }
     notes.push("触发人味下限补偿：停顿保留不足，已恢复部分句间停顿");
   }
+
+  /**
+   * 指标一律以**最终区间**为准重算（不信任台账自报数）。
+   * 这是"假达标"的根治：无论补偿逻辑怎么改，指标与成片区间永远同源。
+   */
+  fillerKept = analysis.fillers.filter((filler) =>
+    analysis.fillers.length > 0
+    && merged.reduce((sum, span) => sum + overlapSeconds(span, filler), 0) < (filler.end - filler.start) * 0.5).length;
+  fillerKeepRate = analysis.fillers.length > 0 ? round(fillerKept / analysis.fillers.length, 3) : 1;
+  pauseKeptSeconds = round(analysis.pauses.reduce((sum, pause) => {
+    const cut = merged.reduce((acc, span) => acc + overlapSeconds(span, pause), 0);
+    return sum + Math.max(0, pause.durationSeconds - cut);
+  }, 0), 3);
+  pauseKeepRate = pauseTotalSeconds > 0 ? round(pauseKeptSeconds / pauseTotalSeconds, 3) : 1;
 
   const keepSpans = subtractSpans({ start: 0, end: deadline }, merged);
   const keptSeconds = round(keepSpans.reduce((sum, span) => sum + (span.end - span.start), 0));
@@ -1615,25 +1760,66 @@ export function draftTalkSegments(
       }
       glued.push({ ...cell });
     }
-    const pieces = glued;
-    /** 碎片（<0.3s）并入相邻段：单段 0.4s 是时间轴硬闸，留碎片只会让成片更碎。 */
-    const merged: typeof pieces = [];
-    for (const piece of pieces) {
-      const last = merged[merged.length - 1];
-      if (last && piece.end - piece.start < 0.3) {
-        last.end = piece.end;
-        last.sentenceIds = [...new Set([...last.sentenceIds, ...piece.sentenceIds])];
-        last.text += piece.text;
-        continue;
+  /**
+   * 先按**词边界**切开超长片段（>maxSegmentChars）。
+   * 为什么必须切：字幕上限是一屏 24 字，而 ASR 句子在无气口时可达 42 字；
+   * 不切的话，talk-cut 自己产出的时间轴会被自己的字幕硬闸（>24 字 / >2 行）拒绝。
+   * 切点落在词边界，保持"不切词、不残句"（保留区间不变，切的是段不是内容）。
+   */
+  const allWords = flattenTalkWords(sentences);
+  const splitLongPiece = (piece: (typeof glued)[number]): typeof glued => {
+    if (textLength(piece.text) <= maxSegmentChars) return [piece];
+    const words = allWords.filter((word) => word.start >= piece.start - 0.02 && word.end <= piece.end + 0.02);
+    if (words.length < 2) return [piece];
+    const out: typeof glued = [];
+    let current: (typeof glued)[number] | null = null;
+    for (const word of words) {
+      const wordChars = textLength(word.text);
+      if (current && textLength(current.text) + wordChars > maxSegmentChars) {
+        out.push(current);
+        current = null;
       }
-      merged.push({ ...piece });
+      if (!current) {
+        current = { start: round(word.start), end: round(word.end), sentenceIds: [...piece.sentenceIds], text: word.text };
+      } else {
+        current.end = round(word.end);
+        current.text += word.text;
+      }
     }
-    if (merged.length > 1 && merged[0]!.end - merged[0]!.start < 0.3) {
-      const head = merged.shift()!;
-      merged[0]!.start = head.start;
-      merged[0]!.sentenceIds = [...new Set([...head.sentenceIds, ...merged[0]!.sentenceIds])];
-      merged[0]!.text = head.text + merged[0]!.text;
+    if (current) out.push(current);
+    return out.length > 0 ? out : [piece];
+  };
+  const pieces = glued.flatMap(splitLongPiece);
+  /**
+   * 碎片并入相邻段：阈值与时间轴硬闸（0.4s）对齐。
+   * 旧阈值 0.3 会漏下 0.3–0.39s 的"合法碎片"，被 validateEditTimeline 直接判硬失败——
+   * 实测一句话"就是"（0.3s）就让整条口播链路 ok:false。
+   */
+  const minSegment = TALK_DEFAULTS.minSegmentSeconds;
+  const merged: typeof pieces = [];
+  for (const piece of pieces) {
+    const last = merged[merged.length - 1];
+    /** 纯停顿碎片（无文字）也要并入相邻段：单独成段 = 无字幕段，口播口径不允许。 */
+    if (last && (piece.end - piece.start < minSegment || textLength(piece.text) === 0)) {
+      last.end = piece.end;
+      last.sentenceIds = [...new Set([...last.sentenceIds, ...piece.sentenceIds])];
+      last.text += piece.text;
+      continue;
     }
+    merged.push({ ...piece });
+  }
+  /**
+   * 片头留白不能单独成段：它是"纯停顿"（没有词），单独成段会产出**无字幕段**，
+   * 与口播"每段都有字幕（跟着说话出字）"的硬口径冲突（实测：片头 0.4s 留白让整条链路 ok:false）。
+   * 处理：把片头留白并入第一段正式语料，保留呼吸感，同时保证每段都有台词。
+   */
+  const headIsSilence = merged.length > 1 && textLength(merged[0]!.text) === 0;
+  if (merged.length > 1 && (merged[0]!.end - merged[0]!.start < minSegment || headIsSilence)) {
+    const head = merged.shift()!;
+    merged[0]!.start = head.start;
+    merged[0]!.sentenceIds = [...new Set([...head.sentenceIds, ...merged[0]!.sentenceIds])];
+    merged[0]!.text = head.text + merged[0]!.text;
+  }
     let current: typeof pieces = [];
     const flush = () => {
       if (current.length === 0) return;
@@ -1653,15 +1839,39 @@ export function draftTalkSegments(
       });
       current = [];
     };
-    for (const piece of merged) {
-      const nextChars = current.reduce((sum, entry) => sum + textLength(entry.text), 0) + textLength(piece.text);
-      if (current.length > 0 && (piece.end - current[0]!.start > maxSegmentSeconds || nextChars > maxSegmentChars)) flush();
-      current.push(piece);
-    }
-    flush();
+  for (const piece of merged) {
+    const nextChars = current.reduce((sum, entry) => sum + textLength(entry.text), 0) + textLength(piece.text);
+    if (current.length > 0 && (piece.end - current[0]!.start > maxSegmentSeconds || nextChars > maxSegmentChars)) flush();
+    current.push(piece);
   }
-  /**
-   * 跳切判定 + punch-in 遮盖：同源相邻段之间只要源轨有空档就是跳切。
+  flush();
+}
+/**
+ * 跨保留区间的"纯留白段"收口：片头留白（0→第一句）是独立保留区间，上一节的合并只在区间内生效，
+ * 必须在这里并入相邻的正式语料段——否则会产出无字幕段，被口播字幕硬闸拒绝（实测 ok:false）。
+ */
+for (let index = drafts.length - 1; index >= 0; index -= 1) {
+  const draft = drafts[index]!;
+  if (textLength(draft.text) > 0) continue;
+  if (index > 0) {
+    const previous = drafts[index - 1]!;
+    previous.end = draft.end;
+    previous.sentenceIds = [...new Set([...previous.sentenceIds, ...draft.sentenceIds])];
+    previous.text += draft.text;
+  } else if (drafts.length > 1) {
+    const next = drafts[index + 1]!;
+    next.start = draft.start;
+    next.sentenceIds = [...new Set([...draft.sentenceIds, ...next.sentenceIds])];
+    next.text = draft.text + next.text;
+  }
+  drafts.splice(index, 1);
+}
+/** 合并后重排段号：段号是字幕与返修定位的引用键，必须连续。 */
+drafts.forEach((draft, index) => {
+  draft.segmentId = `talk-${String(index + 1).padStart(3, "0")}`;
+});
+/**
+* 跳切判定 + punch-in 遮盖：同源相邻段之间只要源轨有空档就是跳切。
    *
    * 遮盖纪律：**每一处跳切边界都必须让景别发生变化**——直接把"上一段的景别"翻到另一档
    * （1.0 ↔ 1.12），而不是简单地"隔一个跳切推一次"；后者遇到"连续段 1.0 + 跳切段 1.0"
@@ -1740,9 +1950,12 @@ export function buildTalkCaptions(
       .filter((sentence) => draft.sentenceIds.includes(sentence.id))
       .flatMap((sentence) => sentence.words)
       .filter((word) => word.start >= draft.start - 0.02 && word.end <= draft.end + 0.02);
-    const raw = words.length > 0 ? words.map((word) => word.text).join("") : draft.text;
-    const text = raw.replace(/\s+/gu, "");
-    const lines = splitTalkCaptionLines(text, maxLineChars);
+  const raw = words.length > 0 ? words.map((word) => word.text).join("") : draft.text;
+  const text = raw.replace(/\s+/gu, "");
+  /** 词边界优先断行（不把「特别」切成「特/别」）；词分布不允许时退回字符均分。 */
+  const lines = words.length > 0
+    ? splitTalkCaptionLinesByWords(words, maxLineChars, 2)
+    : splitTalkCaptionLines(text, maxLineChars, 2);
     const emphasis = [...new Set(text.match(EMPHASIS_PATTERN) ?? [])];
     return {
       segmentId: draft.segmentId,
@@ -1759,14 +1972,50 @@ export function buildTalkCaptions(
   return { cues, totalDurationSeconds: round(cursor), videoTitle };
 }
 
-/** 字幕断行：按字数等分（口播字幕不追求"标点断句"，追求一屏可读完） */
-export function splitTalkCaptionLines(text: string, maxLineChars = 12): string[] {
+/**
+ * 字幕断行（字符兜底）：口播字幕不追求"标点断句"，追求一屏可读完。
+ * 行数按 `min(maxLines, ceil(字数/maxLineChars))` 均分——24 字固定切 12+12，
+ * 而不是"每 12 字硬切"（后者遇到 13 字会产出 12+1 的尴尬第二行）。
+ */
+export function splitTalkCaptionLines(text: string, maxLineChars = 12, maxLines = 2): string[] {
   const normalized = normalizeTalkText(text);
-  if (normalized.length <= maxLineChars) return [normalized];
+  if ([...normalized].length <= maxLineChars) return [normalized];
   const chars = [...normalized];
+  const lineCount = Math.min(maxLines, Math.max(1, Math.ceil(chars.length / maxLineChars)));
+  const per = Math.ceil(chars.length / lineCount);
   const parts: string[] = [];
-  for (let i = 0; i < chars.length; i += maxLineChars) parts.push(chars.slice(i, i + maxLineChars).join(""));
-  return parts.slice(0, 4);
+  for (let i = 0; i < chars.length; i += per) parts.push(chars.slice(i, i + per).join(""));
+  return parts.slice(0, maxLines);
+}
+
+/**
+ * 字幕断行（词边界优先）：按词累积，尽量不把词/数字/单位切开。
+ * 若词分布导致无法满足"≤2 行且每行 ≤12 字"（例如 11+11+2 三词 24 字），
+ * 退回字符均分（宁可切字也不让一屏超过两行）。
+ */
+export function splitTalkCaptionLinesByWords(
+  words: Array<{ text: string }>,
+  maxLineChars = 12,
+  maxLines = 2,
+): string[] {
+  const tokens = words.map((word) => normalizeTalkText(word.text)).filter((text) => text.length > 0);
+  const total = tokens.reduce((sum, token) => sum + [...token].length, 0);
+  if (total === 0) return [""];
+  if (total <= maxLineChars) return [tokens.join("")];
+  const lineCount = Math.min(maxLines, Math.max(1, Math.ceil(total / maxLineChars)));
+  const target = Math.ceil(total / lineCount);
+  const lines: string[] = [];
+  let current = "";
+  for (const token of tokens) {
+    if (current.length > 0 && [...current].length >= target && lines.length < lineCount - 1) {
+      lines.push(current);
+      current = "";
+    }
+    current += token;
+  }
+  if (current) lines.push(current);
+  const valid = lines.length <= maxLines && lines.every((line) => [...line].length <= maxLineChars);
+  return valid ? lines : splitTalkCaptionLines(tokens.join(""), maxLineChars, maxLines);
 }
 
 export interface TalkTimelineBuild {
@@ -2028,20 +2277,87 @@ export function validateTalkCut(input: {
       checks.push({ id: `timeline.${check.id}`, pass: check.pass, hard: check.hard, detail: check.detail });
     }
   }
+
+  /**
+   * ⑥ 区间与指标互证（2026-10-11 新增，硬项）：
+   * "台账/指标自报达标、成片区间却没变"是本管线最危险的假达标——
+   * 实测复现：人味下限补偿恢复了 3 个语气词并让保留率从 0.417 涨到 0.667，
+   * 但 cutSpans 仍是整段 (6.4, 8.5)，成片里那 3 个字照样被删。
+   * 这里强制三件事：保留/删除区间互补、被"恢复"的项真的不在删除区、指标与区间同源。
+   */
+  const deadline = sentences[sentences.length - 1]!.end;
+  const keepTotal = plan.keepSpans.reduce((sum, span) => sum + (span.end - span.start), 0);
+  const cutTotal = plan.cutSpans.reduce((sum, span) => sum + (span.end - span.start), 0);
+  const cutOverlaps = plan.cutSpans.some((span, index) => index > 0 && span.start < plan.cutSpans[index - 1]!.end - 0.02);
+  const keepOverlaps = plan.keepSpans.some((span, index) => index > 0 && span.start < plan.keepSpans[index - 1]!.end - 0.02);
+  const complementOk = Math.abs(keepTotal + cutTotal - deadline) < 0.05 && !cutOverlaps && !keepOverlaps;
+  checks.push({
+    id: "spans.complement",
+    pass: complementOk,
+    hard: true,
+    detail: complementOk
+      ? `保留 ${round(keepTotal)}s + 删除 ${round(cutTotal)}s = 全片 ${round(deadline)}s，且区间互不重叠`
+      : `保留/删除区间与全片不互补（保留 ${round(keepTotal)}s + 删除 ${round(cutTotal)}s ≠ ${round(deadline)}s）或存在重叠`,
+  });
+  if (!complementOk) {
+    fixes.push({ decisionId: "keepSpans/cutSpans", field: "spans", action: "按最终删除区间重算保留区间（用 removeIntervalFromSpans/subtractSpans）", severity: "hard" });
+  }
+
+  const restored = plan.decisions.filter((decision) => decision.reason === "human-floor-keep");
+  const stillCut = restored.filter((decision) =>
+    plan.cutSpans.reduce((sum, span) => sum + overlapSeconds(span, decision), 0) > (decision.end - decision.start) * 0.5);
+  checks.push({
+    id: "spans.humanFloorRestored",
+    pass: stillCut.length === 0,
+    hard: true,
+    detail: stillCut.length === 0
+      ? `人味下限恢复的 ${restored.length} 项都确实留在了成片区间里`
+      : `${stillCut.length} 项"人味下限恢复"实际仍在删除区间里（台账与成片不一致）：${stillCut.map((decision) => `${round(decision.start)}–${round(decision.end)}`).join("、")}`,
+  });
+  if (stillCut.length > 0) {
+    fixes.push({ decisionId: "human-floor-keep", field: "cutSpans", action: "把恢复项从删除区间中抠掉（可切开合并区间），或撤销该 keep 决策", severity: "hard" });
+  }
+
+  const derivedFillerKept = analysis.fillers.filter((filler) =>
+    plan.cutSpans.reduce((sum, span) => sum + overlapSeconds(span, filler), 0) < (filler.end - filler.start) * 0.5).length;
+  const fillerConsistent = derivedFillerKept === plan.metrics.fillerKept;
+  checks.push({
+    id: "metrics.fillerConsistent",
+    pass: fillerConsistent,
+    hard: true,
+    detail: fillerConsistent
+      ? `语气词保留数 ${plan.metrics.fillerKept} 与最终区间一致`
+      : `语气词保留数自报 ${plan.metrics.fillerKept}，按最终区间实际为 ${derivedFillerKept}`,
+  });
+  if (!fillerConsistent) {
+    fixes.push({ decisionId: "metrics.fillerKept", field: "metrics", action: "指标改为按最终 keepSpans/cutSpans 重算（不信任决策自报数）", severity: "hard" });
+  }
+
+  const derivedPauseKept = round(analysis.pauses.reduce((sum, pause) => {
+    const cut = plan.cutSpans.reduce((acc, span) => acc + overlapSeconds(span, pause), 0);
+    return sum + Math.max(0, pause.durationSeconds - cut);
+  }, 0), 3);
+  const pauseConsistent = Math.abs(derivedPauseKept - plan.metrics.pauseKeptSeconds) <= 0.05;
+  checks.push({
+    id: "metrics.pauseConsistent",
+    pass: pauseConsistent,
+    hard: true,
+    detail: pauseConsistent
+      ? `停顿保留秒数 ${plan.metrics.pauseKeptSeconds}s 与最终区间一致`
+      : `停顿保留秒数自报 ${plan.metrics.pauseKeptSeconds}s，按最终区间实际为 ${derivedPauseKept}s`,
+  });
+  if (!pauseConsistent) {
+    fixes.push({ decisionId: "metrics.pauseKeptSeconds", field: "metrics", action: "指标改为按最终 keepSpans/cutSpans 重算（不信任决策自报数）", severity: "hard" });
+  }
+
   const ok = checks.every((check) => check.pass || !check.hard) && (input.timelineOk ?? true);
   return { ok, checks, fixes };
 }
 
 /** 口播字幕 → SRT（逐字、按行、无标点） */
 export function talkCuesToSrt(cues: TalkCaptionCue[]): string {
-  const format = (seconds: number): string => {
-    const ms = Math.round((seconds - Math.floor(seconds)) * 1000);
-    const total = Math.floor(seconds);
-    const h = Math.floor(total / 3600);
-    const m = Math.floor((total % 3600) / 60);
-    const s = total % 60;
-    return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")},${String(ms).padStart(3, "0")}`;
-  };
+  /** 复用 caption.ts 的稳健实现：毫秒进位不会产出非法 `,1000`（旧实现有同样的问题）。 */
+  const format = srtTimestamp;
   return cues
     .map((cue, index) => `${index + 1}\n${format(cue.masterStart)} --> ${format(cue.masterEnd)}\n${cue.lines.join("\n")}\n`)
     .join("\n");
