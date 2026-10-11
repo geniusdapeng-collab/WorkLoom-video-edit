@@ -29,3 +29,4 @@ export * from "./naming.js";
 export * from "./entity-color.js";
 export * from "./copy-style.js";
 export * from "./attention.js";
+export * from "./output-resolution.js";

@@ -18,11 +18,13 @@
  *     [--analysis <probe.json>]…（封面自动取帧与分段调色投票用）
  *     [--bgm-section auto|climax|calm|full] [--bgm-cut-driven]
  *     [--title "标题"] [--hook "一句话钩子"] [--platform "微信视频号"]
- *     [--width <显式宽> --height <显式高>] [--fps 30] [--crf 16] [--burn-subtitles] [--json]
+ *     [--width <显式宽> --height <显式高>] [--allow-downscale] [--fps 30] [--crf 16] [--burn-subtitles] [--json]
  *     [--transitions hard|pack|declared|auto] [--transitions-easing native|smooth]
  *     [--transition-pack documentary|vlog|fast_cut|information]
  *   输出分辨率默认**跟随素材原生分辨率**（取与目标画幅一致的最大素材档位；4K 素材 → 3840×2160，
- *   清晰度档随之推导为 uhd），只有显式 `--width/--height` 才覆盖——不允许管线自行降低分辨率（2026-10-11 产品所有者口径）。
+ *   清晰度档随之推导为 uhd）。显式 `--width/--height` **低于原生档位时 fail closed**：必须再加
+ *   `--allow-downscale`（仅用于预览/低配发布），判定与缩放比写进 delivery-manifest.resolution
+ *   （2026-10-11 产品所有者口径 + 当日生产事故复盘：显式 1080×1920 曾把 4K 交付静默降档）。
  */
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
@@ -31,7 +33,7 @@ import { homedir } from "node:os";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 import {
   describeReframePlan, describeTransitionPlan, planAssembly, planCoverMoment, planCoverMoments, planSegmentColor, planToPerCut, planTransitions,
-  resolveTimelineSourcePaths, validateEditTimeline, type EditTimeline, type PostAnalysisDoc,
+  decideOutputResolution, resolveTimelineSourcePaths, validateEditTimeline, type EditTimeline, type PostAnalysisDoc,
 } from "../../packages/video-studio/src/edit/index.js";
 import { scanBestFrame } from "./lib/frame-scan.mts";
 
@@ -130,42 +132,29 @@ async function main(): Promise<void> {
     const size = file && existsSync(file) ? probeVideoSize(file) : null;
     return { sourceId: source.sourceId, file, width: size?.width ?? null, height: size?.height ?? null };
   });
-  let width: number;
-  let height: number;
-  let resolutionPolicy: string;
-  if (explicitWidth && explicitHeight) {
-    width = Number(explicitWidth);
-    height = Number(explicitHeight);
-    resolutionPolicy = "explicit（调用方显式指定，尊重指定值）";
-  } else {
-    const targetAspect = (() => {
-      const raw = String(timeline.target?.aspectRatio ?? "");
-      const [a, b] = raw.split(":").map((value) => Number(value));
-      return Number.isFinite(a) && Number.isFinite(b) && a > 0 && b > 0 ? a / b : null;
-    })();
-    const usable = sourceSizes.filter((entry) => entry.width && entry.height);
-    const matching = targetAspect
-      ? usable.filter((entry) => Math.abs(entry.width! / entry.height! - targetAspect) < 0.05)
-      : usable;
-    const pool = matching.length > 0 ? matching : usable;
-    const best = [...pool].sort((a, b) => (b.width! * b.height!) - (a.width! * a.height!))[0];
-    if (best) {
-      width = best.width!;
-      height = best.height!;
-      resolutionPolicy = `source-max（${best.sourceId} ${best.width}×${best.height}）`;
-    } else {
-      width = 1920;
-      height = 1080;
-      resolutionPolicy = "fallback-1080p（素材不可探测）";
-    }
+  /**
+   * 口径判定收敛到纯函数 `decideOutputResolution`（packages/video-studio/src/edit/output-resolution.ts）：
+   * 默认跟随素材原生分辨率；显式降到原生以下必须 `--allow-downscale`（fail closed）。
+   */
+  const resolutionDecision = decideOutputResolution({
+    targetAspectRatio: timeline.target?.aspectRatio ?? null,
+    sources: sourceSizes,
+    explicit: { width: explicitWidth, height: explicitHeight },
+    allowDownscale: flag("--allow-downscale"),
+    quality: arg("--quality", ""),
+  });
+  if (resolutionDecision.hardFailures.length) {
+    throw new Error(`输出分辨率未通过产品口径（fail closed）：\n  - ${resolutionDecision.hardFailures.join("\n  - ")}`);
   }
+  const { width, height, quality } = resolutionDecision;
+  const resolutionPolicy = resolutionDecision.policy;
+  for (const note of resolutionDecision.advisories) console.log(`⚠ 分辨率咨询项：${note}`);
   const fps = Number(arg("--fps", String(timeline.target?.fps ?? 30)));
   const crf = Number(arg("--crf", "16"));
-  /** 清晰度档位随分辨率推导：4K 级默认 uhd，其余 hd；显式 `--quality` 优先。 */
-  const qualityArg = arg("--quality", "");
-  const quality = qualityArg || (Math.min(width, height) >= 2160 ? "uhd" : "hd");
-  if (!["hd", "uhd"].includes(quality)) throw new Error(`--quality 只接受 hd / uhd（收到：${quality}）`);
   console.log(`分辨率：${width}×${height}（${resolutionPolicy}）· 清晰度档 ${quality} · ${fps}fps`);
+  if (resolutionDecision.downscale) {
+    console.log(`· 显式降分辨率已声明放行：素材 ${resolutionDecision.sourceBest?.width}×${resolutionDecision.sourceBest?.height} → 输出 ${width}×${height}（${resolutionDecision.scaleVersusSource}×）`);
+  }
   const variants = arg("--variants", "warm-story,clean-tech,bold-promo").split(",").map((v) => v.trim()).filter(Boolean);
   /**
    * 转场口径（2026-10-11 升级为四档）：
@@ -811,6 +800,12 @@ const autoCoverPlan = explicitCoverAt
       height,
       quality,
       policy: resolutionPolicy,
+      /** 产品口径（2026-10-11）：默认跟随素材原生分辨率；降分辨率必须显式声明 */
+      sourceBest: resolutionDecision.sourceBest,
+      scaleVersusSource: resolutionDecision.scaleVersusSource,
+      downscale: resolutionDecision.downscale,
+      downscaleApproved: resolutionDecision.downscaleApproved,
+      advisories: resolutionDecision.advisories,
       sources: sourceSizes,
       upscaledSources: sourceSizes
         .filter((entry) => entry.width && entry.height && entry.width * entry.height < width * height)

@@ -1,5 +1,20 @@
 # Changelog
 
+## [output-resolution-gate] - 2026-10-11 · 输出分辨率 fail-closed：默认跟随素材原生，显式降档必须声明（T-2026-1011-0015）
+
+> 背景：产品所有者口径是「默认输出原始素材分辨率」，该口径也早已写进 `edit-post` 的注释；但 60 秒版交付
+> 仍以 1080×1920 产出——生产脚本沿用了上一轮的 `--width 1080 --height 1920`，而**没有任何门禁**把
+> "显式低于原生档位"变成需要声明的动作。口径只写在注释里，等于没有（2026-10-11 事故复盘）。
+
+- **纯函数**：`packages/video-studio/src/edit/output-resolution.ts` → `decideOutputResolution()`：
+  按目标画幅挑面积最大的素材档位；显式覆盖低于原生 → `hardFailures`（除非 `--allow-downscale`）；
+  高于原生 → 咨询项（上采样不增加清晰度）；素材不可探测 → 回退 1080p 并如实记账。
+- **执行器**：`edit:post` 接入该判定并 **fail closed**（实测 2 秒内拒绝、报错指名 `--allow-downscale` 与产品口径）；
+  判定与缩放比写进 `delivery-manifest.resolution`（`sourceBest` / `scaleVersusSource` / `downscale` /
+  `downscaleApproved` / `advisories`）。
+- **回归**：`output-resolution.test.ts` 8 例（4K 竖向取档 / 横竖同存按画幅挑 / 显式降档拒绝与放行 /
+  等于原生 / 上采样咨询 / 素材不可探测回退 / 半参数 / 非法值 / 非法清晰度档）。
+
 ## [talk-60s-subtitle-fix] - 2026-10-11 · 卡拉OK 字幕接回「一屏 ≤2 行 ×12 字」动态规则（T-2026-1011-0013）
 
 > 背景：60 秒重剪版真机复检发现字幕冲出安全区。定位到两条出口并行：普通烧字走
