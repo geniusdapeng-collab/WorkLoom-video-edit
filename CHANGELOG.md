@@ -1,5 +1,41 @@
 # Changelog
 
+## [client-foundation-declaration] - 2026-10-11 · 登记本仓自有的 9 条客户端扩展路径（3D 舞台/引导层）（T-2026-1011-0009）
+
+> 背景：GitHub 镜像的 `workloom-ui-contract` 在修好 ffmpeg 与 UI 消费契约降级后，仍在
+> "三端客户端基座消费门禁"（`scripts/verify-client-foundation-consumer.mjs`）报 9 项：
+> 2 个受管文件被本仓产品层改过（`CeremonyStage.tsx` / `HoverBubble.tsx`），
+> 7 个 3D 舞台文件放在客户端根但未声明（`Floor3D*` / `floor3d-layout*` / `Stage3D.test.tsx`）。
+
+- 按舰队规范 §10.4「产品分叉仓：登记自有扩展路径 → 退管」的口径，把
+  `apps/web/src/components/Floor3D*.tsx`、`apps/web/src/components/floor3d-*.ts`、
+  `apps/web/src/components/Stage3D.test.tsx`、`apps/web/src/components/CeremonyStage.tsx`、
+  `apps/web/src/components/HoverBubble.tsx` 登记进 `.workloom-ui-governance.json#industryExtensionPaths`
+  （并在 `.workloom-client-extensions.json` 同步说明）：这些路径由本仓自持，不再接收基座更新；
+  未声明的路径仍按严格模式判红。
+- 本地验证：`node scripts/verify-client-foundation-consumer.mjs --repo .` →
+  `✅ … 受管文件指纹零漂移（本仓自有扩展路径 44 条由基座声明豁免）`；
+  UI 消费契约仍是 207 项 advisories（经分叉分类器放行，逐条可见）。
+- 遗留：基座 `workloom-ai/workloom-im#sync/child-repos.json` 尚无本仓条目（新仓未纳管），
+  已另立基座任务卡登记本仓与同一批扩展路径，避免未来 rollout 覆盖本仓声明。
+
+## [github-mirror-ci] - 2026-10-11 · GitHub 镜像两条常红检查转绿（装 ffmpeg + 分叉仓 UI 契约降级）（T-2026-1011-0005）
+
+> 背景：本仓在 GitHub 的镜像仓库有两条常红检查，与产品代码无关，但会让镜像 CI 永远不可信。
+
+- **`ci-gate`（缺媒体工具）**：GitHub runner 默认不带 ffmpeg/ffprobe，
+  `packages/base/bundles/bgm-measure-compatibility.test.ts` 的两条真机音频用例被误判为失败；
+  `.github/workflows/ci.yml` 增加 `apt-get install ffmpeg`（与 CNB test-gate 镜像同口径）。
+- **`workloom-ui-contract`（分叉仓误红）**：基座严格 UI 消费门禁对**产品分叉仓**的行业扩展面发现
+  （中文边界 / 文字出口 / 动态值映射 / 共享组件渲染）会永久判红，本仓实测 207 项、全部落在
+  本仓声明的行业扩展路径内。按舰队规范 §10.4 与基座 `sync/ui-upgrade-pr.mjs#splitForkContractAdvisories`
+  的同口径，新增 `.github/scripts/ui-consumer-fork-advisory.mjs`：
+  已声明分叉容差（`lane=experiment` 或 `tolerateExtensionSnapshotOverlap=true`）的仓把这些发现降级为
+  **advisories**（逐条保留可见、不阻断）；未声明的仓维持基座严格判红；门禁异常或分叉声明不可读时 fail-closed。
+  另有 1 项发现（`apps/webb 未实际渲染共享基座组件`）不在本仓声明扩展路径内，分类器会单独标出并建议另立迁移任务卡。
+- 本地验证：分类器 `--self-test` 通过；用本机真实复现的 207 项门禁输出分类 → 退出 0（advisories 可见）；
+  伪造"非分叉仓"输入 → 退出 1；两个 workflow 的 YAML 解析与 shell 片段模拟均通过。
+
 ## [video-transitions] - 2026-10-11 · 剪辑转场引擎：逐切计划 + xfade 真渲染 + 非黑屏机检（T-2026-1011-0003）
 
 > 客户反馈：全片硬切没有转场，之前用过的"黑屏过渡"效果很差。本轮把时间轴里早已声明的 `transitionIn` 真正渲染出来，

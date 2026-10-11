@@ -50,6 +50,11 @@ jobs:
           node-version: 24
       - run: corepack enable && corepack prepare pnpm@10.14.0 --activate
 
+      # 包内媒体用例（如 packages/base 的 bgm-measure-compatibility）会真实调用 ffmpeg/ffprobe；
+      # CNB 的 test-gate 镜像自带 ffmpeg，GitHub runner 没有，缺装会把两个音频用例误判为失败。
+      - name: 媒体工具（ffmpeg/ffprobe）
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
+
       - name: 依赖
         run: pnpm install --frozen-lockfile
 
