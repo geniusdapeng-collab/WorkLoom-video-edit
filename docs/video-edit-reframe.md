@@ -166,6 +166,15 @@ pnpm edit:post -- --timeline film.timeline.json --out-dir outputs/edit/<film> \
 git revert <本任务合并提交>
 ```
 
+### 6.1 CI 兼容与依赖锁（本轮实测踩坑，接手必读）
+
+1. **ffmpeg 版本**：本机工位是 6.0，CNB test-gate 的 Debian 12 是 5.1——zoompan 的逐帧表达式
+   必须用 `on`（输出帧号），`time`/`frame` 在 5.x 不存在（第一版用 `time`，CI 直接失败）；
+2. **runtime 依赖锁**：改 `package.json`（哪怕只改 `scripts`）会使 `.workloom-runtime-deps/metadata.json`
+   的输入摘要过期，`pnpm test:desktop` 的"每产品 runtime lock"用例会判红；
+   修复：`node scripts/runtime-deps-lock.mjs refresh` 后把 metadata.json 一并提交；
+3. **动画链必须带 `-t <片段时长>`**：否则 zoompan 会把输出外推（真机实测）。
+
 - 回滚后：`--reframe*` 参数失效（未知参数被忽略与否取决于 CLI 解析，本版参数解析在 CLI 内，回滚即恢复旧 CLI）；时间轴里的 `reframe` 字段在旧代码下被忽略（`additionalProperties: false` 的旧 schema 会拒绝——如需前向兼容可同时保留 `punchIn` 写法）；
 - 运行时零残留：不新增依赖、不新增常驻进程；回执文件随交付目录，不写系统路径。
 
