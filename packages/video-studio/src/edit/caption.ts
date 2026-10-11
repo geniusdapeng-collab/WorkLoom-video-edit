@@ -37,6 +37,11 @@ export interface CaptionTalkOptions {
   transcript?: {
     sentences?: Array<{ id?: string; words?: Array<{ text?: string; start?: number; end?: number }> }>;
   } | null;
+  /**
+   * 自动粗剪（edit:auto）放行开关：没有语音转写、也没有画面文字的段落允许留空字幕。
+   * 只把"该段无字可上"这一条降级为咨询项并如实记录；逐字一致等其它硬闸不变。
+   */
+  allowSilentShots?: boolean;
 }
 
 export interface CaptionDocInput {
@@ -186,6 +191,8 @@ export function analyzeCaption(input: {
   mode?: "standard" | "talk";
   /** 口播模式下用于逐字一致校验的 ASR 逐字稿 */
   transcript?: CaptionTalkOptions["transcript"];
+  /** 自动粗剪放行：无语音/无画面文字的段落允许留空字幕（只降级"缺字"这一条，见 CaptionTalkOptions） */
+  allowSilentShots?: boolean;
 }): CaptionAnalysis {
   const { timeline, caption } = input;
   const analyses = input.analyses ?? [];
@@ -280,8 +287,9 @@ export function analyzeCaption(input: {
       if (talkMode) {
         issues.push({
           id: `caption.missing:${segment.segmentId}`,
-          severity: "hard",
-          detail: `${segment.segmentId} 口播段缺字幕：口播字幕必须跟着说话出字（段多短都不例外）`,
+          severity: input.allowSilentShots ? "advisory" : "hard",
+          detail: `${segment.segmentId} 口播段缺字幕：口播字幕必须跟着说话出字（段多短都不例外）`
+            + (input.allowSilentShots ? "；自动粗剪模式放行：该段无语音/画面文字，已记录待人工补" : ""),
           segmentId: segment.segmentId,
         });
       } else if (duration >= CAPTION_MIN_SHOT_SECONDS) {

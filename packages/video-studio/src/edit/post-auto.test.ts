@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { planCoverMoment, planCoverMoments, planSegmentColor, type ColorRecipe, type PostAnalysisDoc } from "./post-auto.js";
+import { deriveCoverTheme, planCoverMoment, planCoverMoments, planSegmentColor, type ColorRecipe, type PostAnalysisDoc } from "./post-auto.js";
 import type { EditTimeline } from "./timeline.js";
 
 const SHA_A = "a".repeat(64);
@@ -164,5 +164,44 @@ describe("edit/post-auto：后期自动决策", () => {
     expect(screen.lut).toBe("look-warm-film.cube");
     expect(screen.intensity).toBe(0.55);
     expect(screen.basis).toContain("显式覆盖");
+  });
+
+  it("封面主题内容驱动：命中题材取题材，无证据回退通用主题并注明", () => {
+    const food = deriveCoverTheme({
+      analyses: [{
+        contentDomain: "美食探店",
+        shots: [{ shotId: "s1", content: { keyEntities: ["羊汤", "火锅"], onScreenText: "20年老店" } }],
+      }],
+    });
+    expect(food.theme).toBe("美食");
+    expect(food.keywords.length).toBeGreaterThan(0);
+    const empty = deriveCoverTheme({ analyses: [] });
+    expect(empty.theme).toBe("生活");
+    expect(empty.basis).toContain("未命中");
+  });
+
+  it("实体参与分段调色投票：食物/家 → 暖；海/城市 → 冷（内容驱动，不再依赖场景名）", () => {
+    const plan = planSegmentColor({
+      timeline: timeline(),
+      analyses: [
+        {
+          asset: { sha256: SHA_A },
+          shots: [{ shotId: "s1", inTimecode: "00:00:00.000", outTimecode: "00:00:02.000", sceneType: "on_location", content: { keyEntities: ["火锅", "羊汤"], onScreenText: "家里的味道" } }],
+        },
+        {
+          asset: { sha256: SHA_B },
+          shots: [
+            { shotId: "s2", inTimecode: "00:00:02.000", outTimecode: "00:00:04.000", sceneType: "on_location", content: { keyEntities: ["海边", "城市天际线"] } },
+            { shotId: "s3", inTimecode: "00:00:04.000", outTimecode: "00:00:06.000", sceneType: "on_location", content: { keyEntities: ["雪山"] } },
+          ],
+        },
+      ],
+      recipes: RECIPES,
+      availableLuts: ["look-warm-film.cube", "look-cool-technical.cube"],
+    });
+    expect(plan.assignments.find((entry) => entry.segmentId === "seg-001")!.profile).toBe("warm-film");
+    expect(plan.assignments.find((entry) => entry.segmentId === "seg-002")!.profile).toBe("cool-technical");
+    /** 录屏组（g-screen，"录屏演示"命中中性词）保持中性：录屏不叠加风格化调色。 */
+    expect(plan.assignments.find((entry) => entry.segmentId === "seg-003")!.profile).toBe("none");
   });
 });

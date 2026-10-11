@@ -17,11 +17,14 @@ import type { EditTimeline } from "./timeline.js";
 
 export interface PostAnalysisDoc {
   asset?: { sha256?: string; localPath?: string };
+  /** 整片内容领域（footage-analysis 的 contentDomain），用于封面主题/调色投票 */
+  contentDomain?: string | null;
   shots?: Array<{
     shotId?: string;
     inTimecode?: string;
     outTimecode?: string;
     sceneType?: string;
+    content?: { keyEntities?: string[]; onScreenText?: string | null; speechText?: string | null; coreMessage?: string | null } | null;
     emotion?: { dominant?: string | null; intensity?: number | null; valence?: number | null } | null;
     editing?: { colorGradeBase?: string | null; textSafeZone?: string | null; usage?: string[] } | null;
   }>;
@@ -311,6 +314,17 @@ export function planSegmentColor(input: {
       if (/暖/u.test(base)) votes.warm += 1;
       if (/冷/u.test(base)) votes.cool += 1;
       if (/保持|原色|不变/u.test(base)) votes.neutral += 1;
+      /**
+       * 实体/画面文字也参与投票：食物、家、厨房 → 暖；海、山、城市、科技 → 冷（产品口径：
+       * "食物是暖色、风景是冷色"）。只在命中时加 1 票，不覆盖镜头理解的显式调色建议。
+       */
+      const contentText = [
+        ...(shot.content?.keyEntities ?? []),
+        shot.content?.onScreenText ?? "",
+        shot.content?.coreMessage ?? "",
+      ].join(" ");
+      if (WARM_WORDS.test(contentText)) votes.warm += 1;
+      if (COOL_WORDS.test(contentText)) votes.cool += 1;
       if (shot.sceneType === "screen_recording") votes.neutral += 1;
       if (shot.sceneType === "studio_talking") votes.neutral += 1;
       const valence = shot.emotion?.valence;
@@ -387,4 +401,43 @@ export function planSegmentColor(input: {
   }
 
   return { assignments, groups: groupPlans, warnings };
+}
+
+/**
+ * 封面主题派生（内容驱动，替代"主题=旅行"这类演示片默认值）。
+ *
+ * 依据（按优先级）：contentDomain → 实体/画面文字关键词 → 场景类型；
+ * 全部命不中时给"生活"（通用），并在 note 里如实说明"未命中关键词"。
+ */
+export function deriveCoverTheme(input: {
+  analyses?: PostAnalysisDoc[];
+}): { theme: string; basis: string; keywords: string[] } {
+  const analyses = input.analyses ?? [];
+  const haystack: string[] = [];
+  for (const doc of analyses) {
+    if (doc.contentDomain) haystack.push(String(doc.contentDomain));
+    for (const shot of doc.shots ?? []) {
+      for (const entity of shot.content?.keyEntities ?? []) haystack.push(String(entity));
+      const onScreenText = shot.content?.onScreenText;
+      if (onScreenText) haystack.push(String(onScreenText));
+      if (shot.sceneType) haystack.push(String(shot.sceneType));
+    }
+  }
+  const text = haystack.join(" ");
+  const table: Array<{ theme: string; pattern: RegExp }> = [
+    { theme: "美食", pattern: /(美食|菜|餐|汤|火锅|烧烤|烘焙|甜品|小吃|夜宵|果园|食材)/u },
+    { theme: "旅行", pattern: /(旅行|旅拍|风景|山|海|湖|古城|景区|露营|自驾|日出|日落)/u },
+    { theme: "科技", pattern: /(科技|数码|产品|评测|SaaS|软件|AI|芯片|手机|电脑)/u },
+    { theme: "知识", pattern: /(知识|科普|教学|课程|教程|方法|步骤|原理|数据)/u },
+    { theme: "亲子", pattern: /(亲子|孩子|儿童|宝宝|家庭|一家人|父母)/u },
+    { theme: "情感", pattern: /(情感|回忆|家|故乡|团圆|老屋|爸妈|故事)/u },
+    { theme: "生活", pattern: /(生活|日常|vlog|记录|整理|居家|宠物)/iu },
+  ];
+  for (const entry of table) {
+    const matched = text.match(new RegExp(entry.pattern.source, "gu")) ?? [];
+    if (matched.length > 0) {
+      return { theme: entry.theme, basis: `内容命中「${entry.theme}」关键词：${[...new Set(matched)].slice(0, 5).join("、")}`, keywords: [...new Set(matched)].slice(0, 5) };
+    }
+  }
+  return { theme: "生活", basis: "未命中题材关键词（未跑镜头理解或实体为空）：回退通用主题「生活」", keywords: [] };
 }

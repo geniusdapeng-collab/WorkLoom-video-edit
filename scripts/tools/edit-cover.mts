@@ -30,6 +30,8 @@ import {
   COVER_FONTS, COVER_DIFF_PSNR_DB, validateCoverPlan, type CoverPlan,
 } from "../../packages/video-studio/src/cover-design.js";
 import { getCoverSpec } from "../../packages/video-studio/src/cover-platforms.js";
+import { deriveCoverTheme, planCoverMoment, type PostAnalysisDoc } from "../../packages/video-studio/src/edit/index.js";
+import { scanBestFrame } from "./lib/frame-scan.mts";
 
 const REPO_ROOT = resolve(import.meta.dirname ?? process.cwd(), "../..");
 const FFMPEG = process.env.WL_FFMPEG ?? "ffmpeg";
@@ -169,7 +171,6 @@ interface StyleSpec {
   layout: CoverPlan["layout"];
   headlineSize: number;
   colors: { title: string; sub: string; badge: string; accent: string };
-  heroSec: number;
   accentBar: boolean;
   reason: string;
   /** 该版本的默认副标题（信息增量）；缺省用 --hook */
@@ -195,24 +196,24 @@ const STYLES: Record<string, StyleSpec> = {
     id: "warm-story", fontId: "zcool-qingke", fontFamily: FONT_FAMILY["zcool-qingke"]!,
     archetype: "person-led", layout: "person-left", headlineSize: 124,
     colors: { title: "#FFFFFF", sub: "#FFE7B3", badge: "#FFD166", accent: "#FFD166" },
-    heroSec: 35.5, accentBar: true,
-    reason: "暖调故事版：果园峰值帧 + 圆润字体 + 暖色题签，与片子情绪一致（人物为主）",
+    accentBar: true,
+    reason: "暖调故事版：圆润字体 + 暖色题签，适合情感/生活/文旅题材（人物为主）",
   },
   "clean-tech": {
     id: "clean-tech", fontId: "source-han-heavy", fontFamily: FONT_FAMILY["source-han-heavy"]!,
     archetype: "subject-led", layout: "person-right", headlineSize: 112,
     colors: { title: "#FFFFFF", sub: "#CFE8FF", badge: "#7DD3FC", accent: "#7DD3FC" },
-    heroSec: 6.6, accentBar: true,
+    accentBar: true,
     subline: "果园里第一颗红苹果",
-    reason: "冷净版：苹果特写 + 最稳的重标题，强调画面质感（物体为主，不放人物卡）",
+    reason: "冷净版：最稳的重标题 + 冷色题签，强调画面质感，适合产品/科技/知识（物体为主）",
   },
   "bold-promo": {
     id: "bold-promo", fontId: "smiley-sans", fontFamily: FONT_FAMILY["smiley-sans"]!,
     archetype: "person-led", layout: "person-right", headlineSize: 128,
     colors: { title: "#FFFFFF", sub: "#FFE1E1", badge: "#FF4D4F", accent: "#FF4D4F" },
-    heroSec: 24.6, accentBar: true,
+    accentBar: true,
     subline: "先吃热的 再摘苹果",
-    reason: "高对比版：1903 小店她笑的近景 + 大字抓眼，适合信息流首屏",
+    reason: "高对比版：大字抓眼 + 强色题签，适合信息流首屏（带货/促销/强钩子）",
   },
   /**
    * 分段调色版（2026-10-11 修复）：必须与暖调故事版**设计不同**。
@@ -229,7 +230,7 @@ const STYLES: Record<string, StyleSpec> = {
      */
     archetype: "subject-led", layout: "person-right", headlineSize: 118,
     colors: { title: "#FFFFFF", sub: "#FFE9C7", badge: "#7DD3FC", accent: "#FFD166" },
-    heroSec: 44.5, accentBar: true,
+    accentBar: true,
     split: { topSec: 35.5, bottomSec: 44.5 },
     subline: "果园是暖的 古城是冷的",
     reason: "分段调色版：上半暖果园 + 下半冷古城双色分割，直接表达『分段调色』的信息增量，与暖调故事版区分",
@@ -312,7 +313,20 @@ async function main(): Promise<void> {
     normalizeAccountProfile: (raw: unknown) => Record<string, unknown> | null;
   };
   const kb = loadKb(KB_DIR);
-  const theme = arg("--theme", "旅行");
+  /**
+   * 主题：显式 --theme 优先；否则从素材理解产物派生（内容驱动），
+   * 替代旧默认值「旅行」（那是某一支演示片的主题，换片子就全错）。
+   */
+  const analyses: PostAnalysisDoc[] = [];
+  for (let index = 0; index < process.argv.length; index += 1) {
+    if (process.argv[index] === "--analysis" && process.argv[index + 1]) {
+      const file = abs(process.argv[index + 1]!);
+      if (!existsSync(file)) throw new Error(`解析结果不存在：${file}`);
+      analyses.push(JSON.parse(readFileSync(file, "utf8")) as PostAnalysisDoc);
+    }
+  }
+  const themePlan = deriveCoverTheme({ analyses });
+  const theme = arg("--theme", themePlan.theme);
   const accountProfile = (() => {
     if (!account) return null;
     const file = join(ACCOUNT_DIR, `${account}.yml`);
@@ -358,6 +372,25 @@ async function main(): Promise<void> {
   mkdirSync(workRoot, { recursive: true });
   mkdirSync(join(outDir, "covers"), { recursive: true });
 
+  /**
+   * 封面取帧决策（2026-10-11：去掉"演示片写死秒数"）：
+   *   ① 显式 `--hero-sec`（人指定）最高优先；
+   *   ② 有 `--timeline + --analysis` 时用关键帧候选（composition_best → emotion_peak，带安全/清晰门槛）；
+   *   ③ 否则对干净母版做本地最佳帧扫描（清晰度×0.6 + 曝光×0.4）；
+   *   ④ 扫描也不可用时回退 35% 比例，并在设计稿里如实标注。
+   */
+  const timelineJsonPath = arg("--timeline") ? abs(arg("--timeline")) : null;
+  const keyframePlan = timelineJsonPath && analyses.length > 0
+    ? planCoverMoment({
+      timeline: JSON.parse(readFileSync(timelineJsonPath, "utf8")) as import("../../packages/video-studio/src/edit/index.js").EditTimeline,
+      analyses,
+      fallbackRatio: 0.35,
+    })
+    : null;
+  const scannedFrame = keyframePlan && keyframePlan.basis !== "fallback"
+    ? null
+    : scanBestFrame({ file: master, workDir: join(outDir, "covers", "work", "frame-scan"), ffmpeg: FFMPEG });
+
   const covers: Array<Record<string, unknown>> = [];
   const checksAll: Array<Record<string, unknown>> = [];
   /**
@@ -377,16 +410,33 @@ async function main(): Promise<void> {
     const subline = String(overrides.subline ?? style.subline ?? hook ?? "");
     const headlinePx = Math.round(style.headlineSize * fontScale);
     const sublinePx = Math.round(52 * fontScale);
-    const explicitHeroSec = arg("--hero-sec");
-    const heroSec = Number(explicitHeroSec || String(style.heroSec));
-    const split = style.split && !explicitHeroSec ? style.split : null;
+    const explicitHero = arg("--hero-sec");
+    if (explicitHero && (!Number.isFinite(Number(explicitHero)) || Number(explicitHero) < 0)) throw new Error("--hero-sec 需要非负秒数");
+    /** 取帧（T-2026-1011-0007 去演示参数 × T-2026-1011-0010 分段版式）：显式 > 关键帧候选 > 最佳帧扫描 > 35% 兜底。 */
+    const heroSec = explicitHero
+      ? Number(explicitHero)
+      : keyframePlan && keyframePlan.basis !== "fallback"
+        ? keyframePlan.masterSeconds
+        : scannedFrame
+          ? scannedFrame.seconds
+          : Number((filmDuration * 0.35).toFixed(3));
+    const heroBasis = explicitHero
+      ? "explicit（--hero-sec）"
+      : keyframePlan && keyframePlan.basis !== "fallback"
+        ? `keyframe（${keyframePlan.basis}${keyframePlan.keyframeId ? ` · ${keyframePlan.keyframeId}` : ""}）：${keyframePlan.note}`
+        : scannedFrame
+          ? `scan-best-frame：${scannedFrame.note}`
+          : "fallback：35%（无关键帧候选且本地扫描不可用）";
+    /** 分段版式只在未显式指定 --hero-sec 时启用：显式指定即尊重调用方的单帧选择。 */
+    const split = style.split && !explicitHero ? style.split : null;
     const heroShot = shots.find((shot) => (shot.masterIn ?? 0) <= heroSec && heroSec < (shot.masterIn ?? 0) + (shot.duration ?? 0)) ?? shots[0]!;
     const heroSourceSec = Number(((heroShot.sourceIn ?? 0) + Math.max(0, heroSec - (heroShot.masterIn ?? 0))).toFixed(3));
 
     const plan: CoverPlan = {
       headline,
       subline: subline || undefined,
-      badge: (accountProfile?.visual_hammer as { badge_series?: string } | undefined)?.badge_series ?? "十一 · 回山东",
+      /** 角标只来自账号视觉锤档案：没有档案就不编造系列角标（旧默认值"十一 · 回山东"是演示片专属）。 */
+      badge: (accountProfile?.visual_hammer as { badge_series?: string } | undefined)?.badge_series ?? "",
       layout: style.layout,
       background: { shotId: heroShot.shotId, atSec: heroSourceSec, treatment: "scrim" },
       person: style.archetype === "person-led" ? { enabled: true, shotId: heroShot.shotId, atSec: heroSourceSec, widthRatio: 0.42 } : { enabled: false, widthRatio: 0.42 },
@@ -443,7 +493,9 @@ async function main(): Promise<void> {
           : [{ type: "image", name: "hero", source: frame, x: 0, y: 0, width: canvas.width, height: canvas.height, opacity: 1 }]),
         ...scrimLayers,
         ...(style.accentBar ? [{ type: "solid", name: "accent-bar", color: style.colors.accent, x: Math.round(canvas.width * 0.08), y: titleY - Math.round(canvas.height * 0.08), width: Math.round(canvas.width * 0.1), height: Math.round(canvas.height * 0.012), opacity: 1 }] : []),
-        { type: "text", name: "badge", text: String(plan.badge ?? ""), font: style.fontFamily, size: Math.round(canvas.height * 0.038), weight: "bold", color: style.colors.badge, align: "right", x: Math.round(canvas.width * 0.62), y: badgeY, width: Math.round(canvas.width * 0.3) },
+        ...(String(plan.badge ?? "")
+          ? [{ type: "text", name: "badge", text: String(plan.badge ?? ""), font: style.fontFamily, size: Math.round(canvas.height * 0.038), weight: "bold", color: style.colors.badge, align: "right", x: Math.round(canvas.width * 0.62), y: badgeY, width: Math.round(canvas.width * 0.3) }]
+          : []),
         { type: "text", name: "headline", text: headline, font: style.fontFamily, size: headlinePx, weight: "bold", color: style.colors.title, align: "left", x: Math.round(canvas.width * 0.08), y: titleY, width: Math.round(canvas.width * 0.84) },
         ...(plan.subline ? [{ type: "text", name: "subline", text: plan.subline, font: style.fontFamily, size: sublinePx, weight: "regular", color: style.colors.sub, align: "left", x: Math.round(canvas.width * 0.08), y: subtitleY, width: Math.round(canvas.width * 0.84) }] : []),
       ],
@@ -493,7 +545,9 @@ async function main(): Promise<void> {
       run(FFMPEG, ["-hide_banner", "-loglevel", "error", "-y", "-i", fallbackSource, "-vf", baseFilters.join(","), "-frames:v", "1", "-update", "1", baseImage]);
       const textFilters = [
         ...(style.accentBar ? [`drawbox=x=${Math.round(canvas.width * 0.08)}:y=${titleY - Math.round(canvas.height * 0.08)}:w=${Math.round(canvas.width * 0.1)}:h=${Math.round(canvas.height * 0.012)}:color=${style.colors.accent}@1:t=fill`] : []),
-        `drawtext=fontfile='${fontFile}':text='${String(plan.badge ?? "").replace(/'/gu, "")}':fontcolor=${style.colors.badge}:fontsize=${Math.round(canvas.height * 0.038)}:borderw=4:bordercolor=black@0.5:x=w-text_w-${Math.round(canvas.width * 0.08)}:y=${badgeY}`,
+        ...(String(plan.badge ?? "")
+          ? [`drawtext=fontfile='${fontFile}':text='${String(plan.badge ?? "").replace(/'/gu, "")}':fontcolor=${style.colors.badge}:fontsize=${Math.round(canvas.height * 0.038)}:borderw=4:bordercolor=black@0.5:x=w-text_w-${Math.round(canvas.width * 0.08)}:y=${badgeY}`]
+          : []),
         `drawtext=fontfile='${fontFile}':text='${headline.replace(/'/gu, "")}':fontcolor=${style.colors.title}:fontsize=${headlinePx}:borderw=${Math.round(6 * fontScale)}:bordercolor=black@0.55:x=${Math.round(canvas.width * 0.08)}:y=${titleY}`,
         ...(plan.subline ? [`drawtext=fontfile='${fontFile}':text='${plan.subline.replace(/'/gu, "")}':fontcolor=${style.colors.sub}:fontsize=${sublinePx}:borderw=${Math.round(4 * fontScale)}:bordercolor=black@0.5:x=${Math.round(canvas.width * 0.08)}:y=${subtitleY}`] : []),
       ];
@@ -515,7 +569,13 @@ async function main(): Promise<void> {
       { id: "base-lineage", pass: true, detail: `主视觉取自未烧字干净母版（sha256 ${sha256(master).slice(0, 12)}…，取帧 ${heroSec}s）` },
       { id: "bridge-receipt", pass: renderer === "compositor-visual-bridge" ? Boolean(bridgeReceipt) : true, detail: renderer === "compositor-visual-bridge" ? `工位回执 sha256 ${String((bridgeReceipt?.sha256 as string) ?? "").slice(0, 12)}…` : `降级渲染（${bridge.reason ?? "工位不可用"}）` },
     ];
-    covers.push({ variantId, renderer, canvas, platform: platformInput, specId: spec.id, heroShot: heroShot.shotId, heroSec, heroSourceSec, plan: validated, file: target, sha256: sha256(target), checks, recipe: recipeBody });
+    covers.push({
+      variantId, renderer, canvas, platform: platformInput, specId: spec.id,
+      heroShot: heroShot.shotId, heroSec, heroSourceSec, heroBasis,
+      theme, themeBasis: themePlan.basis,
+      scanCandidates: scannedFrame?.candidates ?? null,
+      plan: validated, file: target, sha256: sha256(target), checks, recipe: recipeBody,
+    });
     checksAll.push({ variantId, ok: checks.every((c) => c.pass), checks });
   }
 
@@ -602,6 +662,12 @@ async function main(): Promise<void> {
     platform: platformInput, specId: spec.id, canvas, canvasNote,
     renderer: { mode: rendererMode, used: covers[0]?.renderer ?? null, bridgeUrl, bridgeAvailable: bridge.available, note: bridge.reason ?? null },
     account: accountProfile ? { account_id: accountProfile.account_id, visual_hammer: accountProfile.visual_hammer } : null,
+    theme: { value: theme, basis: themePlan.basis, keywords: themePlan.keywords, explicit: Boolean(arg("--theme")) },
+    frameSource: keyframePlan && keyframePlan.basis !== "fallback"
+      ? { kind: "keyframe", plan: keyframePlan }
+      : scannedFrame
+        ? { kind: "scan-best-frame", scan: scannedFrame }
+        : { kind: "fallback-ratio", ratio: 0.35 },
     kb: { dir: KB_DIR, recipe: recipeDoc, hints },
     copyCheck,
     copyDeck,

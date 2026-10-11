@@ -20,7 +20,7 @@
  *     --out-dir outputs/edit/talk/<filmId> [--source <口播素材.mp4>] [--target 60]
  *     [--aspect 9:16 --platform 微信视频号 --fps 30] [--punch-in alternate|none]
  *     [--self-correction keep|trim-mistake] [--filler-floor 0.2 --pause-floor 0.15]
- *     [--max-segment-seconds 12] [--allow-segment-precision] [--human-approved-below-floor] [--json]
+ *     [--max-segment-seconds 12] [--drop-tangents] [--allow-segment-precision] [--human-approved-below-floor] [--json]
  */
 import { createHash } from "node:crypto";
 import { createReadStream, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -67,6 +67,19 @@ async function main(): Promise<void> {
   if (emotion.schemaVersion !== "workloom.video-edit/talk-emotion/v1") {
     throw new Error(`情绪画像契约版本不符：${String(emotion.schemaVersion)}`);
   }
+  /**
+   * 逐字稿 ↔ 情绪画像一致性：两份产物必须描述同一批句子。
+   * 用错稿/错情绪（例如上一次录制的 emotion.json）会让峰值保护窗落在不相干的句子上，
+   * 这是"看不出报错、成片全歪"的静默事故。
+   */
+  const emotionSentenceIds = new Set(emotion.curve.map((point) => point.sentenceId));
+  const missingEmotion = transcript.sentences.filter((sentence) => !emotionSentenceIds.has(sentence.id)).map((sentence) => sentence.id);
+  if (missingEmotion.length > 0) {
+    throw new Error(
+      `情绪画像与逐字稿不是同一批句子：${missingEmotion.slice(0, 5).join("、")}${missingEmotion.length > 5 ? ` 等 ${missingEmotion.length} 句` : ""} 缺情绪曲线。`
+      + "请用同一份 talk.transcript.json 重跑 pnpm edit:talk-emotion。",
+    );
+  }
 
   /** 精度门槛：句级/估算稿不允许直接进剪辑决策（会切进词里），必须显式放行。 */
   const allowSegment = flag("--allow-segment-precision");
@@ -112,7 +125,12 @@ async function main(): Promise<void> {
     fillerKeepRateFloor: fillerFloor,
     pauseKeepRateFloor: pauseFloor,
     selfCorrectionPolicy: selfCorrectionPolicy as "keep" | "trim-mistake",
-    splitTangents: !flag("--keep-tangents"),
+    /**
+     * 跑题块默认**只列拆分候选、不硬删**（skills/talk-cutting: "拆成独立片子，不硬删"；
+     * 候选是否剔出由 G-TK4 人在环决定）。确要系统剔出时显式 --drop-tangents。
+     * `--keep-tangents` 保留为向后兼容的显式 no-op（语义等同默认）。
+     */
+    splitTangents: flag("--drop-tangents") && !flag("--keep-tangents"),
     punchIn: punchIn as "alternate" | "none",
   });
 

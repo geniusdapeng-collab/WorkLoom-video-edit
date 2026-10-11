@@ -328,8 +328,13 @@ async function main(): Promise<void> {
     }
   }
 
-  const media = inputPath ? probeMedia(inputPath) : { durationSeconds: null, fps: null };
-  const sha256 = inputPath ? await sha256File(inputPath) : "0".repeat(64);
+const media = inputPath ? probeMedia(inputPath) : { durationSeconds: null, fps: null };
+/**
+ * 指纹口径：有素材时指纹素材本身；**导入稿模式**（没有 --input）时指纹导入的逐字稿文件——
+ * 旧实现写 64 个 0 占位，等于在契约里塞了一个"假指纹"，溯源链在最上游就断了。
+ */
+const sha256 = inputPath ? await sha256File(inputPath) : await sha256File(abs(importPath));
+if (!inputPath) engineNote = [engineNote, "导入稿模式：asset.sha256/path 指向逐字稿文件本身（本次没有源视频）"].filter(Boolean).join("；");
   const analysis = analyzeTalkTranscript(sentences);
   const doc = buildTalkTranscriptDoc({
     sentences,
