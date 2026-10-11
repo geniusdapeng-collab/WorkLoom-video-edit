@@ -77,6 +77,11 @@ export interface ArtifactNameInput {
   version?: string | null;
   /** 是否为预览件（降规格/聊天内播放用），会加「预览」段 */
   preview?: boolean;
+  /**
+   * 无分辨率信息时是否省略「分辨率」段（默认 false → 写「未知分辨率」）。
+   * 字幕/清单这类本来就没有像素尺寸的产物用 true，避免出现"字幕文件·未知分辨率"这种噪音。
+   */
+  omitUnknownResolution?: boolean;
   /** 扩展名（含或不含点） */
   ext: string;
   /**
@@ -93,7 +98,7 @@ export function buildArtifactName(input: ArtifactNameInput): string {
   const title = sanitizeNamePart(input.title).slice(0, Math.max(1, limit)) || "未命名";
   const variant = sanitizeNamePart(String(input.variantName ?? ""));
   const feature = sanitizeNamePart(String(input.feature ?? "")) || "成片";
-  const badge = input.resolution ? resolutionBadge(input.resolution) : "未知分辨率";
+  const badge = input.resolution ? resolutionBadge(input.resolution) : (input.omitUnknownResolution ? "" : "未知分辨率");
   const version = sanitizeNamePart(String(input.version ?? ""));
   const parts = [title, variant, feature, badge, input.preview ? "预览" : "", version].filter(Boolean);
   return `${parts.join("·")}.${ext}`;

@@ -36,6 +36,17 @@ describe("edit/naming：交付文件命名规范", () => {
     })).toBe("别人挤景区我回村摘苹果·暖调故事版·带字幕·1080P·预览·V10.mp4");
   });
 
+  it("没有像素尺寸的产物（字幕文件）可省略分辨率段，而不是写「未知分辨率」", () => {
+    expect(buildArtifactName({
+      title: "别人挤景区，我回村摘苹果",
+      feature: "字幕文件",
+      resolution: null,
+      omitUnknownResolution: true,
+      version: "V10",
+      ext: "srt",
+    })).toBe("别人挤景区我回村摘苹果·字幕文件·V10.srt");
+  });
+
   it("母版/封面/字幕文件都有稳定词表", () => {
     expect(buildArtifactName({
       title: "别人挤景区，我回村摘苹果", feature: "干净母版", resolution: { width: 3840, height: 2160 }, version: "V10", ext: "mp4",
