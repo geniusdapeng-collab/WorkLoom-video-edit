@@ -60,7 +60,12 @@ guard let source = CGImageSourceCreateWithURL(imageURL as CFURL, nil),
 let ciContext = CIContext(options: [.useSoftwareRenderer: false])
 var notes: [String] = []
 
-/** 掩膜占比（单通道 8-bit，按阈值 128 计数，隔行隔列采样加速 4K）。 */
+/**
+ * 掩膜占比与包围盒。**按像素格式读取**：前景实例掩膜实测可能是
+ * `kCVPixelFormatType_OneComponent32Float`（4 字节/像素），旧实现一律按 8-bit 单字节采样，
+ * 会把 32-bit 缓冲读成乱码（实测同一张掩膜：缓冲算出 49%、真实 PNG 只有 4.9%）。
+ * 采样步长按短边 /256，兼顾 4K 速度。
+ */
 func maskStats(_ buffer: CVPixelBuffer) -> (ratio: Double, bbox: CGRect) {
   CVPixelBufferLockBaseAddress(buffer, .readOnly)
   defer { CVPixelBufferUnlockBaseAddress(buffer, .readOnly) }
@@ -68,19 +73,27 @@ func maskStats(_ buffer: CVPixelBuffer) -> (ratio: Double, bbox: CGRect) {
   let width = CVPixelBufferGetWidth(buffer)
   let height = CVPixelBufferGetHeight(buffer)
   let stride = CVPixelBufferGetBytesPerRow(buffer)
+  let format = CVPixelBufferGetPixelFormatType(buffer)
   let step = max(1, min(width, height) / 256)
   var hits = 0
   var total = 0
   var minX = width, minY = height, maxX = -1, maxY = -1
   let bytes = base.assumingMemoryBound(to: UInt8.self)
+  let isFloat = format == kCVPixelFormatType_OneComponent32Float
+  let floats = base.assumingMemoryBound(to: Float32.self)
   var y = 0
   while y < height {
-    let row = bytes + y * stride
     var x = 0
     while x < width {
-      let value = row[x]
+      let isOn: Bool
+      if isFloat {
+        let row = UnsafeRawPointer(base) + y * stride
+        isOn = row.assumingMemoryBound(to: Float32.self)[x] >= 0.5
+      } else {
+        isOn = (bytes + y * stride)[x] >= 128
+      }
       total += 1
-      if value >= 128 {
+      if isOn {
         hits += 1
         if x < minX { minX = x }
         if y < minY { minY = y }
@@ -100,6 +113,22 @@ func maskStats(_ buffer: CVPixelBuffer) -> (ratio: Double, bbox: CGRect) {
     height: CGFloat(maxY - minY + 1) / CGFloat(height)
   )
   return (ratio, bbox)
+}
+
+/** 从 CGImage 直接量掩膜覆盖率（与写出的 PNG 逐像素一致，口径统一）。 */
+func coverage(of image: CGImage, threshold: UInt8 = 128) -> Double {
+  let targetWidth = 256
+  let targetHeight = max(1, Int((Double(targetWidth) * Double(image.height) / Double(max(1, image.width))).rounded()))
+  guard let context = CGContext(
+    data: nil, width: targetWidth, height: targetHeight, bitsPerComponent: 8,
+    bytesPerRow: targetWidth, space: CGColorSpaceCreateDeviceGray(),
+    bitmapInfo: CGImageAlphaInfo.none.rawValue
+  ) else { return 0 }
+  context.draw(image, in: CGRect(x: 0, y: 0, width: targetWidth, height: targetHeight))
+  guard let pixels = context.data?.assumingMemoryBound(to: UInt8.self) else { return 0 }
+  var hits = 0
+  for index in 0..<(targetWidth * targetHeight) where pixels[index] >= threshold { hits += 1 }
+  return Double(hits) / Double(targetWidth * targetHeight)
 }
 
 func cgImageFromMask(_ buffer: CVPixelBuffer, width: Int, height: Int) -> CGImage? {
@@ -200,9 +229,9 @@ if #available(macOS 14.0, *) {
       personInstances = observation.allInstances.count
       personRequest = "instance"
       if let union = try? observation.generateScaledMaskForImage(forInstances: observation.allInstances, from: handler) {
-        personRatio = maskStats(union).ratio
-        personSkinRatio = skinRatioInMask(image: cgImage, mask: union)
         if let mask = cgImageFromMask(union, width: cgImage.width, height: cgImage.height) {
+          personRatio = coverage(of: mask)
+          personSkinRatio = skinRatioInMask(image: cgImage, mask: union)
           personMaskWritten = writePNG(mask, to: outDir.appendingPathComponent("person.png"))
         }
       }
@@ -220,9 +249,9 @@ if personRequest == "none", #available(macOS 12.0, *) {
     try VNImageRequestHandler(cgImage: cgImage, options: [:]).perform([request])
     if let observation = request.results?.first {
       personRequest = "segmentation"
-      personRatio = maskStats(observation.pixelBuffer).ratio
-      personSkinRatio = skinRatioInMask(image: cgImage, mask: observation.pixelBuffer)
       if let mask = cgImageFromMask(observation.pixelBuffer, width: cgImage.width, height: cgImage.height) {
+        personRatio = coverage(of: mask)
+        personSkinRatio = skinRatioInMask(image: cgImage, mask: observation.pixelBuffer)
         personMaskWritten = writePNG(mask, to: outDir.appendingPathComponent("person.png"))
       }
     } else {
@@ -392,7 +421,7 @@ if #available(macOS 14.0, *) {
                 let mask = cgImageFromMask(union, width: cgImage.width, height: cgImage.height),
                 writePNG(mask, to: outDir.appendingPathComponent("food.png")) {
         foodMaskWritten = true
-        foodRatio = maskStats(union).ratio
+        foodRatio = coverage(of: mask)
       } else if oversizedInstanceRatio > 0 {
         notes.append("食物实例占比 \(Int(oversizedInstanceRatio * 100))% 过大（疑似把桌面一起框入），不直接使用实例掩膜")
       }
