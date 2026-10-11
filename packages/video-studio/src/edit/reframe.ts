@@ -500,8 +500,13 @@ export function buildReframeFilters(input: ReframeRenderInput): { filters: strin
       filters.push(...tail);
       return { filters, mode: "static", window: "fit" };
     }
-    /** zoompan 的逐帧变量是 `time`（输出时间，秒），不是 `t`。 */
-    const sExpr = animated ? `(${sFrom}+(${sTo}-${sFrom})*${easingExpr(descriptor.easing, `clip(time/${round(duration, 3)},0,1)`)}` : `${sTo}`;
+    /**
+     * zoompan 的逐帧变量用 `on`（输出帧号）而不是 `time`：
+     * `time`/`frame` 变量是 FFmpeg 6.0 才加的，而 CNB test-gate 的 Debian 12 装的是 ffmpeg 5.1——
+     * 用 `time` 会在 5.x 上直接失败（T-2026-1011-0008 CI 实测根因）。`on` 自 4.x 起就有。
+     */
+    const totalFrames = Math.max(1, Math.round(duration * fps));
+    const sExpr = animated ? `(${sFrom}+(${sTo}-${sFrom})*${easingExpr(descriptor.easing, `clip(on/${totalFrames},0,1)`)}` : `${sTo}`;
     // 先整幅 fit + pad 出画布，再用 zoompan 做恒定输出尺寸的推近（zoompan 是 ffmpeg 里
     // 唯一能在 `-vf` 链中逐帧改缩放而不触发重初始化失败的成熟滤镜，见 full-chain-film.mts 的既有写法）。
     filters.push(`scale=${canvas.width}:${canvas.height}:force_original_aspect_ratio=decrease`);
@@ -549,7 +554,8 @@ export function buildReframeFilters(input: ReframeRenderInput): { filters: strin
     filters.push(...tail);
     return { filters, mode: "static", window: "cover" };
   }
-  const tNorm = `clip(time/${round(duration, 3)},0,1)`;
+  const totalFrames = Math.max(1, Math.round(duration * fps));
+  const tNorm = `clip(on/${totalFrames},0,1)`;
   const e = easingExpr(descriptor.easing, tNorm);
   const sExpr = `(${round(sFrom, 4)}+(${round(sTo, 4)}-${round(sFrom, 4)})*${e})`;
   const cxExpr = `(${round(cxFrom, 4)}+(${round(cxTo, 4)}-${round(cxFrom, 4)})*${e})`;

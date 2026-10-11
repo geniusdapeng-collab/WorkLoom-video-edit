@@ -469,7 +469,9 @@ export function buildReframeChain({ descriptor, source, canvas, durationSeconds,
     filters.push(`scale=${outW}:${outH}:force_original_aspect_ratio=decrease`);
     filters.push(`pad=${outW}:${outH}:(ow-iw)/2:(oh-ih)/2`);
     if (animated) {
-      const sExpr = `(${t(sFrom)}+(${t(sTo)}-${t(sFrom)})*${easeOf(descriptor.easing, `clip(time/${t(duration)},0,1)`)}`;
+      /** 用 `on`（输出帧号）而不是 `time`：后者是 FFmpeg 6.0 才有的变量（CI 为 5.1，见 docs/video-edit-reframe.md）。 */
+      const totalFrames = Math.max(1, Math.round(duration * fps));
+      const sExpr = `(${t(sFrom)}+(${t(sTo)}-${t(sFrom)})*${easeOf(descriptor.easing, `clip(on/${totalFrames},0,1)`)}`;
       filters.push(`zoompan=z='${sExpr}':x='(iw-iw/zoom)*0.5':y='(ih-ih/zoom)*0.5':d=1:s=${outW}x${outH}:fps=${fps}`);
     }
     filters.push(...tail);
@@ -498,7 +500,8 @@ export function buildReframeChain({ descriptor, source, canvas, durationSeconds,
     filters.push(...tail);
     return { filters, mode: "static", window: "cover" };
   }
-  const e = easeOf(descriptor.easing, `clip(time/${t(duration)},0,1)`);
+  const totalFrames = Math.max(1, Math.round(duration * fps));
+  const e = easeOf(descriptor.easing, `clip(on/${totalFrames},0,1)`);
   const sExpr = `(${t(sFrom)}+(${t(sTo)}-${t(sFrom)})*${e})`;
   const cxExpr = `(${t(cFrom.x)}+(${t(cTo.x)}-${t(cFrom.x)})*${e})`;
   const cyExpr = `(${t(cFrom.y)}+(${t(cTo.y)}-${t(cFrom.y)})*${e})`;

@@ -216,7 +216,7 @@ describe("edit/reframe：渲染链（crop-first）", () => {
     expect(built.mode).toBe("animated");
     expect(joined).toContain("zoompan=z=");
     expect(joined).toContain("d=1:s=1080x1920");
-    expect(joined).toContain("clip(time/4");
+    expect(joined).toContain("clip(on/");
     expect(joined).toContain("(iw-iw/zoom)");
   });
 

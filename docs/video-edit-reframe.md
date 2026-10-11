@@ -81,6 +81,10 @@ pad（兼容）  ：scale(decrease)+pad（可选 zoompan 推近）——保留�
 
 **注意**：动画链必须锁定时长（`-t <片段时长>`），否则 zoompan 会把输出外推（真机踩坑，见 §5 实测）。
 
+**版本兼容**：缩放/位移的逐帧表达式一律用 `on`（输出帧号）而不是 `time`——
+`time`/`frame` 是 FFmpeg 6.0 才加入的 zoompan 变量，而 CNB test-gate 的 Debian 12 装的是 ffmpeg 5.1；
+用 `time` 会在 5.x 上直接失败（本任务 CI 实测根因，已在 T-2026-1011-0008 修复）。
+
 ### 2.4 机检与回执（无回执不算完成）
 
 逐镜回执 `<归一化产物>.json#reframe`（`workloom.reframe-receipt/v1`）；交付面汇总
@@ -176,4 +180,3 @@ git revert <本任务合并提交>
 | `bundles/ai-video/connectors/post-bridge/core.mjs` | 引擎：`normalizeShotReframe`/`computeReframeBudget`/`buildReframeChain`/`verifyReframeOutcome` + 变体调制 |
 | `bundles/ai-video/connectors/post-bridge/reframe-integration.test.mjs` | 真 ffmpeg 集成测试（5 项） |
 | `scripts/tools/edit-post.mts` | CLI：`--reframe/--reframe-fill/--reframe-max-zoom/--reframe-easing/--reframe-scale` |
-
