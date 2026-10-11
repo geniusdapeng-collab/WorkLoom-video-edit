@@ -135,6 +135,25 @@ test("二次构图：动画推近（zoompan）可执行且时长守恒", { skip:
   assert.equal(result.mode, "push");
 });
 
+test("二次构图：pad 填充 + 动画推近可执行（回归：zoompan 表达式曾缺右括号导致 Missing ')'）", { skip: !hasMediaTools }, async () => {
+  const result = await fixture(async ({ root, source, env, project }) => {
+    const [clip] = await normaliseShots({
+      shots: [{
+        shotId: "SC-06",
+        path: source,
+        kind: "live-action",
+        reframe: { ...baseReframe, mode: "push", fill: "pad", scale: { from: 1, to: 1.12 } },
+      }],
+      project, workDir: join(root, "work"), bins, env,
+    });
+    return { probe: probe(clip.path), fill: clip.reframe.fill, mode: clip.reframe.mode };
+  });
+  assert.equal(result.probe.height, 960);
+  assert.ok(Math.abs(result.probe.duration - 2.5) <= 0.2, `pad+动画不得吞/涨时长，实测 ${result.probe.duration}`);
+  assert.equal(result.fill, "pad");
+  assert.equal(result.mode, "push");
+});
+
 test("二次构图：超无损预算且策略为 lossless → fail-closed（不静默上采样）", { skip: !hasMediaTools }, async () => {
   await fixture(async ({ root, source, env, project }) => {
     await assert.rejects(

@@ -122,6 +122,12 @@ export const TALK_CAPTION_MAX_CHARS = 24;
 export const TALK_CAPTION_MAX_LINES = 2;
 
 const INLINE_FORBIDDEN = /[，。！？、,.!?;；:："'“”‘’()（）[\]【】…—\-·~@#$%^&*+=|\\/<>{}]/u;
+/**
+ * 本机生产补丁（2026-10-11）：数字/字母之间的点不是"行内标点"，是模型名/版本号的一部分
+ * （V4.1、3.5）。字幕工位 `stripSubtitlePunctuation` 本就按 NUMERIC_INFIX 保留它，
+ * 校验侧若把它判成硬失败，就会出现"渲染器允许、门禁不许"的自相矛盾。
+ */
+const stripNumericInfix = (line: string): string => line.replace(/(?<=[0-9A-Za-z])\.(?=[0-9A-Za-z])/gu, "");
 const LATIN = /[A-Za-z]{2,}/u;
 const EMOJI = /[\u{1F300}-\u{1FAFF}\u{1F000}-\u{1F2FF}\u{2600}-\u{27BF}\u{FE0F}]/u;
 
@@ -414,7 +420,7 @@ export function analyzeCaption(input: {
         issues.push({ id: `caption.lines:${segment.segmentId}`, severity: "hard", detail: `${segment.segmentId} 字幕 ${lines.length} 行 >4 行（超出可读行数）`, segmentId: segment.segmentId });
       }
       for (const line of lines) {
-        if (INLINE_FORBIDDEN.test(line)) {
+        if (INLINE_FORBIDDEN.test(stripNumericInfix(line))) {
           issues.push({ id: `caption.punct:${segment.segmentId}`, severity: "hard", detail: `${segment.segmentId} 行内含标点/空格：${line}`, segmentId: segment.segmentId });
           break;
         }

@@ -210,7 +210,16 @@ const round = (value: number, digits = 3): number => {
 
 /** 归一化文本：去空白与标点（用于逐字一致比对，不改变任何汉字/字母/数字） */
 export function normalizeTalkText(text: string): string {
-  return text.replace(/[\s，。！？、,.!?;；:："'“”‘’()（）\[\]【】…—\-·~@#$%^&*+=|\\/<>{}]/gu, "");
+  /**
+   * 本机生产补丁（2026-10-11）：数字/字母之间的点必须保留。
+   * 旧实现一律去标点，把模型名 "V4.1 Flash" 变成 "V41Flash"——这不是排版风格问题，是改事实。
+   * 与字幕工位 `stripSubtitlePunctuation`（NUMERIC_INFIX 保留小数点）的口径保持一致。
+   */
+  const DOT = "\u0001";
+  return text
+    .replace(/(?<=[0-9A-Za-z])\.(?=[0-9A-Za-z])/gu, DOT)
+    .replace(/[\s，。！？、,.!?;；:："'“”‘’()（）\[\]【】…—\-·~@#$%^&*+=|\\/<>{}]/gu, "")
+    .replaceAll(DOT, ".");
 }
 
 const textLength = (text: string): number => [...normalizeTalkText(text)].length;
@@ -1594,6 +1603,217 @@ if (splitCandidates.length > 0 && !splitTangents) {
   };
 }
 
+/* ============================ ③′ 选段定稿（G-TK4 人审） ============================ */
+
+export interface TalkSelectionInput {
+  /** 保留的句子 id（G-TK4 人选定稿）：未列出的句子**整体**剔除（不做句内切割，避免残句） */
+  sentenceIds: string[];
+  /** 平滑风险重算用：取自 emotion.prosody.paceVariation（缺省 0.35 = 最平铺） */
+  paceVariation?: number;
+}
+
+export interface TalkSelectionResult {
+  plan: TalkCutPlan;
+  selection: {
+    sentenceIds: string[];
+    spans: Array<{ start: number; end: number }>;
+    droppedSeconds: number;
+    notes: string[];
+  };
+}
+
+/**
+ * 选段定稿：把"整句留删"的人选结果落到剪取计划上（口播长素材 → 1 条明确主题的短片）。
+ *
+ * 与 planTalkCut 的分工：
+ * - `planTalkCut` 管"这条片子**内部**怎么剪"（语气词/停顿/卡壳/自纠的留删）；
+ * - 本函数管"**哪几段话属于这条片子**"（G-TK4 选题与拆分候选的人选定稿）。
+ *
+ * 三条纪律：
+ * 1. 只按**整句**取舍：不产生残句（对应 validateTalkCut 的 `sentence.fragment` 硬项）；
+ * 2. 删除端点必须落在词边界或停顿区间上：句边界天然是词边界，越界只往停顿里吸附；
+ * 3. 人味指标按**成片 scope**重算：分母取选中句段范围内原有的语气词/停顿——
+ *    选段不是"删语气词"，既不拿整片分母虚增人味，也不拿它虚降。
+ */
+export function applyTalkSelection(
+  sentences: TalkSentence[],
+  analysis: TalkAnalysis,
+  plan: TalkCutPlan,
+  selection: TalkSelectionInput,
+): TalkSelectionResult {
+  const byId = new Map(sentences.map((sentence) => [sentence.id, sentence]));
+  const unknown = selection.sentenceIds.filter((id) => !byId.has(id));
+  if (unknown.length > 0) throw new Error(`选段引用了不存在的句子：${unknown.join("、")}`);
+  const chosen = selection.sentenceIds.map((id) => byId.get(id)!);
+  if (chosen.length === 0) {
+    return {
+      plan,
+      selection: { sentenceIds: [], spans: [], droppedSeconds: 0, notes: ["未提供选段：保持 planTalkCut 原计划"] },
+    };
+  }
+
+  const deadline = Math.max(
+    0,
+    ...plan.keepSpans.map((span) => span.end),
+    ...plan.cutSpans.map((span) => span.end),
+  );
+
+  // 1) 连续句 → 区间（区间端点 = 句边界 = 词边界）
+  const indexOf = new Map(sentences.map((sentence, index) => [sentence.id, index]));
+  const indexes = chosen.map((sentence) => indexOf.get(sentence.id)!).sort((a, b) => a - b);
+  const runs: Array<{ startIndex: number; endIndex: number }> = [];
+  for (const index of indexes) {
+    const last = runs[runs.length - 1];
+    if (last && index === last.endIndex + 1) last.endIndex = index;
+    else runs.push({ startIndex: index, endIndex: index });
+  }
+  const spans = runs
+    .map((run) => ({
+      start: round(sentences[run.startIndex]!.start, 3),
+      end: round(sentences[run.endIndex]!.end, 3),
+    }))
+    .filter((span) => span.end - span.start > 0.02);
+
+  // 2) 计划内保留区（已删语气词/停顿）∩ 选段区间
+  const scoped = plan.keepSpans
+    .flatMap((span) => spans.map((region) => ({
+      start: round(Math.max(span.start, region.start), 3),
+      end: round(Math.min(span.end, region.end), 3),
+    })))
+    .filter((span) => span.end - span.start > 0.02);
+  const keepSpans = mergeSpans(scoped, deadline).map((span) => ({ start: span.start, end: span.end }));
+
+  // 3) 选段剔除 = 保留区的补集；端点吸附到词边界/停顿（否则会切进词里）
+  const words = flattenTalkWords(sentences);
+  const alignedToBoundary = (t: number): boolean => {
+    const eps = 0.03;
+    if (words.some((word) => Math.abs(word.start - t) <= eps || Math.abs(word.end - t) <= eps)) return true;
+    return analysis.pauses.some((pause) => t >= pause.start - eps && t <= pause.end + eps);
+  };
+  const snap = (t: number, edge: "start" | "end"): number => {
+    if (alignedToBoundary(t)) return t;
+    const candidates = [
+      ...words.flatMap((word) => [word.start, word.end]),
+      ...analysis.pauses.flatMap((pause) => [pause.start, pause.end]),
+    ];
+    let best: number | null = null;
+    for (const value of candidates) {
+      if (Math.abs(value - t) > 0.5) continue;
+      if (best === null || Math.abs(value - t) < Math.abs(best - t)) best = value;
+    }
+    if (best === null) return t;
+    return edge === "start" ? Math.min(best, t) : Math.max(best, t);
+  };
+  const removed = subtractSpans({ start: 0, end: deadline }, keepSpans)
+    .map((span) => ({
+      start: round(span.start <= 0.001 ? 0 : snap(span.start, "start"), 3),
+      end: round(span.end >= deadline - 0.001 ? snap(deadline, "end") : snap(span.end, "end"), 3),
+    }))
+    .filter((span) => span.end - span.start > 0.02);
+  const cutSpans = mergeSpans(
+    removed.map((span) => ({ ...span, reason: "tangent" as TalkCutReason })),
+    deadline,
+  );
+
+  // 4) 指标按成片 scope 重算（分子/分母都跟 scope 走）
+  const keptSeconds = round(keepSpans.reduce((sum, span) => sum + (span.end - span.start), 0), 3);
+  const inSpans = (t: number): boolean => spans.some((span) => t >= span.start - 0.001 && t <= span.end + 0.001);
+  const keptBetween = (start: number, end: number): number =>
+    keepSpans.reduce((sum, span) => sum + Math.max(0, Math.min(span.end, end) - Math.max(span.start, start)), 0);
+  const fillersInScope = analysis.fillers.filter((filler) => inSpans((filler.start + filler.end) / 2));
+  const fillerKept = fillersInScope.filter(
+    (filler) => keptBetween(filler.start, filler.end) > (filler.end - filler.start) * 0.6,
+  ).length;
+  const fillerKeepRate = fillersInScope.length > 0 ? round(fillerKept / fillersInScope.length, 3) : 1;
+  const pausesInScope = analysis.pauses.filter((pause) => inSpans((pause.start + pause.end) / 2));
+  const pauseTotalSeconds = round(pausesInScope.reduce((sum, pause) => sum + (pause.end - pause.start), 0), 3);
+  const pauseKeptSeconds = round(
+    pausesInScope.reduce((sum, pause) => sum + keptBetween(pause.start, pause.end), 0),
+    3,
+  );
+  const pauseKeepRate = pauseTotalSeconds > 0 ? round(pauseKeptSeconds / pauseTotalSeconds, 3) : 1;
+  const paceUniformity = Math.max(0, 1 - (selection.paceVariation ?? 0.35) / 0.35);
+  const jumpCutCoverage = plan.options.punchIn === "alternate" ? 1 : 0.4;
+  const smoothingRisk = round(Math.min(1, Math.max(0,
+    0.4 * (1 - fillerKeepRate) + 0.3 * (1 - pauseKeepRate) + 0.2 * paceUniformity + 0.1 * (1 - jumpCutCoverage))), 3);
+
+  const coveredByPlan = (span: { start: number; end: number }): boolean =>
+    plan.cutSpans.some((cut) => cut.start <= span.start + 0.02 && cut.end >= span.end - 0.02);
+  const selectionDecisions: TalkCutDecision[] = cutSpans
+    .filter((span) => !coveredByPlan(span))
+    .map((span, index) => ({
+      id: `selection-${String(index + 1).padStart(3, "0")}`,
+      action: "cut" as TalkDecisionAction,
+      target: "segment" as const,
+      start: span.start,
+      end: span.end,
+      reason: "tangent" as TalkCutReason,
+      humanValue: 0.2,
+      refs: sentences
+        .filter((sentence) => sentence.end > span.start + 0.02 && sentence.start < span.end - 0.02)
+        .map((sentence) => sentence.id),
+      note: "选段剔除（G-TK4 人选定稿）：该区间不属于本条片子的主题范围；句子可另组成其它片子，素材不丢",
+    }));
+
+  const spanSeconds = round(spans.reduce((sum, span) => sum + (span.end - span.start), 0), 3);
+  /** 选段后成片长度变了：基础计划里按"整片保留量"算的目标提示必须作废重算，否则回执自相矛盾 */
+  const staleTargetNotes = plan.notes.filter((note) => /高于目标|低于目标/u.test(note));
+  const targetSeconds = plan.options.targetDurationSeconds;
+  const notes = [
+    ...plan.notes.filter((note) => !staleTargetNotes.includes(note)),
+    `选段定稿（G-TK4）：选中 ${spans.length} 段 / ${spanSeconds}s；成片保留 ${keptSeconds}s，剔除 ${round(deadline - keptSeconds, 3)}s`,
+    `人味指标按成片 scope 重算：语气词保留率 ${fillerKeepRate}（scope 内 ${fillersInScope.length} 个）· 停顿保留率 ${pauseKeepRate}（scope 内 ${pauseTotalSeconds}s）`,
+  ];
+  if (targetSeconds !== null && keptSeconds > targetSeconds * 1.25) {
+    notes.push(`成片保留 ${keptSeconds}s 高于目标 ${targetSeconds}s 的 125%：内容多但不硬删——要么按此长度出片，要么再砍选段（不要靠删语气词凑时长）`);
+  }
+  if (targetSeconds !== null && keptSeconds < targetSeconds * 0.6) {
+    notes.push(`成片保留 ${keptSeconds}s 低于目标 ${targetSeconds}s 的 60%：选段偏薄，建议补选或降低目标时长`);
+  }
+  if (fillerKeepRate < plan.options.fillerKeepRateFloor) {
+    notes.push(`语气词保留率 ${fillerKeepRate} < 下限 ${plan.options.fillerKeepRateFloor}：需人审放行（--human-approved-below-floor）或调整选段`);
+  }
+  if (pauseKeepRate < plan.options.pauseKeepRateFloor) {
+    notes.push(`停顿保留率 ${pauseKeepRate} < 下限 ${plan.options.pauseKeepRateFloor}：需人审放行（--human-approved-below-floor）或调整选段`);
+  }
+  if (smoothingRisk >= TALK_DEFAULTS.smoothingRiskWarn) {
+    notes.push(`平滑风险 ${smoothingRisk} ≥ ${TALK_DEFAULTS.smoothingRiskWarn}：片子偏"平"，建议在选段内补 punch-in 或保留更多气口`);
+  }
+
+  return {
+    plan: {
+      ...plan,
+      decisions: [...plan.decisions, ...selectionDecisions],
+      keepSpans,
+      cutSpans,
+      metrics: {
+        ...plan.metrics,
+        fillerTotal: fillersInScope.length,
+        fillerKept,
+        fillerKeepRate,
+        pauseTotalSeconds,
+        pauseKeptSeconds,
+        pauseKeepRate,
+        removedSeconds: round(deadline - keptSeconds, 3),
+        keptSeconds,
+        decisions: {
+          keep: plan.decisions.filter((decision) => decision.action === "keep").length,
+          cut: plan.decisions.filter((decision) => decision.action === "cut").length + selectionDecisions.length,
+          trim: plan.decisions.filter((decision) => decision.action === "trim").length,
+        },
+        smoothingRisk,
+      },
+      notes,
+    },
+    selection: {
+      sentenceIds: chosen.map((sentence) => sentence.id),
+      spans,
+      droppedSeconds: round(deadline - keptSeconds, 3),
+      notes,
+    },
+  };
+}
+
 export interface TalkBlockScore {
   blockId: string;
   title: string;
@@ -1681,6 +1901,64 @@ export interface TalkSegmentDraft {
   blockId: string | null;
   jumpCut: boolean;
   punchIn: { scale: number; note: string } | null;
+}
+
+type TalkPiece = { start: number; end: number; sentenceIds: string[]; text: string };
+
+/**
+ * 把超长片段按**词边界**拆小（本机生产补丁，2026-10-11）。
+ *
+ * 为什么必须有：口播字幕规则是"一屏 ≤2 行 × 12 字（≤24 字）"，但 ASR 的一句话常常 40+ 字，
+ * 且同一保留区间里没有别的切点——旧实现只能把 42 字压进一屏（实测 44 条字幕里 19 条 4 行），
+ * 或者靠"每 12 字硬切"断行（把 "AI"、"skill" 从词中间切开）。这里在片段层按词边界分段，
+ * 让每个字幕段天然 ≤ maxChars；断行交给 `splitTalkCaptionLines` 的词边界折行。
+ */
+function splitOversizedPieces(pieces: TalkPiece[], words: TalkWord[], maxChars: number): TalkPiece[] {
+  const output: TalkPiece[] = [];
+  for (const piece of pieces) {
+    if (textLength(piece.text) <= maxChars) {
+      output.push({ ...piece });
+      continue;
+    }
+    const scoped = words.filter((word) => word.start >= piece.start - 0.02 && word.end <= piece.end + 0.02);
+    if (scoped.length === 0) {
+      output.push({ ...piece });
+      continue;
+    }
+    const chunks: TalkWord[][] = [];
+    let current: TalkWord[] = [];
+    let chars = 0;
+    for (const word of scoped) {
+      const next = chars + textLength(word.text);
+      if (current.length > 0 && next > maxChars) {
+        chunks.push(current);
+        current = [];
+        chars = 0;
+      }
+      current.push(word);
+      chars += textLength(word.text);
+    }
+    if (current.length > 0) chunks.push(current);
+    const subPieces: TalkPiece[] = chunks.map((chunk) => ({
+      start: round(chunk[0]!.start),
+      end: round(chunk[chunk.length - 1]!.end),
+      sentenceIds: [...piece.sentenceIds],
+      text: chunk.map((word) => word.text).join(""),
+    }));
+    /** 过短的尾块并入前一块（单段 0.4s 是时间轴硬闸）：宁可这一块多几个字，也不要 0.2s 的碎片。 */
+    const normalized: TalkPiece[] = [];
+    for (const sub of subPieces) {
+      const last = normalized[normalized.length - 1];
+      if (last && sub.end - sub.start < 0.4) {
+        last.end = sub.end;
+        last.text += sub.text;
+        continue;
+      }
+      normalized.push(sub);
+    }
+    output.push(...normalized);
+  }
+  return output;
 }
 
 /**
@@ -1820,6 +2098,10 @@ export function draftTalkSegments(
     merged[0]!.sentenceIds = [...new Set([...head.sentenceIds, ...merged[0]!.sentenceIds])];
     merged[0]!.text = head.text + merged[0]!.text;
   }
+    /**
+     * 超长片段先按词边界拆小，再按上限分组（本机补丁：一屏 ≤2 行 ×12 字，24 字没有 12/12 词边界时会落第三行）。
+     */
+    const sized = splitOversizedPieces(merged, flattenTalkWords(sentences), Math.max(8, maxSegmentChars - 2));
     let current: typeof pieces = [];
     const flush = () => {
       if (current.length === 0) return;
@@ -1839,11 +2121,11 @@ export function draftTalkSegments(
       });
       current = [];
     };
-  for (const piece of merged) {
-    const nextChars = current.reduce((sum, entry) => sum + textLength(entry.text), 0) + textLength(piece.text);
-    if (current.length > 0 && (piece.end - current[0]!.start > maxSegmentSeconds || nextChars > maxSegmentChars)) flush();
-    current.push(piece);
-  }
+    for (const piece of sized) {
+      const nextChars = current.reduce((sum, entry) => sum + textLength(entry.text), 0) + textLength(piece.text);
+      if (current.length > 0 && (piece.end - current[0]!.start > maxSegmentSeconds || nextChars > maxSegmentChars)) flush();
+      current.push(piece);
+    }
   flush();
 }
 /**

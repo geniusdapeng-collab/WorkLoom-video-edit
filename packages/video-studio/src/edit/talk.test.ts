@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
-  analyzeTalkTranscript, buildEmotionCurve, buildTalkCaptionDoc, buildTalkCaptions, buildTalkTimeline,
+  analyzeTalkTranscript, applyTalkSelection, buildEmotionCurve, buildTalkCaptionDoc, buildTalkCaptions, buildTalkTimeline,
   computeTalkProsody, detectTalkFillers, detectTalkPauses, detectTalkRepetitions, detectTalkSelfCorrections,
   draftTalkSegments, flattenTalkWords, mergeSpans, normalizeTalkText, planTalkCut, scoreTalkBlocks,
-  segmentTalkBlocks, splitTalkCaptionLines, subtractSpans, talkCuesToSrt, validateTalkCut,
+  segmentTalkBlocks, splitTalkCaptionLinesByWords, subtractSpans, talkCuesToSrt, validateTalkCut,
   type TalkSentence, type TalkWord,
 } from "./talk.js";
 import { validateEditTimeline, planAssembly, type EditTimeline } from "./timeline.js";
@@ -293,6 +293,115 @@ describe("edit/talk：剪取决策", () => {
   });
 });
 
+describe("edit/talk：选段定稿（G-TK4）", () => {
+  const build = () => {
+    const sentences = fixture();
+    const analysis = analyzeTalkTranscript(sentences);
+    const emotion = buildEmotionCurve(sentences, analysis, {});
+    const plan = planTalkCut(sentences, analysis, emotion);
+    return { sentences, analysis, emotion, plan };
+  };
+
+  const keptRatio = (plan: { keepSpans: Array<{ start: number; end: number }> }, start: number, end: number): number =>
+    plan.keepSpans.reduce((sum, span) => sum + Math.max(0, Math.min(span.end, end) - Math.max(span.start, start)), 0)
+    / Math.max(0.001, end - start);
+
+  const aligned = (
+    sentences: TalkSentence[],
+    analysis: ReturnType<typeof analyzeTalkTranscript>,
+    t: number,
+  ): boolean => {
+    const eps = 0.03;
+    const words = flattenTalkWords(sentences);
+    if (words.some((word) => Math.abs(word.start - t) <= eps || Math.abs(word.end - t) <= eps)) return true;
+    return analysis.pauses.some((pause) => t >= pause.start - eps && t <= pause.end + eps);
+  };
+
+  it("只保留选中句子（整句），未选中句子整体剔除；保留/删除互补且端点对齐", () => {
+    const { sentences, analysis, emotion, plan } = build();
+    const result = applyTalkSelection(sentences, analysis, plan, {
+      sentenceIds: ["s2", "s5", "s6"],
+      paceVariation: emotion.prosody.paceVariation,
+    });
+    for (const id of ["s2", "s5", "s6"]) {
+      const sentence = sentences.find((entry) => entry.id === id)!;
+      expect(keptRatio(result.plan, sentence.start, sentence.end)).toBeGreaterThan(0.95);
+    }
+    for (const id of ["s1", "s3", "s4", "s7", "s8"]) {
+      const sentence = sentences.find((entry) => entry.id === id)!;
+      expect(keptRatio(result.plan, sentence.start, sentence.end)).toBeLessThan(0.05);
+    }
+    const deadline = sentences[sentences.length - 1]!.end;
+    const covered = result.plan.keepSpans.reduce((sum, span) => sum + (span.end - span.start), 0)
+      + result.plan.cutSpans.reduce((sum, span) => sum + (span.end - span.start), 0);
+    expect(covered).toBeCloseTo(deadline, 2);
+    for (const cut of result.plan.cutSpans) {
+      expect(aligned(sentences, analysis, cut.start)).toBe(true);
+      expect(aligned(sentences, analysis, cut.end)).toBe(true);
+    }
+    /** s2 与 s5+s6 不相邻 → 两段（连续句才会并成一段） */
+    expect(result.selection.spans).toHaveLength(2);
+    expect(result.selection.sentenceIds).toEqual(["s2", "s5", "s6"]);
+  });
+
+  it("人味指标按成片 scope 重算（分母只数选中范围内的语气词/停顿）", () => {
+    const { sentences, analysis, emotion, plan } = build();
+    const result = applyTalkSelection(sentences, analysis, plan, {
+      sentenceIds: ["s2", "s5"],
+      paceVariation: emotion.prosody.paceVariation,
+    });
+    expect(result.plan.metrics.fillerTotal).toBeLessThanOrEqual(plan.metrics.fillerTotal);
+    expect(result.plan.metrics.pauseTotalSeconds).toBeLessThanOrEqual(plan.metrics.pauseTotalSeconds);
+    expect(result.plan.metrics.keptSeconds).toBeLessThan(plan.metrics.keptSeconds);
+    expect(result.plan.metrics.fillerKeepRate).toBeGreaterThanOrEqual(0);
+    expect(result.plan.metrics.fillerKeepRate).toBeLessThanOrEqual(1);
+    expect(result.plan.notes.some((note) => note.includes("选段定稿"))).toBe(true);
+  });
+
+  it("空选段原样返回；引用不存在的句子 fail-closed", () => {
+    const { sentences, analysis, plan } = build();
+    const same = applyTalkSelection(sentences, analysis, plan, { sentenceIds: [] });
+    expect(same.plan).toBe(plan);
+    expect(() => applyTalkSelection(sentences, analysis, plan, { sentenceIds: ["s404"] })).toThrow(/不存在的句子/u);
+  });
+});
+
+describe("edit/talk：口播字幕分段与断行（本机生产补丁）", () => {
+  it("断行落在词边界上：拉丁词不被切开（AI / skill 不再断成 A·I / s·kill）", () => {
+    const toWords = (text: string): Array<{ text: string }> => [...text].map((char) => ({ text: char }));
+    const lines = splitTalkCaptionLinesByWords(toWords("让AI把我之前的那些历史文档啊"), 12, 2);
+    expect(lines.join("")).toBe("让AI把我之前的那些历史文档啊");
+    expect(lines.slice(1).some((line) => line.startsWith("I"))).toBe(false);
+    const skill = splitTalkCaptionLinesByWords(toWords("的数字员工以及呢对应的skill"), 12, 2);
+    expect(skill.join("")).toBe("的数字员工以及呢对应的skill");
+    /** 数字/字母之间的点不能被"去标点"吃掉：V4.1 不是 V41 */
+    expect(normalizeTalkText("就是V4.1Flash这个版本")).toBe("就是V4.1Flash这个版本");
+    expect(normalizeTalkText("我们用了3.5天")).toBe("我们用了3.5天");
+  });
+
+  it("超长句按词边界分段：每段 ≤24 字（一屏 ≤2 行），且不再靠每 12 字硬切", () => {
+    const sentences = buildSentences([
+      ["s1", [["我", 0.2], ["调", 0.2], ["用", 0.2], ["了", 0.2], ["大", 0.2], ["量", 0.2], ["的", 0.2], ["A", 0.1], ["I", 0.1],
+        ["原", 0.2], ["生", 0.2], ["的", 0.2], ["这", 0.2], ["种", 0.2], ["新", 0.2], ["一", 0.2], ["代", 0.2], ["能", 0.2], ["力", 0.2],
+        ["还", 0.2], ["有", 0.2], ["结", 0.2], ["合", 0.2], ["业", 0.2], ["务", 0.2], ["的", 0.2], ["业", 0.2], ["务", 0.2], ["逻", 0.2], ["辑", 0.2]]],
+    ]);
+    const analysis = analyzeTalkTranscript(sentences);
+    const emotion = buildEmotionCurve(sentences, analysis, {});
+    const plan = planTalkCut(sentences, analysis, emotion);
+    const drafts = draftTalkSegments(sentences, analysis, plan, { maxSegmentChars: 24 });
+    expect(drafts.length).toBeGreaterThan(1);
+    for (const draft of drafts) {
+      expect([...normalizeTalkText(draft.text)].length).toBeLessThanOrEqual(24);
+      expect([...normalizeTalkText(draft.text)].length).toBeGreaterThan(0);
+    }
+    const captions = buildTalkCaptions(sentences, drafts, {});
+    for (const cue of captions.cues) {
+      expect(cue.lines.length).toBeLessThanOrEqual(2);
+      expect(cue.lines.every((line) => [...line].length <= 12)).toBe(true);
+    }
+  });
+});
+
 describe("edit/talk：时间轴、字幕与质检", () => {
   const build = () => {
     const sentences = fixture();
@@ -443,6 +552,6 @@ describe("edit/talk：时间轴、字幕与质检", () => {
     const drafts = draftTalkSegments(sentences, analysis, plan, { maxSegmentSeconds: 6 });
     expect(drafts.every((draft) => draft.end - draft.start <= 6.05)).toBe(true);
     expect(drafts.some((draft) => draft.jumpCut)).toBe(true);
-    expect(splitTalkCaptionLines("一二三四五六七八九十十一十二十三").length).toBeGreaterThan(1);
+    expect(splitTalkCaptionLinesByWords([..."一二三四五六七八九十十一十二十三"].map((char) => ({ text: char }))).length).toBeGreaterThan(1);
   });
 });

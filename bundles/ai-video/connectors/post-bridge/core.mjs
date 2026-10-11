@@ -471,7 +471,12 @@ export function buildReframeChain({ descriptor, source, canvas, durationSeconds,
     if (animated) {
       /** 用 `on`（输出帧号）而不是 `time`：后者是 FFmpeg 6.0 才有的变量（CI 为 5.1，见 docs/video-edit-reframe.md）。 */
       const totalFrames = Math.max(1, Math.round(duration * fps));
-      const sExpr = `(${t(sFrom)}+(${t(sTo)}-${t(sFrom)})*${easeOf(descriptor.easing, `clip(on/${totalFrames},0,1)`)}`;
+      /**
+       * 本机生产补丁（2026-10-11）：原表达式少了收尾的 `)`——FFmpeg 报
+       * `[Eval] Missing ')' in '(1+(1.12-1)*(clip(on/223,0,1))…'` 并中止归一化。
+       * 这条"pad + 逐帧推近"路径此前没有测试覆盖（cover 路径正常），修好后与 cover 分支同构。
+       */
+      const sExpr = `(${t(sFrom)}+(${t(sTo)}-${t(sFrom)})*${easeOf(descriptor.easing, `clip(on/${totalFrames},0,1)`)})`;
       filters.push(`zoompan=z='${sExpr}':x='(iw-iw/zoom)*0.5':y='(ih-ih/zoom)*0.5':d=1:s=${outW}x${outH}:fps=${fps}`);
     }
     filters.push(...tail);
