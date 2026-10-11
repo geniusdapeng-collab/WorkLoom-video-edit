@@ -19,4 +19,5 @@ export * from "./transitions.js";
 export * from "./audio.js";
 export * from "./caption.js";
 export * from "./post-auto.js";
+export * from "./creative-check.js";
 export * from "./talk.js";

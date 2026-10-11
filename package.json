@@ -66,6 +66,7 @@
     "edit:verify": "tsx scripts/tools/edit-verify.mts",
     "edit:assemble": "tsx scripts/tools/edit-assemble.mts",
     "edit:post": "tsx scripts/tools/edit-post.mts",
+    "edit:creative-check": "tsx scripts/tools/edit-creative-check.mts",
     "edit:subtitle": "tsx scripts/tools/edit-subtitle.mts",
     "edit:cover": "tsx scripts/tools/edit-cover.mts",
     "edit:danmaku": "tsx scripts/tools/edit-danmaku.mts",
