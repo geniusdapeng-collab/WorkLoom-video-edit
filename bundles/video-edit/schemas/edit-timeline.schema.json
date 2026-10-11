@@ -146,6 +146,51 @@
               "note": { "type": ["string", "null"] }
             }
           },
+          "reframe": {
+            "description": "二次构图（取景轨道，T-2026-1011-0008）：把「中景切近景 / 局部放大 / 横转竖不留黑边」变成可执行契约。渲染口径＝源原生裁切（crop-first）→ 填充（pad/cover/blur/brand）→ 画布；超无损预算默认降级并写回执，显式 maxZoomPolicy=allow-upscale 才允许上采样。`punchIn` 是本字段的 legacy 子集（静态推近），两者同时存在以本字段为准。",
+            "type": ["object", "null"],
+            "additionalProperties": false,
+            "properties": {
+              "mode": { "enum": ["static", "push", "pull", "follow", "locked-cut"] },
+              "intent": { "enum": ["shot-size", "emphasis", "aspect-fill", "breathing"] },
+              "shotSize": {
+                "type": ["object", "null"],
+                "additionalProperties": false,
+                "properties": {
+                  "from": { "enum": ["ELS", "LS", "FS", "MS", "MCU", "CU", "ECU", "INSERT"] },
+                  "to": { "enum": ["ELS", "LS", "FS", "MS", "MCU", "CU", "ECU", "INSERT"] }
+                }
+              },
+              "scale": {
+                "type": ["object", "null"],
+                "additionalProperties": false,
+                "properties": {
+                  "from": { "type": ["number", "null"], "minimum": 1, "maximum": 3 },
+                  "to": { "type": ["number", "null"], "minimum": 1, "maximum": 3 }
+                }
+              },
+              "center": {
+                "type": ["object", "null"],
+                "additionalProperties": false,
+                "properties": {
+                  "from": {
+                    "type": ["object", "null"], "additionalProperties": false,
+                    "properties": { "x": { "type": ["number", "null"], "minimum": 0, "maximum": 1 }, "y": { "type": ["number", "null"], "minimum": 0, "maximum": 1 } }
+                  },
+                  "to": {
+                    "type": ["object", "null"], "additionalProperties": false,
+                    "properties": { "x": { "type": ["number", "null"], "minimum": 0, "maximum": 1 }, "y": { "type": ["number", "null"], "minimum": 0, "maximum": 1 } }
+                  }
+                }
+              },
+              "anchor": { "enum": ["manual", "center", "subject", "face", "saliency", "keyframe"] },
+              "easing": { "enum": ["linear", "smooth", "ease-in-out"] },
+              "fill": { "enum": ["pad", "cover", "blur", "brand"] },
+              "maxZoomPolicy": { "enum": ["lossless", "allow-upscale"] },
+              "safeArea": { "enum": ["respect", "ignore"] },
+              "note": { "type": ["string", "null"] }
+            }
+          },
           "subtitle": {
             "type": ["object", "null"],
             "additionalProperties": false,
