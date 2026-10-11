@@ -40,7 +40,7 @@ bundles/ai-video/library/products/
 镜头卡声明商品（id / 商品名 / 别名 / 公司 / 品牌任一即可）：
 
 ```jsonc
-{ "shotId": "SC-02", "duration": 5, "product": "未来前台 酒店自助入住机", "materialUsage": "generation-reference", "focus": { "x": 0.5, "y": 0.5 } }
+{ "shotId": "SC-02", "duration": 5, "product": "示例品牌 酒店自助入住机", "materialUsage": "generation-reference", "focus": { "x": 0.5, "y": 0.5 } }
 ```
 
 - 该镜没有 `photo` 时，管线**自动绑定档案主图**（`role=hero`）并把它当**生成输入**（素材镜，G-MAT1 把关）；

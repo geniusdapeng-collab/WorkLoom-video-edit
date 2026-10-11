@@ -6,11 +6,11 @@
 
 ## 1. 事故复盘（为什么会有这道门）
 
-客户提供了平台已认证的真人素材 ID（`asset://asset-20260929120055-mk2gn`）。系统当时**只校验"这个引用能不能提交"**：
+客户提供了平台已认证的真人素材 ID（`asset://asset-…`）。系统当时**只校验"这个引用能不能提交"**：
 格式是否合法、Seedance 是否受理（不再返回 `InputImageSensitiveContentDetected.PrivacyInformation`）。
 
 **没有任何一处记录"这位真人是谁"**：人物性别/年龄/外貌全部来自镜头卡文案。于是当文案写"男性"而素材本人是女性时，
-模型跟随文案 → 6 镜渲成男性 → 监制按合同判"身份不符"全部拒收 → 白烧 6 镜 × 2 次渲染 + 大量时间。
+模型跟随文案 → 整批镜头渲错人 → 监制按合同判"身份不符"全部拒收 → 白烧一轮全量渲染 + 大量时间。
 
 **根因一句话**：把"素材引用"当成了"人物身份"，缺少人物属性的**唯一事实源**与**一致性硬门**。
 
@@ -30,16 +30,16 @@
 ```jsonc
 {
   "schemaVersion": "workloom.real-person-asset/v1",
-  "assetId": "asset-20260929120055-mk2gn",
-  "displayName": "未来前台 CEO（苏州未来前台）",
+  "assetId": "asset-<时间戳>-<后缀>",
+  "displayName": "示例客户 出镜主讲人",
   "role": "出镜主讲人",
   "certified": {
     "gender": "female",              // 必填；缺了就是"先问客户"，不是"先拍"
     "ageBand": "三十岁上下",
     "hair": "深色及肩直发（以参考素材为准）",
-    "wardrobeBaseline": "高定黑色小香风套装（小黑裙廓形）",
-    "source": "火山方舟「私域真人人像库」平台认证；属性由产品所有者 2026-09-29 确认",
-    "evidence": "asset://asset-20260929120055-mk2gn"
+    "wardrobeBaseline": "商务正装（深色套装，以参考素材为准）",
+    "source": "火山方舟「私域真人人像库」平台认证；属性由客户与产品所有者确认",
+    "evidence": "asset://asset-<时间戳>-<后缀>"
   },
   "authorization": { "status": "real-authorized", "scope": "本项目内使用其真人形象出镜", "evidence": "…" }
 }
@@ -57,7 +57,7 @@
 
 | 场景 | 结果 |
 |---|---|
-| 主档齐备 + 镜头卡写女性 + `asset://asset-20260929120055-mk2gn` | `G-RP1 ok`：6 镜与主档一致（门记录含资产 ID 与授权证据） |
+| 主档齐备 + 镜头卡写女性 + 已登记的 `asset://` | `G-RP1 ok`：全量镜头与主档一致（门记录含资产 ID 与授权证据） |
 | 镜头卡写"东亚男性/四十岁上下"（历史事故形态） | 单测硬失败：`gender-conflict` + `age-conflict`（不生成、不花钱） |
 | 主档缺 `gender` | 硬失败 `gender-missing` / `gender-unspecified` → 先问客户 |
 | `assetRef` 指向未登记素材 | 硬失败（提示先建主档） |

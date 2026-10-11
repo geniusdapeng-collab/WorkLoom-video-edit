@@ -9,10 +9,10 @@
  *
  * 用法：
  *   pnpm exec tsx scripts/tools/portrait-set-install.mts \
- *     --character ceo-future-frontdesk \
+ *     --character <角色ID> \
  *     --library work/film/library/characters \
  *     --from ~/Downloads/真人素材导出 \
- *     --mapping work/film/library/characters/model-01-ceo-future-frontdesk/portrait-mapping.json \
+ *     --mapping work/film/library/characters/model-01-<角色ID>/portrait-mapping.json \
  *     [--version 2] [--source customer-export|asset-derived] [--activate] [--dry-run] [--out report.json]
  *
  * `--mapping` 形如：`{"front":"IMG_0031.jpg","threeQuarter":"IMG_0032.jpg", ...}`

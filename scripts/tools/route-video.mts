@@ -9,10 +9,10 @@
  *   营销片该有的商品情报档案、G1 门与商品锚点都被绕开；判不准时也不会向用户澄清。
  *
  * 用法：
- *   pnpm exec tsx scripts/tools/route-video.mts --title "给苏州未来前台做一条抖音投放片，卖自助入住机"
+ *   pnpm exec tsx scripts/tools/route-video.mts --title "给某品牌做一条抖音投放片，卖自助入住机"
  *   pnpm exec tsx scripts/tools/route-video.mts --title "..." --brief work/film/brief.json --llm
  *   pnpm exec tsx scripts/tools/route-video.mts --title "..." --explicit marketing      # 已确认过的项目补跑
- *   ... [--product "畅享住 AI 智慧前台"] [--brand 畅享住] [--platform 抖音] [--out route.json]
+ *   ... [--product "示例品牌 AI 智慧前台"] [--brand 示例品牌] [--platform 抖音] [--out route.json]
  *
  * 判别口径（与产品一致）：显式指定 → 用户显式声明 → 规则打分 → 商品锚点 → LLM 仲裁 → **不确定就澄清**。
  * 纪律：**不猜商品**（商品名只来自显式声明/metadata/模型抽取）；判不准宁可问用户，不替用户花钱。

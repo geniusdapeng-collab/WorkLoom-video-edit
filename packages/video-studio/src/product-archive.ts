@@ -72,7 +72,7 @@ export interface ProductArchiveSource {
   searchedQueries?: string[];
   evidence?: ProductArchiveEvidence[];
   disclaimer?: string;
-  /** 客户提供的原件说明（例如 "畅享住智慧酒店生态产品解决方案.pptx"） */
+  /** 客户提供的原件说明（例如客户方案 PPT/PDF 的文件名与 sha256 摘要） */
   providedBy?: string;
   /** 机器抽取方式（幻灯片→商品/图片归属）：默认未人工复核，按软提示登记 */
   extraction?: { method: string; verified: boolean; note?: string };
@@ -114,7 +114,7 @@ export interface ProductArchive {
   type?: "product" | "solution" | "company";
   /** 商品大类（T-2026-1011-0001）：`vehicle` 触发"多角度 + 真实尺寸"硬校验与骑行规则提示词。 */
   category?: string;
-  /** 商品型号（例如 CXZ-02）；产品镜可以按型号点单 */
+  /** 商品型号（例如 DEMO-02）；产品镜可以按型号点单 */
   model?: string;
   variants?: Array<{ name: string; model?: string; note?: string }>;
   relations?: {
@@ -314,7 +314,7 @@ export function selectProductArchive(archives: readonly LoadedProductArchive[], 
   if (companies.length) grouped.push({ matchedBy: "company", hits: companies });
   const brands = usable.filter((entry) => entry.archive.brand && normalizeProductName(entry.archive.brand) === wanted);
   if (brands.length) grouped.push({ matchedBy: "brand", hits: brands });
-  /** 型号点单（例如镜头卡写 "CXZ-02"）：先看主型号，再看 variants 里的型号 */
+  /** 型号点单（例如镜头卡写 "DEMO-02"）：先看主型号，再看 variants 里的型号 */
   const models = usable.filter((entry) => entry.archive.model && normalizeProductName(entry.archive.model) === wanted);
   if (models.length) grouped.push({ matchedBy: "model", hits: models });
   const variantModels = usable.filter((entry) => (entry.archive.variants ?? []).some((variant) => variant.model && normalizeProductName(variant.model) === wanted));

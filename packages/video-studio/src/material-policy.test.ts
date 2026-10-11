@@ -194,7 +194,7 @@ describe("台词注入（素材镜也必须由渲染直出台词）", () => {
     shotId: "FP-04",
     duration: 4,
     speechMode: "voice-over",
-    dialogue: [{ speaker: "未来前台负责人", text: "房卡到手，客人自己上楼。", emotion: "轻快笃定", trigger: "取卡瞬间开口（画外音）" }],
+    dialogue: [{ speaker: "酒店负责人", text: "房卡到手，客人自己上楼。", emotion: "轻快笃定", trigger: "取卡瞬间开口（画外音）" }],
     audio: "保留画外音人声、房卡吐出的机械声与极轻环境底噪",
     character_constraint: "不得出现任何面孔与身体；只允许该女士的一只手与前臂入画",
     composition: "物件特写（微距）——画面内不出现人脸与身体"
@@ -214,7 +214,7 @@ describe("台词注入（素材镜也必须由渲染直出台词）", () => {
     expect(prompt).toContain("同步产出可听见的人声");
     expect(prompt).toContain("不得用字幕或文字代替");
     expect(prompt).toContain("画外音");
-    expect(prompt).toContain("说话人：未来前台负责人");
+    expect(prompt).toContain("说话人：酒店负责人");
     expect(prompt).toContain("语气：轻快笃定");
     expect(prompt).toContain("整句在本镜 4 秒内自然说完");
     expect(prompt).toContain("保留画外音人声、房卡吐出的机械声");
@@ -228,7 +228,7 @@ describe("台词注入（素材镜也必须由渲染直出台词）", () => {
     const prompt = buildMaterialScenePrompt({
       ...baseShot,
       speechMode: "on-camera",
-      dialogue: [{ speaker: "未来前台负责人", text: "酒店前台，半夜还在排队？" }]
+      dialogue: [{ speaker: "酒店负责人", text: "酒店前台，半夜还在排队？" }]
     }, { durationSec: 5 });
     expect(prompt).toContain("画内口播");
     expect(prompt).toContain("口型与语音逐字同步");

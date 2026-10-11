@@ -7,9 +7,11 @@
  *   没有 → 先检索公开资料与产品图，**自动生成一份带来源证据的商品档案**（标记 system-generated、priority 1）。
  *
  * 用法：
- *   tsx scripts/tools/product-archive.mts search --name "未来前台" [--queries "a,b"] [--root <档案库>] [--max-images 6]
- *   tsx scripts/tools/product-archive.mts build  --name "未来前台 酒店自助入住机" --photo a.jpg --photo b.jpg \
- *        [--company 苏州未来前台] [--brand 未来前台] [--aliases "未来前台,weilaiqiantai"] [--specs specs.json] [--root <档案库>]
+ *   tsx scripts/tools/product-archive.mts search --name "某品牌" [--queries "a,b"] [--root <档案库>] [--max-images 6]
+ *   tsx scripts/tools/product-archive.mts build  --name "某品牌 自助入住机" --photo a.jpg --photo b.jpg \
+ *        [--company 某公司] [--brand 某品牌] [--aliases "别名1,别名2"] [--specs specs.json] [--root <档案库>]
+ *   tsx scripts/tools/product-archive.mts import-pptx --file <方案.pptx> --company <公司> [--brand <品牌>] --rules <产品规则.json>
+ *   tsx scripts/tools/product-archive.mts import-pdf  --file <产品.pdf> --work <解析目录> --company <公司> [--brand <品牌>] --rules <产品规则.json>
  *   tsx scripts/tools/product-archive.mts verify --root <档案库> [--id <档案id>]
  *   tsx scripts/tools/product-archive.mts list   --root <档案库>
  *
@@ -43,7 +45,7 @@ const USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/
 const MIN_IMAGE_BYTES = 50_000;
 const MAX_IMAGE_BYTES = 8_000_000;
 /**
- * 相关性硬闸（2026-09-29 真机事故）：检索"未来前台"时 Bing 返回了蔚来汽车、3D 打印等无关页面，
+ * 相关性硬闸（2026-09-29 真机事故）：检索一个中文品牌名时 Bing 返回了同名无关行业（汽车、3D 打印等）的页面，
  * 早期版本把页面里的 og:image 直接当"产品图"收进档案——**这比没有档案更危险**（会把别家的产品当客户产品）。
  * 因此：结果标题/摘要/URL 必须出现品牌或公司名的可判分子串，页面正文也必须出现，否则一律不收。
  */
@@ -440,36 +442,62 @@ function commandList(): number {
  *   一份对外方案 PPT 通常 = **1 个公司/品牌** + **N 个商品** + **若干个方案/套装**；
  *   因此不把整份 PPT 塞进"一个商品档案"，而是拆成三类档案：
  *     · company  公司档案（品牌、别名、成员商品与方案索引、官方原件摘要与逐页证据）
- *     · solution 方案档案（例如"畅享住智慧酒店生态方案"：成员商品 + 角色 + 多商品页素材）
+ *     · solution 方案档案（例如"<品牌>-智慧酒店生态方案"：成员商品 + 角色 + 多商品页素材）
  *     · product  商品档案（按型号/名称建档：真实产品图 + 从原文摘录的可见参数，参数必须带 slide 来源）
  *   归属由文案关键词机器判定，**标记 extraction.verified=false**（软提示），客户抽查后可改为 true。
  */
 interface DeckImage { file: string; rel: string; bytes: Buffer; width: number; height: number }
 interface DeckSlide { slide: number; title: string; texts: string[]; images: DeckImage[] }
 
-const PRODUCT_RULES: Array<{ id: string; name: string; model?: string; keywords: RegExp; role?: string }> = [
-  /* —— 2026 全系列产品 PDF 里的机型（型号与页面文案逐条对应） —— */
-  { id: "cxz-t001", name: "未来前台 台式双屏自助机", model: "CXZ-T001", keywords: /CXZ-?\s*T0\s*0\s*1|台式双屏自助机|双屏模式/ },
-  { id: "tablet-butler", name: "移动平板管家", keywords: /移动平板管家|平板管家/ },
-  { id: "hotel-ai-agent", name: "酒店 AI 智能体", keywords: /酒店AI智能体|酒店 AI 智能体/ },
-  { id: "ble-checkin", name: "碰一下住酒店", keywords: /碰一下住酒店|碰一下入住/ },
-  { id: "embedded-desktop", name: "桌面嵌入式自助机", keywords: /桌面嵌入式自助机|嵌入式自助机/ },
-  { id: "simple-vertical", name: "畅享住简约立式机", keywords: /简约立式机|畅享住简约立式/ },
-  { id: "premium-vertical", name: "国际酒店高端立式机", keywords: /高端立式机|国际酒店高端/ },
-  { id: "face-checkin", name: "未来酒店刷脸入住", keywords: /刷脸入住|未来酒店刷脸/ },
-  { id: "ai-frontdesk", name: "畅享住 AI 智慧前台（自助机 + 小程序）", keywords: /AI\s*智慧前台|AI前台|自助机|自助入住|小程序/, role: "自助入住终端" },
-  { id: "cxz-03", name: "畅享住桌面型自助机", model: "CXZ-03", keywords: /CXZ-03|桌面型|桌面款|21\.5\s*寸/ },
-  { id: "cxz-01", name: "畅享住台式机", model: "CXZ-01", keywords: /CXZ-01|台式机|15\.6\s*寸/ },
-  { id: "cxz-02", name: "畅享住立式机", model: "CXZ-02", keywords: /CXZ-02|立式机|27\s*寸/ },
-  { id: "pms-agent", name: "畅想云智能体（PMS / 订单直连 / 手机报表）", keywords: /畅享云|畅想云|智能体|PMS|订单直连|手机报表|全渠道直连|自动排房/, role: "云端经营系统" },
-  { id: "ble-door", name: "碰一下开门（蓝牙密码锁）", keywords: /碰一下|蓝牙密码锁|蓝牙锁/, role: "客房门锁" },
-  { id: "face-door", name: "刷脸开门（刷脸门禁屏）", keywords: /刷脸|门禁屏/, role: "门禁终端" },
-  { id: "cardless-power", name: "无卡取电（蓝牙取电开关）", keywords: /无卡取电|蓝牙取电/, role: "客房取电" },
-  { id: "visual-ip", name: "酒店视觉美化与 IP 打造", keywords: /视觉美化|IP打造|店铺重装|店铺升星/, role: "运营服务" },
-  { id: "ota-ops", name: "OTA 数字化运营", keywords: /OTA|数字化运营|一价全包|店铺优化|实时调价|竞对分析/, role: "运营服务" },
-  { id: "geo-promo", name: "GEO 推广（让酒店被 AI 看见）", keywords: /GEO|AI搜索|豆包|DeepSeek|元宝|Kimi|文小言|通义|推荐卡片/, role: "获客服务" },
-  { id: "locker-cooler", name: "生态产品：行李寄存柜 / 早餐保温柜", keywords: /寄存柜|保温柜/, role: "生态设备" }
-];
+/** 产品规则：一行 = 一个商品档案（id/名称/可选型号与角色 + 命中关键词正则） */
+export interface ProductRule { id: string; name: string; model?: string; keywords: RegExp; role?: string }
+
+/**
+ * 从 `--rules <file.json>` 装载产品规则（import-pptx / import-pdf 必填）。
+ * **代码内不内置任何客户商品**：页码/页面 → 商品的归属规则由建卡人按客户资料编写，
+ * 规则文件随项目保存在仓外或 work-dir，不入仓。
+ *
+ * 文件格式（JSON 数组）：
+ *   [{ "id": "demo-kiosk", "name": "示例品牌 自助入住机", "model": "DEMO-01",
+ *      "keywords": "自助入住|自助机|入住终端", "role": "自助入住终端" }]
+ * - `id`：稳定档案目录名（小写字母/数字/连字符）；`name`：商品名；
+ * - `keywords`：正则源码（字符串）或字符串数组（任一命中即归属）；`model` / `role` 可选。
+ */
+export function loadProductRules(file: string): ProductRule[] {
+  const path = resolve(file);
+  if (!existsSync(path)) throw new Error(`产品规则文件不存在：${path}（import-pptx/import-pdf 需要 --rules <产品规则.json>）`);
+  let raw: unknown;
+  try {
+    raw = JSON.parse(readFileSync(path, "utf8"));
+  } catch (error) {
+    throw new Error(`产品规则文件不是合法 JSON：${path}（${error instanceof Error ? error.message : String(error)}）`);
+  }
+  if (!Array.isArray(raw) || raw.length === 0) throw new Error(`产品规则文件必须是非空 JSON 数组：${path}`);
+  const seen = new Set<string>();
+  return raw.map((entry, index) => {
+    const item = entry as { id?: unknown; name?: unknown; model?: unknown; keywords?: unknown; role?: unknown };
+    const label = `产品规则[${index}]`;
+    const id = typeof item?.id === "string" ? item.id.trim() : "";
+    if (!/^[a-z0-9][a-z0-9-]{1,63}$/.test(id)) throw new Error(`${label}：id 必须是小写字母/数字/连字符（2-64 位），实际 ${JSON.stringify(item?.id)}`);
+    if (seen.has(id)) throw new Error(`${label}：id 重复：${id}`);
+    seen.add(id);
+    const name = typeof item?.name === "string" ? item.name.trim() : "";
+    if (!name) throw new Error(`${label}（${id}）：缺少 name`);
+    const sources = Array.isArray(item?.keywords) ? item.keywords : [item?.keywords];
+    const patterns = sources.filter((value): value is string => typeof value === "string" && value.trim().length > 0).map((value) => value.trim());
+    if (!patterns.length) throw new Error(`${label}（${id}）：缺少 keywords（正则源码或字符串数组）`);
+    let keywords: RegExp;
+    try {
+      keywords = new RegExp(patterns.map((value) => `(?:${value})`).join("|"));
+    } catch (error) {
+      throw new Error(`${label}（${id}）：keywords 不是合法正则（${error instanceof Error ? error.message : String(error)}）`);
+    }
+    const rule: ProductRule = { id, name, keywords };
+    if (typeof item?.model === "string" && item.model.trim()) rule.model = item.model.trim();
+    if (typeof item?.role === "string" && item.role.trim()) rule.role = item.role.trim();
+    return rule;
+  });
+}
 
 function unzipDeck(file: string, target: string): void {
   const result = spawnSync("unzip", ["-o", "-q", file, "-d", target], { encoding: "utf8" });
@@ -542,6 +570,7 @@ function commandImportPptx(): number {
   const company = arg("--company").trim();
   const brand = arg("--brand").trim() || company;
   if (!company && !brand) throw new Error("import-pptx 需要 --company \"<公司名>\"（或 --brand）");
+  const rules = loadProductRules(arg("--rules"));
   const root = resolve(arg("--root", DEFAULT_ROOT));
   const minPx = Number(arg("--min-px", "600"));
   const maxPhotos = Number(arg("--max-photos-per-product", "6"));
@@ -559,7 +588,7 @@ function commandImportPptx(): number {
     let multiProductSlides = 0;
     for (const slide of slides) {
       const text = slide.texts.join("\n");
-      const hit = PRODUCT_RULES.filter((rule) => rule.keywords.test(text));
+      const hit = rules.filter((rule) => rule.keywords.test(text));
       if (hit.length > 1) multiProductSlides += 1;
       for (const rule of hit) matches.set(rule.id, [...(matches.get(rule.id) ?? []), slide.slide]);
       const byTitle = hit.filter((rule) => rule.keywords.test(slide.title));
@@ -601,13 +630,13 @@ function commandImportPptx(): number {
     };
 
     /* ---- 商品档案（只吃"单商品页"的图，避免把别的商品图算进来） ---- */
-    for (const rule of PRODUCT_RULES) {
+    for (const rule of rules) {
       const pages = matches.get(rule.id) ?? [];
       if (pages.length === 0) continue;
       const singlePages = pages.filter((page) => {
         const slide = slides.find((item) => item.slide === page)!;
         const text = slide.texts.join("\n");
-        return PRODUCT_RULES.filter((item) => item.keywords.test(text)).length === 1;
+        return rules.filter((item) => item.keywords.test(text)).length === 1;
       });
       /** 该镜的取图页 = 单商品页 ∪ 该镜作为"主商品"的多商品页（真机：型号同页时靠主商品判定） */
       const photoPages = [...new Set([...singlePages, ...pages.filter((page) => primaryOf.get(page) === rule.id)])];
@@ -664,8 +693,8 @@ function commandImportPptx(): number {
     /* ---- 方案档案（多商品页的图 + 成员索引，避免多商品图被错挂到单个商品） ---- */
     const solutionDir = join(root, solutionId);
     /** 方案档案收"多商品页"的图；已被某个主商品领走的页面不重复收（同图两处挂容易造成归属混淆） */
-    const multiSlides = slides.filter((slide) => PRODUCT_RULES.filter((rule) => rule.keywords.test(slide.texts.join("\n"))).length > 1)
-      .filter((slide) => !primaryOf.has(slide.slide) || PRODUCT_RULES.filter((rule) => rule.keywords.test(slide.title + slide.texts.join("\n"))).length === 0);
+    const multiSlides = slides.filter((slide) => rules.filter((rule) => rule.keywords.test(slide.texts.join("\n"))).length > 1)
+      .filter((slide) => !primaryOf.has(slide.slide) || rules.filter((rule) => rule.keywords.test(slide.title + slide.texts.join("\n"))).length === 0);
     const solutionPhotos = writePhotos(solutionDir, multiSlides.flatMap((slide) => slide.images.filter(isPhotoLike)), "solution");
     const solutionEvidence: ProductArchiveEvidence[] = slides.map((slide) => ({
       query: `客户方案 PPT 第 ${slide.slide} 页`, url: `pptx://${basename(deckFile)}#slide=${slide.slide}`,
@@ -679,7 +708,7 @@ function commandImportPptx(): number {
       type: "solution",
       company: company || undefined, brand: brand || undefined,
       aliases: [`${brand || company}智慧酒店产品方案`, `${brand || company} 酒店方案`],
-      relations: { companyId, includes: PRODUCT_RULES.filter((rule) => productIds.includes(rule.id)).map((rule) => ({ id: rule.id, role: rule.role })) },
+      relations: { companyId, includes: rules.filter((rule) => productIds.includes(rule.id)).map((rule) => ({ id: rule.id, role: rule.role })) },
       source: {
         kind: "user-upload", priority: PRODUCT_ARCHIVE_SOURCE_PRIORITY["user-upload"],
         generatedAt: now, generator: "scripts/tools/product-archive.mts@import-pptx",
@@ -743,8 +772,10 @@ function commandImportPdf(): number {
     source: string;
     pages: Array<{ page: number; text: string; images: Array<{ file: string; width: number; height: number; bytes: number }> }>;
   };
-  const company = arg("--company").trim() || "苏州未来前台";
-  const brand = arg("--brand").trim() || "畅享住";
+  const company = arg("--company").trim();
+  const brand = arg("--brand").trim() || company;
+  if (!company && !brand) throw new Error("import-pdf 需要 --company \"<公司名>\"（或 --brand）");
+  const rules = loadProductRules(arg("--rules"));
   const root = resolve(arg("--root", DEFAULT_ROOT));
   const deckBytes = readFileSync(file);
   const deckSha256 = createHash("sha256").update(deckBytes).digest("hex");
@@ -756,7 +787,7 @@ function commandImportPdf(): number {
   const primaryOf = new Map<number, string>();
   for (const page of parsed.pages) {
     const text = compact(page.text);
-    const hit = PRODUCT_RULES.filter((rule) => rule.keywords.test(text) || rule.keywords.test(page.text));
+    const hit = rules.filter((rule) => rule.keywords.test(text) || rule.keywords.test(page.text));
     for (const rule of hit) matches.set(rule.id, [...(matches.get(rule.id) ?? []), page.page]);
     const title = compact(String(page.text.split("\n")[0] ?? ""));
     const byTitle = hit.filter((rule) => rule.keywords.test(title));
@@ -765,7 +796,7 @@ function commandImportPdf(): number {
   }
   const productIds: string[] = [];
   const productsDir = root;
-  for (const rule of PRODUCT_RULES) {
+  for (const rule of rules) {
     const pages = [...new Set(matches.get(rule.id) ?? [])].sort((a, b) => a - b);
     if (pages.length === 0) continue;
     const dir = join(productsDir, rule.id);
@@ -830,7 +861,7 @@ function commandImportPdf(): number {
     const archive = JSON.parse(readFileSync(join(dir, "profile.json"), "utf8")) as ProductArchive;
     archive.relations = archive.relations ?? {};
     if (archive.type === "company") archive.relations.products = [...new Set([...(archive.relations.products ?? []), ...extraProducts])];
-    if (archive.type === "solution") archive.relations.includes = [...new Map([...(archive.relations.includes ?? []), ...extraProducts.map((id) => ({ id, role: PRODUCT_RULES.find((r) => r.id === id)?.role }))].map((item) => [item.id, item])).values()];
+    if (archive.type === "solution") archive.relations.includes = [...new Map([...(archive.relations.includes ?? []), ...extraProducts.map((id) => ({ id, role: rules.find((r) => r.id === id)?.role }))].map((item) => [item.id, item])).values()];
     archive.updatedAt = now;
     writeArchive(dir, archive);
     log(`  ✓ 更新 ${archive.type} 档案 ${archive.id}（成员 ${extraProducts.length} 个）`);
