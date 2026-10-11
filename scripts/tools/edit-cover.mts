@@ -30,7 +30,7 @@ import {
   COVER_FONTS, COVER_DIFF_PSNR_DB, validateCoverPlan, type CoverPlan,
 } from "../../packages/video-studio/src/cover-design.js";
 import { getCoverSpec } from "../../packages/video-studio/src/cover-platforms.js";
-import { deriveCoverTheme, planCoverMoment, type PostAnalysisDoc } from "../../packages/video-studio/src/edit/index.js";
+import { deriveCoverTheme, planCoverMoment, planCoverMoments, type PostAnalysisDoc } from "../../packages/video-studio/src/edit/index.js";
 import { scanBestFrame } from "./lib/frame-scan.mts";
 
 const REPO_ROOT = resolve(import.meta.dirname ?? process.cwd(), "../..");
@@ -175,8 +175,13 @@ interface StyleSpec {
   reason: string;
   /** 该版本的默认副标题（信息增量）；缺省用 --hook */
   subline?: string;
-  /** 双帧分段版式：上下两块主视觉（上暖下冷），中间冷暖分割线 */
-  split?: { topSec: number; bottomSec: number };
+  /**
+   * 双帧分段版式：**左右**两块主视觉（左暖右冷），中间冷暖分割线。
+   * 为什么是左右而不是上下（2026-10-11 客户反馈"这个封面太奇怪了"）：
+   * 16:9 画幅切上下两块后每块约 3.4:1，人像帧必然被裁掉头顶、标题被迫压在接缝上；
+   * 左右分屏每块约 0.89:1（竖构图），人像与城楼都放得下，文字压底部渐变带即可。
+   */
+  split?: { leftSec: number; rightSec: number };
 }
 
 /**
@@ -219,8 +224,8 @@ const STYLES: Record<string, StyleSpec> = {
    * 分段调色版（2026-10-11 修复）：必须与暖调故事版**设计不同**。
    * 旧实现的坑：STYLES 里没有这个 id → 回退到 warm-story 的同款版式与同帧 → 两张封面逐字节相同
    * （客户反馈"几个版本的封面都还是用的同一个封面"）。
-   * 现在给出独立设计：上下双帧（上半暖果园 / 下半冷古城）+ 冷暖分割线 + 独立的副标题与字色，
-   * 一眼看出"同一趟路，两种颜色"。
+   * 独立设计：**左右双帧**（左暖果园人物 / 右冷古城）+ 竖分割线 + 底部渐变压字 + 独立副标题，
+   * 一眼看出"同一趟路，两种颜色"；左右分屏（各约 0.89:1）不会像上下分屏那样把人物头顶裁掉。
    */
   "segmented-story": {
     id: "segmented-story", fontId: "source-han-heavy", fontFamily: FONT_FAMILY["source-han-heavy"]!,
@@ -229,11 +234,12 @@ const STYLES: Record<string, StyleSpec> = {
      * 不靠 layout 表达——写成旧值会让 validateCoverPlan 直接判"版式不在可选范围"。
      */
     archetype: "subject-led", layout: "person-right", headlineSize: 118,
-    colors: { title: "#FFFFFF", sub: "#FFE9C7", badge: "#7DD3FC", accent: "#FFD166" },
+    colors: { title: "#FFFFFF", sub: "#FFE9C7", badge: "#FFFFFF", accent: "#FFD166" },
     accentBar: true,
-    split: { topSec: 35.5, bottomSec: 44.5 },
+    /** 左：果园人物（33.6s，人与苹果都在画面里）；右：古城城楼（44.5s，冷净）。 */
+    split: { leftSec: 33.6, rightSec: 44.5 },
     subline: "果园是暖的 古城是冷的",
-    reason: "分段调色版：上半暖果园 + 下半冷古城双色分割，直接表达『分段调色』的信息增量，与暖调故事版区分",
+    reason: "分段调色版：左半暖果园（人物完整）+ 右半冷古城，竖分割线直接表达『同一趟路两种颜色』；文字压底部渐变带保证可读",
   },
 };
 
@@ -391,6 +397,19 @@ async function main(): Promise<void> {
     ? null
     : scanBestFrame({ file: master, workDir: join(outDir, "covers", "work", "frame-scan"), ffmpeg: FFMPEG });
 
+  /**
+   * 逐变体封面时刻（2026-10-11 客户反馈"几个版本同一个封面"）：关键帧候选按"同一镜头只用一次"分配，
+   * 候选不足时用分散兜底比例补齐；这样四个版本的主视觉天然不同帧（而不是共用同一个 heroSec）。
+   */
+  const baseRatio = keyframePlan && keyframePlan.basis !== "fallback"
+    ? Number((keyframePlan.masterSeconds / Math.max(0.001, filmDuration)).toFixed(4))
+    : scannedFrame
+      ? scannedFrame.ratio
+      : 0.35;
+  const variantMoments = arg("--hero-sec")
+    ? null
+    : planCoverMoments({ timeline, analyses, count: variants.length, fallbackRatio: baseRatio });
+
   const covers: Array<Record<string, unknown>> = [];
   const checksAll: Array<Record<string, unknown>> = [];
   /**
@@ -403,8 +422,9 @@ async function main(): Promise<void> {
   const variantCopy = variantCopyPath && existsSync(abs(variantCopyPath))
     ? JSON.parse(readFileSync(abs(variantCopyPath), "utf8")) as Record<string, { headline?: string; subline?: string }>
     : {};
-  for (const variantId of variants) {
+  for (const [variantIndex, variantId] of variants.entries()) {
     const style = STYLES[variantId] ?? STYLES["warm-story"]!;
+    const variantMoment = variantMoments?.[variantIndex] ?? null;
     const overrides = variantCopy[variantId] ?? {};
     const headline = String(overrides.headline ?? title);
     const subline = String(overrides.subline ?? style.subline ?? hook ?? "");
@@ -412,14 +432,19 @@ async function main(): Promise<void> {
     const sublinePx = Math.round(52 * fontScale);
     const explicitHero = arg("--hero-sec");
     if (explicitHero && (!Number.isFinite(Number(explicitHero)) || Number(explicitHero) < 0)) throw new Error("--hero-sec 需要非负秒数");
-    /** 取帧（T-2026-1011-0007 去演示参数 × T-2026-1011-0010 分段版式）：显式 > 关键帧候选 > 最佳帧扫描 > 35% 兜底。 */
+    /** 分段调色版式（左右分屏）只在没有显式 --hero-sec 时启用：显式指定时退回单帧主视觉。 */
+    const split = style.split && !explicitHero ? style.split : null;
     const heroSec = explicitHero
       ? Number(explicitHero)
-      : keyframePlan && keyframePlan.basis !== "fallback"
-        ? keyframePlan.masterSeconds
-        : scannedFrame
-          ? scannedFrame.seconds
-          : Number((filmDuration * 0.35).toFixed(3));
+      : split
+        ? split.leftSec
+        : variantMoment
+          ? variantMoment.masterSeconds
+          : keyframePlan && keyframePlan.basis !== "fallback"
+            ? keyframePlan.masterSeconds
+            : scannedFrame
+              ? scannedFrame.seconds
+              : Number((filmDuration * 0.35).toFixed(3));
     const heroBasis = explicitHero
       ? "explicit（--hero-sec）"
       : keyframePlan && keyframePlan.basis !== "fallback"
@@ -427,8 +452,6 @@ async function main(): Promise<void> {
         : scannedFrame
           ? `scan-best-frame：${scannedFrame.note}`
           : "fallback：35%（无关键帧候选且本地扫描不可用）";
-    /** 分段版式只在未显式指定 --hero-sec 时启用：显式指定即尊重调用方的单帧选择。 */
-    const split = style.split && !explicitHero ? style.split : null;
     const heroShot = shots.find((shot) => (shot.masterIn ?? 0) <= heroSec && heroSec < (shot.masterIn ?? 0) + (shot.duration ?? 0)) ?? shots[0]!;
     const heroSourceSec = Number(((heroShot.sourceIn ?? 0) + Math.max(0, heroSec - (heroShot.masterIn ?? 0))).toFixed(3));
 
@@ -457,14 +480,14 @@ async function main(): Promise<void> {
       kbHints: (Array.isArray((hints as { hints?: unknown }).hints) ? (hints as { hints: string[] }).hints : []).slice(0, 3),
     });
 
-    // 主视觉取帧（干净母版）→ 交给工位做底图；分段版式取上下两帧（上暖下冷）
+    // 主视觉取帧（干净母版）→ 交给工位做底图；分段版式取左右两帧（左暖右冷）
     const frame = join(workRoot, `${variantId}-hero.png`);
     run(FFMPEG, ["-hide_banner", "-loglevel", "error", "-y", "-ss", String(heroSec), "-i", master, "-frames:v", "1", frame]);
-    const splitTopFrame = split ? join(workRoot, `${variantId}-hero-top.png`) : null;
-    const splitBottomFrame = split ? join(workRoot, `${variantId}-hero-bottom.png`) : null;
+    const splitLeftFrame = split ? join(workRoot, `${variantId}-hero-left.png`) : null;
+    const splitRightFrame = split ? join(workRoot, `${variantId}-hero-right.png`) : null;
     if (split) {
-      run(FFMPEG, ["-hide_banner", "-loglevel", "error", "-y", "-ss", String(split.topSec), "-i", master, "-frames:v", "1", splitTopFrame!]);
-      run(FFMPEG, ["-hide_banner", "-loglevel", "error", "-y", "-ss", String(split.bottomSec), "-i", master, "-frames:v", "1", splitBottomFrame!]);
+      run(FFMPEG, ["-hide_banner", "-loglevel", "error", "-y", "-ss", String(split.leftSec), "-i", master, "-frames:v", "1", splitLeftFrame!]);
+      run(FFMPEG, ["-hide_banner", "-loglevel", "error", "-y", "-ss", String(split.rightSec), "-i", master, "-frames:v", "1", splitRightFrame!]);
     }
 
     const scrimLayers = Array.from({ length: 7 }, (_, i) => ({
@@ -477,8 +500,17 @@ async function main(): Promise<void> {
     const titleY = Math.round(canvas.height * (landscape ? 0.63 : 0.7));
     const badgeY = Math.round(canvas.height * 0.08);
     const subtitleY = titleY + Math.round(headlinePx * 1.25);
-    const splitRatio = 0.52;
-    const splitY = Math.round(canvas.height * splitRatio);
+    const splitX = Math.round(canvas.width * 0.5);
+    /**
+     * 分段版式的底部渐变压暗带：标题压在下三分之一，逐层加深（0.10→0.46），
+     * 保证"亮果园"和"暗城楼"两侧的文字都有对比（旧版只有固定的 7 条带，亮部那半读不清）。
+     */
+    const bottomBands = Array.from({ length: 6 }, (_, i) => ({
+      type: "solid", name: `bottom-shade-${i}`, color: "#000000",
+      x: 0, y: Math.round(canvas.height * (0.60 + i * 0.065)), width: canvas.width,
+      height: Math.round(canvas.height * 0.065),
+      opacity: Number((0.10 + i * 0.072).toFixed(3)),
+    }));
     const recipeBody = {
       recipe_version: 1,
       name: `cover-${variantId}`,
@@ -486,9 +518,10 @@ async function main(): Promise<void> {
       layers: [
         ...(split
           ? [
-            { type: "image", name: "hero-top", source: splitTopFrame!, x: 0, y: 0, width: canvas.width, height: splitY, opacity: 1 },
-            { type: "image", name: "hero-bottom", source: splitBottomFrame!, x: 0, y: splitY, width: canvas.width, height: canvas.height - splitY, opacity: 1 },
-            { type: "solid", name: "split-divider", color: "#FFFFFF", x: 0, y: splitY - Math.round(canvas.height * 0.002), width: canvas.width, height: Math.round(canvas.height * 0.004), opacity: 0.9 },
+            { type: "image", name: "hero-left", source: splitLeftFrame!, x: 0, y: 0, width: splitX, height: canvas.height, opacity: 1 },
+            { type: "image", name: "hero-right", source: splitRightFrame!, x: splitX, y: 0, width: canvas.width - splitX, height: canvas.height, opacity: 1 },
+            { type: "solid", name: "split-divider", color: "#FFFFFF", x: splitX - Math.round(canvas.width * 0.002), y: 0, width: Math.round(canvas.width * 0.004), height: canvas.height, opacity: 0.92 },
+            ...bottomBands,
           ]
           : [{ type: "image", name: "hero", source: frame, x: 0, y: 0, width: canvas.width, height: canvas.height, opacity: 1 }]),
         ...scrimLayers,
@@ -525,15 +558,15 @@ async function main(): Promise<void> {
       // 降级路径：本机 ffmpeg 渲染（如实标注 renderer，不冒充工位产物）
       const fontFile = join(FONT_DIR, COVER_FONTS[style.fontId].file);
       baseImage = join(workRoot, `${variantId}-base.png`);
-      /** 双帧分段版式：先把上下两帧拼成一帧，再走同一套压暗/排版。 */
+      /** 双帧分段版式：先把左右两帧横拼成一帧，再走同一套压暗/排版。 */
       let fallbackSource = frame;
       if (split) {
         const splitBase = join(workRoot, `${variantId}-split.png`);
-        run(FFMPEG, ["-hide_banner", "-loglevel", "error", "-y", "-i", splitTopFrame!, "-i", splitBottomFrame!,
+        run(FFMPEG, ["-hide_banner", "-loglevel", "error", "-y", "-i", splitLeftFrame!, "-i", splitRightFrame!,
           "-filter_complex",
-          `[0:v]scale=${canvas.width}:${splitY}:force_original_aspect_ratio=increase,crop=${canvas.width}:${splitY}[top];`
-          + `[1:v]scale=${canvas.width}:${canvas.height - splitY}:force_original_aspect_ratio=increase,crop=${canvas.width}:${canvas.height - splitY}[bottom];`
-          + "[top][bottom]vstack=inputs=2[out]",
+          `[0:v]scale=${splitX}:${canvas.height}:force_original_aspect_ratio=increase,crop=${splitX}:${canvas.height}[left];`
+          + `[1:v]scale=${canvas.width - splitX}:${canvas.height}:force_original_aspect_ratio=increase,crop=${canvas.width - splitX}:${canvas.height}[right];`
+          + "[left][right]hstack=inputs=2[out]",
           "-map", "[out]", "-frames:v", "1", "-update", "1", splitBase]);
         fallbackSource = splitBase;
       }
@@ -541,6 +574,8 @@ async function main(): Promise<void> {
         `scale=${canvas.width}:${canvas.height}:force_original_aspect_ratio=increase`, `crop=${canvas.width}:${canvas.height}`,
         "eq=contrast=1.04:saturation=1.06:brightness=0.01", "vignette=PI/5",
         ...scrimLayers.map((layer) => `drawbox=x=0:y=${layer.y}:w=${canvas.width}:h=${layer.height}:color=black@${layer.opacity}:t=fill`),
+        ...(split ? bottomBands.map((layer) => `drawbox=x=0:y=${layer.y}:w=${canvas.width}:h=${layer.height}:color=black@${layer.opacity}:t=fill`) : []),
+        ...(split ? [`drawbox=x=${splitX - Math.round(canvas.width * 0.002)}:y=0:w=${Math.round(canvas.width * 0.004)}:h=${canvas.height}:color=white@0.92:t=fill`] : []),
       ];
       run(FFMPEG, ["-hide_banner", "-loglevel", "error", "-y", "-i", fallbackSource, "-vf", baseFilters.join(","), "-frames:v", "1", "-update", "1", baseImage]);
       const textFilters = [

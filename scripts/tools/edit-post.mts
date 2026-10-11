@@ -726,40 +726,48 @@ async function main(): Promise<void> {
    * 选定后用同一个封面工位（post-bridge 的 buildCover）重出每个变体的封面，不自己拼图。
    */
   const explicitCoverAt = arg("--cover-at");
+const autoCoverPlan = explicitCoverAt
+    ? { ratio: Number(explicitCoverAt), basis: "explicit", note: "调用方显式指定 --cover-at", keyframeId: undefined as string | undefined, segmentId: undefined as string | undefined }
+    : planCoverMoment({ timeline, analyses, fallbackRatio: 0.35 });
   /**
-   * 多变体封面取帧（T-2026-1011-0010）：每个变体**各取一帧**，不再所有变体共用同一个比例
-   * （旧实现把同一个 ratio 写进所有变体配方，warm/segmented 因此逐字节同图）。
-   * 关键帧兜底（T-2026-1011-0007）：落到 fallback 的变体先做本地"最佳帧扫描"（清晰度×0.6 + 曝光×0.4），
-   * 扫描也失败才回退 35% 比例，并在回执里如实标注 basis（不冒充关键帧命中）。
+   * 关键帧候选缺失时的本地兜底：对干净母版做"最佳帧扫描"（清晰度×0.6 + 曝光×0.4），
+   * 而不是无条件回到"第 35% 那一帧"。扫描失败（测不出指标）才回退配方比例，并如实标注 basis。
    */
-  const coverMoments = explicitCoverAt
-    ? variants.map(() => ({
-      ratio: Number(explicitCoverAt), basis: "explicit", note: "调用方显式指定 --cover-at",
-      keyframeId: undefined as string | undefined, segmentId: undefined as string | undefined,
-      scan: undefined as ReturnType<typeof scanBestFrame> | undefined,
-    }))
-    : planCoverMoments({ timeline, analyses, count: variants.length, fallbackRatio: 0.35 })
-      .map((moment) => ({ ...moment, scan: undefined as ReturnType<typeof scanBestFrame> | undefined }));
-  if (!explicitCoverAt && coverMoments.some((moment) => moment.basis === "fallback")) {
+  let autoCover = autoCoverPlan as typeof autoCoverPlan & { scan?: ReturnType<typeof scanBestFrame> };
+  if (!explicitCoverAt && autoCoverPlan.basis === "fallback") {
     const master = (result as { master?: { path?: string } }).master;
     const masterPath = master?.path ?? join(outDir, "master", "master-clean.mp4");
     if (existsSync(masterPath)) {
       const scan = scanBestFrame({ file: masterPath, workDir: join(outDir, "work", "cover-scan"), ffmpeg: FFMPEG });
       if (scan) {
-        for (const moment of coverMoments) {
-          if (moment.basis !== "fallback") continue;
-          moment.ratio = scan.ratio;
-          moment.basis = "scan-best-frame";
-          moment.note = `${scan.note}（无关键帧候选：先用本地扫描兜底，跑镜头理解后可升级为构图最优帧）`;
-          moment.scan = scan;
-        }
+        autoCover = {
+          ratio: scan.ratio,
+          basis: "scan-best-frame",
+          note: `${scan.note}（无关键帧候选：先用本地扫描兜底，跑镜头理解后可升级为构图最优帧）`,
+          keyframeId: undefined,
+          segmentId: undefined,
+          scan,
+        };
       }
     }
   }
-  const autoCover = coverMoments[0] ?? planCoverMoment({ timeline, analyses, fallbackRatio: 0.35 });
+  if (!Number.isFinite(autoCover.ratio) || autoCover.ratio < 0 || autoCover.ratio > 1) throw new Error("--cover-at 必须是 0–1 的比例");
+
+  /**
+   * 多变体封面取帧（2026-10-11 修复）：每个变体**各取一帧**，不再所有变体共用同一个比例——
+   * 旧实现把同一个 autoCover.ratio 写进所有变体配方，warm/segmented 因此逐字节同图。
+   * 候选不足时以"扫描/关键帧得到的 autoCover.ratio"为兜底基准，再按分散比例补齐。
+   */
+  const coverMoments = explicitCoverAt
+    ? variants.map(() => ({
+      ratio: Number(explicitCoverAt), basis: "explicit", note: "调用方显式指定 --cover-at",
+      keyframeId: undefined as string | undefined, segmentId: undefined as string | undefined,
+    }))
+    : planCoverMoments({ timeline, analyses, count: variants.length, fallbackRatio: autoCover.ratio });
   if (coverMoments.some((moment) => !Number.isFinite(moment.ratio) || moment.ratio < 0 || moment.ratio > 1)) {
     throw new Error("--cover-at 必须是 0–1 的比例");
   }
+
   {
     for (const [index, variantId] of variants.entries()) {
       const moment = coverMoments[index] ?? autoCover;
@@ -845,14 +853,14 @@ async function main(): Promise<void> {
       segmentId: autoCover.segmentId ?? null,
       note: autoCover.note,
       explicit: Boolean(explicitCoverAt),
-      perVariant: coverMoments.map((moment, index) => ({
+scanCandidates: autoCover.scan?.candidates ?? null,
+perVariant: coverMoments.map((moment, index) => ({
         variantId: variants[index] ?? null,
         ratio: Number(moment.ratio.toFixed(4)),
         basis: moment.basis,
         keyframeId: moment.keyframeId ?? null,
         segmentId: moment.segmentId ?? null,
       })),
-      scanCandidates: (autoCover as { scan?: ReturnType<typeof scanBestFrame> }).scan?.candidates ?? null,
     },
     analyses: analyses.length,
     bgmPlacement: {
