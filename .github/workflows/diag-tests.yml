@@ -1,0 +1,57 @@
+name: diag-tests
+
+# 临时诊断工作流（仅存在于诊断分支）：复现 CNB test-gate 的 "主测试套件" 两条命令，
+# 以便在 GitHub 上读取可访问的日志定位失败。任务完成后随诊断分支删除。
+on:
+  push:
+    branches: ["ci-diag/**"]
+
+permissions:
+  contents: read
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    services:
+      postgres:
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: workloom
+          POSTGRES_DB: workloom
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL: postgres://postgres:workloom@localhost:5432/workloom
+      DATABASE_APP_URL: postgres://workloom_app:workloom_dev_app@localhost:5432/workloom
+      DATABASE_GATEWAY_URL: postgres://workloom_gateway:workloom_dev_gateway@localhost:5432/workloom
+      APP_DB_PASSWORD: workloom_dev_app
+      GATEWAY_DB_PASSWORD: workloom_dev_gateway
+      JWT_SECRET: ci-gate-secret
+      LLM_PROVIDER: mock
+      IM_DRIVER: mock
+      RUN_DB_TESTS: "1"
+      TOOL_UNVERIFIED_RATE: "0"
+    steps:
+      - uses: actions/checkout@v4
+      - name: Node 24 + pnpm
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24.19.0
+      - run: corepack enable && corepack prepare pnpm@10.14.0 --activate
+      - name: 媒体工具（ffmpeg/ffprobe）
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg && ffmpeg -version | head -1
+      - name: 依赖
+        run: pnpm install --frozen-lockfile
+      - name: 迁移 + 种子
+        run: |
+          pnpm db:migrate
+          pnpm db:seed
+      - name: pnpm test（CNB 主测试套件 1/2）
+        run: pnpm test
+      - name: pnpm test:scripts（CNB 主测试套件 2/2）
+        run: pnpm test:scripts
+
