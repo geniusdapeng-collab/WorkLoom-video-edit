@@ -66,6 +66,7 @@ pnpm edit:cards -- --plan work/prod/cards-plan.json --out-dir work/prod/cards
 # ③ 逐字卡拉OK（真实词级时间，主轨↔源素材换算）
 pnpm edit:karaoke -- --input <成片.mp4> --srt <talk.validated.srt> --timeline <timeline.json> \
   --transcript <校对稿.json> --out <karaoke.mp4> --platform 抖音
+#    字幕带内「一屏 ≤2 行 ×12 字」：优先沿用 SRT 断行，无断行时按词边界折行（karaokeLineCounts，行尾 \N）
 
 # ④ 覆盖渲染（知识卡 / 画中画 / 全屏字卡；声音保持原声）
 pnpm edit:overlay -- --input <karaoke.mp4> --plan work/prod/overlay-plan.json --out <cards.mp4>

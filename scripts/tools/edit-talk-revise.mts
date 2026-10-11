@@ -166,7 +166,38 @@ function main(): number {
     sentence.end = sentence.words[sentence.words.length - 1]!.end;
   }
 
-  // ② 断句重切（只挪边界，不改词）
+  /**
+   * ② 句边界合并（只影响分段，不增删词）——**必须先于断句重切**：
+   * ASR 常把「假如」这类词切到两句里（"…如果是说假" ｜ "如你有一个…"），
+   * 先并成一句，后面的切分规则才可能命中（本机实测：顺序颠倒时 s086 的"如果是说假如"永远切不开）。
+   */
+  for (const join of plan.joins ?? []) {
+    const index = sentences.findIndex((sentence) => sentence.id === join.sentenceId);
+    if (index < 0) throw new Error(`合并规则引用了不存在的句子：${join.sentenceId}`);
+    const head = sentences[index]!;
+    const tail = sentences[index + 1];
+    if (!tail) throw new Error(`合并规则的下一句不存在：${join.sentenceId}`);
+    const merged: TalkSentence = {
+      id: head.id,
+      text: head.text + tail.text,
+      start: head.start,
+      end: tail.end,
+      pauseAfterSeconds: tail.pauseAfterSeconds ?? null,
+      words: [...head.words, ...tail.words],
+    };
+    sentences.splice(index, 2, merged);
+    changes.push({
+      kind: "split",
+      sentenceId: merged.id,
+      before: `${head.text} ｜ ${tail.text}`,
+      after: merged.text,
+      type: "segmentation",
+      confidence: "high",
+      note: join.note,
+    });
+  }
+
+  // ③ 断句重切（只挪边界，不改词）
   for (const split of plan.splits ?? []) {
     const index = sentences.findIndex((sentence) => sentence.id === split.sentenceId);
     if (index < 0) throw new Error(`断句规则引用了不存在的句子：${split.sentenceId}`);
@@ -201,33 +232,6 @@ function main(): number {
         note: split.note,
       });
     }
-  }
-
-  // ③ 句边界合并（只影响分段，不增删词）
-  for (const join of plan.joins ?? []) {
-    const index = sentences.findIndex((sentence) => sentence.id === join.sentenceId);
-    if (index < 0) throw new Error(`合并规则引用了不存在的句子：${join.sentenceId}`);
-    const head = sentences[index]!;
-    const tail = sentences[index + 1];
-    if (!tail) throw new Error(`合并规则的下一句不存在：${join.sentenceId}`);
-    const merged: TalkSentence = {
-      id: head.id,
-      text: head.text + tail.text,
-      start: head.start,
-      end: tail.end,
-      pauseAfterSeconds: tail.pauseAfterSeconds ?? null,
-      words: [...head.words, ...tail.words],
-    };
-    sentences.splice(index, 2, merged);
-    changes.push({
-      kind: "split",
-      sentenceId: merged.id,
-      before: `${head.text} ｜ ${tail.text}`,
-      after: merged.text,
-      type: "segmentation",
-      confidence: "high",
-      note: join.note,
-    });
   }
 
   const doc = buildTalkTranscriptDoc({
