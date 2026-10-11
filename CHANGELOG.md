@@ -1,5 +1,24 @@
 # Changelog
 
+## [client-foundation-declaration] - 2026-10-11 · 登记本仓自有的 9 条客户端扩展路径（3D 舞台/引导层）（T-2026-1011-0009）
+
+> 背景：GitHub 镜像的 `workloom-ui-contract` 在修好 ffmpeg 与 UI 消费契约降级后，仍在
+> "三端客户端基座消费门禁"（`scripts/verify-client-foundation-consumer.mjs`）报 9 项：
+> 2 个受管文件被本仓产品层改过（`CeremonyStage.tsx` / `HoverBubble.tsx`），
+> 7 个 3D 舞台文件放在客户端根但未声明（`Floor3D*` / `floor3d-layout*` / `Stage3D.test.tsx`）。
+
+- 按舰队规范 §10.4「产品分叉仓：登记自有扩展路径 → 退管」的口径，把
+  `apps/web/src/components/Floor3D*.tsx`、`apps/web/src/components/floor3d-*.ts`、
+  `apps/web/src/components/Stage3D.test.tsx`、`apps/web/src/components/CeremonyStage.tsx`、
+  `apps/web/src/components/HoverBubble.tsx` 登记进 `.workloom-ui-governance.json#industryExtensionPaths`
+  （并在 `.workloom-client-extensions.json` 同步说明）：这些路径由本仓自持，不再接收基座更新；
+  未声明的路径仍按严格模式判红。
+- 本地验证：`node scripts/verify-client-foundation-consumer.mjs --repo .` →
+  `✅ … 受管文件指纹零漂移（本仓自有扩展路径 44 条由基座声明豁免）`；
+  UI 消费契约仍是 207 项 advisories（经分叉分类器放行，逐条可见）。
+- 遗留：基座 `workloom-ai/workloom-im#sync/child-repos.json` 尚无本仓条目（新仓未纳管），
+  已另立基座任务卡登记本仓与同一批扩展路径，避免未来 rollout 覆盖本仓声明。
+
 ## [github-mirror-ci] - 2026-10-11 · GitHub 镜像两条常红检查转绿（装 ffmpeg + 分叉仓 UI 契约降级）（T-2026-1011-0005）
 
 > 背景：本仓在 GitHub 的镜像仓库有两条常红检查，与产品代码无关，但会让镜像 CI 永远不可信。

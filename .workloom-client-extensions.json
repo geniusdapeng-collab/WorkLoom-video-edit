@@ -11,6 +11,11 @@
     "apps/*/src/components/mate-guide/**",
     "apps/*/src/components/hud/**",
     "apps/*/src/components/star-ring/**",
+    "apps/web/src/components/CeremonyStage.tsx",
+    "apps/web/src/components/HoverBubble.tsx",
+    "apps/web/src/components/Floor3D*.tsx",
+    "apps/web/src/components/Stage3D.test.tsx",
+    "apps/web/src/components/floor3d-*.ts",
     "apps/*/src/components/MateWelcome.tsx",
     "apps/*/src/components/WelcomeCeremony.tsx",
     "apps/*/vitest.config.ts",
@@ -18,6 +23,7 @@
   ],
   "guarantees": {
     "requiredEntries": "apps/web/src/main.tsx · apps/webb/src/main.tsx · apps/webc/src/main.tsx · apps/webc/public/service-front.config.json 仍按基座受管口径校验",
-    "uiVersionLock": "@workloom/ui 版本仍由 .workloom-ui.json 与 scripts/verify-ui-consumer.mjs 强制"
+    "uiVersionLock": "@workloom/ui 版本仍由 .workloom-ui.json 与 scripts/verify-ui-consumer.mjs 强制",
+    "retiredManagedForks": "3D 舞台与引导层（Floor3D* / floor3d-layout* / Stage3D.test / CeremonyStage / HoverBubble）由本仓自持：基座快照占用或本地已改的受管文件按 §10.4 退管口径登记为扩展路径，不再接收基座更新（T-2026-1011-0009）"
   }
 }
