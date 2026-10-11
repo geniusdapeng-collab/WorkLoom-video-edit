@@ -10,10 +10,12 @@ function signal(overrides: Partial<EntitySignal> = {}): EntitySignal {
     personRatio: 0,
     faces: [],
     personInstances: 0,
+    personFrames: null,
     personSkinRatio: null,
     personRequest: null,
     foodRatio: 0,
     foodLabels: [],
+    foodFrames: null,
     sampledAt: [1],
     personMaskPath: "/tmp/person.png",
     foodMaskPath: "/tmp/food.png",
@@ -73,6 +75,32 @@ describe("edit/entity-color：实体级局部调色", () => {
     expect(plan.person.enabled).toBe(false);
     expect(plan.person.reason).toContain("疑似把食物/桌面误判成人");
     expect(plan.food.enabled).toBe(true);
+  });
+
+  it("时间一致性：单帧偶发的人物实例/食物实例不触发局部优化（须 ≥2 个采样帧）", () => {
+    const personOnce = planEntityGrade(signal({
+      personRatio: 0.049,
+      personInstances: 1,
+      personFrames: 1,
+      personRequest: "instance",
+      personSkinRatio: 0.435,
+    }));
+    expect(personOnce.person.enabled).toBe(false);
+    expect(personOnce.person.reason).toContain("偶发误检");
+
+    const personTwice = planEntityGrade(signal({
+      personRatio: 0.3,
+      personInstances: 1,
+      personFrames: 2,
+      personRequest: "instance",
+    }));
+    expect(personTwice.person.enabled).toBe(true);
+
+    const foodOnce = planEntityGrade(signal({ foodRatio: 0.2, foodLabels: ["dish"], foodFrames: 1 }));
+    expect(foodOnce.food.enabled).toBe(false);
+    expect(foodOnce.food.reason).toContain("偶发误检");
+    const foodTwice = planEntityGrade(signal({ foodRatio: 0.2, foodLabels: ["dish"], foodFrames: 2 }));
+    expect(foodTwice.food.enabled).toBe(true);
   });
 
   it("有人脸但掩膜很小也开人像层；掩膜缺失时如实降级提示", () => {

@@ -22,7 +22,7 @@ import { homedir } from "node:os";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
-  buildEntityFilterComplex, entityReceiptRows, planEntityGrade, summarizeEntityPlans,
+  buildEntityFilterComplex, entityReceiptRows, isFoodLabel, planEntityGrade, summarizeEntityPlans,
   type EntitySignal,
 } from "../../packages/video-studio/src/edit/entity-color.js";
 
@@ -164,10 +164,13 @@ export async function applyEntityGrade(options: EntityPassOptions): Promise<Enti
       personRatio: Math.max(...summaries.map((entry) => entry.personRatio)),
       faces: faceBoxes.filter((face) => face.w > 0 && face.h > 0).slice(0, 8),
       personInstances: Math.max(...summaries.map((entry) => entry.personInstances)),
+      /** 时间一致性：检出人物的采样帧数（单帧偶发误检不作为美白证据）。 */
+      personFrames: summaries.filter((entry) => entry.personInstances > 0 || entry.faceCount > 0).length,
       personSkinRatio: bestPerson.personSkinRatio,
       personRequest: bestPerson.personRequest,
       foodRatio: Math.max(...summaries.map((entry) => entry.foodRatio)),
       foodLabels: [...new Set(summaries.flatMap((entry) => entry.foodLabels))],
+      foodFrames: summaries.filter((entry) => entry.foodRatio >= 0.006 && entry.foodLabels.some((label) => isFoodLabel(label))).length,
       sampledAt: samples,
       personMaskPath: bestPerson.personMask ? join(dir, `mask-${personIndex}`, "person.png") : null,
       foodMaskPath: bestFood.foodMask ? join(dir, `mask-${foodIndex}`, "food.png") : null,

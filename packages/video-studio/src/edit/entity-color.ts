@@ -35,10 +35,18 @@ export interface EntitySignal {
   personSkinRatio?: number | null;
   /** 掩膜来源：instance=实例分割强证据；segmentation=通用分割需佐证 */
   personRequest?: string | null;
+  /**
+   * 采样帧里检出人物的帧数（时间一致性证据）。
+   * 实测：苹果树镜头 3 帧里只有 1 帧被误判出"人物实例"（4.9% 掩膜）——
+   * 单帧偶发证据不足以开美白。缺省（null/undefined）= 未提供该证据，沿用旧行为。
+   */
+  personFrames?: number | null;
   /** 食物实例掩膜面积占比（0–1，多帧并集） */
   foodRatio: number;
   /** 食物实例的分类标签（证据；空数组=未识别到食物） */
   foodLabels: string[];
+  /** 采样帧里检出食物的帧数（时间一致性证据；缺省=未提供） */
+  foodFrames?: number | null;
   /** 采样时刻（片段内秒；供回执复核） */
   sampledAt: number[];
   personMaskPath?: string | null;
@@ -91,24 +99,34 @@ export function planEntityGrade(signal: EntitySignal, options: EntityGradeOption
   const foodRatio = clamp01(Number(signal.foodRatio ?? 0));
   const faces = (signal.faces ?? []).filter((face) => face && face.w > 0 && face.h > 0);
   const personInstances = Math.max(0, Math.round(Number(signal.personInstances ?? 0)));
+  const personFrames = signal.personFrames == null ? null : Math.max(0, Math.round(Number(signal.personFrames)));
+  const foodFrames = signal.foodFrames == null ? null : Math.max(0, Math.round(Number(signal.foodFrames)));
   const personSkinRatio = signal.personSkinRatio == null ? null : clamp01(Number(signal.personSkinRatio));
   const foodLabels = (signal.foodLabels ?? []).filter(Boolean);
   /** 只有分类命中食物词表的实例才算食物——暖色木头/桌面也会被实例分割框出来，误暖比不暖更糟。 */
   const foodLabelHits = foodLabels.filter((label) => isFoodLabel(label));
 
-  const foodEnabled = foodRatio >= minFoodRatio && foodLabelHits.length > 0 && intensity > 0;
+  /**
+   * 时间一致性：实体至少在 2 个采样帧里出现。缺省（null）时不启用这条更严的规则——
+   * 保证与旧调用方（未提供帧数）兼容，同时让新执行器能排除单帧偶发误检。
+   */
+  const foodConsistent = foodFrames == null ? true : foodFrames >= 2;
+  const foodEnabled = foodRatio >= minFoodRatio && foodLabelHits.length > 0 && foodConsistent && intensity > 0;
   const foodOpacity = foodEnabled
     ? round(maxOpacity * Math.min(1, 0.5 + foodRatio * 4) * intensity, 3)
     : 0;
   const foodReason = foodEnabled
     ? `食物掩膜 ${(foodRatio * 100).toFixed(1)}%（${foodLabelHits.slice(0, 3).join("/")}）→ 加暖提饱和`
-    : (foodRatio > 0
+    : (foodRatio > 0 && !foodConsistent
+      ? `食物掩膜 ${(foodRatio * 100).toFixed(1)}% 但只在 ${foodFrames} 个采样帧出现（<2），判为偶发误检（不作用）`
+      : foodRatio > 0
       ? `食物掩膜 ${(foodRatio * 100).toFixed(1)}% 但分类未命中食物词表${foodLabels.length ? `（${foodLabels.slice(0, 3).join("/")}）` : ""}（不作用）`
       : "未检出食物（不作用）");
 
   const personByMask = personRatio >= minPersonRatio;
   const personByFace = faces.length > 0;
-  const instanceEvidence = personInstances > 0;
+  const personConsistent = personFrames == null ? true : personFrames >= 2;
+  const instanceEvidence = personInstances > 0 && personConsistent;
   /**
    * 通用分割兜底路径的佐证：肤色占比高。
    * 重要边界（实测）：俯拍菜品镜里盘子/面汤的掩膜同样大量落在肤色带内（0.82），
@@ -129,7 +147,9 @@ export function planEntityGrade(signal: EntitySignal, options: EntityGradeOption
       fallbackEvidence && !instanceEvidence && !personByFace ? `肤色证据 ${((personSkinRatio ?? 0) * 100).toFixed(0)}%` : null,
       "肤色去黄提亮（美白）",
     ].filter(Boolean).join(" + ")
-    : (personRatio > 0 && !personEvidence
+    : (personInstances > 0 && !personConsistent
+      ? `人物实例只在 ${personFrames} 个采样帧出现（<2），判为偶发误检（不作用）`
+      : personRatio > 0 && !personEvidence
       ? `人物掩膜 ${(personRatio * 100).toFixed(1)}% 但无人物实例/人脸证据（疑似把食物/桌面误判成人），不作用`
       : personRatio > 0
         ? `人物掩膜 ${(personRatio * 100).toFixed(1)}% 低于阈值 ${(minPersonRatio * 100).toFixed(1)}%（不作用）`
