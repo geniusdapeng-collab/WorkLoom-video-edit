@@ -1,5 +1,31 @@
 # Changelog
 
+## [video-edit-round2] - 2026-10-11 · 口播精剪深度审计修复 + 五项自动化优化；修 CI test-gate 常红根因（T-2026-1011-0007）
+
+> 背景：AI 口播精剪（edit-talk）上线后做深度审计；同时落地五项优化（自动决定时长/选题/平台、
+> 一条命令全自动、封面去演示参数、配乐跟情绪与鼓点、创作环节检查器）。期间本仓 CI 的
+> `test-gate` 在每轮 PR 都 error，需定位真根因而不是归因于偶发。
+
+- **CI 根因修复（test-gate 常红）**：本分支改了根 `package.json`（新增 `edit:auto` / `edit:intent` /
+  `edit:creative-check` 三条命令）但未刷新 `.workloom-runtime-deps` 依赖锁的输入摘要，
+  `scripts/runtime-deps-lock.test.mjs` 必红 → CNB `test-gate` 每轮 error（实测 13m09s / 17m14s）。
+  用仓库官方入口 `node scripts/runtime-deps-lock.mjs refresh` 刷新，diff 仅 `package.json` 输入摘要一条。
+- **口播内核 P0/P1 修复 13 项**：人味下限补偿改为区间减法（真实恢复）+ 区间/指标互证硬校验；
+  碎片阈值对齐 0.4s；片头静音压缩并并入首段；填充词重复只留第一次；跑题块默认只列候选；
+  字幕按词边界断行；情绪画像与逐字稿一致性 fail-closed；SRT 进位与导入稿指纹修复。
+- **五项优化落地**：`edit:intent`（自动时长/选题/平台，带证据与显式覆盖）；`edit:auto`
+  （probe→意图→自动排片→校验→逐字字幕→粗剪→正式后期，一条命令出片）；封面去演示参数
+  （关键帧候选 > 本地最佳帧扫描 > 35% 回退，全部内容驱动）；配乐跟情绪与鼓点
+  （filmArc 选段 + 主轨切点传入混音做节拍网格对齐，回执 alignment bpm=100/meanAbsErrMs=0）；
+  `edit:creative-check`（候选 ≥3 维差异 / 素材引用真实性 / 评审覆盖 / 禁止自评）。
+- **主干 2f587d0 语义合并**：`bundles/ai-video/connectors/post-bridge/core.mjs` 的独立音轨沿用
+  main 的逐变体 `variantClips`（二次构图时间轴）**并保留**本分支 `cutTimes`（鼓点跟剪辑走）；
+  行业包资产摘要（`--refresh-digests`）与 runtime 依赖锁按官方工具重算后校验通过。
+- 本地验证（真库 PG17 + pgvector，UTF-8 ctype；真机 ffmpeg）：迁移/种子（幂等两次）/哈希链全绿；
+  受控并发全量 base 82 文件 1416 用例、video-studio 85/1213、apps/server 70/1063（含 media.pg ①~⑧）、
+  apps/web 35/190、test:scripts 270+77+113；suite 482/482；governance 485；media 7/7；
+  typecheck 11/11 包零错误。
+
 ## [client-foundation-declaration] - 2026-10-11 · 登记本仓自有的 9 条客户端扩展路径（3D 舞台/引导层）（T-2026-1011-0009）
 
 > 背景：GitHub 镜像的 `workloom-ui-contract` 在修好 ffmpeg 与 UI 消费契约降级后，仍在
