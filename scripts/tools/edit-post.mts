@@ -29,7 +29,7 @@ import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, renameS
 import { homedir } from "node:os";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 import {
-  describeTransitionPlan, planAssembly, planCoverMoment, planSegmentColor, planToPerCut, planTransitions,
+  describeReframePlan, describeTransitionPlan, planAssembly, planCoverMoment, planSegmentColor, planToPerCut, planTransitions,
   resolveTimelineSourcePaths, validateEditTimeline, type EditTimeline, type PostAnalysisDoc,
 } from "../../packages/video-studio/src/edit/index.js";
 
@@ -227,11 +227,66 @@ async function main(): Promise<void> {
   const title = arg("--title", timeline.filmId ?? timeline.timelineId);
   const hook = arg("--hook", "");
 
+  /**
+   * 二次构图（取景轨道，T-2026-1011-0008）：
+   *   off（默认）= 完全沿用现状；declared = 渲染时间轴声明的 reframe/legacy punchIn；
+   *   auto = 声明优先 + 未声明段落给确定性呼吸感微推（主体跟随要等 P1 分析站）。
+   * 填充：pad（兼容）/cover（横转竖推荐）/blur/brand；预算：默认 1.5 上限，`budget` = 只做无损。
+   */
+  const reframeMode = arg("--reframe", "off");
+  if (!["off", "declared", "auto"].includes(reframeMode)) throw new Error("--reframe 只接受 off / declared / auto");
+  const reframeFill = arg("--reframe-fill", "pad");
+  if (!["pad", "cover", "blur", "brand"].includes(reframeFill)) throw new Error("--reframe-fill 只接受 pad / cover / blur / brand");
+  const reframeMaxZoomRaw = arg("--reframe-max-zoom", "1.5");
+  const reframeMaxZoom: number | "budget" = reframeMaxZoomRaw === "budget" ? "budget" : Number(reframeMaxZoomRaw);
+  if (reframeMaxZoom !== "budget" && (!Number.isFinite(reframeMaxZoom) || reframeMaxZoom < 1 || reframeMaxZoom > 3)) {
+    throw new Error("--reframe-max-zoom 只接受 1–3 的数字或 budget（只做无损）");
+  }
+  const reframeEasingRaw = arg("--reframe-easing", "smooth");
+  if (!["native", "smooth", "linear", "ease-in-out"].includes(reframeEasingRaw)) {
+    throw new Error("--reframe-easing 只接受 native / smooth / linear / ease-in-out");
+  }
+  const reframeEasing = reframeEasingRaw === "native" ? "linear" : (reframeEasingRaw as "smooth" | "linear" | "ease-in-out");
+  /** 全局一键推近（只作用于未声明 reframe 的段落）：`--reframe-scale 1.0,1.15` */
+  const reframeScaleArg = arg("--reframe-scale", "");
+  const reframeDefaultScale = reframeScaleArg
+    ? (() => {
+      const [from, to] = reframeScaleArg.split(",").map((value) => Number(value.trim()));
+      if (!Number.isFinite(from) || !Number.isFinite(to)) throw new Error("--reframe-scale 格式：from,to（例 1.0,1.15）");
+      return { from, to };
+    })()
+    : null;
+  const sourceSizeBySourceId = new Map(sourceSizes
+    .filter((entry) => entry.width && entry.height)
+    .map((entry) => [entry.sourceId, { width: entry.width as number, height: entry.height as number }]));
+  const reframeSourceSizes: Record<string, { width: number; height: number }> = {};
+  for (const segment of timeline.segments ?? []) {
+    const size = sourceSizeBySourceId.get(segment.sourceId);
+    if (size) reframeSourceSizes[segment.segmentId] = size;
+  }
+  const reframeOptions = reframeMode === "off"
+    ? null
+    : { mode: reframeMode as "declared" | "auto", fill: reframeFill as "pad" | "cover" | "blur" | "brand", maxZoom: reframeMaxZoom, easing: reframeEasing, sourceSizes: reframeSourceSizes, defaultScale: reframeDefaultScale };
+
   // ① 逐段裁切：把时间轴的源轨 in/out 真正切出来，成为后期链路可以直接吃的一份"镜头清单"
+  //    取景开启时改为**源分辨率预切**（preserveSource）：把 crop-first 留给 post-bridge，
+  //    这样取景才能按变体调制、且从源像素开裁。
   const clipsDir = join(outDir, "clips");
   mkdirSync(clipsDir, { recursive: true });
-  const plan = planAssembly(timeline, { workDir: clipsDir, outputPath: join(clipsDir, "concat.mp4"), width, height, fps, crf });
-  const shots: Array<{ shotId: string; path: string }> = [];
+  const plan = planAssembly(timeline, {
+    workDir: clipsDir,
+    outputPath: join(clipsDir, "concat.mp4"),
+    width,
+    height,
+    fps,
+    crf,
+    reframe: reframeOptions,
+    preserveSource: Boolean(reframeOptions),
+  });
+  if (plan.reframePlan && reframeMode !== "off") {
+    for (const line of describeReframePlan(plan.reframePlan)) console.log(line);
+  }
+  const shots: Array<{ shotId: string; path: string; reframe?: Record<string, unknown> }> = [];
   for (const step of plan.normalize) {
     if (!existsSync(step.input)) throw new Error(`片段 ${step.segmentId} 的素材不在本地：${step.input}`);
     const target = join(clipsDir, `${step.segmentId}.mp4`);
@@ -239,7 +294,11 @@ async function main(): Promise<void> {
     args[args.length - 1] = target; // plan 里的输出名换成交付目录里的正式命名
     run(FFMPEG, args);
     if (!existsSync(target)) throw new Error(`片段 ${step.segmentId} 裁切后无产物`);
-    shots.push({ shotId: step.segmentId, path: target });
+    shots.push({
+      shotId: step.segmentId,
+      path: target,
+      ...(step.reframe ? { reframe: step.reframe as unknown as Record<string, unknown> } : {}),
+    });
   }
 
   /**
@@ -630,6 +689,25 @@ async function main(): Promise<void> {
       summaryPath: transitionSummary ? transitionSummaryPath : null,
       scopes: transitionSummary?.scopes ?? [],
     },
+    reframe: {
+      mode: reframeMode,
+      fill: reframeFill,
+      maxZoom: reframeMaxZoom,
+      easing: reframeEasing,
+      planned: plan.reframePlan?.plannedCount ?? 0,
+      advisories: plan.reframePlan?.advisories ?? [],
+      shots: plan.normalize
+        .filter((step) => step.reframe)
+        .map((step) => ({
+          segmentId: step.segmentId,
+          mode: step.reframe!.mode,
+          fill: step.reframe!.fill,
+          scale: step.reframe!.scale,
+          legacyPunchIn: step.reframe!.legacyPunchIn,
+          effectiveUpscale: step.reframe!.budget.effectiveUpscale,
+        })),
+      summaryPath: existsSync(join(outDir, "reframe", "reframe-receipt.json")) ? join(outDir, "reframe", "reframe-receipt.json") : null,
+    },
     subtitle: subtitlePath,
     coverAtSource: {
       ratio: Number(autoCover.ratio.toFixed(4)),
@@ -663,6 +741,14 @@ async function main(): Promise<void> {
       for (const scope of transitionSummary.scopes) {
         console.log(`    - ${scope.scope}：${scope.mode ?? "-"} · 转场 ${scope.transitionCount} 刀 / 硬切 ${scope.hardCutCount ?? "-"} 处${scope.types.length ? `（${scope.types.join("/")}）` : ""}`);
       }
+    }
+    if (reframeMode !== "off") {
+      const reframeSummary = manifest?.reframe as { shots?: Array<{ shotId: string; fill: string | null; scale: { from: number; to: number } | null; effectiveUpscale: number | null }> } | undefined;
+      console.log(`  二次构图：${reframeMode} · 填充 ${reframeFill} · 命中 ${plan.reframePlan?.plannedCount ?? 0}/${shots.length} 段（倍率上限 ${reframeMaxZoom}）`);
+      for (const shot of reframeSummary?.shots ?? []) {
+        console.log(`    - ${shot.shotId}：${shot.fill ?? "-"} ${shot.scale ? `${shot.scale.from}–${shot.scale.to}×` : ""}${shot.effectiveUpscale ? `（等效上采样 ${shot.effectiveUpscale}×）` : ""}`);
+      }
+      for (const advisory of plan.reframePlan?.advisories ?? []) console.log(`    ! ${advisory}`);
     }
     console.log("  说明：调色/封面/配乐/软字幕轨均由既有后期链路（post-bridge）按变体配方执行。");
   }

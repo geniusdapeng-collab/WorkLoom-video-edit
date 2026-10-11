@@ -13,6 +13,10 @@
  */
 
 import { toTimecode } from "./timecode.js";
+import {
+  buildReframeFilters, normalizeReframeSegment, planReframe, validateReframeSegment,
+  type ReframeDescriptor, type ReframePlan, type ReframePlanOptions, type ReframeSpec,
+} from "./reframe.js";
 
 export const TRANSITION_TYPES = [
   "cut", "dissolve", "fade_from_black", "fade_to_black", "wipe", "match_cut", "jump_cut", "whip_pan", "zoom_blur",
@@ -69,6 +73,12 @@ export interface EditTimelineSegment {
    * 口播精剪里"删掉停顿后的同机位跳切"必须靠推近或切镜遮盖，否则观众会看到"跳帧"。
    */
   punchIn?: { scale?: number | null; x?: number | null; y?: number | null; note?: string | null } | null;
+  /**
+   * 二次构图（取景轨道，T-2026-1011-0008）：把"中景切近景 / 局部放大 / 横转竖不留黑边"
+   * 变成可执行契约。`punchIn` 是它的 legacy 子集（静态推近），两者同时存在时以本字段为准。
+   * 渲染口径：源原生裁切（crop-first）→ 填充（pad/cover/blur/brand）→ 画布；详见 docs/video-edit-reframe.md。
+   */
+  reframe?: ReframeSpec | null;
   masterIn?: number | null;
   masterOut?: number | null;
 }
@@ -280,6 +290,14 @@ export function validateEditTimeline(timeline: EditTimeline): TimelineValidation
         }
       }
     }
+    /**
+     * 二次构图契约（T-2026-1011-0008）：字段级事实校验（枚举/区间）。
+     * 预算类判定（无损上限、等效上采样）在计划层 reframe.planReframe 里做——
+     * 它需要源像素规格，校验层不假装知道。
+     */
+    for (const check of validateReframeSegment(segment)) {
+      add(check.id, check.pass, check.hard, check.detail, check.fix);
+    }
     const list = bySource.get(segment.sourceId) ?? [];
     list.push({ segmentId: segment.segmentId, in: segment.sourceIn, out: segment.sourceOut });
     bySource.set(segment.sourceId, list);
@@ -451,9 +469,20 @@ export function validateEditTimeline(timeline: EditTimeline): TimelineValidation
 }
 
 export interface AssemblyPlan {
-  normalize: Array<{ segmentId: string; input: string; sourceIn: number; sourceOut: number; output: string; args: string[] }>;
+  normalize: Array<{
+    segmentId: string;
+    input: string;
+    sourceIn: number;
+    sourceOut: number;
+    output: string;
+    args: string[];
+    /** 该段生效的取景描述子（null = 沿用既有归一化路径） */
+    reframe?: ReframeDescriptor | null;
+  }>;
   concat: { listPath: string; output: string; args: string[] };
   totalDurationSeconds: number;
+  /** 取景计划（供 CLI 打日志/写回执；未开启取景时为 null） */
+  reframePlan?: ReframePlan | null;
 }
 
 /**
@@ -516,7 +545,25 @@ export function atempoChain(speed: number): string[] {
  */
 export function planAssembly(
   timeline: EditTimeline,
-  options: { workDir: string; outputPath: string; width?: number; height?: number; fps?: number; crf?: number },
+  options: {
+    workDir: string;
+    outputPath: string;
+    width?: number;
+    height?: number;
+    fps?: number;
+    crf?: number;
+    /**
+     * 取景口径（T-2026-1011-0008）：缺省 undefined = 完全沿用既有行为（含 legacy punchIn 旧路径）。
+     * 传入 `{ mode: "declared" }` 后，声明了 `reframe`（或 legacy `punchIn`）的段落走 crop-first 取景链。
+     */
+    reframe?: ReframePlanOptions | null;
+    /**
+     * true = 只做**源分辨率**裁切（trim + 变速 + SAR 归一），不缩放到画布。
+     * 供 `edit:post` 把取景留给后期引擎（post-bridge 在源像素上做 crop-first，
+     * 并按变体缓存）；`edit:assemble` 粗剪不使用本模式。
+     */
+    preserveSource?: boolean;
+  },
 ): AssemblyPlan {
   const { workDir, outputPath } = options;
   const fps = options.fps ?? timeline.target.fps;
@@ -525,28 +572,47 @@ export function planAssembly(
   const width = options.width ?? derived.width;
   const height = options.height ?? derived.height;
   if (!Number.isFinite(fps) || fps <= 0) throw new Error(`fps 非法：${String(fps)}`);
+  const reframePlan = options.reframe ? planReframe({ timeline, options: options.reframe }) : null;
   const sources = new Map(timeline.sources.map((s) => [s.sourceId, s]));
   const normalize = (timeline.segments ?? []).map((segment, index) => {
     const source = sources.get(segment.sourceId);
     if (!source) throw new Error(`片段 ${segment.segmentId} 引用未声明素材 ${segment.sourceId}`);
     const duration = outputDurationOf(segment);
     const speed = segment.speed ?? 1;
-    const filters = [
-      `scale=${width}:${height}:force_original_aspect_ratio=decrease`,
-      `pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2`,
-    ];
+    const descriptor = reframePlan?.segments.find((entry) => entry.segmentId === segment.segmentId)?.descriptor ?? null;
+    let filters: string[];
+    if (options.preserveSource) {
+      /** 保留源分辨率：取景交给后期引擎（crop-first 需要源像素），这里只做 SAR 归一。 */
+      filters = ["setsar=1"];
+    } else if (descriptor) {
+      /** 取景链：源原生裁切（crop-first）→ 填充/画布；顺序即质量（见 reframe.ts 头注）。 */
+      const built = buildReframeFilters({
+        descriptor,
+        source: options.reframe?.sourceSizes?.[segment.segmentId] ?? null,
+        canvas: { width, height },
+        durationSeconds: duration,
+        fps,
+      });
+      filters = built.filters;
+    } else {
+      filters = [
+        `scale=${width}:${height}:force_original_aspect_ratio=decrease`,
+        `pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2`,
+      ];
+    }
     /**
      * 跳切遮盖（punch-in）：把已归一化的画面再放大后中心裁切，产出同尺寸的"推近版"。
      * 只放大不改变音频（口播靠推近给观众"换镜头"的错觉，避免密集跳切的跳帧感）。
+     * legacy 路径：未开启取景计划时保持既有像素路径（零行为变化）。
      */
-    const punchScale = segment.punchIn?.scale ?? 1;
-    if (Number.isFinite(punchScale) && punchScale > 1.0001) {
+    const punchScale = descriptor ? 1 : (segment.punchIn?.scale ?? 1);
+    if (!descriptor && Number.isFinite(punchScale) && punchScale > 1.0001) {
       const xRatio = segment.punchIn?.x ?? 0.5;
       const yRatio = segment.punchIn?.y ?? 0.5;
       filters.push(`scale=w='ceil(iw*${round(punchScale, 4)}/2)*2':h='ceil(ih*${round(punchScale, 4)}/2)*2'`);
       filters.push(`crop=w=${width}:h=${height}:x='(iw-ow)*${round(xRatio, 4)}':y='(ih-oh)*${round(yRatio, 4)}'`);
     }
-    filters.push("setsar=1", `fps=${fps}`);
+    if (!descriptor && !options.preserveSource) filters.push("setsar=1", `fps=${fps}`);
     if (speed !== 1) filters.unshift(`setpts=${round(1 / speed, 6)}*PTS`);
     const output = `${workDir}/seg-${String(index).padStart(3, "0")}-${segment.segmentId}.mp4`;
     /**
@@ -578,7 +644,7 @@ export function planAssembly(
       "-c:a", "aac", "-ar", "48000", "-ac", "2",
       output,
     );
-    return { segmentId: segment.segmentId, input: source.path, sourceIn: segment.sourceIn, sourceOut: segment.sourceOut, output, args };
+    return { segmentId: segment.segmentId, input: source.path, sourceIn: segment.sourceIn, sourceOut: segment.sourceOut, output, args, reframe: descriptor };
   });
   const listPath = `${workDir}/concat.txt`;
   return {
@@ -589,5 +655,6 @@ export function planAssembly(
       args: ["-hide_banner", "-loglevel", "error", "-y", "-f", "concat", "-safe", "0", "-i", listPath, "-c", "copy", "-movflags", "+faststart", outputPath],
     },
     totalDurationSeconds: round(computeMasterTimeline(timeline.segments ?? []).at(-1)?.masterOut ?? 0),
+    reframePlan,
   };
 }
