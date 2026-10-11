@@ -24,7 +24,7 @@ function descriptor(overrides: Partial<ReframeDescriptor> = {}): ReframeDescript
     safeArea: "respect",
     note: null,
     legacyPunchIn: false,
-    budget: { baseWindow: null, sMaxLossless: null, effectiveUpscale: null },
+    budget: { baseWindow: null, sMaxLossless: null, fillUpscale: null, effectiveUpscale: null },
     ...overrides,
   };
 }
