@@ -168,6 +168,9 @@ post-cli reedit  --project <交付包>/film-project.json --patch patch.json
   把 4K 素材的交付静默降成 1080p（回执里写着 `explicit`，但没有任何一处把"低于原生"变成需要声明的动作）。
   判定现已收敛到纯函数 `packages/video-studio/src/edit/output-resolution.ts#decideOutputResolution`，
   由 `output-resolution.test.ts` 钉住 8 个边界（含"显式 1080p 未声明 → 硬失败"）。
+- **4K 的时间口径同样要跟上**：调色（`ffmpeg(grade)`）旧口径是 15 分钟固定值，4K 像素量是 1080p 的 4 倍，
+  负载机上会直接判 timeout；现按清晰度档给窗口（uhd 30 分钟 / 其余 15 分钟）并支持
+  `WORKLOOM_COLOR_GRADE_TIMEOUT_MS` 覆盖（`color-bridge/core.mjs#gradeTimeoutMsFor`）。
 
 ## 6. 接口与数据模型
 

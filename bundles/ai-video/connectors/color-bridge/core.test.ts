@@ -13,7 +13,7 @@ import {
   COLOR_TOOLS, ColorError, SCOPE_KINDS, allowedRoots, analyze, assertPathAllowed, autoCorrections,
   BANDING_THRESHOLDS, BLUR_THRESHOLDS, bandingFromYuv, best, buildChain,
   detectBanding, detectDefects, detectSkinRegion, estimateNoise, findRecipes,
-  frameDifference, frameQuality, grade,
+  frameDifference, frameQuality, grade, gradeTimeoutMsFor,
   HIST_RESIDUAL_THRESHOLD, histChiSquare, histResidual, histogramFromYuv,
   loadRecipes, match, NOISE_DIFF_YAVG_HIT, probeMedia,
   planSampling, PROFILES, renderScopes, resolveBinaries, resolveConversionLuts, resolveSourceColor,
@@ -958,4 +958,20 @@ describe.runIf(hasX264)("P0 防线端到端：肤色 / 场景抽样 / 缺陷 / R
     expect(probe.video.colorTransfer).toBe("bt709");
     expect(probe.video.colorSpace).toBe("bt709");
   }, 180_000);
+});
+
+describe("调色超时口径（4K 不再按 1080p 的 15 分钟判死）", () => {
+  it("uhd 默认 30 分钟、其余 15 分钟", () => {
+    expect(gradeTimeoutMsFor("uhd", {})).toBe(1_800_000);
+    expect(gradeTimeoutMsFor("hd", {})).toBe(900_000);
+    expect(gradeTimeoutMsFor(undefined, {})).toBe(900_000);
+  });
+
+  it("WORKLOOM_COLOR_GRADE_TIMEOUT_MS 覆盖优先；非法/空串回退 15 分钟", () => {
+    expect(gradeTimeoutMsFor("uhd", { WORKLOOM_COLOR_GRADE_TIMEOUT_MS: "3600000" })).toBe(3_600_000);
+    expect(gradeTimeoutMsFor("hd", { WORKLOOM_COLOR_GRADE_TIMEOUT_MS: "3600000" })).toBe(3_600_000);
+    expect(gradeTimeoutMsFor("uhd", { WORKLOOM_COLOR_GRADE_TIMEOUT_MS: "abc" })).toBe(900_000);
+    expect(gradeTimeoutMsFor("uhd", { WORKLOOM_COLOR_GRADE_TIMEOUT_MS: "" })).toBe(900_000);
+    expect(gradeTimeoutMsFor("uhd", { WORKLOOM_COLOR_GRADE_TIMEOUT_MS: "-5" })).toBe(900_000);
+  });
 });

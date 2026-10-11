@@ -1587,6 +1587,17 @@ export async function sha256File(file) {
 /**
  * 应用请求的调色并返回实际产物、处理参数与字节回执；不复审源镜质量。
  */
+/**
+ * 调色超时口径（2026-10-11 产品线实测；T-2026-1011-0010 首修，T-2026-1011-0016 移植到本线）：
+ * 4K（uhd）60 秒成片的一次 LUT 调色在负载机上会超过旧口径 15 分钟，被直接判 timeout 硬失败。
+ * 口径：uhd 默认 30 分钟、其余 15 分钟；可用 `WORKLOOM_COLOR_GRADE_TIMEOUT_MS`（毫秒）覆盖。
+ * 非法/非正数（含空串）回退 15 分钟——画质参数不变，只放宽等待窗口。
+ */
+export function gradeTimeoutMsFor(quality, env = process.env) {
+  const raw = Number(env?.WORKLOOM_COLOR_GRADE_TIMEOUT_MS ?? (quality === "uhd" ? 1_800_000 : 900_000));
+  return Number.isFinite(raw) && raw > 0 ? raw : 900_000;
+}
+
 export async function grade({
   input, output, profile = null, lutPath = null, corrections = {}, intensity = 0.8,
   verifyAt = null, bins = resolveBinaries(), auto = false,
@@ -1664,7 +1675,7 @@ export async function grade({
   if (probe.audio) args.push("-c:a", "aac", "-b:a", "192k");
   args.push("-movflags", "+faststart", output);
 
-  await runBin(bins.ffmpeg, args, { label: "ffmpeg(grade)", timeoutMs: 900_000 });
+  await runBin(bins.ffmpeg, args, { label: "ffmpeg(grade)", timeoutMs: gradeTimeoutMsFor(quality) });
 
   if (!fs.existsSync(output)) throw new ColorError("ffmpeg 未产出文件", "ffmpeg_failed", true);
   const outProbe = await probeMedia(output, { bins });
