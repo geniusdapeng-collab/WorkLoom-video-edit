@@ -12,6 +12,8 @@ import "./processing.test.ts";
 import {
   findSubtitlePunctuation,
   isCjkText,
+  karaokeAssText,
+  karaokeLineCounts,
   parseSrt,
   stripSubtitlePunctuation,
   cuesToSrt
@@ -53,6 +55,39 @@ describe("字幕去标点", () => {
     expect(findSubtitlePunctuation("南昌滕王阁，江南名楼之首。")).toEqual(["，", "。"]);
     expect(findSubtitlePunctuation("语速 3.5 字/秒")).toEqual([]);
     expect(findSubtitlePunctuation("干净的一句字幕")).toEqual([]);
+  });
+});
+
+describe("卡拉OK 断行（口播字幕一屏 ≤2 行 ×12 字）", () => {
+  const words = (text: string) => [...text].map((char) => ({ text: char, start: 0, end: 0.1 }));
+
+  it("沿用字幕换行：SRT 的两行在逐字稿里仍是两行", () => {
+    const text = "出去玩拍的素材\n堆着等于白拍";
+    const counts = karaokeLineCounts(words(text.replace(/\n/gu, "")), text, { maxLineChars: 12, maxLines: 2 });
+    /** 「出去玩拍的素材」7 字 + 「堆着等于白拍」6 字 */
+    expect(counts).toEqual([7, 6]);
+    const ass = karaokeAssText(words(text.replace(/\n/gu, "")), { lineCounts: counts });
+    expect(ass).toContain("\\N");
+    expect(ass.split("\\N")).toHaveLength(2);
+    /** 标签不被破坏：逐字标签数量 = 词数 */
+    expect((ass.match(/\{\\kf\d+\}/gu) ?? []).length).toBe(13);
+  });
+
+  it("没有换行时按 ≤12 字/行折行，绝不拼成一整行", () => {
+    const text = "但是时间过去了半年多吧现在的话呢已经整个链路就跑通了成型了";
+    const list = words(text);
+    const counts = karaokeLineCounts(list, text, { maxLineChars: 12, maxLines: 2 });
+    expect(counts.length).toBe(2);
+    const ass = karaokeAssText(list, { lineCounts: counts });
+    expect(ass.split("\\N")).toHaveLength(2);
+    const [first, second] = ass.split("\\N");
+    const plain = (value: string) => value.replace(/\{\\kf\d+\}/gu, "");
+    /**
+     * 30 字硬塞 2 行 → 每行 15 字：这是"一屏 ≤2 行"与"≤12 字/行"冲突时的取舍——
+     * 优先保证不出第三行（读不完），并由上游字幕门禁保证 cue 本身 ≤24 字。
+     */
+    expect([...plain(first!)].length).toBeLessThanOrEqual(15);
+    expect([...plain(second!)].length).toBeLessThanOrEqual(15);
   });
 });
 

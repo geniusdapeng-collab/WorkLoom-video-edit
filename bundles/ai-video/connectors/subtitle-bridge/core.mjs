@@ -1722,12 +1722,65 @@ export function parseTimedWords(payload, { text, start, end, mode = "even" }) {
 }
 
 /** 卡拉OK 文本：\kf 扫过 / \k 跳变（厘秒）。 */
-export function karaokeAssText(words, { mode = "kf" } = {}) {
+/**
+ * 卡拉OK 行分组：**优先沿用字幕里的换行**（口播字幕的断行由剪辑脚本决定，渲染层不得重排），
+ * 找不到合法换行时退回"≤maxLineChars 词边界折行、≤maxLines 行"。
+ *
+ * 为什么必须有它（2026-10-11 真机事故）：旧实现把整条字幕拼成一行（`karaokeAssText` 只做逐字标签），
+ * 一条 24 字的句子在竖屏上直接冲出画面——字幕动态规则（一屏 ≤2 行 ×12 字）在卡拉OK 路径上被绕过。
+ * 返回"每行的词数"，供 `karaokeAssText` 在行尾插入 `\N`。
+ */
+export function karaokeLineCounts(words, text, { maxLineChars = 12, maxLines = 2 } = {}) {
+  const tokens = (words ?? []).map((word) => String(word?.text ?? ""));
+  if (tokens.length === 0) return [];
+  /** ① 沿用原始换行：按每行字数把词切到各行 */
+  const rawLines = String(text ?? "").split(/\r?\n/u).map((line) => line.replace(/\s+/gu, "")).filter(Boolean);
+  if (rawLines.length >= 2 && rawLines.length <= maxLines && rawLines.every((line) => [...line].length <= maxLineChars)) {
+    const counts = [];
+    let cursor = 0;
+    for (const line of rawLines) {
+      let chars = 0;
+      let start = cursor;
+      while (cursor < tokens.length && chars < [...line].length) {
+        chars += [...tokens[cursor]].length;
+        cursor += 1;
+      }
+      counts.push(Math.max(1, cursor - start));
+    }
+    if (counts.reduce((sum, value) => sum + value, 0) === tokens.length) return counts;
+  }
+  /** ② 兜底：按词边界折行（不超过 maxLines 行；超长时按行数均分，避免溢出画面） */
+  const total = tokens.reduce((sum, token) => sum + [...token].length, 0);
+  const lineCount = Math.min(maxLines, Math.max(1, Math.ceil(total / maxLineChars)));
+  const per = Math.ceil(tokens.length / lineCount);
+  const counts = [];
+  for (let index = 0; index < tokens.length; index += per) counts.push(Math.min(per, tokens.length - index));
+  return counts;
+}
+
+export function karaokeAssText(words, { mode = "kf", lineCounts = null } = {}) {
   const tag = mode === "kf" ? "kf" : "k";
-  return words.map((word) => {
+  const counts = Array.isArray(lineCounts) && lineCounts.length > 0 ? lineCounts : null;
+  const parts = [];
+  let cursor = 0;
+  const lineOf = (index) => {
+    if (!counts) return 0;
+    let acc = 0;
+    for (let line = 0; line < counts.length; line += 1) {
+      acc += counts[line];
+      if (index < acc) return line;
+    }
+    return counts.length - 1;
+  };
+  for (const word of words) {
     const centis = Math.max(1, Math.round((word.end - word.start) * 100));
-    return `{\\${tag}${centis}}${escapeAssText(word.text)}`;
-  }).join("");
+    const currentLine = lineOf(cursor);
+    const isLineEnd = counts && cursor === counts.slice(0, currentLine + 1).reduce((sum, value) => sum + value, 0) - 1;
+    parts.push(`{\\${tag}${centis}}${escapeAssText(word.text)}`);
+    if (counts && isLineEnd && currentLine < counts.length - 1) parts.push("\\N");
+    cursor += 1;
+  }
+  return parts.join("");
 }
 
 /** 贴纸/花字风格预设（撞色 / 奶油 / 国风 / 科技 / 促销）。 */
@@ -2130,7 +2183,11 @@ export async function renderKaraoke({
       end: cue.end,
       style: "Kara",
       name: pick.id,
-      text: karaokeAssText(parsed.words, { mode: "kf" }),
+      text: karaokeAssText(parsed.words, {
+        mode: "kf",
+        /** 沿用字幕换行；没有换行时按 ≤12 字/行、≤2 行折行（口播字幕动态规则） */
+        lineCounts: karaokeLineCounts(parsed.words, cue.text, { maxLineChars: 12, maxLines: 2 }),
+      }),
     };
   });
   if (secondaryCues.length) {
