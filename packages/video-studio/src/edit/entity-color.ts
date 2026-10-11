@@ -107,10 +107,11 @@ export function planEntityGrade(signal: EntitySignal, options: EntityGradeOption
   const foodLabelHits = foodLabels.filter((label) => isFoodLabel(label));
 
   /**
-   * 时间一致性：实体至少在 2 个采样帧里出现。缺省（null）时不启用这条更严的规则——
-   * 保证与旧调用方（未提供帧数）兼容，同时让新执行器能排除单帧偶发误检。
+   * 食物时间一致性：≥2 个采样帧出现，或单帧就占了 ≥25% 画面（整盘/整锅那种强证据）。
+   * 与人物不同：食物误暖一个木桌只是轻微偏色，漏掉"人物+食物同镜"里那道菜反而违背客户口径
+   * （实测 seg-004：人脸 + 菜品同镜，但菜只在 1 个采样帧里占比 42%）。
    */
-  const foodConsistent = foodFrames == null ? true : foodFrames >= 2;
+  const foodConsistent = foodFrames == null ? true : (foodFrames >= 2 || foodRatio >= 0.25);
   const foodEnabled = foodRatio >= minFoodRatio && foodLabelHits.length > 0 && foodConsistent && intensity > 0;
   const foodOpacity = foodEnabled
     ? round(maxOpacity * Math.min(1, 0.5 + foodRatio * 4) * intensity, 3)
@@ -118,7 +119,7 @@ export function planEntityGrade(signal: EntitySignal, options: EntityGradeOption
   const foodReason = foodEnabled
     ? `食物掩膜 ${(foodRatio * 100).toFixed(1)}%（${foodLabelHits.slice(0, 3).join("/")}）→ 加暖提饱和`
     : (foodRatio > 0 && !foodConsistent
-      ? `食物掩膜 ${(foodRatio * 100).toFixed(1)}% 但只在 ${foodFrames} 个采样帧出现（<2），判为偶发误检（不作用）`
+      ? `食物掩膜 ${(foodRatio * 100).toFixed(1)}% 但只在 ${foodFrames} 个采样帧出现且单帧 <25%（判为偶发误检，不作用）`
       : foodRatio > 0
       ? `食物掩膜 ${(foodRatio * 100).toFixed(1)}% 但分类未命中食物词表${foodLabels.length ? `（${foodLabels.slice(0, 3).join("/")}）` : ""}（不作用）`
       : "未检出食物（不作用）");
@@ -134,7 +135,14 @@ export function planEntityGrade(signal: EntitySignal, options: EntityGradeOption
    */
   const fallbackEvidence = String(signal.personRequest ?? "") === "segmentation"
     && personRatio >= minPersonRatio && (personSkinRatio ?? 0) >= 0.15 && !foodEnabled;
-  const personEvidence = instanceEvidence || personByFace || fallbackEvidence;
+  /**
+   * 同镜有食物且没有人脸证据时，不做人像美白。
+   * 实测（2026-10-11 复核）：俯拍面碗/汤盆会被人物**实例**分割误判成"人"（掩膜 45%–94%，
+   * 肤色占比 0.49），若按实例证据美白，等于把面条/汤"洗白"——正是客户要避免的串色。
+   * 有人脸则是强证据，照常美白（人物+食物同镜的正常场景）。
+   */
+  const ambiguousWithFood = foodEnabled && !personByFace;
+  const personEvidence = personByFace || (instanceEvidence && !ambiguousWithFood) || fallbackEvidence;
   const personEnabled = (personByMask || personByFace) && personEvidence && intensity > 0;
   const personOpacity = personEnabled
     ? round(maxOpacity * Math.min(1, 0.5 + personRatio * 8) * intensity, 3)
@@ -147,7 +155,9 @@ export function planEntityGrade(signal: EntitySignal, options: EntityGradeOption
       fallbackEvidence && !instanceEvidence && !personByFace ? `肤色证据 ${((personSkinRatio ?? 0) * 100).toFixed(0)}%` : null,
       "肤色去黄提亮（美白）",
     ].filter(Boolean).join(" + ")
-    : (personInstances > 0 && !personConsistent
+    : (ambiguousWithFood && personInstances > 0
+      ? `同镜有食物（${foodLabelHits.slice(0, 2).join("/")}）且无人脸证据：不美白（避免把碗盘/食物当人）`
+      : personInstances > 0 && !personConsistent
       ? `人物实例只在 ${personFrames} 个采样帧出现（<2），判为偶发误检（不作用）`
       : personRatio > 0 && !personEvidence
       ? `人物掩膜 ${(personRatio * 100).toFixed(1)}% 但无人物实例/人脸证据（疑似把食物/桌面误判成人），不作用`

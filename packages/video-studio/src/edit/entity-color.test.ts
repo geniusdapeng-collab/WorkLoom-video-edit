@@ -99,8 +99,41 @@ describe("edit/entity-color：实体级局部调色", () => {
     const foodOnce = planEntityGrade(signal({ foodRatio: 0.2, foodLabels: ["dish"], foodFrames: 1 }));
     expect(foodOnce.food.enabled).toBe(false);
     expect(foodOnce.food.reason).toContain("偶发误检");
+    /** 单帧但占比 ≥25%（整盘/整锅）算强证据：人物+食物同镜时不能漏掉那道菜。 */
+    const foodOnceBig = planEntityGrade(signal({ foodRatio: 0.42, foodLabels: ["soup", "dish"], foodFrames: 1 }));
+    expect(foodOnceBig.food.enabled).toBe(true);
     const foodTwice = planEntityGrade(signal({ foodRatio: 0.2, foodLabels: ["dish"], foodFrames: 2 }));
     expect(foodTwice.food.enabled).toBe(true);
+  });
+
+  it("同镜食物 + 无脸人物实例（俯拍面碗误判）：不做人像美白；有人脸则照常美白", () => {
+    const bowlOnly = planEntityGrade(signal({
+      personRatio: 0.454,
+      personInstances: 1,
+      personFrames: 3,
+      personRequest: "instance",
+      personSkinRatio: 0.485,
+      foodRatio: 0.545,
+      foodLabels: ["food", "soup"],
+      foodFrames: 3,
+    }));
+    expect(bowlOnly.food.enabled).toBe(true);
+    expect(bowlOnly.person.enabled).toBe(false);
+    expect(bowlOnly.person.reason).toContain("同镜有食物");
+
+    const faceToo = planEntityGrade(signal({
+      personRatio: 0.3,
+      personInstances: 1,
+      personFrames: 3,
+      faces: [{ x: 0.2, y: 0.1, w: 0.2, h: 0.3 }],
+      personRequest: "instance",
+      foodRatio: 0.4,
+      foodLabels: ["food", "soup"],
+      foodFrames: 3,
+    }));
+    expect(faceToo.person.enabled).toBe(true);
+    expect(faceToo.food.enabled).toBe(true);
+    expect(faceToo.notes.some((note) => note.includes("互不串色"))).toBe(true);
   });
 
   it("有人脸但掩膜很小也开人像层；掩膜缺失时如实降级提示", () => {
