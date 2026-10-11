@@ -21,3 +21,6 @@ export * from "./audio.js";
 export * from "./caption.js";
 export * from "./post-auto.js";
 export * from "./talk.js";
+export * from "./naming.js";
+export * from "./entity-color.js";
+export * from "./copy-style.js";

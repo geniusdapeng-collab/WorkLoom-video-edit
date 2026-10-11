@@ -1877,6 +1877,31 @@ export async function buildCover({
 
 /* ============================ 交付包（主流程） ============================ */
 
+/**
+ * 封面两两差异（2026-10-11 客户反馈"几个版本的封面都还是用的同一个封面"）：
+ * 缩到 64×36 灰度求平均绝对差（MAD）。identical（sha 相同）/ near-duplicate（<2）判硬失败，
+ * similar（<6）在回执里提示——旧实现的 coverDivergence 是空数组，没有任何检查能拦住"两张一样的封面"。
+ */
+async function imageDivergence(a, b, bins) {
+  const [hashA, hashB] = [await sha256File(a), await sha256File(b)];
+  if (hashA === hashB) return { meanAbsDiff: 0, verdict: "identical" };
+  const dir = await tempDir("workloom-cover-divergence-");
+  const rawFile = path.join(dir, "diff.raw");
+  await runBin(bins.ffmpeg, [
+    "-hide_banner", "-loglevel", "error", "-y", "-i", a, "-i", b,
+    "-lavfi", "[0:v]scale=64:36,format=gray[x];[1:v]scale=64:36,format=gray[y];[x][y]blend=all_mode=difference",
+    "-frames:v", "1", "-f", "rawvideo", "-pix_fmt", "gray", rawFile,
+  ], { label: "ffmpeg(cover-divergence)" });
+  const bytes = await fsp.readFile(rawFile);
+  if (!bytes.length) return { meanAbsDiff: Number.NaN, verdict: "similar" };
+  let total = 0;
+  for (const value of bytes) total += value;
+  const meanAbsDiff = round(total / bytes.length, 2);
+  if (meanAbsDiff < 2) return { meanAbsDiff, verdict: "near-duplicate" };
+  if (meanAbsDiff < 6) return { meanAbsDiff, verdict: "similar" };
+  return { meanAbsDiff, verdict: "distinct" };
+}
+
 async function writeJson(file, value) {
   await fsp.mkdir(path.dirname(file), { recursive: true });
   await fsp.writeFile(file, `${JSON.stringify(value, null, 2)}\n`, "utf8");
@@ -2439,6 +2464,16 @@ export async function buildDeliveryPackage({
   // Requested variant settings are recorded; source pictures/audio are not rescored against one another.
   const divergence = [];
   const coverDivergence = [];
+  /** 变体封面两两差异化（硬门）：identical / near-duplicate 直接判失败，防止"几个版本同一个封面"回归。 */
+  for (let i = 0; i < variantsOut.length; i += 1) {
+    for (let j = i + 1; j < variantsOut.length; j += 1) {
+      const a = variantsOut[i];
+      const b = variantsOut[j];
+      const diff = await imageDivergence(a.artifacts.cover.path, b.artifacts.cover.path, bins);
+      coverDivergence.push({ a: a.id, b: b.id, diff });
+    }
+  }
+  const duplicateCoverPairs = coverDivergence.filter((row) => row.diff.verdict === "identical" || row.diff.verdict === "near-duplicate");
   /**
    * 转场回执汇总（母版 + 每个变体）：同一批镜头、不同风格转场，各留各的回执。
    * 硬失败（黑屏 / 缺转场窗口 / 时长不符）在 assembleTimeline 内已抛出；这里只做交付面归档与状态汇总。
@@ -2549,6 +2584,15 @@ export async function buildDeliveryPackage({
       kind: "covers_valid",
       ok: variantsOut.every((variant) => variant.artifacts.cover.checks.filter((check) => check.hard !== false).every((check) => check.ok === true)),
       detail: variantsOut.map((variant) => ({ id: variant.id, checks: variant.artifacts.cover.checks })),
+    },
+    {
+      kind: "covers_distinct",
+      ok: duplicateCoverPairs.length === 0,
+      detail: {
+        basis: "变体封面两两 64×36 灰度平均绝对差（MAD）；identical/near-duplicate(<2) 判失败，similar(<6) 提示",
+        pairs: coverDivergence.map((row) => ({ a: row.a, b: row.b, meanAbsDiff: row.diff.meanAbsDiff, verdict: row.diff.verdict })),
+        duplicates: duplicateCoverPairs.map((row) => ({ a: row.a, b: row.b, meanAbsDiff: row.diff.meanAbsDiff, verdict: row.diff.verdict })),
+      },
     },
     { kind: "bgm_layer", ok: audioFailures.length === 0, detail: { failed: audioFailures, note: "失败的变体已按原声降级交付，不冒充带配乐成片" } },
     { kind: "softsub_video_unchanged", ok: variantsOut.every((variant) => !variant.artifacts.softsub || variant.artifacts.softsub.checks.every((check) => check.ok === true)), detail: variantsOut.filter((variant) => variant.artifacts.softsub).map((variant) => ({ id: variant.id, checks: variant.artifacts.softsub.checks.map((check) => check.kind) })) },
