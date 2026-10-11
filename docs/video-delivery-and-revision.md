@@ -157,6 +157,18 @@ post-cli reedit  --project <交付包>/film-project.json --patch patch.json
 - **偏好不是围栏**：口味类信号只进偏好池（主观通道），永远不编码进围栏 DSL；
 - 内容经 workdata `maskText` 脱敏后落库（与董事长反馈同一条路径）。
 
+### 5.7 输出分辨率口径（2026-10-11 产品所有者口径 + 当日事故复盘）
+
+- **默认 = 素材原生分辨率**：`edit:post` 不传 `--width/--height` 时，按目标画幅挑**面积最大的素材档位**
+  （本片 2160×3840 竖拍 4K → 输出 2160×3840，清晰度档自动 `uhd`）。管线不得自行降低分辨率。
+- **显式降档必须声明（fail closed）**：显式 `--width/--height` 低于素材原生档位时直接拒绝，
+  报错指名 `--allow-downscale`；该开关只应用于预览/低配发布，并在 `delivery-manifest.resolution` 里留下
+  `downscale: true` / `downscaleApproved: true` / `scaleVersusSource` 记账。
+- **事故复盘**：口径原本只写在 `edit-post.mts` 的注释里；生产脚本沿用上一轮的 `--width 1080 --height 1920`，
+  把 4K 素材的交付静默降成 1080p（回执里写着 `explicit`，但没有任何一处把"低于原生"变成需要声明的动作）。
+  判定现已收敛到纯函数 `packages/video-studio/src/edit/output-resolution.ts#decideOutputResolution`，
+  由 `output-resolution.test.ts` 钉住 8 个边界（含"显式 1080p 未声明 → 硬失败"）。
+
 ## 6. 接口与数据模型
 
 ### 6.1 工具面（工位 `127.0.0.1:9777`）
