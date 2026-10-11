@@ -1573,7 +1573,12 @@ async function mixVerified({
     const structure = await analyzeStructure({ input: bgmPath, bins });
     sectionPlan = chooseSection({
       structure,
-      filmArc: Array.isArray(filmArc) && filmArc.length > 0 ? filmArc : null,
+      /**
+       * `filmEnergyArc` 返回的是**对象**（peakTimeSec/dynamicsDb/climaxBasis/climaxDetails…）。
+       * 合并主干新版 chooseSection 后，这里必须原样透传对象；用数组判断会把弧线静默丢成 null，
+       * 结果"配乐跟情绪走"表面启用、实际退化成"按曲子结构选段"。
+       */
+      filmArc: filmArc && typeof filmArc === "object" ? filmArc : null,
       mode: section,
       filmDurationSec: duration,
       minSectionSec: Math.min(6, bgmProbe.duration),

@@ -358,6 +358,54 @@ async function main(): Promise<void> {
     writeFileSync(join(overrideDir, "index.json"), `${JSON.stringify({ ...index, updatedAt: new Date().toISOString(), principle: "本片全部硬切（覆盖副本）" }, null, 2)}\n`, "utf8");
     process.env.WORKLOOM_POST_VARIANT_DIR = overrideDir;
   }
+  /**
+   * 顺序关键（2026-10-11 修复）：segmented-story 配方必须先于配乐 agent 建好，
+   * 否则 agent 看不到第四条变体，segmented 会继承 warm 的 pinned 曲目（实测 BGM 重复的根因）。
+   */
+  if (segmentColor) {
+    // 变体配方目录（若上面已写过覆盖副本，则复用同一目录）
+    const overrideDir = process.env.WORKLOOM_POST_VARIANT_DIR
+      ?? join(outDir, "work", "variant-overrides");
+    mkdirSync(overrideDir, { recursive: true });
+    if (!process.env.WORKLOOM_POST_VARIANT_DIR) {
+      const baseVariantDir = join(REPO_ROOT, "bundles/ai-video/library/style-variants");
+      const index = JSON.parse(readFileSync(join(baseVariantDir, "index.json"), "utf8")) as { variants: Array<{ id: string; file: string }> };
+      for (const entry of index.variants) {
+        copyFileSync(join(baseVariantDir, entry.file), join(overrideDir, entry.file));
+      }
+      writeFileSync(join(overrideDir, "index.json"), `${JSON.stringify({ ...index, updatedAt: new Date().toISOString() }, null, 2)}\n`, "utf8");
+    }
+    const variantFile = join(overrideDir, "index.json");
+    const variantIndex = JSON.parse(readFileSync(variantFile, "utf8")) as { variants: Array<{ id: string; file: string; name?: string; positioning?: string }> };
+    if (!variantIndex.variants.some((entry) => entry.id === "segmented-story")) {
+      const base = JSON.parse(readFileSync(join(overrideDir, "warm-story.json"), "utf8")) as Record<string, unknown>;
+      const segmented = {
+        ...base,
+        id: "segmented-story",
+        name: "分段调色版",
+        positioning: "家里暖、城市冷：同一支片子按场景组分段调色（果园/饭桌暖调胶片，古城/人潮冷净）",
+        /**
+         * color=null：调色已在片段级完成（warm-film / cool-technical 按场景组执行），
+         * 变体层**必须不再叠加统一调色**——post-bridge 看到 pack.color 为空则记「不调色」。
+         * 不要在这里写自定义 profile 名：color-bridge 只认内置 profile 清单，会直接抛「未知 profile」。
+         */
+        color: null,
+        colorNote: "调色已在片段级完成（warm-film / cool-technical 分段执行）；变体不叠加统一调色",
+        transitions: {
+          mode: "hard",
+          fadeSec: 0,
+          note: "整段口径为硬切；有逐切计划（declared/auto）时按 warm-story 的 intentMap 逐刀执行",
+          scale: (base.transitions as { scale?: number } | undefined)?.scale ?? 1,
+          intentMap: (base.transitions as { intentMap?: Record<string, unknown> } | undefined)?.intentMap ?? null,
+        },
+      };
+      writeFileSync(join(overrideDir, "segmented-story.json"), `${JSON.stringify(segmented, null, 2)}\n`, "utf8");
+      variantIndex.variants.push({ id: "segmented-story", file: "segmented-story.json", name: "分段调色版", positioning: segmented.positioning as string });
+      writeFileSync(variantFile, `${JSON.stringify(variantIndex, null, 2)}\n`, "utf8");
+    }
+    process.env.WORKLOOM_POST_VARIANT_DIR = overrideDir;
+  }
+
 
   /**
    * 配乐落位（2026-10-11）：
@@ -434,8 +482,40 @@ async function main(): Promise<void> {
     process.env.WORKLOOM_BGM_LIBRARY_DIR = libraryDir;
     // 选曲器来自后期链路（本地优先/随仓兜底的排序已在那里实现）；此处按需导入，避免与后面的主 import 顺序耦合
     const bgmSelector = await import("../../bundles/ai-video/connectors/post-bridge/core.mjs") as unknown as {
-      pickTrackForVariant: (pack: Record<string, unknown>, options?: Record<string, unknown>) => Record<string, unknown> | null;
+      selectTrackForVariant: (pack: Record<string, unknown>, options?: Record<string, unknown>) => {
+        picked: Record<string, unknown>;
+        candidates: Array<Record<string, unknown>>;
+        notes: string[];
+      };
     };
+    /**
+     * 成片剪辑网格 → 目标 BPM（配乐 agent 的打分依据，2026-10-11）：
+     * 取相邻切点间隔的众数，把它读作 1/2/4/8 拍中落在 [90,180] 且最接近 60/120/240 家族的 BPM。
+     * 本片切点间隔 4.0s/3.0s → 120 BPM（8/6 拍）。
+     */
+    const cutTimes: number[] = [];
+    {
+      let cursor = 0;
+      for (const segment of timeline.segments.slice(0, -1)) {
+        cursor += Number(segment.durationSeconds ?? 0);
+        cutTimes.push(cursor);
+      }
+    }
+    const filmSeconds = timeline.segments.reduce((total, segment) => total + Number(segment.durationSeconds ?? 0), 0);
+    const deriveTargetBpm = (cuts: number[]): number => {
+      if (cuts.length < 2) return 120;
+      const intervals: number[] = [];
+      for (let index = 1; index < cuts.length; index += 1) intervals.push(Number((cuts[index]! - cuts[index - 1]!).toFixed(2)));
+      const counts = new Map<number, number>();
+      for (const value of intervals) counts.set(value, (counts.get(value) ?? 0) + 1);
+      const modal = [...counts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? 4;
+      const scored = [1, 2, 4, 8].map((beats) => (60 * beats) / modal)
+        .filter((bpm) => bpm >= 90 && bpm <= 180)
+        .map((bpm) => ({ bpm, family: [60, 120, 240].reduce((best, value) => (Math.abs(bpm - value) < Math.abs(bpm - best) ? value : best), 60) }))
+        .sort((a, b) => Math.abs(a.bpm - a.family) - Math.abs(b.bpm - b.family));
+      return Math.round(scored[0]?.bpm ?? 120);
+    };
+    const targetBpm = deriveTargetBpm(cutTimes);
     const bgmCore = await import(`file://${abs("bundles/ai-video/connectors/bgm-bridge/core.mjs")}`) as {
       loadAllLocalTracks: (env?: NodeJS.ProcessEnv) => { total: number; sources: Array<{ kind: string; tracks: number; present: boolean }> };
       findTracks: (query: Record<string, unknown>, env?: NodeJS.ProcessEnv) => { track?: Record<string, unknown>; items?: Array<Record<string, unknown>> };
@@ -465,60 +545,33 @@ async function main(): Promise<void> {
       const bgm = (pack.bgm ?? {}) as Record<string, unknown>;
       const style = String(bgm.style ?? "");
       const keyword = styleToFolderKeyword[style] ?? style;
-      // 用后期链路的配乐选曲器（全量库风格匹配 + 许可复检 + 本地优先/随仓兜底），而不是自己按文件夹猜
-      const picked = bgmSelector.pickTrackForVariant(pack, { env: process.env });
+      // 配乐 agent：全量库风格匹配 + 许可复检 + **打分式最佳匹配**（BPM 网格/能量/情绪/时长/响度/本地优先）+ 跨变体去重
+      const selection = bgmSelector.selectTrackForVariant(pack, {
+        env: process.env,
+        hints: {
+          filmSeconds: Number(filmSeconds.toFixed(2)),
+          targetBpm,
+          themeTokens: [title, hook, String(timeline.target?.platform ?? ""), "旅行", "回家", "家庭"].filter(Boolean),
+          excludeIds: bgmAgentReceipt.map((entry) => entry.picked).filter((value): value is string => typeof value === "string"),
+          topN: 5,
+        },
+      });
+      const picked = selection.picked;
       if (!picked) {
         bgmAgentReceipt.push({ variantId, style, picked: null, reason: `曲库中未找到「${style}」可用候选（保持配方默认选曲）` });
         continue;
       }
-      pack.bgm = { ...bgm, trackId: picked.id, selectionBy: "bgm-agent", selectionNote: `按风格「${style}」匹配本地打标曲库（由配乐选曲器在合并曲库中按风格匹配并复检许可；本地大库优先、随仓 50 首兜底）` };
+      pack.bgm = { ...bgm, trackId: picked.id, selectionBy: "bgm-agent-scored", selectionNote: `按风格「${style}」在本地打标大库打分选曲（BPM 网格 ${targetBpm}×能量档×情绪/题材×时长×响度×本地优先，跨变体去重；score=${String(picked.selectionScore ?? "?")}）` };
       writeFileSync(packFile, `${JSON.stringify(pack, null, 2)}\n`, "utf8");
-      bgmAgentReceipt.push({ variantId, style, picked: picked.id, title: picked.title, license: picked.license, libraryKind: picked.libraryKind, libraryTotal: inventory.total });
+      bgmAgentReceipt.push({
+        variantId, style, picked: picked.id, title: picked.title, license: picked.license,
+        libraryKind: picked.libraryKind, libraryTotal: inventory.total,
+        score: picked.selectionScore ?? null, reasons: picked.selectionReasons ?? [],
+        candidates: selection.candidates, notes: selection.notes,
+        targetBpm, filmSeconds: Number(filmSeconds.toFixed(2)),
+      });
     }
     process.env.WORKLOOM_BGM_LIBRARY_DIR = libraryDir;
-  }
-  if (segmentColor) {
-    // 变体配方目录（若上面已写过覆盖副本，则复用同一目录）
-    const overrideDir = process.env.WORKLOOM_POST_VARIANT_DIR
-      ?? join(outDir, "work", "variant-overrides");
-    mkdirSync(overrideDir, { recursive: true });
-    if (!process.env.WORKLOOM_POST_VARIANT_DIR) {
-      const baseVariantDir = join(REPO_ROOT, "bundles/ai-video/library/style-variants");
-      const index = JSON.parse(readFileSync(join(baseVariantDir, "index.json"), "utf8")) as { variants: Array<{ id: string; file: string }> };
-      for (const entry of index.variants) {
-        copyFileSync(join(baseVariantDir, entry.file), join(overrideDir, entry.file));
-      }
-      writeFileSync(join(overrideDir, "index.json"), `${JSON.stringify({ ...index, updatedAt: new Date().toISOString() }, null, 2)}\n`, "utf8");
-    }
-    const variantFile = join(overrideDir, "index.json");
-    const variantIndex = JSON.parse(readFileSync(variantFile, "utf8")) as { variants: Array<{ id: string; file: string; name?: string; positioning?: string }> };
-    if (!variantIndex.variants.some((entry) => entry.id === "segmented-story")) {
-      const base = JSON.parse(readFileSync(join(overrideDir, "warm-story.json"), "utf8")) as Record<string, unknown>;
-      const segmented = {
-        ...base,
-        id: "segmented-story",
-        name: "分段调色版",
-        positioning: "家里暖、城市冷：同一支片子按场景组分段调色（果园/饭桌暖调胶片，古城/人潮冷净）",
-        /**
-         * color=null：调色已在片段级完成（warm-film / cool-technical 按场景组执行），
-         * 变体层**必须不再叠加统一调色**——post-bridge 看到 pack.color 为空则记「不调色」。
-         * 不要在这里写自定义 profile 名：color-bridge 只认内置 profile 清单，会直接抛「未知 profile」。
-         */
-        color: null,
-        colorNote: "调色已在片段级完成（warm-film / cool-technical 分段执行）；变体不叠加统一调色",
-        transitions: {
-          mode: "hard",
-          fadeSec: 0,
-          note: "整段口径为硬切；有逐切计划（declared/auto）时按 warm-story 的 intentMap 逐刀执行",
-          scale: (base.transitions as { scale?: number } | undefined)?.scale ?? 1,
-          intentMap: (base.transitions as { intentMap?: Record<string, unknown> } | undefined)?.intentMap ?? null,
-        },
-      };
-      writeFileSync(join(overrideDir, "segmented-story.json"), `${JSON.stringify(segmented, null, 2)}\n`, "utf8");
-      variantIndex.variants.push({ id: "segmented-story", file: "segmented-story.json", name: "分段调色版", positioning: segmented.positioning as string });
-      writeFileSync(variantFile, `${JSON.stringify(variantIndex, null, 2)}\n`, "utf8");
-    }
-    process.env.WORKLOOM_POST_VARIANT_DIR = overrideDir;
   }
 
   const core = await import("../../bundles/ai-video/connectors/post-bridge/core.mjs") as unknown as {
