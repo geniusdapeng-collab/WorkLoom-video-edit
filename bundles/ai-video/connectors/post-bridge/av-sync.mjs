@@ -180,7 +180,13 @@ export function buildSampleAccurateConcatPlan({ listFile, clips, output, workDir
       filters.push(`[${index}:a]anull[aex${index}]`);
     }
   });
-  filters.push(`${labels.join("")}concat=n=${clips.length}:v=0:a=1[aout]`);
+  /**
+   * 本机生产补丁（2026-10-11 晚）：拼接音轨末尾加真峰值限制器（-1dBFS）。
+   * 事故：逐镜 AAC 解码后的样本峰可达 0dBFS 以上，直接落 pcm_s16le 会削波
+   * （实测母版 max_volume 0.0dB、375 个样本贴顶；成片 true peak 到 +5.26dBTP）。
+   * 限制器只在越界样本上起作用（阈值 -1dBFS），不改变正常段落的动态。
+   */
+  filters.push(`${labels.join("")}concat=n=${clips.length}:v=0:a=1,alimiter=limit=0.891:attack=5:release=50:level=disabled[aout]`);
   return {
     videoOnly,
     voiceWav,

@@ -21,12 +21,13 @@
  *     [--aspect 9:16 --platform 微信视频号 --fps 30] [--punch-in alternate|none]
  *     [--self-correction keep|trim-mistake] [--filler-floor 0.2 --pause-floor 0.15]
  *     [--max-segment-seconds 12] [--drop-tangents] [--allow-segment-precision] [--human-approved-below-floor] [--json]
+ *     [--keep-blocks block-03,block-22 | --keep-sentences s085,s086,…]（G-TK4 选段定稿：长口播 → 1 条短片）
  */
 import { createHash } from "node:crypto";
 import { createReadStream, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 import {
-  analysisFromTranscriptDoc, buildTalkCaptionDoc, buildTalkTimeline, computeTalkStats, planTalkCut,
+  analysisFromTranscriptDoc, applyTalkSelection, buildTalkCaptionDoc, buildTalkTimeline, computeTalkStats, planTalkCut,
   talkCuesToSrt, validateEditTimeline, validateTalkCut, type TalkCutPlan, type TalkEmotionDoc,
   type TalkSentence, type TalkTranscriptDoc,
 } from "../../packages/video-studio/src/edit/index.js";
@@ -120,7 +121,7 @@ async function main(): Promise<void> {
   if (!(pauseFloor >= 0 && pauseFloor <= 1)) throw new Error("--pause-floor 需要 0–1");
   if (!(maxSegmentSeconds >= 2 && maxSegmentSeconds <= 20)) throw new Error("--max-segment-seconds 需要 2–20");
 
-  const plan: TalkCutPlan = planTalkCut(sentences, analysis, emotion, {
+  const planBase: TalkCutPlan = planTalkCut(sentences, analysis, emotion, {
     ...(targetSeconds > 0 ? { targetDurationSeconds: targetSeconds } : {}),
     fillerKeepRateFloor: fillerFloor,
     pauseKeepRateFloor: pauseFloor,
@@ -133,6 +134,29 @@ async function main(): Promise<void> {
     splitTangents: flag("--drop-tangents") && !flag("--keep-tangents"),
     punchIn: punchIn as "alternate" | "none",
   });
+
+  /**
+   * 本机生产补丁（2026-10-11，G-TK4 选段定稿）：长口播 → 1 条明确主题的短片。
+   * 主线只做"片内逐句留删"，不提供"哪几段话进这条片子"的入口；本补丁把那个人工决策
+   * 落成显式参数：`--keep-blocks block-03,block-22`（按话题块）或 `--keep-sentences s085,s086,…`（按句）。
+   * 未选中的句子整体剔除；指标按成片 scope 重算（见 applyTalkSelection）。
+   */
+  const keepBlocks = arg("--keep-blocks", "").split(",").map((value) => value.trim()).filter(Boolean);
+  const keepSentences = arg("--keep-sentences", "").split(",").map((value) => value.trim()).filter(Boolean);
+  const selectedSentenceIds = [
+    ...keepSentences,
+    ...analysis.blocks
+      .filter((block) => keepBlocks.includes(block.id))
+      .flatMap((block) => block.sentenceIds),
+  ];
+  const unknownBlocks = keepBlocks.filter((id) => !analysis.blocks.some((block) => block.id === id));
+  if (unknownBlocks.length > 0) throw new Error(`--keep-blocks 引用了不存在的话题块：${unknownBlocks.join("、")}`);
+  const plan: TalkCutPlan = selectedSentenceIds.length > 0
+    ? applyTalkSelection(sentences, analysis, planBase, {
+      sentenceIds: [...new Set(selectedSentenceIds)],
+      paceVariation: emotion.prosody.paceVariation,
+    }).plan
+    : planBase;
 
   const fps = Number(arg("--fps", String(transcript.asset.fps ?? 30)));
   const aspect = arg("--aspect", "9:16");

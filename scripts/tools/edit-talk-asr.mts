@@ -218,11 +218,20 @@ function transcribeLocal(wav: string, outJson: string, model: string, language: 
     precision?: string;
     backend?: string;
   };
-  const words: TalkWord[] = (parsed.words ?? []).map((word) => ({
-    text: String(word.text ?? "").trim(),
-    start: Number(word.start ?? 0),
-    end: Number(word.end ?? 0),
-  })).filter((word) => word.text.length > 0);
+  // 本机生产实测补丁（2026-10-11）：mlx-whisper 偶发零时长词（end == start，实测 2334 词里 1 个）
+  // 会触发 talk.ts 的"词区间非法"硬校验而中断整条 ASR；此处按 20ms 最小跨度夹取。
+  // 原始引擎输出不改写，仍完整保留在 .asr-tmp/local-words.json（审计可直接比对）。
+  const words: TalkWord[] = (parsed.words ?? []).map((word) => {
+    const start = Number(word.start ?? 0);
+    const end = Number(word.end ?? 0);
+    return {
+      text: String(word.text ?? "").trim(),
+      start,
+      end: end > start ? end : Number((start + 0.02).toFixed(3)),
+    };
+  }).filter((word) => word.text.length > 0);
+  const degenerate = (parsed.words ?? []).filter((word) => !(Number(word.end ?? 0) > Number(word.start ?? 0))).length;
+  if (degenerate > 0) console.error(`[edit-talk-asr] 夹取了 ${degenerate} 个零时长词（原始输出保留在 ${outJson}）`);
   if (words.length === 0) throw new Error("mlx-whisper 没有产出词级时间戳");
   return { sentences: splitTalkSentences(words), precision: "word", engine: `${parsed.backend ?? "mlx-whisper"}@${model}` };
 }

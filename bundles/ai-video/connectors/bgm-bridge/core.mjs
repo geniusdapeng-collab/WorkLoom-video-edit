@@ -1697,8 +1697,14 @@ async function mixVerified({
     chains.push(`[${bedIndex}:a]aformat=sample_rates=48000:channel_layouts=stereo,apad,atrim=end_sample=${sampleTotal}[bed]`);
     chains.push("[bed][score]amix=inputs=2:duration=first:dropout_transition=0:normalize=0[mixed]");
   }
-  // Requested mastering is one deterministic operation, without quality comparison or corrective retries.
-  chains.push(`[mixed]loudnorm=I=${targetLufs}:TP=${truePeak}:LRA=11,aresample=48000,atrim=end_sample=${sampleTotal},asetpts=N/SR/TB[out]`);
+  /**
+   * Requested mastering is one deterministic operation, without quality comparison or corrective retries.
+   *
+   * 本机生产补丁（2026-10-11 晚）：loudnorm 的 TP 只是"目标"，单遍动态模式并不保证输出真峰值；
+   * 实测成片 true peak 到 +5.26dBTP（375 个样本贴 0dBFS）。这里在链尾补一个真峰值限制器
+   * （阈值 -1dBFS），把"目标"变成"约束"；正常段落不触阈，不改变动态。
+   */
+  chains.push(`[mixed]loudnorm=I=${targetLufs}:TP=${truePeak}:LRA=11,alimiter=limit=0.891:attack=5:release=50:level=disabled,aresample=48000,atrim=end_sample=${sampleTotal},asetpts=N/SR/TB[out]`);
   const master = path.join(work, "master.wav");
   await runBin(bins.ffmpeg, [...args, "-filter_complex", chains.join(";"), "-map", "[out]", "-t", String(duration),
     "-ar", "48000", "-ac", "2", "-c:a", "pcm_f32le", master], { label: "ffmpeg(requested-mix)", timeoutMs: 900_000 });
