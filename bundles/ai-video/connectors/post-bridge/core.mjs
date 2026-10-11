@@ -367,6 +367,216 @@ export async function planDelivery({
 
 /* ============================ 归一化 / 拼接（层 1） ============================ */
 
+/* ==================== 二次构图（取景轨道，T-2026-1011-0008） ====================
+ *
+ * 与 `packages/video-studio/src/edit/reframe.ts` 同一口径（计划层算决策、引擎只忠实渲染）：
+ *   · crop-first：先在源像素上取窗口，再缩放到画布——不允许"先降到画布再放大裁回来"；
+ *   · fill：pad（整幅+黑边，兼容）/ cover（裁切填满）/ blur（模糊底+前景）/ brand（重模糊压暗底+前景）；
+ *   · 动画：`zoompan`（恒定输出尺寸；`scale=eval=frame` 在 -vf 链里会触发重初始化失败，已实测排除）；
+ *   · 回执：逐镜 `<输出>.reframe.json`（描述子/窗口/预算/机检），交付面另有 reframe-receipt.json。
+ */
+export const REFRAME_MODES = ["static", "push", "pull", "follow", "locked-cut"];
+export const REFRAME_FILLS = ["pad", "cover", "blur", "brand"];
+export const REFRAME_EASINGS = ["linear", "smooth", "ease-in-out"];
+export const REFRAME_MAX_ZOOM_CEILING = 3;
+const REFRAME_KEYS = ["mode", "intent", "shotSize", "scale", "center", "anchor", "easing", "fill", "maxZoomPolicy", "safeArea", "note", "legacyPunchIn", "budget"];
+
+function reframeNumber(value, fallback) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+/** 取景描述子校验（未知键拒绝，不静默忽略——与 normalizePatchKeys 同纪律）。 */
+export function normalizeShotReframe(value) {
+  if (value === null || value === undefined) return null;
+  if (typeof value !== "object" || Array.isArray(value)) throw new PostError("shot.reframe 必须是对象或省略", "bad_request");
+  const unknown = Object.keys(value).filter((key) => !REFRAME_KEYS.includes(key));
+  if (unknown.length) throw new PostError(`shot.reframe 含未知键：${unknown.join(", ")}（允许：${REFRAME_KEYS.join(", ")}）`, "bad_request");
+  const mode = value.mode === undefined || value.mode === null ? "static" : String(value.mode);
+  if (!REFRAME_MODES.includes(mode)) throw new PostError(`未知取景模式：${mode}`, "bad_request");
+  const fill = value.fill === undefined || value.fill === null ? "pad" : String(value.fill);
+  if (!REFRAME_FILLS.includes(fill)) throw new PostError(`未知填充策略：${fill}（可用：${REFRAME_FILLS.join(" / ")}）`, "bad_request");
+  const easing = value.easing === undefined || value.easing === null ? "smooth" : String(value.easing);
+  if (!REFRAME_EASINGS.includes(easing)) throw new PostError(`未知取景缓动：${easing}`, "bad_request");
+  const scaleFrom = reframeNumber(value.scale?.from, 1);
+  const scaleTo = reframeNumber(value.scale?.to, scaleFrom);
+  for (const [label, scale] of [["from", scaleFrom], ["to", scaleTo]]) {
+    if (!(scale >= 1) || scale > REFRAME_MAX_ZOOM_CEILING) {
+      throw new PostError(`取景倍率 ${label}=${scale} 越界（1–${REFRAME_MAX_ZOOM_CEILING}）`, "bad_request");
+    }
+  }
+  const centerOf = (raw, fallbackX = 0.5, fallbackY = 0.5) => ({
+    x: Math.min(1, Math.max(0, reframeNumber(raw?.x, fallbackX))),
+    y: Math.min(1, Math.max(0, reframeNumber(raw?.y, fallbackY))),
+  });
+  return {
+    mode,
+    intent: value.intent ?? null,
+    shotSize: value.shotSize ?? null,
+    scale: { from: scaleFrom, to: scaleTo },
+    center: { from: centerOf(value.center?.from), to: centerOf(value.center?.to ?? value.center?.from) },
+    anchor: value.anchor ?? "center",
+    easing,
+    fill,
+    maxZoomPolicy: value.maxZoomPolicy === "allow-upscale" ? "allow-upscale" : "lossless",
+    safeArea: value.safeArea === "ignore" ? "ignore" : "respect",
+    note: typeof value.note === "string" ? value.note : null,
+    legacyPunchIn: value.legacyPunchIn === true,
+    budget: value.budget ?? null,
+  };
+}
+
+/** 与计划层同式：画布同比例、能放进源画面的最大基窗 + 无损预算。 */
+export function computeReframeBudget(source, [canvasW, canvasH]) {
+  if (!source || !(source.width > 0) || !(source.height > 0)) return { baseWindow: null, sMaxLossless: null, fillUpscale: null, effectiveUpscale: null };
+  const aspect = canvasW / canvasH;
+  const base = source.width / source.height >= aspect
+    ? { w: source.height * aspect, h: source.height }
+    : { w: source.width, h: source.width / aspect };
+  return {
+    baseWindow: { w: Math.round(base.w * 100) / 100, h: Math.round(base.h * 100) / 100 },
+    sMaxLossless: Math.round(Math.min(base.w / canvasW, base.h / canvasH) * 10000) / 10000,
+    fillUpscale: Math.round((canvasW / base.w) * 10000) / 10000,
+    effectiveUpscale: null,
+  };
+}
+
+function easeOf(easing, t) {
+  if (easing === "smooth") return `(${t})*(${t})*(3-2*(${t}))`;
+  if (easing === "ease-in-out") return `if(lt(${t},0.5),2*(${t})*(${t}),1-2*(1-(${t}))*(1-(${t})))`;
+  return t;
+}
+
+const evenExpr = (expr) => `floor((${expr})/2)*2`;
+const round4 = (value) => Math.round(value * 10000) / 10000;
+
+/**
+ * 取景滤镜链（crop-first）。返回 { filters, mode, window }；filters 由调用方 join(",") 使用。
+ * 与 TS 计划层保持同构；`source` 为 null 时用相对表达式（iw/ih），不猜像素。
+ */
+export function buildReframeChain({ descriptor, source, canvas, durationSeconds, fps }) {
+  const [outW, outH] = canvas;
+  const aspect = outW / outH;
+  const t = (value) => round4(value);
+  const tail = ["setsar=1", `fps=${fps}`];
+  const duration = Math.max(0.1, Number(durationSeconds) || 1);
+  const { from: sFrom, to: sTo } = descriptor.scale;
+  const { from: cFrom, to: cTo } = descriptor.center;
+  const animated = Math.abs(sTo - sFrom) > 1e-6 || Math.abs(cTo.x - cFrom.x) > 1e-6 || Math.abs(cTo.y - cFrom.y) > 1e-6;
+  const filters = [];
+
+  if (descriptor.fill === "pad") {
+    filters.push(`scale=${outW}:${outH}:force_original_aspect_ratio=decrease`);
+    filters.push(`pad=${outW}:${outH}:(ow-iw)/2:(oh-ih)/2`);
+    if (animated) {
+      const sExpr = `(${t(sFrom)}+(${t(sTo)}-${t(sFrom)})*${easeOf(descriptor.easing, `clip(time/${t(duration)},0,1)`)}`;
+      filters.push(`zoompan=z='${sExpr}':x='(iw-iw/zoom)*0.5':y='(ih-ih/zoom)*0.5':d=1:s=${outW}x${outH}:fps=${fps}`);
+    }
+    filters.push(...tail);
+    return { filters, mode: animated ? "animated" : "static", window: "fit-zoom" };
+  }
+
+  const cropBw = source
+    ? (source.width / source.height >= aspect ? `floor(${source.height}*${t(aspect)}/2)*2` : `floor(${source.width}/2)*2`)
+    : `floor(min(iw,ih*${t(aspect)})/2)*2`;
+  const cropBh = source
+    ? (source.width / source.height >= aspect ? `floor(${source.height}/2)*2` : `floor(${source.width}/${t(aspect)}/2)*2`)
+    : `floor(min(ih,iw/${t(aspect)})/2)*2`;
+  const windowArg = `w=${cropBw}:h=${cropBh}:x='(iw-ow)*${t(cFrom.x)}':y='(ih-oh)*${t(cFrom.y)}'`;
+
+  if (descriptor.fill === "blur" || descriptor.fill === "brand") {
+    const background = descriptor.fill === "blur"
+      ? `[bgsrc]scale=${outW}:${outH}:force_original_aspect_ratio=increase,crop=${outW}:${outH},gblur=sigma=20[bg]`
+      : `[bgsrc]scale=${outW}:${outH}:force_original_aspect_ratio=increase,crop=${outW}:${outH},gblur=sigma=40,eq=brightness=-0.15:saturation=0.4[bg]`;
+    filters.push(`split=2[bgsrc][fgsrc];${background};[fgsrc]crop=${windowArg},scale=${outW}:${outH}:force_original_aspect_ratio=decrease[fg];[bg][fg]overlay=(W-w)/2:(H-h)/2,${tail.join(",")}`);
+    return { filters, mode: "static", window: "base+foreground" };
+  }
+
+  if (!animated) {
+    filters.push(`crop=w='${evenExpr(`${cropBw}/${t(sTo)}`)}':h='${evenExpr(`${cropBh}/${t(sTo)}`)}':x='(iw-ow)*${t(cFrom.x)}':y='(ih-oh)*${t(cFrom.y)}'`);
+    filters.push(`scale=${outW}:${outH}:flags=lanczos`);
+    filters.push(...tail);
+    return { filters, mode: "static", window: "cover" };
+  }
+  const e = easeOf(descriptor.easing, `clip(time/${t(duration)},0,1)`);
+  const sExpr = `(${t(sFrom)}+(${t(sTo)}-${t(sFrom)})*${e})`;
+  const cxExpr = `(${t(cFrom.x)}+(${t(cTo.x)}-${t(cFrom.x)})*${e})`;
+  const cyExpr = `(${t(cFrom.y)}+(${t(cTo.y)}-${t(cFrom.y)})*${e})`;
+  filters.push(`crop=${windowArg}`);
+  filters.push(`zoompan=z='${sExpr}':x='(iw-iw/zoom)*${cxExpr}':y='(ih-ih/zoom)*${cyExpr}':d=1:s=${outW}x${outH}:fps=${fps}`);
+  filters.push(...tail);
+  return { filters, mode: "animated", window: "cover+zoom" };
+}
+
+/** 边缘亮度机检：取 cover/blur/brand 输出左右各 8px 条带的平均亮度，证明没有黑边缺陷。 */
+async function measureEdgeBands({ file, height, bins }) {
+  const { stdout } = await runBin(bins.ffmpeg, [
+    "-hide_banner", "-v", "info", "-i", file,
+    "-vf", `crop=8:${Math.max(2, height)}:0:0,signalstats,metadata=print:file=-`,
+    "-frames:v", "4", "-an", "-f", "null", "-",
+  ], { label: "ffmpeg(reframe-edge)" });
+  const values = [...String(stdout).matchAll(/YAVG=([0-9.]+)/g)].map((match) => Number(match[1]));
+  if (values.length === 0) return { ok: false, samples: 0, meanLuma: null, detail: "边缘亮度采样为空" };
+  const mean = values.reduce((sum, value) => sum + value, 0) / values.length;
+  return { ok: mean > 6, samples: values.length, meanLuma: Math.round(mean * 10) / 10, detail: `左边缘 ${values.length} 帧平均亮度 ${Math.round(mean * 10) / 10}` };
+}
+
+/** 取景机检与回执（硬项：预算/时长/黑边；咨询项留给交付面）。 */
+async function verifyReframeOutcome({ descriptor, key, source, canvas, outProbe, sourceDuration, target, bins }) {
+  const budget = computeReframeBudget(source, canvas);
+  const maxRequested = Math.max(descriptor.scale.from, descriptor.scale.to);
+  /** 无损预算只限制"额外推近"（详见 reframe.ts#losslessScaleCap）：上限 = max(1, sMaxLossless)。 */
+  const losslessCap = budget.sMaxLossless === null ? REFRAME_MAX_ZOOM_CEILING : Math.max(1, budget.sMaxLossless);
+  const effectiveUpscale = budget.sMaxLossless === null || budget.fillUpscale === null
+    ? null
+    : round4(budget.fillUpscale * maxRequested);
+  const checks = [
+    {
+      kind: "reframe_zoom_with_budget",
+      hard: true,
+      ok: descriptor.maxZoomPolicy === "allow-upscale" || budget.sMaxLossless === null || maxRequested <= losslessCap + 1e-6,
+      detail: {
+        requested: maxRequested,
+        sMaxLossless: budget.sMaxLossless,
+        losslessScaleCap: losslessCap,
+        fillUpscale: budget.fillUpscale,
+        effectiveUpscale,
+        policy: descriptor.maxZoomPolicy,
+        basis: budget.sMaxLossless === null
+          ? "源规格未知：无法判定（如实标注）"
+          : `额外推近上限=max(1, min(基窗/画布))=${losslessCap}；画幅转换本身 ${budget.fillUpscale}×`,
+      },
+    },
+    {
+      kind: "reframe_duration_preserved",
+      hard: true,
+      ok: Math.abs((outProbe.videoDuration ?? 0) - sourceDuration) <= 0.2,
+      detail: { source: round3(sourceDuration), output: round3(outProbe.videoDuration ?? 0), toleranceSec: 0.2 },
+    },
+  ];
+  if (descriptor.fill !== "pad") {
+    const edge = await measureEdgeBands({ file: target, height: canvas[1], bins });
+    checks.push({ kind: "reframe_no_letterbox_defect", hard: true, ok: edge.ok, detail: edge });
+  }
+  const passed = checks.every((check) => check.ok !== false);
+  return {
+    schemaVersion: "workloom.reframe-receipt/v1",
+    generatedAt: new Date().toISOString(),
+    key,
+    mode: descriptor.mode,
+    intent: descriptor.intent,
+    fill: descriptor.fill,
+    legacyPunchIn: descriptor.legacyPunchIn === true,
+    source: source ? { width: source.width, height: source.height } : null,
+    canvas: { width: canvas[0], height: canvas[1] },
+    scale: descriptor.scale,
+    center: descriptor.center,
+    budget: { ...budget, effectiveUpscale },
+    checks,
+    passed,
+  };
+}
+
 async function contentKey(value) {
   return createHash("sha256").update(JSON.stringify(value)).digest("hex").slice(0, 16);
 }
@@ -408,13 +618,23 @@ export async function normaliseShots({
     if (!["live-action", "animation", "text"].includes(sourceKind)) {
       throw new PostError(`镜头 ${shotId} 的素材类型未知：${sourceKind}`, "bad_request");
     }
+    /**
+     * 二次构图（取景轨道）：`shot.reframe` 由编辑层计划（reframe.ts）物化后传入；
+     * 缺省 null = 完全沿用既有归一化路径（零行为变化）。
+     */
+    const reframe = normalizeShotReframe(shot.reframe ?? null);
+    const reframeKey = reframe ? `rf-${hashKey(STABLE_JSON(reframe))}` : "none";
+    const reframeSource = { width: probe.width, height: probe.height };
     let input = frozenSource;
     const enhancement = quality === "uhd" ? {
       status: "not-requested", kind: sourceKind, sourceResolution: [probe.width, probe.height],
       sourceSha256: sourceHash, method: "local-canvas-resize", model: null, qualityReviewed: false,
     } : null;
     const inputHash = input === frozenSource ? sourceHash : enhancement.sha256;
-    const key = await contentKey({ sourceHash, inputHash, width, height, fps, quality, v: 3 });
+    const key = await contentKey({
+      sourceHash, inputHash, width, height, fps, quality, v: 3,
+      ...(reframe ? { reframe: reframeKey } : {}),
+    });
     const target = path.join(dir, `${shotId}-${key}.mp4`);
     const receiptPath = `${target}.json`;
     if (reuse && !force && fs.existsSync(target)) {
@@ -438,16 +658,32 @@ export async function normaliseShots({
           || (input !== source && await sha256File(input) !== inputHash)) {
         throw new PostError(`镜头 ${shotId} 归一化缓存读取期间原素材发生变化`, "verify_failed");
       }
+      if ((receipt.reframe?.key ?? "none") !== reframeKey) {
+        throw new PostError(`镜头 ${shotId} 归一化缓存的取景口径与本次请求不一致：${target}`, "verify_failed");
+      }
+      if (receipt.reframe && receipt.reframe.passed === false) {
+        throw new PostError(`镜头 ${shotId} 归一化缓存的取景机检未通过（上次运行）：请清理工作目录后重跑`, "verify_failed");
+      }
       out.push({
         shotId, source, sourceHash, sourceDuration, sourceHasAudio: probe.hasAudio,
         audioStems: shot.audioStems ?? null, sourceKind, enhancement, quality, path: target, reused: true,
         sha256: cachedHash, bytes: stat.size, mtimeMs: Math.round(stat.mtimeMs),
-        duration: cachedProbe.videoDuration,
+        duration: cachedProbe.videoDuration, reframe: receipt.reframe ?? null,
       });
       continue;
     }
-    const scale = `scale=${width}:${height}:force_original_aspect_ratio=decrease`
-      + `,pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2:color=black,setsar=1,fps=${fps},format=yuv420p`;
+    /**
+     * 取景链（crop-first）与旧归一化链二选一：
+     *   · 未声明 reframe：字节级沿用旧链（scale→pad），零行为变化；
+     *   · 声明 reframe：源原生裁切 → 填充/画布 → 动画（zoompan），并补 `-t` 锁定输出时长。
+     */
+    const reframeChain = reframe
+      ? buildReframeChain({ descriptor: reframe, source: reframeSource, canvas: [width, height], durationSeconds: probe.videoDuration, fps })
+      : null;
+    const scale = reframeChain
+      ? `${reframeChain.filters.join(",")},format=yuv420p`
+      : `scale=${width}:${height}:force_original_aspect_ratio=decrease`
+        + `,pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2:color=black,setsar=1,fps=${fps},format=yuv420p`;
     /**
      * 2026-10-11：uhd（4K）交付不再人为限 2 线程——旧值让 4K 成片交付耗时数小时；
      * 只放开线程数，preset/crf 等画质参数一律不变。
@@ -455,6 +691,7 @@ export async function normaliseShots({
     const args = ["-hide_banner", "-v", "error", "-y", "-filter_threads", quality === "uhd" ? "0" : "1", "-i", input];
     if (!probe.hasAudio) args.push("-f", "lavfi", "-i", "anullsrc=channel_layout=stereo:sample_rate=48000");
     args.push("-vf", scale);
+    if (reframeChain) args.push("-t", String(round3(probe.videoDuration)));
     if (probe.hasAudio) args.push("-map", "0:v:0", "-map", "0:a:0");
     else args.push("-map", "0:v:0", "-map", "1:a:0", "-shortest");
     const tempTarget = path.join(dir, `${shotId}-${key}.${process.pid}.${Date.now()}.tmp.mp4`);
@@ -467,6 +704,8 @@ export async function normaliseShots({
     let stat;
     let outputProbe;
     let outputHash;
+    /** 取景回执（在 try 内计算、在 finally 后随 clip 返回，故需外层作用域） */
+    let reframeReceipt = null;
     try {
       await runBin(bins.ffmpeg, args, { label: "ffmpeg(normalise)", timeoutMs: 900_000 });
       if (!fs.existsSync(tempTarget)) throw new PostError(`归一化未产出文件：${tempTarget}`, "ffmpeg_failed", true);
@@ -484,10 +723,28 @@ export async function normaliseShots({
         throw new PostError(`镜头 ${shotId} 归一化期间原素材或增强输入发生变化`, "verify_failed");
       }
       await fsp.rename(tempTarget, target);
+      /**
+       * 取景机检（预算/时长/黑边）与回执：先落回执（含失败证据），硬项不过即抛错，
+       * 不让"带黑边 / 超预算 / 吞时长"的产物静默进入交付。
+       */
+      reframeReceipt = reframe
+        ? await verifyReframeOutcome({
+          descriptor: reframe, key: reframeKey, source: reframeSource, canvas: [width, height],
+          outProbe: outputProbe, sourceDuration: probe.videoDuration, target, bins,
+        })
+        : null;
       await writeJson(receiptPath, {
         key, sourceSha256: sourceHash, inputSha256: inputHash, outputSha256: outputHash,
         bytes: stat.size, width, height, fps, hasAudio: true,
+        ...(reframeReceipt ? { reframe: reframeReceipt } : {}),
       });
+      if (reframeReceipt && reframeReceipt.passed === false) {
+        const failures = reframeReceipt.checks.filter((check) => check.hard !== false && check.ok === false);
+        throw new PostError(
+          `镜头 ${shotId} 取景机检未通过（${failures.length} 项硬失败）：${failures.map((check) => `${check.kind} ${JSON.stringify(check.detail)}`).join("；")}`,
+          "verify_failed",
+        );
+      }
     } finally {
       await fsp.rm(tempTarget, { force: true });
     }
@@ -496,6 +753,16 @@ export async function normaliseShots({
       audioStems: shot.audioStems ?? null, sourceKind, enhancement, quality, path: target, reused: false,
       sha256: outputHash, bytes: stat.size, mtimeMs: Math.round((await fsp.stat(target)).mtimeMs),
       duration: outputProbe.videoDuration,
+      reframe: reframe
+        ? {
+          key: reframeKey, mode: reframe.mode, intent: reframe.intent, fill: reframe.fill,
+          legacyPunchIn: reframe.legacyPunchIn === true,
+          source: reframeSource, canvas: { width, height },
+          scale: reframe.scale, center: reframe.center,
+          chainMode: reframeChain?.mode ?? null,
+          receiptPath, passed: reframeReceipt ? reframeReceipt.passed !== false : true,
+        }
+        : null,
     });
   }
   return out;
@@ -1630,6 +1897,47 @@ function normalizePatchKeys(patch, allowed, label = "patch") {
 }
 
 /**
+ * 第六风格轴（取景）：变体只能**调制**时间轴已声明的取景，不能凭空开启。
+ * 允许的覆盖键（未知键在 findVariantPack 阶段无从校验，这里显式白名单）：
+ *   · fill：填充策略（cover/blur/brand/pad）
+ *   · scaleMultiplier：推近强度系数（0–2；1 = 与母版一致，0 = 取消推近，1.5 = 更猛）
+ *   · easing：缓动曲线
+ * 没有声明 reframe 的镜头一律保持 null —— 保证"未开启取景＝零行为变化"。
+ */
+export function mergeVariantReframe(clips = [], override = null) {
+  if (!override || typeof override !== "object") return { applied: false, byShot: new Map() };
+  const unknown = Object.keys(override).filter((key) => !["fill", "scaleMultiplier", "easing", "note"].includes(key));
+  if (unknown.length) throw new PostError(`变体 reframe 含未知键：${unknown.join(", ")}（允许：fill, scaleMultiplier, easing, note）`, "bad_recipe");
+  const multiplier = Number.isFinite(Number(override.scaleMultiplier)) ? Math.max(0, Math.min(2, Number(override.scaleMultiplier))) : 1;
+  const byShot = new Map();
+  let applied = false;
+  for (const clip of clips) {
+    const receipt = clip.reframe ?? null;
+    if (!receipt) continue;
+    const scale = {
+      from: round4(1 + (Number(receipt.scale?.from ?? 1) - 1) * multiplier),
+      to: round4(1 + (Number(receipt.scale?.to ?? 1) - 1) * multiplier),
+    };
+    byShot.set(String(clip.shotId), {
+      mode: receipt.mode ?? "static",
+      intent: receipt.intent ?? null,
+      shotSize: null,
+      scale,
+      center: receipt.center ?? { from: { x: 0.5, y: 0.5 }, to: { x: 0.5, y: 0.5 } },
+      anchor: receipt.anchor ?? "center",
+      easing: REFRAME_EASINGS.includes(override.easing) ? override.easing : "smooth",
+      fill: REFRAME_FILLS.includes(override.fill) ? override.fill : (receipt.fill ?? "pad"),
+      maxZoomPolicy: "lossless",
+      safeArea: "respect",
+      note: typeof override.note === "string" ? override.note : "变体取景调制",
+      legacyPunchIn: receipt.legacyPunchIn === true,
+    });
+    applied = true;
+  }
+  return { applied, byShot };
+}
+
+/**
  * 出交付包：一次跑完「母版 → 旁挂字幕 → N 个风格变体（封面/文案/BGM/调色/转场）→ 软字幕轨 → 清单」。
  *
  * 产物结构（示例）：
@@ -1745,8 +2053,26 @@ export async function buildDeliveryPackage({
     const transitions = plannedTransitions
       ? { ...baseTransitions, intentMap: packTransitions.intentMap ?? null, scale: packTransitions.scale ?? 1, styleId: pack.id }
       : { ...baseTransitions, ...packTransitions, styleId: pack.id };
+    /**
+     * 第六风格轴（取景）：变体只调制已声明的取景；没有声明则一律沿用母版镜头（零行为变化）。
+     * 调制后的镜头走**独立的归一化目录**（按 reframe 内容哈希缓存），不会污染母版缓存。
+     */
+    const variantReframe = mergeVariantReframe(normalised, pack.reframe ?? null);
+    const variantClips = variantReframe.applied
+      ? await normaliseShots({
+        shots: shots.map((shot) => ({
+          ...shot,
+          reframe: variantReframe.byShot.get(String(shot.shotId ?? shot.shot_id ?? path.basename(String(shot.path)))) ?? null,
+        })),
+        project,
+        workDir: path.join(workDir, `norm-${pack.id}`),
+        bins,
+        reuse,
+        env,
+      })
+      : normalised;
     const assemblyKey = await contentKey({
-      shots: normalised.map((clip) => clip.sha256), transitions, v: 3,
+      shots: variantClips.map((clip) => clip.sha256), transitions, v: 3,
     });
     const assemblyPath = path.join(workDir, "assemble", `${pack.id}-${assemblyKey}.mp4`);
     const assemblyHash = await contentKey({ key: assemblyKey, type: "assembly" });
@@ -1766,7 +2092,7 @@ export async function buildDeliveryPackage({
       assembly = { ...meta, output: assemblyPath, durationSeconds: cachedProbe.videoDuration ?? cachedProbe.duration, reused: true };
     } else {
       const assembled = await assembleTimeline({
-        clips: normalised, transitions, output: assemblyPath, resolution: [width, height], fps, quality, bins,
+        clips: variantClips, transitions, output: assemblyPath, resolution: [width, height], fps, quality, bins,
       });
       const assembledProbe = await probeMedia(assemblyPath, { bins });
       if (assembledProbe.width !== width || assembledProbe.height !== height || !assembledProbe.hasAudio) {
@@ -1836,7 +2162,7 @@ export async function buildDeliveryPackage({
     // 音频层（BGM 选曲 + 混音；按内容哈希缓存，返修时可直接复用）
     const scoredPath = path.join(variantDir, `${pack.id}.mp4`);
     const stems = !hasIndependentAudio ? null : audioStemDigest(transitions) === audioStemDigest(baseTransitions) ? masterStems
-      : await timelineStems({ project, clips: normalised, transitions, workDir, env, bins });
+      : await timelineStems({ project, clips: variantClips, transitions, workDir, env, bins });
     const audioOutcome = await mixVariantAudio({ pack, gradedInput, workDir, output: scoredPath, bins, env, stems });
     const audioReport = audioOutcome.report;
     const track = audioOutcome.track;
@@ -1936,6 +2262,7 @@ export async function buildDeliveryPackage({
       positioning: pack.positioning,
       dir: variantDir,
       transitions: assembly.transitions ?? null,
+      reframe: variantReframe.applied ? { applied: true, override: pack.reframe ?? null } : null,
       artifacts: {
         video: { path: scoredPath, sha256: await sha256File(scoredPath), duration: scoredProbe.duration, resolution: [scoredProbe.width, scoredProbe.height] },
         softsub: softsub ? { path: softsub.output, sha256: softsub.sha256, tracks: softsub.tracks, checks: softsub.checks } : null,
@@ -2017,6 +2344,38 @@ export async function buildDeliveryPackage({
     })),
   });
 
+  /**
+   * 取景回执汇总（母版 + 每个变体；逐镜回执在各归一化产物旁 `<clip>.json#reframe`）。
+   * 与转场回执同口径：事实类硬项（预算/时长/黑边）在 normaliseShots 内已 fail-closed，
+   * 这里只做交付面归档与状态汇总。
+   */
+  const reframeClips = normalised.filter((clip) => clip.reframe);
+  const reframeSummaryPath = path.join(target, "reframe", "reframe-receipt.json");
+  await fsp.mkdir(path.dirname(reframeSummaryPath), { recursive: true });
+  await writeJson(reframeSummaryPath, {
+    schemaVersion: "workloom.reframe-summary/v1",
+    generatedAt: new Date().toISOString(),
+    planned: reframeClips.length > 0,
+    shots: normalised.map((clip) => (clip.reframe
+      ? {
+        shotId: clip.shotId,
+        mode: clip.reframe.mode ?? null,
+        intent: clip.reframe.intent ?? null,
+        fill: clip.reframe.fill ?? null,
+        legacyPunchIn: clip.reframe.legacyPunchIn === true,
+        scale: clip.reframe.scale ?? null,
+        center: clip.reframe.center ?? null,
+        source: clip.reframe.source ?? null,
+        canvas: clip.reframe.canvas ?? null,
+        budget: clip.reframe.budget ?? null,
+        chainMode: clip.reframe.chainMode ?? null,
+        passed: clip.reframe.passed !== false,
+        receiptPath: clip.reframe.receiptPath ? path.relative(target, clip.reframe.receiptPath) : null,
+      }
+      : null)).filter(Boolean),
+    variants: variantsOut.map((variant) => ({ id: variant.id, reframe: variant.reframe ?? null })),
+  });
+
   const packageChecks = [
     { kind: "audio_sources", ok: true, detail: { sourceScope: hasIndependentAudio ? audioScope(project) : null,
       embeddedAudioUsed: !hasIndependentAudio && normalised.some((clip) => clip.sourceHasAudio),
@@ -2040,6 +2399,25 @@ export async function buildDeliveryPackage({
     { kind: "master_no_burn_in", ok: Boolean(masterAssembly.output), detail: { note: "干净母版不含任何烧录字幕；字幕只以旁挂文件 + 可开关字幕轨交付", subtitles: sidecar ? sidecar.files.length : 0 } },
     { kind: "sidecar_files", ok: sidecar ? sidecar.passed : true, detail: sidecar ? { files: sidecar.files.map((file) => path.basename(file.path)), timeline: sidecar.manifest.timeline } : { note: "本次未提供字幕，跳过旁挂交付" } },
     { kind: "variant_count", ok: variantsOut.length >= 2, detail: { variants: variantsOut.map((variant) => variant.id) } },
+    {
+      kind: "reframe_receipts",
+      // 事实类硬项：逐镜取景回执的硬检查（预算/时长/黑边）必须全过；未声明取景时本项恒真。
+      ok: normalised.every((clip) => !clip.reframe || clip.reframe.passed !== false),
+      detail: {
+        planned: normalised.filter((clip) => clip.reframe).length,
+        shots: normalised.map((clip) => (clip.reframe
+          ? {
+            shotId: clip.shotId,
+            fill: clip.reframe.fill ?? null,
+            mode: clip.reframe.mode ?? null,
+            legacyPunchIn: clip.reframe.legacyPunchIn === true,
+            scale: clip.reframe.scale ?? null,
+            effectiveUpscale: clip.reframe.budget?.effectiveUpscale ?? null,
+            receiptPath: clip.reframe.receiptPath ? path.relative(target, clip.reframe.receiptPath) : null,
+          }
+          : null)).filter(Boolean),
+      },
+    },
     {
       kind: "covers_valid",
       ok: variantsOut.every((variant) => variant.artifacts.cover.checks.filter((check) => check.hard !== false).every((check) => check.ok === true)),
@@ -2200,6 +2578,7 @@ kind: "duration_consistent",
       name: variant.name,
       positioning: variant.positioning,
       dir: path.relative(target, variant.dir),
+      reframe: variant.reframe ?? null,
       video: { path: path.relative(target, variant.artifacts.video.path), sha256: variant.artifacts.video.sha256, duration: variant.artifacts.video.duration, resolution: variant.artifacts.video.resolution },
       softsub: variant.artifacts.softsub ? { path: path.relative(target, variant.artifacts.softsub.path), sha256: variant.artifacts.softsub.sha256, tracks: variant.artifacts.softsub.tracks.map((track) => ({ lang: track.lang, title: track.title })) } : null,
       burned: variant.artifacts.burned ? { path: path.relative(target, variant.artifacts.burned.path), sha256: variant.artifacts.burned.sha256 } : null,
@@ -2240,6 +2619,20 @@ kind: "duration_consistent",
         hardCutCount: entry.receipt?.hardCutCount ?? null,
         types: [...new Set((entry.receipt?.cuts ?? []).map((cut) => cut.type))],
         receiptPath: entry.receiptPath ? path.relative(target, entry.receiptPath) : null,
+      })),
+    },
+    reframe: {
+      planned: reframeClips.length > 0,
+      summaryPath: path.relative(target, reframeSummaryPath),
+      shots: normalised.filter((clip) => clip.reframe).map((clip) => ({
+        shotId: clip.shotId,
+        mode: clip.reframe.mode ?? null,
+        intent: clip.reframe.intent ?? null,
+        fill: clip.reframe.fill ?? null,
+        legacyPunchIn: clip.reframe.legacyPunchIn === true,
+        scale: clip.reframe.scale ?? null,
+        effectiveUpscale: clip.reframe.budget?.effectiveUpscale ?? null,
+        passed: clip.reframe.passed !== false,
       })),
     },
     divergence,
