@@ -16,6 +16,7 @@
  *   pnpm edit:post -- --timeline <film.timeline.json> --out-dir <交付目录>
  *     [--variants warm-story,clean-tech,bold-promo] [--subtitle <字幕.srt>]
  *     [--analysis <probe.json>]…（封面自动取帧与分段调色投票用）
+ *     [--bgm-section auto|climax|calm|full] [--bgm-cut-driven]
  *     [--title "标题"] [--hook "一句话钩子"] [--platform "微信视频号"]
  *     [--width <显式宽> --height <显式高>] [--fps 30] [--crf 16] [--burn-subtitles] [--json]
  *     [--transitions hard|pack|declared|auto] [--transitions-easing native|smooth]
@@ -32,6 +33,7 @@ import {
   describeTransitionPlan, planAssembly, planCoverMoment, planSegmentColor, planToPerCut, planTransitions,
   resolveTimelineSourcePaths, validateEditTimeline, type EditTimeline, type PostAnalysisDoc,
 } from "../../packages/video-studio/src/edit/index.js";
+import { scanBestFrame } from "./lib/frame-scan.mts";
 
 const REPO_ROOT = resolve(import.meta.dirname ?? process.cwd(), "../..");
 const FFMPEG = process.env.WL_FFMPEG ?? "ffmpeg";
@@ -356,6 +358,51 @@ async function main(): Promise<void> {
     writeFileSync(join(overrideDir, "index.json"), `${JSON.stringify({ ...index, updatedAt: new Date().toISOString(), principle: "本片全部硬切（覆盖副本）" }, null, 2)}\n`, "utf8");
     process.env.WORKLOOM_POST_VARIANT_DIR = overrideDir;
   }
+
+  /**
+   * 配乐落位（2026-10-11）：
+   *   · `--bgm-section auto|climax|calm|full`：选哪一段曲子。默认 auto——由配乐工位按
+   *     影片能量弧（filmEnergyArc）+ 曲子结构选段，让"曲子的高潮"落在"片子的峰值"附近；
+   *   · 主轨切点（cutTimes）随交付传下去，配乐工位用节拍网格对齐真实切点（鼓点跟剪辑走）；
+   *   · `--bgm-cut-driven` 才允许按切点反推 BPM（默认保留配方 BPM，只做相位对齐，避免改速度）。
+   */
+  const bgmSection = arg("--bgm-section", "auto");
+  if (!["full", "auto", "climax", "calm"].includes(bgmSection)) throw new Error("--bgm-section 只接受 full / auto / climax / calm");
+  const bgmCutDriven = flag("--bgm-cut-driven");
+  const cutTimes: number[] = (() => {
+    const times: number[] = [];
+    let cursor = 0;
+    const segments = timeline.segments ?? [];
+    for (const [index, segment] of segments.entries()) {
+      cursor = Number((cursor + segment.durationSeconds).toFixed(3));
+      if (index < segments.length - 1) times.push(cursor);
+    }
+    return times;
+  })();
+  if (bgmSection !== "full" || bgmCutDriven) {
+    const baseVariantDir = join(REPO_ROOT, "bundles/ai-video/library/style-variants");
+    const overrideDir = process.env.WORKLOOM_POST_VARIANT_DIR ?? join(outDir, "work", "variant-overrides");
+    mkdirSync(overrideDir, { recursive: true });
+    const index = JSON.parse(readFileSync(join(baseVariantDir, "index.json"), "utf8")) as { variants: Array<{ id: string; file: string }> };
+    for (const entry of index.variants) {
+      const packFile = join(overrideDir, entry.file);
+      const pack = existsSync(packFile)
+        ? JSON.parse(readFileSync(packFile, "utf8")) as Record<string, unknown>
+        : JSON.parse(readFileSync(join(baseVariantDir, entry.file), "utf8")) as Record<string, unknown>;
+      const bgm = (pack.bgm ?? {}) as Record<string, unknown>;
+      pack.bgm = {
+        ...bgm,
+        section: bgmSection,
+        ...(bgmCutDriven ? { bpmStrategy: "cut-driven" } : {}),
+      };
+      writeFileSync(packFile, `${JSON.stringify(pack, null, 2)}\n`, "utf8");
+    }
+    if (!existsSync(join(overrideDir, "index.json"))) {
+      writeFileSync(join(overrideDir, "index.json"), `${JSON.stringify({ ...index, updatedAt: new Date().toISOString() }, null, 2)}\n`, "utf8");
+    }
+    process.env.WORKLOOM_POST_VARIANT_DIR = overrideDir;
+  }
+
   if (bgmAgent) {
     const overrideDir = process.env.WORKLOOM_POST_VARIANT_DIR ?? join(outDir, "work", "variant-overrides");
     mkdirSync(overrideDir, { recursive: true });
@@ -506,6 +553,7 @@ async function main(): Promise<void> {
     shots,
     variants,
     outDir,
+    cutTimes,
     ...(subtitlePath ? { subtitles: { zhPath: subtitlePath } } : {}),
     burnSubtitles: flag("--burn-subtitles"),
     softSubtitles: true,
@@ -520,9 +568,31 @@ async function main(): Promise<void> {
    * 选定后用同一个封面工位（post-bridge 的 buildCover）重出每个变体的封面，不自己拼图。
    */
   const explicitCoverAt = arg("--cover-at");
-  const autoCover = explicitCoverAt
+  const autoCoverPlan = explicitCoverAt
     ? { ratio: Number(explicitCoverAt), basis: "explicit", note: "调用方显式指定 --cover-at", keyframeId: undefined as string | undefined, segmentId: undefined as string | undefined }
     : planCoverMoment({ timeline, analyses, fallbackRatio: 0.35 });
+  /**
+   * 关键帧候选缺失时的本地兜底：对干净母版做"最佳帧扫描"（清晰度×0.6 + 曝光×0.4），
+   * 而不是无条件回到"第 35% 那一帧"。扫描失败（测不出指标）才回退配方比例，并如实标注 basis。
+   */
+  let autoCover = autoCoverPlan as typeof autoCoverPlan & { scan?: ReturnType<typeof scanBestFrame> };
+  if (!explicitCoverAt && autoCoverPlan.basis === "fallback") {
+    const master = (result as { master?: { path?: string } }).master;
+    const masterPath = master?.path ?? join(outDir, "master", "master-clean.mp4");
+    if (existsSync(masterPath)) {
+      const scan = scanBestFrame({ file: masterPath, workDir: join(outDir, "work", "cover-scan"), ffmpeg: FFMPEG });
+      if (scan) {
+        autoCover = {
+          ratio: scan.ratio,
+          basis: "scan-best-frame",
+          note: `${scan.note}（无关键帧候选：先用本地扫描兜底，跑镜头理解后可升级为构图最优帧）`,
+          keyframeId: undefined,
+          segmentId: undefined,
+          scan,
+        };
+      }
+    }
+  }
   if (!Number.isFinite(autoCover.ratio) || autoCover.ratio < 0 || autoCover.ratio > 1) throw new Error("--cover-at 必须是 0–1 的比例");
   {
     const ratio = autoCover.ratio;
@@ -585,8 +655,29 @@ async function main(): Promise<void> {
       segmentId: autoCover.segmentId ?? null,
       note: autoCover.note,
       explicit: Boolean(explicitCoverAt),
+      scanCandidates: autoCover.scan?.candidates ?? null,
     },
     analyses: analyses.length,
+    bgmPlacement: {
+      section: bgmSection,
+      cutDriven: bgmCutDriven,
+      cutCount: cutTimes.length,
+      variants: variants.map((id) => {
+        const file = join(outDir, "variants", id, "audio.json");
+        if (!existsSync(file)) return { id, section: null, alignment: null };
+        const doc = JSON.parse(readFileSync(file, "utf8")) as {
+          section?: { mode?: string; chosen?: { startSec?: number; endSec?: number } | null; reason?: string } | null;
+          alignment?: { bpm?: number; offsetSec?: number; meanAbsErrorMs?: number | null; verdict?: string } | null;
+        };
+        return {
+          id,
+          section: doc.section ? { mode: doc.section.mode ?? null, chosen: doc.section.chosen ?? null, reason: doc.section.reason ?? null } : null,
+          alignment: doc.alignment
+            ? { bpm: doc.alignment.bpm ?? null, offsetSec: doc.alignment.offsetSec ?? null, meanAbsErrorMs: doc.alignment.meanAbsErrorMs ?? null, verdict: doc.alignment.verdict ?? null }
+            : null,
+        };
+      }),
+    },
     segmentColor: segmentColor ? { applied: segmentColorNotes.length, plan: segmentColorNotes } : null,
     bgmAgent: bgmAgent ? { libraryTotal: null, picks: bgmAgentReceipt } : null,
     manifest: manifestPath,
@@ -603,6 +694,7 @@ async function main(): Promise<void> {
       const graded = segmentColorNotes.filter((entry) => entry.lut);
       console.log(`  分段调色：${graded.length}/${segmentColorNotes.length} 段落 LUT（其余保持原色）`);
     }
+    console.log(`  配乐落位：选段 ${bgmSection}｜切点对齐 ${cutTimes.length} 个${bgmCutDriven ? "（cut-driven BPM）" : ""}`);
     if (subtitlePath) console.log(`  旁挂字幕：${subtitlePath}（已生成 srt/ass/vtt + 清单）`);
     console.log(`  交付清单：${manifestPath}`);
     if (transitionSummary?.scopes?.length) {

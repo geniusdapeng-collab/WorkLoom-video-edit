@@ -1542,6 +1542,11 @@ async function mixVerified({
   evidenceDir = null, bins = resolveBinaries(), workDir = null, keepWork = false,
   licenseReviewed = true, commercialUse = true, section = "full", sectionStartSec = null, sectionEndSec = null,
   cutTimes = null, bpmOverride = null, bpmStrategy = "recipe", programPath, dialoguePath, dialogueStatus,
+  /**
+   * 影片能量弧（`filmEnergyArc` 产物）：给 `chooseSection` 用——配乐选段不再只看曲子本身，
+   * 而是让"曲子的高潮段"对齐"片子的情绪峰值"（2026-10-11：配乐跟情绪走）。
+   */
+  filmArc = null,
 }) {
   if (!AUDIO_POLICIES.includes(policy)) throw new BgmError(`未知分层策略：${policy}`, "bad_request", false);
   if (!bgmPath || !fs.existsSync(bgmPath)) throw new BgmError("BGM 文件缺失", "not_found", false);
@@ -1566,7 +1571,13 @@ async function mixVerified({
     sectionPlan = { mode: "explicit", chosen: { startSec: sectionStartSec, endSec: sectionEndSec }, reason: "用户指定配乐片段" };
   } else if (section !== "full") {
     const structure = await analyzeStructure({ input: bgmPath, bins });
-    sectionPlan = chooseSection({ structure, mode: section, filmDurationSec: duration, minSectionSec: Math.min(6, bgmProbe.duration) });
+    sectionPlan = chooseSection({
+      structure,
+      filmArc: Array.isArray(filmArc) && filmArc.length > 0 ? filmArc : null,
+      mode: section,
+      filmDurationSec: duration,
+      minSectionSec: Math.min(6, bgmProbe.duration),
+    });
   }
   if (sectionPlan.chosen) {
     const chosen = sectionPlan.chosen;
