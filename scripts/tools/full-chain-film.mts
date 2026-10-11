@@ -87,6 +87,9 @@ import { loadProductArchives, productArchivePromptLines, productHeroPhoto, produ
 import { assertShotMatchesCertifiedAsset, assetIdOf, hasIdentityAnchor, identityAnchorContext, identityAnchorPath, identityReviewContext, loadRealPersonAssets, realPersonUsageReceipt, referenceAssetRefs, REAL_PERSON_POLICY_VERSION } from "../../packages/video-studio/src/real-person-asset.js";
 import { auditFilmRedlines, PROMPT_REDLINE_POLICY_VERSION } from "../../packages/video-studio/src/prompt-redlines.js";
 import { assessFilmFirstPass, FIRST_PASS_POLICY_VERSION } from "../../packages/video-studio/src/first-pass.js";
+import { REALISM_CLAUSE, REALISM_NEGATIVE_TERMS } from "../../packages/video-studio/src/shot-spec.js";
+import { resolveFilmSpeechLanguage, dialogueLines, speechLanguageClause, exactDialogueClause, noSpeechClause, speechNegativeTerms } from "../../packages/video-studio/src/dialogue-contract.js";
+import { reviewPlausibility, applyPromptPatches, PLAUSIBILITY_POLICY_VERSION } from "../../packages/video-studio/src/plausibility-review.js";
 import { publishUhdDelivery, sha256UhdAsset } from "../../packages/video-studio/src/uhd-delivery.js";
 import { FullChainFilmWorker } from "../../packages/video-studio/src/film-worker-runtime.js";
 
@@ -833,6 +836,11 @@ if (!needsNewRender) {
       note: "镜头已有成功渲染产物，复用来源直接后期，本轮不再次运行付费前准备" });
   }
 }
+/**
+ * 预生产请求（T-2026-1011-0001）：本轮是否真的要跑预生产（含付费生成）流程。
+ * 与 growthtest 的 `PRERENDER_REQUESTED` 同义；本仓沿用 `needsNewRender` 的既有判定，不新造第二套口径。
+ */
+const PRERENDER_REQUESTED = needsNewRender;
 
 const ROUTE_PREFLIGHT: Omit<RoutePreflightResult, "source" | "kind"> & {
   source: RoutePreflightResult["source"] | "existing-render"; kind: RoutePreflightResult["kind"] | null;
@@ -1205,6 +1213,8 @@ const shotlist = structuredClone(sourceDocument) as {
   hook?: HookCard;
   character?: { id?: string; name?: string }; shots: ShotCard[];
 };
+/** 影片人声语言（T-2026-1011-0001）：显式声明优先，其次由台词文本推断。 */
+const FILM_SPEECH_LANGUAGE = resolveFilmSpeechLanguage(shotlist as unknown as Record<string, unknown>, shotlist.shots as never[]);
 const policyBrief: Record<string, unknown> | null = BRIEF_FILE ? (() => {
   const file = abs(BRIEF_FILE);
   if (!existsSync(file)) throw new Error(`--brief 指向的文件不存在：${file}`);
@@ -1610,7 +1620,7 @@ function preflightSubmitGuard(input: { shotId: string; stage: string; prompt: st
  */
 let FIRST_PASS_ORDER: ShotCard[] = shots;
 {
-  const readiness = assessFilmFirstPass(preRenderShots as unknown as Array<Record<string, unknown>>, { fps: FPS });
+  const readiness = assessFilmFirstPass(preRenderShots as unknown as Array<Record<string, unknown>>, { fps: FPS, language: FILM_SPEECH_LANGUAGE });
   const shotIds = shots.map((shot) => String(shot.shotId));
   const order = readiness.renderOrder;
   FIRST_PASS_ORDER = [...shots.filter((shot) => hasRenderedSource(String(shot.shotId))), ...order.map((id) => shots.find((shot) => String(shot.shotId) === id)!).filter(Boolean)];
@@ -1946,6 +1956,7 @@ function loadCharacterRoot(root: string, library: Map<string, CharacterEntryLike
       a.hair ? `${String(a.hair)}发型` : "",
       Array.isArray(a.features) && a.features.length > 0 ? `特征：${(a.features as unknown[]).join("；")}` : "",
       a.bodyType ? `身形：${String(a.bodyType)}` : "",
+      i.height ? `身高约 ${String(i.height)}` : "",
       wardrobe.name ? `穿着${String(wardrobe.name)}${wardrobe.detail ? `（${String(wardrobe.detail)}）` : ""}` : ""
     ].filter(Boolean).join("，");
     library.set(profile.id, { id: profile.id, name: profile.name, files, dir, appearanceText, version: active?.version ?? null });
@@ -2774,7 +2785,8 @@ if (STAGES.has("spec")) {
     const duration = Number(shot.duration ?? 0);
     const chars = dialogueText(shot).replace(/[，。！？、,.!?]/g, "").length;
     const rate = duration > 0 ? chars / duration : 0;
-    const report = prepareShotPrompt(shot as unknown as Record<string, unknown>, { ratio: ASPECT, resolution: SOURCE_RESOLUTION, fps: FPS });
+    const report = prepareShotPrompt(shot as unknown as Record<string, unknown>,
+      { ratio: ASPECT, resolution: SOURCE_RESOLUTION, fps: FPS, language: FILM_SPEECH_LANGUAGE });
     /**
      * 提示词语言与引用归一（2026-09-24 真机，6 镜全部命中）：
      *   · 卡片【语言约束】要求全中文，而 vendor 负面约束默认夹带英文（no text / no watermark…）→ 映射成中文等价；
@@ -3145,6 +3157,133 @@ if (STAGES.has("spec")) {
 }
 }
 
+/* ---------- ①-9 实体与物理常识审核（监制 agent，T-2026-1011-0001） ---------- */
+/**
+ * **世界知识不枚举**：汽车、自行车、相机、牛肉馅饺子……世间万物无法穷举成规则表。正确的分工是——
+ * 机械事实（台词逐字/语言/档案完整性）留给确定性判据；"主体在真实世界里怎么存在、怎么被使用、
+ * 比例/接触/动力/装备/使用状态/真实感是否成立"交给评审模型的**世界模型**逐镜判断。
+ *
+ * 两个调用点：
+ *   ① pre-render：关键帧之前（卡片 + 提示词 + 商品档案）→ 拦逻辑/常识/口径缺陷（无人驾驶、缺装备、比例无锚…）；
+ *   ② pre-submit：视频提交之前（附关键帧画面）→ 拦视觉缺陷（玩具比例、换人、CG 感、品牌改写…）。
+ * 这是**事实闸**，不受 --review-policy off 影响；审核不可用或结论不可解析一律 fail-closed。
+ */
+function plausibilityArchiveFor(shot: ShotCard): NonNullable<ReturnType<typeof selectProductArchive>["archive"]> | null {
+  const selector = String((shot as Record<string, unknown>).product ?? "").trim();
+  if (!selector) return null;
+  return selectProductArchive(productLibrary.archives, selector).archive ?? null;
+}
+function plausibilityContextFor(stage: "pre-render" | "pre-submit"): Parameters<typeof reviewPlausibility>[0] {
+  const reviewShots = pendingShots().length > 0 ? pendingShots() : shots;
+  const archives = [...new Map(reviewShots
+    .map((shot) => plausibilityArchiveFor(shot))
+    .filter((archive): archive is NonNullable<typeof archive> => Boolean(archive))
+    .map((archive) => [archive.id, archive])).values()];
+  const promptFor = (shotId: string): string => {
+    const file = join(PROMPT_DIR, `${shotId}.txt`);
+    return existsSync(file) ? readFileSync(file, "utf8") : "";
+  };
+  const images = stage === "pre-submit"
+    ? reviewShots.flatMap((shot) => {
+      const plate = join(PLATE_DIR, `${shot.shotId}-plate.png`);
+      const material = join(PLATE_DIR, `${shot.shotId}-material.jpg`);
+      const file = existsSync(plate) ? plate : existsSync(material) ? material : null;
+      return file ? [{ label: `镜头 ${String(shot.shotId)} 关键帧`, path: file }] : [];
+    })
+    : [];
+  return {
+    projectId: PROJECT,
+    platform: String((shotlist as Record<string, unknown>).platform ?? arg("--platform", "")),
+    locale: FILM_SPEECH_LANGUAGE,
+    aspect: ASPECT,
+    resolution: OUTPUT_RESOLUTION,
+    durationSeconds: Number((shotlist as Record<string, unknown>).durationSeconds ?? totalSeconds) || undefined,
+    character: lead ? { name: lead.name, appearance: lead.appearanceText } : null,
+    products: archives.map((archive) => ({
+      id: archive.id, displayName: archive.displayName, brand: archive.brand, category: archive.category,
+      sourceKind: archive.source?.kind, reviewStatus: archive.source?.reviewStatus,
+      dimensions: archive.specs?.dimensions as Record<string, unknown> | undefined,
+      photoAngles: [...new Set((archive.photos ?? []).map((photo) => photo.angle).filter(Boolean) as string[])],
+      appearance: archive.specs?.appearance, features: archive.specs?.features,
+      parameters: (archive.specs?.parameters ?? []).map((parameter) => ({ name: String(parameter?.name ?? ""), value: String(parameter?.value ?? "") })),
+    })),
+    shots: reviewShots.map((shot) => ({
+      shotId: String(shot.shotId), durationSec: Number(shot.duration ?? 0) || undefined,
+      scene: String(shot.scene ?? ""), sceneDescription: String(shot.sceneDescription ?? ""),
+      action: String(shot.action ?? ""), props: String(shot.props ?? ""), character: String(shot.character ?? ""),
+      dialogue: shot.dialogue ?? null, dialogueFree: (shot as Record<string, unknown>).dialogueFree === true,
+      product: String((shot as Record<string, unknown>).product ?? ""), promptText: promptFor(String(shot.shotId)),
+    })),
+    images,
+    stage,
+  };
+}
+/** 跑一次常识审核；blocker 或 unverified → 未花钱前停；通过时把模型给出的提示词补丁落进对应镜头提示词。 */
+async function runPlausibilityGate(stage: "pre-render" | "pre-submit"): Promise<void> {
+  const started = Date.now();
+  /**
+   * 离线/mock 语义（T-2026-1011-0001）：CI 与本地离线回归使用 `LLM_PROVIDER=mock`（无评审模型），
+   * 此时本闸**显式跳过并留痕**（unverified/offline-mock），而不是把 mock 环境当成生产事故；
+   * 生产/发布环境（非 mock）没有评审模型时仍然 fail-closed——事实闸不许静默放行。
+   */
+  const reviewer = resolveProducerLlm(ENV);
+  const offlineMock = String(ENV.LLM_PROVIDER ?? "").trim().toLowerCase() === "mock";
+  if (!reviewer && offlineMock) {
+    record({
+      stage: `plausibility-${stage}`, shotId: null, invoked: false, ok: true, cached: false, degraded: false,
+      attempt: 0, ms: Date.now() - started, artifact: null,
+      evidence: { verdict: "unverified", skipped: "offline-mock", policy: PLAUSIBILITY_POLICY_VERSION },
+      verdict: null, note: "离线/mock 模式：实体与物理常识审核未执行（生产必须配置评审模型）",
+    });
+    log(`实体与物理常识审核（${stage}）：离线/mock 模式跳过（未执行，不冒充通过）`);
+    return;
+  }
+  const result = await reviewPlausibility(plausibilityContextFor(stage), { env: ENV, log });
+  const blockers = result.findings.filter((finding) => finding.severity === "blocker");
+  const detail = result.verdict === "pass"
+    ? `${PLAUSIBILITY_POLICY_VERSION}：实体与物理常识通过（blocker 0 · warning ${result.findings.length}）`
+    : result.verdict === "block"
+      ? blockers.map((finding) => `${finding.shotId ?? "-"}｜${finding.id}｜${finding.issue}｜为什么：${finding.why}｜修法：${finding.fix}`).join("；")
+      : `审核未验证：${result.reason}`;
+  recordGate({
+    stepKey: `g-plausibility-${stage}`,
+    sourceStage: stage === "pre-render" ? "prompt" : "keyframe",
+    checks: [{ id: "plausibility-ok", pass: result.verdict === "pass", hard: true, detail }],
+    shotIds: shots.map((shot) => String(shot.shotId)),
+    evidence: { stage, verdict: result.verdict, findings: result.findings, promptPatches: result.promptPatches, model: result.model, ms: result.ms, policy: PLAUSIBILITY_POLICY_VERSION },
+    reason: result.verdict === "pass" ? "实体与物理常识审核通过" : result.verdict === "block" ? "实体与物理常识存在 blocker" : `审核未验证：${result.reason}`,
+  });
+  record({
+    stage: `plausibility-${stage}`, shotId: null, invoked: true, ok: result.verdict === "pass", cached: false, degraded: false,
+    attempt: 1, ms: Date.now() - started, artifact: null,
+    evidence: { verdict: result.verdict, findings: result.findings, promptPatches: result.promptPatches, model: result.model, policy: PLAUSIBILITY_POLICY_VERSION },
+    verdict: null, note: `实体与物理常识审核（${stage}）：${result.reason}`,
+  });
+  for (const finding of result.findings) {
+    log(`   ${finding.severity === "blocker" ? "✗" : "△"} ${finding.shotId ?? "-"} ${finding.id}：${finding.issue}｜修法：${finding.fix}`);
+  }
+  if (result.verdict !== "pass") {
+    throw new Error(`PLAUSIBILITY_BLOCKED（未花钱 · ${stage}）：${result.verdict === "block" ? blockers.map((finding) => `${finding.shotId ?? "-"}:${finding.id}`).join(",") : result.reason}`);
+  }
+  if (result.promptPatches.length > 0) {
+    const prompts = new Map<string, string>();
+    for (const shot of shots) {
+      const file = join(PROMPT_DIR, `${String(shot.shotId)}.txt`);
+      if (existsSync(file)) prompts.set(String(shot.shotId), readFileSync(file, "utf8"));
+    }
+    const patched = applyPromptPatches(result.promptPatches, prompts);
+    let written = 0;
+    for (const [shotId, text] of patched) {
+      if (text === prompts.get(shotId)) continue;
+      writeFileSync(join(PROMPT_DIR, `${shotId}.txt`), text, "utf8");
+      written += 1;
+    }
+    if (written > 0) log(`   · 常识审核补丁已写入 ${written} 镜提示词（模型生成条款，不是品类规则枚举）`);
+  }
+  log(`实体与物理常识审核（${stage}）通过：warning ${result.findings.length} · model ${result.model ?? "-"} · ${result.ms}ms`);
+}
+if (PRERENDER_REQUESTED && !DRY_RUN) await runPlausibilityGate("pre-render");
+
 /* ---------- ② 关键帧（监制：keyframe，逐镜视觉评审 + 打回重跑） ---------- */
 if (STAGES.has("plates")) {
   /**
@@ -3503,6 +3642,18 @@ if (STAGES.has("material-gen")) {
       let prompt = buildMaterialScenePrompt(card, {
         aspect: ASPECT, resolution: SOURCE_RESOLUTION, durationSec: duration, title: shotlist.title
       });
+      /** 素材镜同样挂写实 + 台词/语言条款（T-2026-1011-0001）。 */
+      {
+        const extraLines: string[] = [REALISM_CLAUSE, REALISM_NEGATIVE_TERMS];
+        const materialDialogue = dialogueLines(card as never);
+        if (materialDialogue.length > 0) {
+          extraLines.push(speechLanguageClause(FILM_SPEECH_LANGUAGE, materialDialogue), exactDialogueClause(materialDialogue));
+        } else {
+          extraLines.push(noSpeechClause());
+        }
+        extraLines.push(speechNegativeTerms(FILM_SPEECH_LANGUAGE));
+        prompt += ` | ${extraLines.filter((line) => line.trim()).join(" | ")}`;
+      }
       writeFileSync(promptFile, `${prompt}\n`, "utf8");
       const promptIntent = prompt;
       rememberInputs("material-gen", [photo, prepared, promptFile], shot.shotId);
@@ -3596,6 +3747,8 @@ if (STAGES.has("material-gen")) {
     }
   }
 }
+
+if (PRERENDER_REQUESTED && !DRY_RUN) await runPlausibilityGate("pre-submit");
 
 if (STAGES.has("videos")) {
   /**
@@ -4443,7 +4596,11 @@ if (STAGES.has("subtitle") && existsSync(colored)) {
  * 硬塞一层评点会显得违和。关闭时后续环节直接接字幕版（`master-subtitled.mp4`），
  * 并在阶段日志里留一条"显式跳过"，终审的血缘/层级检查也据此少一层（不冒充已执行）。
  */
-const DANMAKU_ENABLED = !flag("--no-danmaku");
+const DANMAKU_ENABLED = !flag("--no-danmaku")
+  && (Boolean(String(DANMAKU_FILE ?? "").trim()) || FILM_SPEECH_LANGUAGE === "zh");
+if (!DANMAKU_ENABLED && !flag("--no-danmaku") && FILM_SPEECH_LANGUAGE !== "zh") {
+  log(`弹幕层：默认关闭（影片人声语言=${FILM_SPEECH_LANGUAGE}）；如需弹幕请显式传 --danmaku <items.json>`);
+}
 
 let danmakuOut = DANMAKU_ENABLED
   ? (STAGES.has("danmaku") ? subtitled : preferDownstream(join(POST_DIR, "master-danmaku.mp4"), subtitled, "danmaku"))
