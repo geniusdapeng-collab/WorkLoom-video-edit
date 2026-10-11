@@ -1571,6 +1571,43 @@ async function mixVerified({
     sectionPlan = { mode: "explicit", chosen: { startSec: sectionStartSec, endSec: sectionEndSec }, reason: "用户指定配乐片段" };
   } else if (section !== "full") {
     const structure = await analyzeStructure({ input: bgmPath, bins });
+    /**
+     * 影片能量弧：调用方（post-bridge）可以直接给一条弧，也可以完全不给——
+     * 不给时在这里自算（`filmEnergyArc`），并把"片子高潮时刻"用三级依据（剪辑成簇/非对白能量峰/低对白能量峰）
+     * 收敛成 `climaxBasis`，供 chooseSection 判断"确有峰"才做峰值对齐。
+     */
+    let cutsForClimax = Array.isArray(cutTimes)
+      ? cutTimes.map((at) => ({ at: Number(at), score: 1 })).filter((cut) => Number.isFinite(cut.at))
+      : [];
+    if (cutsForClimax.length === 0) {
+      /** 调用方没给主轨切点时自测剪辑点：cut-density 是"片子高潮"的第一级依据（口播片不拿人声峰值当高潮）。 */
+      try {
+        cutsForClimax = (await detectCuts({ input, bins })).cuts ?? [];
+      } catch {
+        cutsForClimax = [];
+      }
+    }
+    let voiceForClimax = null;
+    try {
+      voiceForClimax = await detectVoiceBandSegments({ input, duration });
+    } catch {
+      voiceForClimax = null;
+    }
+    let effectiveFilmArc = filmArc && typeof filmArc === "object" && !Array.isArray(filmArc) ? filmArc : null;
+    try {
+      if (!effectiveFilmArc) {
+        const arc = await filmEnergyArc({ input, bins });
+        const climax = filmClimaxTime({ arc, cuts: cutsForClimax, voice: voiceForClimax, durationSec: duration });
+        effectiveFilmArc = { ...arc, peakTimeSec: climax.basis === "none" ? null : climax.timeSec, climaxBasis: climax.basis, climaxDetails: climax.details };
+      } else if (!effectiveFilmArc.climaxBasis) {
+        /** 调用方只给了原始弧线（peakTimeSec/dynamicsDb）时，补做"高潮时刻"收敛，避免把能量峰误当叙事高点。 */
+        const climax = filmClimaxTime({ arc: effectiveFilmArc, cuts: cutsForClimax, voice: voiceForClimax, durationSec: duration });
+        effectiveFilmArc = { ...effectiveFilmArc, peakTimeSec: climax.basis === "none" ? null : climax.timeSec, climaxBasis: climax.basis, climaxDetails: climax.details };
+      }
+    } catch {
+      /** 弧线分析失败：不阻断混音，退化为"按曲子结构选段"（chooseSection 会走无峰分支并写明理由）。 */
+      effectiveFilmArc = null;
+    }
     sectionPlan = chooseSection({
       structure,
       /**
@@ -1578,11 +1615,14 @@ async function mixVerified({
        * 合并主干新版 chooseSection 后，这里必须原样透传对象；用数组判断会把弧线静默丢成 null，
        * 结果"配乐跟情绪走"表面启用、实际退化成"按曲子结构选段"。
        */
-      filmArc: filmArc && typeof filmArc === "object" ? filmArc : null,
+      filmArc: effectiveFilmArc,
       mode: section,
       filmDurationSec: duration,
       minSectionSec: Math.min(6, bgmProbe.duration),
     });
+    sectionPlan.filmArc = effectiveFilmArc
+      ? { peakTimeSec: effectiveFilmArc.peakTimeSec ?? null, dynamicsDb: effectiveFilmArc.dynamicsDb ?? null, climaxBasis: effectiveFilmArc.climaxBasis ?? null }
+      : null;
   }
   if (sectionPlan.chosen) {
     const chosen = sectionPlan.chosen;
@@ -1590,9 +1630,40 @@ async function mixVerified({
       startSec: chosen.startSec, endSec: chosen.endSec, bins });
     playPath = rendered.path;
     sectionPlan.played = { ...rendered };
+    /**
+     * 相位预卷（preroll-loop）：不把整条音乐床延后（那会让前段静音），而是从段落内部的相位起播并循环——
+     * 既保证 0s 起全程有音乐，又让段落的能量峰**正好落在片子高潮时刻**（peakLandedAtSec === filmPeakSec）。
+     */
+    if (sectionPlan.alignFilmPeak === true && Number.isFinite(sectionPlan.filmArc?.peakTimeSec) && Number(chosen.durationSec) > 0.5) {
+      const sectionDuration = Number(chosen.durationSec);
+      const anchorOffsetSec = Number.isFinite(chosen.peakTimeSec)
+        ? Math.max(0, Math.min(sectionDuration, Number(chosen.peakTimeSec) - Number(chosen.startSec)))
+        : round(sectionDuration / 2, 3);
+      const filmPeakSec = Number(sectionPlan.filmArc.peakTimeSec);
+      const phaseSec = prerollPhaseSec({ sectionDurationSec: sectionDuration, anchorOffsetSec, filmPeakSec });
+      const loops = Math.max(2, Math.ceil((phaseSec + duration + 0.5) / sectionDuration) + 1);
+      const list = path.join(work, "preroll-list.txt");
+      await fsp.writeFile(list, Array.from({ length: loops }, () => `file '${playPath.replaceAll("'", "'\\''")}'`).join("\n"), "utf8");
+      const looped = path.join(work, "preroll-looped.wav");
+      await runBin(bins.ffmpeg, ["-hide_banner", "-v", "error", "-xerror", "-n", "-f", "concat", "-safe", "0", "-i", list,
+        "-c:a", "pcm_f32le", "-ar", "48000", "-ac", "2", looped], { label: "ffmpeg(preroll-loop)", timeoutMs: 600_000 });
+      const preroll = path.join(work, "preroll.wav");
+      await runBin(bins.ffmpeg, ["-hide_banner", "-v", "error", "-xerror", "-n", "-i", looped,
+        "-af", `atrim=start=${phaseSec}:duration=${duration},asetpts=N/SR/TB`,
+        "-c:a", "pcm_f32le", "-ar", "48000", "-ac", "2", preroll], { label: "ffmpeg(preroll-trim)", timeoutMs: 600_000 });
+      playPath = preroll;
+      sectionPlan.preroll = { applied: true, phaseSec, loops, note: "相位预卷：从段落内部起播并循环（0s 起有音乐，峰值落点对齐片子高潮）" };
+      sectionPlan.filmPeakAlign = {
+        filmPeakSec,
+        musicAnchorOffsetSec: round(anchorOffsetSec, 3),
+        placedAtSec: 0,
+        peakLandedAtSec: filmPeakSec,
+        mode: "preroll-loop",
+      };
+    }
   }
   const playProbe = await probeMedia(playPath, { bins });
-  if (playProbe.duration < duration + 0.5) {
+  if (sectionPlan.preroll?.applied !== true && playProbe.duration < duration + 0.5) {
     const loops = Math.max(2, Math.ceil((duration + 0.5) / playProbe.duration));
     const list = path.join(work, "bed-music.txt");
     await fsp.writeFile(list, Array.from({ length: loops }, () => `file '${playPath.replaceAll("'", "'\\''")}'`).join("\n"), "utf8");
@@ -1639,6 +1710,22 @@ async function mixVerified({
   const outputProbe = await probeMedia(output, { bins });
   if (!outputProbe.audio || !(outputProbe.duration > 0)) throw new BgmError("混音未产出可读音轨", "bad_media", false);
   const hash = await sha256File(output);
+  /** 选段证据：把"选了哪一段/对齐到哪一秒/预卷相位多少"落成可复核的 JSON（供交付检查与回归）。 */
+  let evidence = null;
+  if (evidenceDir) {
+    try {
+      await fsp.mkdir(evidenceDir, { recursive: true });
+      const sectionEvidence = path.join(evidenceDir, "section-picked.json");
+      await fsp.writeFile(sectionEvidence, `${JSON.stringify({
+        section: sectionPlan,
+        filmPeakAlign: sectionPlan.filmPeakAlign ?? null,
+        preroll: sectionPlan.preroll ?? null,
+      }, null, 2)}\n`, "utf8");
+      evidence = { sectionPicked: sectionEvidence };
+    } catch {
+      evidence = null;
+    }
+  }
   return { input, policy, qualityReviewed: false, qualityScore: null,
     bgm: { path: bgmPath, sha256: await sha256File(bgmPath), durationSeconds: bgmProbe.duration, looped: bgmProbe.duration < duration,
       bpm: tempo.bpm, selfMeanDb: Number.isFinite(musicLevel.meanDb) ? musicLevel.meanDb : null, appliedGainDb: musicGainDb },
@@ -1653,7 +1740,7 @@ async function mixVerified({
     applicability: { qualityReview: "not-applicable", sourceDialogueStatus: dialogueStatus },
     retainedTracks: [{ role: "program", path: programPath, sha256: await sha256File(programPath) },
       { role: "music", path: playPath, sha256: await sha256File(playPath) }], warnings: [],
-    voiceActivity: { activeRatio: null, segments: null, method: "not-reviewed" }, evidence: null,
+    voiceActivity: { activeRatio: null, segments: null, method: "not-reviewed" }, evidence,
     license: { reviewed: licenseReviewed, commercialUse }, workDir: keepWork ? work : null };
 }
 
