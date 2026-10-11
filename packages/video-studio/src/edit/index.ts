@@ -20,4 +20,7 @@ export * from "./reframe.js";
 export * from "./audio.js";
 export * from "./caption.js";
 export * from "./post-auto.js";
+export * from "./creative-check.js";
+export * from "./intent.js";
+export * from "./auto-plan.js";
 export * from "./talk.js";

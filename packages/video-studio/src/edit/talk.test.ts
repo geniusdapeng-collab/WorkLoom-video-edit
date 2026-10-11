@@ -211,7 +211,30 @@ describe("edit/talk：剪取决策", () => {
     const emotion = buildEmotionCurve(sentences, analysis, {});
     const plan = planTalkCut(sentences, analysis, emotion);
     expect(plan.decisions.some((decision) => decision.reason === "rhetorical-keep")).toBe(true);
-    expect(plan.decisions.some((decision) => decision.reason === "stumble" && decision.action === "cut")).toBe(true);
+    /**
+     * 卡壳要放在**没有保护窗**的语料上测：共享夹具里的「我我我」落在口误自纠的错句区间内，
+     * 按"自纠=错句+纠正都留"的口径它必须保留（旧实现会被重复处理器删掉，属于规则打架）。
+     */
+    const stumbleSentences = buildSentences([
+      ["s1", [["我", 0.2], ["我", 0.2], ["我", 0.2], ["觉得", 0.3], ["这样", 0.3], ["挺", 0.2], ["好", 0.2]]],
+    ]);
+    const stumbleAnalysis = analyzeTalkTranscript(stumbleSentences);
+    const stumblePlan = planTalkCut(stumbleSentences, stumbleAnalysis, buildEmotionCurve(stumbleSentences, stumbleAnalysis, {}));
+    expect(stumblePlan.decisions.some((decision) => decision.reason === "stumble" && decision.action === "cut")).toBe(true);
+  });
+
+  it("保护窗口优先于重复处理器：自纠错句里的卡壳/语气词不会被重复删除", () => {
+    const sentences = fixture();
+    const analysis = analyzeTalkTranscript(sentences);
+    const emotion = buildEmotionCurve(sentences, analysis, {});
+    const plan = planTalkCut(sentences, analysis, emotion);
+    const correction = analysis.selfCorrections[0]!;
+    const cutsInsideCorrection = plan.cutSpans.filter((span) => span.start < correction.end && span.end > correction.start);
+    /**
+     * 自纠策略 keep 时，错句区间内只允许"停顿压缩"（可用理由被合并覆盖为 self-correction-keep）；
+     * 语气词/卡壳一律不得在保护窗内被删——这是"先保护后删除"的具体断言。
+     */
+    expect(cutsInsideCorrection.some((span) => span.reason === "filler-noise" || span.reason === "stumble")).toBe(false);
   });
 
   it("人味下限：语气词删得过多时自动回补，保留率达到下限", () => {

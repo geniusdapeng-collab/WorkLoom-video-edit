@@ -1,8 +1,8 @@
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { copyFileSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { copyFileSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { delimiter, join } from "node:path";
 import { afterEach, expect, it } from "vitest";
 
 import { normaliseShots, readRevisionBase, reedit } from "../../../bundles/ai-video/connectors/post-bridge/core.mjs";
@@ -14,6 +14,23 @@ const bins = {
 const hasMediaTools = [bins.ffmpeg, bins.ffprobe].every((bin) => spawnSync(bin, ["-version"], { stdio: "ignore" }).status === 0)
   && /\blibx264\b/.test(spawnSync(bins.ffmpeg, ["-hide_banner", "-encoders"], { encoding: "utf8" }).stdout ?? "");
 const scratch: string[] = [];
+/**
+ * 路径监狱的测试隔离（2026-10-11）：
+ * post-bridge 默认放行「进程工作目录 + 系统临时目录」，但 macOS 的 `/var`→`/private/var`
+ * 符号链接会让"非 realpath 的临时路径"在工位的 lexical/real 比对里落空；CI 安装 ffmpeg 后
+ * 本用例从"跳过"变成"必跑"，这个平台差异就会把 test-gate 打成 error。
+ * 做法与 delivery-integration.test.ts 一致：realpath 工作目录 + 显式把 scratch 目录写进四类白名单
+ * （不改生产默认值，只是让测试自带它需要的边界声明）。
+ */
+const ROOT_ENV_KEYS = ["WORKLOOM_POST_ALLOWED_ROOTS", "WORKLOOM_BGM_ALLOWED_ROOTS", "WORKLOOM_COLOR_ALLOWED_ROOTS", "WORKLOOM_SUBTITLE_ALLOWED_ROOTS"] as const;
+const previousRoots = new Map<string, string | undefined>();
+function allowScratchRoot(dir: string): void {
+  for (const key of ROOT_ENV_KEYS) {
+    if (!previousRoots.has(key)) previousRoots.set(key, process.env[key]);
+    const existing = (process.env[key] ?? "").trim();
+    process.env[key] = [existing, dir].filter(Boolean).join(delimiter);
+  }
+}
 const expectedBase = (file: string) => {
   const base = readRevisionBase(file);
   return { expectedVersion: base.version, expectedProjectSha256: base.sha256 };
@@ -21,6 +38,11 @@ const expectedBase = (file: string) => {
 
 afterEach(() => {
   for (const dir of scratch.splice(0)) rmSync(dir, { recursive: true, force: true });
+  for (const [key, value] of previousRoots) {
+    if (value === undefined) delete process.env[key];
+    else process.env[key] = value;
+  }
+  previousRoots.clear();
 });
 
 function ffmpeg(args: string[]): void {
@@ -29,8 +51,9 @@ function ffmpeg(args: string[]): void {
 }
 
 it.skipIf(!hasMediaTools)("rejects a replaced normalization cache and a modified prior variant during reedit", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "workloom-post-integrity-"));
+  const dir = realpathSync(mkdtempSync(join(tmpdir(), "workloom-post-integrity-")));
   scratch.push(dir);
+  allowScratchRoot(dir);
   const source = join(dir, "source.mp4");
   ffmpeg(["-hide_banner", "-v", "error", "-f", "lavfi", "-i", "testsrc=size=160x90:rate=12:duration=1", "-f", "lavfi", "-i", "sine=frequency=500:sample_rate=48000:duration=1", "-shortest", "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac", source]);
   const params = { shots: [{ shotId: "SC-01", path: source }], project: { resolution: [160, 90], fps: 12 }, workDir: dir, bins };

@@ -51,6 +51,8 @@ function main(): void {
   const captionPath = arg("--caption");
   const outPath = arg("--out");
   const talkMode = flag("--talk");
+  /** 自动粗剪放行：无语音/无画面文字的段落允许留空字幕（只降级"缺字"这一条硬项）。 */
+  const allowSilentShots = flag("--allow-silent-shots");
   if (!timelinePath || !captionPath || !outPath) {
     throw new Error("用法：pnpm edit:subtitle -- --timeline <film.timeline.json> --caption <剪辑脚本字幕版.json> --out <字幕.srt> [--talk --transcript <逐字稿.json>]");
   }
@@ -81,6 +83,7 @@ function main(): void {
     analyses: analyses as never,
     mode: talkMode ? "talk" : "standard",
     transcript: talkTranscript,
+    ...(allowSilentShots ? { allowSilentShots: true } : {}),
   });
 
   const srt = cuesToSrtBody(analysis.cues);

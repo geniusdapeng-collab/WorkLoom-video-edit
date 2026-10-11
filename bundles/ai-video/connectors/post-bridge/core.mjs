@@ -39,7 +39,7 @@ import {
   softMux, srtSecondsToAss, SubtitleError,
 } from "../subtitle-bridge/core.mjs";
 import { grade as colorGrade } from "../color-bridge/core.mjs";
-import { findTracks, loadAllLocalTracks, mix as bgmMix } from "../bgm-bridge/core.mjs";
+import { findTracks, filmEnergyArc as bgmFilmEnergyArc, loadAllLocalTracks, mix as bgmMix } from "../bgm-bridge/core.mjs";
 import { AUDIO_STEM_ROLES, audioStemDigest, renderAudioStems, verifyAudioStemBundle,
   muxAudioProgram, snapshotAudioStemArtifact } from "../bgm-bridge/audio-stems.mjs";
 import { createAudioStemReceiptVerifier } from "../bgm-bridge/audio-stems-trust.mjs";
@@ -1983,15 +1983,40 @@ async function cleanProgramOutput({ gradedInput, stems, output, env, bins }) {
 }
 
 /** Mix the requested new music once, retaining original audio unless independent sources are explicitly supplied. */
-async function mixVariantAudio({ pack, gradedInput, workDir, output, bins, env, stems }) {
+/**
+ * 配乐落位（2026-10-11 升级）：`cutTimes` 让节拍网格对齐真实切点（鼓点跟剪辑走），
+ * `section` / `filmArc` 让选段对齐影片能量弧（情绪跟片子走）。
+ * filmArc 按"画面内容哈希"缓存，避免每个变体重复分析同一条母版。
+ */
+const FILM_ARC_CACHE = new Map();
+async function mixVariantAudio({ pack, gradedInput, workDir, output, bins, env, stems, cutTimes = null }) {
   if (pack.bgm?.enabled === false) {
     await cleanProgramOutput({ gradedInput, stems, output, env, bins });
     return { output, track: null, report: null, reused: false, failure: null, cacheKey: null };
   }
   const requestedLevel = optionalNumber(pack.bgm?.musicLevelDb, null);
+  const sectionMode = String(pack.bgm?.section ?? "full");
+  const pictureSha = await sha256File(gradedInput);
+  let filmArc = null;
+  if (sectionMode !== "full") {
+    const cacheKey = `${pictureSha}:${sectionMode}`;
+    if (FILM_ARC_CACHE.has(cacheKey)) {
+      filmArc = FILM_ARC_CACHE.get(cacheKey);
+    } else {
+      try {
+        filmArc = await bgmFilmEnergyArc({ input: gradedInput, bins });
+        FILM_ARC_CACHE.set(cacheKey, filmArc);
+      } catch {
+        /** 弧线分析失败只降级为"按曲子结构选段"，不阻断交付；报告里如实不带 filmArc。 */
+        filmArc = null;
+      }
+    }
+  }
+  const explicitSectionStart = optionalNumber(pack.bgm?.sectionStartSec, null);
+  const explicitSectionEnd = optionalNumber(pack.bgm?.sectionEndSec, null);
   const track = pickTrackForVariant(pack, { env });
   const trackHash = await sha256File(track.path);
-  const cacheKey = await contentKey({ picture: await sha256File(gradedInput),
+  const cacheKey = await contentKey({ picture: pictureSha,
     sourceManifest: stems?.manifestSha256 ?? null, sourceRecipe: stems?.recipeSha256 ?? null,
     trackSha256: trackHash, bgm: pack.bgm ?? null, v: 5 });
   const audioDir = path.join(workDir, "audio");
@@ -2000,12 +2025,20 @@ async function mixVariantAudio({ pack, gradedInput, workDir, output, bins, env, 
   const report = await bgmMix({ input: gradedInput, output: candidate, bgmPath: track.path,
     ...(stems ? { audioStems: stemReference(stems) } : {}), env, policy: pack.bgm?.policy ?? "keep-all", musicLevelDb: requestedLevel,
     targetLufs: optionalNumber(pack.bgm?.targetLufs, -14), fadeInSec: optionalNumber(pack.bgm?.fadeInSec, 1.2),
-    fadeOutSec: optionalNumber(pack.bgm?.fadeOutSec, 1.6), section: pack.bgm?.section ?? "full", bins });
+    fadeOutSec: optionalNumber(pack.bgm?.fadeOutSec, 1.6), section: sectionMode,
+    ...(explicitSectionStart !== null && explicitSectionEnd !== null ? { sectionStartSec: explicitSectionStart, sectionEndSec: explicitSectionEnd } : {}),
+    ...(Array.isArray(cutTimes) && cutTimes.length > 0 ? { cutTimes } : {}),
+    ...(pack.bgm?.bpmStrategy ? { bpmStrategy: String(pack.bgm.bpmStrategy) } : {}),
+    ...(filmArc ? { filmArc } : {}),
+    bins });
   assertBgmReportPassed(report);
   const slimTrack = { id: track.id, title: track.title, artist: track.artist, mood: track.mood, genre: track.genre,
     license: track.license, licenseLabel: track.licenseLabel, bpm: track.bpm, attribution: track.attribution, sourceSha256: trackHash };
   const slimReport = { loudness: report.loudness, checks: report.checks, levels: report.levels,
     applicability: report.applicability, retainedTracks: report.retainedTracks, independentAudio: report.independentAudio,
+    /** 配乐落位证据：选了哪一段（含理由）+ 节拍网格对齐到切点的误差（对齐失败也如实带 verdict）。 */
+    section: report.section ?? null,
+    alignment: report.alignment ?? null,
     output: { path: report.output.path, sha256: report.output.hash, duration: report.output.durationSeconds },
     mixing: { requestedMusicLevelDb: requestedLevel, appliedMusicLevelDb: report.mix.musicLevelDb, autoTrimDb: 0,
       note: "按请求执行混音；不评审源片音频品质，不自动重混" } };
@@ -2088,6 +2121,8 @@ export async function buildDeliveryPackage({
   outDir,
   burnSubtitles = false,
   softSubtitles = true,
+  /** 主轨切点（成片秒数，与时间轴一致）：传给配乐工位做节拍网格对齐（鼓点跟剪辑走） */
+  cutTimes = null,
   bins = resolveBinaries(),
   reuse = true,
   env = process.env,
@@ -2289,8 +2324,10 @@ export async function buildDeliveryPackage({
     // 音频层（BGM 选曲 + 混音；按内容哈希缓存，返修时可直接复用）
     const scoredPath = path.join(variantDir, `${pack.id}.mp4`);
     const stems = !hasIndependentAudio ? null : audioStemDigest(transitions) === audioStemDigest(baseTransitions) ? masterStems
+      // 合并口径（T-2026-1011-0007 × T-2026-1011-0008）：独立音轨按「本变体实际时间轴」（含
+      // reframe 后的 variantClips）生成，同时保留本分支的 cutTimes —— 配乐节拍网格对齐真实切点。
       : await timelineStems({ project, clips: variantClips, transitions, workDir, env, bins });
-    const audioOutcome = await mixVariantAudio({ pack, gradedInput, workDir, output: scoredPath, bins, env, stems });
+    const audioOutcome = await mixVariantAudio({ pack, gradedInput, workDir, output: scoredPath, bins, env, stems, cutTimes });
     const audioReport = audioOutcome.report;
     const track = audioOutcome.track;
     const audioFailure = audioOutcome.failure;
@@ -2315,6 +2352,9 @@ export async function buildDeliveryPackage({
           applicability: audioReport.applicability,
           retainedTracks: audioReport.retainedTracks,
           independentAudio: audioReport.independentAudio,
+          /** 配乐落位证据（选段理由 + 节拍对齐误差）：让"配乐跟情绪/鼓点走"可复核。 */
+          section: audioReport.section ?? null,
+          alignment: audioReport.alignment ?? null,
           output: { path: scoredPath, sha256: await sha256File(scoredPath), duration: (await probeMedia(scoredPath, { bins })).duration },
           ...(audioOutcome.reused ? { reused: true, cacheKey: audioOutcome.cacheKey } : {}),
         }
