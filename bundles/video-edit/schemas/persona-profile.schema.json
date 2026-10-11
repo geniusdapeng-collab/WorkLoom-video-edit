@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "workloom.video-edit/persona-profile/v1",
+  "title": "博主人设档案（字幕文案用）",
+  "description": "字幕文案的「人设」输入：身份、受众、自称、对观众的称呼、口头禅、方言词与人设禁用词。写作与机检共用这份档案（packages/video-studio/src/edit/copy-style.ts）。",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "id": { "type": "string", "description": "档案 id，如 shandong-girl" },
+    "name": { "type": "string" },
+    "identity": { "type": "string", "description": "身份描述，如「在外地生活、十一回山东老家的年轻女孩」" },
+    "audience": { "type": "string", "description": "说给谁听，如「同龄朋友」" },
+    "selfAddress": { "type": "string", "description": "自称，如「我」「咱」" },
+    "audienceAddress": { "type": "string", "description": "对观众的称呼（克制使用），如「你们」「朋友们」" },
+    "verbalTics": { "type": "array", "items": { "type": "string" }, "maxItems": 8, "description": "口头禅（自然出现，宁可少不要硬塞）" },
+    "dialectWords": { "type": "array", "items": { "type": "string" }, "maxItems": 12, "description": "方言/地域词" },
+    "bannedWords": { "type": "array", "items": { "type": "string" }, "description": "人设禁用词（优先于风格默认词表）" },
+    "humor": { "type": "number", "minimum": 0, "maximum": 1, "description": "幽默度（档案记录，机检不做审美判断）" }
+  }
+}

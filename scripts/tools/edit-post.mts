@@ -29,7 +29,7 @@ import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, renameS
 import { homedir } from "node:os";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 import {
-  describeReframePlan, describeTransitionPlan, planAssembly, planCoverMoment, planSegmentColor, planToPerCut, planTransitions,
+  describeReframePlan, describeTransitionPlan, planAssembly, planCoverMoment, planCoverMoments, planSegmentColor, planToPerCut, planTransitions,
   resolveTimelineSourcePaths, validateEditTimeline, type EditTimeline, type PostAnalysisDoc,
 } from "../../packages/video-studio/src/edit/index.js";
 
@@ -213,6 +213,13 @@ async function main(): Promise<void> {
    */
   const segmentColor = flag("--segment-color");
   /**
+   * 实体级局部调色（`--entity-color`）：镜头级 LUT 之上再加一层"按实体"的优化——
+   * 人像美白（肤色去黄提亮）只作用在人物掩膜内，食物暖黄只作用在食物掩膜内；
+   * 同镜人物+食物时分别作用、互不串色（客户 2026-10-11 口径）。
+   * 掩膜来自 macOS Vision（scripts/tools/vision-entity.swift），非 macOS / 无证据时如实降级。
+   */
+  const entityColor = flag("--entity-color");
+  /**
    * 配乐 agent（`--bgm agent`）：把"选曲"交给配乐岗，而不是让变体配方按风格名随手取一首。
    * 流程：① 给本地大曲库（`--bgm-pack`，默认 ~/Downloads/1200可商用纯音乐，按情绪/题材文件夹打标）
    * 生成 tracks.json 索引 → ② 用 bgm-bridge 的 findTracks 按变体风格匹配候选（许可必须可商用）
@@ -373,6 +380,32 @@ async function main(): Promise<void> {
     }
   }
 
+  /**
+   * 实体级调色：在"归一化 + 分段调色"之后、进 post-bridge 之前执行——
+   * 每个片段只重编码一次，没有实体证据的片段保持原样（不重编码）。
+   */
+  let entityReceipt: Record<string, unknown> | null = null;
+  if (entityColor) {
+    const { applyEntityGrade } = await import(new URL("./edit-entity.mts", import.meta.url).href) as {
+      applyEntityGrade: (options: {
+        clips: Array<{ shotId: string; path: string }>;
+        workDir: string;
+        fps: number;
+        intensity?: number;
+        onLog?: (line: string) => void;
+      }) => Promise<Record<string, unknown>>;
+    };
+    const entityResult = await applyEntityGrade({
+      clips: shots,
+      workDir: join(outDir, "work", "entity"),
+      fps,
+      intensity: Number(arg("--entity-intensity", "1")),
+      onLog: (line) => console.log(`  ${line}`),
+    });
+    entityReceipt = { ...entityResult, generatedAt: new Date().toISOString() };
+    writeFileSync(join(outDir, "work", "entity-grade-receipt.json"), `${JSON.stringify({ schema: "workloom.video-edit/entity-grade/v1", ...entityReceipt }, null, 2)}\n`, "utf8");
+  }
+
   // ② 交回既有后期链路：post-bridge 的 buildDeliveryPackage（本地工位，不联网、不烧额度）
   /**
    * 路径监狱：post-bridge 与它调用的三个工位（调色/字幕/配乐）**各有自己的白名单环境变量**，
@@ -448,6 +481,19 @@ async function main(): Promise<void> {
          */
         color: null,
         colorNote: "调色已在片段级完成（warm-film / cool-technical 分段执行）；变体不叠加统一调色",
+        /**
+         * 封面：分段调色版必须有**自己的**封面（客户 2026-10-11 反馈"几个版本封面都一样"）。
+         * 旧实现整包继承 warm-story（template/at/alignment 全同），叠加取帧比例被统一覆盖后，
+         * segmented 与 warm 的封面逐字节相同。这里显式给出不同取帧与信息增量副标题。
+         */
+        cover: {
+          template: "双色分段",
+          at: 0.72,
+          alignment: 2,
+          marginRatio: 0.12,
+          subtitle: "果园是暖的 古城是冷的",
+          note: "分段调色版封面：主视觉取后段（城市/人潮）与暖调故事版区分；副标题给出『分段调色』的信息增量",
+        },
         transitions: {
           mode: "hard",
           fadeSec: 0,
@@ -632,13 +678,24 @@ async function main(): Promise<void> {
    * 选定后用同一个封面工位（post-bridge 的 buildCover）重出每个变体的封面，不自己拼图。
    */
   const explicitCoverAt = arg("--cover-at");
-  const autoCover = explicitCoverAt
-    ? { ratio: Number(explicitCoverAt), basis: "explicit", note: "调用方显式指定 --cover-at", keyframeId: undefined as string | undefined, segmentId: undefined as string | undefined }
-    : planCoverMoment({ timeline, analyses, fallbackRatio: 0.35 });
-  if (!Number.isFinite(autoCover.ratio) || autoCover.ratio < 0 || autoCover.ratio > 1) throw new Error("--cover-at 必须是 0–1 的比例");
+  /**
+   * 多变体封面取帧（2026-10-11 修复）：每个变体**各取一帧**，不再所有变体共用同一个比例。
+   * 旧实现的根因是这里把同一个 autoCover.ratio 写进所有变体配方——warm/segmented 因此逐字节同图。
+   */
+  const coverMoments = explicitCoverAt
+    ? variants.map(() => ({
+      ratio: Number(explicitCoverAt), basis: "explicit", note: "调用方显式指定 --cover-at",
+      keyframeId: undefined as string | undefined, segmentId: undefined as string | undefined,
+    }))
+    : planCoverMoments({ timeline, analyses, count: variants.length, fallbackRatio: 0.35 });
+  const autoCover = coverMoments[0] ?? planCoverMoment({ timeline, analyses, fallbackRatio: 0.35 });
+  if (coverMoments.some((moment) => !Number.isFinite(moment.ratio) || moment.ratio < 0 || moment.ratio > 1)) {
+    throw new Error("--cover-at 必须是 0–1 的比例");
+  }
   {
-    const ratio = autoCover.ratio;
-    for (const variantId of variants) {
+    for (const [index, variantId] of variants.entries()) {
+      const moment = coverMoments[index] ?? autoCover;
+      const ratio = moment.ratio;
       const pack = core.findVariantPack(variantId) as { id: string; cover?: Record<string, unknown>; copy?: Record<string, unknown> };
       const input = join(outDir, "variants", variantId, `${variantId}.mp4`);
       if (!existsSync(input)) continue;
@@ -658,6 +715,10 @@ async function main(): Promise<void> {
   const manifest = existsSync(manifestPath)
     ? JSON.parse(readFileSync(manifestPath, "utf8")) as Record<string, unknown>
     : null;
+  if (manifest && entityReceipt) {
+    manifest.entityGrade = entityReceipt;
+    writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
+  }
   const transitionSummaryPath = join(outDir, "transitions", "transition-receipt.json");
   const transitionSummary = existsSync(transitionSummaryPath)
     ? JSON.parse(readFileSync(transitionSummaryPath, "utf8")) as {
@@ -716,9 +777,19 @@ async function main(): Promise<void> {
       segmentId: autoCover.segmentId ?? null,
       note: autoCover.note,
       explicit: Boolean(explicitCoverAt),
+      perVariant: coverMoments.map((moment, index) => ({
+        variantId: variants[index] ?? null,
+        ratio: Number(moment.ratio.toFixed(4)),
+        basis: moment.basis,
+        keyframeId: moment.keyframeId ?? null,
+        segmentId: moment.segmentId ?? null,
+      })),
     },
     analyses: analyses.length,
     segmentColor: segmentColor ? { applied: segmentColorNotes.length, plan: segmentColorNotes } : null,
+    entityGrade: entityReceipt
+      ? { applied: entityReceipt.applied ?? null, skipped: entityReceipt.skipped ?? null, summary: entityReceipt.summary ?? null }
+      : null,
     bgmAgent: bgmAgent ? { libraryTotal: null, picks: bgmAgentReceipt } : null,
     manifest: manifestPath,
     files: (manifest?.files ?? manifest?.artifacts ?? null),
