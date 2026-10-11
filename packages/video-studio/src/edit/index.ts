@@ -16,6 +16,7 @@ export * from "./probe-parse.js";
 export * from "./highlight.js";
 export * from "./timeline.js";
 export * from "./transitions.js";
+export * from "./reframe.js";
 export * from "./audio.js";
 export * from "./caption.js";
 export * from "./post-auto.js";
