@@ -38,6 +38,7 @@ v2 合并为**一份契约**：`edit_timeline`（机器执行）+ `edit_script`�
 - 片段时长：0.4–15s（教学类可到 20s，需标注理由）；短于 0.4s 的片段除非卡点否则不合法。
 - 速度：0.1–8×；慢动作优先在源素材帧率 ≥ fps×2 时使用（否则先说明画质代价）。
 - 转场：`cut`（默认，硬切优先）/`dissolve`/`fade_from_black`/`fade_to_black`/`wipe`/`match_cut`/`jump_cut`/`whip_pan`/`zoom_blur`；时长 ≤2s。**匹配剪辑与跳切必须写明动机**。
+- 取景（二次构图，v3 新增）：`reframe{mode/intent/shotSize/scale/center/anchor/easing/fill/maxZoomPolicy}`——把"中景切近景 / 局部放大 / 横转竖不留黑边"写成可执行字段；渲染是**源原生裁切**（不是把成品放大），横向素材进竖屏默认 `fill: cover`（`blur` 保完整画面、`pad` 保留旧黑边观感）；放大受**无损预算**约束（`s ≤ max(1, min(基窗/画布))`，超预算需显式 `maxZoomPolicy: allow-upscale`）。口径与实测见 `docs/video-edit-reframe.md`。
 - 声音：`original`/`mute`/`ambience_only`/`bgm_only`/`duck_original`/`j_cut`/`l_cut`；J-cut = 下一段声音提前进入，L-cut = 当前段声音延续；偏移量写进 `jCutOffsetSeconds`。
 - 字幕位：`placement` + 行数；安全区取自 `target.safeAreas`。
 

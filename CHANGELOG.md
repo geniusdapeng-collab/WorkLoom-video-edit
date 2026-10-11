@@ -35,6 +35,34 @@
   另有 1 项发现（`apps/webb 未实际渲染共享基座组件`）不在本仓声明扩展路径内，分类器会单独标出并建议另立迁移任务卡。
 - 本地验证：分类器 `--self-test` 通过；用本机真实复现的 207 项门禁输出分类 → 退出 0（advisories 可见）；
   伪造"非分叉仓"输入 → 退出 1；两个 workflow 的 YAML 解析与 shell 片段模拟均通过。
+## [video-reframe] - 2026-10-11 · 二次构图（取景轨道）：crop-first + 填充策略 + 逐变体 + 机检回执（T-2026-1011-0008）
+
+> 背景：剪辑交付最缺的一环不是"选哪些镜头"，而是"**怎么取景**"——中景切近景、局部放大、横转竖不留黑边。
+> 旧链路只有一个静态 `punchIn`，且它是"先降到画布再放大裁回来"，4K 素材的裁切额度被浪费、黑边依旧。
+
+- **契约**：`bundles/video-edit/schemas/edit-timeline.schema.json` 新增 `segments[].reframe`
+  （mode/intent/shotSize/scale/center/anchor/easing/fill/maxZoomPolicy/safeArea），`punchIn` 保留为 legacy 子集；
+  未声明 = 完全沿用旧链（零行为变化）。
+- **计划层（纯函数）**：`packages/video-studio/src/edit/reframe.ts`——景别阶梯（CINE-002 词汇）→ 无损放大预算
+  （`fillUpscale` 与"额外推近上限 `max(1, sMaxLossless)`"分开记账）→ 超预算降级与 advisory → 渲染链字符串；
+  单元测试 35 项（含 4K→横屏 2.0×、4K→竖屏 1.125×、1080p 竖屏→竖屏 1.0× 三档预算）。
+- **渲染（crop-first）**：post-bridge 新增 `normalizeShotReframe`/`buildReframeChain`/`verifyReframeOutcome`：
+  源像素裁切 → 填充（pad 兼容 / cover / blur / brand）→ 可选动画（**zoompan**；`scale=eval=frame` 在 `-vf` 链中会触发
+  重初始化失败，已实测排除）→ 逐镜回执（预算/时长/黑边三项硬检，失败 fail-closed）。
+- **取景成为第六风格轴**：变体配方可写 `reframe: { fill, scaleMultiplier, easing }`，
+  只调制已声明取景（无声明不生效），调制镜头走独立归一化缓存，不污染母版。
+- **CLI**：`pnpm edit:post` 新增 `--reframe off|declared|auto`、`--reframe-fill pad|cover|blur|brand`、
+  `--reframe-max-zoom <n>|budget`、`--reframe-easing native|smooth|linear|ease-in-out`、
+  `--reframe-scale from,to`（整片一键推近；已声明段落优先）；开启取景时预切改为**源分辨率 trim**
+  （`planAssembly({ preserveSource: true })`），把 crop-first 留给后期引擎。
+- **回执**：逐镜 `<归一化产物>.json#reframe`（`workloom.reframe-receipt/v1`）+ 交付面
+  `reframe/reframe-receipt.json`（`workloom.reframe-summary/v1`）+ `delivery-manifest.json#reframe`；
+  上次机检失败的缓存直接拒用（不静默复用）。
+- **实测（本机 ffmpeg 6.0）**：4s 720p → 1080×1920 静态 cover ≈1.7s、动画推近 ≈2.5s、blur 填充 ≈7.0s；
+  集成测试 5/5：画布尺寸精确、时长守恒、cover/blur 无黑边（边缘亮度 > 6）、超预算 lossless fail-closed、
+  未声明 reframe 旧链零变化。
+
+口径与实测见 [二次构图](docs/video-edit-reframe.md)。
 
 ## [video-transitions] - 2026-10-11 · 剪辑转场引擎：逐切计划 + xfade 真渲染 + 非黑屏机检（T-2026-1011-0003）
 
