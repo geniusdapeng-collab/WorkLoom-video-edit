@@ -1675,11 +1675,6 @@ export async function grade({
   if (probe.audio) args.push("-c:a", "aac", "-b:a", "192k");
   args.push("-movflags", "+faststart", output);
 
-  /**
-   * 调色超时口径（2026-10-11 产品线实测；T-2026-1011-0010 首修，T-2026-1011-0016 抽成纯函数并移植到 CNB 线）：
-   * 4K（uhd）60 秒成片的一次 LUT 调色在负载机上会超过旧口径 15 分钟，直接判 timeout 硬失败。
-   * uhd 默认 30 分钟、其余 15 分钟；`WORKLOOM_COLOR_GRADE_TIMEOUT_MS`（毫秒）可覆盖；非法值回退 15 分钟。
-   */
   await runBin(bins.ffmpeg, args, { label: "ffmpeg(grade)", timeoutMs: gradeTimeoutMsFor(quality) });
 
   if (!fs.existsSync(output)) throw new ColorError("ffmpeg 未产出文件", "ffmpeg_failed", true);

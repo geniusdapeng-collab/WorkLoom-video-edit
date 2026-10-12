@@ -123,9 +123,26 @@ function probeMedia(file: string): { width: number; height: number; duration: nu
   };
 }
 
+/** 流清单：封面差异化（逐变体取帧）与软字幕轨修复共用——探测容器里的音/视频与字幕流。 */
 function probeStreams(file: string): Array<{ codec_type?: string; codec_name?: string }> {
   const out = run(FFPROBE, ["-v", "error", "-show_entries", "stream=codec_type,codec_name", "-of", "json", file]).stdout;
   return (JSON.parse(out) as { streams?: Array<{ codec_type?: string; codec_name?: string }> }).streams ?? [];
+}
+
+/**
+ * 是否带字幕流（软字幕轨形态）。
+ *
+ * 为什么需要单独探测（2026-10-12 客户实测事故）：封面烧封用 `-f concat -c copy` 拼
+ * 「封面片头 + 正片」，而 concat 只保留**两段都存在的流**——软字幕轨形态的字幕流
+ * 在片头里不存在，于是被整体丢掉，交付文件名叫「软字幕轨·封面烧封」却没有字幕轨。
+ * 修复：concat 之后把源文件的字幕流以 `+burnIntro` 偏移重新封进成片，并复核确实挂上了。
+ */
+function hasSubtitleStream(file: string): boolean {
+  try {
+    return probeStreams(file).some((stream) => stream.codec_type === "subtitle");
+  } catch {
+    return false;
+  }
 }
 
 /** 标题带 / 人物位 PSNR：合成图 vs 无字底图（差异越大 = 越可能真的画了东西） */
@@ -667,29 +684,24 @@ async function main(): Promise<void> {
         writeFileSync(listFile, `file '${intro.replace(/'/gu, "'\\''")}'\nfile '${source.replace(/'/gu, "'\\''")}'\n`, "utf8");
         run(FFMPEG, ["-hide_banner", "-loglevel", "error", "-y", "-f", "concat", "-safe", "0", "-i", listFile, "-c", "copy", "-movflags", "+faststart", output]);
         /**
-         * 软字幕轨修复（2026-10-11 首修 / 2026-10-12 客户实测复核）：concat demuxer 按"流索引交集"合并——片头只有 v/a，
-         * 源文件的 mov_text 字幕轨会被直接丢掉（实测 `*.softsub.cover.mp4` 一条字幕流都没有）。
-         * 这里拼接后把源字幕轨按片头时长平移重新挂回（-itsoffset），并显式标注 language=chi / default，
-         * 保住"播放器可开关字幕"的承诺；缺轨即抛错（fail-closed），不允许交付名字对不上内容的文件。
+         * 软字幕轨形态：concat 会丢掉片头里不存在的字幕流（2026-10-11/10-12 两次实测）——
+         * 这里把源字幕流按 `+burnIntro` 整体后移后重新封装，并保持 default/chi 标记；
+         * 之后**事实复核**：重挂后必须真的还有字幕流，否则硬失败（不靠"声明"当成"已修"）。
          */
         let subtitleTracks = 0;
-        if (form === ".softsub") {
-          const sourceHasSubtitle = probeStreams(source).some((stream) => stream.codec_type === "subtitle");
-          if (sourceHasSubtitle) {
-            const remuxed = join(workRoot, `${variantId}${form}-remux.mp4`);
-            run(FFMPEG, [
-              "-hide_banner", "-loglevel", "error", "-y",
-              "-i", output, "-itsoffset", String(burnIntro), "-i", source,
-              "-map", "0:v:0", "-map", "0:a:0?", "-map", "1:s:0",
-              "-c", "copy",
-              "-c:s", "mov_text", "-metadata:s:s:0", "language=chi", "-disposition:s:0", "default",
-              "-movflags", "+faststart", remuxed,
-            ]);
-            renameSync(remuxed, output);
-          }
+        if (hasSubtitleStream(source)) {
+          const fixed = join(workRoot, `${variantId}${form}-cover-fixed.mp4`);
+          run(FFMPEG, ["-hide_banner", "-loglevel", "error", "-y",
+            "-i", output,
+            "-itsoffset", String(burnIntro), "-i", source,
+            "-map", "0:v:0", "-map", "0:a:0", "-map", "1:s:0",
+            "-c:v", "copy", "-c:a", "copy", "-c:s", "mov_text",
+            "-metadata:s:s:0", "language=chi", "-disposition:s:0", "default",
+            "-movflags", "+faststart", fixed]);
+          renameSync(fixed, output);
           subtitleTracks = probeStreams(output).filter((stream) => stream.codec_type === "subtitle").length;
-          if (sourceHasSubtitle && subtitleTracks === 0) {
-            throw new Error(`${variantId} 的软字幕版在烧封片头后丢失字幕轨（期望 1 条 mov_text）`);
+          if (subtitleTracks === 0) {
+            throw new Error(`${variantId}${form} 在烧封片头后丢失字幕轨（期望 ≥1 条 mov_text）`);
           }
         }
         introReceipts.push({ variantId, form: form || "clean", output, introSeconds: burnIntro, introAudio: "silent", subtitleTracks, sha256: sha256(output), duration: probeMedia(output).duration });
