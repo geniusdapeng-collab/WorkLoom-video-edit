@@ -1,0 +1,25 @@
+{
+  "note": "二次构图计划示例：关键节点给明确镜头语言（推近/回拉），其余段落交给跳切遮盖的静态推近。原生 4K 输出时用 apply-reframe.mjs --native 自动转 allow-upscale 声明。",
+  "rules": [
+    {
+      "match": { "sourceFrom": 0, "sourceTo": 6 },
+      "note": "开场钩子：1.00→1.14 推近，第一句把观众拉近",
+      "reframe": {
+        "mode": "push", "intent": "emphasis", "anchor": "manual",
+        "scale": { "from": 1.0, "to": 1.14 },
+        "center": { "from": { "x": 0.5, "y": 0.46 }, "to": { "x": 0.5, "y": 0.45 } },
+        "easing": "smooth", "fill": "cover", "maxZoomPolicy": "lossless", "safeArea": "respect"
+      }
+    },
+    {
+      "match": { "sourceFrom": 60, "sourceTo": 75 },
+      "note": "落点回拉：1.12→1.00，把观众放回全景收尾",
+      "reframe": {
+        "mode": "pull", "intent": "emphasis", "anchor": "manual",
+        "scale": { "from": 1.12, "to": 1.0 },
+        "center": { "from": { "x": 0.5, "y": 0.45 }, "to": { "x": 0.5, "y": 0.46 } },
+        "easing": "smooth", "fill": "cover", "maxZoomPolicy": "lossless", "safeArea": "respect"
+      }
+    }
+  ]
+}

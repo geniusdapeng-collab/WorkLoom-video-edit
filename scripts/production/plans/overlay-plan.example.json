@@ -1,0 +1,25 @@
+{
+  "schemaVersion": "workloom.video-edit/overlay-plan/v1",
+  "note": "覆盖层计划示例：知识卡 + AI 插片画中画 + 全屏金句卡。时间都是成片主轨秒；卡片 y+h ≤ 0.78（不压字幕带），画中画放上半部可占满宽度。",
+  "checks": { "subtitleBand": { "topRatio": 0.78, "bottomRatio": 1 }, "rightRailRatio": 0.11 },
+  "overlays": [
+    {
+      "id": "ov-price", "kind": "knowledge-card", "start": 9.4, "end": 12.4,
+      "asset": { "type": "png", "path": "/abs/path/cards/c1-price.png" },
+      "layout": { "x": 0.04, "y": 0.20, "w": 0.92, "h": 0.552 }, "fadeSec": 0.25,
+      "note": "价值锚点：一条 1–2 元 / 十条≈一杯奶茶"
+    },
+    {
+      "id": "ov-ai-insert", "kind": "pip", "start": 27.4, "end": 33.4,
+      "asset": { "type": "mp4", "path": "/abs/path/insert/insert-loop.mp4" },
+      "layout": { "x": 0.52, "y": 0.06, "w": 0.44, "h": 0.44 }, "fadeSec": 0.3,
+      "note": "AI 插片：素材缩略图自动对齐成时间线（4s 素材先循环到 6s 再挂）"
+    },
+    {
+      "id": "ov-quote", "kind": "full-card", "start": 56.4, "end": 59.4,
+      "asset": { "type": "png", "path": "/abs/path/cards/c3-quote.png" },
+      "layout": { "x": 0, "y": 0, "w": 1, "h": 1 }, "fadeSec": 0.35,
+      "note": "全屏金句卡（全片唯一）"
+    }
+  ]
+}

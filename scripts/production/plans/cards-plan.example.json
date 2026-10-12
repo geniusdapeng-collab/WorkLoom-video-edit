@@ -1,0 +1,24 @@
+{
+  "note": "知识卡计划示例（edit:cards 渲染成 PNG；4K 交付把 width/height 乘 2 再渲染一套）。",
+  "theme": { "accent": "#7DD3FC", "accent2": "#FFD166", "style": "glass" },
+  "cards": [
+    {
+      "id": "c1-price", "template": "price", "kicker": "价值锚点", "title": "一条片子多少钱",
+      "big": "1–2", "unit": "元/条",
+      "compare": [{ "label": "十条 1–2 分钟短片", "value": "≈ 20 元" }, { "label": "折算", "value": "一杯奶茶" }],
+      "footer": "口播原话：一条片子剪下来也就是一两块钱",
+      "width": 1080, "height": 1152
+    },
+    {
+      "id": "c2-roster", "template": "matrix", "kicker": "AI 数字员工", "title": "帮你干活的六个岗位",
+      "cells": ["导演", "编剧", "剪辑", "配乐", "字幕文案", "弹幕"], "columns": 3, "stages": 3,
+      "footer": "口播原话：导演编剧剪辑配乐，还有字幕文案、甚至帮你搞弹幕的",
+      "width": 1080, "height": 1152
+    },
+    {
+      "id": "c3-quote", "template": "quote", "kicker": "落点", "big": "整个链路，已经跑通、成型了",
+      "footer": "口播原话：时间过去了半年多，整个链路就跑通了、成型了",
+      "width": 1080, "height": 1920
+    }
+  ]
+}

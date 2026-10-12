@@ -1,5 +1,26 @@
 # Changelog
 
+## [production-toolkit] - 2026-10-12 · 口播成片生产工具链入仓：全链编排 + 取景/封面/弹幕/AI 插片工具 + 口径文档（T-2026-1012-0004）
+
+> 背景：本仓的口播成片能力（精剪/后期/注意力层/打包/质检）已经齐了，但"怎么把一条片子从头到尾跑完"
+> 一直散在生产会话的临时脚本里——4K 复跑那次甚至踩了三个坑（显式降分辨率被静默放行、调色 15 分钟
+> 固定超时把 4K 判死、原生分辨率下的推近上采样被机检拒收）。这些脚本不入仓，等于每换一个人就重踩一遍。
+
+- **新增 `scripts/production/`（编排 + 工具 + 计划示例 + 口径文档）**：
+  `run-pipeline.sh`（cut / post / attention / package / qa 全链，全部输入走环境变量）；
+  `tools/apply-reframe.mjs`（逐段取景声明；`--native` 把计划推近与 legacy punchIn 统一转成
+  `maxZoomPolicy=allow-upscale`，避免原生 4K 被取景机检硬拒）；`tools/make-danmaku.mjs`
+  （源素材时间 → 成片主轨时间换算，越界 fail closed）；`tools/gen-cover.mjs`（定制炸裂封面，
+  `--scale 2` 出 2160×3840，PNG 尺寸断言 + 回执）；`tools/gen-insert.mjs`（Ark Seedance 插片：
+  提交→轮询→下载→回执）；`tools/qa-video.sh`（规格/响度/抽帧质检）。
+- **口径写进 README**：分辨率默认跟随素材原生（显式降档必须 `--allow-downscale`）、4K 调色给足等待窗口
+  （`WORKLOOM_COLOR_GRADE_TIMEOUT_MS`）、原生分辨率推近必须显式声明、封面差异化与交付命名走
+  `edit:cover` / `edit:package`、弹幕计划写源时间。
+- **回归**：`scripts/production/production-toolkit.test.mjs`（已注册进 `test:scripts`）——
+  shell/node 语法门 + apply-reframe 的 allow-upscale 转换与未命中 fail closed + make-danmaku 的
+  跨跳切平移与越界 fail closed。
+- **默认行为不变**：全部是新增目录与脚本，不改任何既有执行器；回滚 = `git revert` 单提交。
+
 ## [delivery-burn-default] - 2026-10-12 · 交付形态默认烧录：有字幕默认烧字 + 推荐发布件标注 + 封面烧封保留字幕流（T-2026-1012-0001）
 
 > 背景（客户实测事故）：交付包里的「软字幕轨」形态在 macOS 上**默认不显示字幕**——

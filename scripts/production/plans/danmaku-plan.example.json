@@ -1,0 +1,7 @@
+{
+  "note": "弹幕计划示例：时间写**源素材时间**（sourceTime），用 tools/make-danmaku.mjs 换算成成片主轨时间后再交给 pnpm edit:danmaku --items。",
+  "items": [
+    { "text": "一两块钱", "sourceTime": 543.0, "mode": "scroll", "colour": "#FFD166", "sizeScale": 1.0, "note": "价值锚点氛围" },
+    { "text": "一杯奶茶", "sourceTime": 560.5, "mode": "top", "colour": "#7DD3FC", "sizeScale": 1.0, "note": "对比钩子" }
+  ]
+}
