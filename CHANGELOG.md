@@ -1,5 +1,21 @@
 # Changelog
 
+## [delivery-burn-default] - 2026-10-12 · 交付形态默认烧录：有字幕默认烧字 + 推荐发布件标注 + 封面烧封保留字幕流（T-2026-1012-0001）
+
+> 背景（客户实测事故）：交付包里的「软字幕轨」形态在 macOS 上**默认不显示字幕**——
+> AVFoundation 的自动选择实测为「无」（Quick Look / QuickTime 预览都不会自动打开字幕轨），
+> 用户把文件发给别人时，对方看到的成片"没有字幕"，与文件名不符；另有「软字幕轨·封面烧封」
+> 文件在封面烧封时**整个字幕流被 concat 丢掉**。两条问题叠加 = 交付件看起来"根本没有字幕"。
+
+- **修复 1（默认口径）**：`edit:post` 有 `--subtitle` 时**默认产出烧字形态**（成片自带字幕，任何播放器直接可见）；
+  新增 `--no-burn-subtitles` 退回纯软字幕轨；保留 `--burn-subtitles` 开关做兼容。
+- **修复 2（封面烧封丢流）**：`edit:cover` 烧封片头后，若源文件带字幕流（软字幕轨形态），
+  以 `+burnIntro` 偏移把字幕流重新封装进成片（`language=chi / default`），文件名与内容一致。
+- **修复 3（推荐发布件）**：`edit:cover` 在 `covers/cover-report.json` 与 `delivery-manifest.json#publish`
+  写出**推荐发布件**（`variants/<id>/<id>.burned.cover.mp4`＝烧字+封面烧封），终端摘要同步打印。
+- **文档**：README 新增「交付形态与分享口径」；口径文本集中在 `scripts/tools/lib/delivery-forms.mts`（单一来源）。
+- **回归**：新增 `scripts/tools/delivery-forms.test.ts`（7 例：默认烧字 / 显式退回 / 兼容开关 / 无字幕不出烧字 / 发布件路径 / 口径文本）。
+- **回滚**：`git revert`；旧行为可用 `--no-burn-subtitles` 逐次退回。
 ## [uhd-grade-timeout] - 2026-10-11 · 4K 调色超时口径：uhd 30 分钟 + 环境变量可覆盖（T-2026-1011-0016）
 
 > 背景：60 秒版按原生 2160×3840 复跑时，`ffmpeg(grade)` 被 **15 分钟**硬超时判死——
