@@ -32,6 +32,7 @@ import {
 import { getCoverSpec } from "../../packages/video-studio/src/cover-platforms.js";
 import { deriveCoverTheme, planCoverMoment, planCoverMoments, type PostAnalysisDoc } from "../../packages/video-studio/src/edit/index.js";
 import { scanBestFrame } from "./lib/frame-scan.mts";
+import { PUBLISH_NOTE, recommendedPublishFile } from "./lib/delivery-forms.mts";
 
 const REPO_ROOT = resolve(import.meta.dirname ?? process.cwd(), "../..");
 const FFMPEG = process.env.WL_FFMPEG ?? "ffmpeg";
@@ -666,9 +667,10 @@ async function main(): Promise<void> {
         writeFileSync(listFile, `file '${intro.replace(/'/gu, "'\\''")}'\nfile '${source.replace(/'/gu, "'\\''")}'\n`, "utf8");
         run(FFMPEG, ["-hide_banner", "-loglevel", "error", "-y", "-f", "concat", "-safe", "0", "-i", listFile, "-c", "copy", "-movflags", "+faststart", output]);
         /**
-         * 软字幕轨修复（2026-10-11）：concat demuxer 按"流索引交集"合并——片头只有 v/a，
+         * 软字幕轨修复（2026-10-11 首修 / 2026-10-12 客户实测复核）：concat demuxer 按"流索引交集"合并——片头只有 v/a，
          * 源文件的 mov_text 字幕轨会被直接丢掉（实测 `*.softsub.cover.mp4` 一条字幕流都没有）。
-         * 这里拼接后把源字幕轨按片头时长平移重新挂回（-itsoffset），保住"播放器可开关字幕"的承诺。
+         * 这里拼接后把源字幕轨按片头时长平移重新挂回（-itsoffset），并显式标注 language=chi / default，
+         * 保住"播放器可开关字幕"的承诺；缺轨即抛错（fail-closed），不允许交付名字对不上内容的文件。
          */
         let subtitleTracks = 0;
         if (form === ".softsub") {
@@ -679,7 +681,9 @@ async function main(): Promise<void> {
               "-hide_banner", "-loglevel", "error", "-y",
               "-i", output, "-itsoffset", String(burnIntro), "-i", source,
               "-map", "0:v:0", "-map", "0:a:0?", "-map", "1:s:0",
-              "-c", "copy", "-movflags", "+faststart", remuxed,
+              "-c", "copy",
+              "-c:s", "mov_text", "-metadata:s:s:0", "language=chi", "-disposition:s:0", "default",
+              "-movflags", "+faststart", remuxed,
             ]);
             renameSync(remuxed, output);
           }
@@ -695,6 +699,24 @@ async function main(): Promise<void> {
 
   const planFile = join(outDir, "covers", "cover-plan.json");
   const reportFile = join(outDir, "covers", "cover-report.json");
+  /**
+   * 推荐发布件（2026-10-12 客户实测口径）：分享/上传首选「烧字 + 封面烧封」——
+   * 字幕与封面都已烧录进画面，任何播放器/预览器直接可见；软字幕轨形态在多数预览器
+   * 默认不显示字幕（AVFoundation 自动选择实测为「无」），只适合剪辑或平台字幕轨。
+   */
+  const publishRecommendations = variants
+    .map((variantId) => {
+      const file = join(outDir, recommendedPublishFile(variantId, burnIntro > 0));
+      return existsSync(file)
+        ? {
+          variantId,
+          file: relative(outDir, file),
+          forms: burnIntro > 0 ? "burned+cover" : "burned",
+          note: PUBLISH_NOTE,
+        }
+        : null;
+    })
+    .filter((entry): entry is { variantId: string; file: string; forms: string; note: string } => entry !== null);
   writeFileSync(planFile, `${JSON.stringify({
     schema: "workloom.video-edit/cover-plan/v1",
     chain: "cover-designer（Compositor 视觉工位 → 设计稿 → 合成 → 机检 → 烧封）",
@@ -719,6 +741,8 @@ async function main(): Promise<void> {
     coverDivergence,
     duplicatePairs,
     introBurned: introReceipts,
+    publish: publishRecommendations,
+    publishNote: PUBLISH_NOTE,
     generatedAt: new Date().toISOString(),
   }, null, 2)}\n`, "utf8");
 
@@ -753,6 +777,13 @@ async function main(): Promise<void> {
     }
     if (updated > 0) {
       manifest.coverSync = { updated, at: new Date().toISOString(), report: relative(outDir, reportFile) };
+      if (publishRecommendations.length) {
+        manifest.publish = {
+          recommended: publishRecommendations,
+          note: PUBLISH_NOTE,
+          updatedBy: "edit:cover（推荐发布件＝烧字+封面烧封）",
+        };
+      }
       writeFileSync(manifestFile, `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
       console.log(`  清单同步：delivery-manifest.json 回写 ${updated} 条封面指纹`);
     }
@@ -764,6 +795,7 @@ async function main(): Promise<void> {
     covers: covers.map((entry) => ({ variantId: entry.variantId, renderer: entry.renderer, file: entry.file, heroSec: entry.heroSec })),
     coverDivergence,
     introBurned: introReceipts.map((entry) => entry.output),
+    publish: publishRecommendations,
     planFile,
     reportFile,
   };
@@ -774,6 +806,10 @@ async function main(): Promise<void> {
     for (const row of coverDivergence) console.log(`  差异 ${row.a} ↔ ${row.b}：MAD ${row.meanAbsDiff}（${row.verdict}）`);
     if (duplicatePairs.length) console.warn(`⚠ 有 ${duplicatePairs.length} 对封面重复：${duplicatePairs.map((row) => `${row.a}↔${row.b}`).join("、")}`);
     if (introReceipts.length) console.log(`  烧封片头：${introReceipts.length} 个文件（每条变体 +${burnIntro}s）`);
+    if (publishRecommendations.length) {
+      console.log("  推荐发布件（字幕+封面已烧录，任何播放器直接可见）：");
+      for (const entry of publishRecommendations) console.log(`    - ${entry.variantId} → ${entry.file}`);
+    }
     console.log(`  设计稿：${planFile}｜机检：${reportFile}`);
   }
   if (!ok) process.exit(1);

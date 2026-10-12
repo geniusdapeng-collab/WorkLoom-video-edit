@@ -22,8 +22,8 @@
 | 素材信号 | `pnpm edit:probe` | 抽帧/规格/切点/转写等信号落 `outputs/edit/analysis/`；模型自报的时间码不作数，以本地解码为准 |
 | 剪辑创作 | 创作宪章 19 步（[creation-doctrine](docs/video-edit-creation-doctrine.md)） | 命题卡 → 七主题 → 模板 → 大纲 → 剧本 → 剪辑脚本 → 字幕版；**字幕即剪辑**（≥2s/字数带/无标点/结尾固定块） |
 | 时间轴校验 | `pnpm edit:verify` | 时长/画幅/安全区/节气口硬校验通过，才允许进入正式后期 |
-| 正式后期 | `pnpm edit:post` | 逐段裁切 → **按场景组分段调色**（家里暖 / 城市冷，片段级一次成型，变体不二次调色）→ **逐切转场**（`--transitions hard/declared/auto`，46+ 种 xfade 目录、真硬切、逐刀回执机检）→ 母版 + 风格变体 ×（干净 / 软字幕 / 烧字）；**默认仍全片硬切** |
-| 封面链路 | `pnpm edit:cover` | 封面设计师链路：平台规格（`cover-platforms.ts` 唯一事实源）+ cover-kb + 账号视觉锤 → 三风格设计稿 → **Compositor 视觉工位出图（带回执）** → 机检（画幅/标题带 PSNR/人物位/安全区）→ **烧封片头 1.6s，封面段静音：BGM 只在正片起播一次**（`--burn-intro 0` 可关闭） |
+| 正式后期 | `pnpm edit:post` | 逐段裁切 → **按场景组分段调色**（家里暖 / 城市冷，片段级一次成型，变体不二次调色）→ **逐切转场**（`--transitions hard/declared/auto`，46+ 种 xfade 目录、真硬切、逐刀回执机检）→ 母版 + 风格变体 ×（干净 / 软字幕 / 烧字）；**有字幕默认产出烧字形态**（`--no-burn-subtitles` 退回纯软字幕轨，2026-10-12 口径）；**默认仍全片硬切** |
+| 封面链路 | `pnpm edit:cover` | 封面设计师链路：平台规格（`cover-platforms.ts` 唯一事实源）+ cover-kb + 账号视觉锤 → 三风格设计稿 → **Compositor 视觉工位出图（带回执）** → 机检（画幅/标题带 PSNR/人物位/安全区）→ **烧封片头 1.6s，封面段静音：BGM 只在正片起播一次**（`--burn-intro 0` 可关闭）→ 回执与交付清单写出**推荐发布件**（烧字+封面烧封） |
 | 弹幕轨 | `pnpm edit:danmaku` | 复用字幕工位的弹幕能力：滚动/顶部/底部混合、2–4 分道、密度体检、回执含产物 sha256；默认**完整保留**传入条目、不隐式删减 |
 | 配乐选曲 | `pnpm edit:post --bgm agent` | 配乐选曲器在**本地打标大库**按变体风格匹配并复检可商用许可，`trackId` 钉进变体配方；**本地大库优先、随仓 50 首兜底**（回执 `bgm-agent-receipt.json`） |
 | 交付包 | `outputs/edit/delivery-<版本>/` | 母版 + 变体×三形态 + 封面 + 烧封 + 弹幕 + 全部回执：`delivery-manifest.json`、`covers/cover-plan.json`、`bgm-agent-receipt.json`、`segment-color-plan.json`、`danmaku/danmaku-receipt.json` |
@@ -34,6 +34,13 @@
 **字号规则（2026-10-11 定型，客户反馈“字幕/弹幕偏小”后回归修复）**：字号 = 短边 × 场景基准比（字幕 0.064 / 弹幕 0.054）× 分辨率档（720p×1.08 / 1080p×1.00 / 1440p×0.98 / 2160p×0.96）× 朝向（竖屏×1.05）× 粗细修正 × 平台倍率，再按 `minPx / maxRatio` 夹取。规则表与断言在 [`font_db.json#size_policy.resolution_rules`](bundles/ai-video/library/font-catalog/font_db.json)；1080p 横屏实测字幕 ≈71px、弹幕 ≈59px。
 
 **变体系统**：`warm-story` / `clean-tech` / `bold-promo` / `segmented-story`（分段调色版：调色已在片段级完成，变体层 `color=null` 不再叠加统一 LUT）；每条变体出「干净 / 软字幕 / 烧字」三形态并各自烧封封面片头。转场同为风格轴：同一份剪辑脚本在 `--transitions auto` 下，四路各按 `intentMap` 渲染不同转场（暖调 fadeslow / 科技 fade+wipe / 促销 dissolve+hlslice），口径见 [剪辑转场](docs/video-edit-transitions.md)。配方与覆盖机制见 [`bundles/ai-video/library/style-variants/`](bundles/ai-video/library/style-variants/)。
+
+**交付形态与分享口径（2026-10-12 客户实测后定稿）**：给他人观看/上传平台的成片应当**自带字幕**——
+macOS 的 Quick Look/QuickTime 默认不会自动打开软字幕轨（AVFoundation 自动选择实测为「无」），
+把「软字幕轨」文件发出去，对方看到的成片"没有字幕"。因此：① `edit:post` 有字幕时**默认烧字**；
+② **推荐发布件＝「烧字 + 封面烧封」**（`variants/<id>/<id>.burned.cover.mp4`），字幕与封面都已烧录进画面，
+任何播放器/预览器直接可见，`delivery-manifest.json#publish` 与 `covers/cover-report.json#publish` 都会标注；
+③ 「软字幕轨」形态保留给剪辑与平台字幕轨场景，不作为分享件。
 
 **已交付样例（可复现证据）**：山东归家短片 1920×1080/59.8s，4 变体 × 3 形态 + 封面×4 + 烧封 12 个文件 + 弹幕轨 14 条；`delivery-manifest.json` 11 项检查全过，硬切边界亮度 126–131（叠化对照 26–35），封面走 Compositor 工位带回执。转场回执（2026-10-11 新增）实测：legacy 黑场过渡窗口内 3 个黑帧 / 邻域 0 个，新逐切 xfade 路径 0 个黑帧，机检写进 `transitions/transition-receipt.json`。样例产物默认落在工作区 `outputs/edit/`（不入库）。
 

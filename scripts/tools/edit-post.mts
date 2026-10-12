@@ -18,9 +18,15 @@
  *     [--analysis <probe.json>]…（封面自动取帧与分段调色投票用）
  *     [--bgm-section auto|climax|calm|full] [--bgm-cut-driven]
  *     [--title "标题"] [--hook "一句话钩子"] [--platform "微信视频号"]
- *     [--width <显式宽> --height <显式高>] [--allow-downscale] [--fps 30] [--crf 16] [--burn-subtitles] [--json]
+ *     [--width <显式宽> --height <显式高>] [--allow-downscale] [--fps 30] [--crf 16] [--no-burn-subtitles] [--json]
  *     [--transitions hard|pack|declared|auto] [--transitions-easing native|smooth]
  *     [--transition-pack documentary|vlog|fast_cut|information]
+ *
+ *   字幕形态默认口径（2026-10-12 客户实测事故后改为默认烧字）：
+ *     提供 `--subtitle` 时**默认产出烧字形态**（成片自带字幕，任何播放器/预览器直接可见）；
+ *     需要纯软字幕轨（剪辑/平台字幕轨）时显式 `--no-burn-subtitles`。
+ *     背景：macOS 的 Quick Look/QuickTime 默认不会自动打开软字幕轨（AVFoundation 自动选择实测为「无」），
+ *     交付「软字幕轨」文件给他人时，对方看到的成片"没有字幕"。
  *   输出分辨率默认**跟随素材原生分辨率**（取与目标画幅一致的最大素材档位；4K 素材 → 3840×2160，
  *   清晰度档随之推导为 uhd）。显式 `--width/--height` **低于原生档位时 fail closed**：必须再加
  *   `--allow-downscale`（仅用于预览/低配发布），判定与缩放比写进 delivery-manifest.resolution
@@ -36,6 +42,7 @@ import {
   decideOutputResolution, resolveTimelineSourcePaths, validateEditTimeline, type EditTimeline, type PostAnalysisDoc,
 } from "../../packages/video-studio/src/edit/index.js";
 import { scanBestFrame } from "./lib/frame-scan.mts";
+import { resolveBurnSubtitles } from "./lib/delivery-forms.mts";
 
 const REPO_ROOT = resolve(import.meta.dirname ?? process.cwd(), "../..");
 const FFMPEG = process.env.WL_FFMPEG ?? "ffmpeg";
@@ -221,6 +228,15 @@ async function main(): Promise<void> {
   const bgmAgentReceipt: Array<Record<string, unknown>> = [];
   const subtitlePath = arg("--subtitle") ? abs(arg("--subtitle")) : null;
   if (subtitlePath && !existsSync(subtitlePath)) throw new Error(`字幕文件不存在：${subtitlePath}`);
+  /**
+   * 烧字默认口径（2026-10-12）：有字幕就默认烧（见文件头注）。`--no-burn-subtitles` 退回纯软字幕轨。
+   * 保留 `--burn-subtitles` 开关做兼容——显式传入与默认行为一致。
+   */
+  const burnSubtitles = resolveBurnSubtitles({
+    subtitleProvided: Boolean(subtitlePath),
+    burnFlag: flag("--burn-subtitles"),
+    noBurnFlag: flag("--no-burn-subtitles"),
+  });
   const platform = arg("--platform", timeline.target?.platform ?? "微信视频号");
   const title = arg("--title", timeline.filmId ?? timeline.timelineId);
   const hook = arg("--hook", "");
@@ -702,7 +718,7 @@ async function main(): Promise<void> {
     outDir,
     cutTimes,
     ...(subtitlePath ? { subtitles: { zhPath: subtitlePath } } : {}),
-    burnSubtitles: flag("--burn-subtitles"),
+    burnSubtitles,
     softSubtitles: true,
   });
 
@@ -898,7 +914,10 @@ perVariant: coverMoments.map((moment, index) => ({
       console.log(`  分段调色：${graded.length}/${segmentColorNotes.length} 段落 LUT（其余保持原色）`);
     }
     console.log(`  配乐落位：选段 ${bgmSection}｜切点对齐 ${cutTimes.length} 个${bgmCutDriven ? "（cut-driven BPM）" : ""}`);
-    if (subtitlePath) console.log(`  旁挂字幕：${subtitlePath}（已生成 srt/ass/vtt + 清单）`);
+    if (subtitlePath) {
+      console.log(`  旁挂字幕：${subtitlePath}（已生成 srt/ass/vtt + 清单）`);
+      console.log(`  字幕形态：${burnSubtitles ? "已烧字（默认；--no-burn-subtitles 可退回软字幕轨）" : "仅软字幕轨（--no-burn-subtitles）——预览器默认不显示，分享请用烧字形态"}`);
+    }
     console.log(`  交付清单：${manifestPath}`);
     if (transitionSummary?.scopes?.length) {
       console.log("  转场回执：");

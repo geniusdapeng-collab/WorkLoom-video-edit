@@ -32,7 +32,7 @@
     },
     {
       "path": "package.json",
-      "sha256": "7eddc08c34a2f7151c5e28d26c3ad15dd5bc3602eccaf4f4f05462a7c38820dd"
+      "sha256": "d006341a54194c57db837c5a53ac1bac98bee20428cfa45f27850cb13f1a1b78"
     },
     {
       "path": "packages/audit-engine/package.json",
