@@ -257,9 +257,27 @@ export function deliveryInspect(input) {
   const projectId = optionalText(value.projectId, "projectId") ?? "VID-FF02-FULL";
   const outDir = optionalText(value.outDir, "outDir") ?? "work/out";
   const base = outDir.replace(/\/+$/u, "");
-  const manifestPath = `${base}/${projectId}-delivery-manifest.json`;
-  const absolute = insideRepo(manifestPath, "outDir/projectId");
+  let manifestPath = `${base}/${projectId}-delivery-manifest.json`;
+  let absolute = insideRepo(manifestPath, "outDir/projectId");
+  let pointerSha256 = null;
+  const pointerPath = insideRepo(`${base}/current.json`, "current.json");
+  if (existsSync(pointerPath)) {
+    const pointer = readJsonFile(pointerPath, "current.json");
+    if (!plain(pointer) || pointer.schemaVersion !== "workloom.uhd-release/v1" || typeof pointer.releaseId !== "string"
+        || !/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/u.test(pointer.releaseId) || pointer.releaseId.includes("..")
+        || typeof pointer.manifest !== "string" || typeof pointer.releaseDir !== "string" || !/^[a-f0-9]{64}$/u.test(pointer.manifestSha256 ?? "")) {
+      throw new VideoCapabilityError("当前交付发布指针非法");
+    }
+    const expectedRelease = insideRepo(`${base}/releases/${pointer.releaseId}`, "current.release");
+    absolute = insideRepo(relative(artifactRoot(), pointer.manifest), "current.manifest");
+    if (dirname(absolute) !== expectedRelease || resolve(pointer.releaseDir) !== expectedRelease || sha256File(absolute) !== pointer.manifestSha256) {
+      throw new VideoCapabilityError("当前交付指针与清单摘要/目录不一致", "CONFLICT");
+    }
+    manifestPath = relative(artifactRoot(), absolute);
+    pointerSha256 = sha256File(pointerPath);
+  }
   const manifest = readJsonFile(absolute, manifestPath);
+  const manifestSha256 = manifest === null ? null : sha256File(absolute);
   if (manifest === null) {
     return { found: false, projectId, manifestPath, hint: "还没有交付清单（还没跑 deliver 阶段）" };
   }
@@ -314,6 +332,9 @@ export function deliveryInspect(input) {
   for (const entry of Array.isArray(subtitles.files) ? subtitles.files : []) checkFile("subtitle", entry.path ?? entry, entry.sha256, true);
   for (const asset of assets) checkFile("asset", asset.path, asset.sha256, true);
   const missing = checks.filter((entry) => entry.state !== "verified");
+  if (sha256File(absolute) !== manifestSha256 || pointerSha256 && sha256File(pointerPath) !== pointerSha256) {
+    throw new VideoCapabilityError("核验期间发布版本发生变化", "CONFLICT");
+  }
   return {
     found: true,
     projectId,
@@ -325,6 +346,9 @@ export function deliveryInspect(input) {
     files: checks,
     missing: missing.map((entry) => entry.path ?? entry.label),
     integrity: missing.length === 0 ? "verified" : "incomplete",
+    technicalQuality: "unverified",
+    complete: false,
+    requiredNextCapability: "growth.video.post.quality",
     note: "主件必需，逐件核对实际 SHA256；旧清单缺少指纹的附件标为未核实，重新执行 deliver 可生成完整指纹",
   };
 }
@@ -376,3 +400,5 @@ export function productionPlan(input) {
     notExecuted: "本能力只产出计划与检查项，不代跑管线；出片执行见 `scripts/tools/full-chain-film.mts`",
   };
 }
+
+export { deliveryQuality } from "./post-quality.mjs";

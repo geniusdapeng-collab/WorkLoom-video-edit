@@ -87,6 +87,26 @@ for workbench_asset in "${WORKBENCH_ASSET_PATHS[@]}"; do
   [ -f "$R/$workbench_asset" ] || { echo "❌ 视频指南载荷缺件：$workbench_asset"; exit 1; }
 done
 # VIDEO_WORKBENCH_ASSETS:END
+# VIDEO_POST_RUNTIME_ASSETS:BEGIN
+# Keep actual post processors and their local script dependencies at canonical relative paths.
+POST_RUNTIME_ASSET_PATHS=(
+  scripts/tools/generation-quality.mjs
+  scripts/tools/rhythm-edit.mts
+  scripts/tools/rhythm-post.mts
+  scripts/tools/edit-entity.mts
+  scripts/tools/vision-entity.swift
+  scripts/tools/edit-post.mts
+  scripts/tools/edit-cover.mts
+  scripts/tools/edit-package.mts
+  scripts/tools/lib/edit-rhythm.mts
+  scripts/tools/lib/frame-scan.mts
+  scripts/tools/lib/delivery-forms.mts
+)
+node scripts/pack-workspace-modules.mjs --copy-sources "$R" "${POST_RUNTIME_ASSET_PATHS[@]}"
+for post_runtime_asset in "${POST_RUNTIME_ASSET_PATHS[@]}"; do
+  [ -f "$R/$post_runtime_asset" ] || { echo "❌ 后期处理载荷缺件：$post_runtime_asset"; exit 1; }
+done
+# VIDEO_POST_RUNTIME_ASSETS:END
 RUNTIME_SOURCE_DIRS=(
   apps/server apps/web/src apps/web/index.html apps/web/public apps/web/package.json
   apps/web/vite.config.ts apps/web/tsconfig.json packages bundles

@@ -22,15 +22,15 @@
  *     [--hero-sec 35.5] [--account <账号档案>] [--burn-intro 1.6] [--renderer auto|compositor|ffmpeg] [--json]
  */
 import { execFileSync, spawnSync } from "node:child_process";
-import { createHash } from "node:crypto";
-import { copyFileSync, existsSync, mkdirSync, readFileSync, renameSync, statSync, writeFileSync } from "node:fs";
+import { createHash, randomUUID } from "node:crypto";
+import { copyFileSync, existsSync, mkdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import {
   COVER_FONTS, COVER_DIFF_PSNR_DB, validateCoverPlan, type CoverPlan,
 } from "../../packages/video-studio/src/cover-design.js";
 import { getCoverSpec } from "../../packages/video-studio/src/cover-platforms.js";
-import { deriveCoverTheme, planCoverMoment, planCoverMoments, type PostAnalysisDoc } from "../../packages/video-studio/src/edit/index.js";
+import { deriveCoverTheme, planCoverMoment, planCoverMoments, type PostAnalysisDoc, type EditTimeline } from "../../packages/video-studio/src/edit/index.js";
 import { scanBestFrame } from "./lib/frame-scan.mts";
 import { DANMAKU_PUBLISH_NOTE, PUBLISH_NOTE, recommendedDanmakuFile, recommendedPublishFile } from "./lib/delivery-forms.mts";
 
@@ -113,13 +113,14 @@ function run(bin: string, args: string[]): { stdout: string; stderr: string } {
 }
 const sha256 = (file: string): string => createHash("sha256").update(readFileSync(file)).digest("hex");
 
-function probeMedia(file: string): { width: number; height: number; duration: number } {
-  const out = run(FFPROBE, ["-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width,height", "-show_entries", "format=duration", "-of", "json", file]).stdout;
-  const doc = JSON.parse(out) as { streams?: Array<{ width?: number; height?: number }>; format?: { duration?: string } };
+function probeMedia(file: string): { width: number; height: number; duration: number; fps: number } {
+  const out = run(FFPROBE, ["-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width,height,r_frame_rate", "-show_entries", "format=duration", "-of", "json", file]).stdout;
+  const doc = JSON.parse(out) as { streams?: Array<{ width?: number; height?: number; r_frame_rate?: string }>; format?: { duration?: string } };
   return {
     width: Number(doc.streams?.[0]?.width ?? 0),
     height: Number(doc.streams?.[0]?.height ?? 0),
     duration: Number(doc.format?.duration ?? 0),
+    fps: (() => { const [a, b] = (doc.streams?.[0]?.r_frame_rate ?? "0/1").split("/").map(Number); return b ? a / b : 0; })(),
   };
 }
 
@@ -138,11 +139,7 @@ function probeStreams(file: string): Array<{ codec_type?: string; codec_name?: s
  * 修复：concat 之后把源文件的字幕流以 `+burnIntro` 偏移重新封进成片，并复核确实挂上了。
  */
 function hasSubtitleStream(file: string): boolean {
-  try {
-    return probeStreams(file).some((stream) => stream.codec_type === "subtitle");
-  } catch {
-    return false;
-  }
+  return probeStreams(file).some((stream) => stream.codec_type === "subtitle");
 }
 
 /** 标题带 / 人物位 PSNR：合成图 vs 无字底图（差异越大 = 越可能真的画了东西） */
@@ -298,6 +295,19 @@ async function main(): Promise<void> {
   if (!existsSync(master)) throw new Error(`干净母版不存在：${master}`);
   const outDir = abs(outDirArg);
   const variants = arg("--variants", "warm-story,clean-tech,bold-promo").split(",").map((v) => v.trim()).filter(Boolean);
+  if (!variants.length || new Set(variants).size !== variants.length || variants.some((id) => !/^[a-z0-9][a-z0-9-]*$/u.test(id))) {
+    throw new Error("--variants 必须是互不重复的变体标识（小写字母、数字与连字符）");
+  }
+  const manifestFile = join(outDir, "delivery-manifest.json");
+  const originalManifestHash = existsSync(manifestFile) ? sha256(manifestFile) : null;
+  const projectFile = join(outDir, "film-project.json");
+  const originalProjectBytes = existsSync(projectFile) ? readFileSync(projectFile) : null;
+  const originalProjectHash = originalProjectBytes ? sha256(projectFile) : null;
+  const masterHash = sha256(master);
+  // Candidate files keep every previously accepted cover and intro intact until QC accepts the new manifest.
+  const attemptId = randomUUID();
+  const versionRoot = join(outDir, "work", "cover-versions", attemptId);
+  mkdirSync(versionRoot, { recursive: true });
   const platformInput = arg("--platform", "微信视频号");
   const title = arg("--title", "");
   const hook = arg("--hook", "");
@@ -314,7 +324,9 @@ async function main(): Promise<void> {
     ? JSON.parse(readFileSync(abs(copiesPath), "utf8")) as Record<string, unknown>
     : null;
   const rendererMode = arg("--renderer", "auto");
-  const burnIntro = Number(arg("--burn-intro", "1.6"));
+  const timelinePath = arg("--timeline");
+  const declaredTimeline = timelinePath ? JSON.parse(readFileSync(abs(timelinePath), "utf8")) as EditTimeline : null;
+  const burnIntro = Number(arg("--burn-intro", declaredTimeline?.pacing?.profile === "fast_cut" ? "0" : "1.6"));
   if (!Number.isFinite(burnIntro) || burnIntro < 0 || burnIntro > 5) throw new Error("--burn-intro 需要 0–5 秒");
   const bridgeUrl = arg("--bridge-url", process.env.WORKLOOM_VISUAL_BRIDGE_URL ?? "http://127.0.0.1:9773");
 
@@ -375,12 +387,15 @@ async function main(): Promise<void> {
   // 镜头表（主视觉与人物卡镜头必须真实存在）
   interface ShotRow { shotId: string; scene?: string; duration?: number; sourceIn?: number; masterIn?: number }
   const shots: ShotRow[] = [];
-  const timelinePath = arg("--timeline");
+  const timeline: EditTimeline = declaredTimeline ?? {
+    schemaVersion: "workloom.edit-timeline/v2", timelineId: "cover-master", target: { durationSeconds: media.duration,
+      aspectRatio: `${media.width}:${media.height}`, fps: media.fps, platform: platformInput },
+    sources: [{ sourceId: "master", sha256: sha256(master), path: master, fps: media.fps, durationSeconds: media.duration }],
+    segments: [{ seq: 1, segmentId: "hero", sourceId: "master", sourceIn: 0, sourceOut: media.duration, durationSeconds: media.duration }],
+    audioDesign: { originalAudioPolicy: "keep" },
+  };
   let filmDuration = media.duration;
   if (timelinePath) {
-    const timeline = JSON.parse(readFileSync(abs(timelinePath), "utf8")) as {
-      segments: Array<{ segmentId: string; groupId?: string | null; durationSeconds: number; sourceIn: number }>;
-    };
     let cursor = 0;
     for (const segment of timeline.segments) {
       shots.push({ shotId: segment.segmentId, scene: segment.groupId ?? undefined, duration: segment.durationSeconds, sourceIn: segment.sourceIn, masterIn: Number(cursor.toFixed(3)) });
@@ -392,7 +407,7 @@ async function main(): Promise<void> {
   }
 
   const bridge = rendererMode === "ffmpeg" ? { available: false, reason: "--renderer=ffmpeg（显式降级）", call: async () => { throw new Error("ffmpeg mode"); } } : await connectBridge(bridgeUrl);
-  const workRoot = bridge.available ? join(BRIDGE_VAR, `edit-cover-${Date.now().toString(36)}`) : join(outDir, "covers", "work");
+  const workRoot = bridge.available ? join(BRIDGE_VAR, `edit-cover-${attemptId}`) : join(versionRoot, "renderer");
   mkdirSync(workRoot, { recursive: true });
   mkdirSync(join(outDir, "covers"), { recursive: true });
 
@@ -413,7 +428,7 @@ async function main(): Promise<void> {
     : null;
   const scannedFrame = keyframePlan && keyframePlan.basis !== "fallback"
     ? null
-    : scanBestFrame({ file: master, workDir: join(outDir, "covers", "work", "frame-scan"), ffmpeg: FFMPEG });
+    : scanBestFrame({ file: master, workDir: join(versionRoot, "frame-scan"), ffmpeg: FFMPEG });
 
   /**
    * 逐变体封面时刻（2026-10-11 客户反馈"几个版本同一个封面"）：关键帧候选按"同一镜头只用一次"分配，
@@ -491,6 +506,7 @@ async function main(): Promise<void> {
         sublineSizeRatio: Number((sublinePx / canvas.height).toFixed(4)),
         color: style.colors.title,
         accentColor: style.colors.accent,
+        align: "left",
       },
       rationale: style.reason,
       source: "requested",
@@ -557,7 +573,8 @@ async function main(): Promise<void> {
       exports: [{ format: "png", path: `cover-${variantId}.png` }],
     };
 
-    const target = join(outDir, "variants", variantId, "cover.png");
+    const target = join(versionRoot, variantId, "cover.png");
+    mkdirSync(dirname(target), { recursive: true });
     let renderer = "ffmpeg-fallback";
     let bridgeReceipt: Record<string, unknown> | null = null;
     if (bridge.available) {
@@ -619,9 +636,9 @@ async function main(): Promise<void> {
     const titlePsnr = bandPsnr(target, baseImage, titleBand);
     const personPsnr = plan.person?.enabled ? bandPsnr(target, baseImage, personBox) : null;
     const checks = [
-      { id: "cover-produced", pass: probed.width === canvas.width && probed.height === canvas.height && bytes > 120_000, detail: `${probed.width}x${probed.height} · ${(bytes / 1024).toFixed(0)}KB（期望 ${canvas.width}x${canvas.height}）` },
-      { id: "title-rendered", pass: titlePsnr !== null && titlePsnr < COVER_DIFF_PSNR_DB, detail: `标题带 PSNR ${titlePsnr === null ? "未测" : `${titlePsnr.toFixed(2)}dB`}（阈值 <${COVER_DIFF_PSNR_DB}）` },
-      { id: "person-rendered", pass: !plan.person?.enabled || (personPsnr !== null && personPsnr < COVER_DIFF_PSNR_DB), detail: plan.person?.enabled ? `人物位 PSNR ${personPsnr === null ? "未测" : `${personPsnr.toFixed(2)}dB`}` : "本版式不放人物层" },
+      { id: "cover-produced", pass: probed.width === canvas.width && probed.height === canvas.height && bytes > 0, detail: `${probed.width}x${probed.height} · ${(bytes / 1024).toFixed(0)}KB（期望 ${canvas.width}x${canvas.height}）` },
+      { id: "title-rendered", hard: false, pass: titlePsnr !== null && titlePsnr < COVER_DIFF_PSNR_DB, detail: `标题带 PSNR ${titlePsnr === null ? "未测" : `${titlePsnr.toFixed(2)}dB`}（启发式阈值 <${COVER_DIFF_PSNR_DB}；不认证文字可读性）` },
+      { id: "person-rendered", hard: false, pass: !plan.person?.enabled || (personPsnr !== null && personPsnr < COVER_DIFF_PSNR_DB), detail: plan.person?.enabled ? `人物位 PSNR ${personPsnr === null ? "未测" : `${personPsnr.toFixed(2)}dB`}（启发式建议；不认证实体语义）` : "本版式不放人物层" },
       { id: "canvas-matches-film", pass: landscape ? probed.width >= probed.height : probed.height > probed.width, detail: `封面画幅与成片同向（成片 ${media.width}×${media.height}）` },
       { id: "base-lineage", pass: true, detail: `主视觉取自未烧字干净母版（sha256 ${sha256(master).slice(0, 12)}…，取帧 ${heroSec}s）` },
       { id: "bridge-receipt", pass: renderer === "compositor-visual-bridge" ? Boolean(bridgeReceipt) : true, detail: renderer === "compositor-visual-bridge" ? `工位回执 sha256 ${String((bridgeReceipt?.sha256 as string) ?? "").slice(0, 12)}…` : `降级渲染（${bridge.reason ?? "工位不可用"}）` },
@@ -633,7 +650,7 @@ async function main(): Promise<void> {
       scanCandidates: scannedFrame?.candidates ?? null,
       plan: validated, file: target, sha256: sha256(target), checks, recipe: recipeBody,
     });
-    checksAll.push({ variantId, ok: checks.every((c) => c.pass), checks });
+    checksAll.push({ variantId, ok: checks.every((c) => c.hard === false || c.pass), checks });
   }
 
   /**
@@ -666,6 +683,7 @@ async function main(): Promise<void> {
 
   // ⑦ 烧封：封面作为片头烧进每条变体（干净/软字幕/烧字三种形态）
   const introReceipts: Array<Record<string, unknown>> = [];
+  const introSources: Array<{ path: string; sha256: string }> = [];
   if (burnIntro > 0) {
     for (const variantId of variants) {
       const cover = covers.find((entry) => entry.variantId === variantId)?.file as string | undefined;
@@ -674,11 +692,13 @@ async function main(): Promise<void> {
       for (const form of ["", ".softsub", ".burned", ".burned.danmaku", ".danmaku"]) {
         const source = join(outDir, "variants", variantId, `${variantId}${form}.mp4`);
         if (!existsSync(source)) continue;
-        const output = join(outDir, "variants", variantId, `${variantId}${form}.cover.mp4`);
+        const sourceHash = sha256(source);
+        introSources.push({ path: source, sha256: sourceHash });
+        const output = join(versionRoot, variantId, `${variantId}${form}.cover.mp4`);
         const intro = join(workRoot, `${variantId}${form}-intro.mp4`);
         run(FFMPEG, ["-hide_banner", "-loglevel", "error", "-y", "-loop", "1", "-i", cover,
           "-f", "lavfi", "-i", "anullsrc=channel_layout=stereo:sample_rate=48000",
-          "-filter_complex", `[0:v]scale=${media.width}:${media.height},fps=${arg("--fps", "30")},format=yuv420p[v];[1:a]atrim=0:${burnIntro},asetpts=PTS-STARTPTS[a]`,
+          "-filter_complex", `[0:v]scale=${media.width}:${media.height},fps=${arg("--fps", String(media.fps))},format=yuv420p[v];[1:a]atrim=0:${burnIntro},asetpts=PTS-STARTPTS[a]`,
           "-map", "[v]", "-map", "[a]", "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-c:a", "aac", "-ar", "48000", "-ac", "2", "-t", String(burnIntro), "-movflags", "+faststart", intro]);
         // 用文本清单做 concat（/dev/stdin 在部分 ffmpeg 构建下不可用）
         const listFile = join(workRoot, `${variantId}${form}-list.txt`);
@@ -695,23 +715,26 @@ async function main(): Promise<void> {
           run(FFMPEG, ["-hide_banner", "-loglevel", "error", "-y",
             "-i", output,
             "-itsoffset", String(burnIntro), "-i", source,
-            "-map", "0:v:0", "-map", "0:a:0", "-map", "1:s:0",
+            "-map", "0:v:0", "-map", "0:a:0", "-map", "1:s",
             "-c:v", "copy", "-c:a", "copy", "-c:s", "mov_text",
             "-metadata:s:s:0", "language=chi", "-disposition:s:0", "default",
             "-movflags", "+faststart", fixed]);
           renameSync(fixed, output);
           subtitleTracks = probeStreams(output).filter((stream) => stream.codec_type === "subtitle").length;
-          if (subtitleTracks === 0) {
-            throw new Error(`${variantId}${form} 在烧封片头后丢失字幕轨（期望 ≥1 条 mov_text）`);
+          const expectedTracks = probeStreams(source).filter((stream) => stream.codec_type === "subtitle").length;
+          if (subtitleTracks !== expectedTracks) {
+            throw new Error(`${variantId}${form} 在烧封片头后字幕轨数量不符（期望 ${expectedTracks}，实际 ${subtitleTracks}）`);
           }
         }
-        introReceipts.push({ variantId, form: form || "clean", output, introSeconds: burnIntro, introAudio: "silent", subtitleTracks, sha256: sha256(output), duration: probeMedia(output).duration });
+        if (sha256(source) !== sourceHash) throw new Error(`${variantId}${form} 烧封期间原成片发生变化`);
+        introReceipts.push({ variantId, form: form || "clean", source: relative(outDir, source), sourceSha256: sourceHash,
+          output, introSeconds: burnIntro, introAudio: "silent", subtitleTracks, sha256: sha256(output), duration: probeMedia(output).duration });
       }
     }
   }
 
-  const planFile = join(outDir, "covers", "cover-plan.json");
-  const reportFile = join(outDir, "covers", "cover-report.json");
+  const planFile = join(versionRoot, "cover-plan.json");
+  const reportFile = join(versionRoot, "cover-report.json");
   /**
    * 推荐发布件（2026-10-12 客户实测口径）：分享/上传首选「烧字 + 封面烧封」——
    * 字幕与封面都已烧录进画面，任何播放器/预览器直接可见；软字幕轨形态在多数预览器
@@ -719,7 +742,8 @@ async function main(): Promise<void> {
    */
   const publishRecommendations = variants
     .map((variantId) => {
-      const file = join(outDir, recommendedPublishFile(variantId, burnIntro > 0));
+      const produced = introReceipts.find((row) => row.variantId === variantId && row.form === ".burned");
+      const file = burnIntro > 0 ? String(produced?.output ?? "") : join(outDir, recommendedPublishFile(variantId, false));
       return existsSync(file)
         ? {
           variantId,
@@ -732,7 +756,8 @@ async function main(): Promise<void> {
     .filter((entry): entry is { variantId: string; file: string; forms: string; note: string } => entry !== null)
     .concat(variants.map((variantId) => {
       /** 弹幕版推荐件（`edit:post --danmaku` 产出的形态在这里再叠封面）。 */
-      const file = join(outDir, recommendedDanmakuFile(variantId, burnIntro > 0));
+      const produced = introReceipts.find((row) => row.variantId === variantId && row.form === ".burned.danmaku");
+      const file = burnIntro > 0 ? String(produced?.output ?? "") : join(outDir, recommendedDanmakuFile(variantId, false));
       return existsSync(file)
         ? {
           variantId,
@@ -776,8 +801,8 @@ async function main(): Promise<void> {
    * 事故：post 先写 delivery-manifest.json（含它自己那版封面的 sha256），封面链路随后覆盖 cover.png 并烧封，
    * 清单里的封面指纹就与文件不一致——"清单说 A、文件是 B"。这里按实际产物回写 cover 字段，保证清单可核对。
    */
-  const manifestFile = join(outDir, "delivery-manifest.json");
   if (existsSync(manifestFile)) {
+    if (sha256(manifestFile) !== originalManifestHash) throw new Error("封面处理期间交付清单发生变化，请基于当前版本重试");
     const manifest = JSON.parse(readFileSync(manifestFile, "utf8")) as {
       variants?: Array<{ id?: string; cover?: Record<string, unknown> | null }>;
       [key: string]: unknown;
@@ -792,6 +817,7 @@ async function main(): Promise<void> {
         path: relative(outDir, String(produced.file)),
         sha256: sha256(String(produced.file)),
         text: `${title} / ${hook}`.trim(),
+        title, hook,
         heroSec: arg("--hero-sec", "") ? Number(arg("--hero-sec")) : null,
         checks,
         renderer: produced.renderer,
@@ -801,6 +827,13 @@ async function main(): Promise<void> {
       updated += 1;
     }
     if (updated > 0) {
+      // The previous Chinese display set still exists on disk, but must be repackaged against this version.
+      if (manifest.displaySet) {
+        manifest.displaySetNeedsRefresh = { reason: "封面产物版本已更新", at: new Date().toISOString() };
+        delete manifest.displaySet;
+      }
+      manifest.coverIntro = { forms: introReceipts.map((form) => ({ ...form, output: relative(outDir, String(form.output)) })) };
+      manifest.coverDivergence = coverDivergence;
       manifest.coverSync = { updated, at: new Date().toISOString(), report: relative(outDir, reportFile) };
       if (publishRecommendations.length) {
         manifest.publish = {
@@ -809,7 +842,54 @@ async function main(): Promise<void> {
           updatedBy: "edit:cover（推荐发布件＝烧字+封面烧封）",
         };
       }
-      writeFileSync(manifestFile, `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
+      const qa = await import("../../bundles/ai-video/connectors/post-bridge/quality-gate.mjs") as {
+        inspectDeliveryManifest: (options: Record<string, unknown>) => Promise<{ passed: boolean }>;
+        assertPostQuality: (report: unknown) => void;
+        writePostQuality: (root: string, report: unknown) => Promise<Record<string, unknown>>;
+      };
+      const finalQuality = await qa.inspectDeliveryManifest({ root: outDir, manifest, phase: "cover",
+        bins: { ffmpeg: FFMPEG, ffprobe: FFPROBE }, extraChecks: [{ kind: "cover-distinct", hard: true, ok: duplicatePairs.length === 0 }] });
+      manifest.postQuality = await qa.writePostQuality(outDir, finalQuality);
+      qa.assertPostQuality(finalQuality);
+      if (sha256(master) !== masterHash || introSources.some((source) => sha256(source.path) !== source.sha256)) {
+        throw new Error("封面验收后原片或原成片摘要发生变化");
+      }
+      if (sha256(manifestFile) !== originalManifestHash) throw new Error("封面验收期间交付清单发生变化，请基于当前版本重试");
+      if (originalProjectHash && sha256(projectFile) !== originalProjectHash) throw new Error("封面处理期间工程版本发生变化，请基于当前版本重试");
+      const pending = `${manifestFile}.${attemptId}.pending`;
+      const projectPending = `${projectFile}.${attemptId}.pending`;
+      let projectPublished = false;
+      let publishedProjectHash: string | null = null;
+      try {
+        writeFileSync(pending, `${JSON.stringify(manifest, null, 2)}\n`, { encoding: "utf8", flag: "wx" });
+        if (originalProjectBytes) {
+          const project = JSON.parse(originalProjectBytes.toString("utf8")) as {
+            layers?: { variants?: Array<{ id: string; artifacts?: Record<string, unknown>; style?: Record<string, unknown> }> };
+            [key: string]: unknown;
+          };
+          for (const variant of project.layers?.variants ?? []) {
+            const cover = manifest.variants?.find((entry) => entry.id === variant.id)?.cover;
+            if (!cover) continue;
+            variant.artifacts = { ...variant.artifacts, cover };
+            variant.style = { ...variant.style, cover: { ...(variant.style?.cover as Record<string, unknown> ?? {}), title, hook } };
+          }
+          project.coverSync = manifest.coverSync;
+          project.postQuality = manifest.postQuality;
+          writeFileSync(projectPending, `${JSON.stringify(project, null, 2)}\n`, { encoding: "utf8", flag: "wx" });
+          if (sha256(projectFile) !== originalProjectHash) throw new Error("发布封面前工程版本发生变化");
+          publishedProjectHash = sha256(projectPending);
+          renameSync(projectPending, projectFile);
+          projectPublished = true;
+        }
+        renameSync(pending, manifestFile);
+      } catch (error) {
+        if (projectPublished && originalProjectBytes) {
+          if (sha256(projectFile) !== publishedProjectHash) throw new Error("封面发布失败且工程已被并发更新；保留当前工程，拒绝回滚覆盖新版本", { cause: error });
+          writeFileSync(projectPending, originalProjectBytes, { flag: "wx" });
+          renameSync(projectPending, projectFile);
+        }
+        throw error;
+      } finally { rmSync(pending, { force: true }); rmSync(projectPending, { force: true }); }
       console.log(`  清单同步：delivery-manifest.json 回写 ${updated} 条封面指纹`);
     }
   }

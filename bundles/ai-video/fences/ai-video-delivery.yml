@@ -17,19 +17,20 @@ rules:
     is_baseline: true
     match:
       object_types: [final_video, video_asset, subtitle_track, subtitle_report, delivery_package]
-      actions: [postread.health, postread.plan, postread.impact, postwrite.package, postwrite.reedit, postwrite.triage, subtitlewrite.sidecar, subtitlewrite.softmux]
+      actions: [postread.health, postread.plan, postread.impact, postread.quality, postwrite.package, postwrite.reedit, postwrite.triage, subtitlewrite.sidecar, subtitlewrite.softmux]
     when: "true"
     note: 派生变体、出旁挂字幕文件、软字幕轨内嵌、按 patch 本地重合成，都是工位本地、非破坏、可回滚动作（原片只读 + 版本只增不覆盖 + 产物带 sha256），默认直通。覆盖原片（G-DLV2）、改变软字幕编码轨道（G-DLV3）、产物缺件（G-DLV1）、返修跳过影响分析（G-DLV4）、缺清单（G-DLV6）、复用无证据（G-DLV7）叠加升级，deny 优先并集取严。未命中写动作的保守默认是 review，故此处必须显式声明 auto。
 
   - rule_id: G-DLV1
-    name: 派生产物必须真实存在且可读
+    name: 请求产物与当前媒体的技术验收
     level: block
     is_baseline: true
     match:
       object_types: [delivery_package, final_video]
       actions: [postwrite.package, postwrite.reedit]
-    when: "params.output_missing == true or params.output_unreadable == true"
-    note: 按调用入口的版本数量合同生成母版和派生产物，实际缺件或无法读取必须失败；本条不以版本数、源画面像素、音轨差异、感官区别或质量分数阻断交付，差异质量未复检须如实记录。
+    when: "params.output_missing == true or params.output_unreadable == true or params.post_quality_failed == true or params.output_missing == true or params.output_unreadable == true"
+    note: 保留本仓请求的版本数量合同；实际缺件、完整解码失败、原生或明确目标规格不符、请求环节及真实加工证据缺失均失败。执行器出口重新检查当前字节，调用方通过标志不能替代。艺术评分不作通用硬闸；技术失败只本地返修，不自动付费重生成。
+
 
   - rule_id: G-DLV2
     name: 母版不得烧字幕（字幕一律旁挂/软轨交付）

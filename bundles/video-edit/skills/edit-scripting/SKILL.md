@@ -141,3 +141,12 @@ v2 合并为**一份契约**：`edit_timeline`（机器执行）+ `edit_script`�
 - [ ] 声音设计覆盖全片（含留白与卡点），不是"配个 BGM"了事
 - [ ] 每个片段能指回素材 id，且素材可用性为可用
 - [ ] 脚本与时间轴一致（时长、顺序、段数）
+
+
+## 8. 明确快剪的实际执行合同（2026-10-14）
+
+明确需要片头/结尾快切时，同时输出符合本仓 `RhythmPlanInput` 的节奏计划：每段 `id` 必须对应时间轴 `segmentId`，`sourceId` 对应源轨，`inSeconds/outSeconds` 必须等于时间轴 `sourceIn/sourceOut`。`role` 使用 detail/develop/breath/hero，`cutReason` 写具体动作或信息理由；源片有台词或完整动作时 `protectedRanges` 使用已核实源片时钟的 `speech/action` 区间。
+
+`edit-post` 的 `--rhythm-profile fast-cut --rhythm-plan <计划.json>` 会核对时间轴、当前源 SHA 和实测裁切片。显式节奏合同保持速度 1x；靠变速压短人声不能写成原速快切。用 0.5 秒细节、2 秒展开、3 秒呼吸等组合前，必须先判断本次动作/台词是否有可裁余量，数字是创作例子而非全部影片的硬模板。
+
+转场默认消费每刀声明；硬切可以是明确决定，漏写或请求了效果却未执行不可当完成。快切段保留独立封面文件，默认不插长静态封面片头。实际音乐音频未经测量时，计划中的拍点仅为 declared，不能声称已实测卡点；`impact/whoosh` 只有明确声音落点才执行，环境声/音乐进出未实际加工须标未验证。

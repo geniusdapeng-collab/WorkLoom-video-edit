@@ -1400,6 +1400,7 @@ export async function mix(options = {}) {
   const source = assertPathAllowed(options.input, roots, "input");
   const music = assertPathAllowed(options.bgmPath, roots, "bgmPath");
   const sourceHash = await sha256File(source);
+  const musicHash = await sha256File(music);
   let stems;
   if (declaredProgramMix) {
     stems = await declaredProgramStems({ input: source, nearDir: path.dirname(output), bins });
@@ -1422,7 +1423,7 @@ export async function mix(options = {}) {
     output: path.join(work, name), allowedRoots: roots })).path;
   try {
     const input = await copy(source, sourceHash, "picture.mp4");
-    const bgmPath = await copy(music, await sha256File(music), "new-music");
+    const bgmPath = await copy(music, musicHash, "new-music");
     const programPath = await copy(stems.program.path, stems.program.sha256, "program.wav");
     const dialoguePath = await copy(stems.roles.dialogue.path, stems.roles.dialogue.sha256, "dialogue.wav");
     const probe = await probeMedia(input, { bins, requireAudio: false });
@@ -1434,6 +1435,14 @@ export async function mix(options = {}) {
       programPath, dialoguePath, dialogueStatus: stems.roles.dialogue.status, workDir: work, keepWork: true });
     // Expiry can change during a long render. Revalidate before publishing.
     if (!declaredProgramMix) await verifyIndependentAudio(audioStems, { env, bins });
+    if (await sha256File(source) !== sourceHash || await sha256File(music) !== musicHash) {
+      throw new BgmError("混音期间源片或配乐字节发生变化", "source_changed", false);
+    }
+    report.beforeInputs = [{ path: source, sha256: sourceHash }, { path: music, sha256: musicHash },
+      { path: stems.program.path, sha256: stems.program.sha256 },
+      { path: stems.roles.dialogue.path, sha256: stems.roles.dialogue.sha256 }];
+    report.bgm.sha256 = musicHash;
+    report.bgm.playedSha256 = report.retainedTracks?.find(track => track.role === "music")?.sha256 ?? musicHash;
     report.output.path = output;
     report.input = source;
     report.bgm.path = music;

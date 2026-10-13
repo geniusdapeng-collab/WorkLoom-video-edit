@@ -171,7 +171,7 @@
   },
   "integrity": {
     "algorithm": "sha256",
-    "digest": "8c979ef81f97563b8378eb2f3da1ed14e210dd2219cc2af503933b83e8124b8e",
+    "digest": "6c5ec9e52c86dc559d53cf96710afc8104cd41925c333111760aa33e301c3a38",
     "assets": {
       "eval/questions.json": "251b0db664e49bdca83800eaed91359b540ba1d58d363dd470c9ef3f8e8e8ebb",
       "fences/talk-edit-baseline.yml": "cf474c8f18b2b0547f45beab680ba3d101f3fb63e2bff7d4b2f5f0787bf60d26",
@@ -207,12 +207,12 @@
       "skills/caption-craft/SKILL.md": "dca78f08c9b7a2dbd806945345fda5eabad163e6287e8e94f7dcb13b6461e284",
       "skills/creative-ideation/SKILL.md": "7741a4fe350cf6d96dfad89c5fb41e7c8400fd7b64fc28cbd5b6465460587a4b",
       "skills/cut-review/SKILL.md": "d5e5a36b5e225d048185b79e18cb36385ebb255ad97c7d01603ca5c6d78c0f69",
-      "skills/edit-scripting/SKILL.md": "ead3ebbc93a727d5901d24031c0489909758e36e6888b7befe4cf13f84ba6af7",
+      "skills/edit-scripting/SKILL.md": "339f380738107fd64dce44d8a6b75c0300755e10189fdaa68278eb3be9de588e",
       "skills/footage-ingest/SKILL.md": "bbd618627aa33a9b2d61096e639a36a6718e021b17d6de3a65bd2ae161f82097",
       "skills/highlight-mining/SKILL.md": "ddb6ea7d2b41615db51752db2aceec27295865fc4387b9af5e5029d97ab7cc1d",
       "skills/media-indexing/SKILL.md": "2552945bb701d26b196141c849d9c529598541ed4327a4ebb2c0624ec2f27e15",
       "skills/narrative-structure/SKILL.md": "73136242527dc67805d5051af874921bc127a2f64a0887f263681b0963609456",
-      "skills/shot-understanding/SKILL.md": "8e7fe75cd1f857b3e74c092638140848c22e6ddaa773f9821fadd08e8df4b8c8",
+      "skills/shot-understanding/SKILL.md": "d728ca86ef1c182b5bd02379e2e5408645a2223ae07cb826734573860648bcfa",
       "skills/talk-annotation/SKILL.md": "a650fa8b4f09a15acb9a9495a10b21b57b3943d85ac7fda3855f2c7c17be052a",
       "skills/talk-cutting/SKILL.md": "3ca64fd8cf630f30b93640f2b512b485fbf6714914b8dab39c02cb9dce2689c8",
       "skills/talk-emotion/SKILL.md": "db0b9c45c3973f016206dc390ffcfb62696d6305067744b458bc4e96e293472f",

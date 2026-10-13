@@ -41,7 +41,7 @@ mediaSuite("subtitle production uses one real transform without source quality r
     encode(["-f", "lavfi", "-i", "color=c=black:s=640x360:r=24000/1001:d=1.25",
       "-f", "lavfi", "-i", "sine=frequency=440:duration=1.25", "-map", "0:v", "-map", "1:a",
       "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac", "-shortest", source]);
-    encode(["-f", "lavfi", "-i", "color=c=black:s=640x360:r=17:d=1.117",
+    encode(["-f", "lavfi", "-i", "color=c=black:s=640x360:r=17:d=1.617",
       "-c:v", "libx264", "-pix_fmt", "yuv420p", silent]);
     fs.writeFileSync(srt, "1\n00:00:00,100 --> 00:00:01,100\n测试\n");
     initialHash = sha(source);

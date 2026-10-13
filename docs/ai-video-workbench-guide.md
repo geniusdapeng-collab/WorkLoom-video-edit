@@ -1,7 +1,7 @@
-# WorkLoom Growth 视频调用指南：AI 工作台先读，再执行
+# WorkLoom Video Edit 视频调用指南：AI 工作台先读，再执行
 
-> guideVersion: 2026-10-07.2
-> 适用仓库：`workloom-ai/WorkLoom-growth`；本版范围：成功原片默认接受和本仓正式后期；实际源码 SHA 以本次冻结交付记录为准。
+> guideVersion: 2026-10-14.1
+> 适用仓库：`workloom-ai/WorkLoom-video-edit`；本版范围：成功原片默认接受和本仓正式后期；实际源码 SHA 以本次冻结交付记录为准。
 > 读者：Codex、DeepSeek Harness 及能调用本仓 CLI / stdio MCP 的 AI 工作台。
 
 本指南把已成功视频作业的经验固化为调用纪律，帮助工作台从用户原话走到系统前期、渲染、后期和交付核验。先读取本仓能力，冻结人、商品、平台、时长、账号调性、声音与特殊要求，再走现有官方流程。不能把另一个仓库的功能、成片或测试结果算成本仓能力。
@@ -155,3 +155,13 @@ git diff --check
 ```
 
 修改本仓生产入口或新增标准后期/音频契约时，更新本指南的能力边界与版本，并重新核对 CLI/MCP 返回正文、目录发现、路径与 SHA-256。受控共享文档和其它仓库的生产机制不在本指南修改范围内。
+
+## 所有 AI 工作台共用的交付技术检查（2026-10-14）
+
+当前正式 package/reedit 与本仓已接通的生成后期出口，在实际加工后检查当前媒体与真实加工链。七环节为 cover / bgm / subtitles / danmaku / transitions / color / resolution；明确未请求的环节记录 not_applicable 和具体理由。硬切也是剪辑选择。默认按源片实测显示宽高保持原生画布，旋转先解释；明确降采样或换画幅须有对应策略。
+
+后期质检员 `post-quality-inspector` 使用 `postread.quality`（`delivery_dir` 为当前后期包）；也可使用 `node bundles/ai-video/connectors/post-bridge/cli.mjs quality --delivery-dir <目录>`。外部工作台统一调用 `growth.video.post.quality`：输入 `projectId`、产物根内相对 `outDir`、`kind=auto|post|generation`；CLI `node scripts/workloom-agent.mjs invoke growth.video.post.quality --input-file quality-input.json`，MCP 工具为 `workloom_growth_video_post_quality`。对生成 HD 的 `outDir` 或 UHD 的 `outDir/uhd` 自动读取不可变 release 的 `current.json`；返回 `complete=true` 只表示本次当前文件技术验收，`artisticQuality=unverified`。
+
+`growth.video.delivery.inspect` 保留字节清单检查，不能单独证明完整后期。实际解码、原生画布、请求层或凭证失败须本地返修；删除文件、改字节、传 skip_verify 或旧 passed 均不能代替检查。音频默认 report 记录实际响度/真峰值，明确 block 合同按其目标阻断。主机本地加工凭证不是防任意文件系统写权限攻击的加密签章。
+
+快剪先声明实际源区间、保护台词/动作和快段、hold/breath，再按 1x 截取；不加速口播凑节奏。impact/whoosh 按声明做本地声音加工，BPM 标签不等于实测节拍。新生成的电影摄影契约先冻结目的、景别、空间层次、光线、动作、动机机位、艺术与声音连续性；已成功素材不因新字段重复付费。详见 [节奏与电影摄影](video-rhythm-cinematic.md)、[实体调色](ai-video-entity-color.md)、[后期质检技能](../bundles/ai-video/skills/post-quality-inspection/SKILL.md)。

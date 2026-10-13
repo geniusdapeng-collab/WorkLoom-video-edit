@@ -89,6 +89,7 @@ function fixture(t, { audio = false, seconds = 1.1, nominal = 30, dialogue = '�
 function run(f, args = [], stages = 'compose,master') {
   f.lastArgs = ['--import', 'tsx', CLI, '--shots', f.shots, '--project', f.project,
     '--work-dir', f.work, '--out', f.out, '--keys-file', f.keys, '--resolution', '720p', '--route-kind', 'narrative',
+    '--allow-reframe', '--reframe-reason', 'explicit test fixture exports original 2:3 into requested 9:16',
     '--stages', stages, '--xfade', '0', '--cut-transition', '', '--review-policy', 'blocking',
     '--bgm-track', f.bed, '--danmaku', f.danmaku, '--no-open-with-cover', '--no-cover-kb', '--cover-hero', 'scenery',
     '--no-title-card', ...args];
@@ -113,7 +114,8 @@ test('真实全链CLI接收黑屏、无音轨、17FPS、旧品质失败与30秒�
     assert.ok(row?.ok, `${stage} needs an actual passed processing receipt`);
     if (row.verdict) assert.equal(row.verdict.score, null);
   }
-  const manifest = JSON.parse(readFileSync(join(f.out, `${f.project}-delivery-manifest.json`)));
+  const pointer = JSON.parse(readFileSync(join(f.out, 'current.json')));
+  const manifest = JSON.parse(readFileSync(pointer.manifest));
   assert.equal(manifest.qualityReviewed, false); assert.equal(manifest.distinctness, null); assert.deepEqual(manifest.samples, []);
   assert.equal(manifest.variants.length, 3);
   for (const item of [manifest.deliverable, ...manifest.variants]) { assert.ok(existsSync(item.path)); assert.equal(fileHash(item.path), item.sha256); }

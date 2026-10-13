@@ -100,12 +100,17 @@ steps:
   - step_key: bgm
     name: 成片配乐
     owner: bgm-composer
-    outputs: [bgm_track, bgm_report, final_video]   # 后期音频链路收口：原声保留策略 + BGM 让位 + -14 LUFS 母版
+    outputs: [bgm_track, bgm_report, final_video]   # 后期音频链路收口：原声保留策略 + BGM 让位 + 实际响度/真峰值；默认 report，明确 block 合同才按其阈值阻断
   - step_key: deliver
     name: 多风格交付包
     owner: post-editor
     gate: G-DLV1                  # 核对请求的变体文件、目标规格、来源与实际工具执行，不做品质差异评分
     outputs: [delivery_package, final_video, subtitle_track]   # 干净母版 + 旁挂字幕 + 2–3 个风格变体（封面/文案/BGM/调色/转场）+ 软字幕轨版 + 交付清单 + 工程文件；quality=uhd 按目标画布编码；仅显式增强请求才调用本地模型并核对来源（G-DLV8/9）；镜头只生成一次，变体零 token
+  - step_key: post-quality
+    name: 交付前后期技术质检
+    owner: post-quality-inspector
+    outputs: [qa_report]
+    note: 重新读取当前媒体与真实加工链；失败仅本地返修，技术状态与艺术审片分别记录
   - step_key: archive
     name: 成片入库
     owner: post-editor

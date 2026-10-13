@@ -31,7 +31,7 @@ export interface EntitySignal {
    * 只有实例分割结果或人脸框才算"真人物"的强证据。
    */
   personInstances?: number;
-  /** 人物掩膜内肤色证据占比（0–1；仅 segmentation 兜底路径的门控） */
+  /** 人物掩膜内肤色证据占比（0–1；诊断证据，不能单独证明是人物） */
   personSkinRatio?: number | null;
   /** 掩膜来源：instance=实例分割强证据；segmentation=通用分割需佐证 */
   personRequest?: string | null;
@@ -49,6 +49,8 @@ export interface EntitySignal {
   foodFrames?: number | null;
   /** 采样时刻（片段内秒；供回执复核） */
   sampledAt: number[];
+  /** framewise 时每个掩膜仅对应当前解码帧；不能跨帧复用。 */
+  maskMode?: "framewise" | "sampled";
   personMaskPath?: string | null;
   foodMaskPath?: string | null;
 }
@@ -60,7 +62,7 @@ export interface EntityGradeOptions {
   minFoodRatio?: number;
   /** 全局强度 0–1（默认 1；0 等于只出计划不执行） */
   intensity?: number;
-  /** 单实体最大不透明度（默认 0.85——局部优化要克制，不能盖过镜头级调色） */
+  /** 单实体最大不透明度（默认 0.45——局部优化要克制，不能盖过镜头级调色） */
   maxOpacity?: number;
 }
 
@@ -92,7 +94,7 @@ export function planEntityGrade(signal: EntitySignal, options: EntityGradeOption
   const minPersonRatio = Number(options.minPersonRatio ?? 0.006);
   const minFoodRatio = Number(options.minFoodRatio ?? 0.006);
   const intensity = clamp01(Number(options.intensity ?? 1));
-  const maxOpacity = clamp01(Number(options.maxOpacity ?? 0.85));
+  const maxOpacity = clamp01(Number(options.maxOpacity ?? 0.45));
   const notes: string[] = [];
 
   const personRatio = clamp01(Number(signal.personRatio ?? 0));
@@ -101,7 +103,6 @@ export function planEntityGrade(signal: EntitySignal, options: EntityGradeOption
   const personInstances = Math.max(0, Math.round(Number(signal.personInstances ?? 0)));
   const personFrames = signal.personFrames == null ? null : Math.max(0, Math.round(Number(signal.personFrames)));
   const foodFrames = signal.foodFrames == null ? null : Math.max(0, Math.round(Number(signal.foodFrames)));
-  const personSkinRatio = signal.personSkinRatio == null ? null : clamp01(Number(signal.personSkinRatio));
   const foodLabels = (signal.foodLabels ?? []).filter(Boolean);
   /** 只有分类命中食物词表的实例才算食物——暖色木头/桌面也会被实例分割框出来，误暖比不暖更糟。 */
   const foodLabelHits = foodLabels.filter((label) => isFoodLabel(label));
@@ -111,8 +112,8 @@ export function planEntityGrade(signal: EntitySignal, options: EntityGradeOption
    * 与人物不同：食物误暖一个木桌只是轻微偏色，漏掉"人物+食物同镜"里那道菜反而违背客户口径
    * （实测 seg-004：人脸 + 菜品同镜，但菜只在 1 个采样帧里占比 42%）。
    */
-  const foodConsistent = foodFrames == null ? true : (foodFrames >= 2 || foodRatio >= 0.25);
-  const foodEnabled = foodRatio >= minFoodRatio && foodLabelHits.length > 0 && foodConsistent && intensity > 0;
+  const foodConsistent = signal.maskMode === "framewise" || foodFrames == null ? true : (foodFrames >= 2 || foodRatio >= 0.25);
+  const foodEnabled = foodRatio >= minFoodRatio && foodLabelHits.length > 0 && foodConsistent && Boolean(signal.foodMaskPath) && intensity > 0;
   const foodOpacity = foodEnabled
     ? round(maxOpacity * Math.min(1, 0.5 + foodRatio * 4) * intensity, 3)
     : 0;
@@ -126,15 +127,9 @@ export function planEntityGrade(signal: EntitySignal, options: EntityGradeOption
 
   const personByMask = personRatio >= minPersonRatio;
   const personByFace = faces.length > 0;
-  const personConsistent = personFrames == null ? true : personFrames >= 2;
+  const personConsistent = signal.maskMode === "framewise" || personFrames == null ? true : personFrames >= 2;
   const instanceEvidence = personInstances > 0 && personConsistent;
-  /**
-   * 通用分割兜底路径的佐证：肤色占比高。
-   * 重要边界（实测）：俯拍菜品镜里盘子/面汤的掩膜同样大量落在肤色带内（0.82），
-   * 因此**有明确食物证据时不再采信"仅肤色"的兜底**——宁可少美白，也不能把菜洗白。
-   */
-  const fallbackEvidence = String(signal.personRequest ?? "") === "segmentation"
-    && personRatio >= minPersonRatio && (personSkinRatio ?? 0) >= 0.15 && !foodEnabled;
+  // 通用人物分割与肤色带都可能命中碗盘；没有人脸或人物实例时不能当作人物证据。
   /**
    * 同镜有食物且没有人脸证据时，不做人像美白。
    * 实测（2026-10-11 复核）：俯拍面碗/汤盆会被人物**实例**分割误判成"人"（掩膜 45%–94%，
@@ -142,8 +137,8 @@ export function planEntityGrade(signal: EntitySignal, options: EntityGradeOption
    * 有人脸则是强证据，照常美白（人物+食物同镜的正常场景）。
    */
   const ambiguousWithFood = foodEnabled && !personByFace;
-  const personEvidence = personByFace || (instanceEvidence && !ambiguousWithFood) || fallbackEvidence;
-  const personEnabled = (personByMask || personByFace) && personEvidence && intensity > 0;
+  const personEvidence = personByFace || (instanceEvidence && !ambiguousWithFood);
+  const personEnabled = (personByMask || personByFace) && personEvidence && Boolean(signal.personMaskPath) && intensity > 0;
   const personOpacity = personEnabled
     ? round(maxOpacity * Math.min(1, 0.5 + personRatio * 8) * intensity, 3)
     : 0;
@@ -152,7 +147,6 @@ export function planEntityGrade(signal: EntitySignal, options: EntityGradeOption
       instanceEvidence ? `人物实例 ${personInstances} 个` : null,
       personByFace ? `人脸 ${faces.length} 处` : null,
       personByMask ? `人物掩膜 ${(personRatio * 100).toFixed(1)}%` : null,
-      fallbackEvidence && !instanceEvidence && !personByFace ? `肤色证据 ${((personSkinRatio ?? 0) * 100).toFixed(0)}%` : null,
       "肤色去黄提亮（美白）",
     ].filter(Boolean).join(" + ")
     : (ambiguousWithFood && personInstances > 0
@@ -168,8 +162,8 @@ export function planEntityGrade(signal: EntitySignal, options: EntityGradeOption
   if (personEnabled && foodEnabled) {
     notes.push("同镜人物+食物：分别作用——人像美白只吃人物掩膜，食物暖黄只吃食物掩膜，互不串色");
   }
-  if (signal.personMaskPath == null && personEnabled) notes.push("缺人物掩膜文件，执行侧应跳过人像层（如实降级）");
-  if (signal.foodMaskPath == null && foodEnabled) notes.push("缺食物掩膜文件，执行侧应跳过食物层（如实降级）");
+  if (!signal.personMaskPath && (personByMask || personByFace)) notes.push("缺人物掩膜文件，已跳过人像层（如实降级）");
+  if (!signal.foodMaskPath && foodRatio > 0) notes.push("缺食物掩膜文件，已跳过食物层（如实降级）");
 
   return {
     segmentId: signal.segmentId,
@@ -180,9 +174,9 @@ export function planEntityGrade(signal: EntitySignal, options: EntityGradeOption
 }
 
 /** 人像美白链：提亮 + 略收饱和 + 去黄（R 微降、B 微升）+ 轻微提对比，避免"灰白脸"。 */
-export const PERSON_WHITEN_CHAIN = "eq=brightness=0.045:saturation=0.90:contrast=1.015,colorbalance=rs=-0.020:gs=0.004:bs=0.030";
+export const PERSON_WHITEN_CHAIN = "eq=brightness=0.020:saturation=0.97:contrast=1.010,colorbalance=rs=-0.010:gs=0.002:bs=0.015";
 /** 食物暖黄链：加暖 + 提饱和 + 提对比，让食物更有食欲。 */
-export const FOOD_WARM_CHAIN = "eq=brightness=0.012:saturation=1.10:contrast=1.030,colorbalance=rs=0.050:gs=0.015:bs=-0.055";
+export const FOOD_WARM_CHAIN = "eq=brightness=0.008:saturation=1.06:contrast=1.020,colorbalance=rs=0.030:gs=0.010:bs=-0.030";
 
 export interface EntityFilterOptions {
   width: number;
@@ -193,6 +187,8 @@ export interface EntityFilterOptions {
   foodInput?: string;
   /** 掩膜羽化半径（像素，默认 6；掩膜边缘硬会露边） */
   featherPx?: number;
+  /** true 表示原始逐帧掩膜已按本帧不透明度调幅，滤镜不可重复调幅。 */
+  masksPreweighted?: boolean;
 }
 
 export interface EntityFilterOutcome {
@@ -223,25 +219,25 @@ export function buildEntityFilterComplex(plan: EntityGradePlan, options: EntityF
   }
   const branches = person && food ? 3 : 2;
   const head = branches === 3
-    ? "[0:v]split=3[base][p0][f0]"
-    : person ? "[0:v]split=2[base][p0]" : "[0:v]split=2[base][f0]";
+    ? "[0:v]format=gbrp,split=3[base][p0][f0]"
+    : person ? "[0:v]format=gbrp,split=2[base][p0]" : "[0:v]format=gbrp,split=2[base][f0]";
   const parts: string[] = [head];
   let current = "base";
   if (person) {
-    const mask = `[${personInput}]format=gray${feather ? `,boxblur=${feather}:1` : ""},scale=${width}:${height},lut=y='clip(val*${plan.person.opacity},0,255)'[pm]`;
+    const mask = `[${personInput}]format=gray,scale=${width}:${height}${feather ? `,boxblur=${feather}:1` : ""},lut=y='clip(val*${options.masksPreweighted ? 1 : plan.person.opacity},0,255)',format=gbrp[pm]`;
     parts.push(mask);
-    parts.push(`[p0]${PERSON_WHITEN_CHAIN}[pw]`);
+    parts.push(`[p0]${PERSON_WHITEN_CHAIN},format=gbrp[pw]`);
     parts.push(`[${current}][pw][pm]maskedmerge[m1]`);
     current = "m1";
   }
   if (food) {
-    const mask = `[${foodInput}]format=gray${feather ? `,boxblur=${feather}:1` : ""},scale=${width}:${height},lut=y='clip(val*${plan.food.opacity},0,255)'[fm]`;
+    const mask = `[${foodInput}]format=gray,scale=${width}:${height}${feather ? `,boxblur=${feather}:1` : ""},lut=y='clip(val*${options.masksPreweighted ? 1 : plan.food.opacity},0,255)',format=gbrp[fm]`;
     parts.push(mask);
-    parts.push(`[f0]${FOOD_WARM_CHAIN}[fw]`);
+    parts.push(`[f0]${FOOD_WARM_CHAIN},format=gbrp[fw]`);
     parts.push(`[${current}][fw][fm]maskedmerge[vout]`);
     current = "vout";
   }
-  if (current !== "vout") parts.push(`[${current}]format=yuv420p[vout]`);
+  if (current !== "vout") parts.push(`[${current}]format=gbrp[vout]`);
   return { filterComplex: parts.join(";"), outputLabel: "vout", applied: true };
 }
 
@@ -299,12 +295,22 @@ export function isFoodLabel(label: string): boolean {
    * 旧写法 `hint.includes(normalized)` 会让 "table" ⊂ "vegetable" 误判成食物。
    */
   const words = normalized.split(/[^a-z0-9\u4e00-\u9fff]+/u).filter(Boolean);
+  const chineseDishes = ["羊汤", "牛肉汤", "鸡汤", "凉拌菜", "炒菜", "面条", "米饭", "面包", "鱼汤"];
+  if (chineseDishes.includes(normalized)) return true;
   return FOOD_LABEL_HINTS.some((hint) => {
     const target = hint.toLowerCase();
-    if (!target) return false;
-    if (/[\u4e00-\u9fff]/u.test(target)) return normalized.includes(target);
-    return words.some((word) => word === target
-      || (target.length >= 4 && word.startsWith(target))
-      || (word.length >= 4 && target.startsWith(word)));
+    if (/[\u4e00-\u9fff]/u.test(target)) return words.includes(target);
+    return words.some((word) => word === target || word === `${target}s` || word === `${target}es`);
   });
+}
+
+/** 当前掩膜乘本帧强度；起效缓入、不延续消失目标，不会把上帧位置带到下一帧。 */
+export function weightCurrentMask(mask: Uint8Array, opacity: number, previousOpacity = 0): {
+  mask: Uint8Array; opacity: number;
+} {
+  if (!mask.some((value) => value >= 128) || opacity <= 0) {
+    return { mask: new Uint8Array(mask.length), opacity: 0 };
+  }
+  const currentOpacity = Math.min(clamp01(opacity), clamp01(previousOpacity) + 0.08);
+  return { mask: Uint8Array.from(mask, (value) => Math.round(value * currentOpacity)), opacity: currentOpacity };
 }

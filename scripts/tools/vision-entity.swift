@@ -10,11 +10,10 @@
 //   · 人物：VNGeneratePersonSegmentationRequest（人物分割掩膜）+ VNDetectFaceRectanglesRequest（人脸框）；
 //   · 食物：VNGenerateForegroundInstanceMaskRequest（实例分割）逐实例裁剪 → VNClassifyImageRequest 分类，
 //     命中食物词表才收进食物掩膜（避免把暖色桌面/木头当食物）；
-//   · 兜底：实例分割不可用或全部实例都不像食物、但整帧分类明确是食物时，给一块居中的椭圆软掩膜
-//     （俯拍碗盘占满画面的镜头很常见），并在 notes 里如实标注 fallback。
+//   · 缺少可靠实例支持时不作用；分类只能作标签证据，不能凭整帧标签猜测目标位置。
 //
 // 编译（首次自动，由 scripts/tools/edit-entity.mts / edit-post 负责）：
-//   swiftc -O scripts/tools/vision-entity.swift -o ~/.workloom-edit/bin/vision-entity
+//   swiftc -O scripts/tools/vision-entity.swift -o <work-dir>/bin/vision-entity-<source-sha>
 import Foundation
 import Vision
 import CoreImage
@@ -51,7 +50,8 @@ guard args.count >= 3 else {
 }
 let imageURL = URL(fileURLWithPath: args[1])
 let outDir = URL(fileURLWithPath: args[2])
-try? FileManager.default.createDirectory(at: outDir, withIntermediateDirectories: true)
+do { try FileManager.default.createDirectory(at: outDir, withIntermediateDirectories: true) }
+catch { fail("无法创建掩膜目录：\(error.localizedDescription)") }
 guard let source = CGImageSourceCreateWithURL(imageURL as CFURL, nil),
       let cgImage = CGImageSourceCreateImageAtIndex(source, 0, nil) else {
   fail("无法读取图片：\(imageURL.path)")
@@ -80,7 +80,6 @@ func maskStats(_ buffer: CVPixelBuffer) -> (ratio: Double, bbox: CGRect) {
   var minX = width, minY = height, maxX = -1, maxY = -1
   let bytes = base.assumingMemoryBound(to: UInt8.self)
   let isFloat = format == kCVPixelFormatType_OneComponent32Float
-  let floats = base.assumingMemoryBound(to: Float32.self)
   var y = 0
   while y < height {
     var x = 0
@@ -145,68 +144,54 @@ func writePNG(_ image: CGImage, to url: URL) -> Bool {
   return CGImageDestinationFinalize(destination)
 }
 
-/**
- * 人物掩膜内的"肤色证据"占比（0–1）。
- * 为什么需要：人物分割请求偶尔会把前景里的盘子/桌面也当成"人"（俯拍食物镜实测），
- * 若直接拿它做美白，会把食物一起洗白。肤色占比 + 人脸框两个证据至少有一个才算真人物。
- * 用 YCbCr 经典肤色带（Cb 77–127 / Cr 133–173）在 256px 缩略图上采样，只作门控，不做精确测量。
- */
-func skinRatioInMask(image: CGImage, mask: CVPixelBuffer?) -> Double? {
-  guard let mask else { return nil }
-  let targetWidth = 256
-  let targetHeight = max(1, Int((Double(targetWidth) * Double(image.height) / Double(max(1, image.width))).rounded()))
-  guard let context = CGContext(
-    data: nil, width: targetWidth, height: targetHeight, bitsPerComponent: 8,
-    bytesPerRow: targetWidth * 4, space: CGColorSpaceCreateDeviceRGB(),
-    bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
-  ) else { return nil }
-  context.draw(image, in: CGRect(x: 0, y: 0, width: targetWidth, height: targetHeight))
-  guard let pixels = context.data?.assumingMemoryBound(to: UInt8.self) else { return nil }
-
-  CVPixelBufferLockBaseAddress(mask, .readOnly)
-  defer { CVPixelBufferUnlockBaseAddress(mask, .readOnly) }
-  guard let base = CVPixelBufferGetBaseAddress(mask) else { return nil }
-  let maskWidth = CVPixelBufferGetWidth(mask)
-  let maskHeight = CVPixelBufferGetHeight(mask)
-  let stride = CVPixelBufferGetBytesPerRow(mask)
-  let maskBytes = base.assumingMemoryBound(to: UInt8.self)
-  var masked = 0
-  var skin = 0
-  for y in 0..<targetHeight {
-    let maskY = min(maskHeight - 1, y * maskHeight / targetHeight)
-    for x in 0..<targetWidth {
-      let maskX = min(maskWidth - 1, x * maskWidth / targetWidth)
-      guard maskBytes[maskY * stride + maskX] >= 128 else { continue }
-      masked += 1
-      let offset = (y * targetWidth + x) * 4
-      let r = Double(pixels[offset])
-      let g = Double(pixels[offset + 1])
-      let b = Double(pixels[offset + 2])
-      let luma = 0.299 * r + 0.587 * g + 0.114 * b
-      let cb = -0.169 * r - 0.331 * g + 0.5 * b + 128
-      let cr = 0.5 * r - 0.419 * g - 0.081 * b + 128
-      if luma > 45 && cb >= 77 && cb <= 127 && cr >= 133 && cr <= 173 { skin += 1 }
-    }
+/** 以同尺寸的灰度像素导出原始掩膜；PNG 与 PGM 共用同一缓冲，避免量化口径分裂。 */
+func grayPixels(_ image: CGImage) -> [UInt8]? {
+  guard let context = CGContext(data: nil, width: image.width, height: image.height, bitsPerComponent: 8,
+    bytesPerRow: image.width, space: CGColorSpaceCreateDeviceGray(), bitmapInfo: CGImageAlphaInfo.none.rawValue) else { return nil }
+  context.draw(image, in: CGRect(x: 0, y: 0, width: image.width, height: image.height))
+  guard let data = context.data?.assumingMemoryBound(to: UInt8.self) else { return nil }
+  return Array(UnsafeBufferPointer(start: data, count: image.width * image.height))
+}
+func grayImage(_ pixels: [UInt8], width: Int, height: Int) -> CGImage? {
+  let data = Data(pixels)
+  guard let provider = CGDataProvider(data: data as CFData) else { return nil }
+  return CGImage(width: width, height: height, bitsPerComponent: 8, bitsPerPixel: 8, bytesPerRow: width,
+    space: CGColorSpaceCreateDeviceGray(), bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.none.rawValue),
+    provider: provider, decode: nil, shouldInterpolate: false, intent: .defaultIntent)
+}
+func writeMask(_ image: CGImage, name: String) -> Bool {
+  guard let pixels = grayPixels(image) else { return false }
+  // 与 CGImageDestination 写出的 PNG 共用相同的上到下光栅顺序。
+  var pgm = Data("P5\n\(image.width) \(image.height)\n255\n".utf8)
+  pgm.append(contentsOf: pixels)
+  do { try pgm.write(to: outDir.appendingPathComponent("\(name).pgm"), options: .atomic) }
+  catch { notes.append("\(name) PGM 写入失败：\(error.localizedDescription)"); return false }
+  guard writePNG(image, to: outDir.appendingPathComponent("\(name).png")) else {
+    notes.append("\(name) PNG 写入失败"); return false
   }
-  guard masked > 0 else { return 0 }
-  return Double(skin) / Double(masked)
+  return true
 }
 
-/** 椭圆软掩膜（兜底）：中心 74% × 74% 的椭圆，边缘高斯柔化。 */
-func ellipseMask(width: Int, height: Int) -> CGImage? {
-  guard let context = CGContext(
-    data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: width,
-    space: CGColorSpaceCreateDeviceGray(), bitmapInfo: CGImageAlphaInfo.none.rawValue
-  ) else { return nil }
-  context.setFillColor(gray: 0, alpha: 1)
-  context.fill(CGRect(x: 0, y: 0, width: width, height: height))
-  context.setFillColor(gray: 0.92, alpha: 1)
-  let insetX = CGFloat(width) * 0.13
-  let insetY = CGFloat(height) * 0.13
-  context.fillEllipse(in: CGRect(x: insetX, y: insetY, width: CGFloat(width) - insetX * 2, height: CGFloat(height) - insetY * 2))
-  guard let raw = context.makeImage() else { return nil }
-  let ci = CIImage(cgImage: raw).applyingGaussianBlur(sigma: Double(max(4, min(width, height) / 90)))
-  return ciContext.createCGImage(ci, from: CGRect(x: 0, y: 0, width: width, height: height))
+/** 肤色带只在人物分割支持内起作用；再排除食物支持，衣服与背景不会随人像一起去黄。 */
+func skinMask(image: CGImage, support: CGImage, exclude: CGImage?) -> (image: CGImage?, ratio: Double) {
+  let width = image.width, height = image.height
+  guard let context = CGContext(data: nil, width: width, height: height, bitsPerComponent: 8,
+    bytesPerRow: width * 4, space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue),
+    let mask = grayPixels(support) else { return (nil, 0) }
+  context.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
+  guard let rgb = context.data?.assumingMemoryBound(to: UInt8.self) else { return (nil, 0) }
+  let excluded = exclude.flatMap(grayPixels)
+  var result = [UInt8](repeating: 0, count: width * height), masked = 0, skin = 0
+  for i in 0..<result.count where mask[i] >= 128 {
+    masked += 1
+    if let excluded, excluded[i] >= 32 { continue }
+    let r = Double(rgb[i * 4]), g = Double(rgb[i * 4 + 1]), b = Double(rgb[i * 4 + 2])
+    let y = 0.299 * r + 0.587 * g + 0.114 * b
+    let cb = -0.169 * r - 0.331 * g + 0.5 * b + 128
+    let cr = 0.5 * r - 0.419 * g - 0.081 * b + 128
+    if y > 30 && cb >= 77 && cb <= 127 && cr >= 133 && cr <= 173 { result[i] = mask[i]; skin += 1 }
+  }
+  return (grayImage(result, width: width, height: height), masked > 0 ? Double(skin) / Double(masked) : 0)
 }
 
 // ① 人物分割
@@ -215,6 +200,8 @@ var personMaskWritten = false
 var personSkinRatio: Double? = nil
 var personInstances = 0
 var personRequest = "none"
+var personSupport: CGImage? = nil
+var foodSupport: CGImage? = nil
 /**
  * 先用"人物**实例**分割"（macOS 14+）：它只在画面里真有人物实例时给掩膜。
  * 实测（2026-10-11 俯拍食物镜）：旧的通用人物分割会把盘子/桌面误判成"人"（掩膜占比 63%），
@@ -231,8 +218,7 @@ if #available(macOS 14.0, *) {
       if let union = try? observation.generateScaledMaskForImage(forInstances: observation.allInstances, from: handler) {
         if let mask = cgImageFromMask(union, width: cgImage.width, height: cgImage.height) {
           personRatio = coverage(of: mask)
-          personSkinRatio = skinRatioInMask(image: cgImage, mask: union)
-          personMaskWritten = writePNG(mask, to: outDir.appendingPathComponent("person.png"))
+          personSupport = mask
         }
       }
     }
@@ -251,8 +237,7 @@ if personRequest == "none", #available(macOS 12.0, *) {
       personRequest = "segmentation"
       if let mask = cgImageFromMask(observation.pixelBuffer, width: cgImage.width, height: cgImage.height) {
         personRatio = coverage(of: mask)
-        personSkinRatio = skinRatioInMask(image: cgImage, mask: observation.pixelBuffer)
-        personMaskWritten = writePNG(mask, to: outDir.appendingPathComponent("person.png"))
+        personSupport = mask
       }
     } else {
       notes.append("人物分割：无结果")
@@ -285,7 +270,8 @@ let faceJSON = (try? JSONSerialization.data(
   withJSONObject: faces.map { ["x": Double($0.origin.x), "y": Double($0.origin.y), "w": Double($0.width), "h": Double($0.height)] },
   options: [.sortedKeys]
 )) ?? Data()
-try? faceJSON.write(to: outDir.appendingPathComponent("faces.json"))
+do { try faceJSON.write(to: outDir.appendingPathComponent("faces.json")) }
+catch { notes.append("人脸证据写入失败：\(error.localizedDescription)") }
 
 // ③ 食物实例：逐实例裁剪分类，命中词表才收
 let FOOD_HINTS: [String] = [
@@ -297,21 +283,10 @@ let FOOD_HINTS: [String] = [
 ]
 
 func isFoodLabel(_ label: String) -> Bool {
-  let normalized = label.lowercased()
-  if normalized.isEmpty { return false }
-  let words = normalized.split(whereSeparator: { !$0.isLetter && !$0.isNumber }).map(String.init)
-  for hint in FOOD_HINTS {
-    if hint.unicodeScalars.contains(where: { $0.value > 0x2E80 }) {
-      if normalized.contains(hint) { return true }
-      continue
-    }
-    for word in words where word.count >= 3 || hint.count <= word.count {
-      if word == hint { return true }
-      if hint.count >= 4 && word.hasPrefix(hint) { return true }
-      if word.count >= 4 && hint.hasPrefix(word) { return true }
-    }
+  let words = label.lowercased().split(whereSeparator: { !$0.isLetter && !$0.isNumber }).map(String.init)
+  return FOOD_HINTS.contains { hint in
+    words.contains { $0 == hint || $0 == hint + "s" || $0 == hint + "es" }
   }
-  return false
 }
 
 func classify(_ image: CGImage) -> [String] {
@@ -340,29 +315,6 @@ func crop(_ image: CGImage, normalized: CGRect) -> CGImage? {
   return image.cropping(to: rect)
 }
 
-/** 把若干归一化矩形画成一张全尺寸软掩膜（白=作用区，边缘高斯柔化）。 */
-func cellMask(width: Int, height: Int, cells: [CGRect]) -> CGImage? {
-  guard !cells.isEmpty else { return nil }
-  guard let context = CGContext(
-    data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: width,
-    space: CGColorSpaceCreateDeviceGray(), bitmapInfo: CGImageAlphaInfo.none.rawValue
-  ) else { return nil }
-  context.setFillColor(gray: 0, alpha: 1)
-  context.fill(CGRect(x: 0, y: 0, width: width, height: height))
-  context.setFillColor(gray: 0.95, alpha: 1)
-  for cell in cells {
-    context.fill(CGRect(
-      x: cell.origin.x * CGFloat(width),
-      y: cell.origin.y * CGFloat(height),
-      width: cell.width * CGFloat(width),
-      height: cell.height * CGFloat(height)
-    ))
-  }
-  guard let raw = context.makeImage() else { return nil }
-  let ci = CIImage(cgImage: raw).applyingGaussianBlur(sigma: Double(max(3, min(width, height) / 140)))
-  return ciContext.createCGImage(ci, from: CGRect(x: 0, y: 0, width: width, height: height))
-}
-
 var foodRatio = 0.0
 var foodLabels: [String] = []
 var instanceCount = 0
@@ -374,100 +326,44 @@ if #available(macOS 14.0, *) {
     try handler.perform([request])
     if let observation = request.results?.first {
       instanceCount = observation.allInstances.count
-      /** 不是"整实例收/不收"，而是把实例框切成 3×3 单元逐个分类：
-       *  桌面+盘子常被切成同一个实例，整实例分类会命中 food，直接把整张桌子暖掉（实测 94.8%）。
-       *  逐单元分类只保留真正像菜的格子，暖色才会落在盘子里。 */
-      var foodCells: [CGRect] = []
-      var acceptedInstances = IndexSet()
-      var oversizedInstanceRatio = 0.0
+      var accepted = IndexSet()
       for index in observation.allInstances {
-        guard let buffer = try? observation.generateScaledMaskForImage(forInstances: IndexSet(integer: index), from: handler) else { continue }
+        let buffer: CVPixelBuffer
+        do { buffer = try observation.generateScaledMaskForImage(forInstances: IndexSet(integer: index), from: handler) }
+        catch { notes.append("前景实例掩膜失败：\(error.localizedDescription)"); continue }
         let stats = maskStats(buffer)
         guard stats.ratio >= 0.002, let whole = crop(cgImage, normalized: stats.bbox) else { continue }
-        let instanceHits = classify(whole).filter(isFoodLabel)
-        guard !instanceHits.isEmpty else { continue }
-        let box = stats.bbox
-        var cellsForInstance: [CGRect] = []
-        for row in 0..<3 {
-          for column in 0..<3 {
-            let cell = CGRect(
-              x: box.origin.x + box.width * CGFloat(column) / 3,
-              y: box.origin.y + box.height * CGFloat(row) / 3,
-              width: box.width / 3,
-              height: box.height / 3
-            )
-            guard let cropped = crop(cgImage, normalized: cell) else { continue }
-            if classify(cropped).contains(where: isFoodLabel) { cellsForInstance.append(cell) }
+        let hits = classify(whole).filter(isFoodLabel)
+        guard !hits.isEmpty else { continue }
+        // 前景实例没有 food 语义保证；过大实例容易混入桌面、人物，不能靠矩形或椭圆猜位置。
+        guard stats.ratio <= 0.5 else {
+          notes.append("食物分类候选占比 \(Int(stats.ratio * 100))% 过大，跳过含混前景实例")
+          continue
+        }
+        accepted.insert(index)
+        foodLabels.append(contentsOf: hits.prefix(3))
+      }
+      if !accepted.isEmpty {
+        do {
+          let union = try observation.generateScaledMaskForImage(forInstances: accepted, from: handler)
+          if let mask = cgImageFromMask(union, width: cgImage.width, height: cgImage.height) {
+            foodSupport = mask
+            foodRatio = coverage(of: mask)
+            foodMaskWritten = writeMask(mask, name: "food")
           }
-        }
-        if !cellsForInstance.isEmpty {
-          foodCells.append(contentsOf: cellsForInstance)
-          foodLabels.append(contentsOf: instanceHits.prefix(2))
-        } else if stats.ratio <= 0.5 {
-          /** 整实例分类是食物、但细分格子都没命中（俯拍大碗常见）→ 收整实例掩膜。 */
-          acceptedInstances.insert(index)
-          foodLabels.append(contentsOf: instanceHits.prefix(3))
-        } else {
-          /** 实例过大（多半把桌面/台面一起框进来了）→ 不直接收，交给椭圆兜底。 */
-          oversizedInstanceRatio = max(oversizedInstanceRatio, stats.ratio)
-        }
+        } catch { notes.append("食物实例并集失败：\(error.localizedDescription)") }
       }
-      if !foodCells.isEmpty, let mask = cellMask(width: cgImage.width, height: cgImage.height, cells: foodCells),
-         writePNG(mask, to: outDir.appendingPathComponent("food.png")) {
-        foodMaskWritten = true
-        foodRatio = min(1, foodCells.reduce(0.0) { total, cell in total + Double(cell.width * cell.height) })
-      } else if !acceptedInstances.isEmpty,
-                let union = try? observation.generateScaledMaskForImage(forInstances: acceptedInstances, from: handler),
-                let mask = cgImageFromMask(union, width: cgImage.width, height: cgImage.height),
-                writePNG(mask, to: outDir.appendingPathComponent("food.png")) {
-        foodMaskWritten = true
-        foodRatio = coverage(of: mask)
-      } else if oversizedInstanceRatio > 0 {
-        notes.append("食物实例占比 \(Int(oversizedInstanceRatio * 100))% 过大（疑似把桌面一起框入），不直接使用实例掩膜")
-      }
-    } else {
-      notes.append("实例分割：无结果")
-    }
-  } catch {
-    notes.append("实例分割失败：\(error.localizedDescription)")
-  }
-} else {
-  notes.append("系统版本低于 macOS 14，实例分割不可用")
-}
-
-/**
- * 兜底词表：只有"做好的菜/主食"类标签才允许用椭圆兜底。
- * 反例（实测）：果园镜头整帧分类会给出 food/fruit——那是树上的苹果，不是"该暖黄的菜"，
- * 给它整片暖色只会污染画面，所以水果/生鲜不触发兜底。
- */
-let FALLBACK_DISH_HINTS: [String] = [
-  "dish", "meal", "cuisine", "soup", "broth", "stew", "hotpot", "noodle", "rice", "porridge",
-  "dumpling", "barbecue", "dessert", "breakfast", "lunch", "dinner", "banquet", "pizza", "burger", "sushi",
-  "菜", "汤", "面", "饭", "火锅", "饺子", "包子", "烧烤", "小吃", "甜点",
-]
-
-func isFallbackDishLabel(_ label: String) -> Bool {
-  let normalized = label.lowercased()
-  for hint in FALLBACK_DISH_HINTS where normalized.contains(hint) { return true }
-  return false
-}
-
-// ④ 兜底：实例层没找到食物，但整帧分类命中"做好的菜" → 居中椭圆软掩膜（俯拍碗盘常见）
-if !foodMaskWritten {
-  let labels = classify(cgImage)
-  let hits = labels.filter(isFoodLabel)
-  let dishHits = labels.filter(isFallbackDishLabel)
-  if !hits.isEmpty && !dishHits.isEmpty {
-    foodLabels.append(contentsOf: hits.prefix(3))
-    if let mask = ellipseMask(width: cgImage.width, height: cgImage.height),
-       writePNG(mask, to: outDir.appendingPathComponent("food.png")) {
-      foodMaskWritten = true
-      foodRatio = 0.42
-      notes.append("实例分割未命中食物实例；整帧分类命中菜品 \(dishHits.prefix(3).joined(separator: "/"))，改用居中椭圆软掩膜（fallback）")
-    }
-  } else if !hits.isEmpty {
-    notes.append("整帧分类命中非菜品食物标签（\(hits.prefix(3).joined(separator: "/"))）：不触发食物暖色（水果/生鲜不算暖黄目标）")
-  }
+    } else { notes.append("前景实例分割无结果；无食物掩膜") }
+  } catch { notes.append("前景实例分割失败：\(error.localizedDescription)") }
+} else { notes.append("系统低于 macOS 14：无食物实例掩膜，不猜测几何位置") }
+notes.append("食物证据为前景实例加裁剪分类启发式，不是 food 语义分割保证")
+if let support = personSupport {
+  let skin = skinMask(image: cgImage, support: support, exclude: foodSupport)
+  personSkinRatio = skin.ratio
+  if let mask = skin.image, coverage(of: mask) >= 0.001 {
+    personRatio = coverage(of: mask)
+    personMaskWritten = writeMask(mask, name: "person")
+  } else { personRatio = 0; notes.append("人物支持内未获得可用肤色掩膜，不作用") }
 }
 
 let summary = Summary(
