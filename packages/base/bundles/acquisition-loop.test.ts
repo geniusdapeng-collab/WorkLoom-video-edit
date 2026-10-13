@@ -198,7 +198,7 @@ describe("多领域融合：组合岗位编制裁决", () => {
     expect(new Set(keys).size).toBe(keys.length);
     /**
      * 先校验不变式：组合编制 = 各包编制之和 − 被遮蔽的同名定义数（每个 preset_key 只留一个权威定义）。
-     * 再校验该不变式算出的数量与对外口径（README/装配测试的 96 岗）一致——口径漂移时同时暴露两侧。
+     * 再校验该不变式算出的数量与对外口径（当前装配测试的 97 岗）一致——口径漂移时同时暴露两侧。
      * 数量本身随各包编制演化（曾从 61 长到 70、72、73、74，再到 75 —— 2026-09-23 新增 ai-video「字幕师」，
      * 同日再新增 ai-video「配音师」，总数 76；2026-09-24 新增 ai-video「制片人／监制」（77）与「摄影指导」（78）），
      * 所以断言读的是算出来的值，而不是让维护者去猜。
@@ -209,12 +209,39 @@ describe("多领域融合：组合岗位编制裁决", () => {
      *             叙事架构师/剪辑指导/文案字幕师/剪辑质检师/剪辑合成师/剪辑制片）——真实素材二次创作管线（92）。
      * 2026-10-11 新增 video-edit「AI 口播精剪」4 岗（逐字稿师/口播精剪师/情绪导演/点睛设计师）
      *             ——口播管线：ASR 逐字稿 + 情绪与活人感双主轴，新增 8 条口播围栏 G-TK1..G-TK8（96）。
+     * 2026-10-14 新增 ai-video「后期质检员」（97）——交付包、当前文件与加工链的只读技术验收。
      */
     const declared = VIEWS.reduce((sum, bundle) => sum + bundle.presets.size, 0);
     const shadowed = composed.shadowed.length;
     expect(keys.length).toBe(declared - shadowed);
     expect(shadowed).toBe(4);
-    expect(keys.length).toBe(96);
+    expect(keys.length).toBe(97);
+  });
+
+  it("后期质检岗由视频包提供，技能、只读工具和围栏绑定齐备", () => {
+    const inspector = composed.presets.get("post-quality-inspector");
+    expect(inspector).toBeDefined();
+    expect(inspector!.bundleId).toBe("ai-video");
+    expect(inspector!.preset).toMatchObject({
+      kind: "reviewer", readonly: true, night_shift: false, high_risk: false,
+      skills: ["post-quality-inspection"],
+      coverage: [{ eventPrefix: "post.quality.", label: "后期技术质检" }],
+      write_back: [],
+    });
+    expect(inspector!.preset.tools.map(({ name, access }) => ({ name, access }))).toEqual([
+      { name: "postread.quality", access: "read" },
+      { name: "postread.impact", access: "read" },
+    ]);
+    expect(inspector!.effectiveFenceBindings).toEqual([
+      "G-DLV0", "G-DLV1", "G-DLV6", "G-DLV7", "G-DLV8", "G-DLV9",
+    ]);
+    expect(inspector!.shadowedBundleIds).toEqual([]);
+    expect(existsSync(join(ROOT, "ai-video", "skills", "post-quality-inspection", "SKILL.md"))).toBe(true);
+    const perBundle = [...composed.presets.values()].reduce<Record<string, number>>((counts, { bundleId }) => {
+      counts[bundleId] = (counts[bundleId] ?? 0) + 1;
+      return counts;
+    }, {});
+    expect(perBundle).toEqual({ hotel: 16, "ai-video": 40, "video-edit": 15, "geo-growth": 26 });
   });
 
   it("同名岗位按主包声明落到权威归属包", () => {
