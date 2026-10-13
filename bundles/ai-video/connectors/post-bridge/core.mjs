@@ -1979,15 +1979,33 @@ async function verifyStoredStems(reference, project, base, env, bins) {
     expectedRecipeSha256: restored.recipeSha256, scope: audioScope(project),
     verifySource: createAudioStemReceiptVerifier({ env, expectedTenant: env.WORKLOOM_POST_BRIDGE_TENANT }), allowedRoots: allowedRoots(env), bins });
 }
-async function timelineStems({ project, clips, transitions, workDir, env, bins }) {
+async function timelineStems({ project, clips, transitions, cuts = null, padToSeconds = null, workDir, env, bins }) {
   const shots = clips.map((clip) => ({ shotId: clip.shotId, videoSha256: clip.sourceHash,
     normalisedVideoSha256: clip.sha256, sourceDurationSec: clip.sourceDuration,
     durationSec: clip.duration, stems: clip.audioStems }));
   // Normalization is run from an owned original snapshot; hashes/durations here are measured, never caller assertions.
   for (const clip of clips) await assertStoredArtifact(clip.path, clip.sha256, `独立音轨画面 ${clip.shotId}`);
-  return renderAudioStems({ scope: audioScope(project), shots, transitions,
+  return renderAudioStems({ scope: audioScope(project), shots, transitions, cuts, padToSeconds,
     outDir: path.join(workDir, "audio-stems", randomUUID()), allowedRoots: allowedRoots(env),
     verifySource: createAudioStemReceiptVerifier({ env, expectedTenant: env.WORKLOOM_POST_BRIDGE_TENANT }), bins });
+}
+
+/**
+ * 转场回执 → 节目声逐刀口径（2026-10-13）。
+ * 独立音轨时间线必须跟**画面实际渲染出来的每一刀**对齐：逐切计划里每刀时长不同、还可能有硬切，
+ * 只按整段 fadeSec 折叠会让节目声与画面错位，`muxAudioProgram` 直接 fail-closed。
+ */
+function transitionCutsForStems(receipt = null) {
+  const cuts = receipt?.cuts;
+  if (!Array.isArray(cuts)) return [];
+  return cuts.map((cut) => ({ toShotId: String(cut.toShotId ?? cut.incomingSegmentId ?? ""), durationSeconds: Number(cut.durationSeconds ?? 0) }));
+}
+
+function readTransitionCuts(receiptPath) {
+  try {
+    if (!receiptPath || !fs.existsSync(receiptPath)) return [];
+    return transitionCutsForStems(JSON.parse(fs.readFileSync(receiptPath, "utf8")));
+  } catch { return []; }
 }
 async function cleanProgramOutput({ gradedInput, stems, output, env, bins }) {
   if (!stems) {
@@ -2192,7 +2210,6 @@ export async function buildDeliveryPackage({
     mode: project.transitions?.mode ?? "hard",
   };
   const plannedTransitions = Boolean(baseTransitions.perCut || baseTransitions.plan);
-  const masterStems = hasIndependentAudio ? await timelineStems({ project, clips: normalised, transitions: baseTransitions, workDir, env, bins }) : null;
   const masterAssembly = await assembleTimeline({
     clips: normalised,
     transitions: baseTransitions,
@@ -2202,6 +2219,17 @@ export async function buildDeliveryPackage({
     quality,
     bins,
   });
+  /**
+   * 母版节目声在**拼接之后**生成（2026-10-13 修复）：拿引擎回执里的逐刀实际时长对齐，
+   * 而不是拿计划里的 fadeSec 猜——逐切计划/硬切混合时，后者必然错位并触发 fail-closed。
+   */
+  const masterTransitionCuts = transitionCutsForStems(masterAssembly.transitions?.receipt);
+  /** 画面是逐帧量化的：用**母版实测时长**给节目轨补齐尾部静音，40ms 同步闸就不会被量化噪声打红。 */
+  const masterPictureProbe = hasIndependentAudio ? await probeMedia(masterAssembly.output, { bins }) : null;
+  const masterStems = hasIndependentAudio
+    ? await timelineStems({ project, clips: normalised, transitions: baseTransitions, cuts: masterTransitionCuts,
+      padToSeconds: masterPictureProbe?.videoDuration ?? masterPictureProbe?.duration ?? null, workDir, env, bins })
+    : null;
   const cleanMaster = path.join(target, "master", "master-clean.mp4");
   await cleanProgramOutput({ gradedInput: masterAssembly.output, stems: masterStems, output: cleanMaster, env, bins });
   masterAssembly.output = cleanMaster;
@@ -2353,10 +2381,15 @@ export async function buildDeliveryPackage({
 
     // 音频层（BGM 选曲 + 混音；按内容哈希缓存，返修时可直接复用）
     const scoredPath = path.join(variantDir, `${pack.id}.mp4`);
-    const stems = !hasIndependentAudio ? null : audioStemDigest(transitions) === audioStemDigest(baseTransitions) ? masterStems
+    const variantTransitionCuts = transitionCutsForStems(assembly.transitions?.receipt);
+    /** 变体画面（已调色/待配音）的实测时长 = 节目声要补齐到的总长。 */
+    const variantPictureProbe = hasIndependentAudio ? await probeMedia(gradedInput, { bins }) : null;
+    const stems = !hasIndependentAudio ? null
+      : audioStemDigest({ transitions, cuts: variantTransitionCuts }) === audioStemDigest({ transitions: baseTransitions, cuts: masterTransitionCuts }) ? masterStems
       // 合并口径（T-2026-1011-0007 × T-2026-1011-0008）：独立音轨按「本变体实际时间轴」（含
       // reframe 后的 variantClips）生成，同时保留本分支的 cutTimes —— 配乐节拍网格对齐真实切点。
-      : await timelineStems({ project, clips: variantClips, transitions, workDir, env, bins });
+      : await timelineStems({ project, clips: variantClips, transitions, cuts: variantTransitionCuts,
+        padToSeconds: variantPictureProbe?.videoDuration ?? variantPictureProbe?.duration ?? null, workDir, env, bins });
     const audioOutcome = await mixVariantAudio({ pack, gradedInput, workDir, output: scoredPath, bins, env, stems, cutTimes });
     const audioReport = audioOutcome.report;
     const track = audioOutcome.track;
@@ -3434,7 +3467,14 @@ export async function reedit(options = {}) {
     if (quality === "uhd") await verifyUhdEvidence(normalised, [width, height], bins);
 
     const nextMasterStems = priorMasterStems && patch.shots
-      ? await timelineStems({ project, clips: normalised, transitions: project.layers.transitions ?? {}, workDir, env, bins })
+      ? await timelineStems({
+        project, clips: normalised, transitions: project.layers.transitions ?? {},
+        /** 返修重拼母版时同样按逐刀回执对齐节目声（母版回执随工程文件保存）。 */
+        cuts: readTransitionCuts(project.layers?.master?.receipt ? resolveStored(projectDir, project.layers.master.receipt) : null),
+        /** 母版画面时长记录在工程文件里（旧工程没有就退回自然长度）。 */
+        padToSeconds: Number(project.layers?.master?.durationSeconds ?? 0) > 0 ? Number(project.layers.master.durationSeconds) : null,
+        workDir, env, bins,
+      })
       : priorMasterStems;
     const variantIds = (project.layers?.variants ?? []).map((variant) => variant.id);
     const variantsOut = [];
@@ -3573,8 +3613,15 @@ export async function reedit(options = {}) {
       const stemTransitions = { ...(project.layers.transitions ?? {}), ...(pack.transitions ?? {}) };
       let stems = null;
       if (hasIndependentAudio) {
+        const variantPicture = rebuildVariant.assemble || !stored.audioStems ? await probeMedia(gradedInput, { bins }) : null;
         stems = rebuildVariant.assemble || !stored.audioStems
-          ? await timelineStems({ project, clips: normalised, transitions: stemTransitions, workDir, env, bins })
+          ? await timelineStems({
+            project, clips: normalised, transitions: stemTransitions,
+            /** 逐刀口径取自本变体拼接回执（重拼时写在 work/assemble，复用缓存时在旁边）。 */
+            cuts: readTransitionCuts(assemblyPath ? `${assemblyPath}.transition-receipt.json` : null),
+            padToSeconds: variantPicture?.videoDuration ?? variantPicture?.duration ?? null,
+            workDir, env, bins,
+          })
           : await verifyStoredStems(stored.audioStems, project, projectDir, env, bins);
       }
       // 音频层

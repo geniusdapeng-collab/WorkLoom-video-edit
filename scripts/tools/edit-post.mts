@@ -36,13 +36,13 @@ import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { dirname, isAbsolute, join, resolve } from "node:path";
+import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import {
   describeReframePlan, describeTransitionPlan, planAssembly, planCoverMoment, planCoverMoments, planSegmentColor, planToPerCut, planTransitions,
   decideOutputResolution, resolveTimelineSourcePaths, validateEditTimeline, type EditTimeline, type PostAnalysisDoc,
 } from "../../packages/video-studio/src/edit/index.js";
 import { scanBestFrame } from "./lib/frame-scan.mts";
-import { resolveBurnSubtitles } from "./lib/delivery-forms.mts";
+import { DANMAKU_PUBLISH_NOTE, resolveBurnSubtitles } from "./lib/delivery-forms.mts";
 
 const REPO_ROOT = resolve(import.meta.dirname ?? process.cwd(), "../..");
 const FFMPEG = process.env.WL_FFMPEG ?? "ffmpeg";
@@ -211,6 +211,18 @@ async function main(): Promise<void> {
    */
   const segmentColor = flag("--segment-color");
   /**
+   * 逐镜显式调色（`--color-map <json>`，2026-10-13 客户反馈"某些镜头太灰/太暗"）：
+   * 与 `--segment-color` 的"内容投票"不同，这里由调用方**逐段指定** profile / LUT / 强度 / 校正
+   * （`corrections` 走 color-bridge 口径：normalize / colorTemperature / colorBalance / curves / eq）。
+   * 语义是**校正级（恒 100%）**：作用在共享片段上、所有变体都吃到——灰雾/欠曝是素材级问题，
+   * 不是某一变体的观感；变体自己的 look 仍按配方叠加。未列出的段落保持原样（宁少不滥）。
+   */
+  const colorMapPath = arg("--color-map", "");
+  type ColorMapEntry = { profile?: string; lut?: string; intensity?: number; corrections?: Record<string, unknown>; note?: string };
+  const colorMap: Record<string, ColorMapEntry> | null = colorMapPath
+    ? JSON.parse(readFileSync(abs(colorMapPath), "utf8")) as Record<string, ColorMapEntry>
+    : null;
+  /**
    * 实体级局部调色（`--entity-color`）：镜头级 LUT 之上再加一层"按实体"的优化——
    * 人像美白（肤色去黄提亮）只作用在人物掩膜内，食物暖黄只作用在食物掩膜内；
    * 同镜人物+食物时分别作用、互不串色（客户 2026-10-11 口径）。
@@ -352,6 +364,8 @@ async function main(): Promise<void> {
     const assignmentOf = new Map(colorPlan.assignments.map((entry) => [entry.segmentId, entry]));
     for (const [index, step] of plan.normalize.entries()) {
       const segment = timeline.segments[index]!;
+      /** `--color-map` 显式指定的段落由逐镜调色块接管（避免同一段被两种口径叠两次）。 */
+      if (colorMap?.[segment.segmentId]) continue;
       const assignment = assignmentOf.get(segment.segmentId);
       if (!assignment || !assignment.lut) {
         segmentColorNotes.push({
@@ -385,6 +399,47 @@ async function main(): Promise<void> {
         sha256: createHash("sha256").update(readFileSync(target)).digest("hex"),
       });
     }
+  }
+
+  /**
+   * 逐镜显式调色执行（`--color-map`）：对列出的段落用 color-bridge 的完整链做一次校正+look，
+   * 未列出的段落一律不重编码（零行为变化）。回执逐段记账（profile/lut/强度/校正/sha256）。
+   */
+  const colorMapNotes: Array<{ segmentId: string; profile: string | null; lut: string | null; intensity: number; corrections: Record<string, unknown>; basis: string; sha256: string }> = [];
+  if (colorMap) {
+    const { buildChain } = await import("../../bundles/ai-video/connectors/color-bridge/core.mjs") as {
+      buildChain: (spec: Record<string, unknown>) => string;
+    };
+    const lutDir = join(REPO_ROOT, "bundles/ai-video/library/luts");
+    for (const step of plan.normalize) {
+      const entry = colorMap[step.segmentId];
+      if (!entry) continue;
+      const target = join(clipsDir, `${step.segmentId}.mp4`);
+      if (!existsSync(target)) throw new Error(`逐镜调色目标缺失（先完成归一化）：${target}`);
+      const lutPath = entry.lut ? join(lutDir, entry.lut) : null;
+      if (lutPath && !existsSync(lutPath)) throw new Error(`逐镜调色 LUT 不存在：${lutPath}`);
+      const intensity = Number(entry.intensity ?? 1);
+      const chain = buildChain({ profile: entry.profile ?? null, lutPath, corrections: entry.corrections ?? {}, intensity });
+      const graded = join(clipsDir, `${step.segmentId}.colormap.mp4`);
+      run(FFMPEG, [
+        "-hide_banner", "-loglevel", "error", "-y", "-i", target,
+        "-vf", `${chain},format=yuv420p`,
+        "-c:v", "libx264", "-preset", "veryfast", "-crf", "18", "-c:a", "copy", graded,
+      ]);
+      renameSync(graded, target);
+      const shot = shots.find((row) => row.shotId === step.segmentId);
+      if (shot) shot.path = target;
+      colorMapNotes.push({
+        segmentId: step.segmentId,
+        profile: entry.profile ?? null,
+        lut: entry.lut ?? null,
+        intensity,
+        corrections: entry.corrections ?? {},
+        basis: entry.note ?? "显式逐镜调色（--color-map）",
+        sha256: createHash("sha256").update(readFileSync(target)).digest("hex"),
+      });
+    }
+    console.log(`  逐镜调色（--color-map）：${colorMapNotes.length} 段（其余保持原色）`);
   }
 
   /**
@@ -456,64 +511,23 @@ async function main(): Promise<void> {
     process.env.WORKLOOM_POST_VARIANT_DIR = overrideDir;
   }
   /**
-   * 顺序关键（2026-10-11 修复）：segmented-story 配方必须先于配乐 agent 建好，
-   * 否则 agent 看不到第四条变体，segmented 会继承 warm 的 pinned 曲目（实测 BGM 重复的根因）。
+   * 分段调色的语义收敛（2026-10-13，审计 F7 修复）：
+   *
+   * 事实（本机抽帧核对，8/8 抽样 sha256 相同）：`--segment-color` 作用在**共享片段层**，
+   * 因此母版与所有变体都带着同一份分段调色；旧的 `segmented-story` 变体必然与"干净母版"
+   * 逐帧一致——它不是第四个观感，而是一份**重复交付物**（客户视角：变体白做）。
+   *
+   * 现在按产品本意收敛：
+   *   · 分段调色 = 片段级**校正层**（所有交付形态共享，回执逐段记账）；
+   *   · 不再自动生成与母版等价的 `segmented-story` 变体；显式点名该变体直接报错，
+   *     让调用方在"要么用分段调色层、要么用三风格 look"之间做选择（不再产出假变体）；
+   *   · 需要"逐镜显式调色"时用 `--color-map`（逐段 profile/LUT/强度/corrections）。
    */
-  if (segmentColor) {
-    // 变体配方目录（若上面已写过覆盖副本，则复用同一目录）
-    const overrideDir = process.env.WORKLOOM_POST_VARIANT_DIR
-      ?? join(outDir, "work", "variant-overrides");
-    mkdirSync(overrideDir, { recursive: true });
-    if (!process.env.WORKLOOM_POST_VARIANT_DIR) {
-      const baseVariantDir = join(REPO_ROOT, "bundles/ai-video/library/style-variants");
-      const index = JSON.parse(readFileSync(join(baseVariantDir, "index.json"), "utf8")) as { variants: Array<{ id: string; file: string }> };
-      for (const entry of index.variants) {
-        copyFileSync(join(baseVariantDir, entry.file), join(overrideDir, entry.file));
-      }
-      writeFileSync(join(overrideDir, "index.json"), `${JSON.stringify({ ...index, updatedAt: new Date().toISOString() }, null, 2)}\n`, "utf8");
-    }
-    const variantFile = join(overrideDir, "index.json");
-    const variantIndex = JSON.parse(readFileSync(variantFile, "utf8")) as { variants: Array<{ id: string; file: string; name?: string; positioning?: string }> };
-    if (!variantIndex.variants.some((entry) => entry.id === "segmented-story")) {
-      const base = JSON.parse(readFileSync(join(overrideDir, "warm-story.json"), "utf8")) as Record<string, unknown>;
-      const segmented = {
-        ...base,
-        id: "segmented-story",
-        name: "分段调色版",
-        positioning: "家里暖、城市冷：同一支片子按场景组分段调色（果园/饭桌暖调胶片，古城/人潮冷净）",
-        /**
-         * color=null：调色已在片段级完成（warm-film / cool-technical 按场景组执行），
-         * 变体层**必须不再叠加统一调色**——post-bridge 看到 pack.color 为空则记「不调色」。
-         * 不要在这里写自定义 profile 名：color-bridge 只认内置 profile 清单，会直接抛「未知 profile」。
-         */
-        color: null,
-        colorNote: "调色已在片段级完成（warm-film / cool-technical 分段执行）；变体不叠加统一调色",
-        /**
-         * 封面：分段调色版必须有**自己的**封面（客户 2026-10-11 反馈"几个版本封面都一样"）。
-         * 旧实现整包继承 warm-story（template/at/alignment 全同），叠加取帧比例被统一覆盖后，
-         * segmented 与 warm 的封面逐字节相同。这里显式给出不同取帧与信息增量副标题。
-         */
-        cover: {
-          template: "双色分段",
-          at: 0.72,
-          alignment: 2,
-          marginRatio: 0.12,
-          subtitle: "果园是暖的 古城是冷的",
-          note: "分段调色版封面：主视觉取后段（城市/人潮）与暖调故事版区分；副标题给出『分段调色』的信息增量",
-        },
-        transitions: {
-          mode: "hard",
-          fadeSec: 0,
-          note: "整段口径为硬切；有逐切计划（declared/auto）时按 warm-story 的 intentMap 逐刀执行",
-          scale: (base.transitions as { scale?: number } | undefined)?.scale ?? 1,
-          intentMap: (base.transitions as { intentMap?: Record<string, unknown> } | undefined)?.intentMap ?? null,
-        },
-      };
-      writeFileSync(join(overrideDir, "segmented-story.json"), `${JSON.stringify(segmented, null, 2)}\n`, "utf8");
-      variantIndex.variants.push({ id: "segmented-story", file: "segmented-story.json", name: "分段调色版", positioning: segmented.positioning as string });
-      writeFileSync(variantFile, `${JSON.stringify(variantIndex, null, 2)}\n`, "utf8");
-    }
-    process.env.WORKLOOM_POST_VARIANT_DIR = overrideDir;
+  if (segmentColor && variants.includes("segmented-story")) {
+    throw new Error(
+      "segmented-story 已收敛为「片段级分段调色层」（所有变体共享，与母版同底），不再作为变体产出；"
+      + "请改用三风格变体 + `--segment-color` 的片段级调色，或 `--color-map` 指定逐镜 profile/LUT/强度。",
+    );
   }
 
 
@@ -793,11 +807,68 @@ const autoCoverPlan = explicitCoverAt
   }
 
   const manifestPath = join(outDir, "delivery-manifest.json");
+  /**
+   * 弹幕层（`--danmaku <条目.json>`，2026-10-13，审计 F5 修复）：
+   * 弹幕是**发布形态层**——默认在「烧字」形态（未烧字则用干净变体）上再烧一层，
+   * 产出 `variants/<id>/<id>.burned.danmaku.mp4`；封面烧封由 `edit:cover` 继续叠加成
+   * `…danmaku.cover.mp4`（推荐弹幕发布件）。条目支持数组或 `{items:[…]}`，格式与
+   * `edit:danmaku` / `subtitlewrite.danmaku` 同源（at/text/mode/colour/sizeScale）。
+   */
+  const danmakuItemsPath = arg("--danmaku", "");
+  const danmakuReceipts: Array<Record<string, unknown>> = [];
+  if (danmakuItemsPath) {
+    const itemsFile = abs(danmakuItemsPath);
+    if (!existsSync(itemsFile)) throw new Error(`弹幕条目文件不存在：${itemsFile}`);
+    const doc = JSON.parse(readFileSync(itemsFile, "utf8")) as unknown;
+    const items = Array.isArray(doc) ? doc : ((doc as { items?: unknown[] }).items ?? []);
+    if (!items.length) throw new Error("弹幕条目为空（数组或 {items:[…]}）");
+    const bridge = await import("../../bundles/ai-video/connectors/subtitle-bridge/core.mjs") as {
+      parseDanmaku: (input: unknown[]) => unknown[];
+      renderDanmaku: (options: Record<string, unknown>) => Promise<{
+        output: { path: string; hash: string; bytes: number };
+        density?: Record<string, unknown>;
+        checks?: Record<string, boolean>;
+      }>;
+    };
+    const parsed = bridge.parseDanmaku(items);
+    const lanes = Number(arg("--danmaku-lanes", "4"));
+    const opacity = Number(arg("--danmaku-opacity", "0.85"));
+    for (const variantId of variants) {
+      const burnedFile = join(outDir, "variants", variantId, `${variantId}.burned.mp4`);
+      const plainFile = join(outDir, "variants", variantId, `${variantId}.mp4`);
+      const source = existsSync(burnedFile) ? burnedFile : (existsSync(plainFile) ? plainFile : null);
+      if (!source) continue;
+      const suffix = source === burnedFile ? `${variantId}.burned.danmaku` : `${variantId}.danmaku`;
+      const output = join(outDir, "variants", variantId, `${suffix}.mp4`);
+      const report = await bridge.renderDanmaku({
+        input: source, output, items: parsed, platform,
+        brief: { 平台: platform ?? "默认", 内容调性: project.copy?.tone ?? null },
+        opacity, lanes, evidenceDir: join(outDir, "danmaku", variantId), bins: { ffmpeg: FFMPEG, ffprobe: FFPROBE },
+      });
+      danmakuReceipts.push({
+        variantId, source: relative(outDir, source), output: relative(outDir, output),
+        items: parsed.length, lanes, opacity,
+        sha256: report.output.hash, bytes: report.output.bytes,
+        density: report.density ?? null, checks: report.checks ?? null,
+        note: DANMAKU_PUBLISH_NOTE,
+      });
+    }
+    console.log(`  弹幕层：${danmakuReceipts.length} 条形态产出（--danmaku，${parsed.length} 条弹幕）`);
+  }
   const manifest = existsSync(manifestPath)
     ? JSON.parse(readFileSync(manifestPath, "utf8")) as Record<string, unknown>
     : null;
   if (manifest && entityReceipt) {
     manifest.entityGrade = entityReceipt;
+    writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
+  }
+  if (manifest && danmakuReceipts.length) {
+    /** 弹幕形态写进交付清单（谁、哪条、多少条、sha256），与字幕/封面回执同构。 */
+    manifest.danmaku = {
+      source: abs(danmakuItemsPath),
+      note: DANMAKU_PUBLISH_NOTE,
+      forms: danmakuReceipts,
+    };
     writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
   }
   const transitionSummaryPath = join(outDir, "transitions", "transition-receipt.json");
@@ -895,6 +966,8 @@ perVariant: coverMoments.map((moment, index) => ({
       }),
     },
     segmentColor: segmentColor ? { applied: segmentColorNotes.length, plan: segmentColorNotes } : null,
+    colorMap: colorMap ? { applied: colorMapNotes.length, plan: colorMapNotes } : null,
+    danmaku: danmakuReceipts.length ? { applied: danmakuReceipts.length, forms: danmakuReceipts } : null,
     entityGrade: entityReceipt
       ? { applied: entityReceipt.applied ?? null, skipped: entityReceipt.skipped ?? null, summary: entityReceipt.summary ?? null }
       : null,
@@ -913,6 +986,7 @@ perVariant: coverMoments.map((moment, index) => ({
       const graded = segmentColorNotes.filter((entry) => entry.lut);
       console.log(`  分段调色：${graded.length}/${segmentColorNotes.length} 段落 LUT（其余保持原色）`);
     }
+    if (colorMap) console.log(`  逐镜调色：${colorMapNotes.length} 段（--color-map 显式指定，其余保持原色）`);
     console.log(`  配乐落位：选段 ${bgmSection}｜切点对齐 ${cutTimes.length} 个${bgmCutDriven ? "（cut-driven BPM）" : ""}`);
     if (subtitlePath) {
       console.log(`  旁挂字幕：${subtitlePath}（已生成 srt/ass/vtt + 清单）`);

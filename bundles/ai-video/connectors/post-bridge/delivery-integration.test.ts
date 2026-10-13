@@ -13,6 +13,7 @@ import {
 } from "./core.mjs";
 import { describeAudioStemSources } from "../bgm-bridge/audio-stems.mjs";
 import { audioStemReceiptPayload } from "../bgm-bridge/audio-stems-trust.mjs";
+import { assistToSeconds, parseSrt } from "../subtitle-bridge/core.mjs";
 
 const bins = resolveBinaries();
 const hasMediaTools = (() => {
@@ -293,6 +294,40 @@ describe.skipIf(!hasMediaTools)("后期真实总装与连续返修（需 FFmpeg/
     expect(receipt.cuts[0]).toMatchObject({ intent: "dissolve", type: "fadeslow", resolvedBy: "variant-intentMap", durationSeconds: 0.6 });
     expect(hash(output)).toBeDefined();
   }, 180_000);
+
+  it("独立音轨节目声 × 逐切转场计划：按逐刀实际时长对齐，不再 fail-closed（回归 2026-10-13）", async () => {
+    const outDir = path.join(root, "逐切独立音轨");
+    /** 上一版缺陷：音轨时间线按整段 fadeSec 折叠 → 与画面时长差 0.5s → audio_stems_alignment_failed。 */
+    const outcome = await buildDeliveryPackage({
+      project: {
+        ...project,
+        transitions: {
+          mode: "xfade",
+          perCut: { "NC-2": { intent: "dissolve", type: "fade", durationSeconds: 0.5, source: "declared" } },
+        },
+      },
+      /** 带独立音轨的镜头（sourceDescriptors 提供授权回执），走 timelineStems 路径。 */
+      shots, subtitles, variants: ["warm-story", "clean-tech"], outDir, bins, env,
+    });
+    expect(outcome.passed).toBe(true);
+    expect(outcome.checks.find((check: { kind: string }) => check.kind === "audio_sources").ok).toBe(true);
+    /** 节目声时间线必须与画面引擎回执**逐刀**一致：只有第 1 刀有重叠，其余是硬切。 */
+    const masterReceipt = readJson(outcome.master.transitions.receiptPath);
+    expect(masterReceipt.transitionCount).toBe(1);
+    expect(masterReceipt.totalTransitionSeconds).toBeCloseTo(0.5, 2);
+    const programSeconds = Number(readJsonProbe(path.join(outcome.outDir, "master", "master-clean.mp4")).format.duration);
+    expect(Math.abs(programSeconds - Number(readJsonProbe(outcome.master.output).format.duration))).toBeLessThanOrEqual(0.05);
+    for (const variant of outcome.variants) {
+      const receipt = readJson(variant.layers.assembly.transitionReceipt);
+      expect(receipt.transitionCount).toBe(1);
+      /** 变体 intentMap 会改这一刀的时长——音轨必须按变体自己的回执对齐。 */
+      expect(receipt.totalTransitionSeconds).toBeGreaterThan(0);
+      expect(Math.abs(
+        Number(readJsonProbe(variant.artifacts.video.path).format.duration)
+        - (2.5 * 3 - receipt.totalTransitionSeconds),
+      )).toBeLessThanOrEqual(0.2);
+    }
+  }, 300_000);
 
   it("legacy fade 模式：黑场被量化取证（窗口内黑帧 >0），回执给出改用逐切计划的建议", async () => {
     const output = path.join(root, "legacy-black", "fade.mp4");

@@ -46,3 +46,27 @@ export function recommendedPublishFile(variantId: string, coverIntro = true): st
 export const PUBLISH_NOTE =
   "推荐发布件＝「烧字 + 封面烧封」：字幕与封面均已烧录进画面，任何播放器/预览器直接可见；"
   + "软字幕轨形态仅供剪辑或平台字幕轨使用（多数预览器默认不显示字幕轨）。";
+
+/**
+ * 弹幕形态（2026-10-13）：弹幕是**发布形态层**，与字幕/封面同构——后缀按形态顺序叠加，
+ * 文件永远指向同一条时间轴上的同一份字节血缘：
+ *   · 只烧弹幕（无字幕或无烧字）：`<id>.danmaku.mp4`
+ *   · 烧字 + 弹幕：`<id>.burned.danmaku.mp4`
+ *   · 再烧封面片头：`…danmaku.cover.mp4`
+ * 背景：审计 F5——弹幕能力此前只在独立工位（`edit:danmaku`）可用，交付链路不产出弹幕形态，
+ * 客户拿到的"完整成片"里看不到弹幕；现在由 `edit:post --danmaku` 直接产出、`edit:cover` 继续叠封面。
+ */
+export function danmakuFormFile(variantId: string, { burnedSubtitles = true, coverIntro = false } = {}): string {
+  const base = burnedSubtitles ? `${variantId}.burned` : variantId;
+  return `variants/${variantId}/${base}.danmaku${coverIntro ? ".cover" : ""}.mp4`;
+}
+
+/** 弹幕版的推荐发布件（烧字 + 弹幕 [+ 封面]）。 */
+export function recommendedDanmakuFile(variantId: string, coverIntro = true): string {
+  return danmakuFormFile(variantId, { burnedSubtitles: true, coverIntro });
+}
+
+/** 弹幕形态的分享口径说明（与 PUBLISH_NOTE 同构，避免多处口径漂移）。 */
+export const DANMAKU_PUBLISH_NOTE =
+  "弹幕版＝在「烧字（+封面烧封）」形态上再烧一层弹幕：发布/分享直接可见；"
+  + "不带弹幕的原形态保留，便于二次剪辑或换弹幕内容。";

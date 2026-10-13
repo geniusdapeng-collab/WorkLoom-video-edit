@@ -212,3 +212,8 @@ git revert <本任务合并提交>     # 计划层/引擎/回执/文档一起回
 | `bundles/ai-video/connectors/post-bridge/delivery-integration.test.ts` | 真实 ffmpeg 集成断言（含黑屏取证） |
 | `scripts/tools/edit-post.mts` | CLI：`--transitions / --transitions-easing / --transition-pack` |
 | `bundles/ai-video/library/style-variants/*.json` | 变体 intentMap（同一脚本 → 不同转场观感） |
+
+**已修复（2026-10-13，T-2026-1013-0002）**：独立音轨节目声（`audioStems`）× 逐切转场计划原先会在
+`muxAudioProgram` 处以 `audio_stems_alignment_failed` 失败关闭（音轨时间线按整段 `fadeSec` 折叠）。
+现在 `buildAudioStemTimeline` 接受逐刀回执（`cuts`）并按每一刀实际重叠对齐（硬切=0），
+同时用画面实测时长给节目轨补尾部静音消除量化差；缓存校验与回放同口径。

@@ -32,7 +32,7 @@ import {
 import { getCoverSpec } from "../../packages/video-studio/src/cover-platforms.js";
 import { deriveCoverTheme, planCoverMoment, planCoverMoments, type PostAnalysisDoc } from "../../packages/video-studio/src/edit/index.js";
 import { scanBestFrame } from "./lib/frame-scan.mts";
-import { PUBLISH_NOTE, recommendedPublishFile } from "./lib/delivery-forms.mts";
+import { DANMAKU_PUBLISH_NOTE, PUBLISH_NOTE, recommendedDanmakuFile, recommendedPublishFile } from "./lib/delivery-forms.mts";
 
 const REPO_ROOT = resolve(import.meta.dirname ?? process.cwd(), "../..");
 const FFMPEG = process.env.WL_FFMPEG ?? "ffmpeg";
@@ -670,7 +670,8 @@ async function main(): Promise<void> {
     for (const variantId of variants) {
       const cover = covers.find((entry) => entry.variantId === variantId)?.file as string | undefined;
       if (!cover) continue;
-      for (const form of ["", ".softsub", ".burned"]) {
+      /** 形态顺序：干净 → 软字幕轨 → 烧字 →（有弹幕层时）烧字+弹幕 → 仅弹幕。 */
+      for (const form of ["", ".softsub", ".burned", ".burned.danmaku", ".danmaku"]) {
         const source = join(outDir, "variants", variantId, `${variantId}${form}.mp4`);
         if (!existsSync(source)) continue;
         const output = join(outDir, "variants", variantId, `${variantId}${form}.cover.mp4`);
@@ -728,7 +729,19 @@ async function main(): Promise<void> {
         }
         : null;
     })
-    .filter((entry): entry is { variantId: string; file: string; forms: string; note: string } => entry !== null);
+    .filter((entry): entry is { variantId: string; file: string; forms: string; note: string } => entry !== null)
+    .concat(variants.map((variantId) => {
+      /** 弹幕版推荐件（`edit:post --danmaku` 产出的形态在这里再叠封面）。 */
+      const file = join(outDir, recommendedDanmakuFile(variantId, burnIntro > 0));
+      return existsSync(file)
+        ? {
+          variantId,
+          file: relative(outDir, file),
+          forms: burnIntro > 0 ? "burned+danmaku+cover" : "burned+danmaku",
+          note: DANMAKU_PUBLISH_NOTE,
+        }
+        : null;
+    }).filter((entry): entry is { variantId: string; file: string; forms: string; note: string } => entry !== null));
   writeFileSync(planFile, `${JSON.stringify({
     schema: "workloom.video-edit/cover-plan/v1",
     chain: "cover-designer（Compositor 视觉工位 → 设计稿 → 合成 → 机检 → 烧封）",

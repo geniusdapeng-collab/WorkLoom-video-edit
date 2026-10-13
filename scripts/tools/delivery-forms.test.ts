@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { PUBLISH_NOTE, recommendedPublishFile, resolveBurnSubtitles } from "./lib/delivery-forms.mts";
+import { DANMAKU_PUBLISH_NOTE, PUBLISH_NOTE, danmakuFormFile, recommendedDanmakuFile, recommendedPublishFile, resolveBurnSubtitles } from "./lib/delivery-forms.mts";
 
 /**
  * 交付形态默认口径（T-2026-1012-0001）：字幕默认烧录。
@@ -42,5 +42,29 @@ describe("推荐发布件：烧字 + 封面烧封", () => {
     expect(PUBLISH_NOTE).toContain("烧录");
     expect(PUBLISH_NOTE).toContain("软字幕轨");
     expect(PUBLISH_NOTE).toContain("默认不显示字幕轨");
+  });
+});
+
+/**
+ * 弹幕形态（T-2026-1013-0002 / 审计 F5）：弹幕此前只在独立工位存在，交付包里没有弹幕形态。
+ * 现在形态命名与推荐件由同一处口径产出，`edit:post --danmaku` 出「烧字+弹幕」、`edit:cover` 再叠封面。
+ */
+describe("弹幕形态：与字幕/封面同构的后缀叠加", () => {
+  it("烧字 + 弹幕 → variants/<id>/<id>.burned.danmaku.mp4", () => {
+    expect(danmakuFormFile("warm-story", { burnedSubtitles: true })).toBe("variants/warm-story/warm-story.burned.danmaku.mp4");
+  });
+
+  it("无烧字（无字幕或 --no-burn-subtitles）→ variants/<id>/<id>.danmaku.mp4", () => {
+    expect(danmakuFormFile("clean-tech", { burnedSubtitles: false })).toBe("variants/clean-tech/clean-tech.danmaku.mp4");
+  });
+
+  it("推荐弹幕发布件 = 烧字 + 弹幕 + 封面烧封", () => {
+    expect(recommendedDanmakuFile("bold-promo")).toBe("variants/bold-promo/bold-promo.burned.danmaku.cover.mp4");
+    expect(recommendedDanmakuFile("bold-promo", false)).toBe("variants/bold-promo/bold-promo.burned.danmaku.mp4");
+  });
+
+  it("弹幕口径说明写明「再烧一层」与「原形态保留」", () => {
+    expect(DANMAKU_PUBLISH_NOTE).toContain("再烧一层弹幕");
+    expect(DANMAKU_PUBLISH_NOTE).toContain("保留");
   });
 });
