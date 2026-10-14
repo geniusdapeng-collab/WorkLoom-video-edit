@@ -306,6 +306,17 @@ async function main(): Promise<void> {
     ? null
     : { mode: reframeMode as "declared" | "auto", fill: reframeFill as "pad" | "cover" | "blur" | "brand", maxZoom: reframeMaxZoom, easing: reframeEasing, sourceSizes: reframeSourceSizes, defaultScale: reframeDefaultScale };
 
+  // Optional desktop libraries may be absent in a server or fresh installation.
+  // Stem processors require each declared root to be a real directory.
+  const optionalMusicRoots = [bgmPack, join(homedir(), ".workloom-bgm")].filter((directory) => {
+    try {
+      if (!statSync(directory).isDirectory()) throw new Error(`本地曲库根不是目录：${directory}`);
+      return true;
+    } catch (error) {
+      if (error && typeof error === "object" && "code" in error && (error.code === "ENOENT" || error.code === "ENOTDIR")) return false;
+      throw error;
+    }
+  });
   const jailRoots = [
     REPO_ROOT,
     outDir,
@@ -314,8 +325,7 @@ async function main(): Promise<void> {
      * 不把它加进 BGM 白名单时，`loadAllLocalTracks` 选出的曲目会被路径监狱拦下
      * （实机：bgmPath 越出允许目录），"本地 1034 首大库优先"实际不可用。
      */
-    bgmPack,
-    join(homedir(), ".workloom-bgm"),
+    ...optionalMusicRoots,
     ...new Set(timeline.sources.map((source) => dirname(source.path))),
   ];
   for (const key of ["WORKLOOM_POST_ALLOWED_ROOTS", "WORKLOOM_COLOR_ALLOWED_ROOTS", "WORKLOOM_SUBTITLE_ALLOWED_ROOTS", "WORKLOOM_BGM_ALLOWED_ROOTS"]) {
@@ -586,6 +596,9 @@ async function main(): Promise<void> {
     mkdirSync(overrideDir, { recursive: true });
     const libraryDir = join(homedir(), ".workloom-bgm", "library");
     mkdirSync(libraryDir, { recursive: true });
+    for (const key of ["WORKLOOM_POST_ALLOWED_ROOTS", "WORKLOOM_COLOR_ALLOWED_ROOTS", "WORKLOOM_SUBTITLE_ALLOWED_ROOTS", "WORKLOOM_BGM_ALLOWED_ROOTS"]) {
+      process.env[key] = [process.env[key], libraryDir].filter(Boolean).join(":");
+    }
     const indexFile = join(libraryDir, "tracks.json");
     const packFolders = existsSync(bgmPack)
       ? readdirSync(bgmPack, { withFileTypes: true }).filter((entry) => entry.isDirectory()).map((entry) => entry.name)
