@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "repo": "geniusdapeng-collab/WorkLoom-video-edit",
-  "revision": 36,
+  "revision": 38,
   "tasks": {
     "18": {
       "number": 18,
@@ -2726,7 +2726,7 @@
           "protocol": 4
         }
       },
-      "updatedAt": 1791991649076,
+      "updatedAt": 1791991769328,
       "headSha": "c9045f5f0d96faaf9d93ac71e9e24d8cd2ad92e4",
       "mainSha": "53040986003e46b29c330b01144f29a505dc864a",
       "branch": "task/T-2026-1013-0003-ui-ci-3-github",
@@ -4436,7 +4436,8 @@
       "platformAI": false,
       "finalCiPreparation": {
         "bodySha256": "9b67243367690d4094c8f0ba61130a947b603425f16c3a8667a082b56d20064d",
-        "bodyWriteStartedAt": "2026-10-14T15:27:29.075Z"
+        "bodyWriteStartedAt": "2026-10-14T15:27:29.075Z",
+        "readyWriteStartedAt": "2026-10-14T15:29:29.327Z"
       }
     }
   },
@@ -11720,6 +11721,35 @@
       },
       "previous": "9fc6e007865b11f1eafabb3d19af7738d0909101dd3afc603f90c29855a6c24b",
       "digest": "ebf3843578f0570623f51bd0139961b6f1485ad6c380abfe1a27a0a656bb975d"
+    },
+    {
+      "sequence": 37,
+      "at": "2026-10-14T15:29:29.328Z",
+      "kind": "task",
+      "data": {
+        "number": 20,
+        "patch": {
+          "finalCiPreparation": {
+            "bodySha256": "9b67243367690d4094c8f0ba61130a947b603425f16c3a8667a082b56d20064d",
+            "bodyWriteStartedAt": "2026-10-14T15:27:29.075Z",
+            "readyWriteStartedAt": "2026-10-14T15:29:29.327Z"
+          }
+        }
+      },
+      "previous": "ebf3843578f0570623f51bd0139961b6f1485ad6c380abfe1a27a0a656bb975d",
+      "digest": "c769f7ae7e057bccd8b64391505d783e221e16e971b65bb21831bd9649cc8e89"
+    },
+    {
+      "sequence": 38,
+      "at": "2026-10-14T15:29:01.607Z",
+      "kind": "transaction",
+      "data": {
+        "id": "github-final-ci-session-ready-attempt:20:c9045f5f0d96faaf9d93ac71e9e24d8cd2ad92e4:53040986003e46b29c330b01144f29a505dc864a:e558bd6ac8aa01e01e5228ee1a42fbd63fa9c8e09bfa87cee2bea81334dd0caf",
+        "controller": "current-session-github-final-ci-api",
+        "nativeQueue": false
+      },
+      "previous": "c769f7ae7e057bccd8b64391505d783e221e16e971b65bb21831bd9649cc8e89",
+      "digest": "c71636bc982fca7d2386198cd39297f21c1809986682613fd8027fbee94c2306"
     }
   ]
 }
