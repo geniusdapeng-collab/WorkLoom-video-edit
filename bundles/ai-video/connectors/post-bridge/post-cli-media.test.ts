@@ -44,8 +44,11 @@ beforeAll(async () => {
   plan = { profile: "fast-cut", segments: segments.map((segment: any, index: number) => ({ id: segment.segmentId, sourceId: segment.sourceId, inSeconds: segment.sourceIn, outSeconds: segment.sourceOut, durationSeconds: segment.durationSeconds, role: index === 0 ? "fast" : index === 1 ? "hold" : "breath", cutReason: segment.motive })), soundCues: [{ atSeconds: 0.5, kind: "impact", reason: "动作强调", gainDb: -14 }] };
   write(path.join(root, "timeline.json"), timeline); write(path.join(root, "rhythm.json"), plan); write(path.join(root, "danmaku.json"), [{ at: 0.2, text: "看见山和饺子" }]);
   fs.writeFileSync(path.join(root, "caption.srt"), "1\n00:00:00,100 --> 00:00:02,000\n看山吃饺子\n\n");
-  const result = await command("scripts/tools/edit-post.mts", ["--timeline", path.join(root, "timeline.json"), "--out-dir", out, "--variants", "warm-story,clean-tech", "--rhythm-plan", path.join(root, "rhythm.json"), "--subtitle", path.join(root, "caption.srt"), "--danmaku", path.join(root, "danmaku.json"), "--title", "看山吃饺子", "--bgm-section", "full", "--json"]);
+  const missingPack = path.join(root, "missing-home", "Downloads", "optional-pack");
+  expect(fs.existsSync(path.join(root, "missing-home"))).toBe(false);
+  const result = await command("scripts/tools/edit-post.mts", ["--timeline", path.join(root, "timeline.json"), "--out-dir", out, "--variants", "warm-story,clean-tech", "--rhythm-plan", path.join(root, "rhythm.json"), "--subtitle", path.join(root, "caption.srt"), "--danmaku", path.join(root, "danmaku.json"), "--title", "看山吃饺子", "--bgm-section", "full", "--bgm-pack", missingPack, "--json"]);
   expect(result.text, "actual edit-post stdout/stderr").toBeTruthy(); expect(result.code, result.text).toBe(0);
+  expect(fs.existsSync(path.join(root, "missing-home"))).toBe(false);
 }, 180_000);
 afterAll(() => { if (root) fs.rmSync(root, { recursive: true, force: true }); });
 test("actual edit-post preserves native pixels/frames, default declared hard cuts, requested text forms and SFX", async () => {
@@ -134,3 +137,78 @@ test("failed cover candidates preserve the accepted manifest and every accepted 
   expect(result.code).not.toBe(0); expect(sha(manifestFile)).toBe(before); expect(accepted.map(sha)).toEqual(hashes);
   expect(sha(projectFile)).toBe(projectBefore);
 }, 45_000);
+
+test("an existing optional pack outside the original roots remains usable and read only through the actual edit-post CLI", async () => {
+  const pack = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "post-owned-pack-")));
+  const delivery = path.join(root, "existing-pack-delivery");
+  try {
+    fs.copyFileSync(path.join(root, "music", "music.wav"), path.join(pack, "music.wav"));
+    fs.copyFileSync(path.join(root, "music", "tracks.json"), path.join(pack, "tracks.json"));
+    const files = fs.readdirSync(pack).sort(), before = files.map(file => sha(path.join(pack, file)));
+    const result = await command("scripts/tools/edit-post.mts", ["--timeline", path.join(root, "timeline.json"),
+      "--out-dir", delivery, "--variants", "warm-story,clean-tech", "--rhythm-plan", path.join(root, "rhythm.json"),
+      "--bgm-section", "full", "--bgm-pack", pack, "--title", "Owned local pack", "--json"],
+    { WORKLOOM_BGM_LIBRARY_DIR: pack });
+    expect(result.code, result.text).toBe(0);
+    const manifest = json(path.join(delivery, "delivery-manifest.json"));
+    expect(manifest.postQuality.passed).toBe(true);
+    for (const variant of manifest.variants) {
+      const audio = json(path.join(delivery, "variants", variant.id, "audio.json"));
+      expect(audio.track.id).toMatch(/^synthetic-[01]$/);
+      expect(audio.track.sourceSha256).toBe(before[files.indexOf("music.wav")]);
+    }
+    expect((await inspectDeliveryManifest({ root: delivery, manifest, bins })).passed).toBe(true);
+    expect(fs.readdirSync(pack).sort()).toEqual(files);
+    expect(files.map(file => sha(path.join(pack, file)))).toEqual(before);
+    expect(timeline.sources.map((source: any) => sha(source.path))).toEqual(original);
+  } finally { fs.rmSync(pack, { recursive: true, force: true }); }
+}, 120_000);
+
+test("an optional pack that is a file fails before processing and preserves its bytes and all source media", async () => {
+  const pack = path.join(root, "pack-is-a-file"), delivery = path.join(root, "pack-file-refused");
+  fs.writeFileSync(pack, "owned fixture must not be replaced by a directory\n");
+  const before = sha(pack);
+  const result = await command("scripts/tools/edit-post.mts", ["--timeline", path.join(root, "timeline.json"),
+    "--out-dir", delivery, "--bgm-pack", pack, "--json"]);
+  expect(result.code, result.text).toBe(1);
+  expect(result.text).toContain(`本地曲库根不是目录：${pack}`);
+  expect(fs.existsSync(path.join(delivery, "delivery-manifest.json"))).toBe(false);
+  expect(fs.readdirSync(delivery)).toEqual([]);
+  expect(sha(pack)).toBe(before);
+  expect(timeline.sources.map((source: any) => sha(source.path))).toEqual(original);
+}, 30_000);
+
+test("real EACCES in the current optional-root declaration is rethrown rather than treated as an absent library", async () => {
+  const script = path.join(repo, "scripts/tools/edit-post.mts"), bytes = fs.readFileSync(script), source = bytes.toString("utf8");
+  const start = source.indexOf("  const optionalMusicRoots = "), end = source.indexOf("  const jailRoots = ", start);
+  expect(start).toBeGreaterThan(0); expect(end).toBeGreaterThan(start);
+  expect(source.indexOf("  const optionalMusicRoots = ", start + 1)).toBe(-1);
+  // Execute the entire current production declaration with actual Node/fs errors.
+  // No fs operation, production function, HOME, or user library is replaced.
+  const declaration = source.slice(start, end);
+  const parent = path.join(root, "permission-denied-pack-parent"), pack = path.join(parent, "pack");
+  fs.mkdirSync(pack, { recursive: true });
+  fs.writeFileSync(path.join(pack, "sentinel"), "owned permission fixture\n");
+  const before = sha(path.join(pack, "sentinel")), rootMode = fs.statSync(root).mode & 0o777;
+  const uid = process.getuid?.();
+  expect(typeof uid).toBe("number");
+  const program = `import {statSync} from 'node:fs';import {join} from 'node:path';import {homedir} from 'node:os';\nconst bgmPack=process.argv[1];\n${declaration}\nconsole.log(JSON.stringify(optionalMusicRoots));`;
+  try {
+    fs.chmodSync(root, 0o755); fs.chmodSync(parent, 0o000);
+    const result = await new Promise<{ code: number | null; text: string }>((resolve, reject) => {
+      // CI containers run as root; use an unprivileged child only for this owned fixture.
+      const child = spawn(process.execPath, ["--input-type=module", "--eval", program, pack],
+        { cwd: os.tmpdir(), env: process.env, ...(uid === 0 ? { uid: 65534, gid: 65534 } : {}), stdio: ["ignore", "pipe", "pipe"] });
+      const chunks: Buffer[] = [];
+      child.stdout.on("data", chunk => chunks.push(chunk)); child.stderr.on("data", chunk => chunks.push(chunk));
+      child.on("error", reject); child.on("close", code => resolve({ code, text: Buffer.concat(chunks).toString("utf8") }));
+    });
+    expect(result.code, result.text).not.toBe(0);
+    expect(result.text).toMatch(/EACCES/);
+    expect(result.text).toContain(pack);
+    expect(result.text).not.toContain('console.log(JSON.stringify(optionalMusicRoots))');
+  } finally { fs.chmodSync(parent, 0o755); fs.chmodSync(root, rootMode); }
+  expect(sha(path.join(pack, "sentinel"))).toBe(before);
+  expect(fs.readFileSync(script)).toEqual(bytes);
+  expect(timeline.sources.map((item: any) => sha(item.path))).toEqual(original);
+}, 30_000);
