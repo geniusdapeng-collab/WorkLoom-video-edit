@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "repo": "geniusdapeng-collab/WorkLoom-video-edit",
-  "revision": 42,
+  "revision": 44,
   "tasks": {
     "18": {
       "number": 18,
@@ -4866,16 +4866,16 @@
       "expiresAt": 1791940765811
     },
     "protocol": {
-      "owner": "github-final-ci-session/a8168a82-fe7d-432c-8a3c-95e20f9c261b",
+      "owner": null,
       "generation": 5,
       "acquiredAt": 1791991493390,
-      "expiresAt": 1791992754997
+      "expiresAt": 1791991982524
     },
     "main": {
-      "owner": "github-final-ci-session/a8168a82-fe7d-432c-8a3c-95e20f9c261b",
+      "owner": null,
       "generation": 3,
       "acquiredAt": 1791991493390,
-      "expiresAt": 1791992754997
+      "expiresAt": 1791991982524
     }
   },
   "releases": {},
@@ -12649,6 +12649,36 @@
       },
       "previous": "a5e6817def5d72f36ecc215cb8f148b1b38fe8c7b481971249097a3ee8bed18e",
       "digest": "d42d820468ef1470e98b2d672c569968793b340c3a115cfd357988be2d1fa8cf"
+    },
+    {
+      "sequence": 43,
+      "at": "2026-10-14T15:33:02.524Z",
+      "kind": "lease_release",
+      "data": {
+        "scopes": [
+          "main",
+          "protocol"
+        ],
+        "owner": "github-final-ci-session/a8168a82-fe7d-432c-8a3c-95e20f9c261b",
+        "generation": {
+          "main": 3,
+          "protocol": 5
+        }
+      },
+      "previous": "d42d820468ef1470e98b2d672c569968793b340c3a115cfd357988be2d1fa8cf",
+      "digest": "b0d68c31f28914facb9274b52c058611f84bf9ee3d5b71d2672bda6436daaa81"
+    },
+    {
+      "sequence": 44,
+      "at": "2026-10-14T15:32:34.606Z",
+      "kind": "transaction",
+      "data": {
+        "id": "github-final-ci-session-release:20:c9045f5f0d96faaf9d93ac71e9e24d8cd2ad92e4:53040986003e46b29c330b01144f29a505dc864a:e558bd6ac8aa01e01e5228ee1a42fbd63fa9c8e09bfa87cee2bea81334dd0caf:github-final-ci-session/a8168a82-fe7d-432c-8a3c-95e20f9c261b",
+        "controller": "current-session-github-final-ci-api",
+        "nativeQueue": false
+      },
+      "previous": "b0d68c31f28914facb9274b52c058611f84bf9ee3d5b71d2672bda6436daaa81",
+      "digest": "166f93465b31fec17ce29a8cb7172e0faefb066bbbb0d43afcd1f2415b9316f8"
     }
   ]
 }
