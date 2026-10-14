@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "repo": "geniusdapeng-collab/WorkLoom-video-edit",
-  "revision": 44,
+  "revision": 47,
   "tasks": {
     "18": {
       "number": 18,
@@ -2710,7 +2710,7 @@
     },
     "20": {
       "number": 20,
-      "status": "merging",
+      "status": "waiting_ci",
       "firstSeen": 1791991493387,
       "attempts": {},
       "admission": {
@@ -2726,7 +2726,7 @@
           "protocol": 4
         }
       },
-      "updatedAt": 1791991854998,
+      "updatedAt": 1791995083651,
       "headSha": "c9045f5f0d96faaf9d93ac71e9e24d8cd2ad92e4",
       "mainSha": "53040986003e46b29c330b01144f29a505dc864a",
       "branch": "task/T-2026-1013-0003-ui-ci-3-github",
@@ -4855,7 +4855,102 @@
           }
         ]
       },
-      "bodySha256": "9b67243367690d4094c8f0ba61130a947b603425f16c3a8667a082b56d20064d"
+      "bodySha256": "9b67243367690d4094c8f0ba61130a947b603425f16c3a8667a082b56d20064d",
+      "unmergedAttemptRecovery": {
+        "schema": "workloom.video-unmerged-attempt-recovery/v1",
+        "recoveryId": "1cf9f88ee0c91185fe49e309da9d3595becf50a85f1ad0eeb764400c5d8f450f",
+        "number": 20,
+        "headSha": "c9045f5f0d96faaf9d93ac71e9e24d8cd2ad92e4",
+        "mainSha": "53040986003e46b29c330b01144f29a505dc864a",
+        "reviewId": "e558bd6ac8aa01e01e5228ee1a42fbd63fa9c8e09bfa87cee2bea81334dd0caf",
+        "policyHash": "e4aaa71959eb0cc05c5850b357f36c87d6351979ed1baa060dfc16a0ebbf2ded",
+        "supersededAttemptDigest": "a5e6817def5d72f36ecc215cb8f148b1b38fe8c7b481971249097a3ee8bed18e",
+        "oldAttemptAt": "2026-10-14T15:30:54.999Z",
+        "oldOwner": "github-final-ci-session/a8168a82-fe7d-432c-8a3c-95e20f9c261b",
+        "oldGeneration": {
+          "main": 3,
+          "protocol": 5
+        },
+        "observedStateCommit": "d4c6f4db75d22a6337547ecd25c8ac1e752b28eb",
+        "authorization": {
+          "actor": "human-user",
+          "source": "direct-user-message-relayed-by-root",
+          "quote": "风险可控直接采用暴力些",
+          "intent": "现在完成几个直接合并",
+          "scope": "one exact VIDEO #20 recovery after repeated current unmerged readback; retain all gates and normal controller merge"
+        },
+        "observations": [
+          {
+            "round": 1,
+            "at": "2026-10-14T16:25:09.885Z",
+            "number": 20,
+            "headSha": "c9045f5f0d96faaf9d93ac71e9e24d8cd2ad92e4",
+            "mainSha": "53040986003e46b29c330b01144f29a505dc864a",
+            "sourceRefSha": "c9045f5f0d96faaf9d93ac71e9e24d8cd2ad92e4",
+            "state": "open",
+            "merged": false,
+            "draft": false,
+            "mergeable": true,
+            "mergeableState": "clean",
+            "bodySha256": "9b67243367690d4094c8f0ba61130a947b603425f16c3a8667a082b56d20064d",
+            "testedSha": "4f8d2f3d5a854696e305d3f07a11de1ae8e95e75",
+            "testedTree": "9b6b2fb0a459a43f1b52ed5908098116d545855b",
+            "checks": [
+              {
+                "id": 115920219252,
+                "name": "gate",
+                "headSha": "c9045f5f0d96faaf9d93ac71e9e24d8cd2ad92e4",
+                "status": "completed",
+                "conclusion": "success",
+                "url": "https://github.com/geniusdapeng-collab/WorkLoom-video-edit/actions/runs/38561078702/job/115920219252"
+              },
+              {
+                "id": 115920137225,
+                "name": "ui-contract",
+                "headSha": "c9045f5f0d96faaf9d93ac71e9e24d8cd2ad92e4",
+                "status": "completed",
+                "conclusion": "success",
+                "url": "https://github.com/geniusdapeng-collab/WorkLoom-video-edit/actions/runs/38561078619/job/115920137225"
+              }
+            ]
+          },
+          {
+            "round": 2,
+            "at": "2026-10-14T16:25:23.165Z",
+            "number": 20,
+            "headSha": "c9045f5f0d96faaf9d93ac71e9e24d8cd2ad92e4",
+            "mainSha": "53040986003e46b29c330b01144f29a505dc864a",
+            "sourceRefSha": "c9045f5f0d96faaf9d93ac71e9e24d8cd2ad92e4",
+            "state": "open",
+            "merged": false,
+            "draft": false,
+            "mergeable": true,
+            "mergeableState": "clean",
+            "bodySha256": "9b67243367690d4094c8f0ba61130a947b603425f16c3a8667a082b56d20064d",
+            "testedSha": "4f8d2f3d5a854696e305d3f07a11de1ae8e95e75",
+            "testedTree": "9b6b2fb0a459a43f1b52ed5908098116d545855b",
+            "checks": [
+              {
+                "id": 115920219252,
+                "name": "gate",
+                "headSha": "c9045f5f0d96faaf9d93ac71e9e24d8cd2ad92e4",
+                "status": "completed",
+                "conclusion": "success",
+                "url": "https://github.com/geniusdapeng-collab/WorkLoom-video-edit/actions/runs/38561078702/job/115920219252"
+              },
+              {
+                "id": 115920137225,
+                "name": "ui-contract",
+                "headSha": "c9045f5f0d96faaf9d93ac71e9e24d8cd2ad92e4",
+                "status": "completed",
+                "conclusion": "success",
+                "url": "https://github.com/geniusdapeng-collab/WorkLoom-video-edit/actions/runs/38561078619/job/115920137225"
+              }
+            ]
+          }
+        ],
+        "rationale": "Old attempt has no durable merge response or acknowledgement; this does not prove no PUT was sent. Two fresh exact open/unmerged readbacks and released fences permit one newly authorized normal controller attempt."
+      }
     }
   },
   "leases": {
@@ -12679,6 +12774,228 @@
       },
       "previous": "b0d68c31f28914facb9274b52c058611f84bf9ee3d5b71d2672bda6436daaa81",
       "digest": "166f93465b31fec17ce29a8cb7172e0faefb066bbbb0d43afcd1f2415b9316f8"
+    },
+    {
+      "sequence": 45,
+      "at": "2026-10-14T16:24:43.651Z",
+      "kind": "superseded_after_unmerged_readback",
+      "data": {
+        "schema": "workloom.video-unmerged-attempt-recovery/v1",
+        "recoveryId": "1cf9f88ee0c91185fe49e309da9d3595becf50a85f1ad0eeb764400c5d8f450f",
+        "number": 20,
+        "headSha": "c9045f5f0d96faaf9d93ac71e9e24d8cd2ad92e4",
+        "mainSha": "53040986003e46b29c330b01144f29a505dc864a",
+        "reviewId": "e558bd6ac8aa01e01e5228ee1a42fbd63fa9c8e09bfa87cee2bea81334dd0caf",
+        "policyHash": "e4aaa71959eb0cc05c5850b357f36c87d6351979ed1baa060dfc16a0ebbf2ded",
+        "supersededAttemptDigest": "a5e6817def5d72f36ecc215cb8f148b1b38fe8c7b481971249097a3ee8bed18e",
+        "oldAttemptAt": "2026-10-14T15:30:54.999Z",
+        "oldOwner": "github-final-ci-session/a8168a82-fe7d-432c-8a3c-95e20f9c261b",
+        "oldGeneration": {
+          "main": 3,
+          "protocol": 5
+        },
+        "observedStateCommit": "d4c6f4db75d22a6337547ecd25c8ac1e752b28eb",
+        "authorization": {
+          "actor": "human-user",
+          "source": "direct-user-message-relayed-by-root",
+          "quote": "风险可控直接采用暴力些",
+          "intent": "现在完成几个直接合并",
+          "scope": "one exact VIDEO #20 recovery after repeated current unmerged readback; retain all gates and normal controller merge"
+        },
+        "observations": [
+          {
+            "round": 1,
+            "at": "2026-10-14T16:25:09.885Z",
+            "number": 20,
+            "headSha": "c9045f5f0d96faaf9d93ac71e9e24d8cd2ad92e4",
+            "mainSha": "53040986003e46b29c330b01144f29a505dc864a",
+            "sourceRefSha": "c9045f5f0d96faaf9d93ac71e9e24d8cd2ad92e4",
+            "state": "open",
+            "merged": false,
+            "draft": false,
+            "mergeable": true,
+            "mergeableState": "clean",
+            "bodySha256": "9b67243367690d4094c8f0ba61130a947b603425f16c3a8667a082b56d20064d",
+            "testedSha": "4f8d2f3d5a854696e305d3f07a11de1ae8e95e75",
+            "testedTree": "9b6b2fb0a459a43f1b52ed5908098116d545855b",
+            "checks": [
+              {
+                "id": 115920219252,
+                "name": "gate",
+                "headSha": "c9045f5f0d96faaf9d93ac71e9e24d8cd2ad92e4",
+                "status": "completed",
+                "conclusion": "success",
+                "url": "https://github.com/geniusdapeng-collab/WorkLoom-video-edit/actions/runs/38561078702/job/115920219252"
+              },
+              {
+                "id": 115920137225,
+                "name": "ui-contract",
+                "headSha": "c9045f5f0d96faaf9d93ac71e9e24d8cd2ad92e4",
+                "status": "completed",
+                "conclusion": "success",
+                "url": "https://github.com/geniusdapeng-collab/WorkLoom-video-edit/actions/runs/38561078619/job/115920137225"
+              }
+            ]
+          },
+          {
+            "round": 2,
+            "at": "2026-10-14T16:25:23.165Z",
+            "number": 20,
+            "headSha": "c9045f5f0d96faaf9d93ac71e9e24d8cd2ad92e4",
+            "mainSha": "53040986003e46b29c330b01144f29a505dc864a",
+            "sourceRefSha": "c9045f5f0d96faaf9d93ac71e9e24d8cd2ad92e4",
+            "state": "open",
+            "merged": false,
+            "draft": false,
+            "mergeable": true,
+            "mergeableState": "clean",
+            "bodySha256": "9b67243367690d4094c8f0ba61130a947b603425f16c3a8667a082b56d20064d",
+            "testedSha": "4f8d2f3d5a854696e305d3f07a11de1ae8e95e75",
+            "testedTree": "9b6b2fb0a459a43f1b52ed5908098116d545855b",
+            "checks": [
+              {
+                "id": 115920219252,
+                "name": "gate",
+                "headSha": "c9045f5f0d96faaf9d93ac71e9e24d8cd2ad92e4",
+                "status": "completed",
+                "conclusion": "success",
+                "url": "https://github.com/geniusdapeng-collab/WorkLoom-video-edit/actions/runs/38561078702/job/115920219252"
+              },
+              {
+                "id": 115920137225,
+                "name": "ui-contract",
+                "headSha": "c9045f5f0d96faaf9d93ac71e9e24d8cd2ad92e4",
+                "status": "completed",
+                "conclusion": "success",
+                "url": "https://github.com/geniusdapeng-collab/WorkLoom-video-edit/actions/runs/38561078619/job/115920137225"
+              }
+            ]
+          }
+        ],
+        "rationale": "Old attempt has no durable merge response or acknowledgement; this does not prove no PUT was sent. Two fresh exact open/unmerged readbacks and released fences permit one newly authorized normal controller attempt."
+      },
+      "previous": "166f93465b31fec17ce29a8cb7172e0faefb066bbbb0d43afcd1f2415b9316f8",
+      "digest": "5719e79b5250b9e093c566cfe80700fbfcb81de6a81d4e8bd4c376a992183865"
+    },
+    {
+      "sequence": 46,
+      "at": "2026-10-14T16:24:43.651Z",
+      "kind": "task",
+      "data": {
+        "number": 20,
+        "patch": {
+          "status": "waiting_ci",
+          "unmergedAttemptRecovery": {
+            "schema": "workloom.video-unmerged-attempt-recovery/v1",
+            "recoveryId": "1cf9f88ee0c91185fe49e309da9d3595becf50a85f1ad0eeb764400c5d8f450f",
+            "number": 20,
+            "headSha": "c9045f5f0d96faaf9d93ac71e9e24d8cd2ad92e4",
+            "mainSha": "53040986003e46b29c330b01144f29a505dc864a",
+            "reviewId": "e558bd6ac8aa01e01e5228ee1a42fbd63fa9c8e09bfa87cee2bea81334dd0caf",
+            "policyHash": "e4aaa71959eb0cc05c5850b357f36c87d6351979ed1baa060dfc16a0ebbf2ded",
+            "supersededAttemptDigest": "a5e6817def5d72f36ecc215cb8f148b1b38fe8c7b481971249097a3ee8bed18e",
+            "oldAttemptAt": "2026-10-14T15:30:54.999Z",
+            "oldOwner": "github-final-ci-session/a8168a82-fe7d-432c-8a3c-95e20f9c261b",
+            "oldGeneration": {
+              "main": 3,
+              "protocol": 5
+            },
+            "observedStateCommit": "d4c6f4db75d22a6337547ecd25c8ac1e752b28eb",
+            "authorization": {
+              "actor": "human-user",
+              "source": "direct-user-message-relayed-by-root",
+              "quote": "风险可控直接采用暴力些",
+              "intent": "现在完成几个直接合并",
+              "scope": "one exact VIDEO #20 recovery after repeated current unmerged readback; retain all gates and normal controller merge"
+            },
+            "observations": [
+              {
+                "round": 1,
+                "at": "2026-10-14T16:25:09.885Z",
+                "number": 20,
+                "headSha": "c9045f5f0d96faaf9d93ac71e9e24d8cd2ad92e4",
+                "mainSha": "53040986003e46b29c330b01144f29a505dc864a",
+                "sourceRefSha": "c9045f5f0d96faaf9d93ac71e9e24d8cd2ad92e4",
+                "state": "open",
+                "merged": false,
+                "draft": false,
+                "mergeable": true,
+                "mergeableState": "clean",
+                "bodySha256": "9b67243367690d4094c8f0ba61130a947b603425f16c3a8667a082b56d20064d",
+                "testedSha": "4f8d2f3d5a854696e305d3f07a11de1ae8e95e75",
+                "testedTree": "9b6b2fb0a459a43f1b52ed5908098116d545855b",
+                "checks": [
+                  {
+                    "id": 115920219252,
+                    "name": "gate",
+                    "headSha": "c9045f5f0d96faaf9d93ac71e9e24d8cd2ad92e4",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "url": "https://github.com/geniusdapeng-collab/WorkLoom-video-edit/actions/runs/38561078702/job/115920219252"
+                  },
+                  {
+                    "id": 115920137225,
+                    "name": "ui-contract",
+                    "headSha": "c9045f5f0d96faaf9d93ac71e9e24d8cd2ad92e4",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "url": "https://github.com/geniusdapeng-collab/WorkLoom-video-edit/actions/runs/38561078619/job/115920137225"
+                  }
+                ]
+              },
+              {
+                "round": 2,
+                "at": "2026-10-14T16:25:23.165Z",
+                "number": 20,
+                "headSha": "c9045f5f0d96faaf9d93ac71e9e24d8cd2ad92e4",
+                "mainSha": "53040986003e46b29c330b01144f29a505dc864a",
+                "sourceRefSha": "c9045f5f0d96faaf9d93ac71e9e24d8cd2ad92e4",
+                "state": "open",
+                "merged": false,
+                "draft": false,
+                "mergeable": true,
+                "mergeableState": "clean",
+                "bodySha256": "9b67243367690d4094c8f0ba61130a947b603425f16c3a8667a082b56d20064d",
+                "testedSha": "4f8d2f3d5a854696e305d3f07a11de1ae8e95e75",
+                "testedTree": "9b6b2fb0a459a43f1b52ed5908098116d545855b",
+                "checks": [
+                  {
+                    "id": 115920219252,
+                    "name": "gate",
+                    "headSha": "c9045f5f0d96faaf9d93ac71e9e24d8cd2ad92e4",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "url": "https://github.com/geniusdapeng-collab/WorkLoom-video-edit/actions/runs/38561078702/job/115920219252"
+                  },
+                  {
+                    "id": 115920137225,
+                    "name": "ui-contract",
+                    "headSha": "c9045f5f0d96faaf9d93ac71e9e24d8cd2ad92e4",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "url": "https://github.com/geniusdapeng-collab/WorkLoom-video-edit/actions/runs/38561078619/job/115920137225"
+                  }
+                ]
+              }
+            ],
+            "rationale": "Old attempt has no durable merge response or acknowledgement; this does not prove no PUT was sent. Two fresh exact open/unmerged readbacks and released fences permit one newly authorized normal controller attempt."
+          }
+        }
+      },
+      "previous": "5719e79b5250b9e093c566cfe80700fbfcb81de6a81d4e8bd4c376a992183865",
+      "digest": "61de506ad417a4f123b6d947c83ceb478d6de2b857d193df08cd30bf51c19c6e"
+    },
+    {
+      "sequence": 47,
+      "at": "2026-10-14T16:24:43.651Z",
+      "kind": "transaction",
+      "data": {
+        "id": "github-video-unmerged-supersede:1cf9f88ee0c91185fe49e309da9d3595becf50a85f1ad0eeb764400c5d8f450f",
+        "controller": "current-session-github-final-ci-api",
+        "nativeQueue": false
+      },
+      "previous": "61de506ad417a4f123b6d947c83ceb478d6de2b857d193df08cd30bf51c19c6e",
+      "digest": "0e25a59d17cf1d4a071983753e379ea0c4e2550807284ba0b3b8b53b8c00837f"
     }
   ]
 }
