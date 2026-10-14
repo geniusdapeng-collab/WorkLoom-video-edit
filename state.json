@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "repo": "geniusdapeng-collab/WorkLoom-video-edit",
-  "revision": 66,
+  "revision": 74,
   "tasks": {
     "18": {
       "number": 18,
@@ -4995,6 +4995,1458 @@
         "mainSha": "2aa9d2d73b05f4564d69c9cac2a603d77482c180",
         "releases": []
       }
+    },
+    "21": {
+      "number": 21,
+      "status": "waiting_ci",
+      "firstSeen": 1792000735207,
+      "attempts": {},
+      "admission": {
+        "number": 21,
+        "headSha": "467d7a8ebf92b240406d87491ccc66fa961d07d0",
+        "mainSha": "2aa9d2d73b05f4564d69c9cac2a603d77482c180",
+        "filesHash": "3a92e483f1a18e22af7094db376da4ca3ed0be76290c7d1842ab1aeaadc0da98",
+        "scopes": [
+          "protocol"
+        ],
+        "owner": "admission/pr-21",
+        "generation": {
+          "protocol": 7
+        }
+      },
+      "updatedAt": 1792000735208,
+      "headSha": "467d7a8ebf92b240406d87491ccc66fa961d07d0",
+      "mainSha": "2aa9d2d73b05f4564d69c9cac2a603d77482c180",
+      "branch": "task/T-2026-1013-0003-media-ci-7-github",
+      "developerReview": {
+        "schemaVersion": 1,
+        "provider": "codex",
+        "repo": "geniusdapeng-collab/WorkLoom-video-edit",
+        "number": 21,
+        "headSha": "467d7a8ebf92b240406d87491ccc66fa961d07d0",
+        "mainSha": "2aa9d2d73b05f4564d69c9cac2a603d77482c180",
+        "policyHash": "1969e05a3de0a00bdc7ee8ddbe88592cc11dd68277eaac0c8bccf10b9b567198",
+        "reviewedFiles": [
+          "bundles/ai-video/connectors/post-bridge/post-cli-media.test.ts",
+          "scripts/tools/edit-post.mts"
+        ],
+        "filesHash": "3a92e483f1a18e22af7094db376da4ca3ed0be76290c7d1842ab1aeaadc0da98",
+        "dependsOn": [],
+        "ciPolicyChanges": [],
+        "ciPolicyChangesHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+        "tests": [
+          {
+            "command": "node /Users/mac/Documents/Codex/2026-10-13/https-cnb-cool-workloom-ai-workloom/work/media-ci-repair-tools/run-vitest-current.mjs --manifest /Users/mac/Documents/Codex/2026-10-13/https-cnb-cool-workloom-ai-workloom/outputs/media-ci-repair/sealed-github-targets.json --repo-name WorkLoom-video-edit",
+            "exitCode": 0,
+            "finishedAt": "2026-10-14T16:54:48.557Z",
+            "result": "真实独立验收 actor=/root/final_gate_review source=467d7a8ebf92b240406d87491ccc66fa961d07d0 run=MC-001-0-1791996746383 SHA=bc0d11174c7d00e31b1736932fd4c53b2f6ea24ea97dd5fb0ce1bb804530418b；完整Vitest12/12且零skip"
+          },
+          {
+            "command": "node scripts/ci/verify-commit-msg.mjs --range 2aa9d2d73b05f4564d69c9cac2a603d77482c180..467d7a8ebf92b240406d87491ccc66fa961d07d0 --repo workloom-ai/WorkLoom-video-edit",
+            "exitCode": 0,
+            "finishedAt": "2026-10-14T16:54:49.518Z",
+            "result": "真实独立验收 actor=/root/final_gate_review source=467d7a8ebf92b240406d87491ccc66fa961d07d0 run=MC-001-1-1791996888747 SHA=7fcd26d2c65b02981e410f783cd323120a06aab160a44d77a24f228f2c54a5d4；准确声明的实际CLI退出0"
+          },
+          {
+            "command": "node /Users/mac/Documents/Codex/2026-10-13/https-cnb-cool-workloom-ai-workloom/work/media-ci-repair-tools/verify-sealed-source.mjs --manifest /Users/mac/Documents/Codex/2026-10-13/https-cnb-cool-workloom-ai-workloom/outputs/media-ci-repair/sealed-github-targets.json --repo-name WorkLoom-video-edit",
+            "exitCode": 0,
+            "finishedAt": "2026-10-14T16:54:50.661Z",
+            "result": "真实独立验收 actor=/root/final_gate_review source=467d7a8ebf92b240406d87491ccc66fa961d07d0 run=MC-001-2-1791996889676 SHA=c5ce98178ce9bb8a1960eada74975a4e3f32f55572618741f3cad2281e36632d；准确声明的实际CLI退出0"
+          }
+        ],
+        "reviewedAt": "2026-10-14T17:58:29.671Z",
+        "summary": "当前 media source/main/branch/完整2路径/现行规则和工作流 blob 由真实平台 GET 与本地 Git 绑定。当前复制体完整文件保守标 B=2，语义审查归属此前实际修复与独立验收 actor，不冒称当前物理复制体 A。tests 仅列当前新 HEAD 的不同 actor 实际独立验收且日志、执行记录、官方 MCD gate/baseline/handoff 均已核验的证明。VIDEO 保留真实文件/权限错误并只排除不存在的可选 BGM 根；matrix 仅补 Node 的 tsx loader 与合法包输入摘要。当前云端 gate、ready 转换和普通 main 合入须由独立 gate proof 及随后控制器实际回读；本准备器只读平台。付费模型、全素材审美和完整生产 RDAS 未验证。",
+        "passed": true,
+        "id": "7c96b832d83aedb72c91f21aea1e7abefb393c822da9e18dfca6fdda57606314"
+      },
+      "reviewSnapshot": {
+        "repo": "geniusdapeng-collab/WorkLoom-video-edit",
+        "number": 21,
+        "headSha": "467d7a8ebf92b240406d87491ccc66fa961d07d0",
+        "mainSha": "2aa9d2d73b05f4564d69c9cac2a603d77482c180",
+        "headTime": 1791996144000,
+        "files": [
+          "bundles/ai-video/connectors/post-bridge/post-cli-media.test.ts",
+          "scripts/tools/edit-post.mts"
+        ],
+        "intent": {
+          "taskId": "T-2026-1013-0003",
+          "ready": true,
+          "dependsOn": [],
+          "releases": []
+        },
+        "policy": {
+          "hostingPlatform": "github",
+          "sourceGovernance": {
+            "version": 8,
+            "reviewProvider": "codex",
+            "platformAI": false,
+            "cooldownMs": 600000,
+            "maxAlignmentAttempts": 3,
+            "maxInfrastructureAttempts": 2,
+            "reviewTimeoutMinutes": 20,
+            "reviewBatchSize": 30,
+            "reviewBatchConcurrency": 2,
+            "ciTimeoutMs": 3600000,
+            "branchPrefixes": [
+              "task/",
+              "industry/",
+              "experiment/",
+              "chore/",
+              "docs/",
+              "fix/",
+              "audit/",
+              "rescue/",
+              "sync/base-",
+              "delivery/candidate/"
+            ],
+            "businessHoldPaths": [
+              "platform-ops/secrets/",
+              "secrets/",
+              "trading/live/",
+              "broker/live/"
+            ],
+            "ciFiles": [
+              ".cnb.yml",
+              "scripts/delivery/bootstrap-cnb.yml",
+              "scripts/delivery/cnb.yml",
+              "scripts/delivery/install-cnb.yml"
+            ],
+            "prBranch": "**",
+            "pipelineOrigins": [
+              {
+                "branch": "main",
+                "event": "push",
+                "name": "static-gate",
+                "file": ".cnb.yml",
+                "ancestors": []
+              },
+              {
+                "branch": "main",
+                "event": "push",
+                "name": "db-gate",
+                "file": ".cnb.yml",
+                "ancestors": []
+              },
+              {
+                "branch": "main",
+                "event": "push",
+                "name": "test-gate",
+                "file": ".cnb.yml",
+                "ancestors": []
+              },
+              {
+                "branch": "main",
+                "event": "api_trigger_desktop_release",
+                "name": "desktop-macos",
+                "file": ".cnb.yml",
+                "ancestors": []
+              },
+              {
+                "branch": "main",
+                "event": "api_trigger_desktop_release",
+                "name": "desktop-windows",
+                "file": ".cnb.yml",
+                "ancestors": []
+              },
+              {
+                "branch": "main",
+                "event": "api_trigger_desktop_release",
+                "name": "desktop-publisher",
+                "file": ".cnb.yml",
+                "ancestors": []
+              },
+              {
+                "branch": "**",
+                "event": "pull_request",
+                "name": "static-gate",
+                "file": ".cnb.yml",
+                "ancestors": []
+              },
+              {
+                "branch": "**",
+                "event": "pull_request",
+                "name": "db-gate",
+                "file": ".cnb.yml",
+                "ancestors": []
+              },
+              {
+                "branch": "**",
+                "event": "pull_request",
+                "name": "test-gate",
+                "file": ".cnb.yml",
+                "ancestors": []
+              },
+              {
+                "branch": "$",
+                "event": "crontab: 0 7 * * 1",
+                "name": "oss-watch-weekly",
+                "file": ".cnb.yml",
+                "ancestors": []
+              },
+              {
+                "branch": "main",
+                "event": "pull_request.target",
+                "name": "delivery-source-admission",
+                "file": "scripts/delivery/cnb.yml",
+                "ancestors": [
+                  ".cnb.yml"
+                ]
+              },
+              {
+                "branch": "main",
+                "event": "pull_request.target",
+                "name": "delivery-ai-review",
+                "file": "scripts/delivery/cnb.yml",
+                "ancestors": [
+                  ".cnb.yml"
+                ]
+              },
+              {
+                "branch": "main",
+                "event": "api_trigger_delivery_admit",
+                "name": "delivery-source-admission",
+                "file": "scripts/delivery/cnb.yml",
+                "ancestors": [
+                  ".cnb.yml"
+                ]
+              },
+              {
+                "branch": "main",
+                "event": "pull_request.mergeable",
+                "name": "delivery-reconcile",
+                "file": "scripts/delivery/cnb.yml",
+                "ancestors": [
+                  ".cnb.yml"
+                ]
+              },
+              {
+                "branch": "main",
+                "event": "pull_request.merged",
+                "name": "delivery-reconcile",
+                "file": "scripts/delivery/cnb.yml",
+                "ancestors": [
+                  ".cnb.yml"
+                ]
+              },
+              {
+                "branch": "main",
+                "event": "pull_request.merged",
+                "name": "delivery-releases",
+                "file": "scripts/delivery/cnb.yml",
+                "ancestors": [
+                  ".cnb.yml"
+                ]
+              },
+              {
+                "branch": "main",
+                "event": "api_trigger_delivery_review",
+                "name": "delivery-ai-review",
+                "file": "scripts/delivery/cnb.yml",
+                "ancestors": [
+                  ".cnb.yml"
+                ]
+              },
+              {
+                "branch": "main",
+                "event": "api_trigger_delivery_reconcile",
+                "name": "delivery-reconcile",
+                "file": "scripts/delivery/cnb.yml",
+                "ancestors": [
+                  ".cnb.yml"
+                ]
+              },
+              {
+                "branch": "main",
+                "event": "api_trigger_delivery_releases",
+                "name": "delivery-releases",
+                "file": "scripts/delivery/cnb.yml",
+                "ancestors": [
+                  ".cnb.yml"
+                ]
+              },
+              {
+                "branch": "main",
+                "event": "crontab: */5 * * * *",
+                "name": "delivery-reconcile",
+                "file": "scripts/delivery/cnb.yml",
+                "ancestors": [
+                  ".cnb.yml"
+                ]
+              },
+              {
+                "branch": "main",
+                "event": "crontab: */5 * * * *",
+                "name": "delivery-releases",
+                "file": "scripts/delivery/cnb.yml",
+                "ancestors": [
+                  ".cnb.yml"
+                ]
+              },
+              {
+                "branch": "**",
+                "event": "pull_request",
+                "name": "delivery-bootstrap-checks",
+                "file": "scripts/delivery/bootstrap-cnb.yml",
+                "ancestors": [
+                  ".cnb.yml"
+                ]
+              },
+              {
+                "branch": "**",
+                "event": "pull_request",
+                "name": "delivery-regression",
+                "file": "scripts/delivery/install-cnb.yml",
+                "ancestors": [
+                  ".cnb.yml"
+                ]
+              }
+            ],
+            "requiredPipelines": [
+              {
+                "name": "delivery-bootstrap-checks",
+                "docker": {
+                  "image": "node:24.19.0-bookworm"
+                },
+                "lock": {
+                  "key": "workloom-delivery-bootstrap-$CNB_PULL_REQUEST_IID",
+                  "expires": 600,
+                  "cancel-in-progress": true,
+                  "wait": true,
+                  "timeout": 60
+                },
+                "stages": [
+                  {
+                    "name": "Bootstrap installer only",
+                    "timeout": "60s",
+                    "script": "case \"$CNB_PULL_REQUEST_BRANCH\" in\n  task/T-2026-1005-1001|chore/protocol-onboarding-*) ;;\n  *) exit 78 ;;\nesac\n"
+                  },
+                  {
+                    "name": "Install locked delivery parser",
+                    "timeout": "120s",
+                    "script": "npm ci --prefix scripts/delivery/runtime --ignore-scripts --no-audit --no-fund"
+                  },
+                  {
+                    "name": "Verify exact installation source, ledger and assets",
+                    "timeout": "180s",
+                    "script": "node scripts/delivery/queue-runner.mjs verify-bootstrap"
+                  },
+                  {
+                    "name": "Validate tracked installation verifier",
+                    "timeout": "60s",
+                    "script": "node --check scripts/delivery/install-manifest.mjs"
+                  },
+                  {
+                    "name": "Validate disabled legacy platform entry",
+                    "timeout": "60s",
+                    "script": "node --check scripts/delivery/review-plugin.mjs"
+                  },
+                  {
+                    "name": "Verify session record when applicable",
+                    "timeout": "180s",
+                    "script": "node scripts/delivery/queue-runner.mjs verify-review"
+                  }
+                ]
+              },
+              {
+                "name": "delivery-regression",
+                "docker": {
+                  "image": "node:24.19.0-bookworm"
+                },
+                "stages": [
+                  {
+                    "name": "Install locked delivery parser",
+                    "timeout": "120s",
+                    "script": "npm ci --prefix scripts/delivery/runtime --ignore-scripts --no-audit --no-fund"
+                  },
+                  {
+                    "name": "Durable delivery, permissions, races and actual Git regression",
+                    "timeout": "5m",
+                    "script": "node --test scripts/delivery/queue.test.mjs scripts/ci/protocol-rules.test.mjs"
+                  }
+                ]
+              },
+              {
+                "name": "static-gate",
+                "docker": {
+                  "image": "node:24.19.0-bookworm",
+                  "volumes": [
+                    "/cnb-cache/pnpm-store:copy-on-write"
+                  ]
+                },
+                "env": {
+                  "LLM_PROVIDER": "mock",
+                  "IM_DRIVER": "mock",
+                  "TOOL_UNVERIFIED_RATE": "0"
+                },
+                "stages": [
+                  {
+                    "name": "依赖安装（frozen lockfile）",
+                    "script": "set -eu\ncorepack enable\ncorepack prepare pnpm@10.14.0 --activate\npnpm config set store-dir /cnb-cache/pnpm-store\npnpm install --frozen-lockfile\n"
+                  },
+                  {
+                    "name": "协议门禁（提交规范 + 并发冲突）",
+                    "script": "set -eu\nnode --test scripts/ci/protocol-rules.test.mjs\nnode --test scripts/ci/cnb-desktop-release.test.mjs\n# 硬闸口径（T-2026-0930-0015）：创作/审美口径不得写成 hard: true（硬闸只允许事实类）\nnode --test scripts/ci/hard-gate-policy.test.mjs\nnode scripts/ci/verify-hard-gate-policy.mjs\nnode scripts/ci/verify-commit-msg.mjs --self-test\nnode scripts/ci/verify-lock-conflict.mjs --self-test\nnode scripts/ci/verify-commit-msg.mjs\nnode scripts/ci/verify-lock-conflict.mjs\n"
+                  },
+                  {
+                    "name": "开源组件清单一致性（oss-watch）",
+                    "script": "set -eu\n# 依赖变更（package.json / pnpm-lock.yaml / requirements.txt）必须同步刷新清单；\n# 未刷新即红灯：node scripts/oss-inventory.mjs --write 后一并提交。\nnode --test scripts/oss-inventory.test.mjs\npnpm oss:check\n"
+                  },
+                  {
+                    "name": "产品身份与行业包治理（含内置角色资产与声明一致性）",
+                    "script": "set -eu\npnpm product:verify\n# 内置默认模特「陈卓」随仓分发（bundles/ai-video/library/characters/**）：守住「资产在 + 声明在」——\n# 默认模特可解析、四角度定妆照齐备、声明在首页/文档/能力清单/目录说明同步存在。\n# 背景：新下载项目的开发者与 AI Agent 常以为\"仓库里没有人物资产\"而重复建档（T-2026-0925-0004/0006）。\nnode scripts/verify-builtin-character-assets.mjs\n"
+                  },
+                  {
+                    "name": "三端生产构建",
+                    "script": "set -eu\npnpm -C apps/web build\npnpm -C apps/webb build\npnpm -C apps/webc build\n"
+                  },
+                  {
+                    "name": "交付证据、预算与行业配置回归",
+                    "script": "set -eu\n# The CLI fixture drops ambient NODE_PATH; expose only the pinned test package.\ninstrumentation_dir=$(mktemp -d)\nplaywright_link_created=0\ntrap 'if [ \"$playwright_link_created\" = 1 ]; then rm -f node_modules/playwright; fi; rm -rf \"$instrumentation_dir\"' EXIT HUP INT TERM\nnpm install --prefix \"$instrumentation_dir\" playwright@1.63.0 --ignore-scripts --no-audit --no-fund\nif [ ! -e node_modules/playwright ] && [ ! -L node_modules/playwright ]; then\n  ln -s \"$instrumentation_dir/node_modules/playwright\" node_modules/playwright\n  playwright_link_created=1\nfi\npnpm test:governance\nnode scripts/generate-capabilities.mjs --check\nnode scripts/acceptance/profile-check.mjs --repo .\n"
+                  },
+                  {
+                    "name": "媒体真实解码与完整 CLI 回归（隔离夹具）",
+                    "script": "set -eu\ninstrumentation_dir=$(mktemp -d)\ntrap 'rm -rf \"$instrumentation_dir\"' EXIT HUP INT TERM\nnpm install --prefix \"$instrumentation_dir\" playwright@1.63.0 --ignore-scripts --no-audit --no-fund\nexport PLAYWRIGHT_BROWSERS_PATH=\"$instrumentation_dir/browsers\"\nnode \"$instrumentation_dir/node_modules/playwright/cli.js\" install --with-deps chromium\nexport NODE_PATH=\"$instrumentation_dir/node_modules${NODE_PATH:+:$NODE_PATH}\"\npnpm test:media\n"
+                  }
+                ]
+              },
+              {
+                "name": "db-gate",
+                "docker": {
+                  "image": "pgvector/pgvector:pg17",
+                  "volumes": [
+                    "/cnb-cache/pnpm-store:copy-on-write",
+                    "/cnb-cache/node:copy-on-write"
+                  ]
+                },
+                "env": {
+                  "LLM_PROVIDER": "mock",
+                  "IM_DRIVER": "mock",
+                  "RUN_DB_TESTS": "1",
+                  "TOOL_UNVERIFIED_RATE": "0"
+                },
+                "stages": [
+                  {
+                    "name": "准备 Node 24 与 pnpm",
+                    "script": "set -eu\nNODE_VERSION=v24.19.0\napt-get update -qq\napt-get install -y -qq curl xz-utils ca-certificates git >/dev/null\nif [ ! -x /cnb-cache/node/bin/node ]; then\n  mkdir -p /cnb-cache/node\n  curl -fsSL \"https://nodejs.org/dist/${NODE_VERSION}/node-${NODE_VERSION}-linux-x64.tar.xz\" -o /tmp/node.tar.xz\n  tar -xJf /tmp/node.tar.xz -C /cnb-cache/node --strip-components=1\nfi\nfor bin in /cnb-cache/node/bin/*; do ln -sf \"$bin\" /usr/local/bin/; done\ncorepack enable --install-directory /usr/local/bin\ncorepack prepare pnpm@10.14.0 --activate\npnpm config set store-dir /cnb-cache/pnpm-store\npnpm install --frozen-lockfile\n"
+                  },
+                  {
+                    "name": "启动 PostgreSQL 17 + pgvector",
+                    "script": "set -eu\nexport PGDATA=/var/lib/postgresql/data\nif [ ! -s \"${PGDATA}/PG_VERSION\" ]; then\n  mkdir -p \"${PGDATA}\"; chown -R postgres:postgres \"${PGDATA}\"\n  su postgres -c \"initdb -D ${PGDATA} -U postgres --auth=trust --encoding=UTF8\"\nfi\nsu postgres -c \"pg_ctl -D ${PGDATA} -l /tmp/postgres.log -o '-c listen_addresses=localhost -c port=5432' start\"\nfor i in $(seq 1 60); do\n  if pg_isready -h localhost -p 5432 -U postgres >/dev/null 2>&1; then break; fi\n  sleep 1\ndone\npg_isready -h localhost -p 5432 -U postgres\nif ! psql -h localhost -p 5432 -U postgres -tAc \"SELECT 1 FROM pg_database WHERE datname='workloom'\" | grep -q 1; then\n  psql -h localhost -p 5432 -U postgres -c \"CREATE DATABASE workloom OWNER postgres;\" >/dev/null\nfi\npsql -h localhost -p 5432 -U postgres -d workloom -c \"CREATE EXTENSION IF NOT EXISTS vector;\" >/dev/null\n"
+                  },
+                  {
+                    "name": "迁移 + 种子（幂等复跑）+ 哈希链",
+                    "script": "set -eu\ncp .env.example .env\nset -a\nwhile IFS= read -r line; do\n  case \"$line\" in ''|\\#*) continue ;; esac\n  export \"$line\"\ndone < .env\nset +a\npnpm db:migrate\npnpm db:seed\npnpm db:seed\npnpm db:verify-chain\n"
+                  }
+                ]
+              },
+              {
+                "name": "test-gate",
+                "docker": {
+                  "image": "pgvector/pgvector:pg17",
+                  "volumes": [
+                    "/cnb-cache/pnpm-store:copy-on-write",
+                    "/cnb-cache/node:copy-on-write"
+                  ]
+                },
+                "env": {
+                  "LLM_PROVIDER": "mock",
+                  "IM_DRIVER": "mock",
+                  "RUN_DB_TESTS": "1",
+                  "TOOL_UNVERIFIED_RATE": "0",
+                  "SERVICE_C_TEST_WORKSPACE_ID": "ws-yunqi"
+                },
+                "stages": [
+                  {
+                    "name": "准备 Node 24 与 pnpm",
+                    "script": "set -eu\nNODE_VERSION=v24.19.0\napt-get update -qq\napt-get install -y -qq curl xz-utils ca-certificates git ffmpeg python3 >/dev/null\nffmpeg -version\nffprobe -version\npython3 --version\nif [ ! -x /cnb-cache/node/bin/node ]; then\n  mkdir -p /cnb-cache/node\n  curl -fsSL \"https://nodejs.org/dist/${NODE_VERSION}/node-${NODE_VERSION}-linux-x64.tar.xz\" -o /tmp/node.tar.xz\n  tar -xJf /tmp/node.tar.xz -C /cnb-cache/node --strip-components=1\nfi\nfor bin in /cnb-cache/node/bin/*; do ln -sf \"$bin\" /usr/local/bin/; done\ncorepack enable --install-directory /usr/local/bin\ncorepack prepare pnpm@10.14.0 --activate\npnpm config set store-dir /cnb-cache/pnpm-store\npnpm install --frozen-lockfile\nexport PGDATA=/var/lib/postgresql/data\nif [ ! -s \"${PGDATA}/PG_VERSION\" ]; then\n  mkdir -p \"${PGDATA}\"; chown -R postgres:postgres \"${PGDATA}\"\n  su postgres -c \"initdb -D ${PGDATA} -U postgres --auth=trust --encoding=UTF8\"\nfi\nsu postgres -c \"pg_ctl -D ${PGDATA} -l /tmp/postgres.log -o '-c listen_addresses=localhost -c port=5432' start\"\nfor i in $(seq 1 60); do\n  if pg_isready -h localhost -p 5432 -U postgres >/dev/null 2>&1; then break; fi\n  sleep 1\ndone\nif ! psql -h localhost -p 5432 -U postgres -tAc \"SELECT 1 FROM pg_database WHERE datname='workloom'\" | grep -q 1; then\n  psql -h localhost -p 5432 -U postgres -c \"CREATE DATABASE workloom OWNER postgres;\" >/dev/null\nfi\npsql -h localhost -p 5432 -U postgres -d workloom -c \"CREATE EXTENSION IF NOT EXISTS vector;\" >/dev/null\ncp .env.example .env\nset -a\nwhile IFS= read -r line; do\n  case \"$line\" in ''|\\#*) continue ;; esac\n  export \"$line\"\ndone < .env\nset +a\npnpm db:migrate\npnpm db:seed\n"
+                  },
+                  {
+                    "name": "typecheck 全包（非阻断）",
+                    "script": "set -eu\npnpm -r --if-present typecheck\n"
+                  },
+                  {
+                    "name": "主测试套件（非阻断）",
+                    "script": "set -eu\nset -a\nwhile IFS= read -r line; do\n  case \"$line\" in ''|\\#*) continue ;; esac\n  export \"$line\"\ndone < .env\nset +a\npnpm test\n# 仓库根 scripts/ 下的 vitest 用例（行业包治理门禁、套件夹具契约）不在\n# pnpm -r 的包范围内，历史上从未被任何流水线执行过；这里显式跑一遍。\npnpm test:scripts\n"
+                  },
+                  {
+                    "name": "全场景套件（非阻断）",
+                    "script": "set -eu\nset -a\nwhile IFS= read -r line; do\n  case \"$line\" in ''|\\#*) continue ;; esac\n  export \"$line\"\ndone < .env\nset +a\npnpm suite\n"
+                  },
+                  {
+                    "name": "P0 门禁：开户即托管验收 + 围栏别名扫描（S9）",
+                    "script": "set -eu\nset -a\nwhile IFS= read -r line; do\n  case \"$line\" in ''|\\#*) continue ;; esac\n  export \"$line\"\ndone < .env\nset +a\npnpm acceptance:onboarding\npnpm scan:fences\npnpm scan:knowhow\n"
+                  }
+                ]
+              }
+            ],
+            "requiredControlPipelines": [
+              {
+                "branch": "main",
+                "event": "pull_request.target",
+                "pipelines": [
+                  {
+                    "name": "delivery-source-admission",
+                    "docker": {
+                      "image": "node:24.19.0-bookworm"
+                    },
+                    "lock": {
+                      "key": "workloom-delivery-admission",
+                      "expires": 600,
+                      "wait": true,
+                      "timeout": 60
+                    },
+                    "env": {
+                      "DELIVERY_NATIVE_LOCK": "workloom-delivery-admission"
+                    },
+                    "stages": [
+                      {
+                        "name": "Install locked delivery parser",
+                        "timeout": "120s",
+                        "script": "npm ci --prefix scripts/delivery/runtime --ignore-scripts --no-audit --no-fund"
+                      },
+                      {
+                        "name": "Record exact source admission and release its fenced generation before CI",
+                        "timeout": "180s",
+                        "script": "node scripts/delivery/queue-runner.mjs admit"
+                      }
+                    ]
+                  },
+                  {
+                    "name": "delivery-ai-review",
+                    "env": {
+                      "CNB_API_ENDPOINT": "https://api.cnb.cool"
+                    },
+                    "docker": {
+                      "image": "node:24.19.0-bookworm"
+                    },
+                    "lock": {
+                      "key": "workloom-delivery-review",
+                      "expires": 7200,
+                      "wait": true,
+                      "timeout": 60
+                    },
+                    "stages": [
+                      {
+                        "name": "Install locked delivery parser",
+                        "timeout": "120s",
+                        "script": "npm ci --prefix scripts/delivery/runtime --ignore-scripts --no-audit --no-fund"
+                      },
+                      {
+                        "name": "Snapshot exact source and main for independent AI",
+                        "timeout": "180s",
+                        "script": "node scripts/delivery/queue-runner.mjs verify-review"
+                      },
+                      {
+                        "name": "Independent CodeBuddy review",
+                        "timeout": "60s",
+                        "script": "node --check scripts/delivery/model-gateway.mjs && node --check scripts/delivery/review-plugin.mjs"
+                      },
+                      {
+                        "name": "Validate complete AI result and real platform review",
+                        "timeout": "180s",
+                        "script": "node scripts/delivery/queue-runner.mjs verify-review"
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "branch": "main",
+                "event": "api_trigger_delivery_admit",
+                "pipelines": [
+                  {
+                    "name": "delivery-source-admission",
+                    "docker": {
+                      "image": "node:24.19.0-bookworm"
+                    },
+                    "lock": {
+                      "key": "workloom-delivery-admission",
+                      "expires": 600,
+                      "wait": true,
+                      "timeout": 60
+                    },
+                    "env": {
+                      "DELIVERY_NATIVE_LOCK": "workloom-delivery-admission"
+                    },
+                    "stages": [
+                      {
+                        "name": "Install locked delivery parser",
+                        "timeout": "120s",
+                        "script": "npm ci --prefix scripts/delivery/runtime --ignore-scripts --no-audit --no-fund"
+                      },
+                      {
+                        "name": "Record exact source admission and release its fenced generation before CI",
+                        "timeout": "180s",
+                        "script": "node scripts/delivery/queue-runner.mjs admit"
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "branch": "main",
+                "event": "pull_request.mergeable",
+                "pipelines": [
+                  {
+                    "name": "delivery-reconcile",
+                    "docker": {
+                      "image": "node:24.19.0-bookworm"
+                    },
+                    "lock": {
+                      "key": "workloom-delivery-merge",
+                      "expires": 7200,
+                      "wait": true,
+                      "timeout": 60
+                    },
+                    "env": {
+                      "DELIVERY_NATIVE_LOCK": "workloom-delivery-merge"
+                    },
+                    "stages": [
+                      {
+                        "name": "Install locked delivery parser",
+                        "timeout": "120s",
+                        "script": "npm ci --prefix scripts/delivery/runtime --ignore-scripts --no-audit --no-fund"
+                      },
+                      {
+                        "name": "Recover, align, review and integrate independently of fanout",
+                        "timeout": "12m",
+                        "script": "node scripts/delivery/queue-runner.mjs reconcile"
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "branch": "main",
+                "event": "pull_request.merged",
+                "pipelines": [
+                  {
+                    "name": "delivery-reconcile",
+                    "docker": {
+                      "image": "node:24.19.0-bookworm"
+                    },
+                    "lock": {
+                      "key": "workloom-delivery-merge",
+                      "expires": 7200,
+                      "wait": true,
+                      "timeout": 60
+                    },
+                    "env": {
+                      "DELIVERY_NATIVE_LOCK": "workloom-delivery-merge"
+                    },
+                    "stages": [
+                      {
+                        "name": "Install locked delivery parser",
+                        "timeout": "120s",
+                        "script": "npm ci --prefix scripts/delivery/runtime --ignore-scripts --no-audit --no-fund"
+                      },
+                      {
+                        "name": "Recover, align, review and integrate independently of fanout",
+                        "timeout": "12m",
+                        "script": "node scripts/delivery/queue-runner.mjs reconcile"
+                      }
+                    ]
+                  },
+                  {
+                    "name": "delivery-releases",
+                    "docker": {
+                      "image": "node:24.19.0-bookworm"
+                    },
+                    "lock": {
+                      "key": "workloom-delivery-release",
+                      "expires": 7200,
+                      "wait": true,
+                      "timeout": 60
+                    },
+                    "env": {
+                      "DELIVERY_NATIVE_LOCK": "workloom-delivery-release"
+                    },
+                    "stages": [
+                      {
+                        "name": "Install locked delivery parser",
+                        "timeout": "120s",
+                        "script": "npm ci --prefix scripts/delivery/runtime --ignore-scripts --no-audit --no-fund"
+                      },
+                      {
+                        "name": "Recover frozen publications and verify actual source and bytes",
+                        "timeout": "15m",
+                        "script": "node scripts/delivery/queue-runner.mjs releases"
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "branch": "main",
+                "event": "api_trigger_delivery_review",
+                "pipelines": [
+                  {
+                    "name": "delivery-ai-review",
+                    "env": {
+                      "CNB_API_ENDPOINT": "https://api.cnb.cool"
+                    },
+                    "docker": {
+                      "image": "node:24.19.0-bookworm"
+                    },
+                    "lock": {
+                      "key": "workloom-delivery-review",
+                      "expires": 7200,
+                      "wait": true,
+                      "timeout": 60
+                    },
+                    "stages": [
+                      {
+                        "name": "Install locked delivery parser",
+                        "timeout": "120s",
+                        "script": "npm ci --prefix scripts/delivery/runtime --ignore-scripts --no-audit --no-fund"
+                      },
+                      {
+                        "name": "Snapshot exact source and main for independent AI",
+                        "timeout": "180s",
+                        "script": "node scripts/delivery/queue-runner.mjs verify-review"
+                      },
+                      {
+                        "name": "Independent CodeBuddy review",
+                        "timeout": "60s",
+                        "script": "node --check scripts/delivery/model-gateway.mjs && node --check scripts/delivery/review-plugin.mjs"
+                      },
+                      {
+                        "name": "Validate complete AI result and real platform review",
+                        "timeout": "180s",
+                        "script": "node scripts/delivery/queue-runner.mjs verify-review"
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "branch": "main",
+                "event": "api_trigger_delivery_reconcile",
+                "pipelines": [
+                  {
+                    "name": "delivery-reconcile",
+                    "docker": {
+                      "image": "node:24.19.0-bookworm"
+                    },
+                    "lock": {
+                      "key": "workloom-delivery-merge",
+                      "expires": 7200,
+                      "wait": true,
+                      "timeout": 60
+                    },
+                    "env": {
+                      "DELIVERY_NATIVE_LOCK": "workloom-delivery-merge"
+                    },
+                    "stages": [
+                      {
+                        "name": "Install locked delivery parser",
+                        "timeout": "120s",
+                        "script": "npm ci --prefix scripts/delivery/runtime --ignore-scripts --no-audit --no-fund"
+                      },
+                      {
+                        "name": "Recover, align, review and integrate independently of fanout",
+                        "timeout": "12m",
+                        "script": "node scripts/delivery/queue-runner.mjs reconcile"
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "branch": "main",
+                "event": "api_trigger_delivery_releases",
+                "pipelines": [
+                  {
+                    "name": "delivery-releases",
+                    "docker": {
+                      "image": "node:24.19.0-bookworm"
+                    },
+                    "lock": {
+                      "key": "workloom-delivery-release",
+                      "expires": 7200,
+                      "wait": true,
+                      "timeout": 60
+                    },
+                    "env": {
+                      "DELIVERY_NATIVE_LOCK": "workloom-delivery-release"
+                    },
+                    "stages": [
+                      {
+                        "name": "Install locked delivery parser",
+                        "timeout": "120s",
+                        "script": "npm ci --prefix scripts/delivery/runtime --ignore-scripts --no-audit --no-fund"
+                      },
+                      {
+                        "name": "Recover frozen publications and verify actual source and bytes",
+                        "timeout": "15m",
+                        "script": "node scripts/delivery/queue-runner.mjs releases"
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "branch": "main",
+                "event": "crontab: */5 * * * *",
+                "pipelines": [
+                  {
+                    "name": "delivery-reconcile",
+                    "docker": {
+                      "image": "node:24.19.0-bookworm"
+                    },
+                    "lock": {
+                      "key": "workloom-delivery-merge",
+                      "expires": 7200,
+                      "wait": true,
+                      "timeout": 60
+                    },
+                    "env": {
+                      "DELIVERY_NATIVE_LOCK": "workloom-delivery-merge"
+                    },
+                    "stages": [
+                      {
+                        "name": "Install locked delivery parser",
+                        "timeout": "120s",
+                        "script": "npm ci --prefix scripts/delivery/runtime --ignore-scripts --no-audit --no-fund"
+                      },
+                      {
+                        "name": "Recover, align, review and integrate independently of fanout",
+                        "timeout": "12m",
+                        "script": "node scripts/delivery/queue-runner.mjs reconcile"
+                      }
+                    ]
+                  },
+                  {
+                    "name": "delivery-releases",
+                    "docker": {
+                      "image": "node:24.19.0-bookworm"
+                    },
+                    "lock": {
+                      "key": "workloom-delivery-release",
+                      "expires": 7200,
+                      "wait": true,
+                      "timeout": 60
+                    },
+                    "env": {
+                      "DELIVERY_NATIVE_LOCK": "workloom-delivery-release"
+                    },
+                    "stages": [
+                      {
+                        "name": "Install locked delivery parser",
+                        "timeout": "120s",
+                        "script": "npm ci --prefix scripts/delivery/runtime --ignore-scripts --no-audit --no-fund"
+                      },
+                      {
+                        "name": "Recover frozen publications and verify actual source and bytes",
+                        "timeout": "15m",
+                        "script": "node scripts/delivery/queue-runner.mjs releases"
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "branch": "**",
+                "event": "pull_request",
+                "pipelines": [
+                  {
+                    "name": "delivery-regression",
+                    "docker": {
+                      "image": "node:24.19.0-bookworm"
+                    },
+                    "stages": [
+                      {
+                        "name": "Install locked delivery parser",
+                        "timeout": "120s",
+                        "script": "npm ci --prefix scripts/delivery/runtime --ignore-scripts --no-audit --no-fund"
+                      },
+                      {
+                        "name": "Durable delivery, permissions, races and actual Git regression",
+                        "timeout": "5m",
+                        "script": "node --test scripts/delivery/queue.test.mjs scripts/ci/protocol-rules.test.mjs"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ],
+            "hash": "b264f5d3049aae86aa9ec66f740629dd4761f8d87757df41afaa47e3f9e1f7c0",
+            "requiredNames": [
+              "delivery-bootstrap-checks",
+              "delivery-regression",
+              "static-gate",
+              "db-gate",
+              "test-gate"
+            ]
+          },
+          "requiredNames": [
+            "gate"
+          ],
+          "effectiveMainRules": [],
+          "protected": false,
+          "workflowBlobs": {
+            ".github/workflows/base-sync-heartbeat.yml": {
+              "main": "5ef6507fed70b521bf532086a6e0590d0586cdc5",
+              "source": "5ef6507fed70b521bf532086a6e0590d0586cdc5"
+            },
+            ".github/workflows/build-desktop.yml": {
+              "main": "25a6dc6641ef38051d33fcd66c2318b37ab6837b",
+              "source": "25a6dc6641ef38051d33fcd66c2318b37ab6837b"
+            },
+            ".github/workflows/ci.yml": {
+              "main": "53b0dfb69444079d5c0086fc0aa75c0257c86f50",
+              "source": "53b0dfb69444079d5c0086fc0aa75c0257c86f50"
+            },
+            ".github/workflows/pack-self-contained.yml": {
+              "main": "b7afb31b3c2e02dfd9cbc8b94c3dbfffea490d13",
+              "source": "b7afb31b3c2e02dfd9cbc8b94c3dbfffea490d13"
+            },
+            ".github/workflows/release.yml": {
+              "main": "d83a43badd1549662405e76d876f04542e85f0a3",
+              "source": "d83a43badd1549662405e76d876f04542e85f0a3"
+            },
+            ".github/workflows/workloom-ui-contract.yml": {
+              "main": "2dcc8be37277187e272004eebd57ab077effde5b",
+              "source": "2dcc8be37277187e272004eebd57ab077effde5b"
+            }
+          },
+          "platformAI": false,
+          "forceMerge": false,
+          "directMainPush": false,
+          "hash": "1969e05a3de0a00bdc7ee8ddbe88592cc11dd68277eaac0c8bccf10b9b567198"
+        },
+        "pull": {
+          "url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/pulls/21",
+          "id": 4861867616,
+          "node_id": "PR_kwDOVD9wm88AAAABIco2YA",
+          "html_url": "https://github.com/geniusdapeng-collab/WorkLoom-video-edit/pull/21",
+          "diff_url": "https://github.com/geniusdapeng-collab/WorkLoom-video-edit/pull/21.diff",
+          "patch_url": "https://github.com/geniusdapeng-collab/WorkLoom-video-edit/pull/21.patch",
+          "issue_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/issues/21",
+          "number": 21,
+          "state": "open",
+          "locked": false,
+          "title": "fix(video): 处理可选 BGM 曲库根 [T-2026-1013-0003]",
+          "user": {
+            "login": "geniusdapeng-collab",
+            "id": 291670474,
+            "node_id": "U_kgDOEWKJyg",
+            "avatar_url": "https://avatars.githubusercontent.com/u/291670474?v=4",
+            "gravatar_id": "",
+            "url": "https://api.github.com/users/geniusdapeng-collab",
+            "html_url": "https://github.com/geniusdapeng-collab",
+            "followers_url": "https://api.github.com/users/geniusdapeng-collab/followers",
+            "following_url": "https://api.github.com/users/geniusdapeng-collab/following{/other_user}",
+            "gists_url": "https://api.github.com/users/geniusdapeng-collab/gists{/gist_id}",
+            "starred_url": "https://api.github.com/users/geniusdapeng-collab/starred{/owner}{/repo}",
+            "subscriptions_url": "https://api.github.com/users/geniusdapeng-collab/subscriptions",
+            "organizations_url": "https://api.github.com/users/geniusdapeng-collab/orgs",
+            "repos_url": "https://api.github.com/users/geniusdapeng-collab/repos",
+            "events_url": "https://api.github.com/users/geniusdapeng-collab/events{/privacy}",
+            "received_events_url": "https://api.github.com/users/geniusdapeng-collab/received_events",
+            "type": "User",
+            "user_view_type": "public",
+            "site_admin": false
+          },
+          "body": "后期 CLI 在新安装或服务端遇到不存在的可选 BGM 目录时会提前因 ENOENT 中断。现在仅排除不存在的可选目录，保留已有曲库；文件根和真实权限错误继续失败，刚创建的员工曲库加入处理器路径根。完整 12 项真实媒体 CLI 与负例覆盖缺失、已有、文件和 EACCES 场景。\n\n当前 source `467d7a8ebf92b240406d87491ccc66fa961d07d0`；main `2aa9d2d73b05f4564d69c9cac2a603d77482c180`；父提交/审计 `2aa9d2d73b05f4564d69c9cac2a603d77482c180`；源码树 `7404c925d9a8eb522414f94e364b1d51e04469fc`。本发布已核对绑定当前新 HEAD 的修复角色实际正向证明。独立验收、正式 MCD finalization 与开发者复核仍需分别完成，发布源码分支不能替代这些门禁。\n\n云端当前 source CI、开发者复核、候选 CI 与串行 main 集成仍 pending，ready=false；本说明没有宣称当前云端 CI 或 main 已通过。付费模型调用、全素材审美及完整生产 RDAS 未在本阶段验证。\n\n<!-- workloom-delivery\n{\"task_id\":\"T-2026-1013-0003\",\"ready\":false,\"depends_on\":[],\"releases\":[]}\n-->\n",
+          "created_at": "2026-10-14T17:33:22Z",
+          "updated_at": "2026-10-14T17:33:22Z",
+          "closed_at": null,
+          "merged_at": null,
+          "assignees": [],
+          "requested_reviewers": [],
+          "requested_teams": [],
+          "labels": [],
+          "milestone": null,
+          "draft": true,
+          "commits_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/pulls/21/commits",
+          "review_comments_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/pulls/21/comments",
+          "review_comment_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/pulls/comments{/number}",
+          "comments_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/issues/21/comments",
+          "statuses_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/statuses/467d7a8ebf92b240406d87491ccc66fa961d07d0",
+          "head": {
+            "label": "geniusdapeng-collab:task/T-2026-1013-0003-media-ci-7-github",
+            "ref": "task/T-2026-1013-0003-media-ci-7-github",
+            "sha": "467d7a8ebf92b240406d87491ccc66fa961d07d0",
+            "user": {
+              "login": "geniusdapeng-collab",
+              "id": 291670474,
+              "node_id": "U_kgDOEWKJyg",
+              "avatar_url": "https://avatars.githubusercontent.com/u/291670474?v=4",
+              "gravatar_id": "",
+              "url": "https://api.github.com/users/geniusdapeng-collab",
+              "html_url": "https://github.com/geniusdapeng-collab",
+              "followers_url": "https://api.github.com/users/geniusdapeng-collab/followers",
+              "following_url": "https://api.github.com/users/geniusdapeng-collab/following{/other_user}",
+              "gists_url": "https://api.github.com/users/geniusdapeng-collab/gists{/gist_id}",
+              "starred_url": "https://api.github.com/users/geniusdapeng-collab/starred{/owner}{/repo}",
+              "subscriptions_url": "https://api.github.com/users/geniusdapeng-collab/subscriptions",
+              "organizations_url": "https://api.github.com/users/geniusdapeng-collab/orgs",
+              "repos_url": "https://api.github.com/users/geniusdapeng-collab/repos",
+              "events_url": "https://api.github.com/users/geniusdapeng-collab/events{/privacy}",
+              "received_events_url": "https://api.github.com/users/geniusdapeng-collab/received_events",
+              "type": "User",
+              "user_view_type": "public",
+              "site_admin": false
+            },
+            "repo": {
+              "id": 1413443739,
+              "node_id": "R_kgDOVD9wmw",
+              "name": "WorkLoom-video-edit",
+              "full_name": "geniusdapeng-collab/WorkLoom-video-edit",
+              "private": false,
+              "owner": {
+                "login": "geniusdapeng-collab",
+                "id": 291670474,
+                "node_id": "U_kgDOEWKJyg",
+                "avatar_url": "https://avatars.githubusercontent.com/u/291670474?v=4",
+                "gravatar_id": "",
+                "url": "https://api.github.com/users/geniusdapeng-collab",
+                "html_url": "https://github.com/geniusdapeng-collab",
+                "followers_url": "https://api.github.com/users/geniusdapeng-collab/followers",
+                "following_url": "https://api.github.com/users/geniusdapeng-collab/following{/other_user}",
+                "gists_url": "https://api.github.com/users/geniusdapeng-collab/gists{/gist_id}",
+                "starred_url": "https://api.github.com/users/geniusdapeng-collab/starred{/owner}{/repo}",
+                "subscriptions_url": "https://api.github.com/users/geniusdapeng-collab/subscriptions",
+                "organizations_url": "https://api.github.com/users/geniusdapeng-collab/orgs",
+                "repos_url": "https://api.github.com/users/geniusdapeng-collab/repos",
+                "events_url": "https://api.github.com/users/geniusdapeng-collab/events{/privacy}",
+                "received_events_url": "https://api.github.com/users/geniusdapeng-collab/received_events",
+                "type": "User",
+                "user_view_type": "public",
+                "site_admin": false
+              },
+              "html_url": "https://github.com/geniusdapeng-collab/WorkLoom-video-edit",
+              "description": "WorkLoom AI 剪辑管线：真实素材 → 剪辑时间轴 → 分段调色/字幕/配乐/封面/弹幕 → 多风格变体交付（镜像自 CNB workloom-ai/WorkLoom-video-edit）",
+              "fork": false,
+              "url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit",
+              "forks_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/forks",
+              "keys_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/keys{/key_id}",
+              "collaborators_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/collaborators{/collaborator}",
+              "teams_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/teams",
+              "hooks_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/hooks",
+              "issue_events_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/issues/events{/number}",
+              "events_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/events",
+              "assignees_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/assignees{/user}",
+              "branches_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/branches{/branch}",
+              "tags_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/tags",
+              "blobs_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/git/blobs{/sha}",
+              "git_tags_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/git/tags{/sha}",
+              "git_refs_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/git/refs{/sha}",
+              "trees_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/git/trees{/sha}",
+              "statuses_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/statuses/{sha}",
+              "languages_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/languages",
+              "stargazers_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/stargazers",
+              "contributors_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/contributors",
+              "subscribers_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/subscribers",
+              "subscription_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/subscription",
+              "commits_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/commits{/sha}",
+              "git_commits_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/git/commits{/sha}",
+              "comments_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/comments{/number}",
+              "issue_comment_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/issues/comments{/number}",
+              "contents_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/contents/{+path}",
+              "compare_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/compare/{base}...{head}",
+              "merges_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/merges",
+              "archive_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/{archive_format}{/ref}",
+              "downloads_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/downloads",
+              "issues_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/issues{/number}",
+              "pulls_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/pulls{/number}",
+              "milestones_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/milestones{/number}",
+              "notifications_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/notifications{?since,all,participating}",
+              "labels_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/labels{/name}",
+              "releases_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/releases{/id}",
+              "deployments_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/deployments",
+              "created_at": "2026-10-10T16:55:59Z",
+              "updated_at": "2026-10-14T16:27:22Z",
+              "pushed_at": "2026-10-14T17:33:18Z",
+              "git_url": "git://github.com/geniusdapeng-collab/WorkLoom-video-edit.git",
+              "ssh_url": "git@github.com:geniusdapeng-collab/WorkLoom-video-edit.git",
+              "clone_url": "https://github.com/geniusdapeng-collab/WorkLoom-video-edit.git",
+              "svn_url": "https://github.com/geniusdapeng-collab/WorkLoom-video-edit",
+              "homepage": null,
+              "size": 219487,
+              "stargazers_count": 0,
+              "watchers_count": 0,
+              "language": "TypeScript",
+              "has_issues": true,
+              "has_projects": false,
+              "has_wiki": false,
+              "has_pages": false,
+              "has_discussions": false,
+              "forks_count": 0,
+              "mirror_url": null,
+              "archived": false,
+              "disabled": false,
+              "open_issues_count": 2,
+              "license": {
+                "key": "apache-2.0",
+                "name": "Apache License 2.0",
+                "spdx_id": "Apache-2.0",
+                "url": "https://api.github.com/licenses/apache-2.0",
+                "node_id": "MDc6TGljZW5zZTI="
+              },
+              "allow_forking": true,
+              "is_template": false,
+              "web_commit_signoff_required": false,
+              "has_pull_requests": true,
+              "pull_request_creation_policy": "all",
+              "topics": [
+                "ai-video",
+                "ffmpeg",
+                "pipeline",
+                "short-video",
+                "subtitle",
+                "video-editing",
+                "workloom"
+              ],
+              "visibility": "public",
+              "forks": 0,
+              "open_issues": 2,
+              "watchers": 0,
+              "default_branch": "main"
+            }
+          },
+          "base": {
+            "label": "geniusdapeng-collab:main",
+            "ref": "main",
+            "sha": "2aa9d2d73b05f4564d69c9cac2a603d77482c180",
+            "user": {
+              "login": "geniusdapeng-collab",
+              "id": 291670474,
+              "node_id": "U_kgDOEWKJyg",
+              "avatar_url": "https://avatars.githubusercontent.com/u/291670474?v=4",
+              "gravatar_id": "",
+              "url": "https://api.github.com/users/geniusdapeng-collab",
+              "html_url": "https://github.com/geniusdapeng-collab",
+              "followers_url": "https://api.github.com/users/geniusdapeng-collab/followers",
+              "following_url": "https://api.github.com/users/geniusdapeng-collab/following{/other_user}",
+              "gists_url": "https://api.github.com/users/geniusdapeng-collab/gists{/gist_id}",
+              "starred_url": "https://api.github.com/users/geniusdapeng-collab/starred{/owner}{/repo}",
+              "subscriptions_url": "https://api.github.com/users/geniusdapeng-collab/subscriptions",
+              "organizations_url": "https://api.github.com/users/geniusdapeng-collab/orgs",
+              "repos_url": "https://api.github.com/users/geniusdapeng-collab/repos",
+              "events_url": "https://api.github.com/users/geniusdapeng-collab/events{/privacy}",
+              "received_events_url": "https://api.github.com/users/geniusdapeng-collab/received_events",
+              "type": "User",
+              "user_view_type": "public",
+              "site_admin": false
+            },
+            "repo": {
+              "id": 1413443739,
+              "node_id": "R_kgDOVD9wmw",
+              "name": "WorkLoom-video-edit",
+              "full_name": "geniusdapeng-collab/WorkLoom-video-edit",
+              "private": false,
+              "owner": {
+                "login": "geniusdapeng-collab",
+                "id": 291670474,
+                "node_id": "U_kgDOEWKJyg",
+                "avatar_url": "https://avatars.githubusercontent.com/u/291670474?v=4",
+                "gravatar_id": "",
+                "url": "https://api.github.com/users/geniusdapeng-collab",
+                "html_url": "https://github.com/geniusdapeng-collab",
+                "followers_url": "https://api.github.com/users/geniusdapeng-collab/followers",
+                "following_url": "https://api.github.com/users/geniusdapeng-collab/following{/other_user}",
+                "gists_url": "https://api.github.com/users/geniusdapeng-collab/gists{/gist_id}",
+                "starred_url": "https://api.github.com/users/geniusdapeng-collab/starred{/owner}{/repo}",
+                "subscriptions_url": "https://api.github.com/users/geniusdapeng-collab/subscriptions",
+                "organizations_url": "https://api.github.com/users/geniusdapeng-collab/orgs",
+                "repos_url": "https://api.github.com/users/geniusdapeng-collab/repos",
+                "events_url": "https://api.github.com/users/geniusdapeng-collab/events{/privacy}",
+                "received_events_url": "https://api.github.com/users/geniusdapeng-collab/received_events",
+                "type": "User",
+                "user_view_type": "public",
+                "site_admin": false
+              },
+              "html_url": "https://github.com/geniusdapeng-collab/WorkLoom-video-edit",
+              "description": "WorkLoom AI 剪辑管线：真实素材 → 剪辑时间轴 → 分段调色/字幕/配乐/封面/弹幕 → 多风格变体交付（镜像自 CNB workloom-ai/WorkLoom-video-edit）",
+              "fork": false,
+              "url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit",
+              "forks_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/forks",
+              "keys_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/keys{/key_id}",
+              "collaborators_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/collaborators{/collaborator}",
+              "teams_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/teams",
+              "hooks_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/hooks",
+              "issue_events_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/issues/events{/number}",
+              "events_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/events",
+              "assignees_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/assignees{/user}",
+              "branches_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/branches{/branch}",
+              "tags_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/tags",
+              "blobs_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/git/blobs{/sha}",
+              "git_tags_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/git/tags{/sha}",
+              "git_refs_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/git/refs{/sha}",
+              "trees_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/git/trees{/sha}",
+              "statuses_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/statuses/{sha}",
+              "languages_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/languages",
+              "stargazers_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/stargazers",
+              "contributors_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/contributors",
+              "subscribers_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/subscribers",
+              "subscription_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/subscription",
+              "commits_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/commits{/sha}",
+              "git_commits_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/git/commits{/sha}",
+              "comments_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/comments{/number}",
+              "issue_comment_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/issues/comments{/number}",
+              "contents_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/contents/{+path}",
+              "compare_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/compare/{base}...{head}",
+              "merges_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/merges",
+              "archive_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/{archive_format}{/ref}",
+              "downloads_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/downloads",
+              "issues_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/issues{/number}",
+              "pulls_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/pulls{/number}",
+              "milestones_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/milestones{/number}",
+              "notifications_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/notifications{?since,all,participating}",
+              "labels_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/labels{/name}",
+              "releases_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/releases{/id}",
+              "deployments_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/deployments",
+              "created_at": "2026-10-10T16:55:59Z",
+              "updated_at": "2026-10-14T16:27:22Z",
+              "pushed_at": "2026-10-14T17:33:18Z",
+              "git_url": "git://github.com/geniusdapeng-collab/WorkLoom-video-edit.git",
+              "ssh_url": "git@github.com:geniusdapeng-collab/WorkLoom-video-edit.git",
+              "clone_url": "https://github.com/geniusdapeng-collab/WorkLoom-video-edit.git",
+              "svn_url": "https://github.com/geniusdapeng-collab/WorkLoom-video-edit",
+              "homepage": null,
+              "size": 219487,
+              "stargazers_count": 0,
+              "watchers_count": 0,
+              "language": "TypeScript",
+              "has_issues": true,
+              "has_projects": false,
+              "has_wiki": false,
+              "has_pages": false,
+              "has_discussions": false,
+              "forks_count": 0,
+              "mirror_url": null,
+              "archived": false,
+              "disabled": false,
+              "open_issues_count": 2,
+              "license": {
+                "key": "apache-2.0",
+                "name": "Apache License 2.0",
+                "spdx_id": "Apache-2.0",
+                "url": "https://api.github.com/licenses/apache-2.0",
+                "node_id": "MDc6TGljZW5zZTI="
+              },
+              "allow_forking": true,
+              "is_template": false,
+              "web_commit_signoff_required": false,
+              "has_pull_requests": true,
+              "pull_request_creation_policy": "all",
+              "topics": [
+                "ai-video",
+                "ffmpeg",
+                "pipeline",
+                "short-video",
+                "subtitle",
+                "video-editing",
+                "workloom"
+              ],
+              "visibility": "public",
+              "forks": 0,
+              "open_issues": 2,
+              "watchers": 0,
+              "default_branch": "main"
+            }
+          },
+          "_links": {
+            "self": {
+              "href": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/pulls/21"
+            },
+            "html": {
+              "href": "https://github.com/geniusdapeng-collab/WorkLoom-video-edit/pull/21"
+            },
+            "issue": {
+              "href": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/issues/21"
+            },
+            "comments": {
+              "href": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/issues/21/comments"
+            },
+            "review_comments": {
+              "href": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/pulls/21/comments"
+            },
+            "review_comment": {
+              "href": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/pulls/comments{/number}"
+            },
+            "commits": {
+              "href": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/pulls/21/commits"
+            },
+            "statuses": {
+              "href": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/statuses/467d7a8ebf92b240406d87491ccc66fa961d07d0"
+            }
+          },
+          "author_association": "OWNER",
+          "auto_merge": null,
+          "active_lock_reason": null,
+          "merged": false,
+          "mergeable": true,
+          "rebaseable": true,
+          "mergeable_state": "clean",
+          "merged_by": null,
+          "comments": 0,
+          "review_comments": 0,
+          "maintainer_can_modify": false,
+          "commits": 1,
+          "additions": 94,
+          "deletions": 3,
+          "changed_files": 2
+        },
+        "ciPolicyChanges": [],
+        "cloudChecks": [
+          {
+            "name": "gate",
+            "status": "completed",
+            "conclusion": "success",
+            "id": 116002526684,
+            "details_url": "https://github.com/geniusdapeng-collab/WorkLoom-video-edit/actions/runs/38607645423/job/116002526684"
+          },
+          {
+            "name": "ui-contract",
+            "status": "completed",
+            "conclusion": "success",
+            "id": 116002526355,
+            "details_url": "https://github.com/geniusdapeng-collab/WorkLoom-video-edit/actions/runs/38607645399/job/116002526355"
+          }
+        ],
+        "checkErrors": [],
+        "executionMode": "current-session ordinary GitHub API; no platform AI or native queue",
+        "target": {
+          "platform": "github",
+          "repo": "WorkLoom-video-edit",
+          "taskId": "T-2026-1013-0003",
+          "plannedFiles": [
+            "scripts/tools/edit-post.mts",
+            "bundles/ai-video/connectors/post-bridge/post-cli-media.test.ts"
+          ],
+          "previousFrozenTuple": {
+            "path": "/Users/mac/Documents/Codex/2026-10-13/https-cnb-cool-workloom-ai-workloom/work/ui-ci-repair/github/WorkLoom-video-edit",
+            "head": "c9045f5f0d96faaf9d93ac71e9e24d8cd2ad92e4",
+            "baseline": "53040986003e46b29c330b01144f29a505dc864a",
+            "branch": "task/T-2026-1013-0003-ui-ci-3-github",
+            "ledger": "/Users/mac/Documents/Codex/2026-10-13/https-cnb-cool-workloom-ai-workloom/outputs/mcd-final-ci/github/WorkLoom-video-edit/ledger.json"
+          },
+          "ledger": "/Users/mac/Documents/Codex/2026-10-13/https-cnb-cool-workloom-ai-workloom/outputs/mcd-media-ci/github/WorkLoom-video-edit/ledger.json",
+          "head": "467d7a8ebf92b240406d87491ccc66fa961d07d0",
+          "sealed": true,
+          "commitCreated": true,
+          "currentChangedFiles": [
+            {
+              "path": "scripts/tools/edit-post.mts",
+              "sha256": "cc00d7899467117538e4ce0c909ed0fc77b980ef333ca000a9892524ed39a6e0",
+              "bytes": 66228,
+              "gitBlobSha": "e504ccd087dc6e322dbe23dfdebda01c1291e4ec",
+              "copiedFrom": "/Users/mac/Documents/Codex/2026-10-13/https-cnb-cool-workloom-ai-workloom/work/media-ci-repair-shadow/cnb/WorkLoom-video-edit/scripts/tools/edit-post.mts",
+              "beforeSha256": "3b121c00ceeed5b20aa1fbc24246c753b31ccaf668c5373e50dd5481c63223be",
+              "method": "B exact independent-reviewed final shadow copy; no current new HEAD acceptance"
+            },
+            {
+              "path": "bundles/ai-video/connectors/post-bridge/post-cli-media.test.ts",
+              "sha256": "23cbefd3bbda985c4a4bc16edeb059ba608977f3f356b2c303186ca17bcf0cee",
+              "bytes": 20201,
+              "gitBlobSha": "398a6ddf1047912640c8f8e46b04bd6d54462924",
+              "copiedFrom": "/Users/mac/Documents/Codex/2026-10-13/https-cnb-cool-workloom-ai-workloom/work/media-ci-repair-shadow/cnb/WorkLoom-video-edit/bundles/ai-video/connectors/post-bridge/post-cli-media.test.ts",
+              "beforeSha256": "d47a108364678185d097450ddf5b0ca9c139116205201529a273818033283062",
+              "method": "B exact independent-reviewed final shadow copy; no current new HEAD acceptance"
+            }
+          ],
+          "path": "/Users/mac/Documents/Codex/2026-10-13/https-cnb-cool-workloom-ai-workloom/work/media-ci-repair/github/WorkLoom-video-edit",
+          "parent": "2aa9d2d73b05f4564d69c9cac2a603d77482c180",
+          "audit": "2aa9d2d73b05f4564d69c9cac2a603d77482c180",
+          "baseline": "2aa9d2d73b05f4564d69c9cac2a603d77482c180",
+          "branch": "task/T-2026-1013-0003-media-ci-7-github",
+          "localBranch": "task/T-2026-1013-0003-media-ci-7-github",
+          "preparationReadyForRootSeal": true,
+          "proofLevel": "B canonical current-main public fetch, exact parent/tree and working-tree blob metadata; no current new HEAD acceptance",
+          "preparationReceipt": "/Users/mac/Documents/Codex/2026-10-13/https-cnb-cool-workloom-ai-workloom/outputs/media-ci-repair-preparation/github-video-preparation.json",
+          "preparationReceiptSha256": "22d9b5a27533d0433dae788dc5b853e2f34e4ac504233bf52431e7c33137a4a2",
+          "tree": "7404c925d9a8eb522414f94e364b1d51e04469fc",
+          "commitSubject": "fix(video): preserve optional BGM root failures [T-2026-1013-0003]",
+          "committed": true,
+          "changedFiles": [
+            {
+              "path": "bundles/ai-video/connectors/post-bridge/post-cli-media.test.ts",
+              "sha256": "23cbefd3bbda985c4a4bc16edeb059ba608977f3f356b2c303186ca17bcf0cee",
+              "bytes": 20201
+            },
+            {
+              "path": "scripts/tools/edit-post.mts",
+              "sha256": "cc00d7899467117538e4ce0c909ed0fc77b980ef333ca000a9892524ed39a6e0",
+              "bytes": 66228
+            }
+          ],
+          "protectedFiles": [
+            {
+              "path": ".cnb.yml",
+              "sha256": "138a38be1c300c16277dddca5702604b8045f1c0547cb676412e664bd7232d9b",
+              "bytes": 25214
+            },
+            {
+              "path": "scripts/ci/ui-auth-bootstrap.mjs",
+              "sha256": "35426ec0d6ad4e522f271980a8dd57711aab5c94b4bd69b39c68905eed05bb6e",
+              "bytes": 28487
+            },
+            {
+              "path": "scripts/ci/ui-auth-bootstrap.test.mjs",
+              "sha256": "b2c245f7fb809ac0ec1c1439cea58c45558eb5d78c4f10412d0d96800dee30e9",
+              "bytes": 20936
+            },
+            {
+              "path": "scripts/ci/install-private-ui.mjs",
+              "sha256": "cf9d8490f2a8aca3a99a5baba04f2457a416a146db491b67d5dc23909413265c",
+              "bytes": 3757
+            },
+            {
+              "path": "scripts/ci/install-private-ui.test.mjs",
+              "sha256": "af2cf57d818188893601287cd2fc44ada865d719f763a3bbd6a46fbf763f8b60",
+              "bytes": 18063
+            },
+            {
+              "path": "pnpm-lock.yaml",
+              "sha256": "834833a61b50ff153fd0ed456a306d5fe0a3d2bffb51b8665fc0cf8b85d684e8",
+              "bytes": 273793
+            }
+          ],
+          "mcdAssignment": {
+            "card": "MC-001",
+            "repair": "/root",
+            "acceptance": "/root/final_gate_review"
+          },
+          "strictProtocol": {
+            "argv": [
+              "/Users/mac/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node",
+              "scripts/ci/verify-commit-msg.mjs",
+              "--range",
+              "2aa9d2d73b05f4564d69c9cac2a603d77482c180..467d7a8ebf92b240406d87491ccc66fa961d07d0",
+              "--repo",
+              "workloom-ai/WorkLoom-video-edit"
+            ],
+            "exitCode": 0,
+            "log": "/Users/mac/Documents/Codex/2026-10-13/https-cnb-cool-workloom-ai-workloom/outputs/media-ci-repair/github-WorkLoom-video-edit-sealed-strict.log",
+            "sha256": "c51eeb7ca93d58c7e8bb832702531238f2f575fd044e58c5adfe0975b8919c62"
+          },
+          "commitPatchSha256": "d5e9fc149ca59953506870d5edc6c5fc1bc75ab1e823e8d04cf90053ba36f183"
+        },
+        "changedCoverage": [
+          {
+            "path": "bundles/ai-video/connectors/post-bridge/post-cli-media.test.ts",
+            "evidence": "B",
+            "sha256": "23cbefd3bbda985c4a4bc16edeb059ba608977f3f356b2c303186ca17bcf0cee",
+            "bytes": 20201,
+            "reason": "Exact current physical-copy Git/blob/hash inspection and actual role proofs; no new whole-file semantic reading claim."
+          },
+          {
+            "path": "scripts/tools/edit-post.mts",
+            "evidence": "B",
+            "sha256": "cc00d7899467117538e4ce0c909ed0fc77b980ef333ca000a9892524ed39a6e0",
+            "bytes": 66228,
+            "reason": "Exact current physical-copy Git/blob/hash inspection and actual role proofs; no new whole-file semantic reading claim."
+          }
+        ],
+        "validatedReviewId": "7c96b832d83aedb72c91f21aea1e7abefb393c822da9e18dfca6fdda57606314"
+      },
+      "controller": "current-session-github-media-ci-api",
+      "nativeQueue": false,
+      "platformAI": false
     }
   },
   "leases": {
@@ -5005,16 +6457,16 @@
       "expiresAt": 1791940765811
     },
     "protocol": {
-      "owner": null,
-      "generation": 6,
-      "acquiredAt": 1791995170728,
-      "expiresAt": 1791995260861
+      "owner": "github-media-ci-session/068154f2-fb80-48b5-8927-5e7d25dd7601",
+      "generation": 8,
+      "acquiredAt": 1792000735208,
+      "expiresAt": 1792001635208
     },
     "main": {
-      "owner": null,
-      "generation": 4,
-      "acquiredAt": 1791995170728,
-      "expiresAt": 1791995260861
+      "owner": "github-media-ci-session/068154f2-fb80-48b5-8927-5e7d25dd7601",
+      "generation": 5,
+      "acquiredAt": 1792000735208,
+      "expiresAt": 1792001635208
     }
   },
   "releases": {},
@@ -15525,6 +16977,1580 @@
       },
       "previous": "a5bef7cce92bd5e82ed0bcf5e4fed6198fb6b36f084e0e44b95a0a9cc3e5d0c3",
       "digest": "1f7a7c3236e6b8e5a8094f734d106b06d69b4081f969b826ed7b5773180cc8b1"
+    },
+    {
+      "sequence": 67,
+      "at": "2026-10-14T17:58:55.207Z",
+      "kind": "lease_acquire",
+      "data": {
+        "scopes": [
+          "protocol"
+        ],
+        "owner": "admission/pr-21",
+        "generation": {
+          "protocol": 7
+        }
+      },
+      "previous": "1f7a7c3236e6b8e5a8094f734d106b06d69b4081f969b826ed7b5773180cc8b1",
+      "digest": "889640d87d3e456206199fa68f1f8cbfd34408a843ed695d5ca323eccd33f416"
+    },
+    {
+      "sequence": 68,
+      "at": "2026-10-14T17:58:55.207Z",
+      "kind": "lease_release",
+      "data": {
+        "scopes": [
+          "protocol"
+        ],
+        "owner": "admission/pr-21",
+        "generation": {
+          "protocol": 7
+        }
+      },
+      "previous": "889640d87d3e456206199fa68f1f8cbfd34408a843ed695d5ca323eccd33f416",
+      "digest": "c242e5b279b9001a97dbaaeb671a095fffaa71f30a99c5cb8742b44c08c2bd15"
+    },
+    {
+      "sequence": 69,
+      "at": "2026-10-14T17:58:55.207Z",
+      "kind": "source_admitted",
+      "data": {
+        "number": 21,
+        "headSha": "467d7a8ebf92b240406d87491ccc66fa961d07d0",
+        "mainSha": "2aa9d2d73b05f4564d69c9cac2a603d77482c180",
+        "filesHash": "3a92e483f1a18e22af7094db376da4ca3ed0be76290c7d1842ab1aeaadc0da98",
+        "scopes": [
+          "protocol"
+        ],
+        "owner": "admission/pr-21",
+        "generation": {
+          "protocol": 7
+        }
+      },
+      "previous": "c242e5b279b9001a97dbaaeb671a095fffaa71f30a99c5cb8742b44c08c2bd15",
+      "digest": "5f71af455907c10fc1b0855e63db5b91ca414f4eeea02839f6c73f40ec1d3d37"
+    },
+    {
+      "sequence": 70,
+      "at": "2026-10-14T17:58:55.207Z",
+      "kind": "task",
+      "data": {
+        "number": 21,
+        "patch": {
+          "admission": {
+            "number": 21,
+            "headSha": "467d7a8ebf92b240406d87491ccc66fa961d07d0",
+            "mainSha": "2aa9d2d73b05f4564d69c9cac2a603d77482c180",
+            "filesHash": "3a92e483f1a18e22af7094db376da4ca3ed0be76290c7d1842ab1aeaadc0da98",
+            "scopes": [
+              "protocol"
+            ],
+            "owner": "admission/pr-21",
+            "generation": {
+              "protocol": 7
+            }
+          }
+        }
+      },
+      "previous": "5f71af455907c10fc1b0855e63db5b91ca414f4eeea02839f6c73f40ec1d3d37",
+      "digest": "a49a6d709d567f776e2ea15c50d8ba9f7b4decba2560374b9dc774c060ffa8b2"
+    },
+    {
+      "sequence": 71,
+      "at": "2026-10-14T17:58:55.208Z",
+      "kind": "lease_acquire",
+      "data": {
+        "scopes": [
+          "main",
+          "protocol"
+        ],
+        "owner": "github-media-ci-session/068154f2-fb80-48b5-8927-5e7d25dd7601",
+        "generation": {
+          "main": 5,
+          "protocol": 8
+        }
+      },
+      "previous": "a49a6d709d567f776e2ea15c50d8ba9f7b4decba2560374b9dc774c060ffa8b2",
+      "digest": "54e8c9b615495cd4dd5aafba348ea013d5cc7c7f7fe39c868f83680165296123"
+    },
+    {
+      "sequence": 72,
+      "at": "2026-10-14T17:58:55.208Z",
+      "kind": "developer_review",
+      "data": {
+        "number": 21,
+        "id": "7c96b832d83aedb72c91f21aea1e7abefb393c822da9e18dfca6fdda57606314",
+        "headSha": "467d7a8ebf92b240406d87491ccc66fa961d07d0",
+        "mainSha": "2aa9d2d73b05f4564d69c9cac2a603d77482c180",
+        "controller": "current-session-github-media-ci-api",
+        "nativeQueue": false,
+        "platformAI": false,
+        "mcd": {
+          "ledgerSha256": "dca4e3872c9a5753197bd709f68332be09b49362bdd403950183d485acf4e06b",
+          "cardCount": 1,
+          "assertionRuns": 3,
+          "environment": "local-preview"
+        }
+      },
+      "previous": "54e8c9b615495cd4dd5aafba348ea013d5cc7c7f7fe39c868f83680165296123",
+      "digest": "17b52dec83c1e1658c8385a5adca393ac3b592684dd44c34c5cf66aa0421e2ec"
+    },
+    {
+      "sequence": 73,
+      "at": "2026-10-14T17:58:55.208Z",
+      "kind": "task",
+      "data": {
+        "number": 21,
+        "patch": {
+          "status": "waiting_ci",
+          "headSha": "467d7a8ebf92b240406d87491ccc66fa961d07d0",
+          "mainSha": "2aa9d2d73b05f4564d69c9cac2a603d77482c180",
+          "branch": "task/T-2026-1013-0003-media-ci-7-github",
+          "developerReview": {
+            "schemaVersion": 1,
+            "provider": "codex",
+            "repo": "geniusdapeng-collab/WorkLoom-video-edit",
+            "number": 21,
+            "headSha": "467d7a8ebf92b240406d87491ccc66fa961d07d0",
+            "mainSha": "2aa9d2d73b05f4564d69c9cac2a603d77482c180",
+            "policyHash": "1969e05a3de0a00bdc7ee8ddbe88592cc11dd68277eaac0c8bccf10b9b567198",
+            "reviewedFiles": [
+              "bundles/ai-video/connectors/post-bridge/post-cli-media.test.ts",
+              "scripts/tools/edit-post.mts"
+            ],
+            "filesHash": "3a92e483f1a18e22af7094db376da4ca3ed0be76290c7d1842ab1aeaadc0da98",
+            "dependsOn": [],
+            "ciPolicyChanges": [],
+            "ciPolicyChangesHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+            "tests": [
+              {
+                "command": "node /Users/mac/Documents/Codex/2026-10-13/https-cnb-cool-workloom-ai-workloom/work/media-ci-repair-tools/run-vitest-current.mjs --manifest /Users/mac/Documents/Codex/2026-10-13/https-cnb-cool-workloom-ai-workloom/outputs/media-ci-repair/sealed-github-targets.json --repo-name WorkLoom-video-edit",
+                "exitCode": 0,
+                "finishedAt": "2026-10-14T16:54:48.557Z",
+                "result": "真实独立验收 actor=/root/final_gate_review source=467d7a8ebf92b240406d87491ccc66fa961d07d0 run=MC-001-0-1791996746383 SHA=bc0d11174c7d00e31b1736932fd4c53b2f6ea24ea97dd5fb0ce1bb804530418b；完整Vitest12/12且零skip"
+              },
+              {
+                "command": "node scripts/ci/verify-commit-msg.mjs --range 2aa9d2d73b05f4564d69c9cac2a603d77482c180..467d7a8ebf92b240406d87491ccc66fa961d07d0 --repo workloom-ai/WorkLoom-video-edit",
+                "exitCode": 0,
+                "finishedAt": "2026-10-14T16:54:49.518Z",
+                "result": "真实独立验收 actor=/root/final_gate_review source=467d7a8ebf92b240406d87491ccc66fa961d07d0 run=MC-001-1-1791996888747 SHA=7fcd26d2c65b02981e410f783cd323120a06aab160a44d77a24f228f2c54a5d4；准确声明的实际CLI退出0"
+              },
+              {
+                "command": "node /Users/mac/Documents/Codex/2026-10-13/https-cnb-cool-workloom-ai-workloom/work/media-ci-repair-tools/verify-sealed-source.mjs --manifest /Users/mac/Documents/Codex/2026-10-13/https-cnb-cool-workloom-ai-workloom/outputs/media-ci-repair/sealed-github-targets.json --repo-name WorkLoom-video-edit",
+                "exitCode": 0,
+                "finishedAt": "2026-10-14T16:54:50.661Z",
+                "result": "真实独立验收 actor=/root/final_gate_review source=467d7a8ebf92b240406d87491ccc66fa961d07d0 run=MC-001-2-1791996889676 SHA=c5ce98178ce9bb8a1960eada74975a4e3f32f55572618741f3cad2281e36632d；准确声明的实际CLI退出0"
+              }
+            ],
+            "reviewedAt": "2026-10-14T17:58:29.671Z",
+            "summary": "当前 media source/main/branch/完整2路径/现行规则和工作流 blob 由真实平台 GET 与本地 Git 绑定。当前复制体完整文件保守标 B=2，语义审查归属此前实际修复与独立验收 actor，不冒称当前物理复制体 A。tests 仅列当前新 HEAD 的不同 actor 实际独立验收且日志、执行记录、官方 MCD gate/baseline/handoff 均已核验的证明。VIDEO 保留真实文件/权限错误并只排除不存在的可选 BGM 根；matrix 仅补 Node 的 tsx loader 与合法包输入摘要。当前云端 gate、ready 转换和普通 main 合入须由独立 gate proof 及随后控制器实际回读；本准备器只读平台。付费模型、全素材审美和完整生产 RDAS 未验证。",
+            "passed": true,
+            "id": "7c96b832d83aedb72c91f21aea1e7abefb393c822da9e18dfca6fdda57606314"
+          },
+          "reviewSnapshot": {
+            "repo": "geniusdapeng-collab/WorkLoom-video-edit",
+            "number": 21,
+            "headSha": "467d7a8ebf92b240406d87491ccc66fa961d07d0",
+            "mainSha": "2aa9d2d73b05f4564d69c9cac2a603d77482c180",
+            "headTime": 1791996144000,
+            "files": [
+              "bundles/ai-video/connectors/post-bridge/post-cli-media.test.ts",
+              "scripts/tools/edit-post.mts"
+            ],
+            "intent": {
+              "taskId": "T-2026-1013-0003",
+              "ready": true,
+              "dependsOn": [],
+              "releases": []
+            },
+            "policy": {
+              "hostingPlatform": "github",
+              "sourceGovernance": {
+                "version": 8,
+                "reviewProvider": "codex",
+                "platformAI": false,
+                "cooldownMs": 600000,
+                "maxAlignmentAttempts": 3,
+                "maxInfrastructureAttempts": 2,
+                "reviewTimeoutMinutes": 20,
+                "reviewBatchSize": 30,
+                "reviewBatchConcurrency": 2,
+                "ciTimeoutMs": 3600000,
+                "branchPrefixes": [
+                  "task/",
+                  "industry/",
+                  "experiment/",
+                  "chore/",
+                  "docs/",
+                  "fix/",
+                  "audit/",
+                  "rescue/",
+                  "sync/base-",
+                  "delivery/candidate/"
+                ],
+                "businessHoldPaths": [
+                  "platform-ops/secrets/",
+                  "secrets/",
+                  "trading/live/",
+                  "broker/live/"
+                ],
+                "ciFiles": [
+                  ".cnb.yml",
+                  "scripts/delivery/bootstrap-cnb.yml",
+                  "scripts/delivery/cnb.yml",
+                  "scripts/delivery/install-cnb.yml"
+                ],
+                "prBranch": "**",
+                "pipelineOrigins": [
+                  {
+                    "branch": "main",
+                    "event": "push",
+                    "name": "static-gate",
+                    "file": ".cnb.yml",
+                    "ancestors": []
+                  },
+                  {
+                    "branch": "main",
+                    "event": "push",
+                    "name": "db-gate",
+                    "file": ".cnb.yml",
+                    "ancestors": []
+                  },
+                  {
+                    "branch": "main",
+                    "event": "push",
+                    "name": "test-gate",
+                    "file": ".cnb.yml",
+                    "ancestors": []
+                  },
+                  {
+                    "branch": "main",
+                    "event": "api_trigger_desktop_release",
+                    "name": "desktop-macos",
+                    "file": ".cnb.yml",
+                    "ancestors": []
+                  },
+                  {
+                    "branch": "main",
+                    "event": "api_trigger_desktop_release",
+                    "name": "desktop-windows",
+                    "file": ".cnb.yml",
+                    "ancestors": []
+                  },
+                  {
+                    "branch": "main",
+                    "event": "api_trigger_desktop_release",
+                    "name": "desktop-publisher",
+                    "file": ".cnb.yml",
+                    "ancestors": []
+                  },
+                  {
+                    "branch": "**",
+                    "event": "pull_request",
+                    "name": "static-gate",
+                    "file": ".cnb.yml",
+                    "ancestors": []
+                  },
+                  {
+                    "branch": "**",
+                    "event": "pull_request",
+                    "name": "db-gate",
+                    "file": ".cnb.yml",
+                    "ancestors": []
+                  },
+                  {
+                    "branch": "**",
+                    "event": "pull_request",
+                    "name": "test-gate",
+                    "file": ".cnb.yml",
+                    "ancestors": []
+                  },
+                  {
+                    "branch": "$",
+                    "event": "crontab: 0 7 * * 1",
+                    "name": "oss-watch-weekly",
+                    "file": ".cnb.yml",
+                    "ancestors": []
+                  },
+                  {
+                    "branch": "main",
+                    "event": "pull_request.target",
+                    "name": "delivery-source-admission",
+                    "file": "scripts/delivery/cnb.yml",
+                    "ancestors": [
+                      ".cnb.yml"
+                    ]
+                  },
+                  {
+                    "branch": "main",
+                    "event": "pull_request.target",
+                    "name": "delivery-ai-review",
+                    "file": "scripts/delivery/cnb.yml",
+                    "ancestors": [
+                      ".cnb.yml"
+                    ]
+                  },
+                  {
+                    "branch": "main",
+                    "event": "api_trigger_delivery_admit",
+                    "name": "delivery-source-admission",
+                    "file": "scripts/delivery/cnb.yml",
+                    "ancestors": [
+                      ".cnb.yml"
+                    ]
+                  },
+                  {
+                    "branch": "main",
+                    "event": "pull_request.mergeable",
+                    "name": "delivery-reconcile",
+                    "file": "scripts/delivery/cnb.yml",
+                    "ancestors": [
+                      ".cnb.yml"
+                    ]
+                  },
+                  {
+                    "branch": "main",
+                    "event": "pull_request.merged",
+                    "name": "delivery-reconcile",
+                    "file": "scripts/delivery/cnb.yml",
+                    "ancestors": [
+                      ".cnb.yml"
+                    ]
+                  },
+                  {
+                    "branch": "main",
+                    "event": "pull_request.merged",
+                    "name": "delivery-releases",
+                    "file": "scripts/delivery/cnb.yml",
+                    "ancestors": [
+                      ".cnb.yml"
+                    ]
+                  },
+                  {
+                    "branch": "main",
+                    "event": "api_trigger_delivery_review",
+                    "name": "delivery-ai-review",
+                    "file": "scripts/delivery/cnb.yml",
+                    "ancestors": [
+                      ".cnb.yml"
+                    ]
+                  },
+                  {
+                    "branch": "main",
+                    "event": "api_trigger_delivery_reconcile",
+                    "name": "delivery-reconcile",
+                    "file": "scripts/delivery/cnb.yml",
+                    "ancestors": [
+                      ".cnb.yml"
+                    ]
+                  },
+                  {
+                    "branch": "main",
+                    "event": "api_trigger_delivery_releases",
+                    "name": "delivery-releases",
+                    "file": "scripts/delivery/cnb.yml",
+                    "ancestors": [
+                      ".cnb.yml"
+                    ]
+                  },
+                  {
+                    "branch": "main",
+                    "event": "crontab: */5 * * * *",
+                    "name": "delivery-reconcile",
+                    "file": "scripts/delivery/cnb.yml",
+                    "ancestors": [
+                      ".cnb.yml"
+                    ]
+                  },
+                  {
+                    "branch": "main",
+                    "event": "crontab: */5 * * * *",
+                    "name": "delivery-releases",
+                    "file": "scripts/delivery/cnb.yml",
+                    "ancestors": [
+                      ".cnb.yml"
+                    ]
+                  },
+                  {
+                    "branch": "**",
+                    "event": "pull_request",
+                    "name": "delivery-bootstrap-checks",
+                    "file": "scripts/delivery/bootstrap-cnb.yml",
+                    "ancestors": [
+                      ".cnb.yml"
+                    ]
+                  },
+                  {
+                    "branch": "**",
+                    "event": "pull_request",
+                    "name": "delivery-regression",
+                    "file": "scripts/delivery/install-cnb.yml",
+                    "ancestors": [
+                      ".cnb.yml"
+                    ]
+                  }
+                ],
+                "requiredPipelines": [
+                  {
+                    "name": "delivery-bootstrap-checks",
+                    "docker": {
+                      "image": "node:24.19.0-bookworm"
+                    },
+                    "lock": {
+                      "key": "workloom-delivery-bootstrap-$CNB_PULL_REQUEST_IID",
+                      "expires": 600,
+                      "cancel-in-progress": true,
+                      "wait": true,
+                      "timeout": 60
+                    },
+                    "stages": [
+                      {
+                        "name": "Bootstrap installer only",
+                        "timeout": "60s",
+                        "script": "case \"$CNB_PULL_REQUEST_BRANCH\" in\n  task/T-2026-1005-1001|chore/protocol-onboarding-*) ;;\n  *) exit 78 ;;\nesac\n"
+                      },
+                      {
+                        "name": "Install locked delivery parser",
+                        "timeout": "120s",
+                        "script": "npm ci --prefix scripts/delivery/runtime --ignore-scripts --no-audit --no-fund"
+                      },
+                      {
+                        "name": "Verify exact installation source, ledger and assets",
+                        "timeout": "180s",
+                        "script": "node scripts/delivery/queue-runner.mjs verify-bootstrap"
+                      },
+                      {
+                        "name": "Validate tracked installation verifier",
+                        "timeout": "60s",
+                        "script": "node --check scripts/delivery/install-manifest.mjs"
+                      },
+                      {
+                        "name": "Validate disabled legacy platform entry",
+                        "timeout": "60s",
+                        "script": "node --check scripts/delivery/review-plugin.mjs"
+                      },
+                      {
+                        "name": "Verify session record when applicable",
+                        "timeout": "180s",
+                        "script": "node scripts/delivery/queue-runner.mjs verify-review"
+                      }
+                    ]
+                  },
+                  {
+                    "name": "delivery-regression",
+                    "docker": {
+                      "image": "node:24.19.0-bookworm"
+                    },
+                    "stages": [
+                      {
+                        "name": "Install locked delivery parser",
+                        "timeout": "120s",
+                        "script": "npm ci --prefix scripts/delivery/runtime --ignore-scripts --no-audit --no-fund"
+                      },
+                      {
+                        "name": "Durable delivery, permissions, races and actual Git regression",
+                        "timeout": "5m",
+                        "script": "node --test scripts/delivery/queue.test.mjs scripts/ci/protocol-rules.test.mjs"
+                      }
+                    ]
+                  },
+                  {
+                    "name": "static-gate",
+                    "docker": {
+                      "image": "node:24.19.0-bookworm",
+                      "volumes": [
+                        "/cnb-cache/pnpm-store:copy-on-write"
+                      ]
+                    },
+                    "env": {
+                      "LLM_PROVIDER": "mock",
+                      "IM_DRIVER": "mock",
+                      "TOOL_UNVERIFIED_RATE": "0"
+                    },
+                    "stages": [
+                      {
+                        "name": "依赖安装（frozen lockfile）",
+                        "script": "set -eu\ncorepack enable\ncorepack prepare pnpm@10.14.0 --activate\npnpm config set store-dir /cnb-cache/pnpm-store\npnpm install --frozen-lockfile\n"
+                      },
+                      {
+                        "name": "协议门禁（提交规范 + 并发冲突）",
+                        "script": "set -eu\nnode --test scripts/ci/protocol-rules.test.mjs\nnode --test scripts/ci/cnb-desktop-release.test.mjs\n# 硬闸口径（T-2026-0930-0015）：创作/审美口径不得写成 hard: true（硬闸只允许事实类）\nnode --test scripts/ci/hard-gate-policy.test.mjs\nnode scripts/ci/verify-hard-gate-policy.mjs\nnode scripts/ci/verify-commit-msg.mjs --self-test\nnode scripts/ci/verify-lock-conflict.mjs --self-test\nnode scripts/ci/verify-commit-msg.mjs\nnode scripts/ci/verify-lock-conflict.mjs\n"
+                      },
+                      {
+                        "name": "开源组件清单一致性（oss-watch）",
+                        "script": "set -eu\n# 依赖变更（package.json / pnpm-lock.yaml / requirements.txt）必须同步刷新清单；\n# 未刷新即红灯：node scripts/oss-inventory.mjs --write 后一并提交。\nnode --test scripts/oss-inventory.test.mjs\npnpm oss:check\n"
+                      },
+                      {
+                        "name": "产品身份与行业包治理（含内置角色资产与声明一致性）",
+                        "script": "set -eu\npnpm product:verify\n# 内置默认模特「陈卓」随仓分发（bundles/ai-video/library/characters/**）：守住「资产在 + 声明在」——\n# 默认模特可解析、四角度定妆照齐备、声明在首页/文档/能力清单/目录说明同步存在。\n# 背景：新下载项目的开发者与 AI Agent 常以为\"仓库里没有人物资产\"而重复建档（T-2026-0925-0004/0006）。\nnode scripts/verify-builtin-character-assets.mjs\n"
+                      },
+                      {
+                        "name": "三端生产构建",
+                        "script": "set -eu\npnpm -C apps/web build\npnpm -C apps/webb build\npnpm -C apps/webc build\n"
+                      },
+                      {
+                        "name": "交付证据、预算与行业配置回归",
+                        "script": "set -eu\n# The CLI fixture drops ambient NODE_PATH; expose only the pinned test package.\ninstrumentation_dir=$(mktemp -d)\nplaywright_link_created=0\ntrap 'if [ \"$playwright_link_created\" = 1 ]; then rm -f node_modules/playwright; fi; rm -rf \"$instrumentation_dir\"' EXIT HUP INT TERM\nnpm install --prefix \"$instrumentation_dir\" playwright@1.63.0 --ignore-scripts --no-audit --no-fund\nif [ ! -e node_modules/playwright ] && [ ! -L node_modules/playwright ]; then\n  ln -s \"$instrumentation_dir/node_modules/playwright\" node_modules/playwright\n  playwright_link_created=1\nfi\npnpm test:governance\nnode scripts/generate-capabilities.mjs --check\nnode scripts/acceptance/profile-check.mjs --repo .\n"
+                      },
+                      {
+                        "name": "媒体真实解码与完整 CLI 回归（隔离夹具）",
+                        "script": "set -eu\ninstrumentation_dir=$(mktemp -d)\ntrap 'rm -rf \"$instrumentation_dir\"' EXIT HUP INT TERM\nnpm install --prefix \"$instrumentation_dir\" playwright@1.63.0 --ignore-scripts --no-audit --no-fund\nexport PLAYWRIGHT_BROWSERS_PATH=\"$instrumentation_dir/browsers\"\nnode \"$instrumentation_dir/node_modules/playwright/cli.js\" install --with-deps chromium\nexport NODE_PATH=\"$instrumentation_dir/node_modules${NODE_PATH:+:$NODE_PATH}\"\npnpm test:media\n"
+                      }
+                    ]
+                  },
+                  {
+                    "name": "db-gate",
+                    "docker": {
+                      "image": "pgvector/pgvector:pg17",
+                      "volumes": [
+                        "/cnb-cache/pnpm-store:copy-on-write",
+                        "/cnb-cache/node:copy-on-write"
+                      ]
+                    },
+                    "env": {
+                      "LLM_PROVIDER": "mock",
+                      "IM_DRIVER": "mock",
+                      "RUN_DB_TESTS": "1",
+                      "TOOL_UNVERIFIED_RATE": "0"
+                    },
+                    "stages": [
+                      {
+                        "name": "准备 Node 24 与 pnpm",
+                        "script": "set -eu\nNODE_VERSION=v24.19.0\napt-get update -qq\napt-get install -y -qq curl xz-utils ca-certificates git >/dev/null\nif [ ! -x /cnb-cache/node/bin/node ]; then\n  mkdir -p /cnb-cache/node\n  curl -fsSL \"https://nodejs.org/dist/${NODE_VERSION}/node-${NODE_VERSION}-linux-x64.tar.xz\" -o /tmp/node.tar.xz\n  tar -xJf /tmp/node.tar.xz -C /cnb-cache/node --strip-components=1\nfi\nfor bin in /cnb-cache/node/bin/*; do ln -sf \"$bin\" /usr/local/bin/; done\ncorepack enable --install-directory /usr/local/bin\ncorepack prepare pnpm@10.14.0 --activate\npnpm config set store-dir /cnb-cache/pnpm-store\npnpm install --frozen-lockfile\n"
+                      },
+                      {
+                        "name": "启动 PostgreSQL 17 + pgvector",
+                        "script": "set -eu\nexport PGDATA=/var/lib/postgresql/data\nif [ ! -s \"${PGDATA}/PG_VERSION\" ]; then\n  mkdir -p \"${PGDATA}\"; chown -R postgres:postgres \"${PGDATA}\"\n  su postgres -c \"initdb -D ${PGDATA} -U postgres --auth=trust --encoding=UTF8\"\nfi\nsu postgres -c \"pg_ctl -D ${PGDATA} -l /tmp/postgres.log -o '-c listen_addresses=localhost -c port=5432' start\"\nfor i in $(seq 1 60); do\n  if pg_isready -h localhost -p 5432 -U postgres >/dev/null 2>&1; then break; fi\n  sleep 1\ndone\npg_isready -h localhost -p 5432 -U postgres\nif ! psql -h localhost -p 5432 -U postgres -tAc \"SELECT 1 FROM pg_database WHERE datname='workloom'\" | grep -q 1; then\n  psql -h localhost -p 5432 -U postgres -c \"CREATE DATABASE workloom OWNER postgres;\" >/dev/null\nfi\npsql -h localhost -p 5432 -U postgres -d workloom -c \"CREATE EXTENSION IF NOT EXISTS vector;\" >/dev/null\n"
+                      },
+                      {
+                        "name": "迁移 + 种子（幂等复跑）+ 哈希链",
+                        "script": "set -eu\ncp .env.example .env\nset -a\nwhile IFS= read -r line; do\n  case \"$line\" in ''|\\#*) continue ;; esac\n  export \"$line\"\ndone < .env\nset +a\npnpm db:migrate\npnpm db:seed\npnpm db:seed\npnpm db:verify-chain\n"
+                      }
+                    ]
+                  },
+                  {
+                    "name": "test-gate",
+                    "docker": {
+                      "image": "pgvector/pgvector:pg17",
+                      "volumes": [
+                        "/cnb-cache/pnpm-store:copy-on-write",
+                        "/cnb-cache/node:copy-on-write"
+                      ]
+                    },
+                    "env": {
+                      "LLM_PROVIDER": "mock",
+                      "IM_DRIVER": "mock",
+                      "RUN_DB_TESTS": "1",
+                      "TOOL_UNVERIFIED_RATE": "0",
+                      "SERVICE_C_TEST_WORKSPACE_ID": "ws-yunqi"
+                    },
+                    "stages": [
+                      {
+                        "name": "准备 Node 24 与 pnpm",
+                        "script": "set -eu\nNODE_VERSION=v24.19.0\napt-get update -qq\napt-get install -y -qq curl xz-utils ca-certificates git ffmpeg python3 >/dev/null\nffmpeg -version\nffprobe -version\npython3 --version\nif [ ! -x /cnb-cache/node/bin/node ]; then\n  mkdir -p /cnb-cache/node\n  curl -fsSL \"https://nodejs.org/dist/${NODE_VERSION}/node-${NODE_VERSION}-linux-x64.tar.xz\" -o /tmp/node.tar.xz\n  tar -xJf /tmp/node.tar.xz -C /cnb-cache/node --strip-components=1\nfi\nfor bin in /cnb-cache/node/bin/*; do ln -sf \"$bin\" /usr/local/bin/; done\ncorepack enable --install-directory /usr/local/bin\ncorepack prepare pnpm@10.14.0 --activate\npnpm config set store-dir /cnb-cache/pnpm-store\npnpm install --frozen-lockfile\nexport PGDATA=/var/lib/postgresql/data\nif [ ! -s \"${PGDATA}/PG_VERSION\" ]; then\n  mkdir -p \"${PGDATA}\"; chown -R postgres:postgres \"${PGDATA}\"\n  su postgres -c \"initdb -D ${PGDATA} -U postgres --auth=trust --encoding=UTF8\"\nfi\nsu postgres -c \"pg_ctl -D ${PGDATA} -l /tmp/postgres.log -o '-c listen_addresses=localhost -c port=5432' start\"\nfor i in $(seq 1 60); do\n  if pg_isready -h localhost -p 5432 -U postgres >/dev/null 2>&1; then break; fi\n  sleep 1\ndone\nif ! psql -h localhost -p 5432 -U postgres -tAc \"SELECT 1 FROM pg_database WHERE datname='workloom'\" | grep -q 1; then\n  psql -h localhost -p 5432 -U postgres -c \"CREATE DATABASE workloom OWNER postgres;\" >/dev/null\nfi\npsql -h localhost -p 5432 -U postgres -d workloom -c \"CREATE EXTENSION IF NOT EXISTS vector;\" >/dev/null\ncp .env.example .env\nset -a\nwhile IFS= read -r line; do\n  case \"$line\" in ''|\\#*) continue ;; esac\n  export \"$line\"\ndone < .env\nset +a\npnpm db:migrate\npnpm db:seed\n"
+                      },
+                      {
+                        "name": "typecheck 全包（非阻断）",
+                        "script": "set -eu\npnpm -r --if-present typecheck\n"
+                      },
+                      {
+                        "name": "主测试套件（非阻断）",
+                        "script": "set -eu\nset -a\nwhile IFS= read -r line; do\n  case \"$line\" in ''|\\#*) continue ;; esac\n  export \"$line\"\ndone < .env\nset +a\npnpm test\n# 仓库根 scripts/ 下的 vitest 用例（行业包治理门禁、套件夹具契约）不在\n# pnpm -r 的包范围内，历史上从未被任何流水线执行过；这里显式跑一遍。\npnpm test:scripts\n"
+                      },
+                      {
+                        "name": "全场景套件（非阻断）",
+                        "script": "set -eu\nset -a\nwhile IFS= read -r line; do\n  case \"$line\" in ''|\\#*) continue ;; esac\n  export \"$line\"\ndone < .env\nset +a\npnpm suite\n"
+                      },
+                      {
+                        "name": "P0 门禁：开户即托管验收 + 围栏别名扫描（S9）",
+                        "script": "set -eu\nset -a\nwhile IFS= read -r line; do\n  case \"$line\" in ''|\\#*) continue ;; esac\n  export \"$line\"\ndone < .env\nset +a\npnpm acceptance:onboarding\npnpm scan:fences\npnpm scan:knowhow\n"
+                      }
+                    ]
+                  }
+                ],
+                "requiredControlPipelines": [
+                  {
+                    "branch": "main",
+                    "event": "pull_request.target",
+                    "pipelines": [
+                      {
+                        "name": "delivery-source-admission",
+                        "docker": {
+                          "image": "node:24.19.0-bookworm"
+                        },
+                        "lock": {
+                          "key": "workloom-delivery-admission",
+                          "expires": 600,
+                          "wait": true,
+                          "timeout": 60
+                        },
+                        "env": {
+                          "DELIVERY_NATIVE_LOCK": "workloom-delivery-admission"
+                        },
+                        "stages": [
+                          {
+                            "name": "Install locked delivery parser",
+                            "timeout": "120s",
+                            "script": "npm ci --prefix scripts/delivery/runtime --ignore-scripts --no-audit --no-fund"
+                          },
+                          {
+                            "name": "Record exact source admission and release its fenced generation before CI",
+                            "timeout": "180s",
+                            "script": "node scripts/delivery/queue-runner.mjs admit"
+                          }
+                        ]
+                      },
+                      {
+                        "name": "delivery-ai-review",
+                        "env": {
+                          "CNB_API_ENDPOINT": "https://api.cnb.cool"
+                        },
+                        "docker": {
+                          "image": "node:24.19.0-bookworm"
+                        },
+                        "lock": {
+                          "key": "workloom-delivery-review",
+                          "expires": 7200,
+                          "wait": true,
+                          "timeout": 60
+                        },
+                        "stages": [
+                          {
+                            "name": "Install locked delivery parser",
+                            "timeout": "120s",
+                            "script": "npm ci --prefix scripts/delivery/runtime --ignore-scripts --no-audit --no-fund"
+                          },
+                          {
+                            "name": "Snapshot exact source and main for independent AI",
+                            "timeout": "180s",
+                            "script": "node scripts/delivery/queue-runner.mjs verify-review"
+                          },
+                          {
+                            "name": "Independent CodeBuddy review",
+                            "timeout": "60s",
+                            "script": "node --check scripts/delivery/model-gateway.mjs && node --check scripts/delivery/review-plugin.mjs"
+                          },
+                          {
+                            "name": "Validate complete AI result and real platform review",
+                            "timeout": "180s",
+                            "script": "node scripts/delivery/queue-runner.mjs verify-review"
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "branch": "main",
+                    "event": "api_trigger_delivery_admit",
+                    "pipelines": [
+                      {
+                        "name": "delivery-source-admission",
+                        "docker": {
+                          "image": "node:24.19.0-bookworm"
+                        },
+                        "lock": {
+                          "key": "workloom-delivery-admission",
+                          "expires": 600,
+                          "wait": true,
+                          "timeout": 60
+                        },
+                        "env": {
+                          "DELIVERY_NATIVE_LOCK": "workloom-delivery-admission"
+                        },
+                        "stages": [
+                          {
+                            "name": "Install locked delivery parser",
+                            "timeout": "120s",
+                            "script": "npm ci --prefix scripts/delivery/runtime --ignore-scripts --no-audit --no-fund"
+                          },
+                          {
+                            "name": "Record exact source admission and release its fenced generation before CI",
+                            "timeout": "180s",
+                            "script": "node scripts/delivery/queue-runner.mjs admit"
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "branch": "main",
+                    "event": "pull_request.mergeable",
+                    "pipelines": [
+                      {
+                        "name": "delivery-reconcile",
+                        "docker": {
+                          "image": "node:24.19.0-bookworm"
+                        },
+                        "lock": {
+                          "key": "workloom-delivery-merge",
+                          "expires": 7200,
+                          "wait": true,
+                          "timeout": 60
+                        },
+                        "env": {
+                          "DELIVERY_NATIVE_LOCK": "workloom-delivery-merge"
+                        },
+                        "stages": [
+                          {
+                            "name": "Install locked delivery parser",
+                            "timeout": "120s",
+                            "script": "npm ci --prefix scripts/delivery/runtime --ignore-scripts --no-audit --no-fund"
+                          },
+                          {
+                            "name": "Recover, align, review and integrate independently of fanout",
+                            "timeout": "12m",
+                            "script": "node scripts/delivery/queue-runner.mjs reconcile"
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "branch": "main",
+                    "event": "pull_request.merged",
+                    "pipelines": [
+                      {
+                        "name": "delivery-reconcile",
+                        "docker": {
+                          "image": "node:24.19.0-bookworm"
+                        },
+                        "lock": {
+                          "key": "workloom-delivery-merge",
+                          "expires": 7200,
+                          "wait": true,
+                          "timeout": 60
+                        },
+                        "env": {
+                          "DELIVERY_NATIVE_LOCK": "workloom-delivery-merge"
+                        },
+                        "stages": [
+                          {
+                            "name": "Install locked delivery parser",
+                            "timeout": "120s",
+                            "script": "npm ci --prefix scripts/delivery/runtime --ignore-scripts --no-audit --no-fund"
+                          },
+                          {
+                            "name": "Recover, align, review and integrate independently of fanout",
+                            "timeout": "12m",
+                            "script": "node scripts/delivery/queue-runner.mjs reconcile"
+                          }
+                        ]
+                      },
+                      {
+                        "name": "delivery-releases",
+                        "docker": {
+                          "image": "node:24.19.0-bookworm"
+                        },
+                        "lock": {
+                          "key": "workloom-delivery-release",
+                          "expires": 7200,
+                          "wait": true,
+                          "timeout": 60
+                        },
+                        "env": {
+                          "DELIVERY_NATIVE_LOCK": "workloom-delivery-release"
+                        },
+                        "stages": [
+                          {
+                            "name": "Install locked delivery parser",
+                            "timeout": "120s",
+                            "script": "npm ci --prefix scripts/delivery/runtime --ignore-scripts --no-audit --no-fund"
+                          },
+                          {
+                            "name": "Recover frozen publications and verify actual source and bytes",
+                            "timeout": "15m",
+                            "script": "node scripts/delivery/queue-runner.mjs releases"
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "branch": "main",
+                    "event": "api_trigger_delivery_review",
+                    "pipelines": [
+                      {
+                        "name": "delivery-ai-review",
+                        "env": {
+                          "CNB_API_ENDPOINT": "https://api.cnb.cool"
+                        },
+                        "docker": {
+                          "image": "node:24.19.0-bookworm"
+                        },
+                        "lock": {
+                          "key": "workloom-delivery-review",
+                          "expires": 7200,
+                          "wait": true,
+                          "timeout": 60
+                        },
+                        "stages": [
+                          {
+                            "name": "Install locked delivery parser",
+                            "timeout": "120s",
+                            "script": "npm ci --prefix scripts/delivery/runtime --ignore-scripts --no-audit --no-fund"
+                          },
+                          {
+                            "name": "Snapshot exact source and main for independent AI",
+                            "timeout": "180s",
+                            "script": "node scripts/delivery/queue-runner.mjs verify-review"
+                          },
+                          {
+                            "name": "Independent CodeBuddy review",
+                            "timeout": "60s",
+                            "script": "node --check scripts/delivery/model-gateway.mjs && node --check scripts/delivery/review-plugin.mjs"
+                          },
+                          {
+                            "name": "Validate complete AI result and real platform review",
+                            "timeout": "180s",
+                            "script": "node scripts/delivery/queue-runner.mjs verify-review"
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "branch": "main",
+                    "event": "api_trigger_delivery_reconcile",
+                    "pipelines": [
+                      {
+                        "name": "delivery-reconcile",
+                        "docker": {
+                          "image": "node:24.19.0-bookworm"
+                        },
+                        "lock": {
+                          "key": "workloom-delivery-merge",
+                          "expires": 7200,
+                          "wait": true,
+                          "timeout": 60
+                        },
+                        "env": {
+                          "DELIVERY_NATIVE_LOCK": "workloom-delivery-merge"
+                        },
+                        "stages": [
+                          {
+                            "name": "Install locked delivery parser",
+                            "timeout": "120s",
+                            "script": "npm ci --prefix scripts/delivery/runtime --ignore-scripts --no-audit --no-fund"
+                          },
+                          {
+                            "name": "Recover, align, review and integrate independently of fanout",
+                            "timeout": "12m",
+                            "script": "node scripts/delivery/queue-runner.mjs reconcile"
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "branch": "main",
+                    "event": "api_trigger_delivery_releases",
+                    "pipelines": [
+                      {
+                        "name": "delivery-releases",
+                        "docker": {
+                          "image": "node:24.19.0-bookworm"
+                        },
+                        "lock": {
+                          "key": "workloom-delivery-release",
+                          "expires": 7200,
+                          "wait": true,
+                          "timeout": 60
+                        },
+                        "env": {
+                          "DELIVERY_NATIVE_LOCK": "workloom-delivery-release"
+                        },
+                        "stages": [
+                          {
+                            "name": "Install locked delivery parser",
+                            "timeout": "120s",
+                            "script": "npm ci --prefix scripts/delivery/runtime --ignore-scripts --no-audit --no-fund"
+                          },
+                          {
+                            "name": "Recover frozen publications and verify actual source and bytes",
+                            "timeout": "15m",
+                            "script": "node scripts/delivery/queue-runner.mjs releases"
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "branch": "main",
+                    "event": "crontab: */5 * * * *",
+                    "pipelines": [
+                      {
+                        "name": "delivery-reconcile",
+                        "docker": {
+                          "image": "node:24.19.0-bookworm"
+                        },
+                        "lock": {
+                          "key": "workloom-delivery-merge",
+                          "expires": 7200,
+                          "wait": true,
+                          "timeout": 60
+                        },
+                        "env": {
+                          "DELIVERY_NATIVE_LOCK": "workloom-delivery-merge"
+                        },
+                        "stages": [
+                          {
+                            "name": "Install locked delivery parser",
+                            "timeout": "120s",
+                            "script": "npm ci --prefix scripts/delivery/runtime --ignore-scripts --no-audit --no-fund"
+                          },
+                          {
+                            "name": "Recover, align, review and integrate independently of fanout",
+                            "timeout": "12m",
+                            "script": "node scripts/delivery/queue-runner.mjs reconcile"
+                          }
+                        ]
+                      },
+                      {
+                        "name": "delivery-releases",
+                        "docker": {
+                          "image": "node:24.19.0-bookworm"
+                        },
+                        "lock": {
+                          "key": "workloom-delivery-release",
+                          "expires": 7200,
+                          "wait": true,
+                          "timeout": 60
+                        },
+                        "env": {
+                          "DELIVERY_NATIVE_LOCK": "workloom-delivery-release"
+                        },
+                        "stages": [
+                          {
+                            "name": "Install locked delivery parser",
+                            "timeout": "120s",
+                            "script": "npm ci --prefix scripts/delivery/runtime --ignore-scripts --no-audit --no-fund"
+                          },
+                          {
+                            "name": "Recover frozen publications and verify actual source and bytes",
+                            "timeout": "15m",
+                            "script": "node scripts/delivery/queue-runner.mjs releases"
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "branch": "**",
+                    "event": "pull_request",
+                    "pipelines": [
+                      {
+                        "name": "delivery-regression",
+                        "docker": {
+                          "image": "node:24.19.0-bookworm"
+                        },
+                        "stages": [
+                          {
+                            "name": "Install locked delivery parser",
+                            "timeout": "120s",
+                            "script": "npm ci --prefix scripts/delivery/runtime --ignore-scripts --no-audit --no-fund"
+                          },
+                          {
+                            "name": "Durable delivery, permissions, races and actual Git regression",
+                            "timeout": "5m",
+                            "script": "node --test scripts/delivery/queue.test.mjs scripts/ci/protocol-rules.test.mjs"
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ],
+                "hash": "b264f5d3049aae86aa9ec66f740629dd4761f8d87757df41afaa47e3f9e1f7c0",
+                "requiredNames": [
+                  "delivery-bootstrap-checks",
+                  "delivery-regression",
+                  "static-gate",
+                  "db-gate",
+                  "test-gate"
+                ]
+              },
+              "requiredNames": [
+                "gate"
+              ],
+              "effectiveMainRules": [],
+              "protected": false,
+              "workflowBlobs": {
+                ".github/workflows/base-sync-heartbeat.yml": {
+                  "main": "5ef6507fed70b521bf532086a6e0590d0586cdc5",
+                  "source": "5ef6507fed70b521bf532086a6e0590d0586cdc5"
+                },
+                ".github/workflows/build-desktop.yml": {
+                  "main": "25a6dc6641ef38051d33fcd66c2318b37ab6837b",
+                  "source": "25a6dc6641ef38051d33fcd66c2318b37ab6837b"
+                },
+                ".github/workflows/ci.yml": {
+                  "main": "53b0dfb69444079d5c0086fc0aa75c0257c86f50",
+                  "source": "53b0dfb69444079d5c0086fc0aa75c0257c86f50"
+                },
+                ".github/workflows/pack-self-contained.yml": {
+                  "main": "b7afb31b3c2e02dfd9cbc8b94c3dbfffea490d13",
+                  "source": "b7afb31b3c2e02dfd9cbc8b94c3dbfffea490d13"
+                },
+                ".github/workflows/release.yml": {
+                  "main": "d83a43badd1549662405e76d876f04542e85f0a3",
+                  "source": "d83a43badd1549662405e76d876f04542e85f0a3"
+                },
+                ".github/workflows/workloom-ui-contract.yml": {
+                  "main": "2dcc8be37277187e272004eebd57ab077effde5b",
+                  "source": "2dcc8be37277187e272004eebd57ab077effde5b"
+                }
+              },
+              "platformAI": false,
+              "forceMerge": false,
+              "directMainPush": false,
+              "hash": "1969e05a3de0a00bdc7ee8ddbe88592cc11dd68277eaac0c8bccf10b9b567198"
+            },
+            "pull": {
+              "url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/pulls/21",
+              "id": 4861867616,
+              "node_id": "PR_kwDOVD9wm88AAAABIco2YA",
+              "html_url": "https://github.com/geniusdapeng-collab/WorkLoom-video-edit/pull/21",
+              "diff_url": "https://github.com/geniusdapeng-collab/WorkLoom-video-edit/pull/21.diff",
+              "patch_url": "https://github.com/geniusdapeng-collab/WorkLoom-video-edit/pull/21.patch",
+              "issue_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/issues/21",
+              "number": 21,
+              "state": "open",
+              "locked": false,
+              "title": "fix(video): 处理可选 BGM 曲库根 [T-2026-1013-0003]",
+              "user": {
+                "login": "geniusdapeng-collab",
+                "id": 291670474,
+                "node_id": "U_kgDOEWKJyg",
+                "avatar_url": "https://avatars.githubusercontent.com/u/291670474?v=4",
+                "gravatar_id": "",
+                "url": "https://api.github.com/users/geniusdapeng-collab",
+                "html_url": "https://github.com/geniusdapeng-collab",
+                "followers_url": "https://api.github.com/users/geniusdapeng-collab/followers",
+                "following_url": "https://api.github.com/users/geniusdapeng-collab/following{/other_user}",
+                "gists_url": "https://api.github.com/users/geniusdapeng-collab/gists{/gist_id}",
+                "starred_url": "https://api.github.com/users/geniusdapeng-collab/starred{/owner}{/repo}",
+                "subscriptions_url": "https://api.github.com/users/geniusdapeng-collab/subscriptions",
+                "organizations_url": "https://api.github.com/users/geniusdapeng-collab/orgs",
+                "repos_url": "https://api.github.com/users/geniusdapeng-collab/repos",
+                "events_url": "https://api.github.com/users/geniusdapeng-collab/events{/privacy}",
+                "received_events_url": "https://api.github.com/users/geniusdapeng-collab/received_events",
+                "type": "User",
+                "user_view_type": "public",
+                "site_admin": false
+              },
+              "body": "后期 CLI 在新安装或服务端遇到不存在的可选 BGM 目录时会提前因 ENOENT 中断。现在仅排除不存在的可选目录，保留已有曲库；文件根和真实权限错误继续失败，刚创建的员工曲库加入处理器路径根。完整 12 项真实媒体 CLI 与负例覆盖缺失、已有、文件和 EACCES 场景。\n\n当前 source `467d7a8ebf92b240406d87491ccc66fa961d07d0`；main `2aa9d2d73b05f4564d69c9cac2a603d77482c180`；父提交/审计 `2aa9d2d73b05f4564d69c9cac2a603d77482c180`；源码树 `7404c925d9a8eb522414f94e364b1d51e04469fc`。本发布已核对绑定当前新 HEAD 的修复角色实际正向证明。独立验收、正式 MCD finalization 与开发者复核仍需分别完成，发布源码分支不能替代这些门禁。\n\n云端当前 source CI、开发者复核、候选 CI 与串行 main 集成仍 pending，ready=false；本说明没有宣称当前云端 CI 或 main 已通过。付费模型调用、全素材审美及完整生产 RDAS 未在本阶段验证。\n\n<!-- workloom-delivery\n{\"task_id\":\"T-2026-1013-0003\",\"ready\":false,\"depends_on\":[],\"releases\":[]}\n-->\n",
+              "created_at": "2026-10-14T17:33:22Z",
+              "updated_at": "2026-10-14T17:33:22Z",
+              "closed_at": null,
+              "merged_at": null,
+              "assignees": [],
+              "requested_reviewers": [],
+              "requested_teams": [],
+              "labels": [],
+              "milestone": null,
+              "draft": true,
+              "commits_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/pulls/21/commits",
+              "review_comments_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/pulls/21/comments",
+              "review_comment_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/pulls/comments{/number}",
+              "comments_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/issues/21/comments",
+              "statuses_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/statuses/467d7a8ebf92b240406d87491ccc66fa961d07d0",
+              "head": {
+                "label": "geniusdapeng-collab:task/T-2026-1013-0003-media-ci-7-github",
+                "ref": "task/T-2026-1013-0003-media-ci-7-github",
+                "sha": "467d7a8ebf92b240406d87491ccc66fa961d07d0",
+                "user": {
+                  "login": "geniusdapeng-collab",
+                  "id": 291670474,
+                  "node_id": "U_kgDOEWKJyg",
+                  "avatar_url": "https://avatars.githubusercontent.com/u/291670474?v=4",
+                  "gravatar_id": "",
+                  "url": "https://api.github.com/users/geniusdapeng-collab",
+                  "html_url": "https://github.com/geniusdapeng-collab",
+                  "followers_url": "https://api.github.com/users/geniusdapeng-collab/followers",
+                  "following_url": "https://api.github.com/users/geniusdapeng-collab/following{/other_user}",
+                  "gists_url": "https://api.github.com/users/geniusdapeng-collab/gists{/gist_id}",
+                  "starred_url": "https://api.github.com/users/geniusdapeng-collab/starred{/owner}{/repo}",
+                  "subscriptions_url": "https://api.github.com/users/geniusdapeng-collab/subscriptions",
+                  "organizations_url": "https://api.github.com/users/geniusdapeng-collab/orgs",
+                  "repos_url": "https://api.github.com/users/geniusdapeng-collab/repos",
+                  "events_url": "https://api.github.com/users/geniusdapeng-collab/events{/privacy}",
+                  "received_events_url": "https://api.github.com/users/geniusdapeng-collab/received_events",
+                  "type": "User",
+                  "user_view_type": "public",
+                  "site_admin": false
+                },
+                "repo": {
+                  "id": 1413443739,
+                  "node_id": "R_kgDOVD9wmw",
+                  "name": "WorkLoom-video-edit",
+                  "full_name": "geniusdapeng-collab/WorkLoom-video-edit",
+                  "private": false,
+                  "owner": {
+                    "login": "geniusdapeng-collab",
+                    "id": 291670474,
+                    "node_id": "U_kgDOEWKJyg",
+                    "avatar_url": "https://avatars.githubusercontent.com/u/291670474?v=4",
+                    "gravatar_id": "",
+                    "url": "https://api.github.com/users/geniusdapeng-collab",
+                    "html_url": "https://github.com/geniusdapeng-collab",
+                    "followers_url": "https://api.github.com/users/geniusdapeng-collab/followers",
+                    "following_url": "https://api.github.com/users/geniusdapeng-collab/following{/other_user}",
+                    "gists_url": "https://api.github.com/users/geniusdapeng-collab/gists{/gist_id}",
+                    "starred_url": "https://api.github.com/users/geniusdapeng-collab/starred{/owner}{/repo}",
+                    "subscriptions_url": "https://api.github.com/users/geniusdapeng-collab/subscriptions",
+                    "organizations_url": "https://api.github.com/users/geniusdapeng-collab/orgs",
+                    "repos_url": "https://api.github.com/users/geniusdapeng-collab/repos",
+                    "events_url": "https://api.github.com/users/geniusdapeng-collab/events{/privacy}",
+                    "received_events_url": "https://api.github.com/users/geniusdapeng-collab/received_events",
+                    "type": "User",
+                    "user_view_type": "public",
+                    "site_admin": false
+                  },
+                  "html_url": "https://github.com/geniusdapeng-collab/WorkLoom-video-edit",
+                  "description": "WorkLoom AI 剪辑管线：真实素材 → 剪辑时间轴 → 分段调色/字幕/配乐/封面/弹幕 → 多风格变体交付（镜像自 CNB workloom-ai/WorkLoom-video-edit）",
+                  "fork": false,
+                  "url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit",
+                  "forks_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/forks",
+                  "keys_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/keys{/key_id}",
+                  "collaborators_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/collaborators{/collaborator}",
+                  "teams_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/teams",
+                  "hooks_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/hooks",
+                  "issue_events_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/issues/events{/number}",
+                  "events_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/events",
+                  "assignees_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/assignees{/user}",
+                  "branches_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/branches{/branch}",
+                  "tags_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/tags",
+                  "blobs_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/git/blobs{/sha}",
+                  "git_tags_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/git/tags{/sha}",
+                  "git_refs_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/git/refs{/sha}",
+                  "trees_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/git/trees{/sha}",
+                  "statuses_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/statuses/{sha}",
+                  "languages_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/languages",
+                  "stargazers_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/stargazers",
+                  "contributors_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/contributors",
+                  "subscribers_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/subscribers",
+                  "subscription_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/subscription",
+                  "commits_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/commits{/sha}",
+                  "git_commits_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/git/commits{/sha}",
+                  "comments_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/comments{/number}",
+                  "issue_comment_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/issues/comments{/number}",
+                  "contents_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/contents/{+path}",
+                  "compare_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/compare/{base}...{head}",
+                  "merges_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/merges",
+                  "archive_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/{archive_format}{/ref}",
+                  "downloads_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/downloads",
+                  "issues_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/issues{/number}",
+                  "pulls_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/pulls{/number}",
+                  "milestones_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/milestones{/number}",
+                  "notifications_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/notifications{?since,all,participating}",
+                  "labels_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/labels{/name}",
+                  "releases_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/releases{/id}",
+                  "deployments_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/deployments",
+                  "created_at": "2026-10-10T16:55:59Z",
+                  "updated_at": "2026-10-14T16:27:22Z",
+                  "pushed_at": "2026-10-14T17:33:18Z",
+                  "git_url": "git://github.com/geniusdapeng-collab/WorkLoom-video-edit.git",
+                  "ssh_url": "git@github.com:geniusdapeng-collab/WorkLoom-video-edit.git",
+                  "clone_url": "https://github.com/geniusdapeng-collab/WorkLoom-video-edit.git",
+                  "svn_url": "https://github.com/geniusdapeng-collab/WorkLoom-video-edit",
+                  "homepage": null,
+                  "size": 219487,
+                  "stargazers_count": 0,
+                  "watchers_count": 0,
+                  "language": "TypeScript",
+                  "has_issues": true,
+                  "has_projects": false,
+                  "has_wiki": false,
+                  "has_pages": false,
+                  "has_discussions": false,
+                  "forks_count": 0,
+                  "mirror_url": null,
+                  "archived": false,
+                  "disabled": false,
+                  "open_issues_count": 2,
+                  "license": {
+                    "key": "apache-2.0",
+                    "name": "Apache License 2.0",
+                    "spdx_id": "Apache-2.0",
+                    "url": "https://api.github.com/licenses/apache-2.0",
+                    "node_id": "MDc6TGljZW5zZTI="
+                  },
+                  "allow_forking": true,
+                  "is_template": false,
+                  "web_commit_signoff_required": false,
+                  "has_pull_requests": true,
+                  "pull_request_creation_policy": "all",
+                  "topics": [
+                    "ai-video",
+                    "ffmpeg",
+                    "pipeline",
+                    "short-video",
+                    "subtitle",
+                    "video-editing",
+                    "workloom"
+                  ],
+                  "visibility": "public",
+                  "forks": 0,
+                  "open_issues": 2,
+                  "watchers": 0,
+                  "default_branch": "main"
+                }
+              },
+              "base": {
+                "label": "geniusdapeng-collab:main",
+                "ref": "main",
+                "sha": "2aa9d2d73b05f4564d69c9cac2a603d77482c180",
+                "user": {
+                  "login": "geniusdapeng-collab",
+                  "id": 291670474,
+                  "node_id": "U_kgDOEWKJyg",
+                  "avatar_url": "https://avatars.githubusercontent.com/u/291670474?v=4",
+                  "gravatar_id": "",
+                  "url": "https://api.github.com/users/geniusdapeng-collab",
+                  "html_url": "https://github.com/geniusdapeng-collab",
+                  "followers_url": "https://api.github.com/users/geniusdapeng-collab/followers",
+                  "following_url": "https://api.github.com/users/geniusdapeng-collab/following{/other_user}",
+                  "gists_url": "https://api.github.com/users/geniusdapeng-collab/gists{/gist_id}",
+                  "starred_url": "https://api.github.com/users/geniusdapeng-collab/starred{/owner}{/repo}",
+                  "subscriptions_url": "https://api.github.com/users/geniusdapeng-collab/subscriptions",
+                  "organizations_url": "https://api.github.com/users/geniusdapeng-collab/orgs",
+                  "repos_url": "https://api.github.com/users/geniusdapeng-collab/repos",
+                  "events_url": "https://api.github.com/users/geniusdapeng-collab/events{/privacy}",
+                  "received_events_url": "https://api.github.com/users/geniusdapeng-collab/received_events",
+                  "type": "User",
+                  "user_view_type": "public",
+                  "site_admin": false
+                },
+                "repo": {
+                  "id": 1413443739,
+                  "node_id": "R_kgDOVD9wmw",
+                  "name": "WorkLoom-video-edit",
+                  "full_name": "geniusdapeng-collab/WorkLoom-video-edit",
+                  "private": false,
+                  "owner": {
+                    "login": "geniusdapeng-collab",
+                    "id": 291670474,
+                    "node_id": "U_kgDOEWKJyg",
+                    "avatar_url": "https://avatars.githubusercontent.com/u/291670474?v=4",
+                    "gravatar_id": "",
+                    "url": "https://api.github.com/users/geniusdapeng-collab",
+                    "html_url": "https://github.com/geniusdapeng-collab",
+                    "followers_url": "https://api.github.com/users/geniusdapeng-collab/followers",
+                    "following_url": "https://api.github.com/users/geniusdapeng-collab/following{/other_user}",
+                    "gists_url": "https://api.github.com/users/geniusdapeng-collab/gists{/gist_id}",
+                    "starred_url": "https://api.github.com/users/geniusdapeng-collab/starred{/owner}{/repo}",
+                    "subscriptions_url": "https://api.github.com/users/geniusdapeng-collab/subscriptions",
+                    "organizations_url": "https://api.github.com/users/geniusdapeng-collab/orgs",
+                    "repos_url": "https://api.github.com/users/geniusdapeng-collab/repos",
+                    "events_url": "https://api.github.com/users/geniusdapeng-collab/events{/privacy}",
+                    "received_events_url": "https://api.github.com/users/geniusdapeng-collab/received_events",
+                    "type": "User",
+                    "user_view_type": "public",
+                    "site_admin": false
+                  },
+                  "html_url": "https://github.com/geniusdapeng-collab/WorkLoom-video-edit",
+                  "description": "WorkLoom AI 剪辑管线：真实素材 → 剪辑时间轴 → 分段调色/字幕/配乐/封面/弹幕 → 多风格变体交付（镜像自 CNB workloom-ai/WorkLoom-video-edit）",
+                  "fork": false,
+                  "url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit",
+                  "forks_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/forks",
+                  "keys_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/keys{/key_id}",
+                  "collaborators_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/collaborators{/collaborator}",
+                  "teams_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/teams",
+                  "hooks_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/hooks",
+                  "issue_events_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/issues/events{/number}",
+                  "events_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/events",
+                  "assignees_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/assignees{/user}",
+                  "branches_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/branches{/branch}",
+                  "tags_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/tags",
+                  "blobs_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/git/blobs{/sha}",
+                  "git_tags_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/git/tags{/sha}",
+                  "git_refs_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/git/refs{/sha}",
+                  "trees_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/git/trees{/sha}",
+                  "statuses_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/statuses/{sha}",
+                  "languages_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/languages",
+                  "stargazers_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/stargazers",
+                  "contributors_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/contributors",
+                  "subscribers_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/subscribers",
+                  "subscription_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/subscription",
+                  "commits_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/commits{/sha}",
+                  "git_commits_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/git/commits{/sha}",
+                  "comments_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/comments{/number}",
+                  "issue_comment_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/issues/comments{/number}",
+                  "contents_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/contents/{+path}",
+                  "compare_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/compare/{base}...{head}",
+                  "merges_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/merges",
+                  "archive_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/{archive_format}{/ref}",
+                  "downloads_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/downloads",
+                  "issues_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/issues{/number}",
+                  "pulls_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/pulls{/number}",
+                  "milestones_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/milestones{/number}",
+                  "notifications_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/notifications{?since,all,participating}",
+                  "labels_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/labels{/name}",
+                  "releases_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/releases{/id}",
+                  "deployments_url": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/deployments",
+                  "created_at": "2026-10-10T16:55:59Z",
+                  "updated_at": "2026-10-14T16:27:22Z",
+                  "pushed_at": "2026-10-14T17:33:18Z",
+                  "git_url": "git://github.com/geniusdapeng-collab/WorkLoom-video-edit.git",
+                  "ssh_url": "git@github.com:geniusdapeng-collab/WorkLoom-video-edit.git",
+                  "clone_url": "https://github.com/geniusdapeng-collab/WorkLoom-video-edit.git",
+                  "svn_url": "https://github.com/geniusdapeng-collab/WorkLoom-video-edit",
+                  "homepage": null,
+                  "size": 219487,
+                  "stargazers_count": 0,
+                  "watchers_count": 0,
+                  "language": "TypeScript",
+                  "has_issues": true,
+                  "has_projects": false,
+                  "has_wiki": false,
+                  "has_pages": false,
+                  "has_discussions": false,
+                  "forks_count": 0,
+                  "mirror_url": null,
+                  "archived": false,
+                  "disabled": false,
+                  "open_issues_count": 2,
+                  "license": {
+                    "key": "apache-2.0",
+                    "name": "Apache License 2.0",
+                    "spdx_id": "Apache-2.0",
+                    "url": "https://api.github.com/licenses/apache-2.0",
+                    "node_id": "MDc6TGljZW5zZTI="
+                  },
+                  "allow_forking": true,
+                  "is_template": false,
+                  "web_commit_signoff_required": false,
+                  "has_pull_requests": true,
+                  "pull_request_creation_policy": "all",
+                  "topics": [
+                    "ai-video",
+                    "ffmpeg",
+                    "pipeline",
+                    "short-video",
+                    "subtitle",
+                    "video-editing",
+                    "workloom"
+                  ],
+                  "visibility": "public",
+                  "forks": 0,
+                  "open_issues": 2,
+                  "watchers": 0,
+                  "default_branch": "main"
+                }
+              },
+              "_links": {
+                "self": {
+                  "href": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/pulls/21"
+                },
+                "html": {
+                  "href": "https://github.com/geniusdapeng-collab/WorkLoom-video-edit/pull/21"
+                },
+                "issue": {
+                  "href": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/issues/21"
+                },
+                "comments": {
+                  "href": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/issues/21/comments"
+                },
+                "review_comments": {
+                  "href": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/pulls/21/comments"
+                },
+                "review_comment": {
+                  "href": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/pulls/comments{/number}"
+                },
+                "commits": {
+                  "href": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/pulls/21/commits"
+                },
+                "statuses": {
+                  "href": "https://api.github.com/repos/geniusdapeng-collab/WorkLoom-video-edit/statuses/467d7a8ebf92b240406d87491ccc66fa961d07d0"
+                }
+              },
+              "author_association": "OWNER",
+              "auto_merge": null,
+              "active_lock_reason": null,
+              "merged": false,
+              "mergeable": true,
+              "rebaseable": true,
+              "mergeable_state": "clean",
+              "merged_by": null,
+              "comments": 0,
+              "review_comments": 0,
+              "maintainer_can_modify": false,
+              "commits": 1,
+              "additions": 94,
+              "deletions": 3,
+              "changed_files": 2
+            },
+            "ciPolicyChanges": [],
+            "cloudChecks": [
+              {
+                "name": "gate",
+                "status": "completed",
+                "conclusion": "success",
+                "id": 116002526684,
+                "details_url": "https://github.com/geniusdapeng-collab/WorkLoom-video-edit/actions/runs/38607645423/job/116002526684"
+              },
+              {
+                "name": "ui-contract",
+                "status": "completed",
+                "conclusion": "success",
+                "id": 116002526355,
+                "details_url": "https://github.com/geniusdapeng-collab/WorkLoom-video-edit/actions/runs/38607645399/job/116002526355"
+              }
+            ],
+            "checkErrors": [],
+            "executionMode": "current-session ordinary GitHub API; no platform AI or native queue",
+            "target": {
+              "platform": "github",
+              "repo": "WorkLoom-video-edit",
+              "taskId": "T-2026-1013-0003",
+              "plannedFiles": [
+                "scripts/tools/edit-post.mts",
+                "bundles/ai-video/connectors/post-bridge/post-cli-media.test.ts"
+              ],
+              "previousFrozenTuple": {
+                "path": "/Users/mac/Documents/Codex/2026-10-13/https-cnb-cool-workloom-ai-workloom/work/ui-ci-repair/github/WorkLoom-video-edit",
+                "head": "c9045f5f0d96faaf9d93ac71e9e24d8cd2ad92e4",
+                "baseline": "53040986003e46b29c330b01144f29a505dc864a",
+                "branch": "task/T-2026-1013-0003-ui-ci-3-github",
+                "ledger": "/Users/mac/Documents/Codex/2026-10-13/https-cnb-cool-workloom-ai-workloom/outputs/mcd-final-ci/github/WorkLoom-video-edit/ledger.json"
+              },
+              "ledger": "/Users/mac/Documents/Codex/2026-10-13/https-cnb-cool-workloom-ai-workloom/outputs/mcd-media-ci/github/WorkLoom-video-edit/ledger.json",
+              "head": "467d7a8ebf92b240406d87491ccc66fa961d07d0",
+              "sealed": true,
+              "commitCreated": true,
+              "currentChangedFiles": [
+                {
+                  "path": "scripts/tools/edit-post.mts",
+                  "sha256": "cc00d7899467117538e4ce0c909ed0fc77b980ef333ca000a9892524ed39a6e0",
+                  "bytes": 66228,
+                  "gitBlobSha": "e504ccd087dc6e322dbe23dfdebda01c1291e4ec",
+                  "copiedFrom": "/Users/mac/Documents/Codex/2026-10-13/https-cnb-cool-workloom-ai-workloom/work/media-ci-repair-shadow/cnb/WorkLoom-video-edit/scripts/tools/edit-post.mts",
+                  "beforeSha256": "3b121c00ceeed5b20aa1fbc24246c753b31ccaf668c5373e50dd5481c63223be",
+                  "method": "B exact independent-reviewed final shadow copy; no current new HEAD acceptance"
+                },
+                {
+                  "path": "bundles/ai-video/connectors/post-bridge/post-cli-media.test.ts",
+                  "sha256": "23cbefd3bbda985c4a4bc16edeb059ba608977f3f356b2c303186ca17bcf0cee",
+                  "bytes": 20201,
+                  "gitBlobSha": "398a6ddf1047912640c8f8e46b04bd6d54462924",
+                  "copiedFrom": "/Users/mac/Documents/Codex/2026-10-13/https-cnb-cool-workloom-ai-workloom/work/media-ci-repair-shadow/cnb/WorkLoom-video-edit/bundles/ai-video/connectors/post-bridge/post-cli-media.test.ts",
+                  "beforeSha256": "d47a108364678185d097450ddf5b0ca9c139116205201529a273818033283062",
+                  "method": "B exact independent-reviewed final shadow copy; no current new HEAD acceptance"
+                }
+              ],
+              "path": "/Users/mac/Documents/Codex/2026-10-13/https-cnb-cool-workloom-ai-workloom/work/media-ci-repair/github/WorkLoom-video-edit",
+              "parent": "2aa9d2d73b05f4564d69c9cac2a603d77482c180",
+              "audit": "2aa9d2d73b05f4564d69c9cac2a603d77482c180",
+              "baseline": "2aa9d2d73b05f4564d69c9cac2a603d77482c180",
+              "branch": "task/T-2026-1013-0003-media-ci-7-github",
+              "localBranch": "task/T-2026-1013-0003-media-ci-7-github",
+              "preparationReadyForRootSeal": true,
+              "proofLevel": "B canonical current-main public fetch, exact parent/tree and working-tree blob metadata; no current new HEAD acceptance",
+              "preparationReceipt": "/Users/mac/Documents/Codex/2026-10-13/https-cnb-cool-workloom-ai-workloom/outputs/media-ci-repair-preparation/github-video-preparation.json",
+              "preparationReceiptSha256": "22d9b5a27533d0433dae788dc5b853e2f34e4ac504233bf52431e7c33137a4a2",
+              "tree": "7404c925d9a8eb522414f94e364b1d51e04469fc",
+              "commitSubject": "fix(video): preserve optional BGM root failures [T-2026-1013-0003]",
+              "committed": true,
+              "changedFiles": [
+                {
+                  "path": "bundles/ai-video/connectors/post-bridge/post-cli-media.test.ts",
+                  "sha256": "23cbefd3bbda985c4a4bc16edeb059ba608977f3f356b2c303186ca17bcf0cee",
+                  "bytes": 20201
+                },
+                {
+                  "path": "scripts/tools/edit-post.mts",
+                  "sha256": "cc00d7899467117538e4ce0c909ed0fc77b980ef333ca000a9892524ed39a6e0",
+                  "bytes": 66228
+                }
+              ],
+              "protectedFiles": [
+                {
+                  "path": ".cnb.yml",
+                  "sha256": "138a38be1c300c16277dddca5702604b8045f1c0547cb676412e664bd7232d9b",
+                  "bytes": 25214
+                },
+                {
+                  "path": "scripts/ci/ui-auth-bootstrap.mjs",
+                  "sha256": "35426ec0d6ad4e522f271980a8dd57711aab5c94b4bd69b39c68905eed05bb6e",
+                  "bytes": 28487
+                },
+                {
+                  "path": "scripts/ci/ui-auth-bootstrap.test.mjs",
+                  "sha256": "b2c245f7fb809ac0ec1c1439cea58c45558eb5d78c4f10412d0d96800dee30e9",
+                  "bytes": 20936
+                },
+                {
+                  "path": "scripts/ci/install-private-ui.mjs",
+                  "sha256": "cf9d8490f2a8aca3a99a5baba04f2457a416a146db491b67d5dc23909413265c",
+                  "bytes": 3757
+                },
+                {
+                  "path": "scripts/ci/install-private-ui.test.mjs",
+                  "sha256": "af2cf57d818188893601287cd2fc44ada865d719f763a3bbd6a46fbf763f8b60",
+                  "bytes": 18063
+                },
+                {
+                  "path": "pnpm-lock.yaml",
+                  "sha256": "834833a61b50ff153fd0ed456a306d5fe0a3d2bffb51b8665fc0cf8b85d684e8",
+                  "bytes": 273793
+                }
+              ],
+              "mcdAssignment": {
+                "card": "MC-001",
+                "repair": "/root",
+                "acceptance": "/root/final_gate_review"
+              },
+              "strictProtocol": {
+                "argv": [
+                  "/Users/mac/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node",
+                  "scripts/ci/verify-commit-msg.mjs",
+                  "--range",
+                  "2aa9d2d73b05f4564d69c9cac2a603d77482c180..467d7a8ebf92b240406d87491ccc66fa961d07d0",
+                  "--repo",
+                  "workloom-ai/WorkLoom-video-edit"
+                ],
+                "exitCode": 0,
+                "log": "/Users/mac/Documents/Codex/2026-10-13/https-cnb-cool-workloom-ai-workloom/outputs/media-ci-repair/github-WorkLoom-video-edit-sealed-strict.log",
+                "sha256": "c51eeb7ca93d58c7e8bb832702531238f2f575fd044e58c5adfe0975b8919c62"
+              },
+              "commitPatchSha256": "d5e9fc149ca59953506870d5edc6c5fc1bc75ab1e823e8d04cf90053ba36f183"
+            },
+            "changedCoverage": [
+              {
+                "path": "bundles/ai-video/connectors/post-bridge/post-cli-media.test.ts",
+                "evidence": "B",
+                "sha256": "23cbefd3bbda985c4a4bc16edeb059ba608977f3f356b2c303186ca17bcf0cee",
+                "bytes": 20201,
+                "reason": "Exact current physical-copy Git/blob/hash inspection and actual role proofs; no new whole-file semantic reading claim."
+              },
+              {
+                "path": "scripts/tools/edit-post.mts",
+                "evidence": "B",
+                "sha256": "cc00d7899467117538e4ce0c909ed0fc77b980ef333ca000a9892524ed39a6e0",
+                "bytes": 66228,
+                "reason": "Exact current physical-copy Git/blob/hash inspection and actual role proofs; no new whole-file semantic reading claim."
+              }
+            ],
+            "validatedReviewId": "7c96b832d83aedb72c91f21aea1e7abefb393c822da9e18dfca6fdda57606314"
+          },
+          "controller": "current-session-github-media-ci-api",
+          "nativeQueue": false,
+          "platformAI": false
+        }
+      },
+      "previous": "17b52dec83c1e1658c8385a5adca393ac3b592684dd44c34c5cf66aa0421e2ec",
+      "digest": "a05b4580253887e20fe31b0cbf170924977368c8ada1cb0dcd9c75fc2397a196"
+    },
+    {
+      "sequence": 74,
+      "at": "2026-10-14T17:58:53.802Z",
+      "kind": "transaction",
+      "data": {
+        "id": "github-media-ci-session-acquire:21:467d7a8ebf92b240406d87491ccc66fa961d07d0:2aa9d2d73b05f4564d69c9cac2a603d77482c180:7c96b832d83aedb72c91f21aea1e7abefb393c822da9e18dfca6fdda57606314:github-media-ci-session/068154f2-fb80-48b5-8927-5e7d25dd7601",
+        "controller": "current-session-github-media-ci-api",
+        "nativeQueue": false
+      },
+      "previous": "a05b4580253887e20fe31b0cbf170924977368c8ada1cb0dcd9c75fc2397a196",
+      "digest": "26a649237c2f79ee3625a5b00154acee958b7abf4257db3a7f94e6baea8a7f17"
     }
   ]
 }
