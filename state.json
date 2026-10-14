@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "repo": "geniusdapeng-collab/WorkLoom-video-edit",
-  "revision": 34,
+  "revision": 36,
   "tasks": {
     "18": {
       "number": 18,
@@ -2726,7 +2726,7 @@
           "protocol": 4
         }
       },
-      "updatedAt": 1791991493390,
+      "updatedAt": 1791991649076,
       "headSha": "c9045f5f0d96faaf9d93ac71e9e24d8cd2ad92e4",
       "mainSha": "53040986003e46b29c330b01144f29a505dc864a",
       "branch": "task/T-2026-1013-0003-ui-ci-3-github",
@@ -4433,7 +4433,11 @@
       },
       "controller": "current-session-github-final-ci-api",
       "nativeQueue": false,
-      "platformAI": false
+      "platformAI": false,
+      "finalCiPreparation": {
+        "bodySha256": "9b67243367690d4094c8f0ba61130a947b603425f16c3a8667a082b56d20064d",
+        "bodyWriteStartedAt": "2026-10-14T15:27:29.075Z"
+      }
     }
   },
   "leases": {
@@ -11688,6 +11692,34 @@
       },
       "previous": "38e477859ffc5fed9f671a6cca49ff36ce9259ec7bc9b0521378eebe6beb69a9",
       "digest": "0d18c6dcf948ef1b126b6bde32eb0bfce0db24e9952c3d5076a1962eeabf01dc"
+    },
+    {
+      "sequence": 35,
+      "at": "2026-10-14T15:27:29.076Z",
+      "kind": "task",
+      "data": {
+        "number": 20,
+        "patch": {
+          "finalCiPreparation": {
+            "bodySha256": "9b67243367690d4094c8f0ba61130a947b603425f16c3a8667a082b56d20064d",
+            "bodyWriteStartedAt": "2026-10-14T15:27:29.075Z"
+          }
+        }
+      },
+      "previous": "0d18c6dcf948ef1b126b6bde32eb0bfce0db24e9952c3d5076a1962eeabf01dc",
+      "digest": "9fc6e007865b11f1eafabb3d19af7738d0909101dd3afc603f90c29855a6c24b"
+    },
+    {
+      "sequence": 36,
+      "at": "2026-10-14T15:26:57.330Z",
+      "kind": "transaction",
+      "data": {
+        "id": "github-final-ci-session-body-attempt:20:c9045f5f0d96faaf9d93ac71e9e24d8cd2ad92e4:53040986003e46b29c330b01144f29a505dc864a:e558bd6ac8aa01e01e5228ee1a42fbd63fa9c8e09bfa87cee2bea81334dd0caf",
+        "controller": "current-session-github-final-ci-api",
+        "nativeQueue": false
+      },
+      "previous": "9fc6e007865b11f1eafabb3d19af7738d0909101dd3afc603f90c29855a6c24b",
+      "digest": "ebf3843578f0570623f51bd0139961b6f1485ad6c380abfe1a27a0a656bb975d"
     }
   ]
 }
