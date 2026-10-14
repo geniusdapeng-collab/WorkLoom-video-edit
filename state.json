@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "repo": "geniusdapeng-collab/WorkLoom-video-edit",
-  "revision": 24,
+  "revision": 26,
   "tasks": {
     "18": {
       "number": 18,
@@ -2711,22 +2711,22 @@
   },
   "leases": {
     "dependencies": {
-      "owner": "github-session/5efc589b-7a66-4d75-ae5c-7dd5ff0a27d9",
+      "owner": null,
       "generation": 3,
       "acquiredAt": 1791940722257,
-      "expiresAt": 1791941640549
+      "expiresAt": 1791940765811
     },
     "protocol": {
-      "owner": "github-session/5efc589b-7a66-4d75-ae5c-7dd5ff0a27d9",
+      "owner": null,
       "generation": 3,
       "acquiredAt": 1791940722257,
-      "expiresAt": 1791941640549
+      "expiresAt": 1791940765811
     },
     "main": {
-      "owner": "github-session/5efc589b-7a66-4d75-ae5c-7dd5ff0a27d9",
+      "owner": null,
       "generation": 2,
       "acquiredAt": 1791940722257,
-      "expiresAt": 1791941640549
+      "expiresAt": 1791940765811
     }
   },
   "releases": {},
@@ -8080,6 +8080,38 @@
       },
       "previous": "38c0247b37531e21d2a35ee006bd50d2d95218ea09b3269afc03cd5ddf84a2ab",
       "digest": "de5c6ddd1cf800285d062900e019951bb6c1eeaae8baf7c715a757b81251d5a6"
+    },
+    {
+      "sequence": 25,
+      "at": "2026-10-14T01:19:25.811Z",
+      "kind": "lease_release",
+      "data": {
+        "scopes": [
+          "dependencies",
+          "main",
+          "protocol"
+        ],
+        "owner": "github-session/5efc589b-7a66-4d75-ae5c-7dd5ff0a27d9",
+        "generation": {
+          "dependencies": 3,
+          "main": 2,
+          "protocol": 3
+        }
+      },
+      "previous": "de5c6ddd1cf800285d062900e019951bb6c1eeaae8baf7c715a757b81251d5a6",
+      "digest": "6f5a9f5880013c2275de0df7dd7da40fea3d57740cbc4aa0e6a8683409de1c85"
+    },
+    {
+      "sequence": 26,
+      "at": "2026-10-14T01:19:16.378Z",
+      "kind": "transaction",
+      "data": {
+        "id": "github-session-release:18:f365e83054b21e4e2770efdf4c5fcd68a518410b:451c7c629bed45bf3b7a950b341288bf20174b49:c11c1cecaa75bcf6f4af50acec2f6deded7568d3d978e434963547880e1ba892:github-session/5efc589b-7a66-4d75-ae5c-7dd5ff0a27d9",
+        "controller": "current-session-github-api",
+        "nativeQueue": false
+      },
+      "previous": "6f5a9f5880013c2275de0df7dd7da40fea3d57740cbc4aa0e6a8683409de1c85",
+      "digest": "488b329583607606a3573966a7005e9b4ab6d20a1e05079973eefac9c37c2052"
     }
   ]
 }
