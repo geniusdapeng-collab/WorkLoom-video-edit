@@ -18,12 +18,14 @@ describe("edit/output-resolution：默认跟随素材原生分辨率", () => {
     expect(decision.downscale).toBe(false);
   });
 
-  it("横向 4K 与竖向 4K 同在时，按目标画幅 9:16 挑竖向档位（不按面积瞎挑）", () => {
+  it("横向 4K 与竖向 4K 同在时，以目标 9:16 素材为比例参照，扩大画布保留两者原生像素", () => {
     const decision = decideOutputResolution({
       targetAspectRatio: "9:16",
       sources: [{ sourceId: "src-h", width: 3840, height: 2160 }, vertical4k],
     });
-    expect([decision.width, decision.height]).toEqual([2160, 3840]);
+    expect([decision.width, decision.height]).toEqual([3840, 6828]);
+    expect(decision.sourceBest).toMatchObject({ width: 2160, height: 3840 });
+    expect(decision.downscale).toBe(false);
   });
 });
 
@@ -76,16 +78,17 @@ describe("edit/output-resolution：显式降分辨率必须声明（fail closed�
     expect(decision.advisories.some((note) => note.includes("上采样"))).toBe(true);
   });
 
-  it("素材不可探测 → 回退 1080p 并在咨询项里如实标注", () => {
+  it("素材不可探测 → 保留诊断档位但拒绝正式交付，不能冒充原生分辨率", () => {
     const decision = decideOutputResolution({ sources: [{ sourceId: "src-x", width: null, height: null }] });
     expect([decision.width, decision.height]).toEqual([1920, 1080]);
     expect(decision.policy).toContain("fallback");
     expect(decision.advisories.some((note) => note.includes("不可探测"))).toBe(true);
+    expect(decision.hardFailures.some((note) => note.includes("原生分辨率"))).toBe(true);
   });
 
   it("只给一半显式参数 / 非法值 / 非法清晰度档都按口径处理", () => {
     const partial = decideOutputResolution({ sources: [vertical4k], explicit: { width: 1080 } });
-    expect(partial.hardFailures).toEqual([]);
+    expect(partial.hardFailures.some((note) => note.includes("两个都给"))).toBe(true);
     expect([partial.width, partial.height]).toEqual([2160, 3840]);
     expect(partial.advisories.some((note) => note.includes("两个都给"))).toBe(true);
 
@@ -94,5 +97,35 @@ describe("edit/output-resolution：显式降分辨率必须声明（fail closed�
 
     const quality = decideOutputResolution({ sources: [vertical4k], quality: "8k" });
     expect(quality.hardFailures[0]).toContain("hd / uhd");
+  });
+
+  it("部分素材探测失败仍拒绝，避免未知的 4K 素材被已知 HD 掩盖", () => {
+    const result = decideOutputResolution({ sources: [
+      { sourceId: "known", width: 1920, height: 1080 },
+      { sourceId: "unknown", width: null, height: null },
+    ] });
+    expect(result.hardFailures.some((note) => note.includes("unknown"))).toBe(true);
+  });
+
+  it("旋转元数据决定显示尺寸，90 度的横向编码对应竖向画布", () => {
+    const result = decideOutputResolution({ targetAspectRatio: "9:16", sources: [
+      { sourceId: "rotated", width: 3840, height: 2160, rotationDegrees: -90 },
+    ] });
+    expect(result.hardFailures).toEqual([]);
+    expect([result.width, result.height]).toEqual([2160, 3840]);
+  });
+
+  it("不能静默四舍五入显式尺寸，也不能接受编码无法处理的奇数画布", () => {
+    for (const width of [1080.5, 1079]) {
+      const result = decideOutputResolution({ sources: [vertical4k], explicit: { width, height: 1920 }, allowDownscale: true });
+      expect(result.hardFailures.some((note) => note.includes("偶数整数"))).toBe(true);
+    }
+  });
+  it("面积较小但更宽的源片不能被匹配画幅的较大面积源片掩盖", () => {
+    const sources = [{ sourceId: "normal", width: 320, height: 180 }, { sourceId: "wide", width: 500, height: 100 }];
+    const normal = decideOutputResolution({ sources, targetAspectRatio: "16:9" });
+    expect([normal.width, normal.height]).toEqual([500, 282]); expect(normal.downscale).toBe(false);
+    const explicit = decideOutputResolution({ sources, targetAspectRatio: "16:9", explicit: { width: 320, height: 180 } });
+    expect(explicit.downscale).toBe(true); expect(explicit.hardFailures.join(" ")).toContain("wide");
   });
 });

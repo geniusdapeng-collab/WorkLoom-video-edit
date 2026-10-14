@@ -20,6 +20,8 @@ export interface SourceSizeInput {
   sourceId?: string;
   width: number | null;
   height: number | null;
+  /** ffprobe display matrix 的旋转角；默认 0。尺寸按实际显示方向决策。 */
+  rotationDegrees?: number | null;
 }
 
 export interface OutputResolutionInput {
@@ -63,7 +65,7 @@ function parseAspectRatio(raw: string | null | undefined): number | null {
   return Number.isFinite(a) && Number.isFinite(b) && a! > 0 && b! > 0 ? a! / b! : null;
 }
 
-/** 显式分辨率解析：两个都给且为正数才算生效；只给一个视为缺省（附咨询项） */
+/** 显式分辨率必须两个都给，且为可编码的正偶数整数；不静默舍入。 */
 function parseExplicit(explicit: OutputResolutionInput["explicit"]): {
   width: number | null;
   height: number | null;
@@ -78,16 +80,21 @@ function parseExplicit(explicit: OutputResolutionInput["explicit"]): {
   if (hasWidth !== hasHeight) return { width: null, height: null, partial: true, invalid: false };
   const width = Number(rawWidth);
   const height = Number(rawHeight);
-  const valid = Number.isFinite(width) && Number.isFinite(height) && width > 0 && height > 0;
-  return { width: valid ? Math.round(width) : null, height: valid ? Math.round(height) : null, partial: false, invalid: !valid };
+  const valid = Number.isSafeInteger(width) && Number.isSafeInteger(height) && width > 0 && height > 0
+    && width % 2 === 0 && height % 2 === 0;
+  return { width: valid ? width : null, height: valid ? height : null, partial: false, invalid: !valid };
 }
 
 export function decideOutputResolution(input: OutputResolutionInput): OutputResolutionDecision {
   const fallback = input.fallback ?? { width: 1920, height: 1080 };
   const targetAspect = parseAspectRatio(input.targetAspectRatio);
   const usable = input.sources
-    .filter((entry) => Number.isFinite(entry.width) && Number.isFinite(entry.height) && (entry.width ?? 0) > 0 && (entry.height ?? 0) > 0)
-    .map((entry) => ({ sourceId: entry.sourceId, width: entry.width as number, height: entry.height as number }));
+    .filter((entry) => Number.isSafeInteger(entry.width) && Number.isSafeInteger(entry.height) && (entry.width ?? 0) > 0 && (entry.height ?? 0) > 0)
+    .map((entry) => {
+      const rotation = ((Number(entry.rotationDegrees ?? 0) % 360) + 360) % 360;
+      const swap = Math.abs(rotation - 90) < 0.01 || Math.abs(rotation - 270) < 0.01;
+      return { sourceId: entry.sourceId, width: (swap ? entry.height : entry.width) as number, height: (swap ? entry.width : entry.height) as number };
+    });
   const matching = targetAspect
     ? usable.filter((entry) => Math.abs(entry.width / entry.height - targetAspect) < 0.05)
     : usable;
@@ -105,8 +112,22 @@ export function decideOutputResolution(input: OutputResolutionInput): OutputReso
   let downscaleApproved = false;
   let scaleVersusSource: number | null = null;
 
-  if (explicit.invalid) hardFailures.push("显式分辨率非法：--width/--height 必须为正数");
-  if (explicit.partial) advisories.push("只提供了 --width 或 --height 之一：按素材原生分辨率输出（显式覆盖需两个都给）");
+  if (explicit.invalid) hardFailures.push("显式分辨率非法：--width/--height 必须为正数，且为偶数整数");
+  if (explicit.partial) {
+    const note = "只提供了 --width 或 --height 之一：显式覆盖需两个都给，拒绝静默忽略";
+    hardFailures.push(note);
+    advisories.push(note);
+  }
+  for (const [index, source] of input.sources.entries()) {
+    if (!Number.isSafeInteger(source.width) || !Number.isSafeInteger(source.height) || !(Number(source.width) > 0) || !(Number(source.height) > 0)) {
+      hardFailures.push(`素材 ${source.sourceId ?? index + 1} 的原生分辨率未核实，不能正式交付`);
+    }
+    const rotation = Number(source.rotationDegrees ?? 0);
+    if (!Number.isFinite(rotation) || Math.abs(rotation / 90 - Math.round(rotation / 90)) > 0.0001) {
+      hardFailures.push(`素材 ${source.sourceId ?? index + 1} 的旋转角 ${rotation} 不是直角，需先显式确定目标画布`);
+    }
+  }
+  if (input.sources.length === 0) hardFailures.push("没有可核实原生分辨率的素材，不能正式交付");
 
   if (explicit.width && explicit.height) {
     width = explicit.width;
@@ -131,14 +152,28 @@ export function decideOutputResolution(input: OutputResolutionInput): OutputReso
       }
     }
   } else if (best) {
-    width = best.width;
-    height = best.height;
-    policy = `source-max（${best.sourceId ?? "source"} ${best.width}×${best.height}）`;
+    const requiredScale = Math.max(1, ...usable.flatMap((source) => [source.width / best.width, source.height / best.height]));
+    width = requiredScale > 1 ? Math.ceil(best.width * requiredScale / 2) * 2 : best.width;
+    height = requiredScale > 1 ? Math.ceil(best.height * requiredScale / 2) * 2 : best.height;
+    policy = `source-max（${best.sourceId ?? "source"} ${best.width}×${best.height}${requiredScale > 1 ? `；混合画幅保全画布 ${width}×${height}` : ""}）`;
+    if (requiredScale > 1) advisories.push("混合画幅扩大交付画布以保留每个源片的原生像素；低尺寸源片可能上采样，不代表新增细节");
   } else {
     width = fallback.width;
     height = fallback.height;
     policy = `fallback-${fallback.height}p（素材不可探测）`;
     advisories.push(`素材尺寸不可探测：回退 ${fallback.width}×${fallback.height}，分辨率口径无法核对`);
+  }
+  if (!Number.isSafeInteger(width) || !Number.isSafeInteger(height) || width <= 0 || height <= 0 || width % 2 || height % 2) {
+    hardFailures.push("目标画布必须为正偶数整数；原生尺寸含奇数边长时需显式声明可编码画布");
+  }
+  if (explicit.width && explicit.height) {
+    const reduced = usable.filter((source) => width < source.width || height < source.height);
+    if (reduced.length && !downscale) {
+      downscale = true; downscaleApproved = Boolean(input.allowDownscale);
+      scaleVersusSource = Math.min(...usable.map((source) => Math.min(width / source.width, height / source.height)));
+      policy = "explicit-downscale（部分源片的原生像素尺寸被缩小）";
+      if (!downscaleApproved) hardFailures.push(`显式画布会缩小素材 ${reduced.map((source) => `${source.sourceId ?? "source"} ${source.width}×${source.height}`).join("、")}；需显式加 --allow-downscale`);
+    }
   }
 
   const qualityRaw = String(input.quality ?? "").trim();

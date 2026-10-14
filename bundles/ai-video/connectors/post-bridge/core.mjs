@@ -35,14 +35,18 @@ import {
   extractFrame, probeMedia, round, runBin, sha256File, tempDir,
 } from "../subtitle-bridge/measure.mjs";
 import {
-  buildAssDocument, exportSidecars, loadFontCatalog, plan as planSubtitle,
-  softMux, srtSecondsToAss, SubtitleError,
+  buildAssDocument, buildTransitionTimemap, cuesToSrt, exportSidecars, loadFontCatalog,
+  parseDanmaku, renderDanmaku, parseSrt, plan as planSubtitle, renderWithSubtitles, retimeCuesForTransitions, softMux, srtSecondsToAss, SubtitleError,
 } from "../subtitle-bridge/core.mjs";
-import { grade as colorGrade } from "../color-bridge/core.mjs";
+import { grade as colorGrade, probeMedia as probeColorMedia } from "../color-bridge/core.mjs";
+import { resolveColorManagement } from "../color-bridge/processing-quality.mjs";
+import { applyPostEntity } from "../color-bridge/entity-post.mjs";
+import { applyPostRhythmSound } from "./rhythm-post.mjs";
 import { findTracks, filmEnergyArc as bgmFilmEnergyArc, loadAllLocalTracks, mix as bgmMix } from "../bgm-bridge/core.mjs";
 import { AUDIO_STEM_ROLES, audioStemDigest, renderAudioStems, verifyAudioStemBundle,
   muxAudioProgram, snapshotAudioStemArtifact } from "../bgm-bridge/audio-stems.mjs";
 import { createAudioStemReceiptVerifier } from "../bgm-bridge/audio-stems-trust.mjs";
+import { assertPostQuality, captureProcessingInputs, inspectDeliveryManifest, writePostQuality, writeProcessingProof, resolveDeliveryRoot } from "./quality-gate.mjs";
 
 /* ============================ 工具面与错误 ============================ */
 
@@ -51,6 +55,7 @@ export const POST_TOOLS = [
   "postread.health",
   "postread.plan",
   "postread.impact",
+  "postread.quality",
   "postwrite.package",
   "postwrite.reedit",
   "postwrite.triage",
@@ -120,13 +125,15 @@ function realpathDeepest(target) {
 export function allowedRoots(env = process.env) {
   const raw = (env.WORKLOOM_POST_ALLOWED_ROOTS ?? "").trim();
   const list = raw ? raw.split(":").map((entry) => entry.trim()).filter(Boolean) : [process.cwd(), os.tmpdir()];
-  return list.map((entry) => {
+  return [...new Set(list.flatMap((entry) => {
+    const lexical = path.resolve(entry);
     try {
-      return fs.realpathSync(entry);
+      // Retain the host alias for snapshot guards; canonical paths still bind the prison.
+      return [lexical, fs.realpathSync(lexical)];
     } catch {
-      return path.resolve(entry);
+      return [lexical];
     }
-  });
+  }))];
 }
 
 export function assertPathAllowed(target, roots = allowedRoots(), label = "path") {
@@ -280,11 +287,8 @@ export function resolveResolution(project = {}) {
   const presets = quality === "uhd" ? UHD_ASPECT_PRESETS : ASPECT_PRESETS;
   if (Array.isArray(project.resolution) && project.resolution.length === 2) {
     const [width, height] = project.resolution.map(Number);
-    if (!Number.isInteger(width) || !Number.isInteger(height) || width <= 0 || height <= 0) {
+    if (!Number.isSafeInteger(width) || !Number.isSafeInteger(height) || width <= 0 || height <= 0 || width % 2 || height % 2) {
       throw new PostError(`分辨率非法：${JSON.stringify(project.resolution)}`, "bad_request");
-    }
-    if (quality === "uhd" && !Object.values(UHD_ASPECT_PRESETS).some(([w, h]) => w === width && h === height)) {
-      throw new PostError(`uhd 仅支持 ${Object.values(UHD_ASPECT_PRESETS).map((size) => size.join("×")).join("、")}`, "bad_request");
     }
     return [width, height];
   }
@@ -310,7 +314,7 @@ export async function planDelivery({
   }
   const ids = new Set(packs.map((pack) => pack.id));
   if (ids.size !== packs.length) throw new PostError("变体 id 重复", "bad_request");
-  const [width, height] = resolveResolution(project);
+  if (!Array.isArray(shots) || shots.length === 0) throw new PostError("交付计划需要实际源镜头", "bad_request");
   const probed = [];
   for (const shot of shots) {
     const file = text(shot.path ?? shot.localPath, "shots[].path");
@@ -320,17 +324,45 @@ export async function planDelivery({
       shotId: String(shot.shotId ?? shot.shot_id ?? path.basename(file)),
       path: file,
       duration: probe.duration,
-      resolution: [probe.width, probe.height],
+      resolution: [probe.displayWidth ?? probe.width, probe.displayHeight ?? probe.height],
+      rotationDegrees: probe.rotationDegrees ?? 0,
       hasAudio: probe.hasAudio,
       sha256: await sha256File(file),
     });
   }
+  const aspectParts = String(project.aspect ?? "").split(":").map(Number);
+  const aspect = aspectParts.length === 2 && aspectParts.every((n) => n > 0) ? aspectParts[0] / aspectParts[1] : null;
+  const sameAspect = aspect ? probed.filter((shot) => Math.abs(shot.resolution[0] / shot.resolution[1] - aspect) < 0.05) : probed;
+  const nativeBest = [...(sameAspect.length ? sameAspect : probed)].sort((a, b) => b.resolution[0] * b.resolution[1] - a.resolution[0] * a.resolution[1])[0].resolution;
+  const nativeScale = Math.max(1, ...probed.flatMap((shot) => [shot.resolution[0] / nativeBest[0], shot.resolution[1] / nativeBest[1]]));
+  const native = nativeScale > 1 ? nativeBest.map((dimension) => Math.ceil(dimension * nativeScale / 2) * 2) : nativeBest;
+  const resolution = Array.isArray(project.resolution) ? resolveResolution(project) : native;
+  if (resolution.some((n) => !Number.isSafeInteger(n) || n <= 0 || n % 2)) throw new PostError("原生画布需正偶数边长；请显式指定可编码画布", "bad_request");
+  const [width, height] = resolution;
+  const sameAspectOutput = Math.abs(width / height - native[0] / native[1]) < 0.005;
+  const reframeApproved = project.resolutionPolicy?.reframeApproved === true && Boolean(project.resolutionPolicy?.reframeReason);
+  const sourceScales = probed.map((shot, index) => {
+    const fill = shots[index]?.reframe?.fill ?? "pad";
+    const scale = fill === "pad" ? Math.min(width / shot.resolution[0], height / shot.resolution[1])
+      : Math.max(width / shot.resolution[0], height / shot.resolution[1]);
+    return { shotId: shot.shotId, sourceResolution: shot.resolution, fill, scale, downscale: scale < 0.999 };
+  });
+  const downscale = sourceScales.some((shot) => shot.downscale)
+    || (sameAspectOutput ? width < native[0] || height < native[1] : !reframeApproved || Math.min(width, height) < Math.min(...native));
+  const downscaleApproved = project.allowDownscale === true || project.resolutionPolicy?.downscaleApproved === true;
+  if (downscale && !downscaleApproved) throw new PostError(`输出 ${width}×${height} 低于原生 ${native.join("×")}，需明确 allowDownscale`, "verify_failed");
+  const quality = project.quality ?? (Math.min(width, height) >= 2160 ? "uhd" : "hd");
+  resolveQuality({ quality });
   const totalSeconds = round(probed.reduce((acc, shot) => acc + (shot.duration ?? 0), 0), 2);
   return {
     schemaVersion: "workloom.delivery-plan/v1",
     projectId,
-    quality: resolveQuality(project),
+    quality,
     resolution: [width, height],
+    nativeResolution: native,
+    resolutionPolicy: { downscale, downscaleApproved, reframeApproved, reframeReason: project.resolutionPolicy?.reframeReason ?? null,
+      nativeBasis: nativeScale > 1 ? "minimum-canvas-preserving-every-source" : "source-native", nativeSourceBest: nativeBest, sourceScales,
+      policy: Array.isArray(project.resolution) ? "explicit" : "source-native" },
     fps: optionalNumber(project.fps, 30),
     shots: probed,
     totalSeconds,
@@ -612,6 +644,8 @@ export async function normaliseShots({
     const source = text(shot.path ?? shot.localPath, "shots[].path");
     if (!fs.existsSync(source)) throw new PostError(`镜头产物不存在：${source}`, "not_found");
     const shotId = String(shot.shotId ?? shot.shot_id ?? path.basename(source));
+    // Shot IDs are editorial identifiers, never path components. Keep arbitrary labels in the receipt only.
+    const fileId = `shot-${createHash("sha256").update(shotId).digest("hex").slice(0, 16)}`;
     const sourceHash = await sha256File(source);
     let frozenSource = source;
     {
@@ -620,6 +654,7 @@ export async function normaliseShots({
         output: path.join(snapshotDir, "original"), allowedRoots: allowedRoots(env) })).path;
     }
     const probe = await probeMedia(frozenSource, { bins });
+    const sourceColor = resolveColorManagement({ probe: await probeColorMedia(frozenSource, { bins }), ErrorClass: PostError });
     const sourceDuration = probe.videoDuration;
     if (!(sourceDuration > 0)) throw new PostError(`镜头 ${shotId} 缺视频轨时长`, "bad_media");
     const sourceKind = String(shot.kind ?? project.sourceKind ?? project.mediaKind ?? "live-action");
@@ -632,7 +667,7 @@ export async function normaliseShots({
      */
     const reframe = normalizeShotReframe(shot.reframe ?? null);
     const reframeKey = reframe ? `rf-${hashKey(STABLE_JSON(reframe))}` : "none";
-    const reframeSource = { width: probe.width, height: probe.height };
+    const reframeSource = { width: probe.displayWidth ?? probe.width, height: probe.displayHeight ?? probe.height };
     let input = frozenSource;
     const enhancement = quality === "uhd" ? {
       status: "not-requested", kind: sourceKind, sourceResolution: [probe.width, probe.height],
@@ -640,11 +675,26 @@ export async function normaliseShots({
     } : null;
     const inputHash = input === frozenSource ? sourceHash : enhancement.sha256;
     const key = await contentKey({
-      sourceHash, inputHash, width, height, fps, quality, v: 3,
+      sourceHash, inputHash, width, height, fps, quality, colorManagement: sourceColor, v: 4,
       ...(reframe ? { reframe: reframeKey } : {}),
     });
-    const target = path.join(dir, `${shotId}-${key}.mp4`);
+    const target = path.join(dir, `${fileId}-${key}.mp4`);
     const receiptPath = `${target}.json`;
+    const assertOwnedOutput = async (file) => {
+      const resolved = assertPathAllowed(file, allowedRoots(env), "normaliseOutput");
+      if (!isInside(resolved, fs.realpathSync(dir)) || fs.existsSync(file) && fs.lstatSync(file).isSymbolicLink()) {
+        throw new PostError(`镜头 ${shotId} 的归一化输出不在独立工作目录内`, "path_not_allowed");
+      }
+      if (resolved === fs.realpathSync(source)) throw new PostError(`镜头 ${shotId} 的归一化输出与原片相同`, "source_alias");
+      if (fs.existsSync(file)) {
+        const [sourceStat, outputStat] = await Promise.all([fsp.stat(source), fsp.stat(file)]);
+        if (sourceStat.dev === outputStat.dev && sourceStat.ino === outputStat.ino) {
+          throw new PostError(`镜头 ${shotId} 的归一化输出与原片为同一文件`, "source_alias");
+        }
+      }
+    };
+    await assertOwnedOutput(target);
+    await assertOwnedOutput(receiptPath);
     if (reuse && !force && fs.existsSync(target)) {
       const stat = await fsp.stat(target);
       const cachedProbe = await probeMedia(target, { bins });
@@ -676,7 +726,7 @@ export async function normaliseShots({
         shotId, source, sourceHash, sourceDuration, sourceHasAudio: probe.hasAudio,
         audioStems: shot.audioStems ?? null, sourceKind, enhancement, quality, path: target, reused: true,
         sha256: cachedHash, bytes: stat.size, mtimeMs: Math.round(stat.mtimeMs),
-        duration: cachedProbe.videoDuration, reframe: receipt.reframe ?? null,
+        duration: cachedProbe.videoDuration, colorManagement: receipt.colorManagement, filterChain: receipt.filterChain ?? null, reframe: receipt.reframe ?? null,
       });
       continue;
     }
@@ -688,10 +738,11 @@ export async function normaliseShots({
     const reframeChain = reframe
       ? buildReframeChain({ descriptor: reframe, source: reframeSource, canvas: [width, height], durationSeconds: probe.videoDuration, fps })
       : null;
-    const scale = reframeChain
+    const canvasChain = reframeChain
       ? `${reframeChain.filters.join(",")},format=yuv420p`
       : `scale=${width}:${height}:force_original_aspect_ratio=decrease`
         + `,pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2:color=black,setsar=1,fps=${fps},format=yuv420p`;
+    const scale = `${sourceColor.chain},${canvasChain}`;
     /**
      * 2026-10-11：uhd（4K）交付不再人为限 2 线程——旧值让 4K 成片交付耗时数小时；
      * 只放开线程数，preset/crf 等画质参数一律不变。
@@ -702,10 +753,11 @@ export async function normaliseShots({
     if (reframeChain) args.push("-t", String(round3(probe.videoDuration)));
     if (probe.hasAudio) args.push("-map", "0:v:0", "-map", "0:a:0");
     else args.push("-map", "0:v:0", "-map", "1:a:0", "-shortest");
-    const tempTarget = path.join(dir, `${shotId}-${key}.${process.pid}.${Date.now()}.tmp.mp4`);
+    const tempTarget = path.join(dir, `${fileId}-${key}.${randomUUID()}.tmp.mp4`);
     args.push(
       "-c:v", "libx264", "-preset", quality === "uhd" ? "medium" : "veryfast",
       "-crf", quality === "uhd" ? "16" : "18", "-threads", "0", "-pix_fmt", "yuv420p",
+      "-color_primaries", "bt709", "-color_trc", "bt709", "-colorspace", "bt709", "-color_range", "tv",
       "-c:a", "aac", "-b:a", "192k", "-ar", "48000", "-ac", "2",
       "-movflags", "+faststart", tempTarget,
     );
@@ -730,7 +782,12 @@ export async function normaliseShots({
           || (input !== source && await sha256File(input) !== inputHash)) {
         throw new PostError(`镜头 ${shotId} 归一化期间原素材或增强输入发生变化`, "verify_failed");
       }
+      await assertOwnedOutput(target);
+      await assertOwnedOutput(receiptPath);
       await fsp.rename(tempTarget, target);
+      if (await sha256File(source) !== sourceHash) {
+        throw new PostError(`镜头 ${shotId} 归一化发布后原片摘要发生变化`, "verify_failed");
+      }
       /**
        * 取景机检（预算/时长/黑边）与回执：先落回执（含失败证据），硬项不过即抛错，
        * 不让"带黑边 / 超预算 / 吞时长"的产物静默进入交付。
@@ -743,7 +800,7 @@ export async function normaliseShots({
         : null;
       await writeJson(receiptPath, {
         key, sourceSha256: sourceHash, inputSha256: inputHash, outputSha256: outputHash,
-        bytes: stat.size, width, height, fps, hasAudio: true,
+        bytes: stat.size, width, height, fps, hasAudio: true, colorManagement: sourceColor, filterChain: scale,
         ...(reframeReceipt ? { reframe: reframeReceipt } : {}),
       });
       if (reframeReceipt && reframeReceipt.passed === false) {
@@ -760,7 +817,7 @@ export async function normaliseShots({
       shotId, source, sourceHash, sourceDuration, sourceHasAudio: probe.hasAudio,
       audioStems: shot.audioStems ?? null, sourceKind, enhancement, quality, path: target, reused: false,
       sha256: outputHash, bytes: stat.size, mtimeMs: Math.round((await fsp.stat(target)).mtimeMs),
-      duration: outputProbe.videoDuration,
+      duration: outputProbe.videoDuration, colorManagement: sourceColor, filterChain: scale,
       reframe: reframe
         ? {
           key: reframeKey, mode: reframe.mode, intent: reframe.intent, fill: reframe.fill,
@@ -1324,7 +1381,28 @@ async function assembleTransitionTimeline({
   return { output, receiptPath, receipt, cutCount: timelineCuts.length };
 }
 
-export async function assembleTimeline({
+export async function assembleTimeline(options = {}) {
+  const { clips = [], output } = options;
+  if (!Array.isArray(clips) || !clips.length || typeof output !== "string" || !output.trim()) throw new PostError("拼接需要镜头和独立输出路径", "bad_request");
+  for (const clip of clips) if (typeof clip.path !== "string" || !fs.existsSync(clip.path)) throw new PostError(`拼接镜头产物缺失：${clip.path}`, "not_found");
+  const current = await captureProcessingInputs(clips.map((clip) => clip.path));
+  const resolvedOutput = realpathDeepest(path.resolve(output));
+  for (const input of current) {
+    if (fs.realpathSync(input.path) === resolvedOutput) throw new PostError("拼接禁止覆盖输入镜头", "overwrite_source_forbidden");
+    if (fs.existsSync(output)) {
+      const [sourceInfo, outputInfo] = await Promise.all([fsp.stat(input.path), fsp.stat(output)]);
+      if (sourceInfo.dev === outputInfo.dev && sourceInfo.ino === outputInfo.ino) throw new PostError("拼接输出与输入镜头为同一文件", "overwrite_source_forbidden");
+    }
+  }
+  try { return await assembleTimelineOwned(options); }
+  finally {
+    for (const input of current) if (await sha256File(input.path) !== input.sha256) {
+      throw new PostError("拼接期间原输入镜头摘要发生变化", "verify_failed");
+    }
+  }
+}
+
+async function assembleTimelineOwned({
   clips = [], transitions = {}, output, resolution, fps = 30, quality = "hd", bins = resolveBinaries(),
 }) {
   if (!Array.isArray(clips) || clips.length === 0) throw new PostError("拼接需要至少一个镜头", "bad_request");
@@ -1340,8 +1418,7 @@ export async function assembleTimeline({
     if (path.resolve(clip.path) === path.resolve(output)) throw new PostError("拼接禁止覆盖输入镜头", "overwrite_source_forbidden");
   }
   await fsp.mkdir(path.dirname(path.resolve(output)), { recursive: true });
-  const dir = path.join(path.dirname(path.resolve(output)), "assemble");
-  await fsp.mkdir(dir, { recursive: true });
+  const dir = await fsp.mkdtemp(path.join(path.dirname(path.resolve(output)), ".assemble-"));
 
   if (mode === "hard" || clips.length === 1) {
     const list = path.join(dir, "concat.txt");
@@ -1504,6 +1581,22 @@ export async function assembleTimeline({
     output, mode, fadeSec: round(fadeSec, 3), shots: clips.length, avSync,
     transitions: { receiptPath: result.receiptPath, receipt: result.receipt, cutCount: result.cutCount },
   };
+}
+
+function executedCutRecord(clips, assembly) {
+  let cursor = 0;
+  const cuts = clips.slice(0, -1).map((clip, index) => {
+    cursor += Number(clip.duration ?? 0);
+    const actual = (assembly.transitions?.receipt?.cuts ?? []).find((cut) => (cut.fromShotId === clip.shotId && cut.toShotId === clips[index + 1].shotId));
+    const duration = actual?.durationSeconds ?? 0;
+    cursor -= duration;
+    return { cutIndex: index, fromShotId: clip.shotId, toShotId: clips[index + 1].shotId,
+      type: actual?.type ?? (assembly.mode === "fade" ? "fade-black" : "hard"), at: actual?.startSeconds ?? cursor,
+      duration, intent: actual?.intent ?? null };
+  });
+  return { shotCount: clips.length, cuts, method: assembly.mode, reused: assembly.reused === true,
+    measuredDurationSeconds: assembly.durationSeconds ?? assembly.transitions?.receipt?.actualDurationSeconds ?? null,
+    checks: assembly.transitions?.receipt?.checks ?? [] };
 }
 
 /* ============================ 音频层（选曲 + 混音） ============================ */
@@ -1790,8 +1883,8 @@ export async function buildCover({
   const at = requestedAt;
   const frame = await extractFrame({ input, at, output: path.join(dir, `${variant.id}-frame-0.png`), bins });
   const background = null;
-  const titleLine = String(project.copy?.title ?? project.title ?? project.projectId ?? "");
-  const hookLine = String(variant.cover?.subtitle ?? project.copy?.hook ?? "");
+  const titleLine = String(variant.cover?.title ?? project.copy?.title ?? project.title ?? project.projectId ?? "");
+  const hookLine = String(variant.cover?.hook ?? variant.cover?.subtitle ?? project.copy?.hook ?? "");
   const titleText = [titleLine, hookLine].filter(Boolean).join("\\N");
   const planOutcome = await planSubtitle({
     input: null,
@@ -2039,8 +2132,9 @@ async function cleanProgramOutput({ gradedInput, stems, output, env, bins }) {
 const FILM_ARC_CACHE = new Map();
 async function mixVariantAudio({ pack, gradedInput, workDir, output, bins, env, stems, cutTimes = null }) {
   if (pack.bgm?.enabled === false) {
+    const processingInputs = await captureProcessingInputs([gradedInput]);
     await cleanProgramOutput({ gradedInput, stems, output, env, bins });
-    return { output, track: null, report: null, reused: false, failure: null, cacheKey: null };
+    return { output, track: null, report: null, reused: false, failure: null, cacheKey: null, processingInputs };
   }
   const requestedLevel = optionalNumber(pack.bgm?.musicLevelDb, null);
   const sectionMode = String(pack.bgm?.section ?? "full");
@@ -2064,6 +2158,12 @@ async function mixVariantAudio({ pack, gradedInput, workDir, output, bins, env, 
   const explicitSectionEnd = optionalNumber(pack.bgm?.sectionEndSec, null);
   const track = pickTrackForVariant(pack, { env });
   const trackHash = await sha256File(track.path);
+  const musicDir = path.join(workDir, "audio", "sources");
+  await fsp.mkdir(musicDir, { recursive: true });
+  const musicSnapshot = path.join(musicDir, `${trackHash}${path.extname(track.path)}`);
+  if (!fs.existsSync(musicSnapshot)) await fsp.copyFile(track.path, musicSnapshot);
+  await assertStoredArtifact(musicSnapshot, trackHash, "配乐来源快照");
+  const processingInputs = await captureProcessingInputs([gradedInput, musicSnapshot]);
   const cacheKey = await contentKey({ picture: pictureSha,
     sourceManifest: stems?.manifestSha256 ?? null, sourceRecipe: stems?.recipeSha256 ?? null,
     trackSha256: trackHash, bgm: pack.bgm ?? null, v: 5 });
@@ -2091,7 +2191,8 @@ async function mixVariantAudio({ pack, gradedInput, workDir, output, bins, env, 
     mixing: { requestedMusicLevelDb: requestedLevel, appliedMusicLevelDb: report.mix.musicLevelDb, autoTrimDb: 0,
       note: "按请求执行混音；不评审源片音频品质，不自动重混" } };
   await snapshotAudioStemArtifact({ file: report.output.path, sha256: report.output.hash, output, allowedRoots: allowedRoots(env) });
-  return { output, track: slimTrack, report: slimReport, reused: false, failure: null, cacheKey, mixing: slimReport.mixing };
+  if (await sha256File(track.path) !== trackHash) throw new PostError("混音期间配乐源文件被修改", "verify_failed");
+  return { output, track: slimTrack, report: slimReport, reused: false, failure: null, cacheKey, mixing: slimReport.mixing, processingInputs };
 }
 
 function normalizePatchKeys(patch, allowed, label = "patch") {
@@ -2146,6 +2247,25 @@ export function mergeVariantReframe(clips = [], override = null) {
 }
 
 /**
+ * 字幕时间映射输入（与 subtitle-bridge 的时间映射口径对齐）：
+ * 片段 = 归一化镜头（时间轴时长），切点 = 转场回执里的逐刀重叠（进入镜头承接重叠）。
+ * 母版与每个变体各传自己那一份——同一份 SRT 在不同形态上的成片时间是不同的。
+ */
+function subtitleTimelineSegments(clips = []) {
+  return clips.map((clip) => ({
+    segmentId: String(clip.shotId),
+    durationSeconds: Number(clip.duration ?? clip.durationSec ?? 0),
+  }));
+}
+
+function subtitleTransitionCuts(cuts = []) {
+  return (Array.isArray(cuts) ? cuts : []).map((cut) => ({
+    incomingSegmentId: String(cut?.toShotId ?? cut?.incomingSegmentId ?? ""),
+    durationSeconds: Number(cut?.durationSeconds ?? 0),
+  }));
+}
+
+/**
  * 出交付包：一次跑完「母版 → 旁挂字幕 → N 个风格变体（封面/文案/BGM/调色/转场）→ 软字幕轨 → 清单」。
  *
  * 产物结构（示例）：
@@ -2165,6 +2285,7 @@ export async function buildDeliveryPackage({
   project = {},
   shots = [],
   subtitles = null,
+  danmaku = null,
   variants = null,
   outDir,
   burnSubtitles = false,
@@ -2181,6 +2302,7 @@ export async function buildDeliveryPackage({
   const target = assertPathAllowed(text(outDir, "outDir"), allowedRoots(env), "outDir");
   await fsp.mkdir(target, { recursive: true });
   const plan = await planDelivery({ project, shots, variants, bins });
+  project = { ...project, resolution: plan.resolution, quality: plan.quality };
   const packs = plan.variants.map((entry) => findVariantPack(entry.id));
   const [width, height] = plan.resolution;
   const quality = plan.quality;
@@ -2192,6 +2314,7 @@ export async function buildDeliveryPackage({
   const platform = project.platform ?? null;
   const workDir = path.join(target, "work");
   await fsp.mkdir(workDir, { recursive: true });
+  const processing = [];
 
   /* ① 归一化（全部变体共用；按内容哈希缓存，返修时可复用） */
   const normalised = await normaliseShots({ shots, project, workDir, bins, reuse, env });
@@ -2210,6 +2333,7 @@ export async function buildDeliveryPackage({
     mode: project.transitions?.mode ?? "hard",
   };
   const plannedTransitions = Boolean(baseTransitions.perCut || baseTransitions.plan);
+  const masterInputs = await captureProcessingInputs(normalised.map((clip) => clip.path));
   const masterAssembly = await assembleTimeline({
     clips: normalised,
     transitions: baseTransitions,
@@ -2233,30 +2357,83 @@ export async function buildDeliveryPackage({
   const cleanMaster = path.join(target, "master", "master-clean.mp4");
   await cleanProgramOutput({ gradedInput: masterAssembly.output, stems: masterStems, output: cleanMaster, env, bins });
   masterAssembly.output = cleanMaster;
+  processing.push(await writeProcessingProof({ root: target, stage: "transitions", id: "master", inputs: masterInputs,
+    outputs: [{ path: masterAssembly.output }], parameters: { request: baseTransitions, mode: baseTransitions.mode },
+    execution: executedCutRecord(normalised, masterAssembly) }));
   const masterProbe = await probeMedia(masterAssembly.output, { bins });
   if (masterProbe.width !== width || masterProbe.height !== height
       || Math.abs((masterProbe.fps ?? 0) - fps) > 0.01) {
     throw new PostError(`干净母版规格不符：实测 ${masterProbe.width}×${masterProbe.height}/${masterProbe.fps}fps，目标 ${width}×${height}/${fps}fps`, "verify_failed");
   }
 
-  /* ② 旁挂字幕（一次生成，全部变体共用同一份文字层；母版不烧字） */
+  /**
+   * ② 旁挂字幕（一次生成，全部变体共用同一份文字层；母版不烧字）。
+   *
+   * 时间轴口径（2026-10-12 客户实测事故修复）：SRT 是按**时间轴**写的时间，而转场交叠会让成片
+   * 比时间轴短（成片 = Σ镜头 − Σ转场重叠）。因此字幕进入旁挂/软轨/烧录前必须按"该形态的实际
+   * 转场回执"做时间映射：母版用母版回执，每个变体用**自己的**回执（变体配方的 intentMap/scale
+   * 会改变每刀时长，同一份文字层在不同变体上的成片时间是不同的）。
+   * 不做这一步的实测后果：尾部字幕比成片长 → 软轨内嵌把容器拉回时间轴长度 → `duration_kept` 硬闸失败，
+   * "转场 + 字幕"组合直接交付不出去。
+   */
   let sidecar = null;
+  /** 时间轴口径的原始 cue（所有形态的重映射都从它出发，避免"在已重映射的时间上再映射一次"）。 */
+  let timelineCues = null;
+  let timelineCuesEn = [];
+  let subtitleTiming = null;
   if (subtitles?.zhPath || subtitles?.zhCues || subtitles?.zhText) {
-    const { parseSrt } = await import("../subtitle-bridge/core.mjs");
     const zhText = subtitles.zhText ?? (subtitles.zhPath ? await fsp.readFile(subtitles.zhPath, "utf8") : null);
     if (!zhText) throw new PostError("subtitles.zhText / zhPath 缺失（旁挂字幕需要内容）", "bad_request");
     const enText = subtitles.enText ?? (subtitles.enPath ? await fsp.readFile(subtitles.enPath, "utf8") : null);
+    timelineCues = parseSrt(zhText);
+    timelineCuesEn = enText ? parseSrt(enText) : [];
+    const masterTimemap = buildTransitionTimemap(
+      subtitleTimelineSegments(normalised),
+      subtitleTransitionCuts(masterAssembly.transitions?.receipt?.cuts ?? []),
+      { outputDurationSeconds: masterProbe.videoDuration ?? masterProbe.duration },
+    );
+    const masterRetime = retimeCuesForTransitions(timelineCues, masterTimemap);
+    if (!masterRetime.cues.length) {
+      throw new PostError("按母版转场重映射后没有可用字幕条（检查字幕时间轴与转场计划是否对得上）", "verify_failed");
+    }
+    const masterCuesEn = timelineCuesEn.length ? retimeCuesForTransitions(timelineCuesEn, masterTimemap).cues : [];
     sidecar = await exportSidecars({
       input: masterAssembly.output,
       outputDir: path.join(target, "subtitles"),
       name: projectId,
-      cues: parseSrt(zhText),
-      cuesEn: enText ? parseSrt(enText) : [],
+      cues: masterRetime.cues,
+      cuesEn: masterCuesEn,
       platform,
       brief: { 平台: platform ?? "默认", 内容调性: project.copy?.tone ?? null },
       fontsDir: null,
       bins,
     });
+    /**
+     * 时间轴口径 SRT（返修基线）：旁挂文件已按母版转场重映射，返修要按新形态重映射就必须回到
+     * **时间轴口径**再算一次，否则会在"已映射的时间"上再映射一次（双重前移）。因此单独留一份。
+     */
+    const timelineSrtPath = path.join(path.dirname(sidecar.files[0].path), `${projectId}.timeline.zh.srt`);
+    await fsp.writeFile(timelineSrtPath, cuesToSrt(timelineCues), "utf8");
+    const timelineSrt = {
+      path: path.relative(target, timelineSrtPath),
+      sha256: await sha256File(timelineSrtPath),
+      note: "时间轴口径（未按转场重映射）：返修/重新拼接时的重映射基线",
+    };
+    subtitleTiming = {
+      policy: "timeline→output：按各形态实际转场回执重映射；旁挂/软轨/烧录同源",
+      timelineSrt,
+      master: {
+        transitionCount: subtitleTransitionCuts(masterAssembly.transitions?.receipt?.cuts ?? []).length,
+        totalOverlapSeconds: masterTimemap.totalOverlapSeconds,
+        timelineDurationSeconds: masterTimemap.timelineDurationSeconds,
+        outputDurationSeconds: masterTimemap.outputDurationSeconds,
+        cuesBefore: timelineCues.length,
+        cuesAfter: masterRetime.cues.length,
+        droppedCues: masterRetime.dropped.length,
+        shiftSeconds: masterRetime.shiftSeconds,
+      },
+      variants: [],
+    };
   }
 
   /* ③ 逐变体：拼接 → 调色 → 音频 → 封面 → 文案 →（可选）软字幕轨 / 硬字幕 */
@@ -2297,6 +2474,7 @@ export async function buildDeliveryPackage({
     const assemblyPath = path.join(workDir, "assemble", `${pack.id}-${assemblyKey}.mp4`);
     const assemblyHash = await contentKey({ key: assemblyKey, type: "assembly" });
     const assemblyMetaPath = path.join(workDir, "assemble", `${pack.id}-${assemblyKey}.json`);
+    const assemblyInputs = await captureProcessingInputs(variantClips.map((clip) => clip.path));
     let assembly = null;
     if (reuse && fs.existsSync(assemblyPath) && fs.existsSync(assemblyMetaPath)) {
       let meta;
@@ -2332,7 +2510,11 @@ export async function buildDeliveryPackage({
       await writeJson(assemblyMetaPath, assembly);
     }
 
-    // 调色（color-bridge，按请求加工，不做源片质量比较）
+    processing.push(await writeProcessingProof({ root: target, stage: "transitions", id: pack.id, inputs: assemblyInputs,
+      outputs: [{ path: assemblyPath }], parameters: { request: transitions, mode: transitions.mode },
+      execution: executedCutRecord(variantClips, assembly) }));
+
+    // 调色与清晰度由实际加工回执说明，采样护栏保留报告
     const lutPath = pack.color?.lut ? resolveLut(pack.color.lut) : null;
     const colorKey = await contentKey({
       assemblySha256: assembly.sha256,
@@ -2340,12 +2522,13 @@ export async function buildDeliveryPackage({
       lutSha256: lutPath ? await sha256File(lutPath) : null,
       intensity: pack.color?.intensity ?? 0.8,
       quality,
-      v: 2,
+      clarity: "conservative", qualityGuard: "report", v: 3,
     });
     const gradedPath = path.join(workDir, "graded", `${pack.id}-${colorKey}.mp4`);
     const gradedMetaPath = `${gradedPath}.json`;
+    const colorInputs = await captureProcessingInputs([assemblyPath]);
     let gradeReport = null;
-    if (pack.color) {
+    {
       if (reuse && fs.existsSync(gradedPath) && fs.existsSync(gradedMetaPath)) {
         let meta;
         try { meta = JSON.parse(await fsp.readFile(gradedMetaPath, "utf8")); }
@@ -2358,15 +2541,16 @@ export async function buildDeliveryPackage({
             || cachedProbe.width !== width || cachedProbe.height !== height || !cachedProbe.hasAudio) {
           throw new PostError(`变体 ${pack.id} 调色缓存规格或回执不一致`, "verify_failed");
         }
-        gradeReport = { output: gradedPath, sha256: meta.sha256, reused: true, profile: pack.color.profile ?? null, lut: pack.color.lut ?? null, intensity: pack.color.intensity ?? 0.8 };
+        if (!meta.gradeReport) throw new PostError("调色缓存缺实际色彩与清晰度加工回执", "verify_failed");
+        gradeReport = { ...meta.gradeReport, output: gradedPath, sha256: meta.sha256, reused: true };
       } else {
         gradeReport = await colorGrade({
           input: assemblyPath,
           output: gradedPath,
-          profile: pack.color.profile ?? null,
-          lutPath,
-          intensity: optionalNumber(pack.color.intensity, 0.8),
-          quality,
+          profile: pack.color?.profile ?? null,
+          lutPath, auto: false,
+          intensity: optionalNumber(pack.color?.intensity, 0.8),
+          quality, clarity: "conservative", qualityGuard: "report",
           bins,
         });
         const gradedProbe = await probeMedia(gradedPath, { bins });
@@ -2374,13 +2558,29 @@ export async function buildDeliveryPackage({
           throw new PostError(`变体 ${pack.id} 调色产物规格不符`, "verify_failed");
         }
         gradeReport = { ...gradeReport, sha256: await sha256File(gradedPath), reused: false };
-        await writeJson(gradedMetaPath, { key: colorKey, inputSha256: assembly.sha256, sha256: gradeReport.sha256 });
+        await writeJson(gradedMetaPath, { key: colorKey, inputSha256: assembly.sha256, sha256: gradeReport.sha256, gradeReport });
       }
     }
-    const gradedInput = gradeReport?.output ?? assemblyPath;
+    if (gradeReport) processing.push(await writeProcessingProof({ root: target, stage: "color", id: pack.id, inputs: colorInputs,
+      outputs: [{ path: gradeReport.output, sha256: gradeReport.sha256 }],
+      parameters: { request: pack.color ?? { technicalOnly: true }, technicalOnly: !pack.color, profile: pack.color?.profile ?? null, lut: pack.color?.lut ?? null, intensity: pack.color?.intensity ?? 0.8, clarity: "conservative", qualityGuard: "report" },
+      execution: { outputSha256: gradeReport.sha256, colorManagement: gradeReport.colorManagement, processingQuality: gradeReport.processingQuality, reused: gradeReport.reused === true } }));
+    let gradedInput = gradeReport?.output ?? assemblyPath;
+    let entityReport = null;
+    if (project.entityColor?.enabled === true) {
+      const entityInputs = await captureProcessingInputs([gradedInput]);
+      const entityOutput = path.join(workDir, "entity", `${pack.id}-${randomUUID()}.mp4`);
+      entityReport = await applyPostEntity({ input: gradedInput, output: entityOutput,
+        workDir: path.join(workDir, "entity", `${pack.id}-${randomUUID()}`), fps,
+        intensity: project.entityColor.intensity ?? 1, bins, env });
+      processing.push(await writeProcessingProof({ root: target, stage: "color", id: `${pack.id}-entity`, inputs: entityInputs,
+        outputs: [{ path: entityReport.output, sha256: entityReport.outputSha256 }],
+        parameters: { request: project.entityColor, technicalOnly: true, entityColor: true, intensity: project.entityColor.intensity ?? 1 },
+        execution: { outputSha256: entityReport.outputSha256, applied: entityReport.applied, skipped: entityReport.skipped,
+          reason: entityReport.reason, receiptPath: path.relative(target, entityReport.receiptPath), maskMode: entityReport.adapter.maskMode } }));
+      gradedInput = entityReport.output;
+    }
 
-    // 音频层（BGM 选曲 + 混音；按内容哈希缓存，返修时可直接复用）
-    const scoredPath = path.join(variantDir, `${pack.id}.mp4`);
     const variantTransitionCuts = transitionCutsForStems(assembly.transitions?.receipt);
     /** 变体画面（已调色/待配音）的实测时长 = 节目声要补齐到的总长。 */
     const variantPictureProbe = hasIndependentAudio ? await probeMedia(gradedInput, { bins }) : null;
@@ -2390,10 +2590,36 @@ export async function buildDeliveryPackage({
       // reframe 后的 variantClips）生成，同时保留本分支的 cutTimes —— 配乐节拍网格对齐真实切点。
       : await timelineStems({ project, clips: variantClips, transitions, cuts: variantTransitionCuts,
         padToSeconds: variantPictureProbe?.videoDuration ?? variantPictureProbe?.duration ?? null, workDir, env, bins });
-    const audioOutcome = await mixVariantAudio({ pack, gradedInput, workDir, output: scoredPath, bins, env, stems, cutTimes });
+    let soundReport = null;
+    if (project.rhythmPlan?.soundCues?.some((cue) => ["impact", "whoosh"].includes(cue.kind))) {
+      if (stems) {
+        const inputs = await captureProcessingInputs([gradedInput, stems.program.path]);
+        const programPath = path.join(workDir, "audio", `${pack.id}-programme-before-sound-${randomUUID()}.mp4`);
+        await cleanProgramOutput({ gradedInput, stems, output: programPath, env, bins });
+        processing.push(await writeProcessingProof({ root: target, stage: "bgm", id: `${pack.id}-stems`, inputs,
+          outputs: [{ path: programPath }], parameters: { mode: "original-program", policy: "authorized-independent-programme-before-effects" },
+          execution: { independentAudio: true, stemManifestSha256: stems.manifestSha256 } }));
+        gradedInput = programPath;
+      }
+      const inputs = await captureProcessingInputs([gradedInput]);
+      soundReport = await applyPostRhythmSound({ input: gradedInput, plan: project.rhythmPlan, workDir, bins, env });
+      processing.push(await writeProcessingProof({ root: target, stage: "bgm", id: `${pack.id}-sound`, inputs,
+        outputs: [{ path: soundReport.file, sha256: soundReport.sha256 }],
+        parameters: { mode: "original-program", soundCues: project.rhythmPlan.soundCues, policy: "source-program-plus-declared-synthetic-cues" },
+        execution: { outputSha256: soundReport.sha256, placements: soundReport.placements, videoPacketsUnchanged: true, programmeSpeed: 1 } }));
+      gradedInput = soundReport.file;
+    }
+    // 音频层（BGM 选曲 + 混音；按内容哈希缓存，返修时可直接复用）
+    const scoredPath = path.join(variantDir, `${pack.id}.mp4`);
+    const audioOutcome = await mixVariantAudio({ pack, gradedInput, workDir, output: scoredPath, bins, env, stems: soundReport ? null : stems, cutTimes });
     const audioReport = audioOutcome.report;
     const track = audioOutcome.track;
     const audioFailure = audioOutcome.failure;
+    if (audioReport && track) processing.push(await writeProcessingProof({ root: target, stage: "bgm", id: pack.id, inputs: audioOutcome.processingInputs,
+      outputs: [{ path: scoredPath }], parameters: { request: pack.bgm ?? {}, policy: pack.bgm?.policy ?? "keep-dialogue", targetLufs: pack.bgm?.targetLufs ?? -14 },
+      execution: { trackId: track.id, trackSha256: track.sourceSha256, checks: audioReport.checks, section: audioReport.section, alignment: audioReport.alignment } }));
+    if (!audioReport && !audioFailure && pack.bgm?.enabled === false) processing.push(await writeProcessingProof({ root: target, stage: "bgm", id: `${pack.id}-program`, inputs: audioOutcome.processingInputs,
+      outputs: [{ path: scoredPath }], parameters: { mode: "original-program", policy: "preserve-source-program" }, execution: { independentAudio: Boolean(stems) } }));
     if (audioFailure) audioFailures.push(audioFailure);
     await writeJson(path.join(variantDir, "audio.json"), audioFailure
       ? {
@@ -2441,40 +2667,106 @@ export async function buildDeliveryPackage({
       tone: copy.tone, checks: copy.checks,
     });
 
+    /**
+     * 字幕随**本变体的实际转场**重映射（2026-10-12 客户实测事故修复）：
+     * 同一份文字层在母版与各变体上的成片时间不同（变体 intentMap/scale 会改每一刀的时长，
+     * 例如 warm-story 把 dissolve 解析成 0.65s×1.15=0.747s，而成片比母版短 0.247s/刀）。
+     * 因此每个变体都从**时间轴 cue** 重新映射，产出变体自己的 SRT，软轨/烧录都用它——
+     * 既保证字幕与画面逐条对齐，也保证尾部字幕不越过片尾。
+     */
+    let variantSubtitles = null;
+    let variantCues = null;
+    if (timelineCues && (softSubtitles || burnSubtitles)) {
+      const variantCuts = subtitleTransitionCuts(assembly.transitions?.receipt?.cuts ?? []);
+      const variantTimemap = buildTransitionTimemap(
+        subtitleTimelineSegments(variantClips), variantCuts,
+        /**
+         * 以**最终成片**（已调色/混音、即将烧录或挂轨这一支）的实测时长为片尾：
+         * 拼接时长的量化差（编码帧边界）会让尾部条多出几十毫秒，用最终时长才能把
+         * "重映射误差"与"容器量化噪声"分开——后者由软轨兜底处理，前者判失败。
+         */
+        { outputDurationSeconds: scoredProbe.videoDuration ?? scoredProbe.duration ?? assembly.durationSeconds },
+      );
+      const retimed = retimeCuesForTransitions(timelineCues, variantTimemap);
+      if (!retimed.cues.length) {
+        throw new PostError(`变体 ${pack.id} 按转场重映射后没有可用字幕条`, "verify_failed");
+      }
+      const retimedEn = timelineCuesEn.length ? retimeCuesForTransitions(timelineCuesEn, variantTimemap).cues : [];
+      const zhPath = path.join(variantDir, `${pack.id}.zh.srt`);
+      await fsp.writeFile(zhPath, cuesToSrt(retimed.cues), "utf8");
+      let enPath = null;
+      if (retimedEn.length) {
+        enPath = path.join(variantDir, `${pack.id}.en.srt`);
+        await fsp.writeFile(enPath, cuesToSrt(retimedEn), "utf8");
+      }
+      variantCues = retimed.cues;
+      variantSubtitles = {
+        zhPath,
+        enPath,
+        timing: {
+          transitionCount: variantCuts.length,
+          totalOverlapSeconds: variantTimemap.totalOverlapSeconds,
+          timelineDurationSeconds: variantTimemap.timelineDurationSeconds,
+          outputDurationSeconds: variantTimemap.outputDurationSeconds,
+          cuesBefore: timelineCues.length,
+          cuesAfter: retimed.cues.length,
+          droppedCues: retimed.dropped.length,
+          shiftSeconds: retimed.shiftSeconds,
+          transitionReceipt: assembly.transitions?.receiptPath ?? null,
+        },
+      };
+      subtitleTiming?.variants.push({ id: pack.id, ...variantSubtitles.timing });
+    }
+
     // 软字幕轨（画面逐帧零改动）与可选硬字幕
     let softsub = null;
     let burned = null;
-    if (softSubtitles && sidecar) {
+    if (softSubtitles && (variantSubtitles || sidecar)) {
       const softTarget = path.join(variantDir, `${pack.id}.softsub.mp4`);
-      /**
-       * 每种语言只挂一条字幕轨：mp4/mov 用 mov_text 承载，ASS 样式本来就会被压掉，
-       * 因此优先取该语言的 SRT（同一份文字层的纯文本形态）；mkv 才优先 ASS（保样式）。
-       * 早先"过滤出全部 srt/ass"会让纯中文片挂出两条 chi 轨（一条 srt + 一条 ass），
-       * 播放器里出现两个同语言菜单项——这是用户能直接看见的交付缺陷。
-       */
-      const byLang = new Map();
-      for (const file of sidecar.files) {
-        if (file.role !== "subtitle") continue;
-        if (!["srt", "ass"].includes(file.format)) continue;
-        const lang = file.lang === "eng" ? "eng" : "chi";
-        const preferAss = path.extname(softTarget).toLowerCase() === ".mkv";
-        const current = byLang.get(lang);
-        const better = !current
-          || (file.format === (preferAss ? "ass" : "srt") && current.format !== (preferAss ? "ass" : "srt"));
-        if (better) byLang.set(lang, file);
+      let tracks;
+      if (variantSubtitles) {
+        /** 变体自己的重映射 SRT：时间与本变体画面一致（含转场交叠）。 */
+        tracks = [
+          { path: variantSubtitles.zhPath, lang: "chi", title: "中文", default: true },
+          ...(variantSubtitles.enPath ? [{ path: variantSubtitles.enPath, lang: "eng", title: "English", default: false }] : []),
+        ];
+      } else {
+        /**
+         * 每种语言只挂一条字幕轨：mp4/mov 用 mov_text 承载，ASS 样式本来就会被压掉，
+         * 因此优先取该语言的 SRT（同一份文字层的纯文本形态）；mkv 才优先 ASS（保样式）。
+         * 早先"过滤出全部 srt/ass"会让纯中文片挂出两条 chi 轨（一条 srt + 一条 ass），
+         * 播放器里出现两个同语言菜单项——这是用户能直接看见的交付缺陷。
+         */
+        const byLang = new Map();
+        for (const file of sidecar.files) {
+          if (file.role !== "subtitle") continue;
+          if (!["srt", "ass"].includes(file.format)) continue;
+          const lang = file.lang === "eng" ? "eng" : "chi";
+          const preferAss = path.extname(softTarget).toLowerCase() === ".mkv";
+          const current = byLang.get(lang);
+          const better = !current
+            || (file.format === (preferAss ? "ass" : "srt") && current.format !== (preferAss ? "ass" : "srt"));
+          if (better) byLang.set(lang, file);
+        }
+        tracks = [...byLang.entries()].map(([lang, file], index) => ({
+          path: file.path,
+          lang,
+          title: lang === "eng" ? "English" : "中文",
+          default: index === 0,
+        }));
       }
-      const tracks = [...byLang.entries()].map(([lang, file], index) => ({
-        path: file.path,
-        lang,
-        title: lang === "eng" ? "English" : "中文",
-        default: index === 0,
-      }));
+      const inputs = await captureProcessingInputs([scoredPath, ...tracks.map((track) => track.path)]);
       softsub = await softMux({ input: scoredPath, output: softTarget, subtitles: tracks, bins });
+      const cueCount = parseSrt(await fsp.readFile(tracks[0].path, "utf8")).length;
+      processing.push(await writeProcessingProof({ root: target, stage: "subtitles", id: `${pack.id}-softsub`, inputs,
+        outputs: [{ path: softsub.output, sha256: softsub.sha256 }], parameters: { mode: "softsub", languages: tracks.map((track) => track.lang) },
+        execution: { cueCount, checks: softsub.checks } }));
     }
-    if (burnSubtitles && sidecar) {
-      const { renderWithSubtitles, parseSrt } = await import("../subtitle-bridge/core.mjs");
-      const zh = sidecar.files.find((file) => file.format === "srt" && file.lang === "chi");
-      const cues = parseSrt(await fsp.readFile(zh.path, "utf8"));
+    if (burnSubtitles && (variantCues || sidecar)) {
+      const cues = variantCues ?? parseSrt(await fsp.readFile(
+        sidecar.files.find((file) => file.format === "srt" && file.lang === "chi").path, "utf8",
+      ));
+      const inputs = await captureProcessingInputs([scoredPath]);
       burned = await renderWithSubtitles({
         mode: "subtitle",
         input: scoredPath,
@@ -2484,21 +2776,41 @@ export async function buildDeliveryPackage({
         brief: { 平台: platform ?? "默认" },
         bins,
       });
+      processing.push(await writeProcessingProof({ root: target, stage: "subtitles", id: `${pack.id}-burned`, inputs,
+        outputs: [{ path: burned.output.path, sha256: burned.output.hash }], parameters: { mode: "burned", cuesSha256: await contentKey(cues), platform },
+        execution: { cueCount: cues.length, checks: burned.checks } }));
     }
 
+    let danmakuResult = null;
+    if (danmaku) {
+      const items = parseDanmaku(Array.isArray(danmaku) ? danmaku : danmaku.items);
+      if (!items.length) throw new PostError("要求弹幕但条目为空", "bad_request");
+      const source = burned?.output.path ?? scoredPath;
+      const inputs = await captureProcessingInputs([source]);
+      danmakuResult = await renderDanmaku({ input: source, output: path.join(variantDir, `${pack.id}${burned ? ".burned" : ""}.danmaku.mp4`),
+        items, platform, lanes: danmaku.lanes ?? 4, opacity: danmaku.opacity ?? 0.85, bins });
+      processing.push(await writeProcessingProof({ root: target, stage: "danmaku", id: String(variantsOut.length), inputs,
+        outputs: [{ path: danmakuResult.output.path, sha256: danmakuResult.output.hash }], parameters: { mode: "danmaku", items },
+        execution: { cueCount: items.length, checks: danmakuResult.checks } }));
+    }
     variantsOut.push({
       id: pack.id,
       name: pack.name,
       positioning: pack.positioning,
+      danmaku: danmakuResult,
       dir: variantDir,
       transitions: assembly.transitions ?? null,
       reframe: variantReframe.applied ? { applied: true, override: pack.reframe ?? null } : null,
+      subtitles: variantSubtitles,
       artifacts: {
         video: { path: scoredPath, sha256: await sha256File(scoredPath), duration: scoredProbe.duration, resolution: [scoredProbe.width, scoredProbe.height] },
-        softsub: softsub ? { path: softsub.output, sha256: softsub.sha256, tracks: softsub.tracks, checks: softsub.checks } : null,
+        softsub: softsub ? { path: softsub.output, sha256: softsub.sha256, tracks: softsub.tracks, checks: softsub.checks, clamps: softsub.clamps ?? null } : null,
         burned: burned ? { path: burned.output.path, sha256: burned.output.hash, checks: burned.checks } : null,
         cover: { path: cover.output, sha256: cover.sha256, at: cover.at, requestedAt: cover.requestedAt, background: cover.background, text: cover.text, checks: cover.checks },
-        copy: { path: path.join(variantDir, "copy.md"), checks: copy.checks, title: copy.title, hashtags: copy.hashtags },
+        copy: { path: path.join(variantDir, "copy.md"), sha256: await sha256File(path.join(variantDir, "copy.md")),
+          jsonPath: path.join(variantDir, "copy.json"), jsonSha256: await sha256File(path.join(variantDir, "copy.json")),
+          request: structuredClone(project.copy ?? {}), style: structuredClone(pack.copy ?? {}),
+          checks: copy.checks, title: copy.title, hashtags: copy.hashtags },
         audioReceipt: { path: path.join(variantDir, "audio.json"), sha256: await sha256File(path.join(variantDir, "audio.json")) },
         audio: audioReport
           ? {
@@ -2517,12 +2829,15 @@ export async function buildDeliveryPackage({
       },
       style: {
         color: pack.color ?? null,
+        technicalColor: true, entityColor: project.entityColor ?? null,
         bgm: pack.bgm ?? null,
         transitions,
         cover: pack.cover ?? null,
         copyTone: pack.copy?.tone ?? null,
       },
       layers: {
+        sound: soundReport,
+        entity: entityReport,
         audioStems: stemReference(stems),
         assembly: {
           path: assemblyPath,
@@ -2534,7 +2849,7 @@ export async function buildDeliveryPackage({
           transitionReceipt: assembly.transitions?.receiptPath ?? null,
           transitionCount: assembly.transitions?.cutCount ?? 0,
         },
-        color: gradeReport ? { path: gradeReport.output, sha256: gradeReport.sha256, reused: gradeReport.reused === true, profile: gradeReport.profile ?? null, lut: gradeReport.lut ?? null, intensity: gradeReport.intensity ?? null, visibility: gradeReport.visibility ?? null } : null,
+        color: gradeReport ? { gradeReport, path: gradeReport.output, sha256: gradeReport.sha256, reused: gradeReport.reused === true, profile: gradeReport.profile ?? null, lut: gradeReport.lut ?? null, intensity: gradeReport.intensity ?? null, visibility: gradeReport.visibility ?? null } : null,
       },
     });
   }
@@ -2638,6 +2953,37 @@ export async function buildDeliveryPackage({
     },
     { kind: "master_no_burn_in", ok: Boolean(masterAssembly.output), detail: { note: "干净母版不含任何烧录字幕；字幕只以旁挂文件 + 可开关字幕轨交付", subtitles: sidecar ? sidecar.files.length : 0 } },
     { kind: "sidecar_files", ok: sidecar ? sidecar.passed : true, detail: sidecar ? { files: sidecar.files.map((file) => path.basename(file.path)), timeline: sidecar.manifest.timeline } : { note: "本次未提供字幕，跳过旁挂交付" } },
+    {
+      kind: "subtitle_timing_retimed",
+      /**
+       * 事实类回归闸（2026-10-12 事故）：有转场时字幕必须按各形态实际转场回执重映射。
+       * 判据分两层，避免把"编码帧量化的几十毫秒"当成"重映射失效"：
+       *   · 逐条越界幅度 ≤ 0.1s 视为容器量化噪声（兜底钳制会处理并留痕）；
+       *   · 有条目被整条丢弃（起点已在片尾之后）或越界 > 0.1s → 判定重映射没生效。
+       */
+      ok: !subtitleTiming || variantsOut.every((variant) => (variant.artifacts.softsub?.clamps ?? []).every((clamp) => (
+        (clamp.removedCues ?? 0) === 0 && (clamp.maxOvershootSeconds ?? 0) <= 0.1
+      ))),
+      detail: subtitleTiming
+        ? {
+          policy: subtitleTiming.policy,
+          tolerance: "逐条越界 ≤0.1s 视为容器量化；>0.1s 或整条丢弃判失败",
+          master: subtitleTiming.master,
+          variants: subtitleTiming.variants,
+          clamps: variantsOut.filter((variant) => variant.artifacts.softsub).map((variant) => ({
+            id: variant.id,
+            tracks: (variant.artifacts.softsub.clamps ?? []).map((clamp) => ({
+              path: clamp.path,
+              containerSeconds: clamp.containerSeconds ?? null,
+              clampedCues: clamp.clampedCues ?? 0,
+              removedCues: clamp.removedCues ?? 0,
+              maxOvershootSeconds: clamp.maxOvershootSeconds ?? 0,
+              changed: clamp.changed === true,
+            })),
+          })),
+        }
+        : { note: "本次未提供字幕，跳过重映射" },
+    },
     { kind: "variant_count", ok: variantsOut.length >= 2, detail: { variants: variantsOut.map((variant) => variant.id) } },
     {
       kind: "reframe_receipts",
@@ -2741,8 +3087,22 @@ kind: "duration_consistent",
     quality,
     resolution: [width, height],
     fps,
+    nativeResolution: plan.nativeResolution,
+    resolutionPolicy: plan.resolutionPolicy,
+    entityColor: project.entityColor ?? null,
+    rhythmPlan: project.rhythmPlan ?? null,
+    danmakuRequest: danmaku ? structuredClone(danmaku) : null,
+    postRequirements: { subtitles: Boolean(sidecar), burnSubtitles: burnSubtitles && Boolean(sidecar), softSubtitles: softSubtitles && Boolean(sidecar), danmaku: Boolean(danmaku), variantIds: packs.map((pack) => pack.id) },
+    processing,
+    audioQuality: project.audioQuality ?? { mode: "report", targetLufs: -14, toleranceLu: 1, maxTruePeakDbtp: -1 },
     layers: {
       audioStems: stemReference(masterStems, target),
+      /** 母版层（返修时按同一转场回执重算字幕时间；receipt 为空 = 全硬切）。 */
+      master: {
+        path: path.relative(target, masterAssembly.output),
+        receipt: masterAssembly.transitions?.receiptPath ? path.relative(target, masterAssembly.transitions.receiptPath) : null,
+        durationSeconds: masterProbe.videoDuration, sha256: await sha256File(masterAssembly.output),
+      },
       shots: normalised.map((clip) => ({
         shotId: clip.shotId, source: clip.source, normalised: path.relative(target, clip.path),
         sha256: clip.sha256, sourceSha256: clip.sourceHash, duration: clip.duration, sourceDuration: clip.sourceDuration,
@@ -2759,11 +3119,19 @@ kind: "duration_consistent",
         sidecarDir: path.relative(target, path.dirname(sidecar.files[0].path)),
         files: sidecar.files.map((file) => ({ role: file.role, lang: file.lang, format: file.format, path: path.relative(target, file.path), sha256: file.sha256 })),
         burnedInMaster: false,
+        /** 时间轴口径：旁挂文件已按母版实际转场重映射；各变体另存各自的重映射 SRT。 */
+        timing: subtitleTiming,
+        timelineSrt: subtitleTiming?.timelineSrt ?? null,
       } : null,
       variants: variantsOut.map((variant) => ({
         id: variant.id,
         style: variant.style,
         audioStems: variant.layers.audioStems ? { ...variant.layers.audioStems, dir: path.relative(target, variant.layers.audioStems.dir) } : null,
+        sound: variant.layers.sound ? { path: path.relative(target, variant.layers.sound.file), sha256: variant.layers.sound.sha256,
+          receiptPath: path.relative(target, variant.layers.sound.reportFile) } : null,
+        entity: variant.layers.entity ? { ...variant.layers.entity,
+          input: path.relative(target, variant.layers.entity.input), output: path.relative(target, variant.layers.entity.output),
+          receiptPath: path.relative(target, variant.layers.entity.receiptPath) } : null,
         // 工程文件里的路径一律**相对交付根**（交付包可整体搬走；返修时再按根解析回来）
         color: variant.layers.color
           ? { ...variant.layers.color, path: path.relative(target, variant.layers.color.path) }
@@ -2776,10 +3144,18 @@ kind: "duration_consistent",
             ? path.relative(target, variant.layers.assembly.transitionReceipt)
             : null,
         },
+        subtitles: variant.subtitles
+          ? {
+            zh: path.relative(target, variant.subtitles.zhPath),
+            en: variant.subtitles.enPath ? path.relative(target, variant.subtitles.enPath) : null,
+            timing: variant.subtitles.timing,
+          }
+          : null,
         bgm: variant.artifacts.audio ? { trackId: variant.artifacts.audio.trackId, policy: variant.artifacts.audio.policy } : null,
         artifacts: {
           audio: { ...variant.artifacts.audioReceipt, path: path.relative(target, variant.artifacts.audioReceipt.path) },
           video: { path: path.relative(target, variant.artifacts.video.path), sha256: variant.artifacts.video.sha256 },
+          burned: variant.artifacts.burned ? { ...variant.artifacts.burned, path: path.relative(target, variant.artifacts.burned.path) } : null,
           softsub: variant.artifacts.softsub ? { path: path.relative(target, variant.artifacts.softsub.path), sha256: variant.artifacts.softsub.sha256 } : null,
           cover: {
             path: path.relative(target, variant.artifacts.cover.path),
@@ -2787,7 +3163,8 @@ kind: "duration_consistent",
             at: variant.artifacts.cover.at,
             requestedAt: variant.artifacts.cover.requestedAt,
           },
-          copy: { path: path.relative(target, variant.artifacts.copy.path) },
+          copy: { ...variant.artifacts.copy, path: path.relative(target, variant.artifacts.copy.path),
+            jsonPath: path.relative(target, variant.artifacts.copy.jsonPath) },
         },
       })),
       copy: project.copy ?? null,
@@ -2806,7 +3183,16 @@ kind: "duration_consistent",
     platform,
     quality,
     resolution: [width, height],
+    nativeResolution: plan.nativeResolution,
+    processing,
+    audioQuality: project.audioQuality ?? { mode: "report", targetLufs: -14, toleranceLu: 1, maxTruePeakDbtp: -1 },
+    resolutionPolicy: plan.resolutionPolicy,
+    entityColor: project.entityColor ?? null,
+    postRequirements: { subtitles: Boolean(sidecar), burnSubtitles: burnSubtitles && Boolean(sidecar),
+      softSubtitles: softSubtitles && Boolean(sidecar), danmaku: Boolean(danmaku) || project.postRequirements?.danmaku === true,
+      variantIds: packs.map((pack) => pack.id) },
     fps,
+    danmaku: danmaku ? { forms: variantsOut.map((variant) => ({ variantId: variant.id, output: path.relative(target, variant.danmaku.output.path), sha256: variant.danmaku.output.hash, bytes: variant.danmaku.output.bytes, checks: variant.danmaku.checks })) } : null,
     audioScope: hasIndependentAudio ? audioScope(project) : null,
     independentAudio: stemReference(masterStems, target),
     master: {
@@ -2821,6 +3207,8 @@ kind: "duration_consistent",
       files: sidecar.files.map((file) => ({ path: path.relative(target, file.path), role: file.role, lang: file.lang, format: file.format, sha256: file.sha256, bytes: file.bytes })),
       manifest: path.relative(target, sidecar.manifestPath),
       checks: sidecar.checks,
+      /** 时间轴口径：SRT 按时间轴写；交付前按各形态实际转场回执重映射（详见 timing）。 */
+      timing: subtitleTiming,
     } : null,
     variants: variantsOut.map((variant) => ({
       id: variant.id,
@@ -2828,8 +3216,15 @@ kind: "duration_consistent",
       positioning: variant.positioning,
       dir: path.relative(target, variant.dir),
       reframe: variant.reframe ?? null,
+      subtitles: variant.subtitles
+        ? {
+          zh: path.relative(target, variant.subtitles.zhPath),
+          en: variant.subtitles.enPath ? path.relative(target, variant.subtitles.enPath) : null,
+          timing: variant.subtitles.timing,
+        }
+        : null,
       video: { path: path.relative(target, variant.artifacts.video.path), sha256: variant.artifacts.video.sha256, duration: variant.artifacts.video.duration, resolution: variant.artifacts.video.resolution },
-      softsub: variant.artifacts.softsub ? { path: path.relative(target, variant.artifacts.softsub.path), sha256: variant.artifacts.softsub.sha256, tracks: variant.artifacts.softsub.tracks.map((track) => ({ lang: track.lang, title: track.title })) } : null,
+      softsub: variant.artifacts.softsub ? { path: path.relative(target, variant.artifacts.softsub.path), sha256: variant.artifacts.softsub.sha256, tracks: variant.artifacts.softsub.tracks.map((track) => ({ lang: track.lang, title: track.title, clamped: track.clamped === true })), checks: variant.artifacts.softsub.checks } : null,
       burned: variant.artifacts.burned ? { path: path.relative(target, variant.artifacts.burned.path), sha256: variant.artifacts.burned.sha256 } : null,
       cover: {
         path: path.relative(target, variant.artifacts.cover.path),
@@ -2841,7 +3236,7 @@ kind: "duration_consistent",
         checks: variant.artifacts.cover.checks,
       },
       copy: { path: path.relative(target, variant.artifacts.copy.path), title: variant.artifacts.copy.title, hashtags: variant.artifacts.copy.hashtags, checks: variant.artifacts.copy.checks },
-        audio: variant.artifacts.audio
+      audio: variant.artifacts.audio
         ? {
           path: path.relative(target, variant.artifacts.audio.path),
           trackId: variant.artifacts.audio.trackId,
@@ -2853,11 +3248,17 @@ kind: "duration_consistent",
           ...(variant.artifacts.audio.failed ? { failed: true, code: variant.artifacts.audio.code, message: variant.artifacts.audio.message } : {}),
         }
         : null,
+      audioReceipt: { ...variant.artifacts.audioReceipt, path: path.relative(target, variant.artifacts.audioReceipt.path) },
+      entityReceipt: variant.layers.entity ? { ...variant.layers.entity,
+        input: path.relative(target, variant.layers.entity.input), output: path.relative(target, variant.layers.entity.output),
+        receiptPath: path.relative(target, variant.layers.entity.receiptPath) } : null,
+      colorReceipt: variant.layers.color ? { ...variant.layers.color, path: path.relative(target, variant.layers.color.path) } : null,
       style: variant.style,
       independentAudio: variant.layers.audioStems ? { ...variant.layers.audioStems, dir: path.relative(target, variant.layers.audioStems.dir) } : null,
     })),
     transitions: {
       mode: baseTransitions.mode,
+      request: baseTransitions,
       planned: plannedTransitions,
       summaryPath: path.relative(target, transitionSummaryPath),
       catalog: "bundles/ai-video/library/transitions/catalog.json",
@@ -2905,6 +3306,9 @@ kind: "duration_consistent",
       note: "多风格变体只吃本地算力：镜头生成费只付一次，风格差异零 token",
     },
   };
+  const qualityReport = await inspectDeliveryManifest({ root: target, manifest, bins });
+  manifest.postQuality = await writePostQuality(target, qualityReport);
+  assertPostQuality(qualityReport);
   const manifestPath = await writeJson(path.join(target, "delivery-manifest.json"), manifest);
 
   const report = [
@@ -2914,6 +3318,9 @@ kind: "duration_consistent",
     `- 清晰度档位：${quality === "uhd" ? "UHD（本地目标画布加工，未请求模型增强）" : "HD"}；逐镜来源见 \`delivery-manifest.json\` 的 \`enhancements\``,
     `- 干净母版：\`${manifest.master.path}\`（**不含字幕**；字幕只以旁挂文件/可开关字幕轨交付）`,
     sidecar ? `- 字幕文件：${manifest.subtitles.files.map((file) => file.path.split("/").pop()).join("、")}（时间轴回读 ${sidecar.manifest.timeline.readback.ass ? "ok" : "fail"}）` : "- 字幕文件：本次未提供字幕",
+    subtitleTiming
+      ? `- 字幕时间轴：已按**各形态实际转场回执**重映射（母版前移 ${subtitleTiming.master.shiftSeconds}s / ${subtitleTiming.master.transitionCount} 刀；每个变体另有自己的 \`variants/<id>/<id>.zh.srt\`，与其实际转场对齐）`
+      : null,
     "",
     "## 风格变体（选一个，或提返修意见）",
     "",
@@ -3035,7 +3442,30 @@ export function analyzeImpact({ project = null, patch = {} } = {}) {
   }
   if (patch.variants) {
     normalizePatchKeys(patch.variants, ["add", "remove"], "patch.variants");
+    for (const key of ["add", "remove"]) {
+      const requested = patch.variants[key] ?? [];
+      if (!Array.isArray(requested) || requested.some((id) => typeof id !== "string" || !id.trim()) || new Set(requested).size !== requested.length) {
+        throw new PostError(`patch.variants.${key} 必须是互不重复的变体标识数组`, "bad_request");
+      }
+    }
+    if ((patch.variants.add ?? []).some((id) => (patch.variants.remove ?? []).includes(id))) throw new PostError("不能同时新增和移除同一变体", "bad_request");
+    for (const id of patch.variants.add ?? []) findVariantPack(id);
+    if (project) {
+      const known = (project.layers?.variants ?? []).map((row) => row.id);
+      if ((patch.variants.add ?? []).some((id) => known.includes(id)) || (patch.variants.remove ?? []).some((id) => !known.includes(id))) {
+        throw new PostError("新增变体已存在，或移除变体不存在", "bad_request");
+      }
+      if (known.length - (patch.variants.remove?.length ?? 0) + (patch.variants.add?.length ?? 0) < 2) throw new PostError("返修后的多风格交付至少保留两个变体", "bad_request");
+    }
+    if (patch.variants.add?.length) for (const layer of LAYER_ORDER.filter((name) => name !== "shots")) layers.add(layer);
     reasons.push("变体集合变化：只派生新增/移除的变体，既有变体产物复用");
+  }
+  if (project) {
+    const active = new Set([...(project.layers?.variants ?? []).map((row) => row.id).filter((id) => !(patch.variants?.remove ?? []).includes(id)), ...(patch.variants?.add ?? [])]);
+    for (const key of ["subtitles", "bgm", "color", "transitions", "cover", "copy"]) {
+      const scopedId = patch[key]?.variantId;
+      if (scopedId !== undefined && (typeof scopedId !== "string" || !active.has(scopedId))) throw new PostError(`patch.${key} 点名了不存在的变体：${String(scopedId)}`, "bad_request");
+    }
   }
   if (patch.shots) {
     normalizePatchKeys(patch.shots, ["replace", "regenerate"], "patch.shots");
@@ -3401,6 +3831,12 @@ export async function reedit(options = {}) {
     const workDir = path.join(base, "work");
     await fsp.mkdir(path.join(targetDir, "variants"));
 
+    const processing = (project.processing ?? []).map((proof) => ({ ...proof,
+      path: path.relative(base, resolveStored(projectDir, proof.path)),
+      outputs: (proof.outputs ?? []).map((output) => ({ ...output, path: path.relative(base, resolveStored(projectDir, output.path)) })) }));
+    const priorProof = (stage, id) => processing.find((proof) => proof.stage === stage && proof.id === id);
+    const replaceProof = (proof) => { const index = processing.findIndex((old) => old.stage === proof.stage && old.id === proof.id);
+      if (index >= 0) processing.splice(index, 1); processing.push(proof); };
     const rebuilt = [];
     const reused = [];
     const hasIndependentAudio = Boolean(project.layers?.audioStems);
@@ -3466,18 +3902,59 @@ export async function reedit(options = {}) {
     }
     if (quality === "uhd") await verifyUhdEvidence(normalised, [width, height], bins);
 
+    const nativePlan = await planDelivery({ project, shots: normalised.map((clip) => ({ shotId: clip.shotId, path: clip.source })),
+      bins });
+    project.nativeResolution = project.nativeResolution ?? nativePlan.nativeResolution;
+    project.resolutionPolicy = project.resolutionPolicy ?? nativePlan.resolutionPolicy;
+    let masterPath = project.layers?.master?.path ? resolveStored(projectDir, project.layers.master.path) : path.join(base, "master", "master-clean.mp4");
+    let masterAssembly = null;
+    let masterInputs = null;
+    if (patch.shots || !priorProof("transitions", "master")) {
+      masterInputs = await captureProcessingInputs(normalised.map((clip) => clip.path));
+      masterPath = path.join(targetDir, "master", "master-clean.mp4");
+      masterAssembly = await assembleTimeline({ clips: normalised, transitions: project.layers.transitions ?? { mode: "hard" },
+        output: path.join(targetDir, "work", "master-picture.mp4"), resolution: [width, height], fps, quality, bins });
+    } else if (project.layers.master?.sha256) await assertStoredArtifact(masterPath, project.layers.master.sha256, "返修母版");
+    const masterPictureProbe = await probeMedia(masterAssembly?.output ?? masterPath, { bins });
     const nextMasterStems = priorMasterStems && patch.shots
       ? await timelineStems({
         project, clips: normalised, transitions: project.layers.transitions ?? {},
         /** 返修重拼母版时同样按逐刀回执对齐节目声（母版回执随工程文件保存）。 */
-        cuts: readTransitionCuts(project.layers?.master?.receipt ? resolveStored(projectDir, project.layers.master.receipt) : null),
+        cuts: masterAssembly ? transitionCutsForStems(masterAssembly.transitions?.receipt)
+          : readTransitionCuts(project.layers?.master?.receipt ? resolveStored(projectDir, project.layers.master.receipt) : null),
         /** 母版画面时长记录在工程文件里（旧工程没有就退回自然长度）。 */
-        padToSeconds: Number(project.layers?.master?.durationSeconds ?? 0) > 0 ? Number(project.layers.master.durationSeconds) : null,
+        padToSeconds: masterPictureProbe.videoDuration,
         workDir, env, bins,
       })
       : priorMasterStems;
-    const variantIds = (project.layers?.variants ?? []).map((variant) => variant.id);
+    if (masterAssembly) {
+      await cleanProgramOutput({ gradedInput: masterAssembly.output, stems: nextMasterStems, output: masterPath, env, bins });
+      replaceProof(await writeProcessingProof({ root: base, stage: "transitions", id: "master", inputs: masterInputs,
+        outputs: [{ path: masterPath }], parameters: { request: project.layers.transitions ?? { mode: "hard" }, mode: project.layers.transitions?.mode ?? "hard" },
+        execution: executedCutRecord(normalised, masterAssembly) }));
+    }
+    const masterProbe = await probeMedia(masterPath, { bins });
+    const variantIds = [...(project.layers?.variants ?? []).map((variant) => variant.id).filter((id) => !(patch.variants?.remove ?? []).includes(id)), ...(patch.variants?.add ?? [])];
+    const removed = patch.variants?.remove ?? [];
+    for (let index = processing.length - 1; index >= 0; index -= 1) {
+      const id = processing[index].id;
+      if (processing[index].stage === "danmaku" && /^\d+$/.test(String(id))) { processing.splice(index, 1); continue; }
+      if (removed.some((variantId) => id === variantId || ["entity", "stems", "sound", "program", "burned", "softsub"].some((suffix) => id === `${variantId}-${suffix}`))) processing.splice(index, 1);
+    }
     const variantsOut = [];
+    /** 逐变体字幕重映射回执（返修回执里要能看出"字幕按哪种口径重算了"）。 */
+    const subtitleTimings = [];
+    /** 下一版工程文件的文字层（返修可能重出旁挂/时间轴基线，路径必须按新目录重写）。 */
+    let nextTextLayer = project.layers?.text ?? null;
+    /** 母版转场回执里的逐刀重叠（旁挂字幕按母版重映射；没有回执 = 全硬切 → 恒等映射）。 */
+    const masterTransitionCuts = masterAssembly?.transitions?.receipt?.cuts ?? (() => {
+      const rel = project.layers?.master?.receipt;
+      if (!rel) return [];
+      const file = resolveStored(projectDir, rel);
+      if (!fs.existsSync(file)) throw new PostError("返修母版转场回执缺失", "verify_failed");
+      try { return JSON.parse(fs.readFileSync(file, "utf8")).cuts ?? []; }
+      catch (error) { throw new PostError(`返修母版转场回执不可读：${error.message}`, "verify_failed"); }
+    })();
     for (const variantId of variantIds) {
       const stored = project.layers.variants.find((variant) => variant.id === variantId);
       const pack = structuredClone(findVariantPack(variantId));
@@ -3492,12 +3969,13 @@ export async function reedit(options = {}) {
         copy: appliesToVariant(patch.copy),
       };
       const rebuildVariant = {
-        assemble: Boolean(patch.shots) || scoped.transitions,
-        color: Boolean(patch.shots) || scoped.transitions || scoped.color,
-        audio: Boolean(patch.shots) || scoped.transitions || scoped.color || scoped.bgm,
-        text: Boolean(patch.shots) || scoped.transitions || scoped.subtitles,
-        cover: Boolean(patch.shots) || scoped.transitions || scoped.color || scoped.cover,
+        assemble: !stored || Boolean(patch.shots) || scoped.transitions,
+        color: !stored || Boolean(patch.shots) || scoped.transitions || scoped.color,
+        audio: !stored || Boolean(patch.shots) || scoped.transitions || scoped.color || scoped.bgm,
+        text: !stored && Boolean(project.layers?.text) || Boolean(patch.shots) || scoped.transitions || scoped.subtitles,
+        cover: !stored || Boolean(patch.shots) || scoped.transitions || scoped.color || scoped.cover,
       };
+      if (!stored && project.rhythmPlan?.profile === "fast-cut") pack.transitions = structuredClone(project.layers.transitions ?? { mode: "hard" });
       const priorStyle = stored?.style ?? {};
       if (priorStyle.color) pack.color = { ...(pack.color ?? {}), ...priorStyle.color };
       else if (stored?.color) {
@@ -3514,7 +3992,7 @@ export async function reedit(options = {}) {
           mood: undefined, genre: undefined, style: undefined,
         };
       }
-      if (priorStyle.transitions) pack.transitions = { ...(pack.transitions ?? {}), ...priorStyle.transitions };
+      if (priorStyle.transitions) pack.transitions = structuredClone(priorStyle.transitions);
       else if (stored?.assembly?.mode) pack.transitions = { ...(pack.transitions ?? {}), mode: stored.assembly.mode };
       if (priorStyle.cover) pack.cover = { ...(pack.cover ?? {}), ...priorStyle.cover };
       if (priorStyle.copyTone) pack.copy = { ...(pack.copy ?? {}), tone: priorStyle.copyTone };
@@ -3549,19 +4027,31 @@ export async function reedit(options = {}) {
       const previousSoftsub = stored?.artifacts?.softsub?.path ? resolveStored(projectDir, stored.artifacts.softsub.path) : null;
       const previousCover = stored?.artifacts?.cover?.path ? resolveStored(projectDir, stored.artifacts.cover.path) : null;
 
+      const baseLayerTransitions = project.layers.transitions ?? {};
+      const plannedTransitions = Boolean(baseLayerTransitions.perCut || baseLayerTransitions.plan);
+      const transitions = plannedTransitions
+        ? { ...baseLayerTransitions, intentMap: pack.transitions?.intentMap ?? null, scale: pack.transitions?.scale ?? 1, styleId: variantId }
+        : { ...baseLayerTransitions, ...(pack.transitions ?? {}), styleId: variantId };
       // 拼接层（只有转场/镜头变化才重算）
       let assemblyPath = stored?.assembly?.path ? resolveStored(projectDir, stored.assembly.path) : null;
       let assemblyReused = true;
-      const assemblyTrustedFromStored = !rebuildVariant.assemble && Boolean(stored?.assembly?.sha256)
+      const assemblyTrustedFromStored = !rebuildVariant.assemble && Boolean(priorProof("transitions", variantId)) && Boolean(stored?.assembly?.sha256)
         && Boolean(assemblyPath) && fs.existsSync(assemblyPath);
       if (assemblyTrustedFromStored) {
         await assertStoredArtifact(assemblyPath, stored.assembly.sha256, `返修变体 ${variantId} 拼接层`);
       } else {
-        const transitions = { ...(project.layers.transitions ?? {}), ...(pack.transitions ?? {}) };
-        const key = await contentKey({ shots: normalised.map((clip) => clip.sha256), transitions, v: 2 });
+        /**
+         * 变体转场口径与首次交付同一条纪律：有逐切计划时，变体只允许用 `intentMap`/`scale` 覆盖观感，
+         * 不能用旧 `mode/fadeSec` 把计划降级回"整条链一种转场"（那等于静默丢弃编辑声明）。
+         * 旧代码在返修里正是按 spread 覆盖的，带计划的项目一返修就退回 legacy fade——这里与
+         * buildDeliveryPackage 对齐（2026-10-12 随"转场 × 字幕"修复一并收口）。
+         */
+        const key = await contentKey({ shots: normalised.map((clip) => clip.sha256), transitions, v: 4 });
         const receiptKey = await contentKey({ key, type: "assembly" });
         assemblyPath = path.join(workDir, "assemble", `${variantId}-${key}.mp4`);
         const metaPath = path.join(workDir, "assemble", `${variantId}-${key}.json`);
+        const inputs = await captureProcessingInputs(normalised.map((clip) => clip.path));
+        let assembly = null;
         if (fs.existsSync(assemblyPath) && fs.existsSync(metaPath)) {
           let meta;
           try { meta = JSON.parse(await fsp.readFile(metaPath, "utf8")); }
@@ -3570,11 +4060,16 @@ export async function reedit(options = {}) {
           }
           if (meta.key !== receiptKey) throw new PostError(`返修变体 ${variantId} 拼接缓存键不匹配`, "verify_failed");
           await assertStoredArtifact(assemblyPath, meta.sha256, `返修变体 ${variantId} 拼接缓存`);
+          if (!meta.assembly) throw new PostError("返修拼接缓存缺实际转场回执", "verify_failed");
+          assembly = meta.assembly;
         } else {
-          await assembleTimeline({ clips: normalised, transitions, output: assemblyPath, resolution: [width, height], fps, quality, bins });
-          await writeJson(metaPath, { sha256: await sha256File(assemblyPath), key: receiptKey });
+          assembly = await assembleTimeline({ clips: normalised, transitions, output: assemblyPath, resolution: [width, height], fps, quality, bins });
+          await writeJson(metaPath, { sha256: await sha256File(assemblyPath), key: receiptKey, assembly });
           assemblyReused = false;
         }
+        replaceProof(await writeProcessingProof({ root: base, stage: "transitions", id: variantId, inputs,
+          outputs: [{ path: assemblyPath }], parameters: { request: transitions, mode: transitions.mode ?? "hard" },
+          execution: executedCutRecord(normalised, assembly) }));
       }
       const assemblyProbe = await probeMedia(assemblyPath, { bins });
       if (assemblyProbe.width !== width || assemblyProbe.height !== height || !assemblyProbe.hasAudio) {
@@ -3587,19 +4082,28 @@ export async function reedit(options = {}) {
       let gradedInput = assemblyPath;
       let colorReused = true;
       const storedColorPath = stored?.color?.path ? resolveStored(projectDir, stored.color.path) : null;
-      const colorTrustedFromStored = pack.color && !rebuildVariant.color && assemblyTrustedFromStored
+      const colorTrustedFromStored = !rebuildVariant.color && assemblyTrustedFromStored && Boolean(priorProof("color", variantId))
         && Boolean(stored?.color?.sha256) && Boolean(storedColorPath) && fs.existsSync(storedColorPath);
-      if (pack.color && !colorTrustedFromStored) {
+      let gradeReport = stored?.color?.gradeReport ?? null;
+      if (!colorTrustedFromStored) {
+        const inputs = await captureProcessingInputs([assemblyPath]);
         const gradedPath = path.join(workDir, "graded", `${variantId}-re${version}.mp4`);
         const report = await colorGrade({
           input: assemblyPath,
           output: gradedPath,
-          profile: pack.color.profile ?? null,
-          lutPath: pack.color.lut ? resolveLut(pack.color.lut) : null,
-          intensity: optionalNumber(pack.color.intensity, 0.8),
-          quality,
+          profile: pack.color?.profile ?? null,
+          lutPath: pack.color?.lut ? resolveLut(pack.color.lut) : null,
+          intensity: optionalNumber(pack.color?.intensity, 0.8), auto: false,
+          quality, clarity: "conservative", qualityGuard: "report",
           bins,
         });
+        gradeReport = report;
+        replaceProof(await writeProcessingProof({ root: base, stage: "color", id: variantId, inputs,
+          outputs: [{ path: report.output, sha256: report.sha256 }],
+          parameters: { request: pack.color ?? { technicalOnly: true }, technicalOnly: !pack.color,
+            profile: pack.color?.profile ?? null, lut: pack.color?.lut ?? null, intensity: pack.color?.intensity ?? 0.8,
+            clarity: "conservative", qualityGuard: "report" },
+          execution: { outputSha256: report.sha256, colorManagement: report.colorManagement, processingQuality: report.processingQuality } }));
         gradedInput = gradedPath;
         colorReused = false;
         (rebuilt).push({ layer: "color", variant: variantId, path: gradedPath, sha256: report.sha256 });
@@ -3609,6 +4113,27 @@ export async function reedit(options = {}) {
         reused.push({ layer: "color", variant: variantId, path: gradedInput, sha256: stored.color.sha256 });
       }
       const gradedSha256 = await sha256File(gradedInput);
+      const colorPath = gradedInput;
+      let entityReport = stored?.entity ?? null;
+      if (project.entityColor?.enabled === true) {
+        if (colorTrustedFromStored && priorProof("color", `${variantId}-entity`) && stored?.entity?.output) {
+          gradedInput = resolveStored(projectDir, stored.entity.output);
+          await assertStoredArtifact(gradedInput, stored.entity.outputSha256, `返修 ${variantId} 实体层`);
+          entityReport = { ...stored.entity, output: gradedInput, input: resolveStored(projectDir, stored.entity.input),
+            receiptPath: resolveStored(projectDir, stored.entity.receiptPath) };
+        } else {
+          const inputs = await captureProcessingInputs([gradedInput]);
+          entityReport = await applyPostEntity({ input: gradedInput, output: path.join(targetDir, "work", `entity-${variantId}.mp4`),
+            workDir: path.join(targetDir, "work", `entity-${variantId}`), fps, intensity: project.entityColor.intensity ?? 1, bins, env });
+          replaceProof(await writeProcessingProof({ root: base, stage: "color", id: `${variantId}-entity`, inputs,
+            outputs: [{ path: entityReport.output, sha256: entityReport.outputSha256 }],
+            parameters: { request: project.entityColor, technicalOnly: true, entityColor: true, intensity: project.entityColor.intensity ?? 1 },
+            execution: { outputSha256: entityReport.outputSha256, applied: entityReport.applied, skipped: entityReport.skipped, reason: entityReport.reason,
+              receiptPath: path.relative(base, entityReport.receiptPath), maskMode: entityReport.adapter.maskMode } }));
+          gradedInput = entityReport.output;
+        }
+      }
+
 
       const stemTransitions = { ...(project.layers.transitions ?? {}), ...(pack.transitions ?? {}) };
       let stems = null;
@@ -3624,13 +4149,50 @@ export async function reedit(options = {}) {
           })
           : await verifyStoredStems(stored.audioStems, project, projectDir, env, bins);
       }
+      let soundReport = null;
+      if (project.rhythmPlan?.soundCues?.some((cue) => ["impact", "whoosh"].includes(cue.kind))) {
+        if (colorTrustedFromStored && !rebuildVariant.audio && priorProof("bgm", `${variantId}-sound`) && stored?.sound?.path) {
+          gradedInput = resolveStored(projectDir, stored.sound.path);
+          await assertStoredArtifact(gradedInput, stored.sound.sha256, `返修 ${variantId} 节奏音效`);
+          soundReport = { file: gradedInput, sha256: stored.sound.sha256, reportFile: resolveStored(projectDir, stored.sound.receiptPath) };
+        } else {
+          if (stems) {
+            const inputs = await captureProcessingInputs([gradedInput, stems.program.path]);
+            const programPath = path.join(workDir, "audio", `${variantId}-programme-before-sound-${randomUUID()}.mp4`);
+            await cleanProgramOutput({ gradedInput, stems, output: programPath, env, bins });
+            replaceProof(await writeProcessingProof({ root: base, stage: "bgm", id: `${variantId}-stems`, inputs,
+              outputs: [{ path: programPath }], parameters: { mode: "original-program", policy: "authorized-independent-programme-before-effects" },
+              execution: { independentAudio: true, stemManifestSha256: stems.manifestSha256 } }));
+            gradedInput = programPath;
+          }
+          const inputs = await captureProcessingInputs([gradedInput]);
+          soundReport = await applyPostRhythmSound({ input: gradedInput, plan: project.rhythmPlan, workDir, bins, env });
+          replaceProof(await writeProcessingProof({ root: base, stage: "bgm", id: `${variantId}-sound`, inputs,
+            outputs: [{ path: soundReport.file, sha256: soundReport.sha256 }],
+            parameters: { mode: "original-program", soundCues: project.rhythmPlan.soundCues, policy: "source-program-plus-declared-synthetic-cues" },
+            execution: { outputSha256: soundReport.sha256, placements: soundReport.placements, videoPacketsUnchanged: true, programmeSpeed: 1 } }));
+          gradedInput = soundReport.file;
+        }
+      }
       // 音频层
       const videoTarget = path.join(variantDir, `${variantId}.mp4`);
       const audioReceiptPath = path.join(variantDir, "audio.json");
       let audioPassed = false;
+      let bgmRequest = pack.bgm ?? null;
       let trackId = stored?.bgm?.trackId ?? null;
-      if (rebuildVariant.audio || !assemblyTrustedFromStored || (pack.color && !colorTrustedFromStored)) {
-        const audioOutcome = await mixVariantAudio({ pack, gradedInput, workDir, output: videoTarget, bins, env, stems });
+      // The current manifest includes only the selected audio branch. Earlier proof files remain immutable.
+      const inactiveAudioId = pack.bgm?.enabled === false ? variantId : `${variantId}-program`;
+      for (let index = processing.length - 1; index >= 0; index -= 1) {
+        if (processing[index].stage === "bgm" && processing[index].id === inactiveAudioId) processing.splice(index, 1);
+      }
+      if (rebuildVariant.audio || !assemblyTrustedFromStored || !colorTrustedFromStored || !priorProof("bgm", pack.bgm?.enabled === false ? `${variantId}-program` : variantId)) {
+        const audioOutcome = await mixVariantAudio({ pack, gradedInput, workDir, output: videoTarget, bins, env, stems: soundReport ? null : stems });
+        if (audioOutcome.report && audioOutcome.track) replaceProof(await writeProcessingProof({ root: base, stage: "bgm", id: variantId,
+          inputs: audioOutcome.processingInputs, outputs: [{ path: videoTarget }],
+          parameters: { request: pack.bgm ?? {}, policy: pack.bgm?.policy ?? "keep-dialogue", targetLufs: pack.bgm?.targetLufs ?? -14 },
+          execution: { trackId: audioOutcome.track.id, trackSha256: audioOutcome.track.sourceSha256, checks: audioOutcome.report.checks } }));
+        if (!audioOutcome.report && !audioOutcome.failure && pack.bgm?.enabled === false) replaceProof(await writeProcessingProof({ root: base, stage: "bgm", id: `${variantId}-program`,
+          inputs: audioOutcome.processingInputs, outputs: [{ path: videoTarget }], parameters: { mode: "original-program", policy: "preserve-source-program" }, execution: { independentAudio: Boolean(stems) } }));
         trackId = audioOutcome.track?.id ?? null;
         audioPassed = !audioOutcome.failure;
         await writeJson(path.join(variantDir, "audio.json"), audioOutcome.failure
@@ -3654,6 +4216,7 @@ export async function reedit(options = {}) {
         if (audioOutcome.reused && !audioOutcome.failure) reused.push({ ...row, note: "混音缓存命中（画面与曲目未变，未重跑混音）" });
         else rebuilt.push(audioOutcome.failure ? { ...row, failure: audioOutcome.failure } : row);
       } else {
+        bgmRequest = priorStyle.bgm ?? pack.bgm ?? null;
         await assertStoredArtifact(previousVideo, stored?.artifacts?.video?.sha256, `返修变体 ${variantId} 视频`);
         await fsp.copyFile(previousVideo, videoTarget);
         if (stored?.artifacts?.audio) {
@@ -3669,67 +4232,196 @@ export async function reedit(options = {}) {
         reused.push({ layer: "audio", variant: variantId, path: previousVideo, sha256: stored?.artifacts?.video?.sha256 ?? null });
       }
 
-      // 文字层：旁挂字幕 + 软字幕轨
+      /**
+       * 文字层：旁挂字幕 + 软字幕轨。
+       * 时间轴口径（与首次交付同一纪律，2026-10-12 事故修复）：一切字幕形态都从**时间轴 cue** 出发
+       * 重映射——旁挂按母版实际转场回执、软轨/烧录按**本变体**实际转场回执（变体间转场时长不同）。
+       * 重映射基线优先取 patch 的新字幕，其次取随包留存的 `*.timeline.zh.srt`；
+       * 两者都没有时（旧工程）退回已重映射的旁挂 SRT，并明确记录"未做重映射、只靠内嵌兜底"。
+       */
       const subtitleFiles = (project.layers?.text?.files ?? []);
+      const patchZhText = patch.subtitles?.zhText
+        ?? (patch.subtitles?.zhPath ? await fsp.readFile(path.resolve(patch.subtitles.zhPath), "utf8") : null);
+      const storedTimelineSrtRel = project.layers?.text?.timelineSrt?.path ?? null;
+      const storedTimelineSrt = storedTimelineSrtRel ? resolveStored(projectDir, storedTimelineSrtRel) : null;
+      const timelineZhText = patchZhText
+        ?? (storedTimelineSrt && fs.existsSync(storedTimelineSrt) ? await fsp.readFile(storedTimelineSrt, "utf8") : null);
+      const timelineEnText = patch.subtitles?.enText
+        ?? (patch.subtitles?.enPath ? await fsp.readFile(path.resolve(patch.subtitles.enPath), "utf8") : null);
+      const timelineCues = timelineZhText ? parseSrt(timelineZhText) : null;
+      const timelineCuesEn = timelineEnText ? parseSrt(timelineEnText) : [];
+      const textBaseline = timelineCues
+        ? (patchZhText ? "patch-timeline" : "stored-timeline-srt")
+        : null;
       let textDir = project.layers?.text?.sidecarDir ? resolveStored(projectDir, project.layers.text.sidecarDir) : path.join(projectDir, "subtitles");
       let softsub = null;
+      let burned = null;
       let softsubReused = true;
+      let subtitleRetime = null;
       if (rebuildVariant.text) {
-        const { parseSrt } = await import("../subtitle-bridge/core.mjs");
-        const baseCuesPath = subtitleFiles.find((file) => file.format === "srt" && file.lang === "chi")?.path;
-        const zhText = patch.subtitles?.zhText
-          ?? (patch.subtitles?.zhPath ? await fsp.readFile(path.resolve(patch.subtitles.zhPath), "utf8") : null)
-          ?? (baseCuesPath ? await fsp.readFile(path.join(projectDir, baseCuesPath), "utf8") : null);
-        if (!zhText) throw new PostError("返修文字层缺少字幕内容（既没有 patch.subtitles，也没有原字幕）", "bad_request");
-        const enText = patch.subtitles?.enText
-          ?? (patch.subtitles?.enPath ? await fsp.readFile(path.resolve(patch.subtitles.enPath), "utf8") : null)
-          ?? (() => {
-            const enPath = subtitleFiles.find((file) => file.format === "srt" && file.lang === "eng")?.path;
-            return enPath ? fs.readFileSync(path.join(projectDir, enPath), "utf8") : null;
-          })();
+        const legacyZhRel = subtitleFiles.find((file) => file.format === "srt" && file.lang === "chi")?.path ?? null;
+        const legacyEnRel = subtitleFiles.find((file) => file.format === "srt" && file.lang === "eng")?.path ?? null;
+        if (!timelineCues && !legacyZhRel) {
+          throw new PostError("返修文字层缺少字幕内容（既没有 patch.subtitles，也没有原字幕）", "bad_request");
+        }
         textDir = path.join(targetDir, "subtitles");
+        /** 旁挂文件按**母版**实际转场重映射；旧工程没有时间轴基线时按原样重出并如实标注。 */
+        const masterRetimed = timelineCues
+          ? retimeCuesForTransitions(timelineCues, buildTransitionTimemap(
+            subtitleTimelineSegments(normalised), subtitleTransitionCuts(masterTransitionCuts),
+            { outputDurationSeconds: project.layers?.master?.durationSeconds ?? undefined },
+          ))
+          : null;
+        const sidecarCues = masterRetimed ? masterRetimed.cues : parseSrt(await fsp.readFile(path.join(projectDir, legacyZhRel), "utf8"));
+        const sidecarCuesEn = timelineCues && timelineCuesEn.length
+          ? retimeCuesForTransitions(timelineCuesEn, buildTransitionTimemap(
+            subtitleTimelineSegments(normalised), subtitleTransitionCuts(masterTransitionCuts),
+            { outputDurationSeconds: project.layers?.master?.durationSeconds ?? undefined },
+          )).cues
+          : (legacyEnRel ? parseSrt(await fsp.readFile(path.join(projectDir, legacyEnRel), "utf8")) : []);
+        if (!sidecarCues.length) throw new PostError("返修文字层按母版转场重映射后没有可用字幕条", "verify_failed");
         const sidecar = await exportSidecars({
           input: videoTarget,
           outputDir: textDir,
           name: project.projectId,
-          cues: parseSrt(zhText),
-          cuesEn: enText ? parseSrt(enText) : [],
+          cues: sidecarCues,
+          cuesEn: sidecarCuesEn,
           platform: project.platform ?? null,
           brief: { 平台: project.platform ?? "默认" },
           bins,
         });
+        let timelineSrt = null;
+        if (timelineCues) {
+          const timelineSrtPath = path.join(textDir, `${project.projectId}.timeline.zh.srt`);
+          await fsp.writeFile(timelineSrtPath, cuesToSrt(timelineCues), "utf8");
+          timelineSrt = { path: path.relative(targetDir, timelineSrtPath), sha256: await sha256File(timelineSrtPath), note: "时间轴口径：后续返修的重映射基线" };
+        }
+        subtitleRetime = {
+          policy: timelineCues
+            ? "timeline→output：按各形态实际转场回执重映射；旁挂/软轨/烧录同源"
+            : "旧工程没有时间轴口径 SRT：本次按已重映射的旁挂 SRT 重出（未二次映射），软轨内嵌只做越界兜底",
+          baseline: textBaseline ?? "legacy-sidecar",
+          timelineSrt,
+          master: timelineCues
+            ? {
+              transitionCount: subtitleTransitionCuts(masterTransitionCuts).length,
+              cuesBefore: timelineCues.length,
+              cuesAfter: masterRetimed.cues.length,
+              droppedCues: masterRetimed.dropped.length,
+              shiftSeconds: masterRetimed.shiftSeconds,
+            }
+            : null,
+          variants: [],
+        };
+        nextTextLayer = {
+          sidecarDir: path.relative(targetDir, textDir),
+          files: sidecar.files.map((file) => ({
+            role: file.role, lang: file.lang, format: file.format,
+            path: path.relative(targetDir, file.path), sha256: file.sha256,
+          })),
+          burnedInMaster: false,
+          timing: subtitleRetime,
+          timelineSrt: subtitleRetime.timelineSrt,
+        };
+        subtitleTimings.push({ variant: variantId, ...subtitleRetime });
         softsubReused = false;
-        rebuilt.push({ layer: "text", variant: variantId, path: sidecar.manifestPath, files: sidecar.files.length, checks: sidecar.checks.map((check) => ({ kind: check.kind, ok: check.ok })) });
+        rebuilt.push({ layer: "text", variant: variantId, path: sidecar.manifestPath, files: sidecar.files.length, baseline: subtitleRetime.baseline, checks: sidecar.checks.map((check) => ({ kind: check.kind, ok: check.ok })) });
       }
-      if (scoped.subtitles && patch.subtitles?.burn === true) {
-        const { renderWithSubtitles, parseSrt } = await import("../subtitle-bridge/core.mjs");
-        const cues = parseSrt(await fsp.readFile(path.join(textDir, `${project.projectId}.zh.srt`), "utf8"));
-        const burned = await renderWithSubtitles({
+      /**
+       * 本变体的字幕时间：从时间轴 cue 按本变体的实际转场回执重映射。
+       * 只有 `timelineCues` 可用时才有意义（旧工程基线已是成片时间，重复映射会双重前移）。
+       */
+      let variantSubtitles = null;
+      let variantCues = null;
+      const shouldSoftMux = rebuildVariant.text || rebuildVariant.audio || rebuildVariant.color || rebuildVariant.assemble
+        || !assemblyTrustedFromStored || (pack.color && !colorTrustedFromStored) || !previousSoftsub || !priorProof("subtitles", `${variantId}-softsub`);
+      const wantsText = Boolean(project.layers?.text || scoped.subtitles) && (shouldSoftMux || Boolean(scoped.subtitles));
+      if (timelineCues && wantsText) {
+        const receiptFile = assemblyPath ? `${assemblyPath}.transition-receipt.json` : null;
+        const variantCuts = receiptFile && fs.existsSync(receiptFile)
+          ? (JSON.parse(await fsp.readFile(receiptFile, "utf8")).cuts ?? [])
+          : [];
+        const stagedProbe = await probeMedia(videoTarget, { bins });
+        const variantTimemap = buildTransitionTimemap(
+          subtitleTimelineSegments(normalised), subtitleTransitionCuts(variantCuts),
+          { outputDurationSeconds: stagedProbe.videoDuration ?? stagedProbe.duration },
+        );
+        const retimed = retimeCuesForTransitions(timelineCues, variantTimemap);
+        if (!retimed.cues.length) throw new PostError(`返修变体 ${variantId} 按转场重映射后没有可用字幕条`, "verify_failed");
+        const retimedEn = timelineCuesEn.length ? retimeCuesForTransitions(timelineCuesEn, variantTimemap).cues : [];
+        const zhPath = path.join(variantDir, `${variantId}.zh.srt`);
+        await fsp.writeFile(zhPath, cuesToSrt(retimed.cues), "utf8");
+        let enPath = null;
+        if (retimedEn.length) {
+          enPath = path.join(variantDir, `${variantId}.en.srt`);
+          await fsp.writeFile(enPath, cuesToSrt(retimedEn), "utf8");
+        }
+        variantCues = retimed.cues;
+        variantSubtitles = {
+          zhPath,
+          enPath,
+          timing: {
+            transitionCount: variantCuts.length,
+            totalOverlapSeconds: variantTimemap.totalOverlapSeconds,
+            timelineDurationSeconds: variantTimemap.timelineDurationSeconds,
+            outputDurationSeconds: variantTimemap.outputDurationSeconds,
+            cuesBefore: timelineCues.length,
+            cuesAfter: retimed.cues.length,
+            droppedCues: retimed.dropped.length,
+            shiftSeconds: retimed.shiftSeconds,
+            transitionReceipt: receiptFile && fs.existsSync(receiptFile) ? path.relative(targetDir, receiptFile) : null,
+          },
+        };
+        subtitleRetime?.variants.push({ id: variantId, ...variantSubtitles.timing });
+      }
+      const wantsBurn = project.postRequirements?.burnSubtitles === true || Boolean(stored?.artifacts?.burned) || scoped.subtitles && patch.subtitles?.burn === true;
+      if (wantsBurn) {
+        const inputs = await captureProcessingInputs([videoTarget]);
+        const burnCues = variantCues ?? parseSrt(await fsp.readFile(path.join(textDir, `${project.projectId}.zh.srt`), "utf8"));
+        burned = await renderWithSubtitles({
           mode: "subtitle", input: videoTarget, output: path.join(variantDir, `${variantId}.burned.mp4`),
-          cues, platform: project.platform ?? null, brief: { 平台: project.platform ?? "默认" }, bins,
+          cues: burnCues, platform: project.platform ?? null, brief: { 平台: project.platform ?? "默认" }, bins,
         });
+        replaceProof(await writeProcessingProof({ root: base, stage: "subtitles", id: `${variantId}-burned`, inputs,
+          outputs: [{ path: burned.output.path, sha256: burned.output.hash }], parameters: { mode: "burned", cuesSha256: await contentKey(burnCues) },
+          execution: { cueCount: burnCues.length, checks: burned.checks } }));
         rebuilt.push({ layer: "text-burn", variant: variantId, path: burned.output.path, sha256: burned.output.hash });
       }
-      const shouldSoftMux = rebuildVariant.text || rebuildVariant.audio || rebuildVariant.color || rebuildVariant.assemble
-        || !assemblyTrustedFromStored || (pack.color && !colorTrustedFromStored) || !previousSoftsub;
-      if (shouldSoftMux) {
-        const srtFiles = fs.existsSync(textDir)
-          ? (await fsp.readdir(textDir)).filter((file) => file.endsWith(".srt")).sort()
-          : [];
-        if (srtFiles.length) {
+      if (shouldSoftMux && (project.layers?.text || scoped.subtitles)) {
+        /**
+         * 变体自己的重映射 SRT 优先；旧工程（没有时间轴基线）退回共享旁挂 SRT，
+         * 此时时间轴按母版对齐、软轨内嵌只做越界兜底——返修回执里如实标注。
+         */
+        const tracks = variantSubtitles
+          ? [
+            { path: variantSubtitles.zhPath, lang: "chi", title: "中文", default: true },
+            ...(variantSubtitles.enPath ? [{ path: variantSubtitles.enPath, lang: "eng", title: "English", default: false }] : []),
+          ]
+          : (fs.existsSync(textDir)
+            ? (await fsp.readdir(textDir))
+              /** `*.timeline.zh.srt` 是重映射基线（时间轴口径），不能当交付字幕轨挂进去。 */
+              .filter((file) => file.endsWith(".srt") && !file.includes(".timeline."))
+              .sort()
+              .map((file, index) => ({
+                path: path.join(textDir, file),
+                lang: file.includes(".en.") ? "eng" : "chi",
+                title: file.includes(".en.") ? "English" : "中文",
+                default: index === 0,
+              }))
+            : []);
+        if (tracks.length) {
+          const inputs = await captureProcessingInputs([videoTarget, ...tracks.map((track) => track.path)]);
           softsub = await softMux({
             input: videoTarget,
             output: path.join(variantDir, `${variantId}.softsub.mp4`),
-            subtitles: srtFiles.map((file, index) => ({
-              path: path.join(textDir, file),
-              lang: file.includes(".en.") ? "eng" : "chi",
-              title: file.includes(".en.") ? "English" : "中文",
-              default: index === 0,
-            })),
+            subtitles: tracks,
             bins,
           });
+          replaceProof(await writeProcessingProof({ root: base, stage: "subtitles", id: `${variantId}-softsub`, inputs,
+            outputs: [{ path: softsub.output, sha256: softsub.sha256 }], parameters: { mode: "softsub", languages: tracks.map((track) => track.lang) },
+            execution: { cueCount: parseSrt(await fsp.readFile(tracks[0].path, "utf8")).length, checks: softsub.checks } }));
           softsubReused = false;
-          rebuilt.push({ layer: "text", variant: variantId, path: softsub.output, tracks: softsub.tracks.length, videoUnchanged: true });
+          rebuilt.push({ layer: "text", variant: variantId, path: softsub.output, tracks: softsub.tracks.length, videoUnchanged: true, clampedCues: (softsub.clamps ?? []).reduce((sum, clamp) => sum + (clamp.clampedCues ?? 0) + (clamp.removedCues ?? 0), 0) });
         }
       } else if (previousSoftsub) {
         await assertStoredArtifact(previousSoftsub, stored?.artifacts?.softsub?.sha256, `返修变体 ${variantId} 软字幕视频`);
@@ -3739,22 +4431,74 @@ export async function reedit(options = {}) {
       }
 
       // 封面 + 文案
+      let coverReport = null;
       const coverTarget = path.join(variantDir, "cover.png");
       if (rebuildVariant.cover || !assemblyTrustedFromStored || (pack.color && !colorTrustedFromStored) || !previousCover) {
         const cover = await buildCover({
           input: gradedInput, output: coverTarget, project, variant: pack, resolution: [width, height],
           platform: project.platform ?? null, bins, workDir,
         });
+        coverReport = cover;
         rebuilt.push({ layer: "cover", variant: variantId, path: cover.output, sha256: cover.sha256 });
       } else {
         await assertStoredArtifact(previousCover, stored?.artifacts?.cover?.sha256, `返修变体 ${variantId} 封面`);
         await fsp.copyFile(previousCover, coverTarget);
         reused.push({ layer: "cover", variant: variantId, path: previousCover, sha256: stored?.artifacts?.cover?.sha256 ?? null });
       }
-      const copy = buildCopyPack({ project: { ...project, copy: { ...(project.layers.copy ?? {}), ...(scoped.copy ? patch.copy : {}) } }, variant: pack });
-      await fsp.writeFile(path.join(variantDir, "copy.md"), copy.markdown, "utf8");
-      await writeJson(path.join(variantDir, "copy.json"), { ...copy, checks: copy.checks });
+      const previousCopy = stored?.artifacts?.copy;
+      const copyTarget = path.join(variantDir, "copy.md");
+      const copyJsonTarget = path.join(variantDir, "copy.json");
+      let copy;
+      let copyRequest = previousCopy?.request ?? project.layers.copy ?? {};
+      let copyStyle = previousCopy?.style ?? pack.copy ?? {};
+      if (previousCopy?.path && !scoped.copy) {
+        const markdownPath = resolveStored(projectDir, previousCopy.path);
+        const jsonPath = previousCopy.jsonPath ? resolveStored(projectDir, previousCopy.jsonPath) : path.join(path.dirname(markdownPath), "copy.json");
+        if (previousCopy.sha256) await assertStoredArtifact(markdownPath, previousCopy.sha256, `返修变体 ${variantId} 文案`);
+        if (previousCopy.jsonSha256) await assertStoredArtifact(jsonPath, previousCopy.jsonSha256, `返修变体 ${variantId} 文案数据`);
+        const before = await captureProcessingInputs([markdownPath, jsonPath]);
+        copy = JSON.parse(await fsp.readFile(jsonPath, "utf8"));
+        if (typeof copy.title !== "string" || typeof copy.body !== "string" || !Array.isArray(copy.hashtags)) throw new PostError("旧文案数据结构不符", "verify_failed");
+        if (!previousCopy.request) {
+          copyRequest = Object.fromEntries(["title", "hook", "body", "hashtags", "cta"].map((key) => [key, copy[key]]));
+          copyStyle = { titleTemplate: "{title}", tone: copy.tone ?? null };
+        }
+        await fsp.copyFile(markdownPath, copyTarget);
+        await fsp.copyFile(jsonPath, copyJsonTarget);
+        for (const entry of before) if (await sha256File(entry.path) !== entry.sha256) throw new PostError("文案复用期间源文件发生变化", "verify_failed");
+        if (await sha256File(copyTarget) !== before[0].sha256 || await sha256File(copyJsonTarget) !== before[1].sha256) throw new PostError("文案复用字节不一致", "verify_failed");
+        reused.push({ layer: "copy", variant: variantId, path: markdownPath, sha256: before[0].sha256 });
+      } else {
+        // Legacy revisions store the approved result only. Use that final text as the base without applying recipe openings twice.
+        if (previousCopy?.path && !previousCopy.request) {
+          const markdownPath = resolveStored(projectDir, previousCopy.path);
+          const jsonPath = previousCopy.jsonPath ? resolveStored(projectDir, previousCopy.jsonPath) : path.join(path.dirname(markdownPath), "copy.json");
+          const saved = JSON.parse(await fsp.readFile(jsonPath, "utf8"));
+          copyRequest = Object.fromEntries(["title", "hook", "body", "hashtags", "cta"].map((key) => [key, saved[key]]));
+          copyStyle = { titleTemplate: "{title}", tone: saved.tone ?? pack.copy?.tone ?? null };
+        }
+        const changes = scoped.copy ? { ...patch.copy } : {};
+        delete changes.variantId;
+        copyRequest = { ...copyRequest, ...changes };
+        copyStyle = { ...copyStyle, ...changes };
+        copy = buildCopyPack({ project: { ...project, copy: copyRequest }, variant: { ...pack, copy: copyStyle } });
+        await fsp.writeFile(copyTarget, copy.markdown, "utf8");
+        await writeJson(copyJsonTarget, { ...copy, checks: copy.checks });
+        rebuilt.push({ layer: "copy", variant: variantId, path: copyTarget, sha256: await sha256File(copyTarget) });
+      }
 
+      let danmakuResult = null;
+      if (project.postRequirements?.danmaku === true) {
+        if (!project.danmakuRequest) throw new PostError("返修要求保留弹幕但工程缺实际弹幕请求；不能交空白弹幕版", "verify_failed");
+        const items = parseDanmaku(Array.isArray(project.danmakuRequest) ? project.danmakuRequest : project.danmakuRequest.items);
+        const input = burned?.output.path ?? videoTarget;
+        const inputs = await captureProcessingInputs([input]);
+        danmakuResult = await renderDanmaku({ input, output: path.join(variantDir, `${variantId}${burned ? ".burned" : ""}.danmaku.mp4`),
+          items, platform: project.platform, lanes: project.danmakuRequest.lanes ?? 4, opacity: project.danmakuRequest.opacity ?? 0.85, bins });
+        replaceProof(await writeProcessingProof({ root: base, stage: "danmaku", id: String(variantsOut.length), inputs,
+          outputs: [{ path: danmakuResult.output.path, sha256: danmakuResult.output.hash }], parameters: { mode: "danmaku", items },
+          execution: { cueCount: items.length, checks: danmakuResult.checks } }));
+      }
       const videoProbe = await probeMedia(videoTarget, { bins });
       if (videoProbe.width !== width || videoProbe.height !== height) {
         throw new PostError(`返修变体 ${variantId} 规格不符：实测 ${videoProbe.width}×${videoProbe.height}，目标 ${width}×${height}`, "verify_failed");
@@ -3763,18 +4507,31 @@ export async function reedit(options = {}) {
         id: variantId,
         name: pack.name,
         dir: variantDir,
+        danmaku: danmakuResult,
         layers: {
+          sound: soundReport,
+          entity: entityReport,
           audioStems: stems ? stemReference(stems) : null,
           assembly: { path: assemblyPath, sha256: assemblySha256, reused: assemblyReused },
-          color: pack.color ? { path: gradedInput, sha256: gradedSha256, reused: colorReused } : null,
+          color: { path: colorPath, sha256: gradedSha256, gradeReport, reused: colorReused },
         },
         video: { path: videoTarget, sha256: await sha256File(videoTarget), duration: videoProbe.duration, resolution: [videoProbe.width, videoProbe.height] },
+        burned: burned ? { path: burned.output.path, sha256: burned.output.hash, checks: burned.checks } : null,
         softsub: softsub ? { path: softsub.output, sha256: await sha256File(softsub.output), reused: softsubReused } : null,
-        cover: { path: coverTarget, sha256: await sha256File(coverTarget) },
-        copy: { path: path.join(variantDir, "copy.md"), title: copy.title, hashtags: copy.hashtags, checks: copy.checks },
+        subtitles: variantSubtitles
+          ? {
+            zh: path.relative(targetDir, variantSubtitles.zhPath),
+            en: variantSubtitles.enPath ? path.relative(targetDir, variantSubtitles.enPath) : null,
+            timing: variantSubtitles.timing,
+          }
+          : null,
+        cover: { ...(coverReport ?? stored?.artifacts?.cover ?? {}), path: coverTarget, sha256: await sha256File(coverTarget) },
+        copy: { path: copyTarget, sha256: await sha256File(copyTarget), jsonPath: copyJsonTarget,
+          jsonSha256: await sha256File(copyJsonTarget), request: structuredClone(copyRequest), style: structuredClone(copyStyle),
+          title: copy.title, hashtags: copy.hashtags, checks: copy.checks },
         bgm: trackId ? { trackId, policy: pack.bgm?.policy ?? "keep-dialogue" } : null,
         audioReceipt: { path: audioReceiptPath, sha256: await sha256File(audioReceiptPath), passed: audioPassed },
-        style: { color: pack.color ?? null, bgm: pack.bgm ?? null, transitions: pack.transitions ?? null, cover: pack.cover ?? null, copyTone: pack.copy?.tone ?? null },
+        style: { color: pack.color ?? null, technicalColor: true, entityColor: project.entityColor ?? null, bgm: bgmRequest, transitions, cover: pack.cover ?? null, copyTone: pack.copy?.tone ?? null },
       });
     }
 
@@ -3790,18 +4547,61 @@ export async function reedit(options = {}) {
       resolution: [width, height],
       checks: [{ kind: "audio_sources", ok: true, detail: { embeddedAudioUsed: !hasIndependentAudio, independentStems: hasIndependentAudio, qualityReviewed: false } },
         { kind: "bgm_layer", ok: variantsOut.every((variant) => variant.audioReceipt.passed === true), detail: variantsOut.map((variant) => ({ id: variant.id, passed: variant.audioReceipt.passed })) },
-        { kind: "resolution_exact", ok: variantsOut.every((variant) => variant.video.resolution[0] === width && variant.video.resolution[1] === height), detail: { requested: [width, height], variants: variantsOut.map((variant) => ({ id: variant.id, resolution: variant.video.resolution })) } }],
+        { kind: "resolution_exact", ok: variantsOut.every((variant) => variant.video.resolution[0] === width && variant.video.resolution[1] === height), detail: { requested: [width, height], variants: variantsOut.map((variant) => ({ id: variant.id, resolution: variant.video.resolution })) } },
+        {
+          kind: "subtitle_timing_retimed",
+          // 与首次交付同一口径：返修后的字幕必须按各形态实际转场回执重映射（有基线时），软轨内嵌不需要越界钳制。
+          ok: subtitleTimings.length === 0 || subtitleTimings.every((entry) => entry.baseline === "legacy-sidecar" || entry.master == null || entry.master.cuesAfter > 0),
+          detail: subtitleTimings.length ? subtitleTimings : { note: "本次返修未动文字层" },
+        }],
       outDir: targetDir,
       note: impact.localOnly ? "本地重合成（未重新生成镜头）" : "含镜头重生成后重新合成",
     };
+    const rel = (artifact) => artifact ? { ...artifact, path: path.relative(base, artifact.path) } : null;
+    const textFiles = (nextTextLayer?.files ?? []).map((file) => ({ ...file,
+      path: path.relative(base, resolveStored(nextTextLayer === project.layers?.text ? projectDir : targetDir, file.path)) }));
+    const revisionManifest = {
+      schemaVersion: DELIVERY_SCHEMA, projectId: project.projectId, version, title: project.title, platform: project.platform,
+      resolution: [width, height], fps, quality, nativeResolution: project.nativeResolution, resolutionPolicy: project.resolutionPolicy,
+      audioQuality: project.audioQuality, entityColor: project.entityColor ?? null, processing,
+      postRequirements: { ...(project.postRequirements ?? {}), subtitles: Boolean(nextTextLayer),
+        softSubtitles: variantsOut.some((variant) => Boolean(variant.softsub)), burnSubtitles: variantsOut.some((variant) => Boolean(variant.burned)),
+        danmaku: project.postRequirements?.danmaku === true, variantIds },
+      master: { path: path.relative(base, masterPath), sha256: await sha256File(masterPath), duration: masterProbe.videoDuration },
+      transitions: { request: project.layers.transitions ?? { mode: "hard" } },
+      subtitles: nextTextLayer ? { files: textFiles } : null,
+      danmaku: project.postRequirements?.danmaku === true ? { forms: variantsOut.map((variant) => ({ variantId: variant.id,
+        output: path.relative(base, variant.danmaku.output.path), sha256: variant.danmaku.output.hash, checks: variant.danmaku.checks })) } : null,
+      variants: variantsOut.map((variant) => ({ id: variant.id, name: variant.name, style: variant.style,
+        video: rel(variant.video), softsub: rel(variant.softsub), burned: rel(variant.burned), cover: rel(variant.cover),
+        colorReceipt: rel(variant.layers.color), audioReceipt: rel(variant.audioReceipt), entityReceipt: variant.layers.entity })),
+      checks: revision.checks,
+    };
+    const qualityReport = await inspectDeliveryManifest({ root: base, manifest: revisionManifest, bins, phase: `revision-v${version}` });
+    revisionManifest.postQuality = await writePostQuality(base, qualityReport);
+    revision.postQuality = revisionManifest.postQuality;
+    assertPostQuality(qualityReport);
+    await writeJson(path.join(targetDir, "delivery-manifest.json"), { ...revisionManifest, deliveryRoot: path.relative(targetDir, base) });
     const nextProject = {
       ...project,
       version,
       deliveryRoot: path.relative(targetDir, base) || ".",
+      processing: processing.map((proof) => ({ ...proof, path: path.relative(targetDir, path.resolve(base, proof.path)),
+        outputs: (proof.outputs ?? []).map((output) => ({ ...output, path: path.relative(targetDir, path.resolve(base, output.path)) })) })),
+      postRequirements: revisionManifest.postRequirements, postQuality: revisionManifest.postQuality,
       updatedAt: revision.at,
       layers: {
         ...project.layers,
+        master: { ...(project.layers.master ?? {}), path: path.relative(targetDir, masterPath), sha256: revisionManifest.master.sha256,
+          durationSeconds: masterProbe.videoDuration,
+          receipt: masterAssembly?.transitions?.receiptPath ? path.relative(targetDir, masterAssembly.transitions.receiptPath)
+            : project.layers.master?.receipt ? path.relative(targetDir, resolveStored(projectDir, project.layers.master.receipt)) : null },
         audioStems: nextMasterStems ? stemReference(nextMasterStems, targetDir) : null,
+        text: nextTextLayer === project.layers?.text && nextTextLayer ? { ...nextTextLayer,
+          sidecarDir: path.relative(targetDir, resolveStored(projectDir, nextTextLayer.sidecarDir)),
+          files: (nextTextLayer.files ?? []).map((file) => ({ ...file, path: path.relative(targetDir, resolveStored(projectDir, file.path)) })),
+          timelineSrt: nextTextLayer.timelineSrt ? { ...nextTextLayer.timelineSrt, path: path.relative(targetDir, resolveStored(projectDir, nextTextLayer.timelineSrt.path)) } : null,
+        } : nextTextLayer,
         /**
          * 路径一律相对**新工程文件所在目录**重写：返修可以连续做多轮（v2 → v3 → v4），
          * 每轮的工程文件都必须能独立解析到自己用到的镜头/拼接/调色产物，
@@ -3827,13 +4627,17 @@ export async function reedit(options = {}) {
             } : null,
           };
         }),
-        variants: (project.layers?.variants ?? []).map((stored) => {
-          const fresh = variantsOut.find((variant) => variant.id === stored.id);
-          if (!fresh) return stored;
+        variants: variantsOut.map((fresh) => {
+          const stored = project.layers?.variants?.find((variant) => variant.id === fresh.id) ?? { id: fresh.id };
           return {
             ...stored,
             bgm: fresh.bgm,
+            sound: fresh.layers.sound ? { path: path.relative(targetDir, fresh.layers.sound.file), sha256: fresh.layers.sound.sha256,
+              receiptPath: path.relative(targetDir, fresh.layers.sound.reportFile) } : null,
+            entity: fresh.layers.entity ? { ...fresh.layers.entity, input: path.relative(targetDir, fresh.layers.entity.input),
+              output: path.relative(targetDir, fresh.layers.entity.output), receiptPath: path.relative(targetDir, fresh.layers.entity.receiptPath) } : null,
             style: fresh.style,
+            subtitles: fresh.subtitles ?? stored.subtitles ?? null,
             audioStems: fresh.layers.audioStems ? { ...fresh.layers.audioStems, dir: path.relative(targetDir, fresh.layers.audioStems.dir) } : null,
             assembly: fresh.layers?.assembly
               ? { ...(stored.assembly ?? {}), path: path.relative(targetDir, fresh.layers.assembly.path), sha256: fresh.layers.assembly.sha256, reused: fresh.layers.assembly.reused }
@@ -3843,16 +4647,17 @@ export async function reedit(options = {}) {
                 ...(stored.color ?? {}),
                 path: path.relative(targetDir, fresh.layers.color.path),
                 sha256: fresh.layers.color.sha256,
-                reused: fresh.layers.color.reused,
+                reused: fresh.layers.color.reused, gradeReport: fresh.layers.color.gradeReport,
               }
               : null,
             artifacts: {
               ...stored.artifacts,
               audio: { path: path.relative(targetDir, fresh.audioReceipt.path), sha256: fresh.audioReceipt.sha256 },
               video: { path: path.relative(targetDir, fresh.video.path), sha256: fresh.video.sha256 },
+              burned: fresh.burned ? { ...fresh.burned, path: path.relative(targetDir, fresh.burned.path) } : null,
               softsub: fresh.softsub ? { path: path.relative(targetDir, fresh.softsub.path), sha256: fresh.softsub.sha256 } : null,
-              cover: { path: path.relative(targetDir, fresh.cover.path), sha256: fresh.cover.sha256 },
-              copy: { path: path.relative(targetDir, fresh.copy.path) },
+              cover: { ...fresh.cover, path: path.relative(targetDir, fresh.cover.path), sha256: fresh.cover.sha256 },
+              copy: { ...fresh.copy, path: path.relative(targetDir, fresh.copy.path), jsonPath: path.relative(targetDir, fresh.copy.jsonPath) },
             },
           };
         }),
@@ -4122,6 +4927,16 @@ export async function callTool(name, params = {}, { bins = resolveBinaries(), en
       const result = analyzeImpact({ project: params.project ?? null, patch: params.patch ?? {} });
       return { result, receipt: { synced: true, verified_at: new Date().toISOString() } };
     }
+    case "postread.quality": {
+      const root = assertPathAllowed(params.delivery_dir ?? params.deliveryDir, roots, "delivery_dir");
+      const manifestFile = path.join(root, "delivery-manifest.json");
+      const manifest = JSON.parse(await fsp.readFile(manifestFile, "utf8"));
+      const manifestSha256 = await sha256File(manifestFile);
+      const qualityRoot = await resolveDeliveryRoot({ manifestDir: root, manifest, allowedRoots: roots });
+      const result = await inspectDeliveryManifest({ root: qualityRoot, manifest, bins, phase: "release" });
+      if (await sha256File(manifestFile) !== manifestSha256) throw new PostError("质检期间清单发生变化", "conflict");
+      return { result, receipt: { synced: result.passed, verified_at: result.generatedAt, sha256: manifestSha256 } };
+    }
     case "postwrite.package": {
       const outDir = assertPathAllowed(params.out_dir ?? params.outDir, roots, "out_dir");
       const shots = (params.shots ?? []).map((shot) => ({ ...shot, path: assertPathAllowed(shot.path ?? shot.localPath, roots, "shots[].path") }));
@@ -4129,6 +4944,7 @@ export async function callTool(name, params = {}, { bins = resolveBinaries(), en
         project: params.project ?? {},
         shots,
         subtitles: params.subtitles ?? null,
+        danmaku: params.danmaku ?? null,
         variants: params.variants ?? null,
         outDir,
         burnSubtitles: params.burn_subtitles === true,

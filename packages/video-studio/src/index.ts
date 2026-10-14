@@ -65,3 +65,5 @@ export * from "./plausibility-review.js";
 
 /** 成功渲染素材默认接收，不按后置品质裁决重复付费。 */
 export * from "./rendered-shot-acceptance.js";
+export * from "./rhythm-plan.js";
+export * from "./cinematic-contract.js";

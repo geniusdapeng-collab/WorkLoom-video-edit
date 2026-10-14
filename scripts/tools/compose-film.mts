@@ -20,6 +20,9 @@
  *     [--recipe real-estate] [--graded-out outputs/nanyuan-graded-30s.mp4] \
  *     [--keep-temp] [--json]
  */
+import { probeMedia as probeColorMedia } from "../../bundles/ai-video/connectors/color-bridge/core.mjs";
+import { resolveColorManagement } from "../../bundles/ai-video/connectors/color-bridge/processing-quality.mjs";
+import { probeMedia as probeVideoFacts } from "../../bundles/ai-video/connectors/subtitle-bridge/measure.mjs";
 import { execFileSync } from "node:child_process";
 import { createReadStream, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createHash } from "node:crypto";
@@ -132,7 +135,11 @@ console.log(`拼接 ${clips.length} 个镜头 → ${width}x${height} @${fps}fps�
 
 /* ---------- ① 归一化 ---------- */
 const normalized: string[] = [];
-clips.forEach((clip, index) => {
+const inputBindings = await Promise.all(clips.map(async path => ({ path, sha256: await sha256File(path) })));
+const colorNormalizations: Array<Record<string, unknown>> = [];
+for (const [index, clip] of clips.entries()) {
+  const sourceColor = resolveColorManagement({ probe: await probeColorMedia(clip, { bins: { ffmpeg: FFMPEG, ffprobe: FFPROBE } }) });
+
   const target = join(temp, `norm-${String(index).padStart(2, "0")}.mp4`);
   /**
    * 每段音轨必须与画面**等长**（2026-09-26 真机事故修复）：
@@ -141,17 +148,20 @@ clips.forEach((clip, index) => {
    * 因此归一化时用 `apad` 把声音补到画面时长（补的是静音，≤20ms，听不出来），
    * 下游无论走 concat 滤镜还是 demuxer，时间轴都不会再漂。
    */
-  const inFrames = Math.max(1, Math.round(probeDuration(clip) * fps));
+  const sourceClock = await probeVideoFacts(clip, { bins: { ffmpeg: FFMPEG, ffprobe: FFPROBE } });
+  if (!(sourceClock.videoDuration > 0)) throw new Error(`COMPOSE_SOURCE_VIDEO_CLOCK_MISSING: ${clip}`);
+  const inFrames = Math.max(1, Math.round(sourceClock.videoDuration * fps));
   const targetDuration = inFrames / fps;
   const hasSourceAudio = run(FFPROBE, ["-v", "error", "-select_streams", "a:0", "-show_entries", "stream=index", "-of", "csv=p=0", clip]).trim().length > 0;
   run(FFMPEG, [
     "-y", "-i", clip,
     ...(!hasSourceAudio ? ["-f", "lavfi", "-i", "anullsrc=channel_layout=stereo:sample_rate=48000", "-map", "0:v:0", "-map", "1:a:0"] : []),
-    "-vf", `scale=${width}:${height}:force_original_aspect_ratio=decrease,pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2:color=black,setsar=1,fps=${fps}`,
+    "-vf", `${sourceColor.chain},scale=${width}:${height}:force_original_aspect_ratio=decrease,pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2:color=black,setsar=1,fps=${fps}`,
     "-af", "apad",
     "-t", targetDuration.toFixed(6),
     "-c:v", "libx264", "-preset", "medium", "-crf", "18", "-pix_fmt", "yuv420p",
     "-c:a", "aac", "-b:a", "192k", "-ar", "48000", "-ac", "2",
+    "-color_primaries", "bt709", "-color_trc", "bt709", "-colorspace", "bt709", "-color_range", "tv",
     "-movflags", "+faststart", target,
   ]);
   const streamDurations = run(FFPROBE, [
@@ -161,11 +171,12 @@ clips.forEach((clip, index) => {
   const targetAudio = Number(streamDurations.find((row) => row[0] === "audio")?.[1] ?? 0);
   const avDelta = Math.abs(targetVideo - targetAudio);
   normalized.push(target);
+  colorNormalizations.push({ sourcePath: clip, ...sourceColor });
   console.log(`  ① 归一化 ${basename(clip)} → ${targetVideo.toFixed(2)}s（音轨 ${targetAudio.toFixed(2)}s，Δ${(avDelta * 1000).toFixed(0)}ms）`);
   if (avDelta > 0.01) {
       console.log(`       编码后的流时长差 ${(avDelta * 1000).toFixed(0)}ms；下游按视频帧时长切补音轨`);
   }
-});
+}
 
 /* ---------- ② 拼接 ---------- */
 const raw = join(temp, "raw.mp4");
@@ -190,6 +201,7 @@ const shotSeconds = shotFrames.map((frames) => frames / fps);
 const listFile = join(temp, "concat.txt");
 writeFileSync(listFile, normalized.map((file, index) =>
   `file '${file}'\nduration ${shotSeconds[index]!.toFixed(6)}`).join("\n"), "utf8");
+const executedCuts: Array<{ type: string; at: number; duration: number; enteringShot: number }> = [];
 const audioExact = normalized.map((_, index) =>
   `[${index}:a]atrim=end=${shotSeconds[index]!.toFixed(6)},asetpts=N/SR/TB,`
   + `apad=whole_dur=${shotSeconds[index]!.toFixed(6)}[aex${index}]`);
@@ -214,6 +226,7 @@ if (transition && transitionDuration > 0) {
     /** 硬切走 concat；0 秒 xfade 会在混合刀口上提前切走上一镜。 */
     const overlap = useTransition ? transitionDuration : 0;
     offset += durations[index - 1]! - overlap;
+    executedCuts.push({ type: useTransition ? transition : "hard-cut", at: Math.max(0, offset), duration: overlap, enteringShot: index + 1 });
     const vOut = `[v${index}]`;
     const aOut = `[a${index}]`;
     steps.push(useTransition
@@ -244,7 +257,12 @@ if (transition && transitionDuration > 0) {
   const usedCuts = transitionAt.length === 0 ? normalized.length - 1
     : transitionAt.filter((i) => i >= 2 && i <= normalized.length).length;
   console.log(`  ② 逐刀转场：${transition} @${transitionDuration}s × ${usedCuts} 刀（其余硬切）`);
-} else {
+ } else {
+  let cutAt = 0;
+  for (let index = 1; index < normalized.length; index += 1) {
+    cutAt += shotSeconds[index - 1]!;
+    executedCuts.push({ type: "hard-cut", at: cutAt, duration: 0, enteringShot: index + 1 });
+  }
   /**
    * 硬切拼接的**音画对齐纪律**（2026-09-26 真机事故修复）：
    * 逐段 mp4 里 aac 音轨普遍比画面短几毫秒（编码器 priming + 帧对齐），
@@ -335,9 +353,11 @@ console.log(`  ③ 母版 → ${out}（${outDuration.toFixed(2)}s）`);
 // The composer already uses one video-duration timeline and pads/trims audio to it.
 // Source silence, differing speech, or low signal correlation is not a source-quality veto.
 const avReportPath = join(dirname(out), `${basename(out).replace(/\.mp4$/i, "")}.av-sync.json`);
+for (const binding of inputBindings) if (await sha256File(binding.path) !== binding.sha256) throw new Error(`COMPOSE_SOURCE_CHANGED: ${binding.path}`);
 writeFileSync(avReportPath, `${JSON.stringify({
   schemaVersion: "workloom.compose-timeline/v1", generatedAt: new Date().toISOString(),
-  output: out, outputSha256: await sha256File(out), clipCount: normalized.length,
+  output: out, outputSha256: await sha256File(out), clipCount: normalized.length, inputBindings,
+  shotCount: normalized.length, cuts: executedCuts.map(cut => ({ ...cut, at: cut.at * retimeFactor })), colorNormalizations,
   timelineSeconds: shotSeconds, retimeFactor, outputDurationSec: outDuration,
   outputVideoDurationSec: outVideoDuration, outputAudioDurationSec: outAudioDuration,
   processing: "video-timeline-with-audio-pad-trim", acousticComparison: "not_performed",

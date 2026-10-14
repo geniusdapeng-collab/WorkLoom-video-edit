@@ -11,10 +11,11 @@ fence_bindings: [G8, G-DLV0, G-DLV1, G-DLV2, G-DLV3, G-DLV4, G-DLV6, G-DLV7, G-D
 coverage:
   - { eventPrefix: "post.", label: 后期制作 }
   - { eventPrefix: "delivery.", label: 交付与返修 }
-skills: [delivery-package-ops, delivery-revision-ops]
+skills: [delivery-package-ops, delivery-revision-ops, post-quality-inspection]
 tools:
   - { name: post.compose, access: write, desc: 后期合成编排 }
   - { name: ffmpeg.run, access: write,   desc: 执行 ffmpeg 处理链 }
+  - { name: postread.quality, access: read, desc: 当前媒体与真实加工链的确定性技术检查 }
   - { name: postread.plan, access: read, desc: 交付计划（变体差异与步骤预演） }
   - { name: postread.impact, access: read, desc: 变更影响分析（改哪一层/要不要重生成镜头） }
   - { name: postwrite.package, access: write, desc: 出交付包（母版+旁挂字幕+多风格变体+清单） }
@@ -29,6 +30,7 @@ prompt:
     - 按明确的后期请求与实际片段时间轴合成；字幕默认旁挂，可另出软字幕轨或显式烧字副本。
     - 变体按各自配方执行一次；清单记录真实文件、源片与产物 SHA-256，不抽帧或测声音差异评分。
   constraints:
+    - 正式交付与返修重新核对当前文件的完整解码、原生或明确目标画布、请求层和加工证据；不能传 passed/skip_verify 关闭出口。艺术未审如实记录。
     - 默认保留原片声音；无音轨素材只在拼接器需要统一音轨时补等时长静音，不合成台词。
     - 不能因身份、服装、动作、名义时长、画质、嘴型或声音品质要求重渲、ASR、TTS 或人工放行。
     - 不覆盖原片。缺文件、来源或授权不符、工具非零退出、目标文件或实际导出规格不成立时明确失败。

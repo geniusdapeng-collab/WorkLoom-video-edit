@@ -21,6 +21,7 @@
  *     [--width <显式宽> --height <显式高>] [--allow-downscale] [--fps 30] [--crf 16] [--no-burn-subtitles] [--json]
  *     [--transitions hard|pack|declared|auto] [--transitions-easing native|smooth]
  *     [--transition-pack documentary|vlog|fast_cut|information]
+ *     [--rhythm-profile natural|fast-cut|cinematic] [--rhythm-plan <实际源区间与呼吸点.json>]
  *
  *   字幕形态默认口径（2026-10-12 客户实测事故后改为默认烧字）：
  *     提供 `--subtitle` 时**默认产出烧字形态**（成片自带字幕，任何播放器/预览器直接可见）；
@@ -34,7 +35,7 @@
  */
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, realpathSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import {
@@ -43,6 +44,8 @@ import {
 } from "../../packages/video-studio/src/edit/index.js";
 import { scanBestFrame } from "./lib/frame-scan.mts";
 import { DANMAKU_PUBLISH_NOTE, resolveBurnSubtitles } from "./lib/delivery-forms.mts";
+import { inspectEditedRhythm, assertEditedSourcesPreserved } from "./lib/edit-rhythm.mts";
+import type { RhythmPlanInput, RhythmProfile } from "../../packages/video-studio/src/rhythm-plan.js";
 
 const REPO_ROOT = resolve(import.meta.dirname ?? process.cwd(), "../..");
 const FFMPEG = process.env.WL_FFMPEG ?? "ffmpeg";
@@ -66,11 +69,13 @@ function run(bin: string, args: string[], env?: NodeJS.ProcessEnv): void {
 }
 
 /** 素材原生分辨率探测（输出分辨率默认跟随素材，避免把 4K 素材降成 1080p）。 */
-function probeVideoSize(file: string): { width: number; height: number } | null {
+function probeVideoSize(file: string): { width: number; height: number; rotationDegrees: number } | null {
   try {
-    const out = execFileSync(FFPROBE, ["-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width,height", "-of", "csv=p=0", file], { encoding: "utf8" }).trim();
-    const [w, h] = out.split(",").map((value) => Number(value.trim()));
-    return Number.isInteger(w) && Number.isInteger(h) && w > 0 && h > 0 ? { width: w, height: h } : null;
+    const out = execFileSync(FFPROBE, ["-v", "error", "-select_streams", "v:0", "-show_streams", "-of", "json", file], { encoding: "utf8" });
+    const stream = JSON.parse(out).streams?.[0];
+    const rotationDegrees = Number(stream?.side_data_list?.find((entry: { rotation?: number }) => Number.isFinite(entry.rotation))?.rotation ?? stream?.tags?.rotate ?? 0);
+    return Number.isInteger(stream?.width) && Number.isInteger(stream?.height) && stream.width > 0 && stream.height > 0
+      ? { width: stream.width, height: stream.height, rotationDegrees } : null;
   } catch {
     return null;
   }
@@ -85,6 +90,12 @@ async function main(): Promise<void> {
   const timelineFile = abs(timelinePath);
   if (!existsSync(timelineFile)) throw new Error(`时间轴不存在：${timelineFile}`);
   const outDir = abs(outDirArg);
+  const timeline = resolveTimelineSourcePaths(JSON.parse(readFileSync(timelineFile, "utf8")) as EditTimeline, dirname(timelineFile));
+  const validation = validateEditTimeline(timeline);
+  if (!validation.ok) {
+    const failed = validation.checks.filter((c) => c.hard && !c.pass).map((c) => `${c.id}：${c.detail}`);
+    throw new Error(`时间轴未通过契约校验，拒绝进入后期（${failed.length} 项硬失败）：\n  - ${failed.join("\n  - ")}`);
+  }
 
   /**
    * `--clean`：清理上一次**失败**的交付目录（只在没有 delivery-manifest.json 时允许）。
@@ -96,19 +107,20 @@ async function main(): Promise<void> {
     if (existsSync(manifest)) {
       throw new Error(`交付目录已完成（存在 delivery-manifest.json）：${outDir}；如需返修请改用新版本目录`);
     }
+    const protectedFiles = [timelineFile, ...(timeline.sources ?? []).map((source) => String(source.path ?? ""))];
+    const inputOptions = new Set(["--analysis", "--subtitle", "--rhythm-plan", "--danmaku", "--color-map"]);
+    for (let index = 0; index < process.argv.length; index += 1) {
+      if (inputOptions.has(process.argv[index]!) && process.argv[index + 1]) protectedFiles.push(abs(process.argv[index + 1]!));
+    }
+    const within = (root: string, file: string) => { const rel = relative(root, file); return rel === "" || rel !== ".." && !rel.startsWith("../") && !isAbsolute(rel); };
+    const realOut = existsSync(outDir) ? realpathSync(outDir) : resolve(outDir);
+    for (const file of protectedFiles.filter(Boolean)) {
+      const selected = resolve(file), real = existsSync(selected) ? realpathSync(selected) : selected;
+      if (within(resolve(outDir), selected) || within(realOut, real)) throw new Error(`--clean 禁止删除包含本次原素材或输入文件的目录：${file}`);
+    }
     if (existsSync(outDir)) rmSync(outDir, { recursive: true, force: true });
   }
   mkdirSync(outDir, { recursive: true });
-
-  const timeline = resolveTimelineSourcePaths(
-    JSON.parse(readFileSync(timelineFile, "utf8")) as EditTimeline,
-    dirname(timelineFile),
-  );
-  const validation = validateEditTimeline(timeline);
-  if (!validation.ok) {
-    const failed = validation.checks.filter((c) => c.hard && !c.pass).map((c) => `${c.id}：${c.detail}`);
-    throw new Error(`时间轴未通过契约校验，拒绝进入后期（${failed.length} 项硬失败）：\n  - ${failed.join("\n  - ")}`);
-  }
 
   /**
    * 素材解析结果（`--analysis <probe.json>`，可重复）：供两条自动决策使用——
@@ -128,7 +140,7 @@ async function main(): Promise<void> {
   /**
    * 输出分辨率口径（2026-10-11 产品所有者）：**默认跟随素材原生分辨率**——取与目标画幅一致、
    * 面积最大的素材档位（4K 素材默认输出 3840×2160，不再由管线"自行降低分辨率"）；
-   * 只有显式传 `--width/--height` 才覆盖。素材探测不到时退回 1920×1080 并在回执里如实标注。
+   * 只有显式传 `--width/--height` 才覆盖。素材规格未知时拒绝正式交付。
    */
   const explicitWidth = arg("--width", "");
   const explicitHeight = arg("--height", "");
@@ -137,7 +149,7 @@ async function main(): Promise<void> {
     const rawPath = String((source as { path?: string }).path ?? (source as { file?: string }).file ?? "");
     const file = rawPath ? abs(rawPath) : "";
     const size = file && existsSync(file) ? probeVideoSize(file) : null;
-    return { sourceId: source.sourceId, file, width: size?.width ?? null, height: size?.height ?? null };
+    return { sourceId: source.sourceId, file, width: size?.width ?? null, height: size?.height ?? null, rotationDegrees: size?.rotationDegrees ?? 0 };
   });
   /**
    * 口径判定收敛到纯函数 `decideOutputResolution`（packages/video-studio/src/edit/output-resolution.ts）：
@@ -165,15 +177,15 @@ async function main(): Promise<void> {
   const variants = arg("--variants", "warm-story,clean-tech,bold-promo").split(",").map((v) => v.trim()).filter(Boolean);
   /**
    * 转场口径（2026-10-11 升级为四档）：
-   *   · hard（默认，产品所有者 2026-10-10 口径）：全部硬切；
+   *   · hard（显式覆盖）：全部硬切；
    *   · pack：沿用变体配方里的整段转场（legacy 兼容：warm-story=fade 经黑场、clean-tech=hard、bold-promo=xfade）；
-   *   · declared：只渲染剪辑脚本声明的 `transitionIn`（未声明处硬切）；
+   *   · declared（默认）：只渲染剪辑脚本声明的 `transitionIn`（未声明处硬切）；
    *   · auto：声明优先 + 场景组切换处按节奏档案自动补（叙事片推荐；组内保持硬切）。
    * declared/auto 的计划由 `packages/video-studio/src/edit/transitions.ts` 纯函数产出，
    * 交给 post-bridge 逐刀渲染（变体配方再用 intentMap 决定各风格的观感）。
    */
   const transitionsMode = (() => {
-    const value = arg("--transitions", "hard");
+    const value = arg("--transitions", "declared");
     if (value !== "hard" && value !== "pack" && value !== "declared" && value !== "auto") {
       throw new Error("--transitions 只接受 hard / pack / declared / auto");
     }
@@ -223,7 +235,7 @@ async function main(): Promise<void> {
     ? JSON.parse(readFileSync(abs(colorMapPath), "utf8")) as Record<string, ColorMapEntry>
     : null;
   /**
-   * 实体级局部调色（`--entity-color`）：镜头级 LUT 之上再加一层"按实体"的优化——
+   * 实体级局部调色（`--entity-color`）：每个变体最终 look 后加一层按实体的保守调整——
    * 人像美白（肤色去黄提亮）只作用在人物掩膜内，食物暖黄只作用在食物掩膜内；
    * 同镜人物+食物时分别作用、互不串色（客户 2026-10-11 口径）。
    * 掩膜来自 macOS Vision（scripts/tools/vision-entity.swift），非 macOS / 无证据时如实降级。
@@ -294,9 +306,35 @@ async function main(): Promise<void> {
     ? null
     : { mode: reframeMode as "declared" | "auto", fill: reframeFill as "pad" | "cover" | "blur" | "brand", maxZoom: reframeMaxZoom, easing: reframeEasing, sourceSizes: reframeSourceSizes, defaultScale: reframeDefaultScale };
 
+  const jailRoots = [
+    REPO_ROOT,
+    outDir,
+    /**
+     * 配乐工位的本地曲库是"用户资产"，天然在仓外（~/Downloads/…、~/.workloom-bgm）：
+     * 不把它加进 BGM 白名单时，`loadAllLocalTracks` 选出的曲目会被路径监狱拦下
+     * （实机：bgmPath 越出允许目录），"本地 1034 首大库优先"实际不可用。
+     */
+    bgmPack,
+    join(homedir(), ".workloom-bgm"),
+    ...new Set(timeline.sources.map((source) => dirname(source.path))),
+  ];
+  for (const key of ["WORKLOOM_POST_ALLOWED_ROOTS", "WORKLOOM_COLOR_ALLOWED_ROOTS", "WORKLOOM_SUBTITLE_ALLOWED_ROOTS", "WORKLOOM_BGM_ALLOWED_ROOTS"]) {
+    const existing = process.env[key]?.trim();
+    process.env[key] = [existing, ...jailRoots].filter(Boolean).join(":");
+  }
+  process.env.WL_FFMPEG ??= FFMPEG;
+
   // ① 逐段裁切：把时间轴的源轨 in/out 真正切出来，成为后期链路可以直接吃的一份"镜头清单"
   //    取景开启时改为**源分辨率预切**（preserveSource）：把 crop-first 留给 post-bridge，
   //    这样取景才能按变体调制、且从源像素开裁。
+  const originalSourceHashes = timeline.sources.map((source) => ({ path: source.path, sha256: createHash("sha256").update(readFileSync(source.path)).digest("hex") }));
+  for (const [index, source] of timeline.sources.entries()) if (originalSourceHashes[index]!.sha256 !== source.sha256) throw new Error(`素材当前 SHA 与时间轴溯源不一致：${source.sourceId}`);
+  const colorEngine = await import("../../bundles/ai-video/connectors/color-bridge/core.mjs") as unknown as {
+    probeMedia: (file: string, options: Record<string, unknown>) => Promise<Record<string, unknown>>;
+  };
+  const colorPolicy = await import("../../bundles/ai-video/connectors/color-bridge/processing-quality.mjs") as {
+    resolveColorManagement: (options: Record<string, unknown>) => { chain: string; kind: string; source: unknown; assumptions: string[] };
+  };
   const clipsDir = join(outDir, "clips");
   mkdirSync(clipsDir, { recursive: true });
   const plan = planAssembly(timeline, {
@@ -318,6 +356,11 @@ async function main(): Promise<void> {
     const target = join(clipsDir, `${step.segmentId}.mp4`);
     const args = [...step.args];
     args[args.length - 1] = target; // plan 里的输出名换成交付目录里的正式命名
+    const management = colorPolicy.resolveColorManagement({ probe: await colorEngine.probeMedia(step.input, { bins: { ffmpeg: FFMPEG, ffprobe: FFPROBE } }) });
+    const vf = args.indexOf("-vf"); if (vf < 0) throw new Error("裁切计划缺可核实的视频滤镜链");
+    args[vf + 1] = `${management.chain},${args[vf + 1]}`;
+    args.splice(args.length - 1, 0, "-color_primaries", "bt709", "-color_trc", "bt709", "-colorspace", "bt709", "-color_range", "tv");
+
     run(FFMPEG, args);
     if (!existsSync(target)) throw new Error(`片段 ${step.segmentId} 裁切后无产物`);
     shots.push({
@@ -327,6 +370,15 @@ async function main(): Promise<void> {
     });
   }
 
+  const declaredRhythmFile = arg("--rhythm-plan", "");
+  const declaredRhythm = declaredRhythmFile ? JSON.parse(readFileSync(abs(declaredRhythmFile), "utf8")) as RhythmPlanInput
+    : (timeline as EditTimeline & { rhythmPlan?: RhythmPlanInput }).rhythmPlan ?? null;
+  const inferredProfile = timeline.pacing?.profile === "fast_cut" ? "fast-cut" : "natural";
+  const rhythmProfile = arg("--rhythm-profile", declaredRhythm?.profile ?? inferredProfile) as RhythmProfile;
+  if (!["natural", "fast-cut", "cinematic"].includes(rhythmProfile)) throw new Error("--rhythm-profile 只接受 natural / fast-cut / cinematic");
+  const rhythmReceipt = await inspectEditedRhythm({ timeline, profile: rhythmProfile, declared: declaredRhythm, clips: shots, ffprobe: FFPROBE });
+  writeFileSync(join(outDir, "edit-rhythm-receipt.json"), `${JSON.stringify(rhythmReceipt, null, 2)}\n`, "utf8");
+  if (rhythmProfile === "fast-cut" && transitionsMode === "pack") throw new Error("快剪不能使用整段 legacy 配方转场；请用声明切点或 hard");
   /**
    * 分段调色：按场景组"内容投票"给每段预调色（家里暖 / 城市冷），强度用 `blend(all_opacity)` 混合实现，
    * 调色只发生一次；配套的 `segmented-story` 变体配方已关闭统一 LUT，避免二次调色。
@@ -382,11 +434,11 @@ async function main(): Promise<void> {
       if (!existsSync(lutFile)) throw new Error(`LUT 不存在：${lutFile}`);
       const target = join(clipsDir, `${step.segmentId}.mp4`);
       const graded = join(clipsDir, `${step.segmentId}.graded.mp4`);
-      run(FFMPEG, [
-        "-hide_banner", "-loglevel", "error", "-y", "-i", target,
-        "-vf", `split=2[a][b];[b]lut3d=file=${lutFile}[b2];[a][b2]blend=all_mode=normal:all_opacity=${assignment.intensity},format=yuv420p`,
-        "-c:v", "libx264", "-preset", "veryfast", "-crf", "18", "-c:a", "copy", graded,
-      ]);
+      const { grade } = await import("../../bundles/ai-video/connectors/color-bridge/core.mjs") as unknown as {
+        grade: (options: Record<string, unknown>) => Promise<Record<string, unknown>>;
+      };
+      await grade({ input: target, output: graded, profile: null, lutPath: lutFile, intensity: assignment.intensity,
+        auto: false, clarity: "off", qualityGuard: "report", bins: { ffmpeg: FFMPEG, ffprobe: FFPROBE } });
       renameSync(graded, target);
       const shot = shots.find((entry) => entry.shotId === step.segmentId);
       if (shot) shot.path = target;
@@ -407,8 +459,8 @@ async function main(): Promise<void> {
    */
   const colorMapNotes: Array<{ segmentId: string; profile: string | null; lut: string | null; intensity: number; corrections: Record<string, unknown>; basis: string; sha256: string }> = [];
   if (colorMap) {
-    const { buildChain } = await import("../../bundles/ai-video/connectors/color-bridge/core.mjs") as {
-      buildChain: (spec: Record<string, unknown>) => string;
+    const { grade } = await import("../../bundles/ai-video/connectors/color-bridge/core.mjs") as unknown as {
+      grade: (options: Record<string, unknown>) => Promise<Record<string, unknown>>;
     };
     const lutDir = join(REPO_ROOT, "bundles/ai-video/library/luts");
     for (const step of plan.normalize) {
@@ -419,13 +471,10 @@ async function main(): Promise<void> {
       const lutPath = entry.lut ? join(lutDir, entry.lut) : null;
       if (lutPath && !existsSync(lutPath)) throw new Error(`逐镜调色 LUT 不存在：${lutPath}`);
       const intensity = Number(entry.intensity ?? 1);
-      const chain = buildChain({ profile: entry.profile ?? null, lutPath, corrections: entry.corrections ?? {}, intensity });
       const graded = join(clipsDir, `${step.segmentId}.colormap.mp4`);
-      run(FFMPEG, [
-        "-hide_banner", "-loglevel", "error", "-y", "-i", target,
-        "-vf", `${chain},format=yuv420p`,
-        "-c:v", "libx264", "-preset", "veryfast", "-crf", "18", "-c:a", "copy", graded,
-      ]);
+      await grade({ input: target, output: graded, profile: entry.profile ?? null, lutPath,
+        corrections: entry.corrections ?? {}, intensity, auto: false, clarity: "off", qualityGuard: "report",
+        bins: { ffmpeg: FFMPEG, ffprobe: FFPROBE } });
       renameSync(graded, target);
       const shot = shots.find((row) => row.shotId === step.segmentId);
       if (shot) shot.path = target;
@@ -442,62 +491,19 @@ async function main(): Promise<void> {
     console.log(`  逐镜调色（--color-map）：${colorMapNotes.length} 段（其余保持原色）`);
   }
 
-  /**
-   * 实体级调色：在"归一化 + 分段调色"之后、进 post-bridge 之前执行——
-   * 每个片段只重编码一次，没有实体证据的片段保持原样（不重编码）。
-   */
-  let entityReceipt: Record<string, unknown> | null = null;
-  if (entityColor) {
-    const { applyEntityGrade } = await import(new URL("./edit-entity.mts", import.meta.url).href) as {
-      applyEntityGrade: (options: {
-        clips: Array<{ shotId: string; path: string }>;
-        workDir: string;
-        fps: number;
-        intensity?: number;
-        onLog?: (line: string) => void;
-      }) => Promise<Record<string, unknown>>;
-    };
-    const entityResult = await applyEntityGrade({
-      clips: shots,
-      workDir: join(outDir, "work", "entity"),
-      fps,
-      intensity: Number(arg("--entity-intensity", "1")),
-      onLog: (line) => console.log(`  ${line}`),
-    });
-    entityReceipt = { ...entityResult, generatedAt: new Date().toISOString() };
-    writeFileSync(join(outDir, "work", "entity-grade-receipt.json"), `${JSON.stringify({ schema: "workloom.video-edit/entity-grade/v1", ...entityReceipt }, null, 2)}\n`, "utf8");
-  }
-
+  // 实体层由 post-bridge 在每个变体的最终 look 后执行，避免统一 look 再次改变肤色/食物。
   // ② 交回既有后期链路：post-bridge 的 buildDeliveryPackage（本地工位，不联网、不烧额度）
   /**
    * 路径监狱：post-bridge 与它调用的三个工位（调色/字幕/配乐）**各有自己的白名单环境变量**，
    * 只设 post 的那一个会在"逐变体调色"一步被拒（实机教训：output 越出允许目录）。
    * 这里一次性把工作目录、交付目录与全部源素材目录加进四个白名单。
    */
-  const jailRoots = [
-    REPO_ROOT,
-    outDir,
-    /**
-     * 配乐工位的本地曲库是"用户资产"，天然在仓外（~/Downloads/…、~/.workloom-bgm）：
-     * 不把它加进 BGM 白名单时，`loadAllLocalTracks` 选出的曲目会被路径监狱拦下
-     * （实机：bgmPath 越出允许目录），"本地 1034 首大库优先"实际不可用。
-     */
-    bgmPack,
-    join(homedir(), ".workloom-bgm"),
-    ...new Set(timeline.sources.map((source) => dirname(source.path))),
-  ];
-  for (const key of ["WORKLOOM_POST_ALLOWED_ROOTS", "WORKLOOM_COLOR_ALLOWED_ROOTS", "WORKLOOM_SUBTITLE_ALLOWED_ROOTS", "WORKLOOM_BGM_ALLOWED_ROOTS"]) {
-    const existing = process.env[key]?.trim();
-    process.env[key] = [existing, ...jailRoots].filter(Boolean).join(":");
-  }
-  process.env.WL_FFMPEG ??= FFMPEG;
-
   /**
    * 转场口径：`hard`（默认，产品所有者 2026-10-10 口径：叙事剪辑默认硬切）或 `pack`（用变体配方）。
    * 实现：复制三份变体配方到交付目录下的覆盖副本、改写 transitions，再交给 post-bridge 的
    * `WORKLOOM_POST_VARIANT_DIR`。**必须在动态 import 之前设置**——该模块在加载时解析这个环境变量。
    */
-  if (transitionsMode === "hard") {
+  if (transitionsMode === "hard" || transitionsMode === "declared" && (!transitionPlan || transitionPlan.transitionCount === 0)) {
     const baseVariantDir = join(REPO_ROOT, "bundles/ai-video/library/style-variants");
     const overrideDir = join(outDir, "work", "variant-overrides");
     mkdirSync(overrideDir, { recursive: true });
@@ -700,7 +706,7 @@ async function main(): Promise<void> {
 
   const core = await import("../../bundles/ai-video/connectors/post-bridge/core.mjs") as unknown as {
     buildDeliveryPackage: (options: Record<string, unknown>) => Promise<Record<string, unknown>>;
-    buildCover: (options: Record<string, unknown>) => Promise<{ output?: string }>;
+    buildCover: (options: Record<string, unknown>) => Promise<{ output: string; sha256: string; at: number; requestedAt: number; background: unknown; text: unknown; checks: unknown[] }>;
     findVariantPack: (id: string, options?: Record<string, unknown>) => Record<string, unknown>;
     VARIANT_DIR: string;
   };
@@ -709,9 +715,14 @@ async function main(): Promise<void> {
     projectId: timeline.filmId ?? timeline.timelineId,
     title,
     resolution: [width, height],
+    allowDownscale: resolutionDecision.downscaleApproved,
+    resolutionPolicy: { downscaleApproved: resolutionDecision.downscaleApproved,
+      reframeApproved: Boolean(timeline.target?.aspectRatio), reframeReason: `时间轴明确目标画幅 ${timeline.target?.aspectRatio}` },
     fps,
     quality,   // 由分辨率推导（4K 级 → uhd）或显式 --quality；post-bridge 只认 hd / uhd
     platform,
+    rhythmPlan: rhythmReceipt.status === "passed" ? rhythmReceipt.plan : null,
+    entityColor: entityColor ? { enabled: true, intensity: Number(arg("--entity-intensity", "1")) } : null,
     /**
      * 逐切转场计划（declared/auto）：交给 post-bridge 逐刀渲染；
      * 变体配方通过 intentMap 决定各自观感（同一剪辑脚本 → 三种风格转场）。
@@ -794,7 +805,7 @@ const autoCoverPlan = explicitCoverAt
       const pack = core.findVariantPack(variantId) as { id: string; cover?: Record<string, unknown>; copy?: Record<string, unknown> };
       const input = join(outDir, "variants", variantId, `${variantId}.mp4`);
       if (!existsSync(input)) continue;
-      await core.buildCover({
+      const cover = await core.buildCover({
         input,
         output: join(outDir, "variants", variantId, "cover.png"),
         project,
@@ -803,6 +814,13 @@ const autoCoverPlan = explicitCoverAt
         platform,
         workDir: join(outDir, "work", "cover-override", variantId),
       });
+      const file = join(outDir, "delivery-manifest.json");
+      const current = JSON.parse(readFileSync(file, "utf8")) as { variants: Array<{ id: string; cover: Record<string, unknown> }> };
+      const entry = current.variants.find((variant) => variant.id === variantId);
+      if (!entry) throw new Error(`清单缺变体 ${variantId}`);
+      entry.cover = { path: relative(outDir, cover.output), sha256: cover.sha256, at: cover.at, requestedAt: cover.requestedAt,
+        background: cover.background, text: cover.text, checks: cover.checks };
+      writeFileSync(file, `${JSON.stringify(current, null, 2)}\n`, "utf8");
     }
   }
 
@@ -816,13 +834,21 @@ const autoCoverPlan = explicitCoverAt
    */
   const danmakuItemsPath = arg("--danmaku", "");
   const danmakuReceipts: Array<Record<string, unknown>> = [];
+  const qa = await import("../../bundles/ai-video/connectors/post-bridge/quality-gate.mjs") as unknown as {
+    captureProcessingInputs: (files: string[]) => Promise<Array<{ path: string; sha256: string }>>;
+    writeProcessingProof: (options: Record<string, unknown>) => Promise<Record<string, unknown>>;
+    inspectDeliveryManifest: (options: Record<string, unknown>) => Promise<{ passed: boolean; checks: unknown[] }>;
+    writePostQuality: (root: string, report: unknown) => Promise<Record<string, unknown>>;
+    assertPostQuality: (report: unknown) => void;
+  };
+  const danmakuProofs: Array<Record<string, unknown>> = [];
   if (danmakuItemsPath) {
     const itemsFile = abs(danmakuItemsPath);
     if (!existsSync(itemsFile)) throw new Error(`弹幕条目文件不存在：${itemsFile}`);
     const doc = JSON.parse(readFileSync(itemsFile, "utf8")) as unknown;
     const items = Array.isArray(doc) ? doc : ((doc as { items?: unknown[] }).items ?? []);
     if (!items.length) throw new Error("弹幕条目为空（数组或 {items:[…]}）");
-    const bridge = await import("../../bundles/ai-video/connectors/subtitle-bridge/core.mjs") as {
+    const bridge = await import("../../bundles/ai-video/connectors/subtitle-bridge/core.mjs") as unknown as {
       parseDanmaku: (input: unknown[]) => unknown[];
       renderDanmaku: (options: Record<string, unknown>) => Promise<{
         output: { path: string; hash: string; bytes: number };
@@ -840,11 +866,15 @@ const autoCoverPlan = explicitCoverAt
       if (!source) continue;
       const suffix = source === burnedFile ? `${variantId}.burned.danmaku` : `${variantId}.danmaku`;
       const output = join(outDir, "variants", variantId, `${suffix}.mp4`);
+      const inputs = await qa.captureProcessingInputs([source]);
       const report = await bridge.renderDanmaku({
         input: source, output, items: parsed, platform,
         brief: { 平台: platform ?? "默认", 内容调性: project.copy?.tone ?? null },
         opacity, lanes, evidenceDir: join(outDir, "danmaku", variantId), bins: { ffmpeg: FFMPEG, ffprobe: FFPROBE },
       });
+      danmakuProofs.push(await qa.writeProcessingProof({ root: outDir, stage: "danmaku", id: String(danmakuReceipts.length), inputs,
+        outputs: [{ path: report.output.path, sha256: report.output.hash }], parameters: { mode: "danmaku", lanes, opacity, items: parsed },
+        execution: { cueCount: parsed.length, checks: report.checks } }));
       danmakuReceipts.push({
         variantId, source: relative(outDir, source), output: relative(outDir, output),
         items: parsed.length, lanes, opacity,
@@ -858,12 +888,10 @@ const autoCoverPlan = explicitCoverAt
   const manifest = existsSync(manifestPath)
     ? JSON.parse(readFileSync(manifestPath, "utf8")) as Record<string, unknown>
     : null;
-  if (manifest && entityReceipt) {
-    manifest.entityGrade = entityReceipt;
-    writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
-  }
   if (manifest && danmakuReceipts.length) {
     /** 弹幕形态写进交付清单（谁、哪条、多少条、sha256），与字幕/封面回执同构。 */
+    manifest.processing = [...((manifest.processing as unknown[]) ?? []), ...danmakuProofs];
+    manifest.postRequirements = { ...(manifest.postRequirements as Record<string, unknown>), danmaku: true };
     manifest.danmaku = {
       source: abs(danmakuItemsPath),
       note: DANMAKU_PUBLISH_NOTE,
@@ -877,10 +905,31 @@ const autoCoverPlan = explicitCoverAt
       scopes?: Array<{ scope: string; mode: string | null; transitionCount: number; hardCutCount: number | null; types: string[] }>;
     }
     : null;
+  if (!manifest) throw new Error("正式后期缺交付清单");
+  await assertEditedSourcesPreserved(originalSourceHashes);
+  manifest.rhythm = { receipt: "edit-rhythm-receipt.json", sha256: createHash("sha256").update(readFileSync(join(outDir, "edit-rhythm-receipt.json"))).digest("hex"),
+    profile: rhythmProfile, status: rhythmReceipt.status, artisticQuality: "unverified" };
+  const filmProjectPath = join(outDir, "film-project.json");
+  const filmProject = JSON.parse(readFileSync(filmProjectPath, "utf8")) as Record<string, unknown>;
+  filmProject.processing = manifest.processing; filmProject.rhythm = manifest.rhythm;
+  const layers = filmProject.layers as { variants?: Array<{ id: string; artifacts: Record<string, unknown> }> };
+  for (const variant of (manifest.variants ?? []) as Array<{ id: string; cover: Record<string, unknown> }>) {
+    const stored = layers.variants?.find((row) => row.id === variant.id);
+    if (stored) stored.artifacts.cover = { ...variant.cover };
+  }
+  if (danmakuReceipts.length) {
+    filmProject.danmakuRequest = JSON.parse(readFileSync(abs(danmakuItemsPath), "utf8"));
+    filmProject.postRequirements = manifest.postRequirements;
+  }
+  const finalQuality = await qa.inspectDeliveryManifest({ root: outDir, manifest, bins: { ffmpeg: FFMPEG, ffprobe: FFPROBE }, phase: "post" });
+  manifest.postQuality = await qa.writePostQuality(outDir, finalQuality);
+  qa.assertPostQuality(finalQuality);
+  writeFileSync(filmProjectPath, `${JSON.stringify(filmProject, null, 2)}\n`, "utf8");
+  writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
   const summary = {
-    ok: true,
+    ok: finalQuality.passed,
     outDir,
-    clips: shots.length,
+    clips: shots.length, rhythm: { profile: rhythmProfile, status: rhythmReceipt.status, sourceReadOnlyVerified: true },
     variants: variants,
     resolution: {
       width,
@@ -968,9 +1017,7 @@ perVariant: coverMoments.map((moment, index) => ({
     segmentColor: segmentColor ? { applied: segmentColorNotes.length, plan: segmentColorNotes } : null,
     colorMap: colorMap ? { applied: colorMapNotes.length, plan: colorMapNotes } : null,
     danmaku: danmakuReceipts.length ? { applied: danmakuReceipts.length, forms: danmakuReceipts } : null,
-    entityGrade: entityReceipt
-      ? { applied: entityReceipt.applied ?? null, skipped: entityReceipt.skipped ?? null, summary: entityReceipt.summary ?? null }
-      : null,
+    entityGrade: (manifest?.variants as Array<{ id: string; entityReceipt?: unknown }> | undefined)?.map((variant) => ({ id: variant.id, receipt: variant.entityReceipt ?? null })) ?? null,
     bgmAgent: bgmAgent ? { libraryTotal: null, picks: bgmAgentReceipt } : null,
     manifest: manifestPath,
     files: (manifest?.files ?? manifest?.artifacts ?? null),

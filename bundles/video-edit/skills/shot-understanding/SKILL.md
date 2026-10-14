@@ -197,3 +197,15 @@ description: 镜头理解官方套件（v2）：在确定性信号层之上做�
 | 台词 | 模型转写（易错） | **ASR 词级时间戳**为准，模型只做语义补充 |
 | 质量 | 4–5 分主观打分 | 信号层量化指标 + 语义可用性判断分离 |
 | 输出对象 | 单份 `file_id` 大 JSON | `shot_record[]`（可增量、可单镜重跑、可版本化） |
+
+
+## 7. 快切与节奏的上游证据（2026-10-14）
+
+快切从素材理解时登记可用的动作与声音区间。当前 schema 已有 `content.actions[].start/end`、`probe.speech.sentences[].start/end`、`probe.music.beatGrid/downbeats/sections` 与 `evidence[]`；使用这些真实字段，不额外虚构未注册字段。
+
+- 动作与台词区间采用原始 `asset` 源片的秒时钟；如果模型输入是某镜头内的局部区间，必须加该镜头的源片入点再写回。记录动作起势、结果落点和整句结束，精确到已知帧；仅有静态抽帧不能证明动作起止时写 null，并说明待复核。
+- 标记可做片头/结尾强调的真实动作、纹理、反应与空间展开镜头，在 `editing.usage` 和 `cutInReason/cutOutReason` 写用途与依据。剪辑岗再决定短切、展开、呼吸的组合，理解岗不把每个镜头都改成快切。
+- 有人声的源片必须给可信整句区间；不具备听音或可靠时间戳时不把缺失当无台词。明确 fast-cut 的剪辑计划必须带 `protectedRanges` 或保留整个相应源区间，不为凑短镜切断整句或动作。
+- BPM 标签不等于真实拍点。只有当前 BGM 音频确实分析过才能填写拍点/小节与方法；没有分析时保留空数组/null。音乐结构或动作音效建议写明依据，不把推测写成测量。
+
+交接时把这些已有事实与 `asset.sha256` 送给剪辑岗，由它编译 `RhythmPlanInput` 的 `segments[].inSeconds/outSeconds`、`role`、`cutReason` 与源时钟的 `protectedRanges`。本轮未调用理解模型验证语义时间戳准确率；后期只能核实当前源字节、范围与实际裁切。

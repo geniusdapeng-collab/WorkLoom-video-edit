@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildEntityFilterComplex, entityReceiptRows, isFoodLabel, planEntityGrade, summarizeEntityPlans,
-  type EntitySignal,
+  weightCurrentMask, type EntitySignal,
 } from "./entity-color.js";
 
 function signal(overrides: Partial<EntitySignal> = {}): EntitySignal {
@@ -34,14 +34,14 @@ describe("edit/entity-color：实体级局部调色", () => {
     }));
     expect(plan.person.enabled).toBe(true);
     expect(plan.food.enabled).toBe(true);
-    expect(plan.person.opacity).toBeGreaterThan(0.5);
+    expect(plan.person.opacity).toBeGreaterThan(0.3);
     expect(plan.person.reason).toContain("美白");
     expect(plan.food.reason).toContain("加暖");
     expect(plan.notes.some((note) => note.includes("互不串色"))).toBe(true);
     const outcome = buildEntityFilterComplex(plan, { width: 3840, height: 2160 });
     expect(outcome.applied).toBe(true);
-    expect(outcome.filterComplex).toContain("colorbalance=rs=-0.020");
-    expect(outcome.filterComplex).toContain("colorbalance=rs=0.050");
+    expect(outcome.filterComplex).toContain("colorbalance=rs=-0.010");
+    expect(outcome.filterComplex).toContain("colorbalance=rs=0.030");
     expect(outcome.filterComplex).toContain("[1:v]format=gray");
     expect(outcome.filterComplex).toContain("[2:v]format=gray");
     expect(outcome.filterComplex.endsWith("maskedmerge[vout]")).toBe(true);
@@ -52,7 +52,7 @@ describe("edit/entity-color：实体级局部调色", () => {
     expect(plan.person.enabled).toBe(false);
     expect(plan.food.enabled).toBe(true);
     const outcome = buildEntityFilterComplex(plan, { width: 1920, height: 1080 });
-    expect(outcome.filterComplex).toContain("[0:v]split=2[base][f0]");
+    expect(outcome.filterComplex).toContain("[0:v]format=gbrp,split=2[base][f0]");
     expect(outcome.filterComplex).not.toContain("[p0]");
   });
 
@@ -136,9 +136,9 @@ describe("edit/entity-color：实体级局部调色", () => {
     expect(faceToo.notes.some((note) => note.includes("互不串色"))).toBe(true);
   });
 
-  it("有人脸但掩膜很小也开人像层；掩膜缺失时如实降级提示", () => {
+  it("有人脸但缺当前掩膜时关闭人像层并如实降级", () => {
     const plan = planEntityGrade(signal({ personRatio: 0.001, faces: [{ x: 0.4, y: 0.2, w: 0.05, h: 0.05 }], personMaskPath: null }));
-    expect(plan.person.enabled).toBe(true);
+    expect(plan.person.enabled).toBe(false);
     expect(plan.notes.some((note) => note.includes("跳过人像层"))).toBe(true);
   });
 
@@ -171,4 +171,30 @@ describe("edit/entity-color：实体级局部调色", () => {
     expect(isFoodLabel("person")).toBe(false);
     expect(isFoodLabel("wooden table")).toBe(false);
   });
+});
+
+describe("实体掩膜的时间与词表边界", () => {
+  it("英文前缀和中文相似词不能充当食物证据", () => {
+    for (const label of ["mealworm", "fishbone", "bunting", "vegetation", "面包车", "桌面", "菜市场"]) expect(isFoodLabel(label)).toBe(false);
+    expect(isFoodLabel("dumplings")).toBe(true);
+  });
+  it("没有当前食物掩膜时计划和汇总均不能宣称已作用", () => {
+    const plan = planEntityGrade(signal({ foodRatio: 0.4, foodLabels: ["soup"], foodMaskPath: null }));
+    expect(plan.food.enabled).toBe(false);
+    expect(summarizeEntityPlans([plan]).foodSegments).toBe(0);
+  });
+  it("移动实体仅权重当前支持；消失立即清零，再出现缓入", () => {
+    const first = weightCurrentMask(Uint8Array.from([255, 0, 0]), 0.45);
+    const moved = weightCurrentMask(Uint8Array.from([0, 0, 255]), 0.45, first.opacity);
+    expect(moved.mask[0]).toBe(0);
+    expect(moved.mask[2]).toBeGreaterThan(first.mask[0]!);
+    const absent = weightCurrentMask(Uint8Array.from([0, 0, 0]), 0.45, moved.opacity);
+    expect(absent.opacity).toBe(0);
+    expect(Array.from(absent.mask)).toEqual([0, 0, 0]);
+    expect(weightCurrentMask(Uint8Array.from([255, 0, 0]), 0.45, absent.opacity).opacity).toBe(0.08);
+  });
+});
+
+it("只有通用人物分割加肤色带没有脸/实例时，不能把食物或桌面当人", () => {
+  expect(planEntityGrade(signal({ personRatio: 0.4, personRequest: "segmentation", personSkinRatio: 0.82 })).person.enabled).toBe(false);
 });
