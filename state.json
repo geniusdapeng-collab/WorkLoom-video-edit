@@ -1,11 +1,11 @@
 {
   "schemaVersion": 1,
   "repo": "geniusdapeng-collab/WorkLoom-video-edit",
-  "revision": 18,
+  "revision": 24,
   "tasks": {
     "18": {
       "number": 18,
-      "status": "integrated",
+      "status": "delivered",
       "firstSeen": 1791937562998,
       "attempts": {},
       "admission": {
@@ -23,7 +23,7 @@
           "protocol": 1
         }
       },
-      "updatedAt": 1791940722270,
+      "updatedAt": 1791940740566,
       "headSha": "f365e83054b21e4e2770efdf4c5fcd68a518410b",
       "mainSha": "451c7c629bed45bf3b7a950b341288bf20174b49",
       "branch": "task/T-2026-1013-0003",
@@ -2673,7 +2673,40 @@
           }
         ]
       },
-      "bodySha256": "1274244980165db94025844cb6713492886aff4fc546b4bbb04a80d372fb2f47"
+      "bodySha256": "1274244980165db94025844cb6713492886aff4fc546b4bbb04a80d372fb2f47",
+      "integrated": {
+        "number": 18,
+        "url": "https://github.com/geniusdapeng-collab/WorkLoom-video-edit/pull/18",
+        "merged": true,
+        "mergedAt": "2026-10-14T00:26:39Z",
+        "mergeSha": "53040986003e46b29c330b01144f29a505dc864a",
+        "validationPassed": true,
+        "prAssociation": {
+          "repository": "geniusdapeng-collab/WorkLoom-video-edit",
+          "number": 18,
+          "nodeId": "PR_kwDOVD9wm88AAAABIP-XSQ",
+          "headSha": "f365e83054b21e4e2770efdf4c5fcd68a518410b",
+          "merged": true,
+          "state": "MERGED",
+          "mergeSha": "53040986003e46b29c330b01144f29a505dc864a",
+          "source": "current-GraphQL-pullRequest.mergeCommit"
+        },
+        "mainSha": "53040986003e46b29c330b01144f29a505dc864a",
+        "parents": [
+          "451c7c629bed45bf3b7a950b341288bf20174b49",
+          "f365e83054b21e4e2770efdf4c5fcd68a518410b"
+        ],
+        "treeSha": "db0aa575f65c9564a5ef916c7a5c577146789198",
+        "mergedBy": "geniusdapeng-collab",
+        "method": "merge",
+        "force": false,
+        "readbackAttempts": 1
+      },
+      "delivered": {
+        "at": "2026-10-14T01:19:00.566Z",
+        "mainSha": "53040986003e46b29c330b01144f29a505dc864a",
+        "releases": []
+      }
     }
   },
   "leases": {
@@ -2681,19 +2714,19 @@
       "owner": "github-session/5efc589b-7a66-4d75-ae5c-7dd5ff0a27d9",
       "generation": 3,
       "acquiredAt": 1791940722257,
-      "expiresAt": 1791941622257
+      "expiresAt": 1791941640549
     },
     "protocol": {
       "owner": "github-session/5efc589b-7a66-4d75-ae5c-7dd5ff0a27d9",
       "generation": 3,
       "acquiredAt": 1791940722257,
-      "expiresAt": 1791941622257
+      "expiresAt": 1791941640549
     },
     "main": {
       "owner": "github-session/5efc589b-7a66-4d75-ae5c-7dd5ff0a27d9",
       "generation": 2,
       "acquiredAt": 1791940722257,
-      "expiresAt": 1791941622257
+      "expiresAt": 1791941640549
     }
   },
   "releases": {},
@@ -7899,6 +7932,154 @@
       },
       "previous": "c34b0ca6ca67be919f5604bff9d703ff6b380167395545454e6c76b76de26b03",
       "digest": "10be97c49e3a7af0ad03c10287df844ab9ea489bd28a9df16e8770ef806725e3"
+    },
+    {
+      "sequence": 19,
+      "at": "2026-10-14T01:19:00.549Z",
+      "kind": "lease_renew",
+      "data": {
+        "scopes": [
+          "dependencies",
+          "main",
+          "protocol"
+        ],
+        "owner": "github-session/5efc589b-7a66-4d75-ae5c-7dd5ff0a27d9",
+        "generation": {
+          "dependencies": 3,
+          "main": 2,
+          "protocol": 3
+        }
+      },
+      "previous": "10be97c49e3a7af0ad03c10287df844ab9ea489bd28a9df16e8770ef806725e3",
+      "digest": "c1e3f212e3874132c1a77dfcae73b7c476052d17172b6c95752315ac33759e5a"
+    },
+    {
+      "sequence": 20,
+      "at": "2026-10-14T01:19:00.553Z",
+      "kind": "integrated",
+      "data": {
+        "number": 18,
+        "url": "https://github.com/geniusdapeng-collab/WorkLoom-video-edit/pull/18",
+        "merged": true,
+        "mergedAt": "2026-10-14T00:26:39Z",
+        "mergeSha": "53040986003e46b29c330b01144f29a505dc864a",
+        "validationPassed": true,
+        "prAssociation": {
+          "repository": "geniusdapeng-collab/WorkLoom-video-edit",
+          "number": 18,
+          "nodeId": "PR_kwDOVD9wm88AAAABIP-XSQ",
+          "headSha": "f365e83054b21e4e2770efdf4c5fcd68a518410b",
+          "merged": true,
+          "state": "MERGED",
+          "mergeSha": "53040986003e46b29c330b01144f29a505dc864a",
+          "source": "current-GraphQL-pullRequest.mergeCommit"
+        },
+        "mainSha": "53040986003e46b29c330b01144f29a505dc864a",
+        "parents": [
+          "451c7c629bed45bf3b7a950b341288bf20174b49",
+          "f365e83054b21e4e2770efdf4c5fcd68a518410b"
+        ],
+        "treeSha": "db0aa575f65c9564a5ef916c7a5c577146789198",
+        "mergedBy": "geniusdapeng-collab",
+        "method": "merge",
+        "force": false,
+        "readbackAttempts": 1,
+        "headSha": "f365e83054b21e4e2770efdf4c5fcd68a518410b",
+        "previousMainSha": "451c7c629bed45bf3b7a950b341288bf20174b49",
+        "reviewId": "c11c1cecaa75bcf6f4af50acec2f6deded7568d3d978e434963547880e1ba892",
+        "controller": "current-session-github-api",
+        "nativeQueue": false,
+        "platformAI": false
+      },
+      "previous": "c1e3f212e3874132c1a77dfcae73b7c476052d17172b6c95752315ac33759e5a",
+      "digest": "126223f426002b451e627369549c6d98efb85194555f9381fe96ddbf684a6fb8"
+    },
+    {
+      "sequence": 21,
+      "at": "2026-10-14T01:19:00.553Z",
+      "kind": "task",
+      "data": {
+        "number": 18,
+        "patch": {
+          "status": "integrated",
+          "integrated": {
+            "number": 18,
+            "url": "https://github.com/geniusdapeng-collab/WorkLoom-video-edit/pull/18",
+            "merged": true,
+            "mergedAt": "2026-10-14T00:26:39Z",
+            "mergeSha": "53040986003e46b29c330b01144f29a505dc864a",
+            "validationPassed": true,
+            "prAssociation": {
+              "repository": "geniusdapeng-collab/WorkLoom-video-edit",
+              "number": 18,
+              "nodeId": "PR_kwDOVD9wm88AAAABIP-XSQ",
+              "headSha": "f365e83054b21e4e2770efdf4c5fcd68a518410b",
+              "merged": true,
+              "state": "MERGED",
+              "mergeSha": "53040986003e46b29c330b01144f29a505dc864a",
+              "source": "current-GraphQL-pullRequest.mergeCommit"
+            },
+            "mainSha": "53040986003e46b29c330b01144f29a505dc864a",
+            "parents": [
+              "451c7c629bed45bf3b7a950b341288bf20174b49",
+              "f365e83054b21e4e2770efdf4c5fcd68a518410b"
+            ],
+            "treeSha": "db0aa575f65c9564a5ef916c7a5c577146789198",
+            "mergedBy": "geniusdapeng-collab",
+            "method": "merge",
+            "force": false,
+            "readbackAttempts": 1
+          }
+        }
+      },
+      "previous": "126223f426002b451e627369549c6d98efb85194555f9381fe96ddbf684a6fb8",
+      "digest": "8104c0dea46fafb3eb136d4ea62762980c588ddafa9f6b1e6415bf2aaf0c3e02"
+    },
+    {
+      "sequence": 22,
+      "at": "2026-10-14T01:19:00.566Z",
+      "kind": "delivered",
+      "data": {
+        "number": 18,
+        "mergeSha": "53040986003e46b29c330b01144f29a505dc864a",
+        "mainSha": "53040986003e46b29c330b01144f29a505dc864a",
+        "releases": [],
+        "scope": "verified-main-integration",
+        "controller": "current-session-github-api",
+        "nativeQueue": false
+      },
+      "previous": "8104c0dea46fafb3eb136d4ea62762980c588ddafa9f6b1e6415bf2aaf0c3e02",
+      "digest": "1755c7ee0523c03e642a25db7328f6361ed8a4b5a7417612b89b6cb689ffc07f"
+    },
+    {
+      "sequence": 23,
+      "at": "2026-10-14T01:19:00.566Z",
+      "kind": "task",
+      "data": {
+        "number": 18,
+        "patch": {
+          "status": "delivered",
+          "delivered": {
+            "at": "2026-10-14T01:19:00.566Z",
+            "mainSha": "53040986003e46b29c330b01144f29a505dc864a",
+            "releases": []
+          }
+        }
+      },
+      "previous": "1755c7ee0523c03e642a25db7328f6361ed8a4b5a7417612b89b6cb689ffc07f",
+      "digest": "38c0247b37531e21d2a35ee006bd50d2d95218ea09b3269afc03cd5ddf84a2ab"
+    },
+    {
+      "sequence": 24,
+      "at": "2026-10-14T01:18:51.187Z",
+      "kind": "transaction",
+      "data": {
+        "id": "github-session-delivered:18:f365e83054b21e4e2770efdf4c5fcd68a518410b:451c7c629bed45bf3b7a950b341288bf20174b49:c11c1cecaa75bcf6f4af50acec2f6deded7568d3d978e434963547880e1ba892:53040986003e46b29c330b01144f29a505dc864a",
+        "controller": "current-session-github-api",
+        "nativeQueue": false
+      },
+      "previous": "38c0247b37531e21d2a35ee006bd50d2d95218ea09b3269afc03cd5ddf84a2ab",
+      "digest": "de5c6ddd1cf800285d062900e019951bb6c1eeaae8baf7c715a757b81251d5a6"
     }
   ]
 }
