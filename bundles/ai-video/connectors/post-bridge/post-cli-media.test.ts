@@ -109,13 +109,16 @@ test("actual SFX adapter validates source bytes and refuses a plan that disagree
   const wrong = structuredClone(plan); wrong.segments[2].outSeconds = 4; wrong.segments[2].durationSeconds = 4;
   await expect(applyPostRhythmSound({ input: source, plan: wrong, workDir: path.join(root, "sfx-invalid"), bins, env })).rejects.toMatchObject({ code: "rhythm_processing_failed", retryable: false });
 }, 60_000);
-test("normalization applies HDR conversion before 8-bit canvas encoding and retains current source hash", async () => {
-  const file = path.join(root, "pq.mkv");
-  execFileSync(bins.ffmpeg, ["-v", "error", "-y", "-f", "lavfi", "-i", "testsrc2=s=320x180:r=30:d=1", "-vf", "format=yuv420p10le", "-c:v", "ffv1", "-color_primaries", "bt2020", "-color_trc", "smpte2084", "-colorspace", "bt2020nc", "-color_range", "tv", file]);
+test.each(["smpte2084", "arib-std-b67"])("normalization keeps legacy HDR processing for %s and retains current source hash", async (transfer) => {
+  const file = path.join(root, `${transfer}.mkv`);
+  execFileSync(bins.ffmpeg, ["-v", "error", "-y", "-f", "lavfi", "-i", "testsrc2=s=320x180:r=30:d=1", "-vf", "format=yuv420p10le", "-c:v", "ffv1", "-color_primaries", "bt2020", "-color_trc", transfer, "-colorspace", "bt2020nc", "-color_range", "tv", file]);
   const before = sha(file), outputs = await normaliseShots({ shots: [{ shotId: "HDR", path: file }], workDir: path.join(root, "hdr-normalize"), project: { resolution: [320, 180], fps: 30 }, bins, env });
   expect(sha(file)).toBe(before); const video = media(outputs[0].path).streams.find((stream: any) => stream.codec_type === "video");
   expect(video.color_primaries).toBe("bt709"); expect(video.color_transfer).toBe("bt709"); expect(video.color_space).toBe("bt709"); expect(video.nb_read_frames).toBe("30");
-  expect(outputs[0].colorManagement.chain).toMatch(/tonemap=/); expect(outputs[0].filterChain.indexOf("tonemap=")).toBeLessThan(outputs[0].filterChain.lastIndexOf("format=yuv420p"));
+  expect(outputs[0].colorManagement).toMatchObject({ chain: "null", kind: "legacy-hdr-pass-through", toneMap: null, source: { transfer } });
+  expect(outputs[0].filterChain).not.toMatch(/tonemap=|transfer=linear/);
+  expect(outputs[0].colorManagement.assumptions.join(" ")).toMatch(/do not certify/);
+  expect(outputs[0].sourceHash).toBe(before); expect(outputs[0].sha256).toBe(sha(outputs[0].path));
 }, 30_000);
 
 test("editorial shot labels cannot move normalized output into the source directory", async () => {
