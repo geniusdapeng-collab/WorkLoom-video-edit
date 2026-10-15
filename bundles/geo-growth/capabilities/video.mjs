@@ -17,7 +17,7 @@
  */
 import { createHash } from "node:crypto";
 import { closeSync, existsSync, lstatSync, openSync, readFileSync, readSync, realpathSync, statSync } from "node:fs";
-import { join, relative, resolve, sep } from "node:path";
+import { dirname, join, relative, resolve, sep } from "node:path";
 import { GUIDE_CAPABILITY_ID, GUIDE_PATH } from "./workbench-guide.mjs";
 
 const MAX_FILE_BYTES = 8 * 1024 * 1024;
