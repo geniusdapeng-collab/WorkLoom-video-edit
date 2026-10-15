@@ -96,9 +96,17 @@ POST_RUNTIME_ASSET_PATHS=(
   scripts/tools/edit-entity.mts
   scripts/tools/vision-entity.swift
   scripts/tools/edit-post.mts
+  scripts/tools/edit-rhythm.mts
+  scripts/tools/edit-auto.mts
+  scripts/tools/edit-probe.mts
+  scripts/tools/edit-verify.mts
+  scripts/tools/edit-assemble.mts
+  scripts/tools/edit-subtitle.mts
+  docs/video-edit-rhythm-director.md
   scripts/tools/edit-cover.mts
   scripts/tools/edit-package.mts
   scripts/tools/lib/edit-rhythm.mts
+  scripts/tools/lib/edit-rhythm-media.mts
   scripts/tools/lib/frame-scan.mts
   scripts/tools/lib/delivery-forms.mts
 )

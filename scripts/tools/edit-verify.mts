@@ -17,7 +17,7 @@
  */
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, isAbsolute, resolve } from "node:path";
-import { resolveTimelineSourcePaths, validateEditTimeline, type EditTimeline } from "../../packages/video-studio/src/edit/index.js";
+import { resolveTimelineSourcePaths, validateEditTimeline, assertRhythmDirection, type EditTimeline } from "../../packages/video-studio/src/edit/index.js";
 
 const REPO_ROOT = resolve(import.meta.dirname ?? process.cwd(), "../..");
 const flag = (name: string) => process.argv.includes(name);
@@ -40,6 +40,7 @@ function main(): void {
   }
 
   const result = validateEditTimeline(timeline);
+  const rhythmDirection = assertRhythmDirection(timeline);
 
   // —— 三字段核对（画面文字 / 人声 / 环境音）：素材必须已解析；三字段缺采如实列出 ——
   const analysisPaths: string[] = [];
@@ -110,6 +111,7 @@ function main(): void {
     ok: result.ok && fieldChecks.every((check) => check.pass || !check.hard),
     totalDurationSeconds: result.totalDurationSeconds,
     targetDurationSeconds: timeline.target?.durationSeconds ?? null,
+    rhythmDirection: rhythmDirection ? { mode: rhythmDirection.mode, reasons: rhythmDirection.reasons, expectedOutputSeconds: rhythmDirection.expectedOutputSeconds } : null,
     checks: result.checks,
     fixes: result.fixes,
     fieldChecks,

@@ -45,6 +45,8 @@ import {
 import { scanBestFrame } from "./lib/frame-scan.mts";
 import { DANMAKU_PUBLISH_NOTE, resolveBurnSubtitles } from "./lib/delivery-forms.mts";
 import { inspectEditedRhythm, assertEditedSourcesPreserved } from "./lib/edit-rhythm.mts";
+import { preflightRhythmTimeline, verifyRhythmMusic, verifyRhythmSubtitle, installRhythmPostOverrides, resolveRhythmPhysicalPath, assertRhythmOutputOutsideMusicLibraries, rhythmMusicLibraryRoots, rhythmPathIsWithin, inspectRhythmOutputs } from "./lib/edit-rhythm-media.mts";
+import { timelineRhythmDigest } from "../../packages/video-studio/src/edit/rhythm-director.js";
 import type { RhythmPlanInput, RhythmProfile } from "../../packages/video-studio/src/rhythm-plan.js";
 
 const REPO_ROOT = resolve(import.meta.dirname ?? process.cwd(), "../..");
@@ -90,12 +92,47 @@ async function main(): Promise<void> {
   const timelineFile = abs(timelinePath);
   if (!existsSync(timelineFile)) throw new Error(`时间轴不存在：${timelineFile}`);
   const outDir = abs(outDirArg);
+  const ownerMusicPack = join(homedir(), "Downloads/1200可商用纯音乐");
+  const bgmPack = abs(arg("--bgm-pack", ownerMusicPack));
+  assertRhythmOutputOutsideMusicLibraries(outDir, rhythmMusicLibraryRoots(REPO_ROOT, bgmPack));
   const timeline = resolveTimelineSourcePaths(JSON.parse(readFileSync(timelineFile, "utf8")) as EditTimeline, dirname(timelineFile));
   const validation = validateEditTimeline(timeline);
   if (!validation.ok) {
     const failed = validation.checks.filter((c) => c.hard && !c.pass).map((c) => `${c.id}：${c.detail}`);
     throw new Error(`时间轴未通过契约校验，拒绝进入后期（${failed.length} 项硬失败）：\n  - ${failed.join("\n  - ")}`);
   }
+
+  const declaredRhythmFile = arg("--rhythm-plan", "");
+  const declaredRhythm = declaredRhythmFile ? JSON.parse(readFileSync(abs(declaredRhythmFile), "utf8")) as RhythmPlanInput
+    : (timeline as EditTimeline & { rhythmPlan?: RhythmPlanInput }).rhythmPlan ?? null;
+  const rhythmProfile = arg("--rhythm-profile", declaredRhythm?.profile ?? "natural") as RhythmProfile;
+  if (!["natural", "fast-cut", "cinematic"].includes(rhythmProfile)) throw new Error("--rhythm-profile 只接受 natural / fast-cut / cinematic");
+  const { direction } = await preflightRhythmTimeline({ timeline, declared: declaredRhythm, profile: rhythmProfile, ffprobe: FFPROBE });
+  if (direction) {
+    if (Number(arg("--fps", String(timeline.target.fps))) !== timeline.target.fps || arg("--transitions", "declared") !== "declared") throw new Error("RHYTHM_DIRECTION_CHANGED: 帧率与声明转场必须保持编译时钟");
+    if (direction.music) {
+      if (arg("--bgm") === "agent" || flag("--bgm-cut-driven") || flag("--bgm-section") && arg("--bgm-section") !== "full") throw new Error("RHYTHM_MUSIC_INTENT_CONFLICT: 卡点音乐已固定，不能在后期重新选曲或变速选段");
+      await verifyRhythmMusic(direction.music, FFMPEG, FFPROBE);
+    }
+    if (arg("--subtitle")) await verifyRhythmSubtitle(timeline, abs(arg("--subtitle")));
+  }
+  if (existsSync(join(outDir, "delivery-manifest.json"))) throw new Error("交付目录已有工程；请使用新版本目录");
+  if (existsSync(outDir) && readdirSync(outDir).length && !flag("--clean")) throw new Error("RHYTHM_OUTPUT_NOT_EMPTY: 使用新的输出目录，失败目录仅可显式 --clean 后重试");
+  const inputFiles = [timelineFile, ...timeline.sources.map(source => source.path),
+    ...(direction?.music ? [direction.music.path, direction.music.source.path] : [])];
+  for (let i = 0; i < process.argv.length; i++) if (["--analysis", "--subtitle", "--rhythm-plan", "--danmaku", "--color-map"].includes(process.argv[i]!) && process.argv[i + 1]) inputFiles.push(abs(process.argv[i + 1]!));
+  const realOutput = resolveRhythmPhysicalPath(outDir);
+  for (const input of inputFiles) {
+    const realInput = resolveRhythmPhysicalPath(input);
+    if (rhythmPathIsWithin(realOutput, realInput)) throw new Error("RHYTHM_OUTPUT_SOURCE_ALIAS: 输出目录不能包含本次输入素材、字幕或计划");
+  }
+  const inheritedVariants = process.env.WORKLOOM_POST_VARIANT_DIR;
+  if (inheritedVariants) {
+    const target = resolveRhythmPhysicalPath(inheritedVariants);
+    const root = resolveRhythmPhysicalPath(outDir);
+    if (root === target || !rhythmPathIsWithin(root, target)) throw new Error("RHYTHM_OVERRIDE_PATH_ESCAPE: 配方覆盖目录必须属于本次输出");
+  }
+  if (rhythmProfile === "fast-cut" && arg("--transitions", "declared") === "pack") throw new Error("快剪不能使用整段 legacy 配方转场；请用声明切点或 hard");
 
   /**
    * `--clean`：清理上一次**失败**的交付目录（只在没有 delivery-manifest.json 时允许）。
@@ -107,20 +144,22 @@ async function main(): Promise<void> {
     if (existsSync(manifest)) {
       throw new Error(`交付目录已完成（存在 delivery-manifest.json）：${outDir}；如需返修请改用新版本目录`);
     }
-    const protectedFiles = [timelineFile, ...(timeline.sources ?? []).map((source) => String(source.path ?? ""))];
+    const protectedFiles = [timelineFile, ...(timeline.sources ?? []).map((source) => String(source.path ?? "")),
+      ...(direction?.music ? [direction.music.path, direction.music.source.path] : []),
+      ...(arg("--subtitle") ? [abs(arg("--subtitle")) + ".rhythm.json"] : [])];
     const inputOptions = new Set(["--analysis", "--subtitle", "--rhythm-plan", "--danmaku", "--color-map"]);
     for (let index = 0; index < process.argv.length; index += 1) {
       if (inputOptions.has(process.argv[index]!) && process.argv[index + 1]) protectedFiles.push(abs(process.argv[index + 1]!));
     }
-    const within = (root: string, file: string) => { const rel = relative(root, file); return rel === "" || rel !== ".." && !rel.startsWith("../") && !isAbsolute(rel); };
-    const realOut = existsSync(outDir) ? realpathSync(outDir) : resolve(outDir);
+    const realOut = resolveRhythmPhysicalPath(outDir);
     for (const file of protectedFiles.filter(Boolean)) {
-      const selected = resolve(file), real = existsSync(selected) ? realpathSync(selected) : selected;
-      if (within(resolve(outDir), selected) || within(realOut, real)) throw new Error(`--clean 禁止删除包含本次原素材或输入文件的目录：${file}`);
+      const selected = resolve(file), real = resolveRhythmPhysicalPath(selected);
+      if (rhythmPathIsWithin(resolve(outDir), selected) || rhythmPathIsWithin(realOut, real)) throw new Error(`--clean 禁止删除包含本次原素材或输入文件的目录：${file}`);
     }
     if (existsSync(outDir)) rmSync(outDir, { recursive: true, force: true });
   }
   mkdirSync(outDir, { recursive: true });
+  if (direction) writeFileSync(join(outDir, "rhythm-direction-required.json"), JSON.stringify({ schemaVersion: "workloom.video-edit/rhythm-required/v1", timelineSha256: direction.timelineSha256, decision: direction }, null, 2) + "\n", { flag: "wx" });
 
   /**
    * 素材解析结果（`--analysis <probe.json>`，可重复）：供两条自动决策使用——
@@ -247,8 +286,7 @@ async function main(): Promise<void> {
    * 生成 tracks.json 索引 → ② 用 bgm-bridge 的 findTracks 按变体风格匹配候选（许可必须可商用）
    * → ③ 选定曲目写进变体覆盖配方（bgm.trackId），后续混音仍由配乐工位执行与复检。
    */
-  const bgmAgent = arg("--bgm", "pack") === "agent";
-  const bgmPack = abs(arg("--bgm-pack", join(homedir(), "Downloads/1200可商用纯音乐")));
+  const bgmAgent = timeline.audioDesign.bgm?.needed !== false && !direction?.music && arg("--bgm", "pack") === "agent";
   const bgmAgentReceipt: Array<Record<string, unknown>> = [];
   const subtitlePath = arg("--subtitle") ? abs(arg("--subtitle")) : null;
   if (subtitlePath && !existsSync(subtitlePath)) throw new Error(`字幕文件不存在：${subtitlePath}`);
@@ -347,6 +385,7 @@ async function main(): Promise<void> {
   };
   const clipsDir = join(outDir, "clips");
   mkdirSync(clipsDir, { recursive: true });
+  const clipPath = (id: string, suffix = "") => join(clipsDir, "clip-" + createHash("sha256").update(id).digest("hex").slice(0, 24) + suffix + ".mp4");
   const plan = planAssembly(timeline, {
     workDir: clipsDir,
     outputPath: join(clipsDir, "concat.mp4"),
@@ -356,6 +395,7 @@ async function main(): Promise<void> {
     crf,
     reframe: reframeOptions,
     preserveSource: Boolean(reframeOptions),
+    frameExact: Boolean(direction),
   });
   if (plan.reframePlan && reframeMode !== "off") {
     for (const line of describeReframePlan(plan.reframePlan)) console.log(line);
@@ -363,7 +403,7 @@ async function main(): Promise<void> {
   const shots: Array<{ shotId: string; path: string; reframe?: Record<string, unknown> }> = [];
   for (const step of plan.normalize) {
     if (!existsSync(step.input)) throw new Error(`片段 ${step.segmentId} 的素材不在本地：${step.input}`);
-    const target = join(clipsDir, `${step.segmentId}.mp4`);
+    const target = clipPath(step.segmentId);
     const args = [...step.args];
     args[args.length - 1] = target; // plan 里的输出名换成交付目录里的正式命名
     const management = colorPolicy.resolveColorManagement({ probe: await colorEngine.probeMedia(step.input, { bins: { ffmpeg: FFMPEG, ffprobe: FFPROBE } }) });
@@ -380,12 +420,6 @@ async function main(): Promise<void> {
     });
   }
 
-  const declaredRhythmFile = arg("--rhythm-plan", "");
-  const declaredRhythm = declaredRhythmFile ? JSON.parse(readFileSync(abs(declaredRhythmFile), "utf8")) as RhythmPlanInput
-    : (timeline as EditTimeline & { rhythmPlan?: RhythmPlanInput }).rhythmPlan ?? null;
-  const inferredProfile = timeline.pacing?.profile === "fast_cut" ? "fast-cut" : "natural";
-  const rhythmProfile = arg("--rhythm-profile", declaredRhythm?.profile ?? inferredProfile) as RhythmProfile;
-  if (!["natural", "fast-cut", "cinematic"].includes(rhythmProfile)) throw new Error("--rhythm-profile 只接受 natural / fast-cut / cinematic");
   const rhythmReceipt = await inspectEditedRhythm({ timeline, profile: rhythmProfile, declared: declaredRhythm, clips: shots, ffprobe: FFPROBE });
   writeFileSync(join(outDir, "edit-rhythm-receipt.json"), `${JSON.stringify(rhythmReceipt, null, 2)}\n`, "utf8");
   if (rhythmProfile === "fast-cut" && transitionsMode === "pack") throw new Error("快剪不能使用整段 legacy 配方转场；请用声明切点或 hard");
@@ -442,8 +476,8 @@ async function main(): Promise<void> {
       }
       const lutFile = join(lutDir, assignment.lut);
       if (!existsSync(lutFile)) throw new Error(`LUT 不存在：${lutFile}`);
-      const target = join(clipsDir, `${step.segmentId}.mp4`);
-      const graded = join(clipsDir, `${step.segmentId}.graded.mp4`);
+      const target = clipPath(step.segmentId);
+      const graded = clipPath(step.segmentId, ".graded");
       const { grade } = await import("../../bundles/ai-video/connectors/color-bridge/core.mjs") as unknown as {
         grade: (options: Record<string, unknown>) => Promise<Record<string, unknown>>;
       };
@@ -476,12 +510,12 @@ async function main(): Promise<void> {
     for (const step of plan.normalize) {
       const entry = colorMap[step.segmentId];
       if (!entry) continue;
-      const target = join(clipsDir, `${step.segmentId}.mp4`);
+      const target = clipPath(step.segmentId);
       if (!existsSync(target)) throw new Error(`逐镜调色目标缺失（先完成归一化）：${target}`);
       const lutPath = entry.lut ? join(lutDir, entry.lut) : null;
       if (lutPath && !existsSync(lutPath)) throw new Error(`逐镜调色 LUT 不存在：${lutPath}`);
       const intensity = Number(entry.intensity ?? 1);
-      const graded = join(clipsDir, `${step.segmentId}.colormap.mp4`);
+      const graded = clipPath(step.segmentId, ".colormap");
       await grade({ input: target, output: graded, profile: entry.profile ?? null, lutPath,
         corrections: entry.corrections ?? {}, intensity, auto: false, clarity: "off", qualityGuard: "report",
         bins: { ffmpeg: FFMPEG, ffprobe: FFPROBE } });
@@ -554,7 +588,7 @@ async function main(): Promise<void> {
    *   · 主轨切点（cutTimes）随交付传下去，配乐工位用节拍网格对齐真实切点（鼓点跟剪辑走）；
    *   · `--bgm-cut-driven` 才允许按切点反推 BPM（默认保留配方 BPM，只做相位对齐，避免改速度）。
    */
-  const bgmSection = arg("--bgm-section", "auto");
+  const bgmSection = direction?.music ? "full" : arg("--bgm-section", "auto");
   if (!["full", "auto", "climax", "calm"].includes(bgmSection)) throw new Error("--bgm-section 只接受 full / auto / climax / calm");
   const bgmCutDriven = flag("--bgm-cut-driven");
   const cutTimes: number[] = (() => {
@@ -717,6 +751,12 @@ async function main(): Promise<void> {
     process.env.WORKLOOM_BGM_LIBRARY_DIR = libraryDir;
   }
 
+  installRhythmPostOverrides({ timeline, repoRoot: REPO_ROOT, outDir });
+  if (direction) {
+    const currentInputs = await inspectEditedRhythm({ timeline, profile: rhythmProfile, declared: declaredRhythm, clips: shots, ffprobe: FFPROBE });
+    writeFileSync(join(outDir, "rhythm-render-inputs.json"), JSON.stringify({ schemaVersion: "workloom.video-edit/rhythm-render-inputs/v1", timelineSha256: timelineRhythmDigest(timeline), currentInputs,
+      ranges: timeline.segments.map(s => ({ segmentId: s.segmentId, sourceId: s.sourceId, sourceIn: s.sourceIn, sourceOut: s.sourceOut, speed: s.speed ?? 1 })) }, null, 2) + "\n", { flag: "wx" });
+  }
   const core = await import("../../bundles/ai-video/connectors/post-bridge/core.mjs") as unknown as {
     buildDeliveryPackage: (options: Record<string, unknown>) => Promise<Record<string, unknown>>;
     buildCover: (options: Record<string, unknown>) => Promise<{ output: string; sha256: string; at: number; requestedAt: number; background: unknown; text: unknown; checks: unknown[] }>;
@@ -934,7 +974,18 @@ const autoCoverPlan = explicitCoverAt
     filmProject.danmakuRequest = JSON.parse(readFileSync(abs(danmakuItemsPath), "utf8"));
     filmProject.postRequirements = manifest.postRequirements;
   }
-  const finalQuality = await qa.inspectDeliveryManifest({ root: outDir, manifest, bins: { ffmpeg: FFMPEG, ffprobe: FFPROBE }, phase: "post" });
+  if (direction) {
+    const inspected = await inspectRhythmOutputs({ timeline, outDir, manifest, ffmpeg: FFMPEG, ffprobe: FFPROBE, subtitlePath });
+    manifest.rhythmDirection = inspected.binding; filmProject.rhythmDirection = inspected.binding;
+    writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + "\n", "utf8");
+    writeFileSync(filmProjectPath, JSON.stringify(filmProject, null, 2) + "\n", "utf8");
+    if (!inspected.report.passed) {
+      manifest.postQuality = { passed: false, reason: "RHYTHM_OUTPUT_MISMATCH", failures: inspected.report.failures };
+      writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + "\n", "utf8");
+      throw new Error("RHYTHM_OUTPUT_MISMATCH: " + inspected.report.failures.join("；"));
+    }
+  }
+  const finalQuality = await qa.inspectDeliveryManifest({ root: outDir, manifest, bins: { ffmpeg: FFMPEG, ffprobe: FFPROBE }, phase: "post-final" });
   manifest.postQuality = await qa.writePostQuality(outDir, finalQuality);
   qa.assertPostQuality(finalQuality);
   writeFileSync(filmProjectPath, `${JSON.stringify(filmProject, null, 2)}\n`, "utf8");

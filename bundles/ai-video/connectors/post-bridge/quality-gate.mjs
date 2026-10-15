@@ -443,6 +443,41 @@ export async function inspectDeliveryManifest({ root, manifest, bins, phase = "p
       checkChain(`display-set:${index}`, true, { sha256: currentTarget });
     } catch (error) { checkChain(`display-set:${index}`, false, message(error)); }
   }
+  // edit:post writes the requirement before the engine starts. A half-finished package
+  // cannot become publishable merely because the generic post phase completed first.
+  let rhythmRequired = null;
+  try { rhythmRequired = JSON.parse(await fs.readFile(path.join(root, "rhythm-direction-required.json"), "utf8")); }
+  catch (error) { if (error?.code !== "ENOENT") checkChain("rhythm-requirement", false, message(error)); }
+  if (manifest.rhythmDirection || rhythmRequired && phase !== "post") {
+    try {
+      const binding = manifest.rhythmDirection;
+      if (!binding?.path || !hasHash(binding.sha256) || binding.passed !== true) throw new Error("缺实际首尾节奏复验回执");
+      const base = await fs.realpath(root), file = await fs.realpath(path.resolve(base, binding.path));
+      if (!inside(base, file) || await sha256File(file) !== binding.sha256) throw new Error("节奏复验回执越界或已变化");
+      const receipt = JSON.parse(await fs.readFile(file, "utf8"));
+      if (receipt.schemaVersion !== "workloom.video-edit/rhythm-output-inspection/v1" || receipt.passed !== true
+          || receipt.timelineSha256 !== binding.timelineSha256 || receipt.direction?.timelineSha256 !== binding.timelineSha256
+          || rhythmRequired && rhythmRequired.timelineSha256 !== binding.timelineSha256
+          || !receipt.executionEvidence?.executions?.length || receipt.sourcePreserved !== true) throw new Error("节奏回执没有绑定当前时间轴与实际执行");
+      if (!Array.isArray(receipt.sources) || !receipt.sources.length) throw new Error("节奏回执缺当前源素材身份");
+      for (const source of receipt.sources) {
+        if (!source.path || !hasHash(source.sha256) || await sha256File(source.path) !== source.sha256) throw new Error("节奏源素材已变化");
+      }
+      const music = receipt.direction?.music;
+      if (music && (await sha256File(music.path) !== music.sha256 || await sha256File(music.source.path) !== music.source.sha256)) throw new Error("固定节奏音乐已变化");
+      for (const scope of receipt.executionEvidence.executions) {
+        const current = path.resolve(base, scope.proofPath);
+        if (!inside(base, await fs.realpath(current)) || await sha256File(current) !== scope.proofSha256) throw new Error("逐刀执行证据已变化");
+      }
+      const delivered = [manifest.master, ...variants.flatMap((v) => [v.video, v.burned, v.softsub]),
+        ...(manifest.danmaku?.forms ?? []).map((f) => ({ ...f, path: f.output ?? f.path })),
+        ...(manifest.coverIntro?.forms ?? []).map((f) => ({ ...f, path: f.output ?? f.path }))].filter((entry) => entry?.path);
+      for (const item of delivered) {
+        if (!receipt.outputs?.some((row) => row.passed === true && row.sha256 === item.sha256 && path.resolve(base, row.path) === path.resolve(base, item.path))) throw new Error("当前交付形态未被首尾节奏复验覆盖");
+      }
+      checkChain("rhythm-direction", true, { sha256: binding.sha256, timelineSha256: binding.timelineSha256 });
+    } catch (error) { checkChain("rhythm-direction", false, message(error)); }
+  }
   report.passed = report.checks.every((row) => !row.hard || row.ok);
   return report;
 }

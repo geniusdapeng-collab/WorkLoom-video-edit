@@ -16,12 +16,20 @@
 
 import type { EditTimeline } from "./timeline.js";
 
+export interface CaptionTextInput {
+  text?: string;
+  /** Optional per-screen source and concat ranges; both are required for multiple screens. */
+  source_timestamp?: string;
+  original_timestamp?: string;
+  timingPrecision?: "asr-word" | "sentence-estimated" | "word-estimated";
+}
+
 export interface CaptionShotInput {
   segmentId?: string;
   original_timestamp?: string;
   /** 源素材时间码（口播字幕版会写）：口播口径的逐字一致校验用它，而不是成片时间码 */
   source_timestamp?: string;
-  subtitle_text?: Array<{ text?: string }>;
+  subtitle_text?: CaptionTextInput[];
   role?: string;
 }
 
@@ -35,7 +43,7 @@ export interface CaptionShotInput {
 export interface CaptionTalkOptions {
   mode?: "standard" | "talk";
   transcript?: {
-    sentences?: Array<{ id?: string; words?: Array<{ text?: string; start?: number; end?: number }> }>;
+    sentences?: Array<{ id?: string; sourceId?: string; words?: Array<{ text?: string; start?: number; end?: number }> }>;
   } | null;
   /**
    * 自动粗剪（edit:auto）放行开关：没有语音转写、也没有画面文字的段落允许留空字幕。
@@ -60,6 +68,9 @@ export interface CaptionIssue {
 
 export interface CaptionCue {
   segmentId: string;
+  sourceStart?: number;
+  sourceEnd?: number;
+  timingPrecision?: CaptionTextInput["timingPrecision"];
   start: number;
   end: number;
   text: string;
@@ -155,6 +166,16 @@ function parseDurationText(value: string | undefined): number {
   return parts.reduce((sum, part) => sum * 60 + part, 0);
 }
 
+interface CaptionRange { from: number; to: number }
+
+function parseCaptionRange(value: string | undefined): CaptionRange | null {
+  const match = /^([0-9:.]+)-([0-9:.]+)$/u.exec(value ?? "");
+  if (!match) return null;
+  const from = parseDurationText(match[1]);
+  const to = parseDurationText(match[2]);
+  return Number.isFinite(from) && Number.isFinite(to) && from >= 0 && to > from ? { from, to } : null;
+}
+
 interface AnalysisDoc {
   asset?: { sha256?: string; localPath?: string };
   probe?: { speech?: { sentences?: Array<{ text?: string; start?: number; end?: number }> } };
@@ -214,7 +235,12 @@ export function analyzeCaption(input: {
   for (const segment of timeline.segments ?? []) {
     masterStart.set(segment.segmentId, Number(cursor.toFixed(3)));
     segmentById.set(segment.segmentId, segment);
-    cursor = Number((cursor + segment.durationSeconds).toFixed(3));
+    const duration = (segment.sourceOut - segment.sourceIn) / (segment.speed ?? 1);
+    if (!Number.isFinite(duration) || duration <= 0 || segment.sourceIn < 0 || !Number.isFinite(segment.durationSeconds)
+      || Math.abs(segment.durationSeconds - duration) > 0.05) {
+      issues.push({ id: `caption.segmentTime:${segment.segmentId}`, severity: "hard", detail: `${segment.segmentId} 源区间、速度或声明时长非法`, segmentId: segment.segmentId });
+    }
+    cursor = Number((cursor + (Number.isFinite(duration) && duration > 0 ? duration : 0)).toFixed(3));
   }
   const totalSeconds = Number(cursor.toFixed(3));
 
@@ -247,7 +273,8 @@ export function analyzeCaption(input: {
 
   // —— 字幕条目：定位、归属、字数带 —— 
   const seen = new Set<string>();
-  const textOf = new Map<string, { text: string; role: string }>();
+  interface Screen { text: string; start: number; end: number; range: CaptionRange | null; timingPrecision?: CaptionTextInput["timingPrecision"] }
+  const textOf = new Map<string, { text: string; role: string; screens: Screen[]; timed: boolean }>();
   /** 口播口径的逐字比对原料：源轨区间 → 逐字稿原文 */
   const sourceRangeOf = new Map<string, { from: number; to: number }>();
   for (const group of caption.video_groups ?? []) {
@@ -265,15 +292,34 @@ export function analyzeCaption(input: {
       }
       if (seen.has(segmentId)) issues.push({ id: `caption.duplicate:${segmentId}`, severity: "hard", detail: `${segmentId} 在字幕脚本里出现两次`, segmentId });
       seen.add(segmentId);
-      groupSum += segment.durationSeconds;
-      const text = String(shot.subtitle_text?.[0]?.text ?? "");
+      const duration = (segment.sourceOut - segment.sourceIn) / (segment.speed ?? 1);
+      groupSum += duration;
+      const entries = shot.subtitle_text ?? [];
+      const timed = entries.length > 1 || entries.some(entry => entry.source_timestamp !== undefined || entry.original_timestamp !== undefined);
       const role = shot.role ?? "normal";
-      textOf.set(segmentId, { text, role });
-      const sourceTimestamp = shot.source_timestamp;
-      if (talkMode && sourceTimestamp) {
-        const [from, to] = sourceTimestamp.split("-").map((value) => Number(value));
-        if (Number.isFinite(from) && Number.isFinite(to)) sourceRangeOf.set(segmentId, { from: from!, to: to! });
+      const sourceRange = parseCaptionRange(shot.source_timestamp);
+      if (sourceRange) sourceRangeOf.set(segmentId, sourceRange);
+      else if (shot.source_timestamp !== undefined) issues.push({ id: `caption.sourceTime:${segmentId}`, severity: "hard", detail: `${segmentId} 源字幕时间区间非法`, segmentId });
+      const start = masterStart.get(segmentId)!;
+      const end = start + duration;
+      const screens: Screen[] = entries.map((entry, index) => {
+        const text = String(entry.text ?? "");
+        if (!timed) return { text, start, end, range: sourceRange };
+        const range = parseCaptionRange(entry.source_timestamp);
+        const concat = parseCaptionRange(entry.original_timestamp);
+        if (!range || !concat || range.from < segment.sourceIn - 0.02 || range.to > segment.sourceOut + 0.02
+          || concat.from < start - 0.001 || concat.to > end + 0.001 || !text.trim()
+          || Math.round(concat.to * 1000) <= Math.round(concat.from * 1000)
+          || (range && concat && (Math.abs(concat.from - (start + (Math.max(range.from, segment.sourceIn) - segment.sourceIn) / (segment.speed ?? 1))) > 0.001
+            || Math.abs(concat.to - (start + (Math.min(range.to, segment.sourceOut) - segment.sourceIn) / (segment.speed ?? 1))) > 0.001))) {
+          issues.push({ id: `caption.cueTime:${segmentId}:${index}`, severity: "hard", detail: `${segmentId} 第 ${index + 1} 屏必须声明有效的源时间与按速度换算的 concat 时间`, segmentId });
+        }
+        return { text, start: concat?.from ?? start, end: concat?.to ?? end, range, timingPrecision: entry.timingPrecision };
+      });
+      if (timed && screens.some((screen, index) => index > 0 && screen.start < screens[index - 1]!.end - 1e-6)) {
+        issues.push({ id: `caption.cueOrder:${segmentId}`, severity: "hard", detail: `${segmentId} 多屏字幕必须按播放顺序排列且不重叠`, segmentId });
       }
+      textOf.set(segmentId, { text: screens.map(screen => screen.text).join(""), role, screens, timed });
     }
     const declared = parseDurationText(group.group_duration);
     if (Number.isFinite(declared) && Math.abs(declared - groupSum) > 1.0) {
@@ -283,11 +329,30 @@ export function analyzeCaption(input: {
 
   for (const segment of timeline.segments ?? []) {
     const entry = textOf.get(segment.segmentId);
-    /** 口播口径下不走 VMG：口播的每一段就是一条字幕（跟着说话出字）。 */
+    /** 口播口径下不走 VMG：每段可包含多屏跟随语音的字幕。 */
     const vmg = talkMode ? null : vmgOf.get(segment.segmentId) ?? null;
     const text = entry?.text ?? "";
     const role = entry?.role ?? "normal";
     const duration = segment.durationSeconds;
+
+    if (talkMode && talkTranscript) {
+      const transcriptSentences = talkTranscript.sentences ?? [];
+      if (timeline.sources.length > 1 && transcriptSentences.some(sentence => !sentence.sourceId)) {
+        issues.push({ id: `caption.transcriptSource:${segment.segmentId}`, severity: "hard", detail: "多源逐字稿必须声明 sourceId，不能混合相同时间码", segmentId: segment.segmentId });
+      }
+      const range = entry?.timed || !text ? { from: segment.sourceIn, to: segment.sourceOut } : sourceRangeOf.get(segment.segmentId);
+      const words = transcriptSentences.filter(sentence => !sentence.sourceId || sentence.sourceId === segment.sourceId).flatMap(sentence => sentence.words ?? []);
+      if (words.some(word => !Number.isFinite(word.start) || !Number.isFinite(word.end) || word.start! < 0 || word.end! <= word.start!)) {
+        issues.push({ id: `caption.transcriptTime:${segment.segmentId}`, severity: "hard", detail: `${segment.segmentId} 逐字稿存在非法词时间`, segmentId: segment.segmentId });
+      }
+      if (range) {
+        const expected = words.filter(word => word.start! >= range.from - 0.02 && word.end! <= range.to + 0.02)
+          .sort((a, b) => a.start! - b.start! || a.end! - b.end!).map(word => String(word.text ?? "")).join("");
+        if (normalizeCaptionText(expected) !== normalizeCaptionText(text)) {
+          issues.push({ id: `caption.verbatim:${segment.segmentId}`, severity: "hard", detail: `${segment.segmentId} 完整字幕与源区间逐字稿不一致：稿=「${expected}」字幕=「${text.replace(/\n/gu, "")}」`, segmentId: segment.segmentId });
+        }
+      }
+    }
 
     if (!text) {
       if (talkMode) {
@@ -333,7 +398,10 @@ export function analyzeCaption(input: {
     // 字数带按"可读总时长"计算：普通镜=单镜时长；VMG 首镜=合并总时长
     const bandSeconds = vmg && vmg.head ? vmg.totalSeconds : duration;
     const chars = countVisualChars(text);
-    if (text) {
+    for (const screen of entry?.screens ?? []) {
+      const text = screen.text;
+      const chars = countVisualChars(text);
+      if (!text) continue;
       const band = captionCharBand(bandSeconds);
       if (talkMode) {
         /**
@@ -370,7 +438,7 @@ export function analyzeCaption(input: {
           }
         }
         /** 逐字一致：字幕必须等于逐字稿在该源区间内的原文（去标点逐字比对）。 */
-        const range = sourceRangeOf.get(segment.segmentId);
+        const range = screen.range;
         if (!talkTranscript) {
           issues.push({
             id: `caption.verbatimUnchecked:${segment.segmentId}`,
@@ -386,9 +454,12 @@ export function analyzeCaption(input: {
             segmentId: segment.segmentId,
           });
         } else {
-          const expected = (talkTranscript.sentences ?? [])
+          const sourceSentences = (talkTranscript.sentences ?? []);
+          const expected = sourceSentences
+            .filter(sentence => !sentence.sourceId || sentence.sourceId === segment.sourceId)
             .flatMap((sentence) => sentence.words ?? [])
-            .filter((word) => Number(word.start) >= range.from - 0.02 && Number(word.end) <= range.to + 0.02)
+            .filter((word) => Number(word.start) >= range.from - (entry?.timed ? 1e-6 : 0.02) && Number(word.end) <= range.to + (entry?.timed ? 1e-6 : 0.02))
+            .sort((a, b) => Number(a.start) - Number(b.start) || Number(a.end) - Number(b.end))
             .map((word) => String(word.text ?? ""))
             .join("");
           const normalizedExpected = normalizeCaptionText(expected);
@@ -441,11 +512,12 @@ export function analyzeCaption(input: {
           segmentId: segment.segmentId,
         });
       }
-      const start = masterStart.get(segment.segmentId)!;
       cues.push({
         segmentId: segment.segmentId,
-        start,
-        end: Number((start + duration).toFixed(3)),
+        start: Number(screen.start.toFixed(3)),
+        end: Number(screen.end.toFixed(3)),
+        ...(screen.range ? { sourceStart: screen.range.from, sourceEnd: screen.range.to } : {}),
+        ...(screen.timingPrecision ? { timingPrecision: screen.timingPrecision } : {}),
         text,
         role,
         vmg: vmg && vmg.head ? { head: true, size: vmg.size, totalSeconds: vmg.totalSeconds } : null,

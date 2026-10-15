@@ -354,6 +354,7 @@
             "type": "object",
             "additionalProperties": false,
             "properties": {
+              "rhythm": { "$ref": "workloom://bundles/video-edit/schemas/rhythm-contract#/$defs/shotFacts" },
               "cutInReason": { "type": ["string", "null"] },
               "cutOutReason": { "type": ["string", "null"] },
               "cutReason": { "enum": ["action_landing", "speech_pause", "visual_hard_cut", "emotion_peak", "information_node", "unknown"], "description": "切分理由（动作落点/语音气口/视觉硬切/情绪峰值/信息节点）" },

@@ -30,3 +30,5 @@ export * from "./output-resolution.js";
 export * from "./naming.js";
 export * from "./entity-color.js";
 export * from "./copy-style.js";
+export * from "./rhythm-director.js";
+export * from "./rhythm-auto.js";

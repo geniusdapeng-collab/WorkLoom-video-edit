@@ -209,3 +209,9 @@ description: 镜头理解官方套件（v2）：在确定性信号层之上做�
 - BPM 标签不等于真实拍点。只有当前 BGM 音频确实分析过才能填写拍点/小节与方法；没有分析时保留空数组/null。音乐结构或动作音效建议写明依据，不把推测写成测量。
 
 交接时把这些已有事实与 `asset.sha256` 送给剪辑岗，由它编译 `RhythmPlanInput` 的 `segments[].inSeconds/outSeconds`、`role`、`cutReason` 与源时钟的 `protectedRanges`。本轮未调用理解模型验证语义时间戳准确率；后期只能核实当前源字节、范围与实际裁切。
+
+## 8. 首尾快切的结构化交接（2026-10-15）
+
+新增已注册字段 `shots[].editing.rhythm`：`eligibleFor` 为 opening/ending 数组；`speechReviewed`、`actionReviewed` 如实说明是否核查；`safeRanges[]` 给源片时钟 `inSeconds/outSeconds/reason`；`doNotCut[]` 和 `mustKeep[]` 额外带 `kind=speech|action`。前者要求一旦选入就完整保留，后者要求该完整区间必须进入最终时间轴。完整台词仍写入 `probe.speech.sentences`，动作仍写入 `content.actions`，导演同时检查这些已有事实，不允许新增提示遗漏保护内容。
+
+只有核对当前源文件、具备有效证据帧且置信度≥0.7 的安全区间才能进入自动短镜候选。没有听音/动作起止依据时 reviewed=false、safeRanges 为空；不得把未知当作无台词。仅静态帧可以证明画面内容，不能证明整句和动作完整。许可必须覆盖 timeline-source。此阶段标可用范围，不替故事岗决定一定使用快切。
