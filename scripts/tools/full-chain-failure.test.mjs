@@ -1,3 +1,4 @@
+import { assertDefaultAiColors } from './ai-color-cli-assertions.mjs';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
@@ -37,7 +38,7 @@ function preserve(f, result, name) {
     error: result.error?.message ?? null, actualArgv: f.lastArgs, sourceCliSha256: fileHash(CLI),
     sourceFiles, files: archivedFiles }, null, 2));
 }
-function fixture(t, { audio = false, seconds = 1.1, nominal = 30, dialogue = '原片台词，不触发语音复核' } = {}) {
+function fixture(t, { audio = false, seconds = 1.1, nominal = 30, color = 'black', dialogue = '原片台词，不触发语音复核' } = {}) {
   const root = mkdtempSync(join(tmpdir(), 'growth 正式后期 中文 空格-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const project = 'OFFLINE-P1', work = join(root, 'work'), out = join(root, 'out');
@@ -45,7 +46,7 @@ function fixture(t, { audio = false, seconds = 1.1, nominal = 30, dialogue = '�
   const library = join(root, 'tracks');
   [logs, clips, library].forEach((dir) => mkdirSync(dir, { recursive: true }));
   const clip = join(clips, 'S1.mp4'), bed = join(library, 'bed.wav'), prompt = join(root, 'original-prompt.txt');
-  media(['-f', 'lavfi', '-i', `color=c=black:s=64x96:r=17:d=${seconds}`,
+  media(['-f', 'lavfi', '-i', `color=c=${color}:s=64x96:r=17:d=${seconds}`,
     ...(audio ? ['-f', 'lavfi', '-i', `sine=frequency=411:sample_rate=48000:duration=${seconds}`] : []),
     '-c:v', 'libx264', '-preset', 'ultrafast', '-pix_fmt', 'yuv420p', ...(audio ? ['-c:a', 'aac', '-shortest'] : ['-an']), clip]);
   media(['-f', 'lavfi', '-i', 'sine=frequency=701:sample_rate=48000:duration=0.6', '-c:a', 'pcm_s16le', bed]);
@@ -118,7 +119,36 @@ test('真实全链CLI接收黑屏、无音轨、17FPS、旧品质失败与30秒�
   const manifest = JSON.parse(readFileSync(pointer.manifest));
   assert.equal(manifest.qualityReviewed, false); assert.equal(manifest.distinctness, null); assert.deepEqual(manifest.samples, []);
   assert.equal(manifest.variants.length, 3);
+  assertDefaultAiColors(manifest, rows(f));
   for (const item of [manifest.deliverable, ...manifest.variants]) { assert.ok(existsSync(item.path)); assert.equal(fileHash(item.path), item.sha256); }
+});
+
+test('真实CLI先显式调色再默认恢复：变体始终独立取未调色母片，原色零调色且旧调色缓存不复用', { timeout: 240000 }, (t) => {
+  const f = fixture(t, { audio: true, seconds: 2.4, nominal: 2.4, color: '0x587c9b' });
+  const stages = 'videos,voice,compose,color,subtitle,danmaku,bgm,sfx,cover,mux,master,deliver';
+  const first = run(f, ['--color-mode', 'grade', '--color-profile', 'warm-film', '--color-intensity', '0.8', '--subtitle-mode', 'sidecar'], stages);
+  preserve(f, first, 'explicit-master-grade');
+  assert.equal(first.status, 0, first.stdout + first.stderr);
+  const firstPointer = JSON.parse(readFileSync(join(f.out, 'current.json')));
+  const firstManifest = JSON.parse(readFileSync(firstPointer.manifest));
+  const sourceSha = firstManifest.colorPolicy.commonSourceSha256;
+  assert.equal(firstManifest.colorPolicy.masterMode, 'grade');
+  assert.equal(firstManifest.generationQuality.processing.filter(row => row.stage === 'color').length, 3);
+  for (const variant of firstManifest.variants) assert.equal(variant.colorSourceSha256, sourceSha);
+  const explicitColor = rows(f).filter(row => row.stage === 'color').at(-1);
+  assert.equal(explicitColor.invoked, true);
+  assert.ok(explicitColor.lineage.inputs.some(input => input.path === join(f.work, 'post', f.project, 'master-danmaku.mp4') && input.sha256 === sourceSha), 'explicit grade must bind the actual common ungraded program bytes');
+  const oldGrade = join(f.work, 'post', f.project, 'master-graded.mp4'), oldGradeSha = fileHash(oldGrade);
+  assert.notEqual(oldGradeSha, sourceSha, 'nonblack source must actually change under explicit master grade');
+  const second = run(f, ['--subtitle-mode', 'sidecar'], stages);
+  preserve(f, second, 'default-preserve-resume');
+  assert.equal(second.status, 0, second.stdout + second.stderr);
+  const pointer = JSON.parse(readFileSync(join(f.out, 'current.json')));
+  const manifest = JSON.parse(readFileSync(pointer.manifest));
+  assertDefaultAiColors(manifest, rows(f));
+  assert.equal(manifest.colorPolicy.commonSourceSha256, sourceSha, 'resume must recover the common ungraded source');
+  assert.equal(fileHash(oldGrade), oldGradeSha, 'stale grade remains immutable and unused');
+  assertOriginal(f);
 });
 
 test('真实CLI原声镜头复用保留，后期仅compose/master也能正式产出，不触发自动配音', { timeout: 60000 }, (t) => {
@@ -195,12 +225,12 @@ for (const [name,stages,needle,pattern] of [
   ['bgm-failure','compose,bgm,master','bed-music.wav',/BGM_PROCESSING_FAILED/],
   ['cover-failure','compose,cover,master','-cover.png',/fixture stage processing failed/],
   ['mux-failure','compose,subtitle,mux,master','-softsub.mp4',/MUX|fixture stage processing failed|请求未完成/],
-  ['variant-failure','compose,master,deliver','-variant-cool-tech.mp4',/VARIANT_COLOR_FAILED/],
+  ['variant-failure','compose,master,deliver','-variant-warm-story.mp4',/VARIANT_COLOR_FAILED/],
 ]) test(`真实CLI正式后期执行失败：${name}，返回非零、不伪装交付`,{timeout:90000},(t)=>{
   const f=fixture(t);const wrapper=join(f.root,'actual-tool-failure.cjs');
   const actual=spawnSync('which',[FFMPEG],{encoding:'utf8'}).stdout.trim()||FFMPEG;
   writeFileSync(wrapper,`#!${process.execPath}\nconst cp=require('node:child_process');const args=process.argv.slice(2);if(args.some(a=>a.includes(${JSON.stringify(needle)}))){process.stderr.write('fixture stage processing failed\\n');process.exit(43)}const r=cp.spawnSync(${JSON.stringify(actual)},args,{stdio:'inherit'});if(r.error){process.stderr.write(r.error.message);process.exit(44)}process.exit(r.status??45);\n`);chmodSync(wrapper,0o755);f.env.WL_FFMPEG=wrapper;
-  const result=run(f,['--subtitle-mode',name==='burn-failure'?'burn':'sidecar'],stages);preserve(f,result,name);
+  const result=run(f,['--subtitle-mode',name==='burn-failure'?'burn':'sidecar',...(name==='color-failure'?['--color-mode','grade']:[])],stages);preserve(f,result,name);
   assert.notEqual(result.status,0,result.stdout+result.stderr);assert.match(result.stdout+result.stderr,pattern);
   assert.equal(readFileSync(f.network,'utf8'),'');assert.equal(existsSync(join(f.out,`${f.project}-delivery-manifest.json`)),false);
 });

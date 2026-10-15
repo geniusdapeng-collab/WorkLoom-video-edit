@@ -1231,11 +1231,15 @@ async function assembleTransitionTimeline({
   await fsp.mkdir(dir, { recursive: true });
   const runs = splitTransitionRuns(clips.length, cuts);
   const runOutputs = [];
+  let plannedTimelineSeconds = 0;
+  let renderedFrames = 0;
   for (const [runIndex, runIndexes] of runs.entries()) {
     if (runIndexes.length === 1) {
       const clip = clips[runIndexes[0]];
       const probe = await probeMedia(clip.path, { bins });
       if (!(probe.videoDuration > 0)) throw new PostError(`镜头 ${clip.shotId} 缺视频轨时长`, "bad_media");
+      plannedTimelineSeconds += probe.videoDuration;
+      renderedFrames += Math.round(probe.videoDuration * fps);
       runOutputs.push({ path: clip.path, durationSeconds: probe.videoDuration, runIndex, clips: runIndexes, single: true, cuts: [] });
       continue;
     }
@@ -1243,15 +1247,25 @@ async function assembleTransitionTimeline({
       ? output
       : path.join(dir, `run-${String(runIndex).padStart(2, "0")}.mp4`);
     const plan = buildXfadeRunPlan({ clips, cuts, runIndexes });
+    plannedTimelineSeconds += plan.expectedDurationSeconds;
+    // xfade can retain an endpoint frame and AAC can retain encoder padding.
+    // Round the cumulative timeline once, so fractional fades cannot add one
+    // frame per run and eventually shift all later pictures and subtitles.
+    const expectedFrames = Math.round(plannedTimelineSeconds * fps) - renderedFrames;
+    if (!Number.isSafeInteger(expectedFrames) || expectedFrames < 1) throw new PostError(`run ${runIndex} 的目标帧数非法`, "bad_media");
+    const boundedDuration = expectedFrames / fps;
     const args = ["-hide_banner", "-v", "error", "-y"];
     for (const index of runIndexes) args.push("-i", clips[index].path);
     args.push("-filter_complex", plan.filters.join(";"), "-map", "[vout]", "-map", "[aout]",
       ...videoEncode,
       "-c:a", "aac", "-b:a", "192k", "-ar", "48000", "-ac", "2",
-      "-s", `${resolution[0]}x${resolution[1]}`, "-r", String(fps), "-movflags", "+faststart", target);
+      "-s", `${resolution[0]}x${resolution[1]}`, "-r", String(fps),
+      "-frames:v", String(expectedFrames), "-t", String(boundedDuration), "-movflags", "+faststart", target);
     await runBin(bins.ffmpeg, args, { label: "ffmpeg(xfade-runs)", timeoutMs: 1_800_000 });
     const probe = await probeMedia(target, { bins });
     if (!(probe.videoDuration > 0)) throw new PostError(`run ${runIndex} 拼装后无有效时长`, "verify_failed");
+    if (Math.abs(probe.videoDuration - boundedDuration) > 0.001) throw new PostError(`run ${runIndex} 的实际时长没有落在目标帧边界`, "verify_failed");
+    renderedFrames += expectedFrames;
     runOutputs.push({ path: target, durationSeconds: probe.videoDuration, runIndex, clips: runIndexes, single: false, cuts: plan.runCuts });
   }
 
@@ -2469,7 +2483,7 @@ export async function buildDeliveryPackage({
       })
       : normalised;
     const assemblyKey = await contentKey({
-      shots: variantClips.map((clip) => clip.sha256), transitions, v: 3,
+      shots: variantClips.map((clip) => clip.sha256), transitions, v: 4,
     });
     const assemblyPath = path.join(workDir, "assemble", `${pack.id}-${assemblyKey}.mp4`);
     const assemblyHash = await contentKey({ key: assemblyKey, type: "assembly" });
@@ -4046,7 +4060,7 @@ export async function reedit(options = {}) {
          * 旧代码在返修里正是按 spread 覆盖的，带计划的项目一返修就退回 legacy fade——这里与
          * buildDeliveryPackage 对齐（2026-10-12 随"转场 × 字幕"修复一并收口）。
          */
-        const key = await contentKey({ shots: normalised.map((clip) => clip.sha256), transitions, v: 4 });
+        const key = await contentKey({ shots: normalised.map((clip) => clip.sha256), transitions, v: 5 });
         const receiptKey = await contentKey({ key, type: "assembly" });
         assemblyPath = path.join(workDir, "assemble", `${variantId}-${key}.mp4`);
         const metaPath = path.join(workDir, "assemble", `${variantId}-${key}.json`);

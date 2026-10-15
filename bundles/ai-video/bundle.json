@@ -768,7 +768,7 @@
   },
   "integrity": {
     "algorithm": "sha256",
-    "digest": "efca399ab571b063978c692372d1ddc17157f41a802df6440e2cc694dd166d87",
+    "digest": "da1f48afd0d66a89014ddc5a3631864f11481d42dbc28a6d402354e91ce09e2c",
     "assets": {
       "connectors/bgm-bridge/audio-stems-trust.mjs": "701b20e1705b16b026be2900bb49430ef875c8f01f83515f297a5b0b9a50cf93",
       "connectors/bgm-bridge/audio-stems.mjs": "d83bc554f015115ed0f4ea71ac6ced4cf5bd8f44d61094489776e3d2a5ffa751",
@@ -809,7 +809,7 @@
       "connectors/enhance-bridge/README.md": "8a64b5efa892c5e1340aa49aa0901ba159c31a79f52092d938780f3841884738",
       "connectors/post-bridge/av-sync.mjs": "25ce3260e3701fd89645cc0ce512135b0843043fcc86d61d81ba948e6e271ba5",
       "connectors/post-bridge/cli.mjs": "9a3168aa0a711b1af5138cc07aa30a3a368b69ceda234e994d0ac773e5083f70",
-      "connectors/post-bridge/core.mjs": "4c0357a839943a7781b39405fc104d0eee42945f15363611f48ab26c2fa11ca6",
+      "connectors/post-bridge/core.mjs": "74052dd18b04b2068db107f26060aabcfc8c2673129df341ac6f72e3e1652b54",
       "connectors/post-bridge/executor.ts": "cb1b9d4fdea2da9263379f1e95956d98633534297ad8bdef5b60288ecaa997f2",
       "connectors/post-bridge/quality-gate.mjs": "7a969677985f7484d7fa6ff7b9e340a398dc146a63d8e1482887105772cf6b83",
       "connectors/post-bridge/README.md": "98fd4334811e11ce8471933fb6cb28cd6c4c244e470a0061f70ba09543cc4d41",
