@@ -28,6 +28,8 @@
         "overrides": { "type": ["object", "null"], "additionalProperties": true }
       }
     },
+    "rhythmDirection": { "$ref": "workloom://bundles/video-edit/schemas/rhythm-contract#/$defs/direction" },
+    "rhythmPlan": { "anyOf": [{ "$ref": "workloom://bundles/video-edit/schemas/rhythm-contract#/$defs/plan" }, { "type": "null" }] },
     "overallStyle": { "type": ["string", "null"], "description": "整片风格（沿用剪辑脚本初稿 overall_style）" },
     "musicSelection": { "type": ["string", "null"], "description": "整片音乐选择（music_selection）" },
     "colorGrading": { "type": ["string", "null"], "description": "整片调色口径（color_grading）" },
@@ -38,6 +40,7 @@
       "required": ["durationSeconds", "aspectRatio", "fps", "platform"],
       "properties": {
         "durationSeconds": { "type": "number", "exclusiveMinimum": 0 },
+        "durationBand": { "$ref": "workloom://bundles/video-edit/schemas/rhythm-contract#/$defs/durationBand" },
         "aspectRatio": { "type": "string", "pattern": "^[0-9]+:[0-9]+$" },
         "fps": { "type": "number", "exclusiveMinimum": 0 },
         "platform": { "type": "string" },

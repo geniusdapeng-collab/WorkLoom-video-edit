@@ -10,7 +10,7 @@
 quest: edit-film
 name: 视频AI剪辑管线
 version: v3
-description: 素材入库→信号解析→逐镜理解(含画面文字/人声/环境音)→高光与关键帧→媒资索引→命题卡→七个创意主题→选题确认(G-ED7)→创作模板→故事大纲→制作剧本→剪辑脚本与帧级时间轴(含节奏档案)→剪辑脚本字幕版(音画强关联)→剪辑质检→粗剪锁定(G-ED8)→本地粗剪→交回既有后期(调色/字幕版式/封面/多变体/弹幕轨)→入库→返修
+description: 素材入库→信号解析→逐镜理解(含画面文字/人声/环境音)→高光与关键帧→媒资索引→命题卡→七个创意主题→选题确认(G-ED7)→创作模板→故事大纲→制作剧本→草稿时间轴→按需首尾快切编译→剪辑脚本与最终帧级时间轴→剪辑脚本字幕版(音画强关联)→剪辑质检→粗剪锁定(G-ED8)→本地粗剪→交回既有后期(调色/字幕版式/封面/多变体/弹幕轨)→入库→返修
 steps:
   - step_key: ingest
     name: 素材入库与登记
@@ -68,11 +68,25 @@ steps:
     owner: story-architect
     outputs: [screenplay]               # 场景字段：时间(mm:ss-mm:ss 从 0:00 连续)/素材来源/故事线/知识点或痛点/情绪主线/
                                         # 叙事描述/详细故事(400–700 字)/剪辑建议；场景数与镜头密度按节奏档案默认值
-  - step_key: edit-script
-    name: 剪辑脚本与帧级时间轴
+  - step_key: edit-draft
+    name: 正文与落版草稿（预留首尾候选和时长）
     owner: edit-director
     gates: [G-ED3]
-    outputs: [edit_script, edit_timeline]  # 影片级：overall_style / music_selection / color_grading / story_overview；
+    outputs: [edit_timeline]             # draft.json：完整正文 + 最后可读落版；不得先把时长预算全部占满
+  - step_key: rhythm-direction
+    name: 按故事目的决定首尾快切并实际编译
+    owner: edit-director
+    gates: [G-ED3]
+    outputs: [edit_timeline]             # pnpm edit:rhythm -- --timeline draft.json --story story.json --analysis understood.json --out compiled.json
+                                        # story.rhythm 分别声明首尾目的/能量/理由；理解结果给 editing.rhythm 安全区间与保护事实
+                                        # 自动选择 bookends/opening/ending/natural，保留理由；强制请求缺证据或时长时失败
+                                        # 输出含 rhythmDirection/rhythmPlan，必须交给字幕与正式后期；不能手写 passed 或复用旧轴
+  - step_key: edit-script
+    name: 根据已编译时间轴完成剪辑脚本
+    owner: edit-director
+    gates: [G-ED3]
+    outputs: [edit_script, edit_timeline]  # 读取 compiled.json，不再手工改镜头；需变更则从 draft 重编译
+                                        # 影片级：overall_style / music_selection / color_grading / story_overview；
                                         # 场景组：storyline / emotional_arc / editing_suggestions；片段：帧级源轨 in/out + 转场 + 声音设计；
                                         # 节奏档案（documentary/vlog/fast_cut/information）随轴声明，偏离只出咨询项
   - step_key: caption-script

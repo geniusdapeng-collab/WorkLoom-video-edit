@@ -137,3 +137,24 @@ v2 要求同时产出两份东西：
 - [ ] 节奏数值与素材实际能力相符（不是口号）
 - [ ] 四个评审视角都有分与理由；总分算法与权重可复算
 - [ ] 没有引入候选与素材之外的信息
+
+## 7. 首尾节奏决策路由（2026-10-15）
+
+决策在理解事实与故事结构确定之后、最终剪辑和字幕之前。故事岗同时保存供 `edit:rhythm --story` 读取的顶层 `rhythm` 对象，不用自由文本“快一些”替代可执行目标。
+
+```json
+{
+  "rhythm": {
+    "mode": "auto",
+    "opening": { "purpose": "hook", "energy": 0.8, "reason": "先展示三个有证据的动作细节" },
+    "ending": { "purpose": "reflection", "energy": 0.3, "reason": "保留人物最后一句完整表达" },
+    "durationBand": { "minSeconds": 28, "maxSeconds": 32 },
+    "clipCount": 3,
+    "clipSeconds": 0.8,
+    "minLandingSeconds": 1.5,
+    "beatSync": false
+  }
+}
+```
+
+开头 `hook/preview/action`、结尾 `recap/payoff/action` 且 energy≥0.6 才有自动提速意图；`dialogue/reflection/natural` 保持故事需要的停留。目的与理由来自本片，不能每片复制示例。实际能否快切由安全区间、正文保护、时长及音乐测量再决定；可回退单端或自然并说明。用户明确要求强制时选对应模式，条件不足返回可修正错误。音乐卡点是可选能力，动作剪辑可无 BGM；BPM 不是成片落点证据。

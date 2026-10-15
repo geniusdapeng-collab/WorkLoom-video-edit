@@ -23,7 +23,7 @@ export async function inspectEditedRhythm({ timeline, profile, declared, clips, 
   if (timeline.segments.some((segment) => (segment.speed ?? 1) !== 1)) {
     if (profile !== "natural" || declared) throw new Error("RHYTHM_EXPLICIT_1X_REQUIRED: fast cutting must not accelerate speech");
     return { schemaVersion: "workloom.edit-rhythm/v1", status: "unverified", passed: true, profile, plan: requested,
-      sourceFacts, actualClips: clips.map((clip) => ({ ...clip, media: rhythmMediaFacts(clip.path, ffprobe) })),
+      sourceFacts, actualClips: await Promise.all(clips.map(async (clip) => ({ ...clip, sha256: await rhythmFileSha256(clip.path), media: rhythmMediaFacts(clip.path, ffprobe) }))),
       reason: "时间轴显式变速使用既有变速契约；不把变速结果冒充 1x 节奏实测", paidCalls: 0, artisticQuality: "unverified" };
   }
   const input: RhythmPlanInput = { ...requested, profile, segments: requested.segments };

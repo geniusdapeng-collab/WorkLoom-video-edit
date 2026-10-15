@@ -9,7 +9,7 @@ import {pathToFileURL} from 'node:url';
 import {copyRuntimeSources} from './pack-workspace-modules.mjs';
 const root=path.resolve(import.meta.dirname,'..'),product=JSON.parse(readFileSync(path.join(root,'product.manifest.json')));
 const shared=['scripts/tools/generation-quality.mjs','scripts/tools/rhythm-edit.mts','scripts/tools/rhythm-post.mts','scripts/tools/edit-entity.mts','scripts/tools/vision-entity.swift'];
-const video=['scripts/tools/edit-post.mts','scripts/tools/edit-cover.mts','scripts/tools/edit-package.mts','scripts/tools/lib/edit-rhythm.mts','scripts/tools/lib/frame-scan.mts','scripts/tools/lib/delivery-forms.mts'];
+const video=['scripts/tools/edit-rhythm.mts','scripts/tools/edit-auto.mts','scripts/tools/edit-probe.mts','scripts/tools/edit-verify.mts','scripts/tools/edit-assemble.mts','scripts/tools/edit-subtitle.mts','scripts/tools/lib/edit-rhythm-media.mts','docs/video-edit-rhythm-director.md','scripts/tools/edit-post.mts','scripts/tools/edit-cover.mts','scripts/tools/edit-package.mts','scripts/tools/lib/edit-rhythm.mts','scripts/tools/lib/frame-scan.mts','scripts/tools/lib/delivery-forms.mts'];
 const assets=[...shared,...(product.repository.endsWith('/WorkLoom-video-edit')?video:[])],hash=file=>createHash('sha256').update(readFileSync(file)).digest('hex');
 function temp(t){const directory=mkdtempSync(path.join(tmpdir(),'post runtime 中文 空格-'));t.after(()=>rmSync(directory,{recursive:true,force:true}));return directory;}
 const program=(file,args,options={})=>spawnSync(file,args,{cwd:root,encoding:'utf8',timeout:60000,maxBuffer:8*1024*1024,...options});
@@ -32,9 +32,16 @@ test('installed runtime preserves the actual quality, entity and rhythm dependen
  copyRuntimeSources(root,destination,dependencies);
  symlinkSync(path.join(root,'node_modules'),path.join(destination,'node_modules'),'dir');
  const modules=['scripts/tools/generation-quality.mjs','scripts/tools/rhythm-edit.mts','bundles/ai-video/connectors/color-bridge/entity-post.mjs','bundles/ai-video/connectors/post-bridge/rhythm-post.mjs'];
+ if(product.repository.endsWith('/WorkLoom-video-edit'))modules.push('scripts/tools/lib/edit-rhythm-media.mts','packages/video-studio/src/edit/rhythm-director.ts','packages/video-studio/src/edit/rhythm-auto.ts');
  const code=modules.map(ref=>`await import(${JSON.stringify(pathToFileURL(path.join(destination,ref)).href)});`).join('\n');
  const imported=program(process.execPath,['--import','tsx','--input-type=module','-e',code],{cwd:destination});assert.equal(imported.status,0,imported.stderr||imported.stdout);
  for(const ref of assets)assert.equal(hash(path.join(destination,ref)),hash(path.join(root,ref)),ref);
+ if(product.repository.endsWith('/WorkLoom-video-edit')){
+  for(const cli of ['edit-rhythm.mts','edit-auto.mts','edit-subtitle.mts']){
+   const ran=program(process.execPath,['--import','tsx',path.join(destination,'scripts/tools',cli)],{cwd:destination});
+   assert.equal(ran.status,1,ran.stderr);assert.match(ran.stderr,/用法/);assert.doesNotMatch(ran.stderr,/ERR_MODULE_NOT_FOUND/);
+  }
+ }
  assert.equal(existsSync(path.join(destination,'work')),false);assert.equal(existsSync(path.join(destination,'outputs')),false);
 });
 

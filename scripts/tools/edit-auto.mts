@@ -23,8 +23,10 @@ import { createHash } from "node:crypto";
 import { createReadStream, existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 import {
-  inferEditIntent, planAutoCaptions, planAutoTimeline, type IntentAnalysisDoc,
+  inferEditIntent, planAutoCaptions, planAutoRhythm, assertRhythmStory, type IntentAnalysisDoc, type RhythmStory, type RhythmAnalysis, type EditTimeline,
 } from "../../packages/video-studio/src/edit/index.js";
+
+import { prepareRhythmMusic, rhythmMusicLibraryRoots, assertRhythmOutputOutsideMusicLibraries, assertRhythmFreshWorkspace, claimRhythmWorkspace } from "./lib/edit-rhythm-media.mts";
 
 const REPO_ROOT = resolve(import.meta.dirname ?? process.cwd(), "../..");
 const flag = (name: string) => process.argv.includes(name);
@@ -96,9 +98,22 @@ async function main(): Promise<void> {
   if (!inputsArg || !outDirArg) {
     throw new Error("用法：pnpm edit:auto -- --inputs <素材目录|a.mp4,b.mp4> --out-dir <目录> [--platform …] [--duration …]");
   }
+  const storyFile = arg("--story") ? abs(arg("--story")) : null;
+  const understoodFiles: string[] = [];
+  for (let i = 0; i < process.argv.length; i++) if (process.argv[i] === "--analysis") {
+    const file = process.argv[++i]; if (!file || file.startsWith("--")) throw new Error("--analysis 缺素材理解文件");
+    understoodFiles.push(abs(file));
+  }
+  const story: RhythmStory = storyFile ? JSON.parse(readFileSync(storyFile, "utf8")) : {};
+  assertRhythmStory(story);
   const inputs = resolveInputs(inputsArg);
   if (inputs.length === 0) throw new Error(`没有找到可用视频素材：${abs(inputsArg)}`);
   const outDir = abs(outDirArg);
+  const bgmPack = arg("--bgm-pack") ? abs(arg("--bgm-pack")) : undefined;
+  assertRhythmOutputOutsideMusicLibraries(outDir, rhythmMusicLibraryRoots(REPO_ROOT, bgmPack));
+  assertRhythmFreshWorkspace(outDir, [...inputs, ...(storyFile ? [storyFile] : []), ...understoodFiles]);
+  const understood = understoodFiles.map(file => JSON.parse(readFileSync(file, "utf8")) as RhythmAnalysis);
+  claimRhythmWorkspace(outDir);
   const analysisDir = join(outDir, "analysis");
   const workDir = join(outDir, "work");
   mkdirSync(analysisDir, { recursive: true });
@@ -117,6 +132,15 @@ async function main(): Promise<void> {
     analyses.push(JSON.parse(readFileSync(out, "utf8")) as IntentAnalysisDoc);
   }
   step({ step: "probe", ok: true, outputs: analysisPaths, summary: { sources: inputs.length } });
+
+  for (const [index, analysis] of analyses.entries()) {
+    const matches = understood.filter(doc => doc.asset?.sha256 === analysis.asset?.sha256);
+    if (matches.length > 1) throw new Error("RHYTHM_DIRECTION_INPUT: 同源理解结果重复");
+    if (matches[0]) {
+      analyses[index] = { ...analysis, ...matches[0], asset: { ...analysis.asset, ...matches[0].asset }, probe: { ...analysis.probe, ...matches[0].probe } } as IntentAnalysisDoc;
+      writeFileSync(analysisPaths[index]!, JSON.stringify(analyses[index], null, 2) + "\n", "utf8");
+    }
+  }
 
   // ② 意图推断（显式参数优先）
   const intent = inferEditIntent({
@@ -146,7 +170,13 @@ async function main(): Promise<void> {
       analysis,
     };
   }));
-  const plan = planAutoTimeline({
+  story.rhythm ??= {};
+  story.rhythm.durationBand ??= arg("--duration")
+    ? { minSeconds: targetSeconds * 0.95, maxSeconds: targetSeconds * 1.05 }
+    : intent.durationBand;
+  const music = await prepareRhythmMusic({ story, timeline: { target: { durationSeconds: targetSeconds, durationBand: story.rhythm.durationBand }, audioDesign: { originalAudioPolicy: "keep", bgm: { needed: !flag("--no-bgm") } } } as EditTimeline,
+    outDir: join(workDir, "rhythm"), ffmpeg: process.env.WL_FFMPEG ?? "ffmpeg", ffprobe: process.env.WL_FFPROBE ?? "ffprobe" });
+  const plan = planAutoRhythm({
     sources,
     timelineId: `auto-${Date.now().toString(36)}`,
     filmId: arg("--title") || null,
@@ -157,13 +187,15 @@ async function main(): Promise<void> {
       platform: intent.platform,
     },
     pacing: intent.pacingProfile,
-  });
+  }, { story, analyses: analyses as RhythmAnalysis[], bgmNeeded: !flag("--no-bgm"), ...(music ? { music } : {}) });
   if (plan.timeline.segments.length === 0) throw new Error("自动排片没有选出任何镜头：检查素材是否可解码、是否有 ≥1s 的镜头");
   const timelinePath = join(outDir, "auto.timeline.json");
   const planPath = join(outDir, "auto-plan.json");
   writeFileSync(timelinePath, `${JSON.stringify(plan.timeline, null, 2)}\n`, "utf8");
   writeFileSync(planPath, `${JSON.stringify({ targetSeconds: plan.targetSeconds, plannedSeconds: plan.plannedSeconds, selected: plan.selected, skipped: plan.skipped, notes: plan.notes }, null, 2)}\n`, "utf8");
   step({ step: "auto-plan", ok: true, outputs: [timelinePath, planPath], summary: { segments: plan.timeline.segments.length, plannedSeconds: plan.plannedSeconds, skipped: plan.skipped.length, notes: plan.notes } });
+
+  step({ step: "rhythm-direction", ok: true, outputs: [timelinePath], summary: { mode: plan.timeline.rhythmDirection.mode, reasons: plan.timeline.rhythmDirection.reasons, reservedSeconds: plan.reservedSeconds } });
 
   // ④ 时间轴契约校验
   const cutReportPath = join(outDir, "cut-report.json");
@@ -206,7 +238,8 @@ async function main(): Promise<void> {
       "--variants", variants,
       ...subtitleArgs,
       "--segment-color",
-      "--bgm-section", arg("--bgm-section", "auto"),
+      "--bgm-section", plan.timeline.rhythmDirection.music ? "full" : arg("--bgm-section", "auto"),
+      ...(bgmPack ? ["--bgm-pack", bgmPack] : []),
       ...analysisPaths.flatMap((path) => ["--analysis", path]),
       ...(arg("--title") ? ["--title", arg("--title")] : []),
       "--platform", intent.platform,

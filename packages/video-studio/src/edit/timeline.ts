@@ -13,6 +13,7 @@
  */
 
 import { toTimecode } from "./timecode.js";
+import { planTransitions } from "./transitions.js";
 import {
   buildReframeFilters, normalizeReframeSegment, planReframe, validateReframeSegment,
   type ReframeDescriptor, type ReframePlan, type ReframePlanOptions, type ReframeSpec,
@@ -95,6 +96,8 @@ export interface EditTimeline {
   pacing?: PacingSpec | null;
   target: {
     durationSeconds: number;
+    /** Explicit requested range, measured after declared transition overlaps. */
+    durationBand?: { minSeconds: number; maxSeconds: number };
     aspectRatio: string;
     fps: number;
     platform: string;
@@ -397,7 +400,16 @@ export function validateEditTimeline(timeline: EditTimeline): TimelineValidation
 
   const totalDuration = round(master.at(-1)?.masterOut ?? 0);
   const target = timeline.target?.durationSeconds;
-  if (typeof target === "number" && target > 0) {
+  const band = timeline.target?.durationBand;
+  if (band !== undefined) {
+    const valid = Number.isFinite(band.minSeconds) && Number.isFinite(band.maxSeconds)
+      && band.minSeconds > 0 && band.maxSeconds >= band.minSeconds && band.maxSeconds <= 1800;
+    const outputSeconds = valid ? planTransitions({ segments: timeline.segments, mode: "declared", pacing: timeline.pacing, fps: timeline.target.fps }).expectedOutputDurationSeconds : NaN;
+    const tolerance = 1 / timeline.target.fps;
+    const pass = valid && outputSeconds >= band.minSeconds - tolerance && outputSeconds <= band.maxSeconds + tolerance;
+    add("duration.targetBand", pass, true, `声明转场后 ${outputSeconds}s / 请求 ${band.minSeconds}–${band.maxSeconds}s`,
+      pass ? undefined : { segmentId: "-", field: "target.durationBand", action: "保留原请求，调整正文与节奏段以满足成片时长", severity: "hard" });
+  } else if (typeof target === "number" && target > 0) {
     const deviation = Math.abs(totalDuration - target) / target;
     add("duration.target", deviation <= 0.2, true,
       `成片 ${totalDuration}s / 目标 ${target}s（偏差 ${(deviation * 100).toFixed(1)}%）`,

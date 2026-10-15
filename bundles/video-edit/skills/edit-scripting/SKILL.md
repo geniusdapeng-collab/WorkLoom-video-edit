@@ -145,8 +145,25 @@ v2 合并为**一份契约**：`edit_timeline`（机器执行）+ `edit_script`�
 
 ## 8. 明确快剪的实际执行合同（2026-10-14）
 
-明确需要片头/结尾快切时，同时输出符合本仓 `RhythmPlanInput` 的节奏计划：每段 `id` 必须对应时间轴 `segmentId`，`sourceId` 对应源轨，`inSeconds/outSeconds` 必须等于时间轴 `sourceIn/sourceOut`。`role` 使用 detail/develop/breath/hero，`cutReason` 写具体动作或信息理由；源片有台词或完整动作时 `protectedRanges` 使用已核实源片时钟的 `speech/action` 区间。
+明确需要片头/结尾快切时，同时输出符合本仓 `RhythmPlanInput` 的节奏计划：每段 `id` 必须对应时间轴 `segmentId`，`sourceId` 对应源轨，`inSeconds/outSeconds` 必须等于时间轴 `sourceIn/sourceOut`。`role` 使用 fast/hold/breath/story，`cutReason` 写具体动作或信息理由；源片有台词或完整动作时 `protectedRanges` 使用已核实源片时钟的 `speech/action` 区间。
 
 `edit-post` 的 `--rhythm-profile fast-cut --rhythm-plan <计划.json>` 会核对时间轴、当前源 SHA 和实测裁切片。显式节奏合同保持速度 1x；靠变速压短人声不能写成原速快切。用 0.5 秒细节、2 秒展开、3 秒呼吸等组合前，必须先判断本次动作/台词是否有可裁余量，数字是创作例子而非全部影片的硬模板。
 
 转场默认消费每刀声明；硬切可以是明确决定，漏写或请求了效果却未执行不可当完成。快切段保留独立封面文件，默认不插长静态封面片头。实际音乐音频未经测量时，计划中的拍点仅为 declared，不能声称已实测卡点；`impact/whoosh` 只有明确声音落点才执行，环境声/音乐进出未实际加工须标未验证。
+
+## 9. 按需首尾快切编译（2026-10-15）
+
+在 `screenplay` 后、字幕前执行。先排完整正文与最后的落版为 `draft.json`；故事岗交 `story.json`（顶层 `rhythm`），理解岗交已绑定源 SHA 的 `understood.json`。保留请求原始 `durationBand`，按两端各 2–6 个可用短镜预留时长，避免先填满正文再无处插入。
+
+```bash
+pnpm edit:rhythm -- --timeline draft.json --story story.json --analysis understood.json --out compiled.json
+pnpm edit:verify -- --timeline compiled.json --analysis understood.json --report cut-report.json
+pnpm edit:subtitle -- --timeline compiled.json --caption captions.json --out film.srt
+pnpm edit:post -- --timeline compiled.json --subtitle film.srt --out-dir delivery
+```
+
+`auto` 根据故事目的、能量、可用证据和时长选择首尾、单端或自然；输出理由。显式 `bookends/opening/ending` 缺条件时失败，修补证据或素材后重编译。`natural` 保留正文顺序。`pacing.profile=fast_cut` 只是原有体裁建议，不会替代首尾合同。不要手写 `rhythmDirection` 回执；需要改镜头就从草稿生成新版本，再写字幕。
+
+音乐卡点通过 `story.rhythm.beatSync=true` 启用；可给 `music.trackId/sectionStartSeconds/sectionEndSeconds/entrySeconds/repeat`，固定当前曲目、播放区间和循环后实际解码测点。`audioDesign.bgm.needed=false` 优先，禁止配乐时不承诺音乐卡点。后期不得再用 `--bgm agent` 或选段改变已固定的音乐。没有可靠动作/台词区间时不做快切；缺少理解数据只走自然节奏。
+
+正式成片逐段核对真实裁片摘要、归一化输入、逐刀回执、母版对应帧和全部交付视频；画面变化检测仅为咨询证据，不把镜内运动算作切镜。艺术效果仍需观看判断。合同字段见 `schemas/rhythm-contract.schema.json`，完整设计见 `docs/video-edit-rhythm-director.md`。
