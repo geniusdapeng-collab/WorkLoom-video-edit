@@ -488,6 +488,8 @@ export interface AssemblyPlan {
     sourceOut: number;
     output: string;
     args: string[];
+    /** Present when a compiled final clock owns the exact output frame budget. */
+    outputFrames?: number;
     /** 该段生效的取景描述子（null = 沿用既有归一化路径） */
     reframe?: ReframeDescriptor | null;
   }>;
@@ -575,6 +577,8 @@ export function planAssembly(
      * 并按变体缓存）；`edit:assemble` 粗剪不使用本模式。
      */
     preserveSource?: boolean;
+    /** Quantize cumulative duration once, then limit every clip to its assigned CFR frames. */
+    frameExact?: boolean;
   },
 ): AssemblyPlan {
   const { workDir, outputPath } = options;
@@ -586,10 +590,17 @@ export function planAssembly(
   if (!Number.isFinite(fps) || fps <= 0) throw new Error(`fps 非法：${String(fps)}`);
   const reframePlan = options.reframe ? planReframe({ timeline, options: options.reframe }) : null;
   const sources = new Map(timeline.sources.map((s) => [s.sourceId, s]));
+  let exactSeconds = 0, exactFrames = 0;
   const normalize = (timeline.segments ?? []).map((segment, index) => {
     const source = sources.get(segment.sourceId);
     if (!source) throw new Error(`片段 ${segment.segmentId} 引用未声明素材 ${segment.sourceId}`);
     const duration = outputDurationOf(segment);
+    exactSeconds += duration;
+    const endFrames = Math.round(exactSeconds * fps);
+    const outputFrames = endFrames - exactFrames;
+    exactFrames = endFrames;
+    if (options.frameExact && outputFrames < 1) throw new Error(`片段 ${segment.segmentId} 不足一个输出帧`);
+    const renderSeconds = options.frameExact ? outputFrames / fps : round(duration, 3);
     const speed = segment.speed ?? 1;
     const descriptor = reframePlan?.segments.find((entry) => entry.segmentId === segment.segmentId)?.descriptor ?? null;
     let filters: string[];
@@ -626,6 +637,12 @@ export function planAssembly(
     }
     if (!descriptor && !options.preserveSource) filters.push("setsar=1", `fps=${fps}`);
     if (speed !== 1) filters.unshift(`setpts=${round(1 / speed, 6)}*PTS`);
+    if (options.frameExact) {
+      // Reset a fractional seek origin, resample, then bound by integer frames. A final
+      // held frame covers subframe rounding without reading beyond the selected source.
+      filters.push("setpts=PTS-STARTPTS", `fps=${fps}:start_time=0:round=near`,
+        `tpad=stop_mode=clone:stop_duration=${1 / fps}`, `trim=end_frame=${outputFrames}`, `setpts=N/(${fps}*TB)`);
+    }
     const output = `${workDir}/seg-${String(index).padStart(3, "0")}-${segment.segmentId}.mp4`;
     /**
      * 音轨口径（2026-10-11）：
@@ -635,12 +652,12 @@ export function planAssembly(
      */
     const args = ["-hide_banner", "-loglevel", "error", "-y"];
     args.push(
-      "-ss", String(round(segment.sourceIn, 3)), "-to", String(round(segment.sourceOut, 3)),
+      "-ss", String(round(segment.sourceIn, options.frameExact ? 6 : 3)), "-to", String(round(segment.sourceOut, options.frameExact ? 6 : 3)),
       "-i", source.path,
     );
     if (source.hasAudio === false) args.push("-f", "lavfi", "-i", "anullsrc=channel_layout=stereo:sample_rate=48000");
     args.push(
-      "-t", String(round(duration, 3)),
+      "-t", String(renderSeconds),
       "-vf", filters.join(","),
     );
     if (source.hasAudio === false) {
@@ -650,13 +667,16 @@ export function planAssembly(
     } else {
       args.push("-map", "0:v:0", "-map", "0:a:0?");
     }
-    if (speed !== 1) args.push("-filter:a", atempoChain(speed).join(","));
+    const audioFilters = speed !== 1 ? atempoChain(speed) : [];
+    if (options.frameExact) audioFilters.push(`apad=whole_dur=${renderSeconds}`, `atrim=duration=${renderSeconds}`, "asetpts=PTS-STARTPTS");
+    if (audioFilters.length) args.push("-filter:a", audioFilters.join(","));
     args.push(
       "-c:v", "libx264", "-preset", "veryfast", "-crf", String(crf), "-pix_fmt", "yuv420p",
       "-c:a", "aac", "-ar", "48000", "-ac", "2",
       output,
     );
-    return { segmentId: segment.segmentId, input: source.path, sourceIn: segment.sourceIn, sourceOut: segment.sourceOut, output, args, reframe: descriptor };
+    return { segmentId: segment.segmentId, input: source.path, sourceIn: segment.sourceIn, sourceOut: segment.sourceOut, output, args,
+      ...(options.frameExact ? { outputFrames } : {}), reframe: descriptor };
   });
   const listPath = `${workDir}/concat.txt`;
   return {

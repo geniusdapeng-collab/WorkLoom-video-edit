@@ -395,6 +395,7 @@ async function main(): Promise<void> {
     crf,
     reframe: reframeOptions,
     preserveSource: Boolean(reframeOptions),
+    frameExact: Boolean(direction),
   });
   if (plan.reframePlan && reframeMode !== "off") {
     for (const line of describeReframePlan(plan.reframePlan)) console.log(line);

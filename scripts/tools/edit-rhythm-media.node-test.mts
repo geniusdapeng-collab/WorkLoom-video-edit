@@ -134,6 +134,29 @@ test('concurrent auto attempts allow only one process to enter probing',async()=
  }finally{rmSync(base,{recursive:true,force:true});}
 });
 
+test('fractional output frame rates keep every compiled cut on its final clock', {timeout:600_000},async t=>{
+ const base=mkdtempSync(join(tmpdir(),'rhythm fractional clock-'));t.after(()=>rmSync(base,{recursive:true,force:true}));
+ const source=join(base,'source-30fps.mp4');
+ const generated=run(ffmpeg,['-v','error','-nostdin','-n','-f','lavfi','-i','testsrc2=size=320x180:rate=30:duration=25','-f','lavfi','-i','sine=frequency=880:sample_rate=48000:duration=25','-c:v','libx264','-preset','ultrafast','-crf','16','-pix_fmt','yuv420p','-c:a','aac',source]);
+ assert.equal(generated.status,0,generated.stderr);const sha256=await rhythmFileSha256(source);
+ const env={...process.env,WORKLOOM_BGM_DISCOVER:'0',WORKLOOM_BGM_LIBRARY_DIR:join(base,'empty-library'),WORKLOOM_BGM_HOME:join(base,'empty-home')};delete env.WORKLOOM_POST_VARIANT_DIR;
+ for(const fps of [29.97,23.976]){
+  const area=join(base,String(fps));mkdirSync(area);
+  const draft:EditTimeline={schemaVersion:'workloom.video-edit/edit-timeline/v2',timelineId:'fractional-'+fps,target:{durationSeconds:11,aspectRatio:'16:9',fps,platform:'test'},sources:[{sourceId:'src',path:source,sha256,fps:30,durationSeconds:25,hasAudio:true}],segments:[{seq:0,segmentId:'body',sourceId:'src',sourceIn:16,sourceOut:20,durationSeconds:4,motive:'complete body'},{seq:1,segmentId:'landing',sourceId:'src',sourceIn:23,sourceOut:25,durationSeconds:2,motive:'complete landing'}],audioDesign:{originalAudioPolicy:'keep',bgm:{needed:false}}};
+  const clock=(n:number)=>`00:00:${String(Math.floor(n)).padStart(2,'0')}.${String(Math.round(n%1*1000)).padStart(3,'0')}`;
+  const analysis={asset:{sha256,rights:{status:'cleared',declaredUsage:['timeline-source']}},probe:{speech:{sentences:[]}},shots:Array.from({length:6},(_,i)=>({shotId:'safe'+i,inTimecode:clock(i*2.4),outTimecode:clock(i*2.4+1.4),confidence:0.95,evidence:[{t:Number((i*2.4).toFixed(6))}],quality:{score:0.9,usable:true},editing:{rhythm:{eligibleFor:['opening','ending'],speechReviewed:true,actionReviewed:true,safeRanges:[{inSeconds:i*2.4,outSeconds:i*2.4+1.4,reason:'owned complete visual interval'}]}}}))};
+  const compiled=compileRhythmDirection({timeline:draft,story:{rhythm:{mode:'bookends',beatSync:false,durationBand:{minSeconds:6,maxSeconds:11}}},analyses:[analysis]});
+  const timelineFile=join(area,'timeline.json');write(timelineFile,compiled);const output=join(area,'delivery');
+  const result=cli('edit-post.mts',['--timeline',timelineFile,'--out-dir',output,'--variants','warm-story,clean-tech','--bgm-pack',join(base,'empty-pack')],env);
+  writeFileSync(join(area,'post.log'),result.stdout+result.stderr);assert.equal(result.status,0,result.stderr+result.stdout);
+  const inspection=read(join(output,'rhythm-direction-inspection.json'));
+  assert.equal(inspection.passed,true,JSON.stringify(inspection.failures));assert.equal(inspection.executionEvidence.executions.length,3);
+  for(const scope of inspection.executionEvidence.executions)for(const [i,cut] of scope.cuts.entries())assert(Math.abs(cut.at-compiled.rhythmDirection.clock[i+1]!.startSeconds)<=1/fps+0.01,scope.scope+' cut '+i);
+  for(const media of inspection.outputs){assert.equal(media.passed,true);assert(Math.abs(media.media.fps-fps)<0.01);assert(Math.abs(media.media.videoSeconds-compiled.rhythmDirection.expectedOutputSeconds)<=1/fps+0.015);}
+  assert.equal(await rhythmFileSha256(source),sha256);
+ }
+});
+
 test('real compiled cuts, fixed music, overlap subtitles and release freshness stay bound', {timeout:600_000},async t=>{
  const base=process.env.WORKLOOM_RHYTHM_TEST_OUT?resolve(process.env.WORKLOOM_RHYTHM_TEST_OUT):mkdtempSync(join(tmpdir(),'rhythm actual 中文-'));
  mkdirSync(base,{recursive:true});assert.equal(readdirSync(base).length,0,'test output must be new');
