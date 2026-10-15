@@ -183,3 +183,11 @@ git diff --check
 `growth.video.delivery.inspect` 保留字节清单检查，不能单独证明完整后期。实际解码、原生画布、请求层或凭证失败须本地返修；删除文件、改字节、传 skip_verify 或旧 passed 均不能代替检查。音频默认 report 记录实际响度/真峰值，明确 block 合同按其目标阻断。主机本地加工凭证不是防任意文件系统写权限攻击的加密签章。
 
 快剪先声明实际源区间、保护台词/动作和快段、hold/breath，再按 1x 截取；不加速口播凑节奏。impact/whoosh 按声明做本地声音加工，BPM 标签不等于实测节拍。新生成的电影摄影契约先冻结目的、景别、空间层次、光线、动作、动机机位、艺术与声音连续性；已成功素材不因新字段重复付费。详见 [节奏与电影摄影](video-rhythm-cinematic.md)、[实体调色](ai-video-entity-color.md)、[后期质检技能](../bundles/ai-video/skills/post-quality-inspection/SKILL.md)。
+
+## 按需首尾快切（2026-10-15）
+
+本仓 Edit 新增 `pnpm edit:rhythm`：理解→故事目的→正文/落版草稿→自动选首尾或单端快切/自然→字幕→正式后期。具体调用与输入见 [首尾节奏导演](video-edit-rhythm-director.md)；`edit:auto --story story.json --analysis understood.json` 接入同一实现，并在正文排片前预留候选与时长。只有 probe、没有可靠语义事实时保留自然节奏并给理由。
+
+不用在每次调用时手工安排每个短镜；理解岗给真实安全范围，故事岗给首尾目的与时长带，编译器挑选未占用区间并保护完整台词、动作和末镜。旧 `pacing.profile=fast_cut` 不是强制首尾执行请求。节奏编译在字幕前完成；后期不能换掉已测音乐或改时钟后继续使用旧字幕和回执。
+
+最终 `rhythm-direction-inspection.json` 核对当前源/裁片、逐刀执行、母版对应帧、各交付视频、字幕时钟及可选音乐瞬态。打包/发布重读当前证据，不接受旧 passed。无 BGM 仍可动作快切。该能力不新增付费模型调用，素材语义准确率和艺术效果不由技术通过代签；生成式前期管线不在本次改动范围内。

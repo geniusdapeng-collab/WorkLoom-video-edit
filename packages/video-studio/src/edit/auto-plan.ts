@@ -127,6 +127,8 @@ export function planAutoTimeline(input: {
   minShotSeconds?: number;
   maxShotSeconds?: number;
   qualityFloor?: number;
+  /** Source-scoped shot reservations for a downstream rhythm director; never synthesize missing clips. */
+  reservedShotIds?: Record<string, string[]>;
 }): AutoPlanResult {
   const minShotSeconds = input.minShotSeconds ?? 1.0;
   const maxShotSeconds = input.maxShotSeconds ?? 8;
@@ -163,6 +165,10 @@ export function planAutoTimeline(input: {
         qualityScore: null,
       }));
     for (const shot of shots) {
+      if (input.reservedShotIds?.[source.sourceId]?.includes(shot.shotId)) {
+        skipped.push({ sourceId: source.sourceId, shotId: shot.shotId, reason: "为首尾节奏段预留，正文不抢占同一源区间" });
+        continue;
+      }
       if (shot.inSeconds === null || shot.outSeconds === null || !(shot.outSeconds > shot.inSeconds)) {
         skipped.push({ sourceId: source.sourceId, shotId: shot.shotId, reason: "时间码缺失或非法" });
         continue;
@@ -332,10 +338,15 @@ export interface AutoCaptionWord {
   text: string;
   start: number;
   end: number;
+  /** ASR word boundaries are measured; sentence/oversized-token subdivisions are estimates. */
+  timingPrecision?: "asr-word" | "sentence-estimated" | "word-estimated";
+  /** Preserve the complete original ASR token when a long token needs multiple screens. */
+  originalWord?: { text: string; start: number; end: number };
 }
 
 export interface AutoCaptionSentence {
   id: string;
+  sourceId?: string;
   text: string;
   start: number;
   end: number;
@@ -343,12 +354,9 @@ export interface AutoCaptionSentence {
 }
 
 /**
- * 自动字幕与逐字稿：从素材解析结果里取人声转写，按段生成"逐字"字幕。
- *
- * 口径（口播同源）：
- *   · 只用 ASR 原文，不润色、不补句（没有语音的段落如实留空，自动模式允许无字幕段）；
- *   · 单条 ≤24 字（按词边界截断），超出的部分**不删素材**——由人工/创意岗决定是否拆段；
- *   · 生成的 transcript 供 `edit:subtitle --talk --transcript` 做逐字一致校验。
+ * 自动字幕与逐字稿：只使用 ASR 原文；一个镜头可有多屏，完整保留词序。
+ * 每屏 ≤24 字、≤2 行且每行 ≤12 字。常规切屏只使用真实词边界；句级兜底与
+ * 超长单词内部切屏明确标注估计。源轨按 speed 映射到 concat 时钟，转场留给后期映射一次。
  */
 export function planAutoCaptions(input: {
   timeline: EditTimeline;
@@ -356,108 +364,129 @@ export function planAutoCaptions(input: {
   maxCharsPerCue?: number;
 }): { captionDoc: Record<string, unknown>; transcript: { sentences: AutoCaptionSentence[] }; gaps: string[]; cues: number } {
   const maxChars = input.maxCharsPerCue ?? 24;
+  if (!Number.isInteger(maxChars) || maxChars < 1 || maxChars > 24) throw new Error("maxCharsPerCue 必须是 1–24 的整数");
   const gaps: string[] = [];
   const sentences: AutoCaptionSentence[] = [];
   const wordsBySource = new Map<string, AutoCaptionWord[]>();
+  const validRange = (start: number, end: number): boolean => Number.isFinite(start) && Number.isFinite(end) && start >= 0 && end > start;
+  const round = (value: number): number => Number(value.toFixed(6));
+  const timestamp = (start: number, end: number): string => `${round(start)}-${round(end)}`;
   for (const source of input.sources) {
+    if (wordsBySource.has(source.sourceId)) throw new Error(`字幕素材 sourceId 重复：${source.sourceId}`);
     const probe = source.analysis.probe;
     const words: AutoCaptionWord[] = [];
     for (const word of probe?.speech?.words ?? []) {
       const text = String(word.text ?? "");
-      const start = Number(word.start);
-      const end = Number(word.end);
-      if (text && Number.isFinite(start) && Number.isFinite(end) && end > start) words.push({ text, start, end });
+      if (!text.trim()) continue;
+      const start = word.start!;
+      const end = word.end!;
+      if (!validRange(start, end)) throw new Error(`${source.sourceId} ASR 词时间区间非法`);
+      const chars = [...text];
+      if (chars.length <= maxChars) words.push({ text, start, end, timingPrecision: "asr-word" });
+      else {
+        // A provider may return an entire sentence as one word. Keep its original evidence,
+        // and disclose that only the internal display split is estimated, never word-level ASR.
+        for (let offset = 0; offset < chars.length; offset += maxChars) {
+          const stop = Math.min(offset + maxChars, chars.length);
+          words.push({ text: chars.slice(offset, stop).join(""),
+            start: start + (end - start) * offset / chars.length,
+            end: start + (end - start) * stop / chars.length,
+            timingPrecision: "word-estimated", originalWord: { text, start, end } });
+        }
+      }
     }
     if (words.length === 0) {
-      /** 句级兜底：按字符均匀铺开（与 talk-asr 的 segment 口径一致，精度如实降档）。 */
       for (const [index, sentence] of (probe?.speech?.sentences ?? []).entries()) {
         const text = String(sentence.text ?? "");
-        const start = Number(sentence.start);
-        const end = Number(sentence.end);
-        if (!text || !Number.isFinite(start) || !Number.isFinite(end) || !(end > start)) continue;
+        if (!text.trim()) continue;
+        const start = sentence.start!;
+        const end = sentence.end!;
+        if (!validRange(start, end)) throw new Error(`${source.sourceId} ASR 句时间区间非法`);
         const chars = [...text];
-        const step = (end - start) / Math.max(1, chars.length);
-        for (const [charIndex, char] of chars.entries()) {
-          words.push({
-            text: char,
-            start: Number((start + charIndex * step).toFixed(3)),
-            end: Number((start + (charIndex + 1) * step).toFixed(3)),
-          });
-        }
-        sentences.push({ id: `${source.sourceId}-s${String(index + 1).padStart(3, "0")}`, text, start, end, words: [] });
+        const sentenceWords: AutoCaptionWord[] = chars.map((char, index) => ({
+          text: char, start: start + (end - start) * index / chars.length,
+          end: start + (end - start) * (index + 1) / chars.length,
+          timingPrecision: "sentence-estimated",
+        }));
+        words.push(...sentenceWords);
+        sentences.push({ id: `${source.sourceId}-s${String(index + 1).padStart(3, "0")}`, sourceId: source.sourceId, text, start, end, words: sentenceWords });
       }
     } else {
-      /** 词级：按 0.6s 以上停顿切句，便于逐字校验与后续返修定位。 */
+      words.sort((a, b) => a.start - b.start || a.end - b.end);
       let current: AutoCaptionWord[] = [];
+      let sentenceIndex = 0;
       const flush = (): void => {
         if (current.length === 0) return;
-        sentences.push({
-          id: `${source.sourceId}-s${String(sentences.filter((entry) => entry.id.startsWith(source.sourceId)).length + 1).padStart(3, "0")}`,
-          text: current.map((word) => word.text).join(""),
-          start: current[0]!.start,
-          end: current[current.length - 1]!.end,
-          words: [...current],
-        });
+        sentences.push({ id: `${source.sourceId}-s${String(++sentenceIndex).padStart(3, "0")}`, sourceId: source.sourceId,
+          text: current.map(word => word.text).join(""), start: current[0]!.start, end: current.at(-1)!.end, words: [...current] });
         current = [];
       };
       for (const [index, word] of words.entries()) {
-        const next = words[index + 1];
         current.push(word);
+        const next = words[index + 1];
         if (!next || next.start - word.end >= 0.6) flush();
       }
+    }
+    words.sort((a, b) => a.start - b.start || a.end - b.end);
+    if (words.some((word, index) => index > 0 && word.start < words[index - 1]!.end - 1e-6)) {
+      throw new Error(`${source.sourceId} ASR 词时间重叠，无法生成顺序字幕`);
     }
     wordsBySource.set(source.sourceId, words);
   }
 
   let cursor = 0;
+  let cues = 0;
   const shots: Array<Record<string, unknown>> = [];
   for (const segment of input.timeline.segments ?? []) {
+    const speed = segment.speed ?? 1;
+    const outputDuration = (segment.sourceOut - segment.sourceIn) / speed;
+    if (!validRange(segment.sourceIn, segment.sourceOut) || !Number.isFinite(speed) || speed <= 0
+      || !Number.isFinite(segment.durationSeconds) || segment.durationSeconds <= 0
+      || Math.abs(outputDuration - segment.durationSeconds) > 0.05) throw new Error(`${segment.segmentId} 字幕片段时间或速度非法`);
     const masterStart = cursor;
-    cursor = Number((cursor + segment.durationSeconds).toFixed(3));
+    cursor = Number((cursor + outputDuration).toFixed(3));
     const words = (wordsBySource.get(segment.sourceId) ?? [])
-      .filter((word) => word.start >= segment.sourceIn - 0.02 && word.end <= segment.sourceOut + 0.02);
-    let text = "";
+      .filter(word => word.start >= segment.sourceIn - 0.02 && word.end <= segment.sourceOut + 0.02);
+    const subtitle: Array<Record<string, unknown>> = [];
+    let current: AutoCaptionWord[] = [];
+    let chars = 0;
+    const flush = (): void => {
+      if (!current.length) return;
+      const text = [...current.map(word => word.text).join("")];
+      const per = Math.ceil(text.length / (text.length > 12 ? 2 : 1));
+      const lines: string[] = [];
+      for (let index = 0; index < text.length; index += per) lines.push(text.slice(index, index + per).join(""));
+      const from = current[0]!.start;
+      const to = current.at(-1)!.end;
+      const start = masterStart + (Math.max(segment.sourceIn, from) - segment.sourceIn) / speed;
+      const end = Math.min(cursor, masterStart + (Math.min(segment.sourceOut, to) - segment.sourceIn) / speed);
+      if (Math.round(end * 1000) <= Math.round(start * 1000)) throw new Error(`${segment.segmentId} 字幕屏短于 SRT 毫秒精度`);
+      subtitle.push({ text: lines.join("\n"), source_timestamp: timestamp(from, to), original_timestamp: timestamp(start, end),
+        timingPrecision: current.some(word => word.timingPrecision === "sentence-estimated") ? "sentence-estimated"
+          : current.some(word => word.timingPrecision === "word-estimated") ? "word-estimated" : "asr-word" });
+      current = [];
+      chars = 0;
+    };
     for (const word of words) {
-      if ([...text].length + [...word.text].length > maxChars) break;
-      text += word.text;
+      const count = [...word.text].length;
+      if (current.length && (chars + count > maxChars || word.start - current.at(-1)!.end >= 0.6)) flush();
+      current.push(word);
+      chars += count;
     }
-    if (!text) {
-      gaps.push(`${segment.segmentId}（${segment.sourceIn.toFixed(1)}–${segment.sourceOut.toFixed(1)}s）没有可用语音转写：自动模式留空，建议人工补字幕或剪掉`);
-      /**
-       * 无语音段也写进字幕脚本（`subtitle_text: []` + note）：
-       *   ① 组时长核算与"脚本覆盖全片"保持完整（否则 group_duration 硬校验会失败）；
-       *   ② 人审一眼能看到"这段没字"，而不是脚本里凭空少一段。
-       */
-      shots.push({
-        segmentId: segment.segmentId,
-        source_timestamp: `${segment.sourceIn.toFixed(3)}-${segment.sourceOut.toFixed(3)}`,
-        original_timestamp: `${masterStart.toFixed(3)}-${cursor.toFixed(3)}`,
-        subtitle_text: [],
-        note: "无语音转写：自动模式留空（不编字）",
-      });
-      continue;
-    }
-    /** 口播字幕硬上限：一屏 ≤2 行、每行 ≤12 字；≤24 字时按行数均分（12+12 而不是 12+1）。 */
-    const chars = [...text];
-    const lineCount = chars.length > 12 ? 2 : 1;
-    const per = Math.ceil(chars.length / lineCount);
-    const lines: string[] = [];
-    for (let index = 0; index < chars.length && lines.length < 2; index += per) lines.push(chars.slice(index, index + per).join(""));
-    shots.push({
-      segmentId: segment.segmentId,
-      source_timestamp: `${segment.sourceIn.toFixed(3)}-${segment.sourceOut.toFixed(3)}`,
-      original_timestamp: `${masterStart.toFixed(3)}-${cursor.toFixed(3)}`,
-      subtitle_text: [{ text: lines.join("\n") }],
-    });
+    flush();
+    cues += subtitle.length;
+    if (!subtitle.length) gaps.push(`${segment.segmentId}（${segment.sourceIn.toFixed(1)}–${segment.sourceOut.toFixed(1)}s）没有可用语音转写：自动模式留空，建议人工补字幕或剪掉`);
+    shots.push({ segmentId: segment.segmentId,
+      source_timestamp: timestamp(segment.sourceIn, segment.sourceOut), original_timestamp: timestamp(masterStart, cursor),
+      subtitle_text: subtitle, ...(!subtitle.length ? { note: "无语音转写：自动模式留空（不编字）" } : {}) });
   }
-  const totalDuration = cursor;
-  const mmss = (seconds: number): string => `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(Math.round(seconds % 60)).padStart(2, "0")}`;
-  const captionDoc = {
-    video_title: "自动粗剪",
-    video_id: `${new Date().toISOString().slice(0, 10).replace(/-/gu, "")}-auto0000`,
-    total_duration: mmss(totalDuration),
-    video_groups: [{ group_name: "自动粗剪", group_duration: mmss(totalDuration), shots }],
+  const mmss = (seconds: number): string => {
+    const rounded = Math.round(seconds);
+    return `${String(Math.floor(rounded / 60)).padStart(2, "0")}:${String(rounded % 60).padStart(2, "0")}`;
   };
-  const cues = shots.filter((shot) => Array.isArray(shot.subtitle_text) && (shot.subtitle_text as unknown[]).length > 0).length;
+  const captionDoc = {
+    video_title: "自动粗剪", video_id: `${new Date().toISOString().slice(0, 10).replace(/-/gu, "")}-auto0000`,
+    total_duration: mmss(cursor), video_groups: [{ group_name: "自动粗剪", group_duration: mmss(cursor), shots }],
+  };
   return { captionDoc, transcript: { sentences }, gaps, cues };
 }

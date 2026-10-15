@@ -164,6 +164,28 @@ describe("edit/timeline：合成计划", () => {
     expect(plan.totalDurationSeconds).toBeCloseTo(15, 3);
   });
 
+  it("编译时钟按累计帧数分配，长链与源分辨率预切不会逐段累积半帧误差", () => {
+    const timeline = baseTimeline({
+      target: { durationSeconds: 26, aspectRatio: "16:9", fps: 29.97, platform: "test" },
+      segments: Array.from({ length: 40 }, (_, seq) => ({ seq, segmentId: `fraction-${seq}`, sourceId: "src-1",
+        sourceIn: seq * 2 + 0.005005, sourceOut: seq * 2 + 0.655005, durationSeconds: 0.65 })),
+    });
+    for (const preserveSource of [false, true]) {
+      const plan = planAssembly(timeline, { workDir: "/tmp/work", outputPath: "/tmp/out.mp4", frameExact: true, preserveSource });
+      let frames = 0;
+      for (const [index, step] of plan.normalize.entries()) {
+        frames += step.outputFrames!;
+        expect(frames).toBe(Math.round((index + 1) * 0.65 * 29.97));
+        expect(step.args.join(" ")).toContain(`trim=end_frame=${step.outputFrames}`);
+      }
+      expect(plan.normalize[0]!.args.join(" ")).toContain("-ss 0.005005 -to 0.655005");
+      expect(plan.normalize.reduce((sum, step) => sum + step.outputFrames!, 0)).toBe(Math.round(26 * 29.97));
+      expect(plan.normalize.every(step => step.outputFrames === 19 || step.outputFrames === 20)).toBe(true);
+    }
+    expect(() => planAssembly(baseTimeline({ segments: [{ seq: 0, segmentId: "tiny", sourceId: "src-1", sourceIn: 0, sourceOut: 0.001, durationSeconds: 0.001 }] }),
+      { workDir: "/tmp/work", outputPath: "/tmp/out.mp4", frameExact: true })).toThrow("不足一个输出帧");
+  });
+
   it("画幅跟随 target.aspectRatio：16:9 → 1920×1080，9:16 → 1080×1920，1:1/4:5 偶数对齐", () => {
     expect(resolutionForAspect("16:9")).toEqual({ width: 1920, height: 1080 });
     expect(resolutionForAspect("9:16")).toEqual({ width: 1080, height: 1920 });

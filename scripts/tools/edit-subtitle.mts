@@ -24,9 +24,10 @@
  *   pnpm edit:subtitle -- --talk --timeline … --caption … --transcript <talk.transcript.json> --out …
  */
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { createHash } from "node:crypto";
 import { dirname, isAbsolute, resolve } from "node:path";
 import {
-  analyzeCaption, cuesToSrtBody, validateEditTimeline, type EditTimeline,
+  analyzeCaption, cuesToSrtBody, validateEditTimeline, assertRhythmDirection, mapRhythmCaptionCues, timelineRhythmDigest, type EditTimeline,
 } from "../../packages/video-studio/src/edit/index.js";
 
 const REPO_ROOT = resolve(import.meta.dirname ?? process.cwd(), "../..");
@@ -60,6 +61,7 @@ function main(): void {
   const caption = readJson(abs(captionPath), "字幕脚本");
   const validation = validateEditTimeline(timeline);
   if (!validation.ok) throw new Error("时间轴未通过契约校验，先修正时间轴再出字幕");
+  const direction = assertRhythmDirection(timeline);
 
   /**
    * 口播口径（`--talk`）：逐字稿是唯一事实源；提供它时逐字一致是**硬闸**，
@@ -90,6 +92,12 @@ function main(): void {
   const target = abs(outPath);
   mkdirSync(dirname(target), { recursive: true });
   writeFileSync(target, srt, "utf8");
+  if (direction && analysis.ok) {
+    // The post engine already remaps concat cues per actual transition. Never remap twice.
+    writeFileSync(target + ".rhythm.json", JSON.stringify({ schemaVersion: "workloom.video-edit/rhythm-subtitle/v1",
+      timelineSha256: timelineRhythmDigest(timeline), srtSha256: createHash("sha256").update(srt).digest("hex"),
+      clock: "concat", expectedFinalCues: mapRhythmCaptionCues(timeline, analysis.cues) }, null, 2) + "\n", "utf8");
+  }
 
   const densityRows = analysis.metrics.density.filter((row) => row.speechChars !== null && row.captionChars !== null);
   const lowDensity = densityRows.filter((row) => row.densityRatio !== null && row.densityRatio < 0.4);
@@ -114,7 +122,7 @@ function main(): void {
     timeline: abs(timelinePath),
     analyses: analyses.map((doc) => String((doc.asset as { localPath?: string } | undefined)?.localPath ?? (doc.asset as { filename?: string } | undefined)?.filename ?? "?")),
     cues: analysis.cues.length,
-    coveredShots: analysis.cues.map((cue) => cue.segmentId),
+    coveredShots: [...new Set(analysis.cues.map((cue) => cue.segmentId))],
     vmgGroups: analysis.metrics.vmgGroups,
     metrics: analysis.metrics,
     densitySummary,
@@ -132,7 +140,7 @@ function main(): void {
   if (flag("--json")) {
     console.log(JSON.stringify(report, null, 2));
   } else {
-    console.log(`✓ 字幕版 → SRT：${analysis.cues.length} 条（覆盖 ${analysis.cues.length} 个镜头；VMG ${analysis.metrics.vmgGroups.length} 组）`);
+    console.log(`✓ 字幕版 → SRT：${analysis.cues.length} 条（覆盖 ${report.coveredShots.length} 个镜头；VMG ${analysis.metrics.vmgGroups.length} 组）`);
     for (const issue of analysis.issues) {
       console.log(`  ${issue.severity === "hard" ? "✗" : "!"} [${issue.severity === "hard" ? "硬" : "咨询"}] ${issue.id}：${issue.detail}`);
     }
