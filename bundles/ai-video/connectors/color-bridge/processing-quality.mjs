@@ -50,9 +50,23 @@ export function resolveColorManagement({ probe, sourceTransfer = null, sourceGam
     kind: log ? "log-lut" : hdr ? "legacy-hdr-pass-through" : primaries !== "bt709" || transfer !== "bt709" ? "sdr-conversion" : "range-normalization",
     chain, assumptions, removedHdrSideData: [], toneMap: null };
 }
+/**
+ * 镜头级清晰度/去雾链（2026-10-18）。
+ * 有效档位：off / light / medium / strong（conservative 为 light 的兼容别名）。
+ * 链路与 packages/video-studio/src/edit/clarity.ts#CLARITY_CHAINS 保持一致；
+ * FFmpeg 没有原生 dehaze，这里用 eq + unsharp（大半径局部对比）+ cas（自适应锐化）组合。
+ */
+export const CLARITY_CHAINS = Object.freeze({
+  light: "unsharp=5:5:0.35:5:5:0",
+  medium: "eq=contrast=1.06:brightness=-0.01:gamma=1.02,unsharp=9:9:0.5:5:5:0.05,cas=strength=0.25",
+  strong: "eq=contrast=1.12:brightness=-0.02:gamma=1.04,unsharp=13:13:0.7:5:5:0.08,cas=strength=0.4",
+});
 export function clarityFilter(mode = "off", ErrorClass = Error) {
-  if (!["off", "conservative"].includes(mode)) throw new ErrorClass("clarity 只能为 off/conservative", "bad_request");
-  return mode === "conservative" ? "unsharp=luma_msize_x=3:luma_msize_y=3:luma_amount=0.25:chroma_amount=0" : null;
+  const normalized = mode === "conservative" ? "light" : mode;
+  if (!["off", "light", "medium", "strong"].includes(normalized)) {
+    throw new ErrorClass("clarity 只能为 off/light/medium/strong（兼容 conservative）", "bad_request");
+  }
+  return normalized === "off" ? null : CLARITY_CHAINS[normalized];
 }
 /** Calibrated starting guardrails; percentages are percentage points, compared at identical normalized sample times. */
 export const PROCESSING_THRESHOLDS = Object.freeze({

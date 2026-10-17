@@ -40,8 +40,9 @@ import { homedir } from "node:os";
 import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import {
   describeReframePlan, describeTransitionPlan, planAssembly, planCoverMoment, planCoverMoments, planSegmentColor, planToPerCut, planTransitions,
-  decideOutputResolution, resolveTimelineSourcePaths, validateEditTimeline, type EditTimeline, type PostAnalysisDoc,
+  decideOutputResolution, resolveTimelineSourcePaths, validateEditTimeline, planClarity, type EditTimeline, type PostAnalysisDoc,
 } from "../../packages/video-studio/src/edit/index.js";
+import { measureClipClarity } from "./lib/clarity-measure.mts";
 import { scanBestFrame } from "./lib/frame-scan.mts";
 import { DANMAKU_PUBLISH_NOTE, resolveBurnSubtitles } from "./lib/delivery-forms.mts";
 import { inspectEditedRhythm, assertEditedSourcesPreserved } from "./lib/edit-rhythm.mts";
@@ -431,7 +432,7 @@ async function main(): Promise<void> {
    * （`packages/video-studio/src/edit/post-auto.ts`）；老的"场景1..4 → 固定 LUT"只作为显式覆盖保留，
    * 不再对任意项目生效。中性/证据不足的场景组**不叠加**统一调色（宁少不滥）。
    */
-  const segmentColorNotes: Array<{ segmentId: string; groupId: string; lut: string | null; intensity: number; basis: string; sha256: string | null }> = [];
+  const segmentColorNotes: Array<{ segmentId: string; groupId: string; lut: string | null; intensity: number; basis: string; clarity?: { level: string; reason: string }; sha256: string | null }> = [];
   if (segmentColor) {
     const lutDir = join(REPO_ROOT, "bundles/ai-video/library/luts");
     const availableLuts = readdirSync(lutDir).filter((file) => file.toLowerCase().endsWith(".cube"));
@@ -458,40 +459,63 @@ async function main(): Promise<void> {
     const colorPlan = planSegmentColor({ timeline, analyses, recipes, availableLuts, legacyGroupMap });
     for (const warning of colorPlan.warnings) console.warn(`⚠ ${warning}`);
     const assignmentOf = new Map(colorPlan.assignments.map((entry) => [entry.segmentId, entry]));
+    /**
+     * 镜头级清晰度/去雾（2026-10-18）：`--clarity auto` 逐段按中点帧的
+     * 黑位 p5 / 亮度标准差 / 拉普拉斯方差判定 light/medium/strong，糊的镜头加强、清晰的镜头轻处理或不动。
+     * 与分段调色同一遍重编码完成（不额外多一代损失）。
+     */
+    const clarityMode = arg("--clarity", "auto");
+    if (!["auto", "off", "light", "medium", "strong"].includes(clarityMode)) throw new Error("--clarity 只接受 auto/off/light/medium/strong");
     for (const [index, step] of plan.normalize.entries()) {
       const segment = timeline.segments[index]!;
       /** `--color-map` 显式指定的段落由逐镜调色块接管（避免同一段被两种口径叠两次）。 */
       if (colorMap?.[segment.segmentId]) continue;
       const assignment = assignmentOf.get(segment.segmentId);
-      if (!assignment || !assignment.lut) {
+      const target = clipPath(step.segmentId);
+      let clarityLevel: string = "off";
+      let clarityReason = "off（未启用）";
+      if (clarityMode !== "off" && existsSync(target)) {
+        const mid = Math.max(0, Math.min(segment.durationSeconds - 0.05, segment.durationSeconds / 2));
+        const metrics = measureClipClarity(target, mid, FFMPEG);
+        if (clarityMode === "auto") {
+          const decision = planClarity(metrics);
+          clarityLevel = decision.level;
+          clarityReason = `${decision.reason}（p5=${metrics.lumaP5} std=${metrics.lumaStd} detail=${metrics.detailEnergy}）`;
+        } else {
+          clarityLevel = clarityMode;
+          clarityReason = `显式 ${clarityMode}`;
+        }
+      }
+      if ((!assignment || !assignment.lut) && clarityLevel === "off") {
         segmentColorNotes.push({
           segmentId: step.segmentId,
           groupId: segment.groupId ?? "",
           lut: null,
           intensity: 0,
           basis: assignment?.basis ?? "无调色计划（保持原色）",
+          clarity: { level: clarityLevel, reason: clarityReason },
           sha256: null,
         });
         continue;
       }
-      const lutFile = join(lutDir, assignment.lut);
-      if (!existsSync(lutFile)) throw new Error(`LUT 不存在：${lutFile}`);
-      const target = clipPath(step.segmentId);
+      const lutFile = assignment?.lut ? join(lutDir, assignment.lut) : null;
+      if (lutFile && !existsSync(lutFile)) throw new Error(`LUT 不存在：${lutFile}`);
       const graded = clipPath(step.segmentId, ".graded");
       const { grade } = await import("../../bundles/ai-video/connectors/color-bridge/core.mjs") as unknown as {
         grade: (options: Record<string, unknown>) => Promise<Record<string, unknown>>;
       };
-      await grade({ input: target, output: graded, profile: null, lutPath: lutFile, intensity: assignment.intensity,
-        auto: false, clarity: "off", qualityGuard: "report", bins: { ffmpeg: FFMPEG, ffprobe: FFPROBE } });
+      await grade({ input: target, output: graded, profile: null, lutPath: lutFile, intensity: assignment?.intensity ?? 1,
+        auto: false, clarity: clarityLevel, qualityGuard: "report", bins: { ffmpeg: FFMPEG, ffprobe: FFPROBE } });
       renameSync(graded, target);
       const shot = shots.find((entry) => entry.shotId === step.segmentId);
       if (shot) shot.path = target;
       segmentColorNotes.push({
         segmentId: step.segmentId,
         groupId: segment.groupId ?? "",
-        lut: assignment.lut,
-        intensity: assignment.intensity,
-        basis: assignment.basis,
+        lut: assignment?.lut ?? null,
+        intensity: assignment?.intensity ?? 0,
+        basis: assignment?.basis ?? "仅清晰度增强（无调色计划）",
+        clarity: { level: clarityLevel, reason: clarityReason },
         sha256: createHash("sha256").update(readFileSync(target)).digest("hex"),
       });
     }
