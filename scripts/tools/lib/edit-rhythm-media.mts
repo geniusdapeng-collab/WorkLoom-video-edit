@@ -253,7 +253,7 @@ function srtCues(file:string):Array<{start:number;end:number;text:string}> {
 }
 
 /** Check delivered files, not just the plan. Image change is a heuristic and is labelled as such. */
-export async function inspectRhythmOutputs({timeline,outDir,manifest,ffmpeg='ffmpeg',ffprobe='ffprobe',subtitlePath=null}:{timeline:EditTimeline;outDir:string;manifest:Record<string,any>;ffmpeg?:string;ffprobe?:string;subtitlePath?:string|null}) {
+export async function inspectRhythmOutputs({timeline,outDir,manifest,ffmpeg='ffmpeg',ffprobe='ffprobe',subtitlePath=null,overwrite=false}:{timeline:EditTimeline;outDir:string;manifest:Record<string,any>;ffmpeg?:string;ffprobe?:string;subtitlePath?:string|null;overwrite?:boolean}) {
   // All recorded relative paths share the same physical root as mediaPath and the release gate.
   outDir=realpathSync(outDir);
   const direction=assertRhythmDirection(timeline);if(!direction)throw new Error('RHYTHM_DIRECTION_REQUIRED');
@@ -261,6 +261,8 @@ export async function inspectRhythmOutputs({timeline,outDir,manifest,ffmpeg='ffm
   if(manifest.master?.path)expected.push({id:'master',...manifest.master});
   for(const v of manifest.variants??[])for(const form of ['video','burned','softsub'])if(v[form]?.path)expected.push({id:v.id+':'+form,...v[form],variantId:v.id});
   for(const [i,form] of (manifest.danmaku?.forms??[]).entries())expected.push({id:'danmaku:'+i,path:form.output??form.path,sha256:form.sha256,variantId:form.variantId});
+  /** 封面烧封形态是派生件：时长=片头+正片，仍核字节与可解码，但不套正片等时长判据。 */
+  for(const [i,form] of (manifest.coverIntro?.forms??[]).entries())expected.push({id:'cover:'+i,path:form.output??form.path,sha256:form.sha256,variantId:form.variantId,derived:true});
   if(!expected.length)throw new Error('RHYTHM_OUTPUT_MISMATCH: 没有实际交付媒体');
   const outputs:Record<string,unknown>[]=[],failures:string[]=[];
   let executionEvidence:unknown=null,subtitleEvidence:unknown=null;
@@ -279,7 +281,7 @@ export async function inspectRhythmOutputs({timeline,outDir,manifest,ffmpeg='ffm
   for(const item of expected){
     try{
       const file=mediaPath(outDir,item.path),before=await rhythmFileSha256(file),media=rhythmMediaFacts(file,ffprobe);
-      if(before!==item.sha256||Math.abs(media.fps-timeline.target.fps)>0.01||Math.abs(media.videoSeconds-direction.expectedOutputSeconds)>1/media.fps+0.015)throw new Error('最终帧率/时长/字节与节奏合同不符');
+      if(before!==item.sha256||Math.abs(media.fps-timeline.target.fps)>0.01||(!item.derived&&Math.abs(media.videoSeconds-direction.expectedOutputSeconds)>1/media.fps+0.015))throw new Error('最终帧率/时长/字节与节奏合同不符');
       rhythmRun(ffmpeg,['-v','error','-xerror','-nostdin','-i',file,'-map','0:v:0','-map','0:a?','-f','null','-']);
       const regions=direction.regions.map(region=>{const actual=observedCuts(file,region,media.fps,ffmpeg);const cuts=region.cutTimesSeconds.map(time=>({expectedSeconds:time,observedSeconds:actual.reduce<number|null>((best,t)=>best===null||Math.abs(t-time)<Math.abs(best-time)?t:best,null)}));
         return {...region,cuts,advisoryOnly:true,measurement:'decoded-rgb-frame-difference/64x36/threshold6; heuristic'};});
@@ -299,6 +301,8 @@ export async function inspectRhythmOutputs({timeline,outDir,manifest,ffmpeg='ffm
   for(const source of timeline.sources)if(await rhythmFileSha256(source.path)!==source.sha256)failures.push('源素材改变：'+source.sourceId);
   const report={schemaVersion:'workloom.video-edit/rhythm-output-inspection/v1',passed:failures.length===0,timelineSha256:direction.timelineSha256,decisionSha256:digest(direction),
     direction,executionEvidence,subtitleEvidence,sources:timeline.sources.map(source=>({sourceId:source.sourceId,path:realpathSync(source.path),sha256:source.sha256})),outputs,failures,paidCalls:0,sourcePreserved:failures.every(f=>!f.startsWith('源素材改变')),artisticQuality:'unverified'};
-  const file=join(outDir,'rhythm-direction-inspection.json');write(file,report);
+  const file=join(outDir,'rhythm-direction-inspection.json');
+  /** 封面/后续步骤按当前交付形态重算回执时允许覆盖同一份检查报告（overwrite=true）。 */
+  if(overwrite)writeFileSync(file,JSON.stringify(report,null,2)+'\n');else write(file,report);
   return {report,binding:{path:relative(outDir,file),sha256:await rhythmFileSha256(file),timelineSha256:direction.timelineSha256,passed:report.passed}};
 }

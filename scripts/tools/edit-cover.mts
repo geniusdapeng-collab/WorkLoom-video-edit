@@ -863,7 +863,7 @@ async function main(): Promise<void> {
        */
       if (declaredTimeline) {
         const { inspectRhythmOutputs } = await import("./lib/edit-rhythm-media.mts") as typeof import("./lib/edit-rhythm-media.mts");
-        const reinspection = await inspectRhythmOutputs({ timeline: declaredTimeline, outDir, manifest, ffmpeg: FFMPEG, ffprobe: FFPROBE, subtitlePath: null });
+        const reinspection = await inspectRhythmOutputs({ timeline: declaredTimeline, outDir, manifest, ffmpeg: FFMPEG, ffprobe: FFPROBE, subtitlePath: null, overwrite: true });
         if (!reinspection.report.passed) throw new Error("RHYTHM_OUTPUT_MISMATCH: " + reinspection.report.failures.join("；"));
         manifest.rhythmDirection = reinspection.binding;
       }
