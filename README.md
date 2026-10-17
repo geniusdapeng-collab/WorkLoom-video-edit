@@ -27,7 +27,39 @@
 | 弹幕轨 | `pnpm edit:danmaku` | 复用字幕工位的弹幕能力：滚动/顶部/底部混合、2–4 分道、密度体检、回执含产物 sha256；默认**完整保留**传入条目、不隐式删减 |
 | 配乐选曲 | `pnpm edit:post --bgm agent` | 配乐选曲器在**本地打标大库**按变体风格匹配并复检可商用许可，`trackId` 钉进变体配方；**本地大库优先、随仓 50 首兜底**（回执 `bgm-agent-receipt.json`） |
 | 交付包 | `outputs/edit/delivery-<版本>/` | 母版 + 变体×三形态 + 封面 + 烧封 + 弹幕 + 全部回执：`delivery-manifest.json`、`covers/cover-plan.json`、`bgm-agent-receipt.json`、`segment-color-plan.json`、`danmaku/danmaku-receipt.json` |
+| **交付节奏（1080P 先行 + 分批）** | `pnpm edit:delivery-plan` → `pnpm edit:fastlane` → `pnpm edit:post` | 开工先给用户**预计时长与交付清单**（1080P 先行版几分钟；正式版 4K×N 风格约多久；本机配置的影响与升级建议）；再用同一份帧级时间轴快速交付 1080P 先行版（裁切+烧字+配乐），4K/多风格/封面烧封分批补 |
 | **口播精剪（AI 口播管线）** | `pnpm edit:talk-asr` → `edit:talk-emotion` → `edit:talk-cut` → `edit:talk-annotate` | 口播专属前置链路：**词级 ASR 逐字稿**（语气词/停顿/卡壳/口误自纠全量标记，精度如实标注）+ **情绪与活人感**（句级情绪曲线、三类峰值、笑声/叹气/自纠信号）；逐句留删决策带**人味台账**（语气词保留率 ≥0.20、停顿保留率 ≥0.15，跌破必须人审放行）；同机位跳切用推近遮盖；产出 `talk-cut-list.json` / `talk.timeline.json` / `talk.captions.json` / `talk.srt` / `talk-qc.json`；点睛层出知识点弹幕/贴纸/章节 |
+
+### 交付节奏：先 1080P、再 4K 多变体（2026-10-17 产品所有者口径）
+
+用户等待成片的时间本身就是产品体验。默认按两条车道交付，**共用同一份帧级时间轴与字幕**：
+
+```bash
+# ① 开工先把预期讲清楚（纯估算，不启动渲染）
+pnpm edit:delivery-plan -- --timeline work/edit/<film>/compiled.timeline.json \
+  --variants warm-story,clean-tech --analysis work/edit/<film>/understand/<任意一条>.understood.json \
+  --out work/edit/<film>/delivery-plan.json
+
+# ② 1080P 先行版（裁切 → 烧字 → 配乐；几分钟量级）
+pnpm edit:fastlane -- --timeline work/edit/<film>/compiled.timeline.json \
+  --subtitle work/edit/<film>/film.zh.srt --bgm "<本地曲库>/<曲目>.mp3" \
+  --out-dir work/edit/<film>/fastlane --name "<片名>-1080p先行版" --platform 哔哩哔哩
+
+# ③ 正式版（原生分辨率 × 多变体 × 干净/软字幕/烧字 + 封面/弹幕）
+pnpm edit:post -- --timeline work/edit/<film>/compiled.timeline.json --out-dir outputs/edit/delivery-<版本> \
+  --variants warm-story,clean-tech --subtitle work/edit/<film>/film.zh.srt --segment-color \
+  --bgm agent --danmaku work/edit/<film>/danmaku.json --platform 哔哩哔哩
+```
+
+开工时给用户的话术模板（`edit:delivery-plan` 会按实际时长/变体数/本机配置生成）：
+
+> 先用约 **X 分钟**给你 1080P 先行版（烧字+配乐，能直接看）；
+> 正式版为 **4K（跟素材原生档位）× N 个风格**（干净/软字幕/烧字三形态 + 封面），预计约 **Y 分钟**；
+> 本机是 **<chip> <cores> 核 / <内存>GB**，4K 多变体后期受配置影响明显：升级到 Pro 级（12+ 核/32GB）约省 45%，Max 级（14–16 核/36GB+）约省 60%。
+
+估算系数来自本机真实素材实测（`packages/video-studio/src/edit/delivery-plan.ts#BASELINE_RATES`，2026-10-17
+Apple M3 / 8 核 / 8GB：1080P assemble 2:12、烧字 1:11、混音 0:44、4K 双变体后期约 175 分钟），
+不是 SLA；素材量、成片时长、变体数、分辨率与机器配置共同决定时长，**不做静默降分辨率或减变体**。
 
 **AI 口播精剪管线（2026-10-11 新增 · 产品口径：追求完美会摧毁信任）**：口播（怼脸随手拍、想到哪儿说到哪儿）与通用剪辑的主要矛盾不同——不是"从多素材里选故事"，而是**同一条长镜头内的逐句留删**。本管线把两根主轴做重：① **ASR 逐字稿是唯一事实源**（字幕/决策/弹幕全部逐字取自它，禁止润色改写）；② **情绪与活人感**决定选段与后期（删死停/卡壳/无信息重复，留换气/笑声/自问自答/口误自纠）。设计与行业调研（含 WhisperX 词级时间戳证据、auto-editor 的 `--margin` 留边距实践）见 [`docs/talking-head-pipeline.md`](docs/talking-head-pipeline.md)；行业包入口 [`bundles/video-edit/pipelines/edit-talk.yml`](bundles/video-edit/pipelines/edit-talk.yml)（4 个新岗位 + 4 个新技能 + 8 条口播围栏 G-TK1–G-TK8 + 3 份新契约）。成片后期与通用剪辑**完全共用**（轻度 BGM 让位人声、调色保留皮肤质感、逐字字幕、封面、多形态交付）。
 
