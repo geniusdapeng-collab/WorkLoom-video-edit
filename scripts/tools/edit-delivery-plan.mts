@@ -119,16 +119,22 @@ function main(): void {
   }
   console.log(`\n交付计划（估算，非 SLA）`);
   console.log(`· 素材 ${plan.sourceSeconds}s ｜ 成片 ${plan.outputSeconds}s ｜ 变体 ${plan.variants} 个 ｜ 源片长边 ${plan.sourceMaxEdge}px`);
-  console.log(`· 本机：${plan.machine.chip} ${plan.machine.cores} 核 / ${plan.machine.memoryGb}GB（${plan.machine.tier}）`);
-  console.log(`\n① 1080P 先行版：约 ${plan.fastLane.minutes} 分钟`);
+  console.log(`\n① 极速预览（可选，轻链路）：约 ${plan.previewLane.minutes} 分钟`);
+  for (const step of plan.previewLane.steps) console.log(`   - ${step.step}：约 ${step.minutes} 分钟（${step.note}）`);
+  console.log(`\n② 默认第一条交付：${plan.fastLane.resolutionLabel}，约 ${plan.fastLane.minutes} 分钟`);
   for (const step of plan.fastLane.steps) console.log(`   - ${step.step}：约 ${step.minutes} 分钟（${step.note}）`);
-  console.log(`\n② 正式版：${plan.fullLane.resolutionLabel} × ${plan.variants} 个风格，约 ${plan.fullLane.minutes} 分钟`);
-  for (const step of plan.fullLane.steps) console.log(`   - ${step.step}：约 ${step.minutes} 分钟（${step.note}）`);
-  console.log(`\n③ 本机配置说明：${plan.machine.chip} ${plan.machine.cores} 核 / ${plan.machine.memoryGb}GB（${plan.machine.tier}）：${plan.machine.note}`);
+  if (plan.fourKLane) {
+    console.log(`\n③ 可选第二条交付：${plan.fourKLane.resolutionLabel} × ${plan.variants} 个风格，约 ${plan.fourKLane.minutes} 分钟（1080P 交付后先确认，不自动开跑）`);
+    for (const step of plan.fourKLane.steps) console.log(`   - ${step.step}：约 ${step.minutes} 分钟（${step.note}）`);
+  } else {
+    console.log(`\n③ 4K：素材原生就是 1080P，不需要 4K 车道`);
+  }
+  console.log(`\n④ 本机配置说明：${plan.machine.chip} ${plan.machine.cores} 核 / ${plan.machine.memoryGb}GB（${plan.machine.tier}）：${plan.machine.note}`);
   for (const upgrade of plan.upgrades) {
-    console.log(`   - ${upgrade.label}：约 ${upgrade.fullLaneMinutes} 分钟（省约 ${upgrade.savesPercent}%）— ${upgrade.chipExample}`);
+    console.log(`   - ${upgrade.label}：4K 完整版约 ${upgrade.fourKMinutes} 分钟（省约 ${upgrade.savesPercent}%）— ${upgrade.chipExample}`);
   }
   console.log(`\n话术：${plan.headline}`);
+  if (plan.confirmFourK) console.log(`\n交付 1080P 后要问用户：${plan.confirmFourK}`);
   if (outPath) console.log(`\n回执：${abs(outPath)}`);
 }
 
