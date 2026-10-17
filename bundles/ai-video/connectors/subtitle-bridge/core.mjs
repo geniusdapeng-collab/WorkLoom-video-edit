@@ -23,7 +23,7 @@ import path from "node:path";
 
 import {
   MeasureError, binaryVersion, detectRenderCapabilities, escapeFilterPath, extractFrame,
-  measureInkExtent, parseFontSelections, pickVideoEncoder, probeMedia, regionStats, resolveBinaries,
+  measureInkExtent, measureSharpness, parseFontSelections, pickVideoEncoder, probeMedia, regionStats, resolveBinaries,
   round, runBin, sha256File, tempDir,
 } from "./measure.mjs";
 
@@ -1388,10 +1388,11 @@ export const FONT_SOURCE = {
  * ASS → 成片编码（新渲染器共用）：扁平字体目录 → ffmpeg libass → 回读输出规格与 fontselect。
  * 关键纪律：字体必须命中仓内/工位字体目录，静默回落系统字体一律判失败。
  */
-async function encodeWithAss({ input, output, assPath, fontsDir, catalog, bins, extraFilter = ",format=yuv420p", allowClippedEnd = false }) {
+async function encodeWithAss({ input, output, assPath, fontsDir, catalog, bins, extraFilter = ",format=yuv420p", allowClippedEnd = false, verifySharpness = false }) {
   assertRenderable({ input, output });
-  const encoder = await pickVideoEncoder({ bins });
   const probe = await probeMedia(input, { bins });
+  /** 编码档跟输入分辨率对齐：4K → medium/crf16，1080P → veryfast/crf18（见 pickVideoEncoder 注释）。 */
+  const encoder = await pickVideoEncoder({ bins, height: probe.height });
   const assText = await fsp.readFile(assPath, "utf8");
   const textTimeline = validateTextEvents(parseAssEvents(assText), probe, { allowClippedEnd });
   const sourceSha256 = await sha256File(input);
@@ -1422,7 +1423,26 @@ async function encodeWithAss({ input, output, assPath, fontsDir, catalog, bins, 
     await removeOnFailure(output);
     throw new SubtitleError("渲染期间源片或 ASS 字节发生变化：候选输出已删除", "verify_failed", false);
   }
-  return { encoder, probe, outputProbe, hash, fontResolution, flatFonts, sourceSha256, assSha256, textTimeline };
+  /**
+   * 清晰度回归断言（T-2026-1017）：烧字是最后一次重编码，必须证明"没有明显变糊"。
+   * 取上半部（避开字幕带）的拉普拉斯方差中位数比值：<0.55 硬失败（明显掉清晰度），<0.8 记咨询项。
+   */
+  let sharpness = null;
+  if (verifySharpness) try {
+    const before = await measureSharpness(input, { bins });
+    const after = await measureSharpness(output, { bins });
+    const ratio = before.medianVariance > 0 ? Number((after.medianVariance / before.medianVariance).toFixed(4)) : null;
+    sharpness = { before: before.medianVariance, after: after.medianVariance, ratio, samples: Math.min(before.samples, after.samples) };
+    if (ratio !== null && ratio < 0.55) {
+      await removeOnFailure(output);
+      throw new SubtitleError(`烧字后清晰度明显下降（拉普拉斯方差比 ${ratio} < 0.55）：检查编码档/滤镜链，候选输出已删除`, "verify_failed", false);
+    }
+  } catch (error) {
+    if (error instanceof SubtitleError) throw error;
+    /** 抽帧失败只记录，不把已成功的渲染判死（清晰度抽检是回归护栏，不是渲染前提）。 */
+    sharpness = { error: error instanceof Error ? error.message : String(error) };
+  }
+  return { encoder, probe, outputProbe, hash, fontResolution, flatFonts, sourceSha256, assSha256, textTimeline, sharpness };
 }
 
 export async function renderWithSubtitles({
@@ -1443,6 +1463,7 @@ export async function renderWithSubtitles({
   styleOverrides = {},
   skipVerify = false,
   presenceMinDelta = 0.004,
+  verifySharpness = false,
 }) {
   fontsDir = fontsDir ?? fontsRoot();
   if (typeof input !== "string" || !input.trim()) throw new SubtitleError("input_path 缺失", "bad_request");
@@ -1496,7 +1517,7 @@ export async function renderWithSubtitles({
     planOutcome.assText = assText;
   }
 
-  const encoded = await encodeWithAss({ input, output, assPath: planOutcome.assPath, fontsDir, catalog, bins });
+  const encoded = await encodeWithAss({ input, output, assPath: planOutcome.assPath, fontsDir, catalog, bins, verifySharpness });
   const { encoder, probe, outputProbe, fontResolution, flatFonts } = encoded;
   const outputHash = encoded.hash;
   const assEvents = parseAssEvents(planOutcome.assText);
@@ -1583,6 +1604,9 @@ export async function renderWithSubtitles({
     resolution_preserved: outputProbe.width === (probe.displayWidth ?? probe.width) && outputProbe.height === (probe.displayHeight ?? probe.height),
     audio_preserved: outputProbe.hasAudio === probe.hasAudio,
   };
+
+  /** 清晰度回归体检（T-2026-1017）：烧字前后上半部画面的拉普拉斯方差比，随回执交付。 */
+  report.sharpness = encoded.sharpness ?? null;
 
   report.processingChecks = Object.fromEntries(Object.entries(report.checks).filter(([key]) => key !== "layout_ok"));
   if (!Object.values(report.processingChecks).every(Boolean)) {
@@ -1904,6 +1928,7 @@ export async function renderDanmaku({
   windowSec = 1,
   lanes = 8,
   skipVerify = false,
+  verifySharpness = false,
 }) {
   fontsDir = fontsDir ?? fontsRoot();
   assertRenderable({ input, output, skipVerify });
@@ -1988,7 +2013,7 @@ export async function renderDanmaku({
   const assPath = path.join(dir, "danmaku-plan.ass");
   const assText = buildAssDocument({ resolution, styles, events });
   await fsp.writeFile(assPath, assText, "utf8");
-  const encoded = await encodeWithAss({ input, output, assPath, fontsDir, catalog, bins, allowClippedEnd: true });
+  const encoded = await encodeWithAss({ input, output, assPath, fontsDir, catalog, bins, allowClippedEnd: true, verifySharpness });
   // 抽样优先取滚动弹幕的「屏幕中段时刻」（位移中点最可靠），没有滚动条就取固定条
   const presence = { reviewed: false, at: null, delta: null, threshold: null, ok: null };
   const evidence = [];
