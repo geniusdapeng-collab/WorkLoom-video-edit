@@ -111,7 +111,9 @@
     "test:media": "node --test --test-concurrency=1 scripts/acceptance/lib/live/media-decoder.test.mjs scripts/acceptance/lib/live/live-cli-browser.test.mjs",
     "edit:entity": "tsx scripts/tools/edit-entity.mts",
     "edit:copy": "tsx scripts/tools/edit-copy.mts",
-    "edit:package": "tsx scripts/tools/edit-package.mts"
+    "edit:package": "tsx scripts/tools/edit-package.mts",
+    "edit:delivery-plan": "tsx scripts/tools/edit-delivery-plan.mts",
+    "edit:fastlane": "tsx scripts/tools/edit-fastlane.mts"
   },
   "pnpm": {
     "onlyBuiltDependencies": [
