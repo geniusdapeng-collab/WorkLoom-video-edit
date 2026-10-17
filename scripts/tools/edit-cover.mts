@@ -217,7 +217,7 @@ const STYLES: Record<string, StyleSpec> = {
     archetype: "person-led", layout: "person-left", headlineSize: 124,
     colors: { title: "#FFFFFF", sub: "#FFE7B3", badge: "#FFD166", accent: "#FFD166" },
     accentBar: true,
-    reason: "暖调故事版：圆润字体 + 暖色题签，适合情感/生活/文旅题材（人物为主）",
+    reason: "暖心版：圆润字体 + 暖色题签，适合情感/生活/文旅题材（人物为主）",
   },
   "clean-tech": {
     id: "clean-tech", fontId: "source-han-heavy", fontFamily: FONT_FAMILY["source-han-heavy"]!,
@@ -236,7 +236,7 @@ const STYLES: Record<string, StyleSpec> = {
     reason: "高对比版：大字抓眼 + 强色题签，适合信息流首屏（带货/促销/强钩子）",
   },
   /**
-   * 分段调色版（2026-10-11 修复）：必须与暖调故事版**设计不同**。
+   * 分段调色版（2026-10-11 修复）：必须与暖心版**设计不同**。
    * 旧实现的坑：STYLES 里没有这个 id → 回退到 warm-story 的同款版式与同帧 → 两张封面逐字节相同
    * （客户反馈"几个版本的封面都还是用的同一个封面"）。
    * 独立设计：**左右双帧**（左暖果园人物 / 右冷古城）+ 竖分割线 + 底部渐变压字 + 独立副标题，

@@ -1,7 +1,7 @@
 {
   "schemaVersion": "workloom.style-variant/v1",
   "id": "bold-promo",
-  "name": "强推促销版",
+  "name": "欢快版",
   "positioning": "带货/本地生活/促销：高对比、快切、直给卖点文案",
   "platforms": [
     "抖音/快手",
@@ -28,7 +28,7 @@
       "whip_pan": { "type": "smoothleft", "durationSec": 0.22 },
       "zoom_blur": { "type": "zoomin", "durationSec": 0.25 }
     },
-    "intentNote": "强推促销版：颗粒溶解 + 切片扫过，短促有力；不允许慢叠化拖节奏"
+    "intentNote": "欢快版：颗粒溶解 + 切片扫过，短促有力；不允许慢叠化拖节奏"
   },
   "bgm": {
     "mood": "激昂有力",

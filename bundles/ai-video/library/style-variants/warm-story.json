@@ -1,7 +1,7 @@
 {
   "schemaVersion": "workloom.style-variant/v1",
   "id": "warm-story",
-  "name": "暖调故事版",
+  "name": "暖心版",
   "positioning": "情感/文旅/民宿/人物：暖调胶片、慢转场、留白文案",
   "platforms": [
     "抖音/快手",
@@ -13,7 +13,7 @@
     "profile": "high-contrast-social",
     "lut": "look-warm-film.cube",
     "intensity": 0.5,
-    "lookLabel": "暖调故事（对比打底 + 暖调胶片 50%）",
+    "lookLabel": "暖心版（对比打底 + 暖调胶片 50%）",
     "note": "2026-10-13 客户实测重定标：原 warm-film@0.75 的提黑会把灰雾/平光镜头压得更灰（山路/日出段实测 YAVG 偏高但动态范围仅 76–93）。改为高对比打底 + 暖调 LUT 50%：保留暖调，同时把中间调对比与饱和拉回来。灰雾/欠曝的**单镜**修复走 `edit:post --color-map`（逐镜 profile/LUT/corrections）。"
   },
   "transitions": {
@@ -47,7 +47,7 @@
         "durationSec": 0.4
       }
     },
-    "intentNote": "暖调故事版：叠化用 fadeslow（自带慢入曲线）拉长情绪，擦除用柔边推移，不用硬边切片"
+    "intentNote": "暖心版：叠化用 fadeslow（自带慢入曲线）拉长情绪，擦除用柔边推移，不用硬边切片"
   },
   "bgm": {
     "mood": "温暖自在",
