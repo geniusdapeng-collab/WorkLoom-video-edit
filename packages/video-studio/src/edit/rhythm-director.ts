@@ -70,7 +70,7 @@ export function assertRhythmStory(story: unknown): asserts story is RhythmStory 
   const request=object(root.rhythm,'rhythm',['mode','opening','ending','durationBand','clipCount','clipSeconds','minLandingSeconds','beatSync','music']);
   if (request.mode!==undefined && !['auto','bookends','opening','ending','natural'].includes(request.mode as string)) fail('RHYTHM_DIRECTION_INPUT','mode 非法');
   if (request.beatSync!==undefined && typeof request.beatSync!=='boolean') fail('RHYTHM_DIRECTION_INPUT','beatSync 必须为布尔值');
-  number(request,'clipCount',2,6,true);number(request,'clipSeconds',0.4,1.2);number(request,'minLandingSeconds',1.5,20);
+  number(request,'clipCount',2,12,true);number(request,'clipSeconds',0.4,1.2);number(request,'minLandingSeconds',1.5,20);
   for (const end of ['opening','ending']) if (request[end]!==undefined) {
     const intent=object(request[end],end,['purpose','energy','reason']);
     if (!['hook','preview','action','recap','payoff','dialogue','reflection','natural'].includes(intent.purpose as string)
@@ -192,7 +192,11 @@ export function compileRhythmDirection({timeline,story={},analyses=[],music}: {t
   const band=request.durationBand??(timeline.target as EditTimeline['target'] & {durationBand?:RhythmDirection['durationBand']}).durationBand??{minSeconds:round(target*0.95),maxSeconds:round(target*1.05)};
   if(!finite(band.minSeconds)||!finite(band.maxSeconds)||band.minSeconds<=0||band.maxSeconds<band.minSeconds||band.maxSeconds>1800) fail('RHYTHM_DIRECTION_INPUT','时长带非法');
   const count=request.clipCount??3, clipSeconds=request.clipSeconds??0.8, landing=request.minLandingSeconds??1.5;
-  if(!Number.isInteger(count)||count<2||count>6||!finite(clipSeconds)||clipSeconds<0.4||clipSeconds>1.2||!finite(landing)||landing<1.5||landing>20) fail('RHYTHM_DIRECTION_INPUT','短镜头数量/长度或落版停留非法');
+  /**
+   * 短切数量上限 6 → 12（T-2026-1017 产品所有者口径：0.5s 一刀、多排几个镜头，让开场"咔咔咔"起来）。
+   * 单刀时长仍是 0.4–1.2s（帧对齐），12 刀 × 0.5s = 6s 上限，不会把开场撑爆。
+   */
+  if(!Number.isInteger(count)||count<2||count>12||!finite(clipSeconds)||clipSeconds<0.4||clipSeconds>1.2||!finite(landing)||landing<1.5||landing>20) fail('RHYTHM_DIRECTION_INPUT','短镜头数量/长度或落版停留非法');
   if (timeline.segments.length>2000 || timeline.sources.length>1000 || !Array.isArray(analyses) || timeline.segments.some(s=>!finite(s.sourceIn)||s.sourceIn<0||!finite(s.sourceOut)||s.sourceOut<=s.sourceIn||!finite(s.durationSeconds)||s.durationSeconds<=0)) fail('RHYTHM_DIRECTION_INPUT','源区间或项目容量非法');
   const draftValidation=validateEditTimeline({...timeline,target:{...timeline.target,durationBand:undefined,durationSeconds:timeline.segments.reduce((sum,s)=>sum+s.durationSeconds,0)}});
   const draftFailures=draftValidation.checks.filter(c=>c.hard&&!c.pass);
@@ -230,10 +234,19 @@ export function compileRhythmDirection({timeline,story={},analyses=[],music}: {t
     const selected:RhythmDirection['selections']=[];
     const make=(end:RhythmEnd,startClock:number):EditTimelineSegment[]|null=>{
       const result:EditTimelineSegment[]=[];let cursor=startClock;
+      /** 帧对齐可表示区间：0.4s 与 1.2s 都要落在整数帧上（24fps 下 1.2×24=28.8 → 夹到 28 帧=1.1667s）。 */
+      const minFrames=Math.max(1,Math.ceil((0.4-1e-9)*fps));
+      const maxFrames=Math.max(minFrames,Math.floor((1.2+1e-9)*fps));
       for(let i=0;i<count;i++) {
         const desired=beats?music!.onsetTimesSeconds.filter(t=>t-cursor>=0.4-0.001&&t-cursor<=1.2+0.001).sort((a,b)=>Math.abs(a-cursor-clipSeconds)-Math.abs(b-cursor-clipSeconds))[0]:cursor+clipSeconds;
         if(desired===undefined)return null;
-        const frames=Math.round((desired-cursor)*fps), duration=frames/fps;
+        /**
+         * 帧对齐 bug 修复（T-2026-1017）：旧实现 `Math.round(seconds*fps)` 后直接拿 duration 与
+         * `>1.2` 比较——24fps 下请求 1.2s 会取整成 29 帧（1.2083s）而被判非法，整段首尾快切
+         * 静默降级为 natural（用户侧只看到"没有快切"，日志里也只有一个原因串）。
+         * 现在先把请求帧数夹进 [ceil(0.4fps), floor(1.2fps)]，再换算 duration。
+         */
+        const frames=Math.min(maxFrames,Math.max(minFrames,Math.round((desired-cursor)*fps))), duration=frames/fps;
         if(duration<0.4-0.001||duration>1.2+0.001)return null;
         let pick:{candidate:Candidate;start:number}|undefined;
         for(const candidate of data.candidates) {

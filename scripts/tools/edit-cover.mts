@@ -268,7 +268,12 @@ async function connectBridge(url: string): Promise<BridgeClient> {
     return { available: false, reason: `工位令牌不可读：${BRIDGE_TOKEN_FILE}`, call: async () => { throw new Error("bridge unavailable"); } };
   }
   try {
-    const health = await fetch(`${url.replace(/\/$/u, "")}/health`, { headers: { Authorization: `Bearer ${token}` } });
+    /**
+     * 工位健康检查必须带超时（T-2026-1017 修复）：旧实现是裸 fetch，
+     * 本机 9773 端口有进程监听但 /health 不回包时，edit:cover 会无限挂起
+     * （实测 0% CPU 挂 30+ 分钟），既不走 ffmpeg 降级也不报错。
+     */
+    const health = await fetch(`${url.replace(/\/$/u, "")}/health`, { headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(5_000) });
     if (!health.ok) return { available: false, reason: `工位健康检查失败 HTTP ${health.status}`, call: async () => { throw new Error("bridge unavailable"); } };
   } catch (err) {
     return { available: false, reason: `工位不可达：${err instanceof Error ? err.message : String(err)}`, call: async () => { throw new Error("bridge unavailable"); } };
@@ -279,6 +284,8 @@ async function connectBridge(url: string): Promise<BridgeClient> {
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
       // 视觉工位的请求体约定是 `{tool, params}`（不是 {name, params}——写错会得到 unknown tool None 并静默降级）
       body: JSON.stringify({ tool: name, params: { ...params, tenant_id: BRIDGE_TENANT, idempotency_key: `${name}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}` } }),
+      // 合成动作可能很慢，给 10 分钟硬上限，避免无限等待
+      signal: AbortSignal.timeout(600_000),
     });
     const doc = await response.json() as Record<string, unknown>;
     if (!response.ok || doc.ok === false) throw new Error(`工位调用失败 ${name}：${JSON.stringify(doc).slice(0, 300)}`);
@@ -841,6 +848,20 @@ async function main(): Promise<void> {
           note: PUBLISH_NOTE,
           updatedBy: "edit:cover（推荐发布件＝烧字+封面烧封）",
         };
+      }
+      /**
+       * 节奏复验回执必须覆盖"当前交付形态"（T-2026-1017 修复）。
+       * edit:post 在 post 阶段写 `manifest.rhythmDirection`（回执只含 master + 变体三形态），
+       * 封面在这里追加 `coverIntro.forms`（新的视频形态）；若不按当前 manifest 重算回执，
+       * release 闸（quality-gate.mjs#chain:rhythm-direction）会报
+       * "当前交付形态未被首尾节奏复验覆盖"——即"回执早于封面形态"的流程漏洞。
+       * 这里用同一套 inspectRhythmOutputs 重新复验并回写 binding，不手写 passed。
+       */
+      if (declaredTimeline) {
+        const { inspectRhythmOutputs } = await import("./lib/edit-rhythm-media.mts") as typeof import("./lib/edit-rhythm-media.mts");
+        const reinspection = await inspectRhythmOutputs({ timeline: declaredTimeline, outDir, manifest, ffmpeg: FFMPEG, ffprobe: FFPROBE, subtitlePath: null });
+        if (!reinspection.report.passed) throw new Error("RHYTHM_OUTPUT_MISMATCH: " + reinspection.report.failures.join("；"));
+        manifest.rhythmDirection = reinspection.binding;
       }
       const qa = await import("../../bundles/ai-video/connectors/post-bridge/quality-gate.mjs") as {
         inspectDeliveryManifest: (options: Record<string, unknown>) => Promise<{ passed: boolean }>;
