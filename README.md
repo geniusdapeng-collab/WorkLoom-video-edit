@@ -34,6 +34,8 @@
 
 用户等待成片的时间本身就是产品体验。**默认第一条交付 = 1080P 完整版全链路**（不是残缺预览）：
 调色 + BGM + 字幕 + 转场 + 首尾快切 + 封面设计/机检/烧封 + 弹幕 + 交付清单。
+**对外只交最终成片**：按系统 3 个风格版本（暖调故事 / 干净科技 / 强推促销）各交**一条**——字幕、封面、弹幕全部烧录完成；
+干净母版、软字幕轨、无字幕版、封面 PNG、字幕文件、清单等过程产物留在交付目录内部，用户不主动问就不展示。
 极速预览（轻链路，无调色/封面/弹幕）只作为可选；**素材是 4K 时，1080P 交付后主动问用户是否需要 4K**，不自动开跑。
 
 ```bash
@@ -45,10 +47,11 @@ pnpm edit:delivery-plan -- --timeline work/edit/<film>/compiled.timeline.json \
 # ② 默认第一条交付：1080P 完整版（全链路，含封面烧封与弹幕）
 pnpm edit:fastlane -- --mode full --timeline work/edit/<film>/compiled.timeline.json \
   --subtitle work/edit/<film>/film.zh.srt --out-dir work/edit/<film>/fastlane \
-  --variants warm-story,clean-tech --danmaku work/edit/<film>/danmaku.json \
+  --variants warm-story,clean-tech,bold-promo --danmaku work/edit/<film>/danmaku.json \
   --analysis work/edit/<film>/understand/<每一条>.understood.json \
   --bgm-pack "<本地曲库>" --title "<片名>" --cover-title "<封面主标题>" --hook "<封面副标题>" \
   --platform 哔哩哔哩
+# → work/edit/<film>/fastlane/最终成片/：片名-<风格>-1080P.mp4 × 3（只交这 3 条）
 
 # ③ 可选极速预览（几分钟量级，只在用户明确要"先看一眼"时用）
 pnpm edit:fastlane -- --mode light --timeline work/edit/<film>/compiled.timeline.json \

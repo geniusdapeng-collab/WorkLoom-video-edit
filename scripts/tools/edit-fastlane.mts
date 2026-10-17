@@ -83,7 +83,7 @@ function main(): void {
   const outDir = abs(outDirArg);
   mkdirSync(outDir, { recursive: true });
   const node = process.execPath;
-  const variants = arg("--variants", "warm-story,clean-tech");
+  const variants = arg("--variants", "warm-story,clean-tech,bold-promo");
   const platform = arg("--platform", "哔哩哔哩");
   const title = arg("--title", arg("--name", "1080P 完整版"));
   const steps: StepReceipt[] = [];
@@ -137,7 +137,13 @@ function main(): void {
     ...(arg("--bridge-url") ? ["--bridge-url", arg("--bridge-url")] : [])];
   steps.push(run("cover-1080p", coverArgs, join(deliveryDir, "covers", "cover-report.json")));
   if (!steps.at(-1)!.ok) throw fail(steps, outDir, mode);
-  writeReceipt(steps, outDir, mode, deliveryDir);
+  /** 只交每个风格一条成片（字幕+弹幕+封面全烧录），过程产物留在 delivery 内部。 */
+  const finalOut = join(outDir, "最终成片");
+  const packageArgs = [node, "--import", "tsx", join(REPO_ROOT, "scripts/tools/edit-package.mts"),
+    "--delivery", deliveryDir, "--final-only", "--title", title, "--out", finalOut];
+  steps.push(run("final-package", packageArgs, finalOut));
+  if (!steps.at(-1)!.ok) throw fail(steps, outDir, mode);
+  writeReceipt(steps, outDir, mode, finalOut);
 }
 
 function writeReceipt(steps: StepReceipt[], outDir: string, mode: string, finalOutput: string): void {
