@@ -703,10 +703,14 @@ async function main(): Promise<void> {
         introSources.push({ path: source, sha256: sourceHash });
         const output = join(versionRoot, variantId, `${variantId}${form}.cover.mp4`);
         const intro = join(workRoot, `${variantId}${form}-intro.mp4`);
+        /** 片头编码档跟成片分辨率对齐（T-2026-1017）：4K 用 medium/crf16，1080P 用 veryfast/crf18。 */
+        const introEncoder = media.height >= 1600
+          ? ["-c:v", "libx264", "-preset", "medium", "-crf", "16"]
+          : ["-c:v", "libx264", "-preset", "veryfast", "-crf", "18"];
         run(FFMPEG, ["-hide_banner", "-loglevel", "error", "-y", "-loop", "1", "-i", cover,
           "-f", "lavfi", "-i", "anullsrc=channel_layout=stereo:sample_rate=48000",
           "-filter_complex", `[0:v]scale=${media.width}:${media.height},fps=${arg("--fps", String(media.fps))},format=yuv420p[v];[1:a]atrim=0:${burnIntro},asetpts=PTS-STARTPTS[a]`,
-          "-map", "[v]", "-map", "[a]", "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-c:a", "aac", "-ar", "48000", "-ac", "2", "-t", String(burnIntro), "-movflags", "+faststart", intro]);
+          "-map", "[v]", "-map", "[a]", ...introEncoder, "-c:a", "aac", "-ar", "48000", "-ac", "2", "-t", String(burnIntro), "-movflags", "+faststart", intro]);
         // 用文本清单做 concat（/dev/stdin 在部分 ffmpeg 构建下不可用）
         const listFile = join(workRoot, `${variantId}${form}-list.txt`);
         writeFileSync(listFile, `file '${intro.replace(/'/gu, "'\\''")}'\nfile '${source.replace(/'/gu, "'\\''")}'\n`, "utf8");

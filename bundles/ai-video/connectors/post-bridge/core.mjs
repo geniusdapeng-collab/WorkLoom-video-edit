@@ -2789,6 +2789,8 @@ export async function buildDeliveryPackage({
         platform,
         brief: { 平台: platform ?? "默认" },
         bins,
+        /** 交付形态的最后一次重编码：必须做清晰度回归（T-2026-1017） */
+        verifySharpness: true,
       });
       processing.push(await writeProcessingProof({ root: target, stage: "subtitles", id: `${pack.id}-burned`, inputs,
         outputs: [{ path: burned.output.path, sha256: burned.output.hash }], parameters: { mode: "burned", cuesSha256: await contentKey(cues), platform },
@@ -2802,7 +2804,7 @@ export async function buildDeliveryPackage({
       const source = burned?.output.path ?? scoredPath;
       const inputs = await captureProcessingInputs([source]);
       danmakuResult = await renderDanmaku({ input: source, output: path.join(variantDir, `${pack.id}${burned ? ".burned" : ""}.danmaku.mp4`),
-        items, platform, lanes: danmaku.lanes ?? 4, opacity: danmaku.opacity ?? 0.85, bins });
+        items, platform, lanes: danmaku.lanes ?? 4, opacity: danmaku.opacity ?? 0.85, bins, verifySharpness: true });
       processing.push(await writeProcessingProof({ root: target, stage: "danmaku", id: String(variantsOut.length), inputs,
         outputs: [{ path: danmakuResult.output.path, sha256: danmakuResult.output.hash }], parameters: { mode: "danmaku", items },
         execution: { cueCount: items.length, checks: danmakuResult.checks } }));
