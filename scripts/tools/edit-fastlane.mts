@@ -15,6 +15,7 @@
  *     [--title "片名"] [--cover-title "封面主标题"] [--hook "封面副标题"]
  *     [--variant-copy <cover-copy.json>] [--platform 哔哩哔哩] [--bridge-url <url>]
  *     [--bgm <曲目>] [--name "<文件名>"] [--music-level -23] [--json]
+ *     [--bgm-section auto|climax|calm|full] [--bgm-cut-driven]
  *
  * full 模式（默认）：
  *   ① edit:post（1920×1080 全链路，含三形态/调色/BGM/字幕/转场/弹幕）
@@ -123,6 +124,8 @@ function main(): void {
     "--variants", variants, "--subtitle", subtitleFile, "--segment-color",
     "--bgm", "agent", "--platform", platform, "--title", title, "--json",
     ...(bgmPack ? ["--bgm-pack", abs(bgmPack)] : []),
+    ...(arg("--bgm-section") ? ["--bgm-section", arg("--bgm-section")] : []),
+    ...(flag("--bgm-cut-driven") ? ["--bgm-cut-driven"] : []),
     ...(danmaku ? ["--danmaku", abs(danmaku)] : []),
     ...analysisFiles.flatMap((file) => ["--analysis", file])];
   steps.push(run("post-1080p", postArgs, join(deliveryDir, "delivery-manifest.json")));

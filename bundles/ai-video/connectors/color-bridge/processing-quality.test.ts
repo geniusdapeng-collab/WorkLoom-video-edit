@@ -30,9 +30,12 @@ describe("色彩转换与后期损伤护栏", () => {
     expect(() => resolveColorManagement({ probe: { video: { colorTransfer: "smpte2084" } } })).toThrow(/HDR.*缺少/);
     expect(() => resolveColorManagement({ probe: { video: { ...video, colorTransfer: "camera-mystery-log" } } })).toThrow(/不支持/);
   });
-  it("保守清晰度只用小核与有限亮度增益，不锐化色度", () => {
+  it("conservative 兼容 light，并暴露 light/medium/strong 三档确定性链", () => {
     expect(clarityFilter()).toBeNull();
-    expect(clarityFilter("conservative")).toContain("luma_msize_x=3:luma_msize_y=3:luma_amount=0.25:chroma_amount=0");
+    expect(clarityFilter("conservative")).toBe("unsharp=5:5:0.35:5:5:0");
+    expect(clarityFilter("light")).toBe(clarityFilter("conservative"));
+    expect(clarityFilter("medium")).toContain("cas=strength=0.25");
+    expect(clarityFilter("strong")).toContain("cas=strength=0.4");
     expect(() => clarityFilter("extreme")).toThrow(/clarity/);
   });
   const metric = { yavg: 100, rmsContrast: 30, tonalRange: 80, satMean: 0.3, oversatPct: 1, colorfulness: 35, sharpness: 12, shadowClipPct: 0, highlightClipPct: 0 };
@@ -63,14 +66,14 @@ describe.runIf(hasEngine)("真实 ffmpeg 后期颜色与质量证据", () => {
   beforeAll(() => execFileSync(bins.ffmpeg, ["-hide_banner", "-v", "error", "-y", "-f", "lavfi", "-i", "testsrc2=size=320x240:rate=12:duration=1.5",
     "-c:v", "libx264", "-crf", "10", "-pix_fmt", "yuv420p", "-color_primaries", "bt709", "-color_trc", "bt709", "-colorspace", "bt709", source]));
   afterAll(() => fs.rmSync(dir, { recursive: true, force: true }));
-  it("保守清晰度报告给出实际前后帧、哈希、规格及阈值；原片字节保持", async () => {
+  it("light 清晰度报告给出实际前后帧、哈希、规格及阈值；原片字节保持", async () => {
     const before = sha(source), output = path.join(dir, "clarity.mp4");
     const result = await grade({ input: source, output, profile: "natural", intensity: 0.1, clarity: "conservative", qualityGuard: "report", bins });
     expect(sha(source)).toBe(before); expect(result.sourceSha256).toBe(before);
     expect(result.sha256).toBe(sha(output)); expect(result.processingQuality.reviewed).toBe(true);
     expect(result.processingQuality.perFrame).toHaveLength(result.processingQuality.sampleCount);
     expect(result.processingQuality.sourceDimensions.width).toBe(320); expect(result.processingQuality.outputDimensions.width).toBe(320);
-    expect(result.chain).toContain("luma_amount=0.25:chroma_amount=0");
+    expect(result.chain).toContain("unsharp=5:5:0.35:5:5:0");
     expect(result.colorManagement.destination).toMatchObject({ transfer: "bt709", range: "limited" });
   });
   it("纯技术 grade 可只做色彩管理与保守清晰度，无 look、LUT 或自动修正", async () => {
