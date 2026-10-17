@@ -12,6 +12,11 @@
  * 用法：
  *   pnpm edit:package -- --delivery <交付目录> [--previews <预览目录>] [--version V10]
  *     [--title "片名"] [--platform 视频号] [--out <输出目录>]
+ *   pnpm edit:package -- --delivery <交付目录> --final-only --title "片名" [--out <输出目录>]
+ *
+ * `--final-only`（2026-10-18 产品所有者口径）：**只交一个最终成片**——
+ * 每个风格版本只取「字幕 + 弹幕 + 封面」全部烧录的推荐发布件，按「片名-风格-分辨率.mp4」落到输出目录，
+ * 不再把干净母版/软字幕轨/封面 PNG/清单等过程产物推给用户（它们仍留在交付目录内部供返修）。
  */
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
@@ -30,7 +35,40 @@ function arg(name: string, fallback = ""): string {
   const index = process.argv.indexOf(name);
   return index >= 0 ? (process.argv[index + 1] ?? fallback) : fallback;
 }
+const flag = (name: string) => process.argv.includes(name);
 const abs = (p: string) => (isAbsolute(p) ? p : resolve(REPO_ROOT, p));
+
+/**
+ * 最终成片选择：**每个风格版本**从推荐发布件里挑「元素最全」的一条。
+ * 优先级：字幕+弹幕+封面 > 字幕+封面 > 字幕+弹幕 > 字幕 > 带弹幕 > 干净。
+ * 返回每个变体一条，供 `--final-only` 交付「3 个风格版本、每个只有一条成片」。
+ */
+function pickFinalPerVariant(manifest: Record<string, unknown>): Array<{ file: string; variantId: string; forms: string }> {
+  const recommended = ((manifest.publish as { recommended?: Array<{ variantId?: string; file?: string; forms?: string }> } | undefined)?.recommended ?? [])
+    .filter((item) => typeof item.file === "string" && item.file.length > 0);
+  const score = (forms: string): number => {
+    const text = String(forms ?? "").toLowerCase();
+    let value = 0;
+    if (text.includes("burned")) value += 1;
+    if (text.includes("danmaku")) value += 4;
+    if (text.includes("cover")) value += 2;
+    return value;
+  };
+  const variantIds = ((manifest.variants as Array<{ id?: string }> | undefined) ?? [])
+    .map((variant) => String(variant.id ?? "")).filter(Boolean);
+  const picks: Array<{ file: string; variantId: string; forms: string }> = [];
+  for (const variantId of variantIds) {
+    const options = recommended
+      .filter((item) => String(item.variantId ?? "") === variantId)
+      .map((item) => ({ file: String(item.file), variantId, forms: String(item.forms ?? ""), score: score(item.forms) }))
+      .sort((a, b) => b.score - a.score);
+    if (options[0]) { picks.push(options[0]); continue; }
+    /** 封面还没跑时退回该变体的烧字版（字幕已烧录，仍是一条成片）。 */
+    const variant = (manifest.variants as Array<{ id?: string; burned?: { path?: string } }> | undefined)?.find((entry) => entry.id === variantId);
+    if (variant?.burned?.path) picks.push({ file: variant.burned.path, variantId, forms: "burned" });
+  }
+  return picks;
+}
 
 function probeSize(file: string): PixelSize | null {
   try {
@@ -148,6 +186,40 @@ async function main(): Promise<void> {
     bins: { ffmpeg: process.env.WL_FFMPEG ?? "ffmpeg", ffprobe: FFPROBE } });
   manifest.postQuality = await qa.writePostQuality(qualityRoot, report);
   qa.assertPostQuality(report);
+  /**
+   * `--final-only`：每个风格版本只交一条最终成片（字幕+弹幕+封面全烧录的推荐件）。
+   * 用户不需要在干净母版/软字幕轨/无字幕/封面 PNG 之间做选择；过程产物留在交付目录内部供返修。
+   */
+  if (flag("--final-only")) {
+    const picks = pickFinalPerVariant(manifest);
+    if (picks.length === 0) throw new Error("没有可交付的推荐发布件（manifest.publish.recommended 为空，且没有 burned 变体）");
+    const finalOut = abs(arg("--out", join(delivery, "最终成片")));
+    mkdirSync(finalOut, { recursive: true });
+    const names = variantNames(delivery);
+    const rows: Array<Record<string, unknown>> = [];
+    for (const best of picks) {
+      const source = resolve(qualityRoot, best.file);
+      if (!existsSync(source)) throw new Error(`推荐发布件不存在：${source}`);
+      const verified = report.assets.some((asset) => resolve(qualityRoot, asset.path) === source && asset.passed && asset.sha256 === digest(source));
+      if (!verified) throw new Error(`推荐发布件未被当前技术质检核实：${source}`);
+      const resolution = probeSize(source);
+      if (!resolution) throw new Error("推荐发布件缺可核实的像素尺寸");
+      /** 每个风格一条：片名-风格-分辨率.mp4（不带形态/版本后缀，避免用户选择）。 */
+      const displayName = `${title}-${names.get(best.variantId) ?? variantDisplayName(best.variantId)}-${resolutionBadge(resolution)}.mp4`;
+      const target = join(finalOut, displayName);
+      const mode = materialize(source, target, new Set());
+      rows.push({ final: target, displayName, source, sourceSha256: digest(source), variantId: best.variantId, forms: best.forms, resolution, materialized: mode, sha256: digest(target) });
+      console.log(`✓ 最终成片：${target}`);
+      console.log(`  来源：${best.variantId}（${best.forms}）｜${resolutionBadge(resolution)}｜sha256 ${digest(target).slice(0, 16)}…`);
+    }
+    writeFileSync(join(delivery, "final-delivery.json"), `${JSON.stringify({
+      schemaVersion: "workloom.video-edit/final-delivery/v1",
+      variants: rows,
+      postQuality: manifest.postQuality,
+      generatedAt: new Date().toISOString(),
+    }, null, 2)}\n`);
+    return;
+  }
   mkdirSync(outDir, { recursive: true });
   const previousIndex = join(outDir, "交付清单.json");
   const owned = new Set<string>();

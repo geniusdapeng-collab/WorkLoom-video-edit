@@ -16,24 +16,24 @@ describe("edit/naming：交付文件命名规范", () => {
   it("中文名 = 片名·版本名·核心特点·分辨率·版本号", () => {
     expect(buildArtifactName({
       title: "别人挤景区，我回村摘苹果",
-      variantName: "暖调故事版",
+      variantName: "暖心版",
       feature: "带字幕",
       resolution: { width: 3840, height: 2160 },
       version: "V10",
       ext: ".mp4",
-    })).toBe("别人挤景区我回村摘苹果·暖调故事版·带字幕·4K·V10.mp4");
+    })).toBe("别人挤景区我回村摘苹果·暖心版·带字幕·4K·V10.mp4");
   });
 
   it("预览件标注真实分辨率与「预览」，不用交付分辨率冒充", () => {
     expect(buildArtifactName({
       title: "别人挤景区，我回村摘苹果",
-      variantName: "暖调故事版",
+      variantName: "暖心版",
       feature: "带字幕",
       resolution: { width: 1920, height: 1080 },
       version: "V10",
       preview: true,
       ext: "mp4",
-    })).toBe("别人挤景区我回村摘苹果·暖调故事版·带字幕·1080P·预览·V10.mp4");
+    })).toBe("别人挤景区我回村摘苹果·暖心版·带字幕·1080P·预览·V10.mp4");
   });
 
   it("没有像素尺寸的产物（字幕文件）可省略分辨率段，而不是写「未知分辨率」", () => {
@@ -74,7 +74,7 @@ describe("edit/naming：交付文件命名规范", () => {
       generatedAt: "2026-10-11T00:00:00.000Z",
       artifacts: [
         { source: "/tmp/a.mp4", displayName: "别人挤景区我回村摘苹果·干净母版·无字幕·4K·V10.mp4", role: "master" },
-        { source: "/tmp/b.mp4", displayName: "别人挤景区我回村摘苹果·暖调故事版·带字幕·4K·V10.mp4", role: "burned", variantId: "warm-story" },
+        { source: "/tmp/b.mp4", displayName: "别人挤景区我回村摘苹果·暖心版·带字幕·4K·V10.mp4", role: "burned", variantId: "warm-story" },
       ],
     });
     expect(markdown).toContain("推荐直接发布：带字幕成片");
