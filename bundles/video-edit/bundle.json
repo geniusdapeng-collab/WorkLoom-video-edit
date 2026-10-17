@@ -172,7 +172,7 @@
   },
   "integrity": {
     "algorithm": "sha256",
-    "digest": "7534bf97d5a7e2ad636824c90d3f5bc7b9db833c2f76700b6d011f0295108c38",
+    "digest": "447228dadd3888d58093e9a88d01d2a7c552cb9488a4a351cf62e55c4161e089",
     "assets": {
       "eval/questions.json": "251b0db664e49bdca83800eaed91359b540ba1d58d363dd470c9ef3f8e8e8ebb",
       "fences/talk-edit-baseline.yml": "cf474c8f18b2b0547f45beab680ba3d101f3fb63e2bff7d4b2f5f0787bf60d26",
@@ -201,7 +201,7 @@
       "schemas/highlight-pick.schema.json": "54a56a59456f53ca5f5543ec655447e660309ba3fa936622df7418ee4c887f7c",
       "schemas/keyframe-candidate.schema.json": "15f213ef8269714765da7d2a2dfc934b7b9e3ccd17e81f619b659ae79c42e871",
       "schemas/objects.json": "1fd65d89aa47cdda9cd81c9e591be860c417397606c44546c299d10885b66bcb",
-      "schemas/rhythm-contract.schema.json": "72bb17fdd894280f525dfde3bae1a6009ef1bc1e6780be968f422c02dd6022a4",
+      "schemas/rhythm-contract.schema.json": "205aca61cc16602df8cf1b128ed145f9778d9ee5ed28ceea1beb5ac78a312448",
       "schemas/stages.json": "3a16da0666f8491bb01b04beb1192157dbdcfc8a067571488d066289a53d1732",
       "schemas/talk-cut-list.schema.json": "14328f5e7056ff0b0e74779ed9868576ced3a24f85f308ab3303be49be4f063e",
       "schemas/talk-emotion.schema.json": "6f1c13abb84ca2eb24c89db0e67ecbce814307c58cac62f073f7c177bb9702c8",
