@@ -24,7 +24,7 @@
  *   edit:assemble → subtitle-cli burn → bgm-cli mix（几分钟量级的"先看版"）
  */
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
 
@@ -66,7 +66,8 @@ function run(step: string, command: string[], output: string, env?: NodeJS.Proce
     const tail = (result.stderr || result.stdout || "").trim().split("\n").slice(-10).join("\n");
     return { step, ok: false, ms, output, stderrTail: tail };
   }
-  return { step, ok: true, ms, output, sha256: existsSync(output) ? sha256File(output) : undefined };
+  const isFile = existsSync(output) && statSync(output).isFile();
+  return { step, ok: true, ms, output, sha256: isFile ? sha256File(output) : undefined };
 }
 
 function main(): void {

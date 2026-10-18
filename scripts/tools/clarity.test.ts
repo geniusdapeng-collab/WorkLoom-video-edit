@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { CLARITY_CHAINS, clarityForLevel, planClarity } from "../../packages/video-studio/src/edit/clarity.js";
+import { CLARITY_CHAINS as BRIDGE_CLARITY_CHAINS } from "../../bundles/ai-video/connectors/color-bridge/processing-quality.mjs";
 
 describe("镜头级清晰度/去雾计划", () => {
   it("雾感日出镜头（黑位 101 / 细节 59）判强档", () => {
@@ -24,6 +25,10 @@ describe("镜头级清晰度/去雾计划", () => {
   it("中间态按阈值降到中档", () => {
     expect(planClarity({ lumaP5: 60, lumaStd: 50, detailEnergy: 90 }).level).toBe("medium");
     expect(planClarity({ lumaP5: 58, lumaStd: 50, detailEnergy: 85 }).level).toBe("medium");
+  });
+
+  it("编辑计划与 color-bridge 执行链保持同一事实源", () => {
+    expect(BRIDGE_CLARITY_CHAINS).toEqual(CLARITY_CHAINS);
   });
 
   it("显式档位与链一致；非法输入报错", () => {
