@@ -7,7 +7,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { beforeAll, afterAll, test, expect } from "vitest";
 import { applyPostRhythmSound } from "./rhythm-post.mjs";
-import { normaliseShots, resolveBinaries } from "./core.mjs";
+import { findVariantPack, normaliseShots, resolveBinaries } from "./core.mjs";
 import { inspectDeliveryManifest } from "./quality-gate.mjs";
 const repo = fileURLToPath(new URL("../../../../", import.meta.url));
 const bins = resolveBinaries();
@@ -46,7 +46,7 @@ beforeAll(async () => {
   fs.writeFileSync(path.join(root, "caption.srt"), "1\n00:00:00,100 --> 00:00:02,000\n看山吃饺子\n\n");
   const missingPack = path.join(root, "missing-home", "Downloads", "optional-pack");
   expect(fs.existsSync(path.join(root, "missing-home"))).toBe(false);
-  const result = await command("scripts/tools/edit-post.mts", ["--timeline", path.join(root, "timeline.json"), "--out-dir", out, "--variants", "warm-story,clean-tech,natural-clean", "--rhythm-plan", path.join(root, "rhythm.json"), "--subtitle", path.join(root, "caption.srt"), "--danmaku", path.join(root, "danmaku.json"), "--title", "看山吃饺子", "--bgm-section", "full", "--bgm-pack", missingPack, "--json"]);
+  const result = await command("scripts/tools/edit-post.mts", ["--timeline", path.join(root, "timeline.json"), "--out-dir", out, "--variants", "warm-story,clean-tech", "--rhythm-plan", path.join(root, "rhythm.json"), "--subtitle", path.join(root, "caption.srt"), "--danmaku", path.join(root, "danmaku.json"), "--title", "看山吃饺子", "--bgm-section", "full", "--bgm-pack", missingPack, "--json"]);
   expect(result.text, "actual edit-post stdout/stderr").toBeTruthy(); expect(result.code, result.text).toBe(0);
   expect(fs.existsSync(path.join(root, "missing-home"))).toBe(false);
 }, 180_000);
@@ -55,8 +55,7 @@ test("actual edit-post preserves native pixels/frames, default declared hard cut
   const manifest = json(path.join(out, "delivery-manifest.json"));
   expect(manifest.resolution).toEqual([320, 180]); expect(manifest.nativeResolution).toEqual([320, 180]); expect(manifest.postQuality.passed).toBe(true);
   const rhythm = json(path.join(out, "edit-rhythm-receipt.json")); expect(rhythm.status).toBe("passed"); expect(rhythm.actualClips.map((clip: any) => clip.media.videoFrames)).toEqual([15, 60, 90]);
-  expect(manifest.postRequirements.danmaku).toBe(true); expect(manifest.danmaku.forms).toHaveLength(3);
-  expect(manifest.variants.find((variant: any) => variant.id === "natural-clean")?.style).toMatchObject({ color: null, bgm: { enabled: false } });
+  expect(manifest.postRequirements.danmaku).toBe(true); expect(manifest.danmaku.forms).toHaveLength(2);
   for (const variant of manifest.variants) {
     expect(variant.style.transitions.mode).toBe("hard"); expect(variant.burned.path).toBeTruthy(); expect(variant.softsub.path).toBeTruthy();
     expect(variant.burned.path).toMatch(/\.burned\.danmaku\.mp4$/);
@@ -80,6 +79,14 @@ test("actual edit-post preserves native pixels/frames, default declared hard cut
   twoPassClaim.variants[0].burned.combinedWithDanmaku = false;
   expect((await inspectDeliveryManifest({ root: out, manifest: twoPassClaim, bins })).passed).toBe(false);
 }, 60_000);
+test("natural-clean is registered as a low-processing original-audio variant", () => {
+  expect(findVariantPack("natural-clean")).toMatchObject({
+    id: "natural-clean",
+    color: null,
+    transitions: { mode: "hard" },
+    bgm: { enabled: false, policy: "preserve-program" },
+  });
+});
 test("explicit fast cut rejects speed changes and partial/downsampled canvas before formal completion", async () => {
   const changed = structuredClone(timeline); changed.segments[0].speed = 2; changed.segments[0].durationSeconds = 0.25; write(path.join(root, "speed.json"), changed);
   for (const [suffix, args] of [["speed", ["--timeline", path.join(root, "speed.json"), "--rhythm-plan", path.join(root, "rhythm.json")]], ["partial", ["--timeline", path.join(root, "timeline.json"), "--width", "160"]], ["downsample", ["--timeline", path.join(root, "timeline.json"), "--width", "160", "--height", "90"]]] as Array<[string, string[]]>) {
