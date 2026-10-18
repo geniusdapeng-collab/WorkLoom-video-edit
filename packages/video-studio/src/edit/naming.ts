@@ -12,8 +12,8 @@
  * 规范（`·` 分隔，无空格）：
  *   {片名}·{版本名}·{核心特点}·{分辨率}[·预览]·{版本号}.{扩展名}
  * 示例：
- *   别人挤景区我回村摘苹果·暖调故事版·带字幕·4K·V10.mp4
- *   别人挤景区我回村摘苹果·暖调故事版·带字幕·1080P·预览·V10.mp4
+ *   别人挤景区我回村摘苹果·暖心版·带字幕·4K·V10.mp4
+ *   别人挤景区我回村摘苹果·暖心版·带字幕·1080P·预览·V10.mp4
  *   别人挤景区我回村摘苹果·干净母版·无字幕·4K·V10.mp4
  *   别人挤景区我回村摘苹果·分段调色版·双色分段封面·4K·V10.png
  */
@@ -67,7 +67,7 @@ export function sanitizeNamePart(value: string): string {
 export interface ArtifactNameInput {
   /** 片名/标题（中文） */
   title: string;
-  /** 版本名（变体名），如「暖调故事版」；母版等无变体时留空 */
+  /** 版本名（变体名），如「暖心版」；母版等无变体时留空 */
   variantName?: string | null;
   /** 核心特点（交付形态），如「带字幕」 */
   feature: FeatureTag;
@@ -106,9 +106,9 @@ export function buildArtifactName(input: ArtifactNameInput): string {
 
 /** 变体默认「版本名」（与 style-variants 的 name 字段一致，缺省给出人话兜底）。 */
 export const VARIANT_DISPLAY_NAME: Record<string, string> = {
-  "warm-story": "暖调故事版",
-  "clean-tech": "干净科技版",
-  "bold-promo": "强推促销版",
+  "warm-story": "暖心版",
+  "clean-tech": "标准版",
+  "bold-promo": "欢快版",
   "segmented-story": "分段调色版",
 };
 

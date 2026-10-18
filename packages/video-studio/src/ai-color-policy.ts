@@ -73,7 +73,7 @@ export function defaultAiColorVariants(content?: unknown): DeliveryVariant[] {
   return [
     { id: "original", label: "原色", gradeProfile: null, gradeIntensity: 0, musicLevelDeltaDb: 0, copySuffix: "", coverAccent: "#E8E2D5",
       bgmGenre: "生活|自然", bgmMood: "安静舒缓|松弛平和", note: "保留渲染素材的创作色彩；后期共同源直接复制，不调用调色工位。" },
-    { id: "warm-story", label: "暖调故事", gradeProfile: "high-contrast-social", gradeLut: "look-warm-film.cube", gradeIntensity: 0.5,
+    { id: "warm-story", label: "暖心版", gradeProfile: "high-contrast-social", gradeLut: "look-warm-film.cube", gradeIntensity: 0.5,
       musicLevelDeltaDb: 1.5, copySuffix: "｜暖调", coverAccent: "#E8B44A", bgmGenre: "旅拍|生活", bgmMood: "温暖自在|松弛平和",
       note: "D 组配方：high-contrast-social + look-warm-film.cube，强度 0.5；从未调色共同源独立派生。" },
     { id: "content-auto", label: "内容调色", gradeProfile: designed.profile, gradeIntensity: designed.intensity, colorDecision: designed.decision,

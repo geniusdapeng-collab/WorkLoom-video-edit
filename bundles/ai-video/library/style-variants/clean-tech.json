@@ -1,7 +1,7 @@
 {
   "schemaVersion": "workloom.style-variant/v1",
   "id": "clean-tech",
-  "name": "干净科技版",
+  "name": "标准版",
   "positioning": "产品/科技/知识：冷净调、硬切、信息优先文案",
   "platforms": [
     "抖音/快手",
@@ -29,7 +29,7 @@
       "whip_pan": { "type": "smoothleft", "durationSec": 0.28 },
       "zoom_blur": { "type": "zoomin", "durationSec": 0.3 }
     },
-    "intentNote": "干净科技版：短促、方向明确；擦除优先硬边 wipeleft，避免情绪化的慢叠化"
+    "intentNote": "标准版：短促、方向明确；擦除优先硬边 wipeleft，避免情绪化的慢叠化"
   },
   "bgm": {
     "mood": "干净可信",

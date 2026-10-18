@@ -768,7 +768,7 @@
   },
   "integrity": {
     "algorithm": "sha256",
-    "digest": "ce2205ef90036c8f48e6bf0e267975d7b4b8d7ffb377269351cba1c71a2473e9",
+    "digest": "54b6658359ab4dba603b2a280f2bedcd88f0debd0dfc2a367edc901520ae0d00",
     "assets": {
       "connectors/bgm-bridge/audio-stems-trust.mjs": "701b20e1705b16b026be2900bb49430ef875c8f01f83515f297a5b0b9a50cf93",
       "connectors/bgm-bridge/audio-stems.mjs": "d83bc554f015115ed0f4ea71ac6ced4cf5bd8f44d61094489776e3d2a5ffa751",
@@ -1222,10 +1222,10 @@
       "library/social-marketing/营销_钩子_反差式.md": "aa99ba84388e775891e75069cb46c369a401c9d69c8c9b10d8e3b1a1ff826d42",
       "library/social-marketing/营销_钩子_数据式.md": "85dc488eb7ea70d10ff17b4d1a7c5d032a7151c17cd9288f1fc6218542b27451",
       "library/social-marketing/营销_钩子_疑问式.md": "7992064784acd87d9129d3e0987247c0f3cdb8fabc4d91dd41969fde310cb9f6",
-      "library/style-variants/bold-promo.json": "f628b3d183f3d811b79b526816bc235b92052c82be7b9eb216b92569f80a7987",
-      "library/style-variants/clean-tech.json": "2eab8bc7fa60cc18a4169da4c1b1e2c1675ce200ed3e60d39d88b5abebf84d9b",
-      "library/style-variants/index.json": "acaf5495a50f09e6f294a6e02bdc6d5b7dbf83be830abe90c250aed3ef56bc63",
-      "library/style-variants/warm-story.json": "1d6a8778ef9f06c69d92bc279684c3528a47063f8b90e07c416c279f62c2debb",
+      "library/style-variants/bold-promo.json": "6de1bf8bc3e99d208743200cb230d1034bcade5342ee2cd03ed93e48d1b7da20",
+      "library/style-variants/clean-tech.json": "3909961a2205099fa808ab8023adcb24877770e74c2576e1e035c055f51edb4b",
+      "library/style-variants/index.json": "28f9221b5be27116300a669652bd27f7f3c19fbf4f393831b1d2a77035572952",
+      "library/style-variants/warm-story.json": "2dd275ab017d139b73619445b89c9279c968c0eb05aaaa6e0f6cabe4c3556993",
       "library/templates/director-review-form.md": "e1c072bebcd45bf11e16c7dc53968ed4bbd27225c875b0d4b02191214ce6b0df",
       "library/templates/project-config-template.json": "d236841a1713bb0a664ba8b7cb6c50a481676e18986e076ee92c63af0475e398",
       "library/templates/prompt-v4-template.md": "0ec087e88bb119e2fce6233e1eaf4a1b7d44d23ae418fc220e3f542f302c7536",
