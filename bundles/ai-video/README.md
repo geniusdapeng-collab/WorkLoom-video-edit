@@ -77,8 +77,12 @@ pnpm exec tsx scripts/tools/video-doctor.mts   # 出片环境自检（缺什么�
 
 ```
 cine-kb → continuity → micromotion → spec（25 字段交付闸）→ plates → material-gen → videos
-        → voice（默认保留原声；新配音仅显式请求）→ compose → color → subtitle → bgm → cover → mux → master → deliver
+        → voice（默认保留原声；新配音仅显式请求）→ compose → color → subtitle（默认烧录）
+        → bgm → cover（默认烧封面）→ mux → master
 ```
+
+> 普通 AI 视频默认只交付一支母版，`deliver` 不进入缺省阶段。需要多风格版本时，调用方必须显式把
+> `deliver` 放进 `--stages`；弹幕也只有显式提供 `--danmaku` 或 `--auto-danmaku` 时才执行。
 
 > **成功原片只走实际请求后期**：不自动补 `spec`，不重新做旧身份/服装/动作/画质/嘴型/台词/声音品质评审。来源核验通过后直接采用原字节；默认保留完整节目声音。部分镜头已成功时，前期规范和素材检查只作用于待新生成镜头，已成功镜不重新打开。
 
@@ -87,7 +91,7 @@ cine-kb → continuity → micromotion → spec（25 字段交付闸）→ plate
 1. **供应商成功就正式后期**：真实任务/项目/镜号、原输入与当前源片 SHA256、授权匹配后直接接受。身份、服装、动作、源画质、名义时长、嘴型、台词、声音品质均不阻断；不调用额外模型、ASR/TTS、抽帧评分或人工放行。`review-policy` 元数据不重新启用后期品质闸。
 2. **保留真实失败**：供应商 failed、任务来源/租户/支付/授权不符、缺件、文件读取/实际工具执行失败、请求导出缺失仍明确失败。原片和历史品质失败只读，新接受/加工以新回执表示；qualityReviewed=false、qualityScore=null，不把未测写通过。
 3. **前置授权与新任务保持明确**：只有未生成或用户明确授权改变的点名镜头进入当前分流/字段/素材用途/人物商品绑定/G8/支付流程。定妆照的已批准档案复用，旧成功镜不因当前属性库或组件变化再次付费。
-4. **请求加工一次**：compose/color/subtitle/BGM/cover/mux/master/deliver 按实际请求各执行一次，不按品质评分候选投票、自动重试或静默降级。默认 UHD 是本地目标画布处理；显式模型增强是独立新请求。
+4. **请求加工一次**：compose/color/subtitle/BGM/cover/mux/master 按实际请求各执行一次，不按品质评分候选投票、自动重试或静默降级。默认 UHD 是本地目标画布处理；显式模型增强是独立新请求。多风格 `deliver` 是独立显式请求，不能由缺省参数悄悄开启。
 
 ## 4. 踩过的坑（务必遵守）
 

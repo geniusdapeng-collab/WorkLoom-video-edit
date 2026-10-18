@@ -91,6 +91,7 @@ done
 # Keep actual post processors and their local script dependencies at canonical relative paths.
 POST_RUNTIME_ASSET_PATHS=(
   scripts/tools/generation-quality.mjs
+  scripts/tools/lib/ai-production-defaults.ts
   scripts/tools/rhythm-edit.mts
   scripts/tools/rhythm-post.mts
   scripts/tools/edit-entity.mts
