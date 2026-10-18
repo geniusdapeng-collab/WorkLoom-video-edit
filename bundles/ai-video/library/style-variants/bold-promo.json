@@ -3,6 +3,7 @@
   "id": "bold-promo",
   "name": "欢快版",
   "positioning": "带货/本地生活/促销：高对比、快切、直给卖点文案",
+  "colorPolicy": "grade",
   "platforms": [
     "抖音/快手",
     "小红书",

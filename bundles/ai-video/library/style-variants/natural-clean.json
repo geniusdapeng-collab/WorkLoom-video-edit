@@ -3,6 +3,7 @@
   "id": "natural-clean",
   "name": "自然高清版",
   "positioning": "少调色、少处理、保留原节目声音：用于核对真实清晰度或需要自然观感的交付",
+  "colorPolicy": "preserve",
   "platforms": [
     "视频号",
     "B站",

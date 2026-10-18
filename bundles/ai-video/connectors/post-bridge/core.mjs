@@ -191,6 +191,7 @@ export function listVariantPacks() {
       positioning: pack.positioning,
       platforms: pack.platforms ?? [],
       color: pack.color ?? null,
+      colorPolicy: pack.colorPolicy ?? (pack.color ? "grade" : "preserve"),
       bgm: pack.bgm ?? null,
       transitions: pack.transitions ?? null,
       copy: pack.copy ?? null,
