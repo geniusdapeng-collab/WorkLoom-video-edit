@@ -57,7 +57,7 @@ export function resolveColorManagement({ probe, sourceTransfer = null, sourceGam
  * FFmpeg 没有原生 dehaze，这里用 curves（压回抬起的黑位）+ unsharp（大半径局部对比）
  * + cas（自适应锐化）组合。
  */
-export const LEGACY_CONSERVATIVE_CLARITY = "unsharp=5:5:0.35:5:5:0";
+export const LEGACY_CONSERVATIVE_CLARITY = "unsharp=luma_msize_x=3:luma_msize_y=3:luma_amount=0.25:chroma_amount=0";
 export const CLARITY_CHAINS = Object.freeze({
   light: "curves=all='0/0 0.20/0.17 0.50/0.50 0.80/0.81 1/1',unsharp=5:5:0.40:5:5:0",
   medium: "curves=all='0/0 0.15/0.08 0.35/0.30 0.65/0.66 0.90/0.92 1/1',unsharp=9:9:0.65:5:5:0.06,cas=strength=0.30",

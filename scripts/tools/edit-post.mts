@@ -443,6 +443,12 @@ async function main(): Promise<void> {
     hazeScore?: number;
     metrics?: { lumaP5: number; lumaStd: number; detailEnergy: number };
   };
+  type ClarityDecisionNote = {
+    segmentId: string;
+    groupId: string;
+    clarity: ClarityReceipt;
+    outputSha256: string | null;
+  };
   const segmentColorNotes: Array<{
     segmentId: string;
     groupId: string;
@@ -452,6 +458,19 @@ async function main(): Promise<void> {
     clarity?: ClarityReceipt;
     sha256: string | null;
   }> = [];
+  /**
+   * 每个镜头都留一条清晰度决策，包括未处理镜头和由 `--color-map` 接管的镜头；
+   * 后者不再叠加共享清晰度，避免同一段连续重编码。
+   */
+  const clarityDecisions = new Map<string, ClarityDecisionNote>();
+  for (const segment of timeline.segments) {
+    clarityDecisions.set(segment.segmentId, {
+      segmentId: segment.segmentId,
+      groupId: segment.groupId ?? "",
+      clarity: { level: "off", reason: "off（未启用）" },
+      outputSha256: null,
+    });
+  }
   const lutDir = join(REPO_ROOT, "bundles/ai-video/library/luts");
   let assignmentOf = new Map<string, { lut: string | null; intensity: number; basis: string }>();
   if (segmentColor) {
@@ -492,6 +511,15 @@ async function main(): Promise<void> {
       const segment = timeline.segments[index]!;
       const assignment = assignmentOf.get(segment.segmentId);
       const target = clipPath(step.segmentId);
+      if (colorMap?.[segment.segmentId]) {
+        clarityDecisions.set(segment.segmentId, {
+          segmentId: segment.segmentId,
+          groupId: segment.groupId ?? "",
+          clarity: { level: "off", reason: "显式 --color-map 接管；不叠加共享清晰度" },
+          outputSha256: null,
+        });
+        continue;
+      }
       let clarityLevel: string = "off";
       let clarityReason = "off（未启用）";
       let hazeScore: number | undefined;
@@ -510,6 +538,12 @@ async function main(): Promise<void> {
         }
       }
       if ((!assignment || !assignment.lut) && clarityLevel === "off") {
+        clarityDecisions.set(step.segmentId, {
+          segmentId: step.segmentId,
+          groupId: segment.groupId ?? "",
+          clarity: { level: clarityLevel, reason: clarityReason, ...(metrics ? { metrics } : {}) },
+          outputSha256: null,
+        });
         segmentColorNotes.push({
           segmentId: step.segmentId,
           groupId: segment.groupId ?? "",
@@ -532,14 +566,27 @@ async function main(): Promise<void> {
       renameSync(graded, target);
       const shot = shots.find((entry) => entry.shotId === step.segmentId);
       if (shot) shot.path = target;
+      const outputSha256 = createHash("sha256").update(readFileSync(target)).digest("hex");
+      const clarity = {
+        level: clarityLevel,
+        reason: clarityReason,
+        ...(hazeScore === undefined ? {} : { hazeScore }),
+        ...(metrics ? { metrics } : {}),
+      };
+      clarityDecisions.set(step.segmentId, {
+        segmentId: step.segmentId,
+        groupId: segment.groupId ?? "",
+        clarity,
+        outputSha256,
+      });
       segmentColorNotes.push({
         segmentId: step.segmentId,
         groupId: segment.groupId ?? "",
         lut: assignment?.lut ?? null,
         intensity: assignment?.intensity ?? 0,
         basis: assignment?.basis ?? "仅清晰度增强（无调色计划）",
-        clarity: { level: clarityLevel, reason: clarityReason, ...(hazeScore === undefined ? {} : { hazeScore }), ...(metrics ? { metrics } : {}) },
-        sha256: createHash("sha256").update(readFileSync(target)).digest("hex"),
+        clarity,
+        sha256: outputSha256,
       });
     }
   }
@@ -569,6 +616,9 @@ async function main(): Promise<void> {
       renameSync(graded, target);
       const shot = shots.find((row) => row.shotId === step.segmentId);
       if (shot) shot.path = target;
+      const outputSha256 = createHash("sha256").update(readFileSync(target)).digest("hex");
+      const existingDecision = clarityDecisions.get(step.segmentId);
+      if (existingDecision) clarityDecisions.set(step.segmentId, { ...existingDecision, outputSha256 });
       colorMapNotes.push({
         segmentId: step.segmentId,
         profile: entry.profile ?? null,
@@ -576,7 +626,7 @@ async function main(): Promise<void> {
         intensity,
         corrections: entry.corrections ?? {},
         basis: entry.note ?? "显式逐镜调色（--color-map）",
-        sha256: createHash("sha256").update(readFileSync(target)).digest("hex"),
+        sha256: outputSha256,
       });
     }
     console.log(`  逐镜调色（--color-map）：${colorMapNotes.length} 段（其余保持原色）`);
@@ -1017,21 +1067,22 @@ const autoCoverPlan = explicitCoverAt
     profile: rhythmProfile, status: rhythmReceipt.status, artisticQuality: "unverified" };
   const filmProjectPath = join(outDir, "film-project.json");
   const filmProject = JSON.parse(readFileSync(filmProjectPath, "utf8")) as Record<string, unknown>;
+  const clarityPlan = [...clarityDecisions.values()];
   const clarityReceipt = {
     schemaVersion: "workloom.video-edit/clarity/v1",
     mode: clarityMode,
     stage: "shot-normalisation",
-    appliedToShots: segmentColorNotes.filter((entry) => entry.clarity?.level && entry.clarity.level !== "off").length,
-    totalShots: segmentColorNotes.length,
+    appliedToShots: clarityPlan.filter((entry) => entry.clarity.level !== "off").length,
+    totalShots: clarityPlan.length,
     levels: Object.fromEntries(["off", "light", "medium", "strong"].map((level) => [
-      level, segmentColorNotes.filter((entry) => entry.clarity?.level === level).length,
+      level, clarityPlan.filter((entry) => entry.clarity.level === level).length,
     ])),
     variantGrading: { clarity: "off", reason: "逐镜去雾已在共享归一化层完成，避免旧的固定 conservative 二次锐化" },
-    plan: segmentColorNotes.map((entry) => ({
+    plan: clarityPlan.map((entry) => ({
       segmentId: entry.segmentId,
       groupId: entry.groupId,
-      clarity: entry.clarity ?? null,
-      outputSha256: entry.sha256,
+      clarity: entry.clarity,
+      outputSha256: entry.outputSha256,
     })),
   };
   manifest.clarity = clarityReceipt;

@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { CLARITY_CHAINS, clarityForLevel, planClarity } from "../../packages/video-studio/src/edit/clarity.js";
-import { CLARITY_CHAINS as BRIDGE_CLARITY_CHAINS } from "../../bundles/ai-video/connectors/color-bridge/processing-quality.mjs";
+import { CLARITY_CHAINS, LEGACY_CONSERVATIVE_CLARITY, clarityForLevel, planClarity } from "../../packages/video-studio/src/edit/clarity.js";
+import {
+  CLARITY_CHAINS as BRIDGE_CLARITY_CHAINS,
+  LEGACY_CONSERVATIVE_CLARITY as BRIDGE_LEGACY_CONSERVATIVE_CLARITY,
+} from "../../bundles/ai-video/connectors/color-bridge/processing-quality.mjs";
 
 describe("镜头级清晰度/去雾计划", () => {
   it("雾感日出镜头（黑位 101 / 细节 59）判强档", () => {
@@ -29,6 +32,8 @@ describe("镜头级清晰度/去雾计划", () => {
 
   it("编辑计划与 color-bridge 执行链保持同一事实源", () => {
     expect(BRIDGE_CLARITY_CHAINS).toEqual(CLARITY_CHAINS);
+    expect(BRIDGE_LEGACY_CONSERVATIVE_CLARITY).toBe(LEGACY_CONSERVATIVE_CLARITY);
+    expect(LEGACY_CONSERVATIVE_CLARITY).toBe("unsharp=luma_msize_x=3:luma_msize_y=3:luma_amount=0.25:chroma_amount=0");
   });
 
   it("显式档位与链一致；非法输入报错", () => {

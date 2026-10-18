@@ -21,7 +21,7 @@
 export type ClarityLevel = "off" | "light" | "medium" | "strong";
 
 /** 历史 `conservative` 别名保持原 3×3/0.25 语义；新三档才是去雾链。 */
-export const LEGACY_CONSERVATIVE_CLARITY = "unsharp=5:5:0.35:5:5:0";
+export const LEGACY_CONSERVATIVE_CLARITY = "unsharp=luma_msize_x=3:luma_msize_y=3:luma_amount=0.25:chroma_amount=0";
 
 /** 滤镜链（顺序：先压回抬起的黑位，再大半径局部对比，最后自适应锐化，减少光晕）。 */
 export const CLARITY_CHAINS: Record<Exclude<ClarityLevel, "off">, string> = {

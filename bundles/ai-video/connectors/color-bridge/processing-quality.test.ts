@@ -32,7 +32,7 @@ describe("色彩转换与后期损伤护栏", () => {
   });
   it("conservative 保持旧语义，并暴露 light/medium/strong 三档去雾链", () => {
     expect(clarityFilter()).toBeNull();
-    expect(clarityFilter("conservative")).toBe("unsharp=5:5:0.35:5:5:0");
+    expect(clarityFilter("conservative")).toBe("unsharp=luma_msize_x=3:luma_msize_y=3:luma_amount=0.25:chroma_amount=0");
     expect(clarityFilter("conservative")).not.toBe(clarityFilter("light"));
     expect(clarityFilter("light")).toContain("curves=all=");
     expect(clarityFilter("light")).toContain("unsharp=5:5:0.40");
@@ -86,7 +86,8 @@ describe.runIf(hasEngine)("真实 ffmpeg 后期颜色与质量证据", () => {
     const result = await grade({ input: source, output, profile: null, lutPath: null, corrections: {}, auto: false,
       clarity: "conservative", qualityGuard: "report", bins });
     expect(sha(source)).toBe(before); expect(result).toMatchObject({ profile: null, lut: null, auto: null, sourceSha256: before, clarity: "conservative" });
-    expect(result.chain).toContain(",null,unsharp=5:5:0.35:5:5:0"); expect(result.chain).not.toMatch(/colorbalance=|curves=|eq=/);
+    expect(result.chain).toContain(",null,unsharp=luma_msize_x=3:luma_msize_y=3:luma_amount=0.25:chroma_amount=0");
+    expect(result.chain).not.toMatch(/colorbalance=|curves=|eq=/);
     expect(result.processingQuality).toMatchObject({ reviewed: true, outputSha256: sha(output) });
     await expect(grade({ input: source, output: path.join(dir, "technical-invalid.mp4"), profile: null, intensity: NaN, bins })).rejects.toMatchObject({ code: "bad_request" });
   });

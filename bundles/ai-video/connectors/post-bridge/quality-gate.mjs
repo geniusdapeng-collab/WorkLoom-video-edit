@@ -472,8 +472,35 @@ export async function inspectDeliveryManifest({ root, manifest, bins, phase = "p
       const delivered = [manifest.master, ...variants.flatMap((v) => [v.video, v.burned, v.softsub]),
         ...(manifest.danmaku?.forms ?? []).map((f) => ({ ...f, path: f.output ?? f.path })),
         ...(manifest.coverIntro?.forms ?? []).map((f) => ({ ...f, path: f.output ?? f.path }))].filter((entry) => entry?.path);
+      const covered = receipt.outputs.filter((row) => row.passed === true && row.path && hasHash(row.sha256));
+      const coverDerivatives = (manifest.coverIntro?.forms ?? []).map((form, index) => ({
+        ...form,
+        path: form.output ?? form.path,
+        asset: report.assets.find((asset) => asset.id === `cover-intro:${index}`),
+      }));
+      const sameOutput = (left, right) => left?.sha256 === right?.sha256
+        && path.resolve(base, left?.path ?? "") === path.resolve(base, right?.path ?? "");
       for (const item of delivered) {
-        if (!receipt.outputs?.some((row) => row.passed === true && row.sha256 === item.sha256 && path.resolve(base, row.path) === path.resolve(base, item.path))) throw new Error("当前交付形态未被首尾节奏复验覆盖");
+        if (covered.some((row) => sameOutput(row, item))) continue;
+        /**
+         * 烧封片头是已覆盖成片的派生形态：源文件必须逐字节命中节奏复验，
+         * 派生文件必须命中封面阶段资产回执、实际时长等于源片 + 片头，且有非零片头。
+         * 这不把未验证的任意新文件当成已覆盖。
+         */
+        const derivative = coverDerivatives.find((form) => sameOutput(form, item));
+        if (!derivative || !derivative.asset?.passed || !hasHash(derivative.sourceSha256)
+          || !Number.isFinite(derivative.introSeconds) || derivative.introSeconds <= 0
+          || !Number.isFinite(derivative.asset.probe?.videoDuration)) {
+          throw new Error("当前交付形态未被首尾节奏复验覆盖");
+        }
+        const sourceEvidence = receipt.outputs.find((row) => row.passed === true && row.sha256 === derivative.sourceSha256
+          && sameOutput(row, { path: derivative.source, sha256: derivative.sourceSha256 }));
+        const sourceAsset = report.assets.find((asset) => asset.path === derivative.source && asset.sha256 === derivative.sourceSha256 && asset.passed);
+        if (!sourceEvidence || !sourceAsset || !Number.isFinite(sourceAsset.probe?.videoDuration)
+          || Math.abs(derivative.asset.probe.videoDuration - sourceAsset.probe.videoDuration - derivative.introSeconds)
+            > Math.max(0.1, 2 / (derivative.asset.probe.fps || 25))) {
+          throw new Error("烧封片头派生形态未绑定已覆盖源片或实际时长不符");
+        }
       }
       checkChain("rhythm-direction", true, { sha256: binding.sha256, timelineSha256: binding.timelineSha256 });
     } catch (error) { checkChain("rhythm-direction", false, message(error)); }
