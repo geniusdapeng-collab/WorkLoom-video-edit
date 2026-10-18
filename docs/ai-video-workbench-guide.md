@@ -47,7 +47,7 @@ node scripts/workloom-agent.mjs invoke growth.video.workbench.guide
 4. **读取并核对正式前期产物。**用 `growth.video.production.shots` 读取服务端项目镜头和资格，核对合同中的每个固定项；MCP 只读能力不会替你创建项目或启动前期。系统正式产物尚未就绪时停止，不能拿本地草案冒充。
 5. **取得计划，才进入执行。**`growth.video.production.plan` 返回预览命令与前置清单；它本身不启动任何任务。将其参数与正式镜头文件、分流记录、brief、账号和声音合同逐项核对，再使用现有 CLI 执行本仓官方出片链。按 `execution.command/args` 逐参数调用，避免拼接未经转义的用户原话。
 6. **先恢复，再考虑补跑。**固定 project、work/out 目录和输入；成功原片在普通 resume 与 `--no-resume` 都按真实来源接受，不能靠开关将它重新付费。平台任务已提交却状态未知时查原任务；账户欠费/额度错误先解决账户状态。只有已有记录证明哪个镜头需要更改、且变更被授权，才走逐镜返修；同提示词不盲重试。
-7. **完整后期并核验。**保留官方 compose、color、subtitle、BGM、cover、mux、master、deliver 的实际记录；不在系统外用临时 ffmpeg、临时封面或手工音轨替换伪装交付。`growth.video.production.status` 用来读阶段结果，`growth.video.delivery.inspect` 用来核对清单和实际文件 SHA-256。缺少实际请求阶段、真实工具失败、清单缺件、来源/授权不符或当前摘要变化不能宣称完成。原片身份、服装、动作、画质、名义时长、嘴型、台词和声音品质不做默认评审；未测项为 null，`qualityReviewed=false`，不得当作品质已通过。
+7. **完整后期并核验。**保留官方 compose、color、subtitle、BGM、cover、mux、master 的实际记录；显式请求多版本时再保留 deliver。不得在系统外用临时 ffmpeg、临时封面或手工音轨替换伪装交付。`growth.video.production.status` 用来读阶段结果，`growth.video.delivery.inspect` 用来核对清单和实际文件 SHA-256。缺少实际请求阶段、真实工具失败、清单缺件、来源/授权不符或当前摘要变化不能宣称完成。原片身份、服装、动作、画质、名义时长、嘴型、台词和声音品质不做默认评审；未测项为 null，`qualityReviewed=false`，不得当作品质已通过。
 
 预生产归档的 `attempt-*.shotlist.json` 可能明确带 `draft:true`，还必须补齐片型必备标签和证据并经过本次待新生成镜头的渲染前检查；已成功原片不因历史草稿格式或新字段规则被重新渲染。文档不能把未提交的草稿提升为真实供应商成功。
 
@@ -95,7 +95,7 @@ node scripts/workloom-agent.mjs invoke growth.video.delivery.inspect --input-fil
 - **没有 Growthtest 的标准后期新入口。**此基线没有 `scripts/tools/film-standard-post.mts`、`packages/video-studio/src/standard-post-contract.ts`，CLI 不含 `--standard-post`。不要复制别仓命令或声称本仓已支持。
 - **没有 Growthtest 的 nativeaudio 专用契约。**本仓没有该专用合同文件，但普通全链默认保留原片完整节目声音，voice 阶段不隐式做 ASR 或补 TTS；只有明确配音、旁白、换声请求才进入新声音操作。不得静默替代原生声音或指定声线，也不得因声音品质失败自动重配。
 - **MCP 提供读取和预览。**本轮新增的是指南读取；视频创建、渲染与交付不会因为工具菜单多了一条指南而自动接通。
-- **后期使用本仓正式执行器。**默认一次执行明确 compose/color/subtitle/BGM/cover/mux/master/deliver，完整保留原片和真实回执。没有模型品质评价、试渲候选、画面差异/声音余量否决或自动重做；默认 UHD 只进行实际本地目标画布加工。真实加工、权限、来源与缺件失败仍明确。
+- **后期使用本仓正式执行器。**普通 AI 视频默认一次执行 compose/color/subtitle/BGM/cover/mux/master，交付一支保留原色、烧封面、烧台词、含 BGM 的母版；完整保留原片和真实回执。`deliver` 多风格包只在显式请求时执行。没有模型品质评价、试渲候选、画面差异/声音余量否决或自动重做；默认 UHD 只进行实际本地目标画布加工。真实加工、权限、来源与缺件失败仍明确。
 - **不自动发布到社交平台。**交付清单核验完成只代表本地交付核验；外发需要独立业务授权和真实远端回执。
 
 ## 5.1 默认后期与显式请求边界
@@ -159,9 +159,11 @@ git diff --check
 
 修改本仓生产入口或新增标准后期/音频契约时，更新本指南的能力边界与版本，并重新核对 CLI/MCP 返回正文、目录发现、路径与 SHA-256。受控共享文档和其它仓库的生产机制不在本指南修改范围内。
 
-## AI 生成普通全链的默认配色（2026-10-15）
+## AI 生成普通全链的默认单母版（2026-10-18）
 
-普通 `full-chain-film.mts` 的默认母版保持渲染素材的创作色彩，`color` 阶段记为 `preserve`，不调用调色工位；字幕、弹幕、原声、配乐、封面与请求的导出仍执行。默认三个呈现版本按下表输出，镜头只生成一次。
+普通 `full-chain-film.mts` 默认只交付一支母版：保留渲染素材的创作色彩，`color` 阶段记为 `preserve`；字幕默认烧录，封面默认烧进片头，BGM 默认混入。弹幕只有显式提供条目或传 `--auto-danmaku` 时执行。`deliver` 不进入缺省阶段，因此不会隐式生成调色变体或多版本。
+
+需要多风格版本时，调用方必须在 `--stages` 中显式加入 `deliver`：
 
 | 顺序 / ID | 实际处理 | 用途 |
 |---|---|---|
@@ -169,13 +171,13 @@ git diff --check
 | 2 / `warm-story` | `warm-film`，`intensity=0.3`，关闭自动调整，不叠第二层暖 LUT | 收敛后的轻暖调 |
 | 3 / `content-auto` | 依据分镜声明的题材、光线、人物等属性及镜头时长选择一个克制的全片配方 | 给出可以复核依据的内容调色版本 |
 
-三个版本分别从同一份未调色、未混配乐的共同源派生；不从暖调母版继续叠加滤镜。`content-auto` 在商品颜色准确性、夜景、人像、美食、风光、运动及混合题材之间选择，并在 `colorDecision` 留下属性、时长权重、原因和局限；缺属性时保守处理并明确未判定。它没有像素分析、实体分割或艺术评分，也不保证每个镜头的观感都是最优。
+这三个显式变体分别从同一份未调色、未混配乐的共同源派生；不从暖调母版继续叠加滤镜。`content-auto` 在商品颜色准确性、夜景、人像、美食、风光、运动及混合题材之间选择，并在 `colorDecision` 留下属性、时长权重、原因和局限；缺属性时保守处理并明确未判定。它没有像素分析、实体分割或艺术评分，也不保证每个镜头的观感都是最优。
 
 显式母版调色需同时设置 `--color-mode grade` 与 `--color-profile` / `--color-intensity`；保留原有显式 `best` 请求。母版的选择不会改变三个变体的共同源。默认不沿用旧的已调色缓存；策略、参数和源摘要均参与恢复核验。显式 `--variants` 仍支持旧 ID `cool-tech,warm-film,punchy-social`，未知或重复 ID 明确失败。
 
 交付清单记录 `colorPolicy`、共同源 SHA-256、每个版本的 profile / LUT / intensity 和自动方案依据；技术验收追踪实际加工链，原色版须为 0 次调色，其它两版各 1 次，且输入绑定共同源。渲染片段及旧账本保持只读。
 
-素材剪辑 `edit-post.mts` / package 的既有首推 `warm-story` 仍采用同一套 D 配方。Growthtest 中显式 `--standard-post` 的版本清单与一句话导演的独立作品合同继续服从各自已提交设置；本节描述普通生成全链的默认三版，不把不同入口的交付数量混为一谈。
+素材剪辑 `edit-post.mts` / package 的既有首推 `warm-story` 仍采用同一套 D 配方。Growthtest 中显式 `--standard-post` 的版本清单与一句话导演的独立作品合同继续服从各自已提交设置；本节描述普通生成全链，多版本只按显式请求执行，不把不同入口的交付数量混为一谈。
 
 ## 所有 AI 工作台共用的交付技术检查（2026-10-14）
 
