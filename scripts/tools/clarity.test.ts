@@ -13,10 +13,10 @@ describe("镜头级清晰度/去雾计划", () => {
     expect(decision.hazeScore).toBeGreaterThan(0.5);
   });
 
-  it("清晰山景（黑位 40 / 细节 102）只做轻档，避免过锐", () => {
+  it("清晰山景（黑位 40 / 细节 102）不处理，避免把正常纹理推成硬边", () => {
     const decision = planClarity({ lumaP5: 40, lumaStd: 57.6, detailEnergy: 102.4 });
-    expect(decision.level).toBe("light");
-    expect(decision.chain).toBe(CLARITY_CHAINS.light);
+    expect(decision.level).toBe("off");
+    expect(decision.chain).toBeNull();
   });
 
   it("干净高对比镜头不处理", () => {
@@ -26,8 +26,18 @@ describe("镜头级清晰度/去雾计划", () => {
   });
 
   it("中间态按阈值降到中档", () => {
-    expect(planClarity({ lumaP5: 60, lumaStd: 50, detailEnergy: 90 }).level).toBe("medium");
-    expect(planClarity({ lumaP5: 58, lumaStd: 50, detailEnergy: 85 }).level).toBe("medium");
+    expect(planClarity({ lumaP5: 78, lumaStd: 50, detailEnergy: 55 }).level).toBe("medium");
+    expect(planClarity({ lumaP5: 80, lumaStd: 50, detailEnergy: 58 }).level).toBe("medium");
+  });
+
+  it("高黑位但细节充足时不再误判强档", () => {
+    expect(planClarity({ lumaP5: 108, lumaStd: 43.51, detailEnergy: 556.37 }).level).toBe("medium");
+    expect(planClarity({ lumaP5: 125, lumaStd: 35.21, detailEnergy: 29.04 }).level).toBe("strong");
+  });
+
+  it("收敛后的链不再使用 13×13 强锐化与 CAS 0.50", () => {
+    expect(Object.values(CLARITY_CHAINS).join(",")).not.toContain("unsharp=13:13");
+    expect(Object.values(CLARITY_CHAINS).join(",")).not.toContain("cas=strength=0.50");
   });
 
   it("编辑计划与 color-bridge 执行链保持同一事实源", () => {

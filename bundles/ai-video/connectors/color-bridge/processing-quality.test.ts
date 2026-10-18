@@ -35,11 +35,11 @@ describe("色彩转换与后期损伤护栏", () => {
     expect(clarityFilter("conservative")).toBe("unsharp=luma_msize_x=3:luma_msize_y=3:luma_amount=0.25:chroma_amount=0");
     expect(clarityFilter("conservative")).not.toBe(clarityFilter("light"));
     expect(clarityFilter("light")).toContain("curves=all=");
-    expect(clarityFilter("light")).toContain("unsharp=5:5:0.40");
-    expect(clarityFilter("medium")).toContain("unsharp=9:9:0.65");
-    expect(clarityFilter("medium")).toContain("cas=strength=0.30");
-    expect(clarityFilter("strong")).toContain("unsharp=13:13:0.85");
-    expect(clarityFilter("strong")).toContain("cas=strength=0.50");
+    expect(clarityFilter("light")).toContain("unsharp=3:3:0.18");
+    expect(clarityFilter("medium")).toContain("unsharp=5:5:0.30");
+    expect(clarityFilter("medium")).toContain("cas=strength=0.15");
+    expect(clarityFilter("strong")).toContain("unsharp=7:7:0.45");
+    expect(clarityFilter("strong")).toContain("cas=strength=0.25");
     expect(() => clarityFilter("extreme")).toThrow(/clarity/);
   });
   const metric = { yavg: 100, rmsContrast: 30, tonalRange: 80, satMean: 0.3, oversatPct: 1, colorfulness: 35, sharpness: 12, shadowClipPct: 0, highlightClipPct: 0 };
@@ -77,8 +77,8 @@ describe.runIf(hasEngine)("真实 ffmpeg 后期颜色与质量证据", () => {
     expect(result.sha256).toBe(sha(output)); expect(result.processingQuality.reviewed).toBe(true);
     expect(result.processingQuality.perFrame).toHaveLength(result.processingQuality.sampleCount);
     expect(result.processingQuality.sourceDimensions.width).toBe(320); expect(result.processingQuality.outputDimensions.width).toBe(320);
-    expect(result.chain).toContain("curves=all='0/0 0.20/0.17");
-    expect(result.chain).toContain("unsharp=5:5:0.40:5:5:0");
+    expect(result.chain).toContain("curves=all='0/0 0.20/0.18");
+    expect(result.chain).toContain("unsharp=3:3:0.18");
     expect(result.colorManagement.destination).toMatchObject({ transfer: "bt709", range: "limited" });
   });
   it("纯技术 grade 可只做色彩管理与保守清晰度，无 look、LUT 或自动修正", async () => {

@@ -23,11 +23,16 @@ export type ClarityLevel = "off" | "light" | "medium" | "strong";
 /** 历史 `conservative` 别名保持原 3×3/0.25 语义；新三档才是去雾链。 */
 export const LEGACY_CONSERVATIVE_CLARITY = "unsharp=luma_msize_x=3:luma_msize_y=3:luma_amount=0.25:chroma_amount=0";
 
-/** 滤镜链（顺序：先压回抬起的黑位，再大半径局部对比，最后自适应锐化，减少光晕）。 */
+/**
+ * 滤镜链（顺序：先轻压抬起的黑位，再做小半径局部对比，最后少量自适应锐化）。
+ * 2026-10-18 产品反馈修订：前一版 strong 的 13×13/0.85 + CAS 0.50 会把正常纹理推成硬边，
+ * 同一帧细节能量约为 4K 参考帧的 2 倍。现在以“恢复通透”而不是“做强锐化”为目标：
+ * 半径和幅度都收一档，正常清晰镜头不再进入 strong。
+ */
 export const CLARITY_CHAINS: Record<Exclude<ClarityLevel, "off">, string> = {
-  light: "curves=all='0/0 0.20/0.17 0.50/0.50 0.80/0.81 1/1',unsharp=5:5:0.40:5:5:0",
-  medium: "curves=all='0/0 0.15/0.08 0.35/0.30 0.65/0.66 0.90/0.92 1/1',unsharp=9:9:0.65:5:5:0.06,cas=strength=0.30",
-  strong: "curves=all='0/0 0.15/0.07 0.35/0.30 0.65/0.66 0.90/0.92 1/1',unsharp=13:13:0.85:5:5:0.08,cas=strength=0.50",
+  light: "curves=all='0/0 0.20/0.18 0.50/0.50 0.80/0.81 1/1',unsharp=3:3:0.18",
+  medium: "curves=all='0/0 0.18/0.13 0.40/0.36 0.70/0.72 0.92/0.94 1/1',unsharp=5:5:0.30:5:5:0.03,cas=strength=0.15",
+  strong: "curves=all='0/0 0.15/0.09 0.35/0.30 0.65/0.67 0.90/0.92 1/1',unsharp=7:7:0.45:5:5:0.04,cas=strength=0.25",
 };
 
 export interface ClarityMetrics {
@@ -50,11 +55,11 @@ export interface ClarityDecision {
 const clamp01 = (value: number): number => Math.max(0, Math.min(1, value));
 
 /**
- * 镜头级档位判定（阈值来自本机两类镜头的 A/B 实测，保守优先）：
- *   strong：黑位 ≥80 或 细节 <50（明显雾/糊）
- *   medium：黑位 ≥55 或 细节 <80
- *   light ：黑位 ≥35 或 细节 <110
- *   off   ：本就清晰、黑位正常
+ * 镜头级档位判定（2026-10-18 第二轮收敛：黑位和细节必须共同支持“发灰/发糊”）：
+ *   strong：雾感合成分 ≥0.65 或 细节 <35
+ *   medium：雾感合成分 ≥0.48 或 细节 <60
+ *   light ：雾感合成分 ≥0.28 或 细节 <85
+ *   off   ：高黑位但细节充足、或低黑位且细节正常，均不再强锐化
  */
 export function planClarity(metrics: ClarityMetrics): ClarityDecision {
   const { lumaP5, lumaStd, detailEnergy } = metrics;
@@ -64,13 +69,13 @@ export function planClarity(metrics: ClarityMetrics): ClarityDecision {
   const hazeScore = clamp01(
     0.6 * clamp01((lumaP5 - 30) / 70) + 0.25 * clamp01((45 - lumaStd) / 45) + 0.15 * clamp01((140 - detailEnergy) / 140),
   );
-  if (lumaP5 >= 80 || detailEnergy < 50) {
+  if (hazeScore >= 0.65 || detailEnergy < 35) {
     return { level: "strong", chain: CLARITY_CHAINS.strong, hazeScore, reason: `黑位 ${lumaP5} / 细节 ${detailEnergy.toFixed(1)}：明显雾感或糊，强档` };
   }
-  if (lumaP5 >= 55 || detailEnergy < 80) {
+  if (hazeScore >= 0.48 || detailEnergy < 60) {
     return { level: "medium", chain: CLARITY_CHAINS.medium, hazeScore, reason: `黑位 ${lumaP5} / 细节 ${detailEnergy.toFixed(1)}：中等雾感，中档` };
   }
-  if (lumaP5 >= 35 || detailEnergy < 110) {
+  if (hazeScore >= 0.28 || detailEnergy < 85) {
     return { level: "light", chain: CLARITY_CHAINS.light, hazeScore, reason: `黑位 ${lumaP5} / 细节 ${detailEnergy.toFixed(1)}：轻微发灰，轻档` };
   }
   return { level: "off", chain: null, hazeScore, reason: `黑位 ${lumaP5} / 细节 ${detailEnergy.toFixed(1)}：清晰度正常，不处理` };

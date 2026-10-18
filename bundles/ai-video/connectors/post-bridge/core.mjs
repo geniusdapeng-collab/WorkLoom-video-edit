@@ -771,8 +771,8 @@ export async function normaliseShots({
     else args.push("-map", "0:v:0", "-map", "1:a:0", "-shortest");
     const tempTarget = path.join(dir, `${fileId}-${key}.${randomUUID()}.tmp.mp4`);
     args.push(
-      "-c:v", "libx264", "-preset", quality === "uhd" ? "medium" : "veryfast",
-      "-crf", quality === "uhd" ? "16" : "18", "-threads", "0", "-pix_fmt", "yuv420p",
+      "-c:v", "libx264", "-preset", "medium",
+      "-crf", quality === "uhd" ? "14" : "16", "-threads", "0", "-pix_fmt", "yuv420p",
       "-color_primaries", "bt709", "-color_trc", "bt709", "-colorspace", "bt709", "-color_range", "tv",
       "-c:a", "aac", "-b:a", "192k", "-ar", "48000", "-ac", "2",
       "-movflags", "+faststart", tempTarget,
@@ -1440,9 +1440,8 @@ async function assembleTimelineOwned({
   const fadeSec = Math.max(0.05, optionalNumber(transitions.fadeSec, 0.5));
   const [width, height] = resolution ?? [1080, 1920];
   if (!["hd", "uhd"].includes(quality)) throw new PostError(`未知清晰度档位：${quality}`, "bad_request");
-  const videoEncode = quality === "uhd"
-    ? ["-c:v", "libx264", "-preset", "medium", "-crf", "16", "-threads", "0", "-pix_fmt", "yuv420p"]
-    : ["-c:v", "libx264", "-preset", "veryfast", "-crf", "18", "-pix_fmt", "yuv420p"];
+  const videoEncode = ["-c:v", "libx264", "-preset", "medium",
+    "-crf", quality === "uhd" ? "14" : "16", "-threads", "0", "-pix_fmt", "yuv420p"];
   for (const clip of clips) {
     if (!fs.existsSync(clip.path)) throw new PostError(`归一化产物缺失：${clip.path}`, "not_found");
     if (path.resolve(clip.path) === path.resolve(output)) throw new PostError("拼接禁止覆盖输入镜头", "overwrite_source_forbidden");
@@ -2470,6 +2469,16 @@ export async function buildDeliveryPackage({
   /* ③ 逐变体：拼接 → 调色 → 音频 → 封面 → 文案 →（可选）软字幕轨 / 硬字幕 */
   const variantsOut = [];
   const audioFailures = [];
+  const danmakuRequest = danmaku
+    ? {
+      items: parseDanmaku(Array.isArray(danmaku) ? danmaku : danmaku.items),
+      lanes: optionalNumber(danmaku.lanes, 4),
+      opacity: optionalNumber(danmaku.opacity, 0.85),
+    }
+    : null;
+  if (danmakuRequest && danmakuRequest.items.length === 0) {
+    throw new PostError("要求弹幕但条目为空", "bad_request");
+  }
   for (const pack of packs) {
     const variantDir = path.join(target, "variants", pack.id);
     await fsp.mkdir(variantDir, { recursive: true });
@@ -2752,6 +2761,7 @@ export async function buildDeliveryPackage({
     // 软字幕轨（画面逐帧零改动）与可选硬字幕
     let softsub = null;
     let burned = null;
+    let textInputs = null;
     if (softSubtitles && (variantSubtitles || sidecar)) {
       const softTarget = path.join(variantDir, `${pack.id}.softsub.mp4`);
       let tracks;
@@ -2797,34 +2807,85 @@ export async function buildDeliveryPackage({
       const cues = variantCues ?? parseSrt(await fsp.readFile(
         sidecar.files.find((file) => file.format === "srt" && file.lang === "chi").path, "utf8",
       ));
-      const inputs = await captureProcessingInputs([scoredPath]);
+      textInputs = await captureProcessingInputs([scoredPath]);
+      const combineDanmaku = Boolean(danmakuRequest);
       burned = await renderWithSubtitles({
         mode: "subtitle",
         input: scoredPath,
-        output: path.join(variantDir, `${pack.id}.burned.mp4`),
+        output: path.join(variantDir, `${pack.id}${combineDanmaku ? ".burned.danmaku" : ".burned"}.mp4`),
         cues,
         platform,
         brief: { 平台: platform ?? "默认" },
         bins,
         /** 交付形态的最后一次重编码：必须做清晰度回归（T-2026-1017） */
         verifySharpness: true,
+        ...(combineDanmaku ? {
+          danmakuItems: danmakuRequest.items,
+          danmakuOptions: { lanes: danmakuRequest.lanes, opacity: danmakuRequest.opacity },
+        } : {}),
       });
-      processing.push(await writeProcessingProof({ root: target, stage: "subtitles", id: `${pack.id}-burned`, inputs,
-        outputs: [{ path: burned.output.path, sha256: burned.output.hash }], parameters: { mode: "burned", cuesSha256: await contentKey(cues), platform },
-        execution: { cueCount: cues.length, checks: burned.checks } }));
+      processing.push(await writeProcessingProof({ root: target, stage: "subtitles", id: `${pack.id}-burned`, inputs: textInputs,
+        outputs: [{ path: burned.output.path, sha256: burned.output.hash }],
+        parameters: {
+          mode: combineDanmaku ? "subtitle+danmaku" : "burned",
+          cuesSha256: await contentKey(cues),
+          platform,
+          textEncodingPasses: 1,
+          combinedEncoding: combineDanmaku,
+          danmakuCount: combineDanmaku ? danmakuRequest.items.length : 0,
+        },
+        execution: {
+          cueCount: cues.length,
+          danmakuCount: combineDanmaku ? danmakuRequest.items.length : 0,
+          textEncodingPasses: 1,
+          checks: burned.checks,
+        } }));
     }
 
     let danmakuResult = null;
-    if (danmaku) {
-      const items = parseDanmaku(Array.isArray(danmaku) ? danmaku : danmaku.items);
-      if (!items.length) throw new PostError("要求弹幕但条目为空", "bad_request");
-      const source = burned?.output.path ?? scoredPath;
-      const inputs = await captureProcessingInputs([source]);
-      danmakuResult = await renderDanmaku({ input: source, output: path.join(variantDir, `${pack.id}${burned ? ".burned" : ""}.danmaku.mp4`),
-        items, platform, lanes: danmaku.lanes ?? 4, opacity: danmaku.opacity ?? 0.85, bins, verifySharpness: true });
-      processing.push(await writeProcessingProof({ root: target, stage: "danmaku", id: String(variantsOut.length), inputs,
-        outputs: [{ path: danmakuResult.output.path, sha256: danmakuResult.output.hash }], parameters: { mode: "danmaku", items },
-        execution: { cueCount: items.length, checks: danmakuResult.checks } }));
+    if (danmakuRequest) {
+      if (burned?.danmaku) {
+        /** 字幕和弹幕共用同一份 ASS 与同一次 libx264 编码；两条 proof 绑定同一个输出字节。 */
+        const inputs = textInputs ?? await captureProcessingInputs([scoredPath]);
+        danmakuResult = burned.danmaku;
+        processing.push(await writeProcessingProof({
+          root: target,
+          stage: "danmaku",
+          id: String(variantsOut.length),
+          inputs,
+          outputs: [{ path: burned.output.path, sha256: burned.output.hash }],
+          parameters: {
+            mode: "subtitle+danmaku",
+            items: danmakuRequest.items,
+            lanes: danmakuRequest.lanes,
+            opacity: danmakuRequest.opacity,
+            textEncodingPasses: 1,
+            combinedEncoding: true,
+          },
+          execution: {
+            cueCount: danmakuRequest.items.length,
+            checks: burned.checks,
+            textEncodingPasses: 1,
+            sameOutputAsSubtitles: true,
+          },
+        }));
+      } else {
+        const inputs = await captureProcessingInputs([scoredPath]);
+        danmakuResult = await renderDanmaku({
+          input: scoredPath,
+          output: path.join(variantDir, `${pack.id}.danmaku.mp4`),
+          items: danmakuRequest.items,
+          platform,
+          lanes: danmakuRequest.lanes,
+          opacity: danmakuRequest.opacity,
+          bins,
+          verifySharpness: true,
+        });
+        processing.push(await writeProcessingProof({ root: target, stage: "danmaku", id: String(variantsOut.length), inputs,
+          outputs: [{ path: danmakuResult.output.path, sha256: danmakuResult.output.hash }],
+          parameters: { mode: "danmaku", items: danmakuRequest.items, lanes: danmakuRequest.lanes, opacity: danmakuRequest.opacity, textEncodingPasses: 1, combinedEncoding: false },
+           execution: { cueCount: danmakuRequest.items.length, checks: danmakuResult.checks, textEncodingPasses: 1 } }));
+      }
     }
     variantsOut.push({
       id: pack.id,
@@ -2838,7 +2899,13 @@ export async function buildDeliveryPackage({
       artifacts: {
         video: { path: scoredPath, sha256: await sha256File(scoredPath), duration: scoredProbe.duration, resolution: [scoredProbe.width, scoredProbe.height] },
         softsub: softsub ? { path: softsub.output, sha256: softsub.sha256, tracks: softsub.tracks, checks: softsub.checks, clamps: softsub.clamps ?? null } : null,
-        burned: burned ? { path: burned.output.path, sha256: burned.output.hash, checks: burned.checks } : null,
+        burned: burned ? {
+          path: burned.output.path,
+          sha256: burned.output.hash,
+          checks: burned.checks,
+          combinedWithDanmaku: Boolean(burned.danmaku),
+          textEncodingPasses: 1,
+        } : null,
         cover: { path: cover.output, sha256: cover.sha256, at: cover.at, requestedAt: cover.requestedAt, background: cover.background, text: cover.text, checks: cover.checks },
         copy: { path: path.join(variantDir, "copy.md"), sha256: await sha256File(path.join(variantDir, "copy.md")),
           jsonPath: path.join(variantDir, "copy.json"), jsonSha256: await sha256File(path.join(variantDir, "copy.json")),
@@ -3258,7 +3325,12 @@ kind: "duration_consistent",
         : null,
       video: { path: path.relative(target, variant.artifacts.video.path), sha256: variant.artifacts.video.sha256, duration: variant.artifacts.video.duration, resolution: variant.artifacts.video.resolution },
       softsub: variant.artifacts.softsub ? { path: path.relative(target, variant.artifacts.softsub.path), sha256: variant.artifacts.softsub.sha256, tracks: variant.artifacts.softsub.tracks.map((track) => ({ lang: track.lang, title: track.title, clamped: track.clamped === true })), checks: variant.artifacts.softsub.checks } : null,
-      burned: variant.artifacts.burned ? { path: path.relative(target, variant.artifacts.burned.path), sha256: variant.artifacts.burned.sha256 } : null,
+      burned: variant.artifacts.burned ? {
+        path: path.relative(target, variant.artifacts.burned.path),
+        sha256: variant.artifacts.burned.sha256,
+        combinedWithDanmaku: variant.artifacts.burned.combinedWithDanmaku === true,
+        textEncodingPasses: variant.artifacts.burned.textEncodingPasses ?? null,
+      } : null,
       cover: {
         path: path.relative(target, variant.artifacts.cover.path),
         sha256: variant.artifacts.cover.sha256,

@@ -11,9 +11,9 @@
   ],
   "color": {
     "profile": "high-contrast-social",
-    "intensity": 0.9,
-    "lookLabel": "高对比社媒",
-    "note": "压黑、提对比与饱和为明确促销配方；商品事实与授权保持原来源，不因品质检测自动重生成。"
+    "intensity": 0.38,
+    "lookLabel": "中高对比社媒",
+    "note": "2026-10-18 收敛：保留欢快版的对比与饱和倾向，但不再接近满档压黑；避免把清晰纹理推成硬边。商品事实与授权保持原来源，不因品质检测自动重生成。"
   },
   "transitions": {
     "mode": "xfade",

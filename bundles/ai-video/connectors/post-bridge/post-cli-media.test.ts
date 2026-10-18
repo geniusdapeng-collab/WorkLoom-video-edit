@@ -46,7 +46,7 @@ beforeAll(async () => {
   fs.writeFileSync(path.join(root, "caption.srt"), "1\n00:00:00,100 --> 00:00:02,000\n看山吃饺子\n\n");
   const missingPack = path.join(root, "missing-home", "Downloads", "optional-pack");
   expect(fs.existsSync(path.join(root, "missing-home"))).toBe(false);
-  const result = await command("scripts/tools/edit-post.mts", ["--timeline", path.join(root, "timeline.json"), "--out-dir", out, "--variants", "warm-story,clean-tech", "--rhythm-plan", path.join(root, "rhythm.json"), "--subtitle", path.join(root, "caption.srt"), "--danmaku", path.join(root, "danmaku.json"), "--title", "看山吃饺子", "--bgm-section", "full", "--bgm-pack", missingPack, "--json"]);
+  const result = await command("scripts/tools/edit-post.mts", ["--timeline", path.join(root, "timeline.json"), "--out-dir", out, "--variants", "warm-story,clean-tech,natural-clean", "--rhythm-plan", path.join(root, "rhythm.json"), "--subtitle", path.join(root, "caption.srt"), "--danmaku", path.join(root, "danmaku.json"), "--title", "看山吃饺子", "--bgm-section", "full", "--bgm-pack", missingPack, "--json"]);
   expect(result.text, "actual edit-post stdout/stderr").toBeTruthy(); expect(result.code, result.text).toBe(0);
   expect(fs.existsSync(path.join(root, "missing-home"))).toBe(false);
 }, 180_000);
@@ -55,15 +55,30 @@ test("actual edit-post preserves native pixels/frames, default declared hard cut
   const manifest = json(path.join(out, "delivery-manifest.json"));
   expect(manifest.resolution).toEqual([320, 180]); expect(manifest.nativeResolution).toEqual([320, 180]); expect(manifest.postQuality.passed).toBe(true);
   const rhythm = json(path.join(out, "edit-rhythm-receipt.json")); expect(rhythm.status).toBe("passed"); expect(rhythm.actualClips.map((clip: any) => clip.media.videoFrames)).toEqual([15, 60, 90]);
-  expect(manifest.postRequirements.danmaku).toBe(true); expect(manifest.danmaku.forms).toHaveLength(2);
+  expect(manifest.postRequirements.danmaku).toBe(true); expect(manifest.danmaku.forms).toHaveLength(3);
+  expect(manifest.variants.find((variant: any) => variant.id === "natural-clean")?.style).toMatchObject({ color: null, bgm: { enabled: false } });
   for (const variant of manifest.variants) {
     expect(variant.style.transitions.mode).toBe("hard"); expect(variant.burned.path).toBeTruthy(); expect(variant.softsub.path).toBeTruthy();
+    expect(variant.burned.path).toMatch(/\.burned\.danmaku\.mp4$/);
+    expect(variant.burned).toMatchObject({ combinedWithDanmaku: true, textEncodingPasses: 1 });
+    expect(fs.existsSync(path.join(out, `variants/${variant.id}/${variant.id}.burned.mp4`))).toBe(false);
+    const subtitleProof = manifest.processing.find((row: any) => row.id === `${variant.id}-burned`);
+    const danmakuProof = manifest.processing.find((row: any) => row.stage === "danmaku" && row.id === String(manifest.variants.indexOf(variant)));
+    expect(subtitleProof).toBeTruthy(); expect(danmakuProof).toBeTruthy();
     const proof = manifest.processing.find((row: any) => row.id === `${variant.id}-sound`);
     const document = json(path.join(out, proof.path)); expect(document.execution.videoPacketsUnchanged).toBe(true); expect(document.execution.placements[0].atSec).toBe(0.5);
+    const subtitleDocument = json(path.join(out, subtitleProof.path));
+    const danmakuDocument = json(path.join(out, danmakuProof.path));
+    expect(subtitleDocument.parameters).toMatchObject({ combinedEncoding: true, textEncodingPasses: 1 });
+    expect(danmakuDocument.parameters).toMatchObject({ combinedEncoding: true, textEncodingPasses: 1 });
+    expect(subtitleDocument.outputs[0].sha256).toBe(danmakuDocument.outputs[0].sha256);
     expect(media(path.join(out, variant.video.path)).streams.find((stream: any) => stream.codec_type === "video").nb_read_frames).toBe("165");
   }
   expect(timeline.sources.map((source: any) => sha(source.path))).toEqual(original);
   expect((await inspectDeliveryManifest({ root: out, manifest, bins })).passed).toBe(true);
+  const twoPassClaim = structuredClone(manifest);
+  twoPassClaim.variants[0].burned.combinedWithDanmaku = false;
+  expect((await inspectDeliveryManifest({ root: out, manifest: twoPassClaim, bins })).passed).toBe(false);
 }, 60_000);
 test("explicit fast cut rejects speed changes and partial/downsampled canvas before formal completion", async () => {
   const changed = structuredClone(timeline); changed.segments[0].speed = 2; changed.segments[0].durationSeconds = 0.25; write(path.join(root, "speed.json"), changed);

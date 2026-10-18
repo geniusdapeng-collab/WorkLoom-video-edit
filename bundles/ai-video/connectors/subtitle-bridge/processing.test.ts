@@ -81,6 +81,40 @@ mediaSuite("subtitle production uses one real transform without source quality r
     expect(sha(source)).toBe(initialHash);
   }, 30000);
 
+  it("subtitles and danmaku share one ASS and one medium/CRF16 encode", async () => {
+    const output = path.join(root, "combined-text.mp4");
+    const before = traces().length;
+    const report = await renderWithSubtitles({
+      input: source,
+      output,
+      cues,
+      danmakuItems: [
+        { at: 0.1, text: "弹幕合并", mode: "top" },
+        { at: 0.2, text: "只编码一次", mode: "scroll" },
+      ],
+      brief,
+      bins,
+    });
+    expect(report.mode).toBe("subtitle+danmaku");
+    expect(report.pipeline).toMatchObject({
+      textLayers: ["subtitles", "danmaku"],
+      textEncodingPasses: 1,
+      sourceEncodingPolicy: "single-pass-combined-ass",
+    });
+    expect(report.danmaku.timeline).toMatchObject({ ok: true, events: 2, sourceEvents: 2 });
+    expect(report.checks.danmaku_timeline_ok).toBe(true);
+    expect(report.output.hash).toBe(sha(output));
+    const commands = traces().slice(before).filter((argv) => argv.includes(source));
+    expect(commands).toHaveLength(1);
+    expect(commands[0]).toEqual(expect.arrayContaining(["-preset", "medium", "-crf", "16"]));
+    const ass = fs.readFileSync(report.assPath, "utf8");
+    expect(ass).toContain("测试");
+    expect(ass).toContain("弹幕合并");
+    expect(ass.split("\n").filter((line) => line.startsWith("Dialogue:"))).toHaveLength(3);
+    decode(output);
+    expect(sha(source)).toBe(initialHash);
+  }, 30000);
+
   it.each(["core", "tool", "cli"])("%s burn retains the full requested long cue when layout advice fails", async (entry) => {
     const text = "成功原片的完整用户文字不因建议行宽被删减".repeat(4);
     const longSrt = `1\n00:00:00,100 --> 00:00:01,100\n${text}\n`;

@@ -27,6 +27,8 @@
  *   字幕形态默认口径（2026-10-12 客户实测事故后改为默认烧字）：
  *     提供 `--subtitle` 时**默认产出烧字形态**（成片自带字幕，任何播放器/预览器直接可见）；
  *     需要纯软字幕轨（剪辑/平台字幕轨）时显式 `--no-burn-subtitles`。
+ *     同时提供 `--danmaku` 时，字幕和弹幕共用同一份 ASS、只编码一次（2026-10-18）；
+ *     1080P 使用 libx264 medium/CRF16，UHD 使用 medium/CRF14。
  *     背景：macOS 的 Quick Look/QuickTime 默认不会自动打开软字幕轨（AVFoundation 自动选择实测为「无」），
  *     交付「软字幕轨」文件给他人时，对方看到的成片"没有字幕"。
  *   输出分辨率默认**跟随素材原生分辨率**（取与目标画幅一致的最大素材档位；4K 素材 → 3840×2160，
@@ -860,6 +862,20 @@ async function main(): Promise<void> {
     findVariantPack: (id: string, options?: Record<string, unknown>) => Record<string, unknown>;
     VARIANT_DIR: string;
   };
+  const danmakuItemsPath = arg("--danmaku", "");
+  let danmakuRequest: { items: unknown[]; lanes: number; opacity: number } | null = null;
+  if (danmakuItemsPath) {
+    const itemsFile = abs(danmakuItemsPath);
+    if (!existsSync(itemsFile)) throw new Error(`弹幕条目文件不存在：${itemsFile}`);
+    const doc = JSON.parse(readFileSync(itemsFile, "utf8")) as unknown;
+    const items = Array.isArray(doc) ? doc : ((doc as { items?: unknown[] }).items ?? []);
+    if (!items.length) throw new Error("弹幕条目为空（数组或 {items:[…]}）");
+    danmakuRequest = {
+      items,
+      lanes: Number(arg("--danmaku-lanes", "4")),
+      opacity: Number(arg("--danmaku-opacity", "0.85")),
+    };
+  }
 
   const project = {
     projectId: timeline.filmId ?? timeline.timelineId,
@@ -901,6 +917,7 @@ async function main(): Promise<void> {
     ...(subtitlePath ? { subtitles: { zhPath: subtitlePath } } : {}),
     burnSubtitles,
     softSubtitles: true,
+    ...(danmakuRequest ? { danmaku: danmakuRequest } : {}),
   });
 
   /**
@@ -981,79 +998,32 @@ const autoCoverPlan = explicitCoverAt
   }
 
   const manifestPath = join(outDir, "delivery-manifest.json");
-  /**
-   * 弹幕层（`--danmaku <条目.json>`，2026-10-13，审计 F5 修复）：
-   * 弹幕是**发布形态层**——默认在「烧字」形态（未烧字则用干净变体）上再烧一层，
-   * 产出 `variants/<id>/<id>.burned.danmaku.mp4`；封面烧封由 `edit:cover` 继续叠加成
-   * `…danmaku.cover.mp4`（推荐弹幕发布件）。条目支持数组或 `{items:[…]}`，格式与
-   * `edit:danmaku` / `subtitlewrite.danmaku` 同源（at/text/mode/colour/sizeScale）。
-   */
-  const danmakuItemsPath = arg("--danmaku", "");
-  const danmakuReceipts: Array<Record<string, unknown>> = [];
   const qa = await import("../../bundles/ai-video/connectors/post-bridge/quality-gate.mjs") as unknown as {
-    captureProcessingInputs: (files: string[]) => Promise<Array<{ path: string; sha256: string }>>;
-    writeProcessingProof: (options: Record<string, unknown>) => Promise<Record<string, unknown>>;
     inspectDeliveryManifest: (options: Record<string, unknown>) => Promise<{ passed: boolean; checks: unknown[] }>;
     writePostQuality: (root: string, report: unknown) => Promise<Record<string, unknown>>;
     assertPostQuality: (report: unknown) => void;
   };
-  const danmakuProofs: Array<Record<string, unknown>> = [];
-  if (danmakuItemsPath) {
-    const itemsFile = abs(danmakuItemsPath);
-    if (!existsSync(itemsFile)) throw new Error(`弹幕条目文件不存在：${itemsFile}`);
-    const doc = JSON.parse(readFileSync(itemsFile, "utf8")) as unknown;
-    const items = Array.isArray(doc) ? doc : ((doc as { items?: unknown[] }).items ?? []);
-    if (!items.length) throw new Error("弹幕条目为空（数组或 {items:[…]}）");
-    const bridge = await import("../../bundles/ai-video/connectors/subtitle-bridge/core.mjs") as unknown as {
-      parseDanmaku: (input: unknown[]) => unknown[];
-      renderDanmaku: (options: Record<string, unknown>) => Promise<{
-        output: { path: string; hash: string; bytes: number };
-        density?: Record<string, unknown>;
-        checks?: Record<string, boolean>;
-      }>;
-    };
-    const parsed = bridge.parseDanmaku(items);
-    const lanes = Number(arg("--danmaku-lanes", "4"));
-    const opacity = Number(arg("--danmaku-opacity", "0.85"));
-    for (const variantId of variants) {
-      const burnedFile = join(outDir, "variants", variantId, `${variantId}.burned.mp4`);
-      const plainFile = join(outDir, "variants", variantId, `${variantId}.mp4`);
-      const source = existsSync(burnedFile) ? burnedFile : (existsSync(plainFile) ? plainFile : null);
-      if (!source) continue;
-      const suffix = source === burnedFile ? `${variantId}.burned.danmaku` : `${variantId}.danmaku`;
-      const output = join(outDir, "variants", variantId, `${suffix}.mp4`);
-      const inputs = await qa.captureProcessingInputs([source]);
-      const report = await bridge.renderDanmaku({
-        input: source, output, items: parsed, platform,
-        brief: { 平台: platform ?? "默认", 内容调性: project.copy?.tone ?? null },
-        opacity, lanes, evidenceDir: join(outDir, "danmaku", variantId), bins: { ffmpeg: FFMPEG, ffprobe: FFPROBE },
-      });
-      danmakuProofs.push(await qa.writeProcessingProof({ root: outDir, stage: "danmaku", id: String(danmakuReceipts.length), inputs,
-        outputs: [{ path: report.output.path, sha256: report.output.hash }], parameters: { mode: "danmaku", lanes, opacity, items: parsed },
-        execution: { cueCount: parsed.length, checks: report.checks } }));
-      danmakuReceipts.push({
-        variantId, source: relative(outDir, source), output: relative(outDir, output),
-        items: parsed.length, lanes, opacity,
-        sha256: report.output.hash, bytes: report.output.bytes,
-        density: report.density ?? null, checks: report.checks ?? null,
-        note: DANMAKU_PUBLISH_NOTE,
-      });
-    }
-    console.log(`  弹幕层：${danmakuReceipts.length} 条形态产出（--danmaku，${parsed.length} 条弹幕）`);
-  }
   const manifest = existsSync(manifestPath)
     ? JSON.parse(readFileSync(manifestPath, "utf8")) as Record<string, unknown>
     : null;
-  if (manifest && danmakuReceipts.length) {
-    /** 弹幕形态写进交付清单（谁、哪条、多少条、sha256），与字幕/封面回执同构。 */
-    manifest.processing = [...((manifest.processing as unknown[]) ?? []), ...danmakuProofs];
-    manifest.postRequirements = { ...(manifest.postRequirements as Record<string, unknown>), danmaku: true };
+  if (!manifest) throw new Error("正式后期缺交付清单");
+  const danmakuReceipts = danmakuRequest
+    ? (((manifest.danmaku as { forms?: Array<Record<string, unknown>> } | null)?.forms ?? []).map((form) => ({
+      ...form,
+      items: danmakuRequest.items.length,
+      lanes: danmakuRequest.lanes,
+      opacity: danmakuRequest.opacity,
+      note: DANMAKU_PUBLISH_NOTE,
+    })))
+    : [];
+  if (danmakuRequest) {
     manifest.danmaku = {
+      ...(manifest.danmaku as Record<string, unknown>),
       source: abs(danmakuItemsPath),
       note: DANMAKU_PUBLISH_NOTE,
       forms: danmakuReceipts,
     };
-    writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
+    console.log(`  字幕+弹幕单次编码：${danmakuReceipts.length} 条形态（${danmakuRequest.items.length} 条弹幕）`);
   }
   const transitionSummaryPath = join(outDir, "transitions", "transition-receipt.json");
   const transitionSummary = existsSync(transitionSummaryPath)
@@ -1061,7 +1031,6 @@ const autoCoverPlan = explicitCoverAt
       scopes?: Array<{ scope: string; mode: string | null; transitionCount: number; hardCutCount: number | null; types: string[] }>;
     }
     : null;
-  if (!manifest) throw new Error("正式后期缺交付清单");
   await assertEditedSourcesPreserved(originalSourceHashes);
   manifest.rhythm = { receipt: "edit-rhythm-receipt.json", sha256: createHash("sha256").update(readFileSync(join(outDir, "edit-rhythm-receipt.json"))).digest("hex"),
     profile: rhythmProfile, status: rhythmReceipt.status, artisticQuality: "unverified" };
@@ -1086,7 +1055,22 @@ const autoCoverPlan = explicitCoverAt
     })),
   };
   manifest.clarity = clarityReceipt;
-  filmProject.processing = manifest.processing; filmProject.rhythm = manifest.rhythm; filmProject.clarity = clarityReceipt;
+  const combinedTextVariants = ((manifest.variants ?? []) as Array<{ id: string; burned?: { combinedWithDanmaku?: boolean } }>)
+    .filter((variant) => variant.burned?.combinedWithDanmaku === true)
+    .map((variant) => variant.id);
+  const textPipeline = {
+    schemaVersion: "workloom.video-edit/text-pipeline/v1",
+    combinedSubtitleDanmaku: Boolean(danmakuRequest && burnSubtitles),
+    combinedVariants: combinedTextVariants,
+    textEncodingPasses: 1,
+    sourceEncodingPolicy: "single-pass-combined-ass",
+    encoder: { codec: "libx264", preset: "medium", crf: quality === "uhd" ? 14 : 16 },
+  };
+  manifest.textPipeline = textPipeline;
+  filmProject.processing = manifest.processing;
+  filmProject.rhythm = manifest.rhythm;
+  filmProject.clarity = clarityReceipt;
+  filmProject.textPipeline = textPipeline;
   const layers = filmProject.layers as { variants?: Array<{ id: string; artifacts: Record<string, unknown> }> };
   for (const variant of (manifest.variants ?? []) as Array<{ id: string; cover: Record<string, unknown> }>) {
     const stored = layers.variants?.find((row) => row.id === variant.id);
@@ -1134,6 +1118,7 @@ const autoCoverPlan = explicitCoverAt
         .map((entry) => entry.sourceId),
     },
     clarity: clarityReceipt,
+    textPipeline,
     transitions: {
       mode: transitionsMode,
       easing: transitionsEasing,
@@ -1228,7 +1213,9 @@ perVariant: coverMoments.map((moment, index) => ({
     console.log(`  配乐落位：选段 ${bgmSection}｜切点对齐 ${cutTimes.length} 个${bgmCutDriven ? "（cut-driven BPM）" : ""}`);
     if (subtitlePath) {
       console.log(`  旁挂字幕：${subtitlePath}（已生成 srt/ass/vtt + 清单）`);
-      console.log(`  字幕形态：${burnSubtitles ? "已烧字（默认；--no-burn-subtitles 可退回软字幕轨）" : "仅软字幕轨（--no-burn-subtitles）——预览器默认不显示，分享请用烧字形态"}`);
+      console.log(`  字幕形态：${burnSubtitles
+        ? (danmakuRequest ? "字幕+弹幕单次 ASS 编码（默认）" : "已烧字（默认；--no-burn-subtitles 可退回软字幕轨）")
+        : "仅软字幕轨（--no-burn-subtitles）——预览器默认不显示，分享请用烧字形态"}`);
     }
     console.log(`  交付清单：${manifestPath}`);
     if (transitionSummary?.scopes?.length) {

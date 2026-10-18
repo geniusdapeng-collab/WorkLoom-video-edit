@@ -19,7 +19,7 @@
  *     [--clarity auto|off|light|medium|strong]
  *
  * full 模式（默认）：
- *   ① edit:post（1920×1080 全链路，含三形态/调色/BGM/字幕/转场/弹幕）
+ *   ① edit:post（1920×1080 全链路，含变体调色/BGM/字幕/转场/弹幕；分段调色需显式 --segment-color）
  *   ② edit:cover（封面三风格机检 + 1.6s 烧封片头，写推荐发布件）
  * light 模式：
  *   edit:assemble → subtitle-cli burn → bgm-cli mix（几分钟量级的"先看版"）
@@ -123,9 +123,10 @@ function main(): void {
   const postArgs = [node, "--import", "tsx", join(REPO_ROOT, "scripts/tools/edit-post.mts"),
     "--timeline", timelineFile, "--out-dir", deliveryDir,
     "--width", "1920", "--height", "1080", "--allow-downscale",
-    "--variants", variants, "--subtitle", subtitleFile, "--segment-color",
+    "--variants", variants, "--subtitle", subtitleFile,
     "--bgm", "agent", "--platform", platform, "--title", title, "--json",
     ...(arg("--clarity") ? ["--clarity", arg("--clarity")] : []),
+    ...(flag("--segment-color") ? ["--segment-color"] : []),
     ...(bgmPack ? ["--bgm-pack", abs(bgmPack)] : []),
     ...(arg("--bgm-section") ? ["--bgm-section", arg("--bgm-section")] : []),
     ...(flag("--bgm-cut-driven") ? ["--bgm-cut-driven"] : []),
@@ -162,7 +163,7 @@ function writeReceipt(steps: StepReceipt[], outDir: string, mode: string, finalO
     totalMs: steps.reduce((sum, step) => sum + step.ms, 0),
     steps,
     note: mode === "full"
-      ? "1080P 完整版（调色/BGM/字幕/转场/快切/封面烧封/弹幕/交付清单）；4K 需用户确认后另跑 edit:post"
+      ? "1080P 完整版（变体调色/BGM/字幕/转场/快切/字幕+弹幕单次编码/封面烧封/交付清单）；分段调色需显式 --segment-color；4K 需用户确认后另跑 edit:post"
       : "极速预览（轻链路，无调色/封面/弹幕），不作为默认交付件",
     generatedAt: new Date().toISOString(),
   };

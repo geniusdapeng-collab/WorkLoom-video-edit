@@ -64,7 +64,8 @@ describe("弹幕形态：与字幕/封面同构的后缀叠加", () => {
   });
 
   it("弹幕口径说明写明「再烧一层」与「原形态保留」", () => {
-    expect(DANMAKU_PUBLISH_NOTE).toContain("再烧一层弹幕");
+    expect(DANMAKU_PUBLISH_NOTE).toContain("同一份 ASS");
+    expect(DANMAKU_PUBLISH_NOTE).toContain("一次编码");
     expect(DANMAKU_PUBLISH_NOTE).toContain("保留");
   });
 });

@@ -32,6 +32,12 @@
       "file": "bold-promo.json",
       "name": "欢快版",
       "positioning": "带货/本地生活/促销：高对比、快切、直给卖点文案"
+    },
+    {
+      "id": "natural-clean",
+      "file": "natural-clean.json",
+      "name": "自然高清版",
+      "positioning": "少调色、少处理、保留原节目声音"
     }
   ]
 }

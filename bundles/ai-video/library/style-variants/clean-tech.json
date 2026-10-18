@@ -11,10 +11,9 @@
   ],
   "color": {
     "profile": "cool-technical",
-    "lut": "look-cool-technical.cube",
-    "intensity": 0.7,
-    "lookLabel": "冷净精密",
-    "note": "冷净配方服务产品与界面；按请求参数执行一次，不按屏幕白、饱和度或清晰度测量拒绝成功原镜。"
+    "intensity": 0.28,
+    "lookLabel": "轻冷净",
+    "note": "2026-10-18 收敛：保留轻微冷净色温与克制对比，去掉第二层 LUT，避免与 1080P 成片后的字幕/弹幕编码叠加成明显处理感。"
   },
   "transitions": {
     "mode": "hard",

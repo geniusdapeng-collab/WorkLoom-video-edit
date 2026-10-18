@@ -433,6 +433,34 @@ export async function inspectDeliveryManifest({ root, manifest, bins, phase = "p
     const variant = variants.find((item) => item.id === form.variantId);
     checkChain(`danmaku:${index}`, Boolean(variant) && (consumes(proof, variant.burned?.sha256) || consumes(proof, variant.video?.sha256)) && outputHash(proof) === form.sha256);
   }
+  /**
+   * 字幕+弹幕的发布件必须是一次合并 ASS 编码：
+   * 两条 processing proof 指向同一输出字节，且都记录 textEncodingPasses=1。
+   * 这样后续即使有人把实现偷偷退回“先烧字再烧弹幕”，链级硬检查也会红灯。
+   */
+  if (manifest.postRequirements?.burnSubtitles === true && manifest.postRequirements?.danmaku === true) {
+    for (const variant of variants) {
+      const formIndex = (manifest.danmaku?.forms ?? []).findIndex((form) => form.variantId === variant.id);
+      const subtitle = find("subtitles", `${variant.id}-burned`);
+      const danmakuProof = find("danmaku", String(formIndex));
+      checkChain(
+        `${variant.id}:text-single-pass`,
+        variant.burned?.combinedWithDanmaku === true
+          && variant.burned?.textEncodingPasses === 1
+          && subtitle?.parameters?.combinedEncoding === true
+          && subtitle?.parameters?.textEncodingPasses === 1
+          && danmakuProof?.parameters?.combinedEncoding === true
+          && danmakuProof?.parameters?.textEncodingPasses === 1
+          && outputHash(subtitle) === variant.burned?.sha256
+          && outputHash(danmakuProof) === variant.burned?.sha256,
+        {
+          outputSha256: variant.burned?.sha256 ?? null,
+          subtitleProofPasses: subtitle?.parameters?.textEncodingPasses ?? null,
+          danmakuProofPasses: danmakuProof?.parameters?.textEncodingPasses ?? null,
+        },
+      );
+    }
+  }
   for (const [index, displayed] of (manifest.displaySet?.artifacts ?? []).entries()) {
     try {
       if (!displayed.path || !displayed.source || !hasHash(displayed.sha256) || !hasHash(displayed.sourceSha256)) throw new Error("中文交付文件缺当前字节证据");

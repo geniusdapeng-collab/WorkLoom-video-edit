@@ -68,5 +68,5 @@ export function recommendedDanmakuFile(variantId: string, coverIntro = true): st
 
 /** 弹幕形态的分享口径说明（与 PUBLISH_NOTE 同构，避免多处口径漂移）。 */
 export const DANMAKU_PUBLISH_NOTE =
-  "弹幕版＝在「烧字（+封面烧封）」形态上再烧一层弹幕：发布/分享直接可见；"
+  "弹幕版＝字幕与弹幕写入同一份 ASS 后一次编码（烧封面时再以流复制拼片头）：发布/分享直接可见；"
   + "不带弹幕的原形态保留，便于二次剪辑或换弹幕内容。";
