@@ -52,21 +52,23 @@ export function resolveColorManagement({ probe, sourceTransfer = null, sourceGam
 }
 /**
  * 镜头级清晰度/去雾链（2026-10-18）。
- * 有效档位：off / light / medium / strong（conservative 为 light 的兼容别名）。
+ * 有效档位：off / light / medium / strong；conservative 保留旧 3×3/0.25 语义。
  * 链路与 packages/video-studio/src/edit/clarity.ts#CLARITY_CHAINS 保持一致；
- * FFmpeg 没有原生 dehaze，这里用 eq + unsharp（大半径局部对比）+ cas（自适应锐化）组合。
+ * FFmpeg 没有原生 dehaze，这里用 curves（压回抬起的黑位）+ unsharp（大半径局部对比）
+ * + cas（自适应锐化）组合。
  */
+export const LEGACY_CONSERVATIVE_CLARITY = "unsharp=5:5:0.35:5:5:0";
 export const CLARITY_CHAINS = Object.freeze({
-  light: "unsharp=5:5:0.35:5:5:0",
-  medium: "eq=contrast=1.06:brightness=-0.01:gamma=1.02,unsharp=9:9:0.5:5:5:0.05,cas=strength=0.25",
-  strong: "eq=contrast=1.12:brightness=-0.02:gamma=1.04,unsharp=13:13:0.7:5:5:0.08,cas=strength=0.4",
+  light: "curves=all='0/0 0.20/0.17 0.50/0.50 0.80/0.81 1/1',unsharp=5:5:0.40:5:5:0",
+  medium: "curves=all='0/0 0.15/0.08 0.35/0.30 0.65/0.66 0.90/0.92 1/1',unsharp=9:9:0.65:5:5:0.06,cas=strength=0.30",
+  strong: "curves=all='0/0 0.15/0.07 0.35/0.30 0.65/0.66 0.90/0.92 1/1',unsharp=13:13:0.85:5:5:0.08,cas=strength=0.50",
 });
 export function clarityFilter(mode = "off", ErrorClass = Error) {
-  const normalized = mode === "conservative" ? "light" : mode;
-  if (!["off", "light", "medium", "strong"].includes(normalized)) {
+  if (mode === "conservative") return LEGACY_CONSERVATIVE_CLARITY;
+  if (!["off", "light", "medium", "strong"].includes(mode)) {
     throw new ErrorClass("clarity 只能为 off/light/medium/strong（兼容 conservative）", "bad_request");
   }
-  return normalized === "off" ? null : CLARITY_CHAINS[normalized];
+  return mode === "off" ? null : CLARITY_CHAINS[mode];
 }
 /** Calibrated starting guardrails; percentages are percentage points, compared at identical normalized sample times. */
 export const PROCESSING_THRESHOLDS = Object.freeze({

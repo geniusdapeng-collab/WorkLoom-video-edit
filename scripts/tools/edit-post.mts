@@ -22,6 +22,7 @@
  *     [--transitions hard|pack|declared|auto] [--transitions-easing native|smooth]
  *     [--transition-pack documentary|vlog|fast_cut|information]
  *     [--rhythm-profile natural|fast-cut|cinematic] [--rhythm-plan <实际源区间与呼吸点.json>]
+ *     [--clarity auto|off|light|medium|strong]
  *
  *   字幕形态默认口径（2026-10-12 客户实测事故后改为默认烧字）：
  *     提供 `--subtitle` 时**默认产出烧字形态**（成片自带字幕，任何播放器/预览器直接可见）；
@@ -215,6 +216,10 @@ async function main(): Promise<void> {
     console.log(`· 显式降分辨率已声明放行：素材 ${resolutionDecision.sourceBest?.width}×${resolutionDecision.sourceBest?.height} → 输出 ${width}×${height}（${resolutionDecision.scaleVersusSource}×）`);
   }
   const variants = arg("--variants", "warm-story,clean-tech,bold-promo").split(",").map((v) => v.trim()).filter(Boolean);
+  const clarityMode = arg("--clarity", "auto");
+  if (!["auto", "off", "light", "medium", "strong"].includes(clarityMode)) {
+    throw new Error("--clarity 只接受 auto/off/light/medium/strong");
+  }
   /**
    * 转场口径（2026-10-11 升级为四档）：
    *   · hard（显式覆盖）：全部硬切；
@@ -432,9 +437,24 @@ async function main(): Promise<void> {
    * （`packages/video-studio/src/edit/post-auto.ts`）；老的"场景1..4 → 固定 LUT"只作为显式覆盖保留，
    * 不再对任意项目生效。中性/证据不足的场景组**不叠加**统一调色（宁少不滥）。
    */
-  const segmentColorNotes: Array<{ segmentId: string; groupId: string; lut: string | null; intensity: number; basis: string; clarity?: { level: string; reason: string }; sha256: string | null }> = [];
+  type ClarityReceipt = {
+    level: string;
+    reason: string;
+    hazeScore?: number;
+    metrics?: { lumaP5: number; lumaStd: number; detailEnergy: number };
+  };
+  const segmentColorNotes: Array<{
+    segmentId: string;
+    groupId: string;
+    lut: string | null;
+    intensity: number;
+    basis: string;
+    clarity?: ClarityReceipt;
+    sha256: string | null;
+  }> = [];
+  const lutDir = join(REPO_ROOT, "bundles/ai-video/library/luts");
+  let assignmentOf = new Map<string, { lut: string | null; intensity: number; basis: string }>();
   if (segmentColor) {
-    const lutDir = join(REPO_ROOT, "bundles/ai-video/library/luts");
     const availableLuts = readdirSync(lutDir).filter((file) => file.toLowerCase().endsWith(".cube"));
     const recipeDoc = JSON.parse(readFileSync(join(REPO_ROOT, "bundles/ai-video/library/color-recipes/recipes.json"), "utf8")) as { recipes?: Array<Record<string, unknown>> };
     const recipes = (recipeDoc.recipes ?? []).map((recipe) => ({
@@ -458,32 +478,35 @@ async function main(): Promise<void> {
     };
     const colorPlan = planSegmentColor({ timeline, analyses, recipes, availableLuts, legacyGroupMap });
     for (const warning of colorPlan.warnings) console.warn(`⚠ ${warning}`);
-    const assignmentOf = new Map(colorPlan.assignments.map((entry) => [entry.segmentId, entry]));
-    /**
-     * 镜头级清晰度/去雾（2026-10-18）：`--clarity auto` 逐段按中点帧的
-     * 黑位 p5 / 亮度标准差 / 拉普拉斯方差判定 light/medium/strong，糊的镜头加强、清晰的镜头轻处理或不动。
-     * 与分段调色同一遍重编码完成（不额外多一代损失）。
-     */
-    const clarityMode = arg("--clarity", "auto");
-    if (!["auto", "off", "light", "medium", "strong"].includes(clarityMode)) throw new Error("--clarity 只接受 auto/off/light/medium/strong");
+    assignmentOf = new Map(colorPlan.assignments.map((entry) => [entry.segmentId, {
+      lut: entry.lut, intensity: entry.intensity, basis: entry.basis,
+    }]));
+  }
+  /**
+   * 镜头级清晰度/去雾（2026-10-18）：`--clarity auto` 逐段按中点帧的
+   * 黑位 p5 / 亮度标准差 / 拉普拉斯方差判定 light/medium/strong，糊的镜头加强、清晰的镜头轻处理或不动。
+   * 与分段调色同一遍重编码完成（不额外多一代损失）；不再依赖 `--segment-color` 才生效。
+   */
+  if (segmentColor || clarityMode !== "off") {
     for (const [index, step] of plan.normalize.entries()) {
       const segment = timeline.segments[index]!;
-      /** `--color-map` 显式指定的段落由逐镜调色块接管（避免同一段被两种口径叠两次）。 */
-      if (colorMap?.[segment.segmentId]) continue;
       const assignment = assignmentOf.get(segment.segmentId);
       const target = clipPath(step.segmentId);
       let clarityLevel: string = "off";
       let clarityReason = "off（未启用）";
+      let hazeScore: number | undefined;
+      let metrics: { lumaP5: number; lumaStd: number; detailEnergy: number } | undefined;
       if (clarityMode !== "off" && existsSync(target)) {
         const mid = Math.max(0, Math.min(segment.durationSeconds - 0.05, segment.durationSeconds / 2));
-        const metrics = measureClipClarity(target, mid, FFMPEG);
+        metrics = measureClipClarity(target, mid, FFMPEG);
         if (clarityMode === "auto") {
           const decision = planClarity(metrics);
           clarityLevel = decision.level;
+          hazeScore = decision.hazeScore;
           clarityReason = `${decision.reason}（p5=${metrics.lumaP5} std=${metrics.lumaStd} detail=${metrics.detailEnergy}）`;
         } else {
           clarityLevel = clarityMode;
-          clarityReason = `显式 ${clarityMode}`;
+          clarityReason = `显式 ${clarityMode}（p5=${metrics.lumaP5} std=${metrics.lumaStd} detail=${metrics.detailEnergy}）`;
         }
       }
       if ((!assignment || !assignment.lut) && clarityLevel === "off") {
@@ -493,7 +516,7 @@ async function main(): Promise<void> {
           lut: null,
           intensity: 0,
           basis: assignment?.basis ?? "无调色计划（保持原色）",
-          clarity: { level: clarityLevel, reason: clarityReason },
+          clarity: { level: clarityLevel, reason: clarityReason, ...(metrics ? { metrics } : {}) },
           sha256: null,
         });
         continue;
@@ -515,7 +538,7 @@ async function main(): Promise<void> {
         lut: assignment?.lut ?? null,
         intensity: assignment?.intensity ?? 0,
         basis: assignment?.basis ?? "仅清晰度增强（无调色计划）",
-        clarity: { level: clarityLevel, reason: clarityReason },
+        clarity: { level: clarityLevel, reason: clarityReason, ...(hazeScore === undefined ? {} : { hazeScore }), ...(metrics ? { metrics } : {}) },
         sha256: createHash("sha256").update(readFileSync(target)).digest("hex"),
       });
     }
@@ -800,6 +823,12 @@ async function main(): Promise<void> {
     platform,
     rhythmPlan: rhythmReceipt.status === "passed" ? rhythmReceipt.plan : null,
     entityColor: entityColor ? { enabled: true, intensity: Number(arg("--entity-intensity", "1")) } : null,
+    colorPipeline: {
+      shotClarity: clarityMode,
+      variantClarity: "off",
+      appliedToShots: segmentColorNotes.filter((entry) => entry.clarity?.level && entry.clarity.level !== "off").length,
+      totalShots: segmentColorNotes.length,
+    },
     /**
      * 逐切转场计划（declared/auto）：交给 post-bridge 逐刀渲染；
      * 变体配方通过 intentMap 决定各自观感（同一剪辑脚本 → 三种风格转场）。
@@ -988,7 +1017,25 @@ const autoCoverPlan = explicitCoverAt
     profile: rhythmProfile, status: rhythmReceipt.status, artisticQuality: "unverified" };
   const filmProjectPath = join(outDir, "film-project.json");
   const filmProject = JSON.parse(readFileSync(filmProjectPath, "utf8")) as Record<string, unknown>;
-  filmProject.processing = manifest.processing; filmProject.rhythm = manifest.rhythm;
+  const clarityReceipt = {
+    schemaVersion: "workloom.video-edit/clarity/v1",
+    mode: clarityMode,
+    stage: "shot-normalisation",
+    appliedToShots: segmentColorNotes.filter((entry) => entry.clarity?.level && entry.clarity.level !== "off").length,
+    totalShots: segmentColorNotes.length,
+    levels: Object.fromEntries(["off", "light", "medium", "strong"].map((level) => [
+      level, segmentColorNotes.filter((entry) => entry.clarity?.level === level).length,
+    ])),
+    variantGrading: { clarity: "off", reason: "逐镜去雾已在共享归一化层完成，避免旧的固定 conservative 二次锐化" },
+    plan: segmentColorNotes.map((entry) => ({
+      segmentId: entry.segmentId,
+      groupId: entry.groupId,
+      clarity: entry.clarity ?? null,
+      outputSha256: entry.sha256,
+    })),
+  };
+  manifest.clarity = clarityReceipt;
+  filmProject.processing = manifest.processing; filmProject.rhythm = manifest.rhythm; filmProject.clarity = clarityReceipt;
   const layers = filmProject.layers as { variants?: Array<{ id: string; artifacts: Record<string, unknown> }> };
   for (const variant of (manifest.variants ?? []) as Array<{ id: string; cover: Record<string, unknown> }>) {
     const stored = layers.variants?.find((row) => row.id === variant.id);
@@ -1035,6 +1082,7 @@ const autoCoverPlan = explicitCoverAt
         .filter((entry) => entry.width && entry.height && entry.width * entry.height < width * height)
         .map((entry) => entry.sourceId),
     },
+    clarity: clarityReceipt,
     transitions: {
       mode: transitionsMode,
       easing: transitionsEasing,
@@ -1120,6 +1168,10 @@ perVariant: coverMoments.map((moment, index) => ({
     if (segmentColor) {
       const graded = segmentColorNotes.filter((entry) => entry.lut);
       console.log(`  分段调色：${graded.length}/${segmentColorNotes.length} 段落 LUT（其余保持原色）`);
+    }
+    if (clarityMode !== "off") {
+      const counts = clarityReceipt.levels;
+      console.log(`  镜头去雾：${clarityReceipt.appliedToShots}/${clarityReceipt.totalShots} 段增强（strong ${counts.strong} / medium ${counts.medium} / light ${counts.light} / off ${counts.off}）；变体调色二次清晰度 off`);
     }
     if (colorMap) console.log(`  逐镜调色：${colorMapNotes.length} 段（--color-map 显式指定，其余保持原色）`);
     console.log(`  配乐落位：选段 ${bgmSection}｜切点对齐 ${cutTimes.length} 个${bgmCutDriven ? "（cut-driven BPM）" : ""}`);

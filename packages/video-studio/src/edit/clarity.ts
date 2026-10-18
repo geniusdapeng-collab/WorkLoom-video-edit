@@ -8,7 +8,9 @@
  * 事实依据（2026-10-18 本机实测 + FFmpeg 官方滤镜文档）：
  *   · FFmpeg **没有原生 dehaze 滤镜**；可用 `eq`（对比度/亮度/伽马/饱和）、`curves`（色调曲线）、
  *     `unsharp`（luma 3–23 半径，amount -1.5..1.5）与 `cas`（Contrast Adaptive Sharpen，strength）。
- *   · 本机 A/B：雾感日出镜头 lapVar 59→118（strong），清晰山景 102→201；肉眼无明显光晕。
+ *   · 2026-10-18 第二轮 A/B：只做锐化的首版在黑位抬高的雾镜上肉眼变化太弱；三档改为
+ *     先用 `curves` 压回被空气光抬起的灰雾，再用大半径局部对比与 CAS 恢复层次。真实雾镜
+ *     p5 88→71、detail 52→137；逆光高黑位镜头 p5 129→123、detail 41→70。
  *
  * 判定只用确定性统计量（不做审美评分）：
  *   · p5 黑位越高 → 雾感越重（空气光抬高黑位）；
@@ -18,11 +20,14 @@
 
 export type ClarityLevel = "off" | "light" | "medium" | "strong";
 
-/** 滤镜链（顺序：先对比/伽马校正，再大半径局部对比，最后自适应锐化，减少光晕）。 */
+/** 历史 `conservative` 别名保持原 3×3/0.25 语义；新三档才是去雾链。 */
+export const LEGACY_CONSERVATIVE_CLARITY = "unsharp=5:5:0.35:5:5:0";
+
+/** 滤镜链（顺序：先压回抬起的黑位，再大半径局部对比，最后自适应锐化，减少光晕）。 */
 export const CLARITY_CHAINS: Record<Exclude<ClarityLevel, "off">, string> = {
-  light: "unsharp=5:5:0.35:5:5:0",
-  medium: "eq=contrast=1.06:brightness=-0.01:gamma=1.02,unsharp=9:9:0.5:5:5:0.05,cas=strength=0.25",
-  strong: "eq=contrast=1.12:brightness=-0.02:gamma=1.04,unsharp=13:13:0.7:5:5:0.08,cas=strength=0.4",
+  light: "curves=all='0/0 0.20/0.17 0.50/0.50 0.80/0.81 1/1',unsharp=5:5:0.40:5:5:0",
+  medium: "curves=all='0/0 0.15/0.08 0.35/0.30 0.65/0.66 0.90/0.92 1/1',unsharp=9:9:0.65:5:5:0.06,cas=strength=0.30",
+  strong: "curves=all='0/0 0.15/0.07 0.35/0.30 0.65/0.66 0.90/0.92 1/1',unsharp=13:13:0.85:5:5:0.08,cas=strength=0.50",
 };
 
 export interface ClarityMetrics {

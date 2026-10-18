@@ -16,6 +16,7 @@
  *     [--variant-copy <cover-copy.json>] [--platform 哔哩哔哩] [--bridge-url <url>]
  *     [--bgm <曲目>] [--name "<文件名>"] [--music-level -23] [--json]
  *     [--bgm-section auto|climax|calm|full] [--bgm-cut-driven]
+ *     [--clarity auto|off|light|medium|strong]
  *
  * full 模式（默认）：
  *   ① edit:post（1920×1080 全链路，含三形态/调色/BGM/字幕/转场/弹幕）
@@ -124,6 +125,7 @@ function main(): void {
     "--width", "1920", "--height", "1080", "--allow-downscale",
     "--variants", variants, "--subtitle", subtitleFile, "--segment-color",
     "--bgm", "agent", "--platform", platform, "--title", title, "--json",
+    ...(arg("--clarity") ? ["--clarity", arg("--clarity")] : []),
     ...(bgmPack ? ["--bgm-pack", abs(bgmPack)] : []),
     ...(arg("--bgm-section") ? ["--bgm-section", arg("--bgm-section")] : []),
     ...(flag("--bgm-cut-driven") ? ["--bgm-cut-driven"] : []),
