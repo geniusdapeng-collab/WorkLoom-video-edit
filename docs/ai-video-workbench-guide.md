@@ -101,7 +101,9 @@ node scripts/workloom-agent.mjs invoke growth.video.delivery.inspect --input-fil
 ## 5.1 默认后期与显式请求边界
 
 - 已成功但旧品质失败的原片保留原记录，真实来源/当前字节通过后直接正式后期；新生成只限缺失或用户明确授权改变的点名镜。
-- 镜头级清晰度/去雾在共享归一化层执行：默认 `--clarity auto`，按每个镜头的中点帧黑位、亮度标准差和细节能量选择 `off/light/medium/strong`；同一次编码完成，1080P 与 4K 共用。逐镜计划写入交付清单，变体最终 look 不再叠加旧的固定 `conservative` 锐化；显式 `--clarity off|light|medium|strong` 可覆盖自动判定。
+- 镜头级清晰度/去雾在共享归一化层执行：默认 `--clarity auto`，只有黑位与细节共同支持“发灰/发糊”时才进入 `light/medium/strong`；2026-10-18 起强档半径收到 7×7、CAS 0.25，变体最终 look 不再叠加旧的固定 `conservative` 锐化。逐镜计划写入交付清单，显式 `--clarity off|light|medium|strong` 可覆盖自动判定。
+- 同时请求字幕与弹幕时，两者合并进同一份 ASS、只编码一次，输出 `*.burned.danmaku.mp4`；字幕与弹幕 proof 绑定同一输出 SHA。1080P 文字层使用 `libx264 medium/CRF16`，UHD 使用 `medium/CRF14`。
+- `edit:fastlane` 默认只执行各变体自己的调色；`--segment-color` 改为显式请求，避免“共享分段 LUT + 变体 look”两层创作调色叠加。
 - 原节目音频默认保留，静音/黑帧/低分辨率/不同帧率源片不被品质阈值拒绝；工具实际解码、拼接、混音或导出失败必须返回错误。
 - 显式提供音轨/分轨必须真实四角色、来源和签章授权齐备；null/false/空或非法结构不能静默当成省略。返修同理。
 - 字幕默认完整文本与条目，弹幕没有默认 20 字/8 并发抽稀；有效限制只在用户明确请求时生效并如实报告。
@@ -164,7 +166,7 @@ git diff --check
 | 顺序 / ID | 实际处理 | 用途 |
 |---|---|---|
 | 1 / `original` | 从未做创作调色的共同源直接复制，调色次数为 0；后续按请求封装声音和字幕 | 保留渲染时已经形成的颜色 |
-| 2 / `warm-story` | `high-contrast-social` + `look-warm-film.cube`，`intensity=0.5`，关闭自动调整 | 产品所有者选定的 D 组暖调 |
+| 2 / `warm-story` | `warm-film`，`intensity=0.3`，关闭自动调整，不叠第二层暖 LUT | 收敛后的轻暖调 |
 | 3 / `content-auto` | 依据分镜声明的题材、光线、人物等属性及镜头时长选择一个克制的全片配方 | 给出可以复核依据的内容调色版本 |
 
 三个版本分别从同一份未调色、未混配乐的共同源派生；不从暖调母版继续叠加滤镜。`content-auto` 在商品颜色准确性、夜景、人像、美食、风光、运动及混合题材之间选择，并在 `colorDecision` 留下属性、时长权重、原因和局限；缺属性时保守处理并明确未判定。它没有像素分析、实体分割或艺术评分，也不保证每个镜头的观感都是最优。

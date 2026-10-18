@@ -59,9 +59,9 @@ export function resolveColorManagement({ probe, sourceTransfer = null, sourceGam
  */
 export const LEGACY_CONSERVATIVE_CLARITY = "unsharp=luma_msize_x=3:luma_msize_y=3:luma_amount=0.25:chroma_amount=0";
 export const CLARITY_CHAINS = Object.freeze({
-  light: "curves=all='0/0 0.20/0.17 0.50/0.50 0.80/0.81 1/1',unsharp=5:5:0.40:5:5:0",
-  medium: "curves=all='0/0 0.15/0.08 0.35/0.30 0.65/0.66 0.90/0.92 1/1',unsharp=9:9:0.65:5:5:0.06,cas=strength=0.30",
-  strong: "curves=all='0/0 0.15/0.07 0.35/0.30 0.65/0.66 0.90/0.92 1/1',unsharp=13:13:0.85:5:5:0.08,cas=strength=0.50",
+  light: "curves=all='0/0 0.20/0.18 0.50/0.50 0.80/0.81 1/1',unsharp=3:3:0.18",
+  medium: "curves=all='0/0 0.18/0.13 0.40/0.36 0.70/0.72 0.92/0.94 1/1',unsharp=5:5:0.30:5:5:0.03,cas=strength=0.15",
+  strong: "curves=all='0/0 0.15/0.09 0.35/0.30 0.65/0.67 0.90/0.92 1/1',unsharp=7:7:0.45:5:5:0.04,cas=strength=0.25",
 });
 export function clarityFilter(mode = "off", ErrorClass = Error) {
   if (mode === "conservative") return LEGACY_CONSERVATIVE_CLARITY;

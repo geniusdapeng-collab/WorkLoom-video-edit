@@ -3,6 +3,7 @@
   "id": "warm-story",
   "name": "暖心版",
   "positioning": "情感/文旅/民宿/人物：暖调胶片、慢转场、留白文案",
+  "colorPolicy": "grade",
   "platforms": [
     "抖音/快手",
     "视频号",
@@ -10,11 +11,10 @@
     "B站"
   ],
   "color": {
-    "profile": "high-contrast-social",
-    "lut": "look-warm-film.cube",
-    "intensity": 0.5,
-    "lookLabel": "暖心版（对比打底 + 暖调胶片 50%）",
-    "note": "2026-10-13 客户实测重定标：原 warm-film@0.75 的提黑会把灰雾/平光镜头压得更灰（山路/日出段实测 YAVG 偏高但动态范围仅 76–93）。改为高对比打底 + 暖调 LUT 50%：保留暖调，同时把中间调对比与饱和拉回来。灰雾/欠曝的**单镜**修复走 `edit:post --color-map`（逐镜 profile/LUT/corrections）。"
+    "profile": "warm-film",
+    "intensity": 0.3,
+    "lookLabel": "暖心版（轻暖胶片 30%）",
+    "note": "2026-10-18 清晰度审计后收敛：旧 high-contrast-social + 暖 LUT 50% 同时压黑、提对比和提饱和，叠加逐镜去雾后处理感过强。本版只保留 warm-film 的轻暖色与微弱层次，不再叠第二层暖 LUT；单镜灰雾继续走共享 clarity 或显式 --color-map。"
   },
   "transitions": {
     "mode": "fade",

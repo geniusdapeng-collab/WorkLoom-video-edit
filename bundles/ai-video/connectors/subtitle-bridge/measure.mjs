@@ -271,20 +271,20 @@ export async function probeMedia(input, { bins = resolveBinaries() } = {}) {
 
 /**
  * 编码器探测：优先 libx264（生产完整 ffmpeg），退化到 libopenh264 / mpeg4，并如实回报。
- *
- * 画质口径（T-2026-1017 修复）：烧字/弹幕是**交付形态的最后一次重编码**，必须与整条后期链路的
- * 交付档对齐——4K 用 `medium / crf16`（与 post-bridge 的 UHD 档一致），1080P 用 `veryfast / crf18`。
- * 旧实现固定 `fast / crf20`：4K 成片烧一遍字幕就掉一档清晰度（产品所有者实测反馈"调色后还不如原片清晰"）。
+ * 字幕/弹幕烧录会成为最终发布件的最后一代编码，因此 1080P 默认 medium/CRF16，
+ * 4K 默认 medium/CRF14；旧 fast/CRF20 会放大文字边缘与纹理的额外损失。
  */
-export async function pickVideoEncoder({ bins = resolveBinaries(), height = null } = {}) {
+export async function pickVideoEncoder({ bins = resolveBinaries(), height = null, quality = null } = {}) {
   const { stdout } = await runBin(bins.ffmpeg, ["-hide_banner", "-encoders"], { label: "ffmpeg" });
-  const uhd = Number.isFinite(Number(height)) && Number(height) >= 1600;
+  const resolvedQuality = quality === "uhd" || quality === "hd"
+    ? quality
+    : Number.isFinite(Number(height)) && Number(height) >= 1600 ? "uhd" : "hd";
+  const uhd = resolvedQuality === "uhd";
+  const x264Args = ["-c:v", "libx264", "-preset", "medium", "-crf", uhd ? "14" : "16", "-threads", "0"];
   const candidates = [
-    { name: "libx264", args: uhd
-      ? ["-c:v", "libx264", "-preset", "medium", "-crf", "14"]
-      : ["-c:v", "libx264", "-preset", "veryfast", "-crf", "17"] },
+    { name: "libx264", args: x264Args },
     { name: "libopenh264", args: ["-c:v", "libopenh264", "-b:v", uhd ? "24M" : "8M"] },
-    { name: "mpeg4", args: ["-c:v", "mpeg4", "-q:v", "2"] },
+    { name: "mpeg4", args: ["-c:v", "mpeg4", "-q:v", uhd ? "2" : "3"] },
   ];
   for (const candidate of candidates) {
     if (new RegExp(`\\s${candidate.name}\\s`).test(stdout)) return candidate;

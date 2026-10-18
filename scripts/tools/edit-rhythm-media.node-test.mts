@@ -4,7 +4,7 @@ import { mkdtempSync, mkdirSync, symlinkSync, existsSync, rmSync, readFileSync, 
 import { spawn, spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { join, resolve, win32, posix } from 'node:path';
-import { installRhythmPostOverrides, detectRhythmOnsets, prepareRhythmMusic, verifyRhythmMusic, verifyRhythmSubtitle, preflightRhythmTimeline, verifyRhythmExecution, rhythmPathIsWithin } from './lib/edit-rhythm-media.mts';
+import { installRhythmPostOverrides, rhythmBgmOverride, detectRhythmOnsets, prepareRhythmMusic, verifyRhythmMusic, verifyRhythmSubtitle, preflightRhythmTimeline, verifyRhythmExecution, rhythmPathIsWithin } from './lib/edit-rhythm-media.mts';
 import { rhythmFileSha256 } from './rhythm-edit.mts';
 import { compileRhythmDirection } from '../../packages/video-studio/src/edit/rhythm-director.js';
 import { planAutoCaptions } from '../../packages/video-studio/src/edit/auto-plan.js';
@@ -18,6 +18,11 @@ test('override path through a symlinked ancestor cannot write outside owned outp
  const timeline={audioDesign:{bgm:{needed:false}}} as EditTimeline;
  assert.throws(()=>installRhythmPostOverrides({timeline,repoRoot:root,outDir:out,env:{WORKLOOM_POST_VARIANT_DIR:join(out,'alias','new')}}),/RHYTHM_OVERRIDE_PATH_ESCAPE/);
  assert.equal(existsSync(join(outside,'new')),false);
+});
+test('rhythm music overrides preserve an explicitly disabled variant and project-level no-music',()=>{
+ assert.deepEqual(rhythmBgmOverride({enabled:false,policy:'preserve-program'},{noMusic:false,music:{trackId:'fixed-bed'}}),{enabled:false,policy:'preserve-program'});
+ assert.deepEqual(rhythmBgmOverride({enabled:true,policy:'keep-dialogue'},{noMusic:true,music:null}),{enabled:false,policy:'keep-dialogue'});
+ assert.deepEqual(rhythmBgmOverride({enabled:true,policy:'keep-dialogue',mood:'old'},{noMusic:false,music:{trackId:'fixed-bed'}}),{enabled:true,policy:'keep-dialogue',trackId:'fixed-bed',section:'full',bpmStrategy:'recipe',fadeInSec:0,fadeOutSec:0});
 });
 
 test('equal-strength real PCM pulses remain detected without a synthetic beat grid',()=>{

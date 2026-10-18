@@ -151,6 +151,19 @@ export function claimRhythmWorkspace(outDir:string):void {
   try{write(join(outDir,'.rhythm-attempt.json'),{schemaVersion:'workloom.video-edit/output-attempt/v1',pid:process.pid});}
   catch(error){if((error as NodeJS.ErrnoException).code==='EEXIST')throw new Error('RHYTHM_OUTPUT_CLAIMED: 输出目录已被另一任务占用，请使用新版本目录');throw error;}
 }
+/**
+ * Rhythm overrides may enable/disable the project music bed, but they must never reopen a
+ * variant whose recipe explicitly declares `bgm.enabled=false` (for example natural-clean).
+ */
+export function rhythmBgmOverride(bgm:Record<string,unknown>={}, {noMusic=false,music=null}:{noMusic?:boolean;music?:{trackId:string}|null}={}):Record<string,unknown>{
+  const explicitlyDisabled=bgm.enabled===false;
+  const result={...bgm,enabled:explicitlyDisabled?false:!noMusic};
+  if(music&&!noMusic&&!explicitlyDisabled){
+    Object.assign(result,{trackId:music.trackId,section:'full',bpmStrategy:'recipe',fadeInSec:0,fadeOutSec:0});
+    for(const key of ['sectionStartSec','sectionEndSec','mood','genre'])delete result[key];
+  }
+  return result;
+}
 /** Apply AFTER existing recipe options, before the first post-core import. Original libraries stay read-only. */
 export function installRhythmPostOverrides({timeline,repoRoot,outDir,env=process.env}:{timeline:EditTimeline;repoRoot:string;outDir:string;env?:NodeJS.ProcessEnv}):void {
   const direction=assertRhythmDirection(timeline), music=direction?.music, noMusic=timeline.audioDesign.bgm?.needed===false;
@@ -162,9 +175,7 @@ export function installRhythmPostOverrides({timeline,repoRoot,outDir,env=process
   for(const entry of index.variants){const target=join(folder,entry.file);
     if(!inside(owned,resolveRhythmPhysicalPath(target)))throw new Error('RHYTHM_OVERRIDE_PATH_ESCAPE: 配方文件逃逸输出目录');
     const pack=json(existsSync(target)?target:join(base,entry.file));
-    const bgm={...(pack.bgm??{}),enabled:!noMusic};
-    if(music&&!noMusic){Object.assign(bgm,{trackId:music.trackId,section:'full',bpmStrategy:'recipe',fadeInSec:0,fadeOutSec:0});for(const key of ['sectionStartSec','sectionEndSec','mood','genre'])delete bgm[key];}
-    pack.bgm=bgm;
+    pack.bgm=rhythmBgmOverride(pack.bgm??{},{noMusic,music});
     // The compiled clock owns overlap duration; a look may not quietly move cuts or subtitles.
     if(direction)pack.transitions={...(pack.transitions??{}),scale:1,intentMap:{}};
     writeFileSync(target,JSON.stringify(pack,null,2)+'\n');

@@ -7,7 +7,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { beforeAll, afterAll, test, expect } from "vitest";
 import { applyPostRhythmSound } from "./rhythm-post.mjs";
-import { normaliseShots, resolveBinaries } from "./core.mjs";
+import { findVariantPack, normaliseShots, resolveBinaries } from "./core.mjs";
 import { inspectDeliveryManifest } from "./quality-gate.mjs";
 const repo = fileURLToPath(new URL("../../../../", import.meta.url));
 const bins = resolveBinaries();
@@ -58,13 +58,35 @@ test("actual edit-post preserves native pixels/frames, default declared hard cut
   expect(manifest.postRequirements.danmaku).toBe(true); expect(manifest.danmaku.forms).toHaveLength(2);
   for (const variant of manifest.variants) {
     expect(variant.style.transitions.mode).toBe("hard"); expect(variant.burned.path).toBeTruthy(); expect(variant.softsub.path).toBeTruthy();
+    expect(variant.burned.path).toMatch(/\.burned\.danmaku\.mp4$/);
+    expect(variant.burned).toMatchObject({ combinedWithDanmaku: true, textEncodingPasses: 1 });
+    expect(fs.existsSync(path.join(out, `variants/${variant.id}/${variant.id}.burned.mp4`))).toBe(false);
+    const subtitleProof = manifest.processing.find((row: any) => row.id === `${variant.id}-burned`);
+    const danmakuProof = manifest.processing.find((row: any) => row.stage === "danmaku" && row.id === String(manifest.variants.indexOf(variant)));
+    expect(subtitleProof).toBeTruthy(); expect(danmakuProof).toBeTruthy();
     const proof = manifest.processing.find((row: any) => row.id === `${variant.id}-sound`);
     const document = json(path.join(out, proof.path)); expect(document.execution.videoPacketsUnchanged).toBe(true); expect(document.execution.placements[0].atSec).toBe(0.5);
+    const subtitleDocument = json(path.join(out, subtitleProof.path));
+    const danmakuDocument = json(path.join(out, danmakuProof.path));
+    expect(subtitleDocument.parameters).toMatchObject({ combinedEncoding: true, textEncodingPasses: 1 });
+    expect(danmakuDocument.parameters).toMatchObject({ combinedEncoding: true, textEncodingPasses: 1 });
+    expect(subtitleDocument.outputs[0].sha256).toBe(danmakuDocument.outputs[0].sha256);
     expect(media(path.join(out, variant.video.path)).streams.find((stream: any) => stream.codec_type === "video").nb_read_frames).toBe("165");
   }
   expect(timeline.sources.map((source: any) => sha(source.path))).toEqual(original);
   expect((await inspectDeliveryManifest({ root: out, manifest, bins })).passed).toBe(true);
+  const twoPassClaim = structuredClone(manifest);
+  twoPassClaim.variants[0].burned.combinedWithDanmaku = false;
+  expect((await inspectDeliveryManifest({ root: out, manifest: twoPassClaim, bins })).passed).toBe(false);
 }, 60_000);
+test("natural-clean is registered as a low-processing original-audio variant", () => {
+  expect(findVariantPack("natural-clean")).toMatchObject({
+    id: "natural-clean",
+    color: null,
+    transitions: { mode: "hard" },
+    bgm: { enabled: false, policy: "preserve-program" },
+  });
+});
 test("explicit fast cut rejects speed changes and partial/downsampled canvas before formal completion", async () => {
   const changed = structuredClone(timeline); changed.segments[0].speed = 2; changed.segments[0].durationSeconds = 0.25; write(path.join(root, "speed.json"), changed);
   for (const [suffix, args] of [["speed", ["--timeline", path.join(root, "speed.json"), "--rhythm-plan", path.join(root, "rhythm.json")]], ["partial", ["--timeline", path.join(root, "timeline.json"), "--width", "160"]], ["downsample", ["--timeline", path.join(root, "timeline.json"), "--width", "160", "--height", "90"]]] as Array<[string, string[]]>) {
