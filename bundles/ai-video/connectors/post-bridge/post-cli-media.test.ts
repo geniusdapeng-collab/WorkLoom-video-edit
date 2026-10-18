@@ -71,6 +71,23 @@ test("explicit fast cut rejects speed changes and partial/downsampled canvas bef
     const result = await command("scripts/tools/edit-post.mts", [...args, "--out-dir", path.join(root, suffix)]); expect(result.code).not.toBe(0); expect(fs.existsSync(path.join(root, suffix, "delivery-manifest.json"))).toBe(false);
   }
 }, 45_000);
+test("explicit color-map shots are recorded as taken over and do not receive shared clarity twice", async () => {
+  const colorMap = path.join(root, "color-map.json"), delivery = path.join(root, "color-map-delivery"), missingPack = path.join(root, "missing-home", "Downloads", "optional-pack");
+  write(colorMap, { "clip-0": { profile: "natural", intensity: 0.1, corrections: {}, note: "fixture explicit shot color" } });
+  const result = await command("scripts/tools/edit-post.mts", ["--timeline", path.join(root, "timeline.json"),
+    "--out-dir", delivery, "--variants", "warm-story,clean-tech", "--rhythm-plan", path.join(root, "rhythm.json"),
+    "--color-map", colorMap, "--clarity", "auto", "--bgm-section", "full", "--bgm-pack", missingPack,
+    "--title", "color map ownership", "--json"]);
+  expect(result.code, result.text).toBe(0);
+  const summary = JSON.parse(result.text.slice(result.text.indexOf("{")));
+  const manifest = json(path.join(delivery, "delivery-manifest.json"));
+  expect(manifest.clarity.totalShots).toBe(timeline.segments.length);
+  const first = manifest.clarity.plan.find((entry: any) => entry.segmentId === "clip-0");
+  expect(first.clarity.level).toBe("off");
+  expect(first.clarity.reason).toContain("--color-map");
+  expect(first.outputSha256).toMatch(/^[a-f0-9]{64}$/);
+  expect(summary.colorMap.applied).toBe(1);
+}, 120_000);
 test("actual cover CLI without a timeline publishes declared intro forms and preserves every soft subtitle stream", async () => {
   const result = await command("scripts/tools/edit-cover.mts", ["--input", path.join(out, "master/master-clean.mp4"), "--out-dir", out, "--variants", "warm-story,clean-tech", "--title", "看山吃饺子", "--hook", "吃饺子", "--burn-intro", "0.2", "--renderer", "ffmpeg"]);
   expect(result.code, result.text).toBe(0);

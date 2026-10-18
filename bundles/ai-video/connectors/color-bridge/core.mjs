@@ -1504,7 +1504,7 @@ function buildCorrections({ normalize, colorTemperature, colorBalance, curves, e
  * 顺序：conversion LUT（恒 100%，最前） → 可选降噪（恒 100%） → 校正（恒 100%） → 创作 look（按 intensity 混合）。
  */
 export function buildChain(spec = {}) {
-  const { profile = null, lutPath = null, corrections = {}, intensity = 1, conversionLuts = [], denoise = null } = spec;
+  const { profile = null, lutPath = null, corrections = {}, intensity = 1, conversionLuts = [], denoise = null, clarity = null } = spec;
   if (!Number.isFinite(intensity) || intensity <= 0 || intensity > 1) {
     throw new ColorError(`intensity 必须落在 (0,1]，收到 ${intensity}`, "bad_request");
   }
@@ -1526,8 +1526,8 @@ export function buildChain(spec = {}) {
   const lookParts = [];
   if (profile) lookParts.push(PROFILES[profile]);
   if (lutPath) lookParts.push(`lut3d='${escapeFilterPath(lutPath)}'`);
-  if (conversionParts.length === 0 && denoiseParts.length === 0 && correctionParts.length === 0 && lookParts.length === 0) {
-    throw new ColorError("未指定任何 profile / lut / corrections", "bad_request");
+  if (conversionParts.length === 0 && denoiseParts.length === 0 && correctionParts.length === 0 && lookParts.length === 0 && clarity === null) {
+    throw new ColorError("未指定任何 profile / lut / corrections / clarity", "bad_request");
   }
 
   const conversionChain = conversionParts.join(",");

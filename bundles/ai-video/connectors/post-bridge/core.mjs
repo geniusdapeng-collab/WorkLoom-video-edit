@@ -282,6 +282,22 @@ export function resolveQuality(project = {}) {
   return quality;
 }
 
+const VARIANT_CLARITY_MODES = new Set(["off", "conservative", "light", "medium", "strong"]);
+
+/**
+ * 变体最终 look 层的清晰度口径。
+ * - 默认 `conservative` 保持历史调用行为；
+ * - `edit-post` 已在逐镜归一化时完成自动去雾时，显式传 `colorPipeline.variantClarity='off'`，
+ *   避免旧固定 3×3 锐化再次改变已经逐镜处理过的画面，也不让回执继续误报 conservative。
+ */
+export function resolveVariantClarity(project = {}) {
+  const value = project?.colorPipeline?.variantClarity ?? "conservative";
+  if (typeof value !== "string" || !VARIANT_CLARITY_MODES.has(value)) {
+    throw new PostError(`colorPipeline.variantClarity 只能为 ${[...VARIANT_CLARITY_MODES].join("/")}`, "bad_request");
+  }
+  return value;
+}
+
 export function resolveResolution(project = {}) {
   const quality = resolveQuality(project);
   const presets = quality === "uhd" ? UHD_ASPECT_PRESETS : ASPECT_PRESETS;
@@ -2320,6 +2336,7 @@ export async function buildDeliveryPackage({
   const packs = plan.variants.map((entry) => findVariantPack(entry.id));
   const [width, height] = plan.resolution;
   const quality = plan.quality;
+  const variantClarity = resolveVariantClarity(project);
   const existingManifestPath = path.join(target, "delivery-manifest.json");
   if (fs.existsSync(existingManifestPath)) {
     throw new PostError("交付目录已有完成工程，请走 reedit 创建新版本", "idempotency_conflict");
@@ -2536,7 +2553,7 @@ export async function buildDeliveryPackage({
       lutSha256: lutPath ? await sha256File(lutPath) : null,
       intensity: pack.color?.intensity ?? 0.8,
       quality,
-      clarity: "conservative", qualityGuard: "report", v: 3,
+      clarity: variantClarity, qualityGuard: "report", v: 4,
     });
     const gradedPath = path.join(workDir, "graded", `${pack.id}-${colorKey}.mp4`);
     const gradedMetaPath = `${gradedPath}.json`;
@@ -2564,7 +2581,7 @@ export async function buildDeliveryPackage({
           profile: pack.color?.profile ?? null,
           lutPath, auto: false,
           intensity: optionalNumber(pack.color?.intensity, 0.8),
-          quality, clarity: "conservative", qualityGuard: "report",
+          quality, clarity: variantClarity, qualityGuard: "report",
           bins,
         });
         const gradedProbe = await probeMedia(gradedPath, { bins });
@@ -2577,7 +2594,7 @@ export async function buildDeliveryPackage({
     }
     if (gradeReport) processing.push(await writeProcessingProof({ root: target, stage: "color", id: pack.id, inputs: colorInputs,
       outputs: [{ path: gradeReport.output, sha256: gradeReport.sha256 }],
-      parameters: { request: pack.color ?? { technicalOnly: true }, technicalOnly: !pack.color, profile: pack.color?.profile ?? null, lut: pack.color?.lut ?? null, intensity: pack.color?.intensity ?? 0.8, clarity: "conservative", qualityGuard: "report" },
+      parameters: { request: pack.color ?? { technicalOnly: true }, technicalOnly: !pack.color, profile: pack.color?.profile ?? null, lut: pack.color?.lut ?? null, intensity: pack.color?.intensity ?? 0.8, clarity: variantClarity, qualityGuard: "report" },
       execution: { outputSha256: gradeReport.sha256, colorManagement: gradeReport.colorManagement, processingQuality: gradeReport.processingQuality, reused: gradeReport.reused === true } }));
     let gradedInput = gradeReport?.output ?? assemblyPath;
     let entityReport = null;
@@ -3843,6 +3860,7 @@ export async function reedit(options = {}) {
     }));
     const [width, height] = project.resolution ?? [1080, 1920];
     const quality = resolveQuality(project);
+    const variantClarity = resolveVariantClarity(project);
     const fps = Number(project.fps ?? 30);
     const workDir = path.join(base, "work");
     await fsp.mkdir(path.join(targetDir, "variants"));
@@ -4110,7 +4128,7 @@ export async function reedit(options = {}) {
           profile: pack.color?.profile ?? null,
           lutPath: pack.color?.lut ? resolveLut(pack.color.lut) : null,
           intensity: optionalNumber(pack.color?.intensity, 0.8), auto: false,
-          quality, clarity: "conservative", qualityGuard: "report",
+          quality, clarity: variantClarity, qualityGuard: "report",
           bins,
         });
         gradeReport = report;
@@ -4118,7 +4136,7 @@ export async function reedit(options = {}) {
           outputs: [{ path: report.output, sha256: report.sha256 }],
           parameters: { request: pack.color ?? { technicalOnly: true }, technicalOnly: !pack.color,
             profile: pack.color?.profile ?? null, lut: pack.color?.lut ?? null, intensity: pack.color?.intensity ?? 0.8,
-            clarity: "conservative", qualityGuard: "report" },
+            clarity: variantClarity, qualityGuard: "report" },
           execution: { outputSha256: report.sha256, colorManagement: report.colorManagement, processingQuality: report.processingQuality } }));
         gradedInput = gradedPath;
         colorReused = false;

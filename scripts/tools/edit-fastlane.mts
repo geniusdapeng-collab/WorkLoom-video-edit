@@ -15,6 +15,8 @@
  *     [--title "片名"] [--cover-title "封面主标题"] [--hook "封面副标题"]
  *     [--variant-copy <cover-copy.json>] [--platform 哔哩哔哩] [--bridge-url <url>]
  *     [--bgm <曲目>] [--name "<文件名>"] [--music-level -23] [--json]
+ *     [--bgm-section auto|climax|calm|full] [--bgm-cut-driven]
+ *     [--clarity auto|off|light|medium|strong]
  *
  * full 模式（默认）：
  *   ① edit:post（1920×1080 全链路，含三形态/调色/BGM/字幕/转场/弹幕）
@@ -23,7 +25,7 @@
  *   edit:assemble → subtitle-cli burn → bgm-cli mix（几分钟量级的"先看版"）
  */
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
 
@@ -65,7 +67,8 @@ function run(step: string, command: string[], output: string, env?: NodeJS.Proce
     const tail = (result.stderr || result.stdout || "").trim().split("\n").slice(-10).join("\n");
     return { step, ok: false, ms, output, stderrTail: tail };
   }
-  return { step, ok: true, ms, output, sha256: existsSync(output) ? sha256File(output) : undefined };
+  const isFile = existsSync(output) && statSync(output).isFile();
+  return { step, ok: true, ms, output, sha256: isFile ? sha256File(output) : undefined };
 }
 
 function main(): void {
@@ -122,7 +125,10 @@ function main(): void {
     "--width", "1920", "--height", "1080", "--allow-downscale",
     "--variants", variants, "--subtitle", subtitleFile, "--segment-color",
     "--bgm", "agent", "--platform", platform, "--title", title, "--json",
+    ...(arg("--clarity") ? ["--clarity", arg("--clarity")] : []),
     ...(bgmPack ? ["--bgm-pack", abs(bgmPack)] : []),
+    ...(arg("--bgm-section") ? ["--bgm-section", arg("--bgm-section")] : []),
+    ...(flag("--bgm-cut-driven") ? ["--bgm-cut-driven"] : []),
     ...(danmaku ? ["--danmaku", abs(danmaku)] : []),
     ...analysisFiles.flatMap((file) => ["--analysis", file])];
   steps.push(run("post-1080p", postArgs, join(deliveryDir, "delivery-manifest.json")));
