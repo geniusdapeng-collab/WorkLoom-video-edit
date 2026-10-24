@@ -12,6 +12,7 @@ import { applyScenePolicy, auditScenePolicy, loadScenePolicies, type ScenePolicy
 import { verifyScenePolicyProductionSource } from "./scene-policy-render-gate.js";
 import { portraitReuseFixture } from "./portrait-reuse.test-support.js";
 import { builtinCatalogFixture } from "./builtin-character-selection.test-support.js";
+import { canonicalRenderJson, renderSha256 } from "./gen/compiled-request.js";
 
 const doubles = vi.hoisted(() => ({
   workDir: "",
@@ -62,7 +63,10 @@ vi.mock("@workloom/base/workdata", async () => {
   };
 });
 vi.mock("../service/llm.js", () => ({ modelPolicyFor: () => undefined }));
-vi.mock("./marketing-authority.js", () => ({ prepareMarketingFacts: doubles.prepare, finalizeMarketingFacts: doubles.finalize }));
+vi.mock("./marketing-authority.js", async importOriginal => ({
+  ...await importOriginal<typeof import("./marketing-authority.js")>(),
+  prepareMarketingFacts: doubles.prepare, finalizeMarketingFacts: doubles.finalize,
+}));
 vi.mock("./data-mining-executor.js", () => ({ createDataMiningExecutor: vi.fn() }));
 vi.mock("./media/library.js", () => ({ ingestPortraitsFromIndex: doubles.ingest }));
 vi.mock("./media/products.js", () => ({ upsertProductProfileFromDossier: doubles.project }));
@@ -118,12 +122,18 @@ beforeEach(() => {
   vi.clearAllMocks();
   doubles.nextAttempt = 0;
   doubles.studioConfigs.length = 0;
-  doubles.prepare.mockReset().mockImplementation(async ({ scope, root }) => ({
-    bundle: { rawSha256: "a".repeat(64), productQuery: { name: "本次商品" } }, raw: { A1: {}, A2: {}, A3: {} },
+  doubles.prepare.mockReset().mockImplementation(async ({ scope, root }) => {
+    const raw = { A1: { identity: { name: "本次商品", specs: { 功率: "1 W" } }, images: [] }, A2: { reviews: [] }, A3: { competitors: [] } };
+    const sourceId = `SRC-${renderSha256(`https://source.example.com/final\n${"a".repeat(64)}`).slice(0, 24)}`;
+    return {
+    bundle: { rawSha256: renderSha256(canonicalRenderJson(raw)), rawByAgent: structuredClone(raw), productQuery: { name: "本次商品" },
+      sources: [{ sourceId, finalUrl: "https://source.example.com/final", textSha256: "a".repeat(64) }],
+      stages: [{ stage: "A1", sourceIds: [sourceId], facts: { stage: "A1", status: "source_bound", payload: structuredClone(raw.A1),
+        claims: [{ stage: "A1", status: "source-bound", pointer: "/identity/specs/功率", value: "1 W", sourceId, textSha256: "a".repeat(64) }] } }] }, raw,
     prefix: `stages/preproduction/attempt-${scope.attempt}.marketing`,
     storeRoot: path.join(root, `stages/preproduction/attempt-${scope.attempt}.marketing-dossier`),
     g1Content: JSON.stringify({ facts: { schemaVersion: "workloom.marketing-facts/v1", stages: [1, 2, 3], sources: [1], optionalValue: null }, scope }),
-  }));
+  }; });
   doubles.finalize.mockReset().mockResolvedValue({ ref: "stages/preproduction/attempt-1.marketing-facts.json", sha256: "b".repeat(64) });
   doubles.emitGates = true;
   doubles.query.mockReset().mockResolvedValue({ rows: [], rowCount: 1 });
@@ -565,6 +575,27 @@ describe("预生产原始结果与诚实终态", () => {
     expect(doubles.finalize).toHaveBeenCalledWith(expect.anything(), [{ shotId: "SC-1", prompt: "01.【场景】窗边桌面", fields: { scene: "窗边桌面" } }]);
     expect(await archiveOutput(projectId, 1)).toMatchObject({ marketingFactsRef: "stages/preproduction/attempt-1.marketing-facts.json", marketingFactsSha256: "b".repeat(64) });
     expect(doubles.studioConfigs[0]?.dataMining.verifiedRaw.projectId).toBe(projectId);
+    const verifiedRaw = doubles.studioConfigs[0]?.dataMining.verifiedRaw;
+    expect(JSON.parse(verifiedRaw.rawJson).A1.identity.specs).toEqual({ 功率: { value: "1 W", source_url: "https://source.example.com/final" } });
+    expect(verifiedRaw.sha256).toBe(renderSha256(verifiedRaw.rawJson));
+    const prepared = await doubles.prepare.mock.results[0]!.value;
+    expect(prepared.raw.A1.identity.specs).toEqual({ 功率: "1 W" });
+    expect(prepared.bundle.rawSha256).toBe(renderSha256(canonicalRenderJson(prepared.raw)));
+    expect(verifiedRaw.sha256).not.toBe(prepared.bundle.rawSha256);
+  });
+  it.each(["source", "claim", "value"])("Jenny格式桥%s变化在vendor之前失败，保留原事实包", async kind => {
+    const original = doubles.prepare.getMockImplementation()!;
+    doubles.prepare.mockImplementation(async options => {
+      const prepared = await original(options);
+      if (kind === "source") prepared.bundle.sources = [];
+      if (kind === "claim") prepared.bundle.stages[0].facts.claims = [];
+      if (kind === "value") prepared.raw.A1.identity.specs.功率 = "9 W";
+      return prepared;
+    });
+    doubles.runPreproduction.mockResolvedValue(success());
+    const { entry } = await runToTerminal();
+    expect(entry.status).toBe("failed"); expect(entry.error).toMatch(/MARKETING_(SPEC_UNVERIFIED|FACTS_CHANGED)/);
+    expect(doubles.studioConfigs).toHaveLength(0); expect(doubles.runPreproduction).not.toHaveBeenCalled(); expect(doubles.finalize).not.toHaveBeenCalled();
   });
   it.each(["source", "g1", "unverified-proof", "unbound-proof"])("%s未核实不执行vendor或终态事实审核", async kind => {
     if (kind === "source") doubles.prepare.mockRejectedValue(new Error("MARKETING_A1_UNVERIFIED"));

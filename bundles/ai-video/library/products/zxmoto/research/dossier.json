@@ -1,0 +1,216 @@
+{
+  "product_id": "PRD-199VNRB",
+  "built_at": "2026-10-24T06:34:07.156Z",
+  "identity": {
+    "name": "张雪机车",
+    "brand": "张雪机车",
+    "category": "",
+    "model": "",
+    "specs": {
+      "创始人": "张雪",
+      "创立时间": "2024年4月",
+      "创立地点": "重庆",
+      "研发方向": "专注高性能产品和自主发动机研发",
+      "2025年总产值": "7.5亿元",
+      "创始人出生地": "湖南怀化偏远山村",
+      "创始人早年经历": "辍学进入修理铺当学徒",
+      "创始人技能": "可蒙眼组装发动机",
+      "人物观点": "我认为行业上下游会更有信心"
+    },
+    "price_band": "",
+    "official_selling_points": [],
+    "price_confidence": null
+  },
+  "visual_assets": {
+    "hero_image_id": "PRD-HERO-001",
+    "images": [
+      {
+        "id": "PRD-HERO-001",
+        "url": "https://n.sinaimg.cn/sinakd20260919s/290/w1080h810/20260919/989a-87a901e4a9c3bf9de8ef262a901818b8.jpg",
+        "source": "finance.sina.com.cn",
+        "angle": "unknown",
+        "license_risk": "high",
+        "fetched_at": "2026-10-24T06:34:07.154Z"
+      },
+      {
+        "id": "PRD-REF-002",
+        "url": "https://n.sinaimg.cn/sinakd20260919s/88/w1080h608/20260919/a8d8-25f68cc0b9e52bcddbd8498a3a69fb3a.jpg",
+        "source": "finance.sina.com.cn",
+        "angle": "unknown",
+        "license_risk": "high",
+        "fetched_at": "2026-10-24T06:34:07.154Z"
+      },
+      {
+        "id": "PRD-REF-003",
+        "url": "https://p5.img.cctvpic.com/photoworkspace/contentimg/2026/04/03/2026040314552212923.jpg",
+        "source": "people.cctv.com",
+        "angle": "unknown",
+        "license_risk": "high",
+        "fetched_at": "2026-10-24T06:34:07.154Z"
+      }
+    ],
+    "needs_more_reference": false
+  },
+  "usage": {
+    "scenarios": [],
+    "frequency_notes": []
+  },
+  "voice_of_customer": {
+    "praise_points": [],
+    "pain_points": [],
+    "verbatim": []
+  },
+  "pros_cons": {
+    "pros": [],
+    "cons": []
+  },
+  "competitors": [],
+  "differentiation": {
+    "our_opening": [],
+    "crowded_points": [],
+    "weakness_openings": []
+  },
+  "hook_material": {
+    "data_points": [
+      "创立时间：2024年4月",
+      "2025年总产值：7.5亿元"
+    ],
+    "conflicts": [],
+    "questions": []
+  },
+  "gaps": [
+    "未采集到价格信息，price_band 为空",
+    "有效评价样本 0 条，低于门槛 10 条，结论置信度受限",
+    "无有效竞品入列（缺带来源的卖点）",
+    "[A1] 未采集到价格信息，price_band 为空",
+    "[A2] 有效评价样本 0 条，低于门槛 10 条，结论置信度受限",
+    "[A3] 无有效竞品入列（缺带来源的卖点）",
+    "[A1_COLLECT] 未采集到官方卖点",
+    "[A2_MINE] 称赞点不足 2 条（评价样本可能太薄）",
+    "[A2_MINE] 未挖到吐槽点（警惕样本偏倚：全是好评通常不真实）",
+    "[A2_MINE] 未提炼出使用场景",
+    "[A3_SCOUT] 未找到有效竞品"
+  ],
+  "provenance": [
+    {
+      "evidence_id": "EV-0001",
+      "claim_ref": "identity.specs.创始人",
+      "source_url": "https://people.cctv.com/2026/04/03/ARTI87gL7UfrOvClXrfU9Xli260403.shtml",
+      "origin": null,
+      "channel": "",
+      "channel_class": "unknown",
+      "agent": "ProductInfoCollector",
+      "fetched_at": "2026-10-24T06:34:07.154Z"
+    },
+    {
+      "evidence_id": "EV-0002",
+      "claim_ref": "identity.specs.创立时间",
+      "source_url": "https://people.cctv.com/2026/04/03/ARTI87gL7UfrOvClXrfU9Xli260403.shtml",
+      "origin": null,
+      "channel": "",
+      "channel_class": "unknown",
+      "agent": "ProductInfoCollector",
+      "fetched_at": "2026-10-24T06:34:07.154Z"
+    },
+    {
+      "evidence_id": "EV-0003",
+      "claim_ref": "identity.specs.创立地点",
+      "source_url": "https://people.cctv.com/2026/04/03/ARTI87gL7UfrOvClXrfU9Xli260403.shtml",
+      "origin": null,
+      "channel": "",
+      "channel_class": "unknown",
+      "agent": "ProductInfoCollector",
+      "fetched_at": "2026-10-24T06:34:07.154Z"
+    },
+    {
+      "evidence_id": "EV-0004",
+      "claim_ref": "identity.specs.研发方向",
+      "source_url": "https://people.cctv.com/2026/04/03/ARTI87gL7UfrOvClXrfU9Xli260403.shtml",
+      "origin": null,
+      "channel": "",
+      "channel_class": "unknown",
+      "agent": "ProductInfoCollector",
+      "fetched_at": "2026-10-24T06:34:07.154Z"
+    },
+    {
+      "evidence_id": "EV-0005",
+      "claim_ref": "identity.specs.2025年总产值",
+      "source_url": "https://people.cctv.com/2026/04/03/ARTI87gL7UfrOvClXrfU9Xli260403.shtml",
+      "origin": null,
+      "channel": "",
+      "channel_class": "unknown",
+      "agent": "ProductInfoCollector",
+      "fetched_at": "2026-10-24T06:34:07.154Z"
+    },
+    {
+      "evidence_id": "EV-0006",
+      "claim_ref": "identity.specs.创始人出生地",
+      "source_url": "https://cpc.people.com.cn/n1/2026/0512/c64387-40718001.html",
+      "origin": null,
+      "channel": "",
+      "channel_class": "unknown",
+      "agent": "ProductInfoCollector",
+      "fetched_at": "2026-10-24T06:34:07.154Z"
+    },
+    {
+      "evidence_id": "EV-0007",
+      "claim_ref": "identity.specs.创始人早年经历",
+      "source_url": "https://people.cctv.com/2026/04/03/ARTI87gL7UfrOvClXrfU9Xli260403.shtml",
+      "origin": null,
+      "channel": "",
+      "channel_class": "unknown",
+      "agent": "ProductInfoCollector",
+      "fetched_at": "2026-10-24T06:34:07.154Z"
+    },
+    {
+      "evidence_id": "EV-0008",
+      "claim_ref": "identity.specs.创始人技能",
+      "source_url": "https://cpc.people.com.cn/n1/2026/0512/c64387-40718001.html",
+      "origin": null,
+      "channel": "",
+      "channel_class": "unknown",
+      "agent": "ProductInfoCollector",
+      "fetched_at": "2026-10-24T06:34:07.154Z"
+    },
+    {
+      "evidence_id": "EV-0009",
+      "claim_ref": "identity.specs.人物观点",
+      "source_url": "https://people.cctv.com/2026/04/03/ARTI87gL7UfrOvClXrfU9Xli260403.shtml",
+      "origin": null,
+      "channel": "",
+      "channel_class": "unknown",
+      "agent": "ProductInfoCollector",
+      "fetched_at": "2026-10-24T06:34:07.154Z"
+    },
+    {
+      "evidence_id": "EV-0010",
+      "claim_ref": "visual_assets.images:PRD-HERO-001",
+      "source_url": "https://finance.sina.com.cn/wm/2026-09-19/doc-inisispz2576147.shtml",
+      "origin": null,
+      "channel": "finance.sina.com.cn",
+      "channel_class": "unknown",
+      "agent": "ProductInfoCollector",
+      "fetched_at": "2026-10-24T06:34:07.154Z"
+    },
+    {
+      "evidence_id": "EV-0011",
+      "claim_ref": "visual_assets.images:PRD-REF-002",
+      "source_url": "https://finance.sina.com.cn/wm/2026-09-19/doc-inisispz2576147.shtml",
+      "origin": null,
+      "channel": "finance.sina.com.cn",
+      "channel_class": "unknown",
+      "agent": "ProductInfoCollector",
+      "fetched_at": "2026-10-24T06:34:07.154Z"
+    },
+    {
+      "evidence_id": "EV-0012",
+      "claim_ref": "visual_assets.images:PRD-REF-003",
+      "source_url": "https://people.cctv.com/2026/04/03/ARTI87gL7UfrOvClXrfU9Xli260403.shtml",
+      "origin": null,
+      "channel": "people.cctv.com",
+      "channel_class": "unknown",
+      "agent": "ProductInfoCollector",
+      "fetched_at": "2026-10-24T06:34:07.154Z"
+    }
+  ]
+}

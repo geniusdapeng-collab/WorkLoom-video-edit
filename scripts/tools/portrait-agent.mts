@@ -12,8 +12,12 @@
  *        # 机器监制评审（T-2026-1001-0007 起仅留证，不参与放行、不触发重做）：判断"是不是同一个人"
  *        # 成套定妆照默认一批看完（batch-size 12）：切批会让"同一人"这个整批判据被切碎
  *   node scripts/tools/portrait-agent.mts accept --character <characterId> [--version N]
- *        --by "<验收人>" --note "<依据/原话>" [--min-likeness 80]
- *        # 所有者验收：逐角度 1:1 机器像不像实测 + 所有者验收，两条并列留痕；门记录 via=owner-acceptance
+ *        --by "<验收人>" --note "<依据/原话>" [--basis human-visual-review] [--with-likeness]
+ *        # 默认：所有者已看原图的视觉验收，旧 human-review 记录兼容
+ *   node scripts/tools/portrait-agent.mts accept --character <characterId> [--version N]
+ *        --basis explicit-owner-authorization --by "<产品所有者>" --recorded-by "Codex"
+ *        --note "<已给出的用途授权原话或依据>" --anchor <本版本当前front>
+ *        # 代录既有用途授权：绑定当前全部声明角度及新AI front，不声称用户逐图看过，不调用模型
  *   node scripts/tools/portrait-agent.mts reject --character <characterId> [--version N]
  *        --by "<验收人>" --note "<拒绝原因，至少8字>"
  *        # 追加当前版本的人类否决，不调用模型，不改档案或删除候选
@@ -32,6 +36,7 @@ import {
   appendGateEvent, assertCharacterComponent, buildGateEvent, buildPortraitPlan, loadCharacterEntry, resolveProducerLlm,
   reviewStage, runPortraitAgent
 } from "../../packages/video-studio/src/index.js";
+import { assertPortraitOwnerWritePaths, buildPortraitOwnerAuthorization, EXPLICIT_PORTRAIT_AUTHORIZATION } from "../../packages/video-studio/src/portrait-owner-authorization.js";
 
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const LIBRARY_ROOT = resolve(REPO_ROOT, process.env.HR_CHARACTER_LIBRARY ?? "var/media/characters");
@@ -49,9 +54,9 @@ const command = process.argv[2] ?? "";
  * 最后让进程环境覆盖。早先这里只读仓库 `.env`，于是 `portrait-agent review` 在真机上
  * 永远拿不到评审模型（fail-closed 打回），定妆照评审实际从未跑成过。
  */
-const ENV: Record<string, string> = (() => {
+function loadEnv(): Record<string, string> {
   const out: Record<string, string> = {};
-  const files = command === "reject" || command === "accept" && !flag("--with-likeness") || command === "plan" ? []
+  const files = command === "reject" || command === "accept" && (!flag("--with-likeness") || arg("--basis") === EXPLICIT_PORTRAIT_AUTHORIZATION) || command === "plan" ? []
     : [arg("--keys-file") || resolve(homedir(), ".workloom", "live.env"), resolve(REPO_ROOT, ".env")];
   for (const file of files) {
     if (!existsSync(file)) continue;
@@ -62,7 +67,7 @@ const ENV: Record<string, string> = (() => {
   }
   for (const [key, value] of Object.entries(process.env)) if (value) out[key] = value;
   return out;
-})();
+}
 
 const characterId = arg("--character");
 
@@ -132,10 +137,17 @@ async function main(): Promise<void> {
     return;
   }
   assertCharacterComponent(characterId);
-  for (const name of ["--character", "--seed", "--version", "--angles", "--anchor", "--size", "--wardrobe-id", "--wardrobe"]) {
+  for (const name of ["--character", "--seed", "--version", "--angles", "--anchor", "--size", "--wardrobe-id", "--wardrobe", "--by", "--note", "--basis", "--recorded-by", "--min-score", "--min-likeness", "--batch-size", "--keys-file"]) {
     const value = arg(name);
     if (flag(name) && (!value || value.startsWith("--"))) throw new Error(`参数缺少值：${name}`);
+    if (process.argv.filter((value) => value === name).length > 1) throw new Error(`参数重复：${name}`);
   }
+  if (command === "accept") {
+    const basis = arg("--basis", "human-visual-review");
+    if (!["human-visual-review", EXPLICIT_PORTRAIT_AUTHORIZATION].includes(basis)) throw new Error(`未知所有者决定依据：${basis}`);
+    if (basis === EXPLICIT_PORTRAIT_AUTHORIZATION && flag("--with-likeness")) throw new Error("既有用途授权代录不运行机器像不像；不将新AI front称为认证真人事实锚");
+  }
+  const ENV = loadEnv();
   const entry = loadCharacterEntry(join(LIBRARY_ROOT, characterId));
   if (!entry) {
     console.error(`未找到角色档案：${join(LIBRARY_ROOT, characterId, "profile.json")}`);
@@ -307,12 +319,12 @@ async function main(): Promise<void> {
     mkdirSync(reviewDir, { recursive: true });
     const receipt = join(reviewDir, `v${target.version}-owner-rejection-${new Date().toISOString().replace(/[:.]/g, "-")}.json`);
     const artifacts = Object.entries(selected!.files).map(([angle, file]) => ({ angle, file, sha256: existsSync(file) ? sha256File(file) : null }));
-    writeFileSync(receipt, JSON.stringify({ at: new Date().toISOString(), characterId, version: target.version,
+    writeFileSync(receipt, JSON.stringify({ at: new Date().toISOString(), characterId: selected!.id, version: target.version,
       kind: "owner-rejection", basis: "human-review", approved: false, rejectedBy, note, artifacts }, null, 2) + "\n");
-    const event = buildGateEvent({ stepKey: "g5-portrait-confirm", projectId: `portrait:${characterId}:v${target.version}`,
+    const event = buildGateEvent({ stepKey: "g5-portrait-confirm", projectId: `portrait:${selected!.id}:v${target.version}`,
       sourceStage: "owner-acceptance", shotIds: [], checks: [{ id: "owner-decision", pass: false, hard: true, detail: note }],
       softApproved: false, via: "owner-acceptance", score: null, reason: `人类验收否决：${rejectedBy}｜${note}`,
-      evidence: { basis: "human-review", characterId, version: target.version, ownerRejection: receipt } });
+      evidence: { basis: "human-review", characterId: selected!.id, version: target.version, ownerRejection: receipt } });
     appendGateEvent(join(characterDir, "gates.jsonl"), event);
     console.log(`人类否决已记录（当前版本不放行）：${receipt}`);
     return;
@@ -333,9 +345,17 @@ async function main(): Promise<void> {
     if (!acceptedBy || note.length < 8) {
       throw new Error("所有者验收必须写明验收人（--by）与依据（--note，≥8 字）：不接受「有人点过头」式的无凭放行");
     }
-    const anchors = anchorListFor(characterDir, target, arg("--anchor"));
+    const basis = arg("--basis", "human-visual-review");
+    const explicitAuthorization = basis === EXPLICIT_PORTRAIT_AUTHORIZATION;
+    if (explicitAuthorization && !arg("--anchor")) throw new Error("既有用途授权必须显式指定当前新AI front身份锚（--anchor）");
+    const anchors = explicitAuthorization ? resolveAnchors(arg("--anchor"), characterDir) : anchorListFor(characterDir, target, arg("--anchor"));
     if (anchors.length === 0) throw new Error("所有者验收缺基准照片（身份锚）：像不像无从比对，fail-closed");
     const anchor = anchors[0]!;
+    if (explicitAuthorization && anchors.length !== 1) throw new Error("既有用途授权只能指定本版本当前front一张新AI身份锚");
+    const authorization = explicitAuthorization ? buildPortraitOwnerAuthorization(selected!, {
+      decisionOwner: acceptedBy, recordedBy: arg("--recorded-by"), statement: note, anchorFile: anchor,
+    }) : null;
+    if (authorization) assertPortraitOwnerWritePaths(characterDir);
     /**
      * 机器像不像**默认不跑**（2026-10-01 产品所有者口径）：出图后的评审决策交给人类，
      * 机器判据不稳定（同一批文件实测 threeQuarterLeft 92↔15–86、threeQuarterRight 82↔12–20），
@@ -418,13 +438,14 @@ async function main(): Promise<void> {
     writeFileSync(ownerFile, `${JSON.stringify({
       at: new Date().toISOString(), characterId: entry.id, version: target.version, kind: "owner-acceptance",
       /** 裁决口径：出图后的评审决策交给人类（产品所有者 2026-10-01）；机器判据不参与放行 */
-      basis: "human-review",
+      basis: authorization ? EXPLICIT_PORTRAIT_AUTHORIZATION : "human-review",
       approved: true,
       acceptedBy, note,
+      ...(authorization ? { authorization } : {}),
       likenessReport: likenessFile,
       likeness: withLikeness ? { ...summary, belowThreshold, error: likenessError } : { status: "not-run", why: "机器判据不参与裁决（口径：评审决策交给人类）" },
-      artifacts,
-      anchors: anchors.map((file) => ({ file, sha256: sha256File(file) }))
+      artifacts: authorization?.artifacts ?? artifacts,
+      anchors: authorization ? [authorization.anchor] : anchors.map((file) => ({ file, sha256: sha256File(file) }))
     }, null, 2)}\n`, "utf8");
     const checks = [
       { id: "required-angles", pass: ["front", "threeQuarter", "closeup", "side"].every((a) => (target.angles ?? []).includes(a)), hard: true, detail: `实际角度 ${(target.angles ?? []).join("/")}` },
@@ -433,7 +454,9 @@ async function main(): Promise<void> {
       /** 形式判据：资产本身齐备（角度/体积/文件指纹），这些是事实项，不是质量裁决 */
       { id: "artifacts-present", pass: artifacts.every((item) => existsSync(item.file) && statSync(item.file).size > 50_000), hard: true, detail: `${artifacts.length} 张角度图齐备且已记指纹 sha256` },
       /** 裁决判据：**人类验收**（产品所有者/客户本人看过原图后的决定） */
-      { id: "owner-acceptance", pass: true, hard: true, detail: `人类验收：${acceptedBy}｜依据：${note.slice(0, 120)}` }
+      { id: "owner-acceptance", pass: true, hard: true, detail: authorization
+        ? `所有者既有用途授权：${acceptedBy}｜代录：${authorization.recordedBy}｜依据：${note.slice(0, 120)}`
+        : `人类验收：${acceptedBy}｜依据：${note.slice(0, 120)}` }
     ];
     if (withLikeness) {
       checks.splice(4, 0, { id: "machine-likeness-evidence", pass: perAngle.length > 0, hard: false, detail: `机器像不像留证 ${perAngle.length} 个角度（不参与裁决）：最低分 ${summary.minScore ?? "n/a"}` });
@@ -447,10 +470,13 @@ async function main(): Promise<void> {
       softApproved: true,
       via: "owner-acceptance",
       score: withLikeness ? summary.minScore : null,
-      reason: `人类验收放行（via=owner-acceptance，非机器监制通过）：${acceptedBy} 看过原图后确认可用。`
-        + `口径：出图后的评审决策交给人类，机器判据不参与放行`
+      reason: (authorization
+        ? `所有者既有用途授权（via=owner-acceptance）：决策人${acceptedBy}；代录执行人${authorization.recordedBy}；依据：${note}。未记录人类逐图视觉验收。`
+        : `人类验收放行（via=owner-acceptance，非机器监制通过）：${acceptedBy} 看过原图后确认可用。口径：出图后的评审决策交给人类，机器判据不参与放行`)
         + (withLikeness ? `；机器证据仅留档（${summary.sameAngles}/${summary.angles} 判同一人，最低 ${summary.minScore ?? "n/a"}）` : ""),
-      evidence: { likenessReport: likenessFile, ownerAcceptance: ownerFile, anchors, characterId: entry.id, version: target.version, basis: "human-review" }
+      evidence: { likenessReport: likenessFile, ownerAcceptance: ownerFile, anchors, characterId: entry.id, version: target.version,
+        basis: authorization ? EXPLICIT_PORTRAIT_AUTHORIZATION : "human-review",
+        ...(authorization ? { authorization, ownerAcceptanceSha256: sha256File(ownerFile) } : {}) }
     });
     appendGateEvent(join(characterDir, "gates.jsonl"), gateEvent);
     console.log(`\n门记录（g5-portrait-confirm）：${gateEvent.ok ? "放行" : "未过"}（via=owner-acceptance）`);

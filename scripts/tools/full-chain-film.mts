@@ -49,6 +49,7 @@ import { filmReviewContracts, loadOrCreateFilmAuthorContext, reviewFilmStage, is
 import { acceptRenderedShot, findRenderedShotAcceptance, RENDERED_SHOT_ACCEPTANCE_POLICY, type RenderedShotAcceptance } from "../../packages/video-studio/src/rendered-shot-acceptance.js";
 import { buildProducerReviewContract, type ProducerGateOptions } from "../../packages/video-studio/src/producer-gate.js";
 import { assessPortraitDecision, selectPortraitDecisionRecord } from "../../packages/video-studio/src/portrait-decision.js";
+import { hasExplicitPortraitAuthorization, verifyPortraitOwnerAuthorization } from "../../packages/video-studio/src/portrait-owner-authorization.js";
 import { executeRevision } from "../../packages/video-studio/src/revision-executor.js";
 import { assessVoiceArtifact, fingerprintFile, fingerprintText, promoteDubCandidate, type VoiceArtifactRecord } from "./film-voice-artifact.js";
 import {
@@ -2162,7 +2163,7 @@ if (needsNewRender && !DRY_RUN) {
     try {
       const events = readFileSync(ledger, "utf8").split("\n").filter(Boolean).map((l) => JSON.parse(l) as {
         stepKey?: string; projectId?: string; at?: string; approved?: boolean; score?: number | null; reason?: string;
-        via?: string | null; sourceStage?: string | null; evidence?: { basis?: string | null; ownerAcceptance?: string } | null;
+        via?: string | null; sourceStage?: string | null; evidence?: { basis?: string | null; ownerAcceptance?: string; [key: string]: unknown } | null;
       });
       return selectPortraitDecisionRecord(events, `portrait:${lead.id}:v${lead.version}`);
     } catch (error) { throw new Error(`角色门账本不可读取：${error instanceof Error ? error.message : String(error)}`); }
@@ -2193,16 +2194,27 @@ if (needsNewRender && !DRY_RUN) {
       : null),
   );
   let acceptanceBytesVerified = false;
+  let acceptanceDetail = "当前定妆照未与人类验收指纹绑定或已变化，须重新记录所有者决定";
   if (lead && portraitDecision.decisive && !portraitDecision.blocking) {
-    const receiptFile = gateRecord?.evidence?.ownerAcceptance;
-    if (receiptFile) {
-      try {
-        const localReceipt = join(lead.dir, "reviews", basename(receiptFile));
-        const receipt = JSON.parse(readFileSync(localReceipt, "utf8")) as { characterId?: string; version?: number; artifacts?: Array<{ angle?: string; file: string; sha256: string }> };
-        acceptanceBytesVerified = receipt.characterId === lead.id && receipt.version === lead.version
-          && published.every(({ angle, path }) => !isAssetRefLocal(path) && existsSync(path)
-            && receipt.artifacts?.some((item) => (item.angle === angle || resolve(item.file) === resolve(path)) && item.sha256 === sha256FileSync(path)));
-      } catch (error) { log(`人类验收文件核验失败：${error instanceof Error ? error.message : String(error)}`); }
+    if (gateRecord && hasExplicitPortraitAuthorization(gateRecord)) {
+      const verified = verifyPortraitOwnerAuthorization(gateRecord, { dir: lead.dir, characterId: lead.id, version: lead.version, files: lead.files });
+      acceptanceBytesVerified = verified.ok;
+      acceptanceDetail = verified.ok ? `所有者既有用途授权、回执完整SHA256、当前全部${verified.authorization!.artifacts.length}角度及新AI front身份锚一致`
+        : `既有用途授权核验失败：${verified.issues.join("；")}`;
+    } else {
+      const receiptFile = gateRecord?.evidence?.ownerAcceptance;
+      if (receiptFile) {
+        try {
+          const localReceipt = join(lead.dir, "reviews", basename(receiptFile));
+          const receipt = JSON.parse(readFileSync(localReceipt, "utf8")) as { kind?: string; approved?: boolean; basis?: string; authorization?: unknown; characterId?: string; version?: number; artifacts?: Array<{ angle?: string; file: string; sha256: string }> };
+          acceptanceBytesVerified = receipt.kind === "owner-acceptance" && receipt.approved === true
+            && (!receipt.basis || receipt.basis === "human-review") && !Object.hasOwn(receipt, "authorization")
+            && receipt.characterId === lead.id && receipt.version === lead.version
+            && published.every(({ angle, path }) => !isAssetRefLocal(path) && existsSync(path)
+              && receipt.artifacts?.some((item) => (item.angle === angle || resolve(item.file) === resolve(path)) && item.sha256 === sha256FileSync(path)));
+        } catch (error) { log(`人类验收文件核验失败：${error instanceof Error ? error.message : String(error)}`); }
+      }
+      if (acceptanceBytesVerified) acceptanceDetail = "当前角色版本的四角度字节与人类视觉验收指纹一致";
     }
   }
   const checks: GateCheck[] = lead
@@ -2243,7 +2255,7 @@ if (needsNewRender && !DRY_RUN) {
             }]),
         ...(portraitDecision.decisive && !portraitDecision.blocking ? [{
           id: "human-acceptance-bytes", pass: acceptanceBytesVerified, hard: true,
-          detail: acceptanceBytesVerified ? "当前角色版本的四角度字节与人类验收指纹一致" : "当前定妆照未与人类验收指纹绑定或已变化，须重新验收"
+          detail: acceptanceDetail
         }] : [])
       ]
     : [{ id: "applicable", pass: true, detail: "镜头卡未涉及人物（空镜片）→ 定妆照门不适用", hard: false }];
@@ -2260,7 +2272,7 @@ if (needsNewRender && !DRY_RUN) {
      * 此时"external-asset-ref"判据就是这道门的实质判据，不再因"没有本地监制记录"降级；
      * 授权有效期与归属仍如实标注为未由本工具核验（external-asset-id-not-provider-verified）。
      */
-    degraded: Boolean(lead) && portraitDecision.kind === "none" && externalRefs.length === 0,
+    degraded: Boolean(lead) && !portraitDecision.decisive && !(published.length > 0 && externalRefs.length === published.length),
     evidence: {
       character: lead ? { id: lead.id, name: lead.name, angles: Object.keys(lead.files) } : null,
       reviewFile,
@@ -2268,8 +2280,10 @@ if (needsNewRender && !DRY_RUN) {
       gateApproved: gateRecord?.approved ?? null,
       reviewApproved: review?.verdict?.approved ?? null,
       portraitDecision: { kind: portraitDecision.kind, decisive: portraitDecision.decisive, blocking: portraitDecision.blocking, detail: portraitDecision.detail },
+      acceptanceBytesVerified, acceptanceDetail,
       note: portraitDecision.kind === "human"
-        ? "含人类验收记录（gates.jsonl，via=owner-acceptance）：放行/否决由人类决定"
+        ? "含所有者决定记录（gates.jsonl，via=owner-acceptance）：视觉验收与既有用途授权分别标注，代录不冒充看图"
+        : portraitDecision.kind === "invalid" ? "所有者决定证据无效，阻断且不回退旧放行"
         : portraitDecision.kind === "machine"
           ? "含机器评审留证（不参与放行）：机器判据不触发重做，决策交人类"
           : "无人类验收记录：本次仅做资产硬闸（角度/尺寸/字节）"

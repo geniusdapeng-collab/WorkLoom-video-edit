@@ -1,0 +1,522 @@
+{
+  "product_id": "820R-1LKU0J5",
+  "built_at": "2026-10-24T06:57:00.719Z",
+  "identity": {
+    "name": "张雪 820RR-RC 赛道版",
+    "brand": "张雪机车",
+    "category": "摩托车",
+    "model": "820RR-RC",
+    "specs": {
+      "发动机": "818.8cc 直列三缸发动机",
+      "配气结构": "DOHC 每缸四气门",
+      "冷却方式": "水冷 + 油冷散热结构",
+      "最大功率": "113 千瓦，在每 13500 转时输出",
+      "最大扭矩": "86 牛 · 米在每 10000 转时产生",
+      "最高转速": "最高转速可达 14750 转",
+      "压缩比": "14:1",
+      "供油系统": "BOSCH 电喷",
+      "电子油门与弹射起步": "配备电子油门和弹射起步功能",
+      "排气系统": "钛合金直排排气系统",
+      "换挡机构": "反挡换挡机构",
+      "快速换挡": "双向快速换挡装置",
+      "仪表": "6.2 英寸 TFT 赛道仪表",
+      "前悬架": "KYB 品牌组件，43 毫米倒置式减震器，支持全段调节，配备锻造 CNC 底筒和 DLC 叉管",
+      "后悬架": "多连杆结构，同样支持全段调节，预载可免工具调节",
+      "制动系统": "Brembo 提供，前轮 PRO1 四活塞径向卡钳配合 330 毫米双浮动盘，搭配 Brembo RCS 直推泵，后轮 P34 双活塞卡钳与 220 毫米浮动盘组合",
+      "转向角": "20 度",
+      "前倾角": "24.6 度",
+      "拖曳距": "104.2 毫米",
+      "轴距": "1420 毫米",
+      "轮胎规格": "前 120/70 ZR17、后 180/60 ZR17",
+      "轮辋": "锻造 CNC 材质",
+      "座高": "825 毫米",
+      "油箱容积": "16 升",
+      "湿重": "160 公斤",
+      "用途限制": "赛道专用车辆，不具备道路行驶资质，主要针对赛道日及竞速场景使用"
+    },
+    "price_band": "元 128000",
+    "official_selling_points": [],
+    "price_confidence": "reported"
+  },
+  "visual_assets": {
+    "hero_image_id": "820R-HERO-001",
+    "images": [
+      {
+        "id": "820R-HERO-001",
+        "url": "https://n.sinaimg.cn/sinakd20260919s/290/w1080h810/20260919/c557-e6953c2b46d6cb0852ccbcb4269763ba.jpg",
+        "source": "finance.sina.com.cn",
+        "angle": "unknown",
+        "license_risk": "high",
+        "fetched_at": "2026-10-24T06:57:00.715Z"
+      },
+      {
+        "id": "820R-REF-002",
+        "url": "https://www2.autoimg.cn/chejiahaodfs/g33/M0B/A5/90/750x0_autohomecar__ChxpVmrNlSSAEhFhAAVW-cpKwlE948.jpg",
+        "source": "chejiahao.m.autohome.com.cn",
+        "angle": "unknown",
+        "license_risk": "high",
+        "fetched_at": "2026-10-24T06:57:00.715Z"
+      },
+      {
+        "id": "820R-REF-003",
+        "url": "https://www2.autoimg.cn/chejiahaodfs/g33/M08/A5/8F/750x0_autohomecar__ChxpVWrNlSSAAWuWAAUn9R-nR5A832.jpg",
+        "source": "chejiahao.m.autohome.com.cn",
+        "angle": "unknown",
+        "license_risk": "high",
+        "fetched_at": "2026-10-24T06:57:00.715Z"
+      },
+      {
+        "id": "820R-REF-004",
+        "url": "https://www2.autoimg.cn/chejiahaodfs/g33/M02/A5/8F/750x0_autohomecar__ChxpVWrNlSSAFiXPAAVVCbZ7bCc624.jpg",
+        "source": "chejiahao.m.autohome.com.cn",
+        "angle": "unknown",
+        "license_risk": "high",
+        "fetched_at": "2026-10-24T06:57:00.715Z"
+      },
+      {
+        "id": "820R-REF-005",
+        "url": "https://www2.autoimg.cn/chejiahaodfs/g33/M03/A5/90/750x0_autohomecar__ChxpVmrNlSSASoioAAjUd8tHA30198.jpg",
+        "source": "chejiahao.m.autohome.com.cn",
+        "angle": "unknown",
+        "license_risk": "high",
+        "fetched_at": "2026-10-24T06:57:00.715Z"
+      },
+      {
+        "id": "820R-REF-006",
+        "url": "https://www2.autoimg.cn/chejiahaodfs/g33/M08/A5/8F/750x0_autohomecar__ChxpVWrNlSSAPvH1AAZUyb5W7IQ216.jpg",
+        "source": "chejiahao.m.autohome.com.cn",
+        "angle": "unknown",
+        "license_risk": "high",
+        "fetched_at": "2026-10-24T06:57:00.715Z"
+      },
+      {
+        "id": "820R-REF-007",
+        "url": "https://img.ithome.com/newsuploadfiles/2026/9/19c620fd-e878-45bd-84e5-ca401f419897.jpg",
+        "source": "www.ithome.com",
+        "angle": "unknown",
+        "license_risk": "high",
+        "fetched_at": "2026-10-24T06:57:00.715Z"
+      },
+      {
+        "id": "820R-REF-008",
+        "url": "https://img.ithome.com/newsuploadfiles/2026/9/02958931-41f4-4f07-a2da-ce04b70d8a76.jpg",
+        "source": "www.ithome.com",
+        "angle": "unknown",
+        "license_risk": "high",
+        "fetched_at": "2026-10-24T06:57:00.715Z"
+      },
+      {
+        "id": "820R-REF-009",
+        "url": "https://img.ithome.com/newsuploadfiles/2026/9/14e43dcf-44df-4077-b6cd-9029285514d8.jpg",
+        "source": "www.ithome.com",
+        "angle": "unknown",
+        "license_risk": "high",
+        "fetched_at": "2026-10-24T06:57:00.715Z"
+      }
+    ],
+    "needs_more_reference": false
+  },
+  "usage": {
+    "scenarios": [],
+    "frequency_notes": []
+  },
+  "voice_of_customer": {
+    "praise_points": [],
+    "pain_points": [],
+    "verbatim": []
+  },
+  "pros_cons": {
+    "pros": [],
+    "cons": []
+  },
+  "competitors": [],
+  "differentiation": {
+    "our_opening": [],
+    "crowded_points": [],
+    "weakness_openings": []
+  },
+  "hook_material": {
+    "data_points": [
+      "发动机：818.8cc 直列三缸发动机",
+      "最大功率：113 千瓦，在每 13500 转时输出",
+      "最大扭矩：86 牛 · 米在每 10000 转时产生",
+      "最高转速：最高转速可达 14750 转",
+      "价格带：元 128000"
+    ],
+    "conflicts": [],
+    "questions": []
+  },
+  "gaps": [
+    "有效评价样本 0 条，低于门槛 10 条，结论置信度受限",
+    "无有效竞品入列（缺带来源的卖点）",
+    "[A2] 有效评价样本 0 条，低于门槛 10 条，结论置信度受限",
+    "[A3] 无有效竞品入列（缺带来源的卖点）",
+    "[A1_COLLECT] 未采集到官方卖点",
+    "[A2_MINE] 称赞点不足 2 条（评价样本可能太薄）",
+    "[A2_MINE] 未挖到吐槽点（警惕样本偏倚：全是好评通常不真实）",
+    "[A2_MINE] 未提炼出使用场景",
+    "[A3_SCOUT] 未找到有效竞品"
+  ],
+  "provenance": [
+    {
+      "evidence_id": "EV-0001",
+      "claim_ref": "identity.specs.发动机",
+      "source_url": "https://www.ithome.com/1/004/414.htm",
+      "origin": null,
+      "channel": "",
+      "channel_class": "unknown",
+      "agent": "ProductInfoCollector",
+      "fetched_at": "2026-10-24T06:57:00.713Z"
+    },
+    {
+      "evidence_id": "EV-0002",
+      "claim_ref": "identity.specs.配气结构",
+      "source_url": "https://www.ithome.com/1/004/414.htm",
+      "origin": null,
+      "channel": "",
+      "channel_class": "unknown",
+      "agent": "ProductInfoCollector",
+      "fetched_at": "2026-10-24T06:57:00.714Z"
+    },
+    {
+      "evidence_id": "EV-0003",
+      "claim_ref": "identity.specs.冷却方式",
+      "source_url": "https://www.ithome.com/1/004/414.htm",
+      "origin": null,
+      "channel": "",
+      "channel_class": "unknown",
+      "agent": "ProductInfoCollector",
+      "fetched_at": "2026-10-24T06:57:00.714Z"
+    },
+    {
+      "evidence_id": "EV-0004",
+      "claim_ref": "identity.specs.最大功率",
+      "source_url": "https://www.ithome.com/1/004/414.htm",
+      "origin": null,
+      "channel": "",
+      "channel_class": "unknown",
+      "agent": "ProductInfoCollector",
+      "fetched_at": "2026-10-24T06:57:00.714Z"
+    },
+    {
+      "evidence_id": "EV-0005",
+      "claim_ref": "identity.specs.最大扭矩",
+      "source_url": "https://www.ithome.com/1/004/414.htm",
+      "origin": null,
+      "channel": "",
+      "channel_class": "unknown",
+      "agent": "ProductInfoCollector",
+      "fetched_at": "2026-10-24T06:57:00.714Z"
+    },
+    {
+      "evidence_id": "EV-0006",
+      "claim_ref": "identity.specs.最高转速",
+      "source_url": "https://www.ithome.com/1/004/414.htm",
+      "origin": null,
+      "channel": "",
+      "channel_class": "unknown",
+      "agent": "ProductInfoCollector",
+      "fetched_at": "2026-10-24T06:57:00.714Z"
+    },
+    {
+      "evidence_id": "EV-0007",
+      "claim_ref": "identity.specs.压缩比",
+      "source_url": "https://www.ithome.com/1/004/414.htm",
+      "origin": null,
+      "channel": "",
+      "channel_class": "unknown",
+      "agent": "ProductInfoCollector",
+      "fetched_at": "2026-10-24T06:57:00.714Z"
+    },
+    {
+      "evidence_id": "EV-0008",
+      "claim_ref": "identity.specs.供油系统",
+      "source_url": "https://www.ithome.com/1/004/414.htm",
+      "origin": null,
+      "channel": "",
+      "channel_class": "unknown",
+      "agent": "ProductInfoCollector",
+      "fetched_at": "2026-10-24T06:57:00.714Z"
+    },
+    {
+      "evidence_id": "EV-0009",
+      "claim_ref": "identity.specs.电子油门与弹射起步",
+      "source_url": "https://www.ithome.com/1/004/414.htm",
+      "origin": null,
+      "channel": "",
+      "channel_class": "unknown",
+      "agent": "ProductInfoCollector",
+      "fetched_at": "2026-10-24T06:57:00.714Z"
+    },
+    {
+      "evidence_id": "EV-0010",
+      "claim_ref": "identity.specs.排气系统",
+      "source_url": "https://www.ithome.com/1/004/414.htm",
+      "origin": null,
+      "channel": "",
+      "channel_class": "unknown",
+      "agent": "ProductInfoCollector",
+      "fetched_at": "2026-10-24T06:57:00.714Z"
+    },
+    {
+      "evidence_id": "EV-0011",
+      "claim_ref": "identity.specs.换挡机构",
+      "source_url": "https://www.ithome.com/1/004/414.htm",
+      "origin": null,
+      "channel": "",
+      "channel_class": "unknown",
+      "agent": "ProductInfoCollector",
+      "fetched_at": "2026-10-24T06:57:00.714Z"
+    },
+    {
+      "evidence_id": "EV-0012",
+      "claim_ref": "identity.specs.快速换挡",
+      "source_url": "https://www.ithome.com/1/004/414.htm",
+      "origin": null,
+      "channel": "",
+      "channel_class": "unknown",
+      "agent": "ProductInfoCollector",
+      "fetched_at": "2026-10-24T06:57:00.714Z"
+    },
+    {
+      "evidence_id": "EV-0013",
+      "claim_ref": "identity.specs.仪表",
+      "source_url": "https://www.ithome.com/1/004/414.htm",
+      "origin": null,
+      "channel": "",
+      "channel_class": "unknown",
+      "agent": "ProductInfoCollector",
+      "fetched_at": "2026-10-24T06:57:00.714Z"
+    },
+    {
+      "evidence_id": "EV-0014",
+      "claim_ref": "identity.specs.前悬架",
+      "source_url": "https://www.ithome.com/1/004/414.htm",
+      "origin": null,
+      "channel": "",
+      "channel_class": "unknown",
+      "agent": "ProductInfoCollector",
+      "fetched_at": "2026-10-24T06:57:00.714Z"
+    },
+    {
+      "evidence_id": "EV-0015",
+      "claim_ref": "identity.specs.后悬架",
+      "source_url": "https://www.ithome.com/1/004/414.htm",
+      "origin": null,
+      "channel": "",
+      "channel_class": "unknown",
+      "agent": "ProductInfoCollector",
+      "fetched_at": "2026-10-24T06:57:00.714Z"
+    },
+    {
+      "evidence_id": "EV-0016",
+      "claim_ref": "identity.specs.制动系统",
+      "source_url": "https://www.ithome.com/1/004/414.htm",
+      "origin": null,
+      "channel": "",
+      "channel_class": "unknown",
+      "agent": "ProductInfoCollector",
+      "fetched_at": "2026-10-24T06:57:00.714Z"
+    },
+    {
+      "evidence_id": "EV-0017",
+      "claim_ref": "identity.specs.转向角",
+      "source_url": "https://www.ithome.com/1/004/414.htm",
+      "origin": null,
+      "channel": "",
+      "channel_class": "unknown",
+      "agent": "ProductInfoCollector",
+      "fetched_at": "2026-10-24T06:57:00.714Z"
+    },
+    {
+      "evidence_id": "EV-0018",
+      "claim_ref": "identity.specs.前倾角",
+      "source_url": "https://www.ithome.com/1/004/414.htm",
+      "origin": null,
+      "channel": "",
+      "channel_class": "unknown",
+      "agent": "ProductInfoCollector",
+      "fetched_at": "2026-10-24T06:57:00.714Z"
+    },
+    {
+      "evidence_id": "EV-0019",
+      "claim_ref": "identity.specs.拖曳距",
+      "source_url": "https://www.ithome.com/1/004/414.htm",
+      "origin": null,
+      "channel": "",
+      "channel_class": "unknown",
+      "agent": "ProductInfoCollector",
+      "fetched_at": "2026-10-24T06:57:00.714Z"
+    },
+    {
+      "evidence_id": "EV-0020",
+      "claim_ref": "identity.specs.轴距",
+      "source_url": "https://www.ithome.com/1/004/414.htm",
+      "origin": null,
+      "channel": "",
+      "channel_class": "unknown",
+      "agent": "ProductInfoCollector",
+      "fetched_at": "2026-10-24T06:57:00.714Z"
+    },
+    {
+      "evidence_id": "EV-0021",
+      "claim_ref": "identity.specs.轮胎规格",
+      "source_url": "https://www.ithome.com/1/004/414.htm",
+      "origin": null,
+      "channel": "",
+      "channel_class": "unknown",
+      "agent": "ProductInfoCollector",
+      "fetched_at": "2026-10-24T06:57:00.714Z"
+    },
+    {
+      "evidence_id": "EV-0022",
+      "claim_ref": "identity.specs.轮辋",
+      "source_url": "https://www.ithome.com/1/004/414.htm",
+      "origin": null,
+      "channel": "",
+      "channel_class": "unknown",
+      "agent": "ProductInfoCollector",
+      "fetched_at": "2026-10-24T06:57:00.714Z"
+    },
+    {
+      "evidence_id": "EV-0023",
+      "claim_ref": "identity.specs.座高",
+      "source_url": "https://www.ithome.com/1/004/414.htm",
+      "origin": null,
+      "channel": "",
+      "channel_class": "unknown",
+      "agent": "ProductInfoCollector",
+      "fetched_at": "2026-10-24T06:57:00.714Z"
+    },
+    {
+      "evidence_id": "EV-0024",
+      "claim_ref": "identity.specs.油箱容积",
+      "source_url": "https://www.ithome.com/1/004/414.htm",
+      "origin": null,
+      "channel": "",
+      "channel_class": "unknown",
+      "agent": "ProductInfoCollector",
+      "fetched_at": "2026-10-24T06:57:00.714Z"
+    },
+    {
+      "evidence_id": "EV-0025",
+      "claim_ref": "identity.specs.湿重",
+      "source_url": "https://www.ithome.com/1/004/414.htm",
+      "origin": null,
+      "channel": "",
+      "channel_class": "unknown",
+      "agent": "ProductInfoCollector",
+      "fetched_at": "2026-10-24T06:57:00.714Z"
+    },
+    {
+      "evidence_id": "EV-0026",
+      "claim_ref": "identity.specs.用途限制",
+      "source_url": "https://www.ithome.com/1/004/414.htm",
+      "origin": null,
+      "channel": "",
+      "channel_class": "unknown",
+      "agent": "ProductInfoCollector",
+      "fetched_at": "2026-10-24T06:57:00.714Z"
+    },
+    {
+      "evidence_id": "EV-0027",
+      "claim_ref": "identity.price_band",
+      "source_url": "https://www.ithome.com/1/004/414.htm",
+      "origin": null,
+      "channel": "2026年9月19日报道的全国统一指导价",
+      "channel_class": "unknown",
+      "agent": "ProductInfoCollector",
+      "fetched_at": "2026-10-24T06:57:00.714Z"
+    },
+    {
+      "evidence_id": "EV-0028",
+      "claim_ref": "visual_assets.images:820R-HERO-001",
+      "source_url": "https://finance.sina.com.cn/wm/2026-09-19/doc-inisispz2576147.shtml",
+      "origin": null,
+      "channel": "finance.sina.com.cn",
+      "channel_class": "unknown",
+      "agent": "ProductInfoCollector",
+      "fetched_at": "2026-10-24T06:57:00.715Z"
+    },
+    {
+      "evidence_id": "EV-0029",
+      "claim_ref": "visual_assets.images:820R-REF-002",
+      "source_url": "https://chejiahao.m.autohome.com.cn/pingan/chejiahao/detailinfo/26640213",
+      "origin": null,
+      "channel": "chejiahao.m.autohome.com.cn",
+      "channel_class": "unknown",
+      "agent": "ProductInfoCollector",
+      "fetched_at": "2026-10-24T06:57:00.715Z"
+    },
+    {
+      "evidence_id": "EV-0030",
+      "claim_ref": "visual_assets.images:820R-REF-003",
+      "source_url": "https://chejiahao.m.autohome.com.cn/pingan/chejiahao/detailinfo/26640213",
+      "origin": null,
+      "channel": "chejiahao.m.autohome.com.cn",
+      "channel_class": "unknown",
+      "agent": "ProductInfoCollector",
+      "fetched_at": "2026-10-24T06:57:00.715Z"
+    },
+    {
+      "evidence_id": "EV-0031",
+      "claim_ref": "visual_assets.images:820R-REF-004",
+      "source_url": "https://chejiahao.m.autohome.com.cn/pingan/chejiahao/detailinfo/26640213",
+      "origin": null,
+      "channel": "chejiahao.m.autohome.com.cn",
+      "channel_class": "unknown",
+      "agent": "ProductInfoCollector",
+      "fetched_at": "2026-10-24T06:57:00.715Z"
+    },
+    {
+      "evidence_id": "EV-0032",
+      "claim_ref": "visual_assets.images:820R-REF-005",
+      "source_url": "https://chejiahao.m.autohome.com.cn/pingan/chejiahao/detailinfo/26640213",
+      "origin": null,
+      "channel": "chejiahao.m.autohome.com.cn",
+      "channel_class": "unknown",
+      "agent": "ProductInfoCollector",
+      "fetched_at": "2026-10-24T06:57:00.715Z"
+    },
+    {
+      "evidence_id": "EV-0033",
+      "claim_ref": "visual_assets.images:820R-REF-006",
+      "source_url": "https://chejiahao.m.autohome.com.cn/pingan/chejiahao/detailinfo/26640213",
+      "origin": null,
+      "channel": "chejiahao.m.autohome.com.cn",
+      "channel_class": "unknown",
+      "agent": "ProductInfoCollector",
+      "fetched_at": "2026-10-24T06:57:00.715Z"
+    },
+    {
+      "evidence_id": "EV-0034",
+      "claim_ref": "visual_assets.images:820R-REF-007",
+      "source_url": "https://www.ithome.com/1/004/414.htm",
+      "origin": null,
+      "channel": "www.ithome.com",
+      "channel_class": "unknown",
+      "agent": "ProductInfoCollector",
+      "fetched_at": "2026-10-24T06:57:00.715Z"
+    },
+    {
+      "evidence_id": "EV-0035",
+      "claim_ref": "visual_assets.images:820R-REF-008",
+      "source_url": "https://www.ithome.com/1/004/414.htm",
+      "origin": null,
+      "channel": "www.ithome.com",
+      "channel_class": "unknown",
+      "agent": "ProductInfoCollector",
+      "fetched_at": "2026-10-24T06:57:00.715Z"
+    },
+    {
+      "evidence_id": "EV-0036",
+      "claim_ref": "visual_assets.images:820R-REF-009",
+      "source_url": "https://www.ithome.com/1/004/414.htm",
+      "origin": null,
+      "channel": "www.ithome.com",
+      "channel_class": "unknown",
+      "agent": "ProductInfoCollector",
+      "fetched_at": "2026-10-24T06:57:00.715Z"
+    }
+  ]
+}

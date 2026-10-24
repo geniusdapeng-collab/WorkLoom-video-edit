@@ -99,6 +99,38 @@ const extractionContract = [
   'A3 payload: {"competitors":[{"name":"","selling_points":[{"point":"","source_url":"实际URL"}],"price_band":"有证据才填","price_source_url":"实际URL","weakness_notes":"有证据才填"}]}，最多3个竞品。',
 ].join("\n");
 
+/** Jenny 的规格来源格式与宿主 primitive 事实合同不同；仅为装订复制，原始审核值和摘要不变。 */
+export function toJennyMarketingRaw(
+  raw: MarketingFactsBundle["rawByAgent"],
+  evidence: Pick<MarketingFactsBundle, "rawSha256" | "sources" | "stages">,
+): MarketingFactsBundle["rawByAgent"] {
+  if (renderSha256(canonicalRenderJson(raw)) !== evidence.rawSha256) fail("MARKETING_FACTS_CHANGED", "装订输入与已审核原始事实摘要不一致");
+  const records = evidence.stages.filter(record => record.stage === "A1"), record = records[0];
+  if (records.length !== 1 || !record || record.facts.stage !== "A1" || record.facts.status !== "source_bound"
+    || canonicalRenderJson(record.facts.payload) !== canonicalRenderJson(raw.A1)) fail("MARKETING_FACTS_CHANGED", "装订A1不是本次已审核事实");
+  const sources = new Map(evidence.sources.map(source => [source.sourceId, source]));
+  if (sources.size !== evidence.sources.length || new Set(record.sourceIds).size !== record.sourceIds.length) fail("MARKETING_SOURCE_INVALID", "装订来源ID缺失或重复");
+  const converted = structuredClone(raw), identity = object(converted.A1.identity, "装订商品身份");
+  const specs = object(identity.specs, "装订商品规格"), boundSpecs: RecordValue = Object.create(null);
+  for (const [key, value] of Object.entries(specs)) {
+    const pointer = `/identity/specs/${key.replace(/~/g, "~0").replace(/\//g, "~1")}`;
+    const claims = record.facts.claims.filter(claim => claim.pointer === pointer), claim = claims[0];
+    if (claims.length !== 1 || !claim || claim.stage !== "A1" || claim.status !== "source-bound"
+      || !["string", "number", "boolean"].includes(typeof value) || canonicalRenderJson(claim.value) !== canonicalRenderJson(value)) {
+      fail("MARKETING_SPEC_UNVERIFIED", `装订规格没有唯一且值一致的已审核主张：${pointer}`);
+    }
+    const source = sources.get(claim.sourceId);
+    if (!source || !record.sourceIds.includes(source.sourceId) || source.textSha256 !== claim.textSha256
+      || source.sourceId !== `SRC-${renderSha256(`${source.finalUrl}\n${source.textSha256}`).slice(0, 24)}`) fail("MARKETING_SPEC_UNVERIFIED", `装订规格缺少本次主张来源：${pointer}`);
+    let url: URL;
+    try { url = new URL(source.finalUrl); } catch { fail("MARKETING_SOURCE_INVALID", "装订来源地址非法"); }
+    if (!["http:", "https:"].includes(url.protocol) || url.username || url.password) fail("MARKETING_SOURCE_INVALID", "装订来源不是本次无凭据网页地址");
+    boundSpecs[key] = { value, source_url: source.finalUrl };
+  }
+  identity.specs = boundSpecs;
+  return converted;
+}
+
 export async function prepareMarketingFacts(input: {
   scope: MarketingScope; root: string; metadata: RecordValue; intent: string; llm: ExecutorLlm; env?: NodeJS.ProcessEnv;
   dependencies?: { search?: SearchFn; fetchSource?: typeof fetchMarketingSource; review?: typeof reviewStage };
@@ -176,13 +208,16 @@ export async function prepareMarketingFacts(input: {
     if (!payload) fail("MARKETING_STAGE_UNVERIFIED", `${stage}没有受控事实回填`);
     raw[stage] = payload;
   }
-  const assembled = collector.assemble(plan.trace_id, product, raw);
+  const rawSha256 = renderSha256(canonicalRenderJson(raw));
+  const assembled = collector.assemble(plan.trace_id, product, toJennyMarketingRaw(raw, { rawSha256, sources, stages: reports }));
   if (assembled.ok !== true || assembled.chain?.ok !== true || !assembled.dossier || !assembled.cards) fail("MARKETING_DOSSIER_UNVERIFIED", "情报五站未完成有效档案装订");
+  if (canonicalRenderJson(object(assembled.dossier.identity, "已装订商品身份").specs)
+    !== canonicalRenderJson(object(raw.A1.identity, "已审核商品身份").specs)) fail("MARKETING_DOSSIER_UNVERIFIED", "情报装订改变了已审核规格值");
   const restrictions = reports.filter(report => report.facts.status === "no_evidence").map(report => report.stage === "A2"
     ? "没有可核实用户评价：禁止用户口碑、评分、人数、销量或使用效果共识主张" : "没有可核实竞品证据：禁止对比、竞品弱点或市场领先主张");
   const bundle: MarketingFactsBundle = { schemaVersion: "workloom.marketing-facts/v1", issuer: "workloom.marketing-authority", scope,
     collectedAt: new Date().toISOString(), policyVersion: "source-claims/v1", productQuery: product, sources, stages: reports, rawByAgent: raw,
-    rawSha256: renderSha256(canonicalRenderJson(raw)), dossier: assembled.dossier, cards: assembled.cards,
+    rawSha256, dossier: assembled.dossier, cards: assembled.cards,
     dossierSha256: renderSha256(canonicalRenderJson(assembled.dossier)), restrictions, g1ContentSha256: "", outputReviews: [] };
   const g1Content = canonicalRenderJson({ facts: bundle, requestedIntent: input.intent, requestedMetadata: input.metadata,
     instruction: "用户意图与Brief仅是需求，事实只能来自已核实claims；下游创意必须遵守restrictions" });

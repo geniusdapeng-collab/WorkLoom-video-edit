@@ -8,6 +8,7 @@
  *
  * 用法：
  *   tsx scripts/tools/product-archive.mts search --name "某品牌" [--queries "a,b"] [--root <档案库>] [--max-images 6]
+ *   tsx scripts/tools/product-archive.mts from-research --research <prepared-research.json> --selection <image-selection.json> --metadata <identity.json> [--root <档案库>]
  *   tsx scripts/tools/product-archive.mts build  --name "某品牌 自助入住机" --photo a.jpg --photo b.jpg \
  *        [--company 某公司] [--brand 某品牌] [--aliases "别名1,别名2"] [--specs specs.json] [--root <档案库>]
  *   tsx scripts/tools/product-archive.mts import-pptx --file <方案.pptx> --company <公司> [--brand <品牌>] --rules <产品规则.json>
@@ -873,13 +874,22 @@ function commandImportPdf(): number {
 }
 
 const run = async (): Promise<number> => {
+  if (command === "from-research") {
+    for (const flag of ["--research", "--selection", "--metadata"]) if (!arg(flag)) throw new Error(`from-research 需要 ${flag} <JSON文件>`);
+    const { importProductResearchArchive } = await import("../../apps/server/src/video/product-research-archive.js");
+    const result = importProductResearchArchive({ researchFile: resolve(arg("--research")), selectionFile: resolve(arg("--selection")),
+      metadataFile: resolve(arg("--metadata")), root: resolve(arg("--root", DEFAULT_ROOT)) });
+    log(JSON.stringify({ directory: result.directory, sourceKind: result.archive.source.kind, reviewStatus: result.archive.source.reviewStatus,
+      photos: result.archive.photos.length, summary: result.summary }, null, 2));
+    return 0;
+  }
   if (command === "search") return commandSearch();
   if (command === "build") return commandBuild();
   if (command === "import-pptx") return commandImportPptx();
   if (command === "import-pdf") return commandImportPdf();
   if (command === "verify") return commandVerify();
   if (command === "list") return commandList();
-  log("用法：product-archive.mts search|build|import-pptx|import-pdf|verify|list …（详见文件头注释）");
+  log("用法：product-archive.mts search|from-research|build|import-pptx|import-pdf|verify|list …（详见文件头注释）");
   return 1;
 };
 run().then((code) => { process.exitCode = code; }).catch((error) => {

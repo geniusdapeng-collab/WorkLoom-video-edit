@@ -49,7 +49,7 @@ import {
 } from "@hyperreality/video-studio";
 import { buildServerGateRecord, withGateLedger } from "./gate-ledger-bridge.js";
 import { createDataMiningExecutor } from "./data-mining-executor.js";
-import { prepareMarketingFacts, finalizeMarketingFacts, type PreparedMarketingFacts } from "./marketing-authority.js";
+import { prepareMarketingFacts, finalizeMarketingFacts, toJennyMarketingRaw, type PreparedMarketingFacts } from "./marketing-authority.js";
 import { canonicalRenderJson, renderSha256 } from "./gen/compiled-request.js";
 import { acceptPortraitArchiveReuse, loadPortraitReuseManifest, portraitReuseEvidence } from "./portrait-reuse-acceptance.js";
 import { applyBuiltinCharacters, appendBuiltinCharacterGuidance, resolveBuiltinCharacters, type BuiltinCharacterResolution } from "./builtin-character-selection.js";
@@ -1064,9 +1064,10 @@ export function startRun(scope: Scope, input: StudioRunInput): string {
               marketingDossierRoot = marketing.storeRoot;
               marketingDossierRef = path.posix.join("archive", scope.workspaceId, input.projectId, `${marketing.prefix}-dossier`);
             }
+            const verifiedRawJson = marketing ? canonicalRenderJson(toJennyMarketingRaw(marketing.raw, marketing.bundle)) : undefined;
             const studio = new VideoStudio({ ...studioConfig, ...(marketing ? { dataMining: {
               mode: "api", storeRoot: marketing.storeRoot, refresh: true,
-              verifiedRaw: { projectId: input.projectId, rawJson: canonicalRenderJson(marketing.raw), sha256: marketing.bundle.rawSha256, productQuery: marketing.bundle.productQuery },
+              verifiedRaw: { projectId: input.projectId, rawJson: verifiedRawJson!, sha256: renderSha256(verifiedRawJson!), productQuery: marketing.bundle.productQuery },
             } } : {}) });
             /**
              * 传入 runInput（而不是 input）：它带上了本轮的片型选型结论与注入指引，

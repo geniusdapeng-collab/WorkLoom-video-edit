@@ -1,0 +1,184 @@
+{
+  "schemaVersion": "workloom.product-gallery-source-map/v1",
+  "sourcePage": "https://m.58moto.com/garage/img/21489",
+  "sourcePageRawSha256": "8dab361cf2835b0fef5d3992c922aa52eca712081e60e237d7990eaaa6c04f24",
+  "carId": 38518,
+  "carName": "2027款 820RR-RC 赛道版",
+  "images": [
+    {
+      "carId": 38518,
+      "imgId": 2361055,
+      "imgCategory": "1",
+      "tag": "右前",
+      "imgOrgUrl": "https://imgs.58moto.com/carport/20260919/XforPz_1789800738671_encode.jpg!official600"
+    },
+    {
+      "carId": 38518,
+      "imgId": 2361056,
+      "imgCategory": "1",
+      "tag": "正前",
+      "imgOrgUrl": "https://imgs.58moto.com/carport/20260919/qYdnzY_1789800780015_encode.jpg!official600"
+    },
+    {
+      "carId": 38518,
+      "imgId": 2361057,
+      "imgCategory": "1",
+      "tag": "左前",
+      "imgOrgUrl": "https://imgs.58moto.com/carport/20260919/kLdiNA_1789800794595_encode.jpg!official600"
+    },
+    {
+      "carId": 38518,
+      "imgId": 2361058,
+      "imgCategory": "1",
+      "tag": "右侧",
+      "imgOrgUrl": "https://imgs.58moto.com/carport/20260919/WBHbwP_1789800723943_encode.jpg!official600"
+    },
+    {
+      "carId": 38518,
+      "imgId": 2361059,
+      "imgCategory": "1",
+      "tag": "正后",
+      "imgOrgUrl": "https://imgs.58moto.com/carport/20260919/JUqDdF_1789800600020_encode.jpg!official600"
+    },
+    {
+      "carId": 38518,
+      "imgId": 2361060,
+      "imgCategory": "1",
+      "tag": "左侧",
+      "imgOrgUrl": "https://imgs.58moto.com/carport/20260919/itcmVP_1789800801724_encode.jpg!official600"
+    },
+    {
+      "carId": 38518,
+      "imgId": 2361061,
+      "imgCategory": "1",
+      "tag": "右后",
+      "imgOrgUrl": "https://imgs.58moto.com/carport/20260919/idnNrN_1789800664057_encode.jpg!official600"
+    },
+    {
+      "carId": 38518,
+      "imgId": 2361062,
+      "imgCategory": "1",
+      "tag": "俯视",
+      "imgOrgUrl": "https://imgs.58moto.com/carport/20260919/AukILz_1789800787468_encode.jpg!official600"
+    },
+    {
+      "carId": 38518,
+      "imgId": 2361063,
+      "imgCategory": "1",
+      "tag": "左后",
+      "imgOrgUrl": "https://imgs.58moto.com/carport/20260919/cTmvlN_1789800808643_encode.jpg!official600"
+    },
+    {
+      "carId": 38518,
+      "imgId": 2361064,
+      "imgCategory": "2",
+      "tag": "",
+      "imgOrgUrl": "https://imgs.58moto.com/carport/20260919/VRvLdw_1789800636008_encode.jpg!official600"
+    },
+    {
+      "carId": 38518,
+      "imgId": 2361065,
+      "imgCategory": "2",
+      "tag": "仪表",
+      "imgOrgUrl": "https://imgs.58moto.com/carport/20260919/tOcpdr_1789800607745_encode.jpg!official600"
+    },
+    {
+      "carId": 38518,
+      "imgId": 2361066,
+      "imgCategory": "2",
+      "tag": "",
+      "imgOrgUrl": "https://imgs.58moto.com/carport/20260919/AAwbpE_1789800642229_encode.jpg!official600"
+    },
+    {
+      "carId": 38518,
+      "imgId": 2361067,
+      "imgCategory": "2",
+      "tag": "",
+      "imgOrgUrl": "https://imgs.58moto.com/carport/20260919/NfpGBn_1789800614667_encode.jpg!official600"
+    },
+    {
+      "carId": 38518,
+      "imgId": 2361068,
+      "imgCategory": "2",
+      "tag": "",
+      "imgOrgUrl": "https://imgs.58moto.com/carport/20260919/HAmSFB_1789800622048_encode.jpg!official600"
+    },
+    {
+      "carId": 38518,
+      "imgId": 2361069,
+      "imgCategory": "2",
+      "tag": "",
+      "imgOrgUrl": "https://imgs.58moto.com/carport/20260919/oRwaQz_1789800628595_encode.jpg!official600"
+    },
+    {
+      "carId": 38518,
+      "imgId": 2361070,
+      "imgCategory": "2",
+      "tag": "",
+      "imgOrgUrl": "https://imgs.58moto.com/carport/20260919/gGcMHD_1789800649637_encode.jpg!official600"
+    },
+    {
+      "carId": 38518,
+      "imgId": 2361071,
+      "imgCategory": "2",
+      "tag": "",
+      "imgOrgUrl": "https://imgs.58moto.com/carport/20260919/RjNwfm_1789800657608_encode.jpg!official600"
+    },
+    {
+      "carId": 38518,
+      "imgId": 2361072,
+      "imgCategory": "2",
+      "tag": "",
+      "imgOrgUrl": "https://imgs.58moto.com/carport/20260919/FteLwB_1789800670410_encode.jpg!official600"
+    },
+    {
+      "carId": 38518,
+      "imgId": 2361073,
+      "imgCategory": "2",
+      "tag": "排气",
+      "imgOrgUrl": "https://imgs.58moto.com/carport/20260919/hPWUKL_1789800677200_encode.jpg!official600"
+    },
+    {
+      "carId": 38518,
+      "imgId": 2361074,
+      "imgCategory": "2",
+      "tag": "",
+      "imgOrgUrl": "https://imgs.58moto.com/carport/20260919/TrRjtH_1789800684691_encode.jpg!official600"
+    },
+    {
+      "carId": 38518,
+      "imgId": 2361075,
+      "imgCategory": "2",
+      "tag": "",
+      "imgOrgUrl": "https://imgs.58moto.com/carport/20260919/NxITbr_1789800693531_encode.jpg!official600"
+    },
+    {
+      "carId": 38518,
+      "imgId": 2361076,
+      "imgCategory": "2",
+      "tag": "",
+      "imgOrgUrl": "https://imgs.58moto.com/carport/20260919/uZgKaL_1789800700480_encode.jpg!official600"
+    },
+    {
+      "carId": 38518,
+      "imgId": 2361077,
+      "imgCategory": "2",
+      "tag": "",
+      "imgOrgUrl": "https://imgs.58moto.com/carport/20260919/BxyItr_1789800707644_encode.jpg!official600"
+    },
+    {
+      "carId": 38518,
+      "imgId": 2361078,
+      "imgCategory": "2",
+      "tag": "",
+      "imgOrgUrl": "https://imgs.58moto.com/carport/20260919/RSGgWN_1789800715473_encode.jpg!official600"
+    },
+    {
+      "carId": 38518,
+      "imgId": 2361079,
+      "imgCategory": "2",
+      "tag": "",
+      "imgOrgUrl": "https://imgs.58moto.com/carport/20260919/GInJMz_1789800731198_encode.jpg!official600"
+    }
+  ]
+}

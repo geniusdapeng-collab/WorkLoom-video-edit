@@ -1,0 +1,50 @@
+{
+  "schemaVersion": "workloom.research-support-review-summary/v1",
+  "archiveId": "zxmoto",
+  "scope": {
+    "tenantId": "tenant-zxmoto-20261023",
+    "workspaceId": "ws-zxmoto-20261023",
+    "projectId": "DOSSIER-ZXRC-BRAND-20261024",
+    "runId": "735f4272-3e68-4159-80a7-79bbf8b1b115",
+    "attempt": 15
+  },
+  "reviewInputSha256": "351f99d387f596bc1f4512da70666895181b4a7a9714276a7f3c6dea3a21a5d5",
+  "completePreparedVerdictCanonicalSha256": "e6f08abf5cc95bd856775315e5bc376a14bcb8a4287c4841b66c92d69e28de24",
+  "verdictHashEncoding": "UTF-8 JSON with sorted object keys, compact separators and literal Unicode",
+  "summaryFieldsCopiedFromActualVerdict": true,
+  "omittedFromPublicSummary": [
+    "evidence: contains absolute local paths; original complete verdict retained in local research"
+  ],
+  "reviewScope": "A1 source support against the complete saved source texts; not image visual inspection or an official manufacturer specification confirmation",
+  "verdict": {
+    "stage": "script",
+    "status": "passed",
+    "approved": true,
+    "score": 91,
+    "model": "deepseek-flash",
+    "via": "llm",
+    "reason": "所有 11 条 claim 均可定位到保存正文中的连续原文，value 与 quote 语义一致，未发现否定/限定、型号混淆或多来源冲突，来源 URL 与 textSha256 可对应，确定性检查通过；仅存在空值（价格、卖点）与转述式人物观点、图片角度未定等非阻断问题，故通过，评分 91。",
+    "issues": [
+      "逐条核对：11 条 claim 的 value 均能在所绑定的保存正文中找到连续原文，并由语义直接支持；未发现否定句式、限定条件、不同型号或来源冲突（创立时间 2024年4月、地点重庆、创始人张雪、2025年总产值 7.5亿元、出生地湖南怀化偏远山村、辍学当学徒、蒙眼组装发动机、人物观点等，在 SRC-db6afe…/SRC-d7dfe5… 中相互一致或互补）。",
+      "textSha256 与来源一致（db6afe…=24440e92…，d7dfe5…=4e6e0855…），quoteStart/quoteEnd 偏移量与含 HTML 实体（&ldquo;/&rdquo;）的引文长度自洽；确定性检查 claims-source-bound: passed 无冲突。",
+      "非阻断问题：/identity/official_selling_points 与 /identity/prices 为空，而来源 SRC-275e8601a887de20b8128530（新浪财经，2026-09-19）明确列出 500F 2027款 30580元、600V 27980元、820X 57800/46800元、820RR-RS 138000元、820RR-RC 128000元（赛道版不可上路）等线索；本次未将其写成事实，属保守处理，但覆盖面不足。",
+      "非阻断问题：人物观点 quote 为原话前半句截取（“我认为会让我们整个行业，上下游都会对我们从事的工作更有信心”），value 为轻度改写转述，语义未越界，但作为“原话”引用时应保持原句式或标注为转述。",
+      "非阻断问题：images 三条 angle 均为 unknown，仅证明其为对应页面的 assetUrls，未验证画面主体为张雪、车型或活动场景，不得在后续环节据此宣称具体人物、车型或拍摄环境。"
+    ],
+    "suggestions": [
+      "若后续需要价格/车型信息，必须绑定 SRC-275e8601a887de20b8128530 并按 2026-09-19 发布时点标注，严格区分 820RR-RS（138000元，可交付于2026年12月）与 820RR-RC（128000元，赛道版不可上路，2026年11月交付），不得合并或跨型号套用。",
+      "可补强产品侧可用线索（来源已含：820RR-RS 搭载自研 819cc 直列三缸引擎、零百 2.81 秒、车架与电控 100% 国产），但仍须逐条绑定原文引用，且不得写成“最强/绝对领先”等绝对化表述。",
+      "“2025年总产值7.5亿元”“2024年4月创立”等属于时点事实，引用时保留原文时点与口径（新华网/央视网 2026-04-03），避免在视频口播中表述为当前状态。",
+      "进入视频制作前建议对三张图片做主体与授权确认（尤其新浪财经页为新车发布图集），angle 由 unknown 升级为可辨识描述后再使用；本环节未做逐帧、口型或听音验证，不得在成片中宣称已核实画面细节。"
+    ],
+    "hardFailures": [],
+    "rerun": false,
+    "degraded": false,
+    "ms": 20324
+  },
+  "researchOnly": true,
+  "g1HumanApproved": false,
+  "productionAuthorityGranted": false,
+  "commercialImageRightsConfirmed": false,
+  "sourceFullTextCopied": false
+}

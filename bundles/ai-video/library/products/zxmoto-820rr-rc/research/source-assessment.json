@@ -1,0 +1,44 @@
+{
+  "schemaVersion": "workloom.product-source-assessment/v1",
+  "productId": "zxmoto-820rr-rc",
+  "formalResearchReceipt": "../research-import.json",
+  "factStatus": "来源支持关系经模型审核；仍是system-generated/pending-owner-review，不等于厂商或客户确认",
+  "imageResolution": {
+    "canonicalCleanRC": {
+      "files": 4,
+      "width": 750,
+      "height": 562,
+      "preferredHighResolution": false
+    },
+    "launchEvidence": {
+      "files": 1,
+      "width": 1080,
+      "height": 810
+    },
+    "publishedPosters": {
+      "files": 3,
+      "width": 1200,
+      "notCleanProductPhotos": true
+    }
+  },
+  "excludedSources": [
+    {
+      "url": "https://news.mydrivers.com/1/1152/1152363.htm",
+      "reason": "标题提及RC，但下载并逐图检查的四张图片均为黑绿820RR-RS及其参数表；这些图片和数值不纳入RC档案"
+    },
+    {
+      "url": "https://www.12365auto.com/motorcycle/20260920/576006.shtml",
+      "reason": "参数与其他RC发布资料存在版本混用疑点，图片仅550px宽；未纳入正式研究参数或正式图片"
+    },
+    {
+      "url": "https://chejiahao.m.autohome.com.cn/pingan/chejiahao/detailinfo/26640213",
+      "reason": "同页图3/4/8为黑绿RS，图9型号归属不明确，图10为关注横幅；仅登记经筛选并通过本次A1审核的RC图1/2/5/6，图7只留研究附图"
+    }
+  ],
+  "restrictions": [
+    "没有可核实用户评价：禁止用户口碑、评分、人数、销量或使用效果共识主张",
+    "没有可核实竞品证据：禁止对比、竞品弱点或市场领先主张"
+  ],
+  "jennyUnresolvedGapCount": 9,
+  "usage": "本次30秒片只用造型、细节和赛道用途信息；不把RS成绩、价格、动力数值、优惠或现货承诺写进获客台词"
+}

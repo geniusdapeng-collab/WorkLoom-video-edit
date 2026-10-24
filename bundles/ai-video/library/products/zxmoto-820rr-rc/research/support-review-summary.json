@@ -1,0 +1,47 @@
+{
+  "schemaVersion": "workloom.research-support-review-summary/v1",
+  "archiveId": "zxmoto-820rr-rc",
+  "scope": {
+    "tenantId": "tenant-zxmoto-20261023",
+    "workspaceId": "ws-zxmoto-20261023",
+    "projectId": "DOSSIER-ZXRC-PRODUCT-20261024",
+    "runId": "890d9ccd-db00-4725-8b0b-f74b2befc16c",
+    "attempt": 13
+  },
+  "reviewInputSha256": "ad4c2b31d4f11ba37ff1382d2b4184e1717f5167dc724d6792322ccc98b1b4af",
+  "completePreparedVerdictCanonicalSha256": "cb8ff310055a62929284ac494ec2ae97c72294ed6ab89d044d383ef86a228aa7",
+  "verdictHashEncoding": "UTF-8 JSON with sorted object keys, compact separators and literal Unicode",
+  "summaryFieldsCopiedFromActualVerdict": true,
+  "omittedFromPublicSummary": [
+    "evidence: contains absolute local paths; original complete verdict retained in local research"
+  ],
+  "reviewScope": "A1 source support against the complete saved source texts; not image visual inspection or an official manufacturer specification confirmation",
+  "verdict": {
+    "stage": "script",
+    "status": "passed",
+    "approved": true,
+    "score": 93,
+    "model": "deepseek-flash",
+    "via": "llm",
+    "reason": "claims的文本值均可由所引连续原文及完整来源正文支持，价格、单位、型号与2026-09-19时点一致，多个来源在价格和核心规格上未形成实质矛盾；仅存在年款标题差异、品牌简称差异及无镜头合同、图片角度未核实的限制，故通过但降分并限定使用范围。",
+    "issues": [
+      "未提供结构化镜头合同，图片的angle均为unknown；本评审只确认文本、价格和规格来源的绑定关系，不能据此核实画面年代、人数、空间或设备型号。",
+      "汽车之家来源标题含“2027”，IT之家、新浪为2026年发布报道；当前claims未写入年款，因此不能视为已核实的年款，后续脚本不得宣称2027或2026年款。",
+      "identity/name为“张雪 820RR-RC 赛道版”，brand/query为“张雪机车”，属来源标题简称差异，建议统一称谓。"
+    ],
+    "suggestions": [
+      "对外脚本统一使用“张雪机车 820RR-RC 赛道版”，并保留价格时点“2026年9月19日报道的全国统一指导价”。",
+      "若需使用图片或镜头，应补充带时间戳抽帧与结构化镜头合同后再核实画面内容；不得从图片URL推断角度、设备型号或场景。",
+      "年款、交付时间、冠军涂装等未入claims的信息不要写成已核实事实；交付时间若使用需单独绑定新浪来源。"
+    ],
+    "hardFailures": [],
+    "rerun": false,
+    "degraded": false,
+    "ms": 36093
+  },
+  "researchOnly": true,
+  "g1HumanApproved": false,
+  "productionAuthorityGranted": false,
+  "commercialImageRightsConfirmed": false,
+  "sourceFullTextCopied": false
+}
