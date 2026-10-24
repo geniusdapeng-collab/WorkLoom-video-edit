@@ -57,3 +57,86 @@ describe("来源公网地址与真实HTTP读取", () => {
     expect(sourceDocument('<img src="http://127.0.0.1/x">有效正文', "text/html", "https://source.example.com/").assetUrls).toEqual([]);
   });
 });
+
+describe("来源 HTML 的真实图片候选", () => {
+  const pageUrl = "https://source.example.com/news/article.html";
+  const document = (markup: string) => sourceDocument(`<p>完整正文 &amp; 尾部</p>${markup}`, "text/html", pageUrl);
+
+  it.each(["src", "data-src", "data-original", "data-src-original", "data-lazy-src"])("读取 %s，兼容大小写、单引号及非引号属性", attribute => {
+    expect(document(`<IMG ${attribute.toUpperCase()}='../hero.jpg?variant=rc&amp;size=2'>`).assetUrls).toEqual(["https://source.example.com/hero.jpg?variant=rc&size=2"]);
+    expect(document(`<img ${attribute}=/hero.jpg>`).assetUrls).toEqual(["https://source.example.com/hero.jpg"]);
+  });
+
+  it("保留同一标签的原图、懒加载图和 src，去重且原图优先于占位图", () => {
+    expect(document('<img src="/placeholder.png" data-src="/real.jpg" data-original="/original.jpg" data-lazy-src="/real.jpg"><img src="/real.jpg">').assetUrls)
+      .toEqual(["https://source.example.com/original.jpg", "https://source.example.com/real.jpg", "https://source.example.com/placeholder.png"]);
+  });
+
+  it("车家号 data-src-original 不被空或内联占位 src 遮住", () => {
+    const imageUrl = "https://www2.autoimg.cn/chejiahaodfs/g33/M0B/A5/90/750x0_autohomecar__ChxpVmrNlSSAEhFhAAVW-cpKwlE948.jpg";
+    expect(document(`<img src="data:image/gif;base64,AAAA" data-src-original="${imageUrl}"><img src="" data-src-original="${imageUrl}">`).assetUrls)
+      .toEqual([imageUrl]);
+  });
+
+  it.each(["srcset", "data-srcset", "source-srcset"])("%s 收集每个密度/宽度候选，不破坏 URL 内逗号", attribute => {
+    expect(document(`<img ${attribute}="//cdn.example.com/a,b.jpg 1x, ../large.jpg?x=1&amp;y=2 2x, /plain.jpg, /wide.jpg 1600w">`).assetUrls)
+      .toEqual(["https://cdn.example.com/a,b.jpg", "https://source.example.com/large.jpg?x=1&y=2", "https://source.example.com/plain.jpg", "https://source.example.com/wide.jpg"]);
+  });
+
+  it("picture 的 source srcset 即使没有 src 也提取，标签内 > 不截断属性", () => {
+    expect(document('<picture><source media="(width > 600px)" srcset="/wide.webp 800w, /wider.webp 1600w"><img alt="a > b" data-original="/fallback.jpg"></picture>').assetUrls)
+      .toEqual(["https://source.example.com/wide.webp", "https://source.example.com/wider.webp", "https://source.example.com/fallback.jpg"]);
+  });
+
+  it("srcset 的无效描述符及 data URL 不生成伪相对路径候选", () => {
+    expect(document('<img srcset="data:image/png;base64,AAAA 1x, /zero.jpg 0w, /conflict.jpg 1w 2x, /bad.jpg Infinityx, /negative.jpg -1x, /valid.jpg 1.5x, /valid2.jpg 2e0x">').assetUrls)
+      .toEqual(["https://source.example.com/valid.jpg", "https://source.example.com/valid2.jpg"]);
+  });
+
+  it("所有入口仍拒绝内部域名、私网、凭据、端口、非 HTTP 协议和无效 URL", () => {
+    const rejected = ["http://127.0.0.1/a.jpg", "https://host.local/a.jpg", "https://user:pass@cdn.example.com/a.jpg", "https://cdn.example.com:8080/a.jpg", "file:///tmp/a.jpg", "javascript:alert(1)", "data:image/png;base64,AAAA", "http://[not-ip]/a.jpg"];
+    for (const attribute of ["src", "data-src", "data-original", "data-src-original", "data-lazy-src"]) {
+      for (const url of rejected) expect(document(`<img ${attribute}="${url}">`).assetUrls, `${attribute}=${url}`).toEqual([]);
+    }
+    expect(document('<source srcset="http://127.0.0.1/a.jpg 1x, //host.internal/b.jpg 2x, /public.jpg 3x">').assetUrls)
+      .toEqual(["https://source.example.com/public.jpg"]);
+  });
+
+  it.each(["script", "style", "noscript", "template"])("排除 %s 中的伪 img/source，保留块后的真实图片", tag => {
+    const markup = `<${tag}><img src="/fake.jpg"><source srcset="/fake.webp 2x"></${tag}><img src="/real.jpg">`;
+    expect(document(markup).assetUrls).toEqual(["https://source.example.com/real.jpg"]);
+    expect(document(`<${tag}><img src="/unclosed.jpg">`).assetUrls).toEqual([]);
+  });
+
+  it("排除注释、嵌套模板、其它标签属性里的 img 字符串，不能由假标签提取候选", () => {
+    expect(document(`<!-- <img src="/comment.jpg"> --><template><template><img src="/inner.jpg"></template><img src="/outer.jpg"></template><div title='<img src="/attribute.jpg">'>文本</div><img src="/real.jpg"><!-- <img src="/unclosed.jpg">`).assetUrls)
+      .toEqual(["https://source.example.com/real.jpg"]);
+  });
+
+  it("脚本内注释/模板字符串不能吞掉 script 结束标签后的真实图", () => {
+    expect(document('<script>const markup = \'<!-- <img src="/fake.jpg">\';</script><img src="/real.jpg">').assetUrls)
+      .toEqual(["https://source.example.com/real.jpg"]);
+    expect(document('<template><script>const markup = "</template>";</script><img src="/fake.jpg"></template><img src="/real.jpg">').assetUrls)
+      .toEqual(["https://source.example.com/real.jpg"]);
+  });
+
+  it("真实 IT之家 RC 页的三组懒加载标签同时保留原图 srcset 和 CDN 变体", () => {
+    // Root 于 2026-10-24 保存的 https://www.ithome.com/1/004/414.htm 标签（省略非 URL 属性）。
+    const paths = ["19c620fd-e878-45bd-84e5-ca401f419897", "02958931-41f4-4f07-a2da-ce04b70d8a76", "14e43dcf-44df-4077-b6cd-9029285514d8"];
+    const heights = [1285, 2158, 2023];
+    const images = paths.map((id, index) => `<img src="//img.ithome.com/images/v2/t.png" class="lazy" srcset="https://img.ithome.com/newsuploadfiles/2026/9/${id}.jpg 2x" data-original="https://img.ithome.com/newsuploadfiles/2026/9/${id}.jpg@s_2,w_820,h_${heights[index]}">`).join("");
+    const result = sourceDocument(`<p>820RR-RC 赛道版</p>${images}`, "text/html; charset=utf-8", "https://www.ithome.com/1/004/414.htm");
+    for (const [index, id] of paths.entries()) {
+      expect(result.assetUrls).toContain(`https://img.ithome.com/newsuploadfiles/2026/9/${id}.jpg`);
+      expect(result.assetUrls).toContain(`https://img.ithome.com/newsuploadfiles/2026/9/${id}.jpg@s_2,w_820,h_${heights[index]}`);
+    }
+    expect(result.assetUrls).toHaveLength(7);
+    expect(result.text).toBe("820RR-RC 赛道版");
+  });
+
+  it("图片候选新增不改变原文 text，文本和 JSON 不被当成 HTML 扫图", () => {
+    const raw = '<p>第一段 &amp; 实话</p><script>隐藏事实</script><style>隐藏样式</style><!-- 隐藏注释 --><img data-original="/real.jpg"><p>尾部 &#x4e2d;文</p>';
+    expect(sourceDocument(raw, "text/html", pageUrl)).toEqual({ text: "第一段 & 实话\n尾部 中文", assetUrls: ["https://source.example.com/real.jpg"] });
+    for (const type of ["text/plain", "application/json"]) expect(sourceDocument(raw, type, pageUrl).assetUrls).toEqual([]);
+  });
+});

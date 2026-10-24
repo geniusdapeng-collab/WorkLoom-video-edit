@@ -1,0 +1,554 @@
+{
+  "schemaVersion": "workloom.product-research-import/v1",
+  "importedAt": "2026-10-24T07:02:21.527Z",
+  "researchSha256": "873e12865fe463df0bbd3765610f5acfd5b852b5cf0941e1192c6cf0857ca5dc",
+  "scope": {
+    "tenantId": "tenant-zxmoto-20261023",
+    "workspaceId": "ws-zxmoto-20261023",
+    "projectId": "DOSSIER-ZXRC-PRODUCT-20261024",
+    "runId": "890d9ccd-db00-4725-8b0b-f74b2befc16c",
+    "attempt": 13
+  },
+  "dossierProductId": "820R-1LKU0J5",
+  "dossierSha256": "68e6d3cbe42fc6d333de7c1c8bc28cf24b724e0f0c3b4dc967b211caed13b1f0",
+  "normalizedMetadataSha256": "9d4e0c11fa2def48348c9f2b5086c2261df6ade99a9c47f676ce67fd64dd7873",
+  "canonicalImageSelectionSha256": "92f1c232567a180eb49feaf85eaa05566cf7b7c22bc8bc787a7bfc97e279dc42",
+  "reviewedA1Claims": 33,
+  "exportedClaims": [
+    {
+      "claimId": "CL-16c4cf9ac2a2cc7137b438d2",
+      "pointer": "/identity/name",
+      "value": "张雪 820RR-RC 赛道版",
+      "sourceId": "SRC-968ff793dc953558b729a670",
+      "textSha256": "210af1d9e33a067add82d31b4496d168e0c4314ab2b0fb1fdd8537bf6a3d3cb7",
+      "quoteSha256": "f7527914f66337108c75110f79ca16d0aec1afb3a6b469b129abd46c7ab1674b",
+      "quoteStart": 0,
+      "quoteEnd": 38
+    },
+    {
+      "claimId": "CL-837544fb458063a16a82f21a",
+      "pointer": "/identity/brand",
+      "value": "张雪机车",
+      "sourceId": "SRC-968ff793dc953558b729a670",
+      "textSha256": "210af1d9e33a067add82d31b4496d168e0c4314ab2b0fb1fdd8537bf6a3d3cb7",
+      "quoteSha256": "b456bce04a5ee14d4045b0feeec526cdafc6eeefab8ca3ea9a308644a940fef8",
+      "quoteStart": 322,
+      "quoteEnd": 364
+    },
+    {
+      "claimId": "CL-6445a2e09f9e9e31ad345909",
+      "pointer": "/identity/category",
+      "value": "摩托车",
+      "sourceId": "SRC-275e8601a887de20b8128530",
+      "textSha256": "7f7b2d31972d80dee3eebf4ca0ec23cfc3a65cf65bc8c55461eaf0b3220b0bb2",
+      "quoteSha256": "2366c8c81b83a0e45139148f6a972f9e85fa26bc1a89f995128a578ca7c9e264",
+      "quoteStart": 722,
+      "quoteEnd": 759
+    },
+    {
+      "claimId": "CL-1095adcfe1598e1410a57c2f",
+      "pointer": "/identity/model",
+      "value": "820RR-RC",
+      "sourceId": "SRC-968ff793dc953558b729a670",
+      "textSha256": "210af1d9e33a067add82d31b4496d168e0c4314ab2b0fb1fdd8537bf6a3d3cb7",
+      "quoteSha256": "b456bce04a5ee14d4045b0feeec526cdafc6eeefab8ca3ea9a308644a940fef8",
+      "quoteStart": 322,
+      "quoteEnd": 364
+    },
+    {
+      "claimId": "CL-f6dbd9f282b2ea84c35b926c",
+      "pointer": "/identity/prices/0/amount",
+      "value": 128000,
+      "sourceId": "SRC-968ff793dc953558b729a670",
+      "textSha256": "210af1d9e33a067add82d31b4496d168e0c4314ab2b0fb1fdd8537bf6a3d3cb7",
+      "quoteSha256": "235b9646f5ffecf715514b58a9b5fb616d426503cf454e478441522555fea7f5",
+      "quoteStart": 273,
+      "quoteEnd": 407
+    },
+    {
+      "claimId": "CL-bf286c060ca2b8e420017bf3",
+      "pointer": "/identity/prices/0/currency",
+      "value": "元",
+      "sourceId": "SRC-968ff793dc953558b729a670",
+      "textSha256": "210af1d9e33a067add82d31b4496d168e0c4314ab2b0fb1fdd8537bf6a3d3cb7",
+      "quoteSha256": "235b9646f5ffecf715514b58a9b5fb616d426503cf454e478441522555fea7f5",
+      "quoteStart": 273,
+      "quoteEnd": 407
+    },
+    {
+      "claimId": "CL-74377608008e1f6783885c07",
+      "pointer": "/identity/prices/0/note",
+      "value": "2026年9月19日报道的全国统一指导价",
+      "sourceId": "SRC-968ff793dc953558b729a670",
+      "textSha256": "210af1d9e33a067add82d31b4496d168e0c4314ab2b0fb1fdd8537bf6a3d3cb7",
+      "quoteSha256": "235b9646f5ffecf715514b58a9b5fb616d426503cf454e478441522555fea7f5",
+      "quoteStart": 273,
+      "quoteEnd": 407
+    },
+    {
+      "claimId": "CL-1737d90ccc3d3658b0bc1545",
+      "pointer": "/identity/specs/发动机",
+      "value": "818.8cc 直列三缸发动机",
+      "sourceId": "SRC-968ff793dc953558b729a670",
+      "textSha256": "210af1d9e33a067add82d31b4496d168e0c4314ab2b0fb1fdd8537bf6a3d3cb7",
+      "quoteSha256": "2623af2af2621386fa780cbab648bc89167f8424cea6686f6b5e111ff24abc7a",
+      "quoteStart": 455,
+      "quoteEnd": 484
+    },
+    {
+      "claimId": "CL-6afba29c6b4ca6df93295560",
+      "pointer": "/identity/specs/配气结构",
+      "value": "DOHC 每缸四气门",
+      "sourceId": "SRC-968ff793dc953558b729a670",
+      "textSha256": "210af1d9e33a067add82d31b4496d168e0c4314ab2b0fb1fdd8537bf6a3d3cb7",
+      "quoteSha256": "b9b9545385c0ca8e699cdb26212bdf6d391affcae543e262898e96c91226064c",
+      "quoteStart": 485,
+      "quoteEnd": 498
+    },
+    {
+      "claimId": "CL-05c8b94369f214dc84fdfab1",
+      "pointer": "/identity/specs/冷却方式",
+      "value": "水冷 + 油冷散热结构",
+      "sourceId": "SRC-968ff793dc953558b729a670",
+      "textSha256": "210af1d9e33a067add82d31b4496d168e0c4314ab2b0fb1fdd8537bf6a3d3cb7",
+      "quoteSha256": "3b857e073f2d9d95f6a80b6f8aa1d2a695ca18c9010dde2ba94497484053bd2f",
+      "quoteStart": 499,
+      "quoteEnd": 510
+    },
+    {
+      "claimId": "CL-5d2e1f89b22d9ea47e96ce25",
+      "pointer": "/identity/specs/最大功率",
+      "value": "113 千瓦，在每 13500 转时输出",
+      "sourceId": "SRC-968ff793dc953558b729a670",
+      "textSha256": "210af1d9e33a067add82d31b4496d168e0c4314ab2b0fb1fdd8537bf6a3d3cb7",
+      "quoteSha256": "02afcd50a3907b9ffccc77b541f03a9491a6507ad3cf834e3ccc2067465629ca",
+      "quoteStart": 511,
+      "quoteEnd": 536
+    },
+    {
+      "claimId": "CL-2eed0693ab9517b57003e643",
+      "pointer": "/identity/specs/最大扭矩",
+      "value": "86 牛 · 米在每 10000 转时产生",
+      "sourceId": "SRC-968ff793dc953558b729a670",
+      "textSha256": "210af1d9e33a067add82d31b4496d168e0c4314ab2b0fb1fdd8537bf6a3d3cb7",
+      "quoteSha256": "80276e40f832b5c2acec561d045e49f578883a8115bbaf1823bbe697fd92785c",
+      "quoteStart": 537,
+      "quoteEnd": 563
+    },
+    {
+      "claimId": "CL-00f0e89278989f679a4ac545",
+      "pointer": "/identity/specs/最高转速",
+      "value": "最高转速可达 14750 转",
+      "sourceId": "SRC-968ff793dc953558b729a670",
+      "textSha256": "210af1d9e33a067add82d31b4496d168e0c4314ab2b0fb1fdd8537bf6a3d3cb7",
+      "quoteSha256": "b32edbfced8b7f769372dec6558aaa980b05dd5b57b5ad0b0519e6931b1289bf",
+      "quoteStart": 564,
+      "quoteEnd": 578
+    },
+    {
+      "claimId": "CL-c9074dbdcffab5bb3e529343",
+      "pointer": "/identity/specs/压缩比",
+      "value": "14:1",
+      "sourceId": "SRC-968ff793dc953558b729a670",
+      "textSha256": "210af1d9e33a067add82d31b4496d168e0c4314ab2b0fb1fdd8537bf6a3d3cb7",
+      "quoteSha256": "9dc12b3c86d7db107d34b6e11b2e78a9a680034fb4d2c66e6b933d0b32b99ddd",
+      "quoteStart": 579,
+      "quoteEnd": 588
+    },
+    {
+      "claimId": "CL-7cb4668ba64e2c2ed129803f",
+      "pointer": "/identity/specs/供油系统",
+      "value": "BOSCH 电喷",
+      "sourceId": "SRC-968ff793dc953558b729a670",
+      "textSha256": "210af1d9e33a067add82d31b4496d168e0c4314ab2b0fb1fdd8537bf6a3d3cb7",
+      "quoteSha256": "e22a10e06c83edef007b2e4b2ad1d4cad4f8fbd03a91330cdb340f6db1691114",
+      "quoteStart": 590,
+      "quoteEnd": 606
+    },
+    {
+      "claimId": "CL-9f602b3ef7e621f941f7b8ca",
+      "pointer": "/identity/specs/电子油门与弹射起步",
+      "value": "配备电子油门和弹射起步功能",
+      "sourceId": "SRC-968ff793dc953558b729a670",
+      "textSha256": "210af1d9e33a067add82d31b4496d168e0c4314ab2b0fb1fdd8537bf6a3d3cb7",
+      "quoteSha256": "7e9744e86f52416c5f20df4c58ed0bc66feb7926d01565ccf44233dc412bf767",
+      "quoteStart": 633,
+      "quoteEnd": 647
+    },
+    {
+      "claimId": "CL-48ed80bfc3220048b13c841c",
+      "pointer": "/identity/specs/排气系统",
+      "value": "钛合金直排排气系统",
+      "sourceId": "SRC-968ff793dc953558b729a670",
+      "textSha256": "210af1d9e33a067add82d31b4496d168e0c4314ab2b0fb1fdd8537bf6a3d3cb7",
+      "quoteSha256": "bb0f416c7a698569898466dbe123f774d5407b0fc6a4ad25d5fa9c97cf4ee706",
+      "quoteStart": 649,
+      "quoteEnd": 663
+    },
+    {
+      "claimId": "CL-0d47e5ce953b71ef54db2bcb",
+      "pointer": "/identity/specs/换挡机构",
+      "value": "反挡换挡机构",
+      "sourceId": "SRC-968ff793dc953558b729a670",
+      "textSha256": "210af1d9e33a067add82d31b4496d168e0c4314ab2b0fb1fdd8537bf6a3d3cb7",
+      "quoteSha256": "d3e8ee4c7f10aff6e0b255b65654ff65093c5ccda1dceadf30b141969306e49b",
+      "quoteStart": 664,
+      "quoteEnd": 670
+    },
+    {
+      "claimId": "CL-18990de6402699fea3fc8653",
+      "pointer": "/identity/specs/快速换挡",
+      "value": "双向快速换挡装置",
+      "sourceId": "SRC-968ff793dc953558b729a670",
+      "textSha256": "210af1d9e33a067add82d31b4496d168e0c4314ab2b0fb1fdd8537bf6a3d3cb7",
+      "quoteSha256": "34bd57c697e5a84ae88ae03a7454394fecab133d82a0ad2f6624c307a87584f7",
+      "quoteStart": 695,
+      "quoteEnd": 709
+    },
+    {
+      "claimId": "CL-ccc6f58099b95c58e7c2f769",
+      "pointer": "/identity/specs/仪表",
+      "value": "6.2 英寸 TFT 赛道仪表",
+      "sourceId": "SRC-968ff793dc953558b729a670",
+      "textSha256": "210af1d9e33a067add82d31b4496d168e0c4314ab2b0fb1fdd8537bf6a3d3cb7",
+      "quoteSha256": "ef8f97f6dff1b604235a135fd666a625a25215a64436f801ad3121bbb409e1ad",
+      "quoteStart": 679,
+      "quoteEnd": 694
+    },
+    {
+      "claimId": "CL-a5548d8ca0d3828734f9093a",
+      "pointer": "/identity/specs/前悬架",
+      "value": "KYB 品牌组件，43 毫米倒置式减震器，支持全段调节，配备锻造 CNC 底筒和 DLC 叉管",
+      "sourceId": "SRC-968ff793dc953558b729a670",
+      "textSha256": "210af1d9e33a067add82d31b4496d168e0c4314ab2b0fb1fdd8537bf6a3d3cb7",
+      "quoteSha256": "ab2b8b7192a9600b515ab1c58835e87416eaade428c4f43df13a88504b996fac",
+      "quoteStart": 727,
+      "quoteEnd": 789
+    },
+    {
+      "claimId": "CL-7b12c8d24f8087550600e531",
+      "pointer": "/identity/specs/后悬架",
+      "value": "多连杆结构，同样支持全段调节，预载可免工具调节",
+      "sourceId": "SRC-968ff793dc953558b729a670",
+      "textSha256": "210af1d9e33a067add82d31b4496d168e0c4314ab2b0fb1fdd8537bf6a3d3cb7",
+      "quoteSha256": "4429568b8de45fc5e4c3fd5037c22c90e5d74f944078bc1a03dca95707f7b54f",
+      "quoteStart": 790,
+      "quoteEnd": 817
+    },
+    {
+      "claimId": "CL-d69f116899d10d27c135e5f0",
+      "pointer": "/identity/specs/制动系统",
+      "value": "Brembo 提供，前轮 PRO1 四活塞径向卡钳配合 330 毫米双浮动盘，搭配 Brembo RCS 直推泵，后轮 P34 双活塞卡钳与 220 毫米浮动盘组合",
+      "sourceId": "SRC-968ff793dc953558b729a670",
+      "textSha256": "210af1d9e33a067add82d31b4496d168e0c4314ab2b0fb1fdd8537bf6a3d3cb7",
+      "quoteSha256": "baa9f94a209c2bb333d013250f359681dc37ff5b9443f679fc87d92f69fa02bd",
+      "quoteStart": 819,
+      "quoteEnd": 911
+    },
+    {
+      "claimId": "CL-c573fb5509406a4a1da8183d",
+      "pointer": "/identity/specs/转向角",
+      "value": "20 度",
+      "sourceId": "SRC-968ff793dc953558b729a670",
+      "textSha256": "210af1d9e33a067add82d31b4496d168e0c4314ab2b0fb1fdd8537bf6a3d3cb7",
+      "quoteSha256": "86ed94ce8fad3a771aca22cd170a95f59e2f9d7dfc15b74fa7fbc26946f33b5e",
+      "quoteStart": 934,
+      "quoteEnd": 942
+    },
+    {
+      "claimId": "CL-e7b7193aba75199e84c58a9a",
+      "pointer": "/identity/specs/前倾角",
+      "value": "24.6 度",
+      "sourceId": "SRC-968ff793dc953558b729a670",
+      "textSha256": "210af1d9e33a067add82d31b4496d168e0c4314ab2b0fb1fdd8537bf6a3d3cb7",
+      "quoteSha256": "ae909d3a1052e7a6b19a117e609fecfe3b8d709dfa035d3dc8715b20b653242f",
+      "quoteStart": 943,
+      "quoteEnd": 953
+    },
+    {
+      "claimId": "CL-d0ec166eac61c899d34233e0",
+      "pointer": "/identity/specs/拖曳距",
+      "value": "104.2 毫米",
+      "sourceId": "SRC-968ff793dc953558b729a670",
+      "textSha256": "210af1d9e33a067add82d31b4496d168e0c4314ab2b0fb1fdd8537bf6a3d3cb7",
+      "quoteSha256": "03807cfc588c5d9a85502b5a5060f768d0b77579aea1b2a9adcfa7061f11fa94",
+      "quoteStart": 954,
+      "quoteEnd": 966
+    },
+    {
+      "claimId": "CL-0b22b41c952c46ee9dca98fb",
+      "pointer": "/identity/specs/轴距",
+      "value": "1420 毫米",
+      "sourceId": "SRC-968ff793dc953558b729a670",
+      "textSha256": "210af1d9e33a067add82d31b4496d168e0c4314ab2b0fb1fdd8537bf6a3d3cb7",
+      "quoteSha256": "7bd7a3df9652eb49852709c9aaf380ddad6ba4dd191fcd9932108f17241f8ae4",
+      "quoteStart": 967,
+      "quoteEnd": 977
+    },
+    {
+      "claimId": "CL-f8780d31cf3c07eb7f6ebd7c",
+      "pointer": "/identity/specs/轮胎规格",
+      "value": "前 120/70 ZR17、后 180/60 ZR17",
+      "sourceId": "SRC-968ff793dc953558b729a670",
+      "textSha256": "210af1d9e33a067add82d31b4496d168e0c4314ab2b0fb1fdd8537bf6a3d3cb7",
+      "quoteSha256": "06caab554c664e5a9c4f7098433c99e37764aa82a0213706ae18ade7ad3b11d8",
+      "quoteStart": 978,
+      "quoteEnd": 1010
+    },
+    {
+      "claimId": "CL-7a3e2247c21950834f24409e",
+      "pointer": "/identity/specs/轮辋",
+      "value": "锻造 CNC 材质",
+      "sourceId": "SRC-968ff793dc953558b729a670",
+      "textSha256": "210af1d9e33a067add82d31b4496d168e0c4314ab2b0fb1fdd8537bf6a3d3cb7",
+      "quoteSha256": "60b12bd79bcab0e1db40836bdc238b2e632ca8b0a384802bb6d347ddc506cd24",
+      "quoteStart": 1011,
+      "quoteEnd": 1023
+    },
+    {
+      "claimId": "CL-b9ef7b9084f0500d2548f8bd",
+      "pointer": "/identity/specs/座高",
+      "value": "825 毫米",
+      "sourceId": "SRC-968ff793dc953558b729a670",
+      "textSha256": "210af1d9e33a067add82d31b4496d168e0c4314ab2b0fb1fdd8537bf6a3d3cb7",
+      "quoteSha256": "0a594d1d78ef047a8cddcb20c90422b3504f5c930921161ba00145ab2a175cf6",
+      "quoteStart": 1024,
+      "quoteEnd": 1033
+    },
+    {
+      "claimId": "CL-5401b32bad6676169e74ca33",
+      "pointer": "/identity/specs/油箱容积",
+      "value": "16 升",
+      "sourceId": "SRC-968ff793dc953558b729a670",
+      "textSha256": "210af1d9e33a067add82d31b4496d168e0c4314ab2b0fb1fdd8537bf6a3d3cb7",
+      "quoteSha256": "bc01ef3cb92a01df175e4a1a45da5bab967ac69fbcb3c225ecd8bb77fd740def",
+      "quoteStart": 1034,
+      "quoteEnd": 1043
+    },
+    {
+      "claimId": "CL-bec181ff95b8bfe9221d2dba",
+      "pointer": "/identity/specs/湿重",
+      "value": "160 公斤",
+      "sourceId": "SRC-968ff793dc953558b729a670",
+      "textSha256": "210af1d9e33a067add82d31b4496d168e0c4314ab2b0fb1fdd8537bf6a3d3cb7",
+      "quoteSha256": "fa58a0ba05c84169b20d097d5a6b08a7f320988407d4128a65c9a524eac281e2",
+      "quoteStart": 1044,
+      "quoteEnd": 1053
+    },
+    {
+      "claimId": "CL-aa6a9f27e6974945b0acabad",
+      "pointer": "/identity/specs/用途限制",
+      "value": "赛道专用车辆，不具备道路行驶资质，主要针对赛道日及竞速场景使用",
+      "sourceId": "SRC-968ff793dc953558b729a670",
+      "textSha256": "210af1d9e33a067add82d31b4496d168e0c4314ab2b0fb1fdd8537bf6a3d3cb7",
+      "quoteSha256": "576131f89b48b7bd1dd4e87ac96f8c06de6ec17be0e90ffadae41c1563908060",
+      "quoteStart": 408,
+      "quoteEnd": 453
+    }
+  ],
+  "dimensionClaims": {
+    "wheelbaseMm": [
+      "CL-0b22b41c952c46ee9dca98fb"
+    ],
+    "seatHeightMm": [
+      "CL-b9ef7b9084f0500d2548f8bd"
+    ]
+  },
+  "gaps": [],
+  "jennyGapCount": 9,
+  "jennyReferenceImageCount": 9,
+  "selectedImageCount": 8,
+  "restrictions": [
+    "没有可核实用户评价：禁止用户口碑、评分、人数、销量或使用效果共识主张",
+    "没有可核实竞品证据：禁止对比、竞品弱点或市场领先主张"
+  ],
+  "normalization": {
+    "requested": {
+      "id": "zxmoto-820rr-rc",
+      "type": "product",
+      "displayName": "张雪机车 820RR-RC 赛道版",
+      "category": "vehicle",
+      "model": "820RR-RC",
+      "brand": "张雪机车",
+      "company": "张雪机车",
+      "aliases": [
+        "820RR-RC",
+        "张雪820RR-RC",
+        "ZXMOTO 820RR-RC"
+      ],
+      "relations": {
+        "companyId": "zxmoto"
+      }
+    },
+    "reviewedIdentity": {
+      "name": "张雪 820RR-RC 赛道版",
+      "brand": "张雪机车",
+      "model": "820RR-RC",
+      "category": "摩托车"
+    }
+  },
+  "stages": [
+    {
+      "stage": "A1",
+      "status": "source_bound",
+      "claims": 33,
+      "supportReviewSha256": "ad4c2b31d4f11ba37ff1382d2b4184e1717f5167dc724d6792322ccc98b1b4af",
+      "model": "deepseek-flash",
+      "score": 93,
+      "via": "llm",
+      "discovery": {
+        "candidates": 3,
+        "fetched": 3
+      }
+    },
+    {
+      "stage": "A2",
+      "status": "no_evidence",
+      "claims": 0,
+      "discovery": {
+        "candidates": 0,
+        "fetched": 0
+      }
+    },
+    {
+      "stage": "A3",
+      "status": "no_evidence",
+      "claims": 0,
+      "discovery": {
+        "candidates": 0,
+        "fetched": 0
+      }
+    }
+  ],
+  "sources": [
+    {
+      "sourceId": "SRC-968ff793dc953558b729a670",
+      "requestedUrl": "https://www.ithome.com/1/004/414.htm",
+      "finalUrl": "https://www.ithome.com/1/004/414.htm",
+      "rawSha256": "077c6cc4d5b29c529f60405c99bf7c648fedc86d79ae0e765ce766b457d7b79d",
+      "textSha256": "210af1d9e33a067add82d31b4496d168e0c4314ab2b0fb1fdd8537bf6a3d3cb7",
+      "bytes": 23190,
+      "fetchedAt": "2026-10-24T06:56:13.569Z"
+    },
+    {
+      "sourceId": "SRC-8ad70871f29fee54570a79fa",
+      "requestedUrl": "https://chejiahao.m.autohome.com.cn/pingan/chejiahao/detailinfo/26640213",
+      "finalUrl": "https://chejiahao.m.autohome.com.cn/pingan/chejiahao/detailinfo/26640213",
+      "rawSha256": "bf429064789f4bfb591e8ef192eef64541f601d6597d9727ba9fe197329b7633",
+      "textSha256": "cbc50ef95b99854702956b2c7bb7c206305977142ae240fb822dfad88f604549",
+      "bytes": 24625,
+      "fetchedAt": "2026-10-24T06:56:13.964Z"
+    },
+    {
+      "sourceId": "SRC-275e8601a887de20b8128530",
+      "requestedUrl": "https://finance.sina.com.cn/wm/2026-09-19/doc-inisispz2576147.shtml",
+      "finalUrl": "https://finance.sina.com.cn/wm/2026-09-19/doc-inisispz2576147.shtml",
+      "rawSha256": "14845a74239d1330b3e500f9edf262a1cf7299ac53ff6fce85b3a61c484189b5",
+      "textSha256": "7f7b2d31972d80dee3eebf4ca0ec23cfc3a65cf65bc8c55461eaf0b3220b0bb2",
+      "bytes": 103059,
+      "fetchedAt": "2026-10-24T06:56:14.363Z"
+    }
+  ],
+  "images": [
+    {
+      "id": "sina-release-8",
+      "file": "photos/01-sina-release-8.jpg",
+      "sourceId": "SRC-275e8601a887de20b8128530",
+      "pageUrl": "https://finance.sina.com.cn/wm/2026-09-19/doc-inisispz2576147.shtml",
+      "imageUrl": "https://n.sinaimg.cn/sinakd20260919s/290/w1080h810/20260919/c557-e6953c2b46d6cb0852ccbcb4269763ba.jpg",
+      "sha256": "a1441cd4f2ce003686ee872924a182c409992754185d2031f99cabd3afff63e7",
+      "bytes": 111696,
+      "width": 1080,
+      "height": 810,
+      "angle": "detail"
+    },
+    {
+      "id": "chejiahao-1",
+      "file": "photos/02-chejiahao-1.jpg",
+      "sourceId": "SRC-8ad70871f29fee54570a79fa",
+      "pageUrl": "https://chejiahao.m.autohome.com.cn/pingan/chejiahao/detailinfo/26640213",
+      "imageUrl": "https://www2.autoimg.cn/chejiahaodfs/g33/M0B/A5/90/750x0_autohomecar__ChxpVmrNlSSAEhFhAAVW-cpKwlE948.jpg",
+      "sha256": "575d2bb914d62fafecfa34e16dd8b37ce06e5f020ff1872a7d9a8b489c2e888d",
+      "bytes": 56640,
+      "width": 750,
+      "height": 562,
+      "angle": "three-quarter"
+    },
+    {
+      "id": "chejiahao-2",
+      "file": "photos/03-chejiahao-2.jpg",
+      "sourceId": "SRC-8ad70871f29fee54570a79fa",
+      "pageUrl": "https://chejiahao.m.autohome.com.cn/pingan/chejiahao/detailinfo/26640213",
+      "imageUrl": "https://www2.autoimg.cn/chejiahaodfs/g33/M08/A5/8F/750x0_autohomecar__ChxpVWrNlSSAAWuWAAUn9R-nR5A832.jpg",
+      "sha256": "cce5b52846762fc6ccecbeb76b8384d8993713be50c9d55505caf4f99b7a306f",
+      "bytes": 53061,
+      "width": 750,
+      "height": 562,
+      "angle": "side"
+    },
+    {
+      "id": "chejiahao-5",
+      "file": "photos/04-chejiahao-5.jpg",
+      "sourceId": "SRC-8ad70871f29fee54570a79fa",
+      "pageUrl": "https://chejiahao.m.autohome.com.cn/pingan/chejiahao/detailinfo/26640213",
+      "imageUrl": "https://www2.autoimg.cn/chejiahaodfs/g33/M02/A5/8F/750x0_autohomecar__ChxpVWrNlSSAFiXPAAVVCbZ7bCc624.jpg",
+      "sha256": "a165f82e9537c38486fd51f33bd3923a92d5632c04c62e83fda8e02084475066",
+      "bytes": 52026,
+      "width": 750,
+      "height": 562,
+      "angle": "detail"
+    },
+    {
+      "id": "chejiahao-6",
+      "file": "photos/05-chejiahao-6.jpg",
+      "sourceId": "SRC-8ad70871f29fee54570a79fa",
+      "pageUrl": "https://chejiahao.m.autohome.com.cn/pingan/chejiahao/detailinfo/26640213",
+      "imageUrl": "https://www2.autoimg.cn/chejiahaodfs/g33/M03/A5/90/750x0_autohomecar__ChxpVmrNlSSASoioAAjUd8tHA30198.jpg",
+      "sha256": "211c7631978d57659a6f30796f790250e4e1f66fc44b6615ccbda1892c93c9e4",
+      "bytes": 83898,
+      "width": 750,
+      "height": 562,
+      "angle": "detail"
+    },
+    {
+      "id": "rc-release-01",
+      "file": "photos/06-rc-release-01.jpg",
+      "sourceId": "SRC-968ff793dc953558b729a670",
+      "pageUrl": "https://www.ithome.com/1/004/414.htm",
+      "imageUrl": "https://img.ithome.com/newsuploadfiles/2026/9/19c620fd-e878-45bd-84e5-ca401f419897.jpg",
+      "sha256": "bf7007bf328082f8ae7de256feb776cd8aca1f2991bc7be53f44106d62d4ce1c",
+      "bytes": 314055,
+      "width": 1200,
+      "height": 1881,
+      "angle": "three-quarter"
+    },
+    {
+      "id": "rc-release-02",
+      "file": "photos/07-rc-release-02.jpg",
+      "sourceId": "SRC-968ff793dc953558b729a670",
+      "pageUrl": "https://www.ithome.com/1/004/414.htm",
+      "imageUrl": "https://img.ithome.com/newsuploadfiles/2026/9/02958931-41f4-4f07-a2da-ce04b70d8a76.jpg",
+      "sha256": "3faa91984b43d0898126e7b26f1eff1c0bf80fb9dd8327436424b1508b4040aa",
+      "bytes": 442165,
+      "width": 1200,
+      "height": 3158,
+      "angle": "side"
+    },
+    {
+      "id": "rc-release-03",
+      "file": "photos/08-rc-release-03.jpg",
+      "sourceId": "SRC-968ff793dc953558b729a670",
+      "pageUrl": "https://www.ithome.com/1/004/414.htm",
+      "imageUrl": "https://img.ithome.com/newsuploadfiles/2026/9/14e43dcf-44df-4077-b6cd-9029285514d8.jpg",
+      "sha256": "e02958311cd91ff26566bb1f79209c7d3d7ac40f5c3f37655069ec8d0c2cde8c",
+      "bytes": 304763,
+      "width": 1200,
+      "height": 2961,
+      "angle": "detail"
+    }
+  ],
+  "g1HumanApproved": false,
+  "productionAuthorityGranted": false,
+  "sourceTextCopied": false,
+  "originalImagesModified": false
+}

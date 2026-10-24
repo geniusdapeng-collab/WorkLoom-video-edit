@@ -1,0 +1,266 @@
+{
+  "schemaVersion": "workloom.product-research-import/v1",
+  "importedAt": "2026-10-24T06:45:14.861Z",
+  "researchSha256": "901745f7d5b9ac0d85d317cce8a7c44fbd62f6fb865ea039d08bc9f660a58b52",
+  "scope": {
+    "tenantId": "tenant-zxmoto-20261023",
+    "workspaceId": "ws-zxmoto-20261023",
+    "projectId": "DOSSIER-ZXRC-BRAND-20261024",
+    "runId": "735f4272-3e68-4159-80a7-79bbf8b1b115",
+    "attempt": 15
+  },
+  "dossierProductId": "PRD-199VNRB",
+  "dossierSha256": "c990f42cd5c442edd0b644c0d05e227b6071edc9ba0dd15c9a6543402b2aa2ab",
+  "normalizedMetadataSha256": "c3329a066be90a245b0b124b219b454f4feba3e6dce523e4accd5877346d7015",
+  "canonicalImageSelectionSha256": "e3a5d5c0f977815332bf122c06360693941181b29ca76cd8a446fc21398a3422",
+  "reviewedA1Claims": 11,
+  "exportedClaims": [
+    {
+      "claimId": "CL-e90d2bc4c3a1cfd36ec998f3",
+      "pointer": "/identity/name",
+      "value": "张雪机车",
+      "sourceId": "SRC-db6afe400ff834baa0f315bd",
+      "textSha256": "24440e9238d96f4b548506234fd4ef4f5b579a5534c3cb1e3beac0851ff88c23",
+      "quoteSha256": "e20f58803abf6ab45283a8610377791393c3d646e2dd6de4dbd057bd308a3695",
+      "quoteStart": 1784,
+      "quoteEnd": 1834
+    },
+    {
+      "claimId": "CL-7bd8be201b6a67b9f4989b6c",
+      "pointer": "/identity/brand",
+      "value": "张雪机车",
+      "sourceId": "SRC-db6afe400ff834baa0f315bd",
+      "textSha256": "24440e9238d96f4b548506234fd4ef4f5b579a5534c3cb1e3beac0851ff88c23",
+      "quoteSha256": "e20f58803abf6ab45283a8610377791393c3d646e2dd6de4dbd057bd308a3695",
+      "quoteStart": 1784,
+      "quoteEnd": 1834
+    },
+    {
+      "claimId": "CL-24947a0a4e66460200b07a29",
+      "pointer": "/identity/specs/创始人",
+      "value": "张雪",
+      "sourceId": "SRC-db6afe400ff834baa0f315bd",
+      "textSha256": "24440e9238d96f4b548506234fd4ef4f5b579a5534c3cb1e3beac0851ff88c23",
+      "quoteSha256": "e20f58803abf6ab45283a8610377791393c3d646e2dd6de4dbd057bd308a3695",
+      "quoteStart": 1784,
+      "quoteEnd": 1834
+    },
+    {
+      "claimId": "CL-ebed7fd45f33605dab440105",
+      "pointer": "/identity/specs/创立时间",
+      "value": "2024年4月",
+      "sourceId": "SRC-db6afe400ff834baa0f315bd",
+      "textSha256": "24440e9238d96f4b548506234fd4ef4f5b579a5534c3cb1e3beac0851ff88c23",
+      "quoteSha256": "e20f58803abf6ab45283a8610377791393c3d646e2dd6de4dbd057bd308a3695",
+      "quoteStart": 1784,
+      "quoteEnd": 1834
+    },
+    {
+      "claimId": "CL-35a1b162396bc987d721086b",
+      "pointer": "/identity/specs/创立地点",
+      "value": "重庆",
+      "sourceId": "SRC-db6afe400ff834baa0f315bd",
+      "textSha256": "24440e9238d96f4b548506234fd4ef4f5b579a5534c3cb1e3beac0851ff88c23",
+      "quoteSha256": "e20f58803abf6ab45283a8610377791393c3d646e2dd6de4dbd057bd308a3695",
+      "quoteStart": 1784,
+      "quoteEnd": 1834
+    },
+    {
+      "claimId": "CL-69099d142bfd290bdf428324",
+      "pointer": "/identity/specs/研发方向",
+      "value": "专注高性能产品和自主发动机研发",
+      "sourceId": "SRC-db6afe400ff834baa0f315bd",
+      "textSha256": "24440e9238d96f4b548506234fd4ef4f5b579a5534c3cb1e3beac0851ff88c23",
+      "quoteSha256": "e20f58803abf6ab45283a8610377791393c3d646e2dd6de4dbd057bd308a3695",
+      "quoteStart": 1784,
+      "quoteEnd": 1834
+    },
+    {
+      "claimId": "CL-26f0fcb898dba0bfae78161c",
+      "pointer": "/identity/specs/2025年总产值",
+      "value": "7.5亿元",
+      "sourceId": "SRC-db6afe400ff834baa0f315bd",
+      "textSha256": "24440e9238d96f4b548506234fd4ef4f5b579a5534c3cb1e3beac0851ff88c23",
+      "quoteSha256": "bb4eb8f1011957085795b31dadd372a193a4f77aaf57ba5864c9c5e88107617f",
+      "quoteStart": 1834,
+      "quoteEnd": 1853
+    },
+    {
+      "claimId": "CL-9aafb15c0b75fa207ddb540a",
+      "pointer": "/identity/specs/创始人出生地",
+      "value": "湖南怀化偏远山村",
+      "sourceId": "SRC-d7dfe55aaefd718f031c1d9f",
+      "textSha256": "4e6e085562818d90acecd6981a9707f9a360a3bc6043711bd4aeadd933d78f94",
+      "quoteSha256": "97584b2a157a7fee08e0aad434ba3d6d889758c68fa793f880694d9594d9ca0a",
+      "quoteStart": 1487,
+      "quoteEnd": 1510
+    },
+    {
+      "claimId": "CL-5c990815d762a691e77d954d",
+      "pointer": "/identity/specs/创始人早年经历",
+      "value": "辍学进入修理铺当学徒",
+      "sourceId": "SRC-db6afe400ff834baa0f315bd",
+      "textSha256": "24440e9238d96f4b548506234fd4ef4f5b579a5534c3cb1e3beac0851ff88c23",
+      "quoteSha256": "4a5b2ef8a2d317d4f9e0d0c215ce4158aa1aaf13e1a2a8660a72079c9988d529",
+      "quoteStart": 922,
+      "quoteEnd": 938
+    },
+    {
+      "claimId": "CL-0822b95e8d4e064f1edd6fa6",
+      "pointer": "/identity/specs/创始人技能",
+      "value": "可蒙眼组装发动机",
+      "sourceId": "SRC-d7dfe55aaefd718f031c1d9f",
+      "textSha256": "4e6e085562818d90acecd6981a9707f9a360a3bc6043711bd4aeadd933d78f94",
+      "quoteSha256": "689c6ad3ad5023e47b87d352bc506f2dd9ad5c1d5ade6915f918bd4a737b1faf",
+      "quoteStart": 1729,
+      "quoteEnd": 1770
+    },
+    {
+      "claimId": "CL-5372a8ad939fbd9c1eafd834",
+      "pointer": "/identity/specs/人物观点",
+      "value": "我认为行业上下游会更有信心",
+      "sourceId": "SRC-db6afe400ff834baa0f315bd",
+      "textSha256": "24440e9238d96f4b548506234fd4ef4f5b579a5534c3cb1e3beac0851ff88c23",
+      "quoteSha256": "f087c5235f1a5eda027c986e40e23fe438c14b1df88f878147ada86011d85fae",
+      "quoteStart": 2231,
+      "quoteEnd": 2268
+    }
+  ],
+  "dimensionClaims": {},
+  "gaps": [],
+  "jennyGapCount": 11,
+  "jennyReferenceImageCount": 3,
+  "selectedImageCount": 3,
+  "restrictions": [
+    "没有可核实用户评价：禁止用户口碑、评分、人数、销量或使用效果共识主张",
+    "没有可核实竞品证据：禁止对比、竞品弱点或市场领先主张"
+  ],
+  "normalization": {
+    "requested": {
+      "id": "zxmoto",
+      "type": "company",
+      "displayName": "张雪机车",
+      "category": "摩托车品牌与制造",
+      "brand": "张雪机车",
+      "company": "张雪机车",
+      "aliases": [
+        "ZXMOTO",
+        "张雪",
+        "张雪机车品牌"
+      ],
+      "relations": {
+        "products": [
+          "zxmoto-820rr-rc"
+        ]
+      }
+    },
+    "reviewedIdentity": {
+      "name": "张雪机车",
+      "brand": "张雪机车"
+    }
+  },
+  "stages": [
+    {
+      "stage": "A1",
+      "status": "source_bound",
+      "claims": 11,
+      "supportReviewSha256": "351f99d387f596bc1f4512da70666895181b4a7a9714276a7f3c6dea3a21a5d5",
+      "model": "deepseek-flash",
+      "score": 91,
+      "via": "llm",
+      "discovery": {
+        "candidates": 3,
+        "fetched": 3
+      }
+    },
+    {
+      "stage": "A2",
+      "status": "no_evidence",
+      "claims": 0,
+      "discovery": {
+        "candidates": 0,
+        "fetched": 0
+      }
+    },
+    {
+      "stage": "A3",
+      "status": "no_evidence",
+      "claims": 0,
+      "discovery": {
+        "candidates": 0,
+        "fetched": 0
+      }
+    }
+  ],
+  "sources": [
+    {
+      "sourceId": "SRC-db6afe400ff834baa0f315bd",
+      "requestedUrl": "https://people.cctv.com/2026/04/03/ARTI87gL7UfrOvClXrfU9Xli260403.shtml",
+      "finalUrl": "https://people.cctv.com/2026/04/03/ARTI87gL7UfrOvClXrfU9Xli260403.shtml",
+      "rawSha256": "777b46193d83ca18c750fbbfeb2fb5667cf1210da9d5ad286cb92551c9e3e2b3",
+      "textSha256": "24440e9238d96f4b548506234fd4ef4f5b579a5534c3cb1e3beac0851ff88c23",
+      "bytes": 37183,
+      "fetchedAt": "2026-10-24T06:33:37.039Z"
+    },
+    {
+      "sourceId": "SRC-d7dfe55aaefd718f031c1d9f",
+      "requestedUrl": "https://cpc.people.com.cn/n1/2026/0512/c64387-40718001.html",
+      "finalUrl": "https://cpc.people.com.cn/n1/2026/0512/c64387-40718001.html",
+      "rawSha256": "93bcad2328f1252e383864be5ba796759c53b31ed387589c702aa92e48ef5514",
+      "textSha256": "4e6e085562818d90acecd6981a9707f9a360a3bc6043711bd4aeadd933d78f94",
+      "bytes": 60517,
+      "fetchedAt": "2026-10-24T06:33:37.298Z"
+    },
+    {
+      "sourceId": "SRC-275e8601a887de20b8128530",
+      "requestedUrl": "https://finance.sina.com.cn/wm/2026-09-19/doc-inisispz2576147.shtml",
+      "finalUrl": "https://finance.sina.com.cn/wm/2026-09-19/doc-inisispz2576147.shtml",
+      "rawSha256": "14845a74239d1330b3e500f9edf262a1cf7299ac53ff6fce85b3a61c484189b5",
+      "textSha256": "7f7b2d31972d80dee3eebf4ca0ec23cfc3a65cf65bc8c55461eaf0b3220b0bb2",
+      "bytes": 103059,
+      "fetchedAt": "2026-10-24T06:33:37.531Z"
+    }
+  ],
+  "images": [
+    {
+      "id": "sina-release-1",
+      "file": "photos/01-sina-release-1.jpg",
+      "sourceId": "SRC-275e8601a887de20b8128530",
+      "pageUrl": "https://finance.sina.com.cn/wm/2026-09-19/doc-inisispz2576147.shtml",
+      "imageUrl": "https://n.sinaimg.cn/sinakd20260919s/290/w1080h810/20260919/989a-87a901e4a9c3bf9de8ef262a901818b8.jpg",
+      "sha256": "79571449440e0af4a8c9177b7b9e33b8b11e7f00048e63b5e5c2a1c8b7102a89",
+      "bytes": 139199,
+      "width": 1080,
+      "height": 810,
+      "angle": "front"
+    },
+    {
+      "id": "sina-release-9",
+      "file": "photos/02-sina-release-9.jpg",
+      "sourceId": "SRC-275e8601a887de20b8128530",
+      "pageUrl": "https://finance.sina.com.cn/wm/2026-09-19/doc-inisispz2576147.shtml",
+      "imageUrl": "https://n.sinaimg.cn/sinakd20260919s/88/w1080h608/20260919/a8d8-25f68cc0b9e52bcddbd8498a3a69fb3a.jpg",
+      "sha256": "b21bf23f69eef317f6ce758167124016920e7299078e50481adf027321e85525",
+      "bytes": 90509,
+      "width": 1080,
+      "height": 608,
+      "angle": "front"
+    },
+    {
+      "id": "founder-xinhua-portrait",
+      "file": "photos/03-founder-xinhua-portrait.jpg",
+      "sourceId": "SRC-db6afe400ff834baa0f315bd",
+      "pageUrl": "https://people.cctv.com/2026/04/03/ARTI87gL7UfrOvClXrfU9Xli260403.shtml",
+      "imageUrl": "https://p5.img.cctvpic.com/photoworkspace/contentimg/2026/04/03/2026040314552212923.jpg",
+      "sha256": "1ea41a676210172af65f3367e2468b4e005e7b53af75aa02d275b886fab6f065",
+      "bytes": 65500,
+      "width": 1024,
+      "height": 576,
+      "angle": "front"
+    }
+  ],
+  "g1HumanApproved": false,
+  "productionAuthorityGranted": false,
+  "sourceTextCopied": false,
+  "originalImagesModified": false
+}

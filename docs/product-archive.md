@@ -2,7 +2,7 @@
 
 > 任务卡：`T-2026-0929-0004`（档案机制）/ `T-2026-0929-0005`（多商品方案 PPT 导入）｜ 建立日期：2026-09-29 ｜ 适用包：`bundles/ai-video`
 > 事实源：`packages/video-studio/src/product-archive.ts`（档案格式/优先级/校验/提示词口径）
-> 执行器：`scripts/tools/product-archive.mts`（search / build / verify / list）
+> 执行器：`scripts/tools/product-archive.mts`（search / from-research / build / import-pptx / import-pdf / verify / list）
 > 消费方：`scripts/tools/full-chain-film.mts`（镜头 `product` 绑定 + `g-product-ref` 门）
 
 ## 1. 需求（产品所有者原话 → 设计目标）
@@ -130,8 +130,42 @@ shotlist.json ──(company/brand/products/shot.product)──▶ 档案解析�
 | **客户产品 PDF 导入** | `product-archive.mts import-pdf --file <产品资料.pdf> --work <解析目录> --company <公司名> --brand <品牌> --rules <产品规则.json>` | 逐页文本 + 内嵌图落到商品档案；参数与图片带 `page N` 来源；缺失页面不硬凑（如实失败） |
 | 出片绑定（真机） | `full-chain-film.mts … --stages cine-kb,micromotion,spec,material-gen,videos`（镜头写 `product`） | `G-PROD1 g-product-ref` 门通过（客户上传 priority=10），镜头自动变素材镜、绑定 hero 主图，`G-MAT1` 提交门通过；**渲染可能因平台账号欠费（403 AccountOverdueError）停在提交前**，充值后可直接续跑（产物与门记录都在 work-dir） |
 
-## 6. 不做 / 留待后续
+## 6. 受控专业研究入库（`from-research`）
+
+已经通过宿主 `prepareMarketingFacts` 完成真实来源采集、逐主张引证、独立 LLM 原文支持审核和 Jenny 五站装订时，使用官方研究入库入口：
+
+宿主保存的 A1 `identity.specs` 仍是已审核的字符串、数值或布尔值；交给 Jenny 装订时，宿主按精确 JSON Pointer 找到唯一的当前 A1 claim，再用该 claim 的真实来源 `finalUrl` 转成 Jenny 要求的 `{value, source_url}` 副本。原始回填及其 SHA256 不变，Jenny 出站规格也必须保持原值；缺来源、值变化或重复主张会失败，不能补造来源或直接删掉缺口。正式 Studio 使用同一转换，并对实际传入的转换 JSON 另算 SHA256，避免把已审核规格误报成「无来源」。真正没有用户评价或竞品证据时，A2/A3 的缺口和使用限制继续保留。
+
+```bash
+tsx scripts/tools/product-archive.mts from-research \
+  --research work/research/prepared-research.json \
+  --selection work/research/image-selection.json \
+  --metadata work/research/archive-identity.json \
+  --root work/library/products
+```
+
+宿主实现为 `apps/server/src/video/product-research-archive.ts`。命令只读取现有研究与图片、执行本地真实图片解码和建档，不联网、不调用模型、不重新收集、不收费。缺少研究、图片或媒体工具会明确失败。公开检索图不走 `build`，因为 `build` 的合同是客户上传。
+
+三份输入文件的合同：
+
+| 输入 | 必需内容与边界 |
+|---|---|
+| `prepared-research.json` | `prepareMarketingFacts` 返回的完整 `PreparedMarketingFacts`；放在其 `root` 根目录，保留当前 attempt 的 raw/text/review 文件及 Jenny dossier。来源事实不得由手写摘要或搜索摘要替代；研究有效期为 24 小时。 |
+| `archive-identity.json` | 稳定 `id`、`displayName`、`type`（product/company/solution）；可选 `category/model/brand/company/aliases/relations`。名称可以采用用户指定的规范名，型号必须匹配已审核型号；不接受手写 specs/dimensions。 |
+| `image-selection.json` | `schemaVersion=workloom.product-research-image-selection/v1`、显式绝对目录 `allowedImageRoots`、`images` 数组。逐图字段为 `id/file/pageUrl/imageUrl/sha256/bytes/angle`，可选 `role`。file 是这些目录内的真实原图，禁止 symlink 和目录逃逸；不能把任意本地文件冒充抓取图。 |
+
+图片必须满足真实当前字节 SHA256、50KB–8MB、可探测且可完整解码的 PNG/JPEG/WebP/GIF、最长边至少 600px。`pageUrl/imageUrl` 必须精确命中本商品已独立审核的 A1.images；同一来源页中的邻近车型、推荐位或未审核图片不能仅靠网址存在入库。两项还必须在当前保存原文的真实图片属性或支持的结构化图片数据中可复核。结构化入口支持 `application/json`、`application/ld+json` 与识别出的 Nuxt hydration JSON 字符串字面量，不执行网页脚本；任意脚本、注释、template 中出现网址不视为图片来源。已有已审核角度不能被选择清单改写；未知角度可由显式选择清单登记，入库不冒称机器看图确认。重复图片字节和重复 ID 均拒收。
+
+`angle` 只允许 `front/three-quarter/side/rear/detail/action/top`。商品档案必须有真实图片和且仅一张 hero；已审核类别为机动车的商品会规范为 `category=vehicle`，不能靠省略类别绕过检查。车辆还需至少两个合法角度，以及至少两个有来源、正数、有限数值的真实尺寸。尺寸仅从已审核 A1 的确定字段和明确单位换算，例如「座高 82.5 厘米」转换为 `seatHeightMm=825`，「轴距 1.42 米」转换为 `wheelbaseMm=1420`；数字字段本身携带 `Mm/Kg` 单位时也可确定映射。不识别的格式记录 gap，缺足够尺寸、同字段冲突或型号不符则拒收；湿重、净重等不擅自当作整备质量。
+
+公司档案可以无图，并用 `relations.products` 关联产品。A1 的源绑定身份、规格、价格金额/币种/价格时点、来源主张均逐叶映射到 `specs.parameters`，来源主张同时写入 notes，从而保留型号用途限制，不把限制误当作卖点。创始人等短事实随 A1 `identity.specs` 的逐项来源映射，保留 claim ID 和源正文 SHA；未核实/冲突值不登记，长于 240 字的研究段落只记 gap，不能用新闻原文充当品牌介绍。产品提示词当前不会自动读取 parameters/notes；这些资料是否用于影片仍需正式营销事实与创作流程。
+
+输出目录包含 `profile.json`、真实图片副本和 `research-import.json`。它们始终标记 `system-generated/priority=1/pending-owner-review`；回执保存研究 SHA、当前 dossier SHA、来源 URL/字节摘要、逐项 claim ID/引文 SHA、逐图来源映射、尺寸换算关联和研究缺口，不复制完整新闻正文、长引文或绝对本地研究路径。原文留在本地研究目录，原图保持只读。现有同名目录拒绝覆盖；需要替换时先按明确的资产变更流程处理已有档案。
+
+每次入库都会重新读取当前 raw/text/review/dossier 文件：SHA、原文解码、引文偏移、完整审核内容、scope/attempt/型号和原始 A1 回填必须一致。仅有 `passed:true` 不构成审核证据。当前宿主审核回执是本机文件证据，不是抵抗任意本机写权限的密码学签章；入库不产生 G1 人工批准，不授予生产或发布资格，不确认图片商用授权。
+
+## 7. 不做 / 留待后续
 
 - **不做**：把检索图当"已授权素材"；用 AI 生成"同款产品"；在没有产品图时用占位图蒙混过关。
-- **留待**：商详页结构化参数抓取（当前只登记可见外观与来源页）；1688/京东等平台的图文详情解析（需登录或反爬策略）；档案与媒资库 `media_product_profiles` 的双向同步（当前档案库是文件形态，服务端投影是发现面）。
+- **留待**：更多商详页与结构化图片数据的解析；1688/京东等平台的图文详情解析（需登录或反爬策略）；档案与媒资库 `media_product_profiles` 的双向同步（当前档案库是文件形态，服务端投影是发现面）。
 - **边界**：中文 B2B 品牌大量没有公开官网（例如只在企查查/1688/展会页留痕），系统检索可能**抓不到可用产品图**——此时必须由客户提供照片；这条路径已在真机复现并如实失败。

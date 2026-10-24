@@ -1,0 +1,174 @@
+{
+  "schemaVersion": "workloom.product-archive/v1",
+  "id": "zxmoto",
+  "type": "company",
+  "displayName": "张雪机车",
+  "category": "摩托车品牌与制造",
+  "brand": "张雪机车",
+  "company": "张雪机车",
+  "aliases": [
+    "ZXMOTO",
+    "张雪",
+    "张雪机车品牌",
+    "张雪机车"
+  ],
+  "relations": {
+    "products": [
+      "zxmoto-820rr-rc"
+    ]
+  },
+  "source": {
+    "kind": "system-generated",
+    "priority": 1,
+    "generatedAt": "2026-10-24T06:45:14.861Z",
+    "generator": "scripts/tools/product-archive.mts@from-research",
+    "reviewStatus": "pending-owner-review",
+    "searchedQueries": [
+      "张雪机车 官网",
+      "张雪机车  旗舰店 商品页",
+      "张雪机车 参数 规格",
+      "张雪机车 价格",
+      "张雪机车 官方产品图 高清",
+      "张雪机车 实拍 开箱",
+      "张雪机车 白底图",
+      "张雪机车 真实评价 怎么样",
+      "张雪机车 差评 缺点",
+      "张雪机车 踩雷 避雷",
+      "张雪机车 值得买吗 知乎",
+      "张雪机车 使用感受 小红书",
+      "张雪机车 测评 对比",
+      "张雪机车 回购 用了 个月",
+      "其他 排行榜 热销",
+      "其他 哪个牌子好 知乎",
+      "其他 测评 对比 张雪机车",
+      "其他 推荐 小红书"
+    ],
+    "evidence": [
+      {
+        "query": "张雪机车 官网 | 张雪机车  旗舰店 商品页 | 张雪机车 参数 规格 | 张雪机车 价格 | 张雪机车 官方产品图 高清 | 张雪机车 实拍 开箱 | 张雪机车 白底图 | 张雪机车 真实评价 怎么样 | 张雪机车 差评 缺点 | 张雪机车 踩雷 避雷 | 张雪机车 值得买吗 知乎 | 张雪机车 使用感受 小红书 | 张雪机车 测评 对比 | 张雪机车 回购 用了 个月 | 其他 排行榜 热销 | 其他 哪个牌子好 知乎 | 其他 测评 对比 张雪机车 | 其他 推荐 小红书",
+        "url": "https://people.cctv.com/2026/04/03/ARTI87gL7UfrOvClXrfU9Xli260403.shtml",
+        "site": "people.cctv.com",
+        "note": "queryAttribution=research-matrix; sourceId=SRC-db6afe400ff834baa0f315bd; rawSha256=777b46193d83ca18c750fbbfeb2fb5667cf1210da9d5ad286cb92551c9e3e2b3; textSha256=24440e9238d96f4b548506234fd4ef4f5b579a5534c3cb1e3beac0851ff88c23; facts=CL-e90d2bc4c3a1cfd36ec998f3,CL-7bd8be201b6a67b9f4989b6c,CL-24947a0a4e66460200b07a29,CL-ebed7fd45f33605dab440105,CL-35a1b162396bc987d721086b,CL-69099d142bfd290bdf428324,CL-26f0fcb898dba0bfae78161c,CL-5c990815d762a691e77d954d,CL-5372a8ad939fbd9c1eafd834"
+      },
+      {
+        "query": "张雪机车 官网 | 张雪机车  旗舰店 商品页 | 张雪机车 参数 规格 | 张雪机车 价格 | 张雪机车 官方产品图 高清 | 张雪机车 实拍 开箱 | 张雪机车 白底图 | 张雪机车 真实评价 怎么样 | 张雪机车 差评 缺点 | 张雪机车 踩雷 避雷 | 张雪机车 值得买吗 知乎 | 张雪机车 使用感受 小红书 | 张雪机车 测评 对比 | 张雪机车 回购 用了 个月 | 其他 排行榜 热销 | 其他 哪个牌子好 知乎 | 其他 测评 对比 张雪机车 | 其他 推荐 小红书",
+        "url": "https://cpc.people.com.cn/n1/2026/0512/c64387-40718001.html",
+        "site": "cpc.people.com.cn",
+        "note": "queryAttribution=research-matrix; sourceId=SRC-d7dfe55aaefd718f031c1d9f; rawSha256=93bcad2328f1252e383864be5ba796759c53b31ed387589c702aa92e48ef5514; textSha256=4e6e085562818d90acecd6981a9707f9a360a3bc6043711bd4aeadd933d78f94; facts=CL-9aafb15c0b75fa207ddb540a,CL-0822b95e8d4e064f1edd6fa6"
+      },
+      {
+        "query": "张雪机车 官网 | 张雪机车  旗舰店 商品页 | 张雪机车 参数 规格 | 张雪机车 价格 | 张雪机车 官方产品图 高清 | 张雪机车 实拍 开箱 | 张雪机车 白底图 | 张雪机车 真实评价 怎么样 | 张雪机车 差评 缺点 | 张雪机车 踩雷 避雷 | 张雪机车 值得买吗 知乎 | 张雪机车 使用感受 小红书 | 张雪机车 测评 对比 | 张雪机车 回购 用了 个月 | 其他 排行榜 热销 | 其他 哪个牌子好 知乎 | 其他 测评 对比 张雪机车 | 其他 推荐 小红书",
+        "url": "https://finance.sina.com.cn/wm/2026-09-19/doc-inisispz2576147.shtml",
+        "site": "finance.sina.com.cn",
+        "note": "queryAttribution=research-matrix; sourceId=SRC-275e8601a887de20b8128530; rawSha256=14845a74239d1330b3e500f9edf262a1cf7299ac53ff6fce85b3a61c484189b5; textSha256=7f7b2d31972d80dee3eebf4ca0ec23cfc3a65cf65bc8c55461eaf0b3220b0bb2; facts="
+      }
+    ],
+    "extraction": {
+      "method": "reviewed-research-and-selected-real-images",
+      "verified": false,
+      "note": "Source-bound facts, complete-source LLM review and current Jenny dossier checked; image source mapping and pixel decode checked. No G1 human approval or production authority granted."
+    },
+    "disclaimer": "系统检索资料，版权、商用授权与参数未经客户确认；图片仅作真实外观参考，正式投放前须核对授权。来源正文只保留在本地研究目录。"
+  },
+  "photos": [
+    {
+      "id": "sina-release-1",
+      "file": "photos/01-sina-release-1.jpg",
+      "role": "scene",
+      "angle": "front",
+      "sha256": "79571449440e0af4a8c9177b7b9e33b8b11e7f00048e63b5e5c2a1c8b7102a89",
+      "bytes": 139199,
+      "width": 1080,
+      "height": 810,
+      "note": "sourcePage=https://finance.sina.com.cn/wm/2026-09-19/doc-inisispz2576147.shtml; imageUrl=https://n.sinaimg.cn/sinakd20260919s/290/w1080h810/20260919/989a-87a901e4a9c3bf9de8ef262a901818b8.jpg; sourceId=SRC-275e8601a887de20b8128530; sourceRawSha256=14845a74239d1330b3e500f9edf262a1cf7299ac53ff6fce85b3a61c484189b5; reference only; authorization not confirmed"
+    },
+    {
+      "id": "sina-release-9",
+      "file": "photos/02-sina-release-9.jpg",
+      "role": "scene",
+      "angle": "front",
+      "sha256": "b21bf23f69eef317f6ce758167124016920e7299078e50481adf027321e85525",
+      "bytes": 90509,
+      "width": 1080,
+      "height": 608,
+      "note": "sourcePage=https://finance.sina.com.cn/wm/2026-09-19/doc-inisispz2576147.shtml; imageUrl=https://n.sinaimg.cn/sinakd20260919s/88/w1080h608/20260919/a8d8-25f68cc0b9e52bcddbd8498a3a69fb3a.jpg; sourceId=SRC-275e8601a887de20b8128530; sourceRawSha256=14845a74239d1330b3e500f9edf262a1cf7299ac53ff6fce85b3a61c484189b5; reference only; authorization not confirmed"
+    },
+    {
+      "id": "founder-xinhua-portrait",
+      "file": "photos/03-founder-xinhua-portrait.jpg",
+      "role": "hero",
+      "angle": "front",
+      "sha256": "1ea41a676210172af65f3367e2468b4e005e7b53af75aa02d275b886fab6f065",
+      "bytes": 65500,
+      "width": 1024,
+      "height": 576,
+      "note": "sourcePage=https://people.cctv.com/2026/04/03/ARTI87gL7UfrOvClXrfU9Xli260403.shtml; imageUrl=https://p5.img.cctvpic.com/photoworkspace/contentimg/2026/04/03/2026040314552212923.jpg; sourceId=SRC-db6afe400ff834baa0f315bd; sourceRawSha256=777b46193d83ca18c750fbbfeb2fb5667cf1210da9d5ad286cb92551c9e3e2b3; reference only; authorization not confirmed"
+    }
+  ],
+  "specs": {
+    "parameters": [
+      {
+        "name": "研究身份.name",
+        "value": "张雪机车",
+        "source": "https://people.cctv.com/2026/04/03/ARTI87gL7UfrOvClXrfU9Xli260403.shtml#CL-e90d2bc4c3a1cfd36ec998f3; textSha256=24440e9238d96f4b548506234fd4ef4f5b579a5534c3cb1e3beac0851ff88c23"
+      },
+      {
+        "name": "研究身份.brand",
+        "value": "张雪机车",
+        "source": "https://people.cctv.com/2026/04/03/ARTI87gL7UfrOvClXrfU9Xli260403.shtml#CL-7bd8be201b6a67b9f4989b6c; textSha256=24440e9238d96f4b548506234fd4ef4f5b579a5534c3cb1e3beac0851ff88c23"
+      },
+      {
+        "name": "创始人",
+        "value": "张雪",
+        "source": "https://people.cctv.com/2026/04/03/ARTI87gL7UfrOvClXrfU9Xli260403.shtml#CL-24947a0a4e66460200b07a29; textSha256=24440e9238d96f4b548506234fd4ef4f5b579a5534c3cb1e3beac0851ff88c23"
+      },
+      {
+        "name": "创立时间",
+        "value": "2024年4月",
+        "source": "https://people.cctv.com/2026/04/03/ARTI87gL7UfrOvClXrfU9Xli260403.shtml#CL-ebed7fd45f33605dab440105; textSha256=24440e9238d96f4b548506234fd4ef4f5b579a5534c3cb1e3beac0851ff88c23"
+      },
+      {
+        "name": "创立地点",
+        "value": "重庆",
+        "source": "https://people.cctv.com/2026/04/03/ARTI87gL7UfrOvClXrfU9Xli260403.shtml#CL-35a1b162396bc987d721086b; textSha256=24440e9238d96f4b548506234fd4ef4f5b579a5534c3cb1e3beac0851ff88c23"
+      },
+      {
+        "name": "研发方向",
+        "value": "专注高性能产品和自主发动机研发",
+        "source": "https://people.cctv.com/2026/04/03/ARTI87gL7UfrOvClXrfU9Xli260403.shtml#CL-69099d142bfd290bdf428324; textSha256=24440e9238d96f4b548506234fd4ef4f5b579a5534c3cb1e3beac0851ff88c23"
+      },
+      {
+        "name": "2025年总产值",
+        "value": "7.5亿元",
+        "source": "https://people.cctv.com/2026/04/03/ARTI87gL7UfrOvClXrfU9Xli260403.shtml#CL-26f0fcb898dba0bfae78161c; textSha256=24440e9238d96f4b548506234fd4ef4f5b579a5534c3cb1e3beac0851ff88c23"
+      },
+      {
+        "name": "创始人出生地",
+        "value": "湖南怀化偏远山村",
+        "source": "https://cpc.people.com.cn/n1/2026/0512/c64387-40718001.html#CL-9aafb15c0b75fa207ddb540a; textSha256=4e6e085562818d90acecd6981a9707f9a360a3bc6043711bd4aeadd933d78f94"
+      },
+      {
+        "name": "创始人早年经历",
+        "value": "辍学进入修理铺当学徒",
+        "source": "https://people.cctv.com/2026/04/03/ARTI87gL7UfrOvClXrfU9Xli260403.shtml#CL-5c990815d762a691e77d954d; textSha256=24440e9238d96f4b548506234fd4ef4f5b579a5534c3cb1e3beac0851ff88c23"
+      },
+      {
+        "name": "创始人技能",
+        "value": "可蒙眼组装发动机",
+        "source": "https://cpc.people.com.cn/n1/2026/0512/c64387-40718001.html#CL-0822b95e8d4e064f1edd6fa6; textSha256=4e6e085562818d90acecd6981a9707f9a360a3bc6043711bd4aeadd933d78f94"
+      },
+      {
+        "name": "人物观点",
+        "value": "我认为行业上下游会更有信心",
+        "source": "https://people.cctv.com/2026/04/03/ARTI87gL7UfrOvClXrfU9Xli260403.shtml#CL-5372a8ad939fbd9c1eafd834; textSha256=24440e9238d96f4b548506234fd4ef4f5b579a5534c3cb1e3beac0851ff88c23"
+      }
+    ],
+    "notes": [
+      "没有可核实用户评价：禁止用户口碑、评分、人数、销量或使用效果共识主张",
+      "没有可核实竞品证据：禁止对比、竞品弱点或市场领先主张",
+      "公司与品牌名称可按用户提供的档案名称规范化；不构成人物背书或素材授权。"
+    ]
+  },
+  "createdAt": "2026-10-24T06:45:14.861Z",
+  "updatedAt": "2026-10-24T06:45:14.861Z"
+}

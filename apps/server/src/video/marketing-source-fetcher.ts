@@ -82,11 +82,71 @@ function decodeEntities(text: string): string {
     return named[entity.toLowerCase()] ?? all;
   });
 }
+
+/** 只收集候选，不替浏览器做画幅/密度选择；URL 内的逗号不能直接按 split(",") 切开。 */
+function srcsetCandidates(value: string): string[] {
+  const urls: string[] = []; let position = 0;
+  while (position < value.length) {
+    while (/[\t\n\f\r ,]/.test(value[position] ?? "") && position < value.length) position++;
+    const start = position;
+    while (position < value.length && !/[\t\n\f\r ]/.test(value[position]!)) position++;
+    let url = value.slice(start, position);
+    if (!url) continue;
+    if (url.endsWith(",")) { urls.push(url.replace(/,+$/, "")); continue; }
+    const descriptorStart = position; let parentheses = 0;
+    while (position < value.length) {
+      const character = value[position]!;
+      if (character === "," && parentheses === 0) break;
+      if (character === "(") parentheses++;
+      if (character === ")" && parentheses > 0) parentheses--;
+      position++;
+    }
+    const descriptors = value.slice(descriptorStart, position).trim();
+    if (!descriptors || /^\d+w$/.test(descriptors) && Number(descriptors.slice(0, -1)) > 0
+      || /^(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?x$/i.test(descriptors) && Number.isFinite(Number(descriptors.slice(0, -1))) && Number(descriptors.slice(0, -1)) > 0) urls.push(url);
+    if (value[position] === ",") position++;
+  }
+  return urls;
+}
+
+/** 有界 token 扫描避免把脚本、样式、注释和嵌套模板内的字符串误作真实图片。 */
+function sourceImageCandidates(raw: string): string[] {
+  const urls: string[] = []; let templateDepth = 0;
+  const tags = /<!--[\s\S]*?(?:-->|$)|<(\/?)([a-z][a-z0-9:-]*)(?=[\t\n\f\r />])(?:[^"'<>]|"[^"]*"|'[^']*')*>/gi;
+  let match: RegExpExecArray | null;
+  while ((match = tags.exec(raw)) !== null) {
+    const name = match[2]?.toLowerCase();
+    if (!name) continue;
+    const closing = match[1] === "/";
+    if (!closing && ["script", "style", "noscript"].includes(name)) {
+      // raw-text 内的 <!-- / <img> 是字符串，不能让通用 token 扫描吞掉真实结束标签。
+      const endTag = new RegExp(`</${name}(?=[\\t\\n\\f\\r />])[^>]*>`, "gi");
+      endTag.lastIndex = tags.lastIndex;
+      if (!endTag.exec(raw)) break;
+      tags.lastIndex = endTag.lastIndex;
+      continue;
+    }
+    if (name === "template") { templateDepth = Math.max(0, templateDepth + (closing ? -1 : 1)); continue; }
+    if (closing || templateDepth > 0 || name !== "img" && name !== "source") continue;
+    const attributes = new Map<string, string>();
+    for (const attribute of match[0].matchAll(/([^\s"'<>/=]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+)))?/g)) {
+      const key = attribute[1]!.toLowerCase();
+      if (!attributes.has(key)) attributes.set(key, decodeEntities(attribute[2] ?? attribute[3] ?? attribute[4] ?? "").trim());
+    }
+    // 原图和响应式候选先于 src 占位图，全部仍由 sourceUrl 执行公网 URL 校验。
+    for (const key of ["data-original", "data-src-original", "data-lazy-src", "data-src", "srcset", "data-srcset", "source-srcset", "src"]) {
+      const value = attributes.get(key);
+      if (value) urls.push(...(key.endsWith("srcset") ? srcsetCandidates(value) : [value]));
+    }
+  }
+  return urls;
+}
+
 export function sourceDocument(raw: string, contentType: string, finalUrl: string): { text: string; assetUrls: string[] } {
   const html = /(?:html|xhtml)/i.test(contentType);
   const assetUrls = new Set<string>();
-  if (html) for (const match of raw.matchAll(/<(?:img|source)\b[^>]*\b(?:src|data-src)\s*=\s*["']([^"']+)["'][^>]*>/gi)) {
-    try { const url = sourceUrl(new URL(decodeEntities(match[1]!), finalUrl).href); assetUrls.add(url.href); } catch { /* 非公网图片不进入候选 */ }
+  if (html) for (const candidate of sourceImageCandidates(raw)) {
+    try { const url = sourceUrl(new URL(candidate, finalUrl).href); assetUrls.add(url.href); } catch { /* 非公网图片不进入候选 */ }
   }
   const visible = html ? raw.replace(/<!--[\s\S]*?-->/g, " ").replace(/<(script|style|noscript|template)\b[^>]*>[\s\S]*?<\/\1\s*>/gi, " ")
     .replace(/<(?:br|\/p|\/div|\/li|\/h[1-6]|\/tr)[^>]*>/gi, "\n").replace(/<[^>]*>/g, " ") : raw;

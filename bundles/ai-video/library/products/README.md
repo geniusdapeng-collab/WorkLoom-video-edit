@@ -63,6 +63,18 @@ node_modules/.bin/tsx scripts/tools/product-archive.mts verify --root bundles/ai
 node_modules/.bin/tsx scripts/tools/product-archive.mts list   --root bundles/ai-video/library/products
 ```
 
-规则细节见 [`docs/product-archive.md`](../../../docs/product-archive.md)；
+规则细节见 [`docs/product-archive.md`](../../../../docs/product-archive.md)；
 出片链路绑定逻辑见 `scripts/tools/full-chain-film.mts`（`g-product-ref` 门）与
 `packages/video-studio/src/product-archive.ts`（唯一事实源）。
+
+
+## 张雪机车标杆档案（2026-10-24）
+
+| 档案 | 内容 | 专业入库方式 |
+|---|---|---|
+| [820RR-RC 赛道版](zxmoto-820rr-rc/README.md) | 8 张正式配对图、33 项逐项来源事实、26 张研究附图；白底图原始 750×562 | 情报五站 → 逐主张/完整来源独立审核 → Jenny 装订 → `from-research` |
+| [张雪机车与创始人张雪](zxmoto/README.md) | 3 张公开采访/发布会照片、11 项公司与人物事实，关联 RC 商品 | 同一正式专业研究链，独立公司档案 |
+
+这些档案由 `scripts/tools/product-archive.mts from-research` 生成，保持 `system-generated/priority=1/pending-owner-review`，不将公开检索图登记成客户上传。每个档案附研究回执和来源 SHA，原始新闻全文不入仓。命令和输入合同见[正式研究入库说明](../../../../docs/product-archive.md#6-受控专业研究入库from-research)。
+
+Studio 会自动运行营销情报采集与五站装订；本次新增的文件入库桥是显式命令。现有 full-chain 出片若缺档案，仍会报错并提示先建档，不能把此入口描述成已实现缺档案自动补齐。

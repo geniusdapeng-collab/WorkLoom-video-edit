@@ -1,0 +1,104 @@
+{
+  "brief_card": {
+    "card": "brief_card",
+    "product": "张雪机车",
+    "category": "",
+    "sellingPoints": [],
+    "productHero": {
+      "heroImageId": "PRD-HERO-001"
+    },
+    "evidence_note": "卖点来自 0 条用户共识 + 0 条官方确认主张，完整溯源见档案 PRD-199VNRB"
+  },
+  "theme_card": {
+    "card": "theme_card",
+    "product": "张雪机车",
+    "category": "",
+    "emotional_anchors": [],
+    "avoid_pits": [],
+    "differentiation_space": [],
+    "crowded_space": [],
+    "top_scenarios": [],
+    "verbatim_spark": []
+  },
+  "insight_card": {
+    "card": "insight_card",
+    "product": "张雪机车",
+    "audience_profile": [],
+    "consensus_points": [],
+    "complaint_map": [],
+    "market_position": {
+      "price_band": "",
+      "price_confidence": "unknown",
+      "our_opening": [],
+      "crowded_points": []
+    },
+    "competitor_briefs": []
+  },
+  "prd_card": {
+    "card": "prd_card",
+    "product": "张雪机车",
+    "demo_scenes": [],
+    "selling_point_evidence": [],
+    "compliance_redlines": [],
+    "hook_candidates": {
+      "data_points": [
+        "创立时间：2024年4月",
+        "2025年总产值：7.5亿元"
+      ],
+      "conflicts": [],
+      "questions": []
+    }
+  },
+  "portrait_manifest": {
+    "card": "portrait_manifest",
+    "product_id": "PRD-199VNRB",
+    "product_name": "张雪机车",
+    "hero_image_id": "PRD-HERO-001",
+    "needs_more_reference": false,
+    "reference_images": [
+      {
+        "id": "PRD-HERO-001",
+        "url": "https://n.sinaimg.cn/sinakd20260919s/290/w1080h810/20260919/989a-87a901e4a9c3bf9de8ef262a901818b8.jpg",
+        "source": "finance.sina.com.cn",
+        "angle": "unknown",
+        "license_risk": "high",
+        "fetched_at": "2026-10-24T06:34:07.154Z"
+      },
+      {
+        "id": "PRD-REF-002",
+        "url": "https://n.sinaimg.cn/sinakd20260919s/88/w1080h608/20260919/a8d8-25f68cc0b9e52bcddbd8498a3a69fb3a.jpg",
+        "source": "finance.sina.com.cn",
+        "angle": "unknown",
+        "license_risk": "high",
+        "fetched_at": "2026-10-24T06:34:07.154Z"
+      },
+      {
+        "id": "PRD-REF-003",
+        "url": "https://p5.img.cctvpic.com/photoworkspace/contentimg/2026/04/03/2026040314552212923.jpg",
+        "source": "people.cctv.com",
+        "angle": "unknown",
+        "license_risk": "high",
+        "fetched_at": "2026-10-24T06:34:07.154Z"
+      }
+    ],
+    "handoff_note": "情报档案预填参考图，定妆照分支免重复检索；执行方仅需核对图片真实性与型号一致性"
+  },
+  "router_material": {
+    "card": "router_material",
+    "category": "",
+    "product_kind": "physical",
+    "hook_material": {
+      "data_points": [
+        "创立时间：2024年4月",
+        "2025年总产值：7.5亿元"
+      ],
+      "conflicts": [],
+      "questions": []
+    },
+    "style_hints": {
+      "has_strong_data": true,
+      "has_conflict": false,
+      "has_question": false
+    }
+  }
+}

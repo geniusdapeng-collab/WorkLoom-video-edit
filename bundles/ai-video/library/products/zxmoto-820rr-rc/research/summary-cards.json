@@ -1,0 +1,158 @@
+{
+  "brief_card": {
+    "card": "brief_card",
+    "product": "张雪 820RR-RC 赛道版",
+    "category": "摩托车",
+    "sellingPoints": [],
+    "productHero": {
+      "heroImageId": "820R-HERO-001"
+    },
+    "evidence_note": "卖点来自 0 条用户共识 + 0 条官方确认主张，完整溯源见档案 820R-1LKU0J5"
+  },
+  "theme_card": {
+    "card": "theme_card",
+    "product": "张雪 820RR-RC 赛道版",
+    "category": "摩托车",
+    "emotional_anchors": [],
+    "avoid_pits": [],
+    "differentiation_space": [],
+    "crowded_space": [],
+    "top_scenarios": [],
+    "verbatim_spark": []
+  },
+  "insight_card": {
+    "card": "insight_card",
+    "product": "张雪 820RR-RC 赛道版",
+    "audience_profile": [],
+    "consensus_points": [],
+    "complaint_map": [],
+    "market_position": {
+      "price_band": "元 128000",
+      "price_confidence": "reported",
+      "our_opening": [],
+      "crowded_points": []
+    },
+    "competitor_briefs": []
+  },
+  "prd_card": {
+    "card": "prd_card",
+    "product": "张雪 820RR-RC 赛道版",
+    "demo_scenes": [],
+    "selling_point_evidence": [],
+    "compliance_redlines": [],
+    "hook_candidates": {
+      "data_points": [
+        "发动机：818.8cc 直列三缸发动机",
+        "最大功率：113 千瓦，在每 13500 转时输出",
+        "最大扭矩：86 牛 · 米在每 10000 转时产生",
+        "最高转速：最高转速可达 14750 转",
+        "价格带：元 128000"
+      ],
+      "conflicts": [],
+      "questions": []
+    }
+  },
+  "portrait_manifest": {
+    "card": "portrait_manifest",
+    "product_id": "820R-1LKU0J5",
+    "product_name": "张雪 820RR-RC 赛道版",
+    "hero_image_id": "820R-HERO-001",
+    "needs_more_reference": false,
+    "reference_images": [
+      {
+        "id": "820R-HERO-001",
+        "url": "https://n.sinaimg.cn/sinakd20260919s/290/w1080h810/20260919/c557-e6953c2b46d6cb0852ccbcb4269763ba.jpg",
+        "source": "finance.sina.com.cn",
+        "angle": "unknown",
+        "license_risk": "high",
+        "fetched_at": "2026-10-24T06:57:00.715Z"
+      },
+      {
+        "id": "820R-REF-002",
+        "url": "https://www2.autoimg.cn/chejiahaodfs/g33/M0B/A5/90/750x0_autohomecar__ChxpVmrNlSSAEhFhAAVW-cpKwlE948.jpg",
+        "source": "chejiahao.m.autohome.com.cn",
+        "angle": "unknown",
+        "license_risk": "high",
+        "fetched_at": "2026-10-24T06:57:00.715Z"
+      },
+      {
+        "id": "820R-REF-003",
+        "url": "https://www2.autoimg.cn/chejiahaodfs/g33/M08/A5/8F/750x0_autohomecar__ChxpVWrNlSSAAWuWAAUn9R-nR5A832.jpg",
+        "source": "chejiahao.m.autohome.com.cn",
+        "angle": "unknown",
+        "license_risk": "high",
+        "fetched_at": "2026-10-24T06:57:00.715Z"
+      },
+      {
+        "id": "820R-REF-004",
+        "url": "https://www2.autoimg.cn/chejiahaodfs/g33/M02/A5/8F/750x0_autohomecar__ChxpVWrNlSSAFiXPAAVVCbZ7bCc624.jpg",
+        "source": "chejiahao.m.autohome.com.cn",
+        "angle": "unknown",
+        "license_risk": "high",
+        "fetched_at": "2026-10-24T06:57:00.715Z"
+      },
+      {
+        "id": "820R-REF-005",
+        "url": "https://www2.autoimg.cn/chejiahaodfs/g33/M03/A5/90/750x0_autohomecar__ChxpVmrNlSSASoioAAjUd8tHA30198.jpg",
+        "source": "chejiahao.m.autohome.com.cn",
+        "angle": "unknown",
+        "license_risk": "high",
+        "fetched_at": "2026-10-24T06:57:00.715Z"
+      },
+      {
+        "id": "820R-REF-006",
+        "url": "https://www2.autoimg.cn/chejiahaodfs/g33/M08/A5/8F/750x0_autohomecar__ChxpVWrNlSSAPvH1AAZUyb5W7IQ216.jpg",
+        "source": "chejiahao.m.autohome.com.cn",
+        "angle": "unknown",
+        "license_risk": "high",
+        "fetched_at": "2026-10-24T06:57:00.715Z"
+      },
+      {
+        "id": "820R-REF-007",
+        "url": "https://img.ithome.com/newsuploadfiles/2026/9/19c620fd-e878-45bd-84e5-ca401f419897.jpg",
+        "source": "www.ithome.com",
+        "angle": "unknown",
+        "license_risk": "high",
+        "fetched_at": "2026-10-24T06:57:00.715Z"
+      },
+      {
+        "id": "820R-REF-008",
+        "url": "https://img.ithome.com/newsuploadfiles/2026/9/02958931-41f4-4f07-a2da-ce04b70d8a76.jpg",
+        "source": "www.ithome.com",
+        "angle": "unknown",
+        "license_risk": "high",
+        "fetched_at": "2026-10-24T06:57:00.715Z"
+      },
+      {
+        "id": "820R-REF-009",
+        "url": "https://img.ithome.com/newsuploadfiles/2026/9/14e43dcf-44df-4077-b6cd-9029285514d8.jpg",
+        "source": "www.ithome.com",
+        "angle": "unknown",
+        "license_risk": "high",
+        "fetched_at": "2026-10-24T06:57:00.715Z"
+      }
+    ],
+    "handoff_note": "情报档案预填参考图，定妆照分支免重复检索；执行方仅需核对图片真实性与型号一致性"
+  },
+  "router_material": {
+    "card": "router_material",
+    "category": "摩托车",
+    "product_kind": "physical",
+    "hook_material": {
+      "data_points": [
+        "发动机：818.8cc 直列三缸发动机",
+        "最大功率：113 千瓦，在每 13500 转时输出",
+        "最大扭矩：86 牛 · 米在每 10000 转时产生",
+        "最高转速：最高转速可达 14750 转",
+        "价格带：元 128000"
+      ],
+      "conflicts": [],
+      "questions": []
+    },
+    "style_hints": {
+      "has_strong_data": true,
+      "has_conflict": false,
+      "has_question": false
+    }
+  }
+}
