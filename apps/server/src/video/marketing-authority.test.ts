@@ -1,6 +1,6 @@
 /** 实际来源HTTP、A1–A5 vendor装订、reviewStage及文件摘要；只有模型回答是HTTP协议替身。 */
 import { createServer, type Server } from "node:http";
-import { mkdtemp, realpath, rm, readFile, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, realpath, rm, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
@@ -10,7 +10,7 @@ import { canonicalRenderJson, renderSha256 } from "./gen/compiled-request.js";
 const scope = { tenantId: "tenant-a", workspaceId: "ws-a", projectId: "P1", runId: "RUN1", attempt: 1 };
 const env = { LLM_BASE_URL: "https://judge.example.test", LLM_API_KEY: "test-only", LLM_MODEL: "test-judge" };
 const sourceUrl = "https://source.example.com/f3";
-const sourceText = "星野 F3 是一款风扇，风量 9 档。待机功率 0，自动启停 false，接口 USB/C~口。尾部注意：9 档是风量档位，不是能耗等级；不得声称静音或市场第一。";
+const sourceText = "星野 F3 是一款风扇，风量 9 档。价格 399 CNY。待机功率 0，自动启停 false，接口 USB/C~口。尾部注意：9 档是风量档位，不是能耗等级；不得声称静音或市场第一。";
 let server: Server, origin: string, root: string, modelCalls: any[], rejectJudge: boolean, extractionCalls: string[], extractionOptions: unknown[];
 beforeAll(async () => {
   server = createServer((_req, res) => { res.writeHead(200, { "content-type": "text/plain; charset=utf-8" }); res.end(sourceText); });
@@ -22,16 +22,31 @@ beforeEach(async () => {
   vi.stubGlobal("fetch", vi.fn(async (_url, init) => { modelCalls.push(JSON.parse(String(init.body))); return new Response(JSON.stringify({ choices: [{ message: { content: JSON.stringify({ approved: !rejectJudge, score: rejectJudge ? 10 : 96, issues: rejectJudge ? ["来源不支持此主张"] : [], suggestions: [], reason: rejectJudge ? "原文限定相冲突" : "逐项原文支持" }) } }] })); }));
 });
 afterEach(async () => { vi.unstubAllGlobals(); await rm(root, { recursive: true, force: true }); });
-async function prepare(options: { noSearch?: boolean; noAux?: boolean; badQuote?: boolean; modelFailure?: boolean; mode?: string; attempt?: number; specs?: Record<string, string | number | boolean> } = {}): Promise<PreparedMarketingFacts> {
-  let searches = 0;
+async function prepare(options: { noSearch?: boolean; noAux?: boolean; badQuote?: boolean; modelFailure?: boolean; mode?: string; attempt?: number; specs?: Record<string, string | number | boolean>;
+  citationFault?: "metadata" | "duplicate" | "missing" | "persistent" | "changed-payload" | "repair-quote" | "repair-source" | "repair-model-failure";
+} = {}): Promise<PreparedMarketingFacts> {
+  let searches = 0, a1Calls = 0;
   return prepareMarketingFacts({ scope: { ...scope, attempt: options.attempt ?? 1 }, root, intent: "做一条风扇介绍", metadata: { brief: { product: "星野 F3", brand: "星野" } }, env: { ...env, ...(options.mode ? { VM_DATA_MINING_MODE: options.mode } : {}) },
     llm: { reason: async (prompt, llmOptions) => {
       extractionOptions.push(llmOptions);
       extractionCalls.push(prompt); if (options.modelFailure) return { success: false, error: "LLM unavailable" };
       const match = /当前阶段：(A[123])\n(.*)$/s.exec(prompt)!; const source = JSON.parse(match[2]!).sources[0];
       if (match[1] !== "A1") return { success: true, data: { payload: match[1] === "A2" ? { reviews: [] } : { competitors: [] }, citations: [], noEvidenceReason: "页面仅商品规格，无可核实评价或竞品" } };
+      a1Calls++;
+      if (a1Calls === 2 && options.citationFault === "repair-model-failure") return { success: false, error: "LLM unavailable" };
       const specs = options.specs ?? { 风量: "9 档" };
-      return { success: true, data: { payload: { identity: { name: "星野 F3", specs, official_selling_points: [{ point: "风量 9 档", source_url: sourceUrl }] }, images: [] }, citations: ["/identity/name", ...Object.keys(specs).map(key => `/identity/specs/${key.replace(/~/g, "~0").replace(/\//g, "~1")}`), "/identity/official_selling_points/0/point"].map(pointer => ({ pointer, sourceId: source.sourceId, quote: options.badQuote ? "不存在的事实" : sourceText })) } };
+      const data = { payload: { identity: { name: "星野 F3", specs, ...(options.citationFault ? { prices: [{ amount: 399, currency: "CNY", source_url: sourceUrl }] } : {}), official_selling_points: [{ point: "风量 9 档", source_url: sourceUrl }] }, images: [] },
+        citations: ["/identity/name", ...Object.keys(specs).map(key => `/identity/specs/${key.replace(/~/g, "~0").replace(/\//g, "~1")}`), ...(options.citationFault ? ["/identity/prices/0/amount", "/identity/prices/0/currency"] : []), "/identity/official_selling_points/0/point"]
+          .map(pointer => ({ pointer, sourceId: source.sourceId, quote: options.badQuote ? "不存在的事实" : sourceText })) };
+      if (options.citationFault && (a1Calls === 1 || options.citationFault === "persistent")) {
+        if (options.citationFault === "duplicate") data.citations.push({ ...data.citations[0]! });
+        else if (options.citationFault === "missing") data.citations.pop();
+        else data.citations.push({ pointer: "/identity/prices/0/source_url", sourceId: source.sourceId, quote: sourceText });
+      }
+      if (a1Calls === 2 && options.citationFault === "changed-payload") data.payload.identity.name = "换成另一商品";
+      if (a1Calls === 2 && options.citationFault === "repair-quote") data.citations[0]!.quote = "不存在的事实";
+      if (a1Calls === 2 && options.citationFault === "repair-source") data.citations[0]!.sourceId = "SRC-invented";
+      return { success: true, data };
     } }, dependencies: {
       search: async () => (++searches, options.noSearch || options.noAux && searches > 20 ? [] : [{ title: "星野规格", url: sourceUrl, snippet: "故意错误摘要999档，不能当事实" }]),
       fetchSource: async url => fetchMarketingSource(url, { resolver: async () => [{ address: "93.184.216.34", family: 4 }], transport: async (_url, _address, signal) => requestSource(new URL(origin), { address: "127.0.0.1", family: 4 }, signal) }),
@@ -61,6 +76,55 @@ describe("营销事实宿主完整执行", () => {
     rejectJudge = kind === "support-rejected";
     await expect(prepare({ mode: kind === "spec" ? "spec" : undefined, noSearch: kind === "no-search", badQuote: kind === "bad-quote", modelFailure: kind === "model-failure" })).rejects.toThrow();
     if (["spec", "no-search", "bad-quote", "model-failure"].includes(kind)) expect(modelCalls).toHaveLength(0);
+  });
+  it.each(["metadata", "duplicate", "missing"] as const)("%s引用结构只同源纠正一次，原始输出保留且仍完成支持评审", async citationFault => {
+    const prepared = await prepare({ citationFault }), a1 = prepared.bundle.stages[0]!;
+    expect(extractionCalls).toHaveLength(4); expect(modelCalls).toHaveLength(3); expect(a1.extractions).toHaveLength(2);
+    const attempts = await Promise.all(a1.extractions!.map(async item => {
+      const bytes = await readFile(path.join(root, item.ref), "utf8"); expect(renderSha256(bytes)).toBe(item.sha256); return JSON.parse(bytes);
+    }));
+    expect(attempts.map(item => item.status)).toEqual(["rejected", "accepted"]);
+    expect(attempts[0].error).toMatch(/MARKETING_(CITATION_INVALID|CLAIM_UNSOURCED)/);
+    expect(attempts[1].prompt).toContain('"requiredCitationPointers":'); expect(attempts[1].prompt).toContain('"/identity/prices/0/amount"');
+    expect(attempts[1].response.data.payload).toEqual(attempts[0].response.data.payload);
+    const marker = "当前阶段：A1\n";
+    expect(JSON.parse(attempts[1].prompt.slice(attempts[1].prompt.lastIndexOf(marker) + marker.length)).sources)
+      .toEqual(JSON.parse(attempts[0].prompt.slice(attempts[0].prompt.lastIndexOf(marker) + marker.length)).sources);
+    expect(attempts[1].prompt).toContain(sourceText);
+    const saved = await finalizeMarketingFacts(prepared, shots, env);
+    await expect(verifyMarketingFacts({ root, ...saved, scope, shots })).resolves.toMatchObject({ scope });
+  });
+  it.each(["persistent", "changed-payload", "repair-quote", "repair-source", "repair-model-failure"] as const)("%s纠错仍失败时封顶两次，不能通过支持评审", async citationFault => {
+    await expect(prepare({ citationFault })).rejects.toThrow(/MARKETING_(CITATION_INVALID|EXTRACTION_PAYLOAD_CHANGED|EXTRACTION_UNVERIFIED)/);
+    expect(extractionCalls).toHaveLength(2); expect(modelCalls).toHaveLength(0);
+    const first = JSON.parse(await readFile(path.join(root, "stages/preproduction/attempt-1.marketing-A1.extraction-1.json"), "utf8"));
+    const second = JSON.parse(await readFile(path.join(root, "stages/preproduction/attempt-1.marketing-A1.extraction-2.json"), "utf8"));
+    expect(first.status).toBe("rejected"); expect(second.status).toBe("rejected");
+    await expect(readFile(path.join(root, "stages/preproduction/attempt-1.marketing-A1.extraction-3.json"))).rejects.toMatchObject({ code: "ENOENT" });
+  });
+  it("错误引文不属于结构纠错，直接拒绝且保留原始模型输出", async () => {
+    await expect(prepare({ badQuote: true })).rejects.toThrow("MARKETING_CITATION_INVALID");
+    expect(extractionCalls).toHaveLength(1);
+    const artifact = JSON.parse(await readFile(path.join(root, "stages/preproduction/attempt-1.marketing-A1.extraction-1.json"), "utf8"));
+    expect(artifact.response.data.citations[0].quote).toBe("不存在的事实"); expect(artifact.status).toBe("rejected");
+  });
+  it("拒绝尝试写盘失败不能继续调用模型纠错", async () => {
+    const file = path.join(root, "stages/preproduction/attempt-1.marketing-A1.extraction-1.json");
+    await mkdir(path.dirname(file), { recursive: true }); await writeFile(file, "existing-evidence", { flag: "wx" });
+    await expect(prepare({ citationFault: "metadata" })).rejects.toMatchObject({ code: "EEXIST" });
+    expect(extractionCalls).toHaveLength(1); expect(modelCalls).toHaveLength(0); expect(await readFile(file, "utf8")).toBe("existing-evidence");
+  });
+  it.each(["response", "scope", "status", "source", "payload"])("重算摘要也不能把%s篡改成已接受提取证据", async kind => {
+    const prepared = await prepare({ citationFault: "metadata" }), saved = await finalizeMarketingFacts(prepared, shots, env);
+    const record = prepared.bundle.stages[0]!.extractions![1]!, artifact = JSON.parse(await readFile(path.join(root, record.ref), "utf8"));
+    if (kind === "response") artifact.response.data.citations[0].quote = "不存在的事实";
+    if (kind === "scope") artifact.scope.projectId = "another-project";
+    if (kind === "status") artifact.status = "rejected";
+    if (kind === "source") artifact.prompt = artifact.prompt.replaceAll(sourceText, "裁掉正文");
+    if (kind === "payload") artifact.response.data.payload.identity.name = "another-product";
+    const bytes = canonicalRenderJson(artifact); await writeFile(path.join(root, record.ref), bytes); record.sha256 = renderSha256(bytes);
+    const bundle = canonicalRenderJson(prepared.bundle); await writeFile(path.join(root, saved.ref), bundle);
+    await expect(verifyMarketingFacts({ root, ref: saved.ref, sha256: renderSha256(bundle), scope, shots })).rejects.toThrow(/MARKETING_/);
   });
   it("最终镜头夸大主张被监制拒绝，事实包不能完成", async () => {
     const prepared = await prepare(); rejectJudge = true;
