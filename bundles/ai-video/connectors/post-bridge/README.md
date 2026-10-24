@@ -150,6 +150,26 @@ node bundles/ai-video/connectors/post-bridge/cli.mjs health
 
 配方给出明确风格意图；技术出口保证请求的文件和实际加工链成立。配方差异、像素差或曲目不同不等于观感出色，不能替代看过和听过后的审片结论。静黑、静音和单个版本仍按本仓请求数量合同处理；技术报告如实保留艺术未审状态。
 
+项目可用 `WORKLOOM_POST_VARIANT_DIR` 指向完整的项目配方目录（含 `index.json`），不改随仓默认配方。
+每版可明确指定 `bgm.trackId`、`subtitleStyle.fontId` 和 `cover.fontId/title/hook/at/alignment/marginRatio`。
+字体 ID 来自 `library/font-catalog/font_db.json`，字幕与标题分别核对对应场景。示例配方片段：
+
+```json
+{
+  "bgm": { "trackId": "<已登记且许可可用的曲目ID>", "policy": "keep-dialogue" },
+  "subtitleStyle": { "fontId": "noto-sans-sc-variable" },
+  "cover": { "fontId": "source-han-sans-cn-heavy", "title": "参数先看", "hook": "看清真实细节", "at": 0.2, "alignment": 8, "marginRatio": 0.12 }
+}
+```
+
+`subtitleStyle.fontId` 用于 `burnSubtitles=true` 的烧字形态；MP4 的 SRT/mov_text 软字幕不保存字体。
+省略字体 ID 时沿用原字体选型；明确指定后，未知 ID、场景不支持、未安装或字体字节漂移均失败，不能改用默认字体。
+烧字加工凭证和封面回执保留实际 ASS 文本及 SHA、字体档案 SHA、选中 ID 与 libass `fontselect` 结果，当前媒体质量门禁核对这些证据与配方一致。
+
+返修支持 `patch.subtitles.style.fontId`（可带 `variantId`）与 `patch.cover.fontId/title/hook`；
+未点名变体保留原样式，后续只改文案也会继续使用保存的字体与封面合同，不随默认配方漂移。
+本地真实媒体回归：`node --test bundles/ai-video/connectors/post-bridge/recipe-fonts.test.mjs`，覆盖三种字体/曲目/封面、连续返修、错误字体与证据漂移，无模型调用。
+
 ## 当前媒体技术验收（失败不发布）
 
 | 项目 | 可复算依据 | 失败处置 |

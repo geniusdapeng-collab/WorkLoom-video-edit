@@ -3,6 +3,7 @@ import { createHash, randomUUID } from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { probeMedia, runBin, sha256File } from "../subtitle-bridge/measure.mjs";
+import { fontsRoot, loadFontCatalog } from "../subtitle-bridge/core.mjs";
 import { measureLoudness } from "../bgm-bridge/measure.mjs";
 
 export const POST_QUALITY_STAGES = Object.freeze(["cover", "bgm", "subtitles", "danmaku", "transitions", "color", "resolution"]);
@@ -25,6 +26,30 @@ const inside = (root, file) => { const rel = path.relative(root, file); return r
 const pixels = (value) => Array.isArray(value) && value.length === 2 && value.every((n) => Number.isSafeInteger(n) && n > 0);
 const message = (error) => error instanceof Error ? error.message : String(error);
 const sameIdentity = (a, b) => a.dev === b.dev && a.ino === b.ino && a.size === b.size && a.mtimeMs === b.mtimeMs && a.ctimeMs === b.ctimeMs;
+
+/** Explicit font pins must carry actual ASS bytes and the renderer's fontselect result. */
+async function fontEvidenceMatches(font, requestedId, scene) {
+  if (!(typeof requestedId === "string" && Boolean(requestedId) && font?.requestedFontId === requestedId
+    && font.selectedFontId === requestedId && typeof font.fontName === "string" && Boolean(font.fontName)
+    && hasHash(font.fontFileSha256) && typeof font.assText === "string" && hasHash(font.assSha256)
+    && createHash("sha256").update(font.assText).digest("hex") === font.assSha256
+    && font.assText.split(/\r?\n/).some((line) => line.startsWith("Style:") && line.split(",")[1] === font.fontName)
+    && font.allFromFontsDir === true && Array.isArray(font.selections)
+    && font.selections.some((entry) => entry.family === font.fontName && entry.fromFontsDir === true)
+    && font.selections.every((entry) => entry.fromFontsDir === true))) return false;
+  try {
+    // The manifest cannot establish which name/bytes an ID denotes: use the controlled catalog.
+    const matches = loadFontCatalog().fonts.filter((entry) => entry.id === requestedId);
+    if (matches.length !== 1) return false;
+    const expected = matches[0];
+    if (!expected.场景?.includes(scene) || expected.font_fullname !== font.fontName
+        || !hasHash(expected.sha256) || expected.sha256 !== font.fontFileSha256) return false;
+    const root = await fs.realpath(fontsRoot());
+    const file = await fs.realpath(path.resolve(root, expected.file));
+    if (!inside(root, file) || !(await fs.stat(file)).isFile()) return false;
+    return await sha256File(file) === expected.sha256;
+  } catch { return false; }
+}
 
 /** Resolve a published revision's package-relative assets without permitting an arbitrary parent escape. */
 export async function resolveDeliveryRoot({ manifestDir, manifest, allowedRoots = null }) {
@@ -144,6 +169,8 @@ export async function verifyProcessingProof(proof, stage, realRoot, assetById, e
   if (stage === "bgm" && proof.parameters.mode !== "original-program" && (!proof.execution.trackId || !hasHash(proof.execution.trackSha256) || !proof.parameters.policy)) throw new Error("缺配乐来源与混音参数");
   if (stage === "color" && (proof.execution.outputSha256 !== proof.outputs[0].sha256 || !proof.execution.outputSha256 || !proof.parameters.profile && !proof.parameters.lut && proof.parameters.technicalOnly !== true)) throw new Error("缺调色执行参数");
   if (["subtitles", "danmaku"].includes(stage) && (!Number.isInteger(proof.execution.cueCount) || proof.execution.cueCount < 1 || !proof.parameters.mode)) throw new Error("缺字幕/弹幕实际执行条数");
+  if (stage === "subtitles" && proof.parameters.request?.fontId !== undefined
+      && !await fontEvidenceMatches(proof.execution.font, proof.parameters.request.fontId, "字幕")) throw new Error("字幕字体请求与实际 ASS/字体解析证据不一致");
   return true;
 }
 
@@ -345,15 +372,19 @@ export async function inspectDeliveryManifest({ root, manifest, bins, phase = "p
       outputIds.push(outputId);
     }
     bindings[proof.stage][id] = outputIds;
-    const variant = variants.find((item) => item.id === proof.id);
+    const variant = variants.find((item) => item.id === proof.id
+      || proof.stage === "subtitles" && `${item.id}-burned` === proof.id);
     const requested = proof.stage === "bgm" ? variant?.style?.bgm : proof.stage === "color" ? variant?.style?.color
-      : proof.stage === "transitions" ? (proof.id === "master" ? manifest.transitions?.request : variant?.style?.transitions) : null;
+      : proof.stage === "transitions" ? (proof.id === "master" ? manifest.transitions?.request : variant?.style?.transitions)
+      : proof.stage === "subtitles" && variant?.style?.subtitleStyle?.fontId !== undefined ? variant.style.subtitleStyle : null;
     if (requested) requestBindings[proof.stage][id] = hashJson(requested);
     stageChecks[proof.stage].push({ kind: `${proof.id}:bound-output`, hard: true, ok: outputIds.length > 0 });
   }
   const hasProof = (stage, id) => proofs.some((proof) => proof.stage === stage && proof.id === id && proof.path && hasHash(proof.sha256));
   for (const variant of variants) {
     const id = variant.id;
+    if (variant.style?.cover?.fontId !== undefined) stageChecks.cover.push({ kind: `${id}:cover-font-request`, hard: true,
+      ok: await fontEvidenceMatches(variant.cover?.font, variant.style.cover.fontId, "标题") });
     if (variant.style?.bgm?.enabled !== false) stageChecks.bgm.push({ kind: `${id}:bgm-proof`, hard: true, ok: hasProof("bgm", id) });
     if (variant.style?.color || variant.style?.technicalColor) stageChecks.color.push({ kind: `${id}:color-proof`, hard: true, ok: hasProof("color", id) });
     if (manifest.entityColor?.enabled === true) stageChecks.color.push({ kind: `${id}:entity-proof`, hard: true, ok: hasProof("color", `${id}-entity`) });
@@ -426,6 +457,10 @@ export async function inspectDeliveryManifest({ root, manifest, bins, phase = "p
     for (const form of ["burned", "softsub"]) if (variant[form]) {
       const subtitle = find("subtitles", `${variant.id}-${form}`);
       checkChain(`${variant.id}:${form}`, consumes(subtitle, variant.video?.sha256) && outputHash(subtitle) === variant[form].sha256);
+      if (form === "burned" && variant.style?.subtitleStyle?.fontId !== undefined) {
+        checkChain(`${variant.id}:subtitle-font`, await fontEvidenceMatches(variant.burned.font, variant.style.subtitleStyle.fontId, "字幕")
+          && Boolean(subtitle?.execution?.font) && hashJson(variant.burned.font) === hashJson(subtitle.execution.font));
+      }
     }
   }
   for (const [index, form] of (manifest.danmaku?.forms ?? []).entries()) {

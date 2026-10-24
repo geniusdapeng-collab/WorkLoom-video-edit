@@ -50,6 +50,7 @@ import { dealRouter } from "./deal.js";
 import { getRun, startRun, startVideoProjectRun, summarizeWorkspaceRuns, StudioWorkerError } from "./studio-worker.js";
 import { resolveScenePolicyForIntent, ScenePolicyRouteError } from "./scene-policy-routing.js";
 import { resolvePlatformForIntent } from "./platform-routing.js";
+import { BuiltinCharacterSelectionError } from "./builtin-character-selection.js";
 import { makeStageArchive } from "./archive-host.js";
 import { readArchiveSummary, resumeProject, scanStaleRunsOnStartup } from "./archive-resume.js";
 import { applyRouteToMetadata, buildPipelineIntent, routeVideoPipeline } from "@hyperreality/video-studio";
@@ -149,13 +150,14 @@ function renderScriptRethrow(err: unknown): never {
   throw err;
 }
 
-function scenePolicyRethrow(err: unknown): never {
-  if (err instanceof ScenePolicyRouteError) {
+function preproductionRethrow(err: unknown): never {
+  if (err instanceof ScenePolicyRouteError || err instanceof BuiltinCharacterSelectionError) {
     throw new TRPCError({
       code: err.kind === "catalog" ? "PRECONDITION_FAILED" : "BAD_REQUEST",
       message: err.message,
     });
   }
+  if (err instanceof StudioWorkerError) throw new TRPCError({ code: "PRECONDITION_FAILED", message: err.message });
   throw err;
 }
 
@@ -511,7 +513,7 @@ const studioRouter = router({
             selectedPlatform,
           });
         } catch (err) {
-          scenePolicyRethrow(err);
+          preproductionRethrow(err);
         }
         return { kind: "routed" as const, runId, projectId: input.projectId, pipeline: decision.route };
       }
@@ -582,11 +584,7 @@ const studioRouter = router({
           via: decision.via,
         };
       } catch (err) {
-        if (err instanceof ScenePolicyRouteError) scenePolicyRethrow(err);
-        if (err instanceof StudioWorkerError && err.code === "LLM_MISSING") {
-          throw new TRPCError({ code: "PRECONDITION_FAILED", message: err.message });
-        }
-        throw err;
+        preproductionRethrow(err);
       }
     }),
 
@@ -702,7 +700,7 @@ const studioRouter = router({
           actor: { id: ctx.identity.memberNo, type: "human" },
         });
       } catch (err) {
-        scenePolicyRethrow(err);
+        preproductionRethrow(err);
       }
     }),
 

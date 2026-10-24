@@ -17,6 +17,7 @@ import type { RenderScriptLike } from "./gen/submit.js";
 import type { VideoGenParams } from "./gen/types.js";
 import { SubmissionError } from "./gen/submission-ledger.js";
 import { canonicalRenderJson, compileRenderRequest, renderSha256, supportsCompiledRequest, type CompiledProviderRequest } from "./gen/compiled-request.js";
+import { verifyPortraitArchiveReuseAcceptance } from "./portrait-reuse-acceptance.js";
 
 const ISSUER = "workloom.production-authority";
 const SCHEMA = "workloom.render-qualification/v1";
@@ -158,6 +159,17 @@ async function sourceForShot(app: AppPool, scope: Scope, projectId: string, shot
     const matches = gates.filter(g => g.gate === key);
     const gate = matches[0];
     const na = key === "G5_PORTRAIT" && gate?.status === "not_applicable" && gate?.basis === "no-characters-or-products";
+    const archiveReuse = key === "G5_PORTRAIT" && gate?.status === "passed" && gate?.approved === true
+      && gate?.via === "archive-reuse-acceptance" && gate?.degraded === false && gate?.model === null;
+    if (matches.length === 1 && archiveReuse) {
+      try {
+        verifyPortraitArchiveReuseAcceptance({ workDir: path.join(await realpath(workDir), "workspaces", component(scope.workspaceId)),
+          projectId, proof: gate.archiveReuse, evidence: gate.evidence });
+      } catch (error) {
+        fail("PREPRODUCTION_GATES_UNVERIFIED", `G5 既有角色复用证据不可核实：${error instanceof Error ? error.message : String(error)}`);
+      }
+      continue;
+    }
     if (matches.length !== 1 || (!na && (gate?.status !== "passed" || gate?.approved !== true || gate?.via !== "llm" || gate?.degraded !== false))) fail("PREPRODUCTION_GATES_UNVERIFIED", `当前执行缺少有效 ${key} 裁决`);
     if (!na && (!Array.isArray(gate.evidence) || gate.evidence.length === 0)) fail("PREPRODUCTION_GATES_UNVERIFIED", `${key} 缺少实际审核证据摘要`);
     if (!na) {

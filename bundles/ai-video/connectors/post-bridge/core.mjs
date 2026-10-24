@@ -32,10 +32,10 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import {
-  extractFrame, probeMedia, round, runBin, sha256File, tempDir,
+  extractFrame, parseFontSelections, probeMedia, round, runBin, sha256File, tempDir,
 } from "../subtitle-bridge/measure.mjs";
 import {
-  buildAssDocument, buildTransitionTimemap, cuesToSrt, exportSidecars, loadFontCatalog,
+  buildAssDocument, buildTransitionTimemap, cuesToSrt, exportSidecars, fontsRoot, loadFontCatalog,
   parseDanmaku, renderDanmaku, parseSrt, plan as planSubtitle, renderWithSubtitles, retimeCuesForTransitions, softMux, srtSecondsToAss, SubtitleError,
 } from "../subtitle-bridge/core.mjs";
 import { grade as colorGrade, probeMedia as probeColorMedia } from "../color-bridge/core.mjs";
@@ -196,6 +196,7 @@ export function listVariantPacks() {
       transitions: pack.transitions ?? null,
       copy: pack.copy ?? null,
       cover: pack.cover ?? null,
+      ...(pack.subtitleStyle?.fontId !== undefined ? { subtitleStyle: pack.subtitleStyle } : {}),
       file: path.relative(BUNDLE_ROOT, pack._file),
     };
   });
@@ -326,6 +327,10 @@ export async function planDelivery({
   const index = loadVariantIndex();
   const wanted = Array.isArray(variants) && variants.length ? variants : index.defaults ?? index.variants.map((item) => item.id);
   const packs = wanted.map((id) => findVariantPack(id));
+  for (const pack of packs) {
+    requestedFont(pack.subtitleStyle, "字幕");
+    requestedFont(pack.cover, "标题");
+  }
   if (packs.length < 2) {
     throw new PostError("多风格交付至少需要 2 个变体（否则用户没得选）", "bad_request");
   }
@@ -389,10 +394,12 @@ export async function planDelivery({
       positioning: pack.positioning,
       axes: {
         color: pack.color ? `${pack.color.profile ?? pack.color.lut} @${pack.color.intensity}` : "不调色",
-        bgm: pack.bgm?.enabled === false ? "不配乐（保留原声）" : `${pack.bgm?.style ?? pack.bgm?.mood ?? "默认"} · ${pack.bgm?.policy ?? "keep-dialogue"}`,
+        bgm: pack.bgm?.enabled === false ? "不配乐（保留原声）" : `${pack.bgm?.trackId ?? pack.bgm?.style ?? pack.bgm?.mood ?? "默认"} · ${pack.bgm?.policy ?? "keep-dialogue"}`,
         transitions: `${pack.transitions?.mode ?? "hard"}${pack.transitions?.fadeSec ? ` ${pack.transitions.fadeSec}s` : ""}`,
         cover: `${pack.cover?.template ?? "默认"} @${pack.cover?.at ?? 0.35}`,
         copy: pack.copy?.tone ?? "默认口吻",
+        ...(pack.subtitleStyle?.fontId !== undefined ? { subtitleFont: pack.subtitleStyle.fontId } : {}),
+        ...(pack.cover?.fontId !== undefined ? { coverFont: pack.cover.fontId } : {}),
       },
     })),
     steps: [
@@ -1899,10 +1906,45 @@ export function buildCopyPack({ project = {}, variant = {} }) {
  * 封面：从已调色母版抽一帧 → 按平台版式渲标题（与字幕同源字体/字号体系）→ PNG。
  * 校验实际 PNG、请求尺寸、标题文本和已解析字体；版式建议保留在报告中。
  */
+/** Explicit recipe pins are strict; omitted pins retain the existing font selection policy. */
+function requestedFont(style, scene, catalog = null) {
+  if (style?.fontId === undefined) return null;
+  catalog = catalog ?? loadFontCatalog();
+  const id = style.fontId;
+  const font = typeof id === "string" && id.trim() === id && id ? catalog.fonts.find((entry) => entry.id === id) : null;
+  if (!font || !font.场景?.includes(scene)) throw new PostError(`配方字体 ${String(id)} 不存在或不支持${scene}`, "font_not_found");
+  const file = path.resolve(fontsRoot(), font.file);
+  if (!fs.existsSync(file)) throw new PostError(`配方字体未安装：${id}（${file}）`, "font_not_found");
+  if (createHash("sha256").update(fs.readFileSync(file)).digest("hex") !== font.sha256) {
+    throw new PostError(`配方字体字节与档案不一致：${id}`, "verify_failed");
+  }
+  return font;
+}
+
+function fontBrief(brief, font, scene) {
+  return font ? { ...brief, 账号调性配置: { 锁定字体: { [scene]: font.id } } } : brief;
+}
+
+/** Bind the requested catalog identity to the actual ASS and libass render log. */
+async function fontExecution(font, selectedId, fontResolution, assPath) {
+  if (!font) return null;
+  const assText = await fsp.readFile(assPath, "utf8");
+  const fontName = font.font_fullname;
+  if (selectedId !== font.id || fontResolution?.allFromFontsDir !== true
+      || !fontResolution.selections?.some((entry) => entry.family === fontName && entry.fromFontsDir === true)
+      || !assText.split(/\r?\n/).some((line) => line.startsWith("Style:") && line.split(",")[1] === fontName)) {
+    throw new PostError(`配方字体未按请求实际渲染：${font.id}（实际 ${String(selectedId)}）`, "verify_failed");
+  }
+  return { requestedFontId: font.id, selectedFontId: selectedId, fontName, fontFileSha256: font.sha256,
+    assSha256: createHash("sha256").update(assText).digest("hex"), assText,
+    allFromFontsDir: true, selections: fontResolution.selections };
+}
+
 export async function buildCover({
   input, output, project = {}, variant = {}, resolution, platform = null,
   bins = resolveBinaries(), workDir, catalog = loadFontCatalog(),
 }) {
+  const coverFont = requestedFont(variant.cover, "标题", catalog);
   const probe = await probeMedia(input, { bins });
   const duration = probe.videoDuration ?? probe.duration;
   if (!(duration > 0)) throw new PostError("封面来源缺视频轨时长", "bad_media");
@@ -1919,7 +1961,7 @@ export async function buildCover({
   const planOutcome = await planSubtitle({
     input: null,
     resolution,
-    brief: { 平台: platform ?? project.platform ?? "默认", 内容调性: variant.copy?.tone ?? null },
+    brief: fontBrief({ 平台: platform ?? project.platform ?? "默认", 内容调性: variant.copy?.tone ?? null }, coverFont, "标题"),
     platform: platform ?? project.platform ?? null,
     titleText: titleLine,
     cues: [],
@@ -1929,6 +1971,9 @@ export async function buildCover({
     outputDir: dir,
     analyze: false,
   });
+  if (coverFont && planOutcome.plan.selection.标题?.chosen?.id !== coverFont.id) {
+    throw new PostError(`封面字体未按请求选中：${coverFont.id}`, "font_not_found");
+  }
   const styles = planOutcome.styles.map((entry) => {
     if (entry.name !== "Title") return entry;
     const alignment = Number(variant.cover?.alignment ?? entry.style.alignment ?? 8);
@@ -1958,7 +2003,7 @@ export async function buildCover({
   const fontsDir = path.join(dir, "fonts-flat");
   await fsp.mkdir(fontsDir, { recursive: true });
   const fontFiles = [];
-  const bundled = path.resolve(BUNDLE_ROOT, "library", "fonts");
+  const bundled = coverFont ? fontsRoot() : path.resolve(BUNDLE_ROOT, "library", "fonts");
   for (const sub of ["cn", "en"]) {
     const folder = path.join(bundled, sub);
     if (!fs.existsSync(folder)) continue;
@@ -1972,10 +2017,12 @@ export async function buildCover({
   }
   if (fontFiles.length === 0) throw new PostError(`封面渲染缺少字体（${bundled}）`, "font_not_found");
   const overlay = `ass=${assPath.replaceAll("\\", "\\\\").replaceAll(":", "\\:").replaceAll("'", "\\'")}:fontsdir=${fontsDir.replaceAll("\\", "\\\\").replaceAll(":", "\\:").replaceAll("'", "\\'")}`;
-  await runBin(bins.ffmpeg, [
+  const rendered = await runBin(bins.ffmpeg, [
     "-hide_banner", "-v", "info", "-y", "-loop", "1", "-i", frame,
     "-vf", overlay, "-frames:v", "1", "-update", "1", output,
   ], { label: "ffmpeg(cover)", timeoutMs: 300_000 });
+  const font = await fontExecution(coverFont, planOutcome.plan.selection.标题?.chosen?.id,
+    parseFontSelections(rendered.stderr, fontsDir), assPath);
   if (!fs.existsSync(output)) throw new PostError(`封面未产出：${output}`, "ffmpeg_failed", true);
   const coverProbe = await probeMedia(output, { bins });
   const coverPlanChecks = planOutcome.checks.filter((check) => check.ok === false);
@@ -2000,6 +2047,7 @@ export async function buildCover({
     sha256: await sha256File(output),
     bytes: (await fsp.stat(output)).size,
     checks,
+    ...(font ? { font } : {}),
   };
 }
 
@@ -2805,6 +2853,7 @@ export async function buildDeliveryPackage({
         execution: { cueCount, checks: softsub.checks } }));
     }
     if (burnSubtitles && (variantCues || sidecar)) {
+      const subtitleFont = requestedFont(pack.subtitleStyle, "字幕");
       const cues = variantCues ?? parseSrt(await fsp.readFile(
         sidecar.files.find((file) => file.format === "srt" && file.lang === "chi").path, "utf8",
       ));
@@ -2816,7 +2865,7 @@ export async function buildDeliveryPackage({
         output: path.join(variantDir, `${pack.id}${combineDanmaku ? ".burned.danmaku" : ".burned"}.mp4`),
         cues,
         platform,
-        brief: { 平台: platform ?? "默认" },
+        brief: fontBrief({ 平台: platform ?? "默认" }, subtitleFont, "字幕"),
         bins,
         /** 交付形态的最后一次重编码：必须做清晰度回归（T-2026-1017） */
         verifySharpness: true,
@@ -2825,6 +2874,7 @@ export async function buildDeliveryPackage({
           danmakuOptions: { lanes: danmakuRequest.lanes, opacity: danmakuRequest.opacity },
         } : {}),
       });
+      burned.font = await fontExecution(subtitleFont, burned.fonts?.字幕?.id, burned.fontResolution, burned.assPath);
       processing.push(await writeProcessingProof({ root: target, stage: "subtitles", id: `${pack.id}-burned`, inputs: textInputs,
         outputs: [{ path: burned.output.path, sha256: burned.output.hash }],
         parameters: {
@@ -2834,12 +2884,14 @@ export async function buildDeliveryPackage({
           textEncodingPasses: 1,
           combinedEncoding: combineDanmaku,
           danmakuCount: combineDanmaku ? danmakuRequest.items.length : 0,
+          ...(subtitleFont ? { request: pack.subtitleStyle } : {}),
         },
         execution: {
           cueCount: cues.length,
           danmakuCount: combineDanmaku ? danmakuRequest.items.length : 0,
           textEncodingPasses: 1,
           checks: burned.checks,
+          ...(burned.font ? { font: burned.font } : {}),
         } }));
     }
 
@@ -2906,8 +2958,9 @@ export async function buildDeliveryPackage({
           checks: burned.checks,
           combinedWithDanmaku: Boolean(burned.danmaku),
           textEncodingPasses: 1,
+          ...(burned.font ? { font: burned.font } : {}),
         } : null,
-        cover: { path: cover.output, sha256: cover.sha256, at: cover.at, requestedAt: cover.requestedAt, background: cover.background, text: cover.text, checks: cover.checks },
+        cover: { path: cover.output, sha256: cover.sha256, at: cover.at, requestedAt: cover.requestedAt, background: cover.background, text: cover.text, checks: cover.checks, ...(cover.font ? { font: cover.font } : {}) },
         copy: { path: path.join(variantDir, "copy.md"), sha256: await sha256File(path.join(variantDir, "copy.md")),
           jsonPath: path.join(variantDir, "copy.json"), jsonSha256: await sha256File(path.join(variantDir, "copy.json")),
           request: structuredClone(project.copy ?? {}), style: structuredClone(pack.copy ?? {}),
@@ -2935,6 +2988,7 @@ export async function buildDeliveryPackage({
         transitions,
         cover: pack.cover ?? null,
         copyTone: pack.copy?.tone ?? null,
+        ...(pack.subtitleStyle?.fontId !== undefined ? { subtitleStyle: structuredClone(pack.subtitleStyle) } : {}),
       },
       layers: {
         sound: soundReport,
@@ -3259,6 +3313,7 @@ kind: "duration_consistent",
           burned: variant.artifacts.burned ? { ...variant.artifacts.burned, path: path.relative(target, variant.artifacts.burned.path) } : null,
           softsub: variant.artifacts.softsub ? { path: path.relative(target, variant.artifacts.softsub.path), sha256: variant.artifacts.softsub.sha256 } : null,
           cover: {
+            ...(variant.artifacts.cover.font ? { font: variant.artifacts.cover.font } : {}),
             path: path.relative(target, variant.artifacts.cover.path),
             sha256: variant.artifacts.cover.sha256,
             at: variant.artifacts.cover.at,
@@ -3327,12 +3382,14 @@ kind: "duration_consistent",
       video: { path: path.relative(target, variant.artifacts.video.path), sha256: variant.artifacts.video.sha256, duration: variant.artifacts.video.duration, resolution: variant.artifacts.video.resolution },
       softsub: variant.artifacts.softsub ? { path: path.relative(target, variant.artifacts.softsub.path), sha256: variant.artifacts.softsub.sha256, tracks: variant.artifacts.softsub.tracks.map((track) => ({ lang: track.lang, title: track.title, clamped: track.clamped === true })), checks: variant.artifacts.softsub.checks } : null,
       burned: variant.artifacts.burned ? {
+        ...(variant.artifacts.burned.font ? { font: variant.artifacts.burned.font } : {}),
         path: path.relative(target, variant.artifacts.burned.path),
         sha256: variant.artifacts.burned.sha256,
         combinedWithDanmaku: variant.artifacts.burned.combinedWithDanmaku === true,
         textEncodingPasses: variant.artifacts.burned.textEncodingPasses ?? null,
       } : null,
       cover: {
+        ...(variant.artifacts.cover.font ? { font: variant.artifacts.cover.font } : {}),
         path: path.relative(target, variant.artifacts.cover.path),
         sha256: variant.artifacts.cover.sha256,
         text: variant.artifacts.cover.text,
@@ -3513,6 +3570,10 @@ export function analyzeImpact({ project = null, patch = {} } = {}) {
 
   if (patch.subtitles) {
     normalizePatchKeys(patch.subtitles, ["zhText", "zhPath", "enText", "enPath", "style", "burn", "variantId"], "patch.subtitles");
+    if (patch.subtitles.style !== undefined) {
+      normalizePatchKeys(patch.subtitles.style, ["fontId"], "patch.subtitles.style");
+      requestedFont(patch.subtitles.style, "字幕");
+    }
     layers.add("text");
     reasons.push("字幕文字/样式变化：重出旁挂字幕文件 + 重建软字幕轨（画面不动）");
     if (patch.subtitles.burn === true) reasons.push("显式要求硬字幕：额外产出一支烧字副本（母版仍不烧）");
@@ -3537,7 +3598,8 @@ export function analyzeImpact({ project = null, patch = {} } = {}) {
     reasons.push("转场/拼接变化：从既有镜头产物重拼接（镜头不动）");
   }
   if (patch.cover) {
-    normalizePatchKeys(patch.cover, ["variantId", "at", "alignment", "marginRatio", "subtitle"], "patch.cover");
+    normalizePatchKeys(patch.cover, ["variantId", "at", "alignment", "marginRatio", "subtitle", "title", "hook", "fontId"], "patch.cover");
+    requestedFont(patch.cover, "标题");
     layers.add("cover");
     reasons.push("封面变化：重出封面（不动成片）");
   }
@@ -4084,6 +4146,8 @@ export async function reedit(options = {}) {
       };
       if (!stored && project.rhythmPlan?.profile === "fast-cut") pack.transitions = structuredClone(project.layers.transitions ?? { mode: "hard" });
       const priorStyle = stored?.style ?? {};
+      if (priorStyle.subtitleStyle) pack.subtitleStyle = structuredClone(priorStyle.subtitleStyle);
+      if (scoped.subtitles && patch.subtitles.style) pack.subtitleStyle = { ...(pack.subtitleStyle ?? {}), ...patch.subtitles.style };
       if (priorStyle.color) pack.color = { ...(pack.color ?? {}), ...priorStyle.color };
       else if (stored?.color) {
         for (const key of ["profile", "lut", "intensity"]) {
@@ -4483,15 +4547,17 @@ export async function reedit(options = {}) {
       }
       const wantsBurn = project.postRequirements?.burnSubtitles === true || Boolean(stored?.artifacts?.burned) || scoped.subtitles && patch.subtitles?.burn === true;
       if (wantsBurn) {
+        const subtitleFont = requestedFont(pack.subtitleStyle, "字幕");
         const inputs = await captureProcessingInputs([videoTarget]);
         const burnCues = variantCues ?? parseSrt(await fsp.readFile(path.join(textDir, `${project.projectId}.zh.srt`), "utf8"));
         burned = await renderWithSubtitles({
           mode: "subtitle", input: videoTarget, output: path.join(variantDir, `${variantId}.burned.mp4`),
-          cues: burnCues, platform: project.platform ?? null, brief: { 平台: project.platform ?? "默认" }, bins,
+          cues: burnCues, platform: project.platform ?? null, brief: fontBrief({ 平台: project.platform ?? "默认" }, subtitleFont, "字幕"), bins,
         });
+        burned.font = await fontExecution(subtitleFont, burned.fonts?.字幕?.id, burned.fontResolution, burned.assPath);
         replaceProof(await writeProcessingProof({ root: base, stage: "subtitles", id: `${variantId}-burned`, inputs,
-          outputs: [{ path: burned.output.path, sha256: burned.output.hash }], parameters: { mode: "burned", cuesSha256: await contentKey(burnCues) },
-          execution: { cueCount: burnCues.length, checks: burned.checks } }));
+          outputs: [{ path: burned.output.path, sha256: burned.output.hash }], parameters: { mode: "burned", cuesSha256: await contentKey(burnCues), ...(subtitleFont ? { request: pack.subtitleStyle } : {}) },
+          execution: { cueCount: burnCues.length, checks: burned.checks, ...(burned.font ? { font: burned.font } : {}) } }));
         rebuilt.push({ layer: "text-burn", variant: variantId, path: burned.output.path, sha256: burned.output.hash });
       }
       if (shouldSoftMux && (project.layers?.text || scoped.subtitles)) {
@@ -4623,7 +4689,7 @@ export async function reedit(options = {}) {
           color: { path: colorPath, sha256: gradedSha256, gradeReport, reused: colorReused },
         },
         video: { path: videoTarget, sha256: await sha256File(videoTarget), duration: videoProbe.duration, resolution: [videoProbe.width, videoProbe.height] },
-        burned: burned ? { path: burned.output.path, sha256: burned.output.hash, checks: burned.checks } : null,
+        burned: burned ? { path: burned.output.path, sha256: burned.output.hash, checks: burned.checks, ...(burned.font ? { font: burned.font } : {}) } : null,
         softsub: softsub ? { path: softsub.output, sha256: await sha256File(softsub.output), reused: softsubReused } : null,
         subtitles: variantSubtitles
           ? {
@@ -4638,7 +4704,8 @@ export async function reedit(options = {}) {
           title: copy.title, hashtags: copy.hashtags, checks: copy.checks },
         bgm: trackId ? { trackId, policy: pack.bgm?.policy ?? "keep-dialogue" } : null,
         audioReceipt: { path: audioReceiptPath, sha256: await sha256File(audioReceiptPath), passed: audioPassed },
-        style: { color: pack.color ?? null, technicalColor: true, entityColor: project.entityColor ?? null, bgm: bgmRequest, transitions, cover: pack.cover ?? null, copyTone: pack.copy?.tone ?? null },
+        style: { color: pack.color ?? null, technicalColor: true, entityColor: project.entityColor ?? null, bgm: bgmRequest, transitions, cover: pack.cover ?? null, copyTone: pack.copy?.tone ?? null,
+          ...(pack.subtitleStyle?.fontId !== undefined ? { subtitleStyle: structuredClone(pack.subtitleStyle) } : {}) },
       });
     }
 

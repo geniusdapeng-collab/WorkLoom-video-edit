@@ -8,6 +8,8 @@ import { applyScenePolicy, auditScenePolicy, loadScenePolicies, type ScenePolicy
 import { authorizeRenderSubmission, loadQualifiedRenderInput, listProductionShots, qualifyProductionShot } from "./production-authority.js";
 import { renderSha256 } from "./gen/compiled-request.js";
 import { submitGenJob } from "./gen/submit.js";
+import { acceptPortraitArchiveReuse, portraitReuseEvidence } from "./portrait-reuse-acceptance.js";
+import { portraitReuseFixture } from "./portrait-reuse.test-support.js";
 
 vi.mock("@workloom/base/workdata", () => ({ gatewayAppendOnClient: vi.fn() }));
 const env = { WORKLOOM_RENDER_SIGNING_SECRET: "unit-test-render-signing-key-with-32-bytes", VOLCENGINE_ARK_API_KEY: "unit-test-provider",
@@ -142,6 +144,34 @@ beforeEach(async () => {
 afterEach(async () => { vi.unstubAllGlobals(); vi.restoreAllMocks(); await rm(dir, { recursive: true, force: true }); });
 
 describe("正式资格的正常路径和来源边界", () => {
+  async function installArchiveReuse() {
+    const runDir = path.join(dir, "workspaces", scope.workspaceId); await mkdir(runDir, { recursive: true });
+    const fixture = portraitReuseFixture(runDir, "P1");
+    const archiveReuse = acceptPortraitArchiveReuse(fixture.input);
+    output.productionEvidence.gates[3] = { gate: "G5_PORTRAIT", status: "passed", approved: true, via: "archive-reuse-acceptance",
+      degraded: false, model: null, archiveReuse, evidence: portraitReuseEvidence(archiveReuse) };
+    await persist(); return fixture;
+  }
+  it("本次明确选用既有角色的独立证据可签发；提交前仍重验所有源图与复制图", async () => {
+    const fixture = await installArchiveReuse();
+    const result = await issue();
+    expect(pool.qualifications).toHaveLength(1); expect(calls).toHaveLength(1);
+    const auth = await authorized(result.qualificationToken); await auth.release();
+    await writeFile(fixture.outputs.front!.path, "changed after qualification");
+    await expect(authorized(result.qualificationToken)).rejects.toThrow("PREPRODUCTION_GATES_UNVERIFIED");
+  });
+  it.each(["missing-proof", "missing-manifest", "source-change", "profile-change", "missing-evidence", "llm-claim", "generated"])("复用 %s 在最终模型评审前阻断", async kind => {
+    const f = await installArchiveReuse(), gate = output.productionEvidence.gates[3];
+    if (kind === "missing-proof") delete gate.archiveReuse;
+    if (kind === "missing-manifest") await rm(f.manifestPath);
+    if (kind === "source-change") await writeFile(f.files.front!.path, "changed source");
+    if (kind === "profile-change") await writeFile(f.profile.path, "changed profile");
+    if (kind === "missing-evidence") gate.evidence.pop();
+    if (kind === "llm-claim") gate.via = "llm";
+    if (kind === "generated") gate.archiveReuse.stage.generatedPortraits = 1;
+    await persist(); await expect(issue()).rejects.toThrow("PREPRODUCTION_GATES_UNVERIFIED");
+    expect(calls).toHaveLength(0); expect(pool.qualifications).toHaveLength(0);
+  });
   it("实际审核完整供应商请求后签发；加载出的脚本来自档案；提交持锁验真", async () => {
     const result = await issue();
     expect(result).toMatchObject({ scriptVersion: 1, params: { durationSec: 5, aspectRatio: "16:9" } });

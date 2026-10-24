@@ -779,7 +779,7 @@
   },
   "integrity": {
     "algorithm": "sha256",
-    "digest": "e4446b2d61f6fb3bec3e44d819326e82e2633e2192f21c07849c973c6080b0b3",
+    "digest": "d1602327e4708954bead1fab2527e47feb5d8d39fd309b0859612b1350b07528",
     "assets": {
       "connectors/bgm-bridge/audio-stems-trust.mjs": "701b20e1705b16b026be2900bb49430ef875c8f01f83515f297a5b0b9a50cf93",
       "connectors/bgm-bridge/audio-stems.mjs": "d83bc554f015115ed0f4ea71ac6ced4cf5bd8f44d61094489776e3d2a5ffa751",
@@ -820,10 +820,10 @@
       "connectors/enhance-bridge/README.md": "8a64b5efa892c5e1340aa49aa0901ba159c31a79f52092d938780f3841884738",
       "connectors/post-bridge/av-sync.mjs": "25ce3260e3701fd89645cc0ce512135b0843043fcc86d61d81ba948e6e271ba5",
       "connectors/post-bridge/cli.mjs": "9a3168aa0a711b1af5138cc07aa30a3a368b69ceda234e994d0ac773e5083f70",
-      "connectors/post-bridge/core.mjs": "01ce4a3e9caf49320ece11d352b39311b063ade09d27d41d70bd0b35822719f2",
+      "connectors/post-bridge/core.mjs": "d863174e00a80a015434ae937caefce279ddaa1ab038558e48ac69a900cbdd10",
       "connectors/post-bridge/executor.ts": "cb1b9d4fdea2da9263379f1e95956d98633534297ad8bdef5b60288ecaa997f2",
-      "connectors/post-bridge/quality-gate.mjs": "b2514745b87d6f94a057f9658d5a19ea0dd8d5dbf960a556365611d69eccd0cf",
-      "connectors/post-bridge/README.md": "b211b8630de60a312330da8d92436338b16ea3bfa7e019fd21ee9fe38d64ebdd",
+      "connectors/post-bridge/quality-gate.mjs": "00cf952977c04c95c3a5d42499df7d3a8be42cc6ee7155fc9c0200bf395a0db6",
+      "connectors/post-bridge/README.md": "f4c7807802821c7fdd19317c5cf2944aa50c6bb15fdfcbbc682895bffcb58a4a",
       "connectors/post-bridge/rhythm-post.mjs": "7a71bee3da911bce8612fa7ba177d7011c149a84007bfb2b28e045be8c7a1768",
       "connectors/post-bridge/server-adapter.mts": "80780fbfef049f3690bdd14b591d59cd4e8ddfba6e9854344601a4ffb5073d48",
       "connectors/post-bridge/server.mjs": "d3641f6b81fd8574e10830f02a734bff4e84677e17eaf9468699d390a9852e36",

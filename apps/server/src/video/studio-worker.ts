@@ -51,6 +51,8 @@ import { buildServerGateRecord, withGateLedger } from "./gate-ledger-bridge.js";
 import { createDataMiningExecutor } from "./data-mining-executor.js";
 import { prepareMarketingFacts, finalizeMarketingFacts, type PreparedMarketingFacts } from "./marketing-authority.js";
 import { canonicalRenderJson, renderSha256 } from "./gen/compiled-request.js";
+import { acceptPortraitArchiveReuse, loadPortraitReuseManifest, portraitReuseEvidence } from "./portrait-reuse-acceptance.js";
+import { applyBuiltinCharacters, appendBuiltinCharacterGuidance, resolveBuiltinCharacters, type BuiltinCharacterResolution } from "./builtin-character-selection.js";
 import { acquireProjectLease, archiveWorkDir, makeLedgerWriter, readProjectMeta } from "./archive-host.js";
 import { ingestPortraitsFromIndex } from "./media/library.js";
 import { upsertProductProfileFromDossier } from "./media/products.js";
@@ -330,7 +332,7 @@ export function summarizeWorkspaceRuns(
 
 export class StudioWorkerError extends Error {
   constructor(
-    public readonly code: "LLM_MISSING" | "ARCHIVE_REQUIRED",
+    public readonly code: "LLM_MISSING" | "ARCHIVE_REQUIRED" | "PORTRAIT_REUSE_INVALID",
     message: string,
   ) {
     super(message);
@@ -474,10 +476,25 @@ function collectReferenceImages(metadata?: Record<string, unknown>): string[] {
 }
 
 /** 定妆照出图配置（缺密钥则显式关闭：保持 vendor 规格包口径，不假装出图） */
-function portraitConfig(metadata?: Record<string, unknown>): StudioPortraitConfig {
+function portraitConfig(metadata?: Record<string, unknown>, selectedCharacters?: BuiltinCharacterResolution): StudioPortraitConfig {
   const apiKey = (process.env.VOLCENGINE_ARK_API_KEY ?? process.env.ARK_API_KEY ?? "").trim();
   const model = (process.env.ARK_IMAGE_MODEL ?? process.env.SEEDREAM_MODEL ?? "").trim();
   const enabled = (process.env.HR_PORTRAIT_ENABLED ?? "1") !== "0";
+  const reuseManifest = selectedCharacters?.mode === "none" ? undefined : process.env.HR_PORTRAIT_REUSE_MANIFEST?.trim();
+  let archivedCharacters: ReturnType<typeof loadPortraitReuseManifest> | undefined;
+  if (reuseManifest) {
+    try {
+      const supplied = loadPortraitReuseManifest(path.resolve(REPO_ROOT, reuseManifest));
+      const matchesSelected = !selectedCharacters || (selectedCharacters.characters.length === supplied.characters.length
+        && selectedCharacters.characters.every(selected => supplied.characters.some(item => [item.id, item.name, ...(item.aliases ?? [])].some(alias => alias === selected.id || alias === selected.name))));
+      if (matchesSelected) {
+        archivedCharacters = supplied;
+        if (!enabled || !apiKey || !model) throw new Error("复用定妆照要求启用真实运行后端并保留完整模型配置");
+      }
+    } catch (error) {
+      throw new StudioWorkerError("PORTRAIT_REUSE_INVALID", `既有角色复用配置不可核实，拒绝回退生成：${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
   if (!enabled || !apiKey || !model) {
     return { enabled: false };
   }
@@ -501,6 +518,7 @@ function portraitConfig(metadata?: Record<string, unknown>): StudioPortraitConfi
      * 直接污染真人出镜链路。（vendor 直跑保持默认 false，不影响其它产品。）
      */
     requireCharacterDescription: true,
+    ...(archivedCharacters ? { archivedCharacters, archivedCharactersOnly: true } : {}),
   };
 }
 
@@ -515,6 +533,8 @@ type StudioRunInput = RunInput & {
   selectedScenePolicy?: ReturnType<typeof resolveScenePolicyForIntent>;
   /** 同一入口已经做过平台识别时复用其受控结果。 */
   selectedPlatform?: ReturnType<typeof resolvePlatformForIntent>;
+  /** 仅服务内建档入口传入；HTTP metadata 中同名字段不参与可信选角。 */
+  selectedBuiltinCharacters?: BuiltinCharacterResolution;
 };
 
 export function startRun(scope: Scope, input: StudioRunInput): string {
@@ -527,22 +547,25 @@ export function startRun(scope: Scope, input: StudioRunInput): string {
    */
   const selectedPlatform = input.selectedPlatform
     ?? resolvePlatformForIntent(input.rawIntent ?? input.intent, input.metadata);
-  const resolvedMetadata: Record<string, unknown> = {
+  const selectedBuiltinCharacters = input.selectedBuiltinCharacters ?? resolveBuiltinCharacters(input.rawIntent ?? input.intent, input.metadata);
+  const resolvedMetadata: Record<string, unknown> = applyBuiltinCharacters({
     ...(input.metadata ?? {}),
     platform: selectedPlatform.decision.id,
     scenePolicySelection: selectedScenePolicy.decision,
     platformSelection: selectedPlatform.decision,
     ...(selectedScenePolicy.policy ? { scenePolicy: selectedScenePolicy.metadata.scenePolicy } : {}),
-  };
+  }, selectedBuiltinCharacters);
   const runInput: RunInput = {
     projectId: input.projectId,
-    intent: appendPlatformGuidance(appendScenePolicyGuidance(input.intent, selectedScenePolicy.policy), selectedPlatform.decision),
+    intent: appendBuiltinCharacterGuidance(appendPlatformGuidance(appendScenePolicyGuidance(input.intent, selectedScenePolicy.policy), selectedPlatform.decision), selectedBuiltinCharacters),
     metadata: resolvedMetadata,
     isMarketing: input.isMarketing,
   };
   if ((process.env.ARCHIVE_ENABLED ?? "1") === "0") {
     throw new StudioWorkerError("ARCHIVE_REQUIRED", "生产预生产必须启用档案与运行租约，拒绝 ARCHIVE_ENABLED=0");
   }
+  // 在模型、vendor 桥、运行注册表和异步任务之前读取完整复用配置；坏 manifest 不可回退新出图。
+  const portraitOptions = portraitConfig(runInput.metadata, selectedBuiltinCharacters);
   const llm = WorkloomLLMEngine.fromEnv();
   if (!llm) {
     throw new StudioWorkerError(
@@ -681,6 +704,32 @@ export function startRun(scope: Scope, input: StudioRunInput): string {
     const gate = req.gate as GateKey;
     const gateObj = gateObjectOf(gate, req.vendorType);
     const objectId = gate === "G7_FINAL" ? input.projectId : `${input.projectId}:${gate.toLowerCase()}`;
+    if (gate === "G5_PORTRAIT" && portraitOptions.enabled && portraitOptions.archivedCharactersOnly && portraitOptions.archivedCharacters) {
+      try {
+        const reuse = acceptPortraitArchiveReuse({ workDir: runWorkDir, projectId: input.projectId,
+          stage: completedVendorResult?.stages?.portraitStudio,
+          manifest: { path: portraitOptions.archivedCharacters.manifestPath, sha256: portraitOptions.archivedCharacters.manifestSha256 } });
+        const evidence = portraitReuseEvidence(reuse);
+        const proof = { gate, approved: true, status: "passed", via: "archive-reuse-acceptance", degraded: false,
+          model: null, evidence, archiveReuse: reuse };
+        await gatewayAppend(getGatewayPool(), { ...scope, actor: { ...WORKER_ACTOR } }, {
+          who: { ...WORKER_ACTOR }, context: { tenant_id: scope.tenantId, workspace_id: scope.workspaceId,
+            time: new Date().toISOString(), channel: "inapp" },
+          object: { type: gateObj.type, id: objectId }, decision: { action: gateObj.action,
+            after: withGateLedger({ vendorType: req.vendorType, runId: entry.runId, title: req.title, ...proof },
+              buildServerGateRecord({ gate, vendorType: req.vendorType, projectId: input.projectId, runId: entry.runId,
+                approved: true, verdict: { approved: true, via: proof.via, degraded: false,
+                  reason: "本任务明确选择既有合成角色；四角度、来源、选择快照与当前复制图逐字节一致" }, producerMode: PRODUCER_MODE })),
+            basis: ["仅消费本次明确选定既有角色的复用授权，不是新定妆照人工审批、模型图像评审或历史生成证明"] }, rule_impact: [],
+        });
+        gateProofs.set(gate, proof);
+        return { approved: true, reason: "archive-reuse-acceptance", suggestions: [] };
+      } catch (error) {
+        const reason = `portrait-reuse-evidence-failed：${error instanceof Error ? error.message : String(error)}`;
+        gateProofs.set(gate, { gate, approved: false, status: "failed", via: "archive-reuse-acceptance", degraded: false, model: null, evidence: [], reason });
+        return { approved: false, reason, suggestions: [], fatal: "portrait_evidence_missing" };
+      }
+    }
     /**
      * 内部准备门：**AI 监制评审** + 留痕（不插 approvals 行）。
      * 与下面的人工门共用同一事务口径：门事件经安全网关落事件账本（过程与时间线可见），
@@ -900,7 +949,7 @@ export function startRun(scope: Scope, input: StudioRunInput): string {
     totalDeadlineMs: TOTAL_DEADLINE_MS,
     // 片型硬闸必须在 G8 之前审完整分镜，禁止 env 让 vendor 在审计前直接渲染。
     deferRender: selectedScenePolicy.policy ? true : (process.env.HR_DEFER_RENDER ?? "1") !== "0",
-    portraits: portraitConfig(runInput.metadata),
+    portraits: portraitOptions,
     /** 营销路由 → 情报五站真跑（叙事路由不装配，vendor 也不会进情报层） */
     dataMining: input.isMarketing ? undefined : dataMiningConfigFor(runInput.metadata, llm, scope.workspaceId),
     log: (line) => console.log(line),
@@ -1040,6 +1089,7 @@ export function startRun(scope: Scope, input: StudioRunInput): string {
                 const proof = gateProofs.get(gate);
                 return !(proof?.approved === true && (proof.status === "passed" && ((proof.via === "llm" && proof.degraded === false)
                   || (gate === "G5_PORTRAIT" && proof.via === "owner-acceptance" && proof.degraded === false))
+                  || (gate === "G5_PORTRAIT" && proof.status === "passed" && proof.via === "archive-reuse-acceptance" && proof.degraded === false && proof.archiveReuse)
                   || gate === "G5_PORTRAIT" && proof.status === "not_applicable" && proof.basis === "no-characters-or-products"));
               });
               if (missing.length) {
@@ -1474,6 +1524,7 @@ export async function startVideoProjectRun(
   const selectionMetadata = Object.hasOwn(input, "customerMetadata") ? input.customerMetadata ?? undefined : input.metadata;
   const selectedScenePolicy = resolveScenePolicyForIntent(input.rawIntent ?? input.intent, selectionMetadata);
   const selectedPlatform = resolvePlatformForIntent(input.rawIntent ?? input.intent, selectionMetadata, input.platform);
+  const selectedBuiltinCharacters = resolveBuiltinCharacters(input.rawIntent ?? input.intent, selectionMetadata);
   const platformMetadata: Record<string, unknown> = {
     ...(input.metadata ?? {}),
     platform: selectedPlatform.decision.id,
@@ -1533,6 +1584,7 @@ export async function startVideoProjectRun(
     rawIntent: input.rawIntent,
     selectedScenePolicy,
     selectedPlatform,
+    selectedBuiltinCharacters,
   });
   return { projectId, runId };
 }
