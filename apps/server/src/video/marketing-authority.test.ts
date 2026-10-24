@@ -11,21 +11,22 @@ const scope = { tenantId: "tenant-a", workspaceId: "ws-a", projectId: "P1", runI
 const env = { LLM_BASE_URL: "https://judge.example.test", LLM_API_KEY: "test-only", LLM_MODEL: "test-judge" };
 const sourceUrl = "https://source.example.com/f3";
 const sourceText = "星野 F3 是一款风扇，风量 9 档。待机功率 0，自动启停 false，接口 USB/C~口。尾部注意：9 档是风量档位，不是能耗等级；不得声称静音或市场第一。";
-let server: Server, origin: string, root: string, modelCalls: any[], rejectJudge: boolean, extractionCalls: string[];
+let server: Server, origin: string, root: string, modelCalls: any[], rejectJudge: boolean, extractionCalls: string[], extractionOptions: unknown[];
 beforeAll(async () => {
   server = createServer((_req, res) => { res.writeHead(200, { "content-type": "text/plain; charset=utf-8" }); res.end(sourceText); });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve)); origin = `http://127.0.0.1:${(server.address() as { port: number }).port}`;
 });
 afterAll(async () => { server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve())); });
 beforeEach(async () => {
-  root = await realpath(await mkdtemp(path.join(tmpdir(), "marketing-authority-"))); modelCalls = []; extractionCalls = []; rejectJudge = false;
+  root = await realpath(await mkdtemp(path.join(tmpdir(), "marketing-authority-"))); modelCalls = []; extractionCalls = []; extractionOptions = []; rejectJudge = false;
   vi.stubGlobal("fetch", vi.fn(async (_url, init) => { modelCalls.push(JSON.parse(String(init.body))); return new Response(JSON.stringify({ choices: [{ message: { content: JSON.stringify({ approved: !rejectJudge, score: rejectJudge ? 10 : 96, issues: rejectJudge ? ["来源不支持此主张"] : [], suggestions: [], reason: rejectJudge ? "原文限定相冲突" : "逐项原文支持" }) } }] })); }));
 });
 afterEach(async () => { vi.unstubAllGlobals(); await rm(root, { recursive: true, force: true }); });
 async function prepare(options: { noSearch?: boolean; noAux?: boolean; badQuote?: boolean; modelFailure?: boolean; mode?: string; attempt?: number; specs?: Record<string, string | number | boolean> } = {}): Promise<PreparedMarketingFacts> {
   let searches = 0;
   return prepareMarketingFacts({ scope: { ...scope, attempt: options.attempt ?? 1 }, root, intent: "做一条风扇介绍", metadata: { brief: { product: "星野 F3", brand: "星野" } }, env: { ...env, ...(options.mode ? { VM_DATA_MINING_MODE: options.mode } : {}) },
-    llm: { reason: async prompt => {
+    llm: { reason: async (prompt, llmOptions) => {
+      extractionOptions.push(llmOptions);
       extractionCalls.push(prompt); if (options.modelFailure) return { success: false, error: "LLM unavailable" };
       const match = /当前阶段：(A[123])\n(.*)$/s.exec(prompt)!; const source = JSON.parse(match[2]!).sources[0];
       if (match[1] !== "A1") return { success: true, data: { payload: match[1] === "A2" ? { reviews: [] } : { competitors: [] }, citations: [], noEvidenceReason: "页面仅商品规格，无可核实评价或竞品" } };
@@ -42,6 +43,7 @@ describe("营销事实宿主完整执行", () => {
     const prepared = await prepare();
     expect(prepared.bundle.stages.map(stage => [stage.stage, stage.facts.status])).toEqual([["A1", "source_bound"], ["A2", "no_evidence"], ["A3", "no_evidence"]]);
     expect(prepared.bundle.sources).toHaveLength(1); expect(prepared.bundle.restrictions).toHaveLength(2); expect(extractionCalls).toHaveLength(3);
+    expect(extractionOptions).toEqual(Array.from({ length: 3 }, () => ({ forceJson: true, temperature: 0, maxTokens: 8192, thinking: { type: "disabled" } })));
     expect(prepared.bundle.dossier.identity).toMatchObject({ specs: { 风量: "9 档" } });
     expect(prepared.bundle.dossier.provenance).toEqual(expect.arrayContaining([expect.objectContaining({ claim_ref: "identity.specs.风量", source_url: sourceUrl, agent: "ProductInfoCollector" })]));
     expect((prepared.bundle.dossier.gaps as string[]).some(gap => gap.includes('规格 "风量" 无来源'))).toBe(false);
@@ -51,6 +53,7 @@ describe("营销事实宿主完整执行", () => {
     expect(prepared.g1Content).toContain('"schemaVersion":"workloom.marketing-facts/v1"'); expect(modelCalls).toHaveLength(3);
     expect(JSON.stringify(modelCalls)).toContain("不得声称静音或市场第一"); expect(JSON.stringify(modelCalls)).not.toContain("999档");
     const saved = await finalizeMarketingFacts(prepared, shots, env); expect(modelCalls).toHaveLength(4);
+    expect(modelCalls.every(call => call.temperature === 0.2 && call.response_format.type === "json_object" && !("thinking" in call))).toBe(true);
     const checked = await verifyMarketingFacts({ root, ...saved, scope, shots }); expect(checked.outputReviews[0]?.promptSha256).toBe(renderSha256(shots[0]!.prompt));
     expect(await readFile(path.join(root, checked.sources[0]!.textRef), "utf8")).toBe(sourceText);
   });

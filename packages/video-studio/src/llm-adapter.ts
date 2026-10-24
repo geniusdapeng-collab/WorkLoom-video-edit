@@ -29,6 +29,7 @@ export interface LLMReasonOptions {
   forceJson?: boolean;
   responseFormat?: { type: string };
   thinking?: Record<string, unknown>;
+  signal?: AbortSignal;
 }
 
 export interface LLMReasonResult {
@@ -114,6 +115,15 @@ export class WorkloomLLMEngine {
           {
             action: scene, scene, plan: this.cfg.router.plan,
             forceTier: isFast ? "L1" : undefined,
+            timeoutMs: this.cfg.timeoutMs,
+            signal: opts.signal,
+            generation: {
+              temperature: opts.temperature ?? 1,
+              topP: opts.topP ?? 0.95,
+              maxTokens: opts.maxTokens ?? this.cfg.maxTokens,
+              responseFormat: opts.forceJson ? { type: "json_object" } : opts.responseFormat,
+              thinking: opts.thinking && typeof opts.thinking === "object" ? opts.thinking : undefined,
+            },
             messages: [
               {
                 role: "system",
@@ -175,7 +185,7 @@ export class WorkloomLLMEngine {
           Authorization: `Bearer ${this.cfg.apiKey}`
         },
         body: JSON.stringify(body),
-        signal: controller.signal
+        signal: opts.signal ? AbortSignal.any([opts.signal, controller.signal]) : controller.signal
       });
       if (!resp.ok) {
         return {
@@ -397,9 +407,11 @@ export function installVendorEngineBridge(engine: WorkloomLLMEngine): () => void
     redirect("reasonRaw", (prompt: unknown, options: unknown = {}) =>
       engine.reasonRaw(String(prompt ?? ""), options as LLMReasonOptions));
     redirect("reasonStructured", (prompt: unknown, schema: unknown, options: unknown = {}) =>
-      engine.reasonStructured(String(prompt ?? ""), { ...(options as LLMReasonOptions), ...(schema ? { responseFormat: { type: "json_object" } } : {}) }));
-    redirect("chat", (systemPrompt: unknown, userPrompt: unknown, temperature: unknown = 1) =>
-      engine.chat(String(systemPrompt ?? ""), String(userPrompt ?? ""), Number(temperature) || 1));
+      engine.reasonStructured(String(prompt ?? ""), schema, options as LLMReasonOptions));
+    redirect("chat", (systemPrompt: unknown, userPrompt: unknown, temperature: unknown = 1) => {
+      const parsedTemperature = Number(temperature);
+      return engine.chat(String(systemPrompt ?? ""), String(userPrompt ?? ""), Number.isFinite(parsedTemperature) ? parsedTemperature : 1);
+    });
     redirect("generate", (prompt: unknown, options: unknown = {}) =>
       engine.generate(String(prompt ?? ""), options as LLMReasonOptions));
     return () => {
