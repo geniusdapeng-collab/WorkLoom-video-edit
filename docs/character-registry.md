@@ -1,85 +1,47 @@
-# 内置角色库与默认模特 v1（2026-09-24）
+# 内置角色库与默认模特（2026-10-24）
 
-> **一句话（先看这句）**：本仓**自带** 1 号模特「陈卓」（`chen-zhuo`）——角色档案、8 角度定妆照与默认选角规则
-> 随仓分发（`bundles/ai-video/library/characters/`）。**镜头卡里什么都不写，出片链路就会自动用她**：
-> 你不需要先建角色、准备照片，也不需要额外参数。
->
-> 数据事实源：[`bundles/ai-video/library/characters/registry.json`](../bundles/ai-video/library/characters/registry.json)
-> ｜ 目录内说明：[`bundles/ai-video/library/characters/README.md`](../bundles/ai-video/library/characters/README.md)
+本仓默认1号是 **李英子（`young-rider-01`），常用称呼英子**。她是本任务从纯文字开始重新生成的原创虚构AI成年女性：约20岁、鹅蛋脸、黑色高马尾、朝气蓬勃，黑色机车夹克、白T、深色长裤与黑靴。
 
-## 一、命名
+李英子常被叫作英子，设定为工业设计专业大二学生，喜欢攀岩、滑板、机车文化和运动摄影。她好奇、爽快，有一点要强，也会面对新挑战时紧张；习惯先准备、再练习，像和朋友聊天一样分享发现。这些个性与履历都是虚构设定，完整角色基线在profile的identity/persona/biography中。
 
-- **1 号模特：陈卓（`chen-zhuo`）** — 系统默认模特。档案：`bundles/ai-video/library/characters/model-01-chen-zhuo/`
-- **2 号模特：林予安（`lin-yu-an`）** — 内置**原创虚构纯 AI 角色**（`kind: generated`，非真人、非 1 号替身）。
-  档案：`bundles/ai-video/library/characters/model-02-lin-yu-an/`；**只在镜头卡点名时使用**（`"character": "林予安"`），
-  `defaultModel` 仍指向 1 号陈卓。8 张定妆照全部由官方 Seedream 5.0 pro **纯文本生成**（请求不含任何图片输入），
-  逐角度证据见同目录 `provenance.json`：实际 `response.model`/`created`/HTTP `x-request-id`、提示词摘要与 SHA-256、
-  产物 SHA-256、客户自定义 ProduceID。**该 ProduceID 是我们自定义的资源映射，不是平台 task_id；平台隐式水印未验证。**
-  该套为**无 v2 收据链的历史口径**（同 1 号 v3 定妆照）：`portraitSets[0]` 不含逐角度 artifacts/angleRequests，
-  因此 `loadCharacterEntry` 的核验 scope 是 `legacy-current-bytes-only`（按角度文件名 + 当前字节核验）。
-- 档案正文含：外貌特征（照片提取）、服装基线、气质、授权信息、定妆照集（v3，8 角度，图生图 + 抠像友好背景硬闸）。
-- **原始照片不进仓库**（仅本地保留）；仓库内只放 AI 生成的定妆照与档案正文。
-- **2 号模特不是任何真人的数字化身**：生成时仅人工参考旧素材里可概括的一般五官词，未把旧图或真人原图作为图片输入；
-  档案里不主张与任何真人身份等同。
-- **在册资产（完整性索引）**：`registry.json`、`model-01-chen-zhuo/profile.json`、`model-01-chen-zhuo/portraits/v3/*.png`（8 张，
-  合计 10 件）已登记在 `bundles/ai-video/bundle.json#provides.library`——装载时会校验 sha256，稳定包还会验 Ed25519 签名。
-  因此**改动这些文件必须在同一提交里重算摘要**（`pnpm bundle:release` 或在仓内跑
-  `tsx scripts/bundle-governance.mts --refresh-digests`，稳定包另需 `BUNDLE_SIGNING_PRIVATE_KEY` / `BUNDLE_SIGNING_KEY_ID`）。
-  运行期账本（`gates.jsonl`、`reviews/*.json`）与目录说明 README **刻意不入册**——它们是追加写/文档，不入完整性索引。
+唯一事实源：[`registry.json`](../bundles/ai-video/library/characters/registry.json)；目录说明：[`characters/README.md`](../bundles/ai-video/library/characters/README.md)。
 
-## 二、选角规则（管线自动执行）
+| 编号 | 姓名 / ID | 当前用途 | 档案与版本 |
+|---|---|---|---|
+| 1 | 李英子 / `young-rider-01` | 默认原创虚构AI模特 | `model-01-young-rider/profile.json`；`portraits/v1` |
+| 2 | 陈卓 / `chen-zhuo` | 原旗袍人物，显式点名时使用 | 历史路径 `model-01-chen-zhuo/profile.json`；`portraits/v3` |
+| 3 | 林予安 / `lin-yu-an` | 原2号原创虚构AI，显式点名时使用 | 历史路径 `model-02-lin-yu-an/profile.json`；`portraits/v1` |
 
-`bundles/ai-video/library/characters/registry.json` 是唯一事实源：
+三个身份各有8张标准定妆照。目录名的旧编号不承担当前编号语义；当前编号以registry与profile为准。更换默认不改变已有项目按ID、路径、版本绑定的人物。
 
-1. 项目/镜头卡**显式指定**模特 → 用指定的；
-2. 镜头卡出现姓名或别名（`陈卓` / `卓卓`）→ 解析到该档案；
-3. **都没指定 → 自动使用 `defaultModel`（陈卓）**，运行日志打印
-   `未显式指定模特 → 使用系统默认模特：陈卓（chen-zhuo，1 号）`；
-4. 仍无 → 用库里第一个，并如实记录（不静默）。
+## 默认与显式人物
 
-多角色项目：指定姓名的角色按姓名解析，其余未指定角色才回落到默认模特。
-
-## 三、怎么加新模特
-
-1. 目录：`bundles/ai-video/library/characters/model-02-<pinyin>/`（`profile.json` + `portraits/vN/`）；
-2. 在 `registry.json#models` 追加一条（`ordinal` 递增、`aliases` 写中文名与常用称呼）；
-3. 需要改默认模特时，把 `defaultModel` 指向新 id（一次只有一个默认）。
-
-> 改了 `registry.json` 或档案后，出片链路**立刻生效**（`scripts/tools/full-chain-film.mts` 每轮直接读本目录）；
-> 改动前请先跑 `node scripts/verify-builtin-character-assets.mjs`（校验默认模特可解析、四角度定妆照齐备、
-> 默认声明在首页/文档/能力清单/目录说明四处同步）。
-
-## 四、怎么用（三种写法）
+角色库消费方读取 `registry.json#defaultModel`；未显式指定出镜模特时选择李英子。原镜头明确指定人物时优先逐人绑定，姓名/别名无法唯一匹配则明确失败，不用默认人物补位；空镜、产品或环境镜头没有出镜人物证据时不带入人物。
 
 ```jsonc
-// ① 最省事：什么都不写 → 自动使用陈卓（默认模特）
-{ "shotId": "S01", "motion": "缓推近，保持主体完整" }
-
-// ② 点名用她（也可写别名"卓卓"）→ 解析到同一档案
+// 显式使用新默认1号
+{ "shotId": "S01", "character": "李英子", "costume": "黑色机车夹克、白T与深色长裤" }
+// 陈卓现在是2号，身份与历史旗袍资产继续保留
 { "shotId": "S02", "character": "陈卓", "costume": "月白色苏式改良旗袍（w1）" }
-
-// ③ 多人出镜：写了名字的按名字解析，其余未指定角色回落到默认模特
-{ "shotId": "S03", "characters": ["陈卓"], "composition": "中景偏右，留出标题安全区" }
+// 林予安现在是3号
+{ "shotId": "S03", "character": "林予安" }
 ```
 
-命令行出片（`scripts/tools/full-chain-film.mts`）**无需额外参数**：它固定装载
-`bundles/ai-video/library/characters/**`，再叠加 `--library` 指向的项目自有档案。
+## 来源与核验边界
 
-## 五、常见问题（新下载项目最常卡的三件事）
+李英子使用项目已有的 `kind: generated`，`subjectType: synthetic-digital-human`，`authorization.status: synthetic-no-real-person`。正面是纯文生主图，另7张只参考这张新生成的虚构AI正面图，没有真人照片或既有角色人脸输入。
 
-| 问题 | 答案 |
-|---|---|
-| 我拿到的项目里**有定妆照吗**？ | 有。`bundles/ai-video/library/characters/model-01-chen-zhuo/portraits/v3/` 里 8 个角度随仓分发，克隆即可用。 |
-| 我要**先建角色**才能出片吗？ | 不用。不指定 `character` 时自动用默认模特；只有换人/加人时才需要建新档案。 |
-| 为什么我"找不到定妆照"或生成的人不像？ | ① 别去 `var/media/characters`（那是**运行期**生成目录）；② 真人照片不能直传平台（要走 `asset://` 授权素材）；③ 参考图绑定见 `packages/video-studio/src/portrait-binding.ts`。 |
-| 在哪里能看到这份声明？ | 本文件 · `bundles/ai-video/library/characters/README.md` · `bundles/ai-video/library/README.md` · `README.md`（能力速览自动生成块）· `docs/capability-map.md` · `docs/SYSTEM-OVERVIEW.md` · `.ai-prompt` · `AGENTS.repo.md`。 |
+[`model-01-young-rider/provenance.json`](../bundles/ai-video/library/characters/model-01-young-rider/provenance.json) 包含8个完整提示词、参考图SHA、输出SHA/字节数/尺寸；全部原PNG为1024×1536，保持原始字节。工具没有暴露实际模型ID、种子、供应商HTTP请求ID或task ID，档案没有填造这些字段。未验证隐式水印、自动背景闸或生物识别同一性。
 
-## 六、相关代码与门禁
+李英子使用可移植的旧兼容定妆照结构，档案加载的核验scope为 `legacy-current-bytes-only`；这表示当前文件可读取且角度齐备。8图、profile、provenance与portrait-set同时进入行业包完整性索引，逐资产SHA变化会被经过验证的行业包装载器拒绝。陈卓与林予安的历史档案、原图和历史回执继续保留原来源，不重写成新人物的生成证据。
 
-| 关心的事 | 入口 |
-|---|---|
-| 档案库读写 / 选角解析 | `packages/video-studio/src/character-archive.ts` |
-| 定妆照绑定与 `asset://` 授权素材透传 | `packages/video-studio/src/portrait-binding.ts` |
-| 出片链路装载与默认模特日志 | `scripts/tools/full-chain-film.mts`（`loadCharacters` / `loadCharacterRegistry`） |
-| 设计与数据模型 | `docs/character-archive-design.md` |
-| 自检 | `node scripts/verify-builtin-character-assets.mjs`（资产 + 声明一致性，已接入 `.cnb.yml` static-gate） · `pnpm vitest run packages/video-studio` |
+## 加角色与完整性索引
+
+1. 新增独立角色目录，写profile、定妆照不可变版本与可核对的来源记录。
+2. registry追加唯一ID、唯一编号、姓名/别名、相对档案路径；profile编号同步。
+3. 换默认时显式改 `defaultModel`，默认角色编号设为1；其它角色顺延，保持既有ID和历史路径。
+4. 把随包运行资产加入 `bundle.json#provides.library` 并更新相应SHA与清单摘要。稳定包另需可信Ed25519签名；运行期账本与README不入索引。
+
+官方门禁：`node scripts/verify-builtin-character-assets.mjs`；资产测试：`pnpm vitest run packages/video-studio/src/builtin-character-library.test.ts`。角色读取/选角实现是 `packages/video-studio/src/character-archive.ts`；正式行业包装载入口是 `packages/base/bundles/assembly.ts#loadVerifiedBundleManifest`。
+
+角色资产随仓存在不代表模型、供应商账户和后期环境已经就绪。真人肖像仍走供应商授权素材通道；虚构AI档案不主张真人授权，也不能替代真人肖像许可。

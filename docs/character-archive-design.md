@@ -3,8 +3,8 @@
 > 状态：设计与实现说明（2026-09-28，T-2026-0927-0036 更新）· 适用范围：AI 视频/漫剧出镜人物（1–10 人/项目）
 > 定位：**人物档案是客户的核心资产**——一次建档、跨项目复用；生成链路自动解析、自动调用、可版本化、可审计。
 
-> **开箱即用提示**：本仓**已经内置** 1 号模特「陈卓」（`chen-zhuo`）——档案 + 8 角度定妆照随仓分发在
-> `bundles/ai-video/library/characters/`。当前档案模块要求原镜头明确角色身份；不写人物、仅有旁白或库中仅一人均不会自动选她。
+> **开箱即用提示**：本仓**已经内置** 1 号默认模特「李英子」（`young-rider-01`）——档案 + 8 角度定妆照随仓分发在
+> `bundles/ai-video/library/characters/`。当前档案模块要求原镜头明确角色身份；不写人物、仅有旁白或库中仅一人均不会在缺少出镜证据时自动补人。默认模特由调用方从registry明确绑定；陈卓现为2号，林予安为3号。
 > 规则、用法与常见问题见 [`character-registry.md`](character-registry.md)；目录内说明见
 > [`../bundles/ai-video/library/characters/README.md`](../bundles/ai-video/library/characters/README.md)。
 

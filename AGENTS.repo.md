@@ -15,13 +15,13 @@
 
 ## 一、视频工位：内置角色资产（新接手最容易踩的一条）
 
-**本仓自带默认模特「陈卓」（`chen-zhuo`），开箱即用——不要以为"仓库里没有人物资产"而重复建档。**
+**本仓自带默认模特「李英子」（`young-rider-01`），开箱即用——不要以为"仓库里没有人物资产"而重复建档。**
 
 用户已经指定人物时必须显式绑定对应档案，不能依赖默认模特补位；已批准资产复用，已有属性与授权记录不重复询问。
 
-- 资产位置：`bundles/ai-video/library/characters/`（`registry.json` + `model-01-chen-zhuo/`，8 角度定妆照随仓分发）。
+- 资产位置：`bundles/ai-video/library/characters/`（`registry.json` + `model-01-young-rider/`，8 角度定妆照随仓分发）。
 - 默认规则：镜头卡**不写** `character` / `characters` 时，待新生成镜头的出片链路自动使用 `registry.json#defaultModel`；
-  运行日志会打印 `未显式指定模特 → 使用系统默认模特：陈卓（chen-zhuo，1 号）`。
+  运行日志会打印 `未显式指定模特 → 使用系统默认模特：李英子（young-rider-01，1 号）`。
 - 装载方式：`scripts/tools/full-chain-film.mts` 仅待新生成需要角色时装载 `bundles/ai-video/library/characters/**`
   （再叠加 `--library` 指向的项目自有档案），因此**无需额外参数**。
 - 真人边界：真人肖像只能走平台授权通道（火山方舟「私域真人人像库」→ `asset://<asset ID>`）；
