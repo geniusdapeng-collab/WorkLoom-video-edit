@@ -63,6 +63,7 @@ export interface ExecutorLlm {
     forceJson?: boolean;
     temperature?: number;
     maxTokens?: number;
+    thinking?: Record<string, unknown>;
   }): Promise<LLMReasonResult>;
 }
 

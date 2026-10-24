@@ -13,7 +13,7 @@
  *   账单 = 事件投影，不重算（L6.3）
  */
 import { OFF_PEAK_RATE_RATIO, OFF_PEAK_WINDOW } from "@workloom/shared";
-import { mockCredits, type ChatMessage, type ChatResult, type ModelProvider } from "./providers.js";
+import { mockCredits, type ChatGenerationOptions, type ChatMessage, type ChatResult, type ModelProvider } from "./providers.js";
 import {
   DEFAULT_MODEL_POLICY, resolveScene, resolveTier, tierUp,
   type ModelPolicy, type PlanId, type Tier3,
@@ -276,6 +276,8 @@ export const LONG_CONTEXT_CHARS = 24_000;
 export const TIER_TOKEN_CEILING: Record<Tier3, number> = { L1: 4000, L2: 24_000, L3: Number.POSITIVE_INFINITY };
 
 export interface SmartTask extends RouteTask {
+  /** OpenAI-compatible generation controls, without model/auth/accounting overrides. */
+  generation?: ChatGenerationOptions;
   /** 场景标识（model-policy.yml 的 scenes key；缺省 generic） */
   scene?: string;
   /** 租户套餐（缺省 standard） */
@@ -341,6 +343,16 @@ export async function routeSmart(
   const callTimeoutMs = task.timeoutMs && task.timeoutMs > 0
     ? task.timeoutMs
     : (DEFAULT_SCENE_TIMEOUTS[scene] ?? DEFAULT_CALL_TIMEOUT_MS);
+  const cancelled = async (
+    previous: Array<{ from: string; to: string | null; reason: string }> = [],
+    from = `${scene}:cancelled`,
+  ): Promise<SmartRouteResult> => {
+    const cancellation = { from, to: null, reason: "模型调用已取消（调用方 abort）" };
+    await sink.recordDegradation({ ...cancellation, action: task.action });
+    return { kind: "unavailable", degraded: [...previous, cancellation], tier, scene,
+      passthrough: sp.fallback === "passthrough-disclose" };
+  };
+  if (task.signal?.aborted) return cancelled();
 
   /**
    * GR-05：全链熔断快速失败——同一场景连续失败达阈值后，冷却期内不再逐家试。
@@ -403,8 +415,11 @@ export async function routeSmart(
 
   for (let i = 0; i < chain.length; i++) {
     const modelId = chain[i]!;
+    if (task.signal?.aborted) return cancelled(degraded, modelId);
     const provider = providers.get(modelId);
-    if (!provider || !(await provider.healthy())) {
+    const healthy = provider && await provider.healthy();
+    if (task.signal?.aborted) return cancelled(degraded, modelId);
+    if (!provider || !healthy) {
       const to = chain[i + 1] ?? null;
       degraded.push({ from: modelId, to, reason: "unhealthy" });
       await sink.recordDegradation({ from: modelId, to, reason: "unhealthy", action: task.action }); // L6.1
@@ -412,7 +427,9 @@ export async function routeSmart(
     }
     try {
       // GR-04：超时 + 外部取消信号真正下传到 fetch（此前 signal 在装配层丢失、"取消"只赢了 Promise.race）
-      const result: ChatResult = await provider.chat(task.messages, { signal: task.signal, timeoutMs: callTimeoutMs });
+      const result: ChatResult = await provider.chat(task.messages, {
+        ...task.generation, signal: task.signal, timeoutMs: callTimeoutMs,
+      });
       // 成功即清零该场景的连续失败计数（半开恢复）
       sceneCircuits.delete(scene);
       const credits = computeCredits({
@@ -429,6 +446,8 @@ export async function routeSmart(
       }
       return { kind: "answered", text: result.text, modelTrace: trace, degraded, tier, scene, billTo: sp.billTo ?? "tenant" };
     } catch (err) {
+      // Caller cancellation is not a provider outage and must not poison the shared scene circuit.
+      if (task.signal?.aborted) return cancelled(degraded, modelId);
       const to = chain[i + 1] ?? null;
       const reason = err instanceof Error ? err.message : String(err);
       degraded.push({ from: modelId, to, reason });
