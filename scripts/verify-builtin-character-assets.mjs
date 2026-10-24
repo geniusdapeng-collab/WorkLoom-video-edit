@@ -2,7 +2,7 @@
 /**
  * 内置角色资产与声明一致性门禁（视频行业包 · T-2026-0925-0004）
  *
- * 背景：本仓**自带**默认模特「陈卓」（`chen-zhuo`）——角色档案 + 8 角度定妆照随仓分发；
+ * 背景：本仓**自带**默认模特「李英子」（`young-rider-01`）——角色档案 + 8 角度定妆照随仓分发；
  * 镜头卡不写 `character` 时，出片链路自动采用 `bundles/ai-video/library/characters/registry.json#defaultModel`。
  * 但新下载项目的开发者与 AI Agent 常以为"仓库里没有人物资产"而重复建档、或找不到定妆照，
  * 因此本门禁把「资产在 + 声明在」一起守住：任一侧被删都会红灯。
@@ -41,6 +41,12 @@ if (!fs.existsSync(registryFile)) {
   const defaultModelId = String(registry?.defaultModel ?? "");
   const models = Array.isArray(registry?.models) ? registry.models : [];
   const defaultModel = models.find((model) => model?.id === defaultModelId) ?? null;
+  const ids = models.map((model) => model?.id);
+  const ordinals = models.map((model) => model?.ordinal);
+  if (new Set(ids).size !== ids.length) errors.push("内置角色库存在重复 id");
+  if (ordinals.some((ordinal) => !Number.isInteger(ordinal) || ordinal < 1)
+    || new Set(ordinals).size !== ordinals.length) errors.push("内置角色库编号必须为互不重复的正整数");
+  if (defaultModel && defaultModel.ordinal !== 1) errors.push("系统默认模特必须是 registry 中唯一的1号");
 
   if (!defaultModelId || !defaultModel) {
     errors.push(`内置默认模特不可解析：registry.json#defaultModel=${JSON.stringify(defaultModelId)} 在 models[] 中没有对应档案`);
@@ -122,6 +128,7 @@ if (!fs.existsSync(registryFile)) {
         continue;
       }
       if (profile?.id !== id) errors.push(`内置模特「${id}」档案 id 与清单不一致：${String(profile?.id ?? "未声明")}`);
+      if (profile?.ordinal !== model.ordinal) errors.push(`内置模特「${id}」档案编号与清单不一致：${String(profile?.ordinal ?? "未声明")}`);
       const sets = Array.isArray(profile?.portraitSets) ? profile.portraitSets : [];
       const activeSet = sets.find((set) => set?.active) ?? sets.at(-1) ?? null;
       const setDir = activeSet ? path.join(archiveDir, String(activeSet.dir ?? "")) : "";

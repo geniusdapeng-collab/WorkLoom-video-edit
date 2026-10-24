@@ -1,0 +1,248 @@
+{
+  "schemaVersion": "workloom.character-provenance/v1",
+  "characterId": "young-rider-01",
+  "characterName": "李英子",
+  "ordinal": 1,
+  "origin": "new-original-fictional-AI-character",
+  "subjectType": "synthetic-digital-human",
+  "authorizationStatus": "synthetic-no-real-person",
+  "userRequest": "估计穿旗袍的这组太像真人脸了，你还是自己生成一组 20 岁左右的年轻的女性，不需要参考现有的人脸，鹅蛋脸马尾辫的朝气蓬勃的 8 角度穿长裤的定妆照",
+  "generationMode": "pure-text-master-then-new-AI-master-reference-only",
+  "tool": "image_gen",
+  "actualModelId": "not-exposed-by-tool",
+  "actualModelIdNote": "The built-in image generation tool did not expose a concrete model ID. No provider, model version, HTTP request ID, task ID or seed is asserted.",
+  "externalRealPersonReferences": [],
+  "existingCharacterReferences": [],
+  "master": {
+    "angle": "front",
+    "file": "portraits/v1/young-rider-01-front.png",
+    "sha256": "5f254d9ab6effb7409d9e4c2d513f3d5ca2b132e6805c7b77d0f13278361ebcf",
+    "mode": "pure-text-to-image",
+    "referenceImageCount": 0
+  },
+  "derivativeReferencePolicy": "The remaining seven portraits use only this newly generated fictional AI front master.",
+  "generationRecordAssembledAt": "2026-10-24T01:28:26.517Z",
+  "generationRecordTimeNote": "Time recorded when this task assembled its generation record; individual provider timestamps were not exposed.",
+  "pixelProcessing": "none: original generated PNG bytes copied without resize, recompression, retouch, background replacement or face editing",
+  "watermarkVerification": {
+    "status": "unverified",
+    "note": "No watermark detection or provider provenance attestation was exposed by the tool."
+  },
+  "visualReview": {
+    "status": "reviewed-in-current-task",
+    "scope": "Root agent inspected all eight source PNGs visually for requested age range, oval face, ponytail, lively appearance, long trousers and consistent outfit; this is visual review, not automated biometric identity proof.",
+    "reviewer": "current-task-root-agent"
+  },
+  "angles": [
+    {
+      "angle": "front",
+      "file": "portraits/v1/young-rider-01-front.png",
+      "output": {
+        "sha256": "5f254d9ab6effb7409d9e4c2d513f3d5ca2b132e6805c7b77d0f13278361ebcf",
+        "bytes": 1816151,
+        "width": 1024,
+        "height": 1536,
+        "format": "png"
+      },
+      "request": {
+        "tool": "image_gen",
+        "mode": "pure-text-to-image",
+        "prompt": "Create ONE photorealistic full-body FRONT character reference portrait, portrait 2:3 composition. This is a brand-new original fictional young adult woman, about 20 years old. Do not reference or resemble any supplied photo, real person, or existing character. She has a natural oval face, dark brown eyes, black hair in a neat high ponytail, youthful lively energy, a small confident friendly closed-mouth smile, natural proportions and visible realistic skin texture. Clothing: unbranded matte-black lightweight motorcycle jacket worn open over a plain white crew-neck T-shirt; dark charcoal straight long riding trousers covering the ankles; simple matte-black ankle riding boots. No dress or skirt, no shorts, no helmet, no logos, no jewelry, no props. Stand straight facing camera, both arms relaxed slightly away from torso, natural hands with five fingers, feet comfortably apart. Entire body from ponytail to soles fully visible with breathing room. Clean uniform light-gray seamless studio background, evenly diffused neutral 5600K soft light, realistic 85mm portrait photography, no dramatic shadow, no beauty filter. No text, watermark, borders, collage, or additional people. This image is the master design for a consistent eight-angle character reference set. Generate one single front portrait only.",
+        "promptSha256": "b88c40b29cf994adf237b8fccea6e53ab67eef4aa3b8e271f554888b22988ced",
+        "referenceImages": [],
+        "externalRealPersonReferenceCount": 0
+      },
+      "requestRecordSha256": "63ae6e8df822b844862d74c4ef29089efd5a95cbe50f25d2733a7359129c8f4d",
+      "requestRecordSha256Note": "Local hash of the recorded tool request, not a provider task ID or provider-signed receipt."
+    },
+    {
+      "angle": "threeQuarter",
+      "file": "portraits/v1/young-rider-01-threeQuarter.png",
+      "output": {
+        "sha256": "fb5d124cf3e6a5bc84bd38371edb24a311fd2d412559871cb18a82fbb1817a0c",
+        "bytes": 1727951,
+        "width": 1024,
+        "height": 1536,
+        "format": "png"
+      },
+      "request": {
+        "tool": "image_gen",
+        "mode": "reference-to-image",
+        "prompt": "Use case: identity-preserve. Input reference is ONLY the brand-new fictional AI master character just generated for this project, not a real person's photo. Create ONE individual character reference image from it. Preserve the EXACT SAME identity, oval face shape, facial proportions, eyes, nose, lips, skin tone, black high ponytail, young-adult appearance around 20 years old, slim natural build. Preserve the SAME unbranded matte-black motorcycle jacket, plain white crew-neck T-shirt, dark charcoal straight long riding trousers covering ankles, and black ankle boots. Uniform clean light-gray seamless background and neutral diffused soft 5600K light, realistic 85mm portrait photography, natural skin texture, no retouching or beauty filter. One image only, portrait 2:3. No text, logo, watermark, collage, frame, extra people, extra limbs, skirt, shorts, accessories, or props. Specific angle/framing: Full body, three-quarter view, body turned 45 degrees toward image left, face turned the same direction in a natural 3/4 portrait; both eyes visible. Arms relaxed, entire ponytail through boot soles visible.",
+        "promptSha256": "8e85803312d9c7814d6490a87fd781fd29692f6f617abcbbb7380572b26ac6ca",
+        "referenceImages": [
+          {
+            "file": "portraits/v1/young-rider-01-front.png",
+            "sha256": "5f254d9ab6effb7409d9e4c2d513f3d5ca2b132e6805c7b77d0f13278361ebcf",
+            "kind": "new-original-fictional-AI-master"
+          }
+        ],
+        "externalRealPersonReferenceCount": 0
+      },
+      "requestRecordSha256": "8b575a83b18fb2d567932e008b6880f9de69e532554e248a673c9759d8d7a880",
+      "requestRecordSha256Note": "Local hash of the recorded tool request, not a provider task ID or provider-signed receipt."
+    },
+    {
+      "angle": "closeup",
+      "file": "portraits/v1/young-rider-01-closeup.png",
+      "output": {
+        "sha256": "2cff95624fc0b9436c5f332ad2f56aca92e265bbbbc9f1e3b314c6586f1c8f4f",
+        "bytes": 2097897,
+        "width": 1024,
+        "height": 1536,
+        "format": "png"
+      },
+      "request": {
+        "tool": "image_gen",
+        "mode": "reference-to-image",
+        "prompt": "Use case: identity-preserve. Input reference is ONLY the brand-new fictional AI master character just generated for this project, not a real person's photo. Create ONE individual character reference image from it. Preserve the EXACT SAME identity, oval face shape, facial proportions, eyes, nose, lips, skin tone, black high ponytail, young-adult appearance around 20 years old, slim natural build. Preserve the SAME unbranded matte-black motorcycle jacket, plain white crew-neck T-shirt, dark charcoal straight long riding trousers covering ankles, and black ankle boots. Uniform clean light-gray seamless background and neutral diffused soft 5600K light, realistic 85mm portrait photography, natural skin texture, no retouching or beauty filter. One image only, portrait 2:3. No text, logo, watermark, collage, frame, extra people, extra limbs, skirt, shorts, accessories, or props. Specific angle/framing: Neutral front facial close-up, framed from upper chest to above the ponytail, head centered and fully visible, calm attentive expression and closed lips. Natural face proportions, detailed realistic skin, white shirt collar and open black jacket visible.",
+        "promptSha256": "393e6a653c2cb348f77fcb4becec43e0bcc0af532b9789d2b2f293ce4938593f",
+        "referenceImages": [
+          {
+            "file": "portraits/v1/young-rider-01-front.png",
+            "sha256": "5f254d9ab6effb7409d9e4c2d513f3d5ca2b132e6805c7b77d0f13278361ebcf",
+            "kind": "new-original-fictional-AI-master"
+          }
+        ],
+        "externalRealPersonReferenceCount": 0
+      },
+      "requestRecordSha256": "085399f133e64f7f101e0ad8e46f767c5f5def455c482a9e66cefafc5f881638",
+      "requestRecordSha256Note": "Local hash of the recorded tool request, not a provider task ID or provider-signed receipt."
+    },
+    {
+      "angle": "side",
+      "file": "portraits/v1/young-rider-01-side.png",
+      "output": {
+        "sha256": "711d63951aeb53054527b142f0c7c27c12b3defcdf0fda1261c5f0d827f9e024",
+        "bytes": 1712615,
+        "width": 1024,
+        "height": 1536,
+        "format": "png"
+      },
+      "request": {
+        "tool": "image_gen",
+        "mode": "reference-to-image",
+        "prompt": "Use case: identity-preserve. Input reference is ONLY the brand-new fictional AI master character just generated for this project, not a real person's photo. Create ONE individual character reference image from it. Preserve the EXACT SAME identity, oval face shape, facial proportions, eyes, nose, lips, skin tone, black high ponytail, young-adult appearance around 20 years old, slim natural build. Preserve the SAME unbranded matte-black motorcycle jacket, plain white crew-neck T-shirt, dark charcoal straight long riding trousers covering ankles, and black ankle boots. Uniform clean light-gray seamless background and neutral diffused soft 5600K light, realistic 85mm portrait photography, natural skin texture, no retouching or beauty filter. One image only, portrait 2:3. No text, logo, watermark, collage, frame, extra people, extra limbs, skirt, shorts, accessories, or props. Specific angle/framing: Full body strict left-facing side profile (90 degrees), body, nose and boots all face image left. One eye visible, ponytail profile clearly visible. Arms relaxed, entire ponytail through boot soles visible.",
+        "promptSha256": "89d1d49b8439dd852950df6333de7f8e2b6d29952184ea5906ae397885d84a4f",
+        "referenceImages": [
+          {
+            "file": "portraits/v1/young-rider-01-front.png",
+            "sha256": "5f254d9ab6effb7409d9e4c2d513f3d5ca2b132e6805c7b77d0f13278361ebcf",
+            "kind": "new-original-fictional-AI-master"
+          }
+        ],
+        "externalRealPersonReferenceCount": 0
+      },
+      "requestRecordSha256": "ea7037dfa1209e22a25094e5ae59f9c2c4bc5c7d4a26d4d2dba8d56b3caa06be",
+      "requestRecordSha256Note": "Local hash of the recorded tool request, not a provider task ID or provider-signed receipt."
+    },
+    {
+      "angle": "back",
+      "file": "portraits/v1/young-rider-01-back.png",
+      "output": {
+        "sha256": "cd801abef5068b06f6489fd4e1bfb41cc9f98e795a7e10e88ec325e13a995519",
+        "bytes": 1748525,
+        "width": 1024,
+        "height": 1536,
+        "format": "png"
+      },
+      "request": {
+        "tool": "image_gen",
+        "mode": "reference-to-image",
+        "prompt": "Use case: identity-preserve. Input reference is ONLY the brand-new fictional AI master character just generated for this project, not a real person's photo. Create ONE individual character reference image from it. Preserve the EXACT SAME identity, oval face shape, facial proportions, eyes, nose, lips, skin tone, black high ponytail, young-adult appearance around 20 years old, slim natural build. Preserve the SAME unbranded matte-black motorcycle jacket, plain white crew-neck T-shirt, dark charcoal straight long riding trousers covering ankles, and black ankle boots. Uniform clean light-gray seamless background and neutral diffused soft 5600K light, realistic 85mm portrait photography, natural skin texture, no retouching or beauty filter. One image only, portrait 2:3. No text, logo, watermark, collage, frame, extra people, extra limbs, skirt, shorts, accessories, or props. Specific angle/framing: Full body strict back view (180 degrees), back of head and ponytail visible, torso and boots face away, face not visible. Arms relaxed, entire ponytail through boot soles visible.",
+        "promptSha256": "7dbb9c2203f3c28f519d02d3e2365ebad73048bebf2ab021135e6ad25a6b0074",
+        "referenceImages": [
+          {
+            "file": "portraits/v1/young-rider-01-front.png",
+            "sha256": "5f254d9ab6effb7409d9e4c2d513f3d5ca2b132e6805c7b77d0f13278361ebcf",
+            "kind": "new-original-fictional-AI-master"
+          }
+        ],
+        "externalRealPersonReferenceCount": 0
+      },
+      "requestRecordSha256": "9e72ff1e5743e19a2782f191a7bfad8172de21bf5afd41a82da5990ca704e84e",
+      "requestRecordSha256Note": "Local hash of the recorded tool request, not a provider task ID or provider-signed receipt."
+    },
+    {
+      "angle": "actionPose",
+      "file": "portraits/v1/young-rider-01-actionPose.png",
+      "output": {
+        "sha256": "87e3631377cc446906d9e5d0ad810a0bfbbd301ad7541ccb61dc6035ef83d4f2",
+        "bytes": 1775847,
+        "width": 1024,
+        "height": 1536,
+        "format": "png"
+      },
+      "request": {
+        "tool": "image_gen",
+        "mode": "reference-to-image",
+        "prompt": "Use case: identity-preserve. Input reference is ONLY the brand-new fictional AI master character just generated for this project, not a real person's photo. Create ONE individual character reference image from it. Preserve the EXACT SAME identity, oval face shape, facial proportions, eyes, nose, lips, skin tone, black high ponytail, young-adult appearance around 20 years old, slim natural build. Preserve the SAME unbranded matte-black motorcycle jacket, plain white crew-neck T-shirt, dark charcoal straight long riding trousers covering ankles, and black ankle boots. Uniform clean light-gray seamless background and neutral diffused soft 5600K light, realistic 85mm portrait photography, natural skin texture, no retouching or beauty filter. One image only, portrait 2:3. No text, logo, watermark, collage, frame, extra people, extra limbs, skirt, shorts, accessories, or props. Specific angle/framing: Full-body relaxed athletic ready stance, three-quarter body toward camera, one boot half a step forward, weight naturally balanced, one hand lightly touching jacket lapel, the other relaxed. Energetic confident pose. Entire ponytail through boot soles visible. No action, vehicle, helmet, or props.",
+        "promptSha256": "673f2f2c12411afb6cdfc748045fa9069587dc4b71b7ade34879849687db3672",
+        "referenceImages": [
+          {
+            "file": "portraits/v1/young-rider-01-front.png",
+            "sha256": "5f254d9ab6effb7409d9e4c2d513f3d5ca2b132e6805c7b77d0f13278361ebcf",
+            "kind": "new-original-fictional-AI-master"
+          }
+        ],
+        "externalRealPersonReferenceCount": 0
+      },
+      "requestRecordSha256": "5ba140759e452e8868ebbac548ecada9464e08992739546c6ee088ebfafbffaa",
+      "requestRecordSha256Note": "Local hash of the recorded tool request, not a provider task ID or provider-signed receipt."
+    },
+    {
+      "angle": "emotionCloseup",
+      "file": "portraits/v1/young-rider-01-emotionCloseup.png",
+      "output": {
+        "sha256": "98b1abb39c19f83851dd8578bd47be8d079a3f28b5d08ced23ff1cfc7477b3d8",
+        "bytes": 2134457,
+        "width": 1024,
+        "height": 1536,
+        "format": "png"
+      },
+      "request": {
+        "tool": "image_gen",
+        "mode": "reference-to-image",
+        "prompt": "Use case: identity-preserve. Input reference is ONLY the brand-new fictional AI master character just generated for this project, not a real person's photo. Create ONE individual character reference image from it. Preserve the EXACT SAME identity, oval face shape, facial proportions, eyes, nose, lips, skin tone, black high ponytail, young-adult appearance around 20 years old, slim natural build. Preserve the SAME unbranded matte-black motorcycle jacket, plain white crew-neck T-shirt, dark charcoal straight long riding trousers covering ankles, and black ankle boots. Uniform clean light-gray seamless background and neutral diffused soft 5600K light, realistic 85mm portrait photography, natural skin texture, no retouching or beauty filter. One image only, portrait 2:3. No text, logo, watermark, collage, frame, extra people, extra limbs, skirt, shorts, accessories, or props. Specific angle/framing: Front facial expression portrait, framed from upper chest to above ponytail, bright confident lively smile with natural teeth subtly visible, cheerful energetic adult expression. Keep the same exact face and hairstyle. No wink or exaggerated facial distortion.",
+        "promptSha256": "7c21100b64da37f548619ebea6c4084b47133aa4d14156054aa2809ac33c5d98",
+        "referenceImages": [
+          {
+            "file": "portraits/v1/young-rider-01-front.png",
+            "sha256": "5f254d9ab6effb7409d9e4c2d513f3d5ca2b132e6805c7b77d0f13278361ebcf",
+            "kind": "new-original-fictional-AI-master"
+          }
+        ],
+        "externalRealPersonReferenceCount": 0
+      },
+      "requestRecordSha256": "bfb77d582a053550ff96b8c07298fecaadd61a90a612b1ed29732d18255252bf",
+      "requestRecordSha256Note": "Local hash of the recorded tool request, not a provider task ID or provider-signed receipt."
+    },
+    {
+      "angle": "handDetail",
+      "file": "portraits/v1/young-rider-01-handDetail.png",
+      "output": {
+        "sha256": "32c089187439bac3d317231fe11dd3e278505d3b1243019a3582239ef6331c19",
+        "bytes": 2032115,
+        "width": 1024,
+        "height": 1536,
+        "format": "png"
+      },
+      "request": {
+        "tool": "image_gen",
+        "mode": "reference-to-image",
+        "prompt": "Use case: identity-preserve. Input reference is ONLY the brand-new fictional AI master character just generated for this project, not a real person's photo. Create ONE individual character reference image from it. Preserve the EXACT SAME identity, oval face shape, facial proportions, eyes, nose, lips, skin tone, black high ponytail, young-adult appearance around 20 years old, slim natural build. Preserve the SAME unbranded matte-black motorcycle jacket, plain white crew-neck T-shirt, dark charcoal straight long riding trousers covering ankles, and black ankle boots. Uniform clean light-gray seamless background and neutral diffused soft 5600K light, realistic 85mm portrait photography, natural skin texture, no retouching or beauty filter. One image only, portrait 2:3. No text, logo, watermark, collage, frame, extra people, extra limbs, skirt, shorts, accessories, or props. Specific angle/framing: Natural close-up detail of the SAME woman's hands and waist, lower white T-shirt, open black motorcycle jacket sleeves, top of dark long riding trousers visible. Two relaxed natural hands near her sides, palms angled slightly toward camera, five correctly formed fingers per hand, short clean unpainted fingernails. Photorealistic fabric and skin, no head or face needed.",
+        "promptSha256": "cd0f9992ef799086f289422c503827506eb0e4cf3911d61fe391567e290fd6a8",
+        "referenceImages": [
+          {
+            "file": "portraits/v1/young-rider-01-front.png",
+            "sha256": "5f254d9ab6effb7409d9e4c2d513f3d5ca2b132e6805c7b77d0f13278361ebcf",
+            "kind": "new-original-fictional-AI-master"
+          }
+        ],
+        "externalRealPersonReferenceCount": 0
+      },
+      "requestRecordSha256": "c722ea6c0a64fd2f9bc4da642405a7af32bffd4e16ac8a04a0648c3a90e23473",
+      "requestRecordSha256Note": "Local hash of the recorded tool request, not a provider task ID or provider-signed receipt."
+    }
+  ]
+}

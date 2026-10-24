@@ -1,0 +1,39 @@
+{
+  "version": 1,
+  "dir": "portraits/v1",
+  "angles": [
+    "front",
+    "threeQuarter",
+    "closeup",
+    "side",
+    "back",
+    "actionPose",
+    "emotionCloseup",
+    "handDetail"
+  ],
+  "source": "img2img",
+  "active": true,
+  "status": "ready",
+  "model": "not-exposed-by-tool",
+  "wardrobe": {
+    "id": "w1",
+    "name": "黑色机车夹克、白T与深色长裤",
+    "detail": "无标识哑光黑色轻便机车夹克敞开穿着，白色圆领T恤，深炭灰直筒长骑行裤覆盖脚踝，黑色短骑行靴；无裙装、短裤、头盔、珠宝和商标",
+    "scene": "角色档案基线造型"
+  },
+  "files": {
+    "front": "portraits/v1/young-rider-01-front.png",
+    "threeQuarter": "portraits/v1/young-rider-01-threeQuarter.png",
+    "closeup": "portraits/v1/young-rider-01-closeup.png",
+    "side": "portraits/v1/young-rider-01-side.png",
+    "back": "portraits/v1/young-rider-01-back.png",
+    "actionPose": "portraits/v1/young-rider-01-actionPose.png",
+    "emotionCloseup": "portraits/v1/young-rider-01-emotionCloseup.png",
+    "handDetail": "portraits/v1/young-rider-01-handDetail.png"
+  },
+  "createdAt": "2026-10-24T01:28:26.517Z",
+  "provenanceFile": "provenance.json",
+  "sourceNote": "正面主图由纯文字生成；其余7角度仅参考本次新生成的虚构AI正面主图。未使用真人照片、旧角色图或现有人脸作为图片参考。",
+  "verificationNote": "可移植v1档案。逐图当前字节、PNG尺寸和SHA-256见provenance.json及bundle完整性索引；没有冒充v2供应商请求收据或机器背景闸通过。",
+  "wardrobeHash": "6bcb4d6bfe9b452f1ade9c84e542f773d297b0725cb8f585b5024b932364a911"
+}

@@ -2,9 +2,9 @@
   "schemaVersion": "workloom.character-profile/v1",
   "id": "chen-zhuo",
   "name": "陈卓",
-  "ordinal": 1,
+  "ordinal": 2,
   "kind": "authorized-real",
-  "modelRole": "系统的默认 1 号模特（未指定模特时自动启用）",
+  "modelRole": "系统内置2号模特陈卓（旗袍历史造型）；显式点名时使用，不再作为默认",
   "identity": {
     "gender": "female",
     "age": "三十岁上下",
@@ -84,9 +84,14 @@
     "苏州",
     "平江路",
     "口播",
-    "写实真人",
-    "默认模特"
+    "写实真人"
   ],
   "createdAt": "2026-09-24",
-  "updatedAt": "2026-09-24T14:15:24.223026Z"
+  "updatedAt": "2026-09-24T14:15:24.223026Z",
+  "aliases": [
+    "陈卓",
+    "卓卓",
+    "2号模特",
+    "二号模特"
+  ]
 }

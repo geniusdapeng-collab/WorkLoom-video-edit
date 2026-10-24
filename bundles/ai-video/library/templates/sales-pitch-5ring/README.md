@@ -16,7 +16,7 @@
 node_modules/.bin/tsx scripts/tools/full-chain-film.mts \
   --shots    bundles/ai-video/library/templates/sales-pitch-5ring/examples/workloom-growth/shotlist.json \
   --project  VID-GR01 \
-  --library  <项目自有角色库，可省略（默认用内置 1 号模特陈卓）> \
+  --library  <项目自有角色库，可省略（未指定人物时按registry默认1号李英子）> \
   --work-dir <.vm-work 根> --out <交付目录> \
   --brief    bundles/ai-video/library/templates/sales-pitch-5ring/examples/workloom-growth/brief.json \
   --stages   cine-kb,continuity,micromotion,spec,plates,videos,voice,compose,color,subtitle,bgm,cover,mux,deliver \
@@ -46,7 +46,7 @@ node_modules/.bin/tsx scripts/tools/full-chain-film.mts \
 | 字段齐备 | 内容镜 25 字段（含【景深】【道具】【节奏】【角色约束】） | `vendor PromptDeliveryGuard` |
 | 情绪字段 | 必须含可见部位微动作（眼/眉/嘴角/手/肩/呼吸…） | 同上（缺即打回） |
 | 场景字段 | 只写环境；人物、朝向、动作分别落在【角色】【构图】【动作】 | 监制评审纪律 |
-| 服装 | 以角色档案为准（内置模特 w1 月白旗袍）；换装先补档案造型 | `docs/character-registry.md` |
+| 服装 | 以角色档案为准（默认李英子w1为机车夹克、白T与长裤；本历史示例显式指定陈卓时仍使用其w1月白旗袍）；换装先补档案造型 | `docs/character-registry.md` |
 | 屏幕文字 | 一律虚化/过曝成色块，禁止可辨认文字与数字 | 监制硬纪律 |
 | 字幕 | 母版不烧字；旁挂 srt/ass/vtt + 软字幕轨副本 | `docs/video-delivery-and-revision.md` |
 | 变体差异 | 3 个变体必须实测可辨（画面平均像素差 / 音轨差异），雷同一票否决 | G-DLV1 |

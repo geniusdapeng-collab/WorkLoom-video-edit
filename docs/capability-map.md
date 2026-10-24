@@ -109,15 +109,15 @@
 
 ### L4.1 内置人物资产 · 开箱即用的默认模特（**别重复造角色**）
 
-本仓自带 1 号模特「陈卓」（`chen-zhuo`）：档案正文 + 8 角度定妆照 + 默认选角规则随仓分发，克隆即可出片。
+本仓自带 1 号模特「李英子」（`young-rider-01`）：档案正文 + 8 角度定妆照 + 默认选角规则随仓分发，克隆即可出片。
 **镜头卡不写 `character` 时，出片链路自动使用 `registry.json#defaultModel`**（日志：
-`未显式指定模特 → 使用系统默认模特：陈卓（chen-zhuo，1 号）`）；`full-chain-film.mts` 固定装载
+`未显式指定模特 → 使用系统默认模特：李英子（young-rider-01，1 号）`）；`full-chain-film.mts` 固定装载
 `bundles/ai-video/library/characters/**`，无需额外参数。
 
 | 能力 | 调用 | 验证 |
 |---|---|---|
 | 角色档案库（事实源） | `bundles/ai-video/library/characters/registry.json`（`defaultModel` + `models[].aliases/archive`） | `node scripts/verify-builtin-character-assets.mjs` 校验默认模特可解析、四角度定妆照齐备（>50KB） |
-| 内置默认模特「陈卓」（8 角度定妆照） | `bundles/ai-video/library/characters/model-01-chen-zhuo/` | 目录内 `gates.jsonl`（定妆照门）+ `reviews/*.json`（监制评审，只增不改） |
+| 内置默认模特「李英子」（8 角度定妆照） | `bundles/ai-video/library/characters/model-01-young-rider/` | `provenance.json`逐角度输入/输出SHA；bundle完整性索引；原PNG保持不改 |
 | 选角解析（显式 / 姓名别名 / 默认回落 / 兜底） | `scripts/tools/full-chain-film.mts#loadCharacters`、`packages/video-studio/src/character-archive.ts` | `pnpm vitest run packages/video-studio`；跑一镜出片看默认模特日志 |
 | 真人肖像授权通道（`asset://`） | 方舟「私域真人人像库」授权素材；参考图绑定见 `packages/video-studio/src/portrait-binding.ts` | 直传真人图必被平台拦（`InputImageSensitiveContentDetected.PrivacyInformation`）——不得绕过 |
 | **认证真人 → 专业定妆照（每个客户认证新模特都要走一遍）** | 客户给一张「资产详情页截图」→ `scripts/tools/real-person-assets.mts reconcile`（清单对账，**不猜角度**）→ Agent 读缩略图给角度映射 → `scripts/tools/portrait-set-from-asset.mts`（**默认标准 8 角度**两段式出图；机器像不像**只留证**，不阻断、不触发重做）→ `scripts/tools/portrait-set-install.mts`（装档 + 写后复核）→ `scripts/tools/portrait-agent.mts accept`（**人类验收放行**，`via=owner-acceptance`）。SOP：[`real-person-portrait-set.md`](real-person-portrait-set.md)；速查：`bundles/ai-video/README.md` §6.1 | 机器判据**退出决策链**（同一批文件实测 92/15/86，不可作放行依据）；`portrait-set-install.mts` 写后复核 `verifyPortraitSet=passed`；放行/退回由人类验收记录决定 |

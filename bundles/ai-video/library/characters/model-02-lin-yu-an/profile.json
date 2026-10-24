@@ -3,11 +3,14 @@
   "id": "lin-yu-an",
   "name": "林予安",
   "aliases": [
-    "林予安"
+    "林予安",
+    "予安",
+    "3号模特",
+    "三号模特"
   ],
-  "ordinal": 2,
+  "ordinal": 3,
   "kind": "generated",
-  "modelRole": "系统内置 2 号原创虚构 AI 模特；需显式点名，不替代默认 1 号",
+  "modelRole": "系统内置3号原创虚构AI模特林予安；显式点名时使用，不替代默认1号李英子",
   "identity": {
     "gender": "female",
     "age": "约三十岁",
@@ -368,7 +371,7 @@
   "provenanceFile": "provenance.json",
   "tags": [
     "原创AI",
-    "2号模特",
+    "3号模特",
     "黑色连身裙",
     "非默认"
   ],
