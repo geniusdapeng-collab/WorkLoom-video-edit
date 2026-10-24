@@ -4,7 +4,7 @@
   "role": "industry",
   "displayName": "WorkLoom 视频AI剪辑系统（实验车道）",
   "packageName": "workloom-ai-video-edit",
-  "repository": "workloom-ai/WorkLoom-video-edit",
+  "repository": "geniusdapeng-collab/WorkLoom-video-edit",
   "defaultBundle": "geo-growth",
   "demoWorkspaceSlug": "geo-growth",
   "demoMemberNo": "MEM-G01",
