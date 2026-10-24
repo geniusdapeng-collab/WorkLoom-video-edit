@@ -12,12 +12,14 @@
 
 import { createRequire } from "node:module";
 import { createHash } from "node:crypto";
+import { readFileSync, realpathSync, statSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { runWithConfirmationHandler, type ConfirmationHandler } from "./confirmation.js";
 import { resolveGate, type GateVerdict } from "./gates.js";
 import { WorkloomLLMEngine } from "./llm-adapter.js";
-import { createPortraitRuntime, type PortraitRuntimeOptions } from "./portrait-runtime.js";
+import { createPortraitRuntime, type PortraitIndex, type PortraitInputReceipt, type PortraitRuntimeOptions } from "./portrait-runtime.js";
+import { installPortraitArchivePlanBridge, withPortraitArchivePlan } from "./portrait-archive-plan.js";
 import {
   applyDurationPolicyToManager,
   installVendorAudioDisciplineBridge,
@@ -47,6 +49,51 @@ interface HyperrealitySystemLike {
 
 interface HyperrealitySystemCtor {
   new (options: Record<string, unknown>): HyperrealitySystemLike;
+}
+
+/** Count current, project-bound archive copies, never a self-reported reuse total. */
+function verifiedReusedPortraitCount(index: PortraitIndex, projectId: string): number {
+  const seen = new Set<string>();
+  const verifyFile = (receipt: PortraitInputReceipt): void => {
+    if (!receipt || typeof receipt.path !== "string" || typeof receipt.realPath !== "string"
+      || !/^[a-f0-9]{64}$/i.test(receipt.sha256) || !Number.isSafeInteger(receipt.bytes) || receipt.bytes <= 0) {
+      throw new Error("PORTRAIT_REUSE_COUNT_INVALID: 文件回执不完整");
+    }
+    const realPath = realpathSync(receipt.path);
+    const stat = statSync(realPath);
+    const bytes = readFileSync(realPath);
+    if (!stat.isFile() || realPath !== receipt.realPath || stat.size !== receipt.bytes || bytes.length !== receipt.bytes
+      || createHash("sha256").update(bytes).digest("hex") !== receipt.sha256 || realpathSync(receipt.path) !== realPath) {
+      throw new Error("PORTRAIT_REUSE_COUNT_INVALID: 当前文件与复用回执不一致");
+    }
+  };
+  for (const entry of Object.values(index.characters)) {
+    for (const [angle, receipt] of Object.entries(entry.reuseReceipts ?? {})) {
+      const identity = JSON.stringify([entry.id, angle]);
+      if (seen.has(identity) || index.projectId !== projectId || receipt.projectId !== projectId
+        || receipt.schemaVersion !== "workloom.portrait-reuse/v1" || receipt.kind !== "character"
+        || receipt.id !== entry.id || receipt.angle !== angle || receipt.generationCount !== 0
+        || !Number.isSafeInteger(receipt.version) || receipt.version <= 0
+        || entry.pinnedVersion !== receipt.version || entry.portraitVersion !== receipt.version
+        || entry.files[angle] !== receipt.output?.path || !entry.artifacts?.[angle]
+        || entry.artifacts[angle]?.path !== receipt.output?.path
+        || entry.artifacts[angle]?.realPath !== receipt.output?.realPath
+        || entry.artifacts[angle]?.sha256 !== receipt.output?.sha256
+        || entry.artifacts[angle]?.bytes !== receipt.output?.bytes) {
+        throw new Error("PORTRAIT_REUSE_COUNT_INVALID: 角色、版本、角度或项目绑定不匹配");
+      }
+      verifyFile(receipt.output);
+      verifyFile(receipt.source);
+      verifyFile(receipt.profile);
+      if (receipt.source.sha256 !== receipt.output.sha256 || receipt.source.bytes !== receipt.output.bytes
+        || !receipt.manifest || typeof receipt.manifest.path !== "string"
+        || createHash("sha256").update(readFileSync(receipt.manifest.path)).digest("hex") !== receipt.manifest.sha256) {
+        throw new Error("PORTRAIT_REUSE_COUNT_INVALID: 归档来源或清单字节不匹配");
+      }
+      seen.add(identity);
+    }
+  }
+  return seen.size;
 }
 
 export interface PreproductionResult {
@@ -245,6 +292,7 @@ export class VideoStudio {
          * 链路最开头的创意主题生成器会静默降级成规则兜底（真机 2026-09-22 事故）。
          */
         keep(installVendorConfigIsolatorBridge());
+        keep(installSharedBridge("vendor-portrait-archive-plan", installPortraitArchivePlanBridge));
         /** 阶段异常栈诊断：Phase 3/3.5 失败时把栈写进 run 日志（vendor 只打 message，真机无法定位行号） */
         keep(installVendorPhaseDiagnosticsBridge({ log }));
         /**
@@ -438,12 +486,28 @@ export class VideoStudio {
           const modelName = portraitCfg && portraitCfg.enabled !== false ? portraitCfg.model : "未指定模型";
           log(`[studio] 定妆照真实出图已启用（${modelName}，产物根 ${charactersDir}）`);
         }
-        const result = await system.create(input.intent, metadata, createOptions);
+        const result = await withPortraitArchivePlan(portraitRuntime, () =>
+          system.create(input.intent, metadata, createOptions)
+        );
         if (portraitRuntime) {
           const index = portraitRuntime.snapshot();
           const characters = Object.keys(index.characters).length;
           const products = Object.keys(index.products).length;
           log(`[studio] 定妆照索引落盘：${portraitRuntime.indexPath()}（角色 ${characters} / 商品 ${products}）`);
+          const reused = verifiedReusedPortraitCount(index, input.projectId);
+          if (reused > 0) {
+            const stage = result.stages?.portraitStudio;
+            if (!stage || typeof stage !== "object" || Array.isArray(stage)) {
+              throw new Error("PORTRAIT_REUSE_COUNT_INVALID: 缺少实际定妆照执行结果");
+            }
+            const portraitStage = stage as Record<string, unknown>;
+            const completed = portraitStage.completedPortraits;
+            if (typeof completed !== "number" || !Number.isSafeInteger(completed) || completed < reused) {
+              throw new Error("PORTRAIT_REUSE_COUNT_INVALID: 复用数量超过实际完成数量");
+            }
+            portraitStage.reusedPortraits = reused;
+            portraitStage.generatedPortraits = completed - reused;
+          }
         }
         /**
          * 作品级校验（T-2026-0925-0001，问题 P10）：

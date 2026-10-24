@@ -21,6 +21,8 @@ export * from "./portrait-decision.js";
 export * from "./likeness-policy.js";
 export * from "./producer-gate.js";
 export * from "./shot-spec.js";
+/** Shared text/JSON semantics for service-side controlled character selection. */
+export { shotIntentHash, shotText, splitShotAssertions } from "./shot-intent.js";
 export * from "./route-preflight.js";
 export * from "./real-person-asset-sync.js";
 export * from "./duration-rules.js";

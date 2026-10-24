@@ -64,6 +64,41 @@ export interface PortraitCacheReceipt {
 export interface PortraitBaseReceipt {
   schemaVersion: "workloom.portrait-base/v1"; source: PortraitInputReceipt; output: PortraitInputReceipt;
 }
+/** Existing user-selected files are reuse evidence, never a newly generated model receipt. */
+export interface PortraitReuseSelection {
+  schemaVersion: "workloom.portrait-reuse-selection/v1";
+  rawIntent: string;
+  selectedVersion: number;
+  expectedPortraits: number;
+  selectedAt: string;
+}
+export interface ArchivedPortraitCharacter {
+  id: string; name: string; aliases?: string[]; version: number;
+  authorization: { status: "synthetic-no-real-person" };
+  profile: PortraitInputReceipt;
+  files: Record<string, PortraitInputReceipt>;
+  wardrobe?: Record<string, unknown>;
+}
+export interface ArchivedPortraitCharacters {
+  manifestPath: string; manifestSha256: string;
+  approvedSelection: PortraitReuseSelection;
+  characters: ArchivedPortraitCharacter[];
+}
+export interface PortraitReuseReceipt {
+  schemaVersion: "workloom.portrait-reuse/v1";
+  projectId: string; kind: "character"; id: string; angle: string;
+  archiveId: string; archiveName: string; version: number;
+  manifest: { path: string; sha256: string };
+  selectionReceipt: PortraitReuseSelection;
+  profile: PortraitInputReceipt; source: PortraitInputReceipt; output: PortraitInputReceipt;
+  copiedAt: string; generationCount: 0;
+}
+export interface PortraitRuntimePlan {
+  characterTasks: Array<Record<string, unknown>>;
+  productTasks?: unknown[];
+  summary?: string;
+  [key: string]: unknown;
+}
 export interface PortraitIndexEntry {
   kind: "character" | "product";
   id: string;
@@ -72,6 +107,12 @@ export interface PortraitIndexEntry {
   /** 角度/视角 → 落盘绝对路径 */
   files: Record<string, string>;
   receipts?: Record<string, PortraitCacheReceipt>;
+  reuseReceipts?: Record<string, PortraitReuseReceipt>;
+  artifacts?: Record<string, PortraitInputReceipt>;
+  portraitVersion?: number;
+  pinnedVersion?: number;
+  wardrobe?: Record<string, unknown>;
+  wardrobeHash?: string;
 }
 
 export interface PortraitIndex {
@@ -114,6 +155,10 @@ export interface PortraitRuntimeOptions {
   fetchImpl?: typeof fetch;
   /** 失败重试次数（仅网络/限流/5xx 类，默认 2） */
   retries?: number;
+  /** Server-controlled, explicitly selected existing synthetic-character version. No generation fallback. */
+  archivedCharacters?: ArchivedPortraitCharacters;
+  /** Strict reuse run: every portrait task must belong to the selected archive; no new image request. */
+  archivedCharactersOnly?: boolean;
 }
 
 export interface ReferenceSearchStageLike {
@@ -136,6 +181,8 @@ export interface PortraitRuntime {
   snapshot(): PortraitIndex;
   /** 索引落盘位置 */
   indexPath(): string;
+  /** Bind only available archived views before the vendor begins portrait execution. */
+  preparePlan?(plan: PortraitRuntimePlan): PortraitRuntimePlan;
 }
 
 const IMAGE_DOWNLOAD_TIMEOUT_MS = 120_000;
@@ -143,16 +190,16 @@ const CACHE_VERSION = "workloom.portrait-cache/v2" as const;
 const inFlight = new Map<string, Promise<string>>();
 const hashBytes = (bytes: Buffer): string => createHash("sha256").update(bytes).digest("hex");
 const record = (value: unknown): value is Record<string, unknown> => Boolean(value && typeof value === "object" && !Array.isArray(value));
-function snapshotFile(path: string): { receipt: PortraitInputReceipt; bytes: Buffer } {
+function snapshotFile(path: string, minBytes = 1024): { receipt: PortraitInputReceipt; bytes: Buffer } {
   const realPath = realpathSync(path);
   const stat = statSync(realPath);
-  if (!stat.isFile() || stat.size < 1024 || stat.size > 100_000_000) throw new Error(`PORTRAIT_INPUT_INVALID: 参考图不是有效大小的普通文件：${path}`);
+  if (!stat.isFile() || stat.size < minBytes || stat.size > 100_000_000) throw new Error(`PORTRAIT_INPUT_INVALID: 来源不是有效大小的普通文件：${path}`);
   const bytes = readFileSync(realPath);
   if (bytes.length !== stat.size || realpathSync(path) !== realPath) throw new Error(`PORTRAIT_INPUT_CHANGED: 读取期间来源变化：${path}`);
   return { receipt: { path: resolve(path), realPath, sha256: hashBytes(bytes), bytes: bytes.length }, bytes };
 }
-function verifySource(source: PortraitInputReceipt): void {
-  const current = snapshotFile(source.path).receipt;
+function verifySource(source: PortraitInputReceipt, minBytes = 1024): void {
+  const current = snapshotFile(source.path, minBytes).receipt;
   if (shotIntentHash(current) !== shotIntentHash(source)) throw new Error(`PORTRAIT_INPUT_CHANGED: 请求期间参考图发生变化：${source.path}`);
 }
 function safeComponent(value: string, label: string): string {
@@ -207,6 +254,13 @@ function resolveLocal(image: string, workDir: string): string {
   return isAbsolute(image) ? image : resolve(workDir, image);
 }
 
+function portraitImageExtension(bytes: Buffer, source: string): "png" | "jpg" | "webp" {
+  if (bytes.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))) return "png";
+  if (bytes[0] === 255 && bytes[1] === 216 && bytes[2] === 255) return "jpg";
+  if (bytes.toString("ascii", 0, 4) === "RIFF" && bytes.toString("ascii", 8, 12) === "WEBP") return "webp";
+  return /\.png$/i.test(source) ? "png" : /\.webp$/i.test(source) ? "webp" : "jpg";
+}
+
 /**
  * 创建定妆照真实出图运行时。
  *
@@ -248,6 +302,52 @@ export function createPortraitRuntime(options: PortraitRuntimeOptions): Portrait
   const charactersRoot = scopePath;
   const rootRealPath = realpathSync(charactersRoot);
   const indexFile = join(charactersRoot, "portrait-index.json");
+  const archived = options.archivedCharacters;
+  let manifestReceipt: PortraitInputReceipt | undefined;
+  if (options.archivedCharactersOnly && !archived) throw new Error("PORTRAIT_ARCHIVE_REQUIRED: archivedCharactersOnly 缺少归档清单");
+  if (archived) {
+    if (!record(archived) || !Array.isArray(archived.characters) || archived.characters.length === 0
+      || !record(archived.approvedSelection) || archived.approvedSelection.schemaVersion !== "workloom.portrait-reuse-selection/v1"
+      || typeof archived.approvedSelection.rawIntent !== "string" || !archived.approvedSelection.rawIntent.trim()
+      || !Number.isInteger(archived.approvedSelection.selectedVersion) || archived.approvedSelection.selectedVersion < 1
+      || !Number.isInteger(archived.approvedSelection.expectedPortraits)
+      || archived.approvedSelection.expectedPortraits !== archived.characters.length * REQUIRED_ANGLES.length
+      || !Number.isFinite(Date.parse(archived.approvedSelection.selectedAt))) {
+      throw new Error("PORTRAIT_ARCHIVE_INVALID: 缺少本次用户选择或完整四角度数量");
+    }
+    manifestReceipt = snapshotFile(archived.manifestPath, 1).receipt;
+    if (manifestReceipt.sha256 !== archived.manifestSha256) throw new Error("PORTRAIT_ARCHIVE_CHANGED: 归档清单摘要不一致");
+    const manifest = JSON.parse(readFileSync(manifestReceipt.realPath, "utf8"));
+    if (manifest.schemaVersion !== "workloom.portrait-reuse-manifest/v1"
+      || shotIntentHash(manifest.characters) !== shotIntentHash(archived.characters)
+      || shotIntentHash(manifest.approvedSelection) !== shotIntentHash(archived.approvedSelection)) {
+      throw new Error("PORTRAIT_ARCHIVE_INVALID: 运行参数与实际归档清单不一致");
+    }
+    const aliases = new Set<string>();
+    for (const item of archived.characters) {
+      if (!record(item) || typeof item.id !== "string" || !item.id.trim() || typeof item.name !== "string" || !item.name.trim()
+        || item.version !== archived.approvedSelection.selectedVersion || item.authorization?.status !== "synthetic-no-real-person"
+        || !record(item.files) || REQUIRED_ANGLES.some(angle => !record(item.files[angle]))) {
+        throw new Error("PORTRAIT_ARCHIVE_INVALID: 只能复用本次选定、四角度齐备的纯AI角色");
+      }
+      for (const alias of new Set([item.id, item.name, ...(item.aliases ?? [])])) {
+        if (typeof alias !== "string" || !alias.trim() || aliases.has(alias)) throw new Error("PORTRAIT_ARCHIVE_INVALID: 角色别名为空或有歧义");
+        aliases.add(alias);
+      }
+      verifySource(item.profile, 1);
+      const profile = JSON.parse(readFileSync(item.profile.realPath, "utf8"));
+      if (!["synthetic-digital-human", "generated"].includes(profile.kind) || profile.authorization?.status !== "synthetic-no-real-person") {
+        throw new Error("PORTRAIT_ARCHIVE_INVALID: 源角色档案不支持纯AI归档复用");
+      }
+      for (const angle of REQUIRED_ANGLES) verifySource(item.files[angle]!);
+    }
+  }
+
+  function archivedCharacter(id: string, name: string): ArchivedPortraitCharacter {
+    const matches = archived?.characters.filter(item => [item.id, item.name, ...(item.aliases ?? [])].some(alias => alias === id || alias === name)) ?? [];
+    if (matches.length !== 1) throw new Error(`PORTRAIT_ARCHIVE_IDENTITY_MISMATCH: ${name || id} 没有唯一的本次选定归档，禁止重新生成`);
+    return matches[0]!;
+  }
 
   const index: PortraitIndex = {
     schemaVersion: "workloom.portrait-index/v1",
@@ -373,6 +473,71 @@ export function createPortraitRuntime(options: PortraitRuntimeOptions): Portrait
     return [...new Set(paths)].slice(0, maxReferenceImages).map(snapshotFile);
   }
 
+  async function reusePortrait(task: PortraitTask, id: string, name: string, angle: string): Promise<string> {
+    const item = archivedCharacter(id, name);
+    const source = item.files[angle];
+    if (!source || !REQUIRED_ANGLES.includes(angle as typeof REQUIRED_ANGLES[number])) throw new Error(`PORTRAIT_ARCHIVE_ANGLE_MISSING: ${item.name}/${angle} 未选定且禁止补图`);
+    const taskHash = shotIntentHash(task);
+    const key = identityKey(id);
+    const dir = join(charactersRoot, key);
+    const extension = portraitImageExtension(snapshotFile(source.path).bytes, source.path);
+    const file = join(dir, "portraits", `${key}-archive-v${item.version}-${source.sha256}-${angle}.${extension}`);
+    return locked(async () => {
+      if (shotIntentHash(task) !== taskHash) throw new Error("PORTRAIT_INPUT_CHANGED: 复用等待期间任务变化");
+      verifySource(manifestReceipt!, 1); verifySource(item.profile, 1); verifySource(source);
+      const bytes = snapshotFile(source.path).bytes;
+      const previous = index.characters[key];
+      const own = previous?.id === id && previous.kind === "character" ? previous : undefined;
+      const mainViews = <T>(values: Record<string, T> | undefined): Record<string, T> => Object.fromEntries(Object.entries(values ?? {}).filter(([key]) => REQUIRED_ANGLES.includes(key as typeof REQUIRED_ANGLES[number])));
+      // An explicit four-view selection replaces the active index, while old files remain immutable.
+      if (own) {
+        own.files = mainViews(own.files); own.artifacts = mainViews(own.artifacts); own.reuseReceipts = mainViews(own.reuseReceipts);
+      }
+      atomicWrite(file, bytes);
+      const output = snapshotFile(file).receipt;
+      verifySource(source);
+      if (output.sha256 !== source.sha256) throw new Error("PORTRAIT_REUSE_CHANGED: 复制后摘要不一致");
+      const receipt: PortraitReuseReceipt = {
+        schemaVersion: "workloom.portrait-reuse/v1", projectId, kind: "character", id, angle,
+        archiveId: item.id, archiveName: item.name, version: item.version,
+        manifest: { path: manifestReceipt!.path, sha256: archived!.manifestSha256 },
+        selectionReceipt: structuredClone(archived!.approvedSelection), profile: item.profile, source, output,
+        copiedAt: new Date().toISOString(), generationCount: 0,
+      };
+      index.characters[key] = {
+        kind: "character", id, name, dir, portraitVersion: item.version, pinnedVersion: item.version,
+        ...(item.wardrobe ? { wardrobe: structuredClone(item.wardrobe), wardrobeHash: shotIntentHash(item.wardrobe) } : {}),
+        files: { ...(own?.files ?? {}), [angle]: file },
+        artifacts: { ...(own?.artifacts ?? {}), [angle]: output },
+        reuseReceipts: { ...(own?.reuseReceipts ?? {}), [angle]: receipt },
+      };
+      persistIndex();
+      log(`[portrait] 复用已选归档：${item.name} v${item.version}/${angle}，当前字节 ${source.sha256.slice(0, 12)}，本次生成0张`);
+      return file;
+    });
+  }
+
+  function preparePlan(plan: PortraitRuntimePlan): PortraitRuntimePlan {
+    if (!archived) return plan;
+    verifySource(manifestReceipt!, 1);
+    if (!record(plan) || !Array.isArray(plan.characterTasks)) throw new Error("PORTRAIT_ARCHIVE_PLAN_INVALID: 缺少角色计划");
+    const used = new Set<string>();
+    const characterTasks = plan.characterTasks.map(task => {
+      const id = String(task.characterId ?? task.characterName ?? "");
+      const name = String(task.characterName ?? task.characterId ?? "");
+      const item = archivedCharacter(id, name);
+      if (used.has(item.id)) throw new Error("PORTRAIT_ARCHIVE_PLAN_INVALID: 同一选定角色被重复规划");
+      used.add(item.id);
+      return { ...task, angleCount: REQUIRED_ANGLES.length, reuseSource: "existing-selected-archive", portraits: REQUIRED_ANGLES.map(angle => ({
+        portraitId: `${id}-${angle}`, characterId: id, characterName: name, angle,
+        angleName: angle, status: "pending", outputFile: null,
+        reuse: { archiveId: item.id, version: item.version, sourceSha256: item.files[angle]!.sha256 },
+      })) };
+    });
+    if (used.size !== archived.characters.length) throw new Error("PORTRAIT_ARCHIVE_PLAN_INVALID: 正式角色计划遗漏本次指定人物");
+    return { ...plan, characterTasks, summary: `${plan.summary ?? ""}\n本次角色复用：${archived.characters.map(item => `${item.name} v${item.version} 四角度`).join("、")}；角色生成0张；未选定的额外角度不再生成。` };
+  }
+
   function buildPrompt(task: PortraitTask, kind: "character" | "product", angleRaw: string): string {
     const parts: string[] = [];
     if (typeof task.prompt === "string" && task.prompt.trim()) parts.push(task.prompt.trim());
@@ -487,7 +652,11 @@ export function createPortraitRuntime(options: PortraitRuntimeOptions): Portrait
     if (!record(task)) throw new Error("PORTRAIT_TASK_INVALID: 任务必须为对象");
     const sourceHash = shotIntentHash(task);
     const angleRaw = String(task.angle || task.view || "view");
-    const kind = task.productId || task.productName || task.view ? "product" : "character";
+    const hasCharacter = Boolean(task.characterId || task.characterName);
+    const hasProduct = Boolean(task.productId || task.productName);
+    if (hasCharacter && hasProduct) throw new Error("PORTRAIT_TASK_AMBIGUOUS: 角色和商品身份不能混在同一任务");
+    const kind = hasCharacter ? "character" : hasProduct || task.view ? "product" : "character";
+    if (kind === "product" && options.archivedCharactersOnly) throw new Error("PORTRAIT_ARCHIVE_ONLY: 本次仅复用已选人物，禁止额外商品或未知主体出图");
     const explicitId = kind === "product" ? task.productId || task.productName : task.characterId || task.characterName;
     const id = String(explicitId || stripAngleSuffix(String(task.portraitId ?? ""), angleRaw) || "subject");
     const name = String((kind === "product" ? task.productName || task.productId : task.characterName || characterNameFromPrompt(task.prompt)) || explicitId || id);
@@ -495,6 +664,7 @@ export function createPortraitRuntime(options: PortraitRuntimeOptions): Portrait
     if (!/^[a-zA-Z][a-zA-Z0-9_-]{0,63}$/.test(angle)) throw new Error("PORTRAIT_ANGLE_INVALID: 角度不能用作路径或无效标识");
     const key = identityKey(id);
     const bucket = kind === "character" ? "characters" : "products";
+    if (kind === "character" && archived) return reusePortrait(task, id, name, angle);
     // Build and validate all actual request inputs before considering the cache.
     const prompt = buildPrompt(task, kind, angleRaw);
     const anchors = anchorsFor(kind, baseImage);
@@ -577,6 +747,7 @@ export function createPortraitRuntime(options: PortraitRuntimeOptions): Portrait
     searchReferences,
     processImage,
     snapshot: () => structuredClone(index),
-    indexPath: () => indexFile
+    indexPath: () => indexFile,
+    ...(archived ? { preparePlan } : {})
   };
 }

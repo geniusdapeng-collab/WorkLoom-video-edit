@@ -2,7 +2,7 @@
  * T-2026-0927-0013：真实 startRun + StageRunner + ArchiveStore 回归。
  * vendor、PG、媒体登记用边界替身；档案写盘与重试/终态/商品摘要走实际代码。
  */
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -10,6 +10,8 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 import { gatewayAppend, gatewayAppendOnClient } from "@workloom/base/workdata";
 import { applyScenePolicy, auditScenePolicy, loadScenePolicies, type ScenePolicyShot } from "@hyperreality/video-studio";
 import { verifyScenePolicyProductionSource } from "./scene-policy-render-gate.js";
+import { portraitReuseFixture } from "./portrait-reuse.test-support.js";
+import { builtinCatalogFixture } from "./builtin-character-selection.test-support.js";
 
 const doubles = vi.hoisted(() => ({
   workDir: "",
@@ -99,11 +101,13 @@ vi.mock("@hyperreality/video-studio", async (importOriginal) => ({
 }));
 
 let worker: typeof import("./studio-worker.js");
+let catalogFixture: ReturnType<typeof builtinCatalogFixture>;
 const scope = { tenantId: "tenant-test", workspaceId: "ws-test" };
 let projectSequence = 0;
 
 beforeAll(async () => {
   doubles.workDir = await mkdtemp(path.join(tmpdir(), "studio-result-"));
+  catalogFixture = builtinCatalogFixture(doubles.workDir);
   worker = await import("./studio-worker.js");
 });
 
@@ -148,6 +152,8 @@ beforeEach(() => {
   vi.stubEnv("ARCHIVE_ENABLED", "1");
   vi.stubEnv("MEDIA_INGEST_ENABLED", "1");
   vi.stubEnv("HR_PORTRAIT_ENABLED", "0");
+  vi.stubEnv("HR_PORTRAIT_REUSE_MANIFEST", "");
+  vi.stubEnv("BUNDLES_ROOT", catalogFixture.bundleRoot);
 });
 
 const success = () => ({
@@ -226,6 +232,52 @@ async function archiveOutput(projectId: string, attempt: number) {
 }
 
 describe("预生产原始结果与诚实终态", () => {
+  it("坏复用配置在启动注册、vendor和租约之前失败，不回退生成", () => {
+    vi.stubEnv("HR_PORTRAIT_REUSE_MANIFEST", path.join(doubles.workDir, "missing-manifest.json"));
+    expect(() => worker.startRun(scope, { projectId: "VID-reuse-invalid", intent: "使用已有AI模特" })).toThrow("拒绝回退生成");
+    expect(doubles.runPreproduction).not.toHaveBeenCalled(); expect(doubles.lease).not.toHaveBeenCalled();
+  });
+  it.each([false, true])("已有角色四角度复用 generated=%s：独立证据放行或失败，不插假人工审批", async generated => {
+    const projectId = `VID-reuse-${++projectSequence}`, runDir = path.join(doubles.workDir, "workspaces", scope.workspaceId);
+    await mkdir(runDir, { recursive: true });
+    const f = portraitReuseFixture(runDir, projectId);
+    vi.stubEnv("HR_PORTRAIT_REUSE_MANIFEST", f.manifestPath); vi.stubEnv("HR_PORTRAIT_ENABLED", "1");
+    vi.stubEnv("VOLCENGINE_ARK_API_KEY", "test-only-config"); vi.stubEnv("ARK_IMAGE_MODEL", "test-only-model");
+    if (generated) f.stage.generatedPortraits = 1;
+    doubles.runPreproduction.mockResolvedValue({ ...success(), stages: { ...success().stages, portraitStudio: f.stage, scriptEngine: { report: { characters_count: 1 } } } });
+    useNarrativeProject();
+    const runId = worker.startRun(scope, { projectId, intent: "使用既有AI模特v4", metadata: { products: [],
+      characters: [{ id: "c1", name: "一号AI模特", description: "既有明确选择的成年虚构AI女性角色，白T与长裤。" }] } });
+    await vi.waitFor(() => expect(worker.getRun(runId, scope.workspaceId)?.finishedAt).not.toBeNull(), { timeout: 3_000, interval: 10 });
+    expect(worker.getRun(runId, scope.workspaceId)?.status).toBe(generated ? "failed" : "finished");
+    expect(doubles.studioConfigs[0]?.portraits).toMatchObject({ archivedCharactersOnly: true, archivedCharacters: { manifestPath: f.manifestPath, approvedSelection: f.approvedSelection } });
+    expect(doubles.query.mock.calls.some(([sql]) => sql.includes("INSERT INTO approvals"))).toBe(false);
+    expect(doubles.review.mock.calls.some(([options]) => options.context.gate === "G5_PORTRAIT")).toBe(false);
+    if (!generated) {
+      const output = await archiveOutput(projectId, 1);
+      const gate = (output.productionEvidence as { gates: Array<Record<string, any>> }).gates.find(item => item.gate === "G5_PORTRAIT");
+      expect(gate).toMatchObject({ via: "archive-reuse-acceptance", model: null, degraded: false, archiveReuse: { stage: { generatedPortraits: 0, reusedPortraits: 4 } } });
+      expect(gate?.evidence.filter((item: Record<string, unknown>) => item.scope === "archive-reuse-image")).toHaveLength(4);
+    }
+  });
+  it.each([[undefined, "young-rider-01", 1], [{ character: "英子" }, "young-rider-01", 1], [{ characterOrdinal: 2 }, "chen-zhuo", 2], [{ character: "林予安" }, "lin-yu-an", 3]] as const)("worker把真实registry人选%j和完整persona送入vendor", async (metadata, id, ordinal) => {
+    doubles.runPreproduction.mockResolvedValue(success()); useNarrativeProject();
+    const projectId = `VID-actor-${++projectSequence}`;
+    const runId = worker.startRun(scope, { projectId, intent: "制作短片", metadata: metadata ? structuredClone(metadata) : undefined });
+    await vi.waitFor(() => expect(worker.getRun(runId, scope.workspaceId)?.finishedAt).not.toBeNull(), { timeout: 3_000, interval: 10 });
+    const request = doubles.runPreproduction.mock.calls[0]?.[0];
+    expect(request.metadata.characters).toMatchObject([{ id, name: expect.any(String), ordinal, activeWardrobeId: "w1", wardrobeId: "w1", persona: { interests: ["极限运动"] }, biography: expect.any(Array), speakingStyle: expect.any(Object), behavioralRules: expect.any(Array) }]);
+    expect(request.intent).toContain("极限运动"); expect(request.intent).toContain("虚构的大学在读人物");
+    expect(request.metadata.builtinCharacterSelection.characters[0]).toMatchObject({ id, profileSha256: expect.stringMatching(/^[a-f0-9]{64}$/) });
+  });
+  it("建档前拒绝角色冲突，明确无人不向vendor补默认角色", async () => {
+    await expect(worker.startVideoProjectRun(scope, { intent: "制作短片", metadata: { character: { id: "young-rider-01", name: "陈卓" } }, by: { id: "MEM-1", type: "human" } })).rejects.toThrow("不同角色");
+    expect(doubles.connect).not.toHaveBeenCalled(); expect(doubles.runPreproduction).not.toHaveBeenCalled();
+    doubles.runPreproduction.mockResolvedValue(success()); useNarrativeProject();
+    const runId = worker.startRun(scope, { projectId: `VID-no-person-${++projectSequence}`, intent: "纯产品，明确无人" });
+    await vi.waitFor(() => expect(worker.getRun(runId, scope.workspaceId)?.finishedAt).not.toBeNull(), { timeout: 3_000, interval: 10 });
+    expect(doubles.runPreproduction.mock.calls[0]?.[0].metadata.characters).toEqual([]);
+  });
   it("建项目之前拦截显式未知片型，未触及数据库和供应商", async () => {
     await expect(worker.startVideoProjectRun(scope, {
       intent: "给陈卓拍一条正式商务短片",
