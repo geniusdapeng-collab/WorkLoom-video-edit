@@ -1,0 +1,31 @@
+{
+  "schemaVersion": "workloom.repository/v1",
+  "logicalId": "WorkLoom-video-edit",
+  "productId": "workloom-ai-video-edit",
+  "lane": "config-only-discovered",
+  "primaryPlatform": "github",
+  "github": {
+    "repository": "geniusdapeng-collab/WorkLoom-video-edit",
+    "url": "https://github.com/geniusdapeng-collab/WorkLoom-video-edit",
+    "branch": "main"
+  },
+  "cnb": {
+    "repository": "workloom-ai/WorkLoom-video-edit",
+    "url": "https://cnb.cool/workloom-ai/WorkLoom-video-edit",
+    "branch": "main"
+  },
+  "mirrorPolicy": {
+    "platform": "cnb",
+    "mode": "deferred",
+    "automaticProductSync": false,
+    "configBackupBranchPrefix": "workloom/config-backup/"
+  },
+  "baseSync": {
+    "receive": "none",
+    "reflux": "none"
+  },
+  "registry": {
+    "repository": "geniusdapeng-collab/workloom-im",
+    "path": "sync/repository-registry.json"
+  }
+}
