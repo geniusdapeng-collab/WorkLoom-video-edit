@@ -7,7 +7,7 @@ import { mkdir, open, realpath, writeFile } from "node:fs/promises";
 import { reviewStage, type ProducerVerdict } from "@hyperreality/video-studio";
 import { createDataMiningExecutor, type DataMiningStagePlan, type ExecutorLlm, type IntelStage, type SearchFn, type SearchHit } from "./data-mining-executor.js";
 import { fetchMarketingSource, type SourceSnapshot } from "./marketing-source-fetcher.js";
-import { extractionSchema, stageFactPointers, validateStageFacts, revalidateStageFacts, type ValidatedStageFacts } from "./marketing-facts.js";
+import { extractionSchema, stageFactPointers, stagePayloadJsonSchema, validateStageFacts, revalidateStageFacts, type ValidatedStageFacts } from "./marketing-facts.js";
 import { quoteIndexedSources, resolveMarketingExtraction, type CitationBinding } from "./marketing-quote-index.js";
 import { canonicalRenderJson, renderSha256 } from "./gen/compiled-request.js";
 import { SubmissionError } from "./gen/submission-ledger.js";
@@ -113,6 +113,8 @@ const extractionContract = [
   "每个来源的textFragments按原始顺序连续覆盖完整正文，没有省略；先读全部正文，选确实支持该主张的片段。一个片段支持多个事实时可以复用ID；片段存在不等于主张真实，仍须独立语义审核。",
   sharedExtractionRules,
 ].join("\n");
+// v1/v2 前缀保持原字节；v3 把当前阶段的完整输入合同与原始请求一起归档和复核。
+const schemaExtractionContract = extractionContract + "\n当前阶段的payloadJsonSchema来自宿主实际严格验证器；payload必须逐层遵守其字段、类型、必填项和上限。additionalProperties=false的对象禁止添加任何额外字段；图片不得自行添加width/height等字段。缺乏依据的可选字段省略，不填猜测值。";
 
 function citationStructureError(error: unknown): boolean {
   return error instanceof Error && /^MARKETING_(?:CITATION_INVALID：主张路径不存在或重复 |CLAIM_UNSOURCED：)/.test(error.message);
@@ -131,8 +133,8 @@ async function extractStageFacts(input: {
       canonicalRenderJson({ validationError: correction.error, requiredCitationPointers: correction.pointers, previousExtraction: correction.previous }),
       "citations必须恰好覆盖requiredCitationPointers，每条一次；不能出现来源元数据路径；只选择提供的quoteId，不生成或复述quote。",
     ].join("\n") + "\n" : "";
-    const prompt = `${extractionContract}\n${repair}本次查询线索（不是事实）：${canonicalRenderJson(input.product)}\n当前阶段：${input.stage}\n` +
-      canonicalRenderJson({ sources: quoteIndexedSources(input.pages), plan: input.plan });
+    const prompt = `${schemaExtractionContract}\n${repair}本次查询线索（不是事实）：${canonicalRenderJson(input.product)}\n当前阶段：${input.stage}\n` +
+      canonicalRenderJson({ sources: quoteIndexedSources(input.pages), plan: input.plan, payloadJsonSchema: stagePayloadJsonSchema(input.stage) });
     if (prompt.length > 90_000) fail("MARKETING_REVIEW_TOO_LARGE", "完整来源或纠错上下文超单次提取预算，禁止裁剪后声称核实");
     const result = await input.llm.reason(prompt, { forceJson: true, temperature: 0, maxTokens: 8192, thinking: { type: "disabled" } });
     let parsed: unknown, boundExtraction: ReturnType<typeof extractionSchema.parse> | undefined;
@@ -150,7 +152,7 @@ async function extractStageFacts(input: {
     } catch (error) { failure = error; }
     // 每次完整请求及模型原文各有不可覆盖的档案，落盘失败也不能触发下一次模型调用。
     const saved = await writeBound(input.root, `${input.prefix}-${input.stage}.extraction-${attempt}.json`, canonicalRenderJson({
-      schemaVersion: "workloom.marketing-extraction/v2", scope: input.scope, stage: input.stage, attempt, prompt, citationBindings: bindings,
+      schemaVersion: "workloom.marketing-extraction/v3", scope: input.scope, stage: input.stage, attempt, prompt, citationBindings: bindings,
       response: { success: result?.success === true, content: result?.content ?? null, data: result?.data ?? null },
       status: facts ? "accepted" : "rejected", error: failure instanceof Error ? failure.message : failure ? String(failure) : null,
     }));
@@ -174,15 +176,20 @@ async function verifyExtractionAttempts(input: {
   for (const [index, reference] of input.extractions.entries()) {
     if (reference.ref !== `${input.prefix}-${input.stage}.extraction-${index + 1}.json`) fail("MARKETING_PATH_INVALID", "提取证据不是当前阶段的有序尝试");
     const artifact = JSON.parse((await readBound(input.root, reference.ref, reference.sha256)).toString("utf8")) as RecordValue;
-    const indexed = artifact.schemaVersion === "workloom.marketing-extraction/v2";
+    const schemaBound = artifact.schemaVersion === "workloom.marketing-extraction/v3";
+    const indexed = schemaBound || artifact.schemaVersion === "workloom.marketing-extraction/v2";
     if (canonicalRenderJson(artifact.scope) !== canonicalRenderJson(input.scope) || artifact.stage !== input.stage || artifact.attempt !== index + 1
-      || typeof artifact.prompt !== "string" || artifact.prompt.length > 90_000 || !artifact.prompt.startsWith(indexed ? extractionContract : legacyExtractionContract)
-      || artifact.schemaVersion !== undefined && artifact.schemaVersion !== "workloom.marketing-extraction/v2") fail("MARKETING_EXTRACTION_UNVERIFIED", "提取证据身份或完整请求不符");
+      || typeof artifact.prompt !== "string" || artifact.prompt.length > 90_000 || !artifact.prompt.startsWith(schemaBound ? schemaExtractionContract : indexed ? extractionContract : legacyExtractionContract)
+      || !schemaBound && artifact.prompt.startsWith(schemaExtractionContract)
+      || artifact.schemaVersion !== undefined && !indexed) fail("MARKETING_EXTRACTION_UNVERIFIED", "提取证据身份或完整请求不符");
     const marker = `当前阶段：${input.stage}\n`, start = artifact.prompt.lastIndexOf(marker);
     let request: RecordValue;
     try { request = object(JSON.parse(artifact.prompt.slice(start + marker.length)), "提取请求"); }
     catch { fail("MARKETING_EXTRACTION_UNVERIFIED", "提取请求没有完整来源"); }
     if (start < 0 || canonicalRenderJson(request.sources) !== canonicalRenderJson(indexed ? quoteIndexedSources(input.sources) : input.sources)) fail("MARKETING_EXTRACTION_UNVERIFIED", "提取没有绑定当前完整来源");
+    if (schemaBound ? request.payloadJsonSchema === undefined || canonicalRenderJson(request.payloadJsonSchema) !== canonicalRenderJson(stagePayloadJsonSchema(input.stage)) : "payloadJsonSchema" in request) {
+      fail("MARKETING_EXTRACTION_UNVERIFIED", "提取输入合同与当前严格验证器不符");
+    }
     const response = object(artifact.response, "提取原始响应");
     if (response.success !== true) fail("MARKETING_EXTRACTION_UNVERIFIED", "已接受事实不能引用失败的模型响应");
     const raw = response.data ?? JSON.parse(String(response.content));
@@ -230,6 +237,19 @@ export function toJennyMarketingRaw(
     boundSpecs[key] = { value, source_url: source.finalUrl };
   }
   identity.specs = boundSpecs;
+  // A5 需要来源与角度元数据；从已核实页面补齐装订副本，不改原始事实与其摘要。
+  if (!Array.isArray(converted.A1.images)) fail("MARKETING_IMAGE_UNVERIFIED", "装订图片不是已审核的图片列表");
+  converted.A1.images = converted.A1.images.map(value => {
+    const image = object(value, "装订图片"), source = evidence.sources.find(item => record.sourceIds.includes(item.sourceId)
+      && (item.finalUrl === image.page_url || item.requestedUrl === image.page_url) && item.assetUrls.includes(String(image.url)));
+    if (!source || source.sourceId !== `SRC-${renderSha256(`${source.finalUrl}\n${source.textSha256}`).slice(0, 24)}`) {
+      fail("MARKETING_IMAGE_UNVERIFIED", "装订图片没有本次实际抓取页面及图片地址");
+    }
+    let url: URL;
+    try { url = new URL(source.finalUrl); } catch { fail("MARKETING_SOURCE_INVALID", "装订图片来源地址非法"); }
+    if (!["http:", "https:"].includes(url.protocol) || url.username || url.password) fail("MARKETING_SOURCE_INVALID", "装订图片来源不是本次无凭据网页地址");
+    return { ...image, source: url.hostname, angle: image.angle ?? "unknown" };
+  });
   return converted;
 }
 
