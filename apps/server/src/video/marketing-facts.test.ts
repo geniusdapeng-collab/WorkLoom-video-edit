@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { stageFactPointers, validateStageFacts, revalidateStageFacts } from "./marketing-facts.js";
+import { stageFactPointers, stagePayloadJsonSchema, validateStageFacts, revalidateStageFacts } from "./marketing-facts.js";
 import { renderSha256 } from "./gen/compiled-request.js";
 import type { SourceSnapshot } from "./marketing-source-fetcher.js";
 const body = "星野 F3 风量 9 档。价格 399 CNY。评价：低档安静。评分 4。另一款北斗支持 5 档。";
@@ -69,6 +69,19 @@ describe("逐事实叶子的正文绑定", () => {
     const value: any = fixture(); value.payload.images = [{ url: source.assetUrls[0], page_url: source.finalUrl, angle: "unknown" }];
     expect(validateStageFacts("A1", value, [source]).claims).toHaveLength(3);
     value.payload.images[0].url = "https://other.example.com/fake.png"; expect(() => validateStageFacts("A1", value, [source])).toThrow("MARKETING_URL_UNVERIFIED");
+  });
+  it.each(["A1", "A2", "A3"] as const)("%s提取输入合同由实际严格schema产生并保留边界", stage => {
+    const schema: any = stagePayloadJsonSchema(stage);
+    expect(schema).toMatchObject({ type: "object", additionalProperties: false });
+    if (stage === "A1") {
+      expect(schema.properties.identity).toMatchObject({ additionalProperties: false, required: ["name"] });
+      expect(schema.properties.identity.properties.specs.additionalProperties.anyOf.map((entry: any) => entry.type)).toEqual(["string", "number", "boolean"]);
+      expect(schema.properties.images).toMatchObject({ maxItems: 20, items: { additionalProperties: false, required: ["url", "page_url"] } });
+      expect(Object.keys(schema.properties.images.items.properties).sort()).toEqual(["angle", "page_url", "source", "url"]);
+      const value: any = fixture(); value.payload.images = [{ url: source.assetUrls[0], page_url: source.finalUrl, width: 1080, height: 1920 }];
+      expect(() => validateStageFacts("A1", value, [source])).toThrow("MARKETING_PAYLOAD_INVALID");
+    } else if (stage === "A2") expect(schema.properties.reviews).toMatchObject({ maxItems: 30, items: { additionalProperties: false } });
+    else expect(schema.properties.competitors).toMatchObject({ maxItems: 3, items: { additionalProperties: false } });
   });
   it.each(["value", "offset", "hash", "status"])("已保存%s变化复读必须拒绝", kind => {
     const facts: any = validateStageFacts("A1", fixture(), [source]);

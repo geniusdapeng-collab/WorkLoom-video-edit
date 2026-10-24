@@ -51,6 +51,11 @@ export function stagePayloadShape(stage: IntelStage, raw: unknown): Record<strin
   catch (error) { throw new Error(`MARKETING_PAYLOAD_INVALID：${stage} ${error instanceof Error ? error.message : String(error)}`); }
 }
 
+/** 提取请求直接使用实际严格验证器的输入合同，避免手写示例遗漏图片等嵌套字段。 */
+export function stagePayloadJsonSchema(stage: IntelStage): Record<string, unknown> {
+  return z.toJSONSchema(stage === "A1" ? a1 : stage === "A2" ? a2 : a3, { io: "input" });
+}
+
 /** 与严格验证器使用同一叶子规则，供引用结构纠错列出精确的允许路径。 */
 export function stageFactPointers(stage: IntelStage, payload: unknown): string[] {
   return [...factLeaves(stagePayloadShape(stage, payload)).keys()];

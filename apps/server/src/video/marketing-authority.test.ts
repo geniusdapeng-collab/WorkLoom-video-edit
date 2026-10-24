@@ -13,7 +13,11 @@ const sourceUrl = "https://source.example.com/f3";
 const sourceText = "星野 F3 是一款风扇，风量 9 档。价格 399 CNY。待机功率 0，自动启停 false，接口 USB/C~口。尾部注意：9 档是风量档位，不是能耗等级；不得声称静音或市场第一。";
 let server: Server, origin: string, root: string, modelCalls: any[], rejectJudge: boolean, extractionCalls: string[], extractionOptions: unknown[];
 beforeAll(async () => {
-  server = createServer((_req, res) => { res.writeHead(200, { "content-type": "text/plain; charset=utf-8" }); res.end(sourceText); });
+  server = createServer((req, res) => {
+    const imagePage = req.url === "/with-image";
+    res.writeHead(200, { "content-type": imagePage ? "text/html; charset=utf-8" : "text/plain; charset=utf-8" });
+    res.end(imagePage ? `<html><body><p>${sourceText}</p><img src="${sourceUrl}/hero.png"></body></html>` : sourceText);
+  });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve)); origin = `http://127.0.0.1:${(server.address() as { port: number }).port}`;
 });
 afterAll(async () => { server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve())); });
@@ -24,6 +28,8 @@ beforeEach(async () => {
 afterEach(async () => { vi.unstubAllGlobals(); await rm(root, { recursive: true, force: true }); });
 async function prepare(options: { noSearch?: boolean; noAux?: boolean; badQuote?: boolean; modelFailure?: boolean; mode?: string; attempt?: number; specs?: Record<string, string | number | boolean>; quoteIds?: boolean;
   citationFault?: "metadata" | "duplicate" | "missing" | "persistent" | "changed-payload" | "repair-quote" | "repair-source" | "repair-model-failure";
+  imageExtras?: boolean;
+  imageMetadata?: "complete" | "no-source" | "no-angle" | "minimal";
 } = {}): Promise<PreparedMarketingFacts> {
   let searches = 0, a1Calls = 0;
   return prepareMarketingFacts({ scope: { ...scope, attempt: options.attempt ?? 1 }, root, intent: "做一条风扇介绍", metadata: { brief: { product: "星野 F3", brand: "星野" } }, env: { ...env, ...(options.mode ? { VM_DATA_MINING_MODE: options.mode } : {}) },
@@ -38,6 +44,11 @@ async function prepare(options: { noSearch?: boolean; noAux?: boolean; badQuote?
       const data: { payload: any; citations: any[] } = { payload: { identity: { name: "星野 F3", specs, ...(options.citationFault ? { prices: [{ amount: 399, currency: "CNY", source_url: sourceUrl }] } : {}), official_selling_points: [{ point: "风量 9 档", source_url: sourceUrl }] }, images: [] },
         citations: ["/identity/name", ...Object.keys(specs).map(key => `/identity/specs/${key.replace(/~/g, "~0").replace(/\//g, "~1")}`), ...(options.citationFault ? ["/identity/prices/0/amount", "/identity/prices/0/currency"] : []), "/identity/official_selling_points/0/point"]
           .map(pointer => ({ pointer, sourceId: source.sourceId, ...(options.quoteIds ? { quoteId: source.textFragments[0].quoteId } : { quote: options.badQuote ? "不存在的事实" : sourceText }) })) };
+      if (options.imageExtras) data.payload.images.push({ url: sourceUrl + "/hero.png", page_url: sourceUrl, angle: "unknown", width: 1080, height: 1920 });
+      if (options.imageMetadata) data.payload.images.push({ url: sourceUrl + "/hero.png", page_url: sourceUrl,
+        ...(["complete", "no-angle"].includes(options.imageMetadata) ? { source: "模型自称官方" } : {}),
+        ...(["complete", "no-source"].includes(options.imageMetadata) ? { angle: "unknown" } : {}),
+      });
       if (options.citationFault && (a1Calls === 1 || options.citationFault === "persistent")) {
         if (options.citationFault === "duplicate") data.citations.push({ ...data.citations[0]! });
         else if (options.citationFault === "missing") data.citations.pop();
@@ -49,7 +60,7 @@ async function prepare(options: { noSearch?: boolean; noAux?: boolean; badQuote?
       return { success: true, data };
     } }, dependencies: {
       search: async () => (++searches, options.noSearch || options.noAux && searches > 20 ? [] : [{ title: "星野规格", url: sourceUrl, snippet: "故意错误摘要999档，不能当事实" }]),
-      fetchSource: async url => fetchMarketingSource(url, { resolver: async () => [{ address: "93.184.216.34", family: 4 }], transport: async (_url, _address, signal) => requestSource(new URL(origin), { address: "127.0.0.1", family: 4 }, signal) }),
+      fetchSource: async url => fetchMarketingSource(url, { resolver: async () => [{ address: "93.184.216.34", family: 4 }], transport: async (_url, _address, signal) => requestSource(new URL(options.imageMetadata || options.imageExtras ? "/with-image" : "/", origin), { address: "127.0.0.1", family: 4 }, signal) }),
     } });
 }
 const shots = [{ shotId: "S1", prompt: "窗边展示星野 F3 风扇，字幕说明风量 9 档。", fields: { 场景: "窗边", 产品: "星野 F3", 规格: "9 档" } }];
@@ -76,7 +87,10 @@ describe("营销事实宿主完整执行", () => {
     const prepared = await prepare({ quoteIds: true, ...(repair ? { citationFault: "missing" as const } : {}) });
     const a1 = prepared.bundle.stages[0]!, attempts = await Promise.all(a1.extractions!.map(async item => JSON.parse(await readFile(path.join(root, item.ref), "utf8"))));
     const artifact = attempts.at(-1)!;
-    expect(artifact.schemaVersion).toBe("workloom.marketing-extraction/v2");
+    expect(artifact.schemaVersion).toBe("workloom.marketing-extraction/v3");
+    const request = JSON.parse(artifact.prompt.slice(artifact.prompt.lastIndexOf("当前阶段：A1\n") + "当前阶段：A1\n".length));
+    expect(request.payloadJsonSchema.properties.images.items).toMatchObject({ additionalProperties: false, required: ["url", "page_url"] });
+    expect(Object.keys(request.payloadJsonSchema.properties.images.items.properties).sort()).toEqual(["angle", "page_url", "source", "url"]);
     expect(artifact.response.data.citations.every((citation: any) => citation.quoteId && !("quote" in citation))).toBe(true);
     expect(artifact.citationBindings).toHaveLength(artifact.response.data.citations.length);
     expect(artifact.citationBindings[0]).toMatchObject({ start: 0, end: sourceText.length, textSha256: renderSha256(sourceText), quoteSha256: renderSha256(sourceText) });
@@ -86,7 +100,7 @@ describe("营销事实宿主完整执行", () => {
     await expect(verifyMarketingFacts({ root, ...saved, scope, shots })).resolves.toMatchObject({ scope });
     if (repair) expect(attempts.map(item => item.status)).toEqual(["rejected", "accepted"]);
   });
-  it.each(["binding-offset", "binding-quote-id", "response-quote-id", "prompt-policy", "prompt-fragment", "version"])("重算摘要也拒绝ID桥%s篡改", async kind => {
+  it.each(["binding-offset", "binding-quote-id", "response-quote-id", "prompt-policy", "prompt-fragment", "version", "schema", "schema-missing", "schema-stage", "version-downgrade"])("重算摘要也拒绝ID桥%s篡改", async kind => {
     const prepared = await prepare({ quoteIds: true }), saved = await finalizeMarketingFacts(prepared, shots, env);
     const reference = prepared.bundle.stages[0]!.extractions![0]!, artifact = JSON.parse(await readFile(path.join(root, reference.ref), "utf8"));
     if (kind === "binding-offset") artifact.citationBindings[0].start++;
@@ -95,11 +109,20 @@ describe("营销事实宿主完整执行", () => {
     if (kind === "prompt-policy") artifact.prompt = artifact.prompt.replace("不能改写或拼接", "允许自由发挥");
     if (kind === "prompt-fragment") artifact.prompt = artifact.prompt.replace(sourceText, "删除正文");
     if (kind === "version") delete artifact.schemaVersion;
+    if (kind === "version-downgrade") artifact.schemaVersion = "workloom.marketing-extraction/v2";
+    if (kind.startsWith("schema")) {
+      const marker = "当前阶段：A1\n", offset = artifact.prompt.lastIndexOf(marker) + marker.length;
+      const request = JSON.parse(artifact.prompt.slice(offset));
+      if (kind === "schema") request.payloadJsonSchema.properties.images.items.additionalProperties = true;
+      if (kind === "schema-missing") delete request.payloadJsonSchema;
+      if (kind === "schema-stage") request.payloadJsonSchema = { type: "object", properties: { reviews: { type: "array" } } };
+      artifact.prompt = artifact.prompt.slice(0, offset) + canonicalRenderJson(request);
+    }
     const bytes = canonicalRenderJson(artifact); await writeFile(path.join(root, reference.ref), bytes); reference.sha256 = renderSha256(bytes);
     const bundle = canonicalRenderJson(prepared.bundle); await writeFile(path.join(root, saved.ref), bundle);
     await expect(verifyMarketingFacts({ root, ref: saved.ref, sha256: renderSha256(bundle), scope, shots })).rejects.toThrow(/MARKETING_/);
   });
-  it("已发布的旧quote档案保留原合同和完整来源时仍可严格复读", async () => {
+  it.each(["v1", "v2"])("已发布的旧%s档案保留原合同和完整来源时仍可严格复读", async version => {
     const prepared = await prepare(), saved = await finalizeMarketingFacts(prepared, shots, env);
     // 冻结的v1三行头与原始全文sources；公共规则保持原字节，模拟升级前已接受的档案。
     const legacyHead = [
@@ -110,14 +133,24 @@ describe("营销事实宿主完整执行", () => {
     for (const stage of prepared.bundle.stages) for (const reference of stage.extractions ?? []) {
       const artifact = JSON.parse(await readFile(path.join(root, reference.ref), "utf8")), marker = `当前阶段：${stage.stage}\n`;
       const split = artifact.prompt.lastIndexOf(marker), request = JSON.parse(artifact.prompt.slice(split + marker.length));
-      request.sources = request.sources.map(({ textFragments, ...source }: any) => ({ ...source, text: textFragments.map((fragment: any) => fragment.text).join("") }));
+      if (version === "v1") request.sources = request.sources.map(({ textFragments, ...source }: any) => ({ ...source, text: textFragments.map((fragment: any) => fragment.text).join("") }));
+      delete request.payloadJsonSchema;
       const header = artifact.prompt.slice(0, split + marker.length).split("\n");
-      artifact.prompt = [...legacyHead, ...header.slice(4)].join("\n") + canonicalRenderJson(request);
-      delete artifact.schemaVersion; delete artifact.citationBindings;
+      const oldHeader = header.filter((line: string) => !line.startsWith("当前阶段的payloadJsonSchema来自宿主实际严格验证器；"));
+      artifact.prompt = (version === "v1" ? [...legacyHead, ...oldHeader.slice(4)] : oldHeader).join("\n") + canonicalRenderJson(request);
+      if (version === "v1") { delete artifact.schemaVersion; delete artifact.citationBindings; }
+      else artifact.schemaVersion = "workloom.marketing-extraction/v2";
       const bytes = canonicalRenderJson(artifact); await writeFile(path.join(root, reference.ref), bytes); reference.sha256 = renderSha256(bytes);
     }
     const bundle = canonicalRenderJson(prepared.bundle); await writeFile(path.join(root, saved.ref), bundle);
     await expect(verifyMarketingFacts({ root, ref: saved.ref, sha256: renderSha256(bundle), scope, shots })).resolves.toMatchObject({ scope });
+  });
+  it("模型仍添加图片宽高时严格拒绝且不修剪原始输出、不重试", async () => {
+    await expect(prepare({ imageExtras: true })).rejects.toThrow("MARKETING_PAYLOAD_INVALID");
+    expect(extractionCalls).toHaveLength(1); expect(modelCalls).toHaveLength(0);
+    const artifact = JSON.parse(await readFile(path.join(root, "stages/preproduction/attempt-1.marketing-A1.extraction-1.json"), "utf8"));
+    expect(artifact.status).toBe("rejected"); expect(artifact.response.data.payload.images[0]).toMatchObject({ width: 1080, height: 1920 });
+    await expect(readFile(path.join(root, "stages/preproduction/attempt-1.marketing-A1.extraction-2.json"))).rejects.toMatchObject({ code: "ENOENT" });
   });
   it.each(["spec", "no-search", "bad-quote", "model-failure", "support-rejected"])("%s不能得到可送G1的事实包", async kind => {
     rejectJudge = kind === "support-rejected";
@@ -214,6 +247,28 @@ describe("营销事实宿主完整执行", () => {
     expect(toJennyMarketingRaw(prepared.raw, redirected).A1.identity).toMatchObject({ specs: { 待机功率: { source_url: `${sourceUrl}?final=1` } } });
     expect(canonicalRenderJson(prepared.raw)).toBe(before); expect(canonicalRenderJson(prepared.bundle.rawByAgent)).toBe(before);
     expect(prepared.bundle.rawSha256).toBe(renderSha256(before)); expect(converted.A2).toEqual(prepared.raw.A2); expect(converted.A3).toEqual(prepared.raw.A3);
+  });
+  it.each(["complete", "no-source", "no-angle", "minimal"] as const)("真实页面图片%s元数据→实际A1–A5装订→最终事实复读，原始事实不变", async imageMetadata => {
+    const prepared = await prepare({ imageMetadata, quoteIds: true }), before = canonicalRenderJson(prepared.raw);
+    const converted = toJennyMarketingRaw(prepared.raw, prepared.bundle);
+    expect(converted.A1.images).toEqual([{ url: sourceUrl + "/hero.png", page_url: sourceUrl, source: "source.example.com", angle: "unknown" }]);
+    expect(prepared.bundle.dossier.visual_assets).toMatchObject({ images: [expect.objectContaining({ url: sourceUrl + "/hero.png", source: "source.example.com", angle: "unknown" })] });
+    expect(canonicalRenderJson(prepared.raw)).toBe(before); expect(canonicalRenderJson(prepared.bundle.rawByAgent)).toBe(before);
+    expect(prepared.bundle.rawSha256).toBe(renderSha256(before));
+    const saved = await finalizeMarketingFacts(prepared, shots, env);
+    await expect(verifyMarketingFacts({ root, ...saved, scope, shots })).resolves.toMatchObject({ scope });
+  });
+  it.each(["url", "page-url", "stage-source", "source-hash"])("Jenny图片装订拒绝%s不匹配，即使原始回填摘要被重算", async kind => {
+    const prepared = await prepare({ imageMetadata: "minimal" }), raw = structuredClone(prepared.raw), evidence = structuredClone(prepared.bundle);
+    if (kind === "url") (raw.A1.images as any[])[0].url = "https://other.example.com/invented.png";
+    if (kind === "page-url") (raw.A1.images as any[])[0].page_url = "https://other.example.com/unfetched";
+    evidence.rawSha256 = renderSha256(canonicalRenderJson(raw)); evidence.stages[0]!.facts.payload = raw.A1;
+    if (kind === "stage-source") evidence.stages[0]!.sourceIds = [];
+    if (kind === "source-hash") evidence.sources[0]!.textSha256 = "0".repeat(64);
+    // Remove specs in this adapter-only negative probe so image binding is the deciding guard.
+    (raw.A1.identity as any).specs = {}; (evidence.stages[0]!.facts.payload.identity as any).specs = {};
+    evidence.rawSha256 = renderSha256(canonicalRenderJson(raw));
+    expect(() => toJennyMarketingRaw(raw, evidence)).toThrow("MARKETING_IMAGE_UNVERIFIED");
   });
   it.each(["raw-hash", "raw-value-rehashed", "claim-value", "claim-missing", "claim-duplicate", "claim-stage", "claim-status", "source-missing", "source-stage", "source-duplicate", "source-text-hash", "source-url", "source-final-url-changed"])("Jenny桥拒绝%s，不伪造规格来源", async kind => {
     const prepared = await prepare(), raw = structuredClone(prepared.raw), evidence = structuredClone(prepared.bundle);
