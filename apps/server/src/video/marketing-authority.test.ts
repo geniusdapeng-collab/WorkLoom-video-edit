@@ -22,7 +22,7 @@ beforeEach(async () => {
   vi.stubGlobal("fetch", vi.fn(async (_url, init) => { modelCalls.push(JSON.parse(String(init.body))); return new Response(JSON.stringify({ choices: [{ message: { content: JSON.stringify({ approved: !rejectJudge, score: rejectJudge ? 10 : 96, issues: rejectJudge ? ["来源不支持此主张"] : [], suggestions: [], reason: rejectJudge ? "原文限定相冲突" : "逐项原文支持" }) } }] })); }));
 });
 afterEach(async () => { vi.unstubAllGlobals(); await rm(root, { recursive: true, force: true }); });
-async function prepare(options: { noSearch?: boolean; noAux?: boolean; badQuote?: boolean; modelFailure?: boolean; mode?: string; attempt?: number; specs?: Record<string, string | number | boolean>;
+async function prepare(options: { noSearch?: boolean; noAux?: boolean; badQuote?: boolean; modelFailure?: boolean; mode?: string; attempt?: number; specs?: Record<string, string | number | boolean>; quoteIds?: boolean;
   citationFault?: "metadata" | "duplicate" | "missing" | "persistent" | "changed-payload" | "repair-quote" | "repair-source" | "repair-model-failure";
 } = {}): Promise<PreparedMarketingFacts> {
   let searches = 0, a1Calls = 0;
@@ -35,9 +35,9 @@ async function prepare(options: { noSearch?: boolean; noAux?: boolean; badQuote?
       a1Calls++;
       if (a1Calls === 2 && options.citationFault === "repair-model-failure") return { success: false, error: "LLM unavailable" };
       const specs = options.specs ?? { 风量: "9 档" };
-      const data = { payload: { identity: { name: "星野 F3", specs, ...(options.citationFault ? { prices: [{ amount: 399, currency: "CNY", source_url: sourceUrl }] } : {}), official_selling_points: [{ point: "风量 9 档", source_url: sourceUrl }] }, images: [] },
+      const data: { payload: any; citations: any[] } = { payload: { identity: { name: "星野 F3", specs, ...(options.citationFault ? { prices: [{ amount: 399, currency: "CNY", source_url: sourceUrl }] } : {}), official_selling_points: [{ point: "风量 9 档", source_url: sourceUrl }] }, images: [] },
         citations: ["/identity/name", ...Object.keys(specs).map(key => `/identity/specs/${key.replace(/~/g, "~0").replace(/\//g, "~1")}`), ...(options.citationFault ? ["/identity/prices/0/amount", "/identity/prices/0/currency"] : []), "/identity/official_selling_points/0/point"]
-          .map(pointer => ({ pointer, sourceId: source.sourceId, quote: options.badQuote ? "不存在的事实" : sourceText })) };
+          .map(pointer => ({ pointer, sourceId: source.sourceId, ...(options.quoteIds ? { quoteId: source.textFragments[0].quoteId } : { quote: options.badQuote ? "不存在的事实" : sourceText }) })) };
       if (options.citationFault && (a1Calls === 1 || options.citationFault === "persistent")) {
         if (options.citationFault === "duplicate") data.citations.push({ ...data.citations[0]! });
         else if (options.citationFault === "missing") data.citations.pop();
@@ -71,6 +71,53 @@ describe("营销事实宿主完整执行", () => {
     expect(modelCalls.every(call => call.temperature === 0.2 && call.response_format.type === "json_object" && !("thinking" in call))).toBe(true);
     const checked = await verifyMarketingFacts({ root, ...saved, scope, shots }); expect(checked.outputReviews[0]?.promptSha256).toBe(renderSha256(shots[0]!.prompt));
     expect(await readFile(path.join(root, checked.sources[0]!.textRef), "utf8")).toBe(sourceText);
+  });
+  it.each([false, true])("选择原文ID→宿主装订→独立支持审核→完整事实复读，结构纠错=%s", async repair => {
+    const prepared = await prepare({ quoteIds: true, ...(repair ? { citationFault: "missing" as const } : {}) });
+    const a1 = prepared.bundle.stages[0]!, attempts = await Promise.all(a1.extractions!.map(async item => JSON.parse(await readFile(path.join(root, item.ref), "utf8"))));
+    const artifact = attempts.at(-1)!;
+    expect(artifact.schemaVersion).toBe("workloom.marketing-extraction/v2");
+    expect(artifact.response.data.citations.every((citation: any) => citation.quoteId && !("quote" in citation))).toBe(true);
+    expect(artifact.citationBindings).toHaveLength(artifact.response.data.citations.length);
+    expect(artifact.citationBindings[0]).toMatchObject({ start: 0, end: sourceText.length, textSha256: renderSha256(sourceText), quoteSha256: renderSha256(sourceText) });
+    expect(a1.facts.claims.every(claim => claim.quote === sourceText)).toBe(true);
+    expect(modelCalls).toHaveLength(3); expect(JSON.stringify(modelCalls)).toContain(sourceText);
+    const saved = await finalizeMarketingFacts(prepared, shots, env);
+    await expect(verifyMarketingFacts({ root, ...saved, scope, shots })).resolves.toMatchObject({ scope });
+    if (repair) expect(attempts.map(item => item.status)).toEqual(["rejected", "accepted"]);
+  });
+  it.each(["binding-offset", "binding-quote-id", "response-quote-id", "prompt-policy", "prompt-fragment", "version"])("重算摘要也拒绝ID桥%s篡改", async kind => {
+    const prepared = await prepare({ quoteIds: true }), saved = await finalizeMarketingFacts(prepared, shots, env);
+    const reference = prepared.bundle.stages[0]!.extractions![0]!, artifact = JSON.parse(await readFile(path.join(root, reference.ref), "utf8"));
+    if (kind === "binding-offset") artifact.citationBindings[0].start++;
+    if (kind === "binding-quote-id") artifact.citationBindings[0].quoteId = "Q1-000000000000";
+    if (kind === "response-quote-id") artifact.response.data.citations[0].quoteId = "Q1-000000000000";
+    if (kind === "prompt-policy") artifact.prompt = artifact.prompt.replace("不能改写或拼接", "允许自由发挥");
+    if (kind === "prompt-fragment") artifact.prompt = artifact.prompt.replace(sourceText, "删除正文");
+    if (kind === "version") delete artifact.schemaVersion;
+    const bytes = canonicalRenderJson(artifact); await writeFile(path.join(root, reference.ref), bytes); reference.sha256 = renderSha256(bytes);
+    const bundle = canonicalRenderJson(prepared.bundle); await writeFile(path.join(root, saved.ref), bundle);
+    await expect(verifyMarketingFacts({ root, ref: saved.ref, sha256: renderSha256(bundle), scope, shots })).rejects.toThrow(/MARKETING_/);
+  });
+  it("已发布的旧quote档案保留原合同和完整来源时仍可严格复读", async () => {
+    const prepared = await prepare(), saved = await finalizeMarketingFacts(prepared, shots, env);
+    // 冻结的v1三行头与原始全文sources；公共规则保持原字节，模拟升级前已接受的档案。
+    const legacyHead = [
+      '输出严格JSON {"payload":本阶段结构,"citations":[{"pointer":"/identity/name","sourceId":"SRC-…","quote":"正文连续原文"}],"noEvidenceReason":"仅无可用证据时填写"}。',
+      "每个非空事实叶子（商品名/品牌/类别/型号/specs全部值/价格金额币种/卖点/评价原话评分/竞品名和属性）都必须有且只有一条citations。",
+      "pointer按JSON Pointer指向payload叶子；quote必须是提供正文的连续原文，不能改写或拼接。数组下标从0开始，规格键中~用~0、/用~1。",
+    ];
+    for (const stage of prepared.bundle.stages) for (const reference of stage.extractions ?? []) {
+      const artifact = JSON.parse(await readFile(path.join(root, reference.ref), "utf8")), marker = `当前阶段：${stage.stage}\n`;
+      const split = artifact.prompt.lastIndexOf(marker), request = JSON.parse(artifact.prompt.slice(split + marker.length));
+      request.sources = request.sources.map(({ textFragments, ...source }: any) => ({ ...source, text: textFragments.map((fragment: any) => fragment.text).join("") }));
+      const header = artifact.prompt.slice(0, split + marker.length).split("\n");
+      artifact.prompt = [...legacyHead, ...header.slice(4)].join("\n") + canonicalRenderJson(request);
+      delete artifact.schemaVersion; delete artifact.citationBindings;
+      const bytes = canonicalRenderJson(artifact); await writeFile(path.join(root, reference.ref), bytes); reference.sha256 = renderSha256(bytes);
+    }
+    const bundle = canonicalRenderJson(prepared.bundle); await writeFile(path.join(root, saved.ref), bundle);
+    await expect(verifyMarketingFacts({ root, ref: saved.ref, sha256: renderSha256(bundle), scope, shots })).resolves.toMatchObject({ scope });
   });
   it.each(["spec", "no-search", "bad-quote", "model-failure", "support-rejected"])("%s不能得到可送G1的事实包", async kind => {
     rejectJudge = kind === "support-rejected";

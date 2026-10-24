@@ -13,6 +13,19 @@ describe("逐事实叶子的正文绑定", () => {
     expect(JSON.stringify(facts.payload)).toContain("source.example.com"); expect(JSON.stringify(facts.payload)).not.toContain("假称官方");
     expect(() => revalidateStageFacts(facts, [source])).not.toThrow();
   });
+  it("精确位置仅接受原位连续原文；重复文本旧quote仍取首次，显式位置可选择后一次", () => {
+    const repeated = { ...source, text: body + "\n" + body, textSha256: renderSha256(body + "\n" + body) };
+    const legacy = validateStageFacts("A1", fixture(), [repeated]);
+    expect(legacy.claims.every(claim => claim.quoteStart === 0)).toBe(true);
+    const positioned = fixture(); positioned.citations.forEach(citation => Object.assign(citation, { quoteStart: body.length + 1 }));
+    const facts = validateStageFacts("A1", positioned, [repeated]);
+    expect(facts.claims.every(claim => claim.quoteStart === body.length + 1 && claim.quoteEnd === repeated.text.length)).toBe(true);
+    expect(() => revalidateStageFacts(facts, [repeated])).not.toThrow();
+    for (const offset of [-1, 0.5, 1, repeated.text.length, Number.MAX_SAFE_INTEGER + 1]) {
+      const invalid = fixture(); Object.assign(invalid.citations[0]!, { quoteStart: offset });
+      expect(() => validateStageFacts("A1", invalid, [repeated])).toThrow();
+    }
+  });
   it.each(["missing", "duplicate", "wrong-pointer", "wrong-source", "invented-quote", "text-hash", "mixed-fake-url", "inferred"])("%s不能升格事实", kind => {
     const value = fixture(), sources = structuredClone([source]);
     if (kind === "missing") value.citations.pop();

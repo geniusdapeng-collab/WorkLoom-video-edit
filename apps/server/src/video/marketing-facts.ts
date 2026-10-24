@@ -25,6 +25,7 @@ const a3 = z.object({ competitors: z.array(z.object({ name: text, price_band: te
 }).strict()).max(3), adjacent_notes: z.array(z.unknown()).max(0).optional() }).strict();
 export const extractionSchema = z.object({ payload: z.unknown(), citations: z.array(z.object({
   pointer: z.string().min(1).max(500), sourceId: z.string().min(1).max(100), quote: z.string().min(1).max(6000),
+  quoteStart: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER).optional(),
 }).strict()).max(200), noEvidenceReason: text.optional() }).strict();
 export interface ClaimEvidence {
   claimId: string; stage: IntelStage; pointer: string; value: string | number | boolean;
@@ -65,8 +66,9 @@ export function validateStageFacts(stage: IntelStage, raw: unknown, sources: Sou
     if (!leaves.has(citation.pointer) || covered.has(citation.pointer)) throw new Error(`MARKETING_CITATION_INVALID：主张路径不存在或重复 ${citation.pointer}`);
     const source = sourceMap.get(citation.sourceId);
     if (!source || renderSha256(source.text) !== source.textSha256) throw new Error("MARKETING_CITATION_INVALID：主张引用的正文不可核实");
-    const quoteStart = source.text.indexOf(citation.quote);
-    if (quoteStart < 0) throw new Error("MARKETING_CITATION_INVALID：引文不是保存正文的连续原文");
+    // ID选择可能指向重复文本的后一次出现；受控位置必须原位逐字相等，不能回退到别处匹配。
+    const quoteStart = citation.quoteStart ?? source.text.indexOf(citation.quote);
+    if (quoteStart < 0 || source.text.slice(quoteStart, quoteStart + citation.quote.length) !== citation.quote) throw new Error("MARKETING_CITATION_INVALID：引文不是保存正文的连续原文");
     const value = leaves.get(citation.pointer)!;
     if (stage === "A2" && /^\/reviews\/\d+\/text$/.test(citation.pointer) && (typeof value !== "string" || !citation.quote.includes(value))) {
       throw new Error("MARKETING_REVIEW_PARAPHRASED：用户评价必须保留原话，不能改写后宣称引文");
@@ -110,8 +112,10 @@ export function validateStageFacts(stage: IntelStage, raw: unknown, sources: Sou
 
 /** 复读已归档的原始payload/citations，不能把落盘“通过”字段当证据。 */
 export function revalidateStageFacts(facts: ValidatedStageFacts, sources: SourceSnapshot[]): void {
-  const checked = validateStageFacts(facts.stage, { payload: facts.payload, citations: facts.claims.map(claim => ({
-    pointer: claim.pointer, sourceId: claim.sourceId, quote: claim.quote,
-  })), ...(facts.noEvidenceReason ? { noEvidenceReason: facts.noEvidenceReason } : {}) }, sources);
+  let checked: ValidatedStageFacts;
+  try { checked = validateStageFacts(facts.stage, { payload: facts.payload, citations: facts.claims.map(claim => ({
+    pointer: claim.pointer, sourceId: claim.sourceId, quote: claim.quote, quoteStart: claim.quoteStart,
+  })), ...(facts.noEvidenceReason ? { noEvidenceReason: facts.noEvidenceReason } : {}) }, sources); }
+  catch (cause) { throw new Error("MARKETING_FACTS_CHANGED：原始主张、引证位置或状态与档案不一致", { cause }); }
   if (canonicalRenderJson(checked) !== canonicalRenderJson(facts)) throw new Error("MARKETING_FACTS_CHANGED：原始主张、引证位置或状态与档案不一致");
 }
