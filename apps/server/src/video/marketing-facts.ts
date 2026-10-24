@@ -50,6 +50,11 @@ export function stagePayloadShape(stage: IntelStage, raw: unknown): Record<strin
   catch (error) { throw new Error(`MARKETING_PAYLOAD_INVALID：${stage} ${error instanceof Error ? error.message : String(error)}`); }
 }
 
+/** 与严格验证器使用同一叶子规则，供引用结构纠错列出精确的允许路径。 */
+export function stageFactPointers(stage: IntelStage, payload: unknown): string[] {
+  return [...factLeaves(stagePayloadShape(stage, payload)).keys()];
+}
+
 export function validateStageFacts(stage: IntelStage, raw: unknown, sources: SourceSnapshot[]): ValidatedStageFacts {
   const extraction = extractionSchema.parse(raw);
   const payload = stagePayloadShape(stage, extraction.payload);

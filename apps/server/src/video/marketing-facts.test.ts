@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { validateStageFacts, revalidateStageFacts } from "./marketing-facts.js";
+import { stageFactPointers, validateStageFacts, revalidateStageFacts } from "./marketing-facts.js";
 import { renderSha256 } from "./gen/compiled-request.js";
 import type { SourceSnapshot } from "./marketing-source-fetcher.js";
 const body = "星野 F3 风量 9 档。价格 399 CNY。评价：低档安静。评分 4。另一款北斗支持 5 档。";
@@ -30,6 +30,14 @@ describe("逐事实叶子的正文绑定", () => {
     expect(() => validateStageFacts("A1", value, [source])).toThrow();
     value.citations = [citation("/identity/name"), citation("/identity/specs/source"), citation("/identity/specs/a~1b~0c"), citation("/identity/official_selling_points/0/point")];
     expect(validateStageFacts("A1", value, [source]).claims).toHaveLength(4);
+    expect(stageFactPointers("A1", value.payload)).toEqual(["/identity/name", "/identity/specs/source", "/identity/specs/a~1b~0c", "/identity/official_selling_points/0/point"]);
+  });
+  it("引用路径清单与验证器同源，价格来源URL和未知图片角度仍不属于事实", () => {
+    const payload = { identity: { name: "星野 F3", specs: { url: "USB", 待机功率: 0, 自动启停: false }, prices: [{ amount: 399, currency: "CNY", note: "页面价格", source_url: source.finalUrl }],
+      official_selling_points: [{ point: "9档", source_url: source.finalUrl, channel: "媒体" }] }, images: [{ url: source.assetUrls[0], page_url: source.finalUrl, source: "页面", angle: "unknown" }] };
+    expect(stageFactPointers("A1", payload)).toEqual(["/identity/name", "/identity/specs/url", "/identity/specs/待机功率", "/identity/specs/自动启停",
+      "/identity/prices/0/amount", "/identity/prices/0/currency", "/identity/prices/0/note", "/identity/official_selling_points/0/point"]);
+    expect(() => stageFactPointers("A1", { identity: { name: "" } })).toThrow("MARKETING_PAYLOAD_INVALID");
   });
   it("空A2/A3必须有明确缺证据原因，A1不能空", () => {
     for (const stage of ["A2", "A3"] as const) {
