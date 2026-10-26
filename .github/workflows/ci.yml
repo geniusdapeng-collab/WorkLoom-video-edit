@@ -116,6 +116,8 @@ jobs:
           packages/video-studio/src/studio-portrait-reuse.test.ts
           packages/video-studio/src/producer-gate.test.ts
           packages/video-studio/src/vendor-compat.test.ts
+          apps/server/src/video/marketing-authority.test.ts
+          apps/server/src/video/marketing-facts.test.ts
           apps/server/src/video/marketing-gate-evidence.test.ts
           apps/server/src/video/studio-worker.test.ts
           apps/server/src/video/gate-policy.test.ts
