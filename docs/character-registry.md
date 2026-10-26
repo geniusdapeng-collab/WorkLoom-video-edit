@@ -42,7 +42,7 @@
 1. 新增独立角色目录，写profile、定妆照不可变版本与可核对的来源记录。
 2. registry追加唯一ID、唯一编号、姓名/别名、相对档案路径；profile编号同步。
 3. 换默认时显式改 `defaultModel`，默认角色编号设为1；其它角色顺延，保持既有ID和历史路径。
-4. 把随包运行资产加入 `bundle.json#provides.library` 并更新相应SHA与清单摘要。稳定包另需可信Ed25519签名；运行期账本与README不入索引。
+4. 把随包运行资产加入 `bundle.json#workloom.provides.library` 并更新相应SHA与清单摘要。稳定包另需可信Ed25519签名。新增运行期账本和审阅记录不自动入索引；已在 `provides.library` 声明的历史 `gates.jsonl` / `reviews/*.json` 仍由对应资产SHA保护，保留原字节，不按未登记运行记录处理。README不入索引。
 
 官方门禁：`node scripts/verify-builtin-character-assets.mjs`；资产测试：`pnpm vitest run packages/video-studio/src/builtin-character-library.test.ts`。角色读取/选角实现是 `packages/video-studio/src/character-archive.ts`；正式行业包装载入口是 `packages/base/bundles/assembly.ts#loadVerifiedBundleManifest`。
 

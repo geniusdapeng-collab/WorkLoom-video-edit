@@ -34,7 +34,7 @@
 
 ## 完整性与维护
 
-`registry.json`、三名在册角色的档案/定妆照，以及AI角色的生成证据均登记在 `bundles/ai-video/bundle.json#provides.library`。李英子的v1/v2版本与v2逐请求来源也在册。修改在册文件须在同一提交重算相应资产SHA和清单摘要；稳定包另需合法签名。运行期 `gates.jsonl` / `reviews/*.json` 和README不进入完整性索引，历史账本只增不改。
+`registry.json`、三名在册角色的档案/定妆照，以及AI角色的生成证据均登记在 `bundles/ai-video/bundle.json#workloom.provides.library`。李英子的v1/v2版本与v2逐请求来源也在册。修改在册文件须在同一提交重算相应资产SHA和清单摘要；稳定包另需合法签名。新增运行期 `gates.jsonl` / `reviews/*.json` 不自动进入索引；已在 `provides.library` 中声明的历史账本和审阅记录仍按对应资产SHA保护，必须保留原字节，不能按未登记的运行记录处理。README不入索引。
 
 新增角色时新增独立目录、档案与不可变版本，在registry追加唯一编号；换默认时显式改 `defaultModel`，并将默认角色编号设为1，同步其它当前编号与文档。不得覆盖旧身份或旧图片。
 
