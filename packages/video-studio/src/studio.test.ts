@@ -15,27 +15,30 @@ const studioMocks = vi.hoisted(() => ({
   failDispose: ""
 }));
 
-// 仅替换 vendor 的生产执行和全局补丁，测试实际 VideoStudio 与确认分发器的接线。
-vi.mock("node:module", async (importOriginal) => {
-  const original = await importOriginal<typeof import("node:module")>();
-  return {
-    ...original,
-    createRequire: (url: string | URL) => {
-      const require = original.createRequire(url);
-      return new Proxy(require, {
-        apply(target, thisArg, args: [string]) {
-          if (args[0].endsWith("/vendor/supermickey/hyperreality-system/index.js")) {
-            return { HyperrealitySystem: class {
-              constructor() { studioMocks.construct(); }
-              create(...input: unknown[]) { return studioMocks.create(...input); }
-            } };
-          }
-          return Reflect.apply(target, thisArg, args);
-        }
-      });
-    }
-  };
-});
+// Stub the explicit entry/contract seams, keeping production constructor/model work outside wiring tests.
+vi.mock("./vendor-requirement-entry.js", () => ({
+  acquireVendorRequirementEntry: () => {
+    if (studioMocks.failInstall === "entry") throw new Error("install failed: entry");
+    studioMocks.installed.push("entry");
+    return {
+      exports: { HyperrealitySystem: class {
+        constructor() { studioMocks.construct(); }
+        create(...input: unknown[]) { return studioMocks.create(...input); }
+      } },
+      identity: { entryPath: "/fixture/vendor/index.js" },
+      release: () => { studioMocks.disposed.push("entry"); if (studioMocks.failDispose === "entry") throw new Error("dispose failed: entry"); }
+    };
+  }
+}));
+vi.mock("./requirement-contract-bridge.js", () => ({
+  assertRequirementContractBridge: () => undefined,
+  withRequirementContractScope: (_metadata: unknown, operation: () => unknown) => operation(),
+  installVendorRequirementContractBridge: () => {
+    if (studioMocks.failInstall === "requirement") throw new Error("install failed: requirement");
+    studioMocks.installed.push("requirement");
+    return () => { studioMocks.disposed.push("requirement"); if (studioMocks.failDispose === "requirement") throw new Error("dispose failed: requirement"); };
+  }
+}));
 
 vi.mock("./vendor-compat.js", () => {
   const install = (name: string) => () => {
@@ -189,6 +192,15 @@ describe("VideoStudio 确认作用域与装配清理", () => {
     expect(await studio(async () => ({ approved: true })).runPreproduction({ projectId: "p", intent: "intent" })).toBe(result);
     expect(studioMocks.disposed).toEqual([...studioMocks.installed].reverse());
   });
+
+  it.each(["entry", "requirement"])("%s 准入失败不会构造vendor，并清理已取得的资源", async name => {
+    studioMocks.failInstall = name;
+    await expect(studio(async () => ({ approved: true })).runPreproduction({ projectId: "p", intent: "intent" }))
+      .rejects.toThrow(`install failed: ${name}`);
+    expect(studioMocks.construct).not.toHaveBeenCalled();
+    expect(studioMocks.create).not.toHaveBeenCalled();
+    expect(studioMocks.disposed).toEqual([...studioMocks.installed].reverse());
+  });
 });
 
 describe("LLM 适配器", () => {
@@ -267,18 +279,24 @@ describe("vendor 核心可加载", () => {
     const { execFileSync } = require("node:child_process") as typeof import("node:child_process");
     const path = require("node:path") as typeof import("node:path");
     const { fileURLToPath } = require("node:url") as typeof import("node:url");
+    const fs = require("node:fs") as typeof import("node:fs");
+    const os = require("node:os") as typeof import("node:os");
     const here = path.dirname(fileURLToPath(import.meta.url));
     const entry = path.resolve(
       here,
       "../../../vendor/supermickey/hyperreality-system/index.js"
     );
-    const out = execFileSync(
-      process.execPath,
-      ["-e", `const m=require(${JSON.stringify(entry)});console.log(typeof m.HyperrealitySystem)`],
-      { encoding: "utf8", timeout: 30_000 }
-    );
-    // vendor 加载时会打印日志噪声，断言最后一行输出
-    expect(out.trim().split("\n").pop()).toBe("function");
+    const isolated = fs.mkdtempSync(path.join(os.tmpdir(), "wl-vendor-load-test-"));
+    try {
+      const out = execFileSync(
+        process.execPath,
+        ["-e", `const m=require(${JSON.stringify(entry)});console.log(typeof m.HyperrealitySystem)`],
+        { cwd: isolated, env: {}, encoding: "utf8", timeout: 30_000 }
+      );
+      // vendor 加载时会打印日志噪声，断言最后一行输出。
+      // The class-only subprocess receives no credentials or repository working directory.
+      expect(out.trim().split("\n").pop()).toBe("function");
+    } finally { fs.rmSync(isolated, { recursive: true, force: true }); }
   }, 35_000);
 });
 

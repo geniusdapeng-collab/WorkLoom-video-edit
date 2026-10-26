@@ -57,6 +57,8 @@ export interface DeterministicCheck {
 export interface ProducerArtifact {
   path: string;
   kind: "image" | "video" | "audio" | "text" | "json";
+  /** 宿主已接受证据的原始字节摘要；不匹配时必须在模型调用前拒绝。 */
+  expectedSha256?: string;
   bytes?: number;
   /** ffprobe 摘要（video/audio）：width/height/duration/loudness 等 */
   probe?: Record<string, unknown>;
@@ -461,11 +463,17 @@ export async function reviewStage(options: ProducerGateOptions): Promise<Produce
   try {
     if (options.artifacts.length === 0) throw new Error("缺少待评审产物");
     for (const artifact of options.artifacts) {
+      if (artifact.expectedSha256 !== undefined && (typeof artifact.expectedSha256 !== "string" || !/^[a-f0-9]{64}$/.test(artifact.expectedSha256))) {
+        throw new Error(`产物的预期摘要非法：${artifact.path}`);
+      }
       const stat = statSync(artifact.path);
       if (!stat.isFile() || stat.size === 0) throw new Error(`产物为空或不是文件：${artifact.path}`);
       if (stat.size > 1_000_000_000) throw new Error(`产物超过单次评审资源上限：${artifact.path}`);
       const bytes = readFileSync(artifact.path);
       const sha256 = createHash("sha256").update(bytes).digest("hex");
+      if (artifact.expectedSha256 !== undefined && sha256 !== artifact.expectedSha256) {
+        throw new Error(`产物摘要与本次绑定的已接受证据不一致：${artifact.path}`);
+      }
       if (artifact.kind === "audio") throw new Error(`当前评审适配器不支持音频内容：${artifact.path}；需要音频评审组件`);
       if (artifact.kind === "text" || artifact.kind === "json") {
         const raw = bytes.toString("utf8");

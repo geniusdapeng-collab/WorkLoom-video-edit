@@ -11,23 +11,17 @@ const state = vi.hoisted(() => ({
   runtime: null as PortraitRuntime | null,
   create: vi.fn()
 }));
-vi.mock("node:module", async (importOriginal) => {
-  const original = await importOriginal<typeof import("node:module")>();
-  return {
-    ...original,
-    createRequire: (url: string | URL) => {
-      const require = original.createRequire(url);
-      return new Proxy(require, {
-        apply(target, thisArg, args: [string]) {
-          if (args[0].endsWith("/vendor/supermickey/hyperreality-system/index.js")) {
-            return { HyperrealitySystem: class { create(...input: unknown[]) { return state.create(...input); } } };
-          }
-          return Reflect.apply(target, thisArg, args);
-        }
-      });
-    }
-  };
-});
+vi.mock("./vendor-requirement-entry.js", () => ({
+  acquireVendorRequirementEntry: () => ({
+    exports: { HyperrealitySystem: class { create(...input: unknown[]) { return state.create(...input); } } },
+    identity: { entryPath: "/fixture/vendor/index.js" }, release: () => undefined
+  })
+}));
+vi.mock("./requirement-contract-bridge.js", () => ({
+  assertRequirementContractBridge: () => undefined,
+  installVendorRequirementContractBridge: () => () => undefined,
+  withRequirementContractScope: (_metadata: unknown, operation: () => unknown) => operation()
+}));
 vi.mock("./portrait-runtime.js", () => ({
   createPortraitRuntime: () => {
     if (!state.runtime) throw new Error("test runtime not configured");

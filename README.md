@@ -323,6 +323,7 @@ pnpm -C apps/webc dev
 - **视频与角色**：[角色库与默认模特](docs/character-registry.md)、[视频交付与返修](docs/video-delivery-and-revision.md)、[口播解释片](docs/talkcraft-explainer.md)、[白板引擎](docs/whiteboard-engine.md)。
 - **接入与运行**：[电脑工位指南](docs/computer-use-production.md)、[连接器退出 mock 的约定](docs/connectors-mock-exit.md)、[发布清单](docs/release-checklist.md)。
 - **视频制作先读**：[本仓 AI 工作台视频调用指南](docs/ai-video-workbench-guide.md)；CLI `node scripts/workloom-agent.mjs invoke growth.video.workbench.guide` / MCP `workloom_growth_video_workbench_guide` 返回同一全文和 SHA-256。先冻结用户固定项，再走正式系统流程；本仓能力边界见指南。
+- **正式前期需求与事实**：G3 等待完整异步需求转换，使用本次宿主选角、完整场景及结构化道具/动作；客户受众原文与模型细分假设分别保留。营销后续门收到同一次尝试已通过 G1 的完整原件及路径/摘要绑定，每门仍独立审核新增主张。缺证据、摘要变化或超预算时停止；详见指南 §5.3。
 - **桌面 Agent 接入（Codex / DeepSeek Harness）**：[客户端接入指南](docs/AGENT-CLIENTS.md)（5 分钟接入 + MCP 配置 + 视频能力清单 + 安全边界）。
 - **产品方案背景**：[社媒与 GEO 融合方案](docs/geo-fusion-plan.md)、[获客方案](docs/plan-acquisition.md)。这些文档含目标与历史设计，不能单独证明当前运行能力。
 - **开发治理**：[AGENTS.md](AGENTS.md)、[本仓规则](AGENTS.repo.md)、[全景认知](WORKLOOM_PRODUCT_CONTEXT.md)、[开发协作协议](docs/DEVELOPMENT-PROTOCOL.md)。

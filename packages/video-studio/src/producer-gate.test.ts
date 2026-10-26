@@ -141,6 +141,127 @@ describe("AI producer evidence gate", () => {
   });
 });
 
+describe("producer binds the expected artifact bytes before review", () => {
+  const sha256 = (bytes: string | Buffer) => createHash("sha256").update(bytes).digest("hex");
+  const artifactFixtures = [
+    { kind: "text" as const, name: "G3_INSIGHT.md", bytes: "当前需求正文：只使用已核实的事实，末尾约束不得省略。" },
+    { kind: "json" as const, name: "G1_DOSSIER.json", bytes: JSON.stringify({ facts: { model: "820RR-RC", value: "当前事实，来源明确" } }) },
+    { kind: "image" as const, name: "current-frame.png", bytes: png },
+  ];
+
+  it.each(artifactFixtures)("rejects a mismatched $kind artifact before any model call", async ({ kind, name, bytes }) => {
+    const path = file(name, bytes); const bodies: string[] = [];
+    const result = await reviewStage(textOptions({
+      stage: kind === "image" ? "keyframe" : "prompt",
+      artifacts: [{ path, kind, expectedSha256: "0".repeat(64) }], fetchImpl: judge(good, bodies),
+    }));
+    expect(result).toMatchObject({ approved: false, status: "unverified", degraded: true });
+    expect(bodies).toHaveLength(0);
+  });
+
+  it.each(["", "a".repeat(63), "a".repeat(65), "g".repeat(64), ` ${"a".repeat(64)}`, `${"a".repeat(64)}\n`])(
+    "rejects an invalid expected SHA256 %j before any model call", async expectedSha256 => {
+      const bodies: string[] = [];
+      const result = await reviewStage(textOptions({
+        artifacts: [{ path: file("bound.txt", "本次正文"), kind: "text", expectedSha256 }], fetchImpl: judge(good, bodies),
+      }));
+      expect(result).toMatchObject({ approved: false, status: "unverified", degraded: true });
+      expect(bodies).toHaveLength(0);
+    },
+  );
+
+  it.each(artifactFixtures)("accepts the exact UTF-8 or binary hash and records $kind evidence", async ({ kind, name, bytes }) => {
+    const path = file(name, bytes); const bodies: string[] = []; const expectedSha256 = sha256(bytes);
+    const result = await reviewStage(textOptions({
+      stage: kind === "image" ? "keyframe" : "prompt",
+      artifacts: [{ path, kind, expectedSha256 }], fetchImpl: judge(good, bodies),
+    }));
+    expect(result).toMatchObject({ approved: true, status: "passed", degraded: false });
+    expect(bodies).toHaveLength(1);
+    expect(result.evidence).toEqual([{ path, sha256: expectedSha256, scope: kind === "image" ? "image" : "complete-text" }]);
+    const content = JSON.parse(bodies[0]!).messages[0].content as Array<{ type: string; text?: string; image_url?: { url: string } }>;
+    if (kind === "image") expect(content.find(item => item.type === "image_url")?.image_url?.url).toBe(`data:image/png;base64,${png.toString("base64")}`);
+    else expect(content).toContainEqual({ type: "text", text: `以下是产物正文（完整）：${path}\n${bytes}` });
+  });
+
+  it("never calls the model when a later artifact differs from its expected hash", async () => {
+    const accepted = "已核实G1事实"; const current = "本次G3确认单"; const bodies: string[] = [];
+    const result = await reviewStage(textOptions({ artifacts: [
+      { path: file("G1_DOSSIER.md", accepted), kind: "text", expectedSha256: sha256(accepted) },
+      { path: file("G3_INSIGHT.md", current), kind: "text", expectedSha256: sha256("另一个attempt的确认单") },
+    ], fetchImpl: judge(good, bodies) }));
+    expect(result.approved).toBe(false); expect(result.status).toBe("unverified"); expect(bodies).toHaveLength(0);
+  });
+
+  it.each(artifactFixtures)("rejects $kind tampering during a successful model review", async ({ kind, name, bytes }) => {
+    const path = file(name, bytes); const expectedSha256 = sha256(bytes); const bodies: string[] = [];
+    const fetchImpl = (async (_url, init) => {
+      bodies.push(String(init?.body));
+      writeFileSync(path, kind === "image" ? Buffer.concat([png, Buffer.from("changed")]) : "评审期间被替换的正文");
+      return new Response(JSON.stringify({ choices: [{ message: { content: JSON.stringify(good) } }] }));
+    }) as typeof fetch;
+    const result = await reviewStage(textOptions({
+      stage: kind === "image" ? "keyframe" : "prompt", artifacts: [{ path, kind, expectedSha256 }], fetchImpl,
+    }));
+    expect(result).toMatchObject({ approved: false, status: "unverified", degraded: true });
+    expect(result.reason).toContain("评审期间产物发生变化"); expect(bodies).toHaveLength(1);
+    expect(result.evidence).toContainEqual({ path, sha256: expectedSha256, scope: kind === "image" ? "image" : "complete-text" });
+  });
+
+  it.each([100_000, 100_001])("accounts for every text artifact in the %i-character full-text budget", async total => {
+    const accepted = "G1全文起点" + "a".repeat(60_000 - "G1全文起点".length - "G1全文尾部".length) + "G1全文尾部";
+    const current = "当前门全文起点" + "b".repeat(total - accepted.length - "当前门全文起点".length - "当前门全文尾部".length) + "当前门全文尾部";
+    expect(accepted.length + current.length).toBe(total);
+    const acceptedPath = file("G1_DOSSIER.md", accepted); const currentPath = file("G3_INSIGHT.md", current); const bodies: string[] = [];
+    const artifacts = [
+      { path: acceptedPath, kind: "text" as const, expectedSha256: sha256(accepted) },
+      { path: currentPath, kind: "text" as const, expectedSha256: sha256(current) },
+    ];
+    const result = await reviewStage(textOptions({ artifacts, fetchImpl: judge(good, bodies) }));
+    if (total === 100_000) {
+      expect(result.approved, result.reason).toBe(true); expect(bodies).toHaveLength(1);
+      const content = JSON.parse(bodies[0]!).messages[0].content;
+      expect(content).toContainEqual({ type: "text", text: `以下是产物正文（完整）：${acceptedPath}\n${accepted}` });
+      expect(content).toContainEqual({ type: "text", text: `以下是产物正文（完整）：${currentPath}\n${current}` });
+      expect(result.evidence).toHaveLength(2);
+    } else {
+      expect(result).toMatchObject({ approved: false, status: "unverified", degraded: true });
+      expect(result.reason).toContain("完整评审预算"); expect(bodies).toHaveLength(0);
+    }
+  });
+
+  it.each([0, 1, 2])("sends complete G1 and current-gate text in every image batch; rejected batch %i controls the result", async rejectedBatch => {
+    const accepted = JSON.stringify({ facts: { model: "820RR-RC", source: "source-accepted-only", full: "G1事实正文".repeat(3500), tail: "G1末尾事实约束" } });
+    const current = "本次G3需求正文".repeat(2500) + "当前门末尾约束";
+    const acceptedPath = file("G1_DOSSIER.json", accepted); const currentPath = file("G3_INSIGHT.md", current);
+    const images = Array.from({ length: 7 }, (_, i) => ({ path: file(`batch-${i}.png`, png), kind: "image" as const, expectedSha256: sha256(png) }));
+    const bodies: string[] = [];
+    const fetchImpl = (async (_url, init) => {
+      bodies.push(String(init?.body));
+      const answer = bodies.length === rejectedBatch ? { ...good, approved: false, reason: `batch-${rejectedBatch}-rejected` } : good;
+      return new Response(JSON.stringify({ choices: [{ message: { content: JSON.stringify(answer) } }] }));
+    }) as typeof fetch;
+    const result = await reviewStage(textOptions({ stage: "keyframe", artifacts: [
+      { path: acceptedPath, kind: "json", expectedSha256: sha256(accepted) },
+      { path: currentPath, kind: "text", expectedSha256: sha256(current) }, ...images,
+    ], fetchImpl }));
+    expect(bodies).toHaveLength(2);
+    for (const [index, body] of bodies.entries()) {
+      const content = JSON.parse(body).messages[0].content as Array<{ type: string; text?: string }>;
+      expect(content).toContainEqual({ type: "text", text: `以下是产物正文（完整）：${acceptedPath}\n${accepted}` });
+      expect(content).toContainEqual({ type: "text", text: `以下是产物正文（完整）：${currentPath}\n${current}` });
+      expect(content.filter(item => item.type === "image_url")).toHaveLength(index === 0 ? 6 : 1);
+    }
+    expect(result.evidence).toEqual([
+      { path: acceptedPath, sha256: sha256(accepted), scope: "complete-text" },
+      { path: currentPath, sha256: sha256(current), scope: "complete-text" },
+      ...images.map(image => ({ path: image.path, sha256: image.expectedSha256, scope: "image" })),
+    ]);
+    expect(result.approved).toBe(rejectedBatch === 0); expect(result.status).toBe(rejectedBatch === 0 ? "passed" : "failed");
+    if (rejectedBatch) expect(result.reason).toContain(`batch-${rejectedBatch}-rejected`);
+  });
+});
+
 
 describe("producer uses explicit source contracts", () => {
   const shots = [{ shotId: "PAIR", scene: "两人坐在窗边", characters: ["甲", "乙"], composition: "双人近景", lighting: "右侧烛光2200K", action: "保持坐姿，不笑", depth_of_field: "深景深" }];
