@@ -136,7 +136,7 @@ async function extractStageFacts(input: {
     const prompt = `${schemaExtractionContract}\n${repair}本次查询线索（不是事实）：${canonicalRenderJson(input.product)}\n当前阶段：${input.stage}\n` +
       canonicalRenderJson({ sources: quoteIndexedSources(input.pages), plan: input.plan, payloadJsonSchema: stagePayloadJsonSchema(input.stage) });
     if (prompt.length > 90_000) fail("MARKETING_REVIEW_TOO_LARGE", "完整来源或纠错上下文超单次提取预算，禁止裁剪后声称核实");
-    const result = await input.llm.reason(prompt, { forceJson: true, temperature: 0, maxTokens: 8192, thinking: { type: "disabled" } });
+    const result = await input.llm.reason(prompt, { forceJson: true, temperature: 0, maxTokens: 16384, thinking: { type: "disabled" } });
     let parsed: unknown, boundExtraction: ReturnType<typeof extractionSchema.parse> | undefined;
     let bindings: CitationBinding[] = [], facts: ValidatedStageFacts | undefined, failure: unknown;
     try {
