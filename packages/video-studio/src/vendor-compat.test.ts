@@ -952,37 +952,81 @@ describe("VideoStudio 的 C1 实际安装入口", () => {
     const workDir = mkdtempSync(join(tmpdir(), "wl-phase3-entry-"));
     const result = runInChild(phase3Fixture(`
 const { VideoStudio } = await import(${JSON.stringify(resolve(here, "studio.ts"))});
-const entry = require(${JSON.stringify(join(repoRoot, "vendor/supermickey/hyperreality-system/index.js"))});
+const { WorkloomLLMEngine } = await import(${JSON.stringify(resolve(here, "llm-adapter.ts"))});
+const { acquireVendorRequirementEntry } = await import(${JSON.stringify(resolve(here, "vendor-requirement-entry.ts"))});
+const lease = acquireVendorRequirementEntry(${JSON.stringify(join(repoRoot, "vendor/supermickey/hyperreality-system/index.js"))});
+const entry = lease.exports;
 const OriginalSystem = entry.HyperrealitySystem;
+const originalCreate = OriginalSystem.prototype.create;
+const cachedEntry = require.cache[lease.identity.entryPath];
+const hasSameCache = () => require.cache[lease.identity.entryPath] === cachedEntry
+ && require(lease.identity.entryPath) === entry && entry.HyperrealitySystem === OriginalSystem;
 const originalExecute = Phase3PromptFusion.prototype.execute;
+const originalBridges = listSharedBridges();
 const events = [];
+const controlledIdentities = [];
+const modelEngineIdentities = [];
+let unexpectedModelCalls = 0;
+const noModel = async () => { unexpectedModelCalls++; throw new Error("unexpected offline fixture model call"); };
+const modelMethods = ["reason", "reasonStructured", "reasonRaw", "chat", "generate"];
+const originalModelMethods = modelMethods.map(key => [key, WorkloomLLMEngine.prototype[key]]);
+const llm = new WorkloomLLMEngine({ baseUrl: "https://example.invalid", apiKey: "offline-test-only", model: "offline", fastModel: "offline" });
+for (const key of modelMethods) WorkloomLLMEngine.prototype[key] = noModel;
 let installedAtCreate = false;
 let fail = false;
-entry.HyperrealitySystem = class OfflineSystem {
- async create() {
+OriginalSystem.prototype.create = async function () {
+  controlledIdentities.push(this instanceof OriginalSystem && hasSameCache());
+  modelEngineIdentities.push(this.llmEngine === llm && modelMethods.every(key => this.llmEngine[key] === noModel));
   installedAtCreate = installedAtCreate || listSharedBridges().some(x => x.key === "phase3-fusion-policy-v1");
   const output = await makePhase({}, fail ? { canAfford: () => false } : {}).execute(makeState());
   return { success: output.success, stages: { productionEngine: { ...output.result, shots: output.shots } } };
- }
 };
-let success = false, status = null, failure = null, restored = false;
+const originalCwd = process.cwd();
+let success = false, status = null, failure = null, restored = false, cacheRetained = false;
+let cacheAfterSuccess = false, cacheAfterFailure = false, bridgesAfterSuccess = null, bridgesAfterFailure = null;
 try {
- const studio = new VideoStudio({ llm: { model: "offline", fastModel: "offline" }, workDir: ${JSON.stringify(workDir)},
+ process.chdir(${JSON.stringify(workDir)});
+ const studio = new VideoStudio({ llm, workDir: ${JSON.stringify(workDir)},
   onApproval: async () => ({ approved: true }), onEvent: e => events.push(e.kind), log: () => {}, portraits: { enabled: false } });
  const output = await studio.runPreproduction({ projectId: "C1-offline-entry", intent: "观察表盘" });
  success = output.success;
  status = output.stages.productionEngine.stages.phase3Fusion.status;
+ cacheAfterSuccess = hasSameCache(); bridgesAfterSuccess = listSharedBridges();
  fail = true;
  try { await studio.runPreproduction({ projectId: "C1-offline-failure", intent: "观察表盘" }); } catch (e) { failure = e.code; }
+ cacheAfterFailure = hasSameCache(); bridgesAfterFailure = listSharedBridges();
  restored = originalExecute === Phase3PromptFusion.prototype.execute && !listSharedBridges().some(x => x.key === "phase3-fusion-policy-v1");
-} finally { entry.HyperrealitySystem = OriginalSystem; }
-console.log("RESULT " + JSON.stringify({ success, status, failure, installedAtCreate, restored, events }));
+} finally {
+ OriginalSystem.prototype.create = originalCreate;
+ for (const [key, original] of originalModelMethods) WorkloomLLMEngine.prototype[key] = original;
+ process.chdir(originalCwd);
+ lease.release(); lease.release();
+ cacheRetained = hasSameCache();
+}
+const reacquired = acquireVendorRequirementEntry(lease.identity.entryPath);
+const reacquiredSame = reacquired.exports === entry && reacquired.exports.HyperrealitySystem === OriginalSystem && hasSameCache();
+reacquired.release();
+console.log("RESULT " + JSON.stringify({ success, status, failure, installedAtCreate, restored, events,
+ controlledIdentities, modelEngineIdentities, cacheAfterSuccess, cacheAfterFailure, originalBridges, bridgesAfterSuccess, bridgesAfterFailure,
+ cacheRetained, reacquiredSame, unexpectedModelCalls, modelMethodsRestored: originalModelMethods.every(([key, original]) => WorkloomLLMEngine.prototype[key] === original),
+ createRestored: OriginalSystem.prototype.create === originalCreate }));
 `));
     expect(result.success).toBe(true);
     expect(result.status).toBe("passed");
     expect(result.failure).toBe("PHASE3_BUDGET_EXHAUSTED");
     expect(result.installedAtCreate).toBe(true);
     expect(result.restored).toBe(true);
+    expect(result.controlledIdentities).toEqual([true, true]);
+    expect(result.modelEngineIdentities).toEqual([true, true]);
+    expect(result.cacheAfterSuccess).toBe(true);
+    expect(result.cacheAfterFailure).toBe(true);
+    expect(result.bridgesAfterSuccess).toEqual(result.originalBridges);
+    expect(result.bridgesAfterFailure).toEqual(result.originalBridges);
+    expect(result.cacheRetained).toBe(true);
+    expect(result.reacquiredSame).toBe(true);
+    expect(result.createRestored).toBe(true);
+    expect(result.unexpectedModelCalls).toBe(0);
+    expect(result.modelMethodsRestored).toBe(true);
     expect(result.events).toEqual(expect.arrayContaining(["pipeline.started", "pipeline.finished", "pipeline.failed"]));
   }, 120_000);
 });
