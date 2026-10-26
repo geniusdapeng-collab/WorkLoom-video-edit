@@ -19,7 +19,7 @@
       ],
       "archive": "bundles/ai-video/library/characters/model-01-young-rider",
       "authorization": "synthetic-no-real-person",
-      "note": "本任务新创作的1号虚构AI女性李英子（英子），约20岁、鹅蛋脸、黑色高马尾、朝气蓬勃、长裤；正面纯文字生成，余7角度仅参考新AI主图，无真人或既有人脸图片参考；当前默认1号"
+      "note": "1号成年原创虚构AI人物李英子（英子）；当前v2由真实Seedream八次独立纯文字请求生成，原始PNG与逐请求来源随仓保留；v1及其原来源保留；默认ID/编号不变。"
     },
     {
       "ordinal": 2,

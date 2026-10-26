@@ -1,0 +1,764 @@
+{
+  "schemaVersion": "workloom.character-provenance/v1",
+  "portraitVersion": 2,
+  "characterId": "young-rider-01",
+  "characterName": "李英子",
+  "ordinal": 1,
+  "origin": "new-original-fictional-AI-character",
+  "subjectType": "synthetic-digital-human",
+  "authorizationStatus": "synthetic-no-real-person",
+  "userRequest": "使用真实Seedream为现有成年虚构人物李英子生成八角度纯文字定妆照，保留原始来源并登记到Edit与PengManager。",
+  "generationMode": "eight-independent-pure-text-to-image",
+  "tool": "Volcengine Ark images/generations",
+  "actualModelId": "doubao-seedream-5-0-pro-260628",
+  "externalRealPersonReferences": [],
+  "existingCharacterReferences": [],
+  "referencePolicy": "All eight actual requests omit image/reference input; no existing face or newly generated master is an image input.",
+  "generationRecordAssembledAt": "2026-10-26T16:49:55.763610+00:00",
+  "pixelProcessing": "none: original provider PNG bytes copied without re-encoding, resize, crop, retouch or background changes",
+  "watermarkVerification": {
+    "status": "unverified",
+    "visibleWatermarkRequested": true,
+    "note": "Request watermark=true is recorded; no implicit watermark detector or provider-signed attestation was run."
+  },
+  "visualReview": {
+    "status": "passed",
+    "scope": "visual-character-continuity-not-biometric-proof",
+    "reviewer": "current-task-operators-backend-agent",
+    "recordSha256": "0ef47516898690bc4365d05a3cdf16ee4d7dec50d91628f4b3e117c8153ce2d6",
+    "note": "Visual review is tied to exact originals and is not biometric identity or human gate approval."
+  },
+  "commissioning": {
+    "totalProviderCalls": 11,
+    "selectedOutputs": 8,
+    "excludedOutputs": [
+      {
+        "label": "initial-eight-back",
+        "angle": "back",
+        "status": "not-selected",
+        "reason": "Initial back portrait showed shorts instead of the fixed w1 long trousers; not selected.",
+        "output": {
+          "width": 1664,
+          "height": 2496,
+          "format": "png",
+          "mime": "image/png",
+          "bytes": 5589024,
+          "sha256": "3b6af1495cdaaf95897a45a19b1bbd2567ff72a11a9c6348b239e94fa8a069b3"
+        },
+        "request": {
+          "model": "doubao-seedream-5-0-pro-260628",
+          "prompt": "原创虚构人物李英子，20岁中国成年女性大学生。固定外貌：自然鹅蛋脸，深棕色杏仁眼，平直自然眉，直鼻，柔和颧骨，自然薄唇，黑色高马尾，修长健康体态，真实自然皮肤纹理。固定服装：无标识哑光黑色轻便机车夹克敞开，白色圆领T恤，深炭灰直筒长骑行裤盖住脚踝，黑色短骑行靴。白色无缝摄影棚，柔和均匀灯光，写实高品质角色档案摄影，2:3竖构图，单人单幅，没有拼图、其他人物、商标、珠宝、头盔、车辆或文字。严格背面全身标准站姿，身体和头部背对镜头，不回头，展示高马尾和夹克背面，完整双脚入镜。",
+          "size": "2K",
+          "output_format": "png",
+          "response_format": "b64_json",
+          "watermark": true
+        },
+        "response": {
+          "httpStatus": 200,
+          "traceHeaders": {
+            "x-request-id": "02179302992184572ef85a6275c3d23ad0e45d46a442cf75abc13"
+          },
+          "model": "doubao-seedream-5-0-pro-260628",
+          "created": 1793029963,
+          "providerTaskId": null,
+          "bodySha256": "6a7a2e3d009e6bc963bd80aa10f990fb22a5f2cfe8c620ec3ce752a5ca4e0efb",
+          "fields": [
+            "created",
+            "data",
+            "model",
+            "usage"
+          ],
+          "imageFields": [
+            "b64_json",
+            "output_format",
+            "size"
+          ],
+          "imageSize": "1664x2496",
+          "imageFormat": "png",
+          "usage": {
+            "generated_images": 1,
+            "output_tokens": 16224,
+            "total_tokens": 16224
+          },
+          "receivedAt": "2026-10-26T15:52:46.392133+00:00"
+        },
+        "dispatchSha256": "c34a6d26defcefa57634012546b83a18d9cbc8068630e1741f44893a90c2fbb2",
+        "provenanceSha256": "28582f1032c6b698ecfab3a0b1042adb7d86526bc5212da077bfeab55442bd51",
+        "processSha256": "9a7482181aa0e629ed91c210c2be82e4ea16ec25782594520d58b51e4be0d57e",
+        "retention": "Original PNG and original dispatch/provenance/process evidence remain unchanged in private task staging; excluded output is not an active archive asset."
+      },
+      {
+        "label": "back-correction-1",
+        "angle": "back",
+        "status": "not-selected",
+        "reason": "Root inspected this back-only pure-text correction and rejected its clothing/pose against the unchanged w1 back-view requirement; not selected.",
+        "output": {
+          "width": 1664,
+          "height": 2496,
+          "format": "png",
+          "mime": "image/png",
+          "bytes": 4840257,
+          "sha256": "a4f557deedbeb5814b15ab5895b404e28783241798e29abc38e7d00866e00cd4"
+        },
+        "request": {
+          "model": "doubao-seedream-5-0-pro-260628",
+          "prompt": "原创虚构人物李英子，20岁中国成年女性大学生。固定外貌：自然鹅蛋脸，深棕色杏仁眼，平直自然眉，直鼻，柔和颧骨，自然薄唇，黑色高马尾，修长健康体态，真实自然皮肤纹理。固定服装：无标识哑光黑色轻便机车夹克敞开，白色圆领T恤，深炭灰直筒长骑行裤盖住脚踝，黑色短骑行靴。白色无缝摄影棚，柔和均匀灯光，写实高品质角色档案摄影，2:3竖构图，单人单幅，没有拼图、其他人物、商标、珠宝、头盔、车辆或文字。严格背面全身标准站姿，头和身体背对镜头、不回头，从头到双脚完整入镜。服装必须是深炭灰直筒全长骑行长裤，裤腿从腰部一直覆盖到左右脚踝和黑色短骑行靴靴口。背面清楚显示完整长裤的两条长裤腿及膝盖后方布料，双腿皮肤完全由长裤覆盖。上身穿黑色夹克与白色T恤。不要短裤、短裙或裸露腿部。",
+          "size": "2K",
+          "output_format": "png",
+          "response_format": "b64_json",
+          "watermark": true
+        },
+        "response": {
+          "httpStatus": 200,
+          "traceHeaders": {
+            "x-request-id": "021793031542533612e4074fd6abbc441fdb5db4a1923c5e915d3"
+          },
+          "model": "doubao-seedream-5-0-pro-260628",
+          "created": 1793031578,
+          "providerTaskId": null,
+          "bodySha256": "a8e4d18af51d2883b0642d10e76f4dd2042cab88b3153ad550a47d28e1c1a70b",
+          "fields": [
+            "created",
+            "data",
+            "model",
+            "usage"
+          ],
+          "imageFields": [
+            "b64_json",
+            "output_format",
+            "size"
+          ],
+          "imageSize": "1664x2496",
+          "imageFormat": "png",
+          "usage": {
+            "generated_images": 1,
+            "output_tokens": 16224,
+            "total_tokens": 16224
+          },
+          "receivedAt": "2026-10-26T16:19:41.299352+00:00"
+        },
+        "dispatchSha256": "370b232d8d6711dca33f6eb514acfdf878ac45c64e758b0584726f8330d9d114",
+        "provenanceSha256": "6afefd310d59dd419904479330e12d8c020c9a087c2837958593f3f9f9f0632e",
+        "processSha256": null,
+        "retention": "Original PNG and original dispatch/provenance/process evidence remain unchanged in private task staging; excluded output is not an active archive asset."
+      },
+      {
+        "label": "back-correction-2",
+        "angle": "back",
+        "status": "not-selected",
+        "reason": "Root inspected this back-only pure-text correction and rejected its clothing/pose against the unchanged w1 back-view requirement; not selected.",
+        "output": {
+          "width": 1664,
+          "height": 2496,
+          "format": "png",
+          "mime": "image/png",
+          "bytes": 5037004,
+          "sha256": "0a1a5498c3625d33db87ffa0a2d78087685360a7da0e174bb6a0a40641c5ca97"
+        },
+        "request": {
+          "model": "doubao-seedream-5-0-pro-260628",
+          "prompt": "原创虚构20岁中国成年女性李英子，黑色高马尾。角色档案摄影，白色无缝棚背景，柔和均匀光，2:3竖幅，单人完整全身。她端正穿着黑色机车夹克，双肩和双臂完整套在夹克里，内搭白色圆领短袖T恤；深炭灰直筒全长裤遮住双腿直到脚踝，黑色短骑行靴。镜头垂直正对人物背面，只看见后脑、马尾和后背，面部完全不可见，左右肩平行画面，双臂自然垂下，左右全长裤腿和双脚完整入镜。单幅照片，没有拼图、其他人、装饰或logo。",
+          "size": "2K",
+          "output_format": "png",
+          "response_format": "b64_json",
+          "watermark": true
+        },
+        "response": {
+          "httpStatus": 200,
+          "traceHeaders": {
+            "x-request-id": "02179303213071997ebbf7316b3ea9a3b0d136bee84b963abebc6"
+          },
+          "model": "doubao-seedream-5-0-pro-260628",
+          "created": 1793032169,
+          "providerTaskId": null,
+          "bodySha256": "e3c8be850eb6872dcf4ecfc0dd51304e40cf7928f7cd9e5545e522d0b1870e06",
+          "fields": [
+            "created",
+            "data",
+            "model",
+            "usage"
+          ],
+          "imageFields": [
+            "b64_json",
+            "output_format",
+            "size"
+          ],
+          "imageSize": "1664x2496",
+          "imageFormat": "png",
+          "usage": {
+            "generated_images": 1,
+            "output_tokens": 16224,
+            "total_tokens": 16224
+          },
+          "receivedAt": "2026-10-26T16:29:32.114573+00:00"
+        },
+        "dispatchSha256": "cc9f52020427f3450f336146f142f3fda4b9e4bd606ccf58f043d7ca0048a8b3",
+        "provenanceSha256": "51c35a0197a731f733f36c561800656cbcd1d1879cb2be5aa602cf8065ee280f",
+        "processSha256": null,
+        "retention": "Original PNG and original dispatch/provenance/process evidence remain unchanged in private task staging; excluded output is not an active archive asset."
+      }
+    ],
+    "perSelectedRequestAttempt": 1,
+    "correctionsRestrictedTo": [
+      "back"
+    ],
+    "otherSevenSelectedOriginalsUnchanged": true,
+    "selected": [
+      {
+        "angle": "front",
+        "sha256": "c605785bb52e634f8e2c9d765ed44f228b908f68dbe089fede5bb7e2467b9541",
+        "dispatchSha256": "3e0cc78e5d2cbd27a8dac8afde12c4877ab6d6f77ccb5ab6a1aad54313fcbdc5",
+        "provenanceSha256": "7dfd71389b3ea284aae551178f8f215ffa92ff5575ccdfc35978e981c58727d2"
+      },
+      {
+        "angle": "threeQuarter",
+        "sha256": "ebc1ec5c38e5d33642ca23cdd686e2f0b7a8c8fc62b79f08e4a4cc56944c51d9",
+        "dispatchSha256": "08688c3d4a7281eb6d4ecd53401a436c3143b9a2d7ea5ca19664fcdf0724ca9f",
+        "provenanceSha256": "0654b16ade6f311e94d8ada1a0f0d20ef36f1967ad25a5f7ec4b0b7eb91c9582"
+      },
+      {
+        "angle": "closeup",
+        "sha256": "40c0aae3ec51cfdf851feb1f539d33a1dc3ec1ab83d958db02e57ae719bbd927",
+        "dispatchSha256": "ac4cf9b41490db5e75265cb4ab265d935ac6f6e2384c5c75bf361e8d12f33658",
+        "provenanceSha256": "8eb0c24018a5b6f114b10127d2b1d44918c8fcddf2c6735a33b4c544627a512d"
+      },
+      {
+        "angle": "side",
+        "sha256": "38edcba9e595906563b56cb46d19811fd178529b69b7aa919412bc6c42c94d8b",
+        "dispatchSha256": "4bd11b4ab7d6e4f933a9b026c55657deb3b838ee272b4df05a19119e34654325",
+        "provenanceSha256": "edf30822cff524ee1cd068cb78ba18b1173fa49a81949eccdc49be2a78a6433c"
+      },
+      {
+        "angle": "back",
+        "sha256": "55e05273673087425e9e510043c500ebcdae62adc64eeaf0989a7472479c6187",
+        "dispatchSha256": "cbf52bee093ca9d2bad887d80b8d019561f702061b2391aedd57b2d82eb6d399",
+        "provenanceSha256": "afc8e55cb758d480020bb88ab74d5d155fe49f04d7dc38aaf2450d3f726801d2"
+      },
+      {
+        "angle": "actionPose",
+        "sha256": "8ff900395ec955c14a668fd3a20d1c756ebcce00cc610eb4e581fbae4b258eef",
+        "dispatchSha256": "23bac38fedfc280d8ec6e6b6ef9d4d2d784b9b52cc37f76cb095c9676ced95e1",
+        "provenanceSha256": "e814ba5f53955f2797c93a9889fe1d82c6a052828786e647efa57890e67473d3"
+      },
+      {
+        "angle": "emotionCloseup",
+        "sha256": "58dbbcedd7a85efbe3ec66caec888b2e5825978e25f1f236276966c7f769bf24",
+        "dispatchSha256": "e8254e4c54e193b7ce88fbbf78c6512aca8d4ef74840e011f1533f9ee870386e",
+        "provenanceSha256": "279487ce91871502f79cb6261d4e0ae953bd3345c30dfb11b47a69c2cf9e388c"
+      },
+      {
+        "angle": "handDetail",
+        "sha256": "78db8dac0b150642612df9c6c3ed47e69e588a41f178bf379a65c5a7208ddd37",
+        "dispatchSha256": "476acc478ac1189abdf9c65cf4cac02c4b901437d98e4e1a5d08935dd4a63928",
+        "provenanceSha256": "68d6f656db90989df6db286070746a91f732e9a33489861289e021c99c2f6974"
+      }
+    ],
+    "note": "Each recorded POST is a separate real commissioning request. Eight is the selected portrait count, not an assertion that no rejected correction request occurred."
+  },
+  "angles": [
+    {
+      "angle": "front",
+      "file": "portraits/v2/young-rider-01-front.png",
+      "output": {
+        "width": 1664,
+        "height": 2496,
+        "format": "png",
+        "mime": "image/png",
+        "bytes": 5003858,
+        "sha256": "c605785bb52e634f8e2c9d765ed44f228b908f68dbe089fede5bb7e2467b9541"
+      },
+      "request": {
+        "model": "doubao-seedream-5-0-pro-260628",
+        "prompt": "原创虚构人物李英子，20岁中国成年女性大学生。固定外貌：自然鹅蛋脸，深棕色杏仁眼，平直自然眉，直鼻，柔和颧骨，自然薄唇，黑色高马尾，修长健康体态，真实自然皮肤纹理。固定服装：无标识哑光黑色轻便机车夹克敞开，白色圆领T恤，深炭灰直筒长骑行裤盖住脚踝，黑色短骑行靴。白色无缝摄影棚，柔和均匀灯光，写实高品质角色档案摄影，2:3竖构图，单人单幅，没有拼图、其他人物、商标、珠宝、头盔、车辆或文字。正面全身标准站姿，从头到双脚完整入镜，双臂自然垂下，直视镜头，友善自信的轻微微笑。",
+        "size": "2K",
+        "output_format": "png",
+        "response_format": "b64_json",
+        "watermark": true,
+        "mode": "pure-text-to-image",
+        "referenceImages": [],
+        "referenceImageCount": 0,
+        "externalRealPersonReferenceCount": 0
+      },
+      "requestRecordSha256": "ba934fb928198e998962490ee6c4a604b268a68e89d82aefcb2d6cc32a9747fa",
+      "requestRecordSha256Note": "SHA-256 of the actual UTF-8 HTTP request body, not a provider task ID or signature.",
+      "response": {
+        "httpStatus": 200,
+        "traceHeaders": {
+          "x-request-id": "021793029563711144adcb5cb1cc044cee1f1b0d9da12ec1050ce"
+        },
+        "model": "doubao-seedream-5-0-pro-260628",
+        "created": 1793029595,
+        "providerTaskId": null,
+        "bodySha256": "81a769864d13deaab0a3adc3f3ed45cbc09c6315e63f0bf92a8b64a569ade9c0",
+        "fields": [
+          "created",
+          "data",
+          "model",
+          "usage"
+        ],
+        "imageFields": [
+          "b64_json",
+          "output_format",
+          "size"
+        ],
+        "imageSize": "1664x2496",
+        "imageFormat": "png",
+        "usage": {
+          "generated_images": 1,
+          "output_tokens": 16224,
+          "total_tokens": 16224
+        },
+        "receivedAt": "2026-10-26T15:46:38.297199+00:00"
+      },
+      "originalReceipt": {
+        "file": "provenance/v2/front.provenance.json",
+        "sha256": "7dfd71389b3ea284aae551178f8f215ffa92ff5575ccdfc35978e981c58727d2"
+      },
+      "dispatchRecord": {
+        "file": "provenance/v2/front.dispatch.json",
+        "sha256": "3e0cc78e5d2cbd27a8dac8afde12c4877ab6d6f77ccb5ab6a1aad54313fcbdc5"
+      }
+    },
+    {
+      "angle": "threeQuarter",
+      "file": "portraits/v2/young-rider-01-threeQuarter.png",
+      "output": {
+        "width": 1664,
+        "height": 2496,
+        "format": "png",
+        "mime": "image/png",
+        "bytes": 4762996,
+        "sha256": "ebc1ec5c38e5d33642ca23cdd686e2f0b7a8c8fc62b79f08e4a4cc56944c51d9"
+      },
+      "request": {
+        "model": "doubao-seedream-5-0-pro-260628",
+        "prompt": "原创虚构人物李英子，20岁中国成年女性大学生。固定外貌：自然鹅蛋脸，深棕色杏仁眼，平直自然眉，直鼻，柔和颧骨，自然薄唇，黑色高马尾，修长健康体态，真实自然皮肤纹理。固定服装：无标识哑光黑色轻便机车夹克敞开，白色圆领T恤，深炭灰直筒长骑行裤盖住脚踝，黑色短骑行靴。白色无缝摄影棚，柔和均匀灯光，写实高品质角色档案摄影，2:3竖构图，单人单幅，没有拼图、其他人物、商标、珠宝、头盔、车辆或文字。左前方四分之三视角全身标准站姿，身体向右转45度，头与身体方向一致，完整双脚入镜。",
+        "size": "2K",
+        "output_format": "png",
+        "response_format": "b64_json",
+        "watermark": true,
+        "mode": "pure-text-to-image",
+        "referenceImages": [],
+        "referenceImageCount": 0,
+        "externalRealPersonReferenceCount": 0
+      },
+      "requestRecordSha256": "7b146367d013a274bc4280cd4cb1c938b4440e244d55c45ebc2c896f055ac578",
+      "requestRecordSha256Note": "SHA-256 of the actual UTF-8 HTTP request body, not a provider task ID or signature.",
+      "response": {
+        "httpStatus": 200,
+        "traceHeaders": {
+          "x-request-id": "0217930296564927ca105f5574cf73b805fb1b9d3d8cfa08821b0"
+        },
+        "model": "doubao-seedream-5-0-pro-260628",
+        "created": 1793029692,
+        "providerTaskId": null,
+        "bodySha256": "d0258498925d51caaf6c80db3fa5fdae5b559158235d3b6c765671485d978d2b",
+        "fields": [
+          "created",
+          "data",
+          "model",
+          "usage"
+        ],
+        "imageFields": [
+          "b64_json",
+          "output_format",
+          "size"
+        ],
+        "imageSize": "1664x2496",
+        "imageFormat": "png",
+        "usage": {
+          "generated_images": 1,
+          "output_tokens": 16224,
+          "total_tokens": 16224
+        },
+        "receivedAt": "2026-10-26T15:48:15.407383+00:00"
+      },
+      "originalReceipt": {
+        "file": "provenance/v2/threeQuarter.provenance.json",
+        "sha256": "0654b16ade6f311e94d8ada1a0f0d20ef36f1967ad25a5f7ec4b0b7eb91c9582"
+      },
+      "dispatchRecord": {
+        "file": "provenance/v2/threeQuarter.dispatch.json",
+        "sha256": "08688c3d4a7281eb6d4ecd53401a436c3143b9a2d7ea5ca19664fcdf0724ca9f"
+      }
+    },
+    {
+      "angle": "closeup",
+      "file": "portraits/v2/young-rider-01-closeup.png",
+      "output": {
+        "width": 1664,
+        "height": 2496,
+        "format": "png",
+        "mime": "image/png",
+        "bytes": 4868216,
+        "sha256": "40c0aae3ec51cfdf851feb1f539d33a1dc3ec1ab83d958db02e57ae719bbd927"
+      },
+      "request": {
+        "model": "doubao-seedream-5-0-pro-260628",
+        "prompt": "原创虚构人物李英子，20岁中国成年女性大学生。固定外貌：自然鹅蛋脸，深棕色杏仁眼，平直自然眉，直鼻，柔和颧骨，自然薄唇，黑色高马尾，修长健康体态，真实自然皮肤纹理。固定服装：无标识哑光黑色轻便机车夹克敞开，白色圆领T恤，深炭灰直筒长骑行裤盖住脚踝，黑色短骑行靴。白色无缝摄影棚，柔和均匀灯光，写实高品质角色档案摄影，2:3竖构图，单人单幅，没有拼图、其他人物、商标、珠宝、头盔、车辆或文字。正面头肩近景，清楚展示完整面部、自然皮肤纹理和高马尾发际线，平静友善表情，夹克领口入镜。",
+        "size": "2K",
+        "output_format": "png",
+        "response_format": "b64_json",
+        "watermark": true,
+        "mode": "pure-text-to-image",
+        "referenceImages": [],
+        "referenceImageCount": 0,
+        "externalRealPersonReferenceCount": 0
+      },
+      "requestRecordSha256": "5c99f539f0cd784b3b1c74fc71dba75c6ea049e0b2052d51166b407f96159974",
+      "requestRecordSha256Note": "SHA-256 of the actual UTF-8 HTTP request body, not a provider task ID or signature.",
+      "response": {
+        "httpStatus": 200,
+        "traceHeaders": {
+          "x-request-id": "021793029659047d335b84ce8255b194a031442d80d4f21fb354f"
+        },
+        "model": "doubao-seedream-5-0-pro-260628",
+        "created": 1793029694,
+        "providerTaskId": null,
+        "bodySha256": "244091fb308386ae9fe8492fd63e73667426f29364d093934640bc5739e8e831",
+        "fields": [
+          "created",
+          "data",
+          "model",
+          "usage"
+        ],
+        "imageFields": [
+          "b64_json",
+          "output_format",
+          "size"
+        ],
+        "imageSize": "1664x2496",
+        "imageFormat": "png",
+        "usage": {
+          "generated_images": 1,
+          "output_tokens": 16224,
+          "total_tokens": 16224
+        },
+        "receivedAt": "2026-10-26T15:48:17.137574+00:00"
+      },
+      "originalReceipt": {
+        "file": "provenance/v2/closeup.provenance.json",
+        "sha256": "8eb0c24018a5b6f114b10127d2b1d44918c8fcddf2c6735a33b4c544627a512d"
+      },
+      "dispatchRecord": {
+        "file": "provenance/v2/closeup.dispatch.json",
+        "sha256": "ac4cf9b41490db5e75265cb4ab265d935ac6f6e2384c5c75bf361e8d12f33658"
+      }
+    },
+    {
+      "angle": "side",
+      "file": "portraits/v2/young-rider-01-side.png",
+      "output": {
+        "width": 1664,
+        "height": 2496,
+        "format": "png",
+        "mime": "image/png",
+        "bytes": 4659658,
+        "sha256": "38edcba9e595906563b56cb46d19811fd178529b69b7aa919412bc6c42c94d8b"
+      },
+      "request": {
+        "model": "doubao-seedream-5-0-pro-260628",
+        "prompt": "原创虚构人物李英子，20岁中国成年女性大学生。固定外貌：自然鹅蛋脸，深棕色杏仁眼，平直自然眉，直鼻，柔和颧骨，自然薄唇，黑色高马尾，修长健康体态，真实自然皮肤纹理。固定服装：无标识哑光黑色轻便机车夹克敞开，白色圆领T恤，深炭灰直筒长骑行裤盖住脚踝，黑色短骑行靴。白色无缝摄影棚，柔和均匀灯光，写实高品质角色档案摄影，2:3竖构图，单人单幅，没有拼图、其他人物、商标、珠宝、头盔、车辆或文字。严格左侧90度侧面全身标准站姿，鼻子朝画面右侧，清楚展示侧脸轮廓和高马尾，完整双脚入镜。",
+        "size": "2K",
+        "output_format": "png",
+        "response_format": "b64_json",
+        "watermark": true,
+        "mode": "pure-text-to-image",
+        "referenceImages": [],
+        "referenceImageCount": 0,
+        "externalRealPersonReferenceCount": 0
+      },
+      "requestRecordSha256": "b5b4710b4275e485ec36c91d3fce7bf47b14c64f10595f89449fb206cf9d1631",
+      "requestRecordSha256Note": "SHA-256 of the actual UTF-8 HTTP request body, not a provider task ID or signature.",
+      "response": {
+        "httpStatus": 200,
+        "traceHeaders": {
+          "x-request-id": "0217930299219004e2842eb712e854fa24899212a499930d0dc3c"
+        },
+        "model": "doubao-seedream-5-0-pro-260628",
+        "created": 1793029962,
+        "providerTaskId": null,
+        "bodySha256": "48d97a9aeb425d0c6ac17bf25762de5a31961e6b79280b9c87cb1e02782f0187",
+        "fields": [
+          "created",
+          "data",
+          "model",
+          "usage"
+        ],
+        "imageFields": [
+          "b64_json",
+          "output_format",
+          "size"
+        ],
+        "imageSize": "1664x2496",
+        "imageFormat": "png",
+        "usage": {
+          "generated_images": 1,
+          "output_tokens": 16224,
+          "total_tokens": 16224
+        },
+        "receivedAt": "2026-10-26T15:52:48.172047+00:00"
+      },
+      "originalReceipt": {
+        "file": "provenance/v2/side.provenance.json",
+        "sha256": "edf30822cff524ee1cd068cb78ba18b1173fa49a81949eccdc49be2a78a6433c"
+      },
+      "dispatchRecord": {
+        "file": "provenance/v2/side.dispatch.json",
+        "sha256": "4bd11b4ab7d6e4f933a9b026c55657deb3b838ee272b4df05a19119e34654325"
+      }
+    },
+    {
+      "angle": "back",
+      "file": "portraits/v2/young-rider-01-back.png",
+      "output": {
+        "width": 1664,
+        "height": 2496,
+        "format": "png",
+        "mime": "image/png",
+        "bytes": 4393218,
+        "sha256": "55e05273673087425e9e510043c500ebcdae62adc64eeaf0989a7472479c6187"
+      },
+      "request": {
+        "model": "doubao-seedream-5-0-pro-260628",
+        "prompt": "摄影棚原创AI成年女性全身背面标准照。白色背景，2:3竖版。20岁中国女生李英子，黑色高马尾。黑色哑光长袖机车外套正常完整穿在身上，黑色面料从肩顶连续覆盖到左右手腕，肩部、上臂、下臂全部被黑色面料遮住。里面穿白色圆领T恤。深炭灰直筒长裤完整覆盖到脚踝，黑色短靴。严格背对相机，只能看见后脑勺和后背。双臂自然下垂，左右脚完整入镜。真实摄影质感，单人单幅，没有logo。",
+        "size": "2K",
+        "output_format": "png",
+        "response_format": "b64_json",
+        "watermark": true,
+        "mode": "pure-text-to-image",
+        "referenceImages": [],
+        "referenceImageCount": 0,
+        "externalRealPersonReferenceCount": 0
+      },
+      "requestRecordSha256": "569ac4526a73efe2a79966293df37a7ba79a6fcc807dcf5187a11301c80a7e0b",
+      "requestRecordSha256Note": "SHA-256 of the actual UTF-8 HTTP request body, not a provider task ID or signature.",
+      "response": {
+        "httpStatus": 200,
+        "traceHeaders": {
+          "x-request-id": "021793033351040d335b84ce8255b194a031442d80d4f21987205"
+        },
+        "model": "doubao-seedream-5-0-pro-260628",
+        "created": 1793033391,
+        "providerTaskId": null,
+        "bodySha256": "369836e2f92c71d684973e8eb5eb8d143137ca6b963dbcbeaefab7a2ed3deeaa",
+        "fields": [
+          "created",
+          "data",
+          "model",
+          "usage"
+        ],
+        "imageFields": [
+          "b64_json",
+          "output_format",
+          "size"
+        ],
+        "imageSize": "1664x2496",
+        "imageFormat": "png",
+        "usage": {
+          "generated_images": 1,
+          "output_tokens": 16224,
+          "total_tokens": 16224
+        },
+        "receivedAt": "2026-10-26T16:49:55.763610+00:00"
+      },
+      "originalReceipt": {
+        "file": "provenance/v2/back.provenance.json",
+        "sha256": "afc8e55cb758d480020bb88ab74d5d155fe49f04d7dc38aaf2450d3f726801d2"
+      },
+      "dispatchRecord": {
+        "file": "provenance/v2/back.dispatch.json",
+        "sha256": "cbf52bee093ca9d2bad887d80b8d019561f702061b2391aedd57b2d82eb6d399"
+      }
+    },
+    {
+      "angle": "actionPose",
+      "file": "portraits/v2/young-rider-01-actionPose.png",
+      "output": {
+        "width": 1664,
+        "height": 2496,
+        "format": "png",
+        "mime": "image/png",
+        "bytes": 4949733,
+        "sha256": "8ff900395ec955c14a668fd3a20d1c756ebcce00cc610eb4e581fbae4b258eef"
+      },
+      "request": {
+        "model": "doubao-seedream-5-0-pro-260628",
+        "prompt": "原创虚构人物李英子，20岁中国成年女性大学生。固定外貌：自然鹅蛋脸，深棕色杏仁眼，平直自然眉，直鼻，柔和颧骨，自然薄唇，黑色高马尾，修长健康体态，真实自然皮肤纹理。固定服装：无标识哑光黑色轻便机车夹克敞开，白色圆领T恤，深炭灰直筒长骑行裤盖住脚踝，黑色短骑行靴。白色无缝摄影棚，柔和均匀灯光，写实高品质角色档案摄影，2:3竖构图，单人单幅，没有拼图、其他人物、商标、珠宝、头盔、车辆或文字。全身轻度运动准备姿态，一脚稍前、膝盖微弯、双手自然握拳在腰侧，像准备开始训练，完整双脚入镜。",
+        "size": "2K",
+        "output_format": "png",
+        "response_format": "b64_json",
+        "watermark": true,
+        "mode": "pure-text-to-image",
+        "referenceImages": [],
+        "referenceImageCount": 0,
+        "externalRealPersonReferenceCount": 0
+      },
+      "requestRecordSha256": "bc8cc8c1a447181a638eef54e336aae7e1e9e9b493ccffc99a6fc431eed08ea8",
+      "requestRecordSha256Note": "SHA-256 of the actual UTF-8 HTTP request body, not a provider task ID or signature.",
+      "response": {
+        "httpStatus": 200,
+        "traceHeaders": {
+          "x-request-id": "0217930302840740f9bb35e69347bdf2811883e879e3d49814c55"
+        },
+        "model": "doubao-seedream-5-0-pro-260628",
+        "created": 1793030322,
+        "providerTaskId": null,
+        "bodySha256": "31291a6028707dac3de38bf15399ee91b1470183876fdad7b2e50ab09e36d533",
+        "fields": [
+          "created",
+          "data",
+          "model",
+          "usage"
+        ],
+        "imageFields": [
+          "b64_json",
+          "output_format",
+          "size"
+        ],
+        "imageSize": "1664x2496",
+        "imageFormat": "png",
+        "usage": {
+          "generated_images": 1,
+          "output_tokens": 16224,
+          "total_tokens": 16224
+        },
+        "receivedAt": "2026-10-26T15:58:45.474741+00:00"
+      },
+      "originalReceipt": {
+        "file": "provenance/v2/actionPose.provenance.json",
+        "sha256": "e814ba5f53955f2797c93a9889fe1d82c6a052828786e647efa57890e67473d3"
+      },
+      "dispatchRecord": {
+        "file": "provenance/v2/actionPose.dispatch.json",
+        "sha256": "23bac38fedfc280d8ec6e6b6ef9d4d2d784b9b52cc37f76cb095c9676ced95e1"
+      }
+    },
+    {
+      "angle": "emotionCloseup",
+      "file": "portraits/v2/young-rider-01-emotionCloseup.png",
+      "output": {
+        "width": 1664,
+        "height": 2496,
+        "format": "png",
+        "mime": "image/png",
+        "bytes": 5071120,
+        "sha256": "58dbbcedd7a85efbe3ec66caec888b2e5825978e25f1f236276966c7f769bf24"
+      },
+      "request": {
+        "model": "doubao-seedream-5-0-pro-260628",
+        "prompt": "原创虚构人物李英子，20岁中国成年女性大学生。固定外貌：自然鹅蛋脸，深棕色杏仁眼，平直自然眉，直鼻，柔和颧骨，自然薄唇，黑色高马尾，修长健康体态，真实自然皮肤纹理。固定服装：无标识哑光黑色轻便机车夹克敞开，白色圆领T恤，深炭灰直筒长骑行裤盖住脚踝，黑色短骑行靴。白色无缝摄影棚，柔和均匀灯光，写实高品质角色档案摄影，2:3竖构图，单人单幅，没有拼图、其他人物、商标、珠宝、头盔、车辆或文字。正面头肩近景，自然而开朗的微笑，目光有好奇与朝气，清楚展示面部细节，避免夸张或幼态表情。",
+        "size": "2K",
+        "output_format": "png",
+        "response_format": "b64_json",
+        "watermark": true,
+        "mode": "pure-text-to-image",
+        "referenceImages": [],
+        "referenceImageCount": 0,
+        "externalRealPersonReferenceCount": 0
+      },
+      "requestRecordSha256": "beab4ed2e0b5a28fc74909c3b22bc08e3001614abd4842a8a3b132f32bc87a5c",
+      "requestRecordSha256Note": "SHA-256 of the actual UTF-8 HTTP request body, not a provider task ID or signature.",
+      "response": {
+        "httpStatus": 200,
+        "traceHeaders": {
+          "x-request-id": "021793030284058463b2e7ab2e4caf441b2615bb02bf15847e0e2"
+        },
+        "model": "doubao-seedream-5-0-pro-260628",
+        "created": 1793030317,
+        "providerTaskId": null,
+        "bodySha256": "b76954bcec939f8b4c47ae2407689f5d4345691cda662e01aac8cf2a90155572",
+        "fields": [
+          "created",
+          "data",
+          "model",
+          "usage"
+        ],
+        "imageFields": [
+          "b64_json",
+          "output_format",
+          "size"
+        ],
+        "imageSize": "1664x2496",
+        "imageFormat": "png",
+        "usage": {
+          "generated_images": 1,
+          "output_tokens": 16224,
+          "total_tokens": 16224
+        },
+        "receivedAt": "2026-10-26T15:58:40.109204+00:00"
+      },
+      "originalReceipt": {
+        "file": "provenance/v2/emotionCloseup.provenance.json",
+        "sha256": "279487ce91871502f79cb6261d4e0ae953bd3345c30dfb11b47a69c2cf9e388c"
+      },
+      "dispatchRecord": {
+        "file": "provenance/v2/emotionCloseup.dispatch.json",
+        "sha256": "e8254e4c54e193b7ce88fbbf78c6512aca8d4ef74840e011f1533f9ee870386e"
+      }
+    },
+    {
+      "angle": "handDetail",
+      "file": "portraits/v2/young-rider-01-handDetail.png",
+      "output": {
+        "width": 1664,
+        "height": 2496,
+        "format": "png",
+        "mime": "image/png",
+        "bytes": 4994853,
+        "sha256": "78db8dac0b150642612df9c6c3ed47e69e588a41f178bf379a65c5a7208ddd37"
+      },
+      "request": {
+        "model": "doubao-seedream-5-0-pro-260628",
+        "prompt": "原创虚构人物李英子，20岁中国成年女性大学生。固定外貌：自然鹅蛋脸，深棕色杏仁眼，平直自然眉，直鼻，柔和颧骨，自然薄唇，黑色高马尾，修长健康体态，真实自然皮肤纹理。固定服装：无标识哑光黑色轻便机车夹克敞开，白色圆领T恤，深炭灰直筒长骑行裤盖住脚踝，黑色短骑行靴。白色无缝摄影棚，柔和均匀灯光，写实高品质角色档案摄影，2:3竖构图，单人单幅，没有拼图、其他人物、商标、珠宝、头盔、车辆或文字。腰部至手部细节近景，双手放松地在身前轻扣，真实自然五指和肤质，黑色夹克袖口与深色长裤同时可见。",
+        "size": "2K",
+        "output_format": "png",
+        "response_format": "b64_json",
+        "watermark": true,
+        "mode": "pure-text-to-image",
+        "referenceImages": [],
+        "referenceImageCount": 0,
+        "externalRealPersonReferenceCount": 0
+      },
+      "requestRecordSha256": "7a845f5948aee4d064b58c79850aaf161c08d6b2b5631dd28017356de6a8bbf9",
+      "requestRecordSha256Note": "SHA-256 of the actual UTF-8 HTTP request body, not a provider task ID or signature.",
+      "response": {
+        "httpStatus": 200,
+        "traceHeaders": {
+          "x-request-id": "021793030818231509a806b13bf7850218ff838cc29ddfa4a62ea"
+        },
+        "model": "doubao-seedream-5-0-pro-260628",
+        "created": 1793030848,
+        "providerTaskId": null,
+        "bodySha256": "8e32f2671f98e19fc42fdff4a4f96f57ade9baa07e09932cee1d1603dad5f71d",
+        "fields": [
+          "created",
+          "data",
+          "model",
+          "usage"
+        ],
+        "imageFields": [
+          "b64_json",
+          "output_format",
+          "size"
+        ],
+        "imageSize": "1664x2496",
+        "imageFormat": "png",
+        "usage": {
+          "generated_images": 1,
+          "output_tokens": 16224,
+          "total_tokens": 16224
+        },
+        "receivedAt": "2026-10-26T16:07:32.364099+00:00"
+      },
+      "originalReceipt": {
+        "file": "provenance/v2/handDetail.provenance.json",
+        "sha256": "68d6f656db90989df6db286070746a91f732e9a33489861289e021c99c2f6974"
+      },
+      "dispatchRecord": {
+        "file": "provenance/v2/handDetail.dispatch.json",
+        "sha256": "476acc478ac1189abdf9c65cf4cac02c4b901437d98e4e1a5d08935dd4a63928"
+      }
+    }
+  ]
+}

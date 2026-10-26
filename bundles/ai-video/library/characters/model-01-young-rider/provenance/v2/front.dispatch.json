@@ -1,0 +1,18 @@
+{
+  "schemaVersion": "workloom.seedream-dispatch/v1",
+  "angle": "front",
+  "dispatchedAt": "2026-10-26T15:45:59.630297+00:00",
+  "endpoint": "https://ark.cn-beijing.volces.com/api/v3/images/generations",
+  "request": {
+    "model": "doubao-seedream-5-0-pro-260628",
+    "prompt": "原创虚构人物李英子，20岁中国成年女性大学生。固定外貌：自然鹅蛋脸，深棕色杏仁眼，平直自然眉，直鼻，柔和颧骨，自然薄唇，黑色高马尾，修长健康体态，真实自然皮肤纹理。固定服装：无标识哑光黑色轻便机车夹克敞开，白色圆领T恤，深炭灰直筒长骑行裤盖住脚踝，黑色短骑行靴。白色无缝摄影棚，柔和均匀灯光，写实高品质角色档案摄影，2:3竖构图，单人单幅，没有拼图、其他人物、商标、珠宝、头盔、车辆或文字。正面全身标准站姿，从头到双脚完整入镜，双臂自然垂下，直视镜头，友善自信的轻微微笑。",
+    "size": "2K",
+    "output_format": "png",
+    "response_format": "b64_json",
+    "watermark": true
+  },
+  "requestSha256": "ba934fb928198e998962490ee6c4a604b268a68e89d82aefcb2d6cc32a9747fa",
+  "imageInputPresent": false,
+  "attempt": 1,
+  "retryPolicy": "never-repost-after-dispatch"
+}

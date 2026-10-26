@@ -1,0 +1,70 @@
+{
+  "schemaVersion": "workloom.liyingzi-seedream-provenance/v1",
+  "characterId": "young-rider-01",
+  "name": "李英子",
+  "angle": "back",
+  "source": "original-pure-text-to-image",
+  "apiDocument": "https://ark.volcengine.com/region:cn-beijing/docs/image-generation-api.md",
+  "prompt": "摄影棚原创AI成年女性全身背面标准照。白色背景，2:3竖版。20岁中国女生李英子，黑色高马尾。黑色哑光长袖机车外套正常完整穿在身上，黑色面料从肩顶连续覆盖到左右手腕，肩部、上臂、下臂全部被黑色面料遮住。里面穿白色圆领T恤。深炭灰直筒长裤完整覆盖到脚踝，黑色短靴。严格背对相机，只能看见后脑勺和后背。双臂自然下垂，左右脚完整入镜。真实摄影质感，单人单幅，没有logo。",
+  "promptSha256": "5958a54a7cbc6d0f814749333a44b4b6c13b8e4ceaa42bb6295a710e85b12f78",
+  "request": {
+    "endpoint": "https://ark.cn-beijing.volces.com/api/v3/images/generations",
+    "body": {
+      "model": "doubao-seedream-5-0-pro-260628",
+      "prompt": "摄影棚原创AI成年女性全身背面标准照。白色背景，2:3竖版。20岁中国女生李英子，黑色高马尾。黑色哑光长袖机车外套正常完整穿在身上，黑色面料从肩顶连续覆盖到左右手腕，肩部、上臂、下臂全部被黑色面料遮住。里面穿白色圆领T恤。深炭灰直筒长裤完整覆盖到脚踝，黑色短靴。严格背对相机，只能看见后脑勺和后背。双臂自然下垂，左右脚完整入镜。真实摄影质感，单人单幅，没有logo。",
+      "size": "2K",
+      "output_format": "png",
+      "response_format": "b64_json",
+      "watermark": true
+    },
+    "bodySha256": "569ac4526a73efe2a79966293df37a7ba79a6fcc807dcf5187a11301c80a7e0b",
+    "imageFieldPresent": false,
+    "attempt": 1,
+    "dispatchedAt": "2026-10-26T16:49:08.513725+00:00"
+  },
+  "response": {
+    "httpStatus": 200,
+    "traceHeaders": {
+      "x-request-id": "021793033351040d335b84ce8255b194a031442d80d4f21987205"
+    },
+    "model": "doubao-seedream-5-0-pro-260628",
+    "created": 1793033391,
+    "providerTaskId": null,
+    "bodySha256": "369836e2f92c71d684973e8eb5eb8d143137ca6b963dbcbeaefab7a2ed3deeaa",
+    "fields": [
+      "created",
+      "data",
+      "model",
+      "usage"
+    ],
+    "imageFields": [
+      "b64_json",
+      "output_format",
+      "size"
+    ],
+    "imageSize": "1664x2496",
+    "imageFormat": "png",
+    "usage": {
+      "generated_images": 1,
+      "output_tokens": 16224,
+      "total_tokens": 16224
+    },
+    "receivedAt": "2026-10-26T16:49:55.763610+00:00"
+  },
+  "output": {
+    "file": "back.png",
+    "mime": "image/png",
+    "width": 1664,
+    "height": 2496,
+    "bytes": 4393218,
+    "sha256": "55e05273673087425e9e510043c500ebcdae62adc64eeaf0989a7472479c6187",
+    "modified": false
+  },
+  "visibleWatermarkRequested": true,
+  "invisibleWatermark": {
+    "status": "unverified",
+    "reason": "No watermark detector was run"
+  },
+  "identityConsistency": "unreviewed",
+  "qualityReviewed": false
+}

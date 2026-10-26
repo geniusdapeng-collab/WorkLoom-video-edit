@@ -1,0 +1,39 @@
+{
+  "version": 2,
+  "dir": "portraits/v2",
+  "angles": [
+    "front",
+    "threeQuarter",
+    "closeup",
+    "side",
+    "back",
+    "actionPose",
+    "emotionCloseup",
+    "handDetail"
+  ],
+  "source": "pure-t2i",
+  "active": true,
+  "status": "ready",
+  "model": "doubao-seedream-5-0-pro-260628",
+  "wardrobe": {
+    "id": "w1",
+    "name": "黑色机车夹克、白T与深色长裤",
+    "detail": "无标识哑光黑色轻便机车夹克敞开穿着，白色圆领T恤，深炭灰直筒长骑行裤覆盖脚踝，黑色短骑行靴；无裙装、短裤、头盔、珠宝和商标",
+    "scene": "角色档案基线造型"
+  },
+  "wardrobeHash": "6bcb4d6bfe9b452f1ade9c84e542f773d297b0725cb8f585b5024b932364a911",
+  "files": {
+    "front": "portraits/v2/young-rider-01-front.png",
+    "threeQuarter": "portraits/v2/young-rider-01-threeQuarter.png",
+    "closeup": "portraits/v2/young-rider-01-closeup.png",
+    "side": "portraits/v2/young-rider-01-side.png",
+    "back": "portraits/v2/young-rider-01-back.png",
+    "actionPose": "portraits/v2/young-rider-01-actionPose.png",
+    "emotionCloseup": "portraits/v2/young-rider-01-emotionCloseup.png",
+    "handDetail": "portraits/v2/young-rider-01-handDetail.png"
+  },
+  "createdAt": "2026-10-26T16:49:55.763610+00:00",
+  "provenanceFile": "provenance/v2.json",
+  "sourceNote": "最终选用八张分别由真实Seedream纯文字请求生成；本轮实际共11次POST，另3张背面候选未选，原始证据保留；所有请求均无图片或参考图输入。",
+  "verificationNote": "可移植相对路径逻辑v2；runtime scope=legacy-current-bytes-only。真实请求/响应与原始PNG SHA见provenance/v2.json；不主张生物识别、隐水印验证或人工审批。"
+}
