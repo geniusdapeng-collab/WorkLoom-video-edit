@@ -462,3 +462,68 @@ test('真实宿主原制作镜号重复或缺项不能与完成任务数组按�
     assertOriginal(f);
   }
 });
+
+test('2.5原图模式和no-resume不重开已成功源片：旧品质记录/原声/原prompt不变，0新任务账本',{timeout:60000},(t)=>{
+  const f=fixture(t,{audio:true});
+  const result=run(f,['--no-resume','--use-portrait-refs','--portrait-version','2','--max-attempts','3'],'cine-kb,continuity,micromotion,spec,plates,material-gen,videos,compose,master');
+  preserve(f,result,'seedance25-old-success-no-repay');
+  assert.equal(result.status,0,result.stdout+result.stderr);assertOriginal(f);
+  assert.equal(existsSync(join(f.work,'video-submissions')),false,'已成功源片不能因新输入模式或组件升级新建任务');
+  const source=rows(f).findLast(row=>row.stage==='shot'&&row.evidence?.renderedShotAcceptance);
+  assert.equal(source.evidence.taskId,'fixture-issued-real-task');
+  assert.equal(Object.hasOwn(source.evidence,'videoSubmission'),false,'不得倒填旧任务曾使用v2原图');
+});
+
+function pendingTaskFixture(t,{unknown=false}={}) {
+  const f=fixture(t,{audio:true});
+  const issued=join(f.root,'original-issued-provider.mp4');cpSync(f.clip,issued);rmSync(f.clip);
+  const originalSourceHash=rows(f)[0].lineage.sourceHash;
+  const setupCode=`import fs from 'node:fs';
+    import {buildVideoSubmissionRequest} from './packages/video-studio/src/video-submission-request.ts';
+    import {runVideoSubmission} from './packages/video-studio/src/video-submission-task.ts';
+    import {fingerprintArtifact} from './packages/video-studio/src/production-lineage.ts';
+    const x=JSON.parse(process.argv[1]);let posts=0;
+    const request=buildVideoSubmissionRequest({model:'doubao-seedance-2-5-260628',prompt:fs.readFileSync(x.prompt,'utf8'),refs:[],seconds:30,generateAudio:true,aspect:'9:16',resolution:'720p'});
+    try{await runVideoSubmission({directory:x.directory,projectId:x.project,stage:'videos',shotId:'S1',sourceHash:x.sourceHash,target:x.clip,request,inputArtifacts:[fingerprintArtifact(x.prompt)]},
+      {baseUrl:'https://fixture.invalid/api/v3',authorization:'Bearer isolated-fixture-only',fetch:async(_url,init)=>{if(init?.method==='POST'){posts++;if(x.unknown)throw new TypeError('fixture POST response lost');return new Response(JSON.stringify({id:'fixture-cold-original-task'}));}return new Response('{}',{status:404});}});}catch(error){fs.writeFileSync(x.receipt,JSON.stringify({posts,error:String(error)}));}`;
+  const setupReceipt=join(f.root,'pending-task-fixture.json');
+  const setup=spawnSync(process.execPath,['--import','tsx','--input-type=module','-e',setupCode,JSON.stringify({prompt:f.prompt,directory:join(f.work,'video-submissions',f.project),project:f.project,sourceHash:originalSourceHash,clip:f.clip,unknown,receipt:setupReceipt})],{cwd:ROOT,env:f.env,encoding:'utf8',timeout:30000});
+  assert.equal(setup.status,0,setup.stdout+setup.stderr);assert.equal(JSON.parse(readFileSync(setupReceipt)).posts,1);
+  const calls=join(f.root,'mock-provider-calls.jsonl');writeFileSync(calls,'');
+  const provider=join(f.root,'fixture-recovery-provider.mjs');
+  writeFileSync(provider,`import fs from 'node:fs';
+    globalThis.fetch=async(input,init)=>{const url=String(input),method=init?.method||'GET';fs.appendFileSync(${JSON.stringify(calls)},JSON.stringify({url,method})+'\\n');
+    if(method!=='GET')throw new Error('FIXTURE_FORBIDDEN_NEW_PAID_POST');
+    if(url.endsWith('/contents/generations/tasks/fixture-cold-original-task'))return new Response(JSON.stringify({status:'succeeded',content:{video_url:'https://fixture.invalid/original-issued.mp4'}}));
+    if(url==='https://fixture.invalid/original-issued.mp4')return new Response(fs.readFileSync(${JSON.stringify(issued)}));
+    throw new Error('FIXTURE_UNEXPECTED_NETWORK_ROUTE');};`);
+  f.env.NODE_OPTIONS+=` --import=${JSON.stringify(provider)}`;
+  f.env.ARK_API_KEY='isolated-fixture-only';f.env.SEEDANCE_MODEL='doubao-seedance-2-5-260628';
+  return {f,calls,issued};
+}
+
+test('真实CLI冷启动先恢复已知ACK原task，完整请求cine/spec/plates/material也只GET原任务和原下载，0付费准备',{timeout:60000},(t)=>{
+  const {f,calls}=pendingTaskFixture(t);
+  const result=run(f,['--no-resume','--use-portrait-refs','--portrait-version','2','--max-attempts','3'],'cine-kb,continuity,micromotion,spec,plates,material-gen,videos,compose,master');
+  preserve(f,result,'seedance25-cold-original-task');
+  assert.equal(result.status,0,result.stdout+result.stderr);assertOriginal(f);
+  const actual=readFileSync(calls,'utf8').trim().split('\n').map(line=>JSON.parse(line));
+  assert.deepEqual(actual.map(item=>item.method),['GET','GET']);
+  assert.ok(actual[0].url.endsWith('/fixture-cold-original-task'));assert.equal(actual[1].url,'https://fixture.invalid/original-issued.mp4');
+  const source=rows(f).findLast(row=>row.stage==='shot'&&row.evidence?.videoSubmission);
+  assert.equal(source.evidence.taskId,'fixture-cold-original-task');assert.equal(source.evidence.videoSubmission.recovered,true);
+  for(const stage of ['cine-kb','continuity','micromotion','spec','keyframe','material-gen'])assert.equal(rows(f).some(row=>row.stage===stage&&row.invoked),false,stage+' must not prepare again');
+  assert.equal(rows(f).some(row=>row.stepKey==='g5-portrait-confirm'),false,'已受理任务沿冻结授权恢复，不能重新打开新人物门');
+});
+
+test('真实CLI已dispatch但无ACK时在前期/角色门之前停止，0新POST、0模型准备，不把未知当失败重投',{timeout:45000},(t)=>{
+  const {f,calls}=pendingTaskFixture(t,{unknown:true});
+  const journal=join(f.work,'video-submissions',f.project);const before=walk(journal).map(path=>[path,fileHash(path)]);
+  const result=run(f,['--max-attempts','3'],'cine-kb,continuity,micromotion,spec,plates,material-gen,videos,compose,master');
+  preserve(f,result,'seedance25-unknown-dispatch-no-repay');
+  assert.notEqual(result.status,0);assert.match(result.stdout+result.stderr,/VIDEO_SUBMISSION_OUTCOME_UNKNOWN/);
+  assert.equal(readFileSync(calls,'utf8'),'');assert.equal(readFileSync(f.network,'utf8'),'');
+  assert.deepEqual(walk(journal).map(path=>[path,fileHash(path)]),before);
+  assert.equal(existsSync(f.clip),false);assert.equal(fileHash(f.prompt),f.oldPrompt);
+  assert.equal(rows(f).some(row=>row.stepKey==='g5-portrait-confirm'||row.stage==='plausibility-pre-render'||row.stage==='keyframe'),false);
+});

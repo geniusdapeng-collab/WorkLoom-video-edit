@@ -1,13 +1,19 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, closeSync, constants as fsConstants, copyFileSync, existsSync, fsyncSync, linkSync, mkdirSync, mkdtempSync, openSync, readFileSync, readdirSync, realpathSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { runInNewContext } from "node:vm";
 import ts from "typescript-governance";
 import { normalizeShotIntent, shotIntentHash } from "../../packages/video-studio/src/shot-intent.js";
+import { buildVideoSubmissionRequest } from "../../packages/video-studio/src/video-submission-request.js";
+import { runVideoSubmission, verifyVideoSubmissionArtifacts } from "../../packages/video-studio/src/video-submission-task.js";
+import { captureLineageInputs, fingerprintArtifact } from "../../packages/video-studio/src/production-lineage.js";
+import { acceptRenderedShot } from "../../packages/video-studio/src/rendered-shot-acceptance.js";
+import { applyPromptPatches } from "../../packages/video-studio/src/plausibility-review.js";
+import { loadCharacterEntry, readPortraitArtifact, resolveShotCast } from "../../packages/video-studio/src/character-archive.js";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const ffmpeg = process.env.WL_FFMPEG ?? "ffmpeg";
@@ -430,7 +436,8 @@ describe("成片硬切 CFR 接缝", () => {
       const frame = spawnSync(ffmpeg, ["-v", "error", "-ss", String(at), "-i", master, "-frames:v", "1",
         "-vf", "scale=1:1", "-f", "rawvideo", "-pix_fmt", "rgb24", "-"], { encoding: "buffer" });
       expect(frame.status, `${frame.error ?? ""}\n${String(frame.stderr)}`).toBe(0);
-      return [...frame.stdout.subarray(0, 3)];
+      expect(frame.stdout.length).toBe(3);
+      return [...frame.stdout.subarray(0, 3)] as [number, number, number];
     };
     const firstCut = pixel(1.125), beforeThirdEntry = pixel(1.625), thirdShot = pixel(2.125);
     expect(firstCut[1]).toBeGreaterThan(firstCut[2]); // second shot, not a blend into blue
@@ -494,4 +501,212 @@ describe("全链路冻结年代与原合同接线", () => {
     expect(second.result.status).not.toBe(0); expect(second.diagnostic).toContain("FILM_ERA_CONFLICT");
     expect(second.read("logs/regression/project-context.json").eraProfile.storyDate).toBe("2024-01-01");
   }, 40_000);
+});
+
+
+/** Execute the current parsed CLI statements, not a second implementation. Every external result is an explicit isolated fixture. */
+function currentCliParts() {
+  const file = join(root, "scripts/tools/full-chain-film.mts"), source = readFileSync(file, "utf8");
+  const parsed = ts.createSourceFile(file, source, ts.ScriptTarget.ES2022, true, ts.ScriptKind.TS);
+  const fn = (name: string) => {
+    const declaration = parsed.statements.find((node) => ts.isFunctionDeclaration(node) && node.name?.text === name);
+    if (!declaration) throw new Error(`CURRENT_CLI_FUNCTION_MISSING:${name}`);
+    return declaration.getText(parsed);
+  };
+  const stage = (name: string) => {
+    const statement = parsed.statements.find((node) => ts.isIfStatement(node) && node.expression.getText(parsed) === `STAGES.has("${name}")`);
+    if (!statement || !ts.isIfStatement(statement) || !ts.isBlock(statement.thenStatement)) throw new Error(`CURRENT_CLI_STAGE_MISSING:${name}`);
+    return statement;
+  };
+  const material = stage("material-gen").getText(parsed);
+  const videos = stage("videos");
+  const loop = (videos.thenStatement as ts.Block).statements.find(ts.isForOfStatement);
+  if (!loop) throw new Error("CURRENT_CLI_VIDEO_LOOP_MISSING");
+  return { fn, material, videos: loop.getText(parsed) };
+}
+function evaluateCurrent(code: string, context: Record<string, unknown>): unknown {
+  const javascript = ts.transpileModule(code, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS } }).outputText;
+  return runInNewContext(javascript, context, { timeout: 2000 });
+}
+const fixtureSha = (value: string | Uint8Array) => createHash("sha256").update(value).digest("hex");
+
+function currentSubmissionFixture(kind: "material" | "normal" | "asset", verdict: "pass" | "block" | "unverified" = "pass", providerStatus = "succeeded") {
+  const dir = realpathSync(mkdtempSync(join(tmpdir(), "seedance-current-cli-"))); temporary.push(dir);
+  const promptDir = join(dir, "prompts"), plateDir = join(dir, "plates"), clips = join(dir, "clips");
+  for (const path of [promptDir, plateDir, clips]) mkdirSync(path);
+  const photo = join(dir, "product.png"); writeFileSync(photo, Buffer.alloc(60_001, 4));
+  const front = join(dir, "front.png"), closeup = join(dir, "closeup.png");
+  writeFileSync(front, Buffer.alloc(60_003, 5)); writeFileSync(closeup, Buffer.alloc(60_005, 6));
+  const images = [front, closeup].map((path, index) => ({ url: `data:image/png;base64,${readFileSync(path).toString("base64")}`, purpose: index ? "portrait-closeup" : "portrait-front",
+    characterId: "fictional-adult", characterVersion: 2, angle: index ? "closeup" : "front", artifact: { path, sha256: mediaSha256(path), bytes: readFileSync(path).length, mime: "image/png" } }));
+  const shot = { shotId: "S1", duration: 13, character: "原创成年人物", ...(kind === "material" ? { photo } : {}), ...(kind === "asset" ? { assetRef: "asset://authorized-fixture-id" } : {}) };
+  writeFileSync(join(plateDir, "S1-plate.png"), Buffer.alloc(60_007, 7));
+  writeFileSync(join(promptDir, "S1.txt"), `【约束】9:16 ${"正式原始镜头提示词，保持完整叙事与原生声音。".repeat(75)}`);
+  const rows: Card[] = [], gates: Card[] = [], paidBodies: Card[] = [], snapshots = new Map(), accepted: Card[] = [], reviews: Card[] = [];
+  let posts = 0, gets = 0;
+  const sourceHash = fixtureSha("formal fixture source");
+  const env: Card = { SEEDANCE_GENERATE_AUDIO: "1", LLM_PROVIDER: "isolated-fixture" };
+  const parts = currentCliParts();
+  const context: Record<string, unknown> = {
+    Buffer, Date, Promise, Error, Set, Map, Number, String, Object, Array, JSON, Math, createHash, randomUUID: () => `fixture-${Math.random().toString(36).slice(2)}`,
+    readFileSync, writeFileSync, existsSync, statSync, mkdirSync, openSync, closeSync, fsyncSync, linkSync, copyFileSync, rmSync, fsConstants,
+    basename: (path: string) => path.split("/").at(-1), dirname, join, resolve, fingerprintArtifact,
+    WORK_DIR: dir, PROJECT: "ISOLATED-CURRENT", PROMPT_DIR: promptDir, PLATE_DIR: plateDir, CLIP_DIR: clips,
+    SOURCE_SIZE: { width: 64, height: 96 }, ASPECT: "9:16", SOURCE_RESOLUTION: "720p", OUTPUT_RESOLUTION: "720p", FPS: 24,
+    VIDEO_MODEL: "doubao-seedance-2-5-260628", ENV: env, ARK_KEY: "isolated-fixture-secret", ARK_BASE: "https://invalid.test/api/v3", WORKER_RUNTIME: null,
+    STAGES: new Set([kind === "material" ? "material-gen" : "videos"]), FIRST_PASS_ORDER: [shot], DRY_RUN: false, RESUME: false,
+    MATERIAL_POST_ONLY: false, MATERIAL_SPEED_RAMP: false, MATERIAL_POST_CAMERA_MOVE: false, MAX_ATTEMPTS: 3, ACCEPT_REJECTED: [],
+    FILM_SPEECH_LANGUAGE: "zh-CN", REALISM_CLAUSE: "实拍质感", REALISM_NEGATIVE_TERMS: "不改身份", MATERIAL_POLICY_VERSION: "fixture-policy", PLAUSIBILITY_POLICY_VERSION: "fixture-plausibility",
+    shotlist: { title: "正式隔离镜头", durationSeconds: 13 }, totalSeconds: 13, lead: { name: "原创成年人物", appearanceText: "成年虚构人物" },
+    usePortraitRefs: true, portraitReferenceClause: "【人物参考】图1图2是同一虚构成年人，图3是商品。", REVISION_CONTEXT: "",
+    productLibrary: { archives: [] }, selectProductArchive: () => ({ archive: null }), arg: (_name: string, fallback = "") => fallback, flag: () => false,
+    isMaterialShot: () => kind === "material", isAssetShot: () => kind === "asset", isAssetRefLocal: (path: string) => path.startsWith("asset://"), assetRefOf: () => "asset://authorized-fixture-id",
+    hasRenderedSource: () => false, pendingShots: () => [shot], shots: [shot], abs: (path: string) => path,
+    readMaterialSpec: () => ({ photo, usage: "generation-reference", focus: { x: 0.5, y: 0.5 } }),
+    run: (_binary: string, args: string[]) => writeFileSync(args.at(-1)!, Buffer.alloc(60_009, 8)), FFMPEG: "isolated-no-process",
+    buildMaterialScenePrompt: () => `实景依据 构建一段 不得复刻参考图的构图 贴图式运动 画面全程静止 9:16 ${"完整商品场景说明。".repeat(65)}`,
+    buildCinematicContract: () => ({}), appendCinematicContract: (text: string) => text,
+    dialogueLines: () => [], noSpeechClause: () => "无对白", speechNegativeTerms: () => "禁止额外台词",
+    portraitVideoInputs: () => kind === "asset" ? { images: [], paths: [] } : { images, paths: [front, closeup] }, leadVisibleInShot: () => kind !== "asset",
+    refsForShot: () => kind === "asset" ? ["asset://authorized-fixture-id"] : [front, closeup],
+    loadHostedUrl: () => { throw new Error("PORTRAIT_MUST_NOT_USE_HOSTED_FIRST_FRAME"); }, dataUrl: () => { throw new Error("PORTRAIT_MUST_NOT_USE_PLATE_FIRST_FRAME"); },
+    localReviewRefsEarly: (list: string[]) => list.filter(existsSync), resolveProducerLlm: () => ({ model: "isolated-review-fixture" }),
+    reviewPlausibility: async (input: Card) => { reviews.push(input); return { verdict, findings: [], promptPatches: verdict === "pass" && kind === "material" ? [{ shotId: "S1", clauses: ["真正提交应包含这条最终常识补丁。"] }] : [], reason: "isolated review result", model: "isolated-review-fixture", ms: 0 }; },
+    applyPromptPatches,
+    rememberInputs: (stage: string, paths: string[], id: string | null = null) => { const snapshot = captureLineageInputs(paths.filter((path) => !path.startsWith("asset://"))); if (snapshot.errors.length) throw new Error(snapshot.errors.join(";")); snapshots.set(`${stage}:${id ?? ""}`, snapshot); },
+    lineageInputSnapshots: snapshots,
+    recordGate: (input: Card) => { gates.push(input); const checks = input.checks as Array<{ pass: boolean; hard?: boolean }>; return { approved: checks.every((check) => check.hard === false || check.pass), reason: "isolated deterministic gate" }; },
+    record: (row: Card) => { rows.push(row); return row; }, log: () => {}, sha256FileSync: mediaSha256,
+    buildVideoSubmissionRequest, verifyVideoSubmissionArtifacts,
+    runVideoSubmission: (scope: Parameters<typeof runVideoSubmission>[0], options: Parameters<typeof runVideoSubmission>[1]) => runVideoSubmission(scope, { ...options, pollIntervalMs: 1, pollTimeoutMs: 20,
+      fetch: (async (_url, init) => { if (init?.method === "POST") { posts++; paidBodies.push(JSON.parse(String(init.body))); return new Response(JSON.stringify({ id: "task-current-fixture" })); } gets++; return new Response(JSON.stringify({ status: providerStatus, content: { video_url: "https://invalid.test/current.mp4" }, error: providerStatus === "failed" ? { code: "FixtureProviderFailed" } : undefined })); }) as typeof fetch }),
+    sourceHashFor: () => sourceHash,
+    download: async (_url: string, path: string) => { writeFileSync(path, Buffer.alloc(70_001, 9)); return path; },
+    renderedScope: () => ({ projectId: "ISOLATED-CURRENT", shotId: "S1", sourceHash }), acceptRenderedShot,
+    recordRenderedSource: (_id: string, _file: string, receipt: Card, options: Card) => accepted.push({ receipt, options }),
+    readStageHistory: () => [], findRenderedShotAcceptance: () => null,
+    preflightSubmitGuard: (input: Card) => { if (kind === "material") expect(input.prompt).toContain("真正提交应包含这条最终常识补丁"); },
+    retryInstruction: () => { throw new Error("PAID_POST_MUST_NOT_RETRY"); }, motionPolicyForShot: () => ({ intent: "ordinary" }),
+    applySpeedRamp: () => { throw new Error("UNREQUESTED_RETIME"); }, applyCameraMovePunchCut: () => { throw new Error("UNREQUESTED_CAMERA_MOVE"); },
+  };
+  const functions = ["videoImage", "submissionReceiptArtifacts", "videoPlan", "arkVideo", "downloadSubmittedVideo", "finishMaterialClip", "renderSecondsFor", "plausibilityArchiveFor", "plausibilityContextFor", "runPlausibilityGate"].map(parts.fn).join("\n");
+  const execute = () => evaluateCurrent(`(async()=>{${functions}\n${kind === "material" ? parts.material : parts.videos}\n})()`, context) as Promise<void>;
+  return { dir, execute, context, gates, paidBodies, rows, accepted, reviews, get posts() { return posts; }, get gets() { return gets; }, images, front, closeup };
+}
+
+describe("Seedance2.5当前真实CLI请求调用点（隔离假评审与假供应商，不代表生产通过）", () => {
+  it("商品人物镜实际material分支提交两张原图+商品reference，补丁最终prompt与G-MAT1摘要一致", async () => {
+    const f = currentSubmissionFixture("material"); await f.execute();
+    expect(f.posts).toBe(1); expect(f.gets).toBe(1); const body = f.paidBodies[0]!;
+    expect(body.duration).toBe(13); expect(body).not.toHaveProperty("seed"); expect(body.omni_reference_task_type).toBe("reference");
+    const content = body.content as Array<Card>; expect(content[0]!.text).toContain("真正提交应包含这条最终常识补丁");
+    expect(content.slice(1).map((part) => part.role)).toEqual(["reference_image", "reference_image", "reference_image"]);
+    expect((content[1]!.image_url as Card).url).toBe(f.images[0]!.url); expect((content[2]!.image_url as Card).url).toBe(f.images[1]!.url);
+    const gate = f.gates.find((entry) => entry.stepKey === "material-generate")!; const evidence = gate.evidence as Card;
+    expect(evidence.videoInputMode).toBe("reference-image"); expect(evidence.wireRequestSha256).toBe(fixtureSha(JSON.stringify(body)));
+    expect(evidence.promptSha256).toBe(fixtureSha(String(content[0]!.text)));
+    expect((f.reviews[0]!.images as Array<Card>)[0]!.path).toBe(join(f.dir, "plates/S1-material.jpg"));
+    expect(f.accepted.length).toBe(2); expect(JSON.stringify(f.accepted)).toContain("ack.json");
+  });
+  it.each(["block", "unverified"] as const)("material常识%s在付费前停止，0视频POST", async (verdict) => {
+    const f = currentSubmissionFixture("material", verdict); await expect(f.execute()).rejects.toThrow("PLAUSIBILITY_BLOCKED"); expect(f.posts).toBe(0);
+  });
+  it("普通人物镜实际G8+arkVideo只传front/closeup，不夹13为12、不带首帧或seed", async () => {
+    const f = currentSubmissionFixture("normal"); await f.execute(); const body = f.paidBodies[0]!;
+    expect(f.posts).toBe(1); expect(body.duration).toBe(13); expect(body).not.toHaveProperty("seed");
+    expect((body.content as Array<Card>).slice(1).map((part) => part.role)).toEqual(["reference_image", "reference_image"]);
+    const gate = f.gates.find((entry) => entry.stepKey === "g8-render-submit")!; const evidence = gate.evidence as Card;
+    expect(evidence.plateUsage).toBe("preproduction-only"); expect(evidence.wireRequestSha256).toBe(fixtureSha(JSON.stringify(body)));
+    expect(f.accepted).toHaveLength(1);
+  });
+  it("普通镜MAX_ATTEMPTS=3遇供应商终态失败也只POST一次，保留真实task", async () => {
+    const f = currentSubmissionFixture("normal", "pass", "failed"); await expect(f.execute()).rejects.toThrow("VIDEO_SHOT_NOT_COMPLETED");
+    expect(f.posts).toBe(1); expect(JSON.stringify(f.rows)).toContain("task-current-fixture"); expect(f.accepted).toHaveLength(0);
+  });
+  it("真人授权素材仍只传原asset引用，不被合成人物或首帧替换", async () => {
+    const f = currentSubmissionFixture("asset"); await f.execute();
+    const content = f.paidBodies[0]!.content as Array<Card>;
+    expect(content.slice(1)).toEqual([{ type: "image_url", image_url: { url: "asset://authorized-fixture-id" }, role: "reference_image" }]);
+  });
+  it("原卡出镜判断不从旁白speaker或全片lead补人，识别显式appearance并拒绝冲突", () => {
+    const fn = currentCliParts().fn("leadVisibleInShot");
+    const source = { character: { id: "fictional-adult", appearanceInShots: ["visible", "nested-off", "nested-other"] }, shots: [
+      { shotId: "voice", character: "无人", dialogue: [{ speaker: "李英子", text: "画外台词" }] },
+      { shotId: "visible", character: "李英子" }, { shotId: "conflict", character: "李英子", cast: ["another-person"] },
+      { shotId: "plural", characters: ["fictional-adult"] }, { shotId: "off", cast: [{ id: "fictional-adult", onScreen: false }] },
+      { shotId: "negative", character: "不要李英子出镜" }, { shotId: "narrator", character: "李英子：画外旁白不出镜" },
+      { shotId: "nested-off", fields: { cast: [{ id: "fictional-adult", onScreen: false }] } },
+      { shotId: "nested-other", fields: { characterId: "another-person" } },
+    ] };
+    const identity = { id: "fictional-adult", name: "李英子", version: 2 };
+    const context = { sourceDocument: source, usePortraitRefs: true, lead: identity, characters: new Map([[identity.id, identity]]), characterRegistry: { aliases: [] }, isAssetShot: () => false, normalizeShotIntent, resolveShotCast };
+    expect(evaluateCurrent(`${fn}; leadVisibleInShot({shotId:"voice"})`, context)).toBe(false);
+    expect(evaluateCurrent(`${fn}; leadVisibleInShot({shotId:"visible"})`, context)).toBe(true);
+    expect(evaluateCurrent(`${fn}; leadVisibleInShot({shotId:"plural"})`, context)).toBe(true);
+    for (const shotId of ["off", "negative", "narrator"]) expect(evaluateCurrent(`${fn}; leadVisibleInShot({shotId:${JSON.stringify(shotId)}})`, context)).toBe(false);
+    expect(() => evaluateCurrent(`${fn}; leadVisibleInShot({shotId:"nested-off"})`, context)).toThrow("VISIBILITY_CONFLICT");
+    expect(() => evaluateCurrent(`${fn}; leadVisibleInShot({shotId:"nested-other"})`, context)).toThrow("CAST_UNVERIFIED");
+    expect(() => evaluateCurrent(`${fn}; leadVisibleInShot({shotId:"conflict"})`, context)).toThrow(/CAST_UNSUPPORTED|CAST_UNVERIFIED/);
+  });
+});
+
+
+function portraitOriginalFixture() {
+  const dir = realpathSync(mkdtempSync(join(tmpdir(), "current-portrait-originals-"))); temporary.push(dir);
+  for (const relative of ["portraits/v2", "portrait-sets", "provenance/v2", "reviews"]) mkdirSync(join(dir, relative), { recursive: true });
+  const angles = ["front", "threeQuarter", "closeup", "side", "back", "actionPose", "emotionCloseup", "handDetail"];
+  const artifacts = angles.map((angle, index) => {
+    const file = `portraits/v2/fictional-adult-${angle}.png`; writeFileSync(join(dir, file), Buffer.alloc(60_001 + index, index + 1));
+    return { angle, file, sha256: mediaSha256(join(dir, file)) };
+  });
+  const set = { version: 2, dir: "portraits/v2", angles, source: "pure-t2i", active: true, status: "ready" };
+  const profile = { schemaVersion: "workloom.character-profile/v1", id: "fictional-adult", name: "李英子", kind: "generated", portraitSets: [set] };
+  writeFileSync(join(dir, "profile.json"), JSON.stringify(profile)); writeFileSync(join(dir, "portrait-sets/v2.json"), JSON.stringify(set));
+  writeFileSync(join(dir, "provenance/v2.json"), "{}"); writeFileSync(join(dir, "reviews/fixture-authorized.json"), "{}");
+  for (const angle of ["front", "closeup"]) {
+    const artifact = artifacts.find((item) => item.angle === angle)!;
+    const body = { model: "isolated-original-t2i", prompt: `同一原创成年角色 ${angle}`, watermark: true };
+    const hash = fixtureSha(JSON.stringify(body));
+    writeFileSync(join(dir, `provenance/v2/${angle}.provenance.json`), JSON.stringify({ characterId: profile.id, angle, source: "original-pure-text-to-image",
+      request: { body, bodySha256: hash, imageFieldPresent: false }, output: { sha256: artifact.sha256, bytes: readFileSync(join(dir, artifact.file)).length, modified: false } }));
+    writeFileSync(join(dir, `provenance/v2/${angle}.dispatch.json`), JSON.stringify({ request: body, requestSha256: hash, imageInputPresent: false }));
+  }
+  const current = loadCharacterEntry(dir)!;
+  const lead = { id: profile.id, name: profile.name, version: 2, dir, files: current.files };
+  const context = { Buffer, Set, Map, Number, String, Object, Array, JSON, createHash, existsSync, readFileSync, fingerprintArtifact,
+    sourceDocument: { character: { id: profile.id }, shots: [{ shotId: "S1", character: profile.name }] },
+    lead, characters: new Map([[lead.id, lead]]), characterRegistry: { aliases: [] }, usePortraitRefs: true,
+    isAssetShot: () => false, isAssetRefLocal: (file: string) => file.startsWith("asset://"), WORKER_RUNTIME: null,
+    portraitReferenceAuthorization: { characterId: lead.id, version: 2, artifacts },
+    portraitReferenceAuthorizationPaths: [join(dir, "profile.json"), join(dir, "reviews/fixture-authorized.json"), ...artifacts.map((item) => join(dir, item.file))],
+    loadCharacterEntry, readPortraitArtifact, resolveShotCast, normalizeShotIntent, arg: () => "2", resolve, join, basename: (path: string) => path.split("/").at(-1),
+  };
+  const parts = currentCliParts();
+  const execute = () => evaluateCurrent(`${parts.fn("videoImage")}\n${parts.fn("leadVisibleInShot")}\n${parts.fn("portraitVideoInputs")}\nportraitVideoInputs({shotId:"S1"})`, context) as { images: Array<{ url: string; artifact: { path: string; sha256: string; bytes: number } }>; paths: string[] };
+  return { dir, execute, context, artifacts, profile };
+}
+
+describe("当前CLI原图版本与纯文生图证据绑定（合成fixture，不代表实际角色审批）", () => {
+  it("front/closeup以当前原始Buffer编码，路径/version/SHA/字节与冻结授权和dispatch一致", () => {
+    const f = portraitOriginalFixture(); const result = f.execute(); expect(result.images).toHaveLength(2);
+    for (const [index, angle] of ["front", "closeup"].entries()) {
+      const image = result.images[index]!; const expected = f.artifacts.find((item) => item.angle === angle)!;
+      const bytes = Buffer.from(image.url.split(",")[1]!, "base64");
+      expect(fixtureSha(bytes)).toBe(expected.sha256); expect(bytes.equals(readFileSync(image.artifact.path))).toBe(true);
+      expect(result.paths).toContain(join(f.dir, `provenance/v2/${angle}.dispatch.json`));
+    }
+  });
+  it.each(["image-field", "body-hash", "output-hash", "dispatch-input"])("纯文生图来源%s不符在构造请求前拒绝", (fault) => {
+    const f = portraitOriginalFixture(), file = join(f.dir, "provenance/v2/front.provenance.json");
+    const provenance = JSON.parse(readFileSync(file, "utf8"));
+    if (fault === "image-field") provenance.request.body.image = "data:image/png;base64,ZmFrZQ==";
+    if (fault === "body-hash") provenance.request.bodySha256 = fixtureSha("wrong body");
+    if (fault === "output-hash") provenance.output.sha256 = fixtureSha("another image");
+    if (fault === "dispatch-input") { const dispatchFile = join(f.dir, "provenance/v2/front.dispatch.json"), dispatch = JSON.parse(readFileSync(dispatchFile, "utf8")); dispatch.imageInputPresent = true; writeFileSync(dispatchFile, JSON.stringify(dispatch)); }
+    writeFileSync(file, JSON.stringify(provenance)); expect(f.execute).toThrow("ORIGINAL_UNVERIFIED");
+  });
+  it("同大小换图与当前版本漂移不能以旧授权送出", () => {
+    const f = portraitOriginalFixture(); const front = join(f.dir, f.artifacts[0]!.file); writeFileSync(front, Buffer.alloc(readFileSync(front).length, 99)); expect(f.execute).toThrow("BYTES_CHANGED");
+    const other = portraitOriginalFixture(); other.profile.portraitSets[0]!.version = 1; writeFileSync(join(other.dir, "profile.json"), JSON.stringify(other.profile)); expect(other.execute).toThrow("VERSION_INVALID");
+  });
 });

@@ -1,6 +1,6 @@
 # WorkLoom Video Edit 视频调用指南：AI 工作台先读，再执行
 
-> guideVersion: 2026-10-15.2
+> guideVersion: 2026-10-27.1
 > 适用仓库：`workloom-ai/WorkLoom-video-edit`；本版范围：成功原片默认接受和本仓正式后期；实际源码 SHA 以本次冻结交付记录为准。
 > 读者：Codex、DeepSeek Harness 及能调用本仓 CLI / stdio MCP 的 AI 工作台。
 
@@ -109,6 +109,14 @@ node scripts/workloom-agent.mjs invoke growth.video.delivery.inspect --input-fil
 - 字幕默认完整文本与条目，弹幕没有默认 20 字/8 并发抽稀；有效限制只在用户明确请求时生效并如实报告。
 - Color 的 best/match 和封面按明确方案一次本地执行；调色批次完整回传每项，有失败时 CLI 非零退出。没有默认残差、像素差、身份或整图模型品质裁决。
 - 后期包与 HTTP 技术凭据只核对真实加工、来源/权限、版本和请求导出。历史签章保持可验证兼容，不要求重新补画面/声音质量证据。
+
+## 5.2 Seedance 2.5 原始人物参考与任务恢复
+
+正式 CLI 可显式使用 `--use-portrait-refs --portrait-version 2`。原始镜头卡须明确角色 ID 及逐镜出镜人物或 `character.appearanceInShots`；画外旁白的 speaker 和全片默认主角不会自动变成画内人物。当前生成角色的激活版本、所有者用途授权、原始 front/closeup 字节与纯文生图 provenance/dispatch 必须一致。普通人物镜只提交这两张原图；人物商品镜提交 front、closeup、商品准备件三张 `reference_image`。预生产构图稿继续留审，人物参考模式不把它提交为首帧，也不填造真人 `asset://` 授权。
+
+2.5 请求完全省略 seed，明确整数镜长支持 4–30 秒，不把 13–30 秒夹成 12 秒，也不靠四舍五入或变速兑现合同。模型能力不确定、时长不支持、参考混用或原字节变化，在 POST 前停止。商品素材镜先用当前商品准备件与最终提示词做常识审核，补丁落盘后再记录请求 SHA；原图超过评审器预算时不会冒称评审器看过原件。
+
+私有 `<workDir>/video-submissions/<projectId>/` 在 POST 前持久保存不可变 prepared/dispatch，收到真实 task ID 后先原子写 ACK，再查询状态。冷启动先核对冻结输入并 GET 同一 task，随后下载原产物；不会再次运行付费前期。查询/下载失败、排队超过本地期限、终态失败以及 POST 响应丢失均不自动重新 POST。无 ACK 的已 dispatch 请求保持 outcome unknown，须保留事实，不把本地 client ID 当平台幂等键。旧供应商成功原片沿原真实回执直接进入正式后期，不倒填曾使用新人物参考的记录。
 
 ## 6. 从用户指令到交付的耗时怎么记录
 
