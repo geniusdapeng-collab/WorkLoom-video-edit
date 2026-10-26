@@ -20,6 +20,8 @@ import { resolveGate, type GateVerdict } from "./gates.js";
 import { WorkloomLLMEngine } from "./llm-adapter.js";
 import { createPortraitRuntime, type PortraitIndex, type PortraitInputReceipt, type PortraitRuntimeOptions } from "./portrait-runtime.js";
 import { installPortraitArchivePlanBridge, withPortraitArchivePlan } from "./portrait-archive-plan.js";
+import { acquireVendorRequirementEntry } from "./vendor-requirement-entry.js";
+import { assertRequirementContractBridge, installVendorRequirementContractBridge, withRequirementContractScope } from "./requirement-contract-bridge.js";
 import {
   applyDurationPolicyToManager,
   installVendorAudioDisciplineBridge,
@@ -247,11 +249,6 @@ export class VideoStudio {
       verifiedRaw = parsed;
     }
     const log = cfg.log ?? ((line: string) => console.log(line));
-    const require = createRequire(import.meta.url);
-    const { HyperrealitySystem } = require(resolveVendorEntry()) as {
-      HyperrealitySystem: HyperrealitySystemCtor;
-    };
-
     const emit: EventSink = (e) => (cfg.onEvent ? cfg.onEvent(e) : undefined);
     let runId: string | null = null;
 
@@ -286,6 +283,12 @@ export class VideoStudio {
       const keep = (dispose: () => void): void => { disposers.push(dispose); };
       let runFailure: { error: unknown } | undefined;
       try {
+        // The entry is pinned and patched in memory before any consumer obtains its
+        // constructor. Its ready CJS cache is process-lived; this lease owns only a
+        // run reference, and temporary prototype bridges are released first.
+        const vendorEntry = acquireVendorRequirementEntry(resolveVendorEntry());
+        keep(vendorEntry.release);
+        const { HyperrealitySystem } = vendorEntry.exports as unknown as { HyperrealitySystem: HyperrealitySystemCtor };
         /**
          * 注入依赖保活（vendor ConfigIsolator 会摊平类实例，见 vendor-compat.ts）：
          * 必须在本实例装配之前打上，否则注入的 LLM 引擎在隔离后变成"空心对象"，
@@ -318,6 +321,10 @@ export class VideoStudio {
         keep(installVendorPromptRebuildBridge({ log }));
         /** 需求洞察 _fillDefaults 修复（数组保形 + 消除 const 重赋值，静态审计发现） */
         keep(installVendorDiscoveryFixBridge({ log }));
+        keep(installSharedBridge("vendor-requirement-contract-v1", () => installVendorRequirementContractBridge(
+          HyperrealitySystem as unknown as { prototype: Record<string, unknown> }, vendorEntry.identity.entryPath
+        )));
+        assertRequirementContractBridge((HyperrealitySystem as unknown as { prototype: Record<string, unknown> }).prototype);
         /** Phase 3 后融合链路深栈诊断（vendor 内部 catch 会吞掉栈帧） */
         keep(installVendorPhaseInternalsDiagnostics({ log }));
         /** 镜头内音频纪律（禁止 BGM）与时长策略（模型能力 4–30s）两条产品口径 */
@@ -486,9 +493,9 @@ export class VideoStudio {
           const modelName = portraitCfg && portraitCfg.enabled !== false ? portraitCfg.model : "未指定模型";
           log(`[studio] 定妆照真实出图已启用（${modelName}，产物根 ${charactersDir}）`);
         }
-        const result = await withPortraitArchivePlan(portraitRuntime, () =>
+        const result = await withRequirementContractScope(metadata, () => withPortraitArchivePlan(portraitRuntime, () =>
           system.create(input.intent, metadata, createOptions)
-        );
+        ));
         if (portraitRuntime) {
           const index = portraitRuntime.snapshot();
           const characters = Object.keys(index.characters).length;

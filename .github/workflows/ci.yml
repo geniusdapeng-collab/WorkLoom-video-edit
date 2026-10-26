@@ -1,7 +1,7 @@
 # ============================================================
 # WorkLoom CI 质量门禁（审计第 5 轮接入）
 # 触发：push / PR to main
-# 内容：typecheck + 三包测试（含 DB 集成）+ 全场景套件（326 用例）+ dsh-gate E6
+# 内容：typecheck + 三包测试（含 DB 集成）+ 视频合同/证据回归 + 全场景套件（326 用例）+ dsh-gate E6
 # 注意：DB 集成测试必须真实 PG（RUN_DB_TESTS=1）——0.1.1 前全部 skip 曾掩盖 P0（#22）
 # ============================================================
 name: ci-gate
@@ -105,6 +105,21 @@ jobs:
           pnpm -C packages/shared test
           pnpm -C packages/base test
           pnpm -C packages/runtime test
+
+      - name: 视频需求合同与本次 G1 证据回归（隔离模型）
+        run: >-
+          pnpm exec vitest run --maxWorkers=1 --no-file-parallelism
+          packages/video-studio/src/vendor-requirement-entry.test.ts
+          packages/video-studio/src/requirement-contract.test.ts
+          packages/video-studio/src/requirement-contract-production-bridge.test.ts
+          packages/video-studio/src/studio.test.ts
+          packages/video-studio/src/studio-portrait-reuse.test.ts
+          packages/video-studio/src/producer-gate.test.ts
+          packages/video-studio/src/vendor-compat.test.ts
+          apps/server/src/video/marketing-gate-evidence.test.ts
+          apps/server/src/video/studio-worker.test.ts
+          apps/server/src/video/gate-policy.test.ts
+          apps/server/src/video/gate-ledger-bridge.test.ts
 
       - name: 全场景套件（326 用例）
         run: pnpm suite

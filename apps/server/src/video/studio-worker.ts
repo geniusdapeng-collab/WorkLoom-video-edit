@@ -39,6 +39,7 @@ import {
   type GateVerdict,
   type PipelineKind,
   type PortraitIndex,
+  type ProducerArtifact,
   type ProducerStage,
   type ProducerVerdict,
   type RunInput,
@@ -50,6 +51,7 @@ import {
 import { buildServerGateRecord, withGateLedger } from "./gate-ledger-bridge.js";
 import { createDataMiningExecutor } from "./data-mining-executor.js";
 import { prepareMarketingFacts, finalizeMarketingFacts, toJennyMarketingRaw, type PreparedMarketingFacts } from "./marketing-authority.js";
+import { createMarketingGateEvidenceGuard } from "./marketing-gate-evidence.js";
 import { canonicalRenderJson, renderSha256 } from "./gen/compiled-request.js";
 import { acceptPortraitArchiveReuse, loadPortraitReuseManifest, portraitReuseEvidence } from "./portrait-reuse-acceptance.js";
 import { applyBuiltinCharacters, appendBuiltinCharacterGuidance, resolveBuiltinCharacters, type BuiltinCharacterResolution } from "./builtin-character-selection.js";
@@ -651,6 +653,10 @@ export function startRun(scope: Scope, input: StudioRunInput): string {
   /** 交接包线索（来自真实事件，不猜）：门裁决 + 时长投影 */
   const decisionLog: string[] = [];
   const gateProofs = new Map<string, Record<string, unknown>>();
+  const marketingGateEvidence = pipelineKind === "marketing" ? createMarketingGateEvidenceGuard({
+    workDir: runWorkDir,
+    scope: { tenantId: scope.tenantId, workspaceId: scope.workspaceId, projectId: input.projectId, runId: entry.runId },
+  }) : undefined;
   let completedVendorResult: Awaited<ReturnType<VideoStudio["runPreproduction"]>> | null = null;
 
   const onEvent: EventSink = async (e) => {
@@ -748,26 +754,37 @@ export function startRun(scope: Scope, input: StudioRunInput): string {
          * （需求契约/结论摘要等）等于不存在，连续三轮把 G3 判成"契约缺失"。
          */
         const artifact = writeGateArtifact(runWorkDir, path.join(input.projectId, `attempt-${stageRef.attempt}`), gate, req.contentMd ?? "");
+        const currentArtifact: ProducerArtifact = { path: artifact.path, kind: "text", note: req.title,
+          ...(marketingGateEvidence ? { expectedSha256: renderSha256(req.contentMd ?? "") } : {}) };
         const portrait = gate === "G5_PORTRAIT" ? portraitGateEvidence({ workDir: runWorkDir, projectId: input.projectId,
           stage: completedVendorResult?.stages?.portraitStudio,
           scriptReport: (completedVendorResult?.stages?.scriptEngine as { report?: unknown } | undefined)?.report }) : null;
-        producerVerdict = portrait?.notApplicable ? {
-          stage: "keyframe", status: "not_applicable", approved: true, score: 100, hardFailures: [], issues: [], suggestions: [],
-          rerun: false, via: "deterministic", ms: 0, reason: "no-characters-or-products", degraded: false, evidence: [],
-        } : await reviewStage({
-          stage: producerStage,
-          projectId: input.projectId,
-          artifacts: [{ path: artifact.path, kind: "text", note: req.title }, ...(portrait?.artifacts ?? [])],
-          deterministic: portrait?.deterministic ?? gateDeterministicChecks(gate, req.contentMd ?? ""),
-          rubric: [
-            ...((GATE_RUBRIC[gate] ?? []) as string[]),
-            `门内容全长 ${artifact.chars} 字，已随附件送审；摘录（供定位，不是全文）：${(req.contentMd ?? "").slice(0, 600)}`
-          ],
-          context: { gate, vendorType: req.vendorType, runId: entry.runId, contentChars: (req.contentMd ?? "").length },
-          // 内部准备门默认 fail-closed：评审模型不可用即打回，不静默放行
-          allowFallbackApprove: (process.env.HR_PRODUCER_FALLBACK_APPROVE ?? "0") === "1",
-          log: (line) => console.log(line)
-        });
+        if (portrait?.notApplicable) {
+          producerVerdict = {
+            stage: "keyframe", status: "not_applicable", approved: true, score: 100, hardFailures: [], issues: [], suggestions: [],
+            rerun: false, via: "deterministic", ms: 0, reason: "no-characters-or-products", degraded: false, evidence: [],
+          };
+        } else {
+          const marketingReview = marketingGateEvidence?.forReview(gate, currentArtifact);
+          producerVerdict = await reviewStage({
+            stage: producerStage,
+            projectId: input.projectId,
+            artifacts: [currentArtifact, ...(marketingReview?.artifacts ?? []), ...(portrait?.artifacts ?? [])],
+            deterministic: [...(portrait?.deterministic ?? gateDeterministicChecks(gate, req.contentMd ?? "")), ...(marketingReview?.deterministic ?? [])],
+            ...(marketingReview ? { requiredCheckIds: marketingReview.requiredCheckIds } : {}),
+            rubric: [
+              ...((GATE_RUBRIC[gate] ?? []) as string[]),
+              ...(marketingReview?.rubric ?? []),
+              `门内容全长 ${artifact.chars} 字，已随附件送审；摘录（供定位，不是全文）：${(req.contentMd ?? "").slice(0, 600)}`
+            ],
+            context: { gate, vendorType: req.vendorType, runId: entry.runId, contentChars: (req.contentMd ?? "").length,
+              ...(marketingReview ? { marketingFactsAuthority: marketingReview.context } : {}) },
+            // 内部准备门默认 fail-closed：评审模型不可用即打回，不静默放行
+            allowFallbackApprove: (process.env.HR_PRODUCER_FALLBACK_APPROVE ?? "0") === "1",
+            log: (line) => console.log(line)
+          });
+          if (marketingReview && marketingGateEvidence) producerVerdict = marketingGateEvidence.verifyReview(marketingReview, producerVerdict);
+        }
       }
       const approved = PRODUCER_MODE === "auto" ? true : Boolean(producerVerdict?.approved);
       /**
@@ -1033,6 +1050,7 @@ export function startRun(scope: Scope, input: StudioRunInput): string {
           { intent: runInput.intent, isMarketing: input.isMarketing ?? false, pipelineKind, scenePolicy: selectedScenePolicy.decision },
           async (ctx) => {
             gateProofs.clear();
+            marketingGateEvidence?.reset(ctx.attempt);
             completedVendorResult = null;
             /**
              * 断点快照（真机发现的方案缺陷修复，T-2026-0926-0001 留痕）：
@@ -1061,6 +1079,7 @@ export function startRun(scope: Scope, input: StudioRunInput): string {
               g1Approved = verdict.approved === true && proof?.status === "passed" && proof?.via === "llm" && proof?.degraded === false
                 && typeof proof.model === "string" && proof.model.length > 0
                 && Array.isArray(proof.evidence) && proof.evidence.some(item => item?.scope === "complete-text" && item?.sha256 === renderSha256(marketing!.g1Content));
+              if (g1Approved) marketingGateEvidence?.acceptG1({ scope: marketing.bundle.scope, content: marketing.g1Content, proof });
               marketingDossierRoot = marketing.storeRoot;
               marketingDossierRef = path.posix.join("archive", scope.workspaceId, input.projectId, `${marketing.prefix}-dossier`);
             }

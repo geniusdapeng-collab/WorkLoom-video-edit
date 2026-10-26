@@ -2,7 +2,7 @@
  * T-2026-0927-0013：真实 startRun + StageRunner + ArchiveStore 回归。
  * vendor、PG、媒体登记用边界替身；档案写盘与重试/终态/商品摘要走实际代码。
  */
-import { mkdir, mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -110,7 +110,7 @@ const scope = { tenantId: "tenant-test", workspaceId: "ws-test" };
 let projectSequence = 0;
 
 beforeAll(async () => {
-  doubles.workDir = await mkdtemp(path.join(tmpdir(), "studio-result-"));
+  doubles.workDir = await realpath(await mkdtemp(path.join(tmpdir(), "studio-result-")));
   catalogFixture = builtinCatalogFixture(doubles.workDir);
   worker = await import("./studio-worker.js");
 });
@@ -126,13 +126,14 @@ beforeEach(() => {
     const raw = { A1: { identity: { name: "本次商品", specs: { 功率: "1 W" } }, images: [] }, A2: { reviews: [] }, A3: { competitors: [] } };
     const sourceId = `SRC-${renderSha256(`https://source.example.com/final\n${"a".repeat(64)}`).slice(0, 24)}`;
     return {
-    bundle: { rawSha256: renderSha256(canonicalRenderJson(raw)), rawByAgent: structuredClone(raw), productQuery: { name: "本次商品" },
+    bundle: { scope: { ...scope }, rawSha256: renderSha256(canonicalRenderJson(raw)), rawByAgent: structuredClone(raw), productQuery: { name: "本次商品" },
       sources: [{ sourceId, finalUrl: "https://source.example.com/final", textSha256: "a".repeat(64) }],
       stages: [{ stage: "A1", sourceIds: [sourceId], facts: { stage: "A1", status: "source_bound", payload: structuredClone(raw.A1),
         claims: [{ stage: "A1", status: "source-bound", pointer: "/identity/specs/功率", value: "1 W", sourceId, textSha256: "a".repeat(64) }] } }] }, raw,
     prefix: `stages/preproduction/attempt-${scope.attempt}.marketing`,
     storeRoot: path.join(root, `stages/preproduction/attempt-${scope.attempt}.marketing-dossier`),
-    g1Content: JSON.stringify({ facts: { schemaVersion: "workloom.marketing-facts/v1", stages: [1, 2, 3], sources: [1], optionalValue: null }, scope }),
+    g1Content: JSON.stringify({ facts: { schemaVersion: "workloom.marketing-facts/v1", issuer: "workloom.marketing-authority",
+      scope: { ...scope }, stages: [1, 2, 3], sources: [1], optionalValue: null } }),
   }; });
   doubles.finalize.mockReset().mockResolvedValue({ ref: "stages/preproduction/attempt-1.marketing-facts.json", sha256: "b".repeat(64) });
   doubles.emitGates = true;
@@ -582,6 +583,59 @@ describe("预生产原始结果与诚实终态", () => {
     expect(prepared.raw.A1.identity.specs).toEqual({ 功率: "1 W" });
     expect(prepared.bundle.rawSha256).toBe(renderSha256(canonicalRenderJson(prepared.raw)));
     expect(verifiedRaw.sha256).not.toBe(prepared.bundle.rawSha256);
+  });
+  it("G2至G7模型门持有同一当前attempt的G1原件和当前门完整摘要，叙事不增加事实权限", async () => {
+    doubles.runPreproduction.mockResolvedValue(success());
+    const { entry, projectId, runId } = await runToTerminal(); expect(entry.status).toBe("finished");
+    const prepared = await doubles.prepare.mock.results[0]!.value;
+    const g1Path = path.join(doubles.workDir, "workspaces", scope.workspaceId, "gates", projectId, "attempt-1", "G1_DOSSIER.md");
+    const downstream = doubles.review.mock.calls.map(([options]) => options).filter(options => options.context.gate !== "G1_DOSSIER");
+    expect(downstream.map(options => options.context.gate)).toEqual(["G2_THEME", "G3_INSIGHT", "G4_PRD", "G6_PROMPT", "G7_FINAL"]);
+    for (const options of downstream) {
+      expect(options.artifacts).toHaveLength(2);
+      expect(options.artifacts[1]).toMatchObject({ path: g1Path, kind: "json", expectedSha256: renderSha256(prepared.g1Content) });
+      expect(options.artifacts[0].expectedSha256).toBe(renderSha256(await readFile(options.artifacts[0].path, "utf8")));
+      expect(options.requiredCheckIds).toEqual(["marketing-g1-current-evidence"]);
+      expect(options.context.marketingFactsAuthority).toMatchObject({ authorityStatus: "accepted-current-g1",
+        scope: { ...scope, projectId, runId, attempt: 1 }, g1: { path: g1Path, sha256: renderSha256(prepared.g1Content), model: "test-judge" } });
+    }
+    const proofs = (await archiveOutput(projectId, 1)).productionEvidence as { gates: Array<Record<string, any>> };
+    for (const gate of proofs.gates.filter(item => item.gate !== "G1_DOSSIER" && item.gate !== "G5_PORTRAIT")) {
+      expect(gate.evidence).toHaveLength(2);
+      expect(gate.evidence).toContainEqual({ path: g1Path, sha256: renderSha256(prepared.g1Content), scope: "complete-text" });
+    }
+    doubles.review.mockClear(); doubles.runPreproduction.mockResolvedValue(success());
+    const narrative = await runToTerminal(false); expect(narrative.entry.status).toBe("finished");
+    for (const [options] of doubles.review.mock.calls) {
+      expect(options.artifacts).toHaveLength(1); expect(options.requiredCheckIds).toBeUndefined();
+      expect(options.context.marketingFactsAuthority).toBeUndefined(); expect(options.artifacts[0].expectedSha256).toBeUndefined();
+    }
+  });
+  it("vendor执行期间G1原件被换后下游即使自报成功也不能形成正式通过", async () => {
+    doubles.runPreproduction.mockImplementation(async () => {
+      const g1 = doubles.review.mock.calls.find(([options]) => options.context.gate === "G1_DOSSIER")![0].artifacts[0].path;
+      await writeFile(g1, "被替换的G1"); return success();
+    });
+    const { entry } = await runToTerminal(); expect(entry.status).toBe("failed");
+    const downstream = doubles.review.mock.calls.map(([options]) => options).filter(options => options.context.gate !== "G1_DOSSIER");
+    expect(downstream.length).toBeGreaterThan(0);
+    for (const options of downstream) expect(options.deterministic).toContainEqual(expect.objectContaining({
+      id: "marketing-g1-current-evidence", status: "unverified", pass: false, hard: true,
+    }));
+    expect(doubles.finalize).not.toHaveBeenCalled();
+    expect(doubles.finish.mock.calls.every(([row]) => row.status === "failed")).toBe(true);
+  });
+  it("retry重新准备G1并只传本attempt原件，不复用前次通过证据", async () => {
+    vi.stubEnv("VM_PRODUCER_RETRY", "1"); doubles.runPreproduction.mockResolvedValueOnce(rejected()).mockResolvedValueOnce(success());
+    const { entry, projectId } = await runToTerminal(); expect(entry.status).toBe("finished");
+    expect(doubles.prepare).toHaveBeenCalledTimes(2);
+    const g1 = doubles.review.mock.calls.map(([options]) => options).filter(options => options.context.gate === "G1_DOSSIER");
+    expect(g1).toHaveLength(2); expect(g1[0].artifacts[0].path).toContain("attempt-1"); expect(g1[1].artifacts[0].path).toContain("attempt-2");
+    for (const [options] of doubles.review.mock.calls.filter(([options]) => options.context.gate !== "G1_DOSSIER")) {
+      expect(options.artifacts[1].path).toBe(g1[1].artifacts[0].path);
+      expect(options.context.marketingFactsAuthority.scope).toMatchObject({ projectId, attempt: 2 });
+      expect(options.artifacts[1].expectedSha256).not.toBe(g1[0].artifacts[0].expectedSha256);
+    }
   });
   it.each(["source", "claim", "value"])("Jenny格式桥%s变化在vendor之前失败，保留原事实包", async kind => {
     const original = doubles.prepare.getMockImplementation()!;
