@@ -4,7 +4,7 @@
 
 | 当前编号 | 人物与身份 | 档案路径 | 定妆照 |
 |---|---|---|---|
-| 1（默认） | 李英子 `young-rider-01`；原创虚构AI | [`model-01-young-rider/profile.json`](model-01-young-rider/profile.json) | `model-01-young-rider/portraits/v1/*.png`，8角度 |
+| 1（默认） | 李英子 `young-rider-01`；原创虚构AI | [`model-01-young-rider/profile.json`](model-01-young-rider/profile.json) | `model-01-young-rider/portraits/v2/*.png`（v1保留），8角度 |
 | 2 | 陈卓 `chen-zhuo`；原旗袍人物，授权真人历史档案 | [`model-01-chen-zhuo/profile.json`](model-01-chen-zhuo/profile.json) | `model-01-chen-zhuo/portraits/v3/*.png`，8角度 |
 | 3 | 林予安 `lin-yu-an`；原2号原创虚构AI | [`model-02-lin-yu-an/profile.json`](model-02-lin-yu-an/profile.json) | `model-02-lin-yu-an/portraits/v1/*.jpg`，8角度 |
 
@@ -12,13 +12,13 @@
 
 ## 新默认人物的生成证据
 
-李英子的正面主图由纯文字生成；余下7角度只参考这张本次新生成的虚构AI主图。没有输入真人照片、旧陈卓图、林予安图或任何既有人脸图片。
+本轮实际共11次纯文字POST，最终选用8张，另3张背面候选因服装/姿态不合要求未选；未选原图与原始来源在任务私有staging原样保留，输出SHA与排除记录见v2来源，不能把选中8张说成总共只生成8次。
 
-- `profile.json` 使用项目支持的 `kind: generated`，`subjectType: synthetic-digital-human`，授权状态为 `synthetic-no-real-person`。
-- `provenance.json` 记录逐角度完整提示词、输入主图SHA-256、原始PNG的尺寸/字节数/SHA-256。实际模型ID、种子、供应商HTTP/task回执未由工具暴露，均未填造。
-- `portrait-sets/v1.json` 记录版本、服装与精确相对文件路径。8张PNG为原始输出字节，无重编码、缩放、修脸或换背景。
-- 8角度为 front / threeQuarter / closeup / side / back / actionPose / emotionCloseup / handDetail。所有图片均为1024×1536。
-- 采用可移植的旧兼容结构，档案加载核验scope为 `legacy-current-bytes-only`；SHA完整性由行业包索引共同保护。未声称通过自动背景闸或生物识别身份认证。
+李英子当前逻辑v2选用真实Seedream八次独立纯文字请求的原始输出，无真人照片、旧角色图、正面主图或其它图片输入。八张2K PNG原字节保留，当前供应商model、created、实际返回的安全trace、请求及输出SHA见`model-01-young-rider/provenance/v2.json`；原始dispatch/来源收据位于其`provenance/v2/`。具体模型ID取实际响应，不把本地ID当provider task_id；未返回的task_id/seed不填造。
+
+`profile.json`的身份、persona、成年虚构设定和w1造型不变；`portrait-sets/v2.json`为精确相对文件路径。v1八张1024×1536 PNG、`portrait-sets/v1.json`、原`provenance.json`及历史审批保留原字节与原来源：image_gen正面纯文字、其余7图只参考新生成AI主图。当前profile只把v1切为inactive，显式pin仍可读取；不改写旧来源。
+
+八角度为front / threeQuarter / closeup / side / back / actionPose / emotionCloseup / handDetail。所有图片没有重编码、缩放、裁切、修脸或换背景。采用可移植旧兼容结构，runtime scope仍是`legacy-current-bytes-only`；SHA完整性由bundle索引保护。视觉连续性审阅不等于生物识别或人工门审批；watermark=true仅为真实请求事实，隐式水印未验证。
 
 ## 选角与使用
 
@@ -34,7 +34,7 @@
 
 ## 完整性与维护
 
-`registry.json`、三名在册角色的档案/定妆照，以及AI角色的生成证据均登记在 `bundles/ai-video/bundle.json#provides.library`。李英子的 `portrait-sets/v1.json` 也在册。修改在册文件须在同一提交重算相应资产SHA和清单摘要；稳定包另需合法签名。运行期 `gates.jsonl` / `reviews/*.json` 和README不进入完整性索引，历史账本只增不改。
+`registry.json`、三名在册角色的档案/定妆照，以及AI角色的生成证据均登记在 `bundles/ai-video/bundle.json#provides.library`。李英子的v1/v2版本与v2逐请求来源也在册。修改在册文件须在同一提交重算相应资产SHA和清单摘要；稳定包另需合法签名。运行期 `gates.jsonl` / `reviews/*.json` 和README不进入完整性索引，历史账本只增不改。
 
 新增角色时新增独立目录、档案与不可变版本，在registry追加唯一编号；换默认时显式改 `defaultModel`，并将默认角色编号设为1，同步其它当前编号与文档。不得覆盖旧身份或旧图片。
 

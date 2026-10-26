@@ -1,0 +1,70 @@
+{
+  "schemaVersion": "workloom.liyingzi-seedream-provenance/v1",
+  "characterId": "young-rider-01",
+  "name": "李英子",
+  "angle": "emotionCloseup",
+  "source": "original-pure-text-to-image",
+  "apiDocument": "https://ark.volcengine.com/region:cn-beijing/docs/image-generation-api.md",
+  "prompt": "原创虚构人物李英子，20岁中国成年女性大学生。固定外貌：自然鹅蛋脸，深棕色杏仁眼，平直自然眉，直鼻，柔和颧骨，自然薄唇，黑色高马尾，修长健康体态，真实自然皮肤纹理。固定服装：无标识哑光黑色轻便机车夹克敞开，白色圆领T恤，深炭灰直筒长骑行裤盖住脚踝，黑色短骑行靴。白色无缝摄影棚，柔和均匀灯光，写实高品质角色档案摄影，2:3竖构图，单人单幅，没有拼图、其他人物、商标、珠宝、头盔、车辆或文字。正面头肩近景，自然而开朗的微笑，目光有好奇与朝气，清楚展示面部细节，避免夸张或幼态表情。",
+  "promptSha256": "b308bf096f60711f250994cba7be3eee6edc4fbabbe58a8f2428b4c6908be639",
+  "request": {
+    "endpoint": "https://ark.cn-beijing.volces.com/api/v3/images/generations",
+    "body": {
+      "model": "doubao-seedream-5-0-pro-260628",
+      "prompt": "原创虚构人物李英子，20岁中国成年女性大学生。固定外貌：自然鹅蛋脸，深棕色杏仁眼，平直自然眉，直鼻，柔和颧骨，自然薄唇，黑色高马尾，修长健康体态，真实自然皮肤纹理。固定服装：无标识哑光黑色轻便机车夹克敞开，白色圆领T恤，深炭灰直筒长骑行裤盖住脚踝，黑色短骑行靴。白色无缝摄影棚，柔和均匀灯光，写实高品质角色档案摄影，2:3竖构图，单人单幅，没有拼图、其他人物、商标、珠宝、头盔、车辆或文字。正面头肩近景，自然而开朗的微笑，目光有好奇与朝气，清楚展示面部细节，避免夸张或幼态表情。",
+      "size": "2K",
+      "output_format": "png",
+      "response_format": "b64_json",
+      "watermark": true
+    },
+    "bodySha256": "beab4ed2e0b5a28fc74909c3b22bc08e3001614abd4842a8a3b132f32bc87a5c",
+    "imageFieldPresent": false,
+    "attempt": 1,
+    "dispatchedAt": "2026-10-26T15:58:01.361996+00:00"
+  },
+  "response": {
+    "httpStatus": 200,
+    "traceHeaders": {
+      "x-request-id": "021793030284058463b2e7ab2e4caf441b2615bb02bf15847e0e2"
+    },
+    "model": "doubao-seedream-5-0-pro-260628",
+    "created": 1793030317,
+    "providerTaskId": null,
+    "bodySha256": "b76954bcec939f8b4c47ae2407689f5d4345691cda662e01aac8cf2a90155572",
+    "fields": [
+      "created",
+      "data",
+      "model",
+      "usage"
+    ],
+    "imageFields": [
+      "b64_json",
+      "output_format",
+      "size"
+    ],
+    "imageSize": "1664x2496",
+    "imageFormat": "png",
+    "usage": {
+      "generated_images": 1,
+      "output_tokens": 16224,
+      "total_tokens": 16224
+    },
+    "receivedAt": "2026-10-26T15:58:40.109204+00:00"
+  },
+  "output": {
+    "file": "emotionCloseup.png",
+    "mime": "image/png",
+    "width": 1664,
+    "height": 2496,
+    "bytes": 5071120,
+    "sha256": "58dbbcedd7a85efbe3ec66caec888b2e5825978e25f1f236276966c7f769bf24",
+    "modified": false
+  },
+  "visibleWatermarkRequested": true,
+  "invisibleWatermark": {
+    "status": "unverified",
+    "reason": "No watermark detector was run"
+  },
+  "identityConsistency": "unreviewed",
+  "qualityReviewed": false
+}

@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -65,17 +66,51 @@ describe("随仓内置角色库", () => {
     expect(wrongWardrobe.files).toEqual({});
     const cast = resolveShotCast({ shotId: "S1", character: "李英子" }, [entry]);
     expect(cast.characters.map((character) => character.id)).toEqual([registry.defaultModel]);
-    const provenance = JSON.parse(readFileSync(resolve(entry.dir, "provenance.json"), "utf8"));
+    expect(entry.activeSet?.version).toBe(2);
+    expect(entry.activeSet?.source).toBe("pure-t2i");
+    expect(entry.verification.scope).toBe("legacy-current-bytes-only");
+    const currentSet = entry.activeSet as unknown as { provenanceFile: string };
+    expect(currentSet.provenanceFile).toBe("provenance/v2.json");
+    const provenance = JSON.parse(readFileSync(resolve(entry.dir, currentSet.provenanceFile), "utf8"));
+    expect(provenance.portraitVersion).toBe(2);
+    expect(provenance.generationMode).toBe("eight-independent-pure-text-to-image");
+    expect(provenance.commissioning.selectedOutputs).toBe(8);
+    expect(provenance.commissioning.totalProviderCalls).toBe(8 + provenance.commissioning.excludedOutputs.length);
     expect(provenance.externalRealPersonReferences).toEqual([]);
     expect(provenance.existingCharacterReferences).toEqual([]);
-    expect(provenance.master.referenceImageCount).toBe(0);
     expect(provenance.angles).toHaveLength(8);
     for (const asset of provenance.angles) {
       expect(asset.output.sha256).toBe(entry.verification.assets[asset.angle]!.sha256);
       expect(asset.output.bytes).toBe(entry.verification.assets[asset.angle]!.bytes);
+      expect(asset.request.referenceImages).toEqual([]);
+      expect(asset.request.referenceImageCount).toBe(0);
       expect(asset.request.externalRealPersonReferenceCount).toBe(0);
+      expect(asset.request.image).toBeUndefined();
+      expect(asset.response.model).toBe(entry.activeSet!.model);
+      expect(Number.isInteger(asset.response.created)).toBe(true);
+      expect(asset.response.providerTaskId).toBeNull();
+      const receiptBytes = readFileSync(resolve(entry.dir, asset.originalReceipt.file));
+      expect(createHash("sha256").update(receiptBytes).digest("hex")).toBe(asset.originalReceipt.sha256);
+      const dispatchBytes = readFileSync(resolve(entry.dir, asset.dispatchRecord.file));
+      expect(createHash("sha256").update(dispatchBytes).digest("hex")).toBe(asset.dispatchRecord.sha256);
+      const dispatch = JSON.parse(dispatchBytes.toString("utf8"));
+      expect(dispatch.imageInputPresent).toBe(false);
+      expect(dispatch.attempt).toBe(1);
+      expect(createHash("sha256").update(JSON.stringify(dispatch.request)).digest("hex")).toBe(dispatch.requestSha256);
+    }
+    // v1 is historical image_gen lineage: front T2I, seven new-AI-master I2I.
+    const historical = loadCharacterEntry(entry.dir, { pinnedVersion: 1 })!;
+    expect(historical.verification.status).toBe("passed");
+    expect(historical.activeSet?.source).toBe("img2img");
+    const original = JSON.parse(readFileSync(resolve(entry.dir, "provenance.json"), "utf8"));
+    expect(original.tool).toBe("image_gen");
+    expect(original.master.referenceImageCount).toBe(0);
+    expect(original.angles).toHaveLength(8);
+    for (const asset of original.angles) {
+      expect(asset.output.sha256).toBe(historical.verification.assets[asset.angle]!.sha256);
+      expect(asset.output.bytes).toBe(historical.verification.assets[asset.angle]!.bytes);
       expect(asset.request.referenceImages).toHaveLength(asset.angle === "front" ? 0 : 1);
-      if (asset.angle !== "front") expect(asset.request.referenceImages[0].sha256).toBe(provenance.master.sha256);
+      if (asset.angle !== "front") expect(asset.request.referenceImages[0].sha256).toBe(original.master.sha256);
     }
   });
 });

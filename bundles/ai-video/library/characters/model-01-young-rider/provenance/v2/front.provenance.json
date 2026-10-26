@@ -1,0 +1,70 @@
+{
+  "schemaVersion": "workloom.liyingzi-seedream-provenance/v1",
+  "characterId": "young-rider-01",
+  "name": "李英子",
+  "angle": "front",
+  "source": "original-pure-text-to-image",
+  "apiDocument": "https://ark.volcengine.com/region:cn-beijing/docs/image-generation-api.md",
+  "prompt": "原创虚构人物李英子，20岁中国成年女性大学生。固定外貌：自然鹅蛋脸，深棕色杏仁眼，平直自然眉，直鼻，柔和颧骨，自然薄唇，黑色高马尾，修长健康体态，真实自然皮肤纹理。固定服装：无标识哑光黑色轻便机车夹克敞开，白色圆领T恤，深炭灰直筒长骑行裤盖住脚踝，黑色短骑行靴。白色无缝摄影棚，柔和均匀灯光，写实高品质角色档案摄影，2:3竖构图，单人单幅，没有拼图、其他人物、商标、珠宝、头盔、车辆或文字。正面全身标准站姿，从头到双脚完整入镜，双臂自然垂下，直视镜头，友善自信的轻微微笑。",
+  "promptSha256": "07a4f2e0c687a9d551b533bb898a2b8e6bc384d0ffed440953a3bdabbc7e2a4e",
+  "request": {
+    "endpoint": "https://ark.cn-beijing.volces.com/api/v3/images/generations",
+    "body": {
+      "model": "doubao-seedream-5-0-pro-260628",
+      "prompt": "原创虚构人物李英子，20岁中国成年女性大学生。固定外貌：自然鹅蛋脸，深棕色杏仁眼，平直自然眉，直鼻，柔和颧骨，自然薄唇，黑色高马尾，修长健康体态，真实自然皮肤纹理。固定服装：无标识哑光黑色轻便机车夹克敞开，白色圆领T恤，深炭灰直筒长骑行裤盖住脚踝，黑色短骑行靴。白色无缝摄影棚，柔和均匀灯光，写实高品质角色档案摄影，2:3竖构图，单人单幅，没有拼图、其他人物、商标、珠宝、头盔、车辆或文字。正面全身标准站姿，从头到双脚完整入镜，双臂自然垂下，直视镜头，友善自信的轻微微笑。",
+      "size": "2K",
+      "output_format": "png",
+      "response_format": "b64_json",
+      "watermark": true
+    },
+    "bodySha256": "ba934fb928198e998962490ee6c4a604b268a68e89d82aefcb2d6cc32a9747fa",
+    "imageFieldPresent": false,
+    "attempt": 1,
+    "dispatchedAt": "2026-10-26T15:45:59.630297+00:00"
+  },
+  "response": {
+    "httpStatus": 200,
+    "traceHeaders": {
+      "x-request-id": "021793029563711144adcb5cb1cc044cee1f1b0d9da12ec1050ce"
+    },
+    "model": "doubao-seedream-5-0-pro-260628",
+    "created": 1793029595,
+    "providerTaskId": null,
+    "bodySha256": "81a769864d13deaab0a3adc3f3ed45cbc09c6315e63f0bf92a8b64a569ade9c0",
+    "fields": [
+      "created",
+      "data",
+      "model",
+      "usage"
+    ],
+    "imageFields": [
+      "b64_json",
+      "output_format",
+      "size"
+    ],
+    "imageSize": "1664x2496",
+    "imageFormat": "png",
+    "usage": {
+      "generated_images": 1,
+      "output_tokens": 16224,
+      "total_tokens": 16224
+    },
+    "receivedAt": "2026-10-26T15:46:38.297199+00:00"
+  },
+  "output": {
+    "file": "front.png",
+    "mime": "image/png",
+    "width": 1664,
+    "height": 2496,
+    "bytes": 5003858,
+    "sha256": "c605785bb52e634f8e2c9d765ed44f228b908f68dbe089fede5bb7e2467b9541",
+    "modified": false
+  },
+  "visibleWatermarkRequested": true,
+  "invisibleWatermark": {
+    "status": "unverified",
+    "reason": "No watermark detector was run"
+  },
+  "identityConsistency": "unreviewed",
+  "qualityReviewed": false
+}

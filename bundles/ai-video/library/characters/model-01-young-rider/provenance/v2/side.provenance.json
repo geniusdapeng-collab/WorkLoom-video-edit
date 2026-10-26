@@ -1,0 +1,70 @@
+{
+  "schemaVersion": "workloom.liyingzi-seedream-provenance/v1",
+  "characterId": "young-rider-01",
+  "name": "李英子",
+  "angle": "side",
+  "source": "original-pure-text-to-image",
+  "apiDocument": "https://ark.volcengine.com/region:cn-beijing/docs/image-generation-api.md",
+  "prompt": "原创虚构人物李英子，20岁中国成年女性大学生。固定外貌：自然鹅蛋脸，深棕色杏仁眼，平直自然眉，直鼻，柔和颧骨，自然薄唇，黑色高马尾，修长健康体态，真实自然皮肤纹理。固定服装：无标识哑光黑色轻便机车夹克敞开，白色圆领T恤，深炭灰直筒长骑行裤盖住脚踝，黑色短骑行靴。白色无缝摄影棚，柔和均匀灯光，写实高品质角色档案摄影，2:3竖构图，单人单幅，没有拼图、其他人物、商标、珠宝、头盔、车辆或文字。严格左侧90度侧面全身标准站姿，鼻子朝画面右侧，清楚展示侧脸轮廓和高马尾，完整双脚入镜。",
+  "promptSha256": "09904c01532d937e3d54ab9e79e9d50cf2919cba9262598f1b9b0d16dd5768a9",
+  "request": {
+    "endpoint": "https://ark.cn-beijing.volces.com/api/v3/images/generations",
+    "body": {
+      "model": "doubao-seedream-5-0-pro-260628",
+      "prompt": "原创虚构人物李英子，20岁中国成年女性大学生。固定外貌：自然鹅蛋脸，深棕色杏仁眼，平直自然眉，直鼻，柔和颧骨，自然薄唇，黑色高马尾，修长健康体态，真实自然皮肤纹理。固定服装：无标识哑光黑色轻便机车夹克敞开，白色圆领T恤，深炭灰直筒长骑行裤盖住脚踝，黑色短骑行靴。白色无缝摄影棚，柔和均匀灯光，写实高品质角色档案摄影，2:3竖构图，单人单幅，没有拼图、其他人物、商标、珠宝、头盔、车辆或文字。严格左侧90度侧面全身标准站姿，鼻子朝画面右侧，清楚展示侧脸轮廓和高马尾，完整双脚入镜。",
+      "size": "2K",
+      "output_format": "png",
+      "response_format": "b64_json",
+      "watermark": true
+    },
+    "bodySha256": "b5b4710b4275e485ec36c91d3fce7bf47b14c64f10595f89449fb206cf9d1631",
+    "imageFieldPresent": false,
+    "attempt": 1,
+    "dispatchedAt": "2026-10-26T15:51:57.945948+00:00"
+  },
+  "response": {
+    "httpStatus": 200,
+    "traceHeaders": {
+      "x-request-id": "0217930299219004e2842eb712e854fa24899212a499930d0dc3c"
+    },
+    "model": "doubao-seedream-5-0-pro-260628",
+    "created": 1793029962,
+    "providerTaskId": null,
+    "bodySha256": "48d97a9aeb425d0c6ac17bf25762de5a31961e6b79280b9c87cb1e02782f0187",
+    "fields": [
+      "created",
+      "data",
+      "model",
+      "usage"
+    ],
+    "imageFields": [
+      "b64_json",
+      "output_format",
+      "size"
+    ],
+    "imageSize": "1664x2496",
+    "imageFormat": "png",
+    "usage": {
+      "generated_images": 1,
+      "output_tokens": 16224,
+      "total_tokens": 16224
+    },
+    "receivedAt": "2026-10-26T15:52:48.172047+00:00"
+  },
+  "output": {
+    "file": "side.png",
+    "mime": "image/png",
+    "width": 1664,
+    "height": 2496,
+    "bytes": 4659658,
+    "sha256": "38edcba9e595906563b56cb46d19811fd178529b69b7aa919412bc6c42c94d8b",
+    "modified": false
+  },
+  "visibleWatermarkRequested": true,
+  "invisibleWatermark": {
+    "status": "unverified",
+    "reason": "No watermark detector was run"
+  },
+  "identityConsistency": "unreviewed",
+  "qualityReviewed": false
+}

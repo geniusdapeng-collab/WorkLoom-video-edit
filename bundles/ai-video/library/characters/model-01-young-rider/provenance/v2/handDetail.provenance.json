@@ -1,0 +1,70 @@
+{
+  "schemaVersion": "workloom.liyingzi-seedream-provenance/v1",
+  "characterId": "young-rider-01",
+  "name": "李英子",
+  "angle": "handDetail",
+  "source": "original-pure-text-to-image",
+  "apiDocument": "https://ark.volcengine.com/region:cn-beijing/docs/image-generation-api.md",
+  "prompt": "原创虚构人物李英子，20岁中国成年女性大学生。固定外貌：自然鹅蛋脸，深棕色杏仁眼，平直自然眉，直鼻，柔和颧骨，自然薄唇，黑色高马尾，修长健康体态，真实自然皮肤纹理。固定服装：无标识哑光黑色轻便机车夹克敞开，白色圆领T恤，深炭灰直筒长骑行裤盖住脚踝，黑色短骑行靴。白色无缝摄影棚，柔和均匀灯光，写实高品质角色档案摄影，2:3竖构图，单人单幅，没有拼图、其他人物、商标、珠宝、头盔、车辆或文字。腰部至手部细节近景，双手放松地在身前轻扣，真实自然五指和肤质，黑色夹克袖口与深色长裤同时可见。",
+  "promptSha256": "cfa2a8955ba607e8bcde140435f4c83ec9506c4fa8f9ccebab102c050d2d7526",
+  "request": {
+    "endpoint": "https://ark.cn-beijing.volces.com/api/v3/images/generations",
+    "body": {
+      "model": "doubao-seedream-5-0-pro-260628",
+      "prompt": "原创虚构人物李英子，20岁中国成年女性大学生。固定外貌：自然鹅蛋脸，深棕色杏仁眼，平直自然眉，直鼻，柔和颧骨，自然薄唇，黑色高马尾，修长健康体态，真实自然皮肤纹理。固定服装：无标识哑光黑色轻便机车夹克敞开，白色圆领T恤，深炭灰直筒长骑行裤盖住脚踝，黑色短骑行靴。白色无缝摄影棚，柔和均匀灯光，写实高品质角色档案摄影，2:3竖构图，单人单幅，没有拼图、其他人物、商标、珠宝、头盔、车辆或文字。腰部至手部细节近景，双手放松地在身前轻扣，真实自然五指和肤质，黑色夹克袖口与深色长裤同时可见。",
+      "size": "2K",
+      "output_format": "png",
+      "response_format": "b64_json",
+      "watermark": true
+    },
+    "bodySha256": "7a845f5948aee4d064b58c79850aaf161c08d6b2b5631dd28017356de6a8bbf9",
+    "imageFieldPresent": false,
+    "attempt": 1,
+    "dispatchedAt": "2026-10-26T16:06:53.420849+00:00"
+  },
+  "response": {
+    "httpStatus": 200,
+    "traceHeaders": {
+      "x-request-id": "021793030818231509a806b13bf7850218ff838cc29ddfa4a62ea"
+    },
+    "model": "doubao-seedream-5-0-pro-260628",
+    "created": 1793030848,
+    "providerTaskId": null,
+    "bodySha256": "8e32f2671f98e19fc42fdff4a4f96f57ade9baa07e09932cee1d1603dad5f71d",
+    "fields": [
+      "created",
+      "data",
+      "model",
+      "usage"
+    ],
+    "imageFields": [
+      "b64_json",
+      "output_format",
+      "size"
+    ],
+    "imageSize": "1664x2496",
+    "imageFormat": "png",
+    "usage": {
+      "generated_images": 1,
+      "output_tokens": 16224,
+      "total_tokens": 16224
+    },
+    "receivedAt": "2026-10-26T16:07:32.364099+00:00"
+  },
+  "output": {
+    "file": "handDetail.png",
+    "mime": "image/png",
+    "width": 1664,
+    "height": 2496,
+    "bytes": 4994853,
+    "sha256": "78db8dac0b150642612df9c6c3ed47e69e588a41f178bf379a65c5a7208ddd37",
+    "modified": false
+  },
+  "visibleWatermarkRequested": true,
+  "invisibleWatermark": {
+    "status": "unverified",
+    "reason": "No watermark detector was run"
+  },
+  "identityConsistency": "unreviewed",
+  "qualityReviewed": false
+}
