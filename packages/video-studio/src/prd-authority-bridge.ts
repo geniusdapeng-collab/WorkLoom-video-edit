@@ -1,4 +1,5 @@
 import { AsyncLocalStorage } from "node:async_hooks";
+import { createHash } from "node:crypto";
 import { createRequire } from "node:module";
 import path from "node:path";
 import {
@@ -14,6 +15,12 @@ import { acquireVendorRequirementEntry } from "./vendor-requirement-entry.js";
 type Method = (this: RequirementRecord, ...args: unknown[]) => unknown;
 interface Scope {
   authority: PrdAuthority;
+  authoritySource: PrdAuthority;
+  authorityHash: string;
+  validateAuthority?: () => void;
+  approvedTheme?: () => unknown;
+  reviewedTheme?: unknown;
+  reviewedThemeHash?: string;
   active: boolean;
   fatal?: { error: unknown };
   system?: RequirementRecord;
@@ -24,6 +31,9 @@ interface Scope {
   reviewedHash?: string;
   reviewedProjectionHash?: string;
   reviewedResult?: RequirementRecord;
+  reviewedContent?: string;
+  reviewedVerdict?: RequirementRecord;
+  g4Decision?: "pending" | "approved" | "rejected";
   generated: WeakSet<object>;
 }
 const scopes = new AsyncLocalStorage<Scope | undefined>();
@@ -38,6 +48,9 @@ function guard<T>(scope: Scope, operation: () => T): T {
   try {
     if (!scope.active || scopes.getStore() !== scope) prdFail("PRD_SCOPE_CLOSED", "PRD 不能在本次运行结束后继续消耗权威输入");
     if (scope.fatal !== undefined) throw scope.fatal.error;
+    if (requirementHash(scope.authoritySource) !== scope.authorityHash) {
+      prdFail("PRD_AUTHORITY_CHANGED", "本次宿主私有 PRD 权威输入已经变化");
+    }
     return operation();
   } catch (error) { return fatal(scope, error); }
 }
@@ -58,22 +71,27 @@ function current(): Scope | undefined {
 function scopedReceiver(receiver: RequirementRecord, kind: "system" | "generator"): Scope | undefined {
   const scope = current(), bound = (kind === "system" ? systems : generators).get(receiver);
   if (bound && bound !== scope) {
-    return fatal(bound, new Error("PRD_SCOPE_CONFLICT: 已绑定的系统或生成器不能脱离本次权威作用域调用"));
+    const error = bound.fatal?.error ?? new Error("PRD_SCOPE_CONFLICT: 已绑定的系统或生成器不能脱离本次权威作用域调用");
+    bound.fatal ??= { error };
+    return fatal(scope ?? bound, error);
   }
   return scope;
 }
 
 /** A swallowed vendor exception stays fatal when the outer operation eventually returns. */
-export async function withPrdAuthorityScope<T>(authority: PrdAuthority | undefined, operation: () => T | Promise<T>): Promise<T> {
+export async function withPrdAuthorityScope<T>(
+  authority: PrdAuthority | undefined, operation: () => T | Promise<T>, validateAuthority?: () => void, approvedTheme?: () => unknown
+): Promise<T> {
   if (!authority) return scopes.run(undefined, operation);
-  const scope: Scope = { authority: structuredClone(authority), active: true, generated: new WeakSet() };
+  const scope: Scope = { authority: structuredClone(authority), authoritySource: authority,
+    authorityHash: requirementHash(authority), validateAuthority, approvedTheme, active: true, generated: new WeakSet() };
   return scopes.run(scope, async () => {
     try {
       const result = await awaited(scope, operation);
       if (result && typeof result === "object" && (result as RequirementRecord).success === true) {
         const stages = requirementRecord((result as RequirementRecord).stages, "成功运行 stages");
         const finalPrd = requirementRecord(requirementRecord(stages.prdGeneration, "成功运行 prdGeneration").data, "成功运行 PRD");
-        if (!scope.reviewedHash || finalPrd !== scope.reviewedResult
+        if (scope.g4Decision !== "approved" || !scope.reviewedHash || finalPrd !== scope.reviewedResult
           || reviewProjectionHash(finalPrd) !== scope.reviewedProjectionHash) {
           prdFail("PRD_REVIEW_UNVERIFIED", "成功返回前最终 PRD 未绑定本次真实 G4 或审核后内容发生变化");
         }
@@ -82,6 +100,44 @@ export async function withPrdAuthorityScope<T>(authority: PrdAuthority | undefin
     } catch (error) { return fatal(scope, error); }
     finally { scope.active = false; }
   });
+}
+
+function assertProductionAuthority(scope: Scope): void {
+  guard(scope, () => {
+    scope.validateAuthority?.();
+    if (scope.reviewedHash && scope.approvedTheme && (!scope.reviewedThemeHash
+      || requirementHash(scope.approvedTheme()) !== scope.reviewedThemeHash)) {
+      prdFail("PRD_REVIEW_UNVERIFIED", "G4 后本次真实 G2 已审主题发生变化");
+    }
+    if (scope.reviewedHash && (!scope.reviewedResult || !scope.contract || !scope.reviewedContent || !scope.reviewedVerdict
+      || reviewProjectionHash(scope.reviewedResult) !== scope.reviewedProjectionHash)) {
+      prdFail("PRD_REVIEW_UNVERIFIED", "下游制作调用缺少本次真实 G4 版本，或审核后内容已经变化");
+    }
+  });
+}
+
+/** The existing request boundary uses this private run snapshot, never metadata declarations. */
+export function productionModelInput(prompt: string): { prompt: string; verify: () => void } {
+  const scope = current();
+  if (!scope) return { prompt, verify: () => undefined };
+  const verify = () => assertProductionAuthority(scope);
+  verify();
+  // Before G4 the native theme/discovery/PRD paths retain their own prompts and contracts.
+  if (scope.g4Decision !== "approved" || !scope.reviewedHash) return { prompt, verify };
+  const addition = `\n\n## 本次宿主已审制作权威输入 ${scope.reviewedHash}\n`
+    + `以下是当前运行的完整来源，不是新的创作稿或批准。客户完整 Brief 与 G1 的用途限定优先于通用模板、艺术参考和已审 PRD 中的创作句子。`
+    + `G4 批准不把 PRD 新增的修辞、设计目的、未知颜色或部件推测升级为 G1 已接受事实。`
+    + `后续剧本、场景、摄影、色彩、音频、融合、精炼、检查与修复都须按相同层级理解；本次模型自主生成内容，不能用规则补造缺失字段。\n`
+    + prdAuthorityPrompt(scope.authority, scope.contract!)
+    + (scope.reviewedThemeHash ? `\n本次真实 G2 已审完整主题与原始裁决（SHA256 ${scope.reviewedThemeHash}）：\n${JSON.stringify(scope.reviewedTheme)}\n` : "")
+    + `\n本次真实 G4 完整审核原文（SHA256 ${createHash("sha256").update(scope.reviewedContent!).digest("hex")}）：\n${scope.reviewedContent}\n`
+    + `本次 G4 原始返回裁决（建议保持非阻断层级，不驱动额外调用）：\n${JSON.stringify(scope.reviewedVerdict)}\n`
+    + `本次 G4 绑定的完整 PRD 对象（人物 portraitPath 可在后续合法填入；其他创作内容不得继承未经重审的修改）：\n${JSON.stringify(scope.reviewedResult)}\n`
+    + `保留当前调用的输出结构、真实镜号、字段、模型参数、超时、重试与输出预算。`
+    + `仅生成当前任务要求的内容；不把来源文本、JSON 键名、审核说明或本节文字抄成场景、服装、台词与音频。`
+    + `客户明确的字幕与封面要求属于正式后期，生成画面内禁止额外文字不代表取消后期规定字幕。`
+    + `本输入不批准 G5/G6/G7，不降低其检查；模型结果仍原样交给原消费者与正式审核。\n`;
+  return { prompt: prompt + addition, verify };
 }
 
 function reviewProjectionHash(value: RequirementRecord): string {
@@ -386,14 +442,23 @@ export function installPrdAuthorityBridge(
       check(scope);
       if (scope.system !== this || systems.get(this) !== scope) prdFail("PRD_SCOPE_CONFLICT", "G4 不是本次系统的 PRD");
       const result = verifyOutput(scope, value), before = requirementHash(result);
+      scope.g4Decision = "pending";
       const verdict = requirementRecord(await Reflect.apply(confirmPrd, this, [content, value]), "G4 实际确认结果");
       check(scope); verifyOutput(scope, value);
       if (requirementHash(result) !== before || verdict.prd !== value) prdFail("PRD_REVIEW_CHANGED", "G4 审核期间 PRD 实际内容发生变化");
       if (verdict.approved === true) {
+        if (typeof content !== "string" || !content.trim()) prdFail("PRD_REVIEW_UNVERIFIED", "G4 批准缺少本次完整审核原文");
         scope.reviewedHash = before;
         scope.reviewedProjectionHash = reviewProjectionHash(result);
         scope.reviewedResult = result;
-      }
+        scope.reviewedContent = content;
+        scope.reviewedVerdict = structuredClone(Object.fromEntries(Object.entries(verdict).filter(([key]) => key !== "prd")));
+        if (scope.approvedTheme) {
+          scope.reviewedTheme = structuredClone(requirementRecord(scope.approvedTheme(), "本次 G2 已审主题"));
+          scope.reviewedThemeHash = requirementHash(scope.reviewedTheme);
+        }
+        scope.g4Decision = "approved";
+      } else scope.g4Decision = "rejected";
       return verdict;
     });
   };
@@ -438,5 +503,420 @@ export function installVendorPrdAuthorityBridge(constructor: { prototype: object
     const { PRDGenerator } = require(path.join(directory, "prd-generator.js")) as { PRDGenerator: { prototype: RequirementRecord } };
     const { PRDSchema } = require(path.join(directory, "schema/prd-schema-v3.js")) as { PRDSchema: RequirementRecord };
     return installPrdAuthorityBridge(requirementRecord(constructor.prototype, "受控 vendor prototype"), PRDGenerator.prototype, PRDSchema);
+  } finally { lease.release(); }
+}
+
+interface ProductionDependencies {
+  systemPrototype: RequirementRecord;
+  productionPrototype: RequirementRecord;
+  phase1Prototype: RequirementRecord;
+  refinerPrototype: RequirementRecord;
+  costumePrototype: RequirementRecord;
+  fieldGuardPrototype: RequirementRecord;
+  fusionPrototype: RequirementRecord;
+  qualityGatePrototype: RequirementRecord;
+  deliveryGuardPrototype: RequirementRecord;
+  semanticPrototype: RequirementRecord;
+  standardizeShot: (shot: RequirementRecord) => RequirementRecord;
+  validateShot: (shot: RequirementRecord) => RequirementRecord;
+  fields: { p0: string[]; p1: string[]; p2: string[]; p3: string[]; common: string[] };
+}
+const productionOwners = new WeakMap<object, Scope>();
+const productionInstalls = new WeakMap<object, { changes: Array<{ owner: RequirementRecord; key: string; original?: PropertyDescriptor; patched: Method }> }>();
+const RETIRED_TITLES = ["title", "subtitle", "title_content", "subtitle_content", "title_animation", "title_font_design", "opening_audio_design"];
+const RETIRED_TITLE_LABELS = ["【主标题内容】", "【副标题内容】", "【标题动画设计】", "【标题字体设计】", "【开场音频设计】"];
+
+function productionScope(receiver: RequirementRecord, required = true): Scope | undefined {
+  const scope = current(), bound = productionOwners.get(receiver) ?? systems.get(receiver);
+  if (bound && bound !== scope) {
+    const error = bound.fatal?.error ?? new Error("PRD_SCOPE_CONFLICT: 制作对象不能跨运行或在作用域结束后使用");
+    bound.fatal ??= { error };
+    return fatal(scope ?? bound, error);
+  }
+  if (!scope) return undefined;
+  return guard(scope, () => {
+    assertProductionAuthority(scope);
+    if (scope.g4Decision !== "approved" || !scope.reviewedHash || !scope.contract) {
+      if (required) prdFail("PRD_REVIEW_UNVERIFIED", "制作调用必须消费本次真实 G4 已审版本");
+      return scope;
+    }
+    productionOwners.set(receiver, scope);
+    return scope;
+  });
+}
+function hasValue(value: unknown): boolean {
+  if (value === null || value === undefined) return false;
+  if (typeof value === "string") return value.trim().length > 0;
+  if (Array.isArray(value)) return value.length > 0;
+  if (typeof value === "object") return Object.keys(value).length > 0;
+  return true;
+}
+function retiredTitleIssue(value: string): boolean {
+  if (value === "Opening shot missing: title" || value === "Opening shot missing: subtitle") return true;
+  const missing = /^Opening exclusive fields missing: (.+) \(use OpeningTitleOptimizer to generate\)$/.exec(value)
+    ?? /^Opening fields not yet generated \(will be filled by OpeningTitleOptimizer\): (.+)$/.exec(value);
+  if (!missing) return false;
+  const keys = missing[1]!.split(", ");
+  return keys.length > 0 && new Set(keys).size === keys.length && keys.every(key => RETIRED_TITLES.slice(2).includes(key));
+}
+
+/** Fixed vendor dependency seam; all policy comes from the private, approved run scope. */
+export function installPrdProductionBridge(deps: ProductionDependencies): () => void {
+  const { systemPrototype, productionPrototype, phase1Prototype, refinerPrototype, costumePrototype, fieldGuardPrototype, fusionPrototype,
+    qualityGatePrototype, deliveryGuardPrototype, semanticPrototype } = deps;
+  const standardizeShot = deps.standardizeShot, validateShot = deps.validateShot;
+  if (productionInstalls.has(systemPrototype)) prdFail("PRD_BRIDGE_ACTIVE", "制作权威桥只能由共享引用计数安装");
+  const fieldGroups = structuredClone(deps.fields);
+  const fields = [...fieldGroups.p0, ...fieldGroups.p1, ...fieldGroups.p2, ...fieldGroups.p3];
+  if (fields.length !== 25 || new Set(fields).size !== 25) prdFail("PRD_VENDOR_UNAVAILABLE", "制作字段合同不是原生 25 项");
+  const changes: Array<{ owner: RequirementRecord; key: string; original?: PropertyDescriptor; patched: Method }> = [];
+  let installed = false;
+  const check = (scope: Scope) => guard(scope, () => {
+    if (!installed || deps.standardizeShot !== standardizeShot || deps.validateShot !== validateShot
+      || requirementHash(deps.fields) !== requirementHash(fieldGroups)
+      || changes.some(change => !descriptorEqual(Object.getOwnPropertyDescriptor(change.owner, change.key),
+        change.original ? { ...change.original, value: change.patched } : { value: change.patched, writable: true, configurable: true, enumerable: false }))) {
+      prdFail("PRD_BRIDGE_CHANGED", "制作权威桥或原生字段合同身份已经变化");
+    }
+    assertProductionAuthority(scope);
+  });
+  const add = (owner: RequirementRecord, key: string, wrap: (original: Method) => Method, optional = false) => {
+    const original = Object.getOwnPropertyDescriptor(owner, key);
+    if ((!original && !optional) || (original && (typeof original.value !== "function" || !original.writable || !original.configurable))) {
+      prdFail("PRD_VENDOR_UNAVAILABLE", `${key} 不是可恢复的原始制作方法`);
+    }
+    const base: Method = original?.value ?? function () { return true; };
+    changes.push({ owner, key, original, patched: wrap(base) });
+  };
+  const inspect = (shotsValue: unknown, context: unknown, noTitle: boolean) => {
+    if (!Array.isArray(shotsValue) || shotsValue.length === 0) prdFail("PRD_PRODUCTION_INVALID", "制作镜头必须为非空数组");
+    const shots = (shotsValue as unknown[]).map(value => {
+      const raw = requirementRecord(value, "当前制作镜头"), normalized = standardizeShot(raw);
+      // Standardization may omit fields/unknown attributes or lose a textual timeline.
+      // Keep genuine source values and additional data; never synthesize content defaults.
+      const shot = { ...structuredClone(raw), ...normalized };
+      const rawFields = raw.fields && typeof raw.fields === "object" && !Array.isArray(raw.fields) ? raw.fields as RequirementRecord : {};
+      for (const key of [...fields, ...fieldGroups.common]) {
+        if (!hasValue(shot[key])) {
+          const camel = key.replace(/_([a-z])/g, (_, character: string) => character.toUpperCase());
+          const candidates = [rawFields[key], rawFields[camel], raw[key], raw[camel]];
+          const genuine = candidates.find(hasValue);
+          if (genuine !== undefined) shot[key] = structuredClone(genuine);
+        }
+      }
+      if (Object.hasOwn(raw, "fields")) shot.fields = structuredClone(raw.fields);
+      if (typeof raw.prompt === "string") shot.prompt = raw.prompt;
+      if (typeof raw.sceneType === "string") shot.sceneType = raw.sceneType;
+      shot._context = context;
+      return shot;
+    });
+    const details = shots.map(shot => {
+      const native = validateShot(shot);
+      const missing = fields.filter(key => !(key === "dialogue" && (shot.dialogueFree === true
+        || (Array.isArray(shot.dialogueBlocks) && shot.dialogueBlocks.length > 0))) && !hasValue(shot[key]));
+      const explicitDialogue = !missing.includes("dialogue") && !hasValue(shot.dialogue);
+      const filter = (values: unknown): string[] => {
+        if (!Array.isArray(values) || values.some(value => typeof value !== "string")) prdFail("PRD_VENDOR_UNAVAILABLE", "原生字段校验结果结构已变化");
+        return (values as string[]).filter(value => !(noTitle && retiredTitleIssue(value))
+          && !(explicitDialogue && value === "P0 Missing: dialogue"));
+      };
+      const errors = filter(native.errors), warnings = filter(native.warnings);
+      // The native final-export summary can include an explicitly inapplicable dialogue.
+      // Recompute this exact summary without changing any other native validation result.
+      for (let index = errors.length - 1; index >= 0; index--) {
+        const match = /^Final-Export strict: \d+ fields empty: (.+)$/.exec(errors[index]!);
+        if (match && explicitDialogue) {
+          const remaining = match[1]!.split(", ").filter(key => key !== "dialogue");
+          if (remaining.length) errors[index] = `Final-Export strict: ${remaining.length} fields empty: ${remaining.join(", ")}`;
+          else errors.splice(index, 1);
+        }
+      }
+      if (missing.length) errors.push(`Production 25 fields missing: ${missing.join(", ")}`);
+      if (!hasValue(shot.shotId) || !hasValue(shot.sceneType) || !hasValue(shot.prompt)) errors.push("Production common identity/prompt missing");
+      const actualPrompt = shot.prompt;
+      if (noTitle && typeof actualPrompt === "string" && RETIRED_TITLE_LABELS.some(label => actualPrompt.includes(label))) {
+        errors.push("Retired title fields leaked into generation prompt");
+      }
+      return { ...native, passed: errors.length === 0, errors, warnings, missingSpecFields: missing,
+        applicableFields: fields.length, presentFields: fields.length - missing.length,
+        ...(noTitle ? { applicability: Object.fromEntries(RETIRED_TITLES.map(key => [key, "not_applicable"])) } : {}) };
+    });
+    const report = { passed: details.every(detail => detail.passed),
+      errors: details.flatMap((detail, index) => detail.errors.map(error => `[${String(shots[index]!.shotId)}] ${error}`)),
+      warnings: details.flatMap((detail, index) => detail.warnings.map(warning => `[${String(shots[index]!.shotId)}] ${warning}`)),
+      details, summary: { totalShots: shots.length, fixedShots: 0, applicableFieldsPerShot: fields.length } };
+    return { shots, report };
+  };
+  add(systemPrototype, "create", original => async function (...args) {
+    const scope = productionScope(this, false);
+    if (!scope) return Reflect.apply(original, this, args);
+    productionOwners.set(this, scope);
+    return awaited(scope, async () => { check(scope); const result = await Reflect.apply(original, this, args); check(scope); return result; });
+  });
+  add(systemPrototype, "_shouldUseTitleCard", original => function (...args) {
+    const scope = productionScope(this);
+    if (!scope) return Reflect.apply(original, this, args);
+    return guard(scope, () => { check(scope); return scope.authority.profile.titleCard !== false; });
+  }, true);
+  add(systemPrototype, "_optimizeOpeningTitle", original => async function (...args) {
+    const scope = productionScope(this);
+    if (!scope) return Reflect.apply(original, this, args);
+    return awaited(scope, () => { check(scope); return scope.authority.profile.titleCard === false ? undefined : Reflect.apply(original, this, args); });
+  });
+  add(phase1Prototype, "_shouldGenerateOpening", original => function (...args) {
+    const scope = productionScope(this);
+    if (!scope) return Reflect.apply(original, this, args);
+    return guard(scope, () => { check(scope); return scope.authority.profile.titleCard === false ? false : Reflect.apply(original, this, args); });
+  });
+  add(qualityGatePrototype, "run", original => function (promptsValue, prdValue = null, ...args) {
+    const scope = productionScope(this);
+    if (!scope || scope.authority.profile.titleCard !== false) return Reflect.apply(original, this, [promptsValue, prdValue, ...args]);
+    return guard(scope, () => {
+      check(scope);
+      const result = requirementRecord(Reflect.apply(original, this, [promptsValue, prdValue, ...args]), "原生质量门报告");
+      if (!Array.isArray(result.checks)) prdFail("PRD_VENDOR_UNAVAILABLE", "原生质量门缺少逐镜检查");
+      const prd = prdValue === null ? {} : requirementRecord(prdValue, "质量门 PRD");
+      const delivery = prd.deliveryStandard && typeof prd.deliveryStandard === "object" ? prd.deliveryStandard as RequirementRecord : {};
+      const thresholdValue = delivery.acceptanceCriteria || prd.acceptanceCriteria;
+      const threshold = thresholdValue ? requirementRecord(thresholdValue, "原生质量门阈值") : undefined;
+      const scoreThreshold = threshold ? Math.round((Number(threshold.visual || 0.75) + Number(threshold.narrative || 0.75)) / 2 * 100) : 30;
+      const checks = result.checks.map(value => {
+        const item = requirementRecord(value, "原生逐镜质量结果");
+        // The pinned native gate requires these two title-package properties only
+        // for S00. Retire precisely those checks; preserve every content check,
+        // length/placeholder result and the original PRD score threshold.
+        if (item.shotId !== "S00") return item;
+        const passed = ["hasScene", "hasMood", "hasCamera", "hasLighting", "hasAction", "hasTimeline", "hasBackgroundSound", "hasPrompt", "withinLimit"]
+          .every(key => item[key] === true) && item.hasPlaceholder === false && Number(item.overallScore) >= scoreThreshold;
+        return { ...item, hasAudioLayer: null, hasTitleOverlay: null, passed,
+          applicability: { audioLayer: "not_applicable", titleOverlay: "not_applicable" } };
+      });
+      return { ...result, checks, passed: checks.every(item => item.passed === true), passedCount: checks.filter(item => item.passed === true).length,
+        failedFields: checks.filter(item => item.passed !== true).map(item => ({ shotId: item.shotId, overallScore: item.overallScore,
+          failed: Object.entries(item).filter(([key, value]) => key.startsWith("has") && value === false).map(([key]) => key) })) };
+    });
+  });
+  add(deliveryGuardPrototype, "verify", original => function (prompt, shot = {}, ...args) {
+    const scope = productionScope(this);
+    if (!scope || scope.authority.profile.titleCard !== false) return Reflect.apply(original, this, [prompt, shot, ...args]);
+    return guard(scope, () => {
+      check(scope);
+      const result = requirementRecord(Reflect.apply(original, this, [prompt, shot, ...args]), "原生提示词交付检查");
+      if (!Array.isArray(result.issues) || result.issues.some(issue => typeof issue !== "string")) prdFail("PRD_VENDOR_UNAVAILABLE", "交付检查缺少原始错误明细");
+      const retired = new Set(RETIRED_TITLE_LABELS.map(label => `缺片头专属字段:${label.slice(1, -1)}`));
+      const issues = (result.issues as string[]).filter(issue => !retired.has(issue));
+      if (typeof prompt === "string" && RETIRED_TITLE_LABELS.some(label => prompt.includes(label))) issues.push("生成侧重新出现已退休片头标题字段");
+      return { ...result, pass: issues.length === 0, issues, expectedMin: fields.length,
+        applicability: Object.fromEntries(RETIRED_TITLES.map(key => [key, "not_applicable"])) };
+    });
+  });
+  add(semanticPrototype, "_buildPrompt", original => function (...args) {
+    const scope = productionScope(this);
+    if (!scope || scope.authority.profile.titleCard !== false) return Reflect.apply(original, this, args);
+    return guard(scope, () => {
+      check(scope);
+      const value = Reflect.apply(original, this, args);
+      if (typeof value !== "string") prdFail("PRD_VENDOR_UNAVAILABLE", "语义精炼输入不是文本");
+      const boundary = value.indexOf("\n【待精炼提示词】\n");
+      if (boundary < 0) prdFail("PRD_VENDOR_UNAVAILABLE", "语义精炼提示词边界已经变化");
+      const header = value.slice(0, boundary).replace("，片头 5 个专属字段保留", "");
+      return header + `\n- 本次私有 titleCard=false：生成侧七个标题项 not_applicable，不生成、不补占位；保留实际 opening 场景身份及其他 25 个内容字段。`
+        + value.slice(boundary);
+    });
+  });
+  add(productionPrototype, "produce", original => async function (blueprintValue, ...args) {
+    const scope = productionScope(this);
+    if (!scope) return Reflect.apply(original, this, [blueprintValue, ...args]);
+    return awaited(scope, async () => {
+      check(scope);
+      const blueprint = requirementRecord(blueprintValue, "实际制作蓝图");
+      const config = blueprint.config === undefined ? {} : requirementRecord(blueprint.config, "实际制作配置");
+      const profile = scope.authority.profile;
+      const marker = { schemaVersion: "workloom.production-authority/v1", hash: requirementHash({ authority: scope.authorityHash,
+        g4: scope.reviewedHash, scope: scope.authority.marketing.scope }), scope: structuredClone(scope.authority.marketing.scope),
+        profile: structuredClone(profile), g4Hash: scope.reviewedHash };
+      const view = { ...blueprint, config: { ...config, ...(profile.aspectRatio ? { aspectRatio: profile.aspectRatio } : {}) }, _workloomProductionAuthority: marker };
+      const result = await Reflect.apply(original, this, [view, ...args]);
+      check(scope);
+      return result;
+    });
+  });
+  // Native phase fingerprints only include scenes, and shot caches ignore enableResume.
+  // Authority runs therefore use no native cache IO; existing cache files are preserved.
+  for (const [owner, key, value] of [
+    [productionPrototype, "_loadLatestCheckpoint", null], [productionPrototype, "_saveCheckpoint", undefined],
+    [productionPrototype, "_clearCheckpoints", undefined], [fusionPrototype, "_loadSubCheckpoint", null],
+    [fusionPrototype, "_saveSubCheckpoint", undefined], [fusionPrototype, "_clearSubCheckpoint", undefined]
+  ] as Array<[RequirementRecord, string, unknown]>) add(owner, key, original => function (...args) {
+    const scope = productionScope(this);
+    if (!scope) return Reflect.apply(original, this, args);
+    return guard(scope, () => { check(scope); return value; });
+  });
+  add(refinerPrototype, "_normalizeConstraint", original => function (...args) {
+    const scope = productionScope(this);
+    if (!scope) return Reflect.apply(original, this, args);
+    return guard(scope, () => {
+      check(scope);
+      const profile = scope.authority.profile;
+      const native = Reflect.apply(original, this, args);
+      const body = args[0];
+      // Keep the pinned native creative-constraint branch and its undeclared
+      // defaults/baseline resolution. Apply only the customer's explicit keys
+      // when that same native branch selects a short technical template.
+      if (typeof native !== "string" || typeof body !== "string" || body.length >= 120
+        || /时长|一镜到底|台词|唇形|慢动作|蒙太奇|叠化|手持|航拍|斯坦尼康|定场/.test(body)
+        || !/画幅|分辨率|帧率|fps|格式|MP4|编码|色域/.test(body)) return native;
+      let template = native;
+      const replacePart = (pattern: RegExp, value: string) => {
+        template = pattern.test(template) ? template.replace(pattern, value) : `${template}，${value}`;
+      };
+      if (profile.aspectRatio) replacePart(/\d+:\d+画幅/, `${profile.aspectRatio}画幅`);
+      if (profile.resolution) {
+        const ratio = profile.aspectRatio ?? /\b(\d+:\d+)画幅/.exec(template)?.[1];
+        const sizes: Record<string, [string, string]> = { "9:16": ["1080x1920", "2160x3840"], "16:9": ["1920x1080", "3840x2160"],
+          "1:1": ["1080x1080", "2160x2160"], "4:3": ["1440x1080", "2880x2160"], "3:4": ["1080x1440", "2160x2880"] };
+        const pixels = ratio && sizes[ratio] ? sizes[ratio]![profile.resolution === "1080p" ? 0 : 1] : profile.resolution;
+        replacePart(/(?:\d+[x×]\d+|\d+(?:\.\d+)?[KkpP])分辨率/, `${pixels}分辨率`);
+      }
+      if (profile.frameRate) replacePart(/\d+(?:\.\d+)?fps/, `${profile.frameRate}fps`);
+      if (profile.aspectRatio && profile.resolution && profile.frameRate) {
+        const resolutionPart = /(?:\d+[x×]\d+|\d+(?:\.\d+)?[KkpP])分辨率/.exec(template)?.[0];
+        if (!resolutionPart) prdFail("PRD_VENDOR_UNAVAILABLE", "明确技术规格缺少分辨率模板");
+        return `${profile.aspectRatio}画幅，${resolutionPart}，${profile.frameRate}fps，MP4格式`;
+      }
+      return template;
+    });
+  });
+  add(costumePrototype, "enhance", original => function (shotsValue, charactersValue, ...args) {
+    const scope = productionScope(this);
+    if (!scope) return Reflect.apply(original, this, [shotsValue, charactersValue, ...args]);
+    return guard(scope, () => {
+      check(scope);
+      if (!Array.isArray(shotsValue) || !Array.isArray(charactersValue)) prdFail("PRD_PRODUCTION_INVALID", "服装消费缺少实际镜头或人物数组");
+      const canonical = scope.contract!.cast.characters;
+      const anchors = (charactersValue as unknown[]).map(value => {
+        const character = requirementRecord(value, "实际服装人物");
+        const id = character.id ?? character.character_id;
+        const selected = canonical.find(item => item.id === id && item.name === character.name);
+        if (!selected || (character.character_id !== undefined && character.character_id !== id)
+          || (selected.builtinCharacterSource && requirementHash(character.builtinCharacterSource) !== requirementHash(selected.builtinCharacterSource))) {
+          prdFail("PRD_CAST_UNVERIFIED", "服装人物不属于本次已选档案");
+        }
+        const wardrobeId = selected.activeWardrobeId ?? selected.wardrobeId;
+        if (wardrobeId === undefined) return { character: selected, detail: "" };
+        const wardrobes = Array.isArray(selected.wardrobe) ? selected.wardrobe.map(value => requirementRecord(value, "权威服装")) : [];
+        const matches = wardrobes.filter(item => item.id === wardrobeId);
+        if (matches.length !== 1 || typeof matches[0]!.detail !== "string" || !matches[0]!.detail.trim()) prdFail("PRD_WARDROBE_UNVERIFIED", "当前服装 ID 缺少唯一完整档案原文");
+        return { character: selected, detail: matches[0]!.detail as string };
+      });
+      if (this.enabled === false) return shotsValue;
+      for (const value of shotsValue as unknown[]) {
+        const shot = requirementRecord(value, "实际服装镜头");
+        if (typeof shot.prompt !== "string") prdFail("PRD_PRODUCTION_INVALID", "服装增强缺少真实 prompt");
+        const actualFields = shot.fields && typeof shot.fields === "object" && !Array.isArray(shot.fields) ? shot.fields as RequirementRecord : {};
+        const existing = /【服装】([^【]*)/.exec(shot.prompt)?.[1]?.replace(/[\s|]/g, "");
+        // Existing generated costume is reviewed as-is. Do not slice JSON or delete negatives.
+        if (hasValue(actualFields.costume) || hasValue(shot.costume) || existing) continue;
+        const additions = anchors.filter(anchor => anchor.detail && (shot.prompt as string).includes(String(anchor.character.name)))
+          .map(anchor => `${String(anchor.character.name)}：${anchor.detail}`);
+        if (additions.length) {
+          shot.prompt = `【服装锁定】${additions.join("；")}\n${shot.prompt}`;
+          shot.promptCharCount = (shot.prompt as string).length;
+        }
+      }
+      return shotsValue;
+    });
+  });
+  for (const key of ["normalizeAndValidate", "check", "assertOpeningFields"]) add(fieldGuardPrototype, key, original => function (shots = [], context = "unknown", ...args) {
+    const scope = productionScope(this);
+    if (!scope || scope.authority.profile.titleCard !== false) return Reflect.apply(original, this, [shots, context, ...args]);
+    return guard(scope, () => {
+      check(scope);
+      const result = inspect(shots, context, true);
+      if (key !== "check" && !result.report.passed) {
+        const error = new Error(`PRD_PRODUCTION_FIELDS_INVALID: ${result.report.errors.join("; ")}`);
+        Object.assign(error, { report: result.report });
+        return fatal(scope, error);
+      }
+      return key === "assertOpeningFields" ? true : key === "check" ? { ...result, passed: result.report.passed } : result;
+    });
+  });
+  add(systemPrototype, "_generatePromptsReport", original => function (promptsValue, ...args) {
+    const scope = productionScope(this);
+    if (!scope || scope.authority.profile.titleCard !== false) return Reflect.apply(original, this, [promptsValue, ...args]);
+    return guard(scope, () => {
+      check(scope);
+      const { shots, report } = inspect(promptsValue, "G6-Prompt-Review", true);
+      const prompts = promptsValue as RequirementRecord[];
+      const lines = ["# 提示词审核报告", "", `镜头数：${shots.length}；字段合同：25 = P0 ${fieldGroups.p0.length} + P1 ${fieldGroups.p1.length} + P2 ${fieldGroups.p2.length} + P3 ${fieldGroups.p3.length}。`,
+        `本次 titleCard=false；以下生成侧标题项 not_applicable：${RETIRED_TITLES.join("、")}。subtitle 指片头副标题，正式后期字幕仍按 Brief 执行。`,
+        "当前提示词全文原样展示，不截断、不扩写情绪、不补标题占位、不把段落标签数量当字段覆盖率。", "", "## 镜头总览", "",
+        "| 镜头 | 实际类型 | 时长 | 字符数 | 适用字段 | 校验 |", "|---|---|---:|---:|---:|---|"];
+      shots.forEach((shot, index) => lines.push(`| ${String(shot.shotId)} | ${String(shot.sceneType)} | ${String(shot.duration)} | ${String((prompts[index]!.prompt as string)?.length ?? 0)} | ${report.details[index]!.presentFields}/25 | ${report.details[index]!.passed ? "pass" : "fail"} |`));
+      lines.push("", "## 完整提示词", "");
+      prompts.forEach((prompt, index) => {
+        if (typeof prompt.prompt !== "string") prdFail("PRD_PRODUCTION_INVALID", "G6 不能以空文本代替当前提示词");
+        const text = prompt.prompt as string;
+        const fence = "`".repeat(Math.max(3, ...(text.match(/`+/g) ?? []).map(value => value.length + 1)));
+        lines.push(`### ${String(shots[index]!.shotId)}（${String(shots[index]!.sceneType)}，25 字段）`, "", `${fence}text`, text, fence, "");
+      });
+      lines.push("## 全部校验明细", "", ...report.errors.map(error => `- 错误：${error}`), ...report.warnings.map(warning => `- 警告：${warning}`));
+      if (!report.errors.length && !report.warnings.length) lines.push("- 当前结构校验无错误或警告；不代表 G6/G7 已批准。");
+      lines.push("", "G6 仍须审核事实用途、完整 Brief、具体动作与颜色连贯、人物和服装、台词与现场声音、字幕要求及技术规格；G7 继续真实执行。完整来源在本次模型调用中提供，本报告不代替真实审核。");
+      return lines.join("\n");
+    });
+  });
+  const applied: typeof changes = [];
+  try {
+    for (const change of changes) {
+      Object.defineProperty(change.owner, change.key, change.original ? { ...change.original, value: change.patched }
+        : { value: change.patched, writable: true, configurable: true, enumerable: false });
+      applied.push(change);
+    }
+    installed = true;
+    productionInstalls.set(systemPrototype, { changes });
+  } catch (error) {
+    for (const change of applied.reverse()) {
+      if (change.original) Object.defineProperty(change.owner, change.key, change.original);
+      else delete change.owner[change.key];
+    }
+    throw error;
+  }
+  return () => {
+    if (!installed) return;
+    if (changes.some(change => !descriptorEqual(Object.getOwnPropertyDescriptor(change.owner, change.key),
+      change.original ? { ...change.original, value: change.patched } : { value: change.patched, writable: true, configurable: true, enumerable: false }))) {
+      prdFail("PRD_BRIDGE_CHANGED", "制作桥卸载前方法身份已经变化");
+    }
+    for (const change of [...changes].reverse()) {
+      if (change.original) Object.defineProperty(change.owner, change.key, change.original);
+      else delete change.owner[change.key];
+    }
+    installed = false;
+    productionInstalls.delete(systemPrototype);
+  };
+}
+
+export function installVendorPrdProductionBridge(constructor: { prototype: object }, entryPath: string): () => void {
+  const lease = acquireVendorRequirementEntry(entryPath);
+  try {
+    if (lease.exports.HyperrealitySystem !== (constructor as unknown)) prdFail("PRD_BRIDGE_CHANGED", "制作桥与受控 vendor constructor 不一致");
+    const require = createRequire(lease.identity.entryPath);
+    const load = (relative: string, name: string): RequirementRecord => {
+      const module = require(path.resolve(path.dirname(lease.identity.entryPath), relative)) as Record<string, { prototype: RequirementRecord }>;
+      return requirementRecord(module[name]?.prototype, `${name} prototype`);
+    };
+    const standardizer = require(path.resolve(path.dirname(lease.identity.entryPath), "engines/field-standardizer.js")) as Pick<ProductionDependencies, "standardizeShot" | "validateShot"> & { CRITICAL_FIELDS: ProductionDependencies["fields"] };
+    return installPrdProductionBridge({ systemPrototype: requirementRecord(constructor.prototype, "受控 system prototype"),
+      productionPrototype: load("engines/production-engine/production-engine.js", "ProductionEngine"),
+      phase1Prototype: load("engines/production-engine/phases/phase-1-scene-design.js", "Phase1SceneDesign"),
+      refinerPrototype: load("engines/production-engine/agents/field-content-refiner.js", "FieldContentRefiner"),
+      costumePrototype: load("engines/character-system/character-costume-prompter.js", "CharacterCostumePrompter"),
+      fieldGuardPrototype: load("engines/field-guard.js", "FieldGuard"),
+      fusionPrototype: load("engines/production-engine/agents/prompt-fusion-agent.js", "PromptFusionAgent"),
+      qualityGatePrototype: load("engines/production-engine/utils/quality-gate.js", "QualityGate"),
+      deliveryGuardPrototype: load("engines/production-engine/agents/prompt-delivery-guard.js", "PromptDeliveryGuard"),
+      semanticPrototype: load("engines/production-engine/agents/semantic-refinement-pass.js", "SemanticRefinementPass"),
+      standardizeShot: standardizer.standardizeShot, validateShot: standardizer.validateShot, fields: standardizer.CRITICAL_FIELDS });
   } finally { lease.release(); }
 }

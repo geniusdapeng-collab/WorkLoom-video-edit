@@ -19,6 +19,7 @@ import { existsSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, resolve as resolvePath } from "node:path";
 import { fileURLToPath } from "node:url";
+import { productionModelInput } from "./prd-authority-bridge.js";
 
 export interface LLMReasonOptions {
   model?: string;
@@ -106,6 +107,12 @@ export class WorkloomLLMEngine {
   }
 
   private async callChat(prompt: string, opts: LLMReasonOptions): Promise<LLMReasonResult> {
+    const input = productionModelInput(prompt);
+    try { return await this.requestChat(input.prompt, opts); }
+    finally { input.verify(); }
+  }
+
+  private async requestChat(prompt: string, opts: LLMReasonOptions): Promise<LLMReasonResult> {
     // v3.0 收口：router 注入 → 经 routeSmart（场景 preproduction；fastModel 快速调用强制 L1）
     if (this.cfg.router) {
       const scene = this.cfg.router.scene ?? "preproduction";

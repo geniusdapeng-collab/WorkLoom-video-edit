@@ -23,7 +23,7 @@ import { installPortraitArchivePlanBridge, withPortraitArchivePlan } from "./por
 import { acquireVendorRequirementEntry } from "./vendor-requirement-entry.js";
 import { assertRequirementContractBridge, installVendorRequirementContractBridge, withRequirementContractScope } from "./requirement-contract-bridge.js";
 import { preparePrdAuthority, type PrdAuthority, type PrdMarketingAuthority } from "./prd-authority.js";
-import { assertPrdAuthorityBridge, installVendorPrdAuthorityBridge, withPrdAuthorityScope } from "./prd-authority-bridge.js";
+import { assertPrdAuthorityBridge, installVendorPrdAuthorityBridge, installVendorPrdProductionBridge, withPrdAuthorityScope } from "./prd-authority-bridge.js";
 import { captureRequirementTheme, type RequirementApprovedTheme } from "./requirement-authority.js";
 import { requirementHash } from "./requirement-contract.js";
 import {
@@ -440,6 +440,12 @@ export class VideoStudio {
           );
         }
 
+        // Install after the existing compatibility wrappers; private ALS selects
+        // this run's policy, and reverse disposal restores those exact wrappers.
+        if (prdAuthority) keep(installSharedBridge("vendor-prd-production-authority-v1", () => installVendorPrdProductionBridge(
+          HyperrealitySystem as unknown as { prototype: Record<string, unknown> }, vendorEntry.identity.entryPath
+        )));
+
         // 与 vendor CLI（app/commands/preproduction.js）保持同一装配口径
         process.env.STORMAXE_TOTAL_DEADLINE_MS =
           process.env.STORMAXE_TOTAL_DEADLINE_MS ?? String(cfg.totalDeadlineMs ?? 3_600_000);
@@ -482,7 +488,7 @@ export class VideoStudio {
               totalDeadlineMs: cfg.totalDeadlineMs ?? 3_600_000,
               promptFusionConcurrency: 1,
               checkpointDir: path.join(cfg.workDir, "checkpoints", input.projectId),
-              enableResume: true
+              enableResume: !prdAuthority
             }
           },
           scriptEngine: { charactersDir },
@@ -539,7 +545,8 @@ export class VideoStudio {
         const result = await withPrdAuthorityScope(prdAuthority, () => withRequirementContractScope(metadata, () => withPortraitArchivePlan(portraitRuntime, () =>
           system.create(input.intent, metadata, createOptions)
         ), prdAuthority ? { authority: prdAuthority, validateAuthority: validateRequirementAuthority!,
-          approvedTheme: () => approvedRequirementTheme && structuredClone(approvedRequirementTheme) } : undefined));
+          approvedTheme: () => approvedRequirementTheme && structuredClone(approvedRequirementTheme) } : undefined), validateRequirementAuthority,
+          prdAuthority ? () => approvedRequirementTheme && structuredClone(approvedRequirementTheme) : undefined);
         if (portraitRuntime) {
           const index = portraitRuntime.snapshot();
           const characters = Object.keys(index.characters).length;

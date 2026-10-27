@@ -3,7 +3,9 @@ import { mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, unlinkSyn
 import { Module, createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { fileURLToPath } from "node:url";
+import { compileFunction } from "node:vm";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   acquireVendorRequirementEntry,
   createVendorRequirementEntryLoader,
@@ -13,14 +15,47 @@ import {
 
 const anchor = "const requirementList = this._convertDiscoveryToRequirementList(discoveryResult, upstreamFields);";
 const replacement = "const requirementList = await this._convertDiscoveryToRequirementList(discoveryResult, upstreamFields, metadata);";
+const titlePatches = [
+  {
+    anchor: "let openingShot = productionResult.shots.find(s => isOpeningShot(s));",
+    replacement: "let openingShot = this._shouldUseTitleCard?.() === false ? null : productionResult.shots.find(s => isOpeningShot(s));",
+  },
+  {
+    anchor: "if (!openingShot && productionResult.shots.length > 0) {",
+    replacement: "if (this._shouldUseTitleCard?.() !== false && !openingShot && productionResult.shots.length > 0) {",
+  },
+  {
+    anchor: "openingShot = openingShotId\n            ? productionResult.shots.find(s => (s.shotId || s.shot_id) === openingShotId)\n            : productionResult.shots.find(s => isOpeningShot(s));",
+    replacement: "openingShot = this._shouldUseTitleCard?.() === false ? null : (openingShotId\n            ? productionResult.shots.find(s => (s.shotId || s.shot_id) === openingShotId)\n            : productionResult.shots.find(s => isOpeningShot(s)));",
+  },
+];
+const pinnedCompilation = vi.hoisted(() => ({ filename: "", source: "", calls: 0 }));
+vi.mock("node:vm", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("node:vm")>();
+  return {
+    ...actual,
+    compileFunction: (...args: Parameters<typeof actual.compileFunction>) => {
+      const compiled = actual.compileFunction(...args);
+      if (args[2]?.filename !== pinnedCompilation.filename) return compiled;
+      pinnedCompilation.source = args[0];
+      pinnedCompilation.calls += 1;
+      // Compile the entire real entry for syntax, but never evaluate its vendor
+      // imports, signal hooks, environment access, or any model-capable service.
+      return function inertPinnedEntry(_exports: unknown, _require: unknown, module: NodeModule) {
+        module.exports = { HyperrealitySystem: class InertPinnedSystem {} };
+      };
+    },
+  };
+});
 const roots: string[] = [];
 
 function digest(value: string | Buffer): string {
   return createHash("sha256").update(value).digest("hex");
 }
 
-function policyFor(source: string): VendorRequirementEntryPolicy {
-  const transformed = source.split(anchor).join(replacement);
+function policyFor(source: string, additionalPatches?: VendorRequirementEntryPolicy["additionalPatches"]): VendorRequirementEntryPolicy {
+  let transformed = source.split(anchor).join(replacement);
+  for (const patch of additionalPatches ?? []) transformed = transformed.split(patch.anchor).join(patch.replacement);
   return {
     sourceSha256: digest(source),
     sourceBytes: Buffer.byteLength(source),
@@ -28,6 +63,7 @@ function policyFor(source: string): VendorRequirementEntryPolicy {
     transformedBytes: Buffer.byteLength(transformed),
     anchor,
     replacement,
+    ...(additionalPatches ? { additionalPatches } : {}),
     patchId: "test.g3-requirement-await/v1",
   };
 }
@@ -105,7 +141,7 @@ function fixture(source = fixtureSource, policyOverride: Partial<VendorRequireme
 const entry = require('./entry.cjs');
 module.exports = { entry, startedDuringCycle: entry.started, constructorDuringCycle: Object.getOwnPropertyDescriptor(entry, 'HyperrealitySystem')?.value };
 `);
-  const policy = { ...policyFor(source), ...policyOverride };
+  const policy = { ...policyFor(source, policyOverride.additionalPatches), ...policyOverride };
   return { root, entry, source, policy, acquire: createVendorRequirementEntryLoader(policy), require: createRequire(entry) };
 }
 
@@ -378,5 +414,164 @@ describe("controlled vendor requirement entry", () => {
       expect(() => test.acquire(entry)).toThrow("VENDOR_REQUIREMENT_ENTRY_PATH_INVALID");
     }
     expect(test.require.cache[test.entry]).toBeUndefined();
+  });
+
+  it("deep-copies additional patch policy before caller mutation and retains legacy single-patch policies", () => {
+    const patches = titlePatches.map((patch) => ({ ...patch }));
+    const source = `${fixtureSource}\n/*\n${patches.map((patch) => patch.anchor).join("\n")}\n*/\n`;
+    const test = fixture(source, { additionalPatches: patches });
+    const expectedDigest = test.policy.transformedSha256;
+    patches[0]!.anchor = "changed-after-loader-construction";
+    patches[1]!.replacement = "changed-after-loader-construction";
+    patches.pop();
+    const lease = test.acquire(test.entry);
+    expect(lease.identity.transformedSha256).toBe(expectedDigest);
+    expect(fixtureExports(lease).helper.evaluations).toBe(1);
+    expect(readFileSync(test.entry, "utf8")).toBe(source);
+    lease.release();
+
+    const legacy = fixture();
+    expect(legacy.policy).not.toHaveProperty("additionalPatches");
+    const oldLease = legacy.acquire(legacy.entry);
+    expect(oldLease.identity.patchId).toBe("test.g3-requirement-await/v1");
+    oldLease.release();
+  });
+
+  it.each(titlePatches.flatMap((patch, index) => [
+    { index, patch, kind: "missing" }, { index, patch, kind: "duplicate" },
+  ]))("rejects $kind additional anchor $index before evaluation", ({ patch, kind }) => {
+    const complete = `${fixtureSource}\n/*\n${titlePatches.map((item) => item.anchor).join("\n")}\n*/\n`;
+    const source = kind === "missing" ? complete.replace(patch.anchor, "removed-title-anchor")
+      : `${complete}\n/* ${patch.anchor} */\n`;
+    const test = fixture(source, { additionalPatches: titlePatches });
+    expect(() => test.acquire(test.entry)).toThrow("VENDOR_REQUIREMENT_ENTRY_PATCH_MISMATCH");
+    expect(test.require.cache[test.entry]).toBeUndefined();
+    expect(test.require.cache[join(test.root, "helper.cjs")]).toBeUndefined();
+  });
+
+  it.each([
+    null,
+    {},
+    [{ anchor: "", replacement: "new" }],
+    [{ anchor: "old", replacement: "" }],
+    [{ anchor: "same", replacement: "same" }],
+    [{ anchor, replacement: "duplicate-primary" }],
+    [{ anchor: "duplicate-extra", replacement: "first" }, { anchor: "duplicate-extra", replacement: "second" }],
+  ].map((additionalPatches) => ({ additionalPatches })))("rejects malformed additional patch policy %j", ({ additionalPatches }) => {
+    expect(() => createVendorRequirementEntryLoader({
+      ...policyFor(fixtureSource),
+      additionalPatches: additionalPatches as unknown as VendorRequirementEntryPolicy["additionalPatches"],
+    })).toThrow("VENDOR_REQUIREMENT_ENTRY_POLICY_INVALID");
+  });
+
+  it("rejects a tampered additional replacement or final byte pin before evaluation", () => {
+    const source = `${fixtureSource}\n/*\n${titlePatches.map((patch) => patch.anchor).join("\n")}\n*/\n`;
+    const expected = policyFor(source, titlePatches);
+    const changed = titlePatches.map((patch, index) => index === 2 ? { ...patch, replacement: `${patch.replacement} ` } : patch);
+    for (const overrides of [
+      { ...expected, additionalPatches: changed },
+      { ...expected, transformedBytes: expected.transformedBytes + 1 },
+      { ...expected, transformedSha256: "0".repeat(64) },
+    ]) {
+      const test = fixture(source, overrides);
+      expect(() => test.acquire(test.entry)).toThrow("VENDOR_REQUIREMENT_ENTRY_PATCH_MISMATCH");
+      expect(test.require.cache[test.entry]).toBeUndefined();
+      expect(test.require.cache[join(test.root, "helper.cjs")]).toBeUndefined();
+    }
+  });
+});
+
+function pinnedProductionSources(): { original: string; transformed: string } {
+  const entry = realpathSync(resolve(dirname(fileURLToPath(import.meta.url)),
+    "../../../vendor/supermickey/hyperreality-system/index.js"));
+  const before = readFileSync(entry);
+  expect(before.byteLength).toBe(205980);
+  expect(digest(before)).toBe("489171f35ce7cf5fc2cc4387e07380337ea1a574df638533f2b90ed6bd1f86fd");
+  pinnedCompilation.filename = entry;
+  const lease = acquireVendorRequirementEntry(entry);
+  expect(pinnedCompilation.calls).toBe(1);
+  expect(lease.identity).toEqual({
+    entryPath: entry,
+    sourceSha256: "489171f35ce7cf5fc2cc4387e07380337ea1a574df638533f2b90ed6bd1f86fd",
+    transformedSha256: "fd0c19e7f8b2639f58746b9cca15db4200996f81f8c5e9cc069e00f657841afc",
+    patchId: "workloom.g3-requirement-await-title-policy/v2",
+  });
+  expect(readFileSync(entry)).toEqual(before);
+  lease.release();
+  return { original: before.toString("utf8"), transformed: pinnedCompilation.source };
+}
+
+describe("pinned production entry title guards", () => {
+  it("changes exactly the original await and three title selections while preserving all other real source bytes", () => {
+    const { original, transformed } = pinnedProductionSources();
+    expect(Buffer.byteLength(transformed)).toBe(206136);
+    expect(digest(transformed)).toBe("fd0c19e7f8b2639f58746b9cca15db4200996f81f8c5e9cc069e00f657841afc");
+    const patches = [{ anchor, replacement }, ...titlePatches];
+    let restored = transformed;
+    for (const patch of patches) {
+      expect(original.split(patch.anchor)).toHaveLength(2);
+      expect(transformed.split(patch.replacement)).toHaveLength(2);
+      restored = restored.replace(patch.replacement, patch.anchor);
+    }
+    expect(restored).toBe(original);
+    expect(transformed.match(/this\._shouldUseTitleCard\?\.\(\)/g)).toHaveLength(3);
+  });
+
+  it.each([
+    { policy: false, sceneType: "opening" },
+    { policy: false, sceneType: "establishing" },
+    { policy: true, sceneType: "opening" },
+    { policy: true, sceneType: "establishing" },
+    { policy: undefined, sceneType: "establishing" },
+  ])("runs real final-export normalization with policy=$policy and sceneType=$sceneType", async ({ policy, sceneType }) => {
+    const { transformed } = pinnedProductionSources();
+    const start = transformed.indexOf("if (productionResult && productionResult.shots) {");
+    const end = transformed.indexOf("\n\n    } catch (error) {", start);
+    expect(start).toBeGreaterThan(0);
+    expect(end).toBeGreaterThan(start);
+    // Execute the exact real transformed final-export block with inert services.
+    // The full vendor entry was syntax-compiled above, never evaluated.
+    const execute = compileFunction(`return (async function () {\n${transformed.slice(start, end)}\n}).call(this);`,
+      ["productionResult", "result", "isOpeningShot", "OpeningTitleOptimizer", "process", "console"]);
+    const shot = { shotId: "SC-01", sceneType, duration: 5, prompt: "01.【场景】真实开场剧情与视觉钩子", fields: { scene: "真实开场剧情" } };
+    const originalFields = shot.fields;
+    const productionResult = { shots: [shot], prompts: [{ ...shot }] };
+    const result = { title: "Fixture", stages: { adapter: { title: "Fixture" }, productionEngine: {} }, errors: [] };
+    const normalize = vi.fn((shots: unknown[]) => ({ shots }));
+    const host = {
+      // User-shaped metadata alone cannot disable the default behavior.
+      metadata: { titleCard: false, brief: { titleCard: false } },
+      ...(policy === undefined ? {} : { _shouldUseTitleCard: () => policy }),
+      fieldGuard: { normalizeAndValidate: normalize, printShotSummary: vi.fn() },
+    };
+    const optimize = vi.fn(async () => ({
+      degraded: false, title_content: "Native title", subtitle_content: "Native subtitle",
+      title_animation: "Native animation", title_font_design: "Native font", opening_audio_design: "Native audio",
+    }));
+    class InertOptimizer {
+      setDeadline = vi.fn();
+      optimize = optimize;
+    }
+    const quietConsole = { log: vi.fn(), warn: vi.fn(), error: vi.fn() };
+    await execute.call(host, productionResult, result, (row: { sceneType?: string }) => row.sceneType === "opening",
+      InertOptimizer, { env: {} }, quietConsole);
+    expect(normalize).toHaveBeenCalledTimes(1);
+    expect(normalize).toHaveBeenCalledWith(productionResult.shots, "Final-Export");
+    expect(result.errors).toEqual([]);
+    expect(productionResult.shots).toHaveLength(1);
+    expect(productionResult.shots[0]).toBe(shot);
+    expect(shot.duration).toBe(5);
+    expect(shot.prompt).toBe("01.【场景】真实开场剧情与视觉钩子");
+    expect(shot.fields).toBe(originalFields);
+    if (policy === false) {
+      expect(optimize).not.toHaveBeenCalled();
+      expect(shot.sceneType).toBe(sceneType);
+      for (const key of ["title", "subtitle", "title_content", "subtitle_content", "title_animation", "title_font_design", "opening_audio_design"]) {
+        expect(shot).not.toHaveProperty(key);
+      }
+    } else {
+      expect(optimize).toHaveBeenCalledOnce();
+      expect(shot).toMatchObject({ sceneType: "opening", title_content: "Native title", opening_audio_design: "Native audio" });
+    }
   });
 });

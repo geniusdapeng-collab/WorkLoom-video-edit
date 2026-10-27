@@ -1,12 +1,33 @@
 import { writeFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { createRequire } from "node:module";
+import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { ChatMessage, ChatOptions, ModelProvider } from "@workloom/base/model-router";
 import { bindRequirementContract, requirementCast, requirementHash, requirementRecord, type RequirementContract, type RequirementRecord } from "./requirement-contract.js";
 import { effectivePrdModelSchema, prdAuthorityPrompt, preparePrdAuthority } from "./prd-authority.js";
-import { assertPrdAuthorityBridge, installPrdAuthorityBridge, withPrdAuthorityScope } from "./prd-authority-bridge.js";
+import { assertPrdAuthorityBridge, installPrdAuthorityBridge, installPrdProductionBridge, productionModelInput, withPrdAuthorityScope } from "./prd-authority-bridge.js";
+import { WorkloomLLMEngine } from "./llm-adapter.js";
 import { digest, PRDGenerator, PRDSchema, prdFixture } from "./prd-authority.test-support.js";
 
 const fixtures: ReturnType<typeof prdFixture>[] = [];
 const disposers: Array<() => void> = [];
+type NativeConstructor = { new (options?: RequirementRecord): RequirementRecord; prototype: RequirementRecord };
+const nativeRequire = createRequire(import.meta.url);
+const nativeStandardizer = nativeRequire("../../../vendor/supermickey/hyperreality-system/engines/field-standardizer.js") as Pick<Parameters<typeof installPrdProductionBridge>[0], "standardizeShot" | "validateShot"> & {
+  CRITICAL_FIELDS: Parameters<typeof installPrdProductionBridge>[0]["fields"];
+};
+const { FieldContentRefiner } = nativeRequire("../../../vendor/supermickey/hyperreality-system/engines/production-engine/agents/field-content-refiner.js") as { FieldContentRefiner: NativeConstructor };
+const { CharacterCostumePrompter } = nativeRequire("../../../vendor/supermickey/hyperreality-system/engines/character-system/character-costume-prompter.js") as { CharacterCostumePrompter: NativeConstructor };
+const { FieldGuard } = nativeRequire("../../../vendor/supermickey/hyperreality-system/engines/field-guard.js") as { FieldGuard: NativeConstructor };
+const { QualityGate } = nativeRequire("../../../vendor/supermickey/hyperreality-system/engines/production-engine/utils/quality-gate.js") as { QualityGate: NativeConstructor };
+const { PromptDeliveryGuard } = nativeRequire("../../../vendor/supermickey/hyperreality-system/engines/production-engine/agents/prompt-delivery-guard.js") as { PromptDeliveryGuard: NativeConstructor };
+const { SemanticRefinementPass } = nativeRequire("../../../vendor/supermickey/hyperreality-system/engines/production-engine/agents/semantic-refinement-pass.js") as { SemanticRefinementPass: NativeConstructor };
+const nativeConstraint = FieldContentRefiner.prototype._normalizeConstraint as (this: RequirementRecord, ...args: unknown[]) => unknown;
+const nativeQuality = QualityGate.prototype.run as (this: RequirementRecord, ...args: unknown[]) => unknown;
+const nativeDelivery = PromptDeliveryGuard.prototype.verify as (this: RequirementRecord, ...args: unknown[]) => unknown;
+const nativeSemantic = SemanticRefinementPass.prototype._buildPrompt as (this: RequirementRecord, ...args: unknown[]) => unknown;
+let expectedFetchCalls = 0;
 function fixture(...args: Parameters<typeof prdFixture>) { const value = prdFixture(...args); fixtures.push(value); return value; }
 function invoke(owner: RequirementRecord, key: string, ...args: unknown[]): unknown {
   return Reflect.apply(owner[key] as (...args: unknown[]) => unknown, owner, args);
@@ -54,6 +75,7 @@ function lengthenAuthority(value: ReturnType<typeof prdFixture>) {
 }
 
 beforeEach(() => {
+  expectedFetchCalls = 0;
   vi.useFakeTimers();
   vi.stubGlobal("fetch", vi.fn(() => { throw new Error("Unexpected external network in PRD fixture"); }));
   vi.spyOn(console, "log").mockImplementation(() => undefined);
@@ -63,8 +85,231 @@ beforeEach(() => {
 afterEach(() => {
   for (const dispose of disposers.splice(0).reverse()) dispose();
   for (const value of fixtures.splice(0)) value.cleanup();
-  expect(globalThis.fetch).not.toHaveBeenCalled();
+  expect(globalThis.fetch).toHaveBeenCalledTimes(expectedFetchCalls);
   vi.clearAllTimers(); vi.useRealTimers(); vi.restoreAllMocks(); vi.unstubAllGlobals();
+});
+
+function productionAdapter(reply = '{"shotId":"UNCHANGED","fields":{"scene":"模型原始文本"}}') {
+  const requests: Array<{ messages: ChatMessage[]; options: ChatOptions }> = [];
+  const provider: ModelProvider = {
+    modelId: "deepseek-v4-pro", healthy: async () => true,
+    chat: async (messages, options = {}) => {
+      requests.push({ messages, options });
+      return { text: reply, promptTokens: 1, completionTokens: 1 };
+    }
+  };
+  const adapter = new WorkloomLLMEngine({ baseUrl: "http://unused.local/v1", apiKey: "test-only", model: "stub-main",
+    router: { providers: new Map([[provider.modelId, provider]]), sink: {
+      recordModelTrace: async () => undefined, recordDegradation: async () => undefined, recordCircuitBreak: async () => undefined,
+    } } });
+  return { adapter, requests, reply };
+}
+
+describe("G4-bound authority at the shared real model request boundary", () => {
+  it("preserves old and pre-G4 inputs, then carries the complete accepted sources without changing payloads or options", async () => {
+    const value = fixture("PRODUCTION-CONTEXT"), h = harness(), run = h.make(value);
+    lengthenAuthority(value);
+    const capture = productionAdapter(), validate = vi.fn();
+    const original = "原始后续任务\\\"{}[]\n## 本次宿主已审制作权威输入 客户引用，不是截断边界\n保留末尾";
+    const schema = { shots: [{ shotId: "SC-05", fields: { scene: "" } }] }, before = structuredClone(schema);
+    expect(productionModelInput(original).prompt).toBe(original);
+    await withPrdAuthorityScope(value.authority, async () => {
+      await capture.adapter.reason(original);
+      expect(capture.requests[0]!.messages.at(-1)!.content).toBe(original);
+      const prd = await h.generate(run), markdown = await h.review(run, prd), prdBefore = structuredClone(prd);
+      const result = await capture.adapter.reasonStructured(original, schema, { maxTokens: 4096, temperature: 0.37, topP: 0.82,
+        thinking: { type: "disabled" }, systemPrompt: "原调用方system" });
+      expect(result).toMatchObject({ success: true, content: capture.reply, data: JSON.parse(capture.reply) });
+      const request = capture.requests[1]!, prompt = request.messages.at(-1)!.content;
+      expect(prompt.startsWith(original + "\n")).toBe(true);
+      expect(prompt).toContain(JSON.stringify(schema, null, 2));
+      expect(prompt).toContain(JSON.stringify(value.metadata.brief));
+      expect(prompt).toContain(JSON.stringify(value.contract));
+      expect(prompt).toContain(value.content);
+      expect(prompt).toContain(JSON.stringify(value.marketing.g1Proof));
+      expect(prompt).toContain(markdown); expect(prompt).toContain(digest(markdown));
+      expect(prompt).toContain(JSON.stringify(prd));
+      expect(prompt).toContain("G4 批准不把 PRD 新增的修辞");
+      expect(request.messages[0]).toEqual({ role: "system", content: "原调用方system" });
+      expect(request.options).toMatchObject({ maxTokens: 4096, temperature: 0.37, topP: 0.82, thinking: { type: "disabled" }, responseFormat: { type: "json_object" } });
+      expect(schema).toEqual(before); expect(prd).toEqual(prdBefore);
+      return h.success(prd);
+    }, validate);
+    expect(capture.requests).toHaveLength(2); expect(validate).toHaveBeenCalledTimes(4);
+    expect(productionModelInput(original).prompt).toBe(original);
+  });
+
+  it("covers reason, raw, generate, chat and structured paths including vendor-created engines with exactly their original requests", async () => {
+    // Use the same tsx CommonJS loading path as the production server. Vite's
+    // ESM test loader cannot load the legacy systems/*.js constructor directly.
+    const value = fixture("PRODUCTION-PATHS"), script = `${value.workDir}/vendor-context-probe.mts`;
+    const repo = fileURLToPath(new URL("../../../", import.meta.url));
+    writeFileSync(script, `
+import { createRequire } from "node:module";
+import { createHook } from "node:async_hooks";
+import { WorkloomLLMEngine, installVendorEngineBridge } from ${JSON.stringify(fileURLToPath(new URL("./llm-adapter.ts", import.meta.url)))};
+import { installPrdAuthorityBridge, withPrdAuthorityScope } from ${JSON.stringify(fileURLToPath(new URL("./prd-authority-bridge.ts", import.meta.url)))};
+import { prdFixture, PRDGenerator, PRDSchema } from ${JSON.stringify(fileURLToPath(new URL("./prd-authority.test-support.ts", import.meta.url)))};
+const fixture = prdFixture("NATIVE-MODEL-CONTEXT");
+const timers = new Set();
+const timerHook = createHook({ init(_id, type, _parent, resource) { if (type === "Timeout") timers.add(resource); } });
+let restorePrd = () => undefined, restoreEngine = () => undefined, receipt, clearedTimers = 0;
+timerHook.enable();
+try {
+class System {
+ constructor(generator) { this.prdGenerator = generator; }
+ async _confirmRequirementList(_text, list) { return { approved: true, requirementList: list }; }
+ _generateMinimalPRD() { throw new Error("unexpected fallback"); }
+ async _confirmPRD(_text, prd) { return { approved: true, prd }; }
+}
+const generator = new PRDGenerator();
+for (const [key, payload] of [["agent2", fixture.creative], ["agent3", fixture.production]]) {
+ generator[key]._llmEngineLoaded = true;
+ generator[key]._llmEngine = { reasonStructured: async () => ({ success: true, data: structuredClone(payload) }) };
+}
+const system = new System(generator), requests = [], raw = '{"unchanged":true}';
+const provider = { modelId: "deepseek-v4-pro", healthy: async () => true,
+ chat: async (messages, options = {}) => { requests.push({ messages, options }); return { text: raw, promptTokens: 1, completionTokens: 1 }; } };
+const adapter = new WorkloomLLMEngine({ baseUrl: "http://unused.local/v1", apiKey: "test-only", model: "stub-main",
+ router: { providers: new Map([[provider.modelId, provider]]), sink: { recordModelTrace: async () => undefined,
+ recordDegradation: async () => undefined, recordCircuitBreak: async () => undefined } } });
+restorePrd = installPrdAuthorityBridge(System.prototype, PRDGenerator.prototype, PRDSchema);
+const { LLMEngine } = createRequire(${JSON.stringify(repo + "package.json")})(${JSON.stringify(repo + "vendor/supermickey/systems/llm-reasoning-engine.js")});
+restoreEngine = installVendorEngineBridge(adapter);
+ // The real prototype bridge supplies all calls; no constructor configuration,
+ // credentials, provider initialization or background service is needed here.
+ const native = Object.create(LLMEngine.prototype);
+ const results = await withPrdAuthorityScope(fixture.authority, async () => {
+  await system._confirmRequirementList("G3", fixture.list);
+  const prd = await generator.generate(fixture.discovery);
+  await system._confirmPRD(generator.generateMarkdown(prd), prd);
+  const results = [await native.reason("原生reason"), await native.reasonRaw("原生raw"), await native.generate("原生generate")];
+  const chat = await native.chat("原生system", "原生chat", 0.41);
+  const structured = await native.reasonStructured("原生structured", { actual: "structure" }, { maxTokens: 1234 });
+  return { results, chat, structured };
+ });
+ const labels = ["原生reason", "原生raw", "原生generate", "原生chat", "原生structured"];
+ receipt = { count: requests.length, inputs: requests.map((request, index) => ({
+  prefix: request.messages.at(-1).content.startsWith(labels[index]), complete: request.messages.at(-1).content.includes(fixture.content),
+  options: request.options, system: request.messages[0] })), results, raw };
+} finally {
+ try { restoreEngine(); } finally {
+  try { restorePrd(); } finally {
+   timerHook.disable();
+   // Native PRDGenerator._runWithTimeout leaves Promise.race timers alive after
+   // success. Observe real handles throughout the test and clear them only now.
+   for (const timer of timers) { clearTimeout(timer); clearedTimers += 1; }
+   fixture.cleanup();
+  }
+ }
+}
+console.log("RESULT " + JSON.stringify({ ...receipt, cleanup: { clearedTimers, hookDisabled: true } }));
+`, "utf8");
+    const stdout = execFileSync(process.execPath, [`${repo}node_modules/tsx/dist/cli.mjs`, script], { cwd: repo, timeout: 20000, encoding: "utf8" });
+    const result = JSON.parse(stdout.split("\n").find(line => line.startsWith("RESULT "))!.slice(7));
+    expect(result.count).toBe(5);
+    expect(result.inputs.every((input: RequirementRecord) => input.prefix === true && input.complete === true)).toBe(true);
+    expect(result.inputs[3]).toMatchObject({ system: { role: "system", content: "原生system" }, options: { temperature: 0.41 } });
+    expect(result.inputs[4].options.maxTokens).toBe(1234);
+    expect(result.results).toMatchObject({ results: [{ success: true, content: result.raw }, { success: true, content: result.raw }, { success: true, content: result.raw }],
+      chat: result.raw, structured: { success: true, content: result.raw, data: { unchanged: true } } });
+    expect(result.cleanup).toMatchObject({ hookDisabled: true, clearedTimers: expect.any(Number) });
+    expect(result.cleanup.clearedTimers).toBeGreaterThanOrEqual(2);
+  });
+
+  it("the direct HTTP path carries the same private context and returns the exact raw response", async () => {
+    const value = fixture("PRODUCTION-DIRECT"), h = harness(), run = h.make(value), bodies: RequirementRecord[] = [];
+    const raw = '{"unchanged":"原始返回"}'; expectedFetchCalls = 1;
+    vi.mocked(globalThis.fetch).mockImplementation(async (_url, init) => {
+      bodies.push(JSON.parse(String(init?.body)) as RequirementRecord);
+      return new Response(JSON.stringify({ choices: [{ message: { content: raw } }] }), { status: 200 });
+    });
+    const adapter = new WorkloomLLMEngine({ baseUrl: "http://unused.local/v1", apiKey: "test-only", model: "original-model" });
+    await withPrdAuthorityScope(value.authority, async () => {
+      const prd = await h.generate(run); await h.review(run, prd);
+      expect(await adapter.reasonStructured("直连原始需求", { unchanged: "" }, { maxTokens: 4321 })).toMatchObject({ content: raw, data: JSON.parse(raw) });
+      return h.success(prd);
+    });
+    expect(bodies).toHaveLength(1); expect(bodies[0]).toMatchObject({ model: "original-model", max_tokens: 4321 });
+    const prompt = (bodies[0]!.messages as ChatMessage[]).at(-1)!.content;
+    expect(prompt.startsWith("直连原始需求")).toBe(true); expect(prompt).toContain(value.content);
+  });
+
+  it("interleaved runs sharing one host adapter never borrow the other run's accepted source", async () => {
+    const values = [fixture("MODEL-A"), fixture("MODEL-B")], h = harness(), runs = values.map(value => h.make(value));
+    const capture = productionAdapter(), ready = [deferred<void>(), deferred<void>()], release = [deferred<void>(), deferred<void>()];
+    const pending = runs.map((run, index) => withPrdAuthorityScope(run.value.authority, async () => {
+      const prd = await h.generate(run); await h.review(run, prd); ready[index]!.resolve(); await release[index]!.promise;
+      await capture.adapter.reason(`模型作业-${index}`); return h.success(prd);
+    }));
+    await Promise.all(ready.map(item => item.promise));
+    release[1]!.resolve(); await pending[1]; release[0]!.resolve(); await pending[0];
+    expect(capture.requests).toHaveLength(2);
+    for (const [position, index] of [1, 0].entries()) {
+      const prompt = capture.requests[position]!.messages.at(-1)!.content;
+      expect(prompt).toContain(values[index]!.content);
+      expect(prompt).not.toContain(values[index === 0 ? 1 : 0]!.marketing.g1Artifact.sha256);
+    }
+  });
+
+  it.each(["source", "reviewed-prd", "g1-file"])("rejects changed %s before another provider request even if native code catches it", async kind => {
+    const value = fixture("MODEL-TAMPER"), h = harness(), run = h.make(value), capture = productionAdapter();
+    const validate = () => { preparePrdAuthority({ metadata: value.metadata, marketing: value.marketing, workDir: value.workDir, projectId: value.scope.projectId }); };
+    await expect(withPrdAuthorityScope(value.authority, async () => {
+      const prd = await h.generate(run); await h.review(run, prd);
+      if (kind === "source") requirementRecord(value.authority.metadata.brief, "brief").description = "changed private source";
+      if (kind === "reviewed-prd") requirementRecord(prd.creativeCore, "creative").coreTheme = "unreviewed creative change";
+      if (kind === "g1-file") writeFileSync(value.file, value.content + "\n");
+      try { await capture.adapter.reason("不能提交"); } catch { /* simulate the native consumer catching an authority error */ }
+      return { success: false };
+    }, validate)).rejects.toThrow();
+    expect(capture.requests).toHaveLength(0);
+  });
+
+  it("revalidates the accepted bytes after an in-flight request and retains a sticky failure", async () => {
+    const value = fixture("MODEL-IN-FLIGHT"), h = harness(), run = h.make(value), capture = productionAdapter();
+    let checks = 0;
+    const validate = () => { if (++checks === 2) throw new Error("actual G1 changed during model request"); };
+    await expect(withPrdAuthorityScope(value.authority, async () => {
+      const prd = await h.generate(run); await h.review(run, prd);
+      try { await capture.adapter.reason("已发出的本次请求"); } catch { /* native catch cannot make the authority valid */ }
+      return { success: false };
+    }, validate)).rejects.toThrow("actual G1 changed");
+    expect(capture.requests).toHaveLength(1);
+  });
+
+  it("an inherited asynchronous callback after scope closure fails without a provider request", async () => {
+    const value = fixture("MODEL-LATE"), h = harness(), run = h.make(value), capture = productionAdapter();
+    const release = deferred<void>(); let late: Promise<unknown> | undefined;
+    await withPrdAuthorityScope(value.authority, async () => {
+      const prd = await h.generate(run); await h.review(run, prd);
+      late = release.promise.then(() => capture.adapter.reason("迟到请求"));
+      return h.success(prd);
+    });
+    const rejected = expect(late!).rejects.toThrow("PRD_SCOPE_CLOSED"); release.resolve(); await rejected;
+    expect(capture.requests).toHaveLength(0);
+  });
+
+  it("G5 portrait paths remain a legal lifecycle update", async () => {
+    const value = fixture("MODEL-G5"), h = harness(), run = h.make(value), capture = productionAdapter();
+    await withPrdAuthorityScope(value.authority, async () => {
+      const prd = await h.generate(run); await h.review(run, prd);
+      (requirementRecord(prd.characterSystem, "characters").characters as RequirementRecord[])[0]!.portraitPath = "/synthetic/current-g5.png";
+      await capture.adapter.reason("合法定妆照生命周期");
+      expect(capture.requests[0]!.messages.at(-1)!.content).toContain("/synthetic/current-g5.png");
+      return h.success(prd);
+    });
+    expect(capture.requests).toHaveLength(1);
+  });
+
+  it("a rejected G4 never supplies an approved production context", async () => {
+    const value = fixture("MODEL-G4-REJECTED"), h = harness(), run = h.make(value);
+    await withPrdAuthorityScope(value.authority, async () => {
+      const prd = await h.generate(run); run.system.g4Approved = false; await h.review(run, prd);
+      expect(productionModelInput("拒绝后的原始请求").prompt).toBe("拒绝后的原始请求");
+      return { success: false };
+    });
+  });
 });
 
 function harness() {
@@ -112,6 +357,91 @@ function harness() {
   }
   const success = (prd: RequirementRecord) => ({ success: true, stages: { prdGeneration: { data: prd } } });
   return { prototype, make, generate, review, success, dispose, before, nativeGenerator };
+}
+
+function refreshContract(value: ReturnType<typeof prdFixture>) {
+  value.list = bindRequirementContract({ keyPoints: [] }, value.discovery, requirementRecord(value.discovery.upstreamFields, "upstream"),
+    structuredClone(value.metadata), requirementCast(value.metadata).hash, "原始年轻消费者");
+  value.contract = value.list._workloomRequirementContract as RequirementContract;
+  value.authority = preparePrdAuthority({ metadata: value.metadata, marketing: value.marketing, workDir: value.workDir, projectId: value.scope.projectId });
+}
+
+function productionShot(shotId = "SC-01"): RequirementRecord {
+  const fields = Object.fromEntries([
+    ...nativeStandardizer.CRITICAL_FIELDS.p0, ...nativeStandardizer.CRITICAL_FIELDS.p1,
+    ...nativeStandardizer.CRITICAL_FIELDS.p2, ...nativeStandardizer.CRITICAL_FIELDS.p3,
+  ].map(key => [key, `完整本镜${key}真实内容`])) as RequirementRecord;
+  Object.assign(fields, {
+    scene: "封闭拍摄场地的轮胎墙旁，午后自然光照亮人物与商品，地面纹理真实清晰",
+    camera_movement: "固定机位缓慢推近商品与人物，起幅中景落幅近景，速度均匀平缓",
+    lighting: "真实窗光从右前方照入，色温5600K柔光，左侧反光板补光使阴影保持细节",
+    mood: "人物神情克制平静，注意力集中在眼前商品的外观轮廓与空间关系",
+    action: "人物沿着商品边缘向前走近半步，双手保持自然放松并轻轻点头",
+    timeline: "T00:00-00:05 人物走近商品，镜头缓慢推近，随后人物停步并看向镜头",
+    negative: "no text, no watermark, no extra limbs；禁止头盔与墨镜，保留明确负面原文",
+    costume: "黑色夹克搭配白色上衣、深灰全长裤与黑色短靴",
+    dialogue: "只聊外观设计，也欢迎评论封闭场地的使用问题。",
+    portraits: "image://characters/synthetic/front.png",
+    audio: "只保留环境风声、脚步声与人物现场说话，不添加背景音乐",
+  });
+  return { ...fields, fields, shotId, sceneType: "opening", duration: 5,
+    prompt: "01.【场景】封闭场地中人物走近商品，镜头保留真实物理空间与前三秒视觉钩子。\n02.【负面约束】no text, no watermark；禁止头盔与墨镜。",
+    backgroundSoundString: "环境风声与人物皮靴脚步声，保留真实现场声音", extraSource: { untouched: ["原始附加资料"] }, _workloomFusion: { status: "passed", sourceHash: "original-fusion-source" } };
+}
+
+function deliveryPrompt() {
+  const labels = ["语言约束", "导演意图", "基础", "约束", "场景", "灯光设计", "明亮约束", "构图", "色彩/色调", "景深", "运镜", "角色", "服装", "化妆", "动作", "道具", "定妆照", "时间轴", "情绪", "节奏", "转场", "音频", "负面约束", "角色约束", "角色一致性"];
+  return labels.map((label, index) => `${String(index + 1).padStart(2, "0")}.【${label}】${label === "情绪" ? "人物眼睛缓慢眨动，指尖轻触商品，呼吸平稳。" : "封闭场地中人物观察商品并保留实际材料与自然光线，动作和空间关系清楚。"}${"完整本镜真实细节，保持本次原始摄影与人物动作。".repeat(2)}`).join("\n");
+}
+
+function productionHarness() {
+  const h = harness();
+  const calls: Array<{ key: string; receiver: RequirementRecord; args: unknown[] }> = [];
+  const record = (key: string, operation: (this: RequirementRecord, ...args: unknown[]) => unknown) => function (this: RequirementRecord, ...args: unknown[]) {
+    calls.push({ key, receiver: this, args });
+    return Reflect.apply(operation, this, args);
+  };
+  const define = (owner: RequirementRecord, key: string, operation: (this: RequirementRecord, ...args: unknown[]) => unknown) => {
+    Object.defineProperty(owner, key, { value: record(key, operation), configurable: true, writable: true });
+  };
+  define(h.prototype, "create", function (operation) { return Reflect.apply(operation as (...args: unknown[]) => unknown, this, []); });
+  define(h.prototype, "_optimizeOpeningTitle", function () { return { originalTitlePackage: true }; });
+  define(h.prototype, "_generatePromptsReport", function (prompts) { return `legacy-report:${JSON.stringify(prompts)}`; });
+  const productionPrototype: RequirementRecord = {}, phase1Prototype: RequirementRecord = {}, fusionPrototype: RequirementRecord = {};
+  define(productionPrototype, "produce", function (blueprint, ...args) {
+    return typeof this.nextProduce === "function" ? Reflect.apply(this.nextProduce as (...args: unknown[]) => unknown, this, [blueprint, ...args])
+      : this.nativeResult ?? { nativeProduction: true };
+  });
+  define(phase1Prototype, "_shouldGenerateOpening", function () { return true; });
+  for (const [owner, key] of [
+    [productionPrototype, "_loadLatestCheckpoint"], [productionPrototype, "_saveCheckpoint"], [productionPrototype, "_clearCheckpoints"],
+    [fusionPrototype, "_loadSubCheckpoint"], [fusionPrototype, "_saveSubCheckpoint"], [fusionPrototype, "_clearSubCheckpoint"],
+  ] as Array<[RequirementRecord, string]>) define(owner, key, function (...args) { return { nativeCache: key, args }; });
+  const deps = { systemPrototype: h.prototype, productionPrototype, phase1Prototype, fusionPrototype,
+    refinerPrototype: FieldContentRefiner.prototype, costumePrototype: CharacterCostumePrompter.prototype,
+    fieldGuardPrototype: FieldGuard.prototype, qualityGatePrototype: QualityGate.prototype,
+    deliveryGuardPrototype: PromptDeliveryGuard.prototype, semanticPrototype: SemanticRefinementPass.prototype,
+    standardizeShot: nativeStandardizer.standardizeShot, validateShot: nativeStandardizer.validateShot, fields: nativeStandardizer.CRITICAL_FIELDS };
+  const originals = Object.fromEntries(Object.entries(deps).filter(([key]) => key.endsWith("Prototype"))
+    .map(([key, prototype]) => [key, Object.getOwnPropertyDescriptors(prototype)]));
+  const dispose = installPrdProductionBridge(deps);
+  disposers.push(dispose);
+  const make = (value: ReturnType<typeof prdFixture>) => ({ ...h.make(value),
+    engine: Object.create(productionPrototype) as RequirementRecord,
+    phase1: Object.create(phase1Prototype) as RequirementRecord,
+    fusion: Object.create(fusionPrototype) as RequirementRecord,
+    refiner: new FieldContentRefiner({ constraintTemplate: "16:9画幅，8K分辨率，24fps，MP4格式" }),
+    costume: new CharacterCostumePrompter(), fieldGuard: new FieldGuard(), qualityGate: new QualityGate(),
+    deliveryGuard: new PromptDeliveryGuard(),
+  });
+  const accepted = (run: ReturnType<typeof make>, operation: (prd: RequirementRecord, markdown: string) => unknown | Promise<unknown>,
+    options: { validate?: () => void; theme?: () => unknown } = {}) => withPrdAuthorityScope(run.value.authority, () =>
+    invoke(run.system, "create", async () => {
+      const prd = await h.generate(run), markdown = await h.review(run, prd);
+      await operation(prd, markdown);
+      return h.success(prd);
+    }), options.validate, options.theme);
+  return { ...h, make, accepted, deps, originals, calls, disposeProduction: dispose };
 }
 
 describe("PRD native generator, two native agent processes and real schema", () => {
@@ -556,5 +886,571 @@ describe("PRD private scope, receiver identity and strict restoration", () => {
     });
     await expect(Promise.resolve().then(() => late!())).rejects.toThrow("PRD_SCOPE_CLOSED");
     expect(run.calls).toHaveLength(2);
+  });
+});
+
+describe("approved production authority at native technical and title seams", () => {
+  it("passes a private complete authority identity to native produce without changing the caller blueprint, arguments, result or receiver", async () => {
+    const value = fixture("PRODUCE-INPUT"), h = productionHarness(), run = h.make(value);
+    const scenes = [{ id: "real-opening", action: "真实首镜动作" }], config = { aspectRatio: "16:9", unknown: { keep: true } };
+    const blueprint = { scenes, config, metadata: { intact: "原始资料" }, _workloomProductionAuthority: { forged: true } }, before = structuredClone(blueprint);
+    const argument = { llmTimeout: 1234, llmMaxRetries: 2 }, nativeResult = { untouched: "原消费者返回" };
+    run.engine.nativeResult = nativeResult;
+    await h.accepted(run, async prd => {
+      const result = await invoke(run.engine, "produce", blueprint, argument);
+      expect(result).toBe(nativeResult);
+      const call = h.calls.find(call => call.key === "produce")!, input = call.args[0] as RequirementRecord;
+      expect(call.receiver).toBe(run.engine); expect(call.args[1]).toBe(argument);
+      expect(input).not.toBe(blueprint); expect(input.scenes).toBe(scenes);
+      expect(input.config).not.toBe(config); expect(input.config).toEqual({ ...config, aspectRatio: "9:16" });
+      expect(input.metadata).toBe(blueprint.metadata);
+      const marker = requirementRecord(input._workloomProductionAuthority, "private production marker");
+      expect(marker).toMatchObject({ schemaVersion: "workloom.production-authority/v1", scope: value.scope, profile: value.authority.profile, g4Hash: requirementHash(prd) });
+      expect(marker.hash).toBe(requirementHash({ authority: requirementHash(value.authority), g4: requirementHash(prd), scope: value.scope }));
+      expect(marker).not.toHaveProperty("forged");
+      expect(blueprint).toEqual(before);
+    });
+    expect(h.calls.filter(call => call.key === "create")).toEqual([expect.objectContaining({ receiver: run.system })]);
+    expect(run.calls).toHaveLength(2);
+  });
+
+  it.each(["pending", "rejected"])("refuses a %s G4 before native production or its cache can run", async decision => {
+    const value = fixture(`PRODUCE-${decision}`), h = productionHarness(), run = h.make(value);
+    await expect(withPrdAuthorityScope(value.authority, () => invoke(run.system, "create", async () => {
+      const prd = await h.generate(run);
+      if (decision === "rejected") { run.system.g4Approved = false; await h.review(run, prd); }
+      try { await invoke(run.engine, "produce", { config: {}, scenes: [] }); } catch { /* original consumer cannot swallow the private failure */ }
+      return { success: false };
+    }))).rejects.toThrow("PRD_REVIEW_UNVERIFIED");
+    expect(h.calls.filter(call => call.key !== "create")).toEqual([]);
+  });
+
+  it("skips the optional title package and optimizer while keeping the physical opening shot and ordinary field validation", async () => {
+    const value = fixture("NO-TITLE"), h = productionHarness(), run = h.make(value), shot = productionShot();
+    const before = structuredClone(shot);
+    await h.accepted(run, async () => {
+      expect(invoke(run.phase1, "_shouldGenerateOpening", { scenes: [shot] })).toBe(false);
+      expect(invoke(run.system, "_shouldUseTitleCard")).toBe(false);
+      expect(await invoke(run.system, "_optimizeOpeningTitle", { shots: [shot] }, {}, {})).toBeUndefined();
+      const result = requirementRecord(invoke(run.fieldGuard, "normalizeAndValidate", [shot], "Final-Export"), "validated");
+      expect(requirementRecord(result.report, "report")).toMatchObject({ passed: true, errors: [], summary: { fixedShots: 0, applicableFieldsPerShot: 25 } });
+      const normalized = (result.shots as RequirementRecord[])[0]!;
+      expect(normalized).toMatchObject({ shotId: shot.shotId, sceneType: "opening", duration: 5, prompt: shot.prompt,
+        extraSource: shot.extraSource, _workloomFusion: shot._workloomFusion, fields: shot.fields });
+      const detail = (requirementRecord(result.report, "report").details as RequirementRecord[])[0]!;
+      expect(detail).toMatchObject({ presentFields: 25, applicableFields: 25, missingSpecFields: [], applicability: { title: "not_applicable", opening_audio_design: "not_applicable" } });
+      expect(invoke(run.fieldGuard, "assertOpeningFields", [shot])).toBe(true);
+      expect(shot).toEqual(before);
+    });
+    expect(h.calls.some(call => ["_shouldGenerateOpening", "_optimizeOpeningTitle"].includes(call.key))).toBe(false);
+  });
+
+  it.each([
+    { aspect: "9:16", resolution: "1080p", fps: 30, pixels: "1080x1920" },
+    { aspect: "16:9", resolution: "4K", fps: 25, pixels: "3840x2160" },
+    { aspect: "1:1", resolution: "1080p", fps: 60, pixels: "1080x1080" },
+  ])("uses explicit native technical template $aspect/$resolution/$fps without mutating shared settings or creative constraints", async ({ aspect, resolution, fps, pixels }) => {
+    const value = fixture(`TECH-${fps}`), h = productionHarness();
+    requirementRecord(value.metadata.brief, "brief").aspectRatio = aspect;
+    Object.assign(requirementRecord(requirementRecord(value.metadata.brief, "brief").productionRequirements, "profile"), { resolution, frameRate: fps });
+    refreshContract(value);
+    const run = h.make(value); run.refiner._shotConstraintTemplate = "平台错误画像，4K分辨率，24fps";
+    const before = { template: run.refiner.constraintTemplate, shotTemplate: run.refiner._shotConstraintTemplate, injected: run.refiner._templateInjected };
+    await h.accepted(run, () => {
+      expect(invoke(run.refiner, "_normalizeConstraint", "16:9画幅，8K分辨率，24fps，MP4格式", "8K基础"))
+        .toBe(`${aspect}画幅，${pixels}分辨率，${fps}fps，MP4格式`);
+      const creative = "时长5秒，一镜到底，演员唇形同步且摄影机保持固定机位";
+      expect(invoke(run.refiner, "_normalizeConstraint", creative, "原始基础"))
+        .toBe(Reflect.apply(nativeConstraint, run.refiner, [creative, "原始基础"]));
+      expect({ template: run.refiner.constraintTemplate, shotTemplate: run.refiner._shotConstraintTemplate, injected: run.refiner._templateInjected }).toEqual(before);
+    });
+  });
+
+  it("does not invent undeclared resolution/fps for a legacy client profile", async () => {
+    const value = fixture("TECH-LEGACY"), h = productionHarness();
+    delete requirementRecord(value.metadata.brief, "brief").productionRequirements; refreshContract(value);
+    const run = h.make(value), body = "16:9画幅，8K分辨率，24fps，MP4格式";
+    const expected = Reflect.apply(nativeConstraint, run.refiner, [body, "8K基础"]);
+    await h.accepted(run, () => {
+      expect(invoke(run.refiner, "_normalizeConstraint", body, "8K基础")).toBe(String(expected).replace("16:9画幅", "9:16画幅"));
+      expect(invoke(run.phase1, "_shouldGenerateOpening", {})).toBe(true);
+      expect(invoke(run.system, "_shouldUseTitleCard")).toBe(true);
+    });
+  });
+
+  it.each(["resolution-and-fps", "no-technical-keys"])("honors only explicit %s technical keys while preserving native branches and undeclared defaults", async mode => {
+    const value = fixture(`TECH-PARTIAL-${mode}`), h = productionHarness(), brief = requirementRecord(value.metadata.brief, "brief");
+    delete brief.aspectRatio;
+    if (mode === "no-technical-keys") delete brief.productionRequirements;
+    refreshContract(value);
+    const run = h.make(value), body = "16:9画幅，8K分辨率，24fps，MP4格式";
+    const native = Reflect.apply(nativeConstraint, run.refiner, [body, "8K基础"]);
+    const long = "16:9画幅，4K分辨率，24fps，MP4格式，" + "完整技术正文必须保留，不得被模板替换。".repeat(15);
+    await h.accepted(run, () => {
+      const output = invoke(run.refiner, "_normalizeConstraint", body, "8K基础");
+      expect(output).toBe(mode === "resolution-and-fps" ? "16:9画幅，1920x1080分辨率，30fps，MP4格式" : native);
+      for (const text of [long, "时长5秒，一镜到底，16:9画幅，4K分辨率，24fps，唇形同步", "保留非技术创作正文原样"]) {
+        expect(invoke(run.refiner, "_normalizeConstraint", text, "8K基础")).toBe(Reflect.apply(nativeConstraint, run.refiner, [text, "8K基础"]));
+      }
+    });
+  });
+
+  it("avoids every native stage and shot-cache IO path for an approved authority run", async () => {
+    const value = fixture("CACHE-NO-IO"), h = productionHarness(), run = h.make(value), old = { savedAt: "historical", unchanged: true };
+    await h.accepted(run, () => {
+      expect(invoke(run.engine, "_loadLatestCheckpoint", old)).toBeNull();
+      expect(invoke(run.fusion, "_loadSubCheckpoint", {}, "old-hash")).toBeNull();
+      for (const [owner, key] of [[run.engine, "_saveCheckpoint"], [run.engine, "_clearCheckpoints"], [run.fusion, "_saveSubCheckpoint"], [run.fusion, "_clearSubCheckpoint"]] as Array<[RequirementRecord, string]>) {
+        expect(invoke(owner, key, old)).toBeUndefined();
+      }
+      expect(old).toEqual({ savedAt: "historical", unchanged: true });
+    });
+    expect(h.calls.filter(call => /Checkpoint/.test(call.key))).toHaveLength(0);
+  });
+
+  it("legacy receivers retain exact cache arguments, title work, native reports and field repair", async () => {
+    const value = fixture("PRODUCTION-LEGACY"), h = productionHarness(), run = h.make(value), argument = { preserve: "same object" };
+    run.system.metadata = { titleCard: false, _workloomProductionAuthority: { approved: true } };
+    expect(invoke(run.system, "_shouldUseTitleCard")).toBe(true);
+    expect(invoke(run.phase1, "_shouldGenerateOpening", argument)).toBe(true);
+    expect(await invoke(run.system, "_optimizeOpeningTitle", argument)).toEqual({ originalTitlePackage: true });
+    const result = await invoke(run.engine, "produce", argument, argument);
+    expect(result).toEqual({ nativeProduction: true });
+    expect(h.calls.find(call => call.key === "produce")!.args).toEqual([argument, argument]);
+    expect(h.calls.find(call => call.key === "produce")!.args[0]).toBe(argument);
+    expect(invoke(run.engine, "_loadLatestCheckpoint", argument)).toEqual({ nativeCache: "_loadLatestCheckpoint", args: [argument] });
+    expect(invoke(run.fusion, "_clearSubCheckpoint", argument)).toEqual({ nativeCache: "_clearSubCheckpoint", args: [argument] });
+    const prompts = [productionShot()];
+    expect(invoke(run.system, "_generatePromptsReport", prompts)).toBe(`legacy-report:${JSON.stringify(prompts)}`);
+    const repaired = requirementRecord(invoke(run.fieldGuard, "normalizeAndValidate", [{ shotId: "S10", prompt: "原始缺字段" }], "Legacy"), "legacy repaired");
+    expect((repaired.shots as RequirementRecord[])[0]).toMatchObject({ degraded: true });
+  });
+
+  it("injects only the selected typed wardrobe's complete detail and preserves forbidden-word negatives and generated costume", async () => {
+    const value = fixture("WARDROBE-TYPED"), h = productionHarness();
+    const character = (value.metadata.characters as RequirementRecord[])[0]!;
+    const detail = "黑色短夹克\n白色内搭、深灰全长裤和黑色短靴；禁止头盔、墨镜、面具，保留完整原件。";
+    Object.assign(character, { activeWardrobeId: "current", description: '{"wardrobe":"错误JSON夹克不应切片"}',
+      wardrobe: [{ id: "old", detail: "旧服装不可用" }, { id: "current", detail }] });
+    refreshContract(value);
+    const run = h.make(value), actual = structuredClone(value.contract.cast.characters);
+    const original = "【角色】合成人物看向商品\n【负面约束】no text，禁止头盔与墨镜，禁止面具。";
+    const shots = [{ prompt: original }, { prompt: original, fields: { costume: "模型已给出的白衬衫与黑裤" } },
+      { prompt: original + "\n【服装】模型实际服装保持全文，不做规则修正。" }, { prompt: "【角色】另一个人物，没有本次姓名" }];
+    const before = structuredClone(shots), charactersBefore = structuredClone(actual);
+    await h.accepted(run, () => {
+      expect(invoke(run.costume, "enhance", shots, actual)).toBe(shots);
+      expect(shots[0]!.prompt).toBe(`【服装锁定】合成人物：${detail}\n${original}`);
+      expect(shots[0]).toHaveProperty("promptCharCount", shots[0]!.prompt.length);
+      expect(shots.slice(1)).toEqual(before.slice(1)); expect(actual).toEqual(charactersBefore);
+      expect(shots[0]!.prompt).not.toContain("错误JSON"); expect(shots[0]!.prompt).not.toContain("旧服装");
+    });
+  });
+
+  it.each(["wrong-id", "wrong-name", "wrong-source", "duplicate-wardrobe", "missing-wardrobe", "empty-detail"])("rejects %s wardrobe or cast instead of repairing model text", async kind => {
+    const value = fixture(`WARDROBE-${kind}`), h = productionHarness();
+    const character = (value.metadata.characters as RequirementRecord[])[0]!;
+    Object.assign(character, { activeWardrobeId: "current", wardrobe: [{ id: "current", detail: "完整选定黑色夹克" }] });
+    if (kind === "duplicate-wardrobe") (character.wardrobe as unknown[]).push({ id: "current", detail: "重复档案" });
+    if (kind === "missing-wardrobe") character.wardrobe = [];
+    if (kind === "empty-detail") (character.wardrobe as RequirementRecord[])[0]!.detail = "  ";
+    refreshContract(value);
+    const run = h.make(value), actual = structuredClone(value.contract.cast.characters) as RequirementRecord[];
+    if (kind === "wrong-id") actual[0]!.id = "foreign";
+    if (kind === "wrong-name") actual[0]!.name = "foreign";
+    if (kind === "wrong-source") requirementRecord(actual[0]!.builtinCharacterSource, "source").profileSha256 = "f".repeat(64);
+    const shots = [{ prompt: "合成人物看向商品，禁止头盔与墨镜" }], before = structuredClone(shots);
+    await expect(h.accepted(run, () => {
+      try { invoke(run.costume, "enhance", shots, actual); } catch { /* native caller catches; outer authority must still fail */ }
+    })).rejects.toThrow(kind.startsWith("wrong-") ? "PRD_CAST_UNVERIFIED" : "PRD_WARDROBE_UNVERIFIED");
+    expect(shots).toEqual(before);
+  });
+
+  it.each([...nativeStandardizer.CRITICAL_FIELDS.p0, ...nativeStandardizer.CRITICAL_FIELDS.p1,
+    ...nativeStandardizer.CRITICAL_FIELDS.p2, ...nativeStandardizer.CRITICAL_FIELDS.p3])("requires real %s content across all 25 fields without local defaults", async key => {
+    const value = fixture(`MISSING-${key}`), h = productionHarness(), run = h.make(value), shot = productionShot();
+    delete shot[key]; delete requirementRecord(shot.fields, "fields")[key];
+    const before = structuredClone(shot);
+    await expect(h.accepted(run, () => {
+      const result = requirementRecord(invoke(run.fieldGuard, "check", [shot], "Final-Export"), "check");
+      expect(result.passed).toBe(false);
+      const detail = (requirementRecord(result.report, "report").details as RequirementRecord[])[0]!;
+      expect(detail.missingSpecFields).toContain(key); expect(detail.presentFields).toBe(24);
+      try { invoke(run.fieldGuard, "normalizeAndValidate", [shot], "Final-Export"); } catch { /* must remain sticky */ }
+    })).rejects.toThrow(`Production 25 fields missing: ${key}`);
+    expect(shot).toEqual(before); expect(shot).not.toHaveProperty("degraded");
+  });
+
+  it.each(["dialogue-free", "structured-blocks"])("accepts explicit %s dialogue applicability without synthesizing a line", async mode => {
+    const value = fixture(`DIALOGUE-${mode}`), h = productionHarness(), run = h.make(value), shot = productionShot();
+    delete shot.dialogue; delete requirementRecord(shot.fields, "fields").dialogue;
+    if (mode === "dialogue-free") shot.dialogueFree = true;
+    else shot.dialogueBlocks = [{ speaker: "合成人物", line: "只看外观。", emotion: "calmly", trigger: "看向商品", manner: "自然轻声", type: "on-screen" }];
+    const before = structuredClone(shot);
+    await h.accepted(run, () => {
+      const result = requirementRecord(invoke(run.fieldGuard, "normalizeAndValidate", [shot], "Final-Export"), "validated");
+      expect(requirementRecord(result.report, "report")).toMatchObject({ passed: true, errors: [] });
+      const normalized = (result.shots as RequirementRecord[])[0]!;
+      expect(normalized.dialogue).toEqual([]); expect(normalized).toMatchObject(mode === "dialogue-free" ? { dialogueFree: true } : { dialogueBlocks: shot.dialogueBlocks });
+      expect(shot).toEqual(before);
+    });
+  });
+
+  it.each(["negative", "scene", "title-leak", "empty-shots", "missing-id"])("keeps %s defects visible and fatal at strict validation", async kind => {
+    const value = fixture(`BAD-${kind}`), h = productionHarness(), run = h.make(value), shot = productionShot();
+    if (kind === "negative") { shot.negative = "no watermark only"; requirementRecord(shot.fields, "fields").negative = shot.negative; }
+    if (kind === "scene") { shot.scene = "全息数据空间中的抽象场景"; requirementRecord(shot.fields, "fields").scene = shot.scene; }
+    if (kind === "title-leak") shot.prompt += "\n【主标题内容】不能在生成侧重新出现";
+    if (kind === "missing-id") shot.shotId = "";
+    const shots = kind === "empty-shots" ? [] : [shot], before = structuredClone(shots);
+    await expect(h.accepted(run, () => {
+      try { invoke(run.fieldGuard, "assertOpeningFields", shots); } catch { /* cannot turn a defect into a successful authority scope */ }
+    })).rejects.toThrow(kind === "empty-shots" ? "PRD_PRODUCTION_INVALID" : "PRD_PRODUCTION_FIELDS_INVALID");
+    expect(shots).toEqual(before);
+  });
+
+  it("renders every G6 prompt byte and long fence safely, counts actual fields and retains defects for the real reviewer", async () => {
+    const value = fixture("G6-COMPLETE"), h = productionHarness(), run = h.make(value), shot = productionShot();
+    shot.prompt = `${shot.prompt}\n${"【情绪】只有重复标签不会增加字段覆盖率。".repeat(700)}\n\`\`\`\`\`\`用户原始围栏\n真正尾部SENTINEL`;
+    delete shot.makeup; delete requirementRecord(shot.fields, "fields").makeup;
+    const before = structuredClone(shot);
+    await h.accepted(run, () => {
+      const report = invoke(run.system, "_generatePromptsReport", [shot]) as string;
+      expect(report).toContain(`\`\`\`\`\`\`\`text\n${String(shot.prompt)}\n\`\`\`\`\`\`\``);
+      expect(report).toContain("24/25 | fail"); expect(report).toContain("Production 25 fields missing: makeup");
+      expect(report).toContain("exceeds 12000 char limit"); expect(report).toContain("G6 仍须审核事实用途");
+      expect(report).toContain("subtitle 指片头副标题，正式后期字幕仍按 Brief 执行");
+      expect(report).not.toContain("待生成"); expect(report).not.toContain("请补充"); expect(shot).toEqual(before);
+    });
+    expect(h.calls.some(call => call.key === "_generatePromptsReport")).toBe(false);
+  });
+
+  it("retires precisely the two native S00 title quality predicates while retaining scores, booleans and prompt content", async () => {
+    const value = fixture("QUALITY-TITLE"), h = productionHarness(), run = h.make(value), shot = productionShot("S00"), before = structuredClone(shot);
+    const original = requirementRecord(Reflect.apply(nativeQuality, run.qualityGate, [[shot], null]), "native quality");
+    expect(original.passed).toBe(false);
+    await h.accepted(run, () => {
+      const result = requirementRecord(invoke(run.qualityGate, "run", [shot]), "quality"), detail = (result.checks as RequirementRecord[])[0]!;
+      expect(result).toMatchObject({ passed: true, passedCount: 1 });
+      expect(detail).toEqual({ ...(original.checks as RequirementRecord[])[0], passed: true, hasAudioLayer: null, hasTitleOverlay: null,
+        applicability: { audioLayer: "not_applicable", titleOverlay: "not_applicable" } });
+      expect(shot).toEqual(before);
+    });
+  });
+
+  it.each(["scene", "short-prompt", "placeholder", "length", "score"])("native quality gate still fails %s after title retirement", async kind => {
+    const value = fixture(`QUALITY-${kind}`), h = productionHarness(), run = h.make(value), shot = productionShot("S00");
+    if (kind === "scene") shot.scene = "";
+    if (kind === "short-prompt") shot.prompt = "过短";
+    if (kind === "placeholder") shot.prompt += "[角色名]";
+    if (kind === "length") shot.promptCharCount = 3001;
+    const threshold = kind === "score" ? { acceptanceCriteria: { visual: 1.2, narrative: 1.2 } } : null;
+    const before = structuredClone(shot);
+    await h.accepted(run, () => {
+      const result = requirementRecord(invoke(run.qualityGate, "run", [shot], threshold), "quality");
+      expect(result.passed).toBe(false); expect(result.passedCount).toBe(0); expect(result.failedFields).toHaveLength(1);
+      const detail = (result.checks as RequirementRecord[])[0]!;
+      if (kind === "scene") expect(detail.hasScene).toBe(false);
+      if (kind === "short-prompt") expect(detail.hasPrompt).toBe(false);
+      if (kind === "placeholder") expect(detail.hasPlaceholder).toBe(true);
+      if (kind === "length") expect(detail.withinLimit).toBe(false);
+      if (kind === "score") expect(Number(detail.overallScore)).toBeLessThan(120);
+      expect(shot).toEqual(before);
+    });
+  });
+
+  it("real delivery guard removes only five missing title issues, preserving the original shot and all native measurements", async () => {
+    const value = fixture("DELIVERY-TITLE"), h = productionHarness(), run = h.make(value), prompt = deliveryPrompt(), shot = { shotId: "S00", sceneType: "opening", duration: 5 };
+    const native = requirementRecord(Reflect.apply(nativeDelivery, run.deliveryGuard, [prompt, shot]), "native delivery"), before = structuredClone(shot);
+    expect(native.issues).toHaveLength(5);
+    await h.accepted(run, () => {
+      const result = requirementRecord(invoke(run.deliveryGuard, "verify", prompt, shot), "delivery");
+      expect(result).toMatchObject({ pass: true, issues: [], expectedMin: 25, fieldCount: native.fieldCount, charCount: native.charCount });
+      expect(Object.keys(requirementRecord(result.applicability, "applicability"))).toHaveLength(7); expect(shot).toEqual(before);
+    });
+  });
+
+  it.each(["missing-field", "too-short", "too-long", "emotion", "invented-dialogue", "retired-label"])("real delivery guard retains %s defects", async kind => {
+    const value = fixture(`DELIVERY-${kind}`), h = productionHarness(), run = h.make(value), shot = { shotId: "S00", sceneType: "opening", duration: 5 };
+    let prompt = deliveryPrompt();
+    if (kind === "missing-field") prompt = prompt.replace("【导演意图】", "【其他说明】");
+    if (kind === "too-short") prompt = "【情绪】人物眼睛眨动";
+    if (kind === "too-long") prompt += "原始内容".repeat(1000);
+    if (kind === "emotion") prompt = prompt.replace(/【情绪】[^\n]+/, "【情绪】紧张");
+    if (kind === "invented-dialogue") prompt += '\n【台词】[0s-3s] 合成人物，平静地说:"看看外观。"';
+    if (kind === "retired-label") prompt += "\n【开场音频设计】违规标题包";
+    const native = requirementRecord(Reflect.apply(nativeDelivery, run.deliveryGuard, [prompt, shot]), "native delivery");
+    await h.accepted(run, () => {
+      const result = requirementRecord(invoke(run.deliveryGuard, "verify", prompt, shot), "delivery");
+      const expected = (native.issues as string[]).filter(issue => !issue.startsWith("缺片头专属字段:"));
+      if (kind === "retired-label") expected.push("生成侧重新出现已退休片头标题字段");
+      expect(result.pass).toBe(false); expect(result.issues).toEqual(expected);
+    });
+  });
+
+  it("real semantic refine consumes the revised instruction, preserves its actual input and applies the original output through the real guard", async () => {
+    const value = fixture("SEMANTIC-TITLE"), h = productionHarness(), run = h.make(value), prompt = deliveryPrompt(), shot = { shotId: "S00", sceneType: "opening", duration: 5 };
+    const actions = [{ type: "水分压缩", field: "场景", description: "删除重复短句" }], output = prompt.replace("封闭场地", "拍摄场地");
+    const call = vi.fn(async () => ({ result: { prompt: output, actions } }));
+    const semantic = new SemanticRefinementPass({ callLLM: call, guard: run.deliveryGuard, maxTokens: 4321, timeoutMs: 7890 });
+    const native = Reflect.apply(nativeSemantic, semantic, [prompt, shot]) as string;
+    await h.accepted(run, async () => {
+      const result = requirementRecord(await invoke(semantic, "refine", prompt, shot), "semantic result");
+      expect(result).toMatchObject({ prompt: output, actions, applied: true, fallbackReason: null, guard: { pass: true } });
+      expect(call).toHaveBeenCalledTimes(1);
+      const request = (call.mock.calls as unknown[][])[0]!, actual = String(request[0]);
+      expect(actual).not.toContain("，片头 5 个专属字段保留"); expect(actual).toContain("titleCard=false");
+      expect(actual.slice(actual.indexOf("\n【待精炼提示词】\n"))).toBe(native.slice(native.indexOf("\n【待精炼提示词】\n")));
+      expect(request[3]).toEqual({ maxTokens: 4321, timeoutMs: 7890, maxRetries: 2 });
+      expect(request[1]).toMatchObject({ required: ["prompt", "actions"] }); expect(typeof request[2]).toBe("function");
+    });
+  });
+
+  it("real semantic refinement keeps the native failed-guard and provider-error fallbacks without pretending they were applied", async () => {
+    const value = fixture("SEMANTIC-ERROR"), h = productionHarness(), run = h.make(value), prompt = deliveryPrompt(), shot = { shotId: "S00", sceneType: "opening", duration: 5 };
+    await h.accepted(run, async () => {
+      const rejected = new SemanticRefinementPass({ guard: run.deliveryGuard, callLLM: async () => ({ result: { prompt: "短文本", actions: [] } }) });
+      expect(await invoke(rejected, "refine", prompt, shot)).toMatchObject({ prompt, applied: false, fallbackReason: expect.stringContaining("守卫拦截"), guard: { pass: false } });
+      const failed = new SemanticRefinementPass({ guard: run.deliveryGuard, callLLM: async () => { throw new Error("original provider error"); } });
+      expect(await invoke(failed, "refine", prompt, shot)).toMatchObject({ prompt, applied: false, fallbackReason: "LLM调用异常:original provider error", guard: null });
+    });
+  });
+
+  it("unbound real quality, delivery and semantic consumers retain byte-exact native behavior", () => {
+    const h = productionHarness(), run = h.make(fixture("NATIVE-CONSUMER-LEGACY")), shot = productionShot("S00"), prompt = deliveryPrompt();
+    const semantic = new SemanticRefinementPass({ callLLM: async () => { throw new Error("not called"); } });
+    expect(invoke(run.qualityGate, "run", [shot])).toEqual(Reflect.apply(nativeQuality, run.qualityGate, [[shot]]));
+    expect(invoke(run.deliveryGuard, "verify", prompt, shot)).toEqual(Reflect.apply(nativeDelivery, run.deliveryGuard, [prompt, shot]));
+    expect(invoke(semantic, "_buildPrompt", prompt, shot)).toBe(Reflect.apply(nativeSemantic, semantic, [prompt, shot]));
+  });
+
+  it("carries the full G2 theme and its original verdict only after actual G4 approval", async () => {
+    const value = fixture("THEME-COMPLETE"), h = productionHarness(), run = h.make(value), capture = productionAdapter();
+    const theme = { theme: "完整真实主题与艺术参考".repeat(1600), decision: { approved: true, issues: ["原始G2意见"], suggestions: ["只支持创意表达，不提高商品事实等级"] } };
+    const getTheme = vi.fn(() => theme), before = structuredClone(theme);
+    await withPrdAuthorityScope(value.authority, async () => {
+      expect(productionModelInput("G4之前").prompt).toBe("G4之前"); expect(getTheme).not.toHaveBeenCalled();
+      const prd = await h.generate(run); await h.review(run, prd);
+      await capture.adapter.reason("本次真实后续制作任务");
+      const prompt = capture.requests[0]!.messages.at(-1)!.content;
+      expect(prompt).toContain(JSON.stringify(theme)); expect(prompt).toContain(requirementHash(theme));
+      expect(prompt).toContain("原始裁决"); expect(prompt).toContain(value.content); expect(theme).toEqual(before);
+      return h.success(prd);
+    }, undefined, getTheme);
+    expect(capture.requests).toHaveLength(1);
+  });
+
+  it.each(["before-request", "in-flight"])("rejects a changed approved G2 %s and keeps failure sticky through a native catch", async phase => {
+    const value = fixture(`THEME-${phase}`), h = productionHarness(), run = h.make(value), capture = productionAdapter();
+    const theme = { original: "本次完整G2主题", verdict: { approved: true } };
+    if (phase === "in-flight") {
+      const provider = capture.adapter;
+      // Retain the real adapter request path while changing the authoritative
+      // object during the existing provider await, without another paid call.
+      const original = provider.reason;
+      provider.reason = async function (...args) {
+        const result = original.apply(this, args); theme.original = "请求期间未重新审核的主题"; return result;
+      };
+    }
+    await expect(h.accepted(run, async () => {
+      if (phase === "before-request") theme.original = "未重新审核的主题";
+      try { await capture.adapter.reason("不能继承旧G2"); } catch { /* caller catches; authority remains failed */ }
+    }, { theme: () => theme })).rejects.toThrow("PRD_REVIEW_UNVERIFIED");
+    expect(capture.requests).toHaveLength(phase === "before-request" ? 0 : 1);
+  });
+
+  it("interleaved production scopes keep independent profiles, approved hashes and exact technical templates", async () => {
+    const h = productionHarness(), values = [fixture("PRODUCTION-A"), fixture("PRODUCTION-B")];
+    requirementRecord(values[1]!.metadata.brief, "brief").aspectRatio = "16:9";
+    Object.assign(requirementRecord(requirementRecord(values[1]!.metadata.brief, "brief").productionRequirements, "profile"), { resolution: "4K", frameRate: 60 });
+    refreshContract(values[1]!);
+    const runs = values.map(value => h.make(value)), ready = [deferred<void>(), deferred<void>()], release = [deferred<void>(), deferred<void>()];
+    const seen: Array<{ index: number; prdHash: string; template: unknown }> = [];
+    const pending = runs.map((run, index) => h.accepted(run, async prd => {
+      ready[index]!.resolve(); await release[index]!.promise;
+      await invoke(run.engine, "produce", { config: {}, scenes: [{ id: index }] });
+      seen.push({ index, prdHash: requirementHash(prd), template: invoke(run.refiner, "_normalizeConstraint", "16:9画幅，8K分辨率，24fps，MP4格式", "基础") });
+    }));
+    await Promise.all(ready.map(item => item.promise)); release[1]!.resolve(); await pending[1]; release[0]!.resolve(); await pending[0];
+    expect(seen.map(item => item.index)).toEqual([1, 0]);
+    expect(seen.map(item => item.template)).toEqual(["16:9画幅，3840x2160分辨率，60fps，MP4格式", "9:16画幅，1080x1920分辨率，30fps，MP4格式"]);
+    const produces = h.calls.filter(call => call.key === "produce");
+    for (const [position, index] of [1, 0].entries()) {
+      const marker = requirementRecord((produces[position]!.args[0] as RequirementRecord)._workloomProductionAuthority, "marker");
+      expect(marker).toMatchObject({ scope: values[index]!.scope, profile: values[index]!.authority.profile, g4Hash: seen[position]!.prdHash });
+      expect(produces[position]!.receiver).toBe(runs[index]!.engine);
+    }
+    expect(produces[0]!.args[0]).not.toEqual(produces[1]!.args[0]);
+  });
+
+  it("rejects a receiver borrowed from another still-active production scope and marks both operations fatal", async () => {
+    const h = productionHarness(), a = h.make(fixture("CROSS-PRODUCTION-A")), b = h.make(fixture("CROSS-PRODUCTION-B"));
+    const ready = deferred<void>(), release = deferred<void>();
+    const runningA = h.accepted(a, async () => {
+      invoke(a.phase1, "_shouldGenerateOpening", {}); ready.resolve(); await release.promise;
+    });
+    const assertionA = expect(runningA).rejects.toThrow("PRD_SCOPE_CONFLICT");
+    await ready.promise;
+    await expect(h.accepted(b, () => {
+      try { invoke(a.phase1, "_shouldGenerateOpening", {}); } catch { /* even a swallowed cross-run access is fatal */ }
+    })).rejects.toThrow("PRD_SCOPE_CONFLICT");
+    release.resolve(); await assertionA;
+  });
+
+  it("bound production objects reject calls after scope closure and inherited late callbacks cannot touch cache IO", async () => {
+    const h = productionHarness(), run = h.make(fixture("CLOSED-PRODUCTION")), release = deferred<void>();
+    let late: Promise<unknown> | undefined;
+    await h.accepted(run, () => {
+      invoke(run.engine, "_loadLatestCheckpoint"); invoke(run.phase1, "_shouldGenerateOpening", {});
+      late = release.promise.then(() => invoke(run.fusion, "_saveSubCheckpoint", "late"));
+    });
+    expect(() => invoke(run.engine, "_loadLatestCheckpoint")).toThrow("PRD_SCOPE_CONFLICT");
+    expect(() => invoke(run.phase1, "_shouldGenerateOpening", {})).toThrow("PRD_SCOPE_CONFLICT");
+    // The first out-of-scope access already made this scope fatal. Later
+    // inherited work must retain that original conflict instead of replacing it.
+    const assertion = expect(late!).rejects.toThrow("PRD_SCOPE_CONFLICT"); release.resolve(); await assertion;
+    expect(h.calls.some(call => /Checkpoint/.test(call.key))).toBe(false);
+  });
+
+  it("an otherwise successful scope rejects its first inherited late production callback before native cache work", async () => {
+    const h = productionHarness(), run = h.make(fixture("LATE-PRODUCTION")), release = deferred<void>();
+    let late: Promise<unknown> | undefined;
+    await h.accepted(run, () => { late = release.promise.then(() => invoke(run.fusion, "_saveSubCheckpoint", "late")); });
+    const assertion = expect(late!).rejects.toThrow("PRD_SCOPE_CLOSED"); release.resolve(); await assertion;
+    expect(h.calls.some(call => /Checkpoint/.test(call.key))).toBe(false);
+  });
+
+  it.each(["method", "standardizer", "validator", "fields"])("rejects changed production %s identity without hiding the error during cleanup", async kind => {
+    const h = productionHarness(), run = h.make(fixture(`TAMPER-${kind}`));
+    const descriptor = Object.getOwnPropertyDescriptor(h.deps.fieldGuardPrototype, "check")!;
+    const originalStandardizer = h.deps.standardizeShot, originalValidator = h.deps.validateShot, originalFields = h.deps.fields;
+    await expect(h.accepted(run, () => {
+      try {
+        if (kind === "method") Object.defineProperty(h.deps.fieldGuardPrototype, "check", { ...descriptor, enumerable: !descriptor.enumerable });
+        if (kind === "standardizer") h.deps.standardizeShot = shot => shot;
+        if (kind === "validator") h.deps.validateShot = () => ({ passed: true, errors: [], warnings: [] });
+        if (kind === "fields") { h.deps.fields = structuredClone(originalFields); h.deps.fields.p2[0] = "foreign-field"; }
+        try { invoke(run.fieldGuard, "check", [productionShot()]); } catch { /* restoration must not erase this fatal error */ }
+        if (kind === "method") expect(() => h.disposeProduction()).toThrow("PRD_BRIDGE_CHANGED");
+      } finally {
+        Object.defineProperty(h.deps.fieldGuardPrototype, "check", descriptor);
+        h.deps.standardizeShot = originalStandardizer; h.deps.validateShot = originalValidator; h.deps.fields = originalFields;
+      }
+    })).rejects.toThrow("PRD_BRIDGE_CHANGED");
+  });
+
+  it("restores every real production prototype descriptor exactly and deletes the optional title hook", () => {
+    const h = productionHarness();
+    expect(Object.hasOwn(h.prototype, "_shouldUseTitleCard")).toBe(true);
+    expect(() => installPrdProductionBridge(h.deps)).toThrow("PRD_BRIDGE_ACTIVE");
+    h.disposeProduction(); h.disposeProduction();
+    for (const [key, descriptors] of Object.entries(h.originals)) {
+      expect(Object.getOwnPropertyDescriptors(h.deps[key as keyof typeof h.deps])).toEqual(descriptors);
+    }
+    expect(Object.hasOwn(h.prototype, "_shouldUseTitleCard")).toBe(false);
+  });
+
+  it("invalid native production dependencies fail before any prototype is changed", () => {
+    const h = productionHarness(); h.disposeProduction();
+    const before = Object.fromEntries(Object.entries(h.deps).filter(([key]) => key.endsWith("Prototype"))
+      .map(([key, value]) => [key, Object.getOwnPropertyDescriptors(value)]));
+    const broken = { ...h.deps, fields: { ...h.deps.fields, p3: [] } };
+    expect(() => installPrdProductionBridge(broken)).toThrow("PRD_VENDOR_UNAVAILABLE");
+    for (const [key, descriptors] of Object.entries(before)) expect(Object.getOwnPropertyDescriptors(h.deps[key as keyof typeof h.deps])).toEqual(descriptors);
+    const missing = { ...h.deps, deliveryGuardPrototype: {} };
+    expect(() => installPrdProductionBridge(missing)).toThrow("PRD_VENDOR_UNAVAILABLE");
+    for (const [key, descriptors] of Object.entries(before)) expect(Object.getOwnPropertyDescriptors(h.deps[key as keyof typeof h.deps])).toEqual(descriptors);
+  });
+
+  it("the real tsx/CJS production installer wires every native consumer and restores all prototypes without a vendor system constructor or services", () => {
+    const value = fixture("NATIVE-PRODUCTION-INSTALL"), script = `${value.workDir}/native-production-install.mts`;
+    const repo = fileURLToPath(new URL("../../../", import.meta.url)), source = (name: string) => JSON.stringify(fileURLToPath(new URL(name, import.meta.url)));
+    writeFileSync(script, `
+import assert from "node:assert/strict";
+import { createHook } from "node:async_hooks";
+import { createRequire } from "node:module";
+import { acquireVendorRequirementEntry } from ${source("./vendor-requirement-entry.ts")};
+import { installPrdAuthorityBridge, installVendorPrdProductionBridge, withPrdAuthorityScope } from ${source("./prd-authority-bridge.ts")};
+import { prdFixture, PRDGenerator, PRDSchema } from ${source("./prd-authority.test-support.ts")};
+const fixture = prdFixture("REAL-CJS-PRODUCTION"), timers = new Set();
+const hook = createHook({ init(_id, type, _parent, resource) { if (type === "Timeout") timers.add(resource); } });
+let lease, restoreAuthority = () => undefined, restoreProduction = () => undefined, receipt, clearedTimers = 0;
+hook.enable();
+try {
+ const entry = ${JSON.stringify(repo + "vendor/supermickey/hyperreality-system/index.js")};
+ lease = acquireVendorRequirementEntry(entry);
+ const { HyperrealitySystem } = lease.exports;
+ const require = createRequire(entry);
+ const load = (file, name) => require(${JSON.stringify(repo + "vendor/supermickey/hyperreality-system/")} + file)[name];
+ const ProductionEngine = load("engines/production-engine/production-engine.js", "ProductionEngine");
+ const Phase1SceneDesign = load("engines/production-engine/phases/phase-1-scene-design.js", "Phase1SceneDesign");
+ const PromptFusionAgent = load("engines/production-engine/agents/prompt-fusion-agent.js", "PromptFusionAgent");
+ const FieldContentRefiner = load("engines/production-engine/agents/field-content-refiner.js", "FieldContentRefiner");
+ const CharacterCostumePrompter = load("engines/character-system/character-costume-prompter.js", "CharacterCostumePrompter");
+ const FieldGuard = load("engines/field-guard.js", "FieldGuard");
+ const QualityGate = load("engines/production-engine/utils/quality-gate.js", "QualityGate");
+ const PromptDeliveryGuard = load("engines/production-engine/agents/prompt-delivery-guard.js", "PromptDeliveryGuard");
+ const SemanticRefinementPass = load("engines/production-engine/agents/semantic-refinement-pass.js", "SemanticRefinementPass");
+ const prototypes = [HyperrealitySystem, ProductionEngine, Phase1SceneDesign, PromptFusionAgent, FieldContentRefiner, CharacterCostumePrompter, FieldGuard, QualityGate, PromptDeliveryGuard, SemanticRefinementPass].map(value => value.prototype);
+ const before = prototypes.map(value => Object.getOwnPropertyDescriptors(value));
+ class AuthoritySystem {
+  constructor(generator) { this.prdGenerator = generator; }
+  async _confirmRequirementList(_markdown, list) { return { approved: true, requirementList: list }; }
+  _generateMinimalPRD() { throw new Error("unexpected fallback"); }
+  async _confirmPRD(_markdown, prd) { return { approved: true, prd }; }
+ }
+ const generator = new PRDGenerator();
+ for (const [key, payload] of [["agent2", fixture.creative], ["agent3", fixture.production]]) {
+  generator[key]._llmEngineLoaded = true;
+  generator[key]._llmEngine = { reasonStructured: async () => ({ success: true, data: structuredClone(payload) }) };
+ }
+ const approved = new AuthoritySystem(generator);
+ restoreAuthority = installPrdAuthorityBridge(AuthoritySystem.prototype, PRDGenerator.prototype, PRDSchema);
+ restoreProduction = installVendorPrdProductionBridge(HyperrealitySystem, entry);
+ const system = Object.create(HyperrealitySystem.prototype), engine = Object.create(ProductionEngine.prototype);
+ const phase1 = Object.create(Phase1SceneDesign.prototype), fusion = Object.create(PromptFusionAgent.prototype);
+ const refiner = new FieldContentRefiner(), fieldGuard = new FieldGuard(), quality = new QualityGate(), delivery = new PromptDeliveryGuard();
+ const shot = ${JSON.stringify(productionShot("S00"))}, prompt = ${JSON.stringify(deliveryPrompt())};
+ const semantic = new SemanticRefinementPass({ guard: delivery, callLLM: async () => ({ result: { prompt, actions: [] } }) });
+ let consumerChecks = 0;
+ const check = (actual, expected) => { assert.equal(actual, expected); consumerChecks += 1; };
+ receipt = await withPrdAuthorityScope(fixture.authority, async () => {
+  await approved._confirmRequirementList("G3", fixture.list);
+  const prd = await generator.generate(fixture.discovery);
+  await approved._confirmPRD(generator.generateMarkdown(prd), prd);
+  check(system._shouldUseTitleCard(), false);
+  check(phase1._shouldGenerateOpening({}), false);
+  check(await system._optimizeOpeningTitle([shot]), undefined);
+  check(engine._loadLatestCheckpoint(), null);
+  check(engine._saveCheckpoint("must not write"), undefined);
+  check(fusion._loadSubCheckpoint({}), null);
+  check(fusion._clearSubCheckpoint(), undefined);
+  check(refiner._normalizeConstraint("16:9画幅，4K分辨率，24fps，MP4格式"), "9:16画幅，1080x1920分辨率，30fps，MP4格式");
+  check(fieldGuard.normalizeAndValidate([shot], "Final-Export").report.passed, true);
+  check(quality.run([shot]).passed, true);
+  check(delivery.verify(prompt, { shotId: "S00", sceneType: "opening", duration: 5 }).pass, true);
+  check((await semantic.refine(prompt, { shotId: "S00", sceneType: "opening", duration: 5 })).applied, true);
+  check(system._generatePromptsReport([shot]).includes(shot.prompt), true);
+  return { success: true, stages: { prdGeneration: { data: prd } }, consumerChecks };
+ });
+ restoreProduction(); restoreProduction = () => undefined;
+ for (let index = 0; index < prototypes.length; index++) assert.deepEqual(Object.getOwnPropertyDescriptors(prototypes[index]), before[index]);
+ receipt = { success: receipt.success, consumerChecks: receipt.consumerChecks, restoredPrototypes: prototypes.length };
+} finally {
+ try { restoreProduction(); } finally {
+  try { restoreAuthority(); } finally {
+   try { if (lease) lease.release(); } finally {
+    hook.disable(); for (const timer of timers) { clearTimeout(timer); clearedTimers += 1; }
+    fixture.cleanup();
+   }
+  }
+ }
+}
+console.log("RESULT " + JSON.stringify({ ...receipt, clearedTimers }));
+`, "utf8");
+    const stdout = execFileSync(process.execPath, [`${repo}node_modules/tsx/dist/cli.mjs`, script], { cwd: repo, timeout: 20000, encoding: "utf8" });
+    const result = JSON.parse(stdout.split("\n").find(line => line.startsWith("RESULT "))!.slice(7));
+    expect(result).toMatchObject({ success: true, consumerChecks: 13, restoredPrototypes: 10 });
+    expect(result.clearedTimers).toBeGreaterThanOrEqual(2);
   });
 });
