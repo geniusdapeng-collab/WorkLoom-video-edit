@@ -267,10 +267,35 @@ export class WorkloomLLMEngine {
 
   async reasonStructured(
     prompt: string,
-    _schema: unknown,
+    schema: unknown,
     options: LLMReasonOptions = {}
   ): Promise<LLMReasonResult> {
-    return this.reason(prompt, { ...options, forceJson: true });
+    let schemaText: string | undefined;
+    try {
+      schemaText = JSON.stringify(schema, null, 2);
+    } catch (error) {
+      return {
+        success: false,
+        error: `结构化输出结构不可序列化: ${error instanceof Error ? error.message : String(error)}`,
+        retryable: false,
+      };
+    }
+    // Match the vendor interface: its caller supplies the actual IDs and field
+    // template here, independently of any illustrative examples in the prompt.
+    const structuredPrompt = [
+      prompt,
+      "",
+      "【硬性输出要求】",
+      "1. 只输出合法 JSON",
+      "2. 不要输出 markdown 代码块",
+      "3. 不要输出解释、前言、结尾",
+      "4. 所有字段必须存在",
+      "5. 输出必须能被 JSON.parse 直接解析",
+      "",
+      "【目标JSON结构示例】",
+      schemaText,
+    ].join("\n");
+    return this.reason(structuredPrompt, { ...options, forceJson: true });
   }
 
   /**
