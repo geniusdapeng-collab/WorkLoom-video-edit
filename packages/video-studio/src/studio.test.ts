@@ -15,6 +15,11 @@ interface ObservedRequirementAuthority {
   approvedTheme: () => RequirementApprovedTheme | undefined;
   validateAuthority: () => void;
 }
+interface ObservedPrdScope {
+  authority: PrdAuthority | undefined;
+  validateAuthority: (() => void) | undefined;
+  approvedTheme: (() => RequirementApprovedTheme | undefined) | undefined;
+}
 
 const studioMocks = vi.hoisted(() => ({
   construct: vi.fn(),
@@ -22,6 +27,7 @@ const studioMocks = vi.hoisted(() => ({
   installed: [] as string[],
   disposed: [] as string[],
   requirementScopes: [] as Array<{ metadata: unknown; options: ObservedRequirementAuthority | undefined }>,
+  prdScopes: [] as ObservedPrdScope[],
   failInstall: "",
   failDispose: ""
 }));
@@ -33,7 +39,7 @@ vi.mock("./vendor-requirement-entry.js", () => ({
     studioMocks.installed.push("entry");
     return {
       exports: { HyperrealitySystem: class {
-        constructor() { studioMocks.construct(); }
+        constructor(options: unknown) { studioMocks.construct(options); }
         create(...input: unknown[]) { return studioMocks.create(...input); }
       } },
       identity: { entryPath: "/fixture/vendor/index.js" },
@@ -57,11 +63,20 @@ vi.mock("./requirement-contract-bridge.js", () => ({
 // behavior are exercised with the real generator/agents in prd-authority-bridge.test.ts.
 vi.mock("./prd-authority-bridge.js", () => ({
   assertPrdAuthorityBridge: () => undefined,
-  withPrdAuthorityScope: (_authority: unknown, operation: () => unknown) => operation(),
+  withPrdAuthorityScope: (authority: PrdAuthority | undefined, operation: () => unknown,
+    validateAuthority?: () => void, approvedTheme?: () => RequirementApprovedTheme | undefined) => {
+    studioMocks.prdScopes.push({ authority, validateAuthority, approvedTheme });
+    return operation();
+  },
   installVendorPrdAuthorityBridge: () => {
     if (studioMocks.failInstall === "prd") throw new Error("install failed: prd");
     studioMocks.installed.push("prd");
     return () => { studioMocks.disposed.push("prd"); if (studioMocks.failDispose === "prd") throw new Error("dispose failed: prd"); };
+  },
+  installVendorPrdProductionBridge: () => {
+    if (studioMocks.failInstall === "production") throw new Error("install failed: production");
+    studioMocks.installed.push("production");
+    return () => { studioMocks.disposed.push("production"); if (studioMocks.failDispose === "production") throw new Error("dispose failed: production"); };
   }
 }));
 
@@ -101,6 +116,7 @@ beforeEach(() => {
   studioMocks.installed.length = 0;
   studioMocks.disposed.length = 0;
   studioMocks.requirementScopes.length = 0;
+  studioMocks.prdScopes.length = 0;
   studioMocks.failInstall = "";
   studioMocks.failDispose = "";
 });
@@ -217,6 +233,21 @@ describe("VideoStudio 确认作用域与装配清理", () => {
     studioMocks.create.mockResolvedValue(result);
     expect(await studio(async () => ({ approved: true })).runPreproduction({ projectId: "p", intent: "intent" })).toBe(result);
     expect(studioMocks.disposed).toEqual([...studioMocks.installed].reverse());
+    expect(studioMocks.installed).not.toContain("prd");
+    expect(studioMocks.installed).not.toContain("production");
+    expect(studioMocks.construct).toHaveBeenCalledWith(expect.objectContaining({ productionEngine: expect.objectContaining({ agentConfig: expect.objectContaining({ enableResume: true }) }) }));
+    expect(studioMocks.prdScopes).toEqual([{ authority: undefined, validateAuthority: undefined, approvedTheme: undefined }]);
+  });
+
+  it("非营销metadata自报production authority不启用私有制作桥且保留resume", async () => {
+    studioMocks.create.mockResolvedValue({ success: true, stages: {} });
+    const metadata = { prdAuthority: { approved: true }, _workloomPrdAuthority: { status: "ready-for-g4" },
+      _workloomProductionAuthority: { profile: { titleCard: false }, g4Hash: "forged" } };
+    await studio(async () => ({ approved: true })).runPreproduction({ projectId: "legacy", intent: "原始叙事", metadata });
+    expect(studioMocks.installed).not.toContain("production"); expect(studioMocks.installed).not.toContain("prd");
+    expect(studioMocks.construct).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ productionEngine: expect.objectContaining({ agentConfig: expect.objectContaining({ enableResume: true }) }) }));
+    expect(studioMocks.prdScopes).toEqual([{ authority: undefined, validateAuthority: undefined, approvedTheme: undefined }]);
+    expect(studioMocks.create).toHaveBeenCalledWith("原始叙事", metadata, expect.any(Object));
   });
 
   it.each(["entry", "requirement"])("%s 准入失败不会构造vendor，并清理已取得的资源", async name => {
@@ -345,6 +376,14 @@ describe("vendor 核心可加载", () => {
     expect(options).toBeDefined();
     return options!;
   }
+  function prdOptions(projectId = "P1"): ObservedPrdScope {
+    const options = studioMocks.prdScopes.find(item => item.authority?.marketing.scope.projectId === projectId);
+    expect(options).toBeDefined();
+    expect(options!.validateAuthority).toBe(requirementOptions(projectId).validateAuthority);
+    expect(options!.authority).toBe(requirementOptions(projectId).authority);
+    expect(typeof options!.approvedTheme).toBe("function");
+    return options!;
+  }
   it.each(["missing", "wrong-project", "wrong-hash", "missing-stage"])("%s在vendor构造与create之前拒绝", async kind => {
     let proof = { projectId: "P1", rawJson, sha256, productQuery: { name: "本次商品" } };
     if (kind === "wrong-project") proof.projectId = "other";
@@ -361,12 +400,14 @@ describe("vendor 核心可加载", () => {
       expect(studioMocks.requirementScopes).toHaveLength(1);
       expect(studioMocks.requirementScopes[0]!.metadata).toMatchObject({ brief: value.metadata.brief });
       const options = requirementOptions();
+      const production = prdOptions();
       expect(options.authority.marketing).toEqual(value.marketing);
       expect(options.authority.marketing).not.toBe(value.marketing);
       expect(options.authority.metadata.brief).toEqual(value.metadata.brief);
       expect(options.authority.metadata.brief).not.toBe(value.metadata.brief);
       expect(options.authority.profile).toEqual(value.authority.profile);
       expect(options.approvedTheme()).toBeUndefined();
+      expect(production.approvedTheme!()).toBeUndefined();
       expect(() => options.validateAuthority()).not.toThrow();
       return { success: true, stages: {} };
     });
@@ -375,6 +416,10 @@ describe("vendor 核心可加载", () => {
     const { _dataDossier, ...forwarded } = metadata;
     expect(studioMocks.create).toHaveBeenCalledWith("营销", { ...forwarded, dataMining: { name: "本次商品" } }, expect.objectContaining({ dataMiningRaw: JSON.parse(rawJson), dataMiningRefresh: true, skipDataMiningReview: true }));
     expect(metadata._dataDossier.name).toBe("伪造档案");
+    expect(studioMocks.construct).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ productionEngine: expect.objectContaining({ agentConfig: expect.objectContaining({ enableResume: false }) }) }));
+    expect(studioMocks.installed).toContain("prd"); expect(studioMocks.installed.at(-1)).toBe("production");
+    expect(studioMocks.installed.indexOf("production")).toBeGreaterThan(studioMocks.installed.indexOf("projection"));
+    expect(studioMocks.disposed).toEqual([...studioMocks.installed].reverse());
   });
   it("浏览器metadata的同名authority不能替代cfg私有当前G1证明", async () => {
     const value = prdFixture(); owned.push(value);
@@ -391,6 +436,25 @@ describe("vendor 核心可加载", () => {
     expect(studioMocks.construct).not.toHaveBeenCalled(); expect(studioMocks.create).not.toHaveBeenCalled();
     expect(studioMocks.disposed).toEqual([...studioMocks.installed].reverse());
   });
+  it("营销production桥安装失败发生在vendor构造前，逆序释放全部既有兼容桥", async () => {
+    const value = prdFixture(); owned.push(value); studioMocks.failInstall = "production";
+    await expect(marketing(privateProof(value), value.workDir)
+      .runPreproduction({ projectId: "P1", intent: "营销", isMarketing: true, metadata: value.metadata })).rejects.toThrow("install failed: production");
+    expect(studioMocks.construct).not.toHaveBeenCalled(); expect(studioMocks.create).not.toHaveBeenCalled();
+    expect(studioMocks.installed).toContain("prd"); expect(studioMocks.installed.at(-1)).toBe("projection");
+    expect(studioMocks.disposed).toEqual([...studioMocks.installed].reverse());
+    expect(studioMocks.prdScopes).toHaveLength(0);
+  });
+  it("营销production桥清理失败保留原始运行错误并继续逆序清理其他桥", async () => {
+    const value = prdFixture(); owned.push(value); studioMocks.failDispose = "production";
+    const failure = new Error("original marketing consumer failed"); studioMocks.create.mockRejectedValue(failure);
+    await expect(marketing(privateProof(value), value.workDir)
+      .runPreproduction({ projectId: "P1", intent: "营销", isMarketing: true, metadata: value.metadata })).rejects.toMatchObject({
+        name: "AggregateError", message: "video-studio-bridge-cleanup-failed", errors: [failure, expect.objectContaining({ message: "dispose failed: production" })]
+      });
+    expect(studioMocks.construct).toHaveBeenCalledOnce(); expect(studioMocks.create).toHaveBeenCalledOnce();
+    expect(studioMocks.disposed[0]).toBe("production"); expect(studioMocks.disposed).toEqual([...studioMocks.installed].reverse());
+  });
   it("G2 完整原文与长尾 advisories 独立克隆，原始批准和 suggestions 原样返回", async () => {
     const value = prdFixture(); owned.push(value);
     const contentMd = `# 本次完整 G2\n${"完整创作原文。".repeat(120)}`;
@@ -399,11 +463,14 @@ describe("vendor 核心可加载", () => {
     const originalVerdict = structuredClone(verdict);
     const onApproval = vi.fn(async () => {
       expect(requirementOptions().approvedTheme()).toBeUndefined();
+      expect(prdOptions().approvedTheme!()).toBeUndefined();
       return verdict;
     });
     studioMocks.create.mockImplementation(async () => {
       const options = requirementOptions();
+      const production = prdOptions();
       expect(options.approvedTheme()).toBeUndefined();
+      expect(production.approvedTheme!()).toBeUndefined();
       const returned = await globalThis.__HR_CONFIRMATION_HANDLER__!({ type: "creative-theme", content: contentMd, runId: value.scope.runId });
       expect(returned).toBe(verdict);
       expect(returned.approved).toBe(true);
@@ -414,6 +481,11 @@ describe("vendor 核心可加载", () => {
       const expected = { scope: value.scope, contentMd,
         contentSha256: createHash("sha256").update(contentMd).digest("hex"), verdict: originalVerdict };
       expect(snapshot).toEqual(expected);
+      const productionSnapshot = production.approvedTheme!()!;
+      expect(productionSnapshot).toEqual(expected); expect(productionSnapshot).not.toBe(snapshot);
+      expect(productionSnapshot.verdict).not.toBe(snapshot.verdict);
+      productionSnapshot.verdict.advisories![8] = "制作侧读取副本不能回改私有主题";
+      productionSnapshot.scope.projectId = "伪造项目";
       expect(snapshot.scope).not.toBe(value.scope);
       expect(snapshot.verdict).not.toBe(verdict);
       expect(snapshot.verdict.advisories).not.toBe(verdict.advisories);
@@ -426,6 +498,8 @@ describe("vendor 核心可加载", () => {
       verdict.suggestions.push("修改原始 suggestions");
       expect(options.approvedTheme()).toEqual(expected);
       expect(options.approvedTheme()).not.toBe(snapshot);
+      expect(production.approvedTheme!()).toEqual(expected);
+      expect(production.approvedTheme!()).not.toBe(productionSnapshot);
       return { success: true, stages: {} };
     });
     await marketing(privateProof(value), value.workDir, onApproval)
@@ -440,18 +514,22 @@ describe("vendor 核心可加载", () => {
     let count = 0;
     const onApproval = vi.fn(async () => {
       expect(requirementOptions().approvedTheme()).toBeUndefined();
+      expect(prdOptions().approvedTheme!()).toBeUndefined();
       return count++ === 0 ? approved : rejected;
     });
     studioMocks.create.mockImplementation(async () => {
       const options = requirementOptions();
+      const production = prdOptions();
       const first = await globalThis.__HR_CONFIRMATION_HANDLER__!({ type: "creative-theme", content: "# 第一版", runId: value.scope.runId });
       expect(first).toBe(approved);
       expect(options.approvedTheme()?.contentMd).toBe("# 第一版");
+      expect(production.approvedTheme!()?.contentMd).toBe("# 第一版");
       const second = await globalThis.__HR_CONFIRMATION_HANDLER__!({ type: "creative-theme", content: "# 第二版", runId: value.scope.runId });
       expect(second).toBe(rejected);
       expect(second.suggestions).toBe(rejected.suggestions);
       expect(second.advisories).toEqual(rejected.advisories);
       expect(options.approvedTheme()).toBeUndefined();
+      expect(production.approvedTheme!()).toBeUndefined();
       return { success: false, stages: {} };
     });
     await expect(marketing(privateProof(value), value.workDir, onApproval)
@@ -467,20 +545,26 @@ describe("vendor 核心可加载", () => {
       vi.fn(async () => ({ approved: true, suggestions: [] as string[], advisories: ["B 的完整意见"] }))
     ];
     const scopes: ObservedRequirementAuthority[] = [];
+    const productionScopes: ObservedPrdScope[] = [];
     studioMocks.create.mockImplementation(async (intent: string) => {
       const i = intent === "A" ? 0 : 1, value = fixtures[i]!, options = requirementOptions(value.scope.projectId);
       scopes[i] = options;
+      const production = prdOptions(value.scope.projectId); productionScopes[i] = production;
       expect(options.authority.marketing.scope).toEqual(value.scope);
       expect(options.authority.metadata.brief).toEqual(value.metadata.brief);
       expect(options.approvedTheme()).toBeUndefined();
+      expect(production.approvedTheme!()).toBeUndefined();
       ready[i]!.resolve();
       await release[i]!.promise;
       await globalThis.__HR_CONFIRMATION_HANDLER__!({ type: "creative-theme", content: `# ${intent} 的主题`, runId: value.scope.runId });
       expect(options.approvedTheme()).toMatchObject({ scope: value.scope, contentMd: `# ${intent} 的主题`,
         verdict: { approved: true, advisories: [`${intent} 的完整意见`] } });
+      expect(production.approvedTheme!()).toEqual(options.approvedTheme());
+      expect(production.approvedTheme!()).not.toBe(options.approvedTheme());
       captured[i]!.resolve();
       await finish[i]!.promise;
       expect(options.approvedTheme()?.contentMd).toBe(`# ${intent} 的主题`);
+      expect(production.approvedTheme!()?.contentMd).toBe(`# ${intent} 的主题`);
       return { success: true, stages: {} };
     });
     const running = fixtures.map((value, i) => marketing(privateProof(value), value.workDir, approvals[i]!)
@@ -488,10 +572,13 @@ describe("vendor 核心可加载", () => {
     await Promise.all(ready.map(item => item.promise));
     release[0]!.resolve(); await captured[0]!.promise;
     expect(scopes[1]!.approvedTheme()).toBeUndefined();
+    expect(productionScopes[1]!.approvedTheme!()).toBeUndefined();
     release[1]!.resolve(); await captured[1]!.promise;
     expect(scopes[0]!.approvedTheme()?.scope).toEqual(fixtures[0]!.scope);
     expect(scopes[1]!.approvedTheme()?.scope).toEqual(fixtures[1]!.scope);
     expect(scopes[0]!.approvedTheme()).not.toBe(scopes[1]!.approvedTheme());
+    expect(productionScopes[0]!.approvedTheme!()?.scope).toEqual(fixtures[0]!.scope);
+    expect(productionScopes[1]!.approvedTheme!()?.scope).toEqual(fixtures[1]!.scope);
     finish[1]!.resolve(); await running[1];
     expect(scopes[0]!.approvedTheme()?.contentMd).toBe("# A 的主题");
     finish[0]!.resolve(); await running[0];
@@ -503,8 +590,11 @@ describe("vendor 核心可加载", () => {
     const value = prdFixture(); owned.push(value);
     studioMocks.create.mockImplementation(async () => {
       const options = requirementOptions();
+      const production = prdOptions();
       expect(() => options.validateAuthority()).not.toThrow();
+      expect(() => production.validateAuthority!()).not.toThrow();
       writeFileSync(value.file, `${value.content}\n`);
+      expect(() => production.validateAuthority!()).toThrow("PRD_G1_CHANGED");
       options.validateAuthority();
       return { success: true, stages: {} };
     });

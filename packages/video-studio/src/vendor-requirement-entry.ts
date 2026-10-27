@@ -30,17 +30,34 @@ export type VendorRequirementEntryPolicy = Readonly<{
   transformedBytes: number;
   anchor: string;
   replacement: string;
+  additionalPatches?: readonly Readonly<{ anchor: string; replacement: string }>[];
   patchId: string;
 }>;
 
 const PRODUCTION_POLICY: VendorRequirementEntryPolicy = Object.freeze({
   sourceSha256: "489171f35ce7cf5fc2cc4387e07380337ea1a574df638533f2b90ed6bd1f86fd",
   sourceBytes: 205980,
-  transformedSha256: "583b8b6f82aa3cbda330d2827caa2c7bcdb161f6bb43cddbda3cb7de3e93c8e1",
-  transformedBytes: 205996,
+  transformedSha256: "fd0c19e7f8b2639f58746b9cca15db4200996f81f8c5e9cc069e00f657841afc",
+  transformedBytes: 206136,
   anchor: "const requirementList = this._convertDiscoveryToRequirementList(discoveryResult, upstreamFields);",
   replacement: "const requirementList = await this._convertDiscoveryToRequirementList(discoveryResult, upstreamFields, metadata);",
-  patchId: "workloom.g3-requirement-await/v1",
+  // The host method consults private run authority. Its absence preserves the
+  // vendor default; all ordinary field normalization remains outside these guards.
+  additionalPatches: Object.freeze([
+    Object.freeze({
+      anchor: "let openingShot = productionResult.shots.find(s => isOpeningShot(s));",
+      replacement: "let openingShot = this._shouldUseTitleCard?.() === false ? null : productionResult.shots.find(s => isOpeningShot(s));",
+    }),
+    Object.freeze({
+      anchor: "if (!openingShot && productionResult.shots.length > 0) {",
+      replacement: "if (this._shouldUseTitleCard?.() !== false && !openingShot && productionResult.shots.length > 0) {",
+    }),
+    Object.freeze({
+      anchor: "openingShot = openingShotId\n            ? productionResult.shots.find(s => (s.shotId || s.shot_id) === openingShotId)\n            : productionResult.shots.find(s => isOpeningShot(s));",
+      replacement: "openingShot = this._shouldUseTitleCard?.() === false ? null : (openingShotId\n            ? productionResult.shots.find(s => (s.shotId || s.shot_id) === openingShotId)\n            : productionResult.shots.find(s => isOpeningShot(s)));",
+    }),
+  ]),
+  patchId: "workloom.g3-requirement-await-title-policy/v2",
 });
 
 function failure(code: string, message: string, cause?: unknown): Error {
@@ -64,7 +81,23 @@ function copyPolicy(policy: VendorRequirementEntryPolicy): VendorRequirementEntr
     || typeof policy.patchId !== "string" || policy.patchId.trim().length === 0) {
     throw failure("POLICY_INVALID", "a complete immutable source and transform policy is required");
   }
-  return Object.freeze({ ...policy });
+  if (policy.additionalPatches !== undefined && !Array.isArray(policy.additionalPatches)) {
+    throw failure("POLICY_INVALID", "additional patches must be an array of immutable exact replacements");
+  }
+  const anchors = new Set([policy.anchor]);
+  const additionalPatches = policy.additionalPatches?.map((patch) => {
+    if (!patch || typeof patch.anchor !== "string" || patch.anchor.length === 0
+      || typeof patch.replacement !== "string" || patch.replacement.length === 0
+      || patch.anchor === patch.replacement || anchors.has(patch.anchor)) {
+      throw failure("POLICY_INVALID", "every additional patch must have a unique nonempty anchor and replacement");
+    }
+    anchors.add(patch.anchor);
+    return Object.freeze({ anchor: patch.anchor, replacement: patch.replacement });
+  });
+  return Object.freeze({
+    ...policy,
+    ...(additionalPatches ? { additionalPatches: Object.freeze(additionalPatches) } : {}),
+  });
 }
 
 function canonicalEntry(entry: string): string {
@@ -119,11 +152,14 @@ function readSource(entry: string, policy: VendorRequirementEntryPolicy): string
 }
 
 function transformSource(source: string, policy: VendorRequirementEntryPolicy): string {
-  const parts = source.split(policy.anchor);
-  if (parts.length !== 2) {
-    throw failure("PATCH_MISMATCH", "the pinned caller must occur exactly once");
+  let transformed = source;
+  for (const patch of [policy, ...(policy.additionalPatches ?? [])]) {
+    const parts = transformed.split(patch.anchor);
+    if (source.split(patch.anchor).length !== 2 || parts.length !== 2) {
+      throw failure("PATCH_MISMATCH", "each pinned caller must occur exactly once");
+    }
+    transformed = parts.join(patch.replacement);
   }
-  const transformed = parts.join(policy.replacement);
   const bytes = Buffer.from(transformed, "utf8");
   if (bytes.length !== policy.transformedBytes || sha256(bytes) !== policy.transformedSha256) {
     throw failure("PATCH_MISMATCH", "transformed entry differs from the pinned transform");
