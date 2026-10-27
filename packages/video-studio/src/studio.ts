@@ -22,6 +22,8 @@ import { createPortraitRuntime, type PortraitIndex, type PortraitInputReceipt, t
 import { installPortraitArchivePlanBridge, withPortraitArchivePlan } from "./portrait-archive-plan.js";
 import { acquireVendorRequirementEntry } from "./vendor-requirement-entry.js";
 import { assertRequirementContractBridge, installVendorRequirementContractBridge, withRequirementContractScope } from "./requirement-contract-bridge.js";
+import { preparePrdAuthority, type PrdAuthority, type PrdMarketingAuthority } from "./prd-authority.js";
+import { assertPrdAuthorityBridge, installVendorPrdAuthorityBridge, withPrdAuthorityScope } from "./prd-authority-bridge.js";
 import {
   applyDurationPolicyToManager,
   installVendorAudioDisciplineBridge,
@@ -184,7 +186,14 @@ export interface StudioConfig {
     storeRoot?: string;
     staleAfterDays?: number;
     /** 仅服务宿主在完整来源/G1通过后装配；浏览器metadata中的同名字段没有权限。 */
-    verifiedRaw?: { projectId: string; rawJson: string; sha256: string; productQuery: Record<string, unknown> };
+    verifiedRaw?: {
+      projectId: string;
+      rawJson: string;
+      sha256: string;
+      productQuery: Record<string, unknown>;
+      /** 私有 accepted-current-G1 导出；metadata 中的同名值没有权限。 */
+      prdAuthority?: PrdMarketingAuthority;
+    };
   };
 }
 
@@ -233,6 +242,7 @@ export class VideoStudio {
     delete metadata._dataDossier;
     const verified = cfg.dataMining?.verifiedRaw;
     let verifiedRaw: Record<string, unknown> | undefined;
+    let prdAuthority: PrdAuthority | undefined;
     if (input.isMarketing) {
       if (!verified || verified.projectId !== input.projectId || createHash("sha256").update(verified.rawJson).digest("hex") !== verified.sha256) {
         throw new Error("MARKETING_G1_REQUIRED：营销创意只能消费本次宿主G1通过的事实回填");
@@ -247,6 +257,8 @@ export class VideoStudio {
       }
       metadata.dataMining = structuredClone(verified.productQuery);
       verifiedRaw = parsed;
+      if (!verified.prdAuthority) throw new Error("MARKETING_PRD_AUTHORITY_REQUIRED：营销 PRD 缺少本次宿主私有 G1 权威原件");
+      prdAuthority = preparePrdAuthority({ metadata, marketing: verified.prdAuthority, workDir: cfg.workDir, projectId: input.projectId });
     }
     const log = cfg.log ?? ((line: string) => console.log(line));
     const emit: EventSink = (e) => (cfg.onEvent ? cfg.onEvent(e) : undefined);
@@ -325,6 +337,12 @@ export class VideoStudio {
           HyperrealitySystem as unknown as { prototype: Record<string, unknown> }, vendorEntry.identity.entryPath
         )));
         assertRequirementContractBridge((HyperrealitySystem as unknown as { prototype: Record<string, unknown> }).prototype);
+        if (prdAuthority) {
+          keep(installSharedBridge("vendor-prd-authority-v1", () => installVendorPrdAuthorityBridge(
+            HyperrealitySystem as unknown as { prototype: Record<string, unknown> }, vendorEntry.identity.entryPath
+          )));
+          assertPrdAuthorityBridge((HyperrealitySystem as unknown as { prototype: Record<string, unknown> }).prototype);
+        }
         /** Phase 3 后融合链路深栈诊断（vendor 内部 catch 会吞掉栈帧） */
         keep(installVendorPhaseInternalsDiagnostics({ log }));
         /** 镜头内音频纪律（禁止 BGM）与时长策略（模型能力 4–30s）两条产品口径 */
@@ -493,9 +511,9 @@ export class VideoStudio {
           const modelName = portraitCfg && portraitCfg.enabled !== false ? portraitCfg.model : "未指定模型";
           log(`[studio] 定妆照真实出图已启用（${modelName}，产物根 ${charactersDir}）`);
         }
-        const result = await withRequirementContractScope(metadata, () => withPortraitArchivePlan(portraitRuntime, () =>
+        const result = await withPrdAuthorityScope(prdAuthority, () => withRequirementContractScope(metadata, () => withPortraitArchivePlan(portraitRuntime, () =>
           system.create(input.intent, metadata, createOptions)
-        ));
+        )));
         if (portraitRuntime) {
           const index = portraitRuntime.snapshot();
           const characters = Object.keys(index.characters).length;

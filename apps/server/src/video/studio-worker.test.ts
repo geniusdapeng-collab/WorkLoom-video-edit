@@ -30,6 +30,7 @@ const doubles = vi.hoisted(() => ({
   prepare: vi.fn(),
   finalize: vi.fn(),
   studioConfigs: [] as Array<Record<string, any>>,
+  gateReplies: [] as Array<{ gate: string; verdict: any }>,
   emitGates: true,
   connect: vi.fn(),
   query: vi.fn(),
@@ -91,7 +92,8 @@ vi.mock("@hyperreality/video-studio", async (importOriginal) => ({
     async runPreproduction(...args: unknown[]) {
       const result = await doubles.runPreproduction(...args);
       if (result.success && doubles.emitGates) for (const gate of ["G2_THEME", "G3_INSIGHT", "G4_PRD", "G6_PROMPT", "G7_FINAL"]) {
-        await this.config.onApproval({ gate, vendorType: "test-gate", runId: "vendor-run", title: "完整确认单", contentMd: "具体场景、角色、动作与镜头交付标准。".repeat(20) });
+        const verdict = await this.config.onApproval({ gate, vendorType: "test-gate", runId: "vendor-run", title: "完整确认单", contentMd: "具体场景、角色、动作与镜头交付标准。".repeat(20) });
+        doubles.gateReplies.push({ gate, verdict });
       }
       return result;
     }
@@ -122,6 +124,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   doubles.nextAttempt = 0;
   doubles.studioConfigs.length = 0;
+  doubles.gateReplies.length = 0;
   doubles.prepare.mockReset().mockImplementation(async ({ scope, root }) => {
     const raw = { A1: { identity: { name: "本次商品", specs: { 功率: "1 W" } }, images: [] }, A2: { reviews: [] }, A3: { competitors: [] } };
     const sourceId = `SRC-${renderSha256(`https://source.example.com/final\n${"a".repeat(64)}`).slice(0, 24)}`;
@@ -133,7 +136,10 @@ beforeEach(() => {
     prefix: `stages/preproduction/attempt-${scope.attempt}.marketing`,
     storeRoot: path.join(root, `stages/preproduction/attempt-${scope.attempt}.marketing-dossier`),
     g1Content: JSON.stringify({ facts: { schemaVersion: "workloom.marketing-facts/v1", issuer: "workloom.marketing-authority",
-      scope: { ...scope }, stages: [1, 2, 3], sources: [1], optionalValue: null } }),
+      scope: { ...scope }, stages: [{ stage: "A1", review: { score: 88,
+        issues: ["媒体报道与厂家确认要区分，并保留报道日期", "SBK 赛事型号不能替代零售型号"],
+        suggestions: ["保留封闭赛道限定", "未知外观不得扩写"] } }, { stage: "A2" }, { stage: "A3" }],
+      restrictions: ["未提供评价", "未提供竞品"], sources: [1], optionalValue: null } }),
   }; });
   doubles.finalize.mockReset().mockResolvedValue({ ref: "stages/preproduction/attempt-1.marketing-facts.json", sha256: "b".repeat(64) });
   doubles.emitGates = true;
@@ -220,10 +226,10 @@ const rejected = () => ({
   stages: { creativeTheme: { title: "需要重做" } },
 });
 
-async function runToTerminal(isMarketing = true) {
+async function runToTerminal(isMarketing = true, metadata?: Record<string, unknown>) {
   const projectId = `VID-result-${++projectSequence}`;
   if (!isMarketing) useNarrativeProject();
-  const runId = worker.startRun(scope, { projectId, intent: "测试预生产结果", isMarketing });
+  const runId = worker.startRun(scope, { projectId, intent: "测试预生产结果", isMarketing, metadata });
   await vi.waitFor(() => expect(worker.getRun(runId, scope.workspaceId)?.finishedAt).not.toBeNull(), { timeout: 3_000, interval: 10 });
   const entry = worker.getRun(runId, scope.workspaceId)!;
   return { projectId, runId, entry };
@@ -584,6 +590,97 @@ describe("预生产原始结果与诚实终态", () => {
     expect(prepared.bundle.rawSha256).toBe(renderSha256(canonicalRenderJson(prepared.raw)));
     expect(verifiedRaw.sha256).not.toBe(prepared.bundle.rawSha256);
   });
+  it("PRD配置只交接本次私有G1原件与完整裁决，不采信metadata同名authority", async () => {
+    const review = doubles.review.getMockImplementation()!;
+    const advisories = Array.from({ length: 8 }, (_, index) => `G1完整审阅建议-${index + 1}`);
+    doubles.review.mockImplementation(async options => ({ ...await review(options),
+      ...(options.context.gate === "G1_DOSSIER" ? { issues: ["保留来源归因"], suggestions: advisories } : {}) }));
+    const forged = { schemaVersion: "workloom.prd-marketing-authority/v1", scope: { ...scope, projectId: "other", runId: "old", attempt: 9 },
+      g1Artifact: { path: "/metadata/G1.md", sha256: "0".repeat(64), content: "browser伪造正文" },
+      g1Proof: { gate: "G1_DOSSIER", approved: true, status: "passed", via: "llm", model: "browser", degraded: false, evidence: [] } };
+    doubles.runPreproduction.mockResolvedValue(success());
+    const { entry, projectId, runId } = await runToTerminal(true, { prdAuthority: forged,
+      dataMining: { verifiedRaw: { prdAuthority: forged } }, marketingFactsAuthority: forged });
+    expect(entry.status).toBe("finished");
+    const authority = doubles.studioConfigs[0]?.dataMining.verifiedRaw.prdAuthority;
+    const prepared = await doubles.prepare.mock.results[0]!.value;
+    const file = path.join(doubles.workDir, "workspaces", scope.workspaceId, "gates", projectId, "attempt-1", "G1_DOSSIER.md");
+    expect(authority).toMatchObject({ schemaVersion: "workloom.prd-marketing-authority/v1", scope: { ...scope, projectId, runId, attempt: 1 },
+      g1Artifact: { path: file, content: prepared.g1Content, sha256: renderSha256(prepared.g1Content) },
+      g1Proof: { gate: "G1_DOSSIER", status: "passed", approved: true, via: "llm", model: "test-judge", degraded: false,
+        issues: ["保留来源归因"], suggestions: advisories, advisories,
+        evidence: [{ path: file, sha256: renderSha256(prepared.g1Content), scope: "complete-text" }] } });
+    expect(authority.g1Artifact.content).toBe(await readFile(file, "utf8"));
+    expect(JSON.parse(authority.g1Artifact.content).facts.stages[0].review).toEqual(JSON.parse(prepared.g1Content).facts.stages[0].review);
+    const proofs = (await archiveOutput(projectId, 1)).productionEvidence as { gates: Array<Record<string, unknown>> };
+    expect(authority.g1Proof).toEqual(proofs.gates.find(item => item.gate === "G1_DOSSIER"));
+    expect(authority.g1Artifact.content).not.toBe(forged.g1Artifact.content);
+    expect(doubles.runPreproduction.mock.calls[0]?.[0].metadata.prdAuthority).toEqual(forged);
+  });
+
+  it("未通过真实G1时metadata伪造authority不能构造或运行vendor", async () => {
+    doubles.review.mockResolvedValue({ stage: "script", status: "failed", approved: false, score: 40, via: "llm", model: "test-judge",
+      degraded: false, reason: "来源主张不支持", issues: ["拒绝"], suggestions: ["修正来源"], evidence: [] });
+    doubles.runPreproduction.mockResolvedValue(success());
+    const forged = { approved: true, status: "passed", via: "llm", degraded: false, model: "browser" };
+    const { entry } = await runToTerminal(true, { prdAuthority: forged, dataMining: { verifiedRaw: { prdAuthority: forged } } });
+    expect(entry.status).toBe("failed"); expect(entry.error).toContain("本次来源与事实未通过真实监制");
+    expect(doubles.studioConfigs).toHaveLength(0); expect(doubles.runPreproduction).not.toHaveBeenCalled();
+    expect(doubles.finalize).not.toHaveBeenCalled();
+  });
+
+  it("approved机审建议完整留在账本与档案，返回advisories不触发未审二次改写", async () => {
+    const review = doubles.review.getMockImplementation()!;
+    const advisories = Array.from({ length: 8 }, (_, index) => `非阻断建议-${index + 1}`);
+    const issues = Array.from({ length: 7 }, (_, index) => `审阅记录-${index + 1}`);
+    doubles.review.mockImplementation(async options => ({ ...await review(options),
+      ...(options.context.gate === "G4_PRD" ? { suggestions: advisories, issues } : {}) }));
+    doubles.runPreproduction.mockResolvedValue(success());
+    const { entry, projectId } = await runToTerminal(); expect(entry.status).toBe("finished");
+    const reply = doubles.gateReplies.find(item => item.gate === "G4_PRD")?.verdict;
+    expect(reply).toMatchObject({ approved: true, suggestions: [], advisories });
+    expect(reply.fatal).toBeUndefined();
+    const ledger = vi.mocked(gatewayAppendOnClient).mock.calls.find(([, , event]) => event.decision.action === "prd.confirm")?.[2].decision.after;
+    expect(ledger).toMatchObject({ approved: true, score: 95, issues, suggestions: advisories, advisories });
+    const output = await archiveOutput(projectId, 1);
+    expect((output.productionEvidence as { gates: Array<Record<string, unknown>> }).gates.find(item => item.gate === "G4_PRD"))
+      .toMatchObject({ approved: true, score: 95, issues, suggestions: advisories, advisories });
+    expect(doubles.runPreproduction).toHaveBeenCalledTimes(1);
+  });
+
+  it("rejected机审仍返回原始修改建议与fatal，不转为advisory放行", async () => {
+    const review = doubles.review.getMockImplementation()!;
+    const suggestions = Array.from({ length: 8 }, (_, index) => `阻断修改-${index + 1}`);
+    doubles.review.mockImplementation(async options => ({ ...await review(options),
+      ...(options.context.gate === "G4_PRD" ? { approved: false, status: "failed", score: 58,
+        reason: "制作规格不符", suggestions } : {}) }));
+    doubles.runPreproduction.mockResolvedValue(success());
+    const { entry, projectId } = await runToTerminal(); expect(entry.status).toBe("failed");
+    const reply = doubles.gateReplies.find(item => item.gate === "G4_PRD")?.verdict;
+    expect(reply).toMatchObject({ approved: false, suggestions, fatal: "producer_rejected" });
+    expect(reply.advisories).toBeUndefined();
+    const proofs = (await archiveOutput(projectId, 1)).productionEvidence as { gates: Array<Record<string, unknown>> };
+    expect(proofs.gates.find(item => item.gate === "G4_PRD"))
+      .toMatchObject({ approved: false, status: "failed", score: 58, suggestions });
+    expect(doubles.finalize).not.toHaveBeenCalled();
+  });
+
+  it("人类edited_after仍作为明确修改建议返回，不改成机审advisory", async () => {
+    const edited = { resolution: "1080p", reason: "用户明确改动" };
+    const query = doubles.query.getMockImplementation()!;
+    doubles.query.mockImplementation(async (sql: string) => sql.includes("SELECT status, gesture FROM approvals")
+      ? { rows: [{ status: "edited", gesture: { edited_after: edited } }], rowCount: 1 } : query(sql));
+    vi.mocked(gatewayAppendOnClient).mockResolvedValueOnce({ eventId: "EV-HUMAN-EDIT" } as Awaited<ReturnType<typeof gatewayAppendOnClient>>);
+    let reply: Record<string, unknown> | undefined;
+    doubles.runPreproduction.mockImplementation(async () => {
+      reply = await doubles.studioConfigs[0]!.onApproval({ gate: "G8_RENDER", vendorType: "render", runId: "vendor-run",
+        title: "明确生产操作的人审修改", contentMd: "隔离测试，不执行真实渲染" });
+      return success();
+    });
+    const { entry } = await runToTerminal(false); expect(entry.status).toBe("finished");
+    expect(reply).toEqual({ approved: true, suggestions: [JSON.stringify(edited)] });
+    expect(reply?.advisories).toBeUndefined();
+  });
   it("G2至G7模型门持有同一当前attempt的G1原件和当前门完整摘要，叙事不增加事实权限", async () => {
     doubles.runPreproduction.mockResolvedValue(success());
     const { entry, projectId, runId } = await runToTerminal(); expect(entry.status).toBe("finished");
@@ -606,6 +703,7 @@ describe("预生产原始结果与诚实终态", () => {
     }
     doubles.review.mockClear(); doubles.runPreproduction.mockResolvedValue(success());
     const narrative = await runToTerminal(false); expect(narrative.entry.status).toBe("finished");
+    expect(doubles.studioConfigs.at(-1)?.dataMining?.verifiedRaw?.prdAuthority).toBeUndefined();
     for (const [options] of doubles.review.mock.calls) {
       expect(options.artifacts).toHaveLength(1); expect(options.requiredCheckIds).toBeUndefined();
       expect(options.context.marketingFactsAuthority).toBeUndefined(); expect(options.artifacts[0].expectedSha256).toBeUndefined();
@@ -631,6 +729,15 @@ describe("预生产原始结果与诚实终态", () => {
     expect(doubles.prepare).toHaveBeenCalledTimes(2);
     const g1 = doubles.review.mock.calls.map(([options]) => options).filter(options => options.context.gate === "G1_DOSSIER");
     expect(g1).toHaveLength(2); expect(g1[0].artifacts[0].path).toContain("attempt-1"); expect(g1[1].artifacts[0].path).toContain("attempt-2");
+    expect(doubles.studioConfigs).toHaveLength(2);
+    for (const [index, config] of doubles.studioConfigs.entries()) {
+      expect(config.dataMining.verifiedRaw.prdAuthority).toMatchObject({ scope: { projectId, attempt: index + 1 },
+        g1Artifact: { path: g1[index].artifacts[0].path,
+          sha256: g1[index].artifacts[0].expectedSha256 ?? renderSha256(await readFile(g1[index].artifacts[0].path, "utf8")) } });
+      expect(config.dataMining.verifiedRaw.prdAuthority.g1Artifact.content).toBe(await readFile(g1[index].artifacts[0].path, "utf8"));
+    }
+    expect(doubles.studioConfigs[1]!.dataMining.verifiedRaw.prdAuthority.g1Artifact.sha256)
+      .not.toBe(doubles.studioConfigs[0]!.dataMining.verifiedRaw.prdAuthority.g1Artifact.sha256);
     for (const [options] of doubles.review.mock.calls.filter(([options]) => options.context.gate !== "G1_DOSSIER")) {
       expect(options.artifacts[1].path).toBe(g1[1].artifacts[0].path);
       expect(options.context.marketingFactsAuthority.scope).toMatchObject({ projectId, attempt: 2 });

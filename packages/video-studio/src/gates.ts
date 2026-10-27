@@ -70,7 +70,10 @@ export function resolveGate(vendorType: string): GateKey {
 export interface GateVerdict {
   approved: boolean;
   reason?: string;
+  /** Explicit edit requests; vendor may regenerate from these, so advisory notes must stay separate. */
   suggestions?: string[];
+  /** Nonblocking review advice retained by the host; it does not authorize regeneration. */
+  advisories?: string[];
   fatal?: string;
 }
 

@@ -1,10 +1,11 @@
 import { createHash } from "node:crypto";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { resolveGate } from "./gates.js";
 import { autoApproveHandler, runWithConfirmationHandler } from "./confirmation.js";
 import { WorkloomLLMEngine } from "./llm-adapter.js";
 import { buildRenderScript, loadPromptLengthSpec } from "./render-scripts.js";
-import { VideoStudio, type ApprovalCallback, type EventSink } from "./studio.js";
+import { VideoStudio, type ApprovalCallback, type EventSink, type StudioConfig } from "./studio.js";
+import { prdFixture } from "./prd-authority.test-support.js";
 
 const studioMocks = vi.hoisted(() => ({
   construct: vi.fn(),
@@ -37,6 +38,17 @@ vi.mock("./requirement-contract-bridge.js", () => ({
     if (studioMocks.failInstall === "requirement") throw new Error("install failed: requirement");
     studioMocks.installed.push("requirement");
     return () => { studioMocks.disposed.push("requirement"); if (studioMocks.failDispose === "requirement") throw new Error("dispose failed: requirement"); };
+  }
+}));
+// These are assembly/lifecycle tests. Native PRD generation and strict scope
+// behavior are exercised with the real generator/agents in prd-authority-bridge.test.ts.
+vi.mock("./prd-authority-bridge.js", () => ({
+  assertPrdAuthorityBridge: () => undefined,
+  withPrdAuthorityScope: (_authority: unknown, operation: () => unknown) => operation(),
+  installVendorPrdAuthorityBridge: () => {
+    if (studioMocks.failInstall === "prd") throw new Error("install failed: prd");
+    studioMocks.installed.push("prd");
+    return () => { studioMocks.disposed.push("prd"); if (studioMocks.failDispose === "prd") throw new Error("dispose failed: prd"); };
   }
 }));
 
@@ -303,9 +315,11 @@ describe("vendor 核心可加载", () => {
  describe("营销只消费宿主绑定回填", () => {
   const rawJson = JSON.stringify({ A1: { identity: { name: "本次商品" } }, A2: { reviews: [] }, A3: { competitors: [] } });
   const sha256 = createHash("sha256").update(rawJson).digest("hex");
-  function marketing(verifiedRaw?: { projectId: string; rawJson: string; sha256: string; productQuery: Record<string, unknown> }) {
+  const owned: ReturnType<typeof prdFixture>[] = [];
+  afterEach(() => { for (const value of owned.splice(0)) value.cleanup(); });
+  function marketing(verifiedRaw?: NonNullable<StudioConfig["dataMining"]>["verifiedRaw"], workDir = "/unused/marketing-test") {
     return new VideoStudio({ llm: new WorkloomLLMEngine({ baseUrl: "https://example.invalid", apiKey: "test-only", model: "test" }),
-      workDir: "/unused/marketing-test", onApproval: async () => ({ approved: true }), log: () => undefined,
+      workDir, onApproval: async () => ({ approved: true }), log: () => undefined,
       dataMining: { mode: "api", raw: { A1: { identity: { name: "旧缓存商品" } } }, storeRoot: "/unused/current-attempt", verifiedRaw } });
   }
   it.each(["missing", "wrong-project", "wrong-hash", "missing-stage"])("%s在vendor构造与create之前拒绝", async kind => {
@@ -319,9 +333,27 @@ describe("vendor 核心可加载", () => {
   });
   it("可信回填覆盖旧cfg raw，metadata自报档案被移除；强制刷新和G1后跳过vendor重复审核", async () => {
     studioMocks.create.mockResolvedValue({ success: true, stages: {} });
-    const metadata = { _dataDossier: { name: "伪造档案" }, brief: { product: "当前查询商品" } };
-    await marketing({ projectId: "P1", rawJson, sha256, productQuery: { name: "本次商品" } }).runPreproduction({ projectId: "P1", intent: "营销", isMarketing: true, metadata });
-    expect(studioMocks.create).toHaveBeenCalledWith("营销", { brief: metadata.brief, dataMining: { name: "本次商品" } }, expect.objectContaining({ dataMiningRaw: JSON.parse(rawJson), dataMiningRefresh: true, skipDataMiningReview: true }));
+    const value = prdFixture(); owned.push(value);
+    const metadata = { ...value.metadata, _dataDossier: { name: "伪造档案" } };
+    await marketing({ projectId: "P1", rawJson, sha256, productQuery: { name: "本次商品" }, prdAuthority: value.marketing }, value.workDir)
+      .runPreproduction({ projectId: "P1", intent: "营销", isMarketing: true, metadata });
+    const { _dataDossier, ...forwarded } = metadata;
+    expect(studioMocks.create).toHaveBeenCalledWith("营销", { ...forwarded, dataMining: { name: "本次商品" } }, expect.objectContaining({ dataMiningRaw: JSON.parse(rawJson), dataMiningRefresh: true, skipDataMiningReview: true }));
     expect(metadata._dataDossier.name).toBe("伪造档案");
+  });
+  it("浏览器metadata的同名authority不能替代cfg私有当前G1证明", async () => {
+    const value = prdFixture(); owned.push(value);
+    await expect(marketing({ projectId: "P1", rawJson, sha256, productQuery: { name: "本次商品" } }, value.workDir)
+      .runPreproduction({ projectId: "P1", intent: "营销", isMarketing: true,
+        metadata: { ...value.metadata, prdAuthority: value.marketing, _workloomPrdAuthority: value.marketing } }))
+      .rejects.toThrow("MARKETING_PRD_AUTHORITY_REQUIRED");
+    expect(studioMocks.construct).not.toHaveBeenCalled(); expect(studioMocks.create).not.toHaveBeenCalled();
+  });
+  it("营销PRD桥安装失败发生在vendor构造前，逆序释放已取得的桥", async () => {
+    const value = prdFixture(); owned.push(value); studioMocks.failInstall = "prd";
+    await expect(marketing({ projectId: "P1", rawJson, sha256, productQuery: { name: "本次商品" }, prdAuthority: value.marketing }, value.workDir)
+      .runPreproduction({ projectId: "P1", intent: "营销", isMarketing: true, metadata: value.metadata })).rejects.toThrow("install failed: prd");
+    expect(studioMocks.construct).not.toHaveBeenCalled(); expect(studioMocks.create).not.toHaveBeenCalled();
+    expect(studioMocks.disposed).toEqual([...studioMocks.installed].reverse());
   });
 });

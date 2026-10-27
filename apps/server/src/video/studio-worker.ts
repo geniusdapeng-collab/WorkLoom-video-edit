@@ -822,8 +822,9 @@ export function startRun(scope: Scope, input: StudioRunInput): string {
               ...(producerVerdict
                 ? {
                     score: producerVerdict.score, via: producerVerdict.via, model: producerVerdict.model ?? null,
-                    degraded: producerVerdict.degraded, issues: producerVerdict.issues.slice(0, 5),
-                    suggestions: producerVerdict.suggestions.slice(0, 5), reason: producerVerdict.reason
+                    degraded: producerVerdict.degraded, issues: producerVerdict.issues,
+                    suggestions: producerVerdict.suggestions, reason: producerVerdict.reason,
+                    ...(approved ? { advisories: producerVerdict.suggestions } : {}),
                   }
                 : { autoApproved: true }),
             }, gateRecord),
@@ -840,9 +841,11 @@ export function startRun(scope: Scope, input: StudioRunInput): string {
       } finally {
         autoClient.release();
       }
-      gateProofs.set(gate, { gate, approved, status: producerVerdict?.status ?? "unverified",
+      gateProofs.set(gate, { ...(producerVerdict ?? {}),
+        gate, approved, status: producerVerdict?.status ?? "unverified",
         via: producerVerdict?.via ?? "auto", degraded: producerVerdict?.degraded ?? true,
         model: producerVerdict?.model ?? null, evidence: producerVerdict?.evidence ?? [],
+        ...(approved && producerVerdict ? { advisories: producerVerdict.suggestions } : {}),
         ...(producerVerdict?.status === "not_applicable" ? { basis: producerVerdict.reason } : {}) });
       if (PRODUCER_MODE === "auto") {
         return { approved: true, reason: `auto-approved(${req.gate})`, suggestions: [] };
@@ -853,7 +856,9 @@ export function startRun(scope: Scope, input: StudioRunInput): string {
             reason: producerVerdict.approved
               ? `producer-approved(${req.gate} · score=${producerVerdict.score} · via=${producerVerdict.via})`
               : `producer-rejected(${req.gate} · score=${producerVerdict.score})：${producerVerdict.reason}`,
-            suggestions: producerVerdict.suggestions,
+            // 已通过机审的非阻断建议只留作审阅意见，不能驱动 vendor 未经重审二次生成。
+            suggestions: approved ? [] : producerVerdict.suggestions,
+            ...(approved ? { advisories: producerVerdict.suggestions } : {}),
             fatal: producerVerdict.approved ? undefined : "producer_rejected"
           }
         : { approved: false, reason: `producer-unavailable(${req.gate})`, fatal: "producer_unavailable" };
@@ -1084,15 +1089,16 @@ export function startRun(scope: Scope, input: StudioRunInput): string {
               marketingDossierRef = path.posix.join("archive", scope.workspaceId, input.projectId, `${marketing.prefix}-dossier`);
             }
             const verifiedRawJson = marketing ? canonicalRenderJson(toJennyMarketingRaw(marketing.raw, marketing.bundle)) : undefined;
-            const studio = new VideoStudio({ ...studioConfig, ...(marketing ? { dataMining: {
+            const studio = g1Approved ? new VideoStudio({ ...studioConfig, ...(marketing ? { dataMining: {
               mode: "api", storeRoot: marketing.storeRoot, refresh: true,
-              verifiedRaw: { projectId: input.projectId, rawJson: verifiedRawJson!, sha256: renderSha256(verifiedRawJson!), productQuery: marketing.bundle.productQuery },
-            } } : {}) });
+              verifiedRaw: { projectId: input.projectId, rawJson: verifiedRawJson!, sha256: renderSha256(verifiedRawJson!), productQuery: marketing.bundle.productQuery,
+                prdAuthority: marketingGateEvidence!.forPrd() },
+            } } : {}) }) : undefined;
             /**
              * 传入 runInput（而不是 input）：它带上了本轮的片型选型结论与注入指引，
              * vendor 的提示词/分镜必须按本次选中的知识条目生成；G1 营销事实仍取自原始 input。
              */
-            const r: Awaited<ReturnType<VideoStudio["runPreproduction"]>> = g1Approved ? await studio.runPreproduction(runInput) : {
+            const r: Awaited<ReturnType<VideoStudio["runPreproduction"]>> = studio ? await studio.runPreproduction(runInput) : {
               success: false, stages: {}, confirmations: { hostG1: { approved: false, reason: "producer-rejected(G1_DOSSIER)：本次来源与事实未通过真实监制" } },
             };
             completedVendorResult = r;
