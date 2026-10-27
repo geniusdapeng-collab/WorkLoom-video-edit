@@ -2,13 +2,13 @@
  * T-2026-0927-0013：真实 startRun + StageRunner + ArchiveStore 回归。
  * vendor、PG、媒体登记用边界替身；档案写盘与重试/终态/商品摘要走实际代码。
  */
-import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, readdir, realpath, rm, writeFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { gatewayAppend, gatewayAppendOnClient } from "@workloom/base/workdata";
-import { applyScenePolicy, auditScenePolicy, loadScenePolicies, type ScenePolicyShot } from "@hyperreality/video-studio";
+import { applyScenePolicy, auditScenePolicy, loadScenePolicies, resolveShotCast, type ScenePolicyShot } from "@hyperreality/video-studio";
 import { verifyScenePolicyProductionSource } from "./scene-policy-render-gate.js";
 import { portraitReuseFixture } from "./portrait-reuse.test-support.js";
 import { builtinCatalogFixture } from "./builtin-character-selection.test-support.js";
@@ -176,11 +176,13 @@ beforeEach(() => {
 const success = () => ({
   success: true,
   confirmations: { theme: { approved: true, reason: "producer-approved" } },
+  shots: [{ shotId: "SC-1", duration: 5, prompt: "01.【场景】窗边桌面", fields: { scene: "窗边桌面" } }],
   stages: {
     portraitStudio: { status: "skipped", reason: "no-characters-or-products" },
     scriptEngine: { report: { characters_count: 0 } },
     dataMining: { status: "completed", product_id: "product-a", data: { ok: true, reused: false, dossier: { provenance: [{ id: "source-a" }], gaps: [] } } },
-    productionEngine: { shots: [{ shotId: "SC-1", prompt: "01.【场景】窗边桌面", fields: { scene: "窗边桌面" } }] },
+    // Match the real native final stage summary: complete prompt/fields live only in result.shots.
+    productionEngine: { shots: [{ shotId: "SC-1", duration: 5, promptLength: 13, status: "completed", scene: "窗边桌面" }] },
   },
 });
 const commercialSuccess = () => {
@@ -218,7 +220,8 @@ const commercialSuccess = () => {
     return applyScenePolicy({ ...shot, prompt: `${shot.scene}；${shot.composition}` }, policy);
   });
   expect(auditScenePolicy({ title: "正式商务短片", shots }, policy).passed).toBe(true);
-  return { ...success(), stages: { ...success().stages, productionEngine: { shots } } };
+  return { ...success(), shots: shots.map(shot => ({ ...shot, fields: { scene: shot.scene } })),
+    stages: { ...success().stages, productionEngine: { shots: shots.map(shot => ({ shotId: shot.shotId, duration: shot.duration, status: "completed" })) } } };
 };
 const rejected = () => ({
   success: false,
@@ -241,6 +244,11 @@ async function runToTerminal(isMarketing = true, metadata?: Record<string, unkno
  */
 function useNarrativeProject() {
   doubles.meta.mockResolvedValue({ kind: "narrative", title: "叙事结果", threadId: "T1", createdAt: "2026-09-27T00:00:00Z" });
+}
+
+async function archiveJson(projectId: string, ref: string, workspaceId = scope.workspaceId) {
+  const bytes = await readFile(path.join(doubles.workDir, "archive", workspaceId, projectId, ref));
+  return { bytes, value: JSON.parse(bytes.toString("utf8")) as Record<string, any> };
 }
 
 async function archiveOutput(projectId: string, attempt: number) {
@@ -568,6 +576,171 @@ describe("预生产原始结果与诚实终态", () => {
     expect(doubles.review.mock.calls.some(([options]) => options.context.gate === "G5_PORTRAIT")).toBe(false);
   });
 
+});
+
+describe("完整原生前期到正式 CLI 草稿交接", () => {
+  it("policy=null成功从完整result.shots落盘，保留顺序/原字段/人物来源，旧资格门不被片型指针污染", async () => {
+    const native = { ...success(), character: { id: "young-rider-01", name: "李英子", appearanceInShots: ["N-09"], source: { kind: "native-character", path: "approved-G3-G4" } },
+      shots: [
+        { shot_id: "N-09", duration: 7.25, scene_id: "opening", sceneType: "opening", prompt: "01.【场景】李英子抬手。\n原始完整末行。", fields: { scene: "李英子抬手", character: "young-rider-01", extra: { original: ["完整值", null] } },
+          cast: [{ id: "young-rider-01", pinnedVersion: 2 }], dialogue: [{ speaker: "李英子", text: "这就是原台词。", emotion: "自然" }], customNative: { preserve: true } },
+        { shotId: "N-02", duration: 5, sceneType: "middle", prompt: "01.【场景】无人空镜，桌面物件。", fields: { scene: "无人空镜，桌面物件", character: { id: "young-rider-01", onScreen: false } },
+          subject: { kind: "object", count: 0 }, dialogueBlocks: [{ speaker: "李英子", text: "仅画外旁白" }] },
+      ],
+      stages: { ...success().stages, requirementDiscovery: { data: { actualG3Cast: ["young-rider-01"], marker: "完整原始G3" } },
+        prdGeneration: { data: { productionContract: { actorId: "young-rider-01" }, marker: "完整原始G4" } },
+        productionEngine: { shots: [{ shotId: "WRONG-SUMMARY", duration: 999, prompt: "禁止用此摘要", fields: { invented: true } }] } } };
+    const before = structuredClone(native);
+    doubles.runPreproduction.mockResolvedValue(native);
+    const { entry, projectId, runId } = await runToTerminal(false, { source: "客户输入来源", character: "英子",
+      brief: { duration: 12.25, aspectRatio: "9:16", productionRequirements: { resolution: "1080p" } } });
+    expect(entry.status).toBe("finished");
+    const output = await archiveOutput(projectId, 1);
+    expect(output).toMatchObject({ cliShotlistRef: "stages/preproduction/attempt-1.shotlist.json", cliShotlistSha256: expect.stringMatching(/^[a-f0-9]{64}$/), promptShotCount: 2 });
+    expect(output.shotlistRef).toBeUndefined(); expect(output.shotlistSha256).toBeUndefined(); expect(output.scenePolicyPassed).toBeUndefined();
+    const sheet = await archiveJson(projectId, String(output.cliShotlistRef));
+    const pack = await archiveJson(projectId, String(output.promptsRef));
+    expect(renderSha256(sheet.bytes)).toBe(output.cliShotlistSha256); expect(renderSha256(pack.bytes)).toBe(output.promptsSha256);
+    expect(sheet.value).toMatchObject({ schemaVersion: "workloom.preproduction-cli-handoff/v1", projectId, draft: true,
+      durationSeconds: 12.25, aspect: "9:16", resolution: "1080p", scenePolicySelection: { id: null },
+      source: { kind: "system-preproduction", issuer: "workloom.studio-worker", resultPath: "result.shots", ...scope, projectId, runId, attempt: 1 },
+      metadata: { inputSource: "客户输入来源", builtinCharacterSelection: { characters: [{ id: "young-rider-01" }] } },
+      character: { id: "young-rider-01", appearanceInShots: ["N-09"], source: { kind: "host-selected-character", selection: { mode: "builtin" }, nativeSource: before.character.source } } });
+    expect(sheet.value.metadata.source).toEqual(sheet.value.source);
+    expect(sheet.value.preproduction.stages).toEqual(before.stages);
+    expect(sheet.value.preproduction.confirmations).toEqual(native.confirmations);
+    expect(sheet.value.shots).toEqual(before.shots.map(shot => ({ ...shot, shotId: (shot as any).shotId ?? (shot as any).shot_id })));
+    expect(sheet.value.shots.map((shot: any) => shot.shotId)).toEqual(["N-09", "N-02"]);
+    expect(pack.value.shots.map((shot: any) => ({ shotId: shot.shotId, durationSec: shot.durationSec, prompt: shot.prompt, fields: shot.fields })))
+      .toEqual(sheet.value.shots.map((shot: any) => ({ shotId: shot.shotId, durationSec: shot.duration, prompt: shot.prompt, fields: shot.fields })));
+    // Real downstream cast consumer resolves the original visible card and keeps voice-over off screen.
+    const identities = sheet.value.characters;
+    expect(resolveShotCast(sheet.value.shots[0], identities)).toMatchObject({ status: "passed", characters: [{ id: "young-rider-01" }], selections: [{ characterId: "young-rider-01", pinnedVersion: 2 }] });
+    expect(resolveShotCast(sheet.value.shots[1], identities)).toMatchObject({ status: "not_applicable", characters: [] });
+    expect(verifyScenePolicyProductionSource({ decision: pack.value.scenePolicy, policy: null, projectId, attempt: 1,
+      shotId: "N-09", output, prompts: pack.value, report: null, shotlist: null })).toBeNull();
+    expect(native.shots).toEqual(before.shots); expect(native.stages).toEqual(before.stages);
+  });
+
+  it("不根据全片默认主角或画外speaker补造逐镜cast与appearanceInShots", async () => {
+    const native = { ...success(), shots: [{ shotId: "VOICE-1", duration: 5, prompt: "01.【场景】无人空镜", fields: { scene: "无人空镜" }, dialogueBlocks: [{ speaker: "李英子", text: "只有声音。" }] }] };
+    doubles.runPreproduction.mockResolvedValue(native);
+    const { entry, projectId } = await runToTerminal(false); expect(entry.status).toBe("finished");
+    const output = await archiveOutput(projectId, 1), { value } = await archiveJson(projectId, String(output.cliShotlistRef));
+    expect(value.shots).toEqual(native.shots); expect(value.character.id).toBe("young-rider-01");
+    expect(value.character.appearanceInShots).toBeUndefined(); expect(value.shots[0].cast).toBeUndefined();
+    expect(value.shots[0].characterId).toBeUndefined(); expect(value.shots[0].character).toBeUndefined();
+  });
+
+  it.each(["missing-shots", "empty-shots", "summary-only", "empty-prompt", "missing-fields", "array-fields", "empty-fields", "invalid-id", "duplicate-id", "conflicting-id", "zero-duration", "negative-duration", "string-duration", "nan-duration", "infinite-duration", "overflow-total", "shot-degraded", "result-degraded"])("成功结果%s不能退回摘要或补值，运行不得done", async kind => {
+    const native: Record<string, any> = success();
+    if (kind === "missing-shots" || kind === "summary-only") delete native.shots;
+    if (kind === "empty-shots") native.shots = [];
+    if (kind === "empty-prompt") native.shots[0].prompt = "  ";
+    if (kind === "missing-fields") delete native.shots[0].fields;
+    if (kind === "array-fields") native.shots[0].fields = ["非字段对象"];
+    if (kind === "empty-fields") native.shots[0].fields = {};
+    if (kind === "invalid-id") native.shots[0].shotId = "../escape";
+    if (kind === "duplicate-id") native.shots.push(structuredClone(native.shots[0]));
+    if (kind === "conflicting-id") native.shots[0].shot_id = "OTHER";
+    if (kind === "zero-duration") native.shots[0].duration = 0;
+    if (kind === "negative-duration") native.shots[0].duration = -5;
+    if (kind === "infinite-duration") native.shots[0].duration = Number.POSITIVE_INFINITY;
+    if (kind === "overflow-total") native.shots = ["LARGE-1", "LARGE-2"].map(shotId => ({ ...native.shots[0], shotId, duration: Number.MAX_VALUE }));
+    if (kind === "string-duration") native.shots[0].duration = "5";
+    if (kind === "nan-duration") native.shots[0].duration = Number.NaN;
+    if (kind === "shot-degraded") native.shots[0].degraded = true;
+    if (kind === "result-degraded") native.degraded = true;
+    doubles.runPreproduction.mockResolvedValue(native);
+    const { entry, projectId } = await runToTerminal(false);
+    expect(entry.status).toBe("failed"); expect(entry.error).toContain("PREPRODUCTION_HANDOFF_INVALID");
+    expect(doubles.finish.mock.calls.every(([row]) => row.status === "failed")).toBe(true);
+    await expect(archiveJson(projectId, "stages/preproduction/attempt-1.shotlist.json")).rejects.toMatchObject({ code: "ENOENT" });
+    expect(doubles.runPreproduction).toHaveBeenCalledTimes(1); expect(doubles.release).toHaveBeenCalledTimes(1);
+  });
+
+  it("原生项目人物与宿主本次选择冲突时不导出错误人选", async () => {
+    doubles.runPreproduction.mockResolvedValue({ ...success(), character: { id: "someone-else" } });
+    const { entry } = await runToTerminal(false);
+    expect(entry.status).toBe("failed"); expect(entry.error).toContain("原生项目人物与本次宿主选角不一致");
+    expect(doubles.finish.mock.calls.every(([row]) => row.status === "failed")).toBe(true);
+  });
+
+  it.each([false, true])("真实G4拒绝（selectedPolicy=%s）不被缺失shots/片型审计覆盖", async selectedPolicy => {
+    const reason = "producer-rejected(G4_PRD)：保留真实62分拒绝与原建议";
+    const failure = { success: false, errors: [{ stage: "G4_PRD", message: reason }],
+      confirmations: { prd: { approved: false, reason, suggestions: ["保留原始修改项"] } }, stages: { prdGeneration: { data: { actual: "原始拒绝PRD" } } } };
+    doubles.runPreproduction.mockResolvedValue(failure);
+    const { entry, projectId } = await runToTerminal(false, selectedPolicy ? { scenePolicy: { id: "commercial-person" } } : undefined);
+    expect(entry.status).toBe("failed"); expect(entry.error).toBe(reason);
+    const output = await archiveOutput(projectId, 1); expect(output).toMatchObject({ success: false, failures: failure.errors, vendorConfirmations: failure.confirmations });
+    expect(output.cliShotlistRef).toBeUndefined(); expect(output.promptsRef).toBeUndefined(); expect(output.scenePolicyReportRef).toBeUndefined();
+    expect(doubles.finish).toHaveBeenCalledWith(expect.objectContaining({ status: "failed", errorClass: "GATE_REJECTED", errorMsg: expect.stringContaining(reason) }));
+    expect(failure.confirmations.prd).toEqual({ approved: false, reason, suggestions: ["保留原始修改项"] });
+  });
+
+  it("仅confirmations的G4拒绝及长建议完整落盘，摘要上限不裁原拒绝", async () => {
+    const reason = "producer-rejected(G4_PRD)：" + "完整原始拒绝依据。".repeat(100);
+    const confirmations = { prd: { approved: false, reason, suggestions: Array.from({ length: 12 }, (_, index) => `原建议-${index + 1}`) } };
+    doubles.runPreproduction.mockResolvedValue({ success: false, confirmations, stages: {} });
+    const { entry, projectId } = await runToTerminal(false);
+    expect(entry.status).toBe("failed"); expect(entry.error).toBe(reason.slice(0, 500));
+    const output = await archiveOutput(projectId, 1);
+    expect(output.failureMessage).toBe(reason.slice(0, 500)); expect(output.vendorConfirmations).toEqual(confirmations);
+    expect(doubles.finish).toHaveBeenCalledWith(expect.objectContaining({ status: "failed", errorClass: "GATE_REJECTED", errorMsg: reason.slice(0, 500) }));
+    expect(output.cliShotlistRef).toBeUndefined(); expect(output.scenePolicyReportRef).toBeUndefined();
+  });
+
+  it.each(["shotlist-write", "prompts-write", "shotlist-too-large", "prompts-too-large"])("%s使完整交接缺失时失败关闭，不签出成功指针", async kind => {
+    const { ArchiveStore } = await import("@hyperreality/video-studio"), original = ArchiveStore.prototype.writeJsonAtomic;
+    if (kind.endsWith("write")) vi.spyOn(ArchiveStore.prototype, "writeJsonAtomic").mockImplementation(function (this: InstanceType<typeof ArchiveStore>, ref, data) {
+      if (ref.endsWith(kind === "shotlist-write" ? ".shotlist.json" : ".prompts.json")) return Promise.reject(new Error("交接磁盘写入失败"));
+      return original.call(this, ref, data);
+    });
+    const native: Record<string, any> = success();
+    if (kind === "shotlist-too-large") native.shots[0].nativeExtra = "x".repeat(4 * 1024 * 1024 + 1);
+    // Repeated real labels enlarge promptFieldNames: sheet <4MB, complete pack >4MB.
+    if (kind === "prompts-too-large") native.shots[0].prompt = "01.【场景】x\n".repeat(180_000);
+    doubles.runPreproduction.mockResolvedValue(native);
+    const { entry } = await runToTerminal(false);
+    expect(entry.status).toBe("failed"); expect(entry.error).toContain("PREPRODUCTION_HANDOFF_INCOMPLETE");
+    expect(doubles.finish.mock.calls.every(([row]) => row.status === "failed")).toBe(true); expect(doubles.project).not.toHaveBeenCalled();
+  });
+
+  it("同项目新attempt输出独立草稿，保留上一轮原始字节与来源", async () => {
+    doubles.runPreproduction.mockResolvedValue(success());
+    const first = await runToTerminal(false), firstOutput = await archiveOutput(first.projectId, 1);
+    const previous = await archiveJson(first.projectId, String(firstOutput.cliShotlistRef));
+    doubles.runPreproduction.mockResolvedValue({ ...success(), shots: [{ ...success().shots[0]!, shotId: "SECOND", duration: 7, prompt: "第二轮原始提示词" }] });
+    const secondRun = worker.startRun(scope, { projectId: first.projectId, intent: "第二轮明确需求" });
+    await vi.waitFor(() => expect(worker.getRun(secondRun, scope.workspaceId)?.finishedAt).not.toBeNull(), { timeout: 3_000, interval: 10 });
+    expect(worker.getRun(secondRun, scope.workspaceId)?.status).toBe("finished");
+    const secondOutput = await archiveOutput(first.projectId, 2), next = await archiveJson(first.projectId, String(secondOutput.cliShotlistRef));
+    expect(next.value.source).toMatchObject({ runId: secondRun, attempt: 2 }); expect(next.value.shots[0]).toMatchObject({ shotId: "SECOND", duration: 7, prompt: "第二轮原始提示词" });
+    expect((await archiveJson(first.projectId, String(firstOutput.cliShotlistRef))).bytes.equals(previous.bytes)).toBe(true);
+    expect(secondOutput.cliShotlistSha256).not.toBe(firstOutput.cliShotlistSha256);
+  });
+
+  it("两个工作区并发完成时只携带各自run/attempt/原始镜头和选角", async () => {
+    useNarrativeProject();
+    doubles.runPreproduction.mockImplementation(async (input: Record<string, any>) => {
+      await new Promise(resolve => setTimeout(resolve, input.projectId.endsWith("A") ? 20 : 1));
+      return { ...success(), shots: [{ ...success().shots[0]!, shotId: input.projectId.endsWith("A") ? "A-ORIGINAL" : "B-ORIGINAL", prompt: input.projectId }] };
+    });
+    const scopes = [scope, { tenantId: "tenant-other", workspaceId: "ws-other" }], ids = [`VID-parallel-${++projectSequence}A`, `VID-parallel-${++projectSequence}B`];
+    const runs = scopes.map((current, index) => worker.startRun(current, { projectId: ids[index]!, intent: "并行叙事", metadata: { characterOrdinal: index + 1 } }));
+    await Promise.all(runs.map((runId, index) => vi.waitFor(() => expect(worker.getRun(runId, scopes[index]!.workspaceId)?.finishedAt).not.toBeNull(), { timeout: 3_000, interval: 10 })));
+    for (let index = 0; index < runs.length; index++) {
+      expect(worker.getRun(runs[index]!, scopes[index]!.workspaceId)?.status).toBe("finished");
+      const dir = path.join(doubles.workDir, "archive", scopes[index]!.workspaceId, ids[index]!, "stages/preproduction");
+      const outputFile = (await readdir(dir)).find(name => name.endsWith(".output.json"))!;
+      const { value: output } = await archiveJson(ids[index]!, `stages/preproduction/${outputFile}`, scopes[index]!.workspaceId);
+      const { value: sheet } = await archiveJson(ids[index]!, output.cliShotlistRef, scopes[index]!.workspaceId);
+      expect(sheet.source).toMatchObject({ ...scopes[index], projectId: ids[index], runId: runs[index], attempt: output.productionEvidence.attempt });
+      expect(sheet.shots[0].prompt).toBe(ids[index]); expect(sheet.character.id).toBe(index === 0 ? "young-rider-01" : "chen-zhuo");
+      expect(worker.getRun(runs[index]!, scopes[1 - index]!.workspaceId)).toBeNull();
+    }
+  });
 });
 
  describe("宿主营销G1必须先于vendor", () => {

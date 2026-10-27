@@ -49,6 +49,22 @@ function authorityFromMarkdown(markdown: string): RequirementRecord {
   expect(pieces).toHaveLength(2);
   return JSON.parse(pieces[1]!.split("\n```\n")[0]!) as RequirementRecord;
 }
+function planningFromMarkdown(markdown: string): RequirementRecord {
+  const pieces = markdown.split("\n## 本次 G4 执行与核验计划原文\n\n");
+  expect(pieces).toHaveLength(2);
+  return JSON.parse(pieces[1]!.split("```json\n")[1]!.split("\n```\n")[0]!) as RequirementRecord;
+}
+function actualG4Checks(value: ReturnType<typeof prdFixture>, markdown: string): Array<{ id: string; pass: boolean }> {
+  // Run the real server policy through its existing tsx loader without making
+  // that server source a member of this package's TypeScript rootDir.
+  const repo = fileURLToPath(new URL("../../../", import.meta.url)), script = `${value.workDir}/actual-g4-check.mts`;
+  writeFileSync(script, `
+import { gateDeterministicChecks } from ${JSON.stringify(repo + "apps/server/src/video/gate-policy.ts")};
+console.log("RESULT " + JSON.stringify(gateDeterministicChecks("G4_PRD", ${JSON.stringify(markdown)})));
+`, "utf8");
+  const stdout = execFileSync(process.execPath, [`${repo}node_modules/tsx/dist/cli.mjs`, script], { cwd: repo, timeout: 20000, encoding: "utf8" });
+  return JSON.parse(stdout.split("\n").find(line => line.startsWith("RESULT "))!.slice(7)) as Array<{ id: string; pass: boolean }>;
+}
 function expectCompletePrompt(prompt: string, kind: "creative" | "production", value: ReturnType<typeof prdFixture>) {
   const expected = effectivePrdModelSchema(kind, PRDSchema, value.contract);
   expect(schemaFromPrompt(prompt, kind)).toEqual(expected);
@@ -319,13 +335,23 @@ function harness() {
     g4Approved = true;
     suggestions: string[] = [];
     minimalCalls = 0;
+    truthCalls = 0;
+    truthVerdict = { blocking: false, degraded: false };
+    truthStage: RequirementRecord = { pass: true, blocking: false, degraded: false, conflicts: [], issues: [], factRedLines: [] };
     constructor(generator: RequirementRecord) { this.prdGenerator = generator; }
     async _confirmRequirementList(_markdown: unknown, list: unknown) { return { approved: this.g3Approved, requirementList: list }; }
     _generateMinimalPRD() { this.minimalCalls++; return { productPositioning: { aspectRatio: "16:9" } }; }
     async _confirmPRD(_markdown: unknown, prd: unknown) { return { approved: this.g4Approved, prd, suggestions: this.suggestions }; }
+    _runProductTruthCheckGate(metadata: RequirementRecord, result: RequirementRecord) {
+      this.truthCalls++;
+      const stages = result.stages === undefined ? {} : requirementRecord(result.stages, "stages");
+      result.stages = stages; stages.truthCheck = structuredClone(this.truthStage);
+      if (Array.isArray(this.truthStage.factRedLines)) metadata._factRedLines = structuredClone(this.truthStage.factRedLines);
+      return this.truthVerdict;
+    }
   }
   const prototype = System.prototype as unknown as RequirementRecord;
-  const before = Object.fromEntries(["_confirmRequirementList", "_generateMinimalPRD", "_confirmPRD"].map(key => [key, Object.getOwnPropertyDescriptor(prototype, key)]));
+  const before = Object.fromEntries(["_confirmRequirementList", "_generateMinimalPRD", "_confirmPRD", "_runProductTruthCheckGate"].map(key => [key, Object.getOwnPropertyDescriptor(prototype, key)]));
   const nativeGenerator = Object.getOwnPropertyDescriptor(PRDGenerator.prototype, "generate")!;
   const dispose = installPrdAuthorityBridge(prototype, PRDGenerator.prototype, PRDSchema);
   disposers.push(dispose);
@@ -632,6 +658,303 @@ describe("PRD native generator, two native agent processes and real schema", () 
     }
     expect(calls[0]![0]).toBe(calls[1]![0]); expect(calls[0]![1]).toBe(calls[1]![1]); expect(calls[0]![2]).toEqual(calls[1]![2]);
     expect(run.calls.map(call => call.agent)).toEqual(["agent2", "agent3"]);
+  });
+});
+
+describe("G4 executable plans and one native quality policy", () => {
+  it.each([
+    { difficulty: "easy", thresholds: { visual: 0.75, audio: 0.70, narrative: 0.75, consistency: 0.70 } },
+    { difficulty: "medium", thresholds: { visual: 0.80, audio: 0.75, narrative: 0.85, consistency: 0.75 } },
+    { difficulty: "hard", thresholds: { visual: 0.85, audio: 0.80, narrative: 0.90, consistency: 0.80 } },
+    { difficulty: "extreme", thresholds: { visual: 0.90, audio: 0.85, narrative: 0.95, consistency: 0.85 } },
+  ])("uses actual $difficulty Agent4 thresholds for production, acceptance and fallback without extra model calls", async ({ difficulty, thresholds }) => {
+    const value = fixture(`QUALITY-POLICY-${difficulty}`), h = harness();
+    requirementRecord(value.discovery.upstreamFields, "upstream").difficulty = difficulty;
+    const run = h.make(value), before = structuredClone(value.production);
+    await withPrdAuthorityScope(value.authority, async () => {
+      const prd = await h.generate(run), markdown = await h.review(run, prd);
+      expect(requirementRecord(prd.productionConstraints, "constraints").qualityThresholds).toEqual(thresholds);
+      const delivery = requirementRecord(prd.deliveryStandard, "delivery");
+      expect(delivery.acceptanceCriteria).toEqual(thresholds);
+      expect(delivery.fallbackPlan).toEqual({ trigger: `视觉质量低于 ${thresholds.visual} 或连续 2 次迭代无改善`,
+        action: "降低视觉复杂度，使用 simpler prompt，减少特效需求", expectedOutput: "降低视觉震撼度但保证品牌信息传达" });
+      expect(delivery.revisionPolicy).toEqual({ maxRevisions: 1, revisionScope: ["visual", "audio", "narrative"] });
+      expect(markdown).toContain(`视觉质量：${thresholds.visual}`);
+      expect(markdown).toContain(`叙事质量：${thresholds.narrative}`);
+      expect(planningFromMarkdown(markdown).continuityCheckpoints).toEqual(delivery.continuityCheckpoints);
+      const displayQuality = requirementRecord(planningFromMarkdown(markdown).qualityPolicy, "display quality");
+      expect(displayQuality.thresholds).toEqual(thresholds); expect(displayQuality.sourceHash).toMatch(/^[a-f0-9]{64}$/);
+      expect(displayQuality).not.toHaveProperty("production"); expect(displayQuality).not.toHaveProperty("nativeAcceptance");
+      expect(markdown).toContain('"status": "plan-only-not-executed"');
+      expect(prd.audioSpecification).toEqual(before.audioSpecification);
+      expect(prd.visualSpecification).toEqual(before.visualSpecification);
+      expect(value.production).toEqual(before);
+      return h.success(prd);
+    });
+    expect(run.calls.map(call => call.agent)).toEqual(["agent2", "agent3"]);
+    expect(Object.hasOwn(requirementRecord(run.generator.agent5, "original Agent5"), "_buildAcceptanceCriteria")).toBe(false);
+  });
+
+  it("keeps a stricter original Agent5 dimension without increasing its rule-call budget", async () => {
+    const value = fixture("QUALITY-POLICY-STRICTER"), h = harness(), run = h.make(value);
+    const agent = requirementRecord(run.generator.agent5, "Agent5");
+    agent._buildAcceptanceCriteria = vi.fn(() => ({ visual: 0.93, audio: 0.90, narrative: 0.78, consistency: 0.91 }));
+    agent._buildFallbackPlan = vi.fn(() => ({ trigger: "视觉质量低于 0.93 或连续 3 次迭代无改善", action: "原生动作完整保留", expectedOutput: "原生预期完整保留" }));
+    await withPrdAuthorityScope(value.authority, async () => {
+      const prd = await h.generate(run), expected = { visual: 0.93, audio: 0.90, narrative: 0.85, consistency: 0.91 };
+      expect(requirementRecord(prd.productionConstraints, "constraints").qualityThresholds).toEqual(expected);
+      expect(requirementRecord(prd.deliveryStandard, "delivery").acceptanceCriteria).toEqual(expected);
+      expect(requirementRecord(prd.deliveryStandard, "delivery").fallbackPlan).toEqual({
+        trigger: "视觉质量低于 0.93 或连续 3 次迭代无改善", action: "原生动作完整保留", expectedOutput: "原生预期完整保留" });
+      await h.review(run, prd); return h.success(prd);
+    });
+    expect(agent._buildAcceptanceCriteria).toHaveBeenCalledTimes(1); expect(agent._buildFallbackPlan).toHaveBeenCalledTimes(1);
+    expect(run.calls).toHaveLength(2);
+  });
+
+  it.each([
+    { tier: "premium", thresholds: { visual: 0.85, audio: 0.80, narrative: 0.85, consistency: 0.80 }, iterations: 3 },
+    { tier: "film", thresholds: { visual: 0.92, audio: 0.88, narrative: 0.92, consistency: 0.90 }, iterations: 3 },
+  ])("the real Agent5 $tier budget path retains its higher thresholds, trigger and revision policy", async ({ tier, thresholds, iterations }) => {
+    const value = fixture(`QUALITY-NATIVE-${tier}`), h = harness(), run = h.make(value);
+    const agent = requirementRecord(run.generator.agent5, "Agent5"), process = agent.process as (...args: unknown[]) => unknown;
+    const actual = vi.fn(function (this: RequirementRecord, ...args: unknown[]) {
+      // Exercise the actual native Agent5 implementation with its existing fifth
+      // argument; the pinned top-level generator currently omits that argument.
+      return Reflect.apply(process, this, [...args.slice(0, 4), { qualityTier: tier }]);
+    });
+    agent.process = actual;
+    await withPrdAuthorityScope(value.authority, async () => {
+      const prd = await h.generate(run), delivery = requirementRecord(prd.deliveryStandard, "delivery");
+      expect(requirementRecord(prd.productionConstraints, "constraints").qualityThresholds).toEqual(thresholds);
+      expect(delivery.acceptanceCriteria).toEqual(thresholds);
+      expect(requirementRecord(delivery.fallbackPlan, "fallback").trigger).toBe(`视觉质量低于 ${thresholds.visual} 或连续 ${iterations} 次迭代无改善`);
+      expect(requirementRecord(delivery.revisionPolicy, "revision").maxRevisions).toBe(tier === "film" ? 3 : 2);
+      await h.review(run, prd); return h.success(prd);
+    });
+    expect(actual).toHaveBeenCalledTimes(1); expect(run.calls).toHaveLength(2);
+  });
+
+  it("native text-field quality between the old75 and current83 fails against the actual canonical PRD", async () => {
+    const value = fixture("QUALITY-ACTUAL-CONSUMER"), h = harness(), run = h.make(value), quality = new QualityGate();
+    const shot = { shotId: "S10", scene: "封闭场地人物在整车旁观察轮廓保持真实空间关系", mood: "情绪平静自然",
+      camera_movement: "固定机位缓慢推进镜头主体人物与商品完整清楚", lighting: "清楚自然照明", action: "人物缓慢点头",
+      timeline: "T00:00-00:05测试", prompt: "完整当前镜头保持自然物理空间与人物商品关系，摄影语言和动作细节清楚。".repeat(3), backgroundSoundString: "清楚的自然环境声音" };
+    await withPrdAuthorityScope(value.authority, async () => {
+      const prd = await h.generate(run);
+      const old = requirementRecord(Reflect.apply(nativeQuality, quality, [[shot], { deliveryStandard: { acceptanceCriteria: { visual: 0.75, narrative: 0.75 } } }]), "old native quality");
+      const current = requirementRecord(Reflect.apply(nativeQuality, quality, [[shot], prd]), "canonical native quality");
+      const score = Number((current.checks as RequirementRecord[])[0]!.overallScore);
+      expect(score).toBeGreaterThanOrEqual(75); expect(score).toBeLessThan(83);
+      expect(old.passed).toBe(true); expect(current.passed).toBe(false);
+      await h.review(run, prd); return h.success(prd);
+    });
+  });
+
+  it.each(["production", "acceptance", "fallback"])("refuses pre-G4 %s quality drift without a repair call", async target => {
+    const value = fixture(`QUALITY-DRIFT-${target}`), h = harness(), run = h.make(value);
+    await expect(withPrdAuthorityScope(value.authority, async () => {
+      const prd = await h.generate(run), constraints = requirementRecord(prd.productionConstraints, "constraints"), delivery = requirementRecord(prd.deliveryStandard, "delivery");
+      if (target === "production") requirementRecord(constraints.qualityThresholds, "thresholds").visual = 0.70;
+      if (target === "acceptance") requirementRecord(delivery.acceptanceCriteria, "acceptance").narrative = 0.70;
+      if (target === "fallback") requirementRecord(delivery.fallbackPlan, "fallback").trigger = "降低要求继续";
+      return h.review(run, prd);
+    })).rejects.toThrow("PRD_QUALITY_CHANGED");
+    expect(run.calls).toHaveLength(2);
+  });
+
+  it.each(["missing", "NaN", "out-of-range", "extra-key", "changed-fallback"])("rejects %s rule contract drift without a silent default", async mode => {
+    const value = fixture(`QUALITY-BAD-${mode}`), h = harness(), run = h.make(value), agent = requirementRecord(run.generator.agent5, "Agent5");
+    if (mode === "changed-fallback") agent._buildFallbackPlan = () => ({ trigger: "视觉质量低于 0.99 或连续 2 次迭代无改善", action: "原生动作", expectedOutput: "原生预期" });
+    else {
+      const thresholds: RequirementRecord = { visual: 0.75, audio: 0.70, narrative: 0.75, consistency: 0.70 };
+      if (mode === "missing") delete thresholds.audio;
+      if (mode === "NaN") thresholds.visual = Number.NaN;
+      if (mode === "out-of-range") thresholds.narrative = 1.1;
+      if (mode === "extra-key") thresholds.unrecognized = 0.8;
+      agent._buildAcceptanceCriteria = () => thresholds;
+    }
+    await expect(withPrdAuthorityScope(value.authority, () => h.generate(run)))
+      .rejects.toThrow(mode === "changed-fallback" ? "PRD_VENDOR_UNAVAILABLE" : "PRD_QUALITY_INVALID");
+    expect(run.calls).toHaveLength(2); expect(run.system.minimalCalls).toBe(0);
+  });
+
+  it("asks the real Agent3 to author PNG and delivery verification plans in allowed fields, then displays its exact response", async () => {
+    const value = fixture("EXECUTABLE-G4"), plan = "本次人物 builtin-person，profile /synthetic/profile.json 摘要" + "a".repeat(64)
+      + "；服装沿用当前版本。G5 前从档案解析原始 front/closeup PNG 并复用，具体路径和字节 G5 前待解析和核验；核对人物版本、服装、来源和用途，不符则停止，当前没有 G5 通过。";
+    const audio = "原生声音按原始片段音轨与时长核对，原速拼接，不加速口播、不换声、不补 TTS；后期对照原源实际听音与时间线，当前未执行。";
+    const subtitle = "持续警示文案来自本次 Brief，0秒至片尾连续显示；选择平台上下安全区并实画检查字号、对比度和遮挡；烧录与sidecar逐条同文同时间核对，当前未执行。";
+    value.production.characterSystem.characters[0]!.consistencyRequirements = plan;
+    value.production.audioSpecification.soundDesign = audio;
+    value.production.scenePlan.scenes[0]!.visualRequirements = [subtitle];
+    const before = structuredClone(value.production), h = harness(), run = h.make(value);
+    await withPrdAuthorityScope(value.authority, async () => {
+      const prd = await h.generate(run), markdown = await h.review(run, prd), call = run.calls.find(call => call.agent === "agent3")!;
+      expect(call.prompt).toContain("由本次模型填写现有字段"); expect(call.prompt).toContain("原始 front/closeup PNG");
+      expect(call.prompt).toContain("G5 前待解析和核验"); expect(call.prompt).toContain("安全区"); expect(call.prompt).toContain("覆盖起止");
+      expect(call.prompt).toContain("sidecar"); expect(call.prompt).toContain("不加速口播");
+      expect(schemaFromPrompt(call.prompt, "production")).toEqual(effectivePrdModelSchema("production", PRDSchema, value.contract));
+      expect((requirementRecord(prd.characterSystem, "characters").characters as RequirementRecord[])[0]).toMatchObject({ consistencyRequirements: plan, portraitPath: "" });
+      expect(prd.audioSpecification).toEqual(before.audioSpecification);
+      expect((requirementRecord(prd.scenePlan, "scenePlan").scenes as RequirementRecord[])[0]!.visualRequirements).toEqual([subtitle]);
+      expect(markdown).toContain(plan); expect(markdown).toContain(audio); expect(markdown).toContain(subtitle);
+      expect(markdown).toContain("没有补写模型计划"); expect(markdown).toContain("不证明图片、字幕、听音或成片已经验证");
+      expect(value.production).toEqual(before); return h.success(prd);
+    });
+    expect(run.calls.map(call => call.agent)).toEqual(["agent2", "agent3"]);
+    expect(run.calls[0]!.prompt).not.toContain("## 本次 G4 制作执行计划");
+  });
+
+  it("does not add plans to the response when the real model omits their substance, leaving the G4 reviewer to decide", async () => {
+    const value = fixture("NO-INVENTED-PLAN"), h = harness(), run = h.make(value), before = structuredClone(value.production);
+    await withPrdAuthorityScope(value.authority, async () => {
+      const prd = await h.generate(run); run.system.g4Approved = false;
+      const markdown = await h.review(run, prd);
+      expect((requirementRecord(prd.characterSystem, "characters").characters as RequirementRecord[])[0]!.consistencyRequirements)
+        .toBe(before.characterSystem.characters[0]!.consistencyRequirements);
+      expect(prd.audioSpecification).toEqual(before.audioSpecification);
+      expect(markdown).toContain("缺失计划继续交本次 G4 判断");
+      return { success: false };
+    });
+    expect(run.calls).toHaveLength(2);
+  });
+
+  it("still rejects a model's undeclared portraitPlan instead of weakening the strict production schema", async () => {
+    const value = fixture("NO-NEW-PORTRAIT-KEY"), h = harness();
+    (value.production.characterSystem.characters[0] as RequirementRecord).portraitPlan = "不能新增字段";
+    const run = h.make(value);
+    await expect(withPrdAuthorityScope(value.authority, () => h.generate(run))).rejects.toThrow("包含未声明字段");
+    expect(run.calls).toHaveLength(2);
+  });
+
+  it.each([1, 0])("the real G4 deterministic gate accepts the complete rendered plan for %i selected characters without placeholder leakage", async count => {
+    const value = fixture(`PLAN-REAL-G4-${count}`, [8, 14, 8], count), h = harness(), run = h.make(value);
+    await withPrdAuthorityScope(value.authority, async () => {
+      const prd = await h.generate(run), before = structuredClone(prd), markdown = await h.review(run, prd);
+      const checks = actualG4Checks(value, markdown);
+      expect(checks.map(check => check.id)).toEqual(["content-present", "no-placeholder", "min-length"]);
+      expect(checks.every(check => check.pass === true)).toBe(true);
+      expect(planningFromMarkdown(markdown).characterPlans).toHaveLength(count);
+      expect(prd).toEqual(before); return h.success(prd);
+    });
+    expect(run.calls).toHaveLength(2);
+  });
+
+  it("does not hide unrelated nullable source data from the real G4 no-placeholder check", async () => {
+    const value = fixture("PLAN-NULL-IS-VISIBLE"), character = (value.metadata.characters as RequirementRecord[])[0]!;
+    character.unverifiedSourceNote = null; refreshContract(value);
+    const h = harness(), run = h.make(value);
+    await withPrdAuthorityScope(value.authority, async () => {
+      const prd = await h.generate(run), markdown = invoke(run.generator, "generateMarkdown", prd) as string;
+      expect(markdown).toContain('"unverifiedSourceNote": null');
+      expect(actualG4Checks(value, markdown).find(check => check.id === "no-placeholder")?.pass).toBe(false);
+      expect((planningFromMarkdown(markdown).characterPlans as RequirementRecord[])[0]!.source).toHaveProperty("unverifiedSourceNote", null);
+      return { success: false };
+    });
+    expect(run.calls).toHaveLength(2);
+  });
+});
+
+function truthFixture(name: string) {
+  const value = fixture(name), original = JSON.parse(value.content) as RequirementRecord, facts = requirementRecord(original.facts, "facts");
+  const sourceHash = "c".repeat(64), fact = "仅限封闭场地";
+  facts.sources = [{ sourceId: "source-media", textSha256: sourceHash, finalUrl: "https://media.example.test/report" }];
+  facts.restrictions = ["不得虚构用户口碑或竞品主张"];
+  requirementRecord((facts.stages as RequirementRecord[])[0]!.facts, "A1 facts").claims = [{ claimId: "claim-prerequisite", status: "source-bound", value: fact, sourceId: "source-media", textSha256: sourceHash }];
+  value.content = JSON.stringify(original); writeFileSync(value.file, value.content);
+  value.marketing.g1Artifact = { path: value.file, content: value.content, sha256: digest(value.content) };
+  value.marketing.g1Proof.evidence = [{ path: value.file, sha256: digest(value.content), scope: "complete-text" }];
+  value.authority = preparePrdAuthority({ metadata: value.metadata, marketing: value.marketing, workDir: value.workDir, projectId: value.scope.projectId });
+  return { value, fact, sourceHash, raw: [`使用前提：${fact}（信源：未标注）——镜头叙事不得与此前提矛盾`,
+    "宣称上限：不得超出官方口径——排量：9999cc；部件：未指定硬件", "禁用宣称：禁止虚构用户口碑"] };
+}
+
+describe("native truth-check preserves verdicts and scopes internal fact use to accepted G1 sources", () => {
+  it("changes the actual inherited constraints before generation while retaining complete original G1 and diagnostic redlines", async () => {
+    const input = truthFixture("TRUTH-REAL-PAYLOAD"), { value, raw } = input, h = harness(), run = h.make(value);
+    const metadata = structuredClone(value.metadata), result: RequirementRecord = {}, stage = { pass: false, blocking: false, degraded: false,
+      notes: 2, conflicts: [], issues: ["原生缺维度意见完整保留"], factRedLines: raw };
+    run.system.truthStage = stage;
+    const verdict = run.system.truthVerdict;
+    await withPrdAuthorityScope(value.authority, async () => {
+      expect(invoke(run.system, "_runProductTruthCheckGate", metadata, result)).toBe(verdict);
+      const actual = requirementRecord(requirementRecord(result.stages, "stages").truthCheck, "truth");
+      const { factRedLines, _workloomNativeFactRedLines, ...unchanged } = actual;
+      const { factRedLines: _raw, ...original } = stage;
+      expect(unchanged).toEqual(original); expect(_workloomNativeFactRedLines).toEqual(raw);
+      expect(metadata._workloomNativeFactRedLines).toEqual(raw); expect(metadata._factRedLines).toEqual(factRedLines);
+      const lines = factRedLines as string[], active = JSON.stringify(lines);
+      expect(active).toContain(value.marketing.g1Artifact.sha256); expect(active).toContain("claim-prerequisite");
+      expect(active).toContain("source-media"); expect(active).toContain("https://media.example.test/report"); expect(active).toContain(input.sourceHash);
+      expect(active).toContain("不得虚构用户口碑或竞品主张"); expect(active).toContain("客户 Brief 禁用的参数、部件、背书或比较");
+      expect(active).not.toContain("9999cc"); expect(active).not.toContain("未指定硬件"); expect(active).not.toContain("不得超出官方口径");
+      const prd = await h.generate(run);
+      // This is the pinned caller's existing inheritance operation, now using
+      // the changed real metadata payload rather than a display substitution.
+      (requirementRecord(prd.productionConstraints, "constraints").businessConstraints as string[]).push(...lines);
+      const markdown = await h.review(run, prd);
+      expect(JSON.stringify(prd.productionConstraints)).toContain("claim-prerequisite");
+      expect(JSON.stringify(prd.productionConstraints)).not.toContain("9999cc");
+      expect(markdown).toContain("source-media"); expect(value.content).toBe(value.marketing.g1Artifact.content);
+      for (const call of run.calls) { expect(call.prompt).toContain(value.content); expect(call.prompt).toContain(JSON.stringify(lines)); }
+      return h.success(prd);
+    });
+    expect(run.system.truthCalls).toBe(1); expect(run.calls).toHaveLength(2); expect(raw).toEqual(stage.factRedLines);
+  });
+
+  it.each(["missing-source", "source-hash-mismatch", "duplicate-source", "duplicate-claim"])("keeps %s attribution explicitly unverified without manufacturing official provenance", async mode => {
+    const { value, raw } = truthFixture(`TRUTH-${mode}`), original = JSON.parse(value.content) as RequirementRecord, facts = requirementRecord(original.facts, "facts");
+    const sources = facts.sources as RequirementRecord[], claims = requirementRecord((facts.stages as RequirementRecord[])[0]!.facts, "facts").claims as RequirementRecord[];
+    if (mode === "missing-source") facts.sources = [];
+    if (mode === "source-hash-mismatch") sources[0]!.textSha256 = "f".repeat(64);
+    if (mode === "duplicate-source") sources.push(structuredClone(sources[0]!));
+    if (mode === "duplicate-claim") claims.push(structuredClone(claims[0]!));
+    value.content = JSON.stringify(original); writeFileSync(value.file, value.content);
+    value.marketing.g1Artifact = { path: value.file, content: value.content, sha256: digest(value.content) };
+    value.marketing.g1Proof.evidence = [{ path: value.file, sha256: digest(value.content), scope: "complete-text" }];
+    value.authority = preparePrdAuthority({ metadata: value.metadata, marketing: value.marketing, workDir: value.workDir, projectId: value.scope.projectId });
+    const h = harness(), run = h.make(value), metadata = structuredClone(value.metadata), result = {};
+    run.system.truthStage = { pass: false, blocking: false, degraded: false, conflicts: [], issues: [], factRedLines: raw };
+    await withPrdAuthorityScope(value.authority, () => invoke(run.system, "_runProductTruthCheckGate", metadata, result));
+    const lines = JSON.stringify(metadata._factRedLines);
+    expect(lines).toContain("没有唯一的本次 G1 claim/source 绑定，来源未核实");
+    expect(lines).not.toContain("原始来源 https://media"); expect(lines).not.toContain("不得超出官方口径");
+    expect(metadata._workloomNativeFactRedLines).toEqual(raw); expect(run.calls).toHaveLength(0);
+  });
+
+  it.each(["blocked", "degraded", "bridge-error"])("preserves the original native %s decision and diagnostics without another model call", async mode => {
+    const { value, raw } = truthFixture(`TRUTH-DECISION-${mode}`), h = harness(), run = h.make(value), metadata = structuredClone(value.metadata), result: RequirementRecord = {};
+    const verdict = { blocking: mode === "blocked", degraded: mode !== "blocked" };
+    const common = { pass: mode === "blocked" ? false : null, blocking: verdict.blocking, degraded: verdict.degraded,
+      conflicts: mode === "blocked" ? [{ type: "原始创意冲突", banned: "真实禁用内容" }] : [], issues: ["原生意见"], error: mode === "bridge-error" ? "原生桥错误" : "" };
+    run.system.truthVerdict = verdict;
+    run.system.truthStage = mode === "bridge-error" ? common : { ...common, factRedLines: raw };
+    await withPrdAuthorityScope(value.authority, () => {
+      expect(invoke(run.system, "_runProductTruthCheckGate", metadata, result)).toBe(verdict);
+      expect(requirementRecord(result.stages, "stages").truthCheck).toMatchObject(common);
+      if (mode === "bridge-error") expect(requirementRecord(result.stages, "stages").truthCheck).toEqual(common);
+      return { success: false };
+    });
+    expect(run.calls).toHaveLength(0); expect(run.system.truthCalls).toBe(1);
+  });
+
+  it("unbound truth-check returns byte-equivalent native data and restores its exact original descriptor", async () => {
+    const { value, raw } = truthFixture("TRUTH-LEGACY"), h = harness(), run = h.make(value), metadata = structuredClone(value.metadata), result: RequirementRecord = {};
+    run.system.truthStage = { pass: false, degraded: false, conflicts: [{ keep: "original" }], factRedLines: raw };
+    await withPrdAuthorityScope(undefined, () => {
+      expect(invoke(run.system, "_runProductTruthCheckGate", metadata, result)).toBe(run.system.truthVerdict);
+    });
+    expect(metadata._factRedLines).toEqual(raw); expect(metadata).not.toHaveProperty("_workloomNativeFactRedLines");
+    expect(requirementRecord(result.stages, "stages").truthCheck).toEqual(run.system.truthStage);
+    h.dispose(); expect(Object.getOwnPropertyDescriptor(h.prototype, "_runProductTruthCheckGate")).toEqual(h.before._runProductTruthCheckGate);
+  });
+
+  it("a bound truth receiver cannot run again after its private scope closes", async () => {
+    const { value, raw } = truthFixture("TRUTH-CLOSED"), h = harness(), run = h.make(value);
+    run.system.truthStage = { pass: true, conflicts: [], factRedLines: raw };
+    await withPrdAuthorityScope(value.authority, () => invoke(run.system, "_runProductTruthCheckGate", structuredClone(value.metadata), {}));
+    expect(() => invoke(run.system, "_runProductTruthCheckGate", structuredClone(value.metadata), {})).toThrow("PRD_SCOPE_CONFLICT");
+    expect(run.system.truthCalls).toBe(1);
   });
 });
 
@@ -1398,6 +1721,7 @@ try {
   async _confirmRequirementList(_markdown, list) { return { approved: true, requirementList: list }; }
   _generateMinimalPRD() { throw new Error("unexpected fallback"); }
   async _confirmPRD(_markdown, prd) { return { approved: true, prd }; }
+  _runProductTruthCheckGate(metadata, result) { return Reflect.apply(HyperrealitySystem.prototype._runProductTruthCheckGate, this, [metadata, result]); }
  }
  const generator = new PRDGenerator();
  for (const [key, payload] of [["agent2", fixture.creative], ["agent3", fixture.production]]) {
@@ -1407,6 +1731,11 @@ try {
  const approved = new AuthoritySystem(generator);
  restoreAuthority = installPrdAuthorityBridge(AuthoritySystem.prototype, PRDGenerator.prototype, PRDSchema);
  restoreProduction = installVendorPrdProductionBridge(HyperrealitySystem, entry);
+ const truthMetadata = structuredClone(fixture.metadata);
+ const truthResult = { stages: { dataMining: { data: { dossier: { identity: { specs: { syntheticParameter: "9999cc" },
+  official_selling_points: [{ point: "赛道专用车辆，不具备道路行驶资质" }] } } } } } };
+ const baselineMetadata = structuredClone(truthMetadata), baselineTruth = structuredClone(truthResult);
+ const baselineVerdict = Reflect.apply(HyperrealitySystem.prototype._runProductTruthCheckGate, approved, [baselineMetadata, baselineTruth]);
  const system = Object.create(HyperrealitySystem.prototype), engine = Object.create(ProductionEngine.prototype);
  const phase1 = Object.create(Phase1SceneDesign.prototype), fusion = Object.create(PromptFusionAgent.prototype);
  const refiner = new FieldContentRefiner(), fieldGuard = new FieldGuard(), quality = new QualityGate(), delivery = new PromptDeliveryGuard();
@@ -1415,6 +1744,17 @@ try {
  let consumerChecks = 0;
  const check = (actual, expected) => { assert.equal(actual, expected); consumerChecks += 1; };
  receipt = await withPrdAuthorityScope(fixture.authority, async () => {
+  const truthVerdict = approved._runProductTruthCheckGate(truthMetadata, truthResult);
+  assert.deepEqual(truthVerdict, baselineVerdict);
+  const { factRedLines, _workloomNativeFactRedLines, timing, ...truthUnchanged } = truthResult.stages.truthCheck;
+  const { factRedLines: nativeRedLines, timing: nativeTiming, ...baselineUnchanged } = baselineTruth.stages.truthCheck;
+  assert.deepEqual(truthUnchanged, baselineUnchanged);
+  assert.deepEqual(_workloomNativeFactRedLines, nativeRedLines);
+  assert.deepEqual(truthMetadata._workloomNativeFactRedLines, nativeRedLines);
+  assert.deepEqual(truthMetadata._factRedLines, factRedLines);
+  assert.ok(JSON.stringify(nativeRedLines).includes("9999cc"));
+  assert.ok(!JSON.stringify(factRedLines).includes("9999cc"));
+  assert.ok(JSON.stringify(factRedLines).includes("来源未核实"));
   await approved._confirmRequirementList("G3", fixture.list);
   const prd = await generator.generate(fixture.discovery);
   await approved._confirmPRD(generator.generateMarkdown(prd), prd);
@@ -1431,11 +1771,11 @@ try {
   check(delivery.verify(prompt, { shotId: "S00", sceneType: "opening", duration: 5 }).pass, true);
   check((await semantic.refine(prompt, { shotId: "S00", sceneType: "opening", duration: 5 })).applied, true);
   check(system._generatePromptsReport([shot]).includes(shot.prompt), true);
-  return { success: true, stages: { prdGeneration: { data: prd } }, consumerChecks };
+  return { success: true, stages: { prdGeneration: { data: prd } }, consumerChecks, nativeTruthVerified: true };
  });
  restoreProduction(); restoreProduction = () => undefined;
  for (let index = 0; index < prototypes.length; index++) assert.deepEqual(Object.getOwnPropertyDescriptors(prototypes[index]), before[index]);
- receipt = { success: receipt.success, consumerChecks: receipt.consumerChecks, restoredPrototypes: prototypes.length };
+ receipt = { success: receipt.success, consumerChecks: receipt.consumerChecks, nativeTruthVerified: receipt.nativeTruthVerified, restoredPrototypes: prototypes.length };
 } finally {
  try { restoreProduction(); } finally {
   try { restoreAuthority(); } finally {
@@ -1450,7 +1790,7 @@ console.log("RESULT " + JSON.stringify({ ...receipt, clearedTimers }));
 `, "utf8");
     const stdout = execFileSync(process.execPath, [`${repo}node_modules/tsx/dist/cli.mjs`, script], { cwd: repo, timeout: 20000, encoding: "utf8" });
     const result = JSON.parse(stdout.split("\n").find(line => line.startsWith("RESULT "))!.slice(7));
-    expect(result).toMatchObject({ success: true, consumerChecks: 13, restoredPrototypes: 10 });
+    expect(result).toMatchObject({ success: true, consumerChecks: 13, nativeTruthVerified: true, restoredPrototypes: 10 });
     expect(result.clearedTimers).toBeGreaterThanOrEqual(2);
   });
 });
