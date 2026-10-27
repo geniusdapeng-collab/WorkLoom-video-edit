@@ -11,7 +11,7 @@ import {
 } from "./requirement-contract-bridge.js";
 import { captureRequirementTheme, requirementAuthorityPrompt, type RequirementAuthorityOptions } from "./requirement-authority.js";
 import {
-  requirementHash, requirementRecord, structuredScenePrompt, structuredSceneSchema, validateRequirementSchema,
+  RequirementContractError, requirementHash, requirementRecord, structuredScenePrompt, structuredSceneSchema, validateRequirementSchema,
   type RequirementRecord
 } from "./requirement-contract.js";
 import type { PrdAuthority } from "./prd-authority.js";
@@ -181,14 +181,16 @@ function installNativeDiscovery() {
   }
   disposers.push(installRequirementContractBridge(Vendor.prototype as unknown as RequirementRecord, RequirementDiscoveryEngine.prototype));
 }
-function modelFor(run: ReturnType<typeof privateRun>, scenes: Array<RequirementRecord | Error | string>) {
+function modelFor(run: ReturnType<typeof privateRun>, scenes: Array<RequirementRecord | Error | string>, risks?: Array<RequirementRecord | Error>) {
   const calls: Array<{ method: string; prompt: string; schema?: unknown; options: unknown }> = [];
   const engine: RequirementRecord = { _extractJsonObject: (value: unknown) => typeof value === "string" ? value : null };
-  let sceneAttempt = 0;
+  let sceneAttempt = 0, riskAttempt = 0;
   engine.reasonStructured = vi.fn(async function (this: RequirementRecord, prompt: string, schema: unknown, options: unknown) {
     expect(this).toBe(engine); calls.push({ method: "reasonStructured", prompt, schema, options });
     const intro = prompt.slice(0, 180);
-    const value = intro.includes("受众分析") ? run.modules.audience : intro.includes("技术制片人") ? run.modules.risk : run.modules.reference;
+    const value = intro.includes("受众分析") ? run.modules.audience : intro.includes("技术制片人")
+      ? risks?.[Math.min(riskAttempt++, risks.length - 1)] ?? run.modules.risk : run.modules.reference;
+    if (value instanceof Error) throw value;
     return { success: true, data: structuredClone(value) };
   });
   engine.reason = vi.fn(async function (this: RequirementRecord, prompt: string, options: unknown) {
@@ -562,5 +564,241 @@ describe("actual native scene prompt and strict production response", () => {
       expect(requirementHash(run.authority)).toBe(before[index]!.authority);
       expect(requirementHash(run.approvedTheme)).toBe(before[index]!.theme);
     }
+  });
+});
+
+const riskFeedbackHeading = "## 上一次原生风险校验反馈";
+type RiskArray = "technicalRisks" | "businessConstraints" | "mitigationSuggestions";
+function riskResponse(run: ReturnType<typeof privateRun>, key: RiskArray, count: number): RequirementRecord {
+  const value = structuredClone(run.modules.risk);
+  if (key === "technicalRisks") value.technicalRisks = Array.from({ length: count }, (_, index) =>
+    ({ risk: `PRIVATE-RESPONSE-RISK-${index}`, level: "high", impact: "PRIVATE-RESPONSE-IMPACT" }));
+  else value[key] = Array.from({ length: count }, (_, index) => `PRIVATE-RESPONSE-TEXT-${index}`);
+  return value;
+}
+function riskCalls(calls: ReturnType<typeof modelFor>["calls"]) {
+  return calls.filter(call => call.method === "reasonStructured" && call.prompt.slice(0, 180).includes("技术制片人"));
+}
+function riskFacts(key: RiskArray, keyword: "minItems" | "maxItems", observed: number, limit: number) {
+  return { kind: "schema", path: `RiskAssessor response/${key}`, keyword, observed, limit };
+}
+
+describe("actual native private RiskAssessor bounded retry feedback", () => {
+  const network = vi.fn(async () => { throw new Error("Unexpected network/model request"); });
+  beforeEach(() => { network.mockClear(); vi.stubGlobal("fetch", network); vi.useFakeTimers(); });
+  afterEach(() => {
+    expect(network).not.toHaveBeenCalled();
+    vi.clearAllTimers(); vi.useRealTimers(); vi.unstubAllGlobals();
+  });
+
+  it("keeps the first complete Risk request, original schema, model options and one-call success unchanged", async () => {
+    installNativeDiscovery();
+    const run = privateRun("risk-first-success", 30, physicalScene([10, 10, 10])), model = modelFor(run, [run.modules.scene]);
+    const discovery = nativeDiscovery(model.engine), risk = requirementRecord(requirementRecord(discovery.agents, "agents").risk, "risk");
+    const nativeRun = risk.run, before = requirementHash(run.modules.risk);
+    expect(risk.maxRetries).toBe(1); expect(risk.timeoutMs).toBe(100);
+    const result = await runDiscovery(run, model.engine, discovery), calls = riskCalls(model.calls);
+    expect(calls).toHaveLength(1); expect(model.calls).toHaveLength(4);
+    expect(requirementHash(result.riskAssessment)).toBe(before);
+    expect(calls[0]!.options).toEqual({ maxTokens: 4000, temperature: 1, timeoutMs: 100 });
+    const properties = requirementRecord(requirementRecord(calls[0]!.schema, "risk schema").properties, "risk properties");
+    for (const [key, maximum] of [["technicalRisks", 5], ["businessConstraints", 4], ["mitigationSuggestions", 4]] as const) {
+      expect(properties[key]).toMatchObject({ type: "array", minItems: 1, maxItems: maximum });
+    }
+    for (const call of model.calls) { expectCompleteSources(call.prompt, run); expect(call.prompt).not.toContain(riskFeedbackHeading); }
+    expect(risk.run).toBe(nativeRun); expect(risk.maxRetries).toBe(1); expect(risk.timeoutMs).toBe(100);
+  });
+
+  it.each([{ key: "technicalRisks", maximum: 5 }, { key: "businessConstraints", maximum: 4 }, { key: "mitigationSuggestions", maximum: 4 }] as const)
+    ("keeps native $key 1..$maximum inclusive and feeds only numeric facts to its existing second call", async ({ key, maximum }) => {
+      installNativeDiscovery();
+      for (const count of [1, maximum]) {
+        const run = privateRun(`risk-${key}-boundary-${count}`, 30, physicalScene([10, 10, 10])), value = riskResponse(run, key, count);
+        const model = modelFor(run, [run.modules.scene], [value]), before = requirementHash(value);
+        const result = await runDiscovery(run, model.engine);
+        expect(requirementHash(result.riskAssessment)).toBe(before); expect(requirementHash(value)).toBe(before);
+        expect(riskCalls(model.calls)).toHaveLength(1);
+        for (const call of model.calls) expect(call.prompt).not.toContain(riskFeedbackHeading);
+      }
+      for (const count of [0, maximum + 1]) {
+        const run = privateRun(`risk-${key}-outside-${count}`, 30, physicalScene([10, 10, 10]));
+        const invalid = riskResponse(run, key, count), valid = riskResponse(run, key, maximum);
+        const hashes = [run.input, run.authority, run.approvedTheme, invalid, valid].map(requirementHash);
+        const model = modelFor(run, [run.modules.scene], [invalid, valid]), result = await runDiscovery(run, model.engine), calls = riskCalls(model.calls);
+        expect(calls).toHaveLength(2); expect(model.calls).toHaveLength(5);
+        expect(calls[0]!.prompt).not.toContain(riskFeedbackHeading);
+        expect(promptJson(calls[1]!.prompt, riskFeedbackHeading)).toEqual(riskFacts(key, count === 0 ? "minItems" : "maxItems", count, count === 0 ? 1 : maximum));
+        expect(requirementHash(result.riskAssessment)).toBe(requirementHash(valid));
+        expect([run.input, run.authority, run.approvedTheme, invalid, valid].map(requirementHash)).toEqual(hashes);
+        expect(calls[1]!.schema).toBe(calls[0]!.schema); expect(calls[1]!.options).toEqual(calls[0]!.options);
+        for (const call of model.calls) {
+          expectCompleteSources(call.prompt, run);
+          expect(call.prompt).not.toContain("PRIVATE-RESPONSE");
+          if (!calls.includes(call)) expect(call.prompt).not.toContain(riskFeedbackHeading);
+        }
+        for (const call of calls) expect(call.options).toEqual({ maxTokens: 4000, temperature: 1, timeoutMs: 100 });
+        expect(JSON.stringify(result)).not.toContain(riskFeedbackHeading);
+      }
+    });
+
+  it("reports the second invalid Risk array through both native fallback catches without preserving the first error", async () => {
+    installNativeDiscovery();
+    const run = privateRun("risk-two-invalid", 30, physicalScene([10, 10, 10]));
+    const first = riskResponse(run, "mitigationSuggestions", 6), second = riskResponse(run, "businessConstraints", 0);
+    const model = modelFor(run, [run.modules.scene], [first, second]), failure = await runDiscovery(run, model.engine).catch(error => error);
+    expect(failure).toMatchObject({ code: "REQUIREMENT_DISCOVERY_UNVERIFIED", details: riskFacts("businessConstraints", "minItems", 0, 1) });
+    expect(Object.isFrozen(requirementRecord(failure, "risk failure").details)).toBe(true);
+    expect(failureText(failure)).not.toContain("mitigationSuggestions"); expect(failureText(failure)).not.toContain("PRIVATE-RESPONSE");
+    const calls = riskCalls(model.calls);
+    expect(calls).toHaveLength(2); expect(model.calls).toHaveLength(4); // Audience, Scene, Risk twice; no Reference.
+    expect(promptJson(calls[1]!.prompt, riskFeedbackHeading)).toEqual(riskFacts("mitigationSuggestions", "maxItems", 6, 4));
+  });
+
+  it("replaces an earlier Risk schema failure with the actual current transport rejection", async () => {
+    installNativeDiscovery();
+    const run = privateRun("risk-current-transport", 30, physicalScene([10, 10, 10])), current = new Error("synthetic current risk transport failure");
+    const model = modelFor(run, [run.modules.scene], [riskResponse(run, "mitigationSuggestions", 7), current]);
+    const failure = await runDiscovery(run, model.engine).catch(error => error), calls = riskCalls(model.calls);
+    expect(failure).toBe(current); expect(requirementRecord(failure, "current failure").details).toBeUndefined();
+    expect(failureText(failure)).not.toContain("mitigationSuggestions"); expect(calls).toHaveLength(2);
+    expect(promptJson(calls[1]!.prompt, riskFeedbackHeading)).toEqual(riskFacts("mitigationSuggestions", "maxItems", 7, 4));
+    expect(model.calls).toHaveLength(4);
+  });
+
+  it("preserves a current failure from the real native JSON parser instead of an earlier Risk array error", async () => {
+    installNativeDiscovery();
+    const run = privateRun("risk-current-native-parser", 30, physicalScene([10, 10, 10]));
+    const calls: Array<{ prompt: string; options: unknown }> = []; let attempt = 0;
+    const engine: RequirementRecord = { generate: vi.fn(async (prompt: string, options: unknown) => {
+      calls.push({ prompt, options });
+      const intro = prompt.slice(0, 180), risk = intro.includes("技术制片人");
+      if (risk && attempt++ === 1) return { content: "{invalid native Risk JSON}" };
+      const value = risk ? riskResponse(run, "mitigationSuggestions", 8) : intro.includes("受众分析") ? run.modules.audience
+        : intro.includes("电影导演") ? run.modules.scene : run.modules.reference;
+      return { content: JSON.stringify(value) };
+    }) };
+    const failure = await runDiscovery(run, engine).catch(error => error), riskRequests = calls.filter(call => call.prompt.slice(0, 180).includes("技术制片人"));
+    expect(failure).toBeInstanceOf(Error); expect(failureText(failure)).toContain("JSON 解析失败");
+    expect(failureText(failure)).not.toContain("mitigationSuggestions");
+    expect(requirementRecord(failure, "native parser failure").details).toBeUndefined();
+    expect(riskRequests).toHaveLength(2); expect(calls).toHaveLength(4);
+    expect(promptJson(riskRequests[1]!.prompt, riskFeedbackHeading)).toEqual(riskFacts("mitigationSuggestions", "maxItems", 8, 4));
+    for (const call of calls) { expectCompleteSources(call.prompt, run); expect(call.options).toEqual({ maxTokens: 4000, temperature: 1 }); }
+  });
+
+  it.each(["transport", "forged-details"])("does not turn a first %s failure into Risk feedback or sticky schema failure", async kind => {
+    installNativeDiscovery();
+    const run = privateRun(`risk-first-${kind}`, 30, physicalScene([10, 10, 10]));
+    const failure = kind === "transport" ? new Error("synthetic first transport")
+      : Object.assign(new RequirementContractError("REQUIREMENT_DISCOVERY_UNVERIFIED", "PRIVATE-UNTRUSTED-MESSAGE"),
+        { details: riskFacts("mitigationSuggestions", "maxItems", 99, 4) });
+    const model = modelFor(run, [run.modules.scene], [failure, run.modules.risk]), result = await runDiscovery(run, model.engine);
+    expect(requirementHash(result.riskAssessment)).toBe(requirementHash(run.modules.risk)); expect(riskCalls(model.calls)).toHaveLength(2);
+    for (const call of model.calls) { expect(call.prompt).not.toContain(riskFeedbackHeading); expect(call.prompt).not.toContain("PRIVATE-UNTRUSTED"); }
+  });
+
+  it.each(["authority", "input", "engine"])("keeps %s mutation sticky when the first Risk response would otherwise allow a native retry", async kind => {
+    installNativeDiscovery();
+    const run = privateRun(`risk-sticky-${kind}`, 30, physicalScene([10, 10, 10]));
+    const model = modelFor(run, [run.modules.scene], [riskResponse(run, "mitigationSuggestions", 5), run.modules.risk]);
+    const original = model.engine.reasonStructured as NativeMethod;
+    model.engine.reasonStructured = async function (this: RequirementRecord, ...args: unknown[]) {
+      const result = await Reflect.apply(original, this, args);
+      if (String(args[0]).slice(0, 180).includes("技术制片人")) {
+        if (kind === "authority") requirementRecord(run.authority.metadata.brief, "brief").description = "changed authority";
+        if (kind === "input") run.input.description = "changed discovery input";
+        if (kind === "engine") model.engine.reasonStructured = async () => { throw new Error("replacement must not run"); };
+      }
+      return result;
+    };
+    const failure = await runDiscovery(run, model.engine).catch(error => error);
+    expect(failure).toMatchObject({ code: kind === "authority" ? "REQUIREMENT_AUTHORITY_CHANGED"
+      : kind === "input" ? "REQUIREMENT_DISCOVERY_CHANGED" : "REQUIREMENT_ENGINE_CHANGED" });
+    expect(riskCalls(model.calls)).toHaveLength(1); expect(model.calls).toHaveLength(3);
+    expect(failureText(failure)).not.toContain("mitigationSuggestions");
+  });
+
+  it("stops the pending Risk call after its private scope closes and cannot dispatch a retry or Reference", async () => {
+    installNativeDiscovery();
+    const run = privateRun("risk-closed-scope", 30, physicalScene([10, 10, 10])), model = modelFor(run, [run.modules.scene]);
+    let release!: (value: { success: boolean; data: RequirementRecord }) => void, started!: () => void;
+    const pending = new Promise<{ success: boolean; data: RequirementRecord }>(resolve => { release = resolve; });
+    const firstRisk = new Promise<void>(resolve => { started = resolve; }), original = model.engine.reasonStructured as NativeMethod;
+    model.engine.reasonStructured = async function (this: RequirementRecord, ...args: unknown[]) {
+      if (String(args[0]).slice(0, 180).includes("技术制片人")) {
+        model.calls.push({ method: "reasonStructured", prompt: String(args[0]), schema: args[1], options: args[2] });
+        started(); return pending;
+      }
+      return Reflect.apply(original, this, args);
+    };
+    const discovery = nativeDiscovery(model.engine); let detached!: Promise<RequirementRecord>;
+    await withRequirementContractScope(run.metadata, async () => {
+      detached = Reflect.apply(discovery.discover as NativeMethod, discovery, [run.input]) as Promise<RequirementRecord>;
+      await firstRisk;
+    }, run.options);
+    release({ success: true, data: riskResponse(run, "mitigationSuggestions", 5) });
+    await expect(detached).rejects.toMatchObject({ code: "REQUIREMENT_SCOPE_CLOSED" });
+    expect(riskCalls(model.calls)).toHaveLength(1); expect(model.calls).toHaveLength(3);
+  });
+
+  it("isolates Risk feedback across overlapping runs sharing the same engine and native agents, then clears it for the next run", async () => {
+    installNativeDiscovery();
+    const runs = ["risk-overlap-A", "risk-overlap-B", "risk-overlap-next"].map(marker => privateRun(marker, 30, physicalScene([10, 10, 10])));
+    const [a, b, c] = runs as [ReturnType<typeof privateRun>, ReturnType<typeof privateRun>, ReturnType<typeof privateRun>];
+    const hashes = runs.map(run => [run.input, run.authority, run.approvedTheme].map(requirementHash));
+    const calls: ReturnType<typeof modelFor>["calls"] = [], attempts = new Map<ReturnType<typeof privateRun>, number>();
+    const select = (prompt: string) => { const run = runs.find(value => prompt.includes(value.story)); if (!run) throw new Error("Complete current story lost"); return run; };
+    let releaseFirst!: () => void, first = 0;
+    const bothFirst = new Promise<void>(resolve => { releaseFirst = resolve; });
+    const engine: RequirementRecord = { _extractJsonObject: (content: string) => content };
+    engine.reason = vi.fn(async function (this: RequirementRecord, prompt: string, options: unknown) {
+      expect(this).toBe(engine); calls.push({ method: "reason", prompt, options });
+      return { success: true, content: JSON.stringify(select(prompt).modules.scene) };
+    });
+    engine.reasonStructured = vi.fn(async function (this: RequirementRecord, prompt: string, schema: unknown, options: unknown) {
+      expect(this).toBe(engine); calls.push({ method: "reasonStructured", prompt, schema, options });
+      const run = select(prompt), intro = prompt.slice(0, 180);
+      if (!intro.includes("技术制片人")) return { success: true, data: structuredClone(intro.includes("受众分析") ? run.modules.audience : run.modules.reference) };
+      const attempt = attempts.get(run) ?? 0; attempts.set(run, attempt + 1);
+      if (run !== c && attempt === 0) {
+        if (++first === 2) releaseFirst(); await bothFirst;
+        return { success: true, data: riskResponse(run, run === a ? "mitigationSuggestions" : "businessConstraints", run === a ? 5 : 0) };
+      }
+      return { success: true, data: structuredClone(run.modules.risk) };
+    });
+    const discoveryA = nativeDiscovery(engine), discoveryB = nativeDiscovery(engine), discoveryC = nativeDiscovery(engine);
+    discoveryB.agents = discoveryA.agents; discoveryC.agents = discoveryA.agents;
+    const sharedRisk = requirementRecord(discoveryA.agents, "shared agents").risk;
+    const results = await Promise.all([runDiscovery(a, engine, discoveryA), runDiscovery(b, engine, discoveryB)]);
+    expect(calls).toHaveLength(10); results.push(await runDiscovery(c, engine, discoveryC)); expect(calls).toHaveLength(14);
+    const risk = riskCalls(calls), callsFor = (run: ReturnType<typeof privateRun>) => risk.filter(call => select(call.prompt) === run);
+    const aCalls = callsFor(a), bCalls = callsFor(b), cCalls = callsFor(c);
+    expect(aCalls).toHaveLength(2); expect(bCalls).toHaveLength(2); expect(cCalls).toHaveLength(1);
+    for (const call of [aCalls[0]!, bCalls[0]!, cCalls[0]!]) expect(call.prompt).not.toContain(riskFeedbackHeading);
+    expect(promptJson(aCalls[1]!.prompt, riskFeedbackHeading)).toEqual(riskFacts("mitigationSuggestions", "maxItems", 5, 4));
+    expect(promptJson(bCalls[1]!.prompt, riskFeedbackHeading)).toEqual(riskFacts("businessConstraints", "minItems", 0, 1));
+    for (const call of calls) {
+      const run = select(call.prompt); expectCompleteSources(call.prompt, run); expect(call.prompt).not.toContain("PRIVATE-RESPONSE");
+      for (const other of runs.filter(value => value !== run)) {
+        expect(call.prompt).not.toContain(other.story); expect(call.prompt).not.toContain(other.authority.marketing.g1Artifact.content);
+        expect(call.prompt).not.toContain(other.approvedTheme.contentMd);
+      }
+      if (!risk.includes(call)) expect(call.prompt).not.toContain(riskFeedbackHeading);
+    }
+    runs.forEach((run, index) => {
+      expect(requirementHash(results[index]!.riskAssessment)).toBe(requirementHash(run.modules.risk));
+      expect([run.input, run.authority, run.approvedTheme].map(requirementHash)).toEqual(hashes[index]);
+    });
+    for (const discovery of [discoveryA, discoveryB, discoveryC]) expect(requirementRecord(discovery.agents, "native agents").risk).toBe(sharedRisk);
+  });
+
+  it.each(["legacy-scope", "unscoped"])("preserves the native %s Risk behavior without private authority", async mode => {
+    installNativeDiscovery();
+    const run = privateRun(`risk-${mode}`, 30, physicalScene([10, 10, 10])), value = riskResponse(run, "mitigationSuggestions", 5);
+    const model = modelFor(run, [run.modules.scene], [value]), discovery = nativeDiscovery(model.engine);
+    const operation = () => Reflect.apply(discovery.discover as NativeMethod, discovery, [run.input]) as Promise<RequirementRecord>;
+    const result = await (mode === "legacy-scope" ? withRequirementContractScope(run.metadata, operation) : operation());
+    expect(requirementHash(result.riskAssessment)).toBe(requirementHash(value)); expect(riskCalls(model.calls)).toHaveLength(1);
+    for (const call of model.calls) { expect(call.prompt).not.toContain(riskFeedbackHeading); expect(call.prompt).not.toContain("本次宿主需求权威输入"); }
   });
 });
