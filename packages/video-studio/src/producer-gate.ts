@@ -236,6 +236,17 @@ interface LlmConfig {
   model: string;
 }
 
+/**
+ * Complete text evidence, measured in UTF-16 code units, never truncated.
+ * These exact canonical DeepSeek models have a documented 1M-token context
+ * (https://api-docs.deepseek.com/quick_start/pricing/); this bounded resource
+ * allocation is separate from quality scores, context/contracts and image caps.
+ * Unknown models and legacy/proxy aliases retain the original 100k allocation.
+ */
+function textEvidenceBudget(model: string): number {
+  return model === "deepseek-flash" || model === "deepseek-v4-pro" ? 200_000 : 100_000;
+}
+
 /** 解析评审模型（与 model-router 的 LLM_* 口径一致，兼容 DEEPSEEK_* 秘密文件） */
 export function resolveProducerLlm(env: Record<string, string | undefined> = process.env): LlmConfig | null {
   const baseUrl = env.LLM_BASE_URL ?? env.DEEPSEEK_BASE_URL ?? "";
@@ -454,6 +465,7 @@ export async function reviewStage(options: ProducerGateOptions): Promise<Produce
   if (options.deterministic.some((c) => c.hard && (c.status === "unverified" || (c.status !== "not_applicable" && c.pass !== true)))) return reject("必需质量检查未验证");
   const llm = resolveProducerLlm(options.env ?? process.env);
   if (!llm) return reject("无可用评审模型；降级只能预览，不能作为合格交付", "fallback");
+  const textBudget = textEvidenceBudget(llm.model);
   const minScore = options.minScore ?? 70;
   if (!Number.isFinite(minScore) || minScore < 0 || minScore > 100) return reject("评审分数阈值非法");
   const tempPaths: string[] = [];
@@ -479,7 +491,7 @@ export async function reviewStage(options: ProducerGateOptions): Promise<Produce
         const raw = bytes.toString("utf8");
         if (artifact.kind === "json") JSON.parse(raw);
         totalText += raw.length;
-        if (totalText > 100_000) throw new Error("文本证据超出本次完整评审预算；需拆分评审，禁止截断后通过");
+        if (totalText > textBudget) throw new Error("文本证据超出本次完整评审预算；需拆分评审，禁止截断后通过");
         textContent.push({ type: "text", text: `以下是产物正文（完整）：${artifact.path}\n${raw}` });
         evidence.push({ path: artifact.path, sha256, scope: "complete-text" });
       } else if (artifact.kind === "image") {
