@@ -367,7 +367,15 @@ export function installPrdAuthorityBridge(
       const labeled = original.replace("## 9. 受众定位", `## 9. 客户受众与模型细分推测\n\n`
         + `- **客户 Brief 权威受众原文**：${scope.contract!.ownerAudience ?? "客户未显式指定"}\n`
         + `- **以下年龄、性别与兴趣细分仅为模型推测**：不覆盖客户原文，不构成已核实市场事实，仍待本次 G4 独立评审。\n\n### 模型细分原文`);
-      return labeled + `\n\n## 宿主本次权威生产与交付要求\n\n\`\`\`json\n${JSON.stringify({ profile: scope.authority.profile, source: result._workloomPrdAuthority, approvedRequirementContract: scope.contract }, null, 2)}\n\`\`\`\n\n`
+      // This field is inapplicable when props exist; retain the canonical contract and hashes.
+      const displayContract = { ...scope.contract!, scenes: scope.contract!.scenes.map(scene => {
+        if (Array.isArray(scene.props) && scene.props.length > 0 && scene.noPropsReason === null) {
+          const { noPropsReason: _inapplicableReason, ...displayScene } = scene;
+          return displayScene;
+        }
+        return scene;
+      }) };
+      return labeled + `\n\n## 宿主本次权威生产与交付要求\n\n\`\`\`json\n${JSON.stringify({ profile: scope.authority.profile, source: result._workloomPrdAuthority, approvedRequirementContract: displayContract }, null, 2)}\n\`\`\`\n\n`
         + `上述来源绑定只说明本次输入一致；G1 不批准本 PRD，G4 与 G5 均须实际审核。空 portraitPath 是 G4 前正常状态，不能当成已完成定妆照。\n`;
     });
   };

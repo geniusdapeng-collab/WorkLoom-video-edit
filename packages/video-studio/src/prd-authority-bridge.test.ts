@@ -23,6 +23,11 @@ function schemaFromPrompt(prompt: string, kind: "creative" | "production"): Requ
   expect(encoded).not.toBeNull();
   return JSON.parse(encoded![1]!) as RequirementRecord;
 }
+function authorityFromMarkdown(markdown: string): RequirementRecord {
+  const pieces = markdown.split("\n\n## 宿主本次权威生产与交付要求\n\n```json\n");
+  expect(pieces).toHaveLength(2);
+  return JSON.parse(pieces[1]!.split("\n```\n")[0]!) as RequirementRecord;
+}
 function expectCompletePrompt(prompt: string, kind: "creative" | "production", value: ReturnType<typeof prdFixture>) {
   const expected = effectivePrdModelSchema(kind, PRDSchema, value.contract);
   expect(schemaFromPrompt(prompt, kind)).toEqual(expected);
@@ -140,6 +145,71 @@ describe("PRD native generator, two native agent processes and real schema", () 
         maxRetries: 1, deadlineMs: null, thinking: { type: "disabled" } });
     }
     expect(requirementRecord(run.generator.agent2, "agent2")).not.toHaveProperty("_lastDiscoveryResult");
+  });
+  it("renders a 35s six-scene contract without inapplicable noPropsReason nulls while preserving every canonical field and hash", async () => {
+    const value = fixture("DISPLAY-35", [4, 6, 7, 8, 5, 5]);
+    (value.metadata.characters as RequirementRecord[])[0]!.nullableCharacterNote = null;
+    requirementRecord(value.discovery.audienceProfile, "audience").nullableAudienceNote = null;
+    value.list = bindRequirementContract({ keyPoints: [] }, value.discovery, requirementRecord(value.discovery.upstreamFields, "upstream"),
+      structuredClone(value.metadata), requirementCast(value.metadata).hash, "原始年轻消费者");
+    value.contract = value.list._workloomRequirementContract as RequirementContract;
+    value.authority = preparePrdAuthority({ metadata: value.metadata, marketing: value.marketing, workDir: value.workDir, projectId: value.scope.projectId });
+    const h = harness(), run = h.make(value), contractBefore = structuredClone(value.contract);
+    const contractHashBefore = requirementHash(value.contract), listHashBefore = requirementHash(value.list);
+    await withPrdAuthorityScope(value.authority, async () => {
+      const prd = await h.generate(run), prdBefore = structuredClone(prd), prdHashBefore = requirementHash(prd);
+      const markerBefore = structuredClone(prd._workloomPrdAuthority), markdown = await h.review(run, prd);
+      const display = authorityFromMarkdown(markdown), displayedContract = requirementRecord(display.approvedRequirementContract, "display contract");
+      const displayedScenes = displayedContract.scenes as RequirementRecord[];
+      expect(markdown).not.toMatch(/"noPropsReason"\s*:\s*null/);
+      expect(display.profile).toEqual(value.authority.profile); expect(display.source).toEqual(markerBefore);
+      expect(displayedScenes.map(scene => scene.duration)).toEqual([4, 6, 7, 8, 5, 5]);
+      expect(displayedScenes.reduce((total, scene) => total + Number(scene.duration), 0)).toBe(35);
+      for (const [index, scene] of displayedScenes.entries()) {
+        expect(scene).not.toHaveProperty("noPropsReason");
+        expect({ ...scene, noPropsReason: null }).toEqual(contractBefore.scenes[index]);
+      }
+      expect({ ...displayedContract, scenes: contractBefore.scenes }).toEqual(contractBefore);
+      expect((requirementRecord(displayedContract.cast, "display cast").characters as RequirementRecord[])[0]).toHaveProperty("nullableCharacterNote", null);
+      expect(requirementRecord(displayedContract.modelAudienceHypothesis, "display hypothesis")).toHaveProperty("nullableAudienceNote", null);
+      expect(markdown).toContain('"nullableCharacterNote": null'); expect(markdown).toContain('"nullableAudienceNote": null');
+      expect(invoke(run.generator, "generateMarkdown", prd)).toBe(markdown);
+      expect(prd).toEqual(prdBefore); expect(requirementHash(prd)).toBe(prdHashBefore);
+      expect(prd._workloomPrdAuthority).toEqual(markerBefore);
+      expect(prd._workloomRequirementContract).toEqual(contractBefore);
+      expect(value.contract).toEqual(contractBefore); expect(requirementHash(value.contract)).toBe(contractHashBefore);
+      expect(requirementHash(value.list)).toBe(listHashBefore);
+      return h.success(prd);
+    });
+    expect(run.calls.map(call => call.agent)).toEqual(["agent2", "agent3"]);
+    for (const call of run.calls) expectCompletePrompt(call.prompt, call.agent === "agent2" ? "creative" : "production", value);
+  });
+  it("keeps a real no-props reason and unrelated top-level nulls visible without changing the original contract", async () => {
+    const value = fixture("DISPLAY-NO-PROPS", [4, 6, 7, 8, 5, 5]);
+    const opening = requirementRecord(requirementRecord(value.discovery.sceneStructure, "structure").opening, "opening");
+    const physical = requirementRecord(opening.productionContract, "production contract");
+    const reason = "本场仅展示环境光影变化，无独立可见道具；null 字样为原文说明";
+    physical.props = []; physical.noPropsReason = reason;
+    value.production.scenePlan.scenes[0]!.keyProps = [];
+    delete requirementRecord(value.metadata.brief, "brief").audience;
+    value.list = bindRequirementContract({ keyPoints: [] }, value.discovery, requirementRecord(value.discovery.upstreamFields, "upstream"),
+      structuredClone(value.metadata), requirementCast(value.metadata).hash, null);
+    value.contract = value.list._workloomRequirementContract as RequirementContract;
+    value.authority = preparePrdAuthority({ metadata: value.metadata, marketing: value.marketing, workDir: value.workDir, projectId: value.scope.projectId });
+    const h = harness(), run = h.make(value), contractBefore = structuredClone(value.contract), hashBefore = requirementHash(value.contract);
+    await withPrdAuthorityScope(value.authority, async () => {
+      const prd = await h.generate(run), before = structuredClone(prd), markdown = await h.review(run, prd);
+      const display = authorityFromMarkdown(markdown), contract = requirementRecord(display.approvedRequirementContract, "display contract");
+      const scenes = contract.scenes as RequirementRecord[];
+      expect(scenes[0]).toEqual(contractBefore.scenes[0]); expect(scenes[0]).toHaveProperty("noPropsReason", reason);
+      expect(scenes[0]!.props).toEqual([]); expect(markdown).toContain(reason);
+      expect(contract).toHaveProperty("ownerAudience", null); expect(markdown).toContain('"ownerAudience": null');
+      expect(scenes.slice(1).every(scene => !Object.hasOwn(scene, "noPropsReason"))).toBe(true);
+      expect(prd).toEqual(before); expect(value.contract).toEqual(contractBefore);
+      expect(requirementHash(value.contract)).toBe(hashBefore);
+      return h.success(prd);
+    });
+    expect(run.calls.map(call => call.agent)).toEqual(["agent2", "agent3"]);
   });
   it("a legacy brief omitting productionRequirements keeps vendor undeclared resolution/fps defaults", async () => {
     const value = fixture(), h = harness(), run = h.make(value);

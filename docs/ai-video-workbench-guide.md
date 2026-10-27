@@ -140,6 +140,8 @@ G1 只支持其已接受 `claims` 与 `restrictions` 范围内的商品事实。
 
 这两个模型调用在生成前还分别接收与返回后严格校验同源的完整有效 JSON Schema：创意调用输出裸 `creativeCore` 内容，制作调用输出 `visualSpecification`、`audioSpecification`、`characterSystem`、`scenePlan` 四模块对象。结构约束沿用本次 G3 场景与选角数量，保留现有字段、枚举、长度和数值边界；schema 只说明响应形状，不提供预写的 PRD。原生解析重试即便缩短通用提示，也重新附上本次完整 schema 与权威上下文，保留原有调用参数、模型、次数、重试、超时和输出预算。`visualReferences` 是模型自行选择的视觉风格参考字符串，不是商品事实或素材授权凭据；内容仍须服从 Brief 与本次 G1 用途限定。响应缺项或越界时继续停止，不补占位值过关。
 
+PRD 门文档中的已审场景合同使用独立显示副本：只有场景的道具列表非空且 `noPropsReason` 为规范化的 `null` 时，省略这个不适用的显示字段；无道具场景的真实理由继续显示。原始合同、传递给后续生成的对象和摘要保持原值，其他空值或占位内容不会被过滤，原有占位检查继续生效。这一显示规则不代替 G4 的真实内容评审。
+
 平台、时长和画幅沿用客户 Brief。工作台可在 `metadata.brief.productionRequirements` 显式提供 `resolution`、`frameRate`、`subtitleMode`、`nativeAudio`、`openWithCover`、`titleCard`、`durationToleranceFrames`。例如本次竖屏 HD 作业可使用 `{"resolution":"1080p","frameRate":30,"subtitleMode":"both","nativeAudio":true,"openWithCover":false,"titleCard":false,"durationToleranceFrames":1}`。这些字段是客户制作要求，不能把声明当成生成模型已支持或交付已实测；模型目录、正式 CLI 和最终技术检查仍须逐项核对。旧调用没有提供该对象时保留旧入口兼容，不倒填成客户已明确要求。
 
 宿主仅把明确制作要求交给原有规则模块；叙事、台词和画面表达仍由原有模型生成。模型场景的 ID、顺序、时长及选角必须继承本次已审 G3，不允许超时后按比例改写以凑齐目标。PRD 携带人物档案/版本来源及场景合同，空 `portraitPath` 不等于已完成或未通过定妆照；G5 继续独立审核。模型失败、降级、结构错误、作用域关闭或原件变化均停止，不能用最小模板文档继续生产。
