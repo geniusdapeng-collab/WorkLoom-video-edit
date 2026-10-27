@@ -420,6 +420,20 @@ describe("real discovery code with isolated fake LLM", () => {
     release(); release();
   });
 
+  it("detects descriptor-only tampering and restores every original descriptor exactly", () => {
+    const Vendor = vendorClass(), prototype = Vendor.prototype as unknown as RequirementRecord;
+    const targets: Array<[RequirementRecord, string]> = [[prototype, "_convertDiscoveryToRequirementList"], [prototype, "_renderRequirementContract"],
+      ...["discover", "_fastMode", "generateMarkdown"].map((key): [RequirementRecord, string] => [RequirementDiscoveryEngine.prototype, key])];
+    const before = targets.map(([owner, key]) => Object.getOwnPropertyDescriptor(owner, key));
+    const release = install(Vendor), patched = Object.getOwnPropertyDescriptor(prototype, "_renderRequirementContract")!;
+    Object.defineProperty(prototype, "_renderRequirementContract", { ...patched, enumerable: !patched.enumerable });
+    expect(() => assertRequirementContractBridge(prototype)).toThrow("REQUIREMENT_BRIDGE_CHANGED");
+    expect(() => release()).toThrow("REQUIREMENT_BRIDGE_CHANGED");
+    Object.defineProperty(prototype, "_renderRequirementContract", patched);
+    release();
+    for (const [index, [owner, key]] of targets.entries()) expect(Object.getOwnPropertyDescriptor(owner, key)).toEqual(before[index]);
+  });
+
   it("rejects unknown source interfaces and does not leave a partial installed bridge", () => {
     const Vendor = vendorClass(), prototype = Vendor.prototype as unknown as RequirementRecord;
     const before = prototype._convertDiscoveryToRequirementList;

@@ -24,6 +24,8 @@ import { acquireVendorRequirementEntry } from "./vendor-requirement-entry.js";
 import { assertRequirementContractBridge, installVendorRequirementContractBridge, withRequirementContractScope } from "./requirement-contract-bridge.js";
 import { preparePrdAuthority, type PrdAuthority, type PrdMarketingAuthority } from "./prd-authority.js";
 import { assertPrdAuthorityBridge, installVendorPrdAuthorityBridge, withPrdAuthorityScope } from "./prd-authority-bridge.js";
+import { captureRequirementTheme, type RequirementApprovedTheme } from "./requirement-authority.js";
+import { requirementHash } from "./requirement-contract.js";
 import {
   applyDurationPolicyToManager,
   installVendorAudioDisciplineBridge,
@@ -243,6 +245,8 @@ export class VideoStudio {
     const verified = cfg.dataMining?.verifiedRaw;
     let verifiedRaw: Record<string, unknown> | undefined;
     let prdAuthority: PrdAuthority | undefined;
+    let validateRequirementAuthority: (() => void) | undefined;
+    let approvedRequirementTheme: RequirementApprovedTheme | undefined;
     if (input.isMarketing) {
       if (!verified || verified.projectId !== input.projectId || createHash("sha256").update(verified.rawJson).digest("hex") !== verified.sha256) {
         throw new Error("MARKETING_G1_REQUIRED：营销创意只能消费本次宿主G1通过的事实回填");
@@ -259,6 +263,23 @@ export class VideoStudio {
       verifiedRaw = parsed;
       if (!verified.prdAuthority) throw new Error("MARKETING_PRD_AUTHORITY_REQUIRED：营销 PRD 缺少本次宿主私有 G1 权威原件");
       prdAuthority = preparePrdAuthority({ metadata, marketing: verified.prdAuthority, workDir: cfg.workDir, projectId: input.projectId });
+      const prepared = prdAuthority, preparedHash = requirementHash(prepared);
+      const rawHash = verified.sha256, queryHash = requirementHash(verified.productQuery);
+      validateRequirementAuthority = () => {
+        const current = cfg.dataMining?.verifiedRaw;
+        if (current !== verified || current.projectId !== input.projectId || current.sha256 !== rawHash
+          || createHash("sha256").update(current.rawJson).digest("hex") !== rawHash
+          || requirementHash(current.productQuery) !== queryHash || !current.prdAuthority) {
+          throw new Error("REQUIREMENT_AUTHORITY_CHANGED：本次宿主私有 G1 回填入口已经变化");
+        }
+        // Reuse the existing verifier with Studio-owned workDir/project, including
+        // exact current file bytes. Do not infer a path from untrusted metadata.
+        const checked = preparePrdAuthority({ metadata: prepared.metadata, marketing: current.prdAuthority,
+          workDir: cfg.workDir, projectId: input.projectId });
+        if (requirementHash(checked) !== preparedHash) {
+          throw new Error("REQUIREMENT_AUTHORITY_CHANGED：本次宿主私有 G1 或客户口径与冻结快照不一致");
+        }
+      };
     }
     const log = cfg.log ?? ((line: string) => console.log(line));
     const emit: EventSink = (e) => (cfg.onEvent ? cfg.onEvent(e) : undefined);
@@ -266,6 +287,7 @@ export class VideoStudio {
 
     const handler: ConfirmationHandler = async (req) => {
       const gate = resolveGate(req.type);
+      if (gate === "G2_THEME" && prdAuthority) approvedRequirementTheme = undefined;
       await emit({
         kind: "pipeline.gate.requested",
         projectId: input.projectId,
@@ -280,6 +302,9 @@ export class VideoStudio {
         contentMd: req.content,
         runId: req.runId ?? runId
       });
+      if (gate === "G2_THEME" && prdAuthority) {
+        approvedRequirementTheme = captureRequirementTheme(prdAuthority, req.content, verdict);
+      }
       await emit({
         kind: "pipeline.gate.resolved",
         projectId: input.projectId,
@@ -513,7 +538,8 @@ export class VideoStudio {
         }
         const result = await withPrdAuthorityScope(prdAuthority, () => withRequirementContractScope(metadata, () => withPortraitArchivePlan(portraitRuntime, () =>
           system.create(input.intent, metadata, createOptions)
-        )));
+        ), prdAuthority ? { authority: prdAuthority, validateAuthority: validateRequirementAuthority!,
+          approvedTheme: () => approvedRequirementTheme && structuredClone(approvedRequirementTheme) } : undefined));
         if (portraitRuntime) {
           const index = portraitRuntime.snapshot();
           const characters = Object.keys(index.characters).length;
