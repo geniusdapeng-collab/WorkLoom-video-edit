@@ -6,7 +6,7 @@ import {
   type RequirementContract, type RequirementRecord
 } from "./requirement-contract.js";
 import {
-  authoritativeDelivery, authoritativeProduct, bindPrdProvenance, prdAuthorityPrompt, prdFail,
+  authoritativeDelivery, authoritativeProduct, bindPrdProvenance, effectivePrdModelSchema, prdAuthorityPrompt, prdFail,
   validatePrdModelPayload, validatePrdProduction, type PrdAuthority
 } from "./prd-authority.js";
 import { acquireVendorRequirementEntry } from "./vendor-requirement-entry.js";
@@ -235,6 +235,13 @@ export function installPrdAuthorityBridge(
           const getEngine = method(agent, "_getLLMEngine");
           method(agent, "fallback");
           const kind = number === 2 ? "creative" : "production";
+          const effectiveSchema = effectivePrdModelSchema(kind, schema, contract);
+          const schemaHeading = `\n\n## 本次宿主 PRD ${kind} 响应 JSON Schema（${requirementHash(effectiveSchema)}）\n`;
+          const responseContext = schemaHeading
+            + `本次实际模型响应必须符合以下完整 JSON Schema；它与宿主严格校验使用同一份有效结构，补充前述通用示例。`
+            + (kind === "creative" ? `只输出创意核心的裸 JSON 对象，不要包裹 creativeCore。\n` : `只输出以下四个制作模块组成的 JSON 对象。\n`)
+            + `\`\`\`json\n${JSON.stringify(effectiveSchema)}\n\`\`\`\n` + promptContext;
+          let builtPrompt: { original: string; complete: string } | undefined;
           agentView._getLLMEngine = function (this: RequirementRecord, ...args: unknown[]) {
             return guard(scope, () => {
               check(scope);
@@ -253,13 +260,31 @@ export function installPrdAuthorityBridge(
                 }
               };
               const engineView = Object.create(engine) as RequirementRecord;
+              let nativePrefix: string | undefined;
               engineView.reasonStructured = async function (prompt: unknown, ...callArgs: unknown[]) {
                 const complete = guard(scope, () => {
                   check(scope); checkEngine();
                   if (typeof prompt !== "string") prdFail("PRD_VENDOR_UNAVAILABLE", "实际模型调用 prompt 不是文本");
-                  // Native PARSE retries shrink the prompt. Restore the complete frozen
-                  // authority on every actual call, without changing provider/model/budget.
-                  return prompt.includes(promptContext) ? prompt : prompt + promptContext;
+                  if (!builtPrompt) prdFail("PRD_VENDOR_UNAVAILABLE", "实际模型调用缺少本次亲自构建的 PRD prompt");
+                  if (nativePrefix === undefined) {
+                    if (!prompt.endsWith(builtPrompt.complete)) prdFail("PRD_VENDOR_UNAVAILABLE", "首次模型 prompt 不属于本次完整构建结果");
+                    nativePrefix = prompt.slice(0, prompt.length - builtPrompt.complete.length);
+                    return prompt;
+                  }
+                  if (!prompt.startsWith(nativePrefix)) prdFail("PRD_VENDOR_UNAVAILABLE", "原生模型 prompt 前缀在重试期间变化");
+                  const currentPrompt = prompt.slice(nativePrefix.length);
+                  if (currentPrompt === builtPrompt.complete) return prompt;
+                  // The pinned native example-removal branch adds this trailer.
+                  // Keep it separately while proving which prefix came from our build.
+                  const retryTrailer = "\n[输出结构见schema]\n}";
+                  const trailer = currentPrompt.endsWith(retryTrailer) ? retryTrailer : "";
+                  const surviving = trailer ? currentPrompt.slice(0, -trailer.length) : currentPrompt;
+                  // Restore both the effective response schema and complete frozen
+                  // authority only at our recorded suffix position. A heading quoted
+                  // in the customer's original text is never a truncation boundary.
+                  const ownSuffixSurvived = surviving.length >= builtPrompt.original.length
+                    && builtPrompt.complete.startsWith(surviving);
+                  return (ownSuffixSurvived ? nativePrefix + builtPrompt.original + trailer : prompt) + responseContext;
                 });
                 let result: unknown;
                 try { result = await Reflect.apply(reason, engine, [complete, ...callArgs]); }
@@ -280,7 +305,8 @@ export function installPrdAuthorityBridge(
               check(scope);
               const original = Reflect.apply(build, this, args);
               if (typeof original !== "string") prdFail("PRD_VENDOR_UNAVAILABLE", "原始 PRD prompt 不是文本");
-              return original + promptContext;
+              builtPrompt = { original, complete: original + responseContext };
+              return builtPrompt.complete;
             });
           };
           agentView._callLLM = function (this: RequirementRecord, ...args: unknown[]) {

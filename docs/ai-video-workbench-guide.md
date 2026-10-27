@@ -1,7 +1,7 @@
 # WorkLoom Video Edit 视频调用指南：AI 工作台先读，再执行
 
 > guideVersion: 2026-10-27.4
-> 适用仓库：`workloom-ai/WorkLoom-video-edit`；本版范围：成功原片默认接受、正式后期、G3 结构化需求、本次 G1 事实与用途限定、PRD 制作要求及需求生成的权威上下文；实际源码 SHA 以本次冻结交付记录为准。
+> 适用仓库：`workloom-ai/WorkLoom-video-edit`；本版范围：成功原片默认接受、正式后期、G3 结构化需求、本次 G1 事实与用途限定、PRD 制作要求、模型响应结构及需求生成的权威上下文；实际源码 SHA 以本次冻结交付记录为准。
 > 读者：Codex、DeepSeek Harness 及能调用本仓 CLI / stdio MCP 的 AI 工作台。
 
 本指南把已成功视频作业的经验固化为调用纪律，帮助工作台从用户原话走到系统前期、渲染、后期和交付核验。先读取本仓能力，冻结人、商品、平台、时长、账号调性、声音与特殊要求，再走现有官方流程。不能把另一个仓库的功能、成片或测试结果算成本仓能力。
@@ -137,6 +137,8 @@ G1 只支持其已接受 `claims` 与 `restrictions` 范围内的商品事实。
 ## 5.4 PRD 继承客户要求、已审场景与完整事实限定
 
 营销 PRD 使用宿主私有配置交接的本次 G1 原件、完整裁决和五域作用域。生成前重新核对实际文件路径、SHA-256 与完整字节；浏览器 metadata 中的同名 authority 不授予权限。两个既有创意和制作规格模型调用收到完整 Brief、已通过 G3 的场景/选角合同，以及 G1 原件和嵌套来源评审意见。已接受事实的限制与非阻断审阅建议分别理解；建议保留原文，不能一概升级为事实禁令，也不能省略来源、日期和用途限定。
+
+这两个模型调用在生成前还分别接收与返回后严格校验同源的完整有效 JSON Schema：创意调用输出裸 `creativeCore` 内容，制作调用输出 `visualSpecification`、`audioSpecification`、`characterSystem`、`scenePlan` 四模块对象。结构约束沿用本次 G3 场景与选角数量，保留现有字段、枚举、长度和数值边界；schema 只说明响应形状，不提供预写的 PRD。原生解析重试即便缩短通用提示，也重新附上本次完整 schema 与权威上下文，保留原有调用参数、模型、次数、重试、超时和输出预算。`visualReferences` 是模型自行选择的视觉风格参考字符串，不是商品事实或素材授权凭据；内容仍须服从 Brief 与本次 G1 用途限定。响应缺项或越界时继续停止，不补占位值过关。
 
 平台、时长和画幅沿用客户 Brief。工作台可在 `metadata.brief.productionRequirements` 显式提供 `resolution`、`frameRate`、`subtitleMode`、`nativeAudio`、`openWithCover`、`titleCard`、`durationToleranceFrames`。例如本次竖屏 HD 作业可使用 `{"resolution":"1080p","frameRate":30,"subtitleMode":"both","nativeAudio":true,"openWithCover":false,"titleCard":false,"durationToleranceFrames":1}`。这些字段是客户制作要求，不能把声明当成生成模型已支持或交付已实测；模型目录、正式 CLI 和最终技术检查仍须逐项核对。旧调用没有提供该对象时保留旧入口兼容，不倒填成客户已明确要求。
 

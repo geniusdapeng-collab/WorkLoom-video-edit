@@ -217,6 +217,26 @@ export function authoritativeDelivery(value: unknown, profile: PrdProductionProf
   return result;
 }
 
+/** The actual response shape, shared by the model prompt and strict host validation. */
+export function effectivePrdModelSchema(kind: "creative" | "production", schemaValue: RequirementRecord, contract: RequirementContract): RequirementRecord {
+  const properties = requirementRecord(schemaValue.properties, "PRD schema.properties");
+  // The native creative agent returns the bare core, then wraps it in its parser.
+  if (kind === "creative") return structuredClone(requirementRecord(properties.creativeCore, "creativeCore schema"));
+  const modules = ["visualSpecification", "audioSpecification", "characterSystem", "scenePlan"];
+  const schema: RequirementRecord = { type: "object", required: modules, properties: Object.fromEntries(modules.map(key => [key, structuredClone(properties[key])])), additionalProperties: false };
+  const sceneProperties = requirementRecord(requirementRecord(requirementRecord(schema.properties, "production properties").scenePlan, "scenePlan schema").properties, "scenePlan properties");
+  const sceneArray = requirementRecord(sceneProperties.scenes, "scenes schema");
+  sceneArray.minItems = contract.scenes.length;
+  sceneArray.maxItems = contract.scenes.length;
+  const sceneFields = requirementRecord(requirementRecord(sceneArray.items, "scene item schema").properties, "scene item properties");
+  delete requirementRecord(sceneFields.purpose, "scene purpose schema").maxLength;
+  const characterSchema = requirementRecord(requirementRecord(requirementRecord(schema.properties, "production properties").characterSystem, "characterSystem schema").properties, "character properties");
+  const characters = requirementRecord(characterSchema.characters, "characters schema");
+  characters.minItems = contract.cast.characters.length;
+  characters.maxItems = contract.cast.characters.length;
+  return schema;
+}
+
 /** Validate the actual model payload before vendor parsers can manufacture missing modules. */
 export function validatePrdModelPayload(value: unknown, kind: "creative" | "production", schemaValue: RequirementRecord, contract: RequirementContract, profile: PrdProductionProfile): RequirementRecord {
   let parsed: unknown = value;
@@ -226,23 +246,11 @@ export function validatePrdModelPayload(value: unknown, kind: "creative" | "prod
     catch { prdFail("PRD_RESPONSE_UNVERIFIED", "本次模型响应不是完整 JSON"); }
   }
   const result = requirementRecord(parsed, "PRD 模型真实响应");
-  const properties = requirementRecord(schemaValue.properties, "PRD schema.properties");
-  const modules = kind === "creative" ? ["creativeCore"] : ["visualSpecification", "audioSpecification", "characterSystem", "scenePlan"];
-  const schema: RequirementRecord = { type: "object", required: modules, properties: Object.fromEntries(modules.map(key => [key, structuredClone(properties[key])])), additionalProperties: false };
-  if (kind === "production") {
-    const sceneProperties = requirementRecord(requirementRecord(requirementRecord(schema.properties, "production properties").scenePlan, "scenePlan schema").properties, "scenePlan properties");
-    const sceneArray = requirementRecord(sceneProperties.scenes, "scenes schema");
-    sceneArray.minItems = contract.scenes.length;
-    sceneArray.maxItems = contract.scenes.length;
-    const sceneFields = requirementRecord(requirementRecord(sceneArray.items, "scene item schema").properties, "scene item properties");
-    delete requirementRecord(sceneFields.purpose, "scene purpose schema").maxLength;
-  }
-  if (kind === "production") {
-    const characterSchema = requirementRecord(requirementRecord(requirementRecord(schema.properties, "production properties").characterSystem, "characterSystem schema").properties, "character properties");
-    const characters = requirementRecord(characterSchema.characters, "characters schema");
-    characters.minItems = contract.cast.characters.length;
-    characters.maxItems = contract.cast.characters.length;
-  }
+  const effective = effectivePrdModelSchema(kind, schemaValue, contract);
+  // Retain the existing creative validation path and acceptance semantics.
+  const schema = kind === "creative"
+    ? { type: "object", required: ["creativeCore"], properties: { creativeCore: effective }, additionalProperties: false }
+    : effective;
   validateRequirementSchema(kind === "creative" ? { creativeCore: result } : result, schema, `PRD ${kind} response`);
   if (kind === "production") validatePrdProduction(result, contract, profile);
   return result;
