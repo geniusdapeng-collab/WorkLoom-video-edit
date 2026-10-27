@@ -130,4 +130,23 @@ describe("VideoStudio reuse accounting from current bytes", () => {
     state.create.mockResolvedValue({ success: true, stages: { portraitStudio: { completedPortraits: 3 } } });
     await expect(run()).rejects.toThrow("PORTRAIT_REUSE_COUNT_INVALID");
   });
+
+  it.each(["before-g5", "incomplete-stage", "stale-copy"])("preserves the native refusal for %s without asserting successful portrait completion", async kind => {
+    const { entry, run } = fixture();
+    if (kind === "stale-copy") writeFileSync(entry.reuseReceipts!.front!.output.path, "changed copy after the refusal");
+    const result = { success: false, error: "G4_PRD rejected: native refusal remains authoritative", failedStage: "prdGeneration",
+      stages: kind === "incomplete-stage" ? { portraitStudio: { completedPortraits: 0 } } : {} };
+    const before = structuredClone(result);
+    state.create.mockResolvedValue(result);
+    expect(await run()).toBe(result);
+    expect(result).toEqual(before);
+    expect(state.runtime!.apiRender).not.toHaveBeenCalled();
+  });
+
+  it("still rejects a successful run with prepared copies but no completed portrait stage", async () => {
+    const { run } = fixture();
+    state.create.mockResolvedValue({ success: true, stages: {} });
+    await expect(run()).rejects.toThrow("PORTRAIT_REUSE_COUNT_INVALID: 缺少实际定妆照执行结果");
+    expect(state.runtime!.apiRender).not.toHaveBeenCalled();
+  });
 });

@@ -13,6 +13,18 @@ import {
 import { acquireVendorRequirementEntry } from "./vendor-requirement-entry.js";
 
 type Method = (this: RequirementRecord, ...args: unknown[]) => unknown;
+const QUALITY_KEYS = ["visual", "audio", "narrative", "consistency"] as const;
+type QualityThresholds = Record<typeof QUALITY_KEYS[number], number>;
+interface QualityPolicy {
+  production: QualityThresholds;
+  nativeAcceptance: QualityThresholds;
+  thresholds: QualityThresholds;
+  fallbackTrigger: string;
+}
+interface TruthBoundary {
+  nativeLines: string[];
+  constraints: string[];
+}
 interface Scope {
   authority: PrdAuthority;
   authoritySource: PrdAuthority;
@@ -35,6 +47,8 @@ interface Scope {
   reviewedVerdict?: RequirementRecord;
   g4Decision?: "pending" | "approved" | "rejected";
   generated: WeakSet<object>;
+  quality: WeakMap<object, QualityPolicy>;
+  truth?: TruthBoundary;
 }
 const scopes = new AsyncLocalStorage<Scope | undefined>();
 const systems = new WeakMap<object, Scope>();
@@ -84,7 +98,8 @@ export async function withPrdAuthorityScope<T>(
 ): Promise<T> {
   if (!authority) return scopes.run(undefined, operation);
   const scope: Scope = { authority: structuredClone(authority), authoritySource: authority,
-    authorityHash: requirementHash(authority), validateAuthority, approvedTheme, active: true, generated: new WeakSet() };
+    authorityHash: requirementHash(authority), validateAuthority, approvedTheme, active: true,
+    generated: new WeakSet(), quality: new WeakMap() };
   return scopes.run(scope, async () => {
     try {
       const result = await awaited(scope, operation);
@@ -158,6 +173,81 @@ function method(owner: RequirementRecord, key: string): Method {
   if (typeof value !== "function") prdFail("PRD_VENDOR_UNAVAILABLE", `vendor 缺少 ${key}`);
   return value as Method;
 }
+
+function qualityThresholds(value: unknown, label: string): QualityThresholds {
+  const input = requirementRecord(value, label);
+  if (Object.keys(input).length !== QUALITY_KEYS.length || QUALITY_KEYS.some(key =>
+    typeof input[key] !== "number" || !Number.isFinite(input[key]) || Number(input[key]) < 0.5 || Number(input[key]) > 1)) {
+    prdFail("PRD_QUALITY_INVALID", `${label} 必须保留四个有效原生质量阈值`);
+  }
+  return Object.fromEntries(QUALITY_KEYS.map(key => [key, input[key]])) as QualityThresholds;
+}
+
+/** Rule-generated thresholds only: retain every existing production and acceptance promise. */
+function unifiedQuality(production: QualityThresholds, acceptance: QualityThresholds): QualityThresholds {
+  return Object.fromEntries(QUALITY_KEYS.map(key => [key, Math.max(production[key], acceptance[key])])) as QualityThresholds;
+}
+
+/** Native fact-redline wording is an internal restriction, never a new official or creative claim. */
+function truthBoundary(scope: Scope, nativeLines: string[]): TruthBoundary {
+  const artifact = scope.authority.marketing.g1Artifact;
+  const facts = requirementRecord(requirementRecord(JSON.parse(artifact.content), "G1 原件").facts, "G1 facts");
+  const sources = Array.isArray(facts.sources) ? facts.sources.map(value => requirementRecord(value, "G1 source")) : [];
+  const claims = (Array.isArray(facts.stages) ? facts.stages : []).flatMap(value => {
+    const stage = requirementRecord(value, "G1 stage");
+    const data = stage.facts && typeof stage.facts === "object" ? requirementRecord(stage.facts, "G1 stage facts") : {};
+    return Array.isArray(data.claims) ? data.claims.map(value => requirementRecord(value, "G1 claim")) : [];
+  });
+  const constraints = [
+    `内部事实用途边界：完整底账保留于本次 G1 原件 ${artifact.path} / SHA256 ${artifact.sha256}；已接受 facts 不等于本片可用创意。客户 Brief 禁用的参数、部件、背书或比较即使可核实也不得进入画面、台词或情绪卖点；媒体来源不得升级为厂家官方确认。`,
+  ];
+  if (Array.isArray(facts.restrictions)) for (const restriction of facts.restrictions) {
+    if (typeof restriction !== "string") prdFail("PRD_G1_UNVERIFIED", "G1 用途限制不是明确文本");
+    constraints.push(`本次 G1 用途限制：${restriction}`);
+  }
+  for (const line of nativeLines) {
+    if (line.startsWith("宣称上限：")) {
+      // The native bridge classifies unrecognized specifications as official,
+      // then concatenates them here. Keep the original in diagnostic evidence;
+      // the complete G1 already retains every fact and its original review.
+      continue;
+    }
+    const prerequisite = /^使用前提：([\s\S]*)（信源：[\s\S]*）——镜头叙事不得与此前提矛盾$/.exec(line);
+    if (prerequisite) {
+      const fact = prerequisite[1]!;
+      const matches = claims.flatMap(claim => {
+        if (claim.status !== "source-bound" || typeof claim.value !== "string"
+          || (claim.value !== fact && !fact.endsWith(`：${claim.value}`)) || typeof claim.claimId !== "string") return [];
+        const matchingSources = sources.filter(source => source.sourceId === claim.sourceId && source.textSha256 === claim.textSha256
+          && typeof source.finalUrl === "string" && /^https?:\/\//.test(source.finalUrl)
+          && /^[a-f0-9]{64}$/.test(String(source.textSha256)));
+        return matchingSources.length === 1 ? [{ claim, source: matchingSources[0]! }] : [];
+      });
+      const attribution = matches.length === 1
+        ? `本次 G1 claim ${String(matches[0]!.claim.claimId)} → source ${String(matches[0]!.source.sourceId)}；原始来源 ${String(matches[0]!.source.finalUrl)}；正文 SHA256 ${String(matches[0]!.source.textSha256)}`
+        : "没有唯一的本次 G1 claim/source 绑定，来源未核实，不得宣称厂家确认或对外使用";
+      constraints.push(`内部使用前提（不是创意文案）：${fact}（${attribution}）；镜头不得与此前提矛盾，具体表达仍服从完整 Brief 与本次审核。`);
+    } else {
+      constraints.push(`内部既有事实限制（不授予新的事实来源或创意许可）：${line}`);
+    }
+  }
+  return { nativeLines: structuredClone(nativeLines), constraints: [...new Set(constraints)] };
+}
+
+/** Request executable planning in existing schema fields; never manufacture that plan after the response. */
+function productionPlanningPrompt(scope: Scope): string {
+  const profile = scope.authority.profile;
+  return `\n\n## 本次 G4 制作执行计划（由本次模型填写现有字段）\n`
+    + `角色的 consistencyRequirements 除脸型、发型、服装外，还须写出 G5 前定妆照执行计划：逐角色绑定本次 characterId、档案 profilePath/profileSha256、registrySha256、已选服装与已知版本；`
+    + `明确先从这些来源解析并复用该版本原始 front/closeup PNG，不把构图稿或新猜测人脸当原始参考。输入没有具体 PNG 路径或字节摘要时如实写“G5 前待解析和核验”，不得编造文件、摘要、授权或已批准状态。`
+    + `写明 G5 前核验人物/版本/服装、原始 PNG 字节、来源与用途授权；不一致或缺件则保留未核实并停止依赖它的生成。其他必需角度按原有 G5 流程核验，只有本次实际图片和原有审核才能支持完成。`
+    + `portraitPath 此时留空；不得新增 needsPortrait/portraitPlan 等 schema 未声明键，不得宣称 G5 或跨镜一致性已经通过。明确无人时不添加人物任务。\n`
+    + `在 audioSpecification.soundDesign 和各场景既有 visualRequirements/audioRequirements 中写出本次字幕与声音的后续执行、验证方法，不新增模块。`
+    + `本次明确字幕口径为 ${profile.subtitleMode ?? "客户未显式指定，沿用已有任务"}；如要求持续警示字幕，明确文字来源、覆盖起止、平台安全区、字号/对比度和遮挡检查方法；`
+    + `要求烧录或 sidecar 时说明如何与同一台词、总时长和时间线核对，both 时两份须一致。没有请求的字幕不得额外添加。`
+    + `本次 nativeAudio=${profile.nativeAudio === undefined ? "未显式指定" : String(profile.nativeAudio)}；明确保留原生声音时，写出原始片段/音轨来源与时长核对、原速拼接、不加速口播、不静默换声或补 TTS 的后续验证计划；`
+    + `枚举 voicePolicy、具体对白和音乐/环境音安排须彼此一致。所有这些是待执行计划，当前没有成片、听音或字幕通过证据。\n`;
+}
 interface Change { owner: RequirementRecord; key: string; original: PropertyDescriptor; patched: Method }
 interface Installed { changes: Change[]; schema: RequirementRecord; schemaHash: string }
 const active = new WeakMap<object, Installed>();
@@ -180,6 +270,18 @@ function verifyOutput(scope: Scope, value: unknown): RequirementRecord {
     const result = requirementRecord(value, "PRD 当前结果");
     if (!scope.contract || !scope.generated.has(result)) prdFail("PRD_RESULT_UNBOUND", "PRD 不属于本次真实生成调用");
     validatePrdProduction(result, scope.contract, scope.authority.profile);
+    const quality = scope.quality.get(result);
+    const constraints = requirementRecord(result.productionConstraints, "PRD 制作约束");
+    const delivery = requirementRecord(result.deliveryStandard, "PRD 交付标准");
+    if (!quality || requirementHash(constraints.qualityThresholds) !== requirementHash(quality.thresholds)
+      || requirementHash(delivery.acceptanceCriteria) !== requirementHash(quality.thresholds)
+      || requirementRecord(delivery.fallbackPlan, "PRD 降级预案").trigger !== quality.fallbackTrigger) {
+      prdFail("PRD_QUALITY_CHANGED", "制作、验收和降级触发未使用本次同一真实规则阈值");
+    }
+    if (scope.truth && (!Array.isArray(constraints.businessConstraints)
+      || scope.truth.nativeLines.filter(line => line.startsWith("宣称上限：")).some(line => (constraints.businessConstraints as unknown[]).includes(line)))) {
+      prdFail("PRD_TRUTH_CHANGED", "旧自动宣称上限不能重新成为本片创作约束");
+    }
     const marker = requirementRecord(result._workloomPrdAuthority, "PRD 来源凭据");
     const positioning = requirementRecord(result.productPositioning, "PRD 产品定位");
     const output = requirementRecord(requirementRecord(result.deliveryStandard, "PRD 交付标准").outputFormat, "PRD 输出格式");
@@ -223,10 +325,42 @@ export function installPrdAuthorityBridge(
   const confirmList = method(vendorPrototype, "_confirmRequirementList");
   const minimal = method(vendorPrototype, "_generateMinimalPRD");
   const confirmPrd = method(vendorPrototype, "_confirmPRD");
+  const nativeTruth = Object.hasOwn(vendorPrototype, "_runProductTruthCheckGate")
+    ? method(vendorPrototype, "_runProductTruthCheckGate") : undefined;
   const generate = method(prdPrototype, "generate");
   const markdown = method(prdPrototype, "generateMarkdown");
   const changes: Change[] = [];
   const check = (scope: Scope) => guard(scope, () => assertPrdAuthorityBridge(vendorPrototype));
+
+  const checkedTruth: Method = function (metadataValue, resultValue, ...args) {
+    const scope = scopedReceiver(this, "system");
+    if (!scope) return Reflect.apply(nativeTruth!, this, [metadataValue, resultValue, ...args]);
+    return guard(scope, () => {
+      check(scope);
+      if (scope.reviewedHash) prdFail("PRD_UNREVIEWED_REGENERATION", "G4 后不能替换本次事实用途边界");
+      if (scope.system && scope.system !== this) prdFail("PRD_SCOPE_CONFLICT", "事实红线不属于本次系统");
+      systems.set(this, scope); scope.system = this;
+      const metadata = requirementRecord(metadataValue, "事实红线 metadata");
+      const result = requirementRecord(resultValue, "事实红线 result");
+      const verdict = Reflect.apply(nativeTruth!, this, [metadataValue, resultValue, ...args]);
+      // Preserve the real native pass/blocking/degraded/conflicts and return
+      // object. Only rule-generated use-boundary wording is replaced.
+      const stages = result.stages && typeof result.stages === "object" ? requirementRecord(result.stages, "事实红线 stages") : {};
+      if (!stages.truthCheck) return verdict;
+      const stage = requirementRecord(stages.truthCheck, "本次原生事实红线");
+      if (stage.factRedLines === undefined) return verdict;
+      if (!Array.isArray(stage.factRedLines) || stage.factRedLines.some(line => typeof line !== "string")) {
+        prdFail("PRD_VENDOR_UNAVAILABLE", "原生事实红线必须为完整文本数组");
+      }
+      const boundary = truthBoundary(scope, stage.factRedLines as string[]);
+      scope.truth = boundary;
+      stage._workloomNativeFactRedLines = structuredClone(boundary.nativeLines);
+      metadata._workloomNativeFactRedLines = structuredClone(boundary.nativeLines);
+      stage.factRedLines = structuredClone(boundary.constraints);
+      metadata._factRedLines = structuredClone(boundary.constraints);
+      return verdict;
+    });
+  };
 
   const confirmed: Method = async function (content, listValue) {
     const scope = scopedReceiver(this, "system");
@@ -272,18 +406,66 @@ export function installPrdAuthorityBridge(
       const metadata = { ...scope.authority.metadata, _workloomRequirementContract: scope.list._workloomRequirementContract };
       const contract = verifiedRequirementContract(scope.list, metadata, discovery);
       scope.contract = structuredClone(contract);
-      const promptContext = prdAuthorityPrompt(scope.authority, contract);
+      const promptContext = prdAuthorityPrompt(scope.authority, contract)
+        + (scope.truth ? `\n\n本次规则事实边界（仅作内部限制，不是创意任务；完整原件不变）：\n${JSON.stringify(scope.truth.constraints)}\n` : "");
       const view = Object.create(this) as RequirementRecord;
+      let constraintResult: RequirementRecord | undefined;
+      let originalThresholds: QualityThresholds | undefined;
+      let qualityPolicy: QualityPolicy | undefined;
       for (let number = 1; number <= 5; number++) {
         const key = `agent${number}`, agent = requirementRecord(this[key], key);
         const agentView = Object.create(agent) as RequirementRecord;
         const process = method(agent, "process");
-        if (number === 1 || number === 5) {
+        if (number === 1) {
           agentView.process = function (this: RequirementRecord, ...args: unknown[]) {
             return guard(scope, () => {
               check(scope);
-              const result = Reflect.apply(process, this, args);
-              return number === 1 ? authoritativeProduct(result, scope.authority.profile) : authoritativeDelivery(result, scope.authority.profile);
+              return authoritativeProduct(Reflect.apply(process, this, args), scope.authority.profile);
+            });
+          };
+        } else if (number === 4) {
+          agentView.process = function (this: RequirementRecord, ...args: unknown[]) {
+            return guard(scope, () => {
+              check(scope);
+              const result = requirementRecord(Reflect.apply(process, this, args), "原生 Agent4 结果");
+              originalThresholds = qualityThresholds(requirementRecord(result.productionConstraints, "Agent4 制作约束").qualityThresholds, "Agent4 制作阈值");
+              constraintResult = result;
+              return result;
+            });
+          };
+        } else if (number === 5) {
+          const criteria = method(agent, "_buildAcceptanceCriteria"), fallback = method(agent, "_buildFallbackPlan");
+          agentView._buildAcceptanceCriteria = function (this: RequirementRecord, ...args: unknown[]) {
+            return guard(scope, () => {
+              check(scope);
+              if (!constraintResult || !originalThresholds) prdFail("PRD_QUALITY_INVALID", "Agent5 缺少本次真实 Agent4 制作阈值");
+              const acceptance = qualityThresholds(Reflect.apply(criteria, this, args), "Agent5 原生验收阈值");
+              const thresholds = unifiedQuality(originalThresholds, acceptance);
+              requirementRecord(constraintResult.productionConstraints, "本次制作约束").qualityThresholds = structuredClone(thresholds);
+              qualityPolicy = { production: originalThresholds, nativeAcceptance: acceptance, thresholds, fallbackTrigger: "" };
+              return structuredClone(thresholds);
+            });
+          };
+          agentView._buildFallbackPlan = function (this: RequirementRecord, ...args: unknown[]) {
+            return guard(scope, () => {
+              check(scope);
+              if (!qualityPolicy) prdFail("PRD_QUALITY_INVALID", "降级预案缺少本次统一阈值");
+              const result = requirementRecord(Reflect.apply(fallback, this, args), "Agent5 原生降级预案");
+              const trigger = typeof result.trigger === "string" ? /^视觉质量低于 (0(?:\.\d+)?|1(?:\.0+)?) 或连续 (\d+) 次迭代无改善$/.exec(result.trigger) : null;
+              if (!trigger || Number(trigger[1]) !== qualityPolicy.nativeAcceptance.visual) {
+                prdFail("PRD_VENDOR_UNAVAILABLE", "原生降级触发与原生验收结构已变化，不能猜测或降低要求");
+              }
+              qualityPolicy.fallbackTrigger = `视觉质量低于 ${qualityPolicy.thresholds.visual} 或连续 ${trigger[2]} 次迭代无改善`;
+              return { ...result, trigger: qualityPolicy.fallbackTrigger };
+            });
+          };
+          agentView.process = function (this: RequirementRecord, ...args: unknown[]) {
+            return guard(scope, () => {
+              check(scope);
+              if (!constraintResult || args[3] !== constraintResult) prdFail("PRD_QUALITY_INVALID", "Agent5 未消费本次真实 Agent4 结果");
+              const result = authoritativeDelivery(Reflect.apply(process, this, args), scope.authority.profile);
+              if (!qualityPolicy || !qualityPolicy.fallbackTrigger) prdFail("PRD_QUALITY_INVALID", "原生 Agent5 未产生完整统一阈值与降级预案");
+              return result;
             });
           };
         } else if (number === 2 || number === 3) {
@@ -296,7 +478,8 @@ export function installPrdAuthorityBridge(
           const responseContext = schemaHeading
             + `本次实际模型响应必须符合以下完整 JSON Schema；它与宿主严格校验使用同一份有效结构，补充前述通用示例。`
             + (kind === "creative" ? `只输出创意核心的裸 JSON 对象，不要包裹 creativeCore。\n` : `只输出以下四个制作模块组成的 JSON 对象。\n`)
-            + `\`\`\`json\n${JSON.stringify(effectiveSchema)}\n\`\`\`\n` + promptContext;
+            + `\`\`\`json\n${JSON.stringify(effectiveSchema)}\n\`\`\`\n` + promptContext
+            + (number === 3 ? productionPlanningPrompt(scope) : "");
           let builtPrompt: { original: string; complete: string } | undefined;
           agentView._getLLMEngine = function (this: RequirementRecord, ...args: unknown[]) {
             return guard(scope, () => {
@@ -406,6 +589,8 @@ export function installPrdAuthorityBridge(
       check(scope);
       if (requirementHash(discovery.sceneStructure) !== sourceHash) prdFail("PRD_G3_CHANGED", "PRD 生成修改了已经批准的源场景");
       const result = bindPrdProvenance(original, scope.authority, contract);
+      if (!qualityPolicy) prdFail("PRD_QUALITY_INVALID", "本次原生规则调用没有形成质量阈值来源");
+      scope.quality.set(result, structuredClone(qualityPolicy));
       scope.generated.add(result);
       return verifyOutput(scope, result);
     });
@@ -431,8 +616,31 @@ export function installPrdAuthorityBridge(
         }
         return scene;
       }) };
+      const delivery = requirementRecord(result.deliveryStandard, "G4 原生交付计划");
+      const quality = scope.quality.get(result)!;
+      const characters = requirementRecord(result.characterSystem, "G4 人物计划").characters as RequirementRecord[];
+      const scenes = requirementRecord(result.scenePlan, "G4 场景计划").scenes as RequirementRecord[];
+      const planning = {
+        status: "plan-only-not-executed",
+        characterPlans: characters.map(character => ({ characterId: character.characterId, name: character.name,
+          portraitPath: character.portraitPath, consistencyRequirements: character.consistencyRequirements,
+          source: character._workloomCharacterSource, selection: character._workloomCharacterSelection })),
+        audioSpecification: result.audioSpecification,
+        sceneVerificationPlans: scenes.map(scene => ({ sceneId: scene.sceneId, duration: scene.duration,
+          visualRequirements: scene.visualRequirements, audioRequirements: scene.audioRequirements, dialogue: scene.dialogue })),
+        continuityCheckpoints: delivery.continuityCheckpoints,
+        revisionPolicy: delivery.revisionPolicy,
+        qualityPolicy: { thresholds: quality.thresholds, fallbackTrigger: quality.fallbackTrigger,
+          sourcePolicy: "本次原生 Agent4 制作阈值与 Agent5 原验收逐维保留较高要求；统一前原值在私有作用域保留",
+          sourceHash: requirementHash({ production: quality.production, nativeAcceptance: quality.nativeAcceptance }) },
+      };
       return labeled + `\n\n## 宿主本次权威生产与交付要求\n\n\`\`\`json\n${JSON.stringify({ profile: scope.authority.profile, source: result._workloomPrdAuthority, approvedRequirementContract: displayContract }, null, 2)}\n\`\`\`\n\n`
-        + `上述来源绑定只说明本次输入一致；G1 不批准本 PRD，G4 与 G5 均须实际审核。空 portraitPath 是 G4 前正常状态，不能当成已完成定妆照。\n`;
+        + `上述来源绑定只说明本次输入一致；G1 不批准本 PRD，G4 与 G5 均须实际审核。空 portraitPath 是 G4 前正常状态，不能当成已完成定妆照。\n`
+        + `\n## 本次 G4 执行与核验计划原文\n\n`
+        + `以下仅展示本次模型和既有规则模块已经产生的字段；没有补写模型计划，也不证明图片、字幕、听音或成片已经验证。`
+        + `qualityPolicy.thresholds 是已经同时写入制作约束与验收的当前执行值，fallbackTrigger 使用同一视觉值；来源摘要绑定本次统一前的原生规则来源。`
+        + `角色原始 PNG 来源/复用与待 G5 核验条件见 consistencyRequirements；字幕安全区、持续起止、sidecar 一致性与原生声音原速保留的后续验证方法见原始视觉/声音要求。`
+        + `缺失计划继续交本次 G4 判断，不能用此说明替代实际计划或批准。\n\n\`\`\`json\n${JSON.stringify(planning, null, 2)}\n\`\`\`\n`;
     });
   };
   const reviewed: Method = async function (content, value) {
@@ -462,10 +670,12 @@ export function installPrdAuthorityBridge(
       return verdict;
     });
   };
-  for (const [owner, key, patched] of [
+  const patches: Array<[RequirementRecord, string, Method]> = [
     [vendorPrototype, "_confirmRequirementList", confirmed], [vendorPrototype, "_generateMinimalPRD", noMinimal],
     [vendorPrototype, "_confirmPRD", reviewed], [prdPrototype, "generate", generated], [prdPrototype, "generateMarkdown", rendered]
-  ] as Array<[RequirementRecord, string, Method]>) {
+  ];
+  if (nativeTruth) patches.push([vendorPrototype, "_runProductTruthCheckGate", checkedTruth]);
+  for (const [owner, key, patched] of patches) {
     const original = Object.getOwnPropertyDescriptor(owner, key);
     if (!original || typeof original.value !== "function" || original.writable !== true || original.configurable !== true) {
       prdFail("PRD_VENDOR_UNAVAILABLE", `${key} 不是可恢复的原始自有方法`);

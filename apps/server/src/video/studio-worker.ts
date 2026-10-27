@@ -261,6 +261,30 @@ export function terminalFailureMessageOf(result: unknown, entryError?: string | 
   return (candidates[0] ?? "vendor 返回 success:false").slice(0, 500);
 }
 
+/** Only the final native result carries complete cards; stage shots are a lossy summary. */
+function completePreproductionShots(result: Awaited<ReturnType<VideoStudio["runPreproduction"]>>): Array<Record<string, unknown>> {
+  const fail = (detail: string): never => { throw new Error(`PREPRODUCTION_HANDOFF_INVALID: ${detail}`); };
+  if (result.degraded === true) fail("本次原生制作已降级，不能签出正式 CLI 草稿");
+  if (!Array.isArray(result.shots) || !result.shots.length) fail("缺少本次完整 result.shots；阶段摘要不能替代原始镜头");
+  const seen = new Set<string>();
+  const shots: Array<Record<string, unknown>> = (result.shots as unknown[]).map((value, index) => {
+    if (!value || typeof value !== "object" || Array.isArray(value)) return fail(`第 ${index + 1} 镜不是完整对象`);
+    const shot = value as Record<string, unknown>, id = shot.shotId ?? shot.shot_id;
+    if (typeof id !== "string" || !/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(id) || id.includes("..") || seen.has(id)
+      || (shot.shotId !== undefined && shot.shot_id !== undefined && shot.shotId !== shot.shot_id)) return fail(`第 ${index + 1} 镜镜号无效、重复或互相冲突`);
+    if (typeof shot.duration !== "number" || !Number.isFinite(shot.duration) || shot.duration <= 0) fail(`镜头 ${id} 缺少原始正数时长`);
+    if (typeof shot.prompt !== "string" || !shot.prompt.trim()) fail(`镜头 ${id} 缺少完整原始 prompt`);
+    if (!shot.fields || typeof shot.fields !== "object" || Array.isArray(shot.fields) || !Object.keys(shot.fields).length) fail(`镜头 ${id} 缺少完整原始 fields`);
+    if (shot.degraded === true || shot.status === "degraded") fail(`镜头 ${id} 已降级`);
+    seen.add(id);
+    // No casts, dialogue, policy tags, durations or creative fields are inferred here.
+    return { ...structuredClone(shot), shotId: id };
+  });
+  if (!Number.isFinite(shots.reduce((sum, shot) => sum + Number(shot.duration), 0))) fail("完整原始镜头总时长不是有效数值");
+  canonicalRenderJson(shots); // Reject values that JSON cannot faithfully preserve before writing.
+  return shots;
+}
+
 /* ================= run 注册表 ================= */
 
 export type RunStatus = "running" | "awaiting_approval" | "finished" | "failed";
@@ -1151,15 +1175,8 @@ export function startRun(scope: Scope, input: StudioRunInput): string {
             const vendorErrors = Array.isArray(rawErrors)
               ? (rawErrors as Array<Record<string, unknown>>).slice(0, 10)
               : [];
-            const vendorFailure = vendorErrors
-              .map((entry) => `${String(entry.stage ?? entry.layer ?? "unknown")}: ${String(entry.message ?? entry.error ?? "")}`.trim())
-              .filter(Boolean)
-              .join("；");
-            const failureMessage = String(
-              (r as { error?: unknown }).error
-                ?? (r as { errorMessage?: unknown }).errorMessage
-                ?? (vendorFailure || "预生产未成功（vendor 返回 success:false）"),
-            ).slice(0, 500);
+            // Include the original rejected confirmation when no result.errors[] was emitted.
+            const failureMessage = terminalFailureMessageOf(r);
             const outcome = r.success
               ? undefined
               : {
@@ -1180,9 +1197,8 @@ export function startRun(scope: Scope, input: StudioRunInput): string {
              * 会被 vendor 主动清理）。档案号称"自包含、可跨会话承接"，就必须把提示词本体落盘，
              * 否则新会话拿到档案也接不上下一步（提交渲染/交付）。
              */
-            const shots = (
-              (r.stages?.productionEngine as { shots?: Array<Record<string, unknown>> } | undefined)?.shots ?? []
-            );
+            // A rejected vendor result has no formal handoff. Preserve its real gate/error outcome.
+            const shots = r.success === true ? completePreproductionShots(r) : [];
             const promptPack = shots.length
               ? {
                   stageId: "preproduction",
@@ -1212,33 +1228,51 @@ export function startRun(scope: Scope, input: StudioRunInput): string {
                   })),
                 }
               : null;
-            // 可供 full-chain-film 接续的分镜草稿：只传政策身份与 vendor 原始镜头，
-            // policyTags/必备画面仍须按知识条目补齐并通过全片硬闸，不能把草稿当成已放行分镜。
-            const shotlistArtifact = selectedScenePolicy.policy && shots.length
+            // The immutable original cards are shared by policy and ordinary CLI handoff.
+            // draft:true never grants render approval; existing G1-G7 and CLI guards still apply.
+            const source = { kind: "system-preproduction", issuer: "workloom.studio-worker", resultPath: "result.shots",
+              tenantId: scope.tenantId, workspaceId: scope.workspaceId, projectId: input.projectId, runId: entry.runId, attempt: ctx.attempt };
+            const primary = selectedBuiltinCharacters.characters[0];
+            const nativeCharacter = r.character && typeof r.character === "object" && !Array.isArray(r.character)
+              ? r.character as Record<string, unknown> : null;
+            if (shots.length && nativeCharacter && (!primary || nativeCharacter.id !== primary.id
+              || (nativeCharacter.name !== undefined && nativeCharacter.name !== primary.name))) {
+              throw new Error("PREPRODUCTION_HANDOFF_INVALID: 原生项目人物与本次宿主选角不一致");
+            }
+            const brief = runInput.metadata?.brief as Record<string, unknown> | undefined;
+            const production = brief?.productionRequirements as Record<string, unknown> | undefined;
+            const shotlistArtifact = shots.length
               ? await ctx.writeArtifact(`stages/preproduction/attempt-${ctx.attempt}.shotlist.json`, {
+                  schemaVersion: "workloom.preproduction-cli-handoff/v1",
+                  projectId: input.projectId,
                   title: projectMeta?.title ?? input.rawIntent ?? input.intent,
-                  scenePolicy: {
+                  durationSeconds: shots.reduce((sum, shot) => sum + Number(shot.duration), 0),
+                  ...(typeof (brief?.aspectRatio ?? brief?.aspect_ratio) === "string" ? { aspect: brief?.aspectRatio ?? brief?.aspect_ratio } : {}),
+                  ...(typeof production?.resolution === "string" ? { resolution: production.resolution } : {}),
+                  source,
+                  metadata: { ...structuredClone(runInput.metadata ?? {}),
+                    ...(runInput.metadata?.source !== undefined ? { inputSource: structuredClone(runInput.metadata.source) } : {}), source },
+                  characters: structuredClone(selectedBuiltinCharacters.characters),
+                  ...(primary ? { character: { ...structuredClone(primary), ...structuredClone(nativeCharacter ?? {}),
+                    source: { kind: "host-selected-character", selection: structuredClone(selectedBuiltinCharacters.decision),
+                      ...(nativeCharacter?.source !== undefined ? { nativeSource: structuredClone(nativeCharacter.source) } : {}) } } } : {}),
+                  // Keep upstream G3/G4 cast and scene provenance as authored, without reconstructing it.
+                  preproduction: { stages: structuredClone(r.stages ?? {}), confirmations: structuredClone(r.confirmations ?? {}) },
+                  ...(selectedScenePolicy.policy ? { scenePolicy: {
                     id: selectedScenePolicy.policy.id,
                     version: selectedScenePolicy.policy.version,
                     sourceSha256: selectedScenePolicy.policy.sourceSha256 ?? null,
                     exceptions: (selectedScenePolicy.metadata.scenePolicy as { exceptions?: ScenePolicyException[] } | undefined)?.exceptions ?? [],
-                  },
+                  } } : {}),
                   scenePolicySelection: selectedScenePolicy.decision,
                   draft: true,
-                  shots: shots.map((shot) => ({ ...shot, shotId: shot.shotId ?? shot.shot_id ?? null })),
+                  shots,
                 })
               : null;
             const promptsArtifact = promptPack
-              ? await ctx.writeArtifact(`stages/preproduction/attempt-${ctx.attempt}.prompts.json`, promptPack, {
-                  // 超 4MB 时先丢 fields 明细（保留 prompt 全文与字段名），绝不丢整包
-                  shrink: (data) => ({
-                    ...(data as Record<string, unknown>),
-                    fieldsTrimmed: true,
-                    shots: (data as { shots: Array<Record<string, unknown>> }).shots.map((shot) => ({ ...shot, fields: null })),
-                  }),
-                })
+              ? await ctx.writeArtifact(`stages/preproduction/attempt-${ctx.attempt}.prompts.json`, promptPack)
               : null;
-            const scenePolicyReport = selectedScenePolicy.policy
+            const scenePolicyReport = r.success === true && selectedScenePolicy.policy
               ? auditScenePolicy({
                   title: input.rawIntent ?? input.intent,
                   scenePolicy: {
@@ -1288,8 +1322,8 @@ export function startRun(scope: Scope, input: StudioRunInput): string {
                 throw new Error(`片型硬闸打回（${scenePolicyReport.defects.length} 项）：${first}；详见 ${scenePolicyReportRef}`);
               }
             }
-            if (selectedScenePolicy.policy && (!shotlistArtifact || shotlistArtifact.truncated || !promptsArtifact)) {
-              throw new Error("片型硬闸打回：完整分镜草稿或提示词包未归档，拒绝继续渲染接续");
+            if (r.success === true && (!shotlistArtifact || shotlistArtifact.truncated || !promptsArtifact || promptsArtifact.truncated)) {
+              throw new Error("PREPRODUCTION_HANDOFF_INCOMPLETE: 完整分镜草稿或提示词包未完整归档，拒绝继续渲染接续");
             }
             if (promptsArtifact) {
               decisionLog.push(
@@ -1316,7 +1350,11 @@ export function startRun(scope: Scope, input: StudioRunInput): string {
                       promptShotCount: promptPack!.shotCount,
                     }
                   : {}),
-                ...(shotlistArtifact
+                ...(shotlistArtifact ? {
+                  cliShotlistRef: `stages/preproduction/attempt-${ctx.attempt}.shotlist.json`,
+                  cliShotlistSha256: shotlistArtifact.sha256,
+                } : {}),
+                ...(shotlistArtifact && selectedScenePolicy.policy
                   ? {
                       shotlistRef: `stages/preproduction/attempt-${ctx.attempt}.shotlist.json`,
                       shotlistSha256: shotlistArtifact.sha256,
@@ -1343,6 +1381,7 @@ export function startRun(scope: Scope, input: StudioRunInput): string {
                 degraded: vendorDegraded,
                 ...(failureMessage && !r.success ? { failureMessage } : {}),
                 ...(vendorErrors.length ? { failures: vendorErrors } : {}),
+                ...(!r.success ? { vendorConfirmations: structuredClone(r.confirmations ?? {}) } : {}),
                 ...(dm
                   ? {
                       dossier: {

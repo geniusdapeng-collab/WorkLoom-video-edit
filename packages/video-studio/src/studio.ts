@@ -547,7 +547,10 @@ export class VideoStudio {
         ), prdAuthority ? { authority: prdAuthority, validateAuthority: validateRequirementAuthority!,
           approvedTheme: () => approvedRequirementTheme && structuredClone(approvedRequirementTheme) } : undefined), validateRequirementAuthority,
           prdAuthority ? () => approvedRequirementTheme && structuredClone(approvedRequirementTheme) : undefined);
-        if (portraitRuntime) {
+        // Reuse accounting proves a completed successful stage. A native refusal
+        // can return before G5 while the runtime already contains prepared copies;
+        // keep that original failure instead of replacing it with a success assertion.
+        if (portraitRuntime && result.success === true) {
           const index = portraitRuntime.snapshot();
           const characters = Object.keys(index.characters).length;
           const products = Object.keys(index.products).length;
