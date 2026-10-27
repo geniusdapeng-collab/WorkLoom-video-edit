@@ -25,9 +25,15 @@ class RequirementDiscoveryEngine {
 }
 module.exports = { RequirementDiscoveryEngine };
 `);
+  mkdirSync(join(root, "skills/creative-theme-generator"), { recursive: true });
+  writeFileSync(join(root, "skills/creative-theme-generator/index.js"), `
+class CreativeThemeGenerator { generate() { return { originalTheme: true }; } }
+module.exports = { CreativeThemeGenerator };
+`);
   class Vendor {
     async _convertDiscoveryToRequirementList() { return { original: true }; }
     _renderRequirementContract() { return "original contract"; }
+    _buildThemeInput() { return "original input"; }
   }
   const release = vi.fn();
   loader.acquire.mockReturnValue({ exports: { HyperrealitySystem: Vendor }, identity: { entryPath: entry }, release });
@@ -69,5 +75,13 @@ describe("production contract bridge uses the controlled cache authority", () =>
     expect(() => installVendorRequirementContractBridge(f.Vendor, f.entry)).toThrow(/Cannot find module/);
     expect(f.release).toHaveBeenCalledTimes(1);
     expect(f.Vendor.prototype._renderRequirementContract).toBe(native);
+  });
+
+  it("does not partially patch methods when the pinned theme dependency is missing", () => {
+    const f = fixture(), native = Object.getOwnPropertyDescriptor(f.Vendor.prototype, "_buildThemeInput");
+    rmSync(join(f.entry, "..", "skills/creative-theme-generator/index.js"));
+    expect(() => installVendorRequirementContractBridge(f.Vendor, f.entry)).toThrow(/Cannot find module/);
+    expect(Object.getOwnPropertyDescriptor(f.Vendor.prototype, "_buildThemeInput")).toEqual(native);
+    expect(f.release).toHaveBeenCalledTimes(1);
   });
 });
