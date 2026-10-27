@@ -9,7 +9,7 @@ import {
   assertRequirementContractBridge, installRequirementContractBridge, installVendorRequirementContractBridge,
   withRequirementContractScope
 } from "./requirement-contract-bridge.js";
-import { requirementAuthorityPrompt, type RequirementAuthorityOptions } from "./requirement-authority.js";
+import { captureRequirementTheme, requirementAuthorityPrompt, type RequirementAuthorityOptions } from "./requirement-authority.js";
 import {
   requirementHash, requirementRecord, structuredScenePrompt, structuredSceneSchema, validateRequirementSchema,
   type RequirementRecord
@@ -167,8 +167,12 @@ function privateRun(marker: string, duration: number, scene: RequirementRecord) 
   const story = `完整原故事-${marker}\n客户故事最后一行-${marker}`;
   const input = { type: "商业广告", theme: `自主主题-${marker}`, duration_sec: duration, tone: "轻快明朗",
     description: `完整本片描述-${marker}`, visual_style: "自然光艺术参考", _originalStoryText: story };
-  const options: RequirementAuthorityOptions = { authority, approvedTheme: () => undefined, validateAuthority: vi.fn(() => undefined) };
-  return { metadata, authority, input, story, options, modules: nativeModules(scene) };
+  const approvedTheme = captureRequirementTheme(authority,
+    `完整已批准G2-${marker}\n保留全部主题细则与限定用途-${marker}\n最后一行创作上下文-${marker}`,
+    { approved: true, reason: `完整G2原始裁决-${marker}`, advisories: [`保留非阻断建议-${marker}`] });
+  if (!approvedTheme) throw new Error("Synthetic approved G2 was not captured");
+  const options: RequirementAuthorityOptions = { authority, approvedTheme: () => approvedTheme, validateAuthority: vi.fn(() => undefined) };
+  return { metadata, authority, approvedTheme, input, story, options, modules: nativeModules(scene) };
 }
 function installNativeDiscovery() {
   class Vendor {
@@ -177,7 +181,7 @@ function installNativeDiscovery() {
   }
   disposers.push(installRequirementContractBridge(Vendor.prototype as unknown as RequirementRecord, RequirementDiscoveryEngine.prototype));
 }
-function modelFor(run: ReturnType<typeof privateRun>, scenes: Array<RequirementRecord | Error>) {
+function modelFor(run: ReturnType<typeof privateRun>, scenes: Array<RequirementRecord | Error | string>) {
   const calls: Array<{ method: string; prompt: string; schema?: unknown; options: unknown }> = [];
   const engine: RequirementRecord = { _extractJsonObject: (value: unknown) => typeof value === "string" ? value : null };
   let sceneAttempt = 0;
@@ -191,17 +195,40 @@ function modelFor(run: ReturnType<typeof privateRun>, scenes: Array<RequirementR
     expect(this).toBe(engine); calls.push({ method: "reason", prompt, options });
     const value = scenes[Math.min(sceneAttempt++, scenes.length - 1)]!;
     if (value instanceof Error) throw value;
-    return { success: true, content: JSON.stringify(value) };
+    return { success: true, content: typeof value === "string" ? value : JSON.stringify(value) };
   });
   return { engine, calls };
 }
-function runDiscovery(run: ReturnType<typeof privateRun>, engine: RequirementRecord) {
-  const discovery = new RequirementDiscoveryEngine({ llmEngine: engine, timeoutMs: 1000, agentTimeoutMs: 100 });
+function nativeDiscovery(engine: RequirementRecord) {
+  return new RequirementDiscoveryEngine({ llmEngine: engine, timeoutMs: 1000, agentTimeoutMs: 100 });
+}
+function runDiscovery(run: ReturnType<typeof privateRun>, engine: RequirementRecord, discovery = nativeDiscovery(engine)) {
   return withRequirementContractScope(run.metadata,
     () => Reflect.apply(discovery.discover as NativeMethod, discovery, [run.input]) as Promise<RequirementRecord>, run.options);
 }
 function failureText(error: unknown): string {
   return `${error instanceof Error ? error.message : String(error)}\n${JSON.stringify(error && typeof error === "object" ? { ...error } : {})}`;
+}
+const feedbackHeading = "## 上一次原生场景校验反馈";
+const timingHeading = "本次 schema 派生时长边界与可行数量（仅约束，不分配节点）：";
+function promptJson(prompt: string, heading: string): RequirementRecord {
+  const parts = prompt.split(`${heading}\n`);
+  expect(parts).toHaveLength(2);
+  return requirementRecord(JSON.parse(parts[1]!.split("\n")[0]!), heading);
+}
+function schemaFailure(path: string, keyword: "minimum" | "maximum", observed: number, limit: number) {
+  return { kind: "schema", path: `SceneArchitect response${path}`, keyword, observed, limit };
+}
+function expectCompleteSources(prompt: string, run: ReturnType<typeof privateRun>): void {
+  const context = requirementAuthorityPrompt(run.authority, run.approvedTheme);
+  expect(prompt.endsWith(context)).toBe(true);
+  expect(prompt.split(context)).toHaveLength(2);
+  expect(prompt.split(run.story)).toHaveLength(2);
+  expect(prompt.indexOf(run.story)).toBeLessThan(prompt.indexOf(context));
+  expect(prompt).toContain(run.authority.marketing.g1Artifact.content);
+  expect(prompt).toContain(JSON.stringify(run.authority.marketing.g1Proof));
+  expect(prompt).toContain(run.approvedTheme.contentMd);
+  expect(prompt).toContain(JSON.stringify(run.approvedTheme.verdict));
 }
 
 describe("actual native scene prompt and strict production response", () => {
@@ -212,7 +239,12 @@ describe("actual native scene prompt and strict production response", () => {
     vi.clearAllTimers(); vi.useRealTimers(); vi.unstubAllGlobals();
   });
 
-  it.each([30, 45, 60])("corrects the actual %ss native contradiction without changing identical customer literals or schema", async duration => {
+  it.each([
+    { duration: 30, feasibleMiddleCounts: [0, 1, 2, 3, 4] },
+    { duration: 30.96, feasibleMiddleCounts: [1, 2, 3, 4, 5] },
+    { duration: 45, feasibleMiddleCounts: [1, 2, 3, 4, 5, 6, 7] },
+    { duration: 60, feasibleMiddleCounts: [1, 2, 3, 4, 5, 6, 7, 8] }
+  ])("corrects the actual $duration s native contradiction without changing identical customer literals or schema", async ({ duration, feasibleMiddleCounts }) => {
     expect(createHash("sha256").update(readFileSync(nativeDiscoveryFile)).digest("hex"))
       .toBe("d658bd5033ff671061b0e31414d4578838496a22b19d204674abc34c7c7a5fdb");
     const input: RequirementRecord = { type: "商业广告", theme: "自主创作", duration_sec: duration, description: "最初的客户描述" };
@@ -228,6 +260,14 @@ describe("actual native scene prompt and strict production response", () => {
     expect(corrected).toContain(`主题描述: ${String(input.description)}\n`);
     expect(corrected.split(original.countLine)).toHaveLength(2); // only the customer's literal remains
     expect(corrected.split(original.example)).toHaveLength(2);
+    expect(String(input.description)).toContain("falling 级的留白场景（3-6秒）");
+    const generated = corrected.replace(`主题描述: ${String(input.description)}\n`, "主题描述: [客户原文完整保留]\n");
+    expect(generated).not.toContain("falling 级的留白场景（3-6秒）");
+    expect(generated).not.toContain(original.countLine);
+    expect(generated).not.toContain(original.example);
+    expect(promptJson(corrected, timingHeading)).toEqual({ targetDuration: duration, tolerance: 0.05,
+      opening: { minimum: 3, maximum: 15 }, middle: { minimum: 5, maximum: 60 }, ending: { minimum: 3, maximum: 15 },
+      middleCount: { minimum: 0, maximum: 8 }, feasibleMiddleCounts });
     expect(requirementHash(input)).toBe(inputHash);
     expect(requirementHash(actual.schema)).toBe(nativeHash);
     expect(requirementHash(effective)).toBe(effectiveHash);
@@ -248,13 +288,7 @@ describe("actual native scene prompt and strict production response", () => {
     expect(requirementHash(result.sceneStructure)).toBe(requirementHash(scene));
     expect(model.calls.filter(call => call.method === "reason")).toHaveLength(1);
     expect(model.calls).toHaveLength(4);
-    const context = requirementAuthorityPrompt(run.authority);
-    for (const call of model.calls) {
-      expect(call.prompt.endsWith(context)).toBe(true);
-      expect(call.prompt.split(context)).toHaveLength(2);
-      expect(call.prompt.split(run.story)).toHaveLength(2);
-      expect(call.prompt.indexOf(run.story)).toBeLessThan(call.prompt.indexOf(context));
-    }
+    for (const call of model.calls) expectCompleteSources(call.prompt, run);
     const sceneCall = model.calls.find(call => call.method === "reason")!;
     expect(sceneCall.prompt).toContain(`## 📖 原始故事文本（需求分析的核心依据）\n${run.story}`);
     expect(sceneCall.options).toMatchObject({ maxTokens: 4000, temperature: 1, forceJson: false });
@@ -262,6 +296,105 @@ describe("actual native scene prompt and strict production response", () => {
     expect(requirementHash(run.input)).toBe(before);
     expect(requirementRecord(result.upstreamFields, "source")._originalStoryText).toBe(run.story);
     expect(JSON.stringify(result)).not.toContain(run.authority.marketing.g1Artifact.content);
+    expect(JSON.stringify(result)).not.toContain(run.approvedTheme.contentMd);
+  });
+
+  it("uses the native second scene attempt to correct a schema minimum with complete unchanged story and G1/G2 authority", async () => {
+    installNativeDiscovery();
+    const valid = physicalScene([3, 5, 7, 15]), invalid = physicalScene([3, 4, 8, 15]);
+    const run = privateRun("native-schema-correction", 30, valid), model = modelFor(run, [invalid, valid]);
+    const original = await nativePromptParts(run.input), suffixAt = original.prompt.lastIndexOf(`\n\n${original.countLine}`);
+    expect(suffixAt).toBeGreaterThanOrEqual(0);
+    run.input.description += `\n客户逐字保留完整原生生成段：${original.prompt.slice(suffixAt)}\n客户原文完整尾注𠮷`;
+    const inputBefore = requirementHash(run.input), authorityBefore = requirementHash(run.authority), themeBefore = requirementHash(run.approvedTheme);
+    const result = await runDiscovery(run, model.engine), sceneCalls = model.calls.filter(call => call.method === "reason");
+    expect(sceneCalls).toHaveLength(2);
+    expect(model.calls).toHaveLength(5);
+    expect(model.calls.filter(call => call.method === "reasonStructured")).toHaveLength(3);
+    expect(sceneCalls[0]!.prompt).not.toContain(feedbackHeading);
+    expect(promptJson(sceneCalls[1]!.prompt, feedbackHeading)).toEqual(schemaFailure("/scenes/0/duration", "minimum", 4, 5));
+    for (const call of model.calls) expectCompleteSources(call.prompt, run);
+    for (const call of model.calls.filter(value => value.method !== "reason")) expect(call.prompt).not.toContain(feedbackHeading);
+    for (const call of sceneCalls) {
+      expect(call.prompt).toContain(`主题描述: ${run.input.description}\n`);
+      expect(call.prompt.split(original.countLine)).toHaveLength(2);
+      expect(call.prompt.split(original.example)).toHaveLength(2);
+      expect(call.prompt.replace(`主题描述: ${run.input.description}\n`, "")).not.toContain("falling 级的留白场景（3-6秒）");
+      expect(call.options).toMatchObject({ maxTokens: 4000, temperature: 1, forceJson: false });
+      expect(call).not.toHaveProperty("schema");
+    }
+    expect(requirementHash(result.sceneStructure)).toBe(requirementHash(valid));
+    expect(requirementHash(run.input)).toBe(inputBefore);
+    expect(requirementHash(run.authority)).toBe(authorityBefore);
+    expect(requirementHash(run.approvedTheme)).toBe(themeBefore);
+    expect(requirementRecord(result.upstreamFields, "source")._originalStoryText).toBe(run.story);
+    expect(JSON.stringify(result)).not.toContain(feedbackHeading);
+    expect(JSON.stringify(result)).not.toContain(run.authority.marketing.g1Artifact.content);
+    expect(JSON.stringify(result)).not.toContain(run.approvedTheme.contentMd);
+  });
+
+  it("reports the second actual schema path and observed value after two different invalid native responses", async () => {
+    installNativeDiscovery();
+    const valid = physicalScene([3, 5, 7, 15]);
+    const first = physicalScene([3, 4.123456, 7.876544, 15]), second = physicalScene([2.876543, 5, 7.123457, 15]);
+    const run = privateRun("latest-schema-details", 30, valid), model = modelFor(run, [first, second]);
+    const failure = await runDiscovery(run, model.engine).then(() => undefined, error => error);
+    const details = requirementRecord(failure, "current native failure").details;
+    expect(failure).toBeInstanceOf(Error);
+    expect(details).toEqual(schemaFailure("/opening/duration", "minimum", 2.876543, 3));
+    expect(Object.isFrozen(details)).toBe(true);
+    expect(failureText(failure)).not.toContain("4.123456");
+    expect(failureText(failure)).not.toContain("/scenes/0/duration");
+    const sceneCalls = model.calls.filter(call => call.method === "reason");
+    expect(sceneCalls).toHaveLength(2);
+    expect(sceneCalls[0]!.prompt).not.toContain(feedbackHeading);
+    expect(promptJson(sceneCalls[1]!.prompt, feedbackHeading)).toEqual(schemaFailure("/scenes/0/duration", "minimum", 4.123456, 5));
+    expect(model.calls.filter(call => call.method === "reasonStructured")).toHaveLength(1);
+    for (const call of model.calls) expectCompleteSources(call.prompt, run);
+    for (const privateText of [run.story, run.authority.marketing.g1Artifact.content, run.approvedTheme.contentMd]) {
+      expect(failureText(failure)).not.toContain(privateText);
+    }
+  });
+
+  it.each([
+    { node: "opening", index: 0, keyword: "minimum", limit: 3, durations: [3, 5, 3], outside: 2.999999 },
+    { node: "opening", index: 0, keyword: "maximum", limit: 15, durations: [15, 5, 3], outside: 15.000001 },
+    { node: "scenes/0", index: 1, keyword: "minimum", limit: 5, durations: [3, 5, 3], outside: 4.999999 },
+    { node: "scenes/0", index: 1, keyword: "maximum", limit: 60, durations: [3, 60, 3], outside: 60.000001 },
+    { node: "ending", index: 2, keyword: "minimum", limit: 3, durations: [3, 5, 3], outside: 2.999999 },
+    { node: "ending", index: 2, keyword: "maximum", limit: 15, durations: [3, 5, 15], outside: 15.000001 }
+  ] as const)("enforces actual native $node $keyword=$limit without changing a model-authored boundary response", async ({ node, index, keyword, limit, durations, outside }) => {
+    installNativeDiscovery();
+    const boundaryDurations: number[] = [...durations];
+    const valid = physicalScene(boundaryDurations), duration = boundaryDurations.reduce((sum, value) => sum + value, 0);
+    const acceptedRun = privateRun(`boundary-${node.replaceAll("/", "-")}-${keyword}`, duration, valid), acceptedModel = modelFor(acceptedRun, [valid]);
+    const accepted = await runDiscovery(acceptedRun, acceptedModel.engine);
+    expect(requirementHash(accepted.sceneStructure)).toBe(requirementHash(valid));
+    expect(acceptedModel.calls.filter(call => call.method === "reason")).toHaveLength(1);
+    const invalidDurations: number[] = [...durations]; invalidDurations[index] = outside;
+    const invalid = physicalScene(invalidDurations), rejectedRun = privateRun(`outside-${node.replaceAll("/", "-")}-${keyword}`, duration, valid);
+    const rejectedModel = modelFor(rejectedRun, [invalid]);
+    const failure = await runDiscovery(rejectedRun, rejectedModel.engine).then(() => undefined, error => error);
+    const expected = schemaFailure(`/${node}/duration`, keyword, outside, limit);
+    expect(failure).toBeInstanceOf(Error);
+    expect(requirementRecord(failure, "boundary failure").details).toEqual(expected);
+    expect(Object.isFrozen(requirementRecord(failure, "boundary failure").details)).toBe(true);
+    const sceneCalls = rejectedModel.calls.filter(call => call.method === "reason");
+    expect(sceneCalls).toHaveLength(2);
+    expect(sceneCalls[0]!.prompt).not.toContain(feedbackHeading);
+    expect(promptJson(sceneCalls[1]!.prompt, feedbackHeading)).toEqual(expected);
+  });
+
+  it("keeps five model-authored middle nodes feasible at 30.96 seconds with the same 0.05 second sum tolerance", async () => {
+    installNativeDiscovery();
+    const scene = physicalScene([3, 5, 5, 5, 5, 5, 3]), run = privateRun("feasible-tolerance", 30.96, scene), model = modelFor(run, [scene]);
+    const result = await runDiscovery(run, model.engine), sceneCalls = model.calls.filter(call => call.method === "reason");
+    expect(requirementHash(result.sceneStructure)).toBe(requirementHash(scene));
+    expect(sceneCalls).toHaveLength(1);
+    expect(sceneCalls[0]!.prompt).not.toContain(feedbackHeading);
+    expect(promptJson(sceneCalls[0]!.prompt, timingHeading)).toMatchObject({ targetDuration: 30.96, tolerance: 0.05,
+      feasibleMiddleCounts: [1, 2, 3, 4, 5] });
+    expectCompleteSources(sceneCalls[0]!.prompt, run);
   });
 
   it.each(["count", "declared-total", "target-total", "physical-schema"])("still rejects %s with exactly the original two scene attempts", async kind => {
@@ -301,17 +434,52 @@ describe("actual native scene prompt and strict production response", () => {
     expect(model.calls.filter(call => call.method === "reason")).toHaveLength(2);
   });
 
-  it.each(["schema", "transport"])("does not reuse prior numeric metrics after a later %s failure", async kind => {
+  it.each(["schema", "transport", "parser"])("does not reuse prior numeric metrics after a later %s failure", async kind => {
     installNativeDiscovery();
     const scene = physicalScene([10, 10, 10]), first = structuredClone(scene), second = structuredClone(scene);
     first.sceneCount = 913719;
     delete requirementRecord(second.ending, "ending").productionContract;
     const run = privateRun(`latest-${kind}`, 30, scene);
-    const model = modelFor(run, [first, kind === "schema" ? second : new Error("synthetic transport failure")]);
+    const model = modelFor(run, [first, kind === "schema" ? second : kind === "parser" ? "{invalid native JSON" : new Error("synthetic transport failure")]);
     const failure = await runDiscovery(run, model.engine).then(() => undefined, error => error);
     expect(failure).toBeInstanceOf(Error);
     expect(failureText(failure)).not.toContain("913719");
-    expect(model.calls.filter(call => call.method === "reason")).toHaveLength(2);
+    const sceneCalls = model.calls.filter(call => call.method === "reason");
+    expect(sceneCalls).toHaveLength(2);
+    expect(sceneCalls[0]!.prompt).not.toContain(feedbackHeading);
+    expect(promptJson(sceneCalls[1]!.prompt, feedbackHeading)).toEqual({ nodeCount: 3, declaredSceneCount: 913719,
+      durationSum: 30, declaredTotalDuration: 30, targetDuration: 30, declaredDurationDelta: 0, targetDurationDelta: 0 });
+    if (kind !== "schema") expect(requirementRecord(failure, "current nonvalidation failure").details).toBeUndefined();
+  });
+
+  it.each(["transport", "parser"])("keeps a first %s failure out of native validation feedback on a successful retry", async kind => {
+    installNativeDiscovery();
+    const scene = physicalScene([10, 10, 10]), run = privateRun(`first-${kind}`, 30, scene);
+    const model = modelFor(run, [kind === "parser" ? "{invalid native JSON" : new Error("synthetic first transport failure"), scene]);
+    const result = await runDiscovery(run, model.engine), sceneCalls = model.calls.filter(call => call.method === "reason");
+    expect(requirementHash(result.sceneStructure)).toBe(requirementHash(scene));
+    expect(sceneCalls).toHaveLength(2);
+    for (const call of sceneCalls) {
+      expect(call.prompt).not.toContain(feedbackHeading);
+      expectCompleteSources(call.prompt, run);
+    }
+  });
+
+  it.each(["transport", "parser"])("clears the first schema diagnostic when the current second attempt fails in %s", async kind => {
+    installNativeDiscovery();
+    const valid = physicalScene([3, 5, 7, 15]), invalid = physicalScene([3, 4.765431, 7.234569, 15]);
+    const run = privateRun(`schema-then-${kind}`, 30, valid);
+    const model = modelFor(run, [invalid, kind === "parser" ? "{invalid native JSON" : new Error("synthetic second transport failure")]);
+    const failure = await runDiscovery(run, model.engine).then(() => undefined, error => error);
+    expect(failure).toBeInstanceOf(Error);
+    expect(failureText(failure)).toContain("REQUIREMENT_SCENE_UNVERIFIED");
+    expect(failureText(failure)).not.toContain("4.765431");
+    expect(failureText(failure)).not.toContain("/scenes/0/duration");
+    expect(requirementRecord(failure, "latest nonvalidation failure").details).toBeUndefined();
+    const sceneCalls = model.calls.filter(call => call.method === "reason");
+    expect(sceneCalls).toHaveLength(2);
+    expect(sceneCalls[0]!.prompt).not.toContain(feedbackHeading);
+    expect(promptJson(sceneCalls[1]!.prompt, feedbackHeading)).toEqual(schemaFailure("/scenes/0/duration", "minimum", 4.765431, 5));
   });
 
   it("retains the same strict effective schema used to validate the real response", async () => {
@@ -326,35 +494,73 @@ describe("actual native scene prompt and strict production response", () => {
     expect(() => validateRequirementSchema(noContract, effective)).toThrow("REQUIREMENT_SCENE_UNVERIFIED");
   });
 
-  it("keeps overlapping native scene prompts, target durations and complete authorities isolated", async () => {
+  it("isolates overlapping feedback on one model engine and native scene agent, then starts a new run without old feedback", async () => {
     installNativeDiscovery();
     const a = privateRun("overlap-A", 30, physicalScene([15, 15]));
     const b = privateRun("overlap-B", 45, physicalScene([10, 12, 13, 10]));
-    const calls: string[] = [], engine: RequirementRecord = { _extractJsonObject: (value: string) => value };
+    const c = privateRun("after-overlap", 30, physicalScene([10, 10, 10]));
+    const runs = [a, b, c], before = runs.map(run => ({ input: requirementHash(run.input), authority: requirementHash(run.authority), theme: requirementHash(run.approvedTheme) }));
+    const calls: Array<{ method: string; prompt: string }> = [], engine: RequirementRecord = { _extractJsonObject: (value: string) => value };
+    const attempts = new Map<ReturnType<typeof privateRun>, number>();
+    let releaseFirstAttempts!: () => void, firstAttempts = 0;
+    const bothFirstAttempts = new Promise<void>(resolve => { releaseFirstAttempts = resolve; });
     const selected = (prompt: string) => {
-      if (prompt.includes(a.story)) return a;
-      if (prompt.includes(b.story)) return b;
+      for (const run of runs) if (prompt.includes(run.story)) return run;
       throw new Error("Native request lost its complete original story");
     };
     engine.reasonStructured = vi.fn(async function (this: RequirementRecord, prompt: string) {
-      expect(this).toBe(engine); calls.push(prompt); await Promise.resolve();
+      expect(this).toBe(engine); calls.push({ method: "reasonStructured", prompt }); await Promise.resolve();
       const run = selected(prompt), intro = prompt.slice(0, 180);
       return { success: true, data: structuredClone(intro.includes("受众分析") ? run.modules.audience
         : intro.includes("技术制片人") ? run.modules.risk : run.modules.reference) };
     });
     engine.reason = vi.fn(async function (this: RequirementRecord, prompt: string) {
-      expect(this).toBe(engine); calls.push(prompt); await Promise.resolve();
-      return { success: true, content: JSON.stringify(selected(prompt).modules.scene) };
+      expect(this).toBe(engine); calls.push({ method: "reason", prompt });
+      const run = selected(prompt), attempt = attempts.get(run) ?? 0; attempts.set(run, attempt + 1);
+      if (attempt === 0 && run !== c) {
+        if (++firstAttempts === 2) releaseFirstAttempts();
+        await bothFirstAttempts;
+        return { success: true, content: JSON.stringify(run === a
+          ? physicalScene([3, 4.111117, 7.888883, 15]) : physicalScene([15, 12, 15.776663, 2.223337])) };
+      }
+      await Promise.resolve();
+      return { success: true, content: JSON.stringify(run.modules.scene) };
     });
-    const [first, second] = await Promise.all([runDiscovery(a, engine), runDiscovery(b, engine)]);
+    const discoveryA = nativeDiscovery(engine), discoveryB = nativeDiscovery(engine), discoveryC = nativeDiscovery(engine);
+    discoveryB.agents = discoveryA.agents; discoveryC.agents = discoveryA.agents;
+    const sharedScene = requirementRecord(discoveryA.agents, "shared agents").scene;
+    const [first, second] = await Promise.all([runDiscovery(a, engine, discoveryA), runDiscovery(b, engine, discoveryB)]);
     expect(requirementHash(first.sceneStructure)).toBe(requirementHash(a.modules.scene));
     expect(requirementHash(second.sceneStructure)).toBe(requirementHash(b.modules.scene));
-    expect(calls).toHaveLength(8);
-    for (const prompt of calls) {
-      const run = selected(prompt), other = run === a ? b : a, context = requirementAuthorityPrompt(run.authority);
-      expect(prompt.endsWith(context)).toBe(true);
-      expect(prompt.split(context)).toHaveLength(2);
-      expect(prompt).not.toContain(other.authority.marketing.g1Artifact.content);
+    expect(calls).toHaveLength(10);
+    const third = await runDiscovery(c, engine, discoveryC);
+    expect(requirementHash(third.sceneStructure)).toBe(requirementHash(c.modules.scene));
+    expect(calls).toHaveLength(14);
+    const sceneCalls = (run: ReturnType<typeof privateRun>) => calls.filter(call => call.method === "reason" && selected(call.prompt) === run);
+    const aCalls = sceneCalls(a), bCalls = sceneCalls(b), cCalls = sceneCalls(c);
+    expect(aCalls).toHaveLength(2); expect(bCalls).toHaveLength(2); expect(cCalls).toHaveLength(1);
+    for (const firstCall of [aCalls[0]!, bCalls[0]!, cCalls[0]!]) expect(firstCall.prompt).not.toContain(feedbackHeading);
+    expect(promptJson(aCalls[1]!.prompt, feedbackHeading)).toEqual(schemaFailure("/scenes/0/duration", "minimum", 4.111117, 5));
+    expect(promptJson(bCalls[1]!.prompt, feedbackHeading)).toEqual(schemaFailure("/ending/duration", "minimum", 2.223337, 3));
+    for (const call of calls) {
+      const run = selected(call.prompt);
+      expectCompleteSources(call.prompt, run);
+      for (const other of runs.filter(value => value !== run)) {
+        expect(call.prompt).not.toContain(other.story);
+        expect(call.prompt).not.toContain(other.authority.marketing.g1Artifact.content);
+        expect(call.prompt).not.toContain(other.approvedTheme.contentMd);
+      }
+      if (run !== a) expect(call.prompt).not.toContain("4.111117");
+      if (run !== b) expect(call.prompt).not.toContain("2.223337");
+    }
+    for (const discovery of [discoveryA, discoveryB, discoveryC]) {
+      expect(discovery.agents).toBe(discoveryA.agents);
+      expect(requirementRecord(discovery.agents, "unchanged shared agents").scene).toBe(sharedScene);
+    }
+    for (const [index, run] of runs.entries()) {
+      expect(requirementHash(run.input)).toBe(before[index]!.input);
+      expect(requirementHash(run.authority)).toBe(before[index]!.authority);
+      expect(requirementHash(run.approvedTheme)).toBe(before[index]!.theme);
     }
   });
 });

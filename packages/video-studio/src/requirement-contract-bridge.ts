@@ -3,7 +3,7 @@ import { createRequire } from "node:module";
 import path from "node:path";
 import {
   RequirementContractError, bindRequirementContract, renderRequirementContract, requirementCast,
-  requirementHash, requirementRecord, requirementScenes, structuredSceneInstructions, structuredScenePrompt, structuredSceneSchema,
+  requirementHash, requirementRecord, requirementScenes, structuredSceneFeedback, structuredSceneInstructions, structuredScenePrompt, structuredSceneSchema,
   validateRequirementSchema, verifiedRequirementContract, type RequirementCast, type RequirementRecord
 } from "./requirement-contract.js";
 import { acquireVendorRequirementEntry } from "./vendor-requirement-entry.js";
@@ -280,46 +280,67 @@ export function installRequirementContractBridge(
       method(scene, "_validateAndFill");
       // Each run gets its own engine/agent view. No global or shared agent carries project metadata.
       const sceneView = Object.create(scene) as RequirementRecord;
-      let currentNumericFailure: RequirementContractError | undefined;
-      sceneView._callLLM = function (this: RequirementRecord, ...args: unknown[]) {
+      let finalSceneFailure: RequirementContractError | undefined;
+      const unverifiedScene = () => new RequirementContractError("REQUIREMENT_SCENE_UNVERIFIED", "SceneArchitect 未提供完整真实结构，拒绝规则道具或动作回填");
+      sceneView.run = async function (this: RequirementRecord, value: unknown, schema: unknown) {
         requireActiveScope();
-        // The next native attempt must not report a previous attempt's arithmetic
-        // failure when its actual current failure is transport/schema related.
-        currentNumericFailure = undefined;
-        return Reflect.apply(callScene, this, args);
-      };
-      sceneView.run = function (this: RequirementRecord, value: unknown, schema: unknown) {
-        requireActiveScope();
-        currentNumericFailure = undefined;
+        finalSceneFailure = undefined;
         const effectiveSchema = structuredSceneSchema(schema);
         const runView = Object.create(this) as RequirementRecord;
+        let pendingFeedback = "", attemptFeedback = "";
+        let currentValidationFailure: RequirementContractError | undefined;
+        runView._callLLM = async function (this: RequirementRecord, ...args: unknown[]) {
+          requireActiveScope();
+          // Feedback belongs to the previous completed validation. The current
+          // failure must be cleared independently before transport/JSON parsing.
+          attemptFeedback = pendingFeedback;
+          pendingFeedback = "";
+          currentValidationFailure = undefined;
+          try { return await Reflect.apply(callScene, this, args); }
+          finally { attemptFeedback = ""; }
+        };
         runView._buildPrompt = function (this: RequirementRecord, input: unknown) {
           requireActiveScope();
           const original = Reflect.apply(build, this, [input]);
-          return structuredScenePrompt(original, input, effectiveSchema) + structuredSceneInstructions(cast, audience(scope));
+          return structuredScenePrompt(original, input, effectiveSchema) + structuredSceneInstructions(cast, audience(scope)) + attemptFeedback;
         };
-        return Reflect.apply(run, runView, [value, effectiveSchema]);
-      };
-      sceneView._validateAndFill = function (this: RequirementRecord, value: unknown, schema: unknown) {
-        requireActiveScope();
-        // Validate the real response before vendor fallback can invent missing fields.
-        const upstream = requirementRecord(input, "SceneArchitect 上游输入");
-        try {
-          validateRequirementSchema(value, schema);
-          requirementScenes(value, cast, upstream.duration_sec);
-        } catch (error) {
-          if (error instanceof RequirementContractError && error.code === "REQUIREMENT_SCENE_UNVERIFIED"
-            && Object.prototype.hasOwnProperty.call(error, "details")) currentNumericFailure = error;
-          throw error;
+        runView._validateAndFill = function (this: RequirementRecord, response: unknown, responseSchema: unknown) {
+          requireActiveScope();
+          // Validate the real response before vendor fallback can invent fields.
+          const upstream = requirementRecord(input, "SceneArchitect 上游输入");
+          try {
+            validateRequirementSchema(response, responseSchema);
+            requirementScenes(response, cast, upstream.duration_sec);
+          } catch (error) {
+            const feedback = structuredSceneFeedback(error);
+            if (feedback && error instanceof RequirementContractError) {
+              currentValidationFailure = error;
+              pendingFeedback = feedback;
+            }
+            throw error;
+          }
+          pendingFeedback = "";
+          currentValidationFailure = undefined;
+          // The native defaults bridge eagerly evaluates _fallback, even for a
+          // complete object. Strict responses never enter that invented path.
+          return structuredClone(response);
+        };
+        runView._fallback = function () {
+          requireActiveScope();
+          finalSceneFailure = currentValidationFailure ?? unverifiedScene();
+          throw finalSceneFailure;
+        };
+        try { return await Reflect.apply(run, runView, [value, effectiveSchema]); }
+        finally {
+          pendingFeedback = "";
+          attemptFeedback = "";
+          currentValidationFailure = undefined;
         }
-        // The existing vendor defaults bridge evaluates _fallback eagerly even for
-        // complete required objects. A strict contract must not enter that path.
-        return structuredClone(value);
       };
       sceneView._fallback = function () {
         requireActiveScope();
-        if (currentNumericFailure) throw currentNumericFailure;
-        throw new RequirementContractError("REQUIREMENT_SCENE_UNVERIFIED", "SceneArchitect 未提供完整真实结构，拒绝规则道具或动作回填");
+        // The native discover catch calls this again after the runView fallback.
+        throw finalSceneFailure ?? unverifiedScene();
       };
       const engineView = Object.create(this) as RequirementRecord;
       engineView.agents = { ...guardedAgents, scene: sceneView };

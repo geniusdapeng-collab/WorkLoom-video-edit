@@ -3,8 +3,9 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
-  bindRequirementContract, renderRequirementContract, requirementCast, requirementHash, requirementRecord,
-  requirementScenes, structuredScenePrompt, structuredSceneSchema, verifiedRequirementContract, type RequirementRecord
+  RequirementContractError, bindRequirementContract, renderRequirementContract, requirementCast, requirementHash, requirementRecord,
+  requirementScenes, structuredSceneFeedback, structuredScenePrompt, structuredSceneSchema, structuredSceneTiming,
+  validateRequirementSchema, verifiedRequirementContract, type RequirementRecord
 } from "./requirement-contract.js";
 import { assertRequirementContractBridge, installRequirementContractBridge, withRequirementContractScope } from "./requirement-contract-bridge.js";
 import { installSharedBridge, installVendorDiscoveryFixBridge, listSharedBridges } from "./vendor-compat.js";
@@ -129,6 +130,100 @@ describe("actual vendor scene prompt correction", () => {
     expect(() => structuredScenePrompt(null, native.input, schema)).toThrow("REQUIREMENT_VENDOR_UNAVAILABLE");
     const cyclic: RequirementRecord = {}; cyclic.self = cyclic;
     expect(() => structuredScenePrompt(native.prompt, native.input, cyclic)).toThrow("REQUIREMENT_SCHEMA_UNSUPPORTED");
+  });
+});
+
+describe("schema-derived scene timing and bounded validation facts", () => {
+  it.each([
+    { target: 30, counts: [0, 1, 2, 3, 4] },
+    { target: 45, counts: [1, 2, 3, 4, 5, 6, 7] },
+    { target: 60, counts: [1, 2, 3, 4, 5, 6, 7, 8] },
+    { target: 30.96, counts: [1, 2, 3, 4, 5] }
+  ])("derives feasible counts for $target seconds without allocating nodes", async ({ target, counts }) => {
+    const native = await nativeSceneFixture(target), schema = structuredSceneSchema(native.nativeSchema), hash = requirementHash(schema);
+    const timing = structuredSceneTiming(schema, target);
+    expect(timing).toEqual({ targetDuration: target, tolerance: 0.05,
+      opening: { minimum: 3, maximum: 15 }, middle: { minimum: 5, maximum: 60 }, ending: { minimum: 3, maximum: 15 },
+      middleCount: { minimum: 0, maximum: 8 }, feasibleMiddleCounts: counts });
+    expect(Object.isFrozen(timing)).toBe(true);
+    expect(Object.isFrozen(timing.feasibleMiddleCounts)).toBe(true);
+    expect(requirementHash(schema)).toBe(hash);
+    expect(timing).not.toHaveProperty("scenes");
+    const prompt = structuredScenePrompt(native.prompt, native.input, schema);
+    expect(prompt).toContain(`本次 schema 派生时长边界与可行数量（仅约束，不分配节点）：\n${JSON.stringify(timing)}`);
+    expect(prompt).toContain("falling 级的留白场景（5-6秒，遵守主体节点 schema 边界）");
+    expect(prompt).not.toContain("falling 级的留白场景（3-6秒）");
+  });
+
+  it("uses the exact existing subtraction tolerance at the count feasibility boundary", async () => {
+    const native = await nativeSceneFixture(30), schema = structuredSceneSchema(native.nativeSchema);
+    for (const target of [30.949, 30.95, 30.951, 30.96, 31, 31.001]) {
+      expect(structuredSceneTiming(schema, target).feasibleMiddleCounts.includes(5)).toBe(Math.abs(31 - target) <= 0.05 || target >= 31);
+    }
+    expect(() => structuredSceneTiming(schema, 5.94)).toThrow("REQUIREMENT_SCENE_UNVERIFIED");
+    expect(() => structuredSceneTiming(schema, Infinity)).toThrow("REQUIREMENT_SCENE_UNVERIFIED");
+  });
+
+  it("follows changed actual schema bounds and count limits without mutating them", async () => {
+    const native = await nativeSceneFixture(30), schema = structuredSceneSchema(native.nativeSchema);
+    const middle = requirementRecord(requirementRecord(schema.properties, "properties").scenes, "middle");
+    requirementRecord(requirementRecord(middle.items, "item").properties, "item properties").duration = { type: "number", minimum: 7, maximum: 9 };
+    middle.minItems = 1; middle.maxItems = 2;
+    const hash = requirementHash(schema), timing = structuredSceneTiming(schema, 30);
+    expect(timing.feasibleMiddleCounts).toEqual([1, 2]);
+    expect(timing.middle).toEqual({ minimum: 7, maximum: 9 });
+    const prompt = structuredScenePrompt(native.prompt, native.input, schema);
+    expect(prompt).toContain("falling 级的留白场景（7-9秒内自行决定；原节奏建议与本次 schema 无合法交集）");
+    expect(requirementHash(schema)).toBe(hash);
+    middle.maxItems = 0;
+    expect(() => structuredSceneTiming(schema, 30)).toThrow("REQUIREMENT_SCHEMA_UNSUPPORTED");
+  });
+
+  it.each([
+    { keyword: "minimum", item: 4, rule: { type: "number", minimum: 5 }, observed: 4, limit: 5 },
+    { keyword: "maximum", item: 61, rule: { type: "number", maximum: 60 }, observed: 61, limit: 60 },
+    { keyword: "type", item: "PRIVATE-INVALID-DURATION", rule: { type: "number" }, observed: null, limit: null },
+    { keyword: "minLength", item: "𠮷", rule: { type: "string", minLength: 2 }, observed: 1, limit: 2 },
+    { keyword: "maxLength", item: "PRIVATE-PROSE", rule: { type: "string", maxLength: 4 }, observed: 13, limit: 4 },
+    { keyword: "minItems", item: [], rule: { type: "array", minItems: 1 }, observed: 0, limit: 1 },
+    { keyword: "maxItems", item: ["PRIVATE-A", "PRIVATE-B"], rule: { type: "array", maxItems: 1 }, observed: 2, limit: 1 },
+    { keyword: "required", item: {}, rule: { type: "object", required: ["duration"] }, observed: null, limit: null },
+    { keyword: "additionalProperties", item: { "PRIVATE-UNTRUSTED-KEY": "PRIVATE-PROSE" }, rule: { type: "object", additionalProperties: false }, observed: null, limit: null },
+    { keyword: "enum", item: "PRIVATE-ENUM", rule: { type: "string", enum: ["safe"] }, observed: null, limit: null }
+  ])("exposes only bounded $keyword facts and never response text", ({ keyword, item, rule, observed, limit }) => {
+    let failure: unknown;
+    try { validateRequirementSchema(item, rule); } catch (error) { failure = error; }
+    const details = (failure as RequirementContractError & { details: RequirementRecord }).details;
+    expect(details).toEqual({ kind: "schema", path: "SceneArchitect response", keyword, observed, limit });
+    expect(Object.isFrozen(details)).toBe(true);
+    const feedback = structuredSceneFeedback(failure);
+    expect(feedback).toContain(`## 上一次原生场景校验反馈\n${JSON.stringify(details)}\n`);
+    expect(feedback).not.toContain("PRIVATE");
+    expect((failure as Error).message).not.toContain("PRIVATE");
+  });
+
+  it("refuses forged details, arbitrary labels and response-derived property paths", () => {
+    const forged = Object.assign(new RequirementContractError("REQUIREMENT_SCENE_UNVERIFIED", "PRIVATE-MESSAGE"),
+      { details: { kind: "schema", path: "PRIVATE-PATH", observed: "PRIVATE-JSON" } });
+    expect(structuredSceneFeedback(forged)).toBe("");
+    expect(structuredSceneFeedback(new Error("PRIVATE-MESSAGE"))).toBe("");
+    for (const operation of [
+      () => validateRequirementSchema(1, { type: "number", minimum: 5 }, "PRIVATE-LABEL"),
+      () => validateRequirementSchema({ "PRIVATE-KEY": 1 }, { type: "object", properties: { "PRIVATE-KEY": { type: "number", minimum: 5 } } })
+    ]) {
+      let failure: unknown;
+      try { operation(); } catch (error) { failure = error; }
+      expect(structuredSceneFeedback(failure)).toBe("");
+    }
+  });
+
+  it("retains exactly the existing seven arithmetic facts as retry feedback", () => {
+    const scene = structure(); scene.sceneCount = 2;
+    let failure: unknown;
+    try { requirementScenes(scene, requirementCast(metadata()), 30); } catch (error) { failure = error; }
+    const details = (failure as RequirementContractError & { details: RequirementRecord }).details;
+    expect(Object.keys(details)).toHaveLength(7);
+    expect(structuredSceneFeedback(failure).split("\n")[3]).toBe(JSON.stringify(details));
   });
 });
 
