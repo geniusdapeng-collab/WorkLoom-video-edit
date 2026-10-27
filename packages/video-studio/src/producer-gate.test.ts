@@ -306,3 +306,142 @@ describe("producer uses explicit source contracts", () => {
     expect(result.contractHash).toBeUndefined(); expect(bodies[0]).toContain("未提供结构化镜头合同");
   });
 });
+
+describe("model-aware complete text evidence allocation", () => {
+  const sha256 = (text: string) => createHash("sha256").update(text).digest("hex");
+  function payload(model: string, total = 104_441) {
+    // Synthetic originals reproduce attempt24's exact UTF-16 sizes, not its content.
+    const source = { facts: { head: "G1全文起点", content: "", tail: "G1全文末尾的来源与用途限制" } };
+    source.facts.content = "源".repeat(51_977 - JSON.stringify(source).length);
+    const accepted = JSON.stringify(source);
+    const head = "G4全文起点：人物、场景和交付合同\n", tail = "\nG4全文末尾：全部执行计划仍待实际审核";
+    const current = head + "审".repeat(total - accepted.length - head.length - tail.length) + tail;
+    const currentPath = file("G4_PRD.md", current), acceptedPath = file("G1_DOSSIER.json", accepted);
+    return { accepted, current, currentPath, acceptedPath, options: {
+      env: { ...env, LLM_MODEL: model },
+      artifacts: [
+        { path: currentPath, kind: "text" as const, expectedSha256: sha256(current) },
+        { path: acceptedPath, kind: "json" as const, expectedSha256: sha256(accepted) },
+      ],
+    } };
+  }
+  function expectFullText(body: string, value: ReturnType<typeof payload>) {
+    const request = JSON.parse(body);
+    expect(request.messages).toHaveLength(1);
+    expect(request.messages[0].content).toContainEqual({ type: "text", text: `以下是产物正文（完整）：${value.currentPath}\n${value.current}` });
+    expect(request.messages[0].content).toContainEqual({ type: "text", text: `以下是产物正文（完整）：${value.acceptedPath}\n${value.accepted}` });
+  }
+
+  it.each(["deepseek-flash", "deepseek-v4-pro"])("sends all104441 UTF-16 units once to exact %s with original request settings and both hashes", async model => {
+    const value = payload(model), bodies: string[] = [];
+    expect(value.accepted).toHaveLength(51_977); expect(value.current).toHaveLength(52_464);
+    expect(Buffer.byteLength(value.accepted + value.current, "utf8")).toBeGreaterThan(200_000);
+    const verdict = await reviewStage(textOptions({ ...value.options, fetchImpl: judge(good, bodies) }));
+    expect(verdict).toMatchObject({ approved: true, status: "passed", score: 85, degraded: false, via: "llm", model });
+    expect(bodies).toHaveLength(1); expectFullText(bodies[0]!, value);
+    expect(JSON.parse(bodies[0]!)).toEqual({ model, messages: expect.any(Array), temperature: 0.2, response_format: { type: "json_object" } });
+    expect(verdict.evidence).toEqual(value.options.artifacts.map(artifact => ({ path: artifact.path, sha256: artifact.expectedSha256, scope: "complete-text" })));
+  });
+
+  it.each([
+    { model: "deepseek-flash", total: 200_000, allowed: true },
+    { model: "deepseek-flash", total: 200_001, allowed: false },
+    { model: "deepseek-v4-pro", total: 200_000, allowed: true },
+    { model: "deepseek-v4-pro", total: 200_001, allowed: false },
+  ])("enforces the exact aggregate boundary for $model at$total", async ({ model, total, allowed }) => {
+    const value = payload(model, total), bodies: string[] = [];
+    expect(value.accepted.length + value.current.length).toBe(total);
+    const verdict = await reviewStage(textOptions({ ...value.options, fetchImpl: judge(good, bodies) }));
+    expect(verdict.approved).toBe(allowed); expect(bodies).toHaveLength(allowed ? 1 : 0);
+    if (allowed) expectFullText(bodies[0]!, value);
+    else expect(verdict).toMatchObject({ status: "unverified", degraded: true, reason: expect.stringContaining("完整评审预算") });
+  });
+
+  it.each(["judge-unknown", "deepseek-chat", "deepseek-reasoner", "deepseek-flash-latest", "deepseek-v4-pro-preview", "provider/deepseek-flash", "DEEPSEEK-FLASH", " deepseek-flash", "deepseek-v4-pro "])(
+    "retains100k for unknown, legacy or noncanonical %j without wildcard matching", async model => {
+      for (const total of [100_000, 100_001]) {
+        const value = payload(model, total), bodies: string[] = [];
+        const verdict = await reviewStage(textOptions({ ...value.options, fetchImpl: judge(good, bodies) }));
+        expect(verdict.approved).toBe(total === 100_000); expect(bodies).toHaveLength(total === 100_000 ? 1 : 0);
+        if (total === 100_000) expectFullText(bodies[0]!, value);
+        else expect(verdict.reason).toContain("完整评审预算");
+      }
+    },
+  );
+
+  it.each([
+    { model: "deepseek-flash", units: 200_000, extra: "", allowed: true },
+    { model: "deepseek-flash", units: 200_000, extra: "a", allowed: false },
+    { model: "deepseek-chat", units: 100_000, extra: "", allowed: true },
+    { model: "deepseek-chat", units: 100_000, extra: "a", allowed: false },
+  ])("counts surrogate pairs as UTF-16 units for$model/$units/$extra", async ({ model, units, extra, allowed }) => {
+    const text = "😀".repeat(units / 2) + extra, bodies: string[] = [], path = file("unicode.txt", text);
+    expect(text.length).toBe(units + extra.length); expect([...text]).toHaveLength(units / 2 + extra.length);
+    const verdict = await reviewStage(textOptions({ env: { ...env, LLM_MODEL: model }, artifacts: [{ path, kind: "text", expectedSha256: sha256(text) }], fetchImpl: judge(good, bodies) }));
+    expect(verdict.approved).toBe(allowed); expect(bodies).toHaveLength(allowed ? 1 : 0);
+    if (allowed) expect(JSON.parse(bodies[0]!).messages[0].content).toContainEqual({ type: "text", text: `以下是产物正文（完整）：${path}\n${text}` });
+  });
+
+  it.each([
+    { answer: { ...good, score: 69 }, minScore: undefined, allowed: false },
+    { answer: { ...good, score: 70 }, minScore: undefined, allowed: true },
+    { answer: { ...good, score: 99, approved: false }, minScore: undefined, allowed: false },
+    { answer: { ...good, score: 89 }, minScore: 90, allowed: false },
+  ])("keeps original scoring and explicit refusal for expanded text %j", async ({ answer, minScore, allowed }) => {
+    const value = payload("deepseek-flash"), bodies: string[] = [];
+    const verdict = await reviewStage(textOptions({ ...value.options, minScore, fetchImpl: judge(answer, bodies) }));
+    expect(verdict.approved).toBe(allowed); expect(verdict.score).toBe(answer.score);
+    expect(verdict.status).toBe(allowed ? "passed" : "failed"); expect(verdict.degraded).toBe(false);
+    expect(bodies).toHaveLength(1); expectFullText(bodies[0]!, value);
+  });
+
+  it.each(["hard-failure", "missing-required", "unverified-required"])("keeps%s before any expanded-text model call", async mode => {
+    const value = payload("deepseek-flash"), bodies: string[] = [];
+    const deterministic = mode === "hard-failure" ? [{ id: "source", pass: false, hard: true, detail: "real hard failure" }]
+      : mode === "unverified-required" ? [{ id: "source", pass: true, hard: true, status: "unverified" as const, detail: "no receipt" }] : [];
+    const verdict = await reviewStage(textOptions({ ...value.options, deterministic, requiredCheckIds: ["source"], fetchImpl: judge(good, bodies) }));
+    expect(verdict.approved).toBe(false); expect(bodies).toHaveLength(0);
+  });
+
+  it.each(["before", "during"])("still rejects expanded-text artifact mutation%s review", async when => {
+    const value = payload("deepseek-flash"), bodies: string[] = [];
+    if (when === "before") writeFileSync(value.acceptedPath, JSON.stringify({ changed: "different accepted source" }));
+    const fetchImpl = (async (_url, init) => {
+      bodies.push(String(init?.body)); writeFileSync(value.currentPath, "changed during model review");
+      return new Response(JSON.stringify({ choices: [{ message: { content: JSON.stringify(good) } }] }));
+    }) as typeof fetch;
+    const verdict = await reviewStage(textOptions({ ...value.options, fetchImpl }));
+    expect(verdict).toMatchObject({ approved: false, status: "unverified", degraded: true });
+    expect(bodies).toHaveLength(when === "before" ? 0 : 1);
+    expect(verdict.reason).toContain(when === "before" ? "摘要" : "评审期间产物发生变化");
+  });
+
+  it.each([0, 1])("retains the original30000 context-plus-contract boundary with expanded text, delta%i", async delta => {
+    const value = payload("deepseek-flash"), bodies: string[] = [];
+    const contracts = { shots: [{ shotId: "WHOLE", scene: "无人产品全景", lighting: "自然日光", action: "商品静置" }] };
+    const contractLength = JSON.stringify(buildProducerReviewContract(contracts)).length;
+    const context = { note: "a".repeat(30_000 - contractLength - JSON.stringify({ note: "" }).length + delta) };
+    expect(JSON.stringify(context).length + contractLength).toBe(30_000 + delta);
+    const verdict = await reviewStage(textOptions({ ...value.options, contracts, context, fetchImpl: judge(good, bodies) }));
+    expect(verdict.approved).toBe(delta === 0); expect(bodies).toHaveLength(delta === 0 ? 1 : 0);
+    if (delta) expect(verdict.reason).toContain("评审上下文超预算");
+  });
+
+  it.each(["artifact-images", "reference-images"])("keeps the existing%s cap with expanded text", async mode => {
+    const value = payload("deepseek-flash"), bodies: string[] = [];
+    const images = Array.from({ length: mode === "artifact-images" ? 61 : 7 }, (_, i) => file(`cap-${i}.png`, png));
+    const verdict = await reviewStage(textOptions({ ...value.options,
+      ...(mode === "artifact-images" ? { artifacts: [...value.options.artifacts, ...images.map(path => ({ path, kind: "image" as const }))] } : { referenceImages: images }),
+      fetchImpl: judge(good, bodies) }));
+    expect(verdict).toMatchObject({ approved: false, status: "unverified", degraded: true });
+    expect(verdict.reason).toContain(mode === "artifact-images" ? "图像证据超过" : "基准图超过"); expect(bodies).toHaveLength(0);
+  });
+
+  it("keeps an expanded-text HTTP failure unverified with no additional request", async () => {
+    const value = payload("deepseek-flash"), bodies: string[] = [];
+    const fetchImpl = (async (_url, init) => { bodies.push(String(init?.body)); return new Response("provider failure", { status: 500 }); }) as typeof fetch;
+    const verdict = await reviewStage(textOptions({ ...value.options, fetchImpl }));
+    expect(verdict).toMatchObject({ approved: false, status: "unverified", degraded: true, reason: expect.stringContaining("HTTP 500") });
+    expect(bodies).toHaveLength(1); expectFullText(bodies[0]!, value);
+  });
+});
