@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   bindRequirementContract, renderRequirementContract, requirementCast, requirementHash, requirementRecord,
-  requirementScenes, structuredSceneSchema, verifiedRequirementContract, type RequirementRecord
+  requirementScenes, structuredScenePrompt, structuredSceneSchema, verifiedRequirementContract, type RequirementRecord
 } from "./requirement-contract.js";
 import { assertRequirementContractBridge, installRequirementContractBridge, withRequirementContractScope } from "./requirement-contract-bridge.js";
 import { installSharedBridge, installVendorDiscoveryFixBridge, listSharedBridges } from "./vendor-compat.js";
@@ -69,6 +69,68 @@ function bind(meta = metadata(), d = discovery(), value: unknown = original()): 
   return bindRequirementContract(value, d, upstream, meta, requirementCast(meta).hash, audience);
 }
 function deferred<T>() { let resolve!: (value: T) => void; const promise = new Promise<T>(done => { resolve = done; }); return { promise, resolve }; }
+
+async function nativeSceneFixture(duration: number, description = "客户完整的场景描述与艺术参考。") {
+  const engine = new RequirementDiscoveryEngine({ timeoutMs: 1000, agentTimeoutMs: 100 });
+  const agents = requirementRecord(engine.agents, "agents"), input = { ...upstream, duration_sec: duration, description };
+  const scene = requirementRecord(agents.scene, "scene");
+  const prompt = Reflect.apply(scene._buildPrompt as (...args: unknown[]) => unknown, scene, [input]) as string;
+  let nativeSchema: RequirementRecord | undefined;
+  for (const [name, value] of Object.entries(agents)) {
+    const agent = requirementRecord(value, name);
+    agent.run = (_input: unknown, schema: unknown) => {
+      if (name === "scene") { nativeSchema = structuredClone(requirementRecord(schema, "native schema")); return structure(); }
+      const d = discovery();
+      return name === "audience" ? d.audienceProfile : name === "risk" ? d.riskAssessment : d.referenceCases;
+    };
+  }
+  await (engine.discover as (value: unknown) => Promise<unknown>)(input);
+  if (!nativeSchema) throw new Error("actual native discovery did not provide its schema");
+  return { prompt, input, nativeSchema };
+}
+
+describe("actual vendor scene prompt correction", () => {
+  it.each([30, 45, 60])("replaces only generated contradictions for %ss with the exact effective schema", async duration => {
+    const native = await nativeSceneFixture(duration);
+    const example = native.prompt.match(/^\{"opening":.+\}$/m)![0];
+    const value = JSON.parse(example), nodes = [value.opening, ...value.scenes, value.ending];
+    expect(value.sceneCount === nodes.length && value.totalDuration === nodes.reduce((sum: number, node: { duration: number }) => sum + node.duration, 0)).toBe(false);
+    const originalSchema = structuredClone(native.nativeSchema), schema = structuredSceneSchema(native.nativeSchema);
+    const corrected = structuredScenePrompt(native.prompt, native.input, schema);
+    expect(native.nativeSchema).toEqual(originalSchema);
+    expect(corrected).not.toContain(example);
+    expect(corrected).not.toContain(`请设计 ${Math.min(Math.max(Math.ceil(duration / 15), 2), 8)} 个场景（含开场和结尾）`);
+    expect(corrected).toContain("场景数量与逐节点时长由本次模型根据叙事自行决定");
+    expect(corrected).toContain("sceneCount 必须等于 2 + scenes.length");
+    expect(corrected).toContain(`目标 ${duration} 秒（现有数值容差 0.05 秒）`);
+    const encoded = corrected.split("本次实际 SceneArchitect 响应 JSON Schema（完整适用，不是示例成品）：\n")[1]!.split("\n")[0]!;
+    expect(JSON.parse(encoded)).toEqual(schema);
+    for (const phrase of ["【电影语法参考】关注：产品质感光", "【结构心法——三幕呼吸法】", "高潮(climax)之后", "climax 场景时长必须≥任一其他场景的1.3倍"]) expect(corrected).toContain(phrase);
+  });
+
+  it("preserves customer description containing the exact generated lines and full native suffix", async () => {
+    const first = await nativeSceneFixture(30);
+    const marker = "请设计 2 个场景（含开场和结尾），总时长约 30 秒。";
+    const suffix = first.prompt.slice(first.prompt.lastIndexOf(marker));
+    const description = `客户原文开始\n${suffix}\n客户原文结束，保留全部艺术表达。`;
+    const native = await nativeSceneFixture(30, description), schema = structuredSceneSchema(native.nativeSchema);
+    const corrected = structuredScenePrompt(native.prompt, native.input, schema);
+    expect(corrected).toContain(description);
+    expect(corrected.split(marker)).toHaveLength(2); // Customer literal only; generated advice removed.
+    const prefix = native.prompt.slice(0, native.prompt.lastIndexOf(marker));
+    expect(corrected.startsWith(prefix)).toBe(true);
+    expect(corrected.endsWith("重点不突出等于没有重点。")).toBe(true);
+  });
+
+  it("rejects generated suffix drift and unserializable schema without touching customer content", async () => {
+    const native = await nativeSceneFixture(30), schema = structuredSceneSchema(native.nativeSchema);
+    expect(() => structuredScenePrompt(native.prompt + "changed", native.input, schema)).toThrow("REQUIREMENT_VENDOR_UNAVAILABLE");
+    expect(() => structuredScenePrompt(native.prompt.replace("总时长约 30 秒。", "总时长约 31 秒。"), native.input, schema)).toThrow("REQUIREMENT_VENDOR_UNAVAILABLE");
+    expect(() => structuredScenePrompt(null, native.input, schema)).toThrow("REQUIREMENT_VENDOR_UNAVAILABLE");
+    const cyclic: RequirementRecord = {}; cyclic.self = cyclic;
+    expect(() => structuredScenePrompt(native.prompt, native.input, cyclic)).toThrow("REQUIREMENT_SCHEMA_UNSUPPORTED");
+  });
+});
 
 describe("host requirement contract data", () => {
   it("keeps the resolver result, owner audience and complete selected character while binding one real structure", () => {
@@ -170,6 +232,31 @@ describe("host requirement contract data", () => {
     expect(() => bindRequirementContract(original(), discovery(), upstream, meta, before, "原受众")).toThrow("REQUIREMENT_CAST_CHANGED");
     const stable = metadata();
     expect(() => bindRequirementContract(original(), discovery(), upstream, stable, requirementCast(stable).hash, "另一受众")).toThrow("REQUIREMENT_AUDIENCE_CHANGED");
+  });
+
+  it.each(["count", "declared-duration", "target-duration"])("reports bounded numeric %s diagnostics without scene prose", kind => {
+    const s = structure(), target = kind === "target-duration" ? 45 : 30;
+    requirementRecord(s.opening, "opening").purpose = "PRIVATE-PROSE-NEVER-LOG";
+    if (kind === "count") s.sceneCount = 2;
+    if (kind === "declared-duration") s.totalDuration = 29;
+    let failure: Error & { details?: RequirementRecord };
+    try { requirementScenes(s, requirementCast(metadata()), target); throw new Error("expected failure"); }
+    catch (error) { failure = error as typeof failure; }
+    expect(failure.message).toContain("场景节点数或总时长与真实结构不一致；numeric");
+    expect(failure.details).toEqual({ nodeCount: 3, declaredSceneCount: kind === "count" ? 2 : 3, durationSum: 30,
+      declaredTotalDuration: kind === "declared-duration" ? 29 : 30, targetDuration: target,
+      declaredDurationDelta: kind === "declared-duration" ? 1 : 0, targetDurationDelta: kind === "target-duration" ? -15 : 0 });
+    expect(Object.isFrozen(failure.details)).toBe(true);
+    expect(failure.message.length).toBeLessThan(600);
+    expect(failure.message).not.toContain("PRIVATE-PROSE");
+  });
+
+  it("retains the original 0.05-second arithmetic tolerance", () => {
+    const valid = structure(), invalid = structure();
+    requirementRecord(valid.opening, "opening").duration = 9.951;
+    requirementRecord(invalid.opening, "opening").duration = 9.949;
+    expect(requirementScenes(valid, requirementCast(metadata()), 30)).toHaveLength(3);
+    expect(() => requirementScenes(invalid, requirementCast(metadata()), 30)).toThrow("REQUIREMENT_SCENE_UNVERIFIED");
   });
 
   it.each(["scene", "cast", "list-cast", "contract", "audience", "metadata-contract"])("rejects %s changes before G3", kind => {
@@ -301,6 +388,31 @@ describe("real discovery code with isolated fake LLM", () => {
     const engine = new RequirementDiscoveryEngine({ llmEngine: model.fake, timeoutMs: 1000, agentTimeoutMs: 100 });
     await expect(withRequirementContractScope(metadata(), () => (engine.discover as (value: unknown) => Promise<unknown>)(upstream)))
       .rejects.toThrow("REQUIREMENT_SCENE_UNVERIFIED");
+    expect(model.fake.reason).toHaveBeenCalledTimes(2);
+  });
+
+  it("preserves the latest native attempt's numeric failure through both vendor fallback catches", async () => {
+    const Vendor = vendorClass(); install(Vendor);
+    const first = structure(), second = structure(); first.sceneCount = 2;
+    requirementRecord(second.opening, "opening").duration = 9;
+    const model = fakeModel(first);
+    model.fake.reason.mockResolvedValueOnce({ success: true, content: JSON.stringify(first) })
+      .mockResolvedValueOnce({ success: true, content: JSON.stringify(second) });
+    const engine = new RequirementDiscoveryEngine({ llmEngine: model.fake, timeoutMs: 1000, agentTimeoutMs: 100 });
+    await expect(withRequirementContractScope(metadata(), () => (engine.discover as (value: unknown) => Promise<unknown>)(upstream)))
+      .rejects.toMatchObject({ code: "REQUIREMENT_SCENE_UNVERIFIED", details: { nodeCount: 3, declaredSceneCount: 3, durationSum: 29, targetDuration: 30 } });
+    expect(model.fake.reason).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not reuse an earlier numeric failure after a later transport failure", async () => {
+    const Vendor = vendorClass(); install(Vendor);
+    const first = structure(); first.sceneCount = 2;
+    const model = fakeModel(first);
+    model.fake.reason.mockResolvedValueOnce({ success: true, content: JSON.stringify(first) })
+      .mockRejectedValueOnce(new Error("fixture current transport failure"));
+    const engine = new RequirementDiscoveryEngine({ llmEngine: model.fake, timeoutMs: 1000, agentTimeoutMs: 100 });
+    await expect(withRequirementContractScope(metadata(), () => (engine.discover as (value: unknown) => Promise<unknown>)(upstream)))
+      .rejects.toMatchObject({ code: "REQUIREMENT_SCENE_UNVERIFIED", message: expect.not.stringContaining("numeric") });
     expect(model.fake.reason).toHaveBeenCalledTimes(2);
   });
 

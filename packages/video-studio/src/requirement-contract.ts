@@ -245,7 +245,15 @@ export function requirementScenes(structureValue: unknown, cast: RequirementCast
   if (typeof declared !== "number" || !Number.isFinite(declared) || Math.abs(total - declared) > 0.05
     || (Number.isFinite(target) && target > 0 && Math.abs(total - target) > 0.05)
     || structure.sceneCount !== scenes.length) {
-    throw new RequirementContractError("REQUIREMENT_SCENE_UNVERIFIED", "场景节点数或总时长与真实结构不一致");
+    // Fixed numeric fields only: diagnostics must never expose scene prose, cast,
+    // source stories or the private authority appended to the model transport.
+    const number = (value: unknown): number | null => typeof value === "number" && Number.isFinite(value) ? value : null;
+    const details = Object.freeze({ nodeCount: scenes.length, declaredSceneCount: number(structure.sceneCount),
+      durationSum: number(total), declaredTotalDuration: number(declared), targetDuration: Number.isFinite(target) && target > 0 ? target : null,
+      declaredDurationDelta: typeof declared === "number" ? number(total - declared) : null,
+      targetDurationDelta: Number.isFinite(target) && target > 0 ? number(total - target) : null });
+    throw Object.assign(new RequirementContractError("REQUIREMENT_SCENE_UNVERIFIED",
+      `场景节点数或总时长与真实结构不一致；numeric ${JSON.stringify(details)}`), { details });
   }
   return scenes;
 }
@@ -343,6 +351,55 @@ export function structuredSceneInstructions(cast: RequirementCast, audience: unk
     + `props 必须是当前场景中实际可见的物理对象，不得把性格、语气、摄影、履历、否定规则或人物日常爱好当道具；人物档案里的用品只有本场真正出现才可声明。`
     + `actions 不能只填“起身”“看向”等孤立动词；每个所选出镜人物至少在一个节点有明确动作。每个节点至少一个动作；真正没有可见道具时才允许显式空props并说明原因。`
     + `完整保留场景目的和约束，不截断，不虚构额外人物；商品参数和部件事实必须能由本次商品事实证据支持，未知项不得靠人物设定补齐。\n`;
+}
+
+/** Correct only the pinned vendor-generated suffix, never matching customer text. */
+export function structuredScenePrompt(value: unknown, inputValue: unknown, schemaValue: unknown): string {
+  if (typeof value !== "string") throw new RequirementContractError("REQUIREMENT_VENDOR_UNAVAILABLE", "原始场景 prompt 不是文本");
+  const input = requirementRecord(inputValue, "SceneArchitect 输入");
+  const duration = input.duration_sec || 45, target = Number(duration);
+  if (!["string", "number"].includes(typeof duration) || !Number.isFinite(target) || target <= 0) {
+    throw new RequirementContractError("REQUIREMENT_SCENE_UNVERIFIED", "场景目标时长不是有效正数");
+  }
+  const count = Math.min(Math.max(Math.ceil(target / 15), 2), 8);
+  const countLine = `请设计 ${count} 个场景（含开场和结尾），总时长约 ${duration} 秒。`;
+  const example = `{"opening":{"duration":10,"purpose":"开场目的 —— 观众第一眼看到什么？为什么会被吸引？","keyElements":["元素1","元素2"]},"scenes":[{"index":1,"duration":10,"purpose":"场景目的 —— 如果删掉这镜，故事会损失什么？","keyElements":["元素1","元素2"],"emotionalBeat":"setup"}],"ending":{"duration":10,"purpose":"结尾目的 —— 观众离开时会记住什么？","keyElements":["元素1","元素2"]},"totalDuration":${duration},"sceneCount":${count},"narrativeArc":"linear"}`;
+  // The suffix begins after description and the type's film grammar. Matching the
+  // whole terminal suffix keeps identical literals inside either source intact.
+  const suffix = `${countLine}
+
+输出 JSON 格式（严格遵守，只输出合法 JSON，不要 markdown 代码块）：
+${example}
+
+要求：
+1. 所有场景时长之和 ≈ ${duration} 秒
+2. 每个场景必须有 emotionalBeat（从枚举中选一个：setup/rising/climax/falling/resolution/twist）
+3. 场景按叙事节奏排列：setup → rising → climax → resolution
+4. 关键元素 1-3 个
+5. purpose 必须具体、电影化，避免"推动叙事发展"这种泛化描述。要回答：观众看到了什么具体画面？感受到了什么情绪？为什么继续看？
+6. 只输出 JSON，不要任何解释文字
+
+【结构心法——三幕呼吸法】
+1. opening（前3秒抓眼）：第一帧即悬念——把全片最大的矛盾浓缩成一个画面（巨大vs渺小/颤抖的手vs一整车安危），禁止平铺直叙的建立镜头。
+2. 每个 scenes[i].purpose 必须写'删掉这镜故事会损失什么'——答不上来就说明这镜该删。
+3. 情绪弧线必须有'换气口'：高潮(climax)之后、结尾(ending)之前，安排一个 falling 级的留白场景（3-6秒），让最后的释放有落差。60秒短片没有喘息就是噪音。
+4. ending 必须落到'一个特写+一句台词'的收束结构：观众最后记住的永远是一个细节，不是一个道理。
+5. keyElements 只写能被镜头拍到的物理元素，禁止'氛围''感觉'类词。
+
+【时长铁律】所有场景时长之和≈目标时长；climax 场景时长必须≥任一其他场景的1.3倍——重点不突出等于没有重点。`;
+  if (!value.endsWith(`\n\n${suffix}`)) {
+    throw new RequirementContractError("REQUIREMENT_VENDOR_UNAVAILABLE", "原始场景生成段不再匹配受控字段位置");
+  }
+  let schema: string;
+  try { schema = JSON.stringify(requirementRecord(schemaValue, "本次实际 SceneArchitect schema")); }
+  catch { throw new RequirementContractError("REQUIREMENT_SCHEMA_UNSUPPORTED", "本次实际场景 schema 无法完整序列化"); }
+  const guidance = `场景数量与逐节点时长由本次模型根据叙事自行决定，不采用固定数量或预制镜头。scenes 数组只包含主体节点，opening 和 ending 各为一个独立节点。`;
+  const contract = `本次实际 SceneArchitect 响应 JSON Schema（完整适用，不是示例成品）：\n${schema}\n`
+    + `以下精确结构约束优先于本段其余“约/≈”表述：sceneCount 必须等于 2 + scenes.length；所有节点 duration 之和必须同时等于 totalDuration 和目标 ${target} 秒（现有数值容差 0.05 秒）。`
+    + `逐节点内容、数量和时长仍由本次模型创作，输出前核对节点数与时长之和；不得用预制节点或返回后补值替代。`;
+  const exampleAt = suffix.indexOf(example);
+  return value.slice(0, value.length - suffix.length) + guidance
+    + suffix.slice(countLine.length, exampleAt) + contract + suffix.slice(exampleAt + example.length);
 }
 
 /** Extend the schema supplied to the existing SceneArchitect run, preserving its other fields. */
