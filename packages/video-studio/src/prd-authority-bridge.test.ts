@@ -1,12 +1,13 @@
+import { writeFileSync } from "node:fs";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { requirementHash, requirementRecord, type RequirementRecord } from "./requirement-contract.js";
-import { preparePrdAuthority } from "./prd-authority.js";
+import { bindRequirementContract, requirementCast, requirementHash, requirementRecord, type RequirementContract, type RequirementRecord } from "./requirement-contract.js";
+import { effectivePrdModelSchema, prdAuthorityPrompt, preparePrdAuthority } from "./prd-authority.js";
 import { assertPrdAuthorityBridge, installPrdAuthorityBridge, withPrdAuthorityScope } from "./prd-authority-bridge.js";
-import { PRDGenerator, PRDSchema, prdFixture } from "./prd-authority.test-support.js";
+import { digest, PRDGenerator, PRDSchema, prdFixture } from "./prd-authority.test-support.js";
 
 const fixtures: ReturnType<typeof prdFixture>[] = [];
 const disposers: Array<() => void> = [];
-function fixture(name = "P1") { const value = prdFixture(name); fixtures.push(value); return value; }
+function fixture(...args: Parameters<typeof prdFixture>) { const value = prdFixture(...args); fixtures.push(value); return value; }
 function invoke(owner: RequirementRecord, key: string, ...args: unknown[]): unknown {
   return Reflect.apply(owner[key] as (...args: unknown[]) => unknown, owner, args);
 }
@@ -14,6 +15,37 @@ function deferred<T>() {
   let resolve!: (value: T) => void;
   const promise = new Promise<T>(done => { resolve = done; });
   return { promise, resolve };
+}
+function schemaFromPrompt(prompt: string, kind: "creative" | "production"): RequirementRecord {
+  const pieces = prompt.split(`\n\n## 本次宿主 PRD ${kind} 响应 JSON Schema（`);
+  expect(pieces).toHaveLength(2);
+  const encoded = pieces[1]!.match(/\n```json\n([^\n]+)\n```\n/);
+  expect(encoded).not.toBeNull();
+  return JSON.parse(encoded![1]!) as RequirementRecord;
+}
+function expectCompletePrompt(prompt: string, kind: "creative" | "production", value: ReturnType<typeof prdFixture>) {
+  const expected = effectivePrdModelSchema(kind, PRDSchema, value.contract);
+  expect(schemaFromPrompt(prompt, kind)).toEqual(expected);
+  expect(prompt.split(JSON.stringify(expected))).toHaveLength(2);
+  expect(prompt.split(prdAuthorityPrompt(value.authority, value.contract))).toHaveLength(2);
+  expect(prompt).toContain(JSON.stringify(value.metadata.brief));
+  expect(prompt).toContain(JSON.stringify(value.contract));
+  expect(prompt).toContain(value.content);
+}
+function lengthenAuthority(value: ReturnType<typeof prdFixture>) {
+  requirementRecord(value.metadata.brief, "brief").description = "完整客户长文本及特殊字符\\\"{}[]".repeat(400);
+  const opening = requirementRecord(requirementRecord(value.discovery.sceneStructure, "structure").opening, "opening");
+  opening.purpose = "完整G3长目的和可见动作不可截断".repeat(80);
+  value.production.scenePlan.scenes[0]!.purpose = String(opening.purpose);
+  value.list = bindRequirementContract({ keyPoints: [] }, value.discovery, requirementRecord(value.discovery.upstreamFields, "upstream"),
+    structuredClone(value.metadata), requirementCast(value.metadata).hash, "原始年轻消费者");
+  value.contract = value.list._workloomRequirementContract as RequirementContract;
+  const g1 = JSON.parse(value.content) as RequirementRecord;
+  requirementRecord(g1.facts, "facts").completeReviewNotes = "完整G1原件意见与建议及日期用途限定".repeat(3000);
+  value.content = JSON.stringify(g1); writeFileSync(value.file, value.content);
+  value.marketing.g1Artifact = { path: value.file, content: value.content, sha256: digest(value.content) };
+  value.marketing.g1Proof.evidence = [{ path: value.file, sha256: digest(value.content), scope: "complete-text" }];
+  value.authority = preparePrdAuthority({ metadata: value.metadata, marketing: value.marketing, workDir: value.workDir, projectId: value.scope.projectId });
 }
 
 beforeEach(() => {
@@ -101,10 +133,11 @@ describe("PRD native generator, two native agent processes and real schema", () 
     expect(run.calls.map(call => call.agent)).toEqual(["agent2", "agent3"]);
     for (const call of run.calls) {
       expect(call.correctReceiver).toBe(true);
-      expect(call.prompt).toContain(value.content);
-      expect(call.prompt).toContain(JSON.stringify(value.metadata.brief));
-      expect(call.prompt).toContain(JSON.stringify(value.contract));
-      expect(call.options).toMatchObject({ maxRetries: 1, thinking: { type: "disabled" } });
+      expectCompletePrompt(call.prompt, call.agent === "agent2" ? "creative" : "production", value);
+      expect(call.schema).toEqual({ required: call.agent === "agent2"
+        ? ["coreTheme", "creativeHook", "emotionalArc", "keyMessages", "endingType"] : ["visualSpecification", "audioSpecification"] });
+      expect(call.options).toEqual({ maxTokens: 12288, timeoutMs: call.agent === "agent2" ? 120000 : 180000,
+        maxRetries: 1, deadlineMs: null, thinking: { type: "disabled" } });
     }
     expect(requirementRecord(run.generator.agent2, "agent2")).not.toHaveProperty("_lastDiscoveryResult");
   });
@@ -119,9 +152,25 @@ describe("PRD native generator, two native agent processes and real schema", () 
       return h.success(prd);
     });
   });
-  it("native BaseAgent parse retry keeps the complete authority at every actual engine call", async () => {
+  it.each([
+    { key: "agent2", shrink: "partial-authority" }, { key: "agent3", shrink: "partial-authority" },
+    { key: "agent2", shrink: "suffix-removed" }, { key: "agent3", shrink: "suffix-removed" },
+    { key: "agent2", shrink: "host-example" }, { key: "agent3", shrink: "host-example" }
+  ])("native $key parse shrink ($shrink) restores the complete schema and long authority exactly once", async ({ key, shrink }) => {
     const value = fixture(), h = harness(), run = h.make(value);
-    const engine = run.engines[0]!, original = engine.reasonStructured as (...args: unknown[]) => unknown;
+    lengthenAuthority(value);
+    if (shrink === "suffix-removed") value.discovery._originalStoryText = "完整原始故事【目标JSON结构示例】原生缩短时会移除此后的示例部分";
+    if (shrink === "host-example") {
+      requirementRecord(value.metadata.brief, "brief").description += "【目标JSON结构示例】客户保留的原始引用";
+      value.authority = preparePrdAuthority({ metadata: value.metadata, marketing: value.marketing, workDir: value.workDir, projectId: value.scope.projectId });
+    }
+    const agent = requirementRecord(run.generator[key], key), nativeBuild = agent._buildPrompt as (...args: unknown[]) => unknown;
+    const built: string[] = [];
+    agent._buildPrompt = function (this: RequirementRecord, ...args: unknown[]) {
+      const prompt = Reflect.apply(nativeBuild, this, args) as string;
+      built.push(prompt); return prompt;
+    };
+    const engine = run.engines[key === "agent2" ? 0 : 1]!, original = engine.reasonStructured as (...args: unknown[]) => unknown;
     let attempts = 0;
     engine.reasonStructured = vi.fn(async function (this: RequirementRecord, ...args: unknown[]) {
       if (++attempts === 1) throw new Error("synthetic JSON parse failure");
@@ -137,14 +186,69 @@ describe("PRD native generator, two native agent processes and real schema", () 
     const actual = (engine.reasonStructured as ReturnType<typeof vi.fn>).mock.calls;
     expect(actual).toHaveLength(2);
     for (const args of actual) {
-      expect(String(args[0])).toContain(value.content);
-      expect(String(args[0])).toContain(JSON.stringify(value.contract));
-      expect(args[2]).toMatchObject({ maxRetries: 1, thinking: { type: "disabled" } });
+      expectCompletePrompt(String(args[0]), key === "agent2" ? "creative" : "production", value);
     }
+    expect(built).toHaveLength(1);
+    const first = String(actual[0]![0]), second = String(actual[1]![0]);
+    if (shrink === "partial-authority") {
+      // Native truncation kept the complete schema and only part of G1.
+      expect(second).toBe(first);
+    } else {
+      // The native example-removal branch removed the whole host suffix.
+      expect(second).not.toBe(first); expect(second).toContain("[输出结构见schema]");
+    }
+    expect(actual[0]![1]).toBe(actual[1]![1]); expect(actual[0]![2]).toEqual(actual[1]![2]);
+    expect(run.calls.map(call => call.agent)).toEqual(["agent2", "agent3"]);
+    expect((run.engines[key === "agent2" ? 1 : 0]!.reasonStructured as ReturnType<typeof vi.fn>).mock.calls).toHaveLength(1);
+  });
+  it.each(["agent2", "agent3"])("native %s preserves a customer quotation of the exact host heading and following text, including parse retry", async key => {
+    const value = fixture(); lengthenAuthority(value);
+    const kind = key === "agent2" ? "creative" : "production";
+    const heading = `\n\n## 本次宿主 PRD ${kind} 响应 JSON Schema（${requirementHash(effectivePrdModelSchema(kind, PRDSchema, value.contract))}）\n`;
+    const quotation = `客户引用开始${heading}客户引用之后的SENTINEL和完整原文必须保留`;
+    value.discovery._originalStoryText = quotation;
+    requirementRecord(value.metadata.brief, "brief").description += quotation;
+    value.authority = preparePrdAuthority({ metadata: value.metadata, marketing: value.marketing, workDir: value.workDir, projectId: value.scope.projectId });
+    const h = harness(), run = h.make(value), agent = requirementRecord(run.generator[key], key);
+    const originalPrompt = invoke(agent, "_buildPrompt", value.discovery, { creativeCore: value.creative }) as string;
+    const nativePrefix = `${String(invoke(agent, "_getSystemPrompt"))}\n\n${originalPrompt}`;
+    const engine = run.engines[key === "agent2" ? 0 : 1]!, reason = engine.reasonStructured as (...args: unknown[]) => unknown;
+    let attempts = 0;
+    engine.reasonStructured = vi.fn(async function (this: RequirementRecord, ...args: unknown[]) {
+      if (++attempts === 1) throw new Error("synthetic JSON parse failure");
+      return Reflect.apply(reason, this, args);
+    });
+    const running = withPrdAuthorityScope(value.authority, async () => {
+      const prd = await h.generate(run); await h.review(run, prd); return h.success(prd);
+    });
+    const settled = expect(running).resolves.toMatchObject({ success: true });
+    await vi.advanceTimersByTimeAsync(500); await settled;
+    const calls = (engine.reasonStructured as ReturnType<typeof vi.fn>).mock.calls;
+    expect(calls).toHaveLength(2);
+    for (const call of calls) {
+      const prompt = String(call[0]); expect(prompt.startsWith(nativePrefix)).toBe(true); expect(prompt).toContain(quotation);
+      const ownSuffix = prompt.slice(nativePrefix.length);
+      expect(ownSuffix.startsWith(heading)).toBe(true); expectCompletePrompt(ownSuffix, kind, value);
+    }
+    expect(calls[0]![0]).toBe(calls[1]![0]); expect(calls[0]![1]).toBe(calls[1]![1]); expect(calls[0]![2]).toEqual(calls[1]![2]);
+    expect(run.calls.map(call => call.agent)).toEqual(["agent2", "agent3"]);
   });
 });
 
 describe("PRD failures remain fatal through native catches", () => {
+  it.each([
+    { label: "empty", references: [] }, { label: "six", references: Array(6).fill("合成构图参考") },
+    { label: "missing", references: undefined }, { label: "not-array", references: "合成构图参考" }, { label: "wrong-item-type", references: [42] }
+  ])("native production rejects invalid visualReferences $label without extra calls or repair", async ({ references }) => {
+    const value = fixture(), h = harness(), visual = value.production.visualSpecification as unknown as RequirementRecord;
+    if (references === undefined) delete visual.visualReferences; else visual.visualReferences = references;
+    const before = structuredClone(value.production), run = h.make(value);
+    await expect(withPrdAuthorityScope(value.authority, () => h.generate(run)))
+      .rejects.toThrow(references === undefined ? "visualSpecification 缺少必需字段" : "visualReferences");
+    expect(value.production).toEqual(before); expect(run.calls.map(call => call.agent)).toEqual(["agent2", "agent3"]);
+    for (const call of run.calls) expectCompletePrompt(call.prompt, call.agent === "agent2" ? "creative" : "production", value);
+    expect(run.system.minimalCalls).toBe(0);
+  });
   it.each(["no-g3", "g3-rejected", "source-scene-changed", "cast-changed"])("rejects %s before a model call", async kind => {
     const value = fixture(), h = harness(), run = h.make(value);
     await expect(withPrdAuthorityScope(value.authority, async () => {
@@ -228,7 +332,7 @@ describe("PRD failures remain fatal through native catches", () => {
 
 describe("PRD private scope, receiver identity and strict restoration", () => {
   it("interleaved runs retain their own complete brief/G1/G3 and close independently", async () => {
-    const values = [fixture("A"), fixture("B")], h = harness(), runs = values.map(value => h.make(value));
+    const values = [fixture("A", [3, 7, 7, 3], 6), fixture("B", [3, 3], 0)], h = harness(), runs = values.map(value => h.make(value));
     const ready = [deferred<void>(), deferred<void>()], release = [deferred<void>(), deferred<void>()];
     const running = runs.map((run, index) => withPrdAuthorityScope(run.value.authority, async () => {
       await invoke(run.system, "_confirmRequirementList", "G3", run.value.list); ready[index]!.resolve(); await release[index]!.promise;
@@ -239,9 +343,65 @@ describe("PRD private scope, receiver identity and strict restoration", () => {
     release[1]!.resolve(); await expect(running[1]).resolves.toMatchObject({ success: true });
     release[0]!.resolve(); await expect(running[0]).resolves.toMatchObject({ success: true });
     for (const [index, run] of runs.entries()) for (const call of run.calls) {
+      expectCompletePrompt(call.prompt, call.agent === "agent2" ? "creative" : "production", run.value);
       expect(call.prompt).toContain(run.value.marketing.g1Artifact.sha256);
       expect(call.prompt).not.toContain(values[index === 0 ? 1 : 0]!.marketing.g1Artifact.sha256);
     }
+  });
+  it("interleaved runs sharing one native engine retain independent schemas and never mutate that engine", async () => {
+    const values = [fixture("SHARED-A", [3, 24, 3], 1), fixture("SHARED-B", [3, 7, 7, 3], 6)], h = harness();
+    const runs = values.map(value => h.make(value)), ready = [deferred<void>(), deferred<void>()], release = [deferred<void>(), deferred<void>()];
+    const calls: Array<{ index: number; kind: "creative" | "production"; prompt: string; schema: unknown; options: unknown }> = [];
+    const shared: RequirementRecord = {
+      reasonStructured: vi.fn(async function (this: RequirementRecord, prompt: string, schema: RequirementRecord, options: unknown) {
+        expect(this).toBe(shared);
+        const index = values.findIndex(value => prompt.includes(value.marketing.g1Artifact.sha256));
+        expect(index).toBeGreaterThanOrEqual(0);
+        const value = values[index]!, kind = (schema.required as string[]).includes("coreTheme") ? "creative" : "production";
+        expectCompletePrompt(prompt, kind, value);
+        calls.push({ index, kind, prompt, schema, options });
+        if (kind === "creative") { ready[index]!.resolve(); await release[index]!.promise; }
+        return { success: true, data: structuredClone(kind === "creative" ? value.creative : value.production) };
+      })
+    };
+    const before = Object.getOwnPropertyDescriptors(shared);
+    for (const run of runs) for (const key of ["agent2", "agent3"]) requirementRecord(run.generator[key], key)._llmEngine = shared;
+    const running = runs.map(run => withPrdAuthorityScope(run.value.authority, async () => {
+      const prd = await h.generate(run); await h.review(run, prd); return h.success(prd);
+    }));
+    await Promise.all(ready.map(value => value.promise));
+    release[1]!.resolve(); await expect(running[1]).resolves.toMatchObject({ success: true });
+    release[0]!.resolve(); await expect(running[0]).resolves.toMatchObject({ success: true });
+    expect(calls.map(call => [call.index, call.kind])).toEqual([[0, "creative"], [1, "creative"], [1, "production"], [0, "production"]]);
+    for (const call of calls) expect(call.prompt).not.toContain(values[call.index === 0 ? 1 : 0]!.marketing.g1Artifact.sha256);
+    expect(Object.getOwnPropertyDescriptors(shared)).toEqual(before);
+    for (const run of runs) for (const key of ["agent2", "agent3"]) expect(requirementRecord(run.generator[key], key)._llmEngine).toBe(shared);
+  });
+  it("regeneration before G4 reuses only its own schema, without accumulating prompt sections", async () => {
+    const value = fixture("REPEAT", [3, ...Array(8).fill(5), 3], 10), h = harness(), run = h.make(value);
+    await withPrdAuthorityScope(value.authority, async () => {
+      await h.generate(run);
+      const prd = await invoke(run.generator, "generate", value.discovery) as RequirementRecord;
+      await h.review(run, prd); return h.success(prd);
+    });
+    expect(run.calls.map(call => call.agent)).toEqual(["agent2", "agent3", "agent2", "agent3"]);
+    for (const call of run.calls) expectCompletePrompt(call.prompt, call.agent === "agent2" ? "creative" : "production", value);
+    expect(run.calls[0]!.prompt).toBe(run.calls[2]!.prompt); expect(run.calls[1]!.prompt).toBe(run.calls[3]!.prompt);
+  });
+  it("an unbound native generator preserves exact prompts, schemas, options and native results apart from each native UUID", async () => {
+    const value = fixture(), h = harness(), patched = h.make(value);
+    const result = await withPrdAuthorityScope(undefined, () => h.generate(patched));
+    h.dispose();
+    const native = h.make(value), baseline = await h.generate(native);
+    expect(patched.calls).toEqual(native.calls);
+    const normalize = (prd: RequirementRecord) => {
+      const copy = structuredClone(prd), project = requirementRecord(copy.projectDefinition, "project");
+      expect(project.projectId).toMatch(/^[a-f0-9]{8}-[a-f0-9-]{27}$/);
+      project.projectId = "per-invocation-native-UUID"; return copy;
+    };
+    expect(normalize(result)).toEqual(normalize(baseline));
+    expect(patched.calls).toHaveLength(2);
+    for (const call of patched.calls) expect(call.prompt).not.toContain("## 本次宿主 PRD");
   });
   it.each(["generate", "generateMarkdown", "_confirmRequirementList", "_confirmPRD", "_generateMinimalPRD"])("bound %s refuses a missing or shadowed ALS scope", async key => {
     const value = fixture(), h = harness(), run = h.make(value);

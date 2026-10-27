@@ -1,8 +1,8 @@
 import { symlinkSync, unlinkSync, writeFileSync } from "node:fs";
 import { afterEach, describe, expect, it } from "vitest";
-import { requirementRecord } from "./requirement-contract.js";
+import { requirementRecord, type RequirementRecord } from "./requirement-contract.js";
 import {
-  authoritativeDelivery, authoritativeProduct, bindPrdProvenance, normalizePrdProductionProfile,
+  authoritativeDelivery, authoritativeProduct, bindPrdProvenance, effectivePrdModelSchema, normalizePrdProductionProfile,
   preparePrdAuthority, prdAuthorityPrompt, validatePrdModelPayload, validatePrdProduction
 } from "./prd-authority.js";
 import { PRDSchema, prdFixture } from "./prd-authority.test-support.js";
@@ -79,6 +79,52 @@ describe("PRD private accepted current G1", () => {
 });
 
 describe("PRD real model response and provenance", () => {
+  it("derives the bare creative shape and exact four production modules without mutating native constraints", () => {
+    const value = fixture(), before = structuredClone(PRDSchema), contractBefore = structuredClone(value.contract);
+    const creative = effectivePrdModelSchema("creative", PRDSchema, value.contract);
+    expect(creative).toEqual(requirementRecord(PRDSchema.properties, "native properties").creativeCore);
+    expect(creative).not.toHaveProperty("properties.creativeCore");
+    const modules = ["visualSpecification", "audioSpecification", "characterSystem", "scenePlan"];
+    const properties = requirementRecord(PRDSchema.properties, "native properties");
+    const expected: RequirementRecord = { type: "object", required: modules,
+      properties: Object.fromEntries(modules.map(key => [key, structuredClone(properties[key])])), additionalProperties: false };
+    const expectedProperties = requirementRecord(expected.properties, "expected properties");
+    const scenes = requirementRecord(requirementRecord(expectedProperties.scenePlan, "scene schema").properties, "scene properties").scenes as RequirementRecord;
+    scenes.minItems = value.contract.scenes.length; scenes.maxItems = value.contract.scenes.length;
+    delete (requirementRecord(requirementRecord(scenes.items, "scene item").properties, "scene fields").purpose as RequirementRecord).maxLength;
+    const characters = requirementRecord(requirementRecord(expectedProperties.characterSystem, "cast schema").properties, "cast properties").characters as RequirementRecord;
+    characters.minItems = value.contract.cast.characters.length; characters.maxItems = value.contract.cast.characters.length;
+    const production = effectivePrdModelSchema("production", PRDSchema, value.contract);
+    expect(production).toEqual(expected);
+    expect(PRDSchema).toEqual(before); expect(value.contract).toEqual(contractBefore);
+    requirementRecord(creative.properties, "creative properties").coreTheme = {};
+    requirementRecord(production.properties, "production properties").visualSpecification = {};
+    expect(PRDSchema).toEqual(before);
+  });
+  it.each([0, 6, 10])("exposes exactly the current %s selected people and ten scenes to the model schema", count => {
+    const value = fixture(`SCHEMA-${count}`, [3, ...Array(8).fill(5), 3], count);
+    const properties = requirementRecord(effectivePrdModelSchema("production", PRDSchema, value.contract).properties, "properties");
+    const characters = requirementRecord(requirementRecord(properties.characterSystem, "cast").properties, "cast properties").characters;
+    const scenes = requirementRecord(requirementRecord(properties.scenePlan, "plan").properties, "plan properties").scenes as RequirementRecord;
+    expect(characters).toMatchObject({ minItems: count, maxItems: count });
+    expect(scenes).toMatchObject({ minItems: 10, maxItems: 10 });
+    expect(requirementRecord(requirementRecord(scenes.items, "item").properties, "fields").purpose).toEqual({ type: "string", minLength: 10 });
+  });
+  it.each([1, 5])("accepts the original visual reference boundary of %s items", count => {
+    const value = fixture(); value.production.visualSpecification.visualReferences = Array(count).fill("合成构图参考");
+    expect(() => validatePrdModelPayload(value.production, "production", PRDSchema, value.contract, value.authority.profile)).not.toThrow();
+  });
+  it.each([
+    { label: "empty", references: [] }, { label: "six", references: Array(6).fill("合成构图参考") },
+    { label: "missing", references: undefined }, { label: "not-array", references: "合成构图参考" }, { label: "wrong-item-type", references: [42] }
+  ])("rejects illegal visualReferences $label without filling a reference", ({ references }) => {
+    const value = fixture(), visual = value.production.visualSpecification as unknown as RequirementRecord;
+    if (references === undefined) delete visual.visualReferences; else visual.visualReferences = references;
+    const before = structuredClone(value.production);
+    expect(() => validatePrdModelPayload(value.production, "production", PRDSchema, value.contract, value.authority.profile))
+      .toThrow(references === undefined ? "visualSpecification 缺少必需字段" : "visualReferences");
+    expect(value.production).toEqual(before);
+  });
   it("accepts genuine payload structure and keeps full model creative sentences untouched", () => {
     const value = fixture();
     expect(validatePrdModelPayload(JSON.stringify(value.creative), "creative", PRDSchema, value.contract, value.authority.profile)).toEqual(value.creative);
