@@ -11,6 +11,23 @@ export class RequirementContractError extends Error {
   }
 }
 
+const validationFacts = new WeakMap<RequirementContractError, Readonly<RequirementRecord>>();
+const finiteNumber = (value: unknown): number | null => typeof value === "number" && Number.isFinite(value) ? value : null;
+const schemaPath = /^SceneArchitect response(?:\/(?:opening|scenes|ending|duration|purpose|keyElements|index|emotionalBeat|productionContract|props|actions|name|description|actorId|noPropsReason|totalDuration|sceneCount|narrativeArc|\d{1,6}))*$/;
+
+function withValidationFacts(error: RequirementContractError, details: RequirementRecord): RequirementContractError {
+  const facts = Object.freeze(details);
+  Object.defineProperty(error, "details", { value: facts, enumerable: true });
+  validationFacts.set(error, facts);
+  return error;
+}
+
+/** Only facts produced by our validator can reach the next native attempt. */
+export function structuredSceneFeedback(error: unknown): string {
+  const facts = error instanceof RequirementContractError ? validationFacts.get(error) : undefined;
+  return facts ? `\n\n## 上一次原生场景校验反馈\n${JSON.stringify(facts)}\n仅依据这些校验事实重新生成完整合法响应；不复用或补填上次场景，不改变原有 schema、人物与时长约束。` : "";
+}
+
 export function requirementRecord(value: unknown, label: string): RequirementRecord {
   if (!value || typeof value !== "object" || Array.isArray(value)
     || typeof (value as RequirementRecord).then === "function") {
@@ -58,8 +75,18 @@ export function validateRequirementSchema(value: unknown, schemaValue: unknown, 
   const ancestors = new Set<object>();
   const check = (item: unknown, schemaInput: unknown, location: string): void => {
     const schema = requirementRecord(schemaInput, "SceneArchitect schema");
-    const invalid = (reason: string): never => { throw new RequirementContractError("REQUIREMENT_SCENE_UNVERIFIED", `${location} ${reason}`); };
-    if (Array.isArray(schema.enum) && !schema.enum.some(allowed => JSON.stringify(allowed) === JSON.stringify(item))) invalid("不在允许的枚举内");
+    const invalid = (reason: string, keyword = "type", observed: unknown = item, limit?: unknown): never => {
+      const error = new RequirementContractError("REQUIREMENT_SCENE_UNVERIFIED", `${location} ${reason}`);
+      // Fixed schema keys and bounded indices only; never echo a response key,
+      // string value, arbitrary label, enum prose or the raw response.
+      if (location.length <= 256 && schemaPath.test(location)) {
+        const details = { kind: "schema", path: location, keyword, observed: finiteNumber(observed), limit: finiteNumber(limit) };
+        error.message += `；validation ${JSON.stringify(details)}`;
+        throw withValidationFacts(error, details);
+      }
+      throw error;
+    };
+    if (Array.isArray(schema.enum) && !schema.enum.some(allowed => JSON.stringify(allowed) === JSON.stringify(item))) invalid("不在允许的枚举内", "enum");
     switch (schema.type) {
       case "object": {
         if (!item || typeof item !== "object" || Array.isArray(item)) invalid("必须为对象");
@@ -69,11 +96,11 @@ export function validateRequirementSchema(value: unknown, schemaValue: unknown, 
         try {
           const properties = schema.properties === undefined ? {} : requirementRecord(schema.properties, "schema properties");
           for (const key of schema.required === undefined ? [] : array(schema.required, "schema required")) {
-            if (typeof key !== "string" || !Object.prototype.hasOwnProperty.call(record, key)) invalid("缺少必需字段");
+            if (typeof key !== "string" || !Object.prototype.hasOwnProperty.call(record, key)) invalid("缺少必需字段", "required", null);
           }
           for (const key of Object.keys(record)) {
             if (Object.prototype.hasOwnProperty.call(properties, key)) check(record[key], properties[key], `${location}/${key}`);
-            else if (schema.additionalProperties === false) invalid("包含未声明字段");
+            else if (schema.additionalProperties === false) invalid("包含未声明字段", "additionalProperties", null);
           }
         } finally { ancestors.delete(record); }
         return;
@@ -84,8 +111,8 @@ export function validateRequirementSchema(value: unknown, schemaValue: unknown, 
         if (ancestors.has(items)) invalid("包含循环引用");
         ancestors.add(items);
         try {
-          if (typeof schema.minItems === "number" && items.length < schema.minItems) invalid("项目数量不足");
-          if (typeof schema.maxItems === "number" && items.length > schema.maxItems) invalid("项目数量超出范围");
+          if (typeof schema.minItems === "number" && items.length < schema.minItems) invalid("项目数量不足", "minItems", items.length, schema.minItems);
+          if (typeof schema.maxItems === "number" && items.length > schema.maxItems) invalid("项目数量超出范围", "maxItems", items.length, schema.maxItems);
           if (schema.items !== undefined) items.forEach((child, index) => check(child, schema.items, `${location}/${index}`));
         } finally { ancestors.delete(items); }
         return;
@@ -93,14 +120,14 @@ export function validateRequirementSchema(value: unknown, schemaValue: unknown, 
       case "string": {
         if (typeof item !== "string") invalid("必须为文本");
         const length = Array.from(item as string).length;
-        if (typeof schema.minLength === "number" && length < schema.minLength) invalid("文本不完整");
-        if (typeof schema.maxLength === "number" && length > schema.maxLength) invalid("文本超出范围");
+        if (typeof schema.minLength === "number" && length < schema.minLength) invalid("文本不完整", "minLength", length, schema.minLength);
+        if (typeof schema.maxLength === "number" && length > schema.maxLength) invalid("文本超出范围", "maxLength", length, schema.maxLength);
         return;
       }
       case "number": case "integer":
         if (typeof item !== "number" || !Number.isFinite(item) || (schema.type === "integer" && !Number.isInteger(item))) invalid("必须为有效数值");
-        if (typeof schema.minimum === "number" && (item as number) < schema.minimum) invalid("低于允许范围");
-        if (typeof schema.maximum === "number" && (item as number) > schema.maximum) invalid("高于允许范围");
+        if (typeof schema.minimum === "number" && (item as number) < schema.minimum) invalid("低于允许范围", "minimum", item, schema.minimum);
+        if (typeof schema.maximum === "number" && (item as number) > schema.maximum) invalid("高于允许范围", "maximum", item, schema.maximum);
         return;
       case "boolean": if (typeof item !== "boolean") invalid("必须为布尔值"); return;
       case "null": if (item !== null) invalid("必须为 null"); return;
@@ -252,8 +279,8 @@ export function requirementScenes(structureValue: unknown, cast: RequirementCast
       durationSum: number(total), declaredTotalDuration: number(declared), targetDuration: Number.isFinite(target) && target > 0 ? target : null,
       declaredDurationDelta: typeof declared === "number" ? number(total - declared) : null,
       targetDurationDelta: Number.isFinite(target) && target > 0 ? number(total - target) : null });
-    throw Object.assign(new RequirementContractError("REQUIREMENT_SCENE_UNVERIFIED",
-      `场景节点数或总时长与真实结构不一致；numeric ${JSON.stringify(details)}`), { details });
+    throw withValidationFacts(new RequirementContractError("REQUIREMENT_SCENE_UNVERIFIED",
+      `场景节点数或总时长与真实结构不一致；numeric ${JSON.stringify(details)}`), details);
   }
   return scenes;
 }
@@ -353,6 +380,43 @@ export function structuredSceneInstructions(cast: RequirementCast, audience: unk
     + `完整保留场景目的和约束，不截断，不虚构额外人物；商品参数和部件事实必须能由本次商品事实证据支持，未知项不得靠人物设定补齐。\n`;
 }
 
+/** Derive constraints from the exact effective schema; this never allocates a scene. */
+export function structuredSceneTiming(schemaValue: unknown, targetDuration: number) {
+  const unsupported = (): never => { throw new RequirementContractError("REQUIREMENT_SCHEMA_UNSUPPORTED", "场景时长边界或数量边界不是可派生的有效范围"); };
+  const properties = requirementRecord(requirementRecord(schemaValue, "场景时长 schema").properties, "场景时长 properties");
+  const bounds = (nodeValue: unknown) => {
+    const node = requirementRecord(nodeValue, "场景时长节点");
+    const duration = requirementRecord(requirementRecord(node.properties, "节点 properties").duration, "节点 duration");
+    const minimum = duration.minimum, maximum = duration.maximum;
+    if (duration.type !== "number" || typeof minimum !== "number" || !Number.isFinite(minimum) || minimum <= 0
+      || typeof maximum !== "number" || !Number.isFinite(maximum) || maximum < minimum) return unsupported();
+    return Object.freeze({ minimum, maximum });
+  };
+  const opening = bounds(properties.opening), ending = bounds(properties.ending);
+  const middleSchema = requirementRecord(properties.scenes, "主体场景时长 schema"), middle = bounds(middleSchema.items);
+  const minimum = middleSchema.minItems, maximum = middleSchema.maxItems;
+  if (typeof minimum !== "number" || !Number.isSafeInteger(minimum) || minimum < 0
+    || typeof maximum !== "number" || !Number.isSafeInteger(maximum) || maximum < minimum) return unsupported();
+  if (!Number.isFinite(targetDuration) || targetDuration <= 0) {
+    throw new RequirementContractError("REQUIREMENT_SCENE_UNVERIFIED", "场景目标时长不是有效正数");
+  }
+  const feasibleMiddleCounts: number[] = [];
+  for (let count = minimum; count <= maximum; count++) {
+    const lower = opening.minimum + ending.minimum + count * middle.minimum;
+    const upper = opening.maximum + ending.maximum + count * middle.maximum;
+    if (!Number.isFinite(lower) || !Number.isFinite(upper)) return unsupported();
+    // Use the validator's subtraction/comparison, including its floating-point
+    // boundary. Rounding target or enforcing an exact sum here would tighten it.
+    if (!(lower > targetDuration && Math.abs(lower - targetDuration) > 0.05)
+      && !(upper < targetDuration && Math.abs(upper - targetDuration) > 0.05)) feasibleMiddleCounts.push(count);
+  }
+  if (!feasibleMiddleCounts.length) {
+    throw new RequirementContractError("REQUIREMENT_SCENE_UNVERIFIED", "本次 schema 时长边界内没有满足目标与现有 0.05 秒容差的节点数量");
+  }
+  return Object.freeze({ targetDuration, tolerance: 0.05, opening, middle, ending,
+    middleCount: Object.freeze({ minimum, maximum }), feasibleMiddleCounts: Object.freeze(feasibleMiddleCounts) });
+}
+
 /** Correct only the pinned vendor-generated suffix, never matching customer text. */
 export function structuredScenePrompt(value: unknown, inputValue: unknown, schemaValue: unknown): string {
   if (typeof value !== "string") throw new RequirementContractError("REQUIREMENT_VENDOR_UNAVAILABLE", "原始场景 prompt 不是文本");
@@ -393,13 +457,21 @@ ${example}
   let schema: string;
   try { schema = JSON.stringify(requirementRecord(schemaValue, "本次实际 SceneArchitect schema")); }
   catch { throw new RequirementContractError("REQUIREMENT_SCHEMA_UNSUPPORTED", "本次实际场景 schema 无法完整序列化"); }
+  const timing = structuredSceneTiming(schemaValue, target);
+  const fallingMinimum = Math.max(3, timing.middle.minimum), fallingMaximum = Math.min(6, timing.middle.maximum);
+  const fallingRange = fallingMinimum <= fallingMaximum
+    ? `${fallingMinimum}-${fallingMaximum}秒，遵守主体节点 schema 边界`
+    : `${timing.middle.minimum}-${timing.middle.maximum}秒内自行决定；原节奏建议与本次 schema 无合法交集`;
+  const correctedTail = suffix.slice(suffix.indexOf(example) + example.length)
+    .replace("falling 级的留白场景（3-6秒）", `falling 级的留白场景（${fallingRange}）`);
   const guidance = `场景数量与逐节点时长由本次模型根据叙事自行决定，不采用固定数量或预制镜头。scenes 数组只包含主体节点，opening 和 ending 各为一个独立节点。`;
   const contract = `本次实际 SceneArchitect 响应 JSON Schema（完整适用，不是示例成品）：\n${schema}\n`
+    + `本次 schema 派生时长边界与可行数量（仅约束，不分配节点）：\n${JSON.stringify(timing)}\n`
     + `以下精确结构约束优先于本段其余“约/≈”表述：sceneCount 必须等于 2 + scenes.length；所有节点 duration 之和必须同时等于 totalDuration 和目标 ${target} 秒（现有数值容差 0.05 秒）。`
     + `逐节点内容、数量和时长仍由本次模型创作，输出前核对节点数与时长之和；不得用预制节点或返回后补值替代。`;
   const exampleAt = suffix.indexOf(example);
   return value.slice(0, value.length - suffix.length) + guidance
-    + suffix.slice(countLine.length, exampleAt) + contract + suffix.slice(exampleAt + example.length);
+    + suffix.slice(countLine.length, exampleAt) + contract + correctedTail;
 }
 
 /** Extend the schema supplied to the existing SceneArchitect run, preserving its other fields. */
