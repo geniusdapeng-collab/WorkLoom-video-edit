@@ -12,13 +12,16 @@ export class RequirementContractError extends Error {
 }
 
 const validationFacts = new WeakMap<RequirementContractError, Readonly<RequirementRecord>>();
+const riskValidationFacts = new WeakMap<RequirementContractError, Readonly<RequirementRecord>>();
 const finiteNumber = (value: unknown): number | null => typeof value === "number" && Number.isFinite(value) ? value : null;
 const schemaPath = /^SceneArchitect response(?:\/(?:opening|scenes|ending|duration|purpose|keyElements|index|emotionalBeat|productionContract|props|actions|name|description|actorId|noPropsReason|totalDuration|sceneCount|narrativeArc|\d{1,6}))*$/;
+const riskArrayPath = /^RiskAssessor response\/(?:technicalRisks|businessConstraints|mitigationSuggestions)$/;
 
-function withValidationFacts(error: RequirementContractError, details: RequirementRecord): RequirementContractError {
+function withValidationFacts(error: RequirementContractError, details: RequirementRecord,
+  registry = validationFacts): RequirementContractError {
   const facts = Object.freeze(details);
   Object.defineProperty(error, "details", { value: facts, enumerable: true });
-  validationFacts.set(error, facts);
+  registry.set(error, facts);
   return error;
 }
 
@@ -26,6 +29,12 @@ function withValidationFacts(error: RequirementContractError, details: Requireme
 export function structuredSceneFeedback(error: unknown): string {
   const facts = error instanceof RequirementContractError ? validationFacts.get(error) : undefined;
   return facts ? `\n\n## 上一次原生场景校验反馈\n${JSON.stringify(facts)}\n仅依据这些校验事实重新生成完整合法响应；不复用或补填上次场景，不改变原有 schema、人物与时长约束。` : "";
+}
+
+/** Risk retries receive only our exact array-bound facts, never the prior response. */
+export function structuredRiskFeedback(error: unknown): string {
+  const facts = error instanceof RequirementContractError ? riskValidationFacts.get(error) : undefined;
+  return facts ? `\n\n## 上一次原生风险校验反馈\n${JSON.stringify(facts)}\n仅依据这些数组数量校验事实重新生成完整合法响应；不截取、补填或复用上次风险文本，不改变原有 schema 与完整来源约束。` : "";
 }
 
 export function requirementRecord(value: unknown, label: string): RequirementRecord {
@@ -73,13 +82,22 @@ export function requirementHash(value: unknown): string {
 /** Strictly check the JSON Schema subset used by the actual discovery schema; never fill defaults. */
 export function validateRequirementSchema(value: unknown, schemaValue: unknown, label = "SceneArchitect response"): void {
   const ancestors = new Set<object>();
+  const risk = label === "RiskAssessor response";
   const check = (item: unknown, schemaInput: unknown, location: string): void => {
     const schema = requirementRecord(schemaInput, "SceneArchitect schema");
     const invalid = (reason: string, keyword = "type", observed: unknown = item, limit?: unknown): never => {
-      const error = new RequirementContractError("REQUIREMENT_SCENE_UNVERIFIED", `${location} ${reason}`);
+      const error = new RequirementContractError(risk ? "REQUIREMENT_DISCOVERY_UNVERIFIED" : "REQUIREMENT_SCENE_UNVERIFIED",
+        `${risk ? label : location} ${reason}`);
       // Fixed schema keys and bounded indices only; never echo a response key,
       // string value, arbitrary label, enum prose or the raw response.
-      if (location.length <= 256 && schemaPath.test(location)) {
+      if (risk && riskArrayPath.test(location) && ["minItems", "maxItems"].includes(keyword)
+        && typeof observed === "number" && Number.isSafeInteger(observed) && observed >= 0
+        && typeof limit === "number" && Number.isSafeInteger(limit) && limit >= 0) {
+        const details = { kind: "schema", path: location, keyword, observed, limit };
+        error.message += `；validation ${JSON.stringify(details)}`;
+        throw withValidationFacts(error, details, riskValidationFacts);
+      }
+      if (!risk && location.length <= 256 && schemaPath.test(location)) {
         const details = { kind: "schema", path: location, keyword, observed: finiteNumber(observed), limit: finiteNumber(limit) };
         error.message += `；validation ${JSON.stringify(details)}`;
         throw withValidationFacts(error, details);

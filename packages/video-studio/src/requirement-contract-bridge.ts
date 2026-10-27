@@ -3,7 +3,7 @@ import { createRequire } from "node:module";
 import path from "node:path";
 import {
   RequirementContractError, bindRequirementContract, renderRequirementContract, requirementCast,
-  requirementHash, requirementRecord, requirementScenes, structuredSceneFeedback, structuredSceneInstructions, structuredScenePrompt, structuredSceneSchema,
+  requirementHash, requirementRecord, requirementScenes, structuredRiskFeedback, structuredSceneFeedback, structuredSceneInstructions, structuredScenePrompt, structuredSceneSchema,
   validateRequirementSchema, verifiedRequirementContract, type RequirementCast, type RequirementRecord
 } from "./requirement-contract.js";
 import { acquireVendorRequirementEntry } from "./vendor-requirement-entry.js";
@@ -274,6 +274,64 @@ export function installRequirementContractBridge(
         };
         return [name, view];
       }));
+      if (scope.authority) {
+        const risk = requirementRecord(guardedAgents.risk, "RiskAssessor");
+        const runRisk = method(risk, "run"), callRisk = method(risk, "_callLLM"), buildRisk = method(risk, "_buildPrompt");
+        const riskView = Object.create(risk) as RequirementRecord;
+        let finalRiskFailure: { error: unknown } | undefined;
+        const unverifiedRisk = () => new RequirementContractError("REQUIREMENT_DISCOVERY_UNVERIFIED", "RiskAssessor 未提供完整真实响应，拒绝规则洞察回填");
+        riskView.run = async function (this: RequirementRecord, value: unknown, schema: unknown) {
+          requireActiveScope();
+          finalRiskFailure = undefined;
+          const runView = Object.create(this) as RequirementRecord;
+          let pendingFeedback = "", attemptFeedback = "";
+          let currentFailure: { error: unknown } | undefined;
+          runView._callLLM = async function (this: RequirementRecord, ...args: unknown[]) {
+            requireActiveScope();
+            attemptFeedback = pendingFeedback;
+            pendingFeedback = "";
+            // The second transport/parser failure must replace the first schema
+            // failure. Authority/engine failures remain sticky in requireActiveScope.
+            currentFailure = undefined;
+            try { return await Reflect.apply(callRisk, this, args); }
+            catch (error) { currentFailure = { error }; throw error; }
+            finally { attemptFeedback = ""; }
+          };
+          runView._buildPrompt = function (this: RequirementRecord, input: unknown) {
+            requireActiveScope();
+            const original = Reflect.apply(buildRisk, this, [input]);
+            if (typeof original !== "string") requirementAuthorityFailure("REQUIREMENT_VENDOR_UNAVAILABLE", "RiskAssessor 原始 prompt 不是文本");
+            return original + attemptFeedback;
+          };
+          runView._validateAndFill = function (this: RequirementRecord, response: unknown, responseSchema: unknown) {
+            requireActiveScope();
+            // Semantic response rejection is retryable inside the native loop;
+            // throwing it inside guard/protect would make attempt one fatal.
+            try { validateRequirementSchema(response, responseSchema, "RiskAssessor response"); }
+            catch (error) {
+              currentFailure = { error };
+              pendingFeedback = structuredRiskFeedback(error);
+              throw error;
+            }
+            pendingFeedback = "";
+            currentFailure = undefined;
+            return structuredClone(response);
+          };
+          runView._fallback = function () {
+            requireActiveScope();
+            finalRiskFailure = currentFailure ?? { error: unverifiedRisk() };
+            throw finalRiskFailure.error;
+          };
+          try { return await Reflect.apply(runRisk, runView, [value, schema]); }
+          finally { pendingFeedback = ""; attemptFeedback = ""; currentFailure = undefined; }
+        };
+        riskView._fallback = function () {
+          requireActiveScope();
+          // The native discover catch invokes the agent fallback a second time.
+          throw (finalRiskFailure ?? { error: unverifiedRisk() }).error;
+        };
+        guardedAgents.risk = riskView;
+      }
       const scene = requirementRecord(guardedAgents.scene, "SceneArchitect");
       const build = method(scene, "_buildPrompt"), run = method(scene, "run");
       const callScene = method(scene, "_callLLM");

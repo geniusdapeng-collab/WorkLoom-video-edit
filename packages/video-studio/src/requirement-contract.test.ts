@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   RequirementContractError, bindRequirementContract, renderRequirementContract, requirementCast, requirementHash, requirementRecord,
-  requirementScenes, structuredSceneFeedback, structuredScenePrompt, structuredSceneSchema, structuredSceneTiming,
+  requirementScenes, structuredRiskFeedback, structuredSceneFeedback, structuredScenePrompt, structuredSceneSchema, structuredSceneTiming,
   validateRequirementSchema, verifiedRequirementContract, type RequirementRecord
 } from "./requirement-contract.js";
 import { assertRequirementContractBridge, installRequirementContractBridge, withRequirementContractScope } from "./requirement-contract-bridge.js";
@@ -224,6 +224,50 @@ describe("schema-derived scene timing and bounded validation facts", () => {
     const details = (failure as RequirementContractError & { details: RequirementRecord }).details;
     expect(Object.keys(details)).toHaveLength(7);
     expect(structuredSceneFeedback(failure).split("\n")[3]).toBe(JSON.stringify(details));
+  });
+});
+
+describe("bounded native RiskAssessor validation facts", () => {
+  it.each(["technicalRisks", "businessConstraints", "mitigationSuggestions"])("brands only numeric min/maxItems at the fixed %s array path", key => {
+    for (const [keyword, item, limit] of [["minItems", [], 1], ["maxItems", ["PRIVATE-A", "PRIVATE-B"], 1]] as const) {
+      const source = { [key]: [...item] }, before = requirementHash(source);
+      let failure: unknown;
+      try { validateRequirementSchema(source, { type: "object", properties: { [key]: { type: "array", [keyword]: limit } } }, "RiskAssessor response"); }
+      catch (error) { failure = error; }
+      const facts = { kind: "schema", path: `RiskAssessor response/${key}`, keyword, observed: item.length, limit };
+      expect(failure).toMatchObject({ code: "REQUIREMENT_DISCOVERY_UNVERIFIED", details: facts });
+      expect(Object.isFrozen(requirementRecord(failure, "risk error").details)).toBe(true);
+      expect(structuredRiskFeedback(failure)).toContain(`## 上一次原生风险校验反馈\n${JSON.stringify(facts)}\n`);
+      expect(structuredRiskFeedback(failure)).not.toContain("PRIVATE");
+      expect(structuredSceneFeedback(failure)).toBe("");
+      expect(requirementHash(source)).toBe(before);
+    }
+  });
+
+  it("rejects forged or relabeled facts, other keywords, response keys, nested paths and unsafe numeric limits", () => {
+    const fake = Object.assign(new RequirementContractError("REQUIREMENT_DISCOVERY_UNVERIFIED", "PRIVATE-MESSAGE"),
+      { details: { kind: "schema", path: "RiskAssessor response/mitigationSuggestions", keyword: "maxItems", observed: 5, limit: 4 } });
+    expect(structuredRiskFeedback(fake)).toBe("");
+    expect(structuredRiskFeedback(new Error("PRIVATE-MESSAGE"))).toBe("");
+    for (const [value, schema, label] of [
+      [[1, 2], { type: "array", maxItems: 1 }, "RiskAssessor response"],
+      [{ mitigationSuggestions: [1, 2] }, { type: "object", properties: { mitigationSuggestions: { type: "array", maxItems: 1 } } }, "PRIVATE-LABEL"],
+      [{ "PRIVATE-KEY": [1, 2] }, { type: "object", properties: { "PRIVATE-KEY": { type: "array", maxItems: 1 } } }, "RiskAssessor response"],
+      [{ mitigationSuggestions: [[1, 2]] }, { type: "object", properties: { mitigationSuggestions: { type: "array", items: { type: "array", maxItems: 1 } } } }, "RiskAssessor response"],
+      [{ mitigationSuggestions: "PRIVATE-TEXT" }, { type: "object", properties: { mitigationSuggestions: { type: "string", maxLength: 1 } } }, "RiskAssessor response"],
+      [{ mitigationSuggestions: [] }, { type: "object", properties: { mitigationSuggestions: { type: "array", minItems: Infinity } } }, "RiskAssessor response"],
+      [{ mitigationSuggestions: [] }, { type: "object", properties: { mitigationSuggestions: { type: "array", minItems: 1.5 } } }, "RiskAssessor response"]
+    ] as const) {
+      let failure: unknown;
+      try { validateRequirementSchema(value, schema, label); } catch (error) { failure = error; }
+      expect(failure).toBeInstanceOf(Error);
+      expect(structuredRiskFeedback(failure)).toBe("");
+      if (label === "RiskAssessor response") expect((failure as Error).message).not.toContain("PRIVATE");
+    }
+    let sceneFailure: unknown;
+    try { validateRequirementSchema([], { type: "array", minItems: 1 }); } catch (error) { sceneFailure = error; }
+    expect(structuredSceneFeedback(sceneFailure)).not.toBe("");
+    expect(structuredRiskFeedback(sceneFailure)).toBe("");
   });
 });
 
