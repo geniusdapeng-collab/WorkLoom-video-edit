@@ -112,6 +112,8 @@ jobs:
           packages/video-studio/src/vendor-requirement-entry.test.ts
           packages/video-studio/src/requirement-contract.test.ts
           packages/video-studio/src/requirement-contract-production-bridge.test.ts
+          packages/video-studio/src/prd-authority.test.ts
+          packages/video-studio/src/prd-authority-bridge.test.ts
           packages/video-studio/src/studio.test.ts
           packages/video-studio/src/studio-portrait-reuse.test.ts
           packages/video-studio/src/producer-gate.test.ts

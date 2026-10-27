@@ -2,7 +2,7 @@
 import { createHash } from "node:crypto";
 import { readFileSync, realpathSync, statSync } from "node:fs";
 import path from "node:path";
-import type { DeterministicCheck, ProducerArtifact, ProducerVerdict } from "@hyperreality/video-studio";
+import type { DeterministicCheck, PrdMarketingAuthority, ProducerArtifact, ProducerVerdict } from "@hyperreality/video-studio";
 import type { MarketingScope } from "./marketing-authority.js";
 
 const NEXT_GATES = new Set(["G2_THEME", "G3_INSIGHT", "G4_PRD", "G5_PORTRAIT", "G6_PROMPT", "G7_FINAL"]);
@@ -10,7 +10,13 @@ const CHECK_ID = "marketing-g1-current-evidence";
 const SCOPE_KEYS = ["tenantId", "workspaceId", "projectId", "runId", "attempt"] as const;
 type RecordValue = Record<string, unknown>;
 type ScopeBase = Omit<MarketingScope, "attempt">;
-interface AcceptedG1 { scope: MarketingScope; path: string; sha256: string; model: string }
+interface AcceptedG1 {
+  scope: MarketingScope;
+  path: string;
+  sha256: string;
+  model: string;
+  proof: PrdMarketingAuthority["g1Proof"];
+}
 interface ReviewExpectation { scope: MarketingScope; gate: string; g1: AcceptedG1; current: ProducerArtifact }
 
 export interface MarketingGateReviewEvidence {
@@ -32,10 +38,14 @@ function fail(detail: string): never { throw new Error(`MARKETING_GATE_EVIDENCE_
 function digest(value: string | Buffer): string { return createHash("sha256").update(value).digest("hex"); }
 function isHash(value: unknown): value is string { return typeof value === "string" && /^[a-f0-9]{64}$/.test(value); }
 function errorDetail(error: unknown): string { return error instanceof Error ? error.message : String(error); }
-function passedProof(value: unknown, file: string, sha256: string): value is RecordValue & { model: string } {
+function passedProof(value: unknown, file: string, sha256: string): value is PrdMarketingAuthority["g1Proof"] {
   const proof = record(value);
   if (!proof || proof.gate !== "G1_DOSSIER" || proof.approved !== true || proof.status !== "passed" || proof.via !== "llm"
-    || proof.degraded !== false || typeof proof.model !== "string" || !proof.model.trim() || !Array.isArray(proof.evidence)) return false;
+    || proof.degraded !== false || typeof proof.model !== "string" || !proof.model.trim() || !Array.isArray(proof.evidence)
+    || !proof.evidence.every(value => {
+      const item = record(value);
+      return item && typeof item.path === "string" && Boolean(item.path) && isHash(item.sha256) && item.scope === "complete-text";
+    })) return false;
   const entries = proof.evidence.filter(item => record(item)?.path === file);
   return entries.length === 1 && entries[0]?.sha256 === sha256 && entries[0]?.scope === "complete-text";
 }
@@ -65,6 +75,7 @@ export function createMarketingGateEvidenceGuard(input: { workDir: string; scope
 
   const currentAuthority = (): AcceptedG1 => {
     if (!scope || !accepted || !sameScope(accepted.scope, scope) || accepted.path !== gatePath("G1_DOSSIER", scope)) fail("缺少当前运行与尝试已接受的 G1 原件");
+    if (!passedProof(accepted.proof, accepted.path, accepted.sha256)) fail("已接受 G1 的完整通过证明失效");
     const value = record(JSON.parse(readGate(accepted.path, accepted.sha256).toString("utf8")));
     const facts = record(value?.facts);
     if (!facts || facts.schemaVersion !== "workloom.marketing-facts/v1" || facts.issuer !== "workloom.marketing-authority"
@@ -91,13 +102,27 @@ export function createMarketingGateEvidenceGuard(input: { workDir: string; scope
       accepted = undefined;
       if (!scope || !sameScope(value.scope, scope)) fail("G1 接受证明不属于当前运行与尝试");
       const file = gatePath("G1_DOSSIER", scope), sha256 = digest(value.content);
-      if (!passedProof(value.proof, file, sha256)) fail("G1 缺少真实 llm passed、非降级及完整原件摘要证据");
+      let proof: unknown;
+      try { proof = structuredClone(value.proof); }
+      catch (error) { fail(`G1 完整通过证明无法保存私有快照：${errorDetail(error)}`); }
+      if (!passedProof(proof, file, sha256)) fail("G1 缺少真实 llm passed、非降级及完整原件摘要证据");
       const bytes = readGate(file, sha256);
       if (!bytes.equals(Buffer.from(value.content))) fail("G1 原件与本次 prepared 内容不同");
       const item = record(JSON.parse(bytes.toString("utf8"))), facts = record(item?.facts);
       if (!facts || facts.schemaVersion !== "workloom.marketing-facts/v1" || facts.issuer !== "workloom.marketing-authority"
         || !sameScope(facts.scope, scope)) fail("G1 原件作用域或事实身份不符");
-      accepted = { scope: { ...scope }, path: file, sha256, model: value.proof.model };
+      accepted = { scope: { ...scope }, path: file, sha256, model: proof.model, proof };
+    },
+
+    /** PRD 只取本次真实通过的完整 G1；不能从 browser metadata 补齐或降级。 */
+    forPrd(): PrdMarketingAuthority {
+      const g1 = currentAuthority();
+      return {
+        schemaVersion: "workloom.prd-marketing-authority/v1",
+        scope: { ...g1.scope },
+        g1Artifact: { path: g1.path, sha256: g1.sha256, content: readGate(g1.path, g1.sha256).toString("utf8") },
+        g1Proof: structuredClone(g1.proof),
+      };
     },
 
     forReview(gate: string, current: ProducerArtifact): MarketingGateReviewEvidence | undefined {
