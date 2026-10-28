@@ -51,6 +51,112 @@ function compliant(): ScenePolicyInput {
   };
 }
 
+describe("片型自动选择只使用肯定需求", () => {
+  it("整车展示的手机与相机禁令不选中数码测评，原始需求不被改写", () => {
+    const input = { title: "封闭场地展示静止摩托车；不持手机或相机、不拍照、不展示屏幕。只拍整车中景或全景。", shots: [] };
+    const brief = { category: "摩托车", description: input.title };
+    const before = structuredClone({ input, brief });
+    expect(selectScenePolicy(input, brief, policies)).toEqual({
+      policy: null, reason: "需求未命中已安装的片型知识条目", evidence: [],
+    });
+    expect({ input, brief }).toEqual(before);
+  });
+
+  it("嵌套对象与数组中的禁止项也不贡献匹配词或取证", () => {
+    const selected = selectScenePolicy({ title: "静态整车展示", shots: [] }, {
+      request: { restrictions: ["禁止手机测评", "不要相机开箱"], description: "展示整车轮廓" },
+    }, policies);
+    expect(selected.policy).toBeNull();
+    expect(selected.evidence).toEqual([]);
+  });
+
+  it.each(["不做手机测评", "避免相机开箱", "禁止妆容教程", "不要烹饪教程", "without APP演示"])(
+    "否定片型信号不自动选型：%s", (restriction) => {
+      expect(selectScenePolicy({ title: `山间日出。${restriction}`, shots: [] }, null, policies).policy).toBeNull();
+    },
+  );
+
+  it.each(["无人机开箱", "不锈钢智能手表开箱", "无锡手机测评", "不仅做手机测评，而且介绍相机开箱", "不但拍手机测评，而且介绍相机", "not only APP演示 but 相机开箱"])(
+    "普通肯定名词与递进关联词保持原有 T4 选择：%s", (title) => {
+      expect(selectScenePolicy({ title, shots: [] }, null, policies).policy?.id).toBe("tech-review");
+    },
+  );
+
+  it.each(["不需要手机测评", "不允许相机开箱", "不考虑智能手表", "不打算做APP演示", "不想做手机测评", "不用相机"])(
+    "明确的否定意愿短语不贡献信号：%s", (title) => {
+      expect(selectScenePolicy({ title, shots: [] }, null, policies).policy).toBeNull();
+    },
+  );
+
+  it("逗号后的明确创作动作恢复肯定，名词清单仍继承否定", () => {
+    const selected = selectScenePolicy({ title: "不持相机，拍新款手机测评", shots: [] }, null, policies);
+    expect(selected.policy?.id).toBe("tech-review");
+    expect(selected.evidence).toContain("title: 手机测评");
+    expect(selected.evidence).not.toContain("title: 相机");
+    expect(selectScenePolicy({ title: "不展示手机，平板、相机；只拍整车", shots: [] }, null, policies).policy).toBeNull();
+  });
+
+  it("肯定开箱与转折后的相机需求仍保留，禁止设备不进入证据", () => {
+    const selected = selectScenePolicy({ title: "制作无人机开箱；不使用手机或相机", shots: [] }, null, policies);
+    expect(selected.policy?.id).toBe("tech-review");
+    expect(selected.evidence).toContain("title: 开箱");
+    expect(selected.evidence).not.toContain("title: 手机");
+    expect(selected.evidence).not.toContain("title: 相机");
+    const contrast = selectScenePolicy({ title: "不做手机测评，而是相机开箱", shots: [] }, null, policies);
+    expect(contrast.evidence).toContain("title: 相机");
+    expect(contrast.evidence).not.toContain("title: 手机");
+  });
+
+  it("未声明谓词的裸无字结构保留历史匹配，不扩大词法否定范围", () => {
+    expect(selectScenePolicy({ title: "无手机", shots: [] }, null, policies).policy?.id).toBe("tech-review");
+  });
+
+  it("否定的未安装品类不触发缺条目错误，肯定需求仍明确阻断", () => {
+    expect(selectScenePolicy({ title: "不做母婴亲子视频；拍山间日出", shots: [] }, null, policies).policy).toBeNull();
+    expect(() => selectScenePolicy({ title: "拍母婴亲子视频", shots: [] }, null, policies)).toThrow(/没有可核实/);
+  });
+
+  it.each(["但", "而是", "but", "instead"])("转折词 %s 恢复肯定信号，证据不含前面的否定相机", (contrast) => {
+    const selected = selectScenePolicy({ title: `不展示相机 ${contrast} 制作新款手机测评`, shots: [] }, null, policies);
+    expect(selected.policy?.id).toBe("tech-review");
+    expect(selected.evidence).toContain("title: 手机测评");
+    expect(selected.evidence).not.toContain("title: 相机");
+  });
+
+  it("不同字段的肯定需求独立保留，禁止项不抹掉其他字段的真实 T4 信号", () => {
+    const selected = selectScenePolicy({ title: "不展示相机", shots: [] }, {
+      request: { description: "新款手机深度测评", restrictions: "禁止开箱" },
+    }, policies);
+    expect(selected.policy?.id).toBe("tech-review");
+    expect(selected.evidence).toContain("brief.request.description: 手机");
+    expect(selected.evidence).not.toContain("title: 相机");
+    expect(selected.evidence).not.toContain("brief.request.restrictions: 开箱");
+  });
+
+  it("否定的人物线索不使纯科普满足出镜片型的前提", () => {
+    expect(selectScenePolicy({ title: "行业科普；不出现人物、主持或口播", shots: [] }, null, policies).policy).toBeNull();
+    expect(selectScenePolicy({ title: "行业科普；无人出镜", shots: [] }, null, policies).policy).toBeNull();
+    expect(selectScenePolicy({ title: "行业科普；无人物口播", shots: [] }, null, policies).policy).toBeNull();
+    expect(selectScenePolicy({ title: "行业科普；人物出镜口播", shots: [] }, null, policies).policy?.id).toBe("knowledge-talking-head");
+  });
+
+  it("显式 ID 继续优先，未知 ID 继续拒绝", () => {
+    const input = { title: "不制作手机测评", shots: [] };
+    expect(selectScenePolicy({ ...input, scenePolicy: { id: "tech-review" } }, null, policies))
+      .toMatchObject({ policy: { id: "tech-review" }, reason: "显式片型 tech-review", evidence: ["scenePolicy.id=tech-review"] });
+    expect(() => selectScenePolicy({ ...input, scenePolicy: { id: "not-installed" } }, null, policies)).toThrow(/未知片型/);
+  });
+
+  it("肯定的同优先级冲突仍拒绝，人物主线和优先级仍按原规则判优", () => {
+    const first = { ...t1, id: "first", requiresPerson: false, autoSignals: ["产品展示"], priority: 50 };
+    const second = { ...first, id: "second" };
+    expect(() => selectScenePolicy({ title: "产品展示；不展示相机", shots: [] }, null, [first, second])).toThrow(/片型自动选择冲突/);
+    const personLed = { ...first, id: "person-led", requiresPerson: true, priority: 10 };
+    expect(selectScenePolicy({ title: "人物出镜产品展示；不展示相机", shots: [] }, null, [first, personLed]).policy?.id).toBe("person-led");
+    expect(selectScenePolicy({ title: "产品展示；不展示相机", shots: [] }, null, [first, { ...second, priority: 60 }]).policy?.id).toBe("second");
+  });
+});
+
 describe("T1 商业真人出镜知识条目", () => {
   it("知识库可加载并按正式商务需求自动选用", () => {
     expect(t1.sourceSha256).toMatch(/^[0-9a-f]{64}$/);

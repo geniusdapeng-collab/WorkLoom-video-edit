@@ -79,6 +79,16 @@ function list(value: unknown, label: string): unknown[] {
   return value;
 }
 
+/** Shared explicit duration rule; omission has no customer authority or inferred default. */
+export function normalizeExplicitBriefDuration(value: unknown): number | undefined {
+  if (value === undefined) return undefined;
+  if ((typeof value !== "number" && (typeof value !== "string" || !/^\d+(?:\.\d+)?$/.test(value)))
+    || !Number.isFinite(Number(value)) || Number(value) < 5 || Number(value) > 180) {
+    prdFail("PRD_PROFILE_INVALID", "Brief 明确时长非法");
+  }
+  return Number(value);
+}
+
 /** No inferred defaults: these are explicit client requirements, separate from vendor productionProfile. */
 export function normalizePrdProductionProfile(metadata: RequirementRecord): PrdProductionProfile {
   const brief = metadata.brief === undefined ? {} : requirementRecord(metadata.brief, "PRD 客户 Brief");
@@ -95,11 +105,8 @@ export function normalizePrdProductionProfile(metadata: RequirementRecord): PrdP
     YouTube: "YouTube", TikTok: "TikTok", Instagram: "Instagram", "通用": "通用"
   };
   const profile: PrdProductionProfile = {};
-  if (brief.duration !== undefined) {
-    if ((typeof brief.duration !== "number" && (typeof brief.duration !== "string" || !/^\d+(?:\.\d+)?$/.test(brief.duration)))
-      || !Number.isFinite(Number(brief.duration)) || Number(brief.duration) < 5 || Number(brief.duration) > 180) prdFail("PRD_PROFILE_INVALID", "Brief 明确时长非法");
-    profile.targetDuration = Number(brief.duration);
-  }
+  const duration = normalizeExplicitBriefDuration(brief.duration);
+  if (duration !== undefined) profile.targetDuration = duration;
   const aspect = brief.aspectRatio ?? brief.aspect_ratio;
   if (aspect !== undefined) {
     if (typeof aspect !== "string" || !(explicit ? ["16:9", "9:16", "1:1"] : ["16:9", "9:16", "1:1", "4:3"]).includes(aspect)

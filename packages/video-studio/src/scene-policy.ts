@@ -173,6 +173,31 @@ function demandFields(input: ScenePolicyInput, brief: Record<string, unknown> | 
   return result;
 }
 
+/**
+ * 选型只排除明确的否定短语；裸「不/无」也可能是商品、地名或关联词的一部分。
+ * 不改创作原文，也不改变逐镜审计使用的 affirmativeSkillText。没有明确谓词的「无X」
+ * 保留历史匹配；逗号后的名词清单沿用否定，明确的新创作动作才恢复肯定需求。
+ */
+function affirmativeSelectionText(raw: string): string {
+  const withoutNegativeBlocks = raw.replace(
+    /(?:\d{1,2}\.\s*)?【(?:负面(?:约束)?|禁止(?:项|词)?|negative(?: prompt)?)】[^【]*(?=【|$)/gi,
+    "\n",
+  );
+  const negative = /禁止|避免|不要|不得|不能|不许|无需|没有|未见|无(?:须|任何|人物|人像|角色|口播|主持)|无人(?:出镜|口播|主持)|不(?:需要|允许|考虑|打算|想|出现|出镜|展示|持|拿|拍|触摸|驾驶|进行|制作|使用|涉及|讲|说|写|谈|提|含|包括|要求|采用|做|作|用|加|放|插)|\b(?:no|not(?!\s+only\b)|never|without|avoid)\b/i;
+  const newAction = /^\s*(?:(?:请|要求|需要|计划|希望|本片|本次|本轮)\s*)?(?:只|仅|要|将|应|可)?\s*(?:拍摄|拍|制作|做|展示|介绍|使用|采用|保留|呈现|记录|讲述|解说|分享|观察|表现|输出|生成|提供|选择|设置|邀请)/;
+  return withoutNegativeBlocks.split(/[。；;\n]+/).flatMap((sentence) =>
+    sentence.split(/但是|然而|不过|而是|但|\bbut\b|\binstead\b/gi).flatMap((clause) => {
+      let denied = false;
+      return clause.split(/[，,]+/).map((part) => {
+        if (denied && !newAction.test(part)) return "";
+        const match = negative.exec(part);
+        denied = Boolean(match);
+        return (match ? part.slice(0, match.index) : part).trim();
+      });
+    }),
+  ).filter(Boolean).join("；");
+}
+
 /** 显式片型优先；否则从客户原始需求自动选型，多类命中时必须澄清，不能按优先级悄悄压掉另一类。 */
 export function selectScenePolicy(input: ScenePolicyInput, brief: Record<string, unknown> | null, policies: readonly ScenePolicy[]): { policy: ScenePolicy | null; reason: string; evidence: string[] } {
   const explicit = text(input.scenePolicy?.id || brief?.scenePolicyId || (own(brief?.scenePolicy) ? brief.scenePolicy.id : "")).trim();
@@ -181,7 +206,11 @@ export function selectScenePolicy(input: ScenePolicyInput, brief: Record<string,
     if (!policy) throw new Error(`未知片型知识条目：${explicit}`);
     return { policy, reason: `显式片型 ${explicit}`, evidence: [`scenePolicy.id=${explicit}`] };
   }
-  const fields = demandFields(input, brief);
+  // 禁止项是创作约束，不能反向成为片型信号；选型、人物判定与取证使用同一肯定文本。
+  // 仅归一这份路由视图，客户原始需求与 Brief 继续完整交给后续创作和审核。
+  const fields = demandFields(input, brief)
+    .map((field) => ({ ...field, value: affirmativeSelectionText(field.value) }))
+    .filter((field) => field.value);
   const demand = fields.map((item) => item.value).join(" ");
   const person = Boolean(input.character) || input.shots.some((shot) => Boolean(shot.character))
     || /真人|人物|出镜|口播|主持|模特|采访|访谈|演讲|负责人|总监|老总|主讲|肖像|主播|律师|医生|医师|会计师|咨询师|工程师|设计师|建筑师|理财顾问/.test(demand);

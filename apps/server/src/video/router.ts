@@ -53,7 +53,7 @@ import { resolvePlatformForIntent } from "./platform-routing.js";
 import { BuiltinCharacterSelectionError } from "./builtin-character-selection.js";
 import { makeStageArchive } from "./archive-host.js";
 import { readArchiveSummary, resumeProject, scanStaleRunsOnStartup } from "./archive-resume.js";
-import { applyRouteToMetadata, buildPipelineIntent, routeVideoPipeline } from "@hyperreality/video-studio";
+import { applyRouteToMetadata, buildPipelineIntent, normalizeExplicitBriefDuration, PrdAuthorityError, routeVideoPipeline } from "@hyperreality/video-studio";
 import { routedLlmCall } from "../service/llm.js";
 import { deliveryIngestHook, mediaRouter } from "./media/index.js";
 import { whiteboardRouter } from "./whiteboard/router.js";
@@ -159,6 +159,20 @@ function preproductionRethrow(err: unknown): never {
   }
   if (err instanceof StudioWorkerError) throw new TRPCError({ code: "PRECONDITION_FAILED", message: err.message });
   throw err;
+}
+
+/** Validate only the explicit duration here; legacy platform/production fields keep their existing paths. */
+function studioDurationOf(metadata?: Record<string, unknown>): number {
+  const brief = metadata?.brief;
+  if (!brief || typeof brief !== "object" || Array.isArray(brief)) return 30;
+  try {
+    return normalizeExplicitBriefDuration((brief as Record<string, unknown>).duration) ?? 30;
+  } catch (error) {
+    if (error instanceof PrdAuthorityError) {
+      throw new TRPCError({ code: "BAD_REQUEST", message: error.message, cause: error });
+    }
+    throw error;
+  }
 }
 
 /* ================= delivery：交付包 / 选变体 / 提返修（T-2026-0924-0071） ================= */
@@ -464,6 +478,8 @@ const studioRouter = router({
       route: z.enum(["auto", "marketing", "narrative"]).default("auto"),
     }))
     .mutation(async ({ ctx, input }) => {
+      // Reject malformed explicit values before route arbitration, project SQL or any worker can run.
+      const durationSec = studioDurationOf(input.metadata);
       const scope = scopeOf(ctx.identity);
       const explicitRoute = input.route !== "auto"
         ? input.route
@@ -503,7 +519,7 @@ const studioRouter = router({
             projectId: input.projectId,
             rawIntent: input.intent,
             intent: buildPipelineIntent(input.intent, {
-              durationSec: 30,
+              durationSec,
               aspectRatio: decision.route === "marketing" ? selectedPlatform.decision.aspectRatio : undefined,
               platform: selectedPlatform.decision.id,
             }),
@@ -566,7 +582,7 @@ const studioRouter = router({
           rawIntent: input.intent,
           customerMetadata: input.metadata ?? null,
           intent: buildPipelineIntent(input.intent, {
-            durationSec: 30,
+            durationSec,
             aspectRatio: decision.route === "marketing" ? standardPlatform.decision.aspectRatio : undefined,
             platform: standardPlatform.decision.id,
           }),

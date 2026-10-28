@@ -36,4 +36,43 @@ describe("原始视频需求的服务端片型选用", () => {
     expect(() => resolveScenePolicyForIntent("做一条母婴亲子短片，记录宝宝第一次走路"))
       .toThrow(/没有可核实的已安装片型知识条目/);
   });
+
+  it("整车需求的否定设备词不选择 T4，也不向真实创作正文注入数码规范", () => {
+    const intent = "封闭场地展示静止摩托车；人物不持手机或相机、不展示屏幕。整车只用中景或全景。";
+    const metadata = { brief: { category: "摩托车", description: intent } };
+    const before = structuredClone(metadata);
+    const selected = resolveScenePolicyForIntent(intent, metadata);
+    expect(selected.decision).toEqual({ id: null, version: null, sourceSha256: null,
+      reason: "需求未命中已安装的片型知识条目", evidence: [] });
+    expect(appendScenePolicyGuidance(intent, selected.policy)).toBe(intent);
+    expect(selected.metadata.scenePolicy).toBeUndefined();
+    expect(metadata).toEqual(before);
+  });
+
+  it("嵌套否定词不污染证据，转折后的真实数码需求仍注入原 T4 规范", () => {
+    const intent = "不展示相机，但制作新款手机测评";
+    const selected = resolveScenePolicyForIntent(intent, {
+      brief: { request: { restrictions: ["禁止耳机开箱", "不要APP演示"] } },
+    });
+    expect(selected.decision.id).toBe("tech-review");
+    expect(selected.decision.evidence).toContain("title: 手机测评");
+    expect(selected.decision.evidence).not.toContain("title: 相机");
+    expect(selected.decision.evidence.some((entry) => entry.startsWith("brief.request.restrictions"))).toBe(false);
+    const guidance = appendScenePolicyGuidance(intent, selected.policy);
+    expect(guidance).toContain("[片型制作规范 tech-review@");
+    expect(guidance).toContain("product-close≥40%");
+    expect(guidance.startsWith(intent)).toBe(true);
+  });
+
+  it.each(["无人机开箱", "不锈钢智能手表开箱", "无锡手机测评", "不仅制作手机测评，而且介绍相机"])(
+    "普通肯定需求保留真实来源证据与原有规范：%s", (description) => {
+      const metadata = { brief: { request: { description } } };
+      const before = structuredClone(metadata);
+      const selected = resolveScenePolicyForIntent("制作产品短片", metadata);
+      expect(selected.decision.id).toBe("tech-review");
+      expect(selected.decision.evidence.some((entry) => entry.startsWith("brief.request.description: "))).toBe(true);
+      expect(appendScenePolicyGuidance(description, selected.policy)).toContain("[片型制作规范 tech-review@");
+      expect(metadata).toEqual(before);
+    },
+  );
 });
