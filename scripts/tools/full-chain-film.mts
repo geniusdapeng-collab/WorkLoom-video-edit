@@ -14,6 +14,7 @@
  *     --library <角色档案库根> --work-dir <.vm-work 根> --out <交付目录> \
  *     [--stages spec,plates,videos,compose,color,subtitle,danmaku,bgm,cover,mux,master] \
  *     [--subtitle-mode sidecar|burn|both]   # 缺省 burn：字幕直接烧进单交付母版 \
+ *     [--subtitle-persistent-text "持续文字"] # 须 --no-title-card --no-open-with-cover；完整ASS保留此层 \
  *     [--danmaku <items.json> | --auto-danmaku | --no-danmaku] \
  *     [--aspect 9:16|16:9|1:1|4:5] [--resolution 720p|1080p|2160p] [--quality hd|uhd] \
  *     [--enhance-kind live-action|animation] [--enhance-engine-dir <本地引擎目录>] \
@@ -103,6 +104,8 @@ import { reviewPlausibility, applyPromptPatches, PLAUSIBILITY_POLICY_VERSION } f
 import { createGenerationQuality } from "./generation-quality.mjs";
 import { publishUhdDelivery, sha256UhdAsset } from "../../packages/video-studio/src/uhd-delivery.js";
 import { FullChainFilmWorker } from "../../packages/video-studio/src/film-worker-runtime.js";
+import { validatePersistentSubtitleText, escapePersistentSubtitleText, persistentSubtitleClock, parseAssEvents, styleLine, STABLE_JSON } from "../../bundles/ai-video/connectors/subtitle-bridge/core.mjs";
+import { probeMedia as probeSubtitleMedia } from "../../bundles/ai-video/connectors/subtitle-bridge/measure.mjs";
 import {
   AI_PRODUCTION_DEFAULT_STAGES,
   AI_PRODUCTION_DEFAULT_SUBTITLE_MODE,
@@ -113,6 +116,17 @@ const REPO_ROOT = resolve(import.meta.dirname ?? process.cwd(), "../..");
 const WORKER_RUNTIME = process.argv.includes("--worker") || process.env.FILM_WORKER_MODE === "worker"
   ? FullChainFilmWorker.fromEnvironment(REPO_ROOT) : null;
 if (WORKER_RUNTIME) process.argv = [...process.argv.slice(0, 2), ...WORKER_RUNTIME.args];
+// Validate before any media process, directory, journal or paid task recovery can run.
+if (process.argv.some(value => value.startsWith("--subtitle-persistent-text="))) throw new Error("PERSISTENT_SUBTITLE_TEXT_REQUIRED: pass the complete text as a separate argument");
+const persistentTextIndex = process.argv.indexOf("--subtitle-persistent-text");
+if (process.argv.filter(value => value === "--subtitle-persistent-text").length > 1) throw new Error("PERSISTENT_SUBTITLE_OPTION_DUPLICATE");
+if (persistentTextIndex >= 0 && (!process.argv[persistentTextIndex + 1] || process.argv[persistentTextIndex + 1]!.startsWith("--"))) {
+  throw new Error("PERSISTENT_SUBTITLE_TEXT_REQUIRED");
+}
+const PERSISTENT_SUBTITLE_TEXT = persistentTextIndex < 0 ? null : validatePersistentSubtitleText(process.argv[persistentTextIndex + 1]);
+if (PERSISTENT_SUBTITLE_TEXT && !process.argv.includes("--no-title-card")) throw new Error("PERSISTENT_SUBTITLE_TITLE_CONFLICT: add --no-title-card; Title is a single text layer");
+if (PERSISTENT_SUBTITLE_TEXT && process.argv.includes("--opening-title")) throw new Error("PERSISTENT_SUBTITLE_TITLE_CONFLICT: decorative --opening-title cannot share the persistent Title layer");
+if (PERSISTENT_SUBTITLE_TEXT && !process.argv.includes("--no-open-with-cover")) throw new Error("PERSISTENT_SUBTITLE_INTRO_CONFLICT: add --no-open-with-cover; persistent text must cover the whole film");
 /** GUI 启动时 PATH 常不含工位 kit；只选经过仓内 pin 摘要核验的本机二进制。 */
 function verifiedLocalMediaBins(): { ffmpeg: string; ffprobe: string } | null {
   if (process.platform !== "darwin" || !["arm64", "x64"].includes(process.arch)) return null;
@@ -504,6 +518,7 @@ const DANMAKU_ENABLED = resolveAiProductionDanmakuEnabled({
   noDanmaku: flag("--no-danmaku"),
 });
 if (DANMAKU_ENABLED) STAGES.add("danmaku");
+if (PERSISTENT_SUBTITLE_TEXT && !STAGES.has("subtitle")) throw new Error("PERSISTENT_SUBTITLE_STAGE_REQUIRED: --stages must include subtitle");
 /**
  * 字幕落地方式：
  *   burn（缺省）   = 普通 AI 单母版把字幕直接烧进画面；
@@ -1237,7 +1252,7 @@ function probe(file: string): Record<string, unknown> {
     return { error: err instanceof Error ? err.message.slice(0, 200) : String(err) };
   }
 }
-function runCli(cli: string, args: string[]): { ok: boolean; out: string } {
+function runCli(cli: string, args: string[]): { ok: boolean; out: string; reportFile?: string } {
   let qualityToken: ReturnType<typeof generationQuality.beginCli> = null;
   let actualReportFile: string | null = null;
   try {
@@ -1302,7 +1317,7 @@ function runCli(cli: string, args: string[]): { ok: boolean; out: string } {
       const report = receiptFile ? JSON.parse(readFileSync(receiptFile, "utf8")) : /color-bridge[\/]cli\.mjs$/.test(cli) ? JSON.parse(out) : null;
       generationQuality.finishCli(qualityToken, { report, receiptFile });
     }
-    return { ok: true, out };
+    return { ok: true, out, ...(actualReportFile ? { reportFile: actualReportFile } : {}) };
   } catch (err) {
     generationQuality.abort(qualityToken);
     const e = err as { stdout?: string; stderr?: string; message?: string };
@@ -4799,6 +4814,33 @@ let colored = master;
 let subtitled = STAGES.has("subtitle") ? colored : preferDownstream(join(POST_DIR, "master-subtitled.mp4"), colored, "subtitle");
 /** 旁挂字幕文件（sidecar 模式的产物；burn 模式下为 null，下游仍走烧字版） */
 let subtitleSidecar: { dir: string; srt: string; ass: string; manifest: string | null; timelineOk: boolean } | null = null;
+let persistentSubtitleProof: Record<string, any> | null = null;
+async function readPersistentSubtitleProof(reportFile: string | undefined, input: string): Promise<{ ok: boolean; detail: string; proof?: Record<string, any>; ass?: string }> {
+  if (!PERSISTENT_SUBTITLE_TEXT) return { ok: true, detail: "本次未请求持续文字层" };
+  try {
+    if (!reportFile) throw new Error("processing report missing");
+    const doc = JSON.parse(readFileSync(reportFile, "utf8"));
+    const proof = doc.persistentText ?? doc.manifest?.persistentText;
+    const ass = doc.assPath ?? doc.files?.find((file: { format?: string }) => file.format === "ass")?.path;
+    if (!proof || !ass || proof.text !== PERSISTENT_SUBTITLE_TEXT || proof.assText !== escapePersistentSubtitleText(PERSISTENT_SUBTITLE_TEXT)
+      || proof.readback !== true) throw new Error("persistent text readback missing or different");
+    const clock = persistentSubtitleClock(await probeSubtitleMedia(input, { bins: { ffmpeg: FFMPEG, ffprobe: FFPROBE } }));
+    const videoSeconds = clock.videoDuration;
+    if (proof.startSeconds !== 0 || proof.videoDuration !== videoSeconds
+      || proof.start !== clock.start || proof.end !== clock.end || proof.endSeconds !== clock.endSeconds
+      || proof.endSeconds < videoSeconds || proof.endSeconds > videoSeconds + 0.01 + 1e-9) throw new Error("persistent interval differs from actual video clock");
+    if ((doc.sourceSha256 ?? doc.manifest?.source?.sha256) !== sha256FileSync(input)) throw new Error("persistent source SHA differs");
+    const text = readFileSync(ass, "utf8"), events = parseAssEvents(text).filter((event: { style: string }) => event.style === "Title");
+    const { name: _name, ...style } = proof.style;
+    const binding = createHash("sha256").update(STABLE_JSON({ event: events[0], style })).digest("hex");
+    if (events.length !== 1 || events[0].start !== proof.start || events[0].end !== proof.end || events[0].text !== proof.assText
+      || !text.split(/\r?\n/u).includes(styleLine("Title", style)) || binding !== proof.compositionSha256
+      || sha256FileSync(ass) !== proof.assSha256) throw new Error("persistent ASS event/style/SHA differs");
+    return { ok: true, detail: `实际视频0–${videoSeconds}s持续文字层与ASS事件、样式、SHA一致`, proof, ass };
+  } catch (error) {
+    return { ok: false, detail: `持续字幕证据无法核实：${error instanceof Error ? error.message : String(error)}` };
+  }
+}
 if (STAGES.has("subtitle") && existsSync(colored)) {
   rememberInputs("subtitle", [colored]);
   const started = Date.now();
@@ -4806,18 +4848,21 @@ if (STAGES.has("subtitle") && existsSync(colored)) {
   writeFileSync(srtFile, buildSrt(), "utf8");
   const briefFile = BRIEF_FILE ? abs(BRIEF_FILE) : null;
   const platform = arg("--platform", "抖音/快手");
+  const persistentArgs = PERSISTENT_SUBTITLE_TEXT ? ["--persistent-text", PERSISTENT_SUBTITLE_TEXT] : [];
 
   if (SUBTITLE_MODE !== "burn") {
     const sidecarDir = join(POST_DIR, "subtitles");
     const sidecarResult = runCli(SUBTITLE_CLI, [
       "sidecar", "--in", colored, "--out-dir", sidecarDir, "--srt", srtFile, "--name", PROJECT,
       "--platform", platform,
+      ...persistentArgs,
       ...(briefFile ? ["--brief", briefFile] : [])
     ]);
     const zhSrt = join(sidecarDir, `${PROJECT}.zh.srt`);
     const zhAss = join(sidecarDir, `${PROJECT}.zh.ass`);
     const manifest = join(sidecarDir, `${PROJECT}.subtitle-manifest.json`);
     const timelineOk = sidecarResult.ok && /时间轴回读 ok/.test(sidecarResult.out);
+    const persistentCheck = await readPersistentSubtitleProof(sidecarResult.reportFile, colored);
     const verdict = await reviewStage({
       stage: "subtitle", projectId: PROJECT,
       artifacts: [
@@ -4828,19 +4873,21 @@ if (STAGES.has("subtitle") && existsSync(colored)) {
         { id: "sidecar-produced", pass: existsSync(zhSrt) && existsSync(zhAss), detail: existsSync(zhSrt) ? "旁挂字幕文件已产出（srt + ass）" : "旁挂字幕文件未产出", hard: true },
         { id: "tool-exit", pass: sidecarResult.ok, detail: sidecarResult.ok ? "字幕工位退出码 0" : `字幕工位失败：${sidecarResult.out.slice(-300)}`, hard: true },
         { id: "timeline", pass: timelineOk, detail: (sidecarResult.out.match(/时间轴回读[^\n]*/) ?? ["无回读信息"])[0] ?? "" },
-        { id: "master-untouched", pass: sidecarResult.out.includes("母版未被改动 ok"), detail: "母版只读：出字幕文件的过程不改动画面（哈希与 mtime 双验）", hard: true }
+        { id: "master-untouched", pass: sidecarResult.out.includes("母版未被改动 ok"), detail: "母版只读：出字幕文件的过程不改动画面（哈希与 mtime 双验）", hard: true },
+        ...(PERSISTENT_SUBTITLE_TEXT ? [{ id: "persistent-text", pass: persistentCheck.ok, detail: persistentCheck.detail, hard: true }] : [])
       ],
       context: { mode: SUBTITLE_MODE, srt: readFileSync(srtFile, "utf8").slice(0, 1200), platform, toolOutput: sidecarResult.out.slice(-900) },
       env: ENV, allowFallbackApprove: ALLOW_FALLBACK_APPROVE, log
     });
-    if (existsSync(zhSrt)) {
+    if (existsSync(zhSrt) && persistentCheck.ok) {
       subtitleSidecar = { dir: sidecarDir, srt: zhSrt, ass: existsSync(zhAss) ? zhAss : zhSrt, manifest: existsSync(manifest) ? manifest : null, timelineOk };
-
+      if (persistentCheck.proof) persistentSubtitleProof = persistentCheck.proof;
     }
     record({
       stage: "subtitle", shotId: null, invoked: true, ok: sidecarResult.ok && Boolean(subtitleSidecar), cached: false, degraded: false,
       attempt: 1, ms: Date.now() - started, artifact: existsSync(zhSrt) ? zhSrt : null,
-      evidence: { mode: "sidecar", srt: zhSrt, ass: zhAss, manifest, outputFiles: [zhSrt, zhAss, manifest], timelineOk, tool: "subtitle-bridge sidecar", masterBurnedIn: false }, verdict
+      evidence: { mode: "sidecar", srt: zhSrt, ass: zhAss, manifest, outputFiles: [zhSrt, zhAss, manifest], timelineOk, tool: "subtitle-bridge sidecar", masterBurnedIn: false,
+        ...(PERSISTENT_SUBTITLE_TEXT ? { persistentText: persistentCheck.proof ?? null, persistentCheck } : {}) }, verdict
     });
     if (!sidecarResult.ok || !verdict.approved || !subtitleSidecar) throw new Error(`SUBTITLE_SIDECAR_FAILED: ${sidecarResult.out.slice(-400)}`);
     log(`字幕以旁挂文件产出（母版不烧字）：${zhSrt}`);
@@ -4869,10 +4916,13 @@ if (STAGES.has("subtitle") && existsSync(colored)) {
       "burn", "--in", colored, "--out", out, "--srt", srtFile,
       ...(burnOpeningTitle ? ["--title", openingTitle] : []),
       "--platform", platform,
+      ...persistentArgs,
       ...(briefFile ? ["--brief", briefFile] : []),
       "--evidence-dir", join(POST_DIR, "subtitle-evidence")
     ]);
     const info = existsSync(out) ? probe(out) : {};
+    const persistentCheck = await readPersistentSubtitleProof(result.reportFile, colored);
+    const persistentMatchesSidecar = !persistentSubtitleProof || persistentCheck.proof?.compositionSha256 === persistentSubtitleProof.compositionSha256;
     const verdict = await reviewStage({
       // 阶段名统一为 `subtitle`（历史裁决按阶段名检索：burn/sidecar 只是同一步的两种落地方式，
       // 命名分开会让"历史日志里有 subtitle 的放行裁决"这条链路完整性检查在本模式下误判缺失）
@@ -4889,22 +4939,29 @@ if (STAGES.has("subtitle") && existsSync(colored)) {
           id: "punctuation", pass: /标点体检 ok/.test(result.out), hard: true,
           detail: (result.out.match(/标点体检[^\n]*/) ?? ["字幕工位未输出标点体检（无法证明字幕不带标点）"])[0]
         },
-        { id: "timeline", pass: /时间轴回读 (\d+)\/(\d+) 条（一致）/.test(result.out) || result.out.includes("一致"), detail: (result.out.match(/时间轴回读[^\n]*/) ?? ["无回读信息"])[0] ?? "" }
+        { id: "timeline", pass: /时间轴回读 (\d+)\/(\d+) 条（一致）/.test(result.out) || result.out.includes("一致"), detail: (result.out.match(/时间轴回读[^\n]*/) ?? ["无回读信息"])[0] ?? "" },
+        ...(PERSISTENT_SUBTITLE_TEXT ? [{ id: "persistent-text", pass: persistentCheck.ok && persistentMatchesSidecar, hard: true,
+          detail: `${persistentCheck.detail}；烧录与组合ASS旁挂${persistentMatchesSidecar ? "同源" : "不一致"}` }] : [])
       ],
       context: { mode: SUBTITLE_MODE, srt: readFileSync(srtFile, "utf8").slice(0, 1200), platform, toolOutput: result.out.slice(-900) },
       env: ENV, allowFallbackApprove: ALLOW_FALLBACK_APPROVE, log
     });
     if (existsSync(out)) subtitled = out;
     record({
-      stage: "subtitle", shotId: null, invoked: true, ok: result.ok && existsSync(out), cached: false, degraded: false,
+      stage: "subtitle", shotId: null, invoked: true, ok: result.ok && existsSync(out) && persistentCheck.ok && persistentMatchesSidecar, cached: false, degraded: false,
       attempt: 1, ms: Date.now() - started, artifact: existsSync(out) ? out : null,
       evidence: {
         mode: "burn", srt: srtFile, tool: "subtitle-bridge burn", masterBurnedIn: true,
         punctuationOk: /标点体检 ok/.test(result.out),
-        punctuationDetail: (result.out.match(/标点体检[^\n]*/) ?? [null])[0]
+        punctuationDetail: (result.out.match(/标点体检[^\n]*/) ?? [null])[0],
+        ...(PERSISTENT_SUBTITLE_TEXT ? { persistentText: persistentCheck.proof ?? null, persistentCheck, persistentMatchesSidecar,
+          outputFiles: [persistentCheck.ass, result.reportFile].filter(Boolean) } : {})
       }, verdict
     });
-    if (!result.ok || !verdict.approved || !existsSync(out)) throw new Error(`SUBTITLE_BURN_FAILED: ${result.out.slice(-400)}`);
+    if (!result.ok || !verdict.approved || !existsSync(out) || !persistentCheck.ok || !persistentMatchesSidecar) {
+      throw new Error(`SUBTITLE_BURN_FAILED: ${persistentCheck.ok && persistentMatchesSidecar ? result.out.slice(-400) : persistentCheck.detail}`);
+    }
+    if (persistentCheck.proof) persistentSubtitleProof = persistentCheck.proof;
   } else {
     // sidecar 模式：画面这一路保持"未烧字"，下游（弹幕/配乐/封面）都从干净版派生
     subtitled = colored;
@@ -5874,6 +5931,9 @@ if (STAGES.has("master") && !STAGES.has("deliver") && !DRY_RUN) {
     masterOnly: true, deliveryPolicy: "single-master", variants: [],
     deliverable: { path: publicDeliveryPath(deliverablePath), sha256: await sha256UhdAsset(deliverablePath) },
     assets: await Promise.all(content.map(async file => ({ path: publicDeliveryPath(file), sha256: await sha256UhdAsset(file) }))),
+    ...(PERSISTENT_SUBTITLE_TEXT ? { subtitles: { mode: SUBTITLE_MODE, persistentText: persistentSubtitleProof,
+      compositionAss: subtitleSidecar ? publicDeliveryPath(join(OUT_DIR, "subtitles", `${PROJECT}.zh.ass`)) : null,
+      portableSidecars: "dialogue-only" } } : {}),
     generationQuality: accepted.manifest, qualityReport: { path: relative(OUT_DIR, accepted.qualityFile.path), sha256: accepted.qualityFile.sha256 } };
   writeFileSync(manifestFile, `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
   const published = await publishUhdDelivery({ stagingDir: OUT_DIR, publicRoot: PUBLIC_OUT_DIR, releaseId: RUN_ID,
@@ -6123,6 +6183,7 @@ if (STAGES.has("deliver") && !DRY_RUN && (QUALITY !== "uhd" || masterApprovedFor
     samples: [],
     at: stamp()
   }), assets: assetHashes, generationQuality: deliveryGenerationQuality.manifest,
+  ...(PERSISTENT_SUBTITLE_TEXT ? { persistentText: persistentSubtitleProof, portableSubtitleSidecars: "dialogue-only" } : {}),
   colorPolicy: { version: AI_COLOR_POLICY_VERSION, masterMode: COLOR_MODE,
     commonSourceSha256: variantColorSourceSha256, independentVariants: true },
   qualityReport: { path: relative(OUT_DIR, deliveryGenerationQuality.qualityFile.path), sha256: deliveryGenerationQuality.qualityFile.sha256 }, quality: {

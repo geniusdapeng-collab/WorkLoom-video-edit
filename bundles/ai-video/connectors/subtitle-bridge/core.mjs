@@ -30,6 +30,47 @@ import {
 /** 工位对外错误类型（与 measure 内核同源，统一 code 语义）。 */
 export const SubtitleError = MeasureError;
 
+/** Optional single-line, full-film text. Invalid requests are rejected, never shortened. */
+export function validatePersistentSubtitleText(value) {
+  if (value === undefined || value === null) return null;
+  if (typeof value !== "string") throw new SubtitleError("持续字幕必须是完整文本", "bad_request", false);
+  const text = value.trim();
+  const chars = Array.from(text);
+  if (!text || chars.length > 120 || /[\u0000-\u001f\u007f-\u009f\u2028\u2029]/u.test(value)
+    || chars.some(char => char.length === 1 && char.charCodeAt(0) >= 0xd800 && char.charCodeAt(0) <= 0xdfff)) {
+    throw new SubtitleError("持续字幕须为1至120个Unicode字符的单行文本，不能含控制字符或无效Unicode", "bad_request", false);
+  }
+  return text;
+}
+
+/** User backslashes remain visible, with a zero-width barrier preventing ASS \\N/\\h commands. */
+export function escapePersistentSubtitleText(text) {
+  return escapeAssText(text.replaceAll("\\", "\\\u2060"));
+}
+
+export function persistentSubtitleClock(probe) {
+  const duration = Number(probe?.videoDuration);
+  if (!Number.isFinite(duration) || duration <= 0) throw new SubtitleError("持续字幕需要可核实的实际视频流时长", "bad_media", false);
+  // Round upward within the existing one-centisecond serialization tolerance, covering the final frame.
+  const endSeconds = Math.ceil(duration * 100) / 100;
+  return { start: srtSecondsToAss(0), end: srtSecondsToAss(endSeconds), startSeconds: 0, endSeconds,
+    videoDuration: duration, videoDurationBasis: probe.videoDurationBasis ?? "video-stream-duration" };
+}
+
+function persistentSubtitleReadback(assText, text, clock, styles) {
+  if (!text) return null;
+  const events = parseAssEvents(assText).filter(event => event.style === "Title");
+  const style = styles.find(entry => entry.name === "Title");
+  const escapedText = escapePersistentSubtitleText(text);
+  const ok = events.length === 1 && events[0].start === clock.start && events[0].end === clock.end
+    && events[0].text === escapedText && Boolean(style) && assText.split(/\r?\n/u).includes(styleLine("Title", style.style));
+  if (!ok) throw new SubtitleError("持续字幕ASS的文本、完整区间或样式回读不一致", "verify_failed", false);
+  const binding = { event: events[0], style: style.style };
+  return { text, assText: escapedText, ...clock, style: { name: "Title", ...style.style }, readback: true,
+    compositionSha256: createHash("sha256").update(STABLE_JSON(binding)).digest("hex"),
+    coverage: "first-through-last-video-frame", clockBasis: "actual-video-stream" };
+}
+
 /* ============================ 工具面 ============================ */
 
 /** 本连接器提供的工具面；不在表内的工具直接拒绝（与 color/bgm-bridge 同款白名单纪律）。 */
@@ -1059,6 +1100,7 @@ export async function plan({
   platform = null,
   titleText = "",
   titleDurationSec = 3,
+  persistentText = null,
   cues = [],
   secondaryCues = [],
   secondaryLabel = "EN",
@@ -1070,8 +1112,12 @@ export async function plan({
   evidenceDir = null,
   analyze = false,
 }) {
+  persistentText = validatePersistentSubtitleText(persistentText);
+  if (persistentText && titleText) throw new SubtitleError("持续字幕与装饰标题不能共用Title文字层", "bad_request", false);
   fontsDir = fontsDir ?? fontsRoot();
   const probe = input ? await probeMedia(input, { bins }) : null;
+  const persistentClock = persistentText ? persistentSubtitleClock(probe) : null;
+  if (persistentText && !scenes.includes("标题")) scenes = [...scenes, "标题"];
   const resolvedPlatform = platform ?? brief.平台 ?? "默认";
   const { key: platformKey, layout } = layoutFor(resolvedPlatform, catalog);
   const targetResolution = resolution ?? (probe ? [probe.displayWidth ?? probe.width, probe.displayHeight ?? probe.height] : brief.分辨率 ?? [1080, 1920]);
@@ -1171,16 +1217,28 @@ export async function plan({
       },
     });
   }
+  if (persistentText) {
+    const titleStyle = styles.find(entry => entry.name === "Title");
+    if (!titleStyle) throw new SubtitleError("持续字幕缺少可用Title字体", "font_not_found", false);
+    const size = Math.max(12, Math.round(Math.min(...targetResolution) * 0.045));
+    Object.assign(titleStyle.style, {
+      fontSize: size, primaryColour: assColour("#FFFFFF"), outlineColour: assColour("#000000"),
+      backColour: "&H40000000", bold: false, spacing: 0, borderStyle: 3,
+      outline: Math.max(2, Math.round(size * 0.12)), shadow: 0, alignment: 8,
+      marginL: Math.round(targetResolution[0] * 0.08), marginR: Math.round(targetResolution[0] * 0.08),
+      marginV: Math.round(targetResolution[1] * Math.max(0.13, Number(titleLayout.top_margin_ratio ?? 0.13))),
+    });
+  }
 
   const events = [];
-  if (titleText && titlePick) {
+  if ((titleText || persistentText) && titlePick) {
     events.push({
       layer: 1,
       start: srtSecondsToAss(0),
-      end: srtSecondsToAss(Number(titleDurationSec) || 3),
+      end: persistentClock?.end ?? srtSecondsToAss(Number(titleDurationSec) || 3),
       style: "Title",
       name: titlePick.id,
-      text: String(titleText),
+      text: persistentText ? escapePersistentSubtitleText(persistentText) : String(titleText),
     });
   }
   for (const cue of cues) {
@@ -1215,6 +1273,8 @@ export async function plan({
   }
 
   const assText = buildAssDocument({ resolution: targetResolution, styles, events });
+  const persistent = persistentSubtitleReadback(assText, persistentText, persistentClock, styles);
+  if (persistent) validateTextEvents(events, probe);
   const dir = outputDir ?? (await tempDir("workloom-subtitle-plan-"));
   await fsp.mkdir(dir, { recursive: true });
   const assPath = path.join(dir, "subtitle-plan.ass");
@@ -1322,6 +1382,26 @@ export async function plan({
     }
   }
 
+  if (persistent) {
+    const titleStyle = styles.find(entry => entry.name === "Title");
+    const samplePath = path.join(dir, "persistent-text-measure.ass");
+    await fsp.writeFile(samplePath, buildAssDocument({ resolution: targetResolution, styles: [titleStyle],
+      events: [{ ...events.find(event => event.style === "Title"), start: "0:00:00.00", end: "0:00:01.00" }] }), "utf8");
+    flatFonts = flatFonts ?? prepareFlatFontsDir({ fontsDir, catalog, workDir: dir });
+    const ink = await measureInkExtent({ assPath: samplePath, fontsDir: flatFonts.flat, resolution: targetResolution, bins });
+    const rect = ink.detected ? { x: ink.inkX / targetResolution[0], y: ink.inkY / targetResolution[1],
+      w: ink.inkWidth / targetResolution[0], h: ink.inkHeight / targetResolution[1] } : null;
+    const hits = rect ? overlapsOcclusion(rect, layout.occlusion_zones ?? []) : [];
+    const safe = rect !== null && rect.x >= 0.05 && rect.x + rect.w <= 0.95
+      && rect.y >= 0.12 && rect.y + rect.h <= 0.4 && hits.length === 0;
+    if (!safe || ink.fontResolvedFromFontsDir !== true) {
+      throw new SubtitleError("持续字幕完整文字未能以工位字体放入顶部安全区，请缩短文本或核对字体与平台版式", "bad_style", false);
+    }
+    persistent.layout = { safeArea: "top-12-to-40-percent", ink, rect, occlusionHits: [],
+      contrast: "opaque-white-on-dark-backdrop", sourcePictureReadability: "unreviewed" };
+    checks.push({ kind: "persistent_text_layout", ok: true, hard: true, detail: persistent.layout });
+  }
+
   const planDoc = {
     schemaVersion: "workloom.subtitle-plan/v1",
     createdAt: new Date().toISOString(),
@@ -1340,10 +1420,12 @@ export async function plan({
     assSha256: await sha256File(assPath),
     checks,
     fonts: { root: fonts.root, installed: fonts.installed, total: fonts.total },
+    ...(persistent ? { persistentText: persistent } : {}),
   };
   const planPath = path.join(dir, "subtitle-plan.json");
   await fsp.writeFile(planPath, `${JSON.stringify(planDoc, null, 2)}\n`, "utf8");
-  return { plan: planDoc, planPath, assPath, assText, checks, styles, events, cues, fonts, diagnosis, targets };
+  return { plan: planDoc, planPath, assPath, assText, checks, styles, events, cues, fonts, diagnosis, targets,
+    ...(persistent ? { persistentText: persistent } : {}) };
 }
 
 /** 独立版式诊断汇总；生产接收另按实际处理检查判定。 */
@@ -1452,6 +1534,7 @@ export async function renderWithSubtitles({
   cues = [],
   titleText = "",
   titleDurationSec = null,
+  persistentText = null,
   secondaryCues = [],
   secondaryLabel = "EN",
   brief = {},
@@ -1471,6 +1554,10 @@ export async function renderWithSubtitles({
   danmakuItems = null,
   danmakuOptions = {},
 }) {
+  persistentText = validatePersistentSubtitleText(persistentText);
+  if (persistentText && (titleText || styleOverrides?.Title)) {
+    throw new SubtitleError("持续字幕不能与装饰标题或Title样式覆写同时请求", "bad_request", false);
+  }
   fontsDir = fontsDir ?? fontsRoot();
   if (typeof input !== "string" || !input.trim()) throw new SubtitleError("input_path 缺失", "bad_request");
   if (typeof output !== "string" || !output.trim()) throw new SubtitleError("output_path 缺失", "bad_request");
@@ -1503,6 +1590,7 @@ export async function renderWithSubtitles({
     platform,
     titleText: mode === "subtitle" ? "" : titleText,
     titleDurationSec,
+    persistentText,
     cues: mode === "title" ? [] : cues,
     secondaryCues: mode === "title" ? [] : secondaryCues,
     secondaryLabel,
@@ -1577,7 +1665,8 @@ export async function renderWithSubtitles({
         && event.text === danmaku.events[index].text));
 
   const resolution = [outputProbe.width, outputProbe.height];
-  const checks = checkSummary(planOutcome.checks).map((check) => ({ ...check, hard: check.kind === "font_resolution" }));
+  const checks = checkSummary(planOutcome.checks).map((check) => ({ ...check,
+    hard: check.kind === "font_resolution" || check.kind === "persistent_text_layout" }));
   const layoutOk = checks.every((check) => check.ok);
   const presence = { reviewed: false, at: null, delta: null, threshold: null, ok: null };
   const evidence = [];
@@ -1589,6 +1678,9 @@ export async function renderWithSubtitles({
     sourceSha256: encoded.sourceSha256,
     assSha256: encoded.assSha256,
     textTimeline: encoded.textTimeline,
+    ...(planOutcome.persistentText ? { persistentText: { ...persistentSubtitleReadback(planOutcome.assText,
+      persistentText, planOutcome.persistentText, styles), layout: planOutcome.persistentText.layout,
+      assSha256: encoded.assSha256 } } : {}),
     output: { path: output, hash: outputHash, bytes: fs.statSync(output).size },
     encoder: encoder.name,
     elapsedMs: Date.now() - started,
@@ -1635,7 +1727,7 @@ export async function renderWithSubtitles({
       },
     } : null,
     pipeline: {
-      textLayers: danmaku ? ["subtitles", "danmaku"] : ["subtitles"],
+      textLayers: ["subtitles", ...(persistentText ? ["persistent-text"] : []), ...(danmaku ? ["danmaku"] : [])],
       textEncodingPasses: 1,
       sourceEncodingPolicy: "single-pass-combined-ass",
     },
@@ -1672,6 +1764,9 @@ export async function renderWithSubtitles({
     font_resolved_from_fonts_dir: fontResolution.allFromFontsDir === true && fontResolution.selections.length > 0,
     resolution_preserved: outputProbe.width === (probe.displayWidth ?? probe.width) && outputProbe.height === (probe.displayHeight ?? probe.height),
     audio_preserved: outputProbe.hasAudio === probe.hasAudio,
+    ...(persistentText ? { persistent_text_coverage: report.persistentText.readback
+      && report.persistentText.startSeconds === 0 && report.persistentText.endSeconds >= outputProbe.videoDuration
+      && report.persistentText.endSeconds <= outputProbe.videoDuration + 0.01 + 1e-9 } : {}),
   };
 
   /** 清晰度回归体检（T-2026-1017）：烧字前后上半部画面的拉普拉斯方差比，随回执交付。 */
@@ -2804,12 +2899,16 @@ export async function exportSidecars({
   platform = null,
   brief = {},
   titleText = "",
+  persistentText = null,
   fontsDir = null,
   catalog = loadFontCatalog(),
   bins = resolveBinaries(),
   evidenceDir = null,
   analyze = false,
 }) {
+  persistentText = validatePersistentSubtitleText(persistentText);
+  if (persistentText && titleText) throw new SubtitleError("持续字幕与装饰标题不能共用Title文字层", "bad_request", false);
+  if (persistentText && (typeof input !== "string" || !input.trim())) throw new SubtitleError("持续字幕旁挂需要实际视频输入", "bad_request", false);
   if (!Array.isArray(cues) || cues.length === 0) {
     throw new SubtitleError("旁挂字幕交付需要至少一条字幕（SRT/VTT 都不为空）", "bad_srt", false);
   }
@@ -2826,6 +2925,7 @@ export async function exportSidecars({
     brief,
     platform,
     titleText,
+    persistentText,
     cues,
     scenes: ["标题", "字幕"],
     catalog,
@@ -2853,15 +2953,18 @@ export async function exportSidecars({
     return record;
   };
 
-  const zhSrt = await writeFile(".zh.srt", cuesToSrt(cues), { role: "subtitle", lang: "chi", format: "srt", primary: true });
+  const zhSrt = await writeFile(".zh.srt", cuesToSrt(cues), { role: "subtitle", lang: "chi", format: "srt", primary: true,
+    ...(persistentText ? { contentScope: "dialogue-only" } : {}) });
   const assText = await fsp.readFile(outcome.assPath, "utf8");
   const zhAss = await writeFile(".zh.ass", assText, {
     role: "subtitle", lang: "chi", format: "ass", primary: true,
     styled: true, note: "与烧录/软轨同源（同一 ASS 生成器 + 同一字体选型）",
+    ...(persistentText ? { contentScope: "complete-composition", layers: ["dialogue", "persistent-text"] } : {}),
   });
   let enSrt = null;
   if (Array.isArray(cuesEn) && cuesEn.length) {
-    enSrt = await writeFile(".en.srt", cuesToSrt(cuesEn), { role: "subtitle", lang: "eng", format: "srt", secondary: true });
+    enSrt = await writeFile(".en.srt", cuesToSrt(cuesEn), { role: "subtitle", lang: "eng", format: "srt", secondary: true,
+      ...(persistentText ? { contentScope: "dialogue-only" } : {}) });
   }
   const vtt = await writeFile(".vtt", cuesToVtt(cues, {
     secondaryCues: Array.isArray(cuesEn) ? cuesEn : [],
@@ -2869,6 +2972,7 @@ export async function exportSidecars({
   }), {
     role: "subtitle", lang: Array.isArray(cuesEn) && cuesEn.length ? "chi+eng" : "chi", format: "vtt",
     note: "平台后台上传口/网页播放器；双语时同条先主后备",
+    ...(persistentText ? { contentScope: "dialogue-only" } : {}),
   });
 
   // 时间轴回读：写出的 ASS 事件必须与源字幕逐条一致（旁挂也一样要能对回时间轴）
@@ -2901,7 +3005,8 @@ export async function exportSidecars({
   const checks = [
     // Layout recommendations describe the requested text; they cannot reject a successfully
     // produced sidecar or encourage deleting user text. Actual font resolution remains required.
-    ...outcome.checks.map((check) => ({ ...check, hard: check.kind === "font_resolution" })),
+    ...outcome.checks.map((check) => ({ ...check,
+      hard: check.kind === "font_resolution" || check.kind === "persistent_text_layout" })),
     { kind: "timeline_readback", ok: timelineOk, detail: { cues: cues.length, events: assEvents.length } },
     { kind: "srt_round_trip", ok: srtOk, detail: { cues: cues.length, parsed: srtRoundTrip.length } },
     { kind: "secondary_language", ok: secondaryOk, detail: { cuesEn: cuesEn.length } },
@@ -2915,6 +3020,8 @@ export async function exportSidecars({
       },
     },
     { kind: "source_untouched", ok: sourceUntouched !== false, detail: { hashed: Boolean(input) } },
+    ...(persistentText ? [{ kind: "persistent_text_readback", ok: persistentSubtitleReadback(assText,
+      persistentText, outcome.persistentText, outcome.styles).readback, detail: outcome.persistentText }] : []),
   ];
 
   const manifest = {
@@ -2933,6 +3040,8 @@ export async function exportSidecars({
       occlusionZones: layout.occlusion_zones ?? [],
     },
     styles: outcome.styles.map((entry) => ({ name: entry.name, ...entry.style })),
+    ...(persistentText ? { persistentText: { ...outcome.persistentText, assSha256: zhAss.sha256 },
+      primaryComposition: path.basename(zhAss.path), portableSidecars: "dialogue-only" } : {}),
     timeline: {
       cues: cues.length,
       secondaryCues: Array.isArray(cuesEn) ? cuesEn.length : 0,
@@ -3156,6 +3265,12 @@ export async function callTool(name, params = {}, { bins = resolveBinaries(), en
   if (!isSubtitleTool(name)) {
     throw new SubtitleError(`字幕工位不提供工具 ${name}`, "not_provided");
   }
+  // Validate before allocating plan directories or reading cue files through the tool entry.
+  const persistentText = validatePersistentSubtitleText(params.persistent_text);
+  if (persistentText && (!["subtitlewrite.plan", "subtitlewrite.burn", "subtitlewrite.sidecar"].includes(name)
+    || params.title_text || params.style_overrides?.Title)) {
+    throw new SubtitleError("持续字幕仅支持plan/burn/sidecar且不能与装饰Title层共用", "bad_request", false);
+  }
   const roots = allowedRoots(env);
   const text = (value, label) => {
     if (typeof value !== "string" || !value.trim()) throw new SubtitleError(`${label} 缺失`, "bad_request");
@@ -3243,7 +3358,7 @@ export async function callTool(name, params = {}, { bins = resolveBinaries(), en
       const input = params.input_path ? assertPathAllowed(String(params.input_path), roots, "input_path") : null;
       const outputDir = params.output_dir
         ? assertPathAllowed(String(params.output_dir), roots, "output_dir")
-        : await tempDir("workloom-subtitle-plan-");
+        : persistentText ? null : await tempDir("workloom-subtitle-plan-");
       const evidenceDir = optionalPath(params.evidence_dir, "evidence_dir");
       const cues = resolveCues(params);
       const resolution = Array.isArray(params.resolution) && params.resolution.length === 2
@@ -3256,6 +3371,7 @@ export async function callTool(name, params = {}, { bins = resolveBinaries(), en
         brief: resolveBrief(params),
         platform: params.platform ?? null,
         titleText: params.title_text ?? "",
+        persistentText: params.persistent_text,
         titleDurationSec: optionalNumber(params.title_duration_sec) ?? 3,
         cues,
         scenes: Array.isArray(params.scenes) && params.scenes.length ? params.scenes.map(String) : ["标题", "字幕"],
@@ -3293,6 +3409,7 @@ export async function callTool(name, params = {}, { bins = resolveBinaries(), en
         secondaryCues: resolveCues({ srt_path: params.srt_path_en ?? undefined, srt_text: params.srt_text_en ?? undefined }),
         secondaryLabel: String(params.secondary_label ?? "EN"),
         titleText: params.title_text ?? "",
+        persistentText: params.persistent_text,
         titleDurationSec: optionalNumber(params.title_duration_sec),
         brief: resolveBrief(params),
         platform: params.platform ?? null,
@@ -3450,6 +3567,7 @@ export async function callTool(name, params = {}, { bins = resolveBinaries(), en
         platform: params.platform ?? null,
         brief: resolveBrief(params),
         titleText: params.title_text ?? "",
+        persistentText: params.persistent_text,
         fontsDir: params.fonts_dir ? assertPathAllowed(String(params.fonts_dir), roots, "fonts_dir") : fontRoot,
         evidenceDir: optionalPath(params.evidence_dir, "evidence_dir"),
         bins,

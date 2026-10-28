@@ -79,7 +79,7 @@ test("本仓固定指南返回全文、版本、产品身份及原始字节摘�
   assert.equal(result.markdown, GUIDE_BYTES.toString("utf8"));
   assert.equal(result.sha256, hash(GUIDE_BYTES));
   assert.equal(result.byteCount, GUIDE_BYTES.length);
-  assert.equal(result.guideVersion, "2026-10-28.5");
+  assert.equal(result.guideVersion, "2026-10-28.6");
   assert.equal(result.repository, "workloom-ai/WorkLoom-video-edit");
   assert.match(result.markdown, /rawIntent/u);
   assert.match(result.markdown, /没有 Growthtest 的 nativeaudio 专用契约/u);
@@ -94,6 +94,10 @@ test("本仓固定指南返回全文、版本、产品身份及原始字节摘�
   assert.match(result.markdown, /权威上下文追加在最终模型输入的原故事之后/u);
   assert.match(result.markdown, /G2 已批准的原文、裁决及建议作为非阻断上下文/u);
   assert.match(result.markdown, /当前营销权威作用域禁用未绑定本次输入的缓存/u);
+  assert.match(result.markdown, /--subtitle-persistent-text/u);
+  assert.match(result.markdown, /--no-title-card --no-open-with-cover/u);
+  assert.match(result.markdown, /dialogue-only/u);
+  assert.match(result.markdown, /服务端 worker 作业没有新增这几个参数的自动透传/u);
 });
 
 test("指南锚定模块所在产品根，不被cwd或产物根替换", (t) => {
@@ -276,3 +280,4 @@ test("计划指向指南并保留安全argv，不把指南当生产资格", () =
 });
 
 import './tools/full-chain-failure.test.mjs';
+import './tools/full-chain-persistent-subtitle.test.mjs';
