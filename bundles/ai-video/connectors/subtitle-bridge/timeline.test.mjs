@@ -8,6 +8,7 @@ import { after, before, test } from "node:test";
 import {
   fontsRoot, loadFontCatalog, parseAssEvents, parseSrt, renderDanmaku, renderKaraoke,
   renderSticker, renderTitle, renderWithSubtitles, softMux, srtSecondsToAss,
+  callTool, escapeAssText, escapePersistentSubtitleText, exportSidecars, persistentSubtitleClock, plan, validatePersistentSubtitleText,
 } from "./core.mjs";
 import { probeMedia, resolveBinaries } from "./measure.mjs";
 
@@ -21,6 +22,45 @@ const common = () => ({ input, bins, evidenceDir: path.join(root, "evidence"),
   fontsDir: fontsRoot(), catalog: loadFontCatalog(), brief: { 语言: "zh", 平台: "默认" } });
 const cue = (start = "0:00:00.10", end = "0:00:01.10", text = "真实字幕") => ({ start, end, text });
 const outputFor = name => path.join(root, `${name}.mp4`);
+
+test("persistent text is optional, Unicode bounded and never accepts malformed or multiline requests", () => {
+  assert.equal(validatePersistentSubtitleText(undefined), null);
+  assert.equal(validatePersistentSubtitleText(null), null);
+  assert.equal(validatePersistentSubtitleText("  完整文字🙂  "), "完整文字🙂");
+  assert.equal(validatePersistentSubtitleText("🙂".repeat(120)), "🙂".repeat(120));
+  for (const value of [true, 35, {}, "", "   ", "x".repeat(121), "前\n后", "\n前", "后\r", "a\t", "a\0", "a\u2028b", "\ud800"]) {
+    assert.throws(() => validatePersistentSubtitleText(value), error => error.code === "bad_request");
+  }
+});
+test("persistent clock covers the actual final video frame at centisecond precision, never a planned or audio clock", () => {
+  assert.deepEqual(persistentSubtitleClock({ videoDuration: 35, duration: 99 }), {
+    start: "0:00:00.00", end: "0:00:35.00", startSeconds: 0, endSeconds: 35,
+    videoDuration: 35, videoDurationBasis: "video-stream-duration",
+  });
+  assert.equal(persistentSubtitleClock({ videoDuration: 59.999 }).end, "0:01:00.00");
+  assert.equal(persistentSubtitleClock({ videoDuration: 1.251 }).endSeconds, 1.26);
+  for (const probe of [null, { duration: 35 }, { videoDuration: null }, { videoDuration: 0 }, { videoDuration: -1 }, { videoDuration: Infinity }]) {
+    assert.throws(() => persistentSubtitleClock(probe), error => error.code === "bad_media");
+  }
+});
+test("persistent ASS escaping neutralizes user commands while preserving legacy default escaping", () => {
+  const text = String.raw`文字{\an1} C:\new\N\h,🙂`;
+  const escaped = escapePersistentSubtitleText(text);
+  assert.equal(escaped, escapeAssText(text.replaceAll("\\", "\\\u2060")));
+  assert.ok(!escaped.includes("\\N"));
+  assert.equal(escapeAssText(String.raw`default\N`), String.raw`default\N`);
+});
+test("persistent requests reject title collision and missing actual input before creating any output directory", async () => {
+  const temporary = fs.mkdtempSync(path.join(os.tmpdir(), "persistent-validation-"));
+  try {
+    const outputDir = path.join(temporary, "must-not-exist");
+    await assert.rejects(plan({ titleText: "装饰标题", persistentText: "完整文字", outputDir }), error => error.code === "bad_request");
+    await assert.rejects(plan({ persistentText: "完整文字", resolution: [640, 360], duration: 35, outputDir }), error => error.code === "bad_media");
+    await assert.rejects(exportSidecars({ persistentText: "完整文字", outputDir, cues: [cue()] }), error => error.code === "bad_request");
+    await assert.rejects(callTool("subtitlewrite.plan", { persistent_text: "完整文字", duration_seconds: 35 }), error => error.code === "bad_media");
+    assert.equal(fs.existsSync(outputDir), false);
+  } finally { fs.rmSync(temporary, { recursive: true, force: true }); }
+});
 
 before(() => {
   if (!available) return;
@@ -219,4 +259,24 @@ mediaTest("soft subtitle mux preserves rotated coded axes, display axes and enco
   const packetHash=file=>execFileSync(bins.ffmpeg,["-v","error","-i",file,"-map","0:v:0","-c","copy","-f","hash","-hash","sha256","-"],{encoding:"utf8",timeout:30000}).trim();
   assert.equal(packetHash(output),packetHash(rotated));assert.equal(sha(rotated),before);assert.equal(sha(subtitles),subtitleHash);
   execFileSync(bins.ffmpeg,["-v","error","-xerror","-i",output,"-f","null","-"],{stdio:"pipe",timeout:30000});
+});
+
+mediaTest("persistent plan uses an actual 35-second video through the last frame and never substitutes the planned duration", async () => {
+  const actual = outputFor("actual-35-seconds");
+  execFileSync(bins.ffmpeg, ["-hide_banner", "-v", "error", "-n", "-f", "lavfi", "-i",
+    "color=c=black:s=640x360:r=10:d=35", "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p", actual],
+  { stdio: "pipe", timeout: 30000 });
+  const before = sha(actual);
+  const outcome = await plan({ ...common(), input: actual, duration: 99, persistentText: "赛道专用 不可上路",
+    cues: [cue()], outputDir: path.join(root, "actual-35-plan") });
+  assert.equal(outcome.persistentText.videoDuration, 35);
+  assert.equal(outcome.persistentText.start, "0:00:00.00");
+  assert.equal(outcome.persistentText.end, "0:00:35.00");
+  assert.equal(outcome.persistentText.readback, true);
+  assert.equal(outcome.persistentText.layout.ink.fontResolvedFromFontsDir, true);
+  assert.equal(parseAssEvents(outcome.assText).filter(event => event.style === "Title").length, 1);
+  assert.equal(sha(actual), before);
+  await assert.rejects(plan({ ...common(), bins: unknownDurationBins, persistentText: "持续文字",
+    outputDir: path.join(root, "unknown-persistent") }), error => error.code === "bad_media");
+  assert.equal(fs.existsSync(path.join(root, "unknown-persistent")), false);
 });

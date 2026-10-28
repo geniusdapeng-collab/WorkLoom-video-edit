@@ -11,6 +11,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
   best, callTool, exportSidecars, parseSrt, plan, renderDanmaku, renderKaraoke,
   renderSticker, renderTitle, renderWithSubtitles, softMux,
+  parseAssEvents, escapePersistentSubtitleText,
 } from "./core.mjs";
 import { resolveBinaries } from "./measure.mjs";
 
@@ -63,6 +64,80 @@ mediaSuite("subtitle production uses one real transform without source quality r
     const sourceCommands = traces().filter((argv) => argv.includes(source));
     expect(sourceCommands).toEqual([]);
   }, 30000);
+
+  it("persistent burn and complete ASS use the same actual clock and style, retain dialogue sidecars/audio and show first/last frames", async () => {
+    const persistentText = String.raw`赛道专用 不可上路 {\an1}\N`;
+    const before = traces().length, output = path.join(root, "persistent.mp4");
+    const baseline = await exportSidecars({ input: source, outputDir: path.join(root, "persistent-baseline"), cues, brief, bins });
+    const sidecars = await exportSidecars({ input: source, outputDir: path.join(root, "persistent-sidecars"), cues, persistentText, brief, bins });
+    const report = await renderWithSubtitles({ input: source, output, cues, persistentText, brief, bins });
+    expect(report.checks.persistent_text_coverage).toBe(true);
+    expect(report.persistentText.compositionSha256).toBe(sidecars.manifest.persistentText.compositionSha256);
+    expect(report.assSha256).toBe(sidecars.manifest.persistentText.assSha256);
+    expect(report.persistentText.style).toEqual(sidecars.manifest.persistentText.style);
+    expect(report.persistentText).toMatchObject({ text: persistentText, start: "0:00:00.00", readback: true,
+      clockBasis: "actual-video-stream", assSha256: sha(report.assPath) });
+    expect(sidecars.manifest.primaryComposition).toMatch(/\.ass$/);
+    expect(sidecars.manifest.portableSidecars).toBe("dialogue-only");
+    for (const format of ["srt", "vtt"]) {
+      const side = sidecars.files.find((file: any) => file.format === format);
+      expect(side.contentScope).toBe("dialogue-only");
+      expect(fs.readFileSync(side.path)).toEqual(fs.readFileSync(baseline.files.find((file: any) => file.format === format).path));
+    }
+    expect(sidecars.files.find((file: any) => file.format === "ass").contentScope).toBe("complete-composition");
+    const events = parseAssEvents(fs.readFileSync(report.assPath, "utf8"));
+    expect(events.filter((event: any) => event.style === "Sub")).toMatchObject([{ text: "测试", start: cues[0].start, end: cues[0].end }]);
+    expect(events.filter((event: any) => event.style === "Title")).toMatchObject([{ text: escapePersistentSubtitleText(persistentText), start: report.persistentText.start, end: report.persistentText.end }]);
+    expect(report.persistentText.layout.ink.inkHeight).toBeLessThan(report.persistentText.style.fontSize * 2);
+    expect(report.layoutChecks.find((check: any) => check.kind === "persistent_text_layout")).toMatchObject({ ok: true, hard: true });
+    expect(traces().slice(before).filter((argv) => argv.includes(source))).toHaveLength(1);
+    const audioHash = (file: string) => execFileSync(actualBins.ffmpeg, ["-v", "error", "-i", file,
+      "-map", "0:a:0", "-c", "copy", "-f", "hash", "-hash", "sha256", "-"], { encoding: "utf8", timeout: 30000 }).trim();
+    expect(audioHash(output)).toBe(audioHash(source));
+    const meta = JSON.parse(execFileSync(actualBins.ffprobe, ["-v", "error", "-select_streams", "v:0", "-count_frames",
+      "-show_entries", "stream=nb_read_frames", "-of", "json", output], { encoding: "utf8", timeout: 30000 }));
+    const last = Number(meta.streams[0].nb_read_frames) - 1;
+    for (const frame of [0, last]) {
+      const pixels = execFileSync(actualBins.ffmpeg, ["-v", "error", "-i", output, "-vf",
+        `select=eq(n\\,${frame}),crop=iw:126:0:36,format=gray`, "-frames:v", "1", "-fps_mode", "passthrough", "-f", "rawvideo", "-"],
+      { timeout: 30000, maxBuffer: 4 * 1024 * 1024 });
+      expect(pixels.length).toBe(640 * 126);
+      expect(pixels.filter(value => value > 160).length).toBeGreaterThan(30);
+    }
+    expect(sha(source)).toBe(initialHash); decode(output);
+  }, 60000);
+
+  it("persistent CLI/tool options reject before writes; explicit tool and CLI receipts retain identical text", async () => {
+    const cli = fileURLToPath(new URL("./cli.mjs", import.meta.url));
+    const env = { ...process.env, WORKLOOM_SUBTITLE_FFMPEG_PATH: bins.ffmpeg, WORKLOOM_SUBTITLE_FFPROBE_PATH: bins.ffprobe };
+    for (const extra of [["--persistent-text"], ["--persistent-text=文字"], ["--persistent-text", " "], ["--persistent-text", "a\nb"],
+      ["--persistent-text", "完整文字", "--title", "装饰"], ["--persistent-text", "完整文字", "--persistent-text", "重复"]]) {
+      const target = path.join(root, "invalid-persistent-dir"), before = traces().length;
+      const result = spawnSync(process.execPath, [cli, "sidecar", "--srt", srt + ".missing", "--out-dir", target, ...extra],
+        { env, encoding: "utf8", timeout: 30000 });
+      expect(result.status).not.toBe(0); expect(result.stderr).toContain("bad_request");
+      expect(fs.existsSync(target)).toBe(false); expect(traces().length).toBe(before);
+    }
+    const allowed = { ...process.env, WORKLOOM_SUBTITLE_ALLOWED_ROOTS: root };
+    const before = traces().length;
+    await expect(callTool("subtitlewrite.plan", { persistent_text: true, srt_path: srt + ".missing" }, { env: allowed, bins })).rejects.toMatchObject({ code: "bad_request" });
+    await expect(renderWithSubtitles({ input: source + ".missing", output: path.join(root, "bad.mp4"), cues, persistentText: "完整文字", titleText: "装饰", bins })).rejects.toMatchObject({ code: "bad_request" });
+    expect(traces().length).toBe(before);
+    const result = spawnSync(process.execPath, [cli, "sidecar", "--in", source, "--srt", srt,
+      "--out-dir", path.join(root, "persistent-cli"), "--persistent-text", "完整文字", "--report", path.join(root, "persistent-cli-report.json")],
+    { env, encoding: "utf8", timeout: 30000 });
+    expect(result.status, result.stdout + result.stderr).toBe(0); expect(result.stdout).toContain("持续字幕回读 ok");
+    const proof = JSON.parse(fs.readFileSync(path.join(root, "persistent-cli-report.json"), "utf8")).manifest.persistentText;
+    const tool = await callTool("subtitlewrite.sidecar", { input_path: source, output_dir: path.join(root, "persistent-tool"),
+      srt_path: srt, persistent_text: "完整文字" }, { env: allowed, bins });
+    expect(tool.result.manifest.persistentText.compositionSha256).toBe(proof.compositionSha256);
+    const impossible = path.join(root, "sidecar-file"); fs.writeFileSync(impossible, "keep");
+    await expect(exportSidecars({ input: source, outputDir: impossible, persistentText: "完整文字", cues, brief, bins })).rejects.toThrow();
+    await expect(renderWithSubtitles({ input: source, output: path.join(root, "persistent-no-render.mp4"), persistentText: "完整文字", cues,
+      brief, bins: { ...bins, ffmpeg: path.join(root, "missing-ffmpeg") } })).rejects.toThrow();
+    expect(fs.existsSync(path.join(root, "persistent-no-render.mp4"))).toBe(false);
+    expect(sha(source)).toBe(initialHash);
+  }, 60000);
 
   it("burn accepts black continuous-audio source without a presence threshold or legacy review toggle", async () => {
     const output = path.join(root, "burn.mp4");

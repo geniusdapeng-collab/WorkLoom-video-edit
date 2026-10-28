@@ -860,7 +860,7 @@
   },
   "integrity": {
     "algorithm": "sha256",
-    "digest": "4f425b8d53f58b3289c77b434dc24fa0c12cf7b8c455a6c08e8da4812cccd357",
+    "digest": "16e06a009dfb91d5846d706a6bccff14f599adafffbc1726a860009720e002b5",
     "assets": {
       "presets/ads-optimizer.yml": "4969554944f4e2586aef8ab29da819d76611a6ba537b5964db6e9e7db9cc5bf2",
       "presets/audio-designer.yml": "e0122309c8a94d7b8e73109c3b88f92b900917bdc04c5535836e7f1f3c66dc0b",
@@ -1448,11 +1448,11 @@
       "connectors/color-bridge/kit/install.sh": "b602835b3038dc7e561b18b662dab746c48e6bbaa1c584dea5c37edc215066be",
       "connectors/color-bridge/kit/selftest.sh": "737b693cf134c3cc1e1723c1e625ad72e982e18f71d854728a3dca32dda1dbcf",
       "connectors/subtitle-bridge/README.md": "04bfaee534acc19a7a17ebcd3d8a6fc00947638fce3d255f0db83f2dc999359e",
-      "connectors/subtitle-bridge/core.mjs": "74fd62229839388a87b9c79988f5fa2390c2c937251dac8a23efe4f26c70b08f",
+      "connectors/subtitle-bridge/core.mjs": "f852a072a85759b2ca264101ccc06c6cb5a8fdaf19ba7620bb74fd674cfbe430",
       "connectors/subtitle-bridge/measure.mjs": "a2914f9642ddc8d00e42a8a99c409a82aa4856a14daf59eb6469da5eda9a193d",
       "connectors/subtitle-bridge/executor.ts": "ae5ad37e44a4407a2f6bc53499ac9adc7d4caeeed38d4b20ad2a358296c1deb1",
       "connectors/subtitle-bridge/server.mjs": "77be6773cb3f5a25ea4ff191f4971684fe0f7026de92c4d7b39e7b2e800bf839",
-      "connectors/subtitle-bridge/cli.mjs": "f3bb096663aaecf074fff012ebfe2f4b8ec00fd16ee71782475c8313cd6a4389",
+      "connectors/subtitle-bridge/cli.mjs": "47e3acb64902803dd0f2b354efb384138d3faa9a1461e04033022b4a5ad9473e",
       "connectors/subtitle-bridge/server-adapter.mts": "f09160b620a5f96cf61480e855c758a773280c1399ecb25035bc342bf3a52f04",
       "connectors/subtitle-bridge/kit/fonts-pin.json": "b3b19159777af663168dee1cb94e5c607e7875b96522d4b37de3627826987ce4",
       "connectors/subtitle-bridge/kit/install-fonts.sh": "2faf221c1431b9b35311d1721606d496664af9e2f451bd35b2a3af0f63e8ddcc",

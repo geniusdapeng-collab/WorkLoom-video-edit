@@ -12,6 +12,7 @@
  *                           [--brief brief.json] [--out-dir dir] [--evidence-dir dir]
  *   subtitle-cli burn       --in clip.mp4 --out out.mp4 --srt subs.srt [--title "…"] [--platform …]
  *                           [--brief brief.json] [--evidence-dir dir]
+ *                           [--persistent-text "全片持续显示的文本"] # 与 --title 互斥，使用实际视频时钟
  *   subtitle-cli title      --in clip.mp4 --out out.mp4 --title "川西之行 · WEST SICHUAN" [--srt subs.srt]
  *   subtitle-cli danmaku    --in clip.mp4 --out out.mp4 --items danmaku.json [--opacity 0.85]
  *   subtitle-cli sticker    --in clip.mp4 --out out.mp4 --items stickers.json
@@ -32,7 +33,7 @@ import path from "node:path";
 
 import {
   allowedRoots, assertPathAllowed, SubtitleError, best, callTool, exportSidecars, findRecipes, health, parseSrt, plan, renderDanmaku,
-  renderKaraoke, renderSticker, renderTitle, renderWithSubtitles, selectFonts, softMux,
+  renderKaraoke, renderSticker, renderTitle, renderWithSubtitles, selectFonts, softMux, validatePersistentSubtitleText,
 } from "./core.mjs";
 
 function parseArgs(argv) {
@@ -40,8 +41,10 @@ function parseArgs(argv) {
   const flags = {};
   for (let index = 0; index < argv.length; index += 1) {
     const token = argv[index];
+    if (token.startsWith("--persistent-text=")) throw new SubtitleError("--persistent-text 须以独立参数传入完整文本", "bad_request", false);
     if (token.startsWith("--")) {
       const key = token.slice(2);
+      if (key === "persistent-text" && Object.hasOwn(flags, key)) throw new SubtitleError("--persistent-text 不能重复", "bad_request", false);
       const next = argv[index + 1];
       if (next === undefined || next.startsWith("--")) flags[key] = true;
       else { flags[key] = next; index += 1; }
@@ -83,6 +86,10 @@ function readBrief(flags) {
 async function main() {
   const [command, ...rest] = process.argv.slice(2);
   const { flags } = parseArgs(rest);
+  const persistentText = Object.hasOwn(flags, "persistent-text") ? validatePersistentSubtitleText(flags["persistent-text"]) : null;
+  if (persistentText && (!["plan", "burn", "sidecar"].includes(command) || Object.hasOwn(flags, "title"))) {
+    throw new SubtitleError("持续字幕仅支持plan/burn/sidecar且不能同时指定--title", "bad_request", false);
+  }
   const line = (text = "") => process.stdout.write(`${text}\n`);
   const reportFile = flags.report === undefined ? null : assertPathAllowed(String(flags.report), allowedRoots(), "report");
   const writeReport = (value) => {
@@ -171,6 +178,7 @@ async function main() {
         brief: readBrief(flags),
         platform: typeof flags.platform === "string" ? flags.platform : null,
         titleText: typeof flags.title === "string" ? flags.title : "",
+        persistentText,
         cues: flags.srt ? (await import("./core.mjs")).parseSrt(fs.readFileSync(flags.srt, "utf8")) : [],
         outputDir: typeof flags["out-dir"] === "string" ? flags["out-dir"] : null,
         evidenceDir: typeof flags["evidence-dir"] === "string" ? flags["evidence-dir"] : null,
@@ -192,6 +200,7 @@ async function main() {
         output: flags.out,
         cues: (await import("./core.mjs")).parseSrt(fs.readFileSync(flags.srt, "utf8")),
         titleText: typeof flags.title === "string" ? flags.title : "",
+        persistentText,
         brief: readBrief(flags),
         platform: typeof flags.platform === "string" ? flags.platform : null,
         evidenceDir: typeof flags["evidence-dir"] === "string" ? flags["evidence-dir"] : null,
@@ -200,6 +209,7 @@ async function main() {
       line(`已烧录：${report.output.path}（${report.encoder}）`);
       line(`  字幕字体 ${report.fonts.字幕?.name ?? "-"} · 标题字体 ${report.fonts.标题?.name ?? "-"}`);
       line(`  时间轴回读 ${report.timeline.cues}/${report.timeline.sourceCues} 条（${report.timeline.ok ? "一致" : "不一致"}）`);
+      if (report.persistentText) line(`  持续字幕回读 ${report.checks.persistent_text_coverage ? "ok" : "fail"} · ${report.persistentText.start}–${report.persistentText.end} · ${report.persistentText.compositionSha256}`);
       line("  源画面质量未复检；已核对真实渲染、时间轴、字体与输出轨道");
       if (report.sharpness?.ratio != null) line(`  清晰度抽检：${report.sharpness.ratio}（前 ${report.sharpness.before} → 后 ${report.sharpness.after}，上半部拉普拉斯方差）`);
       line(`  标点体检 ${report.checks.punctuation_ok ? "ok" : "fail"}（口径：字幕不带标点；数字内的 . : - / 保留）`);
@@ -297,6 +307,7 @@ async function main() {
         cues,
         cuesEn,
         titleText: typeof flags.title === "string" ? flags.title : "",
+        persistentText,
         platform: typeof flags.platform === "string" ? flags.platform : null,
         brief: readBrief(flags),
         evidenceDir: typeof flags["evidence-dir"] === "string" ? flags["evidence-dir"] : null,
@@ -308,6 +319,7 @@ async function main() {
         line(`  ${file.path.split("/").pop()} · ${file.role}/${file.lang}/${file.format} · ${file.bytes}B · sha256 ${file.sha256.slice(0, 12)}`);
       }
       line(`  时间轴回读 ${outcome.manifest.timeline.readback.ass ? "ok" : "fail"} · 条数 ${outcome.manifest.timeline.cues} · 母版未被改动 ${outcome.manifest.source ? (outcome.manifest.source.untouched ? "ok" : "fail") : "n/a"}`);
+      if (outcome.manifest.persistentText) line(`  持续字幕回读 ${outcome.manifest.persistentText.readback ? "ok" : "fail"} · ${outcome.manifest.persistentText.start}–${outcome.manifest.persistentText.end} · ${outcome.manifest.persistentText.compositionSha256}`);
       /**
        * 标点体检必须打在**串口输出**里：管线（full-chain-film.mts）按 stdout 判读交付口径，
        * 只写进 manifest 会让"字幕带标点"这类返工项在日志里看不见。
