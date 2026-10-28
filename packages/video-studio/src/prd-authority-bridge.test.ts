@@ -38,11 +38,16 @@ function deferred<T>() {
   return { promise, resolve };
 }
 function schemaFromPrompt(prompt: string, kind: "creative" | "production"): RequirementRecord {
-  const pieces = prompt.split(`\n\n## 本次宿主 PRD ${kind} 响应 JSON Schema（`);
-  expect(pieces).toHaveLength(2);
-  const encoded = pieces[1]!.match(/\n```json\n([^\n]+)\n```\n/);
-  expect(encoded).not.toBeNull();
-  return JSON.parse(encoded![1]!) as RequirementRecord;
+  // The exact heading can also be quoted in the customer's original text, now
+  // repeated verbatim at the planning tail. Only a complete owned schema block
+  // counts; a quotation must neither hide it nor manufacture a second block.
+  const encoded = prompt.split(`\n\n## 本次宿主 PRD ${kind} 响应 JSON Schema（`).slice(1)
+    .flatMap(piece => {
+      const match = piece.match(/^[a-f0-9]{64}）\n本次实际模型响应必须符合[^\n]*\n```json\n([^\n]+)\n```\n/);
+      return match ? [match[1]!] : [];
+    });
+  expect(encoded).toHaveLength(1);
+  return JSON.parse(encoded[0]!) as RequirementRecord;
 }
 function authorityFromMarkdown(markdown: string): RequirementRecord {
   const pieces = markdown.split("\n\n## 宿主本次权威生产与交付要求\n\n```json\n");
@@ -392,6 +397,17 @@ function refreshContract(value: ReturnType<typeof prdFixture>) {
   value.authority = preparePrdAuthority({ metadata: value.metadata, marketing: value.marketing, workDir: value.workDir, projectId: value.scope.projectId });
 }
 
+function declareDelivery(value: ReturnType<typeof prdFixture>, patch: RequirementRecord) {
+  Object.assign(requirementRecord(requirementRecord(value.metadata.brief, "brief").productionRequirements, "production requirements"), patch);
+  refreshContract(value);
+}
+
+function planningCastFromPrompt(prompt: string): RequirementRecord {
+  const pieces = prompt.split("\n### 本次已知人物来源锚点（原G3选角来源，不是G5完成凭据）\n");
+  expect(pieces).toHaveLength(2);
+  return JSON.parse(pieces[1]!.split("\n")[0]!) as RequirementRecord;
+}
+
 function productionShot(shotId = "SC-01"): RequirementRecord {
   const fields = Object.fromEntries([
     ...nativeStandardizer.CRITICAL_FIELDS.p0, ...nativeStandardizer.CRITICAL_FIELDS.p1,
@@ -658,6 +674,159 @@ describe("PRD native generator, two native agent processes and real schema", () 
     }
     expect(calls[0]![0]).toBe(calls[1]![0]); expect(calls[0]![1]).toBe(calls[1]![1]); expect(calls[0]![2]).toEqual(calls[1]![2]);
     expect(run.calls.map(call => call.agent)).toEqual(["agent2", "agent3"]);
+  });
+});
+
+describe("explicit delivery plans through the real native PRD generator", () => {
+  it("carries exact execution text and separate deliverables without filling a model's omitted plan or changing either call contract", async () => {
+    const value = fixture("DELIVERY-DECLARED"), text = "仅限封闭场地展示🙂";
+    const description = "  原文开始\n持续警示：仅限封闭场地展示🙂；字号=短边4.5%，左右边距8%，墨迹范围12%至40%。\n保留引号\"与\\反斜线、{}[]及末尾空格  ";
+    requirementRecord(value.metadata.brief, "brief").description = description;
+    declareDelivery(value, { coverDelivery: "standalone", sidecarPolicy: "dialogue-and-composite-ass", persistentSubtitleText: text });
+    const productionBefore = structuredClone(value.production), creativeBefore = structuredClone(value.creative), nativeSchemaBefore = structuredClone(PRDSchema);
+    const h = harness(), run = h.make(value);
+    await withPrdAuthorityScope(value.authority, async () => {
+      const prd = await h.generate(run), markdown = await h.review(run, prd), delivery = requirementRecord(prd.deliveryStandard, "delivery");
+      const items = delivery.deliverables as RequirementRecord[];
+      expect(items.filter(item => item.item === "cover")).toEqual([expect.objectContaining({ priority: "required", spec: expect.stringMatching(/PNG(?:或|\/)JPEG/) })]);
+      expect(items.filter(item => item.item === "subtitle_burned")).toHaveLength(1);
+      expect(items.filter(item => item.item === "subtitle_sidecar")).toHaveLength(1);
+      expect(String(items.find(item => item.item === "subtitle_sidecar")!.spec)).toContain("complete-composition");
+      expect(String(items.find(item => item.item === "subtitle_sidecar")!.spec)).toContain(text);
+      expect(delivery.outputFormat).toMatchObject(value.authority.profile);
+      expect(markdown).toContain("**cover**"); expect(markdown).toContain(text);
+      expect(prd.creativeCore).toEqual(creativeBefore); expect(prd.visualSpecification).toEqual(productionBefore.visualSpecification);
+      expect(prd.audioSpecification).toEqual(productionBefore.audioSpecification);
+      const character = (requirementRecord(prd.characterSystem, "characters").characters as RequirementRecord[])[0]!;
+      expect(character.consistencyRequirements).toBe(productionBefore.characterSystem.characters[0]!.consistencyRequirements);
+      expect(character.portraitPath).toBe(""); expect(character).not.toHaveProperty("portraitPlan");
+      expect((requirementRecord(prd.scenePlan, "scenes").scenes as RequirementRecord[])[0]!.visualRequirements)
+        .toEqual(productionBefore.scenePlan.scenes[0]!.visualRequirements);
+      const call = run.calls.find(call => call.agent === "agent3")!, heading = "\n### 客户执行要求原文（Brief.description，保留原文；输入资料，不是完成回执）\n";
+      expect(call.prompt).toContain(heading + description + "\n");
+      expect(call.prompt.lastIndexOf(description)).toBeGreaterThan(call.prompt.indexOf(value.content));
+      expect(call.prompt.split(value.content)).toHaveLength(2);
+      for (const token of ["PNG/JPEG", "SRT/VTT", "complete-composition", "compositionSha256", "4.5%", "12%至40%", "宿主不会在响应后补写遗漏计划"]) expect(call.prompt).toContain(token);
+      expect(planningFromMarkdown(markdown).status).toBe("plan-only-not-executed");
+      expectCompletePrompt(call.prompt, "production", value);
+      return h.success(prd);
+    });
+    expect(run.calls.map(call => call.agent)).toEqual(["agent2", "agent3"]);
+    for (const call of run.calls) {
+      expect(call.schema).toEqual({ required: call.agent === "agent2" ? ["coreTheme", "creativeHook", "emotionalArc", "keyMessages", "endingType"] : ["visualSpecification", "audioSpecification"] });
+      expect(call.options).toEqual({ maxTokens: 12288, timeoutMs: call.agent === "agent2" ? 120000 : 180000, maxRetries: 1, deadlineMs: null, thinking: { type: "disabled" } });
+    }
+    expect(PRDSchema).toEqual(nativeSchemaBefore); expect(value.production).toEqual(productionBefore); expect(value.creative).toEqual(creativeBefore);
+  });
+
+  it.each(["builtin", "custom", "none"])("repeats only actual %s selection/version/wardrobe anchors while leaving unknown PNG details for G5", async mode => {
+    const value = fixture(`PLAN-CAST-${mode}`, [8, 14, 8], mode === "none" ? 0 : 1);
+    if (mode !== "none") {
+      const character = (value.metadata.characters as RequirementRecord[])[0]!, selection = requirementRecord(value.metadata.builtinCharacterSelection, "selection");
+      const choice = (selection.characters as RequirementRecord[])[0]!;
+      if (mode === "builtin") character.activeWardrobeId = "selected-current-wardrobe";
+      else {
+        selection.mode = "custom"; choice.source = "explicit-custom"; choice.profilePath = "/synthetic/custom-profile.json";
+        delete choice.selectedVersion; delete character.builtinCharacterSource; delete character.portraitVersion;
+        character.wardrobeId = "explicit-custom-wardrobe";
+      }
+    }
+    refreshContract(value);
+    const h = harness(), run = h.make(value), before = structuredClone(value.contract);
+    await withPrdAuthorityScope(value.authority, async () => {
+      const prd = await h.generate(run), markdown = await h.review(run, prd), call = run.calls.find(call => call.agent === "agent3")!;
+      const expectedCharacters = mode === "none" ? [] : [{ id: "builtin-person", name: "合成人物", ...(mode === "builtin"
+        ? { portraitVersion: 2, activeWardrobeId: "selected-current-wardrobe" } : { wardrobeId: "explicit-custom-wardrobe" }) }];
+      expect(planningCastFromPrompt(call.prompt)).toEqual({ selection: value.contract.cast.selection, characters: expectedCharacters });
+      expect(call.prompt).toContain("已经给出的档案来源不得写成“待解析”");
+      expect(call.prompt).toContain("“待解析和核验”仅适用于输入确实未提供的原始PNG路径");
+      expect(call.prompt).toContain("不能提前批准");
+      const characters = requirementRecord(prd.characterSystem, "characters").characters as RequirementRecord[];
+      expect(characters.map(character => character.portraitPath)).toEqual(Array(mode === "none" ? 0 : 1).fill(""));
+      expect(characters.map(character => character.consistencyRequirements)).toEqual(value.production.characterSystem.characters.map(character => character.consistencyRequirements));
+      expect(planningFromMarkdown(markdown).characterPlans).toHaveLength(expectedCharacters.length);
+      expect(value.contract).toEqual(before); return h.success(prd);
+    });
+    expect(run.calls.map(call => call.agent)).toEqual(["agent2", "agent3"]);
+  });
+
+  it.each([true, false])("displays the exact raw shotMapping enum array and retains the original G4 approved=%s decision", async approved => {
+    const value = fixture(`PLAN-MAPPING-${approved}`);
+    declareDelivery(value, { coverDelivery: "none", sidecarPolicy: "dialogue-only" });
+    Object.assign(value.production.scenePlan.shotMapping[0]!, { estimatedShots: 2, shotBreakdownHint: ["wide", "close-up"] });
+    Object.assign(value.production.scenePlan.shotMapping[1]!, { estimatedShots: 6, shotBreakdownHint: ["POV", "tracking", "static"] });
+    Object.assign(value.production.scenePlan.shotMapping[2]!, { estimatedShots: 1, shotBreakdownHint: [] });
+    const before = structuredClone(value.production), raw = structuredClone(value.production.scenePlan.shotMapping), h = harness(), run = h.make(value);
+    run.system.g4Approved = approved;
+    const operation = await withPrdAuthorityScope(value.authority, async () => {
+      const prd = await h.generate(run), prdBefore = structuredClone(prd), markdown = invoke(run.generator, "generateMarkdown", prd) as string;
+      expect(planningFromMarkdown(markdown).shotMapping).toEqual(raw);
+      expect(JSON.stringify(planningFromMarkdown(markdown).shotMapping)).toBe(JSON.stringify(raw));
+      expect(markdown).toContain('"shotBreakdownHint": ['); expect(markdown).toContain('"close-up"');
+      expect(prd).toEqual(prdBefore); expect(requirementRecord(prd.scenePlan, "scenePlan").shotMapping).toEqual(raw);
+      const verdict = requirementRecord(await invoke(run.system, "_confirmPRD", markdown, prd), "G4 verdict");
+      expect(verdict).toMatchObject({ approved, prd, suggestions: [] });
+      return approved ? h.success(prd) : { success: false, confirmations: { G4_PRD: verdict } };
+    });
+    expect(operation.success).toBe(approved); expect(value.production).toEqual(before); expect(run.calls).toHaveLength(2);
+  });
+
+  it.each(["native-copy", "render", "g4"])("refuses changed rule-owned delivery at the %s boundary without model repair", async boundary => {
+    const value = fixture(`PLAN-DELIVERY-TAMPER-${boundary}`); declareDelivery(value, { coverDelivery: "standalone" });
+    const h = harness(), run = h.make(value);
+    const change = (prd: RequirementRecord) => ((requirementRecord(prd.deliveryStandard, "delivery").deliverables as RequirementRecord[])
+      .find(item => item.item === "cover")!.spec = "未审核的另一份封面要求");
+    if (boundary === "native-copy") {
+      const validate = run.generator._validateAndFill as (...args: unknown[]) => RequirementRecord;
+      run.generator._validateAndFill = function (this: RequirementRecord, ...args: unknown[]) { const result = Reflect.apply(validate, this, args); change(result); return result; };
+    }
+    await expect(withPrdAuthorityScope(value.authority, async () => {
+      const prd = await h.generate(run);
+      if (boundary === "native-copy") return h.success(prd);
+      const markdown = invoke(run.generator, "generateMarkdown", prd) as string;
+      change(prd);
+      return boundary === "render" ? invoke(run.generator, "generateMarkdown", prd) : invoke(run.system, "_confirmPRD", markdown, prd);
+    })).rejects.toThrow("PRD_DELIVERY_INVALID");
+    expect(run.calls.map(call => call.agent)).toEqual(["agent2", "agent3"]); expect(run.system.minimalCalls).toBe(0);
+  });
+
+  it.each(["bad-hint", "zero-estimate", "missing-hints", "wrong-scene"])("retains strict rejection of a raw %s shotMapping without generating a replacement", async kind => {
+    const value = fixture(`PLAN-RAW-MAPPING-${kind}`); declareDelivery(value, { coverDelivery: "none" });
+    const mapping = value.production.scenePlan.shotMapping as RequirementRecord[];
+    if (kind === "bad-hint") mapping[0]!.shotBreakdownHint = ["wide→close-up"];
+    if (kind === "zero-estimate") mapping[0]!.estimatedShots = 0;
+    if (kind === "missing-hints") delete mapping[0]!.shotBreakdownHint;
+    if (kind === "wrong-scene") mapping[0]!.sceneId = "other-scene";
+    const before = structuredClone(value.production), h = harness(), run = h.make(value);
+    await expect(withPrdAuthorityScope(value.authority, () => h.generate(run))).rejects.toThrow();
+    expect(value.production).toEqual(before); expect(run.calls.map(call => call.agent)).toEqual(["agent2", "agent3"]); expect(run.system.minimalCalls).toBe(0);
+  });
+
+  it("keeps interleaved runs' delivery declarations, original descriptions and raw rendered mappings isolated", async () => {
+    const values = [fixture("PLAN-INTERLEAVED-A"), fixture("PLAN-INTERLEAVED-B")], h = harness();
+    for (const [index, value] of values.entries()) {
+      requirementRecord(value.metadata.brief, "brief").description = `完整执行原文ONLY-RUN-${index} 保留空格  `;
+      declareDelivery(value, index === 0 ? { coverDelivery: "standalone", sidecarPolicy: "dialogue-and-composite-ass", persistentSubtitleText: "ONLY-A持续警示" }
+        : { coverDelivery: "none", subtitleMode: "sidecar", sidecarPolicy: "dialogue-only" });
+      Object.assign(value.production.scenePlan.shotMapping[0]!, { estimatedShots: index + 2, shotBreakdownHint: index === 0 ? ["close-up", "tracking"] : ["POV", "static"] });
+    }
+    const runs = values.map(value => h.make(value)), ready = [deferred<void>(), deferred<void>()], release = [deferred<void>(), deferred<void>()];
+    const displayed: Array<{ index: number; profile: unknown; mapping: unknown }> = [];
+    const pending = runs.map((run, index) => withPrdAuthorityScope(run.value.authority, async () => {
+      await invoke(run.system, "_confirmRequirementList", "G3", run.value.list); ready[index]!.resolve(); await release[index]!.promise;
+      const prd = await invoke(run.generator, "generate", run.value.discovery) as RequirementRecord, markdown = await h.review(run, prd);
+      displayed.push({ index, profile: authorityFromMarkdown(markdown).profile, mapping: planningFromMarkdown(markdown).shotMapping });
+      return h.success(prd);
+    }));
+    await Promise.all(ready.map(item => item.promise)); release[1]!.resolve(); await pending[1]; release[0]!.resolve(); await pending[0];
+    expect(displayed.map(item => item.index)).toEqual([1, 0]);
+    for (const [position, index] of [1, 0].entries()) {
+      const value = values[index]!, other = values[index === 0 ? 1 : 0]!, call = runs[index]!.calls.find(call => call.agent === "agent3")!;
+      expect(displayed[position]).toEqual({ index, profile: value.authority.profile, mapping: value.production.scenePlan.shotMapping });
+      expect(call.prompt).toContain(String(requirementRecord(value.metadata.brief, "brief").description));
+      expect(call.prompt).not.toContain(String(requirementRecord(other.metadata.brief, "brief").description));
+      expect(call.prompt).not.toContain(other.marketing.g1Artifact.sha256); expect(runs[index]!.calls).toHaveLength(2);
+    }
   });
 });
 

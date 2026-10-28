@@ -1,9 +1,9 @@
 import { symlinkSync, unlinkSync, writeFileSync } from "node:fs";
 import { afterEach, describe, expect, it } from "vitest";
-import { requirementRecord, type RequirementRecord } from "./requirement-contract.js";
+import { requirementRecord, validateRequirementSchema, type RequirementRecord } from "./requirement-contract.js";
 import {
-  authoritativeDelivery, authoritativeProduct, bindPrdProvenance, effectivePrdModelSchema, normalizeExplicitBriefDuration, normalizePrdProductionProfile,
-  preparePrdAuthority, PrdAuthorityError, prdAuthorityPrompt, validatePrdModelPayload, validatePrdProduction
+  authoritativeDelivery, authoritativeProduct, bindPrdProvenance, effectivePrdDeliverySchema, effectivePrdModelSchema, normalizeExplicitBriefDuration, normalizePrdProductionProfile,
+  preparePrdAuthority, PrdAuthorityError, prdAuthorityPrompt, validatePrdDelivery, validatePrdModelPayload, validatePrdProduction
 } from "./prd-authority.js";
 import { PRDSchema, prdFixture } from "./prd-authority.test-support.js";
 
@@ -68,6 +68,182 @@ describe("PRD explicit production requirements", () => {
     expect(normalizePrdProductionProfile({ brief: { aspectRatio: "4:3" } })).toEqual({ aspectRatio: "4:3" });
     const value = fixture(); requirementRecord(value.metadata.brief, "brief").aspectRatio = "4:3";
     expect(() => normalizePrdProductionProfile(value.metadata)).toThrow("PRD_PROFILE_INVALID");
+  });
+});
+
+describe("PRD explicit separate cover and subtitle composition declarations", () => {
+  const required = ["resolution", "frameRate", "subtitleMode", "nativeAudio", "openWithCover", "titleCard", "durationToleranceFrames"];
+  function metadata(patch: RequirementRecord = {}) {
+    const value = fixture(), brief = requirementRecord(value.metadata.brief, "brief");
+    Object.assign(requirementRecord(brief.productionRequirements, "production requirements"), patch);
+    return value.metadata;
+  }
+  it.each([
+    { coverDelivery: "standalone" }, { coverDelivery: "none" },
+    { sidecarPolicy: "dialogue-only" }, { sidecarPolicy: "dialogue-and-composite-ass" },
+    { subtitleMode: "burned", persistentSubtitleText: "完整持续警示🙂" },
+    { coverDelivery: "standalone", sidecarPolicy: "dialogue-and-composite-ass", persistentSubtitleText: "完整持续警示🙂" },
+  ])("accepts each atomic declaration without inventing omitted declarations %j", patch => {
+    const input = metadata(patch), before = structuredClone(input), profile = normalizePrdProductionProfile(input);
+    expect(profile).toMatchObject(patch);
+    for (const key of ["coverDelivery", "sidecarPolicy", "persistentSubtitleText"]) {
+      if (!Object.hasOwn(patch, key)) expect(profile).not.toHaveProperty(key);
+    }
+    expect(input).toEqual(before);
+  });
+  it.each(required)("still requires the original %s when optional atoms are present", key => {
+    const input = metadata({ coverDelivery: "none" });
+    delete requirementRecord(requirementRecord(input.brief, "brief").productionRequirements, "production requirements")[key];
+    expect(() => normalizePrdProductionProfile(input)).toThrow("PRD_PROFILE_INVALID");
+  });
+  it.each([
+    { coverDelivery: undefined }, { coverDelivery: null }, { coverDelivery: true }, { coverDelivery: [] },
+    { coverDelivery: "" }, { coverDelivery: "standalone " }, { coverDelivery: "cover" },
+    { sidecarPolicy: undefined }, { sidecarPolicy: null }, { sidecarPolicy: false }, { sidecarPolicy: {} },
+    { sidecarPolicy: "" }, { sidecarPolicy: "dialogue-only " }, { sidecarPolicy: "all" },
+    { persistentSubtitleText: undefined }, { persistentSubtitleText: null }, { persistentSubtitleText: 1 },
+    { persistentSubtitleText: [] }, { persistentSubtitleText: {} }, { persistentSubtitleText: "" }, { persistentSubtitleText: "   " },
+    { unrelatedDeliveryField: true },
+  ])("rejects a malformed present atom or unknown key %j", patch => {
+    const input = metadata(patch), before = structuredClone(input);
+    expect(() => normalizePrdProductionProfile(input)).toThrow(); expect(input).toEqual(before);
+  });
+  it("trims only the edges and counts Unicode code points without shortening the actual message", () => {
+    const text = "警".repeat(119) + "🙂", input = metadata({ subtitleMode: "burned", persistentSubtitleText: `  ${text}  ` });
+    const before = structuredClone(input), profile = normalizePrdProductionProfile(input);
+    expect(profile.persistentSubtitleText).toBe(text); expect(Array.from(profile.persistentSubtitleText!)).toHaveLength(120);
+    expect(normalizePrdProductionProfile(metadata({ subtitleMode: "burned", persistentSubtitleText: "甲  乙🙂" })).persistentSubtitleText).toBe("甲  乙🙂");
+    expect(input).toEqual(before);
+  });
+  it.each([
+    "警".repeat(120) + "🙂", "正文\n第二行", "正文\r", "正文\t", "正文\u0000", "正文\u007f", "正文\u0085", "正文\u2028", "正文\u2029",
+    "\ud800", "\udc00", "正文\ud800结尾",
+  ])("rejects overlong, multiline, control or invalid Unicode text %j before any media work", persistentSubtitleText => {
+    expect(() => normalizePrdProductionProfile(metadata({ subtitleMode: "burned", persistentSubtitleText }))).toThrow("PRD_PROFILE_INVALID");
+  });
+  it("does not invoke a caller-controlled text conversion", () => {
+    let converted = false;
+    const persistentSubtitleText = { toString() { converted = true; throw new Error("must not convert"); } };
+    expect(() => normalizePrdProductionProfile(metadata({ subtitleMode: "burned", persistentSubtitleText }))).toThrow();
+    expect(converted).toBe(false);
+  });
+  it.each([
+    { subtitleMode: "burned", sidecarPolicy: "dialogue-only" }, { subtitleMode: "none", sidecarPolicy: "dialogue-and-composite-ass" },
+    { subtitleMode: "none", persistentSubtitleText: "完整持续警示" },
+    { subtitleMode: "burned", persistentSubtitleText: "完整持续警示", titleCard: true },
+    { subtitleMode: "burned", persistentSubtitleText: "完整持续警示", openWithCover: true },
+    { subtitleMode: "both", persistentSubtitleText: "完整持续警示" },
+    { subtitleMode: "sidecar", persistentSubtitleText: "完整持续警示" },
+    { subtitleMode: "both", persistentSubtitleText: "完整持续警示", sidecarPolicy: "dialogue-only" },
+    { subtitleMode: "sidecar", persistentSubtitleText: "完整持续警示", sidecarPolicy: "dialogue-only" },
+  ])("fails closed on an explicitly contradictory combination %j", patch => {
+    expect(() => normalizePrdProductionProfile(metadata(patch))).toThrow("PRD_PROFILE_INVALID");
+  });
+  it.each(["standalone", "none"])("keeps %s separate-cover delivery independent from embedding in the opening", coverDelivery => {
+    expect(normalizePrdProductionProfile(metadata({ coverDelivery, openWithCover: true, titleCard: true })))
+      .toMatchObject({ coverDelivery, openWithCover: true, titleCard: true });
+  });
+});
+
+describe("PRD rule-owned delivery projection and legacy byte compatibility", () => {
+  function standard() {
+    return { deliveryStandard: {
+      deliverables: [{ item: "video_master", spec: "MP4/H.265, 4K", priority: "required" }, { item: "audio_stems", spec: "原始可选分轨", priority: "optional" }],
+      outputFormat: { container: "MP4", videoCodec: "H.265", audioCodec: "AAC" },
+      acceptanceCriteria: { visual: 0.85, audio: 0.80, narrative: 0.90, consistency: 0.80 },
+      revisionPolicy: { maxRevisions: 1, revisionScope: ["visual", "audio", "narrative"] },
+      fallbackPlan: { trigger: "原始触发不改", action: "原始动作不改", expectedOutput: "原始预期不改" }, continuityCheckpoints: []
+    } };
+  }
+  function declared(patch: RequirementRecord) {
+    const value = fixture(); Object.assign(requirementRecord(requirementRecord(value.metadata.brief, "brief").productionRequirements, "requirements"), patch);
+    return normalizePrdProductionProfile(value.metadata);
+  }
+  function deliveryParts(schema: RequirementRecord) {
+    const properties = requirementRecord(schema.properties, "projection properties"), deliverables = requirementRecord(properties.deliverables, "deliverables schema");
+    const item = requirementRecord(requirementRecord(requirementRecord(deliverables.items, "deliverable item").properties, "item fields").item, "item enum");
+    return { properties, deliverables, item, output: requirementRecord(properties.outputFormat, "output schema") };
+  }
+  it("keeps the exact former normalized profile and delivery bytes when the three new keys are omitted", () => {
+    const value = fixture(), profile = normalizePrdProductionProfile(value.metadata), original = standard(), before = structuredClone(original);
+    const expectedProfile = { targetDuration: 30, aspectRatio: "9:16", targetPlatform: "抖音", resolution: "1080p", frameRate: 30,
+      subtitleMode: "both", nativeAudio: true, openWithCover: false, titleCard: false, durationToleranceFrames: 1 };
+    const expected = standard();
+    expected.deliveryStandard.deliverables[0]!.spec = "MP4/H.265, 1080p; targetDuration=30; aspectRatio=9:16; targetPlatform=抖音; resolution=1080p; frameRate=30; subtitleMode=both; nativeAudio=true; openWithCover=false; titleCard=false; durationToleranceFrames=1; delivery declaration, native capability verified separately";
+    expected.deliveryStandard.deliverables.push({ item: "subtitle_burned", spec: "字幕烧录进本次视频母版", priority: "required" },
+      { item: "subtitle_sidecar", spec: "交付与视频时间线一致的独立字幕文件", priority: "required" });
+    Object.assign(expected.deliveryStandard.outputFormat, expectedProfile);
+    expect(JSON.stringify(profile)).toBe(JSON.stringify(expectedProfile));
+    expect(JSON.stringify(authoritativeDelivery(original, profile))).toBe(JSON.stringify(expected)); expect(original).toEqual(before);
+    expect(() => validatePrdDelivery({ legacy: "not a new projection" }, profile, PRDSchema)).not.toThrow();
+  });
+  it("enumerates a required independent cover and distinguishes dialogue sidecars from the full persistent ASS composition", () => {
+    const text = "仅限封闭场地展示🙂", profile = declared({ coverDelivery: "standalone", sidecarPolicy: "dialogue-and-composite-ass", persistentSubtitleText: text });
+    const original = standard(), before = structuredClone(original), final = authoritativeDelivery(original, profile), delivery = requirementRecord(final.deliveryStandard, "delivery");
+    const items = delivery.deliverables as RequirementRecord[];
+    expect(items.filter(item => item.item === "cover")).toEqual([expect.objectContaining({ priority: "required", spec: expect.stringMatching(/PNG(?:或|\/)JPEG/) })]);
+    expect(items.filter(item => item.item === "subtitle_burned")).toHaveLength(1); expect(items.filter(item => item.item === "subtitle_sidecar")).toHaveLength(1);
+    const burned = String(items.find(item => item.item === "subtitle_burned")!.spec), sidecar = String(items.find(item => item.item === "subtitle_sidecar")!.spec);
+    expect(burned).toContain(text); expect(sidecar).toContain(text);
+    for (const token of ["SRT", "VTT", "ASS"]) expect(sidecar).toContain(token);
+    expect(sidecar).toContain("complete-composition"); expect(delivery.outputFormat).toMatchObject(profile);
+    for (const key of ["acceptanceCriteria", "revisionPolicy", "fallbackPlan", "continuityCheckpoints"]) expect(delivery[key]).toEqual(before.deliveryStandard[key as keyof typeof before.deliveryStandard]);
+    expect(original).toEqual(before); expect(() => validatePrdDelivery(final, profile, PRDSchema)).not.toThrow();
+  });
+  it.each(["standalone", "none"])("a cover-only %s declaration preserves the exact former subtitle specs without inventing a sidecar or persistent policy", coverDelivery => {
+    const profile = declared({ coverDelivery }), result = authoritativeDelivery(standard(), profile), delivery = requirementRecord(result.deliveryStandard, "delivery");
+    const items = delivery.deliverables as RequirementRecord[];
+    expect(items.filter(item => item.item === "subtitle_burned" || item.item === "subtitle_sidecar")).toEqual([
+      { item: "subtitle_burned", spec: "字幕烧录进本次视频母版", priority: "required" },
+      { item: "subtitle_sidecar", spec: "交付与视频时间线一致的独立字幕文件", priority: "required" },
+    ]);
+    for (const key of ["sidecarPolicy", "persistentSubtitleText"]) {
+      expect(profile).not.toHaveProperty(key); expect(delivery.outputFormat).not.toHaveProperty(key);
+    }
+    expect(items.filter(item => item.item === "cover")).toHaveLength(coverDelivery === "standalone" ? 1 : 0);
+    expect(() => validatePrdDelivery(result, profile, PRDSchema)).not.toThrow();
+  });
+  it.each([
+    { patch: { coverDelivery: "none" }, added: 2, admitted: ["subtitle_burned", "subtitle_sidecar"], excluded: ["cover"] },
+    { patch: { coverDelivery: "standalone", subtitleMode: "none" }, added: 1, admitted: ["cover"], excluded: ["subtitle_burned", "subtitle_sidecar"] },
+    { patch: { coverDelivery: "standalone", sidecarPolicy: "dialogue-only" }, added: 3, admitted: ["cover", "subtitle_burned", "subtitle_sidecar"], excluded: [] },
+  ])("extends only the current declaration's narrow item/output schema $patch", ({ patch, added, admitted, excluded }) => {
+    const profile = declared(patch), nativeBefore = structuredClone(PRDSchema), nativeHash = JSON.stringify(PRDSchema);
+    const nativeDelivery = requirementRecord(requirementRecord(PRDSchema.properties, "native properties").deliveryStandard, "native delivery");
+    const nativeParts = deliveryParts(nativeDelivery), schema = effectivePrdDeliverySchema(PRDSchema, profile), parts = deliveryParts(schema);
+    expect(schema).toMatchObject({ type: "object", required: ["deliverables", "outputFormat"], additionalProperties: false });
+    expect(Object.keys(parts.properties).sort()).toEqual(["deliverables", "outputFormat"]);
+    expect(nativeParts.item.enum).toEqual(["video_master", "character_portraits", "script_document", "shot_list", "audio_stems", "prompt_log"]);
+    expect(parts.deliverables.maxItems).toBe(Number(nativeParts.deliverables.maxItems) + added);
+    for (const item of admitted) expect(parts.item.enum).toContain(item);
+    for (const item of excluded) expect(parts.item.enum).not.toContain(item);
+    expect(parts.output).toMatchObject({ additionalProperties: false });
+    const result = authoritativeDelivery(standard(), profile), delivery = requirementRecord(result.deliveryStandard, "delivery");
+    expect(() => validateRequirementSchema({ deliverables: delivery.deliverables, outputFormat: delivery.outputFormat }, schema, "delivery projection")).not.toThrow();
+    expect(PRDSchema).toEqual(nativeBefore); expect(JSON.stringify(PRDSchema)).toBe(nativeHash);
+    requirementRecord(parts.properties.outputFormat, "cloned output").unrelated = true;
+    expect(PRDSchema).toEqual(nativeBefore);
+  });
+  it.each(["missing-cover", "duplicate-cover", "changed-cover-spec", "missing-burned", "changed-sidecar-spec", "unknown-item", "item-extra", "output-extra", "output-value"])("rejects a changed %s projection instead of repairing it", mode => {
+    const profile = declared({ coverDelivery: "standalone", sidecarPolicy: "dialogue-and-composite-ass", persistentSubtitleText: "完整持续警示" });
+    const result = authoritativeDelivery(standard(), profile), delivery = requirementRecord(result.deliveryStandard, "delivery"), items = delivery.deliverables as RequirementRecord[];
+    if (mode === "missing-cover") delivery.deliverables = items.filter(item => item.item !== "cover");
+    if (mode === "duplicate-cover") items.push(structuredClone(items.find(item => item.item === "cover")!));
+    if (mode === "changed-cover-spec") items.find(item => item.item === "cover")!.spec = "只有视频，没有独立封面";
+    if (mode === "missing-burned") delivery.deliverables = items.filter(item => item.item !== "subtitle_burned");
+    if (mode === "changed-sidecar-spec") items.find(item => item.item === "subtitle_sidecar")!.spec = "只有台词SRT，不含持续全文";
+    if (mode === "unknown-item") items.push({ item: "invented_media", spec: "不能发明", priority: "required" });
+    if (mode === "item-extra") items[0]!.alreadyRendered = true;
+    if (mode === "output-extra") requirementRecord(delivery.outputFormat, "output").alreadyVerified = true;
+    if (mode === "output-value") requirementRecord(delivery.outputFormat, "output").persistentSubtitleText = "被替换的警示";
+    const before = structuredClone(result);
+    expect(() => validatePrdDelivery(result, profile, PRDSchema)).toThrow(); expect(result).toEqual(before);
+  });
+  it("rejects an independent cover that was explicitly disabled", () => {
+    const profile = declared({ coverDelivery: "none" }), result = authoritativeDelivery(standard(), profile), delivery = requirementRecord(result.deliveryStandard, "delivery");
+    expect((delivery.deliverables as RequirementRecord[]).some(item => item.item === "cover")).toBe(false);
+    (delivery.deliverables as RequirementRecord[]).push({ item: "cover", spec: "PNG/JPEG", priority: "required" });
+    expect(() => validatePrdDelivery(result, profile, PRDSchema)).toThrow();
   });
 });
 
