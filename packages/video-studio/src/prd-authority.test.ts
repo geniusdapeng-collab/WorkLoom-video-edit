@@ -2,14 +2,37 @@ import { symlinkSync, unlinkSync, writeFileSync } from "node:fs";
 import { afterEach, describe, expect, it } from "vitest";
 import { requirementRecord, type RequirementRecord } from "./requirement-contract.js";
 import {
-  authoritativeDelivery, authoritativeProduct, bindPrdProvenance, effectivePrdModelSchema, normalizePrdProductionProfile,
-  preparePrdAuthority, prdAuthorityPrompt, validatePrdModelPayload, validatePrdProduction
+  authoritativeDelivery, authoritativeProduct, bindPrdProvenance, effectivePrdModelSchema, normalizeExplicitBriefDuration, normalizePrdProductionProfile,
+  preparePrdAuthority, PrdAuthorityError, prdAuthorityPrompt, validatePrdModelPayload, validatePrdProduction
 } from "./prd-authority.js";
 import { PRDSchema, prdFixture } from "./prd-authority.test-support.js";
 
 const fixtures: ReturnType<typeof prdFixture>[] = [];
 function fixture(...args: Parameters<typeof prdFixture>) { const value = prdFixture(...args); fixtures.push(value); return value; }
 afterEach(() => { for (const value of fixtures.splice(0)) value.cleanup(); });
+
+describe("shared explicit Brief duration", () => {
+  it("leaves omission without a customer-authoritative default", () => {
+    expect(normalizeExplicitBriefDuration(undefined)).toBeUndefined();
+    expect(normalizePrdProductionProfile({ brief: {} })).toEqual({});
+  });
+  it.each([5, "5", 35, "35", "035", 30.5, "30.5", 180, "180.0"])("preserves the existing accepted value %j without rounding", value => {
+    expect(normalizeExplicitBriefDuration(value)).toBe(Number(value));
+    expect(normalizePrdProductionProfile({ brief: { duration: value } })).toEqual({ targetDuration: Number(value) });
+  });
+  it.each([null, false, true, [], {}, 0, -1, 4.999, 180.001, NaN, Infinity, -Infinity,
+    "", " 35", "35 ", "35s", "3.5e1", "0x23", "35."].map(value => [value]))("rejects the same malformed explicit value %j", value => {
+    expect(() => normalizeExplicitBriefDuration(value)).toThrow(PrdAuthorityError);
+    expect(() => normalizeExplicitBriefDuration(value)).toThrow("PRD_PROFILE_INVALID: Brief 明确时长非法");
+    expect(() => normalizePrdProductionProfile({ brief: { duration: value } })).toThrow("PRD_PROFILE_INVALID");
+  });
+  it("rejects objects without invoking a caller-controlled numeric conversion", () => {
+    let converted = false;
+    const value = { valueOf() { converted = true; throw new Error("must not run"); } };
+    expect(() => normalizeExplicitBriefDuration(value)).toThrow(PrdAuthorityError);
+    expect(converted).toBe(false);
+  });
+});
 
 describe("PRD explicit production requirements", () => {
   it("normalizes the explicit platform without replacing the full client brief", () => {
