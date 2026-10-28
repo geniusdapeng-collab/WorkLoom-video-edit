@@ -8,7 +8,7 @@ import {
 } from "./requirement-contract.js";
 import {
   authoritativeDelivery, authoritativeProduct, bindPrdProvenance, effectivePrdModelSchema, prdAuthorityPrompt, prdFail,
-  validatePrdModelPayload, validatePrdProduction, type PrdAuthority
+  validatePrdDelivery, validatePrdModelPayload, validatePrdProduction, type PrdAuthority
 } from "./prd-authority.js";
 import { acquireVendorRequirementEntry } from "./vendor-requirement-entry.js";
 
@@ -237,6 +237,13 @@ function truthBoundary(scope: Scope, nativeLines: string[]): TruthBoundary {
 /** Request executable planning in existing schema fields; never manufacture that plan after the response. */
 function productionPlanningPrompt(scope: Scope): string {
   const profile = scope.authority.profile;
+  const brief = scope.authority.metadata.brief === undefined ? {} : requirementRecord(scope.authority.metadata.brief, "本次制作计划Brief");
+  const contract = scope.contract!;
+  const declarations = Object.fromEntries(["coverDelivery", "sidecarPolicy", "persistentSubtitleText"]
+    .filter(key => Object.hasOwn(profile, key)).map(key => [key, profile[key as keyof typeof profile]]));
+  const castAnchors = { selection: contract.cast.selection, characters: contract.cast.characters.map(character =>
+    Object.fromEntries(["id", "name", "portraitVersion", "activeWardrobeId", "wardrobeId"]
+      .filter(key => Object.hasOwn(character, key)).map(key => [key, character[key]]))) };
   return `\n\n## 本次 G4 制作执行计划（由本次模型填写现有字段）\n`
     + `角色的 consistencyRequirements 除脸型、发型、服装外，还须写出 G5 前定妆照执行计划：逐角色绑定本次 characterId、档案 profilePath/profileSha256、registrySha256、已选服装与已知版本；`
     + `明确先从这些来源解析并复用该版本原始 front/closeup PNG，不把构图稿或新猜测人脸当原始参考。输入没有具体 PNG 路径或字节摘要时如实写“G5 前待解析和核验”，不得编造文件、摘要、授权或已批准状态。`
@@ -244,9 +251,19 @@ function productionPlanningPrompt(scope: Scope): string {
     + `portraitPath 此时留空；不得新增 needsPortrait/portraitPlan 等 schema 未声明键，不得宣称 G5 或跨镜一致性已经通过。明确无人时不添加人物任务。\n`
     + `在 audioSpecification.soundDesign 和各场景既有 visualRequirements/audioRequirements 中写出本次字幕与声音的后续执行、验证方法，不新增模块。`
     + `本次明确字幕口径为 ${profile.subtitleMode ?? "客户未显式指定，沿用已有任务"}；如要求持续警示字幕，明确文字来源、覆盖起止、平台安全区、字号/对比度和遮挡检查方法；`
-    + `要求烧录或 sidecar 时说明如何与同一台词、总时长和时间线核对，both 时两份须一致。没有请求的字幕不得额外添加。`
+    + `要求烧录或 sidecar 时说明如何与同一台词、总时长和时间线核对；both 时按明确口径核对烧录与旁挂共有的台词及时间线，台词侧车与完整组合ASS分别说明，不能要求dialogue-only侧车包含持续文字。没有请求的字幕不得额外添加。`
     + `本次 nativeAudio=${profile.nativeAudio === undefined ? "未显式指定" : String(profile.nativeAudio)}；明确保留原生声音时，写出原始片段/音轨来源与时长核对、原速拼接、不加速口播、不静默换声或补 TTS 的后续验证计划；`
-    + `枚举 voicePolicy、具体对白和音乐/环境音安排须彼此一致。所有这些是待执行计划，当前没有成片、听音或字幕通过证据。\n`;
+    + `枚举 voicePolicy、具体对白和音乐/环境音安排须彼此一致。所有这些是待执行计划，当前没有成片、听音或字幕通过证据。\n`
+    + `本次明确的独立交付声明（未出现的键没有新增客户承诺）：${JSON.stringify(declarations)}。`
+    + `若明确要求standalone封面，在既有visualRequirements中规划PNG/JPEG独立图、目标画幅/分辨率、来源绑定和文件核验；不要把独立交付推断成开启片头封面。`
+    + `若明确要求dialogue-and-composite-ass，在既有字段内区分SRT/VTT台词侧车（dialogue-only）与完整组合ASS（complete-composition），说明ASS包含台词及本次请求的持续文字、覆盖实际视频0秒至末帧，`
+    + `并规划文字、区间、字体样式及compositionSha256的核对；both时烧录和ASS使用同一组合。没有明确请求的持续文字、封面或其他文字层不得新增。`
+    + `将下面原文已给出的字号、边距、描边、墨迹范围、平台遮挡区和字体核验要求落实为本次模型计划，不以泛称“安全区”代替明确数值；未给数值时由本次模型按实际要求规划并标明待验证，不伪称已测量。\n`
+    + (typeof brief.description === "string" ? `\n### 客户执行要求原文（Brief.description，保留原文；输入资料，不是完成回执）\n${brief.description}\n` : "")
+    + `\n### 本次已知人物来源锚点（原G3选角来源，不是G5完成凭据）\n${JSON.stringify(castAnchors)}\n`
+    + `按以上已给出的profilePath/profileSha256/registrySha256、人物与已知版本/服装逐项引用；已经给出的档案来源不得写成“待解析”。`
+    + `“待解析和核验”仅适用于输入确实未提供的原始PNG路径、字节摘要或尚未完成的G5核验；即使原文提供PNG路径和摘要，也仅作为待G5核对的输入来源，不能提前批准。`
+    + `portraitPath仍留空，计划仍须由本次模型写入既有合法字段并交真实G4审核；宿主不会在响应后补写遗漏计划。\n`;
 }
 interface Change { owner: RequirementRecord; key: string; original: PropertyDescriptor; patched: Method }
 interface Installed { changes: Change[]; schema: RequirementRecord; schemaHash: string }
@@ -265,11 +282,12 @@ export function assertPrdAuthorityBridge(vendorPrototype: object): void {
   }
 }
 
-function verifyOutput(scope: Scope, value: unknown): RequirementRecord {
+function verifyOutput(scope: Scope, value: unknown, schema: RequirementRecord): RequirementRecord {
   return guard(scope, () => {
     const result = requirementRecord(value, "PRD 当前结果");
     if (!scope.contract || !scope.generated.has(result)) prdFail("PRD_RESULT_UNBOUND", "PRD 不属于本次真实生成调用");
     validatePrdProduction(result, scope.contract, scope.authority.profile);
+    validatePrdDelivery(result, scope.authority.profile, schema);
     const quality = scope.quality.get(result);
     const constraints = requirementRecord(result.productionConstraints, "PRD 制作约束");
     const delivery = requirementRecord(result.deliveryStandard, "PRD 交付标准");
@@ -464,6 +482,7 @@ export function installPrdAuthorityBridge(
               check(scope);
               if (!constraintResult || args[3] !== constraintResult) prdFail("PRD_QUALITY_INVALID", "Agent5 未消费本次真实 Agent4 结果");
               const result = authoritativeDelivery(Reflect.apply(process, this, args), scope.authority.profile);
+              validatePrdDelivery(result, scope.authority.profile, schema);
               if (!qualityPolicy || !qualityPolicy.fallbackTrigger) prdFail("PRD_QUALITY_INVALID", "原生 Agent5 未产生完整统一阈值与降级预案");
               return result;
             });
@@ -592,7 +611,7 @@ export function installPrdAuthorityBridge(
       if (!qualityPolicy) prdFail("PRD_QUALITY_INVALID", "本次原生规则调用没有形成质量阈值来源");
       scope.quality.set(result, structuredClone(qualityPolicy));
       scope.generated.add(result);
-      return verifyOutput(scope, result);
+      return verifyOutput(scope, result, schema);
     });
   };
   const rendered: Method = function (value) {
@@ -601,7 +620,7 @@ export function installPrdAuthorityBridge(
     return guard(scope, () => {
       check(scope);
       if (scope.generator !== this) prdFail("PRD_SCOPE_CONFLICT", "PRD Markdown 使用了另一生成器");
-      const result = verifyOutput(scope, value);
+      const result = verifyOutput(scope, value, schema);
       const original = Reflect.apply(markdown, this, [result]);
       if (typeof original !== "string") prdFail("PRD_VENDOR_UNAVAILABLE", "原始 PRD Markdown 不是文本");
       if (original.split("## 9. 受众定位").length !== 2) prdFail("PRD_VENDOR_UNAVAILABLE", "PRD 受众 Markdown 的受控章节发生变化");
@@ -626,6 +645,7 @@ export function installPrdAuthorityBridge(
           portraitPath: character.portraitPath, consistencyRequirements: character.consistencyRequirements,
           source: character._workloomCharacterSource, selection: character._workloomCharacterSelection })),
         audioSpecification: result.audioSpecification,
+        shotMapping: requirementRecord(result.scenePlan, "G4 原始场景计划").shotMapping,
         sceneVerificationPlans: scenes.map(scene => ({ sceneId: scene.sceneId, duration: scene.duration,
           visualRequirements: scene.visualRequirements, audioRequirements: scene.audioRequirements, dialogue: scene.dialogue })),
         continuityCheckpoints: delivery.continuityCheckpoints,
@@ -640,6 +660,7 @@ export function installPrdAuthorityBridge(
         + `以下仅展示本次模型和既有规则模块已经产生的字段；没有补写模型计划，也不证明图片、字幕、听音或成片已经验证。`
         + `qualityPolicy.thresholds 是已经同时写入制作约束与验收的当前执行值，fallbackTrigger 使用同一视觉值；来源摘要绑定本次统一前的原生规则来源。`
         + `角色原始 PNG 来源/复用与待 G5 核验条件见 consistencyRequirements；字幕安全区、持续起止、sidecar 一致性与原生声音原速保留的后续验证方法见原始视觉/声音要求。`
+        + `shotMapping原样展示实际数组；原生场景文字中的箭头仅为Markdown连接展示，不是shotBreakdownHint的原始枚举值。`
         + `缺失计划继续交本次 G4 判断，不能用此说明替代实际计划或批准。\n\n\`\`\`json\n${JSON.stringify(planning, null, 2)}\n\`\`\`\n`;
     });
   };
@@ -649,10 +670,10 @@ export function installPrdAuthorityBridge(
     return awaited(scope, async () => {
       check(scope);
       if (scope.system !== this || systems.get(this) !== scope) prdFail("PRD_SCOPE_CONFLICT", "G4 不是本次系统的 PRD");
-      const result = verifyOutput(scope, value), before = requirementHash(result);
+      const result = verifyOutput(scope, value, schema), before = requirementHash(result);
       scope.g4Decision = "pending";
       const verdict = requirementRecord(await Reflect.apply(confirmPrd, this, [content, value]), "G4 实际确认结果");
-      check(scope); verifyOutput(scope, value);
+      check(scope); verifyOutput(scope, value, schema);
       if (requirementHash(result) !== before || verdict.prd !== value) prdFail("PRD_REVIEW_CHANGED", "G4 审核期间 PRD 实际内容发生变化");
       if (verdict.approved === true) {
         if (typeof content !== "string" || !content.trim()) prdFail("PRD_REVIEW_UNVERIFIED", "G4 批准缺少本次完整审核原文");

@@ -43,6 +43,10 @@ export interface PrdProductionProfile {
   openWithCover?: boolean;
   titleCard?: boolean;
   durationToleranceFrames?: number;
+  /** Separate-file obligation only; it does not enable an opening cover. */
+  coverDelivery?: "standalone" | "none";
+  sidecarPolicy?: "dialogue-only" | "dialogue-and-composite-ass";
+  persistentSubtitleText?: string;
 }
 
 export interface PrdAuthority {
@@ -94,8 +98,9 @@ export function normalizePrdProductionProfile(metadata: RequirementRecord): PrdP
   const brief = metadata.brief === undefined ? {} : requirementRecord(metadata.brief, "PRD 客户 Brief");
   const explicit = Object.hasOwn(brief, "productionRequirements");
   const production = explicit ? requirementRecord(brief.productionRequirements, "Brief.productionRequirements") : undefined;
-  const keys = ["resolution", "frameRate", "subtitleMode", "nativeAudio", "openWithCover", "titleCard", "durationToleranceFrames"];
-  if (production && (Object.keys(production).some(key => !keys.includes(key)) || keys.some(key => !Object.hasOwn(production, key)))) {
+  const required = ["resolution", "frameRate", "subtitleMode", "nativeAudio", "openWithCover", "titleCard", "durationToleranceFrames"];
+  const keys = [...required, "coverDelivery", "sidecarPolicy", "persistentSubtitleText"];
+  if (production && (Object.keys(production).some(key => !keys.includes(key)) || required.some(key => !Object.hasOwn(production, key)))) {
     prdFail("PRD_PROFILE_INVALID", "productionRequirements 必须完整且不能包含未定义字段");
   }
   const platforms: Record<string, string> = {
@@ -128,7 +133,30 @@ export function normalizePrdProductionProfile(metadata: RequirementRecord): PrdP
     || Number(production.durationToleranceFrames) < 0 || Number(production.durationToleranceFrames) > 1) {
     prdFail("PRD_PROFILE_INVALID", "时长、画幅、平台、分辨率、帧率或明确交付要求非法");
   }
-  return { ...profile, ...production } as PrdProductionProfile;
+  if ((Object.hasOwn(production, "coverDelivery") && !["standalone", "none"].includes(production.coverDelivery as string))
+    || (Object.hasOwn(production, "sidecarPolicy") && !["dialogue-only", "dialogue-and-composite-ass"].includes(production.sidecarPolicy as string))) {
+    prdFail("PRD_PROFILE_INVALID", "独立封面或字幕旁挂口径非法");
+  }
+  const normalized = { ...profile, ...production } as PrdProductionProfile;
+  if (Object.hasOwn(production, "persistentSubtitleText")) {
+    const value = production.persistentSubtitleText;
+    if (typeof value !== "string") prdFail("PRD_PROFILE_INVALID", "持续字幕必须是完整单行文本");
+    const text = value.trim(), characters = Array.from(text);
+    // Match the formal subtitle connector's text boundary without loading its media dependencies.
+    if (!text || characters.length > 120 || /[\u0000-\u001f\u007f-\u009f\u2028\u2029]/u.test(value)
+      || characters.some(character => character.length === 1 && character.charCodeAt(0) >= 0xd800 && character.charCodeAt(0) <= 0xdfff)) {
+      prdFail("PRD_PROFILE_INVALID", "持续字幕须为1至120个Unicode字符，不能含换行、控制字符或无效Unicode");
+    }
+    normalized.persistentSubtitleText = text;
+    if (normalized.subtitleMode === "none" || normalized.titleCard !== false || normalized.openWithCover !== false
+      || (["both", "sidecar"].includes(normalized.subtitleMode!) && normalized.sidecarPolicy !== "dialogue-and-composite-ass")) {
+      prdFail("PRD_PROFILE_INVALID", "持续字幕与字幕关闭、标题卡、片头封面或缺少完整组合ASS的旁挂口径冲突");
+    }
+  }
+  if (normalized.sidecarPolicy !== undefined && !["both", "sidecar"].includes(normalized.subtitleMode!)) {
+    prdFail("PRD_PROFILE_INVALID", "字幕旁挂口径仅适用于both或sidecar交付");
+  }
+  return normalized;
 }
 
 /** Recheck exact current bytes, including the full nested support review; never reduce this to summary cards. */
@@ -217,11 +245,72 @@ export function authoritativeDelivery(value: unknown, profile: PrdProductionProf
   if (profile.resolution) {
     masters[0]!.spec = `${nonempty(output.container, "容器")}/${nonempty(output.videoCodec, "视频编码")}, ${profile.resolution}; ${declared}; delivery declaration, native capability verified separately`;
   } else if (declared) masters[0]!.spec = `${nonempty(masters[0]!.spec, "原始视频交付规格")}; ${declared}`;
-  if (profile.subtitleMode && ["both", "burned"].includes(profile.subtitleMode)) deliverables.push({ item: "subtitle_burned", spec: "字幕烧录进本次视频母版", priority: "required" });
-  if (profile.subtitleMode && ["both", "sidecar"].includes(profile.subtitleMode)) deliverables.push({ item: "subtitle_sidecar", spec: "交付与视频时间线一致的独立字幕文件", priority: "required" });
+  deliverables.push(...declaredDeliveryItems(profile));
   standard.deliverables = deliverables;
   standard.outputFormat = { ...output, ...profile };
   return result;
+}
+
+function hasDeliveryPlan(profile: PrdProductionProfile): boolean {
+  return ["coverDelivery", "sidecarPolicy", "persistentSubtitleText"].some(key => Object.hasOwn(profile, key));
+}
+
+/** These are rule-owned obligations, never a model plan or a completed media receipt. */
+function declaredDeliveryItems(profile: PrdProductionProfile): RequirementRecord[] {
+  const declared = Object.hasOwn(profile, "sidecarPolicy") || Object.hasOwn(profile, "persistentSubtitleText");
+  const items: RequirementRecord[] = [];
+  const persistent = profile.persistentSubtitleText === undefined ? ""
+    : `全片持续文字${JSON.stringify(profile.persistentSubtitleText)}（实际视频流0秒至末帧，ASS百分秒终点向上取整且最多超出0.01秒）`;
+  if (profile.subtitleMode && ["both", "burned"].includes(profile.subtitleMode)) items.push({ item: "subtitle_burned",
+    spec: !declared ? "字幕烧录进本次视频母版"
+      : `将本次台词字幕${persistent ? `及${persistent}` : ""}烧录进本次视频母版；按当前台词、实际总时长、时间线与字体样式核验${profile.sidecarPolicy === "dialogue-and-composite-ass" ? "，并与完整组合ASS使用同一文字、区间、样式与compositionSha256" : ""}；此为待执行交付要求`,
+    priority: "required" });
+  if (profile.subtitleMode && ["both", "sidecar"].includes(profile.subtitleMode)) items.push({ item: "subtitle_sidecar",
+    spec: !declared ? "交付与视频时间线一致的独立字幕文件"
+      : profile.sidecarPolicy === "dialogue-and-composite-ass"
+        ? `交付仅含台词的SRT/VTT（dialogue-only）与完整组合ASS（complete-composition）；ASS包含本次台词${persistent ? `及${persistent}` : "及本次明确请求的文字层"}，按当前视频、台词、时间线与字体样式核验${profile.subtitleMode === "both" ? "并核对烧录版同一文字、区间、样式与compositionSha256" : ""}；SRT/VTT不能单独证明持续文字交付；此为待执行交付要求`
+        : "交付与本次视频台词和时间线一致的SRT/VTT独立字幕文件（dialogue-only）；不将台词侧车当成完整文字组合ASS或持续文字完成凭据；此为待执行交付要求",
+    priority: "required" });
+  if (profile.coverDelivery === "standalone") items.push({ item: "cover", priority: "required",
+    spec: `PNG或JPEG独立封面图；按本次${profile.aspectRatio ?? "已审"}画幅与${profile.resolution ?? "已审交付"}分辨率交付，来源与当前影片绑定；是否用于片头另依openWithCover声明，本项不启用片头封面；此为待执行交付要求` });
+  return items;
+}
+
+/** Validate only the rule-owned delivery projection; the native full PRD schema has other legacy seams. */
+export function effectivePrdDeliverySchema(schemaValue: RequirementRecord, profile: PrdProductionProfile): RequirementRecord {
+  const native = requirementRecord(requirementRecord(requirementRecord(schemaValue.properties, "PRD schema.properties").deliveryStandard,
+    "deliveryStandard schema").properties, "deliveryStandard properties");
+  const deliverables = structuredClone(requirementRecord(native.deliverables, "deliverables schema"));
+  const item = requirementRecord(requirementRecord(requirementRecord(deliverables.items, "deliverable item schema").properties,
+    "deliverable item properties").item, "deliverable item enum");
+  if (!Array.isArray(item.enum) || item.enum.some(value => typeof value !== "string")
+    || !Number.isSafeInteger(deliverables.maxItems) || Number(deliverables.maxItems) < 1) {
+    prdFail("PRD_VENDOR_UNAVAILABLE", "原生交付项目枚举或数量边界已变化");
+  }
+  const additions = declaredDeliveryItems(profile);
+  item.enum = [...new Set([...item.enum, ...additions.map(value => value.item)])];
+  deliverables.maxItems = Number(deliverables.maxItems) + additions.length;
+  const outputFormat = structuredClone(requirementRecord(native.outputFormat, "outputFormat schema"));
+  const outputProperties = requirementRecord(outputFormat.properties, "outputFormat properties");
+  for (const [key, value] of Object.entries(profile)) outputProperties[key] = { type: typeof value, enum: [value] };
+  outputFormat.required = [...new Set([...list(outputFormat.required, "原生输出格式必需字段"), ...Object.keys(profile)])];
+  return { type: "object", required: ["deliverables", "outputFormat"],
+    properties: { deliverables, outputFormat }, additionalProperties: false };
+}
+
+/** Keep the declared rule output intact through native copies, rendering and the actual G4 boundary. */
+export function validatePrdDelivery(value: unknown, profile: PrdProductionProfile, schemaValue: RequirementRecord): void {
+  if (!hasDeliveryPlan(profile)) return;
+  const standard = requirementRecord(requirementRecord(value, "PRD 交付结果").deliveryStandard, "PRD 交付标准");
+  validateRequirementSchema({ deliverables: standard.deliverables, outputFormat: standard.outputFormat },
+    effectivePrdDeliverySchema(schemaValue, profile), "PRD rule delivery projection");
+  const items = list(standard.deliverables, "PRD 交付项目").map(value => requirementRecord(value, "PRD 交付项目"));
+  const expected = declaredDeliveryItems(profile);
+  if (items.filter(item => item.item === "video_master").length !== 1
+    || ["cover", "subtitle_burned", "subtitle_sidecar"].some(key => {
+      const actual = items.filter(item => item.item === key), declared = expected.filter(item => item.item === key);
+      return actual.length !== declared.length || actual.some((item, index) => requirementHash(item) !== requirementHash(declared[index]));
+    })) prdFail("PRD_DELIVERY_INVALID", "本次独立封面、字幕旁挂或烧录交付要求缺失、重复或被改写");
 }
 
 /** The actual response shape, shared by the model prompt and strict host validation. */
