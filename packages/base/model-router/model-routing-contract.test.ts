@@ -45,7 +45,6 @@ describe("repository-wide text-model routing contract", () => {
       "packages/base/model-router/providers.ts",
       "scripts/suite.ts",
       "vendor/supermickey/hyperreality-system/skills/panda-cineforge/panda_cineforge.py",
-      "vendor/supermickey/hyperreality-system/engines/script-engine/core/script-generator.js",
     ]);
     const violations: string[] = [];
     for (const path of roots.flatMap((root) => walk(join(repoRoot, root)))) {

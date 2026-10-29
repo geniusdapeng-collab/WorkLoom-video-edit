@@ -1,9 +1,8 @@
 /**
  * Video-pipeline model policy.
  *
- * DeepSeek currently serves `deepseek-v4-flash` as a compatibility alias for
- * `deepseek-flash` (V4.1-Flash-1017). New code must use the canonical name so
- * routing, evidence budgets and traces all identify the same live model.
+ * `deepseek-flash` is the only accepted model identity. Dated and legacy
+ * aliases fail closed so routing, evidence budgets and traces cannot drift.
  */
 import {
   canonicalDeepSeekModel,
@@ -63,4 +62,3 @@ export function resolveOpenAiCompatibleBaseUrl(env: Env = process.env): string {
 export function resolveVideoApiKey(env: Env = process.env): string {
   return clean(env.LLM_API_KEY) || clean(env.DEEPSEEK_API_KEY);
 }
-

@@ -272,16 +272,24 @@ describe("LLM 适配器", () => {
     expect(engine?.model).toBe("deepseek-flash");
   });
 
-  it("DeepSeek 部署从 DEEPSEEK_* 与 OpenAI 端点构建，合法别名规范到官方模型名", () => {
+  it("DeepSeek 部署从 DEEPSEEK_* 与 OpenAI 端点构建官方模型名", () => {
     const engine = WorkloomLLMEngine.fromEnv({
       DEEPSEEK_BASE_URL: "https://api.deepseek.com/anthropic",
       LLM_BASE_URL: "https://api.deepseek.com",
       DEEPSEEK_API_KEY: "test-only",
-      DEEPSEEK_MODEL: "deepseek-v4-flash",
+      DEEPSEEK_MODEL: "deepseek-flash",
     });
     expect(engine).not.toBeNull();
     expect(engine?.model).toBe("deepseek-flash");
     expect(engine?.getStats()).toMatchObject({ model: "deepseek-flash" });
+  });
+
+  it("legacy DeepSeek aliases fail closed", () => {
+    expect(() => WorkloomLLMEngine.fromEnv({
+      LLM_BASE_URL: "https://api.deepseek.com",
+      LLM_API_KEY: "test-only",
+      LLM_MODEL: "deepseek-v4-flash",
+    })).toThrow("MODEL_ID_NOT_ALLOWED");
   });
 
   it("JSON extraction is strict and does not repair model prose", () => {

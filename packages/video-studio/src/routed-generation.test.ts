@@ -1,8 +1,10 @@
 import { createServer, type Server } from "node:http";
 import { createRequire } from "node:module";
+import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { WorkloomLLMEngine, installVendorEngineBridge } from "./llm-adapter.js";
 
+const repoRoot = fileURLToPath(new URL("../../../", import.meta.url));
 let server: Server;
 let origin: string;
 let bodies: Array<Record<string, unknown>>;
@@ -139,8 +141,8 @@ describe("video adapter canonical dispatch", () => {
     const adapter = engine();
     const restore = installVendorEngineBridge(adapter);
     try {
-      const vendorRequire = createRequire(`${process.cwd()}/package.json`);
-      const { LLMEngine } = vendorRequire(`${process.cwd()}/vendor/supermickey/systems/llm-reasoning-engine.js`);
+      const vendorRequire = createRequire(`${repoRoot}/package.json`);
+      const { LLMEngine } = vendorRequire(`${repoRoot}/vendor/supermickey/systems/llm-reasoning-engine.js`);
       const native = new LLMEngine({ model: "kimi-k3" });
       await native.reason("vendor reason");
       await native.chat("system", "vendor chat", 0.2);

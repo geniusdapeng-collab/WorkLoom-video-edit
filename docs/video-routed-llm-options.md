@@ -10,10 +10,12 @@ All text generation and review resolve through the symbolic key `text.primary`:
 - maximum output: 393,216 tokens
 - protocol: OpenAI-compatible chat completions
 
-`deepseek-v4-flash` is accepted only as an input alias and normalized to
-`deepseek-flash`. Legacy chat/reasoner aliases and Kimi, GLM, Qwen, MiniMax,
-OpenAI, Anthropic or Gemini text models are rejected. Media generation models
-remain in a separate registry.
+The official service still accepts `deepseek-v4-flash` as a stale alias, but
+WorkLoom rejects it rather than normalizing it: every configuration, request
+trace and response identity must name `deepseek-flash` exactly. Legacy
+chat/reasoner aliases and Kimi, GLM, Qwen, MiniMax, OpenAI, Anthropic or Gemini
+text models are also rejected. Media generation models remain in a separate
+registry.
 
 Official facts checked 2026-10-30:
 

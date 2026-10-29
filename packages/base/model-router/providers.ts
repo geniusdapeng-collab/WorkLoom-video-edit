@@ -232,17 +232,29 @@ function safeInteger(value: unknown): value is number {
 }
 
 function policyForOptions(opts: ChatOptions): TextScenePolicy {
-  const base = resolveTextScenePolicy(opts.scene ?? "generic");
-  if (!opts.thinking) return base;
-  return {
-    ...base,
-    thinking: {
-      type: opts.thinking.type === "enabled" ? "enabled" : "disabled",
-      ...(opts.thinking.type === "enabled"
-        ? { effort: opts.reasoningEffort ?? "high" }
-        : {}),
-    },
-  };
+  const responseFormat = opts.responseFormat?.type;
+  if (responseFormat !== undefined && responseFormat !== "json_object" && responseFormat !== "text") {
+    throw new Error(`MODEL_RESPONSE_FORMAT_INVALID: ${responseFormat}`);
+  }
+  let thinking: TextScenePolicy["thinking"] | undefined;
+  if (opts.thinking) {
+    if (opts.thinking.type !== "enabled" && opts.thinking.type !== "disabled") {
+      throw new Error(`MODEL_THINKING_POLICY_INVALID: ${String(opts.thinking.type)}`);
+    }
+    if (opts.thinking.type === "enabled") {
+      const effort = opts.reasoningEffort ?? "high";
+      if (!["low", "high", "max"].includes(effort)) {
+        throw new Error(`MODEL_THINKING_POLICY_INVALID: ${effort}`);
+      }
+      thinking = { type: "enabled", effort };
+    } else {
+      thinking = { type: "disabled" };
+    }
+  }
+  return resolveTextScenePolicy(opts.scene ?? "generic", {
+    ...(responseFormat ? { responseFormat } : {}),
+    ...(thinking ? { thinking } : {}),
+  });
 }
 
 /**

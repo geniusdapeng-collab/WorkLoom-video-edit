@@ -62,6 +62,15 @@ describe("OpenAI-compatible generation controls at the HTTP boundary", () => {
     });
     expect(bodies[0]!.max_tokens).toBeGreaterThan(300_000);
   });
+  it("honors a resolved scene format override", async () => {
+    await provider().chat(messages, {
+      scene: "video.deterministic",
+      responseFormat: { type: "text" },
+      thinking: { type: "disabled" },
+    });
+    expect(bodies[0]).not.toHaveProperty("response_format");
+    expect(bodies[0]).toMatchObject({ thinking: { type: "disabled" } });
+  });
   it("retains HTTP errors instead of reporting an answer", async () => {
     mode = "error";
     await expect(provider().chat(messages)).rejects.toThrow("模型调用失败：HTTP 400");

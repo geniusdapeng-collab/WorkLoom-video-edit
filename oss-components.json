@@ -235,7 +235,7 @@
       "channel": "npm",
       "usage": "runtime",
       "scope": [
-        "packages/base/model-router/tokenizer.ts",
+        "packages/base/model-router/token-budget.ts",
         "packages/base/model-router/assets/deepseek-v4-tokenizer.json"
       ],
       "cadence": "weekly",

@@ -59,13 +59,13 @@ export interface BudgetMessage {
 }
 
 export function isDeepSeekFlashModel(model: string | null | undefined): boolean {
-  return model === DEEPSEEK_FLASH_MODEL_ID || model === "deepseek-v4-flash";
+  return model === DEEPSEEK_FLASH_MODEL_ID;
 }
 
 export function canonicalDeepSeekModel(model: string | null | undefined): typeof DEEPSEEK_FLASH_MODEL_ID {
   const normalized = String(model ?? "").trim();
   if (!normalized || isDeepSeekFlashModel(normalized)) return DEEPSEEK_FLASH_MODEL_ID;
-  throw new Error(`MODEL_ID_NOT_ALLOWED: ${normalized}`);
+  throw new Error(`MODEL_ID_NOT_ALLOWED: ${normalized}; use ${DEEPSEEK_FLASH_MODEL_ID}`);
 }
 
 /** @deprecated Explanatory estimate only; production planning uses the official tokenizer. */
