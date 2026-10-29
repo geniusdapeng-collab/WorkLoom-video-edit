@@ -101,3 +101,17 @@ test("cover-burned complete video is promoted out of staging to the canonical va
   assert.equal(report.publish[0].file, "variants/warm-story/warm-story.burned.cover.mp4");
   assert.equal(report.publish[0].completeVideo, true);
 });
+
+test("explicitly disabling the cover intro does not mislabel the base publish as complete", t => {
+  const f = fixture(t);
+  const variantDir = join(f.outDir, "variants", "warm-story");
+  mkdirSync(variantDir, { recursive: true });
+  copyFileSync(f.input, join(variantDir, "warm-story.burned.mp4"));
+  const result = run(f, ["--variants", "warm-story", "--burn-intro", "0"]);
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  const summaryLine = (result.stdout + result.stderr).split("\n").find((line) => line.includes("机检："));
+  assert.ok(summaryLine);
+  const report = JSON.parse(readFileSync(summaryLine.split("机检：")[1].trim(), "utf8"));
+  assert.equal(report.publish[0].file, "variants/warm-story/warm-story.burned.mp4");
+  assert.equal(report.publish[0].completeVideo, false);
+});

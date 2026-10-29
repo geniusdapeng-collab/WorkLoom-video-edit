@@ -39,6 +39,9 @@
     "symbol": "main/variant style resolution"
   },
   "trigger_path": "项目改用自定义变体 ID，或路径写错/文件未同步；CLI 用暖故事样式或空配置继续出图，最终产物看似成功但不符合请求。",
+  "regression": {
+    "command": "node --test --test-concurrency=1 --test-name-pattern=\"explicit missing input files|unknown variants\" scripts/tools/edit-cover-guards.node-test.mjs"
+  },
   "assertions": [
     {
       "kind": "property",

@@ -27,6 +27,9 @@
     "symbol": "main/bridge catch"
   },
   "trigger_path": "用户或自动化显式传 --renderer compositor，但工位离线/返回错误；CLI 仍成功退出并产出 ffmpeg 封面，manifest 可能被误认为设计师工位产物。",
+  "regression": {
+    "command": "node --test --test-concurrency=1 --test-name-pattern=explicit\\ compositor\\ renderer scripts/tools/edit-cover-guards.node-test.mjs"
+  },
   "assertions": [
     {
       "kind": "sample",

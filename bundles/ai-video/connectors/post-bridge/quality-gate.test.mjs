@@ -5,7 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
-import { inspectPostQuality, assertPostQuality, POST_QUALITY_STAGES, resolveDeliveryRoot } from "./quality-gate.mjs";
+import { inspectPostQuality, assertPostQuality, POST_QUALITY_STAGES, resolveDeliveryRoot, completeVideoPublishGate } from "./quality-gate.mjs";
 
 let root;
 let video;
@@ -112,6 +112,30 @@ test("格式坏的字幕文件不能用非空字节伪装完成", async () => {
   const input = request();
   input.assets.push({ id: "bad-subtitle", path: file, media: "subtitle", sha256: digest(Buffer.from("这不是 SRT")), durationSeconds: 0.4 });
   assert.equal((await inspectPostQuality(input)).passed, false);
+});
+
+test("完整视频发布门允许同变体的多种发布形态，但每支变体都必须有稳定哈希", () => {
+  const hash = "a".repeat(64);
+  const manifest = {
+    variants: [{ id: "warm-story" }, { id: "cool-tech" }],
+    publish: {
+      completeVideo: true,
+      recommended: [
+        { variantId: "warm-story", file: "variants/warm-story/warm-story.burned.cover.mp4", sha256: hash, completeVideo: true },
+        { variantId: "warm-story", file: "variants/warm-story/warm-story.burned.danmaku.cover.mp4", sha256: hash, completeVideo: true },
+        { variantId: "cool-tech", file: "variants/cool-tech/cool-tech.burned.cover.mp4", sha256: hash, completeVideo: true },
+      ],
+    },
+  };
+  assert.equal(completeVideoPublishGate(manifest).ok, true);
+  assert.equal(completeVideoPublishGate({
+    ...manifest,
+    publish: { ...manifest.publish, recommended: manifest.publish.recommended.slice(0, 2) },
+  }).ok, false);
+  assert.equal(completeVideoPublishGate({
+    ...manifest,
+    publish: { ...manifest.publish, recommended: manifest.publish.recommended.map((entry) => ({ ...entry, file: `work/${entry.file}` })) },
+  }).ok, false);
 });
 
 test("返修版本可回读所属交付根，版本或工程身份不符及父目录逃逸均拒绝", async () => {

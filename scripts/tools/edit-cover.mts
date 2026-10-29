@@ -832,7 +832,7 @@ async function main(): Promise<void> {
           durationSec: probeMedia(file).duration,
           coverPath: cover ? relative(outDir, String(cover.file)) : null,
           coverSha256: cover ? String(cover.sha256) : null,
-          completeVideo: true,
+          completeVideo: burnIntro > 0,
           note: produced?.formSuffix === ".burned" || produced?.formSuffix === ".burned.danmaku"
             ? PUBLISH_NOTE
             : "完整封面片头视频；当前源不含可烧录字幕，发布前请按需另行选择字幕形态。",
@@ -851,7 +851,7 @@ async function main(): Promise<void> {
           forms: burnIntro > 0 ? "burned+danmaku+cover" : "burned+danmaku",
           sha256: sha256(file),
           durationSec: probeMedia(file).duration,
-          completeVideo: true,
+          completeVideo: burnIntro > 0,
           note: DANMAKU_PUBLISH_NOTE,
         }
         : null;
@@ -950,7 +950,7 @@ async function main(): Promise<void> {
         manifest.publish = {
           recommended: publishRecommendations,
           note: PUBLISH_NOTE,
-          completeVideo: true,
+          completeVideo: publishRecommendations.some((entry) => entry.completeVideo === true),
           updatedBy: "edit:cover（完整视频提升到 variants/**/*.cover.mp4）",
         };
       }

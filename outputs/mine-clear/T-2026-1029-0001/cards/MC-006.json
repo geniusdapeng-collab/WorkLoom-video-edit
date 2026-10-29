@@ -21,6 +21,9 @@
     "symbol": "validateCoverPlan"
   },
   "trigger_path": "标题字符数低于平台上限但字级较高时通过设计稿校验；视觉工位按固定文本宽度换行，出现末字单独成行或越界。",
+  "regression": {
+    "command": "node_modules/.bin/vitest run packages/video-studio/src/cover-design.test.ts --maxWorkers 1 --no-file-parallelism"
+  },
   "assertions": [
     {
       "kind": "sample",

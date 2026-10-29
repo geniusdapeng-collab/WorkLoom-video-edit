@@ -27,6 +27,9 @@
     "symbol": "main/burnIntro"
   },
   "trigger_path": "同一项目先走 full-chain 或 edit:post，再走 edit:cover；两个入口采用不同封面时长，用户要求 0.6s 时只能逐入口手工覆盖。",
+  "regression": {
+    "command": "node --import tsx --test scripts/tools/cover-delivery-policy.node-test.mts"
+  },
   "assertions": [
     {
       "kind": "sample",

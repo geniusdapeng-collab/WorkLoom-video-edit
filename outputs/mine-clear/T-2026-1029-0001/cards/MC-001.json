@@ -33,6 +33,9 @@
     "symbol": "main/burn intro"
   },
   "trigger_path": "先 edit:post 或 deliver 出多风格变体，再单独 edit:cover，最终选片者拿到 variants 基础视频，含封面文件留在 work/cover-versions 且不属于默认发布件。",
+  "regression": {
+    "command": "node --test --test-concurrency=1 --test-name-pattern=真实全链CLI接收黑屏 scripts/tools/full-chain-failure.test.mjs"
+  },
   "assertions": [
     {
       "kind": "property",

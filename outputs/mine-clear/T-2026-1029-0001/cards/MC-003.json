@@ -27,6 +27,9 @@
     "symbol": "persistent subtitle early guard"
   },
   "trigger_path": "商品或安全内容需要全片持续警示，同时用户要求封面烧进视频；早期参数闸直接失败，只能先 --no-open-with-cover 再另走临时封面步骤。",
+  "regression": {
+    "command": "node --test --test-concurrency=1 --test-name-pattern=persistent\\ text\\ may\\ coexist scripts/tools/full-chain-persistent-subtitle.test.mjs && node_modules/.bin/vitest run packages/video-studio/src/prd-authority.test.ts -t \"allows persistent content text\""
+  },
   "assertions": [
     {
       "kind": "sample",
