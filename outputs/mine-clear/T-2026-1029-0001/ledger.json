@@ -5,7 +5,7 @@
   "repo_path": "/Users/mac/Documents/Codex/2026-10-28/https-github-com-geniusdapeng-collab-workloom-2/work/WorkLoom-video-edit-mcd",
   "title": "AI视频完整成片交付链路排雷与经验固化",
   "created_at": "2026-10-29T03:17:13.350Z",
-  "updated_at": "2026-10-29T03:56:50.470Z",
+  "updated_at": "2026-10-29T04:19:39.157Z",
   "issue": {
     "slug": "geniusdapeng-collab/WorkLoom-video-edit",
     "number": 93
@@ -533,6 +533,9 @@
         "docs/ai-video-workbench-guide.md"
       ],
       "blast_radius": "改变所有新生成的封面片头默认时长与 manifest 发布推荐；消费方必须从 publish.recommended 取完整视频。基础变体、封面 PNG、软字幕轨仍保留，内容渲染与付费生成链路不变。",
+      "regression": {
+        "command": "node --test --test-concurrency=1 --test-name-pattern=真实全链CLI接收黑屏 scripts/tools/full-chain-failure.test.mjs && node --test --test-concurrency=1 --test-name-pattern=persistent\\ text\\ may\\ coexist scripts/tools/full-chain-persistent-subtitle.test.mjs"
+      },
       "assertions": [
         {
           "kind": "property",
@@ -611,6 +614,9 @@
         "scripts/tools/edit-cover-guards.node-test.mjs"
       ],
       "blast_radius": "显式错误配置不再产出封面；使用自定义变体 ID 的项目需要补一份 style-map。自动 renderer=auto 仍可降级，但记录实际 renderer。",
+      "regression": {
+        "command": "node --import tsx --test --test-concurrency=1 scripts/tools/edit-cover-guards.node-test.mjs scripts/tools/cover-delivery-policy.node-test.mts"
+      },
       "assertions": [
         {
           "kind": "property",
@@ -686,6 +692,9 @@
         "packages/video-studio/src/cover-design.test.ts"
       ],
       "blast_radius": "更长标题可能在设计稿阶段被拒或自动缩小；不会再静默进入视觉工位后换出孤字。短标题与现有合法稿件不受影响。",
+      "regression": {
+        "command": "node_modules/.bin/vitest run packages/video-studio/src/cover-design.test.ts --maxWorkers 1 --no-file-parallelism"
+      },
       "assertions": [
         {
           "kind": "sample",

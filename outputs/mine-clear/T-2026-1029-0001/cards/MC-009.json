@@ -21,6 +21,9 @@
     "scripts/tools/edit-cover-guards.node-test.mjs"
   ],
   "blast_radius": "显式错误配置不再产出封面；使用自定义变体 ID 的项目需要补一份 style-map。自动 renderer=auto 仍可降级，但记录实际 renderer。",
+  "regression": {
+    "command": "node --import tsx --test --test-concurrency=1 scripts/tools/edit-cover-guards.node-test.mjs scripts/tools/cover-delivery-policy.node-test.mts"
+  },
   "assertions": [
     {
       "kind": "property",

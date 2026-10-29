@@ -23,6 +23,9 @@
     "docs/ai-video-workbench-guide.md"
   ],
   "blast_radius": "改变所有新生成的封面片头默认时长与 manifest 发布推荐；消费方必须从 publish.recommended 取完整视频。基础变体、封面 PNG、软字幕轨仍保留，内容渲染与付费生成链路不变。",
+  "regression": {
+    "command": "node --test --test-concurrency=1 --test-name-pattern=真实全链CLI接收黑屏 scripts/tools/full-chain-failure.test.mjs && node --test --test-concurrency=1 --test-name-pattern=persistent\\ text\\ may\\ coexist scripts/tools/full-chain-persistent-subtitle.test.mjs"
+  },
   "assertions": [
     {
       "kind": "property",

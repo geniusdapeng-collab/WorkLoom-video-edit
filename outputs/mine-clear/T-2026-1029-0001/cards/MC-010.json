@@ -17,6 +17,9 @@
   "rollback": "回滚 estimateCoverLineWidth 与 fallback 自动适配；字符数与安全区原校验保留。",
   "conflict_paths": ["packages/video-studio/src/cover-design.ts", "packages/video-studio/src/cover-design.test.ts"],
   "blast_radius": "更长标题可能在设计稿阶段被拒或自动缩小；不会再静默进入视觉工位后换出孤字。短标题与现有合法稿件不受影响。",
+  "regression": {
+    "command": "node_modules/.bin/vitest run packages/video-studio/src/cover-design.test.ts --maxWorkers 1 --no-file-parallelism"
+  },
   "assertions": [
     {
       "kind": "sample",
