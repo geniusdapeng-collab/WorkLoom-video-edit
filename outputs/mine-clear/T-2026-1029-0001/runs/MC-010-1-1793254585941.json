@@ -1,0 +1,41 @@
+{
+  "schema": "workloom.evidence-run/v1",
+  "id": "MC-010-1-1793254585941",
+  "command": "node_modules/.bin/vitest run packages/video-studio/src/cover-design.test.ts -t 封面兜底稿的平台化",
+  "exec": {
+    "file": "node_modules/.bin/vitest",
+    "args": [
+      "run",
+      "packages/video-studio/src/cover-design.test.ts",
+      "--maxWorkers",
+      "1",
+      "--no-file-parallelism",
+      "-t",
+      "封面兜底稿的平台化"
+    ]
+  },
+  "actor": "codex-acceptance-T-2026-1029-0001-final",
+  "role": "acceptance",
+  "subject": {
+    "card_id": "MC-010",
+    "assertion_index": 1
+  },
+  "commit": "55fa2d98c49642aa966dd237dcb8c59ac89de138",
+  "working_tree_dirty": false,
+  "started_at": "2026-10-29T06:16:25.941Z",
+  "finished_at": "2026-10-29T06:16:26.467Z",
+  "exit_code": 0,
+  "signal": null,
+  "validation": {
+    "ok": true,
+    "errors": []
+  },
+  "result": "pass",
+  "outputs": [
+    {
+      "path": "evidence/MC-010-1-1793254585941.txt",
+      "sha256": "9eb5801d7366643e14dc88d050b39aae71a27e91293ebbe7f726b4609130b0c3",
+      "commit": "55fa2d98c49642aa966dd237dcb8c59ac89de138"
+    }
+  ]
+}

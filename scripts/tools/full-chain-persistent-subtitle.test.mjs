@@ -32,13 +32,20 @@ test('persistent fullchain rejects missing, duplicate, malformed and title/intro
     [['--subtitle-persistent-text', 'x'.repeat(121)], /bad_request|持续字幕/],
     [['--subtitle-persistent-text', '文字', '--subtitle-persistent-text', '重复'], /PERSISTENT_SUBTITLE_OPTION_DUPLICATE/],
     [['--subtitle-persistent-text', '文字'], /PERSISTENT_SUBTITLE_TITLE_CONFLICT/],
-    [['--subtitle-persistent-text', '文字', '--no-title-card'], /PERSISTENT_SUBTITLE_INTRO_CONFLICT/],
     [['--subtitle-persistent-text', '文字', '--no-title-card', '--no-open-with-cover', '--opening-title', '装饰'], /PERSISTENT_SUBTITLE_TITLE_CONFLICT/],
   ]) {
     const result = invoke(['--shots', join(root, 'unread-source.json'), '--out', out, '--work-dir', work, ...extra]);
     assert.notEqual(result.status, 0); assert.match(result.stdout + result.stderr, expected);
     assert.equal(existsSync(work), false); assert.equal(existsSync(out), false);
   }
+});
+
+test('persistent text may coexist with a silent cover intro; only the title-card conflict remains', t => {
+  const root = mkdtempSync(join(tmpdir(), 'persistent-cover-intro-')); t.after(() => rmSync(root, { recursive: true, force: true }));
+  const result = invoke(['--shots', join(root, 'missing-source.json'), '--out', join(root, 'out'), '--work-dir', join(root, 'work'),
+    '--subtitle-persistent-text', '文字', '--no-title-card']);
+  assert.notEqual(result.status, 0);
+  assert.doesNotMatch(result.stdout + result.stderr, /PERSISTENT_SUBTITLE_INTRO_CONFLICT/);
 });
 
 test('persistent fullchain requires its subtitle consumer before creating work or output directories', t => {

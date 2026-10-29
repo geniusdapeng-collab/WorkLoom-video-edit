@@ -112,8 +112,10 @@ cine-kb → continuity → micromotion → spec（25 字段交付闸）→ plate
 
 交付目录（`--out`）应包含：`*-<实测时长>s-final.mp4`（母版，名称与实测时长一致）、
 `subtitles/`（srt/ass/vtt + 清单）、`*-softsub.mp4`、变体 3 支 + 变体封面、
-`*-cover.png`、`*-delivery-manifest.json`（sha256/声明配方与品质未评审/组装声明/**分流结论**/**渲染台账**）、
+每支变体在交付根内稳定的含封面完整视频（默认 0.6s 静音片头，路径 `variants/<id>/*.cover.mp4`）、
+`*-cover.png`、`*-delivery-manifest.json`（sha256/声明配方与品质未评审/组装声明/**分流结论**/**coverIntro + publish.recommended**/**渲染台账**）、
 `*-render-ledger.md`（每一次花钱的账：提交几次、判不合格几次、平台拒收几次、canary 止损几次、后期返工几次）。
+最终可发布件只认 `publish.recommended`；变体基础视频和封面 PNG 是质量链证据，不是单独的“完整成片”。
 质量口径见 `docs/video-delivery-and-revision.md`；监制门设计见 `docs/producer-gate-design.md`。
 
 ## 6. 认证真人（asset://）：定妆照/角度槽位怎么落实

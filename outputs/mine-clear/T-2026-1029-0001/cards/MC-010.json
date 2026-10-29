@@ -1,0 +1,47 @@
+{
+  "id": "MC-010",
+  "kind": "fix",
+  "batch": 1,
+  "state": "open",
+  "title": "封面标题增加版面宽度硬校验，兜底稿自动断行/收字级",
+  "covers": ["MC-006"],
+  "evidence": [
+    {
+      "type": "code",
+      "ref": "packages/video-studio/src/cover-design.ts:355@aed12c92ab8af4295404d6dbb47981cdccad76e4",
+      "sha256": "f7b93cefab6bcd6671f2edaac85680652c7c9f5756c0c9526e1f67c3eeeefdb7",
+      "note": "原校验只有字符数，没有实际宽度。"
+    }
+  ],
+  "fix_plan": "在 validateCoverPlan 中按目标平台画布、字级、CJK/ASCII 字宽和右侧 11% 栏计算每行宽度；拒绝越界和单字行。确定性兜底稿先尝试语义断行，再在 4.5%–7.5% 允许区间内收敛字号，避免兜底路径自身失败。",
+  "rollback": "回滚 estimateCoverLineWidth 与 fallback 自动适配；字符数与安全区原校验保留。",
+  "conflict_paths": ["packages/video-studio/src/cover-design.ts", "packages/video-studio/src/cover-design.test.ts"],
+  "blast_radius": "更长标题可能在设计稿阶段被拒或自动缩小；不会再静默进入视觉工位后换出孤字。短标题与现有合法稿件不受影响。",
+  "regression": {
+    "command": "node_modules/.bin/vitest run packages/video-studio/src/cover-design.test.ts --maxWorkers 1 --no-file-parallelism"
+  },
+  "assertions": [
+    {
+      "kind": "sample",
+      "given": "抖音 9 字标题在 0.0667 字高比下宽度溢出",
+      "expect": "设计稿被拒；7 字版本通过",
+      "command": "node_modules/.bin/vitest run packages/video-studio/src/cover-design.test.ts -t 字符数未超限",
+      "exec": {
+        "file": "node_modules/.bin/vitest",
+        "args": ["run", "packages/video-studio/src/cover-design.test.ts", "--maxWorkers", "1", "--no-file-parallelism", "-t", "字符数未超限"]
+      },
+      "last_result": "not-run"
+    },
+    {
+      "kind": "property",
+      "given": "任意兜底标题",
+      "expect": "断行/局字号后仍在平台可用宽度内，且最多两行",
+      "command": "node_modules/.bin/vitest run packages/video-studio/src/cover-design.test.ts -t 封面兜底稿的平台化",
+      "exec": {
+        "file": "node_modules/.bin/vitest",
+        "args": ["run", "packages/video-studio/src/cover-design.test.ts", "--maxWorkers", "1", "--no-file-parallelism", "-t", "封面兜底稿的平台化"]
+      },
+      "last_result": "not-run"
+    }
+  ]
+}

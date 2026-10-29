@@ -122,7 +122,7 @@ step_attention() {
   log "⑩ 差异化封面（逐变体独立设计 + 两两 MAD 机检）"
   pnpm edit:cover -- --input "$DELIVERY/master/master-clean.mp4" --out-dir "$DELIVERY" \
     --timeline "$FILM/talk.reframed.timeline.json" --variants "$VARIANTS" --platform "$PLATFORM" \
-    --theme 知识科普 --title "$TITLE" --hook "$HOOK" --burn-intro 1.6 --renderer ffmpeg
+    --theme 知识科普 --title "$TITLE" --hook "$HOOK" --burn-intro 0.6 --renderer ffmpeg
   log "⑪ 注意力体检（排期 + 覆盖回执 + 字幕）"
   pnpm edit:retention -- --attention "$RUN_DIR/attention/attention.json" \
     --overlay-receipt "$RUN_DIR/attention/overlay-evidence/overlay-receipt.json" \

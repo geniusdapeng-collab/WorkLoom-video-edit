@@ -127,7 +127,7 @@ pnpm edit:retention-check -- --attention <attention-plan.json> \
                                                               → edit:overlay → edit:danmaku → edit:sfx
                                                               → edit:retention-check（体检）
                                                               ↓
-                                                        封面烧封（1.6s）→ 交付
+                                                        封面烧封（默认 0.6s）→ 完整视频交付
 ```
 
 注意力层是**后置、可反复迭代**的一层：改卡片不动母版；改关键词不动时间轴；体检不过就不出片。

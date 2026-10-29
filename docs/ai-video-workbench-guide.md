@@ -1,6 +1,6 @@
 # WorkLoom Video Edit 视频调用指南：AI 工作台先读，再执行
 
-> guideVersion: 2026-10-28.7
+> guideVersion: 2026-10-29.1
 > 适用仓库：`workloom-ai/WorkLoom-video-edit`；本版范围：成功原片默认接受、正式后期、G3 结构化需求、本次 G1 事实与用途限定、PRD 制作与交接计划、显式封面与字幕交付声明、模型响应结构、需求与制作的权威上下文、明确无标题卡的生成适用性、原始拒绝保留、风险分析有限反馈、完整评审文本分配、完整 CLI 草稿归档、启动时长与片型选型输入及显式全片持续字幕；实际源码 SHA 以本次冻结交付记录为准。
 > 读者：Codex、DeepSeek Harness 及能调用本仓 CLI / stdio MCP 的 AI 工作台。
 
@@ -112,7 +112,7 @@ node scripts/workloom-agent.mjs invoke growth.video.delivery.inspect --input-fil
 - Color 的 best/match 和封面按明确方案一次本地执行；调色批次完整回传每项，有失败时 CLI 非零退出。没有默认残差、像素差、身份或整图模型品质裁决。
 - 后期包与 HTTP 技术凭据只核对真实加工、来源/权限、版本和请求导出。历史签章保持可验证兼容，不要求重新补画面/声音质量证据。
 
-需要全片保留警示或说明文字时，本地正式 `full-chain-film.mts` 可显式传 `--subtitle-persistent-text "本次完整文字"`，同时传 `--no-title-card --no-open-with-cover`，且实际阶段必须包含 `subtitle`。当前沿用单个 Title 文字层，因此不能再传 `--opening-title`；标题卡或片头封面与全程要求冲突时在创建作业、媒体加工或供应商恢复前失败。省略该参数保留原有默认行为。本段只描述本地全链和连接器，服务端 worker 作业没有新增这几个参数的自动透传。
+需要全片保留警示或说明文字时，本地正式 `full-chain-film.mts` 可显式传 `--subtitle-persistent-text "本次完整文字"` 和 `--no-title-card`，且实际阶段必须包含 `subtitle`。持续文字作用于正片时间线，可与独立静音封面片头共存；不要再为了封面强制 `--no-open-with-cover`。当前沿用单个 Title 文字层，因此不能再传 `--opening-title`。省略该参数保留原有默认行为。本段只描述本地全链和连接器，服务端 worker 作业没有新增这几个参数的自动透传。
 
 持续文字允许 1–120 个 Unicode 字符，去除两端空白后完整保留；空文本、换行、控制字符、无效 Unicode 和重复参数明确拒绝，不截断后继续。字幕连接器的 `plan`、`burn`、`sidecar` 使用 `--persistent-text`，与 `--title` 互斥。烧录与完整组合 ASS 使用同一生成器、字体样式和事件摘要，区间从实际视频流的 0 秒持续到末帧；ASS 百分秒时钟向上取整，最多多出 0.01 秒，不用口播结束时间代替片尾。
 
@@ -152,11 +152,13 @@ G1 只支持其已接受 `claims` 与 `restrictions` 范围内的商品事实。
 
 PRD 门文档中的已审场景合同使用独立显示副本：只有场景的道具列表非空且 `noPropsReason` 为规范化的 `null` 时，省略这个不适用的显示字段；无道具场景的真实理由继续显示。原始合同、传递给后续生成的对象和摘要保持原值，其他空值或占位内容不会被过滤，原有占位检查继续生效。这一显示规则不代替 G4 的真实内容评审。
 
-平台、时长和画幅沿用客户 Brief。工作台可在 `metadata.brief.productionRequirements` 显式提供 `resolution`、`frameRate`、`subtitleMode`、`nativeAudio`、`openWithCover`、`titleCard`、`durationToleranceFrames`。例如本次竖屏 HD 作业可使用 `{"resolution":"1080p","frameRate":30,"subtitleMode":"both","nativeAudio":true,"openWithCover":false,"titleCard":false,"durationToleranceFrames":1}`。这些字段是客户制作要求，不能把声明当成生成模型已支持或交付已实测；模型目录、正式 CLI 和最终技术检查仍须逐项核对。旧调用没有提供该对象时保留旧入口兼容，不倒填成客户已明确要求。
+平台、时长和画幅沿用客户 Brief。工作台可在 `metadata.brief.productionRequirements` 显式提供 `resolution`、`frameRate`、`subtitleMode`、`nativeAudio`、`openWithCover`、`titleCard`、`durationToleranceFrames`。例如本次竖屏 HD 作业可使用 `{"resolution":"1080p","frameRate":30,"subtitleMode":"both","nativeAudio":true,"openWithCover":true,"coverIntroSeconds":0.6,"titleCard":false,"durationToleranceFrames":1}`。这些字段是客户制作要求，不能把声明当成生成模型已支持或交付已实测；模型目录、正式 CLI 和最终技术检查仍须逐项核对。旧调用没有提供该对象时保留旧入口兼容，不倒填成客户已明确要求。
 
-该对象保留上述七个必需字段，并支持三个可选的明确交付声明：`coverDelivery` 为 `standalone` 或 `none`，分别声明独立 PNG/JPEG 封面或明确不要求封面；它不代替 `openWithCover` 的片头使用选择。`sidecarPolicy` 为 `dialogue-only` 或 `dialogue-and-composite-ass`：前者只声明对白侧车，后者同时声明对白 SRT/VTT 与包含对白和已请求持续文字的完整组合 ASS，不能把两类文件说成文字内容完全相同。`persistentSubtitleText` 采用与正式 CLI 一致的单行 1–120 个 Unicode 字符要求，去除两端空白但不截断，不接受换行、控制字符或无效 Unicode；持续文字与标题卡、片头封面或不能承载它的字幕策略冲突时明确失败。省略这些可选项不增加新的客户要求，非法值或相互矛盾的明确声明不会静默降级。
+该对象保留上述七个必需字段，并支持四个可选的明确交付声明：`coverDelivery` 为 `standalone` 或 `none`，分别声明独立 PNG/JPEG 封面或明确不要求封面；它不代替 `openWithCover` 的片头使用选择。`coverIntroSeconds` 为 0–5 秒有限数，默认 0.6 秒，0 表示显式关闭封面片头。`sidecarPolicy` 为 `dialogue-only` 或 `dialogue-and-composite-ass`：前者只声明对白侧车，后者同时声明对白 SRT/VTT 与包含对白和已请求持续文字的完整组合 ASS，不能把两类文件说成文字内容完全相同。`persistentSubtitleText` 采用与正式 CLI 一致的单行 1–120 个 Unicode 字符要求，去除两端空白但不截断，不接受换行、控制字符或无效 Unicode；持续文字与标题卡或不能承载它的字幕策略冲突时明确失败，但可与静音封面片头共存。省略这些可选项不增加新的客户要求，非法值或相互矛盾的明确声明不会静默降级。
 
-这些值只进入本次 PRD 制作要求、规则交付清单和模型执行计划输入，不创建封面、字幕或视频，不把计划标成已完成，也不自动透传成服务端 worker 的后期参数。工作台仍须把真实声明与正式 CLI 的 `--no-open-with-cover`、`--no-title-card`、`--subtitle-mode`、`--subtitle-persistent-text` 及实际 `cover`/`subtitle` 阶段逐项核对，并检查本次当前文件和加工回执。原生音频与其它未声明交付项保留原有口径。
+这些值只进入本次 PRD 制作要求、规则交付清单和模型执行计划输入，不创建封面、字幕或视频，不把计划标成已完成，也不自动透传成服务端 worker 的后期参数。工作台仍须把真实声明与正式 CLI 的 `--cover-intro-seconds`、`--no-title-card`、`--subtitle-mode`、`--subtitle-persistent-text` 及实际 `cover`/`cover-intro`/`subtitle` 阶段逐项核对，并检查本次当前文件和加工回执。原生音频与其它未声明交付项保留原有口径。
+
+**完整视频交付合同**：`variant.path`、独立封面 PNG 和软字幕轨都只是质量链中间证据。多风格作业的最终可发布件必须来自 `delivery-manifest.json#publish.recommended`，路径固定为交付根内 `variants/<id>/*.cover.mp4`，带视频 SHA-256、时长、封面 SHA-256 和 `completeVideo=true`。任何位于 `work/**`、需要调用方自行拼接或只有封面图的产物都不能标成完整成片。默认封面片头 0.6 秒且静音；项目显式覆盖时必须在收尾报告中写明实际秒数和总时长。
 
 宿主仅把明确制作要求交给原有规则模块；叙事、台词和画面表达仍由原有模型生成。模型场景的 ID、顺序、时长及选角必须继承本次已审 G3，不允许超时后按比例改写以凑齐目标。PRD 携带人物档案/版本来源及场景合同，空 `portraitPath` 不等于已完成或未通过定妆照；G5 继续独立审核。模型失败、降级、结构错误、作用域关闭或原件变化均停止，不能用最小模板文档继续生产。
 

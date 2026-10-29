@@ -1,0 +1,13 @@
+
+ RUN  v4.1.11 /Users/mac/Documents/Codex/2026-10-28/https-github-com-geniusdapeng-collab-workloom-2/work/WorkLoom-video-edit-mcd
+
+
+ Test Files  1 passed (1)
+      Tests  1 passed | 24 skipped (25)
+   Start at  14:16:25
+   Duration  173ms (transform 60ms, setup 0ms, import 74ms, tests 2ms, environment 0ms)
+
+
+
+exit_code=0 signal=none error=none
+assertion_validation={"ok":true,"errors":[]}

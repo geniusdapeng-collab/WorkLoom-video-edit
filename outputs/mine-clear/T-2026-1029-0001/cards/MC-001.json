@@ -1,0 +1,58 @@
+{
+  "id": "MC-001",
+  "kind": "problem",
+  "level": "L4",
+  "severity": "P1",
+  "batch": 2,
+  "state": "open",
+  "title": "多风格交付没有把含封面完整视频做成规范发布件，发布推荐仍指向临时工作目录",
+  "evidence": [
+    {
+      "type": "code",
+      "ref": "scripts/tools/edit-cover.mts:714@aed12c92ab8af4295404d6dbb47981cdccad76e4",
+      "sha256": "d06d29f83f923cf9faf090d1eda57431891f7c2d3ac5fd069005af00ee039828",
+      "note": "封面烧封输出先写入 out/work/cover-versions/<attempt>/，该路径用于暂存而不是稳定交付。"
+    },
+    {
+      "type": "code",
+      "ref": "scripts/tools/edit-cover.mts:767@aed12c92ab8af4295404d6dbb47981cdccad76e4",
+      "sha256": "d06d29f83f923cf9faf090d1eda57431891f7c2d3ac5fd069005af00ee039828",
+      "note": "burnIntro>0 时 publish 直接引用上面的临时 output，没有提升到 delivery-forms 约定的 variants/<id>/<id>.burned.cover.mp4。"
+    },
+    {
+      "type": "code",
+      "ref": "scripts/tools/full-chain-film.mts:6181@aed12c92ab8af4295404d6dbb47981cdccad76e4",
+      "sha256": "b1b1ea0d7bd4fbd5a0b9e5ac11bc47d778de8d7fb7236f7eeb11837f5167cccc",
+      "note": "多风格 manifest 的 variants 只有基础视频和封面 PNG；完整含封面视频不作为 variant 发布件进入清单。"
+    }
+  ],
+  "root_cause": {
+    "file": "scripts/tools/edit-cover.mts",
+    "line": 714,
+    "commit": "aed12c92ab8af4295404d6dbb47981cdccad76e4",
+    "symbol": "main/burn intro"
+  },
+  "trigger_path": "先 edit:post 或 deliver 出多风格变体，再单独 edit:cover，最终选片者拿到 variants 基础视频，含封面文件留在 work/cover-versions 且不属于默认发布件。",
+  "regression": {
+    "command": "node --test --test-concurrency=1 --test-name-pattern=真实全链CLI接收黑屏 scripts/tools/full-chain-failure.test.mjs"
+  },
+  "assertions": [
+    {
+      "kind": "property",
+      "given": "任意多风格交付完成封面烧封",
+      "expect": "每支变体都有 canonical variants/<id>/<id>.cover.mp4，manifest.publish.recommended 只引用交付根内稳定路径且带 sha256",
+      "command": "node --test --test-concurrency=1 --test-name-pattern=真实全链CLI接收黑屏 scripts/tools/full-chain-failure.test.mjs",
+      "exec": {
+        "file": "node",
+        "args": [
+          "--test",
+          "--test-concurrency=1",
+          "--test-name-pattern=真实全链CLI接收黑屏",
+          "scripts/tools/full-chain-failure.test.mjs"
+        ]
+      },
+      "last_result": "not-run"
+    }
+  ],
+  "notes": "当前真人短片的 1.6s 和 0.6s 完整视频都只能在 work/cover-versions 下找到，说明不是单次操作错误。"
+}

@@ -41,6 +41,8 @@ export interface PrdProductionProfile {
   subtitleMode?: "both" | "burned" | "sidecar" | "none";
   nativeAudio?: boolean;
   openWithCover?: boolean;
+  /** Complete-video cover intro duration; 0 disables the intro. */
+  coverIntroSeconds?: number;
   titleCard?: boolean;
   durationToleranceFrames?: number;
   /** Separate-file obligation only; it does not enable an opening cover. */
@@ -99,7 +101,7 @@ export function normalizePrdProductionProfile(metadata: RequirementRecord): PrdP
   const explicit = Object.hasOwn(brief, "productionRequirements");
   const production = explicit ? requirementRecord(brief.productionRequirements, "Brief.productionRequirements") : undefined;
   const required = ["resolution", "frameRate", "subtitleMode", "nativeAudio", "openWithCover", "titleCard", "durationToleranceFrames"];
-  const keys = [...required, "coverDelivery", "sidecarPolicy", "persistentSubtitleText"];
+  const keys = [...required, "coverDelivery", "sidecarPolicy", "persistentSubtitleText", "coverIntroSeconds"];
   if (production && (Object.keys(production).some(key => !keys.includes(key)) || required.some(key => !Object.hasOwn(production, key)))) {
     prdFail("PRD_PROFILE_INVALID", "productionRequirements 必须完整且不能包含未定义字段");
   }
@@ -137,6 +139,11 @@ export function normalizePrdProductionProfile(metadata: RequirementRecord): PrdP
     || (Object.hasOwn(production, "sidecarPolicy") && !["dialogue-only", "dialogue-and-composite-ass"].includes(production.sidecarPolicy as string))) {
     prdFail("PRD_PROFILE_INVALID", "独立封面或字幕旁挂口径非法");
   }
+  if (Object.hasOwn(production, "coverIntroSeconds")
+    && (typeof production.coverIntroSeconds !== "number" || !Number.isFinite(production.coverIntroSeconds)
+      || production.coverIntroSeconds < 0 || production.coverIntroSeconds > 5)) {
+    prdFail("PRD_PROFILE_INVALID", "封面片头时长必须为 0–5 秒的有限数");
+  }
   const normalized = { ...profile, ...production } as PrdProductionProfile;
   if (Object.hasOwn(production, "persistentSubtitleText")) {
     const value = production.persistentSubtitleText;
@@ -148,9 +155,9 @@ export function normalizePrdProductionProfile(metadata: RequirementRecord): PrdP
       prdFail("PRD_PROFILE_INVALID", "持续字幕须为1至120个Unicode字符，不能含换行、控制字符或无效Unicode");
     }
     normalized.persistentSubtitleText = text;
-    if (normalized.subtitleMode === "none" || normalized.titleCard !== false || normalized.openWithCover !== false
+    if (normalized.subtitleMode === "none" || normalized.titleCard !== false
       || (["both", "sidecar"].includes(normalized.subtitleMode!) && normalized.sidecarPolicy !== "dialogue-and-composite-ass")) {
-      prdFail("PRD_PROFILE_INVALID", "持续字幕与字幕关闭、标题卡、片头封面或缺少完整组合ASS的旁挂口径冲突");
+      prdFail("PRD_PROFILE_INVALID", "持续字幕与字幕关闭、标题卡或缺少完整组合ASS的旁挂口径冲突；封面片头可独立存在");
     }
   }
   if (normalized.sidecarPolicy !== undefined && !["both", "sidecar"].includes(normalized.subtitleMode!)) {
@@ -252,7 +259,7 @@ export function authoritativeDelivery(value: unknown, profile: PrdProductionProf
 }
 
 function hasDeliveryPlan(profile: PrdProductionProfile): boolean {
-  return ["coverDelivery", "sidecarPolicy", "persistentSubtitleText"].some(key => Object.hasOwn(profile, key));
+  return ["coverDelivery", "sidecarPolicy", "persistentSubtitleText", "coverIntroSeconds"].some(key => Object.hasOwn(profile, key));
 }
 
 /** These are rule-owned obligations, never a model plan or a completed media receipt. */

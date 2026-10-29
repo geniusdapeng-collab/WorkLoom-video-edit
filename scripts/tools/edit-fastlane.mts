@@ -13,14 +13,15 @@
  *     --out-dir work/edit/<film>/fastlane [--mode full|light] [--variants warm-story,clean-tech]
  *     [--danmaku <danmaku.json>] [--analysis <understood.json>]… [--bgm-pack <曲库>]
  *     [--title "片名"] [--cover-title "封面主标题"] [--hook "封面副标题"]
- *     [--variant-copy <cover-copy.json>] [--platform 哔哩哔哩] [--bridge-url <url>]
+ *     [--variant-copy <cover-copy.json>] [--copies <cover-copy-deck.json>] [--style-map <variant-style.json>]
+ *     [--platform 哔哩哔哩] [--bridge-url <url>]
  *     [--bgm <曲目>] [--name "<文件名>"] [--music-level -23] [--json]
  *     [--bgm-section auto|climax|calm|full] [--bgm-cut-driven]
  *     [--clarity auto|off|light|medium|strong]
  *
  * full 模式（默认）：
  *   ① edit:post（1920×1080 全链路，含变体调色/BGM/字幕/转场/弹幕；分段调色需显式 --segment-color）
- *   ② edit:cover（封面三风格机检 + 1.6s 烧封片头，写推荐发布件）
+ *   ② edit:cover（封面三风格机检 + 统一 0.6s 烧封片头，写推荐发布件）
  * light 模式：
  *   edit:assemble → subtitle-cli burn → bgm-cli mix（几分钟量级的"先看版"）
  */
@@ -139,8 +140,10 @@ function main(): void {
     "--input", join(deliveryDir, "master/master-clean.mp4"), "--out-dir", deliveryDir,
     "--timeline", timelineFile, "--variants", variants, "--platform", platform,
     "--title", arg("--cover-title", title), "--hook", arg("--hook", ""),
-    "--burn-intro", "1.6", "--renderer", "auto", "--json",
+    "--renderer", "auto", "--json",
     ...(arg("--variant-copy") ? ["--variant-copy", abs(arg("--variant-copy"))] : []),
+    ...(arg("--copies") ? ["--copies", abs(arg("--copies"))] : []),
+    ...(arg("--style-map") ? ["--style-map", abs(arg("--style-map"))] : []),
     ...(arg("--bridge-url") ? ["--bridge-url", arg("--bridge-url")] : [])];
   steps.push(run("cover-1080p", coverArgs, join(deliveryDir, "covers", "cover-report.json")));
   if (!steps.at(-1)!.ok) throw fail(steps, outDir, mode);

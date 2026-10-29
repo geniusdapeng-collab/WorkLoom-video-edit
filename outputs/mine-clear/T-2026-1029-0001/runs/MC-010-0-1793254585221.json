@@ -1,0 +1,41 @@
+{
+  "schema": "workloom.evidence-run/v1",
+  "id": "MC-010-0-1793254585221",
+  "command": "node_modules/.bin/vitest run packages/video-studio/src/cover-design.test.ts -t 字符数未超限",
+  "exec": {
+    "file": "node_modules/.bin/vitest",
+    "args": [
+      "run",
+      "packages/video-studio/src/cover-design.test.ts",
+      "--maxWorkers",
+      "1",
+      "--no-file-parallelism",
+      "-t",
+      "字符数未超限"
+    ]
+  },
+  "actor": "codex-acceptance-T-2026-1029-0001-final",
+  "role": "acceptance",
+  "subject": {
+    "card_id": "MC-010",
+    "assertion_index": 0
+  },
+  "commit": "55fa2d98c49642aa966dd237dcb8c59ac89de138",
+  "working_tree_dirty": false,
+  "started_at": "2026-10-29T06:16:25.221Z",
+  "finished_at": "2026-10-29T06:16:25.881Z",
+  "exit_code": 0,
+  "signal": null,
+  "validation": {
+    "ok": true,
+    "errors": []
+  },
+  "result": "pass",
+  "outputs": [
+    {
+      "path": "evidence/MC-010-0-1793254585221.txt",
+      "sha256": "d5d3e432981b1377956c4662317fa13b15015bf9b98fd78356b674142c7d9404",
+      "commit": "55fa2d98c49642aa966dd237dcb8c59ac89de138"
+    }
+  ]
+}

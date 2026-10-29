@@ -14,7 +14,7 @@
  *     --library <角色档案库根> --work-dir <.vm-work 根> --out <交付目录> \
  *     [--stages spec,plates,videos,compose,color,subtitle,danmaku,bgm,cover,mux,master] \
  *     [--subtitle-mode sidecar|burn|both]   # 缺省 burn：字幕直接烧进单交付母版 \
- *     [--subtitle-persistent-text "持续文字"] # 须 --no-title-card --no-open-with-cover；完整ASS保留此层 \
+ *     [--subtitle-persistent-text "持续文字"] # 须 --no-title-card；可与静音封面片头共存；完整ASS保留此层 \
  *     [--danmaku <items.json> | --auto-danmaku | --no-danmaku] \
  *     [--aspect 9:16|16:9|1:1|4:5] [--resolution 720p|1080p|2160p] [--quality hd|uhd] \
  *     [--enhance-kind live-action|animation] [--enhance-engine-dir <本地引擎目录>] \
@@ -27,6 +27,7 @@
  *   [--theme 知识科普|美食|旅行风光|…]   # 缺省从片名 + brief.goal 启发式匹配（匹配不到不注入）
  *   [--account chen-zhuo]           # 账号视觉锤档案（bundles/ai-video/library/account-profiles/<id>.yml）
  *   [--no-cover-kb]                 # 关闭封面知识库注入（退化为平台化之前的设计提示词）
+ *   [--cover-intro-seconds 0.6]      # 封面完整视频片头时长（统一默认 0.6s）
  *
  * 阶段日志：`<work-dir>/logs/stages.jsonl`（逐条：stage/shotId/invoked/ok/degraded/cached/verdict）
  * 阶段汇总：`<work-dir>/logs/stages.json`
@@ -93,6 +94,7 @@ import {
   type ProducerVerdict, type SceneBible, type ScenePolicyReport
 } from "../../packages/video-studio/src/index.js";
 import { normalizeShotIntent, shotIntentHash, type ShotIntentStatus } from "../../packages/video-studio/src/shot-intent.js";
+import { DEFAULT_COVER_INTRO_SECONDS, canonicalCoverIntroPath, canonicalCoverIntroRelativePath, parseCoverIntroSeconds } from "./lib/cover-delivery-policy.mjs";
 import { verifyAvSyncEvidence } from "../../packages/video-studio/src/av-sync.js";
 import { loadProductArchives, productArchivePromptLines, productHeroPhoto, productPhotoPath, selectProductArchive, autoBindProductSelector } from "../../packages/video-studio/src/product-archive.js";
 import { assertShotMatchesCertifiedAsset, assetIdOf, hasIdentityAnchor, identityAnchorContext, identityAnchorPath, identityReviewContext, loadRealPersonAssets, realPersonUsageReceipt, referenceAssetRefs, REAL_PERSON_POLICY_VERSION } from "../../packages/video-studio/src/real-person-asset.js";
@@ -126,7 +128,6 @@ if (persistentTextIndex >= 0 && (!process.argv[persistentTextIndex + 1] || proce
 const PERSISTENT_SUBTITLE_TEXT = persistentTextIndex < 0 ? null : validatePersistentSubtitleText(process.argv[persistentTextIndex + 1]);
 if (PERSISTENT_SUBTITLE_TEXT && !process.argv.includes("--no-title-card")) throw new Error("PERSISTENT_SUBTITLE_TITLE_CONFLICT: add --no-title-card; Title is a single text layer");
 if (PERSISTENT_SUBTITLE_TEXT && process.argv.includes("--opening-title")) throw new Error("PERSISTENT_SUBTITLE_TITLE_CONFLICT: decorative --opening-title cannot share the persistent Title layer");
-if (PERSISTENT_SUBTITLE_TEXT && !process.argv.includes("--no-open-with-cover")) throw new Error("PERSISTENT_SUBTITLE_INTRO_CONFLICT: add --no-open-with-cover; persistent text must cover the whole film");
 /** GUI 启动时 PATH 常不含工位 kit；只选经过仓内 pin 摘要核验的本机二进制。 */
 function verifiedLocalMediaBins(): { ffmpeg: string; ffprobe: string } | null {
   if (process.platform !== "darwin" || !["arm64", "x64"].includes(process.arch)) return null;
@@ -313,6 +314,7 @@ const COVER_KB_DIR = resolve(arg("--cover-kb-dir", join(REPO_ROOT, "bundles/ai-v
  * 缺省从片名 + brief.goal 启发式匹配 THEME-001 题材表；匹配不到就**不注入题材条目**（不硬凑）。
  */
 const COVER_THEME_ARG = arg("--theme", "");
+const COVER_INTRO_SECONDS = parseCoverIntroSeconds(arg("--cover-intro-seconds", ""), DEFAULT_COVER_INTRO_SECONDS);
 /** 账号定位档案（`--account <id>`）：读 `bundles/ai-video/library/account-profiles/<id>.yml`，注入视觉锤约束 */
 const COVER_ACCOUNT_ARG = arg("--account", "");
 const COVER_ACCOUNT_DIR = resolve(arg("--account-dir", join(REPO_ROOT, "bundles/ai-video/library/account-profiles")));
@@ -5733,16 +5735,16 @@ if (STAGES.has("cover") && existsSync(colored)) {
    * （轻微推近，避免"完全静止"）再接正片，输出 `<项目>-with-cover.mp4`。
    * 用 `--no-open-with-cover` 可关掉（平台若要求纯正片版本）。
    */
-  if (coverApproved && !flag("--no-open-with-cover") && existsSync(coverPng) && existsSync(scored)) {
+  if (coverApproved && COVER_INTRO_SECONDS > 0 && !flag("--no-open-with-cover") && existsSync(coverPng) && existsSync(scored)) {
     rememberInputs("cover-intro", [scored, coverPng]);
     try {
       const card = join(coverDir, "cover-card.mp4");
       const oversampleWidth = Math.round(OUTPUT_SIZE.width * 1.1 / 2) * 2;
       const oversampleHeight = Math.round(OUTPUT_SIZE.height * 1.1 / 2) * 2;
-      run(FFMPEG, ["-y", "-loop", "1", "-t", "1.2", "-i", coverPng,
-        "-f", "lavfi", "-t", "1.2", "-i", "anullsrc=r=48000:cl=stereo",
+      run(FFMPEG, ["-y", "-loop", "1", "-t", String(COVER_INTRO_SECONDS), "-i", coverPng,
+        "-f", "lavfi", "-t", String(COVER_INTRO_SECONDS), "-i", "anullsrc=r=48000:cl=stereo",
         "-vf", `scale=${oversampleWidth}:${oversampleHeight}:force_original_aspect_ratio=increase,`
-          + `crop=${oversampleWidth}:${oversampleHeight},zoompan=z='1.0+0.06*on/${Math.round(1.2 * FPS)}'`
+          + `crop=${oversampleWidth}:${oversampleHeight},zoompan=z='1.0+0.06*on/${Math.max(1, Math.round(COVER_INTRO_SECONDS * FPS))}'`
           + `:d=1:s=${OUTPUT_SIZE.width}x${OUTPUT_SIZE.height}:fps=${FPS},format=yuv420p`,
         "-map", "0:v", "-map", "1:a", "-c:v", "libx264", "-preset", "medium", "-crf", "18",
         "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "160k", "-shortest", card]);
@@ -5760,15 +5762,17 @@ if (STAGES.has("cover") && existsSync(colored)) {
         throw new Error(`片头合成尺寸 ${withCoverInfo.width}x${withCoverInfo.height}，要求 ${OUTPUT_SIZE.width}x${OUTPUT_SIZE.height}`);
       }
       scored = withCover;
-      expectedMasterSeconds = Number(withCoverInfo.duration ?? expectedMasterSeconds + 1.2);
-      log(`  ⇢ 封面已合成进片头：${withCover}（封面卡 1.2s + 正片，总时长 ${Number(probe(withCover).duration ?? 0).toFixed(2)}s）`);
+      expectedMasterSeconds = Number(withCoverInfo.duration ?? expectedMasterSeconds + COVER_INTRO_SECONDS);
+      log(`  ⇢ 封面已合成进片头：${withCover}（封面卡 ${COVER_INTRO_SECONDS.toFixed(2)}s + 正片，总时长 ${Number(probe(withCover).duration ?? 0).toFixed(2)}s）`);
       record({
         stage: "cover-intro", shotId: null, invoked: true, ok: true, cached: false, degraded: false, attempt: 1, ms: 0,
         artifact: withCover,
         evidence: {
           coverPng, card, withCover,
           durationSec: Number(probe(withCover).duration ?? 0),
-          note: "封面卡 1.2s（轻微推近）+ 正片；封面不再只是旁挂 PNG"
+          introSeconds: COVER_INTRO_SECONDS,
+          introAudio: "silent",
+          note: `封面卡 ${COVER_INTRO_SECONDS.toFixed(2)}s（轻微推近）+ 正片；封面不再只是旁挂 PNG`
         }, verdict: null, note: "封面合成进成片片头"
       });
     } catch (error) {
@@ -5975,6 +5979,10 @@ if (STAGES.has("deliver") && !DRY_RUN && (QUALITY !== "uhd" || masterApprovedFor
     width: number; height: number;
     cover?: { path: string; sha256: string } | null;
     bgm?: { track: string; sha256: string; measuredBpm?: number; gridErrorMs?: number } | null;
+    complete?: {
+      path: string; sha256: string; durationSec: number; introSeconds: number; introAudio: "silent";
+      coverPath: string; coverSha256: string; sourcePath: string; sourceSha256: string;
+    } | null;
   }> = [];
   /**
    * 变体封面（三轴之一，2026-09-26 产品口径）：主封面 + 该变体的强调色条与风格角标。
@@ -6089,6 +6097,62 @@ if (STAGES.has("deliver") && !DRY_RUN && (QUALITY !== "uhd" || masterApprovedFor
       throw err;
     }
   }
+  /**
+   * The complete publication artifact must contain the cover. Keep the content
+   * variant and its cover as separate quality-chain inputs, then emit a stable
+   * variants/<id>/<id>.cover.mp4 rather than leaving a work-directory derivative.
+   */
+  if (COVER_INTRO_SECONDS > 0) {
+    const completeWork = join(OUT_DIR, "work", "complete-cover-videos");
+    mkdirSync(completeWork, { recursive: true });
+    for (const variant of variantManifest) {
+      if (!variant.cover) throw new Error(`COMPLETE_VIDEO_COVER_MISSING: ${variant.id}`);
+      const source = variant.path, cover = variant.cover.path;
+      const sourceSha = sha256FileSync(source);
+      const coverSha = sha256FileSync(cover);
+      const sourceInfo = probe(source), coverInfo = probe(cover);
+      if (sourceInfo.error || coverInfo.error) throw new Error(`COMPLETE_VIDEO_INPUT_UNREADABLE: ${variant.id}`);
+      const width = Number(OUTPUT_SIZE.width), height = Number(OUTPUT_SIZE.height);
+      const sourceFps = Number(sourceInfo.fps ?? 0);
+      if (!(sourceFps > 0)) throw new Error(`COMPLETE_VIDEO_FPS_INVALID: ${variant.id}`);
+      const intro = join(completeWork, `${variant.id}-intro.mp4`);
+      const complete = canonicalCoverIntroPath(OUT_DIR, variant.id, "");
+      mkdirSync(dirname(complete), { recursive: true });
+      const hasAudio = sourceInfo.hasAudio === true;
+      const introArgs = [
+        "-hide_banner", "-loglevel", "error", "-y",
+        "-loop", "1", "-i", cover,
+        ...(hasAudio ? ["-f", "lavfi", "-i", "anullsrc=channel_layout=stereo:sample_rate=48000"] : []),
+        "-filter_complex", hasAudio
+          ? `[0:v]scale=${width}:${height},fps=${sourceFps},format=yuv420p[v];[1:a]atrim=0:${COVER_INTRO_SECONDS},asetpts=PTS-STARTPTS[a]`
+          : `[0:v]scale=${width}:${height},fps=${sourceFps},format=yuv420p[v]`,
+        "-map", "[v]",
+        ...(hasAudio ? ["-map", "[a]", "-c:a", "aac", "-ar", "48000", "-ac", "2"] : ["-an"]),
+        "-c:v", "libx264", "-preset", "medium", "-crf", "16",
+        "-t", String(COVER_INTRO_SECONDS), "-movflags", "+faststart", intro,
+      ];
+      run(FFMPEG, introArgs);
+      const listFile = join(completeWork, `${variant.id}-concat.txt`);
+      writeFileSync(listFile, `file '${intro.replace(/'/gu, "'\\''")}'\nfile '${source.replace(/'/gu, "'\\''")}'\n`, "utf8");
+      run(FFMPEG, ["-hide_banner", "-loglevel", "error", "-y", "-f", "concat", "-safe", "0", "-i", listFile,
+        "-c", "copy", "-movflags", "+faststart", complete]);
+      const info = probe(complete);
+      if (info.error || Number(info.width) !== width || Number(info.height) !== height) {
+        throw new Error(`COMPLETE_VIDEO_INVALID: ${variant.id}: ${String(info.error ?? `${info.width}x${info.height}`)}`);
+      }
+      if (Number(info.duration) <= Number(sourceInfo.duration)) {
+        throw new Error(`COMPLETE_VIDEO_DURATION_INVALID: ${variant.id}`);
+      }
+      if (sha256FileSync(source) !== sourceSha || sha256FileSync(cover) !== coverSha) {
+        throw new Error(`COMPLETE_VIDEO_INPUT_CHANGED: ${variant.id}`);
+      }
+      variant.complete = {
+        path: complete, sha256: sha256FileSync(complete), durationSec: Number(info.duration),
+        introSeconds: COVER_INTRO_SECONDS, introAudio: "silent",
+        coverPath: cover, coverSha256: coverSha, sourcePath: source, sourceSha256: sourceSha,
+      };
+    }
+  }
   if (sha256FileSync(variantSource) !== variantColorSourceSha256) throw new Error("VARIANT_COMMON_SOURCE_CHANGED");
   const gate = recordGate({
     stepKey: "deliver",
@@ -6105,6 +6169,18 @@ if (STAGES.has("deliver") && !DRY_RUN && (QUALITY !== "uhd" || masterApprovedFor
         pass: variantManifest.every((variant) => variant.width === OUTPUT_SIZE.width && variant.height === OUTPUT_SIZE.height),
         hard: true, detail: `变体 ${variantManifest.length} 支均须为 ${OUTPUT_SIZE.width}x${OUTPUT_SIZE.height}`
       },
+      {
+        id: "variant-complete-videos",
+        pass: COVER_INTRO_SECONDS === 0 || variantManifest.every((variant) => Boolean(
+          variant.complete?.path && variant.complete.sha256 && existsSync(variant.complete.path)
+            && sha256FileSync(variant.complete.path) === variant.complete.sha256
+            && variant.complete.durationSec > variant.complete.introSeconds
+        )),
+        hard: true,
+        detail: COVER_INTRO_SECONDS === 0
+          ? "本次显式关闭封面片头"
+          : `每支变体须有含 ${COVER_INTRO_SECONDS.toFixed(2)}s 静音封面片头的完整视频与哈希`,
+      },
       { id: "variants-produced", pass: variantManifest.length >= VARIANT_MIN_COUNT, hard: true, detail: `产出变体 ${variantManifest.length} 个（产品口径：至少 ${VARIANT_MIN_COUNT} 个不同风格的后期版本）：${variantManifest.map((v) => v.id).join("/")}` },
       { id: "variant-recipes", pass: new Set(variantManifest.map((variant) => variant.id)).size === variantManifest.length, hard: true, detail: "每个请求变体有独立配方ID及实际输出回执" },
     ],
@@ -6113,6 +6189,8 @@ if (STAGES.has("deliver") && !DRY_RUN && (QUALITY !== "uhd" || masterApprovedFor
         id: v.id, sha256: v.sha256.slice(0, 16),
         gradeProfile: v.gradeProfile, gradeIntensity: v.gradeIntensity, gradeLut: v.gradeLut,
         cover: v.cover ? { path: v.cover.path, sha256: v.cover.sha256.slice(0, 16) } : null,
+        complete: v.complete ? { path: v.complete.path, sha256: v.complete.sha256.slice(0, 16),
+          durationSec: v.complete.durationSec, introSeconds: v.complete.introSeconds } : null,
         bgm: v.bgm ? { track: v.bgm.track, sha256: v.bgm.sha256.slice(0, 16), measuredBpm: v.bgm.measuredBpm, gridErrorMs: v.bgm.gridErrorMs } : null,
       })),
       qualityReviewed: false, qualityScore: null,
@@ -6134,6 +6212,12 @@ if (STAGES.has("deliver") && !DRY_RUN && (QUALITY !== "uhd" || masterApprovedFor
     ...variant,
     path: publicDeliveryPath(variant.path),
     cover: variant.cover ? { ...variant.cover, path: publicDeliveryPath(variant.cover.path) } : null,
+    complete: variant.complete ? {
+      ...variant.complete,
+      path: publicDeliveryPath(variant.complete.path),
+      coverPath: publicDeliveryPath(variant.complete.coverPath),
+      sourcePath: publicDeliveryPath(variant.complete.sourcePath),
+    } : null,
   }));
   const coverFile = join(OUT_DIR, `${PROJECT}-cover.png`);
   const withCover = join(OUT_DIR, `${PROJECT}-with-cover.mp4`);
@@ -6145,7 +6229,7 @@ if (STAGES.has("deliver") && !DRY_RUN && (QUALITY !== "uhd" || masterApprovedFor
   const renderLedgerFile = join(OUT_DIR, `${PROJECT}-render-ledger.md`);
   writeFileSync(renderLedgerFile, renderLedgerMarkdown(renderLedger), "utf8");
   const stagedContentAssets = [...new Set([deliverablePath, ...stagedSubtitles,
-    ...variantManifest.flatMap((variant) => [variant.path, ...(variant.cover ? [variant.cover.path] : [])]),
+    ...variantManifest.flatMap((variant) => [variant.path, ...(variant.cover ? [variant.cover.path] : []), ...(variant.complete ? [variant.complete.path] : [])]),
     ...(existsSync(coverFile) ? [coverFile] : []),
     ...(softsubFile ? [softsubFile] : []),
     ...(existsSync(withCover) && stageApproved("cover-intro") ? [withCover] : []),
@@ -6159,6 +6243,17 @@ if (STAGES.has("deliver") && !DRY_RUN && (QUALITY !== "uhd" || masterApprovedFor
     if (!stagedContentAssets.includes(file)) { stagedContentAssets.push(file); assetHashes.push({ path: publicDeliveryPath(file), sha256: await sha256UhdAsset(file) }); }
   }
   const manifestFile = join(OUT_DIR, `${PROJECT}-delivery-manifest.json`);
+  const completeRecommendations = variantManifest.flatMap((variant) => variant.complete ? [{
+    variantId: variant.id,
+    file: canonicalCoverIntroRelativePath(variant.id, ""),
+    forms: "complete+cover",
+    sha256: variant.complete.sha256,
+    durationSec: variant.complete.durationSec,
+    coverPath: publicDeliveryPath(variant.complete.coverPath),
+    coverSha256: variant.complete.coverSha256,
+    completeVideo: true,
+    note: "完整视频：静音封面片头 + 原变体正片；封面与正片均来自本交付清单。",
+  }] : []);
   writeFileSync(manifestFile, `${JSON.stringify({ ...buildDeliveryManifest({
     projectId: PROJECT,
     platform: arg("--platform", "抖音/快手"),
@@ -6184,6 +6279,29 @@ if (STAGES.has("deliver") && !DRY_RUN && (QUALITY !== "uhd" || masterApprovedFor
     at: stamp()
   }), assets: assetHashes, generationQuality: deliveryGenerationQuality.manifest,
   ...(PERSISTENT_SUBTITLE_TEXT ? { persistentText: persistentSubtitleProof, portableSubtitleSidecars: "dialogue-only" } : {}),
+  ...(completeRecommendations.length ? {
+    coverIntro: {
+      defaultSeconds: COVER_INTRO_SECONDS,
+      canonical: true,
+      forms: variantManifest.flatMap((variant) => variant.complete ? [{
+        variantId: variant.id,
+        form: "complete",
+        output: publicDeliveryPath(variant.complete.path),
+        path: canonicalCoverIntroRelativePath(variant.id, ""),
+        sha256: variant.complete.sha256,
+        duration: variant.complete.durationSec,
+        introSeconds: variant.complete.introSeconds,
+        introAudio: variant.complete.introAudio,
+        sourceSha256: variant.complete.sourceSha256,
+        coverSha256: variant.complete.coverSha256,
+      }] : []),
+    },
+    publish: {
+      completeVideo: true,
+      recommended: completeRecommendations,
+      note: "优先交付 publish.recommended 中的完整封面视频，不把封面 PNG 或基础变体当最终发布件。",
+    },
+  } : {}),
   colorPolicy: { version: AI_COLOR_POLICY_VERSION, masterMode: COLOR_MODE,
     commonSourceSha256: variantColorSourceSha256, independentVariants: true },
   qualityReport: { path: relative(OUT_DIR, deliveryGenerationQuality.qualityFile.path), sha256: deliveryGenerationQuality.qualityFile.sha256 }, quality: {

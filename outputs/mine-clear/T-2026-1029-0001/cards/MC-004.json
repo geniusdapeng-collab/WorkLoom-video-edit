@@ -1,0 +1,52 @@
+{
+  "id": "MC-004",
+  "kind": "problem",
+  "level": "L2",
+  "severity": "P1",
+  "batch": 2,
+  "state": "open",
+  "title": "显式选择 Compositor 时仍会静默降级到 ffmpeg，调用方无法确保数字人设计师工位实际执行",
+  "evidence": [
+    {
+      "type": "code",
+      "ref": "scripts/tools/edit-cover.mts:605@aed12c92ab8af4295404d6dbb47981cdccad76e4",
+      "sha256": "d06d29f83f923cf9faf090d1eda57431891f7c2d3ac5fd069005af00ee039828",
+      "note": "工位合成异常后仅把 bridge.available 改为 false，随后进入 ffmpeg 降级路径。"
+    },
+    {
+      "type": "code",
+      "ref": "scripts/tools/edit-cover.mts:341@aed12c92ab8af4295404d6dbb47981cdccad76e4",
+      "sha256": "d06d29f83f923cf9faf090d1eda57431891f7c2d3ac5fd069005af00ee039828",
+      "note": "renderer 参数未校验，compositor 与任意未知值都走自动探测/降级语义。"
+    }
+  ],
+  "root_cause": {
+    "file": "scripts/tools/edit-cover.mts",
+    "line": 605,
+    "commit": "aed12c92ab8af4295404d6dbb47981cdccad76e4",
+    "symbol": "main/bridge catch"
+  },
+  "trigger_path": "用户或自动化显式传 --renderer compositor，但工位离线/返回错误；CLI 仍成功退出并产出 ffmpeg 封面，manifest 可能被误认为设计师工位产物。",
+  "regression": {
+    "command": "node --test --test-concurrency=1 --test-name-pattern=explicit\\ compositor\\ renderer scripts/tools/edit-cover-guards.node-test.mjs"
+  },
+  "assertions": [
+    {
+      "kind": "sample",
+      "given": "--renderer compositor 且工位不可达",
+      "expect": "非零退出并报告 COMPOSITOR_UNAVAILABLE，不生成完成清单",
+      "command": "node --test --test-concurrency=1 --test-name-pattern=explicit compositor renderer scripts/tools/edit-cover-guards.node-test.mjs",
+      "exec": {
+        "file": "node",
+        "args": [
+          "--test",
+          "--test-concurrency=1",
+          "--test-name-pattern=explicit compositor renderer",
+          "scripts/tools/edit-cover-guards.node-test.mjs"
+        ]
+      },
+      "last_result": "not-run"
+    }
+  ],
+  "notes": ""
+}

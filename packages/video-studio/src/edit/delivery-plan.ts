@@ -153,7 +153,7 @@ export function planDelivery(input: DeliveryPlanInput): DeliveryPlan {
     steps: [
       { step: "源片逐帧核验（preflight）", minutes: roundMinutes(preflight), note: `按 ${Math.round(sources)}s 素材逐帧计数，防止拿错源片` },
       { step: `1080P 全链路 ×${variants} 变体`, minutes: roundMinutes(full1080Render), note: "调色 + BGM + 字幕 + 转场 + 干净/软字幕/烧字三形态 + 弹幕" },
-      { step: "封面设计/机检/烧封 + 清单复验", minutes: roundMinutes((rates.cover1080Minutes + rates.fixedOverheadMinutes) * 60 * f), note: "封面三风格机检、1.6s 烧封片头、delivery-manifest" },
+      { step: "封面设计/机检/烧封 + 清单复验", minutes: roundMinutes((rates.cover1080Minutes + rates.fixedOverheadMinutes) * 60 * f), note: "封面三风格机检、默认 0.6s 烧封片头、完整视频发布件与 delivery-manifest" },
     ],
   };
 

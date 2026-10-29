@@ -27,6 +27,29 @@ const pixels = (value) => Array.isArray(value) && value.length === 2 && value.ev
 const message = (error) => error instanceof Error ? error.message : String(error);
 const sameIdentity = (a, b) => a.dev === b.dev && a.ino === b.ino && a.size === b.size && a.mtimeMs === b.mtimeMs && a.ctimeMs === b.ctimeMs;
 
+/**
+ * A variant may publish more than one complete-video form (for example burned
+ * and burned+danmaku). Require at least one stable, hashed complete video per
+ * requested variant; exact count equality would reject valid multi-form jobs.
+ */
+export function completeVideoPublishGate(manifest) {
+  const variants = Array.isArray(manifest?.variants) ? manifest.variants : [];
+  const completePublish = (manifest?.publish?.recommended ?? []).filter((entry) => entry?.completeVideo === true);
+  const required = manifest?.publish?.completeVideo === true;
+  return {
+    required,
+    completePublish,
+    ok: !required || (
+      completePublish.length >= variants.length
+      && variants.every((variant) => completePublish.some((entry) =>
+        entry.variantId === variant.id
+        && String(entry.file ?? entry.path ?? "").startsWith(`variants/${variant.id}/`)
+        && !/(^|\/)work(\/|$)/u.test(String(entry.file ?? entry.path ?? ""))
+        && hasHash(entry.sha256)))
+    ),
+  };
+}
+
 /** Explicit font pins must carry actual ASS bytes and the renderer's fontselect result. */
 async function fontEvidenceMatches(font, requestedId, scene) {
   if (!(typeof requestedId === "string" && Boolean(requestedId) && font?.requestedFontId === requestedId
@@ -359,6 +382,12 @@ export async function inspectDeliveryManifest({ root, manifest, bins, phase = "p
   for (const [index, form] of (manifest.coverIntro?.forms ?? []).entries()) {
     add(`cover-intro:${index}`, { ...form, path: form.output ?? form.path }, "video", ["resolution"], { requireSubtitleStream: form.form === "softsub" || form.form === ".softsub" || form.sourceForm === "softsub" });
   }
+  const completePublishGate = completeVideoPublishGate(manifest);
+  const completePublish = completePublishGate.completePublish;
+  for (const [index, entry] of completePublish.entries()) {
+    add(`complete-publish:${index}`, { ...entry, path: entry.file ?? entry.path }, "video", ["cover", "resolution"],
+      { durationSeconds: entry.durationSec });
+  }
   const proofs = manifest.processing ?? [];
   for (const [index, proof] of proofs.entries()) {
     const id = `processing:${index}`;
@@ -419,6 +448,11 @@ export async function inspectDeliveryManifest({ root, manifest, bins, phase = "p
     { kind: "requested-variants", hard: true, ok: Array.isArray(manifest.postRequirements?.variantIds)
       && manifest.postRequirements.variantIds.length === variants.length
       && manifest.postRequirements.variantIds.every((id) => variants.filter((variant) => variant.id === id).length === 1) },
+    ...(completePublishGate.required ? [{
+      kind: "complete-video-publish",
+      hard: true,
+      ok: completePublishGate.ok,
+    }] : []),
   ];
   const report = await inspectPostQuality({ root, assets, contract, receipts, bins, checks: [...required,
     ...(manifest.checks ?? []).map((row) => ({ ...row, hard: row.hard !== false })), ...extraChecks] });

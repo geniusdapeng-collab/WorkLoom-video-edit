@@ -1,0 +1,49 @@
+{
+  "id": "MC-006",
+  "kind": "problem",
+  "level": "L1",
+  "severity": "P1",
+  "batch": 1,
+  "state": "open",
+  "title": "封面标题只校验字符数，不校验实际排版宽度，导致合法字数仍被挤成单字换行",
+  "evidence": [
+    {
+      "type": "code",
+      "ref": "packages/video-studio/src/cover-design.ts:355@aed12c92ab8af4295404d6dbb47981cdccad76e4",
+      "sha256": "f7b93cefab6bcd6671f2edaac85680652c7c9f5756c0c9526e1f67c3eeeefdb7",
+      "note": "validateCoverPlan 只比较 visualLength 与平台上限，没有用字级和可用宽度计算行长。"
+    }
+  ],
+  "root_cause": {
+    "file": "packages/video-studio/src/cover-design.ts",
+    "line": 355,
+    "commit": "aed12c92ab8af4295404d6dbb47981cdccad76e4",
+    "symbol": "validateCoverPlan"
+  },
+  "trigger_path": "标题字符数低于平台上限但字级较高时通过设计稿校验；视觉工位按固定文本宽度换行，出现末字单独成行或越界。",
+  "regression": {
+    "command": "node_modules/.bin/vitest run packages/video-studio/src/cover-design.test.ts --maxWorkers 1 --no-file-parallelism"
+  },
+  "assertions": [
+    {
+      "kind": "sample",
+      "given": "抖音 1080×1920，主标题 9 字，headlineSizeRatio=0.0667",
+      "expect": "按估算字宽超过 84% 可用宽度时拒绝",
+      "command": "node_modules/.bin/vitest run packages/video-studio/src/cover-design.test.ts -t 字符数未超限",
+      "exec": {
+        "file": "node_modules/.bin/vitest",
+        "args": [
+          "run",
+          "packages/video-studio/src/cover-design.test.ts",
+          "--maxWorkers",
+          "1",
+          "--no-file-parallelism",
+          "-t",
+          "字符数未超限"
+        ]
+      },
+      "last_result": "not-run"
+    }
+  ],
+  "notes": "这是当前短片“赛道专用，别想上路”单字换行的通用根因。"
+}

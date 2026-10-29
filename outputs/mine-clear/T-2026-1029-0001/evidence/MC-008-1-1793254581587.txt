@@ -1,0 +1,20 @@
+TAP version 13
+# Subtest: persistent text may coexist with a silent cover intro; only the title-card conflict remains
+ok 1 - persistent text may coexist with a silent cover intro; only the title-card conflict remains
+  ---
+  duration_ms: 340.710458
+  type: 'test'
+  ...
+1..1
+# tests 1
+# suites 0
+# pass 1
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 394.804542
+
+
+exit_code=0 signal=none error=none
+assertion_validation={"ok":true,"errors":[],"testSummary":{"total":1,"passed":1,"failed":0,"cancelled":0,"skipped":0,"todo":0}}

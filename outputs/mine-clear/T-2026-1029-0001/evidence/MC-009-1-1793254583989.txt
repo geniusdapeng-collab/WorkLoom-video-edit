@@ -1,0 +1,20 @@
+TAP version 13
+# Subtest: explicit compositor renderer never silently falls back to ffmpeg
+ok 1 - explicit compositor renderer never silently falls back to ffmpeg
+  ---
+  duration_ms: 127.108875
+  type: 'test'
+  ...
+1..1
+# tests 1
+# suites 0
+# pass 1
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 173.379209
+
+
+exit_code=0 signal=none error=none
+assertion_validation={"ok":true,"errors":[],"testSummary":{"total":1,"passed":1,"failed":0,"cancelled":0,"skipped":0,"todo":0}}
