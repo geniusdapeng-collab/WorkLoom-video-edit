@@ -4,7 +4,7 @@
  * 三池账本 / routeSmart 全链路（场景×套餐×复杂度×降级语义）/ 升级重答与配额 / 自动调表
  */
 import { describe, expect, it } from "vitest";
-import { MockProvider } from "./providers.js";
+import { MockProvider, type ModelProvider } from "./providers.js";
 import {
   DEFAULT_MODEL_POLICY, legacyTierToTier3, parseModelPolicy, resolveTier, shiftTier,
   tierDown, tierUp, type ModelPolicy,
@@ -122,6 +122,27 @@ describe("国产三档模型池", () => {
     const pool = poolFromEnv();
     expect(pool.size).toBe(MODEL_CATALOG.length);
   });
+
+  it("DeepSeek provider never sends GLM/Kimi model IDs to the same gateway", () => {
+    const keys = ["LLM_PROVIDER", "LLM_BASE_URL", "LLM_API_KEY", "DEEPSEEK_API_KEY", "LLM_FORCE_MODEL"] as const;
+    const previous = Object.fromEntries(keys.map((key) => [key, process.env[key]]));
+    try {
+      process.env.LLM_PROVIDER = "deepseek";
+      process.env.LLM_BASE_URL = "https://api.deepseek.com";
+      process.env.LLM_API_KEY = "";
+      process.env.DEEPSEEK_API_KEY = "test-only";
+      process.env.LLM_FORCE_MODEL = "";
+      const models = [...poolFromEnv().keys()];
+      expect(models).toContain("deepseek-flash");
+      expect(models.every((model) => model.startsWith("deepseek-"))).toBe(true);
+      expect(models.some((model) => /glm|kimi|qwen|minimax/i.test(model))).toBe(false);
+    } finally {
+      for (const key of keys) {
+        if (previous[key] === undefined) delete process.env[key];
+        else process.env[key] = previous[key];
+      }
+    }
+  });
 });
 
 /* ================= 积分计量与三池账本 ================= */
@@ -214,12 +235,21 @@ describe("routeSmart（场景 × 套餐 × 复杂度 × 真实计量）", () => 
     expect(r.passthrough).toBe(true);
   });
 
-  it("复杂度信号：超长输入自动升档 + 长文款前置", async () => {
+  it("token 长文信号在百万级预算内使用长上下文 Flash，不按字符抢先升档", async () => {
     const { sink, traces } = memSink();
-    const big = "长".repeat(1_000_001); // 超出百万级单任务预算 → 升 L2，且长文款在前
+    const big = "长".repeat(70_000); // ≈42K tokens，超过长文阈值但仍远低于 1M 上下文
     const r = await routeSmart(task({ messages: [{ role: "user", content: big }] }), mockPool(), sink);
-    expect(r.tier).toBe("L2");
-    expect(traces[0].model_id).toBe("deepseek-v4-pro");
+    expect(r.tier).toBe("L1");
+    expect(traces[0].model_id).toBe("deepseek-flash");
+  });
+
+  it("超出 1,048,576 token 组合预算时失败关闭，不调用替代模型", async () => {
+    const { sink, traces } = memSink();
+    const big = "长".repeat(1_800_000); // ≈1.08M input tokens + output reserve
+    const r = await routeSmart(task({ forceModel: "deepseek-flash", messages: [{ role: "user", content: big }] }), mockPool(), sink);
+    expect(r.kind).toBe("unavailable");
+    expect(r.degraded?.at(-1)?.reason).toContain("DEEPSEEK_CONTEXT_EXCEEDED");
+    expect(traces).toHaveLength(0);
   });
 
   it("显式模型 pin 使用百万级上下文能力，不升档也不替换其他模型", async () => {
@@ -257,11 +287,11 @@ describe("routeSmart（场景 × 套餐 × 复杂度 × 真实计量）", () => 
 
   it("降级留痕：主模型故障按链切换且每次写事件（L6.1 禁止静默）", async () => {
     const { sink, degrades, traces } = memSink();
-    const pool = mockPool({ "deepseek-v4-flash": { down: true } });
+    const pool = mockPool({ "deepseek-flash": { down: true } });
     const r = await routeSmart(task(), pool, sink);
     expect(r.kind).toBe("answered");
     expect(r.modelTrace!.model_id).toBe("glm-5.3-flash");
-    expect(degrades[0]).toMatchObject({ from: "deepseek-v4-flash", to: "glm-5.3-flash", reason: "unhealthy" });
+    expect(degrades[0]).toMatchObject({ from: "deepseek-flash", to: "glm-5.3-flash", reason: "unhealthy" });
     expect(traces.length).toBe(1);
   });
 });

@@ -138,6 +138,11 @@ describe("AI producer evidence gate", () => {
   it("credentials need all three fields", () => {
     expect(resolveProducerLlm({})).toBeNull(); expect(resolveProducerLlm({ LLM_BASE_URL: "x", LLM_API_KEY: "y" })).toBeNull();
     expect(resolveProducerLlm({ DEEPSEEK_BASE_URL: "https://api.example.com", DEEPSEEK_API_KEY: "k", DEEPSEEK_MODEL: "test" })?.model).toBe("test");
+    expect(resolveProducerLlm({
+      LLM_BASE_URL: "https://api.deepseek.com",
+      DEEPSEEK_API_KEY: "k",
+      DEEPSEEK_MODEL: "deepseek-flash",
+    })).toMatchObject({ model: "deepseek-flash", nonThinking: true });
   });
 });
 
@@ -332,22 +337,29 @@ describe("model-aware complete text evidence allocation", () => {
     expect(request.messages[0].content).toContainEqual({ type: "text", text: `以下是产物正文（完整）：${value.acceptedPath}\n${value.accepted}` });
   }
 
-  it.each(["deepseek-flash", "deepseek-v4-pro"])("sends all104441 UTF-16 units once to exact %s with original request settings and both hashes", async model => {
+  it.each(["deepseek-flash"])("sends all104441 UTF-16 units once to exact %s with original request settings and both hashes", async model => {
     const value = payload(model), bodies: string[] = [];
     expect(value.accepted).toHaveLength(51_977); expect(value.current).toHaveLength(52_464);
     expect(Buffer.byteLength(value.accepted + value.current, "utf8")).toBeGreaterThan(200_000);
     const verdict = await reviewStage(textOptions({ ...value.options, fetchImpl: judge(good, bodies) }));
     expect(verdict).toMatchObject({ approved: true, status: "passed", score: 85, degraded: false, via: "llm", model });
     expect(bodies).toHaveLength(1); expectFullText(bodies[0]!, value);
-    expect(JSON.parse(bodies[0]!)).toEqual({ model, messages: expect.any(Array), temperature: 0.2, response_format: { type: "json_object" } });
+    expect(JSON.parse(bodies[0]!)).toEqual({
+      model,
+      messages: expect.any(Array),
+      temperature: 0.2,
+      response_format: { type: "json_object" },
+      max_tokens: 16_384,
+      ...(model === "deepseek-flash" ? { thinking: { type: "disabled" } } : {}),
+    });
     expect(verdict.evidence).toEqual(value.options.artifacts.map(artifact => ({ path: artifact.path, sha256: artifact.expectedSha256, scope: "complete-text" })));
   });
 
   it.each([
-    { model: "deepseek-flash", total: 800_000, allowed: true },
-    { model: "deepseek-flash", total: 800_001, allowed: false },
-    { model: "deepseek-v4-pro", total: 800_000, allowed: true },
-    { model: "deepseek-v4-pro", total: 800_001, allowed: false },
+    { model: "deepseek-flash", total: 1_700_000, allowed: true },
+    { model: "deepseek-flash", total: 1_720_321, allowed: false },
+    { model: "deepseek-v4-pro", total: 100_000, allowed: true },
+    { model: "deepseek-v4-pro", total: 100_001, allowed: false },
   ])("enforces the exact aggregate boundary for $model at$total", async ({ model, total, allowed }) => {
     const value = payload(model, total), bodies: string[] = [];
     expect(value.accepted.length + value.current.length).toBe(total);
@@ -357,7 +369,7 @@ describe("model-aware complete text evidence allocation", () => {
     else expect(verdict).toMatchObject({ status: "unverified", degraded: true, reason: expect.stringContaining("完整评审预算") });
   });
 
-  it.each(["judge-unknown", "deepseek-chat", "deepseek-reasoner", "deepseek-flash-latest", "deepseek-v4-pro-preview", "provider/deepseek-flash", "DEEPSEEK-FLASH", " deepseek-flash", "deepseek-v4-pro "])(
+  it.each(["judge-unknown", "deepseek-chat", "deepseek-reasoner", "deepseek-flash-latest", "deepseek-v4-pro-preview", "provider/deepseek-flash", "DEEPSEEK-FLASH", "deepseek-v4-pro"])(
     "retains100k for unknown, legacy or noncanonical %j without wildcard matching", async model => {
       for (const total of [100_000, 100_001]) {
         const value = payload(model, total), bodies: string[] = [];
@@ -370,8 +382,8 @@ describe("model-aware complete text evidence allocation", () => {
   );
 
   it.each([
-    { model: "deepseek-flash", units: 800_000, extra: "", allowed: true },
-    { model: "deepseek-flash", units: 800_000, extra: "a", allowed: false },
+    { model: "deepseek-flash", units: 2_064_384, extra: "", allowed: true },
+    { model: "deepseek-flash", units: 2_064_384, extra: "a", allowed: false },
     { model: "deepseek-chat", units: 100_000, extra: "", allowed: true },
     { model: "deepseek-chat", units: 100_000, extra: "a", allowed: false },
   ])("counts surrogate pairs as UTF-16 units for$model/$units/$extra", async ({ model, units, extra, allowed }) => {
