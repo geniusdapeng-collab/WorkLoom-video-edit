@@ -107,7 +107,12 @@ describe("镜头时长规则（真机实测 4–30s）", () => {
     expect(ok.actualTotalSeconds).toBe(30);
   }, 60_000);
 
-  it("校验：总时长与目标偏差会被显式报出（±1s 容差）", () => {
+  it("校验：目标总时长允许 ±5s，边界外会显式报出", () => {
+    const within = validateShotDurations(
+      [{ shotId: "S1", duration: 10 }, { shotId: "S2", duration: 10 }, { shotId: "S3", duration: 6 }],
+      { targetTotalSeconds: 30 }
+    );
+    expect(within.pass).toBe(true);
     const drift = validateShotDurations(
       [{ shotId: "S1", duration: 10 }, { shotId: "S2", duration: 10 }],
       { targetTotalSeconds: 30 }

@@ -5,6 +5,7 @@ import {
   requirementHash, requirementRecord, validateRequirementSchema,
   type RequirementContract, type RequirementRecord
 } from "./requirement-contract.js";
+import { TARGET_DURATION_TOLERANCE_SECONDS } from "./duration-contract.js";
 
 export interface PrdMarketingScope {
   tenantId: string;
@@ -220,7 +221,7 @@ export function prdAuthorityPrompt(authority: PrdAuthority, contract: Requiremen
     + `客户受众原文是权威口径；模型年龄/性别细分仅为推测。只使用合同内人物，characterId 必须等于所选 id，姓名一致。`
     + `人物档案是人物表达依据，不能当成商品事实；保留其人物档案/版本来源锚点。portraitPath 可以留空，G5 后续独立核验，不能提前声称出图或一致性已通过。\n`
     + `制作规格 scenePlan.scenes 按合同节点顺序一一对应，sceneId 必须逐项等于合同 scenes[].id，duration 必须逐项等于该节点 duration。`
-    + `不得合并、拆分、漏掉开场或结尾；总时长必须等于 ${authority.profile.targetDuration ?? contract.scenes.reduce((sum, scene) => sum + scene.duration, 0)}s，不能先超时再让宿主按比例改写。`
+    + `不得合并、拆分、漏掉开场或结尾；总时长必须位于 ${authority.profile.targetDuration ?? contract.scenes.reduce((sum, scene) => sum + scene.duration, 0)}s 的 ±${TARGET_DURATION_TOLERANCE_SECONDS}s 内，且各节点时长必须继承已审 G3 合同。`
     + `完整保留场景原目的、角色行为、可见道具与创作原文；叙事语言由本次模型创作。\n`
     + `下面是本次宿主真实非降级 G1 通过的完整原件，仅授权其中已接受 claims 及其限定用途，不批准本次 PRD。`
     + `必须遵守原件明确 restrictions。完整阅读嵌套 A1/A2/A3 support review 的 issues 和 suggestions，回应其中的事实不确定性、来源/报道日期/用途限定。`
@@ -363,12 +364,17 @@ export function validatePrdModelPayload(value: unknown, kind: "creative" | "prod
 export function validatePrdProduction(value: unknown, contract: RequirementContract, profile: PrdProductionProfile): void {
   const result = requirementRecord(value, "PRD 制作规格");
   const scenes = list(requirementRecord(result.scenePlan, "PRD scenePlan").scenes, "PRD scenes").map(value => requirementRecord(value, "PRD scene"));
-  const tolerance = profile.durationToleranceFrames !== undefined && profile.frameRate !== undefined ? profile.durationToleranceFrames / profile.frameRate : 0;
+  const sceneTolerance = profile.durationToleranceFrames !== undefined && profile.frameRate !== undefined
+    ? profile.durationToleranceFrames / profile.frameRate
+    : 0;
   if (scenes.length !== contract.scenes.length || scenes.some((scene, index) => {
     const original = contract.scenes[index]!;
     return scene.sceneId !== original.id || scene.sequence !== index + 1 || typeof scene.duration !== "number"
-      || !Number.isFinite(scene.duration) || scene.duration <= 0 || Math.abs(scene.duration - original.duration) > tolerance + 1e-9;
-  }) || (profile.targetDuration !== undefined && Math.abs(scenes.reduce((total, scene) => total + Number(scene.duration), 0) - profile.targetDuration) > tolerance + 1e-9)) {
+      || !Number.isFinite(scene.duration) || scene.duration <= 0 || Math.abs(scene.duration - original.duration) > sceneTolerance + 1e-9;
+  }) || (profile.targetDuration !== undefined && !(
+    Math.abs(scenes.reduce((total, scene) => total + Number(scene.duration), 0) - profile.targetDuration)
+      <= Math.max(sceneTolerance, TARGET_DURATION_TOLERANCE_SECONDS) + 1e-9
+  ))) {
     prdFail("PRD_SCENE_DURATION_CONFLICT", "模型场景节点、顺序或时长未继承本次已审 G3，拒绝改写为凑齐目标");
   }
   const characters = list(requirementRecord(result.characterSystem, "PRD characterSystem").characters, "PRD characters").map(value => requirementRecord(value, "PRD character"));

@@ -1,4 +1,9 @@
 import { createHash } from "node:crypto";
+import {
+  SCENE_SUM_ARITHMETIC_TOLERANCE_SECONDS,
+  TARGET_DURATION_TOLERANCE_SECONDS,
+  withinTargetDurationTolerance,
+} from "./duration-contract.js";
 
 export type RequirementRecord = Record<string, unknown>;
 export const REQUIREMENT_CONTRACT_VERSION = "workloom.requirement-contract/v1";
@@ -30,7 +35,8 @@ export function structuredSceneFeedback(error: unknown): string {
   const facts = error instanceof RequirementContractError ? validationFacts.get(error) : undefined;
   if (!facts) return "";
   const duration = finiteNumber(facts.durationSum), target = finiteNumber(facts.targetDuration);
-  const durationCorrection = duration !== null && target !== null && Math.abs(duration - target) > 0.05
+  const durationCorrection = duration !== null && target !== null
+    && !withinTargetDurationTolerance(duration, target)
     ? `\n本次必须把 opening、scenes、ending 的 duration 合计${duration > target ? "减少" : "增加"} ${Math.abs(duration - target)} 秒，`
       + `并把 totalDuration 精确设为 ${target}；保持真实场景内容重新完整生成，不得复用或补填上一次节点。`
     : "";
@@ -293,8 +299,9 @@ export function requirementScenes(structureValue: unknown, cast: RequirementCast
   }
   const total = scenes.reduce((sum, scene) => sum + scene.duration, 0);
   const declared = structure.totalDuration, target = Number(targetDuration);
-  if (typeof declared !== "number" || !Number.isFinite(declared) || Math.abs(total - declared) > 0.05
-    || (Number.isFinite(target) && target > 0 && Math.abs(total - target) > 0.05)
+  if (typeof declared !== "number" || !Number.isFinite(declared)
+    || Math.abs(total - declared) > SCENE_SUM_ARITHMETIC_TOLERANCE_SECONDS
+    || (Number.isFinite(target) && target > 0 && !withinTargetDurationTolerance(total, target))
     || structure.sceneCount !== scenes.length) {
     // Fixed numeric fields only: diagnostics must never expose scene prose, cast,
     // source stories or the private authority appended to the model transport.
@@ -302,9 +309,10 @@ export function requirementScenes(structureValue: unknown, cast: RequirementCast
     const details = Object.freeze({ nodeCount: scenes.length, declaredSceneCount: number(structure.sceneCount),
       durationSum: number(total), declaredTotalDuration: number(declared), targetDuration: Number.isFinite(target) && target > 0 ? target : null,
       declaredDurationDelta: typeof declared === "number" ? number(total - declared) : null,
-      targetDurationDelta: Number.isFinite(target) && target > 0 ? number(total - target) : null });
+      targetDurationDelta: Number.isFinite(target) && target > 0 ? number(total - target) : null,
+      targetDurationToleranceSeconds: TARGET_DURATION_TOLERANCE_SECONDS });
     throw withValidationFacts(new RequirementContractError("REQUIREMENT_SCENE_UNVERIFIED",
-      `场景节点数或总时长与真实结构不一致；numeric ${JSON.stringify(details)}`), details);
+      `场景节点数、声明总时长或目标总时长（允许 ±${TARGET_DURATION_TOLERANCE_SECONDS}s）不一致；numeric ${JSON.stringify(details)}`), details);
   }
   return scenes;
 }
@@ -395,7 +403,7 @@ export function structuredSceneInstructions(cast: RequirementCast, audience: unk
     + `唯一出镜人物：${JSON.stringify(cast.characters.map(character => ({ id: character.id, name: character.name, role: character.role })))}。`
     + `动作 actorId 只能是这些 ID；非人物动作可用 "$product"（商品）或 "$scene"（环境）。\n`
     + `客户受众原文：${typeof audience === "string" ? audience : "未显式指定"}。不得把模型年龄/性别推测当作客户要求。\n`
-    + `自行决定开场、零个或多个主体节点和结尾；sceneCount 必须等于 opening + scenes.length + ending 的真实节点总数；节点时长之和必须等于 totalDuration 和目标时长。\n`
+    + `自行决定开场、零个或多个主体节点和结尾；sceneCount 必须等于 opening + scenes.length + ending 的真实节点总数；节点时长之和必须等于 totalDuration，并位于目标时长 ±${TARGET_DURATION_TOLERANCE_SECONDS} 秒内。\n`
     + `每个 opening、scenes[i]、ending 必须在原有 duration/purpose/keyElements 字段之外，直接输出 productionContract：\n`
     + `有可见道具时：{"props":[{"name":"镜头中实际可见的物体","description":"这个物体的可见形态或本场用途"}],"actions":[{"actorId":"所选人物ID或$product/$scene","description":"完整可拍的动作过程、对象和结果，至少6字"}]}\n`
     + `确实无可见道具时：{"props":[],"actions":[{"actorId":"$scene","description":"云影缓慢移过封闭场地的地面"}],"noPropsReason":"本场只展示环境光影变化，没有独立可见道具"}。有 props 时必须完全省略 noPropsReason，不能填空串或 null；两个示例互斥。\n`
@@ -429,15 +437,20 @@ export function structuredSceneTiming(schemaValue: unknown, targetDuration: numb
     const lower = opening.minimum + ending.minimum + count * middle.minimum;
     const upper = opening.maximum + ending.maximum + count * middle.maximum;
     if (!Number.isFinite(lower) || !Number.isFinite(upper)) return unsupported();
-    // Use the validator's subtraction/comparison, including its floating-point
-    // boundary. Rounding target or enforcing an exact sum here would tighten it.
-    if (!(lower > targetDuration && Math.abs(lower - targetDuration) > 0.05)
-      && !(upper < targetDuration && Math.abs(upper - targetDuration) > 0.05)) feasibleMiddleCounts.push(count);
+    // A count is feasible when its schema-derived duration interval intersects
+    // the accepted target band, not only the exact target point.
+    const acceptedMinimum = targetDuration - TARGET_DURATION_TOLERANCE_SECONDS;
+    const acceptedMaximum = targetDuration + TARGET_DURATION_TOLERANCE_SECONDS;
+    if (lower <= acceptedMaximum && upper >= acceptedMinimum) feasibleMiddleCounts.push(count);
   }
   if (!feasibleMiddleCounts.length) {
-    throw new RequirementContractError("REQUIREMENT_SCENE_UNVERIFIED", "本次 schema 时长边界内没有满足目标与现有 0.05 秒容差的节点数量");
+    throw new RequirementContractError("REQUIREMENT_SCENE_UNVERIFIED",
+      `本次 schema 时长边界内没有满足目标 ±${TARGET_DURATION_TOLERANCE_SECONDS} 秒容差的节点数量`);
   }
-  return Object.freeze({ targetDuration, tolerance: 0.05, opening, middle, ending,
+  return Object.freeze({ targetDuration,
+    targetToleranceSeconds: TARGET_DURATION_TOLERANCE_SECONDS,
+    arithmeticToleranceSeconds: SCENE_SUM_ARITHMETIC_TOLERANCE_SECONDS,
+    opening, middle, ending,
     middleCount: Object.freeze({ minimum, maximum }), feasibleMiddleCounts: Object.freeze(feasibleMiddleCounts) });
 }
 
@@ -491,7 +504,7 @@ ${example}
   const guidance = `场景数量与逐节点时长由本次模型根据叙事自行决定，不采用固定数量或预制镜头。scenes 数组只包含主体节点，opening 和 ending 各为一个独立节点。`;
   const contract = `本次实际 SceneArchitect 响应 JSON Schema（完整适用，不是示例成品）：\n${schema}\n`
     + `本次 schema 派生时长边界与可行数量（仅约束，不分配节点）：\n${JSON.stringify(timing)}\n`
-    + `以下精确结构约束优先于本段其余“约/≈”表述：sceneCount 必须等于 2 + scenes.length；所有节点 duration 之和必须同时等于 totalDuration 和目标 ${target} 秒（现有数值容差 0.05 秒）。`
+    + `以下精确结构约束优先于本段其余“约/≈”表述：sceneCount 必须等于 2 + scenes.length；所有节点 duration 之和必须等于 totalDuration（算术容差 ${SCENE_SUM_ARITHMETIC_TOLERANCE_SECONDS} 秒），并位于目标 ${target} 秒 ±${TARGET_DURATION_TOLERANCE_SECONDS} 秒内。`
     + `逐节点内容、数量和时长仍由本次模型创作，输出前核对节点数与时长之和；不得用预制节点或返回后补值替代。`;
   const exampleAt = suffix.indexOf(example);
   return value.slice(0, value.length - suffix.length) + guidance
