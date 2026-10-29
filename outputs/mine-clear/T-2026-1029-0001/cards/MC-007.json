@@ -1,0 +1,49 @@
+{
+  "id": "MC-007",
+  "kind": "problem",
+  "level": "L4",
+  "severity": "P2",
+  "batch": 3,
+  "state": "open",
+  "title": "封面文案候选表没有机器校验，设计岗位要求的五条候选和自检可被任意 JSON 绕过",
+  "evidence": [
+    {
+      "type": "code",
+      "ref": "scripts/tools/edit-cover.mts:338@aed12c92ab8af4295404d6dbb47981cdccad76e4",
+      "sha256": "d06d29f83f923cf9faf090d1eda57431891f7c2d3ac5fd069005af00ee039828",
+      "note": "--copies 只做 JSON.parse 后原样写入 plan，不校验候选数量、分数、选中项或 copySelfCheck。"
+    },
+    {
+      "type": "code",
+      "ref": "bundles/ai-video/presets/cover-designer.yml:28@aed12c92ab8af4295404d6dbb47981cdccad76e4",
+      "sha256": "00155f5e6271595d1c934c5577820d1e5916813b2a842ec395f8891a7509f908",
+      "note": "岗位规范要求至少 5 条候选、公式、评分及 copySelfCheck。"
+    }
+  ],
+  "root_cause": {
+    "file": "scripts/tools/edit-cover.mts",
+    "line": 338,
+    "commit": "aed12c92ab8af4295404d6dbb47981cdccad76e4",
+    "symbol": "main/copyDeck"
+  },
+  "trigger_path": "调用方传入空对象、少于 5 条候选或 failed/缺失自检的文案文件，封面链路仍成功并写入设计稿。",
+  "assertions": [
+    {
+      "kind": "property",
+      "given": "任意 cover copy deck",
+      "expect": "每个请求变体至少有 5 条带公式/事实/评分/理由的候选，chosen 命中候选且 copySelfCheck.passed=true",
+      "command": "node --import tsx --test scripts/tools/cover-delivery-policy.node-test.mts",
+      "exec": {
+        "file": "node",
+        "args": [
+          "--import",
+          "tsx",
+          "--test",
+          "scripts/tools/cover-delivery-policy.node-test.mts"
+        ]
+      },
+      "last_result": "not-run"
+    }
+  ],
+  "notes": ""
+}

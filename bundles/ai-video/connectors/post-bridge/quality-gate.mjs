@@ -359,6 +359,11 @@ export async function inspectDeliveryManifest({ root, manifest, bins, phase = "p
   for (const [index, form] of (manifest.coverIntro?.forms ?? []).entries()) {
     add(`cover-intro:${index}`, { ...form, path: form.output ?? form.path }, "video", ["resolution"], { requireSubtitleStream: form.form === "softsub" || form.form === ".softsub" || form.sourceForm === "softsub" });
   }
+  const completePublish = (manifest.publish?.recommended ?? []).filter((entry) => entry?.completeVideo === true);
+  for (const [index, entry] of completePublish.entries()) {
+    add(`complete-publish:${index}`, { ...entry, path: entry.file ?? entry.path }, "video", ["cover", "resolution"],
+      { durationSeconds: entry.durationSec });
+  }
   const proofs = manifest.processing ?? [];
   for (const [index, proof] of proofs.entries()) {
     const id = `processing:${index}`;
@@ -419,6 +424,16 @@ export async function inspectDeliveryManifest({ root, manifest, bins, phase = "p
     { kind: "requested-variants", hard: true, ok: Array.isArray(manifest.postRequirements?.variantIds)
       && manifest.postRequirements.variantIds.length === variants.length
       && manifest.postRequirements.variantIds.every((id) => variants.filter((variant) => variant.id === id).length === 1) },
+    ...(manifest.publish?.completeVideo === true ? [{
+      kind: "complete-video-publish",
+      hard: true,
+      ok: completePublish.length === variants.length
+        && variants.every((variant) => completePublish.some((entry) =>
+          entry.variantId === variant.id
+          && String(entry.file ?? entry.path ?? "").startsWith(`variants/${variant.id}/`)
+          && !/(^|\/)work(\/|$)/u.test(String(entry.file ?? entry.path ?? ""))
+          && hasHash(entry.sha256))),
+    }] : []),
   ];
   const report = await inspectPostQuality({ root, assets, contract, receipts, bins, checks: [...required,
     ...(manifest.checks ?? []).map((row) => ({ ...row, hard: row.hard !== false })), ...extraChecks] });

@@ -146,13 +146,13 @@ describe("封面设计稿", () => {
 
   it("平台标题口径：小红书 14 字、B站 16 字、英文平台按词计数", () => {
     const base = { ...validPlan, typography: { ...validPlan.typography } };
-    const xhs14: CoverPlan = { ...base, headline: "落霞秋水共长天一色的滕王阁夜" }; // 14 字
+    const xhs14: CoverPlan = { ...base, headline: "落霞秋水共长天\n一色的滕王阁夜" }; // 14 字
     expect(() => validateCoverPlan(xhs14, { ...input, platform: "小红书" })).not.toThrow();
     expect(() => validateCoverPlan({ ...base, headline: "落霞秋水共长天一色的滕王阁夜景" }, { ...input, platform: "小红书" }))
       .toThrow(/上限 14/);
     const bili16: CoverPlan = { ...base, headline: "落霞秋水共长天一色的滕王阁夜景里" }; // 16 字
     expect(() => validateCoverPlan(bili16, { ...input, platform: "bilibili" })).not.toThrow();
-    const tiktokEn: CoverPlan = { ...base, headline: "THIS $10 FIND BLEW UP", typography: { ...base.typography, color: "#FFFFFF", accentColor: "#FFD166" } };
+    const tiktokEn: CoverPlan = { ...base, headline: "THIS $10\nFIND BLEW UP", typography: { ...base.typography, headlineSizeRatio: 0.06, color: "#FFFFFF", accentColor: "#FFD166" } };
     expect(() => validateCoverPlan(tiktokEn, { ...input, platform: "tiktok" })).not.toThrow();
     expect(() => validateCoverPlan({ ...tiktokEn, headline: "THIS $10 FIND BLEW UP RIGHT NOW" }, { ...input, platform: "tiktok" }))
       .toThrow(/英文单词/);
@@ -173,6 +173,17 @@ describe("封面设计稿", () => {
       .toThrow(/不在白名单/);
     expect(() => validateCoverPlan({ ...validPlan, background: { ...validPlan.background, shotId: "SC-99" } }, input))
       .toThrow(/不在镜头表里/);
+  });
+
+  it("字符数未超限但实际排版宽度溢出时拒绝，避免视觉工位单字换行", () => {
+    const wide: CoverPlan = {
+      ...validPlan,
+      headline: "赛道专用，别想上路",
+      typography: { ...validPlan.typography, headlineSizeRatio: 0.0667 },
+    };
+    expect(() => validateCoverPlan(wide, { ...input, platform: "抖音" })).toThrow(/版面宽度/);
+    const fitting: CoverPlan = { ...wide, headline: "赛道专用不上路" };
+    expect(() => validateCoverPlan(fitting, { ...input, platform: "抖音" })).not.toThrow();
   });
 
   it("解析容忍 markdown 包裹，非法 JSON 明确抛错", () => {
@@ -305,7 +316,8 @@ describe("封面兜底稿的平台化", () => {
       { ...input, platform: "tiktok", durationSeconds: 30 },
       { headline: "this ten dollar find blew up right now", heroShotId: "SC-05", personShotId: "SC-01" }
     );
-    expect(plan.headline).toBe("THIS TEN DOLLAR FIND BLEW");
+    expect(plan.headline.replace(/\n/g, " ")).toBe("THIS TEN DOLLAR FIND BLEW");
+    expect(plan.headline.split("\n").length).toBe(2);
     expect(plan.subline).toContain("30s");
   });
 

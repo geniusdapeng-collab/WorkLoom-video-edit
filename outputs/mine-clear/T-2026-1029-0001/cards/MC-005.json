@@ -1,0 +1,77 @@
+{
+  "id": "MC-005",
+  "kind": "problem",
+  "level": "L2",
+  "severity": "P1",
+  "batch": 1,
+  "state": "open",
+  "title": "未知变体和显式输入文件缺失被静默忽略或替换，封面配置错误仍返回成功",
+  "evidence": [
+    {
+      "type": "code",
+      "ref": "scripts/tools/edit-cover.mts:478@aed12c92ab8af4295404d6dbb47981cdccad76e4",
+      "sha256": "d06d29f83f923cf9faf090d1eda57431891f7c2d3ac5fd069005af00ee039828",
+      "note": "STYLES[variantId] 缺失时直接回退到 warm-story，未拒绝未知变体。"
+    },
+    {
+      "type": "code",
+      "ref": "scripts/tools/edit-cover.mts:384@aed12c92ab8af4295404d6dbb47981cdccad76e4",
+      "sha256": "d06d29f83f923cf9faf090d1eda57431891f7c2d3ac5fd069005af00ee039828",
+      "note": "显式 --account 但档案文件不存在时 return null，账号视觉锤被静默跳过。"
+    },
+    {
+      "type": "code",
+      "ref": "scripts/tools/edit-cover.mts:338@aed12c92ab8af4295404d6dbb47981cdccad76e4",
+      "sha256": "d06d29f83f923cf9faf090d1eda57431891f7c2d3ac5fd069005af00ee039828",
+      "note": "显式 --copies 文件不存在时 copyDeck 静默变为 null。"
+    },
+    {
+      "type": "code",
+      "ref": "scripts/tools/edit-cover.mts:474@aed12c92ab8af4295404d6dbb47981cdccad76e4",
+      "sha256": "d06d29f83f923cf9faf090d1eda57431891f7c2d3ac5fd069005af00ee039828",
+      "note": "显式 --variant-copy 文件不存在时 variantCopy 静默变为空对象。"
+    }
+  ],
+  "root_cause": {
+    "file": "scripts/tools/edit-cover.mts",
+    "line": 478,
+    "commit": "aed12c92ab8af4295404d6dbb47981cdccad76e4",
+    "symbol": "main/variant style resolution"
+  },
+  "trigger_path": "项目改用自定义变体 ID，或路径写错/文件未同步；CLI 用暖故事样式或空配置继续出图，最终产物看似成功但不符合请求。",
+  "assertions": [
+    {
+      "kind": "property",
+      "given": "显式账号、文案或逐变体文案文件不存在",
+      "expect": "CLI 非零退出并明确文件名，禁止静默关闭对应能力",
+      "command": "node --test --test-concurrency=1 --test-name-pattern=explicit missing input files scripts/tools/edit-cover-guards.node-test.mjs",
+      "exec": {
+        "file": "node",
+        "args": [
+          "--test",
+          "--test-concurrency=1",
+          "--test-name-pattern=explicit missing input files",
+          "scripts/tools/edit-cover-guards.node-test.mjs"
+        ]
+      },
+      "last_result": "not-run"
+    },
+    {
+      "kind": "sample",
+      "given": "variantId=campaign-cut 且无显式 style-map",
+      "expect": "非零退出并提示显式映射",
+      "command": "node --test --test-concurrency=1 --test-name-pattern=unknown variants scripts/tools/edit-cover-guards.node-test.mjs",
+      "exec": {
+        "file": "node",
+        "args": [
+          "--test",
+          "--test-concurrency=1",
+          "--test-name-pattern=unknown variants",
+          "scripts/tools/edit-cover-guards.node-test.mjs"
+        ]
+      },
+      "last_result": "not-run"
+    }
+  ],
+  "notes": ""
+}

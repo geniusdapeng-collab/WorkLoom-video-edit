@@ -1,0 +1,61 @@
+{
+  "id": "MC-008",
+  "kind": "fix",
+  "batch": 0,
+  "state": "open",
+  "title": "统一完整视频交付合同、0.6s 封面默认值与持续字幕共存语义",
+  "covers": ["MC-001", "MC-002", "MC-003"],
+  "evidence": [
+    {
+      "type": "code",
+      "ref": "scripts/tools/full-chain-film.mts:129@aed12c92ab8af4295404d6dbb47981cdccad76e4",
+      "sha256": "b1b1ea0d7bd4fbd5a0b9e5ac11bc47d778de8d7fb7236f7eeb11837f5167cccc",
+      "note": "原实现把持续字幕与封面片头设为互斥。"
+    }
+  ],
+  "fix_plan": "新增 cover-delivery-policy 统一解析 0–5 秒封面时长并默认 0.6；edit:cover 与 full-chain 共用；deliver 阶段为每支变体生成稳定 variants/<id>/<id>.cover.mp4，manifest.coverIntro 与 publish.recommended 写哈希、时长和 completeVideo；持续字幕只与标题卡冲突，不再禁止封面；PRD 声明支持 coverIntroSeconds。",
+  "rollback": "回滚本组提交即可恢复旧封面片头与互斥规则；旧产物的内容视频与封面 PNG 均未被覆盖或删除。",
+  "conflict_paths": [
+    "scripts/tools/full-chain-film.mts",
+    "scripts/tools/edit-cover.mts",
+    "scripts/tools/lib/cover-delivery-policy.mjs",
+    "packages/video-studio/src/prd-authority.ts",
+    "docs/ai-video-workbench-guide.md"
+  ],
+  "blast_radius": "改变所有新生成的封面片头默认时长与 manifest 发布推荐；消费方必须从 publish.recommended 取完整视频。基础变体、封面 PNG、软字幕轨仍保留，内容渲染与付费生成链路不变。",
+  "assertions": [
+    {
+      "kind": "property",
+      "given": "任意多风格完整交付",
+      "expect": "每支变体有 canonical 封面完整视频、manifest 哈希和 publish.recommended",
+      "command": "node --test --test-concurrency=1 --test-name-pattern=真实全链CLI接收黑屏 scripts/tools/full-chain-failure.test.mjs",
+      "exec": {
+        "file": "node",
+        "args": ["--test", "--test-concurrency=1", "--test-name-pattern=真实全链CLI接收黑屏", "scripts/tools/full-chain-failure.test.mjs"]
+      },
+      "last_result": "not-run"
+    },
+    {
+      "kind": "property",
+      "given": "持续字幕与封面片头同时请求",
+      "expect": "CLI 与 PRD 均不再以 INTRO_CONFLICT 拒绝",
+      "command": "node --test --test-concurrency=1 --test-name-pattern=persistent text may coexist scripts/tools/full-chain-persistent-subtitle.test.mjs",
+      "exec": {
+        "file": "node",
+        "args": ["--test", "--test-concurrency=1", "--test-name-pattern=persistent text may coexist", "scripts/tools/full-chain-persistent-subtitle.test.mjs"]
+      },
+      "last_result": "not-run"
+    },
+    {
+      "kind": "sample",
+      "given": "未显式指定封面片头时长",
+      "expect": "默认 0.6 秒，并拒绝超出 0–5 秒的值",
+      "command": "node --import tsx --test scripts/tools/cover-delivery-policy.node-test.mts",
+      "exec": {
+        "file": "node",
+        "args": ["--import", "tsx", "--test", "scripts/tools/cover-delivery-policy.node-test.mts"]
+      },
+      "last_result": "not-run"
+    }
+  ]
+}

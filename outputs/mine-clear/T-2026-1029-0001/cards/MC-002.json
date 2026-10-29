@@ -1,0 +1,65 @@
+{
+  "id": "MC-002",
+  "kind": "problem",
+  "level": "L3",
+  "severity": "P1",
+  "batch": 1,
+  "state": "open",
+  "title": "封面片头时长存在 1.6s 与 1.2s 两套写死默认值，无法在作业合同层统一为 0.6s",
+  "evidence": [
+    {
+      "type": "code",
+      "ref": "scripts/tools/edit-cover.mts:344@aed12c92ab8af4295404d6dbb47981cdccad76e4",
+      "sha256": "d06d29f83f923cf9faf090d1eda57431891f7c2d3ac5fd069005af00ee039828",
+      "note": "edit:cover 缺省 burnIntro 写死为 1.6 秒（fast_cut 为 0）。"
+    },
+    {
+      "type": "code",
+      "ref": "scripts/tools/full-chain-film.mts:5742@aed12c92ab8af4295404d6dbb47981cdccad76e4",
+      "sha256": "b1b1ea0d7bd4fbd5a0b9e5ac11bc47d778de8d7fb7236f7eeb11837f5167cccc",
+      "note": "full-chain 的封面卡固定 1.2 秒，和 edit:cover 的 1.6 秒形成第二个事实源。"
+    }
+  ],
+  "root_cause": {
+    "file": "scripts/tools/edit-cover.mts",
+    "line": 344,
+    "commit": "aed12c92ab8af4295404d6dbb47981cdccad76e4",
+    "symbol": "main/burnIntro"
+  },
+  "trigger_path": "同一项目先走 full-chain 或 edit:post，再走 edit:cover；两个入口采用不同封面时长，用户要求 0.6s 时只能逐入口手工覆盖。",
+  "assertions": [
+    {
+      "kind": "sample",
+      "given": "未显式提供封面时长",
+      "expect": "统一使用 0.6 秒",
+      "command": "node --import tsx --test scripts/tools/cover-delivery-policy.node-test.mts",
+      "exec": {
+        "file": "node",
+        "args": [
+          "--import",
+          "tsx",
+          "--test",
+          "scripts/tools/cover-delivery-policy.node-test.mts"
+        ]
+      },
+      "last_result": "not-run"
+    },
+    {
+      "kind": "property",
+      "given": "任意显式封面时长",
+      "expect": "只接受 0–5 秒有限数，所有入口调用同一解析器",
+      "command": "node --import tsx --test scripts/tools/cover-delivery-policy.node-test.mts",
+      "exec": {
+        "file": "node",
+        "args": [
+          "--import",
+          "tsx",
+          "--test",
+          "scripts/tools/cover-delivery-policy.node-test.mts"
+        ]
+      },
+      "last_result": "not-run"
+    }
+  ],
+  "notes": ""
+}

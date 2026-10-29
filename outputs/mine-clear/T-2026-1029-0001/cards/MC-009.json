@@ -1,0 +1,59 @@
+{
+  "id": "MC-009",
+  "kind": "fix",
+  "batch": 1,
+  "state": "open",
+  "title": "封面输入与显式渲染器 fail-closed，并校验文案候选表",
+  "covers": ["MC-004", "MC-005", "MC-007"],
+  "evidence": [
+    {
+      "type": "code",
+      "ref": "scripts/tools/edit-cover.mts:605@aed12c92ab8af4295404d6dbb47981cdccad76e4",
+      "sha256": "d06d29f83f923cf9faf090d1eda57431891f7c2d3ac5fd069005af00ee039828",
+      "note": "原实现工位异常后静默降级。"
+    }
+  ],
+  "fix_plan": "校验 --renderer 枚举；显式 compositor 不可达或渲染失败立即非零；显式 --copies/--variant-copy/--style-map/--account 文件不存在立即失败；未知变体只可按已发布别名或显式 style-map 解析；--copies 必须满足每变体≥5候选、公式/事实/评分/理由、chosen 命中、copySelfCheck 通过。",
+  "rollback": "回滚输入策略模块和 edit-cover 参数校验；旧自动降级行为可恢复，但生产默认保持 fail-closed。",
+  "conflict_paths": [
+    "scripts/tools/edit-cover.mts",
+    "scripts/tools/lib/cover-delivery-policy.mjs",
+    "scripts/tools/edit-cover-guards.node-test.mjs"
+  ],
+  "blast_radius": "显式错误配置不再产出封面；使用自定义变体 ID 的项目需要补一份 style-map。自动 renderer=auto 仍可降级，但记录实际 renderer。",
+  "assertions": [
+    {
+      "kind": "property",
+      "given": "显式文件缺失或未知变体",
+      "expect": "CLI 非零退出并指出错误，不静默关闭能力",
+      "command": "node --test --test-concurrency=1 --test-name-pattern=explicit missing input files|unknown variants scripts/tools/edit-cover-guards.node-test.mjs",
+      "exec": {
+        "file": "node",
+        "args": ["--test", "--test-concurrency=1", "--test-name-pattern=explicit missing input files|unknown variants", "scripts/tools/edit-cover-guards.node-test.mjs"]
+      },
+      "last_result": "not-run"
+    },
+    {
+      "kind": "sample",
+      "given": "--renderer compositor 且工位不可达",
+      "expect": "非零退出且没有完成清单",
+      "command": "node --test --test-concurrency=1 --test-name-pattern=explicit compositor renderer scripts/tools/edit-cover-guards.node-test.mjs",
+      "exec": {
+        "file": "node",
+        "args": ["--test", "--test-concurrency=1", "--test-name-pattern=explicit compositor renderer", "scripts/tools/edit-cover-guards.node-test.mjs"]
+      },
+      "last_result": "not-run"
+    },
+    {
+      "kind": "property",
+      "given": "任意 cover copy deck",
+      "expect": "五条候选与自检不完整即失败",
+      "command": "node --import tsx --test scripts/tools/cover-delivery-policy.node-test.mts",
+      "exec": {
+        "file": "node",
+        "args": ["--import", "tsx", "--test", "scripts/tools/cover-delivery-policy.node-test.mts"]
+      },
+      "last_result": "not-run"
+    }
+  ]
+}

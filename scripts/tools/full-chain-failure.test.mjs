@@ -121,6 +121,17 @@ test('真实全链CLI接收黑屏、无音轨、17FPS、旧品质失败与30秒�
   assert.equal(manifest.variants.length, 3);
   assertDefaultAiColors(manifest, rows(f));
   for (const item of [manifest.deliverable, ...manifest.variants]) { assert.ok(existsSync(item.path)); assert.equal(fileHash(item.path), item.sha256); }
+  assert.equal(manifest.coverIntro?.forms?.length, manifest.variants.length);
+  assert.equal(manifest.publish?.recommended?.length, manifest.variants.length);
+  const releaseRoot = dirname(pointer.manifest);
+  for (const entry of manifest.publish.recommended) {
+    assert.match(entry.file, /^variants\/[^/]+\/[^/]+\.cover\.mp4$/);
+    assert.doesNotMatch(entry.file, /(^|\/)work(\/|$)/);
+    const file = join(releaseRoot, entry.file);
+    assert.ok(existsSync(file), entry.file);
+    assert.equal(fileHash(file), entry.sha256);
+    assert.ok(entry.durationSec > 0);
+  }
 });
 
 test('真实CLI先显式调色再默认恢复：变体始终独立取未调色母片，原色零调色且旧调色缓存不复用', { timeout: 240000 }, (t) => {

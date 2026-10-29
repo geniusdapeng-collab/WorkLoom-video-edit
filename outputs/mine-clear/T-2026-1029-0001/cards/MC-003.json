@@ -1,0 +1,68 @@
+{
+  "id": "MC-003",
+  "kind": "problem",
+  "level": "L4",
+  "severity": "P1",
+  "batch": 0,
+  "state": "open",
+  "title": "持续字幕被错误设计成与封面片头互斥，迫使生产者在警示文字和完整封面视频之间二选一",
+  "evidence": [
+    {
+      "type": "code",
+      "ref": "scripts/tools/full-chain-film.mts:129@aed12c92ab8af4295404d6dbb47981cdccad76e4",
+      "sha256": "b1b1ea0d7bd4fbd5a0b9e5ac11bc47d778de8d7fb7236f7eeb11837f5167cccc",
+      "note": "只要提供 persistent subtitle 就要求 --no-open-with-cover，直接禁止封面片头。"
+    },
+    {
+      "type": "code",
+      "ref": "packages/video-studio/src/prd-authority.ts:151@aed12c92ab8af4295404d6dbb47981cdccad76e4",
+      "sha256": "aad662c6b06f8147d6401f4ba7ef789da48446f656b621a4832b46e6475174e8",
+      "note": "PRD 生产要求在 openWithCover=true 时也把持续字幕组合判为冲突，与 CLI 形成双重拦截。"
+    }
+  ],
+  "root_cause": {
+    "file": "scripts/tools/full-chain-film.mts",
+    "line": 129,
+    "commit": "aed12c92ab8af4295404d6dbb47981cdccad76e4",
+    "symbol": "persistent subtitle early guard"
+  },
+  "trigger_path": "商品或安全内容需要全片持续警示，同时用户要求封面烧进视频；早期参数闸直接失败，只能先 --no-open-with-cover 再另走临时封面步骤。",
+  "assertions": [
+    {
+      "kind": "sample",
+      "given": "persistent subtitle + --no-title-card，不传 --no-open-with-cover",
+      "expect": "不再触发 PERSISTENT_SUBTITLE_INTRO_CONFLICT，后续按真实输入继续校验",
+      "command": "node --test --test-concurrency=1 --test-name-pattern=persistent text may coexist scripts/tools/full-chain-persistent-subtitle.test.mjs",
+      "exec": {
+        "file": "node",
+        "args": [
+          "--test",
+          "--test-concurrency=1",
+          "--test-name-pattern=persistent text may coexist",
+          "scripts/tools/full-chain-persistent-subtitle.test.mjs"
+        ]
+      },
+      "last_result": "not-run"
+    },
+    {
+      "kind": "property",
+      "given": "PRD productionRequirements 同时声明持续字幕与 openWithCover=true",
+      "expect": "允许组合并记录 coverIntroSeconds；仅字幕关闭/标题卡/缺少组合 ASS 的冲突继续失败",
+      "command": "node_modules/.bin/vitest run packages/video-studio/src/prd-authority.test.ts -t allows persistent content text",
+      "exec": {
+        "file": "node_modules/.bin/vitest",
+        "args": [
+          "run",
+          "packages/video-studio/src/prd-authority.test.ts",
+          "--maxWorkers",
+          "1",
+          "--no-file-parallelism",
+          "-t",
+          "allows persistent content text"
+        ]
+      },
+      "last_result": "not-run"
+    }
+  ],
+  "notes": "封面是独立片头，持续字幕必须覆盖正片而不是篡改叙事；两者可以共享同一条时钟。"
+}

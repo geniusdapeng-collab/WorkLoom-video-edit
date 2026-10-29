@@ -131,13 +131,21 @@ describe("PRD explicit separate cover and subtitle composition declarations", ()
     { subtitleMode: "burned", sidecarPolicy: "dialogue-only" }, { subtitleMode: "none", sidecarPolicy: "dialogue-and-composite-ass" },
     { subtitleMode: "none", persistentSubtitleText: "完整持续警示" },
     { subtitleMode: "burned", persistentSubtitleText: "完整持续警示", titleCard: true },
-    { subtitleMode: "burned", persistentSubtitleText: "完整持续警示", openWithCover: true },
     { subtitleMode: "both", persistentSubtitleText: "完整持续警示" },
     { subtitleMode: "sidecar", persistentSubtitleText: "完整持续警示" },
     { subtitleMode: "both", persistentSubtitleText: "完整持续警示", sidecarPolicy: "dialogue-only" },
     { subtitleMode: "sidecar", persistentSubtitleText: "完整持续警示", sidecarPolicy: "dialogue-only" },
   ])("fails closed on an explicitly contradictory combination %j", patch => {
     expect(() => normalizePrdProductionProfile(metadata(patch))).toThrow("PRD_PROFILE_INVALID");
+  });
+  it("allows persistent content text with a separate silent cover intro and records its duration", () => {
+    const profile = normalizePrdProductionProfile(metadata({
+      subtitleMode: "burned", persistentSubtitleText: "完整持续警示", openWithCover: true, coverIntroSeconds: 0.6,
+    }));
+    expect(profile).toMatchObject({ persistentSubtitleText: "完整持续警示", openWithCover: true, coverIntroSeconds: 0.6 });
+  });
+  it.each([-0.1, 5.1, "0.6", null, Number.NaN])("rejects invalid cover intro duration %j", coverIntroSeconds => {
+    expect(() => normalizePrdProductionProfile(metadata({ coverIntroSeconds }))).toThrow("PRD_PROFILE_INVALID");
   });
   it.each(["standalone", "none"])("keeps %s separate-cover delivery independent from embedding in the opening", coverDelivery => {
     expect(normalizePrdProductionProfile(metadata({ coverDelivery, openWithCover: true, titleCard: true })))

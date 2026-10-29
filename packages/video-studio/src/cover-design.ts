@@ -303,6 +303,8 @@ export function buildCoverDesignPrompt(input: CoverDesignInput): string {
     "7. 数值边界（越界即判非法、直接打回重出）：`person.widthRatio` 0.28–0.50；"
       + "`typography.headlineSizeRatio` 0.045–0.12；`typography.sublineSizeRatio` 0.022–0.06；"
       + "副标题 ≤24 字、角标 ≤10 字。",
+    "7.1 每一行标题都必须按设计字级实际放进左侧可用宽度，并给右侧 11% 操作栏留位；"
+      + "字符数未超限但会被迫单字换行或越界同样判非法。",
     `字库白名单（fontId 四选一，全部免费商用）：${Object.entries(COVER_FONTS).map(([id, f]) => `${id}=${f.label}（${f.note}）`).join("；")}`,
     "",
     "输出 JSON 结构：",
@@ -319,6 +321,27 @@ export function buildCoverDesignPrompt(input: CoverDesignInput): string {
 
 const HEX = /^#[0-9A-Fa-f]{6}$/;
 const visualLength = (text: string): number => [...text.replace(/\n/g, "")].length;
+
+/**
+ * Conservative text-width estimate for deterministic plan validation. The
+ * renderer has an 84%-wide text box, but the right platform rail also needs
+ * 11% clearance, so the usable text budget is the tighter 81% of canvas width.
+ * This guard rejects plans that pass a character-count check and still wrap a
+ * final glyph onto its own line in the compositor.
+ */
+export function estimateCoverLineWidth(text: string, fontSizePx: number): number {
+  const em = [...String(text)].reduce((sum, char) => {
+    if (/[\u2e80-\u9fff\u3040-\u30ff\uac00-\ud7af\uff00-\uffef]/u.test(char)) return sum + 0.88;
+    if (/[0-9A-Za-z]/u.test(char)) return sum + 0.58;
+    if (/\s/u.test(char)) return sum + 0.3;
+    return sum + 0.42;
+  }, 0);
+  return em * Math.max(0, Number(fontSizePx) || 0);
+}
+
+export function coverUsableTextWidth(spec: CoverPlatformSpec): number {
+  return spec.canvas.width * 0.81;
+}
 
 /**
  * 设计稿校验：任何越界/超长/缺主角都判非法（抛错），由调用方决定"退回兜底稿"还是"打回重出"。
@@ -356,7 +379,25 @@ export function validateCoverPlan(plan: CoverPlan, input: CoverDesignInput = { s
     issues.push(`主标题 ${visualLength(plan.headline)} 字（${spec.id} 上限 ${spec.headlineMaxChars}）`);
   }
   if (plan.headline.includes("\n") && plan.headline.split("\n").length > 2) issues.push("主标题超过两行");
+  {
+    const fontSizePx = Number(plan.typography?.headlineSizeRatio) * spec.canvas.height;
+    const usableWidth = coverUsableTextWidth(spec);
+    for (const [index, line] of String(plan.headline ?? "").split("\n").map((value) => value.trim()).entries()) {
+      if ([...line].length === 1) issues.push(`主标题第 ${index + 1} 行只有 1 个字`);
+      const estimated = estimateCoverLineWidth(line, fontSizePx);
+      if (estimated > usableWidth) {
+        issues.push(`主标题第 ${index + 1} 行估算版面宽度 ${Math.round(estimated)}px 超过可用 ${Math.round(usableWidth)}px`);
+      }
+    }
+  }
   if (plan.subline && visualLength(plan.subline) > 24) issues.push(`副标题 ${visualLength(plan.subline)} 字（上限 24）`);
+  if (plan.subline) {
+    const estimated = estimateCoverLineWidth(plan.subline, Number(plan.typography?.sublineSizeRatio) * spec.canvas.height);
+    const usableWidth = coverUsableTextWidth(spec);
+    if (estimated > usableWidth) {
+      issues.push(`副标题估算版面宽度 ${Math.round(estimated)}px 超过可用 ${Math.round(usableWidth)}px`);
+    }
+  }
   if (plan.badge && visualLength(plan.badge) > 10) issues.push(`角标 ${visualLength(plan.badge)} 字（上限 10）`);
   if (!["person-left", "person-right"].includes(plan.layout)) issues.push(`版式 ${plan.layout} 不在可选范围`);
   if (!input.shots.some((s) => s.shotId === plan.background?.shotId)) issues.push(`主视觉镜头 ${plan.background?.shotId} 不在镜头表里`);
@@ -473,6 +514,39 @@ export function parseCoverPlan(raw: string, input: CoverDesignInput, options: { 
   return validateCoverPlan(withPerson, input);
 }
 
+function fallbackLineWidths(headline: string, fontSizePx: number): number[] {
+  return headline.split("\n").map((line) => estimateCoverLineWidth(line, fontSizePx));
+}
+
+function breakFallbackHeadline(headline: string): string {
+  if (headline.includes("\n")) return headline;
+  const tokens = /\s/u.test(headline) ? headline.trim().split(/\s+/u) : [...headline];
+  if (tokens.length < 2) return headline;
+  const split = Math.ceil(tokens.length / 2);
+  const separator = /\s/u.test(headline) ? " " : "";
+  return `${tokens.slice(0, split).join(separator)}\n${tokens.slice(split).join(separator)}`;
+}
+
+function fitFallbackHeadline(plan: CoverPlan, spec: CoverPlatformSpec): CoverPlan {
+  const usable = coverUsableTextWidth(spec);
+  let headline = plan.headline;
+  let sizeRatio = plan.typography.headlineSizeRatio;
+  if (Math.max(...fallbackLineWidths(headline, sizeRatio * spec.canvas.height)) > usable) {
+    headline = breakFallbackHeadline(headline);
+  }
+  while (
+    sizeRatio > 0.045
+    && Math.max(...fallbackLineWidths(headline, sizeRatio * spec.canvas.height)) > usable
+  ) {
+    sizeRatio = Math.max(0.045, Number((sizeRatio - 0.001).toFixed(3)));
+  }
+  return {
+    ...plan,
+    headline,
+    typography: { ...plan.typography, headlineSizeRatio: sizeRatio },
+  };
+}
+
 /**
  * 确定性兜底稿：设计师不可用（无 LLM / JSON 反复非法）时**必须有稿**，
  * 但兜底稿也要满足"画面 + 人物 + 标题"三件套——这正是"只有标题"事故的反面。
@@ -533,7 +607,7 @@ export function fallbackCoverPlan(
       : "兜底稿：主视觉地标 + 主角人物卡 + 大字标题，保证封面三件套齐全",
     source: "fallback"
   };
-  return validateCoverPlan(plan, input);
+  return validateCoverPlan(fitFallbackHeadline(plan, spec), input);
 }
 
 /** Build one local processing plan from the requested title/account choices, without source quality review. */

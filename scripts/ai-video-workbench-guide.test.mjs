@@ -79,7 +79,7 @@ test("本仓固定指南返回全文、版本、产品身份及原始字节摘�
   assert.equal(result.markdown, GUIDE_BYTES.toString("utf8"));
   assert.equal(result.sha256, hash(GUIDE_BYTES));
   assert.equal(result.byteCount, GUIDE_BYTES.length);
-  assert.equal(result.guideVersion, "2026-10-28.7");
+  assert.equal(result.guideVersion, "2026-10-29.1");
   assert.equal(result.repository, "workloom-ai/WorkLoom-video-edit");
   assert.match(result.markdown, /rawIntent/u);
   assert.match(result.markdown, /没有 Growthtest 的 nativeaudio 专用契约/u);
@@ -95,7 +95,10 @@ test("本仓固定指南返回全文、版本、产品身份及原始字节摘�
   assert.match(result.markdown, /G2 已批准的原文、裁决及建议作为非阻断上下文/u);
   assert.match(result.markdown, /当前营销权威作用域禁用未绑定本次输入的缓存/u);
   assert.match(result.markdown, /--subtitle-persistent-text/u);
-  assert.match(result.markdown, /--no-title-card --no-open-with-cover/u);
+  assert.match(result.markdown, /--subtitle-persistent-text[\s\S]*--no-title-card/u);
+  assert.match(result.markdown, /持续文字作用于正片时间线，可与独立静音封面片头共存/u);
+  assert.match(result.markdown, /coverIntroSeconds/u);
+  assert.match(result.markdown, /publish\.recommended/u);
   assert.match(result.markdown, /dialogue-only/u);
   assert.match(result.markdown, /服务端 worker 作业没有新增这几个参数的自动透传/u);
 });

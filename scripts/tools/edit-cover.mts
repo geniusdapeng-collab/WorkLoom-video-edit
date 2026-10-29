@@ -9,8 +9,8 @@
  *   ④ 设计稿：三风格独立封面（每份 CoverPlan：主标题/副标题/角标/主视觉镜头与取帧秒/字级/配色/版式/设计理由）；
  *   ⑤ 合成：**Compositor 视觉工位**（visual-bridge：配方 → .comp → PNG，带回执）；工位不可用时显式降级到本机 ffmpeg 并如实标注；
  *   ⑥ 机检：画幅/字节数/标题带 PSNR/人物位 PSNR/安全区/底图血缘 + 工位 `visualread.verify` 回执；
- *   ⑦ 烧封：把封面作为片头**烧进视频**（默认 1.6s，**封面段静音**），产出 `*-cover.mp4`。
- *      —— 2026-10-11 产品所有者反馈修复：旧实现让封面段复用成片前 1.6s 音轨，正片又从 0 起播，
+ *   ⑦ 烧封：把封面作为片头**烧进视频**（统一默认 0.6s，**封面段静音**），产出稳定的 `*.cover.mp4`。
+ *      —— 2026-10-11 产品所有者反馈修复：旧实现让封面段复用成片前段音轨，正片又从 0 起播，
  *      听感上 BGM"起两次"（封面一次、第一个镜头又一次）。封面段改静音后，BGM 只在正片开始处起播一次，
  *      剪辑点与 BGM 的对齐（cut-driven 混音）保持不变；封面仍是平台首帧展示图。
  *
@@ -19,7 +19,8 @@
  *     [--timeline <film.timeline.json>] [--variants warm-story,clean-tech,bold-promo]
  *     [--platform 微信视频号] [--title "回家是为了确认"] [--hook "十一回山东"]
  *     [--variant-copy <copy.json>]（逐版本主/副标题覆盖：{"warm-story":{"subline":"…"}}）
- *     [--hero-sec 35.5] [--account <账号档案>] [--burn-intro 1.6] [--renderer auto|compositor|ffmpeg] [--json]
+ *     [--hero-sec 35.5] [--account <账号档案>] [--burn-intro 0.6] [--renderer auto|compositor|ffmpeg]
+ *     [--style-map <variant-style.json>] [--json]
  */
 import { execFileSync, spawnSync } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
@@ -33,6 +34,13 @@ import { getCoverSpec } from "../../packages/video-studio/src/cover-platforms.js
 import { deriveCoverTheme, planCoverMoment, planCoverMoments, type PostAnalysisDoc, type EditTimeline } from "../../packages/video-studio/src/edit/index.js";
 import { scanBestFrame } from "./lib/frame-scan.mts";
 import { DANMAKU_PUBLISH_NOTE, PUBLISH_NOTE, recommendedDanmakuFile, recommendedPublishFile } from "./lib/delivery-forms.mts";
+import {
+  canonicalCoverIntroPath,
+  canonicalCoverIntroRelativePath,
+  parseCoverIntroSeconds,
+  resolveCoverStyleId,
+  validateCoverCopyDeck,
+} from "./lib/cover-delivery-policy.mjs";
 
 const REPO_ROOT = resolve(import.meta.dirname ?? process.cwd(), "../..");
 const FFMPEG = process.env.WL_FFMPEG ?? "ffmpeg";
@@ -335,14 +343,17 @@ async function main(): Promise<void> {
   }
   /** 可选：agent 候选表（`--copies <copy-deck.json>`）连同自检一起进设计稿，供复盘与 A/B。 */
   const copiesPath = arg("--copies");
-  const copyDeck = copiesPath && existsSync(abs(copiesPath))
+  if (copiesPath && !existsSync(abs(copiesPath))) throw new Error(`--copies 文件不存在：${abs(copiesPath)}`);
+  const copyDeck = copiesPath
     ? JSON.parse(readFileSync(abs(copiesPath), "utf8")) as Record<string, unknown>
     : null;
   const rendererMode = arg("--renderer", "auto");
+  if (!["auto", "compositor", "ffmpeg"].includes(rendererMode)) {
+    throw new Error(`--renderer 只接受 auto / compositor / ffmpeg（收到 ${rendererMode}）`);
+  }
   const timelinePath = arg("--timeline");
   const declaredTimeline = timelinePath ? JSON.parse(readFileSync(abs(timelinePath), "utf8")) as EditTimeline : null;
-  const burnIntro = Number(arg("--burn-intro", declaredTimeline?.pacing?.profile === "fast_cut" ? "0" : "1.6"));
-  if (!Number.isFinite(burnIntro) || burnIntro < 0 || burnIntro > 5) throw new Error("--burn-intro 需要 0–5 秒");
+  const burnIntro = parseCoverIntroSeconds(arg("--burn-intro", ""));
   const bridgeUrl = arg("--bridge-url", process.env.WORKLOOM_VISUAL_BRIDGE_URL ?? "http://127.0.0.1:9773");
 
   // ① 画幅跟随成片（横版片→横版封面）
@@ -380,8 +391,8 @@ async function main(): Promise<void> {
   const theme = arg("--theme", themePlan.theme);
   const accountProfile = (() => {
     if (!account) return null;
-    const file = join(ACCOUNT_DIR, `${account}.yml`);
-    if (!existsSync(file)) return null;
+    const file = /\.ya?ml$/i.test(account) ? abs(account) : join(ACCOUNT_DIR, `${account}.yml`);
+    if (!existsSync(file)) throw new Error(`账号档案不存在：${file}`);
     const raw = readFileSync(file, "utf8");
     const pick = (key: string) => new RegExp(`^${key}:\\s*(.+)$`, "m").exec(raw)?.[1]?.trim();
     return normalizeAccountProfile({
@@ -421,7 +432,12 @@ async function main(): Promise<void> {
     shots.push({ shotId: "hero", scene: "film", duration: filmDuration, sourceIn: 0, masterIn: 0 });
   }
 
-  const bridge = rendererMode === "ffmpeg" ? { available: false, reason: "--renderer=ffmpeg（显式降级）", call: async () => { throw new Error("ffmpeg mode"); } } : await connectBridge(bridgeUrl);
+  const bridge = rendererMode === "ffmpeg"
+    ? { available: false, reason: "--renderer=ffmpeg（显式降级）", call: async () => { throw new Error("ffmpeg mode"); } }
+    : await connectBridge(bridgeUrl);
+  if (rendererMode === "compositor" && !bridge.available) {
+    throw new Error(`COMPOSITOR_UNAVAILABLE: ${bridge.reason ?? "Compositor 视觉工位不可用"}`);
+  }
   const workRoot = bridge.available ? join(BRIDGE_VAR, `edit-cover-${attemptId}`) : join(versionRoot, "renderer");
   mkdirSync(workRoot, { recursive: true });
   mkdirSync(join(outDir, "covers"), { recursive: true });
@@ -471,11 +487,21 @@ async function main(): Promise<void> {
   const fontScale = Math.min(canvas.width, canvas.height) / 1080;
   /** 逐版本文案覆盖（`--variant-copy`）：允许每个版本的封面有独立主/副标题（信息增量不重复）。 */
   const variantCopyPath = arg("--variant-copy");
-  const variantCopy = variantCopyPath && existsSync(abs(variantCopyPath))
+  if (variantCopyPath && !existsSync(abs(variantCopyPath))) throw new Error(`--variant-copy 文件不存在：${abs(variantCopyPath)}`);
+  const variantCopy = variantCopyPath
     ? JSON.parse(readFileSync(abs(variantCopyPath), "utf8")) as Record<string, { headline?: string; subline?: string }>
     : {};
+  const styleMapPath = arg("--style-map");
+  if (styleMapPath && !existsSync(abs(styleMapPath))) throw new Error(`--style-map 文件不存在：${abs(styleMapPath)}`);
+  const styleMap = styleMapPath
+    ? JSON.parse(readFileSync(abs(styleMapPath), "utf8")) as Record<string, string>
+    : {};
+  if (copyDeck) validateCoverCopyDeck(copyDeck, variants);
+  const knownStyleIds = Object.keys(STYLES);
   for (const [variantIndex, variantId] of variants.entries()) {
-    const style = STYLES[variantId] ?? STYLES["warm-story"]!;
+    const styleId = resolveCoverStyleId(variantId, knownStyleIds, styleMap);
+    const style = STYLES[styleId];
+    if (!style) throw new Error(`封面样式未定义：${variantId} → ${styleId}`);
     const variantMoment = variantMoments?.[variantIndex] ?? null;
     const overrides = variantCopy[variantId] ?? {};
     const headline = String(overrides.headline ?? title);
@@ -603,6 +629,9 @@ async function main(): Promise<void> {
         renderer = "compositor-visual-bridge";
         bridgeReceipt = (composed.receipt as Record<string, unknown>) ?? null;
       } catch (err) {
+        if (rendererMode === "compositor") {
+          throw new Error(`COMPOSITOR_RENDER_FAILED: ${err instanceof Error ? err.message : String(err)}`);
+        }
         bridge.available = false;
         bridge.reason = `工位合成失败，降级本机 ffmpeg：${err instanceof Error ? err.message : String(err)}`;
       }
@@ -748,10 +777,35 @@ async function main(): Promise<void> {
           }
         }
         if (sha256(source) !== sourceHash) throw new Error(`${variantId}${form} 烧封期间原成片发生变化`);
-        introReceipts.push({ variantId, form: form || "clean", source: relative(outDir, source), sourceSha256: sourceHash,
-          output, introSeconds: burnIntro, introAudio: "silent", subtitleTracks, sha256: sha256(output), duration: probeMedia(output).duration });
+        introReceipts.push({ variantId, form: form || "clean", formSuffix: form, source: relative(outDir, source), sourceSha256: sourceHash,
+          stagedOutput: output, output, introSeconds: burnIntro, introAudio: "silent", subtitleTracks,
+          sha256: sha256(output), duration: probeMedia(output).duration });
       }
     }
+    for (const variantId of variants) {
+      if (!introReceipts.some((row) => row.variantId === variantId)) {
+        throw new Error(`COVER_INTRO_SOURCE_MISSING: ${variantId} 没有可烧录的 variants/${variantId}/${variantId}*.mp4；仅出独立封面请显式 --burn-intro 0`);
+      }
+    }
+  }
+
+  /**
+   * 暂存产物只在 QC 期间使用。通过后提升到交付根下的稳定路径，保证清单、
+   * 发布推荐与打包器引用同一份完整视频，而不是 work/cover-versions 临时记录。
+   */
+  for (const receipt of introReceipts) {
+    const variantId = String(receipt.variantId);
+    const relativeTarget = canonicalCoverIntroRelativePath(variantId, String(receipt.formSuffix ?? ""));
+    const target = canonicalCoverIntroPath(outDir, variantId, String(receipt.formSuffix ?? ""));
+    mkdirSync(dirname(target), { recursive: true });
+    const pending = `${target}.${attemptId}.pending`;
+    copyFileSync(String(receipt.output), pending);
+    const committed = sha256(pending);
+    renameSync(pending, target);
+    receipt.stagedOutput = relative(outDir, String(receipt.output));
+    receipt.output = target;
+    receipt.path = relativeTarget;
+    receipt.sha256 = committed;
   }
 
   const planFile = join(versionRoot, "cover-plan.json");
@@ -761,29 +815,43 @@ async function main(): Promise<void> {
    * 字幕与封面都已烧录进画面，任何播放器/预览器直接可见；软字幕轨形态在多数预览器
    * 默认不显示字幕（AVFoundation 自动选择实测为「无」），只适合剪辑或平台字幕轨。
    */
+  const preferredForms = [".burned", ".softsub", ""] as const;
   const publishRecommendations = variants
     .map((variantId) => {
-      const produced = introReceipts.find((row) => row.variantId === variantId && row.form === ".burned");
+      const produced = preferredForms
+        .map((form) => introReceipts.find((row) => row.variantId === variantId && row.formSuffix === form))
+        .find(Boolean);
       const file = burnIntro > 0 ? String(produced?.output ?? "") : join(outDir, recommendedPublishFile(variantId, false));
+      const cover = covers.find((entry) => entry.variantId === variantId);
       return existsSync(file)
         ? {
           variantId,
           file: relative(outDir, file),
-          forms: burnIntro > 0 ? "burned+cover" : "burned",
-          note: PUBLISH_NOTE,
+          forms: burnIntro > 0 ? `${produced?.form ?? "clean"}+cover` : "burned",
+          sha256: sha256(file),
+          durationSec: probeMedia(file).duration,
+          coverPath: cover ? relative(outDir, String(cover.file)) : null,
+          coverSha256: cover ? String(cover.sha256) : null,
+          completeVideo: true,
+          note: produced?.formSuffix === ".burned" || produced?.formSuffix === ".burned.danmaku"
+            ? PUBLISH_NOTE
+            : "完整封面片头视频；当前源不含可烧录字幕，发布前请按需另行选择字幕形态。",
         }
         : null;
     })
     .filter((entry): entry is { variantId: string; file: string; forms: string; note: string } => entry !== null)
     .concat(variants.map((variantId) => {
       /** 弹幕版推荐件（`edit:post --danmaku` 产出的形态在这里再叠封面）。 */
-      const produced = introReceipts.find((row) => row.variantId === variantId && row.form === ".burned.danmaku");
+      const produced = introReceipts.find((row) => row.variantId === variantId && row.formSuffix === ".burned.danmaku");
       const file = burnIntro > 0 ? String(produced?.output ?? "") : join(outDir, recommendedDanmakuFile(variantId, false));
       return existsSync(file)
         ? {
           variantId,
           file: relative(outDir, file),
           forms: burnIntro > 0 ? "burned+danmaku+cover" : "burned+danmaku",
+          sha256: sha256(file),
+          durationSec: probeMedia(file).duration,
+          completeVideo: true,
           note: DANMAKU_PUBLISH_NOTE,
         }
         : null;
@@ -826,6 +894,9 @@ async function main(): Promise<void> {
     if (sha256(manifestFile) !== originalManifestHash) throw new Error("封面处理期间交付清单发生变化，请基于当前版本重试");
     const manifest = JSON.parse(readFileSync(manifestFile, "utf8")) as {
       variants?: Array<{ id?: string; cover?: Record<string, unknown> | null }>;
+      assets?: Array<{ path?: string; sha256?: string; [key: string]: unknown }>;
+      coverIntro?: { forms?: Array<Record<string, unknown>> };
+      publish?: Record<string, unknown>;
       [key: string]: unknown;
     };
     let updated = 0;
@@ -833,13 +904,15 @@ async function main(): Promise<void> {
       const produced = covers.find((cover) => cover.variantId === entry.id);
       if (!produced) continue;
       const checks = checksAll.find((item) => item.variantId === entry.id)?.checks ?? [];
+      const producedPlan = produced.plan as CoverPlan;
       entry.cover = {
         ...(entry.cover ?? {}),
         path: relative(outDir, String(produced.file)),
         sha256: sha256(String(produced.file)),
-        text: `${title} / ${hook}`.trim(),
-        title, hook,
-        heroSec: arg("--hero-sec", "") ? Number(arg("--hero-sec")) : null,
+        text: `${producedPlan.headline} / ${producedPlan.subline ?? ""}`.trim(),
+        title: producedPlan.headline,
+        hook: producedPlan.subline ?? "",
+        heroSec: Number(produced.heroSec),
         checks,
         renderer: produced.renderer,
         coverReport: relative(outDir, reportFile),
@@ -848,21 +921,50 @@ async function main(): Promise<void> {
       updated += 1;
     }
     if (updated > 0) {
+      const canonicalForms = introReceipts.map((form) => ({
+        variantId: form.variantId,
+        form: form.form,
+        path: form.path,
+        output: form.path,
+        source: form.source,
+        sourceSha256: form.sourceSha256,
+        introSeconds: form.introSeconds,
+        introAudio: form.introAudio,
+        subtitleTracks: form.subtitleTracks,
+        sha256: form.sha256,
+        duration: form.duration,
+      }));
       // The previous Chinese display set still exists on disk, but must be repackaged against this version.
       if (manifest.displaySet) {
         manifest.displaySetNeedsRefresh = { reason: "封面产物版本已更新", at: new Date().toISOString() };
         delete manifest.displaySet;
       }
-      manifest.coverIntro = { forms: introReceipts.map((form) => ({ ...form, output: relative(outDir, String(form.output)) })) };
+      manifest.coverIntro = {
+        defaultSeconds: burnIntro,
+        canonical: true,
+        forms: canonicalForms,
+      };
       manifest.coverDivergence = coverDivergence;
       manifest.coverSync = { updated, at: new Date().toISOString(), report: relative(outDir, reportFile) };
       if (publishRecommendations.length) {
         manifest.publish = {
           recommended: publishRecommendations,
           note: PUBLISH_NOTE,
-          updatedBy: "edit:cover（推荐发布件＝烧字+封面烧封）",
+          completeVideo: true,
+          updatedBy: "edit:cover（完整视频提升到 variants/**/*.cover.mp4）",
         };
       }
+      const assets = Array.isArray(manifest.assets) ? manifest.assets : [];
+      const existing = new Set(assets.map((asset) => String(asset.path ?? "")));
+      const addAsset = (file: string): void => {
+        const path = relative(outDir, file);
+        if (existing.has(path)) return;
+        assets.push({ path, sha256: sha256(file), role: path.includes(".cover.mp4") ? "complete-video" : "cover" });
+        existing.add(path);
+      };
+      for (const cover of covers) addAsset(String(cover.file));
+      for (const receipt of introReceipts) addAsset(String(receipt.output));
+      manifest.assets = assets;
       /**
        * 节奏复验回执必须覆盖"当前交付形态"（T-2026-1017 修复）。
        * edit:post 在 post 阶段写 `manifest.rhythmDirection`（回执只含 master + 变体三形态），
