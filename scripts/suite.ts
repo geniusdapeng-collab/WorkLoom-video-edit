@@ -1583,11 +1583,15 @@ k("主调度：健康模型直答 + 计量", async () => {
   eq(r.kind, "answered", "直答");
   assert((sink.traces as unknown[]).length === 1, "计量留痕");
 });
-k("唯一规范模型不健康 → 失败关闭并留痕（禁止跨模型降级）", async () => {
+k("唯一规范模型调用失败 → 失败关闭并留痕（禁止跨模型降级）", async () => {
   const degraded: unknown[] = [];
   const sink: EventSink = { async recordModelTrace() {}, async recordDegradation(d) { degraded.push(d); }, async recordCircuitBreak() {} };
-  const r = await modelRoute({ action: "price.adjust", messages: [{ role: "user", content: "x" }] }, new Map([["deepseek-flash", mkProvider("A", false)]]), sink, DEFAULT_POLICY);
-  eq(r.kind, "unavailable", "不健康失败关闭");
+  const failing: ModelProvider = {
+    ...mkProvider("A"),
+    chat: async () => { throw new Error("canonical provider failed"); },
+  };
+  const r = await modelRoute({ action: "price.adjust", messages: [{ role: "user", content: "x" }] }, new Map([["deepseek-flash", failing]]), sink, DEFAULT_POLICY);
+  eq(r.kind, "unavailable", "调用失败关闭");
   eq(degraded.length, 1, "降级留痕");
 });
 k("全链不可用 → unavailable/queued", async () => {
