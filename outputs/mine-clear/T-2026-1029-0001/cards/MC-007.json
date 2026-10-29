@@ -27,6 +27,9 @@
     "symbol": "main/copyDeck"
   },
   "trigger_path": "调用方传入空对象、少于 5 条候选或 failed/缺失自检的文案文件，封面链路仍成功并写入设计稿。",
+  "regression": {
+    "command": "node --import tsx --test scripts/tools/cover-delivery-policy.node-test.mts"
+  },
   "assertions": [
     {
       "kind": "property",
