@@ -9,7 +9,7 @@ import { createMarketingGateEvidenceGuard, type MarketingGateReviewEvidence } fr
 const roots: string[] = [];
 const scope = { tenantId: "tenant-1", workspaceId: "ws-1", projectId: "VID-1", runId: "RUN-1", attempt: 1 };
 const sha = (value: string | Buffer) => createHash("sha256").update(value).digest("hex");
-const env = { LLM_BASE_URL: "https://judge.invalid/v1", LLM_API_KEY: "isolated-fake-key", LLM_MODEL: "fixture-judge" };
+const env = { LLM_BASE_URL: "https://api.deepseek.com", LLM_API_KEY: "isolated-fake-key", LLM_MODEL: "deepseek-flash" };
 const good = { approved: true, score: 95, issues: [], suggestions: [], reason: "只按完整已接受 claims 与当前门合同通过" };
 const nextGates = ["G2_THEME", "G3_INSIGHT", "G4_PRD", "G5_PORTRAIT", "G6_PROMPT", "G7_FINAL"];
 
@@ -28,7 +28,7 @@ function fixture(attempt = 1) {
         suggestions: ["赛道性能须保留封闭赛道用途限定", "未知外观不能补写为已核实事实"] } }],
     restrictions: ["竞品未提供证据，不能推断市场缺失；鱼鳞焊缝没有已接受 claim"] }, requestedIntent: "李英子与820RR-RC" });
   const g1Path = file("G1_DOSSIER", content);
-  const proof = { gate: "G1_DOSSIER", approved: true, status: "passed", via: "llm", model: "fixture-judge", degraded: false,
+  const proof = { gate: "G1_DOSSIER", approved: true, status: "passed", via: "llm", model: "deepseek-flash", degraded: false,
     evidence: [{ path: g1Path, sha256: sha(content), scope: "complete-text", bytes: Buffer.byteLength(content) }],
     score: 95, issues: ["评价与竞品未提供"], suggestions: ["保留完整 A1 support review 限定"], reason: "完整原文审核通过" };
   const accept = () => guard.acceptG1({ scope: currentScope, content, proof });
@@ -36,7 +36,7 @@ function fixture(attempt = 1) {
     path: file(gate, text), kind: "text", expectedSha256: sha(text),
   });
   const verdict = (artifact: ProducerArtifact): ProducerVerdict => ({ stage: "script", status: "passed", approved: true, score: 95,
-    hardFailures: [], issues: [], suggestions: [], rerun: false, via: "llm", model: "fixture-judge", ms: 1, reason: "完整证据评审", degraded: false,
+    hardFailures: [], issues: [], suggestions: [], rerun: false, via: "llm", model: "deepseek-flash", ms: 1, reason: "完整证据评审", degraded: false,
     evidence: [{ path: g1Path, sha256: sha(content), scope: "complete-text" }, { path: artifact.path, sha256: artifact.expectedSha256!, scope: "complete-text" }] });
   return { root, guard, currentScope, file, content, g1Path, proof, accept, current, verdict };
 }
@@ -47,7 +47,17 @@ async function review(f: ReturnType<typeof fixture>, artifact: ProducerArtifact,
     artifacts: [artifact, ...binding.artifacts], deterministic: binding.deterministic, requiredCheckIds: binding.requiredCheckIds,
     rubric: binding.rubric, context: { gate: "G3_INSIGHT", marketingFactsAuthority: binding.context },
     fetchImpl: (async (_url, init) => { calls.push(String(init?.body)); onFetch?.();
-      return new Response(JSON.stringify({ choices: [{ message: { content: JSON.stringify(answer) } }] })); }) as typeof fetch });
+      return new Response(JSON.stringify({
+        id: "marketing-gate-judge",
+        model: "deepseek-flash",
+        choices: [{ finish_reason: "stop", message: { content: JSON.stringify(answer) } }],
+        usage: {
+          prompt_tokens: 100,
+          completion_tokens: 30,
+          total_tokens: 130,
+          completion_tokens_details: { reasoning_tokens: 10 },
+        },
+      })); }) as typeof fetch });
   return f.guard.verifyReview(binding, result);
 }
 
@@ -75,7 +85,7 @@ describe("current-attempt host-owned G1 evidence", () => {
     (authority.g1Proof.suggestions as string[]).push("返回对象不能回写私有快照");
     expect(f.guard.forPrd()).toMatchObject({ scope: f.currentScope,
       g1Artifact: { content: f.content, sha256: sha(f.content) },
-      g1Proof: { model: "fixture-judge", suggestions: ["保留完整 A1 support review 限定"],
+      g1Proof: { model: "deepseek-flash", suggestions: ["保留完整 A1 support review 限定"],
         evidence: [{ path: f.g1Path, sha256: sha(f.content), scope: "complete-text" }] } });
   });
 
@@ -117,7 +127,7 @@ describe("current-attempt host-owned G1 evidence", () => {
     expect(binding.deterministic).toEqual([expect.objectContaining({ status: "passed", pass: true, hard: true })]);
     expect(binding.artifacts).toEqual([{ path: f.g1Path, kind: "json", expectedSha256: sha(f.content), note: expect.any(String) }]);
     expect(binding.context).toMatchObject({ authorityStatus: "accepted-current-g1", scope: f.currentScope,
-      g1: { path: f.g1Path, sha256: sha(f.content), status: "passed", via: "llm", degraded: false, model: "fixture-judge" } });
+      g1: { path: f.g1Path, sha256: sha(f.content), status: "passed", via: "llm", degraded: false, model: "deepseek-flash" } });
     expect(f.guard.verifyReview(binding, f.verdict(current))).toMatchObject({ approved: true, status: "passed", degraded: false });
     expect(readFileSync(f.g1Path, "utf8")).toBe(f.content);
     expect(binding.rubric.join("\n")).toContain("不在已接受 claims 内或超出限定的主张必须拒绝");

@@ -485,15 +485,15 @@ function pinnedProductionSources(): { original: string; transformed: string } {
   const entry = realpathSync(resolve(dirname(fileURLToPath(import.meta.url)),
     "../../../vendor/supermickey/hyperreality-system/index.js"));
   const before = readFileSync(entry);
-  expect(before.byteLength).toBe(205980);
-  expect(digest(before)).toBe("489171f35ce7cf5fc2cc4387e07380337ea1a574df638533f2b90ed6bd1f86fd");
+  expect(before.byteLength).toBe(205872);
+  expect(digest(before)).toBe("acb46563f99b61babb1156858fb83c083a258b052ff21169d3b3e7d5bddec5cf");
   pinnedCompilation.filename = entry;
   const lease = acquireVendorRequirementEntry(entry);
   expect(pinnedCompilation.calls).toBe(1);
   expect(lease.identity).toEqual({
     entryPath: entry,
-    sourceSha256: "489171f35ce7cf5fc2cc4387e07380337ea1a574df638533f2b90ed6bd1f86fd",
-    transformedSha256: "fd0c19e7f8b2639f58746b9cca15db4200996f81f8c5e9cc069e00f657841afc",
+    sourceSha256: "acb46563f99b61babb1156858fb83c083a258b052ff21169d3b3e7d5bddec5cf",
+    transformedSha256: "8da864c26c787a0d0e01aed3a01861670e127f9231c557ab0bd808c38e0c88ce",
     patchId: "workloom.g3-requirement-await-title-policy/v2",
   });
   expect(readFileSync(entry)).toEqual(before);
@@ -504,8 +504,8 @@ function pinnedProductionSources(): { original: string; transformed: string } {
 describe("pinned production entry title guards", () => {
   it("changes exactly the original await and three title selections while preserving all other real source bytes", () => {
     const { original, transformed } = pinnedProductionSources();
-    expect(Buffer.byteLength(transformed)).toBe(206136);
-    expect(digest(transformed)).toBe("fd0c19e7f8b2639f58746b9cca15db4200996f81f8c5e9cc069e00f657841afc");
+    expect(Buffer.byteLength(transformed)).toBe(206028);
+    expect(digest(transformed)).toBe("8da864c26c787a0d0e01aed3a01861670e127f9231c557ab0bd808c38e0c88ce");
     const patches = [{ anchor, replacement }, ...titlePatches];
     let restored = transformed;
     for (const patch of patches) {

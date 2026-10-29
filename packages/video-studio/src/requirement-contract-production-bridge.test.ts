@@ -162,7 +162,7 @@ function privateRun(marker: string, duration: number, scene: RequirementRecord) 
   const authority: PrdAuthority = { metadata: structuredClone(metadata), profile: { targetDuration: duration },
     marketing: { schemaVersion: "workloom.prd-marketing-authority/v1", scope,
       g1Artifact: { path: artifactPath, sha256, content },
-      g1Proof: { gate: "G1_DOSSIER", approved: true, status: "passed", via: "llm", degraded: false, model: "synthetic-review",
+      g1Proof: { gate: "G1_DOSSIER", approved: true, status: "passed", via: "llm", degraded: false, model: "deepseek-flash",
         evidence: [{ path: artifactPath, sha256, scope: "complete-text" }] } } };
   const story = `完整原故事-${marker}\n客户故事最后一行-${marker}`;
   const input = { type: "商业广告", theme: `自主主题-${marker}`, duration_sec: duration, tone: "轻快明朗",

@@ -376,7 +376,7 @@ ${meta._directorStyle}` : ''}
 
   /**
    * 调用 LLM API
-   * v1.1: 优先使用LLMEngine (kimi-k2p6)
+   * v1.1: 优先使用LLMEngine (deepseek-flash)
    */
   async _callLLM(prompt) {
     // 【v2.1.4-fix13-审计修复】增加 Promise.race 超时保护，防止 LLM 调用 hang 住
@@ -431,6 +431,23 @@ ${meta._directorStyle}` : ''}
           console.error('[ScriptGenerator] LLM引擎返回失败:', result.error);
           throw new Error(`LLM引擎错误: ${result.error}`);
         }
+
+        // The host dispatcher owns JSON mode and returns final content only.
+        // Hidden reasoning is never a business result, and malformed JSON fails
+        // closed instead of being repaired by another provider or rule model.
+        const finalContent = typeof result.content === 'string' ? result.content.trim() : '';
+        if (!finalContent) throw new Error('SCRIPT_MODEL_CONTENT_EMPTY');
+        let finalJson;
+        try {
+          finalJson = JSON.parse(finalContent);
+        } catch (error) {
+          throw new Error(`SCRIPT_MODEL_JSON_INVALID: ${error.message}`);
+        }
+        if (!finalJson?.meta || !finalJson?.structure
+          || !Array.isArray(finalJson.structure.scenes) || finalJson.structure.scenes.length === 0) {
+          throw new Error('SCRIPT_MODEL_SCHEMA_INVALID');
+        }
+        return finalContent;
         
         // 【v2.1.6-fix14】增强JSON提取：从content和reasoning中智能提取
         let extractedJson = null;
@@ -535,7 +552,9 @@ ${meta._directorStyle}` : ''}
       }
     }
     
-    // 降级：直接HTTP调用（保留旧逻辑作为fallback）
+    throw new Error('HOST_MODEL_DISPATCH_REQUIRED: ScriptGenerator has no WorkloomLLMEngine bridge');
+
+    // Historical direct HTTP fallback is deliberately unreachable.
     const axios = require('axios');
     let lastError = null;
 

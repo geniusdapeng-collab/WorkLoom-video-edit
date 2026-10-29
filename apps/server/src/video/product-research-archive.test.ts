@@ -48,11 +48,30 @@ async function fixture(options: { specs?: Record<string, string | number | boole
   const source: SourceSnapshot = { sourceId: `SRC-${sha(`${pageUrl}\n${textSha256}`).slice(0, 24)}`, requestedUrl: pageUrl, finalUrl: pageUrl,
     redirectChain: [], fetchedAt: new Date().toISOString(), contentType: "text/html", rawSha256: sha(html), textSha256,
     bytes: Buffer.byteLength(html), ...document };
-  vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ choices: [{ message: { content: JSON.stringify({ approved: true, score: 96, issues: [], suggestions: [], reason: "All current fixture claims match complete source." }) } }] }))));
+  vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({
+    id: "product-research-judge",
+    model: "deepseek-flash",
+    choices: [{
+      finish_reason: "stop",
+      message: { content: JSON.stringify({
+        approved: true,
+        score: 96,
+        issues: [],
+        suggestions: [],
+        reason: "All current fixture claims match complete source.",
+      }) },
+    }],
+    usage: {
+      prompt_tokens: 100,
+      completion_tokens: 30,
+      total_tokens: 130,
+      completion_tokens_details: { reasoning_tokens: 10 },
+    },
+  }))));
   const prepared = await prepareMarketingFacts({
     scope: { tenantId: "tenant-test", workspaceId: "workspace-test", projectId: "product-test", runId: "run-test", attempt: 1 },
     root: researchRoot, intent: "测试商品研究", metadata: { dataMining: { name: "测试品牌 RC-1", brand: "测试品牌", model: "RC-1", category: "摩托车" } },
-    env: { LLM_BASE_URL: "https://judge.example.com", LLM_API_KEY: "test-only", LLM_MODEL: "fixture-judge" },
+    env: { LLM_BASE_URL: "https://api.deepseek.com", LLM_API_KEY: "test-only", LLM_MODEL: "deepseek-flash" },
     llm: { reason: async prompt => {
       const stage = /当前阶段：(A[123])/.exec(prompt)?.[1];
       if (stage !== "A1") return { success: true, data: { payload: stage === "A2" ? { reviews: [] } : { competitors: [] }, citations: [], noEvidenceReason: "本页没有评价或竞品" } };

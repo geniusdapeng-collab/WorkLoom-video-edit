@@ -35,10 +35,10 @@ export type VendorRequirementEntryPolicy = Readonly<{
 }>;
 
 const PRODUCTION_POLICY: VendorRequirementEntryPolicy = Object.freeze({
-  sourceSha256: "489171f35ce7cf5fc2cc4387e07380337ea1a574df638533f2b90ed6bd1f86fd",
-  sourceBytes: 205980,
-  transformedSha256: "fd0c19e7f8b2639f58746b9cca15db4200996f81f8c5e9cc069e00f657841afc",
-  transformedBytes: 206136,
+  sourceSha256: "acb46563f99b61babb1156858fb83c083a258b052ff21169d3b3e7d5bddec5cf",
+  sourceBytes: 205872,
+  transformedSha256: "8da864c26c787a0d0e01aed3a01861670e127f9231c557ab0bd808c38e0c88ce",
+  transformedBytes: 206028,
   anchor: "const requirementList = this._convertDiscoveryToRequirementList(discoveryResult, upstreamFields);",
   replacement: "const requirementList = await this._convertDiscoveryToRequirementList(discoveryResult, upstreamFields, metadata);",
   // The host method consults private run authority. Its absence preserves the

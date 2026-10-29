@@ -60,7 +60,7 @@ const guardianSave = PromptGuardian.prototype._saveLog;
 PromptGuardian.prototype._saveLog = function(...args) { this.logPath = join(root, "guardian-log.json"); return guardianSave.apply(this, args); };
 const charactersDir = join(root, "characters", "PROJECT");
 let calls = 0;
-const runtime = createPortraitRuntime({ workDir: root, projectId: "PROJECT", apiKey: "test-only-key", model: "test-model", retries: 0, fetchImpl: async (url) => {
+const runtime = createPortraitRuntime({ workDir: root, projectId: "PROJECT", apiKey: "test-only-key", model: "deepseek-flash", retries: 0, fetchImpl: async (url) => {
   if (String(url).includes("/images/generations")) { calls++; return new Response(JSON.stringify({ data: [{ url: "https://cdn.example.invalid/out" }] })); }
   return new Response(new Uint8Array(4096).fill(calls));
 } });
@@ -182,7 +182,7 @@ const uninstall = installVendorPortraitBindingBridge({ index, maxCharactersPerSh
 const engine = new engineMod.RenderingEngine({
   charactersDir: ${JSON.stringify(workDir)},
   outputDir: ${JSON.stringify(workDir)},
-  apiKey: "test-key",
+  apiKey: "test-only",
   endpoint: "test-model"
 });
 
@@ -970,7 +970,7 @@ let unexpectedModelCalls = 0;
 const noModel = async () => { unexpectedModelCalls++; throw new Error("unexpected offline fixture model call"); };
 const modelMethods = ["reason", "reasonStructured", "reasonRaw", "chat", "generate"];
 const originalModelMethods = modelMethods.map(key => [key, WorkloomLLMEngine.prototype[key]]);
-const llm = new WorkloomLLMEngine({ baseUrl: "https://example.invalid", apiKey: "offline-test-only", model: "offline", fastModel: "offline" });
+const llm = new WorkloomLLMEngine({ baseUrl: "https://example.invalid", apiKey: "offline-test-only", model: "deepseek-flash", fastModel: "deepseek-flash" });
 for (const key of modelMethods) WorkloomLLMEngine.prototype[key] = noModel;
 let installedAtCreate = false;
 let fail = false;

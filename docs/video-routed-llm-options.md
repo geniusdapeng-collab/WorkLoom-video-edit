@@ -1,13 +1,140 @@
-# 视频语言模型调用参数
+# WorkLoom text model routing
 
-`WorkloomLLMEngine` 接入 `routeSmart` 后，仍将适配器配置的超时（默认 180 秒）和每次调用的生成选项送到实际 `ModelProvider.chat`。生成选项只包含 `temperature`、`topP`、`maxTokens`、`responseFormat`、`thinking`；它们不选择模型，也不覆盖路由的套餐、场景、预算、事件汇或供应商凭据。
+## Canonical contract
 
-适配器的默认值与直连路径一致：温度 1、top-p 0.95、输出 token 上限 8192（可由构造配置覆盖）。显式数值 0 原样保留。`forceJson: true` 优先于 `responseFormat`，转换成 `response_format: { type: "json_object" }`。未指定 `thinking` 时不发送该字段。独立使用 `OpenAiCompatibleProvider` 时，原有温度默认值 0.2 保持不变，其他未指定字段省略。
+All text generation and review resolve through the symbolic key `text.primary`:
 
-DeepSeek 文本模型使用统一 token 单位：`deepseek-flash` 的官方上下文为 1,048,576 tokens，输出上限为 393,216 tokens。每次调用先以本次 `max_tokens` 预留输出，再限制输入，因此两者不会分别按上限相加。视频 JSON 任务申请 16,384 output tokens，输入预算相应为 1,032,192 tokens；文本先按官方中文字符 0.6 token、英文/数字/空白字符 0.3 token、符号 1 token 的近似比例换算。精确用量以 API `usage` 为准，估算超限直接失败关闭，不调用替代模型。`LLM_NON_THINKING=0` 可显式恢复思考模式，否则 Flash 文本任务默认非思考。
+- provider: DeepSeek
+- model: `deepseek-flash`
+- context: 1,048,576 tokens
+- maximum output: 393,216 tokens
+- protocol: OpenAI-compatible chat completions
 
-取消信号与供应商超时共同约束网络请求和响应正文读取。调用方取消会记录原因并停止后续供应商尝试，不累计供应商故障次数；供应商错误仍沿现有降级链记录。积分仍由成功回包的真实 token 用量计量，原有熔断阈值与预算边界保留。
+`deepseek-v4-flash` is accepted only as an input alias and normalized to
+`deepseek-flash`. Legacy chat/reasoner aliases and Kimi, GLM, Qwen, MiniMax,
+OpenAI, Anthropic or Gemini text models are rejected. Media generation models
+remain in a separate registry.
 
-营销事实提取是原文转录任务，明确传 `thinking: { type: "disabled" }`、温度 0 和 JSON 格式。原文支持关系审核及最终镜头事实审核继续使用独立 `reviewStage`，不继承提取任务的 thinking 设置，也不改变通过条件。
+Official facts checked 2026-10-30:
 
-离线回归使用本地 HTTP 服务读取实际 POST 字节，覆盖参数、默认值、超时、取消、HTTP 错误和计量。这里的验证不构成供应商服务可用性或正式视频生产成功回执。
+- <https://api-docs.deepseek.com/zh-cn/quick_start/pricing/>
+- <https://api-docs.deepseek.com/zh-cn/guides/thinking_mode/>
+- <https://api-docs.deepseek.com/zh-cn/guides/json_mode/>
+- <https://api-docs.deepseek.com/zh-cn/guides/vision/>
+- <https://api-docs.deepseek.com/zh-cn/quick_start/token_usage/>
+
+## Single dispatch surface
+
+The following active paths delegate to the same canonical provider:
+
+- `apps/server/src/service/llm.ts`
+- `packages/base/workdata/recall.ts`
+- `packages/video-studio/src/llm-adapter.ts`
+- `packages/video-studio/src/producer-gate.ts`
+- `packages/video-studio/src/plausibility-review.ts`
+- `apps/server/src/industry/geo-growth/jev/client.ts`
+- CLI entry points under `scripts/tools/`
+
+The vendor `LLMEngine` is a compatibility facade. Production installs the host
+bridge over its methods before use; direct use fails with
+`HOST_MODEL_DISPATCH_REQUIRED`. The legacy PandaCineForge extension is disabled
+by default and can only reach text through an explicitly configured host
+bridge.
+
+`packages/base/model-router/model-routing-contract.test.ts` scans runtime source
+to reject new direct text endpoints and foreign text-model IDs outside the
+registry and controlled test harnesses.
+
+## Scene policy
+
+Thinking and format are decisions of the semantic scene, not the caller or
+subscription tier. The initial policy is:
+
+| Scene family | Thinking |
+|---|---|
+| intent routing, extraction, normalization, schema repair, rigid format | disabled |
+| PRD, script, scene plan, narrative, prompt and copy generation | enabled `high` |
+| producer, continuity, plausibility and independent content review | enabled `high` |
+| final high-stakes review | enabled `max` after evidence supports it |
+
+Billing tiers (`L1/L2/L3`, plans and off-peak windows) remain analytics and
+billing labels. They no longer select different models. Generation and review
+always resolve to the same `deepseek-flash` model.
+
+## Full-window budget
+
+The exact serialized request—messages, tools and response format—is tokenized
+with the pinned official DeepSeek tokenizer:
+
+- asset SHA-256:
+  `89085f12ef79460ac5f66d1119325ddfc694b4ab209d80bbd81d35f081dc9614`
+- source archive SHA-256:
+  `e7310d1dafe0a86d8a5629fe78a7c763760f651db9b8682718a1781dcd6fe495`
+
+For every task:
+
+```text
+inputTokens = official text tokens
+            + chat framing
+            + image count × 1,024-token image ceiling
+
+max_tokens = min(393,216, 1,048,576 - inputTokens)
+```
+
+The complete input is sent once. Character counts, 4K/8K/16K/32K vendor
+guesses and hidden `reasoning_content` extraction are not used as budget or
+fallback mechanisms. Images follow the documented limits of 600 images, 48 MiB
+request body, 32 MiB inline image and 64 MiB total non-file-id image data.
+
+If the hard context or request-body limit is exceeded, dispatch fails closed
+and requires an explicit lossless partition with complete final synthesis.
+
+## Failure and retry
+
+Calls fail closed when any of the following occurs:
+
+- returned model identity differs from `deepseek-flash`
+- `finish_reason` is not `stop`
+- final content is empty
+- expected JSON is malformed, truncated or schema-invalid
+- usage is missing or inconsistent
+- non-thinking mode returns reasoning content or reasoning tokens
+- context, image count or request body exceeds the documented limit
+
+Only a 429 response may retry, with the same model, mode, prompt and policy.
+HTTP 5xx and network timeouts have an unknown execution result and are not
+automatically duplicated.
+
+## Receipts
+
+Every successful call returns or records:
+
+- configured and returned model
+- scene, thinking mode and effort
+- input/output/total/reasoning tokens
+- output ceiling and tokenizer estimate
+- `finish_reason`
+- request/response hashes
+- response ID
+- policy and registry versions
+- bounded retry attempts
+
+Provider bodies and credentials are not stored. Final business content remains
+separate from reasoning metadata.
+
+## Validation
+
+Repository validation covers:
+
+- official tokenizer loading and context/output boundaries
+- disabled and enabled thinking modes
+- JSON success, malformed JSON, empty content and truncation
+- wrong model, missing usage and reasoning leakage
+- timeout, cancellation, 429 retry and unknown 5xx
+- local-window scheduling
+- same-model generation/review resolution
+- a source-wide direct-transport and foreign-model contract scan
+- a real DeepSeek disabled JSON and enabled-high smoke
+
+Local HTTP tests prove request bytes and failure behavior. A successful HTTP
+call alone is not a production video-quality receipt.

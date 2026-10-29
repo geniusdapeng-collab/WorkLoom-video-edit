@@ -139,7 +139,7 @@ function discover(engine: RequirementRecord, input: unknown): Promise<Requiremen
 describe("current requirement authority and original transport", () => {
   it("pins the exact native source bodies used by the offline fixtures", () => {
     for (const [relative, hash] of [
-      ["index.js", "489171f35ce7cf5fc2cc4387e07380337ea1a574df638533f2b90ed6bd1f86fd"],
+      ["index.js", "acb46563f99b61babb1156858fb83c083a258b052ff21169d3b3e7d5bddec5cf"],
       ["engines/requirement-discovery-engine.js", "d372d61aa6c851e8f4c5976ab2bb97604722d101054aabe3fae9b31c835697b6"],
       ["skills/creative-theme-generator/index.js", "e79065e6bb87b0aa1418c9a509deabb575750635ef22f4b162148e6456fbeaae"],
       ["skills/creative-theme-generator/dynamic-type-resolver.js", "65bf2ea16a8871c65c21bea0621af92b98ff5f924b753be4dc96223561c61368"]
@@ -216,7 +216,7 @@ describe("current requirement authority and original transport", () => {
 
   it("retains the actual adapter's structured-to-reason delegation and the native agent retry budget", async () => {
     install(); const f = fixture(), expected = payloads(f.discovery.sceneStructure);
-    const engine = new WorkloomLLMEngine({ baseUrl: "https://example.invalid", apiKey: "test-only", model: "fixture" });
+    const engine = new WorkloomLLMEngine({ baseUrl: "https://example.invalid", apiKey: "test-only", model: "deepseek-flash" });
     const prompts: string[] = [];
     const provider = vi.fn(async (prompt: string, options: RequirementRecord) => {
       prompts.push(prompt);
