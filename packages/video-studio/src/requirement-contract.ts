@@ -28,7 +28,13 @@ function withValidationFacts(error: RequirementContractError, details: Requireme
 /** Only facts produced by our validator can reach the next native attempt. */
 export function structuredSceneFeedback(error: unknown): string {
   const facts = error instanceof RequirementContractError ? validationFacts.get(error) : undefined;
-  return facts ? `\n\n## 上一次原生场景校验反馈\n${JSON.stringify(facts)}\n仅依据这些校验事实重新生成完整合法响应；不复用或补填上次场景，不改变原有 schema、人物与时长约束。` : "";
+  if (!facts) return "";
+  const duration = finiteNumber(facts.durationSum), target = finiteNumber(facts.targetDuration);
+  const durationCorrection = duration !== null && target !== null && Math.abs(duration - target) > 0.05
+    ? `\n本次必须把 opening、scenes、ending 的 duration 合计${duration > target ? "减少" : "增加"} ${Math.abs(duration - target)} 秒，`
+      + `并把 totalDuration 精确设为 ${target}；保持真实场景内容重新完整生成，不得复用或补填上一次节点。`
+    : "";
+  return `\n\n## 上一次原生场景校验反馈\n${JSON.stringify(facts)}\n仅依据这些校验事实重新生成完整合法响应；不复用或补填上次场景，不改变原有 schema、人物与时长约束。${durationCorrection}`;
 }
 
 /** Risk retries receive only our exact array-bound facts, never the prior response. */

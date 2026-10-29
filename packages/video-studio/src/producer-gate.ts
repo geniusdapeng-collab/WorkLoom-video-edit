@@ -39,6 +39,16 @@ import { join } from "node:path";
 import { randomUUID, createHash } from "node:crypto";
 import { spawnSync } from "node:child_process";
 
+import {
+  DEEPSEEK_FLASH_MODEL,
+  DEEPSEEK_FLASH_INPUT_TOKEN_BUDGET,
+  DEEPSEEK_VIDEO_JSON_OUTPUT_TOKENS,
+  estimateDeepSeekTokens,
+  resolveOpenAiCompatibleBaseUrl,
+  resolveVideoApiKey,
+  resolveVideoModel,
+  resolveVideoNonThinking,
+} from "./llm-config.js";
 import type { QualityStatus } from "./quality-evidence.js";
 import { normalizeShotIntent, shotIntentHash, type ShotIntentStatus } from "./shot-intent.js";
 import { devicePolicyPromptLines } from "./device-policy.js";
@@ -234,26 +244,30 @@ interface LlmConfig {
   baseUrl: string;
   apiKey: string;
   model: string;
+  nonThinking?: boolean;
 }
 
 /**
- * Complete text evidence, measured in UTF-16 code units, never truncated.
- * These exact canonical DeepSeek models have a documented 1M-token context
- * (https://api-docs.deepseek.com/quick_start/pricing/); this bounded resource
- * allocation is separate from quality scores, context/contracts and image caps.
- * Unknown models and legacy/proxy aliases retain the original 100k allocation.
+ * Complete text evidence, measured in estimated DeepSeek tokens, never truncated.
+ * The canonical Flash model has a documented 1,048,576-token context and
+ * 393,216-token output ceiling. JSON review calls request 16,384 output tokens,
+ * leaving 1,032,192 tokens for input. Text is measured with DeepSeek's
+ * documented token ratios, not mistaken for a character ceiling.
+ * Other models retain the original 100k-character allocation.
  */
-function textEvidenceBudget(model: string): number {
-  return model === "deepseek-flash" || model === "deepseek-v4-pro" ? 200_000 : 100_000;
+function textEvidenceMeter(model: string): { count: (text: string) => number; limit: number; maxOutputTokens?: number } {
+  return model === DEEPSEEK_FLASH_MODEL
+    ? { count: estimateDeepSeekTokens, limit: DEEPSEEK_FLASH_INPUT_TOKEN_BUDGET, maxOutputTokens: DEEPSEEK_VIDEO_JSON_OUTPUT_TOKENS }
+    : { count: (text) => text.length, limit: 100_000 };
 }
 
 /** 解析评审模型（与 model-router 的 LLM_* 口径一致，兼容 DEEPSEEK_* 秘密文件） */
 export function resolveProducerLlm(env: Record<string, string | undefined> = process.env): LlmConfig | null {
-  const baseUrl = env.LLM_BASE_URL ?? env.DEEPSEEK_BASE_URL ?? "";
-  const apiKey = env.LLM_API_KEY ?? env.DEEPSEEK_API_KEY ?? "";
-  const model = env.LLM_MODEL ?? env.DEEPSEEK_MODEL ?? "";
+  const baseUrl = resolveOpenAiCompatibleBaseUrl(env);
+  const apiKey = resolveVideoApiKey(env);
+  const model = resolveVideoModel(env);
   if (!baseUrl || !apiKey || !model) return null;
-  return { baseUrl: baseUrl.replace(/\/$/, ""), apiKey, model };
+  return { baseUrl, apiKey, model, nonThinking: resolveVideoNonThinking(model, env) };
 }
 
 function summarizeArtifacts(artifacts: ProducerArtifact[]): string {
@@ -327,7 +341,9 @@ async function parseJudgeJson(
         { role: "user", content: "把下面这段内容整理成**严格合法**的 JSON（只输出 JSON，不要任何解释、不要 markdown）：\n\n" + raw.slice(0, 4000) }
       ],
       temperature: 0,
-      response_format: { type: "json_object" }
+      response_format: { type: "json_object" },
+      ...(llm.model === DEEPSEEK_FLASH_MODEL ? { max_tokens: DEEPSEEK_VIDEO_JSON_OUTPUT_TOKENS } : {}),
+      ...(llm.nonThinking ? { thinking: { type: "disabled" } } : {}),
     }),
     signal: AbortSignal.timeout(120_000)
   });
@@ -397,7 +413,9 @@ async function repairJudgeShape(
           + JSON.stringify(parsed)
       }],
       temperature: 0,
-      response_format: { type: "json_object" }
+      response_format: { type: "json_object" },
+      ...(llm.model === DEEPSEEK_FLASH_MODEL ? { max_tokens: DEEPSEEK_VIDEO_JSON_OUTPUT_TOKENS } : {}),
+      ...(llm.nonThinking ? { thinking: { type: "disabled" } } : {}),
     }),
     signal: AbortSignal.timeout(120_000)
   });
@@ -465,7 +483,7 @@ export async function reviewStage(options: ProducerGateOptions): Promise<Produce
   if (options.deterministic.some((c) => c.hard && (c.status === "unverified" || (c.status !== "not_applicable" && c.pass !== true)))) return reject("必需质量检查未验证");
   const llm = resolveProducerLlm(options.env ?? process.env);
   if (!llm) return reject("无可用评审模型；降级只能预览，不能作为合格交付", "fallback");
-  const textBudget = textEvidenceBudget(llm.model);
+  const textMeter = textEvidenceMeter(llm.model);
   const minScore = options.minScore ?? 70;
   if (!Number.isFinite(minScore) || minScore < 0 || minScore > 100) return reject("评审分数阈值非法");
   const tempPaths: string[] = [];
@@ -490,8 +508,8 @@ export async function reviewStage(options: ProducerGateOptions): Promise<Produce
       if (artifact.kind === "text" || artifact.kind === "json") {
         const raw = bytes.toString("utf8");
         if (artifact.kind === "json") JSON.parse(raw);
-        totalText += raw.length;
-        if (totalText > textBudget) throw new Error("文本证据超出本次完整评审预算；需拆分评审，禁止截断后通过");
+        totalText += textMeter.count(raw);
+        if (totalText > textMeter.limit) throw new Error("文本证据超出本次完整评审预算；需拆分评审，禁止截断后通过");
         textContent.push({ type: "text", text: `以下是产物正文（完整）：${artifact.path}\n${raw}` });
         evidence.push({ path: artifact.path, sha256, scope: "complete-text" });
       } else if (artifact.kind === "image") {
@@ -562,7 +580,14 @@ export async function reviewStage(options: ProducerGateOptions): Promise<Produce
       ].join("\n") }, ...textContent, ...encoded.slice(batch * batchSize, Math.min(artifactImages, (batch + 1) * batchSize)).flat(), ...encoded.slice(artifactImages).flat()];
       const res = await (options.fetchImpl ?? fetch)(`${llm.baseUrl}/chat/completions`, {
         method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${llm.apiKey}` },
-        body: JSON.stringify({ model: llm.model, messages: [{ role: "user", content }], temperature: 0.2, response_format: { type: "json_object" } }),
+        body: JSON.stringify({
+          model: llm.model,
+          messages: [{ role: "user", content }],
+          temperature: 0.2,
+          response_format: { type: "json_object" },
+          ...(textMeter.maxOutputTokens === undefined ? {} : { max_tokens: textMeter.maxOutputTokens }),
+          ...(llm.nonThinking ? { thinking: { type: "disabled" } } : {}),
+        }),
         signal: AbortSignal.timeout(180_000)
       });
       const rawBody = await res.text();

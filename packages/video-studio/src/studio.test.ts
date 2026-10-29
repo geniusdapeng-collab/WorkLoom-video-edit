@@ -272,6 +272,18 @@ describe("LLM 适配器", () => {
     expect(engine?.model).toBe("m");
   });
 
+  it("DeepSeek 部署从 DEEPSEEK_* 与 OpenAI 端点构建，合法别名规范到官方模型名", () => {
+    const engine = WorkloomLLMEngine.fromEnv({
+      DEEPSEEK_BASE_URL: "https://api.deepseek.com/anthropic",
+      LLM_BASE_URL: "https://api.deepseek.com",
+      DEEPSEEK_API_KEY: "test-only",
+      DEEPSEEK_MODEL: "deepseek-v4-flash",
+    });
+    expect(engine).not.toBeNull();
+    expect(engine?.model).toBe("deepseek-flash");
+    expect(engine?.getStats()).toMatchObject({ model: "deepseek-flash" });
+  });
+
   it("JSON 提取容错：围栏/前后噪声", () => {
     const extract = (WorkloomLLMEngine as unknown as { extractJson(t: string): unknown })
       .extractJson;
