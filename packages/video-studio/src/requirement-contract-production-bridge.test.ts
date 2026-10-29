@@ -248,7 +248,7 @@ describe("actual native scene prompt and strict production response", () => {
     { duration: 60, feasibleMiddleCounts: [1, 2, 3, 4, 5, 6, 7, 8] }
   ])("corrects the actual $duration s native contradiction without changing identical customer literals or schema", async ({ duration, feasibleMiddleCounts }) => {
     expect(createHash("sha256").update(readFileSync(nativeDiscoveryFile)).digest("hex"))
-      .toBe("d658bd5033ff671061b0e31414d4578838496a22b19d204674abc34c7c7a5fdb");
+      .toBe("d372d61aa6c851e8f4c5976ab2bb97604722d101054aabe3fae9b31c835697b6");
     const input: RequirementRecord = { type: "商业广告", theme: "自主创作", duration_sec: duration, description: "最初的客户描述" };
     const original = await nativePromptParts(input), sample = JSON.parse(original.example) as RequirementRecord;
     const nodes = [sample.opening, ...(sample.scenes as unknown[]), sample.ending].map(value => requirementRecord(value, "sample node"));
@@ -293,7 +293,7 @@ describe("actual native scene prompt and strict production response", () => {
     for (const call of model.calls) expectCompleteSources(call.prompt, run);
     const sceneCall = model.calls.find(call => call.method === "reason")!;
     expect(sceneCall.prompt).toContain(`## 📖 原始故事文本（需求分析的核心依据）\n${run.story}`);
-    expect(sceneCall.options).toMatchObject({ maxTokens: 4000, temperature: 1, forceJson: false });
+    expect(sceneCall.options).toMatchObject({ maxTokens: 16384, temperature: 0.4, forceJson: true, thinking: { type: "disabled" } });
     expect(sceneCall).not.toHaveProperty("schema");
     expect(requirementHash(run.input)).toBe(before);
     expect(requirementRecord(result.upstreamFields, "source")._originalStoryText).toBe(run.story);
@@ -322,7 +322,7 @@ describe("actual native scene prompt and strict production response", () => {
       expect(call.prompt.split(original.countLine)).toHaveLength(2);
       expect(call.prompt.split(original.example)).toHaveLength(2);
       expect(call.prompt.replace(`主题描述: ${run.input.description}\n`, "")).not.toContain("falling 级的留白场景（3-6秒）");
-      expect(call.options).toMatchObject({ maxTokens: 4000, temperature: 1, forceJson: false });
+      expect(call.options).toMatchObject({ maxTokens: 16384, temperature: 0.4, forceJson: true, thinking: { type: "disabled" } });
       expect(call).not.toHaveProperty("schema");
     }
     expect(requirementHash(result.sceneStructure)).toBe(requirementHash(valid));

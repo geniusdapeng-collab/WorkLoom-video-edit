@@ -71,5 +71,14 @@ export function poolFromEnv(opts: { mockOpts?: Record<string, { failFirst?: numb
     if (!baseUrl) continue; // 该 vendor 未配置 → 池内缺位，降级链自动跳过（healthy=false 语义）
     pool.set(m.id, new OpenAiCompatibleProvider(m.id, { baseUrl, apiKey: process.env.LLM_API_KEY || undefined }));
   }
+  const forced = process.env.LLM_FORCE_MODEL?.trim();
+  if (forced && !pool.has(forced)) {
+    const baseUrl = process.env.LLM_BASE_URL ?? process.env.DEEPSEEK_BASE_URL;
+    if (!baseUrl) throw new Error(`LLM_FORCE_MODEL=${forced} 但缺少 OpenAI 兼容端点`);
+    pool.set(forced, new OpenAiCompatibleProvider(forced, {
+      baseUrl,
+      apiKey: process.env.LLM_API_KEY ?? process.env.DEEPSEEK_API_KEY,
+    }));
+  }
   return pool;
 }

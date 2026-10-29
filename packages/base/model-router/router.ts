@@ -18,7 +18,7 @@ import {
   DEFAULT_MODEL_POLICY, resolveScene, resolveTier, tierUp,
   type ModelPolicy, type PlanId, type Tier3,
 } from "./policy.js";
-import { chainFor } from "./pool.js";
+import { catalogByTier, chainFor } from "./pool.js";
 import { computeCredits } from "./credits.js";
 
 /* ================= 峰谷窗口（F6.3，Asia/Shanghai） ================= */
@@ -272,8 +272,9 @@ export function projectBill(events: Array<{ model_trace?: { model_id: string; ti
 
 /** 长文路由条件：输入字符超阈值 → 档内长文款前置（≈32K tokens 粗估） */
 export const LONG_CONTEXT_CHARS = 24_000;
-/** 档内 token 天花板：估算超限 → 自动升一档（复杂度信号，规则引擎零成本） */
-export const TIER_TOKEN_CEILING: Record<Tier3, number> = { L1: 4000, L2: 24_000, L3: Number.POSITIVE_INFINITY };
+/** DeepSeek V4.1 Flash supports 1,048,576 context tokens; keep a conservative
+ * character ceiling for the full per-task budget and only escalate beyond it. */
+export const TIER_TOKEN_CEILING: Record<Tier3, number> = { L1: 1_000_000, L2: 1_000_000, L3: Number.POSITIVE_INFINITY };
 
 export interface SmartTask extends RouteTask {
   /** OpenAI-compatible generation controls, without model/auth/accounting overrides. */
@@ -284,6 +285,8 @@ export interface SmartTask extends RouteTask {
   plan?: PlanId;
   /** 强制档位（升级重答用；跳过场景表与套餐映射） */
   forceTier?: Tier3;
+  /** 当前部署显式锁定模型；设置后禁止同档或跨档替换。 */
+  forceModel?: string;
   /**
    * v3.0 轻量复杂度分类器（自由输入场景）：仅 scene=generic 且无 forceTier 时启用——
    * 规则启发式打不准时，用 L1 小模型做 3 分类（simple/medium/complex，单次 ~0.2 积分）。
@@ -339,7 +342,10 @@ export async function routeSmart(
   const scene = task.scene ?? "generic";
   const plan = task.plan ?? "standard";
   const sp = resolveScene(policy, scene);
-  let tier = task.forceTier ?? resolveTier(policy, scene, plan);
+  const forcedModel = task.forceModel?.trim();
+  let tier = forcedModel
+    ? (/flash/i.test(forcedModel) ? "L1" : /pro|max/i.test(forcedModel) ? "L2" : task.forceTier ?? resolveTier(policy, scene, plan))
+    : task.forceTier ?? resolveTier(policy, scene, plan);
   const callTimeoutMs = task.timeoutMs && task.timeoutMs > 0
     ? task.timeoutMs
     : (DEFAULT_SCENE_TIMEOUTS[scene] ?? DEFAULT_CALL_TIMEOUT_MS);
@@ -373,7 +379,7 @@ export async function routeSmart(
 
   // v3.0 轻量复杂度分类（自由输入场景）：generic + 无强制档 → 启发式定档；
   // 启发式拿不准（medium）且挂了分类器 → L1 小模型 3 分类复核（单次 ~0.2 积分）
-  if (!task.forceTier && scene === "generic") {
+  if (!task.forceTier && !forcedModel && scene === "generic") {
     const text = task.messages.map((m) => m.content).join("\n").slice(0, 2000);
     let c = heuristicComplexity(text);
     if (c === "medium" && task.complexityClassifier) {
@@ -386,8 +392,11 @@ export async function routeSmart(
 
   // 复杂度信号（确定性规则，零模型成本）：输入超档内天花板 → 升一档
   const inputChars = task.messages.reduce((n, m) => n + m.content.length, 0);
-  if (inputChars > TIER_TOKEN_CEILING[tier]) tier = tierUp(tier) ?? tier;
   const longContext = inputChars > LONG_CONTEXT_CHARS;
+  const hasLongContextModel = catalogByTier(tier).some(model => model.longContext === true);
+  if (!forcedModel && inputChars > TIER_TOKEN_CEILING[tier] && !(longContext && hasLongContextModel)) {
+    tier = tierUp(tier) ?? tier;
+  }
 
   // F6.1 记忆复用：命中零消耗直返（留痕）
   if (task.memoryLookup) {
@@ -410,7 +419,7 @@ export async function routeSmart(
 
   const window = currentWindow(now);
   // 降级链：noDowngrade（金融/体检等质量红线）截断跨档段，只允许同档互备
-  const chain = chainFor(tier, { longContext, allowCrossTier: !sp.noDowngrade });
+  const chain = forcedModel ? [forcedModel] : chainFor(tier, { longContext, allowCrossTier: !sp.noDowngrade });
   const degraded: Array<{ from: string; to: string | null; reason: string }> = [];
 
   for (let i = 0; i < chain.length; i++) {

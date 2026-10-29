@@ -344,10 +344,10 @@ describe("model-aware complete text evidence allocation", () => {
   });
 
   it.each([
-    { model: "deepseek-flash", total: 200_000, allowed: true },
-    { model: "deepseek-flash", total: 200_001, allowed: false },
-    { model: "deepseek-v4-pro", total: 200_000, allowed: true },
-    { model: "deepseek-v4-pro", total: 200_001, allowed: false },
+    { model: "deepseek-flash", total: 800_000, allowed: true },
+    { model: "deepseek-flash", total: 800_001, allowed: false },
+    { model: "deepseek-v4-pro", total: 800_000, allowed: true },
+    { model: "deepseek-v4-pro", total: 800_001, allowed: false },
   ])("enforces the exact aggregate boundary for $model at$total", async ({ model, total, allowed }) => {
     const value = payload(model, total), bodies: string[] = [];
     expect(value.accepted.length + value.current.length).toBe(total);
@@ -370,8 +370,8 @@ describe("model-aware complete text evidence allocation", () => {
   );
 
   it.each([
-    { model: "deepseek-flash", units: 200_000, extra: "", allowed: true },
-    { model: "deepseek-flash", units: 200_000, extra: "a", allowed: false },
+    { model: "deepseek-flash", units: 800_000, extra: "", allowed: true },
+    { model: "deepseek-flash", units: 800_000, extra: "a", allowed: false },
     { model: "deepseek-chat", units: 100_000, extra: "", allowed: true },
     { model: "deepseek-chat", units: 100_000, extra: "a", allowed: false },
   ])("counts surrogate pairs as UTF-16 units for$model/$units/$extra", async ({ model, units, extra, allowed }) => {

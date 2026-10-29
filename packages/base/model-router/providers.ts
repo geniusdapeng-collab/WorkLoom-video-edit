@@ -83,6 +83,22 @@ export class OpenAiCompatibleProvider implements ModelProvider {
   private authHeaders(): Record<string, string> {
     return this.cfg.apiKey ? { authorization: `Bearer ${this.cfg.apiKey}` } : {};
   }
+  private static async failureDetail(response: Response): Promise<string> {
+    const raw = await response.text().catch(() => "");
+    let detail = raw.trim();
+    try {
+      const value = JSON.parse(raw) as { error?: { message?: unknown; code?: unknown } };
+      detail = [value.error?.code, value.error?.message]
+        .filter(item => typeof item === "string" && item.trim())
+        .join(": ");
+    } catch {
+      /* Non-JSON provider errors retain their bounded text. */
+    }
+    return detail
+      .replace(/\bBearer\s+[A-Za-z0-9._~+/=-]+/gi, "Bearer <redacted>")
+      .replace(/\bsk-[A-Za-z0-9_-]{8,}\b/g, "<redacted>")
+      .slice(0, 500);
+  }
   async healthy(): Promise<boolean> {
     try {
       const res = await fetch(`${this.cfg.baseUrl}/models`, {
@@ -116,7 +132,10 @@ export class OpenAiCompatibleProvider implements ModelProvider {
         }),
         signal,
       });
-      if (!res.ok) throw new Error(`模型调用失败：HTTP ${res.status}`);
+      if (!res.ok) {
+        const detail = await OpenAiCompatibleProvider.failureDetail(res);
+        throw new Error(`模型调用失败：HTTP ${res.status}${detail ? `（${detail}）` : ""}`);
+      }
       const data = (await res.json()) as {
         choices?: Array<{ message?: { content?: string } }>;
         usage?: { prompt_tokens?: number; completion_tokens?: number };

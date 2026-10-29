@@ -216,10 +216,33 @@ describe("routeSmart（场景 × 套餐 × 复杂度 × 真实计量）", () => 
 
   it("复杂度信号：超长输入自动升档 + 长文款前置", async () => {
     const { sink, traces } = memSink();
-    const big = "长".repeat(5000); // 超 L1 天花板 4000 → 升 L2，且 deepseek-v4-pro 长文款在前
+    const big = "长".repeat(1_000_001); // 超出百万级单任务预算 → 升 L2，且长文款在前
     const r = await routeSmart(task({ messages: [{ role: "user", content: big }] }), mockPool(), sink);
     expect(r.tier).toBe("L2");
     expect(traces[0].model_id).toBe("deepseek-v4-pro");
+  });
+
+  it("显式模型 pin 使用百万级上下文能力，不升档也不替换其他模型", async () => {
+    const { sink, traces } = memSink();
+    const calls: string[] = [];
+    const provider = (modelId: string): ModelProvider => ({
+      modelId,
+      healthy: async () => true,
+      chat: async () => {
+        calls.push(modelId);
+        return { text: "forced answer", promptTokens: 10, completionTokens: 3 };
+      },
+    });
+    const pool = new Map([["deepseek-flash", provider("deepseek-flash")], ["deepseek-v4-pro", provider("deepseek-v4-pro")]]);
+    const r = await routeSmart(task({
+      action: "preproduction",
+      scene: "preproduction",
+      forceModel: "deepseek-flash",
+      messages: [{ role: "user", content: "长".repeat(800_000) }],
+    }), pool, sink);
+    expect(r).toMatchObject({ kind: "answered", tier: "L1", modelTrace: { model_id: "deepseek-flash" } });
+    expect(calls).toEqual(["deepseek-flash"]);
+    expect(traces).toHaveLength(1);
   });
 
   it("谷时计量 ×0.2 且 bill_to=platform 场景留痕计费归属", async () => {

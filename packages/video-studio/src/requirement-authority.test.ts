@@ -140,8 +140,8 @@ describe("current requirement authority and original transport", () => {
   it("pins the exact native source bodies used by the offline fixtures", () => {
     for (const [relative, hash] of [
       ["index.js", "489171f35ce7cf5fc2cc4387e07380337ea1a574df638533f2b90ed6bd1f86fd"],
-      ["engines/requirement-discovery-engine.js", "d658bd5033ff671061b0e31414d4578838496a22b19d204674abc34c7c7a5fdb"],
-      ["skills/creative-theme-generator/index.js", "7221bdbc2b2858c8bffb8b4eec640eb78c835c39668d247bb9177e2a1ef31f1e"],
+      ["engines/requirement-discovery-engine.js", "d372d61aa6c851e8f4c5976ab2bb97604722d101054aabe3fae9b31c835697b6"],
+      ["skills/creative-theme-generator/index.js", "e79065e6bb87b0aa1418c9a509deabb575750635ef22f4b162148e6456fbeaae"],
       ["skills/creative-theme-generator/dynamic-type-resolver.js", "65bf2ea16a8871c65c21bea0621af92b98ff5f924b753be4dc96223561c61368"]
     ]) expect(digest(readFileSync(path.join(vendor, relative!), "utf8"))).toBe(hash);
   });
@@ -199,7 +199,9 @@ describe("current requirement authority and original transport", () => {
       expect(call.prompt.indexOf(f.upstream._originalStoryText)).toBeLessThan(call.prompt.indexOf(context));
       expect(call.prompt).toContain("非阻断修改建议-");
       if (mode === "chat") { expect(call.args[0]).toBe("你是一位资深视频业务分析师。只输出严格格式的JSON。"); expect(call.args[2]).toBe(1); }
-      else expect(call.args.at(-1)).toMatchObject({ maxTokens: 4000, temperature: 1 });
+      else if (mode === "structured" && call.prompt.includes("你是一位电影导演，正在为AI视频生成系统设计场景结构")) {
+        expect(call.args.at(-1)).toMatchObject({ maxTokens: 16384, temperature: 0.4, forceJson: true, thinking: { type: "disabled" } });
+      } else expect(call.args.at(-1)).toMatchObject({ maxTokens: 4000, temperature: 1 });
     }
     for (const key of ["audienceProfile", "sceneStructure", "riskAssessment", "referenceCases"] as const) {
       expect(requirementHash(result[key])).toBe(requirementHash(expected[key]));
@@ -290,7 +292,7 @@ describe("native theme generation has the same private authority without story p
       expect(call.prompt.split(f.authority.marketing.g1Artifact.content)).toHaveLength(2);
       expect(call.prompt.endsWith(requirementAuthorityPrompt(f.authority))).toBe(true);
     }
-    if (mode !== "chat") { expect(calls[0]!.options).toMatchObject({ maxTokens: 2000, temperature: 0.3 }); expect(calls[1]!.options).toMatchObject({ maxTokens: 2000, temperature: 0.2, forceJson: true }); }
+    if (mode !== "chat") { expect(calls[0]!.options).toMatchObject({ maxTokens: 16384, temperature: 0.3 }); expect(calls[1]!.options).toMatchObject({ maxTokens: 16384, temperature: 0.2, forceJson: true }); }
     expect(result._originalStoryText).toBe(input);
     expect(String(result._originalStoryText)).not.toContain(f.authority.marketing.g1Artifact.content);
     expect(generator).not.toHaveProperty("_lastInput");
@@ -339,7 +341,7 @@ describe("native theme generation has the same private authority without story p
       try { await (generator.generate as (input: string) => Promise<unknown>)("请制作一条商品介绍短片"); } catch { /* vendor-like swallow */ }
       return { success: false };
     }, f.options)).rejects.toThrow("fixture unavailable");
-    expect(provider).toHaveBeenCalledTimes(1);
+    expect(provider).toHaveBeenCalledTimes(2);
     const g = fixture("dynamic-fail"), dynamic = vi.fn(async () => ({ success: false, error: "fixture failure" }));
     const generator2 = new CreativeThemeGenerator({ llmEngine: { reasonStructured: dynamic } });
     await expect(withRequirementContractScope(g.metadata, () => (generator2.generate as (input: string) => Promise<unknown>)(JSON.stringify({ type: "未知合成类型", theme: "明确主题" })), g.options))

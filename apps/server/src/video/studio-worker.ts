@@ -606,6 +606,8 @@ export function startRun(scope: Scope, input: StudioRunInput): string {
     sink: new GatewayEventSink(getGatewayPool(), scope, { id: "video-studio" }),
     policy: modelPolicyFor("ai-video"),
     scene: "preproduction",
+    forceModel: process.env.LLM_FORCE_MODEL?.trim() || undefined,
+    nonThinking: process.env.LLM_NON_THINKING === "1",
   });
 
   /**

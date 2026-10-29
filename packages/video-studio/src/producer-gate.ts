@@ -234,6 +234,7 @@ interface LlmConfig {
   baseUrl: string;
   apiKey: string;
   model: string;
+  nonThinking?: boolean;
 }
 
 /**
@@ -244,16 +245,16 @@ interface LlmConfig {
  * Unknown models and legacy/proxy aliases retain the original 100k allocation.
  */
 function textEvidenceBudget(model: string): number {
-  return model === "deepseek-flash" || model === "deepseek-v4-pro" ? 200_000 : 100_000;
+  return model === "deepseek-flash" || model === "deepseek-v4-pro" ? 800_000 : 100_000;
 }
 
 /** 解析评审模型（与 model-router 的 LLM_* 口径一致，兼容 DEEPSEEK_* 秘密文件） */
 export function resolveProducerLlm(env: Record<string, string | undefined> = process.env): LlmConfig | null {
   const baseUrl = env.LLM_BASE_URL ?? env.DEEPSEEK_BASE_URL ?? "";
   const apiKey = env.LLM_API_KEY ?? env.DEEPSEEK_API_KEY ?? "";
-  const model = env.LLM_MODEL ?? env.DEEPSEEK_MODEL ?? "";
+  const model = env.LLM_FORCE_MODEL ?? env.LLM_MODEL ?? env.DEEPSEEK_MODEL ?? "";
   if (!baseUrl || !apiKey || !model) return null;
-  return { baseUrl: baseUrl.replace(/\/$/, ""), apiKey, model };
+  return { baseUrl: baseUrl.replace(/\/$/, ""), apiKey, model, nonThinking: env.LLM_NON_THINKING === "1" };
 }
 
 function summarizeArtifacts(artifacts: ProducerArtifact[]): string {
@@ -327,7 +328,8 @@ async function parseJudgeJson(
         { role: "user", content: "把下面这段内容整理成**严格合法**的 JSON（只输出 JSON，不要任何解释、不要 markdown）：\n\n" + raw.slice(0, 4000) }
       ],
       temperature: 0,
-      response_format: { type: "json_object" }
+      response_format: { type: "json_object" },
+      ...(llm.nonThinking ? { thinking: { type: "disabled" } } : {}),
     }),
     signal: AbortSignal.timeout(120_000)
   });
@@ -397,7 +399,8 @@ async function repairJudgeShape(
           + JSON.stringify(parsed)
       }],
       temperature: 0,
-      response_format: { type: "json_object" }
+      response_format: { type: "json_object" },
+      ...(llm.nonThinking ? { thinking: { type: "disabled" } } : {}),
     }),
     signal: AbortSignal.timeout(120_000)
   });
@@ -562,7 +565,13 @@ export async function reviewStage(options: ProducerGateOptions): Promise<Produce
       ].join("\n") }, ...textContent, ...encoded.slice(batch * batchSize, Math.min(artifactImages, (batch + 1) * batchSize)).flat(), ...encoded.slice(artifactImages).flat()];
       const res = await (options.fetchImpl ?? fetch)(`${llm.baseUrl}/chat/completions`, {
         method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${llm.apiKey}` },
-        body: JSON.stringify({ model: llm.model, messages: [{ role: "user", content }], temperature: 0.2, response_format: { type: "json_object" } }),
+        body: JSON.stringify({
+          model: llm.model,
+          messages: [{ role: "user", content }],
+          temperature: 0.2,
+          response_format: { type: "json_object" },
+          ...(llm.nonThinking ? { thinking: { type: "disabled" } } : {}),
+        }),
         signal: AbortSignal.timeout(180_000)
       });
       const rawBody = await res.text();

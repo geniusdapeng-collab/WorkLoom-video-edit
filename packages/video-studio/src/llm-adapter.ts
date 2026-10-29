@@ -62,6 +62,10 @@ export interface WorkloomLLMEngineConfig {
     plan?: PlanId;
     /** 覆盖默认场景（默认 preproduction） */
     scene?: string;
+    /** Deployment-level model pin. It bypasses tier substitution and fallback. */
+    forceModel?: string;
+    /** Deployment policy for OpenAI-compatible reasoning models. */
+    nonThinking?: boolean;
   };
 }
 
@@ -122,6 +126,7 @@ export class WorkloomLLMEngine {
           {
             action: scene, scene, plan: this.cfg.router.plan,
             forceTier: isFast ? "L1" : undefined,
+            ...(this.cfg.router.forceModel ? { forceModel: this.cfg.router.forceModel } : {}),
             timeoutMs: this.cfg.timeoutMs,
             signal: opts.signal,
             generation: {
@@ -129,7 +134,9 @@ export class WorkloomLLMEngine {
               topP: opts.topP ?? 0.95,
               maxTokens: opts.maxTokens ?? this.cfg.maxTokens,
               responseFormat: opts.forceJson ? { type: "json_object" } : opts.responseFormat,
-              thinking: opts.thinking && typeof opts.thinking === "object" ? opts.thinking : undefined,
+              thinking: this.cfg.router.nonThinking
+                ? { type: "disabled" }
+                : opts.thinking && typeof opts.thinking === "object" ? opts.thinking : undefined,
             },
             messages: [
               {
@@ -247,6 +254,7 @@ export class WorkloomLLMEngine {
       } catch (err) {
         this.stats.totalFailures++;
         return {
+          ...result,
           success: false,
           error: `JSON 解析失败: ${err instanceof Error ? err.message : String(err)}`,
           retryable: true
@@ -265,7 +273,8 @@ export class WorkloomLLMEngine {
   }
 
   async chat(systemPrompt: string, userPrompt: string, temperature = 1): Promise<string> {
-    const result = await this.reason(userPrompt, { systemPrompt, temperature });
+    const forceJson = /(?:只输出|严格输出|严格返回|仅返回|结构化).{0,32}(?:JSON|json)|(?:JSON|json).{0,32}(?:只输出|不要解释|不得解释|结构化)/u.test(systemPrompt);
+    const result = await this.reason(userPrompt, { systemPrompt, temperature, ...(forceJson ? { forceJson: true } : {}) });
     if (!result.success || !result.content) {
       throw new Error(result.error ?? "LLM chat 调用失败");
     }
