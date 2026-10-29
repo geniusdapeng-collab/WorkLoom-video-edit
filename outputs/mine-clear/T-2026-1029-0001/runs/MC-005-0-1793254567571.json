@@ -1,0 +1,79 @@
+{
+  "schema": "workloom.evidence-run/v1",
+  "id": "MC-005-0-1793254567571",
+  "command": "node --test --test-concurrency=1 --test-name-pattern=explicit missing input files scripts/tools/edit-cover-guards.node-test.mjs",
+  "exec": {
+    "file": "/Users/mac/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node",
+    "args": [
+      "--test-reporter=/Users/mac/Documents/Codex/2026-10-28/https-github-com-geniusdapeng-collab-workloom-2/work/WorkLoom-video-edit-mcd/scripts/delivery/node-test-reporter.mjs",
+      "--test-reporter-destination=/Users/mac/Documents/Codex/2026-10-28/https-github-com-geniusdapeng-collab-workloom-2/work/820rr-rc/mcd-runtime.T-2026-1029-0001.final.dWMOir/evidence/MC-005-0-1793254567571-node-tests.jsonl",
+      "--test-reporter=tap",
+      "--test-reporter-destination=stdout",
+      "--test",
+      "--test-concurrency=1",
+      "--test-name-pattern=explicit missing input files",
+      "scripts/tools/edit-cover-guards.node-test.mjs"
+    ]
+  },
+  "requested_exec": {
+    "file": "node",
+    "args": [
+      "--test",
+      "--test-concurrency=1",
+      "--test-name-pattern=explicit missing input files",
+      "scripts/tools/edit-cover-guards.node-test.mjs"
+    ]
+  },
+  "node_observer": {
+    "schema": "workloom.node-test-observer/v1",
+    "reporter_path": "/Users/mac/Documents/Codex/2026-10-28/https-github-com-geniusdapeng-collab-workloom-2/work/WorkLoom-video-edit-mcd/scripts/delivery/node-test-reporter.mjs",
+    "reporter_sha256": "286448a4dee571759fc1703564477d27bf5319bcb05ff66db2186deda60bc78f",
+    "destination": "/Users/mac/Documents/Codex/2026-10-28/https-github-com-geniusdapeng-collab-workloom-2/work/820rr-rc/mcd-runtime.T-2026-1029-0001.final.dWMOir/evidence/MC-005-0-1793254567571-node-tests.jsonl",
+    "summary": {
+      "path": "evidence/MC-005-0-1793254567571-node-tests.jsonl",
+      "sha256": "d50eed83830b50b9a37864bcd541b31b332dec8875cdc9859682f4edf8a9c89b",
+      "commit": "55fa2d98c49642aa966dd237dcb8c59ac89de138"
+    }
+  },
+  "node_executable": {
+    "path": "/Users/mac/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node",
+    "sha256": "f359816dcf3277d522724f8c0fa2264a600b342e101bda7d4cb7496bc0368307"
+  },
+  "actor": "codex-acceptance-T-2026-1029-0001-final",
+  "role": "acceptance",
+  "subject": {
+    "card_id": "MC-005",
+    "assertion_index": 0
+  },
+  "commit": "55fa2d98c49642aa966dd237dcb8c59ac89de138",
+  "working_tree_dirty": false,
+  "started_at": "2026-10-29T06:16:07.571Z",
+  "finished_at": "2026-10-29T06:16:08.308Z",
+  "exit_code": 0,
+  "signal": null,
+  "validation": {
+    "ok": true,
+    "errors": [],
+    "testSummary": {
+      "total": 1,
+      "passed": 1,
+      "failed": 0,
+      "cancelled": 0,
+      "skipped": 0,
+      "todo": 0
+    }
+  },
+  "result": "pass",
+  "outputs": [
+    {
+      "path": "evidence/MC-005-0-1793254567571.txt",
+      "sha256": "70600dc957a107604c714a9abc4facf5c238af139b167c93cea95882a3bef3cf",
+      "commit": "55fa2d98c49642aa966dd237dcb8c59ac89de138"
+    },
+    {
+      "path": "evidence/MC-005-0-1793254567571-node-tests.jsonl",
+      "sha256": "d50eed83830b50b9a37864bcd541b31b332dec8875cdc9859682f4edf8a9c89b",
+      "commit": "55fa2d98c49642aa966dd237dcb8c59ac89de138"
+    }
+  ]
+}

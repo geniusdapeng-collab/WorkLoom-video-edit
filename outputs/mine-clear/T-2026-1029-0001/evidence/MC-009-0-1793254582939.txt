@@ -1,0 +1,26 @@
+TAP version 13
+# Subtest: explicit missing input files fail closed instead of silently disabling cover features
+ok 1 - explicit missing input files fail closed instead of silently disabling cover features
+  ---
+  duration_ms: 418.152125
+  type: 'test'
+  ...
+# Subtest: unknown variants fail closed unless explicitly style-mapped
+ok 2 - unknown variants fail closed unless explicitly style-mapped
+  ---
+  duration_ms: 234.691791
+  type: 'test'
+  ...
+1..2
+# tests 2
+# suites 0
+# pass 2
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 695.62325
+
+
+exit_code=0 signal=none error=none
+assertion_validation={"ok":true,"errors":[],"testSummary":{"total":2,"passed":2,"failed":0,"cancelled":0,"skipped":0,"todo":0}}

@@ -5,7 +5,7 @@
   "repo_path": "/Users/mac/Documents/Codex/2026-10-28/https-github-com-geniusdapeng-collab-workloom-2/work/WorkLoom-video-edit-mcd",
   "title": "AI视频完整成片交付链路排雷与经验固化",
   "created_at": "2026-10-29T03:17:13.350Z",
-  "updated_at": "2026-10-29T04:27:29.704Z",
+  "updated_at": "2026-10-29T06:16:41.570Z",
   "issue": {
     "slug": "geniusdapeng-collab/WorkLoom-video-edit",
     "number": 93
@@ -24,7 +24,7 @@
       "reverified_problem_ids": []
     },
     "acceptance": {
-      "commit": "752f6a58ebcd8f8b387b0290da04099f6bb2506d",
+      "commit": "55fa2d98c49642aa966dd237dcb8c59ac89de138",
       "is_descendant_of_repair": true
     }
   },
@@ -101,7 +101,7 @@
       "level": "L4",
       "severity": "P1",
       "batch": 2,
-      "state": "open",
+      "state": "verified",
       "title": "多风格交付没有把含封面完整视频做成规范发布件，发布推荐仍指向临时工作目录",
       "evidence": [
         {
@@ -145,10 +145,51 @@
               "scripts/tools/full-chain-failure.test.mjs"
             ]
           },
-          "last_result": "not-run"
+          "last_result": "pass",
+          "run": {
+            "path": "runs/MC-001-0-1793254552080.json",
+            "sha256": "b505befe4a79bf8b204ff58c8dfda72baba31f97b37647530c46412b1e267cca",
+            "commit": "55fa2d98c49642aa966dd237dcb8c59ac89de138"
+          },
+          "evidence": {
+            "path": "evidence/MC-001-0-1793254552080.txt",
+            "sha256": "9913ddde822ce710c8bac2d2c6af3a02f04a45344b9e980ad5a6c1b19ddd30cb",
+            "commit": "55fa2d98c49642aa966dd237dcb8c59ac89de138"
+          }
         }
       ],
-      "notes": "当前真人短片的 1.6s 和 0.6s 完整视频都只能在 work/cover-versions 下找到，说明不是单次操作错误。"
+      "notes": "当前真人短片的 1.6s 和 0.6s 完整视频都只能在 work/cover-versions 下找到，说明不是单次操作错误。",
+      "regression": {
+        "command": "node --test --test-concurrency=1 --test-name-pattern=真实全链CLI接收黑屏 scripts/tools/full-chain-failure.test.mjs"
+      },
+      "fixed_by": "codex-repair-T-2026-1029-0001",
+      "verified_by": "codex-acceptance-T-2026-1029-0001-final",
+      "verified_at": "2026-10-29T06:16:04.232Z",
+      "verification_evidence": {
+        "path": "runs/MC-001-0-1793254552080.json",
+        "sha256": "b505befe4a79bf8b204ff58c8dfda72baba31f97b37647530c46412b1e267cca",
+        "commit": "55fa2d98c49642aa966dd237dcb8c59ac89de138"
+      },
+      "last_assertion_attempt": {
+        "actor": "codex-acceptance-T-2026-1029-0001-final",
+        "role": "acceptance",
+        "result": "pass",
+        "at": "2026-10-29T06:15:52.075Z",
+        "commit": "55fa2d98c49642aa966dd237dcb8c59ac89de138",
+        "finished_at": "2026-10-29T06:16:04.232Z"
+      },
+      "last_verification_attempt": {
+        "actor": "codex-acceptance-T-2026-1029-0001-final",
+        "result": "pass",
+        "at": "2026-10-29T06:16:04.232Z",
+        "runs": [
+          {
+            "path": "runs/MC-001-0-1793254552080.json",
+            "sha256": "b505befe4a79bf8b204ff58c8dfda72baba31f97b37647530c46412b1e267cca",
+            "commit": "55fa2d98c49642aa966dd237dcb8c59ac89de138"
+          }
+        ]
+      }
     },
     {
       "id": "MC-002",
@@ -156,7 +197,7 @@
       "level": "L3",
       "severity": "P1",
       "batch": 1,
-      "state": "open",
+      "state": "verified",
       "title": "封面片头时长存在 1.6s 与 1.2s 两套写死默认值，无法在作业合同层统一为 0.6s",
       "evidence": [
         {
@@ -194,7 +235,17 @@
               "scripts/tools/cover-delivery-policy.node-test.mts"
             ]
           },
-          "last_result": "not-run"
+          "last_result": "pass",
+          "run": {
+            "path": "runs/MC-002-0-1793254564381.json",
+            "sha256": "14724e001bd3893b1e85cb96caee5e447368aaeac0678ba23dddf4fb25df9cc9",
+            "commit": "55fa2d98c49642aa966dd237dcb8c59ac89de138"
+          },
+          "evidence": {
+            "path": "evidence/MC-002-0-1793254564381.txt",
+            "sha256": "b484a95bb9d6b63bcd2a5e5f11887b5632e63a551520ce1ce6c471f626a52e5c",
+            "commit": "55fa2d98c49642aa966dd237dcb8c59ac89de138"
+          }
         },
         {
           "kind": "property",
@@ -210,10 +261,56 @@
               "scripts/tools/cover-delivery-policy.node-test.mts"
             ]
           },
-          "last_result": "not-run"
+          "last_result": "pass",
+          "run": {
+            "path": "runs/MC-002-1-1793254564811.json",
+            "sha256": "bd4eaeabc76065569713e66ebeefab281a346bcfd1e2de57bc55e0a74e0a7834",
+            "commit": "55fa2d98c49642aa966dd237dcb8c59ac89de138"
+          },
+          "evidence": {
+            "path": "evidence/MC-002-1-1793254564811.txt",
+            "sha256": "08be0d50e87cb2d9200c17c251f4ae9eaaae11c65a56594ddfba6c3173fade90",
+            "commit": "55fa2d98c49642aa966dd237dcb8c59ac89de138"
+          }
         }
       ],
-      "notes": ""
+      "notes": "",
+      "regression": {
+        "command": "node --import tsx --test scripts/tools/cover-delivery-policy.node-test.mts"
+      },
+      "fixed_by": "codex-repair-T-2026-1029-0001",
+      "verified_by": "codex-acceptance-T-2026-1029-0001-final",
+      "verified_at": "2026-10-29T06:16:05.251Z",
+      "verification_evidence": {
+        "path": "runs/MC-002-0-1793254564381.json",
+        "sha256": "14724e001bd3893b1e85cb96caee5e447368aaeac0678ba23dddf4fb25df9cc9",
+        "commit": "55fa2d98c49642aa966dd237dcb8c59ac89de138"
+      },
+      "last_assertion_attempt": {
+        "actor": "codex-acceptance-T-2026-1029-0001-final",
+        "role": "acceptance",
+        "result": "pass",
+        "at": "2026-10-29T06:16:04.380Z",
+        "commit": "55fa2d98c49642aa966dd237dcb8c59ac89de138",
+        "finished_at": "2026-10-29T06:16:05.251Z"
+      },
+      "last_verification_attempt": {
+        "actor": "codex-acceptance-T-2026-1029-0001-final",
+        "result": "pass",
+        "at": "2026-10-29T06:16:05.251Z",
+        "runs": [
+          {
+            "path": "runs/MC-002-0-1793254564381.json",
+            "sha256": "14724e001bd3893b1e85cb96caee5e447368aaeac0678ba23dddf4fb25df9cc9",
+            "commit": "55fa2d98c49642aa966dd237dcb8c59ac89de138"
+          },
+          {
+            "path": "runs/MC-002-1-1793254564811.json",
+            "sha256": "bd4eaeabc76065569713e66ebeefab281a346bcfd1e2de57bc55e0a74e0a7834",
+            "commit": "55fa2d98c49642aa966dd237dcb8c59ac89de138"
+          }
+        ]
+      }
     },
     {
       "id": "MC-003",
@@ -221,7 +318,7 @@
       "level": "L4",
       "severity": "P1",
       "batch": 0,
-      "state": "open",
+      "state": "verified",
       "title": "持续字幕被错误设计成与封面片头互斥，迫使生产者在警示文字和完整封面视频之间二选一",
       "evidence": [
         {
@@ -259,7 +356,17 @@
               "scripts/tools/full-chain-persistent-subtitle.test.mjs"
             ]
           },
-          "last_result": "not-run"
+          "last_result": "pass",
+          "run": {
+            "path": "runs/MC-003-0-1793254565401.json",
+            "sha256": "3c490131eaa58c63d30b72fa7ca4d9cd133f7c76cd6ee9281b67f50dc901a582",
+            "commit": "55fa2d98c49642aa966dd237dcb8c59ac89de138"
+          },
+          "evidence": {
+            "path": "evidence/MC-003-0-1793254565401.txt",
+            "sha256": "b45e3a1980cabbbbaefdb89ceaa46229c414d23ebeb3115d1fdbd38e15f06d1d",
+            "commit": "55fa2d98c49642aa966dd237dcb8c59ac89de138"
+          }
         },
         {
           "kind": "property",
@@ -278,10 +385,56 @@
               "allows persistent content text"
             ]
           },
-          "last_result": "not-run"
+          "last_result": "pass",
+          "run": {
+            "path": "runs/MC-003-1-1793254566120.json",
+            "sha256": "b1f00b8a47ac4e0a3d5f5e87c2f7c81728c6a27c951d708617880107c77216b5",
+            "commit": "55fa2d98c49642aa966dd237dcb8c59ac89de138"
+          },
+          "evidence": {
+            "path": "evidence/MC-003-1-1793254566120.txt",
+            "sha256": "2285adcfc7a366ee6298429010b2545a60af65e52d5fb897231219b22e1d37c9",
+            "commit": "55fa2d98c49642aa966dd237dcb8c59ac89de138"
+          }
         }
       ],
-      "notes": "封面是独立片头，持续字幕必须覆盖正片而不是篡改叙事；两者可以共享同一条时钟。"
+      "notes": "封面是独立片头，持续字幕必须覆盖正片而不是篡改叙事；两者可以共享同一条时钟。",
+      "regression": {
+        "command": "node --test --test-concurrency=1 --test-name-pattern=persistent\\ text\\ may\\ coexist scripts/tools/full-chain-persistent-subtitle.test.mjs && node_modules/.bin/vitest run packages/video-studio/src/prd-authority.test.ts -t \"allows persistent content text\""
+      },
+      "fixed_by": "codex-repair-T-2026-1029-0001",
+      "verified_by": "codex-acceptance-T-2026-1029-0001-final",
+      "verified_at": "2026-10-29T06:16:06.754Z",
+      "verification_evidence": {
+        "path": "runs/MC-003-0-1793254565401.json",
+        "sha256": "3c490131eaa58c63d30b72fa7ca4d9cd133f7c76cd6ee9281b67f50dc901a582",
+        "commit": "55fa2d98c49642aa966dd237dcb8c59ac89de138"
+      },
+      "last_assertion_attempt": {
+        "actor": "codex-acceptance-T-2026-1029-0001-final",
+        "role": "acceptance",
+        "result": "pass",
+        "at": "2026-10-29T06:16:05.401Z",
+        "commit": "55fa2d98c49642aa966dd237dcb8c59ac89de138",
+        "finished_at": "2026-10-29T06:16:06.754Z"
+      },
+      "last_verification_attempt": {
+        "actor": "codex-acceptance-T-2026-1029-0001-final",
+        "result": "pass",
+        "at": "2026-10-29T06:16:06.754Z",
+        "runs": [
+          {
+            "path": "runs/MC-003-0-1793254565401.json",
+            "sha256": "3c490131eaa58c63d30b72fa7ca4d9cd133f7c76cd6ee9281b67f50dc901a582",
+            "commit": "55fa2d98c49642aa966dd237dcb8c59ac89de138"
+          },
+          {
+            "path": "runs/MC-003-1-1793254566120.json",
+            "sha256": "b1f00b8a47ac4e0a3d5f5e87c2f7c81728c6a27c951d708617880107c77216b5",
+            "commit": "55fa2d98c49642aa966dd237dcb8c59ac89de138"
+          }
+        ]
+      }
     },
     {
       "id": "MC-004",
@@ -289,7 +442,7 @@
       "level": "L2",
       "severity": "P1",
       "batch": 2,
-      "state": "open",
+      "state": "verified",
       "title": "显式选择 Compositor 时仍会静默降级到 ffmpeg，调用方无法确保数字人设计师工位实际执行",
       "evidence": [
         {
@@ -327,10 +480,51 @@
               "scripts/tools/edit-cover-guards.node-test.mjs"
             ]
           },
-          "last_result": "not-run"
+          "last_result": "pass",
+          "run": {
+            "path": "runs/MC-004-0-1793254566900.json",
+            "sha256": "37c6b7f9e2e3b26f9e0568e2b30b80475f7c7d98deadb519cd16043abdf9d348",
+            "commit": "55fa2d98c49642aa966dd237dcb8c59ac89de138"
+          },
+          "evidence": {
+            "path": "evidence/MC-004-0-1793254566900.txt",
+            "sha256": "bdf15eb07c90485f220e0d576438969839fd43cade6ef0f6f3166001033edaae",
+            "commit": "55fa2d98c49642aa966dd237dcb8c59ac89de138"
+          }
         }
       ],
-      "notes": ""
+      "notes": "",
+      "regression": {
+        "command": "node --test --test-concurrency=1 --test-name-pattern=explicit\\ compositor\\ renderer scripts/tools/edit-cover-guards.node-test.mjs"
+      },
+      "fixed_by": "codex-repair-T-2026-1029-0001",
+      "verified_by": "codex-acceptance-T-2026-1029-0001-final",
+      "verified_at": "2026-10-29T06:16:07.420Z",
+      "verification_evidence": {
+        "path": "runs/MC-004-0-1793254566900.json",
+        "sha256": "37c6b7f9e2e3b26f9e0568e2b30b80475f7c7d98deadb519cd16043abdf9d348",
+        "commit": "55fa2d98c49642aa966dd237dcb8c59ac89de138"
+      },
+      "last_assertion_attempt": {
+        "actor": "codex-acceptance-T-2026-1029-0001-final",
+        "role": "acceptance",
+        "result": "pass",
+        "at": "2026-10-29T06:16:06.899Z",
+        "commit": "55fa2d98c49642aa966dd237dcb8c59ac89de138",
+        "finished_at": "2026-10-29T06:16:07.420Z"
+      },
+      "last_verification_attempt": {
+        "actor": "codex-acceptance-T-2026-1029-0001-final",
+        "result": "pass",
+        "at": "2026-10-29T06:16:07.420Z",
+        "runs": [
+          {
+            "path": "runs/MC-004-0-1793254566900.json",
+            "sha256": "37c6b7f9e2e3b26f9e0568e2b30b80475f7c7d98deadb519cd16043abdf9d348",
+            "commit": "55fa2d98c49642aa966dd237dcb8c59ac89de138"
+          }
+        ]
+      }
     },
     {
       "id": "MC-005",
@@ -338,7 +532,7 @@
       "level": "L2",
       "severity": "P1",
       "batch": 1,
-      "state": "open",
+      "state": "verified",
       "title": "未知变体和显式输入文件缺失被静默忽略或替换，封面配置错误仍返回成功",
       "evidence": [
         {
@@ -388,7 +582,17 @@
               "scripts/tools/edit-cover-guards.node-test.mjs"
             ]
           },
-          "last_result": "not-run"
+          "last_result": "pass",
+          "run": {
+            "path": "runs/MC-005-0-1793254567571.json",
+            "sha256": "670f68e65aeba9cb76d86ffcbea4d1f435031828811978feaf92fad7eea2e39a",
+            "commit": "55fa2d98c49642aa966dd237dcb8c59ac89de138"
+          },
+          "evidence": {
+            "path": "evidence/MC-005-0-1793254567571.txt",
+            "sha256": "70600dc957a107604c714a9abc4facf5c238af139b167c93cea95882a3bef3cf",
+            "commit": "55fa2d98c49642aa966dd237dcb8c59ac89de138"
+          }
         },
         {
           "kind": "sample",
@@ -404,10 +608,56 @@
               "scripts/tools/edit-cover-guards.node-test.mjs"
             ]
           },
-          "last_result": "not-run"
+          "last_result": "pass",
+          "run": {
+            "path": "runs/MC-005-1-1793254568351.json",
+            "sha256": "210ae6bcf3f7e0674052930b1a08ebb056e1dda323edac0bdce6772a45fa93f7",
+            "commit": "55fa2d98c49642aa966dd237dcb8c59ac89de138"
+          },
+          "evidence": {
+            "path": "evidence/MC-005-1-1793254568351.txt",
+            "sha256": "a07712719c6fe66f78c10031abd51a7003605ebb2f01d458c77b23627e3284ae",
+            "commit": "55fa2d98c49642aa966dd237dcb8c59ac89de138"
+          }
         }
       ],
-      "notes": ""
+      "notes": "",
+      "regression": {
+        "command": "node --test --test-concurrency=1 --test-name-pattern=\"explicit missing input files|unknown variants\" scripts/tools/edit-cover-guards.node-test.mjs"
+      },
+      "fixed_by": "codex-repair-T-2026-1029-0001",
+      "verified_by": "codex-acceptance-T-2026-1029-0001-final",
+      "verified_at": "2026-10-29T06:16:08.988Z",
+      "verification_evidence": {
+        "path": "runs/MC-005-0-1793254567571.json",
+        "sha256": "670f68e65aeba9cb76d86ffcbea4d1f435031828811978feaf92fad7eea2e39a",
+        "commit": "55fa2d98c49642aa966dd237dcb8c59ac89de138"
+      },
+      "last_assertion_attempt": {
+        "actor": "codex-acceptance-T-2026-1029-0001-final",
+        "role": "acceptance",
+        "result": "pass",
+        "at": "2026-10-29T06:16:07.570Z",
+        "commit": "55fa2d98c49642aa966dd237dcb8c59ac89de138",
+        "finished_at": "2026-10-29T06:16:08.988Z"
+      },
+      "last_verification_attempt": {
+        "actor": "codex-acceptance-T-2026-1029-0001-final",
+        "result": "pass",
+        "at": "2026-10-29T06:16:08.988Z",
+        "runs": [
+          {
+            "path": "runs/MC-005-0-1793254567571.json",
+            "sha256": "670f68e65aeba9cb76d86ffcbea4d1f435031828811978feaf92fad7eea2e39a",
+            "commit": "55fa2d98c49642aa966dd237dcb8c59ac89de138"
+          },
+          {
+            "path": "runs/MC-005-1-1793254568351.json",
+            "sha256": "210ae6bcf3f7e0674052930b1a08ebb056e1dda323edac0bdce6772a45fa93f7",
+            "commit": "55fa2d98c49642aa966dd237dcb8c59ac89de138"
+          }
+        ]
+      }
     },
     {
       "id": "MC-006",
@@ -415,7 +665,7 @@
       "level": "L1",
       "severity": "P1",
       "batch": 1,
-      "state": "open",
+      "state": "verified",
       "title": "封面标题只校验字符数，不校验实际排版宽度，导致合法字数仍被挤成单字换行",
       "evidence": [
         {
@@ -450,10 +700,51 @@
               "字符数未超限"
             ]
           },
-          "last_result": "not-run"
+          "last_result": "pass",
+          "run": {
+            "path": "runs/MC-006-0-1793254569139.json",
+            "sha256": "f235280f0722ab259f92867cb1f2ce4f4ad0e8c2d15cc42b58d4e597103d8e38",
+            "commit": "55fa2d98c49642aa966dd237dcb8c59ac89de138"
+          },
+          "evidence": {
+            "path": "evidence/MC-006-0-1793254569139.txt",
+            "sha256": "ff0cdd754be85e149aa85752213d46a9dc8d6e3af780c8efa005a05d4513f7ee",
+            "commit": "55fa2d98c49642aa966dd237dcb8c59ac89de138"
+          }
         }
       ],
-      "notes": "这是当前短片“赛道专用，别想上路”单字换行的通用根因。"
+      "notes": "这是当前短片“赛道专用，别想上路”单字换行的通用根因。",
+      "regression": {
+        "command": "node_modules/.bin/vitest run packages/video-studio/src/cover-design.test.ts --maxWorkers 1 --no-file-parallelism"
+      },
+      "fixed_by": "codex-repair-T-2026-1029-0001",
+      "verified_by": "codex-acceptance-T-2026-1029-0001-final",
+      "verified_at": "2026-10-29T06:16:09.658Z",
+      "verification_evidence": {
+        "path": "runs/MC-006-0-1793254569139.json",
+        "sha256": "f235280f0722ab259f92867cb1f2ce4f4ad0e8c2d15cc42b58d4e597103d8e38",
+        "commit": "55fa2d98c49642aa966dd237dcb8c59ac89de138"
+      },
+      "last_assertion_attempt": {
+        "actor": "codex-acceptance-T-2026-1029-0001-final",
+        "role": "acceptance",
+        "result": "pass",
+        "at": "2026-10-29T06:16:09.138Z",
+        "commit": "55fa2d98c49642aa966dd237dcb8c59ac89de138",
+        "finished_at": "2026-10-29T06:16:09.658Z"
+      },
+      "last_verification_attempt": {
+        "actor": "codex-acceptance-T-2026-1029-0001-final",
+        "result": "pass",
+        "at": "2026-10-29T06:16:09.658Z",
+        "runs": [
+          {
+            "path": "runs/MC-006-0-1793254569139.json",
+            "sha256": "f235280f0722ab259f92867cb1f2ce4f4ad0e8c2d15cc42b58d4e597103d8e38",
+            "commit": "55fa2d98c49642aa966dd237dcb8c59ac89de138"
+          }
+        ]
+      }
     },
     {
       "id": "MC-007",
@@ -461,7 +752,7 @@
       "level": "L4",
       "severity": "P2",
       "batch": 3,
-      "state": "open",
+      "state": "verified",
       "title": "封面文案候选表没有机器校验，设计岗位要求的五条候选和自检可被任意 JSON 绕过",
       "evidence": [
         {
@@ -499,10 +790,51 @@
               "scripts/tools/cover-delivery-policy.node-test.mts"
             ]
           },
-          "last_result": "not-run"
+          "last_result": "pass",
+          "run": {
+            "path": "runs/MC-007-0-1793254569809.json",
+            "sha256": "990526d716dac883488860fac4929a301e11919af8b4d3b4e2a2466f783e7d6d",
+            "commit": "55fa2d98c49642aa966dd237dcb8c59ac89de138"
+          },
+          "evidence": {
+            "path": "evidence/MC-007-0-1793254569809.txt",
+            "sha256": "6f7e397a2a336a52777e2f409f332b24720814cad7ed8c65c18bffffcf1cc1ab",
+            "commit": "55fa2d98c49642aa966dd237dcb8c59ac89de138"
+          }
         }
       ],
-      "notes": ""
+      "notes": "",
+      "regression": {
+        "command": "node --import tsx --test scripts/tools/cover-delivery-policy.node-test.mts"
+      },
+      "fixed_by": "codex-repair-T-2026-1029-0001",
+      "verified_by": "codex-acceptance-T-2026-1029-0001-final",
+      "verified_at": "2026-10-29T06:16:10.228Z",
+      "verification_evidence": {
+        "path": "runs/MC-007-0-1793254569809.json",
+        "sha256": "990526d716dac883488860fac4929a301e11919af8b4d3b4e2a2466f783e7d6d",
+        "commit": "55fa2d98c49642aa966dd237dcb8c59ac89de138"
+      },
+      "last_assertion_attempt": {
+        "actor": "codex-acceptance-T-2026-1029-0001-final",
+        "role": "acceptance",
+        "result": "pass",
+        "at": "2026-10-29T06:16:09.808Z",
+        "commit": "55fa2d98c49642aa966dd237dcb8c59ac89de138",
+        "finished_at": "2026-10-29T06:16:10.228Z"
+      },
+      "last_verification_attempt": {
+        "actor": "codex-acceptance-T-2026-1029-0001-final",
+        "result": "pass",
+        "at": "2026-10-29T06:16:10.228Z",
+        "runs": [
+          {
+            "path": "runs/MC-007-0-1793254569809.json",
+            "sha256": "990526d716dac883488860fac4929a301e11919af8b4d3b4e2a2466f783e7d6d",
+            "commit": "55fa2d98c49642aa966dd237dcb8c59ac89de138"
+          }
+        ]
+      }
     },
     {
       "id": "MC-008",
@@ -553,14 +885,14 @@
           },
           "last_result": "pass",
           "run": {
-            "path": "runs/MC-008-0-1793248035457.json",
-            "sha256": "0b7dd2a5cc0ba01d8b3f37c1a6d755efe5437cfc4f38466d2fd4acc27a1bfd85",
-            "commit": "752f6a58ebcd8f8b387b0290da04099f6bb2506d"
+            "path": "runs/MC-008-0-1793254570373.json",
+            "sha256": "6f3899ae93f0226eb9b7aefe85c007ad99387640a52ccbbcab054751faa39503",
+            "commit": "55fa2d98c49642aa966dd237dcb8c59ac89de138"
           },
           "evidence": {
-            "path": "evidence/MC-008-0-1793248035457.txt",
-            "sha256": "10ed50570d88120e1402019071c332f486ef44e14000adf14ea1a5a406272e4b",
-            "commit": "752f6a58ebcd8f8b387b0290da04099f6bb2506d"
+            "path": "evidence/MC-008-0-1793254570373.txt",
+            "sha256": "d5e258b031290c4d167b03a191ced3993d956159c931c2df064e598624911f83",
+            "commit": "55fa2d98c49642aa966dd237dcb8c59ac89de138"
           }
         },
         {
@@ -579,14 +911,14 @@
           },
           "last_result": "pass",
           "run": {
-            "path": "runs/MC-008-1-1793248045433.json",
-            "sha256": "b64ec597545f4a3e65138812f9a20aa762408f11eef94ae346528c5245f35473",
-            "commit": "752f6a58ebcd8f8b387b0290da04099f6bb2506d"
+            "path": "runs/MC-008-1-1793254581587.json",
+            "sha256": "9f74f1c96b3a93697a86e31cae0df57a762e8d59b113015e0615cd9a7ac5244c",
+            "commit": "55fa2d98c49642aa966dd237dcb8c59ac89de138"
           },
           "evidence": {
-            "path": "evidence/MC-008-1-1793248045433.txt",
-            "sha256": "64aab9ef210c2dc880496d361b93518eacc3045d1241b61d0edd95e7bd65deec",
-            "commit": "752f6a58ebcd8f8b387b0290da04099f6bb2506d"
+            "path": "evidence/MC-008-1-1793254581587.txt",
+            "sha256": "1a0a0ec9eb9d2b297d3cfe3d0343bfece0c64802ef41b8aea89cf0532a815d52",
+            "commit": "55fa2d98c49642aa966dd237dcb8c59ac89de138"
           }
         },
         {
@@ -605,52 +937,52 @@
           },
           "last_result": "pass",
           "run": {
-            "path": "runs/MC-008-2-1793248046055.json",
-            "sha256": "641b8bc48a6ff2c856a32f3f3ec16f5b356fe85edd645f825d6cbc712c1492e8",
-            "commit": "752f6a58ebcd8f8b387b0290da04099f6bb2506d"
+            "path": "runs/MC-008-2-1793254582379.json",
+            "sha256": "17c147dbc57779bd5a92267056a8408a248c3bb5049676a28d56c29b7e49e70a",
+            "commit": "55fa2d98c49642aa966dd237dcb8c59ac89de138"
           },
           "evidence": {
-            "path": "evidence/MC-008-2-1793248046055.txt",
-            "sha256": "abae38ec083b8d96666c84af6d82c8e541743f1a5697a58096bfd90589827498",
-            "commit": "752f6a58ebcd8f8b387b0290da04099f6bb2506d"
+            "path": "evidence/MC-008-2-1793254582379.txt",
+            "sha256": "49bb7793efff2b6b58a1f4ce283e22bcee417dfad5861f42f9ce1d8a63365c6c",
+            "commit": "55fa2d98c49642aa966dd237dcb8c59ac89de138"
           }
         }
       ],
-      "verified_by": "codex-acceptance-T-2026-1029-0001",
-      "verified_at": "2026-10-29T04:27:26.448Z",
+      "verified_by": "codex-acceptance-T-2026-1029-0001-final",
+      "verified_at": "2026-10-29T06:16:22.790Z",
       "verification_evidence": {
-        "path": "runs/MC-008-0-1793248035457.json",
-        "sha256": "0b7dd2a5cc0ba01d8b3f37c1a6d755efe5437cfc4f38466d2fd4acc27a1bfd85",
-        "commit": "752f6a58ebcd8f8b387b0290da04099f6bb2506d"
+        "path": "runs/MC-008-0-1793254570373.json",
+        "sha256": "6f3899ae93f0226eb9b7aefe85c007ad99387640a52ccbbcab054751faa39503",
+        "commit": "55fa2d98c49642aa966dd237dcb8c59ac89de138"
       },
       "last_assertion_attempt": {
-        "actor": "codex-acceptance-T-2026-1029-0001",
+        "actor": "codex-acceptance-T-2026-1029-0001-final",
         "role": "acceptance",
         "result": "pass",
-        "at": "2026-10-29T04:27:15.456Z",
-        "commit": "752f6a58ebcd8f8b387b0290da04099f6bb2506d",
-        "finished_at": "2026-10-29T04:27:26.448Z"
+        "at": "2026-10-29T06:16:10.372Z",
+        "commit": "55fa2d98c49642aa966dd237dcb8c59ac89de138",
+        "finished_at": "2026-10-29T06:16:22.790Z"
       },
       "fixed_by": "codex-repair-T-2026-1029-0001",
       "last_verification_attempt": {
-        "actor": "codex-acceptance-T-2026-1029-0001",
+        "actor": "codex-acceptance-T-2026-1029-0001-final",
         "result": "pass",
-        "at": "2026-10-29T04:27:26.448Z",
+        "at": "2026-10-29T06:16:22.790Z",
         "runs": [
           {
-            "path": "runs/MC-008-0-1793248035457.json",
-            "sha256": "0b7dd2a5cc0ba01d8b3f37c1a6d755efe5437cfc4f38466d2fd4acc27a1bfd85",
-            "commit": "752f6a58ebcd8f8b387b0290da04099f6bb2506d"
+            "path": "runs/MC-008-0-1793254570373.json",
+            "sha256": "6f3899ae93f0226eb9b7aefe85c007ad99387640a52ccbbcab054751faa39503",
+            "commit": "55fa2d98c49642aa966dd237dcb8c59ac89de138"
           },
           {
-            "path": "runs/MC-008-1-1793248045433.json",
-            "sha256": "b64ec597545f4a3e65138812f9a20aa762408f11eef94ae346528c5245f35473",
-            "commit": "752f6a58ebcd8f8b387b0290da04099f6bb2506d"
+            "path": "runs/MC-008-1-1793254581587.json",
+            "sha256": "9f74f1c96b3a93697a86e31cae0df57a762e8d59b113015e0615cd9a7ac5244c",
+            "commit": "55fa2d98c49642aa966dd237dcb8c59ac89de138"
           },
           {
-            "path": "runs/MC-008-2-1793248046055.json",
-            "sha256": "641b8bc48a6ff2c856a32f3f3ec16f5b356fe85edd645f825d6cbc712c1492e8",
-            "commit": "752f6a58ebcd8f8b387b0290da04099f6bb2506d"
+            "path": "runs/MC-008-2-1793254582379.json",
+            "sha256": "17c147dbc57779bd5a92267056a8408a248c3bb5049676a28d56c29b7e49e70a",
+            "commit": "55fa2d98c49642aa966dd237dcb8c59ac89de138"
           }
         ]
       }
@@ -702,14 +1034,14 @@
           },
           "last_result": "pass",
           "run": {
-            "path": "runs/MC-009-0-1793248046601.json",
-            "sha256": "c2f7d8b45987ad9407183d1f520965e483846cd9b20a02e2bb0583a8c672b7eb",
-            "commit": "752f6a58ebcd8f8b387b0290da04099f6bb2506d"
+            "path": "runs/MC-009-0-1793254582939.json",
+            "sha256": "46ba67f2e6a1690b0eaa5cadf3b6f04d54811e9c9645623ef3b4f2a09fc840aa",
+            "commit": "55fa2d98c49642aa966dd237dcb8c59ac89de138"
           },
           "evidence": {
-            "path": "evidence/MC-009-0-1793248046601.txt",
-            "sha256": "f1bb34c15c015270f0e78f26a97466a87127730f3b45cb0b92417414a4feadfa",
-            "commit": "752f6a58ebcd8f8b387b0290da04099f6bb2506d"
+            "path": "evidence/MC-009-0-1793254582939.txt",
+            "sha256": "003972963fe12587335aef94820edd9851197377c93cff9d123583e9b8a9cde3",
+            "commit": "55fa2d98c49642aa966dd237dcb8c59ac89de138"
           }
         },
         {
@@ -728,14 +1060,14 @@
           },
           "last_result": "pass",
           "run": {
-            "path": "runs/MC-009-1-1793248047541.json",
-            "sha256": "e9a52f629086e1b80b031df23ecd09eb18e5bf84a9293968ba608035f805abdc",
-            "commit": "752f6a58ebcd8f8b387b0290da04099f6bb2506d"
+            "path": "runs/MC-009-1-1793254583989.json",
+            "sha256": "68a0f79c083789f1f52c790381899990dcbf21eb0e6b08938611a290e08492a5",
+            "commit": "55fa2d98c49642aa966dd237dcb8c59ac89de138"
           },
           "evidence": {
-            "path": "evidence/MC-009-1-1793248047541.txt",
-            "sha256": "c61eee7710a278906fe066cd613889d6532f7bda0489156f10b6ad4890ce4db1",
-            "commit": "752f6a58ebcd8f8b387b0290da04099f6bb2506d"
+            "path": "evidence/MC-009-1-1793254583989.txt",
+            "sha256": "126181208da0da65314a705f8034ba3a80cf850bdd2a5cd2d347296e2849881b",
+            "commit": "55fa2d98c49642aa966dd237dcb8c59ac89de138"
           }
         },
         {
@@ -754,52 +1086,52 @@
           },
           "last_result": "pass",
           "run": {
-            "path": "runs/MC-009-2-1793248048009.json",
-            "sha256": "693a47d990c1523b117bb91b9167816bfd6614019e9b67e5edbd0e11fe835a85",
-            "commit": "752f6a58ebcd8f8b387b0290da04099f6bb2506d"
+            "path": "runs/MC-009-2-1793254584553.json",
+            "sha256": "aec8edded6e9ee0cd19ad9d4add15d0324f5ffe089536f2cf59664f0b90921bd",
+            "commit": "55fa2d98c49642aa966dd237dcb8c59ac89de138"
           },
           "evidence": {
-            "path": "evidence/MC-009-2-1793248048009.txt",
-            "sha256": "9045d67707499948cf1fa5322484ee6c04fcca48d2754f9673ad382fd604a551",
-            "commit": "752f6a58ebcd8f8b387b0290da04099f6bb2506d"
+            "path": "evidence/MC-009-2-1793254584553.txt",
+            "sha256": "def6508fd001fb584cbb104bc9917b4d652a29e1026f4af85399460aab6d7b06",
+            "commit": "55fa2d98c49642aa966dd237dcb8c59ac89de138"
           }
         }
       ],
-      "verified_by": "codex-acceptance-T-2026-1029-0001",
-      "verified_at": "2026-10-29T04:27:28.394Z",
+      "verified_by": "codex-acceptance-T-2026-1029-0001-final",
+      "verified_at": "2026-10-29T06:16:25.048Z",
       "verification_evidence": {
-        "path": "runs/MC-009-0-1793248046601.json",
-        "sha256": "c2f7d8b45987ad9407183d1f520965e483846cd9b20a02e2bb0583a8c672b7eb",
-        "commit": "752f6a58ebcd8f8b387b0290da04099f6bb2506d"
+        "path": "runs/MC-009-0-1793254582939.json",
+        "sha256": "46ba67f2e6a1690b0eaa5cadf3b6f04d54811e9c9645623ef3b4f2a09fc840aa",
+        "commit": "55fa2d98c49642aa966dd237dcb8c59ac89de138"
       },
       "last_assertion_attempt": {
-        "actor": "codex-acceptance-T-2026-1029-0001",
+        "actor": "codex-acceptance-T-2026-1029-0001-final",
         "role": "acceptance",
         "result": "pass",
-        "at": "2026-10-29T04:27:26.601Z",
-        "commit": "752f6a58ebcd8f8b387b0290da04099f6bb2506d",
-        "finished_at": "2026-10-29T04:27:28.394Z"
+        "at": "2026-10-29T06:16:22.938Z",
+        "commit": "55fa2d98c49642aa966dd237dcb8c59ac89de138",
+        "finished_at": "2026-10-29T06:16:25.048Z"
       },
       "fixed_by": "codex-repair-T-2026-1029-0001",
       "last_verification_attempt": {
-        "actor": "codex-acceptance-T-2026-1029-0001",
+        "actor": "codex-acceptance-T-2026-1029-0001-final",
         "result": "pass",
-        "at": "2026-10-29T04:27:28.394Z",
+        "at": "2026-10-29T06:16:25.048Z",
         "runs": [
           {
-            "path": "runs/MC-009-0-1793248046601.json",
-            "sha256": "c2f7d8b45987ad9407183d1f520965e483846cd9b20a02e2bb0583a8c672b7eb",
-            "commit": "752f6a58ebcd8f8b387b0290da04099f6bb2506d"
+            "path": "runs/MC-009-0-1793254582939.json",
+            "sha256": "46ba67f2e6a1690b0eaa5cadf3b6f04d54811e9c9645623ef3b4f2a09fc840aa",
+            "commit": "55fa2d98c49642aa966dd237dcb8c59ac89de138"
           },
           {
-            "path": "runs/MC-009-1-1793248047541.json",
-            "sha256": "e9a52f629086e1b80b031df23ecd09eb18e5bf84a9293968ba608035f805abdc",
-            "commit": "752f6a58ebcd8f8b387b0290da04099f6bb2506d"
+            "path": "runs/MC-009-1-1793254583989.json",
+            "sha256": "68a0f79c083789f1f52c790381899990dcbf21eb0e6b08938611a290e08492a5",
+            "commit": "55fa2d98c49642aa966dd237dcb8c59ac89de138"
           },
           {
-            "path": "runs/MC-009-2-1793248048009.json",
-            "sha256": "693a47d990c1523b117bb91b9167816bfd6614019e9b67e5edbd0e11fe835a85",
-            "commit": "752f6a58ebcd8f8b387b0290da04099f6bb2506d"
+            "path": "runs/MC-009-2-1793254584553.json",
+            "sha256": "aec8edded6e9ee0cd19ad9d4add15d0324f5ffe089536f2cf59664f0b90921bd",
+            "commit": "55fa2d98c49642aa966dd237dcb8c59ac89de138"
           }
         ]
       }
@@ -851,14 +1183,14 @@
           },
           "last_result": "pass",
           "run": {
-            "path": "runs/MC-010-0-1793248048642.json",
-            "sha256": "c4ae2d6ef432608f24b66774c1642f98098a57e099e7f6a1e349b5aeab326207",
-            "commit": "752f6a58ebcd8f8b387b0290da04099f6bb2506d"
+            "path": "runs/MC-010-0-1793254585221.json",
+            "sha256": "ea5f091a59242c4bc025bd42f7654d43c69192c9397b642ab61c0168e0da2c70",
+            "commit": "55fa2d98c49642aa966dd237dcb8c59ac89de138"
           },
           "evidence": {
-            "path": "evidence/MC-010-0-1793248048642.txt",
-            "sha256": "9c758693aad47cd9d3bea5a178c05bc93734c33be34052b45126af2dbecb0a2e",
-            "commit": "752f6a58ebcd8f8b387b0290da04099f6bb2506d"
+            "path": "evidence/MC-010-0-1793254585221.txt",
+            "sha256": "d5d3e432981b1377956c4662317fa13b15015bf9b98fd78356b674142c7d9404",
+            "commit": "55fa2d98c49642aa966dd237dcb8c59ac89de138"
           }
         },
         {
@@ -880,51 +1212,56 @@
           },
           "last_result": "pass",
           "run": {
-            "path": "runs/MC-010-1-1793248049232.json",
-            "sha256": "f8891e04987e17ae2d59a2fbe46d5a5f8c86870be02a62324a724635e8cd2a61",
-            "commit": "752f6a58ebcd8f8b387b0290da04099f6bb2506d"
+            "path": "runs/MC-010-1-1793254585941.json",
+            "sha256": "c9e770fc3fd10288c55c4d09abc30a98e672708d0b1fffb3139c030f1a1516cf",
+            "commit": "55fa2d98c49642aa966dd237dcb8c59ac89de138"
           },
           "evidence": {
-            "path": "evidence/MC-010-1-1793248049232.txt",
-            "sha256": "9209447caed221dec5085309394593044739ef112456b85b31dfc1533717085b",
-            "commit": "752f6a58ebcd8f8b387b0290da04099f6bb2506d"
+            "path": "evidence/MC-010-1-1793254585941.txt",
+            "sha256": "9eb5801d7366643e14dc88d050b39aae71a27e91293ebbe7f726b4609130b0c3",
+            "commit": "55fa2d98c49642aa966dd237dcb8c59ac89de138"
           }
         }
       ],
-      "verified_by": "codex-acceptance-T-2026-1029-0001",
-      "verified_at": "2026-10-29T04:27:29.704Z",
+      "verified_by": "codex-acceptance-T-2026-1029-0001-final",
+      "verified_at": "2026-10-29T06:16:26.517Z",
       "verification_evidence": {
-        "path": "runs/MC-010-0-1793248048642.json",
-        "sha256": "c4ae2d6ef432608f24b66774c1642f98098a57e099e7f6a1e349b5aeab326207",
-        "commit": "752f6a58ebcd8f8b387b0290da04099f6bb2506d"
+        "path": "runs/MC-010-0-1793254585221.json",
+        "sha256": "ea5f091a59242c4bc025bd42f7654d43c69192c9397b642ab61c0168e0da2c70",
+        "commit": "55fa2d98c49642aa966dd237dcb8c59ac89de138"
       },
       "last_assertion_attempt": {
-        "actor": "codex-acceptance-T-2026-1029-0001",
+        "actor": "codex-acceptance-T-2026-1029-0001-final",
         "role": "acceptance",
         "result": "pass",
-        "at": "2026-10-29T04:27:28.627Z",
-        "commit": "752f6a58ebcd8f8b387b0290da04099f6bb2506d",
-        "finished_at": "2026-10-29T04:27:29.704Z"
+        "at": "2026-10-29T06:16:25.220Z",
+        "commit": "55fa2d98c49642aa966dd237dcb8c59ac89de138",
+        "finished_at": "2026-10-29T06:16:26.517Z"
       },
       "fixed_by": "codex-repair-T-2026-1029-0001",
       "last_verification_attempt": {
-        "actor": "codex-acceptance-T-2026-1029-0001",
+        "actor": "codex-acceptance-T-2026-1029-0001-final",
         "result": "pass",
-        "at": "2026-10-29T04:27:29.704Z",
+        "at": "2026-10-29T06:16:26.517Z",
         "runs": [
           {
-            "path": "runs/MC-010-0-1793248048642.json",
-            "sha256": "c4ae2d6ef432608f24b66774c1642f98098a57e099e7f6a1e349b5aeab326207",
-            "commit": "752f6a58ebcd8f8b387b0290da04099f6bb2506d"
+            "path": "runs/MC-010-0-1793254585221.json",
+            "sha256": "ea5f091a59242c4bc025bd42f7654d43c69192c9397b642ab61c0168e0da2c70",
+            "commit": "55fa2d98c49642aa966dd237dcb8c59ac89de138"
           },
           {
-            "path": "runs/MC-010-1-1793248049232.json",
-            "sha256": "f8891e04987e17ae2d59a2fbe46d5a5f8c86870be02a62324a724635e8cd2a61",
-            "commit": "752f6a58ebcd8f8b387b0290da04099f6bb2506d"
+            "path": "runs/MC-010-1-1793254585941.json",
+            "sha256": "c9e770fc3fd10288c55c4d09abc30a98e672708d0b1fffb3139c030f1a1516cf",
+            "commit": "55fa2d98c49642aa966dd237dcb8c59ac89de138"
           }
         ]
       }
     }
   ],
-  "gates": []
+  "gates": [],
+  "handoff": {
+    "generated_at": "2026-10-29T06:16:41.569Z",
+    "acceptance_command": "node scripts/acceptance/fleet-run.mjs --repo WorkLoom-video-edit-mcd --env local-preview",
+    "open_problem_ids": []
+  }
 }

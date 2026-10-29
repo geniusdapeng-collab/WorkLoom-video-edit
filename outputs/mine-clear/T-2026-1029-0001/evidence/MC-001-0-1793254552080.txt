@@ -1,0 +1,20 @@
+TAP version 13
+# Subtest: 真实全链CLI接收黑屏、无音轨、17FPS、旧品质失败与30秒名义稿：正式后期和3变体完成，旧字节/原记录不改，外呼0
+ok 1 - 真实全链CLI接收黑屏、无音轨、17FPS、旧品质失败与30秒名义稿：正式后期和3变体完成，旧字节/原记录不改，外呼0
+  ---
+  duration_ms: 11555.23875
+  type: 'test'
+  ...
+1..1
+# tests 1
+# suites 0
+# pass 1
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 11604.662916
+
+
+exit_code=0 signal=none error=none
+assertion_validation={"ok":true,"errors":[],"testSummary":{"total":1,"passed":1,"failed":0,"cancelled":0,"skipped":0,"todo":0}}
