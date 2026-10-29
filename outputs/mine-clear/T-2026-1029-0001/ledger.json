@@ -5,7 +5,7 @@
   "repo_path": "/Users/mac/Documents/Codex/2026-10-28/https-github-com-geniusdapeng-collab-workloom-2/work/WorkLoom-video-edit-mcd",
   "title": "AI视频完整成片交付链路排雷与经验固化",
   "created_at": "2026-10-29T03:17:13.350Z",
-  "updated_at": "2026-10-29T04:19:39.157Z",
+  "updated_at": "2026-10-29T04:20:15.222Z",
   "issue": {
     "slug": "geniusdapeng-collab/WorkLoom-video-edit",
     "number": 93
@@ -508,7 +508,7 @@
       "id": "MC-008",
       "kind": "fix",
       "batch": 0,
-      "state": "open",
+      "state": "unfixed",
       "title": "统一完整视频交付合同、0.6s 封面默认值与持续字幕共存语义",
       "covers": [
         "MC-001",
@@ -585,7 +585,17 @@
           },
           "last_result": "not-run"
         }
-      ]
+      ],
+      "verified_by": null,
+      "verified_at": null,
+      "verification_evidence": null,
+      "last_assertion_attempt": {
+        "actor": "codex-repair-T-2026-1029-0001",
+        "role": "repair",
+        "result": "running",
+        "at": "2026-10-29T04:20:15.222Z",
+        "commit": "c63ec0c9d1efbdf20e3df7f5cdedde44d9489dda"
+      }
     },
     {
       "id": "MC-009",
