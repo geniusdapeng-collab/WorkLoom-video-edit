@@ -19,6 +19,7 @@ import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, relative, resolve as resolvePath } from "node:path";
 import { fileURLToPath } from "node:url";
+import { TARGET_DURATION_TOLERANCE_SECONDS } from "./duration-contract.js";
 
 export type DurationSourceKind =
   /** 供应商能力（媒体目录 = 唯一真源） */
@@ -598,7 +599,7 @@ export function validateShotDurations(
   const issues: string[] = [];
   const warnings: string[] = [];
   const entries: DurationPlanEntry[] = [];
-  const tolerance = options.toleranceSeconds ?? 1;
+  const tolerance = options.toleranceSeconds ?? TARGET_DURATION_TOLERANCE_SECONDS;
 
   for (const shot of shots) {
     const source = Number(shot.duration ?? 0);

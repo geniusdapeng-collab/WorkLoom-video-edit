@@ -7,6 +7,7 @@ import {
   requirementScenes, structuredRiskFeedback, structuredSceneFeedback, structuredScenePrompt, structuredSceneSchema, structuredSceneTiming,
   validateRequirementSchema, verifiedRequirementContract, type RequirementRecord
 } from "./requirement-contract.js";
+import { SCENE_SUM_ARITHMETIC_TOLERANCE_SECONDS, TARGET_DURATION_TOLERANCE_SECONDS } from "./duration-contract.js";
 import { assertRequirementContractBridge, installRequirementContractBridge, withRequirementContractScope } from "./requirement-contract-bridge.js";
 import { installSharedBridge, installVendorDiscoveryFixBridge, listSharedBridges } from "./vendor-compat.js";
 
@@ -103,7 +104,7 @@ describe("actual vendor scene prompt correction", () => {
     expect(corrected).not.toContain(`请设计 ${Math.min(Math.max(Math.ceil(duration / 15), 2), 8)} 个场景（含开场和结尾）`);
     expect(corrected).toContain("场景数量与逐节点时长由本次模型根据叙事自行决定");
     expect(corrected).toContain("sceneCount 必须等于 2 + scenes.length");
-    expect(corrected).toContain(`目标 ${duration} 秒（现有数值容差 0.05 秒）`);
+    expect(corrected).toContain(`目标 ${duration} 秒 ±${TARGET_DURATION_TOLERANCE_SECONDS} 秒内`);
     const encoded = corrected.split("本次实际 SceneArchitect 响应 JSON Schema（完整适用，不是示例成品）：\n")[1]!.split("\n")[0]!;
     expect(JSON.parse(encoded)).toEqual(schema);
     for (const phrase of ["【电影语法参考】关注：产品质感光", "【结构心法——三幕呼吸法】", "高潮(climax)之后", "climax 场景时长必须≥任一其他场景的1.3倍"]) expect(corrected).toContain(phrase);
@@ -135,14 +136,14 @@ describe("actual vendor scene prompt correction", () => {
 
 describe("schema-derived scene timing and bounded validation facts", () => {
   it.each([
-    { target: 30, counts: [0, 1, 2, 3, 4] },
-    { target: 45, counts: [1, 2, 3, 4, 5, 6, 7] },
+    { target: 30, counts: [0, 1, 2, 3, 4, 5] },
+    { target: 45, counts: [1, 2, 3, 4, 5, 6, 7, 8] },
     { target: 60, counts: [1, 2, 3, 4, 5, 6, 7, 8] },
-    { target: 30.96, counts: [1, 2, 3, 4, 5] }
+    { target: 30.96, counts: [0, 1, 2, 3, 4, 5] }
   ])("derives feasible counts for $target seconds without allocating nodes", async ({ target, counts }) => {
     const native = await nativeSceneFixture(target), schema = structuredSceneSchema(native.nativeSchema), hash = requirementHash(schema);
     const timing = structuredSceneTiming(schema, target);
-    expect(timing).toEqual({ targetDuration: target, tolerance: 0.05,
+    expect(timing).toEqual({ targetDuration: target, targetToleranceSeconds: 5, arithmeticToleranceSeconds: 0.05,
       opening: { minimum: 3, maximum: 15 }, middle: { minimum: 5, maximum: 60 }, ending: { minimum: 3, maximum: 15 },
       middleCount: { minimum: 0, maximum: 8 }, feasibleMiddleCounts: counts });
     expect(Object.isFrozen(timing)).toBe(true);
@@ -155,12 +156,11 @@ describe("schema-derived scene timing and bounded validation facts", () => {
     expect(prompt).not.toContain("falling 级的留白场景（3-6秒）");
   });
 
-  it("uses the exact existing subtraction tolerance at the count feasibility boundary", async () => {
+  it("uses the target-duration band at the count feasibility boundary", async () => {
     const native = await nativeSceneFixture(30), schema = structuredSceneSchema(native.nativeSchema);
-    for (const target of [30.949, 30.95, 30.951, 30.96, 31, 31.001]) {
-      expect(structuredSceneTiming(schema, target).feasibleMiddleCounts.includes(5)).toBe(Math.abs(31 - target) <= 0.05 || target >= 31);
-    }
-    expect(() => structuredSceneTiming(schema, 5.94)).toThrow("REQUIREMENT_SCENE_UNVERIFIED");
+    expect(structuredSceneTiming(schema, 35).feasibleMiddleCounts).toEqual([0, 1, 2, 3, 4, 5, 6]);
+    expect(structuredSceneTiming(schema, 35.01).feasibleMiddleCounts).toEqual([1, 2, 3, 4, 5, 6]);
+    expect(() => structuredSceneTiming(schema, 0.1)).toThrow("REQUIREMENT_SCENE_UNVERIFIED");
     expect(() => structuredSceneTiming(schema, Infinity)).toThrow("REQUIREMENT_SCENE_UNVERIFIED");
   });
 
@@ -222,7 +222,7 @@ describe("schema-derived scene timing and bounded validation facts", () => {
     let failure: unknown;
     try { requirementScenes(scene, requirementCast(metadata()), 30); } catch (error) { failure = error; }
     const details = (failure as RequirementContractError & { details: RequirementRecord }).details;
-    expect(Object.keys(details)).toHaveLength(7);
+    expect(Object.keys(details)).toHaveLength(8);
     expect(structuredSceneFeedback(failure).split("\n")[3]).toBe(JSON.stringify(details));
   });
 });
@@ -381,21 +381,49 @@ describe("host requirement contract data", () => {
     let failure: Error & { details?: RequirementRecord };
     try { requirementScenes(s, requirementCast(metadata()), target); throw new Error("expected failure"); }
     catch (error) { failure = error as typeof failure; }
-    expect(failure.message).toContain("场景节点数或总时长与真实结构不一致；numeric");
+    expect(failure.message).toContain("场景节点数、声明总时长或目标总时长（允许 ±5s）不一致；numeric");
     expect(failure.details).toEqual({ nodeCount: 3, declaredSceneCount: kind === "count" ? 2 : 3, durationSum: 30,
       declaredTotalDuration: kind === "declared-duration" ? 29 : 30, targetDuration: target,
-      declaredDurationDelta: kind === "declared-duration" ? 1 : 0, targetDurationDelta: kind === "target-duration" ? -15 : 0 });
+      declaredDurationDelta: kind === "declared-duration" ? 1 : 0, targetDurationDelta: kind === "target-duration" ? -15 : 0,
+      targetDurationToleranceSeconds: 5 });
     expect(Object.isFrozen(failure.details)).toBe(true);
     expect(failure.message.length).toBeLessThan(600);
     expect(failure.message).not.toContain("PRIVATE-PROSE");
   });
 
-  it("retains the original 0.05-second arithmetic tolerance", () => {
+  it("retains the 0.05-second arithmetic tolerance between node sum and totalDuration", () => {
     const valid = structure(), invalid = structure();
     requirementRecord(valid.opening, "opening").duration = 9.951;
     requirementRecord(invalid.opening, "opening").duration = 9.949;
     expect(requirementScenes(valid, requirementCast(metadata()), 30)).toHaveLength(3);
     expect(() => requirementScenes(invalid, requirementCast(metadata()), 30)).toThrow("REQUIREMENT_SCENE_UNVERIFIED");
+  });
+
+  it.each([
+    { total: 25, accepted: true },
+    { total: 34, accepted: true },
+    { total: 35, accepted: true },
+    { total: 24.9, accepted: false },
+    { total: 35.1, accepted: false }
+  ])("applies the ±5-second target band to total=$total", ({ total, accepted }) => {
+    const scene = structure(), opening = requirementRecord(scene.opening, "opening");
+    opening.duration = total - 20;
+    scene.totalDuration = total;
+    let failure: unknown;
+    try { requirementScenes(scene, requirementCast(metadata()), 30); }
+    catch (error) { failure = error; }
+    if (accepted) expect(failure).toBeUndefined();
+    else {
+      expect(failure).toBeInstanceOf(RequirementContractError);
+      const details = (failure as RequirementContractError & { details: RequirementRecord }).details;
+      expect(details).toMatchObject({
+        durationSum: total,
+        targetDuration: 30,
+        targetDurationToleranceSeconds: TARGET_DURATION_TOLERANCE_SECONDS,
+        declaredDurationDelta: 0,
+      });
+      expect(Number(details.targetDurationDelta)).toBeCloseTo(total - 30, 9);
+    }
   });
 
   it.each(["scene", "cast", "list-cast", "contract", "audience", "metadata-contract"])("rejects %s changes before G3", kind => {

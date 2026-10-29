@@ -365,6 +365,15 @@ describe("PRD real model response and provenance", () => {
     model.scenePlan.scenes[0]!.duration += 1 / 30;
     expect(() => validatePrdProduction(model, value.contract, value.authority.profile)).toThrow("PRD_SCENE_DURATION_CONFLICT");
   });
+  it("accepts a 34-second scene total for a 30-second target while preserving each approved node", () => {
+    const value = fixture(), model = structuredClone(value.production);
+    value.contract.scenes[0]!.duration += 4;
+    model.scenePlan.scenes[0]!.duration += 4;
+    expect(() => validatePrdProduction(model, value.contract, value.authority.profile)).not.toThrow();
+    model.scenePlan.scenes[0]!.duration += 1.1;
+    value.contract.scenes[0]!.duration += 1.1;
+    expect(() => validatePrdProduction(model, value.contract, value.authority.profile)).toThrow("PRD_SCENE_DURATION_CONFLICT");
+  });
   it("preserves ten approved nodes and a long purpose without the obsolete PRD 8-node/200-character ceilings", () => {
     const value = fixture("P10", [3, ...Array(8).fill(5), 3]);
     value.production.scenePlan.scenes[0]!.purpose = "完整目的和动作不截断".repeat(60);

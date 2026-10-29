@@ -12,6 +12,7 @@
  * 硬阻断（fail-closed）：服装/妆造无理由不一致、总时长与目标不符、台词重复。
  * 软信号（进问题清单、不影响放行）：时间倒退一档、相邻镜运动方向相反、缺少收束镜、道具凭空出现。
  */
+import { TARGET_DURATION_TOLERANCE_SECONDS, withinTargetDurationTolerance } from "./duration-contract.js";
 
 export interface ContinuityCheck {
   id: string;
@@ -275,14 +276,16 @@ export function auditContinuity(shots: Array<Record<string, unknown>>, options: 
     shots: ids
   });
 
-  /* ── ⑥ 叙事节拍与总时长：时长必须等于目标，且要有收束镜 ── */
-  const durationPass = targetSeconds === null ? true : Math.abs(totalSeconds - targetSeconds) <= 0.5;
+  /* ── ⑥ 叙事节拍与总时长：目标允许 ±5 秒，且要有收束镜 ── */
+  const durationPass = targetSeconds === null ? true : withinTargetDurationTolerance(totalSeconds, targetSeconds);
   const closingPass = /收束|告别|留白|余韵|结束|结尾/.test(shots.map((s) => `${text(s, "mood")} ${text(s, "pacing")} ${text(s, "director_instruction")}`).join(" "));
   checks.push({
     id: "duration-total",
     pass: durationPass,
     hard: true,
-    detail: durationPass ? `总时长 ${totalSeconds}s 与目标一致` : `总时长 ${totalSeconds}s，与目标 ${targetSeconds}s 不符`,
+    detail: durationPass
+      ? `总时长 ${totalSeconds}s 在目标 ${targetSeconds}s ±${TARGET_DURATION_TOLERANCE_SECONDS}s 内`
+      : `总时长 ${totalSeconds}s 超出目标 ${targetSeconds}s ±${TARGET_DURATION_TOLERANCE_SECONDS}s`,
     shots: ids
   });
   checks.push({

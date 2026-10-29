@@ -52,6 +52,14 @@ describe("连贯性导演评审（6 问 + 5 维）", () => {
     expect(report.blocking.join(" ")).toMatch(/总时长|台词重复/);
   });
 
+  it("目标总时长允许 ±5 秒，边界外仍硬阻断", () => {
+    const within = auditContinuity(baseShots, { targetSeconds: 15 });
+    expect(within.checks.find((c) => c.id === "duration-total")).toMatchObject({ pass: true, hard: true });
+    expect(within.checks.find((c) => c.id === "duration-total")!.detail).toContain("±5s");
+    const outside = auditContinuity(baseShots, { targetSeconds: 15.1 });
+    expect(outside.checks.find((c) => c.id === "duration-total")).toMatchObject({ pass: false, hard: true });
+  });
+
   it("时段跨档倒退 → 软信号（有闪回交代则通过）", () => {
     const dark = { ...baseShots[0]!, shotId: "SC-03", scene: "入夜的平江路，灯笼亮起", lighting: "夜景灯笼光" };
     const morning = { ...baseShots[1]!, shotId: "SC-04", scene: "清晨的青石板街", lighting: "上午十点日光" };
