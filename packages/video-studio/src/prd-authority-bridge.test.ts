@@ -113,13 +113,32 @@ afterEach(() => {
 function productionAdapter(reply = '{"shotId":"UNCHANGED","fields":{"scene":"模型原始文本"}}') {
   const requests: Array<{ messages: ChatMessage[]; options: ChatOptions }> = [];
   const provider: ModelProvider = {
-    modelId: "deepseek-v4-pro", healthy: async () => true,
+    modelId: "deepseek-flash", healthy: async () => true,
     chat: async (messages, options = {}) => {
       requests.push({ messages, options });
-      return { text: reply, promptTokens: 1, completionTokens: 1 };
+      return {
+        text: reply,
+        promptTokens: 1,
+        completionTokens: 1,
+        modelId: "deepseek-flash",
+        finishReason: "stop",
+        reasoningTokens: 0,
+        requestHash: "a".repeat(64),
+        responseHash: "b".repeat(64),
+        responseId: "fixture-response",
+        scene: options.scene ?? "generic",
+        mode: "enabled",
+        effort: "high",
+        outputCeiling: 393216,
+        inputTokenEstimate: 1,
+        imageCount: 0,
+        policyVersion: "2026-10-30.1",
+        registryVersion: "2026-10-30.1",
+        attempts: [],
+      };
     }
   };
-  const adapter = new WorkloomLLMEngine({ baseUrl: "http://unused.local/v1", apiKey: "test-only", model: "stub-main",
+  const adapter = new WorkloomLLMEngine({ baseUrl: "http://unused.local/v1", apiKey: "test-only", model: "deepseek-flash",
     router: { providers: new Map([[provider.modelId, provider]]), sink: {
       recordModelTrace: async () => undefined, recordDegradation: async () => undefined, recordCircuitBreak: async () => undefined,
     } } });
@@ -142,6 +161,7 @@ describe("G4-bound authority at the shared real model request boundary", () => {
         thinking: { type: "disabled" }, systemPrompt: "原调用方system" });
       expect(result).toMatchObject({ success: true, content: capture.reply, data: JSON.parse(capture.reply) });
       const request = capture.requests[1]!, prompt = request.messages.at(-1)!.content;
+      if (typeof prompt !== "string") throw new Error("fixture expected text content");
       expect(prompt.startsWith(original + "\n")).toBe(true);
       expect(prompt).toContain(JSON.stringify(schema, null, 2));
       expect(prompt).toContain(JSON.stringify(value.metadata.brief));
@@ -152,7 +172,8 @@ describe("G4-bound authority at the shared real model request boundary", () => {
       expect(prompt).toContain(JSON.stringify(prd));
       expect(prompt).toContain("G4 批准不把 PRD 新增的修辞");
       expect(request.messages[0]).toEqual({ role: "system", content: "原调用方system" });
-      expect(request.options).toMatchObject({ maxTokens: 4096, temperature: 0.37, topP: 0.82, thinking: { type: "disabled" }, responseFormat: { type: "json_object" } });
+      expect(request.options).toMatchObject({ topP: 0.82, thinking: { type: "enabled", effort: "high" }, responseFormat: { type: "json_object" } });
+      expect(request.options.temperature).toBeUndefined();
       expect(schema).toEqual(before); expect(prd).toEqual(prdBefore);
       return h.success(prd);
     }, validate);
@@ -189,9 +210,15 @@ for (const [key, payload] of [["agent2", fixture.creative], ["agent3", fixture.p
  generator[key]._llmEngine = { reasonStructured: async () => ({ success: true, data: structuredClone(payload) }) };
 }
 const system = new System(generator), requests = [], raw = '{"unchanged":true}';
-const provider = { modelId: "deepseek-v4-pro", healthy: async () => true,
- chat: async (messages, options = {}) => { requests.push({ messages, options }); return { text: raw, promptTokens: 1, completionTokens: 1 }; } };
-const adapter = new WorkloomLLMEngine({ baseUrl: "http://unused.local/v1", apiKey: "test-only", model: "stub-main",
+const provider = { modelId: "deepseek-flash", healthy: async () => true,
+ chat: async (messages, options = {}) => { requests.push({ messages, options }); return {
+   text: raw, promptTokens: 1, completionTokens: 1, modelId: "deepseek-flash",
+   finishReason: "stop", reasoningTokens: 0, requestHash: "a".repeat(64), responseHash: "b".repeat(64),
+   responseId: "fixture", scene: options.scene ?? "generic", mode: "enabled", effort: "high",
+   outputCeiling: 393216, inputTokenEstimate: 1, imageCount: 0,
+   policyVersion: "2026-10-30.1", registryVersion: "2026-10-30.1", attempts: []
+ }; } };
+const adapter = new WorkloomLLMEngine({ baseUrl: "http://unused.local/v1", apiKey: "test-only", model: "deepseek-flash",
  router: { providers: new Map([[provider.modelId, provider]]), sink: { recordModelTrace: async () => undefined,
  recordDegradation: async () => undefined, recordCircuitBreak: async () => undefined } } });
 restorePrd = installPrdAuthorityBridge(System.prototype, PRDGenerator.prototype, PRDSchema);
@@ -230,8 +257,8 @@ console.log("RESULT " + JSON.stringify({ ...receipt, cleanup: { clearedTimers, h
     const result = JSON.parse(stdout.split("\n").find(line => line.startsWith("RESULT "))!.slice(7));
     expect(result.count).toBe(5);
     expect(result.inputs.every((input: RequirementRecord) => input.prefix === true && input.complete === true)).toBe(true);
-    expect(result.inputs[3]).toMatchObject({ system: { role: "system", content: "原生system" }, options: { temperature: 0.41 } });
-    expect(result.inputs[4].options.maxTokens).toBe(1234);
+    expect(result.inputs[3]).toMatchObject({ system: { role: "system", content: "原生system" }, options: { thinking: { type: "enabled", effort: "high" } } });
+    expect(result.inputs[4].options.maxTokens).toBeUndefined();
     expect(result.results).toMatchObject({ results: [{ success: true, content: result.raw }, { success: true, content: result.raw }, { success: true, content: result.raw }],
       chat: result.raw, structured: { success: true, content: result.raw, data: { unchanged: true } } });
     expect(result.cleanup).toMatchObject({ hookDisabled: true, clearedTimers: expect.any(Number) });
@@ -243,16 +270,28 @@ console.log("RESULT " + JSON.stringify({ ...receipt, cleanup: { clearedTimers, h
     const raw = '{"unchanged":"原始返回"}'; expectedFetchCalls = 1;
     vi.mocked(globalThis.fetch).mockImplementation(async (_url, init) => {
       bodies.push(JSON.parse(String(init?.body)) as RequirementRecord);
-      return new Response(JSON.stringify({ choices: [{ message: { content: raw } }] }), { status: 200 });
+      return new Response(JSON.stringify({
+        id: "fixture-direct",
+        model: "deepseek-flash",
+        choices: [{ finish_reason: "stop", message: { content: raw } }],
+        usage: {
+          prompt_tokens: 10,
+          completion_tokens: 5,
+          total_tokens: 15,
+          completion_tokens_details: { reasoning_tokens: 0 },
+        },
+      }), { status: 200 });
     });
-    const adapter = new WorkloomLLMEngine({ baseUrl: "http://unused.local/v1", apiKey: "test-only", model: "original-model" });
+    const adapter = new WorkloomLLMEngine({ baseUrl: "http://unused.local/v1", apiKey: "test-only", model: "deepseek-flash" });
     await withPrdAuthorityScope(value.authority, async () => {
       const prd = await h.generate(run); await h.review(run, prd);
       expect(await adapter.reasonStructured("直连原始需求", { unchanged: "" }, { maxTokens: 4321 })).toMatchObject({ content: raw, data: JSON.parse(raw) });
       return h.success(prd);
     });
-    expect(bodies).toHaveLength(1); expect(bodies[0]).toMatchObject({ model: "original-model", max_tokens: 4321 });
+    expect(bodies).toHaveLength(1);
+    expect(bodies[0]).toMatchObject({ model: "deepseek-flash" });
     const prompt = (bodies[0]!.messages as ChatMessage[]).at(-1)!.content;
+    if (typeof prompt !== "string") throw new Error("fixture expected text content");
     expect(prompt.startsWith("直连原始需求")).toBe(true); expect(prompt).toContain(value.content);
   });
 

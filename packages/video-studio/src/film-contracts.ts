@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { closeSync, constants, fstatSync, fsyncSync, linkSync, lstatSync, mkdirSync, openSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { resolveEraProfile, type ResolvedEraProfile } from "./era-profile.js";
-import { buildProducerReviewContract, reviewStage, REVIEW_CONTEXT_BUDGET, type ProducerGateOptions, type ProducerReviewContracts, type ProducerVerdict } from "./producer-gate.js";
+import { buildProducerReviewContract, reviewStage, type ProducerGateOptions, type ProducerReviewContracts, type ProducerVerdict } from "./producer-gate.js";
 import type { SceneBible } from "./scene-bible.js";
 import { fingerprintArtifact, productionHash } from "./production-lineage.js";
 
@@ -124,21 +124,11 @@ export async function reviewFilmStage(source: FilmContractSource, options: Omit<
   if (requested !== undefined && (typeof requested !== "string" || !requested)) throw new Error("FILM_REVIEW_SCOPE_INVALID");
   const contracts = filmReviewContracts(preRenderReviewSource(source, options), requested as string | undefined);
   // reviewStage performs structured validation and returns failed/unverified with the cause.
-  /**
-   * 原稿合同（authorContracts）与结构化合同（reviewStage 里的 contractText）会同时进入评审上下文，
-   * 同一份事实被投递两遍。短合同没问题；**长合同会把单次评审预算直接翻倍**（真机 2026-09-29：
-   * 6 镜富字段片的连续性评审 57k > 30k 预算，环节无法运行）。
-   *
-   * 口径：装得下就照旧带原稿；装不下则**不静默截断**——省略原稿并在上下文里写明省略原因，
-   * 完整原稿仍由调用方以产物正文送审（continuity 环节送审的就是镜头卡文件本身）。
-   */
-  const built = buildProducerReviewContract(contracts);
   const withAuthorContracts = { ...options.context, authorContracts: contracts };
-  const fitsBudget = JSON.stringify(withAuthorContracts).length + JSON.stringify(built).length <= REVIEW_CONTEXT_BUDGET;
-  const context = fitsBudget
-    ? withAuthorContracts
-    : { ...options.context, authorContractsOmitted: "原稿合同超出单次评审预算：未在上下文里重复投递；完整原稿见本环节送审产物正文" };
-  const verdict = await reviewer({ ...options, contracts, context });
+  // Carry the complete author contract. If the complete request exceeds the
+  // model window, the dispatcher fails closed and requires an explicit
+  // lossless partition; silently dropping the contract is forbidden.
+  const verdict = await reviewer({ ...options, contracts, context: withAuthorContracts });
   if (!verdict.approved) return verdict;
   /**
    * 合同哈希必须在评审**之后**重算：源稿在评审期间被改动时（TOCTOU），裁决不得被采信。

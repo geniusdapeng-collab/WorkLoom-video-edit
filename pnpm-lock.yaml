@@ -299,6 +299,9 @@ importers:
       pg:
         specifier: 8.23.0
         version: 8.23.0
+      tokenizers:
+        specifier: 0.23.2
+        version: 0.23.2
       yaml:
         specifier: 2.9.0
         version: 2.9.0
@@ -3432,6 +3435,10 @@ packages:
   to-regex-range@5.0.1:
     resolution: {integrity: sha512-65P7iz6X5yEr1cwcgvQxbbIw7Uk3gOy5dIdtZ4rDveLqhrdJP+Li/Hx6tyK0NEb+2GCyneCMJiGqrADCSNk8sQ==}
     engines: {node: '>=8.0'}
+
+  tokenizers@0.23.2:
+    resolution: {integrity: sha512-OS99VXTXuGuyUncICcS0hEawgKQlrFVKNU+UlzRsTN03RpOeJiCmcai5nKg3JrdIvUDo7/RC5puVEjlJd2e5oA==}
+    engines: {node: '>= 10'}
 
   tough-cookie@6.0.2:
     resolution: {integrity: sha512-exgYmnmL/sJpR3upZfXG5PoatXQii55xAiXGXzY+sROLZ/Y+SLcp9PgJNI9Vz37HpQ74WvDcLT8eqm+kV3FzrA==}
@@ -6709,6 +6716,8 @@ snapshots:
   to-regex-range@5.0.1:
     dependencies:
       is-number: 7.0.0
+
+  tokenizers@0.23.2: {}
 
   tough-cookie@6.0.2:
     dependencies:

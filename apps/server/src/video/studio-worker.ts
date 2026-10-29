@@ -32,7 +32,6 @@ import {
   installVendorPortraitBindingBridge,
   installVendorRenderCompatBridge,
   resolveVideoModel,
-  resolveVideoNonThinking,
   reviewStage,
   updateContextBundle,
   type ApprovalCallback,
@@ -610,7 +609,6 @@ export function startRun(scope: Scope, input: StudioRunInput): string {
     policy: modelPolicyFor("ai-video"),
     scene: "preproduction",
     forceModel,
-    nonThinking: forceModel ? resolveVideoNonThinking(forceModel, process.env) : false,
   });
 
   /**

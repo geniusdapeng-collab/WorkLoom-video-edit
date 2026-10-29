@@ -228,6 +228,23 @@
       "latest_checked_at": "2026-09-18T16:00:21.000Z"
     },
     {
+      "name": "Hugging Face Tokenizers",
+      "package": "tokenizers",
+      "repo": "https://github.com/huggingface/tokenizers",
+      "license": "Apache-2.0",
+      "channel": "npm",
+      "usage": "runtime",
+      "scope": [
+        "packages/base/model-router/token-budget.ts",
+        "packages/base/model-router/assets/deepseek-v4-tokenizer.json"
+      ],
+      "cadence": "weekly",
+      "gate": "model-routing-contract",
+      "notes": "Rust tokenizer binding used only to count the complete DeepSeek request with the pinned official tokenizer; 1.0 release candidates are not adopted without a separate compatibility pass",
+      "latest": "0.23.2",
+      "latest_checked_at": "2026-10-30T00:00:00.000Z"
+    },
+    {
       "name": "jose（JWT/JWS）",
       "package": "jose",
       "repo": "https://github.com/panva/jose",

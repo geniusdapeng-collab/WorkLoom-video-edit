@@ -9,7 +9,6 @@ import {
   resolveOpenAiCompatibleBaseUrl,
   resolveVideoApiKey,
   resolveVideoModel,
-  resolveVideoNonThinking,
 } from "./llm-config.js";
 
 describe("video model configuration", () => {
@@ -17,10 +16,10 @@ describe("video model configuration", () => {
     expect(DEEPSEEK_FLASH_MODEL).toBe("deepseek-flash");
     expect(DEEPSEEK_FLASH_CONTEXT_TOKENS).toBe(1_048_576);
     expect(DEEPSEEK_FLASH_MAX_OUTPUT_TOKENS).toBe(393_216);
-    expect(DEEPSEEK_FLASH_INPUT_TOKEN_BUDGET).toBe(1_032_192);
-    expect(DEEPSEEK_VIDEO_JSON_OUTPUT_TOKENS).toBe(16_384);
+    expect(DEEPSEEK_FLASH_INPUT_TOKEN_BUDGET).toBe(655_360);
+    expect(DEEPSEEK_VIDEO_JSON_OUTPUT_TOKENS).toBe(393_216);
     expect(resolveVideoModel({ LLM_BASE_URL: "https://api.deepseek.com" })).toBe("deepseek-flash");
-    expect(resolveVideoModel({ DEEPSEEK_MODEL: "deepseek-v4-flash" })).toBe("deepseek-flash");
+    expect(resolveVideoModel({ DEEPSEEK_MODEL: "deepseek-flash" })).toBe("deepseek-flash");
   });
 
   it("uses DeepSeek's documented token ratios instead of treating characters as tokens", () => {
@@ -44,11 +43,8 @@ describe("video model configuration", () => {
       .toBe("generic-key");
   });
 
-  it("defaults Flash to non-thinking with an explicit rollback", () => {
-    expect(resolveVideoNonThinking("deepseek-flash", {})).toBe(true);
-    expect(resolveVideoNonThinking("deepseek-v4-flash", {})).toBe(true);
-    expect(resolveVideoNonThinking("deepseek-flash", { LLM_NON_THINKING: "0" })).toBe(false);
-    expect(resolveVideoNonThinking("custom-model", {})).toBe(false);
-    expect(resolveVideoNonThinking("custom-model", { LLM_NON_THINKING: "1" })).toBe(true);
+  it("rejects legacy model pins; thinking is owned by scene policy", () => {
+    expect(() => resolveVideoModel({ LLM_MODEL: "custom-model" })).toThrow("MODEL_ID_NOT_ALLOWED");
+    expect(() => resolveVideoModel({ DEEPSEEK_MODEL: "deepseek-v4-flash" })).toThrow("MODEL_ID_NOT_ALLOWED");
   });
 });

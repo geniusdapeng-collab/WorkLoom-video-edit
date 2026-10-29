@@ -93,9 +93,9 @@ function fixture() {
     snapshot: () => structuredClone(index), indexPath: () => join(dir, "portrait-index.json")
   };
   const run = () => new VideoStudio({
-    llm: new WorkloomLLMEngine({ baseUrl: "https://example.invalid", apiKey: "test-only", model: "test" }),
+    llm: new WorkloomLLMEngine({ baseUrl: "https://example.invalid", apiKey: "test-only", model: "deepseek-flash" }),
     workDir: dir, log: () => undefined, onApproval: async () => ({ approved: true }),
-    portraits: { apiKey: "test-only", model: "test" }
+    portraits: { apiKey: "test-only", model: "deepseek-flash" }
   }).runPreproduction({ projectId: "P1", intent: "test original character" });
   return { index, entry, run };
 }
