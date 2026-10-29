@@ -302,7 +302,26 @@ export async function route(
   const tier = classify(task);
   const window = currentWindow(now);
   try {
-    const result = await canonicalProvider(providers).chat(task.messages, {
+    const provider = canonicalProvider(providers);
+    if (!(await provider.healthy())) {
+      const degradation = {
+        from: DEEPSEEK_FLASH_MODEL_ID,
+        to: null,
+        reason: "unhealthy",
+      };
+      await sink.recordDegradation({ ...degradation, action: task.action });
+      return {
+        kind: task.queueable ? "queued" : "unavailable",
+        degraded: [degradation],
+        failure: {
+          kind: "unhealthy",
+          reason: "canonical text provider is unhealthy",
+          retryable: false,
+          attempted: [DEEPSEEK_FLASH_MODEL_ID],
+        },
+      };
+    }
+    const result = await provider.chat(task.messages, {
       scene: "generic",
       thinking: { type: "disabled" },
       responseFormat: { type: "text" },
@@ -526,6 +545,27 @@ export async function routeSmart(
   }
 
   const provider = canonicalProvider(providers);
+  if (!(await provider.healthy())) {
+    const degradation = {
+      from: DEEPSEEK_FLASH_MODEL_ID,
+      to: null,
+      reason: "unhealthy",
+    };
+    await sink.recordDegradation({ ...degradation, action: task.action });
+    return {
+      kind: task.queueable ? "queued" : "unavailable",
+      degraded: [degradation],
+      tier,
+      scene,
+      passthrough,
+      failure: {
+        kind: "unhealthy",
+        reason: "canonical text provider is unhealthy",
+        retryable: false,
+        attempted: [DEEPSEEK_FLASH_MODEL_ID],
+      },
+    };
+  }
   const window = currentWindow(now);
   try {
     const result = await provider.chat(task.messages, {
