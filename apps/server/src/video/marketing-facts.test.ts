@@ -118,6 +118,40 @@ describe("逐事实叶子的正文绑定", () => {
       reason: "absolute-marketing-claim",
     }]);
   });
+  it("绝对化推荐被拆成推断规格时一并移除，不把推荐语升级成兼容性事实", () => {
+    const filtered = filterUnsafeMarketingExtraction("A1", {
+      payload: {
+        identity: {
+          name: "Home Assistant",
+          specs: {
+            License: "Apache-2.0",
+            "Supported hardware": "Raspberry Pi or a local server",
+          },
+          official_selling_points: [
+            { point: "Perfect to run on a Raspberry Pi or a local server.", source_url: source.finalUrl },
+          ],
+        },
+        images: [],
+      },
+      citations: [
+        { pointer: "/identity/name", sourceId: source.sourceId, quote: body },
+        { pointer: "/identity/specs/License", sourceId: source.sourceId, quote: body },
+        { pointer: "/identity/specs/Supported hardware", sourceId: source.sourceId, quote: body },
+        { pointer: "/identity/official_selling_points/0/point", sourceId: source.sourceId, quote: body },
+      ],
+    });
+    const value = filtered.value as any;
+    expect(value.payload.identity.specs).toEqual({ License: "Apache-2.0" });
+    expect(value.payload.identity.official_selling_points).toEqual([]);
+    expect(value.citations.map((item: any) => item.pointer)).toEqual([
+      "/identity/name",
+      "/identity/specs/License",
+    ]);
+    expect(filtered.exclusions.map((item) => item.pointer)).toEqual([
+      "/identity/official_selling_points/0/point",
+      "/identity/specs/Supported hardware",
+    ]);
+  });
   it.each(["A1", "A2", "A3"] as const)("%s提取输入合同由实际严格schema产生并保留边界", stage => {
     const schema: any = stagePayloadJsonSchema(stage);
     expect(schema).toMatchObject({ type: "object", additionalProperties: false });

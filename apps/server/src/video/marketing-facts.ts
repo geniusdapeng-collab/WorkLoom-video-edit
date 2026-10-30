@@ -87,7 +87,7 @@ export function filterUnsafeMarketingExtraction(
   const points = Array.isArray(identity?.official_selling_points) ? identity.official_selling_points : null;
   if (!payload || !identity || !points) return { value: raw, exclusions: [] };
 
-  const excluded = new Map<number, MarketingPolicyExclusion>();
+  const excluded = new Map<number | string, MarketingPolicyExclusion>();
   const kept: unknown[] = [];
   for (const [index, value] of points.entries()) {
     const point = typeof (value as Record<string, unknown> | null)?.point === "string"
@@ -105,6 +105,31 @@ export function filterUnsafeMarketingExtraction(
   }
   if (excluded.size === 0) return { value: raw, exclusions: [] };
 
+  /**
+   * A model may decompose an absolute recommendation into an invented spec
+   * (for example turning "Perfect to run on X" into `Supported hardware=X`).
+   * If the spec value is a literal slice of an excluded promotional claim, the
+   * key/value relation is still inference, not a source-bound specification.
+   * Remove that spec and its citation while preserving unrelated metadata.
+   */
+  const excludedTexts = [...excluded.values()].map((entry) => entry.value.toLocaleLowerCase());
+  const excludedSpecPointers = new Set<string>();
+  const specs = identity.specs && typeof identity.specs === "object" && !Array.isArray(identity.specs)
+    ? identity.specs as Record<string, string | number | boolean>
+    : null;
+  if (specs) {
+    for (const [key, value] of Object.entries(specs)) {
+      if (typeof value !== "string" || value.trim().length < 4) continue;
+      const normalized = value.trim().toLocaleLowerCase();
+      const derivedFromExcludedClaim = excludedTexts.some((excludedText) => excludedText.includes(normalized));
+      if (!derivedFromExcludedClaim) continue;
+      const pointer = `/identity/specs/${escapePointer(key)}`;
+      excludedSpecPointers.add(pointer);
+      delete specs[key];
+      excluded.set(pointer, { pointer, value, reason: "absolute-marketing-claim" });
+    }
+  }
+
   const remap = new Map<number, number>();
   let next = 0;
   for (let index = 0; index < points.length; index++) if (!excluded.has(index)) remap.set(index, next++);
@@ -116,7 +141,7 @@ export function filterUnsafeMarketingExtraction(
         ? String((citation as Record<string, unknown>).pointer)
         : "";
       const match = /^\/identity\/official_selling_points\/(\d+)(\/point)$/.exec(pointer);
-      if (!match) return [citation];
+      if (!match) return excludedSpecPointers.has(pointer) ? [] : [citation];
       const oldIndex = Number(match[1]);
       if (excluded.has(oldIndex)) return [];
       const newIndex = remap.get(oldIndex);
