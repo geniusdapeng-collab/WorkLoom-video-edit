@@ -390,7 +390,9 @@ async function reviewGate(input: {
     log("  [gate G5_PORTRAIT] preproduction-only：未请求定妆照出图，记录为 not_applicable");
     return { approved: true, verdict: null };
   }
-  const normalized = decision.route === "marketing" && input.gate === "G6_PROMPT" && selectedCharacters.decision.mode === "none"
+  const normalized = decision.route === "marketing"
+    && (input.gate === "G6_PROMPT" || input.gate === "G7_FINAL")
+    && selectedCharacters.decision.mode === "none"
     ? normalizeMarketingPromptText(input.contentMd, { targetDuration: DURATION_SECONDS, noPeople: true })
     : null;
   if (normalized?.changes.length) log(`  [G6 宿主归一] ${normalized.changes.join("、")}`);

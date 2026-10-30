@@ -307,11 +307,11 @@ export class VideoStudio {
 
     const handler: ConfirmationHandler = async (req) => {
       const gate = resolveGate(req.type);
-      const normalizedPrompt = input.isMarketing && gate === "G6_PROMPT"
+      const normalizedPrompt = input.isMarketing && (gate === "G6_PROMPT" || gate === "G7_FINAL")
         ? normalizeMarketingPromptText(req.content, promptOptions)
         : null;
       if (normalizedPrompt && normalizedPrompt.changes.length > 0) {
-        log(`[studio] G6 宿主提示词归一：${normalizedPrompt.changes.join("、")}`);
+        log(`[studio] ${gate} 宿主提示词归一：${normalizedPrompt.changes.join("、")}`);
       }
       if (gate === "G2_THEME" && prdAuthority) approvedRequirementTheme = undefined;
       await emit({
