@@ -14,6 +14,14 @@ function classifyProductKind(product: RecordValue): { kind: "physical" | "digita
   return { kind: null, basis: "品类不足以可靠区分实体或数字商品，保留未判定" };
 }
 
+export function customerRestrictionLines(intentValue: unknown): string[] {
+  const intent = text(intentValue);
+  if (!intent) return [];
+  return [...new Set((intent.match(/(?:不展示|不声称|不编造|不虚构|不使用|不采用|不得|禁止|不能)[^，。；\n]*/gu) ?? [])
+    .map((value) => `客户原文限制：${value.trim()}`)
+    .filter(Boolean))];
+}
+
 /**
  * Reconcile host-generated dossier presentation cards with the source-bound
  * claims already accepted by A1. This removes contradictory summary labels and
@@ -27,6 +35,7 @@ export function normalizeMarketingDossierPresentation(
     hasReviewEvidence?: boolean;
     hasCompetitorEvidence?: boolean;
     sellingPointClaims?: Array<{ pointer: string; claimId: string; sourceId: string }>;
+    customerRestrictions?: string[];
   } = {},
 ): { dossier: RecordValue; cards: RecordValue; changes: string[] } {
   const dossier = structuredClone(record(dossierValue));
@@ -34,6 +43,10 @@ export function normalizeMarketingDossierPresentation(
   const product = record(productValue);
   const identity = record(dossier.identity);
   const changes: string[] = [];
+  const customerRestrictions = [...new Set((options.customerRestrictions ?? []).map(text).filter(Boolean))];
+  if (customerRestrictions.length > 0) {
+    dossier.restrictions = [...new Set([...list(dossier.restrictions).map(text).filter(Boolean), ...customerRestrictions])];
+  }
 
   const sellingPoints = [...new Set(list(identity.official_selling_points)
     .map((item) => text(record(item).point))
@@ -78,6 +91,16 @@ export function normalizeMarketingDossierPresentation(
   const images = list(visual.images).map(record);
   const highRisk = images.filter((image) => text(image.license_risk) === "high");
   const portrait = record(cards.portrait_manifest);
+  if (images.length === 0) {
+    portrait.hero_image_id = null;
+    portrait.reference_images = [];
+    portrait.needs_more_reference = true;
+    portrait.handoff_note = "本次官方来源没有可用产品参考图；不得生成或声称已有定妆照、实物图、型号核对图或可运行效果。全片只使用客户允许的抽象示意。";
+    visual.images = [];
+    visual.needs_more_reference = true;
+    dossier.visual_assets = visual;
+    changes.push("missing-source-images-explicit");
+  }
   if (highRisk.length > 0) {
     portrait.needs_more_reference = true;
     visual.needs_more_reference = true;
@@ -95,6 +118,22 @@ export function normalizeMarketingDossierPresentation(
     }
   }
   cards.portrait_manifest = portrait;
+
+  if (customerRestrictions.length > 0) {
+    const currentPrd = record(cards.prd_card);
+    currentPrd.compliance_redlines = [...new Set([
+      ...list(currentPrd.compliance_redlines).map(text).filter(Boolean),
+      ...customerRestrictions,
+    ])];
+    cards.prd_card = currentPrd;
+    const theme = record(cards.theme_card);
+    theme.avoid_pits = [...new Set([
+      ...list(theme.avoid_pits).map((item) => text(record(item).aspect) || text(item)).filter(Boolean),
+      ...customerRestrictions,
+    ])];
+    cards.theme_card = theme;
+    changes.push("customer-redlines-propagated");
+  }
 
   if (!options.hasCompetitorEvidence) {
     const differentiation = record(dossier.differentiation);

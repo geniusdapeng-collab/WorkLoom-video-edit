@@ -21,7 +21,7 @@ import {
   type ValidatedStageFacts,
 } from "./marketing-facts.js";
 import { quoteIndexedSources, resolveMarketingExtraction, type CitationBinding } from "./marketing-quote-index.js";
-import { normalizeMarketingDossierPresentation } from "./marketing-dossier-normalization.js";
+import { customerRestrictionLines, normalizeMarketingDossierPresentation } from "./marketing-dossier-normalization.js";
 import { canonicalRenderJson, renderSha256 } from "./gen/compiled-request.js";
 import { SubmissionError } from "./gen/submission-ledger.js";
 import { reviewMarketingSupportWithRetry } from "./marketing-review-retry.js";
@@ -388,6 +388,7 @@ export async function prepareMarketingFacts(input: {
       .flatMap((report) => report.facts.claims)
       .filter((claim) => /^\/identity\/official_selling_points\/\d+\/point$/.test(claim.pointer))
       .map((claim) => ({ pointer: claim.pointer, claimId: claim.claimId, sourceId: claim.sourceId })),
+    customerRestrictions: customerRestrictionLines(input.intent),
   });
   if (typeof presentation.dossier.product_id !== "string" || !presentation.dossier.product_id.trim()) {
     fail("MARKETING_DOSSIER_UNVERIFIED", "情报档案缺少有效商品ID");
@@ -405,8 +406,12 @@ export async function prepareMarketingFacts(input: {
     await rm(dossierTemp, { force: true }).catch(() => undefined);
     fail("MARKETING_DOSSIER_UNVERIFIED", `情报档案展示归一写入失败：${error instanceof Error ? error.message : String(error)}`);
   }
-  const restrictions = reports.filter(report => report.facts.status === "no_evidence").map(report => report.stage === "A2"
-    ? "没有可核实用户评价：禁止用户口碑、评分、人数、销量或使用效果共识主张" : "没有可核实竞品证据：禁止对比、竞品弱点或市场领先主张");
+  const restrictions = [...new Set([
+    ...reports.filter(report => report.facts.status === "no_evidence").map(report => report.stage === "A2"
+      ? "没有可核实用户评价：禁止用户口碑、评分、人数、销量或使用效果共识主张"
+      : "没有可核实竞品证据：禁止对比、竞品弱点或市场领先主张"),
+    ...customerRestrictionLines(input.intent),
+  ])];
   const bundle: MarketingFactsBundle = { schemaVersion: "workloom.marketing-facts/v1", issuer: "workloom.marketing-authority", scope,
     collectedAt: new Date().toISOString(), policyVersion: "source-claims/v1", productQuery: product, sources, stages: reports, rawByAgent: raw,
     rawSha256, dossier: presentation.dossier, cards: presentation.cards,

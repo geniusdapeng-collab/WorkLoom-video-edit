@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { normalizeMarketingDossierPresentation } from "./marketing-dossier-normalization.js";
+import { customerRestrictionLines, normalizeMarketingDossierPresentation } from "./marketing-dossier-normalization.js";
 
 describe("marketing dossier host presentation", () => {
   it("does not relabel verified software claims as zero evidence or a physical product", () => {
@@ -78,5 +78,24 @@ describe("marketing dossier host presentation", () => {
       { name: "星野 F3", category: "家用空气净化器" },
     );
     expect((result.cards as any).router_material.product_kind).toBe("physical");
+  });
+
+  it("surfaces missing source images and customer redlines across dossier, PRD and theme", () => {
+    const restrictions = customerRestrictionLines("全片无人，不展示未核实硬件或可运行效果，不声称用户评价、销量或竞品优势。");
+    const result = normalizeMarketingDossierPresentation(
+      { identity: { name: "Acme", official_selling_points: [] }, visual_assets: null, gaps: [] },
+      {
+        portrait_manifest: { handoff_note: "预填参考图，仅核对型号一致性", needs_more_reference: false, reference_images: [{}] },
+        prd_card: {}, theme_card: {},
+      },
+      { name: "Acme", category: "软件平台" },
+      { customerRestrictions: restrictions },
+    );
+    expect((result.dossier as any).restrictions).toEqual(restrictions);
+    expect((result.dossier as any).visual_assets).toMatchObject({ images: [], needs_more_reference: true });
+    expect((result.cards as any).portrait_manifest).toMatchObject({ hero_image_id: null, reference_images: [], needs_more_reference: true });
+    expect((result.cards as any).portrait_manifest.handoff_note).toContain("不得生成或声称已有定妆照");
+    expect((result.cards as any).prd_card.compliance_redlines).toEqual(restrictions);
+    expect((result.cards as any).theme_card.avoid_pits).toEqual(restrictions);
   });
 });

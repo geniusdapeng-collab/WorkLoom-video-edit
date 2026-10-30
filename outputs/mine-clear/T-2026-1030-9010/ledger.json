@@ -5,7 +5,7 @@
   "repo_path": "/Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit",
   "title": "",
   "created_at": "2026-10-30T06:14:55.791Z",
-  "updated_at": "2026-10-30T10:03:10.274Z",
+  "updated_at": "2026-10-30T10:08:11.266Z",
   "baseline": {
     "audit": {
       "commit": "463ae7ad844de31674b94e73679dafaf0f5dcac5",
@@ -16,7 +16,7 @@
       "notes": ""
     },
     "repair": {
-      "commit": "af467e7854c753d748563c90ce7739f361db0b33",
+      "commit": "5fbba62575d1a03b165275fd9a60623e7278987e",
       "reverified_problem_ids": []
     },
     "acceptance": {
@@ -920,14 +920,14 @@
       "level": "L4",
       "severity": "P1",
       "batch": 1,
-      "state": "fixed",
-      "title": "营销档案摘要在 0 评价和 0 竞品时仍生成口碑、差异化与高风险素材矛盾",
+      "state": "open",
+      "title": "营销档案摘要在无评价/竞品/图片时仍生成口碑、差异化与素材状态矛盾",
       "evidence": [
         {
           "type": "code",
           "ref": "apps/server/src/video/marketing-authority.ts:326@463ae7ad844de31674b94e73679dafaf0f5dcac5",
           "sha256": "6e7dac86e9f1509d270fbdf619d2d13f162ab5e892556df86dbc6bfcfd59dcc6",
-          "note": "vendor 完成 dossier/cards 装订后直接使用；摘要卡中的“全是好评”、needs_more_reference 冲突、空 selling_point_evidence 和弱化授权红线均未由宿主归一。"
+          "note": "vendor 完成 dossier/cards 装订后直接使用；“全是好评”、needs_more_reference 冲突、空 selling_point_evidence、幻影参考图、客户明文禁用项未传播均未由宿主归一。"
         }
       ],
       "root_cause": {
@@ -936,7 +936,7 @@
         "commit": "463ae7ad844de31674b94e73679dafaf0f5dcac5",
         "symbol": "prepareMarketingFacts dossier assembly"
       },
-      "trigger_path": "A2/A3 均 no_evidence 且来源图 license_risk=high → 摘要仍写“全是好评”、保留差异化 opening、卖点证据为空、handoff_note 弱化授权 → G1 真实监制反复以自相矛盾和新增口碑拒绝。",
+      "trigger_path": "A2/A3 均 no_evidence、无来源图或来源图 high-risk → 摘要仍写“全是好评”、幻影参考图/型号核对、保留差异化 opening、客户红线未扩散 → G1 真实监制反复以自相矛盾和新增证据状态拒绝。",
       "assertions": [
         {
           "kind": "sample",
@@ -953,17 +953,7 @@
               "scripts/tools/data-pipeline-host-contract.node-test.mjs"
             ]
           },
-          "last_result": "pass",
-          "run": {
-            "path": "runs/MC-011-0-1793347058942.json",
-            "sha256": "6dc9d3e13eacc50b4bb1faa6dfdac3be4fb0ed39c54983f3cee0eddb50e901a5",
-            "commit": "4a18be68b7c4b39ca018d1024dbca323172dd74d"
-          },
-          "evidence": {
-            "path": "evidence/MC-011-0-1793347058942.txt",
-            "sha256": "f65e3dbc9a52d4d04b6c990127c1073cf0f6ebf9a6ae225ef232c6d9cfe99c84",
-            "commit": "4a18be68b7c4b39ca018d1024dbca323172dd74d"
-          }
+          "last_result": "not-run"
         },
         {
           "kind": "property",
@@ -980,36 +970,31 @@
               "scripts/tools/data-pipeline-host-contract.node-test.mjs"
             ]
           },
-          "last_result": "pass",
-          "run": {
-            "path": "runs/MC-011-1-1793347059356.json",
-            "sha256": "aeac314f89a2f00ddc53caec875e10895784eeb39cce668fd524768d58b8d556",
-            "commit": "4a18be68b7c4b39ca018d1024dbca323172dd74d"
+          "last_result": "not-run"
+        },
+        {
+          "kind": "sample",
+          "given": "官方 README 无图片，客户原文要求不展示未核实硬件/运行效果、不声称口碑/销量/竞品优势",
+          "expect": "清空幻影参考图；portrait/visual needs_more_reference=true；客户红线进入顶层 restrictions、PRD 红线和 theme avoid_pits",
+          "command": "node --import tsx --test --test-name-pattern='dossier normalization' scripts/tools/data-pipeline-host-contract.node-test.mjs",
+          "exec": {
+            "file": "node",
+            "args": [
+              "--import",
+              "tsx",
+              "--test",
+              "--test-name-pattern=dossier normalization",
+              "scripts/tools/data-pipeline-host-contract.node-test.mjs"
+            ]
           },
-          "evidence": {
-            "path": "evidence/MC-011-1-1793347059356.txt",
-            "sha256": "3358ed0c9369e483961c6817825ba4697983d1cf99bf9fd56ac488a31926a269",
-            "commit": "4a18be68b7c4b39ca018d1024dbca323172dd74d"
-          }
+          "last_result": "not-run"
         }
       ],
       "regression": {
         "command": "node --import tsx --test --test-name-pattern='marketing dossier cards' scripts/tools/data-pipeline-host-contract.node-test.mjs",
         "evidence": null
       },
-      "notes": "M01 真实 G1 60 分拒绝；此前多次 G1 在不同摘要矛盾上波动。",
-      "verified_by": null,
-      "verified_at": null,
-      "verification_evidence": null,
-      "last_assertion_attempt": {
-        "actor": "root-repair-2026-10-30",
-        "role": "repair",
-        "result": "pass",
-        "at": "2026-10-30T07:57:38.941Z",
-        "commit": "4a18be68b7c4b39ca018d1024dbca323172dd74d",
-        "finished_at": "2026-10-30T07:57:39.776Z"
-      },
-      "fixed_by": "root-repair-2026-10-30"
+      "notes": "M01 真实 G1 60/78 分拒绝；最新为无图幻影状态与客户红线遗漏。"
     },
     {
       "id": "MC-012",
@@ -1820,7 +1805,7 @@
       "level": "L3",
       "severity": "P1",
       "batch": 2,
-      "state": "open",
+      "state": "fixed",
       "title": "商品片规则无视逐场明确无道具理由，数字营销片被强制要求物理道具",
       "evidence": [
         {
@@ -1853,7 +1838,17 @@
               "scripts/tools/data-pipeline-host-contract.node-test.mjs"
             ]
           },
-          "last_result": "not-run"
+          "last_result": "pass",
+          "run": {
+            "path": "runs/MC-020-0-1793354608693.json",
+            "sha256": "9f09196210d670940a0df6258f969858dc19eed3af5b734d5910d4f6b8718614",
+            "commit": "5fbba62575d1a03b165275fd9a60623e7278987e"
+          },
+          "evidence": {
+            "path": "evidence/MC-020-0-1793354608693.txt",
+            "sha256": "0ebec2aa99bd357d919bdd980c47993882bbcfe54f4b2e1673d170efef9520ac",
+            "commit": "5fbba62575d1a03b165275fd9a60623e7278987e"
+          }
         },
         {
           "kind": "property",
@@ -1870,14 +1865,36 @@
               "scripts/tools/data-pipeline-host-contract.node-test.mjs"
             ]
           },
-          "last_result": "not-run"
+          "last_result": "pass",
+          "run": {
+            "path": "runs/MC-020-1-1793354609367.json",
+            "sha256": "7b8d277f02e3b53e7d479c396e9be5100058c06525c87d63db2dbba69378e81e",
+            "commit": "5fbba62575d1a03b165275fd9a60623e7278987e"
+          },
+          "evidence": {
+            "path": "evidence/MC-020-1-1793354609367.txt",
+            "sha256": "af4a1b8fdae430c8837a14552b0f1feaf498d2107f04b387ff2abc7f7e022994",
+            "commit": "5fbba62575d1a03b165275fd9a60623e7278987e"
+          }
         }
       ],
       "regression": {
         "command": "node --import tsx --test --test-name-pattern='fully reasoned no-prop' scripts/tools/data-pipeline-host-contract.node-test.mjs",
         "evidence": null
       },
-      "notes": "M01 最新真实运行在需求合同收口报“商品片没有任何真实结构化物理道具”。"
+      "notes": "M01 最新真实运行在需求合同收口报“商品片没有任何真实结构化物理道具”。",
+      "verified_by": null,
+      "verified_at": null,
+      "verification_evidence": null,
+      "last_assertion_attempt": {
+        "actor": "root-repair-2026-10-30",
+        "role": "repair",
+        "result": "pass",
+        "at": "2026-10-30T10:03:28.686Z",
+        "commit": "5fbba62575d1a03b165275fd9a60623e7278987e",
+        "finished_at": "2026-10-30T10:03:29.844Z"
+      },
+      "fixed_by": "root-repair-2026-10-30"
     }
   ],
   "gates": []

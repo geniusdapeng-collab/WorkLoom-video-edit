@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { createHash } from "node:crypto";
 import { appliedApprovalFeedback, gateDeterministicChecks } from "../../apps/server/src/video/gate-policy.ts";
-import { normalizeMarketingDossierPresentation } from "../../apps/server/src/video/marketing-dossier-normalization.ts";
+import { customerRestrictionLines, normalizeMarketingDossierPresentation } from "../../apps/server/src/video/marketing-dossier-normalization.ts";
 import { narrativeThemeInputForRoute } from "../../packages/video-studio/src/requirement-contract-bridge.ts";
 import { normalizeDiscoveryTiming, productPropsPolicySatisfied, projectDeclaredFields } from "../../packages/video-studio/src/requirement-contract.ts";
 import { normalizeNarrativePrdContract } from "../../packages/video-studio/src/narrative-prd-contract.ts";
@@ -371,4 +371,21 @@ test("marketing dossier cards never claim zero official evidence when source-bou
   assert.deepEqual(result.dossier.differentiation.our_opening, []);
   assert.equal(result.dossier.gaps.join(" ").includes("全是好评"), false);
   assert.ok(result.dossier.gaps.some((gap) => gap.includes("受众")));
+});
+
+test("dossier normalization removes phantom source images and propagates customer redlines", () => {
+  const restrictions = customerRestrictionLines("不展示未核实硬件或可运行效果，不声称用户评价、销量或竞品优势。");
+  const result = normalizeMarketingDossierPresentation(
+    { identity: { name: "Acme", official_selling_points: [] }, visual_assets: null, gaps: [] },
+    { portrait_manifest: { handoff_note: "预填参考图，核对型号", reference_images: [{}] }, prd_card: {}, theme_card: {} },
+    { name: "Acme", category: "软件平台" },
+    { customerRestrictions: restrictions },
+  );
+  assert.deepEqual(result.dossier.restrictions, restrictions);
+  assert.deepEqual(result.dossier.visual_assets, { images: [], needs_more_reference: true });
+  assert.deepEqual(result.cards.portrait_manifest.reference_images, []);
+  assert.equal(result.cards.portrait_manifest.hero_image_id, null);
+  assert.match(result.cards.portrait_manifest.handoff_note, /不得生成或声称已有定妆照/);
+  assert.deepEqual(result.cards.prd_card.compliance_redlines, restrictions);
+  assert.deepEqual(result.cards.theme_card.avoid_pits, restrictions);
 });
