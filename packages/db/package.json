@@ -6,6 +6,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./schema": "./src/schema.ts",
+    "./video-pipeline-schema": "./src/video-pipeline-schema.ts",
     "./client": "./src/client.ts"
   },
   "scripts": {

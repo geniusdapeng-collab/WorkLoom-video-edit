@@ -605,7 +605,7 @@ export function installPrdAuthorityBridge(
         view[key] = agentView;
       }
       // Keep the native two real LLM process calls, timeout/retry budget, rule agents and schema pipeline.
-      const generated = await Reflect.apply(generate, view, [discovery]);
+      const generated = requirementRecord(await Reflect.apply(generate, view, [discovery]), "PRD 生成结果");
       check(scope);
       if (requirementHash(discovery.sceneStructure) !== sourceHash) prdFail("PRD_G3_CHANGED", "PRD 生成修改了已经批准的源场景");
       const normalized = normalizeMarketingPrdContract(

@@ -115,15 +115,6 @@
     "edit:delivery-plan": "tsx scripts/tools/edit-delivery-plan.mts",
     "edit:fastlane": "tsx scripts/tools/edit-fastlane.mts"
   },
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "node-pty"
-    ],
-    "overrides": {
-      "@workloom/ui@0.1.19": "https://cnb.cool/workloom-ai/workloom-im/-/releases/download/ui-v0.1.19/workloom-ui-0.1.19.tgz",
-      "pixi-live2d-display@0.4.0>gh-pages": "-"
-    }
-  },
   "devDependencies": {
     "@axe-core/playwright": "4.13.0",
     "@types/node": "^24.0.0",
