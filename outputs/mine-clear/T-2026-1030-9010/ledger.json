@@ -5,7 +5,7 @@
   "repo_path": "/Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit",
   "title": "",
   "created_at": "2026-10-30T06:14:55.791Z",
-  "updated_at": "2026-10-30T23:19:29.042Z",
+  "updated_at": "2026-10-30T23:20:36.142Z",
   "baseline": {
     "audit": {
       "commit": "463ae7ad844de31674b94e73679dafaf0f5dcac5",
@@ -16,7 +16,7 @@
       "notes": ""
     },
     "repair": {
-      "commit": "b3e7794036f75e87901a19696c42c42c7da81958",
+      "commit": "e04fad1f70098287a9f100ec0ba1581335e09792",
       "reverified_problem_ids": []
     },
     "acceptance": {
@@ -1918,7 +1918,7 @@
       "level": "L2",
       "severity": "P1",
       "batch": 1,
-      "state": "open",
+      "state": "fixed",
       "title": "预渲染压测只跳过视频提交却继续执行依赖成片字节的后期，G7 全绿仍被记为失败",
       "evidence": [
         {
@@ -1950,7 +1950,17 @@
               "deferRender 只运行预生产"
             ]
           },
-          "last_result": "not-run"
+          "last_result": "pass",
+          "run": {
+            "path": "runs/MC-021-0-1793402434658.json",
+            "sha256": "9a92e8c8cd71251c8be14fb05c03e8d843d14a281708d2fbe80a11323892d5fb",
+            "commit": "e04fad1f70098287a9f100ec0ba1581335e09792"
+          },
+          "evidence": {
+            "path": "evidence/MC-021-0-1793402434658.txt",
+            "sha256": "18428afbf9583938441aec7c09db3209b5491d3327fff88cb79a13a4ea4d7359",
+            "commit": "e04fad1f70098287a9f100ec0ba1581335e09792"
+          }
         },
         {
           "kind": "property",
@@ -1966,14 +1976,36 @@
               "deferRender 只运行预生产"
             ]
           },
-          "last_result": "not-run"
+          "last_result": "pass",
+          "run": {
+            "path": "runs/MC-021-1-1793402435466.json",
+            "sha256": "dbfd7ccdeedf8e6165b05327b0d0561007dfe26fd734c6178502ceb29979ffe7",
+            "commit": "e04fad1f70098287a9f100ec0ba1581335e09792"
+          },
+          "evidence": {
+            "path": "evidence/MC-021-1-1793402435466.txt",
+            "sha256": "f577ae400e9718b768f59ef8aba173c53b0f32d15e123c8eb920c1e0fa9afb24",
+            "commit": "e04fad1f70098287a9f100ec0ba1581335e09792"
+          }
         }
       ],
       "regression": {
         "command": "node_modules/.bin/vitest run packages/video-studio/src/studio.test.ts -t 'deferRender 只运行预生产'",
         "evidence": null
       },
-      "notes": "M01 日志：G1 95 / G2 90 / G3 88 / G4 85 / G5 not_applicable / G6 88 / G7 93，6 镜 6 提示词，renderSubmitted=false；随后仅因后期缺源片退出 4。"
+      "notes": "M01 日志：G1 95 / G2 90 / G3 88 / G4 85 / G5 not_applicable / G6 88 / G7 93，6 镜 6 提示词，renderSubmitted=false；随后仅因后期缺源片退出 4。",
+      "verified_by": null,
+      "verified_at": null,
+      "verification_evidence": null,
+      "last_assertion_attempt": {
+        "actor": "root-repair-2026-10-31",
+        "role": "repair",
+        "result": "pass",
+        "at": "2026-10-30T23:20:34.656Z",
+        "commit": "e04fad1f70098287a9f100ec0ba1581335e09792",
+        "finished_at": "2026-10-30T23:20:36.142Z"
+      },
+      "fixed_by": "root-repair-2026-10-31"
     }
   ],
   "gates": []
