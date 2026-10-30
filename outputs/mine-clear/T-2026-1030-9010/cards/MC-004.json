@@ -1,0 +1,49 @@
+{
+  "id": "MC-004",
+  "kind": "problem",
+  "level": "L3",
+  "severity": "P1",
+  "batch": 0,
+  "state": "open",
+  "title": "G3 确定性门把协议合法 null 当作占位泄漏",
+  "evidence": [
+    {
+      "type": "code",
+      "ref": "apps/server/src/video/gate-policy.ts:92@463ae7ad844de31674b94e73679dafaf0f5dcac5",
+      "sha256": "eab9513a95830cb23472792957f6d6002277254360ef6d75464ac93b591c4d0c",
+      "note": "no-placeholder 对所有门统一用 /null/ 正则；G3 的合法 noPropsReason:null 因此被硬拒绝。"
+    }
+  ],
+  "root_cause": {
+    "file": "apps/server/src/video/gate-policy.ts",
+    "line": 92,
+    "commit": "463ae7ad844de31674b94e73679dafaf0f5dcac5",
+    "symbol": "gateDeterministicChecks"
+  },
+  "trigger_path": "无人场景要求 noPropsReason 为合法 null → G3 两次 deterministic hard fail → 正确合同被错误打回。",
+  "assertions": [
+    {
+      "kind": "sample",
+      "given": "G3 文本包含版本化 JSON 的 noPropsReason:null",
+      "expect": "no-placeholder 通过",
+      "command": "node --import tsx --test scripts/tools/data-pipeline-host-contract.node-test.mjs",
+      "exec": {
+        "file": "node",
+        "args": ["--import", "tsx", "--test", "scripts/tools/data-pipeline-host-contract.node-test.mjs"]
+      },
+      "last_result": "not-run"
+    },
+    {
+      "kind": "property",
+      "given": "G3 文本含 undefined / NaN / [object Object]",
+      "expect": "仍作为硬占位失败",
+      "command": "node --import tsx --test scripts/tools/data-pipeline-host-contract.node-test.mjs",
+      "exec": {
+        "file": "node",
+        "args": ["--import", "tsx", "--test", "scripts/tools/data-pipeline-host-contract.node-test.mjs"]
+      },
+      "last_result": "not-run"
+    }
+  ],
+  "notes": "PILOT-NARRATIVE-006 真实复现；G1 原有合法 null 例外保持不变。"
+}

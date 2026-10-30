@@ -3,7 +3,7 @@ import { createRequire } from "node:module";
 import path from "node:path";
 import {
   RequirementContractError, bindRequirementContract, renderRequirementContract, requirementCast,
-  requirementHash, requirementRecord, requirementScenes, structuredRiskFeedback, structuredSceneFeedback, structuredSceneInstructions, structuredScenePrompt, structuredSceneSchema,
+  projectDeclaredFields, requirementHash, requirementRecord, requirementScenes, structuredRiskFeedback, structuredSceneFeedback, structuredSceneInstructions, structuredScenePrompt, structuredSceneSchema,
   validateRequirementSchema, verifiedRequirementContract, type RequirementCast, type RequirementRecord
 } from "./requirement-contract.js";
 import { acquireVendorRequirementEntry } from "./vendor-requirement-entry.js";
@@ -27,6 +27,25 @@ interface Scope {
 }
 const scopes = new AsyncLocalStorage<Scope>();
 const receivers = new WeakMap<object, Scope>();
+
+/**
+ * The vendor treats every populated brief as a marketing brief. A host-routed
+ * narrative run must bypass that suffix while retaining duration/platform in
+ * the already-built pipeline intent.
+ */
+export function narrativeThemeInputForRoute(
+  value: unknown,
+  metadataValue: unknown,
+): string | undefined {
+  const metadata = metadataValue && typeof metadataValue === "object" && !Array.isArray(metadataValue)
+    ? metadataValue as Record<string, unknown>
+    : undefined;
+  const route = metadata?.pipelineRoute;
+  const kind = route && typeof route === "object" && !Array.isArray(route)
+    ? (route as Record<string, unknown>).kind
+    : undefined;
+  return kind === "narrative" && typeof value === "string" ? value : undefined;
+}
 
 function fatal(scope: Scope, error: unknown): never {
   if (!scope.authority) throw error;
@@ -78,6 +97,11 @@ function currentScope(): Scope | undefined {
   const scope = scopes.getStore();
   if (scope) guard(scope, () => undefined);
   return scope;
+}
+/** Read-only snapshot for host bridges that run inside the current preproduction scope. */
+export function currentRequirementMetadata(): RequirementRecord | undefined {
+  const scope = currentScope();
+  return scope ? structuredClone(scope.metadata) : undefined;
 }
 function receiverScope(receiver: object): Scope | undefined {
   const scope = currentScope(), bound = receivers.get(receiver);
@@ -155,6 +179,8 @@ export function installRequirementContractBridge(
 
   const qualifiedInput: Method = function (...args) {
     const scope = receiverScope(this);
+    const narrativeInput = narrativeThemeInputForRoute(args[0], args[1] ?? {});
+    if (narrativeInput !== undefined) return narrativeInput;
     if (!scope?.authority) return Reflect.apply(themeInput!, this, args);
     return guard(scope, () => {
       check(scope); bindReceiver(scope, this);
@@ -211,8 +237,14 @@ export function installRequirementContractBridge(
       // The controlled caller really awaits this result; original profile generation is not replaced.
       const original = await Reflect.apply(convert, this, [discovery, upstream]);
       if (currentScope() !== scope) throw new RequirementContractError("REQUIREMENT_SCOPE_CLOSED", "转换结束时运行作用域已经关闭");
-      return bindRequirementContract(original, discovery, upstream, metadata, expectedCast!,
+      const bound = bindRequirementContract(original, discovery, upstream, metadata, expectedCast!,
         typeof ownerAudience === "string" && ownerAudience.trim() ? ownerAudience : null);
+      if (scope && !scope.authority && bound && typeof bound === "object") {
+        scope.metadata._workloomRequirementContract = structuredClone(
+          (bound as RequirementRecord)._workloomRequirementContract,
+        );
+      }
+      return bound;
     });
   };
   const rendered: Method = function (intent, metadata, list, discovery) {
@@ -307,7 +339,8 @@ export function installRequirementContractBridge(
             requireActiveScope();
             // Semantic response rejection is retryable inside the native loop;
             // throwing it inside guard/protect would make attempt one fatal.
-            try { validateRequirementSchema(response, responseSchema, "RiskAssessor response"); }
+            const projected = projectDeclaredFields(response, responseSchema);
+            try { validateRequirementSchema(projected, responseSchema, "RiskAssessor response"); }
             catch (error) {
               currentFailure = { error };
               pendingFeedback = structuredRiskFeedback(error);
@@ -315,7 +348,7 @@ export function installRequirementContractBridge(
             }
             pendingFeedback = "";
             currentFailure = undefined;
-            return structuredClone(response);
+            return structuredClone(projected);
           };
           runView._fallback = function () {
             requireActiveScope();

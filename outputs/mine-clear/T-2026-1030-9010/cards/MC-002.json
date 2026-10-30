@@ -1,0 +1,49 @@
+{
+  "id": "MC-002",
+  "kind": "problem",
+  "level": "L3",
+  "severity": "P1",
+  "batch": 1,
+  "state": "open",
+  "title": "通用叙事线被 vendor 无条件注入营销 Brief 与商业广告指令",
+  "evidence": [
+    {
+      "type": "code",
+      "ref": "vendor/supermickey/hyperreality-system/index.js:3107@463ae7ad844de31674b94e73679dafaf0f5dcac5",
+      "sha256": "acb46563f99b61babb1156858fb83c083a258b052ff21169d3b3e7d5bddec5cf",
+      "note": "只要 brief 非空，_buildThemeInput 即追加“商品/品牌推广类社媒短片”和消费决策基调，完全不检查 pipelineRoute。"
+    }
+  ],
+  "root_cause": {
+    "file": "vendor/supermickey/hyperreality-system/index.js",
+    "line": 3107,
+    "commit": "463ae7ad844de31674b94e73679dafaf0f5dcac5",
+    "symbol": "_buildThemeInput"
+  },
+  "trigger_path": "route=narrative + metadata.brief.platform/goal 非空 → 真实 pilot G2 将城市人文片识别为“商业广告/商品种草”。",
+  "assertions": [
+    {
+      "kind": "sample",
+      "given": "pipelineRoute.kind=narrative，brief 仅含平台与时长",
+      "expect": "vendored 主题输入保持原始叙事意图，不出现营销 Brief 段",
+      "command": "node --import tsx --test scripts/tools/data-pipeline-host-contract.node-test.mjs",
+      "exec": {
+        "file": "node",
+        "args": ["--import", "tsx", "--test", "scripts/tools/data-pipeline-host-contract.node-test.mjs"]
+      },
+      "last_result": "not-run"
+    },
+    {
+      "kind": "property",
+      "given": "任一 narrative 路由",
+      "expect": "营销主题拼接在 vendor 包装层被旁路；marketing 路由保持原完整拼接",
+      "command": "node --import tsx --test scripts/tools/data-pipeline-host-contract.node-test.mjs",
+      "exec": {
+        "file": "node",
+        "args": ["--import", "tsx", "--test", "scripts/tools/data-pipeline-host-contract.node-test.mjs"]
+      },
+      "last_result": "not-run"
+    }
+  ],
+  "notes": "仓库 vendor 目录保持只读，修复落在宿主 requirement-contract bridge。"
+}

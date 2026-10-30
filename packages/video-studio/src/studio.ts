@@ -21,11 +21,17 @@ import { WorkloomLLMEngine } from "./llm-adapter.js";
 import { createPortraitRuntime, type PortraitIndex, type PortraitInputReceipt, type PortraitRuntimeOptions } from "./portrait-runtime.js";
 import { installPortraitArchivePlanBridge, withPortraitArchivePlan } from "./portrait-archive-plan.js";
 import { acquireVendorRequirementEntry } from "./vendor-requirement-entry.js";
-import { assertRequirementContractBridge, installVendorRequirementContractBridge, withRequirementContractScope } from "./requirement-contract-bridge.js";
+import {
+  assertRequirementContractBridge,
+  currentRequirementMetadata,
+  installVendorRequirementContractBridge,
+  withRequirementContractScope,
+} from "./requirement-contract-bridge.js";
 import { preparePrdAuthority, type PrdAuthority, type PrdMarketingAuthority } from "./prd-authority.js";
 import { assertPrdAuthorityBridge, installVendorPrdAuthorityBridge, installVendorPrdProductionBridge, withPrdAuthorityScope } from "./prd-authority-bridge.js";
 import { captureRequirementTheme, type RequirementApprovedTheme } from "./requirement-authority.js";
 import { requirementHash } from "./requirement-contract.js";
+import { normalizeNarrativePrdContract } from "./narrative-prd-contract.js";
 import {
   applyDurationPolicyToManager,
   installVendorAudioDisciplineBridge,
@@ -496,6 +502,28 @@ export class VideoStudio {
           charactersDir,
           durationConstraint: { maxSingleShot, minSingleShot }
         });
+        if (!prdAuthority) {
+          const prdGenerator = (system as unknown as { prdGenerator?: Record<string, unknown> }).prdGenerator;
+          if (!prdGenerator || typeof prdGenerator.generate !== "function") {
+            throw new Error("NARRATIVE_PRD_CONTRACT_BRIDGE_UNAVAILABLE: vendor 缺少 PRDGenerator.generate");
+          }
+          const originalGenerate = prdGenerator.generate as (
+            this: Record<string, unknown>,
+            discoveryResult: Record<string, unknown>,
+          ) => Promise<Record<string, unknown>>;
+          prdGenerator.generate = async function narrativePrdGenerate(
+            this: Record<string, unknown>,
+            discoveryResult: Record<string, unknown>,
+          ): Promise<Record<string, unknown>> {
+            const generated = await Reflect.apply(originalGenerate, this, [discoveryResult]);
+            const scopedMetadata = currentRequirementMetadata() ?? metadata;
+            const normalized = normalizeNarrativePrdContract(generated, scopedMetadata);
+            if (normalized.changes.length > 0) {
+              log(`[studio] 叙事 PRD 合同归一：${normalized.changes.join("、")}`);
+            }
+            return normalized.prd;
+          };
+        }
         /** 实例级放宽 rhythmProfiles（standard 12 / slow 15 → 模型上限），否则 30s 单镜会被重新夹紧 */
         applyDurationPolicyToManager(
           (system as unknown as { durationConstraintManager?: unknown }).durationConstraintManager,

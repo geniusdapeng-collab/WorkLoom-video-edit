@@ -356,6 +356,8 @@ export function createWebSearch(options: {
   paceMs?: number;
   /** API 检索源配置（缺省从 env 解析：TAVILY_API_KEY / WL_SEARCH_API_URL） */
   api?: ApiSearchConfig;
+  /** Deterministic pressure tests may use only booked real-source fixtures. */
+  fixtureOnly?: boolean;
 } = {}): SearchFn {
   const timeoutMs = options.timeoutMs ?? 10_000;
   const apiRunner = createApiSearchRunner({ ...options.api, log: options.api?.log ?? options.log });
@@ -403,7 +405,7 @@ export function createWebSearch(options: {
     const fixture = readCachedHits(cache, FIXTURE_PROVIDER, query, cacheTtlMs * 30);
     if (fixture && fixture.length > 0) {
       take(FIXTURE_PROVIDER, fixture);
-      if (merged.length >= limit) {
+      if (options.fixtureOnly || merged.length >= limit) {
         options.log?.(`[intel] 检索「${query.slice(0, 24)}」：${perProvider.join(" / ")} → 预置命中 ${merged.length} 条`);
         return merged.slice(0, limit);
       }

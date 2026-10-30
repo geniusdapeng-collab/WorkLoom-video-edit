@@ -106,6 +106,9 @@ describe("营销事实宿主完整执行", () => {
     expect(extractionOptions).toEqual(Array.from({ length: 3 }, () => ({ forceJson: true, temperature: 0, maxTokens: 16384, thinking: { type: "disabled" } })));
     expect(prepared.bundle.dossier.identity).toMatchObject({ specs: { 风量: "9 档" } });
     expect(prepared.bundle.dossier.provenance).toEqual(expect.arrayContaining([expect.objectContaining({ claim_ref: "identity.specs.风量", source_url: sourceUrl, agent: "ProductInfoCollector" })]));
+    const g1 = JSON.parse(prepared.g1Content) as { facts: Record<string, unknown> };
+    expect(g1.facts).not.toHaveProperty("g1ContentSha256");
+    expect(prepared.bundle.g1ContentSha256).toBe(renderSha256(prepared.g1Content));
     expect((prepared.bundle.dossier.gaps as string[]).some(gap => gap.includes('规格 "风量" 无来源'))).toBe(false);
     expect((prepared.bundle.dossier.gaps as string[]).some(gap => gap.includes("价格"))).toBe(true);
     expect(prepared.bundle.rawByAgent.A1.identity).toMatchObject({ specs: { 风量: "9 档" } });

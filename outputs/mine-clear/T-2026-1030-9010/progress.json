@@ -1,0 +1,36 @@
+{
+  "schemaVersion": "workloom.video-pipeline-pressure-progress/v1",
+  "taskId": "T-2026-1030-9010",
+  "updatedAt": "2026-10-30T15:10:00+08:00",
+  "baseline": {
+    "commit": "463ae7ad844de31674b94e73679dafaf0f5dcac5",
+    "branch": "task/T-2026-1030-9010",
+    "defaultBranch": "main"
+  },
+  "completed": [
+    "20/20 abnormal cases pass fail-closed with expected exit codes and messages",
+    "narrative marketing-theme injection fixed at host requirement bridge",
+    "data pipeline resolves the same host cast contract as the production worker",
+    "marketing run now consumes source-bound G1 before Studio and carries a non-circular review hash",
+    "G3 permits protocol null while retaining placeholder hard failures",
+    "strict RiskAssessor responses drop only undeclared top-level chatter and retain required-field failures",
+    "narrative PRD normalization binds approved cast/scenes and reconciles delivery thresholds",
+    "marketing dossier cards reconcile selling points, product kind, licensing and audience gaps"
+  ],
+  "inProgress": [
+    "Marketing positive pilot through G1/G2/G3/G4/G5 not-applicable/G6/G7",
+    "Narrative positive pilot after PRD and Risk normalization",
+    "Propagate confirmed root causes to hyperreality-system and workloom consumers"
+  ],
+  "pending": [
+    "Run 10 marketing and 10 narrative positive cases through pre-render prompt gates",
+    "Publish first fix batch to GitHub main and read back SHA",
+    "Complete MCD acceptance role and downstream fanout",
+    "Final coverage, evidence grades, delivery report and self-check"
+  ],
+  "safety": {
+    "renderSubmissionAllowed": false,
+    "actualVideoRenderSubmitted": false,
+    "tokenPersistence": "none"
+  }
+}

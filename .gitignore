@@ -66,6 +66,9 @@ acceptance/outcomes/
 var/
 artifacts/
 apps/server/output/
+# 数据管线/ vendor PipelineLogger 的本地运行根
+/output/
+/work/
 # 制片档案运行产物（T-2026-0926-0001：archive/<ws>/<project> 档案夹 + checkpoints/characters/logs）
 .vm-work/
 # vendor 运行时写回（真机跑批产生：类型配置缓存 / 提示词守卫日志 / 定妆照交付物 / 技能使用统计）

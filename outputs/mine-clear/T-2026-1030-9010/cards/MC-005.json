@@ -1,0 +1,49 @@
+{
+  "id": "MC-005",
+  "kind": "problem",
+  "level": "L4",
+  "severity": "P1",
+  "batch": 2,
+  "state": "open",
+  "title": "叙事 PRD 没有人物与 G3 场景权威，模型可新增演员、改服装并制造双轨阈值",
+  "evidence": [
+    {
+      "type": "code",
+      "ref": "packages/video-studio/src/studio.ts:250@463ae7ad844de31674b94e73679dafaf0f5dcac5",
+      "sha256": "c08ff3a534ab41b79e0ffa392acde8cd4e0e48535154d9868b471e3435502d19",
+      "note": "基线只在 input.isMarketing 分支安装 G1/PRD authority；narrative PRD 输出没有人物和已审场景合同归一。"
+    }
+  ],
+  "root_cause": {
+    "file": "packages/video-studio/src/studio.ts",
+    "line": 250,
+    "commit": "463ae7ad844de31674b94e73679dafaf0f5dcac5",
+    "symbol": "VideoStudio.runPreproduction"
+  },
+  "trigger_path": "default builtin character + narrative G3 通过 → G4 PRD 写回“十七八岁/另一套服装/船工”并设置两套画质阈值，真实 G4 47 分拒绝。",
+  "assertions": [
+    {
+      "kind": "sample",
+      "given": "narrative PRD 含额外演员、错误服装、冲突阈值和未请求字幕硬规则",
+      "expect": "人物、场景、画幅/时长、阈值与字幕交付声明被宿主合同归一",
+      "command": "node --import tsx --test scripts/tools/data-pipeline-host-contract.node-test.mjs",
+      "exec": {
+        "file": "node",
+        "args": ["--import", "tsx", "--test", "scripts/tools/data-pipeline-host-contract.node-test.mjs"]
+      },
+      "last_result": "not-run"
+    },
+    {
+      "kind": "property",
+      "given": "任意 narrative 路由",
+      "expect": "PRD 只能保留本次宿主选角与已审 G3 场景；marketing 仍走单独私有 authority",
+      "command": "node --import tsx --test scripts/tools/data-pipeline-host-contract.node-test.mjs",
+      "exec": {
+        "file": "node",
+        "args": ["--import", "tsx", "--test", "scripts/tools/data-pipeline-host-contract.node-test.mjs"]
+      },
+      "last_result": "not-run"
+    }
+  ],
+  "notes": "PILOT-NARRATIVE-004 的 G4 门禁原文已保留为失败证据。"
+}

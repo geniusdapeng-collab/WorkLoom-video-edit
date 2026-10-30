@@ -78,3 +78,15 @@ it("营销G1允许合法JSON空值，拒绝仅摘要或旧自报档案", () => {
   expect(gateDeterministicChecks("G1_DOSSIER", JSON.stringify(good)).every(check => check.pass)).toBe(true);
   for (const bad of ["商品事实摘要".repeat(100), JSON.stringify({ ...good, facts: { ...good.facts, stages: [1] } }), "null"]) expect(gateDeterministicChecks("G1_DOSSIER", bad).some(check => check.hard && !check.pass)).toBe(true);
 });
+
+it("G3允许合同中的合法null，不把协议空值误判成占位符", () => {
+  const contract = [
+    "## 道具（0）",
+    "```json",
+    JSON.stringify({ sceneId: "opening", noPropsReason: "本场只有环境光影变化", optional: null }),
+    "```",
+  ].join("\n").repeat(4);
+  expect(gateDeterministicChecks("G3_INSIGHT", contract).every((check) => check.pass)).toBe(true);
+  expect(gateDeterministicChecks("G3_INSIGHT", `${contract}\nundefined [object Object]`)
+    .some((check) => check.hard && !check.pass)).toBe(true);
+});

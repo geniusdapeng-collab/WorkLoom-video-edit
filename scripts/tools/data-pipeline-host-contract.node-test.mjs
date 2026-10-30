@@ -1,0 +1,102 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import { gateDeterministicChecks } from "../../apps/server/src/video/gate-policy.ts";
+import { normalizeMarketingDossierPresentation } from "../../apps/server/src/video/marketing-dossier-normalization.ts";
+import { narrativeThemeInputForRoute } from "../../packages/video-studio/src/requirement-contract-bridge.ts";
+import { projectDeclaredFields } from "../../packages/video-studio/src/requirement-contract.ts";
+import { normalizeNarrativePrdContract } from "../../packages/video-studio/src/narrative-prd-contract.ts";
+
+test("narrative route bypasses vendor marketing copy while marketing keeps it", () => {
+  assert.equal(narrativeThemeInputForRoute("城市空镜", {
+    brief: { platform: "抖音" },
+    pipelineRoute: { kind: "narrative" },
+  }), "城市空镜");
+  assert.equal(narrativeThemeInputForRoute("商品介绍", {
+    brief: { product: "商品" },
+    pipelineRoute: { kind: "marketing" },
+  }), undefined);
+});
+
+test("G3 permits protocol null but still blocks real placeholder leakage", () => {
+  const valid = ("合同\n```json\n" + JSON.stringify({ noPropsReason: "本场只有环境", optional: null }) + "\n```\n").repeat(4);
+  assert.equal(gateDeterministicChecks("G3_INSIGHT", valid)
+    .find((check) => check.id === "no-placeholder").pass, true);
+  assert.equal(gateDeterministicChecks("G3_INSIGHT", `${valid}\nundefined [object Object]`)
+    .some((check) => check.hard && !check.pass), true);
+});
+
+test("strict RiskAssessor projection removes only undeclared top-level fields", () => {
+  const schema = {
+    type: "object",
+    additionalProperties: false,
+    required: ["technicalRisks", "businessConstraints", "mitigationSuggestions"],
+    properties: {
+      technicalRisks: { type: "array" },
+      businessConstraints: { type: "array" },
+      mitigationSuggestions: { type: "array" },
+    },
+  };
+  assert.deepEqual(projectDeclaredFields({
+    technicalRisks: ["风险"],
+    businessConstraints: ["限制"],
+    mitigationSuggestions: ["建议"],
+    extra: "model chatter",
+  }, schema), {
+    technicalRisks: ["风险"],
+    businessConstraints: ["限制"],
+    mitigationSuggestions: ["建议"],
+  });
+});
+
+test("narrative PRD cannot invent a second cast member or conflicting delivery thresholds", () => {
+  const metadata = {
+    pipelineRoute: { kind: "narrative" },
+    customerOriginalIntent: "全片无人的城市空镜",
+    brief: { duration: 30, aspectRatio: "9:16", platform: "抖音" },
+    builtinCharacterSelection: { schemaVersion: "workloom.video-character-selection/v1", mode: "none", characters: [] },
+    characters: [],
+  };
+  const result = normalizeNarrativePrdContract({
+    productPositioning: {},
+    characterSystem: { characters: [{ name: "擅自新增演员" }] },
+    creativeCore: { keyMessages: ["字幕字号必须4%"] },
+    scenePlan: { scenes: [], shotMapping: [] },
+    visualSpecification: { cameraLanguage: "20秒内不超过4镜" },
+    productionConstraints: { qualityThresholds: { visual: 0.8, audio: 0.75, narrative: 0.85, consistency: 0.75 } },
+    deliveryStandard: { acceptanceCriteria: { visual: 0.7, audio: 0.7, narrative: 0.7, consistency: 0.7 } },
+  }, metadata);
+  assert.equal(result.applied, true);
+  assert.deepEqual(result.prd.characterSystem.characters, []);
+  assert.equal(result.prd.visualSpecification.cameraLanguage.includes("不超过4镜"), false);
+  assert.deepEqual(result.prd.deliveryStandard.acceptanceCriteria, result.prd.productionConstraints.qualityThresholds);
+  assert.equal(result.prd.creativeCore.keyMessages.join(" ").includes("字幕"), false);
+});
+
+test("marketing dossier cards never claim zero official evidence when source-bound claims exist", () => {
+  const result = normalizeMarketingDossierPresentation(
+    {
+      product_id: "P1",
+      identity: {
+        name: "Home Assistant",
+        category: "开源家庭自动化平台",
+        official_selling_points: [{ point: "本地控制与隐私优先", source_url: "https://github.com/home-assistant/core" }],
+      },
+      visual_assets: { images: [{ license_risk: "high" }] },
+      gaps: [],
+    },
+    {
+      brief_card: { sellingPoints: [], evidence_note: "卖点来自 0 条官方主张" },
+      router_material: { product_kind: "physical" },
+      portrait_manifest: {},
+      prd_card: {},
+      insight_card: {},
+    },
+    { name: "Home Assistant", category: "开源家庭自动化平台" },
+  );
+  assert.deepEqual(result.cards.brief_card.sellingPoints, ["本地控制与隐私优先"]);
+  assert.match(result.cards.brief_card.evidence_note, /1 条来源绑定官方主张/);
+  assert.equal(result.cards.router_material.product_kind, "digital");
+  assert.equal(result.cards.portrait_manifest.needs_more_reference, true);
+  assert.ok(result.cards.prd_card.compliance_redlines.length > 0);
+  assert.ok(result.dossier.gaps.some((gap) => gap.includes("受众")));
+});

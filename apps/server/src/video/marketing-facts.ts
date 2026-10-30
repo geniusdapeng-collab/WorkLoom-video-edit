@@ -62,7 +62,17 @@ export function stageFactPointers(stage: IntelStage, payload: unknown): string[]
 }
 
 export function validateStageFacts(stage: IntelStage, raw: unknown, sources: SourceSnapshot[]): ValidatedStageFacts {
-  const extraction = extractionSchema.parse(raw);
+  const normalizedRaw = raw && typeof raw === "object" && !Array.isArray(raw)
+    ? { ...(raw as Record<string, unknown>) }
+    : raw;
+  if (normalizedRaw && typeof normalizedRaw === "object" && !Array.isArray(normalizedRaw)
+    && typeof (normalizedRaw as Record<string, unknown>).noEvidenceReason === "string"
+    && !String((normalizedRaw as Record<string, unknown>).noEvidenceReason).trim()) {
+    // Empty optional prose is absence, not evidence. Schema validation remains
+    // strict for A2/A3 because a genuinely empty station still needs a reason.
+    delete (normalizedRaw as Record<string, unknown>).noEvidenceReason;
+  }
+  const extraction = extractionSchema.parse(normalizedRaw);
   const payload = stagePayloadShape(stage, extraction.payload);
   const sourceMap = new Map(sources.map(source => [source.sourceId, source]));
   if (sourceMap.size !== sources.length) throw new Error("MARKETING_SOURCE_INVALID：来源ID重复");
@@ -111,8 +121,15 @@ export function validateStageFacts(stage: IntelStage, raw: unknown, sources: Sou
     if (!Object.keys(identity.specs).length && !identity.official_selling_points.length) throw new Error("MARKETING_A1_INCOMPLETE：缺少任何有证据的商品规格或卖点");
   }
   if (!claims.length && (stage === "A1" || !extraction.noEvidenceReason)) throw new Error("MARKETING_EVIDENCE_EMPTY：空站必须明确缺证据原因，不能假称采集通过");
+  const noEvidenceReason = claims.length
+    ? undefined
+    : stage === "A2"
+      ? "本次已抓取来源中没有可核实的用户评价原文或评分"
+      : stage === "A3"
+        ? "本次已抓取来源中没有可核实的竞品事实"
+        : extraction.noEvidenceReason;
   return { stage, status: claims.length ? "source_bound" : "no_evidence", payload, claims,
-    ...(extraction.noEvidenceReason ? { noEvidenceReason: extraction.noEvidenceReason } : {}) };
+    ...(noEvidenceReason ? { noEvidenceReason } : {}) };
 }
 
 /** 复读已归档的原始payload/citations，不能把落盘“通过”字段当证据。 */

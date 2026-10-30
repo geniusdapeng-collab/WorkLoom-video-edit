@@ -59,6 +59,15 @@ describe("逐事实叶子的正文绑定", () => {
       expect(validateStageFacts(stage, { payload, citations: [], noEvidenceReason: "未采到可验证正文" }, []).status).toBe("no_evidence");
     }
     expect(() => validateStageFacts("A1", { payload: { identity: { name: "商品" } }, citations: [], noEvidenceReason: "无" }, [])).toThrow();
+    expect(validateStageFacts("A1", { ...fixture(), noEvidenceReason: "" }, [source]).status).toBe("source_bound");
+    expect(() => validateStageFacts("A2", { payload: { reviews: [] }, citations: [], noEvidenceReason: "" }, []))
+      .toThrow("MARKETING_EVIDENCE_EMPTY");
+    const noCompetitor = validateStageFacts("A3", {
+      payload: { competitors: [] },
+      citations: [],
+      noEvidenceReason: "来源页只有 91.8k stars、39.1k forks，但没有竞品",
+    }, []);
+    expect(noCompetitor.noEvidenceReason).toBe("本次已抓取来源中没有可核实的竞品事实");
   });
   it("评价必须原话，评分单独引证；合法URL不能证明改写评价", () => {
     const value = { payload: { reviews: [{ text: "低档安静", rating: 4, url: source.finalUrl }] }, citations: [citation("/reviews/0/text"), citation("/reviews/0/rating")] };

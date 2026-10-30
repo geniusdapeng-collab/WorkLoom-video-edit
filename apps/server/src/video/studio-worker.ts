@@ -577,6 +577,7 @@ export function startRun(scope: Scope, input: StudioRunInput): string {
   const selectedBuiltinCharacters = input.selectedBuiltinCharacters ?? resolveBuiltinCharacters(input.rawIntent ?? input.intent, input.metadata);
   const resolvedMetadata: Record<string, unknown> = applyBuiltinCharacters({
     ...(input.metadata ?? {}),
+    customerOriginalIntent: input.rawIntent ?? input.intent,
     platform: selectedPlatform.decision.id,
     scenePolicySelection: selectedScenePolicy.decision,
     platformSelection: selectedPlatform.decision,

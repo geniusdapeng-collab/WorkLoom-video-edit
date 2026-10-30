@@ -1,0 +1,360 @@
+{
+  "schemaVersion": "workloom.video-pipeline-stress/v1",
+  "taskId": "T-2026-1030-9010",
+  "renderSubmissionAllowed": false,
+  "positive": [
+    {
+      "id": "M01",
+      "pipeline": "marketing",
+      "domain": "智能家居",
+      "product": "Home Assistant",
+      "brand": "Home Assistant",
+      "category": "智能家居自动化平台",
+      "repo": "home-assistant/core",
+      "intent": "给开源智能家居平台 Home Assistant 做一条面向开发者的抖音介绍片，只使用官方仓库可核实能力，不声称用户评价、销量或竞品优势，时长30秒，9:16",
+      "duration": 30,
+      "aspect": "9:16",
+      "platform": "抖音",
+      "goal": "awareness"
+    },
+    {
+      "id": "M02",
+      "pipeline": "marketing",
+      "domain": "日程协作",
+      "product": "Cal.com",
+      "brand": "Cal.com",
+      "category": "开源日程预约平台",
+      "repo": "calcom/cal.com",
+      "intent": "给开源日程预约平台 Cal.com 做一条面向团队管理者的产品介绍短片，仅引用官方仓库可核实功能，不虚构客户数量或效率提升，时长30秒，9:16",
+      "duration": 30,
+      "aspect": "9:16",
+      "platform": "抖音",
+      "goal": "awareness"
+    },
+    {
+      "id": "M03",
+      "pipeline": "marketing",
+      "domain": "CRM",
+      "product": "Twenty",
+      "brand": "Twenty",
+      "category": "开源客户关系管理平台",
+      "repo": "twentyhq/twenty",
+      "intent": "给开源 CRM Twenty 做一条面向销售团队的种草短片，只讲官方仓库中的可核实能力，不编造客户案例与转化率，时长45秒，16:9",
+      "duration": 45,
+      "aspect": "16:9",
+      "platform": "视频号",
+      "goal": "awareness"
+    },
+    {
+      "id": "M04",
+      "pipeline": "marketing",
+      "domain": "照片资产管理",
+      "product": "Immich",
+      "brand": "Immich",
+      "category": "自托管照片视频管理平台",
+      "repo": "immich-app/immich",
+      "intent": "给自托管照片平台 Immich 做一条短视频，突出官方仓库明确写出的本地数据与备份方向，不声称容量、速度或用户口碑，时长30秒，9:16",
+      "duration": 30,
+      "aspect": "9:16",
+      "platform": "抖音",
+      "goal": "awareness"
+    },
+    {
+      "id": "M05",
+      "pipeline": "marketing",
+      "domain": "家庭食谱",
+      "product": "Mealie",
+      "brand": "Mealie",
+      "category": "自托管家庭食谱管理平台",
+      "repo": "mealie-recipes/mealie",
+      "intent": "给家庭食谱管理平台 Mealie 做一条生活方式短视频，所有功能只取官方仓库公开说明，不虚构营养数据或家庭评价，时长30秒，9:16",
+      "duration": 30,
+      "aspect": "9:16",
+      "platform": "小红书",
+      "goal": "seeding"
+    },
+    {
+      "id": "M06",
+      "pipeline": "marketing",
+      "domain": "企业知识库",
+      "product": "Outline",
+      "brand": "Outline",
+      "category": "团队知识库协作平台",
+      "repo": "outline/outline",
+      "intent": "给团队知识库 Outline 做一条面向创业团队的介绍片，只使用官方仓库可核实功能，不冒充客户访谈，时长45秒，16:9",
+      "duration": 45,
+      "aspect": "16:9",
+      "platform": "视频号",
+      "goal": "awareness"
+    },
+    {
+      "id": "M07",
+      "pipeline": "marketing",
+      "domain": "文档协作",
+      "product": "Docmost",
+      "brand": "Docmost",
+      "category": "开源协作文档平台",
+      "repo": "docmost/docmost",
+      "intent": "给开源协作文档平台 Docmost 做一条产品种草片，只引用官方仓库中的实际功能，不写未证实的团队规模与效率数字，时长30秒，9:16",
+      "duration": 30,
+      "aspect": "9:16",
+      "platform": "抖音",
+      "goal": "seeding"
+    },
+    {
+      "id": "M08",
+      "pipeline": "marketing",
+      "domain": "无代码数据库",
+      "product": "NocoDB",
+      "brand": "NocoDB",
+      "category": "无代码数据库平台",
+      "repo": "nocodb/nocodb",
+      "intent": "给无代码数据库 NocoDB 做一条开发者工具短视频，只根据官方仓库说明讲可核实能力，不声称市场排名或客户评价，时长30秒，1:1",
+      "duration": 30,
+      "aspect": "1:1",
+      "platform": "小红书",
+      "goal": "awareness"
+    },
+    {
+      "id": "M09",
+      "pipeline": "marketing",
+      "domain": "链接管理",
+      "product": "Shlink",
+      "brand": "Shlink",
+      "category": "自托管短链接服务",
+      "repo": "shlinkio/shlink",
+      "intent": "给自托管短链接服务 Shlink 做一条技术产品介绍片，只采用官方仓库中的事实，不虚构拦截率与用户评价，时长30秒，16:9",
+      "duration": 30,
+      "aspect": "16:9",
+      "platform": "B站",
+      "goal": "awareness"
+    },
+    {
+      "id": "M10",
+      "pipeline": "marketing",
+      "domain": "家庭媒体",
+      "product": "Jellyfin",
+      "brand": "Jellyfin",
+      "category": "开源家庭媒体服务器",
+      "repo": "jellyfin/jellyfin",
+      "intent": "给开源家庭媒体服务器 Jellyfin 做一条生活方式短片，功能只取官方仓库公开说明，不声称片源、会员或市场表现，时长45秒，16:9",
+      "duration": 45,
+      "aspect": "16:9",
+      "platform": "YouTube",
+      "goal": "awareness"
+    },
+    {
+      "id": "N01",
+      "pipeline": "narrative",
+      "domain": "城市人文",
+      "intent": "全片无人，只拍苏州平江路清晨的桥、船与河岸生活，以雨滴和橹声建立时间感，时长30秒，9:16，抖音",
+      "duration": 30,
+      "aspect": "9:16",
+      "platform": "抖音"
+    },
+    {
+      "id": "N02",
+      "pipeline": "narrative",
+      "domain": "自然科学",
+      "intent": "全片无人，用克制写实镜头表现一滴水从河面蒸发、成云、降雨并回到河流的循环，不出现拟人化角色，时长45秒，16:9，B站",
+      "duration": 45,
+      "aspect": "16:9",
+      "platform": "B站"
+    },
+    {
+      "id": "N03",
+      "pipeline": "narrative",
+      "domain": "野生动物",
+      "intent": "全片无人，拍一段候鸟在湿地迁徙停歇的无声观察短片，避免投喂、追逐或声称具体物种数量，时长60秒，16:9，视频号",
+      "duration": 60,
+      "aspect": "16:9",
+      "platform": "视频号"
+    },
+    {
+      "id": "N04",
+      "pipeline": "narrative",
+      "domain": "历史文化",
+      "intent": "全片无人，用运河石桥、船影、旧墙与晨雾做一条历史氛围短片，不把艺术画面表述成考古证据，时长60秒，9:16，抖音",
+      "duration": 60,
+      "aspect": "9:16",
+      "platform": "抖音"
+    },
+    {
+      "id": "N05",
+      "pipeline": "narrative",
+      "domain": "运动人物",
+      "intent": "使用系统默认虚构人物拍一条三十秒的青年第一次学习抱石的成长短片，安全护具与场馆规则必须可见，不虚构赛事成绩，时长30秒，9:16，抖音",
+      "duration": 30,
+      "aspect": "9:16",
+      "platform": "抖音"
+    },
+    {
+      "id": "N06",
+      "pipeline": "narrative",
+      "domain": "饮食工艺",
+      "intent": "全片无人，只拍一碗清汤面从和面、醒面到出锅的近景工艺短片，突出蒸汽与面条纹理，不把画面当作营养或健康证明，时长30秒，9:16，小红书",
+      "duration": 30,
+      "aspect": "9:16",
+      "platform": "小红书"
+    },
+    {
+      "id": "N07",
+      "pipeline": "narrative",
+      "domain": "工业制造",
+      "intent": "全片无人，拍机械臂与传送带在精密制造车间协同工作的写实短片，不虚构品牌、产能或良率，时长45秒，16:9，视频号",
+      "duration": 45,
+      "aspect": "16:9",
+      "platform": "视频号"
+    },
+    {
+      "id": "N08",
+      "pipeline": "narrative",
+      "domain": "公共安全",
+      "intent": "全片无人，用城市暴雨、积水标尺、排水口与警示灯做一条雨季安全提醒短片，不使用真实伤亡数据，时长30秒，9:16，视频号",
+      "duration": 30,
+      "aspect": "9:16",
+      "platform": "视频号"
+    },
+    {
+      "id": "N09",
+      "pipeline": "narrative",
+      "domain": "宠物生活",
+      "intent": "全片无人类出镜，只拍一只成年家猫在午后窗边、纸箱与猫抓板之间活动的治愈短片，不虚构健康或智能设备效果，时长30秒，1:1，小红书",
+      "duration": 30,
+      "aspect": "1:1",
+      "platform": "小红书"
+    },
+    {
+      "id": "N10",
+      "pipeline": "narrative",
+      "domain": "旅行记忆",
+      "intent": "使用系统默认虚构人物拍一条四十秒的山城雨夜旅行回忆短片，角色只说原创短句，不冒充真实游客评价，时长40秒，9:16，抖音",
+      "duration": 40,
+      "aspect": "9:16",
+      "platform": "抖音"
+    }
+  ],
+  "negative": [
+    {
+      "id": "X01",
+      "name": "空意图",
+      "args": ["--intent", "", "--route", "narrative"],
+      "expect": { "exit": [2], "message": "intent|意图" }
+    },
+    {
+      "id": "X02",
+      "name": "空白意图",
+      "args": ["--intent", "   ", "--route", "narrative"],
+      "expect": { "exit": [2], "message": "intent|意图" }
+    },
+    {
+      "id": "X03",
+      "name": "超长意图",
+      "args": ["--intent", "@repeat:水:2001", "--route", "narrative"],
+      "expect": { "exit": [2], "message": "2000|过长" }
+    },
+    {
+      "id": "X04",
+      "name": "控制字符",
+      "args": ["--intent", "河面@char:1反光", "--route", "narrative"],
+      "expect": { "exit": [2], "message": "控制字符" }
+    },
+    {
+      "id": "X05",
+      "name": "非法片型",
+      "args": ["--intent", "做一条视频", "--route", "unknown"],
+      "expect": { "exit": [2], "message": "--route" }
+    },
+    {
+      "id": "X06",
+      "name": "含糊需求澄清",
+      "args": ["--intent", "做一条适合我们的视频", "--route", "auto"],
+      "expect": { "exit": [3], "message": "澄清|哪条管线" }
+    },
+    {
+      "id": "X07",
+      "name": "营销缺商品",
+      "args": ["--intent", "做一条抖音种草视频", "--route", "marketing"],
+      "expect": { "exit": [3], "message": "商品名" }
+    },
+    {
+      "id": "X08",
+      "name": "营销空白商品",
+      "args": ["--intent", "做一条抖音种草视频", "--route", "marketing", "--product", "   "],
+      "expect": { "exit": [3], "message": "商品名" }
+    },
+    {
+      "id": "X09",
+      "name": "时长非数字",
+      "args": ["--intent", "三十秒空镜", "--route", "narrative", "--duration", "abc"],
+      "expect": { "exit": [2], "message": "--duration" }
+    },
+    {
+      "id": "X10",
+      "name": "时长下界",
+      "args": ["--intent", "四秒空镜", "--route", "narrative", "--duration", "4"],
+      "expect": { "exit": [2], "message": "--duration" }
+    },
+    {
+      "id": "X11",
+      "name": "时长上界",
+      "args": ["--intent", "超长片", "--route", "narrative", "--duration", "181"],
+      "expect": { "exit": [2], "message": "--duration" }
+    },
+    {
+      "id": "X12",
+      "name": "非法画幅",
+      "args": ["--intent", "空镜", "--route", "narrative", "--aspect", "21:9"],
+      "expect": { "exit": [2], "message": "--aspect" }
+    },
+    {
+      "id": "X13",
+      "name": "工程路径穿越",
+      "args": ["--intent", "空镜", "--route", "narrative", "--project", "../escape"],
+      "expect": { "exit": [2], "message": "project" }
+    },
+    {
+      "id": "X14",
+      "name": "未知平台",
+      "args": ["--intent", "空镜", "--route", "narrative", "--platform", "unknown-platform"],
+      "expect": { "exit": [2], "message": "platform" }
+    },
+    {
+      "id": "X15",
+      "name": "重复路由参数",
+      "args": ["--intent", "空镜", "--route", "narrative", "--route", "marketing"],
+      "expect": { "exit": [2], "message": "重复|--route" }
+    },
+    {
+      "id": "X16",
+      "name": "非法监制模式",
+      "args": ["--intent", "空镜", "--route", "narrative", "--producer", "none"],
+      "expect": { "exit": [2], "message": "producer" }
+    },
+    {
+      "id": "X17",
+      "name": "无人与指定人物冲突",
+      "args": ["--intent", "全片无人，只拍空镜，但使用1号模特出镜", "--route", "narrative"],
+      "expect": { "exit": [2], "message": "冲突" }
+    },
+    {
+      "id": "X18",
+      "name": "营销跳过G1",
+      "dryRun": false,
+      "args": ["--intent", "给测试商品做营销片", "--route", "marketing", "--product", "测试商品", "--producer", "auto"],
+      "expect": { "exit": [2], "message": "G1|producer" }
+    },
+    {
+      "id": "X19",
+      "name": "检索夹具缺失",
+      "args": ["--intent", "做一条空镜", "--route", "marketing", "--product", "测试商品", "--prime-search", "stress/data-pipeline/fixtures/missing.json"],
+      "expect": { "exit": [2], "message": "prime-search|ENOENT|不存在" }
+    },
+    {
+      "id": "X20",
+      "name": "检索夹具损坏",
+      "args": ["--intent", "做一条空镜", "--route", "marketing", "--product", "测试商品", "--prime-search", "stress/data-pipeline/fixtures/broken.json"],
+      "expect": { "exit": [2], "message": "prime-search|JSON" }
+    }
+  ]
+}

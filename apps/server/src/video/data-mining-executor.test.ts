@@ -1,9 +1,14 @@
 import { describe, expect, it, vi } from "vitest";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import {
   createApiSearchRunner,
   createDataMiningExecutor,
+  createWebSearch,
   filterUnknownUrls,
   normalizeUrl,
+  primeSearchCache,
   resolveApiSearchConfig,
   validateStagePayload,
   type SearchHit,
@@ -192,6 +197,26 @@ describe("商品情报执行器", () => {
     const cfg = resolveApiSearchConfig({}, {} as NodeJS.ProcessEnv);
     expect(cfg).toBeNull();
     expect(createApiSearchRunner({ provider: "tavily", apiKey: "", apiUrl: "" }).enabled).toBe(false);
+  });
+
+  it("fixtureOnly 使用预置真实结果并完全跳过线上检索", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "wl-search-fixture-"));
+    const file = join(dir, "cache.json");
+    try {
+      primeSearchCache(file, {
+        "官方产品": [{ title: "官方页", url: "https://source.example.com/product", snippet: "官方产品说明" }],
+      });
+      const network = vi.fn(async () => { throw new Error("network must not run"); });
+      vi.stubGlobal("fetch", network);
+      const search = createWebSearch({ cacheFile: file, fixtureOnly: true, providers: ["bing"], paceMs: 0 });
+      expect(await search("官方产品", 5)).toEqual([
+        expect.objectContaining({ url: "https://source.example.com/product" }),
+      ]);
+      expect(network).not.toHaveBeenCalled();
+    } finally {
+      vi.unstubAllGlobals();
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });
 

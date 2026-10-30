@@ -57,6 +57,24 @@ export function requirementRecord(value: unknown, label: string): RequirementRec
   return value as RequirementRecord;
 }
 
+/**
+ * Project a strict top-level object response onto the declared schema keys.
+ * Missing required keys remain missing and still fail validation; undeclared
+ * model chatter is dropped instead of being reinterpreted as production facts.
+ */
+export function projectDeclaredFields(value: unknown, schemaValue: unknown): unknown {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return value;
+  if (!schemaValue || typeof schemaValue !== "object" || Array.isArray(schemaValue)) return value;
+  const schema = schemaValue as RequirementRecord;
+  const properties = schema.properties;
+  if (schema.type !== "object" || schema.additionalProperties !== false
+    || !properties || typeof properties !== "object" || Array.isArray(properties)) return value;
+  const source = value as RequirementRecord;
+  return Object.fromEntries(Object.keys(properties as RequirementRecord)
+    .filter((key) => Object.prototype.hasOwnProperty.call(source, key))
+    .map((key) => [key, structuredClone(source[key])]));
+}
+
 function text(value: unknown, label: string, minimum = 1): string {
   if (typeof value !== "string" || value.trim().length < minimum) {
     throw new RequirementContractError("REQUIREMENT_CONTRACT_INVALID", `${label} 缺少完整文本`);
