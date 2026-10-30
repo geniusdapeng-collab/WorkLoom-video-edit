@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { gateDeterministicChecks } from "../../apps/server/src/video/gate-policy.ts";
+import { appliedApprovalFeedback, gateDeterministicChecks } from "../../apps/server/src/video/gate-policy.ts";
 import { normalizeMarketingDossierPresentation } from "../../apps/server/src/video/marketing-dossier-normalization.ts";
 import { narrativeThemeInputForRoute } from "../../packages/video-studio/src/requirement-contract-bridge.ts";
 import { projectDeclaredFields } from "../../packages/video-studio/src/requirement-contract.ts";
@@ -35,6 +35,11 @@ test("G4 permits null in parseable contract JSON while keeping prose closed", ()
     .find((check) => check.id === "no-placeholder").pass, true);
   assert.equal(gateDeterministicChecks("G4_PRD", `${contract}\n字段值为 null`)
     .some((check) => check.hard && !check.pass), true);
+});
+
+test("approved gate suggestions never request an unreviewed artifact rewrite", () => {
+  assert.deepEqual(appliedApprovalFeedback(true, ["建议再次优化"]), []);
+  assert.deepEqual(appliedApprovalFeedback(false, ["修改字段 A", 7]), ["修改字段 A"]);
 });
 
 test("strict RiskAssessor projection removes only undeclared top-level fields", () => {

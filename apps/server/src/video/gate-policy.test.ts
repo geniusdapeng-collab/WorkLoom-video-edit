@@ -3,7 +3,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, rmSync, symlinkSync, realpathSyn
 import { tmpdir } from "node:os";
 import path from "node:path";
 import {
-  AUTO_GATES, GATE_PRODUCER_STAGE, gateDeterministicChecks, portraitGateEvidence, portraitReviewManifest,
+  AUTO_GATES, GATE_PRODUCER_STAGE, appliedApprovalFeedback, gateDeterministicChecks, portraitGateEvidence, portraitReviewManifest,
   renderSubmitAutoAllowed,
 } from "./gate-policy.js";
 let dir: string;
@@ -103,4 +103,10 @@ it("G4允许可解析合同JSON中的合法null，但仍拒绝正文和损坏JSO
     .some((check) => check.hard && !check.pass)).toBe(true);
   expect(gateDeterministicChecks("G4_PRD", "```json\n{\"field\":null,}\n```".repeat(8))
     .some((check) => check.hard && !check.pass)).toBe(true);
+});
+
+it("批准后的建议只作审核注解，不得作为改写已批准产物的用户反馈", () => {
+  expect(appliedApprovalFeedback(true, ["建议下一镜优化", 7])).toEqual([]);
+  expect(appliedApprovalFeedback(false, ["修改字段A", " ", 7])).toEqual(["修改字段A"]);
+  expect(appliedApprovalFeedback(false, "not-an-array")).toEqual([]);
 });

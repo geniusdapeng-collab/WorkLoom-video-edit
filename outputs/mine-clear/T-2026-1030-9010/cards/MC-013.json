@@ -1,0 +1,65 @@
+{
+  "id": "MC-013",
+  "kind": "problem",
+  "level": "L3",
+  "severity": "P1",
+  "batch": 0,
+  "state": "open",
+  "title": "已批准门的建议被当作返工指令，导致 G4 批准后再次生成未审 PRD",
+  "evidence": [
+    {
+      "type": "code",
+      "ref": "scripts/tools/data-pipeline-run.mts:242@463ae7ad844de31674b94e73679dafaf0f5dcac5",
+      "sha256": "1a4449d435e52b155a38cd6e8dc43b33339a6209ecb85a312b0b23b0369263c1",
+      "note": "无论 approved 真假都把 verdict.suggestions 返回给 vendor；vendor 将批准附带建议解释为用户修改要求并重新生成 PRD。"
+    }
+  ],
+  "root_cause": {
+    "file": "scripts/tools/data-pipeline-run.mts",
+    "line": 242,
+    "commit": "463ae7ad844de31674b94e73679dafaf0f5dcac5",
+    "symbol": "onApproval"
+  },
+  "trigger_path": "G4 真实监制 approved=true 且 suggestions 非空 → onApproval 返回 suggestions → vendor 再次生成 PRD → PRD 权威桥正确报 PRD_UNREVIEWED_REGENERATION → 已通过 86 分的 PRD 仍使整条任务失败。",
+  "assertions": [
+    {
+      "kind": "sample",
+      "given": "approved=true 且 suggestions 含改进建议",
+      "expect": "不向 vendor 返回任何 suggestions，不触发批准后改写",
+      "command": "node --import tsx --test --test-name-pattern='approved gate suggestions' scripts/tools/data-pipeline-host-contract.node-test.mjs",
+      "exec": {
+        "file": "node",
+        "args": [
+          "--import",
+          "tsx",
+          "--test",
+          "--test-name-pattern=approved gate suggestions",
+          "scripts/tools/data-pipeline-host-contract.node-test.mjs"
+        ]
+      },
+      "last_result": "not-run"
+    },
+    {
+      "kind": "property",
+      "given": "approved=false 且 suggestions 含非字符串/空字符串",
+      "expect": "仅保留非空文本建议作为返工反馈",
+      "command": "node --import tsx --test --test-name-pattern='approved gate suggestions' scripts/tools/data-pipeline-host-contract.node-test.mjs",
+      "exec": {
+        "file": "node",
+        "args": [
+          "--import",
+          "tsx",
+          "--test",
+          "--test-name-pattern=approved gate suggestions",
+          "scripts/tools/data-pipeline-host-contract.node-test.mjs"
+        ]
+      },
+      "last_result": "not-run"
+    }
+  ],
+  "regression": {
+    "command": "node --import tsx --test --test-name-pattern='approved gate suggestions' scripts/tools/data-pipeline-host-contract.node-test.mjs",
+    "evidence": null
+  },
+  "notes": "M01 第二轮 G4 已 approved=true score=86，随后真实复现 PRD_UNREVIEWED_REGENERATION。"
+}

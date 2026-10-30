@@ -45,6 +45,7 @@ import {
   AUTO_GATES,
   GATE_PRODUCER_STAGE,
   GATE_RUBRIC,
+  appliedApprovalFeedback,
   gateDeterministicChecks,
   isProducerRejection,
   type ProducerMode,
@@ -425,10 +426,11 @@ const onApproval: ApprovalCallback = async (req) => {
     contentMd: req.contentMd ?? "",
   });
   const { approved, verdict } = reviewed;
+  const suggestions = appliedApprovalFeedback(approved, verdict?.suggestions);
   return {
     approved,
     reason: verdict ? `${approved ? "producer-approved" : "producer-rejected"}(${gate} · score=${verdict.score})` : `auto(${gate})`,
-    ...(verdict?.suggestions?.length ? { suggestions: verdict.suggestions } : {}),
+    ...(suggestions.length ? { suggestions } : {}),
     ...(approved ? {} : { fatal: "producer_rejected" }),
   };
 };

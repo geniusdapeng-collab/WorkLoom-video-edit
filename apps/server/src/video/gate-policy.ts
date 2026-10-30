@@ -70,6 +70,12 @@ export const GATE_RUBRIC: Partial<Record<GateKey, string[]>> = {
   G7_FINAL: ["预生产收口：镜头卡/定妆照/提示词三件套齐备且互相引用一致", "渲染提交前的花额度动作仍需人审（本门只放行内部准备）"]
 };
 
+/** Approved suggestions are review annotations, not permission to mutate an approved artifact. */
+export function appliedApprovalFeedback(approved: boolean, suggestions: unknown): string[] {
+  if (approved || !Array.isArray(suggestions)) return [];
+  return suggestions.filter((item): item is string => typeof item === "string" && Boolean(item.trim()));
+}
+
 /**
  * 门内容的确定性检查（零 token 先判）：
  * 空内容 / 占位符 / 声称完成但没有产物 —— 一律硬失败，不浪费模型额度。
