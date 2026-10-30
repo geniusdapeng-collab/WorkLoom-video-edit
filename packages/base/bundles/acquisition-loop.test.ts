@@ -224,7 +224,7 @@ describe("多领域融合：组合岗位编制裁决", () => {
     expect(inspector!.bundleId).toBe("ai-video");
     expect(inspector!.preset).toMatchObject({
       kind: "reviewer", readonly: true, night_shift: false, high_risk: false,
-      skills: ["post-quality-inspection"],
+      skills: ["post-quality-inspection", "bullet-time-shotcraft"],
       coverage: [{ eventPrefix: "post.quality.", label: "后期技术质检" }],
       write_back: [],
     });
@@ -237,6 +237,7 @@ describe("多领域融合：组合岗位编制裁决", () => {
     ]);
     expect(inspector!.shadowedBundleIds).toEqual([]);
     expect(existsSync(join(ROOT, "ai-video", "skills", "post-quality-inspection", "SKILL.md"))).toBe(true);
+    expect(existsSync(join(ROOT, "ai-video", "skills", "bullet-time-shotcraft", "SKILL.md"))).toBe(true);
     const perBundle = [...composed.presets.values()].reduce<Record<string, number>>((counts, { bundleId }) => {
       counts[bundleId] = (counts[bundleId] ?? 0) + 1;
       return counts;
