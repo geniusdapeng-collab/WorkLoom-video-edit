@@ -5,7 +5,7 @@
   "repo_path": "/Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit",
   "title": "",
   "created_at": "2026-10-30T06:14:55.791Z",
-  "updated_at": "2026-10-30T08:13:27.029Z",
+  "updated_at": "2026-10-30T08:27:36.167Z",
   "baseline": {
     "audit": {
       "commit": "463ae7ad844de31674b94e73679dafaf0f5dcac5",
@@ -1301,6 +1301,71 @@
         "finished_at": "2026-10-30T08:13:27.029Z"
       },
       "fixed_by": "root-repair-2026-10-30"
+    },
+    {
+      "id": "MC-015",
+      "kind": "problem",
+      "level": "L4",
+      "severity": "P1",
+      "batch": 2,
+      "state": "open",
+      "title": "营销 PRD 在 G4 前未归一外部参考、无人措辞、场景数量和技术交付口径",
+      "evidence": [
+        {
+          "type": "code",
+          "ref": "packages/video-studio/src/prd-authority-bridge.ts:607@463ae7ad844de31674b94e73679dafaf0f5dcac5",
+          "sha256": "47e98fbc5e7e24807d40b23cce667bad57045b518d2d1c7ed95844f149cf165a",
+          "note": "真实 PRD 生成结果直接安装 provenance 后进入 G4；没有把外部片名、无依据数量、人物/手部措辞、来源角标绝对化和交付数值归一为宿主权威。"
+        }
+      ],
+      "root_cause": {
+        "file": "packages/video-studio/src/prd-authority-bridge.ts",
+        "line": 607,
+        "commit": "463ae7ad844de31674b94e73679dafaf0f5dcac5",
+        "symbol": "PRDGenerator.generate"
+      },
+      "trigger_path": "G1/G2/G3 已通过 → PRD 模型新增外部影片/导演、手指/手部、九个模块和“每一帧来源角标”，并缺 4K 像素、响度峰值、时宽容差 → G4 58–72 分拒绝，流程无法进入提示词阶段。",
+      "assertions": [
+        {
+          "kind": "sample",
+          "given": "营销 PRD 含外部《2001太空漫游》/Apple、大卫·芬奇、手部、九个模块和未闭合约束",
+          "expect": "外部参考替换为通用宿主依据，无人措辞清除，模块数改为若干，截断/高风险素材指令替换",
+          "command": "node --import tsx --test --test-name-pattern='marketing PRD' scripts/tools/data-pipeline-host-contract.node-test.mjs",
+          "exec": {
+            "file": "node",
+            "args": [
+              "--import",
+              "tsx",
+              "--test",
+              "--test-name-pattern=marketing PRD",
+              "scripts/tools/data-pipeline-host-contract.node-test.mjs"
+            ]
+          },
+          "last_result": "not-run"
+        },
+        {
+          "kind": "property",
+          "given": "4K 9:16、30 秒营销 PRD",
+          "expect": "母版显式含 2160x3840、±1 帧、AAC 48kHz、-14 LUFS、-1 dBTP 和确定字幕策略",
+          "command": "node --import tsx --test --test-name-pattern='marketing PRD' scripts/tools/data-pipeline-host-contract.node-test.mjs",
+          "exec": {
+            "file": "node",
+            "args": [
+              "--import",
+              "tsx",
+              "--test",
+              "--test-name-pattern=marketing PRD",
+              "scripts/tools/data-pipeline-host-contract.node-test.mjs"
+            ]
+          },
+          "last_result": "not-run"
+        }
+      ],
+      "regression": {
+        "command": "node --import tsx --test --test-name-pattern='marketing PRD' scripts/tools/data-pipeline-host-contract.node-test.mjs",
+        "evidence": null
+      },
+      "notes": "M01 多次真实 G4 拒绝，典型 58/72/86 分三组 issues 已保留。"
     }
   ],
   "gates": []

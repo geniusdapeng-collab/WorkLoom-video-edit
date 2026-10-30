@@ -10,7 +10,7 @@
     {
       "type": "code",
       "ref": "packages/video-studio/src/prd-authority-bridge.ts:607@463ae7ad844de31674b94e73679dafaf0f5dcac5",
-      "sha256": "f170c254fc7e1a6dc0388a6ad7129a5fb9f68a0f421be0bb81505cacb5381993",
+      "sha256": "47e98fbc5e7e24807d40b23cce667bad57045b518d2d1c7ed95844f149cf165a",
       "note": "真实 PRD 生成结果直接安装 provenance 后进入 G4；没有把外部片名、无依据数量、人物/手部措辞、来源角标绝对化和交付数值归一为宿主权威。"
     }
   ],
