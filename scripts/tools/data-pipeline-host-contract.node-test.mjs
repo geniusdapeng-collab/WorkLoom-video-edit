@@ -15,7 +15,7 @@ import {
   sourceDocument,
   SOURCE_MAX_TEXT_CHARS,
 } from "../../apps/server/src/video/marketing-source-fetcher.ts";
-import { supportReviewFacts } from "../../apps/server/src/video/marketing-authority.ts";
+import { requiresMarketingSupportReview, supportReviewFacts } from "../../apps/server/src/video/marketing-authority.ts";
 import { filterUnsafeMarketingExtraction } from "../../apps/server/src/video/marketing-facts.ts";
 
 test("narrative route bypasses vendor marketing copy while marketing keeps it", () => {
@@ -282,6 +282,11 @@ test("image angle claims are not sent as textual facts to support review", () =>
   });
   assert.deepEqual(reviewed.payload.images, []);
   assert.deepEqual(reviewed.claims.map((claim) => claim.pointer), ["/identity/name"]);
+});
+
+test("empty marketing evidence stations do not request an impossible semantic review", () => {
+  assert.equal(requiresMarketingSupportReview({ claims: [] }), false);
+  assert.equal(requiresMarketingSupportReview({ claims: [{ pointer: "/identity/name" }] }), true);
 });
 
 test("absolute marketing claims stay in raw response but are excluded from deliverable facts", () => {

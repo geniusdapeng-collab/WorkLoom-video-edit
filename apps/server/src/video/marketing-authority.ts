@@ -76,6 +76,10 @@ export function supportReviewFacts(stage: IntelStage, facts: ValidatedStageFacts
     claims: facts.claims.filter((claim) => !claim.pointer.startsWith("/images/")),
   };
 }
+
+export function requiresMarketingSupportReview(facts: Pick<ValidatedStageFacts, "claims">): boolean {
+  return facts.claims.length > 0;
+}
 async function writeBound(root: string, ref: string, bytes: string | Buffer): Promise<{ ref: string; path: string; sha256: string }> {
   const file = path.resolve(root, ref);
   if (!file.startsWith(`${root}${path.sep}`) || ref.split(/[\\/]/).some(part => part === "..")) fail("MARKETING_PATH_INVALID", "来源证据必须留在本次项目档案");
@@ -341,6 +345,13 @@ export async function prepareMarketingFacts(input: {
         reports.push({ stage, facts, sourceIds: [], discovery }); return facts.payload;
       }
       const { facts, extractions } = await extractStageFacts({ stage, plan: stagePlan, pages, product, scope, root, prefix, llm: input.llm });
+      if (!requiresMarketingSupportReview(facts)) {
+        // Empty stations have no claims to semantically review. Persist the
+        // actual empty payload and source lineage; do not ask a reviewer to
+        // invent user-review/competitor evidence the current source lacks.
+        reports.push({ stage, facts, sourceIds: pages.map(page => page.sourceId), discovery, extractions });
+        return facts.payload;
+      }
       const reviewFacts = supportReviewFacts(stage, facts);
       const evidence = await writeBound(root, `${prefix}-${stage}.review.json`, canonicalRenderJson({ scope, productQuery: product, facts: reviewFacts, sources: pages }));
       const reviewed = await reviewMarketingSupportWithRetry(review, { stage: "script", projectId: scope.projectId, env,

@@ -5,7 +5,7 @@
   "repo_path": "/Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit",
   "title": "",
   "created_at": "2026-10-30T06:14:55.791Z",
-  "updated_at": "2026-10-30T09:54:25.747Z",
+  "updated_at": "2026-10-30T09:57:16.564Z",
   "baseline": {
     "audit": {
       "commit": "463ae7ad844de31674b94e73679dafaf0f5dcac5",
@@ -16,7 +16,7 @@
       "notes": ""
     },
     "repair": {
-      "commit": "2d2040021726ec1716e59c8341b7e32f1ea6c9fa",
+      "commit": "756f189c4c4ddaa26347bb13327f88dbd215d200",
       "reverified_problem_ids": []
     },
     "acceptance": {
@@ -1502,7 +1502,7 @@
       "level": "L3",
       "severity": "P1",
       "batch": 2,
-      "state": "open",
+      "state": "fixed",
       "title": "G3 接受 ±5 秒残留且受众推测可残留超片长秒点与竞品首创主张",
       "evidence": [
         {
@@ -1535,7 +1535,17 @@
               "scripts/tools/data-pipeline-host-contract.node-test.mjs"
             ]
           },
-          "last_result": "not-run"
+          "last_result": "pass",
+          "run": {
+            "path": "runs/MC-017-0-1793354096668.json",
+            "sha256": "e1fd52a6b5ef89e4e0ee36f10c7e83bed9a7c1c307585f009b8b7d5dd14e4cac",
+            "commit": "756f189c4c4ddaa26347bb13327f88dbd215d200"
+          },
+          "evidence": {
+            "path": "evidence/MC-017-0-1793354096668.txt",
+            "sha256": "cb30445137e7110bee0e7831f436a07dcca95e3d120a7229be605c89d3b40aac",
+            "commit": "756f189c4c4ddaa26347bb13327f88dbd215d200"
+          }
         },
         {
           "kind": "property",
@@ -1552,7 +1562,17 @@
               "scripts/tools/data-pipeline-host-contract.node-test.mjs"
             ]
           },
-          "last_result": "not-run"
+          "last_result": "pass",
+          "run": {
+            "path": "runs/MC-017-1-1793354097451.json",
+            "sha256": "35da0c91023c00b365a25f217beeedb3cdfa86be77f1fa9b4ece9c9ca10ae6a9",
+            "commit": "756f189c4c4ddaa26347bb13327f88dbd215d200"
+          },
+          "evidence": {
+            "path": "evidence/MC-017-1-1793354097451.txt",
+            "sha256": "81fe55db689d85c280886160938e086fbd8208e83fdaf6f8ca0e6192ab9a65de",
+            "commit": "756f189c4c4ddaa26347bb13327f88dbd215d200"
+          }
         },
         {
           "kind": "sample",
@@ -1569,14 +1589,36 @@
               "scripts/tools/data-pipeline-host-contract.node-test.mjs"
             ]
           },
-          "last_result": "not-run"
+          "last_result": "pass",
+          "run": {
+            "path": "runs/MC-017-2-1793354098013.json",
+            "sha256": "027fcb6a0c52d1bd34313301ae40336f86295a70ca982fe5b51a42c15f2cd2c5",
+            "commit": "756f189c4c4ddaa26347bb13327f88dbd215d200"
+          },
+          "evidence": {
+            "path": "evidence/MC-017-2-1793354098013.txt",
+            "sha256": "24d43186e0cada20b5b63a097c33084c517b01410fd05210424d3730d2c0f9f0",
+            "commit": "756f189c4c4ddaa26347bb13327f88dbd215d200"
+          }
         }
       ],
       "regression": {
         "command": "node --import tsx --test --test-name-pattern='discovery timing' scripts/tools/data-pipeline-host-contract.node-test.mjs",
         "evidence": null
       },
-      "notes": "M01 真实 G3 先为 80 分（31 秒/第50秒），后续复现 74 分（第一次/没在吹/受众假设）。"
+      "notes": "M01 真实 G3 先为 80 分（31 秒/第50秒），后续复现 74 分（第一次/没在吹/受众假设）。",
+      "verified_by": null,
+      "verified_at": null,
+      "verification_evidence": null,
+      "last_assertion_attempt": {
+        "actor": "root-repair-2026-10-30",
+        "role": "repair",
+        "result": "pass",
+        "at": "2026-10-30T09:54:56.662Z",
+        "commit": "756f189c4c4ddaa26347bb13327f88dbd215d200",
+        "finished_at": "2026-10-30T09:54:58.566Z"
+      },
+      "fixed_by": "root-repair-2026-10-30"
     },
     {
       "id": "MC-018",
@@ -1674,6 +1716,71 @@
         "finished_at": "2026-10-30T09:18:19.509Z"
       },
       "fixed_by": "root-repair-2026-10-30"
+    },
+    {
+      "id": "MC-019",
+      "kind": "problem",
+      "level": "L2",
+      "severity": "P1",
+      "batch": 0,
+      "state": "open",
+      "title": "空 A2/A3 无证据站仍送语义支持审核，README 被误要求提供用户评价",
+      "evidence": [
+        {
+          "type": "code",
+          "ref": "apps/server/src/video/marketing-authority.ts:314@463ae7ad844de31674b94e73679dafaf0f5dcac5",
+          "sha256": "6e7dac86e9f1509d270fbdf619d2d13f162ab5e892556df86dbc6bfcfd59dcc6",
+          "note": "A2/A3 即使 claims 为空、status=no_evidence，仍无条件调用 reviewStage，要求审核器从 README 寻找用户评价/竞品。"
+        }
+      ],
+      "root_cause": {
+        "file": "apps/server/src/video/marketing-authority.ts",
+        "line": 314,
+        "commit": "463ae7ad844de31674b94e73679dafaf0f5dcac5",
+        "symbol": "extractStageFacts support review"
+      },
+      "trigger_path": "官方 README 正常无用户评价/竞品 → A2/A3 生成 no_evidence + 明确原因 → 仍调用文本支持审核 → 审核器按“README 缺评价”拒绝 → 整条营销链失败。",
+      "assertions": [
+        {
+          "kind": "sample",
+          "given": "A2/A3 facts.claims 为空且保留 noEvidenceReason",
+          "expect": "跳过无语义可审的 LLM 调用，保留真实空站与来源 lineage",
+          "command": "node --import tsx --test --test-name-pattern='empty marketing evidence' scripts/tools/data-pipeline-host-contract.node-test.mjs",
+          "exec": {
+            "file": "node",
+            "args": [
+              "--import",
+              "tsx",
+              "--test",
+              "--test-name-pattern=empty marketing evidence",
+              "scripts/tools/data-pipeline-host-contract.node-test.mjs"
+            ]
+          },
+          "last_result": "not-run"
+        },
+        {
+          "kind": "property",
+          "given": "任意站存在至少一条 claim",
+          "expect": "仍必须进入真实原文支持审核",
+          "command": "node --import tsx --test --test-name-pattern='empty marketing evidence' scripts/tools/data-pipeline-host-contract.node-test.mjs",
+          "exec": {
+            "file": "node",
+            "args": [
+              "--import",
+              "tsx",
+              "--test",
+              "--test-name-pattern=empty marketing evidence",
+              "scripts/tools/data-pipeline-host-contract.node-test.mjs"
+            ]
+          },
+          "last_result": "not-run"
+        }
+      ],
+      "regression": {
+        "command": "node --import tsx --test --test-name-pattern='empty marketing evidence' scripts/tools/data-pipeline-host-contract.node-test.mjs",
+        "evidence": null
+      },
+      "notes": "M01 使用真实 GitHub API README 后复现：审核拒绝理由为“只有 README，不含用户评价或评分”。"
     }
   ],
   "gates": []

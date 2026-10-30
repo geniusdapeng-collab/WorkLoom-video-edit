@@ -1,0 +1,65 @@
+{
+  "id": "MC-019",
+  "kind": "problem",
+  "level": "L2",
+  "severity": "P1",
+  "batch": 0,
+  "state": "open",
+  "title": "空 A2/A3 无证据站仍送语义支持审核，README 被误要求提供用户评价",
+  "evidence": [
+    {
+      "type": "code",
+      "ref": "apps/server/src/video/marketing-authority.ts:314@463ae7ad844de31674b94e73679dafaf0f5dcac5",
+      "sha256": "6e7dac86e9f1509d270fbdf619d2d13f162ab5e892556df86dbc6bfcfd59dcc6",
+      "note": "A2/A3 即使 claims 为空、status=no_evidence，仍无条件调用 reviewStage，要求审核器从 README 寻找用户评价/竞品。"
+    }
+  ],
+  "root_cause": {
+    "file": "apps/server/src/video/marketing-authority.ts",
+    "line": 314,
+    "commit": "463ae7ad844de31674b94e73679dafaf0f5dcac5",
+    "symbol": "extractStageFacts support review"
+  },
+  "trigger_path": "官方 README 正常无用户评价/竞品 → A2/A3 生成 no_evidence + 明确原因 → 仍调用文本支持审核 → 审核器按“README 缺评价”拒绝 → 整条营销链失败。",
+  "assertions": [
+    {
+      "kind": "sample",
+      "given": "A2/A3 facts.claims 为空且保留 noEvidenceReason",
+      "expect": "跳过无语义可审的 LLM 调用，保留真实空站与来源 lineage",
+      "command": "node --import tsx --test --test-name-pattern='empty marketing evidence' scripts/tools/data-pipeline-host-contract.node-test.mjs",
+      "exec": {
+        "file": "node",
+        "args": [
+          "--import",
+          "tsx",
+          "--test",
+          "--test-name-pattern=empty marketing evidence",
+          "scripts/tools/data-pipeline-host-contract.node-test.mjs"
+        ]
+      },
+      "last_result": "not-run"
+    },
+    {
+      "kind": "property",
+      "given": "任意站存在至少一条 claim",
+      "expect": "仍必须进入真实原文支持审核",
+      "command": "node --import tsx --test --test-name-pattern='empty marketing evidence' scripts/tools/data-pipeline-host-contract.node-test.mjs",
+      "exec": {
+        "file": "node",
+        "args": [
+          "--import",
+          "tsx",
+          "--test",
+          "--test-name-pattern=empty marketing evidence",
+          "scripts/tools/data-pipeline-host-contract.node-test.mjs"
+        ]
+      },
+      "last_result": "not-run"
+    }
+  ],
+  "regression": {
+    "command": "node --import tsx --test --test-name-pattern='empty marketing evidence' scripts/tools/data-pipeline-host-contract.node-test.mjs",
+    "evidence": null
+  },
+  "notes": "M01 使用真实 GitHub API README 后复现：审核拒绝理由为“只有 README，不含用户评价或评分”。"
+}

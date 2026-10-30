@@ -150,9 +150,9 @@ describe("营销事实宿主完整执行", () => {
     expect((prepared.bundle.dossier.gaps as string[]).some(gap => gap.includes("价格"))).toBe(true);
     expect(prepared.bundle.rawByAgent.A1.identity).toMatchObject({ specs: { 风量: "9 档" } });
     expect(prepared.bundle.rawSha256).toBe(renderSha256(canonicalRenderJson(prepared.raw)));
-    expect(prepared.g1Content).toContain('"schemaVersion":"workloom.marketing-facts/v1"'); expect(modelCalls).toHaveLength(3);
+    expect(prepared.g1Content).toContain('"schemaVersion":"workloom.marketing-facts/v1"'); expect(modelCalls).toHaveLength(1);
     expect(JSON.stringify(modelCalls)).toContain("不得声称静音或市场第一"); expect(JSON.stringify(modelCalls)).not.toContain("999档");
-    const saved = await finalizeMarketingFacts(prepared, shots, env); expect(modelCalls).toHaveLength(4);
+    const saved = await finalizeMarketingFacts(prepared, shots, env); expect(modelCalls).toHaveLength(2);
     expect(modelCalls.every(call => call.response_format.type === "json_object"
       && call.thinking?.type === "enabled" && call.reasoning_effort === "high"
       && !("temperature" in call))).toBe(true);
@@ -181,7 +181,7 @@ describe("营销事实宿主完整执行", () => {
     expect(JSON.stringify(modelCalls)).toContain(sourceText); expect(extractionCalls).toHaveLength(3);
     const saved = await finalizeMarketingFacts(prepared, shots, env), checked = await verifyMarketingFacts({ root, ...saved, scope, shots });
     expect(checked.rawByAgent).toEqual(prepared.raw); expect(checked.stages[0]!.facts.claims).toEqual(a1.facts.claims);
-    expect(checked.outputReviews).toHaveLength(1); expect(modelCalls).toHaveLength(4);
+    expect(checked.outputReviews).toHaveLength(1); expect(modelCalls).toHaveLength(2);
   });
   it("模拟provider仍超过16384而返回截断JSON：只提取一次、保留原响应且不进入支持审核", async () => {
     await expect(prepare({ quoteIds: true, syntheticTokenCharge: 20000 })).rejects.toThrow("MARKETING_EXTRACTION_UNVERIFIED");
@@ -208,7 +208,7 @@ describe("营销事实宿主完整执行", () => {
     expect(artifact.citationBindings).toHaveLength(artifact.response.data.citations.length);
     expect(artifact.citationBindings[0]).toMatchObject({ start: 0, end: sourceText.length, textSha256: renderSha256(sourceText), quoteSha256: renderSha256(sourceText) });
     expect(a1.facts.claims.every(claim => claim.quote === sourceText)).toBe(true);
-    expect(modelCalls).toHaveLength(3); expect(JSON.stringify(modelCalls)).toContain(sourceText);
+    expect(modelCalls).toHaveLength(1); expect(JSON.stringify(modelCalls)).toContain(sourceText);
     const saved = await finalizeMarketingFacts(prepared, shots, env);
     await expect(verifyMarketingFacts({ root, ...saved, scope, shots })).resolves.toMatchObject({ scope });
     if (repair) expect(attempts.map(item => item.status)).toEqual(["rejected", "accepted"]);
@@ -272,7 +272,7 @@ describe("营销事实宿主完整执行", () => {
   });
   it.each(["metadata", "duplicate", "missing"] as const)("%s引用结构只同源纠正一次，原始输出保留且仍完成支持评审", async citationFault => {
     const prepared = await prepare({ citationFault }), a1 = prepared.bundle.stages[0]!;
-    expect(extractionCalls).toHaveLength(4); expect(modelCalls).toHaveLength(3); expect(a1.extractions).toHaveLength(2);
+    expect(extractionCalls).toHaveLength(4); expect(modelCalls).toHaveLength(1); expect(a1.extractions).toHaveLength(2);
     expect(extractionOptions).toEqual(Array.from({ length: 4 }, () => ({ forceJson: true, temperature: 0, maxTokens: 16384, thinking: { type: "disabled" } })));
     const attempts = await Promise.all(a1.extractions!.map(async item => {
       const bytes = await readFile(path.join(root, item.ref), "utf8"); expect(renderSha256(bytes)).toBe(item.sha256); return JSON.parse(bytes);
