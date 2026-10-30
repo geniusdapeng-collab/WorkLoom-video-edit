@@ -1959,16 +1959,21 @@ export function installVendorPhase3FusionBridge(options: { log?: (line: string) 
             : typeof shot.enhanced_prompt === "string" && shot.enhanced_prompt.trim()
               ? shot.enhanced_prompt
               : "";
-          if (!id || !expectedIds.has(id) || outputIds.has(id) || shot.degraded === true || !prompt) {
+          const degradedFields = shot.degradedFields ?? shot.degraded_fields ?? shot._degradedFields;
+          const explicitDegradation = Boolean(shot.degradedReason ?? shot.degraded_reason ?? shot.error)
+            || (Array.isArray(degradedFields) && degradedFields.length > 0)
+            || (degradedFields && typeof degradedFields === "object" && Object.keys(degradedFields).length > 0);
+          if (!id || !expectedIds.has(id) || outputIds.has(id) || explicitDegradation || !prompt) {
             throw new CinematicSkillError(
               "PHASE3_FUSION_UNVERIFIED",
               `融合镜头合同无效：index=${index} expected=${expectedId || "?"} actual=${explicitId || "missing"} `
-              + `prompt=${prompt ? "present" : "missing"} degraded=${String(shot.degraded)}`,
+              + `prompt=${prompt ? "present" : "missing"} degraded=${String(shot.degraded)} `
+              + `explicitDegradation=${String(explicitDegradation)}`,
               "unverified",
             );
           }
           outputIds.add(id);
-          return { ...shot, shotId: id, prompt };
+          return { ...shot, shotId: id, prompt, degraded: false };
         });
         const merged = this.mergeShots(shots, normalizedUpdated, FUSION_MERGE_FIELDS);
         const timed = await this._checkDialogueTiming(merged, blueprint);

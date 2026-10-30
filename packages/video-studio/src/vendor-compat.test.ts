@@ -768,6 +768,25 @@ console.log("RESULT " + JSON.stringify({ error }));
     expect(String((result.error as Record<string, unknown>).message)).toContain("prompt=missing");
   }, 90_000);
 
+  it("区分继承的孤立 degraded 布尔值和带字段证据的真降级", () => {
+    const result = runInChild(phase3Fixture(`
+const uninstall = installVendorPhase3FusionBridge();
+const inherited = await makePhase({ process: async shots => {
+ counters.fusion++;
+ return { shots: shots.map(s => ({ ...s, prompt: "【场景】合法完整提示词。", degraded: true })), degraded: false, stats: { failed: 0, total: 1 } };
+} }).execute(makeState({ degraded: true }));
+let explicitError = null;
+try { await makePhase({ process: async shots => {
+ counters.fusion++;
+ return { shots: shots.map(s => ({ ...s, prompt: "【场景】合法完整提示词。", degraded: true, degradedFields: ["scene"] })), degraded: false, stats: { failed: 0, total: 1 } };
+} }).execute(makeState()); } catch (e) { explicitError = e.message; }
+uninstall();
+console.log("RESULT " + JSON.stringify({ inheritedSuccess: inherited.success, inheritedDegraded: inherited.shots[0].degraded, explicitError }));
+`));
+    expect(result).toMatchObject({ inheritedSuccess: true, inheritedDegraded: false });
+    expect(String(result.explicitError)).toContain("explicitDegradation=true");
+  }, 90_000);
+
   it("真实 vendor 的融合请求生成器收到实际技能正文，负面禁词不被误判", () => {
     const result = runInChild(phase3Fixture(`
 const uninstall = installVendorPhase3FusionBridge();
