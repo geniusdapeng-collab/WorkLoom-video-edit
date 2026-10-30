@@ -9,7 +9,7 @@ import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { createBudget, normalizeBudgets } from "../acceptance/lib/live/budget.mjs";
 import { fixture as liveFixture, run as liveRun } from "../acceptance/lib/live/cli-fixtures.mjs";
-import { captureEvidenceRun, recordEvidenceRun, verifyRun } from "./evidence.mjs";
+import { captureEvidenceRun, recordEvidenceRun, revisionOf, verifyRun } from "./evidence.mjs";
 import { COMMAND_OBSERVATION_SCHEMA } from "../acceptance/lib/regression-evidence.mjs";
 
 const repo = fileURLToPath(new URL("../../", import.meta.url));
@@ -39,6 +39,52 @@ function fixture() {
   const root = join(dir, "outputs/acceptance"); mkdirSync(root, { recursive: true });
   return { dir, root, commit };
 }
+
+test("revisionOf excludes only the evidence root, not tracked or untracked source changes", () => {
+  const dir = mkdtempSync(join(tmpdir(), "evidence-source-revision-")); dirs.push(dir);
+  git(dir, ["init", "-q", "-b", "main"]);
+  git(dir, ["config", "user.name", "Evidence Fixture"]);
+  git(dir, ["config", "user.email", "fixture@workloom.local"]);
+  writeFileSync(join(dir, "README.md"), "# fixture\n");
+  json(join(dir, "outputs/task/ledger.json"), { status: "committed" });
+  git(dir, ["add", "."]);
+  git(dir, ["commit", "-qm", "tracked task evidence"]);
+  const evidenceRoot = join(dir, "outputs/task");
+
+  json(join(evidenceRoot, "ledger.json"), { status: "running" });
+  mkdirSync(join(evidenceRoot, "runs"), { recursive: true });
+  writeFileSync(join(evidenceRoot, "runs/run.json"), "{}\n");
+  assert.equal(revisionOf(dir).dirty, true);
+  assert.equal(revisionOf(dir, { exclude: [evidenceRoot] }).dirty, false);
+
+  writeFileSync(join(dir, "README.md"), "changed source\n");
+  assert.equal(revisionOf(dir, { exclude: [evidenceRoot] }).dirty, true);
+  writeFileSync(join(dir, "untracked-source.mjs"), "export const changed = true;\n");
+  assert.equal(revisionOf(dir, { exclude: [evidenceRoot] }).dirty, true);
+});
+
+test("G01 explicit runner works when the task ledger and evidence root are committed files", () => {
+  const f = mcdFixture();
+  rmSync(join(f.dir, ".gitignore"));
+  f.card.state = "open";
+  f.card.assertions[0].last_result = "not-run";
+  delete f.card.assertions[0].run;
+  delete f.card.assertions[0].evidence;
+  f.ledger.baseline.acceptance = { commit: null, is_descendant_of_repair: null };
+  json(f.ledgerPath, f.ledger);
+  git(f.dir, ["add", "."]);
+  git(f.dir, ["commit", "-qm", "track task ledger and prior evidence"]);
+  assert.equal(revisionOf(f.dir).dirty, false, git(f.dir, ["status", "--porcelain"]));
+  assert.equal(revisionOf(f.dir, { exclude: [f.root] }).dirty, false, git(f.dir, ["status", "--porcelain"]));
+
+  const result = cli(mcd, f.dir, ["run-assertions", "--ledger", f.ledgerPath, "--card", f.card.id,
+    "--repo", f.dir, "--actor", "repair-session", "--role", "repair"]);
+  assert.equal(result.status, 0, `${result.stderr}\npost-command status:\n${git(f.dir, ["status", "--porcelain"])}`);
+  const ledger = JSON.parse(readFileSync(f.ledgerPath, "utf8"));
+  assert.equal(ledger.cards[0].state, "fixed");
+  const run = JSON.parse(readFileSync(join(f.root, ledger.cards[0].assertions[0].run.path), "utf8"));
+  assert.equal(run.working_tree_dirty, false);
+});
 
 function artifact(f, path, value) {
   json(join(f.root, path), value);

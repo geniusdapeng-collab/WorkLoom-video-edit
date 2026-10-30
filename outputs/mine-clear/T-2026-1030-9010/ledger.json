@@ -5,7 +5,7 @@
   "repo_path": "/Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit",
   "title": "",
   "created_at": "2026-10-30T06:14:55.791Z",
-  "updated_at": "2026-10-30T07:27:31.945Z",
+  "updated_at": "2026-10-30T07:32:16.505Z",
   "baseline": {
     "audit": {
       "commit": "463ae7ad844de31674b94e73679dafaf0f5dcac5",
@@ -442,6 +442,73 @@
         "evidence": null
       },
       "notes": "现有真实机器复现：~/.workloom-bgm/library 不存在，但随仓精选曲库存在。"
+    },
+    {
+      "id": "MC-007",
+      "kind": "problem",
+      "level": "L3",
+      "severity": "P1",
+      "batch": 0,
+      "state": "open",
+      "title": "MCD 证据执行器把自己写入的受控台账误判为源码脏修改",
+      "evidence": [
+        {
+          "type": "code",
+          "ref": "scripts/delivery/evidence.mjs:76@463ae7ad844de31674b94e73679dafaf0f5dcac5",
+          "sha256": "bb408f4b0257f2dbbf05a8bc072b6feda455fe39d371fa82c01166cf6772891a",
+          "note": "revisionOf 对全仓 git status 判脏，没有任何证据根排除参数；captureEvidenceRun 在台账已更新且 runs/evidence 已生成后继续用它检查。"
+        },
+        {
+          "type": "code",
+          "ref": "scripts/delivery/mine-clear.mjs:597@463ae7ad844de31674b94e73679dafaf0f5dcac5",
+          "sha256": "f2c0e0d200b32ffc7822c0f802afc8460c8c0f48afe261b656559bf1eb1596f5",
+          "note": "run-assertions 先要求工作树干净，随后把已跟踪 ledger 改成 unfixed/running；捕获证据时同一台账写入再次被当成被测源码变化。"
+        }
+      ],
+      "root_cause": {
+        "file": "scripts/delivery/evidence.mjs",
+        "line": 76,
+        "commit": "463ae7ad844de31674b94e73679dafaf0f5dcac5",
+        "symbol": "revisionOf"
+      },
+      "trigger_path": "在标准 outputs/mine-clear/<task>/ledger.json 已提交的仓库中执行 run-assertions → 台账状态先被写入 → captureEvidenceRun 看到 ledger/runs/evidence 为脏 → 修复与独立验收角色都无法运行。",
+      "assertions": [
+        {
+          "kind": "sample",
+          "given": "轨道内 task ledger、runs 与 evidence 已提交，repair 角色执行 run-assertions",
+          "expect": "证据根内状态/运行记录写入被排除，断言实际执行并进入 fixed，working_tree_dirty=false",
+          "command": "node --test --test-name-pattern='revisionOf|explicit runner works' scripts/delivery/evidence-controls.test.mjs",
+          "exec": {
+            "file": "node",
+            "args": [
+              "--test",
+              "--test-name-pattern=revisionOf|explicit runner works",
+              "scripts/delivery/evidence-controls.test.mjs"
+            ]
+          },
+          "last_result": "not-run"
+        },
+        {
+          "kind": "property",
+          "given": "证据根以外的 tracked README 或 untracked source 文件发生变化",
+          "expect": "revisionOf 仍返回 dirty=true，排除规则不能放过真实源码修改",
+          "command": "node --test --test-name-pattern='revisionOf|explicit runner works' scripts/delivery/evidence-controls.test.mjs",
+          "exec": {
+            "file": "node",
+            "args": [
+              "--test",
+              "--test-name-pattern=revisionOf|explicit runner works",
+              "scripts/delivery/evidence-controls.test.mjs"
+            ]
+          },
+          "last_result": "not-run"
+        }
+      ],
+      "regression": {
+        "command": "node --test --test-name-pattern='revisionOf|explicit runner works' scripts/delivery/evidence-controls.test.mjs",
+        "evidence": null
+      },
+      "notes": "本任务第一次对 MC-006 执行 repair 角色时真实复现；失败只改了 ledger 状态，未产生验收绿记录。"
     }
   ],
   "gates": []
