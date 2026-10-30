@@ -318,6 +318,7 @@ export function normalizeDiscoveryTiming(
   targetValue: unknown,
   structureValue: unknown,
   audienceValue: unknown,
+  restrictions: string[] = [],
 ): DiscoveryTimingNormalization {
   const target = Number(targetValue);
   if (!Number.isFinite(target) || target <= 0 || !structureValue || typeof structureValue !== "object" || Array.isArray(structureValue)) {
@@ -361,12 +362,28 @@ export function normalizeDiscoveryTiming(
   const audience = audienceValue && typeof audienceValue === "object" && !Array.isArray(audienceValue)
     ? audienceValue as RequirementRecord
     : null;
+  const noCompetitorEvidence = restrictions.some((restriction) => /竞品|对比|市场领先/u.test(restriction));
+  const normalizeAudienceText = (value: unknown): unknown => {
+    if (typeof value !== "string") return value;
+    let next = value.replace(/第\s*\d+(?:\.\d+)?\s*秒/gu, "已审场景节点");
+    if (noCompetitorEvidence && /竞品|其他产品|别人|市场|首创|首次|第一次|领先|唯一|满屏.*话术|没在吹|吹/u.test(next)) {
+      return "创作假设，待验证：只依据已审官方原文描述本品；不推断竞品、市场首创、领先地位或其他产品的表现";
+    }
+    if (noCompetitorEvidence && !/^创作假设|^待验证/u.test(next)) next = `创作假设，待验证：${next}`;
+    return next;
+  };
   if (audience && Array.isArray(audience.emotionTriggers)) {
-    const triggers = audience.emotionTriggers.map((value) =>
-      typeof value === "string" ? value.replace(/第\s*\d+(?:\.\d+)?\s*秒/gu, "已审场景节点") : value);
+    const triggers = audience.emotionTriggers.map(normalizeAudienceText);
     if (JSON.stringify(triggers) !== JSON.stringify(audience.emotionTriggers)) {
       audience.emotionTriggers = triggers;
       changes.push("audience-timing-projected-to-scenes");
+    }
+  }
+  if (audience && noCompetitorEvidence && Array.isArray(audience.contentExpectations)) {
+    const expectations = audience.contentExpectations.map(normalizeAudienceText);
+    if (JSON.stringify(expectations) !== JSON.stringify(audience.contentExpectations)) {
+      audience.contentExpectations = expectations;
+      changes.push("unsupported-audience-market-claims-removed");
     }
   }
   return { changes, previousDuration, normalizedDuration: target };
@@ -441,7 +458,14 @@ export function bindRequirementContract(
   const metadata = requirementRecord(metadataValue, "当前运行 metadata");
   const cast = requirementCast(metadata);
   if (cast.hash !== expectedCastHash) throw new RequirementContractError("REQUIREMENT_CAST_CHANGED", "洞察前后权威人物合同发生变化");
-  const timing = normalizeDiscoveryTiming(upstream.duration_sec, discovery.sceneStructure, discovery.audienceProfile);
+  const timing = normalizeDiscoveryTiming(
+    upstream.duration_sec,
+    discovery.sceneStructure,
+    discovery.audienceProfile,
+    Array.isArray(metadata.marketingRestrictions)
+      ? metadata.marketingRestrictions.filter((item): item is string => typeof item === "string" && Boolean(item.trim()))
+      : [],
+  );
   if (timing.changes.length > 0) {
     metadata._workloomDiscoveryTimingNormalization = {
       schemaVersion: "workloom.discovery-timing-normalization/v1",

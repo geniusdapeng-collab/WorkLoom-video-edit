@@ -5,13 +5,13 @@
   "severity": "P1",
   "batch": 2,
   "state": "open",
-  "title": "G3 接受 ±5 秒残留却不归一到客户精确时长，且受众保留超片长秒点",
+  "title": "G3 接受 ±5 秒残留且受众推测可残留超片长秒点与竞品首创主张",
   "evidence": [
     {
       "type": "code",
       "ref": "packages/video-studio/src/requirement-contract.ts:340@463ae7ad844de31674b94e73679dafaf0f5dcac5",
       "sha256": "10225700397bc24f0a98df8844e5b51e1df8650408d9a340a43967e88fcd4d16",
-      "note": "binding 直接使用模型 sceneStructure 总时长并仅做容差校验；30 秒 Brief 的 31 秒场景与受众“第50秒”会原样进入 G3。"
+      "note": "binding 直接使用模型 sceneStructure 总时长并仅做容差校验；30 秒 Brief 的 31 秒场景、受众“第50秒”及无竞品证据时的“第一次/没在吹”会原样进入 G3。"
     }
   ],
   "root_cause": {
@@ -20,7 +20,7 @@
     "commit": "463ae7ad844de31674b94e73679dafaf0f5dcac5",
     "symbol": "bindRequirementContract"
   },
-  "trigger_path": "SceneArchitect 6 个节点合计 31 秒（客户 Brief=30） → 容差校验放行 → G3 内容仍写 31 秒；受众推测含第50秒 → 监制以时间轴不一致拒绝。",
+  "trigger_path": "SceneArchitect 6 个节点合计 31 秒（客户 Brief=30） → 容差校验放行；受众推测含第50秒与竞品/首创判断 → 监制以时间轴和市场主张不一致拒绝。",
   "assertions": [
     {
       "kind": "sample",
@@ -55,11 +55,28 @@
         ]
       },
       "last_result": "not-run"
+    },
+    {
+      "kind": "sample",
+      "given": "G1 restrictions 明确无竞品证据，受众触发点含“第一次/满屏话术/没在吹”",
+      "expect": "竞品弱点与首创声明被替换为“创作假设，待验证：只描述本品官方原文”",
+      "command": "node --import tsx --test --test-name-pattern='discovery timing' scripts/tools/data-pipeline-host-contract.node-test.mjs",
+      "exec": {
+        "file": "node",
+        "args": [
+          "--import",
+          "tsx",
+          "--test",
+          "--test-name-pattern=discovery timing",
+          "scripts/tools/data-pipeline-host-contract.node-test.mjs"
+        ]
+      },
+      "last_result": "not-run"
     }
   ],
   "regression": {
     "command": "node --import tsx --test --test-name-pattern='discovery timing' scripts/tools/data-pipeline-host-contract.node-test.mjs",
     "evidence": null
   },
-  "notes": "M01 最新真实 G3 80 分：31 秒对 30 秒、第50秒超片长。"
+  "notes": "M01 真实 G3 先为 80 分（31 秒/第50秒），后续复现 74 分（第一次/没在吹/受众假设）。"
 }

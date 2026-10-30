@@ -57,6 +57,23 @@ describe("discovery timing authority", () => {
     expect(normalized.changes).toEqual([]);
     expect(structure.totalDuration).toBe(9);
   });
+
+  it("removes competitor and market-first claims from audience hypotheses when G1 has no competitor evidence", () => {
+    const structure = {
+      opening: { duration: 10 }, scenes: [{ duration: 10 }], ending: { duration: 10 }, totalDuration: 30, sceneCount: 3,
+    };
+    const audience = {
+      emotionTriggers: ["第一次看到有人把出处钉在画面上", "开发者第一反应是可信"],
+      contentExpectations: ["它没在吹，只是陈述原文"],
+    };
+    const normalized = normalizeDiscoveryTiming(30, structure, audience, [
+      "没有可核实竞品证据：禁止对比、竞品弱点或市场领先主张",
+    ]);
+    expect(normalized.changes).toContain("unsupported-audience-market-claims-removed");
+    expect(audience.emotionTriggers[0]).not.toMatch(/第一次看到|满屏|没在吹/);
+    expect(audience.emotionTriggers.every((value) => value.startsWith("创作假设，待验证") || value.includes("只依据已审官方原文"))).toBe(true);
+    expect(audience.contentExpectations[0]).not.toContain("没在吹");
+  });
 });
 
 function metadata(id = "young-rider-01", name = "李英子"): RequirementRecord {

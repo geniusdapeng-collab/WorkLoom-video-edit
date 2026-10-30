@@ -520,6 +520,7 @@ if (decision.route === "marketing") {
       content: preparedMarketing.g1Content,
       proof,
     });
+    seeded.marketingRestrictions = structuredClone(preparedMarketing.bundle.restrictions);
     const verifiedRawJson = canonicalRenderJson(toJennyMarketingRaw(
       preparedMarketing.raw,
       preparedMarketing.bundle,

@@ -108,6 +108,20 @@ test("discovery timing reconciles the tolerated residual and removes out-of-rang
   assert.deepEqual(audience.emotionTriggers, ["已审场景节点愿意转发", "已审场景节点感到精密"]);
 });
 
+test("discovery timing strips unsupported competitor claims from audience hypotheses", () => {
+  const structure = { opening: { duration: 10 }, scenes: [{ duration: 10 }], ending: { duration: 10 }, totalDuration: 30, sceneCount: 3 };
+  const audience = {
+    emotionTriggers: ["第一次看到有人把出处钉在画面上", "开发者第一反应是可信"],
+    contentExpectations: ["它没在吹，只是陈述原文"],
+  };
+  const normalized = normalizeDiscoveryTiming(30, structure, audience, [
+    "没有可核实竞品证据：禁止对比、竞品弱点或市场领先主张",
+  ]);
+  assert.ok(normalized.changes.includes("unsupported-audience-market-claims-removed"));
+  assert.doesNotMatch(audience.emotionTriggers[0], /第一次看到|满屏|没在吹/);
+  assert.doesNotMatch(audience.contentExpectations[0], /没在吹/);
+});
+
 test("strict RiskAssessor projection removes only undeclared top-level fields", () => {
   const schema = {
     type: "object",

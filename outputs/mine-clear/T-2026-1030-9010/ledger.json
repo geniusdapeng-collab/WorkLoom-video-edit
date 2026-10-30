@@ -5,7 +5,7 @@
   "repo_path": "/Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit",
   "title": "",
   "created_at": "2026-10-30T06:14:55.791Z",
-  "updated_at": "2026-10-30T09:17:57.483Z",
+  "updated_at": "2026-10-30T09:54:25.747Z",
   "baseline": {
     "audit": {
       "commit": "463ae7ad844de31674b94e73679dafaf0f5dcac5",
@@ -16,7 +16,7 @@
       "notes": ""
     },
     "repair": {
-      "commit": "b9eadaf9adc7597554cf7d589e9d7e87c501255c",
+      "commit": "2d2040021726ec1716e59c8341b7e32f1ea6c9fa",
       "reverified_problem_ids": []
     },
     "acceptance": {
@@ -1502,14 +1502,14 @@
       "level": "L3",
       "severity": "P1",
       "batch": 2,
-      "state": "fixed",
-      "title": "G3 接受 ±5 秒残留却不归一到客户精确时长，且受众保留超片长秒点",
+      "state": "open",
+      "title": "G3 接受 ±5 秒残留且受众推测可残留超片长秒点与竞品首创主张",
       "evidence": [
         {
           "type": "code",
           "ref": "packages/video-studio/src/requirement-contract.ts:340@463ae7ad844de31674b94e73679dafaf0f5dcac5",
           "sha256": "10225700397bc24f0a98df8844e5b51e1df8650408d9a340a43967e88fcd4d16",
-          "note": "binding 直接使用模型 sceneStructure 总时长并仅做容差校验；30 秒 Brief 的 31 秒场景与受众“第50秒”会原样进入 G3。"
+          "note": "binding 直接使用模型 sceneStructure 总时长并仅做容差校验；30 秒 Brief 的 31 秒场景、受众“第50秒”及无竞品证据时的“第一次/没在吹”会原样进入 G3。"
         }
       ],
       "root_cause": {
@@ -1518,7 +1518,7 @@
         "commit": "463ae7ad844de31674b94e73679dafaf0f5dcac5",
         "symbol": "bindRequirementContract"
       },
-      "trigger_path": "SceneArchitect 6 个节点合计 31 秒（客户 Brief=30） → 容差校验放行 → G3 内容仍写 31 秒；受众推测含第50秒 → 监制以时间轴不一致拒绝。",
+      "trigger_path": "SceneArchitect 6 个节点合计 31 秒（客户 Brief=30） → 容差校验放行；受众推测含第50秒与竞品/首创判断 → 监制以时间轴和市场主张不一致拒绝。",
       "assertions": [
         {
           "kind": "sample",
@@ -1535,17 +1535,7 @@
               "scripts/tools/data-pipeline-host-contract.node-test.mjs"
             ]
           },
-          "last_result": "pass",
-          "run": {
-            "path": "runs/MC-017-0-1793351735137.json",
-            "sha256": "8871b853bdfe64363d04bd18a93d0b125f2562de29fe14a929aceced70a487b4",
-            "commit": "b9eadaf9adc7597554cf7d589e9d7e87c501255c"
-          },
-          "evidence": {
-            "path": "evidence/MC-017-0-1793351735137.txt",
-            "sha256": "f14adadc93799356b5d75a512d89d79ff2eb77f588999393be997876ffc21462",
-            "commit": "b9eadaf9adc7597554cf7d589e9d7e87c501255c"
-          }
+          "last_result": "not-run"
         },
         {
           "kind": "property",
@@ -1562,36 +1552,31 @@
               "scripts/tools/data-pipeline-host-contract.node-test.mjs"
             ]
           },
-          "last_result": "pass",
-          "run": {
-            "path": "runs/MC-017-1-1793351736902.json",
-            "sha256": "d4875d36c6504352ccdc2e91cafd9eae292bcb5dd0246a1d84086111241e90f8",
-            "commit": "b9eadaf9adc7597554cf7d589e9d7e87c501255c"
+          "last_result": "not-run"
+        },
+        {
+          "kind": "sample",
+          "given": "G1 restrictions 明确无竞品证据，受众触发点含“第一次/满屏话术/没在吹”",
+          "expect": "竞品弱点与首创声明被替换为“创作假设，待验证：只描述本品官方原文”",
+          "command": "node --import tsx --test --test-name-pattern='discovery timing' scripts/tools/data-pipeline-host-contract.node-test.mjs",
+          "exec": {
+            "file": "node",
+            "args": [
+              "--import",
+              "tsx",
+              "--test",
+              "--test-name-pattern=discovery timing",
+              "scripts/tools/data-pipeline-host-contract.node-test.mjs"
+            ]
           },
-          "evidence": {
-            "path": "evidence/MC-017-1-1793351736902.txt",
-            "sha256": "b9c653540a82690a8a32d627ae026da9fea9cc17b9e319deb4550183e5491cf4",
-            "commit": "b9eadaf9adc7597554cf7d589e9d7e87c501255c"
-          }
+          "last_result": "not-run"
         }
       ],
       "regression": {
         "command": "node --import tsx --test --test-name-pattern='discovery timing' scripts/tools/data-pipeline-host-contract.node-test.mjs",
         "evidence": null
       },
-      "notes": "M01 最新真实 G3 80 分：31 秒对 30 秒、第50秒超片长。",
-      "verified_by": null,
-      "verified_at": null,
-      "verification_evidence": null,
-      "last_assertion_attempt": {
-        "actor": "root-repair-2026-10-30",
-        "role": "repair",
-        "result": "pass",
-        "at": "2026-10-30T09:15:35.134Z",
-        "commit": "b9eadaf9adc7597554cf7d589e9d7e87c501255c",
-        "finished_at": "2026-10-30T09:15:37.750Z"
-      },
-      "fixed_by": "root-repair-2026-10-30"
+      "notes": "M01 真实 G3 先为 80 分（31 秒/第50秒），后续复现 74 分（第一次/没在吹/受众假设）。"
     },
     {
       "id": "MC-018",
@@ -1599,7 +1584,7 @@
       "level": "L2",
       "severity": "P1",
       "batch": 0,
-      "state": "open",
+      "state": "fixed",
       "title": "官方来源一次瞬时超时即放弃，营销管线无有界 GET 重试",
       "evidence": [
         {
@@ -1632,7 +1617,17 @@
               "scripts/tools/data-pipeline-host-contract.node-test.mjs"
             ]
           },
-          "last_result": "not-run"
+          "last_result": "pass",
+          "run": {
+            "path": "runs/MC-018-0-1793351898303.json",
+            "sha256": "50d2255bd8a278fe6e74aeabcd11ac892c347cb79f6571076c40c58106dc98a9",
+            "commit": "2d2040021726ec1716e59c8341b7e32f1ea6c9fa"
+          },
+          "evidence": {
+            "path": "evidence/MC-018-0-1793351898303.txt",
+            "sha256": "1171b9d411a9c025f8472ca56b353438f70bcb2a450917bce9c81136ecd47eff",
+            "commit": "2d2040021726ec1716e59c8341b7e32f1ea6c9fa"
+          }
         },
         {
           "kind": "property",
@@ -1649,14 +1644,36 @@
               "scripts/tools/data-pipeline-host-contract.node-test.mjs"
             ]
           },
-          "last_result": "not-run"
+          "last_result": "pass",
+          "run": {
+            "path": "runs/MC-018-1-1793351898981.json",
+            "sha256": "5a79a37f60c2dae865e32ef7df7caa6ce1d4b0f58f6c30547f348587a269bb43",
+            "commit": "2d2040021726ec1716e59c8341b7e32f1ea6c9fa"
+          },
+          "evidence": {
+            "path": "evidence/MC-018-1-1793351898981.txt",
+            "sha256": "5a07d298a2661ee756a879876efc7b07aed564ba6ae6e33a86fd836177f71041",
+            "commit": "2d2040021726ec1716e59c8341b7e32f1ea6c9fa"
+          }
         }
       ],
       "regression": {
         "command": "node --import tsx --test --test-name-pattern='marketing source retry' scripts/tools/data-pipeline-host-contract.node-test.mjs",
         "evidence": null
       },
-      "notes": "M01 在 15 秒内失败；独立 fetchMarketingSource 同样得到 operation aborted due to timeout。"
+      "notes": "M01 在 15 秒内失败；独立 fetchMarketingSource 同样得到 operation aborted due to timeout。",
+      "verified_by": null,
+      "verified_at": null,
+      "verification_evidence": null,
+      "last_assertion_attempt": {
+        "actor": "root-repair-2026-10-30",
+        "role": "repair",
+        "result": "pass",
+        "at": "2026-10-30T09:18:18.299Z",
+        "commit": "2d2040021726ec1716e59c8341b7e32f1ea6c9fa",
+        "finished_at": "2026-10-30T09:18:19.509Z"
+      },
+      "fixed_by": "root-repair-2026-10-30"
     }
   ],
   "gates": []
