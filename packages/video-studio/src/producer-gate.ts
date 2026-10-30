@@ -299,15 +299,6 @@ function shrinkImageWithFfmpeg(path: string): string | null {
   return out;
 }
 
-/** Structured review must return exactly one JSON value. No hidden repair call. */
-function parseJudgeJson(raw: string): Record<string, unknown> {
-  const parsed = JSON.parse(raw.trim()) as unknown;
-  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-    throw new Error("评审模型未返回 JSON 对象");
-  }
-  return parsed as Record<string, unknown>;
-}
-
 type JudgeResult = { approved: boolean; score: number; issues: string[]; suggestions: string[]; reason: string };
 
 /**
@@ -494,28 +485,53 @@ export async function reviewStage(options: ProducerGateOptions): Promise<Produce
         "结构化原镜头合同优先于通用rubric；只对实际适用项目评审，不得把合同当产物质量证明。", contractText,
         '只输出 JSON: {"approved":true|false,"score":0-100,"issues":[],"suggestions":[],"reason":"结论"}'
       ].join("\n") }, ...textContent, ...encoded.slice(batch * batchSize, Math.min(artifactImages, (batch + 1) * batchSize)).flat(), ...encoded.slice(artifactImages).flat()];
-      const result: ChatResult = await provider.chat([{ role: "user", content }], {
-        scene: "video.quality.producer-review",
-        timeoutMs: 600_000,
-        temperature: 0.2,
-        retries: 0,
-      });
-      receipts.push({
-        modelId: result.modelId,
-        inputTokens: result.promptTokens,
-        outputTokens: result.completionTokens,
-        reasoningTokens: result.reasoningTokens,
-        outputCeiling: result.outputCeiling,
-        finishReason: result.finishReason,
-        requestHash: result.requestHash,
-        responseHash: result.responseHash,
-        responseId: result.responseId,
-        policyVersion: result.policyVersion,
-        registryVersion: result.registryVersion,
-      });
-      const json = parseJudgeJson(result.text);
-      const normalizedResult = coerceJudgeResult(json);
-      if (!normalizedResult) throw new Error("评审结果结构非法");
+      let normalizedResult: (typeof answers)[number] | null = null;
+      let lastParseError: unknown;
+      for (let attempt = 0; attempt < 3; attempt++) {
+        const retryInstruction = attempt === 0
+          ? ""
+          : `\n上一次响应不是合法监制 JSON（第 ${attempt} 次重试）。只输出一个 JSON 对象，字段严格为 approved/score/issues/suggestions/reason，不要 Markdown。`;
+        const result: ChatResult = await provider.chat([{ role: "user", content: [
+          { type: "text", text: retryInstruction },
+          ...content,
+        ] }], {
+          scene: "video.quality.producer-review",
+          timeoutMs: 600_000,
+          temperature: 0.2,
+          retries: 0,
+        });
+        receipts.push({
+          modelId: result.modelId,
+          inputTokens: result.promptTokens,
+          outputTokens: result.completionTokens,
+          reasoningTokens: result.reasoningTokens,
+          outputCeiling: result.outputCeiling,
+          finishReason: result.finishReason,
+          requestHash: result.requestHash,
+          responseHash: result.responseHash,
+          responseId: result.responseId,
+          policyVersion: result.policyVersion,
+          registryVersion: result.registryVersion,
+        });
+        let parsed: unknown;
+        try {
+          parsed = JSON.parse(result.text.trim());
+        } catch (error) {
+          lastParseError = error;
+          if (attempt < 2) {
+            log(`[producer][${stage}] 监制响应无法解析，执行第 ${attempt + 2}/3 次有界重试`);
+          }
+          continue;
+        }
+        if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+          throw new Error("评审结果结构非法");
+        }
+        const json = parsed as Record<string, unknown>;
+        normalizedResult = coerceJudgeResult(json);
+        if (!normalizedResult) throw new Error("评审结果结构非法");
+        break;
+      }
+      if (!normalizedResult) throw lastParseError ?? new Error("评审结果结构非法");
       answers.push(normalizedResult);
     }
     for (const item of evidence) {
