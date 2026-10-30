@@ -12,8 +12,16 @@ import {
   readFileSync,
   writeFileSync,
 } from "node:fs";
-import { dirname, join, resolve } from "node:path";
-import { spawnSync } from "node:child_process";
+import { join, resolve } from "node:path";
+import { execFileSync, spawnSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
+import {
+  canResumePositive,
+  fingerprint,
+  positiveSummaryErrors,
+  sha256Bytes,
+  validateStressReport,
+} from "./stress-evidence-contract.mjs";
 
 const root = resolve(import.meta.dirname, "../..");
 const casesFile = join(root, "stress/data-pipeline/cases.json");
@@ -21,6 +29,33 @@ const outputRoot = join(root, "outputs/mine-clear/T-2026-1030-9010");
 const runsRoot = join(root, "work/stress/T-2026-1030-9010/cases");
 const resultFile = join(outputRoot, "stress-results.json");
 const cases = JSON.parse(readFileSync(casesFile, "utf8"));
+const runnerFile = fileURLToPath(import.meta.url);
+const harnessSha256 = sha256Bytes(readFileSync(runnerFile));
+
+function gitText(gitArgs) {
+  try {
+    return execFileSync("git", gitArgs, {
+      cwd: root,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+    }).trim();
+  } catch {
+    return "";
+  }
+}
+
+const sourceCommit = gitText(["rev-parse", "HEAD"]);
+const sourceDirty = gitText([
+  "status",
+  "--porcelain",
+  "--untracked-files=no",
+  "--",
+  "apps",
+  "packages",
+  "scripts",
+  "stress",
+]).length > 0;
+const sourceBinding = { sourceCommit, sourceDirty, harnessSha256 };
 
 const args = process.argv.slice(2);
 const flag = (name) => args.includes(name);
@@ -32,6 +67,7 @@ const only = new Set(value("--ids").split(",").map((id) => id.trim()).filter(Boo
 const includePositive = !flag("--negative-only") && !flag("--negative-dry-only");
 const includeNegative = !flag("--positive-only");
 const resume = !flag("--no-resume");
+const validateOnly = flag("--validate-only");
 
 mkdirSync(outputRoot, { recursive: true });
 mkdirSync(runsRoot, { recursive: true });
@@ -45,6 +81,27 @@ const report = existsSync(resultFile)
       results: [],
     };
 const resultById = new Map(report.results.map((item) => [item.id, item]));
+report.source = {
+  commit: sourceCommit,
+  dirty: sourceDirty,
+  harnessSha256,
+  casesSha256: sha256Bytes(readFileSync(casesFile)),
+};
+
+function validationErrors() {
+  return validateStressReport(report, cases, sourceBinding);
+}
+
+if (validateOnly) {
+  const errors = validationErrors();
+  console.log(JSON.stringify({
+    ok: errors.length === 0,
+    source: report.source,
+    summary: report.summary,
+    errors,
+  }, null, 2));
+  process.exit(errors.length === 0 ? 0 : 1);
+}
 
 function persist() {
   report.updatedAt = new Date().toISOString();
@@ -111,12 +168,16 @@ function negative(item) {
   const output = `${execution.result.stdout ?? ""}${execution.result.stderr ?? ""}`;
   const expectedExit = Array.isArray(item.expect.exit) ? item.expect.exit : [item.expect.exit];
   const messageOk = new RegExp(item.expect.message, "i").test(output);
-  const pass = expectedExit.includes(execution.result.status) && messageOk;
+  const pass = !sourceDirty && expectedExit.includes(execution.result.status) && messageOk;
   return {
     id: item.id,
     kind: "negative",
     name: item.name,
     pass,
+    sourceCommit,
+    sourceDirty,
+    caseSha256: fingerprint(item),
+    harnessSha256,
     exitCode: execution.result.status,
     expectedExit,
     messageOk,
@@ -159,14 +220,19 @@ function positive(item) {
   if (resume && existsSync(summaryFile)) {
     try {
       const existing = JSON.parse(readFileSync(summaryFile, "utf8"));
-      if (existing.success === true && existing.renderSubmitted === false) {
+      if (canResumePositive(resultById.get(item.id), existing, item, sourceBinding)) {
         return {
+          ...resultById.get(item.id),
           id: item.id,
           kind: "positive",
           pipeline: item.pipeline,
           domain: item.domain,
           pass: true,
           resumed: true,
+          sourceCommit,
+          sourceDirty,
+          caseSha256: fingerprint(item),
+          harnessSha256,
           summaryFile: summaryFile.slice(root.length + 1),
           shots: existing.shots,
           prompts: existing.prompts,
@@ -218,18 +284,20 @@ function positive(item) {
   if (existsSync(summaryFile)) {
     try { summary = JSON.parse(readFileSync(summaryFile, "utf8")); } catch { /* failure below */ }
   }
+  const summaryErrors = positiveSummaryErrors(summary, item.pipeline);
   const pass = execution.result.status === 0
-    && summary?.success === true
-    && summary?.renderSubmitted === false
-    && Number(summary?.shots) > 0
-    && Number(summary?.prompts) > 0
-    && (item.pipeline !== "marketing" || Boolean(summary?.marketingFacts?.finalFactsSha256));
+    && !sourceDirty
+    && summaryErrors.length === 0;
   return {
     id: item.id,
     kind: "positive",
     pipeline: item.pipeline,
     domain: item.domain,
     pass,
+    sourceCommit,
+    sourceDirty,
+    caseSha256: fingerprint(item),
+    harnessSha256,
     exitCode: execution.result.status,
     elapsedMs: execution.elapsedMs,
     shots: summary?.shots ?? 0,
@@ -238,6 +306,7 @@ function positive(item) {
     marketingFacts: summary?.marketingFacts ?? null,
     gates: summary?.gates ?? [],
     errors: summary?.errors ?? [],
+    validationErrors: summaryErrors,
     summaryFile: summaryFile.slice(root.length + 1),
     logFile: logFile.slice(root.length + 1),
     command: [process.execPath, ...commandArgs],
@@ -267,5 +336,10 @@ report.summary = {
   failed: report.results.filter((item) => !item.pass).length,
   renderSubmissions: report.results.filter((item) => item.renderSubmitted === true).length,
 };
+const errors = validationErrors();
+report.validation = {
+  ok: errors.length === 0,
+  errors,
+};
 persist();
-process.exit(report.summary.failed === 0 ? 0 : 1);
+process.exit(errors.length === 0 ? 0 : 1);

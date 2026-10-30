@@ -5,7 +5,7 @@
   "repo_path": "/Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit",
   "title": "",
   "created_at": "2026-10-30T06:14:55.791Z",
-  "updated_at": "2026-10-30T07:17:32.624Z",
+  "updated_at": "2026-10-30T07:27:31.945Z",
   "baseline": {
     "audit": {
       "commit": "463ae7ad844de31674b94e73679dafaf0f5dcac5",
@@ -397,6 +397,51 @@
         "command": "node --import tsx --test scripts/tools/data-pipeline-host-contract.node-test.mjs",
         "evidence": null
       }
+    },
+    {
+      "id": "MC-006",
+      "kind": "problem",
+      "level": "L2",
+      "severity": "P2",
+      "batch": 3,
+      "state": "open",
+      "title": "视频工位自检把未安装的可选曲库根误判为路径监狱失败",
+      "evidence": [
+        {
+          "type": "code",
+          "ref": "scripts/tools/video-doctor.mts:102@463ae7ad844de31674b94e73679dafaf0f5dcac5",
+          "sha256": "fe58e2842518406919a26bfde28c30ed695bde1604cd8c70b232316aaae7faf0",
+          "note": "libraryRoots() 会返回尚未安装的可选 ~/.workloom-bgm/library；原逻辑对返回值直接判定路径白名单，并把不存在的目录计为 fail。"
+        }
+      ],
+      "root_cause": {
+        "file": "scripts/tools/video-doctor.mts",
+        "line": 102,
+        "commit": "463ae7ad844de31674b94e73679dafaf0f5dcac5",
+        "symbol": "bgm-library-jail check"
+      },
+      "trigger_path": "在未安装可选工位曲库、但随仓兜底曲库可用的新机器执行 video:doctor --json → bgm-library-jail=fail，整体自检出现假阻断。",
+      "assertions": [
+        {
+          "kind": "sample",
+          "given": "HOME 与 WORKLOOM_BGM_HOME 指向临时目录，可选工位曲库不存在，WORKLOOM_BGM_DISCOVER=0",
+          "expect": "video-doctor 将 bgm-library-jail 判为 pass，并明确显示未安装可选根",
+          "command": "node --test scripts/tools/video-doctor.node-test.mjs",
+          "exec": {
+            "file": "node",
+            "args": [
+              "--test",
+              "scripts/tools/video-doctor.node-test.mjs"
+            ]
+          },
+          "last_result": "not-run"
+        }
+      ],
+      "regression": {
+        "command": "node --test scripts/tools/video-doctor.node-test.mjs",
+        "evidence": null
+      },
+      "notes": "现有真实机器复现：~/.workloom-bgm/library 不存在，但随仓精选曲库存在。"
     }
   ],
   "gates": []
