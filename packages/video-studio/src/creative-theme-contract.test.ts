@@ -53,6 +53,18 @@ describe("creative theme host contract", () => {
     expect(task.visual_style).not.toContain("《");
     expect(task.special_notes).toContain("不得新增客户原文未提供");
     expect(task.special_notes).toContain("local control and privacy first");
+    task.special_notes = `${task.special_notes}；hero_image_id 为 null；undefined；NaN；[object Object]`;
+    const placeholders = normalizeCreativeThemeContract({ ...normalized.result, tasks: [task] }, {
+      pipelineRoute: { kind: "marketing" },
+      customerOriginalIntent: result()._originalStoryText,
+      brief: { product: "Home Assistant", duration: 30, aspectRatio: "9:16", platform: "抖音" },
+      builtinCharacterSelection: { mode: "none" },
+    });
+    const cleaned = (placeholders.result.tasks as Array<Record<string, unknown>>)[0]!;
+    expect(Object.values(cleaned).filter((value): value is string => typeof value === "string").join("\n"))
+      .not.toMatch(/\bnull\b|\bundefined\b|\bNaN\b|\[object Object\]/u);
+    expect(cleaned.special_notes).toContain("空值（未提供）");
+    expect(placeholders.changes).toContain("display-placeholders-normalized");
   });
 
   it("keeps an explicitly requested title and a person when the cast contract allows one", () => {

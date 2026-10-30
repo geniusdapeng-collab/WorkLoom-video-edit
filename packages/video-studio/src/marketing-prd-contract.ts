@@ -23,6 +23,7 @@ const VIDEO_TECHNICAL = `30fps；竖屏安全区按目标平台遮挡区在渲�
 function normalizeText(value: string): string {
   const next = value
     .replace(/\bawarenes\b/giu, "awareness")
+    .replace(/\blicense(?=\s*:\s*Apache-2\.0)/giu, "License")
     .replace(/商业广告\s*\/\s*商业广告/gu, "商业广告")
     .replace(/可无限接驳/gu, "可继续扩展接入其他设备与动作")
     .replace(/极小脚注/gu, "达到统一最小字号下界的辅助脚注")
@@ -41,6 +42,21 @@ function normalizeText(value: string): string {
     .replace(/字幕默认烧录已审画面文字[^；。\n]*/gu, SUBTITLE_POLICY)
     .replace(/字幕仅烧录已审画面文字[^；。\n]*/gu, SUBTITLE_POLICY)
     .replace(/(?<!https:\/\/)github\.com\//giu, "https://github.com/")
+    .replace(/(https?:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+)\s*·\s*README/gu, "$1")
+    .replace(/屏幕上给出收束的一句：来源\s*(https?:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+)/gu,
+      "屏幕上只连续显示 $1")
+    .replace(/来源\s*(https?:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+)/gu, "$1")
+    .replace(/README 首句逐字符浮现/gu,
+      "G1 已审原句的明确连续半句逐字符浮现（不是全句完整呈现）")
+    .replace(/这是全片唯一一次把文字说完整/gu,
+      "这是全片唯一完整呈现两行官方自述原句的场景；其它场景只显示明确截取的半句、地址或许可字段")
+    .replace(/本场景为全片唯一完整呈现文字的一段/gu,
+      "本场景是全片唯一完整呈现两行官方自述原句的场景；其它场景只显示明确截取的半句、地址或许可字段")
+    .replace(/全片唯一一次说完整的句子落地之后/gu, "官方自述原句在本场完整落地之后")
+    .replace(/整屏仅\s*License:\s*Apache-2\.0\s*一处被点亮/gu,
+      "整屏仅在 G1 连续子串 License: Apache-2.0 处点亮")
+    .replace(/标签文字须与 G1 claim\s+[A-Za-z0-9-]+\s+原文 Apache-2\.0 一致/gu,
+      "标签文字须与 G1 原文连续子串 License: Apache-2.0 一致")
     .replace(/全片仅此一个视觉落点/gu, "只在对应已审场景内使用视觉强调，不作全片唯一性承诺")
     .replace(/收束字幕条|底部字幕条|来源限定字幕条/gu, (value) =>
       value.startsWith("收束") ? "收束屏上原文行" : value.startsWith("来源") ? "来源限定屏上文字行" : "底部屏上原文行")

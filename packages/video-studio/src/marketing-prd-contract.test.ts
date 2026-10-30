@@ -114,6 +114,39 @@ describe("marketing PRD host contract", () => {
     expect((result.prd as any).audienceProfile.emotionTriggers.join(" ")).not.toContain("已审场景节点");
   });
 
+  it("harmonizes license substrings, URL-only source rows and complete-line authority", () => {
+    const source = prd() as any;
+    source.creativeCore.keyMessages = [
+      "一行 license: Apache-2.0 可核对",
+      "全片唯一一次说完整的句子落地之后收束",
+    ];
+    source.audioSpecification.soundDesign = "屏上出现 license: Apache-2.0 与 https://github.com/home-assistant/core · README";
+    source.scenePlan.scenes[0] = {
+      sceneId: "opening",
+      duration: 4,
+      purpose: "README 首句逐字符浮现，但只显示半句",
+      visualRequirements: ["整屏仅 license: Apache-2.0 一处被点亮", "标签文字须与 G1 claim CL-a1b2 原文 Apache-2.0 一致"],
+    };
+    source.scenePlan.scenes[1] = {
+      sceneId: "ending",
+      duration: 4,
+      purpose: "屏幕上给出收束的一句：来源 github.com/home-assistant/core",
+      visualRequirements: ["来源归属行固定为 https://github.com/home-assistant/core · README", "本场景为全片唯一完整呈现文字的一段"],
+    };
+    const result = normalizeMarketingPrdContract(source, {
+      builtinCharacterSelection: { mode: "none" },
+      customerOriginalIntent: "全片无人，仅使用抽象界面和示意图",
+    }, { targetDuration: 30, aspectRatio: "9:16", resolution: "4K" },
+    { scenes: [{ id: "opening" }, { id: "ending" }] }).prd as any;
+    expect(result.creativeCore.keyMessages.join(" ")).not.toMatch(/\blicense:\s*Apache/u);
+    expect(result.audioSpecification.soundDesign).not.toMatch(/\blicense:\s*Apache|·\s*README/u);
+    expect(result.creativeCore.keyMessages.join(" ")).toContain("License: Apache-2.0");
+    expect(result.scenePlan.scenes[0].visualRequirements.join(" ")).toContain("标签文字须与 G1 原文连续子串 License: Apache-2.0 一致");
+    expect(result.scenePlan.scenes[0].purpose).toContain("明确连续半句");
+    expect(result.scenePlan.scenes[1].purpose).toContain("屏幕上只连续显示 https://github.com/home-assistant/core");
+    expect(result.scenePlan.scenes[1].visualRequirements.join(" ")).toContain("全片唯一完整呈现两行官方自述原句");
+  });
+
   it("fails closed instead of silently changing the approved scene count", () => {
     expect(() => normalizeMarketingPrdContract(prd(), {
       builtinCharacterSelection: { mode: "none" },

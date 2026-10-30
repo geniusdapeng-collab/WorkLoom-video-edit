@@ -52,6 +52,34 @@ function officialClaims(metadata: RecordValue): string[] {
     .slice(0, 4);
 }
 
+function normalizeDisplayPlaceholders(value: unknown): boolean {
+  let changed = false;
+  const walk = (node: unknown): void => {
+    if (Array.isArray(node)) {
+      for (const item of node) walk(item);
+      return;
+    }
+    if (!isRecord(node)) return;
+    for (const [key, item] of Object.entries(node)) {
+      if (typeof item === "string") {
+        const next = item
+          .replace(/\bundefined\b/giu, "未定义值（未提供）")
+          .replace(/\bnull\b/giu, "空值（未提供）")
+          .replace(/\bNaN\b/gu, "非数值（未提供）")
+          .replace(/\[object Object\]/gu, "对象数据（未展开）");
+        if (next !== item) {
+          node[key] = next;
+          changed = true;
+        }
+      } else {
+        walk(item);
+      }
+    }
+  };
+  walk(value);
+  return changed;
+}
+
 /**
  * The vendor theme model receives the frozen brief, but it can still invent a
  * person, unverified pain point, conflicting tone, or external film title.
@@ -185,5 +213,6 @@ export function normalizeCreativeThemeContract(
     };
   }
 
+  if (normalizeDisplayPlaceholders(result)) changes.push("display-placeholders-normalized");
   return { result, applied: changes.length > 0, changes: [...new Set(changes)] };
 }
