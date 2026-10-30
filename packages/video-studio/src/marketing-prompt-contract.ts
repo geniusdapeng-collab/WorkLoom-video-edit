@@ -629,10 +629,58 @@ export function normalizeMarketingPromptResult<T>(
   options: MarketingPromptOptions,
 ): MarketingPromptNormalization<T> {
   const changes: string[] = [];
+  const normalizedValue = normalizeUnknown(value, options, changes) as T;
+  if (options.abstractOnly && isRecord(normalizedValue) && isRecord(normalizedValue.stages)) {
+    const production = normalizedValue.stages.productionEngine;
+    if (isRecord(production)) {
+      if (Array.isArray(production.prompts)) {
+        production.prompts = normalizeMarketingPromptList(production.prompts.filter(isRecord), options);
+        changes.push("abstract-shot-prompts-normalized");
+      }
+      if (Array.isArray(production.shots)) {
+        const sanitized = normalizeMarketingPromptList(production.shots.filter(isRecord), options);
+        production.shots = production.shots.map((shot: unknown, index: number) => isRecord(shot)
+          ? { ...shot, ...sanitized[index] }
+          : shot);
+        changes.push("abstract-shot-cards-normalized");
+      }
+    }
+  }
   return {
-    value: normalizeUnknown(value, options, changes) as T,
+    value: normalizedValue,
     changes: [...new Set(changes)],
   };
+}
+
+export function normalizeMarketingPromptList<T extends RecordValue>(
+  prompts: T[],
+  options: MarketingPromptOptions,
+): T[] {
+  const visibleTexts = extractAbstractVisibleText("", options.allowedVisibleText);
+  return prompts.map((prompt, index) => {
+    const shotId = String(prompt.shotId ?? prompt.shot_id ?? `shot-${index + 1}`);
+    const duration = Number(prompt.duration ?? prompt.duration_sec ?? 0);
+    const fields = buildAbstractPromptFields(shotId, duration, selectAbstractVisibleTexts(shotId, visibleTexts));
+    const fieldRecord: RecordValue = {};
+    for (const line of fields) {
+      const match = /^\d+\.【([^】]+)】([\s\S]*)$/u.exec(line);
+      if (match) fieldRecord[match[1]!] = match[2]!;
+    }
+    const body = fields.join("\n");
+    return {
+      ...prompt,
+      shotId,
+      duration,
+      prompt: body,
+      promptCharCount: Array.from(body).length,
+      fields: fieldRecord,
+      fusionText: String(fieldRecord["场景"] ?? ""),
+      dialogue: "",
+      dialogueBlocks: [],
+      dialogueText: "",
+      negative: String(fieldRecord["负面约束"] ?? ""),
+    } as T;
+  });
 }
 
 export function buildMarketingPreproductionReport(input: {

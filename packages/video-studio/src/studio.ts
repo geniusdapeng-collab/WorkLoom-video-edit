@@ -37,6 +37,7 @@ import {
   buildMarketingPreproductionReport,
   isAbstractMarketingIntent,
   marketingVisibleTextFromG1,
+  normalizeMarketingPromptList,
   normalizeMarketingPromptResult,
   normalizeMarketingPromptText,
 } from "./marketing-prompt-contract.js";
@@ -532,6 +533,24 @@ export class VideoStudio {
           durationConstraint: { maxSingleShot, minSingleShot }
         });
         if (input.isMarketing && noPeople && isAbstractMarketingIntent(input.intent)) {
+          const guard = (system as unknown as { pipelineGuard?: { check?: unknown } }).pipelineGuard;
+          if (!guard || typeof guard.check !== "function") {
+            throw new Error("MARKETING_PIPELINE_GUARD_BRIDGE_UNAVAILABLE: vendor 缺少渲染前守卫");
+          }
+          const nativeGuardCheck = guard.check as (
+            this: unknown,
+            prompts: Array<Record<string, unknown>>,
+            options?: Record<string, unknown>,
+          ) => unknown;
+          guard.check = function workloomMarketingPipelineGuard(
+            this: unknown,
+            prompts: unknown,
+            guardOptions?: Record<string, unknown>,
+          ): unknown {
+            const list = Array.isArray(prompts) ? prompts.filter((item): item is Record<string, unknown> =>
+              Boolean(item && typeof item === "object" && !Array.isArray(item))) : [];
+            return Reflect.apply(nativeGuardCheck, this, [normalizeMarketingPromptList(list, promptOptions), guardOptions]);
+          };
           const vendorReport = (system as unknown as { _generatePreproductionReport?: unknown })._generatePreproductionReport;
           if (typeof vendorReport !== "function") {
             throw new Error("MARKETING_PREPRODUCTION_REPORT_BRIDGE_UNAVAILABLE: vendor 缺少预生产报告生成器");
