@@ -103,8 +103,6 @@ export function filterUnsafeMarketingExtraction(
     }
     kept.push(value);
   }
-  if (excluded.size === 0) return { value: raw, exclusions: [] };
-
   /**
    * A model may decompose an absolute recommendation into an invented spec
    * (for example turning "Perfect to run on X" into `Supported hardware=X`).
@@ -121,14 +119,17 @@ export function filterUnsafeMarketingExtraction(
     for (const [key, value] of Object.entries(specs)) {
       if (typeof value !== "string" || value.trim().length < 4) continue;
       const normalized = value.trim().toLocaleLowerCase();
-      const derivedFromExcludedClaim = excludedTexts.some((excludedText) => excludedText.includes(normalized));
-      if (!derivedFromExcludedClaim) continue;
+      const absolutePromotion = ABSOLUTE_MARKETING.test(normalized);
+      const derivedFromExcludedClaim = excludedTexts.some((excludedText) =>
+        excludedText.includes(normalized) || normalized.includes(excludedText));
+      if (!absolutePromotion && !derivedFromExcludedClaim) continue;
       const pointer = `/identity/specs/${escapePointer(key)}`;
       excludedSpecPointers.add(pointer);
       delete specs[key];
       excluded.set(pointer, { pointer, value, reason: "absolute-marketing-claim" });
     }
   }
+  if (excluded.size === 0) return { value: raw, exclusions: [] };
 
   const remap = new Map<number, number>();
   let next = 0;

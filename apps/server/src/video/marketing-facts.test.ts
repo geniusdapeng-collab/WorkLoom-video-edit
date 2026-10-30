@@ -152,6 +152,33 @@ describe("逐事实叶子的正文绑定", () => {
       "/identity/specs/Supported hardware",
     ]);
   });
+  it("绝对化促销语直接写入规格时也移除，不要求同时出现在卖点数组", () => {
+    const filtered = filterUnsafeMarketingExtraction("A1", {
+      payload: {
+        identity: {
+          name: "Home Assistant",
+          specs: {
+            License: "Apache-2.0",
+            Deployment: "Perfect to run on a Raspberry Pi or a local server.",
+          },
+          official_selling_points: [{ point: "Open source home automation", source_url: source.finalUrl }],
+        },
+        images: [],
+      },
+      citations: [
+        { pointer: "/identity/specs/License", sourceId: source.sourceId, quote: body },
+        { pointer: "/identity/specs/Deployment", sourceId: source.sourceId, quote: body },
+      ],
+    });
+    const value = filtered.value as any;
+    expect(value.payload.identity.specs).toEqual({ License: "Apache-2.0" });
+    expect(value.citations.map((item: any) => item.pointer)).toEqual(["/identity/specs/License"]);
+    expect(filtered.exclusions).toEqual([{
+      pointer: "/identity/specs/Deployment",
+      value: "Perfect to run on a Raspberry Pi or a local server.",
+      reason: "absolute-marketing-claim",
+    }]);
+  });
   it.each(["A1", "A2", "A3"] as const)("%s提取输入合同由实际严格schema产生并保留边界", stage => {
     const schema: any = stagePayloadJsonSchema(stage);
     expect(schema).toMatchObject({ type: "object", additionalProperties: false });
