@@ -63,16 +63,33 @@ export function requirementRecord(value: unknown, label: string): RequirementRec
  * model chatter is dropped instead of being reinterpreted as production facts.
  */
 export function projectDeclaredFields(value: unknown, schemaValue: unknown): unknown {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return value;
   if (!schemaValue || typeof schemaValue !== "object" || Array.isArray(schemaValue)) return value;
   const schema = schemaValue as RequirementRecord;
+  if (Array.isArray(value) && schema.type === "array") {
+    const max = typeof schema.maxItems === "number" && Number.isSafeInteger(schema.maxItems) && schema.maxItems >= 0
+      ? schema.maxItems
+      : value.length;
+    const projected = value.map(item => projectDeclaredFields(item, schema.items));
+    if (projected.length <= max) return projected;
+    const itemSchema = schema.items && typeof schema.items === "object" && !Array.isArray(schema.items)
+      ? schema.items as RequirementRecord
+      : {};
+    if (max > 0 && itemSchema.type === "string") {
+      const kept = projected.slice(0, max - 1);
+      const merged = projected.slice(max - 1).filter((item): item is string => typeof item === "string" && Boolean(item.trim())).join("；");
+      if (merged) kept.push(merged);
+      return kept;
+    }
+    return projected.slice(0, max);
+  }
+  if (!value || typeof value !== "object" || Array.isArray(value)) return value;
   const properties = schema.properties;
   if (schema.type !== "object" || schema.additionalProperties !== false
     || !properties || typeof properties !== "object" || Array.isArray(properties)) return value;
   const source = value as RequirementRecord;
   return Object.fromEntries(Object.keys(properties as RequirementRecord)
     .filter((key) => Object.prototype.hasOwnProperty.call(source, key))
-    .map((key) => [key, structuredClone(source[key])]));
+    .map((key) => [key, projectDeclaredFields(source[key], (properties as RequirementRecord)[key])]));
 }
 
 function text(value: unknown, label: string, minimum = 1): string {

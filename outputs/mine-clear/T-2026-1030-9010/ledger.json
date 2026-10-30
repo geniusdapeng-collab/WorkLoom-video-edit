@@ -5,7 +5,7 @@
   "repo_path": "/Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit",
   "title": "",
   "created_at": "2026-10-30T06:14:55.791Z",
-  "updated_at": "2026-10-30T08:09:22.782Z",
+  "updated_at": "2026-10-30T08:13:20.195Z",
   "baseline": {
     "audit": {
       "commit": "463ae7ad844de31674b94e73679dafaf0f5dcac5",
@@ -16,7 +16,7 @@
       "notes": ""
     },
     "repair": {
-      "commit": "e7355f19e7108758d0d4e14518b3e76924dc48b9",
+      "commit": "0aef58a2cccd9f83858f1d20ad21628ffbeb2bac",
       "reverified_problem_ids": []
     },
     "acceptance": {
@@ -1114,7 +1114,7 @@
       "level": "L3",
       "severity": "P1",
       "batch": 0,
-      "state": "open",
+      "state": "fixed",
       "title": "已批准门的建议被当作返工指令，导致 G4 批准后再次生成未审 PRD",
       "evidence": [
         {
@@ -1147,7 +1147,17 @@
               "scripts/tools/data-pipeline-host-contract.node-test.mjs"
             ]
           },
-          "last_result": "not-run"
+          "last_result": "pass",
+          "run": {
+            "path": "runs/MC-013-0-1793347771311.json",
+            "sha256": "0df8af92823aa5085488afc5e6b1af5c8b40c49d41114ca8039ad5dcd9d67fda",
+            "commit": "0aef58a2cccd9f83858f1d20ad21628ffbeb2bac"
+          },
+          "evidence": {
+            "path": "evidence/MC-013-0-1793347771311.txt",
+            "sha256": "bf983c0d328d8d330e23ff59187f2cbce8845cabbb06dd97ebd503b6e559e254",
+            "commit": "0aef58a2cccd9f83858f1d20ad21628ffbeb2bac"
+          }
         },
         {
           "kind": "property",
@@ -1164,14 +1174,101 @@
               "scripts/tools/data-pipeline-host-contract.node-test.mjs"
             ]
           },
-          "last_result": "not-run"
+          "last_result": "pass",
+          "run": {
+            "path": "runs/MC-013-1-1793347771864.json",
+            "sha256": "1cf0372d118387f9ae5b96d9fcd8aaf48412e04103bd3bb63469c9adda121901",
+            "commit": "0aef58a2cccd9f83858f1d20ad21628ffbeb2bac"
+          },
+          "evidence": {
+            "path": "evidence/MC-013-1-1793347771864.txt",
+            "sha256": "5670e1396e7c327871f378fd44e261f134e736a0c9e7d27a45079bdcfdee16d8",
+            "commit": "0aef58a2cccd9f83858f1d20ad21628ffbeb2bac"
+          }
         }
       ],
       "regression": {
         "command": "node --import tsx --test --test-name-pattern='approved gate suggestions' scripts/tools/data-pipeline-host-contract.node-test.mjs",
         "evidence": null
       },
-      "notes": "M01 第二轮 G4 已 approved=true score=86，随后真实复现 PRD_UNREVIEWED_REGENERATION。"
+      "notes": "M01 第二轮 G4 已 approved=true score=86，随后真实复现 PRD_UNREVIEWED_REGENERATION。",
+      "verified_by": null,
+      "verified_at": null,
+      "verification_evidence": null,
+      "last_assertion_attempt": {
+        "actor": "root-repair-2026-10-30",
+        "role": "repair",
+        "result": "pass",
+        "at": "2026-10-30T08:09:31.310Z",
+        "commit": "0aef58a2cccd9f83858f1d20ad21628ffbeb2bac",
+        "finished_at": "2026-10-30T08:09:32.308Z"
+      },
+      "fixed_by": "root-repair-2026-10-30"
+    },
+    {
+      "id": "MC-014",
+      "kind": "problem",
+      "level": "L2",
+      "severity": "P1",
+      "batch": 1,
+      "state": "open",
+      "title": "RiskAssessor 合法字符串数组超一格即整轮失败，未按 schema 无损压缩",
+      "evidence": [
+        {
+          "type": "code",
+          "ref": "packages/video-studio/src/requirement-contract-bridge.ts:310@463ae7ad844de31674b94e73679dafaf0f5dcac5",
+          "sha256": "f170c254fc7e1a6dc0388a6ad7129a5fb9f68a0f421be0bb81505cacb5381993",
+          "note": "RiskAssessor 响应直接进入严格 schema 校验；businessConstraints 允许 1–4 个字符串，但第 5 个有效约束没有宿主压缩路径。"
+        }
+      ],
+      "root_cause": {
+        "file": "packages/video-studio/src/requirement-contract-bridge.ts",
+        "line": 310,
+        "commit": "463ae7ad844de31674b94e73679dafaf0f5dcac5",
+        "symbol": "RiskAssessor _validateAndFill"
+      },
+      "trigger_path": "RiskAssessor 返回 5 条 businessConstraints，均有效且未声明超集 → maxItems=4 硬拒绝；唯一重试返回缺字段 → G3 整轮 REQUIREMENT_DISCOVERY_UNVERIFIED。",
+      "assertions": [
+        {
+          "kind": "sample",
+          "given": "字符串数组比 schema maxItems 多 1–n 项",
+          "expect": "保留最后一项并以前缀分号合并进末位，全部文本不丢失且数组长度合规",
+          "command": "node --import tsx --test --test-name-pattern='RiskAssessor string overflow' scripts/tools/data-pipeline-host-contract.node-test.mjs",
+          "exec": {
+            "file": "node",
+            "args": [
+              "--import",
+              "tsx",
+              "--test",
+              "--test-name-pattern=RiskAssessor string overflow",
+              "scripts/tools/data-pipeline-host-contract.node-test.mjs"
+            ]
+          },
+          "last_result": "not-run"
+        },
+        {
+          "kind": "property",
+          "given": "对象数组超过 maxItems",
+          "expect": "按声明上限裁剪，不能通过超出 schema 的响应",
+          "command": "node --import tsx --test --test-name-pattern='RiskAssessor string overflow' scripts/tools/data-pipeline-host-contract.node-test.mjs",
+          "exec": {
+            "file": "node",
+            "args": [
+              "--import",
+              "tsx",
+              "--test",
+              "--test-name-pattern=RiskAssessor string overflow",
+              "scripts/tools/data-pipeline-host-contract.node-test.mjs"
+            ]
+          },
+          "last_result": "not-run"
+        }
+      ],
+      "regression": {
+        "command": "node --import tsx --test --test-name-pattern='RiskAssessor string overflow' scripts/tools/data-pipeline-host-contract.node-test.mjs",
+        "evidence": null
+      },
+      "notes": "M01 最新一轮真实日志：businessConstraints observed=5 limit=4；第二次重试缺必需字段。"
     }
   ],
   "gates": []

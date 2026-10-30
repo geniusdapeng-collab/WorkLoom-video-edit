@@ -65,6 +65,26 @@ test("strict RiskAssessor projection removes only undeclared top-level fields", 
   });
 });
 
+test("RiskAssessor string overflow is compacted without dropping its content", () => {
+  const schema = {
+    type: "object",
+    additionalProperties: false,
+    required: ["technicalRisks", "businessConstraints", "mitigationSuggestions"],
+    properties: {
+      technicalRisks: { type: "array", maxItems: 5, items: { type: "object", additionalProperties: false, properties: { risk: { type: "string" } } } },
+      businessConstraints: { type: "array", maxItems: 4, items: { type: "string" } },
+      mitigationSuggestions: { type: "array", maxItems: 4, items: { type: "string" } },
+    },
+  };
+  const projected = projectDeclaredFields({
+    technicalRisks: [{ risk: "R1" }],
+    businessConstraints: ["零背景", "无字幕", "无虚构", "无人", "禁高风险素材"],
+    mitigationSuggestions: ["替换参考图"],
+  }, schema);
+  assert.deepEqual(projected.businessConstraints, ["零背景", "无字幕", "无虚构", "无人；禁高风险素材"]);
+  assert.equal(projected.businessConstraints.join("；").includes("禁高风险素材"), true);
+});
+
 test("narrative PRD cannot invent a second cast member or conflicting delivery thresholds", () => {
   const metadata = {
     pipelineRoute: { kind: "narrative" },
