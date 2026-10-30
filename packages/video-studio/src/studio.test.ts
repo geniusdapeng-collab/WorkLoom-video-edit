@@ -39,6 +39,16 @@ vi.mock("./vendor-requirement-entry.js", () => ({
     studioMocks.installed.push("entry");
     return {
       exports: { HyperrealitySystem: class {
+        requirementDiscoveryEngine = {
+          agents: {
+            scene: { timeoutMs: 1, maxRetries: 0 },
+            risk: { maxRetries: 0 },
+          },
+          agentTimeoutMs: 0,
+        };
+        creativeThemeGenerator = { generate: async () => ({}) };
+        prdGenerator = { generate: async () => ({}) };
+        durationConstraintManager = {};
         constructor(options: unknown) { studioMocks.construct(options); }
         create(...input: unknown[]) { return studioMocks.create(...input); }
       } },
@@ -237,6 +247,35 @@ describe("VideoStudio 确认作用域与装配清理", () => {
     expect(studioMocks.installed).not.toContain("production");
     expect(studioMocks.construct).toHaveBeenCalledWith(expect.objectContaining({ productionEngine: expect.objectContaining({ agentConfig: expect.objectContaining({ enableResume: true }) }) }));
     expect(studioMocks.prdScopes).toEqual([{ authority: undefined, validateAuthority: undefined, approvedTheme: undefined }]);
+  });
+
+  it("deferRender 只运行预生产，不进入依赖成片字节的后期", async () => {
+    studioMocks.create.mockImplementation(async () => ({ success: true, stages: {} }));
+    await studio(async () => ({ approved: true })).runPreproduction({
+      projectId: "p-normal",
+      intent: "normal-intent",
+    });
+    expect(studioMocks.create.mock.calls[0]![2]).not.toHaveProperty("skipPostProduction");
+
+    const deferredStudio = new VideoStudio({
+      llm: new WorkloomLLMEngine({
+        baseUrl: "https://example.invalid",
+        apiKey: "test-only",
+        model: "deepseek-flash",
+      }),
+      workDir: "/unused/preproduction-only-test",
+      onApproval: async () => ({ approved: true }),
+      deferRender: true,
+      log: () => undefined,
+    });
+
+    await deferredStudio.runPreproduction({ projectId: "p-deferred", intent: "deferred-intent" });
+
+    expect(studioMocks.create).toHaveBeenCalledWith(
+      "deferred-intent",
+      expect.anything(),
+      expect.objectContaining({ skipRender: true, skipPostProduction: true }),
+    );
   });
 
   it("非营销metadata自报production authority不启用私有制作桥且保留resume", async () => {

@@ -1,0 +1,63 @@
+{
+  "id": "MC-021",
+  "kind": "problem",
+  "level": "L2",
+  "severity": "P1",
+  "batch": 1,
+  "state": "open",
+  "title": "预渲染压测只跳过视频提交却继续执行依赖成片字节的后期，G7 全绿仍被记为失败",
+  "evidence": [
+    {
+      "type": "code",
+      "ref": "packages/video-studio/src/studio.ts:513@463ae7ad844de31674b94e73679dafaf0f5dcac5",
+      "sha256": "c08ff3a534ab41b79e0ffa392acde8cd4e0e48535154d9868b471e3435502d19",
+      "note": "deferRender 只设置 skipRender，未设置 vendor 已支持的 skipPostProduction；vendor 随后仍把空渲染结果送入后期，使 POST_RENDER_PROVIDER_SUCCESS_REQUIRED 污染预生产结果。"
+    }
+  ],
+  "root_cause": {
+    "file": "packages/video-studio/src/studio.ts",
+    "line": 513,
+    "commit": "463ae7ad844de31674b94e73679dafaf0f5dcac5",
+    "symbol": "VideoStudio.runPreproduction"
+  },
+  "trigger_path": "data-pipeline-run 固定 deferRender=true → vendor 跳过渲染但仍执行 Layer 4 后期 → 缺失 shot-*.mp4 → M01 的 G1-G7 全部批准、6 镜 6 提示词齐全却以退出码 4 结束。",
+  "assertions": [
+    {
+      "kind": "sample",
+      "given": "deferRender=true 时启动 VideoStudio 预生产",
+      "expect": "传给 vendor 的运行选项同时包含 skipRender=true 与 skipPostProduction=true，G7 后不再进入无源片后期",
+      "command": "node_modules/.bin/vitest run packages/video-studio/src/studio.test.ts -t 'deferRender 只运行预生产'",
+      "exec": {
+        "file": "node_modules/.bin/vitest",
+        "args": [
+          "run",
+          "packages/video-studio/src/studio.test.ts",
+          "-t",
+          "deferRender 只运行预生产"
+        ]
+      },
+      "last_result": "not-run"
+    },
+    {
+      "kind": "property",
+      "given": "普通非 deferRender 运行",
+      "expect": "不得无条件设置 skipPostProduction，既有完整制片路径保持原行为",
+      "command": "node_modules/.bin/vitest run packages/video-studio/src/studio.test.ts -t 'deferRender 只运行预生产'",
+      "exec": {
+        "file": "node_modules/.bin/vitest",
+        "args": [
+          "run",
+          "packages/video-studio/src/studio.test.ts",
+          "-t",
+          "deferRender 只运行预生产"
+        ]
+      },
+      "last_result": "not-run"
+    }
+  ],
+  "regression": {
+    "command": "node_modules/.bin/vitest run packages/video-studio/src/studio.test.ts -t 'deferRender 只运行预生产'",
+    "evidence": null
+  },
+  "notes": "M01 日志：G1 95 / G2 90 / G3 88 / G4 85 / G5 not_applicable / G6 88 / G7 93，6 镜 6 提示词，renderSubmitted=false；随后仅因后期缺源片退出 4。"
+}

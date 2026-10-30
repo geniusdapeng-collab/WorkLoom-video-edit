@@ -632,10 +632,14 @@ export class VideoStudio {
         /**
          * vendor create 的第三参是"运行期开关"（batchMode/portraitExecutor/portraitRuntime/dryRun/skipRender）。
          * deferRender=true 时 Layer 3 不提交（渲染由宿主 render-operator 走 G8 围栏提交），
-         * 避免 vendor 与宿主对同一批镜头各提交一次、双份烧额度。
+         * Layer 4 也必须跳过：没有本次真实成片字节时，后期无法成立，而且会把已完成的
+         * 预生产错误标记为失败。避免 vendor 与宿主对同一批镜头各提交一次、双份烧额度。
          */
         const createOptions: Record<string, unknown> = {};
-        if (cfg.deferRender === true) createOptions.skipRender = true;
+        if (cfg.deferRender === true) {
+          createOptions.skipRender = true;
+          createOptions.skipPostProduction = true;
+        }
         /**
          * 商品情报档案（Stage -2）开关透传：只有宿主显式装配才生效，
          * 未装配时 vendor 保持原有行为（spec 模式出任务书、不落档案）。
