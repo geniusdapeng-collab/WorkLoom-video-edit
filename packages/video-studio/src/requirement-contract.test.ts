@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   RequirementContractError, bindRequirementContract, renderRequirementContract, requirementCast, requirementHash, requirementRecord,
-  requirementScenes, structuredRiskFeedback, structuredSceneFeedback, structuredScenePrompt, structuredSceneSchema, structuredSceneTiming,
+  normalizeDiscoveryTiming, requirementScenes, structuredRiskFeedback, structuredSceneFeedback, structuredScenePrompt, structuredSceneSchema, structuredSceneTiming,
   validateRequirementSchema, verifiedRequirementContract, type RequirementRecord
 } from "./requirement-contract.js";
 import { SCENE_SUM_ARITHMETIC_TOLERANCE_SECONDS, TARGET_DURATION_TOLERANCE_SECONDS } from "./duration-contract.js";
@@ -28,6 +28,35 @@ afterEach(() => {
   for (const key of Object.keys(nativeDiscovery)) expect(RequirementDiscoveryEngine.prototype[key]).toBe(nativeDiscovery[key]);
   expect(network).not.toHaveBeenCalled();
   vi.clearAllTimers(); vi.useRealTimers(); vi.unstubAllGlobals();
+});
+
+describe("discovery timing authority", () => {
+  it("reconciles a tolerated scene residual to the customer's exact duration", () => {
+    const structure = {
+      opening: { duration: 4 },
+      scenes: [{ duration: 5 }, { duration: 6 }, { duration: 8 }, { duration: 5 }],
+      ending: { duration: 3 },
+      totalDuration: 31,
+      sceneCount: 6,
+    };
+    const audience = { emotionTriggers: ["第50秒愿意转发", "第12秒感到精密"] };
+    const normalized = normalizeDiscoveryTiming(30, structure, audience);
+    expect(normalized).toEqual({ changes: ["scene-duration-reconciled", "audience-timing-projected-to-scenes"], previousDuration: 31, normalizedDuration: 30 });
+    expect(structure.totalDuration).toBe(30);
+    expect(structure.sceneCount).toBe(6);
+    expect(structure.opening.duration + structure.scenes.reduce((sum, scene) => sum + scene.duration, 0) + structure.ending.duration).toBe(30);
+    expect(structure.scenes.every((scene) => scene.duration >= 3)).toBe(true);
+    expect(audience.emotionTriggers).toEqual(["已审场景节点愿意转发", "已审场景节点感到精密"]);
+  });
+
+  it("leaves an impossible residual for strict validation instead of fabricating a timeline", () => {
+    const structure = {
+      opening: { duration: 3 }, scenes: [{ duration: 3 }], ending: { duration: 3 }, totalDuration: 9, sceneCount: 3,
+    };
+    const normalized = normalizeDiscoveryTiming(20, structure, {});
+    expect(normalized.changes).toEqual([]);
+    expect(structure.totalDuration).toBe(9);
+  });
 });
 
 function metadata(id = "young-rider-01", name = "李英子"): RequirementRecord {

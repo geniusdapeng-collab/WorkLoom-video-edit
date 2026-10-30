@@ -5,7 +5,7 @@
   "repo_path": "/Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit",
   "title": "",
   "created_at": "2026-10-30T06:14:55.791Z",
-  "updated_at": "2026-10-30T08:34:30.290Z",
+  "updated_at": "2026-10-30T09:15:16.781Z",
   "baseline": {
     "audit": {
       "commit": "463ae7ad844de31674b94e73679dafaf0f5dcac5",
@@ -16,7 +16,7 @@
       "notes": ""
     },
     "repair": {
-      "commit": "45568223663261fbfe70601c3b83d98a4ecf30e0",
+      "commit": "ecdda4514fd244a2e9c6e67f35ac3eaedfff4ae8",
       "reverified_problem_ids": []
     },
     "acceptance": {
@@ -1405,7 +1405,7 @@
       "level": "L2",
       "severity": "P1",
       "batch": 0,
-      "state": "open",
+      "state": "fixed",
       "title": "SceneArchitect 仅两次 180 秒尝试，截断后超时即整轮需求洞察失败",
       "evidence": [
         {
@@ -1438,7 +1438,17 @@
               "scripts/tools/data-pipeline-host-contract.node-test.mjs"
             ]
           },
-          "last_result": "not-run"
+          "last_result": "pass",
+          "run": {
+            "path": "runs/MC-016-0-1793349279532.json",
+            "sha256": "e462d6133b73d9d0e531f37ea042e572fe18cd6d48d5f7a1e59cd2209f24b6d1",
+            "commit": "ecdda4514fd244a2e9c6e67f35ac3eaedfff4ae8"
+          },
+          "evidence": {
+            "path": "evidence/MC-016-0-1793349279532.txt",
+            "sha256": "6f13766567d4514acb9ea20fcf0f5b298bbdedfd12df979ee8b6b4b0bf7d5953",
+            "commit": "ecdda4514fd244a2e9c6e67f35ac3eaedfff4ae8"
+          }
         },
         {
           "kind": "property",
@@ -1455,14 +1465,101 @@
               "scripts/tools/data-pipeline-host-contract.node-test.mjs"
             ]
           },
-          "last_result": "not-run"
+          "last_result": "pass",
+          "run": {
+            "path": "runs/MC-016-1-1793349280077.json",
+            "sha256": "192b8a197f93b87723a15d7dbe1b9b06bc48ba0037e84289b81f6f5b90194701",
+            "commit": "ecdda4514fd244a2e9c6e67f35ac3eaedfff4ae8"
+          },
+          "evidence": {
+            "path": "evidence/MC-016-1-1793349280077.txt",
+            "sha256": "89cdb5a98fc3673ca03e1170b8561862dd2e14a2247e5a13df3fb454864155ba",
+            "commit": "ecdda4514fd244a2e9c6e67f35ac3eaedfff4ae8"
+          }
         }
       ],
       "regression": {
         "command": "node --import tsx --test --test-name-pattern='scene and risk' scripts/tools/data-pipeline-host-contract.node-test.mjs",
         "evidence": null
       },
-      "notes": "M01 最新真实日志：第1次 JSON 截断、第2次 LLM 调用超时，随后 SceneArchitect 全部失败。"
+      "notes": "M01 最新真实日志：第1次 JSON 截断、第2次 LLM 调用超时，随后 SceneArchitect 全部失败。",
+      "verified_by": null,
+      "verified_at": null,
+      "verification_evidence": null,
+      "last_assertion_attempt": {
+        "actor": "root-repair-2026-10-30",
+        "role": "repair",
+        "result": "pass",
+        "at": "2026-10-30T08:34:39.532Z",
+        "commit": "ecdda4514fd244a2e9c6e67f35ac3eaedfff4ae8",
+        "finished_at": "2026-10-30T08:34:40.505Z"
+      },
+      "fixed_by": "root-repair-2026-10-30"
+    },
+    {
+      "id": "MC-017",
+      "kind": "problem",
+      "level": "L3",
+      "severity": "P1",
+      "batch": 2,
+      "state": "open",
+      "title": "G3 接受 ±5 秒残留却不归一到客户精确时长，且受众保留超片长秒点",
+      "evidence": [
+        {
+          "type": "code",
+          "ref": "packages/video-studio/src/requirement-contract.ts:340@463ae7ad844de31674b94e73679dafaf0f5dcac5",
+          "sha256": "10225700397bc24f0a98df8844e5b51e1df8650408d9a340a43967e88fcd4d16",
+          "note": "binding 直接使用模型 sceneStructure 总时长并仅做容差校验；30 秒 Brief 的 31 秒场景与受众“第50秒”会原样进入 G3。"
+        }
+      ],
+      "root_cause": {
+        "file": "packages/video-studio/src/requirement-contract.ts",
+        "line": 340,
+        "commit": "463ae7ad844de31674b94e73679dafaf0f5dcac5",
+        "symbol": "bindRequirementContract"
+      },
+      "trigger_path": "SceneArchitect 6 个节点合计 31 秒（客户 Brief=30） → 容差校验放行 → G3 内容仍写 31 秒；受众推测含第50秒 → 监制以时间轴不一致拒绝。",
+      "assertions": [
+        {
+          "kind": "sample",
+          "given": "目标 30 秒，场景 4+5+6+8+5+3=31 秒，受众含第50秒/第12秒",
+          "expect": "场景残差归一到恰好 30 秒，节点数与 >=3 秒边界保留；受众秒点统一投影到已审场景节点",
+          "command": "node --import tsx --test --test-name-pattern='discovery timing' scripts/tools/data-pipeline-host-contract.node-test.mjs",
+          "exec": {
+            "file": "node",
+            "args": [
+              "--import",
+              "tsx",
+              "--test",
+              "--test-name-pattern=discovery timing",
+              "scripts/tools/data-pipeline-host-contract.node-test.mjs"
+            ]
+          },
+          "last_result": "not-run"
+        },
+        {
+          "kind": "property",
+          "given": "差额超出 ±5 秒容差",
+          "expect": "不得自行补造时间轴，保留给严格校验失败关闭",
+          "command": "node --import tsx --test --test-name-pattern='discovery timing' scripts/tools/data-pipeline-host-contract.node-test.mjs",
+          "exec": {
+            "file": "node",
+            "args": [
+              "--import",
+              "tsx",
+              "--test",
+              "--test-name-pattern=discovery timing",
+              "scripts/tools/data-pipeline-host-contract.node-test.mjs"
+            ]
+          },
+          "last_result": "not-run"
+        }
+      ],
+      "regression": {
+        "command": "node --import tsx --test --test-name-pattern='discovery timing' scripts/tools/data-pipeline-host-contract.node-test.mjs",
+        "evidence": null
+      },
+      "notes": "M01 最新真实 G3 80 分：31 秒对 30 秒、第50秒超片长。"
     }
   ],
   "gates": []

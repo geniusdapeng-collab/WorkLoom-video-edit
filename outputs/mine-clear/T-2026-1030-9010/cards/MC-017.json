@@ -1,0 +1,65 @@
+{
+  "id": "MC-017",
+  "kind": "problem",
+  "level": "L3",
+  "severity": "P1",
+  "batch": 2,
+  "state": "open",
+  "title": "G3 接受 ±5 秒残留却不归一到客户精确时长，且受众保留超片长秒点",
+  "evidence": [
+    {
+      "type": "code",
+      "ref": "packages/video-studio/src/requirement-contract.ts:340@463ae7ad844de31674b94e73679dafaf0f5dcac5",
+      "sha256": "10225700397bc24f0a98df8844e5b51e1df8650408d9a340a43967e88fcd4d16",
+      "note": "binding 直接使用模型 sceneStructure 总时长并仅做容差校验；30 秒 Brief 的 31 秒场景与受众“第50秒”会原样进入 G3。"
+    }
+  ],
+  "root_cause": {
+    "file": "packages/video-studio/src/requirement-contract.ts",
+    "line": 340,
+    "commit": "463ae7ad844de31674b94e73679dafaf0f5dcac5",
+    "symbol": "bindRequirementContract"
+  },
+  "trigger_path": "SceneArchitect 6 个节点合计 31 秒（客户 Brief=30） → 容差校验放行 → G3 内容仍写 31 秒；受众推测含第50秒 → 监制以时间轴不一致拒绝。",
+  "assertions": [
+    {
+      "kind": "sample",
+      "given": "目标 30 秒，场景 4+5+6+8+5+3=31 秒，受众含第50秒/第12秒",
+      "expect": "场景残差归一到恰好 30 秒，节点数与 >=3 秒边界保留；受众秒点统一投影到已审场景节点",
+      "command": "node --import tsx --test --test-name-pattern='discovery timing' scripts/tools/data-pipeline-host-contract.node-test.mjs",
+      "exec": {
+        "file": "node",
+        "args": [
+          "--import",
+          "tsx",
+          "--test",
+          "--test-name-pattern=discovery timing",
+          "scripts/tools/data-pipeline-host-contract.node-test.mjs"
+        ]
+      },
+      "last_result": "not-run"
+    },
+    {
+      "kind": "property",
+      "given": "差额超出 ±5 秒容差",
+      "expect": "不得自行补造时间轴，保留给严格校验失败关闭",
+      "command": "node --import tsx --test --test-name-pattern='discovery timing' scripts/tools/data-pipeline-host-contract.node-test.mjs",
+      "exec": {
+        "file": "node",
+        "args": [
+          "--import",
+          "tsx",
+          "--test",
+          "--test-name-pattern=discovery timing",
+          "scripts/tools/data-pipeline-host-contract.node-test.mjs"
+        ]
+      },
+      "last_result": "not-run"
+    }
+  ],
+  "regression": {
+    "command": "node --import tsx --test --test-name-pattern='discovery timing' scripts/tools/data-pipeline-host-contract.node-test.mjs",
+    "evidence": null
+  },
+  "notes": "M01 最新真实 G3 80 分：31 秒对 30 秒、第50秒超片长。"
+}

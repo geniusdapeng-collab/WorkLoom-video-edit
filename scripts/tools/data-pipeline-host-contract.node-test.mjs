@@ -3,7 +3,7 @@ import test from "node:test";
 import { appliedApprovalFeedback, gateDeterministicChecks } from "../../apps/server/src/video/gate-policy.ts";
 import { normalizeMarketingDossierPresentation } from "../../apps/server/src/video/marketing-dossier-normalization.ts";
 import { narrativeThemeInputForRoute } from "../../packages/video-studio/src/requirement-contract-bridge.ts";
-import { projectDeclaredFields } from "../../packages/video-studio/src/requirement-contract.ts";
+import { normalizeDiscoveryTiming, projectDeclaredFields } from "../../packages/video-studio/src/requirement-contract.ts";
 import { normalizeNarrativePrdContract } from "../../packages/video-studio/src/narrative-prd-contract.ts";
 import { normalizeCreativeThemeContract } from "../../packages/video-studio/src/creative-theme-contract.ts";
 import { normalizeMarketingPrdContract } from "../../packages/video-studio/src/marketing-prd-contract.ts";
@@ -84,6 +84,22 @@ test("scene and risk discovery receive three controlled attempts at the extended
   assert.equal(engine.agents.scene.timeoutMs, 240_000);
   assert.equal(engine.agents.scene.maxRetries, 2);
   assert.equal(engine.agents.risk.maxRetries, 2);
+});
+
+test("discovery timing reconciles the tolerated residual and removes out-of-range audience seconds", () => {
+  const structure = {
+    opening: { duration: 4 },
+    scenes: [{ duration: 5 }, { duration: 6 }, { duration: 8 }, { duration: 5 }],
+    ending: { duration: 3 },
+    totalDuration: 31,
+    sceneCount: 6,
+  };
+  const audience = { emotionTriggers: ["第50秒愿意转发", "第12秒感到精密"] };
+  const normalized = normalizeDiscoveryTiming(30, structure, audience);
+  assert.equal(normalized.normalizedDuration, 30);
+  assert.equal(structure.totalDuration, 30);
+  assert.equal(structure.opening.duration + structure.scenes.reduce((sum, scene) => sum + scene.duration, 0) + structure.ending.duration, 30);
+  assert.deepEqual(audience.emotionTriggers, ["已审场景节点愿意转发", "已审场景节点感到精密"]);
 });
 
 test("strict RiskAssessor projection removes only undeclared top-level fields", () => {

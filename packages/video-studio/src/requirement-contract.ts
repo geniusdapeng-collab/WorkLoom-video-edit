@@ -293,6 +293,85 @@ export interface RequirementContract {
   hash: string;
 }
 
+export interface DiscoveryTimingNormalization {
+  changes: string[];
+  previousDuration: number | null;
+  normalizedDuration: number | null;
+}
+
+function sceneNodes(structure: RequirementRecord): RequirementRecord[] {
+  return [
+    requirementRecord(structure.opening, "SceneArchitect opening"),
+    ...array(structure.scenes, "SceneArchitect scenes").map((scene, index) =>
+      requirementRecord(scene, `SceneArchitect scenes/${index}`)),
+    requirementRecord(structure.ending, "SceneArchitect ending"),
+  ];
+}
+
+/**
+ * G3 accepts a small model timing tolerance, but the customer's exact duration
+ * remains authoritative. Reconcile the small residual before hashing the
+ * requirement contract, while preserving node count/order and every minimum of
+ * three seconds supported by the pinned SceneArchitect schema.
+ */
+export function normalizeDiscoveryTiming(
+  targetValue: unknown,
+  structureValue: unknown,
+  audienceValue: unknown,
+): DiscoveryTimingNormalization {
+  const target = Number(targetValue);
+  if (!Number.isFinite(target) || target <= 0 || !structureValue || typeof structureValue !== "object" || Array.isArray(structureValue)) {
+    return { changes: [], previousDuration: null, normalizedDuration: null };
+  }
+  const structure = structureValue as RequirementRecord;
+  const nodes = sceneNodes(structure);
+  const durations = nodes.map((node) => Number(node.duration));
+  if (durations.some((value) => !Number.isFinite(value) || value <= 0)) {
+    return { changes: [], previousDuration: null, normalizedDuration: null };
+  }
+  const previousDuration = Math.round(durations.reduce((sum, value) => sum + value, 0) * 10) / 10;
+  const changes: string[] = [];
+  let residual = Math.round((previousDuration - target) * 10) / 10;
+  if (Math.abs(residual) > TARGET_DURATION_TOLERANCE_SECONDS) {
+    return { changes, previousDuration, normalizedDuration: null };
+  }
+  if (residual !== 0) {
+    const adjustable = nodes.map((node, index) => ({ node, index, duration: durations[index]! }))
+      .sort((left, right) => right.duration - left.duration);
+    for (const item of adjustable) {
+      if (residual === 0) break;
+      if (residual > 0) {
+        const removable = Math.max(0, Math.floor((item.duration - 3) * 10) / 10);
+        if (removable <= 0) continue;
+        const delta = Math.min(removable, residual);
+        item.node.duration = Math.round((item.duration - delta) * 10) / 10;
+        residual = Math.round((residual - delta) * 10) / 10;
+      } else {
+        const delta = Math.abs(residual);
+        item.node.duration = Math.round((item.duration + delta) * 10) / 10;
+        residual = 0;
+      }
+    }
+    if (residual === 0) {
+      structure.totalDuration = target;
+      structure.sceneCount = nodes.length;
+      changes.push("scene-duration-reconciled");
+    }
+  }
+  const audience = audienceValue && typeof audienceValue === "object" && !Array.isArray(audienceValue)
+    ? audienceValue as RequirementRecord
+    : null;
+  if (audience && Array.isArray(audience.emotionTriggers)) {
+    const triggers = audience.emotionTriggers.map((value) =>
+      typeof value === "string" ? value.replace(/第\s*\d+(?:\.\d+)?\s*秒/gu, "已审场景节点") : value);
+    if (JSON.stringify(triggers) !== JSON.stringify(audience.emotionTriggers)) {
+      audience.emotionTriggers = triggers;
+      changes.push("audience-timing-projected-to-scenes");
+    }
+  }
+  return { changes, previousDuration, normalizedDuration: target };
+}
+
 /** Every physical item and action must be present in the same SceneArchitect response. */
 export function requirementScenes(structureValue: unknown, cast: RequirementCast, targetDuration?: unknown): RequirementScene[] {
   const structure = requirementRecord(structureValue, "SceneArchitect 场景结构");
@@ -357,11 +436,20 @@ export function bindRequirementContract(
   expectedOwnerAudience: string | null
 ): RequirementRecord {
   const original = requirementRecord(originalValue, "ProfileResolver 完成后的需求清单");
-  const discovery = requirementRecord(discoveryValue, "需求洞察结果");
+  const discovery = structuredClone(requirementRecord(discoveryValue, "需求洞察结果"));
   const upstream = requirementRecord(upstreamValue, "上游创意字段");
   const metadata = requirementRecord(metadataValue, "当前运行 metadata");
   const cast = requirementCast(metadata);
   if (cast.hash !== expectedCastHash) throw new RequirementContractError("REQUIREMENT_CAST_CHANGED", "洞察前后权威人物合同发生变化");
+  const timing = normalizeDiscoveryTiming(upstream.duration_sec, discovery.sceneStructure, discovery.audienceProfile);
+  if (timing.changes.length > 0) {
+    metadata._workloomDiscoveryTimingNormalization = {
+      schemaVersion: "workloom.discovery-timing-normalization/v1",
+      previousDuration: timing.previousDuration,
+      normalizedDuration: timing.normalizedDuration,
+      changes: timing.changes,
+    };
+  }
   const scenes = requirementScenes(discovery.sceneStructure, cast, upstream.duration_sec);
   const brief = metadata.brief === undefined ? {} : requirementRecord(metadata.brief, "客户 Brief");
   const ownerAudience = expectedOwnerAudience;
