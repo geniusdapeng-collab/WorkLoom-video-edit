@@ -360,6 +360,47 @@ function compactStringArray(value: unknown[], maxLength: number): string[] {
   });
 }
 
+function compactNamedStringArray(record: RequirementRecord, key: string, maxItems: number): void {
+  const value = record[key];
+  if (!Array.isArray(value) || value.length <= maxItems || !value.every((entry) => typeof entry === "string")) return;
+  if (maxItems <= 0) {
+    record[key] = [];
+    return;
+  }
+  const head = value.slice(0, Math.max(0, maxItems - 1)) as string[];
+  const tail = value.slice(Math.max(0, maxItems - 1)) as string[];
+  record[key] = [...head, `补充要求：${tail.join("；")}`];
+}
+
+/**
+ * Compact only free-text execution lists whose excess cardinality is a schema
+ * presentation issue. References, deliverables and cast arrays remain hard
+ * failures because their cardinality carries semantic/authority meaning.
+ */
+function compactProductionExecutionArrays(value: unknown): void {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return;
+  const production = value as RequirementRecord;
+  const scenePlan = production.scenePlan && typeof production.scenePlan === "object" && !Array.isArray(production.scenePlan)
+    ? production.scenePlan as RequirementRecord
+    : null;
+  if (Array.isArray(scenePlan?.scenes)) {
+    for (const scene of scenePlan.scenes) {
+      if (!scene || typeof scene !== "object" || Array.isArray(scene)) continue;
+      compactNamedStringArray(scene as RequirementRecord, "keyProps", 5);
+      compactNamedStringArray(scene as RequirementRecord, "visualRequirements", 5);
+      compactNamedStringArray(scene as RequirementRecord, "audioRequirements", 5);
+    }
+  }
+  const constraints = production.productionConstraints && typeof production.productionConstraints === "object" && !Array.isArray(production.productionConstraints)
+    ? production.productionConstraints as RequirementRecord
+    : null;
+  if (constraints) {
+    compactNamedStringArray(constraints, "technicalConstraints", 5);
+    compactNamedStringArray(constraints, "businessConstraints", 3);
+    compactNamedStringArray(constraints, "forbiddenElements", 5);
+  }
+}
+
 /** Validate the actual model payload before vendor parsers can manufacture missing modules. */
 export function validatePrdModelPayload(value: unknown, kind: "creative" | "production", schemaValue: RequirementRecord, contract: RequirementContract, profile: PrdProductionProfile): RequirementRecord {
   let parsed: unknown = value;
@@ -377,6 +418,8 @@ export function validatePrdModelPayload(value: unknown, kind: "creative" | "prod
     if (Array.isArray(result.keyMessages) && Number.isSafeInteger(maxLength) && maxLength > 0) {
       result.keyMessages = compactStringArray(result.keyMessages, maxLength);
     }
+  } else {
+    compactProductionExecutionArrays(result);
   }
   // Retain the existing creative validation path and acceptance semantics.
   const schema = kind === "creative"
