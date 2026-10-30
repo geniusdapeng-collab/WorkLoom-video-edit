@@ -5,7 +5,7 @@
   "repo_path": "/Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit",
   "title": "",
   "created_at": "2026-10-30T06:14:55.791Z",
-  "updated_at": "2026-10-30T23:23:24.541Z",
+  "updated_at": "2026-10-30T23:24:07.356Z",
   "baseline": {
     "audit": {
       "commit": "463ae7ad844de31674b94e73679dafaf0f5dcac5",
@@ -16,7 +16,7 @@
       "notes": ""
     },
     "repair": {
-      "commit": "e04fad1f70098287a9f100ec0ba1581335e09792",
+      "commit": "563c7a26d7951c94b490cbcb1dcd971aee4ec84c",
       "reverified_problem_ids": []
     },
     "acceptance": {
@@ -2013,7 +2013,7 @@
       "level": "L3",
       "severity": "P1",
       "batch": 1,
-      "state": "open",
+      "state": "fixed",
       "title": "可选品牌字段与显式商品查询冲突时未在事实绑定层隔离，正向前置被真实监制整批拒绝",
       "evidence": [
         {
@@ -2045,7 +2045,17 @@
               "可选品牌冲突"
             ]
           },
-          "last_result": "not-run"
+          "last_result": "pass",
+          "run": {
+            "path": "runs/MC-022-0-1793402645524.json",
+            "sha256": "853ea37b7aa01909adf4869c9551ceb33773a3bdab696e949fce5ea3385ec3e2",
+            "commit": "563c7a26d7951c94b490cbcb1dcd971aee4ec84c"
+          },
+          "evidence": {
+            "path": "evidence/MC-022-0-1793402645524.txt",
+            "sha256": "2e4d0d7bfcae3c6cff840a4035d105b703547078db55f30829084b652080aa86",
+            "commit": "563c7a26d7951c94b490cbcb1dcd971aee4ec84c"
+          }
         },
         {
           "kind": "property",
@@ -2061,14 +2071,36 @@
               "可选品牌与显式商品查询冲突"
             ]
           },
-          "last_result": "not-run"
+          "last_result": "pass",
+          "run": {
+            "path": "runs/MC-022-1-1793402646108.json",
+            "sha256": "7830a8d22addbf8dff2a6948357a330c78203a9b55f3d9dbb38a1b3aa6e1019c",
+            "commit": "563c7a26d7951c94b490cbcb1dcd971aee4ec84c"
+          },
+          "evidence": {
+            "path": "evidence/MC-022-1-1793402646108.txt",
+            "sha256": "b2f2c095303b23ba6023e796d21e21a9fdcced45454e7b1753e1b6d9283b1246",
+            "commit": "563c7a26d7951c94b490cbcb1dcd971aee4ec84c"
+          }
         }
       ],
       "regression": {
         "command": "node_modules/.bin/vitest run apps/server/src/video/marketing-facts.test.ts apps/server/src/video/marketing-authority.test.ts",
         "evidence": null
       },
-      "notes": "M01 第二次真实运行在 44 秒内被 G1 原文支持审核拒绝；拒绝本身正确，缺口是可选品牌冲突应在进入语义审核前被宿主隔离。"
+      "notes": "M01 第二次真实运行在 44 秒内被 G1 原文支持审核拒绝；拒绝本身正确，缺口是可选品牌冲突应在进入语义审核前被宿主隔离。",
+      "verified_by": null,
+      "verified_at": null,
+      "verification_evidence": null,
+      "last_assertion_attempt": {
+        "actor": "root-repair-2026-10-31",
+        "role": "repair",
+        "result": "pass",
+        "at": "2026-10-30T23:24:05.523Z",
+        "commit": "563c7a26d7951c94b490cbcb1dcd971aee4ec84c",
+        "finished_at": "2026-10-30T23:24:07.356Z"
+      },
+      "fixed_by": "root-repair-2026-10-31"
     }
   ],
   "gates": []
