@@ -5,7 +5,7 @@
  "repository": "workloom-ai/WorkLoom-video-edit",
  "displayName": "WorkLoom 视频AI剪辑系统（实验车道）",
  "description": "企业获客与内容运营工作系统：工作台、行业包声明、内容生产工位与共享治理组件。",
- "generatedAt": "2026-10-26T18:04:36.948Z",
+ "generatedAt": "2026-10-30T05:04:24.143Z",
  "evidenceNotice": "本导览检查 manifest、脚本和文件入口。目录可发现、实际可调用、结果已验证分别记录；缺少同提交独立运行证据时后两项为未验证。岗位、技能与管线数是声明资产数，不是生产实测通过数。",
  "bundleDeclarations": [
   {
@@ -13,7 +13,7 @@
    "version": "1.0.0",
    "status": "candidate",
    "presets": 43,
-   "skills": 36,
+   "skills": 37,
    "pipelines": 6,
    "presetKeys": [
     "ads-optimizer",
@@ -156,7 +156,7 @@
  ],
  "declarationTotals": {
   "presets": 101,
-  "skills": 108,
+  "skills": 109,
   "pipelines": 13,
   "uniquePresetKeys": 97
  },
@@ -263,7 +263,7 @@
     {
      "name": "bundles/ai-video/",
      "how": "[manifest](../bundles/ai-video/bundle.json)",
-     "desc": "43 条岗位定义 / 36 项技能路径 / 6 条管线；版本 1.0.0，状态 candidate；不等于已接通功能数",
+     "desc": "43 条岗位定义 / 37 项技能路径 / 6 条管线；版本 1.0.0，状态 candidate；不等于已接通功能数",
      "sourcePaths": [
       "bundles/ai-video/bundle.json",
       "bundles/geo-growth/bundle.json",

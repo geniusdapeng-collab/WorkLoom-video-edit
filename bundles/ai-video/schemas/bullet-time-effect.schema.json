@@ -1,0 +1,374 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "workloom://bundles/ai-video/schemas/bullet-time-effect",
+  "title": "WorkLoom bullet-time shot contract",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "enabled",
+    "mode",
+    "narrative",
+    "time",
+    "camera",
+    "generation",
+    "entryExit",
+    "quality",
+    "audioPolicy",
+    "fallback"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": "workloom.video-studio/bullet-time/v1"
+    },
+    "enabled": {
+      "type": "boolean"
+    },
+    "mode": {
+      "enum": [
+        "freeze_orbit"
+      ]
+    },
+    "narrative": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "purpose",
+        "whyNotNormalCut",
+        "viewerTakeaway"
+      ],
+      "properties": {
+        "purpose": {
+          "type": "string",
+          "minLength": 1
+        },
+        "whyNotNormalCut": {
+          "type": "string",
+          "minLength": 1
+        },
+        "viewerTakeaway": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "time": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "subjectTime",
+        "subjectTimeRange",
+        "entrySeconds",
+        "exitSeconds",
+        "timeReturn",
+        "motionLayers"
+      ],
+      "properties": {
+        "subjectTime": {
+          "enum": [
+            "freeze",
+            "near_freeze"
+          ]
+        },
+        "subjectTimeRange": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "start",
+            "end"
+          ],
+          "properties": {
+            "start": {
+              "type": "number",
+              "minimum": 0
+            },
+            "end": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            }
+          }
+        },
+        "entrySeconds": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "exitSeconds": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "timeReturn": {
+          "enum": [
+            "smooth",
+            "cut"
+          ]
+        },
+        "motionLayers": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "face",
+            "body",
+            "hairTips",
+            "fabricHem",
+            "background",
+            "ambientParticles"
+          ],
+          "properties": {
+            "face": {
+              "type": "string",
+              "const": "locked"
+            },
+            "body": {
+              "type": "string",
+              "const": "locked"
+            },
+            "hairTips": {
+              "enum": [
+                "locked",
+                "very_slow",
+                "not_applicable"
+              ]
+            },
+            "fabricHem": {
+              "enum": [
+                "locked",
+                "very_slow",
+                "not_applicable"
+              ]
+            },
+            "background": {
+              "enum": [
+                "locked",
+                "very_slow",
+                "not_applicable"
+              ]
+            },
+            "ambientParticles": {
+              "enum": [
+                "locked",
+                "very_slow",
+                "not_applicable"
+              ]
+            },
+            "props": {
+              "enum": [
+                "locked",
+                "very_slow",
+                "not_applicable"
+              ]
+            }
+          }
+        }
+      }
+    },
+    "camera": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "movement",
+        "direction",
+        "startView",
+        "endView",
+        "approxArcDegrees",
+        "height",
+        "speed",
+        "cuts",
+        "focusBehavior",
+        "narrativeReveal"
+      ],
+      "properties": {
+        "movement": {
+          "const": "continuous_orbit"
+        },
+        "direction": {
+          "enum": [
+            "clockwise",
+            "counterclockwise"
+          ]
+        },
+        "startView": {
+          "type": "string",
+          "minLength": 1
+        },
+        "endView": {
+          "type": "string",
+          "minLength": 1
+        },
+        "approxArcDegrees": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 180
+        },
+        "height": {
+          "type": "string",
+          "minLength": 1
+        },
+        "speed": {
+          "enum": [
+            "slow_constant",
+            "slow_variable"
+          ]
+        },
+        "cuts": {
+          "const": 0
+        },
+        "focusBehavior": {
+          "type": "string",
+          "minLength": 1
+        },
+        "narrativeReveal": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "generation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "inputMode",
+        "durationSeconds",
+        "maxContinuousOrbit",
+        "characterReferenceSet"
+      ],
+      "properties": {
+        "inputMode": {
+          "enum": [
+            "text",
+            "first-frame",
+            "reference-image",
+            "reference-video"
+          ]
+        },
+        "durationSeconds": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "maxContinuousOrbit": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 180
+        },
+        "characterReferenceSet": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^[A-Za-z][A-Za-z0-9-]*$"
+          }
+        },
+        "previsReference": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "requested",
+            "purpose"
+          ],
+          "properties": {
+            "requested": {
+              "type": "boolean"
+            },
+            "purpose": {
+              "const": "camera_and_timing_only"
+            }
+          }
+        }
+      }
+    },
+    "entryExit": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "entryAction",
+        "exitAction",
+        "exitMustMatchNextShot"
+      ],
+      "properties": {
+        "entryAction": {
+          "type": "string",
+          "minLength": 1
+        },
+        "exitAction": {
+          "type": "string",
+          "minLength": 1
+        },
+        "exitMustMatchNextShot": {
+          "type": "boolean"
+        }
+      }
+    },
+    "quality": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "mustBePhotoreal",
+        "mustPreserveIdentity",
+        "mustPreserveWardrobe",
+        "mustPreservePropState",
+        "mustHaveRealParallax",
+        "mustHaveSubjectNearFreeze",
+        "mustHaveLayerMicroMotion",
+        "mustNotContainBgm"
+      ],
+      "properties": {
+        "mustBePhotoreal": {
+          "type": "boolean"
+        },
+        "mustPreserveIdentity": {
+          "type": "boolean"
+        },
+        "mustPreserveWardrobe": {
+          "type": "boolean"
+        },
+        "mustPreservePropState": {
+          "type": "boolean"
+        },
+        "mustHaveRealParallax": {
+          "type": "boolean"
+        },
+        "mustHaveSubjectNearFreeze": {
+          "type": "boolean"
+        },
+        "mustHaveLayerMicroMotion": {
+          "type": "boolean"
+        },
+        "mustNotContainBgm": {
+          "type": "boolean"
+        }
+      }
+    },
+    "audioPolicy": {
+      "enum": [
+        "diegetic_only",
+        "scene_music_allowed",
+        "specified_separately"
+      ]
+    },
+    "fallback": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "ifNoContinuousOrbit",
+        "ifNoModelSupport",
+        "mustRelabelInUi"
+      ],
+      "properties": {
+        "ifNoContinuousOrbit": {
+          "enum": [
+            "guided_orbit",
+            "segmented_orbit"
+          ]
+        },
+        "ifNoModelSupport": {
+          "enum": [
+            "editorial_fake",
+            "block"
+          ]
+        },
+        "mustRelabelInUi": {
+          "const": true
+        }
+      }
+    }
+  }
+}

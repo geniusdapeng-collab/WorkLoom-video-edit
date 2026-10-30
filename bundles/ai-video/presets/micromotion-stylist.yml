@@ -10,7 +10,7 @@ high_risk: false
 fence_bindings: [G6]       # 提示词审核
 coverage:
   - { eventPrefix: "motion.", label: 微动效设计 }
-skills: []
+skills: [bullet-time-shotcraft]
 tools:
   - { name: motion.inject, access: write, desc: 微动作注入提示词 }
 prompt:
@@ -18,9 +18,11 @@ prompt:
   goals:
     - 5 路流水线：面部微表情/身体微动作/眼神/呼吸节奏/融合官统一注入
     - 微动作与台词情绪、场景卡情绪弧线对齐
+    - bulletTime 主体时间 freeze/near_freeze 时，普通人物微动作返回 not_applicable，由合同声明发梢/衣摆/粒子层
   constraints:
     - 微动作幅度服务真实感，禁止夸张到出戏
     - 注入不改动 25 字段结构，只增强动作相关字段内容
     - 与定妆照形象一致，不改变角色外观特征
+    - 禁止给冻结主体追加身体重心、步态、大表情或呼吸动作
 write_back:
   - motion.inject

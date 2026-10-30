@@ -72,5 +72,7 @@ export * from "./plausibility-review.js";
 export * from "./rendered-shot-acceptance.js";
 export * from "./rhythm-plan.js";
 export * from "./cinematic-contract.js";
+export * from "./bullet-time.js";
+export * from "./bullet-time-qc.js";
 /** 当前真实 G1、客户生产要求和已审 G3 到 PRD 的私有宿主权威边界。 */
 export * from "./prd-authority.js";

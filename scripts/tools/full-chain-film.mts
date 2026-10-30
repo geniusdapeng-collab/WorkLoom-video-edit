@@ -100,6 +100,14 @@ import { loadProductArchives, productArchivePromptLines, productHeroPhoto, produ
 import { assertShotMatchesCertifiedAsset, assetIdOf, hasIdentityAnchor, identityAnchorContext, identityAnchorPath, identityReviewContext, loadRealPersonAssets, realPersonUsageReceipt, referenceAssetRefs, REAL_PERSON_POLICY_VERSION } from "../../packages/video-studio/src/real-person-asset.js";
 import { auditFilmRedlines, PROMPT_REDLINE_POLICY_VERSION } from "../../packages/video-studio/src/prompt-redlines.js";
 import { assessFilmFirstPass, FIRST_PASS_POLICY_VERSION } from "../../packages/video-studio/src/first-pass.js";
+import {
+  CONSERVATIVE_BULLET_TIME_CAPABILITIES,
+  bulletTimeReferenceClause,
+  bulletTimeReferencePlan,
+  inspectBulletTimeMotion,
+  validateBulletTimePrompt,
+  type BulletTimeCapabilities,
+} from "../../packages/video-studio/src/bullet-time.js";
 import { REALISM_CLAUSE, REALISM_NEGATIVE_TERMS } from "../../packages/video-studio/src/shot-spec.js";
 import { resolveFilmSpeechLanguage, dialogueLines, speechLanguageClause, exactDialogueClause, noSpeechClause, speechNegativeTerms } from "../../packages/video-studio/src/dialogue-contract.js";
 import { reviewPlausibility, applyPromptPatches, PLAUSIBILITY_POLICY_VERSION } from "../../packages/video-studio/src/plausibility-review.js";
@@ -667,6 +675,26 @@ const ARK_KEY = ENV.VOLCENGINE_ARK_API_KEY ?? ENV.ARK_API_KEY ?? "";
 const ARK_BASE = (ENV.ARK_BASE_URL ?? "https://ark.cn-beijing.volces.com/api/v3").replace(/\/$/, "");
 const IMAGE_MODEL = ENV.SEEDREAM_MODEL ?? ENV.ARK_IMAGE_MODEL ?? "doubao-seedream-5-0-pro-260628";
 const VIDEO_MODEL = ENV.SEEDANCE_MODEL ?? ENV.ARK_VIDEO_MODEL ?? "doubao-seedance-2-5-260628";
+const BULLET_TIME_CAPABILITIES: BulletTimeCapabilities = (() => {
+  try {
+    const catalog = JSON.parse(readFileSync(join(REPO_ROOT, "bundles/ai-video/library/media-catalog/media-catalog.json"), "utf8")) as {
+      models?: Array<{ provider?: string; providerModel?: string; modes?: string[]; supports?: string[]; limits?: { durationSec?: { min?: number; max?: number }; maxReferenceImages?: number } }>;
+    };
+    const model = (catalog.models ?? []).find((item) => item.provider === "seedance" && item.providerModel === VIDEO_MODEL);
+    const min = model?.limits?.durationSec?.min;
+    const max = model?.limits?.durationSec?.max;
+    const maxReferenceImages = model?.limits?.maxReferenceImages;
+    if (!model || !Number.isInteger(min) || !Number.isInteger(max) || !Number.isInteger(maxReferenceImages)) {
+      return CONSERVATIVE_BULLET_TIME_CAPABILITIES;
+    }
+    const supportedInputModes: BulletTimeCapabilities["supportedInputModes"] = ["text"];
+    if (model.supports?.includes("firstFrame")) supportedInputModes.push("first-frame");
+    if (model.supports?.includes("references")) supportedInputModes.push("reference-image");
+    return { durationSeconds: { min: min!, max: max! }, maxReferenceImages: maxReferenceImages!, supportedInputModes, supportsReferenceVideo: false };
+  } catch {
+    return CONSERVATIVE_BULLET_TIME_CAPABILITIES;
+  }
+})();
 // Supplier credentials are required only at a real submission; already rendered sources need none.
 
 /* ================= 阶段日志 ================= */
@@ -1748,7 +1776,7 @@ if (assetShots().length > 0) {
  * 在**每一次真正花钱的提交之前**，对最终编译出来的提示词做确定性体检；命中红线即拒绝提交（fail-closed），
  * 并把结论写进门账本（G-PRE1）。同时禁止"同一提示词重试"（指纹相同 = 同一注押两次）。
  */
-function preflightSubmitGuard(input: { shotId: string; stage: string; prompt: string; fps: number; attempt: number; prevFingerprint: string | null }): void {
+function preflightSubmitGuard(input: { shotId: string; stage: string; prompt: string; fps: number; attempt: number; prevFingerprint: string | null; shot: Record<string, unknown> }): void {
   const text = input.prompt;
   const issues: string[] = [];
   const hasScreen = /屏幕|触控|界面/.test(text);
@@ -1757,7 +1785,9 @@ function preflightSubmitGuard(input: { shotId: string; stage: string; prompt: st
   const hasDoc = /身份证|证件|护照|单据|票据/.test(text);
   const docOk = /(不可辨|背面|无证件文字|无身份证|不出现)/.test(text);
   if (hasDoc && !docOk) issues.push("证件类道具未声明不可辨认/背面/不入画——会出现可辨字迹与号码（隐私红线，真机返修 5 次）");
-  if (/定住|稳住|定格/.test(text) && /推|拉|移|摇|环绕/.test(text)) issues.push("同一镜同时锁\"定住\"时点与推拉运镜——模型做不到，落幅必漂（真机返修 3 次）");
+  if (/定住|稳住|定格/.test(text) && /推|拉|移|摇|环绕/.test(text) && !inspectBulletTimeMotion(input.shot, BULLET_TIME_CAPABILITIES).motionException) {
+    issues.push("同一镜同时锁\"定住\"时点与推拉运镜，且没有合法的 bulletTime 主体时间/摄影机时间分层合同——落幅必漂");
+  }
   const fpsMatch = text.match(/(\d{2})\s*fps/i);
   if (fpsMatch && Number(fpsMatch[1]) !== input.fps) issues.push(`提示词写 ${fpsMatch[1]}fps，管线按 ${input.fps}fps 出片`);
   const fingerprint = createHash("sha256").update(text).digest("hex").slice(0, 12);
@@ -1790,7 +1820,7 @@ function preflightSubmitGuard(input: { shotId: string; stage: string; prompt: st
  */
 let FIRST_PASS_ORDER: ShotCard[] = shots;
 {
-  const readiness = assessFilmFirstPass(preRenderShots as unknown as Array<Record<string, unknown>>, { fps: FPS, language: FILM_SPEECH_LANGUAGE });
+  const readiness = assessFilmFirstPass(preRenderShots as unknown as Array<Record<string, unknown>>, { fps: FPS, language: FILM_SPEECH_LANGUAGE, bulletTimeCapabilities: BULLET_TIME_CAPABILITIES });
   const shotIds = shots.map((shot) => String(shot.shotId));
   const order = readiness.renderOrder;
   FIRST_PASS_ORDER = [...shots.filter((shot) => hasRenderedSource(String(shot.shotId))), ...order.map((id) => shots.find((shot) => String(shot.shotId) === id)!).filter(Boolean)];
@@ -1825,7 +1855,7 @@ let FIRST_PASS_ORDER: ShotCard[] = shots;
  * hard 项不清零就 fail-closed；soft 项进证据与日志（不阻断，但必须被看见）。
  */
 {
-  const redlines = auditFilmRedlines(preRenderShots as unknown as Array<Record<string, unknown>>, { fps: FPS });
+  const redlines = auditFilmRedlines(preRenderShots as unknown as Array<Record<string, unknown>>, { fps: FPS, bulletTimeCapabilities: BULLET_TIME_CAPABILITIES });
   const shotIds = shots.map((shot) => String(shot.shotId));
   const redlineGate = recordGate({
     stepKey: "g-prompt-redlines",
@@ -2518,12 +2548,17 @@ function portraitVideoInputs(shot: ShotCard): { images: VideoSubmissionImage[]; 
     || current.kind !== "generated" || current.activeSet.source !== "pure-t2i"
     || (requestedVersion && (!/^[1-9]\d*$/.test(requestedVersion) || Number(requestedVersion) !== lead.version))) throw new Error(`PORTRAIT_REFERENCE_VERSION_INVALID: ${shot.shotId}; current generated pure-t2i version must match requested version`);
   const version = current.activeSet.version;
+  const referencePlan = bulletTimeReferencePlan(shot as unknown as Record<string, unknown>, BULLET_TIME_CAPABILITIES);
+  if (referencePlan.applicable && !referencePlan.valid) {
+    throw new Error(`BULLET_TIME_REFERENCE_PLAN_INVALID: ${shot.shotId}; ${referencePlan.issues.map((issue) => `${issue.code}@${issue.path}`).join("；")}`);
+  }
+  const angles = referencePlan.applicable ? referencePlan.angles : ["front", "closeup"];
   const paths = [...portraitReferenceAuthorizationPaths];
   for (const file of [join(lead.dir, "portrait-sets", `v${version}.json`), join(lead.dir, "provenance", `v${version}.json`)]) {
     if (!existsSync(file)) throw new Error(`PORTRAIT_REFERENCE_PROVENANCE_MISSING: ${file}`);
     paths.push(file);
   }
-  const images = ["front", "closeup"].map((angle) => {
+  const images = angles.map((angle) => {
     const file = current.files[angle];
     const authorized = portraitReferenceAuthorization!.artifacts.find((item) => item.angle === angle);
     if (!file || !authorized || resolve(file) !== resolve(lead.dir, authorized.file)) throw new Error(`PORTRAIT_REFERENCE_PATH_INVALID: ${angle}`);
@@ -2546,6 +2581,10 @@ function portraitVideoInputs(shot: ShotCard): { images: VideoSubmissionImage[]; 
   return { images, paths };
 }
 const portraitReferenceClause = "【人物参考】图1与图2为同一原创虚构成年人物的正面全身和头肩近景，二图共同锚定同一人，不得生成两个人；若有图3，图3仅作商品外观与比例依据。预生产构图稿不作为视频首帧提交。";
+function portraitReferenceClauseFor(shot: ShotCard): string {
+  const plan = bulletTimeReferencePlan(shot as unknown as Record<string, unknown>, BULLET_TIME_CAPABILITIES);
+  return plan.applicable && plan.valid ? bulletTimeReferenceClause(plan.angles) : portraitReferenceClause;
+}
 function submissionReceiptArtifacts(submitted: VideoSubmissionResult): VideoSubmissionArtifact[] {
   return [submitted.receipt.preparedFile, submitted.receipt.ackFile].filter(Boolean).map(fingerprintArtifact);
 }
@@ -2950,7 +2989,7 @@ if (STAGES.has("micromotion")) {
   for (const [index, shot] of shots.entries()) {
     if (hasRenderedSource(String(shot.shotId))) continue;
     if (isMaterialShot(shot)) continue;
-    const { card, trace } = applyMicromotion(shot as unknown as Record<string, unknown>);
+    const { card, trace } = applyMicromotion(shot as unknown as Record<string, unknown>, { bulletTimeCapabilities: BULLET_TIME_CAPABILITIES });
     // Even a reused/N/A result may restore prior owned text. Always consume the returned card.
     shots[index] = card as ShotCard;
     micromotionTraces.set(String(shots[index]!.shotId), trace);
@@ -3093,7 +3132,7 @@ if (STAGES.has("spec")) {
     const chars = dialogueText(shot).replace(/[，。！？、,.!?]/g, "").length;
     const rate = duration > 0 ? chars / duration : 0;
     const report = prepareShotPrompt(shot as unknown as Record<string, unknown>,
-      { ratio: ASPECT, resolution: SOURCE_RESOLUTION, fps: FPS, language: FILM_SPEECH_LANGUAGE });
+      { ratio: ASPECT, resolution: SOURCE_RESOLUTION, fps: FPS, language: FILM_SPEECH_LANGUAGE, bulletTimeCapabilities: BULLET_TIME_CAPABILITIES });
     /**
      * 提示词语言与引用归一（2026-09-24 真机，6 镜全部命中）：
      *   · 卡片【语言约束】要求全中文，而 vendor 负面约束默认夹带英文（no text / no watermark…）→ 映射成中文等价；
@@ -3134,8 +3173,9 @@ if (STAGES.has("spec")) {
      */
     const dialogueFixed = normalizeDialogueWindow(timelineFixed.prompt, duration);
     const finalPrompt = appendCinematicContract(dialogueFixed.prompt, buildCinematicContract(shot as unknown as Record<string, unknown>))
-      + (leadVisibleInShot(shot) ? `\n${portraitReferenceClause}` : "")
+      + (leadVisibleInShot(shot) ? `\n${portraitReferenceClauseFor(shot)}` : "")
       + (REVISION_CONTEXT ? `\n【本次返修验收】保持原镜头主体与意图，仅修复下列已归因问题：${REVISION_CONTEXT}` : "");
+    const finalBulletTimeAudit = validateBulletTimePrompt(finalPrompt, shot as unknown as Record<string, unknown>, { capabilities: BULLET_TIME_CAPABILITIES });
     specReports.push({
       shotId: shot.shotId, charCount: finalPrompt.length, promptSource: report.promptSource,
       deliveryPass: report.delivery.pass, issues: report.delivery.issues,
@@ -3146,7 +3186,8 @@ if (STAGES.has("spec")) {
         replacements: normalized.replacements, dedupedRefs: normalized.dedupedRefs,
         remainingLatin: normalized.remainingLatin, timelineRestored: timelineFixed.restored,
         dialogueWindowClamped: dialogueFixed.clamped, dialogueWindowFrom: dialogueFixed.from,
-        contractRestored: contractFixed.restored
+        contractRestored: contractFixed.restored,
+        ...(finalBulletTimeAudit.applicable ? { bulletTime: finalBulletTimeAudit } : {})
       }
     });
     /** 【场景】被 vendor 写实校验替换/漂移：必须在运行日志里显性出现（不得静默换掉卡片场景） */
@@ -3172,6 +3213,16 @@ if (STAGES.has("spec")) {
      * 一路漏到封面才炸（人物卡找不到来源镜）。字段规范与"有没有生成提示词"无关。
      */
     const promptCarrierHard = !POST_ONLY_ASSEMBLY;
+    checks.push({
+      id: `bullet-time:${shot.shotId}`,
+      pass: !finalBulletTimeAudit.applicable || finalBulletTimeAudit.pass,
+      hard: finalBulletTimeAudit.applicable && promptCarrierHard,
+      detail: finalBulletTimeAudit.applicable
+        ? finalBulletTimeAudit.pass
+          ? `子弹时间最终提示词通过 ${finalBulletTimeAudit.checks.length} 项确定性检查（contract ${finalBulletTimeAudit.contractHash}）`
+          : finalBulletTimeAudit.issues.join("；")
+        : "普通镜头：bulletTime 不适用"
+    });
     /**
      * post-only 字段闸（只拦"组装卡该有却没有"的字段）：
      *   · `scene` / `duration` 是所有镜头的事实必需项；
@@ -3303,13 +3354,14 @@ if (STAGES.has("spec")) {
       /** post-only 组装：以 25 字段 P0 规范为准（不产出提示词）；生成片：沿用"交付闸 + 字数 + 片型约束"口径 */
       ok: POST_ONLY_ASSEMBLY
         ? postOnlyFieldIssues.length === 0
-        : report.delivery.pass && report.charCount >= 1200 && policyPromptPresent,
+        : report.delivery.pass && (!finalBulletTimeAudit.applicable || finalBulletTimeAudit.pass) && report.charCount >= 1200 && policyPromptPresent,
       cached: false, degraded: report.degraded, attempt: 1, ms: Date.now() - started,
       artifact: promptFile,
       evidence: {
         charCount: report.charCount, promptSource: report.promptSource, missing: report.missingSpecFields,
         missingP0: report.missingP0Fields, postOnlyFieldGate: POST_ONLY_ASSEMBLY,
-        sceneSubstituted: report.sceneSubstituted, sceneSubstitution: report.sceneSubstitution
+        sceneSubstituted: report.sceneSubstituted, sceneSubstitution: report.sceneSubstitution,
+        ...(finalBulletTimeAudit.applicable ? { bulletTime: finalBulletTimeAudit } : {})
       },
       verdict: null
     });
@@ -3481,12 +3533,14 @@ if (STAGES.has("spec")) {
 /** Bind a real prompt review to this shot's final bytes; later patches need a new real review. */
 function recordFinalPromptGate(shot: ShotCard, verdict: ProducerVerdict): void {
   const file = join(PROMPT_DIR, `${shot.shotId}.txt`), prompt = readFileSync(file, "utf8");
+  const bulletTime = validateBulletTimePrompt(prompt, shot as unknown as Record<string, unknown>, { capabilities: BULLET_TIME_CAPABILITIES });
   recordGate({ stepKey: "g6-prompt-confirm", sourceStage: "prompt-review", shotIds: [String(shot.shotId)],
     checks: [
       { id: "final-prompt-review", pass: verdict.approved && !verdict.degraded, hard: true, detail: verdict.reason },
-      { id: "final-prompt-constraints", pass: prompt.trim().length >= 1200 && prompt.includes(ASPECT) && !/f\/\d/.test(prompt), hard: true, detail: "当前最终提示词长度、画幅及正文参数规则" },
+      { id: "final-prompt-constraints", pass: prompt.trim().length >= 1200 && prompt.trim().length <= 3000 && prompt.includes(ASPECT) && !/f\/\d/.test(prompt), hard: true, detail: "当前最终提示词长度（1200–3000）、画幅及正文参数规则" },
+      { id: "bullet-time-final", pass: !bulletTime.applicable || bulletTime.pass, hard: bulletTime.applicable, detail: bulletTime.applicable ? (bulletTime.pass ? `bulletTime contract ${bulletTime.contractHash} 最终门通过` : bulletTime.issues.join("；")) : "普通镜头：不适用" },
     ], softApproved: verdict.approved, via: verdict.via, score: verdict.score, degraded: verdict.degraded,
-    inputPaths: [file], exactInputPaths: true, evidence: { mode: "final-prompt", promptSha256: sha256FileSync(file), reviewContractHash: verdict.contractHash ?? null } });
+    inputPaths: [file], exactInputPaths: true, evidence: { mode: "final-prompt", promptSha256: sha256FileSync(file), reviewContractHash: verdict.contractHash ?? null, bulletTime } });
 }
 function plausibilityArchiveFor(shot: ShotCard): NonNullable<ReturnType<typeof selectProductArchive>["archive"]> | null {
   const selector = String((shot as Record<string, unknown>).product ?? "").trim();
@@ -4011,7 +4065,7 @@ if (STAGES.has("material-gen")) {
         prompt += ` | ${extraLines.filter((line) => line.trim()).join(" | ")}`;
       }
       const portrait = portraitVideoInputs(shot);
-      if (portrait.images.length) prompt += `\n${portraitReferenceClause}`;
+      if (portrait.images.length) prompt += `\n${portraitReferenceClauseFor(shot)}`;
       writeFileSync(promptFile, `${prompt}\n`, "utf8");
       const plausibility = !DRY_RUN ? await runPlausibilityGate("pre-submit", [shot]) : null;
       prompt = readFileSync(promptFile, "utf8");
@@ -4083,7 +4137,7 @@ if (STAGES.has("material-gen")) {
           attempt: 0, ms: 0, artifact: null, evidence: { dryRun: true }, verdict: null });
         continue;
       }
-      preflightSubmitGuard({ shotId: String(shot.shotId), stage: "material-gen", prompt, fps: FPS, attempt: 1, prevFingerprint: null });
+      preflightSubmitGuard({ shotId: String(shot.shotId), stage: "material-gen", prompt, fps: FPS, attempt: 1, prevFingerprint: null, shot: shot as unknown as Record<string, unknown> });
       const submitted = await arkVideo({ stage: "material-gen", shotId: shot.shotId, target: rawClip,
         prompt, firstFrame: undefined, refs: [], seconds: renderSecondsFor(duration),
         generateAudio: ENV.SEEDANCE_GENERATE_AUDIO !== "0", seed: 20260926, submissionPlan,
@@ -4113,7 +4167,8 @@ if (PRERENDER_REQUESTED && STAGES.has("videos") && !DRY_RUN) {
   const normalShots = pendingShots().filter((shot) => !isMaterialShot(shot));
   for (const shot of normalShots) if (leadVisibleInShot(shot)) {
     const file = join(PROMPT_DIR, `${shot.shotId}.txt`), prompt = readFileSync(file, "utf8");
-    if (!prompt.includes(portraitReferenceClause)) writeFileSync(file, `${prompt}\n${portraitReferenceClause}\n`, "utf8");
+    const referenceClause = portraitReferenceClauseFor(shot);
+    if (!prompt.includes(referenceClause)) writeFileSync(file, `${prompt}\n${referenceClause}\n`, "utf8");
   }
   await runPlausibilityGate("pre-submit", normalShots);
 }
@@ -4184,8 +4239,13 @@ if (STAGES.has("videos")) {
   const micromotionReady = !STAGES.has("micromotion") || micromotionEvidence.every((entry) => entry.verified);
   const videoInputReadiness = pendingShots().filter((shot) => !isMaterialShot(shot)).map((shot) => {
     const portrait = isAssetShot(shot) ? { images: [], paths: [] } : portraitVideoInputs(shot);
-    return { shotId: String(shot.shotId), videoInputMode: isAssetShot(shot) || portrait.images.length ? "reference-image" : "first-frame",
+    const bulletTimePlan = bulletTimeReferencePlan(shot as unknown as Record<string, unknown>, BULLET_TIME_CAPABILITIES);
+    const videoInputMode = isAssetShot(shot) || portrait.images.length ? "reference-image" : "first-frame";
+    return { shotId: String(shot.shotId), videoInputMode,
+      expectedVideoInputMode: bulletTimePlan.applicable ? bulletTimePlan.inputMode : videoInputMode,
       plateUsage: isAssetShot(shot) ? "not-applicable" : portrait.images.length ? "preproduction-only" : "first-frame",
+      expectedPortraitInputs: bulletTimePlan.applicable ? bulletTimePlan.angles.length : 2,
+      bulletTimePlan,
       portraitInputs: portrait.images.map(({ artifact, characterId, characterVersion, angle, purpose }) => ({ artifact, characterId, characterVersion, angle, purpose })), paths: portrait.paths };
   });
   const g7 = recordGate({
@@ -4194,7 +4254,7 @@ if (STAGES.has("videos")) {
     shotIds: shots.map((s) => s.shotId),
     checks: [
       { id: "prompt-files", pass: promptReady, hard: true, detail: promptReady ? `${promptShots().length} 个文生镜头（生成镜 + 授权真人素材镜）提示词齐备且 ≥1200 字（另有 ${materialShots().length} 个素材镜走 material-gen 的动效提示词）` : "有生成镜/授权真人素材镜缺提示词或字数不足 1200" },
-      { id: "video-input-readiness", pass: videoInputReadiness.every((item) => item.videoInputMode !== "reference-image" || item.plateUsage === "not-applicable" || item.portraitInputs.length === 2), hard: true, detail: "逐镜已明确实际视频输入模式、原人物两图及plate用途" },
+      { id: "video-input-readiness", pass: videoInputReadiness.every((item) => item.videoInputMode === item.expectedVideoInputMode && (!item.bulletTimePlan.applicable || item.bulletTimePlan.valid) && (item.videoInputMode !== "reference-image" || item.plateUsage === "not-applicable" || item.portraitInputs.length === item.expectedPortraitInputs)), hard: true, detail: videoInputReadiness.every((item) => item.videoInputMode === item.expectedVideoInputMode && (!item.bulletTimePlan.applicable || item.bulletTimePlan.valid) && (item.videoInputMode !== "reference-image" || item.plateUsage === "not-applicable" || item.portraitInputs.length === item.expectedPortraitInputs)) ? "逐镜实际视频输入模式、人物参考计划与plate用途均符合合同" : "实际视频输入模式与合同不符，或参考计划无效/数量不一致" },
       { id: "plate-files", pass: plateReady, hard: true, detail: plateReady ? `${generatedShots().length} 个生成镜关键帧齐备（>50KB）` : "有生成镜关键帧缺失或过小" },
       {
         id: "external-asset-shots", pass: assetShotsReady, hard: true,
@@ -4383,6 +4443,9 @@ if (STAGES.has("videos")) {
          * 首帧锚点是否存在、以及本镜是否在知情放行名单里。不通过就不提交（不烧额度）。
          */
         const promptText = attemptPrompt;
+        const bulletTimePlan = bulletTimeReferencePlan(shot as unknown as Record<string, unknown>, BULLET_TIME_CAPABILITIES);
+        const expectedPortraitInputs = bulletTimePlan.applicable ? bulletTimePlan.angles.length : 2;
+        const bulletTimeFinal = validateBulletTimePrompt(promptText, shot as unknown as Record<string, unknown>, { capabilities: BULLET_TIME_CAPABILITIES });
         const submissionPlan = videoPlan({ prompt: attemptPrompt,
           firstFrame: firstFrame ? videoImage(hosted ?? plate, "first-frame") : undefined,
           refs: shotIsAsset ? shotRefs.map((file) => videoImage(file, "authorized-person-reference")) : portrait.images,
@@ -4399,13 +4462,14 @@ if (STAGES.has("videos")) {
             { id: "aspect-constraint", pass: /【约束】/.test(promptText) && promptText.includes(ASPECT), hard: true, detail: `含【约束】与画幅 ${ASPECT}` },
             { id: "duration-limit", pass: duration > 0 && duration <= 30, hard: true, detail: `单镜时长 ${duration}s（上限 30s）` },
             {
-              id: "video-inputs", pass: submissionPlan.mode === "reference-image"
-                ? (shotIsAsset ? shotRefs.length > 0 : portrait.images.length === 2 && !firstFrame)
-                : Boolean(firstFrame), hard: true,
+              id: "video-inputs", pass: (!bulletTimePlan.applicable || submissionPlan.mode === bulletTimePlan.inputMode) && (submissionPlan.mode === "reference-image"
+                ? (shotIsAsset ? shotRefs.length > 0 : bulletTimePlan.valid && portrait.images.length === expectedPortraitInputs && !firstFrame)
+                : submissionPlan.mode === "text" ? true : Boolean(firstFrame)), hard: true,
               detail: submissionPlan.mode === "reference-image"
-                ? `reference_image ${submissionPlan.inputs.length} 张，无 first_frame；${shotIsAsset ? "真实授权外部素材引用未由本地核验" : "当前授权版本原始front + closeup；plate仅预生产构图稿"}`
+                ? `reference_image ${submissionPlan.inputs.length} 张，无 first_frame；${shotIsAsset ? "真实授权外部素材引用未由本地核验" : `当前授权版本原始${bulletTimePlan.applicable ? bulletTimePlan.angles.join(" + ") : "front + closeup"}；plate仅预生产构图稿`}`
                 : hosted ? "实际首帧采用现有 Ark 托管 URL" : existsSync(plate) ? "实际首帧采用本地关键帧原字节" : "首帧缺失"
             },
+            { id: "bullet-time-final", pass: !bulletTimeFinal.applicable || bulletTimeFinal.pass, hard: bulletTimeFinal.applicable, detail: bulletTimeFinal.applicable ? (bulletTimeFinal.pass ? `bulletTime ${bulletTimeFinal.contractHash} 最终提示词通过` : bulletTimeFinal.issues.join("；")) : "普通镜头：不适用" },
             {
               id: "plate-size", pass: shotIsAsset || !existsSync(plate) || statSync(plate).size > 50_000, hard: false,
               detail: shotIsAsset ? "授权真人素材镜不产关键帧（合规口径，不是缺件）" : existsSync(plate) ? `关键帧 ${(statSync(plate).size / 1024).toFixed(0)}KB` : "无关键帧文件"
@@ -4413,7 +4477,7 @@ if (STAGES.has("videos")) {
           ],
           inputPaths,
           evidence: {
-            videoInputMode: submissionPlan.mode, plateUsage: portrait.images.length ? "preproduction-only" : shotIsAsset ? "not-applicable" : "first-frame", promptSha256: submissionPlan.promptSha256, wireRequestSha256: submissionPlan.wireRequestSha256, inputPlanSha256: submissionPlan.inputPlanSha256, inputs: submissionPlan.inputs,
+            videoInputMode: submissionPlan.mode, plateUsage: portrait.images.length ? "preproduction-only" : shotIsAsset ? "not-applicable" : "first-frame", promptSha256: submissionPlan.promptSha256, wireRequestSha256: submissionPlan.wireRequestSha256, inputPlanSha256: submissionPlan.inputPlanSha256, inputs: submissionPlan.inputs, bulletTime: { plan: bulletTimePlan, final: bulletTimeFinal },
             model: VIDEO_MODEL, seconds: duration, attempt,
             promptFingerprint: createHash("sha256").update(attemptPrompt).digest("hex").slice(0, 12),
             promptChars: promptText.trim().length
@@ -4428,7 +4492,7 @@ if (STAGES.has("videos")) {
           });
           break;
         }
-        preflightSubmitGuard({ shotId: String(shot.shotId), stage: "videos", prompt: attemptPrompt, fps: FPS, attempt, prevFingerprint: lastPromptFingerprint });
+        preflightSubmitGuard({ shotId: String(shot.shotId), stage: "videos", prompt: attemptPrompt, fps: FPS, attempt, prevFingerprint: lastPromptFingerprint, shot: shot as unknown as Record<string, unknown> });
         lastPromptFingerprint = promptFingerprint;
         const submitted = await arkVideo({
           stage: "videos", shotId: shot.shotId, target: clip,

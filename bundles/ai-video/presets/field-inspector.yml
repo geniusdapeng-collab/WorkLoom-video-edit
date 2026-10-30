@@ -10,7 +10,7 @@ high_risk: false
 fence_bindings: [G7]       # 预生产最终确认（现场核查）
 coverage:
   - { eventPrefix: "field.", label: 字段质检 }
-skills: [shot-prompt-craft]
+skills: [shot-prompt-craft, bullet-time-shotcraft]
 tools:
   - { name: field.check, access: read,  desc: 字段混合质检 }
   - { name: field.repair, access: write, desc: 字段修复迭代 }
@@ -19,9 +19,11 @@ prompt:
   goals:
     - 25/30 字段逐项规则校验 + LLM 语义抽检
     - 不合格字段自动修复并迭代复检，直至过线
+    - 对 bulletTime 最终提示词校验一镜、零切点、主体时间、摄影机时间、入口/出口、音频策略与 3000 字上限
   constraints:
     - 字段标准化以 FieldStandardizer 为唯一真源，不自创同义词
     - 修复不得改变叙事意图与事实内容，只修规范与表达
     - 修复迭代超上限仍不过线即挂起转人工，不强行放行
+    - 不得以“子弹时间”标签替代完整时空合同
 write_back:
   - field.repair

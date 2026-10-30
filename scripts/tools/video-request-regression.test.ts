@@ -14,6 +14,13 @@ import { captureLineageInputs, fingerprintArtifact } from "../../packages/video-
 import { acceptRenderedShot } from "../../packages/video-studio/src/rendered-shot-acceptance.js";
 import { applyPromptPatches } from "../../packages/video-studio/src/plausibility-review.js";
 import { loadCharacterEntry, readPortraitArtifact, resolveShotCast } from "../../packages/video-studio/src/character-archive.js";
+import {
+  CONSERVATIVE_BULLET_TIME_CAPABILITIES,
+  bulletTimeReferenceClause,
+  bulletTimeReferencePlan,
+  inspectBulletTimeMotion,
+  validateBulletTimePrompt,
+} from "../../packages/video-studio/src/bullet-time.js";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const ffmpeg = process.env.WL_FFMPEG ?? "ffmpeg";
@@ -554,6 +561,8 @@ function currentSubmissionFixture(kind: "material" | "normal" | "asset", verdict
     WORK_DIR: dir, PROJECT: "ISOLATED-CURRENT", PROMPT_DIR: promptDir, PLATE_DIR: plateDir, CLIP_DIR: clips,
     SOURCE_SIZE: { width: 64, height: 96 }, ASPECT: "9:16", SOURCE_RESOLUTION: "720p", OUTPUT_RESOLUTION: "720p", FPS: 24,
     VIDEO_MODEL: "doubao-seedance-2-5-260628", ENV: env, ARK_KEY: "isolated-fixture-secret", ARK_BASE: "https://invalid.test/api/v3", WORKER_RUNTIME: null,
+    BULLET_TIME_CAPABILITIES: { ...CONSERVATIVE_BULLET_TIME_CAPABILITIES, maxReferenceImages: 30 },
+    bulletTimeReferencePlan, bulletTimeReferenceClause, inspectBulletTimeMotion, validateBulletTimePrompt,
     STAGES: new Set([kind === "material" ? "material-gen" : "videos"]), FIRST_PASS_ORDER: [shot], DRY_RUN: false, RESUME: false,
     MATERIAL_POST_ONLY: false, MATERIAL_SPEED_RAMP: false, MATERIAL_POST_CAMERA_MOVE: false, MAX_ATTEMPTS: 3, ACCEPT_REJECTED: [],
     FILM_SPEECH_LANGUAGE: "zh-CN", REALISM_CLAUSE: "实拍质感", REALISM_NEGATIVE_TERMS: "不改身份", MATERIAL_POLICY_VERSION: "fixture-policy", PLAUSIBILITY_POLICY_VERSION: "fixture-plausibility",
@@ -589,7 +598,7 @@ function currentSubmissionFixture(kind: "material" | "normal" | "asset", verdict
     retryInstruction: () => { throw new Error("PAID_POST_MUST_NOT_RETRY"); }, motionPolicyForShot: () => ({ intent: "ordinary" }),
     applySpeedRamp: () => { throw new Error("UNREQUESTED_RETIME"); }, applyCameraMovePunchCut: () => { throw new Error("UNREQUESTED_CAMERA_MOVE"); },
   };
-  const functions = ["videoImage", "submissionReceiptArtifacts", "videoPlan", "arkVideo", "downloadSubmittedVideo", "finishMaterialClip", "renderSecondsFor", "plausibilityArchiveFor", "plausibilityContextFor", "runPlausibilityGate"].map(parts.fn).join("\n");
+  const functions = ["videoImage", "submissionReceiptArtifacts", "videoPlan", "arkVideo", "downloadSubmittedVideo", "finishMaterialClip", "portraitReferenceClauseFor", "renderSecondsFor", "plausibilityArchiveFor", "plausibilityContextFor", "runPlausibilityGate"].map(parts.fn).join("\n");
   const execute = () => evaluateCurrent(`(async()=>{${functions}\n${kind === "material" ? parts.material : parts.videos}\n})()`, context) as Promise<void>;
   return { dir, execute, context, gates, paidBodies, rows, accepted, reviews, get posts() { return posts; }, get gets() { return gets; }, images, front, closeup };
 }
@@ -676,6 +685,8 @@ function portraitOriginalFixture() {
   const context = { Buffer, Set, Map, Number, String, Object, Array, JSON, createHash, existsSync, readFileSync, fingerprintArtifact,
     sourceDocument: { character: { id: profile.id }, shots: [{ shotId: "S1", character: profile.name }] },
     lead, characters: new Map([[lead.id, lead]]), characterRegistry: { aliases: [] }, usePortraitRefs: true,
+    BULLET_TIME_CAPABILITIES: { ...CONSERVATIVE_BULLET_TIME_CAPABILITIES, maxReferenceImages: 30 },
+    bulletTimeReferencePlan, bulletTimeReferenceClause,
     isAssetShot: () => false, isAssetRefLocal: (file: string) => file.startsWith("asset://"), WORKER_RUNTIME: null,
     portraitReferenceAuthorization: { characterId: lead.id, version: 2, artifacts },
     portraitReferenceAuthorizationPaths: [join(dir, "profile.json"), join(dir, "reviews/fixture-authorized.json"), ...artifacts.map((item) => join(dir, item.file))],

@@ -10,6 +10,8 @@
  *   · 玻璃/落地窗镜头冒出"第二张脸"（镜像）
  * 这些都不是"审美问题"，而是**可枚举、可提前拦**的；拦在提交之前，一次就省一镜渲染。
  */
+import { inspectBulletTimeMotion, type BulletTimeCapabilities } from "./bullet-time.js";
+
 export const PROMPT_REDLINE_POLICY_VERSION = "workloom.prompt-redlines/v1" as const;
 
 export interface RedlineIssue { id: string; detail: string; why: string; hard: boolean }
@@ -37,7 +39,7 @@ function positiveOnly(value: string): string {
 const text = (value: unknown): string => String(value ?? "");
 const allText = (shot: RedlineShotLike, keys: string[]): string => keys.map((key) => text(shot[key])).join("；");
 
-export function auditShotRedlines(shot: RedlineShotLike, options: { fps?: number } = {}): RedlineIssue[] {
+export function auditShotRedlines(shot: RedlineShotLike, options: { fps?: number; bulletTimeCapabilities?: BulletTimeCapabilities } = {}): RedlineIssue[] {
   const issues: RedlineIssue[] = [];
   const add = (id: string, detail: string, why: string, hard = true): void => { issues.push({ id, detail, why, hard }); };
   const visual = positiveOnly(allText(shot, ["scene", "sceneDescription", "composition", "action", "props"]));
@@ -72,7 +74,14 @@ export function auditShotRedlines(shot: RedlineShotLike, options: { fps?: number
   }
   // ④ 运镜与时间轴一致性：timeline 说定住，运镜必须写定住
   if (/定住|稳住|定格/.test(timeline) && !/定住|稳住|定格/.test(camera)) {
-    add("camera-timeline-mismatch", `${shot.shotId}：时间轴要求「定住」，但【运镜】未写定住`, "FP-02 真机落幅继续推进 → 判「未到点定住」");
+    const bulletTime = inspectBulletTimeMotion(shot, options.bulletTimeCapabilities);
+    if (bulletTime.enabled && bulletTime.motionException) {
+      // A valid bullet-time contract separates subject time from camera time.
+    } else if (bulletTime.enabled) {
+      add("bullet-time-contract-invalid", `${shot.shotId}：声明子弹时间但合同不成立`, bulletTime.issues.map((issue) => `${issue.code}@${issue.path}`).join("；") || "主体时间和摄影机时间未分层");
+    } else {
+      add("camera-timeline-mismatch", `${shot.shotId}：时间轴要求「定住」，但【运镜】未写定住`, "FP-02 真机落幅继续推进 → 判「未到点定住」；合法子弹时间必须提供完整 bulletTime 合同");
+    }
   }
   // ⑤ 帧率一致性：卡片约束 vs 管线帧率
   const fpsInCard = text((shot as Record<string, unknown>).constraint).match(/(\d{2})\s*fps/i);
@@ -91,7 +100,7 @@ export function auditShotRedlines(shot: RedlineShotLike, options: { fps?: number
 }
 
 /** 整片红线汇总：hard 项必须清零才允许进入花钱阶段（fail-closed） */
-export function auditFilmRedlines(shots: readonly RedlineShotLike[], options: { fps?: number } = {}): {
+export function auditFilmRedlines(shots: readonly RedlineShotLike[], options: { fps?: number; bulletTimeCapabilities?: BulletTimeCapabilities } = {}): {
   policy: typeof PROMPT_REDLINE_POLICY_VERSION;
   hard: RedlineIssue[]; soft: RedlineIssue[]; perShot: Array<{ shotId: string; issues: RedlineIssue[] }>;
 } {

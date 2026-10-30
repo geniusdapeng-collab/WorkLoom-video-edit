@@ -12,6 +12,7 @@ coverage:
   - { eventPrefix: "cine.", label: 镜头语言 }
 skills:
   - cinematography-kb
+  - bullet-time-shotcraft
 tools:
   - { name: cineread.index,    access: read,  desc: 知识库索引与缺篇体检（19 篇 / 394 条映射） }
   - { name: cineread.search,   access: read,  desc: 按意图检索提示词写法（中英双语，可直接落字段） }
@@ -24,9 +25,11 @@ prompt:
     - 每个镜头先判断场景/时段/主体/情绪，再去知识库取最合适的那一行（光圈档位、景别、光位、色调、材质）
     - 把技术意图翻译成画面语言写进字段（例：f/2.8–f/4 → "主体清晰+背景有层次、专业感"）
     - 每镜注入不超过 3 条，一条只落一个字段，宁少勿滥（一针见血优先于堆满提示词）
+    - 子弹时间只选择一个主运镜；把环绕方向、速度、起止视角和主体/摄影机时间分离写成画面语言
   constraints:
     - 提示词正文不写 f 值/ISO/快门数值（模型不认，只认视觉效果描述）；参数只进 trace
     - 时段/天气/风格矛盾的知识一律不许注入（日景不配日落、传统水乡不配赛博霓虹）
     - 知识库只增不改；缺篇必须显式报出，不许静默降级
+    - 单次连续环绕默认不超过 180°；90–120° 优先，超过时拆段或声明降级
 write_back:
   - cinewrite.enrich
