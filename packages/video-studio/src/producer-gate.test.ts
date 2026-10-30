@@ -211,7 +211,7 @@ describe("AI producer evidence gate", () => {
     }
   });
 
-  it("invalid shape and score are unverified without a repair call", async () => {
+  it("invalid shape and score stay unverified after bounded repair", async () => {
     for (const answer of [
       { ...good, score: 101 },
       { ...good, score: null },
@@ -222,7 +222,7 @@ describe("AI producer evidence gate", () => {
       const bodies: string[] = [];
       const verdict = await reviewStage(textOptions({ fetchImpl: judge(answer, bodies) }));
       expect(verdict).toMatchObject({ approved: false, status: "unverified" });
-      expect(bodies).toHaveLength(1);
+      expect(bodies).toHaveLength(3);
     }
   });
 

@@ -18,6 +18,8 @@ describe("marketing prompt host contract", () => {
       "26.【负面约束】。",
       "18.【台词】[00s-06s] 旁白 日志行滚出画面, softly 说:\"空屏一下。\"",
       "19.【微动作】。",
+      "20.【音频】人声对话清晰可辨，低频音床 BPM 60，金属卡槽滑入并锁合。",
+      "**定妆照**: 有",
       "30.【副标题内容】官方仓库逐行核对 | 开发者点开许可行亲自验证",
       "33.【微动作】面部细节：眼神专注，嘴唇紧抿；微动作：肩膀紧绷；呼吸：呼吸放缓",
     ].join("\n");
@@ -32,6 +34,10 @@ describe("marketing prompt host contract", () => {
     expect(normalized).toContain("18.【台词】无对白");
     expect(normalized).toContain("19.【微动作】无人物微动作");
     expect(normalized).not.toContain("26.【负面约束】。");
+    expect(normalized).toContain("20.【音频】无对白、无口播");
+    expect(normalized).not.toContain("BPM");
+    expect(normalized).not.toContain("卡槽");
+    expect(normalized).toContain("**定妆照**: 无（无角色）");
   });
 
   it("rebalances shot durations to the exact target and caps stale timecodes", () => {

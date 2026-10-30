@@ -524,11 +524,21 @@ export async function reviewStage(options: ProducerGateOptions): Promise<Produce
           continue;
         }
         if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-          throw new Error("评审结果结构非法");
+          lastParseError = new Error("评审结果结构非法");
+          if (attempt < 2) {
+            log(`[producer][${stage}] 监制响应结构不可用，执行第 ${attempt + 2}/3 次有界重试`);
+          }
+          continue;
         }
         const json = parsed as Record<string, unknown>;
         normalizedResult = coerceJudgeResult(json);
-        if (!normalizedResult) throw new Error("评审结果结构非法");
+        if (!normalizedResult) {
+          lastParseError = new Error("评审结果结构非法");
+          if (attempt < 2) {
+            log(`[producer][${stage}] 监制响应结构不可用，执行第 ${attempt + 2}/3 次有界重试`);
+          }
+          continue;
+        }
         break;
       }
       if (!normalizedResult) throw lastParseError ?? new Error("评审结果结构非法");
