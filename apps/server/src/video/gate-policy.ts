@@ -108,7 +108,18 @@ export function gateDeterministicChecks(gate: GateKey, content: string): Array<{
       }
     },
   );
-  const nullPlaceholder = /\bnull\b/i.test(placeholderScan);
+  /**
+   * Some legacy Markdown renderers stringify a schema's optional field as
+   * `hero_image_id 为 null` even when the structured object is valid. These
+   * keys are explicitly nullable host contracts; only those exact prose forms
+   * are exempt. Unknown keys, malformed JSON and generic "字段值为 null"
+   * remain hard failures.
+   */
+  const protocolNullProse = placeholderScan.replace(
+    /\b(?:hero_image_id|protagonist|character_consistency)\s*(?:[:：=]|为)\s*null\b/gi,
+    "",
+  );
+  const nullPlaceholder = /\bnull\b/i.test(protocolNullProse);
   const placeholder = hardPlaceholder || nullPlaceholder;
   const checks = [
     { id: "content-present", pass: trimmed.length > 0, hard: true, detail: trimmed.length > 0 ? `门内容 ${trimmed.length} 字` : "门内容为空（vendor 未产出该环节产物）" },

@@ -105,6 +105,18 @@ it("G4允许可解析合同JSON中的合法null，但仍拒绝正文和损坏JSO
     .some((check) => check.hard && !check.pass)).toBe(true);
 });
 
+it("G2允许无人合同的可空字段以旧Markdown措辞出现，但不豁免任意null", () => {
+  const allowed = [
+    "## 创意主题",
+    "本片明确无人；protagonist 为 null，character_consistency 为 null。",
+    "未指定主图时 hero_image_id: null，这是协议空值。",
+    "不得增加未核实事实。".repeat(30),
+  ].join("\n");
+  expect(gateDeterministicChecks("G2_THEME", allowed).every((check) => check.pass)).toBe(true);
+  expect(gateDeterministicChecks("G2_THEME", `${allowed}\n未知字段为 null`)
+    .some((check) => check.hard && !check.pass)).toBe(true);
+});
+
 it("批准后的建议只作审核注解，不得作为改写已批准产物的用户反馈", () => {
   expect(appliedApprovalFeedback(true, ["建议下一镜优化", 7])).toEqual([]);
   expect(appliedApprovalFeedback(false, ["修改字段A", " ", 7])).toEqual(["修改字段A"]);
