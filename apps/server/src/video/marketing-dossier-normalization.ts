@@ -23,7 +23,11 @@ export function normalizeMarketingDossierPresentation(
   dossierValue: unknown,
   cardsValue: unknown,
   productValue: unknown,
-  options: { hasReviewEvidence?: boolean; hasCompetitorEvidence?: boolean } = {},
+  options: {
+    hasReviewEvidence?: boolean;
+    hasCompetitorEvidence?: boolean;
+    sellingPointClaims?: Array<{ pointer: string; claimId: string; sourceId: string }>;
+  } = {},
 ): { dossier: RecordValue; cards: RecordValue; changes: string[] } {
   const dossier = structuredClone(record(dossierValue));
   const cards = structuredClone(record(cardsValue));
@@ -34,6 +38,7 @@ export function normalizeMarketingDossierPresentation(
   const sellingPoints = [...new Set(list(identity.official_selling_points)
     .map((item) => text(record(item).point))
     .filter(Boolean))];
+  const provenance = list(dossier.provenance).map(record);
   const brief = record(cards.brief_card);
   if (JSON.stringify(brief.sellingPoints) !== JSON.stringify(sellingPoints)) {
     brief.sellingPoints = sellingPoints;
@@ -46,6 +51,21 @@ export function normalizeMarketingDossierPresentation(
     changes.push("evidence-note-reconciled");
   }
   cards.brief_card = brief;
+  const prdCard = record(cards.prd_card);
+  prdCard.selling_point_evidence = sellingPoints.map((point, index) => {
+    const provenanceEntry = provenance.find((entry) =>
+      text(entry.claim_ref) === `identity.official_selling_points:${point}`);
+    const claim = options.sellingPointClaims?.find((entry) =>
+      entry.pointer === `/identity/official_selling_points/${index}/point`);
+    return {
+      point,
+      claimId: claim?.claimId ?? null,
+      evidenceId: text(provenanceEntry?.evidence_id) || null,
+      sourceId: claim?.sourceId ?? null,
+      sourceUrl: text(provenanceEntry?.source_url) || null,
+    };
+  });
+  cards.prd_card = prdCard;
 
   const router = record(cards.router_material);
   const classification = classifyProductKind(product);
@@ -60,20 +80,29 @@ export function normalizeMarketingDossierPresentation(
   const portrait = record(cards.portrait_manifest);
   if (highRisk.length > 0) {
     portrait.needs_more_reference = true;
-    const prdCard = record(cards.prd_card);
-    const redlines = list(prdCard.compliance_redlines).map(text).filter(Boolean);
+    visual.needs_more_reference = true;
+    dossier.visual_assets = visual;
+    portrait.handoff_note = "参考图含 license_risk=high；未取得明确商用授权前禁止传播或出图，必须替换或补充授权证据。执行方只能核对来源、授权状态与界面真实性，不得把参考图当作产品型号或可运行效果证据";
+    const currentPrdCard = record(cards.prd_card);
+    const redlines = list(currentPrdCard.compliance_redlines).map(text).filter(Boolean);
     const ids = highRisk.map((image) => text(image.id)).filter(Boolean);
     const line = `来源档案 visual_assets.images[].license_risk=high（${ids.join("、") || `${highRisk.length} 张`}）；未取得明确商用授权前禁止传播，必须替换或补充授权证据`;
     if (!redlines.includes(line)) {
       redlines.push(line);
-      prdCard.compliance_redlines = redlines;
-      cards.prd_card = prdCard;
+      currentPrdCard.compliance_redlines = redlines;
+      cards.prd_card = currentPrdCard;
       changes.push("image-license-redline-added");
     }
   }
   cards.portrait_manifest = portrait;
 
   if (!options.hasCompetitorEvidence) {
+    const differentiation = record(dossier.differentiation);
+    if (list(differentiation.our_opening).length > 0) {
+      differentiation.our_opening = [];
+      dossier.differentiation = differentiation;
+      changes.push("unsupported-dossier-differentiation-removed");
+    }
     const theme = record(cards.theme_card);
     if (list(theme.differentiation_space).length > 0 || list(theme.crowded_space).length > 0) {
       theme.differentiation_space = [];
@@ -103,5 +132,15 @@ export function normalizeMarketingDossierPresentation(
     }
   }
   cards.insight_card = insight;
+
+  const gaps = list(dossier.gaps).map(text).filter(Boolean);
+  const stableGaps = [...new Set(gaps.map((gap) =>
+    /全是好评/.test(gap)
+      ? "有效评价样本 0 条；不能据此推断好评、差评或总体口碑"
+      : gap))];
+  if (JSON.stringify(stableGaps) !== JSON.stringify(list(dossier.gaps))) {
+    dossier.gaps = stableGaps;
+    changes.push("unsupported-review-consensus-gap-removed");
+  }
   return { dossier, cards, changes: [...new Set(changes)] };
 }

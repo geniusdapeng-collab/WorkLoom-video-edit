@@ -5,7 +5,7 @@
   "repo_path": "/Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit",
   "title": "",
   "created_at": "2026-10-30T06:14:55.791Z",
-  "updated_at": "2026-10-30T07:50:05.962Z",
+  "updated_at": "2026-10-30T07:57:28.993Z",
   "baseline": {
     "audit": {
       "commit": "463ae7ad844de31674b94e73679dafaf0f5dcac5",
@@ -16,7 +16,7 @@
       "notes": ""
     },
     "repair": {
-      "commit": "28bb273469974b6637651ab20e180618b59f67f1",
+      "commit": "fbe88967e73b62f30a30ac41a1838162d8948164",
       "reverified_problem_ids": []
     },
     "acceptance": {
@@ -664,14 +664,14 @@
           },
           "last_result": "pass",
           "run": {
-            "path": "runs/MC-008-0-1793346127326.json",
-            "sha256": "108efd9b32b5762624377fce04a710d461bcda5460be06cd97bb1ab0881fe3d4",
-            "commit": "0ea0a40d1e03e50c59ae575b8037c10a56493295"
+            "path": "runs/MC-008-0-1793346886273.json",
+            "sha256": "cdc3244ce3100a639f602ad277283f5c694bd12a9869308134a147aea87f12af",
+            "commit": "fbe88967e73b62f30a30ac41a1838162d8948164"
           },
           "evidence": {
-            "path": "evidence/MC-008-0-1793346127326.txt",
-            "sha256": "6fc4371786294e88b70d291bac246dc6b3cbf8068d2418c04f6176d492985ce2",
-            "commit": "0ea0a40d1e03e50c59ae575b8037c10a56493295"
+            "path": "evidence/MC-008-0-1793346886273.txt",
+            "sha256": "3e6e7977b89096485a25a475a0bcc48b666b187da776bd6445bc80c8cb3ffb45",
+            "commit": "fbe88967e73b62f30a30ac41a1838162d8948164"
           }
         },
         {
@@ -691,14 +691,14 @@
           },
           "last_result": "pass",
           "run": {
-            "path": "runs/MC-008-1-1793346127812.json",
-            "sha256": "86da6248fe2aced2c1261a7e75cce7a1a46867fd2d15909a1d13f5e5df67203c",
-            "commit": "0ea0a40d1e03e50c59ae575b8037c10a56493295"
+            "path": "runs/MC-008-1-1793346886788.json",
+            "sha256": "aa54bb691e1f9e8e7c7b16e1d068ee9928d73f0f04b28bbf2952eecea0c87f96",
+            "commit": "fbe88967e73b62f30a30ac41a1838162d8948164"
           },
           "evidence": {
-            "path": "evidence/MC-008-1-1793346127812.txt",
-            "sha256": "e00c00bab1e232b7a8e1fb5d15b1e42652295e3d3cd97283cc0312cca7746720",
-            "commit": "0ea0a40d1e03e50c59ae575b8037c10a56493295"
+            "path": "evidence/MC-008-1-1793346886788.txt",
+            "sha256": "cf45a468e0e6d89bc04e8bdeef8f4b29ef549bf6d008f304cac1d55242b31149",
+            "commit": "fbe88967e73b62f30a30ac41a1838162d8948164"
           }
         }
       ],
@@ -714,9 +714,9 @@
         "actor": "root-repair-2026-10-30",
         "role": "repair",
         "result": "pass",
-        "at": "2026-10-30T07:42:07.325Z",
-        "commit": "0ea0a40d1e03e50c59ae575b8037c10a56493295",
-        "finished_at": "2026-10-30T07:42:08.265Z"
+        "at": "2026-10-30T07:54:46.273Z",
+        "commit": "fbe88967e73b62f30a30ac41a1838162d8948164",
+        "finished_at": "2026-10-30T07:54:47.242Z"
       },
       "fixed_by": "root-repair-2026-10-30"
     },
@@ -913,6 +913,71 @@
         "finished_at": "2026-10-30T07:42:10.158Z"
       },
       "fixed_by": "root-repair-2026-10-30"
+    },
+    {
+      "id": "MC-011",
+      "kind": "problem",
+      "level": "L4",
+      "severity": "P1",
+      "batch": 1,
+      "state": "open",
+      "title": "营销档案摘要在 0 评价和 0 竞品时仍生成口碑、差异化与高风险素材矛盾",
+      "evidence": [
+        {
+          "type": "code",
+          "ref": "apps/server/src/video/marketing-authority.ts:326@463ae7ad844de31674b94e73679dafaf0f5dcac5",
+          "sha256": "6e7dac86e9f1509d270fbdf619d2d13f162ab5e892556df86dbc6bfcfd59dcc6",
+          "note": "vendor 完成 dossier/cards 装订后直接使用；摘要卡中的“全是好评”、needs_more_reference 冲突、空 selling_point_evidence 和弱化授权红线均未由宿主归一。"
+        }
+      ],
+      "root_cause": {
+        "file": "apps/server/src/video/marketing-authority.ts",
+        "line": 326,
+        "commit": "463ae7ad844de31674b94e73679dafaf0f5dcac5",
+        "symbol": "prepareMarketingFacts dossier assembly"
+      },
+      "trigger_path": "A2/A3 均 no_evidence 且来源图 license_risk=high → 摘要仍写“全是好评”、保留差异化 opening、卖点证据为空、handoff_note 弱化授权 → G1 真实监制反复以自相矛盾和新增口碑拒绝。",
+      "assertions": [
+        {
+          "kind": "sample",
+          "given": "A2/A3 无证据、A1 有来源卖点、两张来源图 license_risk=high",
+          "expect": "卖点回绑 claimId/evidenceId，差异化清空，“全是好评”改为 0 样本事实，授权红线与 needs_more_reference 统一",
+          "command": "node --import tsx --test --test-name-pattern='marketing dossier cards' scripts/tools/data-pipeline-host-contract.node-test.mjs",
+          "exec": {
+            "file": "node",
+            "args": [
+              "--import",
+              "tsx",
+              "--test",
+              "--test-name-pattern=marketing dossier cards",
+              "scripts/tools/data-pipeline-host-contract.node-test.mjs"
+            ]
+          },
+          "last_result": "not-run"
+        },
+        {
+          "kind": "property",
+          "given": "任一来源图未取得授权",
+          "expect": "handoff_note、visual_assets 与 prd_card 红线同时要求替换或补充授权，不能出现“仅核对型号”",
+          "command": "node --import tsx --test --test-name-pattern='marketing dossier cards' scripts/tools/data-pipeline-host-contract.node-test.mjs",
+          "exec": {
+            "file": "node",
+            "args": [
+              "--import",
+              "tsx",
+              "--test",
+              "--test-name-pattern=marketing dossier cards",
+              "scripts/tools/data-pipeline-host-contract.node-test.mjs"
+            ]
+          },
+          "last_result": "not-run"
+        }
+      ],
+      "regression": {
+        "command": "node --import tsx --test --test-name-pattern='marketing dossier cards' scripts/tools/data-pipeline-host-contract.node-test.mjs",
+        "evidence": null
+      },
+      "notes": "M01 真实 G1 60 分拒绝；此前多次 G1 在不同摘要矛盾上波动。"
     }
   ],
   "gates": []

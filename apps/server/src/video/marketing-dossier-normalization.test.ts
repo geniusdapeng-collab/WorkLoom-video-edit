@@ -18,8 +18,12 @@ describe("marketing dossier host presentation", () => {
           { id: "IMG-2", url: "https://example.com/2.png", license_risk: "high" },
         ],
       },
-      provenance: [{ evidence_id: "EV-1" }],
-      gaps: [],
+      provenance: [
+        { evidence_id: "EV-1", claim_ref: "identity.official_selling_points:本地控制和隐私优先" },
+        { evidence_id: "EV-2", claim_ref: "identity.official_selling_points:模块化架构" },
+      ],
+      differentiation: { our_opening: ["把官方卖点当市场空白"] },
+      gaps: ["[A2_MINE] 未挖到吐槽点（警惕样本偏倚：全是好评通常不真实）"],
     };
     const cards = {
       brief_card: {
@@ -36,6 +40,12 @@ describe("marketing dossier host presentation", () => {
       dossier,
       cards,
       { name: "Home Assistant", category: "开源家庭自动化平台" },
+      {
+        sellingPointClaims: [
+          { pointer: "/identity/official_selling_points/0/point", claimId: "CL-1", sourceId: "SRC-1" },
+          { pointer: "/identity/official_selling_points/1/point", claimId: "CL-2", sourceId: "SRC-1" },
+        ],
+      },
     );
     const normalizedCards = result.cards as any;
     const normalizedDossier = result.dossier as any;
@@ -47,6 +57,14 @@ describe("marketing dossier host presentation", () => {
     expect(normalizedCards.portrait_manifest.needs_more_reference).toBe(true);
     expect(normalizedCards.prd_card.compliance_redlines.join(" ")).toContain("license_risk=high");
     expect(normalizedCards.prd_card.compliance_redlines.join(" ")).toContain("IMG-1");
+    expect(normalizedCards.prd_card.selling_point_evidence).toEqual([
+      expect.objectContaining({ point: "本地控制和隐私优先", claimId: "CL-1", evidenceId: "EV-1" }),
+      expect.objectContaining({ point: "模块化架构", claimId: "CL-2", evidenceId: "EV-2" }),
+    ]);
+    expect(normalizedCards.portrait_manifest.handoff_note).toContain("未取得明确商用授权前禁止传播");
+    expect(normalizedDossier.visual_assets.needs_more_reference).toBe(true);
+    expect(normalizedDossier.differentiation.our_opening).toEqual([]);
+    expect(normalizedDossier.gaps.join(" ")).not.toContain("全是好评");
     expect(normalizedCards.theme_card.differentiation_space).toEqual([]);
     expect(normalizedCards.insight_card.market_position.our_opening).toEqual([]);
     expect(normalizedDossier.gaps.join(" ")).toContain("受众");

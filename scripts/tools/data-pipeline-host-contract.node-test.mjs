@@ -153,22 +153,43 @@ test("marketing dossier cards never claim zero official evidence when source-bou
         category: "开源家庭自动化平台",
         official_selling_points: [{ point: "本地控制与隐私优先", source_url: "https://github.com/home-assistant/core" }],
       },
-      visual_assets: { images: [{ license_risk: "high" }] },
-      gaps: [],
+      visual_assets: { images: [{ id: "IMG-1", license_risk: "high" }], needs_more_reference: false },
+      provenance: [{ evidence_id: "EV-1", claim_ref: "identity.official_selling_points:本地控制与隐私优先" }],
+      differentiation: { our_opening: ["把官方卖点当竞品空白"] },
+      gaps: ["[A2_MINE] 未挖到吐槽点（警惕样本偏倚：全是好评通常不真实）"],
     },
     {
       brief_card: { sellingPoints: [], evidence_note: "卖点来自 0 条官方主张" },
       router_material: { product_kind: "physical" },
-      portrait_manifest: {},
+      portrait_manifest: { needs_more_reference: true, handoff_note: "只核对型号一致性" },
       prd_card: {},
       insight_card: {},
     },
     { name: "Home Assistant", category: "开源家庭自动化平台" },
+    {
+      hasCompetitorEvidence: false,
+      sellingPointClaims: [{
+        pointer: "/identity/official_selling_points/0/point",
+        claimId: "CL-1",
+        sourceId: "SRC-1",
+      }],
+    },
   );
   assert.deepEqual(result.cards.brief_card.sellingPoints, ["本地控制与隐私优先"]);
   assert.match(result.cards.brief_card.evidence_note, /1 条来源绑定官方主张/);
   assert.equal(result.cards.router_material.product_kind, "digital");
   assert.equal(result.cards.portrait_manifest.needs_more_reference, true);
+  assert.match(result.cards.portrait_manifest.handoff_note, /未取得明确商用授权前禁止传播/);
   assert.ok(result.cards.prd_card.compliance_redlines.length > 0);
+  assert.deepEqual(result.cards.prd_card.selling_point_evidence, [{
+    point: "本地控制与隐私优先",
+    claimId: "CL-1",
+    evidenceId: "EV-1",
+    sourceId: "SRC-1",
+    sourceUrl: null,
+  }]);
+  assert.equal(result.dossier.visual_assets.needs_more_reference, true);
+  assert.deepEqual(result.dossier.differentiation.our_opening, []);
+  assert.equal(result.dossier.gaps.join(" ").includes("全是好评"), false);
   assert.ok(result.dossier.gaps.some((gap) => gap.includes("受众")));
 });

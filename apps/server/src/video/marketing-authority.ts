@@ -344,6 +344,11 @@ export async function prepareMarketingFacts(input: {
   const presentation = normalizeMarketingDossierPresentation(assembled.dossier, assembled.cards, product, {
     hasReviewEvidence: reports.some((report) => report.stage === "A2" && report.facts.status === "source_bound"),
     hasCompetitorEvidence: reports.some((report) => report.stage === "A3" && report.facts.status === "source_bound"),
+    sellingPointClaims: reports
+      .filter((report) => report.stage === "A1")
+      .flatMap((report) => report.facts.claims)
+      .filter((claim) => /^\/identity\/official_selling_points\/\d+\/point$/.test(claim.pointer))
+      .map((claim) => ({ pointer: claim.pointer, claimId: claim.claimId, sourceId: claim.sourceId })),
   });
   if (typeof presentation.dossier.product_id !== "string" || !presentation.dossier.product_id.trim()) {
     fail("MARKETING_DOSSIER_UNVERIFIED", "情报档案缺少有效商品ID");
