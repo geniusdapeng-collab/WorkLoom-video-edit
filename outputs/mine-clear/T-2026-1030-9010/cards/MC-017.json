@@ -72,11 +72,27 @@
         ]
       },
       "last_result": "not-run"
+    },
+    {
+      "kind": "property",
+      "given": "宿主把 tolerated residual 和受众文本归一后，vendor 仍持有原始 discovery 对象",
+      "expect": "归一后的 sceneStructure/audienceProfile 回写同一 live discovery，G3 与 PRD 读取同一 canonical revision",
+      "command": "node_modules/.bin/vitest run packages/video-studio/src/requirement-contract.test.ts -t 'publishes normalized discovery'",
+      "exec": {
+        "file": "node_modules/.bin/vitest",
+        "args": [
+          "run",
+          "packages/video-studio/src/requirement-contract.test.ts",
+          "-t",
+          "publishes normalized discovery"
+        ]
+      },
+      "last_result": "not-run"
     }
   ],
   "regression": {
     "command": "node --import tsx --test --test-name-pattern='discovery timing' scripts/tools/data-pipeline-host-contract.node-test.mjs",
     "evidence": null
   },
-  "notes": "M01 真实 G3 先为 80 分（31 秒/第50秒），后续复现 74 分（第一次/没在吹/受众假设）。"
+  "notes": "M01 真实 G3 先为 80 分（31 秒/第50秒），后续复现 74 分（第一次/没在吹/受众假设）；又复现宿主只改 clone 导致下游 REQUIREMENT_CONTRACT_CHANGED。"
 }

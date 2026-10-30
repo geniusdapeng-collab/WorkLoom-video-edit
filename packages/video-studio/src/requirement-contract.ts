@@ -453,7 +453,8 @@ export function bindRequirementContract(
   expectedOwnerAudience: string | null
 ): RequirementRecord {
   const original = requirementRecord(originalValue, "ProfileResolver 完成后的需求清单");
-  const discovery = structuredClone(requirementRecord(discoveryValue, "需求洞察结果"));
+  const originalDiscovery = requirementRecord(discoveryValue, "需求洞察结果");
+  const discovery = structuredClone(originalDiscovery);
   const upstream = requirementRecord(upstreamValue, "上游创意字段");
   const metadata = requirementRecord(metadataValue, "当前运行 metadata");
   const cast = requirementCast(metadata);
@@ -473,6 +474,11 @@ export function bindRequirementContract(
       normalizedDuration: timing.normalizedDuration,
       changes: timing.changes,
     };
+    // The vendor reuses this same discovery object when rendering G3 and when
+    // constructing the PRD. Publish the normalized authority back to the live
+    // run object instead of leaving a corrected clone behind.
+    originalDiscovery.sceneStructure = structuredClone(discovery.sceneStructure);
+    originalDiscovery.audienceProfile = structuredClone(discovery.audienceProfile);
   }
   const scenes = requirementScenes(discovery.sceneStructure, cast, upstream.duration_sec);
   const brief = metadata.brief === undefined ? {} : requirementRecord(metadata.brief, "客户 Brief");

@@ -5,7 +5,7 @@
   "repo_path": "/Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit",
   "title": "",
   "created_at": "2026-10-30T06:14:55.791Z",
-  "updated_at": "2026-10-30T10:09:37.561Z",
+  "updated_at": "2026-10-30T11:06:29.817Z",
   "baseline": {
     "audit": {
       "commit": "463ae7ad844de31674b94e73679dafaf0f5dcac5",
@@ -1529,7 +1529,7 @@
       "level": "L3",
       "severity": "P1",
       "batch": 2,
-      "state": "fixed",
+      "state": "open",
       "title": "G3 接受 ±5 秒残留且受众推测可残留超片长秒点与竞品首创主张",
       "evidence": [
         {
@@ -1562,17 +1562,7 @@
               "scripts/tools/data-pipeline-host-contract.node-test.mjs"
             ]
           },
-          "last_result": "pass",
-          "run": {
-            "path": "runs/MC-017-0-1793354096668.json",
-            "sha256": "e1fd52a6b5ef89e4e0ee36f10c7e83bed9a7c1c307585f009b8b7d5dd14e4cac",
-            "commit": "756f189c4c4ddaa26347bb13327f88dbd215d200"
-          },
-          "evidence": {
-            "path": "evidence/MC-017-0-1793354096668.txt",
-            "sha256": "cb30445137e7110bee0e7831f436a07dcca95e3d120a7229be605c89d3b40aac",
-            "commit": "756f189c4c4ddaa26347bb13327f88dbd215d200"
-          }
+          "last_result": "not-run"
         },
         {
           "kind": "property",
@@ -1589,17 +1579,7 @@
               "scripts/tools/data-pipeline-host-contract.node-test.mjs"
             ]
           },
-          "last_result": "pass",
-          "run": {
-            "path": "runs/MC-017-1-1793354097451.json",
-            "sha256": "35da0c91023c00b365a25f217beeedb3cdfa86be77f1fa9b4ece9c9ca10ae6a9",
-            "commit": "756f189c4c4ddaa26347bb13327f88dbd215d200"
-          },
-          "evidence": {
-            "path": "evidence/MC-017-1-1793354097451.txt",
-            "sha256": "81fe55db689d85c280886160938e086fbd8208e83fdaf6f8ca0e6192ab9a65de",
-            "commit": "756f189c4c4ddaa26347bb13327f88dbd215d200"
-          }
+          "last_result": "not-run"
         },
         {
           "kind": "sample",
@@ -1616,36 +1596,30 @@
               "scripts/tools/data-pipeline-host-contract.node-test.mjs"
             ]
           },
-          "last_result": "pass",
-          "run": {
-            "path": "runs/MC-017-2-1793354098013.json",
-            "sha256": "027fcb6a0c52d1bd34313301ae40336f86295a70ca982fe5b51a42c15f2cd2c5",
-            "commit": "756f189c4c4ddaa26347bb13327f88dbd215d200"
+          "last_result": "not-run"
+        },
+        {
+          "kind": "property",
+          "given": "宿主把 tolerated residual 和受众文本归一后，vendor 仍持有原始 discovery 对象",
+          "expect": "归一后的 sceneStructure/audienceProfile 回写同一 live discovery，G3 与 PRD 读取同一 canonical revision",
+          "command": "node_modules/.bin/vitest run packages/video-studio/src/requirement-contract.test.ts -t 'publishes normalized discovery'",
+          "exec": {
+            "file": "node_modules/.bin/vitest",
+            "args": [
+              "run",
+              "packages/video-studio/src/requirement-contract.test.ts",
+              "-t",
+              "publishes normalized discovery"
+            ]
           },
-          "evidence": {
-            "path": "evidence/MC-017-2-1793354098013.txt",
-            "sha256": "24d43186e0cada20b5b63a097c33084c517b01410fd05210424d3730d2c0f9f0",
-            "commit": "756f189c4c4ddaa26347bb13327f88dbd215d200"
-          }
+          "last_result": "not-run"
         }
       ],
       "regression": {
         "command": "node --import tsx --test --test-name-pattern='discovery timing' scripts/tools/data-pipeline-host-contract.node-test.mjs",
         "evidence": null
       },
-      "notes": "M01 真实 G3 先为 80 分（31 秒/第50秒），后续复现 74 分（第一次/没在吹/受众假设）。",
-      "verified_by": null,
-      "verified_at": null,
-      "verification_evidence": null,
-      "last_assertion_attempt": {
-        "actor": "root-repair-2026-10-30",
-        "role": "repair",
-        "result": "pass",
-        "at": "2026-10-30T09:54:56.662Z",
-        "commit": "756f189c4c4ddaa26347bb13327f88dbd215d200",
-        "finished_at": "2026-10-30T09:54:58.566Z"
-      },
-      "fixed_by": "root-repair-2026-10-30"
+      "notes": "M01 真实 G3 先为 80 分（31 秒/第50秒），后续复现 74 分（第一次/没在吹/受众假设）；又复现宿主只改 clone 导致下游 REQUIREMENT_CONTRACT_CHANGED。"
     },
     {
       "id": "MC-018",

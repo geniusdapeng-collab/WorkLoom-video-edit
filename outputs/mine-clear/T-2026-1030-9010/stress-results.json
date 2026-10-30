@@ -737,12 +737,12 @@
       "pipeline": "marketing",
       "domain": "智能家居",
       "pass": false,
-      "sourceCommit": "5fbba62575d1a03b165275fd9a60623e7278987e",
+      "sourceCommit": "f447f4aba31cd22e4bb4969752c4178568978276",
       "sourceDirty": false,
       "caseSha256": "5e3d363f25af42e4662c6b100c8521a4d4d2c6843e667728fabbd345666bdd36",
       "harnessSha256": "89446ae0dab10327695b1a4eade13c7192dc043a459a7697eecc479cb7fa369b",
       "exitCode": 4,
-      "elapsedMs": 103470,
+      "elapsedMs": 226253,
       "shots": 0,
       "prompts": 0,
       "renderSubmitted": null,
@@ -953,8 +953,8 @@
       ]
     }
   ],
-  "updatedAt": "2026-10-30T10:05:22.949Z",
-  "completedAt": "2026-10-30T10:05:22.949Z",
+  "updatedAt": "2026-10-30T10:14:12.445Z",
+  "completedAt": "2026-10-30T10:14:12.445Z",
   "summary": {
     "total": 23,
     "passed": 20,
@@ -962,7 +962,7 @@
     "renderSubmissions": 0
   },
   "source": {
-    "commit": "5fbba62575d1a03b165275fd9a60623e7278987e",
+    "commit": "f447f4aba31cd22e4bb4969752c4178568978276",
     "dirty": false,
     "harnessSha256": "89446ae0dab10327695b1a4eade13c7192dc043a459a7697eecc479cb7fa369b",
     "casesSha256": "54b9fc0342d9f5dcdb70e87e1c36cba74e8802922b1c349a75bdef25300f89a7"

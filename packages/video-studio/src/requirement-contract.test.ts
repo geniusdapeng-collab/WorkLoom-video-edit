@@ -74,6 +74,19 @@ describe("discovery timing authority", () => {
     expect(audience.emotionTriggers.every((value) => value.startsWith("创作假设，待验证") || value.includes("只依据已审官方原文"))).toBe(true);
     expect(audience.contentExpectations[0]).not.toContain("没在吹");
   });
+
+  it("publishes normalized discovery back to the live run consumed by G3 and PRD", () => {
+    const meta = nobody(), d = discovery("$scene"), s = requirementRecord(d.sceneStructure, "structure");
+    s.opening = { ...requirementRecord(s.opening, "opening"), duration: 10 };
+    s.scenes = [{ ...requirementRecord((s.scenes as unknown[])[0], "scene"), duration: 11 }];
+    s.ending = { ...requirementRecord(s.ending, "ending"), duration: 10 };
+    s.totalDuration = 31; s.sceneCount = 3;
+    requirementRecord(d.audienceProfile, "audience").emotionTriggers = ["第45秒出现"];
+    const result = bindRequirementContract(original(), d, { ...upstream, duration_sec: 30 }, meta, requirementCast(meta).hash, null);
+    expect(requirementRecord(d.sceneStructure, "live structure").totalDuration).toBe(30);
+    expect(requirementRecord(d.audienceProfile, "live audience").emotionTriggers).toEqual(["已审场景节点出现"]);
+    expect(() => verifiedRequirementContract(result, meta, d)).not.toThrow();
+  });
 });
 
 function metadata(id = "young-rider-01", name = "李英子"): RequirementRecord {
