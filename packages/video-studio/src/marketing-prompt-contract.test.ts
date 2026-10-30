@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   isAbstractMarketingIntent,
+  marketingVisibleTextFromG1,
   normalizeMarketingPromptResult,
   normalizeMarketingPromptText,
 } from "./marketing-prompt-contract.js";
@@ -104,6 +105,66 @@ describe("marketing prompt host contract", () => {
     expect(JSON.stringify(shot)).not.toMatch(/工作中台|仪器外壳|不锈钢铭牌|反光板|主辅光比约12:1|色温2800K|空间纵深约三米/iu);
     expect(shot.timeline).toContain("T00:03–T00:05");
     expect(shot.scene).toContain("二维抽象画布");
+  });
+
+  it("removes real-camera, studio, material and incomplete abstract field claims", () => {
+    const source = [
+      "### scene-1(内容·25字段)",
+      "04.【约束】9:16画幅，高质量分辨率，24fps，MP4格式。",
+      "02.【导演意图】用真实材质、真实光源拍摄哑光板面，只允许真实物理变化。",
+      "03.【技能增强】本镜技法参考抽象视觉规则：、，按该导演该情绪执行；",
+      "08.【运镜】固定机位，焦距100mm微距等效，机身锁死在三脚架 09.",
+      "09.【景深】大光圈浅景深，网格随距焦平面渐远，空间仍有纵深。",
+      "18.【时间轴】近黑工作室与哑光面板显现，随后文本条滑入。",
+      "### ending(内容·25字段)",
+      "11.【运镜】只执行一次由虚到实的焦点 12.",
+      "15.【动作】只有两个物理过程，并让灰尘颗粒从光边外侧飘过。",
+    ].join("\n");
+    const normalized = normalizeMarketingPromptText(source, { ...options, abstractOnly: true, frameRate: 30 }).value;
+    expect(normalized).not.toMatch(/真实材质|真实光源|哑光板面|真实物理变化|技法参考抽象视觉规则：、|该导演|100mm|三脚架|大光圈|浅景深|焦平面|空间仍有纵深|近黑工作室|灰尘颗粒/iu);
+    expect(normalized).not.toMatch(/只执行一次由虚到实的焦点\s+12\./u);
+    expect(normalized).toContain("30fps");
+    expect(normalized).not.toContain("24fps");
+    expect(normalized).toContain("【技能增强】本镜技法只使用本次已审抽象视觉规则");
+    expect(normalized).toContain("【运镜】固定机位或受控二维图层位移");
+    expect(normalized).toContain("【景深】二维图层保持清晰");
+  });
+
+  it("derives exact visible names and claims from the accepted G1 facts", () => {
+    const g1 = JSON.stringify({
+      facts: {
+        sources: [{ finalUrl: "https://github.com/home-assistant/core" }],
+        productQuery: {
+          identity: {
+            name: "Home Assistant",
+            brand: "Home Assistant",
+            official_selling_points: [
+              { point: "Open source home automation that puts local control and privacy first." },
+              { point: "Powered by a worldwide community of tinkerers and DIY enthusiasts." },
+            ],
+            specs: { License: "Apache-2.0" },
+          },
+        },
+        rawByAgent: {
+          A1: {
+            identity: {
+              official_selling_points: [
+                { point: "Open source home automation that puts local control and privacy first." },
+                { point: "Powered by a worldwide community of tinkerers and DIY enthusiasts." },
+              ],
+            },
+          },
+        },
+      },
+    });
+    expect(marketingVisibleTextFromG1(g1)).toEqual([
+      "Home Assistant",
+      "Open source home automation that puts local control and privacy first.",
+      "Powered by a worldwide community of tinkerers and DIY enthusiasts.",
+      "Apache-2.0",
+      "License: Apache-2.0",
+      "https://github.com/home-assistant/core",
+    ]);
   });
 
   it("rebalances shot durations to the exact target and caps stale timecodes", () => {

@@ -38,6 +38,7 @@ import {
   describeRouteDecision,
   normalizeMarketingPromptText,
   isAbstractMarketingIntent,
+  marketingVisibleTextFromG1,
   bindExplicitAudienceMetadata,
   type ApprovalCallback,
   type EventSink,
@@ -402,6 +403,8 @@ async function reviewGate(input: {
         targetDuration: DURATION_SECONDS,
         noPeople: true,
         abstractOnly: isAbstractMarketingIntent(INTENT),
+        frameRate: 30,
+        allowedVisibleText: preparedMarketing ? marketingVisibleTextFromG1(preparedMarketing.g1Content) : [],
       })
     : null;
   if (normalized?.changes.length) log(`  [G6 宿主归一] ${normalized.changes.join("、")}`);

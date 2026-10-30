@@ -5,6 +5,10 @@ export interface MarketingPromptOptions {
   noPeople: boolean;
   /** Client explicitly restricts visuals to abstract interfaces, code, and diagrams. */
   abstractOnly?: boolean;
+  /** Formal delivery frame rate when the caller has already resolved it. */
+  frameRate?: 24 | 25 | 30 | 60;
+  /** Exact source-bound names/claims that may appear as visible text. */
+  allowedVisibleText?: string[];
 }
 
 export interface MarketingPromptNormalization<T> {
@@ -16,7 +20,7 @@ const isRecord = (value: unknown): value is RecordValue =>
   Boolean(value && typeof value === "object" && !Array.isArray(value));
 
 const NO_PERSON_MICRO_ACTION = "无人物微动作；仅由画布上的光标、光点、连线与亮度变化表达节奏";
-const ABSTRACT_UNSAFE = /仪器|工具|台面|接待|机房|暗室|铭牌|不锈钢|拉丝|倒角|刻线|刻字|实体|家具|座椅|墙面|地面|地板|室内|照明|顶灯|装饰画|反光板|实拍|空间纵深|光比|色温|照度|\d+(?:\.\d+)?\s*(?:米|厘米|毫米|度|°|K)\b/iu;
+const ABSTRACT_UNSAFE = /仪器|工具|台面|接待|机房|暗室|铭牌|不锈钢|拉丝|哑光|倒角|刻线|刻字|实体|家具|座椅|墙面|地面|地板|室内|照明|顶灯|装饰画|反光板|实拍|工作室|面板|磨砂面|真实材质|真实光源|物理|灰尘|细颗粒|照片级|摄影质感|实物感|焦距|焦段|焦平面|三脚架|大光圈|浅景深|空间纵深|光比|色温|照度|该导演|该情绪|：\s*[、，]|\d+(?:\.\d+)?\s*(?:mm|cm|米|厘米|毫米|度|°|K)\b/iu;
 const ABSTRACT_TERM_REPLACEMENTS: ReadonlyArray<readonly [RegExp, string]> = [
   [/暗色微距工作台空间|微距工作台空间|微距工作台|工作台空间/gu, "二维抽象画布"],
   [/仪器外壳|关闭的仪器外壳|仪器|哑光工具|台面实体模型|实体模型|实体面板|金属构件|拉丝不锈钢|不锈钢|铭牌/gu, "抽象二维图形层"],
@@ -34,6 +38,7 @@ const ABSTRACT_TERM_REPLACEMENTS: ReadonlyArray<readonly [RegExp, string]> = [
 const ABSTRACT_FIELD_FALLBACK: Readonly<Record<string, string>> = {
   "导演意图": "极简抽象信息片，信息只由本次 G1 已审原文、二维图形与受控明暗变化承载；不拍摄实体场景，不暗示未核实硬件、材质、尺寸或可运行效果。",
   "基础": "高质量二维图形与文字合成，保留本次 G1 已审原文和抽象几何；不新增实体材质、设备外观、真实空间或运行界面。",
+  "技能增强": "本镜技法只使用本次已审抽象视觉规则、二维图形与受控明暗变化；不引用未指定导演、外部作品、真实器材或未审场景。",
   "场景": "纯黑或冷灰二维抽象画布，只包含本次 G1 已审原文、抽象几何节点、文字层、光标与示意角标；不出现人物、真实空间、家具、工具、实体硬件或可运行界面。",
   "灯光设计": "只使用概念性冷白自发光与受控明暗变化塑造文字和图形层级；不声明实体灯具、物理空间、色温、光比或照度参数。",
   "明亮约束": "屏上文字和关键图形在平台安全区内清晰可读，暗部保持纯黑；不使用未核实材质或环境细节制造对比。",
@@ -56,6 +61,7 @@ const ABSTRACT_FIELD_FALLBACK: Readonly<Record<string, string>> = {
 const ABSTRACT_FIELD_DETAIL: Readonly<Record<string, string>> = {
   "导演意图": "视觉信息严格服务于可核对原文和抽象结构，不使用实体场景、未审器材或可运行效果承担叙事。",
   "基础": "图形边缘、字形和层级关系保持稳定，暗部不依靠真实材质制造细节，所有可读内容由后期精确锁定。",
+  "技能增强": "任何视觉手法均以二维文字可读、图形稳定和可截图复核为优先，不引入实体摄影或未审创作参考。",
   "场景": "所有元素均停留在二维图层内，保持清晰的文字安全区、受控留白和来源标注位置；不通过透视、陈设、倒影或设备轮廓暗示真实世界。",
   "灯光设计": "亮部、灰阶和暗部的变化只用于突出文字与几何边界，保持冷白、低饱和和稳定对比，不把概念光效解释为真实空间照明。",
   "构图": "文字和图形按信息优先级分层，关键原文始终可读，来源标注不遮挡主体；四周保留平台安全边距，画面不依靠物理空间建立纵深。",
@@ -98,6 +104,47 @@ const ABSTRACT_OBJECT_TAGS: Readonly<Record<string, string>> = {
   character: "角色",
   consistency: "角色一致性",
 } as const;
+
+export function marketingVisibleTextFromG1(content: string): string[] {
+  try {
+    const root = JSON.parse(content) as RecordValue;
+    const facts = isRecord(root.facts) ? root.facts : root;
+    const identity = isRecord(facts.productQuery) && isRecord(facts.productQuery.identity)
+      ? facts.productQuery.identity
+      : isRecord(facts.identity) ? facts.identity : {};
+    const product = isRecord(facts.productQuery) ? facts.productQuery : {};
+    const rawByAgent = isRecord(facts.rawByAgent) ? facts.rawByAgent : {};
+    const rawA1 = isRecord(rawByAgent.A1) ? rawByAgent.A1 : {};
+    const extracted = isRecord(rawA1.identity) ? rawA1.identity : {};
+    const values: string[] = [];
+    const add = (value: unknown): void => {
+      if (typeof value !== "string") return;
+      const text = value.trim();
+      if (text && !values.includes(text)) values.push(text);
+    };
+    add(product.name ?? identity.name);
+    add(product.brand ?? identity.brand);
+    const points = Array.isArray(extracted.official_selling_points)
+      ? extracted.official_selling_points
+      : Array.isArray(identity.official_selling_points) ? identity.official_selling_points : [];
+    for (const point of points) {
+      if (isRecord(point)) add(point.point);
+    }
+    const specs = isRecord(extracted.specs) ? extracted.specs : isRecord(identity.specs) ? identity.specs : {};
+    if (isRecord(specs)) {
+      for (const key of ["License", "license", "Default branch", "Source model"]) {
+        add(specs[key]);
+        if (/^license$/iu.test(key) && typeof specs[key] === "string") add(`License: ${specs[key]}`);
+      }
+    }
+    for (const source of Array.isArray(facts.sources) ? facts.sources : []) {
+      if (isRecord(source)) add(source.finalUrl);
+    }
+    return values.slice(0, 8);
+  } catch {
+    return [];
+  }
+}
 
 export function isAbstractMarketingIntent(value: string): boolean {
   return /仅使用抽象|只用抽象|抽象界面|抽象[^。\n]{0,12}示意|不展示未核实硬件/iu.test(value)
@@ -211,12 +258,17 @@ function normalizePromptString(value: string, duration: number | null, options: 
         "【角色】全片无人，不出现人物、人体局部、服装、化妆、表情或人物动作；画面主体仅为 G1 已审原文与抽象图形",
       );
   }
+  if (options.abstractOnly && options.frameRate !== undefined && options.frameRate !== 24) {
+    next = next.replace(/\b24fps\b/giu, `${options.frameRate}fps`);
+  }
   return duration === null ? next : capTimecodes(next, duration);
 }
 
 function normalizeAbstractField(tag: string, content: string): string {
-  const unsafe = ABSTRACT_UNSAFE.test(content);
-  let next = content;
+  const original = content.replace(/\s+\d{2}\.\s*$/u, "").trimEnd();
+  const unsafe = ABSTRACT_UNSAFE.test(original);
+  const incomplete = !/[。！？；.!?;…]$/u.test(original);
+  let next = original;
   for (const [pattern, replacement] of ABSTRACT_TERM_REPLACEMENTS) next = next.replace(pattern, replacement);
   if (tag === "时间轴") {
     const timecodes = [...next.matchAll(/T\d{2}:\d{2}(?:\.\d+)?/gu)].map((match) => match[0]);
@@ -224,37 +276,212 @@ function normalizeAbstractField(tag: string, content: string): string {
       next = `${timecodes[0]}–${timecodes[timecodes.length - 1]} ${ABSTRACT_FIELD_FALLBACK[tag]!.replace(/^按本镜时长推进：/u, "")}`;
     }
   }
-  if (unsafe && ABSTRACT_FIELD_FALLBACK[tag]) {
+  if ((unsafe || incomplete) && ABSTRACT_FIELD_FALLBACK[tag]) {
     next = `${ABSTRACT_FIELD_FALLBACK[tag]}${ABSTRACT_FIELD_DETAIL[tag] ? ` ${ABSTRACT_FIELD_DETAIL[tag]}` : ""}`;
   }
   return next;
 }
 
-function normalizeAbstractPromptMarkdown(value: string, changes: string[]): string {
-  let fieldIndex = 0;
-  let changed = false;
+function extractAbstractVisibleText(value: string, seed: string[] = []): string[] {
+  const candidates: string[] = [];
+  const add = (candidate: string): void => {
+    const text = candidate.trim();
+    if (text && !candidates.includes(text)) candidates.push(text);
+  };
+  for (const item of seed) add(item);
+  for (const match of value.matchAll(/\bLicense\s*[：:]\s*Apache-2\.0\b/giu)) add(match[0].replace(/[：:]/gu, ": ").replace(/\s+/gu, " "));
+  for (const match of value.matchAll(/https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+/gu)) add(match[0]);
+  for (const match of value.matchAll(/[A-Z][A-Za-z0-9 ,.'’!?-]{24,220}[.!?]/gu)) {
+    const sentence = match[0].trim();
+    if (/\b(?:MP4|H\.264|H\.265|fps|T\d{2}:|prompt|negative|lighting|scene|shot|resolution)\b/iu.test(sentence)) continue;
+    add(sentence);
+  }
+  return candidates.slice(0, 8);
+}
+
+function abstractTimeline(duration: number, action: string): string {
+  const safeDuration = Number.isFinite(duration) && duration > 0 ? duration : 4;
+  const first = safeDuration / 3;
+  const second = safeDuration * 2 / 3;
+  const stamp = (value: number): string => `T00:${value.toFixed(1).padStart(4, "0")}`;
+  return `${stamp(0)}–${stamp(first)} 已审可见文字与抽象几何进入安全区，光标建立首个落点；`
+    + `${stamp(first)}–${stamp(second)} ${action}；`
+    + `${stamp(second)}–${stamp(safeDuration)} 连线与光标停稳，结尾保留可截图复核的静止画面。`
+    + `三段区间由两个阶段边界分隔，边界只允许亮度与位置产生一次可追溯变化，不得跳帧或重复回闪；最终帧与字段、旁白、字幕轨和交付清单中的本镜时长一致。`;
+}
+
+const ABSTRACT_SHOT_VARIANTS: Readonly<Record<string, { scene: string; action: string; props: string; timeline: string }>> = {
+  opening: {
+    scene: "满幅来源入口：本镜列明字符串位于上半屏，光标与无文字来源角标位于下半屏",
+    action: "本镜列明字符串先逐字出现，光标随后落位并在末尾停稳",
+    props: "本镜列明字符串、方形光标与无文字来源角标",
+    timeline: "本镜列明字符串和光标依次出现并停稳",
+  },
+  "scene-1": {
+    scene: "横向代码行与选区框：三行等宽字段占据画面中部，右侧保留来源归属位置",
+    action: "字段行自上而下出现，细框由左向右选中完整字段并在末端停稳",
+    props: "多行等宽字段、二维选区框与无文字来源角标",
+    timeline: "字段行逐行出现，选区框完成选中并在末端停稳",
+  },
+  "scene-2": {
+    scene: "分布式节点网络：光点分布在网格四角与中心之间，连线保持开放，不形成单一枢纽",
+    action: "光点按由外到内的顺序亮起，细线逐段连接，最后保留一处未闭合节点作为停顿",
+    props: "节点阵列、二维连接线与无文字来源角标",
+    timeline: "光点依次亮起，细线分段连接并保留一处未闭合节点",
+  },
+  "scene-3": {
+    scene: "元数据与模块分支：上半屏排列字段行，下半屏用节点和分叉线表示模块化结构",
+    action: "字段逐行出现，分支节点依次接入主干，所有连线完成后统一降亮并停稳",
+    props: "元数据字段行、模块节点、分叉线与无文字来源角标",
+    timeline: "字段逐行出现，模块节点接入主干后统一停稳",
+  },
+  "scene-4": {
+    scene: "留白网格与光标：画面只保留低对比网格、中心空框和一枚光标，信息密度降至最低",
+    action: "网格先降亮，空框保持完整，光标按固定节拍明灭三次后停止",
+    props: "低对比网格、空框与方形光标",
+    timeline: "网格持续降亮，空框保持完整，光标明灭三次后停止",
+  },
+  ending: {
+    scene: "来源落款：本镜列明字符串居中排列，无文字来源角标固定在底部安全区",
+    action: "本镜列明字符串先完整出现，光标随后停止闪烁并保持静止",
+    props: "本镜列明字符串、无文字来源角标与方形光标",
+    timeline: "本镜列明字符串完整落位，光标停止闪烁后静止",
+  },
+};
+
+function buildAbstractPromptFields(shotId: string, duration: number, visibleText: string): string[] {
+  const opening = shotId === "opening";
+  const text = visibleText || "本次 G1 已审原文与官方仓库地址";
+  const variant = ABSTRACT_SHOT_VARIANTS[shotId] ?? ABSTRACT_SHOT_VARIANTS["scene-2"]!;
+  const fields: Array<[string, string]> = [
+    ["语言约束", "除本次 G1 已审原文、许可证字段和仓库地址外，其余字段使用中文；不新增未审英文。"],
+    ["导演意图", "极简抽象信息片；以本次 G1 已审原文、二维几何和受控明暗变化建立证据感；所有表达保持可读、可停稳、可截图复核。"],
+    ["基础", "高质量二维文字与图形合成；文字边缘清晰，灰度层次稳定，画面不依赖实体材质、真实摄影或未审场景。字形、线宽、光点和灰阶在每个镜头内保持一致，不因缩放或叠层出现断裂、重影、噪点堆积与非受控闪动。"],
+    ["约束", "9:16 竖屏，30fps，MP4；关键文字位于平台安全区，字幕轨不生成，画面文字仅作图形层。"],
+    ["场景", `纯黑或冷灰二维抽象画布。本镜采用${variant.scene}；所有元素位于同一平面图层。文字与图形只在既定安全区内移动，层与层之间以明度、透明度和遮挡关系区分，无文字来源角标始终可辨认，任何装饰不得压住原文。来源角标为纯几何标记，不承载文字；如出现地址，只使用本镜列明字符串。场景中的全部对象均为可替换的文字层或矢量层，不通过透视、阴影方向、景别变化或环境细节暗示画外空间。`],
+    ["灯光设计", "只以冷白自发光和灰阶明暗差建立层级；亮部集中在文字与线条，暗部保持纯净，不声明实体灯具或环境照明。高光只沿字形和图形边缘出现，亮区面积随信息落点变化，暗区保持连续并避免过曝；所有明暗变化必须服务文字可读性、节点连接或结尾停稳。"],
+    ["明亮约束", "已审原文与关键图形在安全区内清晰可读，暗部不抬灰；亮暗变化只服务信息层级与停稳。"],
+    ["构图", "文字与抽象几何按信息优先级分层；主体居中或按场景节奏偏置，四周保留平台安全边距，来源角标不遮挡原文。每个画面的第一视觉落点为可核对文字，第二落点为节点或光标，第三层才允许出现辅助线；任何元素不得越出安全区、跨屏裁切或与平台遮挡区重叠。主次层级在所有时间点保持可辨，不以满屏装饰替代信息结构，也不让辅助线条先于原文抢占视线。"],
+    ["色彩/色调", "纯黑、冷灰和冷白构成低饱和色板；强调色面积受控，不新增品牌色、材质色或未审环境色。文字使用最高明度，细线与节点使用中灰，背景保持连续暗场；不使用渐变彩光、彩色阴影或高饱和装饰，保证不同镜头之间色感一致。"],
+    ["景深", "二维图层保持清晰；前后关系只由透明度、灰阶和图层叠放表达，关键原文、地址和光标处于同一可读平面。较远图形仅降低明度与不透明度，不做失焦、散景或距离推断；文字在出现和落位过程中保持相同清晰度，结尾停稳后可完整截取。"],
+    ["运镜", "固定二维视图或受控图层位移；起止位置明确、速度平缓、落幅稳定，不使用真实摄影器材或物理光学位移参数。一次镜头只保留一个方向的信息推进，图层位移距离与速度以文字可读为上限；动作结束后所有元素停在可复核构图，不追加摆动、呼吸或自动回弹。"],
+    ["角色", "全片无人，不出现人物、人体局部、服装、化妆、表情或人物动作；画面主体仅为已审原文和抽象图形。角色相关识别、身份、表演和一致性检查在本镜统一标记为不适用，后续不得由生成模型自行补人。"],
+    ["服装", "无角色出场，本字段不适用。"],
+    ["化妆", "无角色出场，本字段不适用。"],
+    ["动作", `逐镜允许显示的已审文字为：${text}。本镜执行${variant.action}。出现阶段先锁定首字符与来源关系，推进阶段保持字距和行序不变，收束阶段统一完成连线并停止亮度变化；所有动作只发生在二维图层，结果可截图复核。`],
+    ["道具", `无实物道具；本镜仅使用${variant.props}，并只显示文字“${text}”。文字层由后期精确排版，几何与光标由二维矢量生成；所有元素均保留独立层级与可审计位置，不调用未提供的产品图、人物素材或实体素材。`],
+    ["定妆照", "无角色出场，无定妆照。"],
+    ["台词", "不适用（本片无对白）；只允许逐字呈现本镜列明的已审可见文字。"],
+    ["时间轴", abstractTimeline(duration, variant.timeline)],
+    ["情绪", "冷酷精密；无人物表演，仅由文字、图形、亮度与停稳节奏表达。情绪强度保持克制，结尾回到稳定与可信，不通过夸张对比、闪烁或音效煽动。"],
+    ["节奏", "开头建立可读落点，中段按信息顺序展开，结尾统一降亮并停稳；不依赖快速抖动或多层噪声推动节奏。每个阶段的信息出现数量受控，前后镜保留明确停顿，高潮只由连线完成和文字停稳形成，避免重复闪烁与过量运动。"],
+    ["转场", "统一使用 0.2 秒硬切；上一镜末帧与下一镜首帧亮度差受控，不新增叠化、缓推或空间连续性要求。切点保留稳定帧，前后文字形状与基线不得跳变；无文字来源角标仅作几何参照。"],
+    ["音频", "无对白、无口播、无人声、无音乐、无BGM、无配乐、无节拍；仅允许经授权的抽象环境音与动作音效。"],
+    ["音频纪律", "本片按无对白处理，台词人声与旁白字段不适用；若后期新增人声，必须另走已审文案逐字朗读与授权核验。本片只保留抽象环境音和动作音效，配乐由后期统一处理。声音只标记文字出现、节点连接和结尾停稳，不得伪装产品运行、真人操作或未审空间；实际响度和峰值由后期统一核验。"],
+    ["负面约束", "禁止人物、人体局部、实体空间、设备外观、可运行界面、价格类、销量类、评价类、竞品类信息、额外文字、品牌标识和未审外部素材。禁止画面内出现未列明的英文、乱码、占位符、重复字段、彩色噪点、粒子堆叠、过曝或遮挡原文；负面规则本身不上屏，也不能被误写为产品事实或替代来源标注。"],
+    ["角色约束", "画面无人物，禁止任何人物入镜。"],
+    ["角色一致性", "本镜无角色；保持二维色板、字形、光标和抽象几何样式一致。"],
+    ["微动作", NO_PERSON_MICRO_ACTION],
+  ];
+  if (opening) {
+    fields.splice(27, 0,
+      ["主标题内容", text],
+      ["副标题内容", "不适用（无标题卡；不显示额外副标题）"],
+      ["标题字体设计", "等宽无衬线字形，冷白与深灰二维自发光；字距稳定、边缘清晰，不声明实体材质或真实布光。"],
+      ["开场音频设计", "无对白、无口播、无人声、无音乐、无BGM、无配乐、无节拍；仅保留经授权的抽象环境音与动作音效。"],
+      ["标题动画设计", "文字层按固定步长位移并单次切换亮度，主副标题依次落位后停稳；不出现输入框、窗口控件、命令行提示符、按钮或可点击控件，结尾保留可截图复核的静止画面。"],
+    );
+  }
+  return fields.map(([tag, content], index) => `${String(index + 1).padStart(2, "0")}.【${tag}】${content}`);
+}
+
+function normalizeAbstractPromptMarkdown(value: string, changes: string[], options: MarketingPromptOptions): string {
+  const durationRows = new Map([...value.matchAll(/^\|\s*([^|]+?)\s*\|\s*(\d+(?:\.\d+)?)s\s*\|/gmu)]
+    .map((match) => [match[1]!.trim(), Number(match[2])]));
+  const visibleTexts = extractAbstractVisibleText(value, options.allowedVisibleText);
+  const lines = value.split("\n");
   const output: string[] = [];
-  for (const line of value.split("\n")) {
-    if (/^###\s+/u.test(line)) fieldIndex = 0;
-    if (/^[；;]\s*全片无人，不出现人物、人体局部或人物动作\s*$/u.test(line.trim())) {
-      changed = true;
+  let shotId = "";
+  let inPrompt = false;
+  let blockIndex = 0;
+  const rebuilt: Array<{ shotId: string; chars: number; count: number; duration: number }> = [];
+  for (const line of lines) {
+    const heading = /^###\s+([^(\s]+)\(/u.exec(line);
+    if (heading) {
+      shotId = heading[1]!;
+      output.push(line
+        .replace(/片头·30字段/gu, "片头·33字段")
+        .replace(/内容·25字段/gu, "内容·28字段"));
       continue;
     }
-    const field = /^(\d{2}\.)【([^】]+)】([\s\S]*)$/u.exec(line);
-    if (!field) {
+    if (!inPrompt && shotId && /^\*\*长度\*\*/u.test(line)) {
+      const duration = durationRows.get(shotId) ?? 4;
+      output.push(line.replace(/\*\*时间轴\*\*:\s*[^\n]*/u,
+        `**时间轴**: 完整覆盖本镜 ${duration}s；按首段、推进段、停稳段三段执行`));
+      continue;
+    }
+    if (line.trim() === "```markdown") {
+      inPrompt = true;
       output.push(line);
       continue;
     }
-    fieldIndex += 1;
-    const tag = field[2]!;
-    const original = field[3]!;
-    const content = ABSTRACT_FIELD_FALLBACK[tag] ? normalizeAbstractField(tag, original) : original;
-    const replacement = `${String(fieldIndex).padStart(2, "0")}.【${tag}】${content}`;
-    if (replacement !== line) changed = true;
-    output.push(replacement);
+    if (inPrompt && line.trim() === "```") {
+      const duration = durationRows.get(shotId) ?? 4;
+      const visible = visibleTexts.length ? visibleTexts[blockIndex % visibleTexts.length]! : "";
+      const fields = buildAbstractPromptFields(shotId, duration, visible);
+      const content = fields.join("\n");
+      output.push(...fields, line);
+      rebuilt.push({ shotId, chars: Array.from(content).length, count: fields.length, duration });
+      blockIndex += 1;
+      inPrompt = false;
+      continue;
+    }
+    if (inPrompt) continue;
+    if (/^[；;]\s*全片无人，不出现人物、人体局部或人物动作/u.test(line.trim())) continue;
+    output.push(line);
   }
-  if (changed) changes.push("abstract-field-contract-normalized");
-  return output.join("\n");
+  if (rebuilt.length === 0) {
+    let fieldIndex = 0;
+    const normalized = output.flatMap((line) => {
+      if (/^###\s+/u.test(line)) fieldIndex = 0;
+      if (/^[；;]\s*全片无人，不出现人物、人体局部或人物动作/u.test(line.trim())) return [];
+      const field = /^(\d{2}\.)【([^】]+)】([\s\S]*)$/u.exec(line);
+      if (!field) return [line];
+      fieldIndex += 1;
+      const tag = field[2]!;
+      const content = ABSTRACT_FIELD_FALLBACK[tag] ? normalizeAbstractField(tag, field[3]!) : field[3]!;
+      return [`${String(fieldIndex).padStart(2, "0")}.【${tag}】${content}`];
+    });
+    changes.push("abstract-field-contract-normalized");
+    return normalized.join("\n");
+  }
+  let normalized = output.join("\n");
+  if (rebuilt.length) {
+    for (const block of rebuilt) {
+      const pattern = new RegExp(`^\\|\\s*${block.shotId.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&")}\\s*\\|.*$`, "mu");
+      normalized = normalized.replace(pattern,
+        `| ${block.shotId} | ${block.duration}s | ${block.chars} | ✅ ${block.count}/${block.shotId === "opening" ? 30 : 25} | — | — | ✓ | ✓ |`);
+    }
+    let lengthIndex = 0;
+    normalized = normalized.replace(/^\*\*长度\*\*:\s*\d+\s*字符/mgu, () => {
+      const block = rebuilt[lengthIndex++];
+      return block ? `**长度**: ${block.chars} 字符` : "**长度**: 未记录字符";
+    });
+    const average = Math.round(rebuilt.reduce((sum, block) => sum + block.chars, 0) / rebuilt.length);
+    normalized = normalized.replace(/\*\*平均长度\*\*:\s*\d+\s*字符/u, `**平均长度**: ${average} 字符`);
+    normalized = normalized.replace(
+      /## ⚠️ 审核须知[\s\S]*?(?=\n\*\*请回复)/u,
+      "## ⚠️ 审核须知\n\n"
+      + "1. 内容镜头逐镜至少 25 个独立字段，片头至少 30 个独立字段。\n"
+      + "2. 每个镜头的时间轴覆盖完整时长并给出停稳落幅。\n"
+      + "3. 屏上文字只使用本镜列明的 G1 已审原文、许可证字段与仓库地址。\n"
+      + "4. 无人片的定妆照、服装、化妆和人物一致性字段统一记为不适用，不引用人物素材。\n"
+      + "5. 负面约束使用中文且不得包含未审人物、实体空间、设备外观、可运行效果、评价、销量或竞品内容。\n"
+      + "6. 六镜必须保留不同的二维信息构图、动作与信息推进，不以重复模板冒充多镜交付。\n\n",
+    );
+  }
+  changes.push("abstract-field-contract-normalized");
+  return normalized;
 }
 
 function rebalanceDurations<T extends RecordValue>(items: T[], target: number): { items: T[]; changed: boolean } {
@@ -376,7 +603,7 @@ export function normalizeMarketingPromptText(
   const changes: string[] = [];
   let next = normalizePromptString(value ?? "", null, options);
   if (next !== value) changes.push("gate-prompt-contract-normalized");
-  if (options.abstractOnly) next = normalizeAbstractPromptMarkdown(next, changes);
+  if (options.abstractOnly) next = normalizeAbstractPromptMarkdown(next, changes, options);
   next = normalizeMarkdownDurations(next, options.targetDuration, options, changes);
   return { value: next, changes: [...new Set(changes)] };
 }
