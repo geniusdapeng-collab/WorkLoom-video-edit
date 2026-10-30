@@ -47,6 +47,7 @@ function normalizePromptString(value: string, duration: number | null, options: 
     .replace(/Camera增强\s*:/giu, "镜头约束：")
     .replace(/\b(?:85|50|35|24|135|200)mm\b/giu, "固定中焦视角")
     .replace(/开放式公共大厅|嵌入式灯带|接待台|展板|沙发|茶几|灰色哑光瓷砖|办公家具|家具|大厅/gu, "无材质细节的纯黑空间")
+    .replace(/摄影棚|水磨石|吸音毡|LED灯|金属夹持臂|显示终端|显示器|键盘|键帽/gu, "无材质细节的抽象画布")
     .replace(/第三条，标改写。/gu, "模块化方式（改写引用）。")
     .replace(/[“"]?第三条[”"]?\s*[,，]?\s*标改写[。.]?/gu, "模块化方式（改写引用）")
     .replace(/阳极氧化铝|哑光橡胶垫|黑色办公椅|机箱风扇|机械键盘|键盘击键|击键声|散热风扇|橡胶垫|操作台|桌面/gmu, (term) => {
@@ -62,13 +63,25 @@ function normalizePromptString(value: string, duration: number | null, options: 
     .replace(/no text\s*,?\s*/giu, "")
     .replace(/no watermark\s*,?\s*/giu, "")
     .replace(/no signage\s*,?\s*/giu, "")
+    .replace(/no non-diegetic music[^。\n]*/giu, "")
     .replace(/禁止字幕条与角标/gu, "")
     .replace(/禁止画面出现中文汉字与无关字母/gu, "除本次 G1 已审原文外，不出现其他文字")
     .replace(/主体面部明亮清晰，阴影保留层次不死黑。/gu, "画布亮部与 G1 原文清晰可读，暗部保留层次且不抬灰。")
     .replace(/面部微表情自然真实,?眼神聚焦有神采,?符合场景氛围与角色身份/gu, NO_PERSON_MICRO_ACTION)
     .replace(/面部细节：[^。\n]*[。]?/gu, "")
     .replace(/微动作：[^。\n]*[。]?/gu, "")
-    .replace(/呼吸：[^。\n]*[。]?/gu, "");
+    .replace(/呼吸：[^。\n]*[。]?/gu, "")
+    .replace(/\b(?:quietly|confidently|lightly|firmly|softly|gently|calmly|precisely)\b\s*(?:说)?[:：]?/giu, "")
+    .replace(/\b(?:focused|precise|brisk|lucid|assured|clean|tense|calm|restrained|cinematic|photorealistic)\b/giu, "受控抽象")
+    .replace(/\b8K\b/giu, "高质量")
+    .replace(/\b(?:f\/\d+(?:\.\d+)?)\b/giu, "受控景深")
+    .replace(/\b(?:5600|6500|3000)K\b/giu, "冷白色温")
+    .replace(/\bBPM\b/giu, "节拍速度")
+    .replace(/写实拍摄|实拍质感|照片级写实/gu, "受控抽象影像")
+    .replace(/^(\d{2}\.)【台词】[^\n]*/gmu, "$1【台词】无对白；仅以本次 G1 已审原文和图形节奏传达信息。")
+    .replace(/^(\d{2}\.)【微动作】\s*(?:[。.]?)$/gmu, `$1【微动作】${NO_PERSON_MICRO_ACTION}`)
+    .replace(/^(\d{2}\.)【负面约束】\s*[。.]?\s*$/gmu, "$1【负面约束】禁止人物、人体局部、实体硬件、可运行效果、额外字幕、品牌标识、用户评价与竞品对比。")
+    .replace(/^(\d{2}\.)【情绪】\s*[。.]?\s*$/gmu, "$1【情绪】冷酷精密；无人物表演，仅由画布上的光线、文字与线条变化表达节奏。");
   if (options.noPeople) {
     next = next
       .replace(/，站立姿态[^。\n]*/gu, "")
