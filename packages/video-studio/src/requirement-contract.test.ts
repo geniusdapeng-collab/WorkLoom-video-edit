@@ -360,7 +360,7 @@ describe("host requirement contract data", () => {
     expect(renderRequirementContract(contract, meta)).toContain("角色（0）");
   });
 
-  it("permits a genuinely empty prop list only with an explicit scene reason", () => {
+  it("permits a product to use an explicitly reasoned no-prop visual system", () => {
     const meta = nobody(), d = discovery("$scene"), s = requirementRecord(d.sceneStructure, "structure");
     for (const node of [s.opening, ...(s.scenes as unknown[]), s.ending]) {
       const physical = requirementRecord(requirementRecord(node, "node").productionContract, "physical");
@@ -369,7 +369,10 @@ describe("host requirement contract data", () => {
     const result = bindRequirementContract(original(), d, upstream, meta, requirementCast(meta).hash, null);
     expect(verifiedRequirementContract(result, meta, d).props).toEqual([]);
     requirementRecord(meta, "meta").brief = { product: "有明确商品的片子" };
-    expect(() => bindRequirementContract(original(), d, upstream, meta, requirementCast(meta).hash, null)).toThrow("REQUIREMENT_SCENE_UNVERIFIED");
+    expect(bindRequirementContract(original(), d, upstream, meta, requirementCast(meta).hash, null)._workloomRequirementContract).toMatchObject({ props: [] });
+    delete requirementRecord(requirementRecord(s.ending, "ending").productionContract, "ending physical").noPropsReason;
+    expect(() => bindRequirementContract(original(), d, upstream, meta, requirementCast(meta).hash, null))
+      .toThrow(/REQUIREMENT_(?:SCENE_UNVERIFIED|CONTRACT_INVALID)/);
   });
 
   it.each(["missing-selection", "wrong-schema", "wrong-id", "wrong-name", "duplicate", "profile", "registry", "none-conflict", "mode"])("rejects %s casting instead of inventing no-person", kind => {

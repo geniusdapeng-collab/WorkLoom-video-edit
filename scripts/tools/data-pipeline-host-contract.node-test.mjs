@@ -4,7 +4,7 @@ import { createHash } from "node:crypto";
 import { appliedApprovalFeedback, gateDeterministicChecks } from "../../apps/server/src/video/gate-policy.ts";
 import { normalizeMarketingDossierPresentation } from "../../apps/server/src/video/marketing-dossier-normalization.ts";
 import { narrativeThemeInputForRoute } from "../../packages/video-studio/src/requirement-contract-bridge.ts";
-import { normalizeDiscoveryTiming, projectDeclaredFields } from "../../packages/video-studio/src/requirement-contract.ts";
+import { normalizeDiscoveryTiming, productPropsPolicySatisfied, projectDeclaredFields } from "../../packages/video-studio/src/requirement-contract.ts";
 import { normalizeNarrativePrdContract } from "../../packages/video-studio/src/narrative-prd-contract.ts";
 import { normalizeCreativeThemeContract } from "../../packages/video-studio/src/creative-theme-contract.ts";
 import { normalizeMarketingPrdContract } from "../../packages/video-studio/src/marketing-prd-contract.ts";
@@ -75,6 +75,16 @@ test("marketing PRD strips external references and binds no-person delivery limi
   assert.equal(normalized.prd.audioSpecification.voicePolicy, "无对白");
   assert.match(normalized.prd.deliveryStandard.deliverables[0].spec, /2160x3840/);
   assert.match(normalized.prd.deliveryStandard.deliverables[0].spec, /-14 LUFS/);
+});
+
+test("product scenes may use a fully reasoned no-prop visual system", () => {
+  const noProps = [
+    { props: [], noPropsReason: "只展示抽象代码块与屏幕光影，没有独立可见物理道具" },
+    { props: [], noPropsReason: "只展示界面连线与几何图形，没有独立可见物理道具" },
+  ];
+  assert.equal(productPropsPolicySatisfied("Home Assistant", noProps), true);
+  assert.equal(productPropsPolicySatisfied("Home Assistant", [{ props: [], noPropsReason: null }]), false);
+  assert.equal(productPropsPolicySatisfied("Home Assistant", [{ props: [{ name: "设备" }], noPropsReason: null }]), true);
 });
 
 test("scene and risk discovery receive three controlled attempts at the extended timeout", () => {

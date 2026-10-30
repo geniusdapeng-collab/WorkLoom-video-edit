@@ -481,7 +481,7 @@ export function bindRequirementContract(
     throw new RequirementContractError("REQUIREMENT_AUDIENCE_CHANGED", "客户原始受众口径被生成内容覆盖");
   }
   const props = scenes.flatMap(scene => scene.props), actions = scenes.flatMap(scene => scene.actions);
-  if (typeof brief.product === "string" && brief.product.trim() && !props.length) {
+  if (!productPropsPolicySatisfied(brief.product, scenes)) {
     throw new RequirementContractError("REQUIREMENT_SCENE_UNVERIFIED", "商品片没有任何真实结构化物理道具");
   }
   const payload: Omit<RequirementContract, "hash"> = {
@@ -501,6 +501,12 @@ export function bindRequirementContract(
     _workloomRequirementContract: contract,
     keyPoints: [...originalKeyPoints, `[本次结构化需求契约 ${REQUIREMENT_CONTRACT_VERSION}] ${JSON.stringify(contract)}`]
   };
+}
+
+export function productPropsPolicySatisfied(productValue: unknown, scenes: RequirementScene[]): boolean {
+  if (typeof productValue !== "string" || !productValue.trim()) return true;
+  if (scenes.some((scene) => scene.props.length > 0)) return true;
+  return scenes.length > 0 && scenes.every((scene) => Boolean(scene.noPropsReason));
 }
 
 export function verifiedRequirementContract(listValue: unknown, metadataValue: unknown, discoveryValue: unknown): RequirementContract {

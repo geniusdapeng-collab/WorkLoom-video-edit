@@ -5,7 +5,7 @@
   "repo_path": "/Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit",
   "title": "",
   "created_at": "2026-10-30T06:14:55.791Z",
-  "updated_at": "2026-10-30T09:57:16.564Z",
+  "updated_at": "2026-10-30T10:03:10.274Z",
   "baseline": {
     "audit": {
       "commit": "463ae7ad844de31674b94e73679dafaf0f5dcac5",
@@ -16,7 +16,7 @@
       "notes": ""
     },
     "repair": {
-      "commit": "756f189c4c4ddaa26347bb13327f88dbd215d200",
+      "commit": "af467e7854c753d748563c90ce7739f361db0b33",
       "reverified_problem_ids": []
     },
     "acceptance": {
@@ -1723,7 +1723,7 @@
       "level": "L2",
       "severity": "P1",
       "batch": 0,
-      "state": "open",
+      "state": "fixed",
       "title": "空 A2/A3 无证据站仍送语义支持审核，README 被误要求提供用户评价",
       "evidence": [
         {
@@ -1756,7 +1756,17 @@
               "scripts/tools/data-pipeline-host-contract.node-test.mjs"
             ]
           },
-          "last_result": "not-run"
+          "last_result": "pass",
+          "run": {
+            "path": "runs/MC-019-0-1793354254814.json",
+            "sha256": "fd902147ff728e46c494ef00a35fd6a0d1262d207b38b6f248602e4a6817db27",
+            "commit": "af467e7854c753d748563c90ce7739f361db0b33"
+          },
+          "evidence": {
+            "path": "evidence/MC-019-0-1793354254814.txt",
+            "sha256": "f8f0b8257c893e495beb558bd1a5b669ff55fe0a8e0e7402bec9514c0862837f",
+            "commit": "af467e7854c753d748563c90ce7739f361db0b33"
+          }
         },
         {
           "kind": "property",
@@ -1773,14 +1783,101 @@
               "scripts/tools/data-pipeline-host-contract.node-test.mjs"
             ]
           },
-          "last_result": "not-run"
+          "last_result": "pass",
+          "run": {
+            "path": "runs/MC-019-1-1793354255461.json",
+            "sha256": "7fffbd7c2db6da6844adf9094e3cc454805f642ebe73391318cb326858076c25",
+            "commit": "af467e7854c753d748563c90ce7739f361db0b33"
+          },
+          "evidence": {
+            "path": "evidence/MC-019-1-1793354255461.txt",
+            "sha256": "12e5e5e458af553b97ddfa046d7b40ae3a49795d25dc7d7467c56fbb85e09484",
+            "commit": "af467e7854c753d748563c90ce7739f361db0b33"
+          }
         }
       ],
       "regression": {
         "command": "node --import tsx --test --test-name-pattern='empty marketing evidence' scripts/tools/data-pipeline-host-contract.node-test.mjs",
         "evidence": null
       },
-      "notes": "M01 使用真实 GitHub API README 后复现：审核拒绝理由为“只有 README，不含用户评价或评分”。"
+      "notes": "M01 使用真实 GitHub API README 后复现：审核拒绝理由为“只有 README，不含用户评价或评分”。",
+      "verified_by": null,
+      "verified_at": null,
+      "verification_evidence": null,
+      "last_assertion_attempt": {
+        "actor": "root-repair-2026-10-30",
+        "role": "repair",
+        "result": "pass",
+        "at": "2026-10-30T09:57:34.812Z",
+        "commit": "af467e7854c753d748563c90ce7739f361db0b33",
+        "finished_at": "2026-10-30T09:57:35.978Z"
+      },
+      "fixed_by": "root-repair-2026-10-30"
+    },
+    {
+      "id": "MC-020",
+      "kind": "problem",
+      "level": "L3",
+      "severity": "P1",
+      "batch": 2,
+      "state": "open",
+      "title": "商品片规则无视逐场明确无道具理由，数字营销片被强制要求物理道具",
+      "evidence": [
+        {
+          "type": "code",
+          "ref": "packages/video-studio/src/requirement-contract.ts:337@463ae7ad844de31674b94e73679dafaf0f5dcac5",
+          "sha256": "10225700397bc24f0a98df8844e5b51e1df8650408d9a340a43967e88fcd4d16",
+          "note": "只要 brief.product 非空且 props 为空就抛错，不读取每个场景已经通过严格 schema 的 noPropsReason。"
+        }
+      ],
+      "root_cause": {
+        "file": "packages/video-studio/src/requirement-contract.ts",
+        "line": 337,
+        "commit": "463ae7ad844de31674b94e73679dafaf0f5dcac5",
+        "symbol": "bindRequirementContract"
+      },
+      "trigger_path": "Home Assistant 数字产品 + 全片无人抽象界面 → 5 个场景均明确声明无物理道具及理由 → 商品规则仍以 props.length=0 拒绝，无法进入 G3。",
+      "assertions": [
+        {
+          "kind": "sample",
+          "given": "商品存在、所有场景 props=[] 且每个 noPropsReason 非空",
+          "expect": "允许无物理道具的抽象/数字商品视觉合同，props 为空继续下游",
+          "command": "node --import tsx --test --test-name-pattern='fully reasoned no-prop' scripts/tools/data-pipeline-host-contract.node-test.mjs",
+          "exec": {
+            "file": "node",
+            "args": [
+              "--import",
+              "tsx",
+              "--test",
+              "--test-name-pattern=fully reasoned no-prop",
+              "scripts/tools/data-pipeline-host-contract.node-test.mjs"
+            ]
+          },
+          "last_result": "not-run"
+        },
+        {
+          "kind": "property",
+          "given": "任一场景缺 noPropsReason 或未显式声明 props",
+          "expect": "仍按严格场景合同失败关闭",
+          "command": "node --import tsx --test --test-name-pattern='fully reasoned no-prop' scripts/tools/data-pipeline-host-contract.node-test.mjs",
+          "exec": {
+            "file": "node",
+            "args": [
+              "--import",
+              "tsx",
+              "--test",
+              "--test-name-pattern=fully reasoned no-prop",
+              "scripts/tools/data-pipeline-host-contract.node-test.mjs"
+            ]
+          },
+          "last_result": "not-run"
+        }
+      ],
+      "regression": {
+        "command": "node --import tsx --test --test-name-pattern='fully reasoned no-prop' scripts/tools/data-pipeline-host-contract.node-test.mjs",
+        "evidence": null
+      },
+      "notes": "M01 最新真实运行在需求合同收口报“商品片没有任何真实结构化物理道具”。"
     }
   ],
   "gates": []
