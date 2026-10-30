@@ -7,7 +7,15 @@ import { mkdir, open, realpath, rename, rm, writeFile } from "node:fs/promises";
 import { reviewStage, type ProducerVerdict } from "@hyperreality/video-studio";
 import { createDataMiningExecutor, type DataMiningStagePlan, type ExecutorLlm, type IntelStage, type SearchFn, type SearchHit } from "./data-mining-executor.js";
 import { fetchMarketingSource, type SourceSnapshot } from "./marketing-source-fetcher.js";
-import { extractionSchema, stageFactPointers, stagePayloadJsonSchema, validateStageFacts, revalidateStageFacts, type ValidatedStageFacts } from "./marketing-facts.js";
+import {
+  extractionSchema,
+  filterUnsafeMarketingExtraction,
+  stageFactPointers,
+  stagePayloadJsonSchema,
+  validateStageFacts,
+  revalidateStageFacts,
+  type ValidatedStageFacts,
+} from "./marketing-facts.js";
 import { quoteIndexedSources, resolveMarketingExtraction, type CitationBinding } from "./marketing-quote-index.js";
 import { normalizeMarketingDossierPresentation } from "./marketing-dossier-normalization.js";
 import { canonicalRenderJson, renderSha256 } from "./gen/compiled-request.js";
@@ -150,11 +158,15 @@ async function extractStageFacts(input: {
     if (prompt.length > 90_000) fail("MARKETING_REVIEW_TOO_LARGE", "完整来源或纠错上下文超单次提取预算，禁止裁剪后声称核实");
     const result = await input.llm.reason(prompt, { forceJson: true, temperature: 0, maxTokens: 16384, thinking: { type: "disabled" } });
     let parsed: unknown, boundExtraction: ReturnType<typeof extractionSchema.parse> | undefined;
+    let policyExclusions: ReturnType<typeof filterUnsafeMarketingExtraction>["exclusions"] = [];
     let bindings: CitationBinding[] = [], facts: ValidatedStageFacts | undefined, failure: unknown;
     try {
       if (!result?.success) fail("MARKETING_EXTRACTION_UNVERIFIED", `事实提取失败：${result?.error ?? "空回包"}`);
       try { parsed = result.data ?? JSON.parse(result.content ?? ""); }
       catch { fail("MARKETING_EXTRACTION_UNVERIFIED", "事实提取不是可核实JSON"); }
+      const filtered = filterUnsafeMarketingExtraction(input.stage, parsed);
+      parsed = filtered.value;
+      policyExclusions = filtered.exclusions;
       const resolved = resolveMarketingExtraction(parsed, input.pages);
       boundExtraction = resolved.extraction; bindings = resolved.bindings;
       if (correction && canonicalRenderJson(boundExtraction.payload) !== canonicalRenderJson(correction.payload)) {
@@ -166,6 +178,7 @@ async function extractStageFacts(input: {
     const saved = await writeBound(input.root, `${input.prefix}-${input.stage}.extraction-${attempt}.json`, canonicalRenderJson({
       schemaVersion: "workloom.marketing-extraction/v3", scope: input.scope, stage: input.stage, attempt, prompt, citationBindings: bindings,
       response: { success: result?.success === true, content: result?.content ?? null, data: result?.data ?? null },
+      hostPolicyExclusions: policyExclusions,
       status: facts ? "accepted" : "rejected", error: failure instanceof Error ? failure.message : failure ? String(failure) : null,
     }));
     extractions.push({ ref: saved.ref, sha256: saved.sha256 });
@@ -204,7 +217,13 @@ async function verifyExtractionAttempts(input: {
     }
     const response = object(artifact.response, "提取原始响应");
     if (response.success !== true) fail("MARKETING_EXTRACTION_UNVERIFIED", "已接受事实不能引用失败的模型响应");
-    const raw = response.data ?? JSON.parse(String(response.content));
+    const responseRaw = response.data ?? JSON.parse(String(response.content));
+    const filtered = filterUnsafeMarketingExtraction(input.stage, responseRaw);
+    const raw = filtered.value;
+    if (artifact.hostPolicyExclusions === undefined ? filtered.exclusions.length > 0
+      : canonicalRenderJson(artifact.hostPolicyExclusions) !== canonicalRenderJson(filtered.exclusions)) {
+      fail("MARKETING_EXTRACTION_UNVERIFIED", "宿主事实用途筛选与原始响应不一致");
+    }
     const resolved = indexed ? resolveMarketingExtraction(raw, input.sources) : { extraction: extractionSchema.parse(raw), bindings: [] };
     if (indexed && canonicalRenderJson(artifact.citationBindings) !== canonicalRenderJson(resolved.bindings)) fail("MARKETING_EXTRACTION_UNVERIFIED", "原始片段选择与宿主装订证据不一致");
     const parsed = resolved.extraction;

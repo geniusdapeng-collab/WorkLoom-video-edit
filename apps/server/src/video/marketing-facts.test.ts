@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { stageFactPointers, stagePayloadJsonSchema, validateStageFacts, revalidateStageFacts } from "./marketing-facts.js";
+import {
+  filterUnsafeMarketingExtraction,
+  stageFactPointers,
+  stagePayloadJsonSchema,
+  validateStageFacts,
+  revalidateStageFacts,
+} from "./marketing-facts.js";
 import { renderSha256 } from "./gen/compiled-request.js";
 import type { SourceSnapshot } from "./marketing-source-fetcher.js";
 const body = "星野 F3 风量 9 档。价格 399 CNY。评价：低档安静。评分 4。另一款北斗支持 5 档。";
@@ -78,6 +84,39 @@ describe("逐事实叶子的正文绑定", () => {
     const value: any = fixture(); value.payload.images = [{ url: source.assetUrls[0], page_url: source.finalUrl, angle: "unknown" }];
     expect(validateStageFacts("A1", value, [source]).claims).toHaveLength(3);
     value.payload.images[0].url = "https://other.example.com/fake.png"; expect(() => validateStageFacts("A1", value, [source])).toThrow("MARKETING_URL_UNVERIFIED");
+  });
+  it("绝对化官方促销语保留在原始响应但排除出可交付事实并重排引用", () => {
+    const filtered = filterUnsafeMarketingExtraction("A1", {
+      payload: {
+        identity: {
+          name: "星野 F3",
+          official_selling_points: [
+            { point: "风量 9 档", source_url: source.finalUrl },
+            { point: "Perfect to run anywhere", source_url: source.finalUrl },
+            { point: "模块化设计", source_url: source.finalUrl },
+          ],
+        },
+        images: [],
+      },
+      citations: [
+        { pointer: "/identity/name", sourceId: source.sourceId, quote: body },
+        { pointer: "/identity/official_selling_points/0/point", sourceId: source.sourceId, quote: body },
+        { pointer: "/identity/official_selling_points/1/point", sourceId: source.sourceId, quote: body },
+        { pointer: "/identity/official_selling_points/2/point", sourceId: source.sourceId, quote: body },
+      ],
+    });
+    const value = filtered.value as any;
+    expect(value.payload.identity.official_selling_points.map((item: any) => item.point)).toEqual(["风量 9 档", "模块化设计"]);
+    expect(value.citations.map((item: any) => item.pointer)).toEqual([
+      "/identity/name",
+      "/identity/official_selling_points/0/point",
+      "/identity/official_selling_points/1/point",
+    ]);
+    expect(filtered.exclusions).toEqual([{
+      pointer: "/identity/official_selling_points/1/point",
+      value: "Perfect to run anywhere",
+      reason: "absolute-marketing-claim",
+    }]);
   });
   it.each(["A1", "A2", "A3"] as const)("%s提取输入合同由实际严格schema产生并保留边界", stage => {
     const schema: any = stagePayloadJsonSchema(stage);

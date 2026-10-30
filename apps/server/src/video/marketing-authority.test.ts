@@ -60,6 +60,7 @@ async function prepare(options: { noSearch?: boolean; noAux?: boolean; badQuote?
   imageExtras?: boolean;
   imageMetadata?: "complete" | "no-source" | "no-angle" | "minimal";
   syntheticTokenCharge?: number;
+  absoluteSellingPoint?: boolean;
 } = {}): Promise<PreparedMarketingFacts> {
   let searches = 0, a1Calls = 0;
   return prepareMarketingFacts({ scope: { ...scope, attempt: options.attempt ?? 1 }, root, intent: "做一条风扇介绍", metadata: { brief: { product: "星野 F3", brand: "星野" } }, env: { ...env, ...(options.mode ? { VM_DATA_MINING_MODE: options.mode } : {}) },
@@ -71,8 +72,12 @@ async function prepare(options: { noSearch?: boolean; noAux?: boolean; badQuote?
       a1Calls++;
       if (a1Calls === 2 && options.citationFault === "repair-model-failure") return { success: false, error: "LLM unavailable" };
       const specs = options.specs ?? { 风量: "9 档" };
-      const data: { payload: any; citations: any[] } = { payload: { identity: { name: "星野 F3", specs, ...(options.citationFault ? { prices: [{ amount: 399, currency: "CNY", source_url: sourceUrl }] } : {}), official_selling_points: [{ point: "风量 9 档", source_url: sourceUrl }] }, images: [] },
-        citations: ["/identity/name", ...Object.keys(specs).map(key => `/identity/specs/${key.replace(/~/g, "~0").replace(/\//g, "~1")}`), ...(options.citationFault ? ["/identity/prices/0/amount", "/identity/prices/0/currency"] : []), "/identity/official_selling_points/0/point"]
+      const officialPoints = [
+        { point: "风量 9 档", source_url: sourceUrl },
+        ...(options.absoluteSellingPoint ? [{ point: "Perfect to run anywhere", source_url: sourceUrl }] : []),
+      ];
+      const data: { payload: any; citations: any[] } = { payload: { identity: { name: "星野 F3", specs, ...(options.citationFault ? { prices: [{ amount: 399, currency: "CNY", source_url: sourceUrl }] } : {}), official_selling_points: officialPoints }, images: [] },
+        citations: ["/identity/name", ...Object.keys(specs).map(key => `/identity/specs/${key.replace(/~/g, "~0").replace(/\//g, "~1")}`), ...(options.citationFault ? ["/identity/prices/0/amount", "/identity/prices/0/currency"] : []), ...officialPoints.map((_point, index) => `/identity/official_selling_points/${index}/point`)]
           .map(pointer => ({ pointer, sourceId: source.sourceId, ...(options.quoteIds ? { quoteId: source.textFragments[0].quoteId } : { quote: options.badQuote ? "不存在的事实" : sourceText }) })) };
       if (options.imageExtras) data.payload.images.push({ url: sourceUrl + "/hero.png", page_url: sourceUrl, angle: "unknown", width: 1080, height: 1920 });
       if (options.imageMetadata) data.payload.images.push({ url: sourceUrl + "/hero.png", page_url: sourceUrl,
@@ -114,6 +119,22 @@ describe("营销事实宿主完整执行", () => {
     const reviewed = supportReviewFacts("A1", facts);
     expect(reviewed.payload.images).toEqual([]);
     expect(reviewed.claims.map((claim) => claim.pointer)).toEqual(["/identity/name"]);
+  });
+  it("绝对化官方促销语只留在不可变原始响应，交付事实与复核都不包含它", async () => {
+    const prepared = await prepare({ quoteIds: true, absoluteSellingPoint: true });
+    const identity = prepared.bundle.rawByAgent.A1.identity as { official_selling_points: Array<{ point: string }> };
+    expect(identity.official_selling_points.map((item) => item.point)).toEqual(["风量 9 档"]);
+    const reference = prepared.bundle.stages[0]!.extractions![0]!;
+    const artifact = JSON.parse(await readFile(path.join(root, reference.ref), "utf8"));
+    expect(artifact.response.data.payload.identity.official_selling_points.map((item: any) => item.point))
+      .toEqual(["风量 9 档", "Perfect to run anywhere"]);
+    expect(artifact.hostPolicyExclusions).toEqual([{
+      pointer: "/identity/official_selling_points/1/point",
+      value: "Perfect to run anywhere",
+      reason: "absolute-marketing-claim",
+    }]);
+    const saved = await finalizeMarketingFacts(prepared, shots, env);
+    await expect(verifyMarketingFacts({ root, ...saved, scope, shots })).resolves.toMatchObject({ scope });
   });
   it("真实HTTP正文→三站提取/完整支持审核→A1–A5→逐最终镜头事实审核→复读", async () => {
     const prepared = await prepare();

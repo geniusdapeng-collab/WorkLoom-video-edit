@@ -36,6 +36,11 @@ export interface ValidatedStageFacts {
   stage: IntelStage; status: "source_bound" | "no_evidence"; payload: Record<string, unknown>;
   claims: ClaimEvidence[]; noEvidenceReason?: string;
 }
+export interface MarketingPolicyExclusion {
+  pointer: string;
+  value: string;
+  reason: "absolute-marketing-claim";
+}
 const escapePointer = (value: string) => value.replace(/~/g, "~0").replace(/\//g, "~1");
 const sourceFields = new Set(["url", "source_url", "page_url", "price_source_url", "visual_source_url", "source", "channel", "suspect"]);
 function factLeaves(value: unknown, pointer = "", out = new Map<string, string | number | boolean>()): Map<string, string | number | boolean> {
@@ -57,6 +62,71 @@ export function stagePayloadShape(stage: IntelStage, raw: unknown): Record<strin
 /** 提取请求直接使用实际严格验证器的输入合同，避免手写示例遗漏图片等嵌套字段。 */
 export function stagePayloadJsonSchema(stage: IntelStage): Record<string, unknown> {
   return z.toJSONSchema(stage === "A1" ? a1 : stage === "A2" ? a2 : a3, { io: "input" });
+}
+
+const ABSOLUTE_MARKETING = /(?:\bperfect\b|\b(?:best|world'?s best|#1|number one|guaranteed?|always|never)\b|完美|最佳|最强|最好|第一|绝对|百分百|100%|永久|永不|终身)/iu;
+
+/**
+ * Absolute promotional wording is retained in the immutable model response but
+ * excluded from the source-bound deliverable facts. Removing a whole official
+ * selling-point item is safer than rewriting it and preserves every remaining
+ * citation's original pointer/value relation.
+ */
+export function filterUnsafeMarketingExtraction(
+  stage: IntelStage,
+  raw: unknown,
+): { value: unknown; exclusions: MarketingPolicyExclusion[] } {
+  if (stage !== "A1" || !raw || typeof raw !== "object" || Array.isArray(raw)) return { value: raw, exclusions: [] };
+  const source = structuredClone(raw) as Record<string, unknown>;
+  const payload = source.payload && typeof source.payload === "object" && !Array.isArray(source.payload)
+    ? source.payload as Record<string, unknown>
+    : null;
+  const identity = payload?.identity && typeof payload.identity === "object" && !Array.isArray(payload.identity)
+    ? payload.identity as Record<string, unknown>
+    : null;
+  const points = Array.isArray(identity?.official_selling_points) ? identity.official_selling_points : null;
+  if (!payload || !identity || !points) return { value: raw, exclusions: [] };
+
+  const excluded = new Map<number, MarketingPolicyExclusion>();
+  const kept: unknown[] = [];
+  for (const [index, value] of points.entries()) {
+    const point = typeof (value as Record<string, unknown> | null)?.point === "string"
+      ? String((value as Record<string, unknown>).point).trim()
+      : "";
+    if (point && ABSOLUTE_MARKETING.test(point)) {
+      excluded.set(index, {
+        pointer: `/identity/official_selling_points/${index}/point`,
+        value: point,
+        reason: "absolute-marketing-claim",
+      });
+      continue;
+    }
+    kept.push(value);
+  }
+  if (excluded.size === 0) return { value: raw, exclusions: [] };
+
+  const remap = new Map<number, number>();
+  let next = 0;
+  for (let index = 0; index < points.length; index++) if (!excluded.has(index)) remap.set(index, next++);
+  identity.official_selling_points = kept;
+  if (Array.isArray(source.citations)) {
+    source.citations = source.citations.flatMap((citation) => {
+      if (!citation || typeof citation !== "object" || Array.isArray(citation)) return [citation];
+      const pointer = typeof (citation as Record<string, unknown>).pointer === "string"
+        ? String((citation as Record<string, unknown>).pointer)
+        : "";
+      const match = /^\/identity\/official_selling_points\/(\d+)(\/point)$/.exec(pointer);
+      if (!match) return [citation];
+      const oldIndex = Number(match[1]);
+      if (excluded.has(oldIndex)) return [];
+      const newIndex = remap.get(oldIndex);
+      return newIndex === undefined ? [] : [{
+        ...(citation as Record<string, unknown>),
+        pointer: `/identity/official_selling_points/${newIndex}/point`,
+      }];
+    });
+  }
+  return { value: source, exclusions: [...excluded.values()] };
 }
 
 /** 与严格验证器使用同一叶子规则，供引用结构纠错列出精确的允许路径。 */

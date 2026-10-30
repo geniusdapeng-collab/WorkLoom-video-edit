@@ -8,6 +8,7 @@ import { normalizeNarrativePrdContract } from "../../packages/video-studio/src/n
 import { normalizeCreativeThemeContract } from "../../packages/video-studio/src/creative-theme-contract.ts";
 import { sourceDocument, SOURCE_MAX_TEXT_CHARS } from "../../apps/server/src/video/marketing-source-fetcher.ts";
 import { supportReviewFacts } from "../../apps/server/src/video/marketing-authority.ts";
+import { filterUnsafeMarketingExtraction } from "../../apps/server/src/video/marketing-facts.ts";
 
 test("narrative route bypasses vendor marketing copy while marketing keeps it", () => {
   assert.equal(narrativeThemeInputForRoute("城市空镜", {
@@ -142,6 +143,30 @@ test("image angle claims are not sent as textual facts to support review", () =>
   });
   assert.deepEqual(reviewed.payload.images, []);
   assert.deepEqual(reviewed.claims.map((claim) => claim.pointer), ["/identity/name"]);
+});
+
+test("absolute marketing claims stay in raw response but are excluded from deliverable facts", () => {
+  const filtered = filterUnsafeMarketingExtraction("A1", {
+    payload: { identity: { name: "Home Assistant", official_selling_points: [
+      { point: "Open source", source_url: "https://github.com/home-assistant/core" },
+      { point: "Perfect to run anywhere", source_url: "https://github.com/home-assistant/core" },
+    ] }, images: [] },
+    citations: [
+      { pointer: "/identity/name", sourceId: "SRC-1", quote: "Home Assistant" },
+      { pointer: "/identity/official_selling_points/0/point", sourceId: "SRC-1", quote: "Open source" },
+      { pointer: "/identity/official_selling_points/1/point", sourceId: "SRC-1", quote: "Perfect" },
+    ],
+  });
+  assert.deepEqual(filtered.value.payload.identity.official_selling_points.map((item) => item.point), ["Open source"]);
+  assert.deepEqual(filtered.value.citations.map((item) => item.pointer), [
+    "/identity/name",
+    "/identity/official_selling_points/0/point",
+  ]);
+  assert.deepEqual(filtered.exclusions, [{
+    pointer: "/identity/official_selling_points/1/point",
+    value: "Perfect to run anywhere",
+    reason: "absolute-marketing-claim",
+  }]);
 });
 
 test("marketing dossier cards never claim zero official evidence when source-bound claims exist", () => {

@@ -5,7 +5,7 @@
   "repo_path": "/Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit",
   "title": "",
   "created_at": "2026-10-30T06:14:55.791Z",
-  "updated_at": "2026-10-30T07:57:28.993Z",
+  "updated_at": "2026-10-30T07:59:52.915Z",
   "baseline": {
     "audit": {
       "commit": "463ae7ad844de31674b94e73679dafaf0f5dcac5",
@@ -16,7 +16,7 @@
       "notes": ""
     },
     "repair": {
-      "commit": "fbe88967e73b62f30a30ac41a1838162d8948164",
+      "commit": "4a18be68b7c4b39ca018d1024dbca323172dd74d",
       "reverified_problem_ids": []
     },
     "acceptance": {
@@ -664,14 +664,14 @@
           },
           "last_result": "pass",
           "run": {
-            "path": "runs/MC-008-0-1793346886273.json",
-            "sha256": "cdc3244ce3100a639f602ad277283f5c694bd12a9869308134a147aea87f12af",
-            "commit": "fbe88967e73b62f30a30ac41a1838162d8948164"
+            "path": "runs/MC-008-0-1793347057840.json",
+            "sha256": "16596e9f9e100140afe15b6e54a14522b9e9383c3838ea4cd66e4ba4cfac1e6b",
+            "commit": "4a18be68b7c4b39ca018d1024dbca323172dd74d"
           },
           "evidence": {
-            "path": "evidence/MC-008-0-1793346886273.txt",
-            "sha256": "3e6e7977b89096485a25a475a0bcc48b666b187da776bd6445bc80c8cb3ffb45",
-            "commit": "fbe88967e73b62f30a30ac41a1838162d8948164"
+            "path": "evidence/MC-008-0-1793347057840.txt",
+            "sha256": "935d121c06b913e4328330e0cd7c15b3170840312ea4b4ddb03ee77e14302121",
+            "commit": "4a18be68b7c4b39ca018d1024dbca323172dd74d"
           }
         },
         {
@@ -691,14 +691,14 @@
           },
           "last_result": "pass",
           "run": {
-            "path": "runs/MC-008-1-1793346886788.json",
-            "sha256": "aa54bb691e1f9e8e7c7b16e1d068ee9928d73f0f04b28bbf2952eecea0c87f96",
-            "commit": "fbe88967e73b62f30a30ac41a1838162d8948164"
+            "path": "runs/MC-008-1-1793347058414.json",
+            "sha256": "2d6e52100eb1a83237edec9f885cc8c07fdee88d0a7a78203a90a9278c55794f",
+            "commit": "4a18be68b7c4b39ca018d1024dbca323172dd74d"
           },
           "evidence": {
-            "path": "evidence/MC-008-1-1793346886788.txt",
-            "sha256": "cf45a468e0e6d89bc04e8bdeef8f4b29ef549bf6d008f304cac1d55242b31149",
-            "commit": "fbe88967e73b62f30a30ac41a1838162d8948164"
+            "path": "evidence/MC-008-1-1793347058414.txt",
+            "sha256": "7034c9c55ccd4fb952b0395a89ce264f3ec1e70dab2daa424b0c2fed4ad596b8",
+            "commit": "4a18be68b7c4b39ca018d1024dbca323172dd74d"
           }
         }
       ],
@@ -714,9 +714,9 @@
         "actor": "root-repair-2026-10-30",
         "role": "repair",
         "result": "pass",
-        "at": "2026-10-30T07:54:46.273Z",
-        "commit": "fbe88967e73b62f30a30ac41a1838162d8948164",
-        "finished_at": "2026-10-30T07:54:47.242Z"
+        "at": "2026-10-30T07:57:37.839Z",
+        "commit": "4a18be68b7c4b39ca018d1024dbca323172dd74d",
+        "finished_at": "2026-10-30T07:57:38.839Z"
       },
       "fixed_by": "root-repair-2026-10-30"
     },
@@ -920,7 +920,7 @@
       "level": "L4",
       "severity": "P1",
       "batch": 1,
-      "state": "open",
+      "state": "fixed",
       "title": "营销档案摘要在 0 评价和 0 竞品时仍生成口碑、差异化与高风险素材矛盾",
       "evidence": [
         {
@@ -953,7 +953,17 @@
               "scripts/tools/data-pipeline-host-contract.node-test.mjs"
             ]
           },
-          "last_result": "not-run"
+          "last_result": "pass",
+          "run": {
+            "path": "runs/MC-011-0-1793347058942.json",
+            "sha256": "6dc9d3e13eacc50b4bb1faa6dfdac3be4fb0ed39c54983f3cee0eddb50e901a5",
+            "commit": "4a18be68b7c4b39ca018d1024dbca323172dd74d"
+          },
+          "evidence": {
+            "path": "evidence/MC-011-0-1793347058942.txt",
+            "sha256": "f65e3dbc9a52d4d04b6c990127c1073cf0f6ebf9a6ae225ef232c6d9cfe99c84",
+            "commit": "4a18be68b7c4b39ca018d1024dbca323172dd74d"
+          }
         },
         {
           "kind": "property",
@@ -970,14 +980,101 @@
               "scripts/tools/data-pipeline-host-contract.node-test.mjs"
             ]
           },
-          "last_result": "not-run"
+          "last_result": "pass",
+          "run": {
+            "path": "runs/MC-011-1-1793347059356.json",
+            "sha256": "aeac314f89a2f00ddc53caec875e10895784eeb39cce668fd524768d58b8d556",
+            "commit": "4a18be68b7c4b39ca018d1024dbca323172dd74d"
+          },
+          "evidence": {
+            "path": "evidence/MC-011-1-1793347059356.txt",
+            "sha256": "3358ed0c9369e483961c6817825ba4697983d1cf99bf9fd56ac488a31926a269",
+            "commit": "4a18be68b7c4b39ca018d1024dbca323172dd74d"
+          }
         }
       ],
       "regression": {
         "command": "node --import tsx --test --test-name-pattern='marketing dossier cards' scripts/tools/data-pipeline-host-contract.node-test.mjs",
         "evidence": null
       },
-      "notes": "M01 真实 G1 60 分拒绝；此前多次 G1 在不同摘要矛盾上波动。"
+      "notes": "M01 真实 G1 60 分拒绝；此前多次 G1 在不同摘要矛盾上波动。",
+      "verified_by": null,
+      "verified_at": null,
+      "verification_evidence": null,
+      "last_assertion_attempt": {
+        "actor": "root-repair-2026-10-30",
+        "role": "repair",
+        "result": "pass",
+        "at": "2026-10-30T07:57:38.941Z",
+        "commit": "4a18be68b7c4b39ca018d1024dbca323172dd74d",
+        "finished_at": "2026-10-30T07:57:39.776Z"
+      },
+      "fixed_by": "root-repair-2026-10-30"
+    },
+    {
+      "id": "MC-012",
+      "kind": "problem",
+      "level": "L2",
+      "severity": "P1",
+      "batch": 1,
+      "state": "open",
+      "title": "官方来源中的绝对化促销语未隔离，原文支持审核拒绝整批事实",
+      "evidence": [
+        {
+          "type": "code",
+          "ref": "apps/server/src/video/marketing-authority.ts:303@463ae7ad844de31674b94e73679dafaf0f5dcac5",
+          "sha256": "6e7dac86e9f1509d270fbdf619d2d13f162ab5e892556df86dbc6bfcfd59dcc6",
+          "note": "提取结果直接进入原文支持审核；A1 official_selling_points 中“Perfect”等官方营销用语没有与可交付事实隔离。"
+        }
+      ],
+      "root_cause": {
+        "file": "apps/server/src/video/marketing-authority.ts",
+        "line": 303,
+        "commit": "463ae7ad844de31674b94e73679dafaf0f5dcac5",
+        "symbol": "extractStageFacts"
+      },
+      "trigger_path": "官方 README 含 Perfect/#1/best 等促销语 → 模型按规则引用为 selling point → 支持审核以绝对化优势拒绝整批 → 即使其余事实全部有原文也无法进入 G1。",
+      "assertions": [
+        {
+          "kind": "sample",
+          "given": "A1 同时含可交付事实和 Perfect 官方促销语",
+          "expect": "原始响应保持不可变，Perfect 项不进入交付 facts，剩余引用按新下标重排",
+          "command": "node --import tsx --test --test-name-pattern='absolute marketing' scripts/tools/data-pipeline-host-contract.node-test.mjs",
+          "exec": {
+            "file": "node",
+            "args": [
+              "--import",
+              "tsx",
+              "--test",
+              "--test-name-pattern=absolute marketing",
+              "scripts/tools/data-pipeline-host-contract.node-test.mjs"
+            ]
+          },
+          "last_result": "not-run"
+        },
+        {
+          "kind": "property",
+          "given": "重算摘要后的已接受提取档案",
+          "expect": "复核重新执行同一用途筛选，exclusions 或交付事实变化即拒绝",
+          "command": "node --import tsx --test --test-name-pattern='absolute marketing' scripts/tools/data-pipeline-host-contract.node-test.mjs",
+          "exec": {
+            "file": "node",
+            "args": [
+              "--import",
+              "tsx",
+              "--test",
+              "--test-name-pattern=absolute marketing",
+              "scripts/tools/data-pipeline-host-contract.node-test.mjs"
+            ]
+          },
+          "last_result": "not-run"
+        }
+      ],
+      "regression": {
+        "command": "node --import tsx --test --test-name-pattern='absolute marketing' scripts/tools/data-pipeline-host-contract.node-test.mjs",
+        "evidence": null
+      },
+      "notes": "M01 最新重跑在支持审核阶段因 official_selling_points[2]=Perfect 被拒绝 85 分阈值。"
     }
   ],
   "gates": []
