@@ -1,0 +1,65 @@
+{
+  "id": "MC-008",
+  "kind": "problem",
+  "level": "L4",
+  "severity": "P1",
+  "batch": 1,
+  "state": "open",
+  "title": "无人合同只进入提示词，创意主题仍可新增人物、痛点和外部作品引用",
+  "evidence": [
+    {
+      "type": "code",
+      "ref": "apps/server/src/video/builtin-character-selection.ts:265@463ae7ad844de31674b94e73679dafaf0f5dcac5",
+      "sha256": "164eedde8740fc37068f9bec1788da057e2411b15978180467e08818d12ed7e9",
+      "note": "mode=none 只追加一句文字提示，没有在 CreativeThemeGenerator 输出后归一 protagonist、shots、description、受众、基调与外部片名。"
+    }
+  ],
+  "root_cause": {
+    "file": "apps/server/src/video/builtin-character-selection.ts",
+    "line": 265,
+    "commit": "463ae7ad844de31674b94e73679dafaf0f5dcac5",
+    "symbol": "appendBuiltinCharacterGuidance"
+  },
+  "trigger_path": "用户原文明确“全片无人”，主题模型仍生成“开发者停手/转身”、未核实配置痛点或《Her》等未请求片名 → G2 两次拒绝，预生产在创意门停住。",
+  "assertions": [
+    {
+      "kind": "sample",
+      "given": "marketing + mode=none，主题输出含人物、动作、痛点、冲突基调和未请求片名",
+      "expect": "宿主归一把人物/动作/草稿镜头清除，受众与基调绑定客户原文，片名移除并注入 G1 官方主张合同",
+      "command": "node --import tsx --test --test-name-pattern='creative theme' scripts/tools/data-pipeline-host-contract.node-test.mjs",
+      "exec": {
+        "file": "node",
+        "args": [
+          "--import",
+          "tsx",
+          "--test",
+          "--test-name-pattern=creative theme",
+          "scripts/tools/data-pipeline-host-contract.node-test.mjs"
+        ]
+      },
+      "last_result": "not-run"
+    },
+    {
+      "kind": "property",
+      "given": "客户原文没有指定任意外部导演或影片",
+      "expect": "视觉风格不得把外部作品名送入 G2；客户明确提供的片名仍可保留",
+      "command": "node --import tsx --test --test-name-pattern='creative theme' scripts/tools/data-pipeline-host-contract.node-test.mjs",
+      "exec": {
+        "file": "node",
+        "args": [
+          "--import",
+          "tsx",
+          "--test",
+          "--test-name-pattern=creative theme",
+          "scripts/tools/data-pipeline-host-contract.node-test.mjs"
+        ]
+      },
+      "last_result": "not-run"
+    }
+  ],
+  "regression": {
+    "command": "node --import tsx --test --test-name-pattern='creative theme' scripts/tools/data-pipeline-host-contract.node-test.mjs",
+    "evidence": null
+  },
+  "notes": "M01 两次真实 G2 分别 62/72 分，原始确认单与监制 issues 已保留。"
+}

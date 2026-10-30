@@ -5,6 +5,9 @@ import { normalizeMarketingDossierPresentation } from "../../apps/server/src/vid
 import { narrativeThemeInputForRoute } from "../../packages/video-studio/src/requirement-contract-bridge.ts";
 import { projectDeclaredFields } from "../../packages/video-studio/src/requirement-contract.ts";
 import { normalizeNarrativePrdContract } from "../../packages/video-studio/src/narrative-prd-contract.ts";
+import { normalizeCreativeThemeContract } from "../../packages/video-studio/src/creative-theme-contract.ts";
+import { sourceDocument, SOURCE_MAX_TEXT_CHARS } from "../../apps/server/src/video/marketing-source-fetcher.ts";
+import { supportReviewFacts } from "../../apps/server/src/video/marketing-authority.ts";
 
 test("narrative route bypasses vendor marketing copy while marketing keeps it", () => {
   assert.equal(narrativeThemeInputForRoute("城市空镜", {
@@ -70,6 +73,63 @@ test("narrative PRD cannot invent a second cast member or conflicting delivery t
   assert.equal(result.prd.visualSpecification.cameraLanguage.includes("不超过4镜"), false);
   assert.deepEqual(result.prd.deliveryStandard.acceptanceCriteria, result.prd.productionConstraints.qualityThresholds);
   assert.equal(result.prd.creativeCore.keyMessages.join(" ").includes("字幕"), false);
+});
+
+test("creative theme strips people and unrequested film titles under the host contract", () => {
+  const intent = "全片无人，仅使用抽象界面和示意图，给 Home Assistant 做一条面向开发者的介绍片";
+  const result = normalizeCreativeThemeContract({
+    _originalStoryText: intent,
+    tasks: [{
+      theme: "代码把家留在本地",
+      tone: "冷酷精密、暗藏温度",
+      description: "屏幕前的开发者转身完成配置。",
+      protagonist: "开发者",
+      shots: [{ shot: "人物转身" }],
+      dialogue_requirement: "开发者口播",
+      character_consistency: "保持造型",
+      visual_style: "参考《Her》的界面柔光；屏幕自发光为主光。",
+      special_notes: "只用官方仓库事实。",
+      target_audience: "目标消费者/品牌受众",
+    }],
+  }, {
+    pipelineRoute: { kind: "marketing" },
+    customerOriginalIntent: intent,
+    builtinCharacterSelection: { mode: "none" },
+    brief: { product: "Home Assistant" },
+    _dataDossier: { identity: { official_selling_points: [{ point: "local control and privacy first" }] } },
+  });
+  const task = result.result.tasks[0];
+  assert.equal(task.protagonist, null);
+  assert.deepEqual(task.shots, []);
+  assert.doesNotMatch(task.description, /开发者|转身|屏幕前/);
+  assert.equal(task.target_audience, "开发者（客户原文明确）");
+  assert.equal(task.tone, "冷酷精密");
+  assert.doesNotMatch(task.visual_style, /《/);
+  assert.match(task.special_notes, /local control and privacy first/);
+});
+
+test("bounded source text accepts publishable pages above the former 24k limit without truncation", () => {
+  const text = "可核实正文\n".repeat(8_000);
+  const parsed = sourceDocument(text, "text/plain", "https://source.example.com/").text;
+  assert.equal(text.startsWith(parsed), true);
+  assert.ok(parsed.length > 24_000);
+  assert.ok(parsed.length <= SOURCE_MAX_TEXT_CHARS);
+});
+
+test("image angle claims are not sent as textual facts to support review", () => {
+  const reviewed = supportReviewFacts("A1", {
+    stage: "A1",
+    status: "source_bound",
+    payload: { identity: { name: "Twenty" }, images: [{ url: "https://source.example.com/logo.svg", page_url: "https://source.example.com/", angle: "品牌 Logo" }] },
+    claims: [
+      { claimId: "CL-text", stage: "A1", pointer: "/identity/name", value: "Twenty", sourceId: "SRC-1",
+        textSha256: "a".repeat(64), quote: "Twenty", quoteStart: 0, quoteEnd: 6, status: "source-bound" },
+      { claimId: "CL-image", stage: "A1", pointer: "/images/0/angle", value: "品牌 Logo", sourceId: "SRC-1",
+        textSha256: "a".repeat(64), quote: "Twenty", quoteStart: 0, quoteEnd: 6, status: "source-bound" },
+    ],
+  });
+  assert.deepEqual(reviewed.payload.images, []);
+  assert.deepEqual(reviewed.claims.map((claim) => claim.pointer), ["/identity/name"]);
 });
 
 test("marketing dossier cards never claim zero official evidence when source-bound claims exist", () => {

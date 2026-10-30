@@ -58,7 +58,11 @@ function accepted(verdict: ProducerVerdict | undefined, file: string, hash: stri
 export function supportReviewFacts(stage: IntelStage, facts: ValidatedStageFacts): ValidatedStageFacts {
   if (stage !== "A1") return facts;
   const payload = { ...facts.payload, images: [] };
-  return { ...facts, payload };
+  return {
+    ...facts,
+    payload,
+    claims: facts.claims.filter((claim) => !claim.pointer.startsWith("/images/")),
+  };
 }
 async function writeBound(root: string, ref: string, bytes: string | Buffer): Promise<{ ref: string; path: string; sha256: string }> {
   const file = path.resolve(root, ref);

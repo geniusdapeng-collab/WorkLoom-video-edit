@@ -54,6 +54,9 @@ describe("来源公网地址与真实HTTP读取", () => {
   });
   it("拒绝空文/验证码/长文，不把裁剪当完整原文", () => {
     for (const value of ["", "请完成安全验证", "x".repeat(SOURCE_MAX_TEXT_CHARS + 1)]) expect(() => sourceDocument(value, "text/plain", "https://source.example.com/")).toThrow();
+    const largeButBounded = sourceDocument("可核实正文\n".repeat(8_000), "text/plain", "https://source.example.com/").text;
+    expect(largeButBounded.length).toBeGreaterThan(24_000);
+    expect(largeButBounded.length).toBeLessThanOrEqual(SOURCE_MAX_TEXT_CHARS);
     expect(sourceDocument('<img src="http://127.0.0.1/x">有效正文', "text/html", "https://source.example.com/").assetUrls).toEqual([]);
   });
 });

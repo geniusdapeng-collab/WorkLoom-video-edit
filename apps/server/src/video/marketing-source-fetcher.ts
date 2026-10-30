@@ -7,7 +7,7 @@ import { brotliDecompressSync, gunzipSync, inflateSync } from "node:zlib";
 import { createHash } from "node:crypto";
 
 export const SOURCE_MAX_BYTES = 2 * 1024 * 1024;
-export const SOURCE_MAX_TEXT_CHARS = 24_000;
+export const SOURCE_MAX_TEXT_CHARS = 64_000;
 export interface SourceSnapshot {
   sourceId: string; requestedUrl: string; finalUrl: string; redirectChain: string[];
   fetchedAt: string; contentType: string; rawSha256: string; textSha256: string;

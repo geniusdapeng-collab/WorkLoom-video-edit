@@ -32,6 +32,7 @@ import { assertPrdAuthorityBridge, installVendorPrdAuthorityBridge, installVendo
 import { captureRequirementTheme, type RequirementApprovedTheme } from "./requirement-authority.js";
 import { requirementHash } from "./requirement-contract.js";
 import { normalizeNarrativePrdContract } from "./narrative-prd-contract.js";
+import { normalizeCreativeThemeContract } from "./creative-theme-contract.js";
 import {
   applyDurationPolicyToManager,
   installVendorAudioDisciplineBridge,
@@ -502,6 +503,27 @@ export class VideoStudio {
           charactersDir,
           durationConstraint: { maxSingleShot, minSingleShot }
         });
+        const creativeThemeGenerator = (system as unknown as {
+          creativeThemeGenerator?: Record<string, unknown>;
+        }).creativeThemeGenerator;
+        if (!creativeThemeGenerator || typeof creativeThemeGenerator.generate !== "function") {
+          throw new Error("CREATIVE_THEME_CONTRACT_BRIDGE_UNAVAILABLE: vendor 缺少 CreativeThemeGenerator.generate");
+        }
+        const originalThemeGenerate = creativeThemeGenerator.generate as (
+          this: Record<string, unknown>,
+          themeInput: string,
+        ) => Promise<Record<string, unknown>>;
+        creativeThemeGenerator.generate = async function workloomThemeGenerate(
+          this: Record<string, unknown>,
+          themeInput: string,
+        ): Promise<Record<string, unknown>> {
+          const generated = await Reflect.apply(originalThemeGenerate, this, [themeInput]);
+          const normalized = normalizeCreativeThemeContract(generated, metadata);
+          if (normalized.changes.length > 0) {
+            log(`[studio] 创意主题合同归一：${normalized.changes.join("、")}`);
+          }
+          return normalized.result;
+        };
         if (!prdAuthority) {
           const prdGenerator = (system as unknown as { prdGenerator?: Record<string, unknown> }).prdGenerator;
           if (!prdGenerator || typeof prdGenerator.generate !== "function") {

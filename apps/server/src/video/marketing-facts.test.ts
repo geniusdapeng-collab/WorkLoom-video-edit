@@ -45,9 +45,9 @@ describe("逐事实叶子的正文绑定", () => {
     expect(validateStageFacts("A1", value, [source]).claims).toHaveLength(4);
     expect(stageFactPointers("A1", value.payload)).toEqual(["/identity/name", "/identity/specs/source", "/identity/specs/a~1b~0c", "/identity/official_selling_points/0/point"]);
   });
-  it("引用路径清单与验证器同源，价格来源URL和未知图片角度仍不属于事实", () => {
+  it("引用路径清单与验证器同源，价格来源URL和所有图片元数据均不属于事实", () => {
     const payload = { identity: { name: "星野 F3", specs: { url: "USB", 待机功率: 0, 自动启停: false }, prices: [{ amount: 399, currency: "CNY", note: "页面价格", source_url: source.finalUrl }],
-      official_selling_points: [{ point: "9档", source_url: source.finalUrl, channel: "媒体" }] }, images: [{ url: source.assetUrls[0], page_url: source.finalUrl, source: "页面", angle: "unknown" }] };
+      official_selling_points: [{ point: "9档", source_url: source.finalUrl, channel: "媒体" }] }, images: [{ url: source.assetUrls[0], page_url: source.finalUrl, source: "页面", angle: "品牌 Logo" }] };
     expect(stageFactPointers("A1", payload)).toEqual(["/identity/name", "/identity/specs/url", "/identity/specs/待机功率", "/identity/specs/自动启停",
       "/identity/prices/0/amount", "/identity/prices/0/currency", "/identity/prices/0/note", "/identity/official_selling_points/0/point"]);
     expect(() => stageFactPointers("A1", { identity: { name: "" } })).toThrow("MARKETING_PAYLOAD_INVALID");

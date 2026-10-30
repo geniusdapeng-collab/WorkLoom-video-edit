@@ -5,7 +5,7 @@
   "repo_path": "/Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit",
   "title": "",
   "created_at": "2026-10-30T06:14:55.791Z",
-  "updated_at": "2026-10-30T07:32:16.505Z",
+  "updated_at": "2026-10-30T07:41:32.147Z",
   "baseline": {
     "audit": {
       "commit": "463ae7ad844de31674b94e73679dafaf0f5dcac5",
@@ -16,7 +16,7 @@
       "notes": ""
     },
     "repair": {
-      "commit": null,
+      "commit": "bfbbfa8016fb4cb8d94d6bb967e05b4a44fe6e2b",
       "reverified_problem_ids": []
     },
     "acceptance": {
@@ -404,7 +404,7 @@
       "level": "L2",
       "severity": "P2",
       "batch": 3,
-      "state": "open",
+      "state": "fixed",
       "title": "视频工位自检把未安装的可选曲库根误判为路径监狱失败",
       "evidence": [
         {
@@ -434,14 +434,36 @@
               "scripts/tools/video-doctor.node-test.mjs"
             ]
           },
-          "last_result": "not-run"
+          "last_result": "pass",
+          "run": {
+            "path": "runs/MC-006-0-1793345548743.json",
+            "sha256": "fe3014eaceb8cfec14a19be596d25ade227cca35712de729596aba08631b412e",
+            "commit": "bfbbfa8016fb4cb8d94d6bb967e05b4a44fe6e2b"
+          },
+          "evidence": {
+            "path": "evidence/MC-006-0-1793345548743.txt",
+            "sha256": "9d3ff77750c849b45bd7a8cdf3682408c7089e1812e8e485fa5f216e96f1d072",
+            "commit": "bfbbfa8016fb4cb8d94d6bb967e05b4a44fe6e2b"
+          }
         }
       ],
       "regression": {
         "command": "node --test scripts/tools/video-doctor.node-test.mjs",
         "evidence": null
       },
-      "notes": "现有真实机器复现：~/.workloom-bgm/library 不存在，但随仓精选曲库存在。"
+      "notes": "现有真实机器复现：~/.workloom-bgm/library 不存在，但随仓精选曲库存在。",
+      "verified_by": null,
+      "verified_at": null,
+      "verification_evidence": null,
+      "last_assertion_attempt": {
+        "actor": "root-repair-2026-10-30",
+        "role": "repair",
+        "result": "pass",
+        "at": "2026-10-30T07:32:28.742Z",
+        "commit": "bfbbfa8016fb4cb8d94d6bb967e05b4a44fe6e2b",
+        "finished_at": "2026-10-30T07:32:29.480Z"
+      },
+      "fixed_by": "root-repair-2026-10-30"
     },
     {
       "id": "MC-007",
@@ -449,7 +471,7 @@
       "level": "L3",
       "severity": "P1",
       "batch": 0,
-      "state": "open",
+      "state": "fixed",
       "title": "MCD 证据执行器把自己写入的受控台账误判为源码脏修改",
       "evidence": [
         {
@@ -486,7 +508,17 @@
               "scripts/delivery/evidence-controls.test.mjs"
             ]
           },
-          "last_result": "not-run"
+          "last_result": "pass",
+          "run": {
+            "path": "runs/MC-007-0-1793345549581.json",
+            "sha256": "2421a8ae3d8eaa468188a10ca6983465aa54f8afedc0bc29dccb8eecae210630",
+            "commit": "bfbbfa8016fb4cb8d94d6bb967e05b4a44fe6e2b"
+          },
+          "evidence": {
+            "path": "evidence/MC-007-0-1793345549581.txt",
+            "sha256": "96636a5ec9c36b3971ade5eebd6619da4bbcce20e9f2c376633f333dc226a39f",
+            "commit": "bfbbfa8016fb4cb8d94d6bb967e05b4a44fe6e2b"
+          }
         },
         {
           "kind": "property",
@@ -501,14 +533,231 @@
               "scripts/delivery/evidence-controls.test.mjs"
             ]
           },
-          "last_result": "not-run"
+          "last_result": "pass",
+          "run": {
+            "path": "runs/MC-007-1-1793345550408.json",
+            "sha256": "afa182ff979243c40a533aaeec372b9e4c9a2335c90595e71cc1453e8f3a867c",
+            "commit": "bfbbfa8016fb4cb8d94d6bb967e05b4a44fe6e2b"
+          },
+          "evidence": {
+            "path": "evidence/MC-007-1-1793345550408.txt",
+            "sha256": "f0a12227d992374ea3f53bac160f8bf3a5d038665716006ef0ef3d86e6d35af8",
+            "commit": "bfbbfa8016fb4cb8d94d6bb967e05b4a44fe6e2b"
+          }
         }
       ],
       "regression": {
         "command": "node --test --test-name-pattern='revisionOf|explicit runner works' scripts/delivery/evidence-controls.test.mjs",
         "evidence": null
       },
-      "notes": "本任务第一次对 MC-006 执行 repair 角色时真实复现；失败只改了 ledger 状态，未产生验收绿记录。"
+      "notes": "本任务第一次对 MC-006 执行 repair 角色时真实复现；失败只改了 ledger 状态，未产生验收绿记录。",
+      "verified_by": null,
+      "verified_at": null,
+      "verification_evidence": null,
+      "last_assertion_attempt": {
+        "actor": "root-repair-2026-10-30",
+        "role": "repair",
+        "result": "pass",
+        "at": "2026-10-30T07:32:29.580Z",
+        "commit": "bfbbfa8016fb4cb8d94d6bb967e05b4a44fe6e2b",
+        "finished_at": "2026-10-30T07:32:31.229Z"
+      },
+      "fixed_by": "root-repair-2026-10-30"
+    },
+    {
+      "id": "MC-008",
+      "kind": "problem",
+      "level": "L4",
+      "severity": "P1",
+      "batch": 1,
+      "state": "open",
+      "title": "无人合同只进入提示词，创意主题仍可新增人物、痛点和外部作品引用",
+      "evidence": [
+        {
+          "type": "code",
+          "ref": "apps/server/src/video/builtin-character-selection.ts:265@463ae7ad844de31674b94e73679dafaf0f5dcac5",
+          "sha256": "164eedde8740fc37068f9bec1788da057e2411b15978180467e08818d12ed7e9",
+          "note": "mode=none 只追加一句文字提示，没有在 CreativeThemeGenerator 输出后归一 protagonist、shots、description、受众、基调与外部片名。"
+        }
+      ],
+      "root_cause": {
+        "file": "apps/server/src/video/builtin-character-selection.ts",
+        "line": 265,
+        "commit": "463ae7ad844de31674b94e73679dafaf0f5dcac5",
+        "symbol": "appendBuiltinCharacterGuidance"
+      },
+      "trigger_path": "用户原文明确“全片无人”，主题模型仍生成“开发者停手/转身”、未核实配置痛点或《Her》等未请求片名 → G2 两次拒绝，预生产在创意门停住。",
+      "assertions": [
+        {
+          "kind": "sample",
+          "given": "marketing + mode=none，主题输出含人物、动作、痛点、冲突基调和未请求片名",
+          "expect": "宿主归一把人物/动作/草稿镜头清除，受众与基调绑定客户原文，片名移除并注入 G1 官方主张合同",
+          "command": "node --import tsx --test --test-name-pattern='creative theme' scripts/tools/data-pipeline-host-contract.node-test.mjs",
+          "exec": {
+            "file": "node",
+            "args": [
+              "--import",
+              "tsx",
+              "--test",
+              "--test-name-pattern=creative theme",
+              "scripts/tools/data-pipeline-host-contract.node-test.mjs"
+            ]
+          },
+          "last_result": "not-run"
+        },
+        {
+          "kind": "property",
+          "given": "客户原文没有指定任意外部导演或影片",
+          "expect": "视觉风格不得把外部作品名送入 G2；客户明确提供的片名仍可保留",
+          "command": "node --import tsx --test --test-name-pattern='creative theme' scripts/tools/data-pipeline-host-contract.node-test.mjs",
+          "exec": {
+            "file": "node",
+            "args": [
+              "--import",
+              "tsx",
+              "--test",
+              "--test-name-pattern=creative theme",
+              "scripts/tools/data-pipeline-host-contract.node-test.mjs"
+            ]
+          },
+          "last_result": "not-run"
+        }
+      ],
+      "regression": {
+        "command": "node --import tsx --test --test-name-pattern='creative theme' scripts/tools/data-pipeline-host-contract.node-test.mjs",
+        "evidence": null
+      },
+      "notes": "M01 两次真实 G2 分别 62/72 分，原始确认单与监制 issues 已保留。"
+    },
+    {
+      "id": "MC-009",
+      "kind": "problem",
+      "level": "L2",
+      "severity": "P1",
+      "batch": 0,
+      "state": "open",
+      "title": "合法官方仓库页面因 24k 正文上限被误判为无可核实来源",
+      "evidence": [
+        {
+          "type": "code",
+          "ref": "apps/server/src/video/marketing-source-fetcher.ts:10@463ae7ad844de31674b94e73679dafaf0f5dcac5",
+          "sha256": "e1dbfb8e6b034880084245573d242f0b93f7e9b200287fd9319ededfd46252da",
+          "note": "单来源可见正文硬上限为 24,000 字符；Cal.com 官方仓库当前完整可见正文约 34,586 字符。"
+        }
+      ],
+      "root_cause": {
+        "file": "apps/server/src/video/marketing-source-fetcher.ts",
+        "line": 155,
+        "commit": "463ae7ad844de31674b94e73679dafaf0f5dcac5",
+        "symbol": "sourceDocument"
+      },
+      "trigger_path": "官方页面正文超过 24k 但低于字节与模型上下文安全边界 → sourceDocument 抛 SOURCE_TEXT_TOO_LARGE → 所有来源失败 → MARKETING_A1_UNVERIFIED。",
+      "assertions": [
+        {
+          "kind": "sample",
+          "given": "完整纯文本正文 47,999 字符，低于新的受控上限",
+          "expect": "sourceDocument 原样保留全文且不截断",
+          "command": "node --import tsx --test --test-name-pattern='bounded source' scripts/tools/data-pipeline-host-contract.node-test.mjs",
+          "exec": {
+            "file": "node",
+            "args": [
+              "--import",
+              "tsx",
+              "--test",
+              "--test-name-pattern=bounded source",
+              "scripts/tools/data-pipeline-host-contract.node-test.mjs"
+            ]
+          },
+          "last_result": "not-run"
+        },
+        {
+          "kind": "property",
+          "given": "正文超过 SOURCE_MAX_TEXT_CHARS",
+          "expect": "仍失败关闭，不裁剪后冒充完整原文",
+          "command": "node --import tsx --test --test-name-pattern='bounded source' scripts/tools/data-pipeline-host-contract.node-test.mjs",
+          "exec": {
+            "file": "node",
+            "args": [
+              "--import",
+              "tsx",
+              "--test",
+              "--test-name-pattern=bounded source",
+              "scripts/tools/data-pipeline-host-contract.node-test.mjs"
+            ]
+          },
+          "last_result": "not-run"
+        }
+      ],
+      "regression": {
+        "command": "node --import tsx --test --test-name-pattern='bounded source' scripts/tools/data-pipeline-host-contract.node-test.mjs",
+        "evidence": null
+      },
+      "notes": "M02 真实复现为 MARKETING_A1_UNVERIFIED；独立抓取确认 Cal.com 页面文本 34,586 字符。"
+    },
+    {
+      "id": "MC-010",
+      "kind": "problem",
+      "level": "L2",
+      "severity": "P1",
+      "batch": 1,
+      "state": "open",
+      "title": "图片角度被误计为文本事实，支持审核收到空图片数组与残留图片 claim",
+      "evidence": [
+        {
+          "type": "code",
+          "ref": "apps/server/src/video/marketing-facts.ts:41@463ae7ad844de31674b94e73679dafaf0f5dcac5",
+          "sha256": "1365253356d3ab14c8d7e411a13b19b21b5ea9371bbf0cd2f083b073fc6c883b",
+          "note": "factLeaves 仅排除 angle=unknown；angle=“品牌 Logo”被要求生成事实 citation。"
+        }
+      ],
+      "root_cause": {
+        "file": "apps/server/src/video/marketing-facts.ts",
+        "line": 41,
+        "commit": "463ae7ad844de31674b94e73679dafaf0f5dcac5",
+        "symbol": "factLeaves"
+      },
+      "trigger_path": "A1 返回真实图片和非 unknown 角度 → angle 进入文本事实 leaves → 支持审核 facts.payload.images 已清空但 facts.claims 仍含 /images/0/angle → 监制判定缺证据和结构自相矛盾。",
+      "assertions": [
+        {
+          "kind": "sample",
+          "given": "A1 图片带 angle=品牌 Logo，文本事实完整",
+          "expect": "图片元数据不要求 citation，URL 仍由实际页面候选校验",
+          "command": "node --import tsx --test --test-name-pattern='image angle' scripts/tools/data-pipeline-host-contract.node-test.mjs",
+          "exec": {
+            "file": "node",
+            "args": [
+              "--import",
+              "tsx",
+              "--test",
+              "--test-name-pattern=image angle",
+              "scripts/tools/data-pipeline-host-contract.node-test.mjs"
+            ]
+          },
+          "last_result": "not-run"
+        },
+        {
+          "kind": "property",
+          "given": "旧档案中仍存在 /images/* claim",
+          "expect": "支持审核过滤图片 claim，只审文本事实",
+          "command": "node --import tsx --test --test-name-pattern='image angle' scripts/tools/data-pipeline-host-contract.node-test.mjs",
+          "exec": {
+            "file": "node",
+            "args": [
+              "--import",
+              "tsx",
+              "--test",
+              "--test-name-pattern=image angle",
+              "scripts/tools/data-pipeline-host-contract.node-test.mjs"
+            ]
+          },
+          "last_result": "not-run"
+        }
+      ],
+      "regression": {
+        "command": "node --import tsx --test --test-name-pattern='image angle' scripts/tools/data-pipeline-host-contract.node-test.mjs",
+        "evidence": null
+      },
+      "notes": "M03 真实支持审核原文：/images/0/angle“品牌 Logo”缺 quote 且 images 空数组结构矛盾。"
     }
   ],
   "gates": []

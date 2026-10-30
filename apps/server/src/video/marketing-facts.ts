@@ -39,6 +39,9 @@ export interface ValidatedStageFacts {
 const escapePointer = (value: string) => value.replace(/~/g, "~0").replace(/\//g, "~1");
 const sourceFields = new Set(["url", "source_url", "page_url", "price_source_url", "visual_source_url", "source", "channel", "suspect"]);
 function factLeaves(value: unknown, pointer = "", out = new Map<string, string | number | boolean>()): Map<string, string | number | boolean> {
+  // Product image metadata is validated separately against the fetched page and
+  // selected image bytes. An angle label is not a source-bound textual fact.
+  if (pointer === "/images" || pointer.startsWith("/images/")) return out;
   if (Array.isArray(value)) value.forEach((entry, i) => factLeaves(entry, `${pointer}/${i}`, out));
   else if (value && typeof value === "object") for (const [key, entry] of Object.entries(value)) {
     if ((!sourceFields.has(key) || pointer === "/identity/specs") && !(key === "angle" && entry === "unknown")) factLeaves(entry, `${pointer}/${escapePointer(key)}`, out);

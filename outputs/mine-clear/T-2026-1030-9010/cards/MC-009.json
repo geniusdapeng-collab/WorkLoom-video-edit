@@ -1,0 +1,65 @@
+{
+  "id": "MC-009",
+  "kind": "problem",
+  "level": "L2",
+  "severity": "P1",
+  "batch": 0,
+  "state": "open",
+  "title": "合法官方仓库页面因 24k 正文上限被误判为无可核实来源",
+  "evidence": [
+    {
+      "type": "code",
+      "ref": "apps/server/src/video/marketing-source-fetcher.ts:10@463ae7ad844de31674b94e73679dafaf0f5dcac5",
+      "sha256": "e1dbfb8e6b034880084245573d242f0b93f7e9b200287fd9319ededfd46252da",
+      "note": "单来源可见正文硬上限为 24,000 字符；Cal.com 官方仓库当前完整可见正文约 34,586 字符。"
+    }
+  ],
+  "root_cause": {
+    "file": "apps/server/src/video/marketing-source-fetcher.ts",
+    "line": 155,
+    "commit": "463ae7ad844de31674b94e73679dafaf0f5dcac5",
+    "symbol": "sourceDocument"
+  },
+  "trigger_path": "官方页面正文超过 24k 但低于字节与模型上下文安全边界 → sourceDocument 抛 SOURCE_TEXT_TOO_LARGE → 所有来源失败 → MARKETING_A1_UNVERIFIED。",
+  "assertions": [
+    {
+      "kind": "sample",
+      "given": "完整纯文本正文 47,999 字符，低于新的受控上限",
+      "expect": "sourceDocument 原样保留全文且不截断",
+      "command": "node --import tsx --test --test-name-pattern='bounded source' scripts/tools/data-pipeline-host-contract.node-test.mjs",
+      "exec": {
+        "file": "node",
+        "args": [
+          "--import",
+          "tsx",
+          "--test",
+          "--test-name-pattern=bounded source",
+          "scripts/tools/data-pipeline-host-contract.node-test.mjs"
+        ]
+      },
+      "last_result": "not-run"
+    },
+    {
+      "kind": "property",
+      "given": "正文超过 SOURCE_MAX_TEXT_CHARS",
+      "expect": "仍失败关闭，不裁剪后冒充完整原文",
+      "command": "node --import tsx --test --test-name-pattern='bounded source' scripts/tools/data-pipeline-host-contract.node-test.mjs",
+      "exec": {
+        "file": "node",
+        "args": [
+          "--import",
+          "tsx",
+          "--test",
+          "--test-name-pattern=bounded source",
+          "scripts/tools/data-pipeline-host-contract.node-test.mjs"
+        ]
+      },
+      "last_result": "not-run"
+    }
+  ],
+  "regression": {
+    "command": "node --import tsx --test --test-name-pattern='bounded source' scripts/tools/data-pipeline-host-contract.node-test.mjs",
+    "evidence": null
+  },
+  "notes": "M02 真实复现为 MARKETING_A1_UNVERIFIED；独立抓取确认 Cal.com 页面文本 34,586 字符。"
+}

@@ -4,7 +4,7 @@ import { mkdir, mkdtemp, realpath, rm, readFile, writeFile } from "node:fs/promi
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import { prepareMarketingFacts, finalizeMarketingFacts, verifyMarketingFacts, toJennyMarketingRaw, type PreparedMarketingFacts } from "./marketing-authority.js";
+import { prepareMarketingFacts, finalizeMarketingFacts, verifyMarketingFacts, toJennyMarketingRaw, supportReviewFacts, type PreparedMarketingFacts } from "./marketing-authority.js";
 import { fetchMarketingSource, requestSource } from "./marketing-source-fetcher.js";
 import { canonicalRenderJson, renderSha256 } from "./gen/compiled-request.js";
 const scope = { tenantId: "tenant-a", workspaceId: "ws-a", projectId: "P1", runId: "RUN1", attempt: 1 };
@@ -99,6 +99,22 @@ async function prepare(options: { noSearch?: boolean; noAux?: boolean; badQuote?
 }
 const shots = [{ shotId: "S1", prompt: "窗边展示星野 F3 风扇，字幕说明风量 9 档。", fields: { 场景: "窗边", 产品: "星野 F3", 规格: "9 档" } }];
 describe("营销事实宿主完整执行", () => {
+  it("支持审核只读取文本事实，旧档案中的图片角度 claim 不进入审核事实包", () => {
+    const facts = {
+      stage: "A1" as const,
+      status: "source_bound" as const,
+      payload: { identity: { name: "星野 F3" }, images: [{ url: sourceUrl, page_url: sourceUrl, angle: "品牌 Logo" }] },
+      claims: [
+        { claimId: "text", stage: "A1" as const, pointer: "/identity/name", value: "星野 F3", sourceId: "SRC-test",
+          textSha256: "a".repeat(64), quote: sourceText, quoteStart: 0, quoteEnd: sourceText.length, status: "source-bound" as const },
+        { claimId: "image", stage: "A1" as const, pointer: "/images/0/angle", value: "品牌 Logo", sourceId: "SRC-test",
+          textSha256: "a".repeat(64), quote: sourceText, quoteStart: 0, quoteEnd: sourceText.length, status: "source-bound" as const },
+      ],
+    };
+    const reviewed = supportReviewFacts("A1", facts);
+    expect(reviewed.payload.images).toEqual([]);
+    expect(reviewed.claims.map((claim) => claim.pointer)).toEqual(["/identity/name"]);
+  });
   it("真实HTTP正文→三站提取/完整支持审核→A1–A5→逐最终镜头事实审核→复读", async () => {
     const prepared = await prepare();
     expect(prepared.bundle.stages.map(stage => [stage.stage, stage.facts.status])).toEqual([["A1", "source_bound"], ["A2", "no_evidence"], ["A3", "no_evidence"]]);
