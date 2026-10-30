@@ -1,7 +1,7 @@
 {
   "schemaVersion": "workloom.video-pipeline-pressure-progress/v1",
   "taskId": "T-2026-1030-9010",
-  "updatedAt": "2026-10-30T15:10:00+08:00",
+  "updatedAt": "2026-10-30T15:20:00+08:00",
   "baseline": {
     "commit": "463ae7ad844de31674b94e73679dafaf0f5dcac5",
     "branch": "task/T-2026-1030-9010",
@@ -15,19 +15,33 @@
     "G3 permits protocol null while retaining placeholder hard failures",
     "strict RiskAssessor responses drop only undeclared top-level chatter and retain required-field failures",
     "narrative PRD normalization binds approved cast/scenes and reconciles delivery thresholds",
-    "marketing dossier cards reconcile selling points, product kind, licensing and audience gaps"
+    "marketing dossier cards reconcile selling points, product kind, licensing and audience gaps",
+    "marketing source-support review retries exactly one malformed/transient reviewer response and never retries a substantive rejection",
+    "marketing G1 first reached APPROVED with score 86 in a real pre-render pilot",
+    "first fix commit created: 53d4d1b (40 files), secret scan PASS",
+    "20 abnormal matrix persisted in outputs/mine-clear/T-2026-1030-9010/stress-results.json"
   ],
   "inProgress": [
-    "Marketing positive pilot through G1/G2/G3/G4/G5 not-applicable/G6/G7",
-    "Narrative positive pilot after PRD and Risk normalization",
+    "Marketing positive pilot PILOT-MARKETING-HA-011 is running after explicit no-person/abstract-visual contract hardening",
+    "Narrative positive pilot must run after the global preproduction lock is released",
     "Propagate confirmed root causes to hyperreality-system and workloom consumers"
   ],
   "pending": [
     "Run 10 marketing and 10 narrative positive cases through pre-render prompt gates",
-    "Publish first fix batch to GitHub main and read back SHA",
+    "Commit post-53d4d1b hardening fixes, push PR and merge to GitHub main with read-back SHA",
+    "Run MCD repair/independent-acceptance assertion roles and close dashboard gate",
     "Complete MCD acceptance role and downstream fanout",
     "Final coverage, evidence grades, delivery report and self-check"
   ],
+  "currentEvidence": {
+    "firstCommit": "53d4d1b",
+    "marketingFirstG1Pass": "work/stress/T-2026-1030-9010/PILOT-MARKETING-HA-004",
+    "latestMarketingPilot": "work/stress/T-2026-1030-9010/PILOT-MARKETING-HA-011",
+    "latestNarrativeGateProof": "work/stress/T-2026-1030-9010/PILOT-NARRATIVE-008",
+    "abnormalResults": "outputs/mine-clear/T-2026-1030-9010/stress-results.json",
+    "ledger": "outputs/mine-clear/T-2026-1030-9010/ledger.json",
+    "runner": "scripts/tools/run-data-pipeline-stress.mjs"
+  },
   "safety": {
     "renderSubmissionAllowed": false,
     "actualVideoRenderSubmitted": false,

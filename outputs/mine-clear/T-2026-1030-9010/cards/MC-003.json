@@ -45,5 +45,9 @@
       "last_result": "not-run"
     }
   ],
-  "notes": "真实 PILOT-NARRATIVE-001 首先暴露该错误。"
+  "notes": "真实 PILOT-NARRATIVE-001 首先暴露该错误。",
+  "regression": {
+    "command": "node --test scripts/tools/data-pipeline-run.node-test.mjs",
+    "evidence": null
+  }
 }

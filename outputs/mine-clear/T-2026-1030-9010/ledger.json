@@ -5,7 +5,7 @@
   "repo_path": "/Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit",
   "title": "",
   "created_at": "2026-10-30T06:14:55.791Z",
-  "updated_at": "2026-10-30T07:10:14.169Z",
+  "updated_at": "2026-10-30T07:17:32.624Z",
   "baseline": {
     "audit": {
       "commit": "463ae7ad844de31674b94e73679dafaf0f5dcac5",
@@ -144,7 +144,11 @@
           "last_result": "not-run"
         }
       ],
-      "notes": "20 组异常矩阵中的 X03/X04/X05/X09-X16/X19-X20 命中此类问题。"
+      "notes": "20 组异常矩阵中的 X03/X04/X05/X09-X16/X19-X20 命中此类问题。",
+      "regression": {
+        "command": "node --test scripts/tools/data-pipeline-run.node-test.mjs",
+        "evidence": null
+      }
     },
     {
       "id": "MC-002",
@@ -203,7 +207,11 @@
           "last_result": "not-run"
         }
       ],
-      "notes": "仓库 vendor 目录保持只读，修复落在宿主 requirement-contract bridge。"
+      "notes": "仓库 vendor 目录保持只读，修复落在宿主 requirement-contract bridge。",
+      "regression": {
+        "command": "node --import tsx --test scripts/tools/data-pipeline-host-contract.node-test.mjs",
+        "evidence": null
+      }
     },
     {
       "id": "MC-003",
@@ -258,7 +266,11 @@
           "last_result": "not-run"
         }
       ],
-      "notes": "真实 PILOT-NARRATIVE-001 首先暴露该错误。"
+      "notes": "真实 PILOT-NARRATIVE-001 首先暴露该错误。",
+      "regression": {
+        "command": "node --test scripts/tools/data-pipeline-run.node-test.mjs",
+        "evidence": null
+      }
     },
     {
       "id": "MC-004",
@@ -317,7 +329,11 @@
           "last_result": "not-run"
         }
       ],
-      "notes": "PILOT-NARRATIVE-006 真实复现；G1 原有合法 null 例外保持不变。"
+      "notes": "PILOT-NARRATIVE-006 真实复现；G1 原有合法 null 例外保持不变。",
+      "regression": {
+        "command": "node --import tsx --test scripts/tools/data-pipeline-host-contract.node-test.mjs",
+        "evidence": null
+      }
     },
     {
       "id": "MC-005",
@@ -376,7 +392,11 @@
           "last_result": "not-run"
         }
       ],
-      "notes": "PILOT-NARRATIVE-004 的 G4 门禁原文已保留为失败证据。"
+      "notes": "PILOT-NARRATIVE-004 的 G4 门禁原文已保留为失败证据。",
+      "regression": {
+        "command": "node --import tsx --test scripts/tools/data-pipeline-host-contract.node-test.mjs",
+        "evidence": null
+      }
     }
   ],
   "gates": []

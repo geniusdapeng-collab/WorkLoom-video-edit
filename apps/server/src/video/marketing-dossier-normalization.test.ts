@@ -29,7 +29,8 @@ describe("marketing dossier host presentation", () => {
       router_material: { product_kind: "physical" },
       portrait_manifest: { needs_more_reference: false, reference_images: dossier.visual_assets.images },
       prd_card: { compliance_redlines: [] },
-      insight_card: { audience_profile: [] },
+      theme_card: { differentiation_space: ["冒充竞品没讲的"], crowded_space: ["未核实"] },
+      insight_card: { audience_profile: [], market_position: { our_opening: ["未核实"], crowded_points: ["未核实"] } },
     };
     const result = normalizeMarketingDossierPresentation(
       dossier,
@@ -44,7 +45,10 @@ describe("marketing dossier host presentation", () => {
     expect(normalizedCards.router_material).toMatchObject({ product_kind: "digital" });
     expect(normalizedCards.router_material.product_kind_basis).toContain("开源家庭自动化平台");
     expect(normalizedCards.portrait_manifest.needs_more_reference).toBe(true);
-    expect(normalizedCards.prd_card.compliance_redlines.join(" ")).toContain("许可风险");
+    expect(normalizedCards.prd_card.compliance_redlines.join(" ")).toContain("license_risk=high");
+    expect(normalizedCards.prd_card.compliance_redlines.join(" ")).toContain("IMG-1");
+    expect(normalizedCards.theme_card.differentiation_space).toEqual([]);
+    expect(normalizedCards.insight_card.market_position.our_opening).toEqual([]);
     expect(normalizedDossier.gaps.join(" ")).toContain("受众");
     expect(result.changes.length).toBeGreaterThanOrEqual(5);
   });

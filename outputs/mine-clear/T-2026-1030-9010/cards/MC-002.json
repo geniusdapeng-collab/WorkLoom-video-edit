@@ -45,5 +45,9 @@
       "last_result": "not-run"
     }
   ],
-  "notes": "仓库 vendor 目录保持只读，修复落在宿主 requirement-contract bridge。"
+  "notes": "仓库 vendor 目录保持只读，修复落在宿主 requirement-contract bridge。",
+  "regression": {
+    "command": "node --import tsx --test scripts/tools/data-pipeline-host-contract.node-test.mjs",
+    "evidence": null
+  }
 }

@@ -45,5 +45,9 @@
       "last_result": "not-run"
     }
   ],
-  "notes": "PILOT-NARRATIVE-006 真实复现；G1 原有合法 null 例外保持不变。"
+  "notes": "PILOT-NARRATIVE-006 真实复现；G1 原有合法 null 例外保持不变。",
+  "regression": {
+    "command": "node --import tsx --test scripts/tools/data-pipeline-host-contract.node-test.mjs",
+    "evidence": null
+  }
 }

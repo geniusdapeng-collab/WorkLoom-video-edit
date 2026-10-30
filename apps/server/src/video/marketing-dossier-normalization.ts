@@ -23,6 +23,7 @@ export function normalizeMarketingDossierPresentation(
   dossierValue: unknown,
   cardsValue: unknown,
   productValue: unknown,
+  options: { hasReviewEvidence?: boolean; hasCompetitorEvidence?: boolean } = {},
 ): { dossier: RecordValue; cards: RecordValue; changes: string[] } {
   const dossier = structuredClone(record(dossierValue));
   const cards = structuredClone(record(cardsValue));
@@ -61,7 +62,8 @@ export function normalizeMarketingDossierPresentation(
     portrait.needs_more_reference = true;
     const prdCard = record(cards.prd_card);
     const redlines = list(prdCard.compliance_redlines).map(text).filter(Boolean);
-    const line = `检测到 ${highRisk.length} 张许可风险图片；未取得明确商用授权前不得用于传播，必须替换或补充授权证据`;
+    const ids = highRisk.map((image) => text(image.id)).filter(Boolean);
+    const line = `来源档案 visual_assets.images[].license_risk=high（${ids.join("、") || `${highRisk.length} 张`}）；未取得明确商用授权前禁止传播，必须替换或补充授权证据`;
     if (!redlines.includes(line)) {
       redlines.push(line);
       prdCard.compliance_redlines = redlines;
@@ -70,6 +72,25 @@ export function normalizeMarketingDossierPresentation(
     }
   }
   cards.portrait_manifest = portrait;
+
+  if (!options.hasCompetitorEvidence) {
+    const theme = record(cards.theme_card);
+    if (list(theme.differentiation_space).length > 0 || list(theme.crowded_space).length > 0) {
+      theme.differentiation_space = [];
+      theme.crowded_space = [];
+      cards.theme_card = theme;
+      changes.push("unsupported-differentiation-claims-removed");
+    }
+    const market = record(record(cards.insight_card).market_position);
+    if (list(market.our_opening).length > 0 || list(market.crowded_points).length > 0) {
+      market.our_opening = [];
+      market.crowded_points = [];
+      const insight = record(cards.insight_card);
+      insight.market_position = market;
+      cards.insight_card = insight;
+      changes.push("unsupported-market-position-removed");
+    }
+  }
 
   const insight = record(cards.insight_card);
   if (list(insight.audience_profile).length === 0) {

@@ -45,5 +45,9 @@
       "last_result": "not-run"
     }
   ],
-  "notes": "PILOT-NARRATIVE-004 的 G4 门禁原文已保留为失败证据。"
+  "notes": "PILOT-NARRATIVE-004 的 G4 门禁原文已保留为失败证据。",
+  "regression": {
+    "command": "node --import tsx --test scripts/tools/data-pipeline-host-contract.node-test.mjs",
+    "evidence": null
+  }
 }

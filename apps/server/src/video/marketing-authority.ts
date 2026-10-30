@@ -337,7 +337,10 @@ export async function prepareMarketingFacts(input: {
   if (assembled.ok !== true || assembled.chain?.ok !== true || !assembled.dossier || !assembled.cards) fail("MARKETING_DOSSIER_UNVERIFIED", "情报五站未完成有效档案装订");
   if (canonicalRenderJson(object(assembled.dossier.identity, "已装订商品身份").specs)
     !== canonicalRenderJson(object(raw.A1.identity, "已审核商品身份").specs)) fail("MARKETING_DOSSIER_UNVERIFIED", "情报装订改变了已审核规格值");
-  const presentation = normalizeMarketingDossierPresentation(assembled.dossier, assembled.cards, product);
+  const presentation = normalizeMarketingDossierPresentation(assembled.dossier, assembled.cards, product, {
+    hasReviewEvidence: reports.some((report) => report.stage === "A2" && report.facts.status === "source_bound"),
+    hasCompetitorEvidence: reports.some((report) => report.stage === "A3" && report.facts.status === "source_bound"),
+  });
   if (typeof presentation.dossier.product_id !== "string" || !presentation.dossier.product_id.trim()) {
     fail("MARKETING_DOSSIER_UNVERIFIED", "情报档案缺少有效商品ID");
   }

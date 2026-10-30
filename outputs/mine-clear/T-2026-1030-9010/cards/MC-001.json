@@ -45,5 +45,9 @@
       "last_result": "not-run"
     }
   ],
-  "notes": "20 组异常矩阵中的 X03/X04/X05/X09-X16/X19-X20 命中此类问题。"
+  "notes": "20 组异常矩阵中的 X03/X04/X05/X09-X16/X19-X20 命中此类问题。",
+  "regression": {
+    "command": "node --test scripts/tools/data-pipeline-run.node-test.mjs",
+    "evidence": null
+  }
 }
