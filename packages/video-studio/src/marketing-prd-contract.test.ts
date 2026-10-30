@@ -102,7 +102,7 @@ describe("marketing PRD host contract", () => {
     expect(requirements).not.toContain("数百个");
     expect(requirements).not.toContain("全片文字层仅来自G1原文");
     expect(requirements).not.toContain("逐字一致");
-    expect(requirements).toContain("可继续扩展接入其他设备与动作");
+    expect(requirements).toContain("屏上可见文字只允许从本次 G1 已审名称");
     const ending = (result.prd as any).scenePlan.scenes[1].visualRequirements.join(" ");
     expect(ending).not.toMatch(/极小脚注|单行字幕/);
     expect(ending).toContain("辅助脚注");

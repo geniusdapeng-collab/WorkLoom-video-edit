@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildMarketingPreproductionReport,
   isAbstractMarketingIntent,
   marketingVisibleTextFromG1,
   normalizeMarketingPromptResult,
@@ -165,6 +166,39 @@ describe("marketing prompt host contract", () => {
       "License: Apache-2.0",
       "https://github.com/home-assistant/core",
     ]);
+  });
+
+  it("builds a complete G7 report without truncation or portrait approval", () => {
+    const report = buildMarketingPreproductionReport({
+      productionResult: {
+        shots: [
+          { shotId: "opening", duration: 4, sceneType: "opening", scene: "{\"scene_id\":\"opening\",\"scene_n" },
+          { shotId: "scene-1", duration: 5, sceneType: "establishing", scene: "截断场景..." },
+        ],
+        prompts: [{ shotId: "opening" }, { shotId: "scene-1" }],
+      },
+      scriptResult: { blueprint: { characters: [] } },
+      timing: { effective: 120000 },
+      confirmations: { dataMining: { approved: true }, portraitGeneration: { approved: true, skipped: true } },
+      options: {
+        ...options,
+        abstractOnly: true,
+        frameRate: 30,
+        allowedVisibleText: ["Home Assistant", "Open-source local automation controls your home."],
+      },
+    });
+    expect(report).toContain("**镜头总数**: 2");
+    expect(report).toContain("**总时长**: 9 秒");
+    expect(report).toContain("**角色数**: 0");
+    expect(report).toContain("**提示词数**: 2");
+    expect(report).toContain("- portraitGeneration: 不适用（cast.mode=none）");
+    expect(report).toContain("台词速率/占比：不适用（本片无对白）");
+    expect(report).toContain("Home Assistant");
+    expect(report).toContain("### opening");
+    expect(report).toContain("| opening | 4s | 30 |");
+    expect(report).not.toContain("scene_id");
+    expect(report).not.toContain("请回复");
+    expect(report).not.toContain("截断场景");
   });
 
   it("rebalances shot durations to the exact target and caps stale timecodes", () => {

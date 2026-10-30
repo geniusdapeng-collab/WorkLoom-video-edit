@@ -397,7 +397,7 @@ async function reviewGate(input: {
     return { approved: true, verdict: null };
   }
   const normalized = decision.route === "marketing"
-    && (input.gate === "G6_PROMPT" || input.gate === "G7_FINAL")
+    && input.gate === "G6_PROMPT"
     && selectedCharacters.decision.mode === "none"
     ? normalizeMarketingPromptText(input.contentMd, {
         targetDuration: DURATION_SECONDS,

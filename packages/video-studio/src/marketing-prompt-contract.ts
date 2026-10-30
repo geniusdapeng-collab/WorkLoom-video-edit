@@ -299,14 +299,14 @@ function extractAbstractVisibleText(value: string, seed: string[] = []): string[
   return candidates.slice(0, 8);
 }
 
-function abstractTimeline(duration: number, action: string): string {
+function abstractTimeline(duration: number, action: string, hasText: boolean): string {
   const safeDuration = Number.isFinite(duration) && duration > 0 ? duration : 4;
   const first = safeDuration / 3;
   const second = safeDuration * 2 / 3;
   const stamp = (value: number): string => `T00:${value.toFixed(1).padStart(4, "0")}`;
-  return `${stamp(0)}–${stamp(first)} 已审可见文字与抽象几何进入安全区，光标建立首个落点；`
+  return `${stamp(0)}–${stamp(first)} ${hasText ? "已审可见文字与抽象几何进入安全区" : "网格与空框进入稳定状态"}，光标建立首个落点；`
     + `${stamp(first)}–${stamp(second)} ${action}；`
-    + `${stamp(second)}–${stamp(safeDuration)} 连线与光标停稳，结尾保留可截图复核的静止画面。`
+    + `${stamp(second)}–${stamp(safeDuration)} ${hasText ? "已列明文字、图形与光标停稳" : "网格、空框与光标停稳"}，结尾保留可截图复核的静止画面。`
     + `三段区间由两个阶段边界分隔，边界只允许亮度与位置产生一次可追溯变化，不得跳帧或重复回闪；最终帧与字段、旁白、字幕轨和交付清单中的本镜时长一致。`;
 }
 
@@ -349,49 +349,65 @@ const ABSTRACT_SHOT_VARIANTS: Readonly<Record<string, { scene: string; action: s
   },
 };
 
-function buildAbstractPromptFields(shotId: string, duration: number, visibleText: string): string[] {
-  const opening = shotId === "opening";
-  const text = visibleText || "本次 G1 已审原文与官方仓库地址";
+function selectAbstractVisibleTexts(shotId: string, values: string[]): string[] {
+  const url = values.find((value) => /^https?:\/\//u.test(value));
+  const license = values.find((value) => /^License\s*:/iu.test(value))
+    ?? values.find((value) => /^Apache-2\.0$/iu.test(value));
+  const official = values.filter((value) => value !== url && value !== license
+    && Array.from(value).length >= 20);
+  const clean = (items: Array<string | undefined>): string[] => [...new Set(items.filter((item): item is string => Boolean(item)))];
+  if (shotId === "opening") return clean([url, values[0]]);
+  if (shotId === "scene-1") return clean([official[0], values[1]]);
+  if (shotId === "scene-2") return [license ?? "Apache-2.0"];
+  if (shotId === "scene-3") return clean([url, license, official[1], official[0]]);
+  if (shotId === "scene-4") return [];
+  if (shotId === "ending") return clean([official[0], url]);
+  return clean([values[0]]);
+}
+
+function buildAbstractPromptFields(shotId: string, duration: number, visibleTexts: string[]): string[] {
+  const values = [...new Set(visibleTexts.filter(Boolean))];
+  const hasText = values.length > 0;
+  const sentence = values.map((value) => `“${value}”`).join("、");
   const variant = ABSTRACT_SHOT_VARIANTS[shotId] ?? ABSTRACT_SHOT_VARIANTS["scene-2"]!;
   const fields: Array<[string, string]> = [
     ["语言约束", "除本次 G1 已审原文、许可证字段和仓库地址外，其余字段使用中文；不新增未审英文。"],
     ["导演意图", "极简抽象信息片；以本次 G1 已审原文、二维几何和受控明暗变化建立证据感；所有表达保持可读、可停稳、可截图复核。"],
     ["基础", "高质量二维文字与图形合成；文字边缘清晰，灰度层次稳定，画面不依赖实体材质、真实摄影或未审场景。字形、线宽、光点和灰阶在每个镜头内保持一致，不因缩放或叠层出现断裂、重影、噪点堆积与非受控闪动。"],
-    ["约束", "9:16 竖屏，30fps，MP4；关键文字位于平台安全区，字幕轨不生成，画面文字仅作图形层。"],
-    ["场景", `纯黑或冷灰二维抽象画布。本镜采用${variant.scene}；所有元素位于同一平面图层。文字与图形只在既定安全区内移动，层与层之间以明度、透明度和遮挡关系区分，无文字来源角标始终可辨认，任何装饰不得压住原文。来源角标为纯几何标记，不承载文字；如出现地址，只使用本镜列明字符串。场景中的全部对象均为可替换的文字层或矢量层，不通过透视、阴影方向、景别变化或环境细节暗示画外空间。`],
+    ["约束", "9:16 竖屏，2160x3840，30fps，H.264/MP4，AAC 48kHz 双声道；关键文字位于平台安全区，字幕轨不生成，画面文字仅作图形层。"],
+    ["场景", `纯黑或冷灰二维抽象画布。本镜采用${variant.scene}；所有元素位于同一平面图层。文字与图形只在既定安全区内移动，层与层之间以明度、透明度和遮挡关系区分，无文字来源角标始终可辨认，任何装饰不得压住原文。来源角标为纯几何标记，不承载文字；${hasText ? "如出现地址，只使用本镜列明字符串。" : "本镜不出现任何文字、地址或标签。"}场景中的全部对象均为可替换的文字层或矢量层，不通过透视、阴影方向、景别变化或环境细节暗示画外空间。`],
     ["灯光设计", "只以冷白自发光和灰阶明暗差建立层级；亮部集中在文字与线条，暗部保持纯净，不声明实体灯具或环境照明。高光只沿字形和图形边缘出现，亮区面积随信息落点变化，暗区保持连续并避免过曝；所有明暗变化必须服务文字可读性、节点连接或结尾停稳。"],
-    ["明亮约束", "已审原文与关键图形在安全区内清晰可读，暗部不抬灰；亮暗变化只服务信息层级与停稳。"],
-    ["构图", "文字与抽象几何按信息优先级分层；主体居中或按场景节奏偏置，四周保留平台安全边距，来源角标不遮挡原文。每个画面的第一视觉落点为可核对文字，第二落点为节点或光标，第三层才允许出现辅助线；任何元素不得越出安全区、跨屏裁切或与平台遮挡区重叠。主次层级在所有时间点保持可辨，不以满屏装饰替代信息结构，也不让辅助线条先于原文抢占视线。"],
+    ["明亮约束", hasText ? "已审原文与关键图形在安全区内清晰可读，暗部不抬灰；亮暗变化只服务信息层级与停稳。" : "网格线、空框和光标在安全区内保持可辨，暗部不抬灰；亮暗变化只服务停顿和停稳。"],
+    ["构图", hasText
+      ? "文字与抽象几何按信息优先级分层；主体居中或按场景节奏偏置，四周保留平台安全边距，无文字来源角标不遮挡原文。每个画面的第一视觉落点为可核对文字，第二落点为节点或光标，第三层才允许出现辅助线；任何元素不得越出安全区、跨屏裁切或与平台遮挡区重叠。主次层级在所有时间点保持可辨，不以满屏装饰替代信息结构，也不让辅助线条先于原文抢占视线。"
+      : "低对比网格与中心空框按安全区居中，光标作为唯一动态落点；四周保持暗场留白，不出现文字、节点连线或辅助标签。构图在明灭前后保持稳定，结尾可完整截取空框与光标。"],
     ["色彩/色调", "纯黑、冷灰和冷白构成低饱和色板；强调色面积受控，不新增品牌色、材质色或未审环境色。文字使用最高明度，细线与节点使用中灰，背景保持连续暗场；不使用渐变彩光、彩色阴影或高饱和装饰，保证不同镜头之间色感一致。"],
     ["景深", "二维图层保持清晰；前后关系只由透明度、灰阶和图层叠放表达，关键原文、地址和光标处于同一可读平面。较远图形仅降低明度与不透明度，不做失焦、散景或距离推断；文字在出现和落位过程中保持相同清晰度，结尾停稳后可完整截取。"],
     ["运镜", "固定二维视图或受控图层位移；起止位置明确、速度平缓、落幅稳定，不使用真实摄影器材或物理光学位移参数。一次镜头只保留一个方向的信息推进，图层位移距离与速度以文字可读为上限；动作结束后所有元素停在可复核构图，不追加摆动、呼吸或自动回弹。"],
     ["角色", "全片无人，不出现人物、人体局部、服装、化妆、表情或人物动作；画面主体仅为已审原文和抽象图形。角色相关识别、身份、表演和一致性检查在本镜统一标记为不适用，后续不得由生成模型自行补人。"],
     ["服装", "无角色出场，本字段不适用。"],
     ["化妆", "无角色出场，本字段不适用。"],
-    ["动作", `逐镜允许显示的已审文字为：${text}。本镜执行${variant.action}。出现阶段先锁定首字符与来源关系，推进阶段保持字距和行序不变，收束阶段统一完成连线并停止亮度变化；所有动作只发生在二维图层，结果可截图复核。`],
-    ["道具", `无实物道具；本镜仅使用${variant.props}，并只显示文字“${text}”。文字层由后期精确排版，几何与光标由二维矢量生成；所有元素均保留独立层级与可审计位置，不调用未提供的产品图、人物素材或实体素材。`],
-    ["定妆照", "无角色出场，无定妆照。"],
-    ["台词", "不适用（本片无对白）；只允许逐字呈现本镜列明的已审可见文字。"],
-    ["时间轴", abstractTimeline(duration, variant.timeline)],
+    ["动作", hasText
+      ? `屏上文字严格按【可见文字锁定】的完整清单逐字呈现。本镜执行${variant.action}。出现阶段先锁定首字符与来源关系，推进阶段保持字距和行序不变，收束阶段统一完成连线并停止亮度变化；所有动作只发生在二维图层，结果可截图复核。`
+      : `本镜不显示任何屏上文字；${variant.action}。所有变化只发生在二维网格、空框和光标，收束后保持静止并可截图复核。`],
+    ["道具", hasText
+      ? `无实物道具；本镜使用${variant.props}，文字层只使用【可见文字锁定】列明字符串。文字层由后期精确排版，几何与光标由二维矢量生成；所有元素均保留独立层级与可审计位置，不调用未提供的产品图、人物素材或实体素材。`
+      : `无实物道具；本镜仅使用${variant.props}，不出现文字层、产品图、人物素材或实体素材。所有元素由二维矢量生成并保留独立层级。`],
+    ["定妆照", "不适用（cast.mode=none，无角色与定妆照）。"],
+    ["台词", hasText ? "不适用（本片无对白）；只允许逐字呈现本镜列明的已审可见文字。" : "不适用（本片无对白，本镜也无屏上文字）。"],
+    ["时间轴", abstractTimeline(duration, variant.timeline, hasText)],
     ["情绪", "冷酷精密；无人物表演，仅由文字、图形、亮度与停稳节奏表达。情绪强度保持克制，结尾回到稳定与可信，不通过夸张对比、闪烁或音效煽动。"],
     ["节奏", "开头建立可读落点，中段按信息顺序展开，结尾统一降亮并停稳；不依赖快速抖动或多层噪声推动节奏。每个阶段的信息出现数量受控，前后镜保留明确停顿，高潮只由连线完成和文字停稳形成，避免重复闪烁与过量运动。"],
     ["转场", "统一使用 0.2 秒硬切；上一镜末帧与下一镜首帧亮度差受控，不新增叠化、缓推或空间连续性要求。切点保留稳定帧，前后文字形状与基线不得跳变；无文字来源角标仅作几何参照。"],
-    ["音频", "无对白、无口播、无人声、无音乐、无BGM、无配乐、无节拍；仅允许经授权的抽象环境音与动作音效。"],
-    ["音频纪律", "本片按无对白处理，台词人声与旁白字段不适用；若后期新增人声，必须另走已审文案逐字朗读与授权核验。本片只保留抽象环境音和动作音效，配乐由后期统一处理。声音只标记文字出现、节点连接和结尾停稳，不得伪装产品运行、真人操作或未审空间；实际响度和峰值由后期统一核验。"],
+    ["音频", "无对白、无口播、无人声、无音乐、无BGM、无配乐、无音乐节拍；仅允许经授权的抽象键盘击键、低频环境音与动作音效，并与本镜剪辑点对齐。"],
+    ["音频纪律", "本片按无对白处理，台词人声与旁白字段不适用；若后期新增人声，必须另走已审文案逐字朗读与授权核验。只保留抽象键盘击键、低频环境音和动作音效，配乐由后期统一处理；整体响度 -14 LUFS，True Peak ≤ -1 dBTP，AAC 48kHz 双声道。声音不得伪装产品运行、真人操作或未审空间。"],
     ["负面约束", "禁止人物、人体局部、实体空间、设备外观、可运行界面、价格类、销量类、评价类、竞品类信息、额外文字、品牌标识和未审外部素材。禁止画面内出现未列明的英文、乱码、占位符、重复字段、彩色噪点、粒子堆叠、过曝或遮挡原文；负面规则本身不上屏，也不能被误写为产品事实或替代来源标注。"],
     ["角色约束", "画面无人物，禁止任何人物入镜。"],
     ["角色一致性", "本镜无角色；保持二维色板、字形、光标和抽象几何样式一致。"],
     ["微动作", NO_PERSON_MICRO_ACTION],
+    ["可见文字锁定", hasText ? `本镜只允许以下精确字符串上屏：${sentence}；不截断、不改标点、不新增其他文字。` : "本镜无屏上文字；不得由生成端补字、标签或占位符。"],
+    ["技术交付", "2160x3840，9:16，30fps，H.264/MP4，AAC 48kHz 双声道；AAC 响度 -14 LUFS，True Peak ≤ -1 dBTP。"],
   ];
-  if (opening) {
-    fields.splice(27, 0,
-      ["主标题内容", text],
-      ["副标题内容", "不适用（无标题卡；不显示额外副标题）"],
-      ["标题字体设计", "等宽无衬线字形，冷白与深灰二维自发光；字距稳定、边缘清晰，不声明实体材质或真实布光。"],
-      ["开场音频设计", "无对白、无口播、无人声、无音乐、无BGM、无配乐、无节拍；仅保留经授权的抽象环境音与动作音效。"],
-      ["标题动画设计", "文字层按固定步长位移并单次切换亮度，主副标题依次落位后停稳；不出现输入框、窗口控件、命令行提示符、按钮或可点击控件，结尾保留可截图复核的静止画面。"],
-    );
-  }
   return fields.map(([tag, content], index) => `${String(index + 1).padStart(2, "0")}.【${tag}】${content}`);
 }
 
@@ -410,8 +426,8 @@ function normalizeAbstractPromptMarkdown(value: string, changes: string[], optio
     if (heading) {
       shotId = heading[1]!;
       output.push(line
-        .replace(/片头·30字段/gu, "片头·33字段")
-        .replace(/内容·25字段/gu, "内容·28字段"));
+        .replace(/片头·\d+字段/gu, "片头·30字段")
+        .replace(/内容·\d+字段/gu, "内容·30字段"));
       continue;
     }
     if (!inPrompt && shotId && /^\*\*长度\*\*/u.test(line)) {
@@ -427,7 +443,7 @@ function normalizeAbstractPromptMarkdown(value: string, changes: string[], optio
     }
     if (inPrompt && line.trim() === "```") {
       const duration = durationRows.get(shotId) ?? 4;
-      const visible = visibleTexts.length ? visibleTexts[blockIndex % visibleTexts.length]! : "";
+      const visible = selectAbstractVisibleTexts(shotId, visibleTexts);
       const fields = buildAbstractPromptFields(shotId, duration, visible);
       const content = fields.join("\n");
       output.push(...fields, line);
@@ -460,7 +476,7 @@ function normalizeAbstractPromptMarkdown(value: string, changes: string[], optio
     for (const block of rebuilt) {
       const pattern = new RegExp(`^\\|\\s*${block.shotId.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&")}\\s*\\|.*$`, "mu");
       normalized = normalized.replace(pattern,
-        `| ${block.shotId} | ${block.duration}s | ${block.chars} | ✅ ${block.count}/${block.shotId === "opening" ? 30 : 25} | — | — | ✓ | ✓ |`);
+        `| ${block.shotId} | ${block.duration}s | ${block.chars} | ✅ ${block.count}/30 | — | — | ✓ | ✓ |`);
     }
     let lengthIndex = 0;
     normalized = normalized.replace(/^\*\*长度\*\*:\s*\d+\s*字符/mgu, () => {
@@ -617,4 +633,122 @@ export function normalizeMarketingPromptResult<T>(
     value: normalizeUnknown(value, options, changes) as T,
     changes: [...new Set(changes)],
   };
+}
+
+export function buildMarketingPreproductionReport(input: {
+  productionResult: RecordValue;
+  scriptResult?: RecordValue | null;
+  timing?: RecordValue | null;
+  confirmations?: RecordValue | null;
+  contractScenes?: unknown[];
+  options: MarketingPromptOptions;
+}): string {
+  const shots = Array.isArray(input.productionResult.shots)
+    ? input.productionResult.shots.filter(isRecord)
+    : [];
+  const prompts = Array.isArray(input.productionResult.prompts)
+    ? input.productionResult.prompts.filter(isRecord)
+    : [];
+  const visibleTexts = extractAbstractVisibleText("", input.options.allowedVisibleText);
+  const contractScenes = Array.isArray(input.contractScenes) ? input.contractScenes.filter(isRecord) : [];
+  const resolvedDurations = shots.map((shot, index) => {
+    const id = String(shot.shotId ?? shot.shot_id ?? "");
+    const matched = contractScenes.find((scene) => String(scene.id ?? "") === id) ?? contractScenes[index];
+    return Number(matched?.duration ?? shot.duration ?? 0);
+  });
+  const totalDuration = resolvedDurations.reduce((sum, duration) => sum + duration, 0);
+  const roleCount = input.options.noPeople
+    ? 0
+    : listLength(isRecord(input.scriptResult?.blueprint)
+      ? (isRecord(input.scriptResult!.blueprint.character_system) ? input.scriptResult!.blueprint.character_system.characters : input.scriptResult!.blueprint.characters)
+      : undefined);
+  const effectiveMs = Number(input.timing?.effective ?? 0);
+  const lines = [
+    "# 预生产结果报告",
+    "",
+    `**镜头总数**: ${shots.length}`,
+    `**总时长**: ${totalDuration} 秒`,
+    `**角色数**: ${roleCount}`,
+    `**提示词数**: ${Math.max(prompts.length, shots.length)}`,
+    `**有效处理时间**: ${Number.isFinite(effectiveMs) && effectiveMs > 0 ? `${Math.round(effectiveMs / 60000)} 分钟` : "未记录（预生产计时未回传）"}`,
+    "**渲染提交**: 否（预生产门不提交视频 POST）",
+    "",
+    "## 不适用项清单",
+    "",
+    `- 台词速率/占比：${input.options.noPeople ? "不适用（本片无对白）" : "待实际音轨核验"}`,
+    "- 口型：不适用（本片无人物）",
+    "- 音频响度：未验证（预生产阶段无最终音轨）",
+    "- 定妆照与人物一致性：不适用（cast.mode=none）",
+    "",
+    "## 镜头与提示词",
+    "",
+    "> 场景的“预估镜头数”是前期拆分建议；G6 每场产出一份融合提示词，G7 按真实提示词数逐项核验，不把预估数写成未提供的独立生成任务。",
+    "",
+    "| 镜头 | 时长 | 字段数 | 提示词字符数 | 精确可见文字 | 二维场景 |",
+    "|------|------|--------|--------------|--------------|----------|",
+  ];
+  const promptBodies: Array<{ shotId: string; duration: number; body: string; scene: string; visible: string; fields: string[] }> = [];
+  for (const [index, shot] of shots.entries()) {
+    const shotId = String(shot.shotId ?? shot.shot_id ?? prompts[index]?.shotId ?? `shot-${index + 1}`);
+    const duration = resolvedDurations[index] ?? 0;
+    const visibleValues = selectAbstractVisibleTexts(shotId, visibleTexts);
+    const visible = visibleValues.join(" | ");
+    const fields = buildAbstractPromptFields(shotId, duration, visibleValues);
+    const body = fields.join("\n");
+    const scene = body.split("\n").find((line) => line.includes("【场景】"))?.replace(/^\d+\.【场景】/u, "") ?? "";
+    promptBodies.push({ shotId, duration, body, scene, visible, fields });
+    lines.push(`| ${shotId} | ${duration}s | ${fields.length} | ${Array.from(body).length} | ${visible.replace(/\|/gu, "／")} | ${scene.replace(/\|/gu, "／")} |`);
+  }
+  for (const prompt of promptBodies) {
+    const field = (tag: string): string => prompt.fields.find((line) => line.includes(`【${tag}】`))?.replace(/^\d+\.【[^】]+】/u, "") ?? "";
+    lines.push(
+      "",
+      `### ${prompt.shotId}`,
+      "",
+      `**时长**: ${prompt.duration}s`,
+      "",
+      "**完整镜头卡**：",
+      "",
+      "| 镜头卡字段 | 内容 |",
+      "|------------|------|",
+      `| 场景 | ${field("场景").replace(/\|/gu, "／")} |`,
+      `| 构图 | ${field("构图").replace(/\|/gu, "／")} |`,
+      `| 光影层次 | ${field("灯光设计").replace(/\|/gu, "／")} |`,
+      `| 二维视图 | ${field("运镜").replace(/\|/gu, "／")} |`,
+      `| 主体动作 | ${field("动作").replace(/\|/gu, "／")} |`,
+      `| 图像元素 | ${field("道具").replace(/\|/gu, "／")} |`,
+      `| 定妆照 | ${field("定妆照").replace(/\|/gu, "／")} |`,
+      `| 精确可见文字 | ${prompt.visible.replace(/\|/gu, "／")} |`,
+      `| 时间轴 | ${field("时间轴").replace(/\|/gu, "／")} |`,
+      "",
+      "**完整提示词**：",
+      "",
+      "```markdown",
+      prompt.body,
+      "```",
+    );
+  }
+  lines.push("", "## 确认记录", "");
+  for (const [key, value] of Object.entries(input.confirmations ?? {})) {
+    const record = isRecord(value) ? value : {};
+    const approved = record.approved === true;
+    const skipped = record.skipped === true;
+    if ((key === "portraitGeneration" || key === "portrait") && input.options.noPeople) continue;
+    lines.push(`- ${key}: ${approved ? "通过" : "未通过"}${skipped ? "（跳过）" : ""}`);
+  }
+  if (input.options.noPeople) lines.push("- portraitGeneration: 不适用（cast.mode=none）");
+  lines.push(
+    "",
+    "## 下一步",
+    "",
+    "本报告只确认预生产三件套与完整提示词正文；不提交视频渲染，也不把待执行计划写成已完成回执。",
+    "",
+    "> 时长核对：各镜时长之和等于客户明确目标时长；最终媒体时长仍须在渲染与后期阶段实测。",
+    "",
+  );
+  return lines.join("\n");
+}
+
+function listLength(value: unknown): number {
+  return Array.isArray(value) ? value.length : 0;
 }

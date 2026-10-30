@@ -34,6 +34,7 @@ import { requirementHash } from "./requirement-contract.js";
 import { normalizeNarrativePrdContract } from "./narrative-prd-contract.js";
 import { normalizeCreativeThemeContract } from "./creative-theme-contract.js";
 import {
+  buildMarketingPreproductionReport,
   isAbstractMarketingIntent,
   marketingVisibleTextFromG1,
   normalizeMarketingPromptResult,
@@ -315,7 +316,7 @@ export class VideoStudio {
 
     const handler: ConfirmationHandler = async (req) => {
       const gate = resolveGate(req.type);
-      const normalizedPrompt = input.isMarketing && (gate === "G6_PROMPT" || gate === "G7_FINAL")
+      const normalizedPrompt = input.isMarketing && gate === "G6_PROMPT"
         ? normalizeMarketingPromptText(req.content, promptOptions)
         : null;
       if (normalizedPrompt && normalizedPrompt.changes.length > 0) {
@@ -530,6 +531,28 @@ export class VideoStudio {
           charactersDir,
           durationConstraint: { maxSingleShot, minSingleShot }
         });
+        if (input.isMarketing && noPeople && isAbstractMarketingIntent(input.intent)) {
+          const vendorReport = (system as unknown as { _generatePreproductionReport?: unknown })._generatePreproductionReport;
+          if (typeof vendorReport !== "function") {
+            throw new Error("MARKETING_PREPRODUCTION_REPORT_BRIDGE_UNAVAILABLE: vendor 缺少预生产报告生成器");
+          }
+          (system as unknown as Record<string, unknown>)._generatePreproductionReport = function workloomPreproductionReport(
+            productionResult: Record<string, unknown>,
+            scriptResult: Record<string, unknown> | null,
+            timing: Record<string, unknown> | null,
+            confirmations: Record<string, unknown> | null,
+          ): string {
+            const live = currentRequirementMetadata() ?? metadata;
+            const contract = live._workloomRequirementContract;
+            const contractScenes = contract && typeof contract === "object" && !Array.isArray(contract)
+              ? (contract as Record<string, unknown>).scenes
+              : undefined;
+            return buildMarketingPreproductionReport({
+              productionResult, scriptResult, timing, confirmations, options: promptOptions,
+              contractScenes: Array.isArray(contractScenes) ? contractScenes : [],
+            });
+          };
+        }
         const retryPolicy = configureRequirementRetryPolicy(
           (system as unknown as { requirementDiscoveryEngine?: unknown }).requirementDiscoveryEngine,
         );

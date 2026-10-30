@@ -209,6 +209,12 @@ export function normalizeMarketingPrdContract(
   }
   const targetResolution = text(profile.resolution) || "4K";
   const targetFrameRate = Number(profile.frameRate) || 30;
+  const targetDuration = Number(profile.targetDuration);
+  const targetAspectRatio = text(profile.aspectRatio);
+  const targetPlatform = text(profile.targetPlatform);
+  if (Number.isFinite(targetDuration) && targetDuration > 0) positioning.targetDuration = targetDuration;
+  if (targetAspectRatio) positioning.aspectRatio = targetAspectRatio;
+  if (targetPlatform) positioning.targetPlatform = targetPlatform;
   if (positioning.resolution !== targetResolution) {
     positioning.resolution = targetResolution;
     changes.push("delivery-resolution-normalized");
@@ -272,7 +278,7 @@ export function normalizeMarketingPrdContract(
   const scenes = isRecord(prd.scenePlan) ? prd.scenePlan : {};
   for (const rawScene of list(scenes.scenes).filter(isRecord)) {
     const visualRequirements = textList(rawScene.visualRequirements);
-    const normalized = visualRequirements.map((requirement) => {
+    let normalized = visualRequirements.map((requirement) => {
       let next = requirement;
       if (!intent.includes("九") && UNSUPPORTED_MODULE_COUNT.test(next)) next = next.replace(UNSUPPORTED_MODULE_COUNT, "若干空心方块");
       if (/任何一帧.*来源|来源.*任何一帧/u.test(next)) {
@@ -283,6 +289,14 @@ export function normalizeMarketingPrdContract(
       }
       return next;
     });
+    if (noPeople) {
+      const screenText = /屏上文字|屏幕文字|文字层|来源行|来源角标|标题内容|副标题内容|License\s*[：:]|github\.com\/|Home Assistant/u;
+      normalized = normalized.filter((requirement) => !screenText.test(requirement));
+      normalized = [
+        ...normalized.slice(0, 4),
+        "屏上可见文字只允许从本次 G1 已审名称、官方卖点、许可证与仓库地址中取用，并由 G6 逐镜列明精确字符串；不生成字幕轨，不新增中文说明。",
+      ];
+    }
     if (JSON.stringify(normalized) !== JSON.stringify(visualRequirements)) {
       rawScene.visualRequirements = normalized;
       changes.push("scene-visual-contract-normalized");
