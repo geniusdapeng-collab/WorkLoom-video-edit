@@ -757,6 +757,19 @@ export function startRun(scope: Scope, input: StudioRunInput): string {
     // ApprovalCallback.gate 声明为 string，但适配层（studio.ts）保证已 resolveGate 过，运行时为 GateKey
     const gate = req.gate as GateKey;
     if (gate === "G1_DOSSIER") shadowObserver?.observeGate(gate);
+    if (gate === "G5_PORTRAIT" && selectedBuiltinCharacters.mode === "none" && !portraitOptions.enabled) {
+      gateProofs.set(gate, {
+        gate,
+        approved: true,
+        status: "not_applicable",
+        via: "deterministic",
+        degraded: false,
+        model: null,
+        evidence: [],
+        basis: "no-characters-or-products",
+      });
+      return { approved: true, reason: "no-characters-or-products", suggestions: [] };
+    }
     const gateObj = gateObjectOf(gate, req.vendorType);
     const objectId = gate === "G7_FINAL" ? input.projectId : `${input.projectId}:${gate.toLowerCase()}`;
     if (gate === "G5_PORTRAIT" && portraitOptions.enabled && portraitOptions.archivedCharactersOnly && portraitOptions.archivedCharacters) {

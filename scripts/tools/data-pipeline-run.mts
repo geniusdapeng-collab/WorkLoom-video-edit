@@ -36,6 +36,7 @@ import {
   applyRouteToMetadata,
   buildPipelineIntent,
   describeRouteDecision,
+  normalizeMarketingPromptText,
   type ApprovalCallback,
   type EventSink,
   type GateKey,
@@ -383,16 +384,20 @@ async function reviewGate(input: {
   title: string;
   contentMd: string;
 }): Promise<{ approved: boolean; verdict: Awaited<ReturnType<typeof reviewStage>> | null }> {
-  const deterministic = gateDeterministicChecks(input.gate, input.contentMd);
-  const artifact = gateArtifact(input.gate, input.contentMd);
-  let verdict: Awaited<ReturnType<typeof reviewStage>> | null = null;
-
   if (input.gate === "G5_PORTRAIT" && !PORTRAITS_ENABLED) {
-    const approved = !deterministic.some((check) => check.hard && !check.pass);
-    recordGate({ ...input, approved, verdict, deterministic });
-    log("  [gate G5_PORTRAIT] preproduction-only：未请求定妆照出图，仅记录 not_applicable");
-    return { approved, verdict };
+    const deterministic = [{ id: "portrait-applicability", pass: true, hard: true, detail: "预生产数据链路未请求定妆照出图，本门不适用" }];
+    recordGate({ ...input, approved: true, verdict: null, deterministic });
+    log("  [gate G5_PORTRAIT] preproduction-only：未请求定妆照出图，记录为 not_applicable");
+    return { approved: true, verdict: null };
   }
+  const normalized = decision.route === "marketing" && input.gate === "G6_PROMPT" && selectedCharacters.decision.mode === "none"
+    ? normalizeMarketingPromptText(input.contentMd, { targetDuration: DURATION_SECONDS, noPeople: true })
+    : null;
+  if (normalized?.changes.length) log(`  [G6 宿主归一] ${normalized.changes.join("、")}`);
+  const contentMd = normalized?.value ?? input.contentMd;
+  const deterministic = gateDeterministicChecks(input.gate, contentMd);
+  const artifact = gateArtifact(input.gate, contentMd);
+  let verdict: Awaited<ReturnType<typeof reviewStage>> | null = null;
 
   if (PRODUCER === "review" && AUTO_GATES.has(input.gate)) {
     const marketingReview = marketingEvidence && input.gate !== "G1_DOSSIER"
@@ -415,12 +420,12 @@ async function reviewGate(input: {
       rubric: [
         ...(GATE_RUBRIC[input.gate] ?? []),
         ...(marketingReview?.rubric ?? []),
-        `门内容全长 ${artifact.chars} 字，已随附件送审；摘录（供定位）：${input.contentMd.slice(0, 600)}`,
+        `门内容全长 ${artifact.chars} 字，已随附件送审；摘录（供定位）：${contentMd.slice(0, 600)}`,
       ],
       context: {
         gate: input.gate,
         vendorType: input.vendorType,
-        contentChars: input.contentMd.length,
+        contentChars: contentMd.length,
         ...(marketingReview?.context ?? {}),
       },
       allowFallbackApprove: false,
@@ -429,7 +434,7 @@ async function reviewGate(input: {
     if (marketingReview) verdict = marketingEvidence!.verifyReview(marketingReview, verdict);
   }
   const approved = PRODUCER === "auto" ? !deterministic.some((check) => check.hard && !check.pass) : Boolean(verdict?.approved);
-  recordGate({ ...input, approved, verdict, deterministic });
+  recordGate({ ...input, contentMd, approved, verdict, deterministic });
   log(`  [gate ${input.gate}] ${approved ? "放行" : "打回"}（${verdict ? `监制 ${verdict.score} 分 / via=${verdict.via}` : PRODUCER === "auto" ? "auto" : "无监制"}）`);
   return { approved, verdict };
 }

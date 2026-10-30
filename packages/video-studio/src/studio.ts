@@ -33,6 +33,7 @@ import { captureRequirementTheme, type RequirementApprovedTheme } from "./requir
 import { requirementHash } from "./requirement-contract.js";
 import { normalizeNarrativePrdContract } from "./narrative-prd-contract.js";
 import { normalizeCreativeThemeContract } from "./creative-theme-contract.js";
+import { normalizeMarketingPromptResult, normalizeMarketingPromptText } from "./marketing-prompt-contract.js";
 import { configureRequirementRetryPolicy } from "./requirement-retry-policy.js";
 import {
   applyDurationPolicyToManager,
@@ -292,9 +293,26 @@ export class VideoStudio {
     const log = cfg.log ?? ((line: string) => console.log(line));
     const emit: EventSink = (e) => (cfg.onEvent ? cfg.onEvent(e) : undefined);
     let runId: string | null = null;
+    const noPeople = metadata.builtinCharacterSelection
+      && typeof metadata.builtinCharacterSelection === "object"
+      && (metadata.builtinCharacterSelection as Record<string, unknown>).mode === "none";
+    const brief = metadata.brief && typeof metadata.brief === "object"
+      ? metadata.brief as Record<string, unknown>
+      : {};
+    const requestedDuration = Number(prdAuthority?.profile.targetDuration ?? brief.duration ?? 0);
+    const promptOptions = {
+      targetDuration: Number.isFinite(requestedDuration) && requestedDuration > 0 ? requestedDuration : 30,
+      noPeople: Boolean(noPeople),
+    };
 
     const handler: ConfirmationHandler = async (req) => {
       const gate = resolveGate(req.type);
+      const normalizedPrompt = input.isMarketing && gate === "G6_PROMPT"
+        ? normalizeMarketingPromptText(req.content, promptOptions)
+        : null;
+      if (normalizedPrompt && normalizedPrompt.changes.length > 0) {
+        log(`[studio] G6 宿主提示词归一：${normalizedPrompt.changes.join("、")}`);
+      }
       if (gate === "G2_THEME" && prdAuthority) approvedRequirementTheme = undefined;
       await emit({
         kind: "pipeline.gate.requested",
@@ -307,7 +325,7 @@ export class VideoStudio {
         gate,
         vendorType: req.type,
         title: `预生产确认门 · ${gate}`,
-        contentMd: req.content,
+        contentMd: normalizedPrompt?.value ?? req.content,
         runId: req.runId ?? runId
       });
       if (gate === "G2_THEME" && prdAuthority) {
@@ -599,11 +617,18 @@ export class VideoStudio {
           const modelName = portraitCfg && portraitCfg.enabled !== false ? portraitCfg.model : "未指定模型";
           log(`[studio] 定妆照真实出图已启用（${modelName}，产物根 ${charactersDir}）`);
         }
-        const result = await withPrdAuthorityScope(prdAuthority, () => withRequirementContractScope(metadata, () => withPortraitArchivePlan(portraitRuntime, () =>
+        const nativeResult = await withPrdAuthorityScope(prdAuthority, () => withRequirementContractScope(metadata, () => withPortraitArchivePlan(portraitRuntime, () =>
           system.create(input.intent, metadata, createOptions)
         ), prdAuthority ? { authority: prdAuthority, validateAuthority: validateRequirementAuthority!,
           approvedTheme: () => approvedRequirementTheme && structuredClone(approvedRequirementTheme) } : undefined), validateRequirementAuthority,
           prdAuthority ? () => approvedRequirementTheme && structuredClone(approvedRequirementTheme) : undefined);
+        const normalizedResult = input.isMarketing
+          ? normalizeMarketingPromptResult(nativeResult, promptOptions)
+          : { value: nativeResult, changes: [] as string[] };
+        if (normalizedResult.changes.length > 0) {
+          log(`[studio] 营销提示词合同归一：${normalizedResult.changes.join("、")}`);
+        }
+        const result = normalizedResult.value;
         // Reuse accounting proves a completed successful stage. A native refusal
         // can return before G5 while the runtime already contains prepared copies;
         // keep that original failure instead of replacing it with a success assertion.
