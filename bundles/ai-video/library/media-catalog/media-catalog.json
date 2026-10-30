@@ -45,7 +45,7 @@
           "4:3",
           "3:4"
         ],
-        "maxReferenceImages": 4,
+        "maxReferenceImages": 30,
         "maxPromptChars": 4000
       },
       "pricing": {
@@ -57,7 +57,7 @@
       "retentionDays": 7,
       "availability": "wired",
       "docs": "https://www.volcengine.com/docs/82379",
-      "notes": "环境变量 SEEDANCE_MODEL 可覆盖 providerModel（本机现为 doubao-seedance-2-5-260628）"
+      "notes": "环境变量 SEEDANCE_MODEL 可覆盖 providerModel（本机现为 doubao-seedance-2-5-260628）；全模态参考图上限以当前 API 能力为 30 张，图文视频首版仍建议精选 4 张关键角度"
     },
     {
       "id": "doubao-seedance-2-0",

@@ -14,6 +14,7 @@
  * 本模块只做**确定性文本判定**（零 token、可复算、可考试），产出高/中/低风险项与"改卡建议"。
  */
 import { dialogueContractFindings, dialogueLines, DIALOGUE_CONTRACT_VERSION } from "./dialogue-contract.js";
+import { inspectBulletTimeMotion, type BulletTimeCapabilities } from "./bullet-time.js";
 
 export const FIRST_PASS_POLICY_VERSION = "workloom.first-pass-readiness/v2" as const;
 
@@ -46,7 +47,7 @@ const joined = (shot: FirstPassShot, keys: string[]): string => keys.map((key) =
 /** 只保留肯定描述（剥掉"不出现/不可见/无…"的否定语境，与仓库其它审计同纪律） */
 const positive = (value: string): string => value.split(/[；。，、]/).filter((c) => c.trim() && !/(不出现|不可见|不露|不得|禁止|避免|没有|无[^，。；]*)/.test(c)).join("；");
 
-export function assessShotFirstPass(shot: FirstPassShot, options: { fps?: number; language?: string | null } = {}): FirstPassReadiness {
+export function assessShotFirstPass(shot: FirstPassShot, options: { fps?: number; language?: string | null; bulletTimeCapabilities?: BulletTimeCapabilities } = {}): FirstPassReadiness {
   const visual = positive(joined(shot, ["scene", "sceneDescription", "composition", "action", "props"]));
   const full = joined(shot, ["scene", "sceneDescription", "composition", "action", "props", "timeline", "camera_movement", "costume", "character"]);
   const camera = str(shot.camera_movement);
@@ -73,10 +74,19 @@ export function assessShotFirstPass(shot: FirstPassShot, options: { fps?: number
     }
   }
   // ② 秒级时点锁定 vs 运动冲突
-  if (/定住|稳住|定格/.test(timeline) && /推|拉|移|摇|环绕|升降/.test(camera)) {
+  const bulletTime = inspectBulletTimeMotion(shot as Record<string, unknown>, options.bulletTimeCapabilities);
+  if (bulletTime.enabled && !bulletTime.valid) {
+    add("bullet-time-contract-invalid", "high",
+      `镜头声明了子弹时间，但合同不成立：${bulletTime.issues.map((issue) => `${issue.code}@${issue.path}`).join("；") || "主体时间与摄影机时间未分层"}`,
+      `修复 bulletTime 合同并重新过 G6；不得用普通“定格 + 推拉”绕过`);
+  } else if (bulletTime.motionException) {
+    add("bullet-time-temporal-exception", "low",
+      `合法子弹时间合同声明主体${bulletTime.contract?.time.subjectTime === "freeze" ? "冻结" : "近冻结"}、摄影机连续环绕且零切点`,
+      `保留合同；最终提示词必须写清主体时间、摄影机时间、入口和出口动作`);
+  } else if (/定住|稳住|定格/.test(timeline) && /推|拉|移|摇|环绕|升降/.test(camera)) {
     add("timing-lock-vs-motion", "high",
       `时间轴锁了"定住"时点，运镜又是推/拉/移 → 模型几乎必然落幅漂移`,
-      `二选一：改成"固定机位（全程不推不拉）"，或删掉秒级时点锁定`);
+      `二选一：改成"固定机位（全程不推不拉）"，或删除秒级时点锁定；若确为子弹时间，请声明完整 bulletTime 合同`);
   }
   if (/定住|稳住/.test(timeline) && /固定机位/.test(camera) && !/呼吸|微动/.test(camera)) {
     add("static-motion-floor", "medium",
@@ -156,7 +166,7 @@ export function assessShotFirstPass(shot: FirstPassShot, options: { fps?: number
 }
 
 /** 整片就绪度 + 建议的渲染顺序（高风险先渲 = canary，先错只花一镜的钱） */
-export function assessFilmFirstPass(shots: readonly FirstPassShot[], options: { fps?: number; language?: string | null } = {}): {
+export function assessFilmFirstPass(shots: readonly FirstPassShot[], options: { fps?: number; language?: string | null; bulletTimeCapabilities?: BulletTimeCapabilities } = {}): {
   policy: typeof FIRST_PASS_POLICY_VERSION;
   ready: boolean;
   blockers: Array<{ shotId: string; finding: FirstPassFinding }>;

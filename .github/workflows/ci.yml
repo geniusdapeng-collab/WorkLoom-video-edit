@@ -109,6 +109,12 @@ jobs:
       - name: 视频需求合同与本次 G1 证据回归（隔离模型）
         run: >-
           pnpm exec vitest run --maxWorkers=1 --no-file-parallelism
+          packages/video-studio/src/bullet-time.test.ts
+          packages/video-studio/src/bullet-time-qc.test.ts
+          packages/video-studio/src/first-pass.test.ts
+          packages/video-studio/src/prompt-redlines.test.ts
+          packages/video-studio/src/micromotion.test.ts
+          packages/video-studio/src/shot-spec.test.ts
           packages/video-studio/src/vendor-requirement-entry.test.ts
           packages/video-studio/src/requirement-contract.test.ts
           packages/video-studio/src/requirement-contract-production-bridge.test.ts

@@ -9,6 +9,16 @@ const walkingShot = {
   pacing: "结尾放慢半拍",
   dialogue: [{ text: "慢慢走，才看得见。" }]
 };
+const bulletTime = {
+  schemaVersion: "workloom.video-studio/bullet-time/v1", enabled: true, mode: "freeze_orbit",
+  narrative: { purpose: "decision", whyNotNormalCut: "space reveal", viewerTakeaway: "she decides" },
+  time: { subjectTime: "near_freeze", subjectTimeRange: { start: 0.7, end: 3.5 }, entrySeconds: 0.7, exitSeconds: 0.5, timeReturn: "smooth", motionLayers: { face: "locked", body: "locked", hairTips: "very_slow", fabricHem: "very_slow", background: "locked", ambientParticles: "not_applicable" } },
+  camera: { movement: "continuous_orbit", direction: "clockwise", startView: "right front", endView: "left profile", approxArcDegrees: 100, height: "chest", speed: "slow_constant", cuts: 0, focusBehavior: "face sharp", narrativeReveal: "face to profile" },
+  generation: { inputMode: "reference-image", durationSeconds: 5, maxContinuousOrbit: 120, characterReferenceSet: ["actionPose", "front", "threeQuarter", "side"], previsReference: { requested: false, purpose: "camera_and_timing_only" } },
+  entryExit: { entryAction: "right foot lands", exitAction: "continue forward", exitMustMatchNextShot: false },
+  quality: { mustBePhotoreal: true, mustPreserveIdentity: true, mustPreserveWardrobe: true, mustPreservePropState: true, mustHaveRealParallax: true, mustHaveSubjectNearFreeze: true, mustHaveLayerMicroMotion: true, mustNotContainBgm: true },
+  audioPolicy: "diegetic_only", fallback: { ifNoContinuousOrbit: "guided_orbit", ifNoModelSupport: "editorial_fake", mustRelabelInUi: true },
+};
 
 describe("微动作增强（按原意图适用的通道）", () => {
   it("逐路判断适用性：说话镜不强制呼吸节拍，每条有原意图依据", () => {
@@ -26,6 +36,13 @@ describe("微动作增强（按原意图适用的通道）", () => {
   it("情绪词决定面部口径（惊喜 → 眉先动，不是泛泛的'表情自然'）", () => {
     const trace = planMicromotion({ shotId: "SC-02", duration: 5, action: "抬眼", mood: "惊喜：眼睛发亮" });
     expect(trace.applied.find((c) => c.id === "facial")!.clause).toContain("眉峰");
+  });
+  it("子弹时间主体近冻结时，普通身体/表情/呼吸微动作不适用", () => {
+    const trace = planMicromotion({ ...walkingShot, bulletTime });
+    expect(trace.status).toBe("not_applicable");
+    expect(trace.applied).toEqual([]);
+    expect(trace.skipped).toContain("bullet-time temporal layers own the motion");
+    expect(applyMicromotion({ ...walkingShot, bulletTime }).card.action).toBe(walkingShot.action);
   });
 
   it("只写画面语言，不写 f 值/ISO/帧率等技术参数", () => {

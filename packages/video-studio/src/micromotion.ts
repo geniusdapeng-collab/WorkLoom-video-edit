@@ -3,6 +3,7 @@ import {
   appendShotContributions, ENHANCEMENT_META_KEY, resolveShotIntent, restoreShotContributions,
   shotIntentHash, shotText, type ShotIntent, type ShotIntentStatus,
 } from "./shot-intent.js";
+import { inspectBulletTimeMotion, type BulletTimeCapabilities } from "./bullet-time.js";
 
 export type MicromotionChannelId = "facial" | "eyes" | "body" | "breath" | "fusion";
 export interface MicromotionChannel { id: MicromotionChannelId; clause: string; because: string }
@@ -41,11 +42,18 @@ function errorTrace(card: Record<string, unknown>, error: unknown): MicromotionT
 }
 
 /** Pure proposal. Only complete, compatible clauses enter the bounded proposal. */
-export function planMicromotion(card: Record<string, unknown>, options: { intent?: ShotIntent } = {}): MicromotionTrace {
+export function planMicromotion(card: Record<string, unknown>, options: { intent?: ShotIntent; bulletTimeCapabilities?: BulletTimeCapabilities } = {}): MicromotionTrace {
   let intent: ShotIntent;
   try { intent = resolveShotIntent(card, options.intent); } catch (error) { return errorTrace(card, error); }
   if (shotText(intent.source.action ?? (intent.source.fields as Record<string, unknown> | undefined)?.action).includes(MICROMOTION_MARKER)) {
     return empty(card, "unverified", "旧微动作标记没有可验证的本系统贡献记录，需先复核源动作", intent);
+  }
+  const bulletTime = inspectBulletTimeMotion(card, options.bulletTimeCapabilities);
+  if (bulletTime.enabled && !bulletTime.valid) {
+    return empty(card, "unverified", `子弹时间合同不成立：${bulletTime.issues.map((issue) => issue.code).join("、")}`, intent);
+  }
+  if (bulletTime.motionException) {
+    return empty(card, "not_applicable", "bullet-time temporal layers own the motion; ordinary body/facial micro-motion must not wake the frozen subject", intent);
   }
   if (!intent.subject.hasPerson) {
     return empty(card, intent.subject.kind === "unknown" ? "unverified" : "not_applicable",
@@ -102,7 +110,7 @@ export function planMicromotion(card: Record<string, unknown>, options: { intent
 }
 
 /** Apply an owned append with exact source/output evidence; repeated application is byte-stable. */
-export function applyMicromotion(card: Record<string, unknown>, options: { intent?: ShotIntent } = {}): { card: Record<string, unknown>; trace: MicromotionTrace } {
+export function applyMicromotion(card: Record<string, unknown>, options: { intent?: ShotIntent; bulletTimeCapabilities?: BulletTimeCapabilities } = {}): { card: Record<string, unknown>; trace: MicromotionTrace } {
   const trace = planMicromotion(card, options);
   if (!trace.sourceHash || trace.status === "unverified" && !trace.applied.length) return { card: { ...card }, trace };
   try {

@@ -23,6 +23,12 @@ import { createRequire } from "node:module";
 import { dirname, resolve as resolvePath } from "node:path";
 import { fileURLToPath } from "node:url";
 import { normalizeNegativeConstraintItems } from "./prompt-language.js";
+import {
+  compileBulletTimeShot,
+  validateBulletTimePrompt,
+  type BulletTimeCapabilities,
+  type BulletTimePromptAudit,
+} from "./bullet-time.js";
 
 export interface FieldSpec {
   p0: string[];
@@ -68,6 +74,8 @@ export interface ShotSpecReport {
   sceneSubstituted: boolean;
   /** 场景替换/漂移的细节（未替换时为 null） */
   sceneSubstitution: SceneSubstitutionReport | null;
+  /** Optional final audit when the shot declares a bullet-time contract. */
+  bulletTime?: BulletTimePromptAudit;
 }
 
 /**
@@ -168,6 +176,8 @@ export interface PrepareOptions {
    */
   redlineWords?: string[];
   allowRedlines?: string[];
+  /** Optional model-specific limits used by the bullet-time compiler. */
+  bulletTimeCapabilities?: BulletTimeCapabilities;
   log?: (line: string) => void;
 }
 
@@ -655,8 +665,11 @@ export function prepareShotPrompt(
     ratio
   );
   const log = options.log ?? (() => undefined);
+  const bulletCompiled = compileBulletTimeShot(card as Record<string, unknown>, {
+    capabilities: options.bulletTimeCapabilities,
+  });
   /** 先做结构化字段归一：避免 `[object Object]` 进入提示词（真机 6–7 处/镜） */
-  const normalizedCard = normalizeStructuredFields(card as Record<string, unknown>);
+  const normalizedCard = normalizeStructuredFields(bulletCompiled.card);
   /** 音频纪律：清洗 audio 字段里的音乐指令（vendor 音频设计会写「音乐风格/配乐」） */
   const audioClean = sanitizeAudioField(normalizedCard.audio, log);
   if (audioClean.value !== normalizedCard.audio) normalizedCard.audio = audioClean.value;
@@ -817,6 +830,10 @@ export function prepareShotPrompt(
   });
 
   const delivery = guard.verify(prompt, assemblyShot);
+  if (bulletCompiled.error) {
+    delivery.pass = false;
+    delivery.issues = [...delivery.issues, `子弹时间合同未编译：${bulletCompiled.error}`];
+  }
   /**
    * 片头标题字段下线的**落地处理**（2026-09-26）：
    * vendor 交付闸（只读基线）仍按"片头 30 字段"口径报 `缺片头专属字段:…`，
@@ -858,6 +875,13 @@ export function prepareShotPrompt(
     && (!prompt.includes("【写实纪律】") || !prompt.includes("【场景解耦】") || !/no cartoon/i.test(prompt))) {
     delivery.pass = false;
     delivery.issues = [...delivery.issues, "提示词缺少「纯写实 + 场景解耦」纪律子句（默认强制；其它风格请在卡片显式声明 style/realism）"];
+  }
+  const bulletTime = validateBulletTimePrompt(prompt, bulletCompiled.card, {
+    capabilities: options.bulletTimeCapabilities,
+  });
+  if (bulletTime.applicable && !bulletTime.pass) {
+    delivery.pass = false;
+    delivery.issues = [...delivery.issues, ...bulletTime.issues.map((issue) => `子弹时间最终提示词未过闸：${issue}`)];
   }
   /** 台词合同自检（T-2026-1011-0001） */
   if (dialogueLineList.length > 0) {
@@ -937,7 +961,8 @@ export function prepareShotPrompt(
     degradeReason: String(std.degradeReason ?? ""),
     redlines,
     sceneSubstituted: sceneSubstitution.substituted,
-    sceneSubstitution
+    sceneSubstitution,
+    ...(bulletTime.applicable ? { bulletTime } : {}),
   };
 }
 

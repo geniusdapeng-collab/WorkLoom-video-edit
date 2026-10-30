@@ -17,6 +17,7 @@ function visit(node: ts.Node): void { nodes.push(node); ts.forEachChild(node, vi
 const compile = (code: string): string => ts.transpileModule(code, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS } }).outputText;
 const scope = () => ({ appendCinematicContract, auditCinematicContracts, buildCinematicContract, cinematicStyleRequested,
   auditRhythmPlan, rhythmSfxPlacements, buildPlatePrompt, buildMaterialScenePrompt, join,
+  leadVisibleInShot: () => false, portraitReferenceClauseFor: () => "", REVISION_CONTEXT: "",
   ASPECT: "16:9", SOURCE_RESOLUTION: "1080p", shotlist: { title: "Room arrival" }, authorContext: {}, sceneBible: undefined });
 const shot = (shotId: string) => ({ shotId, duration: 4, subjectType: "product", scene: "brass key and lock in doorway; no people", props: "brass key and lock", dialogue: [], cinematic: {
   purpose: "show how the key unlocks the room", framing: "key and lock occupy lower third; doorway behind", depth: "key sharp; doorway readable",
