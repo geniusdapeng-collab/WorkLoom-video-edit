@@ -1,7 +1,7 @@
 {
   "schemaVersion": "workloom.video-pipeline-pressure-progress/v1",
   "taskId": "T-2026-1030-9010",
-  "updatedAt": "2026-10-30T15:20:00+08:00",
+  "updatedAt": "2026-10-30T18:08:00+08:00",
   "baseline": {
     "commit": "463ae7ad844de31674b94e73679dafaf0f5dcac5",
     "branch": "task/T-2026-1030-9010",
@@ -19,28 +19,47 @@
     "marketing source-support review retries exactly one malformed/transient reviewer response and never retries a substantive rejection",
     "marketing G1 first reached APPROVED with score 86 in a real pre-render pilot",
     "first fix commit created: 53d4d1b (40 files), secret scan PASS",
-    "20 abnormal matrix persisted in outputs/mine-clear/T-2026-1030-9010/stress-results.json"
+    "20 abnormal matrix persisted in outputs/mine-clear/T-2026-1030-9010/stress-results.json",
+    "MCD evidence runner now excludes its own evidence root while still rejecting real source changes",
+    "MCD P1 cards MC-004/006..020 have passed repair-role assertions at their fix commits where recorded",
+    "marketing no-person theme is host-normalized and anchored to G1 claims",
+    "marketing source fetching retries only transient/429/5xx and supports booked GitHub API README fixtures",
+    "marketing no-evidence A2/A3 stations skip impossible semantic review while retaining lineage and limitations",
+    "G3 discovery normalizes tolerated timing residual to exact Brief duration and strips unsupported audience market claims",
+    "SceneArchitect/RiskAssessor use three bounded attempts with caller timeout honored",
+    "marketing PRD is normalized before G4 for external references, no-person wording, technical delivery, audio and subtitle contract",
+    "product scenes may be prop-free only when every scene has an explicit noPropsReason",
+    "M01 latest G1 reached 98 and G2 93 in pressure runs; remaining failure moved downstream"
   ],
   "inProgress": [
-    "Marketing positive pilot PILOT-MARKETING-HA-011 is running after explicit no-person/abstract-visual contract hardening",
-    "Narrative positive pilot must run after the global preproduction lock is released",
-    "Propagate confirmed root causes to hyperreality-system and workloom consumers"
+    "Re-run M01 from current HEAD after customer-redline propagation so the full G1-G7 chain can be observed",
+    "Complete the remaining marketing and narrative positive matrix",
+    "Propagate confirmed root causes to existing Workroom/AI-video consumers"
   ],
   "pending": [
     "Run 10 marketing and 10 narrative positive cases through pre-render prompt gates",
-    "Commit post-53d4d1b hardening fixes, push PR and merge to GitHub main with read-back SHA",
+    "Push the task branch, open PR, complete candidate CI and merge through the repository delivery path with GitHub main SHA read-back",
     "Run MCD repair/independent-acceptance assertion roles and close dashboard gate",
-    "Complete MCD acceptance role and downstream fanout",
+    "Complete independent acceptance, downstream fanout and final main receipt",
     "Final coverage, evidence grades, delivery report and self-check"
   ],
   "currentEvidence": {
     "firstCommit": "53d4d1b",
+    "currentHead": "b3e7794036f75e87901a19696c42c42c7da81958",
+    "githubMainBaseline": "463ae7ad844de31674b94e73679dafaf0f5dcac5",
     "marketingFirstG1Pass": "work/stress/T-2026-1030-9010/PILOT-MARKETING-HA-004",
-    "latestMarketingPilot": "work/stress/T-2026-1030-9010/PILOT-MARKETING-HA-011",
+    "latestMarketingPilot": "work/stress/T-2026-1030-9010/cases/M01",
+    "latestMarketingBestG1": 98,
+    "latestMarketingBestG2": 97,
+    "latestMarketingBestG3": 94,
     "latestNarrativeGateProof": "work/stress/T-2026-1030-9010/PILOT-NARRATIVE-008",
+    "bookedSourceFixture": "work/stress/T-2026-1030-9010/source-fixtures/M01.json",
+    "bookedSourceRepository": "home-assistant/core",
+    "bookedSourceBranch": "dev",
     "abnormalResults": "outputs/mine-clear/T-2026-1030-9010/stress-results.json",
     "ledger": "outputs/mine-clear/T-2026-1030-9010/ledger.json",
-    "runner": "scripts/tools/run-data-pipeline-stress.mjs"
+    "runner": "scripts/tools/run-data-pipeline-stress.mjs",
+    "lastObservedFailure": "M01 G1 78: phantom portrait references and customer redlines not propagated; fixed in b3e7794, verification in progress"
   },
   "safety": {
     "renderSubmissionAllowed": false,

@@ -737,47 +737,26 @@
       "pipeline": "marketing",
       "domain": "智能家居",
       "pass": false,
-      "sourceCommit": "bfbbfa8016fb4cb8d94d6bb967e05b4a44fe6e2b",
+      "sourceCommit": "5fbba62575d1a03b165275fd9a60623e7278987e",
       "sourceDirty": false,
       "caseSha256": "5e3d363f25af42e4662c6b100c8521a4d4d2c6843e667728fabbd345666bdd36",
-      "harnessSha256": "a355312135171e9d7b5a8c34c8e56fd0db86de5fdbb96155043003848a404aed",
+      "harnessSha256": "89446ae0dab10327695b1a4eade13c7192dc043a459a7697eecc479cb7fa369b",
       "exitCode": 4,
-      "elapsedMs": 199887,
+      "elapsedMs": 103470,
       "shots": 0,
       "prompts": 0,
-      "renderSubmitted": false,
-      "marketingFacts": {
-        "sourceCount": 1,
-        "g1Sha256": "0f57df11c41e6470fd989b0176533d8495bec868ee1e14df282f957e6ad5a3e9",
-        "finalFactsSha256": null,
-        "restrictions": [
-          "没有可核实用户评价：禁止用户口碑、评分、人数、销量或使用效果共识主张",
-          "没有可核实竞品证据：禁止对比、竞品弱点或市场领先主张"
-        ]
-      },
-      "gates": [
-        {
-          "gate": "G1_DOSSIER",
-          "approved": true,
-          "score": 92
-        },
-        {
-          "gate": "G2_THEME",
-          "approved": false,
-          "score": 62
-        },
-        {
-          "gate": "G2_THEME",
-          "approved": false,
-          "score": 72
-        }
-      ],
+      "renderSubmitted": null,
+      "marketingFacts": null,
+      "gates": [],
       "errors": [],
       "validationErrors": [
         "summary.success must be true",
+        "summary.renderSubmitted must be false",
         "summary.shots must be positive",
         "summary.prompts must be positive",
-        "latest gate G2_THEME is not approved",
+        "summary.errors must be empty",
+        "latest gate G1_DOSSIER is missing",
+        "latest gate G2_THEME is missing",
         "latest gate G3_INSIGHT is missing",
         "latest gate G4_PRD is missing",
         "latest gate G6_PROMPT is missing",
@@ -822,6 +801,8 @@
         "awareness",
         "--prime-search",
         "/Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/work/stress/T-2026-1030-9010/cases/M01/search-fixture.json",
+        "--prime-sources",
+        "/Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/work/stress/T-2026-1030-9010/cases/M01/source-fixture.json",
         "--json"
       ]
     },
@@ -972,26 +953,70 @@
       ]
     }
   ],
-  "updatedAt": "2026-10-30T07:37:17.224Z",
-  "completedAt": "2026-10-30T07:32:41.818Z",
+  "updatedAt": "2026-10-30T10:05:22.949Z",
+  "completedAt": "2026-10-30T10:05:22.949Z",
   "summary": {
-    "total": 20,
+    "total": 23,
     "passed": 20,
-    "failed": 0,
+    "failed": 3,
     "renderSubmissions": 0
   },
   "source": {
-    "commit": "bfbbfa8016fb4cb8d94d6bb967e05b4a44fe6e2b",
+    "commit": "5fbba62575d1a03b165275fd9a60623e7278987e",
     "dirty": false,
-    "harnessSha256": "a355312135171e9d7b5a8c34c8e56fd0db86de5fdbb96155043003848a404aed",
+    "harnessSha256": "89446ae0dab10327695b1a4eade13c7192dc043a459a7697eecc479cb7fa369b",
     "casesSha256": "54b9fc0342d9f5dcdb70e87e1c36cba74e8802922b1c349a75bdef25300f89a7"
   },
   "validation": {
     "ok": false,
     "errors": [
-      "missing result M01",
-      "missing result M02",
-      "missing result M03",
+      "X01 sourceCommit is stale",
+      "X01 harnessSha256 is stale",
+      "X02 sourceCommit is stale",
+      "X02 harnessSha256 is stale",
+      "X03 sourceCommit is stale",
+      "X03 harnessSha256 is stale",
+      "X04 sourceCommit is stale",
+      "X04 harnessSha256 is stale",
+      "X05 sourceCommit is stale",
+      "X05 harnessSha256 is stale",
+      "X06 sourceCommit is stale",
+      "X06 harnessSha256 is stale",
+      "X07 sourceCommit is stale",
+      "X07 harnessSha256 is stale",
+      "X08 sourceCommit is stale",
+      "X08 harnessSha256 is stale",
+      "X09 sourceCommit is stale",
+      "X09 harnessSha256 is stale",
+      "X10 sourceCommit is stale",
+      "X10 harnessSha256 is stale",
+      "X11 sourceCommit is stale",
+      "X11 harnessSha256 is stale",
+      "X12 sourceCommit is stale",
+      "X12 harnessSha256 is stale",
+      "X13 sourceCommit is stale",
+      "X13 harnessSha256 is stale",
+      "X14 sourceCommit is stale",
+      "X14 harnessSha256 is stale",
+      "X15 sourceCommit is stale",
+      "X15 harnessSha256 is stale",
+      "X16 sourceCommit is stale",
+      "X16 harnessSha256 is stale",
+      "X17 sourceCommit is stale",
+      "X17 harnessSha256 is stale",
+      "X18 sourceCommit is stale",
+      "X18 harnessSha256 is stale",
+      "X19 sourceCommit is stale",
+      "X19 harnessSha256 is stale",
+      "X20 sourceCommit is stale",
+      "X20 harnessSha256 is stale",
+      "M01 did not pass",
+      "M02 sourceCommit is stale",
+      "M02 harnessSha256 is stale",
+      "M02 did not pass",
+      "M03 sourceCommit is stale",
+      "M03 harnessSha256 is stale",
+      "M03 did not pass",
       "missing result M04",
       "missing result M05",
       "missing result M06",
@@ -1009,9 +1034,10 @@
       "missing result N08",
       "missing result N09",
       "missing result N10",
-      "expected 40 results, observed 20",
+      "expected 40 results, observed 23",
       "summary.total does not cover the complete matrix",
-      "summary.passed does not cover the complete matrix"
+      "summary.passed does not cover the complete matrix",
+      "summary.failed must be zero"
     ]
   }
 }
