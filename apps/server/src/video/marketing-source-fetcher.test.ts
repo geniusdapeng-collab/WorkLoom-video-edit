@@ -1,9 +1,11 @@
 import { createServer, type Server } from "node:http";
+import { createHash } from "node:crypto";
 import { gzipSync } from "node:zlib";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import {
   fetchMarketingSource,
   fetchMarketingSourceWithRetry,
+  loadBookingSourceFixture,
   publicSourceAddress,
   requestSource,
   retryableMarketingSourceError,
@@ -91,6 +93,31 @@ describe("来源公网地址与真实HTTP读取", () => {
       attemptTimeoutsMs: [1000, 1000],
       retryDelaysMs: [0],
     })).rejects.toThrow("SOURCE_URL_PRIVATE");
+  });
+  it("预置官方来源严格绑定 URL、完整正文和双摘要", () => {
+    const text = "Repository: acme/widget\nLicense: MIT\n\n# Widget\nA verified official README fact.";
+    const digest = createHash("sha256").update(text).digest("hex");
+    const fixture = {
+      schemaVersion: "workloom.booking-source/v1",
+      requestedUrl: "https://github.com/acme/widget",
+      finalUrl: "https://github.com/acme/widget",
+      contentType: "text/plain",
+      text,
+      fetchedAt: new Date().toISOString(),
+      rawSha256: digest,
+      textSha256: digest,
+      bytes: Buffer.byteLength(text),
+      repository: "acme/widget",
+      defaultBranch: "main",
+      repositoryApiUrl: "https://api.github.com/repos/acme/widget",
+      readmeApiUrl: "https://api.github.com/repos/acme/widget/readme",
+      readmeSha: "a".repeat(40),
+    };
+    const loaded = loadBookingSourceFixture(fixture, "https://github.com/acme/widget");
+    expect(loaded.snapshot.text).toBe(text);
+    expect(loaded.snapshot.sourceId).toMatch(/^SRC-[a-f0-9]{24}$/);
+    expect(() => loadBookingSourceFixture({ ...fixture, text: `${text} changed` }, fixture.requestedUrl)).toThrow(/SOURCE_FIXTURE_CHANGED/);
+    expect(() => loadBookingSourceFixture(fixture, "https://github.com/acme/other")).toThrow(/SOURCE_FIXTURE_MISMATCH/);
   });
 });
 

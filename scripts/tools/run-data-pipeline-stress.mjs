@@ -208,7 +208,22 @@ function prepareFixture(item, dir) {
   if (execution.result.status !== 0) {
     throw new Error(`fixture failed for ${item.id}: ${execution.result.stderr || execution.result.stdout}`);
   }
-  return fixture;
+  const sourceFixture = join(dir, "source-fixture.json");
+  const sourceExecution = run(process.execPath, [
+    "scripts/tools/prepare-github-source-fixture.mjs",
+    "--url", `https://github.com/${item.repo}`,
+    "--out", sourceFixture,
+  ], {
+    cwd: root,
+    encoding: "utf8",
+    timeout: 60_000,
+    maxBuffer: 20 * 1024 * 1024,
+    env: childEnv(),
+  });
+  if (sourceExecution.result.status !== 0) {
+    throw new Error(`official source fixture failed for ${item.id}: ${sourceExecution.result.stderr || sourceExecution.result.stdout}`);
+  }
+  return { search: fixture, source: sourceFixture };
 }
 
 function positive(item) {
@@ -268,7 +283,8 @@ function positive(item) {
       "--category", item.category,
       "--selling-points", `以本次官方仓库 ${item.repo} 可核实事实为准`,
       "--goal", item.goal,
-      "--prime-search", fixture,
+      "--prime-search", fixture.search,
+      "--prime-sources", fixture.source,
     ] : []),
     "--json",
   ];

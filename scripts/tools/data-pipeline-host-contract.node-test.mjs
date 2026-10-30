@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { createHash } from "node:crypto";
 import { appliedApprovalFeedback, gateDeterministicChecks } from "../../apps/server/src/video/gate-policy.ts";
 import { normalizeMarketingDossierPresentation } from "../../apps/server/src/video/marketing-dossier-normalization.ts";
 import { narrativeThemeInputForRoute } from "../../packages/video-studio/src/requirement-contract-bridge.ts";
@@ -8,7 +9,12 @@ import { normalizeNarrativePrdContract } from "../../packages/video-studio/src/n
 import { normalizeCreativeThemeContract } from "../../packages/video-studio/src/creative-theme-contract.ts";
 import { normalizeMarketingPrdContract } from "../../packages/video-studio/src/marketing-prd-contract.ts";
 import { configureRequirementRetryPolicy } from "../../packages/video-studio/src/requirement-retry-policy.ts";
-import { retryableMarketingSourceError, sourceDocument, SOURCE_MAX_TEXT_CHARS } from "../../apps/server/src/video/marketing-source-fetcher.ts";
+import {
+  loadBookingSourceFixture,
+  retryableMarketingSourceError,
+  sourceDocument,
+  SOURCE_MAX_TEXT_CHARS,
+} from "../../apps/server/src/video/marketing-source-fetcher.ts";
 import { supportReviewFacts } from "../../apps/server/src/video/marketing-authority.ts";
 import { filterUnsafeMarketingExtraction } from "../../apps/server/src/video/marketing-facts.ts";
 
@@ -219,6 +225,33 @@ test("marketing source retry classifies transient transport separately from poli
   assert.equal(retryableMarketingSourceError(new Error("SOURCE_HTTP_FAILED：来源HTTP 503")), true);
   assert.equal(retryableMarketingSourceError(new Error("SOURCE_TEXT_TOO_LARGE：完整正文超过上限")), false);
   assert.equal(retryableMarketingSourceError(new Error("SOURCE_URL_PRIVATE：来源解析到非公网地址")), false);
+});
+
+test("booked GitHub source binds official URLs and both raw/text digests", () => {
+  const rawText = "Repository: acme/widget\n\n# Widget\nOfficial fact.   \n\n\n";
+  const normalized = sourceDocument(rawText, "text/plain", "https://github.com/acme/widget").text;
+  const digest = (value) => createHash("sha256").update(value).digest("hex");
+  const fixture = {
+    schemaVersion: "workloom.booking-source/v1",
+    requestedUrl: "https://github.com/acme/widget",
+    finalUrl: "https://github.com/acme/widget",
+    contentType: "text/plain",
+    text: rawText,
+    fetchedAt: new Date().toISOString(),
+    rawSha256: digest(Buffer.from(rawText)),
+    textSha256: digest(normalized),
+    bytes: Buffer.byteLength(rawText),
+    repository: "acme/widget",
+    defaultBranch: "main",
+    repositoryApiUrl: "https://api.github.com/repos/acme/widget",
+    readmeApiUrl: "https://api.github.com/repos/acme/widget/readme",
+    readmeSha: "a".repeat(40),
+  };
+  const loaded = loadBookingSourceFixture(fixture, "https://github.com/acme/widget");
+  assert.equal(loaded.snapshot.text, normalized);
+  assert.equal(loaded.snapshot.rawSha256, fixture.rawSha256);
+  assert.equal(loaded.snapshot.textSha256, fixture.textSha256);
+  assert.throws(() => loadBookingSourceFixture({ ...fixture, text: `${rawText}changed` }, fixture.requestedUrl), /SOURCE_FIXTURE_CHANGED/);
 });
 
 test("image angle claims are not sent as textual facts to support review", () => {

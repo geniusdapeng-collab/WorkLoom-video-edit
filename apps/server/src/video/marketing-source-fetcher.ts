@@ -17,6 +17,23 @@ export interface SourceResponse { status: number; headers: IncomingHttpHeaders; 
 export type SourceResolver = (hostname: string) => Promise<Array<{ address: string; family: number }>>;
 export type SourceTransport = (url: URL, address: { address: string; family: number }, signal: AbortSignal) => Promise<SourceResponse>;
 
+export interface BookingSourceFixture {
+  schemaVersion: "workloom.booking-source/v1";
+  requestedUrl: string;
+  finalUrl: string;
+  contentType: "text/plain";
+  text: string;
+  fetchedAt: string;
+  rawSha256: string;
+  textSha256: string;
+  bytes: number;
+  repository: string;
+  defaultBranch: string;
+  repositoryApiUrl: string;
+  readmeApiUrl: string;
+  readmeSha: string;
+}
+
 export function publicSourceAddress(address: string): boolean {
   const family = isIP(address);
   if (family === 4) {
@@ -154,6 +171,57 @@ export function sourceDocument(raw: string, contentType: string, finalUrl: strin
   if (!text || /(?:请输入验证码|访问过于频繁|请完成安全验证|verify you are human|checking your browser)/i.test(text)) throw new Error("SOURCE_UNAVAILABLE：页面为空或是访问验证页");
   if (text.length > SOURCE_MAX_TEXT_CHARS) throw new Error("SOURCE_TEXT_TOO_LARGE：完整正文超过单来源审核上限，不能截断后作为证据");
   return { text, assetUrls: [...assetUrls] };
+}
+
+/** Read a booked official-source snapshot for deterministic pre-render pressure runs. */
+export function loadBookingSourceFixture(
+  value: unknown,
+  expectedRequestedUrl?: string,
+): { snapshot: SourceSnapshot; rawBytes: Buffer } {
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("SOURCE_FIXTURE_INVALID：来源夹具必须是对象");
+  const fixture = value as Partial<BookingSourceFixture>;
+  const requested = sourceUrl(String(fixture.requestedUrl ?? ""));
+  const final = sourceUrl(String(fixture.finalUrl ?? ""));
+  if (expectedRequestedUrl && sourceUrl(expectedRequestedUrl).href !== requested.href) {
+    throw new Error("SOURCE_FIXTURE_MISMATCH：夹具与本次检索 URL 不一致");
+  }
+  if (fixture.schemaVersion !== "workloom.booking-source/v1" || fixture.contentType !== "text/plain"
+    || typeof fixture.text !== "string" || !fixture.text.trim()
+    || typeof fixture.repository !== "string" || !/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/u.test(fixture.repository)
+    || typeof fixture.defaultBranch !== "string" || !fixture.defaultBranch.trim()
+    || typeof fixture.repositoryApiUrl !== "string" || !/^https:\/\/api\.github\.com\//u.test(fixture.repositoryApiUrl)
+    || typeof fixture.readmeApiUrl !== "string" || !/^https:\/\/api\.github\.com\//u.test(fixture.readmeApiUrl)
+    || typeof fixture.readmeSha !== "string" || !/^[a-f0-9]{40}$/u.test(fixture.readmeSha)
+    || typeof fixture.fetchedAt !== "string" || !Number.isFinite(Date.parse(fixture.fetchedAt))) {
+    throw new Error("SOURCE_FIXTURE_INVALID：官方来源夹具字段不完整");
+  }
+  const rawBytes = Buffer.from(fixture.text);
+  const text = sourceDocument(fixture.text, fixture.contentType, final.href).text;
+  const rawDigest = createHash("sha256").update(rawBytes).digest("hex");
+  const textDigest = createHash("sha256").update(text).digest("hex");
+  const bytes = rawBytes.length;
+  if (!/^[a-f0-9]{64}$/u.test(String(fixture.rawSha256)) || fixture.rawSha256 !== rawDigest
+    || !/^[a-f0-9]{64}$/u.test(String(fixture.textSha256)) || fixture.textSha256 !== textDigest
+    || fixture.bytes !== bytes) {
+    throw new Error("SOURCE_FIXTURE_CHANGED：官方来源夹具正文与摘要不一致");
+  }
+  const sourceId = `SRC-${createHash("sha256").update(`${final.href}\n${textDigest}`).digest("hex").slice(0, 24)}`;
+  return {
+    snapshot: {
+      sourceId,
+      requestedUrl: requested.href,
+      finalUrl: final.href,
+      redirectChain: requested.href === final.href ? [] : [requested.href],
+      fetchedAt: fixture.fetchedAt,
+      contentType: fixture.contentType,
+      rawSha256: rawDigest,
+      textSha256: textDigest,
+      bytes,
+      text,
+      assetUrls: [],
+    },
+    rawBytes,
+  };
 }
 
 async function abortable<T>(operation: Promise<T>, signal: AbortSignal): Promise<T> {

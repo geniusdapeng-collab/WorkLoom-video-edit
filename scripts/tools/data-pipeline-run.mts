@@ -56,6 +56,7 @@ import {
   type ExecutorLlm,
   type SearchHit,
 } from "../../apps/server/src/video/data-mining-executor.js";
+import { loadBookingSourceFixture } from "../../apps/server/src/video/marketing-source-fetcher.js";
 import {
   applyBuiltinCharacters,
   appendBuiltinCharacterGuidance,
@@ -212,6 +213,22 @@ if (PRIME_FILE) {
     log(`检索预置完成：${primed.queries} 条查询 / ${primed.written} 条结果 → ${SEARCH_CACHE_FILE.replace(REPO_ROOT + "/", "")}`);
   } catch (error) {
     console.error(`--prime-search 加载失败：${error instanceof Error ? error.message : String(error)}`);
+    process.exit(2);
+  }
+}
+
+const PRIME_SOURCE_FILE = arg("--prime-sources");
+let bookedSource: ReturnType<typeof loadBookingSourceFixture> | undefined;
+if (PRIME_SOURCE_FILE) {
+  const fixturePath = resolve(REPO_ROOT, PRIME_SOURCE_FILE);
+  try {
+    bookedSource = loadBookingSourceFixture(JSON.parse(readFileSync(fixturePath, "utf8")));
+    log(
+      `官方来源预置：${bookedSource.snapshot.requestedUrl} → ${bookedSource.snapshot.finalUrl}`
+      + `（${bookedSource.snapshot.bytes} bytes / SHA ${bookedSource.snapshot.textSha256.slice(0, 12)}…）`,
+    );
+  } catch (error) {
+    console.error(`--prime-sources 加载失败：${error instanceof Error ? error.message : String(error)}`);
     process.exit(2);
   }
 }
@@ -464,6 +481,17 @@ if (decision.route === "marketing") {
           paceMs: Number(arg("--search-pace-ms", "1200")) || 1_200,
           fixtureOnly: Boolean(PRIME_FILE),
         }),
+        ...(bookedSource ? {
+          fetchSource: async (url: string) => {
+            try {
+              return loadBookingSourceFixture(JSON.parse(
+                readFileSync(resolve(REPO_ROOT, PRIME_SOURCE_FILE), "utf8"),
+              ), url);
+            } catch (error) {
+              throw new Error(`官方来源预置不匹配：${error instanceof Error ? error.message : String(error)}`);
+            }
+          },
+        } : {}),
       },
     });
     const g1 = await reviewGate({
