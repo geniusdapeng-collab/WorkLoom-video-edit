@@ -208,3 +208,33 @@ export async function fetchMarketingSource(rawUrl: string, options: {
   }
   throw new Error("SOURCE_REDIRECT_INVALID：来源重定向未完成");
 }
+
+export function retryableMarketingSourceError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return /abort(?:ed)?|timeout|timed out|ECONN|ENOTFOUND|EAI_AGAIN|socket|SOURCE_ABORTED|SOURCE_HTTP_FAILED：来源HTTP (?:429|5\d\d)/iu.test(message);
+}
+
+/** Public GET retry for transient transport/HTTP failures; content-policy failures remain immediate. */
+export async function fetchMarketingSourceWithRetry(rawUrl: string, options: {
+  resolver?: SourceResolver; transport?: SourceTransport;
+  attemptTimeoutsMs?: number[]; retryDelaysMs?: number[];
+} = {}): Promise<{ snapshot: SourceSnapshot; rawBytes: Buffer }> {
+  const attemptTimeoutsMs = options.attemptTimeoutsMs?.length ? options.attemptTimeoutsMs : [15_000, 25_000, 40_000];
+  const retryDelaysMs = options.retryDelaysMs ?? [250, 750];
+  let lastError: unknown;
+  for (let attempt = 0; attempt < attemptTimeoutsMs.length; attempt++) {
+    try {
+      return await fetchMarketingSource(rawUrl, {
+        resolver: options.resolver,
+        transport: options.transport,
+        timeoutMs: attemptTimeoutsMs[attempt],
+      });
+    } catch (error) {
+      lastError = error;
+      if (!retryableMarketingSourceError(error) || attempt === attemptTimeoutsMs.length - 1) throw error;
+      const delay = retryDelaysMs[Math.min(attempt, retryDelaysMs.length - 1)] ?? 0;
+      if (delay > 0) await new Promise((resolve) => setTimeout(resolve, delay));
+    }
+  }
+  throw lastError instanceof Error ? lastError : new Error(String(lastError));
+}

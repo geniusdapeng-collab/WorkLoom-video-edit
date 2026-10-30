@@ -6,7 +6,11 @@ import { constants } from "node:fs";
 import { mkdir, open, realpath, rename, rm, writeFile } from "node:fs/promises";
 import { reviewStage, type ProducerVerdict } from "@hyperreality/video-studio";
 import { createDataMiningExecutor, type DataMiningStagePlan, type ExecutorLlm, type IntelStage, type SearchFn, type SearchHit } from "./data-mining-executor.js";
-import { fetchMarketingSource, type SourceSnapshot } from "./marketing-source-fetcher.js";
+import {
+  fetchMarketingSource,
+  fetchMarketingSourceWithRetry,
+  type SourceSnapshot,
+} from "./marketing-source-fetcher.js";
 import {
   extractionSchema,
   filterUnsafeMarketingExtraction,
@@ -297,7 +301,7 @@ export async function prepareMarketingFacts(input: {
   const plan = collector.plan(product);
   const reports: StageFactsReport[] = [], sources: ArchivedSource[] = [];
   const cache = new Map<string, SourceSnapshot>();
-  const sourceFetch = input.dependencies?.fetchSource ?? fetchMarketingSource;
+  const sourceFetch = input.dependencies?.fetchSource ?? fetchMarketingSourceWithRetry;
   const review = input.dependencies?.review ?? reviewStage;
   const executor = createDataMiningExecutor({ llm: input.llm, search: input.dependencies?.search,
     evidenceCollector: async (stage, stagePlan, hits: SearchHit[]) => {
@@ -326,7 +330,12 @@ export async function prepareMarketingFacts(input: {
       const discovery = { queries: stagePlan.queries ?? stagePlan.discovery_queries ?? [], candidates: candidates.length,
         fetched: pages.length, omittedCandidates: Math.max(0, candidates.length - attempted), failures };
       if (!pages.length) {
-        if (stage === "A1") fail("MARKETING_A1_UNVERIFIED", "商品身份/规格没有任何可抓取核实的来源正文");
+        if (stage === "A1") {
+          const reasons = failures.slice(0, 6).map((failure) =>
+            `${failure.url} → ${failure.reason.replace(/\s+/gu, " ").slice(0, 240)}`).join("；");
+          fail("MARKETING_A1_UNVERIFIED",
+            `商品身份/规格没有任何可抓取核实的来源正文；候选 ${candidates.length} / 尝试 ${attempted}${reasons ? `；${reasons}` : ""}`);
+        }
         const payload = stage === "A2" ? { reviews: [] } : { competitors: [] };
         const facts = validateStageFacts(stage, { payload, citations: [], noEvidenceReason: "本次未取得可核实正文；不能生产用户口碑、评分、对比或竞品主张" }, []);
         reports.push({ stage, facts, sourceIds: [], discovery }); return facts.payload;

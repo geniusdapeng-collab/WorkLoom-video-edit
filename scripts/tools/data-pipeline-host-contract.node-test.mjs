@@ -8,7 +8,7 @@ import { normalizeNarrativePrdContract } from "../../packages/video-studio/src/n
 import { normalizeCreativeThemeContract } from "../../packages/video-studio/src/creative-theme-contract.ts";
 import { normalizeMarketingPrdContract } from "../../packages/video-studio/src/marketing-prd-contract.ts";
 import { configureRequirementRetryPolicy } from "../../packages/video-studio/src/requirement-retry-policy.ts";
-import { sourceDocument, SOURCE_MAX_TEXT_CHARS } from "../../apps/server/src/video/marketing-source-fetcher.ts";
+import { retryableMarketingSourceError, sourceDocument, SOURCE_MAX_TEXT_CHARS } from "../../apps/server/src/video/marketing-source-fetcher.ts";
 import { supportReviewFacts } from "../../apps/server/src/video/marketing-authority.ts";
 import { filterUnsafeMarketingExtraction } from "../../apps/server/src/video/marketing-facts.ts";
 
@@ -212,6 +212,13 @@ test("bounded source text accepts publishable pages above the former 24k limit w
   assert.equal(text.startsWith(parsed), true);
   assert.ok(parsed.length > 24_000);
   assert.ok(parsed.length <= SOURCE_MAX_TEXT_CHARS);
+});
+
+test("marketing source retry classifies transient transport separately from policy failures", () => {
+  assert.equal(retryableMarketingSourceError(new Error("The operation was aborted due to timeout")), true);
+  assert.equal(retryableMarketingSourceError(new Error("SOURCE_HTTP_FAILED：来源HTTP 503")), true);
+  assert.equal(retryableMarketingSourceError(new Error("SOURCE_TEXT_TOO_LARGE：完整正文超过上限")), false);
+  assert.equal(retryableMarketingSourceError(new Error("SOURCE_URL_PRIVATE：来源解析到非公网地址")), false);
 });
 
 test("image angle claims are not sent as textual facts to support review", () => {

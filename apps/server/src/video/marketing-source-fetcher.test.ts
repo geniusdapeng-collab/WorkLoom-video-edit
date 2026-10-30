@@ -1,7 +1,18 @@
 import { createServer, type Server } from "node:http";
 import { gzipSync } from "node:zlib";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { fetchMarketingSource, publicSourceAddress, requestSource, sourceDocument, sourceUrl, SOURCE_MAX_BYTES, SOURCE_MAX_TEXT_CHARS, type SourceTransport } from "./marketing-source-fetcher.js";
+import {
+  fetchMarketingSource,
+  fetchMarketingSourceWithRetry,
+  publicSourceAddress,
+  requestSource,
+  retryableMarketingSourceError,
+  sourceDocument,
+  sourceUrl,
+  SOURCE_MAX_BYTES,
+  SOURCE_MAX_TEXT_CHARS,
+  type SourceTransport,
+} from "./marketing-source-fetcher.js";
 let server: Server, origin: string;
 beforeAll(async () => {
   server = createServer((req, res) => {
@@ -58,6 +69,28 @@ describe("来源公网地址与真实HTTP读取", () => {
     expect(largeButBounded.length).toBeGreaterThan(24_000);
     expect(largeButBounded.length).toBeLessThanOrEqual(SOURCE_MAX_TEXT_CHARS);
     expect(sourceDocument('<img src="http://127.0.0.1/x">有效正文', "text/html", "https://source.example.com/").assetUrls).toEqual([]);
+  });
+  it("公开 GET 只对瞬时网络/429/5xx重试，策略失败立即关闭", async () => {
+    let attempts = 0;
+    const flaky: SourceTransport = async (url, address, signal) => {
+      attempts++;
+      if (attempts === 1) return { status: 503, headers: {}, body: Buffer.from("busy") };
+      return requestSource(new URL(url.pathname, origin), { address: "127.0.0.1", family: 4 }, signal);
+    };
+    const result = await fetchMarketingSourceWithRetry("https://source.example.com/page", {
+      resolver,
+      transport: flaky,
+      attemptTimeoutsMs: [1000, 1000],
+      retryDelaysMs: [0],
+    });
+    expect(result.snapshot.text).toContain("星野 F3");
+    expect(attempts).toBe(2);
+    expect(retryableMarketingSourceError(new Error("SOURCE_HTTP_FAILED：来源HTTP 429"))).toBe(true);
+    expect(retryableMarketingSourceError(new Error("SOURCE_URL_PRIVATE：私网"))).toBe(false);
+    await expect(fetchMarketingSourceWithRetry("http://127.0.0.1/", {
+      attemptTimeoutsMs: [1000, 1000],
+      retryDelaysMs: [0],
+    })).rejects.toThrow("SOURCE_URL_PRIVATE");
   });
 });
 

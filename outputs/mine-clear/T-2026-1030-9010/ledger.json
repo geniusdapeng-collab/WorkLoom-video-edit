@@ -5,7 +5,7 @@
   "repo_path": "/Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit",
   "title": "",
   "created_at": "2026-10-30T06:14:55.791Z",
-  "updated_at": "2026-10-30T09:15:16.781Z",
+  "updated_at": "2026-10-30T09:17:57.483Z",
   "baseline": {
     "audit": {
       "commit": "463ae7ad844de31674b94e73679dafaf0f5dcac5",
@@ -16,7 +16,7 @@
       "notes": ""
     },
     "repair": {
-      "commit": "ecdda4514fd244a2e9c6e67f35ac3eaedfff4ae8",
+      "commit": "b9eadaf9adc7597554cf7d589e9d7e87c501255c",
       "reverified_problem_ids": []
     },
     "acceptance": {
@@ -1502,7 +1502,7 @@
       "level": "L3",
       "severity": "P1",
       "batch": 2,
-      "state": "open",
+      "state": "fixed",
       "title": "G3 接受 ±5 秒残留却不归一到客户精确时长，且受众保留超片长秒点",
       "evidence": [
         {
@@ -1535,7 +1535,17 @@
               "scripts/tools/data-pipeline-host-contract.node-test.mjs"
             ]
           },
-          "last_result": "not-run"
+          "last_result": "pass",
+          "run": {
+            "path": "runs/MC-017-0-1793351735137.json",
+            "sha256": "8871b853bdfe64363d04bd18a93d0b125f2562de29fe14a929aceced70a487b4",
+            "commit": "b9eadaf9adc7597554cf7d589e9d7e87c501255c"
+          },
+          "evidence": {
+            "path": "evidence/MC-017-0-1793351735137.txt",
+            "sha256": "f14adadc93799356b5d75a512d89d79ff2eb77f588999393be997876ffc21462",
+            "commit": "b9eadaf9adc7597554cf7d589e9d7e87c501255c"
+          }
         },
         {
           "kind": "property",
@@ -1552,14 +1562,101 @@
               "scripts/tools/data-pipeline-host-contract.node-test.mjs"
             ]
           },
-          "last_result": "not-run"
+          "last_result": "pass",
+          "run": {
+            "path": "runs/MC-017-1-1793351736902.json",
+            "sha256": "d4875d36c6504352ccdc2e91cafd9eae292bcb5dd0246a1d84086111241e90f8",
+            "commit": "b9eadaf9adc7597554cf7d589e9d7e87c501255c"
+          },
+          "evidence": {
+            "path": "evidence/MC-017-1-1793351736902.txt",
+            "sha256": "b9c653540a82690a8a32d627ae026da9fea9cc17b9e319deb4550183e5491cf4",
+            "commit": "b9eadaf9adc7597554cf7d589e9d7e87c501255c"
+          }
         }
       ],
       "regression": {
         "command": "node --import tsx --test --test-name-pattern='discovery timing' scripts/tools/data-pipeline-host-contract.node-test.mjs",
         "evidence": null
       },
-      "notes": "M01 最新真实 G3 80 分：31 秒对 30 秒、第50秒超片长。"
+      "notes": "M01 最新真实 G3 80 分：31 秒对 30 秒、第50秒超片长。",
+      "verified_by": null,
+      "verified_at": null,
+      "verification_evidence": null,
+      "last_assertion_attempt": {
+        "actor": "root-repair-2026-10-30",
+        "role": "repair",
+        "result": "pass",
+        "at": "2026-10-30T09:15:35.134Z",
+        "commit": "b9eadaf9adc7597554cf7d589e9d7e87c501255c",
+        "finished_at": "2026-10-30T09:15:37.750Z"
+      },
+      "fixed_by": "root-repair-2026-10-30"
+    },
+    {
+      "id": "MC-018",
+      "kind": "problem",
+      "level": "L2",
+      "severity": "P1",
+      "batch": 0,
+      "state": "open",
+      "title": "官方来源一次瞬时超时即放弃，营销管线无有界 GET 重试",
+      "evidence": [
+        {
+          "type": "code",
+          "ref": "apps/server/src/video/marketing-authority.ts:281@463ae7ad844de31674b94e73679dafaf0f5dcac5",
+          "sha256": "6e7dac86e9f1509d270fbdf619d2d13f162ab5e892556df86dbc6bfcfd59dcc6",
+          "note": "每个候选 URL 的 sourceFetch 只调用一次；任何超时或 5xx 都直接写入 failures 并尝试下一个候选。"
+        }
+      ],
+      "root_cause": {
+        "file": "apps/server/src/video/marketing-authority.ts",
+        "line": 281,
+        "commit": "463ae7ad844de31674b94e73679dafaf0f5dcac5",
+        "symbol": "prepareMarketingFacts source collector"
+      },
+      "trigger_path": "官方 GitHub 页面单次 15 秒超时 → 相同 URL 候选去重后没有其他来源 → pages=0 → MARKETING_A1_UNVERIFIED，管线 15 秒内失败。",
+      "assertions": [
+        {
+          "kind": "sample",
+          "given": "公开 GET 首次超时/503，第二次成功",
+          "expect": "重试后返回真实正文；仅临时错误和 429/5xx 允许重试",
+          "command": "node --import tsx --test --test-name-pattern='marketing source retry' scripts/tools/data-pipeline-host-contract.node-test.mjs",
+          "exec": {
+            "file": "node",
+            "args": [
+              "--import",
+              "tsx",
+              "--test",
+              "--test-name-pattern=marketing source retry",
+              "scripts/tools/data-pipeline-host-contract.node-test.mjs"
+            ]
+          },
+          "last_result": "not-run"
+        },
+        {
+          "kind": "property",
+          "given": "私网、内容超限、类型不支持等策略错误",
+          "expect": "不重试，立即 fail-closed",
+          "command": "node --import tsx --test --test-name-pattern='marketing source retry' scripts/tools/data-pipeline-host-contract.node-test.mjs",
+          "exec": {
+            "file": "node",
+            "args": [
+              "--import",
+              "tsx",
+              "--test",
+              "--test-name-pattern=marketing source retry",
+              "scripts/tools/data-pipeline-host-contract.node-test.mjs"
+            ]
+          },
+          "last_result": "not-run"
+        }
+      ],
+      "regression": {
+        "command": "node --import tsx --test --test-name-pattern='marketing source retry' scripts/tools/data-pipeline-host-contract.node-test.mjs",
+        "evidence": null
+      },
+      "notes": "M01 在 15 秒内失败；独立 fetchMarketingSource 同样得到 operation aborted due to timeout。"
     }
   ],
   "gates": []
