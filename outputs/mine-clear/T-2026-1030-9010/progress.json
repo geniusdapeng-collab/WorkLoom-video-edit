@@ -1,7 +1,7 @@
 {
   "schemaVersion": "workloom.video-pipeline-pressure-progress/v1",
   "taskId": "T-2026-1030-9010",
-  "updatedAt": "2026-10-30T18:08:00+08:00",
+  "updatedAt": "2026-10-31T01:00:00+08:00",
   "baseline": {
     "commit": "463ae7ad844de31674b94e73679dafaf0f5dcac5",
     "branch": "task/T-2026-1030-9010",
@@ -29,14 +29,28 @@
     "SceneArchitect/RiskAssessor use three bounded attempts with caller timeout honored",
     "marketing PRD is normalized before G4 for external references, no-person wording, technical delivery, audio and subtitle contract",
     "product scenes may be prop-free only when every scene has an explicit noPropsReason",
-    "M01 latest G1 reached 98 and G2 93 in pressure runs; remaining failure moved downstream"
+    "M01 latest G1 reached 98 and G2 93 in pressure runs; remaining failure moved downstream",
+    "Fusion implementation plan and machine-readable backlog created under workspace outputs",
+    "PIPE-001/002/003 control packages implemented: artifact/gate/repair/state/invalidation contracts and video plan compiler",
+    "New control package tests pass: 5 files, 15 tests",
+    "Additive migrations 0054-0059 and Drizzle video pipeline schema source created; empty-database execution verified",
+    "Persistent command repository, verified PostgreSQL G4 rejection/test closure and append-only/RLS checks implemented",
+    "Unified pipeline status/query routes, startup reconciler and default-off StudioWorker shadow mode implemented",
+    "M01 has passed G1-G5 in real pre-render runs; G4 and G5 blocker fixes are committed",
+    "Prompt/PRD normalization now covers no-person microactions, abstract scene boundaries, decimal duration conservation, subtitle-vs-screen-text, explicit audience and key-message compaction",
+    "Producer review malformed-JSON retry and Phase3 positional shot-id recovery are covered by tests"
   ],
   "inProgress": [
-    "Re-run M01 from current HEAD after customer-redline propagation so the full G1-G7 chain can be observed",
+    "Complete fused control-plane adapters and managed cutover after the 40-case business baseline is green",
+    "Re-run M01 from current HEAD until the complete G1-G7 chain produces a normalized handoff",
     "Complete the remaining marketing and narrative positive matrix",
     "Propagate confirmed root causes to existing Workroom/AI-video consumers"
   ],
   "pending": [
+    "PIPE-004/005: add explicit migration/qualification PG conformance cases",
+    "PIPE-006/007/008: complete approval inbox and broader command conformance cases",
+    "PIPE-009 through PIPE-015: adapters, UI and managed route cutover by gated batches",
+    "PIPE-016: 40-case rerun, MCD gate and independent acceptance",
     "Run 10 marketing and 10 narrative positive cases through pre-render prompt gates",
     "Push the task branch, open PR, complete candidate CI and merge through the repository delivery path with GitHub main SHA read-back",
     "Run MCD repair/independent-acceptance assertion roles and close dashboard gate",
@@ -45,13 +59,14 @@
   ],
   "currentEvidence": {
     "firstCommit": "53d4d1b",
-    "currentHead": "b3e7794036f75e87901a19696c42c42c7da81958",
+    "currentHead": "9adb2231400fb4072bb7c4c1d76d144432f7c186",
     "githubMainBaseline": "463ae7ad844de31674b94e73679dafaf0f5dcac5",
     "marketingFirstG1Pass": "work/stress/T-2026-1030-9010/PILOT-MARKETING-HA-004",
     "latestMarketingPilot": "work/stress/T-2026-1030-9010/cases/M01",
-    "latestMarketingBestG1": 98,
-    "latestMarketingBestG2": 97,
-    "latestMarketingBestG3": 94,
+    "latestMarketingBestG1": 96,
+    "latestMarketingBestG2": 94,
+    "latestMarketingBestG3": 91,
+    "latestMarketingBestG4": 86,
     "latestNarrativeGateProof": "work/stress/T-2026-1030-9010/PILOT-NARRATIVE-008",
     "bookedSourceFixture": "work/stress/T-2026-1030-9010/source-fixtures/M01.json",
     "bookedSourceRepository": "home-assistant/core",
@@ -59,7 +74,11 @@
     "abnormalResults": "outputs/mine-clear/T-2026-1030-9010/stress-results.json",
     "ledger": "outputs/mine-clear/T-2026-1030-9010/ledger.json",
     "runner": "scripts/tools/run-data-pipeline-stress.mjs",
-    "lastObservedFailure": "M01 G1 78: phantom portrait references and customer redlines not propagated; fixed in b3e7794, verification in progress"
+    "architectureFusion": "/Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/outputs/WorkLoom-video-edit-pengmanager-pipeline-architecture-fusion.md",
+    "implementationPlan": "/Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/outputs/WorkLoom-video-pipeline-control-plane-implementation-plan.md",
+    "implementationBacklog": "/Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/outputs/WorkLoom-video-pipeline-implementation-backlog.json",
+    "nextStep": "Run M01 after Phase3 shot-id recovery; then complete 20 positive cases and repair remaining blockers",
+    "lastObservedFailure": "M01 completed six prompt-fusion calls but Phase3 rejected the aggregate because the vendor wrapper omitted stable shot ids; bridge recovered by order-preserving ids and fail-closed prompt/degraded checks"
   },
   "safety": {
     "renderSubmissionAllowed": false,
