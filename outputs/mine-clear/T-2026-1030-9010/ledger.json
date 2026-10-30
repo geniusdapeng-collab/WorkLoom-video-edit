@@ -5,7 +5,7 @@
   "repo_path": "/Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit",
   "title": "",
   "created_at": "2026-10-30T06:14:55.791Z",
-  "updated_at": "2026-10-30T07:49:51.076Z",
+  "updated_at": "2026-10-30T07:50:05.962Z",
   "baseline": {
     "audit": {
       "commit": "463ae7ad844de31674b94e73679dafaf0f5dcac5",
@@ -16,7 +16,7 @@
       "notes": ""
     },
     "repair": {
-      "commit": "0ea0a40d1e03e50c59ae575b8037c10a56493295",
+      "commit": "28bb273469974b6637651ab20e180618b59f67f1",
       "reverified_problem_ids": []
     },
     "acceptance": {
@@ -278,7 +278,7 @@
       "level": "L3",
       "severity": "P1",
       "batch": 0,
-      "state": "open",
+      "state": "fixed",
       "title": "G3/G4 确定性门把版本化合同中的合法 null 当作占位泄漏",
       "evidence": [
         {
@@ -310,7 +310,17 @@
               "scripts/tools/data-pipeline-host-contract.node-test.mjs"
             ]
           },
-          "last_result": "not-run"
+          "last_result": "pass",
+          "run": {
+            "path": "runs/MC-004-0-1793346604350.json",
+            "sha256": "12380bb3c5e8f672e966a539bf14adc61d6465808d9995f88219b4bb2facd2e8",
+            "commit": "28bb273469974b6637651ab20e180618b59f67f1"
+          },
+          "evidence": {
+            "path": "evidence/MC-004-0-1793346604350.txt",
+            "sha256": "2024c8543cb7838305c573ba89cdf8939e8993d02e7ebe70923beaaf3a4c15e4",
+            "commit": "28bb273469974b6637651ab20e180618b59f67f1"
+          }
         },
         {
           "kind": "property",
@@ -326,7 +336,17 @@
               "scripts/tools/data-pipeline-host-contract.node-test.mjs"
             ]
           },
-          "last_result": "not-run"
+          "last_result": "pass",
+          "run": {
+            "path": "runs/MC-004-1-1793346605095.json",
+            "sha256": "946c70760e9a458cfe0ffa90d5e28440c47ef89b7223a4e814b6c2321895d33d",
+            "commit": "28bb273469974b6637651ab20e180618b59f67f1"
+          },
+          "evidence": {
+            "path": "evidence/MC-004-1-1793346605095.txt",
+            "sha256": "190deea350b90a2f521592f3167e7811a044cd5761ff693d488b8a9b79bbe8b3",
+            "commit": "28bb273469974b6637651ab20e180618b59f67f1"
+          }
         },
         {
           "kind": "sample",
@@ -343,14 +363,36 @@
               "scripts/tools/data-pipeline-host-contract.node-test.mjs"
             ]
           },
-          "last_result": "not-run"
+          "last_result": "pass",
+          "run": {
+            "path": "runs/MC-004-2-1793346605539.json",
+            "sha256": "c605c7a827e1426033d9589eeece5041c8c9bd3df5f212da29feab5e8f2d35d4",
+            "commit": "28bb273469974b6637651ab20e180618b59f67f1"
+          },
+          "evidence": {
+            "path": "evidence/MC-004-2-1793346605539.txt",
+            "sha256": "0b64fb31b29853f1aee57adc9a1416fae7eea36fcbd7e91e233dd38c3a17b6d1",
+            "commit": "28bb273469974b6637651ab20e180618b59f67f1"
+          }
         }
       ],
       "notes": "PILOT-NARRATIVE-006 真实复现 G3；修复后 M01 在 G4 再次复现同类 versioned-contract null，现统一修复两类门。",
       "regression": {
         "command": "node --import tsx --test scripts/tools/data-pipeline-host-contract.node-test.mjs",
         "evidence": null
-      }
+      },
+      "verified_by": null,
+      "verified_at": null,
+      "verification_evidence": null,
+      "last_assertion_attempt": {
+        "actor": "root-repair-2026-10-30",
+        "role": "repair",
+        "result": "pass",
+        "at": "2026-10-30T07:50:04.350Z",
+        "commit": "28bb273469974b6637651ab20e180618b59f67f1",
+        "finished_at": "2026-10-30T07:50:05.962Z"
+      },
+      "fixed_by": "root-repair-2026-10-30"
     },
     {
       "id": "MC-005",

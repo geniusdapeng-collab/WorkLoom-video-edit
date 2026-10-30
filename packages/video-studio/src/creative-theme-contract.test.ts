@@ -25,7 +25,7 @@ describe("creative theme host contract", () => {
     const normalized = normalizeCreativeThemeContract(result(), {
       pipelineRoute: { kind: "marketing" },
       customerOriginalIntent: result()._originalStoryText,
-      brief: { product: "Home Assistant" },
+      brief: { product: "Home Assistant", duration: 30, aspectRatio: "9:16", platform: "抖音" },
       builtinCharacterSelection: { mode: "none" },
       _dataDossier: {
         identity: {
@@ -41,11 +41,15 @@ describe("creative theme host contract", () => {
     expect(task.protagonist).toBeNull();
     expect(task.character_consistency).toBeNull();
     expect(task.shots).toEqual([]);
-    expect(task.description).toContain("全片无人物");
+    expect(task.description).toContain("全片无人");
     expect(task.description).not.toMatch(/开发者|转身|屏幕前/);
     expect(task.dialogue_requirement).toContain("无人物对白");
     expect(task.target_audience).toBe("开发者（客户原文明确）");
     expect(task.tone).toBe("冷酷精密");
+    expect(task.theme).toContain("官方自述：local control and privacy first");
+    expect(task.description).not.toContain("守住");
+    expect(task.duration_sec).toBe(30);
+    expect(task).not.toHaveProperty("brief_duration_source");
     expect(task.visual_style).not.toContain("《");
     expect(task.special_notes).toContain("不得新增客户原文未提供");
     expect(task.special_notes).toContain("local control and privacy first");

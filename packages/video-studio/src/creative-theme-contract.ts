@@ -80,6 +80,42 @@ export function normalizeCreativeThemeContract(
   const changes: string[] = [];
 
   for (const task of list(result.tasks).filter(isRecord)) {
+    const duration = Number(brief.duration);
+    if (Number.isFinite(duration) && duration > 0) {
+      if (task.duration_sec !== duration || task.duration !== duration) {
+        task.duration_sec = duration;
+        task.duration = duration;
+        delete task.brief_duration_source;
+        changes.push("brief-duration-authority-normalized");
+      }
+    }
+    if (typeof brief.aspectRatio === "string" && task.aspect_ratio !== brief.aspectRatio) {
+      task.aspect_ratio = brief.aspectRatio;
+      changes.push("brief-aspect-authority-normalized");
+    }
+    if (typeof brief.platform === "string" && task.platform !== brief.platform) {
+      task.platform = brief.platform;
+      changes.push("brief-platform-authority-normalized");
+    }
+
+    if (route === "marketing" && noPerson) {
+      const product = text(brief.product)
+        || (isRecord(metadata.dataMining) ? text(metadata.dataMining.name) : "")
+        || "本次商品";
+      const anchoredTheme = claims[0]
+        ? `${product}｜官方自述：${claims[0]}`
+        : `${product}｜官方仓库可核实能力`;
+      if (task.theme !== anchoredTheme) {
+        task.theme = anchoredTheme;
+        changes.push("marketing-theme-bound-to-g1");
+      }
+      const visualAnchors = /(?:仅使用|只用|只拍)([^，。；\n]+)/u.exec(intent)?.[1]?.trim()
+        || "抽象界面、材质细节与环境光影";
+      task.description = `全片无人，以${visualAnchors}呈现本次 G1 的官方自述能力；`
+        + "只使用有来源归属的原文事实，不把官方自述扩展成守护、安全、性能、使用效果或收益承诺。";
+      changes.push("marketing-description-bound-to-g1");
+    }
+
     if (noPerson) {
       if (task.protagonist !== null || task.protagonist !== undefined) {
         task.protagonist = null;
@@ -133,6 +169,7 @@ export function normalizeCreativeThemeContract(
       "不得新增客户原文未提供的导演、影片或作品名",
       "不得把未经 G1 核验的用户痛点、操作命令、使用效果或收益承诺写成既有事实",
       claims.length ? `本次 G1 核验官方主张（以“官方仓库/官方主张”归属）：${claims.join("；")}` : "",
+      route === "marketing" ? "客户 Brief 中的品类仅作检索归类，不是已核验来源原文" : "",
     ].filter(Boolean);
     const notes = text(task.special_notes);
     const contractLine = `宿主创意合同：${contract.join("；")}。`;

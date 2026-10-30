@@ -103,7 +103,7 @@ test("creative theme strips people and unrequested film titles under the host co
     pipelineRoute: { kind: "marketing" },
     customerOriginalIntent: intent,
     builtinCharacterSelection: { mode: "none" },
-    brief: { product: "Home Assistant" },
+    brief: { product: "Home Assistant", duration: 30, aspectRatio: "9:16", platform: "抖音" },
     _dataDossier: { identity: { official_selling_points: [{ point: "local control and privacy first" }] } },
   });
   const task = result.result.tasks[0];
@@ -112,6 +112,10 @@ test("creative theme strips people and unrequested film titles under the host co
   assert.doesNotMatch(task.description, /开发者|转身|屏幕前/);
   assert.equal(task.target_audience, "开发者（客户原文明确）");
   assert.equal(task.tone, "冷酷精密");
+  assert.match(task.theme, /官方自述：local control and privacy first/);
+  assert.doesNotMatch(task.description, /守住/);
+  assert.equal(task.duration_sec, 30);
+  assert.equal(Object.hasOwn(task, "brief_duration_source"), false);
   assert.doesNotMatch(task.visual_style, /《/);
   assert.match(task.special_notes, /local control and privacy first/);
 });
