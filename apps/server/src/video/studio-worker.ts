@@ -27,6 +27,7 @@ import {
   StageRunner,
   auditScenePolicy,
   attachStructuredLog,
+  bindExplicitAudienceMetadata,
   classifyError,
   installVendorEngineBridge,
   installVendorPortraitBindingBridge,
@@ -577,14 +578,16 @@ export function startRun(scope: Scope, input: StudioRunInput): string {
   const selectedPlatform = input.selectedPlatform
     ?? resolvePlatformForIntent(input.rawIntent ?? input.intent, input.metadata);
   const selectedBuiltinCharacters = input.selectedBuiltinCharacters ?? resolveBuiltinCharacters(input.rawIntent ?? input.intent, input.metadata);
-  const resolvedMetadata: Record<string, unknown> = applyBuiltinCharacters({
+  const audienceBound = bindExplicitAudienceMetadata({
     ...(input.metadata ?? {}),
     customerOriginalIntent: input.rawIntent ?? input.intent,
     platform: selectedPlatform.decision.id,
     scenePolicySelection: selectedScenePolicy.decision,
     platformSelection: selectedPlatform.decision,
     ...(selectedScenePolicy.policy ? { scenePolicy: selectedScenePolicy.metadata.scenePolicy } : {}),
-  }, selectedBuiltinCharacters);
+  }, input.rawIntent ?? input.intent);
+  if (audienceBound.changed) console.log(`[studio-worker] 客户明确受众绑定：${audienceBound.audience}`);
+  const resolvedMetadata: Record<string, unknown> = applyBuiltinCharacters(audienceBound.metadata, selectedBuiltinCharacters);
   const runInput: RunInput = {
     projectId: input.projectId,
     intent: appendBuiltinCharacterGuidance(appendPlatformGuidance(appendScenePolicyGuidance(input.intent, selectedScenePolicy.policy), selectedPlatform.decision), selectedBuiltinCharacters),

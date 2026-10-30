@@ -37,6 +37,7 @@ import {
   buildPipelineIntent,
   describeRouteDecision,
   normalizeMarketingPromptText,
+  bindExplicitAudienceMetadata,
   type ApprovalCallback,
   type EventSink,
   type GateKey,
@@ -279,6 +280,9 @@ const brief: Record<string, unknown> = {
   goal: PROFILE.goal,
 };
 let seeded = applyRouteToMetadata({ brief }, decision);
+const audienceBound = bindExplicitAudienceMetadata(seeded, INTENT);
+seeded = audienceBound.metadata;
+if (audienceBound.changed) log(`客户明确受众绑定：${audienceBound.audience}`);
 if (arg("--product") && decision.product) {
   // CLI 显式给出的商品信息优先（用户口径 > 抽取结果）
   seeded.dataMining = {

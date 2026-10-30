@@ -77,3 +77,4 @@ export * from "./bullet-time-qc.js";
 /** 当前真实 G1、客户生产要求和已审 G3 到 PRD 的私有宿主权威边界。 */
 export * from "./prd-authority.js";
 export * from "./marketing-prompt-contract.js";
+export * from "./audience-authority.js";

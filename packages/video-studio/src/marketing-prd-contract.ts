@@ -26,6 +26,9 @@ function normalizeText(value: string): string {
     .replace(/字幕仅烧录已审画面文字[^；。\n]*/gu, SUBTITLE_POLICY)
     .replace(/(?<!https:\/\/)github\.com\//giu, "https://github.com/")
     .replace(/全片仅此一个视觉落点/gu, "只在对应已审场景内使用视觉强调，不作全片唯一性承诺")
+    .replace(/收束字幕条|底部字幕条|来源限定字幕条/gu, (value) =>
+      value.startsWith("收束") ? "收束屏上原文行" : value.startsWith("来源") ? "来源限定屏上文字行" : "底部屏上原文行")
+    .replace(/一行\s*README\s*原文[，,]\s*对抗满屏形容词/gu, "一行 README 原文，作为可核对依据")
     .replace(/(?:小号)?标注\s*[「“]?integration[」”]?/giu, "不显示未入 G1 的文字标签")
     .replace(/数百个(?=\s*(?:冷白|等大|点阵|光点))/gu, "一组数量未示意的")
     .replace(/数百个/gu, "一组数量未示意的")
@@ -202,7 +205,7 @@ export function normalizeMarketingPrdContract(
     `输出画布 ${dimensions(text(profile.resolution) || "4K", text(profile.aspectRatio) || "9:16")}，时长 ${String(profile.targetDuration ?? "按已审场景")} 秒，时长帧容差 ${String(profile.durationToleranceFrames ?? 1)} 帧；${VIDEO_TECHNICAL}`,
     "AAC 48 kHz 双声道；整体响度 -14 LUFS；True Peak ≤ -1 dBTP",
     SUBTITLE_POLICY,
-    "Apache-2.0 或 Raspberry Pi 等官方原文只作官方来源自述，不延伸为性能、安全、兼容性或运行效果承诺；禁用高风险参考图",
+    "G1 已接受原文只作官方来源自述，不延伸为性能、安全、兼容性或运行效果承诺；来源中未经 claim 绑定的其他名称不得成为画面事实",
   ];
   constraints.technicalConstraints = [
     ...new Set([...textList(constraints.technicalConstraints).slice(0, 1), ...profileRules]),
