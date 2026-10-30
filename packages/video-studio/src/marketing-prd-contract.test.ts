@@ -116,16 +116,20 @@ describe("marketing PRD host contract", () => {
 
   it("harmonizes license substrings, URL-only source rows and complete-line authority", () => {
     const source = prd() as any;
+    source.productPositioning = { productType: "剧情短片", genre: "商业广告｜开发者种草", resolution: "1080p", frameRate: 24 };
     source.creativeCore.keyMessages = [
-      "一行 license: Apache-2.0 可核对",
+      "一行 license：Apache-2.0 可核对",
+      "没有中心的系统最难被关掉；Local control. Privacy first. Apache-2.0. 是三行原文",
+      "这些不是宣传语，是摘自 Home Assistant 官方 GitHub 仓库项目说明的逐字原文",
       "全片唯一一次说完整的句子落地之后收束",
     ];
     source.audioSpecification.soundDesign = "屏上出现 license: Apache-2.0 与 https://github.com/home-assistant/core · README";
+    source.deliveryStandard.deliverables.push({ item: "character_portraits", spec: "定妆照全套", priority: "required" });
     source.scenePlan.scenes[0] = {
       sceneId: "opening",
       duration: 4,
-      purpose: "README 首句逐字符浮现，但只显示半句",
-      visualRequirements: ["整屏仅 license: Apache-2.0 一处被点亮", "标签文字须与 G1 claim CL-a1b2 原文 Apache-2.0 一致"],
+      purpose: "README 首句逐字符浮现，但只显示半句；因为插槽还空着两格，必须看到它们被填满",
+      visualRequirements: ["整屏仅 license：Apache-2.0 一处被点亮", "标签文字须与 G1 claim CL-a1b2 原文 Apache-2.0 一致", "底部中文说明字幕自下而上淡入后保持不动，位于安全区"],
     };
     source.scenePlan.scenes[1] = {
       sceneId: "ending",
@@ -142,6 +146,13 @@ describe("marketing PRD host contract", () => {
     expect(result.audioSpecification.soundDesign).not.toMatch(/\blicense:\s*Apache|·\s*README/u);
     expect(result.creativeCore.keyMessages.join(" ")).toContain("License: Apache-2.0");
     expect(result.scenePlan.scenes[0].visualRequirements.join(" ")).toContain("标签文字须与 G1 原文连续子串 License: Apache-2.0 一致");
+    expect(result.productPositioning).toMatchObject({ productType: "商业广告", genre: "商业广告", resolution: "4K", frameRate: 30 });
+    expect(result.deliveryStandard.deliverables.map((item: any) => item.item)).not.toContain("character_portraits");
+    expect(result.deliveryStandard.deliverables[0].spec).not.toMatch(/1080p|24fps/u);
+    expect(result.creativeCore.keyMessages.join(" ")).not.toMatch(/没有中心的系统|Local control\. Privacy|三行原文|摘自 Home Assistant/u);
+    expect(result.creativeCore.keyMessages.join(" ")).toContain("G1 已审连续原句");
+    expect(result.scenePlan.scenes[0].purpose).toContain("保留两格空位作为悬念");
+    expect(result.scenePlan.scenes[0].visualRequirements.join(" ")).toContain("不显示中文说明字幕");
     expect(result.scenePlan.scenes[0].purpose).toContain("明确连续半句");
     expect(result.scenePlan.scenes[1].purpose).toContain("屏幕上只连续显示 https://github.com/home-assistant/core");
     expect(result.scenePlan.scenes[1].visualRequirements.join(" ")).toContain("全片唯一完整呈现两行官方自述原句");

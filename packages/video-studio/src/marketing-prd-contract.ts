@@ -24,7 +24,25 @@ function normalizeText(value: string): string {
   const next = value
     .replace(/\bawarenes\b/giu, "awareness")
     .replace(/\blicense(?=\s*:\s*Apache-2\.0)/giu, "License")
+    .replace(/\bLicense\s*[：:]\s*Apache-2\.0/giu, "License: Apache-2.0")
     .replace(/商业广告\s*\/\s*商业广告/gu, "商业广告")
+    .replace(/剧情短片\s*\/\s*商业广告（[^）]*）/gu, "商业广告")
+    .replace(/剧情短片\s*\/\s*商业广告/gu, "商业广告")
+    .replace(/没有中心的系统最难被关掉/gu, "本片不推断系统韧性、安全或竞品差异")
+    .replace(/把控制权从云里搬回本地/gu, "呈现官方原文中的 local control 与 privacy first 自述")
+    .replace(/Local control\. Privacy first\. Apache-2\.0\./gu,
+      "按本次 G1 已审连续原句逐字呈现，不拆句或改写标点")
+    .replace(/三行原文/gu, "本次 G1 已审连续原文")
+    .replace(/这些不是宣传语，是摘自[^。\n]*逐字原文/gu,
+      "屏上只显示本次 G1 已审连续子串；归属只使用已审来源地址，不新增中文说明")
+    .replace(/底部浮出极小号说明字幕/gu, "底部不显示额外中文说明")
+    .replace(/底部一行极小号来源说明字幕/gu, "底部不显示额外中文说明字幕")
+    .replace(/底部中文说明字幕自下而上淡入后保持不动[^,，。\n]*/gu,
+      "屏上只保留官方仓库地址与 License: Apache-2.0 的连续原文，不显示中文说明字幕")
+    .replace(/底部浮出一行极小号说明字幕“摘自[^”]+”/gu, "不显示任何额外中文说明字幕")
+    .replace(/因为插槽还空着两格，必须看到它们被填满/gu,
+      "按已审场景保留两格空位作为悬念")
+    .replace(/并留下两格空位牵引下一步/gu, "并保留两格空位作为悬念")
     .replace(/可无限接驳/gu, "可继续扩展接入其他设备与动作")
     .replace(/极小脚注/gu, "达到统一最小字号下界的辅助脚注")
     .replace(/极小字号/gu, "达到统一字号下界的辅助文字")
@@ -70,6 +88,41 @@ function normalizeText(value: string): string {
   return /^无字幕依赖[：:]/u.test(next)
     ? "不依赖口播或对白字幕；关键信息由已审屏上原文和图形结构共同承载，屏上原文不属于字幕交付"
     : next;
+}
+
+function replaceRenderedStrings(value: unknown, pattern: RegExp, replacement: string): boolean {
+  let changed = false;
+  const walk = (node: unknown): void => {
+    if (Array.isArray(node)) {
+      for (let index = 0; index < node.length; index++) {
+        const item = node[index];
+        if (typeof item === "string") {
+          const next = item.replace(pattern, replacement);
+          if (next !== item) {
+            node[index] = next;
+            changed = true;
+          }
+        } else {
+          walk(item);
+        }
+      }
+      return;
+    }
+    if (!isRecord(node)) return;
+    for (const [key, item] of Object.entries(node)) {
+      if (typeof item === "string") {
+        const next = item.replace(pattern, replacement);
+        if (next !== item) {
+          node[key] = next;
+          changed = true;
+        }
+      } else {
+        walk(item);
+      }
+    }
+  };
+  walk(value);
+  return changed;
 }
 
 function normalizeGlobalStrings(value: unknown): boolean {
@@ -146,6 +199,25 @@ export function normalizeMarketingPrdContract(
   const intent = text(metadata.customerOriginalIntent);
   const noPeople = noPerson(metadata);
   const changes: string[] = [];
+
+  const positioning = isRecord(prd.productPositioning) ? prd.productPositioning : {};
+  for (const key of ["productType", "genre"] as const) {
+    if (positioning[key] !== "商业广告") {
+      positioning[key] = "商业广告";
+      changes.push("marketing-production-type-normalized");
+    }
+  }
+  const targetResolution = text(profile.resolution) || "4K";
+  const targetFrameRate = Number(profile.frameRate) || 30;
+  if (positioning.resolution !== targetResolution) {
+    positioning.resolution = targetResolution;
+    changes.push("delivery-resolution-normalized");
+  }
+  if (positioning.frameRate !== targetFrameRate) {
+    positioning.frameRate = targetFrameRate;
+    changes.push("delivery-frame-rate-normalized");
+  }
+  prd.productPositioning = positioning;
 
   const visual = isRecord(prd.visualSpecification) ? prd.visualSpecification : {};
   visual.visualReferences = [
@@ -253,7 +325,11 @@ export function normalizeMarketingPrdContract(
   prd.audienceProfile = audience;
 
   const delivery = isRecord(prd.deliveryStandard) ? prd.deliveryStandard : {};
-  const deliverables = list(delivery.deliverables).filter(isRecord);
+  let deliverables = list(delivery.deliverables).filter(isRecord);
+  if (noPeople && deliverables.some((item) => item.item === "character_portraits")) {
+    deliverables = deliverables.filter((item) => item.item !== "character_portraits");
+    changes.push("no-person-deliverables-normalized");
+  }
   const master = deliverables.find((item) => item.item === "video_master");
   if (master) {
     const dimensionsValue = dimensions(text(profile.resolution) || "4K", text(profile.aspectRatio) || "9:16");
@@ -264,9 +340,20 @@ export function normalizeMarketingPrdContract(
       changes.push("delivery-technical-baseline-normalized");
     }
   }
+  const outputFormat = isRecord(delivery.outputFormat) ? delivery.outputFormat : {};
+  outputFormat.resolution = targetResolution;
+  outputFormat.frameRate = targetFrameRate;
+  delivery.deliverables = deliverables;
+  delivery.outputFormat = outputFormat;
   prd.deliveryStandard = delivery;
 
   if (normalizeGlobalStrings(prd)) changes.push("global-prd-contradictions-normalized");
+  if (targetFrameRate !== 24 && replaceRenderedStrings(prd, /\b24fps\b/giu, `${targetFrameRate}fps`)) {
+    changes.push("frame-rate-text-normalized");
+  }
+  if (targetResolution === "4K" && replaceRenderedStrings(prd, /\b1080p\b/giu, "4K")) {
+    changes.push("resolution-text-normalized");
+  }
 
   // Keep the scene authority hash consumers honest: this function never rewrites
   // scene IDs, durations, purposes or shotMapping.
