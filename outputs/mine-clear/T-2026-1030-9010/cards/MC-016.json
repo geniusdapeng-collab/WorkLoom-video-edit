@@ -25,7 +25,7 @@
     {
       "kind": "sample",
       "given": "vendor 默认 scene timeout=180000、maxRetries=1，risk maxRetries=1",
-      "expect": "宿主把 SceneArchitect 提升到 240 秒、Scene/Risk 各 3 次，并保证阶段预算不被旧 180 秒提前截断",
+      "expect": "SceneArchitect timeout=240000、Scene/Risk maxRetries=2（各 3 次），阶段预算=420000，不沿用旧 180 秒上限",
       "command": "node --import tsx --test --test-name-pattern='scene and risk' scripts/tools/data-pipeline-host-contract.node-test.mjs",
       "exec": {
         "file": "node",
