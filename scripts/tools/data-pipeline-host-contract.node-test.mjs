@@ -6,6 +6,7 @@ import { narrativeThemeInputForRoute } from "../../packages/video-studio/src/req
 import { projectDeclaredFields } from "../../packages/video-studio/src/requirement-contract.ts";
 import { normalizeNarrativePrdContract } from "../../packages/video-studio/src/narrative-prd-contract.ts";
 import { normalizeCreativeThemeContract } from "../../packages/video-studio/src/creative-theme-contract.ts";
+import { normalizeMarketingPrdContract } from "../../packages/video-studio/src/marketing-prd-contract.ts";
 import { sourceDocument, SOURCE_MAX_TEXT_CHARS } from "../../apps/server/src/video/marketing-source-fetcher.ts";
 import { supportReviewFacts } from "../../apps/server/src/video/marketing-authority.ts";
 import { filterUnsafeMarketingExtraction } from "../../apps/server/src/video/marketing-facts.ts";
@@ -40,6 +41,33 @@ test("G4 permits null in parseable contract JSON while keeping prose closed", ()
 test("approved gate suggestions never request an unreviewed artifact rewrite", () => {
   assert.deepEqual(appliedApprovalFeedback(true, ["建议再次优化"]), []);
   assert.deepEqual(appliedApprovalFeedback(false, ["修改字段 A", 7]), ["修改字段 A"]);
+});
+
+test("marketing PRD strips external references and binds no-person delivery limits", () => {
+  const normalized = normalizeMarketingPrdContract({
+    creativeCore: { creativeHook: "手指停住，秩序出现", keyMessages: ["落点 scene-3"], twistPoint: "第22秒" },
+    visualSpecification: { cameraLanguage: "手部近景", visualReferences: ["《2001太空漫游》"] },
+    audioSpecification: { musicStyle: "无旋律配乐", soundDesign: "低频", voicePolicy: "字幕+音乐" },
+    scenePlan: { scenes: [
+      { sceneId: "opening", visualRequirements: ["九个空心方块"] },
+      { sceneId: "ending", visualRequirements: ["手部对齐"] },
+    ], shotMapping: [] },
+    productionConstraints: { technicalConstraints: ["HOME-HERO-001 调用（license_risk=h"], businessConstraints: ["设备轮廓语义锚点"], forbiddenElements: ["人物"], qualityThresholds: {} },
+    audienceProfile: { emotionTriggers: ["第12秒手指感到力度"] },
+    referenceCases: { filmReferences: ["《社交网络》"], adReferences: ["Apple"], styleReferences: ["大卫·芬奇"] },
+    deliveryStandard: { deliverables: [{ item: "video_master", spec: "MP4/H.265, 4K", priority: "required" }], acceptanceCriteria: {} },
+  }, {
+    customerOriginalIntent: "全片无人，仅使用抽象界面",
+    builtinCharacterSelection: { mode: "none" },
+  }, {
+    resolution: "4K", aspectRatio: "9:16", targetDuration: 30, durationToleranceFrames: 1,
+  }, { scenes: [{ id: "opening" }, { id: "ending" }] });
+  assert.doesNotMatch(normalized.prd.creativeCore.creativeHook, /手指/);
+  assert.doesNotMatch(normalized.prd.referenceCases.filmReferences.join(" "), /《|Apple|导演/);
+  assert.match(normalized.prd.scenePlan.scenes[0].visualRequirements[0], /若干/);
+  assert.equal(normalized.prd.audioSpecification.voicePolicy, "无对白");
+  assert.match(normalized.prd.deliveryStandard.deliverables[0].spec, /2160x3840/);
+  assert.match(normalized.prd.deliveryStandard.deliverables[0].spec, /-14 LUFS/);
 });
 
 test("strict RiskAssessor projection removes only undeclared top-level fields", () => {

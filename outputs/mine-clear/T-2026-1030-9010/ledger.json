@@ -5,7 +5,7 @@
   "repo_path": "/Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit",
   "title": "",
   "created_at": "2026-10-30T06:14:55.791Z",
-  "updated_at": "2026-10-30T08:13:20.195Z",
+  "updated_at": "2026-10-30T08:13:27.029Z",
   "baseline": {
     "audit": {
       "commit": "463ae7ad844de31674b94e73679dafaf0f5dcac5",
@@ -16,7 +16,7 @@
       "notes": ""
     },
     "repair": {
-      "commit": "0aef58a2cccd9f83858f1d20ad21628ffbeb2bac",
+      "commit": "218e2d96fa809f2a0316b5ec7e892c51bbc5109c",
       "reverified_problem_ids": []
     },
     "acceptance": {
@@ -1211,7 +1211,7 @@
       "level": "L2",
       "severity": "P1",
       "batch": 1,
-      "state": "open",
+      "state": "fixed",
       "title": "RiskAssessor 合法字符串数组超一格即整轮失败，未按 schema 无损压缩",
       "evidence": [
         {
@@ -1244,7 +1244,17 @@
               "scripts/tools/data-pipeline-host-contract.node-test.mjs"
             ]
           },
-          "last_result": "not-run"
+          "last_result": "pass",
+          "run": {
+            "path": "runs/MC-014-0-1793348005192.json",
+            "sha256": "a0ff4cc3cd65f1e7959fe5d1fbb216583fe89324c4db8d9f09bbe71c71b00d93",
+            "commit": "218e2d96fa809f2a0316b5ec7e892c51bbc5109c"
+          },
+          "evidence": {
+            "path": "evidence/MC-014-0-1793348005192.txt",
+            "sha256": "f2b66ba418f70ad960dd02fd36d2959304af82d55ae3a6854f2d168ade7e871a",
+            "commit": "218e2d96fa809f2a0316b5ec7e892c51bbc5109c"
+          }
         },
         {
           "kind": "property",
@@ -1261,14 +1271,36 @@
               "scripts/tools/data-pipeline-host-contract.node-test.mjs"
             ]
           },
-          "last_result": "not-run"
+          "last_result": "pass",
+          "run": {
+            "path": "runs/MC-014-1-1793348006241.json",
+            "sha256": "d490351b1deff056a61613d1548bc9593e1537a05919498abc42759ab26b7b9e",
+            "commit": "218e2d96fa809f2a0316b5ec7e892c51bbc5109c"
+          },
+          "evidence": {
+            "path": "evidence/MC-014-1-1793348006241.txt",
+            "sha256": "e8b5379f388be7b9289af53acc1f1d8c0c9c34a45a51de195bd05fbabbe44586",
+            "commit": "218e2d96fa809f2a0316b5ec7e892c51bbc5109c"
+          }
         }
       ],
       "regression": {
         "command": "node --import tsx --test --test-name-pattern='RiskAssessor string overflow' scripts/tools/data-pipeline-host-contract.node-test.mjs",
         "evidence": null
       },
-      "notes": "M01 最新一轮真实日志：businessConstraints observed=5 limit=4；第二次重试缺必需字段。"
+      "notes": "M01 最新一轮真实日志：businessConstraints observed=5 limit=4；第二次重试缺必需字段。",
+      "verified_by": null,
+      "verified_at": null,
+      "verification_evidence": null,
+      "last_assertion_attempt": {
+        "actor": "root-repair-2026-10-30",
+        "role": "repair",
+        "result": "pass",
+        "at": "2026-10-30T08:13:25.184Z",
+        "commit": "218e2d96fa809f2a0316b5ec7e892c51bbc5109c",
+        "finished_at": "2026-10-30T08:13:27.029Z"
+      },
+      "fixed_by": "root-repair-2026-10-30"
     }
   ],
   "gates": []

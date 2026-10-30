@@ -10,6 +10,7 @@ import {
   authoritativeDelivery, authoritativeProduct, bindPrdProvenance, effectivePrdModelSchema, prdAuthorityPrompt, prdFail,
   validatePrdDelivery, validatePrdModelPayload, validatePrdProduction, type PrdAuthority
 } from "./prd-authority.js";
+import { normalizeMarketingPrdContract } from "./marketing-prd-contract.js";
 import { acquireVendorRequirementEntry } from "./vendor-requirement-entry.js";
 
 type Method = (this: RequirementRecord, ...args: unknown[]) => unknown;
@@ -604,10 +605,16 @@ export function installPrdAuthorityBridge(
         view[key] = agentView;
       }
       // Keep the native two real LLM process calls, timeout/retry budget, rule agents and schema pipeline.
-      const original = await Reflect.apply(generate, view, [discovery]);
+      const generated = await Reflect.apply(generate, view, [discovery]);
       check(scope);
       if (requirementHash(discovery.sceneStructure) !== sourceHash) prdFail("PRD_G3_CHANGED", "PRD 生成修改了已经批准的源场景");
-      const result = bindPrdProvenance(original, scope.authority, contract);
+      const normalized = normalizeMarketingPrdContract(
+        generated,
+        scope.authority.metadata,
+        scope.authority.profile,
+        scope.contract,
+      );
+      const result = bindPrdProvenance(normalized.prd, scope.authority, contract);
       if (!qualityPolicy) prdFail("PRD_QUALITY_INVALID", "本次原生规则调用没有形成质量阈值来源");
       scope.quality.set(result, structuredClone(qualityPolicy));
       scope.generated.add(result);

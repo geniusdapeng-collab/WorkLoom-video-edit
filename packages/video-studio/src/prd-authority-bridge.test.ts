@@ -734,7 +734,11 @@ describe("explicit delivery plans through the real native PRD generator", () => 
       expect(String(items.find(item => item.item === "subtitle_sidecar")!.spec)).toContain(text);
       expect(delivery.outputFormat).toMatchObject(value.authority.profile);
       expect(markdown).toContain("**cover**"); expect(markdown).toContain(text);
-      expect(prd.creativeCore).toEqual(creativeBefore); expect(prd.visualSpecification).toEqual(productionBefore.visualSpecification);
+      expect(prd.creativeCore).toEqual(creativeBefore);
+      expect(prd.visualSpecification).toEqual({
+        ...productionBefore.visualSpecification,
+        visualReferences: ["本次已审 G3 场景的画面目的、关键元素与用户 Brief；不引用未获客户提供的外部影片、导演或品牌案例"],
+      });
       expect(prd.audioSpecification).toEqual(productionBefore.audioSpecification);
       const character = (requirementRecord(prd.characterSystem, "characters").characters as RequirementRecord[])[0]!;
       expect(character.consistencyRequirements).toBe(productionBefore.characterSystem.characters[0]!.consistencyRequirements);
@@ -895,7 +899,10 @@ describe("G4 executable plans and one native quality policy", () => {
       expect(displayQuality).not.toHaveProperty("production"); expect(displayQuality).not.toHaveProperty("nativeAcceptance");
       expect(markdown).toContain('"status": "plan-only-not-executed"');
       expect(prd.audioSpecification).toEqual(before.audioSpecification);
-      expect(prd.visualSpecification).toEqual(before.visualSpecification);
+      expect(prd.visualSpecification).toEqual({
+        ...before.visualSpecification,
+        visualReferences: ["本次已审 G3 场景的画面目的、关键元素与用户 Brief；不引用未获客户提供的外部影片、导演或品牌案例"],
+      });
       expect(value.production).toEqual(before);
       return h.success(prd);
     });
