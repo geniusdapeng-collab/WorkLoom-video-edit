@@ -341,6 +341,25 @@ export function effectivePrdModelSchema(kind: "creative" | "production", schemaV
   return schema;
 }
 
+function compactStringArray(value: unknown[], maxLength: number): string[] {
+  return value.map((item) => {
+    if (typeof item !== "string") return item as unknown as string;
+    const normalized = item.replace(/\s+/gu, " ").trim();
+    const characters = Array.from(normalized);
+    if (characters.length <= maxLength) return normalized;
+    let candidate = characters.slice(0, Math.max(1, maxLength - 1)).join("");
+    const boundary = Math.max(
+      candidate.lastIndexOf("。"),
+      candidate.lastIndexOf("；"),
+      candidate.lastIndexOf("."),
+      candidate.lastIndexOf("!"),
+      candidate.lastIndexOf("?"),
+    );
+    if (boundary >= Math.floor(maxLength * 0.5)) candidate = candidate.slice(0, boundary + 1);
+    return `${candidate.replace(/[\s,，;；:：]+$/u, "")}…`;
+  });
+}
+
 /** Validate the actual model payload before vendor parsers can manufacture missing modules. */
 export function validatePrdModelPayload(value: unknown, kind: "creative" | "production", schemaValue: RequirementRecord, contract: RequirementContract, profile: PrdProductionProfile): RequirementRecord {
   let parsed: unknown = value;
@@ -349,8 +368,16 @@ export function validatePrdModelPayload(value: unknown, kind: "creative" | "prod
     try { parsed = JSON.parse(clean); }
     catch { prdFail("PRD_RESPONSE_UNVERIFIED", "本次模型响应不是完整 JSON"); }
   }
-  const result = requirementRecord(parsed, "PRD 模型真实响应");
+  const result = structuredClone(requirementRecord(parsed, "PRD 模型真实响应"));
   const effective = effectivePrdModelSchema(kind, schemaValue, contract);
+  if (kind === "creative") {
+    const properties = requirementRecord(effective.properties, "creativeCore properties");
+    const keyMessagesSchema = requirementRecord(requirementRecord(properties.keyMessages, "keyMessages schema").items, "keyMessages item schema");
+    const maxLength = Number(keyMessagesSchema.maxLength);
+    if (Array.isArray(result.keyMessages) && Number.isSafeInteger(maxLength) && maxLength > 0) {
+      result.keyMessages = compactStringArray(result.keyMessages, maxLength);
+    }
+  }
   // Retain the existing creative validation path and acceptance semantics.
   const schema = kind === "creative"
     ? { type: "object", required: ["creativeCore"], properties: { creativeCore: effective }, additionalProperties: false }

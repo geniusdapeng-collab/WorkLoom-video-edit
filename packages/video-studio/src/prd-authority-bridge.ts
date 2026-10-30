@@ -581,7 +581,8 @@ export function installPrdAuthorityBridge(
             return guard(scope, () => {
               check(scope);
               const raw = validatePrdModelPayload(value, kind, schema, contract, scope.authority.profile);
-              const result = Reflect.apply(parse, this, [value, ...args]);
+              const parseInput = typeof value === "string" ? JSON.stringify(raw) : raw;
+              const result = Reflect.apply(parse, this, [parseInput, ...args]);
               if (requirementHash(result) !== requirementHash(kind === "creative" ? { creativeCore: raw } : raw)) {
                 prdFail("PRD_RESPONSE_CHANGED", "原生 parser 用规则修改了真实模型模块，拒绝把补全文字当作模型创作");
               }

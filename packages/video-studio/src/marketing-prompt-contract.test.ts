@@ -11,6 +11,7 @@ describe("marketing prompt host contract", () => {
     const source = [
       "01.【语言约束】全部字段必须使用中文输出,禁止出现英文单词、英文短语、英文描述。",
       "06.【场景】一台竖屏显示器立在哑光橡胶垫上，旁边有一把黑色办公椅，机箱风扇持续底噪。",
+      "06.【场景补充】开放式公共大厅里有接待台、沙发、茶几和灰色哑光瓷砖，85mm镜头持续推近。",
       "07.【明亮约束】主体面部明亮清晰，阴影保留层次不死黑。",
       "13.【角色】无角色出场。，站立姿态，缓慢走动，张开双臂或自然下垂",
       "25.【负面约束】no text, no watermark, no signage, 禁止画面出现中文汉字与无关字母, no hardware devices。",
@@ -19,6 +20,7 @@ describe("marketing prompt host contract", () => {
     ].join("\n");
     const normalized = normalizeMarketingPromptText(source, options).value;
     expect(normalized).not.toMatch(/竖屏显示器|橡胶垫|办公椅|机箱风扇/);
+    expect(normalized).not.toMatch(/公共大厅|接待台|沙发|茶几|85mm/);
     expect(normalized).not.toMatch(/no text|no watermark|no signage/i);
     expect(normalized).not.toMatch(/站立姿态|嘴唇|肩膀|眼神专注/);
     expect(normalized).toContain("除本次 G1 已审原文");
@@ -78,5 +80,22 @@ describe("marketing prompt host contract", () => {
     expect(normalized).toContain("| scene-1 | 7s |");
     expect(normalized).toContain("### ending(内容)\nT00:00–T00:03");
     expect(normalized).toContain("5s + 7s + 5s + 6s + 4s + 3s = 30s");
+  });
+
+  it("conserves decimal durations across any shot count and marks portrait inapplicable", () => {
+    const report = [
+      "| 镜头 | 时长 | 字符数 | 字段数 | 技能命中 | 有定妆照 | 有时间轴 | 有约束 |",
+      "|---|---|---|---|---|---|---|---|",
+      "| opening | 4.5s | 1200 | 30 | — | ✓ | ✓ | ✓ |",
+      "| scene-1 | 5.5s | 1200 | 25 | — | ✓ | ✓ | ✓ |",
+      "| scene-2 | 15s | 1200 | 25 | — | ✓ | ✓ | ✓ |",
+      "| scene-3 | 9s | 1200 | 25 | — | ✓ | ✓ | ✓ |",
+      "| ending | 6s | 1200 | 25 | — | ✓ | ✓ | ✓ |",
+    ].join("\n");
+    const normalized = normalizeMarketingPromptText(report, options).value;
+    expect(normalized).toContain("| opening | 3s |");
+    expect(normalized).toContain("| scene-2 | 11s |");
+    expect(normalized).toContain("3s + 4s + 11s + 7s + 5s = 30s");
+    expect(normalized).toContain("| — | ✓ | ✓ |");
   });
 });

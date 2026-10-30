@@ -42,6 +42,11 @@ function normalizePromptString(value: string, duration: number | null, options: 
     .replace(/官方仓库逐行核对\s*\|\s*开发者点开许可行亲自验证/gu, "G1 已审原文 | 许可证字段与仓库地址")
     .replace(/官方仓库逐行核对/gu, "仅展示本次 G1 已审原文")
     .replace(/开发者点开[^，。\n|]*/gu, "")
+    .replace(/好莱坞技能库/gu, "本次已审抽象视觉规则")
+    .replace(/微表情_[^、,，。\s]+/gu, "")
+    .replace(/Camera增强\s*:/giu, "镜头约束：")
+    .replace(/\b(?:85|50|35|24|135|200)mm\b/giu, "固定中焦视角")
+    .replace(/开放式公共大厅|嵌入式灯带|接待台|展板|沙发|茶几|灰色哑光瓷砖|办公家具|家具|大厅/gu, "无材质细节的纯黑空间")
     .replace(/第三条，标改写。/gu, "模块化方式（改写引用）。")
     .replace(/[“"]?第三条[”"]?\s*[,，]?\s*标改写[。.]?/gu, "模块化方式（改写引用）")
     .replace(/阳极氧化铝|哑光橡胶垫|黑色办公椅|机箱风扇|机械键盘|键盘击键|击键声|散热风扇|橡胶垫|操作台|桌面/gmu, (term) => {
@@ -68,7 +73,7 @@ function normalizePromptString(value: string, duration: number | null, options: 
     next = next
       .replace(/，站立姿态[^。\n]*/gu, "")
       .replace(
-        /，?[^。\n]*(?:转身|走动|抱头|伸展|指向|握拳|眨眼|瞪眼|肩膀|眼神|嘴唇|面部)[^。\n]*/gu,
+        /，?[^。\n]*(?:转身|走动|抱头|伸展|指向|握拳|眨眼|瞪眼|肩膀|眼神|嘴唇|面部|眉头|嘴角|点头)[^。\n]*/gu,
         "；全片无人，不出现人物、人体局部或人物动作",
       )
       .replace(/【微动作】[^\n]*/u, `【微动作】${NO_PERSON_MICRO_ACTION}`)
@@ -151,18 +156,32 @@ function normalizeUnknown(value: unknown, options: MarketingPromptOptions, chang
   return normalizeRecord(value, options, changes);
 }
 
-function normalizeMarkdownDurations(markdown: string, target: number, changes: string[]): string {
-  const rows = [...markdown.matchAll(/^\|\s*([^|]+?)\s*\|\s*(\d+)s\s*\|/gmu)];
+function normalizeMarkdownDurations(
+  markdown: string,
+  target: number,
+  options: MarketingPromptOptions,
+  changes: string[],
+): string {
+  const rows = [...markdown.matchAll(/^\|\s*([^|]+?)\s*\|\s*(\d+(?:\.\d+)?)s\s*\|/gmu)];
   if (rows.length === 0) return markdown;
   const balanced = rebalanceDurations(rows.map((match) => ({ duration: Number(match[2]) })), target);
   if (!balanced.changed) return markdown;
   changes.push("gate-duration-conservation");
   let rowIndex = 0;
   let next = markdown.replace(
-    /^(\|\s*([^|]+?)\s*\|)\s*(\d+)s(\s*\|)/gmu,
+    /^(\|\s*([^|]+?)\s*\|)\s*(\d+(?:\.\d+)?)s(\s*\|)/gmu,
     (_line, prefix: string, _name: string, _duration, suffix: string) =>
       `${prefix} ${balanced.items[rowIndex++]!.duration}s${suffix}`,
   );
+  if (options.noPeople && /^\|\s*镜头\s*\|\s*时长\s*\|.*有定妆照/mu.test(next)) {
+    next = next.split("\n").map((line) => {
+      if (!/^\|\s*(?!镜头\b|---)/u.test(line) || !line.includes("|")) return line;
+      const columns = line.split("|");
+      if (columns.length >= 9) columns[6] = " — ";
+      return columns.join("|");
+    }).join("\n");
+    changes.push("portrait-not-applicable-table");
+  }
   const sections = [...next.matchAll(/^###\s+([^\n(]+)\(/gmu)];
   for (let index = 0; index < sections.length; index++) {
     const match = sections[index]!;
@@ -183,7 +202,7 @@ export function normalizeMarketingPromptText(
   const changes: string[] = [];
   let next = normalizePromptString(value ?? "", null, options);
   if (next !== value) changes.push("gate-prompt-contract-normalized");
-  next = normalizeMarkdownDurations(next, options.targetDuration, changes);
+  next = normalizeMarkdownDurations(next, options.targetDuration, options, changes);
   return { value: next, changes: [...new Set(changes)] };
 }
 
