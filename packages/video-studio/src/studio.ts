@@ -33,7 +33,7 @@ import { captureRequirementTheme, type RequirementApprovedTheme } from "./requir
 import { requirementHash } from "./requirement-contract.js";
 import { normalizeNarrativePrdContract } from "./narrative-prd-contract.js";
 import { normalizeCreativeThemeContract } from "./creative-theme-contract.js";
-import { normalizeMarketingPromptResult, normalizeMarketingPromptText } from "./marketing-prompt-contract.js";
+import { isAbstractMarketingIntent, normalizeMarketingPromptResult, normalizeMarketingPromptText } from "./marketing-prompt-contract.js";
 import { configureRequirementRetryPolicy } from "./requirement-retry-policy.js";
 import {
   applyDurationPolicyToManager,
@@ -303,6 +303,7 @@ export class VideoStudio {
     const promptOptions = {
       targetDuration: Number.isFinite(requestedDuration) && requestedDuration > 0 ? requestedDuration : 30,
       noPeople: Boolean(noPeople),
+      abstractOnly: input.isMarketing && isAbstractMarketingIntent(input.intent),
     };
 
     const handler: ConfirmationHandler = async (req) => {

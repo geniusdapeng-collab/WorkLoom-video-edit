@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  isAbstractMarketingIntent,
   normalizeMarketingPromptResult,
   normalizeMarketingPromptText,
 } from "./marketing-prompt-contract.js";
@@ -48,6 +49,61 @@ describe("marketing prompt host contract", () => {
     expect(normalized).toContain("31.【开场音频设计】无对白、无口播");
     expect(normalized).toContain("28.【微动作】无人物微动作");
     expect(normalized).toContain("**定妆照**: 无（无角色）");
+  });
+
+  it("normalizes every abstract visual field before the producer gate", () => {
+    expect(isAbstractMarketingIntent("全片无人，仅使用抽象界面、代码块和示意图，不展示未核实硬件")).toBe(true);
+    expect(isAbstractMarketingIntent("无人风景片")).toBe(false);
+    const source = [
+      "### opening(片头·30字段)",
+      "05.【场景】室内明亮空间,白色顶灯均匀照明,浅色墙面挂有装饰画,地面浅灰色地板。",
+      "06.【灯光设计】主辅光比约6:1，墙面与顶灯形成真实布光。",
+      "15.【动作】逐字带出等宽字符并停住。",
+      "；全片无人，不出现人物、人体局部或人物动作",
+      "33.【标题动画设计】扫描线带出主标题，铭牌拉丝作为底衬。",
+      "### scene-2(内容·25字段)",
+      "05.【场景】暗色微距工作台空间，台面排列仪器外壳与哑光工具。",
+      "11.【运镜】手持跟移，速度约每秒两厘米。",
+      "15.【动作】方片下沉两毫米吸附停稳。",
+      "16.【道具】仪器外壳、工具、台面方格定位板。",
+      "### scene-3(内容·25字段)",
+      "05.【场景】接待区展示角，空间纵深约三米，有轻微机房冷气感。",
+      "11.【景深】拉丝不锈钢铭牌带两厘米刻线倒角。",
+      "### scene-4(内容·25字段)",
+      "06.【灯光设计】辅光约2800K，主辅光比约12:1，方片厚度约两厘米。",
+      "20.【时间轴】T00:00–T00:01.5 起幅；T00:03–T00:05 暗场收束。",
+      "### ending(内容·25字段)",
+      "05.【场景】拉丝不锈钢铭牌，字符边缘留有细窄倒角。",
+    ].join("\n");
+    const result = normalizeMarketingPromptText(source, { ...options, abstractOnly: true });
+    expect(result.changes).toContain("abstract-field-contract-normalized");
+    expect(result.value).not.toMatch(/室内明亮空间|白色顶灯|浅色墙面|装饰画|暗色微距工作台空间|仪器外壳|哑光工具|台面实体模型|方片下沉两毫米|接待区展示角|空间纵深约三米|机房冷气感|拉丝不锈钢铭牌|两厘米刻线倒角|辅光约2800K|主辅光比约12:1|方片厚度约两厘米/iu);
+    expect(result.value).not.toMatch(/^；全片无人/mu);
+    expect(result.value).toContain("T00:03–T00:05");
+    const fieldNumbers = [...result.value.matchAll(/^(\d{2})\.【/gmu)].map(match => Number(match[1]));
+    expect(fieldNumbers).toEqual([1, 2, 3, 4, 1, 2, 3, 4, 1, 2, 1, 2, 1]);
+  });
+
+  it("applies the abstract visual contract to production result fields", () => {
+    const result = normalizeMarketingPromptResult({
+      stages: {
+        productionEngine: {
+          shots: [{
+            scene: "暗室中的工作中台，台面有工具与仪器外壳。",
+            action: "方片下沉两毫米后吸附。",
+            props: "不锈钢铭牌与反光板。",
+            lighting: "主辅光比约12:1，色温2800K。",
+            timeline: "T00:00–T00:01 起幅；T00:03–T00:05 收束。",
+            promptBase: "实拍台面和仪器外壳。",
+            fusionText: "接待区空间纵深约三米。",
+          }],
+        },
+      },
+    }, { ...options, abstractOnly: true }).value as any;
+    const shot = result.stages.productionEngine.shots[0];
+    expect(JSON.stringify(shot)).not.toMatch(/工作中台|仪器外壳|不锈钢铭牌|反光板|主辅光比约12:1|色温2800K|空间纵深约三米/iu);
+    expect(shot.timeline).toContain("T00:03–T00:05");
+    expect(shot.scene).toContain("二维抽象画布");
   });
 
   it("rebalances shot durations to the exact target and caps stale timecodes", () => {

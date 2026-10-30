@@ -37,6 +37,7 @@ import {
   buildPipelineIntent,
   describeRouteDecision,
   normalizeMarketingPromptText,
+  isAbstractMarketingIntent,
   bindExplicitAudienceMetadata,
   type ApprovalCallback,
   type EventSink,
@@ -397,7 +398,11 @@ async function reviewGate(input: {
   const normalized = decision.route === "marketing"
     && (input.gate === "G6_PROMPT" || input.gate === "G7_FINAL")
     && selectedCharacters.decision.mode === "none"
-    ? normalizeMarketingPromptText(input.contentMd, { targetDuration: DURATION_SECONDS, noPeople: true })
+    ? normalizeMarketingPromptText(input.contentMd, {
+        targetDuration: DURATION_SECONDS,
+        noPeople: true,
+        abstractOnly: isAbstractMarketingIntent(INTENT),
+      })
     : null;
   if (normalized?.changes.length) log(`  [G6 宿主归一] ${normalized.changes.join("、")}`);
   const contentMd = normalized?.value ?? input.contentMd;
