@@ -742,6 +742,32 @@ console.log("RESULT " + JSON.stringify({ counters, receivedContext: received._sk
     expect(result.qc).toBe("not_applicable");
   }, 90_000);
 
+  it("融合器仅丢失包装 id 且保持输入顺序时按位置恢复原始 shotId", () => {
+    const result = runInChild(phase3Fixture(`
+const uninstall = installVendorPhase3FusionBridge();
+const output = await makePhase({ process: async shots => {
+ counters.fusion++;
+ return { shots: [{ scene: "手表商品微距", prompt: "【场景】抽象表盘微距与固定机位。", degraded: false }], degraded: false, stats: { failed: 0, total: 1 } };
+} }).execute(makeState());
+uninstall();
+console.log("RESULT " + JSON.stringify({ success: output.success, id: output.shots[0].shotId, prompt: output.shots[0].prompt }));
+`));
+    expect(result).toMatchObject({ success: true, id: "SC-01", prompt: expect.stringContaining("抽象表盘") });
+  }, 90_000);
+
+  it("融合器丢失 prompt 时仍 fail-closed，并报告精确镜头位置", () => {
+    const result = runInChild(phase3Fixture(`
+const uninstall = installVendorPhase3FusionBridge();
+let error = null;
+try { await makePhase({ process: async () => ({ shots: [{ shotId: "SC-01", degraded: false }], degraded: false, stats: { failed: 0, total: 1 } }) }).execute(makeState()); }
+catch (e) { error = { code: e.code, message: e.message }; }
+uninstall();
+console.log("RESULT " + JSON.stringify({ error }));
+`));
+    expect(result.error).toMatchObject({ code: "PHASE3_FUSION_UNVERIFIED" });
+    expect(String((result.error as Record<string, unknown>).message)).toContain("prompt=missing");
+  }, 90_000);
+
   it("真实 vendor 的融合请求生成器收到实际技能正文，负面禁词不被误判", () => {
     const result = runInChild(phase3Fixture(`
 const uninstall = installVendorPhase3FusionBridge();

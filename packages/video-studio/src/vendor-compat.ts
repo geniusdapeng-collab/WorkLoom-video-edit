@@ -1946,15 +1946,31 @@ export function installVendorPhase3FusionBridge(options: { log?: (line: string) 
         }
         const expectedIds = new Set(shots.map((shot) => String(shot.shotId ?? shot.shot_id)));
         const outputIds = new Set<string>();
-        for (const row of updated) {
+        const normalizedUpdated = updated.map((row, index) => {
           const shot = fusionRecord(row, "融合镜头");
-          const id = String(shot.shotId ?? shot.shot_id ?? "");
-          if (!expectedIds.has(id) || outputIds.has(id) || shot.degraded === true || typeof shot.prompt !== "string" || !shot.prompt.trim()) {
-            throw new CinematicSkillError("PHASE3_FUSION_UNVERIFIED", "融合镜头 id、提示词或降级状态无效", "unverified");
+          const explicitId = String(shot.shotId ?? shot.shot_id ?? "").trim();
+          // The vendor fusion result may strip the wrapper id while preserving
+          // input order. Positional recovery is allowed only when the id is
+          // absent; an explicitly wrong id is never silently remapped.
+          const expectedId = String(shots[index]?.shotId ?? shots[index]?.shot_id ?? "").trim();
+          const id = explicitId || expectedId;
+          const prompt = typeof shot.prompt === "string" && shot.prompt.trim()
+            ? shot.prompt
+            : typeof shot.enhanced_prompt === "string" && shot.enhanced_prompt.trim()
+              ? shot.enhanced_prompt
+              : "";
+          if (!id || !expectedIds.has(id) || outputIds.has(id) || shot.degraded === true || !prompt) {
+            throw new CinematicSkillError(
+              "PHASE3_FUSION_UNVERIFIED",
+              `融合镜头合同无效：index=${index} expected=${expectedId || "?"} actual=${explicitId || "missing"} `
+              + `prompt=${prompt ? "present" : "missing"} degraded=${String(shot.degraded)}`,
+              "unverified",
+            );
           }
           outputIds.add(id);
-        }
-        const merged = this.mergeShots(shots, updated as FusionRecord[], FUSION_MERGE_FIELDS);
+          return { ...shot, shotId: id, prompt };
+        });
+        const merged = this.mergeShots(shots, normalizedUpdated, FUSION_MERGE_FIELDS);
         const timed = await this._checkDialogueTiming(merged, blueprint);
         if (remaining() <= 0) throw new CinematicSkillError("PHASE3_BUDGET_EXHAUSTED", "台词检查后阶段预算已耗尽");
         if (!Array.isArray(timed) || timed.length !== shots.length
