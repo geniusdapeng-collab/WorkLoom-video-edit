@@ -5,7 +5,7 @@
   "severity": "P1",
   "batch": 0,
   "state": "open",
-  "title": "G3 确定性门把协议合法 null 当作占位泄漏",
+  "title": "G3/G4 确定性门把版本化合同中的合法 null 当作占位泄漏",
   "evidence": [
     {
       "type": "code",
@@ -20,7 +20,7 @@
     "commit": "463ae7ad844de31674b94e73679dafaf0f5dcac5",
     "symbol": "gateDeterministicChecks"
   },
-  "trigger_path": "无人场景要求 noPropsReason 为合法 null → G3 两次 deterministic hard fail → 正确合同被错误打回。",
+  "trigger_path": "无人场景的 G3 noPropsReason 或 G4 registryPath/ownerAudience 为合法 null → deterministic no-placeholder hard fail → 正确合同被错误打回。",
   "assertions": [
     {
       "kind": "sample",
@@ -43,9 +43,26 @@
         "args": ["--import", "tsx", "--test", "scripts/tools/data-pipeline-host-contract.node-test.mjs"]
       },
       "last_result": "not-run"
+    },
+    {
+      "kind": "sample",
+      "given": "G4 可解析合同 JSON 含 registryPath:null 与 ownerAudience:null",
+      "expect": "no-placeholder 通过；合同块外 null 或损坏 JSON 仍硬失败",
+      "command": "node --import tsx --test --test-name-pattern='G3|G4' scripts/tools/data-pipeline-host-contract.node-test.mjs",
+      "exec": {
+        "file": "node",
+        "args": [
+          "--import",
+          "tsx",
+          "--test",
+          "--test-name-pattern=G3|G4",
+          "scripts/tools/data-pipeline-host-contract.node-test.mjs"
+        ]
+      },
+      "last_result": "not-run"
     }
   ],
-  "notes": "PILOT-NARRATIVE-006 真实复现；G1 原有合法 null 例外保持不变。",
+  "notes": "PILOT-NARRATIVE-006 真实复现 G3；修复后 M01 在 G4 再次复现同类 versioned-contract null，现统一修复两类门。",
   "regression": {
     "command": "node --import tsx --test scripts/tools/data-pipeline-host-contract.node-test.mjs",
     "evidence": null

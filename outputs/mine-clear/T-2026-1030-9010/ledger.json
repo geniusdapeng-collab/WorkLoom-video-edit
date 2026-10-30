@@ -5,7 +5,7 @@
   "repo_path": "/Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit",
   "title": "",
   "created_at": "2026-10-30T06:14:55.791Z",
-  "updated_at": "2026-10-30T07:41:32.147Z",
+  "updated_at": "2026-10-30T07:49:51.076Z",
   "baseline": {
     "audit": {
       "commit": "463ae7ad844de31674b94e73679dafaf0f5dcac5",
@@ -16,7 +16,7 @@
       "notes": ""
     },
     "repair": {
-      "commit": "bfbbfa8016fb4cb8d94d6bb967e05b4a44fe6e2b",
+      "commit": "0ea0a40d1e03e50c59ae575b8037c10a56493295",
       "reverified_problem_ids": []
     },
     "acceptance": {
@@ -279,7 +279,7 @@
       "severity": "P1",
       "batch": 0,
       "state": "open",
-      "title": "G3 确定性门把协议合法 null 当作占位泄漏",
+      "title": "G3/G4 确定性门把版本化合同中的合法 null 当作占位泄漏",
       "evidence": [
         {
           "type": "code",
@@ -294,7 +294,7 @@
         "commit": "463ae7ad844de31674b94e73679dafaf0f5dcac5",
         "symbol": "gateDeterministicChecks"
       },
-      "trigger_path": "无人场景要求 noPropsReason 为合法 null → G3 两次 deterministic hard fail → 正确合同被错误打回。",
+      "trigger_path": "无人场景的 G3 noPropsReason 或 G4 registryPath/ownerAudience 为合法 null → deterministic no-placeholder hard fail → 正确合同被错误打回。",
       "assertions": [
         {
           "kind": "sample",
@@ -327,9 +327,26 @@
             ]
           },
           "last_result": "not-run"
+        },
+        {
+          "kind": "sample",
+          "given": "G4 可解析合同 JSON 含 registryPath:null 与 ownerAudience:null",
+          "expect": "no-placeholder 通过；合同块外 null 或损坏 JSON 仍硬失败",
+          "command": "node --import tsx --test --test-name-pattern='G3|G4' scripts/tools/data-pipeline-host-contract.node-test.mjs",
+          "exec": {
+            "file": "node",
+            "args": [
+              "--import",
+              "tsx",
+              "--test",
+              "--test-name-pattern=G3|G4",
+              "scripts/tools/data-pipeline-host-contract.node-test.mjs"
+            ]
+          },
+          "last_result": "not-run"
         }
       ],
-      "notes": "PILOT-NARRATIVE-006 真实复现；G1 原有合法 null 例外保持不变。",
+      "notes": "PILOT-NARRATIVE-006 真实复现 G3；修复后 M01 在 G4 再次复现同类 versioned-contract null，现统一修复两类门。",
       "regression": {
         "command": "node --import tsx --test scripts/tools/data-pipeline-host-contract.node-test.mjs",
         "evidence": null
@@ -570,7 +587,7 @@
       "level": "L4",
       "severity": "P1",
       "batch": 1,
-      "state": "open",
+      "state": "fixed",
       "title": "无人合同只进入提示词，创意主题仍可新增人物、痛点和外部作品引用",
       "evidence": [
         {
@@ -603,7 +620,17 @@
               "scripts/tools/data-pipeline-host-contract.node-test.mjs"
             ]
           },
-          "last_result": "not-run"
+          "last_result": "pass",
+          "run": {
+            "path": "runs/MC-008-0-1793346127326.json",
+            "sha256": "108efd9b32b5762624377fce04a710d461bcda5460be06cd97bb1ab0881fe3d4",
+            "commit": "0ea0a40d1e03e50c59ae575b8037c10a56493295"
+          },
+          "evidence": {
+            "path": "evidence/MC-008-0-1793346127326.txt",
+            "sha256": "6fc4371786294e88b70d291bac246dc6b3cbf8068d2418c04f6176d492985ce2",
+            "commit": "0ea0a40d1e03e50c59ae575b8037c10a56493295"
+          }
         },
         {
           "kind": "property",
@@ -620,14 +647,36 @@
               "scripts/tools/data-pipeline-host-contract.node-test.mjs"
             ]
           },
-          "last_result": "not-run"
+          "last_result": "pass",
+          "run": {
+            "path": "runs/MC-008-1-1793346127812.json",
+            "sha256": "86da6248fe2aced2c1261a7e75cce7a1a46867fd2d15909a1d13f5e5df67203c",
+            "commit": "0ea0a40d1e03e50c59ae575b8037c10a56493295"
+          },
+          "evidence": {
+            "path": "evidence/MC-008-1-1793346127812.txt",
+            "sha256": "e00c00bab1e232b7a8e1fb5d15b1e42652295e3d3cd97283cc0312cca7746720",
+            "commit": "0ea0a40d1e03e50c59ae575b8037c10a56493295"
+          }
         }
       ],
       "regression": {
         "command": "node --import tsx --test --test-name-pattern='creative theme' scripts/tools/data-pipeline-host-contract.node-test.mjs",
         "evidence": null
       },
-      "notes": "M01 两次真实 G2 分别 62/72 分，原始确认单与监制 issues 已保留。"
+      "notes": "M01 两次真实 G2 分别 62/72 分，原始确认单与监制 issues 已保留。",
+      "verified_by": null,
+      "verified_at": null,
+      "verification_evidence": null,
+      "last_assertion_attempt": {
+        "actor": "root-repair-2026-10-30",
+        "role": "repair",
+        "result": "pass",
+        "at": "2026-10-30T07:42:07.325Z",
+        "commit": "0ea0a40d1e03e50c59ae575b8037c10a56493295",
+        "finished_at": "2026-10-30T07:42:08.265Z"
+      },
+      "fixed_by": "root-repair-2026-10-30"
     },
     {
       "id": "MC-009",
@@ -635,7 +684,7 @@
       "level": "L2",
       "severity": "P1",
       "batch": 0,
-      "state": "open",
+      "state": "fixed",
       "title": "合法官方仓库页面因 24k 正文上限被误判为无可核实来源",
       "evidence": [
         {
@@ -668,7 +717,17 @@
               "scripts/tools/data-pipeline-host-contract.node-test.mjs"
             ]
           },
-          "last_result": "not-run"
+          "last_result": "pass",
+          "run": {
+            "path": "runs/MC-009-0-1793346128369.json",
+            "sha256": "defd7768eeff72e49b716c8c785940da01f7044a4b9ca1e1f246473047faffaf",
+            "commit": "0ea0a40d1e03e50c59ae575b8037c10a56493295"
+          },
+          "evidence": {
+            "path": "evidence/MC-009-0-1793346128369.txt",
+            "sha256": "06f948b61a6f1df66cf4a616535448fd302862218f2a6c0a627f330ff62281ee",
+            "commit": "0ea0a40d1e03e50c59ae575b8037c10a56493295"
+          }
         },
         {
           "kind": "property",
@@ -685,14 +744,36 @@
               "scripts/tools/data-pipeline-host-contract.node-test.mjs"
             ]
           },
-          "last_result": "not-run"
+          "last_result": "pass",
+          "run": {
+            "path": "runs/MC-009-1-1793346128782.json",
+            "sha256": "0b5bffd4c50053028ccad18e4672f3a07d9d606173d88543f3c1e9b59f4eb1c8",
+            "commit": "0ea0a40d1e03e50c59ae575b8037c10a56493295"
+          },
+          "evidence": {
+            "path": "evidence/MC-009-1-1793346128782.txt",
+            "sha256": "1040e88aedf304beaa8131a61abfee3e3ca9b20ef7119c86ad20c8d339dfe8eb",
+            "commit": "0ea0a40d1e03e50c59ae575b8037c10a56493295"
+          }
         }
       ],
       "regression": {
         "command": "node --import tsx --test --test-name-pattern='bounded source' scripts/tools/data-pipeline-host-contract.node-test.mjs",
         "evidence": null
       },
-      "notes": "M02 真实复现为 MARKETING_A1_UNVERIFIED；独立抓取确认 Cal.com 页面文本 34,586 字符。"
+      "notes": "M02 真实复现为 MARKETING_A1_UNVERIFIED；独立抓取确认 Cal.com 页面文本 34,586 字符。",
+      "verified_by": null,
+      "verified_at": null,
+      "verification_evidence": null,
+      "last_assertion_attempt": {
+        "actor": "root-repair-2026-10-30",
+        "role": "repair",
+        "result": "pass",
+        "at": "2026-10-30T07:42:08.368Z",
+        "commit": "0ea0a40d1e03e50c59ae575b8037c10a56493295",
+        "finished_at": "2026-10-30T07:42:09.220Z"
+      },
+      "fixed_by": "root-repair-2026-10-30"
     },
     {
       "id": "MC-010",
@@ -700,7 +781,7 @@
       "level": "L2",
       "severity": "P1",
       "batch": 1,
-      "state": "open",
+      "state": "fixed",
       "title": "图片角度被误计为文本事实，支持审核收到空图片数组与残留图片 claim",
       "evidence": [
         {
@@ -733,7 +814,17 @@
               "scripts/tools/data-pipeline-host-contract.node-test.mjs"
             ]
           },
-          "last_result": "not-run"
+          "last_result": "pass",
+          "run": {
+            "path": "runs/MC-010-0-1793346129323.json",
+            "sha256": "b03794c77930c3019c7630f7551c17128c0e194aa4c8a2dbb9280362ef9f84cd",
+            "commit": "0ea0a40d1e03e50c59ae575b8037c10a56493295"
+          },
+          "evidence": {
+            "path": "evidence/MC-010-0-1793346129323.txt",
+            "sha256": "e751a9037e49ebf1ac6d84df5892f76585930e204222f0553f35aabdff176fe6",
+            "commit": "0ea0a40d1e03e50c59ae575b8037c10a56493295"
+          }
         },
         {
           "kind": "property",
@@ -750,14 +841,36 @@
               "scripts/tools/data-pipeline-host-contract.node-test.mjs"
             ]
           },
-          "last_result": "not-run"
+          "last_result": "pass",
+          "run": {
+            "path": "runs/MC-010-1-1793346129738.json",
+            "sha256": "bbc7d019c4f6bb651d2f1d04a96a2baeeb1f728db147dab2a07fd22b37e3106c",
+            "commit": "0ea0a40d1e03e50c59ae575b8037c10a56493295"
+          },
+          "evidence": {
+            "path": "evidence/MC-010-1-1793346129738.txt",
+            "sha256": "001feda676dd04ed9515f9a400de7b6e063a705d5ec6f1cd944d8bff730f17f2",
+            "commit": "0ea0a40d1e03e50c59ae575b8037c10a56493295"
+          }
         }
       ],
       "regression": {
         "command": "node --import tsx --test --test-name-pattern='image angle' scripts/tools/data-pipeline-host-contract.node-test.mjs",
         "evidence": null
       },
-      "notes": "M03 真实支持审核原文：/images/0/angle“品牌 Logo”缺 quote 且 images 空数组结构矛盾。"
+      "notes": "M03 真实支持审核原文：/images/0/angle“品牌 Logo”缺 quote 且 images 空数组结构矛盾。",
+      "verified_by": null,
+      "verified_at": null,
+      "verification_evidence": null,
+      "last_assertion_attempt": {
+        "actor": "root-repair-2026-10-30",
+        "role": "repair",
+        "result": "pass",
+        "at": "2026-10-30T07:42:09.323Z",
+        "commit": "0ea0a40d1e03e50c59ae575b8037c10a56493295",
+        "finished_at": "2026-10-30T07:42:10.158Z"
+      },
+      "fixed_by": "root-repair-2026-10-30"
     }
   ],
   "gates": []

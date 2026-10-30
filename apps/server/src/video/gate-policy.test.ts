@@ -90,3 +90,17 @@ it("G3允许合同中的合法null，不把协议空值误判成占位符", () =
   expect(gateDeterministicChecks("G3_INSIGHT", `${contract}\nundefined [object Object]`)
     .some((check) => check.hard && !check.pass)).toBe(true);
 });
+
+it("G4允许可解析合同JSON中的合法null，但仍拒绝正文和损坏JSON里的null", () => {
+  const contract = [
+    "# PRD",
+    "```json",
+    JSON.stringify({ cast: { mode: "none", registryPath: null }, ownerAudience: null }),
+    "```",
+  ].join("\n").repeat(8);
+  expect(gateDeterministicChecks("G4_PRD", contract).every((check) => check.pass)).toBe(true);
+  expect(gateDeterministicChecks("G4_PRD", `${contract}\n字段值为 null`)
+    .some((check) => check.hard && !check.pass)).toBe(true);
+  expect(gateDeterministicChecks("G4_PRD", "```json\n{\"field\":null,}\n```".repeat(8))
+    .some((check) => check.hard && !check.pass)).toBe(true);
+});

@@ -88,13 +88,25 @@ export function gateDeterministicChecks(gate: GateKey, content: string): Array<{
       detail: valid ? "完整本次来源/三站事实包可解析；null等JSON值不会当作占位词误杀" : "G1必须读取宿主本次完整来源事实包" }];
   }
   const hardPlaceholder = /undefined|NaN|\[object Object\]/.test(trimmed);
-  // G3 carries a versioned JSON contract in the confirmation text. `null` is a
-  // valid schema value there (for example noPropsReason), not a placeholder.
-  const nullPlaceholder = gate === "G3_INSIGHT" ? false : /\bnull\b/i.test(trimmed);
+  // Gate documents embed versioned JSON contracts whose schemas legitimately
+  // use null for optional fields. Ignore `null` only inside a parseable fenced
+  // JSON block; prose or broken JSON still fails closed.
+  const placeholderScan = gate === "G3_INSIGHT" ? "" : trimmed.replace(
+    /```json\s*([\s\S]*?)```/gi,
+    (block, body: string) => {
+      try {
+        JSON.parse(body.trim());
+        return "";
+      } catch {
+        return block;
+      }
+    },
+  );
+  const nullPlaceholder = /\bnull\b/i.test(placeholderScan);
   const placeholder = hardPlaceholder || nullPlaceholder;
   const checks = [
     { id: "content-present", pass: trimmed.length > 0, hard: true, detail: trimmed.length > 0 ? `门内容 ${trimmed.length} 字` : "门内容为空（vendor 未产出该环节产物）" },
-    { id: "no-placeholder", pass: !placeholder, hard: true, detail: placeholder ? "门内容含 undefined/null/NaN/[object Object] 占位" : "无占位符泄漏（G3 版本化合同允许协议 null）" },
+    { id: "no-placeholder", pass: !placeholder, hard: true, detail: placeholder ? "门内容含 undefined/null/NaN/[object Object] 占位" : "无占位符泄漏（可解析版本化合同的协议 null 不算占位）" },
     { id: "min-length", pass: trimmed.length >= 120, hard: true, detail: `内容长度 ${trimmed.length}（下限 120，过短通常意味着上游字段过薄）` }
   ];
   if (gate === "G5_PORTRAIT") {

@@ -28,6 +28,14 @@ test("G3 permits protocol null but still blocks real placeholder leakage", () =>
     .some((check) => check.hard && !check.pass), true);
 });
 
+test("G4 permits null in parseable contract JSON while keeping prose closed", () => {
+  const contract = ("# PRD\n```json\n" + JSON.stringify({ cast: { registryPath: null }, ownerAudience: null }) + "\n```\n").repeat(8);
+  assert.equal(gateDeterministicChecks("G4_PRD", contract)
+    .find((check) => check.id === "no-placeholder").pass, true);
+  assert.equal(gateDeterministicChecks("G4_PRD", `${contract}\n字段值为 null`)
+    .some((check) => check.hard && !check.pass), true);
+});
+
 test("strict RiskAssessor projection removes only undeclared top-level fields", () => {
   const schema = {
     type: "object",
