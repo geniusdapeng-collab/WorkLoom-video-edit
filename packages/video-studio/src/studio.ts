@@ -33,6 +33,7 @@ import { captureRequirementTheme, type RequirementApprovedTheme } from "./requir
 import { requirementHash } from "./requirement-contract.js";
 import { normalizeNarrativePrdContract } from "./narrative-prd-contract.js";
 import { normalizeCreativeThemeContract } from "./creative-theme-contract.js";
+import { configureRequirementRetryPolicy } from "./requirement-retry-policy.js";
 import {
   applyDurationPolicyToManager,
   installVendorAudioDisciplineBridge,
@@ -503,6 +504,12 @@ export class VideoStudio {
           charactersDir,
           durationConstraint: { maxSingleShot, minSingleShot }
         });
+        const retryPolicy = configureRequirementRetryPolicy(
+          (system as unknown as { requirementDiscoveryEngine?: unknown }).requirementDiscoveryEngine,
+        );
+        if (retryPolicy.changed.length > 0) {
+          log(`[studio] 需求洞察重试策略：${retryPolicy.changed.join("、")}`);
+        }
         const creativeThemeGenerator = (system as unknown as {
           creativeThemeGenerator?: Record<string, unknown>;
         }).creativeThemeGenerator;

@@ -41,6 +41,7 @@ export interface LLMReasonOptions {
   forceJson?: boolean;
   responseFormat?: { type: string };
   thinking?: Record<string, unknown>;
+  timeoutMs?: number;
   signal?: AbortSignal;
   /** Optional registered scene. Vendor callers may leave this unset. */
   scene?: string;
@@ -160,7 +161,7 @@ export class WorkloomLLMEngine {
           ...(this.cfg.router?.forceModel
             ? { forceModel: canonicalDeepSeekModel(this.cfg.router.forceModel) }
             : {}),
-          timeoutMs: this.cfg.timeoutMs,
+          timeoutMs: opts.timeoutMs ?? this.cfg.timeoutMs,
           signal: opts.signal,
           // Vendor max-token values are historical product guesses. The
           // dispatcher calculates the complete legal window instead.

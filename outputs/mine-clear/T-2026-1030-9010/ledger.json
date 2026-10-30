@@ -5,7 +5,7 @@
   "repo_path": "/Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit",
   "title": "",
   "created_at": "2026-10-30T06:14:55.791Z",
-  "updated_at": "2026-10-30T08:27:36.167Z",
+  "updated_at": "2026-10-30T08:28:01.742Z",
   "baseline": {
     "audit": {
       "commit": "463ae7ad844de31674b94e73679dafaf0f5dcac5",
@@ -16,7 +16,7 @@
       "notes": ""
     },
     "repair": {
-      "commit": "218e2d96fa809f2a0316b5ec7e892c51bbc5109c",
+      "commit": "45568223663261fbfe70601c3b83d98a4ecf30e0",
       "reverified_problem_ids": []
     },
     "acceptance": {
@@ -1308,7 +1308,7 @@
       "level": "L4",
       "severity": "P1",
       "batch": 2,
-      "state": "open",
+      "state": "fixed",
       "title": "营销 PRD 在 G4 前未归一外部参考、无人措辞、场景数量和技术交付口径",
       "evidence": [
         {
@@ -1341,7 +1341,17 @@
               "scripts/tools/data-pipeline-host-contract.node-test.mjs"
             ]
           },
-          "last_result": "not-run"
+          "last_result": "pass",
+          "run": {
+            "path": "runs/MC-015-0-1793348880581.json",
+            "sha256": "5a48379003043fa2c7166bd80af56fad436b1619e59c536af9c6fe8d4b018173",
+            "commit": "45568223663261fbfe70601c3b83d98a4ecf30e0"
+          },
+          "evidence": {
+            "path": "evidence/MC-015-0-1793348880581.txt",
+            "sha256": "c8957b4b03b7387c3295d00b9e1efd683857fcd115ae1860500ff54499fc22c5",
+            "commit": "45568223663261fbfe70601c3b83d98a4ecf30e0"
+          }
         },
         {
           "kind": "property",
@@ -1358,14 +1368,36 @@
               "scripts/tools/data-pipeline-host-contract.node-test.mjs"
             ]
           },
-          "last_result": "not-run"
+          "last_result": "pass",
+          "run": {
+            "path": "runs/MC-015-1-1793348881309.json",
+            "sha256": "bd79f51137fb4e79e318d60708b7d9b651190d41b4d7bb42e84183f1aaf7683f",
+            "commit": "45568223663261fbfe70601c3b83d98a4ecf30e0"
+          },
+          "evidence": {
+            "path": "evidence/MC-015-1-1793348881309.txt",
+            "sha256": "4b3f08a28b08c90d6ec22c57f551866cd15fa7838bfc527800e7c3d3ec4257ec",
+            "commit": "45568223663261fbfe70601c3b83d98a4ecf30e0"
+          }
         }
       ],
       "regression": {
         "command": "node --import tsx --test --test-name-pattern='marketing PRD' scripts/tools/data-pipeline-host-contract.node-test.mjs",
         "evidence": null
       },
-      "notes": "M01 多次真实 G4 拒绝，典型 58/72/86 分三组 issues 已保留。"
+      "notes": "M01 多次真实 G4 拒绝，典型 58/72/86 分三组 issues 已保留。",
+      "verified_by": null,
+      "verified_at": null,
+      "verification_evidence": null,
+      "last_assertion_attempt": {
+        "actor": "root-repair-2026-10-30",
+        "role": "repair",
+        "result": "pass",
+        "at": "2026-10-30T08:28:00.580Z",
+        "commit": "45568223663261fbfe70601c3b83d98a4ecf30e0",
+        "finished_at": "2026-10-30T08:28:01.742Z"
+      },
+      "fixed_by": "root-repair-2026-10-30"
     }
   ],
   "gates": []

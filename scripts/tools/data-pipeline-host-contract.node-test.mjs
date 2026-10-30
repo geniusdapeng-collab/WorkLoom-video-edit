@@ -7,6 +7,7 @@ import { projectDeclaredFields } from "../../packages/video-studio/src/requireme
 import { normalizeNarrativePrdContract } from "../../packages/video-studio/src/narrative-prd-contract.ts";
 import { normalizeCreativeThemeContract } from "../../packages/video-studio/src/creative-theme-contract.ts";
 import { normalizeMarketingPrdContract } from "../../packages/video-studio/src/marketing-prd-contract.ts";
+import { configureRequirementRetryPolicy } from "../../packages/video-studio/src/requirement-retry-policy.ts";
 import { sourceDocument, SOURCE_MAX_TEXT_CHARS } from "../../apps/server/src/video/marketing-source-fetcher.ts";
 import { supportReviewFacts } from "../../apps/server/src/video/marketing-authority.ts";
 import { filterUnsafeMarketingExtraction } from "../../apps/server/src/video/marketing-facts.ts";
@@ -68,6 +69,21 @@ test("marketing PRD strips external references and binds no-person delivery limi
   assert.equal(normalized.prd.audioSpecification.voicePolicy, "无对白");
   assert.match(normalized.prd.deliveryStandard.deliverables[0].spec, /2160x3840/);
   assert.match(normalized.prd.deliveryStandard.deliverables[0].spec, /-14 LUFS/);
+});
+
+test("scene and risk discovery receive three controlled attempts at the extended timeout", () => {
+  const engine = {
+    agentTimeoutMs: 180_000,
+    agents: {
+      scene: { maxRetries: 1, timeoutMs: 180_000 },
+      risk: { maxRetries: 1, timeoutMs: 180_000 },
+    },
+  };
+  const configured = configureRequirementRetryPolicy(engine);
+  assert.deepEqual(configured.policy, { sceneTimeoutMs: 240_000, maxRetries: 2, stageBudgetMs: 420_000 });
+  assert.equal(engine.agents.scene.timeoutMs, 240_000);
+  assert.equal(engine.agents.scene.maxRetries, 2);
+  assert.equal(engine.agents.risk.maxRetries, 2);
 });
 
 test("strict RiskAssessor projection removes only undeclared top-level fields", () => {
