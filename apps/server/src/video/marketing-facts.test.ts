@@ -179,6 +179,39 @@ describe("逐事实叶子的正文绑定", () => {
       reason: "absolute-marketing-claim",
     }]);
   });
+  it("显式商品查询与可选品牌冲突时只移除品牌事实，保留名称和其余来源绑定", () => {
+    const filtered = filterUnsafeMarketingExtraction("A1", {
+      payload: {
+        identity: {
+          name: "Home Assistant",
+          brand: "Open Home Foundation",
+          specs: { License: "Apache-2.0" },
+          official_selling_points: [{ point: "Open source home automation", source_url: source.finalUrl }],
+        },
+        images: [],
+      },
+      citations: [
+        { pointer: "/identity/name", sourceId: source.sourceId, quote: body },
+        { pointer: "/identity/brand", sourceId: source.sourceId, quote: body },
+        { pointer: "/identity/specs/License", sourceId: source.sourceId, quote: body },
+        { pointer: "/identity/official_selling_points/0/point", sourceId: source.sourceId, quote: body },
+      ],
+    }, { productQuery: { name: "Home Assistant", brand: "Home Assistant" } });
+    const value = filtered.value as any;
+    expect(value.payload.identity).not.toHaveProperty("brand");
+    expect(value.payload.identity.name).toBe("Home Assistant");
+    expect(value.payload.identity.specs).toEqual({ License: "Apache-2.0" });
+    expect(value.citations.map((item: any) => item.pointer)).toEqual([
+      "/identity/name",
+      "/identity/specs/License",
+      "/identity/official_selling_points/0/point",
+    ]);
+    expect(filtered.exclusions).toEqual([{
+      pointer: "/identity/brand",
+      value: "Open Home Foundation",
+      reason: "product-query-brand-conflict",
+    }]);
+  });
   it.each(["A1", "A2", "A3"] as const)("%s提取输入合同由实际严格schema产生并保留边界", stage => {
     const schema: any = stagePayloadJsonSchema(stage);
     expect(schema).toMatchObject({ type: "object", additionalProperties: false });

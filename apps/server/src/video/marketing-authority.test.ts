@@ -61,6 +61,7 @@ async function prepare(options: { noSearch?: boolean; noAux?: boolean; badQuote?
   imageMetadata?: "complete" | "no-source" | "no-angle" | "minimal";
   syntheticTokenCharge?: number;
   absoluteSellingPoint?: boolean;
+  conflictingBrand?: string;
 } = {}): Promise<PreparedMarketingFacts> {
   let searches = 0, a1Calls = 0;
   return prepareMarketingFacts({ scope: { ...scope, attempt: options.attempt ?? 1 }, root, intent: "做一条风扇介绍", metadata: { brief: { product: "星野 F3", brand: "星野" } }, env: { ...env, ...(options.mode ? { VM_DATA_MINING_MODE: options.mode } : {}) },
@@ -76,8 +77,8 @@ async function prepare(options: { noSearch?: boolean; noAux?: boolean; badQuote?
         { point: "风量 9 档", source_url: sourceUrl },
         ...(options.absoluteSellingPoint ? [{ point: "Perfect to run anywhere", source_url: sourceUrl }] : []),
       ];
-      const data: { payload: any; citations: any[] } = { payload: { identity: { name: "星野 F3", specs, ...(options.citationFault ? { prices: [{ amount: 399, currency: "CNY", source_url: sourceUrl }] } : {}), official_selling_points: officialPoints }, images: [] },
-        citations: ["/identity/name", ...Object.keys(specs).map(key => `/identity/specs/${key.replace(/~/g, "~0").replace(/\//g, "~1")}`), ...(options.citationFault ? ["/identity/prices/0/amount", "/identity/prices/0/currency"] : []), ...officialPoints.map((_point, index) => `/identity/official_selling_points/${index}/point`)]
+      const data: { payload: any; citations: any[] } = { payload: { identity: { name: "星野 F3", ...(options.conflictingBrand ? { brand: options.conflictingBrand } : {}), specs, ...(options.citationFault ? { prices: [{ amount: 399, currency: "CNY", source_url: sourceUrl }] } : {}), official_selling_points: officialPoints }, images: [] },
+        citations: ["/identity/name", ...(options.conflictingBrand ? ["/identity/brand"] : []), ...Object.keys(specs).map(key => `/identity/specs/${key.replace(/~/g, "~0").replace(/\//g, "~1")}`), ...(options.citationFault ? ["/identity/prices/0/amount", "/identity/prices/0/currency"] : []), ...officialPoints.map((_point, index) => `/identity/official_selling_points/${index}/point`)]
           .map(pointer => ({ pointer, sourceId: source.sourceId, ...(options.quoteIds ? { quoteId: source.textFragments[0].quoteId } : { quote: options.badQuote ? "不存在的事实" : sourceText }) })) };
       if (options.imageExtras) data.payload.images.push({ url: sourceUrl + "/hero.png", page_url: sourceUrl, angle: "unknown", width: 1080, height: 1920 });
       if (options.imageMetadata) data.payload.images.push({ url: sourceUrl + "/hero.png", page_url: sourceUrl,
@@ -132,6 +133,21 @@ describe("营销事实宿主完整执行", () => {
       pointer: "/identity/official_selling_points/1/point",
       value: "Perfect to run anywhere",
       reason: "absolute-marketing-claim",
+    }]);
+    const saved = await finalizeMarketingFacts(prepared, shots, env);
+    await expect(verifyMarketingFacts({ root, ...saved, scope, shots })).resolves.toMatchObject({ scope });
+  });
+  it("可选品牌与显式商品查询冲突时从交付事实移除，原始响应和筛选原因保留", async () => {
+    const prepared = await prepare({ quoteIds: true, conflictingBrand: "Open Home Foundation" });
+    expect(prepared.raw.A1.identity).not.toHaveProperty("brand");
+    expect(JSON.stringify(modelCalls)).not.toContain("Open Home Foundation");
+    const reference = prepared.bundle.stages[0]!.extractions![0]!;
+    const artifact = JSON.parse(await readFile(path.join(root, reference.ref), "utf8"));
+    expect(artifact.response.data.payload.identity.brand).toBe("Open Home Foundation");
+    expect(artifact.hostPolicyExclusions).toEqual([{
+      pointer: "/identity/brand",
+      value: "Open Home Foundation",
+      reason: "product-query-brand-conflict",
     }]);
     const saved = await finalizeMarketingFacts(prepared, shots, env);
     await expect(verifyMarketingFacts({ root, ...saved, scope, shots })).resolves.toMatchObject({ scope });

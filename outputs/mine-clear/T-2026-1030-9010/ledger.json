@@ -5,7 +5,7 @@
   "repo_path": "/Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit",
   "title": "",
   "created_at": "2026-10-30T06:14:55.791Z",
-  "updated_at": "2026-10-30T23:20:36.142Z",
+  "updated_at": "2026-10-30T23:23:24.541Z",
   "baseline": {
     "audit": {
       "commit": "463ae7ad844de31674b94e73679dafaf0f5dcac5",
@@ -2006,6 +2006,69 @@
         "finished_at": "2026-10-30T23:20:36.142Z"
       },
       "fixed_by": "root-repair-2026-10-31"
+    },
+    {
+      "id": "MC-022",
+      "kind": "problem",
+      "level": "L3",
+      "severity": "P1",
+      "batch": 1,
+      "state": "open",
+      "title": "可选品牌字段与显式商品查询冲突时未在事实绑定层隔离，正向前置被真实监制整批拒绝",
+      "evidence": [
+        {
+          "type": "code",
+          "ref": "apps/server/src/video/marketing-authority.ts:195@463ae7ad844de31674b94e73679dafaf0f5dcac5",
+          "sha256": "6e7dac86e9f1509d270fbdf619d2d13f162ab5e892556df86dbc6bfcfd59dcc6",
+          "note": "模型原始响应直接进入引用解析与语义审核；可选 identity.brand 即使与显式商品查询冲突，也没有宿主级隔离或删除路径。"
+        }
+      ],
+      "root_cause": {
+        "file": "apps/server/src/video/marketing-authority.ts",
+        "line": 195,
+        "commit": "463ae7ad844de31674b94e73679dafaf0f5dcac5",
+        "symbol": "verifyExtractionAttempts"
+      },
+      "trigger_path": "Home Assistant 官方 README 出现“A project from the Open Home Foundation” → A1 把基金会误填为可选 brand → 显式查询 brand=Home Assistant → 原文支持审核识别商品身份冲突并拒绝整批 G1。",
+      "assertions": [
+        {
+          "kind": "sample",
+          "given": "A1 名称 Home Assistant、可选 brand Open Home Foundation，产品查询 name/brand 均为 Home Assistant",
+          "expect": "仅删除 identity.brand 及其 citation，保留名称、规格、卖点；原始模型响应保留，并记录 product-query-brand-conflict 筛选原因",
+          "command": "node_modules/.bin/vitest run apps/server/src/video/marketing-facts.test.ts -t '可选品牌冲突'",
+          "exec": {
+            "file": "node_modules/.bin/vitest",
+            "args": [
+              "run",
+              "apps/server/src/video/marketing-facts.test.ts",
+              "-t",
+              "可选品牌冲突"
+            ]
+          },
+          "last_result": "not-run"
+        },
+        {
+          "kind": "property",
+          "given": "冲突品牌被宿主隔离后完成原文审核、A1-A5 装订、逐镜头事实复核与复读",
+          "expect": "交付事实和 G1 审核内容不含冲突品牌，同时完整事实包仍可通过 verifyMarketingFacts 复读",
+          "command": "node_modules/.bin/vitest run apps/server/src/video/marketing-authority.test.ts -t '可选品牌与显式商品查询冲突'",
+          "exec": {
+            "file": "node_modules/.bin/vitest",
+            "args": [
+              "run",
+              "apps/server/src/video/marketing-authority.test.ts",
+              "-t",
+              "可选品牌与显式商品查询冲突"
+            ]
+          },
+          "last_result": "not-run"
+        }
+      ],
+      "regression": {
+        "command": "node_modules/.bin/vitest run apps/server/src/video/marketing-facts.test.ts apps/server/src/video/marketing-authority.test.ts",
+        "evidence": null
+      },
+      "notes": "M01 第二次真实运行在 44 秒内被 G1 原文支持审核拒绝；拒绝本身正确，缺口是可选品牌冲突应在进入语义审核前被宿主隔离。"
     }
   ],
   "gates": []

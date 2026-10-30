@@ -172,7 +172,7 @@ async function extractStageFacts(input: {
       if (!result?.success) fail("MARKETING_EXTRACTION_UNVERIFIED", `事实提取失败：${result?.error ?? "空回包"}`);
       try { parsed = result.data ?? JSON.parse(result.content ?? ""); }
       catch { fail("MARKETING_EXTRACTION_UNVERIFIED", "事实提取不是可核实JSON"); }
-      const filtered = filterUnsafeMarketingExtraction(input.stage, parsed);
+      const filtered = filterUnsafeMarketingExtraction(input.stage, parsed, { productQuery: input.product });
       parsed = filtered.value;
       policyExclusions = filtered.exclusions;
       const resolved = resolveMarketingExtraction(parsed, input.pages);
@@ -201,7 +201,7 @@ async function extractStageFacts(input: {
 }
 
 async function verifyExtractionAttempts(input: {
-  root: string; prefix: string; scope: MarketingScope; stage: IntelStage; sources: SourceSnapshot[];
+  root: string; prefix: string; scope: MarketingScope; stage: IntelStage; productQuery: RecordValue; sources: SourceSnapshot[];
   facts: ValidatedStageFacts; extractions: Array<{ ref: string; sha256: string }>;
 }): Promise<void> {
   if (!Array.isArray(input.extractions) || input.extractions.length < 1 || input.extractions.length > 2) fail("MARKETING_EXTRACTION_UNVERIFIED", "提取尝试数非法");
@@ -226,7 +226,7 @@ async function verifyExtractionAttempts(input: {
     const response = object(artifact.response, "提取原始响应");
     if (response.success !== true) fail("MARKETING_EXTRACTION_UNVERIFIED", "已接受事实不能引用失败的模型响应");
     const responseRaw = response.data ?? JSON.parse(String(response.content));
-    const filtered = filterUnsafeMarketingExtraction(input.stage, responseRaw);
+    const filtered = filterUnsafeMarketingExtraction(input.stage, responseRaw, { productQuery: input.productQuery });
     const raw = filtered.value;
     if (artifact.hostPolicyExclusions === undefined ? filtered.exclusions.length > 0
       : canonicalRenderJson(artifact.hostPolicyExclusions) !== canonicalRenderJson(filtered.exclusions)) {
@@ -483,7 +483,7 @@ export async function verifyMarketingFacts(input: {
     if (used.length !== record.sourceIds.length || new Set(record.sourceIds).size !== record.sourceIds.length) fail("MARKETING_SOURCE_INVALID", "营销来源记录缺失或重复");
     revalidateStageFacts(record.facts, used);
     if (record.extractions !== undefined) await verifyExtractionAttempts({ root: input.root, prefix: expectedPrefix,
-      scope: input.scope, stage, sources: used, facts: record.facts, extractions: record.extractions });
+      scope: input.scope, stage, productQuery: bundle.productQuery, sources: used, facts: record.facts, extractions: record.extractions });
     if (record.facts.claims.length > 0 || record.review) {
       if (!record.review || !record.review.ref.startsWith(expectedPrefix) || !accepted(record.review.verdict, path.join(input.root, record.review.ref), record.review.sha256)) fail("MARKETING_SUPPORT_UNVERIFIED", "缺少真实原文支持关系审核");
       const reviewBytes = await readBound(input.root, record.review.ref, record.review.sha256);

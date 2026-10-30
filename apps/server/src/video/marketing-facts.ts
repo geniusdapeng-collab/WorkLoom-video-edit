@@ -39,9 +39,13 @@ export interface ValidatedStageFacts {
 export interface MarketingPolicyExclusion {
   pointer: string;
   value: string;
-  reason: "absolute-marketing-claim";
+  reason: "absolute-marketing-claim" | "product-query-brand-conflict";
+}
+export interface MarketingPolicyOptions {
+  productQuery?: Record<string, unknown>;
 }
 const escapePointer = (value: string) => value.replace(/~/g, "~0").replace(/\//g, "~1");
+const identityToken = (value: string) => value.normalize("NFKC").trim().toLocaleLowerCase("zh-CN").replace(/\s+/gu, " ");
 const sourceFields = new Set(["url", "source_url", "page_url", "price_source_url", "visual_source_url", "source", "channel", "suspect"]);
 function factLeaves(value: unknown, pointer = "", out = new Map<string, string | number | boolean>()): Map<string, string | number | boolean> {
   // Product image metadata is validated separately against the fetched page and
@@ -75,6 +79,7 @@ const ABSOLUTE_MARKETING = /(?:\bperfect\b|\b(?:best|world'?s best|#1|number one
 export function filterUnsafeMarketingExtraction(
   stage: IntelStage,
   raw: unknown,
+  options: MarketingPolicyOptions = {},
 ): { value: unknown; exclusions: MarketingPolicyExclusion[] } {
   if (stage !== "A1" || !raw || typeof raw !== "object" || Array.isArray(raw)) return { value: raw, exclusions: [] };
   const source = structuredClone(raw) as Record<string, unknown>;
@@ -84,12 +89,31 @@ export function filterUnsafeMarketingExtraction(
   const identity = payload?.identity && typeof payload.identity === "object" && !Array.isArray(payload.identity)
     ? payload.identity as Record<string, unknown>
     : null;
-  const points = Array.isArray(identity?.official_selling_points) ? identity.official_selling_points : null;
-  if (!payload || !identity || !points) return { value: raw, exclusions: [] };
+  if (!payload || !identity) return { value: raw, exclusions: [] };
 
   const excluded = new Map<number | string, MarketingPolicyExclusion>();
+  /**
+   * Brand is optional while product name is required. A source may mention a
+   * parent foundation, publisher, or project sponsor near the product name;
+   * that relation is not enough to relabel the product brand. When the caller
+   * supplied an explicit brand query, isolate a conflicting optional value
+   * instead of asking semantic review to repair or approve it.
+   */
+  const queriedBrand = typeof options.productQuery?.brand === "string" ? options.productQuery.brand : "";
+  const extractedBrand = typeof identity.brand === "string" ? identity.brand : "";
+  if (queriedBrand.trim() && extractedBrand.trim()
+    && identityToken(queriedBrand) !== identityToken(extractedBrand)) {
+    excluded.set("/identity/brand", {
+      pointer: "/identity/brand",
+      value: extractedBrand,
+      reason: "product-query-brand-conflict",
+    });
+    delete identity.brand;
+  }
+
+  const points = Array.isArray(identity.official_selling_points) ? identity.official_selling_points : null;
   const kept: unknown[] = [];
-  for (const [index, value] of points.entries()) {
+  for (const [index, value] of (points ?? []).entries()) {
     const point = typeof (value as Record<string, unknown> | null)?.point === "string"
       ? String((value as Record<string, unknown>).point).trim()
       : "";
@@ -133,14 +157,17 @@ export function filterUnsafeMarketingExtraction(
 
   const remap = new Map<number, number>();
   let next = 0;
-  for (let index = 0; index < points.length; index++) if (!excluded.has(index)) remap.set(index, next++);
-  identity.official_selling_points = kept;
+  if (points) {
+    for (let index = 0; index < points.length; index++) if (!excluded.has(index)) remap.set(index, next++);
+    identity.official_selling_points = kept;
+  }
   if (Array.isArray(source.citations)) {
     source.citations = source.citations.flatMap((citation) => {
       if (!citation || typeof citation !== "object" || Array.isArray(citation)) return [citation];
       const pointer = typeof (citation as Record<string, unknown>).pointer === "string"
         ? String((citation as Record<string, unknown>).pointer)
         : "";
+      if (excluded.has(pointer)) return [];
       const match = /^\/identity\/official_selling_points\/(\d+)(\/point)$/.exec(pointer);
       if (!match) return excludedSpecPointers.has(pointer) ? [] : [citation];
       const oldIndex = Number(match[1]);
