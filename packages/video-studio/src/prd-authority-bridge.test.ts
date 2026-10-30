@@ -784,6 +784,9 @@ describe("explicit delivery plans through the real native PRD generator", () => 
       expect(call.prompt).toContain("已经给出的档案来源不得写成“待解析”");
       expect(call.prompt).toContain("“待解析和核验”仅适用于输入确实未提供的原始PNG路径");
       expect(call.prompt).toContain("不能提前批准");
+      if (mode === "none") {
+        expect(markdown).toContain("外观锚点与定妆照前置：不适用（cast.mode=none，与出镜角色合同一致）");
+      }
       const characters = requirementRecord(prd.characterSystem, "characters").characters as RequirementRecord[];
       expect(characters.map(character => character.portraitPath)).toEqual(Array(mode === "none" ? 0 : 1).fill(""));
       expect(characters.map(character => character.consistencyRequirements)).toEqual(value.production.characterSystem.characters.map(character => character.consistencyRequirements));

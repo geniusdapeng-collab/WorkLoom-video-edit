@@ -87,8 +87,10 @@ describe("marketing PRD host contract", () => {
   it("normalizes unsupported screen labels and absolute whole-film claims", () => {
     const source = prd() as any;
     source.scenePlan.scenes[0].visualRequirements = [
-      "标注 integration；全片仅此一个视觉落点；数百个冷白点阵；全片文字层仅来自G1原文；与G1原文逐字一致",
+      "标注 integration；全片仅此一个视觉落点；数百个冷白点阵；全片文字层仅来自G1原文；与G1原文逐字一致；结构可无限接驳",
     ];
+    source.scenePlan.scenes[1].visualRequirements = ["单行字幕与 Apache-2.0 极小脚注"];
+    source.audioSpecification.soundDesign = "字幕执行计划（客户未显式指定字幕，沿用已有任务，不加持续警示字幕、不加封面）：所有屏幕文字为画面内烧录的等宽字体英文原文与来源标注，不另做 sidecar；烧录字幕核对：字幕内容与 G1 原文逐字符一致";
     source.audienceProfile.emotionTriggers = ["第12秒已审场景节点：方块连接设备"];
     const result = normalizeMarketingPrdContract(source, {
       builtinCharacterSelection: { mode: "none" },
@@ -100,6 +102,15 @@ describe("marketing PRD host contract", () => {
     expect(requirements).not.toContain("数百个");
     expect(requirements).not.toContain("全片文字层仅来自G1原文");
     expect(requirements).not.toContain("逐字一致");
+    expect(requirements).toContain("可继续扩展接入其他设备与动作");
+    const ending = (result.prd as any).scenePlan.scenes[1].visualRequirements.join(" ");
+    expect(ending).not.toMatch(/极小脚注|单行字幕/);
+    expect(ending).toContain("辅助脚注");
+    const audio = (result.prd as any).audioSpecification.soundDesign;
+    expect(audio).not.toMatch(/沿用已有任务|画面内烧录|烧录字幕核对/);
+    expect(audio).toContain("不生成字幕轨或 sidecar");
+    expect(audio).toContain("连续子串逐字符一致并保留原标点");
+    expect(audio).toContain("辅助文字与脚注不豁免");
     expect((result.prd as any).audienceProfile.emotionTriggers.join(" ")).not.toContain("已审场景节点");
   });
 

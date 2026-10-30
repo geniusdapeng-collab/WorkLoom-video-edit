@@ -15,13 +15,29 @@ const textList = (value: unknown): string[] => list(value).map(text).filter(Bool
 const BODY_REFERENCE = /手指|手部|手掌|脸部|人体局部|人物动作|人影|转身|蹲下/u;
 const UNREQUESTED_TIME = /第\s*\d+(?:\.\d+)?\s*秒|scene[-\s]?\d+/iu;
 const UNSUPPORTED_MODULE_COUNT = /(?:九|9)\s*(?:个|块|组)?\s*(?:空心)?(?:方块|模块|节点)/u;
-const SUBTITLE_POLICY = "客户未明确要求字幕：默认不烧录、不生成 SRT/VTT；屏上已审原文属于画面内容，不属于字幕交付";
-const VIDEO_TECHNICAL = "30fps；竖屏安全区按目标平台遮挡区在渲染前测量并留证";
+const SUBTITLE_POLICY = "客户未明确要求字幕：不生成字幕轨或 SRT/VTT；屏上已审原文只作为画面图形层叠加，不属于字幕交付";
+const FONT_POLICY = "屏上所有可读文字统一受最小字号屏高3%、文字与底色对比度4.5:1、平台安全区和遮挡检查约束；辅助文字与脚注不豁免";
+const QUOTE_POLICY = "G1 原文核对按连续子串截取：只允许原字符、原顺序、原标点；不得补写、拼接或改写标点";
+const VIDEO_TECHNICAL = `30fps；竖屏安全区按目标平台遮挡区在渲染前测量并留证；${FONT_POLICY}；${QUOTE_POLICY}`;
 
 function normalizeText(value: string): string {
   const next = value
     .replace(/\bawarenes\b/giu, "awareness")
     .replace(/商业广告\s*\/\s*商业广告/gu, "商业广告")
+    .replace(/可无限接驳/gu, "可继续扩展接入其他设备与动作")
+    .replace(/极小脚注/gu, "达到统一最小字号下界的辅助脚注")
+    .replace(/极小字号/gu, "达到统一字号下界的辅助文字")
+    .replace(/字幕执行计划（客户未显式指定字幕，沿用已有任务，不加持续警示字幕、不加封面）/gu, "屏上原文执行计划（客户未显式指定字幕）")
+    .replace(/所有屏幕文字为画面内烧录的等宽字体英文原文与来源标注，不另做 sidecar/gu,
+      "所有屏上文字只作为画面图形层叠加的等宽字体英文原文与来源标注；不生成字幕轨或 sidecar")
+    .replace(/烧录字幕核对/gu, "屏上原文图层核对")
+    .replace(/烧录文字与台词/gu, "屏上原文图层与台词")
+    .replace(/字幕内容与 G1 原文逐字符一致/gu, "屏上原文与 G1 原文连续子串逐字符一致并保留原标点")
+    .replace(/单行字幕/gu, "单行屏上原文")
+    .replace(/主字幕/gu, "主屏上原文")
+    .replace(/小字内容须与 G1 原文完全一致/gu, "小字内容须为 G1 原文的连续子串并保留原标点")
+    .replace(/字段文本须与 G1 原文完全一致/gu, "字段文本须为 G1 原文的连续子串并保留原标点")
+    .replace(/文字须与 G1 原文一致/gu, "文字须为 G1 原文的连续子串并保留原标点")
     .replace(/字幕默认烧录已审画面文字[^；。\n]*/gu, SUBTITLE_POLICY)
     .replace(/字幕仅烧录已审画面文字[^；。\n]*/gu, SUBTITLE_POLICY)
     .replace(/(?<!https:\/\/)github\.com\//giu, "https://github.com/")
@@ -159,7 +175,7 @@ export function normalizeMarketingPrdContract(
     audio.voicePolicy = "无对白";
     audio.musicStyle = "无人声、低频音床、材质提示音与机械节奏；无旋律配乐";
     const design = text(audio.soundDesign);
-    const technical = `技术交付口径：AAC 48 kHz 双声道，整体响度 -14 LUFS，True Peak ≤ -1 dBTP；${SUBTITLE_POLICY}。`;
+    const technical = `技术交付口径：AAC 48 kHz 双声道，整体响度 -14 LUFS，True Peak ≤ -1 dBTP；${FONT_POLICY}；${QUOTE_POLICY}；${SUBTITLE_POLICY}。`;
     audio.soundDesign = `${design}${design ? "\n" : ""}${technical}`;
     changes.push("no-person-audio-subtitle-contract-normalized");
   }
