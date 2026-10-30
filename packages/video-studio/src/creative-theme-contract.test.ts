@@ -36,7 +36,7 @@ describe("creative theme host contract", () => {
         },
       },
     });
-    const task = normalized.result.tasks[0] as Record<string, unknown>;
+    const task = (normalized.result.tasks as Array<Record<string, unknown>>)[0]!;
     expect(normalized.applied).toBe(true);
     expect(task.protagonist).toBeNull();
     expect(task.character_consistency).toBeNull();
@@ -64,7 +64,7 @@ describe("creative theme host contract", () => {
       customerOriginalIntent: "参考《Her》的柔光，拍一条人物成长片",
       builtinCharacterSelection: { mode: "builtin" },
     });
-    const task = normalized.result.tasks[0] as Record<string, unknown>;
+    const task = (normalized.result.tasks as Array<Record<string, unknown>>)[0]!;
     expect(task.visual_style).toContain("《Her》");
     expect(task.description).toContain("开发者");
     expect(task.target_audience).toBe("客户未明确指定；任何人群假设均为待审核");

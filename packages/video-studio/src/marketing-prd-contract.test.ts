@@ -26,7 +26,7 @@ function prd() {
     },
     productionConstraints: {
       technicalConstraints: ["在道具清单中标注 HOME-HERO-001 / HOME-REF-002 调用（license_risk=h", "同时在场景结构里逐一标注「"],
-      businessConstraints: ["Apache-2.0 首次出现须有设备轮廓示意"],
+      businessConstraints: ["Apache-2.0 首次出现须有设备轮廓示意", "无字幕依赖：任何关键信息不得落在可读文字上"],
       forbiddenElements: ["人物"],
       qualityThresholds: { visual: 0.8, audio: 0.75, narrative: 0.85, consistency: 0.75 },
     },
@@ -39,7 +39,11 @@ function prd() {
       styleReferences: ["大卫·芬奇"],
     },
     deliveryStandard: {
-      deliverables: [{ item: "video_master", spec: "MP4/H.265, 4K", priority: "required" }],
+      deliverables: [{
+        item: "video_master",
+        spec: "MP4/H.265, 4K；字幕默认烧录已审画面文字；github.com/example/project",
+        priority: "required",
+      }],
       acceptanceCriteria: { visualScore: 0.75, audioScore: 0.7, narrativeScore: 0.75, consistencyScore: 0.7 },
     },
   };
@@ -67,10 +71,36 @@ describe("marketing PRD host contract", () => {
     expect(value.scenePlan.scenes[0].visualRequirements.join(" ")).not.toContain("任何一帧");
     expect(value.audioSpecification.voicePolicy).toBe("无对白");
     expect(value.audioSpecification.soundDesign).toContain("-14 LUFS");
+    expect(value.audioSpecification.soundDesign).toContain("客户未明确要求字幕");
+    expect(value.audioSpecification.soundDesign).not.toContain("字幕仅烧录已审画面文字");
     expect(value.productionConstraints.technicalConstraints.join(" ")).toContain("2160x3840");
+    expect(value.productionConstraints.technicalConstraints.join(" ")).toContain("30fps");
+    expect(value.productionConstraints.businessConstraints.join(" ")).not.toContain("无字幕依赖");
     expect(value.productionConstraints.technicalConstraints.join(" ")).not.toContain("license_risk=h");
     expect(value.deliveryStandard.deliverables[0].spec).toContain("-14 LUFS");
+    expect(value.deliveryStandard.deliverables[0].spec).toContain("30fps");
+    expect(value.deliveryStandard.deliverables[0].spec).toContain("https://github.com/example/project");
+    expect(value.deliveryStandard.deliverables[0].spec).not.toContain("字幕默认烧录已审画面文字");
     expect(result.applied).toBe(true);
+  });
+
+  it("normalizes unsupported screen labels and absolute whole-film claims", () => {
+    const source = prd() as any;
+    source.scenePlan.scenes[0].visualRequirements = [
+      "标注 integration；全片仅此一个视觉落点；数百个冷白点阵；全片文字层仅来自G1原文；与G1原文逐字一致",
+    ];
+    source.audienceProfile.emotionTriggers = ["第12秒已审场景节点：方块连接设备"];
+    const result = normalizeMarketingPrdContract(source, {
+      builtinCharacterSelection: { mode: "none" },
+      customerOriginalIntent: "全片无人，不显示未入 G1 的标签",
+    }, {}, { scenes: [{ id: "opening" }, { id: "ending" }] });
+    const requirements = (result.prd as any).scenePlan.scenes[0].visualRequirements.join(" ");
+    expect(requirements).not.toContain("integration");
+    expect(requirements).not.toContain("全片仅此一个");
+    expect(requirements).not.toContain("数百个");
+    expect(requirements).not.toContain("全片文字层仅来自G1原文");
+    expect(requirements).not.toContain("逐字一致");
+    expect((result.prd as any).audienceProfile.emotionTriggers.join(" ")).not.toContain("已审场景节点");
   });
 
   it("fails closed instead of silently changing the approved scene count", () => {

@@ -15,6 +15,62 @@ const textList = (value: unknown): string[] => list(value).map(text).filter(Bool
 const BODY_REFERENCE = /手指|手部|手掌|脸部|人体局部|人物动作|人影|转身|蹲下/u;
 const UNREQUESTED_TIME = /第\s*\d+(?:\.\d+)?\s*秒|scene[-\s]?\d+/iu;
 const UNSUPPORTED_MODULE_COUNT = /(?:九|9)\s*(?:个|块|组)?\s*(?:空心)?(?:方块|模块|节点)/u;
+const SUBTITLE_POLICY = "客户未明确要求字幕：默认不烧录、不生成 SRT/VTT；屏上已审原文属于画面内容，不属于字幕交付";
+const VIDEO_TECHNICAL = "30fps；竖屏安全区按目标平台遮挡区在渲染前测量并留证";
+
+function normalizeText(value: string): string {
+  const next = value
+    .replace(/\bawarenes\b/giu, "awareness")
+    .replace(/商业广告\s*\/\s*商业广告/gu, "商业广告")
+    .replace(/字幕默认烧录已审画面文字[^；。\n]*/gu, SUBTITLE_POLICY)
+    .replace(/字幕仅烧录已审画面文字[^；。\n]*/gu, SUBTITLE_POLICY)
+    .replace(/(?<!https:\/\/)github\.com\//giu, "https://github.com/")
+    .replace(/全片仅此一个视觉落点/gu, "只在对应已审场景内使用视觉强调，不作全片唯一性承诺")
+    .replace(/(?:小号)?标注\s*[「“]?integration[」”]?/giu, "不显示未入 G1 的文字标签")
+    .replace(/数百个(?=\s*(?:冷白|等大|点阵|光点))/gu, "一组数量未示意的")
+    .replace(/数百个/gu, "一组数量未示意的")
+    .replace(/全片文字层仅来自\s*G1\s*原文/giu, "屏上文字只使用本次 G1 可核实原文或其明确截取，并标注完整行或截取范围")
+    .replace(/与\s*G1\s*原文逐字一致/giu, "与本次 G1 原文或其明确截取一致，并标注完整行或截取范围")
+    .replace(/已审场景节点/gu, "创作假设（未审）；实际执行以已审 G3 场景为准");
+  return /^无字幕依赖[：:]/u.test(next)
+    ? "不依赖口播或对白字幕；关键信息由已审屏上原文和图形结构共同承载，屏上原文不属于字幕交付"
+    : next;
+}
+
+function normalizeGlobalStrings(value: unknown): boolean {
+  let changed = false;
+  const walk = (node: unknown): void => {
+    if (Array.isArray(node)) {
+      for (let index = 0; index < node.length; index++) {
+        const item = node[index];
+        if (typeof item === "string") {
+          const next = normalizeText(item);
+          if (next !== item) {
+            node[index] = next;
+            changed = true;
+          }
+        } else {
+          walk(item);
+        }
+      }
+      return;
+    }
+    if (!isRecord(node)) return;
+    for (const [key, item] of Object.entries(node)) {
+      if (typeof item === "string") {
+        const next = normalizeText(item);
+        if (next !== item) {
+          node[key] = next;
+          changed = true;
+        }
+      } else {
+        walk(item);
+      }
+    }
+  };
+  walk(value);
+  return changed;
+}
 
 function dimensions(resolution: string, aspect: string): string {
   const width = resolution === "4K" ? 3840 : 1920;
@@ -100,7 +156,7 @@ export function normalizeMarketingPrdContract(
     audio.voicePolicy = "无对白";
     audio.musicStyle = "无人声、低频音床、材质提示音与机械节奏；无旋律配乐";
     const design = text(audio.soundDesign);
-    const technical = "技术交付口径：AAC 48 kHz 双声道，整体响度 -14 LUFS，True Peak ≤ -1 dBTP；字幕仅烧录已审画面文字，默认不隐式生成对白字幕或 SRT/VTT。";
+    const technical = `技术交付口径：AAC 48 kHz 双声道，整体响度 -14 LUFS，True Peak ≤ -1 dBTP；${SUBTITLE_POLICY}。`;
     audio.soundDesign = `${design}${design ? "\n" : ""}${technical}`;
     changes.push("no-person-audio-subtitle-contract-normalized");
   }
@@ -143,9 +199,9 @@ export function normalizeMarketingPrdContract(
   constraints.businessConstraints = sanitizeConstraints(list(constraints.businessConstraints), "遵守 G1 用途限制和客户 Brief");
   constraints.forbiddenElements = sanitizeConstraints(list(constraints.forbiddenElements), "不新增客户未要求的人物、外部作品或未核实事实");
   const profileRules = [
-    `输出画布 ${dimensions(text(profile.resolution) || "4K", text(profile.aspectRatio) || "9:16")}，时长 ${String(profile.targetDuration ?? "按已审场景")} 秒，时长帧容差 ${String(profile.durationToleranceFrames ?? 1)} 帧`,
+    `输出画布 ${dimensions(text(profile.resolution) || "4K", text(profile.aspectRatio) || "9:16")}，时长 ${String(profile.targetDuration ?? "按已审场景")} 秒，时长帧容差 ${String(profile.durationToleranceFrames ?? 1)} 帧；${VIDEO_TECHNICAL}`,
     "AAC 48 kHz 双声道；整体响度 -14 LUFS；True Peak ≤ -1 dBTP",
-    "字幕默认烧录已审画面文字；不隐式输出对白字幕、SRT 或 VTT；客户明确追加再另立交付",
+    SUBTITLE_POLICY,
     "Apache-2.0 或 Raspberry Pi 等官方原文只作官方来源自述，不延伸为性能、安全、兼容性或运行效果承诺；禁用高风险参考图",
   ];
   constraints.technicalConstraints = [
@@ -167,13 +223,15 @@ export function normalizeMarketingPrdContract(
   if (master) {
     const dimensionsValue = dimensions(text(profile.resolution) || "4K", text(profile.aspectRatio) || "9:16");
     const spec = text(master.spec);
-    const technical = `画布 ${dimensionsValue}；时长 ${String(profile.targetDuration ?? "按已审场景")} 秒 ±${String(profile.durationToleranceFrames ?? 1)} 帧；AAC 48 kHz 双声道；-14 LUFS / -1 dBTP；字幕默认烧录已审画面文字，不隐式输出对白字幕或 SRT/VTT`;
-    if (!spec.includes("-14 LUFS") || !spec.includes(dimensionsValue)) {
+    const technical = `画布 ${dimensionsValue}；时长 ${String(profile.targetDuration ?? "按已审场景")} 秒 ±${String(profile.durationToleranceFrames ?? 1)} 帧；AAC 48 kHz 双声道；-14 LUFS / -1 dBTP；${VIDEO_TECHNICAL}；${SUBTITLE_POLICY}`;
+    if (!spec.includes("-14 LUFS") || !spec.includes(dimensionsValue) || !spec.includes("30fps") || !spec.includes("安全区")) {
       master.spec = [spec, technical].filter(Boolean).join("；");
       changes.push("delivery-technical-baseline-normalized");
     }
   }
   prd.deliveryStandard = delivery;
+
+  if (normalizeGlobalStrings(prd)) changes.push("global-prd-contradictions-normalized");
 
   // Keep the scene authority hash consumers honest: this function never rewrites
   // scene IDs, durations, purposes or shotMapping.
