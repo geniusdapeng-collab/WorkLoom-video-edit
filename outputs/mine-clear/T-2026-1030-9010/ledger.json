@@ -5,7 +5,7 @@
   "repo_path": "/Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit",
   "title": "",
   "created_at": "2026-10-30T06:14:55.791Z",
-  "updated_at": "2026-10-30T23:24:07.356Z",
+  "updated_at": "2026-10-31T02:06:33.961Z",
   "baseline": {
     "audit": {
       "commit": "463ae7ad844de31674b94e73679dafaf0f5dcac5",
@@ -16,7 +16,7 @@
       "notes": ""
     },
     "repair": {
-      "commit": "563c7a26d7951c94b490cbcb1dcd971aee4ec84c",
+      "commit": "00ad4f1f6d9eb9174279f6a8a8271e67534fa55a",
       "reverified_problem_ids": []
     },
     "acceptance": {
@@ -2099,6 +2099,105 @@
         "at": "2026-10-30T23:24:05.523Z",
         "commit": "563c7a26d7951c94b490cbcb1dcd971aee4ec84c",
         "finished_at": "2026-10-30T23:24:07.356Z"
+      },
+      "fixed_by": "root-repair-2026-10-31"
+    },
+    {
+      "id": "MC-023",
+      "kind": "problem",
+      "level": "L2",
+      "severity": "P1",
+      "batch": 1,
+      "state": "fixed",
+      "title": "CommonJS 作用域内的 ESM 后期模块使用 .js 扩展，真实全链测试异步崩溃",
+      "evidence": [
+        {
+          "type": "code",
+          "ref": "vendor/supermickey/systems/package.json:4@463ae7ad844de31674b94e73679dafaf0f5dcac5",
+          "sha256": "7b599482193c09752ad1ffd796348b523ab61ab3696de82fb3c1b6b08a1bc9c4",
+          "note": "最近包作用域显式声明 type=commonjs。"
+        },
+        {
+          "type": "code",
+          "ref": "vendor/supermickey/systems/post-production-pipeline.js:3@463ae7ad844de31674b94e73679dafaf0f5dcac5",
+          "sha256": "09eaf44622a586c7264b82b6d96864c23c3d9d59030ef53827ceede5068d5860",
+          "note": "该 .js 文件却使用 import/export ESM 语法；动态 import 后测试结束时触发 SyntaxError: Cannot use import statement outside a module。"
+        }
+      ],
+      "root_cause": {
+        "file": "vendor/supermickey/systems/package.json",
+        "line": 4,
+        "commit": "463ae7ad844de31674b94e73679dafaf0f5dcac5",
+        "symbol": "package type"
+      },
+      "trigger_path": "full-chain-failure.test.mjs 动态 import systems/post-production-pipeline.js → Node 按 nearest package type=commonjs 解析 → ESM import 语法在测试结束后抛未捕获 SyntaxError，整份 45 项全链回归被判失败。",
+      "assertions": [
+        {
+          "kind": "sample",
+          "given": "CommonJS 作用域内的后期 pipeline 以动态 ESM import 加载",
+          "expect": "模块使用显式 .mjs 后缀，测试既不输出 ESM 解析警告，也不在测试结束后抛异步异常",
+          "command": "node --test --test-name-pattern='旧vendor后期引擎：成功任务黑屏静音' scripts/tools/full-chain-failure.test.mjs",
+          "exec": {
+            "file": "node",
+            "args": [
+              "--test",
+              "--test-name-pattern=旧vendor后期引擎：成功任务黑屏静音",
+              "scripts/tools/full-chain-failure.test.mjs"
+            ]
+          },
+          "last_result": "pass",
+          "run": {
+            "path": "runs/MC-023-0-1793412313003.json",
+            "sha256": "61725ceba7a9993dc59048916f520073765c391e6277931609acf37109766e2d",
+            "commit": "00ad4f1f6d9eb9174279f6a8a8271e67534fa55a"
+          },
+          "evidence": {
+            "path": "evidence/MC-023-0-1793412313003.txt",
+            "sha256": "a8f5169bac9e7e4db6e2c21a88c6ef28786f32dffbd894b6eedeed8da38e5a47",
+            "commit": "00ad4f1f6d9eb9174279f6a8a8271e67534fa55a"
+          }
+        },
+        {
+          "kind": "property",
+          "given": "完整全链失败/复用/后期回归套件",
+          "expect": "45 项全部通过且无测试结束后的异步异常",
+          "command": "node --test --test-concurrency=1 scripts/tools/full-chain-failure.test.mjs",
+          "exec": {
+            "file": "node",
+            "args": [
+              "--test",
+              "--test-concurrency=1",
+              "scripts/tools/full-chain-failure.test.mjs"
+            ]
+          },
+          "last_result": "pass",
+          "run": {
+            "path": "runs/MC-023-1-1793412313598.json",
+            "sha256": "a8c4faef5970c8013b1dfcc57cde370c762c07620edd4437e861d52cf1e44f18",
+            "commit": "00ad4f1f6d9eb9174279f6a8a8271e67534fa55a"
+          },
+          "evidence": {
+            "path": "evidence/MC-023-1-1793412313598.txt",
+            "sha256": "4dbc2bfce952741d770d7c8e57c1746f5e512185cfc494cac67e57664d8ae56f",
+            "commit": "00ad4f1f6d9eb9174279f6a8a8271e67534fa55a"
+          }
+        }
+      ],
+      "regression": {
+        "command": "node --test --test-concurrency=1 scripts/tools/full-chain-failure.test.mjs",
+        "evidence": null
+      },
+      "notes": "首次测试 25 个显式用例均通过，但文件级运行因测试结束后的异步 SyntaxError 失败；改名 .mjs 后 45/45 全绿。",
+      "verified_by": null,
+      "verified_at": null,
+      "verification_evidence": null,
+      "last_assertion_attempt": {
+        "actor": "root-repair-2026-10-31",
+        "role": "repair",
+        "result": "pass",
+        "at": "2026-10-31T02:05:13.001Z",
+        "commit": "00ad4f1f6d9eb9174279f6a8a8271e67534fa55a",
+        "finished_at": "2026-10-31T02:06:33.961Z"
       },
       "fixed_by": "root-repair-2026-10-31"
     }
