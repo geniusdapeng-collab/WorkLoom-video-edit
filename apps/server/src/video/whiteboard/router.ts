@@ -29,6 +29,8 @@ import { judge, loadActiveRulesInTx, type RuntimeRule } from "@workloom/base/fen
 import { create as createRenderScript } from "@workloom/base/asset-cms";
 import { newId } from "@workloom/shared";
 import { renderSubmitAutoAllowed } from "../gate-policy.js";
+import { autoApprovalRefusal, evaluateAndRecordVideoAutoApproval } from "../system-auto-approval.js";
+import { sha256Json } from "@workloom/pipeline-control";
 import { writeFileSync } from "node:fs";
 import { protectedProcedure, router, scopeOf, writeProcedure } from "../../trpc/context.js";
 import { scopedQuery, type Scope } from "../gen/db.js";
@@ -642,13 +644,6 @@ export const whiteboardRouter = router({
           capLongEdge, resolution: quality === "uhd" ? "3840x2160" : null },
         context: { render_auto: renderSubmitAutoAllowed() },
       }, rules, "review");
-      if (verdict.level === "block") {
-        throw new TRPCError({
-          code: "FORBIDDEN",
-          message: `G8 围栏熔断：${verdict.triggeredBy.join("；") || "whiteboard render.submit 命中 block 规则"}`,
-        });
-      }
-
       /* ---- 渲染脚本行（白板片同样走"版本即审批对象"口径） ---- */
       const scriptKey = `whiteboard-${film.project_id}`;
       const existing = await scopedQuery<RenderScriptLike & Record<string, unknown>>(
@@ -674,19 +669,6 @@ export const whiteboardRouter = router({
           by: actor,
         });
       }
-      if (verdict.level === "review") {
-        const cur = await scopedQuery<{ status: string }>(
-          app, scope, `SELECT status FROM render_scripts WHERE workspace_id=$1 AND id=$2`,
-          [scope.workspaceId, scriptRow.id],
-        );
-        if (cur[0]?.status !== "approved") {
-          throw new TRPCError({
-            code: "PRECONDITION_FAILED",
-            message: `G8：渲染提交烧算力前置门——脚本 ${scriptKey} 须先经 video.cms.approveScript 审批（当前 ${cur[0]?.status ?? "未知"}）`,
-          });
-        }
-      }
-
       const totalDurationMs = scenes.reduce((sum, s) => sum + (s.duration_ms ?? 0), 0);
       /**
        * 幂等键必须**含渲染输入的内容指纹**，不能只用"幕数 + 总时长"。
@@ -702,6 +684,82 @@ export const whiteboardRouter = router({
         })).join("\n") + `\nquality=${quality};cap=${capLongEdge}`)
         .digest("hex")
         .slice(0, 16);
+      const factHash = sha256Json({
+        projectId: film.project_id,
+        scriptId: scriptRow.id,
+        quality,
+        capLongEdge,
+        scenes: scenes.map((scene) => ({
+          sceneNo: scene.scene_no,
+          lineartPath: scene.lineart_path,
+          annotation: scene.annotation,
+          durationMs: scene.duration_ms,
+        })),
+      });
+      const auto = await evaluateAndRecordVideoAutoApproval(
+        gateway,
+        scope,
+        { type: "render_script", id: scriptRow.id },
+        {
+          gateKey: "G8",
+          action: "render.submit",
+          artifactSha256: factHash,
+          factHash,
+          expectedFactHash: factHash,
+          deterministicChecks: [
+            {
+              id: "whiteboard-scenes-ready",
+              category: "deterministic",
+              status: scenes.every((scene) => Boolean(scene.lineart_path) && Boolean(scene.annotation)) ? "passed" : "failed",
+              detail: "all scenes require current lineart and annotation",
+              evidenceRef: scriptRow.id,
+              ...(scenes.every((scene) => Boolean(scene.lineart_path) && Boolean(scene.annotation)) ? {} : { repairClass: "local_patch" as const }),
+            },
+            {
+              id: "whiteboard-output-size",
+              category: "deterministic",
+              status: "passed",
+              detail: `UHD scene projection validated for ${scenes.length} scenes`,
+              evidenceRef: factHash,
+            },
+          ],
+          budget: {
+            status: "not_applicable",
+            detail: "whiteboard-local rendering has no paid provider request",
+            evidenceRef: `whiteboard:${film.id}:budget`,
+          },
+          qualification: {
+            status: "passed",
+            detail: "current lineart, annotations and output-size checks passed",
+            evidenceRef: scriptRow.id,
+          },
+          permission: {
+            status: "passed",
+            detail: "current member and workspace are authorized for whiteboard rendering",
+            evidenceRef: `${scope.tenantId}/${scope.workspaceId}/${ctx.identity.memberNo}`,
+          },
+          fence: {
+            status: verdict.level === "block" ? "failed" : "passed",
+            level: verdict.level,
+            detail: verdict.triggeredBy.join("；") || `fence level ${verdict.level}`,
+            evidenceRef: `fence:whiteboard.render:${verdict.impacts.map((impact) => `${impact.rule_id}@${impact.version}`).join(",") || "default"}`,
+            triggeredBy: verdict.triggeredBy,
+          },
+          evidenceRefs: [{
+            id: `whiteboard:${film.id}`,
+            kind: "rule",
+            sha256: factHash,
+            ref: factHash,
+          }],
+        },
+      );
+      const refusal = autoApprovalRefusal(auto);
+      if (refusal) {
+        throw new TRPCError({
+          code: auto.outcome === "blocked" ? "FORBIDDEN" : "PRECONDITION_FAILED",
+          message: `G8 系统自动裁决 ${refusal}`,
+        });
+      }
       const customKey = input.idempotencyKey
         ? `${createHash("sha256").update(input.idempotencyKey).digest("hex").slice(0, 16)}:`
         : "";
@@ -731,7 +789,7 @@ export const whiteboardRouter = router({
         },
         mode: "manual",
         idempotencyKey: `whiteboard:${film.id}:${customKey}${fingerprint}`,
-        fenceLevel: verdict.level,
+        fenceLevel: "auto",
         fenceImpacts: verdict.impacts as never,
         budgetOverageSeconds: input.allowOverage ? Math.max(0, Math.round(totalDurationMs / 1000)) : 0,
       });

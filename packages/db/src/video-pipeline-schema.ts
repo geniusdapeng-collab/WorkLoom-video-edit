@@ -1,6 +1,6 @@
 /**
  * Drizzle type source for the additive video pipeline control-plane tables.
- * Canonical DDL remains packages/db/migrations/0054-0058.
+ * Canonical DDL remains packages/db/migrations/0054-0060.
  */
 import {
   bigint,
