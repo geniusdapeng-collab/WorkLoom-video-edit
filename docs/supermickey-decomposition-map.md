@@ -127,7 +127,7 @@
 | 一次性脚本 | `patch-*.py` 6 件、`start-g001.sh`、`start-preproduction{,-v2}.sh`（硬编码作者路径）、`submit-production-v6.3-patch2.sh`、`prepare-render-submit.js`、`process-remaining-shots.js`、`fix-render-prompts.js`、`clean-beast-database.js`、`internal/check|fix-code-consistency.sh` |
 | 半死代码 | `shields/stability-shield.js`（produce 从未被调用）、`infrastructure/saga-orchestrator.js`（主链路未消费）、`systems/event-bus-pilot.js`（与 event-bus 重复）、`llm-gateway`（未接线） |
 | 旧版子系统 | `seedance-director/`（依赖仓库外 openclaw 技能，悬空引用）、`seedance-agent/`（ESM 重构分支，**其 Agent Loop/权限门/状态机/通知器抽象作为架构参照，代码不搬**） |
-| 后期四实现收敛 | `systems/post-production-pipeline.js`、`seedance-post-production/`、`scripts/post-production-*` → 全部收敛到 `engines/post-production-engine/`，仅吸收 ffmpeg 路径解析健壮性 |
+| 后期四实现收敛 | `systems/post-production-pipeline.mjs`、`seedance-post-production/`、`scripts/post-production-*` → 全部收敛到 `engines/post-production-engine/`，仅吸收 ffmpeg 路径解析健壮性 |
 | 历史文档 | 4 份审计/诊断 md、`docs/report-to-user.md` → 归档不带入 |
 | 示例业务数据 | `data/nirath-*`（山海经 IP 数据）、`tasks/EX-005` 样例 → 作为 demo 种子可选 |
 

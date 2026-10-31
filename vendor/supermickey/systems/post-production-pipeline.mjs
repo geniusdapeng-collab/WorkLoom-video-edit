@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// Explicit ESM suffix: the nearest vendor package scope is CommonJS.
 /** Local postprocessing utility: preserve source bytes, normalize actual streams, emit a real MP4. */
 import fs from 'node:fs';
 import path from 'node:path';
