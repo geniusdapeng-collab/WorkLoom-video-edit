@@ -35,7 +35,7 @@ export async function createOutcomeFixture({ fault = null } = {}) {
       const thread = threads.find(row => row.id === input.threadId);
       if (!thread) { send(404, null, 'NOT_FOUND'); return; }
       if (procedure === 'threads.get') { send(200, fault === 'wrong-thread' ? { ...thread, id: 'T-other' } : thread); return; }
-      const text = fault === 'authorization-leak' ? 'Authorization: Basic ' + ['Q25iOn', 'ByaXZhdGUtZml4dHVyZQ=='].join('') : '需要处理一项行业待办，未完成项请负责人核对。';
+      const text = fault === 'authorization-leak' ? 'Authorization: Basic ' + ['Q25iOn', 'ByaXZhdGUtZml4dHVyZQ=='].join('') : '这项增长实验需要核对证据、假设与待处理事项；负责人请补充来源。';
       send(200, fault === 'empty-events' ? [] : [{ event_id: 'E-101', object: { id: input.threadId }, context: { workspace_id: 'ws-fixture' },
         who: { id: thread.preset_key }, decision: { action: 'ask.answer', after: { text }, params: { via: 'rule' } }, model_trace: { model_id: 'mock-001' } }]);
     } catch (error) {

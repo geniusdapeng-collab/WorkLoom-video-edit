@@ -1,0 +1,2386 @@
+{
+  "schema": "workloom.mine-clear/ledger@1",
+  "task_id": "T-2026-1030-9010",
+  "repo": "WorkLoom-video-edit",
+  "repo_path": "/Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit",
+  "title": "",
+  "created_at": "2026-10-30T06:14:55.791Z",
+  "updated_at": "2026-10-31T02:11:37.379Z",
+  "baseline": {
+    "audit": {
+      "commit": "463ae7ad844de31674b94e73679dafaf0f5dcac5",
+      "branch": "task/T-2026-1030-9010",
+      "remote": "origin",
+      "fetched_at": "2026-10-30T06:14:55.746Z",
+      "fetch_status": "success",
+      "notes": ""
+    },
+    "repair": {
+      "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7",
+      "reverified_problem_ids": []
+    },
+    "acceptance": {
+      "commit": null,
+      "is_descendant_of_repair": null
+    }
+  },
+  "environment": {
+    "kind": "local-preview",
+    "notes": ""
+  },
+  "invariants": [
+    {
+      "id": "INV-1",
+      "text": "租户边界覆盖数据库 RLS、运行时上下文、事件、缓存和外部连接器。",
+      "source": "AGENTS.md#4.1"
+    },
+    {
+      "id": "INV-2",
+      "text": "经营事件、审批和关键回执只增不改；纠正通过新事件表达，不静默覆盖证据。",
+      "source": "AGENTS.md#4.2"
+    },
+    {
+      "id": "INV-3",
+      "text": "所有外部或变更性动作及其子调用，统一经过权限、PII、围栏和审批链路。",
+      "source": "AGENTS.md#4.3"
+    },
+    {
+      "id": "INV-4",
+      "text": "涉钱、敏感数据、群发、公开发布、交易和破坏性变更必须按高风险处理并由人审批。",
+      "source": "AGENTS.md#4.4"
+    },
+    {
+      "id": "INV-5",
+      "text": "没有真实回执就不能标记完成；mock、模拟和体验模式在数据结构与界面上都要明确区分。",
+      "source": "AGENTS.md#4.5"
+    },
+    {
+      "id": "INV-6",
+      "text": "客户原始经营数据不得上行；蜂群只接受白名单化、最小化、匿名化且可审计的元数据或派生经验。",
+      "source": "AGENTS.md#4.6"
+    },
+    {
+      "id": "INV-7",
+      "text": "租户覆盖层只能收紧围栏，不能放宽平台不可变红线。",
+      "source": "AGENTS.md#4.7"
+    },
+    {
+      "id": "INV-8",
+      "text": "模型、提示词、技能、bundle、策略和热更新必须先评测再灰度，且始终可回滚。",
+      "source": "AGENTS.md#4.8"
+    },
+    {
+      "id": "INV-9",
+      "text": "platform-ops、平台账户运营和平台秘密只属于 Andromeda。",
+      "source": "AGENTS.md#4.9"
+    },
+    {
+      "id": "INV-10",
+      "text": "Tiger 在获得单独的合规审查和用户明确授权前，只能模拟或纸面交易。",
+      "source": "AGENTS.md#4.10"
+    },
+    {
+      "id": "INV-11",
+      "text": "令牌、密码、API key、私钥、客户凭证和私密客户数据不得进入源码、文档、上下文、提示词、日志或提交。",
+      "source": "AGENTS.md#4.11"
+    },
+    {
+      "id": "INV-12",
+      "text": "个性化与行业扩展不得形成公共机制的第二事实源。",
+      "source": "AGENTS.md#4.12"
+    }
+  ],
+  "cards": [
+    {
+      "id": "MC-001",
+      "kind": "problem",
+      "level": "L2",
+      "severity": "P1",
+      "batch": 0,
+      "state": "fixed",
+      "title": "数据管线 CLI 对危险参数静默回退或接受，可能把错误输入送入生产管线",
+      "evidence": [
+        {
+          "type": "code",
+          "ref": "scripts/tools/data-pipeline-run.mts:93@463ae7ad844de31674b94e73679dafaf0f5dcac5",
+          "sha256": "1a4449d435e52b155a38cd6e8dc43b33339a6209ecb85a312b0b23b0369263c1",
+          "note": "基线直接把 --duration/--aspect 经 Number/|| 或任意字符串写入 profile；--project、--platform、--route 和重复参数没有 fail-closed 校验。"
+        }
+      ],
+      "root_cause": {
+        "file": "scripts/tools/data-pipeline-run.mts",
+        "line": 93,
+        "commit": "463ae7ad844de31674b94e73679dafaf0f5dcac5",
+        "symbol": "CLI argument parsing"
+      },
+      "trigger_path": "传入非法时长/画幅、未知平台、路径穿越工程ID、重复路由或非法监制模式，dry-run 仍可成功并生成可误用的 preflight。",
+      "assertions": [
+        {
+          "kind": "sample",
+          "given": "--duration abc / --aspect banana / --project ../escape / --route 重复",
+          "expect": "退出码 2，错误原因指向具体参数，不产生生产预检",
+          "command": "node --test scripts/tools/data-pipeline-run.node-test.mjs",
+          "exec": {
+            "file": "node",
+            "args": [
+              "--test",
+              "scripts/tools/data-pipeline-run.node-test.mjs"
+            ]
+          },
+          "last_result": "pass",
+          "run": {
+            "path": "runs/MC-001-0-1793412465690.json",
+            "sha256": "336cbe760699547a81a55e85646731c06171a6a7487ccade511be85760262789",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
+          },
+          "evidence": {
+            "path": "evidence/MC-001-0-1793412465690.txt",
+            "sha256": "a332b051a90fe1226d5d888a769bdaf042c3f2b9959dd34ac20d8690296c81be",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
+          }
+        },
+        {
+          "kind": "property",
+          "given": "任一关键参数被重复声明、越界或不在允许枚举",
+          "expect": "参数解析在任何模型/供应商启动前 fail-closed",
+          "command": "node --test scripts/tools/data-pipeline-run.node-test.mjs",
+          "exec": {
+            "file": "node",
+            "args": [
+              "--test",
+              "scripts/tools/data-pipeline-run.node-test.mjs"
+            ]
+          },
+          "last_result": "pass",
+          "run": {
+            "path": "runs/MC-001-1-1793412470253.json",
+            "sha256": "fe60a47b65ef01fcbbbe77effa6bd5d0c24714602ef801d5538682ecb8e2b8da",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
+          },
+          "evidence": {
+            "path": "evidence/MC-001-1-1793412470253.txt",
+            "sha256": "978dfa89470321bcdae9a6ec929204029ed0a3bd9c306e1b4a0c8ccfc13dfc4a",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
+          }
+        }
+      ],
+      "notes": "20 组异常矩阵中的 X03/X04/X05/X09-X16/X19-X20 命中此类问题。",
+      "regression": {
+        "command": "node --test scripts/tools/data-pipeline-run.node-test.mjs",
+        "evidence": null
+      },
+      "verified_by": null,
+      "verified_at": null,
+      "verification_evidence": null,
+      "last_assertion_attempt": {
+        "actor": "root-repair-2026-10-31",
+        "role": "repair",
+        "result": "pass",
+        "at": "2026-10-31T02:07:45.689Z",
+        "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7",
+        "finished_at": "2026-10-31T02:07:54.468Z"
+      },
+      "fixed_by": "root-repair-2026-10-31"
+    },
+    {
+      "id": "MC-002",
+      "kind": "problem",
+      "level": "L3",
+      "severity": "P1",
+      "batch": 1,
+      "state": "fixed",
+      "title": "通用叙事线被 vendor 无条件注入营销 Brief 与商业广告指令",
+      "evidence": [
+        {
+          "type": "code",
+          "ref": "vendor/supermickey/hyperreality-system/index.js:3107@463ae7ad844de31674b94e73679dafaf0f5dcac5",
+          "sha256": "acb46563f99b61babb1156858fb83c083a258b052ff21169d3b3e7d5bddec5cf",
+          "note": "只要 brief 非空，_buildThemeInput 即追加“商品/品牌推广类社媒短片”和消费决策基调，完全不检查 pipelineRoute。"
+        }
+      ],
+      "root_cause": {
+        "file": "vendor/supermickey/hyperreality-system/index.js",
+        "line": 3107,
+        "commit": "463ae7ad844de31674b94e73679dafaf0f5dcac5",
+        "symbol": "_buildThemeInput"
+      },
+      "trigger_path": "route=narrative + metadata.brief.platform/goal 非空 → 真实 pilot G2 将城市人文片识别为“商业广告/商品种草”。",
+      "assertions": [
+        {
+          "kind": "sample",
+          "given": "pipelineRoute.kind=narrative，brief 仅含平台与时长",
+          "expect": "vendored 主题输入保持原始叙事意图，不出现营销 Brief 段",
+          "command": "node --import tsx --test scripts/tools/data-pipeline-host-contract.node-test.mjs",
+          "exec": {
+            "file": "node",
+            "args": [
+              "--import",
+              "tsx",
+              "--test",
+              "scripts/tools/data-pipeline-host-contract.node-test.mjs"
+            ]
+          },
+          "last_result": "pass",
+          "run": {
+            "path": "runs/MC-002-0-1793412474600.json",
+            "sha256": "246df760a46dab6edb5e6916b34adf7e3e2e03169adcf222191225dbf970b2d2",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
+          },
+          "evidence": {
+            "path": "evidence/MC-002-0-1793412474600.txt",
+            "sha256": "22cfe4cb5efceb9e52d7bb8af46001095d3c2d15f5387836aff84a1ccd3ecc31",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
+          }
+        },
+        {
+          "kind": "property",
+          "given": "任一 narrative 路由",
+          "expect": "营销主题拼接在 vendor 包装层被旁路；marketing 路由保持原完整拼接",
+          "command": "node --import tsx --test scripts/tools/data-pipeline-host-contract.node-test.mjs",
+          "exec": {
+            "file": "node",
+            "args": [
+              "--import",
+              "tsx",
+              "--test",
+              "scripts/tools/data-pipeline-host-contract.node-test.mjs"
+            ]
+          },
+          "last_result": "pass",
+          "run": {
+            "path": "runs/MC-002-1-1793412475089.json",
+            "sha256": "93adbeacf15ce25b40e97ae9dc3b1f8850c50023c05569096ac0aaa82be9428a",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
+          },
+          "evidence": {
+            "path": "evidence/MC-002-1-1793412475089.txt",
+            "sha256": "b415bbeb7ac06bc007b0565b55a2b641e016ac1a01aae110b5ae1ded6d50e96d",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
+          }
+        }
+      ],
+      "notes": "仓库 vendor 目录保持只读，修复落在宿主 requirement-contract bridge。",
+      "regression": {
+        "command": "node --import tsx --test scripts/tools/data-pipeline-host-contract.node-test.mjs",
+        "evidence": null
+      },
+      "verified_by": null,
+      "verified_at": null,
+      "verification_evidence": null,
+      "last_assertion_attempt": {
+        "actor": "root-repair-2026-10-31",
+        "role": "repair",
+        "result": "pass",
+        "at": "2026-10-31T02:07:54.599Z",
+        "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7",
+        "finished_at": "2026-10-31T02:07:55.559Z"
+      },
+      "fixed_by": "root-repair-2026-10-31"
+    },
+    {
+      "id": "MC-003",
+      "kind": "problem",
+      "level": "L2",
+      "severity": "P1",
+      "batch": 1,
+      "state": "fixed",
+      "title": "无渲染数据 CLI 未下发宿主选角合同，需求洞察必然 fail-closed",
+      "evidence": [
+        {
+          "type": "code",
+          "ref": "scripts/tools/data-pipeline-run.mts:306@463ae7ad844de31674b94e73679dafaf0f5dcac5",
+          "sha256": "1a4449d435e52b155a38cd6e8dc43b33339a6209ecb85a312b0b23b0369263c1",
+          "note": "基线直接将 seeded metadata 交给 VideoStudio，未调用 resolveBuiltinCharacters/applyBuiltinCharacters。"
+        }
+      ],
+      "root_cause": {
+        "file": "scripts/tools/data-pipeline-run.mts",
+        "line": 306,
+        "commit": "463ae7ad844de31674b94e73679dafaf0f5dcac5",
+        "symbol": "runPreproduction metadata assembly"
+      },
+      "trigger_path": "任意 narrative/marketing 数据管线 run → RequirementDiscoveryEngine → requirementCast 缺少 builtinCharacterSelection → REQUIREMENT_CONTRACT_INVALID。",
+      "assertions": [
+        {
+          "kind": "sample",
+          "given": "narrative dry-run，用户未指定人物",
+          "expect": "preflight 含与生产 worker 同形的 schemaVersion/mode/characters 选角合同",
+          "command": "node --test scripts/tools/data-pipeline-run.node-test.mjs",
+          "exec": {
+            "file": "node",
+            "args": [
+              "--test",
+              "scripts/tools/data-pipeline-run.node-test.mjs"
+            ]
+          },
+          "last_result": "pass",
+          "run": {
+            "path": "runs/MC-003-0-1793412475670.json",
+            "sha256": "3bb23df8363ea8b33b8472dc6994da1dd1294fe05c7e5d2db1dc10ac423eb55d",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
+          },
+          "evidence": {
+            "path": "evidence/MC-003-0-1793412475670.txt",
+            "sha256": "5a0b7690209aa0219a1f384abf609113bf19a57706e825e8df1e0f27c6ba8216",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
+          }
+        },
+        {
+          "kind": "property",
+          "given": "任意 route",
+          "expect": "Studio 收到的 metadata 必带完整选角合同和对应人物数组",
+          "command": "node --test scripts/tools/data-pipeline-run.node-test.mjs",
+          "exec": {
+            "file": "node",
+            "args": [
+              "--test",
+              "scripts/tools/data-pipeline-run.node-test.mjs"
+            ]
+          },
+          "last_result": "pass",
+          "run": {
+            "path": "runs/MC-003-1-1793412479984.json",
+            "sha256": "290e47f982c92dbc4178e6342bfdcc9c7cecc3eb212b9d804ce3808a8de1a749",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
+          },
+          "evidence": {
+            "path": "evidence/MC-003-1-1793412479984.txt",
+            "sha256": "47ebd12784ff07b2dcf827d674f2b36ea354e9c9e3cc5e94107e20bdc1f3ad52",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
+          }
+        }
+      ],
+      "notes": "真实 PILOT-NARRATIVE-001 首先暴露该错误。",
+      "regression": {
+        "command": "node --test scripts/tools/data-pipeline-run.node-test.mjs",
+        "evidence": null
+      },
+      "verified_by": null,
+      "verified_at": null,
+      "verification_evidence": null,
+      "last_assertion_attempt": {
+        "actor": "root-repair-2026-10-31",
+        "role": "repair",
+        "result": "pass",
+        "at": "2026-10-31T02:07:55.670Z",
+        "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7",
+        "finished_at": "2026-10-31T02:08:04.653Z"
+      },
+      "fixed_by": "root-repair-2026-10-31"
+    },
+    {
+      "id": "MC-004",
+      "kind": "problem",
+      "level": "L3",
+      "severity": "P1",
+      "batch": 0,
+      "state": "fixed",
+      "title": "G3/G4 确定性门把版本化合同中的合法 null 当作占位泄漏",
+      "evidence": [
+        {
+          "type": "code",
+          "ref": "apps/server/src/video/gate-policy.ts:92@463ae7ad844de31674b94e73679dafaf0f5dcac5",
+          "sha256": "eab9513a95830cb23472792957f6d6002277254360ef6d75464ac93b591c4d0c",
+          "note": "no-placeholder 对所有门统一用 /null/ 正则；G3 的合法 noPropsReason:null 因此被硬拒绝。"
+        }
+      ],
+      "root_cause": {
+        "file": "apps/server/src/video/gate-policy.ts",
+        "line": 92,
+        "commit": "463ae7ad844de31674b94e73679dafaf0f5dcac5",
+        "symbol": "gateDeterministicChecks"
+      },
+      "trigger_path": "无人场景的 G3 noPropsReason 或 G4 registryPath/ownerAudience 为合法 null → deterministic no-placeholder hard fail → 正确合同被错误打回。",
+      "assertions": [
+        {
+          "kind": "sample",
+          "given": "G3 文本包含版本化 JSON 的 noPropsReason:null",
+          "expect": "no-placeholder 通过",
+          "command": "node --import tsx --test scripts/tools/data-pipeline-host-contract.node-test.mjs",
+          "exec": {
+            "file": "node",
+            "args": [
+              "--import",
+              "tsx",
+              "--test",
+              "scripts/tools/data-pipeline-host-contract.node-test.mjs"
+            ]
+          },
+          "last_result": "pass",
+          "run": {
+            "path": "runs/MC-004-0-1793412484777.json",
+            "sha256": "d1f25b16eecbcb74c2f412a411366c38de8e79bf326aec2c6fb4a378f04900f1",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
+          },
+          "evidence": {
+            "path": "evidence/MC-004-0-1793412484777.txt",
+            "sha256": "ce1b9787fd94b1de59dbc99d3a5b2453b2c289b89519419eccaffda2114f81a9",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
+          }
+        },
+        {
+          "kind": "property",
+          "given": "G3 文本含 undefined / NaN / [object Object]",
+          "expect": "仍作为硬占位失败",
+          "command": "node --import tsx --test scripts/tools/data-pipeline-host-contract.node-test.mjs",
+          "exec": {
+            "file": "node",
+            "args": [
+              "--import",
+              "tsx",
+              "--test",
+              "scripts/tools/data-pipeline-host-contract.node-test.mjs"
+            ]
+          },
+          "last_result": "pass",
+          "run": {
+            "path": "runs/MC-004-1-1793412485391.json",
+            "sha256": "97b4d1b44bf3e10c0fd0bd24b04b85281a3aaf64a09a054f0ee1ee52392f95fb",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
+          },
+          "evidence": {
+            "path": "evidence/MC-004-1-1793412485391.txt",
+            "sha256": "60ed1fb7dd06a4244aa39bd70a558e5294d8cb1efd82f6f7a198aeeb1589c572",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
+          }
+        },
+        {
+          "kind": "sample",
+          "given": "G4 可解析合同 JSON 含 registryPath:null 与 ownerAudience:null",
+          "expect": "no-placeholder 通过；合同块外 null 或损坏 JSON 仍硬失败",
+          "command": "node --import tsx --test --test-name-pattern='G3|G4' scripts/tools/data-pipeline-host-contract.node-test.mjs",
+          "exec": {
+            "file": "node",
+            "args": [
+              "--import",
+              "tsx",
+              "--test",
+              "--test-name-pattern=G3|G4",
+              "scripts/tools/data-pipeline-host-contract.node-test.mjs"
+            ]
+          },
+          "last_result": "pass",
+          "run": {
+            "path": "runs/MC-004-2-1793412485893.json",
+            "sha256": "8a33c8bcb39389acde77d5c20fe8b25d39d8d7eca75b2c6b6846a16f9bb778c9",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
+          },
+          "evidence": {
+            "path": "evidence/MC-004-2-1793412485893.txt",
+            "sha256": "537fab5ef740a1df36dc620797a519a52fc02704976e69ba02f6c4c106c79a03",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
+          }
+        }
+      ],
+      "notes": "PILOT-NARRATIVE-006 真实复现 G3；修复后 M01 在 G4 再次复现同类 versioned-contract null，现统一修复两类门。",
+      "regression": {
+        "command": "node --import tsx --test scripts/tools/data-pipeline-host-contract.node-test.mjs",
+        "evidence": null
+      },
+      "verified_by": null,
+      "verified_at": null,
+      "verification_evidence": null,
+      "last_assertion_attempt": {
+        "actor": "root-repair-2026-10-31",
+        "role": "repair",
+        "result": "pass",
+        "at": "2026-10-31T02:08:04.776Z",
+        "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7",
+        "finished_at": "2026-10-31T02:08:06.381Z"
+      },
+      "fixed_by": "root-repair-2026-10-31"
+    },
+    {
+      "id": "MC-005",
+      "kind": "problem",
+      "level": "L4",
+      "severity": "P1",
+      "batch": 2,
+      "state": "fixed",
+      "title": "叙事 PRD 没有人物与 G3 场景权威，模型可新增演员、改服装并制造双轨阈值",
+      "evidence": [
+        {
+          "type": "code",
+          "ref": "packages/video-studio/src/studio.ts:250@463ae7ad844de31674b94e73679dafaf0f5dcac5",
+          "sha256": "c08ff3a534ab41b79e0ffa392acde8cd4e0e48535154d9868b471e3435502d19",
+          "note": "基线只在 input.isMarketing 分支安装 G1/PRD authority；narrative PRD 输出没有人物和已审场景合同归一。"
+        }
+      ],
+      "root_cause": {
+        "file": "packages/video-studio/src/studio.ts",
+        "line": 250,
+        "commit": "463ae7ad844de31674b94e73679dafaf0f5dcac5",
+        "symbol": "VideoStudio.runPreproduction"
+      },
+      "trigger_path": "default builtin character + narrative G3 通过 → G4 PRD 写回“十七八岁/另一套服装/船工”并设置两套画质阈值，真实 G4 47 分拒绝。",
+      "assertions": [
+        {
+          "kind": "sample",
+          "given": "narrative PRD 含额外演员、错误服装、冲突阈值和未请求字幕硬规则",
+          "expect": "人物、场景、画幅/时长、阈值与字幕交付声明被宿主合同归一",
+          "command": "node --import tsx --test scripts/tools/data-pipeline-host-contract.node-test.mjs",
+          "exec": {
+            "file": "node",
+            "args": [
+              "--import",
+              "tsx",
+              "--test",
+              "scripts/tools/data-pipeline-host-contract.node-test.mjs"
+            ]
+          },
+          "last_result": "pass",
+          "run": {
+            "path": "runs/MC-005-0-1793412486500.json",
+            "sha256": "a3561170ce2b010f7861015bff3340eb23208fed2090c10bce5d7535c2401133",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
+          },
+          "evidence": {
+            "path": "evidence/MC-005-0-1793412486500.txt",
+            "sha256": "9921bcb7c992287e8d97a4cf5de52934c5ce8c42312083cfbf2165fd146f35fc",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
+          }
+        },
+        {
+          "kind": "property",
+          "given": "任意 narrative 路由",
+          "expect": "PRD 只能保留本次宿主选角与已审 G3 场景；marketing 仍走单独私有 authority",
+          "command": "node --import tsx --test scripts/tools/data-pipeline-host-contract.node-test.mjs",
+          "exec": {
+            "file": "node",
+            "args": [
+              "--import",
+              "tsx",
+              "--test",
+              "scripts/tools/data-pipeline-host-contract.node-test.mjs"
+            ]
+          },
+          "last_result": "pass",
+          "run": {
+            "path": "runs/MC-005-1-1793412486987.json",
+            "sha256": "95c7f770f716f11da9e99c0b66572700bc9dcf3dec96b4d91db30ac5854fc7fc",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
+          },
+          "evidence": {
+            "path": "evidence/MC-005-1-1793412486987.txt",
+            "sha256": "3dffa75f0b8e01f23a6641073153e2be1a8b36328a98b508fe840d1f857c6810",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
+          }
+        }
+      ],
+      "notes": "PILOT-NARRATIVE-004 的 G4 门禁原文已保留为失败证据。",
+      "regression": {
+        "command": "node --import tsx --test scripts/tools/data-pipeline-host-contract.node-test.mjs",
+        "evidence": null
+      },
+      "verified_by": null,
+      "verified_at": null,
+      "verification_evidence": null,
+      "last_assertion_attempt": {
+        "actor": "root-repair-2026-10-31",
+        "role": "repair",
+        "result": "pass",
+        "at": "2026-10-31T02:08:06.499Z",
+        "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7",
+        "finished_at": "2026-10-31T02:08:07.479Z"
+      },
+      "fixed_by": "root-repair-2026-10-31"
+    },
+    {
+      "id": "MC-006",
+      "kind": "problem",
+      "level": "L2",
+      "severity": "P2",
+      "batch": 3,
+      "state": "fixed",
+      "title": "视频工位自检把未安装的可选曲库根误判为路径监狱失败",
+      "evidence": [
+        {
+          "type": "code",
+          "ref": "scripts/tools/video-doctor.mts:102@463ae7ad844de31674b94e73679dafaf0f5dcac5",
+          "sha256": "fe58e2842518406919a26bfde28c30ed695bde1604cd8c70b232316aaae7faf0",
+          "note": "libraryRoots() 会返回尚未安装的可选 ~/.workloom-bgm/library；原逻辑对返回值直接判定路径白名单，并把不存在的目录计为 fail。"
+        }
+      ],
+      "root_cause": {
+        "file": "scripts/tools/video-doctor.mts",
+        "line": 102,
+        "commit": "463ae7ad844de31674b94e73679dafaf0f5dcac5",
+        "symbol": "bgm-library-jail check"
+      },
+      "trigger_path": "在未安装可选工位曲库、但随仓兜底曲库可用的新机器执行 video:doctor --json → bgm-library-jail=fail，整体自检出现假阻断。",
+      "assertions": [
+        {
+          "kind": "sample",
+          "given": "HOME 与 WORKLOOM_BGM_HOME 指向临时目录，可选工位曲库不存在，WORKLOOM_BGM_DISCOVER=0",
+          "expect": "video-doctor 将 bgm-library-jail 判为 pass，并明确显示未安装可选根",
+          "command": "node --test scripts/tools/video-doctor.node-test.mjs",
+          "exec": {
+            "file": "node",
+            "args": [
+              "--test",
+              "scripts/tools/video-doctor.node-test.mjs"
+            ]
+          },
+          "last_result": "pass",
+          "run": {
+            "path": "runs/MC-006-0-1793412487606.json",
+            "sha256": "87a6b5990bd23f6a02038687e886f4fd18b6262d8aeba2882c1419099e752588",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
+          },
+          "evidence": {
+            "path": "evidence/MC-006-0-1793412487606.txt",
+            "sha256": "48c8d622dabc3c2c7c1e6dbf89d096c957964caa29273bdb33329a6a3476ef0f",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
+          }
+        }
+      ],
+      "regression": {
+        "command": "node --test scripts/tools/video-doctor.node-test.mjs",
+        "evidence": null
+      },
+      "notes": "现有真实机器复现：~/.workloom-bgm/library 不存在，但随仓精选曲库存在。",
+      "verified_by": null,
+      "verified_at": null,
+      "verification_evidence": null,
+      "last_assertion_attempt": {
+        "actor": "root-repair-2026-10-31",
+        "role": "repair",
+        "result": "pass",
+        "at": "2026-10-31T02:08:07.605Z",
+        "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7",
+        "finished_at": "2026-10-31T02:08:08.414Z"
+      },
+      "fixed_by": "root-repair-2026-10-31"
+    },
+    {
+      "id": "MC-007",
+      "kind": "problem",
+      "level": "L3",
+      "severity": "P1",
+      "batch": 0,
+      "state": "fixed",
+      "title": "MCD 证据执行器把自己写入的受控台账误判为源码脏修改",
+      "evidence": [
+        {
+          "type": "code",
+          "ref": "scripts/delivery/evidence.mjs:76@463ae7ad844de31674b94e73679dafaf0f5dcac5",
+          "sha256": "bb408f4b0257f2dbbf05a8bc072b6feda455fe39d371fa82c01166cf6772891a",
+          "note": "revisionOf 对全仓 git status 判脏，没有任何证据根排除参数；captureEvidenceRun 在台账已更新且 runs/evidence 已生成后继续用它检查。"
+        },
+        {
+          "type": "code",
+          "ref": "scripts/delivery/mine-clear.mjs:597@463ae7ad844de31674b94e73679dafaf0f5dcac5",
+          "sha256": "f2c0e0d200b32ffc7822c0f802afc8460c8c0f48afe261b656559bf1eb1596f5",
+          "note": "run-assertions 先要求工作树干净，随后把已跟踪 ledger 改成 unfixed/running；捕获证据时同一台账写入再次被当成被测源码变化。"
+        }
+      ],
+      "root_cause": {
+        "file": "scripts/delivery/evidence.mjs",
+        "line": 76,
+        "commit": "463ae7ad844de31674b94e73679dafaf0f5dcac5",
+        "symbol": "revisionOf"
+      },
+      "trigger_path": "在标准 outputs/mine-clear/<task>/ledger.json 已提交的仓库中执行 run-assertions → 台账状态先被写入 → captureEvidenceRun 看到 ledger/runs/evidence 为脏 → 修复与独立验收角色都无法运行。",
+      "assertions": [
+        {
+          "kind": "sample",
+          "given": "轨道内 task ledger、runs 与 evidence 已提交，repair 角色执行 run-assertions",
+          "expect": "证据根内状态/运行记录写入被排除，断言实际执行并进入 fixed，working_tree_dirty=false",
+          "command": "node --test --test-name-pattern='revisionOf|explicit runner works' scripts/delivery/evidence-controls.test.mjs",
+          "exec": {
+            "file": "node",
+            "args": [
+              "--test",
+              "--test-name-pattern=revisionOf|explicit runner works",
+              "scripts/delivery/evidence-controls.test.mjs"
+            ]
+          },
+          "last_result": "pass",
+          "run": {
+            "path": "runs/MC-007-0-1793412488562.json",
+            "sha256": "aefaee0bb15cf78b2b539232dd85cf3717a206b60e96af34615e43b360f838d6",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
+          },
+          "evidence": {
+            "path": "evidence/MC-007-0-1793412488562.txt",
+            "sha256": "f000271e8712f94f02d0766a379166b7aed5772af1ab9b4014d40e1cbc5c246e",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
+          }
+        },
+        {
+          "kind": "property",
+          "given": "证据根以外的 tracked README 或 untracked source 文件发生变化",
+          "expect": "revisionOf 仍返回 dirty=true，排除规则不能放过真实源码修改",
+          "command": "node --test --test-name-pattern='revisionOf|explicit runner works' scripts/delivery/evidence-controls.test.mjs",
+          "exec": {
+            "file": "node",
+            "args": [
+              "--test",
+              "--test-name-pattern=revisionOf|explicit runner works",
+              "scripts/delivery/evidence-controls.test.mjs"
+            ]
+          },
+          "last_result": "pass",
+          "run": {
+            "path": "runs/MC-007-1-1793412490531.json",
+            "sha256": "9c0b39a00078c06a432a9eec40f7e85f5140dc4269b7ce00853820779700e85a",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
+          },
+          "evidence": {
+            "path": "evidence/MC-007-1-1793412490531.txt",
+            "sha256": "9a72d61084def190e3a0d37314ca6fd352a2a9c158b2e3ef87377749a18349f0",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
+          }
+        }
+      ],
+      "regression": {
+        "command": "node --test --test-name-pattern='revisionOf|explicit runner works' scripts/delivery/evidence-controls.test.mjs",
+        "evidence": null
+      },
+      "notes": "本任务第一次对 MC-006 执行 repair 角色时真实复现；失败只改了 ledger 状态，未产生验收绿记录。",
+      "verified_by": null,
+      "verified_at": null,
+      "verification_evidence": null,
+      "last_assertion_attempt": {
+        "actor": "root-repair-2026-10-31",
+        "role": "repair",
+        "result": "pass",
+        "at": "2026-10-31T02:08:08.562Z",
+        "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7",
+        "finished_at": "2026-10-31T02:08:11.563Z"
+      },
+      "fixed_by": "root-repair-2026-10-31"
+    },
+    {
+      "id": "MC-008",
+      "kind": "problem",
+      "level": "L4",
+      "severity": "P1",
+      "batch": 1,
+      "state": "fixed",
+      "title": "无人合同只进入提示词，创意主题仍可新增人物、痛点和外部作品引用",
+      "evidence": [
+        {
+          "type": "code",
+          "ref": "apps/server/src/video/builtin-character-selection.ts:265@463ae7ad844de31674b94e73679dafaf0f5dcac5",
+          "sha256": "164eedde8740fc37068f9bec1788da057e2411b15978180467e08818d12ed7e9",
+          "note": "mode=none 只追加一句文字提示，没有在 CreativeThemeGenerator 输出后归一 protagonist、shots、description、受众、基调与外部片名。"
+        }
+      ],
+      "root_cause": {
+        "file": "apps/server/src/video/builtin-character-selection.ts",
+        "line": 265,
+        "commit": "463ae7ad844de31674b94e73679dafaf0f5dcac5",
+        "symbol": "appendBuiltinCharacterGuidance"
+      },
+      "trigger_path": "用户原文明确“全片无人”，主题模型仍生成“开发者停手/转身”、未核实配置痛点或《Her》等未请求片名 → G2 两次拒绝，预生产在创意门停住。",
+      "assertions": [
+        {
+          "kind": "sample",
+          "given": "marketing + mode=none，主题输出含人物、动作、痛点、冲突基调和未请求片名",
+          "expect": "宿主归一把人物/动作/草稿镜头清除，受众与基调绑定客户原文，片名移除并注入 G1 官方主张合同",
+          "command": "node --import tsx --test --test-name-pattern='creative theme' scripts/tools/data-pipeline-host-contract.node-test.mjs",
+          "exec": {
+            "file": "node",
+            "args": [
+              "--import",
+              "tsx",
+              "--test",
+              "--test-name-pattern=creative theme",
+              "scripts/tools/data-pipeline-host-contract.node-test.mjs"
+            ]
+          },
+          "last_result": "pass",
+          "run": {
+            "path": "runs/MC-008-0-1793412491697.json",
+            "sha256": "482bfbfa444170191dc216b9301c16354b699052655d8086eda0f8cf7f50f84e",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
+          },
+          "evidence": {
+            "path": "evidence/MC-008-0-1793412491697.txt",
+            "sha256": "8dc304de75cf61eb1a825b2757f074d5104fb09a385595269752cea0d65a7f9c",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
+          }
+        },
+        {
+          "kind": "property",
+          "given": "客户原文没有指定任意外部导演或影片",
+          "expect": "视觉风格不得把外部作品名送入 G2；客户明确提供的片名仍可保留",
+          "command": "node --import tsx --test --test-name-pattern='creative theme' scripts/tools/data-pipeline-host-contract.node-test.mjs",
+          "exec": {
+            "file": "node",
+            "args": [
+              "--import",
+              "tsx",
+              "--test",
+              "--test-name-pattern=creative theme",
+              "scripts/tools/data-pipeline-host-contract.node-test.mjs"
+            ]
+          },
+          "last_result": "pass",
+          "run": {
+            "path": "runs/MC-008-1-1793412492261.json",
+            "sha256": "a2081f28b96fb404d18249eb0377f8ec4230f8774ced6dec71f30f0e8607ae29",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
+          },
+          "evidence": {
+            "path": "evidence/MC-008-1-1793412492261.txt",
+            "sha256": "7546c10fa28f398fb1ec0e77f0ad31905b0f6c875f8f71980b160ae19977f7ba",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
+          }
+        }
+      ],
+      "regression": {
+        "command": "node --import tsx --test --test-name-pattern='creative theme' scripts/tools/data-pipeline-host-contract.node-test.mjs",
+        "evidence": null
+      },
+      "notes": "M01 两次真实 G2 分别 62/72 分，原始确认单与监制 issues 已保留。",
+      "verified_by": null,
+      "verified_at": null,
+      "verification_evidence": null,
+      "last_assertion_attempt": {
+        "actor": "root-repair-2026-10-31",
+        "role": "repair",
+        "result": "pass",
+        "at": "2026-10-31T02:08:11.696Z",
+        "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7",
+        "finished_at": "2026-10-31T02:08:12.762Z"
+      },
+      "fixed_by": "root-repair-2026-10-31"
+    },
+    {
+      "id": "MC-009",
+      "kind": "problem",
+      "level": "L2",
+      "severity": "P1",
+      "batch": 0,
+      "state": "fixed",
+      "title": "合法官方仓库页面因 24k 正文上限被误判为无可核实来源",
+      "evidence": [
+        {
+          "type": "code",
+          "ref": "apps/server/src/video/marketing-source-fetcher.ts:10@463ae7ad844de31674b94e73679dafaf0f5dcac5",
+          "sha256": "e1dbfb8e6b034880084245573d242f0b93f7e9b200287fd9319ededfd46252da",
+          "note": "单来源可见正文硬上限为 24,000 字符；Cal.com 官方仓库当前完整可见正文约 34,586 字符。"
+        }
+      ],
+      "root_cause": {
+        "file": "apps/server/src/video/marketing-source-fetcher.ts",
+        "line": 155,
+        "commit": "463ae7ad844de31674b94e73679dafaf0f5dcac5",
+        "symbol": "sourceDocument"
+      },
+      "trigger_path": "官方页面正文超过 24k 但低于字节与模型上下文安全边界 → sourceDocument 抛 SOURCE_TEXT_TOO_LARGE → 所有来源失败 → MARKETING_A1_UNVERIFIED。",
+      "assertions": [
+        {
+          "kind": "sample",
+          "given": "完整纯文本正文 47,999 字符，低于新的受控上限",
+          "expect": "sourceDocument 原样保留全文且不截断",
+          "command": "node --import tsx --test --test-name-pattern='bounded source' scripts/tools/data-pipeline-host-contract.node-test.mjs",
+          "exec": {
+            "file": "node",
+            "args": [
+              "--import",
+              "tsx",
+              "--test",
+              "--test-name-pattern=bounded source",
+              "scripts/tools/data-pipeline-host-contract.node-test.mjs"
+            ]
+          },
+          "last_result": "pass",
+          "run": {
+            "path": "runs/MC-009-0-1793412492885.json",
+            "sha256": "a2a861eb02f59f37e0ea4888d6676afbe7322eaf95683a7b0ab50f378829fa6f",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
+          },
+          "evidence": {
+            "path": "evidence/MC-009-0-1793412492885.txt",
+            "sha256": "e547068aadc9954264daded3d4f967661709230c3e7b17ebc7f9b77bcbeaca31",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
+          }
+        },
+        {
+          "kind": "property",
+          "given": "正文超过 SOURCE_MAX_TEXT_CHARS",
+          "expect": "仍失败关闭，不裁剪后冒充完整原文",
+          "command": "node --import tsx --test --test-name-pattern='bounded source' scripts/tools/data-pipeline-host-contract.node-test.mjs",
+          "exec": {
+            "file": "node",
+            "args": [
+              "--import",
+              "tsx",
+              "--test",
+              "--test-name-pattern=bounded source",
+              "scripts/tools/data-pipeline-host-contract.node-test.mjs"
+            ]
+          },
+          "last_result": "pass",
+          "run": {
+            "path": "runs/MC-009-1-1793412493363.json",
+            "sha256": "96b66f8c113d3e1e1cba08ea856bb58ac34588c92a84eb51f070633bdbf5f73f",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
+          },
+          "evidence": {
+            "path": "evidence/MC-009-1-1793412493363.txt",
+            "sha256": "049f9125b61f064c29992480e2424d1bc6bef5811debd2328cef9d2363aeac6d",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
+          }
+        }
+      ],
+      "regression": {
+        "command": "node --import tsx --test --test-name-pattern='bounded source' scripts/tools/data-pipeline-host-contract.node-test.mjs",
+        "evidence": null
+      },
+      "notes": "M02 真实复现为 MARKETING_A1_UNVERIFIED；独立抓取确认 Cal.com 页面文本 34,586 字符。",
+      "verified_by": null,
+      "verified_at": null,
+      "verification_evidence": null,
+      "last_assertion_attempt": {
+        "actor": "root-repair-2026-10-31",
+        "role": "repair",
+        "result": "pass",
+        "at": "2026-10-31T02:08:12.884Z",
+        "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7",
+        "finished_at": "2026-10-31T02:08:13.847Z"
+      },
+      "fixed_by": "root-repair-2026-10-31"
+    },
+    {
+      "id": "MC-010",
+      "kind": "problem",
+      "level": "L2",
+      "severity": "P1",
+      "batch": 1,
+      "state": "fixed",
+      "title": "图片角度被误计为文本事实，支持审核收到空图片数组与残留图片 claim",
+      "evidence": [
+        {
+          "type": "code",
+          "ref": "apps/server/src/video/marketing-facts.ts:41@463ae7ad844de31674b94e73679dafaf0f5dcac5",
+          "sha256": "1365253356d3ab14c8d7e411a13b19b21b5ea9371bbf0cd2f083b073fc6c883b",
+          "note": "factLeaves 仅排除 angle=unknown；angle=“品牌 Logo”被要求生成事实 citation。"
+        }
+      ],
+      "root_cause": {
+        "file": "apps/server/src/video/marketing-facts.ts",
+        "line": 41,
+        "commit": "463ae7ad844de31674b94e73679dafaf0f5dcac5",
+        "symbol": "factLeaves"
+      },
+      "trigger_path": "A1 返回真实图片和非 unknown 角度 → angle 进入文本事实 leaves → 支持审核 facts.payload.images 已清空但 facts.claims 仍含 /images/0/angle → 监制判定缺证据和结构自相矛盾。",
+      "assertions": [
+        {
+          "kind": "sample",
+          "given": "A1 图片带 angle=品牌 Logo，文本事实完整",
+          "expect": "图片元数据不要求 citation，URL 仍由实际页面候选校验",
+          "command": "node --import tsx --test --test-name-pattern='image angle' scripts/tools/data-pipeline-host-contract.node-test.mjs",
+          "exec": {
+            "file": "node",
+            "args": [
+              "--import",
+              "tsx",
+              "--test",
+              "--test-name-pattern=image angle",
+              "scripts/tools/data-pipeline-host-contract.node-test.mjs"
+            ]
+          },
+          "last_result": "pass",
+          "run": {
+            "path": "runs/MC-010-0-1793412493962.json",
+            "sha256": "5e79ce75d35df54dffae679e66716249d3b9a4d0508cbde9b5edc6592d543404",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
+          },
+          "evidence": {
+            "path": "evidence/MC-010-0-1793412493962.txt",
+            "sha256": "e1b642c7b25fd3e4e265947c805961459d6437d5d96b443c53accb9cdf64c8d9",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
+          }
+        },
+        {
+          "kind": "property",
+          "given": "旧档案中仍存在 /images/* claim",
+          "expect": "支持审核过滤图片 claim，只审文本事实",
+          "command": "node --import tsx --test --test-name-pattern='image angle' scripts/tools/data-pipeline-host-contract.node-test.mjs",
+          "exec": {
+            "file": "node",
+            "args": [
+              "--import",
+              "tsx",
+              "--test",
+              "--test-name-pattern=image angle",
+              "scripts/tools/data-pipeline-host-contract.node-test.mjs"
+            ]
+          },
+          "last_result": "pass",
+          "run": {
+            "path": "runs/MC-010-1-1793412494421.json",
+            "sha256": "a0c608902698a22baffa55e6ad1907eef225b67558a30d4837f3e38ec689b7d7",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
+          },
+          "evidence": {
+            "path": "evidence/MC-010-1-1793412494421.txt",
+            "sha256": "f076ee88403e51f759df111f8e4d2ee67c39c1d98b8d4388fe650d6d004b046f",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
+          }
+        }
+      ],
+      "regression": {
+        "command": "node --import tsx --test --test-name-pattern='image angle' scripts/tools/data-pipeline-host-contract.node-test.mjs",
+        "evidence": null
+      },
+      "notes": "M03 真实支持审核原文：/images/0/angle“品牌 Logo”缺 quote 且 images 空数组结构矛盾。",
+      "verified_by": null,
+      "verified_at": null,
+      "verification_evidence": null,
+      "last_assertion_attempt": {
+        "actor": "root-repair-2026-10-31",
+        "role": "repair",
+        "result": "pass",
+        "at": "2026-10-31T02:08:13.961Z",
+        "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7",
+        "finished_at": "2026-10-31T02:08:14.930Z"
+      },
+      "fixed_by": "root-repair-2026-10-31"
+    },
+    {
+      "id": "MC-011",
+      "kind": "problem",
+      "level": "L4",
+      "severity": "P1",
+      "batch": 1,
+      "state": "fixed",
+      "title": "营销档案摘要在无评价/竞品/图片时仍生成口碑、差异化与素材状态矛盾",
+      "evidence": [
+        {
+          "type": "code",
+          "ref": "apps/server/src/video/marketing-authority.ts:326@463ae7ad844de31674b94e73679dafaf0f5dcac5",
+          "sha256": "6e7dac86e9f1509d270fbdf619d2d13f162ab5e892556df86dbc6bfcfd59dcc6",
+          "note": "vendor 完成 dossier/cards 装订后直接使用；“全是好评”、needs_more_reference 冲突、空 selling_point_evidence、幻影参考图、客户明文禁用项未传播均未由宿主归一。"
+        }
+      ],
+      "root_cause": {
+        "file": "apps/server/src/video/marketing-authority.ts",
+        "line": 326,
+        "commit": "463ae7ad844de31674b94e73679dafaf0f5dcac5",
+        "symbol": "prepareMarketingFacts dossier assembly"
+      },
+      "trigger_path": "A2/A3 均 no_evidence、无来源图或来源图 high-risk → 摘要仍写“全是好评”、幻影参考图/型号核对、保留差异化 opening、客户红线未扩散 → G1 真实监制反复以自相矛盾和新增证据状态拒绝。",
+      "assertions": [
+        {
+          "kind": "sample",
+          "given": "A2/A3 无证据、A1 有来源卖点、两张来源图 license_risk=high",
+          "expect": "卖点回绑 claimId/evidenceId，差异化清空，“全是好评”改为 0 样本事实，授权红线与 needs_more_reference 统一",
+          "command": "node --import tsx --test --test-name-pattern='marketing dossier cards' scripts/tools/data-pipeline-host-contract.node-test.mjs",
+          "exec": {
+            "file": "node",
+            "args": [
+              "--import",
+              "tsx",
+              "--test",
+              "--test-name-pattern=marketing dossier cards",
+              "scripts/tools/data-pipeline-host-contract.node-test.mjs"
+            ]
+          },
+          "last_result": "pass",
+          "run": {
+            "path": "runs/MC-011-0-1793412495050.json",
+            "sha256": "da14815da82dedf86830e22f4b95aec0b0774f32ee836c9a937ea6ac5140898d",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
+          },
+          "evidence": {
+            "path": "evidence/MC-011-0-1793412495050.txt",
+            "sha256": "586a76fe98fc02b34bc65616172d3c3cffa46a1785fcc0f8f81bc3f5596abfc5",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
+          }
+        },
+        {
+          "kind": "property",
+          "given": "任一来源图未取得授权",
+          "expect": "handoff_note、visual_assets 与 prd_card 红线同时要求替换或补充授权，不能出现“仅核对型号”",
+          "command": "node --import tsx --test --test-name-pattern='marketing dossier cards' scripts/tools/data-pipeline-host-contract.node-test.mjs",
+          "exec": {
+            "file": "node",
+            "args": [
+              "--import",
+              "tsx",
+              "--test",
+              "--test-name-pattern=marketing dossier cards",
+              "scripts/tools/data-pipeline-host-contract.node-test.mjs"
+            ]
+          },
+          "last_result": "pass",
+          "run": {
+            "path": "runs/MC-011-1-1793412495578.json",
+            "sha256": "a8bcc1796b970a5827eedf8cf3b44623a864520c889929c8320a484a1b967b3e",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
+          },
+          "evidence": {
+            "path": "evidence/MC-011-1-1793412495578.txt",
+            "sha256": "db401f8a7081b1e878d4be582097ad983e1388c7921ee24198edd8425b56fb48",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
+          }
+        },
+        {
+          "kind": "sample",
+          "given": "官方 README 无图片，客户原文要求不展示未核实硬件/运行效果、不声称口碑/销量/竞品优势",
+          "expect": "清空幻影参考图；portrait/visual needs_more_reference=true；客户红线进入顶层 restrictions、PRD 红线和 theme avoid_pits",
+          "command": "node --import tsx --test --test-name-pattern='dossier normalization' scripts/tools/data-pipeline-host-contract.node-test.mjs",
+          "exec": {
+            "file": "node",
+            "args": [
+              "--import",
+              "tsx",
+              "--test",
+              "--test-name-pattern=dossier normalization",
+              "scripts/tools/data-pipeline-host-contract.node-test.mjs"
+            ]
+          },
+          "last_result": "pass",
+          "run": {
+            "path": "runs/MC-011-2-1793412496102.json",
+            "sha256": "f894a7684340f2d11ad4026a7211e23e29d15387822e879ab0ce6483f8c8f995",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
+          },
+          "evidence": {
+            "path": "evidence/MC-011-2-1793412496102.txt",
+            "sha256": "ea1e0f4b38d978a164ae2254cb8ffd56c6e24fabeddbb75fb5890e1b34b5d503",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
+          }
+        }
+      ],
+      "regression": {
+        "command": "node --import tsx --test --test-name-pattern='marketing dossier cards' scripts/tools/data-pipeline-host-contract.node-test.mjs",
+        "evidence": null
+      },
+      "notes": "M01 真实 G1 60/78 分拒绝；最新为无图幻影状态与客户红线遗漏。",
+      "verified_by": null,
+      "verified_at": null,
+      "verification_evidence": null,
+      "last_assertion_attempt": {
+        "actor": "root-repair-2026-10-31",
+        "role": "repair",
+        "result": "pass",
+        "at": "2026-10-31T02:08:15.049Z",
+        "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7",
+        "finished_at": "2026-10-31T02:08:16.596Z"
+      },
+      "fixed_by": "root-repair-2026-10-31"
+    },
+    {
+      "id": "MC-012",
+      "kind": "problem",
+      "level": "L2",
+      "severity": "P1",
+      "batch": 1,
+      "state": "fixed",
+      "title": "官方来源中的绝对化促销语未隔离，原文支持审核拒绝整批事实",
+      "evidence": [
+        {
+          "type": "code",
+          "ref": "apps/server/src/video/marketing-authority.ts:303@463ae7ad844de31674b94e73679dafaf0f5dcac5",
+          "sha256": "6e7dac86e9f1509d270fbdf619d2d13f162ab5e892556df86dbc6bfcfd59dcc6",
+          "note": "提取结果直接进入原文支持审核；A1 official_selling_points 中“Perfect”等官方营销用语没有与可交付事实隔离。"
+        }
+      ],
+      "root_cause": {
+        "file": "apps/server/src/video/marketing-authority.ts",
+        "line": 303,
+        "commit": "463ae7ad844de31674b94e73679dafaf0f5dcac5",
+        "symbol": "extractStageFacts"
+      },
+      "trigger_path": "官方 README 含 Perfect/#1/best 等促销语 → 模型按规则引用为 selling point → 支持审核以绝对化优势拒绝整批 → 即使其余事实全部有原文也无法进入 G1。",
+      "assertions": [
+        {
+          "kind": "sample",
+          "given": "A1 同时含可交付事实和 Perfect 官方促销语",
+          "expect": "原始响应保持不可变，Perfect 项不进入交付 facts，剩余引用按新下标重排",
+          "command": "node --import tsx --test --test-name-pattern='absolute marketing' scripts/tools/data-pipeline-host-contract.node-test.mjs",
+          "exec": {
+            "file": "node",
+            "args": [
+              "--import",
+              "tsx",
+              "--test",
+              "--test-name-pattern=absolute marketing",
+              "scripts/tools/data-pipeline-host-contract.node-test.mjs"
+            ]
+          },
+          "last_result": "pass",
+          "run": {
+            "path": "runs/MC-012-0-1793412496715.json",
+            "sha256": "ff461f361020e8caf121e3abc4ee02ea7b3101baae5f15fabcb823c613b7e581",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
+          },
+          "evidence": {
+            "path": "evidence/MC-012-0-1793412496715.txt",
+            "sha256": "7dbb61c7b30af1f2ca9c9cd98fd1af55b60a18dc137b2d2ed27374689a5c5f9b",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
+          }
+        },
+        {
+          "kind": "property",
+          "given": "重算摘要后的已接受提取档案",
+          "expect": "复核重新执行同一用途筛选，exclusions 或交付事实变化即拒绝",
+          "command": "node --import tsx --test --test-name-pattern='absolute marketing' scripts/tools/data-pipeline-host-contract.node-test.mjs",
+          "exec": {
+            "file": "node",
+            "args": [
+              "--import",
+              "tsx",
+              "--test",
+              "--test-name-pattern=absolute marketing",
+              "scripts/tools/data-pipeline-host-contract.node-test.mjs"
+            ]
+          },
+          "last_result": "pass",
+          "run": {
+            "path": "runs/MC-012-1-1793412497202.json",
+            "sha256": "6ae0094aff262c9264292bcdb3de3c25aa0b012eeba99d6517473d53f51aebbc",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
+          },
+          "evidence": {
+            "path": "evidence/MC-012-1-1793412497202.txt",
+            "sha256": "834c82b2f701d01e8b25b67ec68a180d5e1d047368218eebd57f9c04db318ccd",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
+          }
+        }
+      ],
+      "regression": {
+        "command": "node --import tsx --test --test-name-pattern='absolute marketing' scripts/tools/data-pipeline-host-contract.node-test.mjs",
+        "evidence": null
+      },
+      "notes": "M01 最新重跑在支持审核阶段因 official_selling_points[2]=Perfect 被拒绝 85 分阈值。",
+      "verified_by": null,
+      "verified_at": null,
+      "verification_evidence": null,
+      "last_assertion_attempt": {
+        "actor": "root-repair-2026-10-31",
+        "role": "repair",
+        "result": "pass",
+        "at": "2026-10-31T02:08:16.714Z",
+        "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7",
+        "finished_at": "2026-10-31T02:08:17.737Z"
+      },
+      "fixed_by": "root-repair-2026-10-31"
+    },
+    {
+      "id": "MC-013",
+      "kind": "problem",
+      "level": "L3",
+      "severity": "P1",
+      "batch": 0,
+      "state": "fixed",
+      "title": "已批准门的建议被当作返工指令，导致 G4 批准后再次生成未审 PRD",
+      "evidence": [
+        {
+          "type": "code",
+          "ref": "scripts/tools/data-pipeline-run.mts:242@463ae7ad844de31674b94e73679dafaf0f5dcac5",
+          "sha256": "1a4449d435e52b155a38cd6e8dc43b33339a6209ecb85a312b0b23b0369263c1",
+          "note": "无论 approved 真假都把 verdict.suggestions 返回给 vendor；vendor 将批准附带建议解释为用户修改要求并重新生成 PRD。"
+        }
+      ],
+      "root_cause": {
+        "file": "scripts/tools/data-pipeline-run.mts",
+        "line": 242,
+        "commit": "463ae7ad844de31674b94e73679dafaf0f5dcac5",
+        "symbol": "onApproval"
+      },
+      "trigger_path": "G4 真实监制 approved=true 且 suggestions 非空 → onApproval 返回 suggestions → vendor 再次生成 PRD → PRD 权威桥正确报 PRD_UNREVIEWED_REGENERATION → 已通过 86 分的 PRD 仍使整条任务失败。",
+      "assertions": [
+        {
+          "kind": "sample",
+          "given": "approved=true 且 suggestions 含改进建议",
+          "expect": "不向 vendor 返回任何 suggestions，不触发批准后改写",
+          "command": "node --import tsx --test --test-name-pattern='approved gate suggestions' scripts/tools/data-pipeline-host-contract.node-test.mjs",
+          "exec": {
+            "file": "node",
+            "args": [
+              "--import",
+              "tsx",
+              "--test",
+              "--test-name-pattern=approved gate suggestions",
+              "scripts/tools/data-pipeline-host-contract.node-test.mjs"
+            ]
+          },
+          "last_result": "pass",
+          "run": {
+            "path": "runs/MC-013-0-1793412497867.json",
+            "sha256": "072aaf36a75c9a2db8d6a60dc90c0495e4a5c849f800d99550c9c2a5f2d1ad17",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
+          },
+          "evidence": {
+            "path": "evidence/MC-013-0-1793412497867.txt",
+            "sha256": "9623f79fec2e8fb943040ad3727061cd4af192b068fdbeb4e99a9a733595b418",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
+          }
+        },
+        {
+          "kind": "property",
+          "given": "approved=false 且 suggestions 含非字符串/空字符串",
+          "expect": "仅保留非空文本建议作为返工反馈",
+          "command": "node --import tsx --test --test-name-pattern='approved gate suggestions' scripts/tools/data-pipeline-host-contract.node-test.mjs",
+          "exec": {
+            "file": "node",
+            "args": [
+              "--import",
+              "tsx",
+              "--test",
+              "--test-name-pattern=approved gate suggestions",
+              "scripts/tools/data-pipeline-host-contract.node-test.mjs"
+            ]
+          },
+          "last_result": "pass",
+          "run": {
+            "path": "runs/MC-013-1-1793412498611.json",
+            "sha256": "7e8d8e6dfd52421dc1a22330ee234c2523f5f61ed0c3a0b72952e6a34c5d97db",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
+          },
+          "evidence": {
+            "path": "evidence/MC-013-1-1793412498611.txt",
+            "sha256": "7f847b124d6f9ca3b584fcc862b7e4332b61a80855970a747dfdf281665d594d",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
+          }
+        }
+      ],
+      "regression": {
+        "command": "node --import tsx --test --test-name-pattern='approved gate suggestions' scripts/tools/data-pipeline-host-contract.node-test.mjs",
+        "evidence": null
+      },
+      "notes": "M01 第二轮 G4 已 approved=true score=86，随后真实复现 PRD_UNREVIEWED_REGENERATION。",
+      "verified_by": null,
+      "verified_at": null,
+      "verification_evidence": null,
+      "last_assertion_attempt": {
+        "actor": "root-repair-2026-10-31",
+        "role": "repair",
+        "result": "pass",
+        "at": "2026-10-31T02:08:17.866Z",
+        "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7",
+        "finished_at": "2026-10-31T02:08:21.123Z"
+      },
+      "fixed_by": "root-repair-2026-10-31"
+    },
+    {
+      "id": "MC-014",
+      "kind": "problem",
+      "level": "L2",
+      "severity": "P1",
+      "batch": 1,
+      "state": "fixed",
+      "title": "RiskAssessor 合法字符串数组超一格即整轮失败，未按 schema 无损压缩",
+      "evidence": [
+        {
+          "type": "code",
+          "ref": "packages/video-studio/src/requirement-contract-bridge.ts:310@463ae7ad844de31674b94e73679dafaf0f5dcac5",
+          "sha256": "f170c254fc7e1a6dc0388a6ad7129a5fb9f68a0f421be0bb81505cacb5381993",
+          "note": "RiskAssessor 响应直接进入严格 schema 校验；businessConstraints 允许 1–4 个字符串，但第 5 个有效约束没有宿主压缩路径。"
+        }
+      ],
+      "root_cause": {
+        "file": "packages/video-studio/src/requirement-contract-bridge.ts",
+        "line": 310,
+        "commit": "463ae7ad844de31674b94e73679dafaf0f5dcac5",
+        "symbol": "RiskAssessor _validateAndFill"
+      },
+      "trigger_path": "RiskAssessor 返回 5 条 businessConstraints，均有效且未声明超集 → maxItems=4 硬拒绝；唯一重试返回缺字段 → G3 整轮 REQUIREMENT_DISCOVERY_UNVERIFIED。",
+      "assertions": [
+        {
+          "kind": "sample",
+          "given": "字符串数组比 schema maxItems 多 1–n 项",
+          "expect": "保留最后一项并以前缀分号合并进末位，全部文本不丢失且数组长度合规",
+          "command": "node --import tsx --test --test-name-pattern='RiskAssessor string overflow' scripts/tools/data-pipeline-host-contract.node-test.mjs",
+          "exec": {
+            "file": "node",
+            "args": [
+              "--import",
+              "tsx",
+              "--test",
+              "--test-name-pattern=RiskAssessor string overflow",
+              "scripts/tools/data-pipeline-host-contract.node-test.mjs"
+            ]
+          },
+          "last_result": "pass",
+          "run": {
+            "path": "runs/MC-014-0-1793412501438.json",
+            "sha256": "ff0545de534419f5598b72d21ab7d364e8a5335bce211284b55b28f7feab1ccb",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
+          },
+          "evidence": {
+            "path": "evidence/MC-014-0-1793412501438.txt",
+            "sha256": "e846d1d30b35f9c93341b561c72bf8435d17386d172f3b4d308886014d40b891",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
+          }
+        },
+        {
+          "kind": "property",
+          "given": "对象数组超过 maxItems",
+          "expect": "按声明上限裁剪，不能通过超出 schema 的响应",
+          "command": "node --import tsx --test --test-name-pattern='RiskAssessor string overflow' scripts/tools/data-pipeline-host-contract.node-test.mjs",
+          "exec": {
+            "file": "node",
+            "args": [
+              "--import",
+              "tsx",
+              "--test",
+              "--test-name-pattern=RiskAssessor string overflow",
+              "scripts/tools/data-pipeline-host-contract.node-test.mjs"
+            ]
+          },
+          "last_result": "pass",
+          "run": {
+            "path": "runs/MC-014-1-1793412502551.json",
+            "sha256": "5b6cd99632b1945de7a0b89ab8a25f0bc87fd4ff52430787d6c6019cf6c90449",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
+          },
+          "evidence": {
+            "path": "evidence/MC-014-1-1793412502551.txt",
+            "sha256": "8573546cf0d9d8687db4e83c6321484c2d64aab9f6eecd1f18a51a0bb955ae98",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
+          }
+        }
+      ],
+      "regression": {
+        "command": "node --import tsx --test --test-name-pattern='RiskAssessor string overflow' scripts/tools/data-pipeline-host-contract.node-test.mjs",
+        "evidence": null
+      },
+      "notes": "M01 最新一轮真实日志：businessConstraints observed=5 limit=4；第二次重试缺必需字段。",
+      "verified_by": null,
+      "verified_at": null,
+      "verification_evidence": null,
+      "last_assertion_attempt": {
+        "actor": "root-repair-2026-10-31",
+        "role": "repair",
+        "result": "pass",
+        "at": "2026-10-31T02:08:21.437Z",
+        "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7",
+        "finished_at": "2026-10-31T02:08:23.720Z"
+      },
+      "fixed_by": "root-repair-2026-10-31"
+    },
+    {
+      "id": "MC-015",
+      "kind": "problem",
+      "level": "L4",
+      "severity": "P1",
+      "batch": 2,
+      "state": "fixed",
+      "title": "营销 PRD 在 G4 前未归一外部参考、无人措辞、场景数量和技术交付口径",
+      "evidence": [
+        {
+          "type": "code",
+          "ref": "packages/video-studio/src/prd-authority-bridge.ts:607@463ae7ad844de31674b94e73679dafaf0f5dcac5",
+          "sha256": "47e98fbc5e7e24807d40b23cce667bad57045b518d2d1c7ed95844f149cf165a",
+          "note": "真实 PRD 生成结果直接安装 provenance 后进入 G4；没有把外部片名、无依据数量、人物/手部措辞、来源角标绝对化和交付数值归一为宿主权威。"
+        }
+      ],
+      "root_cause": {
+        "file": "packages/video-studio/src/prd-authority-bridge.ts",
+        "line": 607,
+        "commit": "463ae7ad844de31674b94e73679dafaf0f5dcac5",
+        "symbol": "PRDGenerator.generate"
+      },
+      "trigger_path": "G1/G2/G3 已通过 → PRD 模型新增外部影片/导演、手指/手部、九个模块和“每一帧来源角标”，并缺 4K 像素、响度峰值、时宽容差 → G4 58–72 分拒绝，流程无法进入提示词阶段。",
+      "assertions": [
+        {
+          "kind": "sample",
+          "given": "营销 PRD 含外部《2001太空漫游》/Apple、大卫·芬奇、手部、九个模块和未闭合约束",
+          "expect": "外部参考替换为通用宿主依据，无人措辞清除，模块数改为若干，截断/高风险素材指令替换",
+          "command": "node --import tsx --test --test-name-pattern='marketing PRD' scripts/tools/data-pipeline-host-contract.node-test.mjs",
+          "exec": {
+            "file": "node",
+            "args": [
+              "--import",
+              "tsx",
+              "--test",
+              "--test-name-pattern=marketing PRD",
+              "scripts/tools/data-pipeline-host-contract.node-test.mjs"
+            ]
+          },
+          "last_result": "pass",
+          "run": {
+            "path": "runs/MC-015-0-1793412503905.json",
+            "sha256": "c0eb7f518b9e1b7a1e182ba3d74c736a7b00d7c132a63bfc667fa34c87d7a78c",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
+          },
+          "evidence": {
+            "path": "evidence/MC-015-0-1793412503905.txt",
+            "sha256": "c5f0114742a73a7047670fd97bb9e16768d04d6fb0fb091c632b25eb6286b854",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
+          }
+        },
+        {
+          "kind": "property",
+          "given": "4K 9:16、30 秒营销 PRD",
+          "expect": "母版显式含 2160x3840、±1 帧、AAC 48kHz、-14 LUFS、-1 dBTP 和确定字幕策略",
+          "command": "node --import tsx --test --test-name-pattern='marketing PRD' scripts/tools/data-pipeline-host-contract.node-test.mjs",
+          "exec": {
+            "file": "node",
+            "args": [
+              "--import",
+              "tsx",
+              "--test",
+              "--test-name-pattern=marketing PRD",
+              "scripts/tools/data-pipeline-host-contract.node-test.mjs"
+            ]
+          },
+          "last_result": "pass",
+          "run": {
+            "path": "runs/MC-015-1-1793412504624.json",
+            "sha256": "8c49f039e7abac893596e9e3c21fc1a757a83a3964ba0974cfe1ef5c0829d9cb",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
+          },
+          "evidence": {
+            "path": "evidence/MC-015-1-1793412504624.txt",
+            "sha256": "f54d10133b330f520e260f54ac3dbbb5aeb4c3f139de77efee68feab5b99351a",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
+          }
+        }
+      ],
+      "regression": {
+        "command": "node --import tsx --test --test-name-pattern='marketing PRD' scripts/tools/data-pipeline-host-contract.node-test.mjs",
+        "evidence": null
+      },
+      "notes": "M01 多次真实 G4 拒绝，典型 58/72/86 分三组 issues 已保留。",
+      "verified_by": null,
+      "verified_at": null,
+      "verification_evidence": null,
+      "last_assertion_attempt": {
+        "actor": "root-repair-2026-10-31",
+        "role": "repair",
+        "result": "pass",
+        "at": "2026-10-31T02:08:23.902Z",
+        "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7",
+        "finished_at": "2026-10-31T02:08:25.214Z"
+      },
+      "fixed_by": "root-repair-2026-10-31"
+    },
+    {
+      "id": "MC-016",
+      "kind": "problem",
+      "level": "L2",
+      "severity": "P1",
+      "batch": 0,
+      "state": "fixed",
+      "title": "SceneArchitect 仅两次 180 秒尝试，截断后超时即整轮需求洞察失败",
+      "evidence": [
+        {
+          "type": "code",
+          "ref": "vendor/supermickey/hyperreality-system/index.js:109@463ae7ad844de31674b94e73679dafaf0f5dcac5",
+          "sha256": "acb46563f99b61babb1156858fb83c083a258b052ff21169d3b3e7d5bddec5cf",
+          "note": "RequirementDiscoveryEngine 被硬编码为 180000ms 单 Agent 时限；SceneArchitect/RiskAssessor 默认 maxRetries=1，总共只有两次模型响应机会。"
+        }
+      ],
+      "root_cause": {
+        "file": "vendor/supermickey/hyperreality-system/index.js",
+        "line": 109,
+        "commit": "463ae7ad844de31674b94e73679dafaf0f5dcac5",
+        "symbol": "HyperrealitySystem constructor"
+      },
+      "trigger_path": "大场景合同第一次返回截断 JSON → 第二次 180 秒超时 → maxRetries 用完 → 不允许规则兜底 → REQUIREMENT_SCENE_UNVERIFIED，整轮 5 分钟却无法进入 G3。",
+      "assertions": [
+        {
+          "kind": "sample",
+          "given": "vendor 默认 scene timeout=180000、maxRetries=1，risk maxRetries=1",
+          "expect": "SceneArchitect timeout=240000、Scene/Risk maxRetries=2（各 3 次），阶段预算=420000，不沿用旧 180 秒上限",
+          "command": "node --import tsx --test --test-name-pattern='scene and risk' scripts/tools/data-pipeline-host-contract.node-test.mjs",
+          "exec": {
+            "file": "node",
+            "args": [
+              "--import",
+              "tsx",
+              "--test",
+              "--test-name-pattern=scene and risk",
+              "scripts/tools/data-pipeline-host-contract.node-test.mjs"
+            ]
+          },
+          "last_result": "pass",
+          "run": {
+            "path": "runs/MC-016-0-1793412505380.json",
+            "sha256": "e5014bf8705844d0c2a484a0a6c0dfd1f1e6bf49660bd04e5ebd629a8100a2d6",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
+          },
+          "evidence": {
+            "path": "evidence/MC-016-0-1793412505380.txt",
+            "sha256": "b7ff1cc76a2c746b20fa684a7dd512ce5fe233f29dac3e72e3d9882022dec68e",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
+          }
+        },
+        {
+          "kind": "property",
+          "given": "调用方已配置更高 timeout/retries 或 vendor agent 结构变化",
+          "expect": "不得降低已有更严格配置；结构缺失时 fail-closed",
+          "command": "node --import tsx --test --test-name-pattern='scene and risk' scripts/tools/data-pipeline-host-contract.node-test.mjs",
+          "exec": {
+            "file": "node",
+            "args": [
+              "--import",
+              "tsx",
+              "--test",
+              "--test-name-pattern=scene and risk",
+              "scripts/tools/data-pipeline-host-contract.node-test.mjs"
+            ]
+          },
+          "last_result": "pass",
+          "run": {
+            "path": "runs/MC-016-1-1793412505901.json",
+            "sha256": "2ec3dccfc727a9cc9716fb757cc1bfd9f5d29f5dd18023601db4421979baf1ac",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
+          },
+          "evidence": {
+            "path": "evidence/MC-016-1-1793412505901.txt",
+            "sha256": "06f181742c32613be4be34eb03217cd230cf6534bd7db9a0931f9719269e7b3f",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
+          }
+        }
+      ],
+      "regression": {
+        "command": "node --import tsx --test --test-name-pattern='scene and risk' scripts/tools/data-pipeline-host-contract.node-test.mjs",
+        "evidence": null
+      },
+      "notes": "M01 最新真实日志：第1次 JSON 截断、第2次 LLM 调用超时，随后 SceneArchitect 全部失败。",
+      "verified_by": null,
+      "verified_at": null,
+      "verification_evidence": null,
+      "last_assertion_attempt": {
+        "actor": "root-repair-2026-10-31",
+        "role": "repair",
+        "result": "pass",
+        "at": "2026-10-31T02:08:25.379Z",
+        "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7",
+        "finished_at": "2026-10-31T02:08:26.427Z"
+      },
+      "fixed_by": "root-repair-2026-10-31"
+    },
+    {
+      "id": "MC-017",
+      "kind": "problem",
+      "level": "L3",
+      "severity": "P1",
+      "batch": 2,
+      "state": "fixed",
+      "title": "G3 接受 ±5 秒残留且受众推测可残留超片长秒点与竞品首创主张",
+      "evidence": [
+        {
+          "type": "code",
+          "ref": "packages/video-studio/src/requirement-contract.ts:340@463ae7ad844de31674b94e73679dafaf0f5dcac5",
+          "sha256": "10225700397bc24f0a98df8844e5b51e1df8650408d9a340a43967e88fcd4d16",
+          "note": "binding 直接使用模型 sceneStructure 总时长并仅做容差校验；30 秒 Brief 的 31 秒场景、受众“第50秒”及无竞品证据时的“第一次/没在吹”会原样进入 G3。"
+        }
+      ],
+      "root_cause": {
+        "file": "packages/video-studio/src/requirement-contract.ts",
+        "line": 340,
+        "commit": "463ae7ad844de31674b94e73679dafaf0f5dcac5",
+        "symbol": "bindRequirementContract"
+      },
+      "trigger_path": "SceneArchitect 6 个节点合计 31 秒（客户 Brief=30） → 容差校验放行；受众推测含第50秒与竞品/首创判断 → 监制以时间轴和市场主张不一致拒绝。",
+      "assertions": [
+        {
+          "kind": "sample",
+          "given": "目标 30 秒，场景 4+5+6+8+5+3=31 秒，受众含第50秒/第12秒",
+          "expect": "场景残差归一到恰好 30 秒，节点数与 >=3 秒边界保留；受众秒点统一投影到已审场景节点",
+          "command": "node --import tsx --test --test-name-pattern='discovery timing' scripts/tools/data-pipeline-host-contract.node-test.mjs",
+          "exec": {
+            "file": "node",
+            "args": [
+              "--import",
+              "tsx",
+              "--test",
+              "--test-name-pattern=discovery timing",
+              "scripts/tools/data-pipeline-host-contract.node-test.mjs"
+            ]
+          },
+          "last_result": "pass",
+          "run": {
+            "path": "runs/MC-017-0-1793412506546.json",
+            "sha256": "8c98b9bfde8e153987b4063d334000b0f33bb928eed458fa478a10fad0c82726",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
+          },
+          "evidence": {
+            "path": "evidence/MC-017-0-1793412506546.txt",
+            "sha256": "5f16d43ce0959d7081fb34521650a3c581adf43f73cf3db159a621f5bb8d1770",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
+          }
+        },
+        {
+          "kind": "property",
+          "given": "差额超出 ±5 秒容差",
+          "expect": "不得自行补造时间轴，保留给严格校验失败关闭",
+          "command": "node --import tsx --test --test-name-pattern='discovery timing' scripts/tools/data-pipeline-host-contract.node-test.mjs",
+          "exec": {
+            "file": "node",
+            "args": [
+              "--import",
+              "tsx",
+              "--test",
+              "--test-name-pattern=discovery timing",
+              "scripts/tools/data-pipeline-host-contract.node-test.mjs"
+            ]
+          },
+          "last_result": "pass",
+          "run": {
+            "path": "runs/MC-017-1-1793412507057.json",
+            "sha256": "c0e59f7b39b2ce6bcf2cf58f231c0eaf7d2b2a71194ad8ebd65f49f53f74e821",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
+          },
+          "evidence": {
+            "path": "evidence/MC-017-1-1793412507057.txt",
+            "sha256": "c0120a5006a0b465aa9dc6bbd832cecca5b4f69602cd57a8b90edad1f4333534",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
+          }
+        },
+        {
+          "kind": "sample",
+          "given": "G1 restrictions 明确无竞品证据，受众触发点含“第一次/满屏话术/没在吹”",
+          "expect": "竞品弱点与首创声明被替换为“创作假设，待验证：只描述本品官方原文”",
+          "command": "node --import tsx --test --test-name-pattern='discovery timing' scripts/tools/data-pipeline-host-contract.node-test.mjs",
+          "exec": {
+            "file": "node",
+            "args": [
+              "--import",
+              "tsx",
+              "--test",
+              "--test-name-pattern=discovery timing",
+              "scripts/tools/data-pipeline-host-contract.node-test.mjs"
+            ]
+          },
+          "last_result": "pass",
+          "run": {
+            "path": "runs/MC-017-2-1793412507700.json",
+            "sha256": "9ca3afdea4f3109923b83a99ceff48dcf34fdcd56857b0c5e65d5e14cfd597e7",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
+          },
+          "evidence": {
+            "path": "evidence/MC-017-2-1793412507700.txt",
+            "sha256": "d5b686335cc47d79045b242fb55a585422c1ff620c73609fcbee4dc20b19ca1a",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
+          }
+        },
+        {
+          "kind": "property",
+          "given": "宿主把 tolerated residual 和受众文本归一后，vendor 仍持有原始 discovery 对象",
+          "expect": "归一后的 sceneStructure/audienceProfile 回写同一 live discovery，G3 与 PRD 读取同一 canonical revision",
+          "command": "node_modules/.bin/vitest run packages/video-studio/src/requirement-contract.test.ts -t 'publishes normalized discovery'",
+          "exec": {
+            "file": "node_modules/.bin/vitest",
+            "args": [
+              "run",
+              "packages/video-studio/src/requirement-contract.test.ts",
+              "-t",
+              "publishes normalized discovery"
+            ]
+          },
+          "last_result": "pass",
+          "run": {
+            "path": "runs/MC-017-3-1793412508348.json",
+            "sha256": "d854d41f4f7512e88e40d3e8c8ca1111ac308e6c024deb809f4f0fae2a07e7ba",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
+          },
+          "evidence": {
+            "path": "evidence/MC-017-3-1793412508348.txt",
+            "sha256": "9dd92c01dd0a6f5f438f065980db470f3bd4892f5d8c31fa9ff9b20e74238685",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
+          }
+        }
+      ],
+      "regression": {
+        "command": "node --import tsx --test --test-name-pattern='discovery timing' scripts/tools/data-pipeline-host-contract.node-test.mjs",
+        "evidence": null
+      },
+      "notes": "M01 真实 G3 先为 80 分（31 秒/第50秒），后续复现 74 分（第一次/没在吹/受众假设）；又复现宿主只改 clone 导致下游 REQUIREMENT_CONTRACT_CHANGED。",
+      "verified_by": null,
+      "verified_at": null,
+      "verification_evidence": null,
+      "last_assertion_attempt": {
+        "actor": "root-repair-2026-10-31",
+        "role": "repair",
+        "result": "pass",
+        "at": "2026-10-31T02:08:26.545Z",
+        "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7",
+        "finished_at": "2026-10-31T02:08:28.975Z"
+      },
+      "fixed_by": "root-repair-2026-10-31"
+    },
+    {
+      "id": "MC-018",
+      "kind": "problem",
+      "level": "L2",
+      "severity": "P1",
+      "batch": 0,
+      "state": "fixed",
+      "title": "官方来源一次瞬时超时即放弃，营销管线无有界 GET 重试",
+      "evidence": [
+        {
+          "type": "code",
+          "ref": "apps/server/src/video/marketing-authority.ts:281@463ae7ad844de31674b94e73679dafaf0f5dcac5",
+          "sha256": "6e7dac86e9f1509d270fbdf619d2d13f162ab5e892556df86dbc6bfcfd59dcc6",
+          "note": "每个候选 URL 的 sourceFetch 只调用一次；任何超时或 5xx 都直接写入 failures 并尝试下一个候选。"
+        }
+      ],
+      "root_cause": {
+        "file": "apps/server/src/video/marketing-authority.ts",
+        "line": 281,
+        "commit": "463ae7ad844de31674b94e73679dafaf0f5dcac5",
+        "symbol": "prepareMarketingFacts source collector"
+      },
+      "trigger_path": "官方 GitHub 页面单次 15 秒超时 → 相同 URL 候选去重后没有其他来源 → pages=0 → MARKETING_A1_UNVERIFIED，管线 15 秒内失败。",
+      "assertions": [
+        {
+          "kind": "sample",
+          "given": "公开 GET 首次超时/503，第二次成功",
+          "expect": "重试后返回真实正文；仅临时错误和 429/5xx 允许重试",
+          "command": "node --import tsx --test --test-name-pattern='marketing source retry' scripts/tools/data-pipeline-host-contract.node-test.mjs",
+          "exec": {
+            "file": "node",
+            "args": [
+              "--import",
+              "tsx",
+              "--test",
+              "--test-name-pattern=marketing source retry",
+              "scripts/tools/data-pipeline-host-contract.node-test.mjs"
+            ]
+          },
+          "last_result": "pass",
+          "run": {
+            "path": "runs/MC-018-0-1793412509103.json",
+            "sha256": "b5925de6ec72fe4549eeb6c781e791e4490f55785885e53ed5e988d996327dbb",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
+          },
+          "evidence": {
+            "path": "evidence/MC-018-0-1793412509103.txt",
+            "sha256": "2516de063d0955f9c745572e4e1e18ae075432deeffcd3e862e74a0f1227e95a",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
+          }
+        },
+        {
+          "kind": "property",
+          "given": "私网、内容超限、类型不支持等策略错误",
+          "expect": "不重试，立即 fail-closed",
+          "command": "node --import tsx --test --test-name-pattern='marketing source retry' scripts/tools/data-pipeline-host-contract.node-test.mjs",
+          "exec": {
+            "file": "node",
+            "args": [
+              "--import",
+              "tsx",
+              "--test",
+              "--test-name-pattern=marketing source retry",
+              "scripts/tools/data-pipeline-host-contract.node-test.mjs"
+            ]
+          },
+          "last_result": "pass",
+          "run": {
+            "path": "runs/MC-018-1-1793412509605.json",
+            "sha256": "c20cfe55189e72d4ecd82ce8c539f9430a7f4159841284a4188104daa636c8eb",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
+          },
+          "evidence": {
+            "path": "evidence/MC-018-1-1793412509605.txt",
+            "sha256": "7d28276206c739ac4b78946d31813a8bb0f7883a5f5e38913876caa292cee04a",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
+          }
+        }
+      ],
+      "regression": {
+        "command": "node --import tsx --test --test-name-pattern='marketing source retry' scripts/tools/data-pipeline-host-contract.node-test.mjs",
+        "evidence": null
+      },
+      "notes": "M01 在 15 秒内失败；独立 fetchMarketingSource 同样得到 operation aborted due to timeout。",
+      "verified_by": null,
+      "verified_at": null,
+      "verification_evidence": null,
+      "last_assertion_attempt": {
+        "actor": "root-repair-2026-10-31",
+        "role": "repair",
+        "result": "pass",
+        "at": "2026-10-31T02:08:29.102Z",
+        "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7",
+        "finished_at": "2026-10-31T02:08:30.119Z"
+      },
+      "fixed_by": "root-repair-2026-10-31"
+    },
+    {
+      "id": "MC-019",
+      "kind": "problem",
+      "level": "L2",
+      "severity": "P1",
+      "batch": 0,
+      "state": "fixed",
+      "title": "空 A2/A3 无证据站仍送语义支持审核，README 被误要求提供用户评价",
+      "evidence": [
+        {
+          "type": "code",
+          "ref": "apps/server/src/video/marketing-authority.ts:314@463ae7ad844de31674b94e73679dafaf0f5dcac5",
+          "sha256": "6e7dac86e9f1509d270fbdf619d2d13f162ab5e892556df86dbc6bfcfd59dcc6",
+          "note": "A2/A3 即使 claims 为空、status=no_evidence，仍无条件调用 reviewStage，要求审核器从 README 寻找用户评价/竞品。"
+        }
+      ],
+      "root_cause": {
+        "file": "apps/server/src/video/marketing-authority.ts",
+        "line": 314,
+        "commit": "463ae7ad844de31674b94e73679dafaf0f5dcac5",
+        "symbol": "extractStageFacts support review"
+      },
+      "trigger_path": "官方 README 正常无用户评价/竞品 → A2/A3 生成 no_evidence + 明确原因 → 仍调用文本支持审核 → 审核器按“README 缺评价”拒绝 → 整条营销链失败。",
+      "assertions": [
+        {
+          "kind": "sample",
+          "given": "A2/A3 facts.claims 为空且保留 noEvidenceReason",
+          "expect": "跳过无语义可审的 LLM 调用，保留真实空站与来源 lineage",
+          "command": "node --import tsx --test --test-name-pattern='empty marketing evidence' scripts/tools/data-pipeline-host-contract.node-test.mjs",
+          "exec": {
+            "file": "node",
+            "args": [
+              "--import",
+              "tsx",
+              "--test",
+              "--test-name-pattern=empty marketing evidence",
+              "scripts/tools/data-pipeline-host-contract.node-test.mjs"
+            ]
+          },
+          "last_result": "pass",
+          "run": {
+            "path": "runs/MC-019-0-1793412510241.json",
+            "sha256": "bfb1ca32ffd804bace70506ae5124c6e31b55f52c6db43a08992bc38a835daa0",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
+          },
+          "evidence": {
+            "path": "evidence/MC-019-0-1793412510241.txt",
+            "sha256": "683cd79f2b1d6f956a28bd3229b7a7d8ed198c8c375abf8e31cf787ffe519870",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
+          }
+        },
+        {
+          "kind": "property",
+          "given": "任意站存在至少一条 claim",
+          "expect": "仍必须进入真实原文支持审核",
+          "command": "node --import tsx --test --test-name-pattern='empty marketing evidence' scripts/tools/data-pipeline-host-contract.node-test.mjs",
+          "exec": {
+            "file": "node",
+            "args": [
+              "--import",
+              "tsx",
+              "--test",
+              "--test-name-pattern=empty marketing evidence",
+              "scripts/tools/data-pipeline-host-contract.node-test.mjs"
+            ]
+          },
+          "last_result": "pass",
+          "run": {
+            "path": "runs/MC-019-1-1793412510758.json",
+            "sha256": "a2e246a53f716257f02399eb0fc81af6fec0e4573ecd6cf12aeed2cb4594cef0",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
+          },
+          "evidence": {
+            "path": "evidence/MC-019-1-1793412510758.txt",
+            "sha256": "ac1f1f8b641dc916d7cf76efaa2bcc25c062f0c9783abccf55a87c7b7c8ba625",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
+          }
+        }
+      ],
+      "regression": {
+        "command": "node --import tsx --test --test-name-pattern='empty marketing evidence' scripts/tools/data-pipeline-host-contract.node-test.mjs",
+        "evidence": null
+      },
+      "notes": "M01 使用真实 GitHub API README 后复现：审核拒绝理由为“只有 README，不含用户评价或评分”。",
+      "verified_by": null,
+      "verified_at": null,
+      "verification_evidence": null,
+      "last_assertion_attempt": {
+        "actor": "root-repair-2026-10-31",
+        "role": "repair",
+        "result": "pass",
+        "at": "2026-10-31T02:08:30.240Z",
+        "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7",
+        "finished_at": "2026-10-31T02:08:31.325Z"
+      },
+      "fixed_by": "root-repair-2026-10-31"
+    },
+    {
+      "id": "MC-020",
+      "kind": "problem",
+      "level": "L3",
+      "severity": "P1",
+      "batch": 2,
+      "state": "fixed",
+      "title": "商品片规则无视逐场明确无道具理由，数字营销片被强制要求物理道具",
+      "evidence": [
+        {
+          "type": "code",
+          "ref": "packages/video-studio/src/requirement-contract.ts:337@463ae7ad844de31674b94e73679dafaf0f5dcac5",
+          "sha256": "10225700397bc24f0a98df8844e5b51e1df8650408d9a340a43967e88fcd4d16",
+          "note": "只要 brief.product 非空且 props 为空就抛错，不读取每个场景已经通过严格 schema 的 noPropsReason。"
+        }
+      ],
+      "root_cause": {
+        "file": "packages/video-studio/src/requirement-contract.ts",
+        "line": 337,
+        "commit": "463ae7ad844de31674b94e73679dafaf0f5dcac5",
+        "symbol": "bindRequirementContract"
+      },
+      "trigger_path": "Home Assistant 数字产品 + 全片无人抽象界面 → 5 个场景均明确声明无物理道具及理由 → 商品规则仍以 props.length=0 拒绝，无法进入 G3。",
+      "assertions": [
+        {
+          "kind": "sample",
+          "given": "商品存在、所有场景 props=[] 且每个 noPropsReason 非空",
+          "expect": "允许无物理道具的抽象/数字商品视觉合同，props 为空继续下游",
+          "command": "node --import tsx --test --test-name-pattern='fully reasoned no-prop' scripts/tools/data-pipeline-host-contract.node-test.mjs",
+          "exec": {
+            "file": "node",
+            "args": [
+              "--import",
+              "tsx",
+              "--test",
+              "--test-name-pattern=fully reasoned no-prop",
+              "scripts/tools/data-pipeline-host-contract.node-test.mjs"
+            ]
+          },
+          "last_result": "pass",
+          "run": {
+            "path": "runs/MC-020-0-1793412511471.json",
+            "sha256": "1339570f9323a6fb1cec33eef0df44cd30d80a7bd3c3d1436ea98685e788e860",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
+          },
+          "evidence": {
+            "path": "evidence/MC-020-0-1793412511471.txt",
+            "sha256": "2ac6c4923159f158c631dcd113298a165cabb0354129bd46f1ad9757bbc79d6a",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
+          }
+        },
+        {
+          "kind": "property",
+          "given": "任一场景缺 noPropsReason 或未显式声明 props",
+          "expect": "仍按严格场景合同失败关闭",
+          "command": "node --import tsx --test --test-name-pattern='fully reasoned no-prop' scripts/tools/data-pipeline-host-contract.node-test.mjs",
+          "exec": {
+            "file": "node",
+            "args": [
+              "--import",
+              "tsx",
+              "--test",
+              "--test-name-pattern=fully reasoned no-prop",
+              "scripts/tools/data-pipeline-host-contract.node-test.mjs"
+            ]
+          },
+          "last_result": "pass",
+          "run": {
+            "path": "runs/MC-020-1-1793412512095.json",
+            "sha256": "b0a7d914e68c2e08ef342fadc7716f584960ffb1c1f27b752e370b4fae6b6fca",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
+          },
+          "evidence": {
+            "path": "evidence/MC-020-1-1793412512095.txt",
+            "sha256": "a71a535784daae25f3c149ecd0f209ab0b497b10e3b7e306790df6364518ed0b",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
+          }
+        }
+      ],
+      "regression": {
+        "command": "node --import tsx --test --test-name-pattern='fully reasoned no-prop' scripts/tools/data-pipeline-host-contract.node-test.mjs",
+        "evidence": null
+      },
+      "notes": "M01 最新真实运行在需求合同收口报“商品片没有任何真实结构化物理道具”。",
+      "verified_by": null,
+      "verified_at": null,
+      "verification_evidence": null,
+      "last_assertion_attempt": {
+        "actor": "root-repair-2026-10-31",
+        "role": "repair",
+        "result": "pass",
+        "at": "2026-10-31T02:08:31.470Z",
+        "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7",
+        "finished_at": "2026-10-31T02:08:32.698Z"
+      },
+      "fixed_by": "root-repair-2026-10-31"
+    },
+    {
+      "id": "MC-021",
+      "kind": "problem",
+      "level": "L2",
+      "severity": "P1",
+      "batch": 1,
+      "state": "fixed",
+      "title": "预渲染压测只跳过视频提交却继续执行依赖成片字节的后期，G7 全绿仍被记为失败",
+      "evidence": [
+        {
+          "type": "code",
+          "ref": "packages/video-studio/src/studio.ts:513@463ae7ad844de31674b94e73679dafaf0f5dcac5",
+          "sha256": "c08ff3a534ab41b79e0ffa392acde8cd4e0e48535154d9868b471e3435502d19",
+          "note": "deferRender 只设置 skipRender，未设置 vendor 已支持的 skipPostProduction；vendor 随后仍把空渲染结果送入后期，使 POST_RENDER_PROVIDER_SUCCESS_REQUIRED 污染预生产结果。"
+        }
+      ],
+      "root_cause": {
+        "file": "packages/video-studio/src/studio.ts",
+        "line": 513,
+        "commit": "463ae7ad844de31674b94e73679dafaf0f5dcac5",
+        "symbol": "VideoStudio.runPreproduction"
+      },
+      "trigger_path": "data-pipeline-run 固定 deferRender=true → vendor 跳过渲染但仍执行 Layer 4 后期 → 缺失 shot-*.mp4 → M01 的 G1-G7 全部批准、6 镜 6 提示词齐全却以退出码 4 结束。",
+      "assertions": [
+        {
+          "kind": "sample",
+          "given": "deferRender=true 时启动 VideoStudio 预生产",
+          "expect": "传给 vendor 的运行选项同时包含 skipRender=true 与 skipPostProduction=true，G7 后不再进入无源片后期",
+          "command": "node_modules/.bin/vitest run packages/video-studio/src/studio.test.ts -t 'deferRender 只运行预生产'",
+          "exec": {
+            "file": "node_modules/.bin/vitest",
+            "args": [
+              "run",
+              "packages/video-studio/src/studio.test.ts",
+              "-t",
+              "deferRender 只运行预生产"
+            ]
+          },
+          "last_result": "pass",
+          "run": {
+            "path": "runs/MC-021-0-1793412512848.json",
+            "sha256": "7715bb185f4ff77d651ef317531d49b2316e8a5830a2f7ee999a8a3993bfa7dd",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
+          },
+          "evidence": {
+            "path": "evidence/MC-021-0-1793412512848.txt",
+            "sha256": "4783d120bb970c6438e8fd0c4f680c117763b83bc65e8db940124e75fbade8c2",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
+          }
+        },
+        {
+          "kind": "property",
+          "given": "普通非 deferRender 运行",
+          "expect": "不得无条件设置 skipPostProduction，既有完整制片路径保持原行为",
+          "command": "node_modules/.bin/vitest run packages/video-studio/src/studio.test.ts -t 'deferRender 只运行预生产'",
+          "exec": {
+            "file": "node_modules/.bin/vitest",
+            "args": [
+              "run",
+              "packages/video-studio/src/studio.test.ts",
+              "-t",
+              "deferRender 只运行预生产"
+            ]
+          },
+          "last_result": "pass",
+          "run": {
+            "path": "runs/MC-021-1-1793412513765.json",
+            "sha256": "2b32b80e5f5a24782bd6b85bc2f619d9efeb919309c6d2a592d6879d1d024b7c",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
+          },
+          "evidence": {
+            "path": "evidence/MC-021-1-1793412513765.txt",
+            "sha256": "c49a26386615ae9da9213b79e30a90dfa905da720ce1188ab7da57e8ef063e44",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
+          }
+        }
+      ],
+      "regression": {
+        "command": "node_modules/.bin/vitest run packages/video-studio/src/studio.test.ts -t 'deferRender 只运行预生产'",
+        "evidence": null
+      },
+      "notes": "M01 日志：G1 95 / G2 90 / G3 88 / G4 85 / G5 not_applicable / G6 88 / G7 93，6 镜 6 提示词，renderSubmitted=false；随后仅因后期缺源片退出 4。",
+      "verified_by": null,
+      "verified_at": null,
+      "verification_evidence": null,
+      "last_assertion_attempt": {
+        "actor": "root-repair-2026-10-31",
+        "role": "repair",
+        "result": "pass",
+        "at": "2026-10-31T02:08:32.847Z",
+        "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7",
+        "finished_at": "2026-10-31T02:08:34.659Z"
+      },
+      "fixed_by": "root-repair-2026-10-31"
+    },
+    {
+      "id": "MC-022",
+      "kind": "problem",
+      "level": "L3",
+      "severity": "P1",
+      "batch": 1,
+      "state": "fixed",
+      "title": "可选品牌字段与显式商品查询冲突时未在事实绑定层隔离，正向前置被真实监制整批拒绝",
+      "evidence": [
+        {
+          "type": "code",
+          "ref": "apps/server/src/video/marketing-authority.ts:195@463ae7ad844de31674b94e73679dafaf0f5dcac5",
+          "sha256": "6e7dac86e9f1509d270fbdf619d2d13f162ab5e892556df86dbc6bfcfd59dcc6",
+          "note": "模型原始响应直接进入引用解析与语义审核；可选 identity.brand 即使与显式商品查询冲突，也没有宿主级隔离或删除路径。"
+        }
+      ],
+      "root_cause": {
+        "file": "apps/server/src/video/marketing-authority.ts",
+        "line": 195,
+        "commit": "463ae7ad844de31674b94e73679dafaf0f5dcac5",
+        "symbol": "verifyExtractionAttempts"
+      },
+      "trigger_path": "Home Assistant 官方 README 出现“A project from the Open Home Foundation” → A1 把基金会误填为可选 brand → 显式查询 brand=Home Assistant → 原文支持审核识别商品身份冲突并拒绝整批 G1。",
+      "assertions": [
+        {
+          "kind": "sample",
+          "given": "A1 名称 Home Assistant、可选 brand Open Home Foundation，产品查询 name/brand 均为 Home Assistant",
+          "expect": "仅删除 identity.brand 及其 citation，保留名称、规格、卖点；原始模型响应保留，并记录 product-query-brand-conflict 筛选原因",
+          "command": "node_modules/.bin/vitest run apps/server/src/video/marketing-facts.test.ts -t '可选品牌冲突'",
+          "exec": {
+            "file": "node_modules/.bin/vitest",
+            "args": [
+              "run",
+              "apps/server/src/video/marketing-facts.test.ts",
+              "-t",
+              "可选品牌冲突"
+            ]
+          },
+          "last_result": "pass",
+          "run": {
+            "path": "runs/MC-022-0-1793412514813.json",
+            "sha256": "601445aff1460f2cd910519554b8cc5beb318e2fbadb654b2fcf00af08196867",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
+          },
+          "evidence": {
+            "path": "evidence/MC-022-0-1793412514813.txt",
+            "sha256": "90eeba4a2046ac77aa928ab9ef7d9e9990cbbc27ed4e8cf05f78f84d6bd4c866",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
+          }
+        },
+        {
+          "kind": "property",
+          "given": "冲突品牌被宿主隔离后完成原文审核、A1-A5 装订、逐镜头事实复核与复读",
+          "expect": "交付事实和 G1 审核内容不含冲突品牌，同时完整事实包仍可通过 verifyMarketingFacts 复读",
+          "command": "node_modules/.bin/vitest run apps/server/src/video/marketing-authority.test.ts -t '可选品牌与显式商品查询冲突'",
+          "exec": {
+            "file": "node_modules/.bin/vitest",
+            "args": [
+              "run",
+              "apps/server/src/video/marketing-authority.test.ts",
+              "-t",
+              "可选品牌与显式商品查询冲突"
+            ]
+          },
+          "last_result": "pass",
+          "run": {
+            "path": "runs/MC-022-1-1793412515538.json",
+            "sha256": "01ba450d3041e6cf36829b74791dcb5176c4b452fc9c1830fab7fbf8db1fb137",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
+          },
+          "evidence": {
+            "path": "evidence/MC-022-1-1793412515538.txt",
+            "sha256": "26ccab3b7af77d0feb0eef3ddfdb030499defd1ca93bf985ddc1d50b8a85cca2",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
+          }
+        }
+      ],
+      "regression": {
+        "command": "node_modules/.bin/vitest run apps/server/src/video/marketing-facts.test.ts apps/server/src/video/marketing-authority.test.ts",
+        "evidence": null
+      },
+      "notes": "M01 第二次真实运行在 44 秒内被 G1 原文支持审核拒绝；拒绝本身正确，缺口是可选品牌冲突应在进入语义审核前被宿主隔离。",
+      "verified_by": null,
+      "verified_at": null,
+      "verification_evidence": null,
+      "last_assertion_attempt": {
+        "actor": "root-repair-2026-10-31",
+        "role": "repair",
+        "result": "pass",
+        "at": "2026-10-31T02:08:34.812Z",
+        "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7",
+        "finished_at": "2026-10-31T02:08:37.050Z"
+      },
+      "fixed_by": "root-repair-2026-10-31"
+    },
+    {
+      "id": "MC-023",
+      "kind": "problem",
+      "level": "L2",
+      "severity": "P1",
+      "batch": 1,
+      "state": "fixed",
+      "title": "CommonJS 作用域内的 ESM 后期模块使用 .js 扩展，真实全链测试异步崩溃",
+      "evidence": [
+        {
+          "type": "code",
+          "ref": "vendor/supermickey/systems/package.json:4@463ae7ad844de31674b94e73679dafaf0f5dcac5",
+          "sha256": "7b599482193c09752ad1ffd796348b523ab61ab3696de82fb3c1b6b08a1bc9c4",
+          "note": "最近包作用域显式声明 type=commonjs。"
+        },
+        {
+          "type": "code",
+          "ref": "vendor/supermickey/systems/post-production-pipeline.js:3@463ae7ad844de31674b94e73679dafaf0f5dcac5",
+          "sha256": "09eaf44622a586c7264b82b6d96864c23c3d9d59030ef53827ceede5068d5860",
+          "note": "该 .js 文件却使用 import/export ESM 语法；动态 import 后测试结束时触发 SyntaxError: Cannot use import statement outside a module。"
+        }
+      ],
+      "root_cause": {
+        "file": "vendor/supermickey/systems/package.json",
+        "line": 4,
+        "commit": "463ae7ad844de31674b94e73679dafaf0f5dcac5",
+        "symbol": "package type"
+      },
+      "trigger_path": "full-chain-failure.test.mjs 动态 import systems/post-production-pipeline.js → Node 按 nearest package type=commonjs 解析 → ESM import 语法在测试结束后抛未捕获 SyntaxError，整份 45 项全链回归被判失败。",
+      "assertions": [
+        {
+          "kind": "sample",
+          "given": "CommonJS 作用域内的后期 pipeline 以动态 ESM import 加载",
+          "expect": "模块使用显式 .mjs 后缀，测试既不输出 ESM 解析警告，也不在测试结束后抛异步异常",
+          "command": "node --test --test-name-pattern='旧vendor后期引擎：成功任务黑屏静音' scripts/tools/full-chain-failure.test.mjs",
+          "exec": {
+            "file": "node",
+            "args": [
+              "--test",
+              "--test-name-pattern=旧vendor后期引擎：成功任务黑屏静音",
+              "scripts/tools/full-chain-failure.test.mjs"
+            ]
+          },
+          "last_result": "pass",
+          "run": {
+            "path": "runs/MC-023-0-1793412517238.json",
+            "sha256": "61579b28f15b3d8d6d95d34e572b50c694df5a9814adce9842cdf9b680292e01",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
+          },
+          "evidence": {
+            "path": "evidence/MC-023-0-1793412517238.txt",
+            "sha256": "e445c19bcccc314c8d6a0e5096121ed699fa1d5732784bdd60a556d2cb3cddc4",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
+          }
+        },
+        {
+          "kind": "property",
+          "given": "完整全链失败/复用/后期回归套件",
+          "expect": "45 项全部通过且无测试结束后的异步异常",
+          "command": "node --test --test-concurrency=1 scripts/tools/full-chain-failure.test.mjs",
+          "exec": {
+            "file": "node",
+            "args": [
+              "--test",
+              "--test-concurrency=1",
+              "scripts/tools/full-chain-failure.test.mjs"
+            ]
+          },
+          "last_result": "pass",
+          "run": {
+            "path": "runs/MC-023-1-1793412518127.json",
+            "sha256": "519977f42bad90a6646a8f1cbbf76dc95906f81ca0c61db51a969df27ef3a20d",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
+          },
+          "evidence": {
+            "path": "evidence/MC-023-1-1793412518127.txt",
+            "sha256": "2a5a4a926606cc4af4352357b75892f2bb2fb2c0225f47fe641f70f9a6aad821",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
+          }
+        }
+      ],
+      "regression": {
+        "command": "node --test --test-concurrency=1 scripts/tools/full-chain-failure.test.mjs",
+        "evidence": null
+      },
+      "notes": "首次测试 25 个显式用例均通过，但文件级运行因测试结束后的异步 SyntaxError 失败；改名 .mjs 后 45/45 全绿。",
+      "verified_by": null,
+      "verified_at": null,
+      "verification_evidence": null,
+      "last_assertion_attempt": {
+        "actor": "root-repair-2026-10-31",
+        "role": "repair",
+        "result": "pass",
+        "at": "2026-10-31T02:08:37.236Z",
+        "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7",
+        "finished_at": "2026-10-31T02:11:37.379Z"
+      },
+      "fixed_by": "root-repair-2026-10-31"
+    }
+  ],
+  "gates": []
+}

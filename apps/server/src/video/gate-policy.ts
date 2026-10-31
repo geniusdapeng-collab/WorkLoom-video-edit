@@ -70,6 +70,12 @@ export const GATE_RUBRIC: Partial<Record<GateKey, string[]>> = {
   G7_FINAL: ["预生产收口：镜头卡/定妆照/提示词三件套齐备且互相引用一致", "渲染提交前的花额度动作仍需人审（本门只放行内部准备）"]
 };
 
+/** Approved suggestions are review annotations, not permission to mutate an approved artifact. */
+export function appliedApprovalFeedback(approved: boolean, suggestions: unknown): string[] {
+  if (approved || !Array.isArray(suggestions)) return [];
+  return suggestions.filter((item): item is string => typeof item === "string" && Boolean(item.trim()));
+}
+
 /**
  * 门内容的确定性检查（零 token 先判）：
  * 空内容 / 占位符 / 声称完成但没有产物 —— 一律硬失败，不浪费模型额度。
@@ -87,9 +93,37 @@ export function gateDeterministicChecks(gate: GateKey, content: string): Array<{
     return [{ id: "marketing-facts-present", pass: valid, hard: true,
       detail: valid ? "完整本次来源/三站事实包可解析；null等JSON值不会当作占位词误杀" : "G1必须读取宿主本次完整来源事实包" }];
   }
+  const hardPlaceholder = /undefined|NaN|\[object Object\]/.test(trimmed);
+  // Gate documents embed versioned JSON contracts whose schemas legitimately
+  // use null for optional fields. Ignore `null` only inside a parseable fenced
+  // JSON block; prose or broken JSON still fails closed.
+  const placeholderScan = gate === "G3_INSIGHT" ? "" : trimmed.replace(
+    /```json\s*([\s\S]*?)```/gi,
+    (block, body: string) => {
+      try {
+        JSON.parse(body.trim());
+        return "";
+      } catch {
+        return block;
+      }
+    },
+  );
+  /**
+   * Some legacy Markdown renderers stringify a schema's optional field as
+   * `hero_image_id 为 null` even when the structured object is valid. These
+   * keys are explicitly nullable host contracts; only those exact prose forms
+   * are exempt. Unknown keys, malformed JSON and generic "字段值为 null"
+   * remain hard failures.
+   */
+  const protocolNullProse = placeholderScan.replace(
+    /\b(?:hero_image_id|protagonist|character_consistency)\s*(?:[:：=]|为)\s*null\b/gi,
+    "",
+  );
+  const nullPlaceholder = /\bnull\b/i.test(protocolNullProse);
+  const placeholder = hardPlaceholder || nullPlaceholder;
   const checks = [
     { id: "content-present", pass: trimmed.length > 0, hard: true, detail: trimmed.length > 0 ? `门内容 ${trimmed.length} 字` : "门内容为空（vendor 未产出该环节产物）" },
-    { id: "no-placeholder", pass: !/undefined|null(?![\w])|NaN|\[object Object\]/.test(trimmed), hard: true, detail: /undefined|null(?![\w])|NaN|\[object Object\]/.test(trimmed) ? "门内容含 undefined/null/NaN/[object Object] 占位" : "无占位符泄漏" },
+    { id: "no-placeholder", pass: !placeholder, hard: true, detail: placeholder ? "门内容含 undefined/null/NaN/[object Object] 占位" : "无占位符泄漏（可解析版本化合同的协议 null 不算占位）" },
     { id: "min-length", pass: trimmed.length >= 120, hard: true, detail: `内容长度 ${trimmed.length}（下限 120，过短通常意味着上游字段过薄）` }
   ];
   if (gate === "G5_PORTRAIT") {

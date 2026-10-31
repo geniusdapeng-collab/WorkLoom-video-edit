@@ -115,15 +115,6 @@
     "edit:delivery-plan": "tsx scripts/tools/edit-delivery-plan.mts",
     "edit:fastlane": "tsx scripts/tools/edit-fastlane.mts"
   },
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "node-pty"
-    ],
-    "overrides": {
-      "@workloom/ui@0.1.19": "https://cnb.cool/workloom-ai/workloom-im/-/releases/download/ui-v0.1.19/workloom-ui-0.1.19.tgz",
-      "pixi-live2d-display@0.4.0>gh-pages": "-"
-    }
-  },
   "devDependencies": {
     "@axe-core/playwright": "4.13.0",
     "@types/node": "^24.0.0",
@@ -136,6 +127,15 @@
     "vitest": "^4.1.11",
     "yaml": "2.9.0",
     "yaml-governance": "npm:yaml@2.9.0"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "node-pty"
+    ],
+    "overrides": {
+      "@workloom/ui@0.1.19": "https://github.com/geniusdapeng-collab/workloom-im/releases/download/ui-v0.1.19/workloom-ui-0.1.19.tgz",
+      "pixi-live2d-display@0.4.0>gh-pages": "-"
+    }
   },
   "description": "WorkLoom 获客系统 · 短视频社媒营销 × GEO × 获客五环 × 行业运营（首垂直：酒店）"
 }

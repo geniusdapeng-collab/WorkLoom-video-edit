@@ -6,7 +6,7 @@ import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import { z } from "zod";
 import { PRODUCT_ARCHIVE_SCHEMA, verifyProductArchive, type ProductArchive, type ProductArchivePhoto } from "@hyperreality/video-studio";
-import type { PreparedMarketingFacts } from "./marketing-authority.js";
+import { supportReviewFacts, type PreparedMarketingFacts } from "./marketing-authority.js";
 import { revalidateStageFacts } from "./marketing-facts.js";
 import { sourceDocument, sourceUrl, type SourceSnapshot } from "./marketing-source-fetcher.js";
 import { canonicalRenderJson, renderSha256 } from "./gen/compiled-request.js";
@@ -83,7 +83,8 @@ function checkedResearch(file: string): { prepared: PreparedMarketingFacts; sour
     || sha(canonicalRenderJson(b.rawByAgent)) !== b.rawSha256 || sha(canonicalRenderJson(b.dossier)) !== b.dossierSha256) fail("research raw payload or dossier binding changed");
   if (sha(prepared.g1Content) !== b.g1ContentSha256) fail("G1 review content SHA changed");
   const g1 = JSON.parse(prepared.g1Content) as { facts?: unknown; instruction?: unknown; requestedIntent?: unknown; requestedMetadata?: unknown };
-  if (!same(g1.facts, { ...b, g1ContentSha256: "" }) || typeof g1.instruction !== "string" || typeof g1.requestedIntent !== "string"
+  const { g1ContentSha256: _g1ContentSha256, ...factsForReview } = b;
+  if (!same(g1.facts, factsForReview) || typeof g1.instruction !== "string" || typeof g1.requestedIntent !== "string"
     || !g1.requestedMetadata || !same(JSON.parse(prepared.g1Content), g1)) fail("research content is not bound to its complete facts bundle");
   const sourceIds = new Set<string>();
   const sources = b.sources.map(source => {
@@ -118,7 +119,8 @@ function checkedResearch(file: string): { prepared: PreparedMarketingFacts; sour
         || verdict.evidence[0]?.path !== path.resolve(root, review.ref) || verdict.evidence[0]?.sha256 !== review.sha256
         || verdict.evidence[0]?.scope !== "complete-text") fail("independent complete-source LLM review is absent or invalid");
       const reviewBytes = bound(root, review.ref, review.sha256);
-      if (reviewBytes.toString("utf8") !== canonicalRenderJson({ scope: b.scope, productQuery: b.productQuery, facts: record.facts, sources: snapshots })) fail("review did not cover the current complete facts and source texts");
+      if (reviewBytes.toString("utf8") !== canonicalRenderJson({ scope: b.scope, productQuery: b.productQuery,
+        facts: supportReviewFacts(stage, record.facts), sources: snapshots })) fail("review did not cover the current complete facts and source texts");
     }
   }
   const dossier = b.dossier as { product_id?: string; identity?: Record<string, unknown> };

@@ -176,6 +176,29 @@ describe("AI producer evidence gate", () => {
     }
   });
 
+  it("retries only malformed judge responses with a bounded JSON-only instruction", async () => {
+    const bodies: string[] = [];
+    let calls = 0;
+    const fetchImpl = (async (_url, init) => {
+      bodies.push(String(init?.body));
+      calls++;
+      const content = calls === 1
+        ? '{"approved":true,"score":85,'
+        : JSON.stringify(good);
+      return new Response(JSON.stringify({
+        id: `judge-${calls}`,
+        model: "deepseek-flash",
+        choices: [{ finish_reason: "stop", message: { content } }],
+        usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 },
+      }));
+    }) as typeof fetch;
+    const verdict = await reviewStage(textOptions({ fetchImpl }));
+    expect(verdict.approved).toBe(true);
+    expect(calls).toBe(2);
+    expect(bodies[1]).toContain("只输出一个 JSON");
+    expect(verdict.receipts).toHaveLength(2);
+  });
+
   it("normalizes only unambiguous answer shapes", async () => {
     for (const answer of [
       { ...good, approved: "true" },
@@ -188,7 +211,7 @@ describe("AI producer evidence gate", () => {
     }
   });
 
-  it("invalid shape and score are unverified without a repair call", async () => {
+  it("invalid shape and score stay unverified after bounded repair", async () => {
     for (const answer of [
       { ...good, score: 101 },
       { ...good, score: null },
@@ -199,7 +222,7 @@ describe("AI producer evidence gate", () => {
       const bodies: string[] = [];
       const verdict = await reviewStage(textOptions({ fetchImpl: judge(answer, bodies) }));
       expect(verdict).toMatchObject({ approved: false, status: "unverified" });
-      expect(bodies).toHaveLength(1);
+      expect(bodies).toHaveLength(3);
     }
   });
 

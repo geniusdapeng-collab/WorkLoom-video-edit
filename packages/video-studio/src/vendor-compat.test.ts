@@ -742,6 +742,51 @@ console.log("RESULT " + JSON.stringify({ counters, receivedContext: received._sk
     expect(result.qc).toBe("not_applicable");
   }, 90_000);
 
+  it("融合器仅丢失包装 id 且保持输入顺序时按位置恢复原始 shotId", () => {
+    const result = runInChild(phase3Fixture(`
+const uninstall = installVendorPhase3FusionBridge();
+const output = await makePhase({ process: async shots => {
+ counters.fusion++;
+ return { shots: [{ scene: "手表商品微距", prompt: "【场景】抽象表盘微距与固定机位。", degraded: false }], degraded: false, stats: { failed: 0, total: 1 } };
+} }).execute(makeState());
+uninstall();
+console.log("RESULT " + JSON.stringify({ success: output.success, id: output.shots[0].shotId, prompt: output.shots[0].prompt }));
+`));
+    expect(result).toMatchObject({ success: true, id: "SC-01", prompt: expect.stringContaining("抽象表盘") });
+  }, 90_000);
+
+  it("融合器丢失 prompt 时仍 fail-closed，并报告精确镜头位置", () => {
+    const result = runInChild(phase3Fixture(`
+const uninstall = installVendorPhase3FusionBridge();
+let error = null;
+try { await makePhase({ process: async () => ({ shots: [{ shotId: "SC-01", degraded: false }], degraded: false, stats: { failed: 0, total: 1 } }) }).execute(makeState()); }
+catch (e) { error = { code: e.code, message: e.message }; }
+uninstall();
+console.log("RESULT " + JSON.stringify({ error }));
+`));
+    expect(result.error).toMatchObject({ code: "PHASE3_FUSION_UNVERIFIED" });
+    expect(String((result.error as Record<string, unknown>).message)).toContain("prompt=missing");
+  }, 90_000);
+
+  it("区分继承的孤立 degraded 布尔值和带字段证据的真降级", () => {
+    const result = runInChild(phase3Fixture(`
+const uninstall = installVendorPhase3FusionBridge();
+const inherited = await makePhase({ process: async shots => {
+ counters.fusion++;
+ return { shots: shots.map(s => ({ ...s, prompt: "【场景】合法完整提示词。", degraded: true })), degraded: false, stats: { failed: 0, total: 1 } };
+} }).execute(makeState({ degraded: true }));
+let explicitError = null;
+try { await makePhase({ process: async shots => {
+ counters.fusion++;
+ return { shots: shots.map(s => ({ ...s, prompt: "【场景】合法完整提示词。", degraded: true, degradedFields: ["scene"] })), degraded: false, stats: { failed: 0, total: 1 } };
+} }).execute(makeState()); } catch (e) { explicitError = e.message; }
+uninstall();
+console.log("RESULT " + JSON.stringify({ inheritedSuccess: inherited.success, inheritedDegraded: inherited.shots[0].degraded, explicitError }));
+`));
+    expect(result).toMatchObject({ inheritedSuccess: true, inheritedDegraded: false });
+    expect(String(result.explicitError)).toContain("explicitDegradation=true");
+  }, 90_000);
+
   it("真实 vendor 的融合请求生成器收到实际技能正文，负面禁词不被误判", () => {
     const result = runInChild(phase3Fixture(`
 const uninstall = installVendorPhase3FusionBridge();

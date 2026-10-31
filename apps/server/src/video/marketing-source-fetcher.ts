@@ -7,7 +7,7 @@ import { brotliDecompressSync, gunzipSync, inflateSync } from "node:zlib";
 import { createHash } from "node:crypto";
 
 export const SOURCE_MAX_BYTES = 2 * 1024 * 1024;
-export const SOURCE_MAX_TEXT_CHARS = 24_000;
+export const SOURCE_MAX_TEXT_CHARS = 64_000;
 export interface SourceSnapshot {
   sourceId: string; requestedUrl: string; finalUrl: string; redirectChain: string[];
   fetchedAt: string; contentType: string; rawSha256: string; textSha256: string;
@@ -16,6 +16,23 @@ export interface SourceSnapshot {
 export interface SourceResponse { status: number; headers: IncomingHttpHeaders; body: Buffer }
 export type SourceResolver = (hostname: string) => Promise<Array<{ address: string; family: number }>>;
 export type SourceTransport = (url: URL, address: { address: string; family: number }, signal: AbortSignal) => Promise<SourceResponse>;
+
+export interface BookingSourceFixture {
+  schemaVersion: "workloom.booking-source/v1";
+  requestedUrl: string;
+  finalUrl: string;
+  contentType: "text/plain";
+  text: string;
+  fetchedAt: string;
+  rawSha256: string;
+  textSha256: string;
+  bytes: number;
+  repository: string;
+  defaultBranch: string;
+  repositoryApiUrl: string;
+  readmeApiUrl: string;
+  readmeSha: string;
+}
 
 export function publicSourceAddress(address: string): boolean {
   const family = isIP(address);
@@ -156,6 +173,57 @@ export function sourceDocument(raw: string, contentType: string, finalUrl: strin
   return { text, assetUrls: [...assetUrls] };
 }
 
+/** Read a booked official-source snapshot for deterministic pre-render pressure runs. */
+export function loadBookingSourceFixture(
+  value: unknown,
+  expectedRequestedUrl?: string,
+): { snapshot: SourceSnapshot; rawBytes: Buffer } {
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("SOURCE_FIXTURE_INVALID：来源夹具必须是对象");
+  const fixture = value as Partial<BookingSourceFixture>;
+  const requested = sourceUrl(String(fixture.requestedUrl ?? ""));
+  const final = sourceUrl(String(fixture.finalUrl ?? ""));
+  if (expectedRequestedUrl && sourceUrl(expectedRequestedUrl).href !== requested.href) {
+    throw new Error("SOURCE_FIXTURE_MISMATCH：夹具与本次检索 URL 不一致");
+  }
+  if (fixture.schemaVersion !== "workloom.booking-source/v1" || fixture.contentType !== "text/plain"
+    || typeof fixture.text !== "string" || !fixture.text.trim()
+    || typeof fixture.repository !== "string" || !/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/u.test(fixture.repository)
+    || typeof fixture.defaultBranch !== "string" || !fixture.defaultBranch.trim()
+    || typeof fixture.repositoryApiUrl !== "string" || !/^https:\/\/api\.github\.com\//u.test(fixture.repositoryApiUrl)
+    || typeof fixture.readmeApiUrl !== "string" || !/^https:\/\/api\.github\.com\//u.test(fixture.readmeApiUrl)
+    || typeof fixture.readmeSha !== "string" || !/^[a-f0-9]{40}$/u.test(fixture.readmeSha)
+    || typeof fixture.fetchedAt !== "string" || !Number.isFinite(Date.parse(fixture.fetchedAt))) {
+    throw new Error("SOURCE_FIXTURE_INVALID：官方来源夹具字段不完整");
+  }
+  const rawBytes = Buffer.from(fixture.text);
+  const text = sourceDocument(fixture.text, fixture.contentType, final.href).text;
+  const rawDigest = createHash("sha256").update(rawBytes).digest("hex");
+  const textDigest = createHash("sha256").update(text).digest("hex");
+  const bytes = rawBytes.length;
+  if (!/^[a-f0-9]{64}$/u.test(String(fixture.rawSha256)) || fixture.rawSha256 !== rawDigest
+    || !/^[a-f0-9]{64}$/u.test(String(fixture.textSha256)) || fixture.textSha256 !== textDigest
+    || fixture.bytes !== bytes) {
+    throw new Error("SOURCE_FIXTURE_CHANGED：官方来源夹具正文与摘要不一致");
+  }
+  const sourceId = `SRC-${createHash("sha256").update(`${final.href}\n${textDigest}`).digest("hex").slice(0, 24)}`;
+  return {
+    snapshot: {
+      sourceId,
+      requestedUrl: requested.href,
+      finalUrl: final.href,
+      redirectChain: requested.href === final.href ? [] : [requested.href],
+      fetchedAt: fixture.fetchedAt,
+      contentType: fixture.contentType,
+      rawSha256: rawDigest,
+      textSha256: textDigest,
+      bytes,
+      text,
+      assetUrls: [],
+    },
+    rawBytes,
+  };
+}
+
 async function abortable<T>(operation: Promise<T>, signal: AbortSignal): Promise<T> {
   signal.throwIfAborted();
   return new Promise<T>((resolve, reject) => {
@@ -207,4 +275,34 @@ export async function fetchMarketingSource(rawUrl: string, options: {
       rawSha256, textSha256, bytes: decoded.length, ...document }, rawBytes: decoded };
   }
   throw new Error("SOURCE_REDIRECT_INVALID：来源重定向未完成");
+}
+
+export function retryableMarketingSourceError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return /abort(?:ed)?|timeout|timed out|ECONN|ENOTFOUND|EAI_AGAIN|socket|SOURCE_ABORTED|SOURCE_HTTP_FAILED：来源HTTP (?:429|5\d\d)/iu.test(message);
+}
+
+/** Public GET retry for transient transport/HTTP failures; content-policy failures remain immediate. */
+export async function fetchMarketingSourceWithRetry(rawUrl: string, options: {
+  resolver?: SourceResolver; transport?: SourceTransport;
+  attemptTimeoutsMs?: number[]; retryDelaysMs?: number[];
+} = {}): Promise<{ snapshot: SourceSnapshot; rawBytes: Buffer }> {
+  const attemptTimeoutsMs = options.attemptTimeoutsMs?.length ? options.attemptTimeoutsMs : [15_000, 25_000, 40_000];
+  const retryDelaysMs = options.retryDelaysMs ?? [250, 750];
+  let lastError: unknown;
+  for (let attempt = 0; attempt < attemptTimeoutsMs.length; attempt++) {
+    try {
+      return await fetchMarketingSource(rawUrl, {
+        resolver: options.resolver,
+        transport: options.transport,
+        timeoutMs: attemptTimeoutsMs[attempt],
+      });
+    } catch (error) {
+      lastError = error;
+      if (!retryableMarketingSourceError(error) || attempt === attemptTimeoutsMs.length - 1) throw error;
+      const delay = retryDelaysMs[Math.min(attempt, retryDelaysMs.length - 1)] ?? 0;
+      if (delay > 0) await new Promise((resolve) => setTimeout(resolve, delay));
+    }
+  }
+  throw lastError instanceof Error ? lastError : new Error(String(lastError));
 }

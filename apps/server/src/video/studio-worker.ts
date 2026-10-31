@@ -27,6 +27,7 @@ import {
   StageRunner,
   auditScenePolicy,
   attachStructuredLog,
+  bindExplicitAudienceMetadata,
   classifyError,
   installVendorEngineBridge,
   installVendorPortraitBindingBridge,
@@ -61,6 +62,8 @@ import { ingestPortraitsFromIndex } from "./media/library.js";
 import { upsertProductProfileFromDossier } from "./media/products.js";
 import { appendScenePolicyGuidance, resolveScenePolicyForIntent } from "./scene-policy-routing.js";
 import { appendPlatformGuidance, resolvePlatformForIntent } from "./platform-routing.js";
+import { loadVideoPipelinePlan, type CompiledVideoPipelinePlan } from "@hyperreality/video-pipeline";
+import { PipelineShadowObserver, pipelineControlMode } from "./pipeline/shadow.js";
 import {
   AUTO_GATES,
   GATE_PRODUCER_STAGE,
@@ -575,13 +578,16 @@ export function startRun(scope: Scope, input: StudioRunInput): string {
   const selectedPlatform = input.selectedPlatform
     ?? resolvePlatformForIntent(input.rawIntent ?? input.intent, input.metadata);
   const selectedBuiltinCharacters = input.selectedBuiltinCharacters ?? resolveBuiltinCharacters(input.rawIntent ?? input.intent, input.metadata);
-  const resolvedMetadata: Record<string, unknown> = applyBuiltinCharacters({
+  const audienceBound = bindExplicitAudienceMetadata({
     ...(input.metadata ?? {}),
+    customerOriginalIntent: input.rawIntent ?? input.intent,
     platform: selectedPlatform.decision.id,
     scenePolicySelection: selectedScenePolicy.decision,
     platformSelection: selectedPlatform.decision,
     ...(selectedScenePolicy.policy ? { scenePolicy: selectedScenePolicy.metadata.scenePolicy } : {}),
-  }, selectedBuiltinCharacters);
+  }, input.rawIntent ?? input.intent);
+  if (audienceBound.changed) console.log(`[studio-worker] 客户明确受众绑定：${audienceBound.audience}`);
+  const resolvedMetadata: Record<string, unknown> = applyBuiltinCharacters(audienceBound.metadata, selectedBuiltinCharacters);
   const runInput: RunInput = {
     projectId: input.projectId,
     intent: appendBuiltinCharacterGuidance(appendPlatformGuidance(appendScenePolicyGuidance(input.intent, selectedScenePolicy.policy), selectedPlatform.decision), selectedBuiltinCharacters),
@@ -665,6 +671,23 @@ export function startRun(scope: Scope, input: StudioRunInput): string {
    * 管线类型：营销片（含情报层）/ 叙事片，落进 manifest.pipelineKind 供跨会话承接。
    */
   const pipelineKind: PipelineKind = input.isMarketing ? "marketing" : "narrative";
+  const controlMode = pipelineControlMode();
+  let shadowExpectedPlan: CompiledVideoPipelinePlan | null = null;
+  let shadowObserver: PipelineShadowObserver | null = null;
+  if (controlMode !== "off") {
+    try {
+      shadowExpectedPlan = loadVideoPipelinePlan(
+        path.join(REPO_ROOT, "bundles", "ai-video", "pipelines", `${pipelineKind}-film.yml`),
+        `${pipelineKind}-film`,
+      );
+      shadowObserver = new PipelineShadowObserver(scope, input.projectId, entry.runId);
+      console.log(`[pipeline-shadow] enabled mode=${controlMode} plan=${shadowExpectedPlan.planHash.slice(0, 12)}`);
+    } catch (error) {
+      console.warn(`[pipeline-shadow] disabled: ${error instanceof Error ? error.message : String(error)}`);
+      shadowExpectedPlan = null;
+      shadowObserver = null;
+    }
+  }
   const archive = new ArchiveStore(path.resolve(WORK_DIR), scope.workspaceId, input.projectId, pipelineKind, {
     aspectRatio: runInput.metadata?.aspectRatio ?? null,
     scenePolicy: selectedScenePolicy.decision,
@@ -696,6 +719,7 @@ export function startRun(scope: Scope, input: StudioRunInput): string {
         }
       } else if (e.kind === "pipeline.gate.resolved") {
         const payload = (e.payload ?? {}) as { approved?: unknown; reason?: unknown };
+        shadowObserver?.observeGate(e.gate);
         decisionLog.push(
           `门 ${e.gate ?? "-"}：${payload.approved ? "放行" : "打回"}${payload.reason ? `（${String(payload.reason).slice(0, 120)}）` : ""}`,
         );
@@ -735,6 +759,20 @@ export function startRun(scope: Scope, input: StudioRunInput): string {
   const onApproval: ApprovalCallback = async (req) => {
     // ApprovalCallback.gate 声明为 string，但适配层（studio.ts）保证已 resolveGate 过，运行时为 GateKey
     const gate = req.gate as GateKey;
+    if (gate === "G1_DOSSIER") shadowObserver?.observeGate(gate);
+    if (gate === "G5_PORTRAIT" && selectedBuiltinCharacters.mode === "none" && !portraitOptions.enabled) {
+      gateProofs.set(gate, {
+        gate,
+        approved: true,
+        status: "not_applicable",
+        via: "deterministic",
+        degraded: false,
+        model: null,
+        evidence: [],
+        basis: "no-characters-or-products",
+      });
+      return { approved: true, reason: "no-characters-or-products", suggestions: [] };
+    }
     const gateObj = gateObjectOf(gate, req.vendorType);
     const objectId = gate === "G7_FINAL" ? input.projectId : `${input.projectId}:${gate.toLowerCase()}`;
     if (gate === "G5_PORTRAIT" && portraitOptions.enabled && portraitOptions.archivedCharactersOnly && portraitOptions.archivedCharacters) {
@@ -1556,6 +1594,23 @@ export function startRun(scope: Scope, input: StudioRunInput): string {
           entry.status = "failed";
           entry.error = [entry.error, `运行清理失败：${message}`].filter(Boolean).join("；");
           console.error(`[studio-worker] ${entry.error}`);
+        }
+      }
+      if (shadowObserver && shadowExpectedPlan) {
+        try {
+          const shadowRunId = await shadowObserver.finalize({
+            success: entry.status === "finished",
+            pipelineKind,
+            intent: input.intent,
+            observedGates: [...gateProofs.values()],
+            expectedPlan: shadowExpectedPlan,
+          });
+          if (shadowRunId) console.log(`[pipeline-shadow] observed legacy run ${entry.runId} as ${shadowRunId}`);
+        } catch (shadowError) {
+          console.warn(
+            `[pipeline-shadow] observation failed without affecting legacy run: `
+            + `${shadowError instanceof Error ? shadowError.message : String(shadowError)}`,
+          );
         }
       }
       entry.finishedAt = new Date().toISOString();

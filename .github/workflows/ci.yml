@@ -55,9 +55,7 @@ jobs:
       - name: 媒体工具（ffmpeg/ffprobe）
         run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
 
-      - name: 私有 UI 制品校验与原锁安装
-        env:
-          WORKLOOM_UI_RELEASE_READ_TOKEN: ${{ secrets.CNB_UI_RELEASE_TOKEN }}
+      - name: GitHub UI 制品校验与原锁安装
         run: >-
           node scripts/ci/install-private-ui.mjs
           --repo .

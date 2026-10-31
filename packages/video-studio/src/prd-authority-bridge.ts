@@ -10,6 +10,7 @@ import {
   authoritativeDelivery, authoritativeProduct, bindPrdProvenance, effectivePrdModelSchema, prdAuthorityPrompt, prdFail,
   validatePrdDelivery, validatePrdModelPayload, validatePrdProduction, type PrdAuthority
 } from "./prd-authority.js";
+import { normalizeMarketingPrdContract } from "./marketing-prd-contract.js";
 import { acquireVendorRequirementEntry } from "./vendor-requirement-entry.js";
 
 type Method = (this: RequirementRecord, ...args: unknown[]) => unknown;
@@ -580,7 +581,8 @@ export function installPrdAuthorityBridge(
             return guard(scope, () => {
               check(scope);
               const raw = validatePrdModelPayload(value, kind, schema, contract, scope.authority.profile);
-              const result = Reflect.apply(parse, this, [value, ...args]);
+              const parseInput = typeof value === "string" ? JSON.stringify(raw) : raw;
+              const result = Reflect.apply(parse, this, [parseInput, ...args]);
               if (requirementHash(result) !== requirementHash(kind === "creative" ? { creativeCore: raw } : raw)) {
                 prdFail("PRD_RESPONSE_CHANGED", "原生 parser 用规则修改了真实模型模块，拒绝把补全文字当作模型创作");
               }
@@ -604,10 +606,16 @@ export function installPrdAuthorityBridge(
         view[key] = agentView;
       }
       // Keep the native two real LLM process calls, timeout/retry budget, rule agents and schema pipeline.
-      const original = await Reflect.apply(generate, view, [discovery]);
+      const generated = requirementRecord(await Reflect.apply(generate, view, [discovery]), "PRD 生成结果");
       check(scope);
       if (requirementHash(discovery.sceneStructure) !== sourceHash) prdFail("PRD_G3_CHANGED", "PRD 生成修改了已经批准的源场景");
-      const result = bindPrdProvenance(original, scope.authority, contract);
+      const normalized = normalizeMarketingPrdContract(
+        generated,
+        scope.authority.metadata,
+        scope.authority.profile,
+        scope.contract,
+      );
+      const result = bindPrdProvenance(normalized.prd, scope.authority, contract);
       if (!qualityPolicy) prdFail("PRD_QUALITY_INVALID", "本次原生规则调用没有形成质量阈值来源");
       scope.quality.set(result, structuredClone(qualityPolicy));
       scope.generated.add(result);
@@ -624,9 +632,15 @@ export function installPrdAuthorityBridge(
       const original = Reflect.apply(markdown, this, [result]);
       if (typeof original !== "string") prdFail("PRD_VENDOR_UNAVAILABLE", "原始 PRD Markdown 不是文本");
       if (original.split("## 9. 受众定位").length !== 2) prdFail("PRD_VENDOR_UNAVAILABLE", "PRD 受众 Markdown 的受控章节发生变化");
-      const labeled = original.replace("## 9. 受众定位", `## 9. 客户受众与模型细分推测\n\n`
+      let labeled = original.replace("## 9. 受众定位", `## 9. 客户受众与模型细分推测\n\n`
         + `- **客户 Brief 权威受众原文**：${scope.contract!.ownerAudience ?? "客户未显式指定"}\n`
         + `- **以下年龄、性别与兴趣细分仅为模型推测**：不覆盖客户原文，不构成已核实市场事实，仍待本次 G4 独立评审。\n\n### 模型细分原文`);
+      if (scope.contract!.cast.characters.length === 0) {
+        const heading = "## 6. 角色系统\n\n无角色";
+        const explicit = "## 6. 角色系统\n\n外观锚点与定妆照前置：不适用（cast.mode=none，与出镜角色合同一致）";
+        if (labeled.split(heading).length !== 2) prdFail("PRD_VENDOR_UNAVAILABLE", "PRD 无角色 Markdown 的受控章节发生变化");
+        labeled = labeled.replace(heading, explicit);
+      }
       // This field is inapplicable when props exist; retain the canonical contract and hashes.
       const displayContract = { ...scope.contract!, scenes: scope.contract!.scenes.map(scene => {
         if (Array.isArray(scene.props) && scene.props.length > 0 && scene.noPropsReason === null) {

@@ -1,0 +1,65 @@
+{
+  "id": "MC-018",
+  "kind": "problem",
+  "level": "L2",
+  "severity": "P1",
+  "batch": 0,
+  "state": "open",
+  "title": "官方来源一次瞬时超时即放弃，营销管线无有界 GET 重试",
+  "evidence": [
+    {
+      "type": "code",
+      "ref": "apps/server/src/video/marketing-authority.ts:281@463ae7ad844de31674b94e73679dafaf0f5dcac5",
+      "sha256": "6e7dac86e9f1509d270fbdf619d2d13f162ab5e892556df86dbc6bfcfd59dcc6",
+      "note": "每个候选 URL 的 sourceFetch 只调用一次；任何超时或 5xx 都直接写入 failures 并尝试下一个候选。"
+    }
+  ],
+  "root_cause": {
+    "file": "apps/server/src/video/marketing-authority.ts",
+    "line": 281,
+    "commit": "463ae7ad844de31674b94e73679dafaf0f5dcac5",
+    "symbol": "prepareMarketingFacts source collector"
+  },
+  "trigger_path": "官方 GitHub 页面单次 15 秒超时 → 相同 URL 候选去重后没有其他来源 → pages=0 → MARKETING_A1_UNVERIFIED，管线 15 秒内失败。",
+  "assertions": [
+    {
+      "kind": "sample",
+      "given": "公开 GET 首次超时/503，第二次成功",
+      "expect": "重试后返回真实正文；仅临时错误和 429/5xx 允许重试",
+      "command": "node --import tsx --test --test-name-pattern='marketing source retry' scripts/tools/data-pipeline-host-contract.node-test.mjs",
+      "exec": {
+        "file": "node",
+        "args": [
+          "--import",
+          "tsx",
+          "--test",
+          "--test-name-pattern=marketing source retry",
+          "scripts/tools/data-pipeline-host-contract.node-test.mjs"
+        ]
+      },
+      "last_result": "not-run"
+    },
+    {
+      "kind": "property",
+      "given": "私网、内容超限、类型不支持等策略错误",
+      "expect": "不重试，立即 fail-closed",
+      "command": "node --import tsx --test --test-name-pattern='marketing source retry' scripts/tools/data-pipeline-host-contract.node-test.mjs",
+      "exec": {
+        "file": "node",
+        "args": [
+          "--import",
+          "tsx",
+          "--test",
+          "--test-name-pattern=marketing source retry",
+          "scripts/tools/data-pipeline-host-contract.node-test.mjs"
+        ]
+      },
+      "last_result": "not-run"
+    }
+  ],
+  "regression": {
+    "command": "node --import tsx --test --test-name-pattern='marketing source retry' scripts/tools/data-pipeline-host-contract.node-test.mjs",
+    "evidence": null
+  },
+  "notes": "M01 在 15 秒内失败；独立 fetchMarketingSource 同样得到 operation aborted due to timeout。"
+}

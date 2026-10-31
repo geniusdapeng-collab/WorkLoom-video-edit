@@ -1,0 +1,1282 @@
+TAP version 13
+# Subtest: 真实全链CLI接收黑屏、无音轨、17FPS、旧品质失败与30秒名义稿：正式后期和3变体完成，旧字节/原记录不改，外呼0
+not ok 1 - 真实全链CLI接收黑屏、无音轨、17FPS、旧品质失败与30秒名义稿：正式后期和3变体完成，旧字节/原记录不改，外呼0
+  ---
+  duration_ms: 8.764417
+  type: 'test'
+  location: '/Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:109:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Error: spawnSync ffmpeg ENOENT
+    
+    null !== 0
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 0
+  actual: ~
+  operator: 'strictEqual'
+  stack: |-
+    media (file:///Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:19:10)
+    fixture (file:///Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:49:3)
+    TestContext.<anonymous> (file:///Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:110:13)
+    Test.runInAsyncScope (node:async_hooks:227:14)
+    Test.run (node:internal/test_runner/test:1402:25)
+    Test.start (node:internal/test_runner/test:1262:17)
+    startSubtestAfterBootstrap (node:internal/test_runner/harness:387:17)
+  ...
+# Subtest: 真实CLI先显式调色再默认恢复：变体始终独立取未调色母片，原色零调色且旧调色缓存不复用
+not ok 2 - 真实CLI先显式调色再默认恢复：变体始终独立取未调色母片，原色零调色且旧调色缓存不复用
+  ---
+  duration_ms: 4.384584
+  type: 'test'
+  location: '/Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:137:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Error: spawnSync ffmpeg ENOENT
+    
+    null !== 0
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 0
+  actual: ~
+  operator: 'strictEqual'
+  stack: |-
+    media (file:///Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:19:10)
+    fixture (file:///Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:49:3)
+    TestContext.<anonymous> (file:///Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:138:13)
+    Test.runInAsyncScope (node:async_hooks:227:14)
+    Test.run (node:internal/test_runner/test:1402:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+    Test.postRun (node:internal/test_runner/test:1542:19)
+    Test.run (node:internal/test_runner/test:1467:12)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3)
+  ...
+# Subtest: 真实CLI原声镜头复用保留，后期仅compose/master也能正式产出，不触发自动配音
+not ok 3 - 真实CLI原声镜头复用保留，后期仅compose/master也能正式产出，不触发自动配音
+  ---
+  duration_ms: 3.139125
+  type: 'test'
+  location: '/Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:165:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Error: spawnSync ffmpeg ENOENT
+    
+    null !== 0
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 0
+  actual: ~
+  operator: 'strictEqual'
+  stack: |-
+    media (file:///Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:19:10)
+    fixture (file:///Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:49:3)
+    TestContext.<anonymous> (file:///Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:166:13)
+    Test.runInAsyncScope (node:async_hooks:227:14)
+    Test.run (node:internal/test_runner/test:1402:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+    Test.postRun (node:internal/test_runner/test:1542:19)
+    Test.run (node:internal/test_runner/test:1467:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:974:7)
+  ...
+# Subtest: 真实CLI自产字幕保留三行以后全部台词，不按隐式两行上限删字
+not ok 4 - 真实CLI自产字幕保留三行以后全部台词，不按隐式两行上限删字
+  ---
+  duration_ms: 4.328125
+  type: 'test'
+  location: '/Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:173:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Error: spawnSync ffmpeg ENOENT
+    
+    null !== 0
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 0
+  actual: ~
+  operator: 'strictEqual'
+  stack: |-
+    media (file:///Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:19:10)
+    fixture (file:///Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:49:3)
+    TestContext.<anonymous> (file:///Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:175:13)
+    Test.runInAsyncScope (node:async_hooks:227:14)
+    Test.run (node:internal/test_runner/test:1402:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+    Test.postRun (node:internal/test_runner/test:1542:19)
+    Test.run (node:internal/test_runner/test:1467:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:974:7)
+  ...
+# Subtest: 真实CLI失败关闭：empty-registry，不自动重渲、不交付、不外呼
+not ok 5 - 真实CLI失败关闭：empty-registry，不自动重渲、不交付、不外呼
+  ---
+  duration_ms: 4.712625
+  type: 'test'
+  location: '/Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:198:4'
+  failureType: 'testCodeFailure'
+  error: |-
+    Error: spawnSync ffmpeg ENOENT
+    
+    null !== 0
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 0
+  actual: ~
+  operator: 'strictEqual'
+  stack: |-
+    media (file:///Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:19:10)
+    fixture (file:///Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:49:3)
+    TestContext.<anonymous> (file:///Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:199:13)
+    Test.runInAsyncScope (node:async_hooks:227:14)
+    Test.run (node:internal/test_runner/test:1402:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+    Test.postRun (node:internal/test_runner/test:1542:19)
+    Test.run (node:internal/test_runner/test:1467:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:974:7)
+  ...
+# Subtest: 真实CLI失败关闭：duplicate-id，不自动重渲、不交付、不外呼
+not ok 6 - 真实CLI失败关闭：duplicate-id，不自动重渲、不交付、不外呼
+  ---
+  duration_ms: 4.085792
+  type: 'test'
+  location: '/Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:198:4'
+  failureType: 'testCodeFailure'
+  error: |-
+    Error: spawnSync ffmpeg ENOENT
+    
+    null !== 0
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 0
+  actual: ~
+  operator: 'strictEqual'
+  stack: |-
+    media (file:///Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:19:10)
+    fixture (file:///Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:49:3)
+    TestContext.<anonymous> (file:///Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:199:13)
+    Test.runInAsyncScope (node:async_hooks:227:14)
+    Test.run (node:internal/test_runner/test:1402:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+    Test.postRun (node:internal/test_runner/test:1542:19)
+    Test.run (node:internal/test_runner/test:1467:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:974:7)
+  ...
+# Subtest: 真实CLI失败关闭：unsafe-id，不自动重渲、不交付、不外呼
+not ok 7 - 真实CLI失败关闭：unsafe-id，不自动重渲、不交付、不外呼
+  ---
+  duration_ms: 3.619667
+  type: 'test'
+  location: '/Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:198:4'
+  failureType: 'testCodeFailure'
+  error: |-
+    Error: spawnSync ffmpeg ENOENT
+    
+    null !== 0
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 0
+  actual: ~
+  operator: 'strictEqual'
+  stack: |-
+    media (file:///Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:19:10)
+    fixture (file:///Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:49:3)
+    TestContext.<anonymous> (file:///Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:199:13)
+    Test.runInAsyncScope (node:async_hooks:227:14)
+    Test.run (node:internal/test_runner/test:1402:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+    Test.postRun (node:internal/test_runner/test:1542:19)
+    Test.run (node:internal/test_runner/test:1467:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:974:7)
+  ...
+# Subtest: 真实CLI失败关闭：source-contract-changed，不自动重渲、不交付、不外呼
+not ok 8 - 真实CLI失败关闭：source-contract-changed，不自动重渲、不交付、不外呼
+  ---
+  duration_ms: 3.448209
+  type: 'test'
+  location: '/Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:198:4'
+  failureType: 'testCodeFailure'
+  error: |-
+    Error: spawnSync ffmpeg ENOENT
+    
+    null !== 0
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 0
+  actual: ~
+  operator: 'strictEqual'
+  stack: |-
+    media (file:///Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:19:10)
+    fixture (file:///Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:49:3)
+    TestContext.<anonymous> (file:///Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:199:13)
+    Test.runInAsyncScope (node:async_hooks:227:14)
+    Test.run (node:internal/test_runner/test:1402:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+    Test.postRun (node:internal/test_runner/test:1542:19)
+    Test.run (node:internal/test_runner/test:1467:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:974:7)
+  ...
+# Subtest: 真实CLI失败关闭：original-input-changed，不自动重渲、不交付、不外呼
+not ok 9 - 真实CLI失败关闭：original-input-changed，不自动重渲、不交付、不外呼
+  ---
+  duration_ms: 2.648084
+  type: 'test'
+  location: '/Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:198:4'
+  failureType: 'testCodeFailure'
+  error: |-
+    Error: spawnSync ffmpeg ENOENT
+    
+    null !== 0
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 0
+  actual: ~
+  operator: 'strictEqual'
+  stack: |-
+    media (file:///Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:19:10)
+    fixture (file:///Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:49:3)
+    TestContext.<anonymous> (file:///Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:199:13)
+    Test.runInAsyncScope (node:async_hooks:227:14)
+    Test.run (node:internal/test_runner/test:1402:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+    Test.postRun (node:internal/test_runner/test:1542:19)
+    Test.run (node:internal/test_runner/test:1467:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:974:7)
+  ...
+# Subtest: 真实CLI失败关闭：output-changed，不自动重渲、不交付、不外呼
+not ok 10 - 真实CLI失败关闭：output-changed，不自动重渲、不交付、不外呼
+  ---
+  duration_ms: 3.530125
+  type: 'test'
+  location: '/Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:198:4'
+  failureType: 'testCodeFailure'
+  error: |-
+    Error: spawnSync ffmpeg ENOENT
+    
+    null !== 0
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 0
+  actual: ~
+  operator: 'strictEqual'
+  stack: |-
+    media (file:///Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:19:10)
+    fixture (file:///Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:49:3)
+    TestContext.<anonymous> (file:///Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:199:13)
+    Test.runInAsyncScope (node:async_hooks:227:14)
+    Test.run (node:internal/test_runner/test:1402:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+    Test.postRun (node:internal/test_runner/test:1542:19)
+    Test.run (node:internal/test_runner/test:1467:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:974:7)
+  ...
+# Subtest: 真实CLI失败关闭：provider-failed，不自动重渲、不交付、不外呼
+not ok 11 - 真实CLI失败关闭：provider-failed，不自动重渲、不交付、不外呼
+  ---
+  duration_ms: 3.524833
+  type: 'test'
+  location: '/Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:198:4'
+  failureType: 'testCodeFailure'
+  error: |-
+    Error: spawnSync ffmpeg ENOENT
+    
+    null !== 0
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 0
+  actual: ~
+  operator: 'strictEqual'
+  stack: |-
+    media (file:///Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:19:10)
+    fixture (file:///Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:49:3)
+    TestContext.<anonymous> (file:///Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:199:13)
+    Test.runInAsyncScope (node:async_hooks:227:14)
+    Test.run (node:internal/test_runner/test:1402:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+    Test.postRun (node:internal/test_runner/test:1542:19)
+    Test.run (node:internal/test_runner/test:1467:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:974:7)
+  ...
+# Subtest: 真实CLI失败关闭：missing-task，不自动重渲、不交付、不外呼
+not ok 12 - 真实CLI失败关闭：missing-task，不自动重渲、不交付、不外呼
+  ---
+  duration_ms: 4.437583
+  type: 'test'
+  location: '/Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:198:4'
+  failureType: 'testCodeFailure'
+  error: |-
+    Error: spawnSync ffmpeg ENOENT
+    
+    null !== 0
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 0
+  actual: ~
+  operator: 'strictEqual'
+  stack: |-
+    media (file:///Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:19:10)
+    fixture (file:///Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:49:3)
+    TestContext.<anonymous> (file:///Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:199:13)
+    Test.runInAsyncScope (node:async_hooks:227:14)
+    Test.run (node:internal/test_runner/test:1402:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+    Test.postRun (node:internal/test_runner/test:1542:19)
+    Test.run (node:internal/test_runner/test:1467:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:974:7)
+  ...
+# Subtest: 真实CLI失败关闭：missing-lineage，不自动重渲、不交付、不外呼
+not ok 13 - 真实CLI失败关闭：missing-lineage，不自动重渲、不交付、不外呼
+  ---
+  duration_ms: 6.563667
+  type: 'test'
+  location: '/Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:198:4'
+  failureType: 'testCodeFailure'
+  error: |-
+    Error: spawnSync ffmpeg ENOENT
+    
+    null !== 0
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 0
+  actual: ~
+  operator: 'strictEqual'
+  stack: |-
+    media (file:///Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:19:10)
+    fixture (file:///Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:49:3)
+    TestContext.<anonymous> (file:///Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:199:13)
+    Test.runInAsyncScope (node:async_hooks:227:14)
+    Test.run (node:internal/test_runner/test:1402:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+    Test.postRun (node:internal/test_runner/test:1542:19)
+    Test.run (node:internal/test_runner/test:1467:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:974:7)
+  ...
+# Subtest: 真实CLI失败关闭：missing-source，不自动重渲、不交付、不外呼
+not ok 14 - 真实CLI失败关闭：missing-source，不自动重渲、不交付、不外呼
+  ---
+  duration_ms: 3.902
+  type: 'test'
+  location: '/Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:198:4'
+  failureType: 'testCodeFailure'
+  error: |-
+    Error: spawnSync ffmpeg ENOENT
+    
+    null !== 0
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 0
+  actual: ~
+  operator: 'strictEqual'
+  stack: |-
+    media (file:///Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:19:10)
+    fixture (file:///Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:49:3)
+    TestContext.<anonymous> (file:///Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:199:13)
+    Test.runInAsyncScope (node:async_hooks:227:14)
+    Test.run (node:internal/test_runner/test:1402:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+    Test.postRun (node:internal/test_runner/test:1542:19)
+    Test.run (node:internal/test_runner/test:1467:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:974:7)
+  ...
+# Subtest: 真实CLI处理工具失败会显式停止且不复用旧母版冒充新完成
+not ok 15 - 真实CLI处理工具失败会显式停止且不复用旧母版冒充新完成
+  ---
+  duration_ms: 3.896667
+  type: 'test'
+  location: '/Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:204:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Error: spawnSync ffmpeg ENOENT
+    
+    null !== 0
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 0
+  actual: ~
+  operator: 'strictEqual'
+  stack: |-
+    media (file:///Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:19:10)
+    fixture (file:///Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:49:3)
+    TestContext.<anonymous> (file:///Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:205:13)
+    Test.runInAsyncScope (node:async_hooks:227:14)
+    Test.run (node:internal/test_runner/test:1402:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+    Test.postRun (node:internal/test_runner/test:1542:19)
+    Test.run (node:internal/test_runner/test:1467:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:974:7)
+  ...
+# Subtest: 真实CLI普通UHD本地导出画布，不默认启动增强模型；源片仍保留
+not ok 16 - 真实CLI普通UHD本地导出画布，不默认启动增强模型；源片仍保留
+  ---
+  duration_ms: 4.961958
+  type: 'test'
+  location: '/Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:215:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Error: spawnSync ffmpeg ENOENT
+    
+    null !== 0
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 0
+  actual: ~
+  operator: 'strictEqual'
+  stack: |-
+    media (file:///Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:19:10)
+    fixture (file:///Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:49:3)
+    TestContext.<anonymous> (file:///Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:216:11)
+    Test.runInAsyncScope (node:async_hooks:227:14)
+    Test.run (node:internal/test_runner/test:1402:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+    Test.postRun (node:internal/test_runner/test:1542:19)
+    Test.run (node:internal/test_runner/test:1467:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:974:7)
+  ...
+# Subtest: 真实CLI成功任务的当前字节不能解码时是实际处理失败，不启动重渲或声音替换
+not ok 17 - 真实CLI成功任务的当前字节不能解码时是实际处理失败，不启动重渲或声音替换
+  ---
+  duration_ms: 4.97075
+  type: 'test'
+  location: '/Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:224:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Error: spawnSync ffmpeg ENOENT
+    
+    null !== 0
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 0
+  actual: ~
+  operator: 'strictEqual'
+  stack: |-
+    media (file:///Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:19:10)
+    fixture (file:///Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:49:3)
+    TestContext.<anonymous> (file:///Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:225:11)
+    Test.runInAsyncScope (node:async_hooks:227:14)
+    Test.run (node:internal/test_runner/test:1402:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+    Test.postRun (node:internal/test_runner/test:1542:19)
+    Test.run (node:internal/test_runner/test:1467:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:974:7)
+  ...
+# Subtest: 真实CLI正式后期执行失败：color-failure，返回非零、不伪装交付
+not ok 18 - 真实CLI正式后期执行失败：color-failure，返回非零、不伪装交付
+  ---
+  duration_ms: 7.445709
+  type: 'test'
+  location: '/Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:240:4'
+  failureType: 'testCodeFailure'
+  error: |-
+    Error: spawnSync ffmpeg ENOENT
+    
+    null !== 0
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 0
+  actual: ~
+  operator: 'strictEqual'
+  stack: |-
+    media (file:///Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:19:10)
+    fixture (file:///Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:49:3)
+    TestContext.<anonymous> (file:///Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:241:11)
+    Test.runInAsyncScope (node:async_hooks:227:14)
+    Test.run (node:internal/test_runner/test:1402:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+    Test.postRun (node:internal/test_runner/test:1542:19)
+    Test.run (node:internal/test_runner/test:1467:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:974:7)
+  ...
+# Subtest: 真实CLI正式后期执行失败：burn-failure，返回非零、不伪装交付
+not ok 19 - 真实CLI正式后期执行失败：burn-failure，返回非零、不伪装交付
+  ---
+  duration_ms: 9.575792
+  type: 'test'
+  location: '/Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:240:4'
+  failureType: 'testCodeFailure'
+  error: |-
+    Error: spawnSync ffmpeg ENOENT
+    
+    null !== 0
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 0
+  actual: ~
+  operator: 'strictEqual'
+  stack: |-
+    media (file:///Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:19:10)
+    fixture (file:///Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:49:3)
+    TestContext.<anonymous> (file:///Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:241:11)
+    Test.runInAsyncScope (node:async_hooks:227:14)
+    Test.run (node:internal/test_runner/test:1402:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+    Test.postRun (node:internal/test_runner/test:1542:19)
+    Test.run (node:internal/test_runner/test:1467:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:974:7)
+  ...
+# Subtest: 真实CLI正式后期执行失败：danmaku-failure，返回非零、不伪装交付
+not ok 20 - 真实CLI正式后期执行失败：danmaku-failure，返回非零、不伪装交付
+  ---
+  duration_ms: 4.568542
+  type: 'test'
+  location: '/Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:240:4'
+  failureType: 'testCodeFailure'
+  error: |-
+    Error: spawnSync ffmpeg ENOENT
+    
+    null !== 0
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 0
+  actual: ~
+  operator: 'strictEqual'
+  stack: |-
+    media (file:///Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:19:10)
+    fixture (file:///Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:49:3)
+    TestContext.<anonymous> (file:///Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:241:11)
+    Test.runInAsyncScope (node:async_hooks:227:14)
+    Test.run (node:internal/test_runner/test:1402:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+    Test.postRun (node:internal/test_runner/test:1542:19)
+    Test.run (node:internal/test_runner/test:1467:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:974:7)
+  ...
+# Subtest: 真实CLI正式后期执行失败：bgm-failure，返回非零、不伪装交付
+not ok 21 - 真实CLI正式后期执行失败：bgm-failure，返回非零、不伪装交付
+  ---
+  duration_ms: 3.481667
+  type: 'test'
+  location: '/Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:240:4'
+  failureType: 'testCodeFailure'
+  error: |-
+    Error: spawnSync ffmpeg ENOENT
+    
+    null !== 0
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 0
+  actual: ~
+  operator: 'strictEqual'
+  stack: |-
+    media (file:///Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:19:10)
+    fixture (file:///Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:49:3)
+    TestContext.<anonymous> (file:///Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:241:11)
+    Test.runInAsyncScope (node:async_hooks:227:14)
+    Test.run (node:internal/test_runner/test:1402:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+    Test.postRun (node:internal/test_runner/test:1542:19)
+    Test.run (node:internal/test_runner/test:1467:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:974:7)
+  ...
+# Subtest: 真实CLI正式后期执行失败：cover-failure，返回非零、不伪装交付
+not ok 22 - 真实CLI正式后期执行失败：cover-failure，返回非零、不伪装交付
+  ---
+  duration_ms: 6.611417
+  type: 'test'
+  location: '/Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:240:4'
+  failureType: 'testCodeFailure'
+  error: |-
+    Error: spawnSync ffmpeg ENOENT
+    
+    null !== 0
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 0
+  actual: ~
+  operator: 'strictEqual'
+  stack: |-
+    media (file:///Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:19:10)
+    fixture (file:///Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:49:3)
+    TestContext.<anonymous> (file:///Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:241:11)
+    Test.runInAsyncScope (node:async_hooks:227:14)
+    Test.run (node:internal/test_runner/test:1402:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+    Test.postRun (node:internal/test_runner/test:1542:19)
+    Test.run (node:internal/test_runner/test:1467:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:974:7)
+  ...
+# Subtest: 真实CLI正式后期执行失败：mux-failure，返回非零、不伪装交付
+not ok 23 - 真实CLI正式后期执行失败：mux-failure，返回非零、不伪装交付
+  ---
+  duration_ms: 8.15475
+  type: 'test'
+  location: '/Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:240:4'
+  failureType: 'testCodeFailure'
+  error: |-
+    Error: spawnSync ffmpeg ENOENT
+    
+    null !== 0
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 0
+  actual: ~
+  operator: 'strictEqual'
+  stack: |-
+    media (file:///Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:19:10)
+    fixture (file:///Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:49:3)
+    TestContext.<anonymous> (file:///Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:241:11)
+    Test.runInAsyncScope (node:async_hooks:227:14)
+    Test.run (node:internal/test_runner/test:1402:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+    Test.postRun (node:internal/test_runner/test:1542:19)
+    Test.run (node:internal/test_runner/test:1467:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:974:7)
+  ...
+# Subtest: 真实CLI正式后期执行失败：variant-failure，返回非零、不伪装交付
+not ok 24 - 真实CLI正式后期执行失败：variant-failure，返回非零、不伪装交付
+  ---
+  duration_ms: 16.245084
+  type: 'test'
+  location: '/Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:240:4'
+  failureType: 'testCodeFailure'
+  error: |-
+    Error: spawnSync ffmpeg ENOENT
+    
+    null !== 0
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 0
+  actual: ~
+  operator: 'strictEqual'
+  stack: |-
+    media (file:///Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:19:10)
+    fixture (file:///Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:49:3)
+    TestContext.<anonymous> (file:///Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:241:11)
+    Test.runInAsyncScope (node:async_hooks:227:14)
+    Test.run (node:internal/test_runner/test:1402:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+    Test.postRun (node:internal/test_runner/test:1542:19)
+    Test.run (node:internal/test_runner/test:1467:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:974:7)
+  ...
+# Subtest: 真实CLI新增镜头未满足提交前授权/资产条件时仍停止，已完成镜头不会自动复渲
+not ok 25 - 真实CLI新增镜头未满足提交前授权/资产条件时仍停止，已完成镜头不会自动复渲
+  ---
+  duration_ms: 30.7695
+  type: 'test'
+  location: '/Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:249:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Error: spawnSync ffmpeg ENOENT
+    
+    null !== 0
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 0
+  actual: ~
+  operator: 'strictEqual'
+  stack: |-
+    media (file:///Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:19:10)
+    fixture (file:///Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:49:3)
+    TestContext.<anonymous> (file:///Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:250:11)
+    Test.runInAsyncScope (node:async_hooks:227:14)
+    Test.run (node:internal/test_runner/test:1402:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+    Test.postRun (node:internal/test_runner/test:1542:19)
+    Test.run (node:internal/test_runner/test:1467:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:974:7)
+  ...
+# Subtest: 旧vendor后期引擎：成功任务黑屏静音按实际片长生成工程，原声标志保留，诚实声明尚未渲染MP4
+not ok 26 - 旧vendor后期引擎：成功任务黑屏静音按实际片长生成工程，原声标志保留，诚实声明尚未渲染MP4
+  ---
+  duration_ms: 5.759167
+  type: 'test'
+  location: '/Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:261:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Error: spawnSync ffmpeg ENOENT
+    
+    null !== 0
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 0
+  actual: ~
+  operator: 'strictEqual'
+  stack: |-
+    media (file:///Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:19:10)
+    fixture (file:///Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:49:3)
+    TestContext.<anonymous> (file:///Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:262:11)
+    Test.runInAsyncScope (node:async_hooks:227:14)
+    Test.run (node:internal/test_runner/test:1402:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+    Test.postRun (node:internal/test_runner/test:1542:19)
+    Test.run (node:internal/test_runner/test:1467:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:974:7)
+  ...
+# Subtest: vendor已持久来源：同一成功任务当前字节不变可以复放，既有绑定保持
+not ok 27 - vendor已持久来源：同一成功任务当前字节不变可以复放，既有绑定保持
+  ---
+  duration_ms: 7.402459
+  type: 'test'
+  location: '/Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:284:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Error: spawnSync ffmpeg ENOENT
+    
+    null !== 0
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 0
+  actual: ~
+  operator: 'strictEqual'
+  stack: |-
+    media (file:///Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:19:10)
+    fixture (file:///Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:49:3)
+    acceptedVendorFixture (file:///Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:273:13)
+    TestContext.<anonymous> (file:///Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:285:68)
+    Test.runInAsyncScope (node:async_hooks:227:14)
+    Test.run (node:internal/test_runner/test:1402:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+    Test.postRun (node:internal/test_runner/test:1542:19)
+    Test.run (node:internal/test_runner/test:1467:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:974:7)
+  ...
+# Subtest: vendor已持久来源：同一路径换成有效同画布视频必须失败，旧任务字节绑定不能覆写
+not ok 28 - vendor已持久来源：同一路径换成有效同画布视频必须失败，旧任务字节绑定不能覆写
+  ---
+  duration_ms: 8.160417
+  type: 'test'
+  location: '/Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:293:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Error: spawnSync ffmpeg ENOENT
+    
+    null !== 0
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 0
+  actual: ~
+  operator: 'strictEqual'
+  stack: |-
+    media (file:///Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:19:10)
+    fixture (file:///Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:49:3)
+    acceptedVendorFixture (file:///Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:273:13)
+    TestContext.<anonymous> (file:///Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:294:68)
+    Test.runInAsyncScope (node:async_hooks:227:14)
+    Test.run (node:internal/test_runner/test:1402:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+    Test.postRun (node:internal/test_runner/test:1542:19)
+    Test.run (node:internal/test_runner/test:1467:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:974:7)
+  ...
+# Subtest: vendor已持久来源：旧任务号不能换成另一个成功任务冒用同一文件
+not ok 29 - vendor已持久来源：旧任务号不能换成另一个成功任务冒用同一文件
+  ---
+  duration_ms: 14.438125
+  type: 'test'
+  location: '/Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:308:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Error: spawnSync ffmpeg ENOENT
+    
+    null !== 0
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 0
+  actual: ~
+  operator: 'strictEqual'
+  stack: |-
+    media (file:///Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:19:10)
+    fixture (file:///Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:49:3)
+    acceptedVendorFixture (file:///Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:273:13)
+    TestContext.<anonymous> (file:///Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:309:68)
+    Test.runInAsyncScope (node:async_hooks:227:14)
+    Test.run (node:internal/test_runner/test:1402:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+    Test.postRun (node:internal/test_runner/test:1542:19)
+    Test.run (node:internal/test_runner/test:1467:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:974:7)
+  ...
+# Subtest: vendor已持久来源：显式空、残缺及路径、大小、镜号不符绑定不得降级为首次接受
+not ok 30 - vendor已持久来源：显式空、残缺及路径、大小、镜号不符绑定不得降级为首次接受
+  ---
+  duration_ms: 5.260459
+  type: 'test'
+  location: '/Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:319:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Error: spawnSync ffmpeg ENOENT
+    
+    null !== 0
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 0
+  actual: ~
+  operator: 'strictEqual'
+  stack: |-
+    media (file:///Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:19:10)
+    fixture (file:///Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:49:3)
+    acceptedVendorFixture (file:///Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:273:13)
+    TestContext.<anonymous> (file:///Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:320:68)
+    Test.runInAsyncScope (node:async_hooks:227:14)
+    Test.run (node:internal/test_runner/test:1402:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+    Test.postRun (node:internal/test_runner/test:1542:19)
+    Test.run (node:internal/test_runner/test:1467:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:974:7)
+  ...
+# Subtest: 旧vendor后期真实供应商失败关闭：provider-failed
+not ok 31 - 旧vendor后期真实供应商失败关闭：provider-failed
+  ---
+  duration_ms: 4.439542
+  type: 'test'
+  location: '/Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:337:3'
+  failureType: 'testCodeFailure'
+  error: |-
+    Error: spawnSync ffmpeg ENOENT
+    
+    null !== 0
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 0
+  actual: ~
+  operator: 'strictEqual'
+  stack: |-
+    media (file:///Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:19:10)
+    fixture (file:///Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:49:3)
+    TestContext.<anonymous> (file:///Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:338:13)
+    Test.runInAsyncScope (node:async_hooks:227:14)
+    Test.run (node:internal/test_runner/test:1402:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+    Test.postRun (node:internal/test_runner/test:1542:19)
+    Test.run (node:internal/test_runner/test:1467:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:974:7)
+  ...
+# Subtest: 旧vendor后期真实供应商失败关闭：running
+not ok 32 - 旧vendor后期真实供应商失败关闭：running
+  ---
+  duration_ms: 5.941625
+  type: 'test'
+  location: '/Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:337:3'
+  failureType: 'testCodeFailure'
+  error: |-
+    Error: spawnSync ffmpeg ENOENT
+    
+    null !== 0
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 0
+  actual: ~
+  operator: 'strictEqual'
+  stack: |-
+    media (file:///Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:19:10)
+    fixture (file:///Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:49:3)
+    TestContext.<anonymous> (file:///Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:338:13)
+    Test.runInAsyncScope (node:async_hooks:227:14)
+    Test.run (node:internal/test_runner/test:1402:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+    Test.postRun (node:internal/test_runner/test:1542:19)
+    Test.run (node:internal/test_runner/test:1467:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:974:7)
+  ...
+# Subtest: 旧vendor后期真实供应商失败关闭：simulated
+not ok 33 - 旧vendor后期真实供应商失败关闭：simulated
+  ---
+  duration_ms: 6.586083
+  type: 'test'
+  location: '/Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:337:3'
+  failureType: 'testCodeFailure'
+  error: |-
+    Error: spawnSync ffmpeg ENOENT
+    
+    null !== 0
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 0
+  actual: ~
+  operator: 'strictEqual'
+  stack: |-
+    media (file:///Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:19:10)
+    fixture (file:///Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:49:3)
+    TestContext.<anonymous> (file:///Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:338:13)
+    Test.runInAsyncScope (node:async_hooks:227:14)
+    Test.run (node:internal/test_runner/test:1402:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+    Test.postRun (node:internal/test_runner/test:1542:19)
+    Test.run (node:internal/test_runner/test:1467:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:974:7)
+  ...
+# Subtest: 旧vendor后期真实供应商失败关闭：missing-task
+not ok 34 - 旧vendor后期真实供应商失败关闭：missing-task
+  ---
+  duration_ms: 2.865166
+  type: 'test'
+  location: '/Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:337:3'
+  failureType: 'testCodeFailure'
+  error: |-
+    Error: spawnSync ffmpeg ENOENT
+    
+    null !== 0
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 0
+  actual: ~
+  operator: 'strictEqual'
+  stack: |-
+    media (file:///Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:19:10)
+    fixture (file:///Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:49:3)
+    TestContext.<anonymous> (file:///Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:338:13)
+    Test.runInAsyncScope (node:async_hooks:227:14)
+    Test.run (node:internal/test_runner/test:1402:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+    Test.postRun (node:internal/test_runner/test:1542:19)
+    Test.run (node:internal/test_runner/test:1467:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:974:7)
+  ...
+# Subtest: 旧vendor本地合成：静音低分辨率镜头实作规范化与MP4导出，显式标题另存原片只读
+not ok 35 - 旧vendor本地合成：静音低分辨率镜头实作规范化与MP4导出，显式标题另存原片只读
+  ---
+  duration_ms: 7.431958
+  type: 'test'
+  location: '/Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:343:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Error: spawnSync ffmpeg ENOENT
+    
+    null !== 0
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 0
+  actual: ~
+  operator: 'strictEqual'
+  stack: |-
+    media (file:///Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:19:10)
+    fixture (file:///Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:49:3)
+    TestContext.<anonymous> (file:///Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:344:11)
+    Test.runInAsyncScope (node:async_hooks:227:14)
+    Test.run (node:internal/test_runner/test:1402:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+    Test.postRun (node:internal/test_runner/test:1542:19)
+    Test.run (node:internal/test_runner/test:1467:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:974:7)
+  ...
+# Subtest: 旧vendor本地合成不吞缺片/解码故障或提交失败，也不据名义30秒拒绝真实素材
+not ok 36 - 旧vendor本地合成不吞缺片/解码故障或提交失败，也不据名义30秒拒绝真实素材
+  ---
+  duration_ms: 7.745291
+  type: 'test'
+  location: '/Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:350:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Error: spawnSync ffmpeg ENOENT
+    
+    null !== 0
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 0
+  actual: ~
+  operator: 'strictEqual'
+  stack: |-
+    media (file:///Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:19:10)
+    fixture (file:///Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:49:3)
+    TestContext.<anonymous> (file:///Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:351:11)
+    Test.runInAsyncScope (node:async_hooks:227:14)
+    Test.run (node:internal/test_runner/test:1402:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+    Test.postRun (node:internal/test_runner/test:1542:19)
+    Test.run (node:internal/test_runner/test:1467:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:974:7)
+  ...
+# Subtest: 真实宿主post-production入口服务任务完整才接收，HTML工程报告不能冒充MP4
+not ok 37 - 真实宿主post-production入口服务任务完整才接收，HTML工程报告不能冒充MP4
+  ---
+  duration_ms: 5.214
+  type: 'test'
+  location: '/Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:357:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Error: spawnSync ffmpeg ENOENT
+    
+    null !== 0
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 0
+  actual: ~
+  operator: 'strictEqual'
+  stack: |-
+    media (file:///Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:19:10)
+    fixture (file:///Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:49:3)
+    TestContext.<anonymous> (file:///Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:358:11)
+    Test.runInAsyncScope (node:async_hooks:227:14)
+    Test.run (node:internal/test_runner/test:1402:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+    Test.postRun (node:internal/test_runner/test:1542:19)
+    Test.run (node:internal/test_runner/test:1467:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:974:7)
+  ...
+# Subtest: 真实宿主持久来源：同summary同任务字节保持可复放，新输出目录也沿用原接受
+not ok 38 - 真实宿主持久来源：同summary同任务字节保持可复放，新输出目录也沿用原接受
+  ---
+  duration_ms: 11.89875
+  type: 'test'
+  location: '/Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:397:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Error: spawnSync ffmpeg ENOENT
+    
+    null !== 0
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 0
+  actual: ~
+  operator: 'strictEqual'
+  stack: |-
+    media (file:///Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:19:10)
+    fixture (file:///Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:49:3)
+    hostBoundFixture (file:///Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:374:13)
+    TestContext.<anonymous> (file:///Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:398:13)
+    Test.runInAsyncScope (node:async_hooks:227:14)
+    Test.run (node:internal/test_runner/test:1402:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+    Test.postRun (node:internal/test_runner/test:1542:19)
+    Test.run (node:internal/test_runner/test:1467:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:974:7)
+  ...
+# Subtest: 真实宿主持久来源：同summary同任务替换有效视频不能重新铸造接受，旧报告与新目录保持
+not ok 39 - 真实宿主持久来源：同summary同任务替换有效视频不能重新铸造接受，旧报告与新目录保持
+  ---
+  duration_ms: 8.42175
+  type: 'test'
+  location: '/Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:406:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Error: spawnSync ffmpeg ENOENT
+    
+    null !== 0
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 0
+  actual: ~
+  operator: 'strictEqual'
+  stack: |-
+    media (file:///Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:19:10)
+    fixture (file:///Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:49:3)
+    hostBoundFixture (file:///Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:374:13)
+    TestContext.<anonymous> (file:///Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:407:13)
+    Test.runInAsyncScope (node:async_hooks:227:14)
+    Test.run (node:internal/test_runner/test:1402:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+    Test.postRun (node:internal/test_runner/test:1542:19)
+    Test.run (node:internal/test_runner/test:1467:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:974:7)
+  ...
+# Subtest: 真实宿主持久来源：残缺或篡改已有回执明确失败，不覆盖旧报告或刷新为当前字节
+not ok 40 - 真实宿主持久来源：残缺或篡改已有回执明确失败，不覆盖旧报告或刷新为当前字节
+  ---
+  duration_ms: 14.20375
+  type: 'test'
+  location: '/Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:422:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Error: spawnSync ffmpeg ENOENT
+    
+    null !== 0
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 0
+  actual: ~
+  operator: 'strictEqual'
+  stack: |-
+    media (file:///Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:19:10)
+    fixture (file:///Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:49:3)
+    hostBoundFixture (file:///Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:374:13)
+    TestContext.<anonymous> (file:///Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:423:13)
+    Test.runInAsyncScope (node:async_hooks:227:14)
+    Test.run (node:internal/test_runner/test:1402:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+    Test.postRun (node:internal/test_runner/test:1542:19)
+    Test.run (node:internal/test_runner/test:1467:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:974:7)
+  ...
+# Subtest: 真实宿主持久来源：已有历史post-report也要对当前字节，不能在固定回执缺失时重新铸造
+not ok 41 - 真实宿主持久来源：已有历史post-report也要对当前字节，不能在固定回执缺失时重新铸造
+  ---
+  duration_ms: 6.911459
+  type: 'test'
+  location: '/Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:438:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Error: spawnSync ffmpeg ENOENT
+    
+    null !== 0
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 0
+  actual: ~
+  operator: 'strictEqual'
+  stack: |-
+    media (file:///Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:19:10)
+    fixture (file:///Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:49:3)
+    hostBoundFixture (file:///Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:374:13)
+    TestContext.<anonymous> (file:///Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:439:13)
+    Test.runInAsyncScope (node:async_hooks:227:14)
+    Test.run (node:internal/test_runner/test:1402:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+    Test.postRun (node:internal/test_runner/test:1542:19)
+    Test.run (node:internal/test_runner/test:1467:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:974:7)
+  ...
+# Subtest: 真实宿主原制作镜号重复或缺项不能与完成任务数组按数量匹配
+not ok 42 - 真实宿主原制作镜号重复或缺项不能与完成任务数组按数量匹配
+  ---
+  duration_ms: 5.802083
+  type: 'test'
+  location: '/Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:451:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Error: spawnSync ffmpeg ENOENT
+    
+    null !== 0
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 0
+  actual: ~
+  operator: 'strictEqual'
+  stack: |-
+    media (file:///Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:19:10)
+    fixture (file:///Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:49:3)
+    TestContext.<anonymous> (file:///Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:453:15)
+    Test.runInAsyncScope (node:async_hooks:227:14)
+    Test.run (node:internal/test_runner/test:1402:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+    Test.postRun (node:internal/test_runner/test:1542:19)
+    Test.run (node:internal/test_runner/test:1467:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:974:7)
+  ...
+# Subtest: 2.5原图模式和no-resume不重开已成功源片：旧品质记录/原声/原prompt不变，0新任务账本
+not ok 43 - 2.5原图模式和no-resume不重开已成功源片：旧品质记录/原声/原prompt不变，0新任务账本
+  ---
+  duration_ms: 5.406583
+  type: 'test'
+  location: '/Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:477:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Error: spawnSync ffmpeg ENOENT
+    
+    null !== 0
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 0
+  actual: ~
+  operator: 'strictEqual'
+  stack: |-
+    media (file:///Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:19:10)
+    fixture (file:///Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:49:3)
+    TestContext.<anonymous> (file:///Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:478:11)
+    Test.runInAsyncScope (node:async_hooks:227:14)
+    Test.run (node:internal/test_runner/test:1402:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+    Test.postRun (node:internal/test_runner/test:1542:19)
+    Test.run (node:internal/test_runner/test:1467:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:974:7)
+  ...
+# Subtest: 真实CLI冷启动先恢复已知ACK原task，完整请求cine/spec/plates/material也只GET原任务和原下载，0付费准备
+not ok 44 - 真实CLI冷启动先恢复已知ACK原task，完整请求cine/spec/plates/material也只GET原任务和原下载，0付费准备
+  ---
+  duration_ms: 11.04975
+  type: 'test'
+  location: '/Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:516:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Error: spawnSync ffmpeg ENOENT
+    
+    null !== 0
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 0
+  actual: ~
+  operator: 'strictEqual'
+  stack: |-
+    media (file:///Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:19:10)
+    fixture (file:///Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:49:3)
+    pendingTaskFixture (file:///Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:489:11)
+    TestContext.<anonymous> (file:///Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:517:19)
+    Test.runInAsyncScope (node:async_hooks:227:14)
+    Test.run (node:internal/test_runner/test:1402:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+    Test.postRun (node:internal/test_runner/test:1542:19)
+    Test.run (node:internal/test_runner/test:1467:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:974:7)
+  ...
+# Subtest: 真实CLI已dispatch但无ACK时在前期/角色门之前停止，0新POST、0模型准备，不把未知当失败重投
+not ok 45 - 真实CLI已dispatch但无ACK时在前期/角色门之前停止，0新POST、0模型准备，不把未知当失败重投
+  ---
+  duration_ms: 5.249458
+  type: 'test'
+  location: '/Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:530:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Error: spawnSync ffmpeg ENOENT
+    
+    null !== 0
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 0
+  actual: ~
+  operator: 'strictEqual'
+  stack: |-
+    media (file:///Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:19:10)
+    fixture (file:///Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:49:3)
+    pendingTaskFixture (file:///Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:489:11)
+    TestContext.<anonymous> (file:///Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:531:19)
+    Test.runInAsyncScope (node:async_hooks:227:14)
+    Test.run (node:internal/test_runner/test:1402:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+    Test.postRun (node:internal/test_runner/test:1542:19)
+    Test.run (node:internal/test_runner/test:1467:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:974:7)
+  ...
+1..45
+# tests 45
+# suites 0
+# pass 0
+# fail 45
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 481.646125
+
+
+exit_code=1 signal=none error=none
+assertion_validation={"ok":false,"errors":["Node TestsStream 没有非零实际 passed/逐文件摘要或存在失败/取消；文件加载成功不能替代逐文件真实断言"],"testSummary":{"total":45,"passed":0,"failed":45,"cancelled":0,"skipped":0,"todo":0}}

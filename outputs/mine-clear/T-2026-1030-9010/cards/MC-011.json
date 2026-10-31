@@ -1,0 +1,82 @@
+{
+  "id": "MC-011",
+  "kind": "problem",
+  "level": "L4",
+  "severity": "P1",
+  "batch": 1,
+  "state": "open",
+  "title": "营销档案摘要在无评价/竞品/图片时仍生成口碑、差异化与素材状态矛盾",
+  "evidence": [
+    {
+      "type": "code",
+      "ref": "apps/server/src/video/marketing-authority.ts:326@463ae7ad844de31674b94e73679dafaf0f5dcac5",
+      "sha256": "6e7dac86e9f1509d270fbdf619d2d13f162ab5e892556df86dbc6bfcfd59dcc6",
+      "note": "vendor 完成 dossier/cards 装订后直接使用；“全是好评”、needs_more_reference 冲突、空 selling_point_evidence、幻影参考图、客户明文禁用项未传播均未由宿主归一。"
+    }
+  ],
+  "root_cause": {
+    "file": "apps/server/src/video/marketing-authority.ts",
+    "line": 326,
+    "commit": "463ae7ad844de31674b94e73679dafaf0f5dcac5",
+    "symbol": "prepareMarketingFacts dossier assembly"
+  },
+  "trigger_path": "A2/A3 均 no_evidence、无来源图或来源图 high-risk → 摘要仍写“全是好评”、幻影参考图/型号核对、保留差异化 opening、客户红线未扩散 → G1 真实监制反复以自相矛盾和新增证据状态拒绝。",
+  "assertions": [
+    {
+      "kind": "sample",
+      "given": "A2/A3 无证据、A1 有来源卖点、两张来源图 license_risk=high",
+      "expect": "卖点回绑 claimId/evidenceId，差异化清空，“全是好评”改为 0 样本事实，授权红线与 needs_more_reference 统一",
+      "command": "node --import tsx --test --test-name-pattern='marketing dossier cards' scripts/tools/data-pipeline-host-contract.node-test.mjs",
+      "exec": {
+        "file": "node",
+        "args": [
+          "--import",
+          "tsx",
+          "--test",
+          "--test-name-pattern=marketing dossier cards",
+          "scripts/tools/data-pipeline-host-contract.node-test.mjs"
+        ]
+      },
+      "last_result": "not-run"
+    },
+    {
+      "kind": "property",
+      "given": "任一来源图未取得授权",
+      "expect": "handoff_note、visual_assets 与 prd_card 红线同时要求替换或补充授权，不能出现“仅核对型号”",
+      "command": "node --import tsx --test --test-name-pattern='marketing dossier cards' scripts/tools/data-pipeline-host-contract.node-test.mjs",
+      "exec": {
+        "file": "node",
+        "args": [
+          "--import",
+          "tsx",
+          "--test",
+          "--test-name-pattern=marketing dossier cards",
+          "scripts/tools/data-pipeline-host-contract.node-test.mjs"
+        ]
+      },
+      "last_result": "not-run"
+    },
+    {
+      "kind": "sample",
+      "given": "官方 README 无图片，客户原文要求不展示未核实硬件/运行效果、不声称口碑/销量/竞品优势",
+      "expect": "清空幻影参考图；portrait/visual needs_more_reference=true；客户红线进入顶层 restrictions、PRD 红线和 theme avoid_pits",
+      "command": "node --import tsx --test --test-name-pattern='dossier normalization' scripts/tools/data-pipeline-host-contract.node-test.mjs",
+      "exec": {
+        "file": "node",
+        "args": [
+          "--import",
+          "tsx",
+          "--test",
+          "--test-name-pattern=dossier normalization",
+          "scripts/tools/data-pipeline-host-contract.node-test.mjs"
+        ]
+      },
+      "last_result": "not-run"
+    }
+  ],
+  "regression": {
+    "command": "node --import tsx --test --test-name-pattern='marketing dossier cards' scripts/tools/data-pipeline-host-contract.node-test.mjs",
+    "evidence": null
+  },
+  "notes": "M01 真实 G1 60/78 分拒绝；最新为无图幻影状态与客户红线遗漏。"
+}

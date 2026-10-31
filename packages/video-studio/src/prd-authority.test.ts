@@ -343,6 +343,36 @@ describe("PRD real model response and provenance", () => {
     })]);
     expect(requirementRecord(bound.scenePlan, "scenes").scenes).toEqual(value.production.scenePlan.scenes.map((scene, index) => ({ ...scene, _workloomRequirementScene: value.contract.scenes[index] })));
   });
+  it("compacts only over-budget creative key messages without mutating the provider payload", () => {
+    const value = fixture(), creative = structuredClone(value.creative), schema = effectivePrdModelSchema("creative", PRDSchema, value.contract);
+    const properties = requirementRecord(schema.properties, "creative properties");
+    const maxLength = Number(requirementRecord(requirementRecord(properties.keyMessages, "keyMessages").items, "key message").maxLength);
+    expect(maxLength).toBeGreaterThan(0);
+    creative.keyMessages = [`${"可核实原文边界。".repeat(Math.ceil(maxLength / 5))}尾巴`];
+    const before = structuredClone(creative);
+    const validated = validatePrdModelPayload(creative, "creative", PRDSchema, value.contract, value.authority.profile);
+    const keyMessages = validated.keyMessages as unknown[];
+    expect(Array.from(String(keyMessages[0])).length).toBeLessThanOrEqual(maxLength);
+    expect(String(keyMessages[0])).toMatch(/…$/);
+    expect(creative).toEqual(before);
+  });
+  it("compacts over-budget production scene requirements without dropping their text", () => {
+    const value = fixture(), production = structuredClone(value.production) as any;
+    const visual = production.scenePlan.scenes[0].visualRequirements as string[];
+    production.scenePlan.scenes[0].visualRequirements = [
+      ...visual,
+      "补充约束一：只使用抽象画布",
+      "补充约束二：不出现人物",
+      "补充约束三：不出现实体硬件",
+    ];
+    const before = structuredClone(production);
+    const validated = validatePrdModelPayload(production, "production", PRDSchema, value.contract, value.authority.profile) as any;
+    const compacted = validated.scenePlan.scenes[0].visualRequirements as string[];
+    expect(compacted.length).toBeLessThanOrEqual(5);
+    expect(compacted.join(" ")).toContain("补充约束一");
+    expect(compacted.join(" ")).toContain("补充约束三");
+    expect(production).toEqual(before);
+  });
   it.each(["missing-scene", "wrong-id", "wrong-order", "over-duration", "wrong-character", "invented-character", "wrong-mapping", "missing-module", "bad-enum"])("rejects %s without writing a repaired creative result", kind => {
     const value = fixture(), model = structuredClone(value.production);
     if (kind === "missing-scene") model.scenePlan.scenes.pop();

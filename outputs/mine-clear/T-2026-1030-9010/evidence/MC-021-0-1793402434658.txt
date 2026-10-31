@@ -1,0 +1,13 @@
+
+ RUN  v4.1.11 /Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit
+
+
+ Test Files  1 passed (1)
+      Tests  1 passed | 34 skipped (35)
+   Start at  07:20:34
+   Duration  401ms (transform 218ms, setup 0ms, import 323ms, tests 6ms, environment 0ms)
+
+
+
+exit_code=0 signal=none error=none
+assertion_validation={"ok":true,"errors":[]}

@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { stageFactPointers, stagePayloadJsonSchema, validateStageFacts, revalidateStageFacts } from "./marketing-facts.js";
+import {
+  filterUnsafeMarketingExtraction,
+  stageFactPointers,
+  stagePayloadJsonSchema,
+  validateStageFacts,
+  revalidateStageFacts,
+} from "./marketing-facts.js";
 import { renderSha256 } from "./gen/compiled-request.js";
 import type { SourceSnapshot } from "./marketing-source-fetcher.js";
 const body = "星野 F3 风量 9 档。价格 399 CNY。评价：低档安静。评分 4。另一款北斗支持 5 档。";
@@ -45,9 +51,9 @@ describe("逐事实叶子的正文绑定", () => {
     expect(validateStageFacts("A1", value, [source]).claims).toHaveLength(4);
     expect(stageFactPointers("A1", value.payload)).toEqual(["/identity/name", "/identity/specs/source", "/identity/specs/a~1b~0c", "/identity/official_selling_points/0/point"]);
   });
-  it("引用路径清单与验证器同源，价格来源URL和未知图片角度仍不属于事实", () => {
+  it("引用路径清单与验证器同源，价格来源URL和所有图片元数据均不属于事实", () => {
     const payload = { identity: { name: "星野 F3", specs: { url: "USB", 待机功率: 0, 自动启停: false }, prices: [{ amount: 399, currency: "CNY", note: "页面价格", source_url: source.finalUrl }],
-      official_selling_points: [{ point: "9档", source_url: source.finalUrl, channel: "媒体" }] }, images: [{ url: source.assetUrls[0], page_url: source.finalUrl, source: "页面", angle: "unknown" }] };
+      official_selling_points: [{ point: "9档", source_url: source.finalUrl, channel: "媒体" }] }, images: [{ url: source.assetUrls[0], page_url: source.finalUrl, source: "页面", angle: "品牌 Logo" }] };
     expect(stageFactPointers("A1", payload)).toEqual(["/identity/name", "/identity/specs/url", "/identity/specs/待机功率", "/identity/specs/自动启停",
       "/identity/prices/0/amount", "/identity/prices/0/currency", "/identity/prices/0/note", "/identity/official_selling_points/0/point"]);
     expect(() => stageFactPointers("A1", { identity: { name: "" } })).toThrow("MARKETING_PAYLOAD_INVALID");
@@ -59,6 +65,15 @@ describe("逐事实叶子的正文绑定", () => {
       expect(validateStageFacts(stage, { payload, citations: [], noEvidenceReason: "未采到可验证正文" }, []).status).toBe("no_evidence");
     }
     expect(() => validateStageFacts("A1", { payload: { identity: { name: "商品" } }, citations: [], noEvidenceReason: "无" }, [])).toThrow();
+    expect(validateStageFacts("A1", { ...fixture(), noEvidenceReason: "" }, [source]).status).toBe("source_bound");
+    expect(() => validateStageFacts("A2", { payload: { reviews: [] }, citations: [], noEvidenceReason: "" }, []))
+      .toThrow("MARKETING_EVIDENCE_EMPTY");
+    const noCompetitor = validateStageFacts("A3", {
+      payload: { competitors: [] },
+      citations: [],
+      noEvidenceReason: "来源页只有 91.8k stars、39.1k forks，但没有竞品",
+    }, []);
+    expect(noCompetitor.noEvidenceReason).toBe("本次已抓取来源中没有可核实的竞品事实");
   });
   it("评价必须原话，评分单独引证；合法URL不能证明改写评价", () => {
     const value = { payload: { reviews: [{ text: "低档安静", rating: 4, url: source.finalUrl }] }, citations: [citation("/reviews/0/text"), citation("/reviews/0/rating")] };
@@ -69,6 +84,133 @@ describe("逐事实叶子的正文绑定", () => {
     const value: any = fixture(); value.payload.images = [{ url: source.assetUrls[0], page_url: source.finalUrl, angle: "unknown" }];
     expect(validateStageFacts("A1", value, [source]).claims).toHaveLength(3);
     value.payload.images[0].url = "https://other.example.com/fake.png"; expect(() => validateStageFacts("A1", value, [source])).toThrow("MARKETING_URL_UNVERIFIED");
+  });
+  it("绝对化官方促销语保留在原始响应但排除出可交付事实并重排引用", () => {
+    const filtered = filterUnsafeMarketingExtraction("A1", {
+      payload: {
+        identity: {
+          name: "星野 F3",
+          official_selling_points: [
+            { point: "风量 9 档", source_url: source.finalUrl },
+            { point: "Perfect to run anywhere", source_url: source.finalUrl },
+            { point: "模块化设计", source_url: source.finalUrl },
+          ],
+        },
+        images: [],
+      },
+      citations: [
+        { pointer: "/identity/name", sourceId: source.sourceId, quote: body },
+        { pointer: "/identity/official_selling_points/0/point", sourceId: source.sourceId, quote: body },
+        { pointer: "/identity/official_selling_points/1/point", sourceId: source.sourceId, quote: body },
+        { pointer: "/identity/official_selling_points/2/point", sourceId: source.sourceId, quote: body },
+      ],
+    });
+    const value = filtered.value as any;
+    expect(value.payload.identity.official_selling_points.map((item: any) => item.point)).toEqual(["风量 9 档", "模块化设计"]);
+    expect(value.citations.map((item: any) => item.pointer)).toEqual([
+      "/identity/name",
+      "/identity/official_selling_points/0/point",
+      "/identity/official_selling_points/1/point",
+    ]);
+    expect(filtered.exclusions).toEqual([{
+      pointer: "/identity/official_selling_points/1/point",
+      value: "Perfect to run anywhere",
+      reason: "absolute-marketing-claim",
+    }]);
+  });
+  it("绝对化推荐被拆成推断规格时一并移除，不把推荐语升级成兼容性事实", () => {
+    const filtered = filterUnsafeMarketingExtraction("A1", {
+      payload: {
+        identity: {
+          name: "Home Assistant",
+          specs: {
+            License: "Apache-2.0",
+            "Supported hardware": "Raspberry Pi or a local server",
+          },
+          official_selling_points: [
+            { point: "Perfect to run on a Raspberry Pi or a local server.", source_url: source.finalUrl },
+          ],
+        },
+        images: [],
+      },
+      citations: [
+        { pointer: "/identity/name", sourceId: source.sourceId, quote: body },
+        { pointer: "/identity/specs/License", sourceId: source.sourceId, quote: body },
+        { pointer: "/identity/specs/Supported hardware", sourceId: source.sourceId, quote: body },
+        { pointer: "/identity/official_selling_points/0/point", sourceId: source.sourceId, quote: body },
+      ],
+    });
+    const value = filtered.value as any;
+    expect(value.payload.identity.specs).toEqual({ License: "Apache-2.0" });
+    expect(value.payload.identity.official_selling_points).toEqual([]);
+    expect(value.citations.map((item: any) => item.pointer)).toEqual([
+      "/identity/name",
+      "/identity/specs/License",
+    ]);
+    expect(filtered.exclusions.map((item) => item.pointer)).toEqual([
+      "/identity/official_selling_points/0/point",
+      "/identity/specs/Supported hardware",
+    ]);
+  });
+  it("绝对化促销语直接写入规格时也移除，不要求同时出现在卖点数组", () => {
+    const filtered = filterUnsafeMarketingExtraction("A1", {
+      payload: {
+        identity: {
+          name: "Home Assistant",
+          specs: {
+            License: "Apache-2.0",
+            Deployment: "Perfect to run on a Raspberry Pi or a local server.",
+          },
+          official_selling_points: [{ point: "Open source home automation", source_url: source.finalUrl }],
+        },
+        images: [],
+      },
+      citations: [
+        { pointer: "/identity/specs/License", sourceId: source.sourceId, quote: body },
+        { pointer: "/identity/specs/Deployment", sourceId: source.sourceId, quote: body },
+      ],
+    });
+    const value = filtered.value as any;
+    expect(value.payload.identity.specs).toEqual({ License: "Apache-2.0" });
+    expect(value.citations.map((item: any) => item.pointer)).toEqual(["/identity/specs/License"]);
+    expect(filtered.exclusions).toEqual([{
+      pointer: "/identity/specs/Deployment",
+      value: "Perfect to run on a Raspberry Pi or a local server.",
+      reason: "absolute-marketing-claim",
+    }]);
+  });
+  it("显式商品查询与可选品牌冲突时只移除品牌事实，保留名称和其余来源绑定", () => {
+    const filtered = filterUnsafeMarketingExtraction("A1", {
+      payload: {
+        identity: {
+          name: "Home Assistant",
+          brand: "Open Home Foundation",
+          specs: { License: "Apache-2.0" },
+          official_selling_points: [{ point: "Open source home automation", source_url: source.finalUrl }],
+        },
+        images: [],
+      },
+      citations: [
+        { pointer: "/identity/name", sourceId: source.sourceId, quote: body },
+        { pointer: "/identity/brand", sourceId: source.sourceId, quote: body },
+        { pointer: "/identity/specs/License", sourceId: source.sourceId, quote: body },
+        { pointer: "/identity/official_selling_points/0/point", sourceId: source.sourceId, quote: body },
+      ],
+    }, { productQuery: { name: "Home Assistant", brand: "Home Assistant" } });
+    const value = filtered.value as any;
+    expect(value.payload.identity).not.toHaveProperty("brand");
+    expect(value.payload.identity.name).toBe("Home Assistant");
+    expect(value.payload.identity.specs).toEqual({ License: "Apache-2.0" });
+    expect(value.citations.map((item: any) => item.pointer)).toEqual([
+      "/identity/name",
+      "/identity/specs/License",
+      "/identity/official_selling_points/0/point",
+    ]);
+    expect(filtered.exclusions).toEqual([{
+      pointer: "/identity/brand",
+      value: "Open Home Foundation",
+      reason: "product-query-brand-conflict",
+    }]);
   });
   it.each(["A1", "A2", "A3"] as const)("%s提取输入合同由实际严格schema产生并保留边界", stage => {
     const schema: any = stagePayloadJsonSchema(stage);

@@ -862,7 +862,7 @@
   },
   "integrity": {
     "algorithm": "sha256",
-    "digest": "ffc974191b1a30f3c5dbb3c0ba7206ac24c26360b1f63fab7c4c7e51b2add2fb",
+    "digest": "a5df7c3471c98b3c6bafc11e4b8c9ecde1c3c3b26307294792d111bb43b90cc0",
     "assets": {
       "connectors/bgm-bridge/audio-stems-trust.mjs": "701b20e1705b16b026be2900bb49430ef875c8f01f83515f297a5b0b9a50cf93",
       "connectors/bgm-bridge/audio-stems.mjs": "d83bc554f015115ed0f4ea71ac6ced4cf5bd8f44d61094489776e3d2a5ffa751",
@@ -1423,8 +1423,8 @@
       "pipelines/account-ops.yml": "455383c019ac1d0523db48c6088c7bfce4aa9e8e1eef8d7d71399aa69e107264",
       "pipelines/ads-creative-factory.yml": "90e475e5482ecf15541aa2d6eca5499aa1c9bea8d9928e2122975ae77df869c5",
       "pipelines/explainer-film.yml": "f5402e30553e0bba43df64d30d7a5462e605e6cf7e6a862722558d5235b21f33",
-      "pipelines/marketing-film.yml": "4ba95c0e83538de605126072ce26a462211e4cea3a82c5fcaee8227a71b485b1",
-      "pipelines/narrative-film.yml": "2476a359594dd3ddedff4c8c0dc15c5109d439c26c40df1909fc4c038566afbd",
+      "pipelines/marketing-film.yml": "923dc5cd91effc1161754adb71d2caee704072be867d357fba134e20072d0190",
+      "pipelines/narrative-film.yml": "5cb35b00c4137388111d7500ed96d84f7263a9e40abd452fb242120855c14d9e",
       "pipelines/settlement-recon.yml": "c4af96be653224e31ec8882ae19da37026dbbe1f2d5fb28435deee92b37db1d0",
       "presets/ads-optimizer.yml": "4969554944f4e2586aef8ab29da819d76611a6ba537b5964db6e9e7db9cc5bf2",
       "presets/audio-designer.yml": "e0122309c8a94d7b8e73109c3b88f92b900917bdc04c5535836e7f1f3c66dc0b",
@@ -1503,7 +1503,7 @@
       "skills/shot-prompt-craft/SKILL.md": "62b1afb2d172e61f3fb8facc84b7a6bbe6ec0b8cf9eb2f4c66dced1941c9d727",
       "skills/subtitle-delivery-spec/SKILL.md": "0d06004c5e572dfd54cb2fea1dcaaaebe59f9c0d8bce7739b7d7f7758b7bc825",
       "skills/subtitle-layout-design/SKILL.md": "056d70938ab6848a992c090f9f81e7cf4a945c71bdf3a725f4cd094eec375e46",
-      "skills/talkcraft-ops/SKILL.md": "9bfa7996abbe2f56478b48eb074e456a130de3e7cb7282bc1d576bfa9f7b0ff6",
+      "skills/talkcraft-ops/SKILL.md": "b4753d066349c3d3951692e1f27a293e52e59d1c89fa6548dcf23ea465c59651",
       "skills/voice-clone-consent/SKILL.md": "796ca32d1f8b7eaaa36d5892182d7a6d5a50372729a495709cf189c510a57831",
       "skills/voice-delivery-spec/SKILL.md": "25a38c62953f144fd9aadf9d8f00d1140779e5ffb9d208da865f6ee211fa2289",
       "skills/voice-dubbing-sync/SKILL.md": "675139b88a78a0570abdd658ac8183c13e09337d7ada4c51cad19b8d4f1a7d23",

@@ -20,12 +20,14 @@
     "@trpc/server": "11.19.0",
     "@workloom/base": "workspace:*",
     "@workloom/db": "workspace:*",
+    "@workloom/pipeline-control": "workspace:*",
     "@workloom/runtime": "workspace:*",
     "@workloom/shared": "workspace:*",
     "hono": "4.13.8",
     "jose": "6.2.12",
     "zod": "^4.6.5",
     "@hyperreality/video-studio": "workspace:*",
+    "@hyperreality/video-pipeline": "workspace:*",
     "yaml": "2.9.0"
   },
   "devDependencies": {

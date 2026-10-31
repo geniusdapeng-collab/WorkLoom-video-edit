@@ -57,6 +57,41 @@ export function requirementRecord(value: unknown, label: string): RequirementRec
   return value as RequirementRecord;
 }
 
+/**
+ * Project a strict top-level object response onto the declared schema keys.
+ * Missing required keys remain missing and still fail validation; undeclared
+ * model chatter is dropped instead of being reinterpreted as production facts.
+ */
+export function projectDeclaredFields(value: unknown, schemaValue: unknown): unknown {
+  if (!schemaValue || typeof schemaValue !== "object" || Array.isArray(schemaValue)) return value;
+  const schema = schemaValue as RequirementRecord;
+  if (Array.isArray(value) && schema.type === "array") {
+    const max = typeof schema.maxItems === "number" && Number.isSafeInteger(schema.maxItems) && schema.maxItems >= 0
+      ? schema.maxItems
+      : value.length;
+    const projected = value.map(item => projectDeclaredFields(item, schema.items));
+    if (projected.length <= max) return projected;
+    const itemSchema = schema.items && typeof schema.items === "object" && !Array.isArray(schema.items)
+      ? schema.items as RequirementRecord
+      : {};
+    if (max > 0 && itemSchema.type === "string") {
+      const kept = projected.slice(0, max - 1);
+      const merged = projected.slice(max - 1).filter((item): item is string => typeof item === "string" && Boolean(item.trim())).join("；");
+      if (merged) kept.push(merged);
+      return kept;
+    }
+    return projected.slice(0, max);
+  }
+  if (!value || typeof value !== "object" || Array.isArray(value)) return value;
+  const properties = schema.properties;
+  if (schema.type !== "object" || schema.additionalProperties !== false
+    || !properties || typeof properties !== "object" || Array.isArray(properties)) return value;
+  const source = value as RequirementRecord;
+  return Object.fromEntries(Object.keys(properties as RequirementRecord)
+    .filter((key) => Object.prototype.hasOwnProperty.call(source, key))
+    .map((key) => [key, projectDeclaredFields(source[key], (properties as RequirementRecord)[key])]));
+}
+
 function text(value: unknown, label: string, minimum = 1): string {
   if (typeof value !== "string" || value.trim().length < minimum) {
     throw new RequirementContractError("REQUIREMENT_CONTRACT_INVALID", `${label} 缺少完整文本`);
@@ -258,6 +293,102 @@ export interface RequirementContract {
   hash: string;
 }
 
+export interface DiscoveryTimingNormalization {
+  changes: string[];
+  previousDuration: number | null;
+  normalizedDuration: number | null;
+}
+
+function sceneNodes(structure: RequirementRecord): RequirementRecord[] {
+  return [
+    requirementRecord(structure.opening, "SceneArchitect opening"),
+    ...array(structure.scenes, "SceneArchitect scenes").map((scene, index) =>
+      requirementRecord(scene, `SceneArchitect scenes/${index}`)),
+    requirementRecord(structure.ending, "SceneArchitect ending"),
+  ];
+}
+
+/**
+ * G3 accepts a small model timing tolerance, but the customer's exact duration
+ * remains authoritative. Reconcile the small residual before hashing the
+ * requirement contract, while preserving node count/order and every minimum of
+ * three seconds supported by the pinned SceneArchitect schema.
+ */
+export function normalizeDiscoveryTiming(
+  targetValue: unknown,
+  structureValue: unknown,
+  audienceValue: unknown,
+  restrictions: string[] = [],
+): DiscoveryTimingNormalization {
+  const target = Number(targetValue);
+  if (!Number.isFinite(target) || target <= 0 || !structureValue || typeof structureValue !== "object" || Array.isArray(structureValue)) {
+    return { changes: [], previousDuration: null, normalizedDuration: null };
+  }
+  const structure = structureValue as RequirementRecord;
+  const nodes = sceneNodes(structure);
+  const durations = nodes.map((node) => Number(node.duration));
+  if (durations.some((value) => !Number.isFinite(value) || value <= 0)) {
+    return { changes: [], previousDuration: null, normalizedDuration: null };
+  }
+  const previousDuration = Math.round(durations.reduce((sum, value) => sum + value, 0) * 10) / 10;
+  const changes: string[] = [];
+  let residual = Math.round((previousDuration - target) * 10) / 10;
+  if (Math.abs(residual) > TARGET_DURATION_TOLERANCE_SECONDS) {
+    return { changes, previousDuration, normalizedDuration: null };
+  }
+  if (residual !== 0) {
+    const adjustable = nodes.map((node, index) => ({ node, index, duration: durations[index]! }))
+      .sort((left, right) => right.duration - left.duration);
+    for (const item of adjustable) {
+      if (residual === 0) break;
+      if (residual > 0) {
+        const removable = Math.max(0, Math.floor((item.duration - 3) * 10) / 10);
+        if (removable <= 0) continue;
+        const delta = Math.min(removable, residual);
+        item.node.duration = Math.round((item.duration - delta) * 10) / 10;
+        residual = Math.round((residual - delta) * 10) / 10;
+      } else {
+        const delta = Math.abs(residual);
+        item.node.duration = Math.round((item.duration + delta) * 10) / 10;
+        residual = 0;
+      }
+    }
+    if (residual === 0) {
+      structure.totalDuration = target;
+      structure.sceneCount = nodes.length;
+      changes.push("scene-duration-reconciled");
+    }
+  }
+  const audience = audienceValue && typeof audienceValue === "object" && !Array.isArray(audienceValue)
+    ? audienceValue as RequirementRecord
+    : null;
+  const noCompetitorEvidence = restrictions.some((restriction) => /竞品|对比|市场领先/u.test(restriction));
+  const normalizeAudienceText = (value: unknown): unknown => {
+    if (typeof value !== "string") return value;
+    let next = value.replace(/第\s*\d+(?:\.\d+)?\s*秒/gu, "已审场景节点");
+    if (noCompetitorEvidence && /竞品|其他产品|别人|市场|首创|首次|第一次|领先|唯一|满屏.*话术|没在吹|吹/u.test(next)) {
+      return "创作假设，待验证：只依据已审官方原文描述本品；不推断竞品、市场首创、领先地位或其他产品的表现";
+    }
+    if (noCompetitorEvidence && !/^创作假设|^待验证/u.test(next)) next = `创作假设，待验证：${next}`;
+    return next;
+  };
+  if (audience && Array.isArray(audience.emotionTriggers)) {
+    const triggers = audience.emotionTriggers.map(normalizeAudienceText);
+    if (JSON.stringify(triggers) !== JSON.stringify(audience.emotionTriggers)) {
+      audience.emotionTriggers = triggers;
+      changes.push("audience-timing-projected-to-scenes");
+    }
+  }
+  if (audience && noCompetitorEvidence && Array.isArray(audience.contentExpectations)) {
+    const expectations = audience.contentExpectations.map(normalizeAudienceText);
+    if (JSON.stringify(expectations) !== JSON.stringify(audience.contentExpectations)) {
+      audience.contentExpectations = expectations;
+      changes.push("unsupported-audience-market-claims-removed");
+    }
+  }
+  return { changes, previousDuration, normalizedDuration: target };
+}
+
 /** Every physical item and action must be present in the same SceneArchitect response. */
 export function requirementScenes(structureValue: unknown, cast: RequirementCast, targetDuration?: unknown): RequirementScene[] {
   const structure = requirementRecord(structureValue, "SceneArchitect 场景结构");
@@ -322,11 +453,33 @@ export function bindRequirementContract(
   expectedOwnerAudience: string | null
 ): RequirementRecord {
   const original = requirementRecord(originalValue, "ProfileResolver 完成后的需求清单");
-  const discovery = requirementRecord(discoveryValue, "需求洞察结果");
+  const originalDiscovery = requirementRecord(discoveryValue, "需求洞察结果");
+  const discovery = structuredClone(originalDiscovery);
   const upstream = requirementRecord(upstreamValue, "上游创意字段");
   const metadata = requirementRecord(metadataValue, "当前运行 metadata");
   const cast = requirementCast(metadata);
   if (cast.hash !== expectedCastHash) throw new RequirementContractError("REQUIREMENT_CAST_CHANGED", "洞察前后权威人物合同发生变化");
+  const timing = normalizeDiscoveryTiming(
+    upstream.duration_sec,
+    discovery.sceneStructure,
+    discovery.audienceProfile,
+    Array.isArray(metadata.marketingRestrictions)
+      ? metadata.marketingRestrictions.filter((item): item is string => typeof item === "string" && Boolean(item.trim()))
+      : [],
+  );
+  if (timing.changes.length > 0) {
+    metadata._workloomDiscoveryTimingNormalization = {
+      schemaVersion: "workloom.discovery-timing-normalization/v1",
+      previousDuration: timing.previousDuration,
+      normalizedDuration: timing.normalizedDuration,
+      changes: timing.changes,
+    };
+    // The vendor reuses this same discovery object when rendering G3 and when
+    // constructing the PRD. Publish the normalized authority back to the live
+    // run object instead of leaving a corrected clone behind.
+    originalDiscovery.sceneStructure = structuredClone(discovery.sceneStructure);
+    originalDiscovery.audienceProfile = structuredClone(discovery.audienceProfile);
+  }
   const scenes = requirementScenes(discovery.sceneStructure, cast, upstream.duration_sec);
   const brief = metadata.brief === undefined ? {} : requirementRecord(metadata.brief, "客户 Brief");
   const ownerAudience = expectedOwnerAudience;
@@ -334,7 +487,7 @@ export function bindRequirementContract(
     throw new RequirementContractError("REQUIREMENT_AUDIENCE_CHANGED", "客户原始受众口径被生成内容覆盖");
   }
   const props = scenes.flatMap(scene => scene.props), actions = scenes.flatMap(scene => scene.actions);
-  if (typeof brief.product === "string" && brief.product.trim() && !props.length) {
+  if (!productPropsPolicySatisfied(brief.product, scenes)) {
     throw new RequirementContractError("REQUIREMENT_SCENE_UNVERIFIED", "商品片没有任何真实结构化物理道具");
   }
   const payload: Omit<RequirementContract, "hash"> = {
@@ -354,6 +507,12 @@ export function bindRequirementContract(
     _workloomRequirementContract: contract,
     keyPoints: [...originalKeyPoints, `[本次结构化需求契约 ${REQUIREMENT_CONTRACT_VERSION}] ${JSON.stringify(contract)}`]
   };
+}
+
+export function productPropsPolicySatisfied(productValue: unknown, scenes: RequirementScene[]): boolean {
+  if (typeof productValue !== "string" || !productValue.trim()) return true;
+  if (scenes.some((scene) => scene.props.length > 0)) return true;
+  return scenes.length > 0 && scenes.every((scene) => Boolean(scene.noPropsReason));
 }
 
 export function verifiedRequirementContract(listValue: unknown, metadataValue: unknown, discoveryValue: unknown): RequirementContract {

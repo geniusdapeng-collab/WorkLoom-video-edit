@@ -1,0 +1,27 @@
+TAP version 13
+# [pii] PII_SALT 未配置，使用 dev 占位盐（仅限开发/测试，生产必须注入 PII_SALT）
+# Subtest: G3 permits protocol null but still blocks real placeholder leakage
+ok 1 - G3 permits protocol null but still blocks real placeholder leakage
+  ---
+  duration_ms: 0.505292
+  type: 'test'
+  ...
+# Subtest: G4 permits null in parseable contract JSON while keeping prose closed
+ok 2 - G4 permits null in parseable contract JSON while keeping prose closed
+  ---
+  duration_ms: 0.223541
+  type: 'test'
+  ...
+1..2
+# tests 2
+# suites 0
+# pass 2
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 167.525917
+
+
+exit_code=0 signal=none error=none
+assertion_validation={"ok":true,"errors":[],"testSummary":{"total":2,"passed":2,"failed":0,"cancelled":0,"skipped":0,"todo":0}}

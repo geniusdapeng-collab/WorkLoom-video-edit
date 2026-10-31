@@ -30,7 +30,8 @@ function cli(args: string[]) {
 }
 function savePrepared(file: string, prepared: PreparedMarketingFacts): void {
   const g1 = JSON.parse(prepared.g1Content);
-  g1.facts = { ...prepared.bundle, g1ContentSha256: "" };
+  const { g1ContentSha256: _g1ContentSha256, ...factsForReview } = prepared.bundle;
+  g1.facts = factsForReview;
   prepared.g1Content = canonicalRenderJson(g1); prepared.bundle.g1ContentSha256 = sha(prepared.g1Content);
   writeFileSync(file, JSON.stringify(prepared));
 }

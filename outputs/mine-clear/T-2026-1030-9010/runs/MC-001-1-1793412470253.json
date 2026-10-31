@@ -1,0 +1,75 @@
+{
+  "schema": "workloom.evidence-run/v1",
+  "id": "MC-001-1-1793412470253",
+  "command": "node --test scripts/tools/data-pipeline-run.node-test.mjs",
+  "exec": {
+    "file": "/Users/mac/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node",
+    "args": [
+      "--test-reporter=/Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/delivery/node-test-reporter.mjs",
+      "--test-reporter-destination=/Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/outputs/mine-clear/T-2026-1030-9010/evidence/MC-001-1-1793412470253-node-tests.jsonl",
+      "--test-reporter=tap",
+      "--test-reporter-destination=stdout",
+      "--test",
+      "scripts/tools/data-pipeline-run.node-test.mjs"
+    ]
+  },
+  "requested_exec": {
+    "file": "node",
+    "args": [
+      "--test",
+      "scripts/tools/data-pipeline-run.node-test.mjs"
+    ]
+  },
+  "node_observer": {
+    "schema": "workloom.node-test-observer/v1",
+    "reporter_path": "/Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/delivery/node-test-reporter.mjs",
+    "reporter_sha256": "286448a4dee571759fc1703564477d27bf5319bcb05ff66db2186deda60bc78f",
+    "destination": "/Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/outputs/mine-clear/T-2026-1030-9010/evidence/MC-001-1-1793412470253-node-tests.jsonl",
+    "summary": {
+      "path": "evidence/MC-001-1-1793412470253-node-tests.jsonl",
+      "sha256": "220fa9ea5ec277413a99743fac42cfb645ea7ee4429e15a2a555343af1a3eb9c",
+      "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
+    }
+  },
+  "node_executable": {
+    "path": "/Users/mac/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node",
+    "sha256": "f359816dcf3277d522724f8c0fa2264a600b342e101bda7d4cb7496bc0368307"
+  },
+  "actor": "root-repair-2026-10-31",
+  "role": "repair",
+  "subject": {
+    "card_id": "MC-001",
+    "assertion_index": 1
+  },
+  "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7",
+  "working_tree_dirty": false,
+  "started_at": "2026-10-31T02:07:50.253Z",
+  "finished_at": "2026-10-31T02:07:54.425Z",
+  "exit_code": 0,
+  "signal": null,
+  "validation": {
+    "ok": true,
+    "errors": [],
+    "testSummary": {
+      "total": 5,
+      "passed": 5,
+      "failed": 0,
+      "cancelled": 0,
+      "skipped": 0,
+      "todo": 0
+    }
+  },
+  "result": "pass",
+  "outputs": [
+    {
+      "path": "evidence/MC-001-1-1793412470253.txt",
+      "sha256": "978dfa89470321bcdae9a6ec929204029ed0a3bd9c306e1b4a0c8ccfc13dfc4a",
+      "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
+    },
+    {
+      "path": "evidence/MC-001-1-1793412470253-node-tests.jsonl",
+      "sha256": "220fa9ea5ec277413a99743fac42cfb645ea7ee4429e15a2a555343af1a3eb9c",
+      "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
+    }
+  ]
+}

@@ -1,0 +1,81 @@
+{
+  "schema": "workloom.evidence-run/v1",
+  "id": "MC-017-2-1793412507700",
+  "command": "node --import tsx --test --test-name-pattern='discovery timing' scripts/tools/data-pipeline-host-contract.node-test.mjs",
+  "exec": {
+    "file": "/Users/mac/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node",
+    "args": [
+      "--test-reporter=/Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/delivery/node-test-reporter.mjs",
+      "--test-reporter-destination=/Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/outputs/mine-clear/T-2026-1030-9010/evidence/MC-017-2-1793412507700-node-tests.jsonl",
+      "--test-reporter=tap",
+      "--test-reporter-destination=stdout",
+      "--import",
+      "tsx",
+      "--test",
+      "--test-name-pattern=discovery timing",
+      "scripts/tools/data-pipeline-host-contract.node-test.mjs"
+    ]
+  },
+  "requested_exec": {
+    "file": "node",
+    "args": [
+      "--import",
+      "tsx",
+      "--test",
+      "--test-name-pattern=discovery timing",
+      "scripts/tools/data-pipeline-host-contract.node-test.mjs"
+    ]
+  },
+  "node_observer": {
+    "schema": "workloom.node-test-observer/v1",
+    "reporter_path": "/Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/delivery/node-test-reporter.mjs",
+    "reporter_sha256": "286448a4dee571759fc1703564477d27bf5319bcb05ff66db2186deda60bc78f",
+    "destination": "/Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/outputs/mine-clear/T-2026-1030-9010/evidence/MC-017-2-1793412507700-node-tests.jsonl",
+    "summary": {
+      "path": "evidence/MC-017-2-1793412507700-node-tests.jsonl",
+      "sha256": "2cf17a634c78d2440a71b9af68353de1abf1908f95136a978ae2876e3ab04fa5",
+      "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
+    }
+  },
+  "node_executable": {
+    "path": "/Users/mac/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node",
+    "sha256": "f359816dcf3277d522724f8c0fa2264a600b342e101bda7d4cb7496bc0368307"
+  },
+  "actor": "root-repair-2026-10-31",
+  "role": "repair",
+  "subject": {
+    "card_id": "MC-017",
+    "assertion_index": 2
+  },
+  "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7",
+  "working_tree_dirty": false,
+  "started_at": "2026-10-31T02:08:27.700Z",
+  "finished_at": "2026-10-31T02:08:28.292Z",
+  "exit_code": 0,
+  "signal": null,
+  "validation": {
+    "ok": true,
+    "errors": [],
+    "testSummary": {
+      "total": 2,
+      "passed": 2,
+      "failed": 0,
+      "cancelled": 0,
+      "skipped": 0,
+      "todo": 0
+    }
+  },
+  "result": "pass",
+  "outputs": [
+    {
+      "path": "evidence/MC-017-2-1793412507700.txt",
+      "sha256": "d5b686335cc47d79045b242fb55a585422c1ff620c73609fcbee4dc20b19ca1a",
+      "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
+    },
+    {
+      "path": "evidence/MC-017-2-1793412507700-node-tests.jsonl",
+      "sha256": "2cf17a634c78d2440a71b9af68353de1abf1908f95136a978ae2876e3ab04fa5",
+      "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
+    }
+  ]
+}

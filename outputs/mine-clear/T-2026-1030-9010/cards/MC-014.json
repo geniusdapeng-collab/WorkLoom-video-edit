@@ -1,0 +1,65 @@
+{
+  "id": "MC-014",
+  "kind": "problem",
+  "level": "L2",
+  "severity": "P1",
+  "batch": 1,
+  "state": "open",
+  "title": "RiskAssessor 合法字符串数组超一格即整轮失败，未按 schema 无损压缩",
+  "evidence": [
+    {
+      "type": "code",
+      "ref": "packages/video-studio/src/requirement-contract-bridge.ts:310@463ae7ad844de31674b94e73679dafaf0f5dcac5",
+      "sha256": "f170c254fc7e1a6dc0388a6ad7129a5fb9f68a0f421be0bb81505cacb5381993",
+      "note": "RiskAssessor 响应直接进入严格 schema 校验；businessConstraints 允许 1–4 个字符串，但第 5 个有效约束没有宿主压缩路径。"
+    }
+  ],
+  "root_cause": {
+    "file": "packages/video-studio/src/requirement-contract-bridge.ts",
+    "line": 310,
+    "commit": "463ae7ad844de31674b94e73679dafaf0f5dcac5",
+    "symbol": "RiskAssessor _validateAndFill"
+  },
+  "trigger_path": "RiskAssessor 返回 5 条 businessConstraints，均有效且未声明超集 → maxItems=4 硬拒绝；唯一重试返回缺字段 → G3 整轮 REQUIREMENT_DISCOVERY_UNVERIFIED。",
+  "assertions": [
+    {
+      "kind": "sample",
+      "given": "字符串数组比 schema maxItems 多 1–n 项",
+      "expect": "保留最后一项并以前缀分号合并进末位，全部文本不丢失且数组长度合规",
+      "command": "node --import tsx --test --test-name-pattern='RiskAssessor string overflow' scripts/tools/data-pipeline-host-contract.node-test.mjs",
+      "exec": {
+        "file": "node",
+        "args": [
+          "--import",
+          "tsx",
+          "--test",
+          "--test-name-pattern=RiskAssessor string overflow",
+          "scripts/tools/data-pipeline-host-contract.node-test.mjs"
+        ]
+      },
+      "last_result": "not-run"
+    },
+    {
+      "kind": "property",
+      "given": "对象数组超过 maxItems",
+      "expect": "按声明上限裁剪，不能通过超出 schema 的响应",
+      "command": "node --import tsx --test --test-name-pattern='RiskAssessor string overflow' scripts/tools/data-pipeline-host-contract.node-test.mjs",
+      "exec": {
+        "file": "node",
+        "args": [
+          "--import",
+          "tsx",
+          "--test",
+          "--test-name-pattern=RiskAssessor string overflow",
+          "scripts/tools/data-pipeline-host-contract.node-test.mjs"
+        ]
+      },
+      "last_result": "not-run"
+    }
+  ],
+  "regression": {
+    "command": "node --import tsx --test --test-name-pattern='RiskAssessor string overflow' scripts/tools/data-pipeline-host-contract.node-test.mjs",
+    "evidence": null
+  },
+  "notes": "M01 最新一轮真实日志：businessConstraints observed=5 limit=4；第二次重试缺必需字段。"
+}

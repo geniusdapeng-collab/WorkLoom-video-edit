@@ -1,0 +1,38 @@
+{
+  "schema": "workloom.evidence-run/v1",
+  "id": "MC-022-1-1793412515538",
+  "command": "node_modules/.bin/vitest run apps/server/src/video/marketing-authority.test.ts -t '可选品牌与显式商品查询冲突'",
+  "exec": {
+    "file": "node_modules/.bin/vitest",
+    "args": [
+      "run",
+      "apps/server/src/video/marketing-authority.test.ts",
+      "-t",
+      "可选品牌与显式商品查询冲突"
+    ]
+  },
+  "actor": "root-repair-2026-10-31",
+  "role": "repair",
+  "subject": {
+    "card_id": "MC-022",
+    "assertion_index": 1
+  },
+  "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7",
+  "working_tree_dirty": false,
+  "started_at": "2026-10-31T02:08:35.538Z",
+  "finished_at": "2026-10-31T02:08:36.970Z",
+  "exit_code": 0,
+  "signal": null,
+  "validation": {
+    "ok": true,
+    "errors": []
+  },
+  "result": "pass",
+  "outputs": [
+    {
+      "path": "evidence/MC-022-1-1793412515538.txt",
+      "sha256": "26ccab3b7af77d0feb0eef3ddfdb030499defd1ca93bf985ddc1d50b8a85cca2",
+      "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
+    }
+  ]
+}

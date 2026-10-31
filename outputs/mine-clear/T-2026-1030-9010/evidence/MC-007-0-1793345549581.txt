@@ -1,0 +1,26 @@
+TAP version 13
+# Subtest: revisionOf excludes only the evidence root, not tracked or untracked source changes
+ok 1 - revisionOf excludes only the evidence root, not tracked or untracked source changes
+  ---
+  duration_ms: 153.754125
+  type: 'test'
+  ...
+# Subtest: G01 explicit runner works when the task ledger and evidence root are committed files
+ok 2 - G01 explicit runner works when the task ledger and evidence root are committed files
+  ---
+  duration_ms: 361.961417
+  type: 'test'
+  ...
+1..2
+# tests 2
+# suites 0
+# pass 2
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 570.219708
+
+
+exit_code=0 signal=none error=none
+assertion_validation={"ok":true,"errors":[],"testSummary":{"total":2,"passed":2,"failed":0,"cancelled":0,"skipped":0,"todo":0}}

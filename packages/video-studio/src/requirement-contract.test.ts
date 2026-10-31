@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   RequirementContractError, bindRequirementContract, renderRequirementContract, requirementCast, requirementHash, requirementRecord,
-  requirementScenes, structuredRiskFeedback, structuredSceneFeedback, structuredScenePrompt, structuredSceneSchema, structuredSceneTiming,
+  normalizeDiscoveryTiming, requirementScenes, structuredRiskFeedback, structuredSceneFeedback, structuredScenePrompt, structuredSceneSchema, structuredSceneTiming,
   validateRequirementSchema, verifiedRequirementContract, type RequirementRecord
 } from "./requirement-contract.js";
 import { SCENE_SUM_ARITHMETIC_TOLERANCE_SECONDS, TARGET_DURATION_TOLERANCE_SECONDS } from "./duration-contract.js";
@@ -28,6 +28,65 @@ afterEach(() => {
   for (const key of Object.keys(nativeDiscovery)) expect(RequirementDiscoveryEngine.prototype[key]).toBe(nativeDiscovery[key]);
   expect(network).not.toHaveBeenCalled();
   vi.clearAllTimers(); vi.useRealTimers(); vi.unstubAllGlobals();
+});
+
+describe("discovery timing authority", () => {
+  it("reconciles a tolerated scene residual to the customer's exact duration", () => {
+    const structure = {
+      opening: { duration: 4 },
+      scenes: [{ duration: 5 }, { duration: 6 }, { duration: 8 }, { duration: 5 }],
+      ending: { duration: 3 },
+      totalDuration: 31,
+      sceneCount: 6,
+    };
+    const audience = { emotionTriggers: ["第50秒愿意转发", "第12秒感到精密"] };
+    const normalized = normalizeDiscoveryTiming(30, structure, audience);
+    expect(normalized).toEqual({ changes: ["scene-duration-reconciled", "audience-timing-projected-to-scenes"], previousDuration: 31, normalizedDuration: 30 });
+    expect(structure.totalDuration).toBe(30);
+    expect(structure.sceneCount).toBe(6);
+    expect(structure.opening.duration + structure.scenes.reduce((sum, scene) => sum + scene.duration, 0) + structure.ending.duration).toBe(30);
+    expect(structure.scenes.every((scene) => scene.duration >= 3)).toBe(true);
+    expect(audience.emotionTriggers).toEqual(["已审场景节点愿意转发", "已审场景节点感到精密"]);
+  });
+
+  it("leaves an impossible residual for strict validation instead of fabricating a timeline", () => {
+    const structure = {
+      opening: { duration: 3 }, scenes: [{ duration: 3 }], ending: { duration: 3 }, totalDuration: 9, sceneCount: 3,
+    };
+    const normalized = normalizeDiscoveryTiming(20, structure, {});
+    expect(normalized.changes).toEqual([]);
+    expect(structure.totalDuration).toBe(9);
+  });
+
+  it("removes competitor and market-first claims from audience hypotheses when G1 has no competitor evidence", () => {
+    const structure = {
+      opening: { duration: 10 }, scenes: [{ duration: 10 }], ending: { duration: 10 }, totalDuration: 30, sceneCount: 3,
+    };
+    const audience = {
+      emotionTriggers: ["第一次看到有人把出处钉在画面上", "开发者第一反应是可信"],
+      contentExpectations: ["它没在吹，只是陈述原文"],
+    };
+    const normalized = normalizeDiscoveryTiming(30, structure, audience, [
+      "没有可核实竞品证据：禁止对比、竞品弱点或市场领先主张",
+    ]);
+    expect(normalized.changes).toContain("unsupported-audience-market-claims-removed");
+    expect(audience.emotionTriggers[0]).not.toMatch(/第一次看到|满屏|没在吹/);
+    expect(audience.emotionTriggers.every((value) => value.startsWith("创作假设，待验证") || value.includes("只依据已审官方原文"))).toBe(true);
+    expect(audience.contentExpectations[0]).not.toContain("没在吹");
+  });
+
+  it("publishes normalized discovery back to the live run consumed by G3 and PRD", () => {
+    const meta = nobody(), d = discovery("$scene"), s = requirementRecord(d.sceneStructure, "structure");
+    s.opening = { ...requirementRecord(s.opening, "opening"), duration: 10 };
+    s.scenes = [{ ...requirementRecord((s.scenes as unknown[])[0], "scene"), duration: 11 }];
+    s.ending = { ...requirementRecord(s.ending, "ending"), duration: 10 };
+    s.totalDuration = 31; s.sceneCount = 3;
+    requirementRecord(d.audienceProfile, "audience").emotionTriggers = ["第45秒出现"];
+    const result = bindRequirementContract(original(), d, { ...upstream, duration_sec: 30 }, meta, requirementCast(meta).hash, null);
+    expect(requirementRecord(d.sceneStructure, "live structure").totalDuration).toBe(30);
+    expect(requirementRecord(d.audienceProfile, "live audience").emotionTriggers).toEqual(["已审场景节点出现"]);
+    expect(() => verifiedRequirementContract(result, meta, d)).not.toThrow();
+  });
 });
 
 function metadata(id = "young-rider-01", name = "李英子"): RequirementRecord {
@@ -314,7 +373,7 @@ describe("host requirement contract data", () => {
     expect(renderRequirementContract(contract, meta)).toContain("角色（0）");
   });
 
-  it("permits a genuinely empty prop list only with an explicit scene reason", () => {
+  it("permits a product to use an explicitly reasoned no-prop visual system", () => {
     const meta = nobody(), d = discovery("$scene"), s = requirementRecord(d.sceneStructure, "structure");
     for (const node of [s.opening, ...(s.scenes as unknown[]), s.ending]) {
       const physical = requirementRecord(requirementRecord(node, "node").productionContract, "physical");
@@ -323,7 +382,10 @@ describe("host requirement contract data", () => {
     const result = bindRequirementContract(original(), d, upstream, meta, requirementCast(meta).hash, null);
     expect(verifiedRequirementContract(result, meta, d).props).toEqual([]);
     requirementRecord(meta, "meta").brief = { product: "有明确商品的片子" };
-    expect(() => bindRequirementContract(original(), d, upstream, meta, requirementCast(meta).hash, null)).toThrow("REQUIREMENT_SCENE_UNVERIFIED");
+    expect(bindRequirementContract(original(), d, upstream, meta, requirementCast(meta).hash, null)._workloomRequirementContract).toMatchObject({ props: [] });
+    delete requirementRecord(requirementRecord(s.ending, "ending").productionContract, "ending physical").noPropsReason;
+    expect(() => bindRequirementContract(original(), d, upstream, meta, requirementCast(meta).hash, null))
+      .toThrow(/REQUIREMENT_(?:SCENE_UNVERIFIED|CONTRACT_INVALID)/);
   });
 
   it.each(["missing-selection", "wrong-schema", "wrong-id", "wrong-name", "duplicate", "profile", "registry", "none-conflict", "mode"])("rejects %s casting instead of inventing no-person", kind => {

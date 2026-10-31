@@ -45,7 +45,7 @@ function fixture(t, { suite = true, production = false, fault = null, selftest =
       threads.push(thread); send(200, { threadId: thread.id, kind: 'routed', status: thread.status }); return;
     }
     if (procedure === 'threads.get') { assert.equal(typeof input.threadId, 'string'); const thread = threads.find((row) => row.id === input.threadId); send(200, fault === 'wrong-thread' ? { ...thread, id: 'T-other' } : thread); return; }
-    if (procedure === 'threads.events') { send(200, fault === 'empty-events' ? [] : [{ event_id: 'E-101', object: { id: input.threadId }, context: { workspace_id: 'ws-fixture' }, who: { id: 'industry-analyst' }, decision: { action: 'ask.answer', after: { text: fault === 'authorization-leak' ? 'Authorization: Basic '+['Q25iOn','ByaXZhdGUtZml4dHVyZQ=='].join('') : '需要处理一项行业待办，未完成项请负责人核对。' }, params: { via: 'rule' } }, model_trace: { model_id: 'mock-001' } }]); return; }
+    if (procedure === 'threads.events') { send(200, fault === 'empty-events' ? [] : [{ event_id: 'E-101', object: { id: input.threadId }, context: { workspace_id: 'ws-fixture' }, who: { id: 'industry-analyst' }, decision: { action: 'ask.answer', after: { text: fault === 'authorization-leak' ? 'Authorization: Basic '+['Q25iOn','ByaXZhdGUtZml4dHVyZQ=='].join('') : '这项增长实验需要核对证据、假设与待处理事项；负责人请补充来源。' }, params: { via: 'rule' } }, model_trace: { model_id: 'mock-001' } }]); return; }
     send(404, null, 'NOT_FOUND');
   });
   return { root, profile, server, requests, threads, fault, selftest, provider };

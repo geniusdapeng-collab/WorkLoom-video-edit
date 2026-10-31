@@ -1,0 +1,38 @@
+{
+  "schema": "workloom.evidence-index/v1",
+  "commit": "fbe88967e73b62f30a30ac41a1838162d8948164",
+  "runs": [
+    {
+      "path": "runs/MC-008-0-1793346886273.json",
+      "sha256": "cdc3244ce3100a639f602ad277283f5c694bd12a9869308134a147aea87f12af",
+      "commit": "fbe88967e73b62f30a30ac41a1838162d8948164"
+    },
+    {
+      "path": "runs/MC-008-1-1793346886788.json",
+      "sha256": "aa54bb691e1f9e8e7c7b16e1d068ee9928d73f0f04b28bbf2952eecea0c87f96",
+      "commit": "fbe88967e73b62f30a30ac41a1838162d8948164"
+    }
+  ],
+  "artifacts": [
+    {
+      "path": "evidence/MC-008-0-1793346886273.txt",
+      "sha256": "3e6e7977b89096485a25a475a0bcc48b666b187da776bd6445bc80c8cb3ffb45",
+      "commit": "fbe88967e73b62f30a30ac41a1838162d8948164"
+    },
+    {
+      "path": "evidence/MC-008-0-1793346886273-node-tests.jsonl",
+      "sha256": "d50eed83830b50b9a37864bcd541b31b332dec8875cdc9859682f4edf8a9c89b",
+      "commit": "fbe88967e73b62f30a30ac41a1838162d8948164"
+    },
+    {
+      "path": "evidence/MC-008-1-1793346886788.txt",
+      "sha256": "cf45a468e0e6d89bc04e8bdeef8f4b29ef549bf6d008f304cac1d55242b31149",
+      "commit": "fbe88967e73b62f30a30ac41a1838162d8948164"
+    },
+    {
+      "path": "evidence/MC-008-1-1793346886788-node-tests.jsonl",
+      "sha256": "d50eed83830b50b9a37864bcd541b31b332dec8875cdc9859682f4edf8a9c89b",
+      "commit": "fbe88967e73b62f30a30ac41a1838162d8948164"
+    }
+  ]
+}

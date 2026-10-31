@@ -280,7 +280,7 @@ function verifyBaselines(ledger, context) {
     catch { errors.push(`baseline.${name}.commit 缺失/null/未知提交：不能证明三基线对齐`); }
   }
   try {
-    const revision = revisionOf(context.repoRoot);
+    const revision = revisionOf(context.repoRoot, { exclude: [context.artifactRoot] });
     if (revision.dirty) errors.push("被测工作树存在未提交源码：不能用旧 commit 的证据放行");
     if (commits.acceptance && commits.acceptance !== revision.commit) errors.push("验收基线不是当前 HEAD（过期验收证据）");
     if (commits.audit && commits.repair && !isAncestor(context.repoRoot, commits.audit, commits.repair)) errors.push("修复基线不是审计基线的后代");
@@ -593,7 +593,7 @@ function commandRunAssertions() {
   if (!actor || !["repair", "acceptance"].includes(role)) die("需要 --actor 与 --role repair|acceptance", 2);
   const timeoutMs = Number(arg("--timeout-ms", "60000"));
   if (!Number.isInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 3_600_000) die("--timeout-ms 必须为 1–3600000", 2);
-  const revision = revisionOf(context.repoRoot);
+  const revision = revisionOf(context.repoRoot, { exclude: [context.artifactRoot] });
   if (revision.dirty) die("断言执行前必须提交被测源码", 1);
   if (!isAncestor(context.repoRoot, ledger.baseline?.audit?.commit, revision.commit)) die("当前 HEAD 不包含审计基线", 1);
   if (role === "acceptance") {

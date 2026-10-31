@@ -71,9 +71,19 @@ export function resolveCommit(repoRoot, value) {
   return commit;
 }
 
-export function revisionOf(repoRoot) {
+export function revisionOf(repoRoot, { exclude = [] } = {}) {
   const commit = resolveCommit(repoRoot, gitRead(repoRoot, ["rev-parse", "HEAD"]));
-  const dirty = gitRead(repoRoot, ["status", "--porcelain", "--untracked-files=normal"]).length > 0;
+  const root = realpathSync(resolve(repoRoot));
+  const exclusions = exclude.map((entry) => {
+    const absolute = resolve(repoRoot, entry);
+    try { return realpathSync(absolute); } catch { return absolute; }
+  })
+    .filter((entry) => entry === root || entry.startsWith(`${root}${sep}`))
+    .map((entry) => relative(root, entry))
+    .filter((entry) => entry && entry !== ".")
+    .map((entry) => `:(exclude)${entry.replaceAll(sep, "/")}`);
+  const args = ["status", "--porcelain", "--untracked-files=normal", "--", ".", ...exclusions];
+  const dirty = gitRead(root, args).length > 0;
   return { commit, dirty };
 }
 
@@ -204,7 +214,7 @@ export function recordEvidenceRun({ repoRoot, artifactRoot, runId, command, acto
   if (!["discovery", "repair", "acceptance", "automation", "manual"].includes(role)) throw new Error("运行记录缺有效执行角色");
   if (!Number.isFinite(date(startedAt)) || !Number.isFinite(date(finishedAt)) || date(finishedAt) < date(startedAt) || date(finishedAt) > Date.now() + 300_000) throw new Error("运行记录必须提供有效且顺序一致的实际起止时间");
   if (!Array.isArray(outputPaths) || !outputPaths.length) throw new Error("运行记录至少含一个实际输出文件");
-  const { commit, dirty } = revisionOf(repoRoot);
+  const { commit, dirty } = revisionOf(repoRoot, { exclude: [artifactRoot] });
   const artifacts = outputPaths.map((p) => bindArtifact(artifactRoot, p, commit));
   if (!artifacts.length) throw new Error("运行记录至少含一个实际输出文件");
   const observer = nodeObserver ? { ...nodeObserver, summary: artifacts.find((ref) => ref.path === nodeObserver.summaryPath) ?? null } : null;
@@ -230,7 +240,7 @@ export function recordEvidenceRun({ repoRoot, artifactRoot, runId, command, acto
 export function captureEvidenceRun(options) {
   const spec = validateExecSpec(options.exec);
   const startedAt = new Date().toISOString();
-  const revision = revisionOf(options.repoRoot);
+  const revision = revisionOf(options.repoRoot, { exclude: [options.artifactRoot] });
   if (revision.dirty) throw new Error("断言执行前必须提交被测源码，不能把工作树结果绑定到旧 commit");
   const outputPath = `evidence/${safeId(options.runId)}.txt`;
   mkdirSync(dirname(join(options.artifactRoot, outputPath)), { recursive: true });
@@ -244,7 +254,8 @@ export function captureEvidenceRun(options) {
   delete env.NODE_TEST_CONTEXT;
   const result = spawnSync(observedExec.file, observedExec.args, { cwd: options.repoRoot, encoding: "utf8", shell: false, timeout: options.timeoutMs ?? 60_000, maxBuffer: 8 * 1024 * 1024, env });
   if (nodeTest && !jsonEqual(nodeExecutable, nodeExecutableIdentity(observedExec, options.repoRoot))) throw new Error("Node 可执行文件在实际运行中发生变化，结果不可绑定");
-  if (revisionOf(options.repoRoot).commit !== revision.commit || revisionOf(options.repoRoot).dirty) throw new Error("断言执行中被测源码发生变化，结果不可绑定");
+  const finishedRevision = revisionOf(options.repoRoot, { exclude: [options.artifactRoot] });
+  if (finishedRevision.commit !== revision.commit || finishedRevision.dirty) throw new Error("断言执行中被测源码发生变化，结果不可绑定");
   const validation = { ok: true, errors: [] };
   const outputPaths = [outputPath];
   if (nodeTest) {

@@ -8,114 +8,169 @@ steps:
   - step_key: script
     name: 剧本蓝图
     owner: scriptwriter
+    inputs: [brief, route]
     outputs: [script_blueprint]
+    depends_on: []
+    repair_owner: scriptwriter
+    max_repair_attempts: 2
+    budget_ms: 180000
   - step_key: scene
     name: 场景设计
     owner: scene-designer
+    inputs: [script_blueprint]
     outputs: [scene_card]
+    depends_on: [script]
   - step_key: opening
     name: 片头设计
     owner: opening-designer
+    inputs: [scene_card]
     outputs: [shot_card]            # 片头 30 字段卡（25+5 专属）
+    depends_on: [scene]
   - step_key: visual
     name: 视觉语言设计
     owner: visual-director
+    inputs: [shot_card]
     outputs: [shot_card]
+    depends_on: [opening]
   - step_key: audio
     name: 音频设计
     owner: audio-designer
+    inputs: [shot_card]
     outputs: [shot_card]
+    depends_on: [visual]
   - step_key: continuity
     name: 连贯性导演评审
     owner: continuity-reviewer
+    inputs: [shot_card]
     outputs: [review_report]        # 6 问评审 + 5 维评分，硬阻断直接打回
+    depends_on: [audio]
   - step_key: prompt-fuse
     name: 逐镜提示词融合
     owner: prompt-fuser
+    inputs: [review_report, shot_card]
     outputs: [prompt_package]
+    depends_on: [continuity]
   - step_key: field-check
     name: 字段质检与修复
     owner: field-inspector
+    inputs: [prompt_package]
     outputs: [prompt_package]       # 25/30 字段规则+LLM 混合质检
+    depends_on: [prompt-fuse]
   - step_key: g6-prompt-confirm
     name: 提示词审核
     owner: director
+    inputs: [prompt_package]
     gate: G6
     outputs: [prompt_package]       # 含导演评分报告的审批卡
+    depends_on: [field-check]
   - step_key: micromotion
     name: 微动作增强
     owner: micromotion-stylist
+    inputs: [prompt_package]
     outputs: [prompt_package]       # 5 路流水线：面部/身体/眼神/呼吸/融合
+    depends_on: [g6-prompt-confirm]
   - step_key: portrait
     name: 定妆照制作
     owner: portrait-artist
+    inputs: [shot_card, prompt_package]
     outputs: [portrait_set]
+    depends_on: [micromotion]
   - step_key: g5-portrait-confirm
     name: 定妆照确认
     owner: director
+    inputs: [portrait_set]
     gate: G5
     outputs: [portrait_set]
+    depends_on: [portrait]
   - step_key: g7-preproduction
     name: 预生产最终确认
     owner: director
+    inputs: [prompt_package, portrait_set]
     gate: G7
     outputs: [video_project]
+    depends_on: [g5-portrait-confirm, micromotion]
   - step_key: render-script
     name: 渲染脚本生成入 CMS
     owner: render-operator
+    inputs: [video_project]
     outputs: [render_script]        # MD 正文 + 25/30 字段 JSON + 字符数校验快照，v1 起版本链
+    depends_on: [g7-preproduction]
   - step_key: material-generate
     name: 真实素材 → 构建视频场景（素材只作实景依据）
     owner: render-operator
+    inputs: [render_script]
     gate: G-MAT1                    # 新提交前的用途/参考形态/授权门；成功渲染后只保存任务与来源字节回执
     outputs: [render_job, video_asset]   # 真实实拍素材只作**实景依据**（reference_image，不作 first_frame）：
                                          # 由生成模型构建**完整视频场景**（自有机位/视差/环境运动），
                                          # **严禁把素材当镜头直接入时间线**，也**严禁把参考图做成"被推动的照片"**
                                          # （产品所有者 2026-09-25 三轮口径：素材是场景参考，成片必须是视频）
+    depends_on: [render-script]
   - step_key: g8-render-submit
     name: 渲染提交审批
     owner: director
+    inputs: [render_script, render_job]
     gate: G8
     outputs: [render_job]
+    depends_on: [material-generate, render-script]
   - step_key: render
     name: Seedance 渲染与回填
     owner: render-operator
+    inputs: [render_job]
     outputs: [render_job, video_asset]
+    depends_on: [g8-render-submit, material-generate]
   - step_key: post
     name: 成功素材直接后期合成
     owner: post-editor
+    inputs: [video_asset]
     outputs: [final_video]
+    depends_on: [render]
   - step_key: color
     name: 成片调色
     owner: colorist
+    inputs: [final_video]
     outputs: [color_report, final_video]   # 对母版只调一次；平台变体/二剪变体从已调色母版派生，不重复调色
+    depends_on: [post]
   - step_key: subtitle
     name: 标题字幕制作
     owner: subtitle-stylist
+    inputs: [final_video]
     outputs: [subtitle_track, subtitle_report, final_video]   # 文字层收口：字体许可与解析、ASS/时间轴、平台请求版式与实际文件。**字幕以旁挂文件交付（srt/ass/vtt + 清单），母版不烧字**（G-DLV2）；要带字幕的片子由软字幕轨（softmux，画面逐帧零改动）或另存烧字副本派生
+    depends_on: [color]
   - step_key: voice
     name: 原声保留或显式配音
     owner: voice-artist
+    inputs: [final_video]
     outputs: [voice_track, voice_report, final_video]   # 默认保留原声；仅显式请求时调用配音引擎，视频轨 copy；克隆授权仍前置
+    depends_on: [subtitle]
   - step_key: bgm
     name: 成片配乐
     owner: bgm-composer
+    inputs: [final_video, voice_track]
     outputs: [bgm_track, bgm_report, final_video]   # 后期音频链路收口：原声保留策略 + BGM 让位 + 实际响度/真峰值；默认 report，明确 block 合同才按其阈值阻断
+    depends_on: [voice]
   - step_key: deliver
     name: 多风格交付包
     owner: post-editor
+    inputs: [final_video, subtitle_track, bgm_track]
     gate: G-DLV1                  # 核对请求的变体文件、目标规格、来源与实际工具执行，不做品质差异评分
     outputs: [delivery_package, final_video, subtitle_track]   # 干净母版 + 旁挂字幕 + 2–3 个风格变体（封面/文案/BGM/调色/转场）+ 软字幕轨版 + 交付清单 + 工程文件；quality=uhd 按目标画布编码；仅显式增强请求才调用本地模型并核对来源（G-DLV8/9）；镜头只生成一次，变体零 token
+    depends_on: [bgm]
   - step_key: post-quality
     name: 交付前后期技术质检
     owner: post-quality-inspector
+    inputs: [delivery_package]
     outputs: [qa_report]
+    depends_on: [deliver]
     note: 重新读取当前媒体与真实加工链；失败仅本地返修，技术状态与艺术审片分别记录
   - step_key: archive
     name: 成片入库
     owner: post-editor
+    inputs: [delivery_package, qa_report]
     outputs: [final_video, video_asset]
+    depends_on: [post-quality]
   - step_key: revise
     name: 返修闭环（反馈 → 分诊 → 本地重合成）
     owner: post-editor
+    inputs: [qa_report, delivery_package]
     outputs: [revision_report, delivery_package]   # 变更影响分析 → 层增量重合成（不重新生成镜头）；点名到画面内容才走 G8 人审 + 只重跑点名镜头；复用带 sha256 证据（G-DLV4/G-DLV5/G-DLV7）
+    depends_on: [archive]

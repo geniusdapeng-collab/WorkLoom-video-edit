@@ -21,11 +21,27 @@ import { WorkloomLLMEngine } from "./llm-adapter.js";
 import { createPortraitRuntime, type PortraitIndex, type PortraitInputReceipt, type PortraitRuntimeOptions } from "./portrait-runtime.js";
 import { installPortraitArchivePlanBridge, withPortraitArchivePlan } from "./portrait-archive-plan.js";
 import { acquireVendorRequirementEntry } from "./vendor-requirement-entry.js";
-import { assertRequirementContractBridge, installVendorRequirementContractBridge, withRequirementContractScope } from "./requirement-contract-bridge.js";
+import {
+  assertRequirementContractBridge,
+  currentRequirementMetadata,
+  installVendorRequirementContractBridge,
+  withRequirementContractScope,
+} from "./requirement-contract-bridge.js";
 import { preparePrdAuthority, type PrdAuthority, type PrdMarketingAuthority } from "./prd-authority.js";
 import { assertPrdAuthorityBridge, installVendorPrdAuthorityBridge, installVendorPrdProductionBridge, withPrdAuthorityScope } from "./prd-authority-bridge.js";
 import { captureRequirementTheme, type RequirementApprovedTheme } from "./requirement-authority.js";
 import { requirementHash } from "./requirement-contract.js";
+import { normalizeNarrativePrdContract } from "./narrative-prd-contract.js";
+import { normalizeCreativeThemeContract } from "./creative-theme-contract.js";
+import {
+  buildMarketingPreproductionReport,
+  isAbstractMarketingIntent,
+  marketingVisibleTextFromG1,
+  normalizeMarketingPromptList,
+  normalizeMarketingPromptResult,
+  normalizeMarketingPromptText,
+} from "./marketing-prompt-contract.js";
+import { configureRequirementRetryPolicy } from "./requirement-retry-policy.js";
 import {
   applyDurationPolicyToManager,
   installVendorAudioDisciplineBridge,
@@ -284,9 +300,29 @@ export class VideoStudio {
     const log = cfg.log ?? ((line: string) => console.log(line));
     const emit: EventSink = (e) => (cfg.onEvent ? cfg.onEvent(e) : undefined);
     let runId: string | null = null;
+    const noPeople = metadata.builtinCharacterSelection
+      && typeof metadata.builtinCharacterSelection === "object"
+      && (metadata.builtinCharacterSelection as Record<string, unknown>).mode === "none";
+    const brief = metadata.brief && typeof metadata.brief === "object"
+      ? metadata.brief as Record<string, unknown>
+      : {};
+    const requestedDuration = Number(prdAuthority?.profile.targetDuration ?? brief.duration ?? 0);
+    const promptOptions = {
+      targetDuration: Number.isFinite(requestedDuration) && requestedDuration > 0 ? requestedDuration : 30,
+      noPeople: Boolean(noPeople),
+      abstractOnly: input.isMarketing && isAbstractMarketingIntent(input.intent),
+      frameRate: prdAuthority?.profile.frameRate ?? 30,
+      allowedVisibleText: prdAuthority ? marketingVisibleTextFromG1(prdAuthority.marketing.g1Artifact.content) : [],
+    };
 
     const handler: ConfirmationHandler = async (req) => {
       const gate = resolveGate(req.type);
+      const normalizedPrompt = input.isMarketing && gate === "G6_PROMPT"
+        ? normalizeMarketingPromptText(req.content, promptOptions)
+        : null;
+      if (normalizedPrompt && normalizedPrompt.changes.length > 0) {
+        log(`[studio] ${gate} 宿主提示词归一：${normalizedPrompt.changes.join("、")}`);
+      }
       if (gate === "G2_THEME" && prdAuthority) approvedRequirementTheme = undefined;
       await emit({
         kind: "pipeline.gate.requested",
@@ -299,7 +335,7 @@ export class VideoStudio {
         gate,
         vendorType: req.type,
         title: `预生产确认门 · ${gate}`,
-        contentMd: req.content,
+        contentMd: normalizedPrompt?.value ?? req.content,
         runId: req.runId ?? runId
       });
       if (gate === "G2_THEME" && prdAuthority) {
@@ -496,6 +532,95 @@ export class VideoStudio {
           charactersDir,
           durationConstraint: { maxSingleShot, minSingleShot }
         });
+        if (input.isMarketing && noPeople && isAbstractMarketingIntent(input.intent)) {
+          const guard = (system as unknown as { pipelineGuard?: { check?: unknown } }).pipelineGuard;
+          if (!guard || typeof guard.check !== "function") {
+            throw new Error("MARKETING_PIPELINE_GUARD_BRIDGE_UNAVAILABLE: vendor 缺少渲染前守卫");
+          }
+          const nativeGuardCheck = guard.check as (
+            this: unknown,
+            prompts: Array<Record<string, unknown>>,
+            options?: Record<string, unknown>,
+          ) => unknown;
+          guard.check = function workloomMarketingPipelineGuard(
+            this: unknown,
+            prompts: unknown,
+            guardOptions?: Record<string, unknown>,
+          ): unknown {
+            const list = Array.isArray(prompts) ? prompts.filter((item): item is Record<string, unknown> =>
+              Boolean(item && typeof item === "object" && !Array.isArray(item))) : [];
+            return Reflect.apply(nativeGuardCheck, this, [normalizeMarketingPromptList(list, promptOptions), guardOptions]);
+          };
+          const vendorReport = (system as unknown as { _generatePreproductionReport?: unknown })._generatePreproductionReport;
+          if (typeof vendorReport !== "function") {
+            throw new Error("MARKETING_PREPRODUCTION_REPORT_BRIDGE_UNAVAILABLE: vendor 缺少预生产报告生成器");
+          }
+          (system as unknown as Record<string, unknown>)._generatePreproductionReport = function workloomPreproductionReport(
+            productionResult: Record<string, unknown>,
+            scriptResult: Record<string, unknown> | null,
+            timing: Record<string, unknown> | null,
+            confirmations: Record<string, unknown> | null,
+          ): string {
+            const live = currentRequirementMetadata() ?? metadata;
+            const contract = live._workloomRequirementContract;
+            const contractScenes = contract && typeof contract === "object" && !Array.isArray(contract)
+              ? (contract as Record<string, unknown>).scenes
+              : undefined;
+            return buildMarketingPreproductionReport({
+              productionResult, scriptResult, timing, confirmations, options: promptOptions,
+              contractScenes: Array.isArray(contractScenes) ? contractScenes : [],
+            });
+          };
+        }
+        const retryPolicy = configureRequirementRetryPolicy(
+          (system as unknown as { requirementDiscoveryEngine?: unknown }).requirementDiscoveryEngine,
+        );
+        if (retryPolicy.changed.length > 0) {
+          log(`[studio] 需求洞察重试策略：${retryPolicy.changed.join("、")}`);
+        }
+        const creativeThemeGenerator = (system as unknown as {
+          creativeThemeGenerator?: Record<string, unknown>;
+        }).creativeThemeGenerator;
+        if (!creativeThemeGenerator || typeof creativeThemeGenerator.generate !== "function") {
+          throw new Error("CREATIVE_THEME_CONTRACT_BRIDGE_UNAVAILABLE: vendor 缺少 CreativeThemeGenerator.generate");
+        }
+        const originalThemeGenerate = creativeThemeGenerator.generate as (
+          this: Record<string, unknown>,
+          themeInput: string,
+        ) => Promise<Record<string, unknown>>;
+        creativeThemeGenerator.generate = async function workloomThemeGenerate(
+          this: Record<string, unknown>,
+          themeInput: string,
+        ): Promise<Record<string, unknown>> {
+          const generated = await Reflect.apply(originalThemeGenerate, this, [themeInput]);
+          const normalized = normalizeCreativeThemeContract(generated, metadata);
+          if (normalized.changes.length > 0) {
+            log(`[studio] 创意主题合同归一：${normalized.changes.join("、")}`);
+          }
+          return normalized.result;
+        };
+        if (!prdAuthority) {
+          const prdGenerator = (system as unknown as { prdGenerator?: Record<string, unknown> }).prdGenerator;
+          if (!prdGenerator || typeof prdGenerator.generate !== "function") {
+            throw new Error("NARRATIVE_PRD_CONTRACT_BRIDGE_UNAVAILABLE: vendor 缺少 PRDGenerator.generate");
+          }
+          const originalGenerate = prdGenerator.generate as (
+            this: Record<string, unknown>,
+            discoveryResult: Record<string, unknown>,
+          ) => Promise<Record<string, unknown>>;
+          prdGenerator.generate = async function narrativePrdGenerate(
+            this: Record<string, unknown>,
+            discoveryResult: Record<string, unknown>,
+          ): Promise<Record<string, unknown>> {
+            const generated = await Reflect.apply(originalGenerate, this, [discoveryResult]);
+            const scopedMetadata = currentRequirementMetadata() ?? metadata;
+            const normalized = normalizeNarrativePrdContract(generated, scopedMetadata);
+            if (normalized.changes.length > 0) {
+              log(`[studio] 叙事 PRD 合同归一：${normalized.changes.join("、")}`);
+            }
+            return normalized.prd;
+          };
+        }
         /** 实例级放宽 rhythmProfiles（standard 12 / slow 15 → 模型上限），否则 30s 单镜会被重新夹紧 */
         applyDurationPolicyToManager(
           (system as unknown as { durationConstraintManager?: unknown }).durationConstraintManager,
@@ -507,10 +632,14 @@ export class VideoStudio {
         /**
          * vendor create 的第三参是"运行期开关"（batchMode/portraitExecutor/portraitRuntime/dryRun/skipRender）。
          * deferRender=true 时 Layer 3 不提交（渲染由宿主 render-operator 走 G8 围栏提交），
-         * 避免 vendor 与宿主对同一批镜头各提交一次、双份烧额度。
+         * Layer 4 也必须跳过：没有本次真实成片字节时，后期无法成立，而且会把已完成的
+         * 预生产错误标记为失败。避免 vendor 与宿主对同一批镜头各提交一次、双份烧额度。
          */
         const createOptions: Record<string, unknown> = {};
-        if (cfg.deferRender === true) createOptions.skipRender = true;
+        if (cfg.deferRender === true) {
+          createOptions.skipRender = true;
+          createOptions.skipPostProduction = true;
+        }
         /**
          * 商品情报档案（Stage -2）开关透传：只有宿主显式装配才生效，
          * 未装配时 vendor 保持原有行为（spec 模式出任务书、不落档案）。
@@ -542,11 +671,18 @@ export class VideoStudio {
           const modelName = portraitCfg && portraitCfg.enabled !== false ? portraitCfg.model : "未指定模型";
           log(`[studio] 定妆照真实出图已启用（${modelName}，产物根 ${charactersDir}）`);
         }
-        const result = await withPrdAuthorityScope(prdAuthority, () => withRequirementContractScope(metadata, () => withPortraitArchivePlan(portraitRuntime, () =>
+        const nativeResult = await withPrdAuthorityScope(prdAuthority, () => withRequirementContractScope(metadata, () => withPortraitArchivePlan(portraitRuntime, () =>
           system.create(input.intent, metadata, createOptions)
         ), prdAuthority ? { authority: prdAuthority, validateAuthority: validateRequirementAuthority!,
           approvedTheme: () => approvedRequirementTheme && structuredClone(approvedRequirementTheme) } : undefined), validateRequirementAuthority,
           prdAuthority ? () => approvedRequirementTheme && structuredClone(approvedRequirementTheme) : undefined);
+        const normalizedResult = input.isMarketing
+          ? normalizeMarketingPromptResult(nativeResult, promptOptions)
+          : { value: nativeResult, changes: [] as string[] };
+        if (normalizedResult.changes.length > 0) {
+          log(`[studio] 营销提示词合同归一：${normalizedResult.changes.join("、")}`);
+        }
+        const result = normalizedResult.value;
         // Reuse accounting proves a completed successful stage. A native refusal
         // can return before G5 while the runtime already contains prepared copies;
         // keep that original failure instead of replacing it with a success assertion.

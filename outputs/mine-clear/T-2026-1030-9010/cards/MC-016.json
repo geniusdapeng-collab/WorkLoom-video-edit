@@ -1,0 +1,65 @@
+{
+  "id": "MC-016",
+  "kind": "problem",
+  "level": "L2",
+  "severity": "P1",
+  "batch": 0,
+  "state": "open",
+  "title": "SceneArchitect 仅两次 180 秒尝试，截断后超时即整轮需求洞察失败",
+  "evidence": [
+    {
+      "type": "code",
+      "ref": "vendor/supermickey/hyperreality-system/index.js:109@463ae7ad844de31674b94e73679dafaf0f5dcac5",
+      "sha256": "acb46563f99b61babb1156858fb83c083a258b052ff21169d3b3e7d5bddec5cf",
+      "note": "RequirementDiscoveryEngine 被硬编码为 180000ms 单 Agent 时限；SceneArchitect/RiskAssessor 默认 maxRetries=1，总共只有两次模型响应机会。"
+    }
+  ],
+  "root_cause": {
+    "file": "vendor/supermickey/hyperreality-system/index.js",
+    "line": 109,
+    "commit": "463ae7ad844de31674b94e73679dafaf0f5dcac5",
+    "symbol": "HyperrealitySystem constructor"
+  },
+  "trigger_path": "大场景合同第一次返回截断 JSON → 第二次 180 秒超时 → maxRetries 用完 → 不允许规则兜底 → REQUIREMENT_SCENE_UNVERIFIED，整轮 5 分钟却无法进入 G3。",
+  "assertions": [
+    {
+      "kind": "sample",
+      "given": "vendor 默认 scene timeout=180000、maxRetries=1，risk maxRetries=1",
+      "expect": "SceneArchitect timeout=240000、Scene/Risk maxRetries=2（各 3 次），阶段预算=420000，不沿用旧 180 秒上限",
+      "command": "node --import tsx --test --test-name-pattern='scene and risk' scripts/tools/data-pipeline-host-contract.node-test.mjs",
+      "exec": {
+        "file": "node",
+        "args": [
+          "--import",
+          "tsx",
+          "--test",
+          "--test-name-pattern=scene and risk",
+          "scripts/tools/data-pipeline-host-contract.node-test.mjs"
+        ]
+      },
+      "last_result": "not-run"
+    },
+    {
+      "kind": "property",
+      "given": "调用方已配置更高 timeout/retries 或 vendor agent 结构变化",
+      "expect": "不得降低已有更严格配置；结构缺失时 fail-closed",
+      "command": "node --import tsx --test --test-name-pattern='scene and risk' scripts/tools/data-pipeline-host-contract.node-test.mjs",
+      "exec": {
+        "file": "node",
+        "args": [
+          "--import",
+          "tsx",
+          "--test",
+          "--test-name-pattern=scene and risk",
+          "scripts/tools/data-pipeline-host-contract.node-test.mjs"
+        ]
+      },
+      "last_result": "not-run"
+    }
+  ],
+  "regression": {
+    "command": "node --import tsx --test --test-name-pattern='scene and risk' scripts/tools/data-pipeline-host-contract.node-test.mjs",
+    "evidence": null
+  },
+  "notes": "M01 最新真实日志：第1次 JSON 截断、第2次 LLM 调用超时，随后 SceneArchitect 全部失败。"
+}

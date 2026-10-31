@@ -1,0 +1,53 @@
+{
+  "id": "MC-003",
+  "kind": "problem",
+  "level": "L2",
+  "severity": "P1",
+  "batch": 1,
+  "state": "open",
+  "title": "无渲染数据 CLI 未下发宿主选角合同，需求洞察必然 fail-closed",
+  "evidence": [
+    {
+      "type": "code",
+      "ref": "scripts/tools/data-pipeline-run.mts:306@463ae7ad844de31674b94e73679dafaf0f5dcac5",
+      "sha256": "1a4449d435e52b155a38cd6e8dc43b33339a6209ecb85a312b0b23b0369263c1",
+      "note": "基线直接将 seeded metadata 交给 VideoStudio，未调用 resolveBuiltinCharacters/applyBuiltinCharacters。"
+    }
+  ],
+  "root_cause": {
+    "file": "scripts/tools/data-pipeline-run.mts",
+    "line": 306,
+    "commit": "463ae7ad844de31674b94e73679dafaf0f5dcac5",
+    "symbol": "runPreproduction metadata assembly"
+  },
+  "trigger_path": "任意 narrative/marketing 数据管线 run → RequirementDiscoveryEngine → requirementCast 缺少 builtinCharacterSelection → REQUIREMENT_CONTRACT_INVALID。",
+  "assertions": [
+    {
+      "kind": "sample",
+      "given": "narrative dry-run，用户未指定人物",
+      "expect": "preflight 含与生产 worker 同形的 schemaVersion/mode/characters 选角合同",
+      "command": "node --test scripts/tools/data-pipeline-run.node-test.mjs",
+      "exec": {
+        "file": "node",
+        "args": ["--test", "scripts/tools/data-pipeline-run.node-test.mjs"]
+      },
+      "last_result": "not-run"
+    },
+    {
+      "kind": "property",
+      "given": "任意 route",
+      "expect": "Studio 收到的 metadata 必带完整选角合同和对应人物数组",
+      "command": "node --test scripts/tools/data-pipeline-run.node-test.mjs",
+      "exec": {
+        "file": "node",
+        "args": ["--test", "scripts/tools/data-pipeline-run.node-test.mjs"]
+      },
+      "last_result": "not-run"
+    }
+  ],
+  "notes": "真实 PILOT-NARRATIVE-001 首先暴露该错误。",
+  "regression": {
+    "command": "node --test scripts/tools/data-pipeline-run.node-test.mjs",
+    "evidence": null
+  }
+}

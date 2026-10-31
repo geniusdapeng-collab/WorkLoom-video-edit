@@ -5,7 +5,7 @@
   "updatePolicy": "stable-upgrade-pr-only",
   "files": {
     "scripts/verify-ui-consumer.mjs": {
-      "sha256": "36ee95f17dd02be258e24be46c99e945551531f6908de2bd7d99d637b2dc3dd4"
+      "sha256": "1006fcbf1fe93914e2f49c2cfaa6600dfcc4d3473309f1da939869a22a74f10d"
     },
     "scripts/ui-governance-rules.mjs": {
       "sha256": "2164c1acdc97653da5fbb04fb50437a4f107129cc81dfff58d1b38ce8b95c99c"

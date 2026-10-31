@@ -1,0 +1,65 @@
+{
+  "id": "MC-012",
+  "kind": "problem",
+  "level": "L2",
+  "severity": "P1",
+  "batch": 1,
+  "state": "open",
+  "title": "官方来源中的绝对化促销语未隔离，原文支持审核拒绝整批事实",
+  "evidence": [
+    {
+      "type": "code",
+      "ref": "apps/server/src/video/marketing-authority.ts:303@463ae7ad844de31674b94e73679dafaf0f5dcac5",
+      "sha256": "6e7dac86e9f1509d270fbdf619d2d13f162ab5e892556df86dbc6bfcfd59dcc6",
+      "note": "提取结果直接进入原文支持审核；A1 official_selling_points 中“Perfect”等官方营销用语没有与可交付事实隔离。"
+    }
+  ],
+  "root_cause": {
+    "file": "apps/server/src/video/marketing-authority.ts",
+    "line": 303,
+    "commit": "463ae7ad844de31674b94e73679dafaf0f5dcac5",
+    "symbol": "extractStageFacts"
+  },
+  "trigger_path": "官方 README 含 Perfect/#1/best 等促销语 → 模型按规则引用为 selling point → 支持审核以绝对化优势拒绝整批 → 即使其余事实全部有原文也无法进入 G1。",
+  "assertions": [
+    {
+      "kind": "sample",
+      "given": "A1 同时含可交付事实和 Perfect 官方促销语",
+      "expect": "原始响应保持不可变，Perfect 项不进入交付 facts，剩余引用按新下标重排",
+      "command": "node --import tsx --test --test-name-pattern='absolute marketing' scripts/tools/data-pipeline-host-contract.node-test.mjs",
+      "exec": {
+        "file": "node",
+        "args": [
+          "--import",
+          "tsx",
+          "--test",
+          "--test-name-pattern=absolute marketing",
+          "scripts/tools/data-pipeline-host-contract.node-test.mjs"
+        ]
+      },
+      "last_result": "not-run"
+    },
+    {
+      "kind": "property",
+      "given": "重算摘要后的已接受提取档案",
+      "expect": "复核重新执行同一用途筛选，exclusions 或交付事实变化即拒绝",
+      "command": "node --import tsx --test --test-name-pattern='absolute marketing' scripts/tools/data-pipeline-host-contract.node-test.mjs",
+      "exec": {
+        "file": "node",
+        "args": [
+          "--import",
+          "tsx",
+          "--test",
+          "--test-name-pattern=absolute marketing",
+          "scripts/tools/data-pipeline-host-contract.node-test.mjs"
+        ]
+      },
+      "last_result": "not-run"
+    }
+  ],
+  "regression": {
+    "command": "node --import tsx --test --test-name-pattern='absolute marketing' scripts/tools/data-pipeline-host-contract.node-test.mjs",
+    "evidence": null
+  },
+  "notes": "M01 最新重跑在支持审核阶段因 official_selling_points[2]=Perfect 被拒绝 85 分阈值。"
+}

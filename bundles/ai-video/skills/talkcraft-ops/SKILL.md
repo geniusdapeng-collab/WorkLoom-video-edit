@@ -1,3 +1,8 @@
+---
+name: talkcraft-ops
+description: 口播解说片制作官方套件。覆盖口播稿入档、字级时间戳、语义标注、SHOTBOOK 分镜、工程装配、渲染、机器闸、独立审片与交付；绑定围栏 G-DLV1/G-MAT1，并随岗位保留 G-VOICE4 的显式配音请求边界，卸载即撤销。
+---
+
 # 技能：口播解说片制作（talkcraft-ops）
 
 > 适用岗位：口播编导（`explainer-director`）· 版本 v1.0 · 2026-09-26 · T-2026-0926-0008

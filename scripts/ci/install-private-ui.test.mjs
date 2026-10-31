@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { spawnSync } from 'node:child_process';
 import { parseArguments, externalOutput, installPrivateUi } from './install-private-ui.mjs';
-import { PIN, BootstrapError, digest, verifyArchive } from './ui-auth-bootstrap.mjs';
+import { PIN, LEGACY_PIN, BootstrapError, digest, verifyArchive } from './ui-auth-bootstrap.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const source = resolve(here, '../..');
@@ -33,8 +33,8 @@ function mockFetch({ denied = false } = {}) {
   const calls = [];
   const fetchImplementation = async (url, options) => {
     calls.push({ url: String(url), options });
-    if (calls.length === 1) return new Response(JSON.stringify({ tag_name: PIN.tag, draft: false, prerelease: false, id: 'wrapper-fixture-release', assets: [{ name: PIN.assetName, size: PIN.bytes, hash_algo: 'sha256', hash_value: PIN.sha256, browser_download_url: PIN.canonicalUrl, url: PIN.apiUrl, id: 'wrapper-fixture-asset' }] }), { status: denied ? 401 : 200 });
-    if (calls.length === 2) return new Response(null, { status: 302, headers: { Location: 'https://asset.cnb.cool/wrapper-fixture?signature=synthetic' } });
+    if (calls.length === 1) return new Response(JSON.stringify({ tag_name: PIN.tag, draft: false, prerelease: false, id: PIN.releaseId, assets: [{ name: PIN.assetName, state: 'uploaded', size: PIN.bytes, digest: 'sha256:' + PIN.sha256, browser_download_url: PIN.canonicalUrl, url: PIN.apiUrl, id: PIN.assetId }] }), { status: denied ? 401 : 200 });
+    if (calls.length === 2) return new Response(null, { status: 302, headers: { Location: 'https://release-assets.githubusercontent.com/github-production-release-asset/wrapper-fixture/asset?signature=synthetic' } });
     assert.equal(calls.length, 3, 'an unexpected fourth network call is a failure');
     return new Response(archive, { status: 200 });
   };
@@ -67,7 +67,7 @@ export async function installCanonicalFrozen(options) {
   const { control } = await import(pathToFileURL(join(modules, 'ui-auth-bootstrap.mjs')).href);
   return { ...f, module, control };
 }
-const syntheticEnvironment = { WORKLOOM_UI_RELEASE_READ_TOKEN: 'wrapper-fixture-token' };
+const syntheticEnvironment = {};
 
 test('argument parsing accepts required flags in any order and defaults the repo at execution', () => {
   assert.deepEqual(parseArguments(['--report', 'report', '--archive', 'archive', '--staging-root', 'stage', '--store-dir', 'store']), { '--report': 'report', '--archive': 'archive', '--staging-root': 'stage', '--store-dir': 'store' });
@@ -102,10 +102,12 @@ test('output collision including normalized aliases fails before network', async
   await assert.rejects(installPrivateUi({ args, environment: syntheticEnvironment, ...mock }), errorCode('UI_OUTPUT_COLLISION'));
   assert.equal(mock.calls.length, 0); await absent(f.archive);
 });
-test('real wrapper rejects missing credentials before network, archive and report', async () => {
-  const f = await fixture(); const mock = mockFetch();
-  await assert.rejects(installPrivateUi({ args: f.args, environment: {}, ...mock }), errorCode('MISSING_UI_RELEASE_TOKEN'));
-  assert.equal(mock.calls.length, 0); await absent(f.archive); await absent(f.report);
+test('GitHub public wrapper does not require the legacy CNB credential', async () => {
+  const f = await boundaryFixture(); const mock = mockFetch();
+  const result = await f.module.installPrivateUi({ args: f.args, environment: {}, ...mock });
+  assert.equal(result.frozenInstallPassed, true);
+  assert.equal(mock.calls.length, 3);
+  for (const call of mock.calls) assert.equal(call.options.headers.Authorization, undefined);
 });
 test('real wrapper resolves a repo alias before enforcing source output boundaries', async () => {
   const f = await fixture(); const alias = join(f.outside, 'repo-alias'); await symlink(f.repo, alias, 'dir');
@@ -114,7 +116,11 @@ test('real wrapper resolves a repo alias before enforcing source output boundari
   assert.equal(mock.calls.length, 0); await absent(join(f.repo, 'output.tgz')); await absent(f.report);
 });
 test('real CLI reports a safe explicit credential failure without creating outputs', async () => {
-  const f = await fixture(); const result = spawnSync(process.execPath, [wrapperPath, ...f.args], { cwd: source, env: { PATH: process.env.PATH ?? '', HOME: f.outside }, encoding: 'utf8', timeout: 10000 });
+  const f = await fixture();
+  const state = JSON.parse(stateBytes);
+  state.artifact = { ...state.artifact, platform: 'cnb', url: LEGACY_PIN.canonicalUrl };
+  await writeFile(join(f.repo, '.workloom-ui.json'), JSON.stringify(state));
+  const result = spawnSync(process.execPath, [wrapperPath, ...f.args], { cwd: source, env: { PATH: process.env.PATH ?? '', HOME: f.outside }, encoding: 'utf8', timeout: 10000 });
   assert.equal(result.error, undefined); assert.equal(result.status, 1); assert.equal(result.stdout, '');
   assert.deepEqual(JSON.parse(result.stderr), { code: 'MISSING_UI_RELEASE_TOKEN', message: 'MISSING_UI_RELEASE_TOKEN' });
   await absent(f.archive); await absent(f.report);
@@ -174,14 +180,13 @@ test('concurrent attempts yield one archive owner and preserve the successful re
 });
 
 function workflowSteps(text) { return text.split(/(?=^      - )/m).slice(1); }
-for (const name of ['ci.yml', 'workloom-ui-contract.yml']) test(name + ' limits the credential to the installer and makes boundary tests mandatory', async () => {
+for (const name of ['ci.yml', 'workloom-ui-contract.yml']) test(name + ' keeps the GitHub installer credential-free and makes boundary tests mandatory', async () => {
   const text = await readFile(join(source, '.github/workflows', name), 'utf8'); const steps = workflowSteps(text);
   const installs = steps.filter(step => step.includes('install-private-ui.mjs')); assert.equal(installs.length, 1);
-  const installer = installs[0]; assert.match(installer, /WORKLOOM_UI_RELEASE_READ_TOKEN: \$\{\{ secrets\.CNB_UI_RELEASE_TOKEN \}\}/);
+  const installer = installs[0]; assert.doesNotMatch(installer, /WORKLOOM_UI_RELEASE_READ_TOKEN|CNB_UI_RELEASE_TOKEN/);
   assert.doesNotMatch(installer, /continue-on-error|if:|GITHUB_ENV|GITHUB_OUTPUT|upload-artifact/);
   for (const flag of ['--repo', '--store-dir', '--staging-root', '--archive', '--report']) assert.ok(installer.includes(flag));
-  assert.equal(text.split('secrets.CNB_UI_RELEASE_TOKEN').length - 1, 1);
-  const others = text.replace(installer, ''); assert.doesNotMatch(others, /WORKLOOM_UI_RELEASE_READ_TOKEN|CNB_UI_RELEASE_TOKEN/);
+  assert.doesNotMatch(text, /secrets\.CNB_UI_RELEASE_TOKEN|WORKLOOM_UI_RELEASE_READ_TOKEN/);
   const next = steps[steps.indexOf(installer) + 1]; assert.match(next, /WORKLOOM_UI_TEST_ARCHIVE_PATH: \$\{\{ runner\.temp \}\}\/workloom-ui-original\.tgz/);
   assert.match(next, /node --test --test-concurrency=1 scripts\/ci\/ui-auth-bootstrap\.test\.mjs scripts\/ci\/install-private-ui\.test\.mjs/);
   assert.doesNotMatch(next, /secrets\.|continue-on-error|if:|--test-skip|\|\| true/);

@@ -5,7 +5,7 @@ settings:
   excludeLinksFromLockfile: false
 
 overrides:
-  '@workloom/ui@0.1.19': https://cnb.cool/workloom-ai/workloom-im/-/releases/download/ui-v0.1.19/workloom-ui-0.1.19.tgz
+  '@workloom/ui@0.1.19': https://github.com/geniusdapeng-collab/workloom-im/releases/download/ui-v0.1.19/workloom-ui-0.1.19.tgz
   pixi-live2d-display@0.4.0>gh-pages: '-'
 
 importers:
@@ -73,6 +73,9 @@ importers:
       '@hyperreality/video-studio':
         specifier: workspace:*
         version: link:../../packages/video-studio
+      '@hyperreality/video-pipeline':
+        specifier: workspace:*
+        version: link:../../packages/video-pipeline
       '@trpc/server':
         specifier: 11.19.0
         version: 11.19.0(typescript@7.0.2)
@@ -82,6 +85,9 @@ importers:
       '@workloom/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@workloom/pipeline-control':
+        specifier: workspace:*
+        version: link:../../packages/pipeline-control
       '@workloom/runtime':
         specifier: workspace:*
         version: link:../../packages/runtime
@@ -141,8 +147,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/shared
       '@workloom/ui':
-        specifier: https://cnb.cool/workloom-ai/workloom-im/-/releases/download/ui-v0.1.19/workloom-ui-0.1.19.tgz
-        version: https://cnb.cool/workloom-ai/workloom-im/-/releases/download/ui-v0.1.19/workloom-ui-0.1.19.tgz(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
+        specifier: https://github.com/geniusdapeng-collab/workloom-im/releases/download/ui-v0.1.19/workloom-ui-0.1.19.tgz
+        version: https://github.com/geniusdapeng-collab/workloom-im/releases/download/ui-v0.1.19/workloom-ui-0.1.19.tgz(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
       pixi-live2d-display:
         specifier: ^0.4.0
         version: 0.4.0(0736f5bd67d2e4de7e9fff36ad63fa2e)
@@ -208,8 +214,8 @@ importers:
         specifier: workspace:*
         version: link:../server
       '@workloom/ui':
-        specifier: https://cnb.cool/workloom-ai/workloom-im/-/releases/download/ui-v0.1.19/workloom-ui-0.1.19.tgz
-        version: https://cnb.cool/workloom-ai/workloom-im/-/releases/download/ui-v0.1.19/workloom-ui-0.1.19.tgz(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
+        specifier: https://github.com/geniusdapeng-collab/workloom-im/releases/download/ui-v0.1.19/workloom-ui-0.1.19.tgz
+        version: https://github.com/geniusdapeng-collab/workloom-im/releases/download/ui-v0.1.19/workloom-ui-0.1.19.tgz(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
       react:
         specifier: 19.2.8
         version: 19.2.8
@@ -239,8 +245,8 @@ importers:
   apps/webc:
     dependencies:
       '@workloom/ui':
-        specifier: https://cnb.cool/workloom-ai/workloom-im/-/releases/download/ui-v0.1.19/workloom-ui-0.1.19.tgz
-        version: https://cnb.cool/workloom-ai/workloom-im/-/releases/download/ui-v0.1.19/workloom-ui-0.1.19.tgz(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
+        specifier: https://github.com/geniusdapeng-collab/workloom-im/releases/download/ui-v0.1.19/workloom-ui-0.1.19.tgz
+        version: https://github.com/geniusdapeng-collab/workloom-im/releases/download/ui-v0.1.19/workloom-ui-0.1.19.tgz(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
       react:
         specifier: 19.2.8
         version: 19.2.8
@@ -382,6 +388,22 @@ importers:
         specifier: ^3.2.0
         version: 3.2.7(@types/debug@4.1.13)(@types/node@26.3.0)(jiti@2.7.0)(jsdom@30.1.0(@noble/hashes@2.4.0))(lightningcss@1.33.0)(tsx@4.23.13)(yaml@2.9.0)
 
+  packages/pipeline-control:
+    dependencies:
+      zod:
+        specifier: ^4.6.5
+        version: 4.6.5
+    devDependencies:
+      '@types/node':
+        specifier: ^24.0.0
+        version: 24.13.3
+      typescript:
+        specifier: ^5.9.0
+        version: 5.9.3
+      vitest:
+        specifier: ^3.2.0
+        version: 3.2.7(@types/debug@4.1.13)(@types/node@24.13.3)(jiti@2.7.0)(jsdom@30.1.0(@noble/hashes@2.4.0))(lightningcss@1.33.0)(tsx@4.23.13)(yaml@2.9.0)
+
   packages/shared:
     dependencies:
       zod:
@@ -394,6 +416,25 @@ importers:
       vitest:
         specifier: ^3.2.0
         version: 3.2.7(@types/debug@4.1.13)(@types/node@26.3.0)(jiti@2.7.0)(jsdom@30.1.0(@noble/hashes@2.4.0))(lightningcss@1.33.0)(tsx@4.23.13)(yaml@2.9.0)
+
+  packages/video-pipeline:
+    dependencies:
+      '@workloom/pipeline-control':
+        specifier: workspace:*
+        version: link:../pipeline-control
+      yaml:
+        specifier: 2.9.0
+        version: 2.9.0
+    devDependencies:
+      '@types/node':
+        specifier: ^24.0.0
+        version: 24.13.3
+      typescript:
+        specifier: ^5.9.0
+        version: 5.9.3
+      vitest:
+        specifier: ^3.2.0
+        version: 3.2.7(@types/debug@4.1.13)(@types/node@24.13.3)(jiti@2.7.0)(jsdom@30.1.0(@noble/hashes@2.4.0))(lightningcss@1.33.0)(tsx@4.23.13)(yaml@2.9.0)
 
   packages/video-studio:
     dependencies:
@@ -1717,8 +1758,8 @@ packages:
   '@vitest/utils@4.1.11':
     resolution: {integrity: sha512-zTCVGpyFsGWBhllOyKlTw/vnr6D9qxsfSDyfbyZmTyjHw5N/VuvzHpHoQjm2ZJzn4RJgx5w4r7V0er69CmLgPQ==}
 
-  '@workloom/ui@https://cnb.cool/workloom-ai/workloom-im/-/releases/download/ui-v0.1.19/workloom-ui-0.1.19.tgz':
-    resolution: {integrity: sha512-kplOLAtovega6BLpBwtFM1DfBS3q4ZjLp9yA942o+v9QlbREm/VsYNK/Jz7f/9ytDWSFXCvmh10C3ZHrPHkcSA==, tarball: https://cnb.cool/workloom-ai/workloom-im/-/releases/download/ui-v0.1.19/workloom-ui-0.1.19.tgz}
+  '@workloom/ui@https://github.com/geniusdapeng-collab/workloom-im/releases/download/ui-v0.1.19/workloom-ui-0.1.19.tgz':
+    resolution: {integrity: sha512-kplOLAtovega6BLpBwtFM1DfBS3q4ZjLp9yA942o+v9QlbREm/VsYNK/Jz7f/9ytDWSFXCvmh10C3ZHrPHkcSA==, tarball: https://github.com/geniusdapeng-collab/workloom-im/releases/download/ui-v0.1.19/workloom-ui-0.1.19.tgz}
     version: 0.1.19
     peerDependencies:
       react: '>=19.0.0'
@@ -4996,7 +5037,7 @@ snapshots:
       convert-source-map: 2.0.0
       tinyrainbow: 3.1.1
 
-  '@workloom/ui@https://cnb.cool/workloom-ai/workloom-im/-/releases/download/ui-v0.1.19/workloom-ui-0.1.19.tgz(react-dom@19.2.8(react@19.2.8))(react@19.2.8)':
+  '@workloom/ui@https://github.com/geniusdapeng-collab/workloom-im/releases/download/ui-v0.1.19/workloom-ui-0.1.19.tgz(react-dom@19.2.8(react@19.2.8))(react@19.2.8)':
     dependencies:
       react: 19.2.8
       react-dom: 19.2.8(react@19.2.8)

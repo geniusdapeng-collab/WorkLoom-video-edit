@@ -1,0 +1,53 @@
+{
+  "id": "MC-001",
+  "kind": "problem",
+  "level": "L2",
+  "severity": "P1",
+  "batch": 0,
+  "state": "open",
+  "title": "数据管线 CLI 对危险参数静默回退或接受，可能把错误输入送入生产管线",
+  "evidence": [
+    {
+      "type": "code",
+      "ref": "scripts/tools/data-pipeline-run.mts:93@463ae7ad844de31674b94e73679dafaf0f5dcac5",
+      "sha256": "1a4449d435e52b155a38cd6e8dc43b33339a6209ecb85a312b0b23b0369263c1",
+      "note": "基线直接把 --duration/--aspect 经 Number/|| 或任意字符串写入 profile；--project、--platform、--route 和重复参数没有 fail-closed 校验。"
+    }
+  ],
+  "root_cause": {
+    "file": "scripts/tools/data-pipeline-run.mts",
+    "line": 93,
+    "commit": "463ae7ad844de31674b94e73679dafaf0f5dcac5",
+    "symbol": "CLI argument parsing"
+  },
+  "trigger_path": "传入非法时长/画幅、未知平台、路径穿越工程ID、重复路由或非法监制模式，dry-run 仍可成功并生成可误用的 preflight。",
+  "assertions": [
+    {
+      "kind": "sample",
+      "given": "--duration abc / --aspect banana / --project ../escape / --route 重复",
+      "expect": "退出码 2，错误原因指向具体参数，不产生生产预检",
+      "command": "node --test scripts/tools/data-pipeline-run.node-test.mjs",
+      "exec": {
+        "file": "node",
+        "args": ["--test", "scripts/tools/data-pipeline-run.node-test.mjs"]
+      },
+      "last_result": "not-run"
+    },
+    {
+      "kind": "property",
+      "given": "任一关键参数被重复声明、越界或不在允许枚举",
+      "expect": "参数解析在任何模型/供应商启动前 fail-closed",
+      "command": "node --test scripts/tools/data-pipeline-run.node-test.mjs",
+      "exec": {
+        "file": "node",
+        "args": ["--test", "scripts/tools/data-pipeline-run.node-test.mjs"]
+      },
+      "last_result": "not-run"
+    }
+  ],
+  "notes": "20 组异常矩阵中的 X03/X04/X05/X09-X16/X19-X20 命中此类问题。",
+  "regression": {
+    "command": "node --test scripts/tools/data-pipeline-run.node-test.mjs",
+    "evidence": null
+  }
+}

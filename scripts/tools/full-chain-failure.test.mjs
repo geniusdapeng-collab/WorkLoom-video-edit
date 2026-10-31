@@ -256,7 +256,7 @@ test('真实CLI新增镜头未满足提交前授权/资产条件时仍停止，�
 
 const vendorRequire = createRequire(join(ROOT,'package.json'));
 const {PostProductionEngine} = vendorRequire(join(ROOT,'vendor/supermickey/hyperreality-system/engines/post-production-engine/post-production-engine.js'));
-const {PostProductionPipeline} = await import(join(ROOT,'vendor/supermickey/systems/post-production-pipeline.js'));
+const {PostProductionPipeline} = await import(join(ROOT,'vendor/supermickey/systems/post-production-pipeline.mjs'));
 
 test('旧vendor后期引擎：成功任务黑屏静音按实际片长生成工程，原声标志保留，诚实声明尚未渲染MP4',{timeout:45000},async(t)=>{
   const f=fixture(t);const engine=new PostProductionEngine({outputDir:join(f.root,'vendor-engine')});

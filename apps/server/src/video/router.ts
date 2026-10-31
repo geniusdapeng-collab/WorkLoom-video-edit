@@ -60,6 +60,9 @@ import { whiteboardRouter } from "./whiteboard/router.js";
 import { explainerRouter } from "./explainer/router.js";
 import { getExplainerRun } from "./explainer/runs.js";
 import { createExplainerDraft } from "./explainer/db.js";
+import { VideoPipelineRepository } from "./pipeline/pipeline-repository.js";
+import { VideoPipelineQueryService } from "./pipeline/query-service.js";
+import { scanVideoPipelinesOnStartup, VideoPipelineReconciler } from "./pipeline/reconciler.js";
 import {
   DeliveryError, buildVariantPreferenceContent, deliveryJobStatus, deliveryPreferenceConfidence,
   deliveryPreferenceMemoryId, listDeliveryJobs, listDeliveryPackages, readDeliveryArtifact,
@@ -607,7 +610,7 @@ const studioRouter = router({
   /** 运行状态投影（run 注册表 + 当前待审批门；L7.1 跨工作区返回 null） */
   status: protectedProcedure
     .input(z.object({ runId: z.string().min(1) }))
-    .query(({ ctx, input }) => {
+    .query(async ({ ctx, input }) => {
       const entry = getRun(input.runId, scopeOf(ctx.identity).workspaceId);
       if (!entry) {
         /**
@@ -615,7 +618,13 @@ const studioRouter = router({
          * 前端只认 runId，不需要知道背后是哪条管线，所以这里统一兜底一层。
          */
         const explainer = getExplainerRun(input.runId, scopeOf(ctx.identity).workspaceId);
-        if (!explainer) return null;
+        if (!explainer) {
+          const scope = scopeOf(ctx.identity);
+          const persisted = await new VideoPipelineRepository(scope).findByIntentContractId(`legacy:${input.runId}`);
+          return persisted ? await new VideoPipelineQueryService(
+            new VideoPipelineRepository(scope),
+          ).status(persisted.runId) : null;
+        }
         return {
           runId: explainer.runId,
           projectId: explainer.projectId,
@@ -1394,6 +1403,63 @@ const genRouter = router({
     }),
 });
 
+const pipelineRouter = router({
+  status: protectedProcedure
+    .input(z.object({ runId: z.string().min(1).max(200) }))
+    .query(({ ctx, input }) => new VideoPipelineQueryService(
+      new VideoPipelineRepository(scopeOf(ctx.identity)),
+    ).status(input.runId)),
+
+  events: protectedProcedure
+    .input(z.object({ runId: z.string().min(1).max(200), limit: z.number().int().min(1).max(500).default(100) }))
+    .query(async ({ ctx, input }) => scopedQuery<QueryRow>(
+      getAppPool(),
+      scopeOf(ctx.identity),
+      `SELECT id,event_kind,payload,published_at,attempts,last_error,created_at
+         FROM video_pipeline_outbox
+        WHERE workspace_id=$1 AND run_id=$2
+        ORDER BY created_at DESC LIMIT $3`,
+      [scopeOf(ctx.identity).workspaceId, input.runId, input.limit],
+    )),
+
+  lineage: protectedProcedure
+    .input(z.object({ artifactId: z.string().min(1).max(200) }))
+    .query(async ({ ctx, input }) => {
+      const scope = scopeOf(ctx.identity);
+      const root = await scopedQuery<QueryRow>(
+        getAppPool(), scope,
+        `SELECT * FROM video_artifacts WHERE workspace_id=$1 AND id=$2`,
+        [scope.workspaceId, input.artifactId],
+      );
+      if (!root[0]) return null;
+      const edges = await scopedQuery<QueryRow>(
+        getAppPool(), scope,
+        `WITH RECURSIVE lineage AS (
+           SELECT e.* FROM video_artifact_edges e
+            WHERE e.workspace_id=$1 AND e.child_artifact_id=$2
+           UNION
+           SELECT e.* FROM video_artifact_edges e
+             JOIN lineage l ON e.child_artifact_id=l.parent_artifact_id
+            WHERE e.workspace_id=$1
+         )
+         SELECT * FROM lineage`,
+        [scope.workspaceId, input.artifactId],
+      );
+      return { artifact: root[0], edges };
+    }),
+
+  reconcile: writeProcedure
+    .mutation(async ({ ctx }) => {
+      const scope = scopeOf(ctx.identity);
+      const repository = new VideoPipelineRepository(scope);
+      const outcomes = await new VideoPipelineReconciler(
+        repository,
+        `codex:${ctx.identity.memberNo}`,
+      ).scan();
+      return { outcomes };
+    }),
+});
+
 export const videoRouter = router({
   studio: studioRouter,
   production: productionRouter,
@@ -1414,6 +1480,7 @@ export const videoRouter = router({
   media: mediaRouter,
   /** 口播解说片（T-2026-0926-0008）：立项/分镜/提交/收尾/版本链/引擎体检 */
   explainer: explainerRouter,
+  pipeline: pipelineRouter,
 });
 
 /**
@@ -1435,5 +1502,18 @@ if ((process.env.ARCHIVE_AUTO_RESUME ?? "0") === "1") {
     })
     .catch((err) => {
       console.warn(`[archive] 启动扫描失败（不阻断启动）：${err instanceof Error ? err.message : err}`);
+    });
+}
+
+if ((process.env.PIPELINE_CONTROL_PLANE ?? "off") !== "off") {
+  void scanVideoPipelinesOnStartup()
+    .then((outcomes) => {
+      console.log(
+        `[pipeline-reconciler] startup scan: ${outcomes.length} actionable`
+        + ` (interrupted=${outcomes.filter((item) => item.action === "marked_interrupted").length})`,
+      );
+    })
+    .catch((error) => {
+      console.warn(`[pipeline-reconciler] startup scan failed (non-blocking): ${error instanceof Error ? error.message : error}`);
     });
 }
