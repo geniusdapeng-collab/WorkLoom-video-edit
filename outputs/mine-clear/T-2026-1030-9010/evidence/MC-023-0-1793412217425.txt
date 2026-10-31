@@ -1,0 +1,43 @@
+TAP version 13
+# Subtest: 旧vendor后期引擎：成功任务黑屏静音按实际片长生成工程，原声标志保留，诚实声明尚未渲染MP4
+not ok 1 - 旧vendor后期引擎：成功任务黑屏静音按实际片长生成工程，原声标志保留，诚实声明尚未渲染MP4
+  ---
+  duration_ms: 6.146917
+  type: 'test'
+  location: '/Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:261:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Error: spawnSync ffmpeg ENOENT
+    
+    null !== 0
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 0
+  actual: ~
+  operator: 'strictEqual'
+  stack: |-
+    media (file:///Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:19:10)
+    fixture (file:///Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:49:3)
+    TestContext.<anonymous> (file:///Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:262:11)
+    Test.runInAsyncScope (node:async_hooks:227:14)
+    Test.run (node:internal/test_runner/test:1402:25)
+    Test.start (node:internal/test_runner/test:1262:17)
+    startSubtestAfterBootstrap (node:internal/test_runner/harness:387:17)
+    run (node:internal/test_runner/harness:398:12)
+    test (node:internal/test_runner/harness:407:12)
+    file:///Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/tools/full-chain-failure.test.mjs:261:1
+  ...
+1..1
+# tests 1
+# suites 0
+# pass 0
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 106.531625
+
+
+exit_code=1 signal=none error=none
+assertion_validation={"ok":false,"errors":["Node TestsStream 没有非零实际 passed/逐文件摘要或存在失败/取消；文件加载成功不能替代逐文件真实断言"],"testSummary":{"total":1,"passed":0,"failed":1,"cancelled":0,"skipped":0,"todo":0}}

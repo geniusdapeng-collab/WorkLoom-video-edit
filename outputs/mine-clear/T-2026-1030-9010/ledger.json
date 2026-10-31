@@ -5,7 +5,7 @@
   "repo_path": "/Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit",
   "title": "",
   "created_at": "2026-10-30T06:14:55.791Z",
-  "updated_at": "2026-10-31T02:06:33.961Z",
+  "updated_at": "2026-10-31T02:11:37.379Z",
   "baseline": {
     "audit": {
       "commit": "463ae7ad844de31674b94e73679dafaf0f5dcac5",
@@ -16,7 +16,7 @@
       "notes": ""
     },
     "repair": {
-      "commit": "00ad4f1f6d9eb9174279f6a8a8271e67534fa55a",
+      "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7",
       "reverified_problem_ids": []
     },
     "acceptance": {
@@ -97,7 +97,7 @@
       "level": "L2",
       "severity": "P1",
       "batch": 0,
-      "state": "open",
+      "state": "fixed",
       "title": "数据管线 CLI 对危险参数静默回退或接受，可能把错误输入送入生产管线",
       "evidence": [
         {
@@ -127,7 +127,17 @@
               "scripts/tools/data-pipeline-run.node-test.mjs"
             ]
           },
-          "last_result": "not-run"
+          "last_result": "pass",
+          "run": {
+            "path": "runs/MC-001-0-1793412465690.json",
+            "sha256": "336cbe760699547a81a55e85646731c06171a6a7487ccade511be85760262789",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
+          },
+          "evidence": {
+            "path": "evidence/MC-001-0-1793412465690.txt",
+            "sha256": "a332b051a90fe1226d5d888a769bdaf042c3f2b9959dd34ac20d8690296c81be",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
+          }
         },
         {
           "kind": "property",
@@ -141,14 +151,36 @@
               "scripts/tools/data-pipeline-run.node-test.mjs"
             ]
           },
-          "last_result": "not-run"
+          "last_result": "pass",
+          "run": {
+            "path": "runs/MC-001-1-1793412470253.json",
+            "sha256": "fe60a47b65ef01fcbbbe77effa6bd5d0c24714602ef801d5538682ecb8e2b8da",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
+          },
+          "evidence": {
+            "path": "evidence/MC-001-1-1793412470253.txt",
+            "sha256": "978dfa89470321bcdae9a6ec929204029ed0a3bd9c306e1b4a0c8ccfc13dfc4a",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
+          }
         }
       ],
       "notes": "20 组异常矩阵中的 X03/X04/X05/X09-X16/X19-X20 命中此类问题。",
       "regression": {
         "command": "node --test scripts/tools/data-pipeline-run.node-test.mjs",
         "evidence": null
-      }
+      },
+      "verified_by": null,
+      "verified_at": null,
+      "verification_evidence": null,
+      "last_assertion_attempt": {
+        "actor": "root-repair-2026-10-31",
+        "role": "repair",
+        "result": "pass",
+        "at": "2026-10-31T02:07:45.689Z",
+        "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7",
+        "finished_at": "2026-10-31T02:07:54.468Z"
+      },
+      "fixed_by": "root-repair-2026-10-31"
     },
     {
       "id": "MC-002",
@@ -156,7 +188,7 @@
       "level": "L3",
       "severity": "P1",
       "batch": 1,
-      "state": "open",
+      "state": "fixed",
       "title": "通用叙事线被 vendor 无条件注入营销 Brief 与商业广告指令",
       "evidence": [
         {
@@ -188,7 +220,17 @@
               "scripts/tools/data-pipeline-host-contract.node-test.mjs"
             ]
           },
-          "last_result": "not-run"
+          "last_result": "pass",
+          "run": {
+            "path": "runs/MC-002-0-1793412474600.json",
+            "sha256": "246df760a46dab6edb5e6916b34adf7e3e2e03169adcf222191225dbf970b2d2",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
+          },
+          "evidence": {
+            "path": "evidence/MC-002-0-1793412474600.txt",
+            "sha256": "22cfe4cb5efceb9e52d7bb8af46001095d3c2d15f5387836aff84a1ccd3ecc31",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
+          }
         },
         {
           "kind": "property",
@@ -204,14 +246,36 @@
               "scripts/tools/data-pipeline-host-contract.node-test.mjs"
             ]
           },
-          "last_result": "not-run"
+          "last_result": "pass",
+          "run": {
+            "path": "runs/MC-002-1-1793412475089.json",
+            "sha256": "93adbeacf15ce25b40e97ae9dc3b1f8850c50023c05569096ac0aaa82be9428a",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
+          },
+          "evidence": {
+            "path": "evidence/MC-002-1-1793412475089.txt",
+            "sha256": "b415bbeb7ac06bc007b0565b55a2b641e016ac1a01aae110b5ae1ded6d50e96d",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
+          }
         }
       ],
       "notes": "仓库 vendor 目录保持只读，修复落在宿主 requirement-contract bridge。",
       "regression": {
         "command": "node --import tsx --test scripts/tools/data-pipeline-host-contract.node-test.mjs",
         "evidence": null
-      }
+      },
+      "verified_by": null,
+      "verified_at": null,
+      "verification_evidence": null,
+      "last_assertion_attempt": {
+        "actor": "root-repair-2026-10-31",
+        "role": "repair",
+        "result": "pass",
+        "at": "2026-10-31T02:07:54.599Z",
+        "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7",
+        "finished_at": "2026-10-31T02:07:55.559Z"
+      },
+      "fixed_by": "root-repair-2026-10-31"
     },
     {
       "id": "MC-003",
@@ -219,7 +283,7 @@
       "level": "L2",
       "severity": "P1",
       "batch": 1,
-      "state": "open",
+      "state": "fixed",
       "title": "无渲染数据 CLI 未下发宿主选角合同，需求洞察必然 fail-closed",
       "evidence": [
         {
@@ -249,7 +313,17 @@
               "scripts/tools/data-pipeline-run.node-test.mjs"
             ]
           },
-          "last_result": "not-run"
+          "last_result": "pass",
+          "run": {
+            "path": "runs/MC-003-0-1793412475670.json",
+            "sha256": "3bb23df8363ea8b33b8472dc6994da1dd1294fe05c7e5d2db1dc10ac423eb55d",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
+          },
+          "evidence": {
+            "path": "evidence/MC-003-0-1793412475670.txt",
+            "sha256": "5a0b7690209aa0219a1f384abf609113bf19a57706e825e8df1e0f27c6ba8216",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
+          }
         },
         {
           "kind": "property",
@@ -263,14 +337,36 @@
               "scripts/tools/data-pipeline-run.node-test.mjs"
             ]
           },
-          "last_result": "not-run"
+          "last_result": "pass",
+          "run": {
+            "path": "runs/MC-003-1-1793412479984.json",
+            "sha256": "290e47f982c92dbc4178e6342bfdcc9c7cecc3eb212b9d804ce3808a8de1a749",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
+          },
+          "evidence": {
+            "path": "evidence/MC-003-1-1793412479984.txt",
+            "sha256": "47ebd12784ff07b2dcf827d674f2b36ea354e9c9e3cc5e94107e20bdc1f3ad52",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
+          }
         }
       ],
       "notes": "真实 PILOT-NARRATIVE-001 首先暴露该错误。",
       "regression": {
         "command": "node --test scripts/tools/data-pipeline-run.node-test.mjs",
         "evidence": null
-      }
+      },
+      "verified_by": null,
+      "verified_at": null,
+      "verification_evidence": null,
+      "last_assertion_attempt": {
+        "actor": "root-repair-2026-10-31",
+        "role": "repair",
+        "result": "pass",
+        "at": "2026-10-31T02:07:55.670Z",
+        "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7",
+        "finished_at": "2026-10-31T02:08:04.653Z"
+      },
+      "fixed_by": "root-repair-2026-10-31"
     },
     {
       "id": "MC-004",
@@ -312,14 +408,14 @@
           },
           "last_result": "pass",
           "run": {
-            "path": "runs/MC-004-0-1793346604350.json",
-            "sha256": "12380bb3c5e8f672e966a539bf14adc61d6465808d9995f88219b4bb2facd2e8",
-            "commit": "28bb273469974b6637651ab20e180618b59f67f1"
+            "path": "runs/MC-004-0-1793412484777.json",
+            "sha256": "d1f25b16eecbcb74c2f412a411366c38de8e79bf326aec2c6fb4a378f04900f1",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
           },
           "evidence": {
-            "path": "evidence/MC-004-0-1793346604350.txt",
-            "sha256": "2024c8543cb7838305c573ba89cdf8939e8993d02e7ebe70923beaaf3a4c15e4",
-            "commit": "28bb273469974b6637651ab20e180618b59f67f1"
+            "path": "evidence/MC-004-0-1793412484777.txt",
+            "sha256": "ce1b9787fd94b1de59dbc99d3a5b2453b2c289b89519419eccaffda2114f81a9",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
           }
         },
         {
@@ -338,14 +434,14 @@
           },
           "last_result": "pass",
           "run": {
-            "path": "runs/MC-004-1-1793346605095.json",
-            "sha256": "946c70760e9a458cfe0ffa90d5e28440c47ef89b7223a4e814b6c2321895d33d",
-            "commit": "28bb273469974b6637651ab20e180618b59f67f1"
+            "path": "runs/MC-004-1-1793412485391.json",
+            "sha256": "97b4d1b44bf3e10c0fd0bd24b04b85281a3aaf64a09a054f0ee1ee52392f95fb",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
           },
           "evidence": {
-            "path": "evidence/MC-004-1-1793346605095.txt",
-            "sha256": "190deea350b90a2f521592f3167e7811a044cd5761ff693d488b8a9b79bbe8b3",
-            "commit": "28bb273469974b6637651ab20e180618b59f67f1"
+            "path": "evidence/MC-004-1-1793412485391.txt",
+            "sha256": "60ed1fb7dd06a4244aa39bd70a558e5294d8cb1efd82f6f7a198aeeb1589c572",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
           }
         },
         {
@@ -365,14 +461,14 @@
           },
           "last_result": "pass",
           "run": {
-            "path": "runs/MC-004-2-1793346605539.json",
-            "sha256": "c605c7a827e1426033d9589eeece5041c8c9bd3df5f212da29feab5e8f2d35d4",
-            "commit": "28bb273469974b6637651ab20e180618b59f67f1"
+            "path": "runs/MC-004-2-1793412485893.json",
+            "sha256": "8a33c8bcb39389acde77d5c20fe8b25d39d8d7eca75b2c6b6846a16f9bb778c9",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
           },
           "evidence": {
-            "path": "evidence/MC-004-2-1793346605539.txt",
-            "sha256": "0b64fb31b29853f1aee57adc9a1416fae7eea36fcbd7e91e233dd38c3a17b6d1",
-            "commit": "28bb273469974b6637651ab20e180618b59f67f1"
+            "path": "evidence/MC-004-2-1793412485893.txt",
+            "sha256": "537fab5ef740a1df36dc620797a519a52fc02704976e69ba02f6c4c106c79a03",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
           }
         }
       ],
@@ -385,14 +481,14 @@
       "verified_at": null,
       "verification_evidence": null,
       "last_assertion_attempt": {
-        "actor": "root-repair-2026-10-30",
+        "actor": "root-repair-2026-10-31",
         "role": "repair",
         "result": "pass",
-        "at": "2026-10-30T07:50:04.350Z",
-        "commit": "28bb273469974b6637651ab20e180618b59f67f1",
-        "finished_at": "2026-10-30T07:50:05.962Z"
+        "at": "2026-10-31T02:08:04.776Z",
+        "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7",
+        "finished_at": "2026-10-31T02:08:06.381Z"
       },
-      "fixed_by": "root-repair-2026-10-30"
+      "fixed_by": "root-repair-2026-10-31"
     },
     {
       "id": "MC-005",
@@ -400,7 +496,7 @@
       "level": "L4",
       "severity": "P1",
       "batch": 2,
-      "state": "open",
+      "state": "fixed",
       "title": "叙事 PRD 没有人物与 G3 场景权威，模型可新增演员、改服装并制造双轨阈值",
       "evidence": [
         {
@@ -432,7 +528,17 @@
               "scripts/tools/data-pipeline-host-contract.node-test.mjs"
             ]
           },
-          "last_result": "not-run"
+          "last_result": "pass",
+          "run": {
+            "path": "runs/MC-005-0-1793412486500.json",
+            "sha256": "a3561170ce2b010f7861015bff3340eb23208fed2090c10bce5d7535c2401133",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
+          },
+          "evidence": {
+            "path": "evidence/MC-005-0-1793412486500.txt",
+            "sha256": "9921bcb7c992287e8d97a4cf5de52934c5ce8c42312083cfbf2165fd146f35fc",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
+          }
         },
         {
           "kind": "property",
@@ -448,14 +554,36 @@
               "scripts/tools/data-pipeline-host-contract.node-test.mjs"
             ]
           },
-          "last_result": "not-run"
+          "last_result": "pass",
+          "run": {
+            "path": "runs/MC-005-1-1793412486987.json",
+            "sha256": "95c7f770f716f11da9e99c0b66572700bc9dcf3dec96b4d91db30ac5854fc7fc",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
+          },
+          "evidence": {
+            "path": "evidence/MC-005-1-1793412486987.txt",
+            "sha256": "3dffa75f0b8e01f23a6641073153e2be1a8b36328a98b508fe840d1f857c6810",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
+          }
         }
       ],
       "notes": "PILOT-NARRATIVE-004 的 G4 门禁原文已保留为失败证据。",
       "regression": {
         "command": "node --import tsx --test scripts/tools/data-pipeline-host-contract.node-test.mjs",
         "evidence": null
-      }
+      },
+      "verified_by": null,
+      "verified_at": null,
+      "verification_evidence": null,
+      "last_assertion_attempt": {
+        "actor": "root-repair-2026-10-31",
+        "role": "repair",
+        "result": "pass",
+        "at": "2026-10-31T02:08:06.499Z",
+        "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7",
+        "finished_at": "2026-10-31T02:08:07.479Z"
+      },
+      "fixed_by": "root-repair-2026-10-31"
     },
     {
       "id": "MC-006",
@@ -495,14 +623,14 @@
           },
           "last_result": "pass",
           "run": {
-            "path": "runs/MC-006-0-1793345548743.json",
-            "sha256": "fe3014eaceb8cfec14a19be596d25ade227cca35712de729596aba08631b412e",
-            "commit": "bfbbfa8016fb4cb8d94d6bb967e05b4a44fe6e2b"
+            "path": "runs/MC-006-0-1793412487606.json",
+            "sha256": "87a6b5990bd23f6a02038687e886f4fd18b6262d8aeba2882c1419099e752588",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
           },
           "evidence": {
-            "path": "evidence/MC-006-0-1793345548743.txt",
-            "sha256": "9d3ff77750c849b45bd7a8cdf3682408c7089e1812e8e485fa5f216e96f1d072",
-            "commit": "bfbbfa8016fb4cb8d94d6bb967e05b4a44fe6e2b"
+            "path": "evidence/MC-006-0-1793412487606.txt",
+            "sha256": "48c8d622dabc3c2c7c1e6dbf89d096c957964caa29273bdb33329a6a3476ef0f",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
           }
         }
       ],
@@ -515,14 +643,14 @@
       "verified_at": null,
       "verification_evidence": null,
       "last_assertion_attempt": {
-        "actor": "root-repair-2026-10-30",
+        "actor": "root-repair-2026-10-31",
         "role": "repair",
         "result": "pass",
-        "at": "2026-10-30T07:32:28.742Z",
-        "commit": "bfbbfa8016fb4cb8d94d6bb967e05b4a44fe6e2b",
-        "finished_at": "2026-10-30T07:32:29.480Z"
+        "at": "2026-10-31T02:08:07.605Z",
+        "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7",
+        "finished_at": "2026-10-31T02:08:08.414Z"
       },
-      "fixed_by": "root-repair-2026-10-30"
+      "fixed_by": "root-repair-2026-10-31"
     },
     {
       "id": "MC-007",
@@ -569,14 +697,14 @@
           },
           "last_result": "pass",
           "run": {
-            "path": "runs/MC-007-0-1793345549581.json",
-            "sha256": "2421a8ae3d8eaa468188a10ca6983465aa54f8afedc0bc29dccb8eecae210630",
-            "commit": "bfbbfa8016fb4cb8d94d6bb967e05b4a44fe6e2b"
+            "path": "runs/MC-007-0-1793412488562.json",
+            "sha256": "aefaee0bb15cf78b2b539232dd85cf3717a206b60e96af34615e43b360f838d6",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
           },
           "evidence": {
-            "path": "evidence/MC-007-0-1793345549581.txt",
-            "sha256": "96636a5ec9c36b3971ade5eebd6619da4bbcce20e9f2c376633f333dc226a39f",
-            "commit": "bfbbfa8016fb4cb8d94d6bb967e05b4a44fe6e2b"
+            "path": "evidence/MC-007-0-1793412488562.txt",
+            "sha256": "f000271e8712f94f02d0766a379166b7aed5772af1ab9b4014d40e1cbc5c246e",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
           }
         },
         {
@@ -594,14 +722,14 @@
           },
           "last_result": "pass",
           "run": {
-            "path": "runs/MC-007-1-1793345550408.json",
-            "sha256": "afa182ff979243c40a533aaeec372b9e4c9a2335c90595e71cc1453e8f3a867c",
-            "commit": "bfbbfa8016fb4cb8d94d6bb967e05b4a44fe6e2b"
+            "path": "runs/MC-007-1-1793412490531.json",
+            "sha256": "9c0b39a00078c06a432a9eec40f7e85f5140dc4269b7ce00853820779700e85a",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
           },
           "evidence": {
-            "path": "evidence/MC-007-1-1793345550408.txt",
-            "sha256": "f0a12227d992374ea3f53bac160f8bf3a5d038665716006ef0ef3d86e6d35af8",
-            "commit": "bfbbfa8016fb4cb8d94d6bb967e05b4a44fe6e2b"
+            "path": "evidence/MC-007-1-1793412490531.txt",
+            "sha256": "9a72d61084def190e3a0d37314ca6fd352a2a9c158b2e3ef87377749a18349f0",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
           }
         }
       ],
@@ -614,14 +742,14 @@
       "verified_at": null,
       "verification_evidence": null,
       "last_assertion_attempt": {
-        "actor": "root-repair-2026-10-30",
+        "actor": "root-repair-2026-10-31",
         "role": "repair",
         "result": "pass",
-        "at": "2026-10-30T07:32:29.580Z",
-        "commit": "bfbbfa8016fb4cb8d94d6bb967e05b4a44fe6e2b",
-        "finished_at": "2026-10-30T07:32:31.229Z"
+        "at": "2026-10-31T02:08:08.562Z",
+        "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7",
+        "finished_at": "2026-10-31T02:08:11.563Z"
       },
-      "fixed_by": "root-repair-2026-10-30"
+      "fixed_by": "root-repair-2026-10-31"
     },
     {
       "id": "MC-008",
@@ -664,14 +792,14 @@
           },
           "last_result": "pass",
           "run": {
-            "path": "runs/MC-008-0-1793347057840.json",
-            "sha256": "16596e9f9e100140afe15b6e54a14522b9e9383c3838ea4cd66e4ba4cfac1e6b",
-            "commit": "4a18be68b7c4b39ca018d1024dbca323172dd74d"
+            "path": "runs/MC-008-0-1793412491697.json",
+            "sha256": "482bfbfa444170191dc216b9301c16354b699052655d8086eda0f8cf7f50f84e",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
           },
           "evidence": {
-            "path": "evidence/MC-008-0-1793347057840.txt",
-            "sha256": "935d121c06b913e4328330e0cd7c15b3170840312ea4b4ddb03ee77e14302121",
-            "commit": "4a18be68b7c4b39ca018d1024dbca323172dd74d"
+            "path": "evidence/MC-008-0-1793412491697.txt",
+            "sha256": "8dc304de75cf61eb1a825b2757f074d5104fb09a385595269752cea0d65a7f9c",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
           }
         },
         {
@@ -691,14 +819,14 @@
           },
           "last_result": "pass",
           "run": {
-            "path": "runs/MC-008-1-1793347058414.json",
-            "sha256": "2d6e52100eb1a83237edec9f885cc8c07fdee88d0a7a78203a90a9278c55794f",
-            "commit": "4a18be68b7c4b39ca018d1024dbca323172dd74d"
+            "path": "runs/MC-008-1-1793412492261.json",
+            "sha256": "a2081f28b96fb404d18249eb0377f8ec4230f8774ced6dec71f30f0e8607ae29",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
           },
           "evidence": {
-            "path": "evidence/MC-008-1-1793347058414.txt",
-            "sha256": "7034c9c55ccd4fb952b0395a89ce264f3ec1e70dab2daa424b0c2fed4ad596b8",
-            "commit": "4a18be68b7c4b39ca018d1024dbca323172dd74d"
+            "path": "evidence/MC-008-1-1793412492261.txt",
+            "sha256": "7546c10fa28f398fb1ec0e77f0ad31905b0f6c875f8f71980b160ae19977f7ba",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
           }
         }
       ],
@@ -711,14 +839,14 @@
       "verified_at": null,
       "verification_evidence": null,
       "last_assertion_attempt": {
-        "actor": "root-repair-2026-10-30",
+        "actor": "root-repair-2026-10-31",
         "role": "repair",
         "result": "pass",
-        "at": "2026-10-30T07:57:37.839Z",
-        "commit": "4a18be68b7c4b39ca018d1024dbca323172dd74d",
-        "finished_at": "2026-10-30T07:57:38.839Z"
+        "at": "2026-10-31T02:08:11.696Z",
+        "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7",
+        "finished_at": "2026-10-31T02:08:12.762Z"
       },
-      "fixed_by": "root-repair-2026-10-30"
+      "fixed_by": "root-repair-2026-10-31"
     },
     {
       "id": "MC-009",
@@ -761,14 +889,14 @@
           },
           "last_result": "pass",
           "run": {
-            "path": "runs/MC-009-0-1793346128369.json",
-            "sha256": "defd7768eeff72e49b716c8c785940da01f7044a4b9ca1e1f246473047faffaf",
-            "commit": "0ea0a40d1e03e50c59ae575b8037c10a56493295"
+            "path": "runs/MC-009-0-1793412492885.json",
+            "sha256": "a2a861eb02f59f37e0ea4888d6676afbe7322eaf95683a7b0ab50f378829fa6f",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
           },
           "evidence": {
-            "path": "evidence/MC-009-0-1793346128369.txt",
-            "sha256": "06f948b61a6f1df66cf4a616535448fd302862218f2a6c0a627f330ff62281ee",
-            "commit": "0ea0a40d1e03e50c59ae575b8037c10a56493295"
+            "path": "evidence/MC-009-0-1793412492885.txt",
+            "sha256": "e547068aadc9954264daded3d4f967661709230c3e7b17ebc7f9b77bcbeaca31",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
           }
         },
         {
@@ -788,14 +916,14 @@
           },
           "last_result": "pass",
           "run": {
-            "path": "runs/MC-009-1-1793346128782.json",
-            "sha256": "0b5bffd4c50053028ccad18e4672f3a07d9d606173d88543f3c1e9b59f4eb1c8",
-            "commit": "0ea0a40d1e03e50c59ae575b8037c10a56493295"
+            "path": "runs/MC-009-1-1793412493363.json",
+            "sha256": "96b66f8c113d3e1e1cba08ea856bb58ac34588c92a84eb51f070633bdbf5f73f",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
           },
           "evidence": {
-            "path": "evidence/MC-009-1-1793346128782.txt",
-            "sha256": "1040e88aedf304beaa8131a61abfee3e3ca9b20ef7119c86ad20c8d339dfe8eb",
-            "commit": "0ea0a40d1e03e50c59ae575b8037c10a56493295"
+            "path": "evidence/MC-009-1-1793412493363.txt",
+            "sha256": "049f9125b61f064c29992480e2424d1bc6bef5811debd2328cef9d2363aeac6d",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
           }
         }
       ],
@@ -808,14 +936,14 @@
       "verified_at": null,
       "verification_evidence": null,
       "last_assertion_attempt": {
-        "actor": "root-repair-2026-10-30",
+        "actor": "root-repair-2026-10-31",
         "role": "repair",
         "result": "pass",
-        "at": "2026-10-30T07:42:08.368Z",
-        "commit": "0ea0a40d1e03e50c59ae575b8037c10a56493295",
-        "finished_at": "2026-10-30T07:42:09.220Z"
+        "at": "2026-10-31T02:08:12.884Z",
+        "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7",
+        "finished_at": "2026-10-31T02:08:13.847Z"
       },
-      "fixed_by": "root-repair-2026-10-30"
+      "fixed_by": "root-repair-2026-10-31"
     },
     {
       "id": "MC-010",
@@ -858,14 +986,14 @@
           },
           "last_result": "pass",
           "run": {
-            "path": "runs/MC-010-0-1793346129323.json",
-            "sha256": "b03794c77930c3019c7630f7551c17128c0e194aa4c8a2dbb9280362ef9f84cd",
-            "commit": "0ea0a40d1e03e50c59ae575b8037c10a56493295"
+            "path": "runs/MC-010-0-1793412493962.json",
+            "sha256": "5e79ce75d35df54dffae679e66716249d3b9a4d0508cbde9b5edc6592d543404",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
           },
           "evidence": {
-            "path": "evidence/MC-010-0-1793346129323.txt",
-            "sha256": "e751a9037e49ebf1ac6d84df5892f76585930e204222f0553f35aabdff176fe6",
-            "commit": "0ea0a40d1e03e50c59ae575b8037c10a56493295"
+            "path": "evidence/MC-010-0-1793412493962.txt",
+            "sha256": "e1b642c7b25fd3e4e265947c805961459d6437d5d96b443c53accb9cdf64c8d9",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
           }
         },
         {
@@ -885,14 +1013,14 @@
           },
           "last_result": "pass",
           "run": {
-            "path": "runs/MC-010-1-1793346129738.json",
-            "sha256": "bbc7d019c4f6bb651d2f1d04a96a2baeeb1f728db147dab2a07fd22b37e3106c",
-            "commit": "0ea0a40d1e03e50c59ae575b8037c10a56493295"
+            "path": "runs/MC-010-1-1793412494421.json",
+            "sha256": "a0c608902698a22baffa55e6ad1907eef225b67558a30d4837f3e38ec689b7d7",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
           },
           "evidence": {
-            "path": "evidence/MC-010-1-1793346129738.txt",
-            "sha256": "001feda676dd04ed9515f9a400de7b6e063a705d5ec6f1cd944d8bff730f17f2",
-            "commit": "0ea0a40d1e03e50c59ae575b8037c10a56493295"
+            "path": "evidence/MC-010-1-1793412494421.txt",
+            "sha256": "f076ee88403e51f759df111f8e4d2ee67c39c1d98b8d4388fe650d6d004b046f",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
           }
         }
       ],
@@ -905,14 +1033,14 @@
       "verified_at": null,
       "verification_evidence": null,
       "last_assertion_attempt": {
-        "actor": "root-repair-2026-10-30",
+        "actor": "root-repair-2026-10-31",
         "role": "repair",
         "result": "pass",
-        "at": "2026-10-30T07:42:09.323Z",
-        "commit": "0ea0a40d1e03e50c59ae575b8037c10a56493295",
-        "finished_at": "2026-10-30T07:42:10.158Z"
+        "at": "2026-10-31T02:08:13.961Z",
+        "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7",
+        "finished_at": "2026-10-31T02:08:14.930Z"
       },
-      "fixed_by": "root-repair-2026-10-30"
+      "fixed_by": "root-repair-2026-10-31"
     },
     {
       "id": "MC-011",
@@ -955,14 +1083,14 @@
           },
           "last_result": "pass",
           "run": {
-            "path": "runs/MC-011-0-1793354975544.json",
-            "sha256": "374cddc35522b157bd8eff9398dd72d676171709324d33b479b97590323c1022",
-            "commit": "b3e7794036f75e87901a19696c42c42c7da81958"
+            "path": "runs/MC-011-0-1793412495050.json",
+            "sha256": "da14815da82dedf86830e22f4b95aec0b0774f32ee836c9a937ea6ac5140898d",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
           },
           "evidence": {
-            "path": "evidence/MC-011-0-1793354975544.txt",
-            "sha256": "4c9f7fc58963b152d23a814d63427c1af137046248168d53600899520bec93af",
-            "commit": "b3e7794036f75e87901a19696c42c42c7da81958"
+            "path": "evidence/MC-011-0-1793412495050.txt",
+            "sha256": "586a76fe98fc02b34bc65616172d3c3cffa46a1785fcc0f8f81bc3f5596abfc5",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
           }
         },
         {
@@ -982,14 +1110,14 @@
           },
           "last_result": "pass",
           "run": {
-            "path": "runs/MC-011-1-1793354976455.json",
-            "sha256": "5177b84d6d54acdaac34b25d00294a9049bb854286973f8c209704c13b90a658",
-            "commit": "b3e7794036f75e87901a19696c42c42c7da81958"
+            "path": "runs/MC-011-1-1793412495578.json",
+            "sha256": "a8bcc1796b970a5827eedf8cf3b44623a864520c889929c8320a484a1b967b3e",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
           },
           "evidence": {
-            "path": "evidence/MC-011-1-1793354976455.txt",
-            "sha256": "c3dd7e523a0c78be9dbf919f7b390319366346d3e217f567a213485c4e4acddc",
-            "commit": "b3e7794036f75e87901a19696c42c42c7da81958"
+            "path": "evidence/MC-011-1-1793412495578.txt",
+            "sha256": "db401f8a7081b1e878d4be582097ad983e1388c7921ee24198edd8425b56fb48",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
           }
         },
         {
@@ -1009,14 +1137,14 @@
           },
           "last_result": "pass",
           "run": {
-            "path": "runs/MC-011-2-1793354977036.json",
-            "sha256": "c09c4034fb9c57f830d6787e3e92d12eae5e9882dd4f22804357084a9e923855",
-            "commit": "b3e7794036f75e87901a19696c42c42c7da81958"
+            "path": "runs/MC-011-2-1793412496102.json",
+            "sha256": "f894a7684340f2d11ad4026a7211e23e29d15387822e879ab0ce6483f8c8f995",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
           },
           "evidence": {
-            "path": "evidence/MC-011-2-1793354977036.txt",
-            "sha256": "33b63a66915803231a75a262a90cdfaa1842650f48cb5ef3c21b4de0acdf38e6",
-            "commit": "b3e7794036f75e87901a19696c42c42c7da81958"
+            "path": "evidence/MC-011-2-1793412496102.txt",
+            "sha256": "ea1e0f4b38d978a164ae2254cb8ffd56c6e24fabeddbb75fb5890e1b34b5d503",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
           }
         }
       ],
@@ -1029,14 +1157,14 @@
       "verified_at": null,
       "verification_evidence": null,
       "last_assertion_attempt": {
-        "actor": "root-repair-2026-10-30",
+        "actor": "root-repair-2026-10-31",
         "role": "repair",
         "result": "pass",
-        "at": "2026-10-30T10:09:35.538Z",
-        "commit": "b3e7794036f75e87901a19696c42c42c7da81958",
-        "finished_at": "2026-10-30T10:09:37.561Z"
+        "at": "2026-10-31T02:08:15.049Z",
+        "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7",
+        "finished_at": "2026-10-31T02:08:16.596Z"
       },
-      "fixed_by": "root-repair-2026-10-30"
+      "fixed_by": "root-repair-2026-10-31"
     },
     {
       "id": "MC-012",
@@ -1079,14 +1207,14 @@
           },
           "last_result": "pass",
           "run": {
-            "path": "runs/MC-012-0-1793347201219.json",
-            "sha256": "d4b571d754b47a7803d43d37828d48d3763bc56ef2661fe1e24ccf3d7843d4c0",
-            "commit": "e7355f19e7108758d0d4e14518b3e76924dc48b9"
+            "path": "runs/MC-012-0-1793412496715.json",
+            "sha256": "ff461f361020e8caf121e3abc4ee02ea7b3101baae5f15fabcb823c613b7e581",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
           },
           "evidence": {
-            "path": "evidence/MC-012-0-1793347201219.txt",
-            "sha256": "90eacef187424f9c53cc8f83027ea27bc1fb37b60c68b8d28fa6e7b349421b7f",
-            "commit": "e7355f19e7108758d0d4e14518b3e76924dc48b9"
+            "path": "evidence/MC-012-0-1793412496715.txt",
+            "sha256": "7dbb61c7b30af1f2ca9c9cd98fd1af55b60a18dc137b2d2ed27374689a5c5f9b",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
           }
         },
         {
@@ -1106,14 +1234,14 @@
           },
           "last_result": "pass",
           "run": {
-            "path": "runs/MC-012-1-1793347201775.json",
-            "sha256": "c80e7777437657ff52cabeb12248c1ed9e6011325f7fe4733e50f7be003d1722",
-            "commit": "e7355f19e7108758d0d4e14518b3e76924dc48b9"
+            "path": "runs/MC-012-1-1793412497202.json",
+            "sha256": "6ae0094aff262c9264292bcdb3de3c25aa0b012eeba99d6517473d53f51aebbc",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
           },
           "evidence": {
-            "path": "evidence/MC-012-1-1793347201775.txt",
-            "sha256": "9441c8b355bd9c5f31722793685af908b1cb44755050837aa719b7ac20c62ccd",
-            "commit": "e7355f19e7108758d0d4e14518b3e76924dc48b9"
+            "path": "evidence/MC-012-1-1793412497202.txt",
+            "sha256": "834c82b2f701d01e8b25b67ec68a180d5e1d047368218eebd57f9c04db318ccd",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
           }
         }
       ],
@@ -1126,14 +1254,14 @@
       "verified_at": null,
       "verification_evidence": null,
       "last_assertion_attempt": {
-        "actor": "root-repair-2026-10-30",
+        "actor": "root-repair-2026-10-31",
         "role": "repair",
         "result": "pass",
-        "at": "2026-10-30T08:00:01.218Z",
-        "commit": "e7355f19e7108758d0d4e14518b3e76924dc48b9",
-        "finished_at": "2026-10-30T08:00:02.223Z"
+        "at": "2026-10-31T02:08:16.714Z",
+        "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7",
+        "finished_at": "2026-10-31T02:08:17.737Z"
       },
-      "fixed_by": "root-repair-2026-10-30"
+      "fixed_by": "root-repair-2026-10-31"
     },
     {
       "id": "MC-013",
@@ -1176,14 +1304,14 @@
           },
           "last_result": "pass",
           "run": {
-            "path": "runs/MC-013-0-1793347771311.json",
-            "sha256": "0df8af92823aa5085488afc5e6b1af5c8b40c49d41114ca8039ad5dcd9d67fda",
-            "commit": "0aef58a2cccd9f83858f1d20ad21628ffbeb2bac"
+            "path": "runs/MC-013-0-1793412497867.json",
+            "sha256": "072aaf36a75c9a2db8d6a60dc90c0495e4a5c849f800d99550c9c2a5f2d1ad17",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
           },
           "evidence": {
-            "path": "evidence/MC-013-0-1793347771311.txt",
-            "sha256": "bf983c0d328d8d330e23ff59187f2cbce8845cabbb06dd97ebd503b6e559e254",
-            "commit": "0aef58a2cccd9f83858f1d20ad21628ffbeb2bac"
+            "path": "evidence/MC-013-0-1793412497867.txt",
+            "sha256": "9623f79fec2e8fb943040ad3727061cd4af192b068fdbeb4e99a9a733595b418",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
           }
         },
         {
@@ -1203,14 +1331,14 @@
           },
           "last_result": "pass",
           "run": {
-            "path": "runs/MC-013-1-1793347771864.json",
-            "sha256": "1cf0372d118387f9ae5b96d9fcd8aaf48412e04103bd3bb63469c9adda121901",
-            "commit": "0aef58a2cccd9f83858f1d20ad21628ffbeb2bac"
+            "path": "runs/MC-013-1-1793412498611.json",
+            "sha256": "7e8d8e6dfd52421dc1a22330ee234c2523f5f61ed0c3a0b72952e6a34c5d97db",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
           },
           "evidence": {
-            "path": "evidence/MC-013-1-1793347771864.txt",
-            "sha256": "5670e1396e7c327871f378fd44e261f134e736a0c9e7d27a45079bdcfdee16d8",
-            "commit": "0aef58a2cccd9f83858f1d20ad21628ffbeb2bac"
+            "path": "evidence/MC-013-1-1793412498611.txt",
+            "sha256": "7f847b124d6f9ca3b584fcc862b7e4332b61a80855970a747dfdf281665d594d",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
           }
         }
       ],
@@ -1223,14 +1351,14 @@
       "verified_at": null,
       "verification_evidence": null,
       "last_assertion_attempt": {
-        "actor": "root-repair-2026-10-30",
+        "actor": "root-repair-2026-10-31",
         "role": "repair",
         "result": "pass",
-        "at": "2026-10-30T08:09:31.310Z",
-        "commit": "0aef58a2cccd9f83858f1d20ad21628ffbeb2bac",
-        "finished_at": "2026-10-30T08:09:32.308Z"
+        "at": "2026-10-31T02:08:17.866Z",
+        "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7",
+        "finished_at": "2026-10-31T02:08:21.123Z"
       },
-      "fixed_by": "root-repair-2026-10-30"
+      "fixed_by": "root-repair-2026-10-31"
     },
     {
       "id": "MC-014",
@@ -1273,14 +1401,14 @@
           },
           "last_result": "pass",
           "run": {
-            "path": "runs/MC-014-0-1793348005192.json",
-            "sha256": "a0ff4cc3cd65f1e7959fe5d1fbb216583fe89324c4db8d9f09bbe71c71b00d93",
-            "commit": "218e2d96fa809f2a0316b5ec7e892c51bbc5109c"
+            "path": "runs/MC-014-0-1793412501438.json",
+            "sha256": "ff0545de534419f5598b72d21ab7d364e8a5335bce211284b55b28f7feab1ccb",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
           },
           "evidence": {
-            "path": "evidence/MC-014-0-1793348005192.txt",
-            "sha256": "f2b66ba418f70ad960dd02fd36d2959304af82d55ae3a6854f2d168ade7e871a",
-            "commit": "218e2d96fa809f2a0316b5ec7e892c51bbc5109c"
+            "path": "evidence/MC-014-0-1793412501438.txt",
+            "sha256": "e846d1d30b35f9c93341b561c72bf8435d17386d172f3b4d308886014d40b891",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
           }
         },
         {
@@ -1300,14 +1428,14 @@
           },
           "last_result": "pass",
           "run": {
-            "path": "runs/MC-014-1-1793348006241.json",
-            "sha256": "d490351b1deff056a61613d1548bc9593e1537a05919498abc42759ab26b7b9e",
-            "commit": "218e2d96fa809f2a0316b5ec7e892c51bbc5109c"
+            "path": "runs/MC-014-1-1793412502551.json",
+            "sha256": "5b6cd99632b1945de7a0b89ab8a25f0bc87fd4ff52430787d6c6019cf6c90449",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
           },
           "evidence": {
-            "path": "evidence/MC-014-1-1793348006241.txt",
-            "sha256": "e8b5379f388be7b9289af53acc1f1d8c0c9c34a45a51de195bd05fbabbe44586",
-            "commit": "218e2d96fa809f2a0316b5ec7e892c51bbc5109c"
+            "path": "evidence/MC-014-1-1793412502551.txt",
+            "sha256": "8573546cf0d9d8687db4e83c6321484c2d64aab9f6eecd1f18a51a0bb955ae98",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
           }
         }
       ],
@@ -1320,14 +1448,14 @@
       "verified_at": null,
       "verification_evidence": null,
       "last_assertion_attempt": {
-        "actor": "root-repair-2026-10-30",
+        "actor": "root-repair-2026-10-31",
         "role": "repair",
         "result": "pass",
-        "at": "2026-10-30T08:13:25.184Z",
-        "commit": "218e2d96fa809f2a0316b5ec7e892c51bbc5109c",
-        "finished_at": "2026-10-30T08:13:27.029Z"
+        "at": "2026-10-31T02:08:21.437Z",
+        "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7",
+        "finished_at": "2026-10-31T02:08:23.720Z"
       },
-      "fixed_by": "root-repair-2026-10-30"
+      "fixed_by": "root-repair-2026-10-31"
     },
     {
       "id": "MC-015",
@@ -1370,14 +1498,14 @@
           },
           "last_result": "pass",
           "run": {
-            "path": "runs/MC-015-0-1793348880581.json",
-            "sha256": "5a48379003043fa2c7166bd80af56fad436b1619e59c536af9c6fe8d4b018173",
-            "commit": "45568223663261fbfe70601c3b83d98a4ecf30e0"
+            "path": "runs/MC-015-0-1793412503905.json",
+            "sha256": "c0eb7f518b9e1b7a1e182ba3d74c736a7b00d7c132a63bfc667fa34c87d7a78c",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
           },
           "evidence": {
-            "path": "evidence/MC-015-0-1793348880581.txt",
-            "sha256": "c8957b4b03b7387c3295d00b9e1efd683857fcd115ae1860500ff54499fc22c5",
-            "commit": "45568223663261fbfe70601c3b83d98a4ecf30e0"
+            "path": "evidence/MC-015-0-1793412503905.txt",
+            "sha256": "c5f0114742a73a7047670fd97bb9e16768d04d6fb0fb091c632b25eb6286b854",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
           }
         },
         {
@@ -1397,14 +1525,14 @@
           },
           "last_result": "pass",
           "run": {
-            "path": "runs/MC-015-1-1793348881309.json",
-            "sha256": "bd79f51137fb4e79e318d60708b7d9b651190d41b4d7bb42e84183f1aaf7683f",
-            "commit": "45568223663261fbfe70601c3b83d98a4ecf30e0"
+            "path": "runs/MC-015-1-1793412504624.json",
+            "sha256": "8c49f039e7abac893596e9e3c21fc1a757a83a3964ba0974cfe1ef5c0829d9cb",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
           },
           "evidence": {
-            "path": "evidence/MC-015-1-1793348881309.txt",
-            "sha256": "4b3f08a28b08c90d6ec22c57f551866cd15fa7838bfc527800e7c3d3ec4257ec",
-            "commit": "45568223663261fbfe70601c3b83d98a4ecf30e0"
+            "path": "evidence/MC-015-1-1793412504624.txt",
+            "sha256": "f54d10133b330f520e260f54ac3dbbb5aeb4c3f139de77efee68feab5b99351a",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
           }
         }
       ],
@@ -1417,14 +1545,14 @@
       "verified_at": null,
       "verification_evidence": null,
       "last_assertion_attempt": {
-        "actor": "root-repair-2026-10-30",
+        "actor": "root-repair-2026-10-31",
         "role": "repair",
         "result": "pass",
-        "at": "2026-10-30T08:28:00.580Z",
-        "commit": "45568223663261fbfe70601c3b83d98a4ecf30e0",
-        "finished_at": "2026-10-30T08:28:01.742Z"
+        "at": "2026-10-31T02:08:23.902Z",
+        "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7",
+        "finished_at": "2026-10-31T02:08:25.214Z"
       },
-      "fixed_by": "root-repair-2026-10-30"
+      "fixed_by": "root-repair-2026-10-31"
     },
     {
       "id": "MC-016",
@@ -1467,14 +1595,14 @@
           },
           "last_result": "pass",
           "run": {
-            "path": "runs/MC-016-0-1793349279532.json",
-            "sha256": "e462d6133b73d9d0e531f37ea042e572fe18cd6d48d5f7a1e59cd2209f24b6d1",
-            "commit": "ecdda4514fd244a2e9c6e67f35ac3eaedfff4ae8"
+            "path": "runs/MC-016-0-1793412505380.json",
+            "sha256": "e5014bf8705844d0c2a484a0a6c0dfd1f1e6bf49660bd04e5ebd629a8100a2d6",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
           },
           "evidence": {
-            "path": "evidence/MC-016-0-1793349279532.txt",
-            "sha256": "6f13766567d4514acb9ea20fcf0f5b298bbdedfd12df979ee8b6b4b0bf7d5953",
-            "commit": "ecdda4514fd244a2e9c6e67f35ac3eaedfff4ae8"
+            "path": "evidence/MC-016-0-1793412505380.txt",
+            "sha256": "b7ff1cc76a2c746b20fa684a7dd512ce5fe233f29dac3e72e3d9882022dec68e",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
           }
         },
         {
@@ -1494,14 +1622,14 @@
           },
           "last_result": "pass",
           "run": {
-            "path": "runs/MC-016-1-1793349280077.json",
-            "sha256": "192b8a197f93b87723a15d7dbe1b9b06bc48ba0037e84289b81f6f5b90194701",
-            "commit": "ecdda4514fd244a2e9c6e67f35ac3eaedfff4ae8"
+            "path": "runs/MC-016-1-1793412505901.json",
+            "sha256": "2ec3dccfc727a9cc9716fb757cc1bfd9f5d29f5dd18023601db4421979baf1ac",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
           },
           "evidence": {
-            "path": "evidence/MC-016-1-1793349280077.txt",
-            "sha256": "89cdb5a98fc3673ca03e1170b8561862dd2e14a2247e5a13df3fb454864155ba",
-            "commit": "ecdda4514fd244a2e9c6e67f35ac3eaedfff4ae8"
+            "path": "evidence/MC-016-1-1793412505901.txt",
+            "sha256": "06f181742c32613be4be34eb03217cd230cf6534bd7db9a0931f9719269e7b3f",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
           }
         }
       ],
@@ -1514,14 +1642,14 @@
       "verified_at": null,
       "verification_evidence": null,
       "last_assertion_attempt": {
-        "actor": "root-repair-2026-10-30",
+        "actor": "root-repair-2026-10-31",
         "role": "repair",
         "result": "pass",
-        "at": "2026-10-30T08:34:39.532Z",
-        "commit": "ecdda4514fd244a2e9c6e67f35ac3eaedfff4ae8",
-        "finished_at": "2026-10-30T08:34:40.505Z"
+        "at": "2026-10-31T02:08:25.379Z",
+        "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7",
+        "finished_at": "2026-10-31T02:08:26.427Z"
       },
-      "fixed_by": "root-repair-2026-10-30"
+      "fixed_by": "root-repair-2026-10-31"
     },
     {
       "id": "MC-017",
@@ -1529,7 +1657,7 @@
       "level": "L3",
       "severity": "P1",
       "batch": 2,
-      "state": "open",
+      "state": "fixed",
       "title": "G3 接受 ±5 秒残留且受众推测可残留超片长秒点与竞品首创主张",
       "evidence": [
         {
@@ -1562,7 +1690,17 @@
               "scripts/tools/data-pipeline-host-contract.node-test.mjs"
             ]
           },
-          "last_result": "not-run"
+          "last_result": "pass",
+          "run": {
+            "path": "runs/MC-017-0-1793412506546.json",
+            "sha256": "8c98b9bfde8e153987b4063d334000b0f33bb928eed458fa478a10fad0c82726",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
+          },
+          "evidence": {
+            "path": "evidence/MC-017-0-1793412506546.txt",
+            "sha256": "5f16d43ce0959d7081fb34521650a3c581adf43f73cf3db159a621f5bb8d1770",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
+          }
         },
         {
           "kind": "property",
@@ -1579,7 +1717,17 @@
               "scripts/tools/data-pipeline-host-contract.node-test.mjs"
             ]
           },
-          "last_result": "not-run"
+          "last_result": "pass",
+          "run": {
+            "path": "runs/MC-017-1-1793412507057.json",
+            "sha256": "c0e59f7b39b2ce6bcf2cf58f231c0eaf7d2b2a71194ad8ebd65f49f53f74e821",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
+          },
+          "evidence": {
+            "path": "evidence/MC-017-1-1793412507057.txt",
+            "sha256": "c0120a5006a0b465aa9dc6bbd832cecca5b4f69602cd57a8b90edad1f4333534",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
+          }
         },
         {
           "kind": "sample",
@@ -1596,7 +1744,17 @@
               "scripts/tools/data-pipeline-host-contract.node-test.mjs"
             ]
           },
-          "last_result": "not-run"
+          "last_result": "pass",
+          "run": {
+            "path": "runs/MC-017-2-1793412507700.json",
+            "sha256": "9ca3afdea4f3109923b83a99ceff48dcf34fdcd56857b0c5e65d5e14cfd597e7",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
+          },
+          "evidence": {
+            "path": "evidence/MC-017-2-1793412507700.txt",
+            "sha256": "d5b686335cc47d79045b242fb55a585422c1ff620c73609fcbee4dc20b19ca1a",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
+          }
         },
         {
           "kind": "property",
@@ -1612,14 +1770,36 @@
               "publishes normalized discovery"
             ]
           },
-          "last_result": "not-run"
+          "last_result": "pass",
+          "run": {
+            "path": "runs/MC-017-3-1793412508348.json",
+            "sha256": "d854d41f4f7512e88e40d3e8c8ca1111ac308e6c024deb809f4f0fae2a07e7ba",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
+          },
+          "evidence": {
+            "path": "evidence/MC-017-3-1793412508348.txt",
+            "sha256": "9dd92c01dd0a6f5f438f065980db470f3bd4892f5d8c31fa9ff9b20e74238685",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
+          }
         }
       ],
       "regression": {
         "command": "node --import tsx --test --test-name-pattern='discovery timing' scripts/tools/data-pipeline-host-contract.node-test.mjs",
         "evidence": null
       },
-      "notes": "M01 真实 G3 先为 80 分（31 秒/第50秒），后续复现 74 分（第一次/没在吹/受众假设）；又复现宿主只改 clone 导致下游 REQUIREMENT_CONTRACT_CHANGED。"
+      "notes": "M01 真实 G3 先为 80 分（31 秒/第50秒），后续复现 74 分（第一次/没在吹/受众假设）；又复现宿主只改 clone 导致下游 REQUIREMENT_CONTRACT_CHANGED。",
+      "verified_by": null,
+      "verified_at": null,
+      "verification_evidence": null,
+      "last_assertion_attempt": {
+        "actor": "root-repair-2026-10-31",
+        "role": "repair",
+        "result": "pass",
+        "at": "2026-10-31T02:08:26.545Z",
+        "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7",
+        "finished_at": "2026-10-31T02:08:28.975Z"
+      },
+      "fixed_by": "root-repair-2026-10-31"
     },
     {
       "id": "MC-018",
@@ -1662,14 +1842,14 @@
           },
           "last_result": "pass",
           "run": {
-            "path": "runs/MC-018-0-1793351898303.json",
-            "sha256": "50d2255bd8a278fe6e74aeabcd11ac892c347cb79f6571076c40c58106dc98a9",
-            "commit": "2d2040021726ec1716e59c8341b7e32f1ea6c9fa"
+            "path": "runs/MC-018-0-1793412509103.json",
+            "sha256": "b5925de6ec72fe4549eeb6c781e791e4490f55785885e53ed5e988d996327dbb",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
           },
           "evidence": {
-            "path": "evidence/MC-018-0-1793351898303.txt",
-            "sha256": "1171b9d411a9c025f8472ca56b353438f70bcb2a450917bce9c81136ecd47eff",
-            "commit": "2d2040021726ec1716e59c8341b7e32f1ea6c9fa"
+            "path": "evidence/MC-018-0-1793412509103.txt",
+            "sha256": "2516de063d0955f9c745572e4e1e18ae075432deeffcd3e862e74a0f1227e95a",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
           }
         },
         {
@@ -1689,14 +1869,14 @@
           },
           "last_result": "pass",
           "run": {
-            "path": "runs/MC-018-1-1793351898981.json",
-            "sha256": "5a79a37f60c2dae865e32ef7df7caa6ce1d4b0f58f6c30547f348587a269bb43",
-            "commit": "2d2040021726ec1716e59c8341b7e32f1ea6c9fa"
+            "path": "runs/MC-018-1-1793412509605.json",
+            "sha256": "c20cfe55189e72d4ecd82ce8c539f9430a7f4159841284a4188104daa636c8eb",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
           },
           "evidence": {
-            "path": "evidence/MC-018-1-1793351898981.txt",
-            "sha256": "5a07d298a2661ee756a879876efc7b07aed564ba6ae6e33a86fd836177f71041",
-            "commit": "2d2040021726ec1716e59c8341b7e32f1ea6c9fa"
+            "path": "evidence/MC-018-1-1793412509605.txt",
+            "sha256": "7d28276206c739ac4b78946d31813a8bb0f7883a5f5e38913876caa292cee04a",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
           }
         }
       ],
@@ -1709,14 +1889,14 @@
       "verified_at": null,
       "verification_evidence": null,
       "last_assertion_attempt": {
-        "actor": "root-repair-2026-10-30",
+        "actor": "root-repair-2026-10-31",
         "role": "repair",
         "result": "pass",
-        "at": "2026-10-30T09:18:18.299Z",
-        "commit": "2d2040021726ec1716e59c8341b7e32f1ea6c9fa",
-        "finished_at": "2026-10-30T09:18:19.509Z"
+        "at": "2026-10-31T02:08:29.102Z",
+        "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7",
+        "finished_at": "2026-10-31T02:08:30.119Z"
       },
-      "fixed_by": "root-repair-2026-10-30"
+      "fixed_by": "root-repair-2026-10-31"
     },
     {
       "id": "MC-019",
@@ -1759,14 +1939,14 @@
           },
           "last_result": "pass",
           "run": {
-            "path": "runs/MC-019-0-1793354254814.json",
-            "sha256": "fd902147ff728e46c494ef00a35fd6a0d1262d207b38b6f248602e4a6817db27",
-            "commit": "af467e7854c753d748563c90ce7739f361db0b33"
+            "path": "runs/MC-019-0-1793412510241.json",
+            "sha256": "bfb1ca32ffd804bace70506ae5124c6e31b55f52c6db43a08992bc38a835daa0",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
           },
           "evidence": {
-            "path": "evidence/MC-019-0-1793354254814.txt",
-            "sha256": "f8f0b8257c893e495beb558bd1a5b669ff55fe0a8e0e7402bec9514c0862837f",
-            "commit": "af467e7854c753d748563c90ce7739f361db0b33"
+            "path": "evidence/MC-019-0-1793412510241.txt",
+            "sha256": "683cd79f2b1d6f956a28bd3229b7a7d8ed198c8c375abf8e31cf787ffe519870",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
           }
         },
         {
@@ -1786,14 +1966,14 @@
           },
           "last_result": "pass",
           "run": {
-            "path": "runs/MC-019-1-1793354255461.json",
-            "sha256": "7fffbd7c2db6da6844adf9094e3cc454805f642ebe73391318cb326858076c25",
-            "commit": "af467e7854c753d748563c90ce7739f361db0b33"
+            "path": "runs/MC-019-1-1793412510758.json",
+            "sha256": "a2e246a53f716257f02399eb0fc81af6fec0e4573ecd6cf12aeed2cb4594cef0",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
           },
           "evidence": {
-            "path": "evidence/MC-019-1-1793354255461.txt",
-            "sha256": "12e5e5e458af553b97ddfa046d7b40ae3a49795d25dc7d7467c56fbb85e09484",
-            "commit": "af467e7854c753d748563c90ce7739f361db0b33"
+            "path": "evidence/MC-019-1-1793412510758.txt",
+            "sha256": "ac1f1f8b641dc916d7cf76efaa2bcc25c062f0c9783abccf55a87c7b7c8ba625",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
           }
         }
       ],
@@ -1806,14 +1986,14 @@
       "verified_at": null,
       "verification_evidence": null,
       "last_assertion_attempt": {
-        "actor": "root-repair-2026-10-30",
+        "actor": "root-repair-2026-10-31",
         "role": "repair",
         "result": "pass",
-        "at": "2026-10-30T09:57:34.812Z",
-        "commit": "af467e7854c753d748563c90ce7739f361db0b33",
-        "finished_at": "2026-10-30T09:57:35.978Z"
+        "at": "2026-10-31T02:08:30.240Z",
+        "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7",
+        "finished_at": "2026-10-31T02:08:31.325Z"
       },
-      "fixed_by": "root-repair-2026-10-30"
+      "fixed_by": "root-repair-2026-10-31"
     },
     {
       "id": "MC-020",
@@ -1856,14 +2036,14 @@
           },
           "last_result": "pass",
           "run": {
-            "path": "runs/MC-020-0-1793354608693.json",
-            "sha256": "9f09196210d670940a0df6258f969858dc19eed3af5b734d5910d4f6b8718614",
-            "commit": "5fbba62575d1a03b165275fd9a60623e7278987e"
+            "path": "runs/MC-020-0-1793412511471.json",
+            "sha256": "1339570f9323a6fb1cec33eef0df44cd30d80a7bd3c3d1436ea98685e788e860",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
           },
           "evidence": {
-            "path": "evidence/MC-020-0-1793354608693.txt",
-            "sha256": "0ebec2aa99bd357d919bdd980c47993882bbcfe54f4b2e1673d170efef9520ac",
-            "commit": "5fbba62575d1a03b165275fd9a60623e7278987e"
+            "path": "evidence/MC-020-0-1793412511471.txt",
+            "sha256": "2ac6c4923159f158c631dcd113298a165cabb0354129bd46f1ad9757bbc79d6a",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
           }
         },
         {
@@ -1883,14 +2063,14 @@
           },
           "last_result": "pass",
           "run": {
-            "path": "runs/MC-020-1-1793354609367.json",
-            "sha256": "7b8d277f02e3b53e7d479c396e9be5100058c06525c87d63db2dbba69378e81e",
-            "commit": "5fbba62575d1a03b165275fd9a60623e7278987e"
+            "path": "runs/MC-020-1-1793412512095.json",
+            "sha256": "b0a7d914e68c2e08ef342fadc7716f584960ffb1c1f27b752e370b4fae6b6fca",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
           },
           "evidence": {
-            "path": "evidence/MC-020-1-1793354609367.txt",
-            "sha256": "af4a1b8fdae430c8837a14552b0f1feaf498d2107f04b387ff2abc7f7e022994",
-            "commit": "5fbba62575d1a03b165275fd9a60623e7278987e"
+            "path": "evidence/MC-020-1-1793412512095.txt",
+            "sha256": "a71a535784daae25f3c149ecd0f209ab0b497b10e3b7e306790df6364518ed0b",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
           }
         }
       ],
@@ -1903,14 +2083,14 @@
       "verified_at": null,
       "verification_evidence": null,
       "last_assertion_attempt": {
-        "actor": "root-repair-2026-10-30",
+        "actor": "root-repair-2026-10-31",
         "role": "repair",
         "result": "pass",
-        "at": "2026-10-30T10:03:28.686Z",
-        "commit": "5fbba62575d1a03b165275fd9a60623e7278987e",
-        "finished_at": "2026-10-30T10:03:29.844Z"
+        "at": "2026-10-31T02:08:31.470Z",
+        "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7",
+        "finished_at": "2026-10-31T02:08:32.698Z"
       },
-      "fixed_by": "root-repair-2026-10-30"
+      "fixed_by": "root-repair-2026-10-31"
     },
     {
       "id": "MC-021",
@@ -1952,14 +2132,14 @@
           },
           "last_result": "pass",
           "run": {
-            "path": "runs/MC-021-0-1793402434658.json",
-            "sha256": "9a92e8c8cd71251c8be14fb05c03e8d843d14a281708d2fbe80a11323892d5fb",
-            "commit": "e04fad1f70098287a9f100ec0ba1581335e09792"
+            "path": "runs/MC-021-0-1793412512848.json",
+            "sha256": "7715bb185f4ff77d651ef317531d49b2316e8a5830a2f7ee999a8a3993bfa7dd",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
           },
           "evidence": {
-            "path": "evidence/MC-021-0-1793402434658.txt",
-            "sha256": "18428afbf9583938441aec7c09db3209b5491d3327fff88cb79a13a4ea4d7359",
-            "commit": "e04fad1f70098287a9f100ec0ba1581335e09792"
+            "path": "evidence/MC-021-0-1793412512848.txt",
+            "sha256": "4783d120bb970c6438e8fd0c4f680c117763b83bc65e8db940124e75fbade8c2",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
           }
         },
         {
@@ -1978,14 +2158,14 @@
           },
           "last_result": "pass",
           "run": {
-            "path": "runs/MC-021-1-1793402435466.json",
-            "sha256": "dbfd7ccdeedf8e6165b05327b0d0561007dfe26fd734c6178502ceb29979ffe7",
-            "commit": "e04fad1f70098287a9f100ec0ba1581335e09792"
+            "path": "runs/MC-021-1-1793412513765.json",
+            "sha256": "2b32b80e5f5a24782bd6b85bc2f619d9efeb919309c6d2a592d6879d1d024b7c",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
           },
           "evidence": {
-            "path": "evidence/MC-021-1-1793402435466.txt",
-            "sha256": "f577ae400e9718b768f59ef8aba173c53b0f32d15e123c8eb920c1e0fa9afb24",
-            "commit": "e04fad1f70098287a9f100ec0ba1581335e09792"
+            "path": "evidence/MC-021-1-1793412513765.txt",
+            "sha256": "c49a26386615ae9da9213b79e30a90dfa905da720ce1188ab7da57e8ef063e44",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
           }
         }
       ],
@@ -2001,9 +2181,9 @@
         "actor": "root-repair-2026-10-31",
         "role": "repair",
         "result": "pass",
-        "at": "2026-10-30T23:20:34.656Z",
-        "commit": "e04fad1f70098287a9f100ec0ba1581335e09792",
-        "finished_at": "2026-10-30T23:20:36.142Z"
+        "at": "2026-10-31T02:08:32.847Z",
+        "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7",
+        "finished_at": "2026-10-31T02:08:34.659Z"
       },
       "fixed_by": "root-repair-2026-10-31"
     },
@@ -2047,14 +2227,14 @@
           },
           "last_result": "pass",
           "run": {
-            "path": "runs/MC-022-0-1793402645524.json",
-            "sha256": "853ea37b7aa01909adf4869c9551ceb33773a3bdab696e949fce5ea3385ec3e2",
-            "commit": "563c7a26d7951c94b490cbcb1dcd971aee4ec84c"
+            "path": "runs/MC-022-0-1793412514813.json",
+            "sha256": "601445aff1460f2cd910519554b8cc5beb318e2fbadb654b2fcf00af08196867",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
           },
           "evidence": {
-            "path": "evidence/MC-022-0-1793402645524.txt",
-            "sha256": "2e4d0d7bfcae3c6cff840a4035d105b703547078db55f30829084b652080aa86",
-            "commit": "563c7a26d7951c94b490cbcb1dcd971aee4ec84c"
+            "path": "evidence/MC-022-0-1793412514813.txt",
+            "sha256": "90eeba4a2046ac77aa928ab9ef7d9e9990cbbc27ed4e8cf05f78f84d6bd4c866",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
           }
         },
         {
@@ -2073,14 +2253,14 @@
           },
           "last_result": "pass",
           "run": {
-            "path": "runs/MC-022-1-1793402646108.json",
-            "sha256": "7830a8d22addbf8dff2a6948357a330c78203a9b55f3d9dbb38a1b3aa6e1019c",
-            "commit": "563c7a26d7951c94b490cbcb1dcd971aee4ec84c"
+            "path": "runs/MC-022-1-1793412515538.json",
+            "sha256": "01ba450d3041e6cf36829b74791dcb5176c4b452fc9c1830fab7fbf8db1fb137",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
           },
           "evidence": {
-            "path": "evidence/MC-022-1-1793402646108.txt",
-            "sha256": "b2f2c095303b23ba6023e796d21e21a9fdcced45454e7b1753e1b6d9283b1246",
-            "commit": "563c7a26d7951c94b490cbcb1dcd971aee4ec84c"
+            "path": "evidence/MC-022-1-1793412515538.txt",
+            "sha256": "26ccab3b7af77d0feb0eef3ddfdb030499defd1ca93bf985ddc1d50b8a85cca2",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
           }
         }
       ],
@@ -2096,9 +2276,9 @@
         "actor": "root-repair-2026-10-31",
         "role": "repair",
         "result": "pass",
-        "at": "2026-10-30T23:24:05.523Z",
-        "commit": "563c7a26d7951c94b490cbcb1dcd971aee4ec84c",
-        "finished_at": "2026-10-30T23:24:07.356Z"
+        "at": "2026-10-31T02:08:34.812Z",
+        "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7",
+        "finished_at": "2026-10-31T02:08:37.050Z"
       },
       "fixed_by": "root-repair-2026-10-31"
     },
@@ -2147,14 +2327,14 @@
           },
           "last_result": "pass",
           "run": {
-            "path": "runs/MC-023-0-1793412313003.json",
-            "sha256": "61725ceba7a9993dc59048916f520073765c391e6277931609acf37109766e2d",
-            "commit": "00ad4f1f6d9eb9174279f6a8a8271e67534fa55a"
+            "path": "runs/MC-023-0-1793412517238.json",
+            "sha256": "61579b28f15b3d8d6d95d34e572b50c694df5a9814adce9842cdf9b680292e01",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
           },
           "evidence": {
-            "path": "evidence/MC-023-0-1793412313003.txt",
-            "sha256": "a8f5169bac9e7e4db6e2c21a88c6ef28786f32dffbd894b6eedeed8da38e5a47",
-            "commit": "00ad4f1f6d9eb9174279f6a8a8271e67534fa55a"
+            "path": "evidence/MC-023-0-1793412517238.txt",
+            "sha256": "e445c19bcccc314c8d6a0e5096121ed699fa1d5732784bdd60a556d2cb3cddc4",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
           }
         },
         {
@@ -2172,14 +2352,14 @@
           },
           "last_result": "pass",
           "run": {
-            "path": "runs/MC-023-1-1793412313598.json",
-            "sha256": "a8c4faef5970c8013b1dfcc57cde370c762c07620edd4437e861d52cf1e44f18",
-            "commit": "00ad4f1f6d9eb9174279f6a8a8271e67534fa55a"
+            "path": "runs/MC-023-1-1793412518127.json",
+            "sha256": "519977f42bad90a6646a8f1cbbf76dc95906f81ca0c61db51a969df27ef3a20d",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
           },
           "evidence": {
-            "path": "evidence/MC-023-1-1793412313598.txt",
-            "sha256": "4dbc2bfce952741d770d7c8e57c1746f5e512185cfc494cac67e57664d8ae56f",
-            "commit": "00ad4f1f6d9eb9174279f6a8a8271e67534fa55a"
+            "path": "evidence/MC-023-1-1793412518127.txt",
+            "sha256": "2a5a4a926606cc4af4352357b75892f2bb2fb2c0225f47fe641f70f9a6aad821",
+            "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
           }
         }
       ],
@@ -2195,9 +2375,9 @@
         "actor": "root-repair-2026-10-31",
         "role": "repair",
         "result": "pass",
-        "at": "2026-10-31T02:05:13.001Z",
-        "commit": "00ad4f1f6d9eb9174279f6a8a8271e67534fa55a",
-        "finished_at": "2026-10-31T02:06:33.961Z"
+        "at": "2026-10-31T02:08:37.236Z",
+        "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7",
+        "finished_at": "2026-10-31T02:11:37.379Z"
       },
       "fixed_by": "root-repair-2026-10-31"
     }

@@ -1,0 +1,81 @@
+{
+  "schema": "workloom.evidence-run/v1",
+  "id": "MC-011-1-1793354976455",
+  "command": "node --import tsx --test --test-name-pattern='marketing dossier cards' scripts/tools/data-pipeline-host-contract.node-test.mjs",
+  "exec": {
+    "file": "/Users/mac/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node",
+    "args": [
+      "--test-reporter=/Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/delivery/node-test-reporter.mjs",
+      "--test-reporter-destination=/Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/outputs/mine-clear/T-2026-1030-9010/evidence/MC-011-1-1793354976455-node-tests.jsonl",
+      "--test-reporter=tap",
+      "--test-reporter-destination=stdout",
+      "--import",
+      "tsx",
+      "--test",
+      "--test-name-pattern=marketing dossier cards",
+      "scripts/tools/data-pipeline-host-contract.node-test.mjs"
+    ]
+  },
+  "requested_exec": {
+    "file": "node",
+    "args": [
+      "--import",
+      "tsx",
+      "--test",
+      "--test-name-pattern=marketing dossier cards",
+      "scripts/tools/data-pipeline-host-contract.node-test.mjs"
+    ]
+  },
+  "node_observer": {
+    "schema": "workloom.node-test-observer/v1",
+    "reporter_path": "/Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/delivery/node-test-reporter.mjs",
+    "reporter_sha256": "286448a4dee571759fc1703564477d27bf5319bcb05ff66db2186deda60bc78f",
+    "destination": "/Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/outputs/mine-clear/T-2026-1030-9010/evidence/MC-011-1-1793354976455-node-tests.jsonl",
+    "summary": {
+      "path": "evidence/MC-011-1-1793354976455-node-tests.jsonl",
+      "sha256": "d50eed83830b50b9a37864bcd541b31b332dec8875cdc9859682f4edf8a9c89b",
+      "commit": "b3e7794036f75e87901a19696c42c42c7da81958"
+    }
+  },
+  "node_executable": {
+    "path": "/Users/mac/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node",
+    "sha256": "f359816dcf3277d522724f8c0fa2264a600b342e101bda7d4cb7496bc0368307"
+  },
+  "actor": "root-repair-2026-10-30",
+  "role": "repair",
+  "subject": {
+    "card_id": "MC-011",
+    "assertion_index": 1
+  },
+  "commit": "b3e7794036f75e87901a19696c42c42c7da81958",
+  "working_tree_dirty": false,
+  "started_at": "2026-10-30T10:09:36.455Z",
+  "finished_at": "2026-10-30T10:09:36.989Z",
+  "exit_code": 0,
+  "signal": null,
+  "validation": {
+    "ok": true,
+    "errors": [],
+    "testSummary": {
+      "total": 1,
+      "passed": 1,
+      "failed": 0,
+      "cancelled": 0,
+      "skipped": 0,
+      "todo": 0
+    }
+  },
+  "result": "pass",
+  "outputs": [
+    {
+      "path": "evidence/MC-011-1-1793354976455.txt",
+      "sha256": "c3dd7e523a0c78be9dbf919f7b390319366346d3e217f567a213485c4e4acddc",
+      "commit": "b3e7794036f75e87901a19696c42c42c7da81958"
+    },
+    {
+      "path": "evidence/MC-011-1-1793354976455-node-tests.jsonl",
+      "sha256": "d50eed83830b50b9a37864bcd541b31b332dec8875cdc9859682f4edf8a9c89b",
+      "commit": "b3e7794036f75e87901a19696c42c42c7da81958"
+    }
+  ]
+}

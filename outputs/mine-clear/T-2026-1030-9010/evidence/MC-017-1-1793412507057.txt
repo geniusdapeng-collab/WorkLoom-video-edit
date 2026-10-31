@@ -1,0 +1,27 @@
+TAP version 13
+# [pii] PII_SALT 未配置，使用 dev 占位盐（仅限开发/测试，生产必须注入 PII_SALT）
+# Subtest: discovery timing reconciles the tolerated residual and removes out-of-range audience seconds
+ok 1 - discovery timing reconciles the tolerated residual and removes out-of-range audience seconds
+  ---
+  duration_ms: 2.052417
+  type: 'test'
+  ...
+# Subtest: discovery timing strips unsupported competitor claims from audience hypotheses
+ok 2 - discovery timing strips unsupported competitor claims from audience hypotheses
+  ---
+  duration_ms: 0.398583
+  type: 'test'
+  ...
+1..2
+# tests 2
+# suites 0
+# pass 2
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 253.833417
+
+
+exit_code=0 signal=none error=none
+assertion_validation={"ok":true,"errors":[],"testSummary":{"total":2,"passed":2,"failed":0,"cancelled":0,"skipped":0,"todo":0}}

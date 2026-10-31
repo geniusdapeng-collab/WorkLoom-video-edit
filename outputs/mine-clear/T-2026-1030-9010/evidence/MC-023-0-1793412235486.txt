@@ -1,0 +1,41 @@
+TAP version 13
+# [POST-PROD] [POST-PROD] 🎬 PostProductionEngine 启动 | 后期制作
+# [POST-PROD] [POST-PROD]    版本: standard, clean, subtitled, raw
+# [POST-PROD] [POST-PROD]    字幕: ✅ | 音乐: ✅ | 弹幕: ❌
+# [POST-PROD] [POST-PROD] 
+# 🎬 [Stage 1] 字幕生成 - 身份介绍式字幕
+# [POST-PROD] [POST-PROD] ✅ 字幕生成完成: 0 条字幕
+# [POST-PROD] [POST-PROD] 
+# 🎵 [Stage 2] 音乐匹配 - 无版权音乐库
+# [POST-PROD] [POST-PROD] ✅ 音乐匹配完成: 0 段音乐
+# [POST-PROD] [POST-PROD] 
+# 🎨 [Stage 4] 多版本组装 - HyperFrames 集成
+# [POST-PROD] [POST-PROD]    生成版本: standard...
+# [POST-PROD] [POST-PROD]    生成版本: clean...
+# [POST-PROD] [POST-PROD]    生成版本: subtitled...
+# [POST-PROD] [POST-PROD]    生成版本: raw...
+# [POST-PROD] [POST-PROD] ✅ 版本组装完成: 4 个版本
+# [POST-PROD] [POST-PROD] 
+# [Stage 5] 实际工程文件与引用
+# [POST-PROD] [POST-PROD] 工程文件检查: 完成 (0 问题)
+# [POST-PROD] [POST-PROD] 
+# 🏁 后期制作完成: 30ms | 4 版本
+# Subtest: 旧vendor后期引擎：成功任务黑屏静音按实际片长生成工程，原声标志保留，诚实声明尚未渲染MP4
+ok 1 - 旧vendor后期引擎：成功任务黑屏静音按实际片长生成工程，原声标志保留，诚实声明尚未渲染MP4
+  ---
+  duration_ms: 246.383125
+  type: 'test'
+  ...
+1..1
+# tests 1
+# suites 0
+# pass 1
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 292.269959
+
+
+exit_code=0 signal=none error=none
+assertion_validation={"ok":true,"errors":[],"testSummary":{"total":1,"passed":1,"failed":0,"cancelled":0,"skipped":0,"todo":0}}

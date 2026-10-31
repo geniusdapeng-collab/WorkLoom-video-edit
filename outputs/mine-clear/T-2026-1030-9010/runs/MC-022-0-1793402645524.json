@@ -1,0 +1,38 @@
+{
+  "schema": "workloom.evidence-run/v1",
+  "id": "MC-022-0-1793402645524",
+  "command": "node_modules/.bin/vitest run apps/server/src/video/marketing-facts.test.ts -t '可选品牌冲突'",
+  "exec": {
+    "file": "node_modules/.bin/vitest",
+    "args": [
+      "run",
+      "apps/server/src/video/marketing-facts.test.ts",
+      "-t",
+      "可选品牌冲突"
+    ]
+  },
+  "actor": "root-repair-2026-10-31",
+  "role": "repair",
+  "subject": {
+    "card_id": "MC-022",
+    "assertion_index": 0
+  },
+  "commit": "563c7a26d7951c94b490cbcb1dcd971aee4ec84c",
+  "working_tree_dirty": false,
+  "started_at": "2026-10-30T23:24:05.524Z",
+  "finished_at": "2026-10-30T23:24:06.069Z",
+  "exit_code": 0,
+  "signal": null,
+  "validation": {
+    "ok": true,
+    "errors": []
+  },
+  "result": "pass",
+  "outputs": [
+    {
+      "path": "evidence/MC-022-0-1793402645524.txt",
+      "sha256": "2e4d0d7bfcae3c6cff840a4035d105b703547078db55f30829084b652080aa86",
+      "commit": "563c7a26d7951c94b490cbcb1dcd971aee4ec84c"
+    }
+  ]
+}

@@ -1,0 +1,508 @@
+TAP version 13
+# [POST-PROD] [POST-PROD] 🎬 PostProductionEngine 启动 | 后期制作
+# [POST-PROD] [POST-PROD]    版本: standard, clean, subtitled, raw
+# [POST-PROD] [POST-PROD]    字幕: ✅ | 音乐: ✅ | 弹幕: ❌
+# [POST-PROD] [POST-PROD] 
+# 🎬 [Stage 1] 字幕生成 - 身份介绍式字幕
+# [POST-PROD] [POST-PROD] ✅ 字幕生成完成: 0 条字幕
+# [POST-PROD] [POST-PROD] 
+# 🎵 [Stage 2] 音乐匹配 - 无版权音乐库
+# [POST-PROD] [POST-PROD] ✅ 音乐匹配完成: 0 段音乐
+# [POST-PROD] [POST-PROD] 
+# 🎨 [Stage 4] 多版本组装 - HyperFrames 集成
+# [POST-PROD] [POST-PROD]    生成版本: standard...
+# Subtest: 真实全链CLI接收黑屏、无音轨、17FPS、旧品质失败与30秒名义稿：正式后期和3变体完成，旧字节/原记录不改，外呼0
+ok 1 - 真实全链CLI接收黑屏、无音轨、17FPS、旧品质失败与30秒名义稿：正式后期和3变体完成，旧字节/原记录不改，外呼0
+  ---
+  duration_ms: 8880.704625
+  type: 'test'
+  ...
+# Subtest: 真实CLI先显式调色再默认恢复：变体始终独立取未调色母片，原色零调色且旧调色缓存不复用
+ok 2 - 真实CLI先显式调色再默认恢复：变体始终独立取未调色母片，原色零调色且旧调色缓存不复用
+  ---
+  duration_ms: 38717.761875
+  type: 'test'
+  ...
+# Subtest: 真实CLI原声镜头复用保留，后期仅compose/master也能正式产出，不触发自动配音
+ok 3 - 真实CLI原声镜头复用保留，后期仅compose/master也能正式产出，不触发自动配音
+  ---
+  duration_ms: 1730.6575
+  type: 'test'
+  ...
+# Subtest: 真实CLI自产字幕保留三行以后全部台词，不按隐式两行上限删字
+ok 4 - 真实CLI自产字幕保留三行以后全部台词，不按隐式两行上限删字
+  ---
+  duration_ms: 2250.232541
+  type: 'test'
+  ...
+# Subtest: 真实CLI失败关闭：empty-registry，不自动重渲、不交付、不外呼
+ok 5 - 真实CLI失败关闭：empty-registry，不自动重渲、不交付、不外呼
+  ---
+  duration_ms: 348.413417
+  type: 'test'
+  ...
+# Subtest: 真实CLI失败关闭：duplicate-id，不自动重渲、不交付、不外呼
+ok 6 - 真实CLI失败关闭：duplicate-id，不自动重渲、不交付、不外呼
+  ---
+  duration_ms: 350.076458
+  type: 'test'
+  ...
+# Subtest: 真实CLI失败关闭：unsafe-id，不自动重渲、不交付、不外呼
+ok 7 - 真实CLI失败关闭：unsafe-id，不自动重渲、不交付、不外呼
+  ---
+  duration_ms: 339.45575
+  type: 'test'
+  ...
+# Subtest: 真实CLI失败关闭：source-contract-changed，不自动重渲、不交付、不外呼
+ok 8 - 真实CLI失败关闭：source-contract-changed，不自动重渲、不交付、不外呼
+  ---
+  duration_ms: 342.456083
+  type: 'test'
+  ...
+# Subtest: 真实CLI失败关闭：original-input-changed，不自动重渲、不交付、不外呼
+ok 9 - 真实CLI失败关闭：original-input-changed，不自动重渲、不交付、不外呼
+  ---
+  duration_ms: 353.106667
+  type: 'test'
+  ...
+# Subtest: 真实CLI失败关闭：output-changed，不自动重渲、不交付、不外呼
+ok 10 - 真实CLI失败关闭：output-changed，不自动重渲、不交付、不外呼
+  ---
+  duration_ms: 338.303542
+  type: 'test'
+  ...
+# Subtest: 真实CLI失败关闭：provider-failed，不自动重渲、不交付、不外呼
+ok 11 - 真实CLI失败关闭：provider-failed，不自动重渲、不交付、不外呼
+  ---
+  duration_ms: 336.934833
+  type: 'test'
+  ...
+# Subtest: 真实CLI失败关闭：missing-task，不自动重渲、不交付、不外呼
+ok 12 - 真实CLI失败关闭：missing-task，不自动重渲、不交付、不外呼
+  ---
+  duration_ms: 647.515208
+  type: 'test'
+  ...
+# Subtest: 真实CLI失败关闭：missing-lineage，不自动重渲、不交付、不外呼
+ok 13 - 真实CLI失败关闭：missing-lineage，不自动重渲、不交付、不外呼
+  ---
+  duration_ms: 634.410125
+  type: 'test'
+  ...
+# Subtest: 真实CLI失败关闭：missing-source，不自动重渲、不交付、不外呼
+ok 14 - 真实CLI失败关闭：missing-source，不自动重渲、不交付、不外呼
+  ---
+  duration_ms: 1019.1135
+  type: 'test'
+  ...
+# Subtest: 真实CLI处理工具失败会显式停止且不复用旧母版冒充新完成
+ok 15 - 真实CLI处理工具失败会显式停止且不复用旧母版冒充新完成
+  ---
+  duration_ms: 678.842417
+  type: 'test'
+  ...
+# Subtest: 真实CLI普通UHD本地导出画布，不默认启动增强模型；源片仍保留
+ok 16 - 真实CLI普通UHD本地导出画布，不默认启动增强模型；源片仍保留
+  ---
+  duration_ms: 3607.699958
+  type: 'test'
+  ...
+# Subtest: 真实CLI成功任务的当前字节不能解码时是实际处理失败，不启动重渲或声音替换
+ok 17 - 真实CLI成功任务的当前字节不能解码时是实际处理失败，不启动重渲或声音替换
+  ---
+  duration_ms: 434.753
+  type: 'test'
+  ...
+# Subtest: 真实CLI正式后期执行失败：color-failure，返回非零、不伪装交付
+ok 18 - 真实CLI正式后期执行失败：color-failure，返回非零、不伪装交付
+  ---
+  duration_ms: 1379.131667
+  type: 'test'
+  ...
+# Subtest: 真实CLI正式后期执行失败：burn-failure，返回非零、不伪装交付
+ok 19 - 真实CLI正式后期执行失败：burn-failure，返回非零、不伪装交付
+  ---
+  duration_ms: 1436.93775
+  type: 'test'
+  ...
+# Subtest: 真实CLI正式后期执行失败：danmaku-failure，返回非零、不伪装交付
+ok 20 - 真实CLI正式后期执行失败：danmaku-failure，返回非零、不伪装交付
+  ---
+  duration_ms: 1171.126542
+  type: 'test'
+  ...
+# Subtest: 真实CLI正式后期执行失败：bgm-failure，返回非零、不伪装交付
+ok 21 - 真实CLI正式后期执行失败：bgm-failure，返回非零、不伪装交付
+  ---
+  duration_ms: 1498.9615
+  type: 'test'
+  ...
+# Subtest: 真实CLI正式后期执行失败：cover-failure，返回非零、不伪装交付
+ok 22 - 真实CLI正式后期执行失败：cover-failure，返回非零、不伪装交付
+  ---
+  duration_ms: 1546.873292
+  type: 'test'
+  ...
+# Subtest: 真实CLI正式后期执行失败：mux-failure，返回非零、不伪装交付
+ok 23 - 真实CLI正式后期执行失败：mux-failure，返回非零、不伪装交付
+  ---
+  duration_ms: 1606.310209
+  type: 'test'
+  ...
+# Subtest: 真实CLI正式后期执行失败：variant-failure，返回非零、不伪装交付
+ok 24 - 真实CLI正式后期执行失败：variant-failure，返回非零、不伪装交付
+  ---
+  duration_ms: 2109.305958
+  type: 'test'
+  ...
+# Subtest: 真实CLI新增镜头未满足提交前授权/资产条件时仍停止，已完成镜头不会自动复渲
+ok 25 - 真实CLI新增镜头未满足提交前授权/资产条件时仍停止，已完成镜头不会自动复渲
+  ---
+  duration_ms: 336.525958
+  type: 'test'
+  ...
+# [POST-PROD] [POST-PROD]    生成版本: clean...
+# [POST-PROD] [POST-PROD]    生成版本: subtitled...
+# [POST-PROD] [POST-PROD]    生成版本: raw...
+# [POST-PROD] [POST-PROD] ✅ 版本组装完成: 4 个版本
+# [POST-PROD] [POST-PROD] 
+# [Stage 5] 实际工程文件与引用
+# [POST-PROD] [POST-PROD] 工程文件检查: 完成 (0 问题)
+# [POST-PROD] [POST-PROD] 
+# 🏁 后期制作完成: 15ms | 4 版本
+# [POST-PROD] [POST-PROD] 🎬 PostProductionEngine 启动 | 后期制作
+# [POST-PROD] [POST-PROD]    版本: raw
+# [POST-PROD] [POST-PROD]    字幕: ✅ | 音乐: ✅ | 弹幕: ❌
+# [POST-PROD] [POST-PROD] 
+# 🎬 [Stage 1] 字幕生成 - 身份介绍式字幕
+# [POST-PROD] [POST-PROD] ✅ 字幕生成完成: 0 条字幕
+# [POST-PROD] [POST-PROD] 
+# 🎵 [Stage 2] 音乐匹配 - 无版权音乐库
+# [POST-PROD] [POST-PROD] ✅ 音乐匹配完成: 0 段音乐
+# [POST-PROD] [POST-PROD] 
+# 🎨 [Stage 4] 多版本组装 - HyperFrames 集成
+# [POST-PROD] [POST-PROD]    生成版本: raw...
+# Subtest: 旧vendor后期引擎：成功任务黑屏静音按实际片长生成工程，原声标志保留，诚实声明尚未渲染MP4
+ok 26 - 旧vendor后期引擎：成功任务黑屏静音按实际片长生成工程，原声标志保留，诚实声明尚未渲染MP4
+  ---
+  duration_ms: 165.416125
+  type: 'test'
+  ...
+# [POST-PROD] [POST-PROD] ✅ 版本组装完成: 1 个版本
+# [POST-PROD] [POST-PROD] 
+# [Stage 5] 实际工程文件与引用
+# [POST-PROD] [POST-PROD] 工程文件检查: 完成 (0 问题)
+# [POST-PROD] [POST-PROD] 
+# 🏁 后期制作完成: 8ms | 1 版本
+# [POST-PROD] [POST-PROD] 🎬 PostProductionEngine 启动 | 后期制作
+# [POST-PROD] [POST-PROD]    版本: raw
+# [POST-PROD] [POST-PROD]    字幕: ✅ | 音乐: ✅ | 弹幕: ❌
+# [POST-PROD] [POST-PROD] 
+# 🎬 [Stage 1] 字幕生成 - 身份介绍式字幕
+# [POST-PROD] [POST-PROD] ✅ 字幕生成完成: 0 条字幕
+# [POST-PROD] [POST-PROD] 
+# 🎵 [Stage 2] 音乐匹配 - 无版权音乐库
+# [POST-PROD] [POST-PROD] ✅ 音乐匹配完成: 0 段音乐
+# [POST-PROD] [POST-PROD] 
+# 🎨 [Stage 4] 多版本组装 - HyperFrames 集成
+# [POST-PROD] [POST-PROD]    生成版本: raw...
+# [POST-PROD] [POST-PROD] ✅ 版本组装完成: 1 个版本
+# [POST-PROD] [POST-PROD] 
+# [Stage 5] 实际工程文件与引用
+# [POST-PROD] [POST-PROD] 工程文件检查: 完成 (0 问题)
+# [POST-PROD] [POST-PROD] 
+# 🏁 后期制作完成: 7ms | 1 版本
+# [POST-PROD] [POST-PROD] 🎬 PostProductionEngine 启动 | 后期制作
+# [POST-PROD] [POST-PROD]    版本: raw
+# [POST-PROD] [POST-PROD]    字幕: ✅ | 音乐: ✅ | 弹幕: ❌
+# [POST-PROD] [POST-PROD] 
+# 🎬 [Stage 1] 字幕生成 - 身份介绍式字幕
+# [POST-PROD] [POST-PROD] ✅ 字幕生成完成: 0 条字幕
+# [POST-PROD] [POST-PROD] 
+# 🎵 [Stage 2] 音乐匹配 - 无版权音乐库
+# [POST-PROD] [POST-PROD] ✅ 音乐匹配完成: 0 段音乐
+# [POST-PROD] [POST-PROD] 
+# 🎨 [Stage 4] 多版本组装 - HyperFrames 集成
+# [POST-PROD] [POST-PROD]    生成版本: raw...
+# Subtest: vendor已持久来源：同一成功任务当前字节不变可以复放，既有绑定保持
+ok 27 - vendor已持久来源：同一成功任务当前字节不变可以复放，既有绑定保持
+  ---
+  duration_ms: 169.318875
+  type: 'test'
+  ...
+# [POST-PROD] [POST-PROD] ✅ 版本组装完成: 1 个版本
+# [POST-PROD] [POST-PROD] 
+# [Stage 5] 实际工程文件与引用
+# [POST-PROD] [POST-PROD] 工程文件检查: 完成 (0 问题)
+# [POST-PROD] [POST-PROD] 
+# 🏁 后期制作完成: 7ms | 1 版本
+# [POST-PROD] [POST-PROD] 🎬 PostProductionEngine 启动 | 后期制作
+# [POST-PROD] [POST-PROD]    版本: raw
+# [POST-PROD] [POST-PROD]    字幕: ✅ | 音乐: ✅ | 弹幕: ❌
+# [POST-PROD] [POST-PROD] ❌ 后期制作失败: POST_RENDER_CURRENT_BYTES_MISMATCH: S1
+# [POST-PROD] [POST-PROD] 🎬 PostProductionEngine 启动 | 后期制作
+# [POST-PROD] [POST-PROD]    版本: raw
+# [POST-PROD] [POST-PROD]    字幕: ✅ | 音乐: ✅ | 弹幕: ❌
+# [POST-PROD] [POST-PROD] 
+# 🎬 [Stage 1] 字幕生成 - 身份介绍式字幕
+# [POST-PROD] [POST-PROD] ✅ 字幕生成完成: 0 条字幕
+# [POST-PROD] [POST-PROD] 
+# 🎵 [Stage 2] 音乐匹配 - 无版权音乐库
+# [POST-PROD] [POST-PROD] ✅ 音乐匹配完成: 0 段音乐
+# [POST-PROD] [POST-PROD] 
+# 🎨 [Stage 4] 多版本组装 - HyperFrames 集成
+# [POST-PROD] [POST-PROD]    生成版本: raw...
+# Subtest: vendor已持久来源：同一路径换成有效同画布视频必须失败，旧任务字节绑定不能覆写
+ok 28 - vendor已持久来源：同一路径换成有效同画布视频必须失败，旧任务字节绑定不能覆写
+  ---
+  duration_ms: 164.56075
+  type: 'test'
+  ...
+# [POST-PROD] [POST-PROD] ✅ 版本组装完成: 1 个版本
+# [POST-PROD] [POST-PROD] 
+# [Stage 5] 实际工程文件与引用
+# [POST-PROD] [POST-PROD] 工程文件检查: 完成 (0 问题)
+# [POST-PROD] [POST-PROD] 
+# 🏁 后期制作完成: 7ms | 1 版本
+# [POST-PROD] [POST-PROD] 🎬 PostProductionEngine 启动 | 后期制作
+# [POST-PROD] [POST-PROD]    版本: raw
+# [POST-PROD] [POST-PROD]    字幕: ✅ | 音乐: ✅ | 弹幕: ❌
+# [POST-PROD] [POST-PROD] ❌ 后期制作失败: POST_RENDER_CURRENT_BYTES_MISMATCH: S1
+# [POST-PROD] [POST-PROD] 🎬 PostProductionEngine 启动 | 后期制作
+# [POST-PROD] [POST-PROD]    版本: raw
+# [POST-PROD] [POST-PROD]    字幕: ✅ | 音乐: ✅ | 弹幕: ❌
+# [POST-PROD] [POST-PROD] 
+# 🎬 [Stage 1] 字幕生成 - 身份介绍式字幕
+# [POST-PROD] [POST-PROD] ✅ 字幕生成完成: 0 条字幕
+# [POST-PROD] [POST-PROD] 
+# 🎵 [Stage 2] 音乐匹配 - 无版权音乐库
+# [POST-PROD] [POST-PROD] ✅ 音乐匹配完成: 0 段音乐
+# [POST-PROD] [POST-PROD] 
+# 🎨 [Stage 4] 多版本组装 - HyperFrames 集成
+# [POST-PROD] [POST-PROD]    生成版本: raw...
+# Subtest: vendor已持久来源：旧任务号不能换成另一个成功任务冒用同一文件
+ok 29 - vendor已持久来源：旧任务号不能换成另一个成功任务冒用同一文件
+  ---
+  duration_ms: 153.541542
+  type: 'test'
+  ...
+# [POST-PROD] [POST-PROD] ✅ 版本组装完成: 1 个版本
+# [POST-PROD] [POST-PROD] 
+# [Stage 5] 实际工程文件与引用
+# [POST-PROD] [POST-PROD] 工程文件检查: 完成 (0 问题)
+# [POST-PROD] [POST-PROD] 
+# 🏁 后期制作完成: 7ms | 1 版本
+# [POST-PROD] [POST-PROD] 🎬 PostProductionEngine 启动 | 后期制作
+# [POST-PROD] [POST-PROD]    版本: raw
+# [POST-PROD] [POST-PROD]    字幕: ✅ | 音乐: ✅ | 弹幕: ❌
+# [POST-PROD] [POST-PROD] ❌ 后期制作失败: POST_RENDER_CURRENT_BYTES_MISMATCH: S1
+# [POST-PROD] [POST-PROD] 🎬 PostProductionEngine 启动 | 后期制作
+# [POST-PROD] [POST-PROD]    版本: raw
+# [POST-PROD] [POST-PROD]    字幕: ✅ | 音乐: ✅ | 弹幕: ❌
+# [POST-PROD] [POST-PROD] ❌ 后期制作失败: POST_RENDER_CURRENT_BYTES_MISMATCH: S1
+# [POST-PROD] [POST-PROD] 🎬 PostProductionEngine 启动 | 后期制作
+# [POST-PROD] [POST-PROD]    版本: raw
+# [POST-PROD] [POST-PROD]    字幕: ✅ | 音乐: ✅ | 弹幕: ❌
+# [POST-PROD] [POST-PROD] ❌ 后期制作失败: POST_RENDER_CURRENT_BYTES_MISMATCH: S1
+# [POST-PROD] [POST-PROD] 🎬 PostProductionEngine 启动 | 后期制作
+# [POST-PROD] [POST-PROD]    版本: raw
+# [POST-PROD] [POST-PROD]    字幕: ✅ | 音乐: ✅ | 弹幕: ❌
+# [POST-PROD] [POST-PROD] ❌ 后期制作失败: POST_RENDER_CURRENT_BYTES_MISMATCH: S1
+# [POST-PROD] [POST-PROD] 🎬 PostProductionEngine 启动 | 后期制作
+# [POST-PROD] [POST-PROD]    版本: raw
+# [POST-PROD] [POST-PROD]    字幕: ✅ | 音乐: ✅ | 弹幕: ❌
+# [POST-PROD] [POST-PROD] ❌ 后期制作失败: POST_RENDER_CURRENT_BYTES_MISMATCH: S1
+# [POST-PROD] [POST-PROD] 🎬 PostProductionEngine 启动 | 后期制作
+# [POST-PROD] [POST-PROD]    版本: raw
+# [POST-PROD] [POST-PROD]    字幕: ✅ | 音乐: ✅ | 弹幕: ❌
+# [POST-PROD] [POST-PROD] ❌ 后期制作失败: POST_RENDER_CURRENT_BYTES_MISMATCH: S1
+# [POST-PROD] [POST-PROD] 🎬 PostProductionEngine 启动 | 后期制作
+# [POST-PROD] [POST-PROD]    版本: raw
+# [POST-PROD] [POST-PROD]    字幕: ✅ | 音乐: ✅ | 弹幕: ❌
+# [POST-PROD] [POST-PROD] ❌ 后期制作失败: POST_RENDER_CURRENT_BYTES_MISMATCH: S1
+# [POST-PROD] [POST-PROD] 🎬 PostProductionEngine 启动 | 后期制作
+# [POST-PROD] [POST-PROD]    版本: standard, clean, subtitled, raw
+# [POST-PROD] [POST-PROD]    字幕: ✅ | 音乐: ✅ | 弹幕: ❌
+# [POST-PROD] [POST-PROD] ❌ 后期制作失败: POST_RENDER_PROVIDER_SUCCESS_REQUIRED: S1
+# [POST-PROD] [POST-PROD] 🎬 PostProductionEngine 启动 | 后期制作
+# [POST-PROD] [POST-PROD]    版本: standard, clean, subtitled, raw
+# [POST-PROD] [POST-PROD]    字幕: ✅ | 音乐: ✅ | 弹幕: ❌
+# [POST-PROD] [POST-PROD] ❌ 后期制作失败: POST_RENDER_PROVIDER_SUCCESS_REQUIRED: S1
+# [POST-PROD] [POST-PROD] 🎬 PostProductionEngine 启动 | 后期制作
+# [POST-PROD] [POST-PROD]    版本: standard, clean, subtitled, raw
+# [POST-PROD] [POST-PROD]    字幕: ✅ | 音乐: ✅ | 弹幕: ❌
+# [POST-PROD] [POST-PROD] ❌ 后期制作失败: POST_RENDER_PROVIDER_SUCCESS_REQUIRED: S1
+# [POST-PROD] [POST-PROD] 🎬 PostProductionEngine 启动 | 后期制作
+# [POST-PROD] [POST-PROD]    版本: standard, clean, subtitled, raw
+# [POST-PROD] [POST-PROD]    字幕: ✅ | 音乐: ✅ | 弹幕: ❌
+# [POST-PROD] [POST-PROD] ❌ 后期制作失败: POST_RENDER_PROVIDER_SUCCESS_REQUIRED: S1
+# ffmpeg version 6.0 Copyright (c) 2000-2023 the FFmpeg developers
+#   built with Apple clang version 13.1.6 (clang-1316.0.21.2.5)
+#   configuration: --prefix=/Volumes/tempdisk/sw --extra-cflags=-fno-stack-check --arch=arm64 --cc=/usr/bin/clang --enable-gpl --enable-libvmaf --enable-libbluray --enable-libopenjpeg --enable-libopus --enable-libmp3lame --enable-libx264 --enable-libx265 --enable-libvpx --enable-libwebp --enable-libass --enable-libfreetype --enable-fontconfig --enable-libtheora --enable-libvorbis --enable-libsnappy --enable-libaom --enable-libvidstab --enable-libzimg --enable-libsvtav1 --enable-libkvazaar --enable-version3 --pkg-config-flags=--static --enable-ffplay --enable-postproc --enable-nonfree --enable-neon --enable-runtime-cpudetect --disable-indev=qtkit --disable-indev=x11grab_xcb
+#   libavutil      58.  2.100 / 58.  2.100
+#   libavcodec     60.  3.100 / 60.  3.100
+#   libavformat    60.  3.100 / 60.  3.100
+#   libavdevice    60.  1.100 / 60.  1.100
+#   libavfilter     9.  3.100 /  9.  3.100
+#   libswscale      7.  1.100 /  7.  1.100
+#   libswresample   4. 10.100 /  4. 10.100
+#   libpostproc    57.  1.100 / 57.  1.100
+# Input \#0, mov,mp4,m4a,3gp,3g2,mj2, from '/var/folders/dj/mkh6fwbd4mb6ycp933xfty4h0000gn/T/growth 正式后期 中文 空格-q2xGJF/work/clips/OFFLINE-P1/S1.mp4':
+#   Metadata:
+#     major_brand     : isom
+#     minor_version   : 512
+#     compatible_brands: isomiso2avc1mp41
+#     encoder         : Lavf60.3.100
+#   Duration: 00:00:01.12, start: 0.000000, bitrate: 12 kb/s
+#   Stream \#0:0[0x1](und): Video: h264 (Constrained Baseline) (avc1 / 0x31637661), yuv420p(progressive), 64x96 [SAR 1:1 DAR 2:3], 5 kb/s, 17 fps, 17 tbr, 17408 tbn (default)
+#     Metadata:
+#       handler_name    : VideoHandler
+#       vendor_id       : [0][0][0][0]
+#       encoder         : Lavc60.3.100 libx264
+# Stream mapping:
+#   Stream \#0:0 -> \#0:0 (h264 (native) -> h264 (libx264))
+# Press [q] to stop, [?] for help
+# [libx264 @ 0x137f098d0] using SAR=1/1
+# [libx264 @ 0x137f098d0] using cpu capabilities: ARMv8 NEON
+# [libx264 @ 0x137f098d0] profile High, level 1.0, 4:2:0, 8-bit
+# [libx264 @ 0x137f098d0] 264 - core 164 r3075 66a5bc1 - H.264/MPEG-4 AVC codec - Copyleft 2003-2021 - http://www.videolan.org/x264.html - options: cabac=1 ref=2 deblock=1:0:0 analyse=0x3:0x113 me=hex subme=6 psy=1 psy_rd=1.00:0.00 mixed_ref=1 me_range=16 chroma_me=1 trellis=1 8x8dct=1 cqm=0 deadzone=21,11 fast_pskip=1 chroma_qp_offset=-2 threads=3 lookahead_threads=1 sliced_threads=0 nr=0 decimate=1 interlaced=0 bluray_compat=0 constrained_intra=0 bframes=3 b_pyramid=2 b_adapt=1 b_bias=0 direct=1 weightb=1 open_gop=0 weightp=1 keyint=250 keyint_min=17 scenecut=40 intra_refresh=0 rc_lookahead=30 rc=crf mbtree=1 crf=23.0 qcomp=0.60 qpmin=0 qpmax=69 qpstep=4 ip_ratio=1.40 aq=1:1.00
+# Output \#0, mp4, to '/var/folders/dj/mkh6fwbd4mb6ycp933xfty4h0000gn/T/growth 正式后期 中文 空格-q2xGJF/vendor-mp4/.post-source-8alRmG/S1.titled.mp4':
+#   Metadata:
+#     major_brand     : isom
+#     minor_version   : 512
+#     compatible_brands: isomiso2avc1mp41
+#     encoder         : Lavf60.3.100
+#   Stream \#0:0(und): Video: h264 (avc1 / 0x31637661), yuv420p(progressive), 64x96 [SAR 1:1 DAR 2:3], q=2-31, 17 fps, 17408 tbn (default)
+#     Metadata:
+#       handler_name    : VideoHandler
+#       vendor_id       : [0][0][0][0]
+#       encoder         : Lavc60.3.100 libx264
+#     Side data:
+#       cpb: bitrate max/min/avg: 0/0/0 buffer size: 0 vbv_delay: N/A
+# frame=    0 fps=0.0 q=0.0 size=       0kB time=-577014:32:22.77 bitrate=  -0.0kbits/s speed=N/A    
+# frame=   19 fps=0.0 q=-1.0 Lsize=       3kB time=00:00:00.94 bitrate=  24.3kbits/s speed= 219x    
+# video:2kB audio:0kB subtitle:0kB other streams:0kB global headers:0kB muxing overhead: 62.649231%
+# [libx264 @ 0x137f098d0] frame I:1     Avg QP:19.12  size:   806
+# [libx264 @ 0x137f098d0] frame P:5     Avg QP:10.73  size:    20
+# [libx264 @ 0x137f098d0] frame B:13    Avg QP:11.69  size:    12
+# [libx264 @ 0x137f098d0] consecutive B-frames:  5.3% 10.5%  0.0% 84.2%
+# [libx264 @ 0x137f098d0] mb I  I16..4: 20.8% 25.0% 54.2%
+# [libx264 @ 0x137f098d0] mb P  I16..4:  0.0%  0.0%  0.0%  P16..4:  1.7%  0.0%  0.0%  0.0%  0.0%    skip:98.3%
+# [libx264 @ 0x137f098d0] mb B  I16..4:  0.0%  0.0%  0.0%  B16..8:  0.0%  0.0%  0.0%  direct: 0.0%  skip:100.0%
+# [libx264 @ 0x137f098d0] 8x8 transform intra:25.0% inter:0.0%
+# [libx264 @ 0x137f098d0] coded y,uvDC,uvAC intra: 33.3% 16.7% 16.7% inter: 0.2% 0.0% 0.0%
+# [libx264 @ 0x137f098d0] i16 v,h,dc,p: 20%  0% 80%  0%
+# [libx264 @ 0x137f098d0] i8 v,h,dc,ddl,ddr,vr,hd,vl,hu: 58% 17% 25%  0%  0%  0%  0%  0%  0%
+# [libx264 @ 0x137f098d0] i4 v,h,dc,ddl,ddr,vr,hd,vl,hu: 58%  6% 18%  3%  4%  3%  3%  2%  3%
+# [libx264 @ 0x137f098d0] i8c dc,h,v,p: 88%  8%  4%  0%
+# [libx264 @ 0x137f098d0] Weighted P-Frames: Y:0.0% UV:0.0%
+# [libx264 @ 0x137f098d0] kb/s:7.66
+# Subtest: vendor已持久来源：显式空、残缺及路径、大小、镜号不符绑定不得降级为首次接受
+ok 30 - vendor已持久来源：显式空、残缺及路径、大小、镜号不符绑定不得降级为首次接受
+  ---
+  duration_ms: 154.446375
+  type: 'test'
+  ...
+# Subtest: 旧vendor后期真实供应商失败关闭：provider-failed
+ok 31 - 旧vendor后期真实供应商失败关闭：provider-failed
+  ---
+  duration_ms: 143.155584
+  type: 'test'
+  ...
+# Subtest: 旧vendor后期真实供应商失败关闭：running
+ok 32 - 旧vendor后期真实供应商失败关闭：running
+  ---
+  duration_ms: 147.915417
+  type: 'test'
+  ...
+# Subtest: 旧vendor后期真实供应商失败关闭：simulated
+ok 33 - 旧vendor后期真实供应商失败关闭：simulated
+  ---
+  duration_ms: 148.848958
+  type: 'test'
+  ...
+# Subtest: 旧vendor后期真实供应商失败关闭：missing-task
+ok 34 - 旧vendor后期真实供应商失败关闭：missing-task
+  ---
+  duration_ms: 149.7815
+  type: 'test'
+  ...
+# Subtest: 旧vendor本地合成：静音低分辨率镜头实作规范化与MP4导出，显式标题另存原片只读
+ok 35 - 旧vendor本地合成：静音低分辨率镜头实作规范化与MP4导出，显式标题另存原片只读
+  ---
+  duration_ms: 389.341209
+  type: 'test'
+  ...
+# Subtest: 旧vendor本地合成不吞缺片/解码故障或提交失败，也不据名义30秒拒绝真实素材
+ok 36 - 旧vendor本地合成不吞缺片/解码故障或提交失败，也不据名义30秒拒绝真实素材
+  ---
+  duration_ms: 148.603167
+  type: 'test'
+  ...
+# Subtest: 真实宿主post-production入口服务任务完整才接收，HTML工程报告不能冒充MP4
+ok 37 - 真实宿主post-production入口服务任务完整才接收，HTML工程报告不能冒充MP4
+  ---
+  duration_ms: 281.833709
+  type: 'test'
+  ...
+# Subtest: 真实宿主持久来源：同summary同任务字节保持可复放，新输出目录也沿用原接受
+ok 38 - 真实宿主持久来源：同summary同任务字节保持可复放，新输出目录也沿用原接受
+  ---
+  duration_ms: 303.155291
+  type: 'test'
+  ...
+# Subtest: 真实宿主持久来源：同summary同任务替换有效视频不能重新铸造接受，旧报告与新目录保持
+ok 39 - 真实宿主持久来源：同summary同任务替换有效视频不能重新铸造接受，旧报告与新目录保持
+  ---
+  duration_ms: 351.849416
+  type: 'test'
+  ...
+# Subtest: 真实宿主持久来源：残缺或篡改已有回执明确失败，不覆盖旧报告或刷新为当前字节
+ok 40 - 真实宿主持久来源：残缺或篡改已有回执明确失败，不覆盖旧报告或刷新为当前字节
+  ---
+  duration_ms: 574.047375
+  type: 'test'
+  ...
+# Subtest: 真实宿主持久来源：已有历史post-report也要对当前字节，不能在固定回执缺失时重新铸造
+ok 41 - 真实宿主持久来源：已有历史post-report也要对当前字节，不能在固定回执缺失时重新铸造
+  ---
+  duration_ms: 298.109708
+  type: 'test'
+  ...
+# Subtest: 真实宿主原制作镜号重复或缺项不能与完成任务数组按数量匹配
+ok 42 - 真实宿主原制作镜号重复或缺项不能与完成任务数组按数量匹配
+  ---
+  duration_ms: 414.27075
+  type: 'test'
+  ...
+# Subtest: 2.5原图模式和no-resume不重开已成功源片：旧品质记录/原声/原prompt不变，0新任务账本
+ok 43 - 2.5原图模式和no-resume不重开已成功源片：旧品质记录/原声/原prompt不变，0新任务账本
+  ---
+  duration_ms: 1554.16925
+  type: 'test'
+  ...
+# Subtest: 真实CLI冷启动先恢复已知ACK原task，完整请求cine/spec/plates/material也只GET原任务和原下载，0付费准备
+ok 44 - 真实CLI冷启动先恢复已知ACK原task，完整请求cine/spec/plates/material也只GET原任务和原下载，0付费准备
+  ---
+  duration_ms: 1609.616958
+  type: 'test'
+  ...
+# Subtest: 真实CLI已dispatch但无ACK时在前期/角色门之前停止，0新POST、0模型准备，不把未知当失败重投
+ok 45 - 真实CLI已dispatch但无ACK时在前期/角色门之前停止，0新POST、0模型准备，不把未知当失败重投
+  ---
+  duration_ms: 415.658583
+  type: 'test'
+  ...
+1..45
+# tests 45
+# suites 0
+# pass 45
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 79882.918042
+
+
+exit_code=0 signal=none error=none
+assertion_validation={"ok":true,"errors":[],"testSummary":{"total":45,"passed":45,"failed":0,"cancelled":0,"skipped":0,"todo":0}}

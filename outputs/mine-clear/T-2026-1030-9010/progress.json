@@ -1,7 +1,7 @@
 {
   "schemaVersion": "workloom.video-pipeline-pressure-progress/v1",
   "taskId": "T-2026-1030-9010",
-  "updatedAt": "2026-10-31T01:00:00+08:00",
+  "updatedAt": "2026-10-31T10:03:00+08:00",
   "baseline": {
     "commit": "463ae7ad844de31674b94e73679dafaf0f5dcac5",
     "branch": "task/T-2026-1030-9010",
@@ -39,34 +39,65 @@
     "M01 has passed G1-G5 in real pre-render runs; G4 and G5 blocker fixes are committed",
     "Prompt/PRD normalization now covers no-person microactions, abstract scene boundaries, decimal duration conservation, subtitle-vs-screen-text, explicit audience and key-message compaction",
     "Producer review malformed-JSON retry and Phase3 positional shot-id recovery are covered by tests"
+    ,"Phase3 now distinguishes stale inherited degraded booleans from explicit field/error degradation"
+    ,"Explicit customer audience is bound from original intent and G5 no-portrait applicability is deterministic"
+    ,"G6/G7 prompt normalization now covers no dialogue, no people, abstract-only scenes, no music/BGM, portrait N/A and exact total duration"
+    ,"Latest M01 runs reached G4/G5 and produced six fused prompts; remaining blocker moved to production PRD schema item limits"
+    ,"Execution PRD array compaction preserves semantic text while respecting native item limits"
+    ,"Abstract marketing prompts are rebuilt from G1 authority into 30-field shots with 2470-3000 character bodies"
+    ,"Real isolated G6 review of the normalized archived report passed at 87 and 88 in separate replays"
+    ,"G4 marketing defaults now enforce commercial type, 30fps/4K, no portrait deliverable, canonical License/URL and generic screen-text authority"
+    ,"G7 preproduction handoff now uses approved contract durations and includes complete shot cards plus full prompt bodies"
+    ,"Real isolated G7 review of the rebuilt archived handoff passed at 89",
+    "deferRender now skips vendor postproduction so G7 preproduction cannot fail on absent rendered bytes",
+    "Optional brand conflicts with an explicit product query are isolated before semantic review",
+    "CommonJS vendor scope now loads the ESM postproduction pipeline through an explicit .mjs path",
+    "All 23 MCD cards pass repair-role assertions at a696afd",
+    "Package tests pass: 127 files / 2247 tests",
+    "Server video tests pass: 35 files / 1045 tests, 65 explicit skips",
+    "Node stress and evidence assertions pass: 161/161",
+    "Full-chain failure/regression suite passes: 45/45",
+    "TypeScript checks pass for pipeline-control, video-pipeline, video-studio and apps/server",
+    "Product, capability, bundle governance and 140-target secret scans pass",
+    "Downstream scan fixed workloom@10d6740 and WorkLoom-growth@d19d272; hyperreality-system is not-applicable; isolated copies were not modified"
   ],
   "inProgress": [
     "Complete fused control-plane adapters and managed cutover after the 40-case business baseline is green",
-    "Re-run M01 from current HEAD until the complete G1-G7 chain produces a normalized handoff",
+    "Re-run M01 after model-account top-up; current run passed G1-G4 and stopped before G6 on provider 402",
     "Complete the remaining marketing and narrative positive matrix",
-    "Propagate confirmed root causes to existing Workroom/AI-video consumers"
+    "Run MCD independent acceptance and obtain final GitHub main receipt"
   ],
   "pending": [
     "PIPE-004/005: add explicit migration/qualification PG conformance cases",
     "PIPE-006/007/008: complete approval inbox and broader command conformance cases",
     "PIPE-009 through PIPE-015: adapters, UI and managed route cutover by gated batches",
-    "PIPE-016: 40-case rerun, MCD gate and independent acceptance",
+    "PIPE-016: 40-case rerun after positive model execution unblocks",
     "Run 10 marketing and 10 narrative positive cases through pre-render prompt gates",
     "Push the task branch, open PR, complete candidate CI and merge through the repository delivery path with GitHub main SHA read-back",
-    "Run MCD repair/independent-acceptance assertion roles and close dashboard gate",
+    "Run MCD independent-acceptance assertion roles and close dashboard gate",
     "Complete independent acceptance, downstream fanout and final main receipt",
     "Final coverage, evidence grades, delivery report and self-check"
   ],
+  "blockers": [
+    {
+      "id": "LLM_BALANCE_402",
+      "kind": "human-only-billing",
+      "observedAt": "2026-10-31T07:42:10+08:00",
+      "evidence": "work/stress/T-2026-1030-9010/cases/M01/pipeline.log",
+      "message": "DeepSeek returned HTTP 402 Insufficient Balance during G6 prompt-fusion. No alternate model credential is configured; this is the only remaining blocker to the 20 positive cases.",
+      "notBypassed": true
+    }
+  ],
   "currentEvidence": {
     "firstCommit": "53d4d1b",
-    "currentHead": "9adb2231400fb4072bb7c4c1d76d144432f7c186",
+    "currentHead": "a696afd",
     "githubMainBaseline": "463ae7ad844de31674b94e73679dafaf0f5dcac5",
     "marketingFirstG1Pass": "work/stress/T-2026-1030-9010/PILOT-MARKETING-HA-004",
     "latestMarketingPilot": "work/stress/T-2026-1030-9010/cases/M01",
-    "latestMarketingBestG1": 96,
-    "latestMarketingBestG2": 94,
+    "latestMarketingBestG1": 98,
+    "latestMarketingBestG2": 95,
     "latestMarketingBestG3": 91,
-    "latestMarketingBestG4": 86,
+    "latestMarketingBestG4": 87,
     "latestNarrativeGateProof": "work/stress/T-2026-1030-9010/PILOT-NARRATIVE-008",
     "bookedSourceFixture": "work/stress/T-2026-1030-9010/source-fixtures/M01.json",
     "bookedSourceRepository": "home-assistant/core",
@@ -77,8 +108,8 @@
     "architectureFusion": "/Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/outputs/WorkLoom-video-edit-pengmanager-pipeline-architecture-fusion.md",
     "implementationPlan": "/Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/outputs/WorkLoom-video-pipeline-control-plane-implementation-plan.md",
     "implementationBacklog": "/Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/outputs/WorkLoom-video-pipeline-implementation-backlog.json",
-    "nextStep": "Run M01 after Phase3 shot-id recovery; then complete 20 positive cases and repair remaining blockers",
-    "lastObservedFailure": "M01 completed six prompt-fusion calls but Phase3 rejected the aggregate because the vendor wrapper omitted stable shot ids; bridge recovered by order-preserving ids and fail-closed prompt/degraded checks"
+    "nextStep": "Top up the configured model account, rerun --ids M01 after archiving the 402 attempt, then continue M02-M10/N01-N10 and finish independent acceptance.",
+    "lastObservedFailure": "HTTP 402 Insufficient Balance at G6 prompt-fusion after G1 92 / G2 95 / G3 91 / G4 87; no render was submitted."
   },
   "safety": {
     "renderSubmissionAllowed": false,

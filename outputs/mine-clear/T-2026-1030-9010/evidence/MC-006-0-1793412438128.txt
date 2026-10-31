@@ -1,0 +1,20 @@
+TAP version 13
+# Subtest: an absent optional workbench library is not reported as a path-jail failure
+ok 1 - an absent optional workbench library is not reported as a path-jail failure
+  ---
+  duration_ms: 385.227125
+  type: 'test'
+  ...
+1..1
+# tests 1
+# suites 0
+# pass 1
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 423.14275
+
+
+exit_code=0 signal=none error=none
+assertion_validation={"ok":true,"errors":[],"testSummary":{"total":1,"passed":1,"failed":0,"cancelled":0,"skipped":0,"todo":0}}

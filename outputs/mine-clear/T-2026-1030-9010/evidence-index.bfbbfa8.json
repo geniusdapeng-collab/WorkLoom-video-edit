@@ -1,0 +1,53 @@
+{
+  "schema": "workloom.evidence-index/v1",
+  "commit": "bfbbfa8016fb4cb8d94d6bb967e05b4a44fe6e2b",
+  "runs": [
+    {
+      "path": "runs/MC-006-0-1793345548743.json",
+      "sha256": "fe3014eaceb8cfec14a19be596d25ade227cca35712de729596aba08631b412e",
+      "commit": "bfbbfa8016fb4cb8d94d6bb967e05b4a44fe6e2b"
+    },
+    {
+      "path": "runs/MC-007-0-1793345549581.json",
+      "sha256": "2421a8ae3d8eaa468188a10ca6983465aa54f8afedc0bc29dccb8eecae210630",
+      "commit": "bfbbfa8016fb4cb8d94d6bb967e05b4a44fe6e2b"
+    },
+    {
+      "path": "runs/MC-007-1-1793345550408.json",
+      "sha256": "afa182ff979243c40a533aaeec372b9e4c9a2335c90595e71cc1453e8f3a867c",
+      "commit": "bfbbfa8016fb4cb8d94d6bb967e05b4a44fe6e2b"
+    }
+  ],
+  "artifacts": [
+    {
+      "path": "evidence/MC-006-0-1793345548743.txt",
+      "sha256": "9d3ff77750c849b45bd7a8cdf3682408c7089e1812e8e485fa5f216e96f1d072",
+      "commit": "bfbbfa8016fb4cb8d94d6bb967e05b4a44fe6e2b"
+    },
+    {
+      "path": "evidence/MC-006-0-1793345548743-node-tests.jsonl",
+      "sha256": "d50eed83830b50b9a37864bcd541b31b332dec8875cdc9859682f4edf8a9c89b",
+      "commit": "bfbbfa8016fb4cb8d94d6bb967e05b4a44fe6e2b"
+    },
+    {
+      "path": "evidence/MC-007-0-1793345549581.txt",
+      "sha256": "96636a5ec9c36b3971ade5eebd6619da4bbcce20e9f2c376633f333dc226a39f",
+      "commit": "bfbbfa8016fb4cb8d94d6bb967e05b4a44fe6e2b"
+    },
+    {
+      "path": "evidence/MC-007-0-1793345549581-node-tests.jsonl",
+      "sha256": "2cf17a634c78d2440a71b9af68353de1abf1908f95136a978ae2876e3ab04fa5",
+      "commit": "bfbbfa8016fb4cb8d94d6bb967e05b4a44fe6e2b"
+    },
+    {
+      "path": "evidence/MC-007-1-1793345550408.txt",
+      "sha256": "f0a12227d992374ea3f53bac160f8bf3a5d038665716006ef0ef3d86e6d35af8",
+      "commit": "bfbbfa8016fb4cb8d94d6bb967e05b4a44fe6e2b"
+    },
+    {
+      "path": "evidence/MC-007-1-1793345550408-node-tests.jsonl",
+      "sha256": "2cf17a634c78d2440a71b9af68353de1abf1908f95136a978ae2876e3ab04fa5",
+      "commit": "bfbbfa8016fb4cb8d94d6bb967e05b4a44fe6e2b"
+    }
+  ]
+}

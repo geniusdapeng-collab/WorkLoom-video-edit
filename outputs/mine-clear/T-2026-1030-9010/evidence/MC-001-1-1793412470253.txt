@@ -1,0 +1,44 @@
+TAP version 13
+# Subtest: narrative dry-run emits the exact host character contract before Studio
+ok 1 - narrative dry-run emits the exact host character contract before Studio
+  ---
+  duration_ms: 706.378584
+  type: 'test'
+  ...
+# Subtest: invalid explicit route fails closed instead of silently becoming auto
+ok 2 - invalid explicit route fails closed instead of silently becoming auto
+  ---
+  duration_ms: 231.281208
+  type: 'test'
+  ...
+# Subtest: invalid production profile values fail before routing or rendering
+ok 3 - invalid production profile values fail before routing or rendering
+  ---
+  duration_ms: 902.531167
+  type: 'test'
+  ...
+# Subtest: empty, overlong and control-character intents fail before vendor startup
+ok 4 - empty, overlong and control-character intents fail before vendor startup
+  ---
+  duration_ms: 681.659375
+  type: 'test'
+  ...
+# Subtest: unsafe project IDs, unknown platforms, duplicate arguments and invalid modes fail closed
+ok 5 - unsafe project IDs, unknown platforms, duplicate arguments and invalid modes fail closed
+  ---
+  duration_ms: 1366.749833
+  type: 'test'
+  ...
+1..5
+# tests 5
+# suites 0
+# pass 5
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 3928.504625
+
+
+exit_code=0 signal=none error=none
+assertion_validation={"ok":true,"errors":[],"testSummary":{"total":5,"passed":5,"failed":0,"cancelled":0,"skipped":0,"todo":0}}

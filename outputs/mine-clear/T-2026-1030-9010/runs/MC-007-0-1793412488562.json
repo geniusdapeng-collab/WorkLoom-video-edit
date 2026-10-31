@@ -1,0 +1,77 @@
+{
+  "schema": "workloom.evidence-run/v1",
+  "id": "MC-007-0-1793412488562",
+  "command": "node --test --test-name-pattern='revisionOf|explicit runner works' scripts/delivery/evidence-controls.test.mjs",
+  "exec": {
+    "file": "/Users/mac/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node",
+    "args": [
+      "--test-reporter=/Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/delivery/node-test-reporter.mjs",
+      "--test-reporter-destination=/Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/outputs/mine-clear/T-2026-1030-9010/evidence/MC-007-0-1793412488562-node-tests.jsonl",
+      "--test-reporter=tap",
+      "--test-reporter-destination=stdout",
+      "--test",
+      "--test-name-pattern=revisionOf|explicit runner works",
+      "scripts/delivery/evidence-controls.test.mjs"
+    ]
+  },
+  "requested_exec": {
+    "file": "node",
+    "args": [
+      "--test",
+      "--test-name-pattern=revisionOf|explicit runner works",
+      "scripts/delivery/evidence-controls.test.mjs"
+    ]
+  },
+  "node_observer": {
+    "schema": "workloom.node-test-observer/v1",
+    "reporter_path": "/Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/delivery/node-test-reporter.mjs",
+    "reporter_sha256": "286448a4dee571759fc1703564477d27bf5319bcb05ff66db2186deda60bc78f",
+    "destination": "/Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/outputs/mine-clear/T-2026-1030-9010/evidence/MC-007-0-1793412488562-node-tests.jsonl",
+    "summary": {
+      "path": "evidence/MC-007-0-1793412488562-node-tests.jsonl",
+      "sha256": "2cf17a634c78d2440a71b9af68353de1abf1908f95136a978ae2876e3ab04fa5",
+      "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
+    }
+  },
+  "node_executable": {
+    "path": "/Users/mac/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node",
+    "sha256": "f359816dcf3277d522724f8c0fa2264a600b342e101bda7d4cb7496bc0368307"
+  },
+  "actor": "root-repair-2026-10-31",
+  "role": "repair",
+  "subject": {
+    "card_id": "MC-007",
+    "assertion_index": 0
+  },
+  "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7",
+  "working_tree_dirty": false,
+  "started_at": "2026-10-31T02:08:08.562Z",
+  "finished_at": "2026-10-31T02:08:10.421Z",
+  "exit_code": 0,
+  "signal": null,
+  "validation": {
+    "ok": true,
+    "errors": [],
+    "testSummary": {
+      "total": 2,
+      "passed": 2,
+      "failed": 0,
+      "cancelled": 0,
+      "skipped": 0,
+      "todo": 0
+    }
+  },
+  "result": "pass",
+  "outputs": [
+    {
+      "path": "evidence/MC-007-0-1793412488562.txt",
+      "sha256": "f000271e8712f94f02d0766a379166b7aed5772af1ab9b4014d40e1cbc5c246e",
+      "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
+    },
+    {
+      "path": "evidence/MC-007-0-1793412488562-node-tests.jsonl",
+      "sha256": "2cf17a634c78d2440a71b9af68353de1abf1908f95136a978ae2876e3ab04fa5",
+      "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7"
+    }
+  ]
+}

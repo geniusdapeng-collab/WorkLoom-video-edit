@@ -1,0 +1,141 @@
+TAP version 13
+# [pii] PII_SALT 未配置，使用 dev 占位盐（仅限开发/测试，生产必须注入 PII_SALT）
+# Subtest: narrative route bypasses vendor marketing copy while marketing keeps it
+ok 1 - narrative route bypasses vendor marketing copy while marketing keeps it
+  ---
+  duration_ms: 0.44025
+  type: 'test'
+  ...
+# Subtest: G3 permits protocol null but still blocks real placeholder leakage
+ok 2 - G3 permits protocol null but still blocks real placeholder leakage
+  ---
+  duration_ms: 0.243875
+  type: 'test'
+  ...
+# Subtest: G4 permits null in parseable contract JSON while keeping prose closed
+ok 3 - G4 permits null in parseable contract JSON while keeping prose closed
+  ---
+  duration_ms: 0.254375
+  type: 'test'
+  ...
+# Subtest: approved gate suggestions never request an unreviewed artifact rewrite
+ok 4 - approved gate suggestions never request an unreviewed artifact rewrite
+  ---
+  duration_ms: 0.318667
+  type: 'test'
+  ...
+# Subtest: marketing PRD strips external references and binds no-person delivery limits
+ok 5 - marketing PRD strips external references and binds no-person delivery limits
+  ---
+  duration_ms: 2.153917
+  type: 'test'
+  ...
+# Subtest: product scenes may use a fully reasoned no-prop visual system
+ok 6 - product scenes may use a fully reasoned no-prop visual system
+  ---
+  duration_ms: 0.086958
+  type: 'test'
+  ...
+# Subtest: scene and risk discovery receive three controlled attempts at the extended timeout
+ok 7 - scene and risk discovery receive three controlled attempts at the extended timeout
+  ---
+  duration_ms: 0.13525
+  type: 'test'
+  ...
+# Subtest: discovery timing reconciles the tolerated residual and removes out-of-range audience seconds
+ok 8 - discovery timing reconciles the tolerated residual and removes out-of-range audience seconds
+  ---
+  duration_ms: 0.234542
+  type: 'test'
+  ...
+# Subtest: discovery timing strips unsupported competitor claims from audience hypotheses
+ok 9 - discovery timing strips unsupported competitor claims from audience hypotheses
+  ---
+  duration_ms: 0.179791
+  type: 'test'
+  ...
+# Subtest: strict RiskAssessor projection removes only undeclared top-level fields
+ok 10 - strict RiskAssessor projection removes only undeclared top-level fields
+  ---
+  duration_ms: 0.148458
+  type: 'test'
+  ...
+# Subtest: RiskAssessor string overflow is compacted without dropping its content
+ok 11 - RiskAssessor string overflow is compacted without dropping its content
+  ---
+  duration_ms: 0.091291
+  type: 'test'
+  ...
+# Subtest: narrative PRD cannot invent a second cast member or conflicting delivery thresholds
+ok 12 - narrative PRD cannot invent a second cast member or conflicting delivery thresholds
+  ---
+  duration_ms: 0.480125
+  type: 'test'
+  ...
+# Subtest: creative theme strips people and unrequested film titles under the host contract
+ok 13 - creative theme strips people and unrequested film titles under the host contract
+  ---
+  duration_ms: 0.664667
+  type: 'test'
+  ...
+# Subtest: bounded source text accepts publishable pages above the former 24k limit without truncation
+ok 14 - bounded source text accepts publishable pages above the former 24k limit without truncation
+  ---
+  duration_ms: 0.714792
+  type: 'test'
+  ...
+# Subtest: marketing source retry classifies transient transport separately from policy failures
+ok 15 - marketing source retry classifies transient transport separately from policy failures
+  ---
+  duration_ms: 0.188
+  type: 'test'
+  ...
+# Subtest: booked GitHub source binds official URLs and both raw/text digests
+ok 16 - booked GitHub source binds official URLs and both raw/text digests
+  ---
+  duration_ms: 4.155791
+  type: 'test'
+  ...
+# Subtest: image angle claims are not sent as textual facts to support review
+ok 17 - image angle claims are not sent as textual facts to support review
+  ---
+  duration_ms: 0.08525
+  type: 'test'
+  ...
+# Subtest: empty marketing evidence stations do not request an impossible semantic review
+ok 18 - empty marketing evidence stations do not request an impossible semantic review
+  ---
+  duration_ms: 0.037208
+  type: 'test'
+  ...
+# Subtest: absolute marketing claims stay in raw response but are excluded from deliverable facts
+ok 19 - absolute marketing claims stay in raw response but are excluded from deliverable facts
+  ---
+  duration_ms: 0.475875
+  type: 'test'
+  ...
+# Subtest: marketing dossier cards never claim zero official evidence when source-bound claims exist
+ok 20 - marketing dossier cards never claim zero official evidence when source-bound claims exist
+  ---
+  duration_ms: 0.380958
+  type: 'test'
+  ...
+# Subtest: dossier normalization removes phantom source images and propagates customer redlines
+ok 21 - dossier normalization removes phantom source images and propagates customer redlines
+  ---
+  duration_ms: 0.186792
+  type: 'test'
+  ...
+1..21
+# tests 21
+# suites 0
+# pass 21
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 195.639875
+
+
+exit_code=0 signal=none error=none
+assertion_validation={"ok":true,"errors":[],"testSummary":{"total":21,"passed":21,"failed":0,"cancelled":0,"skipped":0,"todo":0}}

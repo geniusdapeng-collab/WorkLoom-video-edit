@@ -1,0 +1,69 @@
+TAP version 13
+# [pii] PII_SALT 未配置，使用 dev 占位盐（仅限开发/测试，生产必须注入 PII_SALT）
+# Subtest: narrative route bypasses vendor marketing copy while marketing keeps it
+ok 1 - narrative route bypasses vendor marketing copy while marketing keeps it
+  ---
+  duration_ms: 0.3745
+  type: 'test'
+  ...
+# Subtest: G3 permits protocol null but still blocks real placeholder leakage
+ok 2 - G3 permits protocol null but still blocks real placeholder leakage
+  ---
+  duration_ms: 0.19525
+  type: 'test'
+  ...
+# Subtest: G4 permits null in parseable contract JSON while keeping prose closed
+ok 3 - G4 permits null in parseable contract JSON while keeping prose closed
+  ---
+  duration_ms: 0.24625
+  type: 'test'
+  ...
+# Subtest: strict RiskAssessor projection removes only undeclared top-level fields
+ok 4 - strict RiskAssessor projection removes only undeclared top-level fields
+  ---
+  duration_ms: 0.377667
+  type: 'test'
+  ...
+# Subtest: narrative PRD cannot invent a second cast member or conflicting delivery thresholds
+ok 5 - narrative PRD cannot invent a second cast member or conflicting delivery thresholds
+  ---
+  duration_ms: 0.437375
+  type: 'test'
+  ...
+# Subtest: creative theme strips people and unrequested film titles under the host contract
+ok 6 - creative theme strips people and unrequested film titles under the host contract
+  ---
+  duration_ms: 0.479541
+  type: 'test'
+  ...
+# Subtest: bounded source text accepts publishable pages above the former 24k limit without truncation
+ok 7 - bounded source text accepts publishable pages above the former 24k limit without truncation
+  ---
+  duration_ms: 0.67875
+  type: 'test'
+  ...
+# Subtest: image angle claims are not sent as textual facts to support review
+ok 8 - image angle claims are not sent as textual facts to support review
+  ---
+  duration_ms: 0.084334
+  type: 'test'
+  ...
+# Subtest: marketing dossier cards never claim zero official evidence when source-bound claims exist
+ok 9 - marketing dossier cards never claim zero official evidence when source-bound claims exist
+  ---
+  duration_ms: 0.280334
+  type: 'test'
+  ...
+1..9
+# tests 9
+# suites 0
+# pass 9
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 260.92975
+
+
+exit_code=0 signal=none error=none
+assertion_validation={"ok":true,"errors":[],"testSummary":{"total":9,"passed":9,"failed":0,"cancelled":0,"skipped":0,"todo":0}}

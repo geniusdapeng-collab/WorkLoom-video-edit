@@ -1,0 +1,21 @@
+TAP version 13
+# [pii] PII_SALT 未配置，使用 dev 占位盐（仅限开发/测试，生产必须注入 PII_SALT）
+# Subtest: product scenes may use a fully reasoned no-prop visual system
+ok 1 - product scenes may use a fully reasoned no-prop visual system
+  ---
+  duration_ms: 0.722
+  type: 'test'
+  ...
+1..1
+# tests 1
+# suites 0
+# pass 1
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 270.493166
+
+
+exit_code=0 signal=none error=none
+assertion_validation={"ok":true,"errors":[],"testSummary":{"total":1,"passed":1,"failed":0,"cancelled":0,"skipped":0,"todo":0}}

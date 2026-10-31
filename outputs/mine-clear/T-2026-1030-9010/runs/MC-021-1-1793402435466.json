@@ -1,0 +1,38 @@
+{
+  "schema": "workloom.evidence-run/v1",
+  "id": "MC-021-1-1793402435466",
+  "command": "node_modules/.bin/vitest run packages/video-studio/src/studio.test.ts -t 'deferRender 只运行预生产'",
+  "exec": {
+    "file": "node_modules/.bin/vitest",
+    "args": [
+      "run",
+      "packages/video-studio/src/studio.test.ts",
+      "-t",
+      "deferRender 只运行预生产"
+    ]
+  },
+  "actor": "root-repair-2026-10-31",
+  "role": "repair",
+  "subject": {
+    "card_id": "MC-021",
+    "assertion_index": 1
+  },
+  "commit": "e04fad1f70098287a9f100ec0ba1581335e09792",
+  "working_tree_dirty": false,
+  "started_at": "2026-10-30T23:20:35.466Z",
+  "finished_at": "2026-10-30T23:20:36.103Z",
+  "exit_code": 0,
+  "signal": null,
+  "validation": {
+    "ok": true,
+    "errors": []
+  },
+  "result": "pass",
+  "outputs": [
+    {
+      "path": "evidence/MC-021-1-1793402435466.txt",
+      "sha256": "f577ae400e9718b768f59ef8aba173c53b0f32d15e123c8eb920c1e0fa9afb24",
+      "commit": "e04fad1f70098287a9f100ec0ba1581335e09792"
+    }
+  ]
+}

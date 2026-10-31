@@ -1,0 +1,81 @@
+{
+  "schema": "workloom.evidence-run/v1",
+  "id": "MC-008-0-1793347057840",
+  "command": "node --import tsx --test --test-name-pattern='creative theme' scripts/tools/data-pipeline-host-contract.node-test.mjs",
+  "exec": {
+    "file": "/Users/mac/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node",
+    "args": [
+      "--test-reporter=/Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/delivery/node-test-reporter.mjs",
+      "--test-reporter-destination=/Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/outputs/mine-clear/T-2026-1030-9010/evidence/MC-008-0-1793347057840-node-tests.jsonl",
+      "--test-reporter=tap",
+      "--test-reporter-destination=stdout",
+      "--import",
+      "tsx",
+      "--test",
+      "--test-name-pattern=creative theme",
+      "scripts/tools/data-pipeline-host-contract.node-test.mjs"
+    ]
+  },
+  "requested_exec": {
+    "file": "node",
+    "args": [
+      "--import",
+      "tsx",
+      "--test",
+      "--test-name-pattern=creative theme",
+      "scripts/tools/data-pipeline-host-contract.node-test.mjs"
+    ]
+  },
+  "node_observer": {
+    "schema": "workloom.node-test-observer/v1",
+    "reporter_path": "/Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/scripts/delivery/node-test-reporter.mjs",
+    "reporter_sha256": "286448a4dee571759fc1703564477d27bf5319bcb05ff66db2186deda60bc78f",
+    "destination": "/Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/work/WorkLoom-video-edit/outputs/mine-clear/T-2026-1030-9010/evidence/MC-008-0-1793347057840-node-tests.jsonl",
+    "summary": {
+      "path": "evidence/MC-008-0-1793347057840-node-tests.jsonl",
+      "sha256": "d50eed83830b50b9a37864bcd541b31b332dec8875cdc9859682f4edf8a9c89b",
+      "commit": "4a18be68b7c4b39ca018d1024dbca323172dd74d"
+    }
+  },
+  "node_executable": {
+    "path": "/Users/mac/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node",
+    "sha256": "f359816dcf3277d522724f8c0fa2264a600b342e101bda7d4cb7496bc0368307"
+  },
+  "actor": "root-repair-2026-10-30",
+  "role": "repair",
+  "subject": {
+    "card_id": "MC-008",
+    "assertion_index": 0
+  },
+  "commit": "4a18be68b7c4b39ca018d1024dbca323172dd74d",
+  "working_tree_dirty": false,
+  "started_at": "2026-10-30T07:57:37.840Z",
+  "finished_at": "2026-10-30T07:57:38.379Z",
+  "exit_code": 0,
+  "signal": null,
+  "validation": {
+    "ok": true,
+    "errors": [],
+    "testSummary": {
+      "total": 1,
+      "passed": 1,
+      "failed": 0,
+      "cancelled": 0,
+      "skipped": 0,
+      "todo": 0
+    }
+  },
+  "result": "pass",
+  "outputs": [
+    {
+      "path": "evidence/MC-008-0-1793347057840.txt",
+      "sha256": "935d121c06b913e4328330e0cd7c15b3170840312ea4b4ddb03ee77e14302121",
+      "commit": "4a18be68b7c4b39ca018d1024dbca323172dd74d"
+    },
+    {
+      "path": "evidence/MC-008-0-1793347057840-node-tests.jsonl",
+      "sha256": "d50eed83830b50b9a37864bcd541b31b332dec8875cdc9859682f4edf8a9c89b",
+      "commit": "4a18be68b7c4b39ca018d1024dbca323172dd74d"
+    }
+  ]
+}

@@ -9,16 +9,16 @@
       "kind": "negative",
       "name": "空意图",
       "pass": true,
-      "sourceCommit": "bfbbfa8016fb4cb8d94d6bb967e05b4a44fe6e2b",
+      "sourceCommit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7",
       "sourceDirty": false,
       "caseSha256": "491f82e8193830fe18152465996e8bb44090d5ceaf51019ee1df2c5948e5bf74",
-      "harnessSha256": "a355312135171e9d7b5a8c34c8e56fd0db86de5fdbb96155043003848a404aed",
+      "harnessSha256": "89446ae0dab10327695b1a4eade13c7192dc043a459a7697eecc479cb7fa369b",
       "exitCode": 2,
       "expectedExit": [
         2
       ],
       "messageOk": true,
-      "elapsedMs": 262,
+      "elapsedMs": 397,
       "logFile": "work/stress/T-2026-1030-9010/cases/X01/dry-run.log",
       "command": [
         "/Users/mac/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node",
@@ -44,16 +44,16 @@
       "kind": "negative",
       "name": "空白意图",
       "pass": true,
-      "sourceCommit": "bfbbfa8016fb4cb8d94d6bb967e05b4a44fe6e2b",
+      "sourceCommit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7",
       "sourceDirty": false,
       "caseSha256": "41620e50f1b578639d3432c8a81e29d436d9b316e74e6e41336fbf24ff83e1f0",
-      "harnessSha256": "a355312135171e9d7b5a8c34c8e56fd0db86de5fdbb96155043003848a404aed",
+      "harnessSha256": "89446ae0dab10327695b1a4eade13c7192dc043a459a7697eecc479cb7fa369b",
       "exitCode": 2,
       "expectedExit": [
         2
       ],
       "messageOk": true,
-      "elapsedMs": 160,
+      "elapsedMs": 262,
       "logFile": "work/stress/T-2026-1030-9010/cases/X02/dry-run.log",
       "command": [
         "/Users/mac/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node",
@@ -79,16 +79,16 @@
       "kind": "negative",
       "name": "超长意图",
       "pass": true,
-      "sourceCommit": "bfbbfa8016fb4cb8d94d6bb967e05b4a44fe6e2b",
+      "sourceCommit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7",
       "sourceDirty": false,
       "caseSha256": "9f6eda26d890c65e1ef2d7877ff9e58d3c0094651c3feb14116a570fb38366b9",
-      "harnessSha256": "a355312135171e9d7b5a8c34c8e56fd0db86de5fdbb96155043003848a404aed",
+      "harnessSha256": "89446ae0dab10327695b1a4eade13c7192dc043a459a7697eecc479cb7fa369b",
       "exitCode": 2,
       "expectedExit": [
         2
       ],
       "messageOk": true,
-      "elapsedMs": 163,
+      "elapsedMs": 270,
       "logFile": "work/stress/T-2026-1030-9010/cases/X03/dry-run.log",
       "command": [
         "/Users/mac/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node",
@@ -114,16 +114,16 @@
       "kind": "negative",
       "name": "控制字符",
       "pass": true,
-      "sourceCommit": "bfbbfa8016fb4cb8d94d6bb967e05b4a44fe6e2b",
+      "sourceCommit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7",
       "sourceDirty": false,
       "caseSha256": "ec5af2fc6685e2eddea1f2bd6c36835b8aaa0dcc2683c721b9b5a12e9be3d9e1",
-      "harnessSha256": "a355312135171e9d7b5a8c34c8e56fd0db86de5fdbb96155043003848a404aed",
+      "harnessSha256": "89446ae0dab10327695b1a4eade13c7192dc043a459a7697eecc479cb7fa369b",
       "exitCode": 2,
       "expectedExit": [
         2
       ],
       "messageOk": true,
-      "elapsedMs": 167,
+      "elapsedMs": 295,
       "logFile": "work/stress/T-2026-1030-9010/cases/X04/dry-run.log",
       "command": [
         "/Users/mac/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node",
@@ -149,16 +149,16 @@
       "kind": "negative",
       "name": "非法片型",
       "pass": true,
-      "sourceCommit": "bfbbfa8016fb4cb8d94d6bb967e05b4a44fe6e2b",
+      "sourceCommit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7",
       "sourceDirty": false,
       "caseSha256": "91ae14bfe00bfb8eb871af959d8fb0084405b77743563eb5b8fd09f3a0b65fb2",
-      "harnessSha256": "a355312135171e9d7b5a8c34c8e56fd0db86de5fdbb96155043003848a404aed",
+      "harnessSha256": "89446ae0dab10327695b1a4eade13c7192dc043a459a7697eecc479cb7fa369b",
       "exitCode": 2,
       "expectedExit": [
         2
       ],
       "messageOk": true,
-      "elapsedMs": 168,
+      "elapsedMs": 243,
       "logFile": "work/stress/T-2026-1030-9010/cases/X05/dry-run.log",
       "command": [
         "/Users/mac/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node",
@@ -184,16 +184,16 @@
       "kind": "negative",
       "name": "含糊需求澄清",
       "pass": true,
-      "sourceCommit": "bfbbfa8016fb4cb8d94d6bb967e05b4a44fe6e2b",
+      "sourceCommit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7",
       "sourceDirty": false,
       "caseSha256": "67d5499520dc242cb4391b969909f5d8c91135173e910a07508c15dc661db56c",
-      "harnessSha256": "a355312135171e9d7b5a8c34c8e56fd0db86de5fdbb96155043003848a404aed",
+      "harnessSha256": "89446ae0dab10327695b1a4eade13c7192dc043a459a7697eecc479cb7fa369b",
       "exitCode": 3,
       "expectedExit": [
         3
       ],
       "messageOk": true,
-      "elapsedMs": 332,
+      "elapsedMs": 448,
       "logFile": "work/stress/T-2026-1030-9010/cases/X06/dry-run.log",
       "command": [
         "/Users/mac/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node",
@@ -219,16 +219,16 @@
       "kind": "negative",
       "name": "营销缺商品",
       "pass": true,
-      "sourceCommit": "bfbbfa8016fb4cb8d94d6bb967e05b4a44fe6e2b",
+      "sourceCommit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7",
       "sourceDirty": false,
       "caseSha256": "e5f481d325dfe33b2847fcd5614bd98cd6d8101d45af7ae1bd73cf118f2797fb",
-      "harnessSha256": "a355312135171e9d7b5a8c34c8e56fd0db86de5fdbb96155043003848a404aed",
+      "harnessSha256": "89446ae0dab10327695b1a4eade13c7192dc043a459a7697eecc479cb7fa369b",
       "exitCode": 3,
       "expectedExit": [
         3
       ],
       "messageOk": true,
-      "elapsedMs": 166,
+      "elapsedMs": 331,
       "logFile": "work/stress/T-2026-1030-9010/cases/X07/dry-run.log",
       "command": [
         "/Users/mac/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node",
@@ -254,16 +254,16 @@
       "kind": "negative",
       "name": "营销空白商品",
       "pass": true,
-      "sourceCommit": "bfbbfa8016fb4cb8d94d6bb967e05b4a44fe6e2b",
+      "sourceCommit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7",
       "sourceDirty": false,
       "caseSha256": "f57b886f327dcf0d47e0745011975c0ca3119c12b8d758392ecc2304e40f60f7",
-      "harnessSha256": "a355312135171e9d7b5a8c34c8e56fd0db86de5fdbb96155043003848a404aed",
+      "harnessSha256": "89446ae0dab10327695b1a4eade13c7192dc043a459a7697eecc479cb7fa369b",
       "exitCode": 3,
       "expectedExit": [
         3
       ],
       "messageOk": true,
-      "elapsedMs": 161,
+      "elapsedMs": 336,
       "logFile": "work/stress/T-2026-1030-9010/cases/X08/dry-run.log",
       "command": [
         "/Users/mac/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node",
@@ -291,16 +291,16 @@
       "kind": "negative",
       "name": "时长非数字",
       "pass": true,
-      "sourceCommit": "bfbbfa8016fb4cb8d94d6bb967e05b4a44fe6e2b",
+      "sourceCommit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7",
       "sourceDirty": false,
       "caseSha256": "ad0f7ef107f1ef03b98eb1c700345ac550c66cf4c38c858a52b784ac8691e2e0",
-      "harnessSha256": "a355312135171e9d7b5a8c34c8e56fd0db86de5fdbb96155043003848a404aed",
+      "harnessSha256": "89446ae0dab10327695b1a4eade13c7192dc043a459a7697eecc479cb7fa369b",
       "exitCode": 2,
       "expectedExit": [
         2
       ],
       "messageOk": true,
-      "elapsedMs": 166,
+      "elapsedMs": 266,
       "logFile": "work/stress/T-2026-1030-9010/cases/X09/dry-run.log",
       "command": [
         "/Users/mac/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node",
@@ -328,16 +328,16 @@
       "kind": "negative",
       "name": "时长下界",
       "pass": true,
-      "sourceCommit": "bfbbfa8016fb4cb8d94d6bb967e05b4a44fe6e2b",
+      "sourceCommit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7",
       "sourceDirty": false,
       "caseSha256": "f947afda5a54f996131db26cd6ed76eedb1bef7b370bf23d5b521f9f441ffc6d",
-      "harnessSha256": "a355312135171e9d7b5a8c34c8e56fd0db86de5fdbb96155043003848a404aed",
+      "harnessSha256": "89446ae0dab10327695b1a4eade13c7192dc043a459a7697eecc479cb7fa369b",
       "exitCode": 2,
       "expectedExit": [
         2
       ],
       "messageOk": true,
-      "elapsedMs": 164,
+      "elapsedMs": 192,
       "logFile": "work/stress/T-2026-1030-9010/cases/X10/dry-run.log",
       "command": [
         "/Users/mac/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node",
@@ -365,16 +365,16 @@
       "kind": "negative",
       "name": "时长上界",
       "pass": true,
-      "sourceCommit": "bfbbfa8016fb4cb8d94d6bb967e05b4a44fe6e2b",
+      "sourceCommit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7",
       "sourceDirty": false,
       "caseSha256": "0d412a7463d28f397f16ad3891420253e7a8576b9f4c6883ea653aefd1b91e62",
-      "harnessSha256": "a355312135171e9d7b5a8c34c8e56fd0db86de5fdbb96155043003848a404aed",
+      "harnessSha256": "89446ae0dab10327695b1a4eade13c7192dc043a459a7697eecc479cb7fa369b",
       "exitCode": 2,
       "expectedExit": [
         2
       ],
       "messageOk": true,
-      "elapsedMs": 165,
+      "elapsedMs": 230,
       "logFile": "work/stress/T-2026-1030-9010/cases/X11/dry-run.log",
       "command": [
         "/Users/mac/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node",
@@ -402,16 +402,16 @@
       "kind": "negative",
       "name": "非法画幅",
       "pass": true,
-      "sourceCommit": "bfbbfa8016fb4cb8d94d6bb967e05b4a44fe6e2b",
+      "sourceCommit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7",
       "sourceDirty": false,
       "caseSha256": "b73f95a1ebb52bf274bf7bad7490ce609ceda591c4318a08d3607b30354f7adb",
-      "harnessSha256": "a355312135171e9d7b5a8c34c8e56fd0db86de5fdbb96155043003848a404aed",
+      "harnessSha256": "89446ae0dab10327695b1a4eade13c7192dc043a459a7697eecc479cb7fa369b",
       "exitCode": 2,
       "expectedExit": [
         2
       ],
       "messageOk": true,
-      "elapsedMs": 164,
+      "elapsedMs": 179,
       "logFile": "work/stress/T-2026-1030-9010/cases/X12/dry-run.log",
       "command": [
         "/Users/mac/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node",
@@ -439,16 +439,16 @@
       "kind": "negative",
       "name": "工程路径穿越",
       "pass": true,
-      "sourceCommit": "bfbbfa8016fb4cb8d94d6bb967e05b4a44fe6e2b",
+      "sourceCommit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7",
       "sourceDirty": false,
       "caseSha256": "121079271cb491ee2f26f14db59767ceff403a543e233772da1d1569fa712cf6",
-      "harnessSha256": "a355312135171e9d7b5a8c34c8e56fd0db86de5fdbb96155043003848a404aed",
+      "harnessSha256": "89446ae0dab10327695b1a4eade13c7192dc043a459a7697eecc479cb7fa369b",
       "exitCode": 2,
       "expectedExit": [
         2
       ],
       "messageOk": true,
-      "elapsedMs": 164,
+      "elapsedMs": 194,
       "logFile": "work/stress/T-2026-1030-9010/cases/X13/dry-run.log",
       "command": [
         "/Users/mac/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node",
@@ -474,16 +474,16 @@
       "kind": "negative",
       "name": "未知平台",
       "pass": true,
-      "sourceCommit": "bfbbfa8016fb4cb8d94d6bb967e05b4a44fe6e2b",
+      "sourceCommit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7",
       "sourceDirty": false,
       "caseSha256": "9ea4b745b546203b2071d3b4d8575fed68142755433db83d41f87d2d474cbf5b",
-      "harnessSha256": "a355312135171e9d7b5a8c34c8e56fd0db86de5fdbb96155043003848a404aed",
+      "harnessSha256": "89446ae0dab10327695b1a4eade13c7192dc043a459a7697eecc479cb7fa369b",
       "exitCode": 2,
       "expectedExit": [
         2
       ],
       "messageOk": true,
-      "elapsedMs": 160,
+      "elapsedMs": 191,
       "logFile": "work/stress/T-2026-1030-9010/cases/X14/dry-run.log",
       "command": [
         "/Users/mac/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node",
@@ -511,16 +511,16 @@
       "kind": "negative",
       "name": "重复路由参数",
       "pass": true,
-      "sourceCommit": "bfbbfa8016fb4cb8d94d6bb967e05b4a44fe6e2b",
+      "sourceCommit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7",
       "sourceDirty": false,
       "caseSha256": "ce22d72975d6a2380540859c4921de792429e75f8c6fa7ab690d7ac9680521d4",
-      "harnessSha256": "a355312135171e9d7b5a8c34c8e56fd0db86de5fdbb96155043003848a404aed",
+      "harnessSha256": "89446ae0dab10327695b1a4eade13c7192dc043a459a7697eecc479cb7fa369b",
       "exitCode": 2,
       "expectedExit": [
         2
       ],
       "messageOk": true,
-      "elapsedMs": 165,
+      "elapsedMs": 180,
       "logFile": "work/stress/T-2026-1030-9010/cases/X15/dry-run.log",
       "command": [
         "/Users/mac/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node",
@@ -548,16 +548,16 @@
       "kind": "negative",
       "name": "非法监制模式",
       "pass": true,
-      "sourceCommit": "bfbbfa8016fb4cb8d94d6bb967e05b4a44fe6e2b",
+      "sourceCommit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7",
       "sourceDirty": false,
       "caseSha256": "8337f5945ce952ad92b892430ed2212061b8944d19d2b7a27fe858a813ff44e8",
-      "harnessSha256": "a355312135171e9d7b5a8c34c8e56fd0db86de5fdbb96155043003848a404aed",
+      "harnessSha256": "89446ae0dab10327695b1a4eade13c7192dc043a459a7697eecc479cb7fa369b",
       "exitCode": 2,
       "expectedExit": [
         2
       ],
       "messageOk": true,
-      "elapsedMs": 166,
+      "elapsedMs": 182,
       "logFile": "work/stress/T-2026-1030-9010/cases/X16/dry-run.log",
       "command": [
         "/Users/mac/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node",
@@ -585,16 +585,16 @@
       "kind": "negative",
       "name": "无人与指定人物冲突",
       "pass": true,
-      "sourceCommit": "bfbbfa8016fb4cb8d94d6bb967e05b4a44fe6e2b",
+      "sourceCommit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7",
       "sourceDirty": false,
       "caseSha256": "57bbcba2e9641d17b027e59525afaa65b7ec876522877359fe6dc26db339e1da",
-      "harnessSha256": "a355312135171e9d7b5a8c34c8e56fd0db86de5fdbb96155043003848a404aed",
+      "harnessSha256": "89446ae0dab10327695b1a4eade13c7192dc043a459a7697eecc479cb7fa369b",
       "exitCode": 2,
       "expectedExit": [
         2
       ],
       "messageOk": true,
-      "elapsedMs": 168,
+      "elapsedMs": 183,
       "logFile": "work/stress/T-2026-1030-9010/cases/X17/dry-run.log",
       "command": [
         "/Users/mac/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node",
@@ -620,16 +620,16 @@
       "kind": "negative",
       "name": "营销跳过G1",
       "pass": true,
-      "sourceCommit": "bfbbfa8016fb4cb8d94d6bb967e05b4a44fe6e2b",
+      "sourceCommit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7",
       "sourceDirty": false,
       "caseSha256": "107c9cd09899d9ec1dd4cca86dd261bf20d6d7640113d2423dd6e16e325126ed",
-      "harnessSha256": "a355312135171e9d7b5a8c34c8e56fd0db86de5fdbb96155043003848a404aed",
+      "harnessSha256": "89446ae0dab10327695b1a4eade13c7192dc043a459a7697eecc479cb7fa369b",
       "exitCode": 2,
       "expectedExit": [
         2
       ],
       "messageOk": true,
-      "elapsedMs": 469,
+      "elapsedMs": 509,
       "logFile": "work/stress/T-2026-1030-9010/cases/X18/dry-run.log",
       "command": [
         "/Users/mac/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node",
@@ -658,16 +658,16 @@
       "kind": "negative",
       "name": "检索夹具缺失",
       "pass": true,
-      "sourceCommit": "bfbbfa8016fb4cb8d94d6bb967e05b4a44fe6e2b",
+      "sourceCommit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7",
       "sourceDirty": false,
       "caseSha256": "ae75e07a56c7a7f19ac71180af89465206c86e075e86d269f3e7de65b77185cd",
-      "harnessSha256": "a355312135171e9d7b5a8c34c8e56fd0db86de5fdbb96155043003848a404aed",
+      "harnessSha256": "89446ae0dab10327695b1a4eade13c7192dc043a459a7697eecc479cb7fa369b",
       "exitCode": 2,
       "expectedExit": [
         2
       ],
       "messageOk": true,
-      "elapsedMs": 165,
+      "elapsedMs": 193,
       "logFile": "work/stress/T-2026-1030-9010/cases/X19/dry-run.log",
       "command": [
         "/Users/mac/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node",
@@ -697,16 +697,16 @@
       "kind": "negative",
       "name": "检索夹具损坏",
       "pass": true,
-      "sourceCommit": "bfbbfa8016fb4cb8d94d6bb967e05b4a44fe6e2b",
+      "sourceCommit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7",
       "sourceDirty": false,
       "caseSha256": "d858de78abe9fd97412f5971fdf6aabc5cc6397c8e0c717bb69a63729325be8a",
-      "harnessSha256": "a355312135171e9d7b5a8c34c8e56fd0db86de5fdbb96155043003848a404aed",
+      "harnessSha256": "89446ae0dab10327695b1a4eade13c7192dc043a459a7697eecc479cb7fa369b",
       "exitCode": 2,
       "expectedExit": [
         2
       ],
       "messageOk": true,
-      "elapsedMs": 162,
+      "elapsedMs": 186,
       "logFile": "work/stress/T-2026-1030-9010/cases/X20/dry-run.log",
       "command": [
         "/Users/mac/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node",
@@ -737,29 +737,77 @@
       "pipeline": "marketing",
       "domain": "智能家居",
       "pass": false,
-      "sourceCommit": "f447f4aba31cd22e4bb4969752c4178568978276",
+      "sourceCommit": "edc13bd355cb0946040e3560a84e0d422d4f0d07",
       "sourceDirty": false,
       "caseSha256": "5e3d363f25af42e4662c6b100c8521a4d4d2c6843e667728fabbd345666bdd36",
       "harnessSha256": "89446ae0dab10327695b1a4eade13c7192dc043a459a7697eecc479cb7fa369b",
       "exitCode": 4,
-      "elapsedMs": 226253,
-      "shots": 0,
-      "prompts": 0,
-      "renderSubmitted": null,
-      "marketingFacts": null,
-      "gates": [],
+      "elapsedMs": 1071796,
+      "shots": 6,
+      "prompts": 6,
+      "renderSubmitted": false,
+      "marketingFacts": {
+        "sourceCount": 1,
+        "g1Sha256": "30d653c95fbc34f6853734418405e44e3c204b2787c008befe9849e9047bcd53",
+        "finalFactsSha256": null,
+        "restrictions": [
+          "没有可核实用户评价：禁止用户口碑、评分、人数、销量或使用效果共识主张",
+          "没有可核实竞品证据：禁止对比、竞品弱点或市场领先主张",
+          "客户原文限制：不展示未核实硬件或可运行效果",
+          "客户原文限制：不声称用户评价、销量或竞品优势"
+        ]
+      },
+      "gates": [
+        {
+          "gate": "G1_DOSSIER",
+          "approved": true,
+          "score": 92
+        },
+        {
+          "gate": "G2_THEME",
+          "approved": true,
+          "score": 94
+        },
+        {
+          "gate": "G3_INSIGHT",
+          "approved": true,
+          "score": 91
+        },
+        {
+          "gate": "G4_PRD",
+          "approved": false,
+          "score": 60
+        },
+        {
+          "gate": "G2_THEME",
+          "approved": true,
+          "score": 95
+        },
+        {
+          "gate": "G3_INSIGHT",
+          "approved": true,
+          "score": 90
+        },
+        {
+          "gate": "G4_PRD",
+          "approved": true,
+          "score": 87
+        },
+        {
+          "gate": "G5_PORTRAIT",
+          "approved": true,
+          "score": null
+        },
+        {
+          "gate": "G6_PROMPT",
+          "approved": false,
+          "score": 0
+        }
+      ],
       "errors": [],
       "validationErrors": [
         "summary.success must be true",
-        "summary.renderSubmitted must be false",
-        "summary.shots must be positive",
-        "summary.prompts must be positive",
-        "summary.errors must be empty",
-        "latest gate G1_DOSSIER is missing",
-        "latest gate G2_THEME is missing",
-        "latest gate G3_INSIGHT is missing",
-        "latest gate G4_PRD is missing",
-        "latest gate G6_PROMPT is missing",
+        "latest gate G6_PROMPT is not approved",
         "latest gate G7_FINAL is missing",
         "marketingFacts.finalFactsSha256 must be a current 64-hex digest"
       ],
@@ -953,8 +1001,8 @@
       ]
     }
   ],
-  "updatedAt": "2026-10-30T10:14:12.445Z",
-  "completedAt": "2026-10-30T10:14:12.445Z",
+  "updatedAt": "2026-10-31T02:12:00.261Z",
+  "completedAt": "2026-10-31T02:12:00.261Z",
   "summary": {
     "total": 23,
     "passed": 20,
@@ -962,7 +1010,7 @@
     "renderSubmissions": 0
   },
   "source": {
-    "commit": "f447f4aba31cd22e4bb4969752c4178568978276",
+    "commit": "a696afdbb30ea87eae9a6aa2b917c618ee67b6c7",
     "dirty": false,
     "harnessSha256": "89446ae0dab10327695b1a4eade13c7192dc043a459a7697eecc479cb7fa369b",
     "casesSha256": "54b9fc0342d9f5dcdb70e87e1c36cba74e8802922b1c349a75bdef25300f89a7"
@@ -970,46 +1018,7 @@
   "validation": {
     "ok": false,
     "errors": [
-      "X01 sourceCommit is stale",
-      "X01 harnessSha256 is stale",
-      "X02 sourceCommit is stale",
-      "X02 harnessSha256 is stale",
-      "X03 sourceCommit is stale",
-      "X03 harnessSha256 is stale",
-      "X04 sourceCommit is stale",
-      "X04 harnessSha256 is stale",
-      "X05 sourceCommit is stale",
-      "X05 harnessSha256 is stale",
-      "X06 sourceCommit is stale",
-      "X06 harnessSha256 is stale",
-      "X07 sourceCommit is stale",
-      "X07 harnessSha256 is stale",
-      "X08 sourceCommit is stale",
-      "X08 harnessSha256 is stale",
-      "X09 sourceCommit is stale",
-      "X09 harnessSha256 is stale",
-      "X10 sourceCommit is stale",
-      "X10 harnessSha256 is stale",
-      "X11 sourceCommit is stale",
-      "X11 harnessSha256 is stale",
-      "X12 sourceCommit is stale",
-      "X12 harnessSha256 is stale",
-      "X13 sourceCommit is stale",
-      "X13 harnessSha256 is stale",
-      "X14 sourceCommit is stale",
-      "X14 harnessSha256 is stale",
-      "X15 sourceCommit is stale",
-      "X15 harnessSha256 is stale",
-      "X16 sourceCommit is stale",
-      "X16 harnessSha256 is stale",
-      "X17 sourceCommit is stale",
-      "X17 harnessSha256 is stale",
-      "X18 sourceCommit is stale",
-      "X18 harnessSha256 is stale",
-      "X19 sourceCommit is stale",
-      "X19 harnessSha256 is stale",
-      "X20 sourceCommit is stale",
-      "X20 harnessSha256 is stale",
+      "M01 sourceCommit is stale",
       "M01 did not pass",
       "M02 sourceCommit is stale",
       "M02 harnessSha256 is stale",
