@@ -20,6 +20,7 @@
     "@trpc/server": "11.19.0",
     "@workloom/base": "workspace:*",
     "@workloom/db": "workspace:*",
+    "@workloom/pipeline-control": "workspace:*",
     "@workloom/runtime": "workspace:*",
     "@workloom/shared": "workspace:*",
     "hono": "4.13.8",

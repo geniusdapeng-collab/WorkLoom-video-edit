@@ -85,6 +85,9 @@ importers:
       '@workloom/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@workloom/pipeline-control':
+        specifier: workspace:*
+        version: link:../../packages/pipeline-control
       '@workloom/runtime':
         specifier: workspace:*
         version: link:../../packages/runtime

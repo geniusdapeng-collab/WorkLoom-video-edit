@@ -57,8 +57,8 @@ export const COMPOSED_SKILL_BINDINGS: Record<"ai-video" | "geo-growth", Record<s
     // 其围栏目前只经 colorist preset 的 fence_bindings 生效；补登记会把色桥技能并集一次性放宽，故留作独立任务卡。
     "bgm-score-design": ["G-BGM0", "G-BGM1", "G-BGM3", "G-BGM5"],
     "bgm-audio-layering": ["G-BGM0", "G-BGM2", "G-BGM3", "G-BGM4"],
-    "bgm-vocal-separation": ["G-BGM0", "G-BGM3"],
-    "bgm-library-license": ["G-BGM1", "G-BGM5"],
+    "bgm-vocal-separation": ["G-BGM0", "G-BGM3", "G-BGM5"],
+    "bgm-library-license": ["G-BGM0", "G-BGM1", "G-BGM5"],
     "bgm-delivery-spec": ["G-BGM0", "G-BGM1", "G-BGM2", "G-BGM3", "G-BGM4", "G-BGM5"],
     // 后期字幕师五件套（2026-09-23）：安装即绑定标题字幕门 G-SUB0..G-SUB5，卸载即撤销。
     // 注：字幕与围栏的关系不是"一对一"——选型看到品牌视觉锤与许可，烧录看到覆盖原片与安全区，
@@ -68,6 +68,10 @@ export const COMPOSED_SKILL_BINDINGS: Record<"ai-video" | "geo-growth", Record<s
     "caption-burnin-ops": ["G-SUB0", "G-SUB2", "G-SUB3", "G-SUB6"],
     "font-license-compliance": ["G-SUB1", "G-SUB5"],
     "subtitle-delivery-spec": ["G-SUB0", "G-SUB1", "G-SUB2", "G-SUB3", "G-SUB4", "G-SUB5", "G-SUB6"],
+    // 封面知识库、开场钩子与口播解说技能与岗位围栏保持同一安装快照。
+    "cover-kb": ["G-SUB2", "G-SUB3", "G-MAT1"],
+    "opening-hook-craft": ["G6", "G7"],
+    "talkcraft-ops": ["G-DLV1", "G-VOICE4", "G-MAT1"],
     // 后期配音师五件套（2026-09-23）：安装即绑定本地声音克隆/配音门 G-VOICE0..G-VOICE6，卸载即撤销。
     // 授权（G-VOICE1/G-VOICE6）与声纹不出域（G-VOICE5）是这套技能的核心纪律，故五件套全量绑定。
     "voice-clone-consent": ["G-VOICE1", "G-VOICE5", "G-VOICE6"],

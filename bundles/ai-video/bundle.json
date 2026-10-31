@@ -862,7 +862,7 @@
   },
   "integrity": {
     "algorithm": "sha256",
-    "digest": "8952b5d8a3d560a4acb10ba32f74fe14fb0353bb3df1fc4a2bb7595a613830c0",
+    "digest": "a5df7c3471c98b3c6bafc11e4b8c9ecde1c3c3b26307294792d111bb43b90cc0",
     "assets": {
       "connectors/bgm-bridge/audio-stems-trust.mjs": "701b20e1705b16b026be2900bb49430ef875c8f01f83515f297a5b0b9a50cf93",
       "connectors/bgm-bridge/audio-stems.mjs": "d83bc554f015115ed0f4ea71ac6ced4cf5bd8f44d61094489776e3d2a5ffa751",
@@ -1503,7 +1503,7 @@
       "skills/shot-prompt-craft/SKILL.md": "62b1afb2d172e61f3fb8facc84b7a6bbe6ec0b8cf9eb2f4c66dced1941c9d727",
       "skills/subtitle-delivery-spec/SKILL.md": "0d06004c5e572dfd54cb2fea1dcaaaebe59f9c0d8bce7739b7d7f7758b7bc825",
       "skills/subtitle-layout-design/SKILL.md": "056d70938ab6848a992c090f9f81e7cf4a945c71bdf3a725f4cd094eec375e46",
-      "skills/talkcraft-ops/SKILL.md": "9bfa7996abbe2f56478b48eb074e456a130de3e7cb7282bc1d576bfa9f7b0ff6",
+      "skills/talkcraft-ops/SKILL.md": "b4753d066349c3d3951692e1f27a293e52e59d1c89fa6548dcf23ea465c59651",
       "skills/voice-clone-consent/SKILL.md": "796ca32d1f8b7eaaa36d5892182d7a6d5a50372729a495709cf189c510a57831",
       "skills/voice-delivery-spec/SKILL.md": "25a38c62953f144fd9aadf9d8f00d1140779e5ffb9d208da865f6ee211fa2289",
       "skills/voice-dubbing-sync/SKILL.md": "675139b88a78a0570abdd658ac8183c13e09337d7ada4c51cad19b8d4f1a7d23",
