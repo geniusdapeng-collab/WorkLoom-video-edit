@@ -11,7 +11,7 @@
  *  ③ 非法声明（越界路径）必须报错，不能静默忽略。
  */
 import { createHash } from "node:crypto";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -81,6 +81,16 @@ describe("客户端基座门禁 · 本仓产品分叉声明", () => {
     const errors = verifyClientFoundationConsumer(fixtureRepo());
     expect(errors.some((error) => error.includes("指纹漂移：apps/web/src/pages/p1/P1.tsx"))).toBe(true);
     expect(errors.some((error) => error.includes("非白名单行业文件：apps/web/src/shell/PageExitLink.tsx"))).toBe(true);
+  });
+
+  it("忽略 pnpm 安装产生的依赖目录符号链接，不影响源码门禁", () => {
+    const root = fixtureRepo();
+    const dependencyStore = join(root, ".pnpm-dependency-store");
+    mkdirSync(dependencyStore);
+    symlinkSync(dependencyStore, join(root, "apps/web/node_modules"), "dir");
+    const errors = verifyClientFoundationConsumer(root);
+    expect(errors.some((error) => error.includes("apps/web/node_modules"))).toBe(false);
+    expect(errors.some((error) => error.includes("指纹漂移：apps/web/src/pages/p1/P1.tsx"))).toBe(true);
   });
 
   it("声明为本仓自有后：0 错误，且必备受管入口仍在受管集合内", () => {

@@ -83,9 +83,9 @@ function walk(root, relativeRoot) {
   const result = [];
   for (const entry of readdirSync(directory, { withFileTypes: true })) {
     const path = `${relativeRoot}/${entry.name}`;
+    if (matches(`${path}/__probe__`, IGNORED)) continue;
     if (entry.isSymbolicLink()) throw new Error(`客户端基座禁止 symlink：${path}`);
     if (entry.isDirectory()) {
-      if (matches(`${path}/__probe__`, IGNORED)) continue;
       result.push(...walk(root, path));
     } else if (entry.isFile()) result.push(path);
   }
