@@ -13,7 +13,19 @@ const state = vi.hoisted(() => ({
 }));
 vi.mock("./vendor-requirement-entry.js", () => ({
   acquireVendorRequirementEntry: () => ({
-    exports: { HyperrealitySystem: class { create(...input: unknown[]) { return state.create(...input); } } },
+    exports: { HyperrealitySystem: class {
+      requirementDiscoveryEngine = {
+        agents: {
+          scene: { timeoutMs: 1, maxRetries: 0 },
+          risk: { maxRetries: 0 },
+        },
+        agentTimeoutMs: 0,
+      };
+      creativeThemeGenerator = { generate: async () => ({}) };
+      prdGenerator = { generate: async () => ({}) };
+      durationConstraintManager = {};
+      create(...input: unknown[]) { return state.create(...input); }
+    } },
     identity: { entryPath: "/fixture/vendor/index.js" }, release: () => undefined
   })
 }));

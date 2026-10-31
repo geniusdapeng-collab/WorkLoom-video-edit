@@ -188,8 +188,12 @@ function modelFor(run: ReturnType<typeof privateRun>, scenes: Array<RequirementR
   engine.reasonStructured = vi.fn(async function (this: RequirementRecord, prompt: string, schema: unknown, options: unknown) {
     expect(this).toBe(engine); calls.push({ method: "reasonStructured", prompt, schema, options });
     const intro = prompt.slice(0, 180);
-    const value = intro.includes("受众分析") ? run.modules.audience : intro.includes("技术制片人")
-      ? risks?.[Math.min(riskAttempt++, risks.length - 1)] ?? run.modules.risk : run.modules.reference;
+    const isRisk = intro.includes("技术制片人");
+    const riskIndex = risks ? Math.min(riskAttempt, risks.length - 1) : -1;
+    const riskValue = risks ? risks[riskIndex] : run.modules.risk;
+    if (isRisk) riskAttempt++;
+    const value = intro.includes("受众分析") ? run.modules.audience : isRisk
+      ? riskValue : run.modules.reference;
     if (value instanceof Error) throw value;
     return { success: true, data: structuredClone(value) };
   });
@@ -633,48 +637,60 @@ describe("actual native private RiskAssessor bounded retry feedback", () => {
         expect(riskCalls(model.calls)).toHaveLength(1);
         for (const call of model.calls) expect(call.prompt).not.toContain(riskFeedbackHeading);
       }
-      for (const count of [0, maximum + 1]) {
-        const run = privateRun(`risk-${key}-outside-${count}`, 30, physicalScene([10, 10, 10]));
-        const invalid = riskResponse(run, key, count), valid = riskResponse(run, key, maximum);
-        const hashes = [run.input, run.authority, run.approvedTheme, invalid, valid].map(requirementHash);
-        const model = modelFor(run, [run.modules.scene], [invalid, valid]), result = await runDiscovery(run, model.engine), calls = riskCalls(model.calls);
-        expect(calls).toHaveLength(2); expect(model.calls).toHaveLength(5);
-        expect(calls[0]!.prompt).not.toContain(riskFeedbackHeading);
-        expect(promptJson(calls[1]!.prompt, riskFeedbackHeading)).toEqual(riskFacts(key, count === 0 ? "minItems" : "maxItems", count, count === 0 ? 1 : maximum));
-        expect(requirementHash(result.riskAssessment)).toBe(requirementHash(valid));
-        expect([run.input, run.authority, run.approvedTheme, invalid, valid].map(requirementHash)).toEqual(hashes);
-        expect(calls[1]!.schema).toBe(calls[0]!.schema); expect(calls[1]!.options).toEqual(calls[0]!.options);
-        for (const call of model.calls) {
-          expectCompleteSources(call.prompt, run);
-          expect(call.prompt).not.toContain("PRIVATE-RESPONSE");
-          if (!calls.includes(call)) expect(call.prompt).not.toContain(riskFeedbackHeading);
-        }
-        for (const call of calls) expect(call.options).toEqual({ maxTokens: 4000, temperature: 1, timeoutMs: 100 });
-        expect(JSON.stringify(result)).not.toContain(riskFeedbackHeading);
+      const emptyRun = privateRun(`risk-${key}-outside-0`, 30, physicalScene([10, 10, 10]));
+      const empty = riskResponse(emptyRun, key, 0), valid = riskResponse(emptyRun, key, maximum);
+      const hashes = [emptyRun.input, emptyRun.authority, emptyRun.approvedTheme, empty, valid].map(requirementHash);
+      const emptyModel = modelFor(emptyRun, [emptyRun.modules.scene], [empty, valid]);
+      const emptyResult = await runDiscovery(emptyRun, emptyModel.engine), emptyCalls = riskCalls(emptyModel.calls);
+      expect(emptyCalls).toHaveLength(2); expect(emptyModel.calls).toHaveLength(5);
+      expect(emptyCalls[0]!.prompt).not.toContain(riskFeedbackHeading);
+      expect(promptJson(emptyCalls[1]!.prompt, riskFeedbackHeading)).toEqual(riskFacts(key, "minItems", 0, 1));
+      expect(requirementHash(emptyResult.riskAssessment)).toBe(requirementHash(valid));
+      expect([emptyRun.input, emptyRun.authority, emptyRun.approvedTheme, empty, valid].map(requirementHash)).toEqual(hashes);
+      expect(emptyCalls[1]!.schema).toBe(emptyCalls[0]!.schema); expect(emptyCalls[1]!.options).toEqual(emptyCalls[0]!.options);
+      for (const call of emptyCalls) expect(call.options).toEqual({ maxTokens: 4000, temperature: 1, timeoutMs: 100 });
+      expect(JSON.stringify(emptyResult)).not.toContain(riskFeedbackHeading);
+
+      const overflowRun = privateRun(`risk-${key}-outside-${maximum + 1}`, 30, physicalScene([10, 10, 10]));
+      const overflow = riskResponse(overflowRun, key, maximum + 1);
+      const overflowModel = modelFor(overflowRun, [overflowRun.modules.scene], [overflow]);
+      const overflowResult = await runDiscovery(overflowRun, overflowModel.engine);
+      expect(riskCalls(overflowModel.calls)).toHaveLength(1);
+      expect(overflowModel.calls).toHaveLength(4);
+      const compacted = requirementRecord(overflowResult.riskAssessment, "compacted risk")[key] as unknown[];
+      expect(compacted).toHaveLength(maximum);
+      if (key === "technicalRisks") {
+        expect(compacted.at(-1)).toMatchObject({ risk: `PRIVATE-RESPONSE-RISK-${maximum - 1}` });
+      } else {
+        expect(String(compacted.at(-1))).toContain(`PRIVATE-RESPONSE-TEXT-${maximum}`);
+      }
+      for (const call of overflowModel.calls) {
+        expectCompleteSources(call.prompt, overflowRun);
+        expect(call.prompt).not.toContain(riskFeedbackHeading);
       }
     });
 
   it("reports the second invalid Risk array through both native fallback catches without preserving the first error", async () => {
     installNativeDiscovery();
     const run = privateRun("risk-two-invalid", 30, physicalScene([10, 10, 10]));
-    const first = riskResponse(run, "mitigationSuggestions", 6), second = riskResponse(run, "businessConstraints", 0);
+    const first = riskResponse(run, "mitigationSuggestions", 0), second = riskResponse(run, "businessConstraints", 0);
     const model = modelFor(run, [run.modules.scene], [first, second]), failure = await runDiscovery(run, model.engine).catch(error => error);
     expect(failure).toMatchObject({ code: "REQUIREMENT_DISCOVERY_UNVERIFIED", details: riskFacts("businessConstraints", "minItems", 0, 1) });
     expect(Object.isFrozen(requirementRecord(failure, "risk failure").details)).toBe(true);
     expect(failureText(failure)).not.toContain("mitigationSuggestions"); expect(failureText(failure)).not.toContain("PRIVATE-RESPONSE");
     const calls = riskCalls(model.calls);
     expect(calls).toHaveLength(2); expect(model.calls).toHaveLength(4); // Audience, Scene, Risk twice; no Reference.
-    expect(promptJson(calls[1]!.prompt, riskFeedbackHeading)).toEqual(riskFacts("mitigationSuggestions", "maxItems", 6, 4));
+    expect(promptJson(calls[1]!.prompt, riskFeedbackHeading)).toEqual(riskFacts("mitigationSuggestions", "minItems", 0, 1));
   });
 
   it("replaces an earlier Risk schema failure with the actual current transport rejection", async () => {
     installNativeDiscovery();
     const run = privateRun("risk-current-transport", 30, physicalScene([10, 10, 10])), current = new Error("synthetic current risk transport failure");
-    const model = modelFor(run, [run.modules.scene], [riskResponse(run, "mitigationSuggestions", 7), current]);
+    const model = modelFor(run, [run.modules.scene], [riskResponse(run, "mitigationSuggestions", 0), current]);
     const failure = await runDiscovery(run, model.engine).catch(error => error), calls = riskCalls(model.calls);
     expect(failure).toBe(current); expect(requirementRecord(failure, "current failure").details).toBeUndefined();
     expect(failureText(failure)).not.toContain("mitigationSuggestions"); expect(calls).toHaveLength(2);
-    expect(promptJson(calls[1]!.prompt, riskFeedbackHeading)).toEqual(riskFacts("mitigationSuggestions", "maxItems", 7, 4));
+    expect(promptJson(calls[1]!.prompt, riskFeedbackHeading)).toEqual(riskFacts("mitigationSuggestions", "minItems", 0, 1));
     expect(model.calls).toHaveLength(4);
   });
 
@@ -686,7 +702,7 @@ describe("actual native private RiskAssessor bounded retry feedback", () => {
       calls.push({ prompt, options });
       const intro = prompt.slice(0, 180), risk = intro.includes("技术制片人");
       if (risk && attempt++ === 1) return { content: "{invalid native Risk JSON}" };
-      const value = risk ? riskResponse(run, "mitigationSuggestions", 8) : intro.includes("受众分析") ? run.modules.audience
+      const value = risk ? riskResponse(run, "mitigationSuggestions", 0) : intro.includes("受众分析") ? run.modules.audience
         : intro.includes("电影导演") ? run.modules.scene : run.modules.reference;
       return { content: JSON.stringify(value) };
     }) };
@@ -695,7 +711,7 @@ describe("actual native private RiskAssessor bounded retry feedback", () => {
     expect(failureText(failure)).not.toContain("mitigationSuggestions");
     expect(requirementRecord(failure, "native parser failure").details).toBeUndefined();
     expect(riskRequests).toHaveLength(2); expect(calls).toHaveLength(4);
-    expect(promptJson(riskRequests[1]!.prompt, riskFeedbackHeading)).toEqual(riskFacts("mitigationSuggestions", "maxItems", 8, 4));
+    expect(promptJson(riskRequests[1]!.prompt, riskFeedbackHeading)).toEqual(riskFacts("mitigationSuggestions", "minItems", 0, 1));
     for (const call of calls) { expectCompleteSources(call.prompt, run); expect(call.options).toEqual({ maxTokens: 4000, temperature: 1 }); }
   });
 
@@ -775,7 +791,7 @@ describe("actual native private RiskAssessor bounded retry feedback", () => {
       const attempt = attempts.get(run) ?? 0; attempts.set(run, attempt + 1);
       if (run !== c && attempt === 0) {
         if (++first === 2) releaseFirst(); await bothFirst;
-        return { success: true, data: riskResponse(run, run === a ? "mitigationSuggestions" : "businessConstraints", run === a ? 5 : 0) };
+        return { success: true, data: riskResponse(run, run === a ? "mitigationSuggestions" : "businessConstraints", 0) };
       }
       return { success: true, data: structuredClone(run.modules.risk) };
     });
@@ -788,7 +804,7 @@ describe("actual native private RiskAssessor bounded retry feedback", () => {
     const aCalls = callsFor(a), bCalls = callsFor(b), cCalls = callsFor(c);
     expect(aCalls).toHaveLength(2); expect(bCalls).toHaveLength(2); expect(cCalls).toHaveLength(1);
     for (const call of [aCalls[0]!, bCalls[0]!, cCalls[0]!]) expect(call.prompt).not.toContain(riskFeedbackHeading);
-    expect(promptJson(aCalls[1]!.prompt, riskFeedbackHeading)).toEqual(riskFacts("mitigationSuggestions", "maxItems", 5, 4));
+    expect(promptJson(aCalls[1]!.prompt, riskFeedbackHeading)).toEqual(riskFacts("mitigationSuggestions", "minItems", 0, 1));
     expect(promptJson(bCalls[1]!.prompt, riskFeedbackHeading)).toEqual(riskFacts("businessConstraints", "minItems", 0, 1));
     for (const call of calls) {
       const run = select(call.prompt); expectCompleteSources(call.prompt, run); expect(call.prompt).not.toContain("PRIVATE-RESPONSE");
