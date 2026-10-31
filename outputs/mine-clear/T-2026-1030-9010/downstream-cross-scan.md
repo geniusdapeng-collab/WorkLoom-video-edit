@@ -18,8 +18,8 @@
 | 仓 | GitHub main | 同源缺口 | 处置 | 证据 |
 |---|---|---|---|---|
 | `WorkLoom-video-edit` | `463ae7a`（任务起点） | `deferRender` 未跳过后处理；可选品牌未与显式查询对账 | 本任务修复 | MC-021、MC-022；`deferRender` 与品牌回归测试 |
-| `workloom` | `f608da6` | 两处同源缺口均存在 | 修复于 `10d6740` | 3 个相关测试文件 58/58；`apps/server`、`packages/video-studio` TypeScript 检查通过 |
-| `WorkLoom-growth` | `59d5010` | `deferRender` 同源缺口存在；未发现本轮营销事实入口 | 修复于 `d19d272` | `studio.test.ts` 23/23；`packages/video-studio` TypeScript 检查通过 |
+| `workloom` | `f608da6` | 两处同源缺口均存在；同时发现 UI 0.1.19 的 CNB 传输地址 404 | 已合入 `main@1ddc7cb`（PR #24） | PR `gate` / `ui-contract` 全绿；3 个相关测试文件 58/58；TypeScript 检查通过 |
+| `WorkLoom-growth` | `59d5010` | `deferRender` 同源缺口存在；未发现本轮营销事实入口 | 已合入 `main@e8816b4`（PR #24） | PR `gate` / `ui-contract` 全绿；`studio.test.ts` 23/23；TypeScript 检查通过 |
 | `hyperreality-system` | `08df432` | GitHub main 的 `packages/video-studio` 无 `deferRender`/`skipPostProduction` 接缝，也未发现本任务同源 `marketing-facts`/`marketing-authority` 路径 | not applicable | B：`git grep` 0 命中；文件树无对应营销事实实现 |
 | `workloom-growthtest` | `6484e4f` | `deferRender` 同源缺口存在 | 不修改：隔离副本 `none-in-none-out` | B：`studio.ts` 仅设置 `skipRender` |
 | `workloom-growthmatrix` | `20163c6` | `deferRender` 同源缺口存在 | 不修改：隔离副本 `none-in-none-out` | B：`studio.ts` 仅设置 `skipRender` |
@@ -70,3 +70,15 @@ tsc -p packages/video-studio/tsconfig.json --noEmit
   未推送代码、未建立 PR、未修改分支保护或同步登记。
 - 若产品所有者后续要求解除隔离，应先另开纳管任务卡，再在各自仓内复现、修复和验收。
 - `hyperreality-system` 的 not-applicable 结论只针对本轮同源代码接缝，不代表其全部视频管线已经验收。
+
+## UI 传输恢复
+
+`@workloom/ui@0.1.19` 的 GitHub Release 镜像和 SHA-512 与消费契约一致：
+
+```text
+SHA-256 42bf2e483cbd2665fda74f0e64cff7266184db7844801b27b5078f0082a3b262
+SHA-512 sha512-kplOLAtovega6BLpBwtFM1DfBS3q4ZjLp9yA942o+v9QlbREm/VsYNK/Jz7f/9ytDWSFXCvmh10C3ZHrPHkcSA==
+```
+
+`workloom` 的门禁现优先使用 GitHub Release 镜像，并把其已声明产品分叉中的 207 项既有
+UI 体验债务保留为 advisories；未分叉仓仍按硬错误处理。

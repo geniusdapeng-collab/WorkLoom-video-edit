@@ -59,7 +59,9 @@
     "Full-chain failure/regression suite passes: 45/45",
     "TypeScript checks pass for pipeline-control, video-pipeline, video-studio and apps/server",
     "Product, capability, bundle governance and 140-target secret scans pass",
-    "Downstream scan fixed workloom@10d6740 and WorkLoom-growth@d19d272; hyperreality-system is not-applicable; isolated copies were not modified"
+    "Downstream scan fixed workloom@10d6740 and WorkLoom-growth@d19d272; both PRs passed gate/ui-contract and merged to main@1ddc7cb and main@e8816b4",
+    "UI 0.1.19 now resolves from the byte-identical GitHub Release mirror, and declared product-fork experience debt remains advisory",
+    "hyperreality-system is not-applicable; isolated copies were not modified"
   ],
   "inProgress": [
     "Complete fused control-plane adapters and managed cutover after the 40-case business baseline is green",
@@ -90,7 +92,7 @@
   ],
   "currentEvidence": {
     "firstCommit": "53d4d1b",
-    "currentHead": "a696afd",
+    "currentHead": "6efa1c8",
     "githubMainBaseline": "463ae7ad844de31674b94e73679dafaf0f5dcac5",
     "marketingFirstG1Pass": "work/stress/T-2026-1030-9010/PILOT-MARKETING-HA-004",
     "latestMarketingPilot": "work/stress/T-2026-1030-9010/cases/M01",
