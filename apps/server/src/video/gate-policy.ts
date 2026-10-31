@@ -7,8 +7,9 @@
  *   如果审计脚本自己抄一份门口径，就会立刻出现"审计过的门 ≠ 生产的门"的漂移。
  *   抽成共享模块后，服务端与审计脚本消费同一份定义。
  *
- * 产品口径（2026-09-21 产品所有者）：内部门全自动（AI 监制评审），人审只留
- * ① 业务决策（说什么、长什么样）② 花钱或对外（渲染提交 G8 / 公网发布 G9 / 对外评论 G10）。
+ * 产品口径（2026-10-31 产品所有者）：视频管线内所有 review 由版本化系统策略裁决。
+ * 确定性检查、事实哈希、预算、资格、权限和围栏任一不成立即修复或阻断；
+ * `block` 仍失败关闭，kill switch 关闭时同样阻断且不创建 approvals。
  */
 import type { GateKey } from "@hyperreality/video-studio";
 import type { ProducerStage } from "@hyperreality/video-studio";
@@ -16,34 +17,42 @@ import { existsSync, mkdirSync, writeFileSync, readFileSync, realpathSync, statS
 import { createHash } from "node:crypto";
 import { join, resolve, relative, sep } from "node:path";
 import type { ProducerArtifact, DeterministicCheck, PortraitIndex } from "@hyperreality/video-studio";
+import { loadPipelineFeatureFlags } from "@workloom/pipeline-control";
 
 /**
- * 自动放行的「内部准备门」。默认包含 G1–G4 / G6 / G7；**G5 定妆照默认人审**（T-2026-1001-0007）。
- * `HR_AUTO_GATES` 可覆盖（逗号分隔；设为空字符串即"全部门人审"；显式把 G5_PORTRAIT 加回来即恢复旧口径，不推荐）。
- *
- * 为什么 G5 不再默认自动：机器像不像判据本身不稳定（同一批文件实测 92 / 15 / 86），
- * 让 AI 监制裁决会误杀或误放，还会触发"打回 → 自动重出"重复烧钱；定妆照是否可用必须由人类看过原图决定。
+ * 视频管线内的 G1-G8 门统一走系统策略。G5 只在实际图片、必需角度、
+ * 当前项目索引和评审结果都通过时放行；任一证据失败即 repair/blocked。
  */
-export const AUTO_GATES = new Set(
-  (process.env.HR_AUTO_GATES
-    ?? "G1_DOSSIER,G2_THEME,G3_INSIGHT,G4_PRD,G6_PROMPT,G7_FINAL")
-    .split(",").map((value) => value.trim()).filter(Boolean),
-);
+export const AUTO_GATES = new Set<string>([
+  "G1_DOSSIER",
+  "G2_THEME",
+  "G3_INSIGHT",
+  "G4_PRD",
+  "G5_PORTRAIT",
+  "G6_PROMPT",
+  "G7_FINAL",
+  "G8_RENDER",
+]);
 
 /**
- * 渲染提交（花钱动作）默认要求人审（T-2026-1001-0007）：
- * 缺省 **不自动放行**，脚本必须先经 `cms.approveScript` 审批；`WORKLOOM_RENDER_AUTO=1` 才恢复旧的自动放行口径。
+ * Global kill switch for policy-based auto-approval. The default is enforce;
+ * `PIPELINE_SYSTEM_AUTO_APPROVAL=off` blocks review-capable actions instead of
+ * creating a human approval row or a pending_review task.
  */
-export function renderSubmitAutoAllowed(env: NodeJS.ProcessEnv = process.env): boolean {
-  return env.WORKLOOM_RENDER_AUTO === "1";
+export function systemAutoApprovalEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
+  return loadPipelineFeatureFlags(env).systemAutoApproval === "enforce";
 }
 
-/** 内部门三档处置：review=AI 监制（默认）/ auto=无条件放行（应急）/ human=等人点 */
-export type ProducerMode = "review" | "auto" | "human";
+export function renderSubmitAutoAllowed(env: NodeJS.ProcessEnv = process.env): boolean {
+  return systemAutoApprovalEnabled(env);
+}
+
+/** review=AI 监制输入，auto=只保留确定性检查；二者都必须再经版本化策略。 */
+export type ProducerMode = "review" | "auto";
 
 export function producerModeFromEnv(env: NodeJS.ProcessEnv = process.env): ProducerMode {
   const raw = (env.HR_PRODUCER ?? "review").trim().toLowerCase();
-  return raw === "auto" || raw === "human" ? (raw as ProducerMode) : "review";
+  return raw === "auto" ? "auto" : "review";
 }
 
 /** 门 → 监制评审环节（决定默认评审要点；`producer-gate` 里定义） */
@@ -54,7 +63,7 @@ export const GATE_PRODUCER_STAGE: Partial<Record<GateKey, ProducerStage>> = {
   G4_PRD: "prompt",
   G5_PORTRAIT: "keyframe",
   G6_PROMPT: "prompt",
-  G7_FINAL: "prompt"
+  G7_FINAL: "prompt",
 };
 
 /** 逐门评审要点（在通用 rubric 之上叠加该门的专属口径） */
@@ -222,11 +231,7 @@ export function portraitGateEvidence(input: {
   } catch (error) { return fail(`实际定妆照证据不可读取：${error instanceof Error ? error.message : String(error)}`); }
 }
 
-/**
- * 人类验收用的定妆照清单（T-2026-1001-0007）：
- * 把本次实际产出的逐张文件（主体/角度/绝对路径/sha256/字节）整理成 Markdown 写进审批快照，
- * 让人类在放行 G5 前能逐张核对原图。机器判据只作证据，不参与放行、不触发自动重出。
- */
+/** 把本次实际产出整理成可审计清单，供系统策略和人工复核共用。 */
 export function portraitReviewManifest(input: { workDir: string; projectId: string }): {
   markdown: string;
   files: Array<{ subject: string; angle: string; file: string; sha256: string; bytes: number }>;
@@ -256,13 +261,13 @@ export function portraitReviewManifest(input: { workDir: string; projectId: stri
     }
   }
   const lines = [
-    "## 定妆照人工验收（放行前请逐张看过原图）",
+    "## 定妆照系统裁决证据清单",
     "",
     `本次实际产出 ${files.length} 张：`,
     "",
     ...files.map((entry) => `- ${entry.subject}（${entry.angle}）：${entry.file}（${(entry.bytes / 1024).toFixed(0)}KB，sha256 ${entry.sha256.slice(0, 12)}…）`),
     "",
-    "口径：机器像不像/监制结论只作证据，不参与放行、不触发自动重出；是否可用由人类验收人决定。",
+    "口径：逐张文件与摘要进入版本化系统策略；文件缺失、角度不足或来源不符时失败关闭。",
   ];
   return { markdown: lines.join("\n"), files };
 }

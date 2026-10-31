@@ -7,7 +7,7 @@
 import { describe, expect, it } from "vitest";
 import type pg from "pg";
 import { AssetError, register, versionChain, type AssetRow } from "./assets.js";
-import { approve, create, listByProject, newVersion, RenderScriptError } from "./render-scripts.js";
+import { approve, create, listByProject, newVersion, RenderScriptError, systemAutoApprove } from "./render-scripts.js";
 import {
   assertContentTransition,
   contentCalendar,
@@ -253,6 +253,23 @@ describe("渲染脚本管理（版本即审批对象，G8 联动）", () => {
     expect(db.approvals[0]!.snapshot).toMatchObject({ kind: "render_script", scriptKey: "rs-shot01", version: 2 });
     const list = await listByProject(app, scope, "vp-1");
     expect(list.map((r) => r.version)).toEqual([1, 2]);
+  });
+
+  it("systemAutoApprove 只绑定已落账事件，不创建 approvals 行", async () => {
+    const { db, app, gateway } = fixture();
+    await create(app, gateway, scope, {
+      scriptKey: "rs-auto", projectId: "vp-auto", shotId: "shot-01", md: "# 自动门", by: "render-operator",
+    });
+    const result = await systemAutoApprove(app, gateway, scope, "rs-auto", 1, {
+      decisionEventId: "EV-auto-approval",
+      policyId: "video-system-auto-approval",
+      policyVersion: "2026-10-31.1",
+      evidenceDigest: "a".repeat(64),
+      checks: [{ id: "qualification", status: "passed" }],
+    });
+    expect(result.script.status).toBe("approved");
+    expect(result.script.approved_event_id).toBe("EV-auto-approval");
+    expect(db.approvals).toHaveLength(0);
   });
 
   it("非 draft 版本审批拒绝（NOT_DRAFT）；不存在脚本 newVersion 拒绝（NOT_FOUND）", async () => {

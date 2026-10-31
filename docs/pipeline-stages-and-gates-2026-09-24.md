@@ -1,5 +1,11 @@
 # 管线缺失环节接入 + 门事件按 step_key 记账（2026-09-24 · T-2026-0924-0001 第二次收口）
 
+> **门裁决已更新。** 自 2026-10-31 起，G1–G15 中登记的视频门统一由
+> `video-system-auto-approval` 系统策略裁决，不再创建 `approvals` 或
+> `pending_review`；当前合同见
+> [pipeline-system-auto-approval.md](pipeline-system-auto-approval.md)。本文
+> 保留 2026-09-24 的接入与真机事故记录。
+
 **范围**：`bundles/ai-video/pipelines/narrative-film.yml` 里**声明了但运行时没接**的环节与确认门，
 以及本次接入过程中在真机上暴露并按纪律修掉的 5 个缺陷。
 

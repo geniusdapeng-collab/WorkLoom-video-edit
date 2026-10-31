@@ -713,7 +713,7 @@ describe("解说片 submit 路由不可变请求复放", () => {
   const scope = { tenantId: "tenant-ex", workspaceId: "workspace-ex" };
   let saved: any;
   let row: any;
-  const prepare = vi.fn(), submit = vi.fn(), create = vi.fn(), approve = vi.fn(), update = vi.fn(), renderJob = vi.fn(), register = vi.fn();
+  const prepare = vi.fn(), submit = vi.fn(), create = vi.fn(), autoApprove = vi.fn(), update = vi.fn(), renderJob = vi.fn(), register = vi.fn();
   const query = vi.fn();
   beforeAll(async () => {
     const { initTRPC } = await import("@trpc/server");
@@ -721,9 +721,10 @@ describe("解说片 submit 路由不可变请求复放", () => {
     vi.doMock("../../trpc/context.js", () => ({ router: t.router, protectedProcedure: t.procedure,
       writeProcedure: t.procedure, scopeOf: (identity: any) => ({ tenantId: identity.tenantId, workspaceId: identity.workspaceId }) }));
     vi.doMock("@workloom/db", () => ({ getAppPool: () => ({}), getGatewayPool: () => ({}) }));
+    vi.doMock("@workloom/base/workdata", () => ({ gatewayAppend: vi.fn(async () => ({ eventId: "EV-auto" })) }));
     vi.doMock("../gen/submit.js", () => ({ submitGenJob: submit }));
     vi.doMock("../media/register-local.js", () => ({ registerLocalAsset: register }));
-    vi.doMock("@workloom/base/asset-cms", () => ({ create, approve }));
+    vi.doMock("@workloom/base/asset-cms", () => ({ create, systemAutoApprove: autoApprove }));
     vi.doMock("@workloom/base/fence-engine", () => ({ judge: () => ({ level: "auto", impacts: [], triggeredBy: [] }) }));
     vi.doMock("@workloom/base/model-router", () => ({ checkRenderBudget: () => ({ allowed: true }), planTierToPlanId: () => "pro" }));
     vi.doMock("../router.js", () => ({ loadActiveRules: async () => ({ rules: [], defaultLevel: "auto" }) }));
@@ -744,7 +745,10 @@ describe("解说片 submit 路由不可变请求复放", () => {
         version: 1, md: input.md, fields: input.fields, status: "draft" };
       return saved;
     });
-    approve.mockReset().mockImplementation(async () => { saved = { ...saved, status: "approved" }; return { script: saved }; });
+    autoApprove.mockReset().mockImplementation(async () => {
+      saved = { ...saved, status: "approved" };
+      return { script: saved, decisionEventId: "EV-auto" };
+    });
     query.mockReset().mockImplementation(async (sql, params, actualScope) => {
       expect(actualScope).toEqual(scope);
       if (sql.includes("SELECT s.* FROM render_scripts")) {
@@ -763,7 +767,7 @@ describe("解说片 submit 路由不可变请求复放", () => {
     await caller.submit({ projectId: "project-ex" });
     const repeated = submit.mock.calls[1]?.[0];
     expect(repeated.script).toEqual(first.script); expect(repeated.params).toEqual(first.params);
-    expect(prepare).toHaveBeenCalledTimes(1); expect(create).toHaveBeenCalledTimes(1); expect(approve).toHaveBeenCalledTimes(1);
+    expect(prepare).toHaveBeenCalledTimes(1); expect(create).toHaveBeenCalledTimes(1); expect(autoApprove).toHaveBeenCalledTimes(1);
     expect(repeated.idempotencyKey).toBe("explainer:shotbook:v3");
   });
   it("UHD 采用独立脚本与幂等键，重试沿用已装配的原生 4K 画布", async () => {
@@ -779,7 +783,7 @@ describe("解说片 submit 路由不可变请求复放", () => {
     expect(repeated.params).toEqual(first.params);
     expect(prepare).toHaveBeenCalledTimes(1);
     expect(create).toHaveBeenCalledTimes(1);
-    expect(approve).toHaveBeenCalledTimes(1);
+    expect(autoApprove).toHaveBeenCalledTimes(1);
   });
   it("另一清晰度仍在渲染时拒绝覆盖分镜的工程目录", async () => {
     renderJob.mockImplementation(async (_scope, key) => key === "explainer:shotbook:v3:uhd" ? { status: "running" } : null);

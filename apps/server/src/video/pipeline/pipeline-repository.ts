@@ -7,6 +7,7 @@ import {
   PipelineControlError,
   artifactManifestHash,
   assertArtifactEnvelope,
+  assertSystemAutoApprovalReceipt,
   commandRequestHash,
   parseGateDecision,
   sha256Json,
@@ -22,6 +23,7 @@ import {
 } from "@workloom/pipeline-control";
 import {
   assertVideoPipelinePlan,
+  VIDEO_SYSTEM_AUTO_APPROVAL_POLICY,
   type CompiledNode,
   type CompiledVideoPipelinePlan,
 } from "@hyperreality/video-pipeline";
@@ -960,6 +962,28 @@ export class VideoPipelineRepository {
         && artifact.sha256 === producerRow.artifact_sha256)) {
         throw new PipelineControlError("GATE_DECISION_SCOPE_MISMATCH", "GateDecision manifest 不包含目标 stage 当前产物");
       }
+      if (decision.authority === "system_auto_approval") {
+        if (input.actor.type !== "system" || decision.reviewer.kind !== "system_auto_approval"
+          || !decision.reviewer.autoApproval) {
+          throw new PipelineControlError("GATE_SYSTEM_ACTOR_REQUIRED", "system auto-approval requires a system actor and exact policy receipt");
+        }
+        const outcome = decision.status === "passed" ? "passed" : decision.status === "rejected" ? "repair" : "blocked";
+        if (!["passed", "rejected", "blocked"].includes(decision.status)) {
+          throw new PipelineControlError("GATE_AUTO_STATUS_INVALID", "system auto-approval must be passed, rejected or blocked");
+        }
+        const receipt = assertSystemAutoApprovalReceipt(decision.reviewer.autoApproval, {
+          policyId: VIDEO_SYSTEM_AUTO_APPROVAL_POLICY.id,
+          policyVersion: VIDEO_SYSTEM_AUTO_APPROVAL_POLICY.version,
+          gateKey: decision.gateId,
+          outcome,
+        });
+        const primaryArtifact = input.manifestArtifacts.find((artifact) => artifact.id === producerRow.output_artifact_id);
+        if (!primaryArtifact || receipt.artifactSha256 !== primaryArtifact.sha256) {
+          throw new PipelineControlError("GATE_AUTO_ARTIFACT_MISMATCH", "system auto-approval receipt is bound to another artifact");
+        }
+      } else if (decision.authority === "human_approval" || decision.reviewer.kind === "human_approval") {
+        throw new PipelineControlError("VIDEO_HUMAN_REVIEW_DISABLED", "review-capable video gates cannot create or consume human approvals");
+      }
       await client.query(
         `INSERT INTO video_gate_decisions
           (id,tenant_id,workspace_id,project_id,pipeline_run_id,stage_run_id,gate_id,artifact_manifest_hash,
@@ -986,7 +1010,7 @@ export class VideoPipelineRepository {
       const primaryArtifact = input.manifestArtifacts[0]!;
       const execution = "completed";
       const disposition = decision.status === "passed" || decision.status === "not_applicable"
-        ? "continue" : decision.status === "rejected" ? "repair" : "wait_human";
+        ? "continue" : decision.status === "blocked" ? "blocked" : decision.status === "rejected" ? "repair" : "wait_human";
       await client.query(
         `UPDATE production_stage_runs
             SET gate_decision_id=$4,execution_status='completed',verification_status=$5,disposition=$6,
@@ -1004,9 +1028,9 @@ export class VideoPipelineRepository {
           decision.status === "passed" || decision.status === "not_applicable" ? "done" : "failed",
           decision.status, disposition],
       );
-      const nextAction = decision.status === "rejected" ? "repair"
+      const nextAction = decision.status === "blocked" ? "manual_fix" : decision.status === "rejected" ? "repair"
         : decision.status === "unverified" ? "reconcile" : "run_node";
-      const status = decision.status === "rejected" ? "waiting"
+      const status = decision.status === "blocked" ? "failed" : decision.status === "rejected" ? "waiting"
         : decision.status === "unverified" ? "reconciling" : "running";
       await client.query(
         `UPDATE video_pipeline_runs
@@ -1018,6 +1042,16 @@ export class VideoPipelineRepository {
         stageRunId: markerRow.id, targetStageRunId: producerRow.id, decisionId: decision.id, status: decision.status,
         artifactManifestHash: manifestHash,
       });
+      if (decision.authority === "system_auto_approval") {
+        await this.appendOutbox(client, input.runId, "system-auto-approval", {
+          stageRunId: markerRow.id,
+          targetStageRunId: producerRow.id,
+          decisionId: decision.id,
+          gateKey: decision.gateId,
+          reviewer: decision.reviewer,
+          evidenceRefs: decision.evidenceRefs,
+        });
+      }
       await this.recordCommand(client, {
         id: input.commandId, runId: input.runId, kind: "recordGateDecision", idempotencyKey: input.idempotencyKey,
         requestHash, actor: input.actor, expectedRunRevision: input.expectedRunRevision,

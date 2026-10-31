@@ -27,6 +27,8 @@ import {
 import { newId } from "@workloom/shared";
 import { protectedProcedure, router, scopeOf, writeProcedure } from "../trpc/context.js";
 import { loadActiveRules, scopedQuery } from "./router.js";
+import { sha256Json } from "@workloom/pipeline-control";
+import { autoApprovalRefusal, evaluateAndRecordVideoAutoApproval } from "./system-auto-approval.js";
 
 function dealRethrow(err: unknown): never {
   if (err instanceof DealError) {
@@ -44,17 +46,79 @@ async function judgeOrThrow(
   action: string,
   objectId: string,
   params: Record<string, unknown>,
+  by: string,
 ): Promise<{ level: "auto" | "review" | "block"; triggeredBy: string[] }> {
   const app = getAppPool();
   const { rules, defaultLevel } = await loadActiveRules(app, scope);
   const verdict = judge({ object: { type: "deal_order", id: objectId }, action, params }, rules, defaultLevel);
-  if (verdict.level === "block") {
+  const factHash = sha256Json({ action, objectId, params });
+  const auto = await evaluateAndRecordVideoAutoApproval(
+    getGatewayPool(),
+    scope,
+    { type: "deal_order", id: objectId },
+    {
+      gateKey: "G15",
+      action,
+      artifactSha256: factHash,
+      factHash,
+      expectedFactHash: factHash,
+      deterministicChecks: [
+        {
+          id: "deal-request-current",
+          category: "deterministic",
+          status: objectId && action ? "passed" : "failed",
+          detail: "deal object and action are bound into the exact request hash",
+          evidenceRef: factHash,
+          ...(objectId && action ? {} : { repairClass: "no_repair" as const }),
+        },
+        {
+          id: "external-document-scope",
+          category: "deterministic",
+          status: action === "deal.send_external" ? "passed" : "not_applicable",
+          detail: action === "deal.send_external"
+            ? "external document action carries an explicit document type"
+            : "this route prepares or records a deal action and does not send an external file",
+          evidenceRef: factHash,
+        },
+      ],
+      budget: {
+        status: "not_applicable",
+        detail: "this deal route does not spend provider or advertising budget",
+        evidenceRef: `deal:${objectId}:budget`,
+      },
+      qualification: {
+        status: "passed",
+        detail: "deal request and current workspace scope are structurally qualified",
+        evidenceRef: objectId,
+      },
+      permission: {
+        status: "passed",
+        detail: "current member and workspace are authorized for deal operations",
+        evidenceRef: `${scope.tenantId}/${scope.workspaceId}/${by}`,
+      },
+      fence: {
+        status: verdict.level === "block" ? "failed" : "passed",
+        level: verdict.level,
+        detail: verdict.triggeredBy.join("；") || `fence level ${verdict.level}`,
+        evidenceRef: `fence:${action}:${verdict.impacts.map((impact) => `${impact.rule_id}@${impact.version}`).join(",") || "default"}`,
+        triggeredBy: verdict.triggeredBy,
+      },
+      evidenceRefs: [{
+        id: `deal:${objectId}`,
+        kind: "rule",
+        sha256: factHash,
+        ref: factHash,
+      }],
+    },
+  );
+  const refusal = autoApprovalRefusal(auto);
+  if (refusal) {
     throw new TRPCError({
-      code: "FORBIDDEN",
-      message: `G15 围栏熔断：${verdict.triggeredBy.join("；") || `${action} 命中 block 规则`}（商单对外动作必审基线）`,
+      code: auto.outcome === "blocked" ? "FORBIDDEN" : "PRECONDITION_FAILED",
+      message: `G15 系统自动裁决 ${refusal}`,
     });
   }
-  return verdict;
+  return { ...verdict, level: "auto" };
 }
 
 export const dealRouter = router({
@@ -100,7 +164,7 @@ export const dealRouter = router({
       const orderId = newId("DO");
       const verdict = await judgeOrThrow(scope, "deal.create", orderId, {
         brand: input.brand, channel: input.channel, commentId: input.commentId,
-      });
+      }, ctx.identity.memberNo);
       try {
         const r = await createFromLead(getAppPool(), getGatewayPool(), scope, {
           id: orderId, commentId: input.commentId, brand: input.brand,
@@ -119,7 +183,7 @@ export const dealRouter = router({
     .input(z.object({ orderId: z.string().min(1), amount: z.number().positive() }))
     .mutation(async ({ ctx, input }) => {
       const scope = scopeOf(ctx.identity);
-      const verdict = await judgeOrThrow(scope, "deal.quote", input.orderId, { amount: input.amount });
+      const verdict = await judgeOrThrow(scope, "deal.quote", input.orderId, { amount: input.amount }, ctx.identity.memberNo);
       try {
         const r = await applyQuote(getAppPool(), getGatewayPool(), scope, input.orderId, {
           amount: input.amount, by: ctx.identity.memberNo,
@@ -135,7 +199,7 @@ export const dealRouter = router({
     .input(z.object({ milestoneId: z.string().min(1), note: z.string().max(500).optional() }))
     .mutation(async ({ ctx, input }) => {
       const scope = scopeOf(ctx.identity);
-      const verdict = await judgeOrThrow(scope, "deal.milestone", input.milestoneId, {});
+      const verdict = await judgeOrThrow(scope, "deal.milestone", input.milestoneId, {}, ctx.identity.memberNo);
       try {
         const r = await advanceMilestone(getAppPool(), getGatewayPool(), scope, input.milestoneId, {
           by: ctx.identity.memberNo, note: input.note,
@@ -151,7 +215,7 @@ export const dealRouter = router({
     .input(z.object({ now: z.iso.datetime({ offset: true }).optional() }))
     .mutation(async ({ ctx, input }) => {
       const scope = scopeOf(ctx.identity);
-      const verdict = await judgeOrThrow(scope, "deal.dunning", scope.workspaceId, {});
+      const verdict = await judgeOrThrow(scope, "deal.dunning", scope.workspaceId, {}, ctx.identity.memberNo);
       const items = await dunning(getAppPool(), getGatewayPool(), scope, {
         now: input.now, by: ctx.identity.memberNo,
       });

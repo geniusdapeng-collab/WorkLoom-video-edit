@@ -8,6 +8,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { artifactManifestHash, sha256Json, type ArtifactEnvelope, type ArtifactRef } from "@workloom/pipeline-control";
 import {
   compileVideoPipelineDocument,
+  evaluateVideoSystemAutoApproval,
   loadVideoPipelinePlan,
   type CompiledVideoPipelinePlan,
 } from "@hyperreality/video-pipeline";
@@ -411,5 +412,137 @@ describe.skipIf(!adminUrl || !appPassword || !gatewayPassword)("video pipeline r
       [shadowRunId],
     );
     expect(shadow.rows[0]).toEqual({ status: "completed", next_action: "done" });
+  }, 60_000);
+
+  it("persists a passed system-auto-approval receipt without creating an approval row", async () => {
+    await owner.query(`
+      INSERT INTO video_projects (id,workspace_id,title,kind,created_by)
+      VALUES ('P4','W1','auto approval','marketing','test')
+    `);
+    const autoPlan = compileVideoPipelineDocument({
+      quest: "auto-approval-film",
+      name: "auto approval film",
+      version: "1",
+      steps: [
+        { step_key: "source", name: "Source", owner: "worker", outputs: ["dossier"] },
+        {
+          step_key: "g1", name: "G1", owner: "director", gate: "G1",
+          inputs: ["dossier"], outputs: ["dossier"], depends_on: ["source"],
+        },
+      ],
+    }, { knownPipelines: ["auto-approval-film"] });
+    const run = await repository.createRun({
+      projectId: "P4",
+      pipelineKind: "marketing",
+      intentContractId: "IC-AUTO",
+      intentHash: sha256Json({ intent: "auto approval" }),
+      createdBy: "test",
+      plan: autoPlan,
+      idempotencyKey: "auto-start",
+      commandId: "auto-start-command",
+      actor: { id: "test", type: "system" },
+    });
+    const claimed = await repository.claimStage({
+      plan: autoPlan,
+      runId: run.runId,
+      stageKey: "source",
+      owner: "worker-auto",
+      commandId: "auto-claim",
+      idempotencyKey: "auto-claim",
+      expectedRunRevision: run.revision,
+      expectedStageRevision: 1,
+      leaseMs: 30_000,
+    });
+    const bytes = Buffer.from('{"dossier":"auto"}\n');
+    const storageRef = "artifacts/auto-source.json";
+    mkdirSync(join(workDir, "archive", "W1", "P4", "artifacts"), { recursive: true });
+    writeFileSync(join(workDir, "archive", "W1", "P4", storageRef), bytes);
+    const source = artifact("A-AUTO-SOURCE", "dossier", createHash("sha256").update(bytes).digest("hex"), bytes.length, storageRef);
+    const committed = await repository.commitArtifact({
+      plan: autoPlan,
+      runId: run.runId,
+      stageKey: "source",
+      artifact: source,
+      manifestArtifacts: [source],
+      commandId: "auto-commit",
+      idempotencyKey: "auto-commit",
+      expectedRunRevision: claimed.revision,
+      expectedStageRevision: 1,
+      actor: { id: "worker-auto", type: "worker" },
+    });
+    const gateReady = await repository.refreshFrontier({
+      plan: autoPlan,
+      runId: run.runId,
+      commandId: "auto-refresh-gate",
+      idempotencyKey: "auto-refresh-gate",
+      expectedRunRevision: committed.run.revision,
+      actor: { id: "test", type: "system" },
+    });
+    const marker = gateReady.stages.find((stage) => stage.key === "g1")!;
+    const artifactManifest = artifactManifestHash([source]);
+    const auto = evaluateVideoSystemAutoApproval(true, {
+      gateKey: "G1",
+      action: "g1.confirm",
+      artifactSha256: source.sha256,
+      factHash: source.sha256,
+      expectedFactHash: source.sha256,
+      deterministicChecks: [{
+        id: "schema-current",
+        category: "deterministic",
+        status: "passed",
+        detail: "current artifact matches the deterministic schema",
+        evidenceRef: source.storageRef,
+      }],
+      budget: { status: "passed", detail: "budget remains bounded", evidenceRef: "budget:auto" },
+      qualification: { status: "passed", detail: "qualification token matches", evidenceRef: "qualification:auto" },
+      permission: { status: "passed", detail: "workspace scope matches", evidenceRef: "permission:auto" },
+      fence: { status: "passed", level: "review", detail: "review fence can be converted", evidenceRef: "fence:G1" },
+      evidenceRefs: [{ id: "source", kind: "file", sha256: source.sha256, ref: source.storageRef }],
+    });
+    expect(auto.outcome).toBe("passed");
+    const gateNode = autoPlan.nodes.find((node) => node.key === "g1");
+    if (!gateNode || gateNode.kind !== "gate") throw new Error("compiled G1 gate missing");
+    const decision = {
+      id: "GD-AUTO-G1",
+      runId: run.runId,
+      stageRunId: committed.run.stages.find((stage) => stage.key === "source")!.stageRunId,
+      gateId: "G1",
+      artifactManifestHash: artifactManifest,
+      planHash: autoPlan.planHash,
+      checkSetVersion: gateNode.checkSetVersion,
+      rubricVersion: gateNode.rubricVersion,
+      authority: "system_auto_approval" as const,
+      status: "passed" as const,
+      reviewer: {
+        kind: "system_auto_approval" as const,
+        id: auto.receipt.evidenceDigest,
+        autoApproval: auto.receipt,
+      },
+      findings: [],
+      evidenceRefs: auto.receipt.evidenceRefs,
+      supersedesDecisionId: null,
+      createdAt: new Date().toISOString(),
+    };
+    const passed = await repository.recordGateDecision({
+      plan: autoPlan,
+      runId: run.runId,
+      gateStageKey: "g1",
+      decision,
+      findings: [],
+      manifestArtifacts: [source],
+      commandId: "auto-gate",
+      idempotencyKey: "auto-gate",
+      expectedRunRevision: gateReady.revision,
+      expectedStageRevision: marker.revision,
+      actor: { id: "video-system-auto-approval", type: "system" },
+    });
+    expect(passed.stages.find((stage) => stage.key === "source")?.verificationStatus).toBe("passed");
+    const outbox = await owner.query(
+      "SELECT event_kind FROM video_pipeline_outbox WHERE run_id=$1 ORDER BY created_at",
+      [run.runId],
+    );
+    expect(outbox.rows.some((row) => row.event_kind === "system-auto-approval")).toBe(true);
+    const approvals = await owner.query("SELECT count(*)::int AS n FROM approvals WHERE workspace_id='W1'");
+    expect(approvals.rows[0]?.n).toBe(0);
   }, 60_000);
 });

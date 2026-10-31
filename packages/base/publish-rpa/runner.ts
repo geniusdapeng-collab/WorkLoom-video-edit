@@ -27,12 +27,18 @@ export interface RunnerDeps {
   fencePrecheck: (input: JudgeInput) => JudgeVerdict;
   /** 单账号日上限（默认 DAILY_LIMIT_DEFAULT） */
   dailyLimit?: number;
+  /**
+   * Legacy callers default to a visible pending_review hold. Video callers pass
+   * `failed` so a policy block remains fail-closed without generating approvals.
+   */
+  blockedStatus?: "pending_review" | "failed";
   now?: Date;
 }
 
 export type PublishRunKind =
   | "executed"        // 已执行且回执落事件
   | "held_fence"      // 围栏未放行（G9 review/block）→ pending_review，适配器未执行
+  | "blocked"         // policy/fence block → failed，适配器未执行
   | "held_daily_limit"// 单日上限 → 退回 pending 等次日
   | "manual"          // 未登录/执行失败/无适配器 → 转人工
   | "not_claimable";  // 任务不存在或非 pending（幂等领取失败）
@@ -161,13 +167,22 @@ export async function runPublishTask(
     }
   };
 
-  /* ---- ② 围栏预检（G9：publish.execute；非 auto 即挂起待审，适配器不执行） ---- */
+  /* ---- ② 围栏预检（G9：publish.execute；视频调用方先做版本化策略裁决） ---- */
   const verdict = deps.fencePrecheck({
     object: { type: "publish_task", id: taskId },
     action: "publish.execute",
     params: { platform: task.platform, accountId: task.account_id, scheduleAt: task.schedule_at },
   });
   if (verdict.level !== "auto") {
+    const blocked = verdict.level === "block" || deps.blockedStatus === "failed";
+    if (blocked) {
+      await finalize("failed", {
+        action: "publish.fence_blocked",
+        after: { taskId, platform: task.platform, level: verdict.level, triggeredBy: verdict.triggeredBy },
+        basis: [`G9 系统策略未放行 ${verdict.level}：${verdict.triggeredBy.join("；") || "fail-closed"}`],
+      }, { ruleImpact: verdict.impacts, error: "G9_POLICY_BLOCKED" });
+      return { kind: "blocked", taskId, level: verdict.level };
+    }
     await finalize("pending_review", {
       action: "publish.fence_hold",
       after: { taskId, platform: task.platform, level: verdict.level, triggeredBy: verdict.triggeredBy },

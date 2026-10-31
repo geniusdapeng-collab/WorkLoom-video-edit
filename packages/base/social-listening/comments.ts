@@ -106,6 +106,16 @@ export interface ReplySender {
   send(comment: CommentRow, text: string): Promise<{ synced: boolean; receiptId?: string; evidenceUri?: string }>;
 }
 
+export interface CommentReviewDecision {
+  outcome: "passed" | "repair" | "blocked";
+  reason: string;
+  policyId: string;
+  policyVersion: string;
+  evidenceDigest: string;
+  checks: Array<Record<string, unknown>>;
+  evidenceRefs?: Array<Record<string, unknown>>;
+}
+
 /** 兜底候选回复（生成器未注入/失败时的保守话术；auto 级也可用，审批级仅作草稿） */
 export function fallbackReply(comment: CommentRow): string {
   return comment.intent === "praise"
@@ -192,6 +202,17 @@ export interface ProcessDeps {
   sender?: ReplySender;
   /** 敏感词表（G10 block 级；行业包/工作区配置供给，默认空） */
   sensitiveWords?: string[];
+  /**
+   * Optional versioned system policy. It may turn a review into a pass or a
+   * block, but a block can never become a pass. The decision and exact event
+   * are recorded in the same transaction as the comment/reply state.
+   */
+  reviewGate?: (input: {
+    comment: CommentRow;
+    intent: CommentIntent;
+    candidate: string;
+    route: RouteDecision;
+  }) => Promise<CommentReviewDecision>;
 }
 
 export interface ProcessResult {
@@ -199,6 +220,7 @@ export interface ProcessResult {
   intent: CommentIntent;
   classifySource: "llm" | "rules";
   decision: RouteDecision;
+  autoApproval?: CommentReviewDecision;
   replyId?: string;
 }
 
@@ -257,23 +279,34 @@ export async function processComment(
     }
   }
 
-  /* ---- auto 级外发（须 sender 注入；未注入按 review 挂起，不静默丢弃） ---- */
+  const autoApproval = decision.level === "review" && candidate !== null && deps.reviewGate
+    ? await deps.reviewGate({ comment: { ...comment, intent }, intent, candidate, route: decision })
+    : undefined;
+  const policyLevel = autoApproval?.outcome === "passed" ? "auto"
+    : autoApproval?.outcome === "blocked" ? "block"
+      : decision.level;
+
+  /* ---- auto 级外发（须 sender 注入；未注入按 review/manual 挂起，不静默丢弃） ---- */
   let receipt: { synced: boolean; receiptId?: string; evidenceUri?: string } | null = null;
   let sendFailed: string | null = null;
-  if (decision.level === "auto" && candidate !== null && deps.sender) {
+  if (policyLevel === "auto" && candidate !== null && deps.sender) {
     try {
       receipt = await deps.sender.send({ ...comment, intent }, candidate);
     } catch (err) {
       sendFailed = err instanceof Error ? err.message : String(err); // 外发失败 → 转人工
     }
   }
-  const effective: RouteDecision = decision.level === "auto" && (!deps.sender || sendFailed)
+  const effective: RouteDecision = policyLevel === "auto" && (!deps.sender || sendFailed)
     ? { level: "review", alert: decision.alert, reason: sendFailed ? `外发失败转人工：${sendFailed}` : "外发通道未注入，auto 降级 review 挂起（不静默丢弃）" }
-    : decision;
+    : policyLevel === "auto"
+      ? { level: "auto", alert: decision.alert, reason: autoApproval?.reason ?? decision.reason }
+      : policyLevel === "block"
+        ? { level: "block", alert: true, reason: autoApproval?.reason ?? decision.reason }
+        : decision;
 
   /* ---- 落库 + 留痕（同一 COMMIT） ---- */
   const status = effective.level === "block" ? "blocked"
-    : effective.level === "review" ? "pending_review"
+    : effective.level === "review" ? (autoApproval?.outcome === "repair" || autoApproval?.outcome === "passed" ? "manual" : "pending_review")
     : receipt?.synced ? "replied" : "manual";
   const client = await app.connect();
   try {
@@ -310,6 +343,24 @@ export async function processComment(
       },
       basis: [effective.reason],
     }, receipt ? { receipt: { synced: receipt.synced, snapshot_uri: receipt.evidenceUri, verified_at: new Date().toISOString() } } : {});
+    if (autoApproval) {
+      await emitInTx(client, scope, "comment_reply", commentId, {
+        action: "system-auto-approval",
+        after: {
+          gateKey: "G10",
+          action: "comment.reply",
+          outcome: autoApproval.outcome,
+          policyId: autoApproval.policyId,
+          policyVersion: autoApproval.policyVersion,
+          evidenceDigest: autoApproval.evidenceDigest,
+          checks: autoApproval.checks,
+          evidenceRefs: autoApproval.evidenceRefs ?? [],
+          commentId,
+          replyId: replyId ?? null,
+        },
+        basis: [`${autoApproval.policyId}@${autoApproval.policyVersion}: ${autoApproval.reason}`],
+      });
+    }
     // 危机/敏感词附带告警事件（G10：review+alert / block+alert）
     if (effective.alert) {
       await emitInTx(client, scope, "comment_reply", commentId, {
@@ -319,7 +370,7 @@ export async function processComment(
       });
     }
     await client.query("COMMIT");
-    return { commentId, intent, classifySource: source, decision: effective, replyId };
+    return { commentId, intent, classifySource: source, decision: effective, autoApproval, replyId };
   } catch (err) {
     await client.query("ROLLBACK").catch(() => undefined);
     throw err;

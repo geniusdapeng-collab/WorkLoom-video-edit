@@ -71,7 +71,13 @@ export interface ArtifactEdge {
   inputRole: string;
 }
 
-export type GateStatus = "passed" | "rejected" | "unverified" | "not_applicable";
+export type GateAuthority =
+  | "deterministic"
+  | "llm_review"
+  | "human_approval"
+  | "system_auto_approval"
+  | "external_receipt";
+export type GateStatus = "passed" | "rejected" | "unverified" | "not_applicable" | "blocked";
 export type GateSeverity = "P0" | "P1" | "P2" | "advisory";
 export type RepairClass =
   | "schema"
@@ -94,11 +100,19 @@ export interface GateFinding {
 }
 
 export interface ReviewerReceipt {
-  kind: "host_rule" | "llm_review" | "human_approval" | "external_receipt";
+  kind: "host_rule" | "llm_review" | "human_approval" | "system_auto_approval" | "external_receipt";
   id: string;
   model?: string;
   approvalId?: string;
   receiptRef?: string;
+  autoApproval?: unknown;
+}
+
+export interface EvidenceRef {
+  id: string;
+  kind: "file" | "event" | "approval" | "provider_receipt" | "rule";
+  sha256: string | null;
+  ref: string;
 }
 
 export interface GateDecision {
@@ -110,10 +124,11 @@ export interface GateDecision {
   planHash: string;
   checkSetVersion: string;
   rubricVersion: string;
+  authority?: GateAuthority;
   status: GateStatus;
   reviewer: ReviewerReceipt;
   findings: GateFinding[];
-  evidenceRefs: string[];
+  evidenceRefs: Array<string | EvidenceRef>;
   supersedesDecisionId: string | null;
   createdAt: string;
 }

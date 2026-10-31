@@ -180,6 +180,49 @@ describe("G10 三级分流矩阵", () => {
     expect(db.events.some((e) => e.payload.decision.action === "comment.reply_review")).toBe(true);
   });
 
+  it("版本化策略通过 G10 review 后直接外发，不产生 pending_review", async () => {
+    const { db, app, gateway } = fixture("这个多少钱？怎么买");
+    const sender = new FakeSender();
+    const r = await processComment(app, gateway, scope, "cm-1", {
+      classifier: classifierOf("query"),
+      sender,
+      reviewGate: async () => ({
+        outcome: "passed",
+        reason: "reply matches account policy and carries a sourced price boundary",
+        policyId: "video-system-auto-approval",
+        policyVersion: "2026-10-31.1",
+        evidenceDigest: "a".repeat(64),
+        checks: [{ id: "comment-policy", status: "passed" }],
+      }),
+    });
+    expect(r!.decision.level).toBe("auto");
+    expect(sender.sent).toHaveLength(1);
+    expect(db.comments[0]!.status).toBe("replied");
+    expect(db.comments[0]!.status).not.toBe("pending_review");
+    expect(db.events.some((event) => event.payload.decision.action === "system-auto-approval")).toBe(true);
+  });
+
+  it("G10 block 反例不能被系统策略降级为 auto", async () => {
+    const { db, app, gateway } = fixture("太赞了，顺便说说违禁词");
+    const sender = new FakeSender();
+    const r = await processComment(app, gateway, scope, "cm-1", {
+      classifier: classifierOf("praise"),
+      sender,
+      sensitiveWords: ["违禁词"],
+      reviewGate: async () => ({
+        outcome: "passed",
+        reason: "must never be called for a hard block",
+        policyId: "video-system-auto-approval",
+        policyVersion: "2026-10-31.1",
+        evidenceDigest: "b".repeat(64),
+        checks: [],
+      }),
+    });
+    expect(r!.decision.level).toBe("block");
+    expect(sender.sent).toHaveLength(0);
+    expect(db.comments[0]!.status).toBe("blocked");
+  });
+
   it("危机（LLM crisis）→ review + alert：挂起待审且写 comment.crisis_alert 告警事件", async () => {
     const { db, app, gateway } = fixture("我要找媒体曝光你们");
     const r = await processComment(app, gateway, scope, "cm-1", {

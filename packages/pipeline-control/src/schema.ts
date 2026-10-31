@@ -70,11 +70,12 @@ export const gateFindingSchema = z.object({
 }).strict();
 
 export const reviewerReceiptSchema = z.object({
-  kind: z.enum(["host_rule", "llm_review", "human_approval", "external_receipt"]),
+  kind: z.enum(["host_rule", "llm_review", "human_approval", "system_auto_approval", "external_receipt"]),
   id: nonEmpty,
   model: nonEmpty.optional(),
   approvalId: nonEmpty.optional(),
   receiptRef: nonEmpty.optional(),
+  autoApproval: jsonObject.optional(),
 }).strict();
 
 export const gateDecisionSchema = z.object({
@@ -86,10 +87,19 @@ export const gateDecisionSchema = z.object({
   planHash: sha256,
   checkSetVersion: nonEmpty,
   rubricVersion: nonEmpty,
-  status: z.enum(["passed", "rejected", "unverified", "not_applicable"]),
+  authority: z.enum(["deterministic", "llm_review", "human_approval", "system_auto_approval", "external_receipt"]).optional(),
+  status: z.enum(["passed", "rejected", "unverified", "not_applicable", "blocked"]),
   reviewer: reviewerReceiptSchema,
   findings: z.array(gateFindingSchema),
-  evidenceRefs: z.array(nonEmpty),
+  evidenceRefs: z.array(z.union([
+    nonEmpty,
+    z.object({
+      id: nonEmpty,
+      kind: z.enum(["file", "event", "approval", "provider_receipt", "rule"]),
+      sha256: sha256.nullable(),
+      ref: nonEmpty,
+    }).strict(),
+  ])),
   supersedesDecisionId: nonEmpty.nullable(),
   createdAt: z.iso.datetime(),
 }).strict().superRefine((value, context) => {

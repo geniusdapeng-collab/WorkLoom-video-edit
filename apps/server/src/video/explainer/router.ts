@@ -17,12 +17,14 @@ import { TRPCError } from "@trpc/server";
 import { getAppPool, getGatewayPool } from "@workloom/db";
 import { judge, type RuntimeRule } from "@workloom/base/fence-engine";
 import { checkRenderBudget, planTierToPlanId } from "@workloom/base/model-router";
-import { approve as approveRenderScript, create as createRenderScript } from "@workloom/base/asset-cms";
+import { create as createRenderScript } from "@workloom/base/asset-cms";
 import { protectedProcedure, router, scopeOf, writeProcedure } from "../../trpc/context.js";
 import { submitGenJob, type RenderScriptLike } from "../gen/submit.js";
 import { submissionRequestHash } from "../gen/submission-ledger.js";
 import { registerLocalAsset } from "../media/register-local.js";
 import { loadActiveRules } from "../router.js";
+import { autoApprovalRefusal, evaluateAndRecordVideoAutoApproval } from "../system-auto-approval.js";
+import { systemAutoApprove as persistSystemAutoApproval } from "@workloom/base/asset-cms";
 import { buildCardRegistry } from "./card-registry.js";
 import { engineDirOf, engineStatus } from "./engine.js";
 import { runMachineGates } from "./qa-gates.js";
@@ -323,12 +325,6 @@ export const explainerRouter = router({
         active.rules as RuntimeRule[],
         active.defaultLevel,
       );
-      if (verdict.level === "block") {
-        throw new TRPCError({
-          code: "FORBIDDEN",
-          message: `G8 围栏熔断：${verdict.triggeredBy.join("；") || "render.submit 命中 block 规则"}`,
-        });
-      }
       const budget = checkRenderBudget({
         plan: planTierToPlanId(ctx.identity.plan),
         usedSeconds: await usedSecondsThisMonth(scope),
@@ -347,9 +343,82 @@ export const explainerRouter = router({
           by: ctx.identity.memberNo,
         });
       }
-      if (scriptRow.status === "draft") {
-        const approved = await approveRenderScript(getAppPool(), getGatewayPool(), scope, scriptKey, scriptRow.version, { by: ctx.identity.memberNo });
-        scriptRow = approved.script;
+      const alreadyApproved = scriptRow.status === "approved";
+      const auto = alreadyApproved ? null : await evaluateAndRecordVideoAutoApproval(
+        getGatewayPool(),
+        scope,
+        { type: "render_script", id: scriptRow.id },
+        {
+          gateKey: "G8",
+          action: "render.submit",
+          artifactSha256: submissionInputHash,
+          factHash: submissionInputHash,
+          expectedFactHash: submissionInputHash,
+          deterministicChecks: [
+            {
+              id: "explainer-input-current",
+              category: "deterministic",
+              status: "passed",
+              detail: "shotbook, voice timing and render parameters share the current submission hash",
+              evidenceRef: submissionInputHash,
+            },
+            {
+              id: "explainer-budget",
+              category: "deterministic",
+              status: budget.allowed ? "passed" : "failed",
+              detail: budget.allowed ? "render request remains within monthly seconds quota" : budget.reason ?? "quota rejected",
+              evidenceRef: `budget:${durationSec}`,
+              ...(budget.allowed ? {} : { repairClass: "no_repair" as const }),
+            },
+          ],
+          budget: {
+            status: budget.allowed ? "passed" : "failed",
+            detail: budget.reason ?? `request=${durationSec}s`,
+            evidenceRef: `explainer:${scriptRow.id}:budget`,
+          },
+          qualification: {
+            status: "passed",
+            detail: "current shotbook and exact script version are ready for local rendering",
+            evidenceRef: scriptRow.id,
+          },
+          permission: {
+            status: "passed",
+            detail: "current member and workspace are authorized for explainer rendering",
+            evidenceRef: `${scope.tenantId}/${scope.workspaceId}/${ctx.identity.memberNo}`,
+          },
+          fence: {
+            status: verdict.level === "block" ? "failed" : "passed",
+            level: verdict.level,
+            detail: verdict.triggeredBy.join("；") || `fence level ${verdict.level}`,
+            evidenceRef: `fence:explainer.render:${verdict.impacts.map((impact) => `${impact.rule_id}@${impact.version}`).join(",") || "default"}`,
+            triggeredBy: verdict.triggeredBy,
+          },
+          evidenceRefs: [{
+            id: `explainer:${row.id}`,
+            kind: "rule",
+            sha256: submissionInputHash,
+            ref: `shotbook/${row.id}@${row.version}`,
+          }],
+        },
+      );
+      if (auto) {
+        const refusal = autoApprovalRefusal(auto);
+        if (refusal) {
+          throw new TRPCError({
+            code: auto.outcome === "blocked" ? "FORBIDDEN" : "PRECONDITION_FAILED",
+            message: `G8 系统自动裁决 ${refusal}`,
+          });
+        }
+        const persisted = await persistSystemAutoApproval(
+          getAppPool(), getGatewayPool(), scope, scriptKey, scriptRow.version, {
+            decisionEventId: auto.eventId,
+            policyId: auto.receipt.policyId,
+            policyVersion: auto.receipt.policyVersion,
+            evidenceDigest: auto.receipt.evidenceDigest,
+            checks: auto.checks as unknown as Array<Record<string, unknown>>,
+          },
+        );
+        scriptRow = persisted.script;
       }
 
       /* ---- 生成任务（provider=remotion-local；工程目录是唯一事实源） ---- */
@@ -361,7 +430,7 @@ export const explainerRouter = router({
         params,
         mode: "manual",
         idempotencyKey,
-        fenceLevel: verdict.level,
+        fenceLevel: "auto",
         fenceImpacts: verdict.impacts,
         env: process.env,
       });

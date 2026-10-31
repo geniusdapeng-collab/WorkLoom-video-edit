@@ -177,6 +177,22 @@ describe("执行器：G9 围栏预检", () => {
     });
   });
 
+  it("视频策略 block → failed，零浏览器动作且不生成 approvals", async () => {
+    const verdict: JudgeVerdict = {
+      level: "block",
+      impacts: [{ rule_id: "G9b", version: "v1", result: "blocked" }],
+      triggeredBy: ["单账号日发布超限"],
+      evalErrors: [],
+    };
+    const { db, driver, deps, app, gateway } = fixture(makeTask(), verdict);
+    const r = await runPublishTask(app, gateway, scope, "pt-1", { ...deps, blockedStatus: "failed" });
+    expect(r.kind).toBe("blocked");
+    expect(driver.calls).toHaveLength(0);
+    expect(db.tasks[0]!.status).toBe("failed");
+    expect(db.approvals).toHaveLength(0);
+    expect(db.events.some((event) => event.payload.decision.action === "publish.fence_blocked")).toBe(true);
+  });
+
   it("非 pending 任务幂等退出（not_claimable）", async () => {
     const { deps, app, gateway } = fixture(makeTask({ status: "succeeded" }));
     const r = await runPublishTask(app, gateway, scope, "pt-1", deps);

@@ -11,7 +11,7 @@ export class PipelineControlError extends Error {
     public readonly code: string,
     message: string,
   ) {
-    super(message);
+    super(`${code}: ${message}`);
     this.name = "PipelineControlError";
   }
 }

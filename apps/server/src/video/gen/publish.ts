@@ -1,8 +1,8 @@
 /**
  * video/gen/publish.ts —— 发布链（T-2026-0921-0002）
  *
- * 链路：成片入库 → 发布任务入队（G9 预检；公网发布必审基线，任务落 pending）→
- *      执行器复核 G9（review → pending_review 挂起，适配器不执行）→ 人审放行后由桌面端
+ * 链路：成片入库 → 发布任务入队（G9 预检；版本化系统策略校验资格/权利/围栏）→
+ *      执行器复核 G9（review 由策略转 passed 或 blocked；不生成 pending_review）→ 桌面端
  *      Playwright 驱动真实上传（本进程以 dry-run 驱动验证机制；**不冒充真实发布**）。
  *
  * 演示与真实分明（不变量 9）：
@@ -57,6 +57,7 @@ export function fenceOverrideEnabled(env: NodeJS.ProcessEnv = process.env): bool
 export interface PublishRunDeps {
   fencePrecheck: (input: JudgeInput) => JudgeVerdict;
   dailyLimit?: number;
+  blockedStatus?: "pending_review" | "failed";
   driverKind?: "dry-run" | "desktop";
 }
 
@@ -130,6 +131,7 @@ export async function executePublishTask(
     driver,
     fencePrecheck: deps.fencePrecheck,
     dailyLimit: deps.dailyLimit,
+    blockedStatus: deps.blockedStatus,
   });
   if (driverKind === "dry-run" && result.kind === "executed") {
     await correctDryRunReceipt(app, gateway, scope, taskId, "publish-rpa");
@@ -144,6 +146,7 @@ export async function executePublishTask(
 }
 
 export interface CreatePublishTaskInput {
+  taskId?: string;
   platform: Platform;
   accountId: string;
   assetId?: string | null;
@@ -165,7 +168,7 @@ export async function createPublishTask(
   scope: Scope,
   input: CreatePublishTaskInput,
 ): Promise<{ taskId: string }> {
-  const taskId = newId("PT");
+  const taskId = input.taskId ?? newId("PT");
   const client = await app.connect();
   try {
     await client.query("BEGIN");

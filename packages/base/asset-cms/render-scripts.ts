@@ -234,6 +234,56 @@ export async function approve(
   }
 }
 
+/**
+ * Versioned video-policy approval. Unlike `approve`, this path never creates an
+ * approvals row; the supplied receipt is the immutable authorization evidence.
+ */
+export async function systemAutoApprove(
+  app: pg.Pool,
+  gateway: pg.Pool,
+  scope: Scope,
+  scriptKey: string,
+  version: number,
+  input: {
+    decisionEventId: string;
+    policyId: string;
+    policyVersion: string;
+    evidenceDigest: string;
+    checks: Array<Record<string, unknown>>;
+  },
+): Promise<{ script: RenderScriptRow; decisionEventId: string }> {
+  const client = await app.connect();
+  try {
+    await client.query("BEGIN");
+    await client.query("SELECT set_config('app.workspace_id', $1, true)", [scope.workspaceId]);
+    await client.query("SELECT set_config('app.tenant_id', $1, true)", [scope.tenantId]);
+    const cur = await client.query<RenderScriptRow>(
+      `SELECT * FROM render_scripts WHERE workspace_id=$1 AND script_key=$2 AND version=$3 FOR UPDATE`,
+      [scope.workspaceId, scriptKey, version],
+    );
+    const row = cur.rows[0];
+    if (!row) throw new RenderScriptError("NOT_FOUND", `渲染脚本 ${scriptKey} v${version} 不存在`);
+    if (row.status !== "draft") {
+      throw new RenderScriptError("NOT_DRAFT", `仅 draft 可自动裁决（当前 ${row.status}）`);
+    }
+    if (!input.decisionEventId.trim() || !input.evidenceDigest.match(/^[a-f0-9]{64}$/)) {
+      throw new RenderScriptError("NOT_DRAFT", "系统自动裁决缺少已落账事件或证据摘要");
+    }
+    await client.query(
+      `UPDATE render_scripts SET status='approved', approved_event_id=$4
+       WHERE workspace_id=$1 AND script_key=$2 AND version=$3`,
+      [scope.workspaceId, scriptKey, version, input.decisionEventId],
+    );
+    await client.query("COMMIT");
+    return { script: { ...row, status: "approved", approved_event_id: input.decisionEventId }, decisionEventId: input.decisionEventId };
+  } catch (err) {
+    await client.query("ROLLBACK").catch(() => undefined);
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
 /** 按项目列出全部脚本版本（工作台「片库·脚本」页数据源） */
 export async function listByProject(app: pg.Pool, scope: Scope, projectId: string): Promise<RenderScriptRow[]> {
   const client = await app.connect();

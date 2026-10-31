@@ -14,6 +14,10 @@ vi.mock("./archive-host.js", async original => ({ ...await original<Record<strin
 vi.mock("@workloom/base/fence-engine", async original => ({ ...await original<Record<string, unknown>>(), judge: d.judge }));
 vi.mock("@workloom/base/model-router", async original => ({ ...await original<Record<string, unknown>>(), checkRenderBudget: d.budget }));
 vi.mock("./gen/cost.js", async original => ({ ...await original<Record<string, unknown>>(), checkCostCaps: d.cap, renderSpendCny: async () => ({ day: 0, month: 0 }) }));
+vi.mock("@workloom/base/workdata", async original => ({
+  ...await original<Record<string, unknown>>(),
+  gatewayAppend: vi.fn(async () => ({ eventId: "EV-auto-approval" })),
+}));
 import { videoRouter } from "./router.js";
 import { SubmissionError } from "./gen/submission-ledger.js";
 const identity = { tenantId: "tenant-router", workspaceId: "ws-router", memberNo: "MEM-T", plan: "pro", role: "owner" } as NonNullable<TrpcContext["identity"]>;
@@ -62,25 +66,20 @@ describe("生产入口正常可达且不能覆盖已审核请求", () => {
     await caller().render.submit({ qualificationToken: "test-token", scriptId: "RS-CANONICAL", mode: "manual", durationSec: 5, aspectRatio: "16:9" });
     expect(d.submit.mock.calls[0]![0].params).toEqual(canonical().params);
   });
-  it("内容资格不代替成本围栏；auto模式不能绕开服务禁用的自动审批", async () => {
+  it("G8 review 在全部策略证据通过后自动放行并提交", async () => {
     vi.stubEnv("WORKLOOM_RENDER_AUTO", "0"); d.load.mockResolvedValue({ ...canonical(), mode: "auto" });
     d.judge.mockReturnValue({ level: "review", impacts: [], triggeredBy: ["G8"] });
-    await expect(caller().render.submit({ qualificationToken: "test-token" })).rejects.toMatchObject({ code: "PRECONDITION_FAILED" });
-    expect(d.judge.mock.calls[0]![0].context.render_auto).toBe(false); expect(d.submit).not.toHaveBeenCalled();
+    await expect(caller().render.submit({ qualificationToken: "test-token" })).resolves.toMatchObject({ jobId: "RJ-1" });
+    expect(d.judge.mock.calls[0]![0].context.render_auto).toBe(true);
+    expect(d.submit).toHaveBeenCalledTimes(1);
   });
-  it("默认即人审（T-2026-1001-0007）：未设 WORKLOOM_RENDER_AUTO 时 render_auto=false，未审批脚本不得提交", async () => {
-    const previous = process.env.WORKLOOM_RENDER_AUTO;
-    delete process.env.WORKLOOM_RENDER_AUTO;
-    try {
-      d.load.mockResolvedValue({ ...canonical(), mode: "auto" });
-      d.judge.mockReturnValue({ level: "review", impacts: [], triggeredBy: ["G8"] });
-      await expect(caller().render.submit({ qualificationToken: "test-token" })).rejects.toMatchObject({ code: "PRECONDITION_FAILED" });
-      expect(d.judge.mock.calls[0]![0].context.render_auto).toBe(false);
-      expect(d.submit).not.toHaveBeenCalled();
-    } finally {
-      if (previous === undefined) delete process.env.WORKLOOM_RENDER_AUTO;
-      else process.env.WORKLOOM_RENDER_AUTO = previous;
-    }
+  it("全局 kill switch 关闭时 G8 review 直接 FORBIDDEN，不生成人工等待", async () => {
+    vi.stubEnv("PIPELINE_SYSTEM_AUTO_APPROVAL", "off");
+    d.load.mockResolvedValue({ ...canonical(), mode: "auto" });
+    d.judge.mockReturnValue({ level: "review", impacts: [], triggeredBy: ["G8"] });
+    await expect(caller().render.submit({ qualificationToken: "test-token" })).rejects.toMatchObject({ code: "FORBIDDEN" });
+    expect(d.judge.mock.calls[0]![0].context.render_auto).toBe(false);
+    expect(d.submit).not.toHaveBeenCalled();
   });
   it.each(["block", "budget", "cost"])("%s 不允许新外部动作", async kind => {
     if (kind === "block") d.judge.mockReturnValue({ level: "block", impacts: [], triggeredBy: ["G8"] });

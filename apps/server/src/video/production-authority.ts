@@ -18,6 +18,8 @@ import type { VideoGenParams } from "./gen/types.js";
 import { SubmissionError } from "./gen/submission-ledger.js";
 import { canonicalRenderJson, compileRenderRequest, renderSha256, supportsCompiledRequest, type CompiledProviderRequest } from "./gen/compiled-request.js";
 import { verifyPortraitArchiveReuseAcceptance } from "./portrait-reuse-acceptance.js";
+import { assertSystemAutoApprovalReceipt } from "@workloom/pipeline-control";
+import { VIDEO_SYSTEM_AUTO_APPROVAL_POLICY } from "@hyperreality/video-pipeline";
 
 const ISSUER = "workloom.production-authority";
 const SCHEMA = "workloom.render-qualification/v1";
@@ -158,6 +160,7 @@ async function sourceForShot(app: AppPool, scope: Scope, projectId: string, shot
   for (const key of [...(row.kind === "marketing" ? ["G1_DOSSIER"] : []), ...REQUIRED_GATES]) {
     const matches = gates.filter(g => g.gate === key);
     const gate = matches[0];
+    if (!gate) fail("PREPRODUCTION_GATES_UNVERIFIED", `当前执行缺少 ${key} 裁决`);
     const na = key === "G5_PORTRAIT" && gate?.status === "not_applicable" && gate?.basis === "no-characters-or-products";
     const archiveReuse = key === "G5_PORTRAIT" && gate?.status === "passed" && gate?.approved === true
       && gate?.via === "archive-reuse-acceptance" && gate?.degraded === false && gate?.model === null;
@@ -170,7 +173,25 @@ async function sourceForShot(app: AppPool, scope: Scope, projectId: string, shot
       }
       continue;
     }
-    if (matches.length !== 1 || (!na && (gate?.status !== "passed" || gate?.approved !== true || gate?.via !== "llm" || gate?.degraded !== false))) fail("PREPRODUCTION_GATES_UNVERIFIED", `当前执行缺少有效 ${key} 裁决`);
+    const autoReceipt = gate?.autoApproval;
+    let systemAutoPassed = false;
+    if (autoReceipt) {
+      try {
+        const receipt = assertSystemAutoApprovalReceipt(autoReceipt, {
+          policyId: VIDEO_SYSTEM_AUTO_APPROVAL_POLICY.id,
+          policyVersion: VIDEO_SYSTEM_AUTO_APPROVAL_POLICY.version,
+          gateKey: key,
+          outcome: "passed",
+        });
+        systemAutoPassed = receipt.outcome === "passed" && gate?.status === "passed" && gate?.approved === true;
+      } catch (error) {
+        fail("PREPRODUCTION_GATES_UNVERIFIED", `${key} 系统自动裁决证据不可核实：${error instanceof Error ? error.message : String(error)}`);
+      }
+    }
+    if (matches.length !== 1 || (!na && !systemAutoPassed
+      && (gate?.status !== "passed" || gate?.approved !== true || gate?.via !== "llm" || gate?.degraded !== false))) {
+      fail("PREPRODUCTION_GATES_UNVERIFIED", `当前执行缺少有效 ${key} 裁决`);
+    }
     if (!na && (!Array.isArray(gate.evidence) || gate.evidence.length === 0)) fail("PREPRODUCTION_GATES_UNVERIFIED", `${key} 缺少实际审核证据摘要`);
     if (!na) {
       if (key === "G5_PORTRAIT" && !(gate.evidence as JsonRecord[]).some(item => item.scope === "image")) fail("PREPRODUCTION_GATES_UNVERIFIED", "G5 缺少实际图像审核证据");

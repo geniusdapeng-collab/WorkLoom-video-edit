@@ -559,6 +559,9 @@ describe("预生产原始结果与诚实终态", () => {
     expect(proofs.find(item => item.gate === "G5_PORTRAIT")).toMatchObject({ status: "not_applicable", basis: "no-characters-or-products" });
     expect(doubles.review.mock.calls.at(-1)?.[0]).toMatchObject({ stage: "prompt", context: { gate: "G7_FINAL" } });
     expect(proofs.find(item => item.gate === "G7_FINAL")?.evidence).toEqual(expect.arrayContaining([expect.objectContaining({ sha256: expect.stringMatching(/^[a-f0-9]{64}$/) })]));
+    expect(vi.mocked(gatewayAppendOnClient).mock.calls.filter(([, , event]) =>
+      event.decision.action === "system-auto-approval").length).toBeGreaterThanOrEqual(5);
+    expect(doubles.query.mock.calls.some(([sql]) => String(sql).includes("INSERT INTO approvals"))).toBe(false);
   });
   it("只有vendor自报成功但没有本次服务门回执，叙事档案不得done", async () => {
     doubles.emitGates = false; doubles.runPreproduction.mockImplementation(async () => success());
@@ -814,8 +817,10 @@ describe("完整原生前期到正式 CLI 草稿交接", () => {
     const reply = doubles.gateReplies.find(item => item.gate === "G4_PRD")?.verdict;
     expect(reply).toMatchObject({ approved: true, suggestions: [], advisories });
     expect(reply.fatal).toBeUndefined();
-    const ledger = vi.mocked(gatewayAppendOnClient).mock.calls.find(([, , event]) => event.decision.action === "prd.confirm")?.[2].decision.after;
-    expect(ledger).toMatchObject({ approved: true, score: 95, issues, suggestions: advisories, advisories });
+    const ledger = vi.mocked(gatewayAppendOnClient).mock.calls.find(([, , event]) => event.decision.action === "system-auto-approval")?.[2].decision.after;
+    const g4Ledger = vi.mocked(gatewayAppendOnClient).mock.calls.filter(([, , event]) => event.decision.action === "system-auto-approval")
+      .map(([, , event]) => event.decision.after).find((after: any) => after.gate === "G4_PRD");
+    expect(g4Ledger ?? ledger).toMatchObject({ approved: true, score: 95, issues, suggestions: advisories, advisories });
     const output = await archiveOutput(projectId, 1);
     expect((output.productionEvidence as { gates: Array<Record<string, unknown>> }).gates.find(item => item.gate === "G4_PRD"))
       .toMatchObject({ approved: true, score: 95, issues, suggestions: advisories, advisories });
@@ -831,7 +836,7 @@ describe("完整原生前期到正式 CLI 草稿交接", () => {
     doubles.runPreproduction.mockResolvedValue(success());
     const { entry, projectId } = await runToTerminal(); expect(entry.status).toBe("failed");
     const reply = doubles.gateReplies.find(item => item.gate === "G4_PRD")?.verdict;
-    expect(reply).toMatchObject({ approved: false, suggestions, fatal: "producer_rejected" });
+    expect(reply).toMatchObject({ approved: false, suggestions, fatal: "system_auto_repair" });
     expect(reply.advisories).toBeUndefined();
     const proofs = (await archiveOutput(projectId, 1)).productionEvidence as { gates: Array<Record<string, unknown>> };
     expect(proofs.gates.find(item => item.gate === "G4_PRD"))
@@ -839,21 +844,22 @@ describe("完整原生前期到正式 CLI 草稿交接", () => {
     expect(doubles.finalize).not.toHaveBeenCalled();
   });
 
-  it("人类edited_after仍作为明确修改建议返回，不改成机审advisory", async () => {
-    const edited = { resolution: "1080p", reason: "用户明确改动" };
-    const query = doubles.query.getMockImplementation()!;
-    doubles.query.mockImplementation(async (sql: string) => sql.includes("SELECT status, gesture FROM approvals")
-      ? { rows: [{ status: "edited", gesture: { edited_after: edited } }], rowCount: 1 } : query(sql));
-    vi.mocked(gatewayAppendOnClient).mockResolvedValueOnce({ eventId: "EV-HUMAN-EDIT" } as Awaited<ReturnType<typeof gatewayAppendOnClient>>);
+  it("G8_RENDER 也只走系统策略，不读取或生成人类 edited_after", async () => {
+    const before = doubles.query.mock.calls.length;
     let reply: Record<string, unknown> | undefined;
     doubles.runPreproduction.mockImplementation(async () => {
       reply = await doubles.studioConfigs[0]!.onApproval({ gate: "G8_RENDER", vendorType: "render", runId: "vendor-run",
-        title: "明确生产操作的人审修改", contentMd: "隔离测试，不执行真实渲染" });
+        title: "明确生产操作的系统自动裁决", contentMd: "隔离测试，不执行真实渲染。".repeat(12) });
       return success();
     });
     const { entry } = await runToTerminal(false); expect(entry.status).toBe("finished");
-    expect(reply).toEqual({ approved: true, suggestions: [JSON.stringify(edited)] });
+    expect(reply).toMatchObject({ approved: true, suggestions: [] });
     expect(reply?.advisories).toBeUndefined();
+    expect(doubles.query.mock.calls.slice(before).some(([sql]) => String(sql).includes("FROM approvals"))).toBe(false);
+    expect(doubles.query.mock.calls.some(([sql]) => String(sql).includes("INSERT INTO approvals"))).toBe(false);
+    expect(vi.mocked(gatewayAppendOnClient).mock.calls.some(([, , event]) =>
+      event.decision.action === "system-auto-approval"
+      && (event.decision.after as Record<string, unknown>).gate === "G8_RENDER")).toBe(true);
   });
   it("G2至G7模型门持有同一当前attempt的G1原件和当前门完整摘要，叙事不增加事实权限", async () => {
     doubles.runPreproduction.mockResolvedValue(success());

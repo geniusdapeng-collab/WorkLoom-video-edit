@@ -519,6 +519,19 @@ describe("白板 render 路由提交脚本的数据库版本", () => {
       writeProcedure: t.procedure, scopeOf: (identity: any) => ({ tenantId: identity.tenantId, workspaceId: identity.workspaceId }) }));
     vi.doMock("@workloom/db", () => ({ getAppPool: () => pool, getGatewayPool: () => pool }));
     vi.doMock("../gen/submit.js", () => ({ submitGenJob: submitted }));
+    vi.doMock("../system-auto-approval.js", () => ({
+      evaluateAndRecordVideoAutoApproval: async () => ({
+        outcome: "passed",
+        blockingChecks: [],
+        eventId: "EV-whiteboard-auto",
+        receipt: {
+          policyId: "video-system-auto-approval",
+          policyVersion: "2026-10-31.1",
+          evidenceDigest: "a".repeat(64),
+        },
+      }),
+      autoApprovalRefusal: () => null,
+    }));
     vi.doMock("@workloom/base/asset-cms", () => ({ create: created }));
     vi.doMock("@workloom/base/fence-engine", () => ({ loadActiveRulesInTx: async () => [], judge: () => ({ level: fence, impacts: [], triggeredBy: [] }) }));
     vi.doMock("./engine.js", async () => ({ ...await vi.importActual<any>("./engine.js"),
@@ -565,9 +578,10 @@ describe("白板 render 路由提交脚本的数据库版本", () => {
     expect(actual.params.resolution).toBe("3840x2160");
     expect(actual.params.extra.whiteboard).toMatchObject({ quality: "uhd", capLongEdge: 3840 });
   });
-  it("review 未批准时仍在唯一提交入口前拒绝", async () => {
+  it("review 经系统策略通过后直接提交，不创建审批或 pending_review", async () => {
     fence = "review"; current!.status = "draft";
-    await expect(caller.render({ filmId: "film-wb" })).rejects.toThrow("须先经");
-    expect(submitted).not.toHaveBeenCalled();
+    await caller.render({ filmId: "film-wb" });
+    expect(submitted).toHaveBeenCalledTimes(1);
+    expect(submitted.mock.calls[0]?.[0].fenceLevel).toBe("auto");
   });
 });

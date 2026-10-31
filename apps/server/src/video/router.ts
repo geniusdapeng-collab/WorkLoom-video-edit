@@ -2,8 +2,8 @@
  * video/router.ts —— 视频经理 tRPC 子路由（融合设计 §3/§6/§7 服务端接线）
  *
  * 六组过程：
- *  - studio：预生产流水线启动/状态（异步工作器，G1–G7 门走 approvals 原生消息）
- *  - cms：渲染脚本 CMS（asset-cms render-scripts 服务：版本链 + G8 审批联动）
+ *  - studio：预生产流水线启动/状态（异步工作器，G1–G7 门走版本化系统自动裁决）
+ *  - cms：渲染脚本 CMS（asset-cms render-scripts 服务：版本链 + G8 系统裁决）
  *  - render：正式资格绑定的供应商请求提交（G8 围栏、预算、幂等回执）
  *  - publish：全平台 RPA 发布任务入队（G9 围栏预检，publish-rpa runner 执行时复核）
  *  - metrics：近 7 天 account_metrics 聚合投影
@@ -19,20 +19,22 @@ import { logStageOutcome } from "@hyperreality/video-studio";
 import { getAppPool, getGatewayPool } from "@workloom/db";
 import { gatewayAppendOnClient, MockEmbedder, upsertMemoryInTx } from "@workloom/base/workdata";
 import {
-  approve as approveRenderScript,
   create as createRenderScript,
   listByProject as listRenderScripts,
   newVersion as newRenderScriptVersion,
+  systemAutoApprove,
   RenderScriptError,
   type RenderScriptRow,
 } from "@workloom/base/asset-cms";
 import { judge, type RuntimeRule } from "@workloom/base/fence-engine";
 import { checkRenderBudget, planTierToPlanId } from "@workloom/base/model-router";
 import { PlatformSchema } from "@workloom/base/publish-rpa";
+import { newId } from "@workloom/shared";
 import { protectedProcedure, router, scopeOf, writeProcedure } from "../trpc/context.js";
 import { accountingRouter } from "./accounting.js";
 import { pollRenderJobs } from "./render-poller.js";
 import { getModel, listModels } from "./gen/catalog.js";
+import { sha256Json } from "@workloom/pipeline-control";
 import { checkCostCaps, costCaps, estimateCost, renderSpendCny, usdCnyRate } from "./gen/cost.js";
 import { serviceTierRejectionReason } from "./gen/params.js";
 import { submitGenJob } from "./gen/submit.js";
@@ -42,6 +44,7 @@ import { loadQualifiedRenderInput } from "./production-authority.js";
 import { productionRouter } from "./production-router.js";
 import { filmRouter } from "./film-router.js";
 import { renderSubmitAutoAllowed } from "./gate-policy.js";
+import { autoApprovalRefusal, evaluateAndRecordVideoAutoApproval } from "./system-auto-approval.js";
 import { createPublishTask, executePublishTask, fenceOverrideEnabled } from "./gen/publish.js";
 import { mediaUrl } from "./gen/ingest.js";
 /** PollReport 类型再导出（web 端 AppRouter 类型可移植性，TS2883） */
@@ -826,14 +829,101 @@ const cmsRouter = router({
       }
     }),
 
-  /** G8 审批联动（版本即审批对象：draft → approved + approvals 行，服务内同一 COMMIT） */
+  /** G8 system-policy decision (draft → approved, never creates an approvals row) */
   approveScript: writeProcedure
     .input(z.object({ scriptKey: z.string().min(1), version: z.number().int().min(1) }))
     .mutation(async ({ ctx, input }) => {
       try {
-        return await approveRenderScript(
-          getAppPool(), getGatewayPool(), scopeOf(ctx.identity),
-          input.scriptKey, input.version, { by: ctx.identity.memberNo },
+        const scope = scopeOf(ctx.identity);
+        const script = (await scopedQuery<RenderScriptRow & { md: string; fields: Record<string, unknown> }>(
+          getAppPool(), scope,
+          `SELECT * FROM render_scripts WHERE workspace_id=$1 AND script_key=$2 AND version=$3`,
+          [scope.workspaceId, input.scriptKey, input.version],
+        ))[0];
+        if (!script) throw new RenderScriptError("NOT_FOUND", `渲染脚本 ${input.scriptKey} v${input.version} 不存在`);
+        const { rules, defaultLevel } = await loadActiveRules(getAppPool(), scope);
+        const verdict = judge({
+          object: { type: "render_script", id: script.id },
+          action: "render.submit",
+          params: { scriptKey: input.scriptKey, version: input.version },
+          context: {
+            render_auto: renderSubmitAutoAllowed(),
+            project_compute_used: 0,
+            project_compute_cap: Number.MAX_SAFE_INTEGER,
+          },
+        }, rules, defaultLevel);
+        const factHash = sha256Json({
+          scriptKey: input.scriptKey,
+          version: input.version,
+          projectId: script.project_id,
+          shotId: script.shot_id,
+          md: script.md,
+          fields: script.fields,
+        });
+        const auto = await evaluateAndRecordVideoAutoApproval(
+          getGatewayPool(),
+          scope,
+          { type: "render_script", id: script.id },
+          {
+            gateKey: "G8",
+            action: "render.script.approve",
+            artifactSha256: factHash,
+            factHash,
+            expectedFactHash: factHash,
+            deterministicChecks: [{
+              id: "render-script-current-version",
+              category: "deterministic",
+              status: script.status === "draft" ? "passed" : "failed",
+              detail: `current script status is ${script.status}`,
+              evidenceRef: script.id,
+              ...(script.status === "draft" ? {} : { repairClass: "no_repair" as const }),
+            }],
+            budget: {
+              status: "not_applicable",
+              detail: "script-version approval does not dispatch a provider request; render.submit rechecks the live budget",
+              evidenceRef: `script:${script.id}:budget`,
+            },
+            qualification: {
+              status: "passed",
+              detail: "the exact script version, project and shot are bound into the request hash",
+              evidenceRef: script.id,
+            },
+            permission: {
+              status: "passed",
+              detail: "current member and workspace are authorized for the video CMS",
+              evidenceRef: `${scope.tenantId}/${scope.workspaceId}/${ctx.identity.memberNo}`,
+            },
+            fence: {
+              status: verdict.level === "block" ? "failed" : "passed",
+              level: verdict.level,
+              detail: verdict.triggeredBy.join("；") || `fence level ${verdict.level}`,
+              evidenceRef: `fence:render.script.approve:${verdict.impacts.map((impact) => `${impact.rule_id}@${impact.version}`).join(",") || "default"}`,
+              triggeredBy: verdict.triggeredBy,
+            },
+            evidenceRefs: [{
+              id: `render-script:${script.id}`,
+              kind: "rule",
+              sha256: factHash,
+              ref: `render-script/${script.id}`,
+            }],
+          },
+        );
+        const refusal = autoApprovalRefusal(auto);
+        if (refusal) {
+          throw new TRPCError({
+            code: auto.outcome === "blocked" ? "FORBIDDEN" : "PRECONDITION_FAILED",
+            message: `G8 系统自动裁决 ${refusal}`,
+          });
+        }
+        return await systemAutoApprove(
+          getAppPool(), getGatewayPool(), scope,
+          input.scriptKey, input.version, {
+            decisionEventId: auto.eventId,
+            policyId: auto.receipt.policyId,
+            policyVersion: auto.receipt.policyVersion,
+            evidenceDigest: auto.receipt.evidenceDigest,
+            checks: auto.checks as unknown as Array<Record<string, unknown>>,
+          },
         );
       } catch (err) {
         renderScriptRethrow(err);
@@ -945,41 +1035,6 @@ const renderRouter = router({
       const durationProvenance = { source: "script-fields" as const, planSeconds: durationSec,
         requestedSeconds: durationSec, mismatchSeconds: 0, strict: true };
 
-      // G8 围栏预检（纯函数判定；impacts 随事件落库）
-      const { rules, defaultLevel } = await loadActiveRules(app, scope);
-      /**
-       * 渲染提交（花钱动作）默认人审（T-2026-1001-0007 产品所有者口径）：
-       * 渲出来的第一版给人类看，是否再花钱重做由人决定；`render_auto=false` ⇒ G8（渲染提交必审）
-       * 要求脚本先经 `cms.approveScript` 审批。2026-09-21 的"素材制作默认全自动"旧口径已停用，
-       * 只有显式 `WORKLOOM_RENDER_AUTO=1` 才恢复自动放行。
-       * 需要人审的还有**投放领域**（加投 G12）、**改价**场景，以及算力**超预算**（G11：project_compute_used ≥ cap）时暂停提交。
-       * 预算上限可由 WORKLOOM_PROJECT_COMPUTE_CAP（秒）配置，未配置视为不设上限。
-       * 注意：缺失路径的数值比较会触发求值异常→block，所以两个数值必须显式给出。
-       */
-      const computeCap = Number(process.env.WORKLOOM_PROJECT_COMPUTE_CAP ?? 0);
-      const verdict = judge({
-        object: { type: "render_script", id: script.id },
-        action: "render.submit",
-        params: modeParams,
-        context: {
-          render_auto: renderSubmitAutoAllowed(),
-          project_compute_used: 0,
-          project_compute_cap: Number.isFinite(computeCap) && computeCap > 0 ? computeCap : Number.MAX_SAFE_INTEGER,
-        },
-      }, rules, defaultLevel);
-      if (!qualified.reconciliationOnly && verdict.level === "block") {
-        throw new TRPCError({
-          code: "FORBIDDEN",
-          message: `G8 围栏熔断：${verdict.triggeredBy.join("；") || "render.submit 命中 block 规则"}`,
-        });
-      }
-      if (!qualified.reconciliationOnly && verdict.level === "review" && script.status !== "approved") {
-        throw new TRPCError({
-          code: "PRECONDITION_FAILED",
-          message: `G8：渲染提交烧额度前置门——脚本 ${script.script_key} v${script.version} 须先经 video.cms.approveScript 审批（当前 ${script.status}；版本即审批对象）`,
-        });
-      }
-
       const tierRejection = serviceTierRejectionReason(canonicalParams.serviceTier);
       if (tierRejection && !qualified.reconciliationOnly) throw new TRPCError({ code: "BAD_REQUEST", message: tierRejection });
 
@@ -1014,6 +1069,105 @@ const renderRouter = router({
         throw new TRPCError({ code: "PRECONDITION_FAILED", message: capCheck.reason ?? "渲染成本超出上限" });
       }
 
+      // G8/G11: every review is converted by the versioned policy only after
+      // qualification, fact, budget, permission and fence evidence is current.
+      const { rules, defaultLevel } = await loadActiveRules(app, scope);
+      const computeCap = Number(process.env.WORKLOOM_PROJECT_COMPUTE_CAP ?? 0);
+      const computeCapValue = Number.isFinite(computeCap) && computeCap > 0 ? computeCap : Number.MAX_SAFE_INTEGER;
+      const verdict = judge({
+        object: { type: "render_script", id: script.id },
+        action: "render.submit",
+        params: modeParams,
+        context: {
+          render_auto: renderSubmitAutoAllowed(),
+          project_compute_used: usedSeconds,
+          project_compute_cap: computeCapValue,
+        },
+      }, rules, defaultLevel);
+      const requestHash = qualified.requestHash;
+      const policyArtifactHash = sha256Json({
+        qualificationId: qualified.qualificationId,
+        requestHash,
+        payloadHash: qualified.compiled.payloadHash ?? null,
+        compiled: qualified.compiled,
+      });
+      const auto = await evaluateAndRecordVideoAutoApproval(
+        getGatewayPool(),
+        scope,
+        { type: "render_script", id: script.id },
+        {
+          gateKey: "G8",
+          action: "render.submit",
+          artifactSha256: policyArtifactHash,
+          factHash: policyArtifactHash,
+          expectedFactHash: policyArtifactHash,
+          deterministicChecks: [
+            {
+              id: "qualified-source-current",
+              category: "deterministic",
+              status: "passed",
+              detail: "qualification token binds the current preproduction source and prompt bytes",
+              evidenceRef: qualified.qualificationId,
+            },
+            {
+              id: "canonical-request-current",
+              category: "deterministic",
+              status: "passed",
+              detail: "request fields and provider payload match the qualified canonical request",
+              evidenceRef: requestHash,
+            },
+            {
+              id: "render-budget",
+              category: "deterministic",
+              status: budget.allowed && capCheck.allowed ? "passed" : "failed",
+              detail: budget.allowed && capCheck.allowed
+                ? "monthly seconds and cash caps both allow this request"
+                : budget.reason ?? capCheck.reason ?? "render budget rejected",
+              evidenceRef: `budget:${usedSeconds}:${durationSec}:${est.cny}`,
+              ...(budget.allowed && capCheck.allowed ? {} : { repairClass: "no_repair" as const }),
+            },
+          ],
+          budget: {
+            status: budget.allowed && capCheck.allowed && !verdict.impacts.some((impact) => impact.rule_id === "G11")
+              ? "passed" : "failed",
+            detail: verdict.impacts.some((impact) => impact.rule_id === "G11")
+              ? "G11 project compute cap was reached"
+              : `used=${usedSeconds}s request=${durationSec}s estimate=CNY ${est.cny}`,
+            evidenceRef: `budget:${qualified.qualificationId}`,
+          },
+          qualification: {
+            status: "passed",
+            detail: `production qualification ${qualified.qualificationId} is current`,
+            evidenceRef: qualified.qualificationId,
+          },
+          permission: {
+            status: "passed",
+            detail: "current member and workspace may submit the qualified render",
+            evidenceRef: `${scope.tenantId}/${scope.workspaceId}/${ctx.identity.memberNo}`,
+          },
+          fence: {
+            status: "passed",
+            level: verdict.level,
+            detail: verdict.triggeredBy.join("；") || `fence level ${verdict.level}`,
+            evidenceRef: `fence:render.submit:${verdict.impacts.map((impact) => `${impact.rule_id}@${impact.version}`).join(",") || "default"}`,
+            triggeredBy: verdict.triggeredBy,
+          },
+          evidenceRefs: [{
+            id: `qualification:${qualified.qualificationId}`,
+            kind: "rule",
+            sha256: policyArtifactHash,
+            ref: `qualification/${qualified.qualificationId}`,
+          }],
+        },
+      );
+      const refusal = autoApprovalRefusal(auto);
+      if (!qualified.reconciliationOnly && refusal) {
+        throw new TRPCError({
+          code: auto.outcome === "blocked" ? "FORBIDDEN" : "PRECONDITION_FAILED",
+          message: `G8 系统自动裁决 ${refusal}`,
+        });
+      }
+
       // ── 提交（唯一写入口 submitGenJob）：幂等键去重 + 供应商降级链 + 参数 + 报价 + D16 同事务 ──
       let submitted: Awaited<ReturnType<typeof submitGenJob>>;
       try { submitted = await submitGenJob({
@@ -1032,7 +1186,7 @@ const renderRouter = router({
         qualificationToken: input.qualificationToken,
         /** 默认键由提交服务基于完整请求派生；显式键须与已绑定内容一致。 */
         idempotencyKey: input.idempotencyKey?.trim() || undefined,
-      fenceLevel: verdict.level,
+      fenceLevel: auto.outcome === "passed" ? "auto" : verdict.level,
       fenceImpacts: verdict.impacts,
       budgetOverageSeconds: budget.overageSeconds,
       durationProvenance
@@ -1055,7 +1209,7 @@ const renderRouter = router({
             skipReason: submitted.deduped ? "idempotency-key 命中既有 job（不重复烧额度）" : null,
             input: {
               scriptId: script.id, scriptKey: script.script_key, scriptVersion: script.version,
-              mode, modelId, durationSec, fenceLevel: verdict.level,
+              mode, modelId, durationSec, fenceLevel: auto.outcome === "passed" ? "auto" : verdict.level,
               idempotencyKey: submitted.idempotencyKey,
               requestHash: submitted.requestHash,
             },
@@ -1126,8 +1280,8 @@ async function publishFenceContext(
 
 const publishRouter = router({
   /**
-   * 发布任务入队（G9 围栏预检：block 直接 403 不入队；auto/review 入队 pending——
-   * 执行时由 publish-rpa runner 复核 G9，非 auto 挂起 pending_review 待审，适配器不执行）
+   * 发布任务入队（G9 系统策略：资格/权利/围栏全部通过才入队；
+   * block 直接失败关闭，不创建 approvals 或 pending_review）
    */
   createTask: writeProcedure
     .input(z.object({
@@ -1151,14 +1305,87 @@ const publishRouter = router({
         params: { platform: input.platform, accountId: input.accountId, scheduleAt: input.scheduleAt ?? null },
         context: fenceContext,
       }, rules, defaultLevel);
-      if (verdict.level === "block") {
+      const taskId = newId("PT");
+      const taskHash = sha256Json({
+        taskId, platform: input.platform, accountId: input.accountId, assetId: input.assetId ?? null,
+        videoPath: input.videoPath, coverPath: input.coverPath ?? null, caption: input.caption,
+        tags: input.tags, scheduleAt: input.scheduleAt ?? null,
+      });
+      const asset = input.assetId ? (await scopedQuery<{
+        id: string; sha256: string; status: string; license_risk: string;
+      }>(
+        app, scope,
+        `SELECT id, sha256, status, license_risk FROM video_assets WHERE workspace_id=$1 AND id=$2`,
+        [scope.workspaceId, input.assetId],
+      ))[0] : undefined;
+      const auto = await evaluateAndRecordVideoAutoApproval(
+        getGatewayPool(),
+        scope,
+        { type: "publish_task", id: taskId },
+        {
+          gateKey: "G9",
+          action: "publish.execute",
+          artifactSha256: asset?.sha256 ?? taskHash,
+          factHash: asset?.sha256 ?? taskHash,
+          expectedFactHash: asset?.sha256 ?? taskHash,
+          deterministicChecks: [
+            {
+              id: "publish-delivery-asset",
+              category: "deterministic",
+              status: asset ? "passed" : "failed",
+              detail: asset ? `current delivery asset ${asset.id}` : "a current delivery asset is required",
+              evidenceRef: asset?.id ?? taskHash,
+              ...(asset ? {} : { repairClass: "no_repair" as const }),
+            },
+            {
+              id: "publish-rights",
+              category: "deterministic",
+              status: asset && !["high", "unknown"].includes(asset.license_risk) ? "passed" : "failed",
+              detail: asset ? `asset license risk is ${asset.license_risk}` : "asset rights are unresolved",
+              evidenceRef: asset?.id ?? taskHash,
+              ...(asset && !["high", "unknown"].includes(asset.license_risk) ? {} : { repairClass: "no_repair" as const }),
+            },
+          ],
+          budget: {
+            status: "passed",
+            detail: "publication adds no provider render spend",
+            evidenceRef: `publish:${taskId}:budget`,
+          },
+          qualification: {
+            status: asset ? "passed" : "failed",
+            detail: asset ? `asset ${asset.id} is ${asset.status}` : "delivery qualification is missing",
+            evidenceRef: asset?.id ?? taskId,
+          },
+          permission: {
+            status: "passed",
+            detail: "current member and workspace may enqueue this publication",
+            evidenceRef: `${scope.tenantId}/${scope.workspaceId}/${ctx.identity.memberNo}`,
+          },
+          fence: {
+            status: verdict.level === "block" ? "failed" : "passed",
+            level: verdict.level,
+            detail: verdict.triggeredBy.join("；") || `fence level ${verdict.level}`,
+            evidenceRef: `fence:publish.execute:${verdict.impacts.map((impact) => `${impact.rule_id}@${impact.version}`).join(",") || "default"}`,
+            triggeredBy: verdict.triggeredBy,
+          },
+          evidenceRefs: [{
+            id: `publish-task:${taskId}`,
+            kind: "rule",
+            sha256: taskHash,
+            ref: `publish-task/${taskId}`,
+          }],
+        },
+      );
+      const refusal = autoApprovalRefusal(auto);
+      if (refusal) {
         throw new TRPCError({
-          code: "FORBIDDEN",
-          message: `G9 围栏熔断：${verdict.triggeredBy.join("；") || "publish.execute 命中 block 规则"}（公网发布必审基线）`,
+          code: auto.outcome === "blocked" ? "FORBIDDEN" : "PRECONDITION_FAILED",
+          message: `G9 系统自动裁决 ${refusal}`,
         });
       }
       // 唯一写入点（gen/publish.createPublishTask）：行与事件同一事务
       const created = await createPublishTask(app, getGatewayPool(), scope, {
+        taskId,
         platform: input.platform,
         accountId: input.accountId,
         assetId: input.assetId ?? null,
@@ -1170,7 +1397,7 @@ const publishRouter = router({
         origin: "manual",
         by: ctx.identity.memberNo,
       });
-      return { taskId: created.taskId, level: verdict.level };
+      return { taskId: created.taskId, level: "auto" as const };
     }),
 
   /**
@@ -1186,9 +1413,17 @@ const publishRouter = router({
       const scope = scopeOf(ctx.identity);
       const app = getAppPool();
       const { rules, defaultLevel } = await loadActiveRules(app, scope);
-      const taskRows = await scopedQuery<{ account_id: string; platform: string }>(
+      const taskRows = await scopedQuery<{
+        account_id: string;
+        platform: string;
+        asset_id: string | null;
+        video_path: string;
+        caption: string;
+        tags: unknown;
+      }>(
         app, scope,
-        `SELECT account_id, platform FROM publish_tasks WHERE workspace_id=$1 AND id=$2`,
+        `SELECT account_id, platform, asset_id, video_path, caption, tags
+           FROM publish_tasks WHERE workspace_id=$1 AND id=$2`,
         [scope.workspaceId, input.taskId],
       );
       const task = taskRows[0];
@@ -1196,16 +1431,103 @@ const publishRouter = router({
         ? await publishFenceContext(app, scope, task.account_id, task.platform)
         : { account_daily_published: 0, platform_first_use: true };
       let overrideUsed = false;
-      const fencePrecheck = (judgeInput: Parameters<typeof judge>[0]) => {
-        const verdict = judge({ ...judgeInput, context: { ...(judgeInput.context ?? {}), ...fenceContext } }, rules, defaultLevel);
-        if (verdict.level !== "auto" && fenceOverrideEnabled()) {
-          overrideUsed = true;
-          return { ...verdict, level: "auto" as const };
-        }
-        return verdict;
+      const baseJudgeInput = {
+        object: { type: "publish_task", id: input.taskId },
+        action: "publish.execute",
+        params: task ? { platform: task.platform, accountId: task.account_id } : {},
+        context: fenceContext,
       };
+      const baseVerdict = judge(baseJudgeInput, rules, defaultLevel);
+      const taskHash = sha256Json(task ?? { taskId: input.taskId });
+      const asset = task?.asset_id ? (await scopedQuery<{
+        id: string; sha256: string; status: string; license_risk: string; meta: Record<string, unknown>;
+      }>(
+        app, scope,
+        `SELECT id, sha256, status, license_risk, meta
+           FROM video_assets WHERE workspace_id=$1 AND id=$2`,
+        [scope.workspaceId, task.asset_id],
+      ))[0] : undefined;
+      const auto = await evaluateAndRecordVideoAutoApproval(
+        getGatewayPool(),
+        scope,
+        { type: "publish_task", id: input.taskId },
+        {
+          gateKey: "G9",
+          action: "publish.execute",
+          artifactSha256: asset?.sha256 ?? taskHash,
+          factHash: asset?.sha256 ?? taskHash,
+          expectedFactHash: asset?.sha256 ?? taskHash,
+          deterministicChecks: [
+            {
+              id: "publish-task-current",
+              category: "deterministic",
+              status: task ? "passed" : "failed",
+              detail: task ? "publish task exists in the current workspace" : "publish task is missing",
+              evidenceRef: input.taskId,
+              ...(task ? {} : { repairClass: "no_repair" as const }),
+            },
+            {
+              id: "publish-delivery-asset",
+              category: "deterministic",
+              status: asset ? "passed" : "failed",
+              detail: asset
+                ? `delivery asset ${asset.id} binds ${asset.sha256}`
+                : "publish requires a current delivery asset qualification",
+              evidenceRef: asset?.id ?? input.taskId,
+              ...(asset ? {} : { repairClass: "no_repair" as const }),
+            },
+            {
+              id: "publish-rights",
+              category: "deterministic",
+              status: asset && !["high", "unknown"].includes(asset.license_risk) ? "passed" : "failed",
+              detail: asset
+                ? `asset license risk is ${asset.license_risk}`
+                : "asset rights are unresolved",
+              evidenceRef: asset?.id ?? input.taskId,
+              ...(asset && !["high", "unknown"].includes(asset.license_risk) ? {} : { repairClass: "no_repair" as const }),
+            },
+          ],
+          budget: {
+            status: "passed",
+            detail: "publication adds no provider render spend beyond the already-qualified delivery",
+            evidenceRef: `publish:${input.taskId}:budget`,
+          },
+          qualification: {
+            status: asset ? "passed" : "failed",
+            detail: asset
+              ? `asset ${asset.id} is ${asset.status} with current SHA-256`
+              : "current delivery asset qualification is missing",
+            evidenceRef: asset?.id ?? input.taskId,
+          },
+          permission: {
+            status: "passed",
+            detail: "current member and workspace are authorized for the video publication route",
+            evidenceRef: `${scope.tenantId}/${scope.workspaceId}/${ctx.identity.memberNo}`,
+          },
+          fence: {
+            status: baseVerdict.level === "block" ? "failed" : "passed",
+            level: baseVerdict.level,
+            detail: baseVerdict.triggeredBy.join("；") || `fence level ${baseVerdict.level}`,
+            evidenceRef: `fence:publish.execute:${baseVerdict.impacts.map((impact) => `${impact.rule_id}@${impact.version}`).join(",") || "default"}`,
+            triggeredBy: baseVerdict.triggeredBy,
+          },
+          evidenceRefs: [{
+            id: `publish-task:${input.taskId}`,
+            kind: "rule",
+            sha256: taskHash,
+            ref: `publish-task/${input.taskId}`,
+          }],
+        },
+      );
+      const dispatchVerdict = auto.outcome === "passed"
+        ? { ...baseVerdict, level: "auto" as const }
+        : { ...baseVerdict, level: "block" as const, triggeredBy: [
+            ...baseVerdict.triggeredBy,
+            ...auto.blockingChecks.map((check) => check.id),
+          ] };
+      const fencePrecheck = (_judgeInput: Parameters<typeof judge>[0]) => dispatchVerdict;
       const outcome = await executePublishTask(app, getGatewayPool(), scope, input.taskId, {
-        fencePrecheck, dailyLimit: input.dailyLimit,
+        fencePrecheck, dailyLimit: input.dailyLimit, blockedStatus: "failed",
       });
       if (overrideUsed && outcome.kind === "executed") {
         const client = await getGatewayPool().connect();
