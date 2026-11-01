@@ -130,7 +130,7 @@ export function WelcomeCeremony({
         <MateWelcome
           welcome={welcome}
           onBridge={() => setPhase("entrance")}
-          onSkipAll={() => onPause("mate")}
+          onSkipAll={onDone}
         />
       )}
 

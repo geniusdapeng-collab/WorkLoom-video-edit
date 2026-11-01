@@ -852,7 +852,7 @@
   },
   "integrity": {
     "algorithm": "sha256",
-    "digest": "1507340a4ce03f5a0745ec9ae3b1a8844993939364cc838bcfeae2c03cd27129",
+    "digest": "f18f4aa3c2cd8adf2e4356eba31ccd7d0d7a8b20ec1e6e2d11367ae3fcd66818",
     "assets": {
       "connectors/bgm-bridge/audio-stems-trust.mjs": "701b20e1705b16b026be2900bb49430ef875c8f01f83515f297a5b0b9a50cf93",
       "connectors/bgm-bridge/audio-stems.mjs": "d83bc554f015115ed0f4ea71ac6ced4cf5bd8f44d61094489776e3d2a5ffa751",
@@ -996,7 +996,7 @@
       "library/characters/model-01-young-rider/portraits/v2/young-rider-01-handDetail.png": "78db8dac0b150642612df9c6c3ed47e69e588a41f178bf379a65c5a7208ddd37",
       "library/characters/model-01-young-rider/portraits/v2/young-rider-01-side.png": "38edcba9e595906563b56cb46d19811fd178529b69b7aa919412bc6c42c94d8b",
       "library/characters/model-01-young-rider/portraits/v2/young-rider-01-threeQuarter.png": "ebc1ec5c38e5d33642ca23cdd686e2f0b7a8c8fc62b79f08e4a4cc56944c51d9",
-      "library/characters/model-01-young-rider/profile.json": "1f65f26e732593b2f5d86beb30c5dfdd213022872ca90445951ac3b478f32261",
+      "library/characters/model-01-young-rider/profile.json": "c887012d28098f89966273de8ce58e16ad991d5f009d6efdd6b86b05647cba43",
       "library/characters/model-01-young-rider/provenance/v2.json": "c06fe2d02e79587a755b1f7798166dbc2ab9c219f94e026a1af4fcc5073eb0a6",
       "library/characters/model-01-young-rider/provenance/v2/actionPose.dispatch.json": "23bac38fedfc280d8ec6e6b6ef9d4d2d784b9b52cc37f76cb095c9676ced95e1",
       "library/characters/model-01-young-rider/provenance/v2/actionPose.provenance.json": "e814ba5f53955f2797c93a9889fe1d82c6a052828786e647efa57890e67473d3",
@@ -1300,7 +1300,7 @@
       "library/products/zxmoto-820rr-rc/photos/06-rc-release-01.jpg": "bf7007bf328082f8ae7de256feb776cd8aca1f2991bc7be53f44106d62d4ce1c",
       "library/products/zxmoto-820rr-rc/photos/07-rc-release-02.jpg": "3faa91984b43d0898126e7b26f1eff1c0bf80fb9dd8327436424b1508b4040aa",
       "library/products/zxmoto-820rr-rc/photos/08-rc-release-03.jpg": "e02958311cd91ff26566bb1f79209c7d3d7ac40f5c3f37655069ec8d0c2cde8c",
-      "library/products/zxmoto-820rr-rc/profile.json": "26343b59105b61aa27aa99d9979eedb1f63d00db57aa422fb97fcefac5fa1d5e",
+      "library/products/zxmoto-820rr-rc/profile.json": "8332f8ab3ee463bb5c0c87808d7e0aeb8908f4826eba4eec4c262b68b9309424",
       "library/products/zxmoto-820rr-rc/README.md": "9cb19a40601201a0cf6124f4effc717ca9a91856140ada0ea169258b703c7791",
       "library/products/zxmoto-820rr-rc/research-import.json": "c25e62160a7740757c61514e0deb21015464d867b52086ceca8d59d4554d82a3",
       "library/products/zxmoto-820rr-rc/research/dossier.json": "68e6d3cbe42fc6d333de7c1c8bc28cf24b724e0f0c3b4dc967b211caed13b1f0",

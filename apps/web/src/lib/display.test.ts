@@ -11,6 +11,8 @@ describe("技能中文展示名（不向客户端裸奔技术串）", () => {
     expect(skillDisplayName("publish-ops", "全平台 RPA 发布纪律官方套件（随 bundles/ai-video 分发）：…")).toBe("全平台 发布纪律官方套件");
     // 破折号左边就是名字，右边是解释：取「线索管家」，不再把整句当名字
     expect(skillDisplayName("lead-concierge", "线索管家——四路承接应答留资 SOP。…")).toBe("线索管家");
+    expect(skillDisplayName("bgm-audio-layering", "原声 program、显式签章分轨与配乐的来源、策略、时间轴和一次混流方法；默认保留原声。")).toBe("原声 显式签章分轨与配乐的来源 策略 时间轴和一次混流方法");
+    expect(skillDisplayName("caption-burnin-ops", "SRT/ASS、字体解析、实际烧录与文字扩展轨的完整执行纪律；默认一次处理。")).toBe("字体解析 实际烧录与文字扩展轨的完整执行纪律");
   });
 
   it("技术串剔除后为空时回落下一个分隔符或原始 id", () => {

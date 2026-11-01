@@ -111,6 +111,16 @@ describe("素材镜生成提示词", () => {
     expect(noMotion).toContain("缓速推进后稳住");
   });
 
+  it("商品素材模式不继承地标模板，并保留真实商品标识", () => {
+    const productPrompt = buildMaterialScenePrompt(baseShot, { referenceMode: "product" });
+    expect(productPrompt).toContain("身份和外观依据");
+    expect(productPrompt).toContain("商品结构、比例与涂装分区");
+    expect(productPrompt).toContain("真实商品已有标识必须保留");
+    expect(productPrompt).not.toContain("匾额与牌匾文字");
+    expect(productPrompt).not.toContain("地标/建筑");
+    expect(productPrompt).not.toContain("无 LOGO");
+  });
+
   it("平稳运镜保持意图，不被升级成速度坡道", () => {
     expect(prompt).toContain("运动强度要求");
     expect(prompt).toContain("不强加速度坡道或甩镜");

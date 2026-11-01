@@ -65,11 +65,14 @@ await client.end();
 
 /* ------------------------- 展示名同口径（不做词典复刻，接受两候选） ------------------------- */
 function stripTechnicalTokens(value) {
-  return value.replace(/[A-Za-z][A-Za-z0-9._+/-]*/g, " ").replace(/[\s·—–-]+/g, " ").trim();
+  return value
+    .replace(/[A-Za-z][A-Za-z0-9._+/-]*/g, " ")
+    .replace(/[\s·—–-、，,]+/g, " ")
+    .replace(/^[\s、，,。；;：:]+|[\s、，,。；;：:]+$/g, "");
 }
 function displayCandidates(name, description) {
   const text = (description ?? "").trim();
-  const m = /^([^（(。：:—]{2,40})[（(。：:—]/.exec(text);
+  const m = /^([^（(。；;：:—]{2,40})[（(。；;：:—]/.exec(text);
   const first = text.split(/[。；;！!？?\n]|——/)[0]?.trim() ?? "";
   const clause = (first.split(/[，,]/)[0] ?? first).replace(/[+/*#_|]+/g, " ").replace(/\s+/g, " ").trim().slice(0, 32);
   const list = [...new Set([m?.[1]?.trim(), clause, first].filter(Boolean).map(stripTechnicalTokens).filter((x) => x && x.length >= 2))];
@@ -114,6 +117,7 @@ async function loginPc() {
 }
 
 const token = await loginPc();
+const BLOCKING_LOADING = /正在恢复工作区|正在确认身份|正在确认访问范围|正在连接 WorkLoom 服务|正在加载(?:页面|技能)|正在汇总统一待办/;
 const shot = async (target, name) => {
   await target.screenshot({ path: join(SHOT_DIR, `${name}.png`) }).catch(() => undefined);
 };
@@ -203,18 +207,27 @@ async function probe(target, routes, prefix, waitMs = 1800) {
     const key = `${prefix}:${route}`;
     try {
       await target.goto(`${prefix === "pc" ? URLs.pc : prefix === "bMobile" ? URLs.bMobile : URLs.cMobile}${route}`, { waitUntil: "domcontentloaded" });
-      await target.waitForTimeout(waitMs);
+      await target.waitForFunction(
+        (loadingPattern) => {
+          const text = document.body.innerText || "";
+          return text.trim().length > 40 && !new RegExp(loadingPattern).test(text);
+        },
+        BLOCKING_LOADING.source,
+        { timeout: Math.max(waitMs, 20000) },
+      ).catch(() => undefined);
+      await target.waitForTimeout(Math.min(waitMs, 1000));
       const dom = await target.evaluate(() => {
         const text = document.body.innerText || "";
         return {
           len: text.length,
           blank: text.trim().length === 0,
+          loading: /正在恢复工作区|正在确认身份|正在确认访问范围|正在连接 WorkLoom 服务|正在加载(?:页面|技能)|正在汇总统一待办/.test(text),
           internalError: /Internal Server Error|加载失败(?!时)|出错了(?!，)/.test(text),
           overflowX: document.documentElement.scrollWidth > window.innerWidth + 2,
           sample: text.replace(/\s+/g, " ").slice(0, 90),
         };
       });
-      report.routes[key] = { ...dom, errors: consoleErrors.slice(0, 2), ok: !dom.blank && !dom.internalError && !dom.overflowX };
+      report.routes[key] = { ...dom, errors: consoleErrors.slice(0, 2), ok: !dom.blank && !dom.loading && !dom.internalError && !dom.overflowX };
     } catch (err) {
       report.routes[key] = { ok: false, error: String(err).split("\n")[0] };
     }
@@ -283,17 +296,26 @@ await probe(page, profile.surfaces.pcRoutes, "pc", 2000);
     const routeKey = `cMobile:${hash}`;
     try {
       await cPage.goto(`${URLs.cMobile}/${hash}`, { waitUntil: "domcontentloaded" });
-      await cPage.waitForTimeout(1800);
+      await cPage.waitForFunction(
+        (loadingPattern) => {
+          const text = document.body.innerText || "";
+          return text.trim().length > 40 && !new RegExp(loadingPattern).test(text);
+        },
+        BLOCKING_LOADING.source,
+        { timeout: 20000 },
+      ).catch(() => undefined);
+      await cPage.waitForTimeout(800);
       const dom = await cPage.evaluate(() => {
         const text = document.body.innerText || "";
         return {
           len: text.length,
+          loading: /正在恢复工作区|正在确认身份|正在确认访问范围|正在连接 WorkLoom 服务|正在加载(?:页面|技能)|正在汇总统一待办/.test(text),
           internalError: /加载失败(?!时)|出错了(?!，)|Internal Server Error/.test(text),
           overflowX: document.documentElement.scrollWidth > window.innerWidth + 2,
           sample: text.replace(/\s+/g, " ").slice(0, 80),
         };
       });
-      report.routes[routeKey] = { ...dom, errors: consoleErrors.slice(0, 2), ok: !dom.internalError && !dom.overflowX && dom.len > 40 };
+      report.routes[routeKey] = { ...dom, errors: consoleErrors.slice(0, 2), ok: !dom.loading && !dom.internalError && !dom.overflowX && dom.len > 40 };
     } catch (err) {
       report.routes[routeKey] = { ok: false, error: String(err).split("\n")[0] };
     }

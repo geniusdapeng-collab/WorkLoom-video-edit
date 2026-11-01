@@ -53,6 +53,19 @@ describe("欢迎旅程请求的页面归属", () => {
     expect(visibility.mock.calls).toEqual([[false]]);
   });
 
+  it("用户选择离开后立即隐藏仪式，不等待持久化请求返回", async () => {
+    const paused = deferred<WelcomeState>();
+    fake.save.mockReturnValueOnce(paused.promise);
+    let request!: Promise<void>;
+    await act(async () => { request = api.save("paused", "mate"); });
+    expect(visibility).toHaveBeenCalledWith(false);
+    expect(fake.save).toHaveBeenCalledWith({ status: "paused", currentStep: "mate" });
+    await act(async () => {
+      paused.resolve({ ...initial, status: "paused", currentStep: "mate", shouldShow: false, persisted: true });
+      await request;
+    });
+  });
+
   it("用户离开后仍在运行的阶段计时器不能再发送旧阶段", async () => {
     const done = deferred<WelcomeState>(); fake.save.mockReturnValue(done.promise);
     let request!: Promise<void>;
@@ -77,10 +90,13 @@ describe("欢迎旅程请求的页面归属", () => {
     fake.save.mockResolvedValueOnce({ ...initial, status: "in_progress", currentStep: "team", persisted: true });
     await act(async () => { await api.save("in_progress", "team"); });
     expect(api.welcome?.currentStep).toBe("team");
-    const paused = deferred<WelcomeState>(); fake.save.mockReturnValueOnce(paused.promise);
+    const inProgress = deferred<WelcomeState>(); fake.save.mockReturnValueOnce(inProgress.promise);
     let request!: Promise<void>;
-    await act(async () => { request = api.save("paused", "team"); root!.unmount(); root = null; });
-    await act(async () => { paused.resolve({ ...initial, status: "paused", currentStep: "team" }); await request; });
+    await act(async () => { request = api.save("in_progress", "summary"); root!.unmount(); root = null; });
+    await act(async () => {
+      inProgress.resolve({ ...initial, status: "in_progress", currentStep: "summary" });
+      await request;
+    });
     expect(visibility).not.toHaveBeenCalled();
     expect(error).not.toHaveBeenCalled();
   });

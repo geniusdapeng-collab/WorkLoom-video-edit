@@ -85,7 +85,7 @@
     {
       "id": "chejiahao-1",
       "file": "photos/02-chejiahao-1.jpg",
-      "role": "hero",
+      "role": "detail",
       "angle": "three-quarter",
       "sha256": "575d2bb914d62fafecfa34e16dd8b37ce06e5f020ff1872a7d9a8b489c2e888d",
       "bytes": 56640,
@@ -96,7 +96,7 @@
     {
       "id": "chejiahao-2",
       "file": "photos/03-chejiahao-2.jpg",
-      "role": "detail",
+      "role": "hero",
       "angle": "side",
       "sha256": "cce5b52846762fc6ccecbeb76b8384d8993713be50c9d55505caf4f99b7a306f",
       "bytes": 53061,
@@ -161,6 +161,15 @@
     }
   ],
   "specs": {
+    "appearance": "橙蓝赛车涂装全包围整流罩、银色前定风翼、单座、深色锻造轮辋、钛色排气管与车身已出现的ZXMOTO标识；具体比例、开口、卡钳和贴花位置以档案照片为准",
+    "features": [
+      "全包围导流罩",
+      "前定风翼",
+      "单座赛道尾段",
+      "锻造轮辋",
+      "前径向制动卡钳",
+      "侧置金属排气管"
+    ],
     "parameters": [
       {
         "name": "研究身份.name",

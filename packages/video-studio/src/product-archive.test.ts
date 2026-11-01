@@ -95,9 +95,32 @@ describe("product archive（真实商品档案）", () => {
     expect(body).toContain("车长约 2.08 m");
     expect(body).toContain("座高约 0.82 m");
     expect(body).toContain("严禁玩具比例");
+    expect(body).toContain("座高落在人物髋部到腰线之间");
     expect(body).toContain("已登记产品图角度");
     expect(body).toContain("使用规则（机动车硬约束）");
     expect(body).toContain("全盔");
+    expect(body).toContain("车身轮廓、导流罩开口");
+    expect(body).not.toContain("屏幕比例");
+    expect(body).not.toContain("卡口布局");
+  });
+
+  it("中文『摩托车』档案同样使用机动车规则，不落入屏幕/卡口模板", () => {
+    const dir = directory();
+    const front = writePhoto(dir, "front.jpg");
+    const side = writePhoto(dir, "side.jpg");
+    const bike = archiveFixture(dir, {
+      category: "摩托车",
+      photos: [
+        { id: "p1", file: front.file, role: "hero", angle: "three-quarter", sha256: front.sha256, bytes: front.bytes },
+        { id: "p2", file: side.file, role: "detail", angle: "side", sha256: side.sha256, bytes: side.bytes },
+      ],
+      specs: { dimensions: { lengthMm: 2080, seatHeightMm: 825 } },
+    });
+    const body = productArchivePromptLines(bike).join("\n");
+    expect(body).toContain("使用规则（机动车硬约束）");
+    expect(body).toContain("导流罩开口");
+    expect(body).not.toContain("屏幕比例");
+    expect(body).not.toContain("卡口布局");
   });
 
   it("用户上传档案通过校验，缺证据的系统生成档案不通过", () => {
