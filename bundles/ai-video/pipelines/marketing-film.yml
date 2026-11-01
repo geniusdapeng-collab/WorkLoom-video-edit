@@ -110,7 +110,7 @@ steps:
     outputs: [prompt_package, portrait_set, video_project]
     depends_on: [g4-prd-confirm]
     subgraph: narrative-film
-    note: 复用 narrative-film 的 script→…→g7-preproduction 步骤序列（含 G6/G5/G7 门）
+    note: 复用 narrative-film 的 script→…→g7-preproduction 步骤序列；G6 五问、G7 哈希一致性与 render_eligible 共用单一口径
   - step_key: render
     name: 渲染与后期（叙事片同构段）
     owner: director

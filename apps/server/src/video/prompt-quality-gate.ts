@@ -1,0 +1,934 @@
+import { createHash } from "node:crypto";
+import { existsSync, mkdirSync, readFileSync, realpathSync, statSync, writeFileSync } from "node:fs";
+import path from "node:path";
+import type {
+  AutoApprovalCheck,
+  GateDecision,
+  GateFinding,
+  RepairPlan,
+} from "@workloom/pipeline-control";
+import {
+  canonicalJson,
+  compilePromptShot,
+  promptFieldPolicy,
+  promptContractManifestHash,
+  sha256Json,
+  validatePromptContract,
+  type CompiledPromptShot,
+  type PromptCompileAsset,
+  type PromptCompileOptions,
+  type PromptCompileShot,
+  type PromptContract,
+  type PromptFieldDefinition,
+} from "@hyperreality/video-studio";
+import { promptSemanticRepairPlaybook } from "@hyperreality/video-pipeline";
+import type { WorkloomLLMEngine } from "@hyperreality/video-studio";
+
+export const SEMANTIC_QUALITY_POLICY_VERSION = "workloom.video-prompt-quality/v2" as const;
+export const SEMANTIC_QUALITY_CHECK_IDS = [
+  "SQ1_SUBJECT_ACTION",
+  "SQ2_SCENE_PROPS",
+  "SQ3_CAMERA_FEASIBLE",
+  "SQ4_LIGHT_COLOR",
+  "SQ5_PURPOSE",
+] as const;
+export type SemanticQualityCheckId = (typeof SEMANTIC_QUALITY_CHECK_IDS)[number];
+
+export const SEMANTIC_QUALITY_QUESTION: Readonly<Record<SemanticQualityCheckId, {
+  question: string;
+  fields: readonly string[];
+}>> = {
+  SQ1_SUBJECT_ACTION: {
+    question: "主体是谁、在做什么，是否一眼明确？",
+    fields: ["character", "action", "scene"],
+  },
+  SQ2_SCENE_PROPS: {
+    question: "场景与道具是否服务内容，而非堆砌？",
+    fields: ["scene", "props", "action", "timeline"],
+  },
+  SQ3_CAMERA_FEASIBLE: {
+    question: "镜头和运动是否能在目标时长内完成？",
+    fields: ["camera_movement", "timeline", "constraint"],
+  },
+  SQ4_LIGHT_COLOR: {
+    question: "光影、构图和色调是否统一？",
+    fields: ["lighting", "color_palette", "composition", "mood"],
+  },
+  SQ5_PURPOSE: {
+    question: "这一镜是否有明确叙事作用或传播价值？",
+    fields: ["scene", "action", "director_instruction", "timeline"],
+  },
+};
+
+export interface SemanticQualityCheck {
+  id: SemanticQualityCheckId;
+  pass: boolean;
+  field?: string;
+  failureCode?: string;
+  evidence: string;
+  repair?: string;
+}
+export interface SemanticQualityReview {
+  shotId: string;
+  checks: SemanticQualityCheck[];
+}
+
+export interface SemanticReviewContext {
+  projectId: string;
+  runId: string;
+  stageRunId: string;
+  shot: Record<string, unknown>;
+  contract: PromptContract;
+  upstreamContext?: Record<string, unknown>;
+  attempt: number;
+}
+
+export interface SemanticQualityReviewer {
+  review(context: SemanticReviewContext): Promise<unknown>;
+  repair?(context: SemanticReviewContext & { findings: SemanticQualityCheck[]; allowedFields: string[] }): Promise<unknown>;
+  model?: string;
+}
+
+export interface PromptQualityFinding {
+  code: string;
+  field: string | null;
+  shotId: string;
+  detail: string;
+  blocking: boolean;
+  repairClass: "deterministic" | "semantic" | "no_repair";
+}
+
+export interface PromptQualityRepairAttempt {
+  attempt: 1;
+  allowedFields: string[];
+  beforeFieldsSha256: string;
+  afterFieldsSha256: string;
+  beforePromptSha256: string;
+  afterPromptSha256: string;
+  changes: Array<{ shotId: string; field: string; reason: string }>;
+  status: "applied" | "stalled";
+  reason?: string;
+}
+
+export type PromptQualityStatus = "passed" | "rejected" | "stalled" | "shadow" | "unverified";
+
+export interface PromptQualityResult {
+  schemaVersion: typeof SEMANTIC_QUALITY_POLICY_VERSION;
+  mode: "shadow" | "enforce";
+  status: PromptQualityStatus;
+  checkedAt: string;
+  projectId: string;
+  runId: string;
+  stageRunId: string;
+  shotContracts: Array<{
+    shotId: string;
+    source: Record<string, unknown>;
+    contract: CompiledPromptShot["contract"];
+    hardErrors: CompiledPromptShot["hardErrors"];
+  }>;
+  semanticReports: Array<{
+    shotId: string;
+    checks: SemanticQualityCheck[];
+    valid: boolean;
+    errors: string[];
+    technicalRetry: number;
+  }>;
+  findings: PromptQualityFinding[];
+  repairPlan?: RepairPlan;
+  repairAttempt?: PromptQualityRepairAttempt;
+  decision: GateDecision;
+  /** G6 contract/quality passed; G7 must still prove currentness before render eligibility. */
+  g6Eligible: boolean;
+  /** Never true at G6; the G7 eligibility artifact is the sole render eligibility proof. */
+  renderEligible: boolean;
+}
+
+export interface PromptQualityEvidence {
+  schemaVersion: typeof SEMANTIC_QUALITY_POLICY_VERSION;
+  mode: PromptQualityResult["mode"];
+  status: PromptQualityResult["status"];
+  contracts: Array<{ shotId: string; path: string; sha256: string; contract: PromptContract }>;
+  semanticReportPath: string;
+  decisionPath: string;
+  repairPlanPath?: string;
+  repairAttemptPath?: string;
+  sha256: {
+    contracts: string;
+    semanticReport: string;
+    decision: string;
+    repairPlan?: string;
+    repairAttempt?: string;
+  };
+}
+
+export interface ResolvePromptAssetInput {
+  source: Record<string, unknown>;
+  workDir: string;
+  charactersDir: string;
+  extraAllowedRoots?: string[];
+  maxBytes?: number;
+}
+
+export function resolvePromptAssets(input: ResolvePromptAssetInput): PromptCompileAsset[] {
+  const raw = input.source.portraits
+    ?? (input.source.fields && typeof input.source.fields === "object" && !Array.isArray(input.source.fields)
+      ? (input.source.fields as Record<string, unknown>).portraits
+      : undefined);
+  const values = Array.isArray(raw) ? raw : raw === undefined || raw === null ? [] : [raw];
+  const maxBytes = input.maxBytes ?? 25 * 1024 * 1024;
+  const roots = [...new Set([input.workDir, input.charactersDir, ...(input.extraAllowedRoots ?? [])]
+    .filter((root) => root && existsSync(root))
+    .map((root) => realpathSync(root)))];
+  const inside = (root: string, file: string): boolean => {
+    const rel = path.relative(root, file);
+    return rel !== "" && rel !== ".." && !rel.startsWith(`..${path.sep}`) && !path.isAbsolute(rel);
+  };
+  const candidates = (value: string): string[] => {
+    if (value.startsWith("data:")) return [];
+    if (value.startsWith("asset://")) return [];
+    if (value.startsWith("image://")) {
+      const rel = value.slice("image://".length);
+      return [path.join(input.workDir, rel), path.join(input.charactersDir, rel),
+        ...(input.extraAllowedRoots ?? []).map((root) => path.join(root, rel.replace(/^characters[/\\]/, "")))];
+    }
+    if (path.isAbsolute(value)) return [value];
+    return [path.join(input.workDir, value), path.join(input.charactersDir, value), path.join(input.workDir, "characters", value)];
+  };
+  const mimeOf = (file: string): string => {
+    const ext = path.extname(file).toLowerCase();
+    return ({ ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".webp": "image/webp", ".bmp": "image/bmp", ".tif": "image/tiff", ".tiff": "image/tiff", ".gif": "image/gif", ".heic": "image/heic", ".heif": "image/heif" } as Record<string, string>)[ext] ?? "application/octet-stream";
+  };
+  const result: PromptCompileAsset[] = [];
+  for (const item of values) {
+    if (typeof item !== "string" || !item.trim()) continue;
+    const value = item.trim();
+    if (value.startsWith("data:")) {
+      const inline = /^data:(image\/[a-z0-9.+-]+);base64,([A-Za-z0-9+/]*={0,2})$/i.exec(value);
+      if (!inline?.[2]) continue;
+      const bytes = Buffer.from(inline[2], "base64");
+      if (!bytes.length) continue;
+      result.push({ field: "portraits", role: "reference_image", sha256: digest(bytes), bytes: bytes.length, mediaType: inline[1]!, sourceRef: "inline-image" });
+      continue;
+    }
+    for (const candidate of candidates(value)) {
+      if (!existsSync(candidate)) continue;
+      const real = realpathSync(candidate);
+      if (!roots.some((root) => inside(root, real))) continue;
+      const stat = statSync(real);
+      if (!stat.isFile() || stat.size <= 0 || stat.size > maxBytes) continue;
+      const bytes = readFileSync(real);
+      if (bytes.length !== stat.size) continue;
+      result.push({
+        field: "portraits",
+        role: "reference_image",
+        sha256: digest(bytes),
+        bytes: bytes.length,
+        mediaType: mimeOf(real),
+        sourceRef: path.relative(input.workDir, real).split(path.sep).join("/"),
+      });
+      break;
+    }
+  }
+  return result;
+}
+
+function errorText(value: unknown): string {
+  return value instanceof Error ? value.message : String(value);
+}
+
+function stableReport(json: unknown): string {
+  return JSON.stringify(json, null, 2);
+}
+
+function digest(value: string | Uint8Array): string {
+  const hash = createHash("sha256");
+  if (typeof value === "string") hash.update(value, "utf8");
+  else hash.update(value);
+  return hash.digest("hex");
+}
+
+function evidenceToken(field: string, definition: PromptFieldDefinition, sourceValue: unknown): string[] {
+  const tokens = new Set<string>();
+  const text = typeof sourceValue === "string" ? sourceValue : JSON.stringify(sourceValue);
+  for (const part of text.split(/[\s，。；、,:：|/]+/u).map((item) => item.trim()).filter(Boolean)) {
+    if (part.length >= 2) tokens.add(part);
+    if (part.length >= 6) {
+      for (let index = 0; index + 4 <= part.length; index += 4) tokens.add(part.slice(index, index + 4));
+    }
+  }
+  return [...tokens];
+}
+
+function hasEvidence(value: string, definition: PromptFieldDefinition, fieldValue: unknown): boolean {
+  const normalized = value.trim();
+  if (!normalized) return false;
+  return evidenceToken(definition.key, definition, fieldValue)
+    .some((token) => token.length >= 2 && normalized.includes(token));
+}
+
+function fieldValueFromSource(source: Record<string, unknown>, field: string): unknown {
+  const fields = source.fields && typeof source.fields === "object" && !Array.isArray(source.fields)
+    ? source.fields as Record<string, unknown>
+    : {};
+  return fields[field] ?? source[field];
+}
+
+export function parseSemanticQualityReview(
+  value: unknown,
+  contract: PromptContract,
+  source?: Record<string, unknown>,
+): { valid: boolean; errors: string[]; review?: SemanticQualityReview } {
+  let parsed = value;
+  if (typeof parsed === "string") {
+    try { parsed = JSON.parse(parsed); }
+    catch { return { valid: false, errors: ["SEMANTIC_REVIEW_JSON_INVALID"] }; }
+  }
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    return { valid: false, errors: ["SEMANTIC_REVIEW_SCHEMA_INVALID"] };
+  }
+  const record = parsed as Record<string, unknown>;
+  const checks = Array.isArray(record.checks) ? record.checks : null;
+  if (!checks) return { valid: false, errors: ["SEMANTIC_REVIEW_CHECKS_MISSING"] };
+  const definitions = new Map(contract.bindings.map((binding) => [binding.field, binding]));
+  const labels = new Map(promptFieldPolicy(contract.fieldSchema, contract.fieldCount === 30)
+    .fields.map((field) => [field.key, field]));
+  const errors: string[] = [];
+  if (record.shotId !== undefined && record.shotId !== contract.shotId) errors.push("SEMANTIC_REVIEW_SHOT_MISMATCH");
+  const seen = new Set<string>();
+  const normalizedChecks: SemanticQualityCheck[] = [];
+  for (const [index, raw] of checks.entries()) {
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+      errors.push(`SEMANTIC_REVIEW_CHECK_SCHEMA_INVALID:${index}`);
+      continue;
+    }
+    const item = raw as Record<string, unknown>;
+    const id = item.id;
+    if (typeof id !== "string" || !SEMANTIC_QUALITY_CHECK_IDS.includes(id as SemanticQualityCheckId)) {
+      errors.push(`SEMANTIC_REVIEW_CHECK_ID_INVALID:${index}`);
+      continue;
+    }
+    if (seen.has(id)) {
+      errors.push(`SEMANTIC_REVIEW_CHECK_DUPLICATE:${id}`);
+      continue;
+    }
+    seen.add(id);
+    if (typeof item.pass !== "boolean") errors.push(`SEMANTIC_REVIEW_PASS_INVALID:${id}`);
+    const evidence = typeof item.evidence === "string" ? item.evidence.trim() : "";
+    if (!evidence) errors.push(`SEMANTIC_REVIEW_EVIDENCE_MISSING:${id}`);
+    const field = typeof item.field === "string" ? item.field.trim() : undefined;
+    const requiredFields = SEMANTIC_QUALITY_QUESTION[id as SemanticQualityCheckId].fields;
+    if (field !== undefined && (!requiredFields.includes(field) || !definitions.has(field))) {
+      errors.push(`SEMANTIC_REVIEW_FIELD_INVALID:${id}`);
+    }
+    if (item.pass === false) {
+      if (!field) errors.push(`SEMANTIC_REVIEW_FIELD_MISSING:${id}`);
+      if (typeof item.failureCode !== "string" || !item.failureCode.trim()) errors.push(`SEMANTIC_REVIEW_FAILURE_CODE_MISSING:${id}`);
+      if (typeof item.repair !== "string" || !item.repair.trim()) errors.push(`SEMANTIC_REVIEW_REPAIR_MISSING:${id}`);
+    } else if (item.failureCode !== undefined || item.repair !== undefined) {
+      errors.push(`SEMANTIC_REVIEW_PASS_HAS_FAILURE:${id}`);
+    }
+    if (source) {
+      const evidenceFields = field ? [field] : [...requiredFields];
+      const evidenceMatches = evidenceFields.some((candidate) => {
+        const definition = labels.get(candidate);
+        return definition ? hasEvidence(evidence, definition, fieldValueFromSource(source, candidate)) : false;
+      });
+      if (!evidenceMatches) errors.push(`SEMANTIC_REVIEW_EVIDENCE_MISMATCH:${id}`);
+    }
+    normalizedChecks.push({
+      id: id as SemanticQualityCheckId,
+      pass: item.pass === true,
+      ...(field ? { field } : {}),
+      ...(typeof item.failureCode === "string" ? { failureCode: item.failureCode.trim() } : {}),
+      evidence,
+      ...(typeof item.repair === "string" ? { repair: item.repair.trim() } : {}),
+    });
+  }
+  for (const id of SEMANTIC_QUALITY_CHECK_IDS) if (!seen.has(id)) errors.push(`SEMANTIC_REVIEW_CHECK_MISSING:${id}`);
+  return errors.length > 0
+    ? { valid: false, errors }
+    : { valid: true, errors: [], review: { shotId: contract.shotId, checks: normalizedChecks } };
+}
+
+function semanticSchema(): Record<string, unknown> {
+  return {
+    shotId: "S01",
+    checks: SEMANTIC_QUALITY_CHECK_IDS.map((id) => ({
+      id,
+      pass: true,
+      field: SEMANTIC_QUALITY_QUESTION[id].fields[0],
+      evidence: "摘录与该问题直接相关的字段原文",
+      ...(id === "SQ3_CAMERA_FEASIBLE" ? { failureCode: "CAMERA_COMPLEXITY_EXCEEDS_DURATION", repair: "只修改 camera_movement" } : {}),
+    })),
+  };
+}
+
+function semanticPrompt(
+  contract: PromptContract,
+  source: Record<string, unknown>,
+  upstreamContext?: Record<string, unknown>,
+): string {
+  const fields = contract.bindings.map((binding) => {
+    const value = fieldValueFromSource(source, binding.field);
+    return { field: binding.field, value };
+  });
+  return [
+    "你是视频提示词语义质量门的唯一评审员。",
+    "只回答下列五个二元问题；每项必须给出非空 evidence，并从本题允许字段中选择 field。",
+    "失败项还必须给出稳定的 failureCode 和一条只针对该字段的 repair；不得修改字段，只输出评审 JSON。",
+    "不得用分数代替二元结果；不得臆造证据；证据必须直接摘录或可定位到给定字段值。",
+    "当前影片类型由 director_instruction、scene、action、character 与上游上下文共同决定；营销片看卖点/钩子/承诺/CTA，叙事片看冲突/情绪/揭示/转折/必要空间建立。",
+    JSON.stringify({ shotId: contract.shotId, fieldSchema: contract.fieldSchema, fields, upstreamContext: upstreamContext ?? null,
+      questions: SEMANTIC_QUALITY_QUESTION }, null, 2),
+  ].join("\n");
+}
+
+function repairSchema(): Record<string, unknown> {
+  return {
+    changes: [{ field: "camera_movement", value: "只包含在目标时长内可完成的一个主动作", reason: "修复 SQ3" }],
+  };
+}
+
+function repairPrompt(
+  contract: PromptContract,
+  source: Record<string, unknown>,
+  findings: SemanticQualityCheck[],
+  allowedFields: string[],
+  upstreamContext?: Record<string, unknown>,
+): string {
+  const allowed = contract.bindings.filter((binding) => allowedFields.includes(binding.field))
+    .map((binding) => ({ field: binding.field, value: fieldValueFromSource(source, binding.field) }));
+  return [
+    "你是字段级定点修复器。只允许修改 allowedFields 中列出的字段。",
+    "不得修改事实、授权、时长、画幅、模型能力、gate threshold 或任何其它字段。",
+    "只输出 JSON：changes[]，每项必须有 field、value、reason；至少产生一个变化。",
+    `镜头：${JSON.stringify({ shotId: contract.shotId, allowedFields: allowed, findings, upstreamContext: upstreamContext ?? null }, null, 2)}`,
+  ].join("\n");
+}
+
+export function createLlmSemanticQualityReviewer(llm: WorkloomLLMEngine): SemanticQualityReviewer {
+  return {
+    model: llm.model,
+    async review(context) {
+      const result = await llm.reasonStructured(
+        semanticPrompt(context.contract, context.shot, context.upstreamContext),
+        semanticSchema(),
+        { scene: "preproduction", maxTokens: 2200, temperature: 0 },
+      );
+      if (!result.success) throw new Error(result.error ?? "SEMANTIC_REVIEW_TRANSPORT_FAILED");
+      return result.data ?? result.content;
+    },
+    async repair(context) {
+      const result = await llm.reasonStructured(
+        repairPrompt(context.contract, context.shot, context.findings, context.allowedFields, context.upstreamContext),
+        repairSchema(),
+        { scene: "preproduction", maxTokens: 1200, temperature: 0 },
+      );
+      if (!result.success) throw new Error(result.error ?? "SEMANTIC_REPAIR_TRANSPORT_FAILED");
+      return result.data ?? result.content;
+    },
+  };
+}
+
+function semanticFinding(
+  source: Record<string, unknown>,
+  contract: PromptContract,
+  check: SemanticQualityCheck,
+): PromptQualityFinding {
+  return {
+    code: check.failureCode ?? `SEMANTIC_${check.id}`,
+    field: check.field ?? null,
+    shotId: contract.shotId,
+    detail: check.evidence,
+    blocking: true,
+    repairClass: "semantic",
+  };
+}
+
+function hardFinding(error: { code: string; field: string | null; detail: string }, shotId: string): PromptQualityFinding {
+  return {
+    code: error.code,
+    field: error.field,
+    shotId,
+    detail: error.detail,
+    blocking: true,
+    repairClass: error.code.startsWith("HARD_") ? "deterministic" : "no_repair",
+  };
+}
+
+function asGateFinding(finding: PromptQualityFinding): GateFinding {
+  return {
+    code: finding.code,
+    severity: "P0",
+    targetType: finding.field ? "field" : "stage",
+    targetId: finding.field ? finding.shotId : null,
+    fieldPath: finding.field,
+    expected: finding.repairClass === "semantic" ? "pass for fixed semantic quality question" : "deterministic prompt contract",
+    actual: finding.detail,
+    evidenceRefs: [`prompt-quality/${finding.shotId}`],
+    repairClass: finding.repairClass,
+    blocking: finding.blocking,
+  };
+}
+
+function makeDecision(input: {
+  projectId: string;
+  runId: string;
+  stageRunId: string;
+  contracts: PromptContract[];
+  findings: PromptQualityFinding[];
+  reviewer: SemanticQualityReviewer | null;
+  status: PromptQualityStatus;
+}): GateDecision {
+  const blocking = input.findings.filter((finding) => finding.blocking);
+  const status = blocking.length > 0 ? "rejected" : input.status === "passed" ? "passed" : "unverified";
+  return {
+    id: `PQ-${digest(`${input.projectId}:${input.runId}:${input.stageRunId}:${status}`).slice(0, 16)}`,
+    runId: input.runId,
+    stageRunId: input.stageRunId,
+    gateId: "G6_PROMPT",
+    artifactManifestHash: promptContractManifestHash(input.contracts),
+    planHash: sha256Json({
+      policy: SEMANTIC_QUALITY_POLICY_VERSION,
+      schema: [...new Set(input.contracts.map((contract) => contract.fieldSchema))].sort(),
+    }),
+    checkSetVersion: SEMANTIC_QUALITY_POLICY_VERSION,
+    rubricVersion: SEMANTIC_QUALITY_POLICY_VERSION,
+    authority: input.reviewer ? "llm_review" : "deterministic",
+    status,
+    reviewer: {
+      kind: input.reviewer ? "llm_review" : "host_rule",
+      id: input.reviewer?.model ?? "semantic-quality-reviewer",
+      ...(input.reviewer?.model ? { model: input.reviewer.model } : {}),
+    },
+    findings: blocking.map(asGateFinding),
+    evidenceRefs: input.contracts.map((contract) => `sha256:${contract.promptSha256}`),
+    supersedesDecisionId: null,
+    createdAt: new Date().toISOString(),
+  };
+}
+
+function validateRepairChanges(value: unknown, allowedFields: string[]): Array<{ field: string; value: unknown; reason: string }> {
+  let parsed = value;
+  if (typeof parsed === "string") {
+    try { parsed = JSON.parse(parsed); }
+    catch { throw new Error("REPAIR_JSON_INVALID"); }
+  }
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error("REPAIR_SCHEMA_INVALID");
+  const changes = (parsed as { changes?: unknown }).changes;
+  if (!Array.isArray(changes) || changes.length === 0) throw new Error("REPAIR_CHANGES_MISSING");
+  const result: Array<{ field: string; value: unknown; reason: string }> = [];
+  for (const [index, raw] of changes.entries()) {
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) throw new Error(`REPAIR_CHANGE_SCHEMA_INVALID:${index}`);
+    const item = raw as Record<string, unknown>;
+    if (typeof item.field !== "string" || !allowedFields.includes(item.field)
+      || typeof item.reason !== "string" || !item.reason.trim() || item.value === undefined) {
+      throw new Error(`REPAIR_CHANGE_INVALID:${index}`);
+    }
+    result.push({ field: item.field, value: item.value, reason: item.reason.trim() });
+  }
+  return result;
+}
+
+function patchSource(source: Record<string, unknown>, changes: Array<{ field: string; value: unknown }>): Record<string, unknown> {
+  const next = structuredClone(source);
+  const fields = next.fields && typeof next.fields === "object" && !Array.isArray(next.fields)
+    ? next.fields as Record<string, unknown>
+    : {};
+  next.fields = fields;
+  for (const change of changes) fields[change.field] = change.value;
+  return next;
+}
+
+export interface EvaluatePromptQualityInput {
+  mode: "shadow" | "enforce";
+  projectId: string;
+  runId: string;
+  stageRunId: string;
+  revision: number;
+  shots: Array<{ source: Record<string, unknown>; compile: PromptCompileOptions }>;
+  reviewer?: SemanticQualityReviewer | null;
+  upstreamContext?: Record<string, unknown>;
+  maxWallMs?: number;
+}
+
+export interface PromptContractSummary {
+  shotId: string;
+  fieldSchema: string;
+  fieldCount: number;
+  fieldsSha256: string;
+  promptSha256: string;
+  requestSha256: string;
+}
+
+export function promptContractSummary(contracts: readonly PromptContract[]): PromptContractSummary[] {
+  return contracts.map((contract) => ({
+    shotId: contract.shotId,
+    fieldSchema: contract.fieldSchema,
+    fieldCount: contract.fieldCount,
+    fieldsSha256: contract.fieldsSha256,
+    promptSha256: contract.promptSha256,
+    requestSha256: contract.requestSha256,
+  })).sort((left, right) => left.shotId.localeCompare(right.shotId));
+}
+
+export function compilePromptPackage(input: Pick<EvaluatePromptQualityInput, "shots">): CompiledPromptShot[] {
+  return input.shots.map(({ source, compile }) => {
+    const shot = source as unknown as PromptCompileShot;
+    const normalized = { ...source, shotId: String(source.shotId ?? source.shot_id ?? "") };
+    return compilePromptShot(normalized as unknown as PromptCompileShot, compile);
+  });
+}
+
+export function verifyCurrentPromptContracts(
+  input: Pick<EvaluatePromptQualityInput, "shots">,
+  expected: readonly PromptContractSummary[],
+): { valid: boolean; reasons: string[]; contracts: PromptContract[] } {
+  const compiled = compilePromptPackage(input);
+  const reasons = compiled.flatMap((item) => item.hardErrors.map((error) =>
+    `${item.contract.shotId}:${error.code}:${error.field ?? "stage"}`));
+  const current = promptContractSummary(compiled.map((item) => item.contract));
+  const expectedById = new Map(expected.map((item) => [item.shotId, item]));
+  if (current.length !== expected.length) reasons.push("SHOT_COUNT_MISMATCH");
+  for (const contract of current) {
+    const prior = expectedById.get(contract.shotId);
+    if (!prior) {
+      reasons.push(`G6_CONTRACT_MISSING:${contract.shotId}`);
+      continue;
+    }
+    if (canonicalJson(prior) !== canonicalJson(contract)) reasons.push(`PROMPT_CONTRACT_DRIFT:${contract.shotId}`);
+  }
+  return { valid: reasons.length === 0, reasons: [...new Set(reasons)], contracts: compiled.map((item) => item.contract) };
+}
+
+async function reviewWithTechnicalRetry(
+  reviewer: SemanticQualityReviewer,
+  context: SemanticReviewContext,
+): Promise<{ review?: SemanticQualityReview; errors: string[]; retries: number }> {
+  let last: unknown;
+  let lastError = "";
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      last = await reviewer.review({ ...context, attempt: attempt + 1 });
+      const parsed = parseSemanticQualityReview(last, context.contract, context.shot);
+      if (parsed.valid && parsed.review) return { review: parsed.review, errors: [], retries: attempt };
+      lastError = parsed.errors.join(",");
+    } catch (error) {
+      lastError = errorText(error);
+    }
+  }
+  return { errors: [lastError || "SEMANTIC_REVIEW_INVALID"], retries: 1, review: undefined };
+}
+
+async function evaluateCompiledShots(
+  input: EvaluatePromptQualityInput,
+  reviewer: SemanticQualityReviewer | null,
+  sources: Array<{ source: Record<string, unknown>; compile: PromptCompileOptions }>,
+): Promise<{
+  compiled: Array<{ shotId: string; source: Record<string, unknown>; compiled: CompiledPromptShot }>;
+  reports: Array<{ shotId: string; checks: SemanticQualityCheck[]; valid: boolean; errors: string[]; technicalRetry: number }>;
+  findings: PromptQualityFinding[];
+}> {
+  const compiled = sources.map(({ source, compile }) => {
+    const shot = source as unknown as PromptCompileShot;
+    const result = compilePromptShot(shot, compile);
+    const normalizedFields = source.fields && typeof source.fields === "object" && !Array.isArray(source.fields)
+      ? { ...(source.fields as Record<string, unknown>), ...result.fieldValues }
+      : { ...result.fieldValues };
+    return {
+      shotId: String(shot.shotId ?? ""),
+      source: { ...source, fields: normalizedFields },
+      compiled: result,
+    };
+  });
+  const reports: Array<{ shotId: string; checks: SemanticQualityCheck[]; valid: boolean; errors: string[]; technicalRetry: number }> = [];
+  const findings: PromptQualityFinding[] = [];
+  for (const item of compiled) {
+    for (const error of item.compiled.hardErrors) findings.push(hardFinding(error, item.shotId));
+  }
+  if (findings.length > 0) return { compiled, reports, findings };
+  if (!reviewer) {
+    for (const item of compiled) {
+      reports.push({ shotId: item.shotId, checks: [], valid: false, errors: ["SEMANTIC_REVIEWER_UNAVAILABLE"], technicalRetry: 0 });
+      findings.push({ code: "SEMANTIC_REVIEWER_UNAVAILABLE", field: null, shotId: item.shotId, detail: "无可用语义评审器", blocking: true, repairClass: "no_repair" });
+    }
+    return { compiled, reports, findings };
+  }
+  for (const item of compiled) {
+    const context: SemanticReviewContext = {
+      projectId: input.projectId,
+      runId: input.runId,
+      stageRunId: input.stageRunId,
+      shot: item.source,
+      contract: item.compiled.contract,
+      upstreamContext: input.upstreamContext,
+      attempt: 1,
+    };
+    const reviewed = await reviewWithTechnicalRetry(reviewer, context);
+    reports.push({
+      shotId: item.shotId,
+      checks: reviewed.review?.checks ?? [],
+      valid: Boolean(reviewed.review),
+      errors: reviewed.errors,
+      technicalRetry: reviewed.retries,
+    });
+    if (!reviewed.review) {
+      findings.push({
+        code: "SEMANTIC_REVIEW_INVALID",
+        field: null,
+        shotId: item.shotId,
+        detail: reviewed.errors.join(","),
+        blocking: true,
+        repairClass: "no_repair",
+      });
+      continue;
+    }
+    for (const check of reviewed.review.checks) {
+      if (check.pass) continue;
+      findings.push(semanticFinding(item.source, item.compiled.contract, check));
+    }
+  }
+  return { compiled, reports, findings };
+}
+
+export async function evaluatePromptPackage(input: EvaluatePromptQualityInput): Promise<PromptQualityResult> {
+  const reviewer = input.reviewer ?? null;
+  const first = await evaluateCompiledShots(input, reviewer, input.shots);
+  const hardOrReviewFindings = first.findings.filter((finding) => finding.repairClass !== "semantic");
+  const semanticFindings = first.findings.filter((finding) => finding.repairClass === "semantic");
+  const firstContracts = first.compiled.map((item) => item.compiled.contract);
+  const reviewInvalid = first.findings.some((finding) => finding.code.startsWith("SEMANTIC_REVIEW_"));
+  const firstStatus: PromptQualityStatus = input.mode === "shadow"
+    ? "shadow"
+    : reviewInvalid ? "stalled"
+    : hardOrReviewFindings.length > 0 || semanticFindings.length > 0 ? "rejected" : "passed";
+  let finalStatus: PromptQualityStatus = firstStatus;
+  let repairPlan: RepairPlan | undefined;
+  let repairAttempt: PromptQualityRepairAttempt | undefined;
+  let finalCompiled = first.compiled;
+  let finalReports = first.reports;
+  let finalFindings = first.findings;
+
+  if (input.mode === "enforce" && hardOrReviewFindings.length === 0 && semanticFindings.length > 0) {
+    const allowedFields = [...new Set(semanticFindings.flatMap((finding) => finding.field ? [finding.field] : []))];
+    if (!reviewer?.repair || allowedFields.length === 0) {
+      finalStatus = "stalled";
+    } else {
+      const decision = makeDecision({
+        projectId: input.projectId, runId: input.runId, stageRunId: input.stageRunId,
+        contracts: firstContracts, findings: semanticFindings, reviewer, status: "rejected",
+      });
+      const playbook = promptSemanticRepairPlaybook(allowedFields);
+      const findingSignature = sha256Json(semanticFindings.map((finding) => ({
+        code: finding.code, field: finding.field, shotId: finding.shotId,
+      })).sort((left, right) => JSON.stringify(left).localeCompare(JSON.stringify(right))));
+      repairPlan = {
+        id: `RP-${digest(`${input.stageRunId}:${findingSignature}`).slice(0, 16)}`,
+        runId: input.runId,
+        rootDecisionId: decision.id,
+        targetStageRunId: input.stageRunId,
+        targetRevision: input.revision,
+        playbookId: playbook.id,
+        playbookVersion: playbook.version,
+        planHash: sha256Json({ findingSignature, allowedFields, playbook }),
+        findings: semanticFindings.map(asGateFinding),
+        allowedChanges: playbook.allowedChanges,
+        forbiddenChanges: playbook.forbiddenChanges,
+        invalidationClosure: ["prompt-package", "g6-prompt-confirm"],
+        budgetEnvelope: {
+          maxAttempts: 1,
+          maxWallMs: input.maxWallMs ?? 120_000,
+          maxModelTokens: 2_000,
+          maxCny: 0,
+        },
+        requiresApproval: false,
+        status: "running",
+      };
+      try {
+        const patchedSources = new Map(input.shots.map((item) => [String((item.source as Record<string, unknown>).shotId), item]));
+        const compileById = new Map(input.shots.map((item) => [String((item.source as Record<string, unknown>).shotId), item.compile]));
+        const changes: Array<{ shotId: string; field: string; value: unknown; reason: string }> = [];
+        for (const shotId of new Set(semanticFindings.map((finding) => finding.shotId))) {
+          const firstShot = first.compiled.find((item) => item.shotId === shotId)!;
+          const changesRaw = await reviewer.repair({
+            projectId: input.projectId, runId: input.runId, stageRunId: input.stageRunId,
+            shot: firstShot.source, contract: firstShot.compiled.contract, attempt: 1,
+            upstreamContext: input.upstreamContext,
+            findings: finalReports.find((report) => report.shotId === shotId)?.checks.filter((check) => !check.pass) ?? [],
+            allowedFields,
+          });
+          const shotChanges = validateRepairChanges(changesRaw, allowedFields);
+          if (new Set(shotChanges.map((change) => change.field)).size !== shotChanges.length) throw new Error("REPAIR_CHANGE_DUPLICATE");
+          const patched = shotChanges.reduce((current, change) => patchSource(current, [change]), firstShot.source);
+          patchedSources.set(firstShot.shotId, { source: patched, compile: compileById.get(firstShot.shotId)! });
+          changes.push(...shotChanges.map((change) => ({ shotId, ...change })));
+        }
+        if (changes.length === 0) throw new Error("REPAIR_CHANGES_MISSING");
+        const second = await evaluateCompiledShots(input, reviewer, [...patchedSources.values()]);
+        const beforeFields = sha256Json(firstContracts.map((contract) => ({ shotId: contract.shotId, sha256: contract.fieldsSha256 })));
+        const afterContracts = second.compiled.map((item) => item.compiled.contract);
+        const afterFields = sha256Json(afterContracts.map((contract) => ({ shotId: contract.shotId, sha256: contract.fieldsSha256 })));
+        const beforePrompt = sha256Json(firstContracts.map((contract) => ({ shotId: contract.shotId, sha256: contract.promptSha256 })));
+        const afterPrompt = sha256Json(afterContracts.map((contract) => ({ shotId: contract.shotId, sha256: contract.promptSha256 })));
+        const unchanged = beforeFields === afterFields || beforePrompt === afterPrompt;
+        if (unchanged) {
+          finalStatus = "stalled";
+          repairPlan = { ...repairPlan, status: "stalled" };
+          repairAttempt = {
+            attempt: 1, allowedFields, beforeFieldsSha256: beforeFields,
+            afterFieldsSha256: afterFields, beforePromptSha256: beforePrompt,
+            afterPromptSha256: afterPrompt,
+            changes: changes.map((change) => ({ shotId: change.shotId, field: change.field, reason: change.reason })),
+            status: "stalled", reason: "REPAIR_HASH_UNCHANGED",
+          };
+        } else {
+          finalCompiled = second.compiled;
+          finalReports = second.reports;
+          finalFindings = second.findings;
+          finalStatus = second.findings.length === 0 ? "passed" : "stalled";
+          const repeated = second.findings.some((finding) => semanticFindings.some((prior) =>
+            prior.shotId === finding.shotId && prior.field === finding.field && prior.code === finding.code));
+          repairAttempt = {
+            attempt: 1, allowedFields, beforeFieldsSha256: beforeFields,
+            afterFieldsSha256: afterFields, beforePromptSha256: beforePrompt,
+            afterPromptSha256: afterPrompt,
+            changes: changes.map((change) => ({ shotId: change.shotId, field: change.field, reason: change.reason })),
+            status: finalStatus === "passed" ? "applied" : "stalled",
+            ...(finalStatus === "passed" ? {}
+              : { reason: repeated ? "SAME_FAILURE_SIGNATURE_REPEATED" : "FULL_REVALIDATION_FAILED" }),
+          };
+          if (finalStatus === "passed") repairPlan = { ...repairPlan, status: "applied" };
+          else repairPlan = { ...repairPlan, status: "stalled" };
+        }
+      } catch (error) {
+        finalStatus = "stalled";
+        if (repairPlan) repairPlan = { ...repairPlan, status: "stalled" };
+        repairAttempt = {
+          attempt: 1,
+          allowedFields,
+          beforeFieldsSha256: firstContracts.find((contract) => contract.shotId === semanticFindings[0]!.shotId)?.fieldsSha256 ?? "",
+          afterFieldsSha256: "",
+          beforePromptSha256: firstContracts.find((contract) => contract.shotId === semanticFindings[0]!.shotId)?.promptSha256 ?? "",
+          afterPromptSha256: "",
+          changes: [],
+          status: "stalled",
+          reason: errorText(error),
+        };
+      }
+    }
+  }
+
+  const finalContracts = finalCompiled.map((item) => item.compiled.contract);
+  const decision = makeDecision({
+    projectId: input.projectId,
+    runId: input.runId,
+    stageRunId: input.stageRunId,
+    contracts: finalContracts,
+    findings: finalFindings,
+    reviewer,
+    status: finalStatus,
+  });
+  return {
+    schemaVersion: SEMANTIC_QUALITY_POLICY_VERSION,
+    mode: input.mode,
+    status: finalStatus,
+    checkedAt: new Date().toISOString(),
+    projectId: input.projectId,
+    runId: input.runId,
+    stageRunId: input.stageRunId,
+    shotContracts: finalCompiled.map((item) => ({
+      shotId: item.shotId,
+      source: item.source,
+      contract: item.compiled.contract,
+      hardErrors: item.compiled.hardErrors,
+    })),
+    semanticReports: finalReports,
+    findings: finalFindings,
+    ...(repairPlan ? { repairPlan } : {}),
+    ...(repairAttempt ? { repairAttempt } : {}),
+    decision,
+    g6Eligible: input.mode === "enforce" && finalStatus === "passed"
+      && finalContracts.every((contract) => validatePromptContract(contract).valid)
+      && finalReports.every((report) => report.valid
+        && SEMANTIC_QUALITY_CHECK_IDS.every((id) => report.checks.find((check) => check.id === id)?.pass === true)),
+    renderEligible: false,
+  };
+}
+
+function safeShotFileName(shotId: string): string {
+  return shotId.replace(/[^A-Za-z0-9._-]/g, "_").slice(0, 120) || "shot";
+}
+
+export function writePromptQualityEvidence(directory: string, result: PromptQualityResult): PromptQualityEvidence {
+  mkdirSync(directory, { recursive: true });
+  const write = (name: string, value: unknown): { path: string; sha256: string } => {
+    const file = path.join(directory, name);
+    const body = stableReport(value);
+    writeFileSync(file, body, "utf8");
+    return { path: file, sha256: digest(body) };
+  };
+  const contracts = result.shotContracts.map((item) => {
+    const file = write(`prompt-contract-${safeShotFileName(item.shotId)}.json`, item.contract);
+    return { shotId: item.shotId, ...file, contract: item.contract };
+  });
+  const semantic = write("semantic-quality-report.json", {
+    schemaVersion: SEMANTIC_QUALITY_POLICY_VERSION,
+    checkedAt: result.checkedAt,
+    reports: result.semanticReports,
+    findings: result.findings,
+    repairAttempt: result.repairAttempt ?? null,
+  });
+  const decision = write("prompt-quality-decision.json", result.decision);
+  const repairPlan = result.repairPlan ? write("prompt-semantic-repair-plan.json", result.repairPlan) : undefined;
+  const repairAttempt = result.repairAttempt ? write("prompt-semantic-repair-attempt.json", result.repairAttempt) : undefined;
+  return {
+    schemaVersion: SEMANTIC_QUALITY_POLICY_VERSION,
+    mode: result.mode,
+    status: result.status,
+    contracts,
+    semanticReportPath: semantic.path,
+    decisionPath: decision.path,
+    ...(repairPlan ? { repairPlanPath: repairPlan.path } : {}),
+    ...(repairAttempt ? { repairAttemptPath: repairAttempt.path } : {}),
+    sha256: {
+      contracts: sha256Json(contracts.map((item) => ({ shotId: item.shotId, sha256: item.sha256 }))),
+      semanticReport: semantic.sha256,
+      decision: decision.sha256,
+      ...(repairPlan ? { repairPlan: repairPlan.sha256 } : {}),
+      ...(repairAttempt ? { repairAttempt: repairAttempt.sha256 } : {}),
+    },
+  };
+}
+
+export function promptQualityAutoChecks(result: PromptQualityResult): AutoApprovalCheck[] {
+  return [
+    ...(result.status === "stalled" ? [{
+      id: "prompt-quality-stalled",
+      category: "policy" as const,
+      status: "failed" as const,
+      detail: "一次字段级修复已用尽或复验仍失败，禁止自动重试和付费提交",
+      evidenceRef: "prompt-quality/decision",
+      repairClass: "no_repair" as const,
+    }] : []),
+    {
+      id: "prompt-contract-fields",
+      category: "deterministic",
+      status: result.shotContracts.every((item) => item.hardErrors.length === 0) ? "passed" : "failed",
+      detail: result.shotContracts.flatMap((item) => item.hardErrors.map((error) => `${item.shotId}:${error.code}`)).join(";")
+        || "25/30 字段及消费矩阵完整",
+      evidenceRef: "prompt-quality/decision",
+      ...(result.shotContracts.some((item) => item.hardErrors.length > 0) ? { repairClass: "local_patch" as const } : {}),
+    },
+    ...SEMANTIC_QUALITY_CHECK_IDS.map((id) => {
+      const invalid = result.semanticReports.some((report) => !report.valid || report.checks.find((check) => check.id === id)?.pass !== true);
+      return {
+        id: `prompt-${id.toLowerCase()}`,
+        category: "semantic" as const,
+        status: invalid ? "failed" as const : "passed" as const,
+        detail: result.semanticReports.map((report) => `${report.shotId}:${report.checks.find((check) => check.id === id)?.evidence ?? "未返回"}`).join(" | "),
+        evidenceRef: "prompt-quality/semantic-quality-report",
+        ...(invalid ? { repairClass: "semantic" as const } : {}),
+      };
+    }),
+  ];
+}

@@ -131,6 +131,8 @@ export type ApprovalCallback = (approval: {
   title: string;
   contentMd: string;
   runId: string | null;
+  /** Raw structured prompt package when the vendor gate has one. */
+  structuredArtifact?: unknown;
 }) => Promise<GateVerdict>;
 
 /** 宿主事件汇：流水线生命周期事件（宿主落五元事件库） */
@@ -336,7 +338,10 @@ export class VideoStudio {
         vendorType: req.type,
         title: `预生产确认门 · ${gate}`,
         contentMd: normalizedPrompt?.value ?? req.content,
-        runId: req.runId ?? runId
+        runId: req.runId ?? runId,
+        ...(req.structured !== undefined
+          ? { structuredArtifact: gate === "G6_PROMPT" ? req.structured : structuredClone(req.structured) }
+          : {})
       });
       if (gate === "G2_THEME" && prdAuthority) {
         approvedRequirementTheme = captureRequirementTheme(prdAuthority, req.content, verdict);
@@ -570,6 +575,77 @@ export class VideoStudio {
               productionResult, scriptResult, timing, confirmations, options: promptOptions,
               contractScenes: Array.isArray(contractScenes) ? contractScenes : [],
             });
+          };
+        }
+        /**
+         * G6/G7 need the exact raw prompt package, not the human-readable
+         * Markdown report. The vendor methods already know the package; keep
+         * the native report formatting and route through the same scoped
+         * confirmation handler with an explicit structured companion.
+         */
+        const structuredSystem = system as unknown as {
+          _generatePromptsReport?: (prompts: Record<string, unknown>[]) => string;
+          _confirmPrompts?: (prompts: Record<string, unknown>[]) => Promise<Record<string, unknown>>;
+          _generatePreproductionReport?: (
+            productionResult: Record<string, unknown>,
+            scriptResult: Record<string, unknown> | null,
+            timing: Record<string, unknown> | null,
+            confirmations: Record<string, unknown> | null,
+          ) => string;
+          _confirmPreproductionResult?: (
+            productionResult: Record<string, unknown>,
+            scriptResult: Record<string, unknown> | null,
+            timing: Record<string, unknown> | null,
+            confirmations: Record<string, unknown> | null,
+          ) => Promise<Record<string, unknown>>;
+        };
+        const nativeConfirmPrompts = structuredSystem._confirmPrompts;
+        if (nativeConfirmPrompts && structuredSystem._generatePromptsReport) {
+          structuredSystem._confirmPrompts = async function confirmPromptsWithStructuredPackage(
+            this: typeof structuredSystem,
+            prompts: Record<string, unknown>[],
+          ) {
+            const report = this._generatePromptsReport!(prompts);
+            const verdict = await handler({
+              type: "prompt",
+              content: report,
+              runId,
+              structured: prompts,
+            });
+            return {
+              approved: verdict.approved,
+              reviewedAt: new Date().toISOString(),
+              report,
+              reason: verdict.reason,
+              suggestions: verdict.suggestions,
+              waitTimeMs: 0,
+            };
+          };
+        }
+        const nativeConfirmPreproduction = structuredSystem._confirmPreproductionResult;
+        if (nativeConfirmPreproduction && structuredSystem._generatePreproductionReport) {
+          structuredSystem._confirmPreproductionResult = async function confirmPreproductionWithStructuredPackage(
+            this: typeof structuredSystem,
+            productionResult: Record<string, unknown>,
+            scriptResult: Record<string, unknown> | null,
+            timing: Record<string, unknown> | null,
+            confirmations: Record<string, unknown> | null,
+          ) {
+            const report = this._generatePreproductionReport!(productionResult, scriptResult, timing, confirmations);
+            const verdict = await handler({
+              type: "preproduction",
+              content: report,
+              runId,
+              structured: productionResult.prompts,
+            });
+            return {
+              approved: verdict.approved,
+              reviewedAt: new Date().toISOString(),
+              report,
+              reason: verdict.reason,
+              suggestions: verdict.suggestions,
+              waitTimeMs: 0,
+            };
           };
         }
         const retryPolicy = configureRequirementRetryPolicy(

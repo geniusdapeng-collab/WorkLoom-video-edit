@@ -7,7 +7,15 @@ import { fileURLToPath } from "node:url";
 import type pg from "pg";
 import { newId } from "@workloom/shared";
 import { gatewayAppendOnClient } from "@workloom/base/workdata";
-import { loadScenePolicies, reviewStage, type ProducerVerdict, type ScenePolicyReport } from "@hyperreality/video-studio";
+import {
+  loadScenePolicies,
+  reviewStage,
+  sha256Json,
+  validatePromptContract,
+  type PromptContract,
+  type ProducerVerdict,
+  type ScenePolicyReport,
+} from "@hyperreality/video-studio";
 import { verifyMarketingFacts } from "./marketing-authority.js";
 import { archiveWorkDir, projectRunLockKey } from "./archive-host.js";
 import { ScenePolicyRenderGateError, verifyScenePolicyProductionSource, type ScenePolicySourceDecision } from "./scene-policy-render-gate.js";
@@ -18,7 +26,7 @@ import type { VideoGenParams } from "./gen/types.js";
 import { SubmissionError } from "./gen/submission-ledger.js";
 import { canonicalRenderJson, compileRenderRequest, renderSha256, supportsCompiledRequest, type CompiledProviderRequest } from "./gen/compiled-request.js";
 import { verifyPortraitArchiveReuseAcceptance } from "./portrait-reuse-acceptance.js";
-import { assertSystemAutoApprovalReceipt } from "@workloom/pipeline-control";
+import { assertSystemAutoApprovalReceipt, loadPipelineFeatureFlags } from "@workloom/pipeline-control";
 import { VIDEO_SYSTEM_AUTO_APPROVAL_POLICY } from "@hyperreality/video-pipeline";
 
 const ISSUER = "workloom.production-authority";
@@ -29,7 +37,10 @@ const SCENE_POLICY_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url
 type Mode = "manual" | "batch" | "auto";
 type SourceRow = { id: string; project_id: string; workspace_id: string; stage_id: string; attempt: number; status: string; output_ref: string; output_sha256: string; run_id: string; kind: string };
 type JsonRecord = Record<string, unknown>;
-interface Source { row: SourceRow; root: string; output: JsonRecord; prompts: JsonRecord; promptsHash: string; shot: JsonRecord }
+interface Source {
+  row: SourceRow; root: string; output: JsonRecord; prompts: JsonRecord; promptsHash: string; shot: JsonRecord;
+  promptContractSha256: string | null;
+}
 interface TokenPayload {
   schemaVersion: typeof SCHEMA; purpose: typeof PURPOSE; issuer: typeof ISSUER;
   qualificationId: string; keyId: string; tenantId: string; workspaceId: string; projectId: string;
@@ -47,7 +58,8 @@ interface QualificationRow extends pg.QueryResultRow {
 }
 export interface QualificationResult {
   qualificationId: string; qualificationToken: string; scriptId: string; scriptVersion: number;
-  modelId: string; params: VideoGenParams; mode: Mode; requestHash: string; payloadHash: string; promptSha256: string; expiresAt: string;
+  modelId: string; params: VideoGenParams; mode: Mode; requestHash: string; payloadHash: string; promptSha256: string;
+  promptContractSha256: string | null; expiresAt: string;
 }
 
 function fail(code: string, message: string): never { throw new SubmissionError(code, message); }
@@ -146,7 +158,14 @@ async function currentSource(app: AppPool, scope: Scope, projectId: string): Pro
       sourceSha256: after.sourceSha256 as string | null, reason: after.reason, evidence: after.evidence } };
   });
 }
-async function sourceForShot(app: AppPool, scope: Scope, projectId: string, shotId: string | null, workDir: string): Promise<Source> {
+async function sourceForShot(
+  app: AppPool,
+  scope: Scope,
+  projectId: string,
+  shotId: string | null,
+  workDir: string,
+  env: NodeJS.ProcessEnv = process.env,
+): Promise<Source> {
   const { row, decision } = await currentSource(app, scope, projectId);
   const root = await archiveRoot(scope, projectId, workDir);
   if (row.output_ref !== `stages/preproduction/attempt-${row.attempt}.output.json`) fail("SOURCE_PATH_INVALID", "预生产输出引用不符合当前执行编号");
@@ -226,7 +245,47 @@ async function sourceForShot(app: AppPool, scope: Scope, projectId: string, shot
   if (matching.length !== 1) fail("SHOT_NOT_FOUND", "镜头不存在或重复，不能签发资格");
   const shot = matching[0]!;
   if (shot.degraded === true || typeof shot.prompt !== "string" || !shot.prompt.trim()) fail("SOURCE_INVALID", "镜头提示词缺失或已降级");
-  record(shot.fields, "镜头结构字段缺失或被裁剪");
+  const shotFields = record(shot.fields, "镜头结构字段缺失或被裁剪");
+  let promptContractSha256: string | null = null;
+  if (loadPipelineFeatureFlags(env).promptContract === "enforce") {
+    const g6 = gates.find((gate) => gate.gate === "G6_PROMPT");
+    const g7 = gates.find((gate) => gate.gate === "G7_FINAL");
+    const summaries = g6?.promptContract;
+    if (!g6 || !Array.isArray(summaries) || !g7?.renderEligibility
+      || (g7.renderEligibility as JsonRecord).eligible !== true) {
+      fail("PREPRODUCTION_GATES_UNVERIFIED", "G6/G7 缺少当前提示词合同或 render_eligible 资格");
+    }
+    const g7Contract = g7.promptContract;
+    if (canonicalRenderJson(g7Contract) !== canonicalRenderJson(summaries)) {
+      fail("PREPRODUCTION_GATES_UNVERIFIED", "G7 未绑定与 G6 相同的字段合同");
+    }
+    const summary = (summaries as JsonRecord[]).find((item) => item.shotId === shot.shotId);
+    if (!summary) fail("PREPRODUCTION_GATES_UNVERIFIED", "G6 字段合同不包含当前镜头");
+    const evidence = Array.isArray(g6.evidence) ? g6.evidence as JsonRecord[] : [];
+    const contractEvidence = evidence.find((item) =>
+      typeof item.path === "string"
+      && path.basename(item.path).startsWith(`prompt-contract-${String(shot.shotId).replace(/[^A-Za-z0-9._-]/g, "_")}`));
+    if (!contractEvidence || typeof contractEvidence.path !== "string" || typeof contractEvidence.sha256 !== "string") {
+      fail("PREPRODUCTION_GATES_UNVERIFIED", "G6 字段合同文件未归档");
+    }
+    const contractFile = contractEvidence.path;
+    const contractRoot = path.dirname(path.dirname(contractFile));
+    const contractBytes = await readBytes(contractRoot, path.relative(contractRoot, contractFile), contractEvidence.sha256);
+    let contract: PromptContract;
+    try { contract = JSON.parse(contractBytes.toString("utf8")) as PromptContract; }
+    catch { fail("PREPRODUCTION_GATES_UNVERIFIED", "G6 字段合同不是合法 JSON"); }
+    const validation = validatePromptContract(contract);
+    if (!validation.valid || contract.shotId !== shot.shotId || contract.prompt !== shot.prompt) {
+      fail("PREPRODUCTION_GATES_UNVERIFIED", "G6 字段合同与当前镜头字节或绑定矩阵不一致");
+    }
+    for (const binding of contract.bindings) {
+      const value = shotFields[binding.field] ?? shot[binding.field];
+      if (value === undefined || sha256Json(value) !== binding.valueSha256) {
+        fail("PREPRODUCTION_GATES_UNVERIFIED", `G6 字段值漂移：${binding.field}`);
+      }
+    }
+    promptContractSha256 = renderSha256(contractBytes);
+  }
   let policies: ReturnType<typeof loadScenePolicies>;
   try {
     policies = loadScenePolicies(SCENE_POLICY_DIR);
@@ -256,7 +315,7 @@ async function sourceForShot(app: AppPool, scope: Scope, projectId: string, shot
     if (error instanceof ScenePolicyRenderGateError) fail("SCENE_POLICY_UNVERIFIED", error.message);
     throw error;
   }
-  return { row, root, output, prompts, promptsHash: output.promptsSha256, shot };
+  return { row, root, output, prompts, promptsHash: output.promptsSha256, shot, promptContractSha256 };
 }
 
 /** 正常 UI / CLI 只读当前服务档案中的镜头；不需要手工 CMS 插行作为前置。 */
@@ -264,7 +323,7 @@ export async function listProductionShots(input: {
   app: AppPool; scope: Scope; projectId: string; env?: NodeJS.ProcessEnv; workDir?: string;
 }): Promise<{ projectId: string; sourceStageRunId: string; sourceAttempt: number; promptsSha256: string;
   shots: Array<{ shotId: string; durationSec: number; prompt: string; fields: JsonRecord; promptSha256: string }> }> {
-  const source = await sourceForShot(input.app, input.scope, input.projectId, null, input.workDir ?? archiveWorkDir(input.env));
+  const source = await sourceForShot(input.app, input.scope, input.projectId, null, input.workDir ?? archiveWorkDir(input.env), input.env);
   const seen = new Set<string>();
   const shots = (source.prompts.shots as JsonRecord[]).map(shot => {
     if (typeof shot.shotId !== "string" || !shot.shotId || seen.has(shot.shotId) || shot.degraded === true
@@ -316,7 +375,7 @@ export async function qualifyProductionShot(input: {
   const scope = { ...input.scope }; const mode = input.mode ?? "manual";
   const leased = await lease(input.app, scope, input.projectId, false);
   try {
-    const source = await sourceForShot(leased.app, scope, input.projectId, input.shotId, input.workDir ?? archiveWorkDir(env));
+    const source = await sourceForShot(leased.app, scope, input.projectId, input.shotId, input.workDir ?? archiveWorkDir(env), env);
     const model = getModel(input.modelId);
     if (!model || model.availability !== "wired" || !supportsCompiledRequest(model.provider) || !providerConfigured(model.provider, env)) fail("MODEL_UNAVAILABLE", "正式生成模型未配置或不支持完整请求资格");
     const params = structuredClone(input.params);
@@ -329,7 +388,8 @@ export async function qualifyProductionShot(input: {
     const script: RenderScriptLike = { id: scriptId, project_id: input.projectId, shot_id: input.shotId,
       script_key: `qualified:${id}`, version: 1, status: "draft", md: source.shot.prompt as string,
       fields: { ...source.shot.fields as JsonRecord, durationSec: duration,
-        production: { qualificationId: id, sourceStageRunId: source.row.id, sourceAttempt: source.row.attempt, promptsSha256: source.promptsHash } } };
+        production: { qualificationId: id, sourceStageRunId: source.row.id, sourceAttempt: source.row.attempt, promptsSha256: source.promptsHash,
+          ...(source.promptContractSha256 ? { promptContractSha256: source.promptContractSha256 } : {}) } } };
     const built = compileRenderRequest({ script, model, params, scope, mode, env });
     // UI 网络失败后再次按同一镜头点提交，不能通过重新签发随机 scriptId 绕过已派发任务的幂等键。
     const dispatched = await scopedTx(leased.app, scope, async client => {
@@ -349,7 +409,8 @@ export async function qualifyProductionShot(input: {
         qualificationToken: `${Buffer.from(canonicalRenderJson(existingPayload)).toString("base64url")}.${dispatched.signature}`,
         scriptId: dispatched.script_id!, scriptVersion: dispatched.script_version!, modelId: dispatched.model_id,
         params: dispatched.params, mode: dispatched.mode, requestHash: dispatched.request_hash, payloadHash: dispatched.payload_hash,
-        promptSha256: renderSha256(script.md), expiresAt: new Date(dispatched.expires_at).toISOString() };
+        promptSha256: renderSha256(script.md), promptContractSha256: source.promptContractSha256,
+        expiresAt: new Date(dispatched.expires_at).toISOString() };
     }
     const requestRef = `qualifications/${id}.request.json`;
     const requestFile = path.join(source.root, requestRef);
@@ -370,7 +431,7 @@ export async function qualifyProductionShot(input: {
     const approved = verdict.status === "passed" && verdict.approved === true && verdict.via === "llm" && verdict.degraded === false
       && verdict.evidence?.some(item => item.path === requestFile && item.sha256 === renderSha256(evidenceJson) && item.scope === "complete-text") === true;
     await readBytes(source.root, requestRef, renderSha256(evidenceJson));
-    const latest = await sourceForShot(leased.app, scope, input.projectId, input.shotId, input.workDir ?? archiveWorkDir(env));
+    const latest = await sourceForShot(leased.app, scope, input.projectId, input.shotId, input.workDir ?? archiveWorkDir(env), env);
     if (latest.row.id !== source.row.id || latest.row.output_sha256 !== source.row.output_sha256 || latest.promptsHash !== source.promptsHash) fail("SOURCE_CHANGED", "评审期间预生产证据发生变化");
     const issuedAt = new Date().toISOString();
     const expiresAt = new Date(Date.now() + 30 * 60_000).toISOString();
@@ -404,7 +465,8 @@ export async function qualifyProductionShot(input: {
     });
     if (!approved) fail(verdict.status === "failed" ? "PRODUCTION_REVIEW_REJECTED" : "PRODUCTION_REVIEW_UNVERIFIED", `最终生成请求未通过监制：${verdict.reason}`);
     return { qualificationId: id, qualificationToken: `${Buffer.from(canonicalRenderJson(payload)).toString("base64url")}.${mac}`,
-      scriptId, scriptVersion: 1, modelId: model.id, params, mode, requestHash: built.requestHash, payloadHash: built.compiled.payloadHash, promptSha256: renderSha256(script.md), expiresAt };
+      scriptId, scriptVersion: 1, modelId: model.id, params, mode, requestHash: built.requestHash, payloadHash: built.compiled.payloadHash,
+      promptSha256: renderSha256(script.md), promptContractSha256: source.promptContractSha256, expiresAt };
   } finally { await leased.release(); }
 }
 
@@ -469,7 +531,8 @@ export async function authorizeRenderSubmission(input: {
     }
     if (input.idempotencyKey?.trim() && input.idempotencyKey.trim() !== `render:${qualified.input.requestHash}`) fail("QUALIFICATION_IDEMPOTENCY_MISMATCH", "正式资格只能使用绑定的幂等键，禁止换 key 重复生成");
     if (!qualified.input.reconciliationOnly) {
-      const source = await sourceForShot(leased.app, input.scope, input.script.project_id, input.script.shot_id, input.workDir ?? archiveWorkDir(input.env));
+      const source = await sourceForShot(leased.app, input.scope, input.script.project_id, input.script.shot_id,
+        input.workDir ?? archiveWorkDir(input.env), input.env);
       if (source.row.id !== qualified.payload.stageRunId || source.row.attempt !== qualified.payload.attempt
         || source.row.output_sha256 !== qualified.payload.sourceOutputSha256 || source.promptsHash !== qualified.payload.promptsSha256) fail("QUALIFICATION_SOURCE_CHANGED", "预生产已有新执行或字节变化，资格失效");
     }

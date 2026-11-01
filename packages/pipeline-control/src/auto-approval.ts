@@ -7,6 +7,7 @@ export const SYSTEM_AUTO_APPROVAL_SCHEMA = "workloom.system-auto-approval/v1" as
 export type AutoApprovalCategory =
   | "policy"
   | "deterministic"
+  | "semantic"
   | "fact_hash"
   | "budget"
   | "qualification"
@@ -27,6 +28,7 @@ export interface AutoApprovalCheck {
     | "item_regenerate"
     | "stage_regenerate"
     | "reconcile"
+    | "semantic"
     | "no_repair";
 }
 

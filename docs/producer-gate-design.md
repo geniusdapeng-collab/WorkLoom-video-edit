@@ -5,6 +5,9 @@
 > 中登记的视频门不再创建人工审批；`PIPELINE_SYSTEM_AUTO_APPROVAL=off` 时
 > 失败关闭。下文保留为 v1 历史设计记录。
 
+> 2026-11-01 起的提示词字段合同、五问语义门、一次定点修复与 render eligibility
+> 见 [video-prompt-quality-gate-v2.md](video-prompt-quality-gate-v2.md)。
+
 > 任务：T-2026-0924-0001（T-2026-1001-0007 修订）· 生效范围：AI 视频预生产内部门（G1–G7）与全链路出片
 > 一句话：**AI 监制只负责把问题提前暴露；打回即停，默认不自动重跑**。G5 定妆照由人类验收（机器只留证），
 > 花钱（G8）与对外（G9/G10）仍由人审。

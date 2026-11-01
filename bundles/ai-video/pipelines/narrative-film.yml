@@ -51,17 +51,17 @@ steps:
     outputs: [prompt_package]
     depends_on: [continuity]
   - step_key: field-check
-    name: 字段质检与修复
+    name: 字段合同硬门与消费矩阵
     owner: field-inspector
     inputs: [prompt_package]
-    outputs: [prompt_package]       # 25/30 字段规则+LLM 混合质检
+    outputs: [prompt_package]       # 确定性程序：schema/空值/能力/资产/绑定/三哈希；失败不调用语义评审
     depends_on: [prompt-fuse]
   - step_key: g6-prompt-confirm
-    name: 提示词审核
+    name: G6 语义质量五问
     owner: director
     inputs: [prompt_package]
     gate: G6
-    outputs: [prompt_package]       # 含导演评分报告的审批卡
+    outputs: [prompt_package]       # SQ1–SQ5 全部二元 pass；失败最多一次字段级修复后全量复验
     depends_on: [field-check]
   - step_key: micromotion
     name: 微动作增强
@@ -83,11 +83,11 @@ steps:
     outputs: [portrait_set]
     depends_on: [portrait]
   - step_key: g7-preproduction
-    name: 预生产最终确认
+    name: G7 预生产组装一致性
     owner: director
     inputs: [prompt_package, portrait_set]
     gate: G7
-    outputs: [video_project]
+    outputs: [video_project]       # 只校验 G6 决策与 prompt/request/fields/asset 哈希仍当前并派生 render_eligible
     depends_on: [g5-portrait-confirm, micromotion]
   - step_key: render-script
     name: 渲染脚本生成入 CMS

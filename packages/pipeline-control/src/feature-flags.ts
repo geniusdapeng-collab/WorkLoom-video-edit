@@ -4,6 +4,7 @@ export type CoordinatorMode = "off" | "shadow" | "enforce";
 export type RepairModeFlag = "off" | "dry-run" | "bounded";
 export type PrespendGuardMode = "off" | "shadow" | "enforce";
 export type SystemAutoApprovalMode = "off" | "enforce";
+export type PromptContractMode = "off" | "shadow" | "enforce";
 
 export interface PipelineFeatureFlags {
   coordinator: CoordinatorMode;
@@ -12,6 +13,7 @@ export interface PipelineFeatureFlags {
   autoPaidRepair: false;
   legacyProjection: true;
   promptPrespendGuard: PrespendGuardMode;
+  promptContract: PromptContractMode;
   systemAutoApproval: SystemAutoApprovalMode;
   scope: "marketing" | "narrative" | "all";
 }
@@ -23,6 +25,7 @@ const DEFAULTS: PipelineFeatureFlags = Object.freeze({
   autoPaidRepair: false,
   legacyProjection: true,
   promptPrespendGuard: "off",
+  promptContract: "off",
   systemAutoApproval: "enforce",
   scope: "marketing",
 });
@@ -54,6 +57,12 @@ export function loadPipelineFeatureFlags(
       ["off", "shadow", "enforce"] as const,
       DEFAULTS.promptPrespendGuard,
       "PIPELINE_PROMPT_PRESPEND_GUARD",
+    ),
+    promptContract: oneOf(
+      env.PROMPT_CONTRACT_V2,
+      ["off", "shadow", "enforce"] as const,
+      DEFAULTS.promptContract,
+      "PROMPT_CONTRACT_V2",
     ),
     systemAutoApproval: oneOf(
       env.PIPELINE_SYSTEM_AUTO_APPROVAL,

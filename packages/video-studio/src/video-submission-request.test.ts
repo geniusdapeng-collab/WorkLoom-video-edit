@@ -24,7 +24,24 @@ describe("video submission request: exclusive actual input modes", () => {
     expect(result.wireRequestSha256).toBe(digest(JSON.stringify(result.body)));
     expect(result.promptSha256).toBe(digest(defaults.prompt));
     expect(result.inputPlanSha256).toBe(digest(JSON.stringify({ mode: "text", inputs: [] })));
+    expect(result.promptContractSha256).toBeNull();
     for (const hash of [result.wireRequestSha256, result.promptSha256, result.inputPlanSha256]) expect(hash).toMatch(/^[a-f0-9]{64}$/);
+  });
+
+  it("binds the optional v2 contract to the safe input plan without changing provider wire fields", () => {
+    const promptContract = {
+      promptSha256: digest(defaults.prompt),
+      fieldsSha256: "c".repeat(64),
+      requestSha256: "d".repeat(64),
+    };
+    const plain = build({ refs: [] });
+    const contracted = build({ refs: [], promptContract });
+    expect(contracted.body).toEqual(plain.body);
+    expect(contracted.wireRequestSha256).toBe(plain.wireRequestSha256);
+    expect(contracted.promptContractSha256).toMatch(/^[a-f0-9]{64}$/);
+    expect(contracted.inputPlanSha256).not.toBe(plain.inputPlanSha256);
+    expect(() => build({ refs: [], promptContract: { ...promptContract, promptSha256: "e".repeat(64) } }))
+      .toThrow("VIDEO_SUBMISSION_PROMPT_CONTRACT_MISMATCH");
   });
 
   it("uses one first_frame and omits ratio instead of also submitting reference images", () => {

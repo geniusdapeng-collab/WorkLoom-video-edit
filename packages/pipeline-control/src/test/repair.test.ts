@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { buildRepairPlan, findingSignature, transitionRepair } from "../repair.js";
+import {
+  assertRepairChangePaths,
+  assertRepairProducedNewState,
+  buildRepairPlan,
+  findingSignature,
+  transitionRepair,
+} from "../repair.js";
 import type { GateDecision } from "../types.js";
 
 const decision: GateDecision = {
@@ -85,5 +91,35 @@ describe("repair plan", () => {
       invalidationClosure: [],
       budgetEnvelope: { maxAttempts: 1, maxWallMs: 1000, maxModelTokens: 100, maxCny: 0 },
     })).toThrow(/修复目标/);
+  });
+
+  it("binds the stable signature to both fieldPath and failureCode", () => {
+    const otherField = structuredClone(decision);
+    otherField.findings[0]!.fieldPath = "$.delivery.fps";
+    const otherCode = structuredClone(decision);
+    otherCode.findings[0]!.code = "G4_FPS_CONFLICT";
+    expect(findingSignature(otherField)).not.toBe(findingSignature(decision));
+    expect(findingSignature(otherCode)).not.toBe(findingSignature(decision));
+  });
+
+  it("rejects field changes outside the allowlist and unchanged hashes", () => {
+    const plan = buildRepairPlan("RP5", decision, {
+      playbook,
+      targetStageRunId: "S1",
+      targetRevision: 1,
+      invalidationClosure: ["script"],
+      budgetEnvelope: { maxAttempts: 1, maxWallMs: 1000, maxModelTokens: 100, maxCny: 0 },
+    });
+    const approved = transitionRepair(plan, "approved");
+    expect(() => assertRepairChangePaths(approved, ["$.delivery.durationSeconds"])).not.toThrow();
+    expect(() => assertRepairChangePaths(approved, ["$.facts.price"])).toThrow("REPAIR_CHANGE_FORBIDDEN");
+    expect(() => assertRepairProducedNewState({
+      beforeFieldsSha256: "a".repeat(64), afterFieldsSha256: "a".repeat(64),
+      beforePromptSha256: "b".repeat(64), afterPromptSha256: "c".repeat(64),
+    })).toThrow("REPAIR_FIELDS_UNCHANGED");
+    expect(() => assertRepairProducedNewState({
+      beforeFieldsSha256: "a".repeat(64), afterFieldsSha256: "b".repeat(64),
+      beforePromptSha256: "c".repeat(64), afterPromptSha256: "c".repeat(64),
+    })).toThrow("REPAIR_PROMPT_UNCHANGED");
   });
 });

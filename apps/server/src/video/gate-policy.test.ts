@@ -59,6 +59,7 @@ describe("版本化系统自动裁决", () => {
   it("全局 kill switch 默认启用，显式关闭后全部 review 转 blocked", () => {
     expect(systemAutoApprovalEnabled({})).toBe(true);
     expect(renderSubmitAutoAllowed({})).toBe(true);
+    expect(renderSubmitAutoAllowed({ PROMPT_CONTRACT_V2: "enforce" })).toBe(false);
     expect(systemAutoApprovalEnabled({ PIPELINE_SYSTEM_AUTO_APPROVAL: "off" })).toBe(false);
     expect(renderSubmitAutoAllowed({ PIPELINE_SYSTEM_AUTO_APPROVAL: "off" })).toBe(false);
   });

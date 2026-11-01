@@ -15,6 +15,11 @@
 `PIPELINE_SYSTEM_AUTO_APPROVAL` 默认 `enforce`。设为 `off` 时保护动作失败关闭，
 不会退回人工审批。
 
+**2026-11-01 边界补丁**：`PROMPT_CONTRACT_V2=enforce` 时，G8 仍是系统策略门，
+但真实付费提交额外要求一张绑定当前 qualification/request/payload 的一次性人工授权单。
+这是付费授权，不是把 G1–G7 的人工审批队列恢复回来；系统策略、预算和 fence 仍逐项复核。
+详见 [video-prompt-quality-gate-v2.md](video-prompt-quality-gate-v2.md)。
+
 ## 持久化
 
 - `packages/pipeline-control/src/auto-approval.ts` 定义策略、检查项、receipt

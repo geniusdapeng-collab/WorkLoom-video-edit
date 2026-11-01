@@ -22,6 +22,7 @@ interface Prepared {
   schemaVersion: "workloom.video-submission/v1"; clientSubmissionId: string; createdAt: string;
   projectId: string; stage: string; shotId: string; sourceHash: string; target: string;
   model: unknown; seconds: unknown; mode: string; promptSha256: string; wireRequestSha256: string; inputPlanSha256: string;
+  promptContractSha256?: string | null;
   inputs: VideoSubmissionRequest["inputs"]; inputArtifacts: VideoSubmissionArtifact[];
 }
 interface Ack { schemaVersion: "workloom.video-submission-ack/v1"; taskId: string; preparedSha256: string; acknowledgedAt: string; httpStatus: number; requestId: string | null }
@@ -88,7 +89,9 @@ export function readVideoSubmissionRecovery(scope: { directory: string; projectI
     || prepared.sourceHash !== scope.sourceHash || prepared.model !== scope.model || !["videos", "material-gen"].includes(prepared.stage)
     || ![prepared.promptSha256, prepared.wireRequestSha256, prepared.inputPlanSha256].every((value) => typeof value === "string" && /^[a-f0-9]{64}$/.test(value))
     || !Array.isArray(prepared.inputs) || !Array.isArray(prepared.inputArtifacts)
-    || prepared.inputPlanSha256 !== hash(JSON.stringify({ mode: prepared.mode, inputs: prepared.inputs }))) throw new VideoSubmissionError("VIDEO_SUBMISSION_RECOVERY_CONTRACT_INVALID");
+    || prepared.inputPlanSha256 !== hash(JSON.stringify(prepared.promptContractSha256
+      ? { mode: prepared.mode, inputs: prepared.inputs, promptContractSha256: prepared.promptContractSha256 }
+      : { mode: prepared.mode, inputs: prepared.inputs }))) throw new VideoSubmissionError("VIDEO_SUBMISSION_RECOVERY_CONTRACT_INVALID");
   if (existsSync(join(directory, "terminal.json"))) {
     const terminal = readJson<{ preparedSha256?: string; taskId?: string; status?: string; httpStatus?: number; errorCode?: string }>(join(directory, "terminal.json"));
     if (terminal.preparedSha256 !== hash(readFileSync(preparedFile))) throw new VideoSubmissionError("VIDEO_SUBMISSION_TERMINAL_INVALID");
@@ -101,7 +104,8 @@ export function readVideoSubmissionRecovery(scope: { directory: string; projectI
   return { projectId: prepared.projectId, stage: prepared.stage, shotId: prepared.shotId, sourceHash: prepared.sourceHash, target: prepared.target,
     inputArtifacts: prepared.inputArtifacts,
     request: { body: { model: prepared.model, duration: prepared.seconds }, mode: prepared.mode as VideoSubmissionRequest["mode"],
-      promptSha256: prepared.promptSha256, wireRequestSha256: prepared.wireRequestSha256, inputPlanSha256: prepared.inputPlanSha256, inputs: prepared.inputs } };
+      promptSha256: prepared.promptSha256, wireRequestSha256: prepared.wireRequestSha256, inputPlanSha256: prepared.inputPlanSha256,
+      inputs: prepared.inputs, promptContractSha256: prepared.promptContractSha256 ?? null } };
 }
 /** Dependencies are injectable for isolated offline tests. Authorization is only ever passed to fetch. */
 export async function runVideoSubmission(scope: VideoSubmissionScope, options: {
@@ -114,7 +118,9 @@ export async function runVideoSubmission(scope: VideoSubmissionScope, options: {
   const at = (): string => new Date(now()).toISOString();
   if (!scope.projectId || !scope.shotId || !/^[a-f0-9]{64}$/.test(scope.sourceHash)) throw new VideoSubmissionError("VIDEO_SUBMISSION_SCOPE_INVALID");
   if (!options.recoveryOnly && hash(JSON.stringify(scope.request.body)) !== scope.request.wireRequestSha256) throw new VideoSubmissionError("VIDEO_SUBMISSION_REQUEST_CHANGED");
-  if (hash(JSON.stringify({ mode: scope.request.mode, inputs: scope.request.inputs })) !== scope.request.inputPlanSha256) throw new VideoSubmissionError("VIDEO_SUBMISSION_INPUT_PLAN_CHANGED");
+  if (hash(JSON.stringify(scope.request.promptContractSha256
+    ? { mode: scope.request.mode, inputs: scope.request.inputs, promptContractSha256: scope.request.promptContractSha256 }
+    : { mode: scope.request.mode, inputs: scope.request.inputs })) !== scope.request.inputPlanSha256) throw new VideoSubmissionError("VIDEO_SUBMISSION_INPUT_PLAN_CHANGED");
   if (!options.recoveryOnly) {
     const content = scope.request.body.content as Array<{ type?: string; text?: unknown }> | undefined;
     if (!Array.isArray(content) || content[0]?.type !== "text" || typeof content[0].text !== "string"
@@ -134,6 +140,7 @@ export async function runVideoSubmission(scope: VideoSubmissionScope, options: {
     model: scope.request.body.model, seconds: scope.request.body.duration, mode: scope.request.mode,
     promptSha256: scope.request.promptSha256, wireRequestSha256: scope.request.wireRequestSha256,
     inputPlanSha256: scope.request.inputPlanSha256, inputs: scope.request.inputs, inputArtifacts: scope.inputArtifacts,
+    ...(scope.request.promptContractSha256 ? { promptContractSha256: scope.request.promptContractSha256 } : {}),
   };
   const newPrepared: Prepared = { schemaVersion: "workloom.video-submission/v1", clientSubmissionId: randomUUID(), createdAt: at(), ...contract };
   if (!existsSync(preparedFile)) {

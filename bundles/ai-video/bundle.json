@@ -862,7 +862,7 @@
   },
   "integrity": {
     "algorithm": "sha256",
-    "digest": "fab3c795579f74e5fae7f148c50313fe09a718c290e35ea170f4c24a110a3071",
+    "digest": "44911718fc71da08b6db30d7f656e347ed9b79f8b0de6efc262d8a578b109f6a",
     "assets": {
       "connectors/bgm-bridge/audio-stems-trust.mjs": "701b20e1705b16b026be2900bb49430ef875c8f01f83515f297a5b0b9a50cf93",
       "connectors/bgm-bridge/audio-stems.mjs": "d83bc554f015115ed0f4ea71ac6ced4cf5bd8f44d61094489776e3d2a5ffa751",
@@ -1423,8 +1423,8 @@
       "pipelines/account-ops.yml": "455383c019ac1d0523db48c6088c7bfce4aa9e8e1eef8d7d71399aa69e107264",
       "pipelines/ads-creative-factory.yml": "90e475e5482ecf15541aa2d6eca5499aa1c9bea8d9928e2122975ae77df869c5",
       "pipelines/explainer-film.yml": "f5402e30553e0bba43df64d30d7a5462e605e6cf7e6a862722558d5235b21f33",
-      "pipelines/marketing-film.yml": "923dc5cd91effc1161754adb71d2caee704072be867d357fba134e20072d0190",
-      "pipelines/narrative-film.yml": "5cb35b00c4137388111d7500ed96d84f7263a9e40abd452fb242120855c14d9e",
+      "pipelines/marketing-film.yml": "3d06d5c957083e3bbdff37daf958dc0362217d73139e94359c31bb8e1645e321",
+      "pipelines/narrative-film.yml": "a8c3f1e2c0f83cb91b3bc882c27ff6a9846793280e82af699e26ced1420f9cfc",
       "pipelines/settlement-recon.yml": "c4af96be653224e31ec8882ae19da37026dbbe1f2d5fb28435deee92b37db1d0",
       "presets/ads-optimizer.yml": "578d5de6285d7f5122f4229cec8fa5b7cc6e0bd9c9a3b6a8676f2166d831eacd",
       "presets/audio-designer.yml": "e0122309c8a94d7b8e73109c3b88f92b900917bdc04c5535836e7f1f3c66dc0b",
