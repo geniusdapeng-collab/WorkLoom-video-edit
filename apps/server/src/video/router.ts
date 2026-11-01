@@ -14,6 +14,8 @@
  *      越权查询返回空而非 403（L7.1）。
  */
 import { z } from "zod";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
+import path from "node:path";
 import { TRPCError } from "@trpc/server";
 import { logStageOutcome } from "@hyperreality/video-studio";
 import { getAppPool, getGatewayPool } from "@workloom/db";
@@ -34,7 +36,7 @@ import { protectedProcedure, router, scopeOf, writeProcedure } from "../trpc/con
 import { accountingRouter } from "./accounting.js";
 import { pollRenderJobs } from "./render-poller.js";
 import { getModel, listModels } from "./gen/catalog.js";
-import { sha256Json } from "@workloom/pipeline-control";
+import { loadPipelineFeatureFlags, sha256Json, type AutoApprovalCheck } from "@workloom/pipeline-control";
 import { checkCostCaps, costCaps, estimateCost, renderSpendCny, usdCnyRate } from "./gen/cost.js";
 import { serviceTierRejectionReason } from "./gen/params.js";
 import { submitGenJob } from "./gen/submit.js";
@@ -44,6 +46,7 @@ import { loadQualifiedRenderInput } from "./production-authority.js";
 import { productionRouter } from "./production-router.js";
 import { filmRouter } from "./film-router.js";
 import { renderSubmitAutoAllowed } from "./gate-policy.js";
+import { G8ApprovalError, requireOrConsumeG8Approval } from "./g8-approval.js";
 import { autoApprovalRefusal, evaluateAndRecordVideoAutoApproval } from "./system-auto-approval.js";
 import { createPublishTask, executePublishTask, fenceOverrideEnabled } from "./gen/publish.js";
 import { mediaUrl } from "./gen/ingest.js";
@@ -54,7 +57,7 @@ import { getRun, startRun, startVideoProjectRun, summarizeWorkspaceRuns, StudioW
 import { resolveScenePolicyForIntent, ScenePolicyRouteError } from "./scene-policy-routing.js";
 import { resolvePlatformForIntent } from "./platform-routing.js";
 import { BuiltinCharacterSelectionError } from "./builtin-character-selection.js";
-import { makeStageArchive } from "./archive-host.js";
+import { archiveWorkDir, makeStageArchive } from "./archive-host.js";
 import { readArchiveSummary, resumeProject, scanStaleRunsOnStartup } from "./archive-resume.js";
 import { applyRouteToMetadata, buildPipelineIntent, normalizeExplicitBriefDuration, PrdAuthorityError, routeVideoPipeline } from "@hyperreality/video-studio";
 import { routedLlmCall } from "../service/llm.js";
@@ -1005,6 +1008,8 @@ const renderRouter = router({
       estimatedSeconds: z.number().int().min(1).max(600).optional(),
       /** 超套餐额度时显式确认按量实扣（v3.0 渲染台账 G8 前置预算闸） */
       allowOverage: z.boolean().default(false),
+      /** enforce 模式下必须提供已批准且未消费的 G8 人工付费授权单 */
+      g8ApprovalId: z.string().min(1).max(200).optional(),
     }).strict())
     .mutation(async ({ ctx, input }) => {
       const scope = scopeOf(ctx.identity);
@@ -1061,12 +1066,60 @@ const renderRouter = router({
 
       // ── 成本上限闸（T-2026-0921-0002）：秒数配额之外再压一道"真金白银"闸（USD/CNY） ──
       const est = estimateCost(chosen, { seconds: durationSec });
+      if (!qualified.reconciliationOnly && loadPipelineFeatureFlags(process.env).promptContract === "enforce"
+        && (typeof est.cny !== "number" || !Number.isFinite(est.cny) || est.cny < 0)) {
+        throw new TRPCError({ code: "PRECONDITION_FAILED", message: "G8 成本无法核实，禁止进入人工付费授权或供应商提交" });
+      }
+      const estimatedCny = est.cny ?? 0;
       const spend = await renderSpendCny(app, scope);
       const capCheck = checkCostCaps({
-        spentDayCny: spend.day, spentMonthCny: spend.month, estCny: est.cny, caps: costCaps(),
+        spentDayCny: spend.day, spentMonthCny: spend.month, estCny: estimatedCny, caps: costCaps(),
       });
       if (!qualified.reconciliationOnly && !capCheck.allowed) {
         throw new TRPCError({ code: "PRECONDITION_FAILED", message: capCheck.reason ?? "渲染成本超出上限" });
+      }
+
+      let g8ApprovalCheck: AutoApprovalCheck | null = null;
+      if (!qualified.reconciliationOnly && loadPipelineFeatureFlags(process.env).promptContract === "enforce") {
+        try {
+          const approval = await requireOrConsumeG8Approval({
+            app,
+            scope,
+            actor: ctx.identity.memberNo,
+            script,
+            modelId,
+            params: canonicalParams,
+            compiled: qualified.compiled,
+            qualificationId: qualified.qualificationId,
+            requestHash: qualified.requestHash,
+            estimatedCny,
+            allowOverage: input.allowOverage,
+            approvalId: input.g8ApprovalId,
+          });
+          if (approval.status === "awaiting_approval") {
+            throw new TRPCError({
+              code: "PRECONDITION_FAILED",
+              message: `G8_HUMAN_APPROVAL_REQUIRED:${approval.approvalId}`,
+            });
+          }
+          g8ApprovalCheck = {
+            id: "g8-human-paid-authorization",
+            category: "deterministic",
+            status: "passed",
+            detail: `人工付费授权 ${approval.approvalId} 已绑定当前证书并一次性消费`,
+            evidenceRef: `approval:${approval.approvalId}:${approval.bindingSha256}`,
+          };
+        } catch (error) {
+          if (error instanceof TRPCError) throw error;
+          if (error instanceof G8ApprovalError) {
+            throw new TRPCError({
+              code: "FORBIDDEN",
+              message: error.message,
+              cause: error,
+            });
+          }
+          throw error;
+        }
       }
 
       // G8/G11: every review is converted by the versioned policy only after
@@ -1116,6 +1169,7 @@ const renderRouter = router({
               detail: "request fields and provider payload match the qualified canonical request",
               evidenceRef: requestHash,
             },
+            ...(g8ApprovalCheck ? [g8ApprovalCheck] : []),
             {
               id: "render-budget",
               category: "deterministic",
@@ -1725,6 +1779,66 @@ const genRouter = router({
     }),
 });
 
+function promptEvidenceAttempt(scope: { tenantId: string; workspaceId: string }, projectId: string): Promise<number> {
+  if (!projectId || projectId === "." || projectId === ".." || /[/\\\0]/.test(projectId)) {
+    throw new TRPCError({ code: "BAD_REQUEST", message: "项目标识不能用于越界档案路径" });
+  }
+  return getAppPool().connect().then(async (client) => {
+    try {
+      await client.query("BEGIN");
+      await client.query("SELECT set_config('app.tenant_id', $1, true)", [scope.tenantId]);
+      await client.query("SELECT set_config('app.workspace_id', $1, true)", [scope.workspaceId]);
+      const result = await client.query<{ attempt: number }>(
+        `SELECT attempt FROM production_stage_runs
+          WHERE workspace_id=$1 AND project_id=$2 AND stage_id='preproduction'
+          ORDER BY attempt DESC LIMIT 1`,
+        [scope.workspaceId, projectId],
+      );
+      await client.query("COMMIT");
+      return Number(result.rows[0]?.attempt ?? 0);
+    } catch (error) {
+      await client.query("ROLLBACK").catch(() => undefined);
+      throw error;
+    } finally {
+      client.release();
+    }
+  });
+}
+
+async function readPromptQualityArtifact(
+  scope: { tenantId: string; workspaceId: string },
+  projectId: string,
+  fileName: string,
+): Promise<Record<string, unknown> | null> {
+  if (!projectId || projectId === "." || projectId === ".." || /[/\\\0]/.test(projectId)) {
+    throw new TRPCError({ code: "BAD_REQUEST", message: "项目标识不能用于越界档案路径" });
+  }
+  const attempt = await promptEvidenceAttempt(scope, projectId);
+  if (!attempt) return null;
+  const root = path.join(archiveWorkDir(), "workspaces", scope.workspaceId, "gates", projectId,
+    `attempt-${attempt}`, "prompt-quality");
+  const file = path.join(root, fileName);
+  if (!existsSync(file)) return null;
+  return JSON.parse(readFileSync(file, "utf8")) as Record<string, unknown>;
+}
+
+async function listPromptContractArtifacts(
+  scope: { tenantId: string; workspaceId: string },
+  projectId: string,
+): Promise<Array<{ path: string; contract: Record<string, unknown> }>> {
+  if (!projectId || projectId === "." || projectId === ".." || /[/\\\0]/.test(projectId)) {
+    throw new TRPCError({ code: "BAD_REQUEST", message: "项目标识不能用于越界档案路径" });
+  }
+  const attempt = await promptEvidenceAttempt(scope, projectId);
+  if (!attempt) return [];
+  const root = path.join(archiveWorkDir(), "workspaces", scope.workspaceId, "gates", projectId, `attempt-${attempt}`, "prompt-quality");
+  if (!existsSync(root)) return [];
+  return readdirSync(root)
+    .filter((name) => name.startsWith("prompt-contract-") && name.endsWith(".json"))
+    .sort()
+    .map((name) => ({ path: path.join(root, name), contract: JSON.parse(readFileSync(path.join(root, name), "utf8")) as Record<string, unknown> }));
+}
+
 const pipelineRouter = router({
   status: protectedProcedure
     .input(z.object({ runId: z.string().min(1).max(200) }))
@@ -1768,6 +1882,53 @@ const pipelineRouter = router({
         [scope.workspaceId, input.artifactId],
       );
       return { artifact: root[0], edges };
+    }),
+
+  /** Read the versioned field contract for the latest preproduction attempt. */
+  promptContract: protectedProcedure
+    .input(z.object({ projectId: z.string().min(1).max(200), shotId: z.string().min(1).max(200).optional() }).strict())
+    .query(async ({ ctx, input }) => {
+      const contracts = await listPromptContractArtifacts(scopeOf(ctx.identity), input.projectId);
+      const selected = input.shotId
+        ? contracts.find((item) => item.contract.shotId === input.shotId)
+        : contracts[0];
+      return selected ? { ...selected.contract, artifactPath: selected.path } : null;
+    }),
+
+  /** Read the five-question semantic report and the current G6 decision. */
+  promptQuality: protectedProcedure
+    .input(z.object({ projectId: z.string().min(1).max(200) }).strict())
+    .query(async ({ ctx, input }) => {
+      const scope = scopeOf(ctx.identity);
+      const [report, decision, repairPlan, repairAttempt] = await Promise.all([
+        readPromptQualityArtifact(scope, input.projectId, "semantic-quality-report.json"),
+        readPromptQualityArtifact(scope, input.projectId, "prompt-quality-decision.json"),
+        readPromptQualityArtifact(scope, input.projectId, "prompt-semantic-repair-plan.json"),
+        readPromptQualityArtifact(scope, input.projectId, "prompt-semantic-repair-attempt.json"),
+      ]);
+      return report || decision ? { report, decision, repairPlan, repairAttempt } : null;
+    }),
+
+  /** Return the persisted repair plan/attempt; it never accepts a caller-authored field patch. */
+  repairPrompt: protectedProcedure
+    .input(z.object({ projectId: z.string().min(1).max(200) }).strict())
+    .query(async ({ ctx, input }) => {
+      const scope = scopeOf(ctx.identity);
+      return {
+        plan: await readPromptQualityArtifact(scope, input.projectId, "prompt-semantic-repair-plan.json"),
+        attempt: await readPromptQualityArtifact(scope, input.projectId, "prompt-semantic-repair-attempt.json"),
+      };
+    }),
+
+  renderEligibility: protectedProcedure
+    .input(z.object({ projectId: z.string().min(1).max(200) }).strict())
+    .query(async ({ ctx, input }) => {
+      const scope = scopeOf(ctx.identity);
+      const attempt = await promptEvidenceAttempt(scope, input.projectId);
+      if (!attempt) return null;
+      const file = path.join(archiveWorkDir(), "workspaces", scope.workspaceId, "gates", input.projectId,
+        `attempt-${attempt}`, "render-eligibility.json");
+      return existsSync(file) ? JSON.parse(readFileSync(file, "utf8")) as Record<string, unknown> : null;
     }),
 
   reconcile: writeProcedure

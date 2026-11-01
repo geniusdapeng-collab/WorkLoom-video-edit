@@ -13,7 +13,7 @@
  *      本工作器以 run 注册表 aborted 位实现同等中止语义（轮询每拍检查）。
  */
 import path from "node:path";
-import { appendFileSync, existsSync, mkdirSync, readFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { getAppPool, getGatewayPool } from "@workloom/db";
 import { GatewayEventSink, poolFromEnv } from "@workloom/base/model-router";
@@ -45,6 +45,7 @@ import {
   type ProducerArtifact,
   type ProducerStage,
   type ProducerVerdict,
+  type PromptCompileOptions,
   type RunInput,
   type ScenePolicyException,
   type ScenePolicyShot,
@@ -64,6 +65,8 @@ import { upsertProductProfileFromDossier } from "./media/products.js";
 import { appendScenePolicyGuidance, resolveScenePolicyForIntent } from "./scene-policy-routing.js";
 import { appendPlatformGuidance, resolvePlatformForIntent } from "./platform-routing.js";
 import { loadVideoPipelinePlan, type CompiledVideoPipelinePlan } from "@hyperreality/video-pipeline";
+import { loadPipelineFeatureFlags } from "@workloom/pipeline-control";
+import { findModelByProviderModel, getModel, loadCatalog } from "./gen/catalog.js";
 import { PipelineShadowObserver, pipelineControlMode } from "./pipeline/shadow.js";
 import {
   AUTO_GATES,
@@ -82,6 +85,18 @@ import {
   VIDEO_SYSTEM_AUTO_APPROVAL_POLICY,
 } from "@hyperreality/video-pipeline";
 import type { AutoApprovalCheck } from "@workloom/pipeline-control";
+import {
+  compilePromptPackage,
+  createLlmSemanticQualityReviewer,
+  evaluatePromptPackage,
+  promptContractSummary,
+  promptQualityAutoChecks,
+  resolvePromptAssets,
+  verifyCurrentPromptContracts,
+  writePromptQualityEvidence,
+  type PromptContractSummary,
+  type PromptQualityResult,
+} from "./prompt-quality-gate.js";
 
 /* ================= 可配项（环境变量） ================= */
 
@@ -510,6 +525,87 @@ function collectReferenceImages(metadata?: Record<string, unknown>): string[] {
   return Array.from(new Set(out));
 }
 
+/**
+ * Prompt-contract compilation needs a concrete model capability card. The
+ * preproduction stage runs before a user chooses a paid model, so use the
+ * explicit project model when present and otherwise the repository's wired
+ * Seedance 2.5 default. Provider credentials are checked again at G8; this
+ * resolver only reads the static capability catalog.
+ */
+function contractModelFor(metadata?: Record<string, unknown>) {
+  const brief = metadata?.brief && typeof metadata.brief === "object" && !Array.isArray(metadata.brief)
+    ? metadata.brief as Record<string, unknown>
+    : {};
+  const candidates = [metadata?.modelId, metadata?.videoModelId, brief.modelId, brief.videoModelId]
+    .filter((value): value is string => typeof value === "string" && Boolean(value.trim()))
+    .map((value) => value.trim());
+  let model = candidates.map((candidate) => getModel(candidate)).find(Boolean) ?? null;
+  if (!model) {
+    for (const candidate of candidates) {
+      model = findModelByProviderModel("seedance", candidate, process.env) ?? model;
+      if (model) break;
+    }
+  }
+  model ??= getModel("doubao-seedance-2-5");
+  model ??= loadCatalog().models.find((item) => item.kind === "video" && item.availability === "wired") ?? null;
+  if (!model) throw new Error("PROMPT_CONTRACT_MODEL_UNAVAILABLE: 媒体目录没有可用的视频模型能力卡");
+  return model;
+}
+
+function promptCompileOptionsFor(
+  metadata: Record<string, unknown> | undefined,
+  model: ReturnType<typeof contractModelFor>,
+  workDir: string,
+  charactersDir: string,
+  source: Record<string, unknown>,
+): PromptCompileOptions {
+  const brief = metadata?.brief && typeof metadata.brief === "object" && !Array.isArray(metadata.brief)
+    ? metadata.brief as Record<string, unknown>
+    : {};
+  const production = brief.productionRequirements && typeof brief.productionRequirements === "object"
+    && !Array.isArray(brief.productionRequirements)
+    ? brief.productionRequirements as Record<string, unknown>
+    : {};
+  const aspect = typeof (metadata?.aspectRatio ?? brief.aspectRatio ?? brief.aspect_ratio) === "string"
+    ? String(metadata?.aspectRatio ?? brief.aspectRatio ?? brief.aspect_ratio)
+    : "9:16";
+  const rawResolution = typeof (production.resolution ?? metadata?.resolution ?? brief.resolution) === "string"
+    ? String(production.resolution ?? metadata?.resolution ?? brief.resolution)
+    : "1080p";
+  const resolution = /^\d+p$/i.test(rawResolution) ? rawResolution.toLowerCase() : "1080p";
+  const fpsNumber = Number(production.frameRate ?? production.fps ?? metadata?.fps ?? 30);
+  const fps = Number.isInteger(fpsNumber) && fpsNumber > 0 && fpsNumber <= 120 ? fpsNumber : 30;
+  const generateAudio = production.audio !== false && metadata?.audio !== false && brief.audio !== false;
+  const limits = model.limits;
+  return {
+    delivery: { aspectRatio: aspect, resolution, fps, format: "mp4", generateAudio },
+    model: {
+      modelId: model.id,
+      provider: model.provider,
+      providerModel: model.providerModel,
+      version: `workloom.media-catalog/v1:${model.providerModel}`,
+      modes: [...model.modes],
+      durationSec: limits?.durationSec
+        ? { min: limits.durationSec.min, max: limits.durationSec.max }
+        : { min: 1, max: 120 },
+      aspectRatios: limits?.aspectRatios?.length ? [...limits.aspectRatios] : [aspect],
+      resolutions: limits?.resolutions?.length ? [...limits.resolutions] : [resolution],
+      maxReferenceImages: limits?.maxReferenceImages ?? 0,
+      maxPromptChars: limits?.maxPromptChars ?? 4000,
+    },
+    assets: resolvePromptAssets({
+      source,
+      workDir,
+      charactersDir,
+      extraAllowedRoots: [path.join(REPO_ROOT, "bundles", "ai-video", "library", "characters")],
+    }),
+    requiredClauses: [
+      "镜头内音频仅允许台词、旁白、环境音效与动作音效；禁止镜头外 BGM 与配乐。",
+      "人物与场景必须服从镜头卡；不得用参考图背景、光线或色调替换本镜场景。",
+    ],
+  };
+}
+
 /** 定妆照出图配置（缺密钥则显式关闭：保持 vendor 规格包口径，不假装出图） */
 function portraitConfig(metadata?: Record<string, unknown>, selectedCharacters?: BuiltinCharacterResolution): StudioPortraitConfig {
   const apiKey = (process.env.VOLCENGINE_ARK_API_KEY ?? process.env.ARK_API_KEY ?? "").trim();
@@ -637,6 +733,9 @@ export function startRun(scope: Scope, input: StudioRunInput): string {
    */
   const runWorkDir = path.join(WORK_DIR, "workspaces", scope.workspaceId);
   const portraitIndexPath = path.join(runWorkDir, "characters", input.projectId, "portrait-index.json");
+  const promptContractMode = loadPipelineFeatureFlags(process.env).promptContract;
+  const promptContractModel = promptContractMode === "off" ? null : contractModelFor(runInput.metadata);
+  const semanticQualityReviewer = promptContractMode === "off" ? null : createLlmSemanticQualityReviewer(llm);
   const uninstallPortraitBinding = installVendorPortraitBindingBridge({
     resolveIndex: () => {
       try {
@@ -713,6 +812,8 @@ export function startRun(scope: Scope, input: StudioRunInput): string {
     scope: { tenantId: scope.tenantId, workspaceId: scope.workspaceId, projectId: input.projectId, runId: entry.runId },
   }) : undefined;
   let completedVendorResult: Awaited<ReturnType<VideoStudio["runPreproduction"]>> | null = null;
+  const promptQualityRef: { current: PromptQualityResult | null } = { current: null };
+  const currentPromptQuality = (): PromptQualityResult | null => promptQualityRef.current as PromptQualityResult | null;
 
   const onEvent: EventSink = async (e) => {
     try {
@@ -821,7 +922,7 @@ export function startRun(scope: Scope, input: StudioRunInput): string {
       const portrait = gate === "G5_PORTRAIT" ? portraitGateEvidence({ workDir: runWorkDir, projectId: input.projectId,
         stage: completedVendorResult?.stages?.portraitStudio,
         scriptReport: (completedVendorResult?.stages?.scriptEngine as { report?: unknown } | undefined)?.report }) : null;
-      const baseChecks = portrait?.notApplicable
+      const baseChecks: DeterministicCheck[] = portrait?.notApplicable
         ? [{
             id: "portrait-applicability",
             status: "not_applicable" as const,
@@ -831,7 +932,150 @@ export function startRun(scope: Scope, input: StudioRunInput): string {
           }]
         : [...(portrait?.deterministic ?? gateDeterministicChecks(gate, req.contentMd ?? ""))];
       const marketingReview = marketingGateEvidence?.forReview(gate, currentArtifact);
-      if (PRODUCER_MODE === "review") {
+      const structuredPromptPackage = Array.isArray(req.structuredArtifact)
+        ? req.structuredArtifact.filter((item): item is Record<string, unknown> => Boolean(item && typeof item === "object" && !Array.isArray(item)))
+        : null;
+      let promptQualityEvidence: ReturnType<typeof writePromptQualityEvidence> | null = null;
+      let promptQualityEvidenceFiles: Array<{ path: string; sha256: string; scope: "complete-text" }> = [];
+      let promptQualityChecks: AutoApprovalCheck[] = [];
+      let promptQualityForGate: PromptQualityResult | null = null;
+      if (gate === "G6_PROMPT" && promptContractMode !== "off") {
+        if (!structuredPromptPackage || structuredPromptPackage.length === 0) {
+          baseChecks.push({
+            id: "prompt-package-present",
+            pass: false,
+            hard: promptContractMode === "enforce",
+            detail: "G6 缺少原始结构化镜头包，不能解析 Markdown 报告替代字段合同",
+          });
+        } else if (!promptContractModel || !semanticQualityReviewer) {
+          baseChecks.push({
+            id: "prompt-contract-runtime-present",
+            pass: false,
+            hard: promptContractMode === "enforce",
+            detail: "G6 提示词合同缺少模型能力卡或语义评审器",
+          });
+        } else {
+          const packageShots = structuredPromptPackage.map((source) => ({
+            source: {
+              ...source,
+              shotId: String(source.shotId ?? source.shot_id ?? ""),
+            },
+            compile: promptCompileOptionsFor(runInput.metadata, promptContractModel, runWorkDir,
+              path.join(runWorkDir, "characters", input.projectId), source),
+          }));
+          promptQualityForGate = await evaluatePromptPackage({
+            mode: promptContractMode === "enforce" ? "enforce" : "shadow",
+            projectId: input.projectId,
+            runId: entry.runId,
+            stageRunId: `${entry.runId}:g6`,
+            revision: Math.max(1, stageRef.attempt),
+            shots: packageShots,
+            reviewer: semanticQualityReviewer,
+            upstreamContext: {
+              pipelineKind,
+              intent: input.intent,
+              brief: runInput.metadata?.brief ?? null,
+            },
+          });
+          promptQualityRef.current = promptQualityForGate;
+          promptQualityEvidence = writePromptQualityEvidence(
+            path.join(path.dirname(artifact.path), "prompt-quality"),
+            promptQualityForGate,
+          );
+          const qualityEvidence = [
+            ...promptQualityEvidence.contracts.map((item) => ({ path: item.path, sha256: item.sha256, scope: "complete-text" as const })),
+            { path: promptQualityEvidence.semanticReportPath, sha256: promptQualityEvidence.sha256.semanticReport, scope: "complete-text" as const },
+            { path: promptQualityEvidence.decisionPath, sha256: promptQualityEvidence.sha256.decision, scope: "complete-text" as const },
+            ...(promptQualityEvidence.repairPlanPath && promptQualityEvidence.sha256.repairPlan
+              ? [{ path: promptQualityEvidence.repairPlanPath, sha256: promptQualityEvidence.sha256.repairPlan, scope: "complete-text" as const }] : []),
+            ...(promptQualityEvidence.repairAttemptPath && promptQualityEvidence.sha256.repairAttempt
+              ? [{ path: promptQualityEvidence.repairAttemptPath, sha256: promptQualityEvidence.sha256.repairAttempt, scope: "complete-text" as const }] : []),
+          ];
+          promptQualityEvidenceFiles = qualityEvidence;
+          if (promptContractMode === "enforce") {
+            promptQualityChecks = promptQualityAutoChecks(promptQualityForGate);
+            if (promptQualityForGate.status === "passed") {
+              const patched = new Map(promptQualityForGate.shotContracts.map((item) => [item.shotId, item]));
+              for (const target of structuredPromptPackage) {
+                const item = patched.get(String(target.shotId ?? target.shot_id ?? ""));
+                if (!item) continue;
+                target.fields = structuredClone(item.source.fields);
+                target.prompt = item.contract.prompt;
+                target.promptCharCount = item.contract.prompt.length;
+              }
+            }
+            producerVerdict = {
+              stage: producerStage,
+              status: promptQualityForGate.status === "passed" ? "passed" : "failed",
+              approved: promptQualityForGate.status === "passed",
+              score: promptQualityForGate.status === "passed" ? 100 : 0,
+              hardFailures: promptQualityForGate.findings.map((finding) => `${finding.shotId}/${finding.code}`),
+              issues: promptQualityForGate.findings.map((finding) => finding.detail),
+              suggestions: promptQualityForGate.findings.filter((finding) => finding.repairClass === "semantic").map((finding) => finding.detail),
+              rerun: false,
+              via: "llm",
+              model: promptQualityForGate.decision.reviewer.model ?? semanticQualityReviewer.model,
+              ms: 0,
+              reason: promptQualityForGate.status,
+              degraded: false,
+              evidence: qualityEvidence,
+            };
+          }
+        }
+      }
+      let renderEligibilityEvidence: { path: string; sha256: string; eligible: boolean; reasons: string[] } | null = null;
+      if (gate === "G7_FINAL" && promptContractMode !== "off") {
+        const prior = gateProofs.get("G6_PROMPT")?.promptContract as PromptContractSummary[] | undefined;
+        if (!prior || !structuredPromptPackage || !promptContractModel) {
+          baseChecks.push({
+            id: "g6-prompt-contract-present",
+            pass: false,
+            hard: promptContractMode === "enforce",
+            detail: "G7 找不到当前 G6 字段合同或原始镜头包，不能只凭预生产报告放行",
+          });
+        } else {
+          const currentShots = structuredPromptPackage.map((source) => ({
+            source: { ...source, shotId: String(source.shotId ?? source.shot_id ?? "") },
+            compile: promptCompileOptionsFor(runInput.metadata, promptContractModel, runWorkDir,
+              path.join(runWorkDir, "characters", input.projectId), source),
+          }));
+          const currentness = verifyCurrentPromptContracts({ shots: currentShots }, prior);
+          const eligibility = {
+            schemaVersion: "workloom.video-render-eligibility/v2",
+            projectId: input.projectId,
+            runId: entry.runId,
+            attempt: stageRef.attempt,
+            g6DecisionId: gateProofs.get("G6_PROMPT") ? String(gateProofs.get("G6_PROMPT")!.decisionId ?? "") : "",
+            promptContracts: prior,
+            current: currentness.valid,
+            eligible: currentness.valid,
+            reasons: currentness.reasons,
+          };
+          const eligibilityPath = path.join(path.dirname(artifact.path), "render-eligibility.json");
+          const body = JSON.stringify(eligibility, null, 2);
+          writeFileSync(eligibilityPath, body, "utf8");
+          renderEligibilityEvidence = {
+            path: eligibilityPath,
+            sha256: renderSha256(body),
+            eligible: currentness.valid,
+            reasons: currentness.reasons,
+          };
+          baseChecks.push({
+            id: "g6-contract-current",
+            pass: currentness.valid,
+            hard: promptContractMode === "enforce",
+            detail: currentness.valid ? "G6 字段/提示词/请求哈希与当前镜头包一致"
+              : `G6 合同漂移：${currentness.reasons.join(",")}`,
+          });
+        }
+      }
+      const promptQualityEnforced = gate === "G6_PROMPT"
+        && promptContractMode === "enforce"
+        && promptQualityForGate !== null;
+      const g7PromptEnforced = gate === "G7_FINAL"
+        && promptContractMode === "enforce"
+        && renderEligibilityEvidence !== null;
+      if (PRODUCER_MODE === "review" && !promptQualityEnforced && !g7PromptEnforced) {
         if (portrait?.notApplicable) {
           producerVerdict = {
             stage: "keyframe", status: "not_applicable", approved: true, score: 100, hardFailures: [], issues: [], suggestions: [],
@@ -874,6 +1118,23 @@ export function startRun(scope: Scope, input: StudioRunInput): string {
           if (marketingReview && marketingGateEvidence) producerVerdict = marketingGateEvidence.verifyReview(marketingReview, producerVerdict);
         }
       }
+      if (g7PromptEnforced && renderEligibilityEvidence) {
+        producerVerdict = {
+          stage: producerStage,
+          status: renderEligibilityEvidence.eligible ? "passed" : "failed",
+          approved: renderEligibilityEvidence.eligible,
+          score: renderEligibilityEvidence.eligible ? 100 : 0,
+          hardFailures: renderEligibilityEvidence.eligible ? [] : renderEligibilityEvidence.reasons,
+          issues: [],
+          suggestions: [],
+          rerun: false,
+          via: "deterministic",
+          ms: 0,
+          reason: renderEligibilityEvidence.eligible ? "G6 contract hashes remain current" : renderEligibilityEvidence.reasons.join("；"),
+          degraded: false,
+          evidence: [{ path: renderEligibilityEvidence.path, sha256: renderEligibilityEvidence.sha256, scope: "complete-text" }],
+        };
+      }
       const deterministicStatus = (check: DeterministicCheck): AutoApprovalCheck["status"] => {
         if (PRODUCER_MODE === "review" && producerVerdict) {
           return producerVerdict.approved
@@ -899,6 +1160,7 @@ export function startRun(scope: Scope, input: StudioRunInput): string {
           evidenceRef: currentArtifact.path,
           repairClass: deterministicStatus(check) === "failed" ? "local_patch" as const : undefined,
         })),
+        ...promptQualityChecks,
       ];
       if (producerVerdict && !producerVerdict.approved && producerVerdict.status !== "not_applicable") {
         deterministicChecks.push({
@@ -1026,8 +1288,34 @@ export function startRun(scope: Scope, input: StudioRunInput): string {
           ? producerVerdict?.status === "not_applicable" ? "not_applicable" : "passed"
           : auto.outcome === "blocked" ? "blocked" : "failed",
         via: producerVerdict?.via ?? "deterministic", degraded: producerVerdict?.degraded ?? false,
-        model: producerVerdict?.model ?? null, evidence: producerVerdict?.evidence ?? [],
+        model: producerVerdict?.model ?? null,
+        evidence: [...(producerVerdict?.evidence ?? []), ...promptQualityEvidenceFiles.filter((item) =>
+          !(producerVerdict?.evidence ?? []).some((existing) => existing.path === item.path))],
         autoApproval: auto.receipt,
+        ...(gate === "G6_PROMPT" && promptQualityForGate ? {
+          decisionId: promptQualityForGate.decision.id,
+          promptContract: promptContractSummary(promptQualityForGate.shotContracts.map((item) => item.contract)),
+          promptQuality: {
+            schemaVersion: promptQualityForGate.schemaVersion,
+            mode: promptQualityForGate.mode,
+            status: promptQualityForGate.status,
+            checkedAt: promptQualityForGate.checkedAt,
+            decisionId: promptQualityForGate.decision.id,
+            g6Eligible: promptQualityForGate.g6Eligible,
+            renderEligible: promptQualityForGate.renderEligible,
+            evidence: promptQualityEvidence,
+          },
+        } : {}),
+        ...(gate === "G7_FINAL" && renderEligibilityEvidence ? {
+          renderEligibility: {
+            schemaVersion: "workloom.video-render-eligibility/v2",
+            eligible: renderEligibilityEvidence.eligible,
+            path: renderEligibilityEvidence.path,
+            sha256: renderEligibilityEvidence.sha256,
+            reasons: renderEligibilityEvidence.reasons,
+          },
+          promptContract: gateProofs.get("G6_PROMPT")?.promptContract ?? null,
+        } : {}),
         ...(approved && producerVerdict?.suggestions.length ? { advisories: producerVerdict.suggestions } : {}),
         ...(producerVerdict?.status === "not_applicable" ? { basis: producerVerdict.reason } : {}) });
       return {
@@ -1146,6 +1434,7 @@ export function startRun(scope: Scope, input: StudioRunInput): string {
           { intent: runInput.intent, isMarketing: input.isMarketing ?? false, pipelineKind, scenePolicy: selectedScenePolicy.decision },
           async (ctx) => {
             gateProofs.clear();
+            promptQualityRef.current = null;
             marketingGateEvidence?.reset(ctx.attempt);
             completedVendorResult = null;
             /**
@@ -1271,6 +1560,7 @@ export function startRun(scope: Scope, input: StudioRunInput): string {
              */
             // A rejected vendor result has no formal handoff. Preserve its real gate/error outcome.
             const shots = r.success === true ? completePreproductionShots(r) : [];
+            const activePromptQuality = currentPromptQuality();
             const promptPack = shots.length
               ? {
                   stageId: "preproduction",
@@ -1280,6 +1570,22 @@ export function startRun(scope: Scope, input: StudioRunInput): string {
                   generatedAt: new Date().toISOString(),
                   shotCount: shots.length,
                   totalPromptChars: shots.reduce((sum, shot) => sum + String(shot.prompt ?? "").length, 0),
+                  ...(activePromptQuality ? {
+                    promptContract: {
+                      schemaVersion: activePromptQuality.schemaVersion,
+                      fieldSchema: activePromptQuality.shotContracts[0]?.contract.fieldSchema ?? null,
+                      fieldCount: activePromptQuality.shotContracts[0]?.contract.fieldCount ?? null,
+                      contracts: promptContractSummary(activePromptQuality.shotContracts.map((item) => item.contract)),
+                    },
+                    promptQuality: {
+                      schemaVersion: activePromptQuality.schemaVersion,
+                      mode: activePromptQuality.mode,
+                      status: activePromptQuality.status,
+                      g6Eligible: activePromptQuality.g6Eligible,
+                      renderEligible: activePromptQuality.renderEligible,
+                      decisionId: activePromptQuality.decision.id,
+                    },
+                  } : {}),
                   dossier: dm
                     ? { root: marketingDossierRef ?? `dossiers/${scope.workspaceId}`, productId: dm.product_id ?? null }
                     : null,

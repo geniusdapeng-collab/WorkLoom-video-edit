@@ -44,7 +44,12 @@ export function systemAutoApprovalEnabled(env: NodeJS.ProcessEnv = process.env):
 }
 
 export function renderSubmitAutoAllowed(env: NodeJS.ProcessEnv = process.env): boolean {
-  return systemAutoApprovalEnabled(env);
+  /**
+   * Prompt-contract enforcement deliberately keeps the paid G8 boundary under
+   * human authorization. Other gates remain system-policy driven; G8 still
+   * requires a human approval ticket plus all system checks.
+   */
+  return systemAutoApprovalEnabled(env) && loadPipelineFeatureFlags(env).promptContract !== "enforce";
 }
 
 /** review=AI 监制输入，auto=只保留确定性检查；二者都必须再经版本化策略。 */
@@ -75,8 +80,15 @@ export const GATE_RUBRIC: Partial<Record<GateKey, string[]>> = {
   G3_INSIGHT: ["需求对齐清单覆盖角色/场景/道具/动作四类契约", "受众与风险项有具体结论，不是占位文字"],
   G4_PRD: ["角色系统有可执行的外观锚点（定妆照前置）", "交付标准可验证（画幅/时长/音频/字幕口径）"],
   G5_PORTRAIT: ["定妆照必须真出图（completedPortraits>0），不接受只有规格包的 pending 状态", "必需角度 front/threeQuarter/closeup/side 齐备", "人物与角色档案一致（授权真人须与本人照片同一张脸）"],
-  G6_PROMPT: ["每镜提示词达到交付口径（≥1200 字）且 25/30 字段齐备", "台词速率与占比合规，无红线词"],
-  G7_FINAL: ["预生产收口：镜头卡/定妆照/提示词三件套齐备且互相引用一致", "渲染提交前的花额度动作仍需人审（本门只放行内部准备）"]
+  G6_PROMPT: [
+    "确定性合同硬门先过：字段 schema、空值/占位符、模型能力、资产字节、消费矩阵与三哈希",
+    "五项语义问题 SQ1–SQ5 必须全部二元通过；失败只允许一次字段级修复并全量复验",
+    "提示词长度/字符预算只作为技术上限与异常提示，不以 1200 字代替质量判断",
+  ],
+  G7_FINAL: [
+    "只验证 G6 决策仍为最新、prompt/request/fields/asset 哈希与当前镜头包一致，不重新做审美评审",
+    "下游交付规格已进入 downstream 绑定；任何漂移回到 G6 重新评审并拒绝旧资格",
+  ]
 };
 
 /** Approved suggestions are review annotations, not permission to mutate an approved artifact. */

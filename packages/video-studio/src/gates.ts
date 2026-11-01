@@ -82,5 +82,11 @@ export interface GateRequest {
   type: string;
   content: string;
   runId: string | null;
+  /**
+   * Host-only structured companion to `content` (for example the raw prompt
+   * package for G6). Vendor confirmation-waiters may omit it; hosts must never
+   * infer structured fields from the rendered Markdown report.
+   */
+  structured?: unknown;
   shouldAbort?: () => boolean;
 }

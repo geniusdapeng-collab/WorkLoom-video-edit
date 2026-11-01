@@ -4,7 +4,8 @@ export interface ServiceShot { shotId: string; durationSec: number; prompt: stri
 export interface ServiceShotList { projectId: string; sourceStageRunId: string; sourceAttempt: number; promptsSha256: string; shots: ServiceShot[] }
 export interface QualifiedShot {
   qualificationId: string; qualificationToken: string; scriptId: string; scriptVersion: number; modelId: string;
-  params: Record<string, unknown>; mode: "auto"; requestHash: string; payloadHash: string; promptSha256: string; expiresAt: string;
+  params: Record<string, unknown>; mode: "auto"; requestHash: string; payloadHash: string; promptSha256: string;
+  promptContractSha256?: string | null; expiresAt: string;
 }
 export interface ProductionShotResult {
   shotId: string; seconds: number; status: "ready" | "submitted" | "rendering" | "done" | "failed" | "unknown" | "unverified";
@@ -97,6 +98,8 @@ export class ProductionClient {
 export async function renderServiceProject(input: {
   client: ProductionClient; projectId: string; modelId: string; only?: string[]; params?: Record<string, unknown>;
   maxEstimatedCny?: number; pollRounds?: number; pollIntervalMs?: number;
+  /** G8 human ticket for PROMPT_CONTRACT_V2=enforce; omitted on the first request to create one. */
+  g8ApprovalId?: string;
   onProgress?: (result: ProductionProjectResult) => void | Promise<void>; wait?: (ms: number) => Promise<void>;
 }): Promise<ProductionProjectResult> {
   if (!input.projectId.trim() || !input.modelId.trim()) throw new ProductionClientError("REQUEST_INVALID", "Project and model are required");
@@ -131,7 +134,10 @@ export async function renderServiceProject(input: {
         || stable(current.shots) !== stable(source.shots)) throw new ProductionClientError("SOURCE_CHANGED", "Service preproduction changed after the batch was quoted; no new generation was submitted");
       Object.assign(row, { scriptId: q.scriptId, scriptVersion: q.scriptVersion, qualificationId: q.qualificationId, requestHash: q.requestHash, payloadHash: q.payloadHash });
       await persist(); submitting = true;
-      const reply = await input.client.request<{ jobId: string; taskId: string; mock: boolean; durationSec: number }>("video.render.submit", { qualificationToken: q.qualificationToken });
+      const reply = await input.client.request<{ jobId: string; taskId: string; mock: boolean; durationSec: number }>(
+        "video.render.submit",
+        { qualificationToken: q.qualificationToken, ...(input.g8ApprovalId ? { g8ApprovalId: input.g8ApprovalId } : {}) },
+      );
       if (!reply || typeof reply.jobId !== "string" || !reply.jobId || typeof reply.taskId !== "string" || !reply.taskId
         || typeof reply.mock !== "boolean" || reply.durationSec !== shot.durationSec) throw new ProductionClientError("SUBMISSION_RECEIPT_INVALID", "Submission receipt is incomplete or duration changed");
       Object.assign(row, { jobId: reply.jobId, taskId: reply.taskId, mock: reply.mock, status: reply.mock ? "unverified" : "submitted" });
