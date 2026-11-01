@@ -98,19 +98,12 @@ describe("随仓内置角色库", () => {
       expect(dispatch.attempt).toBe(1);
       expect(createHash("sha256").update(JSON.stringify(dispatch.request)).digest("hex")).toBe(dispatch.requestSha256);
     }
-    // v1 is historical image_gen lineage: front T2I, seven new-AI-master I2I.
-    const historical = loadCharacterEntry(entry.dir, { pinnedVersion: 1 })!;
-    expect(historical.verification.status).toBe("passed");
-    expect(historical.activeSet?.source).toBe("img2img");
-    const original = JSON.parse(readFileSync(resolve(entry.dir, "provenance.json"), "utf8"));
-    expect(original.tool).toBe("image_gen");
-    expect(original.master.referenceImageCount).toBe(0);
-    expect(original.angles).toHaveLength(8);
-    for (const asset of original.angles) {
-      expect(asset.output.sha256).toBe(historical.verification.assets[asset.angle]!.sha256);
-      expect(asset.output.bytes).toBe(historical.verification.assets[asset.angle]!.bytes);
-      expect(asset.request.referenceImages).toHaveLength(asset.angle === "front" ? 0 : 1);
-      if (asset.angle !== "front") expect(asset.request.referenceImages[0].sha256).toBe(original.master.sha256);
-    }
+    expect(entry.portraitSets.map((set) => set.version)).toEqual([2]);
+    const removedV1 = loadCharacterEntry(entry.dir, { pinnedVersion: 1 })!;
+    expect(removedV1.activeSet).toBeNull();
+    expect(removedV1.files).toEqual({});
+    expect(removedV1.verification.status).toBe("unverified");
+    expect(removedV1.verification.issues).toContain("指定版本 v1 不存在");
+    expect(() => readFileSync(resolve(entry.dir, "provenance.json"))).toThrow();
   });
 });
