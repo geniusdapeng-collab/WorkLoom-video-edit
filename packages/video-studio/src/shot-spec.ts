@@ -29,6 +29,7 @@ import {
   type BulletTimeCapabilities,
   type BulletTimePromptAudit,
 } from "./bullet-time.js";
+import { SHOT_FIELD_SCHEMA_V1, SHOT_FIELD_SCHEMA_V2, type ShotFieldSchemaVersion } from "./prompt-contract.js";
 
 export interface FieldSpec {
   p0: string[];
@@ -44,6 +45,7 @@ export interface FieldSpec {
 
 export interface ShotSpecReport {
   shotId: string;
+  fieldSchema: ShotFieldSchemaVersion;
   isOpening: boolean;
   durationSec: number;
   /** 交付用提示词（序号+独立行排版） */
@@ -179,6 +181,8 @@ export interface PrepareOptions {
   /** Optional model-specific limits used by the bullet-time compiler. */
   bulletTimeCapabilities?: BulletTimeCapabilities;
   log?: (line: string) => void;
+  /** v1 keeps historical 25/25 behavior; v2 requires content 25 and opening 30. */
+  fieldSchemaVersion?: ShotFieldSchemaVersion;
 }
 
 /**
@@ -341,7 +345,7 @@ interface VendorDeliveryGuard {
 }
 
 /**
- * **片头 5 个专属字段已下线**（产品所有者口径，2026-09-26）。
+ * **v1 片头 5 个专属字段已下线**（产品所有者 2026-09-26 的历史口径）。
  *
  * 原口径（vendor field-standardizer）：片头镜除 25 个标准字段外，还要 5 个专属字段——
  * `title_content` / `subtitle_content` / `title_animation` / `title_font_design` / `opening_audio_design`，
@@ -352,16 +356,17 @@ interface VendorDeliveryGuard {
  *   ① 生成模型的中文字形不可控（写成错字/糊字，只能整条重渲）；
  *   ② 后期换标题/改口径（如"南昌 46 秒"→"南昌 48 秒"）必须重渲，违背"镜头只生成一次、后续零 token"。
  *
- * 因此本层**不再向生成侧要求这 5 个字段**：片头镜与内容镜同为 25 字段口径，
+ * 因此 v1 **不再向生成侧要求这 5 个字段**：片头镜与内容镜同为 25 字段口径，
  * 提示词里也不再注入【主标题内容】【副标题内容】【标题动画设计】【标题字体设计】【开场音频设计】。
- * vendor 真源里的字段定义保持只读不动（那是上游基线），差异在本层显式表达。
+ * 2026-11-01 的 v2 策略恢复片头 30 字段；v1 仍按历史行为解释旧 run，禁止混用。
  */
 export const OPENING_EXCLUSIVE_FIELDS_RETIRED: string[] = [];
 
-/** 兼容出口：历史上片头专属字段的键名（仅用于审计回溯，不再参与校验与提示词注入） */
+/** v2 恢复的片头专属字段；v1 只把它们作为历史审计出口。 */
 export const OPENING_EXCLUSIVE_FIELDS_LEGACY = [
   "title_content", "subtitle_content", "title_animation", "title_font_design", "opening_audio_design"
 ];
+export const OPENING_EXCLUSIVE_FIELDS_V2 = [...OPENING_EXCLUSIVE_FIELDS_LEGACY];
 
 /** 已下线的 5 个片头标题段落在提示词里的字面标签（反向自检用） */
 export const RETIRED_OPENING_LABELS = [
@@ -580,6 +585,15 @@ export function fieldSpec(): FieldSpec {
   return loadVendor().spec;
 }
 
+/** Versioned field policy view: v2 restores the opening-only five fields. */
+export function fieldSpecForPromptPolicy(version: ShotFieldSchemaVersion = SHOT_FIELD_SCHEMA_V1): FieldSpec {
+  const spec = loadVendor().spec;
+  return {
+    ...spec,
+    openingExclusive: version === SHOT_FIELD_SCHEMA_V2 ? [...OPENING_EXCLUSIVE_FIELDS_V2] : [],
+  };
+}
+
 /** 25 字段的完整键列表（含 common 之外的 P0–P3 与片头 two title 字段） */
 export function specFieldKeys(includeOpeningExtras = false): string[] {
   const spec = fieldSpec();
@@ -659,6 +673,11 @@ export function prepareShotPrompt(
   options: PrepareOptions = {}
 ): ShotSpecReport {
   const { standardizer, fusionCtor, guardCtor, spec } = loadVendor();
+  const fieldSchemaVersion = options.fieldSchemaVersion ?? SHOT_FIELD_SCHEMA_V1;
+  const policySpec: FieldSpec = {
+    ...spec,
+    openingExclusive: fieldSchemaVersion === SHOT_FIELD_SCHEMA_V2 ? [...OPENING_EXCLUSIVE_FIELDS_V2] : [],
+  };
   const ratio = options.ratio ?? "9:16";
   const resolution = resolutionToPixels(
     options.resolution ?? (ratio === "9:16" ? "1080x1920" : "1920x1080"),
@@ -692,7 +711,13 @@ export function prepareShotPrompt(
     const raw = normalizedCard[key];
     return isEmptyValue(raw) ? undefined : raw;
   };
-  for (const key of specFieldKeys(true)) {
+  const fieldKeys = fieldSchemaVersion === SHOT_FIELD_SCHEMA_V2
+    ? [
+        ...spec.p0, ...spec.p1, ...spec.p2, ...spec.p3,
+        ...(isOpening ? policySpec.openingExclusive : []),
+      ]
+    : specFieldKeys(true);
+  for (const key of fieldKeys) {
     const value = effective(key);
     if (!isEmptyValue(value)) fields[key] = value;
   }
@@ -716,6 +741,21 @@ export function prepareShotPrompt(
   }
   if (!prompt) {
     prompt = fusion._assembleStandardPrompt(assemblyShot, fields, ratio);
+  }
+  if (fieldSchemaVersion === SHOT_FIELD_SCHEMA_V2 && isOpening) {
+    const openingLabels: Record<string, string> = {
+      title_content: "【主标题内容】",
+      subtitle_content: "【副标题内容】",
+      title_animation: "【标题动画设计】",
+      title_font_design: "【标题字体设计】",
+      opening_audio_design: "【开场音频设计】",
+    };
+    for (const key of policySpec.openingExclusive) {
+      const value = fields[key];
+      if (isEmptyValue(value)) continue;
+      const label = openingLabels[key] ?? `【${key}】`;
+      if (!prompt.includes(label)) prompt += ` | ${label}${readableValue(value)}`;
+    }
   }
   /**
    * 音频纪律子句 + 音乐负面词：确保**每一镜**都显式声明"禁止镜头内 BGM"，
@@ -842,7 +882,7 @@ export function prepareShotPrompt(
    *   ② 若过滤后没有其它问题 → 判放行（否则片头镜会永远卡在"缺标题字段"上，真机就是这么卡住的）；
    *   ③ 反向自检：提示词里**不该**再出现这 5 个段落（出现即说明有人把标题塞回生成侧）。
    */
-  if (isOpening) {
+  if (isOpening && fieldSchemaVersion === SHOT_FIELD_SCHEMA_V1) {
     const retiredPattern = /^缺片头专属字段:/;
     const retired = delivery.issues.filter((issue) => retiredPattern.test(issue));
     if (retired.length > 0) {
@@ -915,7 +955,7 @@ export function prepareShotPrompt(
   /** P0 致命级缺失单独上报（T-2026-0930-0015）：post-only 组装卡也要过字段闸，别到下游才发现 */
   const missingP0Fields = spec.p0.filter(isSpecFieldMissing);
   const missingOpeningFields = isOpening
-    ? spec.openingExclusive.filter((key) => isEmptyValue(effective(key)))
+    ? policySpec.openingExclusive.filter((key) => isEmptyValue(effective(key)))
     : [];
 
   const redlineWords = options.redlineWords
@@ -948,6 +988,7 @@ export function prepareShotPrompt(
 
   return {
     shotId,
+    fieldSchema: fieldSchemaVersion,
     isOpening,
     durationSec,
     prompt,
@@ -969,6 +1010,7 @@ export function prepareShotPrompt(
 /** 规范报告的 Markdown 表格（出片报告 / 审计报告共用） */
 export function shotSpecMarkdown(reports: ShotSpecReport[]): string {
   const spec = fieldSpec();
+  const openingCount = reports.some((report) => report.fieldSchema === SHOT_FIELD_SCHEMA_V2) ? 30 : 25;
   const lines = [
     `> 字段规范来源：vendor field-standardizer（25 字段 = P0 ${spec.p0.length} + P1 ${spec.p1.length} + P2 ${spec.p2.length} + P3 ${spec.p3.length}）；`
     + "**片头不再有 5 个专属字段**（主标题/副标题/标题动画/标题字体/开场音频设计）："
@@ -978,7 +1020,7 @@ export function shotSpecMarkdown(reports: ShotSpecReport[]): string {
     "| 镜头 | 类型 | 字数 | 来源 | 25字段缺 | 交付闸 | 红线 |",
     "|---|---|---:|---|---:|---|---|",
     ...reports.map((r) =>
-      `| ${r.shotId} | ${r.isOpening ? "片头(25)" : "内容(25)"} | ${r.charCount} | ${r.promptSource} | `
+      `| ${r.shotId} | ${r.isOpening ? `片头(${openingCount})` : "内容(25)"} | ${r.charCount} | ${r.promptSource} | `
       + `${r.missingSpecFields.length}${r.missingSpecFields.length ? `（${r.missingSpecFields.slice(0, 3).join("、")}${r.missingSpecFields.length > 3 ? "…" : ""}）` : ""} | `
       + `${r.delivery.pass ? "pass" : `fail(${r.delivery.issues.length})`} | ${r.redlines.length ? r.redlines.join("、") : "—"} |`
     ),

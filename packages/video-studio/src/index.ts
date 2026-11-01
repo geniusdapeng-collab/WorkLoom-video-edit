@@ -23,6 +23,8 @@ export * from "./portrait-owner-authorization.js";
 export * from "./likeness-policy.js";
 export * from "./producer-gate.js";
 export * from "./shot-spec.js";
+export * from "./prompt-contract.js";
+export * from "./prompt-compiler.js";
 /** Shared text/JSON semantics for service-side controlled character selection. */
 export { shotIntentHash, shotText, splitShotAssertions } from "./shot-intent.js";
 export * from "./route-preflight.js";

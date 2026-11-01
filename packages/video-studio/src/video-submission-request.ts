@@ -27,6 +27,12 @@ export interface VideoSubmissionRequestOptions {
   seed?: number;
   aspect: string;
   resolution: string;
+  /** Optional v2 contract hashes; when present they are part of the safe input plan. */
+  promptContract?: {
+    promptSha256: string;
+    fieldsSha256: string;
+    requestSha256: string;
+  };
 }
 
 /** URL-free evidence; external metadata is deliberately not called verified source bytes. */
@@ -52,6 +58,7 @@ export interface VideoSubmissionRequest {
   promptSha256: string;
   /** Stable mode and ordered input metadata, with no URL or encoded image data. */
   inputPlanSha256: string;
+  promptContractSha256?: string | null;
   inputs: VideoSubmissionInput[];
 }
 
@@ -177,6 +184,15 @@ export function buildVideoSubmissionRequest(options: VideoSubmissionRequestOptio
     urls.add(image.url); identities.add(image.duplicateKey);
   }
   const inputs = images.map((image) => image.evidence);
+  const contract = options.promptContract;
+  if (contract && (!/^[a-f0-9]{64}$/.test(contract.promptSha256)
+    || !/^[a-f0-9]{64}$/.test(contract.fieldsSha256)
+    || !/^[a-f0-9]{64}$/.test(contract.requestSha256))) {
+    return invalid("PROMPT_CONTRACT_INVALID", "contract hashes must be complete lowercase SHA256 values");
+  }
+  if (contract && contract.promptSha256 !== sha256(options.prompt)) {
+    return invalid("PROMPT_CONTRACT_MISMATCH", "contract prompt hash differs from the submitted prompt bytes");
+  }
   const body: Record<string, unknown> = {
     model: options.model,
     content: [{ type: "text", text: options.prompt }, ...images.map((image) => ({ type: "image_url", image_url: { url: image.url }, role: image.evidence.role }))],
@@ -189,6 +205,10 @@ export function buildVideoSubmissionRequest(options: VideoSubmissionRequestOptio
     return_last_frame: true,
     ...(family === "1.0" && options.seed !== undefined ? { seed: options.seed } : {}),
   };
+  const promptContractSha256 = contract ? sha256(JSON.stringify(contract)) : null;
+  const inputPlan = promptContractSha256 === null
+    ? { mode, inputs }
+    : { mode, inputs, promptContractSha256 };
   return { body, mode, wireRequestSha256: sha256(JSON.stringify(body)), promptSha256: sha256(options.prompt),
-    inputPlanSha256: sha256(JSON.stringify({ mode, inputs })), inputs };
+    inputPlanSha256: sha256(JSON.stringify(inputPlan)), inputs, promptContractSha256 };
 }

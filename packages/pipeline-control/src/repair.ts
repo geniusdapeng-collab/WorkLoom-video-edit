@@ -96,3 +96,34 @@ export function transitionRepair(
   }
   return { ...structuredClone(plan), status: next };
 }
+
+/**
+ * The semantic prompt repair path may only touch the exact field paths that
+ * generated blocking findings. This guard is shared by the executor and its
+ * tests so a review suggestion cannot silently expand into a broader rewrite.
+ */
+export function assertRepairChangePaths(plan: RepairPlan, changedPaths: readonly string[]): void {
+  if (plan.status !== "running" && plan.status !== "approved") {
+    throw new PipelineControlError("REPAIR_STATE_INVALID", `RepairPlan 状态 ${plan.status} 不允许执行字段修改`);
+  }
+  if (changedPaths.length === 0) throw new PipelineControlError("REPAIR_CHANGES_MISSING", "修复没有产生任何字段变化");
+  const allowed = new Set(plan.allowedChanges);
+  const invalid = changedPaths.filter((path) => !allowed.has(path));
+  if (invalid.length > 0) {
+    throw new PipelineControlError("REPAIR_CHANGE_FORBIDDEN", `修复越权字段：${invalid.join(",")}`);
+  }
+}
+
+export function assertRepairProducedNewState(input: {
+  beforeFieldsSha256: string;
+  afterFieldsSha256: string;
+  beforePromptSha256: string;
+  afterPromptSha256: string;
+}): void {
+  if (input.beforeFieldsSha256 === input.afterFieldsSha256) {
+    throw new PipelineControlError("REPAIR_FIELDS_UNCHANGED", "修复后 fieldsSha256 未变化");
+  }
+  if (input.beforePromptSha256 === input.afterPromptSha256) {
+    throw new PipelineControlError("REPAIR_PROMPT_UNCHANGED", "修复后 promptSha256 未变化");
+  }
+}

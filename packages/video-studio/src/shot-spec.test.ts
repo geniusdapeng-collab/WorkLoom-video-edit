@@ -14,6 +14,7 @@ import {
   resolutionToPixels,
   shotSpecMarkdown
 } from "./shot-spec.js";
+import { SHOT_FIELD_SCHEMA_V2 } from "./prompt-contract.js";
 
 /** 25 字段的完整内容镜卡片（字段值取自真机形态，长度足够过交付闸） */
 function contentCard(shotId = "S2"): Record<string, unknown> {
@@ -256,6 +257,24 @@ describe("镜头卡交付闸（vendor PromptDeliveryGuard 为准）", () => {
     const report = prepareShotPrompt(openingCard());
     for (const label of ["【主标题内容】", "【副标题内容】", "【标题动画设计】", "【标题字体设计】", "【开场音频设计】"]) {
       expect(report.prompt).not.toContain(label);
+    }
+  });
+
+  it("v2 片头恢复五个专属字段并要求 30 字段", () => {
+    const shot = {
+      ...openingCard(),
+      title_content: "苏州南园宾馆",
+      subtitle_content: "唯一可以入住的苏州园林",
+      title_animation: "0-2s淡入，2-4s停稳",
+      title_font_design: "中文衬线体，暖白发光",
+      opening_audio_design: "水声与鸟鸣，无配乐",
+    };
+    const report = prepareShotPrompt(shot, { fieldSchemaVersion: SHOT_FIELD_SCHEMA_V2 });
+    expect(report.fieldSchema).toBe(SHOT_FIELD_SCHEMA_V2);
+    expect(report.missingOpeningFields).toEqual([]);
+    expect(report.delivery.pass).toBe(true);
+    for (const label of ["【主标题内容】", "【副标题内容】", "【标题动画设计】", "【标题字体设计】", "【开场音频设计】"]) {
+      expect(report.prompt).toContain(label);
     }
   });
 

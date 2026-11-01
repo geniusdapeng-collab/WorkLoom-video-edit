@@ -49,6 +49,29 @@ export const VIDEO_REPAIR_PLAYBOOKS: Record<string, RepairPlaybook> = {
     maxAttempts: 2,
     requiresApproval: false,
   },
+  "repair-prompt-semantic-fields-v1": {
+    id: "repair-prompt-semantic-fields-v1",
+    version: "1",
+    /**
+     * Runtime replaces this marker with the exact `fieldPath` values from the
+     * rejected semantic findings. The base entry remains explicit so unknown
+     * ids fail closed and the one-attempt ceiling cannot be relaxed by callers.
+     */
+    allowedChanges: ["$.shots[*].fields.<field-from-finding>"],
+    forbiddenChanges: [
+      "$.shots[*].facts",
+      "$.shots[*].duration",
+      "$.approvedTheme",
+      "$.approvedInsight",
+      "$.approvedPrd",
+      "$.modelCapabilities",
+      "$.gateThreshold",
+      "$.authorization",
+      "$.shots[other].*",
+    ],
+    maxAttempts: 1,
+    requiresApproval: false,
+  },
   "repair-subtitle-layer": {
     id: "repair-subtitle-layer",
     version: "1",
@@ -79,4 +102,14 @@ export function requireVideoRepairPlaybook(id: string): RepairPlaybook {
   const playbook = VIDEO_REPAIR_PLAYBOOKS[id];
   if (!playbook) throw new Error(`VIDEO_REPAIR_PLAYBOOK_UNKNOWN: ${id}`);
   return structuredClone(playbook);
+}
+
+export function promptSemanticRepairPlaybook(fields: readonly string[]): RepairPlaybook {
+  const unique = [...new Set(fields.map((field) => field.trim()).filter(Boolean))];
+  if (unique.length === 0) throw new Error("PROMPT_SEMANTIC_REPAIR_FIELDS_MISSING");
+  const base = requireVideoRepairPlaybook("repair-prompt-semantic-fields-v1");
+  return {
+    ...base,
+    allowedChanges: unique.map((field) => field.startsWith("$.") ? field : `$.shots[*].fields.${field}`),
+  };
 }
