@@ -42,7 +42,12 @@ export function useWelcomeProgress({ onVisibilityChange, onError }: {
     const terminal = status === "paused" || status === "completed";
     // The ceremony's still-running phase timer must not enqueue a new progress
     // request after the user has already chosen to leave it.
-    if (terminal) terminalRequested.current = true;
+    if (terminal) {
+      terminalRequested.current = true;
+      // 用户选择跳过或稍后继续后，本地界面必须立即离开全屏仪式；
+      // 网络持久化失败只影响下次启动是否重播，不能继续阻塞当前工作台。
+      callbacks.current.onVisibilityChange(false);
+    }
     try {
       const result = await trpc.onboarding.saveWelcomeProgress.mutate({ status, currentStep }) as Omit<WelcomeState, "role">;
       if (!mounted.current || request !== sequence.current) return;
@@ -51,10 +56,6 @@ export function useWelcomeProgress({ onVisibilityChange, onError }: {
       if (!mounted.current || request !== sequence.current) return;
       terminalRequested.current = false;
       callbacks.current.onError("欢迎引导进度暂时无法保存，请稍后重试。");
-    } finally {
-      if (mounted.current && request === sequence.current && terminal) {
-        callbacks.current.onVisibilityChange(false);
-      }
     }
   }, []);
 

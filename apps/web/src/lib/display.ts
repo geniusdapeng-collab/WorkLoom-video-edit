@@ -192,8 +192,8 @@ export function capabilityText(value: string): string {
 function stripTechnicalTokens(value: string): string {
   return value
     .replace(/[A-Za-z][A-Za-z0-9._+/-]*/g, " ")
-    .replace(/[\s·—–-]+/g, " ")
-    .trim();
+    .replace(/[\s·—–-、，,]+/g, " ")
+    .replace(/^[\s、，,。；;：:]+|[\s、，,。；;：:]+$/g, "");
 }
 
 /**
@@ -226,7 +226,7 @@ export function chineseDisplayName(value: string | null | undefined, fallback: s
  */
 export function skillDisplayName(name: string, description?: string | null): string {
   const text = (description ?? "").trim();
-  const m = /^([^（(。：:—]{2,40})[（(。：:—]/.exec(text);
+  const m = /^([^（(。；;：:—]{2,40})[（(。；;：:—]/.exec(text);
   const candidate = m?.[1]?.trim();
   if (candidate) {
     const resolved = chineseDisplayName(candidate, "");

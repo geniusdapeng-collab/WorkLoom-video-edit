@@ -352,20 +352,24 @@ export default function P6() {
             {/* P6E1 AwarenessBanner：主建议卡 + 待确认折叠（组件口径：横幅单卡带「待确认 N 条」计数） */}
             {suggestions.length > 0 && (
               <div className="mb-3 rounded-lg border border-holo/35 bg-card px-4 py-3">
-                <div className="flex flex-wrap items-center gap-3">
-                  <Icon name="agents" size={18} />
-                  <div className="flex-1">
-                    <b className="text-body text-ink">AI 副官建议</b>
-                    {suggestions.length > 1 && (
-                      <span className="ml-2 rounded border border-holo/40 px-1.5 py-0.5 text-body text-holo">待确认 {suggestions.length} 条</span>
-                    )}
-                    <div className="mt-0.5 text-body text-ink2">
-                      检测到高频任务：「{suggestionActionText(suggestions[0]!.actionCategory)}（{suggestionObjectText(suggestions[0]!.objectType)}）」近 {suggestions[0]!.windowDays} 天共 <b className="text-holo">{suggestions[0]!.count}</b> 次
-                      （每周达到 {suggestions[0]!.threshold} 次时生成建议{suggestions[0]!.threshold > 3 ? "；频率已根据历史驳回结果调整" : ""}）
+                <div className="flex min-w-0 flex-col gap-3">
+                  <div className="flex min-w-0 items-start gap-3">
+                    <Icon name="agents" size={18} className="mt-0.5 shrink-0" />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                        <b className="text-body text-ink">AI 副官建议</b>
+                        {suggestions.length > 1 && (
+                          <span className="rounded border border-holo/40 px-1.5 py-0.5 text-body text-holo">待确认 {suggestions.length} 条</span>
+                        )}
+                      </div>
+                      <div className="mt-0.5 text-body leading-relaxed text-ink2">
+                        检测到高频任务：「{suggestionActionText(suggestions[0]!.actionCategory)}（{suggestionObjectText(suggestions[0]!.objectType)}）」近 {suggestions[0]!.windowDays} 天共 <b className="text-holo">{suggestions[0]!.count}</b> 次
+                        （每周达到 {suggestions[0]!.threshold} 次时生成建议{suggestions[0]!.threshold > 3 ? "；频率已根据历史驳回结果调整" : ""}）
+                      </div>
                     </div>
                   </div>
                   {canManage && (
-                    <div className="wl-action-row flex flex-wrap gap-2">
+                    <div className="wl-action-row flex w-full flex-wrap gap-2">
                       <button
                         type="button"
                         disabled={busy === `sug-${suggestions[0]!.key}`}
@@ -424,7 +428,10 @@ export default function P6() {
             <div id="sec-official" className="mb-2 text-body font-bold tracking-wider text-ink2">
               官方技能 · 随行业包分发
             </div>
-            <div className="mb-5 grid grid-cols-1 gap-3 lg:grid-cols-2 xl:grid-cols-3">
+            <div
+              className="mb-5 grid gap-3"
+              style={{ gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 240px), 1fr))" }}
+            >
               {officials.map(renderCard)}
             </div>
 

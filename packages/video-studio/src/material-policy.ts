@@ -370,6 +370,11 @@ export function assertMaterialGenerationProvenance(evidence: {
 export interface MaterialScenePromptOptions extends MaterialMotionPromptOptions {
   /** 参考素材里"必须保持一致"的实景要素（地标形制/文字标识等），由镜头卡给出 */
   mustKeep?: string[];
+  /**
+   * `place`（默认）把参考图当实景依据；`product` 把参考图当商品/人物身份与外观依据，
+   * 场景由镜头卡文字构建，避免机动车等商品被误写成地标或相机模板。
+   */
+  referenceMode?: "place" | "product";
 }
 
 /** 素材镜的一句台词（与文生镜共用同一份卡片字段，避免两套口径漂移） */
@@ -507,13 +512,18 @@ export function buildMaterialScenePrompt(shot: Record<string, unknown>, options:
    * 与文生镜（`prepareShotPrompt` 会渲染【台词】块）口径对齐，两条出片路径都必须"台词由渲染直接产出"。
    */
   const dialogueBlock = buildMaterialDialogueBlock(shot, { durationSec: duration });
-  const mustKeep = (options.mustKeep ?? [
-    "地标/建筑的形制与层叠关系", "匾额与牌匾文字标识", "水域、地形与城市天际线的相对关系", "材质与天色的真实感"
-  ]).join("、");
+  const productReference = options.referenceMode === "product";
+  const mustKeep = (options.mustKeep ?? (productReference
+    ? ["商品结构、比例与涂装分区", "已出现的品牌标识位置", "人物身份与保护装备", "真实材质与光比"]
+    : ["地标/建筑的形制与层叠关系", "匾额与牌匾文字标识", "水域、地形与城市天际线的相对关系", "材质与天色的真实感"]
+  )).join("、");
   const lines = [
-    `【任务】以提供的实拍参考素材为**实景依据**，构建一段 ${duration} 秒的真实拍摄感视频场景。`
-      + `注意：参考图只用于确认实景要素，**不是首帧、不是要你把它动起来**——你要拍的是这个真实场景里的一段视频。`,
-    `【实景依据·保持一致】${mustKeep}。参考素材说明：${scene || "实拍地标"}${sceneDescription ? `；${sceneDescription}` : ""}`,
+    productReference
+      ? `【任务】以提供的真实商品与人物素材为**身份和外观依据**，在镜头卡描述的真实环境中构建一段 ${duration} 秒的实拍感视频场景。`
+        + `注意：参考图只用于确认商品结构与人物身份，**不是首帧、不是要你复刻参考图构图或把参考图动起来**。`
+      : `【任务】以提供的实拍参考素材为**实景依据**，构建一段 ${duration} 秒的真实拍摄感视频场景。`
+        + `注意：参考图只用于确认实景要素，**不是首帧、不是要你把它动起来**——你要拍的是这个真实场景里的一段视频。`,
+    `【${productReference ? "参考一致性" : "实景依据·保持一致"}】${mustKeep}。参考素材与场景说明：${scene || (productReference ? "按镜头卡构建真实场景" : "实拍地标")}${sceneDescription ? `；${sceneDescription}` : ""}`,
     "【必须由你构建的部分】机位与取景遵循镜头卡，不得用参考照片平移缩放冒充视频；有镜头位移时应有真实三维视差，固定机位则保持取景稳定。环境与主体仅按场景中实际存在的元素自然变化，不新增云、水、人群或道具。补全画面应遵守真实空间，不能出现参考图的边界或黑边。",
     motionIntent ? `【镜头运动（本镜意图）】${motionIntent}` : "【镜头运动（本镜意图）】缓速推进后稳住。",
     motionDirection(shot, options.motionStrength === "assertive"),
@@ -529,10 +539,11 @@ export function buildMaterialScenePrompt(shot: Record<string, unknown>, options:
     colorPalette ? `【色调】${colorPalette}` : "",
     propsLine ? `【画面元素】${propsLine}` : "",
     dialogueBlock,
-    `【约束】${aspect} 画幅 ${resolution}；无水印、无字幕、无标题字、无 LOGO、无边框；画面内不出现任何新增文字`
+    `【约束】${aspect} 画幅 ${resolution}；无水印、无字幕、无标题字、无边框；`
+      + (productReference ? "不新增第三方标识或贴花文字，真实商品已有标识必须保留且不得改写" : "无 LOGO；画面内不出现任何新增文字")
       + (dialogueBlock ? "；台词只以人声呈现（字幕由后期添加）" : "") + "。",
-    negative ? `【负面】${negative}；照片复刻、贴图平移、参考图边界、静止画面、建筑臆造、文字变化、水印字幕。`
-      : "【负面】照片复刻、贴图平移、参考图边界、静止画面、建筑臆造、文字变化、水印字幕。",
+    negative ? `【负面】${negative}；照片复刻、贴图平移、参考图边界、静止画面、${productReference ? "商品结构臆造、替换车型" : "建筑臆造"}、文字变化、水印字幕。`
+      : `【负面】照片复刻、贴图平移、参考图边界、静止画面、${productReference ? "商品结构臆造、替换车型" : "建筑臆造"}、文字变化、水印字幕。`,
     options.injection ? String(options.injection).trim() : "",
     options.title ? `【作品】${options.title}` : ""
   ].filter((line) => line.length > 0);

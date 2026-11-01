@@ -67,6 +67,29 @@ describe("实体与物理常识审核 agent", () => {
     expect(JSON.stringify(large)).toContain("长".repeat(2_000));
   });
 
+  it("多服装角色把默认服装和逐镜选择同时交给审核，避免把默认装当全片硬约束", () => {
+    const context = buildPlausibilityContext({
+      ...baseContext,
+      character: {
+        name: "李英子",
+        appearance: "成年虚构女性，黑色马尾",
+        activeWardrobeId: "w1",
+        wardrobes: [
+          { id: "w1", name: "日常夹克", detail: "无头盔" },
+          { id: "w2", name: "赛道装备", detail: "全盔与全覆赛车服" },
+        ],
+      },
+      shots: [{ ...baseContext.shots[0]!, wardrobeId: "w2", costume: "本镜启用 w2 赛道装备" }],
+    });
+    const typed = context as {
+      character?: { activeWardrobeId?: string | null; wardrobes?: unknown[] };
+      shots: Array<Record<string, unknown>>;
+    };
+    expect(typed.character).toMatchObject({ activeWardrobeId: "w1" });
+    expect(typed.character?.wardrobes).toHaveLength(2);
+    expect(typed.shots[0]).toMatchObject({ wardrobeId: "w2", costume: "本镜启用 w2 赛道装备" });
+  });
+
   it("解析模型输出：blocker/warning 与提示词补丁；结构非法即抛错（上层 fail-closed）", () => {
     const parsed = parsePlausibilityAnswer(JSON.stringify({
       verdict: "block",

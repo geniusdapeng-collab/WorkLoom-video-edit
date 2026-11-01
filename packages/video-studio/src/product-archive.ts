@@ -377,6 +377,7 @@ export function productPhotoPath(entry: LoadedProductArchive, photo: ProductArch
  */
 export function productArchivePromptLines(archive: ProductArchive): string[] {
   const lines: string[] = [];
+  const vehicleProduct = /^(?:vehicle|motorcycle|motorbike|motor|car|automobile)$|摩托车|机车|汽车/i.test(String(archive.category ?? "").trim());
   const name = archive.displayName?.trim() || archive.id;
   lines.push(`真实商品：${name}${archive.brand ? `（品牌 ${archive.brand}）` : ""}${archive.company ? `，厂商 ${archive.company}` : ""}`);
   const appearance = archive.specs?.appearance?.trim();
@@ -398,7 +399,7 @@ export function productArchivePromptLines(archive: ProductArchive): string[] {
     if (typeof dims.curbWeightKg === "number") parts.push(`整备质量约 ${dims.curbWeightKg} kg`);
     if (parts.length) {
       lines.push(`真实尺寸（比例锚，必须遵守）：${parts.join("、")}${dims.note ? `；${dims.note}` : ""}；`
-        + "人物与车辆同框时必须按真实尺寸还原相对比例（重型机车整车长度明显超过成年人身高、座高接近人物腰部以上），"
+        + "人物与车辆同框时必须按真实尺寸还原相对比例（重型机车整车长度明显超过成年人身高、座高落在人物髋部到腰线之间），"
         + "严禁玩具比例、微缩模型感与「缩小版」整车。");
     }
   }
@@ -413,11 +414,15 @@ export function productArchivePromptLines(archive: ProductArchive): string[] {
   /**
    * 机动车使用规则（T-2026-1011-0001）：运动镜必须有骑手与头盔，禁止无人自行行驶。
    */
-  if (String(archive.category ?? "").toLowerCase() === "vehicle") {
+  if (vehicleProduct) {
     lines.push("使用规则（机动车硬约束）：行驶/起步/压弯等运动镜必须由画面内可见的成年骑手操控并佩戴全盔与护具；"
       + "禁止无人驾驶、禁止车辆自行启动或自行行驶；骑手姿态、重心与轮胎接地符合真实物理");
   }
-  lines.push("产品一致性硬约束：机身轮廓、屏幕比例、按键与卡口布局、品牌标识位置必须与参考照片完全一致，不得重新设计外观、不得替换为相似机型");
+  if (vehicleProduct) {
+    lines.push("产品一致性硬约束：车身轮廓、导流罩开口与配色分区、定风翼形态、轮辋、制动卡钳、排气出口和已出现的车身标识位置必须与对应角度参考照片一致；不得重新设计外观、不得替换为相似机型、不得新增或补造贴花文字");
+  } else {
+    lines.push("产品一致性硬约束：机身轮廓、屏幕比例、按键与卡口布局、品牌标识位置必须与参考照片完全一致，不得重新设计外观、不得替换为相似机型");
+  }
   if (archive.source.kind === "system-generated") lines.push("素材来源声明：本商品资料由系统检索生成、未经客户确认，正式投放前须由客户核对产品外观与参数");
   return lines;
 }

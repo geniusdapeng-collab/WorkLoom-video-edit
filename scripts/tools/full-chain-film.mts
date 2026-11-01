@@ -2087,6 +2087,10 @@ interface CharacterEntryLike {
   version: number | null;
   /** 档案正文里的外貌描述（纯文生图时的唯一人物变量；真人图不可作为视频首帧时靠它保人） */
   appearanceText: string;
+  /** 不含服装的身份/外貌描述，供多服装项目逐镜选择，避免把默认服装误当全片硬约束。 */
+  identityText: string;
+  activeWardrobeId: string | null;
+  wardrobes: Array<{ id: string; name: string; detail: string; scene: string }>;
 }
 /**
  * 角色库装载（2026-09-24 扩展）：除 `HR_CHARACTER_LIBRARY` 外，**同时**装载随仓分发的默认模特库
@@ -2130,6 +2134,7 @@ function loadCharacterRoot(root: string, library: Map<string, CharacterEntryLike
       identity?: Record<string, unknown>;
       appearance?: Record<string, unknown>;
       wardrobe?: Array<Record<string, unknown>>;
+      activeWardrobeId?: string;
       portraitSets?: Array<{ dir: string; angles: string[]; active?: boolean; version: number; assets?: Record<string, string> }>;
     };
     const sets = profile.portraitSets ?? [];
@@ -2162,7 +2167,7 @@ function loadCharacterRoot(root: string, library: Map<string, CharacterEntryLike
     const a = profile.appearance ?? {};
     const i = profile.identity ?? {};
     const wardrobe = Array.isArray(profile.wardrobe) && profile.wardrobe.length > 0 ? profile.wardrobe[0]! : {};
-    const appearanceText = [
+    const identityText = [
       `一位${String(i.age ?? "").trim()}${String(a.gender ?? i.gender ?? "女性") === "female" ? "女性" : String(a.gender ?? i.gender ?? "女性")}`,
       a.face ? String(a.face) : "",
       a.skin ? `肤质：${String(a.skin)}` : "",
@@ -2171,9 +2176,19 @@ function loadCharacterRoot(root: string, library: Map<string, CharacterEntryLike
       Array.isArray(a.features) && a.features.length > 0 ? `特征：${(a.features as unknown[]).join("；")}` : "",
       a.bodyType ? `身形：${String(a.bodyType)}` : "",
       i.height ? `身高约 ${String(i.height)}` : "",
-      wardrobe.name ? `穿着${String(wardrobe.name)}${wardrobe.detail ? `（${String(wardrobe.detail)}）` : ""}` : ""
     ].filter(Boolean).join("，");
-    library.set(profile.id, { id: profile.id, name: profile.name, files, dir, appearanceText, version: active?.version ?? null });
+    const appearanceText = `${identityText}${wardrobe.name ? `，穿着${String(wardrobe.name)}${wardrobe.detail ? `（${String(wardrobe.detail)}）` : ""}` : ""}`;
+    const wardrobes = (profile.wardrobe ?? []).map((item) => ({
+      id: String(item.id ?? ""),
+      name: String(item.name ?? ""),
+      detail: String(item.detail ?? ""),
+      scene: String(item.scene ?? ""),
+    })).filter((item) => item.id);
+    library.set(profile.id, {
+      id: profile.id, name: profile.name, files, dir, appearanceText, identityText,
+      activeWardrobeId: profile.activeWardrobeId ?? null,
+      wardrobes, version: active?.version ?? null,
+    });
   }
 }
 const characters = needsNewRender ? loadCharacters() : new Map<string, CharacterEntryLike>();
@@ -3571,7 +3586,12 @@ function plausibilityContextFor(stage: "pre-render" | "pre-submit", reviewShots:
     aspect: ASPECT,
     resolution: OUTPUT_RESOLUTION,
     durationSeconds: Number((shotlist as Record<string, unknown>).durationSeconds ?? totalSeconds) || undefined,
-    character: lead ? { name: lead.name, appearance: lead.appearanceText } : null,
+    character: lead ? {
+      name: lead.name,
+      appearance: lead.identityText,
+      activeWardrobeId: lead.activeWardrobeId,
+      wardrobes: lead.wardrobes,
+    } : null,
     products: archives.map((archive) => ({
       id: archive.id, displayName: archive.displayName, brand: archive.brand, category: archive.category,
       sourceKind: archive.source?.kind, reviewStatus: archive.source?.reviewStatus,
@@ -3584,6 +3604,8 @@ function plausibilityContextFor(stage: "pre-render" | "pre-submit", reviewShots:
       shotId: String(shot.shotId), durationSec: Number(shot.duration ?? 0) || undefined,
       scene: String(shot.scene ?? ""), sceneDescription: String(shot.sceneDescription ?? ""),
       action: String(shot.action ?? ""), props: String(shot.props ?? ""), character: String(shot.character ?? ""),
+      wardrobeId: String((shot as Record<string, unknown>).wardrobeId ?? ""),
+      costume: String((shot as Record<string, unknown>).costume ?? ""),
       dialogue: shot.dialogue ?? null, dialogueFree: (shot as Record<string, unknown>).dialogueFree === true,
       product: String((shot as Record<string, unknown>).product ?? ""), promptText: promptFor(String(shot.shotId)),
     })),
@@ -3679,6 +3701,48 @@ async function runPlausibilityGate(stage: "pre-render" | "pre-submit", reviewSho
   }
   log(`实体与物理常识审核（${stage}）通过：warning ${result.findings.length} · model ${result.model ?? "-"} · ${result.ms}ms`);
   return result;
+}
+
+/**
+ * Material shots bypass the `spec` prompt-fusion stage, so their current
+ * prompt is otherwise not built until `material-gen`. The pre-render
+ * plausibility gate must review the exact prompt that will be submitted, not
+ * a stale file left by an earlier attempt.
+ */
+function buildCurrentMaterialPrompt(shot: ShotCard): string {
+  const card = shot as Record<string, unknown>;
+  const duration = Number(shot.duration ?? 5);
+  const productArchive = plausibilityArchiveFor(shot);
+  const productReference = /^(?:vehicle|motorcycle|motorbike|motor|car|automobile)$|摩托车|机车|汽车/i
+    .test(String(productArchive?.category ?? "").trim());
+  let prompt = buildMaterialScenePrompt(card, {
+    aspect: ASPECT,
+    resolution: SOURCE_RESOLUTION,
+    durationSec: duration,
+    title: shotlist.title,
+    referenceMode: productReference ? "product" : "place",
+    ...(productReference ? {
+      injection: "【参考件环境排除】商品参考件中的纯白背景、影棚柔光、展台、起车架、支撑滚轮、拍摄水印和任何后期遮挡均不属于商品本身，成片必须全部移除；只提取商品结构、比例、配色和已有涂装标识，并把商品放回镜头卡描述的真实赛道、真实光照和真实承重关系中。",
+    } : {}),
+  });
+  prompt = appendCinematicContract(prompt, buildCinematicContract(card));
+  const extraLines: string[] = [REALISM_CLAUSE, REALISM_NEGATIVE_TERMS];
+  const materialDialogue = dialogueLines(card as never);
+  if (materialDialogue.length > 0) {
+    extraLines.push(speechLanguageClause(FILM_SPEECH_LANGUAGE, materialDialogue), exactDialogueClause(materialDialogue));
+  } else {
+    extraLines.push(noSpeechClause());
+  }
+  extraLines.push(speechNegativeTerms(FILM_SPEECH_LANGUAGE));
+  prompt += ` | ${extraLines.filter((line) => line.trim()).join(" | ")}`;
+  const portrait = portraitVideoInputs(shot);
+  if (portrait.images.length) prompt += `\n${portraitReferenceClauseFor(shot)}`;
+  writeFileSync(join(PROMPT_DIR, `${shot.shotId}.txt`), `${prompt}\n`, "utf8");
+  return `${prompt}\n`;
+}
+
+if (PRERENDER_REQUESTED && !DRY_RUN) {
+  for (const shot of pendingShots().filter((item) => isMaterialShot(item))) buildCurrentMaterialPrompt(shot);
 }
 if (PRERENDER_REQUESTED && !DRY_RUN) await runPlausibilityGate("pre-render");
 
@@ -4048,25 +4112,8 @@ if (STAGES.has("material-gen")) {
        * 机位/视差/环境运动由模型构建（不再走"把参考图当首帧做动效"的老路）。
        * 重跑轮会在循环里升级强度并写入同一文件（`let` 是因为提交门要读当前轮提示词）。
        */
-      let prompt = buildMaterialScenePrompt(card, {
-        aspect: ASPECT, resolution: SOURCE_RESOLUTION, durationSec: duration, title: shotlist.title
-      });
-      prompt = appendCinematicContract(prompt, buildCinematicContract(card as unknown as Record<string, unknown>));
-      /** 素材镜同样挂写实 + 台词/语言条款（T-2026-1011-0001）。 */
-      {
-        const extraLines: string[] = [REALISM_CLAUSE, REALISM_NEGATIVE_TERMS];
-        const materialDialogue = dialogueLines(card as never);
-        if (materialDialogue.length > 0) {
-          extraLines.push(speechLanguageClause(FILM_SPEECH_LANGUAGE, materialDialogue), exactDialogueClause(materialDialogue));
-        } else {
-          extraLines.push(noSpeechClause());
-        }
-        extraLines.push(speechNegativeTerms(FILM_SPEECH_LANGUAGE));
-        prompt += ` | ${extraLines.filter((line) => line.trim()).join(" | ")}`;
-      }
+      let prompt = buildCurrentMaterialPrompt(shot);
       const portrait = portraitVideoInputs(shot);
-      if (portrait.images.length) prompt += `\n${portraitReferenceClauseFor(shot)}`;
-      writeFileSync(promptFile, `${prompt}\n`, "utf8");
       const plausibility = !DRY_RUN ? await runPlausibilityGate("pre-submit", [shot]) : null;
       prompt = readFileSync(promptFile, "utf8");
       const submissionPlan = videoPlan({ prompt, refs: [...portrait.images, videoImage(prepared, "product-reference")],

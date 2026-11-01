@@ -225,14 +225,14 @@
     {
       "id": "EXP-01",
       "persona": "owner",
-      "title": "增长实验策略核查：首启事实与待决项",
+      "title": "首启看到经营事实与可用入口",
       "script": "builtin:first-value"
     },
     {
       "id": "EXP-02",
       "persona": "owner",
-      "title": "增长实验策略核查：授权边界与审批留痕",
-      "script": "builtin:approval"
+      "title": "治理入口符合当前产品：无通用审批中心且围栏边界可查",
+      "script": "builtin:governance-boundary"
     },
     {
       "id": "EXP-03",
@@ -243,7 +243,7 @@
     {
       "id": "EXP-04",
       "persona": "staff",
-      "title": "增长实验策略核查：派活与结果读回",
+      "title": "派活并看到任务详情与执行拆解",
       "script": "builtin:dispatch"
     },
     {

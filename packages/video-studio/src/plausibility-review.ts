@@ -55,6 +55,8 @@ export interface PlausibilityShotInput {
   action?: string;
   props?: string;
   character?: string;
+  wardrobeId?: string;
+  costume?: string;
   dialogue?: unknown;
   dialogueFree?: boolean;
   product?: string;
@@ -80,7 +82,13 @@ export interface PlausibilityContextInput {
   aspect?: string;
   resolution?: string;
   durationSeconds?: number;
-  character?: { name?: string; height?: string; appearance?: string } | null;
+  character?: {
+    name?: string;
+    height?: string;
+    appearance?: string;
+    activeWardrobeId?: string | null;
+    wardrobes?: Array<{ id: string; name?: string; detail?: string; scene?: string }>;
+  } | null;
   products?: PlausibilityProductFacts[];
   shots: PlausibilityShotInput[];
   /** 画面证据（第二遍：关键帧），标签→文件路径 */
@@ -142,6 +150,7 @@ export function buildPlausibilityContext(input: PlausibilityContextInput): Recor
       shotId: shot.shotId, durationSec: shot.durationSec ?? null,
       scene: shot.scene ?? null, sceneDescription: shot.sceneDescription ?? null,
       action: shot.action ?? null, props: shot.props ?? null, character: shot.character ?? null,
+      wardrobeId: shot.wardrobeId ?? null, costume: shot.costume ?? null,
       dialogue: shot.dialogue ?? null, dialogueFree: shot.dialogueFree === true,
       product: shot.product ?? null,
       promptText: shot.promptText ?? null,

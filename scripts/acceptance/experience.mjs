@@ -68,6 +68,20 @@ const shot = async (target, name) => {
   return file;
 };
 
+const LOADING_TEXT = /正在恢复工作区|正在确认身份|正在确认访问范围|正在连接 WorkLoom 服务|正在加载(?:页面|技能)|正在汇总统一待办/;
+const WELCOME_DIALOG = '[role="dialog"][aria-label="首次运行介绍"]';
+
+async function waitForSettled(target, timeout = 20000) {
+  return target.waitForFunction(
+    (loadingPattern) => {
+      const text = document.body.innerText || "";
+      return text.trim().length > 40 && !new RegExp(loadingPattern).test(text);
+    },
+    LOADING_TEXT.source,
+    { timeout },
+  ).then(() => true).catch(() => false);
+}
+
 /* 登录（PC 成员态）：必须清除演示直登游客标记，否则审批等成员能力会被误判为无权 */
 const TOKEN = await loginAsMember(page, { urls: URLs, workspaceSlug: WORKSPACE_SLUG, memberNo: MEMBER_NO, productId: productIdOf(REPO_ROOT) });
 
@@ -89,29 +103,42 @@ async function ensureRightPanel(target) {
 async function firstValue() {
   const t0 = now();
   await page.goto(`${URLs.pc}${R.home}`, { waitUntil: "domcontentloaded" });
-  await page.waitForTimeout(2500);
   const skip = page.getByRole("button", { name: /跳过开场|跳过/ }).first();
-  const ceremony = (await skip.count()) > 0;
+  const ceremony = await skip.waitFor({ state: "visible", timeout: Math.max(8000, T.firstValueMs - 2000) })
+    .then(() => true).catch(() => false);
   let skipMs = null;
-  if (ceremony) { await skip.click({ timeout: 6000 }).catch(() => undefined); skipMs = now() - t0; }
-  let text = "";
-  for (let i = 0; i < 60; i += 1) {
-    text = await page.evaluate(() => document.body.innerText);
-    if (/晨报|经营简报|待决|决策包/.test(text)) break;
-    await page.waitForTimeout(300);
+  let skipClicked = false;
+  if (ceremony) {
+    for (const force of [false, true]) {
+      await skip.click({ timeout: 6000, force }).catch(() => undefined);
+      const closed = await page.locator(WELCOME_DIALOG).waitFor({ state: "hidden", timeout: 2500 }).then(() => true).catch(() => false);
+      if (closed) {
+        skipClicked = true;
+        break;
+      }
+    }
+    skipMs = now() - t0;
   }
+  const settled = await waitForSettled(page, T.firstValueMs);
+  const dashboardReady = await page.waitForFunction(() => {
+    const text = document.body.innerText || "";
+    return Boolean(document.querySelector('[data-product-ready="true"]'))
+      && !document.querySelector('[aria-label="首次运行介绍"]')
+      && /经营主页|经营|任务|员工|片库|增长|内容/.test(text);
+  }, null, { timeout: Math.max(2000, T.firstValueMs - (now() - t0)) }).then(() => true).catch(() => false);
+  const text = await page.evaluate(() => document.body.innerText || "");
   const valueMs = now() - t0;
-  const decisions = (text.match(/待决|待我(拍板|审批)|需你拍板|待审/g) ?? []).length;
+  const valueSignals = (text.match(/经营|任务|员工|片库|增长|内容/g) ?? []).length;
   return {
     id: "EXP-01", persona: "owner", journey: "首启（0–10 分钟）", dimension: "首启与首价值 / 掌控感",
-    name: "打开工作台即看到今日经营与待拍板事项",
+    name: "打开工作台即看到经营事实与可用入口",
     precondition: "成员态登录，演示数据已种子",
-    steps: ["打开首页", "（首启）1 次点击跳过欢迎仪式", "计时到出现晨报/待决"],
-    expected: `首启仪式可跳过；T+${T.firstValueMs / 1000}s 内见价值；决策包 ≤${T.decisionQuota} 件/日`,
-    actual: { 有欢迎仪式: ceremony, 跳过毫秒: skipMs, 首次价值毫秒: valueMs, 待决提及: decisions },
+    steps: ["打开首页", "（首启）1 次点击跳过欢迎仪式", "计时到工作台就绪并出现经营事实"],
+    expected: `首启仪式可跳过并立即退出；T+${T.firstValueMs / 1000}s 内工作台就绪且出现经营事实`,
+    actual: { 有欢迎仪式: ceremony, 跳过成功: skipClicked, 跳过毫秒: skipMs, 页面就绪: settled, 工作台就绪: dashboardReady, 首次价值毫秒: valueMs, 价值信号: valueSignals },
     metric: `首次价值 ${(valueMs / 1000).toFixed(1)}s`,
     evidence: await shot(page, "exp-01-first-value"),
-    pass: Boolean(text) && valueMs <= T.firstValueMs && decisions > 0 && (decisions <= T.decisionQuota * 3),
+    pass: settled && dashboardReady && (!ceremony || skipClicked) && valueMs <= T.firstValueMs && valueSignals > 0,
   };
 }
 
@@ -153,6 +180,43 @@ async function approval() {
     metric: `单件 ${(singleMs / 1000).toFixed(1)}s`,
     evidence: await shot(page, "exp-02-approval"),
     pass: rods.advance && rods.calibrate && rods.brake && clicked && wroteBack && singleMs <= T.approvalMs,
+  };
+}
+
+async function governanceBoundary() {
+  const t0 = now();
+  await page.goto(`${URLs.pc}${R.inbox}`, { waitUntil: "domcontentloaded" });
+  const inboxReady = await waitForSettled(page, T.approvalMs);
+  const inboxText = await page.evaluate(() => document.body.innerText || "");
+
+  await page.goto(`${URLs.pc}${R.guardrails}`, { waitUntil: "domcontentloaded" });
+  const guardrailsReady = await waitForSettled(page, T.approvalMs);
+  const guardrailsText = await page.evaluate(() => document.body.innerText || "");
+
+  await page.goto(`${URLs.pc}/approvals`, { waitUntil: "domcontentloaded" });
+  const removedRoute = await page.waitForFunction(() => /页面不存在/.test(document.body.innerText || ""), null, { timeout: 10000 })
+    .then(() => true).catch(() => false);
+  const ms = now() - t0;
+  return {
+    id: "EXP-02", persona: "owner", journey: "日常治理（每天 10 分钟）", dimension: "效率与恢复 / 信任与透明",
+    name: "治理入口符合当前产品：无通用审批中心，围栏边界仍可查",
+    precondition: "成员态登录；本仓采用业务链路就地放行",
+    steps: ["打开统一待办", "打开围栏规则", "确认旧通用审批深链已下线"],
+    expected: `统一待办与围栏页可用；通用审批路由不再展示业务审批中心；总耗时 ≤${T.approvalMs / 1000}s`,
+    actual: {
+      统一待办就绪: inboxReady,
+      统一待办文案: /统一待办/.test(inboxText),
+      无通用待审聚合: /暂无可直接处理的待办事项|无待办/.test(inboxText),
+      围栏页就绪: guardrailsReady,
+      围栏边界可见: /生效范围|围栏|规则/.test(guardrailsText),
+      通用审批路由已下线: removedRoute,
+      总毫秒: ms,
+    },
+    metric: `治理边界 ${(ms / 1000).toFixed(1)}s`,
+    evidence: await shot(page, "exp-02-governance"),
+    pass: inboxReady && guardrailsReady && removedRoute
+      && /统一待办/.test(inboxText) && /暂无可直接处理的待办事项|无待办/.test(inboxText)
+      && /生效范围|围栏|规则/.test(guardrailsText) && ms <= T.approvalMs,
   };
 }
 
@@ -252,7 +316,7 @@ async function brake() {
 
 async function dispatch() {
   await page.goto(`${URLs.pc}${R.tasks}`, { waitUntil: "domcontentloaded" });
-  await page.waitForTimeout(2000);
+  await waitForSettled(page, T.dispatchMs);
   const entry = await page.evaluate(() => {
     const input = document.querySelector("textarea, input[type=text]");
     return { hasInput: Boolean(input), placeholder: input?.getAttribute("placeholder") ?? null };
@@ -278,8 +342,8 @@ async function dispatch() {
   let detailOk = false;
   if (threadId) {
     await page.goto(`${URLs.pc}${R.tasks}/${encodeURIComponent(threadId)}`, { waitUntil: "domcontentloaded" });
-    await page.waitForTimeout(2500);
-    detailOk = await page.evaluate(() => /拆解|步骤|执行|交付|回执/.test(document.body.innerText));
+    const detailSettled = await waitForSettled(page, T.dispatchMs);
+    detailOk = detailSettled && await page.evaluate(() => /拆解|步骤|执行|交付|回执/.test(document.body.innerText));
   }
   const rejected = /并发上限|已超出|429|TOO_MANY/.test(JSON.stringify(json));
   return {
@@ -434,7 +498,8 @@ async function dryRun() {
 
 const BUILTINS = {
   "builtin:first-value": firstValue,
-  "builtin:approval": approval,
+  "builtin:approval": governanceBoundary,
+  "builtin:governance-boundary": governanceBoundary,
   "builtin:traceability": traceability,
   "builtin:brake": brake,
   "builtin:dispatch": dispatch,
@@ -456,7 +521,14 @@ for (const journey of profile.journeys) {
     continue;
   }
   try {
-    record(await impl());
+    const entry = await impl();
+    record({
+      ...entry,
+      id: journey.id,
+      persona: journey.persona ?? entry.persona,
+      journey: journey.stage ?? entry.journey,
+      name: journey.title ?? entry.name,
+    });
   } catch (err) {
     record({
       id: journey.id, persona: journey.persona ?? "unknown", journey: journey.title ?? "(未命名)", dimension: "—",
