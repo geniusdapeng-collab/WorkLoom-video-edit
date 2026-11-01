@@ -19,7 +19,7 @@
       ],
       "archive": "bundles/ai-video/library/characters/model-01-young-rider",
       "authorization": "synthetic-no-real-person",
-      "note": "1号成年原创虚构AI人物李英子（英子）；当前v2由真实Seedream八次独立纯文字请求生成，原始PNG与逐请求来源随仓保留；v1及其原来源保留；默认ID/编号不变。"
+      "note": "1号成年原创虚构AI人物李英子（英子）；唯一保留的v2由真实Seedream八次独立纯文字请求生成，原始PNG与逐请求来源随仓保留；旧imagegen v1已按所有者要求删除；默认ID/编号不变。"
     },
     {
       "ordinal": 2,

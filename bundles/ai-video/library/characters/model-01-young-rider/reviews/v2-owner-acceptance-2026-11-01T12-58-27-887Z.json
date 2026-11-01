@@ -1,0 +1,124 @@
+{
+  "at": "2026-11-01T12:58:27.911Z",
+  "characterId": "young-rider-01",
+  "version": 2,
+  "kind": "owner-acceptance",
+  "basis": "explicit-owner-authorization",
+  "approved": true,
+  "acceptedBy": "本会话产品所有者",
+  "note": "用户明确要求：李英子的角色档案定妆照默认使用 Seedream 生成的 V2，彻底删除此前 imagegen 生成的 V1，避免 V1 再被使用；更新线上库并发布合并。",
+  "authorization": {
+    "schemaVersion": "workloom.portrait-owner-authorization/v1",
+    "basis": "explicit-owner-authorization",
+    "characterId": "young-rider-01",
+    "version": 2,
+    "approved": true,
+    "decisionOwner": "本会话产品所有者",
+    "decisionOwnerRole": "product-owner",
+    "recordedBy": "Codex当前任务",
+    "statement": "用户明确要求：李英子的角色档案定妆照默认使用 Seedream 生成的 V2，彻底删除此前 imagegen 生成的 V1，避免 V1 再被使用；更新线上库并发布合并。",
+    "anchor": {
+      "kind": "generated-ai-front",
+      "angle": "front",
+      "file": "portraits/v2/young-rider-01-front.png",
+      "sha256": "c605785bb52e634f8e2c9d765ed44f228b908f68dbe089fede5bb7e2467b9541"
+    },
+    "artifacts": [
+      {
+        "angle": "front",
+        "file": "portraits/v2/young-rider-01-front.png",
+        "sha256": "c605785bb52e634f8e2c9d765ed44f228b908f68dbe089fede5bb7e2467b9541"
+      },
+      {
+        "angle": "threeQuarter",
+        "file": "portraits/v2/young-rider-01-threeQuarter.png",
+        "sha256": "ebc1ec5c38e5d33642ca23cdd686e2f0b7a8c8fc62b79f08e4a4cc56944c51d9"
+      },
+      {
+        "angle": "closeup",
+        "file": "portraits/v2/young-rider-01-closeup.png",
+        "sha256": "40c0aae3ec51cfdf851feb1f539d33a1dc3ec1ab83d958db02e57ae719bbd927"
+      },
+      {
+        "angle": "side",
+        "file": "portraits/v2/young-rider-01-side.png",
+        "sha256": "38edcba9e595906563b56cb46d19811fd178529b69b7aa919412bc6c42c94d8b"
+      },
+      {
+        "angle": "back",
+        "file": "portraits/v2/young-rider-01-back.png",
+        "sha256": "55e05273673087425e9e510043c500ebcdae62adc64eeaf0989a7472479c6187"
+      },
+      {
+        "angle": "actionPose",
+        "file": "portraits/v2/young-rider-01-actionPose.png",
+        "sha256": "8ff900395ec955c14a668fd3a20d1c756ebcce00cc610eb4e581fbae4b258eef"
+      },
+      {
+        "angle": "emotionCloseup",
+        "file": "portraits/v2/young-rider-01-emotionCloseup.png",
+        "sha256": "58dbbcedd7a85efbe3ec66caec888b2e5825978e25f1f236276966c7f769bf24"
+      },
+      {
+        "angle": "handDetail",
+        "file": "portraits/v2/young-rider-01-handDetail.png",
+        "sha256": "78db8dac0b150642612df9c6c3ed47e69e588a41f178bf379a65c5a7208ddd37"
+      }
+    ]
+  },
+  "likenessReport": null,
+  "likeness": {
+    "status": "not-run",
+    "why": "机器判据不参与裁决（口径：评审决策交给人类）"
+  },
+  "artifacts": [
+    {
+      "angle": "front",
+      "file": "portraits/v2/young-rider-01-front.png",
+      "sha256": "c605785bb52e634f8e2c9d765ed44f228b908f68dbe089fede5bb7e2467b9541"
+    },
+    {
+      "angle": "threeQuarter",
+      "file": "portraits/v2/young-rider-01-threeQuarter.png",
+      "sha256": "ebc1ec5c38e5d33642ca23cdd686e2f0b7a8c8fc62b79f08e4a4cc56944c51d9"
+    },
+    {
+      "angle": "closeup",
+      "file": "portraits/v2/young-rider-01-closeup.png",
+      "sha256": "40c0aae3ec51cfdf851feb1f539d33a1dc3ec1ab83d958db02e57ae719bbd927"
+    },
+    {
+      "angle": "side",
+      "file": "portraits/v2/young-rider-01-side.png",
+      "sha256": "38edcba9e595906563b56cb46d19811fd178529b69b7aa919412bc6c42c94d8b"
+    },
+    {
+      "angle": "back",
+      "file": "portraits/v2/young-rider-01-back.png",
+      "sha256": "55e05273673087425e9e510043c500ebcdae62adc64eeaf0989a7472479c6187"
+    },
+    {
+      "angle": "actionPose",
+      "file": "portraits/v2/young-rider-01-actionPose.png",
+      "sha256": "8ff900395ec955c14a668fd3a20d1c756ebcce00cc610eb4e581fbae4b258eef"
+    },
+    {
+      "angle": "emotionCloseup",
+      "file": "portraits/v2/young-rider-01-emotionCloseup.png",
+      "sha256": "58dbbcedd7a85efbe3ec66caec888b2e5825978e25f1f236276966c7f769bf24"
+    },
+    {
+      "angle": "handDetail",
+      "file": "portraits/v2/young-rider-01-handDetail.png",
+      "sha256": "78db8dac0b150642612df9c6c3ed47e69e588a41f178bf379a65c5a7208ddd37"
+    }
+  ],
+  "anchors": [
+    {
+      "kind": "generated-ai-front",
+      "angle": "front",
+      "file": "portraits/v2/young-rider-01-front.png",
+      "sha256": "c605785bb52e634f8e2c9d765ed44f228b908f68dbe089fede5bb7e2467b9541"
+    }
+  ]
+}

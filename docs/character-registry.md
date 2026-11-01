@@ -8,7 +8,7 @@
 
 | 编号 | 姓名 / ID | 当前用途 | 档案与版本 |
 |---|---|---|---|
-| 1 | 李英子 / `young-rider-01` | 默认原创虚构AI模特 | `model-01-young-rider/profile.json`；当前`portraits/v2`，历史v1保留 |
+| 1 | 李英子 / `young-rider-01` | 默认原创虚构AI模特 | `model-01-young-rider/profile.json`；唯一版本`portraits/v2` |
 | 2 | 陈卓 / `chen-zhuo` | 原旗袍人物，显式点名时使用 | 历史路径 `model-01-chen-zhuo/profile.json`；`portraits/v3` |
 | 3 | 林予安 / `lin-yu-an` | 原2号原创虚构AI，显式点名时使用 | 历史路径 `model-02-lin-yu-an/profile.json`；`portraits/v1` |
 
@@ -33,9 +33,9 @@
 
 李英子使用`kind: generated`、`subjectType: synthetic-digital-human`、`authorization.status: synthetic-no-real-person`。当前激活逻辑v2，真实Seedream八次独立纯文字请求没有任何图片输入。[`provenance/v2.json`](../bundles/ai-video/library/characters/model-01-young-rider/provenance/v2.json)记录真实model/created/安全trace、完整提示词和请求SHA、原始2K PNG的SHA/字节数/尺寸；逐张dispatch/来源JSON保留在同版本目录，原PNG不重编码、不缩放、不裁切、不修脸、不换背景。未返回的provider task_id为null，未编造seed；请求watermark=true如实记录，隐式水印未验证。
 
-原v1八张1024×1536 PNG、v1版本文件、原provenance.json、历史reviews/gates保留原字节。v1来源仍是image_gen正面纯文字、其余7图只参考新AI正面；没有重贴Seedream标签。v1仅在当前profile中切inactive，显式版本引用仍有效；陈卓与林予安不变。
+旧imagegen V1八张PNG、V1版本文件、原provenance、V1审批记录与profile条目已按产品所有者要求彻底删除，运行期无法再按V1读取或回落到旧图。V2是李英子唯一保留的定妆照版本；陈卓与林予安的既有版本不受影响。
 
-逻辑v2使用相对路径旧兼容结构，runtime scope为`legacy-current-bytes-only`。原图、profile、v1/v2版本、来源metadata均由bundle逐资产SHA保护。视觉连续性审阅不是生物识别身份认证或人工审批；独立供应商来源检查与真实审批门各自保存，不把byte verification当作全部验真。
+逻辑v2使用相对路径旧兼容结构，runtime scope为`legacy-current-bytes-only`。原图、profile、V2版本和来源metadata均由bundle逐资产SHA保护，当前V2所有者用途授权记录在角色档案`reviews/`与`gates.jsonl`。视觉连续性审阅不是生物识别身份认证；独立供应商来源检查与所有者用途授权各自保存，不把byte verification当作全部验真。
 
 ## 加角色与完整性索引
 
