@@ -1,7 +1,7 @@
 {
   "schemaVersion": "workloom.video-pipeline-pressure-progress/v1",
   "taskId": "T-2026-1030-9010",
-  "updatedAt": "2026-10-31T10:03:00+08:00",
+  "updatedAt": "2026-11-02T01:18:47Z",
   "baseline": {
     "commit": "463ae7ad844de31674b94e73679dafaf0f5dcac5",
     "branch": "task/T-2026-1030-9010",
@@ -38,17 +38,17 @@
     "Unified pipeline status/query routes, startup reconciler and default-off StudioWorker shadow mode implemented",
     "M01 has passed G1-G5 in real pre-render runs; G4 and G5 blocker fixes are committed",
     "Prompt/PRD normalization now covers no-person microactions, abstract scene boundaries, decimal duration conservation, subtitle-vs-screen-text, explicit audience and key-message compaction",
-    "Producer review malformed-JSON retry and Phase3 positional shot-id recovery are covered by tests"
-    ,"Phase3 now distinguishes stale inherited degraded booleans from explicit field/error degradation"
-    ,"Explicit customer audience is bound from original intent and G5 no-portrait applicability is deterministic"
-    ,"G6/G7 prompt normalization now covers no dialogue, no people, abstract-only scenes, no music/BGM, portrait N/A and exact total duration"
-    ,"Latest M01 runs reached G4/G5 and produced six fused prompts; remaining blocker moved to production PRD schema item limits"
-    ,"Execution PRD array compaction preserves semantic text while respecting native item limits"
-    ,"Abstract marketing prompts are rebuilt from G1 authority into 30-field shots with 2470-3000 character bodies"
-    ,"Real isolated G6 review of the normalized archived report passed at 87 and 88 in separate replays"
-    ,"G4 marketing defaults now enforce commercial type, 30fps/4K, no portrait deliverable, canonical License/URL and generic screen-text authority"
-    ,"G7 preproduction handoff now uses approved contract durations and includes complete shot cards plus full prompt bodies"
-    ,"Real isolated G7 review of the rebuilt archived handoff passed at 89",
+    "Producer review malformed-JSON retry and Phase3 positional shot-id recovery are covered by tests",
+    "Phase3 now distinguishes stale inherited degraded booleans from explicit field/error degradation",
+    "Explicit customer audience is bound from original intent and G5 no-portrait applicability is deterministic",
+    "G6/G7 prompt normalization now covers no dialogue, no people, abstract-only scenes, no music/BGM, portrait N/A and exact total duration",
+    "Latest M01 runs reached G4/G5 and produced six fused prompts; remaining blocker moved to production PRD schema item limits",
+    "Execution PRD array compaction preserves semantic text while respecting native item limits",
+    "Abstract marketing prompts are rebuilt from G1 authority into 30-field shots with 2470-3000 character bodies",
+    "Real isolated G6 review of the normalized archived report passed at 87 and 88 in separate replays",
+    "G4 marketing defaults now enforce commercial type, 30fps/4K, no portrait deliverable, canonical License/URL and generic screen-text authority",
+    "G7 preproduction handoff now uses approved contract durations and includes complete shot cards plus full prompt bodies",
+    "Real isolated G7 review of the rebuilt archived handoff passed at 89",
     "deferRender now skips vendor postproduction so G7 preproduction cannot fail on absent rendered bytes",
     "Optional brand conflicts with an explicit product query are isolated before semantic review",
     "CommonJS vendor scope now loads the ESM postproduction pipeline through an explicit .mjs path",
@@ -61,13 +61,18 @@
     "Product, capability, bundle governance and 140-target secret scans pass",
     "Downstream scan fixed workloom@10d6740 and WorkLoom-growth@d19d272; both PRs passed gate/ui-contract and merged to main@1ddc7cb and main@e8816b4",
     "UI 0.1.19 now resolves from the byte-identical GitHub Release mirror, and declared product-fork experience debt remains advisory",
-    "hyperreality-system is not-applicable; isolated copies were not modified"
+    "hyperreality-system is not-applicable; isolated copies were not modified",
+    "6ef7ad3 hardened acceptance UI checks: scoped welcome skip, real assistant-rail dispatch, removed-route and 404 rejection",
+    "00a1bed fixed landscape cover canvas validation, complete cover video stage evidence, material prompt extraction, and runtime dependency lock",
+    "2fb1970 recorded the follow-up downstream scan; new cover/prompt defects are not present in current consumer seams or isolated copies",
+    "Final code test evidence: 13 workspace projects pass; video-studio 2238/2238; apps/server 1322 pass / 189 skip; script segments 327 + 108 + 112; desktop 113/113",
+    "Final code acceptance: matrix 97/97 agents + 109/109 skills; UI 97/97 profiles + 115/115 skill cards + 29/29 active routes; experience 6/6; UX 39/39",
+    "Final O selftest has no false success but remains unverified by design; only 5 normal + failure + permission trials are owned fixtures",
+    "Final negative stress at 2fb1970: 20/20 pass fail-closed, render.submit=0; complete 40-case validation correctly remains failed because 20 positives are absent"
   ],
   "inProgress": [
-    "Complete fused control-plane adapters and managed cutover after the 40-case business baseline is green",
-    "Re-run M01 after model-account top-up; current run passed G1-G4 and stopped before G6 on provider 402",
-    "Complete the remaining marketing and narrative positive matrix",
-    "Run MCD independent acceptance and obtain final GitHub main receipt"
+    "Await model-account top-up, then run M01-M10 and N01-N10 through real pre-render prompt gates",
+    "Await a current product-owner GitHub token, then push the clean continuation branch, run candidate CI, merge, and read back the new main SHA"
   ],
   "pending": [
     "PIPE-004/005: add explicit migration/qualification PG conformance cases",
@@ -92,8 +97,8 @@
   ],
   "currentEvidence": {
     "firstCommit": "53d4d1b",
-    "currentHead": "6efa1c8",
-    "githubMainBaseline": "463ae7ad844de31674b94e73679dafaf0f5dcac5",
+    "currentHead": "2fb197055e1f2adcdf7f921c92e8618d4f638947",
+    "githubMainBaseline": "1e519a3c76f9f82315bd02f2201c8e7b9826d304",
     "marketingFirstG1Pass": "work/stress/T-2026-1030-9010/PILOT-MARKETING-HA-004",
     "latestMarketingPilot": "work/stress/T-2026-1030-9010/cases/M01",
     "latestMarketingBestG1": 98,
@@ -111,7 +116,15 @@
     "implementationPlan": "/Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/outputs/WorkLoom-video-pipeline-control-plane-implementation-plan.md",
     "implementationBacklog": "/Users/mac/Documents/Codex/2026-10-30/edit-ai-ai-https-github-com/outputs/WorkLoom-video-pipeline-implementation-backlog.json",
     "nextStep": "Top up the configured model account, rerun --ids M01 after archiving the 402 attempt, then continue M02-M10/N01-N10 and finish independent acceptance.",
-    "lastObservedFailure": "HTTP 402 Insufficient Balance at G6 prompt-fusion after G1 92 / G2 95 / G3 91 / G4 87; no render was submitted."
+    "lastObservedFailure": "HTTP 402 Insufficient Balance at G6 prompt-fusion after G1 92 / G2 95 / G3 91 / G4 87; no render was submitted.",
+    "codeEvidenceCommit": "00a1bed",
+    "finalEvidenceRoot": "outputs/acceptance/final-2fb1970",
+    "finalUi": "outputs/acceptance/final-2fb1970/ui/ui-probe.json",
+    "finalMatrix": "outputs/acceptance/final-2fb1970/matrix/matrix-summary.json",
+    "finalExperience": "outputs/acceptance/final-2fb1970/experience/experience-report.json",
+    "finalUx": "outputs/acceptance/final-2fb1970/ux/ux-report.json",
+    "finalOutcome": "outputs/acceptance/final-2fb1970/outcome-selftest/outcome-report.json",
+    "finalNegativeStress": "outputs/acceptance/final-2fb1970/stress-negative.json"
   },
   "safety": {
     "renderSubmissionAllowed": false,
