@@ -793,40 +793,42 @@ export class VideoStudio {
          * 此前**全仓 0 处调用**，等于不存在；这里在预生产产物返回后、宣告 finished 之前补上，
          * 结果落 `pipeline.duration.package_check` 事件（只报告不阻断；阻断由渲染提交侧负责）。
          */
-        try {
-          const shots = (
-            (result?.stages?.productionEngine as { shots?: Array<Record<string, unknown>> } | undefined)?.shots ?? []
-          ).filter((shot) => Number(shot.duration ?? 0) > 0);
-          if (shots.length > 0) {
-            const guardMod = createRequire(import.meta.url)(
-              path.resolve(
-                fileURLToPath(new URL(".", import.meta.url)),
-                "../../../vendor/supermickey/hyperreality-system/engines/production-engine/agents/prompt-delivery-guard.js"
-              )
-            ) as { PromptDeliveryGuard: new () => { verifyPackage: (list: unknown[], options?: Record<string, unknown>) => { pass: boolean; issues: string[] } } };
-            const check = new guardMod.PromptDeliveryGuard().verifyPackage(shots, {
-              targetDuration: lastProjectedTarget ?? undefined
-            });
-            await emit({
-              kind: "pipeline.duration.package_check",
-              projectId: input.projectId,
-              runId,
-              payload: {
-                pass: check.pass,
-                issueCount: check.issues.length,
-                issues: check.issues.slice(0, 20),
-                targetSeconds: lastProjectedTarget,
-                shots: shots.length,
-                totalSeconds: shots.reduce((sum, shot) => sum + Number(shot.duration ?? 0), 0)
+        await withVendorDurationProjectionScope(projectionOptions, async () => {
+          try {
+            const shots = (
+              (result?.stages?.productionEngine as { shots?: Array<Record<string, unknown>> } | undefined)?.shots ?? []
+            ).filter((shot) => Number(shot.duration ?? 0) > 0);
+            if (shots.length > 0) {
+              const guardMod = createRequire(import.meta.url)(
+                path.resolve(
+                  fileURLToPath(new URL(".", import.meta.url)),
+                  "../../../vendor/supermickey/hyperreality-system/engines/production-engine/agents/prompt-delivery-guard.js"
+                )
+              ) as { PromptDeliveryGuard: new () => { verifyPackage: (list: unknown[], options?: Record<string, unknown>) => { pass: boolean; issues: string[] } } };
+              const check = new guardMod.PromptDeliveryGuard().verifyPackage(shots, {
+                targetDuration: lastProjectedTarget ?? undefined
+              });
+              await emit({
+                kind: "pipeline.duration.package_check",
+                projectId: input.projectId,
+                runId,
+                payload: {
+                  pass: check.pass,
+                  issueCount: check.issues.length,
+                  issues: check.issues.slice(0, 20),
+                  targetSeconds: lastProjectedTarget,
+                  shots: shots.length,
+                  totalSeconds: shots.reduce((sum, shot) => sum + Number(shot.duration ?? 0), 0)
+                }
+              });
+              if (!check.pass) {
+                log(`[studio] ⚠️ 作品级时长校验未通过（${check.issues.length} 项）：${check.issues.slice(0, 5).join("；")}`);
               }
-            });
-            if (!check.pass) {
-              log(`[studio] ⚠️ 作品级时长校验未通过（${check.issues.length} 项）：${check.issues.slice(0, 5).join("；")}`);
             }
+          } catch (err) {
+            log(`[studio] 作品级校验跳过：${err instanceof Error ? err.message : String(err)}`);
           }
-        } catch (err) {
-          log(`[studio] 作品级校验跳过：${err instanceof Error ? err.message : String(err)}`);
-        }
+        });
         await emit({
           kind: result.success ? "pipeline.finished" : "pipeline.failed",
           projectId: input.projectId,

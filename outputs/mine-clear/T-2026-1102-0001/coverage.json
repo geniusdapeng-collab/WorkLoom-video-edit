@@ -1,11 +1,10 @@
 {
   "schema": "edit.pre-render-audit-coverage/v1",
   "auditBaseline": "d5ef7a7feaa6a76428503a07937c2215d1ed6538",
-  "sourceCommit": "af83c5cc86941b7410dc08947d02f06477eb9e04",
   "counts": {
-    "total": 400,
+    "total": 403,
     "A": 64,
-    "B": 319,
+    "B": 322,
     "C": 17,
     "D": 0,
     "unread": 0
@@ -57,6 +56,21 @@
       "lines": 63,
       "sha256": "4e3248234ffff5f4096f5e5729a98915e250c007ebde0e3983f681814dab0fd3",
       "reader": "read-general.json",
+      "imports": [],
+      "machineChecks": [
+        "utf8-read",
+        "sha256",
+        "line-count",
+        "import-reference-inventory"
+      ]
+    },
+    {
+      "path": "README.md",
+      "grade": "B",
+      "reader": "inventory-script",
+      "method": "full-file metadata/hash/import scan only; no claim of semantic reading",
+      "lines": 370,
+      "sha256": "1cef143790c6b78717f77d2ad248d7ab63164379fc0d5357ce71defe8ff5036c",
       "imports": [],
       "machineChecks": [
         "utf8-read",
@@ -2125,12 +2139,12 @@
     },
     {
       "path": "apps/server/src/video/production-authority.test.ts",
-      "lines": 427,
+      "lines": 494,
       "level": "A",
       "read": "full",
       "grade": "A",
       "method": "complete-reading",
-      "sha256": "4cdf9b588d22dec5fb3cd0bb203fa2bb8b14f810491e8d6ba4787e1eb788a1c1",
+      "sha256": "672478dde5ba9bc8abd7fa8356501a7295da783a0c3f2d7bf2a59d273ec2619c",
       "reader": "read-render.json",
       "imports": [
         "vitest",
@@ -2156,12 +2170,12 @@
     },
     {
       "path": "apps/server/src/video/production-authority.ts",
-      "lines": 622,
+      "lines": 683,
       "level": "A",
       "read": "full",
       "grade": "A",
       "method": "complete-reading",
-      "sha256": "5e5bf4a9ca045453d3140e805765d9ef5095c1bdb81ac1ea3242489980f87a4e",
+      "sha256": "73ec895a14f45fefa4a516ae77f770f391b1aaa29e3026ec4a22ed051ba2a300",
       "reader": "read-render.json",
       "imports": [
         "node:crypto",
@@ -2481,8 +2495,8 @@
       "grade": "A",
       "reader": "/root",
       "method": "complete-reading",
-      "lines": 974,
-      "sha256": "cae1bf6125764dd29de96fd351fc91b839473c58a31c2d867d06c1d762d232f9",
+      "lines": 1000,
+      "sha256": "c297e7b20be3d6a95c6e44916c54b776791b2e12b96da48fe9bf1fe66d2e294d",
       "imports": [
         "node:fs/promises",
         "node:crypto",
@@ -2508,8 +2522,8 @@
       "grade": "A",
       "reader": "/root",
       "method": "complete-reading",
-      "lines": 2056,
-      "sha256": "148ffdc056d9d8e4881bd4fda88fb4f89ba765682c323682aa7ea1c28b4a9563",
+      "lines": 2057,
+      "sha256": "d22d861851d9bf801b9989c23020ec799b31f87680195f8167847d912139dec1",
       "imports": [
         "node:path",
         "node:async_hooks",
@@ -2593,6 +2607,36 @@
       "lines": 176,
       "sha256": "a8c3f1e2c0f83cb91b3bc882c27ff6a9846793280e82af699e26ced1420f9cfc",
       "reader": "read-general.json",
+      "imports": [],
+      "machineChecks": [
+        "utf8-read",
+        "sha256",
+        "line-count",
+        "import-reference-inventory"
+      ]
+    },
+    {
+      "path": "docs/capabilities.auto.json",
+      "grade": "B",
+      "reader": "inventory-script",
+      "method": "full-file metadata/hash/import scan only; no claim of semantic reading",
+      "lines": 1104,
+      "sha256": "c9c6ab687c377e29eee60036995eb960b3d52f5ae9f6cb0433597294e88db86d",
+      "imports": [],
+      "machineChecks": [
+        "utf8-read",
+        "sha256",
+        "line-count",
+        "import-reference-inventory"
+      ]
+    },
+    {
+      "path": "docs/capabilities.auto.md",
+      "grade": "B",
+      "reader": "inventory-script",
+      "method": "full-file metadata/hash/import scan only; no claim of semantic reading",
+      "lines": 135,
+      "sha256": "72cd73eab87c79ecb1d208aaedf61c1d29f5b5a7dafa6c08f04a4534bb9448f0",
       "imports": [],
       "machineChecks": [
         "utf8-read",
@@ -6674,8 +6718,8 @@
       "path": "packages/video-studio/src/studio-compat-concurrency.test.ts",
       "grade": "A",
       "method": "complete-reading",
-      "lines": 76,
-      "sha256": "33be0bce5e3e8bee56db3e2769083db02a4255a81e566a6d592f22a87effe086",
+      "lines": 133,
+      "sha256": "7665d95d3e180c69648413cf0a21c8c5c457dcf056a12fdfa8477410d7538725",
       "reader": "read-general.json",
       "imports": [
         "node:module",
@@ -6753,8 +6797,8 @@
       "path": "packages/video-studio/src/studio.ts",
       "grade": "A",
       "method": "complete-reading",
-      "lines": 864,
-      "sha256": "fe438bbf5d682ce337e02b44937396d434a36903a102ff14d52d503e69497b95",
+      "lines": 866,
+      "sha256": "d9f926b9817ebc730e40a61784c496c2d0ffcc1c2d9794e8247678ccf37f83f8",
       "reader": "read-general.json",
       "imports": [
         "node:module",
@@ -6892,8 +6936,8 @@
       "path": "packages/video-studio/src/vendor-compat.ts",
       "grade": "A",
       "method": "complete-reading",
-      "lines": 2102,
-      "sha256": "9b5f7e85c30fb9184add7305b441e0a2c3a1d38ebdeda05e4f9d8167c90c1588",
+      "lines": 2112,
+      "sha256": "b056f31f8a860878dca767a8a979b87e8205eada2a16ac6f56e411b66f872e41",
       "reader": "read-general.json",
       "imports": [
         "node:fs",
@@ -8289,5 +8333,7 @@
         "import-reference-inventory"
       ]
     }
-  ]
+  ],
+  "sourceParentCommit": "629f63aab94ff5a1a75e4d480e49d1815950f48f",
+  "snapshotMode": "working-tree inventory before publication; per-file SHA256 identifies bytes; final receipt binds exact source/main"
 }

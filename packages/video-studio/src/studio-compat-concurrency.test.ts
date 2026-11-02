@@ -44,6 +44,63 @@ function deferred() {
 afterEach(() => { runtime.create.mockReset(); vi.unstubAllGlobals(); });
 
 describe("VideoStudio real compatibility prototype lifecycle", () => {
+  it("checks each package against its own model duration band while another run stays active", async () => {
+    const network = vi.fn(async () => { throw new Error("Unexpected paid/network path"); });
+    vi.stubGlobal("fetch", network);
+    const readyA = deferred(), finishA = deferred();
+    const events: Array<{ kind: string; projectId: string; payload?: Record<string, unknown> }> = [];
+    runtime.create.mockImplementation(async (id: string) => {
+      if (id === "A") { readyA.resolve(); await finishA.promise; return { success: true, stages: {} }; }
+      return { success: true, stages: { productionEngine: { shots: [
+        { shotId: "SC00", sceneType: "opening", duration: 5 }, { shotId: "B25", duration: 25 },
+      ] } } };
+    });
+    const start = (id: string, max: number) => new VideoStudio({
+      llm: new WorkloomLLMEngine({ baseUrl: "https://example.invalid", apiKey: "test-only", model: "deepseek-flash" }),
+      workDir: "/unused/compat-duration-band", onApproval: async () => ({ approved: true }),
+      durationPolicy: { minSingleShotSeconds: 4, maxSingleShotSeconds: max },
+      log: () => undefined, onEvent: (event) => { events.push(event); },
+    }).runPreproduction({ projectId: `project-${id}`, intent: id });
+    const a = start("A", 10);
+    try {
+      await readyA.promise;
+      expect((await start("B", 30)).success).toBe(true);
+      expect(events.find((event) => event.projectId === "project-B" && event.kind === "pipeline.duration.package_check")?.payload)
+        .toMatchObject({ pass: true, issues: [], shots: 2, totalSeconds: 30 });
+      expect(network).not.toHaveBeenCalled();
+    } finally { finishA.resolve(); await a; }
+  });
+
+  it("preserves duration, opening, varied-length and target-total package checks", async () => {
+    const events: Array<{ kind: string; payload?: Record<string, unknown> }> = [];
+    const cases = [
+      { id: "long", durations: [5, 35], opening: true, expected: "越出蓝图时长带[4-30]" },
+      { id: "short", durations: [2, 28], opening: true, expected: "越出蓝图时长带[4-30]" },
+      { id: "opening", durations: [5, 25], opening: false, expected: "作品缺片头镜头" },
+      { id: "same", durations: [10, 10, 10], opening: true, expected: "全部3个镜头时长相同" },
+      { id: "total", durations: [5, 25], opening: true, expected: "与目标20s偏差超过" },
+    ];
+    for (const item of cases) {
+      runtime.create.mockImplementation(async () => {
+        if (item.id === "total") engine._normalizeDurations.call({}, [{ shotId: "X1", duration: 10 }, { shotId: "X2", duration: 10 }], 20);
+        return { success: true, stages: { productionEngine: { shots: item.durations.map((duration, index) => ({
+          shotId: item.opening && index === 0 ? "SC00" : `S${index + 1}`,
+          sceneType: item.opening && index === 0 ? "opening" : "content", duration,
+        })) } } };
+      });
+      events.length = 0;
+      await new VideoStudio({
+        llm: new WorkloomLLMEngine({ baseUrl: "https://example.invalid", apiKey: "test-only", model: "deepseek-flash" }),
+        workDir: "/unused/package-invariants", onApproval: async () => ({ approved: true }),
+        durationPolicy: { minSingleShotSeconds: 4, maxSingleShotSeconds: 30 }, log: () => undefined,
+        onEvent: (event) => { events.push(event); },
+      }).runPreproduction({ projectId: item.id, intent: item.id });
+      const check = events.find((event) => event.kind === "pipeline.duration.package_check")?.payload;
+      expect(check?.pass).toBe(false);
+      expect((check?.issues as string[]).some((issue) => issue.includes(item.expected))).toBe(true);
+    }
+  });
+
   it.each(["A", "B"] as const)("keeps all shared patches when %s finishes first and restores originals last", async (first) => {
     const network = vi.fn(async () => { throw new Error("Unexpected paid/network path"); });
     vi.stubGlobal("fetch", network);

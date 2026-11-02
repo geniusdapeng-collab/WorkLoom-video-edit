@@ -5,7 +5,7 @@
   "repo_path": "/Users/mac/Documents/Codex/2026-11-02/edit-ai-n-n-ai-github/work/repo",
   "title": "Edit通用与营销视频前期审计修复",
   "created_at": "2026-11-02T13:56:26.246Z",
-  "updated_at": "2026-11-02T14:31:07.308Z",
+  "updated_at": "2026-11-02T14:40:03.809Z",
   "baseline": {
     "audit": {
       "commit": "d5ef7a7feaa6a76428503a07937c2215d1ed6538",
@@ -373,6 +373,12 @@
           "ref": "packages/video-studio/src/production-client.ts:81@d5ef7a7feaa6a76428503a07937c2215d1ed6538",
           "sha256": "7dcadf538f160f44c21c6c53ed1a1d088f702094424008b83a11cace202b9347",
           "note": "G6已审合同参数与定妆照在资格编译时丢失，可被调用参数覆盖"
+        },
+        {
+          "type": "code",
+          "ref": "apps/server/src/video/studio-worker.ts:590@d5ef7a7feaa6a76428503a07937c2215d1ed6538",
+          "sha256": "2640a466fccc40a884f9cf1aef595924fff7853571c4834dd79ecfc54c31c113",
+          "note": "前期模型合同原先使用静态providerModel，部署覆盖与正式请求不一致；当前绑定effective model"
         }
       ],
       "root_cause": {
@@ -387,7 +393,7 @@
           "kind": "sample",
           "given": "enforce已审G6有9:16/audio/camera_fixed/portrait合同；CLI只传空params，wire只剩duration与文本；明示16:9或关闭声音也可签发",
           "expect": "合法合同保留；不合法/漂移/越权输入被明确拒绝，正常与错误分支均通过已命名回归",
-          "command": "node node_modules/vitest/vitest.mjs run apps/server/src/video/production-authority.test.ts packages/video-studio/src/production-client.test.ts apps/server/src/video/gen/compiled-request.test.ts --maxWorkers=1 --no-file-parallelism",
+          "command": "node node_modules/vitest/vitest.mjs run apps/server/src/video/production-authority.test.ts packages/video-studio/src/production-client.test.ts apps/server/src/video/gen/compiled-request.test.ts apps/server/src/video/studio-worker.test.ts --maxWorkers=1 --no-file-parallelism",
           "exec": {
             "file": "node",
             "args": [
@@ -396,6 +402,7 @@
               "apps/server/src/video/production-authority.test.ts",
               "packages/video-studio/src/production-client.test.ts",
               "apps/server/src/video/gen/compiled-request.test.ts",
+              "apps/server/src/video/studio-worker.test.ts",
               "--maxWorkers=1",
               "--no-file-parallelism"
             ]
@@ -404,9 +411,9 @@
         }
       ],
       "regression": {
-        "command": "node node_modules/vitest/vitest.mjs run apps/server/src/video/production-authority.test.ts packages/video-studio/src/production-client.test.ts apps/server/src/video/gen/compiled-request.test.ts --maxWorkers=1 --no-file-parallelism"
+        "command": "node node_modules/vitest/vitest.mjs run apps/server/src/video/production-authority.test.ts packages/video-studio/src/production-client.test.ts apps/server/src/video/gen/compiled-request.test.ts apps/server/src/video/studio-worker.test.ts --maxWorkers=1 --no-file-parallelism"
       },
-      "notes": "实现证据A级；本机fixture运行仅B级，不代表付费模型产出率。"
+      "notes": "实现证据A级；本机fixture运行仅B级，不代表付费模型产出率。 包括完整wire/媒体摘要视图资源边界、off策略兼容与部署模型覆盖接线；共同修复者 /root/render_audit 和 /root，独立验收 /root/marketing_audit。"
     },
     {
       "id": "MC-007",

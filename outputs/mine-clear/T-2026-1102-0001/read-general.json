@@ -48,8 +48,8 @@
       "path": "packages/video-studio/src/studio.ts",
       "grade": "A",
       "method": "complete-reading",
-      "lines": 864,
-      "sha256": "fe438bbf5d682ce337e02b44937396d434a36903a102ff14d52d503e69497b95"
+      "lines": 866,
+      "sha256": "d9f926b9817ebc730e40a61784c496c2d0ffcc1c2d9794e8247678ccf37f83f8"
     },
     {
       "path": "packages/video-studio/src/stage-registry.ts",
@@ -174,8 +174,8 @@
       "path": "packages/video-studio/src/vendor-compat.ts",
       "grade": "A",
       "method": "complete-reading",
-      "lines": 2102,
-      "sha256": "9b5f7e85c30fb9184add7305b441e0a2c3a1d38ebdeda05e4f9d8167c90c1588"
+      "lines": 2112,
+      "sha256": "b056f31f8a860878dca767a8a979b87e8205eada2a16ac6f56e411b66f872e41"
     },
     {
       "path": "packages/video-studio/src/studio.test.ts",
@@ -195,8 +195,8 @@
       "path": "packages/video-studio/src/studio-compat-concurrency.test.ts",
       "grade": "A",
       "method": "complete-reading",
-      "lines": 76,
-      "sha256": "33be0bce5e3e8bee56db3e2769083db02a4255a81e566a6d592f22a87effe086"
+      "lines": 133,
+      "sha256": "7665d95d3e180c69648413cf0a21c8c5c457dcf056a12fdfa8477410d7538725"
     },
     {
       "path": "packages/video-studio/src/cinematic-skill-policy.ts",
@@ -275,5 +275,6 @@
       "lines": 1077,
       "reason": "检索与执行，未完整精读全部测试源码"
     }
-  ]
+  ],
+  "supplement": "MC004 package-check scoped platform band recheck; fixed source awaiting parent commit"
 }

@@ -12,21 +12,21 @@
     },
     {
       "path": "apps/server/src/video/production-authority.ts",
-      "lines": 622,
+      "lines": 683,
       "level": "A",
       "read": "full",
       "grade": "A",
       "method": "complete-reading",
-      "sha256": "5e5bf4a9ca045453d3140e805765d9ef5095c1bdb81ac1ea3242489980f87a4e"
+      "sha256": "73ec895a14f45fefa4a516ae77f770f391b1aaa29e3026ec4a22ed051ba2a300"
     },
     {
       "path": "apps/server/src/video/production-authority.test.ts",
-      "lines": 427,
+      "lines": 494,
       "level": "A",
       "read": "full",
       "grade": "A",
       "method": "complete-reading",
-      "sha256": "4cdf9b588d22dec5fb3cd0bb203fa2bb8b14f810491e8d6ba4787e1eb788a1c1"
+      "sha256": "672478dde5ba9bc8abd7fa8356501a7295da783a0c3f2d7bf2a59d273ec2619c"
     },
     {
       "path": "apps/server/src/video/prompt-quality-gate.ts",
@@ -235,7 +235,7 @@
       "read": "full",
       "grade": "A",
       "method": "complete-reading",
-      "sha256": "31279d37b4db48704ab0bae04c4c51ef68179d9b38545312fbfa94b8fa6a4237"
+      "sha256": "216263477c7f8b7b891ed0f5265edd3b093d2df31c6af515b758bacef969b4ee"
     },
     {
       "path": "packages/video-studio/src/archive/stage-log.ts",

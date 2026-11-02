@@ -1224,18 +1224,28 @@ export function installVendorDurationPolicyBridge(options: {
     const mod = vendorRequire(file) as {
       PROFILES?: Record<string, { shotDuration?: { min?: number; max?: number } }>;
     };
-    const previous = new Map<string, number | undefined>();
+    const previous = new Map<string, { min: PropertyDescriptor; max: PropertyDescriptor }>();
     for (const [key, profile] of Object.entries(mod?.PROFILES ?? {})) {
       const band = profile?.shotDuration;
       if (!band || typeof band.max !== "number") continue;
-      previous.set(key, band.max);
-      band.max = Math.max(band.max, max);
-      if (typeof band.min === "number") band.min = Math.min(band.min, min);
+      const originalMin = Object.getOwnPropertyDescriptor(band, "min");
+      const originalMax = Object.getOwnPropertyDescriptor(band, "max");
+      if (!originalMin || !originalMax || !originalMin.configurable || !originalMax.configurable) {
+        throw new Error(`平台 ${key} 的时长带缺少可恢复属性`);
+      }
+      const fallbackMin = Math.min(Number(band.min), min), fallbackMax = Math.max(band.max, max);
+      previous.set(key, { min: originalMin, max: originalMax });
+      Object.defineProperties(band, {
+        min: { configurable: true, enumerable: originalMin.enumerable,
+          get: () => durationProjectionOptions({}).minShotSeconds ?? fallbackMin },
+        max: { configurable: true, enumerable: originalMax.enumerable,
+          get: () => durationProjectionOptions({}).maxShotSeconds ?? fallbackMax },
+      });
     }
     restores.push(() => {
       for (const [key, prev] of previous) {
         const band = mod?.PROFILES?.[key]?.shotDuration;
-        if (band && prev !== undefined) band.max = prev;
+        if (band) Object.defineProperties(band, prev);
       }
     });
     log(`[vendor-compat] 时长策略桥：平台蓝图 shotDuration.max → ${max}s（${previous.size} 个平台档）`);

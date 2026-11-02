@@ -67,7 +67,7 @@ import { appendScenePolicyGuidance, resolveScenePolicyForIntent } from "./scene-
 import { appendPlatformGuidance, resolvePlatformForIntent } from "./platform-routing.js";
 import { loadVideoPipelinePlan, type CompiledVideoPipelinePlan } from "@hyperreality/video-pipeline";
 import { loadPipelineFeatureFlags } from "@workloom/pipeline-control";
-import { findModelByProviderModel, getModel, loadCatalog } from "./gen/catalog.js";
+import { findModelByProviderModel, getModel, loadCatalog, resolveProviderModel } from "./gen/catalog.js";
 import { PipelineShadowObserver, pipelineControlMode } from "./pipeline/shadow.js";
 import {
   AUTO_GATES,
@@ -581,13 +581,14 @@ function promptCompileOptionsFor(
   const fps = Number.isInteger(fpsNumber) && fpsNumber > 0 && fpsNumber <= 120 ? fpsNumber : 30;
   const generateAudio = production.audio !== false && metadata?.audio !== false && brief.audio !== false;
   const limits = model.limits;
+  const providerModel = resolveProviderModel(model, process.env);
   return {
     delivery: { aspectRatio: aspect, resolution, fps, format: "mp4", generateAudio },
     model: {
       modelId: model.id,
       provider: model.provider,
-      providerModel: model.providerModel,
-      version: `workloom.media-catalog/v1:${model.providerModel}`,
+      providerModel,
+      version: `workloom.media-catalog/v1:${providerModel}`,
       modes: [...model.modes],
       durationSec: limits?.durationSec
         ? { min: limits.durationSec.min, max: limits.durationSec.max }

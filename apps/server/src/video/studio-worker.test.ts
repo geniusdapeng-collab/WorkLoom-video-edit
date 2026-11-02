@@ -33,6 +33,7 @@ const doubles = vi.hoisted(() => ({
   gateReplies: [] as Array<{ gate: string; verdict: any }>,
   emitGates: true,
   realStructuredLog: false,
+  capturePromptOptions: null as null | ((options: any) => Promise<any>),
   connect: vi.fn(),
   query: vi.fn(),
   releaseDb: vi.fn(),
@@ -71,6 +72,11 @@ vi.mock("./marketing-authority.js", async importOriginal => ({
   prepareMarketingFacts: doubles.prepare, finalizeMarketingFacts: doubles.finalize,
 }));
 vi.mock("./data-mining-executor.js", () => ({ createDataMiningExecutor: vi.fn() }));
+vi.mock("./prompt-quality-gate.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./prompt-quality-gate.js")>();
+  return { ...actual, evaluatePromptPackage: (...args: Parameters<typeof actual.evaluatePromptPackage>) =>
+    doubles.capturePromptOptions ? doubles.capturePromptOptions(args[0]) : actual.evaluatePromptPackage(...args) };
+});
 vi.mock("./media/library.js", () => ({ ingestPortraitsFromIndex: doubles.ingest }));
 vi.mock("./media/products.js", () => ({ upsertProductProfileFromDossier: doubles.project }));
 vi.mock("./archive-host.js", () => ({
@@ -132,6 +138,7 @@ beforeEach(() => {
   doubles.studioConfigs.length = 0;
   doubles.gateReplies.length = 0;
   doubles.realStructuredLog = false;
+  doubles.capturePromptOptions = null;
   doubles.prepare.mockReset().mockImplementation(async ({ scope, root }) => {
     const raw = { A1: { identity: { name: "本次商品", specs: { 功率: "1 W" } }, images: [] }, A2: { reviews: [] }, A3: { competitors: [] } };
     const sourceId = `SRC-${renderSha256(`https://source.example.com/final\n${"a".repeat(64)}`).slice(0, 24)}`;
@@ -264,6 +271,25 @@ async function archiveOutput(projectId: string, attempt: number) {
 }
 
 describe("预生产原始结果与诚实终态", () => {
+  it.each(["SEEDANCE_MODEL", "ARK_VIDEO_MODEL"])("G6合同绑定部署实际模型覆盖%s，而非静态目录别名", async (key) => {
+    vi.stubEnv("PROMPT_CONTRACT_V2", "enforce");
+    vi.stubEnv("SEEDANCE_MODEL", ""); vi.stubEnv("ARK_VIDEO_MODEL", "");
+    vi.stubEnv(key, "deployment-specific-seedance-endpoint");
+    const captured: any[] = [];
+    doubles.capturePromptOptions = async (options) => { captured.push(options); throw new Error("stop-after-contract-model-capture"); };
+    doubles.emitGates = false;
+    doubles.runPreproduction.mockImplementation(async () => {
+      await doubles.studioConfigs[0]!.onApproval({ gate: "G6_PROMPT", vendorType: "prompt-generation", title: "提示词包",
+        contentMd: "当前镜头的真实完整报告。".repeat(20), structuredArtifact: [{ shotId: "S1", duration: 5,
+          fields: { scene: "无人风景", character: "无角色", portraits: [] } }] });
+      return success();
+    });
+    const { entry } = await runToTerminal(false);
+    expect(entry.error).toContain("stop-after-contract-model-capture");
+    expect(captured).toHaveLength(1);
+    expect(captured[0].shots[0].compile.model).toMatchObject({ modelId: "doubao-seedance-2-5",
+      providerModel: "deployment-specific-seedance-endpoint", version: "workloom.media-catalog/v1:deployment-specific-seedance-endpoint" });
+  });
   it("坏复用配置在启动注册、vendor和租约之前失败，不回退生成", () => {
     vi.stubEnv("HR_PORTRAIT_REUSE_MANIFEST", path.join(doubles.workDir, "missing-manifest.json"));
     expect(() => worker.startRun(scope, { projectId: "VID-reuse-invalid", intent: "使用已有AI模特" })).toThrow("拒绝回退生成");
