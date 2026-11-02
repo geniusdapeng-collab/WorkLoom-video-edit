@@ -555,6 +555,7 @@ async function main(): Promise<void> {
     } as CoverPlan;
     const validated = validateCoverPlan(plan, {
       shots, platform: platformInput, archetype: style.archetype,
+      canvas,
       character: style.archetype === "person-led" ? { name: "片中人" } : null,
       kbHints: (Array.isArray((hints as { hints?: unknown }).hints) ? (hints as { hints: string[] }).hints : []).slice(0, 3),
     });

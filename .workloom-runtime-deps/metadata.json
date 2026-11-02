@@ -24,7 +24,7 @@
   "inputs": [
     {
       "path": "apps/server/package.json",
-      "sha256": "e394b4853e18c6b52f3f54090d291b64bc4ea94067915aeab2ca65bcca51750b"
+      "sha256": "22f60f3230c795b9066840008ddf132cacb5c8dee61626104c0a85223a1cb60b"
     },
     {
       "path": "apps/web/package.json",
@@ -32,7 +32,7 @@
     },
     {
       "path": "package.json",
-      "sha256": "fcad048cf9c20f9a3fa27bfe58be5c4a97f2e827bf1fcf7d34dd6128c3c0a183"
+      "sha256": "7b9a9b6eb4c07734acdcb16018e7e3ae3c2d9cd5425d4da30e5084f511f03cc7"
     },
     {
       "path": "packages/audit-engine/package.json",
@@ -40,15 +40,19 @@
     },
     {
       "path": "packages/base/package.json",
-      "sha256": "d6b309b67a0a23b7465b758210e3647194c44489ad2b9a3e19d68af8ebfe6e2a"
+      "sha256": "28e8e733a0308cf1221e4dafb294c55e8b92dd01c0061fb317d3ea18cbcda7d8"
     },
     {
       "path": "packages/db/package.json",
-      "sha256": "fea6bfee0ea381b1341fdfff6b31cb4b4a3f2b48329db2af610dfaa185e7d9c2"
+      "sha256": "607af8f5585533f52efd95ae048bf82bbbcd15770ff9e798fc3c24ca9c65f539"
     },
     {
       "path": "packages/industry-contract/package.json",
       "sha256": "bd21ee1c58e618051105a46fe08c772eb736f28658d184f26f105564a4862d2c"
+    },
+    {
+      "path": "packages/pipeline-control/package.json",
+      "sha256": "6f5296c181f4db1551d289d235581f343da921deecde613040964ba1a5278d95"
     },
     {
       "path": "packages/runtime/package.json",
@@ -59,12 +63,16 @@
       "sha256": "26ed5c3a560c35730fe8f84343a83f5e7c3d7d2c488468584acfc524699b4cb2"
     },
     {
+      "path": "packages/video-pipeline/package.json",
+      "sha256": "af62e2316765d097b3f57d0572684a4afd607968f8db55794efec0c1a1e7d4a1"
+    },
+    {
       "path": "packages/video-studio/package.json",
       "sha256": "04d675f0518aabf2b8983c17c9ea79e6e9a8ac545239261f94ab92bfd4200826"
     },
     {
       "path": "pnpm-lock.yaml",
-      "sha256": "834833a61b50ff153fd0ed456a306d5fe0a3d2bffb51b8665fc0cf8b85d684e8"
+      "sha256": "e6e6eb7cd338455b58846bc8f94d9865a8406dbbb50f26e072d9176696b23454"
     },
     {
       "path": "product.manifest.json",
@@ -87,6 +95,6 @@
       "sha256": "38d5eba21ae509aec4de97000bda055ca632f0216473e1d1000eeba6b5e0a475"
     }
   ],
-  "manifestSha256": "e0340ff5a9ac4cb175dfe90c7af0507a3ff10bd9e77e0bd5e7ebc72443180502",
-  "packageLockSha256": "ba034a66e36c89d4358b4a75cfa14468fb432d8620583d91a76dd60cecef9442"
+  "manifestSha256": "cef66b65ded2bea84850e8321780e8acf6ac6540225352581f79a907f75a0080",
+  "packageLockSha256": "e4e09d08c6802a334b7bc121beae58e3cd5c3d2bf57e71e0d8c1e65f9dd57f1e"
 }

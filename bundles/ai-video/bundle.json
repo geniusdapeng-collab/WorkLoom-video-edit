@@ -852,7 +852,7 @@
   },
   "integrity": {
     "algorithm": "sha256",
-    "digest": "f18f4aa3c2cd8adf2e4356eba31ccd7d0d7a8b20ec1e6e2d11367ae3fcd66818",
+    "digest": "86f652ef987f7535123aebf3e88a3f2fad84182ba43af32431cd6ff86e524a15",
     "assets": {
       "connectors/bgm-bridge/audio-stems-trust.mjs": "701b20e1705b16b026be2900bb49430ef875c8f01f83515f297a5b0b9a50cf93",
       "connectors/bgm-bridge/audio-stems.mjs": "d83bc554f015115ed0f4ea71ac6ced4cf5bd8f44d61094489776e3d2a5ffa751",
@@ -895,7 +895,7 @@
       "connectors/post-bridge/cli.mjs": "9a3168aa0a711b1af5138cc07aa30a3a368b69ceda234e994d0ac773e5083f70",
       "connectors/post-bridge/core.mjs": "d863174e00a80a015434ae937caefce279ddaa1ab038558e48ac69a900cbdd10",
       "connectors/post-bridge/executor.ts": "cb1b9d4fdea2da9263379f1e95956d98633534297ad8bdef5b60288ecaa997f2",
-      "connectors/post-bridge/quality-gate.mjs": "607ab07f064ed8f412ca8037555afcb64051c995f99a991b6670f4affaf1d310",
+      "connectors/post-bridge/quality-gate.mjs": "538dca8f580495e3adc1b9a1b6c62743872e2c6b62f5e0e2d5cf081dede49dd9",
       "connectors/post-bridge/README.md": "f4c7807802821c7fdd19317c5cf2944aa50c6bb15fdfcbbc682895bffcb58a4a",
       "connectors/post-bridge/rhythm-post.mjs": "7a71bee3da911bce8612fa7ba177d7011c149a84007bfb2b28e045be8c7a1768",
       "connectors/post-bridge/server-adapter.mts": "80780fbfef049f3690bdd14b591d59cd4e8ddfba6e9854344601a4ffb5073d48",

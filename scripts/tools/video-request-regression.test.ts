@@ -598,7 +598,7 @@ function currentSubmissionFixture(kind: "material" | "normal" | "asset", verdict
     retryInstruction: () => { throw new Error("PAID_POST_MUST_NOT_RETRY"); }, motionPolicyForShot: () => ({ intent: "ordinary" }),
     applySpeedRamp: () => { throw new Error("UNREQUESTED_RETIME"); }, applyCameraMovePunchCut: () => { throw new Error("UNREQUESTED_CAMERA_MOVE"); },
   };
-  const functions = ["videoImage", "submissionReceiptArtifacts", "videoPlan", "arkVideo", "downloadSubmittedVideo", "finishMaterialClip", "portraitReferenceClauseFor", "renderSecondsFor", "plausibilityArchiveFor", "plausibilityContextFor", "runPlausibilityGate"].map(parts.fn).join("\n");
+  const functions = ["videoImage", "submissionReceiptArtifacts", "videoPlan", "arkVideo", "downloadSubmittedVideo", "finishMaterialClip", "portraitReferenceClauseFor", "renderSecondsFor", "plausibilityArchiveFor", "buildCurrentMaterialPrompt", "plausibilityContextFor", "runPlausibilityGate"].map(parts.fn).join("\n");
   const execute = () => evaluateCurrent(`(async()=>{${functions}\n${kind === "material" ? parts.material : parts.videos}\n})()`, context) as Promise<void>;
   return { dir, execute, context, gates, paidBodies, rows, accepted, reviews, get posts() { return posts; }, get gets() { return gets; }, images, front, closeup };
 }

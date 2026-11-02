@@ -5546,6 +5546,8 @@ if (STAGES.has("cover") && existsSync(colored)) {
     title: shotlist.title,
     /** 真实成片时长（扣转场后的目标）：标题里的"XX 秒"必须与它一致（真机：写 48 秒而片子 51s → 打回） */
     durationSeconds: expectedMasterSeconds,
+    /** 实际封面画布（原生/UHD）；字级比例只相对真实输出，不借用平台参考画布。 */
+    canvas: { width: CW, height: CH },
     /** 版式交办给设计师（2026-09-26）：物体为主 / 人物为主二选一，渲染与监制都按它判 */
     archetype: COVER_ARCHETYPE,
     /** 平台标签用调用方原文（缺省"抖音/快手"→抖音口径），规格由 cover-platforms.ts 解析 */

@@ -172,6 +172,11 @@ export interface CoverDesignInput {
   /** 成片真实时长（秒）：标题里写"XX 秒"时必须与它一致（容差 ±2s，真机 2026-09-25） */
   durationSeconds?: number;
   /**
+   * 实际输出封面画布。封面跟随成片画幅时，字级比例必须按这个画布换算；
+   * 缺省才回落到平台注册表的参考画布（旧调用行为不变）。
+   */
+  canvas?: { width: number; height: number };
+  /**
    * 封面版式（2026-09-26 产品所有者口径：**只有两种主视觉**）：
    *   · `person-led` 人物为主：人物占画面主体，背景（景物/商品）只作环境点缀；
    *   · `subject-led` 物体为主：景物/商品/动物等**非人主体**满幅为主视觉，画面里不再放人物小卡。
@@ -343,6 +348,13 @@ export function coverUsableTextWidth(spec: CoverPlatformSpec): number {
   return spec.canvas.width * 0.81;
 }
 
+function coverValidationSpec(spec: CoverPlatformSpec, input: CoverDesignInput): CoverPlatformSpec {
+  const width = Number(input.canvas?.width);
+  const height = Number(input.canvas?.height);
+  if (!Number.isFinite(width) || width <= 0 || !Number.isFinite(height) || height <= 0) return spec;
+  return { ...spec, canvas: { width: Math.round(width), height: Math.round(height) } };
+}
+
 /**
  * 设计稿校验：任何越界/超长/缺主角都判非法（抛错），由调用方决定"退回兜底稿"还是"打回重出"。
  * 口径从严：封面是唯一"必须一眼看懂"的产物，宁可用兜底稿也不要一张半成品。
@@ -353,7 +365,7 @@ export function validateCoverPlan(plan: CoverPlan, input: CoverDesignInput = { s
    * 平台口径（2026-09-27）：标题长度上限随平台（抖音 12 / 小红书 14 / B站 16 / 英文平台按词 ≤5）。
    * `domain="cover_design_invalid"` 的既有错误语义不变；缺省平台落 douyin，旧调用行为不变。
    */
-  const spec = getCoverSpec(input.platform);
+  const spec = coverValidationSpec(getCoverSpec(input.platform), input);
   const warnings: string[] = [];
   /**
    * 版式一致性（2026-09-26 产品所有者口径）：
@@ -555,7 +567,7 @@ export function fallbackCoverPlan(
   input: CoverDesignInput,
   options: { headline: string; heroShotId: string; personShotId?: string; accentColor?: string }
 ): CoverPlan {
-  const spec = getCoverSpec(input.platform);
+  const spec = coverValidationSpec(getCoverSpec(input.platform), input);
   /**
    * 兜底稿的副标题**必须使用成片真实时长**（2026-09-27 真机）：
    * 早先这里写死 "30 秒"，而 `validateCoverPlan` 会核对"标题里的时长 vs 成片时长（±2s）"——
