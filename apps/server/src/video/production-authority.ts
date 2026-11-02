@@ -19,7 +19,7 @@ import {
 import { verifyMarketingFacts } from "./marketing-authority.js";
 import { archiveWorkDir, projectRunLockKey } from "./archive-host.js";
 import { ScenePolicyRenderGateError, verifyScenePolicyProductionSource, type ScenePolicySourceDecision } from "./scene-policy-render-gate.js";
-import { getModel, providerConfigured } from "./gen/catalog.js";
+import { getModel, providerConfigured, resolveProviderModel } from "./gen/catalog.js";
 import type { AppPool, Scope } from "./gen/db.js";
 import type { RenderScriptLike } from "./gen/submit.js";
 import type { VideoGenParams } from "./gen/types.js";
@@ -40,6 +40,7 @@ type JsonRecord = Record<string, unknown>;
 interface Source {
   row: SourceRow; root: string; output: JsonRecord; prompts: JsonRecord; promptsHash: string; shot: JsonRecord;
   promptContractSha256: string | null;
+  promptContract: PromptContract | null;
 }
 interface TokenPayload {
   schemaVersion: typeof SCHEMA; purpose: typeof PURPOSE; issuer: typeof ISSUER;
@@ -112,14 +113,14 @@ async function lease(app: AppPool, scope: Scope, projectId: string, shared: bool
   } };
 }
 
-async function readBytes(root: string, relative: string, expectedHash?: string): Promise<Buffer> {
+async function readBytes(root: string, relative: string, expectedHash?: string, maxBytes = 8_000_000): Promise<Buffer> {
   if (!relative || path.isAbsolute(relative) || relative.split(/[\\/]/).some(x => x === ".." || x === ".")) fail("SOURCE_PATH_INVALID", "档案引用必须为项目内相对路径");
   const file = path.resolve(root, relative);
   if (!file.startsWith(`${root}${path.sep}`) || await realpath(file) !== file) fail("SOURCE_PATH_INVALID", "档案路径越界或经过符号链接");
   const handle = await open(file, constants.O_RDONLY | constants.O_NOFOLLOW);
   try {
     const stat = await handle.stat();
-    if (!stat.isFile() || stat.size === 0 || stat.size > 8_000_000) fail("SOURCE_INVALID", "档案文件为空或超出完整读取上限");
+    if (!stat.isFile() || stat.size === 0 || stat.size > maxBytes) fail("SOURCE_INVALID", "档案文件为空或超出完整读取上限");
     const bytes = await handle.readFile();
     if (expectedHash && renderSha256(bytes) !== expectedHash) fail("SOURCE_HASH_MISMATCH", "档案字节与服务执行回执不一致");
     return bytes;
@@ -247,6 +248,7 @@ async function sourceForShot(
   if (shot.degraded === true || typeof shot.prompt !== "string" || !shot.prompt.trim()) fail("SOURCE_INVALID", "镜头提示词缺失或已降级");
   const shotFields = record(shot.fields, "镜头结构字段缺失或被裁剪");
   let promptContractSha256: string | null = null;
+  let promptContract: PromptContract | null = null;
   if (loadPipelineFeatureFlags(env).promptContract === "enforce") {
     const g6 = gates.find((gate) => gate.gate === "G6_PROMPT");
     const g7 = gates.find((gate) => gate.gate === "G7_FINAL");
@@ -278,6 +280,9 @@ async function sourceForShot(
     if (!validation.valid || contract.shotId !== shot.shotId || contract.prompt !== shot.prompt) {
       fail("PREPRODUCTION_GATES_UNVERIFIED", "G6 字段合同与当前镜头字节或绑定矩阵不一致");
     }
+    for (const key of ["shotId", "fieldSchema", "fieldCount", "fieldsSha256", "promptSha256", "requestSha256"] as const) {
+      if (summary[key] !== contract[key]) fail("PREPRODUCTION_GATES_UNVERIFIED", `G6/G7 合同摘要与原件不一致：${key}`);
+    }
     for (const binding of contract.bindings) {
       const value = shotFields[binding.field] ?? shot[binding.field];
       if (value === undefined || sha256Json(value) !== binding.valueSha256) {
@@ -285,6 +290,7 @@ async function sourceForShot(
       }
     }
     promptContractSha256 = renderSha256(contractBytes);
+    promptContract = contract;
   }
   let policies: ReturnType<typeof loadScenePolicies>;
   try {
@@ -315,7 +321,77 @@ async function sourceForShot(
     if (error instanceof ScenePolicyRenderGateError) fail("SCENE_POLICY_UNVERIFIED", error.message);
     throw error;
   }
-  return { row, root, output, prompts, promptsHash: output.promptsSha256, shot, promptContractSha256 };
+  return { row, root, output, prompts, promptsHash: output.promptsSha256, shot, promptContractSha256, promptContract };
+}
+
+/** 消费 G6 绑定的实际资产字节；不重新搜图、不下载可变 URL、不用文字替代参考图。 */
+async function contractAssetUrls(source: Source, scope: Scope, workDir: string): Promise<string[]> {
+  const binding = source.promptContract?.bindings.find(item => item.field === "portraits");
+  if (!binding || binding.assetApplicability === "not_applicable") return [];
+  const base = await realpath(workDir);
+  const runRoot = path.join(base, "workspaces", component(scope.workspaceId));
+  const builtinRoot = path.resolve(SCENE_POLICY_DIR, "../characters");
+  const roots = [runRoot, builtinRoot];
+  const fields = record(source.shot.fields, "镜头字段缺失");
+  const raw = source.shot.portraits ?? fields.portraits;
+  const values = Array.isArray(raw) ? raw : [raw];
+  const urls: string[] = [];
+  for (const asset of binding.assets ?? []) {
+    if (!/^image\/[a-z0-9.+-]+$/i.test(asset.mediaType)) fail("PROMPT_CONTRACT_ASSET_INVALID", "G6 参考图类型无效");
+    let bytes: Buffer;
+    if (asset.sourceRef === "inline-image") {
+      const inline = values.find(value => typeof value === "string" && value.startsWith(`data:${asset.mediaType};base64,`)
+        && renderSha256(Buffer.from(value.slice(value.indexOf(",") + 1), "base64")) === asset.sha256);
+      if (typeof inline !== "string") fail("PROMPT_CONTRACT_ASSET_CHANGED", "G6 内联参考图字节缺失或漂移");
+      bytes = Buffer.from(inline.slice(inline.indexOf(",") + 1), "base64");
+    } else {
+      if (!asset.sourceRef) fail("PROMPT_CONTRACT_ASSET_INVALID", "G6 参考图缺少来源路径");
+      const file = path.resolve(runRoot, asset.sourceRef);
+      const parent = roots.find(root => file.startsWith(`${root}${path.sep}`));
+      if (!parent || await realpath(parent) !== parent) fail("SOURCE_PATH_INVALID", "G6 参考图不属于当前工作区或内置人物资产库");
+      bytes = await readBytes(parent, path.relative(parent, file), asset.sha256, 25 * 1024 * 1024);
+    }
+    if (bytes.length !== asset.bytes || renderSha256(bytes) !== asset.sha256) fail("PROMPT_CONTRACT_ASSET_CHANGED", "G6 参考图当前字节与已审摘要不一致");
+    urls.push(`data:${asset.mediaType};base64,${bytes.toString("base64")}`);
+  }
+  return urls;
+}
+
+/** 明示参数只能与已审合同相同；省略的参数由服务填入，避免 CLI 默认请求丢失 G6 约束。 */
+async function bindContractParams(source: Source, scope: Scope, workDir: string, model: NonNullable<ReturnType<typeof getModel>>,
+  supplied: VideoGenParams, env: NodeJS.ProcessEnv): Promise<VideoGenParams> {
+  const params = structuredClone(supplied);
+  const contract = source.promptContract;
+  if (!contract) return params;
+  if (contract.request.modelId !== model.id || contract.request.provider !== model.provider
+    || contract.request.providerModel !== resolveProviderModel(model, env)) fail("PROMPT_CONTRACT_MODEL_MISMATCH", "渲染模型与 G6 已审模型版本不一致");
+  const p = contract.request.parameters;
+  const expected: VideoGenParams = {
+    durationSec: Number(p.duration_sec), aspectRatio: String(p.aspect_ratio), resolution: String(p.resolution),
+    generateAudio: p.generate_audio as boolean, cameraFixed: p.camera_fixed as boolean,
+    ...(typeof p.negative_prompt === "string" ? { negativePrompt: p.negative_prompt } : {}),
+    ...(typeof p.format === "string" ? { outputFormat: p.format } : {}),
+  };
+  const urls = await contractAssetUrls(source, scope, workDir);
+  if (contract.request.inputMode === "first-frame") {
+    if (urls.length !== 1 || !model.modes.includes("i2v")) fail("PROMPT_CONTRACT_ASSET_INVALID", "首帧合同缺少唯一可用首帧或模型不支持");
+    expected.firstFrameUrl = urls[0]; expected.referenceImageUrls = [];
+  } else {
+    if ((contract.request.inputMode === "reference-image") !== (urls.length > 0)) fail("PROMPT_CONTRACT_ASSET_INVALID", "参考图模式与已审资产不一致");
+    if (urls.length > 0 && (!model.modes.includes("r2v") || urls.length > (model.limits?.maxReferenceImages ?? 0))) fail("PROMPT_CONTRACT_ASSET_INVALID", "参考图数量或模式超出当前模型能力");
+    expected.referenceImageUrls = urls;
+    if (params.firstFrameUrl !== undefined) fail("PROMPT_CONTRACT_REQUEST_MISMATCH", "不得在 G6 之后追加首帧");
+  }
+  if (!Number.isInteger(expected.durationSec) || expected.durationSec !== source.shot.durationSec
+    || !model.limits?.aspectRatios?.includes(expected.aspectRatio!) || !model.limits?.resolutions?.includes(expected.resolution!)
+    || typeof expected.generateAudio !== "boolean" || typeof expected.cameraFixed !== "boolean") fail("PROMPT_CONTRACT_REQUEST_MISMATCH", "G6 参数不符合当前镜头或模型能力");
+  if (params.frames !== undefined || params.referenceVideoUrls?.length || params.referenceAudioUrls?.length
+    || Object.keys(params.extra ?? {}).some(key => ["camera_fixed", "output_format", "negative_prompt"].includes(key))) fail("PROMPT_CONTRACT_REQUEST_MISMATCH", "不得绕过 G6 追加帧数、参考媒体或覆盖受审参数");
+  for (const [key, value] of Object.entries(expected)) {
+    const prior = params[key as keyof VideoGenParams];
+    if (prior !== undefined && canonicalRenderJson(prior) !== canonicalRenderJson(value)) fail("PROMPT_CONTRACT_REQUEST_MISMATCH", `${key} 与 G6 已审参数不一致`);
+  }
+  return { ...params, ...expected };
 }
 
 /** 正常 UI / CLI 只读当前服务档案中的镜头；不需要手工 CMS 插行作为前置。 */
@@ -378,7 +454,7 @@ export async function qualifyProductionShot(input: {
     const source = await sourceForShot(leased.app, scope, input.projectId, input.shotId, input.workDir ?? archiveWorkDir(env), env);
     const model = getModel(input.modelId);
     if (!model || model.availability !== "wired" || !supportsCompiledRequest(model.provider) || !providerConfigured(model.provider, env)) fail("MODEL_UNAVAILABLE", "正式生成模型未配置或不支持完整请求资格");
-    const params = structuredClone(input.params);
+    const params = await bindContractParams(source, scope, input.workDir ?? archiveWorkDir(env), model, input.params, env);
     const duration = source.shot.durationSec;
     if (typeof duration !== "number" || !Number.isInteger(duration) || duration <= 0) fail("SOURCE_DURATION_INVALID", "归档镜头缺少有效的整数计划时长");
     if (params.durationSec !== undefined && params.durationSec !== duration) fail("SOURCE_DURATION_MISMATCH", "提交时长必须与服务镜头计划一致");
@@ -535,6 +611,8 @@ export async function authorizeRenderSubmission(input: {
         input.workDir ?? archiveWorkDir(input.env), input.env);
       if (source.row.id !== qualified.payload.stageRunId || source.row.attempt !== qualified.payload.attempt
         || source.row.output_sha256 !== qualified.payload.sourceOutputSha256 || source.promptsHash !== qualified.payload.promptsSha256) fail("QUALIFICATION_SOURCE_CHANGED", "预生产已有新执行或字节变化，资格失效");
+      const bound = await bindContractParams(source, input.scope, input.workDir ?? archiveWorkDir(input.env), model, input.params, input.env);
+      if (canonicalRenderJson(bound) !== canonicalRenderJson(input.params)) fail("QUALIFICATION_REQUEST_MISMATCH", "当前 G6 参数或资产与签发请求不一致");
     }
     return { ...qualified.input, leasedApp: leased.app, release: leased.release };
   } catch (error) {

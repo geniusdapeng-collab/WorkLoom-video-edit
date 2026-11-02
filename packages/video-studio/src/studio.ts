@@ -55,7 +55,10 @@ import {
   installVendorPhaseInternalsDiagnostics,
   installVendorPhaseDiagnosticsBridge,
   installVendorPromptRebuildBridge,
-  installSharedBridge
+  installSharedBridge,
+  withVendorDurationProjectionScope,
+  logVendorCompatibility,
+  type DurationProjectionBridgeOptions,
 } from "./vendor-compat.js";
 import { AUDIO_DISCIPLINE_CLAUSE, AUDIO_NEGATIVE_TERMS } from "./shot-spec.js";
 import { loadDurationRules } from "./duration-rules.js";
@@ -314,6 +317,9 @@ export class VideoStudio {
       noPeople: Boolean(noPeople),
       abstractOnly: input.isMarketing && isAbstractMarketingIntent(input.intent),
       frameRate: prdAuthority?.profile.frameRate ?? 30,
+      aspectRatio: prdAuthority?.profile.aspectRatio,
+      resolution: prdAuthority?.profile.resolution,
+      subtitleMode: prdAuthority?.profile.subtitleMode,
       allowedVisibleText: prdAuthority ? marketingVisibleTextFromG1(prdAuthority.marketing.g1Artifact.content) : [],
     };
 
@@ -372,33 +378,33 @@ export class VideoStudio {
          * 必须在本实例装配之前打上，否则注入的 LLM 引擎在隔离后变成"空心对象"，
          * 链路最开头的创意主题生成器会静默降级成规则兜底（真机 2026-09-22 事故）。
          */
-        keep(installVendorConfigIsolatorBridge());
+        keep(installSharedBridge("vendor-config-isolator", installVendorConfigIsolatorBridge));
         keep(installSharedBridge("vendor-portrait-archive-plan", installPortraitArchivePlanBridge));
         /** 阶段异常栈诊断：Phase 3/3.5 失败时把栈写进 run 日志（vendor 只打 message，真机无法定位行号） */
-        keep(installVendorPhaseDiagnosticsBridge({ log }));
+        keep(installSharedBridge("vendor-phase-diagnostics", () => installVendorPhaseDiagnosticsBridge({ log: logVendorCompatibility })));
         /**
          * 字段质检桥：Phase 3.5 对结构化 timeline 崩 `tl.match` / `result.reports` 缺失导致整套质检失败
          * （真机：FieldGuard 默认模板覆盖 6 镜并标记降级）。入参归一 + 结果兜底。
          */
-        keep(installVendorFieldQualityBridge({ log }));
+        keep(installSharedBridge("vendor-field-quality", () => installVendorFieldQualityBridge({ log: logVendorCompatibility })));
         /**
          * 微动作桥：`_extractCameraDistance` 只读 `camera`（实际字段是 camera_movement）+ 模板缺 neutral
          * → 真机两次 run 均 0/6 增强（环节空转）。补齐字段映射与 neutral 模板。
          */
-        keep(installVendorMicroMotionBridge({ log }));
+        keep(installSharedBridge("vendor-micro-motion", () => installVendorMicroMotionBridge({ log: logVendorCompatibility })));
         /**
          * 契约桥：Phase1→2/2→3/3→Output 的类型不匹配此前只告警（且 autoFix 对逐镜头字段不生效），
          * 导致对象字段以 `[object Object]` 进入提示词。这里做入参归一 + 契约账本留痕。
          */
-        keep(installVendorContractBridge({ log }));
+        keep(installSharedBridge("vendor-contract", () => installVendorContractBridge({ log: logVendorCompatibility })));
         /**
          * 提示词重建桥：Phase 3 失败（真机 `Assignment to constant variable.`）时 6 镜 prompt 为空，
          * 最终被 PipelineGuard 严格模式拦下、整条 run 无产物。用 vendor 自己的组装器按字段重建，
          * 并标记 promptRebuilt（非静默兜底）。
          */
-        keep(installVendorPromptRebuildBridge({ log }));
+        keep(installVendorPromptRebuildBridge({ log: logVendorCompatibility }));
         /** 需求洞察 _fillDefaults 修复（数组保形 + 消除 const 重赋值，静态审计发现） */
-        keep(installVendorDiscoveryFixBridge({ log }));
+        keep(installSharedBridge("vendor-discovery-fix", () => installVendorDiscoveryFixBridge({ log: logVendorCompatibility })));
         keep(installSharedBridge("vendor-requirement-contract-v1", () => installVendorRequirementContractBridge(
           HyperrealitySystem as unknown as { prototype: Record<string, unknown> }, vendorEntry.identity.entryPath
         )));
@@ -410,13 +416,13 @@ export class VideoStudio {
           assertPrdAuthorityBridge((HyperrealitySystem as unknown as { prototype: Record<string, unknown> }).prototype);
         }
         /** Phase 3 后融合链路深栈诊断（vendor 内部 catch 会吞掉栈帧） */
-        keep(installVendorPhaseInternalsDiagnostics({ log }));
+        keep(installSharedBridge("vendor-phase-internals", () => installVendorPhaseInternalsDiagnostics({ log: logVendorCompatibility })));
         /** 镜头内音频纪律（禁止 BGM）与时长策略（模型能力 4–30s）两条产品口径 */
-        keep(installVendorAudioDisciplineBridge({
+        keep(installSharedBridge("vendor-audio-discipline", () => installVendorAudioDisciplineBridge({
           clause: AUDIO_DISCIPLINE_CLAUSE,
           negativeTerms: AUDIO_NEGATIVE_TERMS,
-          log
-        }));
+          log: logVendorCompatibility
+        })));
         const durationRules = loadDurationRules();
         const maxSingleShot = cfg.durationPolicy?.maxSingleShotSeconds ?? durationRules.modelMax;
         const minSingleShot = cfg.durationPolicy?.minSingleShotSeconds ?? durationRules.modelMin;
@@ -429,7 +435,7 @@ export class VideoStudio {
           installVendorDurationPolicyBridge({
             maxSingleShotSeconds: maxSingleShot,
             minSingleShotSeconds: minSingleShot,
-            log
+            log: logVendorCompatibility
           })
         ));
         /**
@@ -439,35 +445,34 @@ export class VideoStudio {
          */
         const projectionEnabled = (process.env.WORKLOOM_DURATION_PROJECTION ?? "on") !== "off";
         let lastProjectedTarget: number | null = null;
+        const projectionOptions: DurationProjectionBridgeOptions = {
+          minShotSeconds: minSingleShot,
+          maxShotSeconds: maxSingleShot,
+          log,
+          onEvent: (event) => {
+            if (typeof event.targetSeconds === "number" && event.targetSeconds > 0) {
+              lastProjectedTarget = event.targetSeconds;
+            }
+            void emit({
+              kind: `pipeline.duration.${event.kind}`,
+              projectId: input.projectId,
+              runId,
+              payload: {
+                source: event.source,
+                targetSeconds: event.targetSeconds,
+                totalSeconds: event.totalSeconds,
+                raised: event.shots.filter((shot) => shot.raised).map((shot) => shot.shotId),
+                lowered: event.shots.filter((shot) => shot.lowered).map((shot) => shot.shotId),
+                message: event.message ?? null
+              }
+            });
+            if (event.kind !== "projected") {
+              log(`[studio] 时长投影 ${event.kind}（${event.source}）：${event.message ?? ""}`);
+            }
+          }
+        };
         keep(projectionEnabled
-          ? installSharedBridge("vendor-duration-projection", () =>
-              installVendorDurationProjectionBridge({
-                minShotSeconds: minSingleShot,
-                maxShotSeconds: maxSingleShot,
-                log,
-                onEvent: (event) => {
-                  if (typeof event.targetSeconds === "number" && event.targetSeconds > 0) {
-                    lastProjectedTarget = event.targetSeconds;
-                  }
-                  void emit({
-                    kind: `pipeline.duration.${event.kind}`,
-                    projectId: input.projectId,
-                    runId,
-                    payload: {
-                      source: event.source,
-                      targetSeconds: event.targetSeconds,
-                      totalSeconds: event.totalSeconds,
-                      raised: event.shots.filter((shot) => shot.raised).map((shot) => shot.shotId),
-                      lowered: event.shots.filter((shot) => shot.lowered).map((shot) => shot.shotId),
-                      message: event.message ?? null
-                    }
-                  });
-                  if (event.kind !== "projected") {
-                    log(`[studio] 时长投影 ${event.kind}（${event.source}）：${event.message ?? ""}`);
-                  }
-                }
-              })
-            )
+          ? installSharedBridge("vendor-duration-projection", () => installVendorDurationProjectionBridge())
           : () => undefined);
         if (!projectionEnabled) log("[studio] 时长投影桥已按 WORKLOOM_DURATION_PROJECTION=off 关闭（回滚态）");
         log(
@@ -747,11 +752,11 @@ export class VideoStudio {
           const modelName = portraitCfg && portraitCfg.enabled !== false ? portraitCfg.model : "未指定模型";
           log(`[studio] 定妆照真实出图已启用（${modelName}，产物根 ${charactersDir}）`);
         }
-        const nativeResult = await withPrdAuthorityScope(prdAuthority, () => withRequirementContractScope(metadata, () => withPortraitArchivePlan(portraitRuntime, () =>
+        const nativeResult = await withVendorDurationProjectionScope(projectionOptions, () => withPrdAuthorityScope(prdAuthority, () => withRequirementContractScope(metadata, () => withPortraitArchivePlan(portraitRuntime, () =>
           system.create(input.intent, metadata, createOptions)
         ), prdAuthority ? { authority: prdAuthority, validateAuthority: validateRequirementAuthority!,
           approvedTheme: () => approvedRequirementTheme && structuredClone(approvedRequirementTheme) } : undefined), validateRequirementAuthority,
-          prdAuthority ? () => approvedRequirementTheme && structuredClone(approvedRequirementTheme) : undefined);
+          prdAuthority ? () => approvedRequirementTheme && structuredClone(approvedRequirementTheme) : undefined));
         const normalizedResult = input.isMarketing
           ? normalizeMarketingPromptResult(nativeResult, promptOptions)
           : { value: nativeResult, changes: [] as string[] };

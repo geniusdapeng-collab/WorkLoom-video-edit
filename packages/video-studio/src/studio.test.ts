@@ -112,6 +112,8 @@ vi.mock("./vendor-compat.js", () => {
     installVendorAudioDisciplineBridge: install("audio"),
     installVendorDurationPolicyBridge: install("duration"),
     installVendorDurationProjectionBridge: install("projection"),
+    withVendorDurationProjectionScope: (_options: unknown, operation: () => unknown) => operation(),
+    logVendorCompatibility: () => undefined,
     installSharedBridge: (_key: string, factory: () => () => void) => factory()
   };
 });

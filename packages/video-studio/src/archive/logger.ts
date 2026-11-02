@@ -74,6 +74,8 @@ export function createStageLogChannel(store: ArchiveStore, stageId: string, atte
 }
 
 export interface AttachStructuredLogOptions {
+  /** Concurrent hosts bind this predicate to their asynchronous run scope. */
+  shouldCapture?: () => boolean;
   /** 当前环节（StageRunner 写入时更新；缺省 stage='pipeline'） */
   currentStage?: () => string | null;
   /** 当前 attempt（缺省 0 = 未知） */
@@ -82,21 +84,17 @@ export interface AttachStructuredLogOptions {
   maxMsgChars?: number;
 }
 
+type ConsoleMethod = "log" | "warn" | "error";
+const logMethods: Array<[StageLogLevel, ConsoleMethod]> = [["info", "log"], ["warn", "warn"], ["error", "error"]];
+const subscriptions = new Set<{ store: ArchiveStore; opts: AttachStructuredLogOptions }>();
+let installed: Array<(...args: unknown[]) => void> | null = null;
+
 /**
  * 把 console 输出镜像成结构化 JSONL（与文本 tee 并行）。
  * 返回 detach()，在 run 结束时调用（与 `restoreRunLogs()` 同位置）。
  */
 export function attachStructuredLog(store: ArchiveStore, opts: AttachStructuredLogOptions = {}): () => void {
-  const methods: StageLogLevel[] = ["info", "warn", "error"];
-  const consoleMethodOf: Record<StageLogLevel, "log" | "warn" | "error"> = {
-    info: "log",
-    warn: "warn",
-    error: "error",
-  };
-  const originals = methods.map((level) => console[consoleMethodOf[level]]);
-  const max = opts.maxMsgChars ?? 4_000;
-
-  const stringify = (args: unknown[]): string => {
+  const stringify = (args: unknown[], max: number): string => {
     const line = args
       .map((a) => {
         if (typeof a === "string") return a;
@@ -111,25 +109,39 @@ export function attachStructuredLog(store: ArchiveStore, opts: AttachStructuredL
     return line.length > max ? `${line.slice(0, max)}…(+${line.length - max})` : line;
   };
 
-  methods.forEach((level, index) => {
-    const key = consoleMethodOf[level];
-    (console as unknown as Record<string, unknown>)[key] = (...args: unknown[]) => {
-      try {
-        const stage = opts.currentStage?.() ?? "pipeline";
-        const attempt = opts.currentAttempt?.() ?? 0;
-        void writeStructuredLog(store, { stage, attempt, level, msg: stringify(args) }).catch((err) => {
-          console.error(`[archive] 结构化日志写盘失败(${stage}): ${(err as Error).message}`);
-        });
-      } catch (err) {
-        console.error(`[archive] 结构化日志镜像失败: ${(err as Error).message}`);
-      }
-      (originals[index] as (...a: unknown[]) => void).apply(console, args);
-    };
-  });
-
-  return () => {
-    methods.forEach((level, index) => {
-      (console as unknown as Record<string, unknown>)[consoleMethodOf[level]] = originals[index];
+  const subscription = { store, opts };
+  subscriptions.add(subscription);
+  if (!installed) {
+    const originals = logMethods.map(([, key]) => console[key]);
+    installed = originals;
+    logMethods.forEach(([level, key], index) => {
+      console[key] = (...args: unknown[]) => {
+        for (const current of subscriptions) {
+          try {
+            if (current.opts.shouldCapture && !current.opts.shouldCapture()) continue;
+            const stage = current.opts.currentStage?.() ?? "pipeline";
+            const attempt = current.opts.currentAttempt?.() ?? 0;
+            void writeStructuredLog(current.store, { stage, attempt, level,
+              msg: stringify(args, current.opts.maxMsgChars ?? 4_000) }).catch((err) => {
+              // Do not feed a failed write back into this asynchronous mirror.
+              originals[2]!.call(console, `[archive] 结构化日志写盘失败(${stage}): ${(err as Error).message}`);
+            });
+          } catch (err) {
+            originals[2]!.call(console, `[archive] 结构化日志镜像失败: ${(err as Error).message}`);
+          }
+        }
+        originals[index]!.apply(console, args);
+      };
     });
+  }
+  let detached = false;
+  return () => {
+    if (detached) return;
+    detached = true;
+    subscriptions.delete(subscription);
+    if (subscriptions.size === 0 && installed) {
+      logMethods.forEach(([, key], index) => { console[key] = installed![index]!; });
+      installed = null;
+    }
   };
 }

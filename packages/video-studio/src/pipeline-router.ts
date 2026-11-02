@@ -233,20 +233,14 @@ export function scoreRoute(text: string): RuleVerdict {
   const marketingSignals: string[] = [];
   const narrativeSignals: string[] = [];
   const explainerSignals: string[] = [];
-  // 显式声明按「谁先出现」判定，避免用户说"不要营销片，走叙事片"时两边都命中
-  const explicitMarketing = text.match(EXPLICIT_MARKETING);
-  const explicitNarrative = text.match(EXPLICIT_NARRATIVE);
-  const explicitExplainer = text.match(EXPLICIT_EXPLAINER);
-  let explicit: VideoPipelineKind | undefined;
-  if (explicitExplainer && (!explicitMarketing || (explicitExplainer.index ?? 0) < (explicitMarketing.index ?? 0))) {
-    explicit = "explainer";
-  } else if (explicitMarketing && explicitNarrative) {
-    explicit = (explicitMarketing.index ?? 0) >= (explicitNarrative.index ?? 0) ? "narrative" : "marketing";
-  } else if (explicitMarketing) {
-    explicit = "marketing";
-  } else if (explicitNarrative) {
-    explicit = "narrative";
-  }
+  // A rejected route is context, never the user's affirmative selection.
+  const explicitCandidates = ([
+    ["marketing", EXPLICIT_MARKETING], ["narrative", EXPLICIT_NARRATIVE], ["explainer", EXPLICIT_EXPLAINER],
+  ] as const).flatMap(([kind, pattern]) => [...text.matchAll(new RegExp(pattern.source, "g"))]
+    .filter(match => !/(?:不要|不用|不必|无需|不是|别|非|不)\s*(?:再|使用|采用|走|用|按|跑|做)?\s*$/u.test(text.slice(0, match.index)))
+    .map(match => ({ kind, index: match.index })));
+  explicitCandidates.sort((left, right) => left.index - right.index);
+  const explicit = explicitCandidates[0]?.kind;
 
   let marketingScore = 0;
   let narrativeScore = 0;

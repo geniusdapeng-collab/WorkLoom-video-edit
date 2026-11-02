@@ -32,6 +32,7 @@ const doubles = vi.hoisted(() => ({
   studioConfigs: [] as Array<Record<string, any>>,
   gateReplies: [] as Array<{ gate: string; verdict: any }>,
   emitGates: true,
+  realStructuredLog: false,
   connect: vi.fn(),
   query: vi.fn(),
   releaseDb: vi.fn(),
@@ -86,8 +87,10 @@ vi.mock("./archive-host.js", () => ({
     nextAttempt: async () => doubles.nextAttempt + 1,
   }),
 }));
-vi.mock("@hyperreality/video-studio", async (importOriginal) => ({
-  ...await importOriginal<typeof import("@hyperreality/video-studio")>(),
+vi.mock("@hyperreality/video-studio", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@hyperreality/video-studio")>();
+  return {
+  ...actual,
   VideoStudio: class {
     constructor(private readonly config: { onApproval: (input: Record<string, unknown>) => Promise<unknown> }) { doubles.studioConfigs.push(config); }
     async runPreproduction(...args: unknown[]) {
@@ -104,8 +107,10 @@ vi.mock("@hyperreality/video-studio", async (importOriginal) => ({
   installVendorEngineBridge: vi.fn(),
   installVendorRenderCompatBridge: vi.fn(),
   installVendorPortraitBindingBridge: () => doubles.uninstall,
-  attachStructuredLog: () => doubles.detach,
-}));
+  attachStructuredLog: (...args: Parameters<typeof actual.attachStructuredLog>) => doubles.realStructuredLog
+    ? actual.attachStructuredLog(...args) : doubles.detach,
+  };
+});
 
 let worker: typeof import("./studio-worker.js");
 let catalogFixture: ReturnType<typeof builtinCatalogFixture>;
@@ -126,6 +131,7 @@ beforeEach(() => {
   doubles.nextAttempt = 0;
   doubles.studioConfigs.length = 0;
   doubles.gateReplies.length = 0;
+  doubles.realStructuredLog = false;
   doubles.prepare.mockReset().mockImplementation(async ({ scope, root }) => {
     const raw = { A1: { identity: { name: "本次商品", specs: { 功率: "1 W" } }, images: [] }, A2: { reviews: [] }, A3: { competitors: [] } };
     const sourceId = `SRC-${renderSha256(`https://source.example.com/final\n${"a".repeat(64)}`).slice(0, 24)}`;
@@ -726,9 +732,12 @@ describe("完整原生前期到正式 CLI 草稿交接", () => {
   });
 
   it("两个工作区并发完成时只携带各自run/attempt/原始镜头和选角", async () => {
+    doubles.realStructuredLog = true;
     useNarrativeProject();
     doubles.runPreproduction.mockImplementation(async (input: Record<string, any>) => {
+      console.log(`private-intent:${input.projectId}`);
       await new Promise(resolve => setTimeout(resolve, input.projectId.endsWith("A") ? 20 : 1));
+      console.log(`private-result:${input.projectId}`);
       return { ...success(), shots: [{ ...success().shots[0]!, shotId: input.projectId.endsWith("A") ? "A-ORIGINAL" : "B-ORIGINAL", prompt: input.projectId }] };
     });
     const scopes = [scope, { tenantId: "tenant-other", workspaceId: "ws-other" }], ids = [`VID-parallel-${++projectSequence}A`, `VID-parallel-${++projectSequence}B`];
@@ -743,6 +752,17 @@ describe("完整原生前期到正式 CLI 草稿交接", () => {
       expect(sheet.source).toMatchObject({ ...scopes[index], projectId: ids[index], runId: runs[index], attempt: output.productionEvidence.attempt });
       expect(sheet.shots[0].prompt).toBe(ids[index]); expect(sheet.character.id).toBe(index === 0 ? "young-rider-01" : "chen-zhuo");
       expect(worker.getRun(runs[index]!, scopes[1 - index]!.workspaceId)).toBeNull();
+      const log = await readFile(path.join(doubles.workDir, "logs", `${ids[index]}.log`), "utf8");
+      expect(log).toContain(`private-intent:${ids[index]}`);
+      expect(log).toContain(`private-result:${ids[index]}`);
+      expect(log).not.toContain(`private-intent:${ids[1 - index]}`);
+      expect(log).not.toContain(`private-result:${ids[1 - index]}`);
+      const structuredFile = path.join(doubles.workDir, "archive", scopes[index]!.workspaceId, ids[index]!, "logs/preproduction.jsonl");
+      await vi.waitFor(async () => expect(await readFile(structuredFile, "utf8")).toContain(`private-result:${ids[index]}`));
+      const structured = await readFile(structuredFile, "utf8");
+      expect(structured).toContain(`private-intent:${ids[index]}`);
+      expect(structured).not.toContain(`private-intent:${ids[1 - index]}`);
+      expect(structured).not.toContain(`private-result:${ids[1 - index]}`);
     }
   });
 });

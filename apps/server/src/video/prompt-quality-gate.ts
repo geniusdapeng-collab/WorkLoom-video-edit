@@ -350,15 +350,14 @@ export function parseSemanticQualityReview(
     : { valid: true, errors: [], review: { shotId: contract.shotId, checks: normalizedChecks } };
 }
 
-function semanticSchema(): Record<string, unknown> {
+function semanticSchema(shotId: string): Record<string, unknown> {
   return {
-    shotId: "S01",
+    shotId,
     checks: SEMANTIC_QUALITY_CHECK_IDS.map((id) => ({
       id,
       pass: true,
       field: SEMANTIC_QUALITY_QUESTION[id].fields[0],
       evidence: "摘录与该问题直接相关的字段原文",
-      ...(id === "SQ3_CAMERA_FEASIBLE" ? { failureCode: "CAMERA_COMPLEXITY_EXCEEDS_DURATION", repair: "只修改 camera_movement" } : {}),
     })),
   };
 }
@@ -376,6 +375,7 @@ function semanticPrompt(
     "你是视频提示词语义质量门的唯一评审员。",
     "只回答下列五个二元问题；每项必须给出非空 evidence，并从本题允许字段中选择 field。",
     "失败项还必须给出稳定的 failureCode 和一条只针对该字段的 repair；不得修改字段，只输出评审 JSON。",
+    "pass=true 时必须省略 failureCode 和 repair；pass=false 时才增加这两个字段，例如 failureCode=CAMERA_COMPLEXITY_EXCEEDS_DURATION、repair=只修改 camera_movement。",
     "不得用分数代替二元结果；不得臆造证据；证据必须直接摘录或可定位到给定字段值。",
     "当前影片类型由 director_instruction、scene、action、character 与上游上下文共同决定；营销片看卖点/钩子/承诺/CTA，叙事片看冲突/情绪/揭示/转折/必要空间建立。",
     JSON.stringify({ shotId: contract.shotId, fieldSchema: contract.fieldSchema, fields, upstreamContext: upstreamContext ?? null,
@@ -412,7 +412,7 @@ export function createLlmSemanticQualityReviewer(llm: WorkloomLLMEngine): Semant
     async review(context) {
       const result = await llm.reasonStructured(
         semanticPrompt(context.contract, context.shot, context.upstreamContext),
-        semanticSchema(),
+        semanticSchema(context.contract.shotId),
         { scene: "preproduction", maxTokens: 2200, temperature: 0 },
       );
       if (!result.success) throw new Error(result.error ?? "SEMANTIC_REVIEW_TRANSPORT_FAILED");
@@ -750,14 +750,16 @@ export async function evaluatePromptPackage(input: EvaluatePromptQualityInput): 
         const changes: Array<{ shotId: string; field: string; value: unknown; reason: string }> = [];
         for (const shotId of new Set(semanticFindings.map((finding) => finding.shotId))) {
           const firstShot = first.compiled.find((item) => item.shotId === shotId)!;
+          const shotAllowedFields = [...new Set(semanticFindings.filter((finding) => finding.shotId === shotId)
+            .flatMap((finding) => finding.field ? [finding.field] : []))];
           const changesRaw = await reviewer.repair({
             projectId: input.projectId, runId: input.runId, stageRunId: input.stageRunId,
             shot: firstShot.source, contract: firstShot.compiled.contract, attempt: 1,
             upstreamContext: input.upstreamContext,
             findings: finalReports.find((report) => report.shotId === shotId)?.checks.filter((check) => !check.pass) ?? [],
-            allowedFields,
+            allowedFields: shotAllowedFields,
           });
-          const shotChanges = validateRepairChanges(changesRaw, allowedFields);
+          const shotChanges = validateRepairChanges(changesRaw, shotAllowedFields);
           if (new Set(shotChanges.map((change) => change.field)).size !== shotChanges.length) throw new Error("REPAIR_CHANGE_DUPLICATE");
           const patched = shotChanges.reduce((current, change) => patchSource(current, [change]), firstShot.source);
           patchedSources.set(firstShot.shotId, { source: patched, compile: compileById.get(firstShot.shotId)! });

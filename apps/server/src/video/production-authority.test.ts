@@ -4,7 +4,9 @@ import { mkdtemp, mkdir, writeFile, readFile, rm, realpath, symlink } from "node
 import { tmpdir } from "node:os";
 import path from "node:path";
 import type pg from "pg";
-import { applyScenePolicy, auditScenePolicy, loadScenePolicies, type ScenePolicyShot } from "@hyperreality/video-studio";
+import { applyScenePolicy, auditScenePolicy, loadScenePolicies, compilePromptShot, promptFieldPolicy, type ScenePolicyShot } from "@hyperreality/video-studio";
+import { promptContractSummary } from "./prompt-quality-gate.js";
+import { getModel } from "./gen/catalog.js";
 import { authorizeRenderSubmission, loadQualifiedRenderInput, listProductionShots, qualifyProductionShot } from "./production-authority.js";
 import { renderSha256 } from "./gen/compiled-request.js";
 import { submitGenJob } from "./gen/submit.js";
@@ -152,6 +154,59 @@ beforeEach(async () => {
     })); }));
 });
 afterEach(async () => { vi.unstubAllGlobals(); vi.restoreAllMocks(); await rm(dir, { recursive: true, force: true }); });
+
+async function installPromptContract() {
+  const portrait = path.join(dir, "workspaces", scope.workspaceId, "characters", "P1", "front.png");
+  const image = Buffer.from("approved synthetic portrait bytes");
+  await mkdir(path.dirname(portrait), { recursive: true }); await writeFile(portrait, image);
+  const fields = Object.fromEntries(promptFieldPolicy("workloom.video-shot-card/v2", false).fields.map(field => [field.key, `${field.label}具体内容`]));
+  Object.assign(fields, { portraits: [portrait], constraint: "9:16画幅，1080x1920，30fps，MP4格式。",
+    timeline: "T00:00至T00:05", camera_movement: "固定机位", dialogue: "无台词", negative: "no watermark" });
+  const model = getModel("doubao-seedance-2-5")!;
+  const compiled = compilePromptShot({ shotId: "S1", duration: 5, fields }, {
+    delivery: { aspectRatio: "9:16", resolution: "1080p", fps: 30, format: "mp4", generateAudio: true },
+    model: { modelId: model.id, provider: model.provider, providerModel: model.providerModel, version: "test",
+      modes: model.modes, durationSec: { min: 4, max: 30 }, aspectRatios: ["9:16"], resolutions: ["1080p"], maxReferenceImages: 4, maxPromptChars: 4000 },
+    assets: [{ field: "portraits", role: "reference_image", sha256: renderSha256(image), bytes: image.length,
+      mediaType: "image/png", sourceRef: "characters/P1/front.png" }],
+  });
+  expect(compiled.hardErrors).toEqual([]);
+  const contractFile = path.join(dir, "workspaces", scope.workspaceId, "gates", "P1", "attempt-1", "prompt-quality", "prompt-contract-S1.json");
+  await mkdir(path.dirname(contractFile), { recursive: true });
+  const bytes = JSON.stringify(compiled.contract); await writeFile(contractFile, bytes);
+  const g5 = output.productionEvidence.gates[3], g6 = output.productionEvidence.gates[4], g7 = output.productionEvidence.gates[5];
+  Object.assign(g5, { status: "passed", via: "llm", degraded: false, evidence: [{ path: portrait, sha256: renderSha256(image), scope: "image" }] });
+  g6.evidence.push({ path: contractFile, sha256: renderSha256(bytes), scope: "complete-text" });
+  g6.promptContract = promptContractSummary([compiled.contract]); g7.promptContract = g6.promptContract;
+  g7.renderEligibility = { eligible: true };
+  Object.assign(prompts.shots[0], { fields, prompt: compiled.prompt }); await persist();
+  return { portrait, image, contract: compiled.contract, enforced: { ...env, PROMPT_CONTRACT_V2: "enforce" } };
+}
+
+describe("G6合同到供应商请求的绑定", () => {
+  it("服务默认参数保留已审画幅、声音、固定机位与定妆照真实字节", async () => {
+    const fixture = await installPromptContract();
+    const result = await issue({ params: {}, env: fixture.enforced });
+    const body = pool.qualifications[0]!.compiled_request.body;
+    expect(body).toMatchObject({ ratio: "9:16", resolution: "1080p", duration: 5, generate_audio: true, camera_fixed: true });
+    expect(body.content).toContainEqual({ type: "image_url", role: "reference_image", image_url: { url: `data:image/png;base64,${fixture.image.toString("base64")}` } });
+    expect(result.params.referenceImageUrls).toHaveLength(1);
+    const auth = await authorized(result.qualificationToken, { env: fixture.enforced }); await auth.release();
+    await writeFile(fixture.portrait, "changed after qualification");
+    await expect(authorized(result.qualificationToken, { env: fixture.enforced })).rejects.toThrow(/SOURCE_HASH_MISMATCH|PROMPT_CONTRACT_ASSET/);
+  });
+  it.each([{ aspectRatio: "16:9" }, { generateAudio: false }, { cameraFixed: false }, { referenceImageUrls: ["https://other.invalid/image.png"] }, { extra: { camera_fixed: false } }])(
+    "调用者无法覆盖已审参数 %j", async params => {
+      const fixture = await installPromptContract();
+      await expect(issue({ params, env: fixture.enforced })).rejects.toThrow(/PROMPT_CONTRACT_REQUEST_MISMATCH/);
+      expect(calls).toHaveLength(0);
+    });
+  it("模型版本漂移在付费审核前拒绝", async () => {
+    const fixture = await installPromptContract();
+    await expect(issue({ params: {}, env: { ...fixture.enforced, SEEDANCE_MODEL: "unreviewed-version" } })).rejects.toThrow(/PROMPT_CONTRACT_MODEL_MISMATCH/);
+    expect(calls).toHaveLength(0);
+  });
+});
 
 describe("正式资格的正常路径和来源边界", () => {
   async function installArchiveReuse() {

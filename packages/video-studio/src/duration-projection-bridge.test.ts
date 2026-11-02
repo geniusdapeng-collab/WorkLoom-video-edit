@@ -6,6 +6,8 @@ import {
   installSharedBridge,
   installVendorDurationProjectionBridge,
   listSharedBridges,
+  withVendorDurationProjectionScope,
+  logVendorCompatibility,
   type DurationProjectionEvent,
 } from "./vendor-compat.js";
 
@@ -132,6 +134,19 @@ describe("时长投影桥：vendor 侧不再产出越界/失衡时长", () => {
     expect(events.some((e) => e.source === "dcm.constrain")).toBe(true);
   });
 
+  it("does not report a valid execution when one shot's voice cannot fit its model limit", () => {
+    if (!DurationConstraintManager) throw new Error("Actual vendor DurationConstraintManager is required");
+    const events: DurationProjectionEvent[] = [];
+    uninstall = installVendorDurationProjectionBridge({ onEvent: (event) => events.push(event), minShotSeconds: 4, maxShotSeconds: 30 });
+    const manager = new DurationConstraintManager({ maxSingleShot: 30, minSingleShot: 4 });
+    const shots = [scene("long", 30, "字".repeat(120)), scene("silent", 30)];
+    const before = structuredClone(shots);
+    expect(() => (manager.constrain as (shots: unknown, options: unknown) => unknown).call(manager, shots, { targetDuration: 60 }))
+      .toThrow("DURATION_PROJECTION_INFEASIBLE");
+    expect(events.at(-1)).toMatchObject({ kind: "infeasible", source: "dcm.constrain" });
+    expect(shots).toEqual(before);
+  });
+
   it.skipIf(!DialogueTimingCalculator)("台词引擎情绪归一：复合 mood 串与副词都能改变语速", () => {
     uninstall = installVendorDurationProjectionBridge({ log: () => undefined });
     const calc = new DialogueTimingCalculator!({ autoAdjust: false }) as Record<string, unknown>;
@@ -188,5 +203,83 @@ describe("共享桥引用计数（并发 run 不互相拆桥）", () => {
     b();
     expect(restored).toBe(1);
     expect(listSharedBridges().some((entry) => entry.key === "test-bridge")).toBe(false);
+  });
+
+  it.each(["A", "B"])("isolates overlapping run policies/events when %s completes first", async (first) => {
+    if (!ProductionEngine) throw new Error("Actual vendor ProductionEngine is required");
+    const original = ProductionEngine.prototype._normalizeDurations;
+    const events = { A: [] as DurationProjectionEvent[], B: [] as DurationProjectionEvent[] };
+    const logs = { A: [] as string[], B: [] as string[] };
+    const releases: Record<string, () => void> = {};
+    const ready: Record<string, Promise<void>> = {};
+    const fallback: DurationProjectionEvent[] = [];
+    const start = (id: "A" | "B", min: number, max: number) => {
+      let enter!: () => void, proceed!: () => void;
+      ready[id] = new Promise<void>((resolve) => { enter = resolve; });
+      const gate = new Promise<void>((resolve) => { proceed = resolve; });
+      releases[id] = proceed;
+      return withVendorDurationProjectionScope({ minShotSeconds: min, maxShotSeconds: max,
+        onEvent: (event) => events[id].push(event), log: (line) => logs[id].push(line) }, async () => {
+        const release = installSharedBridge("test-scoped-duration", () => installVendorDurationProjectionBridge({ onEvent: (event) => fallback.push(event) }));
+        try {
+          enter(); await gate;
+          const shots = [{ shotId: `${id}-1`, duration: 22 }, { shotId: `${id}-2`, duration: 2 }];
+          (ProductionEngine.prototype._normalizeDurations as (shots: unknown, target: number) => unknown).call({}, shots, 24);
+          logVendorCompatibility(`project-${id}-only`);
+          return shots;
+        } finally { release(); }
+      });
+    };
+    const a = start("A", 4, 20), b = start("B", 10, 14);
+    try {
+      await Promise.all([ready.A, ready.B]);
+      expect(listSharedBridges().find((entry) => entry.key === "test-scoped-duration")?.refs).toBe(2);
+      releases[first]!();
+      const firstResult = await (first === "A" ? a : b);
+      expect(firstResult.map((shot) => shot.duration)).toEqual(first === "A" ? [20, 4] : [14, 10]);
+      expect(ProductionEngine.prototype._normalizeDurations).not.toBe(original);
+      const second = first === "A" ? "B" : "A";
+      releases[second]!();
+      const secondResult = await (second === "A" ? a : b);
+      expect(secondResult.map((shot) => shot.duration)).toEqual(second === "A" ? [20, 4] : [14, 10]);
+      expect(ProductionEngine.prototype._normalizeDurations).toBe(original);
+      for (const id of ["A", "B"] as const) {
+        expect(events[id]).toHaveLength(1);
+        expect(events[id][0]!.shots.every((shot) => shot.shotId.startsWith(`${id}-`))).toBe(true);
+        expect(logs[id]).toContain(`project-${id}-only`);
+        expect(logs[id]).not.toContain(`project-${id === "A" ? "B" : "A"}-only`);
+      }
+      expect(fallback).toEqual([]);
+    } finally {
+      releases.A?.(); releases.B?.();
+      await Promise.allSettled([a, b]);
+    }
+  });
+
+  it("cleans a failed scope without reusing its callback for subsequent or detached work", async () => {
+    if (!ProductionEngine) throw new Error("Actual vendor ProductionEngine is required");
+    const original = ProductionEngine.prototype._normalizeDurations;
+    const failedEvents: DurationProjectionEvent[] = [], nextEvents: DurationProjectionEvent[] = [];
+    let late!: () => Promise<unknown>;
+    const normalize = () => (ProductionEngine.prototype._normalizeDurations as (shots: unknown, target: number) => unknown)
+      .call({}, [{ shotId: "late-1", duration: 6 }, { shotId: "late-2", duration: 6 }], 12);
+    await expect(withVendorDurationProjectionScope({ onEvent: (event) => failedEvents.push(event) }, async () => {
+      const release = installSharedBridge("test-scoped-error", () => installVendorDurationProjectionBridge());
+      try {
+        let resume!: () => void;
+        const gate = new Promise<void>((resolve) => { resume = resolve; });
+        const detached = gate.then(normalize);
+        late = () => { resume(); return detached; };
+        throw new Error("synthetic run failure");
+      } finally { release(); }
+    })).rejects.toThrow("synthetic run failure");
+    expect(ProductionEngine.prototype._normalizeDurations).toBe(original);
+    const release = installSharedBridge("test-scoped-error", () => installVendorDurationProjectionBridge());
+    try {
+      await expect(late()).rejects.toThrow("DURATION_PROJECTION_SCOPE_CLOSED");
+      await withVendorDurationProjectionScope({ onEvent: (event) => nextEvents.push(event) }, normalize);
+      expect(failedEvents).toEqual([]); expect(nextEvents).toHaveLength(1);
+    } finally { release(); }
+    expect(ProductionEngine.prototype._normalizeDurations).toBe(original);
   });
 });
