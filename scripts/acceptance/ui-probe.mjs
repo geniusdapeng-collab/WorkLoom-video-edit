@@ -222,12 +222,13 @@ async function probe(target, routes, prefix, waitMs = 1800) {
           len: text.length,
           blank: text.trim().length === 0,
           loading: /正在恢复工作区|正在确认身份|正在确认访问范围|正在连接 WorkLoom 服务|正在加载(?:页面|技能)|正在汇总统一待办/.test(text),
+          notFound: /页面不存在/.test(text),
           internalError: /Internal Server Error|加载失败(?!时)|出错了(?!，)/.test(text),
           overflowX: document.documentElement.scrollWidth > window.innerWidth + 2,
           sample: text.replace(/\s+/g, " ").slice(0, 90),
         };
       });
-      report.routes[key] = { ...dom, errors: consoleErrors.slice(0, 2), ok: !dom.blank && !dom.loading && !dom.internalError && !dom.overflowX };
+      report.routes[key] = { ...dom, errors: consoleErrors.slice(0, 2), ok: !dom.blank && !dom.loading && !dom.notFound && !dom.internalError && !dom.overflowX };
     } catch (err) {
       report.routes[key] = { ok: false, error: String(err).split("\n")[0] };
     }
@@ -270,12 +271,13 @@ await probe(page, profile.surfaces.pcRoutes, "pc", 2000);
           len: text.length,
           authPage: text.includes("B 端移动工作台") && text.includes("验证码"),
           restoring: /正在恢复工作区|正在确认身份/.test(text),
+          notFound: /页面不存在/.test(text),
           internalError: /加载失败(?!时)|出错了(?!，)|Internal Server Error/.test(text),
           overflowX: document.documentElement.scrollWidth > window.innerWidth + 2,
           sample: text.replace(/\s+/g, " ").slice(0, 80),
         };
       });
-      report.routes[routeKey] = { ...dom, errors: consoleErrors.slice(0, 2), ok: !dom.authPage && !dom.restoring && !dom.internalError && !dom.overflowX && dom.len > 40 };
+      report.routes[routeKey] = { ...dom, errors: consoleErrors.slice(0, 2), ok: !dom.authPage && !dom.restoring && !dom.notFound && !dom.internalError && !dom.overflowX && dom.len > 40 };
     } catch (err) {
       report.routes[routeKey] = { ok: false, error: String(err).split("\n")[0] };
     }
@@ -310,12 +312,13 @@ await probe(page, profile.surfaces.pcRoutes, "pc", 2000);
         return {
           len: text.length,
           loading: /正在恢复工作区|正在确认身份|正在确认访问范围|正在连接 WorkLoom 服务|正在加载(?:页面|技能)|正在汇总统一待办/.test(text),
+          notFound: /页面不存在/.test(text),
           internalError: /加载失败(?!时)|出错了(?!，)|Internal Server Error/.test(text),
           overflowX: document.documentElement.scrollWidth > window.innerWidth + 2,
           sample: text.replace(/\s+/g, " ").slice(0, 80),
         };
       });
-      report.routes[routeKey] = { ...dom, errors: consoleErrors.slice(0, 2), ok: !dom.loading && !dom.internalError && !dom.overflowX && dom.len > 40 };
+      report.routes[routeKey] = { ...dom, errors: consoleErrors.slice(0, 2), ok: !dom.loading && !dom.notFound && !dom.internalError && !dom.overflowX && dom.len > 40 };
     } catch (err) {
       report.routes[routeKey] = { ok: false, error: String(err).split("\n")[0] };
     }

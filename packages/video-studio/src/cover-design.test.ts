@@ -186,6 +186,23 @@ describe("封面设计稿", () => {
     expect(() => validateCoverPlan(fitting, { ...input, platform: "抖音" })).not.toThrow();
   });
 
+  it("按成片实际画布校验文字宽度，不把横版封面套进竖版平台参考画布", () => {
+    const landscape: CoverPlan = {
+      ...validPlan,
+      headline: "看山吃饺子",
+      typography: { ...validPlan.typography, headlineSizeRatio: 0.1167 },
+    };
+    expect(() => validateCoverPlan(landscape, {
+      ...input,
+      platform: "微信视频号",
+      canvas: { width: 320, height: 180 },
+    })).not.toThrow();
+    expect(() => validateCoverPlan(landscape, {
+      ...input,
+      platform: "微信视频号",
+    })).toThrow(/版面宽度/);
+  });
+
   it("解析容忍 markdown 包裹，非法 JSON 明确抛错", () => {
     const raw = "```json\n" + JSON.stringify(validPlan) + "\n```";
     const parsed = parseCoverPlan(raw, input);

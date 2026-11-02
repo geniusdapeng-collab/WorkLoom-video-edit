@@ -82,3 +82,18 @@ SHA-512 sha512-kplOLAtovega6BLpBwtFM1DfBS3q4ZjLp9yA942o+v9QlbREm/VsYNK/Jz7f/9ytD
 
 `workloom` 的门禁现优先使用 GitHub Release 镜像，并把其已声明产品分叉中的 207 项既有
 UI 体验债务保留为 advisories；未分叉仓仍按硬错误处理。
+
+## 后续回归回扫（2026-11-02）
+
+本轮回扫只针对新增的三类根因：实际输出画布与封面字级宽度不一致、`complete-publish`
+视频被 `stage:cover` 错当成 JSON 加工凭证、隔离测试漏装当前 material prompt 构造器。
+
+| 仓 | 代码事实 | 判定 | 证据 |
+|---|---|---|---|
+| `workloom` | 无 `bundles/ai-video/connectors/post-bridge/quality-gate.mjs`、无 `scripts/tools/edit-cover.mts`；`cover-design.ts` 早于 `requestedCoverPlan` 与宽度校验 | not applicable | B：`rg --files` 与源码定向搜索 0 命中 |
+| `WorkLoom-growth` | `quality-gate.mjs` 早于 `completeVideoPublishGate` / `complete-publish`；`cover-design.ts` 无 `requestedCoverPlan`，无 `edit-cover` 脚本 | not applicable | B：两文件逐段对照，不含触发分支 |
+| `hyperreality-system` | 只在 vendor 内有旧 production-engine quality gate；无本仓 `post-bridge`、`cover-design` 或 `edit-cover` 接缝 | not applicable | B：仓库文件树检索 |
+| `workloom-growthtest` | 有 `post-bridge/quality-gate.mjs`，但版本早于 `completeVideoPublishGate`；无 `edit-cover` / 当前封面请求路径 | 不修改：隔离副本且不触发 | B：当前工作树文件树与源码检索 |
+| `workloom-growthmatrix` | 隔离副本；上一轮回扫已确认它沿用旧视频接缝 | 不修改：`none-in-none-out` | B：复制点与隔离登记 |
+
+因此本轮新增修复没有需要同步的运行时消费方。该结论只覆盖上述三个根因，不扩大为对这些仓全部视频能力的验收。

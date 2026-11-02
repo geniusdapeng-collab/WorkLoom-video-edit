@@ -111,7 +111,9 @@ describe("actual generation prompt seams compile the current cinematic contract"
       if (!assignment) throw new Error("Material cinematic assignment seam missing");
       code = `let prompt = ${declaration.getText(sourceFile)}; ${assignment.getText(sourceFile)} prompt;`;
     }
-    const output = vm.runInNewContext(compile(code), { ...scope(), card, duration: 4, reference: { prompt: "original reference contract" } }, { timeout: 1000 }) as string;
+    const output = vm.runInNewContext(compile(code), {
+      ...scope(), card, duration: 4, productReference: false, reference: { prompt: "original reference contract" },
+    }, { timeout: 1000 }) as string;
     expect(output).toContain("实景依据"); expect(output).toContain("不得复刻参考图的构图");
     for (const key of ["purpose", "framing", "depth", "lighting", "action", "camera", "artDirection", "sound"] as const) expect(output).toContain(contract[key]);
   });

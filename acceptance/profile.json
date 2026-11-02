@@ -27,16 +27,12 @@
       "/inbox",
       "/tasks",
       "/reports",
-      "/service",
       "/executive",
       "/guardrails",
       "/exams",
       "/memory",
       "/night",
       "/skills",
-      "/members",
-      "/partners",
-      "/account",
       "/workspaces",
       "/customize",
       "/configuration",
@@ -248,9 +244,9 @@
     },
     {
       "id": "EXP-05",
-      "persona": "partner",
-      "title": "增长实验策略核查：越权拒绝可见",
-      "script": "builtin:partner-scope"
+      "persona": "owner",
+      "title": "数字员工档案：身份、技能状态、围栏授权与工作记录",
+      "script": "builtin:agent-boundary"
     },
     {
       "id": "EXP-06",
@@ -259,7 +255,7 @@
       "script": "builtin:guest-service"
     }
   ],
-  "notes": "本仓代表任务是增长实验策略核查：正常结果（P0 k=5）、输入错误、无身份权限三路径。profile-check/outcome --validate-only 仅校验配置；真实行业结果、体验、长跑和完整276项仍须独立验收。",
+  "notes": "本仓代表任务是增长实验策略核查：正常结果（P0 k=5）、输入错误、无身份权限三路径。服务前台、成员管理、伙伴授权和个人偏好已按 2026-09-20 产品决定从本实例下线，因此 surface 不再把对应 404 深链计为通过；信任边界改在数字员工档案页验证身份、技能、围栏与工作记录。profile-check/outcome --validate-only 仅校验配置；真实行业结果、体验、长跑和完整276项仍须独立验收。",
   "environment": {
     "kind": "client-runtime",
     "allowWrites": false,

@@ -50,7 +50,9 @@ beforeAll(async () => {
   expect(result.text, "actual edit-post stdout/stderr").toBeTruthy(); expect(result.code, result.text).toBe(0);
   expect(fs.existsSync(path.join(root, "missing-home"))).toBe(false);
 }, 180_000);
-afterAll(() => { if (root) fs.rmSync(root, { recursive: true, force: true }); });
+afterAll(() => {
+  if (root && process.env.WORKLOOM_KEEP_TEST_MEDIA !== "1") fs.rmSync(root, { recursive: true, force: true });
+});
 test("actual edit-post preserves native pixels/frames, default declared hard cuts, requested text forms and SFX", async () => {
   const manifest = json(path.join(out, "delivery-manifest.json"));
   expect(manifest.resolution).toEqual([320, 180]); expect(manifest.nativeResolution).toEqual([320, 180]); expect(manifest.postQuality.passed).toBe(true);
@@ -111,7 +113,7 @@ test("explicit color-map shots are recorded as taken over and do not receive sha
   expect(summary.colorMap.applied).toBe(1);
 }, 120_000);
 test("actual cover CLI without a timeline publishes declared intro forms and preserves every soft subtitle stream", async () => {
-  const result = await command("scripts/tools/edit-cover.mts", ["--input", path.join(out, "master/master-clean.mp4"), "--out-dir", out, "--variants", "warm-story,clean-tech", "--title", "看山吃饺子", "--hook", "吃饺子", "--burn-intro", "0.2", "--renderer", "ffmpeg"]);
+  const result = await command("scripts/tools/edit-cover.mts", ["--input", path.join(out, "master/master-clean.mp4"), "--out-dir", out, "--variants", "warm-story,clean-tech", "--title", "看山吃饺子", "--hook", "一碗热乎的家常味", "--burn-intro", "0.2", "--renderer", "ffmpeg"]);
   expect(result.code, result.text).toBe(0);
   const manifest = json(path.join(out, "delivery-manifest.json")); expect(manifest.coverIntro.forms.length).toBeGreaterThan(0);
   const project = json(path.join(out, "film-project.json"));
@@ -119,7 +121,7 @@ test("actual cover CLI without a timeline publishes declared intro forms and pre
     const saved = project.layers.variants.find((row: any) => row.id === variant.id);
     expect(saved.artifacts.cover.path).toBe(variant.cover.path);
     expect(saved.artifacts.cover.sha256).toBe(sha(path.join(out, variant.cover.path)));
-    expect(saved.style.cover).toMatchObject({ title: "看山吃饺子", hook: "吃饺子" });
+    expect(saved.style.cover).toMatchObject({ title: "看山吃饺子", hook: "一碗热乎的家常味" });
   }
   for (const form of manifest.coverIntro.forms.filter((row: any) => row.form === "softsub" || row.form === ".softsub")) expect(media(path.join(out, form.output ?? form.path)).streams.some((stream: any) => stream.codec_type === "subtitle")).toBe(true);
   expect((await inspectDeliveryManifest({ root: out, manifest, bins })).passed).toBe(true);

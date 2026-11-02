@@ -306,7 +306,9 @@ export async function inspectPostQuality({ root, assets = [], contract = {}, rec
         for (const id of requiredIds) {
           const asset = assetById.get(id);
           try {
-            if (name === "cover" && asset.media === "image") { /* Actual dimensions + decode + engine cover checks below. */ }
+            if (name === "cover" && (asset.media === "image" || asset.media === "video")) {
+              /* Covers and complete cover videos are verified by decoded dimensions and cover receipt checks below. */
+            }
             else if (name === "subtitles" && asset.media === "subtitle") { /* Every cue already parsed above. */ }
             else {
               if (asset.media !== "json") throw new Error("环节资产类别与实际加工证据不一致");
