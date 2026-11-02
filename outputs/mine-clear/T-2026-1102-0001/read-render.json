@@ -248,17 +248,26 @@
       "reason": "核对结构化日志与业务stage记账边界，未读日志结果收尾实现",
       "grade": "C",
       "method": "targeted-reading"
+    },
+    {
+      "path": "apps/server/src/video/production-authority.pg.test.ts",
+      "lines": 263,
+      "level": "A",
+      "read": "full",
+      "grade": "A",
+      "method": "complete-reading",
+      "sha256": "e8f79f6a4e0f5f8d6faaa6716b58a8efcd47097a845a14fec68052915e8394c8"
     }
   ],
-  "exactFullCount": 21,
+  "exactFullCount": 22,
   "samplingCount": 5,
   "actor": "/root/render_audit",
   "auditBaseline": "d5ef7a7feaa6a76428503a07937c2215d1ed6538",
   "counts": {
-    "A": 21,
+    "A": 22,
     "B": 0,
     "C": 5,
     "D": 0,
-    "total": 26
+    "total": 27
   }
 }

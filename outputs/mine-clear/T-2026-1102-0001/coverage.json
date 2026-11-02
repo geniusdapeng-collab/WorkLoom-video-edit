@@ -1,11 +1,11 @@
 {
   "schema": "edit.pre-render-audit-coverage/v1",
   "auditBaseline": "d5ef7a7feaa6a76428503a07937c2215d1ed6538",
-  "sourceCommit": "0b2978da83d0cd0fc493cd896214452bee9582a8",
+  "sourceCommit": "af83c5cc86941b7410dc08947d02f06477eb9e04",
   "counts": {
     "total": 400,
-    "A": 63,
-    "B": 320,
+    "A": 64,
+    "B": 319,
     "C": 17,
     "D": 0,
     "unread": 0
@@ -25,8 +25,8 @@
       "grade": "A",
       "reader": "/root",
       "method": "complete-reading",
-      "lines": 151,
-      "sha256": "cf1b79aace2bda389a8e400f5f620181cf86e1af4ef2f01fd55f0af2fede4a8e",
+      "lines": 152,
+      "sha256": "216263477c7f8b7b891ed0f5265edd3b093d2df31c6af515b758bacef969b4ee",
       "imports": [],
       "machineChecks": [
         "utf8-read",
@@ -2094,11 +2094,13 @@
     },
     {
       "path": "apps/server/src/video/production-authority.pg.test.ts",
-      "grade": "B",
-      "reader": "inventory-script",
-      "method": "full-file metadata/hash/import scan only; no claim of semantic reading",
-      "lines": 257,
-      "sha256": "ce8b6c4963155e5fc98b07103c631c110ea1df8e478c6ae0fbd0d353cc3dff8e",
+      "lines": 263,
+      "level": "A",
+      "read": "full",
+      "grade": "A",
+      "method": "complete-reading",
+      "sha256": "e8f79f6a4e0f5f8d6faaa6716b58a8efcd47097a845a14fec68052915e8394c8",
+      "reader": "read-render.json",
       "imports": [
         "vitest",
         "pg",
@@ -2111,7 +2113,8 @@
         "./marketing-authority.js",
         "./gen/compiled-request.js",
         "./gen/submit.js",
-        "./archive-host.js"
+        "./archive-host.js",
+        "@hyperreality/video-studio"
       ],
       "machineChecks": [
         "utf8-read",

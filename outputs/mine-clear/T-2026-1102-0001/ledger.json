@@ -5,7 +5,7 @@
   "repo_path": "/Users/mac/Documents/Codex/2026-11-02/edit-ai-n-n-ai-github/work/repo",
   "title": "Edit通用与营销视频前期审计修复",
   "created_at": "2026-11-02T13:56:26.246Z",
-  "updated_at": "2026-11-02T14:24:33.307Z",
+  "updated_at": "2026-11-02T14:31:07.308Z",
   "baseline": {
     "audit": {
       "commit": "d5ef7a7feaa6a76428503a07937c2215d1ed6538",
@@ -561,6 +561,50 @@
         "command": "node node_modules/vitest/vitest.mjs run apps/server/src/video/prompt-quality-gate.test.ts --maxWorkers=1 --no-file-parallelism"
       },
       "notes": "实现证据A级；本机fixture运行仅B级，不代表付费模型产出率。"
+    },
+    {
+      "id": "MC-010",
+      "kind": "problem",
+      "level": "L4",
+      "severity": "P2",
+      "batch": 3,
+      "state": "open",
+      "title": "营销子串规则将动作次序误判成对外绝对化宣称，策略待对齐",
+      "evidence": [
+        {
+          "type": "code",
+          "ref": "vendor/supermickey/hyperreality-system/engines/production-engine/agents/marketing-compliance-guard.js:53@d5ef7a7feaa6a76428503a07937c2215d1ed6538",
+          "sha256": "afc23593c421dce41bcfc2ff2352abac28c55c096b3e05b0e221717123a9e537",
+          "note": "第一步命中第一；词库同时保护实际绝对化营销宣称"
+        }
+      ],
+      "root_cause": {
+        "file": "vendor/supermickey/hyperreality-system/engines/production-engine/agents/marketing-compliance-guard.js",
+        "line": 53,
+        "commit": "d5ef7a7feaa6a76428503a07937c2215d1ed6538",
+        "symbol": "MarketingComplianceGuard.check"
+      },
+      "trigger_path": "营销镜头【动作】第一步打开包装被拒绝",
+      "assertions": [
+        {
+          "kind": "sample",
+          "given": "顺序动作与真实绝对化宣称正负对照",
+          "expect": "顺序动作通过，真实营销宣称仍拒绝",
+          "command": "node outputs/mine-clear/T-2026-1102-0001/diagnostics/compliance-ordinal.mjs",
+          "exec": {
+            "file": "node",
+            "args": [
+              "outputs/mine-clear/T-2026-1102-0001/diagnostics/compliance-ordinal.mjs"
+            ]
+          },
+          "last_result": "not-run"
+        }
+      ],
+      "regression": {
+        "command": "node outputs/mine-clear/T-2026-1102-0001/diagnostics/compliance-ordinal.mjs"
+      },
+      "fix_plan": "待产品对齐约束来源/适用性及面向观众宣称载体策略后实施，保留事实硬闸，不直接删除词库",
+      "notes": "发现未修：按用户要求大方案先对齐。此诊断当前故意退出1，不在常规绿色测试集。"
     }
   ],
   "gates": [],
