@@ -1,0 +1,264 @@
+{
+  "baseline": "d5ef7a7feaa6a76428503a07937c2215d1ed6538",
+  "files": [
+    {
+      "path": "apps/server/src/video/production-router.ts",
+      "lines": 42,
+      "level": "A",
+      "read": "full",
+      "grade": "A",
+      "method": "complete-reading",
+      "sha256": "4c6dd2ee654dc8e629efaf6bc23d3734927a6a1f6d56ab94a52a7167395b58cf"
+    },
+    {
+      "path": "apps/server/src/video/production-authority.ts",
+      "lines": 622,
+      "level": "A",
+      "read": "full",
+      "grade": "A",
+      "method": "complete-reading",
+      "sha256": "5e5bf4a9ca045453d3140e805765d9ef5095c1bdb81ac1ea3242489980f87a4e"
+    },
+    {
+      "path": "apps/server/src/video/production-authority.test.ts",
+      "lines": 427,
+      "level": "A",
+      "read": "full",
+      "grade": "A",
+      "method": "complete-reading",
+      "sha256": "4cdf9b588d22dec5fb3cd0bb203fa2bb8b14f810491e8d6ba4787e1eb788a1c1"
+    },
+    {
+      "path": "apps/server/src/video/prompt-quality-gate.ts",
+      "lines": 936,
+      "level": "A",
+      "read": "full",
+      "grade": "A",
+      "method": "complete-reading",
+      "sha256": "8c722367ce4cb173187c9ec286736ec6a917356e1d1dfad50afbe6e2acfc9c5a"
+    },
+    {
+      "path": "apps/server/src/video/prompt-quality-gate.test.ts",
+      "lines": 268,
+      "level": "A",
+      "read": "full",
+      "grade": "A",
+      "method": "complete-reading",
+      "sha256": "e8c1e5dccadeabe04fa131d45b4d0c05fea6c4e5c5067b8a40754ebb67278eac"
+    },
+    {
+      "path": "apps/server/src/video/gen/compiled-request.ts",
+      "lines": 154,
+      "level": "A",
+      "read": "full",
+      "grade": "A",
+      "method": "complete-reading",
+      "sha256": "8eef97897d6da113c56f2543098c0f27f0fbda171443869db29095ff965f181a"
+    },
+    {
+      "path": "apps/server/src/video/gen/compiled-request.test.ts",
+      "lines": 63,
+      "level": "A",
+      "read": "full",
+      "grade": "A",
+      "method": "complete-reading",
+      "sha256": "1eaa4d456329f593bb9c95bdb475a33e67ea7c1910d6f94a7835d1e5ad1f4ca0"
+    },
+    {
+      "path": "apps/server/src/video/gen/providers.ts",
+      "lines": 293,
+      "level": "A",
+      "read": "full",
+      "grade": "A",
+      "method": "complete-reading",
+      "sha256": "344138a7285580d068db2354b752038f3e568ca052b64f65022b392f249ce77d"
+    },
+    {
+      "path": "apps/server/src/video/gen/catalog.ts",
+      "lines": 193,
+      "level": "A",
+      "read": "full",
+      "grade": "A",
+      "method": "complete-reading",
+      "sha256": "08cb1723c15d58eaad81bb594936f604c043a58dcbfc1a00ae9056eefa47368d"
+    },
+    {
+      "path": "apps/server/src/video/gen/types.ts",
+      "lines": 158,
+      "level": "A",
+      "read": "full",
+      "grade": "A",
+      "method": "complete-reading",
+      "sha256": "f4fa56ca52b82217698ee3cf05facb0b693144a6b59ae4ab081c06d6d0520b95"
+    },
+    {
+      "path": "apps/server/src/video/gen/db.ts",
+      "lines": 33,
+      "level": "A",
+      "read": "full",
+      "grade": "A",
+      "method": "complete-reading",
+      "sha256": "44ff4a9c803a4899e8f9239cc9ffc0c345e17811e91cbbe6a9ec1e61e7243e9c"
+    },
+    {
+      "path": "apps/server/src/video/gen/submit.ts",
+      "lines": 283,
+      "level": "A",
+      "read": "full",
+      "grade": "A",
+      "method": "complete-reading",
+      "sha256": "5681ed3c2cdb1f943ecdba9ff8e7c73f485c32c0a2d99041b68c46cc6e2e19c1"
+    },
+    {
+      "path": "apps/server/src/video/gen/submission-ledger.ts",
+      "lines": 231,
+      "level": "A",
+      "read": "full",
+      "grade": "A",
+      "method": "complete-reading",
+      "sha256": "c4ec9d7df53b103e3e1eb4d5684726fbd26db472e307ae844d908d96e7b14738"
+    },
+    {
+      "path": "packages/video-studio/src/production-client.ts",
+      "lines": 181,
+      "level": "A",
+      "read": "full",
+      "grade": "A",
+      "method": "complete-reading",
+      "sha256": "4dace69d8d74886b6e901c964506769a890f6db5f6fa61c9e7e9d5f9e7a4bc74"
+    },
+    {
+      "path": "packages/video-studio/src/production-client.test.ts",
+      "lines": 179,
+      "level": "A",
+      "read": "full",
+      "grade": "A",
+      "method": "complete-reading",
+      "sha256": "89eede7612710b4347307234b8511f2b1ed9ca105c0792fe01c4aac05b0258ae"
+    },
+    {
+      "path": "packages/video-studio/src/prompt-compiler.ts",
+      "lines": 364,
+      "level": "A",
+      "read": "full",
+      "grade": "A",
+      "method": "complete-reading",
+      "sha256": "70fc9086bbb5362364c89f2320f5c32f6882e634774d3f8147b170a400a67f12"
+    },
+    {
+      "path": "packages/video-studio/src/prompt-contract.ts",
+      "lines": 305,
+      "level": "A",
+      "read": "full",
+      "grade": "A",
+      "method": "complete-reading",
+      "sha256": "79dd956e8839f7b4eb7032e6af93c411b133020affd5d53373524eb887801cd6"
+    },
+    {
+      "path": "packages/video-studio/src/llm-adapter.ts",
+      "lines": 438,
+      "level": "A",
+      "read": "full",
+      "grade": "A",
+      "method": "complete-reading",
+      "sha256": "6a49f7dd52babf538a948f809e51dbb6661f3737a4a111d0ef2970ffa1b0abb0"
+    },
+    {
+      "path": "scripts/tools/render-project.mts",
+      "lines": 594,
+      "level": "A",
+      "read": "full",
+      "grade": "A",
+      "method": "complete-reading",
+      "sha256": "d0fcbf0bfcf42739b013517904293a1ae95b014cc415be0bf645467ec049a7e0"
+    },
+    {
+      "path": "apps/server/src/video/router.ts",
+      "lines": 2002,
+      "level": "C",
+      "read": "targeted",
+      "ranges": [
+        "969-1250"
+      ],
+      "reason": "本分工聚焦已签发资格到唯一submit边界，router其它项目/CMS/轮询路由按调用点定位",
+      "grade": "C",
+      "method": "targeted-reading"
+    },
+    {
+      "path": "scripts/tools/full-chain-film.mts",
+      "lines": 6617,
+      "level": "C",
+      "read": "targeted",
+      "ranges": [
+        "2397-2420"
+      ],
+      "reason": "脚本含大段渲染与后期，正式服务submit前链路由production-authority与render-project完整精读；此文件仅核对既有图像编码表示",
+      "grade": "C",
+      "method": "targeted-reading"
+    },
+    {
+      "path": "apps/server/src/video/studio-worker.ts",
+      "level": "C",
+      "read": "targeted",
+      "ranges": [
+        "550-615",
+        "938-986"
+      ],
+      "reason": "完整worker由root负责，本分工核对合同资产来源和归档路径",
+      "grade": "C",
+      "method": "targeted-reading"
+    },
+    {
+      "path": "apps/server/src/video/film-worker.ts",
+      "level": "C",
+      "read": "targeted",
+      "ranges": [
+        "170-195"
+      ],
+      "reason": "核对既有data URI编码语义，完整film worker非本分工范围",
+      "grade": "C",
+      "method": "targeted-reading"
+    },
+    {
+      "path": "packages/video-studio/src/archive/logger.ts",
+      "lines": 147,
+      "level": "A",
+      "read": "full",
+      "grade": "A",
+      "method": "complete-reading",
+      "sha256": "902cb7bbdaacae5434cae5ecf5e6c3119002fb14d3f8a156351af412ec931262"
+    },
+    {
+      "path": ".github/workflows/ci.yml",
+      "lines": 152,
+      "level": "A",
+      "read": "full",
+      "grade": "A",
+      "method": "complete-reading",
+      "sha256": "31279d37b4db48704ab0bae04c4c51ef68179d9b38545312fbfa94b8fa6a4237"
+    },
+    {
+      "path": "packages/video-studio/src/archive/stage-log.ts",
+      "lines": 153,
+      "level": "C",
+      "read": "targeted",
+      "ranges": [
+        "1-130"
+      ],
+      "reason": "核对结构化日志与业务stage记账边界，未读日志结果收尾实现",
+      "grade": "C",
+      "method": "targeted-reading"
+    }
+  ],
+  "exactFullCount": 21,
+  "samplingCount": 5,
+  "actor": "/root/render_audit",
+  "auditBaseline": "d5ef7a7feaa6a76428503a07937c2215d1ed6538",
+  "counts": {
+    "A": 21,
+    "B": 0,
+    "C": 5,
+    "D": 0,
+    "total": 26
+  }
+}
