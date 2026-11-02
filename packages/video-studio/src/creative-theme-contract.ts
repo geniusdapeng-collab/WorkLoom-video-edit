@@ -162,7 +162,11 @@ export function normalizeCreativeThemeContract(
         task.description = safeDescription(text(task.theme) || text(brief.product) || "本次主题", intent, true);
         changes.push("no-person-description-normalized");
       }
-      const dialogue = "全片无人物对白、无口播、无拟人旁白；不新增人物声音。";
+      // A visual cast decision cannot revoke requested off-screen audio. Keep
+      // the complete customer source instead of guessing positive/negative
+      // voice instructions from keywords or preserving an invented speaker.
+      const dialogue = "画面内无人物对白；画外旁白、配音及声音内容严格按客户原文要求执行；客户未明确请求时不新增人声。"
+        + (intent ? `\n客户声音要求以完整原文为准：${intent}` : "");
       if (task.dialogue_requirement !== dialogue) {
         task.dialogue_requirement = dialogue;
         changes.push("no-person-dialogue-contract-normalized");

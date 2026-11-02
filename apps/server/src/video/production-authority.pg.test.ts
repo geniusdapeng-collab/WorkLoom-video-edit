@@ -11,6 +11,7 @@ import { prepareMarketingFacts, finalizeMarketingFacts } from "./marketing-autho
 import { renderSha256 } from "./gen/compiled-request.js";
 import { submitGenJob } from "./gen/submit.js";
 import { projectRunLockKey } from "./archive-host.js";
+import { DEEPSEEK_FLASH_MODEL } from "@hyperreality/video-studio";
 
 const RUN_DB = process.env.RUN_DB_TESTS === "1" && Boolean(process.env.DATABASE_APP_URL);
 describe.runIf(RUN_DB)("正式生成资格活库契约", () => {
@@ -36,11 +37,15 @@ describe.runIf(RUN_DB)("正式生成资格活库契约", () => {
   beforeEach(async () => {
     projectId = `P-${suffix}-${++seq}`; sourceId = `SR-${suffix}-${seq}`;
     env = { HR_WORK_DIR: dir, WORKLOOM_RENDER_SIGNING_SECRET: "pg-test-render-signing-secret-more-than-32-bytes",
-      VOLCENGINE_ARK_API_KEY: "pg-test-provider", LLM_BASE_URL: "https://judge.example.test", LLM_API_KEY: "pg-test-judge", LLM_MODEL: "test-judge" };
+      VOLCENGINE_ARK_API_KEY: "pg-test-provider", LLM_BASE_URL: "https://judge.example.test", LLM_API_KEY: "pg-test-judge", LLM_MODEL: DEEPSEEK_FLASH_MODEL };
     approved = true; providerCalls = 0; calls = [];
     vi.stubGlobal("fetch", vi.fn(async (url, init) => {
       calls.push({ url: String(url), body: String(init.body) });
-      if (String(url).endsWith("/chat/completions")) return new Response(JSON.stringify({ choices: [{ message: { content: JSON.stringify({ approved, score: approved ? 95 : 30, issues: approved ? [] : ["不合格"], suggestions: [], reason: "测试裁决" }) } }] }));
+      if (String(url).endsWith("/chat/completions")) return new Response(JSON.stringify({
+        id: `judge-${suffix}-${seq}`, model: DEEPSEEK_FLASH_MODEL,
+        choices: [{ finish_reason: "stop", message: { content: JSON.stringify({ approved, score: approved ? 95 : 30, issues: approved ? [] : ["不合格"], suggestions: [], reason: "测试裁决" }) } }],
+        usage: { prompt_tokens: 100, completion_tokens: 30, total_tokens: 130, completion_tokens_details: { reasoning_tokens: 10 } },
+      }));
       providerCalls++;
       return new Response(JSON.stringify({ id: `provider-${suffix}-${seq}` }));
     }));
@@ -52,7 +57,7 @@ describe.runIf(RUN_DB)("正式生成资格活库契约", () => {
       const file = path.join(dir, "workspaces", scope.workspaceId, "gates", projectId, "attempt-1", `${gate}.md`);
       await mkdir(path.dirname(file), { recursive: true }); await writeFile(file, "完整预生产门内容");
       proofs.push(gate === "G5_PORTRAIT" ? { gate, status: "not_applicable", approved: true, basis: "no-characters-or-products" }
-        : { gate, status: "passed", approved: true, via: "llm", degraded: false, model: "test-judge", evidence: [{ path: file, sha256: renderSha256("完整预生产门内容"), scope: "complete-text" }] });
+        : { gate, status: "passed", approved: true, via: "llm", degraded: false, model: DEEPSEEK_FLASH_MODEL, evidence: [{ path: file, sha256: renderSha256("完整预生产门内容"), scope: "complete-text" }] });
     }
     const prompts = JSON.stringify({ stageId: "preproduction", attempt: 1, pipelineKind: "narrative", shots: [
       { shotId: "S1", durationSec: 5, degraded: false, prompt: "固定机位拍摄窗边玻璃杯。", fields: { durationSec: 5 } },
@@ -99,7 +104,8 @@ describe.runIf(RUN_DB)("正式生成资格活库契约", () => {
   async function marketingSource() {
     const root = path.join(dir, "archive", scope.workspaceId, projectId);
     const body = "星野 F3 风扇支持 9 档风量；9 档不是能耗等级。", sourceUrl = "https://source.example.com/f3";
-    const snapshot = { sourceId: "SRC-pg", requestedUrl: sourceUrl, finalUrl: sourceUrl, redirectChain: [], fetchedAt: new Date().toISOString(), contentType: "text/plain", rawSha256: renderSha256(body), textSha256: renderSha256(body), bytes: Buffer.byteLength(body), text: body, assetUrls: [] };
+    const textSha256 = renderSha256(body);
+    const snapshot = { sourceId: `SRC-${renderSha256(`${sourceUrl}\n${textSha256}`).slice(0, 24)}`, requestedUrl: sourceUrl, finalUrl: sourceUrl, redirectChain: [], fetchedAt: new Date().toISOString(), contentType: "text/plain", rawSha256: renderSha256(body), textSha256, bytes: Buffer.byteLength(body), text: body, assetUrls: [] };
     const prepared = await prepareMarketingFacts({ scope: { ...scope, projectId, runId: `RUN-${seq}`, attempt: 1 }, root, env,
       intent: "介绍星野 F3 的风量档位", metadata: { brief: { product: "星野 F3" } },
       llm: { reason: async prompt => {
@@ -115,7 +121,7 @@ describe.runIf(RUN_DB)("正式生成资格活库契约", () => {
     await writeFile(g1File, prepared.g1Content);
     const output = JSON.parse(await readFile(outputFile, "utf8"));
     output.marketingFactsRef = saved.ref; output.marketingFactsSha256 = saved.sha256;
-    output.productionEvidence.pipelineKind = "marketing"; output.productionEvidence.gates.unshift({ gate: "G1_DOSSIER", status: "passed", approved: true, via: "llm", degraded: false, model: "test-judge", evidence: [{ path: g1File, sha256: renderSha256(prepared.g1Content), scope: "complete-text" }] });
+    output.productionEvidence.pipelineKind = "marketing"; output.productionEvidence.gates.unshift({ gate: "G1_DOSSIER", status: "passed", approved: true, via: "llm", degraded: false, model: DEEPSEEK_FLASH_MODEL, evidence: [{ path: g1File, sha256: renderSha256(prepared.g1Content), scope: "complete-text" }] });
     const promptBytes = JSON.stringify(prompts); await writeFile(promptsFile, promptBytes); output.promptsSha256 = renderSha256(promptBytes);
     const bytes = JSON.stringify(output); await writeFile(outputFile, bytes);
     await owner.query("UPDATE video_projects SET kind='marketing' WHERE id=$1", [projectId]);

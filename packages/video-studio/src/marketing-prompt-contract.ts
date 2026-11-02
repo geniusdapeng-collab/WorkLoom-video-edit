@@ -3,6 +3,11 @@ type RecordValue = Record<string, unknown>;
 export interface MarketingPromptOptions {
   targetDuration: number;
   noPeople: boolean;
+  /** Visual cast does not imply silence; only an explicit approved audio contract may set this. */
+  noDialogue?: boolean;
+  aspectRatio?: "16:9" | "9:16" | "1:1" | "4:3";
+  resolution?: "1080p" | "4K";
+  subtitleMode?: "both" | "burned" | "sidecar" | "none";
   /** Client explicitly restricts visuals to abstract interfaces, code, and diagrams. */
   abstractOnly?: boolean;
   /** Formal delivery frame rate when the caller has already resolved it. */
@@ -107,43 +112,28 @@ const ABSTRACT_OBJECT_TAGS: Readonly<Record<string, string>> = {
 
 export function marketingVisibleTextFromG1(content: string): string[] {
   try {
-    const root = JSON.parse(content) as RecordValue;
-    const facts = isRecord(root.facts) ? root.facts : root;
-    const identity = isRecord(facts.productQuery) && isRecord(facts.productQuery.identity)
-      ? facts.productQuery.identity
-      : isRecord(facts.identity) ? facts.identity : {};
-    const product = isRecord(facts.productQuery) ? facts.productQuery : {};
-    const rawByAgent = isRecord(facts.rawByAgent) ? facts.rawByAgent : {};
-    const rawA1 = isRecord(rawByAgent.A1) ? rawByAgent.A1 : {};
-    const extracted = isRecord(rawA1.identity) ? rawA1.identity : {};
-    const values: string[] = [];
+    const root: unknown = JSON.parse(content);
+    if (!isRecord(root) || !isRecord(root.facts)) return [];
+    const facts = root.facts;
+    const sources = Array.isArray(facts.sources) ? facts.sources.filter(isRecord) : [];
+    const values: string[] = [], used = new Set<RecordValue>();
     const add = (value: unknown): void => {
-      if (typeof value !== "string") return;
-      const text = value.trim();
-      if (text && !values.includes(text)) values.push(text);
+      if (typeof value === "string" && value.trim() && !values.includes(value.trim())) values.push(value.trim());
     };
-    add(product.name ?? identity.name);
-    add(product.brand ?? identity.brand);
-    const points = Array.isArray(extracted.official_selling_points)
-      ? extracted.official_selling_points
-      : Array.isArray(identity.official_selling_points) ? identity.official_selling_points : [];
-    for (const point of points) {
-      if (isRecord(point)) add(point.point);
-    }
-    const specs = isRecord(extracted.specs) ? extracted.specs : isRecord(identity.specs) ? identity.specs : {};
-    if (isRecord(specs)) {
-      for (const key of ["License", "license", "Default branch", "Source model"]) {
-        add(specs[key]);
-        if (/^license$/iu.test(key) && typeof specs[key] === "string") add(`License: ${specs[key]}`);
+    for (const stage of Array.isArray(facts.stages) ? facts.stages.filter(isRecord) : []) {
+      if (stage.stage !== "A1" || !isRecord(stage.facts)) continue;
+      for (const claim of Array.isArray(stage.facts.claims) ? stage.facts.claims.filter(isRecord) : []) {
+        if (claim.stage !== "A1" || claim.status !== "source-bound" || typeof claim.pointer !== "string"
+          || !/^\/identity\/(?:name|brand|official_selling_points\/\d+\/point|specs\/(?:License|license|Default branch|Source model))$/u.test(claim.pointer)) continue;
+        const bound = sources.filter(source => source.sourceId === claim.sourceId && source.textSha256 === claim.textSha256
+          && /^[a-f0-9]{64}$/u.test(String(source.textSha256)) && typeof source.finalUrl === "string" && /^https?:\/\//u.test(source.finalUrl));
+        if (bound.length !== 1) continue;
+        add(claim.value); used.add(bound[0]!);
       }
     }
-    for (const source of Array.isArray(facts.sources) ? facts.sources : []) {
-      if (isRecord(source)) add(source.finalUrl);
-    }
+    for (const source of used) add(source.finalUrl);
     return values.slice(0, 8);
-  } catch {
-    return [];
-  }
+  } catch { return []; }
 }
 
 export function isAbstractMarketingIntent(value: string): boolean {
@@ -166,6 +156,7 @@ function capTimecodes(value: string, duration: number): string {
 }
 
 function normalizePromptString(value: string, duration: number | null, options: MarketingPromptOptions): string {
+  if (!options.abstractOnly) return value;
   let next = value
     .replace(
       /01\.【语言约束】[^\n]*/u,
@@ -234,7 +225,7 @@ function normalizePromptString(value: string, duration: number | null, options: 
     .replace(/\b(?:3000|3200|5600|6000|6500)K\b/giu, "冷白色温")
     .replace(/\bBPM\b/giu, "节拍速度")
     .replace(/写实拍摄|实拍质感|照片级写实|棚拍空间|写实/gmu, "受控抽象影像")
-    .replace(/^(\d{2}\.)【台词】[^\n]*/gmu, "$1【台词】无对白；仅以本次 G1 已审原文和图形节奏传达信息。")
+    .replace(/^(\d{2}\.)【台词】[^\n]*/gmu, options.noDialogue ? "$1【台词】无对白；仅以本次 G1 已审原文和图形节奏传达信息。" : "$&")
     .replace(/^(\d{2}\.)【微动作】\s*(?:[。.]?)$/gmu, `$1【微动作】${NO_PERSON_MICRO_ACTION}`)
     .replace(/^(\d{2}\.)【负面约束】\s*[。.]?\s*$/gmu, "$1【负面约束】禁止人物、人体局部、实体硬件、可运行效果、额外字幕、品牌标识、用户评价与竞品对比。")
     .replace(/^(\d{2}\.)【情绪】\s*[。.]?\s*$/gmu, "$1【情绪】冷酷精密；无人物表演，仅由画布上的光线、文字与线条变化表达节奏。");
@@ -242,9 +233,9 @@ function normalizePromptString(value: string, duration: number | null, options: 
     next = next
       .replace(/，站立姿态[^。\n]*/gu, "")
       .replace(/^(\d{2}\.)【音频】[^\n]*/gmu,
-        "$1【音频】无对白、无口播、无人声、无音乐、无BGM、无配乐、无节拍；仅允许经授权的抽象环境音与动作音效，配乐由后期环节统一加入。")
+        options.noDialogue ? "$1【音频】无对白、无口播、无人声、无音乐、无BGM、无配乐、无节拍；仅允许经授权的抽象环境音与动作音效，配乐由后期环节统一加入。" : "$&")
       .replace(/^(\d{2}\.)【开场音频设计】[^\n]*/gmu,
-        "$1【开场音频设计】无对白、无口播、无人声、无音乐、无BGM、无配乐、无节拍；仅允许经授权的抽象环境音与动作音效，节奏由画面内图形变化决定。")
+        options.noDialogue ? "$1【开场音频设计】无对白、无口播、无人声、无音乐、无BGM、无配乐、无节拍；仅允许经授权的抽象环境音与动作音效，节奏由画面内图形变化决定。" : "$&")
       .replace(
         /，?[^。\n]*(?:转身|走动|抱头|伸展|指向|握拳|眨眼|瞪眼|肩膀|眼神|嘴唇|面部|眉头|嘴角|点头)[^。\n]*/gu,
         "；全片无人，不出现人物、人体局部或人物动作",
@@ -260,6 +251,15 @@ function normalizePromptString(value: string, duration: number | null, options: 
   }
   if (options.abstractOnly && options.frameRate !== undefined && options.frameRate !== 24) {
     next = next.replace(/\b24fps\b/giu, `${options.frameRate}fps`);
+  }
+  if (!options.noDialogue) {
+    // The abstract visual contract cannot edit approved narration or sound.
+    const audio = /^(?:\d{1,2}\.)?【(台词|音频|开场音频设计|音频纪律)】[^\n]*/gmu;
+    const originals = new Map<string, string[]>();
+    for (const match of value.matchAll(audio)) {
+      const lines = originals.get(match[1]!) ?? []; lines.push(match[0]); originals.set(match[1]!, lines);
+    }
+    next = next.replace(audio, (line, tag: string) => originals.get(tag)?.shift() ?? line);
   }
   return duration === null ? next : capTimecodes(next, duration);
 }
@@ -282,21 +282,9 @@ function normalizeAbstractField(tag: string, content: string): string {
   return next;
 }
 
-function extractAbstractVisibleText(value: string, seed: string[] = []): string[] {
-  const candidates: string[] = [];
-  const add = (candidate: string): void => {
-    const text = candidate.trim();
-    if (text && !candidates.includes(text)) candidates.push(text);
-  };
-  for (const item of seed) add(item);
-  for (const match of value.matchAll(/\bLicense\s*[：:]\s*Apache-2\.0\b/giu)) add(match[0].replace(/[：:]/gu, ": ").replace(/\s+/gu, " "));
-  for (const match of value.matchAll(/https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+/gu)) add(match[0]);
-  for (const match of value.matchAll(/[A-Z][A-Za-z0-9 ,.'’!?-]{24,220}[.!?]/gu)) {
-    const sentence = match[0].trim();
-    if (/\b(?:MP4|H\.264|H\.265|fps|T\d{2}:|prompt|negative|lighting|scene|shot|resolution)\b/iu.test(sentence)) continue;
-    add(sentence);
-  }
-  return candidates.slice(0, 8);
+function extractAbstractVisibleText(_value: string, seed: string[] = []): string[] {
+  // A generated prompt is not a source for new official text or licenses.
+  return [...new Set(seed.map(value => value.trim()).filter(Boolean))].slice(0, 8);
 }
 
 function abstractTimeline(duration: number, action: string, hasText: boolean): string {
@@ -358,14 +346,31 @@ function selectAbstractVisibleTexts(shotId: string, values: string[]): string[] 
   const clean = (items: Array<string | undefined>): string[] => [...new Set(items.filter((item): item is string => Boolean(item)))];
   if (shotId === "opening") return clean([url, values[0]]);
   if (shotId === "scene-1") return clean([official[0], values[1]]);
-  if (shotId === "scene-2") return [license ?? "Apache-2.0"];
+  if (shotId === "scene-2") return clean([license]);
   if (shotId === "scene-3") return clean([url, license, official[1], official[0]]);
   if (shotId === "scene-4") return [];
   if (shotId === "ending") return clean([official[0], url]);
   return clean([values[0]]);
 }
 
-function buildAbstractPromptFields(shotId: string, duration: number, visibleTexts: string[]): string[] {
+/** Same delivery canvases used by the approved production bridge. */
+export function marketingDeliveryCanvas(resolution: string, aspect: string): string {
+  const sizes: Record<string, [string, string]> = {
+    "9:16": ["1080x1920", "2160x3840"], "16:9": ["1920x1080", "3840x2160"],
+    "1:1": ["1080x1080", "2160x2160"], "4:3": ["1440x1080", "2880x2160"],
+  };
+  return (sizes[aspect] ?? sizes["9:16"]!)[resolution === "1080p" ? 0 : 1];
+}
+
+function buildAbstractPromptFields(shotId: string, duration: number, visibleTexts: string[], options: MarketingPromptOptions, sourceText = ""): string[] {
+  const aspect = options.aspectRatio ?? "9:16";
+  const canvas = marketingDeliveryCanvas(options.resolution ?? "4K", aspect);
+  const rate = options.frameRate ?? 30;
+  const subtitle = options.subtitleMode === "none" ? "字幕轨不生成，画面文字仅作图形层"
+    : options.subtitleMode ? `正式后期按 ${options.subtitleMode} 交付已审字幕；画面文字不替代字幕轨`
+      : "字幕按已审交付合同执行，不新增未请求的字幕";
+  const audioFields = new Map([...sourceText.matchAll(/【([^】]+)】([^【]*)/gu)].map(match =>
+    [match[1]!, match[2]!.replace(/\n\s*\d{1,2}\.\s*$/u, "").trim()]));
   const values = [...new Set(visibleTexts.filter(Boolean))];
   const hasText = values.length > 0;
   const sentence = values.map((value) => `“${value}”`).join("、");
@@ -374,7 +379,7 @@ function buildAbstractPromptFields(shotId: string, duration: number, visibleText
     ["语言约束", "除本次 G1 已审原文、许可证字段和仓库地址外，其余字段使用中文；不新增未审英文。"],
     ["导演意图", "极简抽象信息片；以本次 G1 已审原文、二维几何和受控明暗变化建立证据感；所有表达保持可读、可停稳、可截图复核。"],
     ["基础", "高质量二维文字与图形合成；文字边缘清晰，灰度层次稳定，画面不依赖实体材质、真实摄影或未审场景。字形、线宽、光点和灰阶在每个镜头内保持一致，不因缩放或叠层出现断裂、重影、噪点堆积与非受控闪动。"],
-    ["约束", "9:16 竖屏，2160x3840，30fps，H.264/MP4，AAC 48kHz 双声道；关键文字位于平台安全区，字幕轨不生成，画面文字仅作图形层。"],
+    ["约束", `${aspect} 画幅，${canvas}，${rate}fps，H.264/MP4，AAC 48kHz 双声道；关键文字位于平台安全区；${subtitle}。`],
     ["场景", `纯黑或冷灰二维抽象画布。本镜采用${variant.scene}；所有元素位于同一平面图层。文字与图形只在既定安全区内移动，层与层之间以明度、透明度和遮挡关系区分，无文字来源角标始终可辨认，任何装饰不得压住原文。来源角标为纯几何标记，不承载文字；${hasText ? "如出现地址，只使用本镜列明字符串。" : "本镜不出现任何文字、地址或标签。"}场景中的全部对象均为可替换的文字层或矢量层，不通过透视、阴影方向、景别变化或环境细节暗示画外空间。`],
     ["灯光设计", "只以冷白自发光和灰阶明暗差建立层级；亮部集中在文字与线条，暗部保持纯净，不声明实体灯具或环境照明。高光只沿字形和图形边缘出现，亮区面积随信息落点变化，暗区保持连续并避免过曝；所有明暗变化必须服务文字可读性、节点连接或结尾停稳。"],
     ["明亮约束", hasText ? "已审原文与关键图形在安全区内清晰可读，暗部不抬灰；亮暗变化只服务信息层级与停稳。" : "网格线、空框和光标在安全区内保持可辨，暗部不抬灰；亮暗变化只服务停顿和停稳。"],
@@ -406,9 +411,14 @@ function buildAbstractPromptFields(shotId: string, duration: number, visibleText
     ["角色一致性", "本镜无角色；保持二维色板、字形、光标和抽象几何样式一致。"],
     ["微动作", NO_PERSON_MICRO_ACTION],
     ["可见文字锁定", hasText ? `本镜只允许以下精确字符串上屏：${sentence}；不截断、不改标点、不新增其他文字。` : "本镜无屏上文字；不得由生成端补字、标签或占位符。"],
-    ["技术交付", "2160x3840，9:16，30fps，H.264/MP4，AAC 48kHz 双声道；AAC 响度 -14 LUFS，True Peak ≤ -1 dBTP。"],
+    ["技术交付", `${canvas}，${aspect}，${rate}fps，H.264/MP4，AAC 48kHz 双声道；AAC 响度 -14 LUFS，True Peak ≤ -1 dBTP。`],
   ];
-  return fields.map(([tag, content], index) => `${String(index + 1).padStart(2, "0")}.【${tag}】${content}`);
+  return fields.map(([tag, content], index) => {
+    if (!options.noDialogue && ["台词", "音频", "开场音频设计", "音频纪律"].includes(tag)) {
+      content = audioFields.get(tag) || "声音遵守本次已审音频合同；未请求的旁白、对白或配音不得新增。";
+    }
+    return `${String(index + 1).padStart(2, "0")}.【${tag}】${content}`;
+  });
 }
 
 function normalizeAbstractPromptMarkdown(value: string, changes: string[], options: MarketingPromptOptions): string {
@@ -419,7 +429,7 @@ function normalizeAbstractPromptMarkdown(value: string, changes: string[], optio
   const output: string[] = [];
   let shotId = "";
   let inPrompt = false;
-  let blockIndex = 0;
+  let promptLines: string[] = [];
   const rebuilt: Array<{ shotId: string; chars: number; count: number; duration: number }> = [];
   for (const line of lines) {
     const heading = /^###\s+([^(\s]+)\(/u.exec(line);
@@ -444,15 +454,15 @@ function normalizeAbstractPromptMarkdown(value: string, changes: string[], optio
     if (inPrompt && line.trim() === "```") {
       const duration = durationRows.get(shotId) ?? 4;
       const visible = selectAbstractVisibleTexts(shotId, visibleTexts);
-      const fields = buildAbstractPromptFields(shotId, duration, visible);
+      const fields = buildAbstractPromptFields(shotId, duration, visible, options, promptLines.join("\n"));
       const content = fields.join("\n");
       output.push(...fields, line);
       rebuilt.push({ shotId, chars: Array.from(content).length, count: fields.length, duration });
-      blockIndex += 1;
+      promptLines = [];
       inPrompt = false;
       continue;
     }
-    if (inPrompt) continue;
+    if (inPrompt) { promptLines.push(line); continue; }
     if (/^[；;]\s*全片无人，不出现人物、人体局部或人物动作/u.test(line.trim())) continue;
     output.push(line);
   }
@@ -500,45 +510,18 @@ function normalizeAbstractPromptMarkdown(value: string, changes: string[], optio
   return normalized;
 }
 
-function rebalanceDurations<T extends RecordValue>(items: T[], target: number): { items: T[]; changed: boolean } {
-  const durations = items.map((item) => Number(item.duration ?? item.duration_sec ?? 0));
-  if (items.length === 0 || durations.some((value) => !Number.isFinite(value) || value <= 0)) {
-    return { items, changed: false };
-  }
-  const total = durations.reduce((sum, value) => sum + value, 0);
-  if (Math.abs(total - target) < 1e-9) return { items, changed: false };
-  const exact = durations.map((value) => value * target / total);
-  const next = exact.map(Math.floor);
-  const remaining = target - next.reduce((sum, value) => sum + value, 0);
-  const order = exact.map((value, index) => ({ index, fraction: value - next[index]! }))
-    .sort((left, right) => right.fraction - left.fraction || left.index - right.index);
-  for (let offset = 0; offset < remaining; offset++) {
-    const index = order[offset % order.length]!.index;
-    next[index] = next[index]! + 1;
-  }
-  return {
-    items: items.map((item, index) => ({
-      ...item,
-      ...(typeof item.duration === "number" ? { duration: next[index] } : {}),
-      ...(typeof item.duration_sec === "number" ? { duration_sec: next[index] } : {}),
-    })),
-    changed: true,
-  };
-}
-
 function normalizeRecord(record: RecordValue, options: MarketingPromptOptions, changes: string[]): RecordValue {
   const next: RecordValue = {};
   for (const [key, value] of Object.entries(record)) {
-    if (typeof value === "string") {
+    if (key.startsWith("_")) { next[key] = structuredClone(value);
+    } else if (typeof value === "string") {
       const normalized = normalizePromptString(value, null, options);
       const abstractTag = options.abstractOnly ? ABSTRACT_OBJECT_TAGS[key] : undefined;
       next[key] = abstractTag ? normalizeAbstractField(abstractTag, normalized) : normalized;
     } else if (Array.isArray(value) && ["shots", "prompts"].includes(key)) {
       const records = value.filter(isRecord);
       if (records.length === value.length && records.length > 1) {
-        const balanced = rebalanceDurations(records, options.targetDuration);
-        if (balanced.changed) changes.push(`${key}-duration-conservation`);
-        next[key] = balanced.items.map((item) => normalizeRecord(item, options, changes));
+        next[key] = records.map((item) => normalizeRecord(item, options, changes));
       } else {
         next[key] = value.map((item) => normalizeUnknown(item, options, changes));
       }
@@ -551,7 +534,7 @@ function normalizeRecord(record: RecordValue, options: MarketingPromptOptions, c
     for (const [key, value] of Object.entries(next)) {
       if (typeof value === "string") next[key] = capTimecodes(value, duration);
     }
-    if (options.noPeople) {
+    if (options.noPeople && options.noDialogue) {
       if (typeof next.timeline === "string") {
         next.timeline = `T00:00–T00:${String(duration).padStart(2, "0")} 抽象发光画布上的 G1 已审原文与图形按已审节奏变化；画面无人、无硬件实体，结尾静止至本镜结束`;
         changes.push("no-person-timeline-normalized");
@@ -573,54 +556,16 @@ function normalizeUnknown(value: unknown, options: MarketingPromptOptions, chang
   return normalizeRecord(value, options, changes);
 }
 
-function normalizeMarkdownDurations(
-  markdown: string,
-  target: number,
-  options: MarketingPromptOptions,
-  changes: string[],
-): string {
-  const rows = [...markdown.matchAll(/^\|\s*([^|]+?)\s*\|\s*(\d+(?:\.\d+)?)s\s*\|/gmu)];
-  if (rows.length === 0) return markdown;
-  const balanced = rebalanceDurations(rows.map((match) => ({ duration: Number(match[2]) })), target);
-  if (!balanced.changed) return markdown;
-  changes.push("gate-duration-conservation");
-  let rowIndex = 0;
-  let next = markdown.replace(
-    /^(\|\s*([^|]+?)\s*\|)\s*(\d+(?:\.\d+)?)s(\s*\|)/gmu,
-    (_line, prefix: string, _name: string, _duration, suffix: string) =>
-      `${prefix} ${balanced.items[rowIndex++]!.duration}s${suffix}`,
-  );
-  if (options.noPeople && /^\|\s*镜头\s*\|\s*时长\s*\|.*有定妆照/mu.test(next)) {
-    next = next.split("\n").map((line) => {
-      if (!/^\|\s*(?!镜头\b|---)/u.test(line) || !line.includes("|")) return line;
-      const columns = line.split("|");
-      if (columns.length >= 9) columns[6] = " — ";
-      return columns.join("|");
-    }).join("\n");
-    changes.push("portrait-not-applicable-table");
-  }
-  const sections = [...next.matchAll(/^###\s+([^\n(]+)\(/gmu)];
-  for (let index = 0; index < sections.length; index++) {
-    const match = sections[index]!;
-    const start = match.index!;
-    const end = sections[index + 1]?.index ?? next.length;
-    const row = rows.findIndex((item) => item[1]!.trim() === match[1]!.trim());
-    if (row < 0) continue;
-    const duration = Number(balanced.items[row]!.duration);
-    next = `${next.slice(0, start)}${capTimecodes(next.slice(start, end), duration)}${next.slice(end)}`;
-  }
-  return `${next}\n\n> 宿主时长校正：${balanced.items.map((item) => `${item.duration}s`).join(" + ")} = ${target}s；以上各镜以校正后时长为绝对时间上界。\n`;
-}
-
 export function normalizeMarketingPromptText(
   value: string,
   options: MarketingPromptOptions,
 ): MarketingPromptNormalization<string> {
+  if (!options.abstractOnly) return { value, changes: [] };
   const changes: string[] = [];
   let next = normalizePromptString(value ?? "", null, options);
   if (next !== value) changes.push("gate-prompt-contract-normalized");
   if (options.abstractOnly) next = normalizeAbstractPromptMarkdown(next, changes, options);
-  next = normalizeMarkdownDurations(next, options.targetDuration, options, changes);
+  // Approved per-shot durations are authority, never a target to rebalance here.
   return { value: next, changes: [...new Set(changes)] };
 }
 
@@ -628,8 +573,12 @@ export function normalizeMarketingPromptResult<T>(
   value: T,
   options: MarketingPromptOptions,
 ): MarketingPromptNormalization<T> {
+  if (!options.abstractOnly) return { value, changes: [] };
   const changes: string[] = [];
-  const normalizedValue = normalizeUnknown(value, options, changes) as T;
+  const normalizedValue = structuredClone(value);
+  if (isRecord(normalizedValue) && isRecord(normalizedValue.stages) && isRecord(normalizedValue.stages.productionEngine)) {
+    normalizedValue.stages.productionEngine = normalizeRecord(normalizedValue.stages.productionEngine, options, changes);
+  }
   if (options.abstractOnly && isRecord(normalizedValue) && isRecord(normalizedValue.stages)) {
     const production = normalizedValue.stages.productionEngine;
     if (isRecord(production)) {
@@ -656,11 +605,12 @@ export function normalizeMarketingPromptList<T extends RecordValue>(
   prompts: T[],
   options: MarketingPromptOptions,
 ): T[] {
+  if (!options.abstractOnly) return structuredClone(prompts);
   const visibleTexts = extractAbstractVisibleText("", options.allowedVisibleText);
   return prompts.map((prompt, index) => {
     const shotId = String(prompt.shotId ?? prompt.shot_id ?? `shot-${index + 1}`);
     const duration = Number(prompt.duration ?? prompt.duration_sec ?? 0);
-    const fields = buildAbstractPromptFields(shotId, duration, selectAbstractVisibleTexts(shotId, visibleTexts));
+    const fields = buildAbstractPromptFields(shotId, duration, selectAbstractVisibleTexts(shotId, visibleTexts), options, String(prompt.prompt ?? ""));
     const fieldRecord: RecordValue = {};
     for (const line of fields) {
       const match = /^\d+\.【([^】]+)】([\s\S]*)$/u.exec(line);
@@ -675,9 +625,7 @@ export function normalizeMarketingPromptList<T extends RecordValue>(
       promptCharCount: Array.from(body).length,
       fields: fieldRecord,
       fusionText: String(fieldRecord["场景"] ?? ""),
-      dialogue: "",
-      dialogueBlocks: [],
-      dialogueText: "",
+      ...(options.noDialogue ? { dialogue: "", dialogueBlocks: [], dialogueText: "" } : {}),
       negative: String(fieldRecord["负面约束"] ?? ""),
     } as T;
   });
@@ -723,7 +671,7 @@ export function buildMarketingPreproductionReport(input: {
     "",
     "## 不适用项清单",
     "",
-    `- 台词速率/占比：${input.options.noPeople ? "不适用（本片无对白）" : "待实际音轨核验"}`,
+    `- 台词速率/占比：${input.options.noDialogue ? "不适用（本片无对白）" : "待实际音轨核验"}`,
     "- 口型：不适用（本片无人物）",
     "- 音频响度：未验证（预生产阶段无最终音轨）",
     "- 定妆照与人物一致性：不适用（cast.mode=none）",
@@ -741,7 +689,7 @@ export function buildMarketingPreproductionReport(input: {
     const duration = resolvedDurations[index] ?? 0;
     const visibleValues = selectAbstractVisibleTexts(shotId, visibleTexts);
     const visible = visibleValues.join(" | ");
-    const fields = buildAbstractPromptFields(shotId, duration, visibleValues);
+    const fields = buildAbstractPromptFields(shotId, duration, visibleValues, input.options, String(prompts[index]?.prompt ?? shot.prompt ?? ""));
     const body = fields.join("\n");
     const scene = body.split("\n").find((line) => line.includes("【场景】"))?.replace(/^\d+\.【场景】/u, "") ?? "";
     promptBodies.push({ shotId, duration, body, scene, visible, fields });

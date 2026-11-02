@@ -32,6 +32,8 @@ const doubles = vi.hoisted(() => ({
   studioConfigs: [] as Array<Record<string, any>>,
   gateReplies: [] as Array<{ gate: string; verdict: any }>,
   emitGates: true,
+  realStructuredLog: false,
+  capturePromptOptions: null as null | ((options: any) => Promise<any>),
   connect: vi.fn(),
   query: vi.fn(),
   releaseDb: vi.fn(),
@@ -70,6 +72,11 @@ vi.mock("./marketing-authority.js", async importOriginal => ({
   prepareMarketingFacts: doubles.prepare, finalizeMarketingFacts: doubles.finalize,
 }));
 vi.mock("./data-mining-executor.js", () => ({ createDataMiningExecutor: vi.fn() }));
+vi.mock("./prompt-quality-gate.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./prompt-quality-gate.js")>();
+  return { ...actual, evaluatePromptPackage: (...args: Parameters<typeof actual.evaluatePromptPackage>) =>
+    doubles.capturePromptOptions ? doubles.capturePromptOptions(args[0]) : actual.evaluatePromptPackage(...args) };
+});
 vi.mock("./media/library.js", () => ({ ingestPortraitsFromIndex: doubles.ingest }));
 vi.mock("./media/products.js", () => ({ upsertProductProfileFromDossier: doubles.project }));
 vi.mock("./archive-host.js", () => ({
@@ -86,8 +93,10 @@ vi.mock("./archive-host.js", () => ({
     nextAttempt: async () => doubles.nextAttempt + 1,
   }),
 }));
-vi.mock("@hyperreality/video-studio", async (importOriginal) => ({
-  ...await importOriginal<typeof import("@hyperreality/video-studio")>(),
+vi.mock("@hyperreality/video-studio", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@hyperreality/video-studio")>();
+  return {
+  ...actual,
   VideoStudio: class {
     constructor(private readonly config: { onApproval: (input: Record<string, unknown>) => Promise<unknown> }) { doubles.studioConfigs.push(config); }
     async runPreproduction(...args: unknown[]) {
@@ -104,8 +113,10 @@ vi.mock("@hyperreality/video-studio", async (importOriginal) => ({
   installVendorEngineBridge: vi.fn(),
   installVendorRenderCompatBridge: vi.fn(),
   installVendorPortraitBindingBridge: () => doubles.uninstall,
-  attachStructuredLog: () => doubles.detach,
-}));
+  attachStructuredLog: (...args: Parameters<typeof actual.attachStructuredLog>) => doubles.realStructuredLog
+    ? actual.attachStructuredLog(...args) : doubles.detach,
+  };
+});
 
 let worker: typeof import("./studio-worker.js");
 let catalogFixture: ReturnType<typeof builtinCatalogFixture>;
@@ -126,6 +137,8 @@ beforeEach(() => {
   doubles.nextAttempt = 0;
   doubles.studioConfigs.length = 0;
   doubles.gateReplies.length = 0;
+  doubles.realStructuredLog = false;
+  doubles.capturePromptOptions = null;
   doubles.prepare.mockReset().mockImplementation(async ({ scope, root }) => {
     const raw = { A1: { identity: { name: "本次商品", specs: { 功率: "1 W" } }, images: [] }, A2: { reviews: [] }, A3: { competitors: [] } };
     const sourceId = `SRC-${renderSha256(`https://source.example.com/final\n${"a".repeat(64)}`).slice(0, 24)}`;
@@ -258,6 +271,25 @@ async function archiveOutput(projectId: string, attempt: number) {
 }
 
 describe("预生产原始结果与诚实终态", () => {
+  it.each(["SEEDANCE_MODEL", "ARK_VIDEO_MODEL"])("G6合同绑定部署实际模型覆盖%s，而非静态目录别名", async (key) => {
+    vi.stubEnv("PROMPT_CONTRACT_V2", "enforce");
+    vi.stubEnv("SEEDANCE_MODEL", ""); vi.stubEnv("ARK_VIDEO_MODEL", "");
+    vi.stubEnv(key, "deployment-specific-seedance-endpoint");
+    const captured: any[] = [];
+    doubles.capturePromptOptions = async (options) => { captured.push(options); throw new Error("stop-after-contract-model-capture"); };
+    doubles.emitGates = false;
+    doubles.runPreproduction.mockImplementation(async () => {
+      await doubles.studioConfigs[0]!.onApproval({ gate: "G6_PROMPT", vendorType: "prompt-generation", title: "提示词包",
+        contentMd: "当前镜头的真实完整报告。".repeat(20), structuredArtifact: [{ shotId: "S1", duration: 5,
+          fields: { scene: "无人风景", character: "无角色", portraits: [] } }] });
+      return success();
+    });
+    const { entry } = await runToTerminal(false);
+    expect(entry.error).toContain("stop-after-contract-model-capture");
+    expect(captured).toHaveLength(1);
+    expect(captured[0].shots[0].compile.model).toMatchObject({ modelId: "doubao-seedance-2-5",
+      providerModel: "deployment-specific-seedance-endpoint", version: "workloom.media-catalog/v1:deployment-specific-seedance-endpoint" });
+  });
   it("坏复用配置在启动注册、vendor和租约之前失败，不回退生成", () => {
     vi.stubEnv("HR_PORTRAIT_REUSE_MANIFEST", path.join(doubles.workDir, "missing-manifest.json"));
     expect(() => worker.startRun(scope, { projectId: "VID-reuse-invalid", intent: "使用已有AI模特" })).toThrow("拒绝回退生成");
@@ -726,9 +758,12 @@ describe("完整原生前期到正式 CLI 草稿交接", () => {
   });
 
   it("两个工作区并发完成时只携带各自run/attempt/原始镜头和选角", async () => {
+    doubles.realStructuredLog = true;
     useNarrativeProject();
     doubles.runPreproduction.mockImplementation(async (input: Record<string, any>) => {
+      console.log(`private-intent:${input.projectId}`);
       await new Promise(resolve => setTimeout(resolve, input.projectId.endsWith("A") ? 20 : 1));
+      console.log(`private-result:${input.projectId}`);
       return { ...success(), shots: [{ ...success().shots[0]!, shotId: input.projectId.endsWith("A") ? "A-ORIGINAL" : "B-ORIGINAL", prompt: input.projectId }] };
     });
     const scopes = [scope, { tenantId: "tenant-other", workspaceId: "ws-other" }], ids = [`VID-parallel-${++projectSequence}A`, `VID-parallel-${++projectSequence}B`];
@@ -743,6 +778,17 @@ describe("完整原生前期到正式 CLI 草稿交接", () => {
       expect(sheet.source).toMatchObject({ ...scopes[index], projectId: ids[index], runId: runs[index], attempt: output.productionEvidence.attempt });
       expect(sheet.shots[0].prompt).toBe(ids[index]); expect(sheet.character.id).toBe(index === 0 ? "young-rider-01" : "chen-zhuo");
       expect(worker.getRun(runs[index]!, scopes[1 - index]!.workspaceId)).toBeNull();
+      const log = await readFile(path.join(doubles.workDir, "logs", `${ids[index]}.log`), "utf8");
+      expect(log).toContain(`private-intent:${ids[index]}`);
+      expect(log).toContain(`private-result:${ids[index]}`);
+      expect(log).not.toContain(`private-intent:${ids[1 - index]}`);
+      expect(log).not.toContain(`private-result:${ids[1 - index]}`);
+      const structuredFile = path.join(doubles.workDir, "archive", scopes[index]!.workspaceId, ids[index]!, "logs/preproduction.jsonl");
+      await vi.waitFor(async () => expect(await readFile(structuredFile, "utf8")).toContain(`private-result:${ids[index]}`));
+      const structured = await readFile(structuredFile, "utf8");
+      expect(structured).toContain(`private-intent:${ids[index]}`);
+      expect(structured).not.toContain(`private-intent:${ids[1 - index]}`);
+      expect(structured).not.toContain(`private-result:${ids[1 - index]}`);
     }
   });
 });

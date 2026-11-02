@@ -67,7 +67,7 @@ export type ProjectionResult =
   | {
       ok: false;
       error: "INFEASIBLE";
-      reason: "voice-floor-exceeds-target" | "capacity-below-target";
+      reason: "voice-floor-exceeds-target" | "voice-floor-exceeds-model" | "capacity-below-target";
       overloadSeconds: number;
       entries: ProjectionEntry[];
       suggestions: string[];
@@ -279,7 +279,7 @@ export function projectShotDurations(shots: ProjectionShotInput[], options: Proj
     const floor = computeVoiceFloor(shot, shot.emotion ?? shot.mood);
     const plan = Math.round(Number(shot.duration ?? shot.timing?.duration ?? floor.seconds) || 0);
     const bound = options.enforceVoiceFloor === false ? Math.max(plan, 0) : floor.seconds;
-    return { shot, floor, lower: Math.max(min, Math.min(max, Math.max(bound, min))) };
+    return { shot, floor, lower: Math.max(min, options.enforceVoiceFloor === false ? Math.min(max, bound) : bound) };
   });
   const lowerSum = floors.reduce((sum, f) => sum + f.lower, 0);
   const capacity = shots.length * max;
@@ -296,6 +296,21 @@ export function projectShotDurations(shots: ProjectionShotInput[], options: Proj
       lowered: false,
     };
   });
+
+  const oversizedVoices = entries.filter((entry) => options.enforceVoiceFloor !== false && entry.voiceFloorSeconds > max);
+  if (oversizedVoices.length > 0) {
+    return {
+      ok: false,
+      error: "INFEASIBLE",
+      reason: "voice-floor-exceeds-model",
+      overloadSeconds: Math.max(...oversizedVoices.map((entry) => entry.voiceFloorSeconds - max)),
+      entries,
+      suggestions: [
+        ...oversizedVoices.map((entry) => `${entry.shotId} 台词硬下限 ${entry.voiceFloorSeconds}s > 单镜模型上限 ${max}s`),
+        "按原意重新创作较短台词或重新规划分镜；不得截断台词、压低硬下限或静默加快语速",
+      ],
+    };
+  }
 
   if (lowerSum > target) {
     const overload = lowerSum - target;

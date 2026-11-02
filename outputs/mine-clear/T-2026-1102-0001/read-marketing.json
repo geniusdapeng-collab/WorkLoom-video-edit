@@ -1,0 +1,169 @@
+{
+  "agent": "marketing_audit",
+  "auditBaseline": "d5ef7a7feaa6a76428503a07937c2215d1ed6538",
+  "total": 23,
+  "fullRead": 18,
+  "sampled": 5,
+  "machineOnly": 0,
+  "unread": 0,
+  "files": [
+    {
+      "file": "AGENTS.md",
+      "lines": 143,
+      "evidence": "A",
+      "method": "complete read, including segmented reads to EOF"
+    },
+    {
+      "file": "AGENTS.repo.md",
+      "lines": 63,
+      "evidence": "A",
+      "method": "complete read, including segmented reads to EOF"
+    },
+    {
+      "file": "WORKLOOM_PRODUCT_CONTEXT.md",
+      "lines": 596,
+      "evidence": "A",
+      "method": "complete read, including segmented reads to EOF"
+    },
+    {
+      "file": "bundles/ai-video/pipelines/marketing-film.yml",
+      "lines": 146,
+      "evidence": "A",
+      "method": "complete read, including segmented reads to EOF"
+    },
+    {
+      "file": "packages/video-studio/src/pipeline-router.ts",
+      "lines": 615,
+      "evidence": "A",
+      "method": "complete read, including segmented reads to EOF"
+    },
+    {
+      "file": "packages/video-studio/src/pipeline-router.test.ts",
+      "lines": 236,
+      "evidence": "A",
+      "method": "complete read, including segmented reads to EOF"
+    },
+    {
+      "file": "packages/video-studio/src/marketing-prd-contract.ts",
+      "lines": 375,
+      "evidence": "A",
+      "method": "complete read, including segmented reads to EOF"
+    },
+    {
+      "file": "packages/video-studio/src/marketing-prd-contract.test.ts",
+      "lines": 198,
+      "evidence": "A",
+      "method": "complete read, including segmented reads to EOF"
+    },
+    {
+      "file": "packages/video-studio/src/marketing-prompt-contract.ts",
+      "lines": 750,
+      "evidence": "A",
+      "method": "complete read, including segmented reads to EOF"
+    },
+    {
+      "file": "packages/video-studio/src/marketing-prompt-contract.test.ts",
+      "lines": 325,
+      "evidence": "A",
+      "method": "complete read, including segmented reads to EOF"
+    },
+    {
+      "file": "packages/video-studio/src/prd-authority.ts",
+      "lines": 489,
+      "evidence": "A",
+      "method": "complete read, including segmented reads to EOF"
+    },
+    {
+      "file": "packages/video-studio/src/requirement-authority.ts",
+      "lines": 166,
+      "evidence": "A",
+      "method": "complete read, including segmented reads to EOF"
+    },
+    {
+      "file": "packages/video-studio/src/requirement-contract-bridge.ts",
+      "lines": 522,
+      "evidence": "A",
+      "method": "complete read, including segmented reads to EOF"
+    },
+    {
+      "file": "packages/video-studio/src/prd-authority-bridge.test.ts",
+      "lines": 2008,
+      "evidence": "A",
+      "method": "complete read, including segmented reads to EOF"
+    },
+    {
+      "file": "packages/video-studio/src/prd-authority.test-support.ts",
+      "lines": 81,
+      "evidence": "A",
+      "method": "complete read, including segmented reads to EOF"
+    },
+    {
+      "file": "vendor/supermickey/hyperreality-system/engines/truth-check-bridge.js",
+      "lines": 202,
+      "evidence": "A",
+      "method": "complete read, including segmented reads to EOF"
+    },
+    {
+      "file": "vendor/supermickey/hyperreality-system/engines/production-engine/agents/marketing-compliance-guard.js",
+      "lines": 85,
+      "evidence": "A",
+      "method": "complete read, including segmented reads to EOF"
+    },
+    {
+      "file": "packages/video-studio/tsconfig.json",
+      "lines": 8,
+      "evidence": "A",
+      "method": "complete read, including segmented reads to EOF"
+    },
+    {
+      "file": "packages/video-studio/src/prd-authority-bridge.ts",
+      "lines": 1167,
+      "evidence": "C",
+      "method": "selected segments and call-site search",
+      "ranges": [
+        "1-336",
+        "580-670",
+        "850-910",
+        "1018-1030"
+      ]
+    },
+    {
+      "file": "packages/video-studio/src/studio.ts",
+      "lines": 864,
+      "evidence": "C",
+      "method": "selected segments and call-site search",
+      "ranges": [
+        "260-370",
+        "520-575",
+        "730-805"
+      ]
+    },
+    {
+      "file": "apps/server/src/video/data-mining-executor.ts",
+      "lines": 824,
+      "evidence": "C",
+      "method": "selected segments and call-site search",
+      "ranges": [
+        "1-190"
+      ]
+    },
+    {
+      "file": "apps/server/src/video/marketing-facts.ts",
+      "lines": 269,
+      "evidence": "C",
+      "method": "selected segments and call-site search",
+      "ranges": [
+        "1-105"
+      ]
+    },
+    {
+      "file": "vendor/supermickey/hyperreality-system/engines/production-engine/agents/prompt-delivery-guard.js",
+      "lines": 305,
+      "evidence": "C",
+      "method": "selected segments and call-site search",
+      "ranges": [
+        "1-180"
+      ]
+    }
+  ]
+}

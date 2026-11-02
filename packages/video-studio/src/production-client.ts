@@ -87,7 +87,8 @@ export class ProductionClient {
     if (!q || typeof q.qualificationToken !== "string" || !q.qualificationToken || typeof q.qualificationId !== "string" || !q.qualificationId
       || typeof q.scriptId !== "string" || !q.scriptId || !Number.isInteger(q.scriptVersion) || q.scriptVersion <= 0
       || q.modelId !== modelId || q.mode !== "auto" || q.promptSha256 !== shot.promptSha256 || !hash(q.requestHash) || !hash(q.payloadHash)
-      || stable(q.params) !== stable(finalParams) || !Number.isFinite(Date.parse(q.expiresAt))) {
+      || !obj(q.params) || Object.entries(finalParams).some(([key, value]) => stable(q.params[key]) !== stable(value))
+      || !Number.isFinite(Date.parse(q.expiresAt))) {
       throw new ProductionClientError("QUALIFICATION_MISMATCH", "The service qualified different source bytes or generation parameters");
     }
     return q;

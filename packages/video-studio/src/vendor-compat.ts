@@ -17,6 +17,7 @@
 import { existsSync, readFileSync, lstatSync, realpathSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { createRequire } from "node:module";
+import { AsyncLocalStorage } from "node:async_hooks";
 import { dirname, isAbsolute, join, relative, sep, resolve as resolvePath } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
@@ -1223,18 +1224,28 @@ export function installVendorDurationPolicyBridge(options: {
     const mod = vendorRequire(file) as {
       PROFILES?: Record<string, { shotDuration?: { min?: number; max?: number } }>;
     };
-    const previous = new Map<string, number | undefined>();
+    const previous = new Map<string, { min: PropertyDescriptor; max: PropertyDescriptor }>();
     for (const [key, profile] of Object.entries(mod?.PROFILES ?? {})) {
       const band = profile?.shotDuration;
       if (!band || typeof band.max !== "number") continue;
-      previous.set(key, band.max);
-      band.max = Math.max(band.max, max);
-      if (typeof band.min === "number") band.min = Math.min(band.min, min);
+      const originalMin = Object.getOwnPropertyDescriptor(band, "min");
+      const originalMax = Object.getOwnPropertyDescriptor(band, "max");
+      if (!originalMin || !originalMax || !originalMin.configurable || !originalMax.configurable) {
+        throw new Error(`平台 ${key} 的时长带缺少可恢复属性`);
+      }
+      const fallbackMin = Math.min(Number(band.min), min), fallbackMax = Math.max(band.max, max);
+      previous.set(key, { min: originalMin, max: originalMax });
+      Object.defineProperties(band, {
+        min: { configurable: true, enumerable: originalMin.enumerable,
+          get: () => durationProjectionOptions({}).minShotSeconds ?? fallbackMin },
+        max: { configurable: true, enumerable: originalMax.enumerable,
+          get: () => durationProjectionOptions({}).maxShotSeconds ?? fallbackMax },
+      });
     }
     restores.push(() => {
       for (const [key, prev] of previous) {
         const band = mod?.PROFILES?.[key]?.shotDuration;
-        if (band && prev !== undefined) band.max = prev;
+        if (band) Object.defineProperties(band, prev);
       }
     });
     log(`[vendor-compat] 时长策略桥：平台蓝图 shotDuration.max → ${max}s（${previous.size} 个平台档）`);
@@ -1378,6 +1389,31 @@ export interface DurationProjectionBridgeOptions {
   maxShotSeconds?: number;
 }
 
+const durationProjectionScopes = new AsyncLocalStorage<{ options: DurationProjectionBridgeOptions; active: boolean }>();
+
+/** Shared prototypes dispatch through the current run, never the first installer. */
+export async function withVendorDurationProjectionScope<T>(
+  options: DurationProjectionBridgeOptions,
+  operation: () => T | Promise<T>,
+): Promise<T> {
+  const scope = { options: Object.freeze({ ...options }), active: true };
+  return durationProjectionScopes.run(scope, async () => {
+    try { return await operation(); }
+    finally { scope.active = false; }
+  });
+}
+
+function durationProjectionOptions(fallback: DurationProjectionBridgeOptions): DurationProjectionBridgeOptions {
+  const scope = durationProjectionScopes.getStore();
+  if (scope && !scope.active) throw new Error("DURATION_PROJECTION_SCOPE_CLOSED: 时长投影所属运行已经结束");
+  return scope?.options ?? fallback;
+}
+
+/** Shared compatibility bridges must not retain the first project's logger. */
+export function logVendorCompatibility(line: string): void {
+  durationProjectionOptions({}).log?.(line);
+}
+
 /** 进程级共享桥注册表：第一个安装、最后一个卸载（并发 run 安全） */
 const sharedBridges = new Map<string, { restore: () => void; refs: number }>();
 
@@ -1416,10 +1452,8 @@ export function listSharedBridges(): Array<{ key: string; refs: number }> {
 }
 
 export function installVendorDurationProjectionBridge(options: DurationProjectionBridgeOptions = {}): () => void {
-  const log = options.log ?? (() => undefined);
-  const emit = options.onEvent ?? (() => undefined);
-  const minShot = options.minShotSeconds ?? 4;
-  const maxShot = options.maxShotSeconds ?? 30;
+  const log = (line: string): void => { durationProjectionOptions(options).log?.(line); };
+  const emit = (event: DurationProjectionEvent): void => { durationProjectionOptions(options).onEvent?.(event); };
   const repoRoot = resolvePath(dirname(fileURLToPath(import.meta.url)), "../../..");
   let vendorRequire: NodeJS.Require;
   try {
@@ -1454,6 +1488,9 @@ export function installVendorDurationProjectionBridge(options: DurationProjectio
     kindLabel: string,
     planningMode = false
   ): boolean => {
+    const current = durationProjectionOptions(options);
+    const minShot = current.minShotSeconds ?? 4;
+    const maxShot = current.maxShotSeconds ?? 30;
     if (!Number.isFinite(Number(targetSeconds)) || Number(targetSeconds) <= 0) {
       emit({
         kind: "skipped",
@@ -1504,6 +1541,7 @@ export function installVendorDurationProjectionBridge(options: DurationProjectio
         message: `${result.reason}：${result.suggestions.join("；")}`,
       });
       log(`[vendor-compat] 时长投影 INFEASIBLE（${source}）：${result.suggestions.join("；")}`);
+      if (!planningMode) throw new Error(`DURATION_PROJECTION_INFEASIBLE: ${source}: ${result.reason}: ${result.suggestions.join("；")}`);
       return false;
     }
     const applied = applyProjectedDurations(

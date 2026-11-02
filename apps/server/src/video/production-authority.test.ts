@@ -1,10 +1,12 @@
 /** 实际发行/验签/文件/监制代码；PG 为明确 SQL 边界替身，模型 HTTP 仅返回测试裁决。 */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { mkdtemp, mkdir, writeFile, readFile, rm, realpath, symlink } from "node:fs/promises";
+import { mkdtemp, mkdir, writeFile, readFile, readdir, rm, realpath, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import type pg from "pg";
-import { applyScenePolicy, auditScenePolicy, loadScenePolicies, type ScenePolicyShot } from "@hyperreality/video-studio";
+import { applyScenePolicy, auditScenePolicy, loadScenePolicies, compilePromptShot, promptFieldPolicy, type ScenePolicyShot } from "@hyperreality/video-studio";
+import { promptContractSummary } from "./prompt-quality-gate.js";
+import { getModel } from "./gen/catalog.js";
 import { authorizeRenderSubmission, loadQualifiedRenderInput, listProductionShots, qualifyProductionShot } from "./production-authority.js";
 import { renderSha256 } from "./gen/compiled-request.js";
 import { submitGenJob } from "./gen/submit.js";
@@ -152,6 +154,126 @@ beforeEach(async () => {
     })); }));
 });
 afterEach(async () => { vi.unstubAllGlobals(); vi.restoreAllMocks(); await rm(dir, { recursive: true, force: true }); });
+
+async function installPromptContract(image = Buffer.from("approved synthetic portrait bytes"), fieldOverrides: Record<string, unknown> = {}, extraImages: Buffer[] = []) {
+  const portrait = path.join(dir, "workspaces", scope.workspaceId, "characters", "P1", "front.png");
+  await mkdir(path.dirname(portrait), { recursive: true }); await writeFile(portrait, image);
+  const images = [image, ...extraImages], files = images.map((_bytes, index) => index === 0 ? portrait : path.join(path.dirname(portrait), `reference-${index}.png`));
+  await Promise.all(extraImages.map((bytes, index) => writeFile(files[index + 1]!, bytes)));
+  const fields = Object.fromEntries(promptFieldPolicy("workloom.video-shot-card/v2", false).fields.map(field => [field.key, `${field.label}具体内容`]));
+  Object.assign(fields, { portraits: files, constraint: "9:16画幅，1080x1920，30fps，MP4格式。",
+    timeline: "T00:00至T00:05", camera_movement: "固定机位", dialogue: "无台词", negative: "no watermark" });
+  Object.assign(fields, fieldOverrides);
+  const model = getModel("doubao-seedance-2-5")!;
+  const compiled = compilePromptShot({ shotId: "S1", duration: 5, fields }, {
+    delivery: { aspectRatio: "9:16", resolution: "1080p", fps: 30, format: "mp4", generateAudio: true },
+    model: { modelId: model.id, provider: model.provider, providerModel: model.providerModel, version: "test",
+      modes: model.modes, durationSec: { min: 4, max: 30 }, aspectRatios: ["9:16"], resolutions: ["1080p"], maxReferenceImages: 4, maxPromptChars: 4000 },
+    assets: images.map((bytes, index) => ({ field: "portraits" as const, role: "reference_image", sha256: renderSha256(bytes), bytes: bytes.length,
+      mediaType: "image/png", sourceRef: `characters/P1/${path.basename(files[index]!)}` })),
+  });
+  expect(compiled.hardErrors).toEqual([]);
+  const contractFile = path.join(dir, "workspaces", scope.workspaceId, "gates", "P1", "attempt-1", "prompt-quality", "prompt-contract-S1.json");
+  await mkdir(path.dirname(contractFile), { recursive: true });
+  const bytes = JSON.stringify(compiled.contract); await writeFile(contractFile, bytes);
+  const g5 = output.productionEvidence.gates[3], g6 = output.productionEvidence.gates[4], g7 = output.productionEvidence.gates[5];
+  Object.assign(g5, { status: "passed", via: "llm", degraded: false, evidence: images.map((bytes, index) => ({ path: files[index]!, sha256: renderSha256(bytes), scope: "image" })) });
+  g6.evidence.push({ path: contractFile, sha256: renderSha256(bytes), scope: "complete-text" });
+  g6.promptContract = promptContractSummary([compiled.contract]); g7.promptContract = g6.promptContract;
+  g7.renderEligibility = { eligible: true };
+  Object.assign(prompts.shots[0], { fields, prompt: compiled.prompt }); await persist();
+  return { portrait, image, contract: compiled.contract, enforced: { ...env, PROMPT_CONTRACT_V2: "enforce" } };
+}
+
+describe("G6合同到供应商请求的绑定", () => {
+  it("off保留既有内联参考图资格策略，投影仅声明wire字节一致而不冒称G5/G6审图", async () => {
+    const image = Buffer.from("legacy explicitly supplied inline reference"), url = `data:image/png;base64,${image.toString("base64")}`;
+    const result = await issue({ params: { aspectRatio: "16:9", referenceImageUrls: [url] }, env: { ...env, PROMPT_CONTRACT_V2: "off" } });
+    const view = JSON.parse(await readFile(path.join(root, "qualifications", `${result.qualificationId}.review.json`), "utf8"));
+    expect(result.promptContractSha256).toBeNull();
+    expect(pool.qualifications[0]!.compiled_request.body.content[1].image_url.url).toBe(url);
+    expect(view.compiledRequest.body.content[1].image_url.url).toMatchObject({ verification: "wire-bytes-only", sha256: renderSha256(image), bytes: image.length });
+    expect(view.wireRequest.mediaEvidence).toContain("wire-bytes-only");
+  });
+  it("多张数百KB媒体的原始顺序、角色与字节全部进入wire，文本视图逐一保留绑定", async () => {
+    const images = [1, 2, 3, 4].map(value => Buffer.alloc(600_000, value));
+    const fixture = await installPromptContract(images[0], {}, images.slice(1));
+    const result = await issue({ params: {}, env: fixture.enforced });
+    const stored = pool.qualifications[0]!.compiled_request, media = stored.body.content.filter((item: Row) => item.type === "image_url");
+    expect(media).toHaveLength(4);
+    for (const [index, image] of images.entries()) expect(media[index]).toEqual({ type: "image_url", role: "reference_image", image_url: { url: `data:image/png;base64,${image.toString("base64")}` } });
+    const view = JSON.parse(await readFile(path.join(root, "qualifications", `${result.qualificationId}.review.json`), "utf8"));
+    expect(view.compiledRequest.body.content.filter((item: Row) => item.type === "image_url").map((item: Row) => item.image_url.url.sha256)).toEqual(images.map(renderSha256));
+    expect(JSON.stringify(calls[0]!.body.messages).length).toBeLessThan(50_000);
+  });
+  it("真实大小参考图的wire字节完整保留，文本评审只收到已绑定媒体投影", async () => {
+    const image = await readFile(path.resolve(import.meta.dirname,
+      "../../../../bundles/ai-video/library/characters/model-01-young-rider/portraits/v2/young-rider-01-front.png"));
+    expect(image.length).toBeGreaterThan(500_000);
+    const fixture = await installPromptContract(image), result = await issue({ params: {}, env: fixture.enforced });
+    const wireBytes = await readFile(path.join(root, "qualifications", `${result.qualificationId}.request.json`));
+    const wire = JSON.parse(wireBytes.toString()), view = JSON.parse(await readFile(path.join(root, "qualifications", `${result.qualificationId}.review.json`), "utf8"));
+    const dataUrl = `data:image/png;base64,${image.toString("base64")}`;
+    expect(wire.compiledRequest.body.content[1].image_url.url).toBe(dataUrl);
+    expect(JSON.parse(wire.compiledRequest.bodyJson).content[1].image_url.url).toBe(dataUrl);
+    expect(view.wireRequest).toMatchObject({ sha256: renderSha256(wireBytes), payloadHash: result.payloadHash });
+    const judgeText = JSON.stringify(calls[0]!.body.messages);
+    expect(judgeText).toContain(renderSha256(image)); expect(judgeText).not.toContain(image.toString("base64").slice(0, 200));
+    expect(judgeText.length).toBeLessThan(50_000);
+  });
+  it.each(["request", "review"])("签发前复验%s原字节，评审期间被改即拒绝", async kind => {
+    const fixture = await installPromptContract(); const model = globalThis.fetch;
+    vi.stubGlobal("fetch", vi.fn(async (...args: Parameters<typeof fetch>) => {
+      const reply = await model(...args), folder = path.join(root, "qualifications");
+      const files = await readdir(folder), file = files.find(name => name.endsWith(`.${kind}.json`));
+      expect(file).toBeDefined(); await writeFile(path.join(folder, file!), "{}"); return reply;
+    }));
+    await expect(issue({ params: {}, env: fixture.enforced })).rejects.toThrow("SOURCE_HASH_MISMATCH");
+    expect(pool.qualifications).toHaveLength(0);
+  });
+  it("完整wire超过明确资源上限时在调用文本评审之前拒绝", async () => {
+    const fixture = await installPromptContract(Buffer.alloc(8_000_000, 37));
+    await expect(issue({ params: {}, env: fixture.enforced })).rejects.toThrow("QUALIFICATION_REQUEST_TOO_LARGE");
+    expect(calls).toHaveLength(0); expect(pool.qualifications).toHaveLength(0);
+  });
+  it("客户端响应预算在模型调用之前核实，不能烧完评审后才因返回params过大失败", async () => {
+    const fixture = await installPromptContract(Buffer.alloc(5_950_000, 37));
+    await expect(issue({ params: {}, env: fixture.enforced })).rejects.toThrow("QUALIFICATION_RESPONSE_TOO_LARGE");
+    expect(calls).toHaveLength(0); expect(pool.qualifications).toHaveLength(0);
+  });
+  it("看似data URI的用户正文和非媒体参数仍原样送审，不被通用字符串规则省略", async () => {
+    const userText = "data:image/png;base64,dXNlci10ZXh0LXByZXNlcnZlZA==";
+    const fixture = await installPromptContract(undefined, { props: userText });
+    const result = await issue({ params: { extra: { user_note: userText } }, env: fixture.enforced });
+    const view = JSON.parse(await readFile(path.join(root, "qualifications", `${result.qualificationId}.review.json`), "utf8"));
+    expect(view.script.fields.props).toBe(userText); expect(view.params.extra.user_note).toBe(userText);
+    expect(view.compiledRequest.body.user_note).toBe(userText);
+    expect(view.compiledRequest.body.content[0].text).toContain(userText);
+    expect(JSON.stringify(calls[0]!.body.messages)).toContain(userText);
+  });
+  it("服务默认参数保留已审画幅、声音、固定机位与定妆照真实字节", async () => {
+    const fixture = await installPromptContract();
+    const result = await issue({ params: {}, env: fixture.enforced });
+    const body = pool.qualifications[0]!.compiled_request.body;
+    expect(body).toMatchObject({ ratio: "9:16", resolution: "1080p", duration: 5, generate_audio: true, camera_fixed: true });
+    expect(body.content).toContainEqual({ type: "image_url", role: "reference_image", image_url: { url: `data:image/png;base64,${fixture.image.toString("base64")}` } });
+    expect(result.params.referenceImageUrls).toHaveLength(1);
+    const auth = await authorized(result.qualificationToken, { env: fixture.enforced }); await auth.release();
+    await writeFile(fixture.portrait, "changed after qualification");
+    await expect(authorized(result.qualificationToken, { env: fixture.enforced })).rejects.toThrow(/SOURCE_HASH_MISMATCH|PROMPT_CONTRACT_ASSET/);
+  });
+  it.each([{ aspectRatio: "16:9" }, { generateAudio: false }, { cameraFixed: false }, { referenceImageUrls: ["https://other.invalid/image.png"] }, { extra: { camera_fixed: false } }])(
+    "调用者无法覆盖已审参数 %j", async params => {
+      const fixture = await installPromptContract();
+      await expect(issue({ params, env: fixture.enforced })).rejects.toThrow(/PROMPT_CONTRACT_REQUEST_MISMATCH/);
+      expect(calls).toHaveLength(0);
+    });
+  it("模型版本漂移在付费审核前拒绝", async () => {
+    const fixture = await installPromptContract();
+    await expect(issue({ params: {}, env: { ...fixture.enforced, SEEDANCE_MODEL: "unreviewed-version" } })).rejects.toThrow(/PROMPT_CONTRACT_MODEL_MISMATCH/);
+    expect(calls).toHaveLength(0);
+  });
+});
 
 describe("正式资格的正常路径和来源边界", () => {
   async function installArchiveReuse() {

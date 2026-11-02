@@ -123,10 +123,22 @@ jobs:
           packages/video-studio/src/studio-portrait-reuse.test.ts
           packages/video-studio/src/producer-gate.test.ts
           packages/video-studio/src/vendor-compat.test.ts
+          packages/video-studio/src/creative-theme-contract.test.ts
+          packages/video-studio/src/duration-projection.test.ts
+          packages/video-studio/src/duration-projection-bridge.test.ts
+          packages/video-studio/src/studio-compat-concurrency.test.ts
+          packages/video-studio/src/marketing-prd-contract.test.ts
+          packages/video-studio/src/marketing-prompt-contract.test.ts
+          packages/video-studio/src/pipeline-router.test.ts
+          packages/video-studio/src/production-client.test.ts
           apps/server/src/video/marketing-authority.test.ts
           apps/server/src/video/marketing-facts.test.ts
           apps/server/src/video/marketing-gate-evidence.test.ts
           apps/server/src/video/studio-worker.test.ts
+          apps/server/src/video/prompt-quality-gate.test.ts
+          apps/server/src/video/production-authority.test.ts
+          apps/server/src/video/production-authority.pg.test.ts
+          apps/server/src/video/production-router.test.ts
           apps/server/src/video/gate-policy.test.ts
           apps/server/src/video/gate-ledger-bridge.test.ts
 

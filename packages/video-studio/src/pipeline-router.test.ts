@@ -220,3 +220,17 @@ describe("视频管线自动化分流", () => {
     expect(decision.clarify?.question).toContain("走口播片");
   });
 });
+
+
+describe("explicit routing negation audit regressions", () => {
+  it.each([
+    ["不要营销片，走叙事片：做一个故事", "narrative"],
+    ["不要叙事片，走营销片，商品名：空气净化器", "marketing"],
+    ["不要营销片，走口播片", "explainer"],
+    ["不要走营销片，只用通用管线讲一个故事", "narrative"],
+    ["走叙事片，不要营销片", "narrative"],
+    ["不要走叙事片，也不要营销片，走口播片", "explainer"],
+  ])("respects the affirmative route in %s", async (text, expected) => {
+    expect((await routeVideoPipeline({ text })).route).toBe(expected);
+  });
+});

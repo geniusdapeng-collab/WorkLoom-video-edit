@@ -1,0 +1,280 @@
+{
+  "actor": "/root/general_audit",
+  "auditBaseline": "d5ef7a7feaa6a76428503a07937c2215d1ed6538",
+  "counts": {
+    "total": 38,
+    "A": 28,
+    "B": 0,
+    "C": 10,
+    "D": 0
+  },
+  "files": [
+    {
+      "path": "AGENTS.md",
+      "grade": "A",
+      "method": "complete-reading",
+      "lines": 143,
+      "sha256": "95f8a157cd388b2d0a3a763abf3670253bd9d0c2497606a2b447c575c43cd7be"
+    },
+    {
+      "path": "AGENTS.repo.md",
+      "grade": "A",
+      "method": "complete-reading",
+      "lines": 63,
+      "sha256": "4e3248234ffff5f4096f5e5729a98915e250c007ebde0e3983f681814dab0fd3"
+    },
+    {
+      "path": "WORKLOOM_PRODUCT_CONTEXT.md",
+      "grade": "A",
+      "method": "complete-reading",
+      "lines": 596,
+      "sha256": "59667533f52d296468d152eb7bc05908fef64decc8e6a5415b48938c79410e51"
+    },
+    {
+      "path": "bundles/ai-video/pipelines/narrative-film.yml",
+      "grade": "A",
+      "method": "complete-reading",
+      "lines": 176,
+      "sha256": "a8c3f1e2c0f83cb91b3bc882c27ff6a9846793280e82af699e26ced1420f9cfc"
+    },
+    {
+      "path": "packages/video-studio/tsconfig.json",
+      "grade": "A",
+      "method": "complete-reading",
+      "lines": 8,
+      "sha256": "9222ec437c1c4b8378784ebceca444214102b64598ff2d611cb4f362d576990d"
+    },
+    {
+      "path": "packages/video-studio/src/studio.ts",
+      "grade": "A",
+      "method": "complete-reading",
+      "lines": 866,
+      "sha256": "d9f926b9817ebc730e40a61784c496c2d0ffcc1c2d9794e8247678ccf37f83f8"
+    },
+    {
+      "path": "packages/video-studio/src/stage-registry.ts",
+      "grade": "A",
+      "method": "complete-reading",
+      "lines": 373,
+      "sha256": "4c7b2a1e01d8d2b38713665e58c21c5abd8f76c0895f257b58b620b1668be80a"
+    },
+    {
+      "path": "packages/video-studio/src/pipeline-router.ts",
+      "grade": "A",
+      "method": "complete-reading",
+      "lines": 615,
+      "sha256": "dddf3dd9065cbabe2ffc1debfd7f7fc20749cac27abffef0b138b616cad6439c"
+    },
+    {
+      "path": "packages/video-studio/src/prompt-compiler.ts",
+      "grade": "A",
+      "method": "complete-reading",
+      "lines": 364,
+      "sha256": "70fc9086bbb5362364c89f2320f5c32f6882e634774d3f8147b170a400a67f12"
+    },
+    {
+      "path": "packages/video-studio/src/narrative-prd-contract.ts",
+      "grade": "A",
+      "method": "complete-reading",
+      "lines": 289,
+      "sha256": "6d03b1d74661c70912523b7438134c0db93689f118c1825a993df7b93fb5cc23"
+    },
+    {
+      "path": "packages/video-studio/src/narrative-prd-contract.test.ts",
+      "grade": "A",
+      "method": "complete-reading",
+      "lines": 153,
+      "sha256": "085bd5861861657e9a7d72df8c82c66382af173d2a956d5cf0ad2d815cde93ed"
+    },
+    {
+      "path": "packages/video-studio/src/requirement-authority.ts",
+      "grade": "A",
+      "method": "complete-reading",
+      "lines": 166,
+      "sha256": "5cb43f08041d0df1668684f5c378cd08e5d264f96fd86011ad6dcc2cc60e3eb2"
+    },
+    {
+      "path": "packages/video-studio/src/requirement-retry-policy.ts",
+      "grade": "A",
+      "method": "complete-reading",
+      "lines": 58,
+      "sha256": "ffe71d6d694ff4a02aabc938881a8f4249fddd40f0c8fa539c8d20a5153c360d"
+    },
+    {
+      "path": "packages/video-studio/src/requirement-contract-bridge.ts",
+      "grade": "A",
+      "method": "complete-reading",
+      "lines": 522,
+      "sha256": "22697b2fc959ac9b4246e372aa969f6263365b01d6977e1a766594baada804c6"
+    },
+    {
+      "path": "packages/video-studio/src/requirement-contract.ts",
+      "grade": "A",
+      "method": "complete-reading",
+      "lines": 701,
+      "sha256": "2caa32da981cf1b26a33345874579c1ca4dbcf18bd75ed9a7f150fdcd18f0740"
+    },
+    {
+      "path": "packages/video-studio/src/creative-theme-contract.ts",
+      "grade": "A",
+      "method": "complete-reading",
+      "lines": 222,
+      "sha256": "b52716b2f0e1995bbf7cdc48e8e6012a63977b09342533184014af7c5c2dfa14"
+    },
+    {
+      "path": "packages/video-studio/src/creative-theme-contract.test.ts",
+      "grade": "A",
+      "method": "complete-reading",
+      "lines": 110,
+      "sha256": "99b96898931a2877aa9c6d9a34ab9c531fee2d83ca9686d0b9de7d67d9e3557f"
+    },
+    {
+      "path": "packages/video-studio/src/duration-projection.ts",
+      "grade": "A",
+      "method": "complete-reading",
+      "lines": 416,
+      "sha256": "bf3732ed36301f85e17a868abfc8d7bd163474e15c1a11046649b8857f2fa803"
+    },
+    {
+      "path": "packages/video-studio/src/duration-projection.test.ts",
+      "grade": "A",
+      "method": "complete-reading",
+      "lines": 171,
+      "sha256": "4561d0bd8f4307e7ddc519fa85f092d97364c5afad4093021de56d163df9de8f"
+    },
+    {
+      "path": "packages/video-studio/src/duration-projection-bridge.test.ts",
+      "grade": "A",
+      "method": "complete-reading",
+      "lines": 285,
+      "sha256": "36f453b2c98f0ac8f31294110a1e40e6725e7dfe08e09e0f609aca0024d4d5ea"
+    },
+    {
+      "path": "packages/video-studio/src/llm-adapter.ts",
+      "grade": "A",
+      "method": "complete-reading",
+      "lines": 438,
+      "sha256": "6a49f7dd52babf538a948f809e51dbb6661f3737a4a111d0ef2970ffa1b0abb0"
+    },
+    {
+      "path": "packages/video-studio/src/vendor-requirement-entry.ts",
+      "grade": "A",
+      "method": "complete-reading",
+      "lines": 309,
+      "sha256": "ac9c6a34ba8ad06cf1c9325dd640a51c162699c56351afdbc45ce14742ebc3d3"
+    },
+    {
+      "path": "packages/video-studio/src/confirmation.ts",
+      "grade": "A",
+      "method": "complete-reading",
+      "lines": 74,
+      "sha256": "12b4537481efa5bd0927cb43fca3f5c7813fc267bf2b7142ad3352c2a1202a18"
+    },
+    {
+      "path": "packages/video-studio/src/vendor-compat.ts",
+      "grade": "A",
+      "method": "complete-reading",
+      "lines": 2112,
+      "sha256": "b056f31f8a860878dca767a8a979b87e8205eada2a16ac6f56e411b66f872e41"
+    },
+    {
+      "path": "packages/video-studio/src/studio.test.ts",
+      "grade": "A",
+      "method": "complete-reading",
+      "lines": 667,
+      "sha256": "2f4d8eea358a5a8f37d00a99885e7afd7d5eb4aa56a3ece33e5001e1a14f7fef"
+    },
+    {
+      "path": "packages/video-studio/src/studio-portrait-reuse.test.ts",
+      "grade": "A",
+      "method": "complete-reading",
+      "lines": 164,
+      "sha256": "abc50f0684b5fe1e6024ca19de826c9620ab7112499d7421c2d0923a16c2543b"
+    },
+    {
+      "path": "packages/video-studio/src/studio-compat-concurrency.test.ts",
+      "grade": "A",
+      "method": "complete-reading",
+      "lines": 133,
+      "sha256": "7665d95d3e180c69648413cf0a21c8c5c457dcf056a12fdfa8477410d7538725"
+    },
+    {
+      "path": "packages/video-studio/src/cinematic-skill-policy.ts",
+      "grade": "A",
+      "method": "complete-reading",
+      "lines": 281,
+      "sha256": "c3cdebaa21e0f2a4af10eaba5fd9299fc9157f1df19b49836757a05605ec464c"
+    },
+    {
+      "path": "vendor/supermickey/hyperreality-system/index.js",
+      "grade": "C",
+      "method": "partial-reading-or-targeted-search",
+      "lines": 4124,
+      "reason": "入口调用点grep；未逐行读4124行"
+    },
+    {
+      "path": "vendor/supermickey/hyperreality-system/engines/production-engine/production-engine.js",
+      "grade": "C",
+      "method": "partial-reading-or-targeted-search",
+      "lines": 1825,
+      "reason": "入口/归一方法定位及真实执行测试，未全读"
+    },
+    {
+      "path": "vendor/supermickey/hyperreality-system/skills/creative-theme-generator/index.js",
+      "grade": "C",
+      "method": "partial-reading-or-targeted-search",
+      "lines": 1758,
+      "reason": "只读1-230行"
+    },
+    {
+      "path": "packages/video-studio/src/prd-authority.ts",
+      "grade": "C",
+      "method": "partial-reading-or-targeted-search",
+      "lines": 489,
+      "reason": "只读1-150行及接口检索"
+    },
+    {
+      "path": "packages/video-studio/src/shot-spec.ts",
+      "grade": "C",
+      "method": "partial-reading-or-targeted-search",
+      "lines": 1038,
+      "reason": "只读音频常量与相关函数引用"
+    },
+    {
+      "path": "packages/video-studio/src/portrait-runtime.ts",
+      "grade": "C",
+      "method": "partial-reading-or-targeted-search",
+      "lines": 753,
+      "reason": "只读导出/接口元数据"
+    },
+    {
+      "path": "packages/video-studio/src/duration-rules.ts",
+      "grade": "C",
+      "method": "partial-reading-or-targeted-search",
+      "lines": 684,
+      "reason": "只读导出/默认路径引用"
+    },
+    {
+      "path": "packages/video-studio/src/requirement-contract-production-bridge.test.ts",
+      "grade": "C",
+      "method": "partial-reading-or-targeted-search",
+      "lines": 833,
+      "reason": "检索及部分测试段，超长测试未全读"
+    },
+    {
+      "path": "packages/video-studio/src/requirement-authority.test.ts",
+      "grade": "C",
+      "method": "partial-reading-or-targeted-search",
+      "lines": 415,
+      "reason": "仅检索相关匹配行"
+    },
+    {
+      "path": "packages/video-studio/src/vendor-compat.test.ts",
+      "grade": "C",
+      "method": "partial-reading-or-targeted-search",
+      "lines": 1077,
+      "reason": "检索与执行，未完整精读全部测试源码"
+    }
+  ],
+  "supplement": "MC004 package-check scoped platform band recheck; fixed source awaiting parent commit"
+}

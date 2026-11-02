@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   SEMANTIC_QUALITY_CHECK_IDS,
+  createLlmSemanticQualityReviewer,
   evaluatePromptPackage,
   compilePromptPackage,
   parseSemanticQualityReview,
@@ -111,6 +112,18 @@ function input(reviewer: SemanticQualityReviewer, mode: "shadow" | "enforce" = "
 }
 
 describe("prompt semantic quality gate", () => {
+  it.each(["S01", "S02"])("the LLM output example for %s satisfies the same identity and pass/failure schema as the parser", async shotId => {
+    const reasonStructured = vi.fn(async (_prompt: string, schema: unknown) => {
+      const example = schema as SemanticQualityReview;
+      const contract = compilePromptPackage({ shots: [{ source: { ...source, shotId }, compile }] })[0]!.contract;
+      expect(parseSemanticQualityReview(example, contract).errors).toEqual([]);
+      return { success: true, data: { ...passReview(), shotId } };
+    });
+    const reviewer = createLlmSemanticQualityReviewer({ model: "test-model", reasonStructured } as never);
+    expect((await evaluatePromptPackage({ ...input(reviewer), shots: [{ source: { ...source, shotId }, compile }] })).status).toBe("passed");
+    expect(reasonStructured).toHaveBeenCalledTimes(1);
+  });
+
   it("accepts only five complete, evidence-bearing binary checks", () => {
     const parsed = parseSemanticQualityReview(passReview(), {
       shotId: "S01",
@@ -193,6 +206,32 @@ describe("prompt semantic quality gate", () => {
       repair: async () => ({ changes: [{ field: "camera_movement", value: fields.camera_movement, reason: "没有变化" }] }),
     };
     expect((await evaluatePromptPackage(input(unchanged))).status).toBe("stalled");
+  });
+
+  it("authorizes only the fields that failed on the current shot, even when another shot failed a different field", async () => {
+    const seen: Array<{ shotId: string; allowedFields: string[] }> = [];
+    const reviewer: SemanticQualityReviewer = {
+      review: async context => {
+        const review = passReview(); review.shotId = context.contract.shotId;
+        const current = context.shot.fields as Record<string, unknown>;
+        if (context.contract.shotId === "S01" && current.camera_movement === fields.camera_movement) return failCameraReview();
+        if (context.contract.shotId === "S02" && current.lighting === fields.lighting) review.checks[3] = {
+          id: "SQ4_LIGHT_COLOR", pass: false, field: "lighting", failureCode: "LIGHT_DIRECTION_UNCLEAR",
+          evidence: String(fields.lighting), repair: "只明确lighting中的主光方向",
+        };
+        return review;
+      },
+      repair: async context => {
+        seen.push({ shotId: context.contract.shotId, allowedFields: context.allowedFields });
+        return { changes: [{ field: context.contract.shotId === "S01" ? "camera_movement" : "lighting",
+          value: context.contract.shotId === "S01" ? "固定机位" : "侧后方晨光", reason: "定点修复" }] };
+      },
+    };
+    const result = await evaluatePromptPackage({ ...input(reviewer), shots: [
+      { source, compile }, { source: { ...source, shotId: "S02" }, compile },
+    ] });
+    expect(result.status).toBe("passed");
+    expect(seen).toEqual([{ shotId: "S01", allowedFields: ["camera_movement"] }, { shotId: "S02", allowedFields: ["lighting"] }]);
   });
 
   it("records contract, semantic and decision evidence with stable file hashes", async () => {

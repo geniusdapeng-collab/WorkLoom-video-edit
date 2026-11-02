@@ -3,11 +3,13 @@ import {
   buildMarketingPreproductionReport,
   isAbstractMarketingIntent,
   marketingVisibleTextFromG1,
+  marketingDeliveryCanvas,
   normalizeMarketingPromptResult,
   normalizeMarketingPromptText,
+  normalizeMarketingPromptList,
 } from "./marketing-prompt-contract.js";
 
-const options = { targetDuration: 30, noPeople: true };
+const options = { targetDuration: 30, noPeople: true, noDialogue: true };
 
 describe("marketing prompt host contract", () => {
   it("normalizes hardware, people, text conflicts and language policy", () => {
@@ -32,7 +34,7 @@ describe("marketing prompt host contract", () => {
       "30.【副标题内容】官方仓库逐行核对 | 开发者点开许可行亲自验证",
       "33.【微动作】面部细节：眼神专注，嘴唇紧抿；微动作：肩膀紧绷；呼吸：呼吸放缓",
     ].join("\n");
-    const normalized = normalizeMarketingPromptText(source, options).value;
+    const normalized = normalizeMarketingPromptText(source, { ...options, abstractOnly: true }).value;
     expect(normalized).not.toMatch(/竖屏显示器|橡胶垫|办公椅|机箱风扇/);
     expect(normalized).not.toMatch(/公共大厅|接待台|沙发|茶几|85mm/);
     expect(normalized).not.toMatch(/no text|no watermark|no signage/i);
@@ -40,16 +42,16 @@ describe("marketing prompt host contract", () => {
     expect(normalized).toContain("除本次 G1 已审原文");
     expect(normalized).toContain("无人物微动作");
     expect(normalized).toContain("no hardware devices");
-    expect(normalized).toContain("18.【台词】无对白");
-    expect(normalized).toContain("19.【微动作】无人物微动作");
+    expect(normalized).toContain("【台词】无对白");
+    expect(normalized).toContain("【微动作】无人物微动作");
     expect(normalized).not.toContain("26.【负面约束】。");
-    expect(normalized).toContain("20.【音频】无对白、无口播");
+    expect(normalized).toContain("【音频】无对白、无口播");
     expect(normalized).not.toContain("BPM");
     expect(normalized).not.toContain("卡槽");
     expect(normalized).not.toMatch(/导轨|槽口|槽深|槽底|卡槽|针脚|模块方块|锁合|咬合|贴合|接触面|接触瞬间|物理阶段|3200K|暖白|可触摸的哑光金属/);
     expect(normalized).not.toMatch(/身体语言|身体重心|音乐风格|每分钟六十拍|人声对话清晰可辨/);
-    expect(normalized).toContain("31.【开场音频设计】无对白、无口播");
-    expect(normalized).toContain("28.【微动作】无人物微动作");
+    expect(normalized).toContain("【开场音频设计】无对白、无口播");
+    expect(normalized).toContain("【微动作】无人物微动作");
     expect(normalized).toContain("**定妆照**: 无（无角色）");
   });
 
@@ -131,7 +133,7 @@ describe("marketing prompt host contract", () => {
     expect(normalized).toContain("【景深】二维图层保持清晰");
   });
 
-  it("derives exact visible names and claims from the accepted G1 facts", () => {
+  it("rejects legacy raw/query values without accepted claim/source bindings", () => {
     const g1 = JSON.stringify({
       facts: {
         sources: [{ finalUrl: "https://github.com/home-assistant/core" }],
@@ -158,14 +160,7 @@ describe("marketing prompt host contract", () => {
         },
       },
     });
-    expect(marketingVisibleTextFromG1(g1)).toEqual([
-      "Home Assistant",
-      "Open source home automation that puts local control and privacy first.",
-      "Powered by a worldwide community of tinkerers and DIY enthusiasts.",
-      "Apache-2.0",
-      "License: Apache-2.0",
-      "https://github.com/home-assistant/core",
-    ]);
+    expect(marketingVisibleTextFromG1(g1)).toEqual([]); // Raw/query values lack claim/source bindings.
   });
 
   it("builds a complete G7 report without truncation or portrait approval", () => {
@@ -201,7 +196,7 @@ describe("marketing prompt host contract", () => {
     expect(report).not.toContain("截断场景");
   });
 
-  it("rebalances shot durations to the exact target and caps stale timecodes", () => {
+  it("preserves approved shot durations instead of silently projecting them to a new target", () => {
     const result = normalizeMarketingPromptResult({
       stages: {
         productionEngine: {
@@ -217,14 +212,13 @@ describe("marketing prompt host contract", () => {
       },
     }, options).value as any;
     const shots = result.stages.productionEngine.shots;
-    expect(shots.map((shot: any) => shot.duration)).toEqual([5, 7, 5, 6, 4, 3]);
-    expect(shots.reduce((sum: number, shot: any) => sum + shot.duration, 0)).toBe(30);
-    expect(shots[5].timeline).toContain("T00:03");
-    expect(shots[5].timeline).not.toContain("T00:07");
-    expect(shots[5].dialogue).toContain("无对白");
+    expect(shots.map((shot: any) => shot.duration)).toEqual([4, 6, 4, 5, 4, 3]);
+    expect(shots.reduce((sum: number, shot: any) => sum + shot.duration, 0)).toBe(26);
+    expect(shots[5].timeline).toContain("T00:07");
+    expect(shots[5].dialogue).toBe("旁白说原文");
   });
 
-  it("rewrites the review table to the same conserved durations", () => {
+  it("preserves the reviewed table and timecodes for the authoritative duration gate", () => {
     const report = [
       "## 镜头总览",
       "| 镜头 | 时长 |",
@@ -249,13 +243,10 @@ describe("marketing prompt host contract", () => {
       "T00:00–T00:07",
     ].join("\n");
     const normalized = normalizeMarketingPromptText(report, options).value;
-    expect(normalized).toContain("| opening | 5s |");
-    expect(normalized).toContain("| scene-1 | 7s |");
-    expect(normalized).toContain("### ending(内容)\nT00:00–T00:03");
-    expect(normalized).toContain("5s + 7s + 5s + 6s + 4s + 3s = 30s");
+    expect(normalized).toBe(report);
   });
 
-  it("conserves decimal durations across any shot count and marks portrait inapplicable", () => {
+  it("never rounds decimal approved durations into a different timeline", () => {
     const report = [
       "| 镜头 | 时长 | 字符数 | 字段数 | 技能命中 | 有定妆照 | 有时间轴 | 有约束 |",
       "|---|---|---|---|---|---|---|---|",
@@ -266,9 +257,69 @@ describe("marketing prompt host contract", () => {
       "| ending | 6s | 1200 | 25 | — | ✓ | ✓ | ✓ |",
     ].join("\n");
     const normalized = normalizeMarketingPromptText(report, options).value;
-    expect(normalized).toContain("| opening | 3s |");
-    expect(normalized).toContain("| scene-2 | 11s |");
-    expect(normalized).toContain("3s + 4s + 11s + 7s + 5s = 30s");
-    expect(normalized).toContain("| — | ✓ | ✓ |");
+    expect(normalized).toBe(report);
+  });
+});
+
+
+describe("marketing normalization audit regressions", () => {
+  it("preserves ordinary product marketing, its dialogue, camera and negative constraints", () => {
+    const source = '01.【场景】金属桌面上的空气净化器，50mm 镜头拍摄屏幕。\n02.【台词】[0s-3s] 小林，平静地说：“请看看这款空气净化器。”\n03.【负面约束】no text, no watermark';
+    const ordinary = { targetDuration: 30, noPeople: false, abstractOnly: false };
+    expect(normalizeMarketingPromptText(source, ordinary)).toEqual({ value: source, changes: [] });
+    const result = { stages: { creativeTheme: { data: { theme: "金属键盘广告" } }, productionEngine: { shots: [{ duration: 5, scene: source, dialogue: "清晰旁白" }] } } };
+    expect(normalizeMarketingPromptResult(result, ordinary)).toEqual({ value: result, changes: [] });
+  });
+
+  it("does not infer silence or abstract visuals from no people", () => {
+    const source = '01.【场景】无人实拍空气净化器。\n02.【台词】旁白：“看清楚产品细节。”\n03.【音频】旁白与风扇环境声';
+    const result = normalizeMarketingPromptText(source, { targetDuration: 30, noPeople: true });
+    expect(result.value).toBe(source);
+  });
+
+  it("does not invent a license and respects explicit abstract delivery and audio", () => {
+    const prompts = [{ shotId: "scene-2", duration: 4, prompt: '01.【台词】旁白：“沿线查看接口。”\n02.【音频】已审旁白与环境声', dialogue: "沿线查看接口。", dialogueBlocks: [{ text: "沿线查看接口。" }] }];
+    const result = normalizeMarketingPromptList(prompts, { targetDuration: 4, noPeople: true, abstractOnly: true,
+      allowedVisibleText: ["空气净化器"], frameRate: 60, aspectRatio: "16:9", resolution: "1080p", subtitleMode: "both" });
+    expect(result[0]!.prompt).not.toContain("Apache-2.0");
+    expect(result[0]!.prompt).toContain("60fps");
+    expect(result[0]!.prompt).toContain("1920x1080");
+    expect(result[0]!.prompt).toContain("16:9");
+    expect(result[0]!.prompt).not.toMatch(/30fps|2160x3840|字幕轨不生成|无口播/);
+    expect(result[0]!.prompt).toContain("沿线查看接口。");
+    expect(result[0]!.dialogue).toBe(prompts[0]!.dialogue);
+    expect(result[0]!.dialogueBlocks).toEqual(prompts[0]!.dialogueBlocks);
+  });
+
+  it("never rewrites immutable source and approval stages when normalizing abstract production", () => {
+    const result = { stages: { creativeTheme: { data: { theme: "手指与金属桌面" } }, prdGeneration: { data: { purpose: "金属导轨连接", hash: "unchanged" } }, productionEngine: { prompts: [{ shotId: "opening", duration: 4 }] } } };
+    const normalized = normalizeMarketingPromptResult(result, { targetDuration: 4, noPeople: true, abstractOnly: true }).value;
+    expect(normalized.stages.creativeTheme).toEqual(result.stages.creativeTheme);
+    expect(normalized.stages.prdGeneration).toEqual(result.stages.prdGeneration);
+  });
+
+  it("selects visible claims only from source-bound A1 evidence, excluding raw and query guesses", () => {
+    const sha = "a".repeat(64);
+    const content = JSON.stringify({ facts: { productQuery: { name: "查询猜测" },
+      sources: [{ sourceId: "S1", textSha256: sha, finalUrl: "https://official.example/product" }],
+      rawByAgent: { A1: { identity: { official_selling_points: [{ point: "未绑定主张" }] } } },
+      stages: [{ stage: "A1", facts: { claims: [
+        { stage: "A1", status: "source-bound", pointer: "/identity/name", value: "已审商品", sourceId: "S1", textSha256: sha },
+        { stage: "A1", status: "source-bound", pointer: "/identity/official_selling_points/0/point", value: "已审卖点", sourceId: "S1", textSha256: sha },
+        { stage: "A1", status: "unverified", pointer: "/identity/specs/License", value: "Apache-2.0", sourceId: "S1", textSha256: sha },
+      ] } }] } });
+    expect(marketingVisibleTextFromG1(content)).toEqual(["已审商品", "已审卖点", "https://official.example/product"]);
+  });
+});
+
+
+describe("marketing explicit delivery canvas", () => {
+  it.each([
+    ["1080p", "9:16", "1080x1920"], ["4K", "9:16", "2160x3840"],
+    ["1080p", "16:9", "1920x1080"], ["4K", "16:9", "3840x2160"],
+    ["1080p", "1:1", "1080x1080"], ["4K", "1:1", "2160x2160"],
+    ["1080p", "4:3", "1440x1080"], ["4K", "4:3", "2880x2160"],
+  ])("keeps %s %s consistent with the production bridge", (resolution, aspect, canvas) => {
+    expect(marketingDeliveryCanvas(resolution, aspect)).toBe(canvas);
   });
 });

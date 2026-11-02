@@ -47,6 +47,18 @@ function fixture(hook?: Hook) {
 const run = (f: ReturnType<typeof fixture>, options: Partial<Parameters<typeof renderServiceProject>[0]> = {}) => renderServiceProject({ client: f.client, projectId: "P", modelId: "model", pollRounds: 1, pollIntervalMs: 0, wait: async () => undefined, ...options });
 
 describe("service production client", () => {
+  it("accepts authenticated service contract defaults while preserving every explicit caller parameter", async () => {
+    const defaults = { aspectRatio: "9:16", resolution: "1080p", generateAudio: true,
+      cameraFixed: true, referenceImageUrls: ["data:image/png;base64,YXBwcm92ZWQ="] };
+    const f = fixture((call, value) => call.route.endsWith("qualifyShot")
+      ? { ...(value as object), params: { ...defaults, ...(call.body.params as object) } } : value);
+    expect((await run(f)).status).toBe("done");
+    expect(f.calls.find(call => call.route.endsWith("submit"))!.body).toEqual({ qualificationToken });
+    const changed = fixture((call, value) => call.route.endsWith("qualifyShot")
+      ? { ...(value as object), params: { ...(call.body.params as object), aspectRatio: "16:9" } } : value);
+    expect((await run(changed, { params: { aspectRatio: "9:16" } })).status).toBe("unverified");
+    expect(changed.calls.some(call => call.route.endsWith("submit"))).toBe(false);
+  });
   it("quotes before review, submits only qualification, and persists exact service revision without credentials", async () => {
     const f = fixture(); const snapshots: ProductionProjectResult[] = [];
     const result = await run(f, { params: { aspectRatio: "16:9", generateAudio: false }, onProgress: value => { snapshots.push(value); } });

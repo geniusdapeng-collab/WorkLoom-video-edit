@@ -81,4 +81,30 @@ describe("creative theme host contract", () => {
     expect(task.description).toContain("开发者");
     expect(task.target_audience).toBe("客户未明确指定；任何人群假设均为待审核");
   });
+
+  it.each(["narrative", "marketing"])("keeps off-screen narration independent from the %s visual cast", (kind) => {
+    const intent = "全片无人出镜，保留女声旁白：灯火映照着归人的路。";
+    const normalized = normalizeCreativeThemeContract(result(), {
+      pipelineRoute: { kind }, customerOriginalIntent: intent,
+      builtinCharacterSelection: { mode: "none" }, brief: { product: "城市摄影服务" },
+    });
+    const task = (normalized.result.tasks as Array<Record<string, unknown>>)[0]!;
+    expect(task.protagonist).toBeNull();
+    expect(task.dialogue_requirement).toContain(intent);
+    expect(task.dialogue_requirement).not.toMatch(/无口播|无拟人旁白|禁止旁白/);
+    expect(task.dialogue_requirement).toContain("客户未明确请求时不新增人声");
+    if (kind === "marketing") expect(task.special_notes).toContain("未经 G1 核验");
+  });
+
+  it("retains an explicit silent request and does not authorize a generated speaker", () => {
+    const intent = "全片无人出镜，不要旁白、配音或任何人声，只保留环境音效。";
+    const normalized = normalizeCreativeThemeContract(result(), {
+      pipelineRoute: { kind: "narrative" }, customerOriginalIntent: intent,
+      builtinCharacterSelection: { mode: "none" },
+    });
+    const task = (normalized.result.tasks as Array<Record<string, unknown>>)[0]!;
+    expect(task.dialogue_requirement).toContain(intent);
+    expect(task.dialogue_requirement).not.toContain("开发者口播");
+    expect(task.dialogue_requirement).toContain("客户未明确请求时不新增人声");
+  });
 });

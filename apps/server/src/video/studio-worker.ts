@@ -13,6 +13,7 @@
  *      本工作器以 run 注册表 aborted 位实现同等中止语义（轮询每拍检查）。
  */
 import path from "node:path";
+import { AsyncLocalStorage } from "node:async_hooks";
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { getAppPool, getGatewayPool } from "@workloom/db";
@@ -66,7 +67,7 @@ import { appendScenePolicyGuidance, resolveScenePolicyForIntent } from "./scene-
 import { appendPlatformGuidance, resolvePlatformForIntent } from "./platform-routing.js";
 import { loadVideoPipelinePlan, type CompiledVideoPipelinePlan } from "@hyperreality/video-pipeline";
 import { loadPipelineFeatureFlags } from "@workloom/pipeline-control";
-import { findModelByProviderModel, getModel, loadCatalog } from "./gen/catalog.js";
+import { findModelByProviderModel, getModel, loadCatalog, resolveProviderModel } from "./gen/catalog.js";
 import { PipelineShadowObserver, pipelineControlMode } from "./pipeline/shadow.js";
 import {
   AUTO_GATES,
@@ -183,6 +184,7 @@ function dataMiningConfigFor(
  * 日志文件，取消订阅时引用计数归零才还原 console——先后结束顺序任意都不错位。
  */
 const teeSubscribers = new Map<string, (level: string, args: unknown[]) => void>();
+const runLogScopes = new AsyncLocalStorage<string>();
 let teeInstalled: { originals: Array<(...args: unknown[]) => void> } | null = null;
 
 function formatTeeLine(args: unknown[]): string {
@@ -203,7 +205,9 @@ function installTee(): void {
   const originals = methods.map((m) => console[m] as (...args: unknown[]) => void);
   methods.forEach((m, i) => {
     (console as unknown as Record<string, unknown>)[m] = (...args: unknown[]) => {
-      for (const write of teeSubscribers.values()) {
+      const key = runLogScopes.getStore();
+      const write = key ? teeSubscribers.get(key) : undefined;
+      if (write) {
         try {
           write(m.toUpperCase(), args);
         } catch {
@@ -225,7 +229,7 @@ function uninstallTeeIfIdle(): void {
   teeInstalled = null;
 }
 
-function teeRunLogs(projectId: string): () => void {
+function teeRunLogs(projectId: string, runLogKey: string): () => void {
   const logDir = path.join(WORK_DIR, "logs");
   const logFile = path.join(logDir, `${projectId}.log`);
   try {
@@ -240,13 +244,13 @@ function teeRunLogs(projectId: string): () => void {
       /* 日志落盘失败不影响运行 */
     }
   };
-  teeSubscribers.set(projectId, write);
+  teeSubscribers.set(runLogKey, write);
   installTee();
   let released = false;
   return () => {
     if (released) return; // 幂等：重复调用不破坏其他 run 的订阅
     released = true;
-    teeSubscribers.delete(projectId);
+    teeSubscribers.delete(runLogKey);
     uninstallTeeIfIdle();
   };
 }
@@ -577,13 +581,14 @@ function promptCompileOptionsFor(
   const fps = Number.isInteger(fpsNumber) && fpsNumber > 0 && fpsNumber <= 120 ? fpsNumber : 30;
   const generateAudio = production.audio !== false && metadata?.audio !== false && brief.audio !== false;
   const limits = model.limits;
+  const providerModel = resolveProviderModel(model, process.env);
   return {
     delivery: { aspectRatio: aspect, resolution, fps, format: "mp4", generateAudio },
     model: {
       modelId: model.id,
       provider: model.provider,
-      providerModel: model.providerModel,
-      version: `workloom.media-catalog/v1:${model.providerModel}`,
+      providerModel,
+      version: `workloom.media-catalog/v1:${providerModel}`,
       modes: [...model.modes],
       durationSec: limits?.durationSec
         ? { min: limits.durationSec.min, max: limits.durationSec.max }
@@ -749,8 +754,8 @@ export function startRun(scope: Scope, input: StudioRunInput): string {
     log: (line) => console.log(line),
   });
   /** run 期间的全部 console 输出落盘（逐环节审计证据；run 结束摘除） */
-  const restoreRunLogs = teeRunLogs(input.projectId);
-  console.log(`[studio-worker] run 日志开始落盘：${path.join(WORK_DIR, "logs", `${input.projectId}.log`)}`);
+  const runLogKey = `${scope.workspaceId}/${input.projectId}/${newId("LOG")}`;
+  const restoreRunLogs = teeRunLogs(input.projectId, runLogKey);
 
   const entry: RunEntry = {
     runId: newId("RUN"),
@@ -1357,7 +1362,8 @@ export function startRun(scope: Scope, input: StudioRunInput): string {
   };
 
   // 异步执行：不阻塞 tRPC 响应；终态只写注册表投影（生命周期事件由 onEvent 落库）
-  void (async () => {
+  void runLogScopes.run(runLogKey, async () => {
+    console.log(`[studio-worker] run 日志开始落盘：${path.join(WORK_DIR, "logs", `${input.projectId}.log`)}`);
     /**
      * 项目级执行者租约（规格书 §11：同一项目同一时刻只允许一个执行者，杜绝双写与重复烧额度）。
      * 会话级 advisory lock 持有到 run 结束；进程被 kill -9 → 连接断开 → 锁自动释放。
@@ -1390,6 +1396,7 @@ export function startRun(scope: Scope, input: StudioRunInput): string {
         });
       }
       detachStructuredLog = attachStructuredLog(archive, {
+        shouldCapture: () => runLogScopes.getStore() === runLogKey,
         currentStage: () => stageRef.name,
         currentAttempt: () => stageRef.attempt,
       });
@@ -1952,7 +1959,7 @@ export function startRun(scope: Scope, input: StudioRunInput): string {
       }
       entry.finishedAt = new Date().toISOString();
     }
-  })();
+  });
 
   return entry.runId;
 }

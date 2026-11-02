@@ -1,3 +1,5 @@
+import { isAbstractMarketingIntent, marketingDeliveryCanvas } from "./marketing-prompt-contract.js";
+
 type RecordValue = Record<string, unknown>;
 
 export interface MarketingPrdNormalization {
@@ -18,9 +20,8 @@ const UNSUPPORTED_MODULE_COUNT = /(?:九|9)\s*(?:个|块|组)?\s*(?:空心)?(?:�
 const SUBTITLE_POLICY = "客户未明确要求字幕：不生成字幕轨或 SRT/VTT；屏上已审原文只作为画面图形层叠加，不属于字幕交付";
 const FONT_POLICY = "屏上所有可读文字统一受最小字号屏高3%、文字与底色对比度4.5:1、平台安全区和遮挡检查约束；辅助文字与脚注不豁免";
 const QUOTE_POLICY = "G1 原文核对按连续子串截取：只允许原字符、原顺序、原标点；不得补写、拼接或改写标点";
-const VIDEO_TECHNICAL = `30fps；竖屏安全区按目标平台遮挡区在渲染前测量并留证；${FONT_POLICY}；${QUOTE_POLICY}`;
 
-function normalizeText(value: string): string {
+function normalizeText(value: string, subtitlePolicy = SUBTITLE_POLICY): string {
   const next = value
     .replace(/\bawarenes\b/giu, "awareness")
     .replace(/\blicense(?=\s*:\s*Apache-2\.0)/giu, "License")
@@ -57,8 +58,8 @@ function normalizeText(value: string): string {
     .replace(/小字内容须与 G1 原文完全一致/gu, "小字内容须为 G1 原文的连续子串并保留原标点")
     .replace(/字段文本须与 G1 原文完全一致/gu, "字段文本须为 G1 原文的连续子串并保留原标点")
     .replace(/文字须与 G1 原文一致/gu, "文字须为 G1 原文的连续子串并保留原标点")
-    .replace(/字幕默认烧录已审画面文字[^；。\n]*/gu, SUBTITLE_POLICY)
-    .replace(/字幕仅烧录已审画面文字[^；。\n]*/gu, SUBTITLE_POLICY)
+    .replace(/字幕默认烧录已审画面文字[^；。\n]*/gu, subtitlePolicy)
+    .replace(/字幕仅烧录已审画面文字[^；。\n]*/gu, subtitlePolicy)
     .replace(/(?<!https:\/\/)github\.com\//giu, "https://github.com/")
     .replace(/(https?:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+)\s*·\s*README/gu, "$1")
     .replace(/屏幕上给出收束的一句：来源\s*(https?:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+)/gu,
@@ -125,14 +126,14 @@ function replaceRenderedStrings(value: unknown, pattern: RegExp, replacement: st
   return changed;
 }
 
-function normalizeGlobalStrings(value: unknown): boolean {
+function normalizeGlobalStrings(value: unknown, subtitlePolicy: string): boolean {
   let changed = false;
   const walk = (node: unknown): void => {
     if (Array.isArray(node)) {
       for (let index = 0; index < node.length; index++) {
         const item = node[index];
         if (typeof item === "string") {
-          const next = normalizeText(item);
+          const next = normalizeText(item, subtitlePolicy);
           if (next !== item) {
             node[index] = next;
             changed = true;
@@ -146,7 +147,7 @@ function normalizeGlobalStrings(value: unknown): boolean {
     if (!isRecord(node)) return;
     for (const [key, item] of Object.entries(node)) {
       if (typeof item === "string") {
-        const next = normalizeText(item);
+        const next = normalizeText(item, subtitlePolicy);
         if (next !== item) {
           node[key] = next;
           changed = true;
@@ -160,13 +161,6 @@ function normalizeGlobalStrings(value: unknown): boolean {
   return changed;
 }
 
-function dimensions(resolution: string, aspect: string): string {
-  const width = resolution === "4K" ? 3840 : 1920;
-  if (aspect === "9:16") return `${Math.round(width * 9 / 16)}x${width}`;
-  if (aspect === "1:1") return `${width}x${width}`;
-  if (aspect === "4:3") return `${Math.round(width * 4 / 3)}x${width}`;
-  return `${width}x${Math.round(width * 9 / 16)}`;
-}
 
 function truncated(value: string): boolean {
   const opens = (value.match(/[「“（(]/gu) ?? []).length;
@@ -197,6 +191,14 @@ export function normalizeMarketingPrdContract(
   const profile = isRecord(profileValue) ? profileValue : {};
   const contract = isRecord(contractValue) ? contractValue : {};
   const intent = text(metadata.customerOriginalIntent);
+  const authorityScenes = list(contract.scenes).filter(isRecord);
+  const originalScenes = list(isRecord(prd.scenePlan) ? prd.scenePlan.scenes : undefined).filter(isRecord);
+  if (authorityScenes.length !== originalScenes.length) {
+    throw new Error("MARKETING_PRD_SCENE_AUTHORITY_CHANGED：PRD 场景数量与已审 G3 合同不一致");
+  }
+  // The abstract/no-person repair originated in one production request. It has no
+  // authority to replace the creative or audio contract of ordinary marketing.
+  if (!isAbstractMarketingIntent(intent)) return { prd: prdValue, applied: false, changes: [] };
   const noPeople = noPerson(metadata);
   const changes: string[] = [];
 
@@ -212,6 +214,10 @@ export function normalizeMarketingPrdContract(
   const targetDuration = Number(profile.targetDuration);
   const targetAspectRatio = text(profile.aspectRatio);
   const targetPlatform = text(profile.targetPlatform);
+  const subtitlePolicy = profile.subtitleMode === "none" ? SUBTITLE_POLICY.replace("客户未明确要求字幕", "客户明确关闭字幕")
+    : profile.subtitleMode ? `正式后期按 ${String(profile.subtitleMode)} 交付已审字幕；烧录和旁挂使用同一台词与时间线，屏上原文不替代字幕轨`
+      : "字幕遵守已审交付合同，不新增未请求的字幕";
+  const videoTechnical = `${targetFrameRate}fps；${targetAspectRatio || "目标画幅"}安全区按目标平台遮挡区在渲染前测量并留证；${FONT_POLICY}；${QUOTE_POLICY}`;
   if (Number.isFinite(targetDuration) && targetDuration > 0) positioning.targetDuration = targetDuration;
   if (targetAspectRatio) positioning.aspectRatio = targetAspectRatio;
   if (targetPlatform) positioning.targetPlatform = targetPlatform;
@@ -226,9 +232,6 @@ export function normalizeMarketingPrdContract(
   prd.productPositioning = positioning;
 
   const visual = isRecord(prd.visualSpecification) ? prd.visualSpecification : {};
-  visual.visualReferences = [
-    "本次已审 G3 场景的画面目的、关键元素与用户 Brief；不引用未获客户提供的外部影片、导演或品牌案例",
-  ];
   if (noPeople) {
     const camera = text(visual.cameraLanguage);
     if (!camera || BODY_REFERENCE.test(camera)) {
@@ -238,12 +241,6 @@ export function normalizeMarketingPrdContract(
   }
   prd.visualSpecification = visual;
 
-  const references = isRecord(prd.referenceCases) ? prd.referenceCases : {};
-  references.filmReferences = ["客户未指定外部影片；只使用已审 G3 场景和视觉规格"];
-  references.adReferences = [];
-  references.styleReferences = ["由本次 G3 场景、G1 来源事实和客户 Brief 形成的通用视觉系统"];
-  prd.referenceCases = references;
-  changes.push("external-reference-cases-removed");
 
   const creative = isRecord(prd.creativeCore) ? prd.creativeCore : {};
   const hook = text(creative.creativeHook);
@@ -266,10 +263,8 @@ export function normalizeMarketingPrdContract(
 
   const audio = isRecord(prd.audioSpecification) ? prd.audioSpecification : {};
   if (noPeople) {
-    audio.voicePolicy = "无对白";
-    audio.musicStyle = "无人声、低频音床、材质提示音与机械节奏；无旋律配乐";
     const design = text(audio.soundDesign);
-    const technical = `技术交付口径：AAC 48 kHz 双声道，整体响度 -14 LUFS，True Peak ≤ -1 dBTP；${FONT_POLICY}；${QUOTE_POLICY}；${SUBTITLE_POLICY}。`;
+    const technical = `技术交付口径：AAC 48 kHz 双声道，整体响度 -14 LUFS，True Peak ≤ -1 dBTP；${FONT_POLICY}；${QUOTE_POLICY}；${subtitlePolicy}。`;
     audio.soundDesign = `${design}${design ? "\n" : ""}${technical}`;
     changes.push("no-person-audio-subtitle-contract-normalized");
   }
@@ -293,8 +288,9 @@ export function normalizeMarketingPrdContract(
       const screenText = /屏上文字|屏幕文字|文字层|来源行|来源角标|标题内容|副标题内容|License\s*[：:]|github\.com\/|Home Assistant/u;
       normalized = normalized.filter((requirement) => !screenText.test(requirement));
       normalized = [
-        ...normalized.slice(0, 4),
-        "屏上可见文字只允许从本次 G1 已审名称、官方卖点、许可证与仓库地址中取用，并由 G6 逐镜列明精确字符串；不生成字幕轨，不新增中文说明。",
+        ...normalized.slice(0, 3),
+        ...(normalized.length > 3 ? [normalized.slice(3).join("；")] : []),
+        `屏上可见文字只允许从本次 G1 已审名称、官方卖点、许可证与仓库地址中取用，并由 G6 逐镜列明精确字符串；${subtitlePolicy}。`,
       ];
     }
     if (JSON.stringify(normalized) !== JSON.stringify(visualRequirements)) {
@@ -320,13 +316,13 @@ export function normalizeMarketingPrdContract(
   constraints.businessConstraints = sanitizeConstraints(list(constraints.businessConstraints), "遵守 G1 用途限制和客户 Brief");
   constraints.forbiddenElements = sanitizeConstraints(list(constraints.forbiddenElements), "不新增客户未要求的人物、外部作品或未核实事实");
   const profileRules = [
-    `输出画布 ${dimensions(text(profile.resolution) || "4K", text(profile.aspectRatio) || "9:16")}，时长 ${String(profile.targetDuration ?? "按已审场景")} 秒，时长帧容差 ${String(profile.durationToleranceFrames ?? 1)} 帧；${VIDEO_TECHNICAL}`,
+    `输出画布 ${marketingDeliveryCanvas(text(profile.resolution) || "4K", text(profile.aspectRatio) || "9:16")}，时长 ${String(profile.targetDuration ?? "按已审场景")} 秒，时长帧容差 ${String(profile.durationToleranceFrames ?? 1)} 帧；${videoTechnical}`,
     "AAC 48 kHz 双声道；整体响度 -14 LUFS；True Peak ≤ -1 dBTP",
-    SUBTITLE_POLICY,
+    subtitlePolicy,
     "G1 已接受原文只作官方来源自述，不延伸为性能、安全、兼容性或运行效果承诺；来源中未经 claim 绑定的其他名称不得成为画面事实",
   ];
   constraints.technicalConstraints = [
-    ...new Set([...textList(constraints.technicalConstraints).slice(0, 1), ...profileRules]),
+    ...new Set([textList(constraints.technicalConstraints).join("；"), ...profileRules]),
   ].slice(0, 5);
   prd.productionConstraints = constraints;
 
@@ -346,10 +342,10 @@ export function normalizeMarketingPrdContract(
   }
   const master = deliverables.find((item) => item.item === "video_master");
   if (master) {
-    const dimensionsValue = dimensions(text(profile.resolution) || "4K", text(profile.aspectRatio) || "9:16");
+    const dimensionsValue = marketingDeliveryCanvas(text(profile.resolution) || "4K", text(profile.aspectRatio) || "9:16");
     const spec = text(master.spec);
-    const technical = `画布 ${dimensionsValue}；时长 ${String(profile.targetDuration ?? "按已审场景")} 秒 ±${String(profile.durationToleranceFrames ?? 1)} 帧；AAC 48 kHz 双声道；-14 LUFS / -1 dBTP；${VIDEO_TECHNICAL}；${SUBTITLE_POLICY}`;
-    if (!spec.includes("-14 LUFS") || !spec.includes(dimensionsValue) || !spec.includes("30fps") || !spec.includes("安全区")) {
+    const technical = `画布 ${dimensionsValue}；时长 ${String(profile.targetDuration ?? "按已审场景")} 秒 ±${String(profile.durationToleranceFrames ?? 1)} 帧；AAC 48 kHz 双声道；-14 LUFS / -1 dBTP；${videoTechnical}；${subtitlePolicy}`;
+    if (!spec.includes("-14 LUFS") || !spec.includes(dimensionsValue) || !spec.includes(`${targetFrameRate}fps`) || !spec.includes("安全区")) {
       master.spec = [spec, technical].filter(Boolean).join("；");
       changes.push("delivery-technical-baseline-normalized");
     }
@@ -361,7 +357,7 @@ export function normalizeMarketingPrdContract(
   delivery.outputFormat = outputFormat;
   prd.deliveryStandard = delivery;
 
-  if (normalizeGlobalStrings(prd)) changes.push("global-prd-contradictions-normalized");
+  if (normalizeGlobalStrings(prd, subtitlePolicy)) changes.push("global-prd-contradictions-normalized");
   if (targetFrameRate !== 24 && replaceRenderedStrings(prd, /\b24fps\b/giu, `${targetFrameRate}fps`)) {
     changes.push("frame-rate-text-normalized");
   }
@@ -371,7 +367,6 @@ export function normalizeMarketingPrdContract(
 
   // Keep the scene authority hash consumers honest: this function never rewrites
   // scene IDs, durations, purposes or shotMapping.
-  const authorityScenes = list(contract.scenes).filter(isRecord);
   const currentScenes = list(scenes.scenes).filter(isRecord);
   if (authorityScenes.length !== currentScenes.length) {
     throw new Error("MARKETING_PRD_SCENE_AUTHORITY_CHANGED：PRD 场景数量与已审 G3 合同不一致");

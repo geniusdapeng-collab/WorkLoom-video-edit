@@ -97,7 +97,7 @@ describe("守恒投影（性质测试）", () => {
       for (const entry of result.entries) {
         expect(entry.seconds).toBeGreaterThanOrEqual(4);
         expect(entry.seconds).toBeLessThanOrEqual(30);
-        expect(entry.seconds).toBeGreaterThanOrEqual(Math.min(30, entry.voiceFloorSeconds));
+        expect(entry.seconds).toBeGreaterThanOrEqual(entry.voiceFloorSeconds);
       }
     }
   });
@@ -126,6 +126,21 @@ describe("守恒投影（性质测试）", () => {
     if (result.ok) throw new Error("应当 INFEASIBLE");
     expect(result.reason).toBe("capacity-below-target");
     expect(result.suggestions.join(" ")).toContain("增加镜头数");
+  });
+
+  it("rejects a per-shot voice floor above model capacity even when the package has spare time", () => {
+    const shots = [shot("long", 30, "字".repeat(120)), shot("silent", 30)];
+    const before = structuredClone(shots);
+    const result = projectShotDurations(shots, { targetSeconds: 60, minSeconds: 4, maxSeconds: 30 });
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error("A 43-second voice floor cannot fit a 30-second shot");
+    expect(result.reason).toBe("voice-floor-exceeds-model");
+    expect(result.overloadSeconds).toBeGreaterThan(0);
+    expect(result.entries[0]!.voiceFloorSeconds).toBeGreaterThan(30);
+    expect(result.suggestions.join(" ")).toContain("long");
+    expect(shots).toEqual(before);
+    const plan = projectShotDurations(shots, { targetSeconds: 60, minSeconds: 4, maxSeconds: 30, enforceVoiceFloor: false });
+    expect(plan.ok).toBe(true);
   });
 
   it("计划时长低于台词下限时被抬高，并在 raisedShotIds 里如实登记", () => {

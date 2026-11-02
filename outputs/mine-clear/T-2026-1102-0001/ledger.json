@@ -1,0 +1,619 @@
+{
+  "schema": "workloom.mine-clear/ledger@1",
+  "task_id": "T-2026-1102-0001",
+  "repo": "repo",
+  "repo_path": "/Users/mac/Documents/Codex/2026-11-02/edit-ai-n-n-ai-github/work/repo",
+  "title": "Edit通用与营销视频前期审计修复",
+  "created_at": "2026-11-02T13:56:26.246Z",
+  "updated_at": "2026-11-02T14:40:03.809Z",
+  "baseline": {
+    "audit": {
+      "commit": "d5ef7a7feaa6a76428503a07937c2215d1ed6538",
+      "branch": "task/T-2026-1102-0001",
+      "remote": "origin",
+      "fetched_at": null,
+      "fetch_status": "skipped",
+      "notes": "工作树不干净（1 项未提交改动）：排雷结论只对已提交内容成立"
+    },
+    "repair": {
+      "commit": null,
+      "reverified_problem_ids": []
+    },
+    "acceptance": {
+      "commit": null,
+      "is_descendant_of_repair": null
+    }
+  },
+  "environment": {
+    "kind": "local-preview",
+    "notes": "local-preview; isolated PG + service and fixture provider/model boundaries; real paid model/media not run"
+  },
+  "invariants": [
+    {
+      "id": "INV-1",
+      "text": "租户边界覆盖数据库 RLS、运行时上下文、事件、缓存和外部连接器。",
+      "source": "AGENTS.md#4.1"
+    },
+    {
+      "id": "INV-2",
+      "text": "经营事件、审批和关键回执只增不改；纠正通过新事件表达，不静默覆盖证据。",
+      "source": "AGENTS.md#4.2"
+    },
+    {
+      "id": "INV-3",
+      "text": "所有外部或变更性动作及其子调用，统一经过权限、PII、围栏和审批链路。",
+      "source": "AGENTS.md#4.3"
+    },
+    {
+      "id": "INV-4",
+      "text": "涉钱、敏感数据、群发、公开发布、交易和破坏性变更必须按高风险处理并由人审批。",
+      "source": "AGENTS.md#4.4"
+    },
+    {
+      "id": "INV-5",
+      "text": "没有真实回执就不能标记完成；mock、模拟和体验模式在数据结构与界面上都要明确区分。",
+      "source": "AGENTS.md#4.5"
+    },
+    {
+      "id": "INV-6",
+      "text": "客户原始经营数据不得上行；蜂群只接受白名单化、最小化、匿名化且可审计的元数据或派生经验。",
+      "source": "AGENTS.md#4.6"
+    },
+    {
+      "id": "INV-7",
+      "text": "租户覆盖层只能收紧围栏，不能放宽平台不可变红线。",
+      "source": "AGENTS.md#4.7"
+    },
+    {
+      "id": "INV-8",
+      "text": "模型、提示词、技能、bundle、策略和热更新必须先评测再灰度，且始终可回滚。",
+      "source": "AGENTS.md#4.8"
+    },
+    {
+      "id": "INV-9",
+      "text": "platform-ops、平台账户运营和平台秘密只属于 Andromeda。",
+      "source": "AGENTS.md#4.9"
+    },
+    {
+      "id": "INV-10",
+      "text": "Tiger 在获得单独的合规审查和用户明确授权前，只能模拟或纸面交易。",
+      "source": "AGENTS.md#4.10"
+    },
+    {
+      "id": "INV-11",
+      "text": "令牌、密码、API key、私钥、客户凭证和私密客户数据不得进入源码、文档、上下文、提示词、日志或提交。",
+      "source": "AGENTS.md#4.11"
+    },
+    {
+      "id": "INV-12",
+      "text": "个性化与行业扩展不得形成公共机制的第二事实源。",
+      "source": "AGENTS.md#4.12"
+    }
+  ],
+  "cards": [
+    {
+      "id": "MC-001",
+      "kind": "problem",
+      "level": "L1",
+      "severity": "P1",
+      "batch": 2,
+      "state": "open",
+      "title": "营销抽象特例归一化泄漏至普通营销并注入未审事实",
+      "evidence": [
+        {
+          "type": "code",
+          "ref": "packages/video-studio/src/marketing-prompt-contract.ts:168@d5ef7a7feaa6a76428503a07937c2215d1ed6538",
+          "sha256": "c9a5e6a44976738b18ce5b36326a42d2dc7ce87de9b2ba744f04b7083ff87971",
+          "note": "营销抽象特例归一化泄漏至普通营销并注入未审事实"
+        },
+        {
+          "type": "code",
+          "ref": "packages/video-studio/src/marketing-prompt-contract.ts:352@d5ef7a7feaa6a76428503a07937c2215d1ed6538",
+          "sha256": "c9a5e6a44976738b18ce5b36326a42d2dc7ce87de9b2ba744f04b7083ff87971",
+          "note": "营销抽象特例归一化泄漏至普通营销并注入未审事实"
+        },
+        {
+          "type": "code",
+          "ref": "packages/video-studio/src/marketing-prd-contract.ts:188@d5ef7a7feaa6a76428503a07937c2215d1ed6538",
+          "sha256": "367eec25b75a5171ae80130a94246fa03c279bdd1b52f5d7b7fb78cd35ca2ec4",
+          "note": "营销抽象特例归一化泄漏至普通营销并注入未审事实"
+        }
+      ],
+      "root_cause": {
+        "file": "packages/video-studio/src/marketing-prompt-contract.ts",
+        "line": 168,
+        "commit": "d5ef7a7feaa6a76428503a07937c2215d1ed6538",
+        "symbol": "营销抽象特例归一化泄漏至普通营销并注入未审事实"
+      },
+      "trigger_path": "普通人物/实体商品营销G6调用normalizer；或抽象scene-2缺许可证；或营销profile要求60fps/字幕both",
+      "assertions": [
+        {
+          "kind": "sample",
+          "given": "普通人物/实体商品营销G6调用normalizer；或抽象scene-2缺许可证；或营销profile要求60fps/字幕both",
+          "expect": "合法合同保留；不合法/漂移/越权输入被明确拒绝，正常与错误分支均通过已命名回归",
+          "command": "node node_modules/vitest/vitest.mjs run packages/video-studio/src/marketing-prompt-contract.test.ts packages/video-studio/src/marketing-prd-contract.test.ts packages/video-studio/src/prd-authority-bridge.test.ts --maxWorkers=1 --no-file-parallelism",
+          "exec": {
+            "file": "node",
+            "args": [
+              "node_modules/vitest/vitest.mjs",
+              "run",
+              "packages/video-studio/src/marketing-prompt-contract.test.ts",
+              "packages/video-studio/src/marketing-prd-contract.test.ts",
+              "packages/video-studio/src/prd-authority-bridge.test.ts",
+              "--maxWorkers=1",
+              "--no-file-parallelism"
+            ]
+          },
+          "last_result": "not-run"
+        }
+      ],
+      "regression": {
+        "command": "node node_modules/vitest/vitest.mjs run packages/video-studio/src/marketing-prompt-contract.test.ts packages/video-studio/src/marketing-prd-contract.test.ts packages/video-studio/src/prd-authority-bridge.test.ts --maxWorkers=1 --no-file-parallelism"
+      },
+      "notes": "实现证据A级；本机fixture运行仅B级，不代表付费模型产出率。"
+    },
+    {
+      "id": "MC-002",
+      "kind": "problem",
+      "level": "L1",
+      "severity": "P1",
+      "batch": 2,
+      "state": "open",
+      "title": "显式路由否定被当成肯定，用户选择的管线被反转",
+      "evidence": [
+        {
+          "type": "code",
+          "ref": "packages/video-studio/src/pipeline-router.ts:238@d5ef7a7feaa6a76428503a07937c2215d1ed6538",
+          "sha256": "670bcd4409a265ae887bb9b1203537c12e1f12b30e822f2fb92698d99555f012",
+          "note": "显式路由否定被当成肯定，用户选择的管线被反转"
+        }
+      ],
+      "root_cause": {
+        "file": "packages/video-studio/src/pipeline-router.ts",
+        "line": 238,
+        "commit": "d5ef7a7feaa6a76428503a07937c2215d1ed6538",
+        "symbol": "显式路由否定被当成肯定，用户选择的管线被反转"
+      },
+      "trigger_path": "不要营销片，走叙事片；不要叙事片，走营销片，商品名：空气净化器",
+      "assertions": [
+        {
+          "kind": "sample",
+          "given": "不要营销片，走叙事片；不要叙事片，走营销片，商品名：空气净化器",
+          "expect": "合法合同保留；不合法/漂移/越权输入被明确拒绝，正常与错误分支均通过已命名回归",
+          "command": "node node_modules/vitest/vitest.mjs run packages/video-studio/src/pipeline-router.test.ts --maxWorkers=1 --no-file-parallelism",
+          "exec": {
+            "file": "node",
+            "args": [
+              "node_modules/vitest/vitest.mjs",
+              "run",
+              "packages/video-studio/src/pipeline-router.test.ts",
+              "--maxWorkers=1",
+              "--no-file-parallelism"
+            ]
+          },
+          "last_result": "not-run"
+        }
+      ],
+      "regression": {
+        "command": "node node_modules/vitest/vitest.mjs run packages/video-studio/src/pipeline-router.test.ts --maxWorkers=1 --no-file-parallelism"
+      },
+      "notes": "实现证据A级；本机fixture运行仅B级，不代表付费模型产出率。"
+    },
+    {
+      "id": "MC-003",
+      "kind": "problem",
+      "level": "L1",
+      "severity": "P1",
+      "batch": 2,
+      "state": "open",
+      "title": "Visual no-person selection revoked requested off-screen narration",
+      "evidence": [
+        {
+          "type": "code",
+          "ref": "packages/video-studio/src/creative-theme-contract.ts:165@d5ef7a7feaa6a76428503a07937c2215d1ed6538",
+          "sha256": "9257f1bcc596d57d882ebee69f31d8e7f05909675ac93c2b530467fb4228728a",
+          "note": "Visual no-person selection revoked requested off-screen narration"
+        }
+      ],
+      "root_cause": {
+        "file": "packages/video-studio/src/creative-theme-contract.ts",
+        "line": 165,
+        "commit": "d5ef7a7feaa6a76428503a07937c2215d1ed6538",
+        "symbol": "Visual no-person selection revoked requested off-screen narration"
+      },
+      "trigger_path": "Visual no-person selection revoked requested off-screen narration",
+      "assertions": [
+        {
+          "kind": "sample",
+          "given": "Visual no-person selection revoked requested off-screen narration",
+          "expect": "合法合同保留；不合法/漂移/越权输入被明确拒绝，正常与错误分支均通过已命名回归",
+          "command": "node node_modules/vitest/vitest.mjs run packages/video-studio/src/creative-theme-contract.test.ts --maxWorkers=1 --no-file-parallelism",
+          "exec": {
+            "file": "node",
+            "args": [
+              "node_modules/vitest/vitest.mjs",
+              "run",
+              "packages/video-studio/src/creative-theme-contract.test.ts",
+              "--maxWorkers=1",
+              "--no-file-parallelism"
+            ]
+          },
+          "last_result": "not-run"
+        }
+      ],
+      "regression": {
+        "command": "node node_modules/vitest/vitest.mjs run packages/video-studio/src/creative-theme-contract.test.ts --maxWorkers=1 --no-file-parallelism"
+      },
+      "notes": "实现证据A级；本机fixture运行仅B级，不代表付费模型产出率。"
+    },
+    {
+      "id": "MC-004",
+      "kind": "problem",
+      "level": "L1",
+      "severity": "P1",
+      "batch": 2,
+      "state": "open",
+      "title": "Overlapping studio runs shared first run duration callbacks and removed live prototype patches",
+      "evidence": [
+        {
+          "type": "code",
+          "ref": "packages/video-studio/src/studio.ts:439@d5ef7a7feaa6a76428503a07937c2215d1ed6538",
+          "sha256": "e3733f719c15527943f4c23358b2cb105a1ff9845f62465ce0e22921b7b7bb00",
+          "note": "Overlapping studio runs shared first run duration callbacks and removed live prototype patches"
+        }
+      ],
+      "root_cause": {
+        "file": "packages/video-studio/src/studio.ts",
+        "line": 439,
+        "commit": "d5ef7a7feaa6a76428503a07937c2215d1ed6538",
+        "symbol": "Overlapping studio runs shared first run duration callbacks and removed live prototype patches"
+      },
+      "trigger_path": "Overlapping studio runs shared first run duration callbacks and removed live prototype patches",
+      "assertions": [
+        {
+          "kind": "sample",
+          "given": "Overlapping studio runs shared first run duration callbacks and removed live prototype patches",
+          "expect": "合法合同保留；不合法/漂移/越权输入被明确拒绝，正常与错误分支均通过已命名回归",
+          "command": "node node_modules/vitest/vitest.mjs run packages/video-studio/src/duration-projection-bridge.test.ts packages/video-studio/src/studio-compat-concurrency.test.ts --maxWorkers=1 --no-file-parallelism",
+          "exec": {
+            "file": "node",
+            "args": [
+              "node_modules/vitest/vitest.mjs",
+              "run",
+              "packages/video-studio/src/duration-projection-bridge.test.ts",
+              "packages/video-studio/src/studio-compat-concurrency.test.ts",
+              "--maxWorkers=1",
+              "--no-file-parallelism"
+            ]
+          },
+          "last_result": "not-run"
+        }
+      ],
+      "regression": {
+        "command": "node node_modules/vitest/vitest.mjs run packages/video-studio/src/duration-projection-bridge.test.ts packages/video-studio/src/studio-compat-concurrency.test.ts --maxWorkers=1 --no-file-parallelism"
+      },
+      "notes": "实现证据A级；本机fixture运行仅B级，不代表付费模型产出率。"
+    },
+    {
+      "id": "MC-005",
+      "kind": "problem",
+      "level": "L1",
+      "severity": "P1",
+      "batch": 2,
+      "state": "open",
+      "title": "G6语义审核输出示例与parser冲突并写死首镜身份",
+      "evidence": [
+        {
+          "type": "code",
+          "ref": "apps/server/src/video/prompt-quality-gate.ts:353@d5ef7a7feaa6a76428503a07937c2215d1ed6538",
+          "sha256": "2a4536058048cd7b5eb24049a9feb9b37f1ef2eefef7949f58979f7c98237cb3",
+          "note": "G6语义审核输出示例与parser冲突并写死首镜身份"
+        },
+        {
+          "type": "code",
+          "ref": "packages/video-studio/src/llm-adapter.ts:257@d5ef7a7feaa6a76428503a07937c2215d1ed6538",
+          "sha256": "6a49f7dd52babf538a948f809e51dbb6661f3737a4a111d0ef2970ffa1b0abb0",
+          "note": "G6语义审核输出示例与parser冲突并写死首镜身份"
+        }
+      ],
+      "root_cause": {
+        "file": "apps/server/src/video/prompt-quality-gate.ts",
+        "line": 353,
+        "commit": "d5ef7a7feaa6a76428503a07937c2215d1ed6538",
+        "symbol": "G6语义审核输出示例与parser冲突并写死首镜身份"
+      },
+      "trigger_path": "reasonStructured复制SQ3示例中pass=true和failureCode/repair；或S02使用S01示例导致SEMANTIC_REVIEW_SHOT_MISMATCH，技术重试后stalled",
+      "assertions": [
+        {
+          "kind": "sample",
+          "given": "reasonStructured复制SQ3示例中pass=true和failureCode/repair；或S02使用S01示例导致SEMANTIC_REVIEW_SHOT_MISMATCH，技术重试后stalled",
+          "expect": "合法合同保留；不合法/漂移/越权输入被明确拒绝，正常与错误分支均通过已命名回归",
+          "command": "node node_modules/vitest/vitest.mjs run apps/server/src/video/prompt-quality-gate.test.ts --maxWorkers=1 --no-file-parallelism",
+          "exec": {
+            "file": "node",
+            "args": [
+              "node_modules/vitest/vitest.mjs",
+              "run",
+              "apps/server/src/video/prompt-quality-gate.test.ts",
+              "--maxWorkers=1",
+              "--no-file-parallelism"
+            ]
+          },
+          "last_result": "not-run"
+        }
+      ],
+      "regression": {
+        "command": "node node_modules/vitest/vitest.mjs run apps/server/src/video/prompt-quality-gate.test.ts --maxWorkers=1 --no-file-parallelism"
+      },
+      "notes": "实现证据A级；本机fixture运行仅B级，不代表付费模型产出率。"
+    },
+    {
+      "id": "MC-006",
+      "kind": "problem",
+      "level": "L1",
+      "severity": "P1",
+      "batch": 2,
+      "state": "open",
+      "title": "G6已审合同参数与定妆照在资格编译时丢失，可被调用参数覆盖",
+      "evidence": [
+        {
+          "type": "code",
+          "ref": "apps/server/src/video/production-authority.ts:376@d5ef7a7feaa6a76428503a07937c2215d1ed6538",
+          "sha256": "07d46694bf0ba061dd819be6faca5d8d89d88fbfc8e0a89bdf25af70d9d06270",
+          "note": "G6已审合同参数与定妆照在资格编译时丢失，可被调用参数覆盖"
+        },
+        {
+          "type": "code",
+          "ref": "apps/server/src/video/gen/compiled-request.ts:139@d5ef7a7feaa6a76428503a07937c2215d1ed6538",
+          "sha256": "8eef97897d6da113c56f2543098c0f27f0fbda171443869db29095ff965f181a",
+          "note": "G6已审合同参数与定妆照在资格编译时丢失，可被调用参数覆盖"
+        },
+        {
+          "type": "code",
+          "ref": "packages/video-studio/src/production-client.ts:81@d5ef7a7feaa6a76428503a07937c2215d1ed6538",
+          "sha256": "7dcadf538f160f44c21c6c53ed1a1d088f702094424008b83a11cace202b9347",
+          "note": "G6已审合同参数与定妆照在资格编译时丢失，可被调用参数覆盖"
+        },
+        {
+          "type": "code",
+          "ref": "apps/server/src/video/studio-worker.ts:590@d5ef7a7feaa6a76428503a07937c2215d1ed6538",
+          "sha256": "2640a466fccc40a884f9cf1aef595924fff7853571c4834dd79ecfc54c31c113",
+          "note": "前期模型合同原先使用静态providerModel，部署覆盖与正式请求不一致；当前绑定effective model"
+        }
+      ],
+      "root_cause": {
+        "file": "apps/server/src/video/production-authority.ts",
+        "line": 376,
+        "commit": "d5ef7a7feaa6a76428503a07937c2215d1ed6538",
+        "symbol": "G6已审合同参数与定妆照在资格编译时丢失，可被调用参数覆盖"
+      },
+      "trigger_path": "enforce已审G6有9:16/audio/camera_fixed/portrait合同；CLI只传空params，wire只剩duration与文本；明示16:9或关闭声音也可签发",
+      "assertions": [
+        {
+          "kind": "sample",
+          "given": "enforce已审G6有9:16/audio/camera_fixed/portrait合同；CLI只传空params，wire只剩duration与文本；明示16:9或关闭声音也可签发",
+          "expect": "合法合同保留；不合法/漂移/越权输入被明确拒绝，正常与错误分支均通过已命名回归",
+          "command": "node node_modules/vitest/vitest.mjs run apps/server/src/video/production-authority.test.ts packages/video-studio/src/production-client.test.ts apps/server/src/video/gen/compiled-request.test.ts apps/server/src/video/studio-worker.test.ts --maxWorkers=1 --no-file-parallelism",
+          "exec": {
+            "file": "node",
+            "args": [
+              "node_modules/vitest/vitest.mjs",
+              "run",
+              "apps/server/src/video/production-authority.test.ts",
+              "packages/video-studio/src/production-client.test.ts",
+              "apps/server/src/video/gen/compiled-request.test.ts",
+              "apps/server/src/video/studio-worker.test.ts",
+              "--maxWorkers=1",
+              "--no-file-parallelism"
+            ]
+          },
+          "last_result": "not-run"
+        }
+      ],
+      "regression": {
+        "command": "node node_modules/vitest/vitest.mjs run apps/server/src/video/production-authority.test.ts packages/video-studio/src/production-client.test.ts apps/server/src/video/gen/compiled-request.test.ts apps/server/src/video/studio-worker.test.ts --maxWorkers=1 --no-file-parallelism"
+      },
+      "notes": "实现证据A级；本机fixture运行仅B级，不代表付费模型产出率。 包括完整wire/媒体摘要视图资源边界、off策略兼容与部署模型覆盖接线；共同修复者 /root/render_audit 和 /root，独立验收 /root/marketing_audit。"
+    },
+    {
+      "id": "MC-007",
+      "kind": "problem",
+      "level": "L1",
+      "severity": "P1",
+      "batch": 2,
+      "state": "open",
+      "title": "A voice floor beyond single-shot capacity was clamped and reported feasible",
+      "evidence": [
+        {
+          "type": "code",
+          "ref": "packages/video-studio/src/duration-projection.ts:282@d5ef7a7feaa6a76428503a07937c2215d1ed6538",
+          "sha256": "bf4f30eeca967f49e725cb84667fc552857b063ffc9ea0277c229068dd57a074",
+          "note": "A voice floor beyond single-shot capacity was clamped and reported feasible"
+        }
+      ],
+      "root_cause": {
+        "file": "packages/video-studio/src/duration-projection.ts",
+        "line": 282,
+        "commit": "d5ef7a7feaa6a76428503a07937c2215d1ed6538",
+        "symbol": "A voice floor beyond single-shot capacity was clamped and reported feasible"
+      },
+      "trigger_path": "A voice floor beyond single-shot capacity was clamped and reported feasible",
+      "assertions": [
+        {
+          "kind": "sample",
+          "given": "A voice floor beyond single-shot capacity was clamped and reported feasible",
+          "expect": "合法合同保留；不合法/漂移/越权输入被明确拒绝，正常与错误分支均通过已命名回归",
+          "command": "node node_modules/vitest/vitest.mjs run packages/video-studio/src/duration-projection.test.ts packages/video-studio/src/duration-projection-bridge.test.ts --maxWorkers=1 --no-file-parallelism",
+          "exec": {
+            "file": "node",
+            "args": [
+              "node_modules/vitest/vitest.mjs",
+              "run",
+              "packages/video-studio/src/duration-projection.test.ts",
+              "packages/video-studio/src/duration-projection-bridge.test.ts",
+              "--maxWorkers=1",
+              "--no-file-parallelism"
+            ]
+          },
+          "last_result": "not-run"
+        }
+      ],
+      "regression": {
+        "command": "node node_modules/vitest/vitest.mjs run packages/video-studio/src/duration-projection.test.ts packages/video-studio/src/duration-projection-bridge.test.ts --maxWorkers=1 --no-file-parallelism"
+      },
+      "notes": "实现证据A级；本机fixture运行仅B级，不代表付费模型产出率。"
+    },
+    {
+      "id": "MC-008",
+      "kind": "problem",
+      "level": "L1",
+      "severity": "P1",
+      "batch": 2,
+      "state": "open",
+      "title": "并发文本与结构化日志广播跨工作区内容且无序拆桥",
+      "evidence": [
+        {
+          "type": "code",
+          "ref": "apps/server/src/video/studio-worker.ts:196@d5ef7a7feaa6a76428503a07937c2215d1ed6538",
+          "sha256": "2640a466fccc40a884f9cf1aef595924fff7853571c4834dd79ecfc54c31c113",
+          "note": "并发文本与结构化日志广播跨工作区内容且无序拆桥"
+        },
+        {
+          "type": "code",
+          "ref": "packages/video-studio/src/archive/logger.ts:117@d5ef7a7feaa6a76428503a07937c2215d1ed6538",
+          "sha256": "124c49385888f24e86858048908ba82b58db017f6f0b95869487be207a7e86cb",
+          "note": "并发文本与结构化日志广播跨工作区内容且无序拆桥"
+        }
+      ],
+      "root_cause": {
+        "file": "apps/server/src/video/studio-worker.ts",
+        "line": 196,
+        "commit": "d5ef7a7feaa6a76428503a07937c2215d1ed6538",
+        "symbol": "并发文本与结构化日志广播跨工作区内容且无序拆桥"
+      },
+      "trigger_path": "两个工作区同时运行，console遍历所有订阅者、structured logger嵌套包装，A/B内容互串；A先结束可能拆除B日志",
+      "assertions": [
+        {
+          "kind": "sample",
+          "given": "两个工作区同时运行，console遍历所有订阅者、structured logger嵌套包装，A/B内容互串；A先结束可能拆除B日志",
+          "expect": "合法合同保留；不合法/漂移/越权输入被明确拒绝，正常与错误分支均通过已命名回归",
+          "command": "node node_modules/vitest/vitest.mjs run apps/server/src/video/studio-worker.test.ts --maxWorkers=1 --no-file-parallelism",
+          "exec": {
+            "file": "node",
+            "args": [
+              "node_modules/vitest/vitest.mjs",
+              "run",
+              "apps/server/src/video/studio-worker.test.ts",
+              "--maxWorkers=1",
+              "--no-file-parallelism"
+            ]
+          },
+          "last_result": "not-run"
+        }
+      ],
+      "regression": {
+        "command": "node node_modules/vitest/vitest.mjs run apps/server/src/video/studio-worker.test.ts --maxWorkers=1 --no-file-parallelism"
+      },
+      "notes": "实现证据A级；本机fixture运行仅B级，不代表付费模型产出率。"
+    },
+    {
+      "id": "MC-009",
+      "kind": "problem",
+      "level": "L1",
+      "severity": "P1",
+      "batch": 2,
+      "state": "open",
+      "title": "字段修复按所有镜头失败字段并集授权，扩大单镜修改权限",
+      "evidence": [
+        {
+          "type": "code",
+          "ref": "apps/server/src/video/prompt-quality-gate.ts:710@d5ef7a7feaa6a76428503a07937c2215d1ed6538",
+          "sha256": "2a4536058048cd7b5eb24049a9feb9b37f1ef2eefef7949f58979f7c98237cb3",
+          "note": "字段修复按所有镜头失败字段并集授权，扩大单镜修改权限"
+        },
+        {
+          "type": "code",
+          "ref": "apps/server/src/video/prompt-quality-gate.ts:756@d5ef7a7feaa6a76428503a07937c2215d1ed6538",
+          "sha256": "2a4536058048cd7b5eb24049a9feb9b37f1ef2eefef7949f58979f7c98237cb3",
+          "note": "字段修复按所有镜头失败字段并集授权，扩大单镜修改权限"
+        }
+      ],
+      "root_cause": {
+        "file": "apps/server/src/video/prompt-quality-gate.ts",
+        "line": 710,
+        "commit": "d5ef7a7feaa6a76428503a07937c2215d1ed6538",
+        "symbol": "字段修复按所有镜头失败字段并集授权，扩大单镜修改权限"
+      },
+      "trigger_path": "S01只camera_movement失败、S02只lighting失败，每镜repair都会获camera_movement+lighting权限",
+      "assertions": [
+        {
+          "kind": "sample",
+          "given": "S01只camera_movement失败、S02只lighting失败，每镜repair都会获camera_movement+lighting权限",
+          "expect": "合法合同保留；不合法/漂移/越权输入被明确拒绝，正常与错误分支均通过已命名回归",
+          "command": "node node_modules/vitest/vitest.mjs run apps/server/src/video/prompt-quality-gate.test.ts --maxWorkers=1 --no-file-parallelism",
+          "exec": {
+            "file": "node",
+            "args": [
+              "node_modules/vitest/vitest.mjs",
+              "run",
+              "apps/server/src/video/prompt-quality-gate.test.ts",
+              "--maxWorkers=1",
+              "--no-file-parallelism"
+            ]
+          },
+          "last_result": "not-run"
+        }
+      ],
+      "regression": {
+        "command": "node node_modules/vitest/vitest.mjs run apps/server/src/video/prompt-quality-gate.test.ts --maxWorkers=1 --no-file-parallelism"
+      },
+      "notes": "实现证据A级；本机fixture运行仅B级，不代表付费模型产出率。"
+    },
+    {
+      "id": "MC-010",
+      "kind": "problem",
+      "level": "L4",
+      "severity": "P2",
+      "batch": 3,
+      "state": "open",
+      "title": "营销子串规则将动作次序误判成对外绝对化宣称，策略待对齐",
+      "evidence": [
+        {
+          "type": "code",
+          "ref": "vendor/supermickey/hyperreality-system/engines/production-engine/agents/marketing-compliance-guard.js:53@d5ef7a7feaa6a76428503a07937c2215d1ed6538",
+          "sha256": "afc23593c421dce41bcfc2ff2352abac28c55c096b3e05b0e221717123a9e537",
+          "note": "第一步命中第一；词库同时保护实际绝对化营销宣称"
+        }
+      ],
+      "root_cause": {
+        "file": "vendor/supermickey/hyperreality-system/engines/production-engine/agents/marketing-compliance-guard.js",
+        "line": 53,
+        "commit": "d5ef7a7feaa6a76428503a07937c2215d1ed6538",
+        "symbol": "MarketingComplianceGuard.check"
+      },
+      "trigger_path": "营销镜头【动作】第一步打开包装被拒绝",
+      "assertions": [
+        {
+          "kind": "sample",
+          "given": "顺序动作与真实绝对化宣称正负对照",
+          "expect": "顺序动作通过，真实营销宣称仍拒绝",
+          "command": "node outputs/mine-clear/T-2026-1102-0001/diagnostics/compliance-ordinal.mjs",
+          "exec": {
+            "file": "node",
+            "args": [
+              "outputs/mine-clear/T-2026-1102-0001/diagnostics/compliance-ordinal.mjs"
+            ]
+          },
+          "last_result": "not-run"
+        }
+      ],
+      "regression": {
+        "command": "node outputs/mine-clear/T-2026-1102-0001/diagnostics/compliance-ordinal.mjs"
+      },
+      "fix_plan": "待产品对齐约束来源/适用性及面向观众宣称载体策略后实施，保留事实硬闸，不直接删除词库",
+      "notes": "发现未修：按用户要求大方案先对齐。此诊断当前故意退出1，不在常规绿色测试集。"
+    }
+  ],
+  "gates": [],
+  "publicationNote": "This committed ledger is the audit input. Mutable execution/acceptance evidence is generated at an exact source commit and delivered in the task evidence bundle; committing a self-referential acceptance SHA is not possible."
+}

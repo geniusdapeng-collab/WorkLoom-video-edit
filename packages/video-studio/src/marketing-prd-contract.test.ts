@@ -64,14 +64,14 @@ describe("marketing PRD host contract", () => {
     });
     const value = result.prd as any;
     expect(value.visualSpecification.visualReferences.join(" ")).not.toContain("库布里克");
-    expect(value.referenceCases.filmReferences.join(" ")).not.toMatch(/《|导演|Apple/);
+    expect(value.referenceCases.filmReferences).toEqual(prd().referenceCases.filmReferences);
     expect(value.creativeCore.creativeHook).not.toContain("手指");
     expect(value.creativeCore.keyMessages.join(" ")).not.toContain("scene-3");
     expect(value.scenePlan.scenes[0].visualRequirements[0]).toContain("若干");
     expect(value.scenePlan.scenes[0].visualRequirements.join(" ")).not.toContain("任何一帧");
-    expect(value.audioSpecification.voicePolicy).toBe("无对白");
+    expect(value.audioSpecification.voicePolicy).toBe(prd().audioSpecification.voicePolicy);
     expect(value.audioSpecification.soundDesign).toContain("-14 LUFS");
-    expect(value.audioSpecification.soundDesign).toContain("客户未明确要求字幕");
+    expect(value.audioSpecification.soundDesign).toContain("字幕遵守已审交付合同");
     expect(value.audioSpecification.soundDesign).not.toContain("字幕仅烧录已审画面文字");
     expect(value.productionConstraints.technicalConstraints.join(" ")).toContain("2160x3840");
     expect(value.productionConstraints.technicalConstraints.join(" ")).toContain("30fps");
@@ -94,7 +94,7 @@ describe("marketing PRD host contract", () => {
     source.audienceProfile.emotionTriggers = ["第12秒已审场景节点：方块连接设备"];
     const result = normalizeMarketingPrdContract(source, {
       builtinCharacterSelection: { mode: "none" },
-      customerOriginalIntent: "全片无人，不显示未入 G1 的标签",
+      customerOriginalIntent: "全片无人，仅使用抽象界面，不显示未入 G1 的标签",
     }, {}, { scenes: [{ id: "opening" }, { id: "ending" }] });
     const requirements = (result.prd as any).scenePlan.scenes[0].visualRequirements.join(" ");
     expect(requirements).not.toContain("integration");
@@ -162,5 +162,37 @@ describe("marketing PRD host contract", () => {
     expect(() => normalizeMarketingPrdContract(prd(), {
       builtinCharacterSelection: { mode: "none" },
     }, {}, { scenes: [{ id: "opening" }] })).toThrow(/SCENE_AUTHORITY_CHANGED/);
+  });
+});
+
+
+describe("marketing PRD normalization audit regressions", () => {
+  it("preserves ordinary creative references, narration and explicit subtitle delivery", () => {
+    const source = prd() as any;
+    source.referenceCases.filmReferences = ["客户指定的艺术参考"];
+    source.audioSpecification.voicePolicy = "旁白";
+    const result = normalizeMarketingPrdContract(source, {
+      customerOriginalIntent: "无人实拍空气净化器，用旁白和字幕讲解；保留客户指定的艺术参考",
+      builtinCharacterSelection: { mode: "none" },
+    }, { frameRate: 60, subtitleMode: "both", aspectRatio: "16:9", resolution: "1080p" },
+      { scenes: [{ id: "opening" }, { id: "ending" }] });
+    expect(result.prd).toEqual(source);
+    expect(result.applied).toBe(false);
+  });
+
+  it("respects an explicit abstract production profile without cancelling narration or subtitles", () => {
+    const source = prd() as any;
+    source.audioSpecification.voicePolicy = "旁白";
+    source.audioSpecification.soundDesign = "已审旁白、烧录与旁挂字幕按同一时间线交付";
+    const result = normalizeMarketingPrdContract(source, {
+      customerOriginalIntent: "全片无人，仅使用抽象界面和示意图，配已审旁白及烧录和旁挂字幕",
+      builtinCharacterSelection: { mode: "none" },
+    }, { targetDuration: 30, frameRate: 60, subtitleMode: "both", aspectRatio: "16:9", resolution: "1080p" },
+      { scenes: [{ id: "opening" }, { id: "ending" }] }).prd as any;
+    expect(result.audioSpecification.voicePolicy).toBe("旁白");
+    expect(result.audioSpecification.soundDesign).toContain("已审旁白");
+    expect(JSON.stringify(result)).not.toMatch(/30fps|竖屏安全区|客户未明确要求字幕|不生成字幕轨/);
+    expect(JSON.stringify(result)).toContain("60fps");
+    expect(JSON.stringify(result)).toContain("1920x1080");
   });
 });
