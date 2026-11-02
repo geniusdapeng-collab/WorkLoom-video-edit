@@ -103,15 +103,26 @@ async function ensureRightPanel(target) {
 async function firstValue() {
   const t0 = now();
   await page.goto(`${URLs.pc}${R.home}`, { waitUntil: "domcontentloaded" });
-  const skip = page.getByRole("button", { name: /跳过开场|跳过/ }).first();
-  const ceremony = await skip.waitFor({ state: "visible", timeout: Math.max(8000, T.firstValueMs - 2000) })
-    .then(() => true).catch(() => false);
+  const entry = await page.waitForFunction(
+    ({ welcomeSelector }) => {
+      if (document.querySelector(welcomeSelector)) return "welcome";
+      const ready = document.querySelector('[data-product-ready="true"]');
+      return ready && (document.body.innerText || "").trim().length > 40 ? "dashboard" : false;
+    },
+    { welcomeSelector: WELCOME_DIALOG },
+    { timeout: Math.max(8000, T.firstValueMs - 2000) },
+  ).then((handle) => handle.jsonValue()).catch(() => null);
+  const ceremony = entry === "welcome";
+  const welcome = page.locator(WELCOME_DIALOG).first();
   let skipMs = null;
   let skipClicked = false;
   if (ceremony) {
+    // 首日上岗还有「这关先跳过」；只接受首装欢迎框内的按钮，避免把其他跳过控件算作首启。
+    const skip = welcome.getByRole("button", { name: /跳过开场|跳过/ }).first();
+    await skip.waitFor({ state: "visible", timeout: 8000 }).catch(() => undefined);
     for (const force of [false, true]) {
       await skip.click({ timeout: 6000, force }).catch(() => undefined);
-      const closed = await page.locator(WELCOME_DIALOG).waitFor({ state: "hidden", timeout: 2500 }).then(() => true).catch(() => false);
+      const closed = await welcome.waitFor({ state: "hidden", timeout: 2500 }).then(() => true).catch(() => false);
       if (closed) {
         skipClicked = true;
         break;
@@ -317,45 +328,53 @@ async function brake() {
 async function dispatch() {
   await page.goto(`${URLs.pc}${R.tasks}`, { waitUntil: "domcontentloaded" });
   await waitForSettled(page, T.dispatchMs);
-  const entry = await page.evaluate(() => {
-    const input = document.querySelector("textarea, input[type=text]");
-    return { hasInput: Boolean(input), placeholder: input?.getAttribute("placeholder") ?? null };
-  });
   const t0 = now();
   const title = "为下周三的客房促销活动写一条发布计划，本周五前交付";
-  const res = await page.request.post(`${URLs.api}/trpc/threads.dispatch`, {
-    headers: { authorization: `Bearer ${TOKEN}` },
-    data: { title },
-  });
-  const json = await res.json();
-  let threadId = json?.result?.data?.threadId ?? null;
-  const clarify = json?.result?.data?.kind === "clarify";
-  // 含糊指令被路由成 clarify（不建任务）是**正确行为**；补一条规格明确的指令再派一次即可
-  if (!threadId && clarify) {
-    const retry = await page.request.post(`${URLs.api}/trpc/threads.dispatch`, {
-      headers: { authorization: `Bearer ${TOKEN}` },
-      data: { title: `${title}（交付物：发布计划文档；截止：本周五 18:00）` },
-    });
-    threadId = (await retry.json())?.result?.data?.threadId ?? null;
+  // 任务中心按 2026-09-20 产品口径不内置输入框；必须从页面入口唤起右侧「织伴」，
+  // 再从真实 UI 发送，不能用 page.request 绕过入口后把接口回执冒充页面可用。
+  const entry = page.getByRole("button", { name: /说出目标派活/ }).first();
+  const entryVisible = await entry.isVisible().catch(() => false);
+  if (entryVisible) await entry.click({ timeout: 8000 }).catch(() => undefined);
+
+  const input = page.locator('[data-workloom-assistant-input="true"]').first();
+  const inputVisible = await input.waitFor({ state: "visible", timeout: 8000 }).then(() => true).catch(() => false);
+  if (inputVisible) {
+    await input.fill(title).catch(() => undefined);
+    const send = input.locator("xpath=..").getByRole("button", { name: /^发送$/ });
+    await send.waitFor({ state: "visible", timeout: 5000 }).catch(() => undefined);
+    if ((await send.count()) > 0) await send.click({ timeout: 8000 }).catch(() => undefined);
   }
+
+  const card = page.locator('[role="button"][title="打开任务详情"]')
+    .filter({ hasText: "为下周三的客房促销活动写一条发布计划" })
+    .last();
+  const cardVisible = await card.waitFor({ state: "visible", timeout: T.dispatchMs }).then(() => true).catch(() => false);
+  const cardText = cardVisible ? await card.innerText().catch(() => "") : "";
   const ms = now() - t0;
+  let threadId = null;
   let detailOk = false;
+  if (cardVisible) {
+    await card.click({ timeout: 8000 }).catch(() => undefined);
+    await page.waitForURL(/\/tasks\/[^/?#]+/, { timeout: 10000 }).catch(() => undefined);
+    const match = /\/tasks\/([^/?#]+)/.exec(new URL(page.url()).pathname);
+    threadId = match?.[1] ? decodeURIComponent(match[1]) : null;
+  }
   if (threadId) {
-    await page.goto(`${URLs.pc}${R.tasks}/${encodeURIComponent(threadId)}`, { waitUntil: "domcontentloaded" });
     const detailSettled = await waitForSettled(page, T.dispatchMs);
     detailOk = detailSettled && await page.evaluate(() => /拆解|步骤|执行|交付|回执/.test(document.body.innerText));
   }
-  const rejected = /并发上限|已超出|429|TOO_MANY/.test(JSON.stringify(json));
+  const pageText = await page.evaluate(() => document.body.innerText || "");
+  const rejected = /并发上限|已超出|429|TOO_MANY/.test(pageText);
   return {
     id: "EXP-05", persona: "manager", journey: "首日（Day-1）", dimension: "效率与恢复",
     name: "把一条模糊需求派给岗位并看到拆解",
     precondition: "成员具备派发权限；工作区未触并发上限",
-    steps: ["打开任务中心（入口可见）", "派发一条任务", "打开详情核对拆解"],
+    steps: ["打开任务中心并点击派活入口", "在右侧织伴输入并发送", "打开任务卡核对拆解"],
     expected: `≤3 步完成派活；详情可读拆解；派发 ≤${T.dispatchMs / 1000}s`,
-    actual: { 页面输入入口: entry.hasInput, 占位文案: entry.placeholder, threadId, 详情可读: detailOk, 派发毫秒: ms, 被限流拒绝: rejected },
+    actual: { 派活入口可见: entryVisible, 全局输入框可见: inputVisible, 任务卡可见: cardVisible, 任务卡摘要: cardText.replace(/\s+/g, " ").slice(0, 90), threadId, 详情可读: detailOk, 派发毫秒: ms, 被限流拒绝: rejected },
     metric: `派发 ${(ms / 1000).toFixed(1)}s`,
     evidence: await shot(page, "exp-05-dispatch"),
-    pass: Boolean(threadId) && detailOk,
+    pass: entryVisible && inputVisible && cardVisible && Boolean(threadId) && detailOk && !rejected && ms <= T.dispatchMs,
   };
 }
 
@@ -410,22 +429,43 @@ async function mobileStaff() {
   };
 }
 
-async function partnerScope() {
-  await page.goto(`${URLs.pc}${R.partners}`, { waitUntil: "domcontentloaded" });
-  await page.waitForTimeout(2200);
+async function agentBoundary() {
+  const t0 = now();
+  await page.goto(`${URLs.pc}${R.agents}`, { waitUntil: "domcontentloaded" });
+  const openProfile = page.getByRole("button", { name: /查看成员档案/ }).first();
+  const rosterVisible = await openProfile.waitFor({ state: "visible", timeout: T.approvalMs }).then(() => true).catch(() => false);
+  if (rosterVisible) await openProfile.click({ timeout: 8000, force: true }).catch(() => undefined);
+  const settled = await page.waitForFunction(() => {
+    const text = document.body.innerText || "";
+    return /成员档案 · /.test(text)
+      && /身份与归属/.test(text)
+      && /规则许可 · 围栏授权/.test(text)
+      && /装备 · 技能包/.test(text)
+      && /已装备 · |暂无技能包/.test(text);
+  }, null, { timeout: T.approvalMs }).then(() => true).catch(() => false);
   const dom = await page.evaluate(() => {
     const t = document.body.innerText;
-    return { len: t.length, hasScope: /授权|范围|可访问|权限/.test(t), hasMoneyRedline: /资金|付款|支付|提现|不可/.test(t), sample: t.replace(/\s+/g, " ").slice(0, 160) };
+    return {
+      hasHeading: /成员档案 · /.test(t),
+      hasIdentity: /身份与归属/.test(t),
+      hasFenceScope: /规则许可 · 围栏授权/.test(t),
+      hasSkillState: /装备 · 技能包/.test(t) && /已装备 · |暂无技能包/.test(t),
+      hasWorkRecords: /工作记录|最近工作|执行记录/.test(t),
+      dangling: /声明悬空|标红/.test(t),
+      sample: t.replace(/\s+/g, " ").slice(0, 180),
+    };
   });
+  const ms = now() - t0;
   return {
-    id: "EXP-08", persona: "partner", journey: "首周", dimension: "信任与透明 / 理解度",
-    name: "伙伴能看清授权范围与不可触碰红线",
-    precondition: "伙伴授权页有数据",
-    steps: ["打开伙伴授权页", "核对授权条目与红线文案"],
-    expected: "权限逐条可见；资金类红线可见",
-    actual: dom,
-    evidence: await shot(page, "exp-08-partner"),
-    pass: dom.hasScope,
+    id: "EXP-05", persona: "owner", journey: "首周", dimension: "信任与透明 / 理解度",
+    name: "数字员工档案可见身份、技能状态、围栏授权与工作记录",
+    precondition: "工作区已装配数字员工",
+    steps: ["打开数字员工名册", "进入首位成员档案", "核对身份、装备技能、围栏授权与工作记录"],
+    expected: "四块边界同屏可见；围栏与技能无悬空声明",
+    actual: { 名册可见: rosterVisible, 页面就绪: settled, ...dom, 总毫秒: ms },
+    evidence: await shot(page, "exp-05-agent-boundary"),
+    pass: rosterVisible && settled && dom.hasHeading && dom.hasIdentity && dom.hasFenceScope && dom.hasSkillState
+      && dom.hasWorkRecords && !dom.dangling && ms <= T.approvalMs,
   };
 }
 
@@ -505,7 +545,7 @@ const BUILTINS = {
   "builtin:dispatch": dispatch,
   "builtin:inbox": inbox,
   "builtin:mobile-staff": mobileStaff,
-  "builtin:partner-scope": partnerScope,
+  "builtin:agent-boundary": agentBoundary,
   "builtin:guest-service": guestService,
   "builtin:dry-run": dryRun,
 };
