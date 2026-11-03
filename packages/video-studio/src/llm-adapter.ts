@@ -19,7 +19,9 @@ import {
   DEFAULT_CALL_TIMEOUT_MS,
   DEFAULT_MODEL_POLICY,
   DEFAULT_SCENE_TIMEOUTS,
+  DEEPSEEK_CHAT_PATH,
   DEEPSEEK_FLASH_MODEL_ID,
+  DEEPSEEK_RESPONSES_PATH,
   GatewayEventSink,
   OpenAiCompatibleProvider,
   resolveScene,
@@ -33,6 +35,7 @@ import {
   type ModelPolicy,
   type ModelProvider,
   type PlanId,
+  type ResponsesJsonSchema,
   type SmartTask,
 } from "@workloom/base/model-router";
 import { createHash } from "node:crypto";
@@ -56,6 +59,8 @@ export interface LLMReasonOptions {
   maxTokens?: number;
   forceJson?: boolean;
   responseFormat?: { type: string };
+  /** Opt in to the canonical non-streaming Responses JSON Schema transport. */
+  responsesJsonSchema?: ResponsesJsonSchema;
   thinking?: Record<string, unknown>;
   timeoutMs?: number;
   signal?: AbortSignal;
@@ -148,6 +153,10 @@ const nativeProviderChat = OpenAiCompatibleProvider.prototype.chat;
 const nativeTransportCheck = OpenAiCompatibleProvider.prototype.matchesCurrentTransport;
 const nativeMapGet = Map.prototype.get;
 const digestPattern = /^[a-f0-9]{64}$/;
+
+function transportPath(opts: LLMReasonOptions) {
+  return opts.responsesJsonSchema === undefined ? DEEPSEEK_CHAT_PATH : DEEPSEEK_RESPONSES_PATH;
+}
 
 /** Only data descriptors are inspected. A proof must not execute configuration code. */
 function dataMember(value: object, key: PropertyKey, prototype?: object): unknown {
@@ -284,7 +293,11 @@ export class WorkloomLLMEngine {
       timeoutMs: opts.timeoutMs ?? this.cfg.timeoutMs,
       signal: opts.signal,
       // The dispatcher calculates the complete legal output window.
-      generation: { temperature: opts.temperature, topP: opts.topP },
+      generation: {
+        temperature: opts.temperature,
+        topP: opts.topP,
+        ...(opts.responsesJsonSchema === undefined ? {} : { responsesJsonSchema: opts.responsesJsonSchema }),
+      },
       messages: [
         {
           role: "system",
@@ -361,7 +374,7 @@ export class WorkloomLLMEngine {
       const scene = opts.scene ?? route.router.scene ?? this.cfg.scene;
       const task = WorkloomLLMEngine.nativeProofMethods.routeTask.call(this, input.prompt, { ...opts, forceJson: true }, scene);
       return sameReviewDispatch(before, WorkloomLLMEngine.nativeProofMethods.describeReviewDispatch.call(this, task, route))
-        && nativeTransportCheck.call(before.provider, receipt);
+        && nativeTransportCheck.call(before.provider, receipt, transportPath(opts));
     } catch {
       return false;
     } finally { input.verify(); }
@@ -410,7 +423,7 @@ export class WorkloomLLMEngine {
         const nativeProvider = providers.get(DEEPSEEK_FLASH_MODEL_ID);
         if (result.kind === "answered" && !result.degraded?.length && receipt?.modelId === DEEPSEEK_FLASH_MODEL_ID
           && receipt.finishReason === "stop" && receipt.responseId?.trim() && nativeProvider instanceof OpenAiCompatibleProvider
-          && nativeTransportCheck.call(nativeProvider, receipt)) {
+          && nativeTransportCheck.call(nativeProvider, receipt, transportPath(opts))) {
           nativeCompletions.add(answer);
         }
         const currentRoute = binding ? attestableRoute(this) : undefined;
@@ -420,7 +433,7 @@ export class WorkloomLLMEngine {
           && receipt.policyVersion === TEXT_PRIMARY_POLICY_VERSION && receipt.registryVersion === TEXT_PRIMARY_REGISTRY_VERSION
           && digestPattern.test(receipt.requestHash) && digestPattern.test(receipt.responseHash)
           && sameReviewDispatch(binding, describe.call(this, task, currentRoute))
-          && nativeTransportCheck.call(binding.provider, receipt)) {
+          && nativeTransportCheck.call(binding.provider, receipt, transportPath(opts))) {
           opts[captureReviewDispatch]?.(Object.freeze({
             inputSha256: binding.inputSha256, requestSha256: receipt.requestHash, responseSha256: receipt.responseHash,
             modelId: receipt.modelId, policyVersion: receipt.policyVersion, registryVersion: receipt.registryVersion,

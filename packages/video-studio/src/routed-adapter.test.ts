@@ -2,14 +2,15 @@
  * v3.0 vendor 引擎收口测试：WorkloomLLMEngine 注入 router 后——
  * 全部调用经 routeSmart（preproduction 场景 + 真实计量留痕 + fastModel 强制 L1 + 失败可重试语义）
  */
+import { createHash } from "node:crypto";
 import { createRequire } from "node:module";
 import { writeFileSync } from "node:fs";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
-  DEFAULT_MODEL_POLICY, MockProvider, OpenAiCompatibleProvider, resetCircuit, routeSmart,
+  DEFAULT_MODEL_POLICY, MockProvider, OpenAiCompatibleProvider, planDeepSeekWindow, resetCircuit, routeSmart,
   type ChatMessage, type ChatOptions, type ModelProvider,
 } from "@workloom/base/model-router";
-import { WorkloomLLMEngine } from "./llm-adapter.js";
+import { nativeReasonCompleted, nativeReasonFailure, WorkloomLLMEngine } from "./llm-adapter.js";
 import { installPrdAuthorityBridge, withPrdAuthorityScope } from "./prd-authority-bridge.js";
 import { preparePrdAuthority } from "./prd-authority.js";
 import { requirementRecord, type RequirementRecord } from "./requirement-contract.js";
@@ -258,6 +259,145 @@ describe("结构化调用保留调用方真实输出合同", () => {
     const result = await adapter.reasonStructured("原文", { shots: [{ shotId: "SC-05", fields: { scene: "" } }] });
     expect(result.data).toEqual(payload);
     expect(requests).toHaveLength(1);
+  });
+});
+
+const sceneResponsesSchema = {
+  type: "object",
+  properties: { sceneCount: { type: "integer" } },
+  required: ["sceneCount"],
+  additionalProperties: false,
+};
+const sceneResponsesOptions = {
+  responsesJsonSchema: { name: "workloom_scene_architect", schema: sceneResponsesSchema },
+  systemPrompt: "完整导演指令",
+};
+
+function responsesFixture(text: string) {
+  return {
+    object: "response", id: "native-scene-receipt", model: "deepseek-flash", status: "completed",
+    output: [
+      { type: "reasoning", summary: [] },
+      {
+        type: "message", role: "assistant", phase: "final_answer", status: "completed",
+        content: [{ type: "output_text", text }],
+      },
+    ],
+    usage: { input_tokens: 120, output_tokens: 80, total_tokens: 200, output_tokens_details: { reasoning_tokens: 54 } },
+  };
+}
+
+describe("显式选择 Responses JSON Schema 的原生路由", () => {
+  it("仅发送一次完整原生结构化请求，保留同一法定窗口、结束态、哈希和用量", async () => {
+    const url = "https://provider.invalid/v1";
+    const prompt = "原文与换行\n".repeat(2000);
+    const resultBody = JSON.stringify(responsesFixture('{"sceneCount":3}'));
+    const transport = vi.fn<typeof fetch>(async () => new Response(resultBody));
+    const provider = new OpenAiCompatibleProvider("deepseek-flash", { baseUrl: url, apiKey: "test-only", fetchImpl: transport });
+    const { sink, traces } = memSink();
+    const adapter = new WorkloomLLMEngine({
+      baseUrl: url, apiKey: "test-only", model: "deepseek-flash",
+      router: { providers: new Map([[provider.modelId, provider]]), sink },
+    });
+    const result = await adapter.reasonStructured(prompt, sceneResponsesSchema, sceneResponsesOptions);
+    expect(result).toMatchObject({
+      success: true, content: '{"sceneCount":3}', data: { sceneCount: 3 },
+      usage: { promptTokens: 120, completionTokens: 80 },
+    });
+    expect(nativeReasonCompleted(result)).toBe(true);
+    expect(transport).toHaveBeenCalledTimes(1);
+    const [endpoint, init] = transport.mock.calls[0]!;
+    expect(endpoint).toBe(`${url}/responses`);
+    expect(init).toMatchObject({ method: "POST", redirect: "error", headers: { authorization: "Bearer test-only" } });
+    const wire = JSON.parse(String(init?.body));
+    const input = wire.input as string;
+    expect(input.startsWith(prompt)).toBe(true);
+    expect(input.endsWith(JSON.stringify(sceneResponsesSchema, null, 2))).toBe(true);
+    const format = { type: "json_schema", ...sceneResponsesOptions.responsesJsonSchema };
+    const plan = await planDeepSeekWindow({
+      messages: [{ role: "system", content: sceneResponsesOptions.systemPrompt }, { role: "user", content: input }],
+      responseFormat: format,
+    });
+    expect(wire).toEqual({
+      model: "deepseek-flash", input, instructions: sceneResponsesOptions.systemPrompt,
+      reasoning: { effort: "high" }, max_output_tokens: plan.outputCeiling, stream: false, text: { format },
+    });
+    expect(traces).toHaveLength(1);
+    expect(traces[0]).toMatchObject({
+      requestHash: createHash("sha256").update(String(init?.body)).digest("hex"),
+      responseHash: createHash("sha256").update(resultBody).digest("hex"),
+      reasoningTokens: 54,
+    });
+  });
+
+  it("拒绝替换为 Mock 或自定义提供商", async () => {
+    const { adapter, requests, traces } = structuredEngine('{"sceneCount":3}');
+    try {
+      const result = await adapter.reasonStructured("场景", sceneResponsesSchema, sceneResponsesOptions);
+      expect(result).toMatchObject({ success: false, retryable: false });
+      expect(result.error).toContain("需要原生 DeepSeek 传输");
+      expect(requests).toHaveLength(0);
+      expect(traces).toHaveLength(0);
+    } finally {
+      resetCircuit("video.preproduction.plan");
+    }
+  });
+
+  it("accepts a single documented completed assistant text part when phase is omitted", async () => {
+    const fixture = responsesFixture('{"sceneCount":3}');
+    const output = [{ type: "message", role: "assistant", status: "completed",
+      content: [{ type: "output_text", text: '{"sceneCount":3}' }] }];
+    const fetchImpl = vi.fn<typeof fetch>(async () => Response.json({ ...fixture, output }));
+    const provider = new OpenAiCompatibleProvider("deepseek-flash", { baseUrl: "https://provider.invalid", fetchImpl });
+    await expect(provider.chat([{ role: "system", content: "system" }, { role: "user", content: "user" }], {
+      scene: "video.preproduction.plan", responsesJsonSchema: sceneResponsesOptions.responsesJsonSchema,
+    })).resolves.toMatchObject({ text: '{"sceneCount":3}', finishReason: "stop" });
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+
+  it("仅完整测量的外层响应允许识别内层 JSON 语法错误", async () => {
+    const transport = vi.fn<typeof fetch>(async () => Response.json(responsesFixture('{"sceneCount":')));
+    const adapter = new WorkloomLLMEngine({
+      baseUrl: "https://provider.invalid", apiKey: "test-only", model: "deepseek-flash", fetchImpl: transport,
+    });
+    const result = await adapter.reasonStructured("场景", sceneResponsesSchema, sceneResponsesOptions);
+    expect(result).toMatchObject({ success: false, retryable: false });
+    expect(nativeReasonFailure(result)).toBe("json-syntax");
+    expect(nativeReasonCompleted(result)).toBe(true);
+    expect(transport).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    ["incomplete", { status: "incomplete", incomplete_details: { reason: "max_output_tokens" } }],
+    ["mismatched model", { model: "some-other-model" }],
+    ["no receipt id", { id: "" }],
+    ["duplicate output", { output: responsesFixture("{}").output.concat(responsesFixture("{}").output) }],
+    ["intermediate text", { output: [{ type: "message", role: "assistant", status: "completed", phase: "commentary",
+      content: [{ type: "output_text", text: "{}" }] }] }],
+    ["tool output", { output: [{ type: "function_call" }] }],
+    ["refusal", {
+      output: [{ type: "message", status: "completed", role: "assistant", phase: "final_answer",
+        content: [{ type: "refusal", refusal: "declined" }] }],
+    }],
+    ["blank output", responsesFixture("  ")],
+    ["bad usage", { usage: { input_tokens: 120, output_tokens: 80, total_tokens: 199 } }],
+    ["oversized usage", { usage: { input_tokens: 120, output_tokens: 393217, total_tokens: 393337 } }],
+  ])("rejects %s after one dispatch", async (_label, override) => {
+    const fetchImpl = vi.fn<typeof fetch>(async () => Response.json({ ...responsesFixture("{}"), ...override }));
+    const provider = new OpenAiCompatibleProvider("deepseek-flash", { baseUrl: "https://provider.invalid", fetchImpl });
+    await expect(provider.chat([{ role: "system", content: "system" }, { role: "user", content: "user" }], {
+      scene: "video.preproduction.plan", responsesJsonSchema: sceneResponsesOptions.responsesJsonSchema, retries: 3,
+    })).rejects.toThrow();
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not retry a rejected Responses wire", async () => {
+    const fetchImpl = vi.fn<typeof fetch>(async () => new Response("refused", { status: 429 }));
+    const provider = new OpenAiCompatibleProvider("deepseek-flash", { baseUrl: "https://provider.invalid", fetchImpl });
+    await expect(provider.chat([{ role: "system", content: "system" }, { role: "user", content: "user" }], {
+      scene: "video.preproduction.plan", responsesJsonSchema: sceneResponsesOptions.responsesJsonSchema, retries: 3,
+    })).rejects.toMatchObject({ retryable: false });
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
   });
 });
 
