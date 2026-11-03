@@ -8,7 +8,7 @@ import { buildRenderScript, loadPromptLengthSpec } from "./render-scripts.js";
 import { VideoStudio, type ApprovalCallback, type EventSink, type StudioConfig } from "./studio.js";
 import { prdFixture } from "./prd-authority.test-support.js";
 import type { PrdAuthority } from "./prd-authority.js";
-import type { RequirementApprovedTheme } from "./requirement-authority.js";
+import { requirementAuthorityPrompt, requirementThemeApprovalPayload, type RequirementApprovedTheme } from "./requirement-authority.js";
 
 interface ObservedRequirementAuthority {
   authority: PrdAuthority;
@@ -540,8 +540,9 @@ describe("vendor 核心可加载", () => {
       expect(returned.suggestions).toEqual([]);
       expect(returned.advisories).toEqual(originalVerdict.advisories);
       const snapshot = options.approvedTheme()!;
-      const expected = { scope: value.scope, contentMd,
-        contentSha256: createHash("sha256").update(contentMd).digest("hex"), verdict: originalVerdict };
+      const reviewed = requirementThemeApprovalPayload(options.authority, contentMd);
+      const expected = { scope: value.scope, contentMd: reviewed,
+        contentSha256: createHash("sha256").update(reviewed).digest("hex"), verdict: originalVerdict };
       expect(snapshot).toEqual(expected);
       const productionSnapshot = production.approvedTheme!()!;
       expect(productionSnapshot).toEqual(expected); expect(productionSnapshot).not.toBe(snapshot);
@@ -584,8 +585,9 @@ describe("vendor 核心可加载", () => {
       const production = prdOptions();
       const first = await globalThis.__HR_CONFIRMATION_HANDLER__!({ type: "creative-theme", content: "# 第一版", runId: value.scope.runId });
       expect(first).toBe(approved);
-      expect(options.approvedTheme()?.contentMd).toBe("# 第一版");
-      expect(production.approvedTheme!()?.contentMd).toBe("# 第一版");
+      const reviewed = requirementThemeApprovalPayload(options.authority, "# 第一版");
+      expect(options.approvedTheme()?.contentMd).toBe(reviewed);
+      expect(production.approvedTheme!()?.contentMd).toBe(reviewed);
       const second = await globalThis.__HR_CONFIRMATION_HANDLER__!({ type: "creative-theme", content: "# 第二版", runId: value.scope.runId });
       expect(second).toBe(rejected);
       expect(second.suggestions).toBe(rejected.suggestions);
@@ -597,6 +599,65 @@ describe("vendor 核心可加载", () => {
     await expect(marketing(privateProof(value), value.workDir, onApproval)
       .runPreproduction({ projectId: "P1", intent: "营销", isMarketing: true, metadata: value.metadata })).resolves.toMatchObject({ success: false });
     expect(onApproval).toHaveBeenCalledTimes(2);
+  });
+  it("送审保留实际草稿和独立否决，当前 Brief 附件补全审阅依据但不冒充创意", async () => {
+    const value = prdFixture(); owned.push(value);
+    const requirements = "第一帧高速追击；骑行使用纯色全覆护具赛车服和全盔。产品名仅由本地后期字幕层叠加。禁止复制、描摹或重绘未授权商品图。\n客户文档 ``` 与末尾原文𠮷";
+    const customerOriginalIntent = "用第1号模特制作30秒抖音赛车广告。\n原始字节保留";
+    const brief = { ...(value.metadata.brief as Record<string, unknown>), requirements, extra: { value: null } };
+    const metadata = { ...value.metadata, brief, customerOriginalIntent, themeDraft: "浏览器伪造稿", unrelatedMetadata: "伪造已授权外部图片" };
+    const nativeDraft = "# 实际草稿\n她说：“还没到极限。” 起步从车库推出。";
+    const veto = { approved: false, reason: "性能暗示、开场冲突且未执行产品呈现与素材要求", suggestions: ["按当前 Brief 核对"], fatal: "system_auto_repair" };
+    const onApproval = vi.fn<ApprovalCallback>(async approval => {
+      expect(approval.themeDraft).toBe(nativeDraft);
+      const [draft, annex] = approval.contentMd.split("\n\n## G2 宿主冻结客户 Brief\n");
+      expect(draft).toBe(nativeDraft);
+      expect(draft).not.toContain("禁止复制");
+      expect(annex).toContain("附件本身不证明创意已落实");
+      expect(annex).toContain("也不增加商品事实或素材授权");
+      expect(annex).not.toContain(metadata.unrelatedMetadata);
+      const body = /```json\n([\s\S]+)\n```$/u.exec(annex!)?.[1];
+      expect(body).toBeDefined();
+      expect(annex).toContain(createHash("sha256").update(body!).digest("hex"));
+      expect(JSON.parse(body!)).toEqual({ schemaVersion: "workloom.g2-frozen-brief/v1", scope: value.scope,
+        g1Sha256: value.marketing.g1Artifact.sha256, customerOriginalIntent, brief });
+      return veto;
+    });
+    studioMocks.create.mockImplementation(async () => {
+      const options = requirementOptions();
+      const prompt = requirementAuthorityPrompt(options.authority);
+      expect(prompt).toContain(JSON.stringify(brief));
+      expect(prompt).toContain(value.marketing.g1Artifact.content);
+      expect(prompt).toContain("在同一调用内逐项对照完整客户 Brief 和当前 G1");
+      expect(prompt).toContain("角色台词、内心独白、画外音和比喻均不得暗示");
+      const verdict = await globalThis.__HR_CONFIRMATION_HANDLER__!({ type: "creative-theme", content: nativeDraft, runId: value.scope.runId });
+      expect(verdict).toBe(veto);
+      expect(options.approvedTheme()).toBeUndefined();
+      expect(prdOptions().approvedTheme!()).toBeUndefined();
+      return { success: verdict.approved, stages: {} };
+    });
+    await expect(marketing(privateProof(value), value.workDir, onApproval)
+      .runPreproduction({ projectId: "P1", intent: "营销", isMarketing: true, metadata })).resolves.toMatchObject({ success: false });
+    expect(onApproval).toHaveBeenCalledOnce();
+    expect(studioMocks.create).toHaveBeenCalledOnce();
+  });
+  it("G2 回调期间 G1 原件变化，拒绝缓存即使返回批准的主题", async () => {
+    const value = prdFixture(); owned.push(value);
+    const onApproval = vi.fn<ApprovalCallback>(async () => {
+      writeFileSync(value.file, `${value.content}\n`);
+      return { approved: true };
+    });
+    studioMocks.create.mockImplementation(async () => {
+      const options = requirementOptions();
+      await expect(globalThis.__HR_CONFIRMATION_HANDLER__!({ type: "creative-theme", content: "候选创意", runId: value.scope.runId }))
+        .rejects.toThrow("PRD_G1_CHANGED");
+      expect(options.approvedTheme()).toBeUndefined();
+      expect(prdOptions().approvedTheme!()).toBeUndefined();
+      return { success: false, stages: {} };
+    });
+    await expect(marketing(privateProof(value), value.workDir, onApproval)
+      .runPreproduction({ projectId: "P1", intent: "营销", isMarketing: true, metadata: value.metadata })).resolves.toMatchObject({ success: false });
+    expect(onApproval).toHaveBeenCalledOnce();
   });
   it("两条营销运行交错批准 G2，私有 authority 与主题不串线", async () => {
     const fixtures = [prdFixture("project-A"), prdFixture("project-B")]; owned.push(...fixtures);
@@ -619,14 +680,15 @@ describe("vendor 核心可加载", () => {
       ready[i]!.resolve();
       await release[i]!.promise;
       await globalThis.__HR_CONFIRMATION_HANDLER__!({ type: "creative-theme", content: `# ${intent} 的主题`, runId: value.scope.runId });
-      expect(options.approvedTheme()).toMatchObject({ scope: value.scope, contentMd: `# ${intent} 的主题`,
+      const reviewed = requirementThemeApprovalPayload(options.authority, `# ${intent} 的主题`);
+      expect(options.approvedTheme()).toMatchObject({ scope: value.scope, contentMd: reviewed,
         verdict: { approved: true, advisories: [`${intent} 的完整意见`] } });
       expect(production.approvedTheme!()).toEqual(options.approvedTheme());
       expect(production.approvedTheme!()).not.toBe(options.approvedTheme());
       captured[i]!.resolve();
       await finish[i]!.promise;
-      expect(options.approvedTheme()?.contentMd).toBe(`# ${intent} 的主题`);
-      expect(production.approvedTheme!()?.contentMd).toBe(`# ${intent} 的主题`);
+      expect(options.approvedTheme()?.contentMd).toBe(reviewed);
+      expect(production.approvedTheme!()?.contentMd).toBe(reviewed);
       return { success: true, stages: {} };
     });
     const running = fixtures.map((value, i) => marketing(privateProof(value), value.workDir, approvals[i]!)
@@ -642,7 +704,7 @@ describe("vendor 核心可加载", () => {
     expect(productionScopes[0]!.approvedTheme!()?.scope).toEqual(fixtures[0]!.scope);
     expect(productionScopes[1]!.approvedTheme!()?.scope).toEqual(fixtures[1]!.scope);
     finish[1]!.resolve(); await running[1];
-    expect(scopes[0]!.approvedTheme()?.contentMd).toBe("# A 的主题");
+    expect(scopes[0]!.approvedTheme()?.contentMd).toBe(requirementThemeApprovalPayload(scopes[0]!.authority, "# A 的主题"));
     finish[0]!.resolve(); await running[0];
     for (const [i, value] of fixtures.entries()) {
       expect(approvals[i]).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ gate: "G2_THEME", runId: value.scope.runId }));

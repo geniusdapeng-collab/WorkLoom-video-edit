@@ -970,6 +970,34 @@ describe("完整原生前期到正式 CLI 草稿交接", () => {
     expect(doubles.finalize).not.toHaveBeenCalled();
   });
 
+  it.each(["", "# 短草稿"])("G2 的冻结 Brief 不能替代空或过短的生成草稿 %j", async themeDraft => {
+    const contentMd = `${themeDraft}\n\n## G2 宿主冻结客户 Brief\n` + "本项目必须使用经授权素材，且产品名称仅在后期叠加。".repeat(12);
+    const review = doubles.review.getMockImplementation()!;
+    doubles.review.mockImplementation(async options => ({ ...await review(options),
+      ...(options.context.gate === "G2_THEME" ? { approved: false, status: "failed", score: 0, via: "deterministic",
+        reason: "实际草稿缺失", suggestions: [] } : {}) }));
+    let verdict: Record<string, unknown> | undefined;
+    doubles.runPreproduction.mockImplementation(async () => {
+      verdict = await doubles.studioConfigs[0]!.onApproval({ gate: "G2_THEME", vendorType: "creative-theme", runId: "vendor-run",
+        title: "创意审核", contentMd, themeDraft });
+      return { success: false, stages: {}, confirmations: { creativeTheme: verdict } };
+    });
+    const { entry } = await runToTerminal();
+    expect(entry.status).toBe("failed");
+    expect(verdict).toMatchObject({ approved: false, fatal: "system_auto_repair" });
+    const reviews = doubles.review.mock.calls.map(([options]) => options).filter(options => options.context.gate === "G2_THEME");
+    expect(reviews).toHaveLength(1);
+    expect(reviews[0]!.deterministic).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: "content-present", pass: Boolean(themeDraft), hard: true }),
+      expect.objectContaining({ id: "min-length", pass: false, hard: true }),
+    ]));
+    const artifact = reviews[0]!.artifacts[0];
+    expect(await readFile(artifact.path, "utf8")).toBe(contentMd);
+    expect(artifact.expectedSha256).toBe(renderSha256(contentMd));
+    expect(doubles.runPreproduction).toHaveBeenCalledOnce();
+    expect(doubles.finalize).not.toHaveBeenCalled();
+  });
+
   it("G8_RENDER 也只走系统策略，不读取或生成人类 edited_after", async () => {
     const before = doubles.query.mock.calls.length;
     let reply: Record<string, unknown> | undefined;
