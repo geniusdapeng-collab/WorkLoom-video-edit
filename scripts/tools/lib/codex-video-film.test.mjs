@@ -1,0 +1,204 @@
+import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
+import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { dirname, join, relative } from "node:path";
+import { fileURLToPath } from "node:url";
+import test from "node:test";
+import { continueNativeFilm, readFilmContinuation } from "./codex-video-film.mjs";
+import { admitFilmBudget } from "./codex-video-film-admission.mjs";
+import { startProviderBudgetGateway } from "./provider-budget-gateway.ts";
+import { WORKFLOW_TASK_CAPS } from "./provider-budget-policy.ts";
+
+const hash = (value) => createHash("sha256").update(value).digest("hex");
+const put = (file, value) => writeFileSync(file, JSON.stringify(value));
+const repo = fileURLToPath(new URL("../../..", import.meta.url));
+const sourceCommit = "c".repeat(40);
+const projectId = "VID-native";
+const runId = "run-1";
+const fileHash = (file) => hash(readFileSync(file));
+const profile = { resolution: "1080p", frameRate: 25, subtitleMode: "both", nativeAudio: true,
+  openWithCover: false, titleCard: false, durationToleranceFrames: 1,
+  sidecarPolicy: "dialogue-and-composite-ass", persistentSubtitleText: "须保持完整的原始持续字幕" };
+
+function fixture(t, options = {}) {
+  const job = realpathSync(mkdtempSync(join(tmpdir(), "edit-film-continuation-")));
+  t.after(() => rmSync(job, { recursive: true, force: true }));
+  const studioRoot = join(job, "studio");
+  const archiveRoot = join(studioRoot, "archive", "WS-1", projectId);
+  const stageRoot = join(archiveRoot, "stages", "preproduction");
+  mkdirSync(stageRoot, { recursive: true });
+  const pipeline = options.pipeline ?? "narrative";
+  const receipt = { projectId, runId, pipeline, requestSha256: hash("original request"), durationSeconds: 18 };
+  const source = { kind: "system-preproduction", issuer: "workloom.studio-worker", projectId, runId, attempt: 2, workspaceId: "WS-1", tenantId: "TN-1" };
+  const shots = [
+    { shotId: "s1", duration: 9, prompt: "当前运行原件一" },
+    { shotId: "s2", duration: 9, prompt: "当前运行原件二" },
+  ];
+  const shotlistPath = join(stageRoot, "attempt-2.shotlist.json");
+  put(shotlistPath, { schemaVersion: "workloom.preproduction-cli-handoff/v1", projectId, source, shots, characters: [],
+    metadata: { platform: "douyin", platformSelection: { aspectRatio: "9:16" }, builtinCharacterSelection: {
+      schemaVersion: "workloom.video-character-selection/v1", mode: "none", characters: [] },
+      brief: { duration: 18, ...(options.profile ? { productionRequirements: profile } : {}) } }, draft: true });
+  const promptsSha256 = hash("fixture prompt bytes");
+  const outputPath = join(stageRoot, "attempt-2.output.json");
+  put(outputPath, { success: true, promptsSha256, cliShotlistRef: relative(archiveRoot, shotlistPath), cliShotlistSha256: fileHash(shotlistPath),
+    productionEvidence: { ...source, schemaVersion: "workloom.preproduction-authority/v1", pipelineKind: pipeline } });
+  const archiveReceipt = { attempt: 2, outputRef: relative(archiveRoot, outputPath), outputSha256: fileHash(outputPath) };
+  const archive = { archiveExists: true, archiveRoot, projectId, stages: [{ ...archiveReceipt, stageId: "preproduction", status: "done", runId }] };
+  const production = { projectId, sourceStageRunId: "STAGE-2", sourceAttempt: 2, promptsSha256,
+    shots: shots.map(({ shotId, duration, prompt }) => ({ shotId, durationSec: duration, prompt, promptSha256: hash(prompt) })) };
+  const service = { sourceCommit, videoStudio: { deferRender: true, workDirSha256: hash(studioRoot) } };
+  const receiptPath = join(job, "studio-start.json");
+  put(receiptPath, receipt);
+  const manifest = join(job, "delivery", projectId + "-delivery-manifest.json");
+  const args = [];
+  const input = { receipt, receiptPath, archiveReceipt, archive, production, service, sourceCommit, root: repo,
+    env: { WORKLOOM_ACCESS_TOKEN: "fixture-member-secret", GH_TOKEN: "fixture-owner-secret", FILM_WORKER_MODE: "worker",
+      VOLCENGINE_ARK_API_KEY: "not-the-budget-token", DEEPSEEK_API_KEY: "not-the-budget-token" },
+    admission: async () => ({ evidence: { task: "fixture-budget" },
+      environment: { WORKLOOM_FILM_BUDGET_RELAY: "1", VOLCENGINE_ARK_API_KEY: "fixture-loopback-relay" } }),
+    film: async ({ args: argv, env }) => {
+      args.push(argv);
+      assert.equal(env.WORKLOOM_ACCESS_TOKEN, undefined);
+      assert.equal(env.GH_TOKEN, undefined);
+      assert.equal(env.FILM_WORKER_MODE, undefined);
+      assert.equal(env.DEEPSEEK_API_KEY, undefined);
+      assert.equal(env.VOLCENGINE_ARK_API_KEY, "fixture-loopback-relay");
+      assert.equal(env.WORKLOOM_VIDEO_ARTIFACT_ROOT, job);
+      assert.equal(fileHash(argv[argv.indexOf("--shots") + 1]), fileHash(shotlistPath));
+      assert.equal(JSON.parse(readFileSync(join(job, "film-continuation.json"))).shotlistSha256, fileHash(shotlistPath));
+      if (options.loseWorker) throw new Error("worker exited with unknown acknowledgement");
+      mkdirSync(dirname(manifest));
+      put(manifest, { projectId, sourceShotlistSha256: fileHash(shotlistPath) });
+      return { code: 0, signal: null };
+    },
+    quality: async ({ projectId: id, outDir }) => {
+      assert.equal(id, projectId);
+      assert.equal(outDir, "delivery");
+      return { complete: true, projectId, technicalQuality: "passed", manifestPath: relative(job, manifest),
+        manifestSha256: fileHash(manifest), report: { assets: [{ id: "master", probe: { videoDuration: options.duration ?? 18 } }] } };
+    } };
+  return { input, args, manifest, outputPath, shotlistPath };
+}
+
+test("same-run native narrative continuation binds manifest, duration and canonical default stages", async (t) => {
+  const f = fixture(t);
+  const done = await continueNativeFilm(f.input);
+  assert.equal(done.state, "finished");
+  assert.equal(done.delivered, true);
+  assert.equal(done.delivery.durationSeconds, 18);
+  assert.equal(done.shotlistSha256, fileHash(f.shotlistPath));
+  assert.equal(f.args.length, 1);
+  assert.ok(!f.args[0].some((value) => /(?:^|,)mux(?:,|$)/.test(value)));
+  assert.ok(f.args[0].includes("--strict-source-cast"));
+  assert.deepEqual(await continueNativeFilm(f.input), done);
+  assert.equal(f.args.length, 1);
+});
+
+test("marketing continuation honors frozen 25 fps, native audio and both subtitle forms", async (t) => {
+  const f = fixture(t, { pipeline: "marketing", profile: true, duration: 18.04 });
+  const done = await continueNativeFilm(f.input);
+  assert.equal(done.state, "finished");
+  const argv = f.args[0];
+  for (const [key, value] of [["--route-kind", "marketing"], ["--fps", "25"], ["--native-audio", "1"],
+    ["--subtitle-mode", "both"], ["--subtitle-persistent-text", profile.persistentSubtitleText]]) {
+    assert.equal(argv[argv.indexOf(key) + 1], value);
+  }
+  assert.match(argv[argv.indexOf("--stages") + 1], /,mux,master$/);
+  assert.ok(argv.includes("--no-open-with-cover"));
+  assert.ok(argv.includes("--no-title-card"));
+});
+
+for (const [name, alter, reason] of [
+  ["wrong configured Studio archive root", f => { f.input.service.videoStudio.workDirSha256 = hash("different root"); }, /EDIT_STUDIO_HANDOFF_CONFIGURATION_MISMATCH/u],
+  ["vendor still configured to render", f => { f.input.service.videoStudio.deferRender = false; }, /EDIT_STUDIO_HANDOFF_CONFIGURATION_MISMATCH/u],
+  ["wrong source SHA", f => { f.input.service.sourceCommit = "a".repeat(40); }, /EDIT_STUDIO_HANDOFF_CONFIGURATION_MISMATCH/u],
+  ["stale stage", f => { f.input.production.sourceAttempt = 3; }, /STALE_OR_UNAPPROVED_PREPRODUCTION/u],
+  ["changed shotlist bytes", f => { put(f.shotlistPath, {}); }, /ARCHIVE_DIGEST_MISMATCH/u],
+  ["changed current prompt", f => { f.input.production.shots[0].prompt = "manual"; }, /SHOTLIST_NOT_CURRENT/u],
+]) {
+  test("no Film call with " + name, async (t) => {
+    const f = fixture(t);
+    alter(f);
+    await assert.rejects(continueNativeFilm(f.input), reason);
+    assert.deepEqual(f.args, []);
+  });
+}
+
+test("worker loss preserves unknown dispatch and never launches another worker", async (t) => {
+  const f = fixture(t, { loseWorker: true });
+  await assert.rejects(continueNativeFilm(f.input), /unknown acknowledgement/u);
+  assert.equal((await continueNativeFilm(f.input)).state, "film_dispatch_unknown");
+  assert.equal(f.args.length, 1);
+});
+
+test("current wrong duration or wrong source manifest can never be reported as delivered", async (t) => {
+  const f = fixture(t, { duration: 18.08, profile: true });
+  const rejected = await continueNativeFilm(f.input);
+  assert.equal(rejected.state, "delivery_unverified");
+  assert.equal(rejected.errorCode, "DELIVERY_DURATION_OUT_OF_CONTRACT");
+  put(f.manifest, { projectId, sourceShotlistSha256: hash("old job") });
+  const journalPath = join(dirname(f.input.receiptPath), "film-continuation.json");
+  const journal = JSON.parse(readFileSync(journalPath));
+  put(journalPath, { ...journal, state: "finished", delivered: true, delivery: { technicalQuality: "passed" } });
+  const readback = await readFilmContinuation(f.input);
+  assert.equal(readback.state, "delivery_unverified");
+  assert.equal(readback.delivered, false);
+  assert.equal(readback.delivery, null);
+  assert.equal(readback.errorCode, "DELIVERY_SOURCE_CHANGED");
+  put(journalPath, { ...journal, targetDuration: 19 });
+  await assert.rejects(readFilmContinuation(f.input), /FILM_RECEIPT_MISMATCH/u);
+  assert.equal(f.args.length, 1);
+});
+
+test("parallel continuation is constrained to one Film invocation", async (t) => {
+  const f = fixture(t);
+  const first = await Promise.allSettled([continueNativeFilm(f.input), continueNativeFilm(f.input)]);
+  assert.equal(f.args.length, 1);
+  assert.ok(first.some((entry) => entry.status === "fulfilled" && entry.value.state === "finished"));
+  assert.ok(first.every((entry) => entry.status === "fulfilled" || /FILM_ALREADY_RUNNING/.test(entry.reason.message)));
+});
+
+test("no Film launch or dispatch marker without explicit budget authorization", async (t) => {
+  const f = fixture(t);
+  delete f.input.admission;
+  await assert.rejects(continueNativeFilm(f.input), /FILM_BUDGET_AUTHORIZATION_REQUIRED/u);
+  assert.equal(f.args.length, 0);
+  assert.equal(await readFilmContinuation(f.input), null);
+});
+
+test("actual task budget relay verifies allowed cap, task, model and complete shot scope without provider POST", async (t) => {
+  const f = fixture(t);
+  const clientToken = "local_budget_test_only_".padEnd(48, "x");
+  let upstreamCalls = 0;
+  const gateway = await startProviderBudgetGateway({ port: 0, task: "fixture-budget",
+    journalPath: join(dirname(f.input.receiptPath), "budget.jsonl"), clientToken,
+    deepSeekApiKey: "fixture-deepseek-no-external-credential", arkApiKey: "fixture-ark-no-external-credential", profile: "workflow",
+    scope: { video: { seconds: 12, ratio: "9:16", resolution: "1080p" } },
+    fetchImpl: async () => { upstreamCalls++; throw new Error("test prohibits external calls"); },
+  });
+  t.after(() => gateway.close());
+  const bound = WORKFLOW_TASK_CAPS.mediaMicroCny + WORKFLOW_TASK_CAPS.llmEstimatedMaxMicroCny;
+  const args = { env: { LLM_BASE_URL: gateway.baseUrl, ARK_BASE_URL: gateway.baseUrl + "/api/v3",
+    WORKLOOM_BUDGET_GATEWAY_TOKEN: clientToken, WORKLOOM_BUDGET_TASK_ID: "fixture-budget",
+    WORKLOOM_BUDGET_APPROVED_MICRO_CNY: String(bound) }, shotDurations: [12, 12], aspect: "9:16", resolution: "1080p" };
+  const result = await admitFilmBudget(args);
+  assert.equal(result.evidence.estimateCapMicroCny, bound);
+  assert.equal(result.environment.ARK_BASE_URL, gateway.baseUrl + "/api/v3");
+  assert.ok(!JSON.stringify(result.evidence).includes(clientToken));
+  await assert.rejects(admitFilmBudget({ ...args, shotDurations: [10, 14] }), /FILM_BUDGET_SCOPE_INSUFFICIENT/u);
+  await assert.rejects(admitFilmBudget({ ...args, env: { ...args.env, WORKLOOM_BUDGET_APPROVED_MICRO_CNY: String(bound - 1) } }),
+    /FILM_BUDGET_APPROVED_CAP_INSUFFICIENT/u);
+  await assert.rejects(admitFilmBudget({ ...args, env: { ...args.env, WORKLOOM_BUDGET_TASK_ID: "other-job" } }),
+    /FILM_BUDGET_RECEIPT_INVALID/u);
+  assert.equal(upstreamCalls, 0);
+});
+
+test("a Studio source that changes while budget is admitted cannot launch Film", async (t) => {
+  const f = fixture(t);
+  f.input.refreshSource = async () => ({ archive: f.input.archive, production: { ...f.input.production, sourceAttempt: 3 } });
+  await assert.rejects(continueNativeFilm(f.input), /STALE_OR_UNAPPROVED_PREPRODUCTION/u);
+  assert.equal(f.args.length, 0);
+  assert.equal(await readFilmContinuation(f.input), null);
+});
