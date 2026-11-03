@@ -3,6 +3,7 @@ import type { GateVerdict } from "./gates.js";
 import type { PrdAuthority, PrdMarketingScope } from "./prd-authority.js";
 import { RequirementContractError, requirementHash, requirementRecord, type RequirementRecord } from "./requirement-contract.js";
 import { builtinWardrobeBoundary } from "./creative-theme-contract.js";
+import { MARKETING_REFERENCE_BOUNDARY } from "./marketing-prd-contract.js";
 
 export interface RequirementApprovedTheme {
   scope: PrdMarketingScope;
@@ -155,7 +156,7 @@ export function requirementAuthorityPrompt(authority: PrdAuthority, theme?: Requ
     + `G1 完整原件 ${authority.marketing.g1Artifact.path} / SHA256 ${authority.marketing.g1Artifact.sha256}：\n${authority.marketing.g1Artifact.content}\n`
     + themeSelfCheck
     + `三、${theme ? `本次已批准 G2 的完整原文与原始裁决只提供创作上下文。advisories 是非阻断建议，不新增硬性门槛、审批或强制重试；不能覆盖客户 Brief/G1 用途限制。\nG2 SHA256 ${theme.contentSha256}：\n${theme.contentMd}\nG2 原始裁决：\n${JSON.stringify(theme.verdict)}\n` : "本次尚无已批准 G2 上下文；不推定主题或新创作已经通过。\n"}`
-    + `场景、道具、动作、情绪、风险和艺术参考都是待审核创作方案，不是已核实拍摄事实或产品质量证明。可用影片/摄影语言作艺术参考，不因此声称品牌合作、媒体背书或真实设备已核实，也不把艺术参考本身列为新硬禁。`
+    + `场景、道具、动作、情绪、风险和艺术参考都是待审核创作方案，不是已核实拍摄事实或产品质量证明。${MARKETING_REFERENCE_BOUNDARY}ReferenceCurator 的内部参考字段仍按其实际 schema 保留；从中归纳手法，不将名称转成正式 PRD 参考。`
     + `保留原任务的 JSON schema、输出格式、时长与人物合同。由本次模型生成内容，不要求抄写示例或固定镜头。G1/G2 输入不批准新场景，仍须实际 G3/G4 评审。\n`;
 }
 

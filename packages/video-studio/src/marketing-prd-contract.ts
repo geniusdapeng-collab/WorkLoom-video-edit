@@ -1,4 +1,5 @@
 import { isAbstractMarketingIntent, marketingDeliveryCanvas } from "./marketing-prompt-contract.js";
+import { splitShotAssertions } from "./shot-intent.js";
 
 type RecordValue = Record<string, unknown>;
 
@@ -13,6 +14,29 @@ const isRecord = (value: unknown): value is RecordValue =>
 const list = (value: unknown): unknown[] => Array.isArray(value) ? value : [];
 const text = (value: unknown): string => typeof value === "string" ? value.trim() : "";
 const textList = (value: unknown): string[] => list(value).map(text).filter(Boolean);
+
+export const MARKETING_REFERENCE_BOUNDARY = "艺术参考只以具体的镜头、构图、光线、节奏或声音手法进入本片。仅在客户原文或 Brief 明确提出时保留其中指名的影片、导演、作品或外部广告品牌；发现阶段内部参考、通用模板和示例中的名称均不成为本片指定参考，也不授予素材使用权或证明商品事实。";
+
+/** Project named recommendations only into the PRD consumer view. The G3 archive stays intact. */
+export function marketingPrdReferenceView(value: unknown, metadata: RecordValue): RecordValue | undefined {
+  if (!isRecord(value)) return undefined;
+  const brief = isRecord(metadata.brief) ? metadata.brief : {};
+  const customerSource = splitShotAssertions([metadata.customerOriginalIntent, brief.requirements, brief.description].map(text).join("\n")).positive;
+  const requested = [...customerSource.matchAll(/(?:参考|借鉴|参照|致敬|仿照|类似|对标|\b(?:reference|inspired by|style of)\b)([^；]*)/giu)]
+    .map(([, references]) => references!);
+  const excluded = new Set<string>();
+  const isRequested = (name: string): boolean => Boolean(name) && requested.some(reference => reference.includes(name));
+  const named = (items: unknown, key: "title" | "brand") => list(items).filter(item => {
+    const name = text(isRecord(item) ? item[key] : item).replace(/^《|》$/gu, "");
+    if (isRequested(name)) return true;
+    if (name) excluded.add(name);
+    return false;
+  });
+  const filmReferences = named(value.filmReferences, "title"), adReferences = named(value.adReferences, "brand");
+  const styleReferences = textList(value.styleReferences).filter(style => ![...excluded].some(name => style.includes(name))
+    && [...style.matchAll(/《([^》]+)》/gu)].every(([, title]) => isRequested(title!)));
+  return { ...value, filmReferences, adReferences, styleReferences };
+}
 
 const BODY_REFERENCE = /手指|手部|手掌|脸部|人体局部|人物动作|人影|转身|蹲下/u;
 const UNREQUESTED_TIME = /第\s*\d+(?:\.\d+)?\s*秒|scene[-\s]?\d+/iu;

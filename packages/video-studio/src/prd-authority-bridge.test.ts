@@ -874,6 +874,50 @@ describe("explicit delivery plans through the real native PRD generator", () => 
 });
 
 describe("G4 executable plans and one native quality policy", () => {
+  it("preserves a compound marketing genre and approved G3 evidence without adopting unrequested named references", async () => {
+    const value = fixture("COMMERCIAL-PRD-REFERENCES");
+    const upstream = requirementRecord(value.discovery.upstreamFields, "上游主题");
+    upstream.type = "商业广告｜赛道竞速种草短片";
+    value.discovery.referenceCases = { filmReferences: [{ title: "《极速风流》" }, { title: "《寿司之神》" }],
+      adReferences: [{ brand: "Apple" }, { brand: "保时捷" }],
+      styleReferences: ["低机位侧向横移", "参考《极速风流》的车内镜头"] };
+    value.metadata.customerOriginalIntent = "给赛道产品做广告，电影参考选《寿司之神》。预览要支持 Apple 手机，不要参考《极速风流》。";
+    value.authority = preparePrdAuthority({ metadata: value.metadata, marketing: value.marketing, workDir: value.workDir, projectId: value.scope.projectId });
+    const evidence = structuredClone(value.discovery.referenceCases), h = harness(), run = h.make(value);
+    await withPrdAuthorityScope(value.authority, async () => {
+      const prd = await h.generate(run), markdown = await h.review(run, prd);
+      expect(prd.productPositioning).toMatchObject({ productType: "商业广告", genre: upstream.type });
+      expect(prd.referenceCases).toEqual({ filmReferences: ["《寿司之神》"], adReferences: [], styleReferences: ["低机位侧向横移"] });
+      expect(markdown).not.toMatch(/剧情短片|极速风流|Apple|保时捷/);
+      for (const { prompt } of run.calls) {
+        expect(prompt).toContain("具体的镜头、构图、光线、节奏或声音手法");
+        expect(prompt.split("参考影片:")[1]?.split("\n")[0]).not.toMatch(/极速风流|Apple|保时捷/);
+      }
+      return h.success(prd);
+    });
+    expect(value.discovery.referenceCases).toEqual(evidence);
+  });
+
+  it("keeps actual model visual and audio references visible to an independent G4 rejection", async () => {
+    const value = fixture("UNAPPROVED-NAMED-DRAFT");
+    value.discovery.referenceCases = { filmReferences: [{ title: "《极速风流》" }], adReferences: [{ brand: "Apple" }], styleReferences: ["贴地横移"] };
+    value.production.visualSpecification.visualReferences = ["模仿《极速风流》的镜头"];
+    requirementRecord(value.production.audioSpecification, "音频草案").audioReferences = ["按《爆裂鼓手》的节奏做声音"];
+    const h = harness(), run = h.make(value);
+    run.system.g4Approved = false;
+    await withPrdAuthorityScope(value.authority, async () => {
+      const prd = await h.generate(run);
+      const markdown = invoke(run.generator, "generateMarkdown", prd) as string;
+      expect(markdown).toContain("模仿《极速风流》的镜头");
+      expect(markdown).toContain("按《爆裂鼓手》的节奏做声音");
+      expect(prd.referenceCases).toMatchObject({ filmReferences: ["客户未指定命名影片，采用本次视觉规格中的摄影手法"], adReferences: [] });
+      const decision = requirementRecord(await invoke(run.system, "_confirmPRD", markdown, prd), "G4 独立裁决");
+      expect(decision.approved).toBe(false);
+      return { success: false };
+    });
+    expect(run.calls).toHaveLength(2);
+  });
+
   it.each([
     { difficulty: "easy", thresholds: { visual: 0.75, audio: 0.70, narrative: 0.75, consistency: 0.70 } },
     { difficulty: "medium", thresholds: { visual: 0.80, audio: 0.75, narrative: 0.85, consistency: 0.75 } },

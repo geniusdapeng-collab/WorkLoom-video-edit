@@ -29,6 +29,7 @@ import {
 } from "./requirement-contract-bridge.js";
 import { preparePrdAuthority, type PrdAuthority, type PrdMarketingAuthority } from "./prd-authority.js";
 import { assertPrdAuthorityBridge, installVendorPrdAuthorityBridge, installVendorPrdProductionBridge, withPrdAuthorityScope } from "./prd-authority-bridge.js";
+import { preparePrdPortraitSources } from "./prd-portrait-source.js";
 import { captureRequirementTheme, requirementThemeApprovalPayload, requirementThemeUsageBoundary, type RequirementApprovedTheme } from "./requirement-authority.js";
 import { requirementHash } from "./requirement-contract.js";
 import { normalizeNarrativePrdContract } from "./narrative-prd-contract.js";
@@ -285,8 +286,11 @@ export class VideoStudio {
       metadata.dataMining = structuredClone(verified.productQuery);
       verifiedRaw = parsed;
       if (!verified.prdAuthority) throw new Error("MARKETING_PRD_AUTHORITY_REQUIRED：营销 PRD 缺少本次宿主私有 G1 权威原件");
-      prdAuthority = preparePrdAuthority({ metadata, marketing: verified.prdAuthority, workDir: cfg.workDir, projectId: input.projectId });
-      const prepared = prdAuthority, preparedHash = requirementHash(prepared);
+      const prepared = preparePrdAuthority({ metadata, marketing: verified.prdAuthority, workDir: cfg.workDir, projectId: input.projectId });
+      const portraitArchive = cfg.portraits && cfg.portraits.enabled !== false ? cfg.portraits.archivedCharacters : undefined;
+      const portraitSources = preparePrdPortraitSources(portraitArchive, prepared.metadata);
+      prdAuthority = portraitSources.length ? { ...prepared, portraitSources } : prepared;
+      const preparedHash = requirementHash(prepared);
       const rawHash = verified.sha256, queryHash = requirementHash(verified.productQuery);
       validateRequirementAuthority = () => {
         const current = cfg.dataMining?.verifiedRaw;
