@@ -7,7 +7,8 @@ import {
   type RequirementContract, type RequirementRecord
 } from "./requirement-contract.js";
 import {
-  authoritativeDelivery, authoritativeProduct, bindPrdProvenance, effectivePrdModelSchema, prdAuthorityPrompt, prdFail,
+  authoritativeDelivery, authoritativeProduct, bindPrdProvenance, effectivePrdModelSchema, frozenVisualPrdSegments,
+  prdAuthorityPrompt, prdContractExecutionView, prdFail,
   validatePrdDelivery, validatePrdModelPayload, validatePrdProduction, type PrdAuthority
 } from "./prd-authority.js";
 import { marketingPrdReferenceView, normalizeMarketingPrdContract } from "./marketing-prd-contract.js";
@@ -148,6 +149,11 @@ export function productionModelInput(prompt: string): { prompt: string; verify: 
   verify();
   // Before G4 the native theme/discovery/PRD paths retain their own prompts and contracts.
   if (scope.g4Decision !== "approved" || !scope.reviewedHash) return { prompt, verify };
+  const visualSegments = frozenVisualPrdSegments(scope.authority);
+  const reviewedExecution = visualSegments ? {
+    ...scope.reviewedResult,
+    _workloomRequirementContract: prdContractExecutionView(scope.authority, scope.contract!),
+  } : scope.reviewedResult;
   const addition = `\n\n## 本次宿主已审制作权威输入 ${scope.reviewedHash}\n`
     + `以下是当前运行的完整来源，不是新的创作稿或批准。客户完整 Brief 与 G1 的用途限定优先于通用模板、艺术参考和已审 PRD 中的创作句子。`
     + `G4 批准不把 PRD 新增的修辞、设计目的、未知颜色或部件推测升级为 G1 已接受事实。`
@@ -156,7 +162,7 @@ export function productionModelInput(prompt: string): { prompt: string; verify: 
     + (scope.reviewedThemeHash ? `\n本次真实 G2 已审完整主题与原始裁决（SHA256 ${scope.reviewedThemeHash}）：\n${JSON.stringify(scope.reviewedTheme)}\n` : "")
     + `\n本次真实 G4 完整审核原文（SHA256 ${createHash("sha256").update(scope.reviewedContent!).digest("hex")}）：\n${scope.reviewedContent}\n`
     + `本次 G4 原始返回裁决（建议保持非阻断层级，不驱动额外调用）：\n${JSON.stringify(scope.reviewedVerdict)}\n`
-    + `本次 G4 绑定的完整 PRD 对象（人物 portraitPath 可在后续合法填入；其他创作内容不得继承未经重审的修改）：\n${JSON.stringify(scope.reviewedResult)}\n`
+    + `本次 G4 绑定的${visualSegments ? " PRD 执行视图（受众推测原件仅供审计）" : "完整 PRD 对象"}（人物 portraitPath 可在后续合法填入；其他创作内容不得继承未经重审的修改）：\n${JSON.stringify(reviewedExecution)}\n`
     + `保留当前调用的输出结构、真实镜号、字段、模型参数、超时、重试与输出预算。`
     + `仅生成当前任务要求的内容；不把来源文本、JSON 键名、审核说明或本节文字抄成场景、服装、台词与音频。`
     + `客户明确的字幕与封面要求属于正式后期，生成画面内禁止额外文字不代表取消后期规定字幕。`
@@ -255,21 +261,26 @@ function productionPlanningPrompt(scope: Scope): string {
       .filter(key => Object.hasOwn(character, key)).map(key => [key, character[key]]))) };
   const selection = scope.authority.portraitReferenceSelection;
   const selectedAngles = selection?.angles.join("/") ?? "front/closeup";
+  const persistentOnly = profile.speechPolicy === "none" && profile.persistentSubtitleText !== undefined
+    && profile.sidecarPolicy === "dialogue-and-composite-ass";
   return `\n\n## 本次 G4 制作执行计划（由本次模型填写现有字段）\n`
     + `角色的 consistencyRequirements 除脸型、发型、服装外，还须写出 G5 前定妆照执行计划：逐角色绑定本次 characterId、档案 profilePath/profileSha256、registrySha256、已选服装与已知版本；`
     + `明确先从这些来源解析并复用该版本原始 ${selectedAngles} PNG，不把构图稿或新猜测人脸当原始参考。已列出的四角度来源 path/hash 和既有用途证据已核对，待本次 G5 复制与评审；缺少输入证据时才写“G5 前待解析和核验”，不得编造文件、摘要、授权或已批准状态。`
     + (selection ? `本次冻结参考选择 ${JSON.stringify(selection)}。有该人物的 G3 场景按所列角度和顺序绑定，核对动作连续性；有问题在 G4 如实审查，不能擅换角度。\n` : "")
+    + (scope.authority.portraitSources?.length ? "catalogProfile 是当前制作执行的人物档案；archiveProfile 仅作为既有肖像身份、授权和原始字节核对依据。它们是不同档案角色，保留各自路径与 SHA256，不要求改成相同摘要。\n" : "")
     + `写明 G5 前核验人物/版本/服装、原始 PNG 字节、来源与用途授权；不一致或缺件则保留未核实并停止依赖它的生成。其他必需角度按原有 G5 流程核验，只有本次实际图片和原有审核才能支持完成。`
     + `portraitPath 此时留空；不得新增 needsPortrait/portraitPlan 等 schema 未声明键，不得宣称 G5 或跨镜一致性已经通过。明确无人时不添加人物任务。\n`
     + `在 audioSpecification.soundDesign 和各场景既有 visualRequirements/audioRequirements 中写出本次字幕与声音的后续执行、验证方法，不新增模块。`
     + `本次明确字幕口径为 ${profile.subtitleMode ?? "客户未显式指定，沿用已有任务"}；如要求持续警示字幕，明确文字来源、覆盖起止、平台安全区、字号/对比度和遮挡检查方法；`
-    + `要求烧录或 sidecar 时说明如何与同一台词、总时长和时间线核对；both 时按明确口径核对烧录与旁挂共有的台词及时间线，台词侧车与完整组合ASS分别说明，不能要求dialogue-only侧车包含持续文字。没有请求的字幕不得额外添加。`
+    + (persistentOnly ? "本次没有可生成的台词字幕；持续文字烧录与完整组合ASS按实际区间核对，便携对白SRT/VTT不适用。不能创建空文件代替验证。"
+      : "要求烧录或 sidecar 时说明如何与同一台词、总时长和时间线核对；both 时按明确口径核对烧录与旁挂共有的台词及时间线，台词侧车与完整组合ASS分别说明，不能要求dialogue-only侧车包含持续文字。没有请求的字幕不得额外添加。")
     + `本次 nativeAudio=${profile.nativeAudio === undefined ? "未显式指定" : String(profile.nativeAudio)}；明确保留原生声音时，写出原始片段/音轨来源与时长核对、原速拼接、不加速口播、不静默换声或补 TTS 的后续验证计划；`
     + `枚举 voicePolicy、具体对白和音乐/环境音安排须彼此一致。所有这些是待执行计划，当前没有成片、听音或字幕通过证据。\n`
     + `若当前 Brief 明确约定一场对应一个生成片段，shotMapping.estimatedShots 每场写 1；段内机位、动作与声音变化仍写在场景计划，不另增生成片段。\n`
     + `本次明确的独立交付声明（未出现的键没有新增客户承诺）：${JSON.stringify(declarations)}。`
     + `若明确要求standalone封面，在既有visualRequirements中规划PNG/JPEG独立图、目标画幅/分辨率、来源绑定和文件核验；不要把独立交付推断成开启片头封面。`
-    + `若明确要求dialogue-and-composite-ass，在既有字段内区分SRT/VTT台词侧车（dialogue-only）与完整组合ASS（complete-composition），说明ASS包含台词及本次请求的持续文字、覆盖实际视频0秒至末帧，`
+    + (persistentOnly ? "完整组合ASS（complete-composition）仅含本次批准的文字层，持续文字覆盖实际视频0秒至末帧；"
+      : "若明确要求dialogue-and-composite-ass，在既有字段内区分SRT/VTT台词侧车（dialogue-only）与完整组合ASS（complete-composition），说明ASS包含台词及本次请求的持续文字、覆盖实际视频0秒至末帧，")
     + `并规划文字、区间、字体样式及compositionSha256的核对；both时烧录和ASS使用同一组合。没有明确请求的持续文字、封面或其他文字层不得新增。`
     + `将下面原文已给出的字号、边距、描边、墨迹范围、平台遮挡区和字体核验要求落实为本次模型计划，不以泛称“安全区”代替明确数值；未给数值时由本次模型按实际要求规划并标明待验证，不伪称已测量。\n`
     + (typeof brief.description === "string" ? `\n### 客户执行要求原文（Brief.description，保留原文；输入资料，不是完成回执）\n${brief.description}\n` : "")
@@ -287,6 +298,52 @@ function bindPrdPortraitRule(prompt: string): string {
   const parts = prompt.split(native);
   if (parts.length !== 2) prdFail("PRD_VENDOR_UNAVAILABLE", "Agent3 的定妆照原生模板规则已经变化");
   return parts.join("\n9. 角色 portraitPath 保持空字符串。按本次封闭角色 schema 输出，定妆照由后续正式阶段核验。\n10. 只输出 JSON，不要任何 markdown 代码块标记，不要解释文本");
+}
+
+function frozenVisualCreativeRule(prompt: string, hasStory: boolean, sceneCount: number): string {
+  const replace = (from: string, to: string) => {
+    const parts = prompt.split(from);
+    if (parts.length !== 2) prdFail("PRD_VENDOR_UNAVAILABLE", "无对白创意的原生模板规则已经变化");
+    prompt = parts.join(to);
+  };
+  if (hasStory) replace(
+    "请从中提炼核心意象、钉子台词、情感锚点，转化为导演视角的创意语言。",
+    "从中提炼能由已审动作、画面和原生声音验证的意象与情感锚点，不创作台词或增加上屏文字。",
+  );
+  replace(
+    "\n4. keyMessages 的 P0 必须能用一句钉子台词说出来，且这句台词要'具体到只有这个故事能讲'（'钉子会锈，绳结会记住手心的汗'），禁止放之四海皆准的鸡汤。",
+    "\n4. keyMessages 的 P0 是导演的内部执行要求，写明本次已审场景里观众可实际看到或听到的证据；不得写成角色台词、旁白、口播、可转发短句或新的字幕。",
+  );
+  replace(
+    "\n5. 【用户原始输入】是最高事实源：原文的台词、特写、物理细节一字不减地融进你的提炼，禁止用抽象概括覆盖原文细节。",
+    "\n5. 客户原文、已审场景的动作与物理细节必须保留。只使用明确批准的后期文字，禁止增加口号或把内部创意语言当作上屏文案。",
+  );
+  replace(
+    '  "emotionalArc": "setup→rising→climax→falling→resolution",',
+    `  "emotionalArc": "按下面枚举选择与本次 ${sceneCount} 个已审节点对应的弧线",`,
+  );
+  return prompt;
+}
+
+/** Project execution inputs; keep the reviewed G3 object and its audience hypothesis as original evidence. */
+function frozenVisualDiscoveryView(scope: Scope, discovery: RequirementRecord, contract: RequirementContract): number | undefined {
+  const frozen = frozenVisualPrdSegments(scope.authority);
+  if (!frozen) return undefined;
+  if (contract.scenes.length !== frozen.count) prdFail("PRD_SCENE_UNVERIFIED", "已审场景与本次冻结分段不一致");
+  const audience = requirementRecord(discovery.audienceProfile ?? {}, "本次 G3 受众");
+  discovery.audienceProfile = {
+    ...audience,
+    emotionTriggers: contract.scenes.slice(0, 5).map(scene => scene.purpose),
+    contentExpectations: frozen.intervals.slice(0, 4).map(interval => interval.brief),
+  };
+  const risk = requirementRecord(discovery.riskAssessment ?? {}, "本次 G3 风险");
+  const source = scope.truth ?? truthBoundary(scope, []);
+  const boundUsage = source.constraints.filter(line => line.startsWith("内部使用前提（不是创意文案）："));
+  discovery.riskAssessment = {
+    ...risk,
+    businessConstraints: [...new Set([...boundUsage, ...source.constraints])].slice(0, 3),
+  };
+  return frozen.count;
 }
 
 function prdCharacterShapeFeedback(error: unknown, schema: RequirementRecord): string | undefined {
@@ -455,10 +512,16 @@ export function installPrdAuthorityBridge(
       const metadata = { ...scope.authority.metadata, _workloomRequirementContract: scope.list._workloomRequirementContract };
       const contract = verifiedRequirementContract(scope.list, metadata, discovery);
       scope.contract = structuredClone(contract);
+      const visualSceneCount = frozenVisualDiscoveryView(scope, discovery, contract);
       const references = marketingPrdReferenceView(discovery.referenceCases, scope.authority.metadata);
       if (references) discovery.referenceCases = references;
       const promptContext = prdAuthorityPrompt(scope.authority, contract)
-        + (scope.truth ? `\n\n本次规则事实边界（仅作内部限制，不是创意任务；完整原件不变）：\n${JSON.stringify(scope.truth.constraints)}\n` : "");
+        + (scope.truth ? `\n\n本次规则事实边界（仅作内部限制，不是创意任务；完整原件不变）：\n${JSON.stringify(scope.truth.constraints)}\n` : "")
+        + (visualSceneCount !== undefined ? `\n\n## 本次无对白制作采用边界\n`
+          + `完整 G3 原件中的 modelAudienceHypothesis 仅供审计；禁止采用其固定短句、额外动作或推测数值作为剧情、台词、字幕、时间节点或制作约束。`
+          + `实际创意动作顺序、时长与连续性来自本次 ${visualSceneCount} 个已审场景及客户冻结段；不把观众推测写成新场景或在关键事件前后加入无来源秒数。`
+          + `情绪弧线选择与这些现有节点可逐项对应的枚举，段内情绪变化仍是原场景的一部分。出现产品名或型号时直接复制已接受 G1 对应身份，不改写字符。`
+          + `静默制作仅禁止可辨识人声；保留原生环境和动作声，后期仅使用客户已指定的文字及对应时间范围。\n` : "");
       const view = Object.create(this) as RequirementRecord;
       let constraintResult: RequirementRecord | undefined;
       let originalThresholds: QualityThresholds | undefined;
@@ -638,7 +701,9 @@ export function installPrdAuthorityBridge(
               check(scope);
               const native = Reflect.apply(build, this, args);
               if (typeof native !== "string") prdFail("PRD_VENDOR_UNAVAILABLE", "原始 PRD prompt 不是文本");
-              const original = kind === "production" ? bindPrdPortraitRule(native) : native;
+              const hasStory = Boolean(discovery._originalStoryText || discovery.original_story_text);
+              const original = kind === "production" ? bindPrdPortraitRule(native)
+                : visualSceneCount !== undefined ? frozenVisualCreativeRule(native, hasStory, visualSceneCount) : native;
               builtPrompt = { original, complete: original + responseContext };
               return builtPrompt.complete;
             });
@@ -722,7 +787,7 @@ export function installPrdAuthorityBridge(
         labeled = labeled.replace(heading, explicit);
       }
       // This field is inapplicable when props exist; retain the canonical contract and hashes.
-      const displayContract = { ...scope.contract!, scenes: scope.contract!.scenes.map(scene => {
+      const displayContract = { ...prdContractExecutionView(scope.authority, scope.contract!), scenes: scope.contract!.scenes.map(scene => {
         if (Array.isArray(scene.props) && scene.props.length > 0 && scene.noPropsReason === null) {
           const { noPropsReason: _inapplicableReason, ...displayScene } = scene;
           return displayScene;
@@ -737,6 +802,8 @@ export function installPrdAuthorityBridge(
       const selectedPortraitSource = scope.authority.portraitSources?.find(source => source.characterId === portraitReferenceSelection?.characterId);
       const planning = {
         status: "plan-only-not-executed",
+        ...(frozenVisualPrdSegments(scope.authority)
+          ? { audienceExecutionBoundary: "G3 原始受众推测保留于原件和合同的 modelAudienceHypothesis，供审计。动作、声音、字幕和商品限制只采用本次已审场景、冻结 Brief 与 G1，不能执行受众建议中的额外文本、动作或数字。" } : {}),
         ...(scope.authority.portraitSources?.length ? { verifiedPortraitSourcesAwaitingG5: scope.authority.portraitSources } : {}),
         ...(portraitReferenceSelection && selectedPortraitSource ? {
           portraitReferenceSelection: { ...portraitReferenceSelection,
