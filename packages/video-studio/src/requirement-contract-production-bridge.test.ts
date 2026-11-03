@@ -183,6 +183,7 @@ function installNativeDiscovery() {
     _renderRequirementContract() { return "native contract"; }
   }
   disposers.push(installRequirementContractBridge(Vendor.prototype as unknown as RequirementRecord, RequirementDiscoveryEngine.prototype));
+  return new Vendor() as unknown as RequirementRecord;
 }
 function modelFor(run: ReturnType<typeof privateRun>, scenes: Array<RequirementRecord | Error | string>, risks?: Array<RequirementRecord | Error>) {
   const calls: Array<{ method: string; prompt: string; schema?: unknown; options: unknown }> = [];
@@ -1052,6 +1053,105 @@ describe("actual native private RiskAssessor bounded retry feedback", () => {
 describe("frozen SceneArchitect real loopback provider wire", () => {
   beforeEach(() => resetCircuit("preproduction"));
   afterEach(() => resetCircuit("preproduction"));
+
+  it.each(["verified separator", "wrong duration", "missing native echo", "cloned G3 source"] as const)(
+    "admits local comma recovery only with the native Responses proof and full frozen checks: %s",
+    async outcome => {
+      const vendor = installNativeDiscovery();
+      vi.stubEnv("WORKLOOM_VIDEO_SCENE_RESPONSE_FORMAT", "json_schema");
+      try {
+        const scene = physicalScene([10, 10, 10]);
+        const run = withFrozenSegmentBrief(privateRun(`native-comma-${outcome}`, 30, scene));
+        const first = outcome === "wrong duration" ? physicalScene([10, 10, 11]) : scene;
+        const full = `\t${JSON.stringify(first)}\r\n`;
+        const offset = full.indexOf(',"scenes":');
+        expect(offset).toBeGreaterThan(0);
+        const malformed = full.slice(0, offset) + full.slice(offset + 1);
+        const scenePrompts: string[] = [], laterPrompts: string[] = [];
+        const digest = (text: string) => createHash("sha256").update(text).digest("hex");
+        let firstWire: Record<string, string> | undefined;
+        const engine = new WorkloomLLMEngine({
+          baseUrl: "http://127.0.0.1:1", apiKey: "synthetic-local-key", model: "deepseek-flash", scene: "preproduction",
+          fetchImpl: async (url, init) => {
+            const wire = String(init?.body);
+            const body = JSON.parse(wire);
+            if (new URL(String(url)).pathname === "/responses") {
+              scenePrompts.push(body.input);
+              expect(body).toMatchObject({ model: "deepseek-flash", max_output_tokens: 393_216,
+                text: { format: { type: "json_schema", name: "workloom_scene_architect" } } });
+              const text = scenePrompts.length === 1 ? malformed : JSON.stringify(scene);
+              const response = JSON.stringify({ id: `synthetic-native-scene-${scenePrompts.length}`, object: "response",
+                status: "completed", model: "deepseek-flash",
+                ...(outcome === "missing native echo" && scenePrompts.length === 1 ? {} : {
+                  text: { format: { type: "json_schema", name: "workloom_scene_architect" } },
+                }),
+                output: [{ type: "message", role: "assistant", status: "completed",
+                  content: [{ type: "output_text", text }] }],
+                usage: { input_tokens: 100, output_tokens: 40, total_tokens: 140 },
+              });
+              firstWire ??= { requestSha256: digest(wire), responseSha256: digest(response),
+                schemaSha256: digest(JSON.stringify(body.text.format.schema)) };
+              return new Response(response, { headers: { "Content-Type": "application/json" } });
+            }
+            expect(new URL(String(url)).pathname).toBe("/chat/completions");
+            const prompt: string = body.messages[1].content;
+            const module = prompt.slice(0, 180).includes("受众分析") ? "audience"
+              : prompt.slice(0, 180).includes("技术制片人") ? "risk" : "reference";
+            if (module !== "audience") laterPrompts.push(prompt);
+            return Response.json({ id: `synthetic-${module}`, model: "deepseek-flash",
+              choices: [{ finish_reason: "stop", message: { content: JSON.stringify(run.modules[module]) } }],
+              usage: { prompt_tokens: 100, completion_tokens: 40, total_tokens: 140 },
+            });
+          },
+        });
+        const discovery = new RequirementDiscoveryEngine({
+          llmEngine: engine as unknown as RequirementRecord, timeoutMs: 20_000, agentTimeoutMs: 4_000,
+        });
+        const heading = "## 原生场景单分隔符校正证据";
+        const expectsRecovery = outcome === "verified separator" || outcome === "cloned G3 source";
+        const result = withRequirementContractScope(run.metadata, async () => {
+          const discovered = await Reflect.apply(discovery.discover as NativeMethod, discovery, [run.input]) as RequirementRecord;
+          expect(discovered.sceneStructure).toEqual(scene);
+          const metadata = structuredClone(run.metadata);
+          const list = await Reflect.apply(vendor._convertDiscoveryToRequirementList as NativeMethod,
+            vendor, [discovered, run.input, metadata]);
+          const render = (source: RequirementRecord) => Reflect.apply(vendor._renderRequirementContract as NativeMethod,
+            vendor, [run.story, metadata, list, source]) as string;
+          const report = render(discovered);
+          if (expectsRecovery) {
+            const parts = report.split(`\n${heading}\n`);
+            expect(parts).toHaveLength(2);
+            expect(firstWire).toBeDefined();
+            expect(JSON.parse(parts[1]!.split("\n")[0]!)).toEqual({
+              schemaVersion: "workloom.scene-json-single-comma/v1", ...firstWire,
+              originalSha256: digest(malformed), repairedSha256: digest(full),
+              insertionByteOffset: Buffer.byteLength(malformed.slice(0, offset)), sceneHash: requirementHash(scene),
+            });
+          } else expect(report).not.toContain(heading);
+          if (outcome === "cloned G3 source") render(structuredClone(discovered));
+          return discovered;
+        }, run.options);
+        if (outcome === "cloned G3 source") await expect(result).rejects.toThrow("G3 未绑定本次语法校正场景");
+        else await expect(result).resolves.toMatchObject({ sceneStructure: scene });
+        expect(laterPrompts).toHaveLength(2);
+        if (expectsRecovery) {
+          expect(scenePrompts).toHaveLength(1);
+          for (const prompt of laterPrompts) {
+            expect(prompt).toContain(full);
+            expect(prompt).toContain("单分隔符校正后通过严格结构校验");
+            expect(prompt).toContain(digest(malformed));
+            expect(prompt).toContain(digest(full));
+            expect(prompt).not.toContain(malformed);
+          }
+        } else {
+          expect(scenePrompts).toHaveLength(2);
+          expect(scenePrompts[1]).toContain("上一次原生场景 JSON 语法纠正");
+          for (const prompt of laterPrompts) expect(prompt).not.toContain("单分隔符校正后");
+        }
+        for (const prompt of scenePrompts) expectCompleteSources(prompt, run);
+      } finally { vi.unstubAllEnvs(); }
+    },
+  );
 
   it.each([
     ["malformed", 2, true], ["twice-malformed", 2, false], ["unattested-malformed", 1, false], ["fenced", 2, true], ["blank", 1, false],

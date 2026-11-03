@@ -1,4 +1,5 @@
 import { AsyncLocalStorage } from "node:async_hooks";
+import { createHash } from "node:crypto";
 import { createRequire } from "node:module";
 import path from "node:path";
 import {
@@ -7,7 +8,8 @@ import {
   frozenSegmentContract, techniqueReferenceSchema, validateFrozenSceneTiming, validateRequirementSchema, validateTechniqueReferences,
   verifiedRequirementContract, type FrozenSegmentContract, type RequirementCast, type RequirementRecord
 } from "./requirement-contract.js";
-import { nativeReasonCompleted, nativeReasonFailure, type LLMReasonResult } from "./llm-adapter.js";
+import { nativeReasonCompleted, nativeReasonFailure, nativeSceneResponseSource, type LLMReasonResult } from "./llm-adapter.js";
+import { recoverSceneJsonMissingComma } from "./scene-json-comma-recovery.js";
 import { acquireVendorRequirementEntry } from "./vendor-requirement-entry.js";
 import {
   qualifyRequirementThemeInput, requirementAuthorityFailure, requirementAuthorityPrompt, scopedRequirementEngine,
@@ -16,6 +18,16 @@ import {
 import type { PrdAuthority } from "./prd-authority.js";
 
 type Method = (this: RequirementRecord, ...args: unknown[]) => unknown;
+interface SceneSyntaxRecovery {
+  schemaVersion: "workloom.scene-json-single-comma/v1";
+  requestSha256: string;
+  responseSha256: string;
+  schemaSha256: string;
+  originalSha256: string;
+  repairedSha256: string;
+  insertionByteOffset: number;
+}
+type SceneDraft = Readonly<{ body: string; hash: string; recovery?: Readonly<SceneSyntaxRecovery> }>;
 interface Scope {
   metadata: RequirementRecord;
   cast?: RequirementCast;
@@ -28,6 +40,10 @@ interface Scope {
   optionsSource?: RequirementAuthorityOptions;
   segments?: FrozenSegmentContract;
   sceneResponsesSchema?: true;
+  sceneSyntaxRecovery?: Readonly<{
+    discovery: RequirementRecord;
+    receipt: Readonly<SceneSyntaxRecovery & { sceneHash: string }>;
+  }>;
 }
 const scopes = new AsyncLocalStorage<Scope>();
 const receivers = new WeakMap<object, Scope>();
@@ -35,10 +51,12 @@ const sceneJsonCorrection = "\n\n## 上一次原生场景 JSON 语法纠正\n"
   + "上一次已返回正文，但正文无法解析为 JSON。根据完整原始输入和本次实际 schema 重新生成一个完整 JSON 对象。"
   + "检查数组元素之间的逗号、对象与数组逐层闭合，以及字符串内引号和换行的合法转义。只输出对象，禁止代码围栏或解释。";
 
-function frozenSceneAnnex(segments: FrozenSegmentContract, draft: Readonly<{ body: string; hash: string }>): string {
+function frozenSceneAnnex(segments: FrozenSegmentContract, draft: SceneDraft): string {
   return "\n\n## 本次冻结分段及原生场景草案\n"
     + `精确硬切合同（客户权威）：\n${JSON.stringify(segments)}\n`
-    + `本次 SceneArchitect 已通过结构校验的完整原始 JSON（场景摘要 ${draft.hash}，仍待独立 G3 审核）：\n${draft.body}\n`
+    + (draft.recovery
+      ? `本次 SceneArchitect 单分隔符校正后通过严格结构校验的完整 JSON（场景摘要 ${draft.hash}，仍待独立 G3 审核）：\n${draft.body}\n语法校正证据：${JSON.stringify(draft.recovery)}\n`
+      : `本次 SceneArchitect 已通过结构校验的完整原始 JSON（场景摘要 ${draft.hash}，仍待独立 G3 审核）：\n${draft.body}\n`)
     + "用原草案的区间、动作先后、机位和声场做交叉核对，建议应指出作用的现有区间。"
     + "不得新增生成段、补拍输出或依赖额外生成的插入镜头，不得改动已有硬切、时长、动作前提或终态。"
     + "需要调整时，在对应单次生成输出内部控制构图、机位移动、遮挡、运动或声场，保留 Brief 要求可辨认的动作和结果。"
@@ -287,7 +305,13 @@ export function installRequirementContractBridge(
       if (contract.ownerAudience !== (typeof ownerAudience === "string" && ownerAudience.trim() ? ownerAudience : null)) {
         throw new RequirementContractError("REQUIREMENT_AUDIENCE_CHANGED", "G3 与本次宿主冻结的客户受众口径不一致");
       }
-      return renderRequirementContract(contract, requirementRecord(metadata, "G3 metadata"));
+      const report = renderRequirementContract(contract, requirementRecord(metadata, "G3 metadata"));
+      const evidence = scope.sceneSyntaxRecovery;
+      if (!evidence) return report;
+      if (evidence.discovery !== discovery || evidence.receipt.sceneHash !== requirementHash(evidence.discovery.sceneStructure)) {
+        throw new RequirementContractError("REQUIREMENT_DISCOVERY_CHANGED", "G3 未绑定本次语法校正场景");
+      }
+      return report + `\n\n## 原生场景单分隔符校正证据\n${JSON.stringify(evidence.receipt)}\n`;
     });
   };
   const discovered: Method = async function (input) {
@@ -305,7 +329,8 @@ export function installRequirementContractBridge(
         throw new RequirementContractError("REQUIREMENT_SCENE_UNVERIFIED", "上游创意时长与冻结分段合同不一致");
       }
       const agents = requirementRecord(this.agents, "需求洞察 agents");
-      let sceneDraft: Readonly<{ body: string; hash: string }> | undefined;
+      let sceneDraft: SceneDraft | undefined;
+      if (scope.sceneSyntaxRecovery) requirementAuthorityFailure("REQUIREMENT_DISCOVERY_CHANGED", "本次运行已有绑定校正证据的原生洞察");
       const inputHash = scope.authority ? requirementHash(input) : undefined;
       const originalEngine = this;
       const requireActiveScope = () => {
@@ -478,9 +503,11 @@ export function installRequirementContractBridge(
         let started = false, correctionUsed = false;
         let completedSyntaxFailure = false;
         let nativeSceneBody: string | undefined;
+        let syntaxRecovery: Readonly<SceneSyntaxRecovery> | undefined;
         if (segments) {
           const model = requirementRecord(this.llmEngine, "SceneArchitect 已守护模型");
           const reason = model.reason;
+          const schemaSha256 = createHash("sha256").update(JSON.stringify(effectiveSchema)).digest("hex");
           if (typeof reason !== "function") requirementAuthorityFailure("REQUIREMENT_VENDOR_UNAVAILABLE", "SceneArchitect 缺少原生 reason");
           runView.llmEngine = Object.create(model, {
             reason: { value: async (...args: unknown[]) => {
@@ -490,6 +517,33 @@ export function installRequirementContractBridge(
                 : args;
               const result = await Reflect.apply(reason, model, dispatchArgs) as LLMReasonResult;
               completedSyntaxFailure = nativeReasonFailure(result) === "json-syntax" && nativeReasonCompleted(result);
+              if (completedSyntaxFailure && scope.sceneResponsesSchema) {
+                requireActiveScope();
+                const source = nativeSceneResponseSource(result);
+                const repaired = source && source.schemaSha256 === schemaSha256 && source.rawText.trim() === result.content
+                  ? recoverSceneJsonMissingComma(source.rawText) : undefined;
+                if (source && repaired) {
+                  try {
+                    validateRequirementSchema(repaired.data, effectiveSchema);
+                    requirementScenes(repaired.data, cast, requirementRecord(input, "SceneArchitect 上游输入").duration_sec);
+                    validateFrozenSceneTiming(repaired.data, segments);
+                  } catch (error) {
+                    if (error instanceof RequirementContractError) return result;
+                    throw error;
+                  }
+                  syntaxRecovery = Object.freeze({
+                    schemaVersion: "workloom.scene-json-single-comma/v1",
+                    requestSha256: source.requestSha256, responseSha256: source.responseSha256,
+                    schemaSha256,
+                    originalSha256: repaired.originalSha256, repairedSha256: repaired.repairedSha256,
+                    insertionByteOffset: repaired.insertionByteOffset,
+                  });
+                  // Only this native agent view receives the locally verified JSON.
+                  // The original adapter result remains a measured syntax failure.
+                  completedSyntaxFailure = false;
+                  return { success: true, content: repaired.content, data: repaired.data, usage: result.usage };
+                }
+              }
               return result;
             } },
             // The pinned vendor parses the returned text with JSON.parse. Its
@@ -517,6 +571,7 @@ export function installRequirementContractBridge(
           currentSceneFailure = undefined;
           completedSyntaxFailure = false;
           nativeSceneBody = undefined;
+          syntaxRecovery = undefined;
           try { return await Reflect.apply(callScene, this, args); }
           catch (error) {
             // The adapter strictly parses returned content; the pinned vendor
@@ -554,7 +609,11 @@ export function installRequirementContractBridge(
               if (!nativeSceneBody || sceneDraft) {
                 throw new RequirementContractError("REQUIREMENT_DISCOVERY_CHANGED", "本次严格校验场景缺少唯一原始正文");
               }
-              sceneDraft = Object.freeze({ body: nativeSceneBody, hash: requirementHash(response) });
+              if (syntaxRecovery && createHash("sha256").update(nativeSceneBody).digest("hex") !== syntaxRecovery.repairedSha256) {
+                throw new RequirementContractError("REQUIREMENT_DISCOVERY_CHANGED", "单分隔符校正正文在原生解析过程中发生变化");
+              }
+              const hash = requirementHash(response);
+              sceneDraft = Object.freeze({ body: nativeSceneBody, hash, ...(syntaxRecovery ? { recovery: syntaxRecovery } : {}) });
             }
           } catch (error) {
             const feedback = structuredSceneFeedback(error);
@@ -599,7 +658,13 @@ export function installRequirementContractBridge(
           throw new RequirementContractError("REQUIREMENT_DISCOVERY_CHANGED", "需求洞察结果不再匹配本次原始场景草案");
         }
       }
-      return { ...record, audienceAuthority: audience(scope) ?? null, audienceProfileStatus: "model-hypothesis" };
+      const bound = { ...record, audienceAuthority: audience(scope) ?? null, audienceProfileStatus: "model-hypothesis" };
+      if (sceneDraft?.recovery) {
+        if (scope.sceneSyntaxRecovery) requirementAuthorityFailure("REQUIREMENT_DISCOVERY_CHANGED", "同一运行不能替换已绑定的原生场景校正证据");
+        scope.sceneSyntaxRecovery = Object.freeze({ discovery: bound,
+          receipt: Object.freeze({ ...sceneDraft.recovery, sceneHash: sceneDraft.hash }) });
+      }
+      return bound;
     });
   };
   const noFastFallback: Method = function (...args) {

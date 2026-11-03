@@ -35,6 +35,7 @@ import {
   type EventSink,
   type ModelPolicy,
   type NativeBlankJsonReceipt,
+  type NativeSceneResponseSource,
   type ModelProvider,
   type PlanId,
   type ResponsesJsonSchema,
@@ -86,8 +87,10 @@ const nativeCompletions = new WeakSet<object>();
 const nativeBlankJsonFailures = new WeakMap<object, { receipt: NativeBlankJsonReceipt; engine: WorkloomLLMEngine;
   provider: OpenAiCompatibleProvider; routeCurrent: () => boolean }>();
 const nativeChatAnswers = new WeakMap<object, ChatResult>();
+const nativeSceneResponseSources = new WeakMap<object, NativeSceneResponseSource>();
 const checkBlankTransport = OpenAiCompatibleProvider.prototype.matchesNativeBlankJsonTransport;
 const checkBlankCorrection = OpenAiCompatibleProvider.prototype.matchesNativeBlankJsonCorrection;
+const readSceneResponseSource = OpenAiCompatibleProvider.prototype.readNativeSceneResponseSource;
 
 export function nativeReasonFailure(value: unknown): "json-syntax" | "unavailable" | undefined {
   return value !== null && typeof value === "object" ? reasonFailures.get(value) : undefined;
@@ -96,6 +99,11 @@ export function nativeReasonFailure(value: unknown): "json-syntax" | "unavailabl
 /** True only after the canonical provider returned a measured, complete response. */
 export function nativeReasonCompleted(value: LLMReasonResult): boolean {
   return nativeCompletions.has(value);
+}
+
+/** Private transport evidence. Ordinary results and errors never contain this source. */
+export function nativeSceneResponseSource(value: unknown): NativeSceneResponseSource | undefined {
+  return value !== null && typeof value === "object" ? nativeSceneResponseSources.get(value) : undefined;
 }
 
 /** A completed empty Chat JSON result remains a failed, non-retryable call. */
@@ -449,6 +457,10 @@ export class WorkloomLLMEngine {
           && nativeTransportCheck.call(nativeProvider, receipt, transportPath(opts))) {
           nativeCompletions.add(answer);
           if (transportPath(opts) === DEEPSEEK_CHAT_PATH) nativeChatAnswers.set(answer, receipt);
+          else {
+            const source = readSceneResponseSource.call(nativeProvider, receipt);
+            if (source) nativeSceneResponseSources.set(answer, source);
+          }
         }
         const currentRoute = binding ? attestableRoute(this) : undefined;
         if (binding && currentRoute && result.kind === "answered" && !result.degraded?.length && !result.budgetExceeded
@@ -515,6 +527,8 @@ export class WorkloomLLMEngine {
         };
         reasonFailures.set(failure, "json-syntax");
         if (nativeCompletions.has(result)) nativeCompletions.add(failure);
+        const source = nativeSceneResponseSources.get(result);
+        if (source) nativeSceneResponseSources.set(failure, source);
         return failure;
       }
     }
