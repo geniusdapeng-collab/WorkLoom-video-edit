@@ -75,9 +75,15 @@ export interface LLMReasonResult {
 // The pinned discovery vendor can return the adapter envelope as if it were
 // structured data. Track native failure identity outside the model payload.
 const reasonFailures = new WeakMap<object, "json-syntax" | "unavailable">();
+const nativeCompletions = new WeakSet<object>();
 
 export function nativeReasonFailure(value: unknown): "json-syntax" | "unavailable" | undefined {
   return value !== null && typeof value === "object" ? reasonFailures.get(value) : undefined;
+}
+
+/** True only after the canonical provider returned a measured, complete response. */
+export function nativeReasonCompleted(value: LLMReasonResult): boolean {
+  return nativeCompletions.has(value);
 }
 
 export interface WorkloomLLMEngineConfig {
@@ -401,6 +407,12 @@ export class WorkloomLLMEngine {
             : undefined,
         };
         const receipt = result.providerResult;
+        const nativeProvider = providers.get(DEEPSEEK_FLASH_MODEL_ID);
+        if (result.kind === "answered" && !result.degraded?.length && receipt?.modelId === DEEPSEEK_FLASH_MODEL_ID
+          && receipt.finishReason === "stop" && receipt.responseId?.trim() && nativeProvider instanceof OpenAiCompatibleProvider
+          && nativeTransportCheck.call(nativeProvider, receipt)) {
+          nativeCompletions.add(answer);
+        }
         const currentRoute = binding ? attestableRoute(this) : undefined;
         if (binding && currentRoute && result.kind === "answered" && !result.degraded?.length && !result.budgetExceeded
           && receipt?.modelId === DEEPSEEK_FLASH_MODEL_ID && receipt.scene === scene && receipt.finishReason === "stop"
@@ -454,6 +466,7 @@ export class WorkloomLLMEngine {
           retryable: false
         };
         reasonFailures.set(failure, "json-syntax");
+        if (nativeCompletions.has(result)) nativeCompletions.add(failure);
         return failure;
       }
     }

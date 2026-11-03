@@ -12,6 +12,7 @@ import {
 } from "./prd-authority.js";
 import { normalizeMarketingPrdContract } from "./marketing-prd-contract.js";
 import { acquireVendorRequirementEntry } from "./vendor-requirement-entry.js";
+import { nativeReasonCompleted, nativeReasonFailure, WorkloomLLMEngine } from "./llm-adapter.js";
 
 type Method = (this: RequirementRecord, ...args: unknown[]) => unknown;
 const QUALITY_KEYS = ["visual", "audio", "narrative", "consistency"] as const;
@@ -762,6 +763,10 @@ interface ProductionDependencies {
   qualityGatePrototype: RequirementRecord;
   deliveryGuardPrototype: RequirementRecord;
   semanticPrototype: RequirementRecord;
+  structuredAgent?: {
+    prototype: RequirementRecord;
+    limiter: { withLimit<T>(operation: () => Promise<T>, timeoutMs: number): Promise<T> };
+  };
   standardizeShot: (shot: RequirementRecord) => RequirementRecord;
   validateShot: (shot: RequirementRecord) => RequirementRecord;
   fields: { p0: string[]; p1: string[]; p2: string[]; p3: string[]; common: string[] };
@@ -833,6 +838,77 @@ export function installPrdProductionBridge(deps: ProductionDependencies): () => 
     const base: Method = original?.value ?? function () { return true; };
     changes.push({ owner, key, original, patched: wrap(base) });
   };
+  const structuredAgent = deps.structuredAgent;
+  if (structuredAgent) add(structuredAgent.prototype, "_callLLM", original => async function (prompt, schema, fallback, optionsValue = {}) {
+    const scope = productionScope(this, false);
+    if (!scope || scope.g4Decision !== "approved") {
+      return Reflect.apply(original, this, [prompt, schema, fallback, optionsValue]);
+    }
+    return awaited(scope, async () => {
+      check(scope);
+      const name = typeof this.name === "string" ? this.name : "ProductionAgent";
+      if (!this.enabled) prdFail("PRD_PRODUCTION_MODEL_DISABLED", `${name} 在已审批的正式制作中停用`);
+      // The vendor system retains this run's injected engine. Its standalone
+      // agents may construct an engine through a process-global redirect.
+      const engine = scope.system?.llmEngine;
+      if (!(engine instanceof WorkloomLLMEngine) || !WorkloomLLMEngine.supportsStructuredReviewProof(engine)) {
+        prdFail("PRD_PRODUCTION_MODEL_UNVERIFIED", "正式制作缺少本次受控宿主模型");
+      }
+      const systemPrompt = Reflect.apply(method(this, "_getSystemPrompt"), this, []);
+      if (typeof prompt !== "string" || typeof systemPrompt !== "string") {
+        prdFail("PRD_PRODUCTION_MODEL_UNVERIFIED", `${name} 缺少完整原生提示词`);
+      }
+      const fullPrompt = `${systemPrompt}\n\n${prompt}`;
+      const validate = method(this, "_validateSchema");
+      const options = requirementRecord(optionsValue, "制作模型调用配置");
+      const now = Date.now();
+      const configuredTimeout = Number(this.llmTimeout);
+      const globalDeadline = typeof this._globalDeadline === "number" ? this._globalDeadline : now + configuredTimeout;
+      const deadline = options.shotBudget ? Math.min(globalDeadline, now + Number(options.shotBudget)) : globalDeadline;
+      const ceiling = deadline - now;
+      const requestedTimeout = Math.min(Number(options.timeoutMs || configuredTimeout), ceiling);
+      const callTimeout = options.fastMode && typeof options.fastTimeoutMs === "number"
+        ? Math.min(requestedTimeout, Math.max(options.fastTimeoutMs, ceiling * 0.3))
+        : requestedTimeout;
+      const maxAttempts = Number(options.maxRetries ?? this.llmMaxRetries);
+      if (!Number.isInteger(maxAttempts) || maxAttempts < 1) {
+        prdFail("PRD_PRODUCTION_MODEL_UNVERIFIED", `${name} 未获制作调用次数`);
+      }
+      const remaining = () => {
+        const ms = Math.floor(Math.min(callTimeout, deadline - Date.now()));
+        if (!Number.isFinite(ms) || ms < 5_000) prdFail("PRD_PRODUCTION_MODEL_DEADLINE", `${name} 制作调用剩余时间不足`);
+        return ms;
+      };
+      const checkEngine = () => {
+        check(scope);
+        if (scope.system?.llmEngine !== engine || !WorkloomLLMEngine.supportsStructuredReviewProof(engine)) {
+          prdFail("PRD_PRODUCTION_MODEL_UNVERIFIED", `${name} 宿主模型身份已变化`);
+        }
+      };
+      const invoke = (text: string) => structuredAgent.limiter.withLimit(async () => {
+        checkEngine();
+        const timeoutMs = remaining();
+        const response = await engine.reasonStructured(text, schema, { timeoutMs, signal: AbortSignal.timeout(timeoutMs) });
+        checkEngine();
+        return response;
+      }, remaining());
+      const valid = (value: unknown) => requirementRecord(Reflect.apply(validate, this, [value, schema]), "原生制作响应校验").valid === true;
+      const first = await invoke(fullPrompt);
+      if (!nativeReasonCompleted(first)) {
+        prdFail("PRD_PRODUCTION_MODEL_UNVERIFIED", `${name} 未取得已完成且有计量的原生模型回复`);
+      }
+      if (first.success && valid(first.data)) return { result: first.data, degraded: false, degradeReason: null, attempts: 1 };
+      if (maxAttempts < 2 || (!first.success && nativeReasonFailure(first) !== "json-syntax")) {
+        prdFail("PRD_PRODUCTION_MODEL_UNVERIFIED", `${name} 的原生制作响应未通过校验`);
+      }
+      const correction = first.success ? "原回复缺失或不符合目标字段结构。" : "原回复不是合法 JSON。";
+      const second = await invoke(fullPrompt + `\n\n## 完整结构修正\n${correction}重新按上文完整任务和同一目标结构生成一次完整 JSON。保留每个镜头、事实与约束；不要引用原错误内容，不要缩减任务或字段。`);
+      if (!nativeReasonCompleted(second) || !second.success || !valid(second.data)) {
+        prdFail("PRD_PRODUCTION_MODEL_UNVERIFIED", `${name} 的一次完整结构修正未通过校验`);
+      }
+      return { result: second.data, degraded: false, degradeReason: null, attempts: 2 };
+    });
+  });
   const inspect = (shotsValue: unknown, context: unknown, noTitle: boolean) => {
     if (!Array.isArray(shotsValue) || shotsValue.length === 0) prdFail("PRD_PRODUCTION_INVALID", "制作镜头必须为非空数组");
     const shots = (shotsValue as unknown[]).map(value => {
@@ -1152,6 +1228,10 @@ export function installVendorPrdProductionBridge(constructor: { prototype: objec
       return requirementRecord(module[name]?.prototype, `${name} prototype`);
     };
     const standardizer = require(path.resolve(path.dirname(lease.identity.entryPath), "engines/field-standardizer.js")) as Pick<ProductionDependencies, "standardizeShot" | "validateShot"> & { CRITICAL_FIELDS: ProductionDependencies["fields"] };
+    const { globalLLMLimiter } = require(path.resolve(path.dirname(lease.identity.entryPath), "core/llm-concurrency-limiter.js")) as {
+      globalLLMLimiter: NonNullable<ProductionDependencies["structuredAgent"]>["limiter"];
+    };
+    if (typeof globalLLMLimiter?.withLimit !== "function") prdFail("PRD_VENDOR_UNAVAILABLE", "制作模型并发限制器不可用");
     return installPrdProductionBridge({ systemPrototype: requirementRecord(constructor.prototype, "受控 system prototype"),
       productionPrototype: load("engines/production-engine/production-engine.js", "ProductionEngine"),
       phase1Prototype: load("engines/production-engine/phases/phase-1-scene-design.js", "Phase1SceneDesign"),
@@ -1162,6 +1242,7 @@ export function installVendorPrdProductionBridge(constructor: { prototype: objec
       qualityGatePrototype: load("engines/production-engine/utils/quality-gate.js", "QualityGate"),
       deliveryGuardPrototype: load("engines/production-engine/agents/prompt-delivery-guard.js", "PromptDeliveryGuard"),
       semanticPrototype: load("engines/production-engine/agents/semantic-refinement-pass.js", "SemanticRefinementPass"),
+      structuredAgent: { prototype: load("engines/production-engine/agents/base-agent.js", "BaseAgent"), limiter: globalLLMLimiter },
       standardizeShot: standardizer.standardizeShot, validateShot: standardizer.validateShot, fields: standardizer.CRITICAL_FIELDS });
   } finally { lease.release(); }
 }

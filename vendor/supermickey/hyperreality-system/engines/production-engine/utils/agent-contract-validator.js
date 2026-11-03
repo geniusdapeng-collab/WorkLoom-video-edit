@@ -23,7 +23,8 @@ const PHASE1_TO_PHASE2_CONTRACT = {
       action: { type: 'string', required: true, minLength: 5 },
       duration: { type: 'number', required: true, min: 1, max: 60 },
       characters: { type: 'array', required: false, itemType: 'string' },
-      dialogue: { type: 'object', required: false },
+      // _extractScenes keeps display text and structured dialogueBlocks separate.
+      dialogue: { type: ['string', 'object'], required: false },
       mood: { type: 'string', required: false },
       sceneType: { type: 'string', required: false },
       _meta: { type: 'object', required: false }
@@ -201,8 +202,9 @@ class AgentContractValidator {
 
   _checkType(value, expectedType, path) {
     const actualType = Array.isArray(value) ? 'array' : typeof value;
-    if (actualType !== expectedType) {
-      this.errors.push(`${path}: 类型不匹配，期望 ${expectedType}，实际 ${actualType}`);
+    const allowed = Array.isArray(expectedType) ? expectedType : [expectedType];
+    if (!allowed.includes(actualType)) {
+      this.errors.push(`${path}: 类型不匹配，期望 ${allowed.join(' 或 ')}，实际 ${actualType}`);
       return false;
     }
     return true;
