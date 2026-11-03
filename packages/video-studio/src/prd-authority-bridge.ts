@@ -10,7 +10,8 @@ import {
   authoritativeDelivery, authoritativeProduct, bindPrdProvenance, effectivePrdModelSchema, prdAuthorityPrompt, prdFail,
   validatePrdDelivery, validatePrdModelPayload, validatePrdProduction, type PrdAuthority
 } from "./prd-authority.js";
-import { normalizeMarketingPrdContract } from "./marketing-prd-contract.js";
+import { marketingPrdReferenceView, normalizeMarketingPrdContract } from "./marketing-prd-contract.js";
+import { verifyPrdPortraitSources } from "./prd-portrait-source.js";
 import { acquireVendorRequirementEntry } from "./vendor-requirement-entry.js";
 import { nativeReasonCompleted, nativeReasonFailure, WorkloomLLMEngine } from "./llm-adapter.js";
 
@@ -248,7 +249,7 @@ function productionPlanningPrompt(scope: Scope): string {
       .filter(key => Object.hasOwn(character, key)).map(key => [key, character[key]]))) };
   return `\n\n## 本次 G4 制作执行计划（由本次模型填写现有字段）\n`
     + `角色的 consistencyRequirements 除脸型、发型、服装外，还须写出 G5 前定妆照执行计划：逐角色绑定本次 characterId、档案 profilePath/profileSha256、registrySha256、已选服装与已知版本；`
-    + `明确先从这些来源解析并复用该版本原始 front/closeup PNG，不把构图稿或新猜测人脸当原始参考。输入没有具体 PNG 路径或字节摘要时如实写“G5 前待解析和核验”，不得编造文件、摘要、授权或已批准状态。`
+    + `明确先从这些来源解析并复用该版本原始 front/closeup PNG，不把构图稿或新猜测人脸当原始参考。已列出的四角度来源 path/hash 和既有用途证据已核对，待本次 G5 复制与评审；缺少输入证据时才写“G5 前待解析和核验”，不得编造文件、摘要、授权或已批准状态。`
     + `写明 G5 前核验人物/版本/服装、原始 PNG 字节、来源与用途授权；不一致或缺件则保留未核实并停止依赖它的生成。其他必需角度按原有 G5 流程核验，只有本次实际图片和原有审核才能支持完成。`
     + `portraitPath 此时留空；不得新增 needsPortrait/portraitPlan 等 schema 未声明键，不得宣称 G5 或跨镜一致性已经通过。明确无人时不添加人物任务。\n`
     + `在 audioSpecification.soundDesign 和各场景既有 visualRequirements/audioRequirements 中写出本次字幕与声音的后续执行、验证方法，不新增模块。`
@@ -256,6 +257,7 @@ function productionPlanningPrompt(scope: Scope): string {
     + `要求烧录或 sidecar 时说明如何与同一台词、总时长和时间线核对；both 时按明确口径核对烧录与旁挂共有的台词及时间线，台词侧车与完整组合ASS分别说明，不能要求dialogue-only侧车包含持续文字。没有请求的字幕不得额外添加。`
     + `本次 nativeAudio=${profile.nativeAudio === undefined ? "未显式指定" : String(profile.nativeAudio)}；明确保留原生声音时，写出原始片段/音轨来源与时长核对、原速拼接、不加速口播、不静默换声或补 TTS 的后续验证计划；`
     + `枚举 voicePolicy、具体对白和音乐/环境音安排须彼此一致。所有这些是待执行计划，当前没有成片、听音或字幕通过证据。\n`
+    + `若当前 Brief 明确约定一场对应一个生成片段，shotMapping.estimatedShots 每场写 1；段内机位、动作与声音变化仍写在场景计划，不另增生成片段。\n`
     + `本次明确的独立交付声明（未出现的键没有新增客户承诺）：${JSON.stringify(declarations)}。`
     + `若明确要求standalone封面，在既有visualRequirements中规划PNG/JPEG独立图、目标画幅/分辨率、来源绑定和文件核验；不要把独立交付推断成开启片头封面。`
     + `若明确要求dialogue-and-composite-ass，在既有字段内区分SRT/VTT台词侧车（dialogue-only）与完整组合ASS（complete-composition），说明ASS包含台词及本次请求的持续文字、覆盖实际视频0秒至末帧，`
@@ -324,7 +326,7 @@ function verifyOutput(scope: Scope, value: unknown, schema: RequirementRecord): 
           || requirementHash(character._workloomCharacterSelection) !== requirementHash(scope.contract!.cast.selection);
       })
       || requirementHash(marker.scope) !== requirementHash(scope.authority.marketing.scope)
-      || requirementHash(marker.profile) !== requirementHash(profile)
+      || requirementHash(marker.profile) !== requirementHash(profile) || positioning.productType !== "商业广告"
       || ["targetDuration", "aspectRatio", "targetPlatform", "resolution", "frameRate"].some(key => Object.hasOwn(profile, key) && positioning[key] !== profile[key as keyof typeof profile])
       || Object.keys(profile).some(key => output[key] !== profile[key as keyof typeof profile])) {
       prdFail("PRD_AUTHORITY_CHANGED", "PRD 权威规格或本次场景/人物来源在生成后发生变化");
@@ -426,6 +428,8 @@ export function installPrdAuthorityBridge(
       const metadata = { ...scope.authority.metadata, _workloomRequirementContract: scope.list._workloomRequirementContract };
       const contract = verifiedRequirementContract(scope.list, metadata, discovery);
       scope.contract = structuredClone(contract);
+      const references = marketingPrdReferenceView(discovery.referenceCases, scope.authority.metadata);
+      if (references) discovery.referenceCases = references;
       const promptContext = prdAuthorityPrompt(scope.authority, contract)
         + (scope.truth ? `\n\n本次规则事实边界（仅作内部限制，不是创意任务；完整原件不变）：\n${JSON.stringify(scope.truth.constraints)}\n` : "");
       const view = Object.create(this) as RequirementRecord;
@@ -440,7 +444,9 @@ export function installPrdAuthorityBridge(
           agentView.process = function (this: RequirementRecord, ...args: unknown[]) {
             return guard(scope, () => {
               check(scope);
-              return authoritativeProduct(Reflect.apply(process, this, args), scope.authority.profile);
+              const result = authoritativeProduct(Reflect.apply(process, this, args), scope.authority.profile);
+              requirementRecord(result.productPositioning, "营销产品定位").productType = "商业广告";
+              return result;
             });
           };
         } else if (number === 4) {
@@ -448,6 +454,13 @@ export function installPrdAuthorityBridge(
             return guard(scope, () => {
               check(scope);
               const result = requirementRecord(Reflect.apply(process, this, args), "原生 Agent4 结果");
+              const references = requirementRecord(result.referenceCases, "原生 Agent4 参考案例");
+              if (Array.isArray(references.filmReferences) && !references.filmReferences.length) {
+                references.filmReferences = ["客户未指定命名影片，采用本次视觉规格中的摄影手法"];
+              }
+              if (Array.isArray(references.styleReferences) && !references.styleReferences.length) {
+                references.styleReferences = ["具体手法见本次视觉与声音规格"];
+              }
               originalThresholds = qualityThresholds(requirementRecord(result.productionConstraints, "Agent4 制作约束").qualityThresholds, "Agent4 制作阈值");
               constraintResult = result;
               return result;
@@ -656,6 +669,7 @@ export function installPrdAuthorityBridge(
       const scenes = requirementRecord(result.scenePlan, "G4 场景计划").scenes as RequirementRecord[];
       const planning = {
         status: "plan-only-not-executed",
+        ...(scope.authority.portraitSources?.length ? { verifiedPortraitSourcesAwaitingG5: scope.authority.portraitSources } : {}),
         characterPlans: characters.map(character => ({ characterId: character.characterId, name: character.name,
           portraitPath: character.portraitPath, consistencyRequirements: character.consistencyRequirements,
           source: character._workloomCharacterSource, selection: character._workloomCharacterSelection })),
@@ -675,6 +689,7 @@ export function installPrdAuthorityBridge(
         + `以下仅展示本次模型和既有规则模块已经产生的字段；没有补写模型计划，也不证明图片、字幕、听音或成片已经验证。`
         + `qualityPolicy.thresholds 是已经同时写入制作约束与验收的当前执行值，fallbackTrigger 使用同一视觉值；来源摘要绑定本次统一前的原生规则来源。`
         + `角色原始 PNG 来源/复用与待 G5 核验条件见 consistencyRequirements；字幕安全区、持续起止、sidecar 一致性与原生声音原速保留的后续验证方法见原始视觉/声音要求。`
+        + (scope.authority.portraitSources?.length ? `verifiedPortraitSourcesAwaitingG5 是宿主已核验的原始来源及既有用途回执。项目复制路径、当前 G5 审核和跨镜一致性结果均待实际执行，不能从这些证据推定通过。` : "")
         + `shotMapping原样展示实际数组；原生场景文字中的箭头仅为Markdown连接展示，不是shotBreakdownHint的原始枚举值。`
         + `缺失计划继续交本次 G4 判断，不能用此说明替代实际计划或批准。\n\n\`\`\`json\n${JSON.stringify(planning, null, 2)}\n\`\`\`\n`;
     });
@@ -686,9 +701,11 @@ export function installPrdAuthorityBridge(
       check(scope);
       if (scope.system !== this || systems.get(this) !== scope) prdFail("PRD_SCOPE_CONFLICT", "G4 不是本次系统的 PRD");
       const result = verifyOutput(scope, value, schema), before = requirementHash(result);
+      verifyPrdPortraitSources(scope.authority.portraitSources);
       scope.g4Decision = "pending";
       const verdict = requirementRecord(await Reflect.apply(confirmPrd, this, [content, value]), "G4 实际确认结果");
       check(scope); verifyOutput(scope, value, schema);
+      verifyPrdPortraitSources(scope.authority.portraitSources);
       if (requirementHash(result) !== before || verdict.prd !== value) prdFail("PRD_REVIEW_CHANGED", "G4 审核期间 PRD 实际内容发生变化");
       if (verdict.approved === true) {
         if (typeof content !== "string" || !content.trim()) prdFail("PRD_REVIEW_UNVERIFIED", "G4 批准缺少本次完整审核原文");

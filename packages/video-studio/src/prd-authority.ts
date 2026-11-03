@@ -6,6 +6,8 @@ import {
   type RequirementContract, type RequirementRecord
 } from "./requirement-contract.js";
 import { TARGET_DURATION_TOLERANCE_SECONDS } from "./duration-contract.js";
+import { MARKETING_REFERENCE_BOUNDARY } from "./marketing-prd-contract.js";
+import type { PrdPortraitSource } from "./prd-portrait-source.js";
 
 export interface PrdMarketingScope {
   tenantId: string;
@@ -56,6 +58,7 @@ export interface PrdAuthority {
   metadata: RequirementRecord;
   marketing: PrdMarketingAuthority;
   profile: PrdProductionProfile;
+  portraitSources?: PrdPortraitSource[];
 }
 
 export class PrdAuthorityError extends Error {
@@ -216,10 +219,13 @@ export function preparePrdAuthority(input: {
 export function prdAuthorityPrompt(authority: PrdAuthority, contract: RequirementContract): string {
   return `\n\n## 本次宿主 PRD 权威输入（补充前述通用模板，冲突时以本节为准）\n`
     + `完整客户 Brief：\n${JSON.stringify(authority.metadata.brief)}\n`
+    + `当前已核验商品营销路线的交付类型是商业广告；本次获批类型细分可继续描述创作风格。${MARKETING_REFERENCE_BOUNDARY}\n`
+    + `在 visualReferences 和 audioReferences 中填写本片可执行的摄影或声音手法，不能照抄示例片名、导演或品牌。\n`
     + `客户明确提供的生产/交付要求（缺省字段没有客户权威，不得伪称客户已指定；分辨率为交付档声明，不替代模型原生能力与提交前验证）：\n${JSON.stringify(authority.profile)}\n`
     + `本次 G3 已审的完整场景、道具、动作和宿主选角合同：\n${JSON.stringify(contract)}\n`
     + `客户受众原文是权威口径；模型年龄/性别细分仅为推测。只使用合同内人物，characterId 必须等于所选 id，姓名一致。`
     + `人物档案是人物表达依据，不能当成商品事实；保留其人物档案/版本来源锚点。portraitPath 可以留空，G5 后续独立核验，不能提前声称出图或一致性已通过。\n`
+    + (authority.portraitSources?.length ? `以下是已按本次原文、人物和既有所有者用途证据核对的源图；它们仍待本次 G5 执行复制与审核，不能填入项目 portraitPath：\n${JSON.stringify(authority.portraitSources)}\n` : "")
     + `制作规格 scenePlan.scenes 按合同节点顺序一一对应，sceneId 必须逐项等于合同 scenes[].id，duration 必须逐项等于该节点 duration。`
     + `不得合并、拆分、漏掉开场或结尾；总时长必须位于 ${authority.profile.targetDuration ?? contract.scenes.reduce((sum, scene) => sum + scene.duration, 0)}s 的 ±${TARGET_DURATION_TOLERANCE_SECONDS}s 内，且各节点时长必须继承已审 G3 合同。`
     + `完整保留场景原目的、角色行为、可见道具与创作原文；叙事语言由本次模型创作。\n`

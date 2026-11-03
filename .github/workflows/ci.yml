@@ -122,6 +122,7 @@ jobs:
           packages/video-studio/src/requirement-authority.test.ts
           packages/video-studio/src/prd-authority.test.ts
           packages/video-studio/src/prd-authority-bridge.test.ts
+          packages/video-studio/src/prd-portrait-source.test.ts
           packages/video-studio/src/production-structured-native.test.ts
           packages/video-studio/src/scene-design-source.test.ts
           packages/video-studio/src/studio.test.ts

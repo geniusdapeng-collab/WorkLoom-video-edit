@@ -171,7 +171,7 @@ describe("current requirement authority and original transport", () => {
     expect(prompt).toContain(f.authority.marketing.g1Artifact.content);
     expect(prompt).toContain("完整尾注-P1-𠮷");
     expect(prompt).toContain("advisories 是非阻断建议");
-    expect(prompt).toContain("不把艺术参考本身列为新硬禁");
+    expect(prompt).toContain("从中归纳手法，不将名称转成正式 PRD 参考");
     expect(captureRequirementTheme(f.authority, "被拒主题", { approved: false, advisories: ["意见"] })).toBeUndefined();
     captured.scope.runId = "other";
     expect(() => requirementAuthorityPrompt(f.authority, captured)).toThrow("REQUIREMENT_THEME_CHANGED");
