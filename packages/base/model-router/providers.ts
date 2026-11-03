@@ -256,7 +256,8 @@ function responsesCompletion(value: unknown, model: string): OpenAiResponse {
     || (hasReasoning && first?.status !== undefined && first.status !== "completed")) throw invalid();
   const message = hasReasoning ? objectRecord(data.output[1]) : first;
   if (message?.type !== "message" || message.status !== "completed" || message.role !== "assistant"
-    || message.phase !== "final_answer" || !Array.isArray(message.content) || message.content.length !== 1) throw invalid();
+    || (message.phase !== undefined && message.phase !== "final_answer")
+    || !Array.isArray(message.content) || message.content.length !== 1) throw invalid();
   const part = objectRecord(message.content[0]);
   if (part?.type !== "output_text" || typeof part.text !== "string") throw invalid();
 

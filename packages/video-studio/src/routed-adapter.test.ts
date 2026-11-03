@@ -343,6 +343,18 @@ describe("显式选择 Responses JSON Schema 的原生路由", () => {
     }
   });
 
+  it("accepts a single documented completed assistant text part when phase is omitted", async () => {
+    const fixture = responsesFixture('{"sceneCount":3}');
+    const output = [{ type: "message", role: "assistant", status: "completed",
+      content: [{ type: "output_text", text: '{"sceneCount":3}' }] }];
+    const fetchImpl = vi.fn<typeof fetch>(async () => Response.json({ ...fixture, output }));
+    const provider = new OpenAiCompatibleProvider("deepseek-flash", { baseUrl: "https://provider.invalid", fetchImpl });
+    await expect(provider.chat([{ role: "system", content: "system" }, { role: "user", content: "user" }], {
+      scene: "video.preproduction.plan", responsesJsonSchema: sceneResponsesOptions.responsesJsonSchema,
+    })).resolves.toMatchObject({ text: '{"sceneCount":3}', finishReason: "stop" });
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+
   it("仅完整测量的外层响应允许识别内层 JSON 语法错误", async () => {
     const transport = vi.fn<typeof fetch>(async () => Response.json(responsesFixture('{"sceneCount":')));
     const adapter = new WorkloomLLMEngine({
@@ -360,6 +372,8 @@ describe("显式选择 Responses JSON Schema 的原生路由", () => {
     ["mismatched model", { model: "some-other-model" }],
     ["no receipt id", { id: "" }],
     ["duplicate output", { output: responsesFixture("{}").output.concat(responsesFixture("{}").output) }],
+    ["intermediate text", { output: [{ type: "message", role: "assistant", status: "completed", phase: "commentary",
+      content: [{ type: "output_text", text: "{}" }] }] }],
     ["tool output", { output: [{ type: "function_call" }] }],
     ["refusal", {
       output: [{ type: "message", status: "completed", role: "assistant", phase: "final_answer",
