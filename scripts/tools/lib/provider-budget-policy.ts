@@ -2,14 +2,13 @@ import { createHash } from "node:crypto";
 import {
   planDeepSeekWindow, type BudgetMessage,
 } from "../../../packages/base/model-router/token-budget.js";
-import { DEEPSEEK_CHAT_PATH } from "../../../packages/base/model-router/providers.js";
+import { DEEPSEEK_CHAT_PATH, DEEPSEEK_RESPONSES_PATH } from "../../../packages/base/model-router/providers.js";
 import {
   EDIT_CANONICAL_CASE_BUDGET, verifyEditCanonicalLlmEnvelope,
 } from "../../acceptance/lib/live/edit-canonical-budget.mjs";
 
-export { DEEPSEEK_CHAT_PATH };
+export { DEEPSEEK_CHAT_PATH, DEEPSEEK_RESPONSES_PATH };
 export const DEEPSEEK_MODEL = EDIT_CANONICAL_CASE_BUDGET.modelId;
-export const DEEPSEEK_RESPONSES_PATH = "/responses";
 export const SEEDREAM_MODEL = "doubao-seedream-5-0-pro-260628";
 export const SEEDANCE_MODEL = "doubao-seedance-2-5-260628";
 
