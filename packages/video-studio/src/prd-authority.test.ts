@@ -144,6 +144,27 @@ describe("PRD explicit separate cover and subtitle composition declarations", ()
     }));
     expect(profile).toMatchObject({ persistentSubtitleText: "完整持续警示", openWithCover: true, coverIntroSeconds: 0.6 });
   });
+  const layered = { speechPolicy: "none", sidecarPolicy: "dialogue-and-composite-ass", persistentSubtitleText: "全片标识" };
+  it("binds the exact owner-declared tail text and duration independently of the persistent line", () => {
+    const explicit = { ...layered, postTailOverlayText: "车型 820RR-RC", postTailOverlaySeconds: 2 };
+    const input = metadata(explicit), before = structuredClone(input);
+    expect(normalizePrdProductionProfile(input)).toMatchObject(explicit);
+    expect(input).toEqual(before);
+  });
+  it.each([
+    { postTailOverlayText: "车型" }, { postTailOverlaySeconds: 2 },
+    { postTailOverlayText: " 车型", postTailOverlaySeconds: 2 },
+    { postTailOverlayText: "车型\n样式", postTailOverlaySeconds: 2 },
+    { postTailOverlayText: "全片标识", postTailOverlaySeconds: 2 },
+    { postTailOverlayText: "车型", postTailOverlaySeconds: "2" },
+    { postTailOverlayText: "车型", postTailOverlaySeconds: 1.49 },
+    { postTailOverlayText: "车型", postTailOverlaySeconds: 3.01 },
+    { postTailOverlayText: "车型", postTailOverlaySeconds: 2, subtitleMode: "sidecar" },
+    { postTailOverlayText: "车型", postTailOverlaySeconds: 2, openWithCover: true },
+    { postTailOverlayText: "车型", postTailOverlaySeconds: 2, speechPolicy: undefined },
+  ])("rejects an incomplete or non-executable tail overlay %j", patch => {
+    expect(() => normalizePrdProductionProfile(metadata({ ...layered, ...patch }))).toThrow("PRD_PROFILE_INVALID");
+  });
   it.each([-0.1, 5.1, "0.6", null, Number.NaN])("rejects invalid cover intro duration %j", coverIntroSeconds => {
     expect(() => normalizePrdProductionProfile(metadata({ coverIntroSeconds }))).toThrow("PRD_PROFILE_INVALID");
   });
@@ -197,6 +218,22 @@ describe("PRD rule-owned delivery projection and legacy byte compatibility", () 
     expect(sidecar).toContain("complete-composition"); expect(delivery.outputFormat).toMatchObject(profile);
     for (const key of ["acceptanceCriteria", "revisionPolicy", "fallbackPlan", "continuityCheckpoints"]) expect(delivery[key]).toEqual(before.deliveryStandard[key as keyof typeof before.deliveryStandard]);
     expect(original).toEqual(before); expect(() => validatePrdDelivery(final, profile, PRDSchema)).not.toThrow();
+  });
+  it("requires both layers in the exact planned derived deliverables while preserving the native disclosure master", () => {
+    const profile = declared({ speechPolicy: "none", sidecarPolicy: "dialogue-and-composite-ass",
+      persistentSubtitleText: "全片标识", postTailOverlayText: "车型 820RR-RC", postTailOverlaySeconds: 2 });
+    const original = standard(), before = structuredClone(original);
+    const final = authoritativeDelivery(original, profile), delivery = requirementRecord(final.deliveryStandard, "delivery");
+    const items = delivery.deliverables as RequirementRecord[];
+    for (const key of ["subtitle_burned", "subtitle_sidecar", "post_tail_overlay"]) {
+      const item = items.find(row => row.item === key);
+      expect(item).toMatchObject({ priority: "required", spec: expect.stringContaining("车型 820RR-RC") });
+      for (const token of ["28–30秒", "全片标识", "compositionSha256"]) expect(String(item!.spec)).toContain(token);
+    }
+    expect(original).toEqual(before);
+    expect(() => validatePrdDelivery(final, profile, PRDSchema)).not.toThrow();
+    items.find(item => item.item === "post_tail_overlay")!.spec = "过时文字";
+    expect(() => validatePrdDelivery(final, profile, PRDSchema)).toThrow("PRD_DELIVERY_INVALID");
   });
   it.each(["standalone", "none"])("a cover-only %s declaration preserves the exact former subtitle specs without inventing a sidecar or persistent policy", coverDelivery => {
     const profile = declared({ coverDelivery }), result = authoritativeDelivery(standard(), profile), delivery = requirementRecord(result.deliveryStandard, "delivery");
