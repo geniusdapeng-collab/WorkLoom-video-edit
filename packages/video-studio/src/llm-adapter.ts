@@ -88,6 +88,13 @@ const nativeBlankJsonFailures = new WeakMap<object, { receipt: NativeBlankJsonRe
   provider: OpenAiCompatibleProvider; routeCurrent: () => boolean }>();
 const nativeChatAnswers = new WeakMap<object, ChatResult>();
 const nativeSceneResponseSources = new WeakMap<object, NativeSceneResponseSource>();
+const nativeSceneResponseRoutes = new WeakMap<object, {
+  engine: WorkloomLLMEngine;
+  binding: ReviewDispatchBinding;
+  receipt: ChatResult;
+  schemaSha256: string;
+  current: () => boolean;
+}>();
 const checkBlankTransport = OpenAiCompatibleProvider.prototype.matchesNativeBlankJsonTransport;
 const checkBlankCorrection = OpenAiCompatibleProvider.prototype.matchesNativeBlankJsonCorrection;
 const readSceneResponseSource = OpenAiCompatibleProvider.prototype.readNativeSceneResponseSource;
@@ -104,6 +111,28 @@ export function nativeReasonCompleted(value: LLMReasonResult): boolean {
 /** Private transport evidence. Ordinary results and errors never contain this source. */
 export function nativeSceneResponseSource(value: unknown): NativeSceneResponseSource | undefined {
   return value !== null && typeof value === "object" ? nativeSceneResponseSources.get(value) : undefined;
+}
+
+/** The same native dispatch must still be bound to the live engine, router and transport. */
+export function nativeSceneResponseRouteCurrent(value: unknown): boolean {
+  if (value === null || typeof value !== "object") return false;
+  const proof = nativeSceneResponseRoutes.get(value);
+  const result = value as LLMReasonResult;
+  return !!proof && result.success === !reasonFailures.has(value) && result.content === proof.receipt.text
+    && result.usage?.promptTokens === proof.receipt.promptTokens
+    && result.usage.completionTokens === proof.receipt.completionTokens && proof.current();
+}
+
+/** Pair distinct measured Responses from the same unchanged native route and schema. */
+export function sameNativeSceneResponseRoute(left: unknown, right: unknown): boolean {
+  if (left === null || typeof left !== "object" || right === null || typeof right !== "object") return false;
+  const first = nativeSceneResponseRoutes.get(left), next = nativeSceneResponseRoutes.get(right);
+  return !!first && !!next && first.engine === next.engine
+    && first.schemaSha256 === next.schemaSha256 && sameReviewDispatch(first.binding, next.binding)
+    && first.receipt.outputCeiling === next.receipt.outputCeiling
+    && first.receipt.responseId !== next.receipt.responseId
+    && first.receipt.requestHash !== next.receipt.requestHash && first.receipt.responseHash !== next.receipt.responseHash
+    && nativeSceneResponseRouteCurrent(left) && nativeSceneResponseRouteCurrent(right);
 }
 
 /** A completed empty Chat JSON result remains a failed, non-retryable call. */
@@ -341,12 +370,14 @@ export class WorkloomLLMEngine {
     };
   }
 
-  private describeReviewDispatch(task: SmartTask, route: NonNullable<ReturnType<typeof attestableRoute>>): ReviewDispatchBinding | undefined {
+  private describeReviewDispatch(
+    task: SmartTask, route: NonNullable<ReturnType<typeof attestableRoute>>, requireModelPin = true,
+  ): ReviewDispatchBinding | undefined {
     try {
       const { router, providers, sink, provider, policy, model, recordModelTrace } = route;
       const scene = task.scene;
       // Only the worker's pinned, built-in provider has a verifiable dispatch path here.
-      if (!scene || task.forceModel !== DEEPSEEK_FLASH_MODEL_ID || task.signal || circuitSnapshot(scene)) return undefined;
+      if (!scene || (requireModelPin && task.forceModel !== DEEPSEEK_FLASH_MODEL_ID) || task.signal || circuitSnapshot(scene)) return undefined;
       const plan = task.plan ?? "standard";
       const rule = resolveScene(policy, scene);
       const effectivePolicy = resolveTextScenePolicy(scene, {
@@ -437,6 +468,19 @@ export class WorkloomLLMEngine {
       const binding = route?.providers === providers && route.sink === sink && route.policy === (policy ?? DEFAULT_MODEL_POLICY)
         ? describe.call(this, task, route)
         : undefined;
+      // Responses recovery compares route controls without including the prompt,
+      // which must differ on each real dispatch.
+      const describeSceneRoute = () => {
+        if (!WorkloomLLMEngine.supportsStructuredReviewProof(this) || this.#routerRevision !== revision) return undefined;
+        const current = attestableRoute(this);
+        if (!current || current.router !== router || current.providers !== providers || current.sink !== sink
+          || current.router.policy !== policy || (opts.scene ?? current.router.scene ?? this.cfg.scene) !== scene) return undefined;
+        const controls = WorkloomLLMEngine.nativeProofMethods.routeTask.call(this, "", opts, scene);
+        return describe.call(this, { ...controls, messages: [] }, current, false);
+      };
+      const sceneRoute = opts.forceJson && opts.responsesJsonSchema?.name === "workloom_scene_architect"
+        ? describeSceneRoute()
+        : undefined;
       const result = await routeSmart(task, providers, sink, { policy });
       if ((result.kind === "answered" || result.kind === "circuit_broken" || result.kind === "reused")
         && result.text) {
@@ -459,7 +503,17 @@ export class WorkloomLLMEngine {
           if (transportPath(opts) === DEEPSEEK_CHAT_PATH) nativeChatAnswers.set(answer, receipt);
           else {
             const source = readSceneResponseSource.call(nativeProvider, receipt);
-            if (source) nativeSceneResponseSources.set(answer, source);
+            if (source) {
+              nativeSceneResponseSources.set(answer, source);
+              const current = () => Boolean(sceneRoute && sameReviewDispatch(sceneRoute, describeSceneRoute())
+                && nativeTransportCheck.call(nativeProvider, receipt, DEEPSEEK_RESPONSES_PATH));
+              if (sceneRoute && receipt.scene === scene && receipt.mode === sceneRoute.thinkingMode && receipt.effort === sceneRoute.thinkingEffort
+                && receipt.policyVersion === TEXT_PRIMARY_POLICY_VERSION && receipt.registryVersion === TEXT_PRIMARY_REGISTRY_VERSION
+                && digestPattern.test(source.schemaSha256) && digestPattern.test(receipt.requestHash) && digestPattern.test(receipt.responseHash)
+                && current()) {
+                nativeSceneResponseRoutes.set(answer, { engine: this, binding: sceneRoute, receipt, schemaSha256: source.schemaSha256, current });
+              }
+            }
           }
         }
         const currentRoute = binding ? attestableRoute(this) : undefined;
@@ -529,6 +583,8 @@ export class WorkloomLLMEngine {
         if (nativeCompletions.has(result)) nativeCompletions.add(failure);
         const source = nativeSceneResponseSources.get(result);
         if (source) nativeSceneResponseSources.set(failure, source);
+        const route = nativeSceneResponseRoutes.get(result);
+        if (route) nativeSceneResponseRoutes.set(failure, route);
         return failure;
       }
     }

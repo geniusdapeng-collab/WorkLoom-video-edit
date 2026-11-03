@@ -1228,6 +1228,120 @@ describe("frozen SceneArchitect real loopback provider wire", () => {
   );
 
   it.each([
+    "multi-separator", "third valid", "second unbound", "duplicate second", "third malformed", "third wrong duration",
+    "third duplicate escaped key", "third non-JSON outer whitespace",
+  ] as const)(
+    "binds exact native multi-separator or final format regeneration without accepting malformed drafts: %s", async kind => {
+      const vendor = installNativeDiscovery();
+      vi.stubEnv("WORKLOOM_VIDEO_SCENE_RESPONSE_FORMAT", "json_schema");
+      try {
+        const scene = physicalScene([10, 10, 10]);
+        const run = withFrozenSegmentBrief(privateRun(`native-bounded-scene-${kind}`, 30, scene));
+        const full = `\t${JSON.stringify(scene)}\r\n`;
+        const multi = full.replace(',"scenes":', '"scenes":').replace(',"ending":', '"ending":');
+        expect(multi).not.toBe(full);
+        const duplicate = full.replace(/\{(?="opening":)/u, '{"\\u006fpening":{"duration":11,"purpose":"CONFLICTING_PRIVATE_OPENING"},');
+        expect(duplicate).not.toBe(full);
+        expect(JSON.parse(duplicate)).toEqual(scene);
+        const invalid1 = '{"PRIVATE_INVALID_ONE" 1}', invalid2 = '{"PRIVATE_INVALID_TWO" 2}';
+        const records: Array<{ requestSha256: string; responseSha256: string; schemaSha256: string; rawSha256: string; prompt: string }> = [];
+        const downstream: string[] = [];
+        const digest = (text: string) => createHash("sha256").update(text, "utf8").digest("hex");
+        const providerConfig = {
+          baseUrl: "http://127.0.0.1:1", apiKey: "synthetic-local-key",
+          fetchImpl: async (url, init) => {
+            const wire = String(init?.body), body = JSON.parse(wire);
+            if (new URL(String(url)).pathname === "/responses") {
+              const ordinal = records.length + 1;
+              const text = kind === "multi-separator" ? multi : ordinal === 1 ? invalid1 : ordinal === 2 ? invalid2
+                : kind === "third malformed" ? '{"MALFORMED_FINAL" false}'
+                : kind === "third wrong duration" ? JSON.stringify(physicalScene([10, 10, 11]))
+                : kind === "third duplicate escaped key" ? duplicate
+                : kind === "third non-JSON outer whitespace" ? `\u00a0${full}` : full;
+              const response = JSON.stringify({
+                id: `synthetic-native-bounded-${kind === "duplicate second" && ordinal === 2 ? 1 : ordinal}`,
+                object: "response", status: "completed", model: "deepseek-flash",
+                ...(kind === "second unbound" && ordinal === 2 ? {} : {
+                  text: { format: { type: "json_schema", name: "workloom_scene_architect" } },
+                }),
+                output: [{ type: "message", role: "assistant", status: "completed", content: [{ type: "output_text", text }] }],
+                usage: { input_tokens: 100, output_tokens: 40, total_tokens: 140 },
+              });
+              expect(body).toMatchObject({ model: "deepseek-flash", max_output_tokens: 393_216,
+                text: { format: { type: "json_schema", name: "workloom_scene_architect" } } });
+              records.push({ requestSha256: digest(wire), responseSha256: digest(response),
+                schemaSha256: digest(JSON.stringify(body.text.format.schema)), rawSha256: digest(text), prompt: body.input });
+              return new Response(response, { headers: { "Content-Type": "application/json" } });
+            }
+            expect(new URL(String(url)).pathname).toBe("/chat/completions");
+            const prompt: string = body.messages[1].content;
+            const role = prompt.slice(0, 180).includes("受众分析") ? "audience"
+              : prompt.slice(0, 180).includes("技术制片人") ? "risk" : "reference";
+            if (role !== "audience") downstream.push(prompt);
+            return Response.json({ id: `synthetic-native-bounded-${role}`, model: "deepseek-flash",
+              choices: [{ finish_reason: "stop", message: { content: JSON.stringify(run.modules[role]) } }],
+              usage: { prompt_tokens: 100, completion_tokens: 40, total_tokens: 140 } });
+          },
+        } satisfies ConstructorParameters<typeof OpenAiCompatibleProvider>[1];
+        const provider = new OpenAiCompatibleProvider("deepseek-flash", providerConfig);
+        const engine = new WorkloomLLMEngine({
+          ...providerConfig, model: "deepseek-flash", router: {
+            scene: "preproduction", forceModel: "deepseek-flash", providers: new Map([[provider.modelId, provider]]),
+            sink: { recordModelTrace: async () => undefined, recordDegradation: async () => undefined, recordCircuitBreak: async () => undefined },
+          },
+        });
+        const discovery = new RequirementDiscoveryEngine({
+          llmEngine: engine as unknown as RequirementRecord, timeoutMs: 20_000, agentTimeoutMs: 4_000,
+        });
+        const accepted = kind === "multi-separator" || kind === "third valid";
+        const operation = withRequirementContractScope(run.metadata, async () => {
+          const result = await Reflect.apply(discovery.discover as NativeMethod, discovery, [run.input]) as RequirementRecord;
+          const metadata = structuredClone(run.metadata);
+          const list = await Reflect.apply(vendor._convertDiscoveryToRequirementList as NativeMethod,
+            vendor, [result, run.input, metadata]);
+          const report = Reflect.apply(vendor._renderRequirementContract as NativeMethod,
+            vendor, [run.story, metadata, list, result]) as string;
+          const multiMode = kind === "multi-separator";
+          const heading = multiMode ? "原生场景多分隔符校正证据" : "原生场景格式重生成证据";
+          const proof = promptJson(report, `## ${heading}`);
+          const wire = records.at(-1)!;
+          expect(proof).toMatchObject({ requestSha256: wire.requestSha256, responseSha256: wire.responseSha256,
+            schemaSha256: wire.schemaSha256, sceneHash: requirementHash(scene) });
+          if (multiMode) {
+            expect(proof).toMatchObject({ schemaVersion: "workloom.scene-json-bounded-commas/v2",
+              originalSha256: digest(multi), repairedSha256: digest(full) });
+            const offsets = proof.insertionByteOffsets as number[];
+            expect(offsets).toHaveLength(2);
+            const rebuilt = Buffer.from(full, "utf8").filter((_, index) => !offsets.some((offset, i) => offset + i === index));
+            expect(Buffer.from(rebuilt).toString("utf8")).toBe(multi);
+          } else {
+            expect(proof).toMatchObject({ schemaVersion: "workloom.scene-json-format-reissue/v1", acceptedRawSha256: digest(full),
+              previousSyntaxFailures: records.slice(0, 2).map(({ requestSha256, responseSha256, rawSha256 }) =>
+                ({ requestSha256, responseSha256, rawSha256 })) });
+          }
+          return result;
+        }, run.options);
+        if (accepted) {
+          await expect(operation).resolves.toMatchObject({ sceneStructure: scene });
+          expect(downstream).toHaveLength(2);
+          for (const prompt of downstream) expect(prompt).toContain(full);
+        } else {
+          await expect(operation).rejects.toMatchObject({ code: "REQUIREMENT_SCENE_UNVERIFIED" });
+          expect(downstream).toHaveLength(0);
+        }
+        const count = kind === "multi-separator" ? 1 : kind === "second unbound" || kind === "duplicate second" ? 2 : 3;
+        expect(records).toHaveLength(count);
+        expect(new Set(records.map(row => row.schemaSha256)).size).toBe(1);
+        for (const { prompt } of records) {
+          expectCompleteSources(prompt, run);
+          expect(prompt).not.toMatch(/PRIVATE_INVALID_ONE|PRIVATE_INVALID_TWO/);
+        }
+        if (count === 3) expect(records[2]!.prompt).toContain("两次原生语法失败后的末次格式重生成");
+      } finally { vi.unstubAllEnvs(); }
+    },
+  );
+
+  it.each([
     ["malformed", 2, true], ["twice-malformed", 2, false], ["unattested-malformed", 1, false], ["fenced", 2, true], ["blank", 1, false],
     ["length", 1, false], ["unknown", 1, false], ["wrong-shape", 2, false],
     ["placeholder", 2, false], ["over-legacy-extraction-limit", 1, true],

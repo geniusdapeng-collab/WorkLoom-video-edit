@@ -1,25 +1,28 @@
 import { createHash } from "node:crypto";
 
 type ValueKind = "container" | "scalar";
-type SceneCommaRecovery = Readonly<{
+type SceneRecovery = {
   content: string;
   data: Record<string, unknown>;
   originalSha256: string;
   repairedSha256: string;
-  insertionByteOffset: number;
-}>;
+};
+type SceneCommaRecovery = Readonly<SceneRecovery & { insertionByteOffset: number }>;
+type SceneSeparatorRecovery = Readonly<SceneRecovery & { insertionByteOffsets: readonly number[] }>;
+
+const MAX_SEPARATOR_RECOVERY_BYTES = 1_048_576;
 
 /**
- * Recover a single absent separator from the complete SceneArchitect object.
+ * Recover absent separators from the complete SceneArchitect object.
  * Every key and value must already be a valid JSON token. The final strict
- * parse checks the entire repaired body, including text after the insertion.
+ * parse checks the entire repaired body, including text after the insertions.
  */
-export function recoverSceneJsonMissingComma(raw: string): SceneCommaRecovery | undefined {
+function recoverSceneJson(raw: string, maxInsertions: 1 | 3): SceneSeparatorRecovery | undefined {
   const whitespace = /[ \t\r\n]*/y;
   const string = /"(?:[^"\\\u0000-\u001f]|\\(?:["\\/bfnrt]|u[0-9a-fA-F]{4}))*"/y;
   const scalar = /(?:true|false|null|-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?(?:[eE][+-]?[0-9]+)?)/y;
   let offset = 0;
-  let insertion: number | undefined;
+  const insertions: number[] = [];
 
   function readToken(pattern: RegExp) {
     pattern.lastIndex = offset;
@@ -35,8 +38,8 @@ export function recoverSceneJsonMissingComma(raw: string): SceneCommaRecovery | 
   }
 
   function insertComma() {
-    if (insertion !== undefined) return false;
-    insertion = offset;
+    if (insertions.length === maxInsertions) return false;
+    insertions.push(offset);
     return true;
   }
 
@@ -91,12 +94,22 @@ export function recoverSceneJsonMissingComma(raw: string): SceneCommaRecovery | 
   readToken(whitespace);
   if (!take("{") || !readObject(0)) return undefined;
   readToken(whitespace);
-  if (offset !== raw.length || insertion === undefined) return undefined;
+  if (offset !== raw.length || insertions.length === 0) return undefined;
 
   const original = Buffer.from(raw, "utf8");
   if (original.toString("utf8") !== raw) return undefined;
-  const prefix = raw.slice(0, insertion);
-  const content = prefix + "," + raw.slice(insertion);
+  const parts: string[] = [];
+  const insertionByteOffsets: number[] = [];
+  let start = 0;
+  let byteOffset = 0;
+  for (const insertion of insertions) {
+    const prefix = raw.slice(start, insertion);
+    byteOffset += Buffer.byteLength(prefix, "utf8");
+    insertionByteOffsets.push(byteOffset);
+    parts.push(prefix, ",");
+    start = insertion;
+  }
+  const content = parts.join("") + raw.slice(start);
   let data: Record<string, unknown>;
   try { data = JSON.parse(content) as Record<string, unknown>; }
   catch { return undefined; }
@@ -105,6 +118,61 @@ export function recoverSceneJsonMissingComma(raw: string): SceneCommaRecovery | 
     data,
     originalSha256: createHash("sha256").update(original).digest("hex"),
     repairedSha256: createHash("sha256").update(content, "utf8").digest("hex"),
-    insertionByteOffset: Buffer.byteLength(prefix, "utf8"),
+    insertionByteOffsets: Object.freeze(insertionByteOffsets),
   });
+}
+
+export function recoverSceneJsonMissingComma(raw: string): SceneCommaRecovery | undefined {
+  const recovery = recoverSceneJson(raw, 1);
+  if (!recovery) return undefined;
+  const { insertionByteOffsets, ...result } = recovery;
+  return Object.freeze({ ...result, insertionByteOffset: insertionByteOffsets[0]! });
+}
+
+/** Use only for complete native Responses bodies, never as a partial JSON parser. */
+export function recoverSceneJsonMissingSeparators(raw: string): SceneSeparatorRecovery | undefined {
+  if (raw.length > MAX_SEPARATOR_RECOVERY_BYTES || Buffer.byteLength(raw, "utf8") > MAX_SEPARATOR_RECOVERY_BYTES) {
+    return undefined;
+  }
+  return recoverSceneJson(raw, 3);
+}
+
+/** Parse the entire native body without allowing JSON.parse's last-key-wins behavior. */
+export function parseStrictSceneJsonObject(raw: string): Record<string, unknown> | undefined {
+  let data: unknown;
+  try { data = JSON.parse(raw); }
+  catch { return undefined; }
+  if (!data || typeof data !== "object" || Array.isArray(data) || Buffer.from(raw, "utf8").toString("utf8") !== raw) {
+    return undefined;
+  }
+
+  // Syntax is already verified. Walk the tokens without recursion or a new
+  // response size limit. A string followed by a colon must be an object key.
+  const containers: Array<Set<string> | null> = [];
+  const whitespace = /[ \t\r\n]*/y;
+  for (let offset = 0; offset < raw.length; offset++) {
+    switch (raw[offset]) {
+      case "{": containers.push(new Set()); break;
+      case "[": containers.push(null); break;
+      case "}":
+      case "]": containers.pop(); break;
+      case '"': {
+        const start = offset++;
+        while (raw[offset] !== '"') {
+          if (raw[offset] === "\\") offset++;
+          offset++;
+        }
+        const keys = containers.at(-1);
+        if (!keys) break;
+        whitespace.lastIndex = offset + 1;
+        whitespace.exec(raw);
+        if (raw[whitespace.lastIndex] !== ":") break;
+        const key = JSON.parse(raw.slice(start, offset + 1)) as string;
+        if (keys.has(key)) return undefined;
+        keys.add(key);
+        break;
+      }
+    }
+  }
+  return data as Record<string, unknown>;
 }
