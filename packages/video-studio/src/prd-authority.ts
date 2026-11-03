@@ -7,7 +7,7 @@ import {
 } from "./requirement-contract.js";
 import { TARGET_DURATION_TOLERANCE_SECONDS } from "./duration-contract.js";
 import { MARKETING_REFERENCE_BOUNDARY } from "./marketing-prd-contract.js";
-import type { PrdPortraitSource } from "./prd-portrait-source.js";
+import type { PrdPortraitReferenceSelection, PrdPortraitSource } from "./prd-portrait-source.js";
 
 export interface PrdMarketingScope {
   tenantId: string;
@@ -59,6 +59,7 @@ export interface PrdAuthority {
   marketing: PrdMarketingAuthority;
   profile: PrdProductionProfile;
   portraitSources?: PrdPortraitSource[];
+  portraitReferenceSelection?: PrdPortraitReferenceSelection;
 }
 
 export class PrdAuthorityError extends Error {

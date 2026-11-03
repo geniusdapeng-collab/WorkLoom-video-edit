@@ -2,12 +2,15 @@ import { writeFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
+import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ChatMessage, ChatOptions, ModelProvider } from "@workloom/base/model-router";
 import { bindRequirementContract, requirementCast, requirementHash, requirementRecord, type RequirementContract, type RequirementRecord } from "./requirement-contract.js";
 import { effectivePrdModelSchema, prdAuthorityPrompt, preparePrdAuthority } from "./prd-authority.js";
-import { assertPrdAuthorityBridge, installPrdAuthorityBridge, installPrdProductionBridge, productionModelInput, withPrdAuthorityScope } from "./prd-authority-bridge.js";
+import { assertPrdAuthorityBridge, bindApprovedPrdPortraitSelection, installPrdAuthorityBridge, installPrdProductionBridge, productionModelInput, withPrdAuthorityScope } from "./prd-authority-bridge.js";
 import { WorkloomLLMEngine } from "./llm-adapter.js";
+import { readPortraitArtifact } from "./character-archive.js";
+import { preparePrdPortraitReferenceSelection, type PrdPortraitSource } from "./prd-portrait-source.js";
 import { digest, PRDGenerator, PRDSchema, prdFixture } from "./prd-authority.test-support.js";
 
 const fixtures: ReturnType<typeof prdFixture>[] = [];
@@ -23,6 +26,9 @@ const { FieldGuard } = nativeRequire("../../../vendor/supermickey/hyperreality-s
 const { QualityGate } = nativeRequire("../../../vendor/supermickey/hyperreality-system/engines/production-engine/utils/quality-gate.js") as { QualityGate: NativeConstructor };
 const { PromptDeliveryGuard } = nativeRequire("../../../vendor/supermickey/hyperreality-system/engines/production-engine/agents/prompt-delivery-guard.js") as { PromptDeliveryGuard: NativeConstructor };
 const { SemanticRefinementPass } = nativeRequire("../../../vendor/supermickey/hyperreality-system/engines/production-engine/agents/semantic-refinement-pass.js") as { SemanticRefinementPass: NativeConstructor };
+const { FieldQualityPipeline } = nativeRequire("../../../vendor/supermickey/hyperreality-system/engines/field-quality/field-quality-pipeline.js") as { FieldQualityPipeline: NativeConstructor };
+const { RuleRepairer, PRD } = nativeRequire("../../../vendor/supermickey/hyperreality-system/engines/field-quality/field-repair-agent.js") as { RuleRepairer: NativeConstructor; PRD: NativeConstructor };
+const { IssueType } = nativeRequire("../../../vendor/supermickey/hyperreality-system/engines/field-quality/field-check-agent.js") as { IssueType: Record<string, string> };
 const nativeConstraint = FieldContentRefiner.prototype._normalizeConstraint as (this: RequirementRecord, ...args: unknown[]) => unknown;
 const nativeQuality = QualityGate.prototype.run as (this: RequirementRecord, ...args: unknown[]) => unknown;
 const nativeDelivery = PromptDeliveryGuard.prototype.verify as (this: RequirementRecord, ...args: unknown[]) => unknown;
@@ -502,6 +508,7 @@ function productionHarness() {
     refinerPrototype: FieldContentRefiner.prototype, costumePrototype: CharacterCostumePrompter.prototype,
     fieldGuardPrototype: FieldGuard.prototype, qualityGatePrototype: QualityGate.prototype,
     deliveryGuardPrototype: PromptDeliveryGuard.prototype, semanticPrototype: SemanticRefinementPass.prototype,
+    fieldQualityPrototype: FieldQualityPipeline.prototype,
     standardizeShot: nativeStandardizer.standardizeShot, validateShot: nativeStandardizer.validateShot, fields: nativeStandardizer.CRITICAL_FIELDS };
   const originals = Object.fromEntries(Object.entries(deps).filter(([key]) => key.endsWith("Prototype"))
     .map(([key, prototype]) => [key, Object.getOwnPropertyDescriptors(prototype)]));
@@ -1469,6 +1476,88 @@ describe("PRD private scope, receiver identity and strict restoration", () => {
 });
 
 describe("approved production authority at native technical and title seams", () => {
+  function syntheticPortraitSource(value: ReturnType<typeof prdFixture>): PrdPortraitSource {
+    const provenance = value.authority.marketing.g1Artifact;
+    const file = { path: provenance.path, sha256: provenance.sha256 };
+    const originals = Object.fromEntries(["front", "threeQuarter", "closeup", "side"].map((angle, index) => {
+      const location = path.join(value.workDir, `source-${angle}.png`);
+      writeFileSync(location, Buffer.alloc(1024 + index, index));
+      return [angle, readPortraitArtifact(location)];
+    }));
+    return {
+      status: "source-verified-awaiting-current-g5", characterId: "builtin-person", name: "合成人物", role: "protagonist",
+      portraitVersion: 2, manifest: file, archiveProfile: { ...file, realPath: file.path, bytes: Buffer.byteLength(provenance.content) },
+      catalogProfile: file, originals, ownerAuthorization: { basis: "explicit-owner-authorization",
+        decisionOwnerRole: "product-owner", receipt: file, ledger: file },
+    };
+  }
+
+  it.each([true, false])("keeps exact archive refs through the real native v1 rewrite only in the archive scope (%s)", async useArchive => {
+    const value = fixture(`PORTRAIT-RULE-${useArchive}`), h = productionHarness();
+    if (useArchive) value.authority.portraitSources = [syntheticPortraitSource(value)];
+    const run = h.make(value);
+    const quality = Object.create(FieldQualityPipeline.prototype) as RequirementRecord;
+    quality.maxRounds = 2;
+    const problem = { passed: false, summary: () => "synthetic native portrait format", issues: [
+      { fieldEn: "portraits", issueType: IssueType.FORMAT_ERROR, severity: "major", description: "原生格式诊断" },
+    ] };
+    quality.checker = { check: vi.fn().mockResolvedValueOnce(problem).mockResolvedValueOnce({
+      passed: true, summary: () => "synthetic second check", issues: [],
+    }) };
+    const rule = new RuleRepairer(), prd = new PRD({ characters: [{ name: "测试人物" }] });
+    quality.repairer = { repair: async (input: RequirementRecord, report: RequirementRecord) => {
+      const repaired = requirementRecord(invoke(rule, "repair", input, report, prd), "real rule result");
+      expect(requirementRecord(repaired.repaired, "real legacy field").portraits).toBe("/characters/character/portrait_v1.png");
+      return { repaired: repaired.repaired, log: { actions: repaired.actions } };
+    } };
+    const refs = ["image://characters/synthetic/v2/closeup.png", "image://characters/synthetic/v2/front.png"];
+    const shot = productionShot();
+    shot.portraits = refs;
+    requirementRecord(shot.fields, "actual shot fields").portraits = refs;
+    const snapshot = structuredClone(shot);
+    await h.accepted(run, async () => {
+      const native = requirementRecord(await invoke(quality, "run", shot, "S01"), "native field quality result");
+      const final = requirementRecord(native.finalShot, "final shot");
+      const expected = useArchive ? refs : "/characters/character/portrait_v1.png";
+      expect(final.portraits).toEqual(expected);
+      expect(requirementRecord(final.fields, "final fields").portraits).toEqual(expected);
+      expect(shot).toEqual(snapshot);
+    });
+  });
+
+  it("requires matching owner originals and a current G4 artifact before placing ordered explicit reference angles", async () => {
+    const value = fixture("PORTRAIT-PLACEMENT"), h = productionHarness(), portrait = syntheticPortraitSource(value);
+    const declaration = { characterId: "builtin-person", portraitVersion: 2, angles: ["closeup", "front"] };
+    for (const invalid of [{ ...declaration, characterId: "other" }, { ...declaration, portraitVersion: 1 },
+      { ...declaration, angles: ["closeup", "closeup"] }, { ...declaration, angles: ["guess"] }]) {
+      expect(() => preparePrdPortraitReferenceSelection(invalid, [portrait])).toThrow("PRD_PORTRAIT_SOURCE_UNVERIFIED");
+    }
+    expect(() => preparePrdPortraitReferenceSelection(declaration, [])).toThrow("PRD_PORTRAIT_SOURCE_UNVERIFIED");
+    value.authority.portraitSources = [portrait];
+    value.authority.portraitReferenceSelection = preparePrdPortraitReferenceSelection(declaration, [portrait]);
+    const run = h.make(value);
+    const shots = value.contract.scenes.map(scene => productionShot(scene.id));
+    const references = ["portrait-set://builtin-person/v2/closeup", "portrait-set://builtin-person/v2/front"];
+    await h.accepted(run, async (_prd, report) => {
+      const exact = JSON.parse(report.split("## 本次 G4 执行与核验计划原文")[1]!.split("\n```json\n")[1]!.split("\n```")[0]!);
+      expect(exact.portraitReferenceSelection).toEqual({ ...declaration,
+        originalSha256InOrder: [portrait.originals.closeup!.sha256, portrait.originals.front!.sha256] });
+      expect(bindApprovedPrdPortraitSelection(shots)).toEqual(shots.map(shot => ({ shotId: shot.shotId, references })));
+      for (const shot of shots) {
+        expect(shot.portraits).toEqual(references);
+        expect(requirementRecord(shot.fields, "actual selected fields").portraits).toEqual(references);
+      }
+    });
+    expect(bindApprovedPrdPortraitSelection(shots)).toBeUndefined();
+    const mismatched = h.make(value);
+    await expect(withPrdAuthorityScope(value.authority, () => invoke(mismatched.system, "create", async () => {
+      const prd = await h.generate(mismatched);
+      const report = invoke(mismatched.generator, "generateMarkdown", prd) as string;
+      await invoke(mismatched.system, "_confirmPRD", report + "\nchanged", prd);
+      return h.success(prd);
+    }))).rejects.toThrow("PRD_REVIEW_CHANGED");
+  });
+
   it("passes a private complete authority identity to native produce without changing the caller blueprint, arguments, result or receiver", async () => {
     const value = fixture("PRODUCE-INPUT"), h = productionHarness(), run = h.make(value);
     const scenes = [{ id: "real-opening", action: "真实首镜动作" }], config = { aspectRatio: "16:9", unknown: { keep: true } };

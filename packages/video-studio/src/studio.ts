@@ -28,8 +28,8 @@ import {
   withRequirementContractScope,
 } from "./requirement-contract-bridge.js";
 import { preparePrdAuthority, type PrdAuthority, type PrdMarketingAuthority } from "./prd-authority.js";
-import { assertPrdAuthorityBridge, installVendorPrdAuthorityBridge, installVendorPrdProductionBridge, withPrdAuthorityScope } from "./prd-authority-bridge.js";
-import { preparePrdPortraitSources } from "./prd-portrait-source.js";
+import { assertPrdAuthorityBridge, bindApprovedPrdPortraitSelection, installVendorPrdAuthorityBridge, installVendorPrdProductionBridge, withPrdAuthorityScope } from "./prd-authority-bridge.js";
+import { preparePrdPortraitReferenceSelection, preparePrdPortraitSources } from "./prd-portrait-source.js";
 import { captureRequirementTheme, requirementThemeApprovalPayload, requirementThemeUsageBoundary, type RequirementApprovedTheme } from "./requirement-authority.js";
 import { frozenSegmentContract, requirementHash } from "./requirement-contract.js";
 import { assertFrozenProductionTiming } from "./frozen-production-duration.js";
@@ -290,7 +290,10 @@ export class VideoStudio {
       const prepared = preparePrdAuthority({ metadata, marketing: verified.prdAuthority, workDir: cfg.workDir, projectId: input.projectId });
       const portraitArchive = cfg.portraits && cfg.portraits.enabled !== false ? cfg.portraits.archivedCharacters : undefined;
       const portraitSources = preparePrdPortraitSources(portraitArchive, prepared.metadata);
-      prdAuthority = portraitSources.length ? { ...prepared, portraitSources } : prepared;
+      const frozenBrief = prepared.metadata.brief as Record<string, unknown> | undefined;
+      const portraitReferenceSelection = preparePrdPortraitReferenceSelection(frozenBrief?.portraitReferenceSelection, portraitSources);
+      prdAuthority = { ...prepared, ...(portraitSources.length ? { portraitSources } : {}),
+        ...(portraitReferenceSelection ? { portraitReferenceSelection } : {}) };
       const preparedHash = requirementHash(prepared);
       const rawHash = verified.sha256, queryHash = requirementHash(verified.productQuery);
       validateRequirementAuthority = () => {
@@ -634,7 +637,9 @@ export class VideoStudio {
             this: typeof structuredSystem,
             prompts: Record<string, unknown>[],
           ) {
-            const report = this._generatePromptsReport!(prompts);
+            const placedPortraitReferences = bindApprovedPrdPortraitSelection(prompts);
+            const report = this._generatePromptsReport!(prompts)
+              + (placedPortraitReferences ? `\n\n## 本次 G4 批准的定妆参考绑定（等待 G6 读取当前文件）\n\n${JSON.stringify(placedPortraitReferences)}\n` : "");
             const verdict = await handler({
               type: "prompt",
               content: report,

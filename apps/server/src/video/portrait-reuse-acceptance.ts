@@ -90,6 +90,14 @@ export function acceptPortraitArchiveReuse(input: {
   const stage = object(input.stage, "portrait stage");
   const expectedStage = { status: "completed", characters: 1, products: 0, completedPortraits: 4, pendingPortraits: 0, reusedPortraits: 4, generatedPortraits: 0 } as const;
   if (Object.entries(expectedStage).some(([key, value]) => stage[key] !== value)) fail("本次阶段必须恰好复用四张且没有新生成或待生成图片");
+  const { character: _character, ...current } = readCurrentPortraitArchiveCopies(input);
+  return { ...current, stage: expectedStage };
+}
+
+/** Verify project copies before G6 without asserting a completed G5 stage. */
+export function readCurrentPortraitArchiveCopies(input: {
+  workDir: string; projectId: string; manifest: { path: string; sha256: string };
+}): Omit<PortraitArchiveReuseAcceptance, "stage"> & { character: { id: string; name: string; angles: typeof ANGLES } } {
   const configured = loadPortraitReuseManifest(input.manifest.path, input.manifest.sha256);
   const source = configured.characters[0]!;
   const base = realpathSync(input.workDir);
@@ -120,8 +128,8 @@ export function acceptPortraitArchiveReuse(input: {
     sources.push(original); outputs.push(output);
   }
   if (new Set(outputs.map(item => item.path)).size !== 4 || new Set(sources.map(item => item.path)).size !== 4) fail("角度文件重复");
-  return { schemaVersion: "workloom.portrait-reuse-acceptance/v1", projectId: input.projectId, stage: expectedStage,
-    manifest: input.manifest, selectionReceipt: configured.approvedSelection, index: indexFile.receipt,
+  return { schemaVersion: "workloom.portrait-reuse-acceptance/v1", projectId: input.projectId,
+    character: { id: source.id, name: source.name, angles: ANGLES }, manifest: input.manifest, selectionReceipt: configured.approvedSelection, index: indexFile.receipt,
     profile: verifyFile(source.profile, "角色档案"), sources, outputs };
 }
 

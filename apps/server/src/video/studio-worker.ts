@@ -58,7 +58,7 @@ import { createDataMiningExecutor } from "./data-mining-executor.js";
 import { prepareMarketingFacts, finalizeMarketingFacts, toJennyMarketingRaw, type PreparedMarketingFacts } from "./marketing-authority.js";
 import { createMarketingGateEvidenceGuard } from "./marketing-gate-evidence.js";
 import { canonicalRenderJson, renderSha256 } from "./gen/compiled-request.js";
-import { acceptPortraitArchiveReuse, loadPortraitReuseManifest, portraitReuseEvidence } from "./portrait-reuse-acceptance.js";
+import { acceptPortraitArchiveReuse, loadPortraitReuseManifest, portraitReuseEvidence, readCurrentPortraitArchiveCopies } from "./portrait-reuse-acceptance.js";
 import { applyBuiltinCharacters, appendBuiltinCharacterGuidance, resolveBuiltinCharacters, type BuiltinCharacterResolution } from "./builtin-character-selection.js";
 import { acquireProjectLease, archiveWorkDir, makeLedgerWriter, readProjectMeta, serializeProjectArchive, type ProjectLease } from "./archive-host.js";
 import {
@@ -566,6 +566,7 @@ function promptCompileOptionsFor(
   workDir: string,
   charactersDir: string,
   source: Record<string, unknown>,
+  archiveCopies?: ReturnType<typeof readCurrentPortraitArchiveCopies>,
 ): PromptCompileOptions {
   const brief = metadata?.brief && typeof metadata.brief === "object" && !Array.isArray(metadata.brief)
     ? metadata.brief as Record<string, unknown>
@@ -607,6 +608,7 @@ function promptCompileOptionsFor(
       workDir,
       charactersDir,
       extraAllowedRoots: [path.join(REPO_ROOT, "bundles", "ai-video", "library", "characters")],
+      archiveCopies,
     }),
     requiredClauses: [
       "镜头内音频仅允许台词、旁白、环境音效与动作音效；禁止镜头外 BGM 与配乐。",
@@ -977,6 +979,12 @@ function startRunWithLease(scope: Scope, input: StudioRunInput, heldLease?: Proj
       const structuredPromptPackage = Array.isArray(req.structuredArtifact)
         ? req.structuredArtifact.filter((item): item is Record<string, unknown> => Boolean(item && typeof item === "object" && !Array.isArray(item)))
         : null;
+      const archive = portraitOptions.enabled && portraitOptions.archivedCharactersOnly ? portraitOptions.archivedCharacters : undefined;
+      const archiveCopies = archive && (gate === "G6_PROMPT" || gate === "G7_FINAL")
+        && promptContractMode !== "off" && structuredPromptPackage?.length
+        ? readCurrentPortraitArchiveCopies({ workDir: runWorkDir, projectId: input.projectId,
+          manifest: { path: archive.manifestPath, sha256: archive.manifestSha256 } })
+        : undefined;
       let promptQualityEvidence: ReturnType<typeof writePromptQualityEvidence> | null = null;
       let promptQualityEvidenceFiles: Array<{ path: string; sha256: string; scope: "complete-text" }> = [];
       let promptQualityChecks: AutoApprovalCheck[] = [];
@@ -1003,7 +1011,7 @@ function startRunWithLease(scope: Scope, input: StudioRunInput, heldLease?: Proj
               shotId: String(source.shotId ?? source.shot_id ?? ""),
             },
             compile: promptCompileOptionsFor(runInput.metadata, promptContractModel, runWorkDir,
-              path.join(runWorkDir, "characters", input.projectId), source),
+              path.join(runWorkDir, "characters", input.projectId), source, archiveCopies),
           }));
           promptQualityForGate = await evaluatePromptPackage({
             mode: promptContractMode === "enforce" ? "enforce" : "shadow",
@@ -1079,7 +1087,7 @@ function startRunWithLease(scope: Scope, input: StudioRunInput, heldLease?: Proj
           const currentShots = structuredPromptPackage.map((source) => ({
             source: { ...source, shotId: String(source.shotId ?? source.shot_id ?? "") },
             compile: promptCompileOptionsFor(runInput.metadata, promptContractModel, runWorkDir,
-              path.join(runWorkDir, "characters", input.projectId), source),
+              path.join(runWorkDir, "characters", input.projectId), source, archiveCopies),
           }));
           const currentness = verifyCurrentPromptContracts({ shots: currentShots }, prior);
           const eligibility = {
