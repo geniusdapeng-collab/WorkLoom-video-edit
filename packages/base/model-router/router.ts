@@ -22,6 +22,7 @@ import {
 import {
   mockCredits,
   ModelProviderError,
+  OpenAiCompatibleProvider,
   type ChatGenerationOptions,
   type ChatMessage,
   type ChatResult,
@@ -36,6 +37,8 @@ import {
   type Tier3,
 } from "./policy.js";
 import { computeCredits } from "./credits.js";
+
+const nativeDeepSeekChat = OpenAiCompatibleProvider.prototype.chat;
 
 export type Window = "peak" | "off-peak";
 
@@ -470,6 +473,7 @@ export async function routeSmart(
   const scene = task.scene ?? "generic";
   const plan = task.plan ?? "standard";
   const scenePolicy = resolveTextScenePolicy(scene, sceneOverride(policy, scene));
+  const responsesJsonSchema = task.generation?.responsesJsonSchema;
   if (task.forceModel) canonicalDeepSeekModel(task.forceModel);
   const tier = task.forceTier ?? resolveTier(policy, scene, plan);
   const timeoutMs = task.timeoutMs && task.timeoutMs > 0
@@ -497,7 +501,7 @@ export async function routeSmart(
     };
   }
 
-  if (task.memoryLookup) {
+  if (responsesJsonSchema === undefined && task.memoryLookup) {
     const hit = await task.memoryLookup();
     if (hit?.reusable && hit.answer !== undefined) {
       await sink.recordModelTrace({
@@ -529,11 +533,16 @@ export async function routeSmart(
   const provider = canonicalProvider(providers);
   const window = currentWindow(now);
   try {
+    if (responsesJsonSchema !== undefined
+      && (!(provider instanceof OpenAiCompatibleProvider) || provider.chat !== nativeDeepSeekChat)) {
+      throw new ModelProviderError("结构化 Responses 请求需要原生 DeepSeek 传输", "protocol");
+    }
     const result = await provider.chat(task.messages, {
       scene,
       signal: task.signal,
       timeoutMs,
       responseFormat: { type: scenePolicy.responseFormat },
+      ...(responsesJsonSchema === undefined ? {} : { responsesJsonSchema }),
       thinking: { ...scenePolicy.thinking },
       ...(scenePolicy.thinking.type === "enabled"
         ? {

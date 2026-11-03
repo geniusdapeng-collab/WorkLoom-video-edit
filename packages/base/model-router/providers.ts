@@ -67,11 +67,17 @@ export interface ChatGenerationOptions {
   /** @deprecated Ignored. Product output caps require an explicit product rule. */
   maxTokens?: number;
   responseFormat?: { type: string };
+  responsesJsonSchema?: ResponsesJsonSchema;
   thinking?: Record<string, unknown>;
   reasoningEffort?: ThinkingEffort;
   /** Validated product constraint; absence means the complete legal output window. */
   productOutputCap?: number;
   scene?: string;
+}
+
+export interface ResponsesJsonSchema {
+  name: string;
+  schema: Record<string, unknown>;
 }
 
 export interface ChatOptions extends ChatGenerationOptions {
@@ -232,6 +238,51 @@ function safeInteger(value: unknown): value is number {
   return Number.isSafeInteger(value) && Number(value) >= 0;
 }
 
+function objectRecord(value: unknown): Record<string, unknown> | undefined {
+  return value !== null && typeof value === "object" && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : undefined;
+}
+
+function responsesCompletion(value: unknown, model: string): OpenAiResponse {
+  const data = objectRecord(value);
+  const invalid = () => new ModelProviderError("模型 Responses 未返回完整的单一结构化应答", "protocol");
+  if (!data || data.object !== "response" || data.model !== model || data.status !== "completed"
+    || typeof data.id !== "string" || !data.id.trim()
+    || data.error != null || data.incomplete_details != null || !Array.isArray(data.output)) throw invalid();
+  const first = objectRecord(data.output[0]);
+  const hasReasoning = first?.type === "reasoning";
+  if (data.output.length !== (hasReasoning ? 2 : 1)
+    || (hasReasoning && first?.status !== undefined && first.status !== "completed")) throw invalid();
+  const message = hasReasoning ? objectRecord(data.output[1]) : first;
+  if (message?.type !== "message" || message.status !== "completed" || message.role !== "assistant"
+    || message.phase !== "final_answer" || !Array.isArray(message.content) || message.content.length !== 1) throw invalid();
+  const part = objectRecord(message.content[0]);
+  if (part?.type !== "output_text" || typeof part.text !== "string") throw invalid();
+
+  const usage = objectRecord(data.usage);
+  const input = usage?.input_tokens;
+  const output = usage?.output_tokens;
+  const total = usage?.total_tokens;
+  const details = objectRecord(usage?.output_tokens_details);
+  const reasoning = details?.reasoning_tokens;
+  if (!safeInteger(input) || !safeInteger(output) || !safeInteger(total) || total !== input + output
+    || (usage?.output_tokens_details != null && !details)
+    || (reasoning !== undefined && (!safeInteger(reasoning) || reasoning > output))) throw invalid();
+
+  return {
+    id: data.id,
+    model,
+    choices: [{ finish_reason: "stop", message: { content: part.text } }],
+    usage: {
+      prompt_tokens: input,
+      completion_tokens: output,
+      total_tokens: total,
+      completion_tokens_details: { reasoning_tokens: reasoning },
+    },
+  };
+}
+
 function policyForOptions(opts: ChatOptions): TextScenePolicy {
   const responseFormat = opts.responseFormat?.type;
   if (responseFormat !== undefined && responseFormat !== "json_object" && responseFormat !== "text") {
@@ -266,6 +317,7 @@ interface OpenAiTransport {
 
 const openAiTransportReceipts = new WeakMap<ChatResult, OpenAiTransport & { provider: OpenAiCompatibleProvider }>();
 export const DEEPSEEK_CHAT_PATH = "/chat/completions";
+export const DEEPSEEK_RESPONSES_PATH = "/responses";
 
 /**
  * Canonical DeepSeek transport. The complete serialized request is tokenized
@@ -290,7 +342,9 @@ export class OpenAiCompatibleProvider implements ModelProvider {
   }
 
   /** Compare the actual successful attempt with current dispatch without exposing transport credentials. */
-  matchesCurrentTransport(receipt: ChatResult): boolean {
+  matchesCurrentTransport(
+    receipt: ChatResult, path: typeof DEEPSEEK_CHAT_PATH | typeof DEEPSEEK_RESPONSES_PATH = DEEPSEEK_CHAT_PATH,
+  ): boolean {
     const dispatched = openAiTransportReceipts.get(receipt);
     if (!dispatched || dispatched.provider !== this || types.isProxy(this)) return false;
     const authMethod = Object.getOwnPropertyDescriptor(this, "authHeaders")
@@ -307,7 +361,7 @@ export class OpenAiCompatibleProvider implements ModelProvider {
       || typeof baseUrl !== "string"
       || (apiKey?.value !== undefined && typeof apiKey.value !== "string")) return false;
     return dispatched.fetchImpl === (fetchImpl?.value ?? fetch)
-      && dispatched.endpoint === `${baseUrl}${DEEPSEEK_CHAT_PATH}`
+      && dispatched.endpoint === `${baseUrl}${path}`
       && dispatched.authorization === (apiKey?.value ? `Bearer ${apiKey.value}` : undefined);
   }
 
@@ -350,17 +404,47 @@ export class OpenAiCompatibleProvider implements ModelProvider {
     const policy = policyForOptions(opts);
     const mode = policy.thinking.type;
     const effort = mode === "enabled" ? policy.thinking.effort ?? "high" : undefined;
+    const responses = opts.responsesJsonSchema;
+    const [system, user] = masked;
+    let structuredRequest: { instructions: string; input: string; format: { type: "json_schema" } & ResponsesJsonSchema } | undefined;
+    if (responses !== undefined) {
+      const name = responses?.name;
+      if (mode !== "enabled" || effort !== "high" || policy.responseFormat !== "json_object" || opts.productOutputCap !== undefined
+        || masked.length !== 2 || system?.role !== "system" || user?.role !== "user"
+        || typeof system.content !== "string" || !system.content.trim()
+        || typeof user.content !== "string" || !user.content.trim()
+        || typeof name !== "string" || !/^[a-zA-Z0-9_-]{1,64}$/.test(name)
+        || !objectRecord(responses.schema)) {
+        throw new ModelProviderError("模型 Responses 结构化请求参数无效", "protocol");
+      }
+      // The planner and HTTP request must use the same schema snapshot.
+      const schema = objectRecord(JSON.parse(JSON.stringify(responses.schema)));
+      if (!schema) throw new ModelProviderError("模型 Responses 结构化请求参数无效", "protocol");
+      structuredRequest = {
+        instructions: system.content,
+        input: user.content,
+        format: { type: "json_schema", name, schema },
+      };
+    }
     const responseFormat = policy.responseFormat === "json_object" ? { type: "json_object" } : undefined;
     const plan = await planDeepSeekWindow({
       messages: masked as BudgetMessage[],
-      responseFormat,
+      responseFormat: structuredRequest?.format ?? responseFormat,
       productOutputCap: opts.productOutputCap,
     });
     const thinkingEnabled = mode === "enabled";
     const topP = thinkingEnabled && opts.topP !== undefined
       ? Math.min(1, Math.max(0.95, opts.topP))
       : opts.topP;
-    const requestBody: Record<string, unknown> = {
+    const requestBody: Record<string, unknown> = structuredRequest ? {
+      model: this.modelId,
+      input: structuredRequest.input,
+      instructions: structuredRequest.instructions,
+      reasoning: { effort },
+      max_output_tokens: plan.outputCeiling,
+      stream: false,
+      text: { format: structuredRequest.format },
+    } : {
       model: this.modelId,
       messages: masked,
       max_tokens: plan.outputCeiling,
@@ -381,7 +465,7 @@ export class OpenAiCompatibleProvider implements ModelProvider {
     const body = JSON.stringify(requestBody);
     const requestHash = createHash("sha256").update(body).digest("hex");
     const timeoutMs = opts.timeoutMs && opts.timeoutMs > 0 ? opts.timeoutMs : 180_000;
-    const maxRetries = Number.isSafeInteger(opts.retries) && Number(opts.retries) >= 0
+    const maxRetries = !structuredRequest && Number.isSafeInteger(opts.retries) && Number(opts.retries) >= 0
       ? Number(opts.retries)
       : 0;
     const attempts: ChatResult["attempts"] = [];
@@ -395,7 +479,7 @@ export class OpenAiCompatibleProvider implements ModelProvider {
       let transport: OpenAiTransport;
       try {
         const fetchImpl = this.cfg.fetchImpl ?? fetch;
-        const endpoint = `${this.baseUrl}${DEEPSEEK_CHAT_PATH}`;
+        const endpoint = `${this.baseUrl}${structuredRequest ? DEEPSEEK_RESPONSES_PATH : DEEPSEEK_CHAT_PATH}`;
         const headers = this.authHeaders();
         transport = { fetchImpl, endpoint, authorization: headers.authorization };
         response = await fetchImpl(endpoint, {
@@ -428,7 +512,7 @@ export class OpenAiCompatibleProvider implements ModelProvider {
 
       if (!response.ok) {
         const detail = await OpenAiCompatibleProvider.failureDetail(response);
-        const retryable = response.status === 429;
+        const retryable = !structuredRequest && response.status === 429;
         const error = new ModelProviderError(
           `模型调用失败：HTTP ${response.status}${detail ? `（${detail}）` : ""}`,
           "http",
@@ -477,15 +561,16 @@ export class OpenAiCompatibleProvider implements ModelProvider {
         });
       }
       const responseHash = createHash("sha256").update(rawBody).digest("hex");
-      let data: OpenAiResponse;
+      let decoded: unknown;
       try {
-        data = JSON.parse(rawBody) as OpenAiResponse;
+        decoded = JSON.parse(rawBody);
       } catch (error) {
         throw new ModelProviderError("模型响应不是合法 JSON", "protocol", {
           retryable: false,
           cause: error,
         });
       }
+      const data = structuredRequest ? responsesCompletion(decoded, this.modelId) : decoded as OpenAiResponse;
       if (data.model !== this.modelId) {
         throw new ModelProviderError(
           `模型响应身份 ${data.model ?? "<missing>"} 与请求 ${this.modelId} 不一致`,
