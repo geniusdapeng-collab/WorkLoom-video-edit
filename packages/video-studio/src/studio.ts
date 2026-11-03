@@ -33,6 +33,7 @@ import { preparePrdPortraitReferenceSelection, preparePrdPortraitSources } from 
 import { captureRequirementTheme, requirementThemeApprovalPayload, requirementThemeUsageBoundary, type RequirementApprovedTheme } from "./requirement-authority.js";
 import { frozenSegmentContract, requirementHash } from "./requirement-contract.js";
 import { assertFrozenProductionTiming } from "./frozen-production-duration.js";
+import { assertNoSpokenPromptPackage } from "./frozen-speech-policy.js";
 import { normalizeNarrativePrdContract } from "./narrative-prd-contract.js";
 import { normalizeCreativeThemeContract } from "./creative-theme-contract.js";
 import {
@@ -341,6 +342,9 @@ export class VideoStudio {
       if (frozenSegments && (gate === "G6_PROMPT" || gate === "G7_FINAL")) {
         assertFrozenProductionTiming(req.structured, frozenSegments, gate, false);
       }
+      if (prdAuthority?.profile.speechPolicy === "none" && (gate === "G6_PROMPT" || gate === "G7_FINAL")) {
+        assertNoSpokenPromptPackage(req.structured, gate);
+      }
       const normalizedPrompt = input.isMarketing && gate === "G6_PROMPT"
         ? normalizeMarketingPromptText(req.content, promptOptions)
         : null;
@@ -467,14 +471,15 @@ export class VideoStudio {
          * 全部收敛到宿主投影器；`WORKLOOM_DURATION_PROJECTION=off` 可一键回到原行为（回滚开关）。
          */
         const projectionEnabled = (process.env.WORKLOOM_DURATION_PROJECTION ?? "on") !== "off";
-        if (frozenSegments && !projectionEnabled) {
-          throw new Error("FROZEN_PRODUCTION_TIMING_UNVERIFIED: 冻结分段要求正式时长检查启用");
+        if ((frozenSegments || prdAuthority?.profile.speechPolicy === "none") && !projectionEnabled) {
+          throw new Error("FROZEN_PRODUCTION_CONTRACT_UNVERIFIED: 本次明确剧本要求须启用原生制作检查");
         }
         let lastProjectedTarget: number | null = null;
         const projectionOptions: DurationProjectionBridgeOptions = {
           minShotSeconds: minSingleShot,
           maxShotSeconds: maxSingleShot,
           ...(frozenSegments ? { frozenSegments } : {}),
+          ...(prdAuthority?.profile.speechPolicy === "none" ? { speechPolicy: "none" as const } : {}),
           log,
           onEvent: (event) => {
             if (typeof event.targetSeconds === "number" && event.targetSeconds > 0) {
