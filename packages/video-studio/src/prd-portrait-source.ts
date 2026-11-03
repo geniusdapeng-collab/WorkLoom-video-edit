@@ -20,6 +20,11 @@ export interface PrdPortraitSource {
   ownerAuthorization: { basis: "explicit-owner-authorization"; decisionOwnerRole: "product-owner"; receipt: FileBinding; ledger: FileBinding };
   originals: Record<string, PortraitInputReceipt>;
 }
+export interface PrdPortraitReferenceSelection {
+  characterId: string;
+  portraitVersion: number;
+  angles: string[];
+}
 
 const digest = (bytes: Buffer): string => createHash("sha256").update(bytes).digest("hex");
 function invalid(message: string): never { throw new Error(`PRD_PORTRAIT_SOURCE_UNVERIFIED: ${message}`); }
@@ -43,6 +48,24 @@ function verifyOriginals(originals: Record<string, PortraitInputReceipt>): void 
       invalid(`原始定妆照 ${angle} 与清单不一致`);
     }
   }
+}
+
+export function preparePrdPortraitReferenceSelection(value: unknown,
+  sources: readonly PrdPortraitSource[]): PrdPortraitReferenceSelection | undefined {
+  if (value === undefined) return undefined;
+  const selection = requirementRecord(value, "客户冻结定妆参考选择");
+  const { characterId, portraitVersion, angles } = selection;
+  if (Object.keys(selection).length !== 3 || typeof characterId !== "string"
+    || typeof portraitVersion !== "number" || !Number.isSafeInteger(portraitVersion)
+    || !Array.isArray(angles) || !angles.length || new Set(angles).size !== angles.length
+    || angles.some(angle => typeof angle !== "string" || !REQUIRED_PORTRAIT_ANGLES.some(valid => valid === angle))) {
+    invalid("定妆参考选择必须明确人物 ID、版本与无重复的有序角度");
+  }
+  const matched = sources.filter(source => source.characterId === characterId && source.portraitVersion === portraitVersion);
+  if (matched.length !== 1 || angles.some(angle => !Object.hasOwn(matched[0]!.originals, angle))) {
+    invalid("冻结定妆参考选择缺少本次相同人物、版本与原始字节用途授权");
+  }
+  return { characterId, portraitVersion, angles: [...angles] };
 }
 
 /** Only host-configured, case-bound archives with current owner use evidence are reportable before G5. */

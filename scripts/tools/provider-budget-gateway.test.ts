@@ -384,14 +384,63 @@ describe("task-local provider budget gateway", () => {
     expect(JSON.parse(readFileSync(journalPath, "utf8").split("\n")[0]!)).toMatchObject({ profile: "workflow" });
   });
 
-  it("keeps the media price cap independent in workflow mode", async () => {
+  it("opens an explicit v2 journal and admits exactly 64 original full-window requests across restart", async () => {
+    const wireBodies: string[] = [];
+    const upstream = vi.fn(async (_url: string | URL | Request, init?: RequestInit) => {
+      wireBodies.push(Buffer.from(init!.body as Uint8Array).toString());
+      return llmResponse();
+    });
+    const now = 1_800_000_000_000;
+    const options = { profile: "workflow-v2", scope: videoScope, now: () => now };
+    const first = await gate(upstream, options);
+    const sent = Array.from({ length: 65 }, (_, i) => JSON.stringify({
+      ...llm(`full quality workflow request ${i}`), thinking: { type: "enabled" },
+      reasoning_effort: "high", response_format: { type: "json_object" },
+    }));
+    for (const wire of sent.slice(0, 40)) expect((await call(first.server, DEEPSEEK_CHAT_PATH, wire)).status).toBe(200);
+    await first.server.close();
+    const restart = { ...options, journalPath: first.journalPath, port: first.server.port };
+    const priorJournal = readFileSync(first.journalPath, "utf8");
+    for (const profile of ["case", "workflow"]) {
+      await expect(gate(upstream, { ...restart, profile })).rejects.toThrow("BUDGET_JOURNAL_SCOPE_MISMATCH");
+    }
+    expect(readFileSync(first.journalPath, "utf8")).toBe(priorJournal);
+    const { server } = await gate(upstream, restart);
+    expect((await call(server, "/budget/status")).data).toMatchObject({
+      profile: "workflow-v2", openedAt: now, deadlineAt: now + TASK_CAPS.windowMs, usage: { llmCalls: 40 },
+    });
+    expect(code(await call(server, DEEPSEEK_CHAT_PATH, sent[0]))).toBe("BUDGET_DUPLICATE_REQUEST");
+    expect(code(await call(server, DEEPSEEK_CHAT_PATH, llm("arbitrary clipping", 300_000)))).toBe("BUDGET_ILLEGAL_LLM_WINDOW");
+    expect(code(await call(server, DEEPSEEK_CHAT_PATH, llm("too much output", 393_217)))).toBe("BUDGET_ILLEGAL_LLM_WINDOW");
+    for (const wire of sent.slice(40, 64)) expect((await call(server, DEEPSEEK_CHAT_PATH, wire)).status).toBe(200);
+    const fullJournal = readFileSync(first.journalPath, "utf8");
+    expect(await call(server, DEEPSEEK_CHAT_PATH, sent[64])).toEqual({
+      status: 429, data: { error: { code: "BUDGET_LLM_CALLS_EXCEEDED", message: "BUDGET_LLM_CALLS_EXCEEDED",
+        limit: { profile: "workflow-v2", resource: "llmCalls", used: 64, cap: 64 } } },
+    });
+    expect(readFileSync(first.journalPath, "utf8")).toBe(fullJournal);
+    expect(wireBodies).toEqual(sent.slice(0, 64));
+    const caps = { llmCalls: 64, llmGrossTokens: 67_108_864, llmEstimatedMaxMicroCny: 285_212_672,
+      mediaMicroCny: 120_000_000, imageCalls: 8, videoCalls: 3, minVideoSeconds: 10, maxVideoSeconds: 15,
+      totalVideoSeconds: 45, windowMs: TASK_CAPS.windowMs };
+    expect(JSON.parse(fullJournal.split("\n")[0]!)).toMatchObject({ profile: "workflow-v2", caps });
+    expect((await call(server, "/budget/status")).data).toMatchObject({
+      profile: "workflow-v2", live: true, held: false, caps,
+      usage: { llmCalls: 64, settledLlmGrossTokens: 64 * 20, videoCalls: 0, imageCalls: 0 },
+      settledLlmTokens: { input: 64 * 12, output: 64 * 8 },
+      estimatedCost: { llm: { settledMicroCny: 64 * llmMicroCny(12, 8), reservedMicroCny: 0 },
+        media: { settledMicroCny: 0, reservedMicroCny: 0 } },
+    });
+  });
+
+  it.each(["workflow", "workflow-v2"])("keeps the media price cap independent in %s mode", async (profile) => {
     let mediaSubmissions = 0;
     const upstream = vi.fn(async (url: string | URL | Request) => {
       if (new URL(String(url)).pathname === ARK_VIDEO_PATH) return Response.json({ id: `media-${++mediaSubmissions}` });
       return llmResponse();
     });
     const scope = { video: { ...videoScope.video, seconds: 15 } };
-    const { server } = await gate(upstream, { profile: "workflow", scope });
+    const { server } = await gate(upstream, { profile, scope });
     expect((await call(server, DEEPSEEK_CHAT_PATH, llm())).status).toBe(200);
     expect((await call(server, ARK_VIDEO_PATH, video("first media shot", 15))).status).toBe(200);
     expect((await call(server, ARK_VIDEO_PATH, video("second media shot", 15))).status).toBe(200);
@@ -403,24 +452,27 @@ describe("task-local provider budget gateway", () => {
   it("fails closed when a workflow profile is missing exact media scope or an unrecognized profile is selected", async () => {
     const upstream = vi.fn(async () => llmResponse());
     await expect(gate(upstream, { profile: "workflow" })).rejects.toThrow("BUDGET_WORKFLOW_SCOPE_REQUIRED");
+    await expect(gate(upstream, { profile: "workflow-v2" })).rejects.toThrow("BUDGET_WORKFLOW_SCOPE_REQUIRED");
     await expect(gate(upstream, { profile: "unbounded", scope: videoScope })).rejects.toThrow("BUDGET_PROFILE_INVALID");
     expect(upstream).not.toHaveBeenCalled();
   });
 
-  it("binds each WAL to its profile and preserves a workflow unknown hold after same-profile restart", async () => {
+  it.each(["workflow", "workflow-v2"])("binds the %s WAL to its profile and preserves unknown holds after restart", async (profile) => {
     const upstream = vi.fn(async () => { throw new Error("fixture outcome unknown"); });
     const legacy = await gate(upstream, { scope: videoScope });
     await legacy.server.close();
-    await expect(gate(upstream, { profile: "workflow", scope: videoScope, journalPath: legacy.journalPath, port: legacy.server.port }))
+    await expect(gate(upstream, { profile, scope: videoScope, journalPath: legacy.journalPath, port: legacy.server.port }))
       .rejects.toThrow("BUDGET_JOURNAL_SCOPE_MISMATCH");
-    const first = await gate(upstream, { profile: "workflow", scope: videoScope });
+    const first = await gate(upstream, { profile, scope: videoScope });
     const wire = llm("private uncertain workflow dispatch");
     expect(code(await call(first.server, DEEPSEEK_CHAT_PATH, wire))).toBe("BUDGET_OUTCOME_UNKNOWN");
     await first.server.close();
     const restart = { scope: videoScope, journalPath: first.journalPath, port: first.server.port };
     await expect(gate(upstream, restart)).rejects.toThrow("BUDGET_JOURNAL_SCOPE_MISMATCH");
-    const { server } = await gate(upstream, { ...restart, profile: "workflow" });
-    expect((await call(server, "/budget/status")).data).toMatchObject({ profile: "workflow", state: "frozen", held: true,
+    const otherProfile = profile === "workflow" ? "workflow-v2" : "workflow";
+    await expect(gate(upstream, { ...restart, profile: otherProfile })).rejects.toThrow("BUDGET_JOURNAL_SCOPE_MISMATCH");
+    const { server } = await gate(upstream, { ...restart, profile });
+    expect((await call(server, "/budget/status")).data).toMatchObject({ profile, state: "frozen", held: true,
       reserved: { calls: 1 }, estimatedCost: { media: { settledMicroCny: 0, reservedMicroCny: 0 } } });
     expect(code(await call(server, DEEPSEEK_CHAT_PATH, wire))).toBe("BUDGET_DUPLICATE_REQUEST");
     expect(code(await call(server, DEEPSEEK_CHAT_PATH, llm("different but frozen")))).toBe("BUDGET_FROZEN");

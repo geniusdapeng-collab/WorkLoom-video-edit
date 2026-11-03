@@ -25,6 +25,7 @@ import {
   type StructuredReviewDispatchProof,
 } from "@hyperreality/video-studio";
 import { promptSemanticRepairPlaybook } from "@hyperreality/video-pipeline";
+import type { readCurrentPortraitArchiveCopies } from "./portrait-reuse-acceptance.js";
 
 export const SEMANTIC_QUALITY_POLICY_VERSION = "workloom.video-prompt-quality/v2" as const;
 export const SEMANTIC_QUALITY_CHECK_IDS = [
@@ -204,13 +205,63 @@ export interface ResolvePromptAssetInput {
   charactersDir: string;
   extraAllowedRoots?: string[];
   maxBytes?: number;
+  archiveCopies?: ReturnType<typeof readCurrentPortraitArchiveCopies>;
+}
+
+function resolveCurrentArchivePromptAssets(
+  input: ResolvePromptAssetInput, archive: NonNullable<ResolvePromptAssetInput["archiveCopies"]>, raw: unknown,
+): PromptCompileAsset[] {
+  const { character, selectionReceipt, sources, outputs } = archive;
+  const bindings = input.source.portraitBindings;
+  if (!Array.isArray(bindings) || bindings.length !== 1) return [];
+  const binding = bindings[0];
+  if (binding?.mode !== "studio" || binding.character !== character.name
+    || ![character.id, character.name].some(value => binding.source === `portrait-set://${value}`)
+    || !Array.isArray(binding.portraits) || binding.portraits.length !== outputs.length
+    || !character.angles.every((angle, index) => binding.portraits.some((portrait: { angle?: unknown; outputFile?: unknown }) =>
+      portrait?.angle === angle && portrait.outputFile === outputs[index]?.path))) return [];
+
+  const uriPath = (root: string, file: string) => path.relative(root, file).split(path.sep).join("/");
+  const aliases = new Map<string, number>();
+  for (const [index, angle] of character.angles.entries()) {
+    const original = sources[index]!, copy = outputs[index]!;
+    const version = `v${selectionReceipt.selectedVersion}`;
+    const nativeRoot = `image://characters/${character.id}`;
+    const angleFile = `${angle}${path.extname(original.path)}`;
+    for (const reference of [original.path, copy.path, `image://${uriPath(input.workDir, copy.path)}`,
+      `image://characters/${uriPath(input.charactersDir, copy.path)}`,
+      `${nativeRoot}/${version}/${angleFile}`, `${nativeRoot}/portraits/${version}/${angleFile}`,
+      `${nativeRoot}/portraits/${version}/${path.basename(original.path)}`,
+      `portrait-set://${character.id}/${version}/${angle}`]) aliases.set(reference, index);
+  }
+
+  // Native ShotNormalizer may list the exact references under one actor label.
+  // A role-only URI, guessed v1 path, unknown or duplicate angle never picks a file.
+  const text = typeof raw === "string" ? raw.trim() : "";
+  const labelled = /^([^:：]+)[:：]\s*(.+)$/u.exec(text);
+  const explicitList = labelled && [character.id, character.name].includes(labelled[1]!.trim()) ? labelled[2]! : text;
+  const values = Array.isArray(raw) ? raw : explicitList.split(/[,，]/u);
+  const indices = values.map(value => typeof value === "string" ? aliases.get(value.trim()) : undefined);
+  const maxBytes = input.maxBytes ?? 25 * 1024 * 1024;
+  if (indices.length === 0 || indices.some(index => index === undefined || outputs[index]!.bytes > maxBytes)
+    || new Set(indices).size !== indices.length) return [];
+  return indices.map(index => {
+    const copy = outputs[index!]!;
+    return { field: "portraits", role: "reference_image", sha256: copy.sha256, bytes: copy.bytes,
+      mediaType: portraitMediaType(copy.path), sourceRef: uriPath(input.workDir, copy.path) };
+  });
+}
+
+function portraitMediaType(file: string): string {
+  const ext = path.extname(file).toLowerCase();
+  return ({ ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".webp": "image/webp", ".bmp": "image/bmp", ".tif": "image/tiff", ".tiff": "image/tiff", ".gif": "image/gif", ".heic": "image/heic", ".heif": "image/heif" } as Record<string, string>)[ext] ?? "application/octet-stream";
 }
 
 export function resolvePromptAssets(input: ResolvePromptAssetInput): PromptCompileAsset[] {
-  const raw = input.source.portraits
-    ?? (input.source.fields && typeof input.source.fields === "object" && !Array.isArray(input.source.fields)
-      ? (input.source.fields as Record<string, unknown>).portraits
-      : undefined);
+  const field = input.source.fields && typeof input.source.fields === "object" && !Array.isArray(input.source.fields)
+    ? (input.source.fields as Record<string, unknown>).portraits : undefined;
+  if (input.archiveCopies) return resolveCurrentArchivePromptAssets(input, input.archiveCopies, field ?? input.source.portraits);
+  const raw = input.source.portraits ?? field;
   const values = Array.isArray(raw) ? raw : raw === undefined || raw === null ? [] : [raw];
   const maxBytes = input.maxBytes ?? 25 * 1024 * 1024;
   const roots = [...new Set([input.workDir, input.charactersDir, ...(input.extraAllowedRoots ?? [])]
@@ -230,10 +281,6 @@ export function resolvePromptAssets(input: ResolvePromptAssetInput): PromptCompi
     }
     if (path.isAbsolute(value)) return [value];
     return [path.join(input.workDir, value), path.join(input.charactersDir, value), path.join(input.workDir, "characters", value)];
-  };
-  const mimeOf = (file: string): string => {
-    const ext = path.extname(file).toLowerCase();
-    return ({ ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".webp": "image/webp", ".bmp": "image/bmp", ".tif": "image/tiff", ".tiff": "image/tiff", ".gif": "image/gif", ".heic": "image/heic", ".heif": "image/heif" } as Record<string, string>)[ext] ?? "application/octet-stream";
   };
   const result: PromptCompileAsset[] = [];
   for (const item of values) {
@@ -260,7 +307,7 @@ export function resolvePromptAssets(input: ResolvePromptAssetInput): PromptCompi
         role: "reference_image",
         sha256: digest(bytes),
         bytes: bytes.length,
-        mediaType: mimeOf(real),
+        mediaType: portraitMediaType(real),
         sourceRef: path.relative(input.workDir, real).split(path.sep).join("/"),
       });
       break;

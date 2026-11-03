@@ -1,8 +1,8 @@
 import { closeSync, constants, fstatSync, fsyncSync, openSync, readFileSync, writeSync } from "node:fs";
 import { dirname } from "node:path";
 import {
-  BudgetError, check, llmMicroCny, record, safeHash, safeInteger, safeTaskId, TASK_CAPS, WORKFLOW_TASK_CAPS,
-  type BudgetProfile, type BudgetScope, type Claim, type ImageProof, type Settlement,
+  BudgetError, check, llmMicroCny, record, safeHash, safeInteger, safeTaskId, TASK_CAPS, WORKFLOW_TASK_CAPS_BY_PROFILE,
+  type BudgetProfile, type BudgetScope, type Claim, type ImageProof, type Settlement, type WorkflowBudgetProfile,
 } from "./provider-budget-policy.js";
 
 const JOURNAL_SCHEMA = "workloom.provider-budget-wal/v1";
@@ -10,7 +10,7 @@ const MAX_JOURNAL_BYTES = 512 * 1024;
 const ERROR_CODE = /^[A-Z][A-Z0-9_]{0,95}$/;
 
 type BudgetLimits = { profile?: never; caps: typeof TASK_CAPS }
-  | { profile: "workflow"; caps: typeof WORKFLOW_TASK_CAPS };
+  | { profile: WorkflowBudgetProfile; caps: typeof WORKFLOW_TASK_CAPS_BY_PROFILE[WorkflowBudgetProfile] };
 type Header = { schema: typeof JOURNAL_SCHEMA; type: "open"; task: string; port: number; at: number;
   scope: BudgetScope } & BudgetLimits;
 type Reserve = { type: "reserve"; hash: string; wireSha256: string; at: number; claim: Claim };
@@ -73,8 +73,8 @@ export class BudgetJournal {
 
   static open(path: string, port: number, task: string, scope: BudgetScope, now: () => number, profile: BudgetProfile = "case"): BudgetJournal {
     // Keep existing case headers readable by earlier releases. The distinct
-    // workflow header pins both the explicit profile and its expanded limits.
-    const limits: BudgetLimits = profile === "workflow" ? { profile, caps: WORKFLOW_TASK_CAPS } : { caps: TASK_CAPS };
+    // workflow headers pin each explicit profile and its exact limits.
+    const limits: BudgetLimits = profile === "case" ? { caps: TASK_CAPS } : { profile, caps: WORKFLOW_TASK_CAPS_BY_PROFILE[profile] };
     const flags = constants.O_NOFOLLOW | constants.O_APPEND | constants.O_RDWR;
     let fd: number;
     let created = false;
@@ -176,10 +176,14 @@ export class BudgetJournal {
     const { usage, estimatedCost } = this.counters();
     const { caps } = this.header;
     if (claim.kind === "llm") {
-      check(usage.llmCalls + 1 <= caps.llmCalls, "BUDGET_LLM_CALLS_EXCEEDED", 429);
+      if (usage.llmCalls >= caps.llmCalls) {
+        throw new BudgetError("BUDGET_LLM_CALLS_EXCEEDED", 429, this.header.profile === "workflow-v2"
+          ? { profile: this.header.profile, resource: "llmCalls", used: usage.llmCalls, cap: caps.llmCalls }
+          : undefined);
+      }
       // In workflow mode each exact native request already proves its own
       // window. The call limit bounds the cumulative usage without clipping.
-      if (this.header.profile !== "workflow") {
+      if (!this.header.profile) {
         check(usage.llmGrossTokens + claim.inputTokens + claim.maxOutputTokens <= caps.llmGrossTokens, "BUDGET_LLM_TOKENS_EXCEEDED", 429);
       }
     } else if (claim.kind === "image") {
@@ -187,7 +191,7 @@ export class BudgetJournal {
     } else {
       check(usage.videoCalls + 1 <= caps.videoCalls && usage.videoSeconds + claim.seconds <= caps.totalVideoSeconds, "BUDGET_VIDEO_LIMIT_EXCEEDED", 429);
     }
-    if (this.header.profile === "workflow") {
+    if (this.header.profile) {
       const { media } = estimatedCost;
       if (claim.kind !== "llm") check(media.settledMicroCny + media.reservedMicroCny + claim.microCny <= this.header.caps.mediaMicroCny,
         "BUDGET_MEDIA_CNY_EXCEEDED", 429);
@@ -256,7 +260,7 @@ export class BudgetJournal {
       state: frozen ? "frozen" : expired ? "expired" : holds.length ? "held" : "live",
       live: !expired && !frozen, expired, frozen, held: holds.length > 0,
       scope: this.header.scope, caps: this.header.caps, usage,
-      ...(this.header.profile === "workflow" ? { profile: this.header.profile, estimatedCost,
+      ...(this.header.profile ? { profile: this.header.profile, estimatedCost,
         settledLlmTokens: { input: settledLlmInputTokens, output: settledLlmOutputTokens } } : {}),
       consumed: { llmGrossTokens: usage.settledLlmGrossTokens, microCny: usage.settledMicroCny },
       reserved: { llmGrossTokens: usage.llmGrossTokens - usage.settledLlmGrossTokens, microCny: usage.reservedMicroCny, calls: holds.length },

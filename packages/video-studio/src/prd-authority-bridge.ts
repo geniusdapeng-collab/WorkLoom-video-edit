@@ -12,6 +12,7 @@ import {
 } from "./prd-authority.js";
 import { marketingPrdReferenceView, normalizeMarketingPrdContract } from "./marketing-prd-contract.js";
 import { verifyPrdPortraitSources } from "./prd-portrait-source.js";
+import { isNoSpeechDeclaration } from "./dialogue-contract.js";
 import { acquireVendorRequirementEntry } from "./vendor-requirement-entry.js";
 import { nativeReasonCompleted, nativeReasonFailure, WorkloomLLMEngine } from "./llm-adapter.js";
 
@@ -48,6 +49,7 @@ interface Scope {
   reviewedResult?: RequirementRecord;
   reviewedContent?: string;
   reviewedVerdict?: RequirementRecord;
+  portraitReviewArtifactHash?: string;
   g4Decision?: "pending" | "approved" | "rejected";
   generated: WeakSet<object>;
   quality: WeakMap<object, QualityPolicy>;
@@ -247,9 +249,12 @@ function productionPlanningPrompt(scope: Scope): string {
   const castAnchors = { selection: contract.cast.selection, characters: contract.cast.characters.map(character =>
     Object.fromEntries(["id", "name", "portraitVersion", "activeWardrobeId", "wardrobeId"]
       .filter(key => Object.hasOwn(character, key)).map(key => [key, character[key]]))) };
+  const selection = scope.authority.portraitReferenceSelection;
+  const selectedAngles = selection?.angles.join("/") ?? "front/closeup";
   return `\n\n## 本次 G4 制作执行计划（由本次模型填写现有字段）\n`
     + `角色的 consistencyRequirements 除脸型、发型、服装外，还须写出 G5 前定妆照执行计划：逐角色绑定本次 characterId、档案 profilePath/profileSha256、registrySha256、已选服装与已知版本；`
-    + `明确先从这些来源解析并复用该版本原始 front/closeup PNG，不把构图稿或新猜测人脸当原始参考。已列出的四角度来源 path/hash 和既有用途证据已核对，待本次 G5 复制与评审；缺少输入证据时才写“G5 前待解析和核验”，不得编造文件、摘要、授权或已批准状态。`
+    + `明确先从这些来源解析并复用该版本原始 ${selectedAngles} PNG，不把构图稿或新猜测人脸当原始参考。已列出的四角度来源 path/hash 和既有用途证据已核对，待本次 G5 复制与评审；缺少输入证据时才写“G5 前待解析和核验”，不得编造文件、摘要、授权或已批准状态。`
+    + (selection ? `本次冻结参考选择 ${JSON.stringify(selection)}。有该人物的 G3 场景按所列角度和顺序绑定，核对动作连续性；有问题在 G4 如实审查，不能擅换角度。\n` : "")
     + `写明 G5 前核验人物/版本/服装、原始 PNG 字节、来源与用途授权；不一致或缺件则保留未核实并停止依赖它的生成。其他必需角度按原有 G5 流程核验，只有本次实际图片和原有审核才能支持完成。`
     + `portraitPath 此时留空；不得新增 needsPortrait/portraitPlan 等 schema 未声明键，不得宣称 G5 或跨镜一致性已经通过。明确无人时不添加人物任务。\n`
     + `在 audioSpecification.soundDesign 和各场景既有 visualRequirements/audioRequirements 中写出本次字幕与声音的后续执行、验证方法，不新增模块。`
@@ -667,9 +672,15 @@ export function installPrdAuthorityBridge(
       const quality = scope.quality.get(result)!;
       const characters = requirementRecord(result.characterSystem, "G4 人物计划").characters as RequirementRecord[];
       const scenes = requirementRecord(result.scenePlan, "G4 场景计划").scenes as RequirementRecord[];
+      const portraitReferenceSelection = scope.authority.portraitReferenceSelection;
+      const selectedPortraitSource = scope.authority.portraitSources?.find(source => source.characterId === portraitReferenceSelection?.characterId);
       const planning = {
         status: "plan-only-not-executed",
         ...(scope.authority.portraitSources?.length ? { verifiedPortraitSourcesAwaitingG5: scope.authority.portraitSources } : {}),
+        ...(portraitReferenceSelection && selectedPortraitSource ? {
+          portraitReferenceSelection: { ...portraitReferenceSelection,
+            originalSha256InOrder: portraitReferenceSelection.angles.map(angle => selectedPortraitSource.originals[angle]!.sha256) },
+        } : {}),
         characterPlans: characters.map(character => ({ characterId: character.characterId, name: character.name,
           portraitPath: character.portraitPath, consistencyRequirements: character.consistencyRequirements,
           source: character._workloomCharacterSource, selection: character._workloomCharacterSelection })),
@@ -683,7 +694,7 @@ export function installPrdAuthorityBridge(
           sourcePolicy: "本次原生 Agent4 制作阈值与 Agent5 原验收逐维保留较高要求；统一前原值在私有作用域保留",
           sourceHash: requirementHash({ production: quality.production, nativeAcceptance: quality.nativeAcceptance }) },
       };
-      return labeled + `\n\n## 宿主本次权威生产与交付要求\n\n\`\`\`json\n${JSON.stringify({ profile: scope.authority.profile, source: result._workloomPrdAuthority, approvedRequirementContract: displayContract }, null, 2)}\n\`\`\`\n\n`
+      const report = labeled + `\n\n## 宿主本次权威生产与交付要求\n\n\`\`\`json\n${JSON.stringify({ profile: scope.authority.profile, source: result._workloomPrdAuthority, approvedRequirementContract: displayContract }, null, 2)}\n\`\`\`\n\n`
         + `上述来源绑定只说明本次输入一致；G1 不批准本 PRD，G4 与 G5 均须实际审核。空 portraitPath 是 G4 前正常状态，不能当成已完成定妆照。\n`
         + `\n## 本次 G4 执行与核验计划原文\n\n`
         + `以下仅展示本次模型和既有规则模块已经产生的字段；没有补写模型计划，也不证明图片、字幕、听音或成片已经验证。`
@@ -692,6 +703,8 @@ export function installPrdAuthorityBridge(
         + (scope.authority.portraitSources?.length ? `verifiedPortraitSourcesAwaitingG5 是宿主已核验的原始来源及既有用途回执。项目复制路径、当前 G5 审核和跨镜一致性结果均待实际执行，不能从这些证据推定通过。` : "")
         + `shotMapping原样展示实际数组；原生场景文字中的箭头仅为Markdown连接展示，不是shotBreakdownHint的原始枚举值。`
         + `缺失计划继续交本次 G4 判断，不能用此说明替代实际计划或批准。\n\n\`\`\`json\n${JSON.stringify(planning, null, 2)}\n\`\`\`\n`;
+      if (portraitReferenceSelection) scope.portraitReviewArtifactHash = requirementHash(report);
+      return report;
     });
   };
   const reviewed: Method = async function (content, value) {
@@ -701,6 +714,10 @@ export function installPrdAuthorityBridge(
       check(scope);
       if (scope.system !== this || systems.get(this) !== scope) prdFail("PRD_SCOPE_CONFLICT", "G4 不是本次系统的 PRD");
       const result = verifyOutput(scope, value, schema), before = requirementHash(result);
+      if (scope.authority.portraitReferenceSelection && (!scope.portraitReviewArtifactHash
+        || requirementHash(content) !== scope.portraitReviewArtifactHash)) {
+        prdFail("PRD_REVIEW_CHANGED", "G4 审核材料缺少同版本的冻结定妆参考选择");
+      }
       verifyPrdPortraitSources(scope.authority.portraitSources);
       scope.g4Decision = "pending";
       const verdict = requirementRecord(await Reflect.apply(confirmPrd, this, [content, value]), "G4 实际确认结果");
@@ -780,6 +797,8 @@ interface ProductionDependencies {
   qualityGatePrototype: RequirementRecord;
   deliveryGuardPrototype: RequirementRecord;
   semanticPrototype: RequirementRecord;
+  fieldQualityPrototype?: RequirementRecord;
+  fieldConsistencyPrototype?: RequirementRecord;
   structuredAgent?: {
     prototype: RequirementRecord;
     limiter: { withLimit<T>(operation: () => Promise<T>, timeoutMs: number): Promise<T> };
@@ -811,6 +830,35 @@ function productionScope(receiver: RequirementRecord, required = true): Scope | 
     return scope;
   });
 }
+
+/** Project only the current G4-reviewed exact selection into its G3 actor scenes. */
+export function bindApprovedPrdPortraitSelection(prompts: RequirementRecord[]): Array<{ shotId: string; references: string[] }> | undefined {
+  const scope = current(), selection = scope?.authority.portraitReferenceSelection;
+  if (!scope || !selection) return undefined;
+  return guard(scope, () => {
+    assertProductionAuthority(scope);
+    if (scope.g4Decision !== "approved" || !scope.contract || !scope.reviewedContent
+      || requirementHash(scope.reviewedContent) !== scope.portraitReviewArtifactHash) {
+      prdFail("PRD_REVIEW_UNVERIFIED", "定妆参考选择尚未进入本次批准的 G4 审核材料");
+    }
+    verifyPrdPortraitSources(scope.authority.portraitSources);
+    const scenes = scope.contract.scenes;
+    const shotIds = prompts.map(shot => String(shot.shotId ?? shot.shot_id ?? ""));
+    if (shotIds.length !== scenes.length || shotIds.some((id, index) => id !== scenes[index]!.id)) {
+      prdFail("PRD_SCENE_UNVERIFIED", "定妆参考绑定无法逐项对应本次已审 G3 场景");
+    }
+    const references = selection.angles.map(angle => `portrait-set://${selection.characterId}/v${selection.portraitVersion}/${angle}`);
+    const placements = prompts.flatMap((shot, index) => scenes[index]!.actions.some(action => action.actorId === selection.characterId)
+      ? [{ shot, shotId: shotIds[index]!, fields: requirementRecord(shot.fields, "G6 定妆参考镜头字段") }] : []);
+    if (!placements.length) prdFail("PRD_CAST_UNVERIFIED", "已明确选择定妆参考，但本次原生场景没有该人物的实际动作");
+    return placements.map(({ shot, shotId, fields }) => {
+      shot.portraits = [...references];
+      fields.portraits = [...references];
+      return { shotId, references: [...references] };
+    });
+  });
+}
+
 function hasValue(value: unknown): boolean {
   if (value === null || value === undefined) return false;
   if (typeof value === "string") return value.trim().length > 0;
@@ -855,6 +903,30 @@ export function installPrdProductionBridge(deps: ProductionDependencies): () => 
     const base: Method = original?.value ?? function () { return true; };
     changes.push({ owner, key, original, patched: wrap(base) });
   };
+  if (deps.fieldQualityPrototype) add(deps.fieldQualityPrototype, "run", original => async function (shotValue, ...args) {
+    const scope = productionScope(this);
+    if (!scope?.authority.portraitSources?.length) return Reflect.apply(original, this, [shotValue, ...args]);
+    return awaited(scope, async () => {
+      check(scope);
+      const shot = requirementRecord(shotValue, "原始定妆引用镜头");
+      const fields = requirementRecord(shot.fields, "原始定妆引用字段");
+      const portraits = structuredClone(fields.portraits ?? shot.portraits);
+      const result = requirementRecord(await Reflect.apply(original, this, [shotValue, ...args]), "原生字段修复结果");
+      const final = requirementRecord(result.finalShot, "修复后镜头");
+      const finalFields = requirementRecord(final.fields, "修复后镜头字段");
+      // The native field-quality rule overwrites all format errors with a
+      // guessed v1 path. Identity selection remains the earlier shot input.
+      if (portraits === undefined) {
+        delete final.portraits;
+        delete finalFields.portraits;
+      } else {
+        final.portraits = structuredClone(portraits);
+        finalFields.portraits = portraits;
+      }
+      check(scope);
+      return result;
+    });
+  });
   const structuredAgent = deps.structuredAgent;
   if (structuredAgent) add(structuredAgent.prototype, "_callLLM", original => async function (prompt, schema, fallback, optionsValue = {}) {
     const scope = productionScope(this, false);
@@ -1036,18 +1108,55 @@ export function installPrdProductionBridge(deps: ProductionDependencies): () => 
   });
   add(deliveryGuardPrototype, "verify", original => function (prompt, shot = {}, ...args) {
     const scope = productionScope(this);
-    if (!scope || scope.authority.profile.titleCard !== false) return Reflect.apply(original, this, [prompt, shot, ...args]);
+    if (!scope) return Reflect.apply(original, this, [prompt, shot, ...args]);
     return guard(scope, () => {
       check(scope);
       const result = requirementRecord(Reflect.apply(original, this, [prompt, shot, ...args]), "原生提示词交付检查");
       if (!Array.isArray(result.issues) || result.issues.some(issue => typeof issue !== "string")) prdFail("PRD_VENDOR_UNAVAILABLE", "交付检查缺少原始错误明细");
-      const retired = new Set(RETIRED_TITLE_LABELS.map(label => `缺片头专属字段:${label.slice(1, -1)}`));
-      const issues = (result.issues as string[]).filter(issue => !retired.has(issue));
-      if (typeof prompt === "string" && RETIRED_TITLE_LABELS.some(label => prompt.includes(label))) issues.push("生成侧重新出现已退休片头标题字段");
-      return { ...result, pass: issues.length === 0, issues, expectedMin: fields.length,
-        applicability: Object.fromEntries(RETIRED_TITLES.map(key => [key, "not_applicable"])) };
+      const noTitle = scope.authority.profile.titleCard === false;
+      const retired = new Set(noTitle ? RETIRED_TITLE_LABELS.map(label => `缺片头专属字段:${label.slice(1, -1)}`) : []);
+      // Keep the native utterance checks unless this whole field is a negative declaration
+      // and the structured source does not contain any spoken lines.
+      const body = typeof prompt === "string" && typeof this._fieldBody === "function"
+        ? Reflect.apply(method(this, "_fieldBody"), this, [prompt.replace(/^\s*\d{1,2}\.\s*(?=【)/gm, ""), "台词"])
+        : "";
+      const noSpeech = isNoSpeechDeclaration(body) && typeof this._shotExpectsDialogue === "function"
+        && Reflect.apply(method(this, "_shotExpectsDialogue"), this, [shot]) === false;
+      const issues = (result.issues as string[]).filter(issue => !retired.has(issue)
+        && !(noSpeech && (issue === "数据层无台词但出现【台词】字段（疑似虚构）" || issue.startsWith("台词格式不规范:"))));
+      if (noTitle && typeof prompt === "string" && RETIRED_TITLE_LABELS.some(label => prompt.includes(label))) {
+        issues.push("生成侧重新出现已退休片头标题字段");
+      }
+      return { ...result, pass: issues.length === 0, issues, ...(noTitle ? { expectedMin: fields.length,
+        applicability: Object.fromEntries(RETIRED_TITLES.map(key => [key, "not_applicable"])) } : {}) };
     });
   });
+  if (deps.fieldConsistencyPrototype) {
+    add(deps.fieldConsistencyPrototype, "_checkDialogueAudio", original => function (fieldsValue, ...args) {
+      const scope = productionScope(this);
+      if (!scope) return Reflect.apply(original, this, [fieldsValue, ...args]);
+      return guard(scope, () => {
+        check(scope);
+        const shotFields = requirementRecord(fieldsValue, "跨字段台词及音频一致性");
+        return isNoSpeechDeclaration(shotFields.dialogue) ? [] : Reflect.apply(original, this, [fieldsValue, ...args]);
+      });
+    });
+    add(fusionPrototype, "_buildBatchPrompt", original => function (...args) {
+      const scope = productionScope(this);
+      if (!scope) return Reflect.apply(original, this, args);
+      return guard(scope, () => {
+        check(scope);
+        const prompt = Reflect.apply(original, this, args);
+        const { aspectRatio, resolution, frameRate } = scope.authority.profile;
+        if (!aspectRatio || !resolution || !frameRate) return prompt;
+        const native = 'constraint 固定为"16:9画幅，4K分辨率，24fps，MP4格式"(竖屏项目为9:16)';
+        if (typeof prompt !== "string" || prompt.split(native).length !== 2) {
+          prdFail("PRD_VENDOR_UNAVAILABLE", "PromptFusion 技术规格模板边界已经变化");
+        }
+        return prompt.replace(native, `constraint 固定为"${aspectRatio}画幅，${resolution}分辨率，${frameRate}fps，MP4格式"（帧率为最终交付要求）`);
+      });
+    });
+  }
   add(semanticPrototype, "_buildPrompt", original => function (...args) {
     const scope = productionScope(this);
     if (!scope || scope.authority.profile.titleCard !== false) return Reflect.apply(original, this, args);
@@ -1259,6 +1368,8 @@ export function installVendorPrdProductionBridge(constructor: { prototype: objec
       qualityGatePrototype: load("engines/production-engine/utils/quality-gate.js", "QualityGate"),
       deliveryGuardPrototype: load("engines/production-engine/agents/prompt-delivery-guard.js", "PromptDeliveryGuard"),
       semanticPrototype: load("engines/production-engine/agents/semantic-refinement-pass.js", "SemanticRefinementPass"),
+      fieldQualityPrototype: load("engines/field-quality/field-quality-pipeline.js", "FieldQualityPipeline"),
+      fieldConsistencyPrototype: load("engines/field-consistency-checker.js", "FieldConsistencyChecker"),
       structuredAgent: { prototype: load("engines/production-engine/agents/base-agent.js", "BaseAgent"), limiter: globalLLMLimiter },
       standardizeShot: standardizer.standardizeShot, validateShot: standardizer.validateShot, fields: standardizer.CRITICAL_FIELDS });
   } finally { lease.release(); }

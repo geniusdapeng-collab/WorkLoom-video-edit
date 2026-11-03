@@ -17,6 +17,8 @@ import {
   type PromptModelCapabilities,
   type ShotFieldSchemaVersion,
 } from "./prompt-contract.js";
+import { isNoSpeechDeclaration, noSpeechClause } from "./dialogue-contract.js";
+import { AUDIO_DISCIPLINE_CLAUSE } from "./shot-spec.js";
 
 export interface PromptCompileAsset extends PromptAssetBinding {
   field: "portraits";
@@ -44,6 +46,10 @@ export interface PromptCompileDelivery {
 export interface PromptCompileOptions {
   schemaVersion?: ShotFieldSchemaVersion;
   assets?: PromptCompileAsset[];
+  /** Explicit production profile. An opening action does not imply a title card. */
+  titleCard?: boolean;
+  /** G6 only. Replace the pinned vendor's technical template using the frozen delivery. */
+  applyFrozenDelivery?: boolean;
   delivery: PromptCompileDelivery;
   model: PromptModelCapabilities;
   requiredClauses?: string[];
@@ -232,7 +238,7 @@ export function compilePromptShot(
     throw new Error(`PROMPT_FIELD_SCHEMA_INVALID: ${schemaVersion}`);
   }
   const isOpening = shot.sceneType === "opening" || /^S?C?00(?:$|[-_])/i.test(shot.shotId);
-  const policy = promptFieldPolicy(schemaVersion, isOpening);
+  const policy = promptFieldPolicy(schemaVersion, isOpening && options.titleCard !== false);
   const hardErrors: CompiledPromptShot["hardErrors"] = [];
   const add = (code: string, field: string | null, detail: string): void => {
     hardErrors.push({ code, field, detail });
@@ -249,8 +255,25 @@ export function compilePromptShot(
     || /全片无人|无人物|无角色|no\s+(?:people|person|characters?)|product[- ]only/i.test(
       `${readable(shot.character)} ${readable((shot.fields as Record<string, unknown> | undefined)?.character)}`,
     );
+  const noSpeech = isNoSpeechDeclaration(fieldValue(shot, "dialogue"));
   for (const definition of policy.fields) {
-    const value = fieldValue(shot, definition.key);
+    let value = fieldValue(shot, definition.key);
+    if (definition.key === "constraint" && options.applyFrozenDelivery && typeof value === "string"
+      && /^\s*\d+:\d+画幅[，,]\s*(?:4K|8K)分辨率[，,]\s*24fps[，,]\s*MP4格式[。.]?\s*$/iu.test(value)) {
+      const { aspectRatio, resolution, fps } = options.delivery;
+      value = `${aspectRatio}画幅，${resolution}分辨率，${fps}fps，MP4格式`;
+    }
+    if (definition.key === "audio" && noSpeech && typeof value === "string") {
+      // This is a host policy annotation, not authored sound. The pinned parser can copy
+      // the generic annotation into the audio field, including an incomplete final phrase.
+      const annotationAt = value.indexOf("【音频纪律】");
+      if (annotationAt >= 0 && AUDIO_DISCIPLINE_CLAUSE.startsWith(value.slice(annotationAt).trimEnd())) {
+        value = value.slice(0, annotationAt).replace(/[；;|\s]+$/u, "");
+      }
+      if (typeof value === "string" && /^人声对话清晰可辨[，,]/u.test(value)) {
+        add("HARD_DIALOGUE_AUDIO_CONFLICT", "audio", "无台词镜头的音频字段要求清晰人声对话");
+      }
+    }
     if (definition.key === "portraits" && explicitNoPeople
       && (value === undefined || (Array.isArray(value) && value.length === 0) || isNotApplicablePortrait(value))) {
       fieldValues.set("portraits", "NONE");
@@ -310,6 +333,7 @@ export function compilePromptShot(
   }
   const requiredClauses = [
     ...(options.requiredClauses ?? []),
+    ...(noSpeech ? [noSpeechClause()] : []),
     "所有字段来自同一版镜头卡；禁止静默删除、截断或改写字段值。",
   ];
   const { prompt, spans } = buildPromptText(fieldText, policy.fields, requiredClauses);

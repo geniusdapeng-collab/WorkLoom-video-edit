@@ -7,6 +7,7 @@ import {
   parseSemanticQualityReview,
   promptQualityAutoChecks,
   promptContractSummary,
+  resolvePromptAssets,
   verifyCurrentPromptContracts,
   writePromptQualityEvidence,
   type SemanticQualityReview,
@@ -117,6 +118,48 @@ afterEach(() => {
   vi.unstubAllEnvs();
   vi.unstubAllGlobals();
   resetCircuit("preproduction");
+});
+
+it("uses only the ordered explicit selections from a verified native archive binding", () => {
+  const workDir = "/synthetic/workspace", charactersDir = `${workDir}/characters/P1`;
+  const angles = ["front", "threeQuarter", "closeup", "side"] as const;
+  const receipt = (file: string, index: number) => ({
+    path: file, realPath: file, sha256: String(index).repeat(64), bytes: 100 + index,
+  });
+  const sources = angles.map((angle, index) => receipt(`/original/lead-${angle}.png`, index));
+  const outputs = angles.map((angle, index) => receipt(`${charactersDir}/lead-archive-v2-${angle}.png`, index));
+  const archiveCopies = {
+    schemaVersion: "workloom.portrait-reuse-acceptance/v1" as const, projectId: "P1",
+    character: { id: "lead", name: "林夏", angles },
+    selectionReceipt: { schemaVersion: "workloom.portrait-reuse-selection/v1" as const, rawIntent: "原始二版角色",
+      selectedVersion: 2, expectedPortraits: 4 as const, selectedAt: "2026-11-04T00:00:00Z" },
+    manifest: { path: "/original/manifest.json", sha256: "a".repeat(64) },
+    index: receipt(`${charactersDir}/portrait-index.json`, 8),
+    profile: receipt("/original/profile.json", 9),
+    sources, outputs,
+  };
+  const binding = { character: "林夏", mode: "studio", source: "portrait-set://lead",
+    portraits: angles.map((angle, index) => ({ angle, outputFile: outputs[index]!.path })) };
+  const resolve = (portraits: unknown, suppliedBinding: unknown = binding) => resolvePromptAssets({
+    source: { portraits: "/characters/character/portrait_v1.png", fields: { portraits }, portraitBindings: [suppliedBinding] },
+    workDir, charactersDir, archiveCopies,
+  });
+  const closeup = "image://characters/lead/portraits/v2/closeup.png";
+  const front = "image://characters/lead-archive-v2-front.png";
+  const expected = [2, 0].map(index => ({
+    field: "portraits", role: "reference_image", sha256: outputs[index]!.sha256, bytes: outputs[index]!.bytes,
+    mediaType: "image/png", sourceRef: `characters/P1/lead-archive-v2-${angles[index]}.png`,
+  }));
+  expect(resolve(`林夏: ${closeup}, ${front}`)).toEqual(expected);
+  expect(resolve([closeup, front])).toEqual(expected);
+  expect(resolve([sources[2]!.path, outputs[0]!.path])).toEqual(expected);
+  for (const invalid of [
+    "portrait-set://lead", "/characters/character/portrait_v1.png", [closeup, closeup],
+    [closeup, front + ".evil"], [closeup, "image://characters/lead/v1/front.png"],
+    [closeup, "image://characters/other/v2/front.png"], [closeup, "image://characters/../../original/lead-front.png"],
+  ]) expect(resolve(invalid)).toEqual([]);
+  expect(resolve([closeup, front], { ...binding, character: "其他角色" })).toEqual([]);
+  expect(resolve([closeup, front], { ...binding, portraits: binding.portraits.slice(0, 3) })).toEqual([]);
 });
 
 const repairedCamera = "固定机位，缓慢推近一个动作";
