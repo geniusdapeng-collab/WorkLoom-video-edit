@@ -4,7 +4,7 @@ import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { ChatMessage, ChatOptions, ModelProvider } from "@workloom/base/model-router";
+import { OpenAiCompatibleProvider, type ChatMessage, type ChatOptions, type ModelProvider } from "@workloom/base/model-router";
 import { bindRequirementContract, requirementCast, requirementHash, requirementRecord, type RequirementContract, type RequirementRecord } from "./requirement-contract.js";
 import { effectivePrdModelSchema, prdAuthorityPrompt, preparePrdAuthority } from "./prd-authority.js";
 import { assertPrdAuthorityBridge, bindApprovedPrdPortraitSelection, installPrdAuthorityBridge, installPrdProductionBridge, productionModelInput, withPrdAuthorityScope } from "./prd-authority-bridge.js";
@@ -705,7 +705,11 @@ describe("PRD native generator, two native agent processes and real schema", () 
     value.authority = preparePrdAuthority({ metadata: value.metadata, marketing: value.marketing, workDir: value.workDir, projectId: value.scope.projectId });
     const h = harness(), run = h.make(value), agent = requirementRecord(run.generator[key], key);
     const originalPrompt = invoke(agent, "_buildPrompt", value.discovery, { creativeCore: value.creative }) as string;
-    const nativePrefix = `${String(invoke(agent, "_getSystemPrompt"))}\n\n${originalPrompt}`;
+    const expectedPrompt = kind === "creative" ? originalPrompt : originalPrompt.replace(
+      "9. 角色 portraitPath 留空字符串（系统后续填充），但需标注是否需要生成定妆照",
+      "9. 角色 portraitPath 保持空字符串。按本次封闭角色 schema 输出，定妆照由后续正式阶段核验。",
+    );
+    const nativePrefix = `${String(invoke(agent, "_getSystemPrompt"))}\n\n${expectedPrompt}`;
     const engine = run.engines[key === "agent2" ? 0 : 1]!, reason = engine.reasonStructured as (...args: unknown[]) => unknown;
     let attempts = 0;
     engine.reasonStructured = vi.fn(async function (this: RequirementRecord, ...args: unknown[]) {
@@ -1228,6 +1232,88 @@ describe("native truth-check preserves verdicts and scopes internal fact use to 
 });
 
 describe("PRD failures remain fatal through native catches", () => {
+  it.each(["corrected", "still-invalid", "unmeasured-retry"])("uses one native complete Agent3 retry for a closed character shape, %s", async mode => {
+    vi.useRealTimers();
+    const value = fixture(`PRD-CHAR-RETRY-${mode}`), h = harness(), run = h.make(value);
+    lengthenAuthority(value);
+    value.discovery._originalStoryText = "冻结故事原文【目标JSON结构示例】后续内容不可截断";
+    const first = structuredClone(value.production);
+    Object.assign(first.characterSystem.characters[0]!, { privateUnexpectedKey: "PRIVATE_PREVIOUS_MODEL_OUTPUT" });
+    const corrected = structuredClone(value.production);
+    corrected.visualSpecification.lightingDirection = "同一原始拍摄要求下以硬侧光照亮赛道外侧与人物动作";
+    const baseUrl = "https://prd-shape.invalid/v1";
+    const requests: Array<{ url: string; messages: ChatMessage[]; options: RequirementRecord }> = [];
+    const fetchImpl: typeof fetch = async (url, init) => {
+      const { messages, ...options } = JSON.parse(String(init?.body));
+      requests.push({ url: String(url), messages, options });
+      return Response.json({
+        ...(mode === "unmeasured-retry" && requests.length > 1 ? {} : { id: `native-prd-${requests.length}` }),
+        model: "deepseek-flash",
+        choices: [{ finish_reason: "stop", message: {
+          content: JSON.stringify(requests.length === 1 || mode === "still-invalid" ? first : corrected),
+        } }],
+        usage: { prompt_tokens: 300, completion_tokens: 100, total_tokens: 400, completion_tokens_details: { reasoning_tokens: 1 } },
+      });
+    };
+    const provider = new OpenAiCompatibleProvider("deepseek-flash", { baseUrl, apiKey: "test-only", fetchImpl });
+    const adapter = new WorkloomLLMEngine({ baseUrl, apiKey: "test-only", model: "deepseek-flash",
+      router: { providers: new Map([[provider.modelId, provider]]), sink: {
+        recordModelTrace: async () => undefined, recordDegradation: async () => undefined, recordCircuitBreak: async () => undefined,
+      } } });
+    const agent = requirementRecord(run.generator.agent3, "agent3");
+    agent._llmEngine = adapter;
+    const attempt = withPrdAuthorityScope(value.authority, async () => {
+      const prd = await h.generate(run);
+      await h.review(run, prd);
+      return h.success(prd);
+    }).then(result => ({ result, error: "" }), (error: Error) => ({ result: null, error: error.message }));
+    const { result, error } = await attempt;
+    expect(requests).toHaveLength(2);
+    const original = requests[0]!, retry = requests[1]!;
+    expect(retry.url).toBe(original.url);
+    expect(retry.url).toBe(`${baseUrl}/chat/completions`);
+    const firstPrompt = original.messages.find(message => message.role === "user")!.content as string;
+    const secondPrompt = retry.messages.find(message => message.role === "user")!.content as string;
+    const heading = "\n\n## 上一次原生制作规格结构校验反馈\n";
+    expect(firstPrompt).not.toContain("但需标注是否需要生成定妆照");
+    expect(firstPrompt).toContain("冻结故事原文【目标JSON结构示例】后续内容不可截断");
+    expectCompletePrompt(firstPrompt, "production", value);
+    expectCompletePrompt(secondPrompt, "production", value);
+    const [unchanged, feedback] = secondPrompt.split(heading);
+    const adapterSuffix = firstPrompt.slice(firstPrompt.lastIndexOf("\n\n【硬性输出要求】"));
+    expect(unchanged + adapterSuffix).toBe(firstPrompt);
+    expect(secondPrompt.endsWith(adapterSuffix)).toBe(true);
+    expect(feedback).toContain('"/characterSystem/characters/0"');
+    expect(feedback).toContain('"additionalProperties"');
+    const itemSchema = effectivePrdModelSchema("production", PRDSchema, value.contract) as {
+      properties: { characterSystem: { properties: { characters: { items: { properties: RequirementRecord } } } } };
+    };
+    expect(feedback).toContain(JSON.stringify(Object.keys(itemSchema.properties.characterSystem.properties.characters.items.properties)));
+    expect(secondPrompt).not.toMatch(/privateUnexpectedKey|PRIVATE_PREVIOUS_MODEL_OUTPUT/);
+    expect(retry.options).toEqual(original.options);
+    if (mode === "still-invalid") {
+      expect(error).toContain("/characterSystem/characters/0 包含未声明字段");
+      expect(result).toBeNull();
+    } else if (mode === "unmeasured-retry") {
+      expect(error).toContain("Agent3 结构修正缺少已完成的原生模型响应");
+      expect(result).toBeNull();
+    } else {
+      expect(error).toBe("");
+      expect(result?.stages.prdGeneration.data).toMatchObject({ visualSpecification: corrected.visualSpecification });
+    }
+    expect(run.system.minimalCalls).toBe(0);
+    expect(first.characterSystem.characters[0]).toHaveProperty("privateUnexpectedKey");
+  });
+
+  it("refuses an unmeasured character shape failure without spending a structural retry", async () => {
+    const value = fixture("PRD-CHAR-UNATTESTED"), h = harness();
+    Object.assign(value.production.characterSystem.characters[0]!, { needsPortrait: true });
+    const run = h.make(value);
+    await expect(withPrdAuthorityScope(value.authority, () => h.generate(run))).rejects.toThrow("/characterSystem/characters/0 包含未声明字段");
+    expect(run.calls.map(call => call.agent)).toEqual(["agent2", "agent3"]);
+    expect(run.system.minimalCalls).toBe(0);
+  });
+
   it.each([
     { label: "empty", references: [] }, { label: "six", references: Array(6).fill("合成构图参考") },
     { label: "missing", references: undefined }, { label: "not-array", references: "合成构图参考" }, { label: "wrong-item-type", references: [42] }

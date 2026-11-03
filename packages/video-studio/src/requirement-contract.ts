@@ -19,6 +19,8 @@ export class RequirementContractError extends Error {
 const validationFacts = new WeakMap<RequirementContractError, Readonly<RequirementRecord>>();
 const riskValidationFacts = new WeakMap<RequirementContractError, Readonly<RequirementRecord>>();
 const discoveryValidationFacts = new WeakMap<RequirementContractError, Readonly<RequirementRecord>>();
+const prdCharacterShapePaths = new WeakMap<RequirementContractError, string>();
+const prdCharacterPath = /^PRD production response(\/characterSystem\/characters\/(?:0|[1-9]\d{0,5}))$/;
 const finiteNumber = (value: unknown): number | null => typeof value === "number" && Number.isFinite(value) ? value : null;
 const schemaPath = /^SceneArchitect response(?:\/(?:opening|scenes|ending|duration|purpose|keyElements|index|emotionalBeat|productionContract|props|actions|name|description|actorId|noPropsReason|totalDuration|sceneCount|narrativeArc|\d{1,6}))*$/;
 const riskArrayPath = /^RiskAssessor response\/(?:technicalRisks|businessConstraints|mitigationSuggestions)$/;
@@ -54,6 +56,11 @@ export function structuredRiskFeedback(error: unknown): string {
 export function structuredDiscoveryFeedback(error: unknown): string {
   const facts = error instanceof RequirementContractError ? discoveryValidationFacts.get(error) : undefined;
   return facts ? `\n\n## 上一次原生需求结构校验反馈\n${JSON.stringify(facts)}\n根据完整原始输入与本次实际 schema 重新生成完整 JSON 对象。保留原有字段、数组范围和枚举约束，不复用或补填上次响应。` : "";
+}
+
+/** Only the validator can attest this exact closed character-object violation. */
+export function prdCharacterShapePath(error: unknown): string | undefined {
+  return error instanceof RequirementContractError ? prdCharacterShapePaths.get(error) : undefined;
 }
 
 export function techniqueReferenceSchema(value: unknown): RequirementRecord {
@@ -166,6 +173,10 @@ export function validateRequirementSchema(value: unknown, schemaValue: unknown, 
         `${discovery ? label : location} ${reason}`);
       // Fixed schema keys and bounded indices only; never echo a response key,
       // string value, arbitrary label, enum prose or the raw response.
+      if (keyword === "additionalProperties") {
+        const prdPath = prdCharacterPath.exec(location)?.[1];
+        if (prdPath) prdCharacterShapePaths.set(error, prdPath);
+      }
       if (risk && riskArrayPath.test(location) && ["minItems", "maxItems"].includes(keyword)
         && typeof observed === "number" && Number.isSafeInteger(observed) && observed >= 0
         && typeof limit === "number" && Number.isSafeInteger(limit) && limit >= 0) {
