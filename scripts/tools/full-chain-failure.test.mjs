@@ -5,7 +5,7 @@ import { createHash } from 'node:crypto';
 import { chmodSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { createRequire } from 'node:module';
-import { dirname, join, resolve } from 'node:path';
+import { dirname, join, relative, resolve, sep } from 'node:path';
 import test from 'node:test';
 
 const ROOT = resolve(import.meta.dirname, '../..');
@@ -99,12 +99,33 @@ function run(f, args = [], stages = 'compose,master') {
   return result;
 }
 function rows(f) { return readFileSync(f.history, 'utf8').trim().split('\n').map((line) => JSON.parse(line)); }
+function speechArtifacts(work) {
+  return walk(work).map((file) => relative(work, file).split(sep).join('/'))
+    .filter((file) => /(?:voiced|asr|tts)(?:[.-]|\/)/i.test(file));
+}
 function assertOriginal(f) {
   assert.equal(fileHash(f.clip), f.oldClip); assert.equal(fileHash(f.prompt), f.oldPrompt);
   assert.ok(readFileSync(f.history).subarray(0, f.oldHistory.length).equals(f.oldHistory), 'prior quality failure must remain byte exact');
   assert.equal(readFileSync(f.network, 'utf8'), '', 'production CLI/post tools must not attempt external requests');
-  assert.equal(walk(f.work).filter((path) => /(?:voiced|asr|tts)(?:[.-]|\/)/i.test(path)).length, 0);
+  assert.deepEqual(speechArtifacts(f.work), [], 'post work must contain no generated speech or transcription artifacts');
 }
+
+test('语音产物检查只匹配作业内的实际文件，忽略临时父目录名称', (t) => {
+  const root = mkdtempSync(join(tmpdir(), 'post-work-path-'));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const work = join(root, 'tts', 'work');
+  mkdirSync(work, { recursive: true });
+  writeFileSync(join(work, 'original.mp4'), 'fixture');
+  assert.deepEqual(speechArtifacts(work), []);
+
+  const expected = ['post/S1.voiced.mp4', 'post/asr/S1.json', 'post/tts-S1.wav'];
+  for (const name of expected) {
+    const file = join(work, name);
+    mkdirSync(dirname(file), { recursive: true });
+    writeFileSync(file, 'fixture');
+  }
+  assert.deepEqual(speechArtifacts(work).sort(), expected);
+});
 
 test('真实全链CLI接收黑屏、无音轨、17FPS、旧品质失败与30秒名义稿：正式后期和3变体完成，旧字节/原记录不改，外呼0', { timeout: 150000 }, (t) => {
   const f = fixture(t); const result = run(f, ['--subtitle-mode', 'both'], 'videos,voice,compose,color,subtitle,danmaku,bgm,sfx,cover,mux,master,deliver');
