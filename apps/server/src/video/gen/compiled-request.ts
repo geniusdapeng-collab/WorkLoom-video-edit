@@ -19,6 +19,8 @@ export interface CompiledProviderRequest {
 }
 export interface ProviderEndpointOptions { baseUrl?: string; webhookUrl?: string }
 
+const SEEDANCE_25 = "doubao-seedance-2-5-260628";
+
 /** 数组保序、对象键排序；拒绝 JSON 不能忠实表达的输入。 */
 export function canonicalRenderJson(value: unknown): string {
   submissionRequestHash(value); // 与幂等账本共享输入有效性规则。
@@ -39,6 +41,20 @@ export function canonicalRenderJson(value: unknown): string {
 export function renderSha256(value: string | Buffer): string { return createHash("sha256").update(value).digest("hex"); }
 export function supportsCompiledRequest(provider: string): boolean { return ["seedance", "seedream", "higgsfield", "muapi"].includes(provider); }
 
+function providerPayloadHash(
+  { provider, providerModel, endpoint, method }: Pick<CompiledProviderRequest, "provider" | "providerModel" | "endpoint" | "method">,
+  body: Record<string, unknown>,
+): string {
+  return renderSha256(canonicalRenderJson({ provider, providerModel, endpoint, method, body }));
+}
+
+/** Used only to find a previously dispatched job for reconciliation. */
+export function previousSeedanceCameraFixedPayloadHash(compiled: CompiledProviderRequest, params: VideoGenParams): string | null {
+  if (compiled.provider !== "seedance" || compiled.providerModel !== SEEDANCE_25) return null;
+  const original = Object.hasOwn(params.extra ?? {}, "camera_fixed") ? params.extra?.camera_fixed : params.cameraFixed;
+  return original === false ? providerPayloadHash(compiled, { ...compiled.body, camera_fixed: false }) : null;
+}
+
 export function providerEndpointOptions(provider: string, env: NodeJS.ProcessEnv): ProviderEndpointOptions {
   if (provider === "seedance") return { baseUrl: env.SEEDANCE_ENDPOINT?.trim() || undefined };
   if (provider === "seedream") return { baseUrl: env.SEEDREAM_ENDPOINT?.trim() || env.SEEDANCE_ENDPOINT?.trim() || undefined };
@@ -55,6 +71,10 @@ export function compileProviderRequest(provider: string, req: GenRequest, option
   let endpoint: string;
   let body: Record<string, unknown>;
   if (provider === "seedance") {
+    const omitCameraFixed = model === SEEDANCE_25;
+    if (omitCameraFixed && [p.cameraFixed, p.extra?.camera_fixed].some((value) => value !== undefined && value !== false)) {
+      throw new SubmissionError("SEEDANCE_CAMERA_FIXED_UNSUPPORTED", "Seedance 2.5 不支持 camera_fixed，当前请求不能保持固定机位意图");
+    }
     const content: Array<Record<string, unknown>> = [{ type: "text", text: req.prompt }];
     if (p.firstFrameUrl?.trim()) content.push({ type: "image_url", image_url: { url: p.firstFrameUrl.trim() }, role: "first_frame" });
     for (const [urls, type, role] of [
@@ -83,6 +103,8 @@ export function compileProviderRequest(provider: string, req: GenRequest, option
       ...(p.callbackUrl ? { callback_url: p.callbackUrl } : {}),
       ...(p.extra ?? {}),
     };
+    // Remove the inactive default from both parameter paths before hashing the provider body.
+    if (omitCameraFixed) delete body.camera_fixed;
   } else if (provider === "seedream") {
     endpoint = `${(options.baseUrl ?? "https://ark.cn-beijing.volces.com/api/v3").replace(/\/$/, "")}/images/generations`;
     body = { model, prompt: req.prompt, response_format: "url", ...(p.resolution ? { size: p.resolution } : {}),
@@ -108,9 +130,10 @@ export function compileProviderRequest(provider: string, req: GenRequest, option
   const target = new URL(endpoint);
   if (!["https:", "http:"].includes(target.protocol) || target.username || target.password || target.hash) throw new SubmissionError("REQUEST_INVALID", "供应商地址非法或含秘密");
   const bodyJson = canonicalRenderJson(body);
-  return { schemaVersion: "workloom.provider-request/v1", provider, providerModel: model, endpoint, method: "POST",
-    body: JSON.parse(bodyJson) as Record<string, unknown>, bodyJson,
-    payloadHash: renderSha256(canonicalRenderJson({ provider, providerModel: model, endpoint, method: "POST", body: JSON.parse(bodyJson) })) };
+  const targetRequest = { provider, providerModel: model, endpoint, method: "POST" as const };
+  const canonicalBody = JSON.parse(bodyJson) as Record<string, unknown>;
+  return { schemaVersion: "workloom.provider-request/v1", ...targetRequest, body: canonicalBody, bodyJson,
+    payloadHash: providerPayloadHash(targetRequest, canonicalBody) };
 }
 
 export function buildRenderPrompt(script: Pick<RenderScriptLike, "md">, model: MediaModel): string {

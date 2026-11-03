@@ -3,9 +3,10 @@ import { createRequire } from "node:module";
 import path from "node:path";
 import {
   RequirementContractError, bindRequirementContract, renderRequirementContract, requirementCast,
-  projectDeclaredFields, requirementHash, requirementRecord, requirementScenes, structuredRiskFeedback, structuredSceneFeedback, structuredSceneInstructions, structuredScenePrompt, structuredSceneSchema,
+  projectDeclaredFields, requirementHash, requirementRecord, requirementScenes, structuredDiscoveryFeedback, structuredRiskFeedback, structuredSceneFeedback, structuredSceneInstructions, structuredScenePrompt, structuredSceneSchema,
   validateRequirementSchema, verifiedRequirementContract, type RequirementCast, type RequirementRecord
 } from "./requirement-contract.js";
+import { nativeReasonFailure } from "./llm-adapter.js";
 import { acquireVendorRequirementEntry } from "./vendor-requirement-entry.js";
 import {
   qualifyRequirementThemeInput, requirementAuthorityFailure, requirementAuthorityPrompt, scopedRequirementEngine,
@@ -310,63 +311,79 @@ export function installRequirementContractBridge(
         return [name, view];
       }));
       if (scope.authority) {
-        const risk = requirementRecord(guardedAgents.risk, "RiskAssessor");
-        const runRisk = method(risk, "run"), callRisk = method(risk, "_callLLM"), buildRisk = method(risk, "_buildPrompt");
-        const riskView = Object.create(risk) as RequirementRecord;
-        let finalRiskFailure: { error: unknown } | undefined;
-        const unverifiedRisk = () => new RequirementContractError("REQUIREMENT_DISCOVERY_UNVERIFIED", "RiskAssessor 未提供完整真实响应，拒绝规则洞察回填");
-        riskView.run = async function (this: RequirementRecord, value: unknown, schema: unknown) {
-          requireActiveScope();
-          finalRiskFailure = undefined;
-          const runView = Object.create(this) as RequirementRecord;
-          let pendingFeedback = "", attemptFeedback = "";
-          let currentFailure: { error: unknown } | undefined;
-          runView._callLLM = async function (this: RequirementRecord, ...args: unknown[]) {
+        for (const [name, label] of [
+          ["audience", "AudienceProfiler"], ["risk", "RiskAssessor"], ["reference", "ReferenceCurator"],
+        ] as const) {
+          const agent = requirementRecord(guardedAgents[name], label);
+          const run = method(agent, "run"), call = method(agent, "_callLLM"), build = method(agent, "_buildPrompt");
+          const agentView = Object.create(agent) as RequirementRecord;
+          const unverified = (reason: string) => new RequirementContractError("REQUIREMENT_DISCOVERY_UNVERIFIED", `${label} ${reason}`);
+          let finalFailure: { error: unknown } | undefined;
+          agentView.run = async function (this: RequirementRecord, value: unknown, schema: unknown) {
             requireActiveScope();
-            attemptFeedback = pendingFeedback;
-            pendingFeedback = "";
-            // The second transport/parser failure must replace the first schema
-            // failure. Authority/engine failures remain sticky in requireActiveScope.
-            currentFailure = undefined;
-            try { return await Reflect.apply(callRisk, this, args); }
-            catch (error) { currentFailure = { error }; throw error; }
-            finally { attemptFeedback = ""; }
+            finalFailure = undefined;
+            const runView = Object.create(this) as RequirementRecord;
+            let pendingFeedback = "", attemptFeedback = "";
+            let started = false, correctionUsed = false;
+            let currentFailure: { error: unknown } | undefined;
+            runView._callLLM = async function (this: RequirementRecord, ...args: unknown[]) {
+              requireActiveScope();
+              // Native retries may continue looping. Only a completed invalid
+              // response can admit one distinct, fully validated correction.
+              if (started && (!pendingFeedback || correctionUsed)) {
+                throw currentFailure?.error ?? unverified("未收到可验证的模型响应");
+              }
+              correctionUsed = started;
+              started = true;
+              attemptFeedback = pendingFeedback;
+              pendingFeedback = "";
+              currentFailure = undefined;
+              try {
+                const response = await Reflect.apply(call, this, args);
+                requireActiveScope();
+                const failure = nativeReasonFailure(response);
+                if (failure === "json-syntax") {
+                  pendingFeedback = `\n\n## 上一次原生需求 JSON 语法纠正\n`
+                    + "上一次已返回正文，但正文无法解析为 JSON。根据完整原始输入和本次实际 schema 重新生成完整 JSON 对象。"
+                    + "检查逗号、对象与数组闭合、引号和转义。只输出对象，禁止代码围栏或解释。";
+                  throw unverified("模型正文不是有效 JSON");
+                }
+                if (failure === "unavailable") throw unverified("未收到可验证的模型响应");
+                return response;
+              } catch (error) { currentFailure = { error }; throw error; }
+              finally { attemptFeedback = ""; }
+            };
+            runView._buildPrompt = function (this: RequirementRecord, input: unknown) {
+              requireActiveScope();
+              const original = Reflect.apply(build, this, [input]);
+              if (typeof original !== "string") requirementAuthorityFailure("REQUIREMENT_VENDOR_UNAVAILABLE", `${label} 原始 prompt 不是文本`);
+              return original + attemptFeedback;
+            };
+            runView._validateAndFill = function (this: RequirementRecord, response: unknown, responseSchema: unknown) {
+              requireActiveScope();
+              const candidate = name === "risk" ? projectDeclaredFields(response, responseSchema) : response;
+              try { validateRequirementSchema(candidate, responseSchema, `${label} response`); }
+              catch (error) {
+                currentFailure = { error };
+                pendingFeedback = structuredRiskFeedback(error) || structuredDiscoveryFeedback(error);
+                throw error;
+              }
+              return structuredClone(candidate);
+            };
+            runView._fallback = function () {
+              requireActiveScope();
+              finalFailure = currentFailure ?? { error: unverified("未提供完整真实响应，拒绝规则洞察回填") };
+              throw finalFailure.error;
+            };
+            return Reflect.apply(run, runView, [value, schema]);
           };
-          runView._buildPrompt = function (this: RequirementRecord, input: unknown) {
+          agentView._fallback = function () {
             requireActiveScope();
-            const original = Reflect.apply(buildRisk, this, [input]);
-            if (typeof original !== "string") requirementAuthorityFailure("REQUIREMENT_VENDOR_UNAVAILABLE", "RiskAssessor 原始 prompt 不是文本");
-            return original + attemptFeedback;
+            // Native discover invokes fallback again after the runView failure.
+            throw (finalFailure ?? { error: unverified("未提供完整真实响应，拒绝规则洞察回填") }).error;
           };
-          runView._validateAndFill = function (this: RequirementRecord, response: unknown, responseSchema: unknown) {
-            requireActiveScope();
-            // Semantic response rejection is retryable inside the native loop;
-            // throwing it inside guard/protect would make attempt one fatal.
-            const projected = projectDeclaredFields(response, responseSchema);
-            try { validateRequirementSchema(projected, responseSchema, "RiskAssessor response"); }
-            catch (error) {
-              currentFailure = { error };
-              pendingFeedback = structuredRiskFeedback(error);
-              throw error;
-            }
-            pendingFeedback = "";
-            currentFailure = undefined;
-            return structuredClone(projected);
-          };
-          runView._fallback = function () {
-            requireActiveScope();
-            finalRiskFailure = currentFailure ?? { error: unverifiedRisk() };
-            throw finalRiskFailure.error;
-          };
-          try { return await Reflect.apply(runRisk, runView, [value, schema]); }
-          finally { pendingFeedback = ""; attemptFeedback = ""; currentFailure = undefined; }
-        };
-        riskView._fallback = function () {
-          requireActiveScope();
-          // The native discover catch invokes the agent fallback a second time.
-          throw (finalRiskFailure ?? { error: unverifiedRisk() }).error;
-        };
-        guardedAgents.risk = riskView;
+          guardedAgents[name] = agentView;
+        }
       }
       const scene = requirementRecord(guardedAgents.scene, "SceneArchitect");
       const build = method(scene, "_buildPrompt"), run = method(scene, "run");

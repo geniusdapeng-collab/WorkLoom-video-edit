@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { resetCircuit } from "@workloom/base/model-router";
 import { WorkloomLLMEngine } from "./llm-adapter.js";
 import {
   assertRequirementContractBridge, installRequirementContractBridge, installVendorRequirementContractBridge,
@@ -775,14 +776,15 @@ describe("actual native private RiskAssessor bounded retry feedback", () => {
     for (const call of calls) { expectCompleteSources(call.prompt, run); expect(call.options).toEqual({ maxTokens: 4000, temperature: 1 }); }
   });
 
-  it.each(["transport", "forged-details"])("does not turn a first %s failure into Risk feedback or sticky schema failure", async kind => {
+  it.each(["transport", "forged-details"])("does not retry a first %s failure or treat it as verified Risk feedback", async kind => {
     installNativeDiscovery();
     const run = privateRun(`risk-first-${kind}`, 30, physicalScene([10, 10, 10]));
     const failure = kind === "transport" ? new Error("synthetic first transport")
       : Object.assign(new RequirementContractError("REQUIREMENT_DISCOVERY_UNVERIFIED", "PRIVATE-UNTRUSTED-MESSAGE"),
         { details: riskFacts("mitigationSuggestions", "maxItems", 99, 4) });
-    const model = modelFor(run, [run.modules.scene], [failure, run.modules.risk]), result = await runDiscovery(run, model.engine);
-    expect(requirementHash(result.riskAssessment)).toBe(requirementHash(run.modules.risk)); expect(riskCalls(model.calls)).toHaveLength(2);
+    const model = modelFor(run, [run.modules.scene], [failure, run.modules.risk]);
+    await expect(runDiscovery(run, model.engine)).rejects.toBe(failure);
+    expect(riskCalls(model.calls)).toHaveLength(1);
     for (const call of model.calls) { expect(call.prompt).not.toContain(riskFeedbackHeading); expect(call.prompt).not.toContain("PRIVATE-UNTRUSTED"); }
   });
 
@@ -889,5 +891,78 @@ describe("actual native private RiskAssessor bounded retry feedback", () => {
     const result = await (mode === "legacy-scope" ? withRequirementContractScope(run.metadata, operation) : operation());
     expect(requirementHash(result.riskAssessment)).toBe(requirementHash(value)); expect(riskCalls(model.calls)).toHaveLength(1);
     for (const call of model.calls) { expect(call.prompt).not.toContain(riskFeedbackHeading); expect(call.prompt).not.toContain("本次宿主需求权威输入"); }
+  });
+});
+
+describe("actual native non-scene discovery wire recovery", () => {
+  beforeEach(() => resetCircuit("video.preproduction.plan"));
+  afterEach(() => resetCircuit("video.preproduction.plan"));
+
+  it.each([
+    { module: "audience", first: "syntax", second: "valid", feedback: " JSON 语法纠正" },
+    { module: "audience", first: "schema", second: "valid", feedback: "结构校验反馈" },
+    { module: "reference", first: "schema", second: "valid", feedback: "结构校验反馈" },
+    { module: "risk", first: "syntax", second: "valid", feedback: " JSON 语法纠正" },
+    { module: "audience", first: "transport", second: "valid", feedback: undefined },
+    { module: "risk", first: "transport", second: "valid", feedback: undefined },
+    { module: "audience", first: "schema", second: "transport", feedback: "结构校验反馈" },
+    { module: "audience", first: "syntax", second: "schema", feedback: " JSON 语法纠正" },
+  ] as const)("handles $module $first / $second through the real vendor and host adapter", async ({ module, first, second, feedback }) => {
+    installNativeDiscovery();
+    const run = privateRun(`discovery-wire-${module}-${first}-${second}`, 30, physicalScene([10, 10, 10]));
+    const scopeCalls: Array<{ raw: string; body: RequirementRecord; prompt: string }> = [];
+    const admitted = new Set<string>();
+    const malformed = '{"SYNTHETIC_REJECTED_BODY": [1 2]}';
+    const engine = new WorkloomLLMEngine({
+      baseUrl: "http://127.0.0.1:1", apiKey: "synthetic-local-bearer", model: "deepseek-flash",
+      fetchImpl: async (_url, init) => {
+        const raw = String(init?.body), body = JSON.parse(raw), prompt: string = body.messages[1].content;
+        const intro = prompt.slice(0, 180);
+        const selected = intro.includes("受众分析") ? "audience" : intro.includes("技术制片人") ? "risk"
+          : intro.includes("电影导演") ? "scene" : "reference";
+        let content = JSON.stringify(run.modules[selected]);
+        if (selected === module) {
+          scopeCalls.push({ raw, body, prompt });
+          if (admitted.has(raw)) return Response.json({ error: { code: "BUDGET_DUPLICATE_REQUEST" } }, { status: 409 });
+          admitted.add(raw);
+          const outcome = admitted.size === 1 ? first : second;
+          if (outcome === "transport") return Response.json({ error: { code: "BUDGET_OUTCOME_UNKNOWN" } }, { status: 502 });
+          if (outcome === "syntax") content = malformed;
+          if (outcome === "schema") content = JSON.stringify({ SYNTHETIC_REJECTED_BODY: "PRIVATE-UNDECLARED-RESPONSE-VALUE" });
+        }
+        return Response.json({ model: "deepseek-flash", choices: [{ finish_reason: "stop", message: { content } }],
+          usage: { prompt_tokens: 100, completion_tokens: 40, total_tokens: 140 } });
+      },
+    });
+    const engineObject = engine as unknown as RequirementRecord;
+    const discovery = new RequirementDiscoveryEngine({ llmEngine: engineObject, timeoutMs: 15_000, agentTimeoutMs: 2_000 });
+    requirementRecord(requirementRecord(discovery.agents, "agents")[module], module).maxRetries = 3;
+    const result = runDiscovery(run, engineObject, discovery);
+    if (first !== "transport" && second === "valid") {
+      const resultKey = { audience: "audienceProfile", risk: "riskAssessment", reference: "referenceCases" }[module];
+      await expect(result).resolves.toMatchObject({ [resultKey]: run.modules[module] });
+    } else {
+      const failure = await result.catch(error => error);
+      expect(failure).toMatchObject({ code: "REQUIREMENT_DISCOVERY_UNVERIFIED" });
+      expect(failureText(failure)).not.toContain("SYNTHETIC_REJECTED_BODY");
+      if (first === "transport" || second === "transport") expect(failureText(failure)).toContain("未收到可验证");
+      if (second === "schema") expect(failureText(failure)).toContain("缺少必需字段");
+    }
+    expect(scopeCalls).toHaveLength(feedback ? 2 : 1);
+    expect(admitted.size).toBe(scopeCalls.length);
+    const heading = "\n【硬性输出要求】";
+    for (const { body, prompt } of scopeCalls) {
+      expect(body).toMatchObject({ model: "deepseek-flash", max_tokens: 393_216, response_format: { type: "json_object" } });
+      expect({ ...body, messages: undefined }).toEqual({ ...scopeCalls[0]!.body, messages: undefined });
+      expect(prompt.split(heading)[1]).toEqual(scopeCalls[0]!.prompt.split(heading)[1]);
+      expectCompleteSources(prompt.split(heading)[0]!.slice(0, -1), run);
+      expect(prompt).not.toContain("SYNTHETIC_REJECTED_BODY");
+      expect(prompt).not.toContain("PRIVATE-UNDECLARED-RESPONSE-VALUE");
+    }
+    expect(scopeCalls[0]!.prompt).not.toContain("上一次原生需求");
+    if (feedback) {
+      expect(scopeCalls[1]!.prompt).toContain(`上一次原生需求${feedback}`);
+      if (first === "schema") expect(scopeCalls[1]!.prompt).toContain(module === "audience" ? "/primaryAudience" : "/filmReferences");
+    }
   });
 });
