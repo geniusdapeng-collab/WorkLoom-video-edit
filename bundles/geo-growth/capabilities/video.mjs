@@ -397,25 +397,25 @@ export function productionPlan(input) {
     { id: "shotlist", ok: shotlistIssue === null, detail: shotlistIssue ?? "本地片单具备来源字段，仍须用服务端回执核验本轮资格和字节" },
     { id: "ark-key", ok: arkKey.present, detail: arkKey.present ? `火山方舟密钥已配置（${arkKey.source}）` : "缺 VOLCENGINE_ARK_API_KEY（渲染会 403）" },
   ];
-  const argv = ["exec", "tsx", "scripts/tools/full-chain-film.mts", "--shots", shotlistPath, "--project", projectId,
+  const ready = checklist.every((entry) => entry.ok);
+  const argv = ready ? ["exec", "tsx", "scripts/tools/full-chain-film.mts", "--shots", shotlistPath, "--project", projectId,
     "--work-dir", `work/vm-${projectId}`, "--out", outDir, "--route", routePath,
     "--keys-file", process.env.WORKLOOM_KEYS_FILE || join(process.env.HOME ?? "", ".workloom/live.env"),
-    "--platform", platform];
+    "--platform", platform] : [];
   const posixQuote = (text) => `'${text.replace(/'/gu, `'"'"'`)}'`;
   const powershellQuote = (text) => `'${text.replace(/'/gu, "''")}'`;
-  const command = ["pnpm", ...argv].map(posixQuote).join(" ");
   return {
     previewOnly: true,
     title: title || null,
     projectId,
     platform,
     checklist,
-    ready: checklist.every((entry) => entry.ok),
+    ready,
     productionAuthorized: false,
     workbenchGuide: { capabilityId: GUIDE_CAPABILITY_ID, path: GUIDE_PATH, mustReadBeforeProduction: true },
-    recommendedCommand: command,
-    recommendedPowerShellCommand: `& ${["pnpm", ...argv].map(powershellQuote).join(" ")}`,
-    execution: { command: "pnpm", args: argv },
+    recommendedCommand: ready ? ["pnpm", ...argv].map(posixQuote).join(" ") : null,
+    recommendedPowerShellCommand: ready ? `& ${["pnpm", ...argv].map(powershellQuote).join(" ")}` : null,
+    execution: ready ? { command: "pnpm", args: argv } : null,
     beforeRun: [
       `node scripts/workloom-agent.mjs invoke ${GUIDE_CAPABILITY_ID}（先读本仓固定项、官方流程与声音边界）`,
       "pnpm video:doctor（环境自检：ffmpeg/密钥/配音工位/曲库路径监狱）",

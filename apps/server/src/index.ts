@@ -56,6 +56,21 @@ app.use(
 /** 裸健康检查（不进 tRPC，供 start.sh/编排探活） */
 app.get("/health", (c) => c.json({ ok: true, service: "workloom-im-server" }));
 
+/** 本机客户端在发送成员凭据前，核对实际服务制品的产品清单。 */
+app.get("/health/product", async (c) => {
+  c.header("cache-control", "no-store");
+  try {
+    const manifest = JSON.parse(await readFile(new URL("../../../product.manifest.json", import.meta.url), "utf8"));
+    if (typeof manifest?.productId === "string" && manifest.productId.trim()
+      && typeof manifest.repository === "string" && manifest.repository.trim()) {
+      return c.json({ schemaVersion: "workloom.service-product/v1", productId: manifest.productId, repository: manifest.repository });
+    }
+  } catch {
+    return c.json({ error: "PRODUCT_IDENTITY_UNAVAILABLE" }, 503);
+  }
+  return c.json({ error: "PRODUCT_IDENTITY_UNAVAILABLE" }, 503);
+});
+
 /**
  * 本机克隆音色（小织/织伴的默认音色）[VOICE-DEFAULT]
  *  - GET /api/voice/status → 工位是否就绪（客户端据此决定是否走克隆音色，不探测就不猜）
