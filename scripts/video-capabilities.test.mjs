@@ -65,7 +65,14 @@ test("cross-project manifests, conflicting digests, invalid JSON and path escape
 }));
 test("suggested POSIX command preserves every argument literally and supplies a PowerShell representation", () => fixture(({ root }) => {
   const projectId = "客户'; printf INERT_MARKER; $(printf inert) `printf inert`";
-  const plan = productionPlan({ title: "中文标题", projectId, platform: "YouTube 中文 空格", shotlistPath: "out/镜头 卡.json", outDir: "out/成片 空格" });
+  const keys = join(root, "fixture.env");
+  process.env.WORKLOOM_KEYS_FILE = keys;
+  writeFileSync(keys, "VOLCENGINE_ARK_API_KEY=offline-fixture-never-dispatched\n");
+  writeFileSync(join(root, "out", "route.json"), JSON.stringify({ schemaVersion: "workloom.video-route-record/v1", decision: { route: "narrative" } }));
+  writeFileSync(join(root, "out", "镜头 卡.json"), JSON.stringify({ schemaVersion: "workloom.preproduction-cli-handoff/v1", projectId,
+    source: { kind: "system-preproduction", issuer: "workloom.studio-worker", resultPath: "result.shots", tenantId: "T1", workspaceId: "W1", projectId,
+      runId: "RUN-test", attempt: 1 }, shots: [{ shotId: "S01" }] }));
+  const plan = productionPlan({ title: "中文标题", projectId, platform: "YouTube 中文 空格", routePath: "out/route.json", shotlistPath: "out/镜头 卡.json", outDir: "out/成片 空格" });
   const capture = join(root, "capture.mjs");
   writeFileSync(capture, "process.stdout.write(JSON.stringify(process.argv.slice(2)));");
   const quote = (text) => "'" + text.replace(/'/gu, "'\"'\"'") + "'";
@@ -95,6 +102,9 @@ test("production preview blocks a clarify route and an empty, draft or unbound s
   route("clarify"); shotlist({ draft: true, shots: [] });
   const oldFalseReady = plan();
   assert.equal(oldFalseReady.ready, false);
+  assert.equal(oldFalseReady.execution, null);
+  assert.equal(oldFalseReady.recommendedCommand, null);
+  assert.equal(oldFalseReady.recommendedPowerShellCommand, null);
   assert.equal(oldFalseReady.checklist.find(row => row.id === "route").ok, false);
   assert.equal(oldFalseReady.checklist.find(row => row.id === "shotlist").ok, false);
   route("narrative");

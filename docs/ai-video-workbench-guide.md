@@ -1,7 +1,7 @@
 # WorkLoom Video Edit 视频调用指南：AI 工作台先读，再执行
 
-> guideVersion: 2026-11-03.2
-> 适用仓库：`workloom-ai/WorkLoom-video-edit`。本版增加 Codex 原话计划、一次正式 Studio 提交和同一回执进度查询。实际源码 SHA 以本次运行记录为准。
+> guideVersion: 2026-11-03.3
+> 适用仓库：`workloom-ai/WorkLoom-video-edit`。本版增加 Studio 服务身份核对和未就绪预览约束。实际源码 SHA 以本次运行记录为准。
 > 读者：Codex、DeepSeek Harness 及能调用本仓 CLI / stdio MCP 的 AI 工作台。
 
 本指南把已成功视频作业的经验固化为调用纪律，帮助工作台从用户原话走到系统前期、渲染、后期和交付核验。先读取本仓能力，冻结人、商品、平台、时长、账号调性、声音与特殊要求，再走现有官方流程。不能把另一个仓库的功能、成片或测试结果算成本仓能力。
@@ -96,7 +96,7 @@ node --import tsx scripts/tools/codex-video-workflow.mjs --status \
   --receipt "$EDIT_RUN_ROOT/studio-start.json"
 ```
 
-`--brief` 可省略；如已确认 Brief，应在计划与执行使用同一份。令牌仅在受控进程环境传入。`EDIT_RUN_ROOT` 须为当前用户拥有的私有目录。启动一次后保留原回执，不因超时另换路径提交。返回 `awaiting_approval` 时到 Studio 核对正式审批，`preproduction_archived` 表示读到同轮前期记录及摘要，接续 §3.3 核验实际片单与资格。口播、待澄清和未知启动各有独立下一步。任何启动或查询回执均不算成片交付。
+`--brief` 可省略；如已确认 Brief，应在计划与执行使用同一份。令牌仅在受控进程环境传入。客户端先在本机连接上通过 `GET /health/product` 核对服务制品的 Edit 身份，再沿用同一连接发送令牌。收到 `STUDIO_PRODUCT_MISMATCH` 或 `STUDIO_PRODUCT_UNVERIFIED` 时，先核对端口和实际运行版本。`EDIT_RUN_ROOT` 须为当前用户拥有的私有目录。启动一次后保留原回执，不因超时另换路径提交。返回 `awaiting_approval` 时到 Studio 核对正式审批，`preproduction_archived` 表示读到同轮前期记录及摘要，接续 §3.3 核验实际片单与资格。口播、待澄清和未知启动各有独立下一步。任何启动或查询回执均不算成片交付。
 
 已有 Studio 作业或兼容客户端可使用以下直接 tRPC 示例读原回执、状态及档案。也可以在已登录的本机产品界面发起正式项目。以上三种方式选择一个启动入口，同一作业不可重复提交。确认 `WORKLOOM_ACCESS_TOKEN` 对应实际 B 端成员工作区和权限。服务响应仅存本次私有目录。
 
@@ -104,44 +104,27 @@ node --import tsx scripts/tools/codex-video-workflow.mjs --status \
 studio_api() {
   node --input-type=module - "$@" <<'NODE'
 import { closeSync, openSync, readFileSync, writeFileSync } from "node:fs";
+import { withVerifiedEditService } from "./scripts/tools/lib/edit-service-session.mjs";
 
 const [action, inputFile, outputFile] = process.argv.slice(2);
 const token = process.env.WORKLOOM_ACCESS_TOKEN;
-const api = new URL(process.env.EDIT_API);
-if (!token || api.protocol !== "http:" || api.hostname !== "127.0.0.1" || !api.port
-  || api.username || api.password || api.pathname !== "/" || api.search || api.hash) {
-  throw new Error("此示例需要本机服务和当前工作区 B 端令牌");
-}
-if (!["start", "status", "archive"].includes(action) || !inputFile || !outputFile) {
-  throw new Error("指定操作、输入文件和回执路径");
+if (!token || !["start", "status", "archive"].includes(action) || !inputFile || !outputFile) {
+  throw new Error("指定操作、文件和当前工作区 B 端令牌");
 }
 const isStart = action === "start";
 const input = JSON.parse(readFileSync(inputFile, "utf8"));
-const url = new URL("/trpc/video.studio." + action, api);
-const headers = { authorization: "Bearer " + token };
-let body;
-if (isStart) {
-  headers["content-type"] = "application/json";
-  body = JSON.stringify(input);
-} else {
-  const key = action === "status" ? "runId" : "projectId";
-  if (!input[key]) throw new Error("启动回执缺少 " + key);
-  url.searchParams.set("input", JSON.stringify({ [key]: input[key] }));
-}
-// 占用启动回执路径后才发请求，避免在本地同一作业目录重复提交。
-const receipt = isStart ? openSync(outputFile, "wx", 0o600) : null;
-try {
-  const response = await fetch(url, { method: isStart ? "POST" : "GET", headers, body,
-    redirect: "error", signal: AbortSignal.timeout(30_000) });
-  const envelope = await response.json();
-  if (!response.ok || !Object.hasOwn(envelope.result ?? {}, "data")) {
-    throw new Error(envelope.error?.data?.code ?? "HTTP " + response.status);
+const key = action === "status" ? "runId" : "projectId";
+if (!isStart && !input[key]) throw new Error("启动回执缺少 " + key);
+await withVerifiedEditService(process.env.EDIT_API, token, async call => {
+  // 占用启动回执路径后才提交，避免在同一目录重复启动。
+  const receipt = isStart ? openSync(outputFile, "wx", 0o600) : null;
+  try {
+    const data = await call("video.studio." + action, isStart ? input : { [key]: input[key] });
+    writeFileSync(receipt ?? outputFile, JSON.stringify(data, null, 2) + "\n", { mode: 0o600 });
+  } finally {
+    if (receipt !== null) closeSync(receipt);
   }
-  writeFileSync(receipt ?? outputFile, JSON.stringify(envelope.result.data, null, 2) + "\n",
-    { mode: 0o600 });
-} finally {
-  if (receipt !== null) closeSync(receipt);
-}
+});
 NODE
 }
 
@@ -243,7 +226,7 @@ NODE
 
 按已审镜头与用户合同确定执行阶段、媒体参数和本次费用。渲染前核对当前模型目录、可消费预算、围栏、人审要求以及素材授权。使用产品固定工位时，在正式项目中取得同一轮当前资格、作业和预算回执。该工位无法证明审核过的参考图会进入同一供应商请求时返回 `VIDEO_REFERENCE_PLAN_UNSUPPORTED`。独立 Film CLI 可承接经过本路径授权和预算控制的参考图作业，真人肖像沿用平台授权素材入口。需要跨前期、素材和视频调用的总额硬闸时，按 §3.1 核验实际预算执行面再启用。
 
-下列示例参数变量来自实际回执及冻结合同。素材镜使用 `material-gen`，需要新生成的普通镜按原生流程选择 `plates`、`videos`；声音、字幕、配乐、封面、合成和母版按实际交付启用。只在明确请求多版本时启用 `deliver`。对可复用源片优先走原任务恢复或正式后期路径。可先运行只读 `growth.video.production.plan`，输入真实 `projectId`、`platform` 和位于作业根内的相对 `shotlistPath`、`routePath`、`outDir`。将计划用作前置核对，实际执行参数来自本次合同。
+下列示例参数变量来自实际回执及冻结合同。素材镜使用 `material-gen`，需要新生成的普通镜按原生流程选择 `plates`、`videos`；声音、字幕、配乐、封面、合成和母版按实际交付启用。只在明确请求多版本时启用 `deliver`。对可复用源片优先走原任务恢复或正式后期路径。可先运行只读 `growth.video.production.plan`，输入真实 `projectId`、`platform` 和位于作业根内的相对 `shotlistPath`、`routePath`、`outDir`。未就绪时预览省略命令，按回执回到正式工位核对。实际执行参数来自本次合同。
 
 ```bash
 EDIT_PROJECT_ID="$(node -p 'JSON.parse(require("node:fs").readFileSync(process.argv[1], "utf8")).projectId' "$EDIT_RUN_ROOT/project.json")"

@@ -4,6 +4,7 @@ import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { parseEditLoopbackApi, withVerifiedEditService } from "./lib/edit-service-session.mjs";
 
 const PRODUCT = "workloom-ai-video-edit";
 const REPOSITORY = "geniusdapeng-collab/WorkLoom-video-edit";
@@ -15,12 +16,7 @@ export function parsePreflightArgs(args) {
   if (args.length === 0) return {};
   if (args.length === 1 && args[0] === "--help") return { help: true };
   if (args.length !== 2 || args[0] !== "--api") throw new Error("INVALID_ARGUMENTS");
-  let url;
-  try { url = new URL(args[1]); } catch { throw new Error("API_NOT_LOOPBACK"); }
-  if (url.protocol !== "http:" || url.hostname !== "127.0.0.1" || !url.port
-    || url.username || url.password || url.pathname !== "/" || url.search || url.hash
-    || args[1] !== url.origin && args[1] !== `${url.origin}/`) throw new Error("API_NOT_LOOPBACK");
-  return { api: url.origin };
+  return { api: parseEditLoopbackApi(args[1]) };
 }
 
 function processResult(file, args, root, input) {
@@ -81,19 +77,24 @@ async function preflight({ api }) {
     if (api) {
       service.health = await checkLoopbackHealth(api);
       if (service.health === "responded") {
-        if (!process.env.WORKLOOM_ACCESS_TOKEN?.trim()) service.catalog = "member-token-required";
-        else {
-          const read = runNode(ROOT, ["scripts/workloom-agent.mjs", "invoke", "growth.video.gen.catalog",
-            "--base-url", api, "--input-file", "-"], '{"kind":"video","limit":60}');
-          const models = read.data?.result?.models;
-          service.catalog = read.exit === 0 && Array.isArray(models) ? "responded" : "unavailable";
-          service.videoModels = service.catalog === "responded" ? models.length : 0;
+        const token = process.env.WORKLOOM_ACCESS_TOKEN;
+        try {
+          await withVerifiedEditService(api, token, async call => {
+            service.serviceIdentityVerified = true;
+            if (!token?.trim()) { service.catalog = "member-token-required"; return; }
+            const catalog = await call("video.gen.catalog", { kind: "video", limit: 60 });
+            service.catalog = Array.isArray(catalog?.models) ? "responded" : "unavailable";
+            service.videoModels = service.catalog === "responded" ? catalog.models.length : 0;
+          });
+        } catch (error) {
+          service.catalog = !service.serviceIdentityVerified ? "product-unverified"
+            : error?.code === "MEMBER_TOKEN_REQUIRED" ? "member-token-required" : "unavailable";
         }
       }
     }
   }
   const ready = exactEdit && runtime.repoReady && runtime.doctor?.fail === 0
-    && (!api || (service.health === "responded" && service.catalog === "responded" && service.videoModels > 0));
+    && (!api || (service.serviceIdentityVerified && service.catalog === "responded" && service.videoModels > 0));
   return { schemaVersion: "workloom.codex-video-preflight/v1", ready: Boolean(ready), repo, runtime, service,
     productionAuthorization: "not-evaluated", paidCalls: 0, writeOperations: 0 };
 }

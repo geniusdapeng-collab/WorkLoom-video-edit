@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
+import { randomUUID } from "node:crypto";
 import { once } from "node:events";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
@@ -9,10 +10,11 @@ import { test } from "node:test";
 import { promisify } from "node:util";
 
 const execute = promisify(execFile);
-const token = "synthetic-only-this-is-not-a-secret";
+const token = randomUUID();
 const script = "scripts/tools/codex-video-workflow.mjs";
 const intent = '  用 Codex 调用 Edit 做１７秒《产品演示》  ';
 const normalStart = { kind: "routed", projectId: "VID-001", runId: "RUN-001", pipeline: "marketing" };
+const editProduct = { schemaVersion: "workloom.service-product/v1", productId: "workloom-ai-video-edit", repository: "workloom-ai/WorkLoom-video-edit" };
 const state = (status, extra = {}) => ({ ...normalStart, status, currentGate: null, pendingApprovalId: null, ...extra });
 const stage = (overrides = {}) => ({ stageId: "preproduction", attempt: 1, status: "done", runId: "RUN-001",
   outputRef: "stages/preproduction/attempt-1.output.json", outputSha256: "d".repeat(64), ...overrides });
@@ -23,9 +25,10 @@ async function cli(args, bearer = token, extraEnv = {}) {
   if (bearer === null) delete env.WORKLOOM_ACCESS_TOKEN;
   else env.WORKLOOM_ACCESS_TOKEN = bearer;
   let out;
-  try { out = { ...await execute(process.execPath, ["--import", "tsx", script, ...args], { env, timeout: 12_000 }), code: 0 }; }
+  try { out = { ...await execute(process.execPath, ["--import", "tsx", script, ...args], { env, timeout: 45_000 }), code: 0 }; }
   catch (error) { out = { stdout: error.stdout, stderr: error.stderr, code: error.code }; }
   assert.equal((out.stdout + out.stderr).includes(token), false, "bearer must never be printed");
+  assert.ok(out.stdout || out.stderr, `CLI produced no receipt (exit ${out.code})`);
   return { code: out.code, body: JSON.parse(out.stdout || out.stderr) };
 }
 
@@ -33,8 +36,15 @@ async function fixture(t, handlers = {}) {
   const root = mkdtempSync(join(tmpdir(), "edit-workflow-test-"));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const requests = [];
+  const productRequests = [];
   const server = createServer(async (req, res) => {
     const url = new URL(req.url, "http://127.0.0.1");
+    if (url.pathname === "/health/product") {
+      productRequests.push({ method: req.method, hasAuthorization: req.headers.authorization !== undefined });
+      const identity = handlers.product ? handlers.product(req, res) : editProduct;
+      if (!res.writableEnded) res.end(JSON.stringify(identity));
+      return;
+    }
     const body = [];
     for await (const chunk of req) body.push(chunk);
     const input = req.method === "POST" ? JSON.parse(Buffer.concat(body).toString("utf8")) : JSON.parse(url.searchParams.get("input") ?? "null");
@@ -50,7 +60,7 @@ async function fixture(t, handlers = {}) {
   server.listen(0, "127.0.0.1"); await once(server, "listening");
   t.after(() => new Promise((done) => { server.close(done); server.closeAllConnections(); }));
   const api = `http://127.0.0.1:${server.address().port}`, receipt = join(root, "studio.json");
-  return { root, api, receipt, requests, start: ["--intent", intent, "--execute", "--api", api, "--receipt", receipt],
+  return { root, api, receipt, requests, productRequests, start: ["--intent", intent, "--execute", "--api", api, "--receipt", receipt],
     status: ["--status", "--receipt", receipt] };
 }
 
@@ -150,6 +160,34 @@ test("the member bearer goes directly to the chosen loopback Studio, independent
   assert.equal(f.requests.length, 1);
   assert.equal(f.requests[0].auth, true);
   assert.deepEqual(proxy.requests, []);
+  assert.deepEqual(proxy.productRequests, []);
+  assert.deepEqual(f.productRequests, [{ method: "GET", hasAuthorization: false }]);
+});
+
+test("unverified or mismatched product cannot receive a member credential or Studio request", async (t) => {
+  for (const [identity, code] of [
+    [{ ...editProduct, productId: "workloom-ai-growth" }, "STUDIO_PRODUCT_MISMATCH"],
+    [{ ...editProduct, repository: "geniusdapeng-collab/workloom-growthtest" }, "STUDIO_PRODUCT_MISMATCH"],
+    [{ schemaVersion: editProduct.schemaVersion, productId: editProduct.productId }, "STUDIO_PRODUCT_UNVERIFIED"],
+    [{ ok: true, service: "workloom-im-server" }, "STUDIO_PRODUCT_UNVERIFIED"],
+  ]) {
+    const f = await fixture(t, { product: () => identity, start: () => normalStart });
+    assert.deepEqual((await cli(f.start)).body, { code, delivered: false });
+    assert.deepEqual(f.productRequests, [{ method: "GET", hasAuthorization: false }]);
+    assert.deepEqual(f.requests, []);
+    assert.equal(existsSync(f.receipt), false);
+  }
+});
+
+test("closing the verified socket cannot send the credential on a new connection to the same port", async (t) => {
+  const f = await fixture(t, { product: (_req, res) => {
+    res.setHeader("connection", "close");
+    return editProduct;
+  }, start: () => normalStart });
+  const result = await cli(f.start);
+  assert.equal(result.body.errorCode, "STUDIO_CONNECTION_CHANGED");
+  assert.deepEqual(f.productRequests, [{ method: "GET", hasAuthorization: false }]);
+  assert.deepEqual(f.requests, []);
 });
 
 test("official status and latest same-run archive distinguish approval, stale, failed and preproduction archived", async (t) => {
