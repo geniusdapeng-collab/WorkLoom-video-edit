@@ -34,6 +34,23 @@ export function captureRequirementTheme(
     contentSha256: createHash("sha256").update(contentMd).digest("hex"), verdict });
 }
 
+/** Append the frozen customer source after the complete, unchanged creative draft. */
+export function requirementThemeApprovalPayload(authority: PrdAuthority, draft: string): string {
+  if (!draft.trim()) return draft;
+  const source = JSON.stringify({
+    schemaVersion: "workloom.g2-frozen-brief/v1",
+    scope: authority.marketing.scope,
+    g1Sha256: authority.marketing.g1Artifact.sha256,
+    customerOriginalIntent: authority.metadata.customerOriginalIntent ?? null,
+    brief: authority.metadata.brief ?? null,
+  }, null, 2).replaceAll("`", "\\u0060");
+  const sha256 = createHash("sha256").update(source).digest("hex");
+  return `${draft}\n\n## G2 宿主冻结客户 Brief\n`
+    + "此附件是当前项目的审阅基线。应逐项核对前面的实际创意，遗漏或矛盾须独立裁决；附件本身不证明创意已落实，也不增加商品事实或素材授权。\n"
+    + `附件 JSON 原始字节 SHA256 ${sha256}\n\n`
+    + ["```json", source, "```"].join("\n");
+}
+
 /** Project explicit limits from the current, already verified G1 artifact. */
 export function requirementThemeUsageBoundary(authority: PrdAuthority): string {
   const isRecord = (value: unknown): value is RequirementRecord => Boolean(value && typeof value === "object" && !Array.isArray(value));
@@ -118,6 +135,10 @@ export function requirementAuthorityPrompt(authority: PrdAuthority, theme?: Requ
   const key = requirementHash(authority);
   const usageBoundary = theme ? "" : requirementThemeUsageBoundary(authority);
   const wardrobeBoundary = builtinWardrobeBoundary(metadata);
+  const themeSelfCheck = theme ? "" : "创意主题输出前，在同一调用内逐项对照完整客户 Brief 和当前 G1，自检实际主题、核心描述、视觉、台词和特别备注。"
+    + "将客户明确的开场、动作顺序、服装、产品名呈现位置、素材授权和交付约束落实在对应创作字段；附件中出现要求不代表方案已落实，客户未要求的内容不自行补充。"
+    + "以人物的相对位置、动作、选择与感受建立张力。角色台词、内心独白、画外音和比喻均不得暗示 G1 未支持或 Brief 未准许使用的产品性能、性能余量或使用效果。"
+    + "仅按实际授权使用参考素材；不能用已检索、已见到或已审核商品事实替代素材授权。\n";
   return `\n\n## 本次宿主需求权威输入 ${key}（冲突时按本节层级处理）\n`
     + `一、完整客户 Brief 和其中本片制作细则决定本片的主张用途、受众与交付要求。G1 接受某条事实，不能覆盖客户选择的用途限制，不能把底账事实自动变成钩子、口播、屏幕卖点或结尾。\n`
     + `完整客户 Brief：\n${JSON.stringify(metadata.brief)}\n`
@@ -132,6 +153,7 @@ export function requirementAuthorityPrompt(authority: PrdAuthority, theme?: Requ
     + `G1 完整原始裁决（所有意见与建议保持原层级）：\n${JSON.stringify(authority.marketing.g1Proof)}\n`
     + (usageBoundary ? `${usageBoundary}\n` : "")
     + `G1 完整原件 ${authority.marketing.g1Artifact.path} / SHA256 ${authority.marketing.g1Artifact.sha256}：\n${authority.marketing.g1Artifact.content}\n`
+    + themeSelfCheck
     + `三、${theme ? `本次已批准 G2 的完整原文与原始裁决只提供创作上下文。advisories 是非阻断建议，不新增硬性门槛、审批或强制重试；不能覆盖客户 Brief/G1 用途限制。\nG2 SHA256 ${theme.contentSha256}：\n${theme.contentMd}\nG2 原始裁决：\n${JSON.stringify(theme.verdict)}\n` : "本次尚无已批准 G2 上下文；不推定主题或新创作已经通过。\n"}`
     + `场景、道具、动作、情绪、风险和艺术参考都是待审核创作方案，不是已核实拍摄事实或产品质量证明。可用影片/摄影语言作艺术参考，不因此声称品牌合作、媒体背书或真实设备已核实，也不把艺术参考本身列为新硬禁。`
     + `保留原任务的 JSON schema、输出格式、时长与人物合同。由本次模型生成内容，不要求抄写示例或固定镜头。G1/G2 输入不批准新场景，仍须实际 G3/G4 评审。\n`;

@@ -29,7 +29,7 @@ import {
 } from "./requirement-contract-bridge.js";
 import { preparePrdAuthority, type PrdAuthority, type PrdMarketingAuthority } from "./prd-authority.js";
 import { assertPrdAuthorityBridge, installVendorPrdAuthorityBridge, installVendorPrdProductionBridge, withPrdAuthorityScope } from "./prd-authority-bridge.js";
-import { captureRequirementTheme, requirementThemeUsageBoundary, type RequirementApprovedTheme } from "./requirement-authority.js";
+import { captureRequirementTheme, requirementThemeApprovalPayload, requirementThemeUsageBoundary, type RequirementApprovedTheme } from "./requirement-authority.js";
 import { requirementHash } from "./requirement-contract.js";
 import { normalizeNarrativePrdContract } from "./narrative-prd-contract.js";
 import { normalizeCreativeThemeContract } from "./creative-theme-contract.js";
@@ -136,6 +136,8 @@ export type ApprovalCallback = (approval: {
   runId: string | null;
   /** Raw structured prompt package when the vendor gate has one. */
   structuredArtifact?: unknown;
+  /** Original G2 creative text. The frozen Brief annex cannot satisfy draft checks. */
+  themeDraft?: string;
 }) => Promise<GateVerdict>;
 
 /** 宿主事件汇：流水线生命周期事件（宿主落五元事件库） */
@@ -331,7 +333,12 @@ export class VideoStudio {
       if (normalizedPrompt && normalizedPrompt.changes.length > 0) {
         log(`[studio] ${gate} 宿主提示词归一：${normalizedPrompt.changes.join("、")}`);
       }
-      if (gate === "G2_THEME" && prdAuthority) approvedRequirementTheme = undefined;
+      const themeAuthority = gate === "G2_THEME" ? prdAuthority : undefined;
+      if (themeAuthority) {
+        approvedRequirementTheme = undefined;
+        validateRequirementAuthority?.();
+      }
+      const contentMd = themeAuthority ? requirementThemeApprovalPayload(themeAuthority, req.content) : normalizedPrompt?.value ?? req.content;
       await emit({
         kind: "pipeline.gate.requested",
         projectId: input.projectId,
@@ -343,14 +350,16 @@ export class VideoStudio {
         gate,
         vendorType: req.type,
         title: `预生产确认门 · ${gate}`,
-        contentMd: normalizedPrompt?.value ?? req.content,
+        contentMd,
         runId: req.runId ?? runId,
+        ...(themeAuthority ? { themeDraft: req.content } : {}),
         ...(req.structured !== undefined
           ? { structuredArtifact: gate === "G6_PROMPT" ? req.structured : structuredClone(req.structured) }
           : {})
       });
-      if (gate === "G2_THEME" && prdAuthority) {
-        approvedRequirementTheme = captureRequirementTheme(prdAuthority, req.content, verdict);
+      if (themeAuthority) {
+        validateRequirementAuthority?.();
+        approvedRequirementTheme = captureRequirementTheme(themeAuthority, contentMd, verdict);
       }
       await emit({
         kind: "pipeline.gate.resolved",
