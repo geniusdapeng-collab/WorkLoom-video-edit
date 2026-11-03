@@ -346,6 +346,27 @@ export interface FrozenSegmentContract {
   intervals: Array<{ startSec: number; endSec: number; brief: string }>;
 }
 
+const sceneExamplePlaceholder = "__WORKLOOM_SCENE_EXAMPLE__";
+
+function frozenSceneExample(segments: FrozenSegmentContract): string {
+  const node = {
+    duration: segments.secondsPerSegment,
+    purpose: `${sceneExamplePlaceholder}区间内具体画面与目的`,
+    keyElements: [`${sceneExamplePlaceholder}可见元素`],
+    productionContract: {
+      props: [{ name: `${sceneExamplePlaceholder}道具名称`, description: `${sceneExamplePlaceholder}可见形态与用途` }],
+      actions: [{ actorId: "$scene", description: `${sceneExamplePlaceholder}完整可拍动作` }],
+    },
+  };
+  return JSON.stringify({
+    opening: node,
+    scenes: segments.intervals.slice(1, -1).map((_interval, index) => ({ ...node, index: index + 1, emotionalBeat: "rising" })),
+    ending: node,
+    totalDuration: segments.totalSeconds,
+    sceneCount: segments.count,
+  });
+}
+
 export function frozenSegmentContract(brief: RequirementRecord, targetValue: unknown): FrozenSegmentContract | undefined {
   if (brief.segmentContract === undefined) return undefined;
   const invalid = (): never => { throw new RequirementContractError("REQUIREMENT_SCENE_UNVERIFIED", "冻结分段合同的段数、时长、连续区间或硬切要求不一致"); };
@@ -386,6 +407,10 @@ export function validateFrozenSceneTiming(value: unknown, contract: FrozenSegmen
     throw withValidationFacts(new RequirementContractError("REQUIREMENT_SCENE_UNVERIFIED", "主体场景没有按冻结区间顺序编号"),
       { kind: "schema", path: `SceneArchitect response/scenes/${index}/index`, keyword: "index", observed: finiteNumber(node.index), limit: index + 1 });
   });
+  if (JSON.stringify(structure).includes(sceneExamplePlaceholder)) {
+    throw withValidationFacts(new RequirementContractError("REQUIREMENT_SCENE_UNVERIFIED", "场景仍有结构示例占位文本"),
+      { kind: "schema", path: "SceneArchitect response", keyword: "examplePlaceholder" });
+  }
 }
 
 function sceneNodes(structure: RequirementRecord): RequirementRecord[] {
@@ -756,7 +781,10 @@ ${example}
       + "按区间顺序把首段写入 opening，中间段按时间顺序写入 scenes（index 从 1 连续编号），末段写入 ending。"
       + "高潮、节奏变化、机位变化、留白和收束全部放在现有分段内部，严禁另加节点、重叠或改变时长。逐段写出完整、可拍的画面与动作，不强制台词。"
       + "按实际 schema 输出一个完整 JSON 对象，禁止代码围栏和解释。\n"
-      + `本次实际 SceneArchitect 响应 JSON Schema（完整适用，不是示例成品）：\n${schema}\n`;
+      + `本次实际 SceneArchitect 响应 JSON Schema（完整适用，不是示例成品）：\n${schema}\n`
+      + `本次 JSON 结构示例（占位内容必须替换）：\n${frozenSceneExample(segments)}\n`
+      + "仅参考 JSON 的键、嵌套和转义。每个区间的画面、道具、动作、动作主体及情绪都按完整客户要求创作；示例中的占位文本不得出现在结果中。"
+      + "字符串内需要双引号或换行时必须合法转义；提交前检查引号、逗号、对象和数组闭合。\n";
   }
   const timing = structuredSceneTiming(schemaValue, target);
   const fallingMinimum = Math.max(3, timing.middle.minimum), fallingMaximum = Math.min(6, timing.middle.maximum);

@@ -1,11 +1,12 @@
 import { createHash } from "node:crypto";
 import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { createServer } from "node:http";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { resetCircuit } from "@workloom/base/model-router";
+import { loadModelPolicy, OpenAiCompatibleProvider, resetCircuit } from "@workloom/base/model-router";
 import { WorkloomLLMEngine } from "./llm-adapter.js";
 import {
   assertRequirementContractBridge, installRequirementContractBridge, installVendorRequirementContractBridge,
@@ -230,6 +231,7 @@ function failureText(error: unknown): string {
   return `${error instanceof Error ? error.message : String(error)}\n${JSON.stringify(error && typeof error === "object" ? { ...error } : {})}`;
 }
 const feedbackHeading = "## 上一次原生场景校验反馈";
+const sceneExampleHeading = "本次 JSON 结构示例（占位内容必须替换）：";
 const timingHeading = "本次 schema 派生时长边界与可行数量（仅约束，不分配节点）：";
 function promptJson(prompt: string, heading: string): RequirementRecord {
   const parts = prompt.split(`${heading}\n`);
@@ -969,6 +971,106 @@ describe("actual native private RiskAssessor bounded retry feedback", () => {
     const result = await (mode === "legacy-scope" ? withRequirementContractScope(run.metadata, operation) : operation());
     expect(requirementHash(result.riskAssessment)).toBe(requirementHash(value)); expect(riskCalls(model.calls)).toHaveLength(1);
     for (const call of model.calls) { expect(call.prompt).not.toContain(riskFeedbackHeading); expect(call.prompt).not.toContain("本次宿主需求权威输入"); }
+  });
+});
+
+describe("frozen SceneArchitect real loopback provider wire", () => {
+  beforeEach(() => resetCircuit("preproduction"));
+  afterEach(() => resetCircuit("preproduction"));
+
+  it.each([
+    ["malformed", 2, true], ["twice-malformed", 2, false], ["unattested-malformed", 1, false], ["fenced", 2, true], ["blank", 1, false],
+    ["length", 1, false], ["unknown", 1, false], ["wrong-shape", 2, false],
+    ["placeholder", 2, false], ["over-legacy-extraction-limit", 1, true],
+  ] as const)("keeps %s content inside the pinned completion and schema rules", async (outcome, expectedCalls, accepted) => {
+    installNativeDiscovery();
+    const scene = physicalScene([10, 10, 10]);
+    if (outcome === "over-legacy-extraction-limit") {
+      requirementRecord(scene.opening, "opening").purpose = "完整有效内容".repeat(35_000);
+    }
+    const run = withFrozenSegmentBrief(privateRun(`scene-loopback-${outcome}`, 30, scene));
+    const sceneCalls: Array<{ body: RequirementRecord; prompt: string }> = [];
+    const providerServer = createServer(async (req, res) => {
+      try {
+        expect(req.method).toBe("POST");
+        expect(req.url).toBe("/chat/completions");
+        const chunks: Buffer[] = [];
+        for await (const chunk of req) chunks.push(Buffer.from(chunk));
+        const body = JSON.parse(Buffer.concat(chunks).toString("utf8"));
+        const prompt: string = body.messages[1].content;
+        const selected = prompt.startsWith("你是一位电影导演") ? "scene"
+          : prompt.slice(0, 180).includes("受众分析") ? "audience"
+          : prompt.slice(0, 180).includes("技术制片人") ? "risk" : "reference";
+        let content = JSON.stringify(run.modules[selected]), finishReason = "stop", id: string | undefined = "local-loopback-completion";
+        if (selected === "scene") {
+          sceneCalls.push({ body, prompt });
+          if (outcome === "wrong-shape") content = '{"opening":{}}';
+          if (outcome === "twice-malformed") content = '{"REJECTED_NATIVE_RESPONSE": [1 2]}';
+          if (outcome === "placeholder") {
+            const exampleText = prompt.split(`\n${sceneExampleHeading}\n`)[1]?.split("\n")[0];
+            // Copy a real schema-shaped response and exactly one example placeholder.
+            const example = exampleText ? JSON.parse(exampleText) : { opening: { purpose: "旧代码中没有拒绝标记的结构示例" } };
+            const copied = structuredClone(scene);
+            requirementRecord(copied.opening, "opening").purpose = example.opening.purpose;
+            content = JSON.stringify(copied);
+          }
+          if (sceneCalls.length === 1) {
+            if (outcome === "unknown") { res.writeHead(502).end('{"error":"synthetic unknown outcome"}'); return; }
+            if (outcome === "length") finishReason = "length";
+            if (outcome === "blank") content = "   ";
+            if (outcome === "malformed" || outcome === "unattested-malformed") content = '{"REJECTED_NATIVE_RESPONSE": [1 2]}';
+            if (outcome === "unattested-malformed") id = undefined;
+            if (outcome === "fenced") content = `\`\`\`json\n${content}\n\`\`\``;
+          }
+        }
+        res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify({ id, model: "deepseek-flash",
+          choices: [{ finish_reason: finishReason, message: { content } }],
+          usage: { prompt_tokens: 100, completion_tokens: 40, total_tokens: 140 } }));
+      } catch (error) {
+        res.writeHead(500).end(String(error));
+      }
+    });
+    await new Promise<void>((resolve, reject) => {
+      providerServer.once("error", reject);
+      providerServer.listen(0, "127.0.0.1", resolve);
+    });
+    try {
+      const address = providerServer.address();
+      if (!address || typeof address === "string") throw new Error("Loopback provider address missing");
+      const baseUrl = `http://127.0.0.1:${address.port}`, apiKey = "synthetic-loopback-key";
+      const { policy, issues } = loadModelPolicy(resolve(dirname(fileURLToPath(import.meta.url)), "../../../bundles/ai-video"));
+      expect(issues).toEqual([]);
+      expect(policy).not.toBeNull();
+      const engine = new WorkloomLLMEngine({ baseUrl, apiKey, model: "deepseek-flash", router: {
+        scene: "preproduction", forceModel: "deepseek-flash", policy: policy ?? undefined,
+        providers: new Map([["deepseek-flash", new OpenAiCompatibleProvider("deepseek-flash", { baseUrl, apiKey })]]),
+        sink: { recordModelTrace: async () => undefined, recordDegradation: async () => undefined, recordCircuitBreak: async () => undefined },
+      } });
+      const engineObject = engine as unknown as RequirementRecord;
+      const discovery = new RequirementDiscoveryEngine({ llmEngine: engineObject, timeoutMs: 20_000, agentTimeoutMs: 4_000 });
+      requirementRecord(requirementRecord(discovery.agents, "native agents").scene, "scene").maxRetries = 3;
+      const result = runDiscovery(run, engineObject, discovery);
+      if (accepted) await expect(result).resolves.toMatchObject({ sceneStructure: scene });
+      else await expect(result).rejects.toThrow("REQUIREMENT_SCENE_UNVERIFIED");
+      expect(sceneCalls).toHaveLength(expectedCalls);
+      for (const { body, prompt } of sceneCalls) {
+        expect(body).toMatchObject({ model: "deepseek-flash", max_tokens: 393_216,
+          response_format: { type: "json_object" }, thinking: { type: "enabled" }, reasoning_effort: "high" });
+        expectCompleteSources(prompt, run);
+        expect({ ...body, messages: undefined }).toEqual({ ...sceneCalls[0]!.body, messages: undefined });
+        expect(prompt).not.toContain("REJECTED_NATIVE_RESPONSE");
+        expect(promptJson(prompt, sceneExampleHeading)).toMatchObject({
+          opening: { duration: 10 }, scenes: [{ index: 1, duration: 10 }], ending: { duration: 10 }, sceneCount: 3, totalDuration: 30,
+        });
+      }
+      if (outcome === "malformed" || outcome === "twice-malformed" || outcome === "fenced") {
+        expect(sceneCalls[1]!.prompt).toContain("上一次原生场景 JSON 语法纠正");
+      }
+      if (outcome === "wrong-shape" || outcome === "placeholder") expect(sceneCalls[1]!.prompt).toContain(feedbackHeading);
+    } finally {
+      providerServer.closeAllConnections();
+      await new Promise<void>((resolve, reject) => providerServer.close(error => error ? reject(error) : resolve()));
+    }
   });
 });
 

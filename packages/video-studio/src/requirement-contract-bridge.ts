@@ -7,7 +7,7 @@ import {
   frozenSegmentContract, techniqueReferenceSchema, validateFrozenSceneTiming, validateRequirementSchema, validateTechniqueReferences,
   verifiedRequirementContract, type FrozenSegmentContract, type RequirementCast, type RequirementRecord
 } from "./requirement-contract.js";
-import { nativeReasonFailure } from "./llm-adapter.js";
+import { nativeReasonCompleted, nativeReasonFailure, type LLMReasonResult } from "./llm-adapter.js";
 import { acquireVendorRequirementEntry } from "./vendor-requirement-entry.js";
 import {
   qualifyRequirementThemeInput, requirementAuthorityFailure, requirementAuthorityPrompt, scopedRequirementEngine,
@@ -436,6 +436,23 @@ export function installRequirementContractBridge(
         let jsonCorrectionScheduled = false;
         let jsonCorrectionExhausted = false;
         let started = false, correctionUsed = false;
+        let completedSyntaxFailure = false;
+        if (segments) {
+          const model = requirementRecord(this.llmEngine, "SceneArchitect 已守护模型");
+          const reason = model.reason;
+          if (typeof reason !== "function") requirementAuthorityFailure("REQUIREMENT_VENDOR_UNAVAILABLE", "SceneArchitect 缺少原生 reason");
+          runView.llmEngine = Object.create(model, {
+            reason: { value: async (...args: unknown[]) => {
+              const result = await Reflect.apply(reason, model, args) as LLMReasonResult;
+              completedSyntaxFailure = nativeReasonFailure(result) === "json-syntax" && nativeReasonCompleted(result);
+              return result;
+            } },
+            // The pinned vendor parses the returned text with JSON.parse. Its
+            // legacy candidate extractor may salvage partial data or clip a
+            // valid full-window response. Send only the whole body to that parser.
+            _extractJsonObject: { value: (value: unknown) => typeof value === "string" ? value.trim() || null : null },
+          });
+        }
         runView._callLLM = async function (this: RequirementRecord, ...args: unknown[]) {
           requireActiveScope();
           if (jsonCorrectionExhausted) throw currentSceneFailure;
@@ -449,12 +466,15 @@ export function installRequirementContractBridge(
           attemptFeedback = pendingFeedback;
           pendingFeedback = "";
           currentSceneFailure = undefined;
+          completedSyntaxFailure = false;
           try { return await Reflect.apply(callScene, this, args); }
           catch (error) {
             // The adapter strictly parses returned content; the pinned vendor
             // promotes its parse result to Error.message or parses content itself.
             // Never put response bytes or transport errors into a new prompt.
-            if (error instanceof SyntaxError || (error instanceof Error && error.message.startsWith("JSON 解析失败: "))) {
+            const correctable = segments ? completedSyntaxFailure
+              : error instanceof SyntaxError || (error instanceof Error && error.message.startsWith("JSON 解析失败: "));
+            if (correctable) {
               currentSceneFailure = new RequirementContractError("REQUIREMENT_SCENE_UNVERIFIED", "SceneArchitect 模型正文不是有效 JSON");
               jsonCorrectionExhausted = jsonCorrectionScheduled;
               if (!jsonCorrectionScheduled) {
