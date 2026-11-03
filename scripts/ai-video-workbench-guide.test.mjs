@@ -79,7 +79,7 @@ test("本仓固定指南返回全文、版本、产品身份及原始字节摘�
   assert.equal(result.markdown, GUIDE_BYTES.toString("utf8"));
   assert.equal(result.sha256, hash(GUIDE_BYTES));
   assert.equal(result.byteCount, GUIDE_BYTES.length);
-  assert.equal(result.guideVersion, "2026-11-03.1");
+  assert.equal(result.guideVersion, "2026-11-03.2");
   assert.equal(result.repository, "workloom-ai/WorkLoom-video-edit");
   assert.match(result.markdown, /rawIntent/u);
   assert.match(result.markdown, /没有 Growthtest 的 nativeaudio 专用契约/u);
@@ -285,3 +285,4 @@ test("计划指向指南并保留安全argv，不把指南当生产资格", () =
 import './tools/full-chain-failure.test.mjs';
 import './tools/full-chain-persistent-subtitle.test.mjs';
 import './tools/codex-video-preflight.test.mjs';
+import './tools/codex-video-workflow.test.mjs';

@@ -2,6 +2,10 @@
 
 > 本文件包含 WorkLoom 各仓共享的受控规则；仓库专属规则位于 AGENTS.repo.md 或更近层级的 AGENTS.md / AGENTS.override.md。共享规则由 workloom-im 统一维护和分发。
 
+## Edit 视频任务入口
+
+接到「用 Codex 调用 Edit 做视频」或 Edit 视频返修、交付请求，先按本仓规则读取 [视频专属规则](AGENTS.repo.md) 和 [Edit 标准视频技能](.agents/skills/workloom-edit-standard-video/SKILL.md)。使用本仓正式分流、Studio 和 Film/后期，并以同轮归档、供应商或复用来源及成片质检回执核实交付。
+
 <!-- WORKLOOM-CONTEXT:BEGIN -->
 ## 1. 强制上下文与指令边界
 

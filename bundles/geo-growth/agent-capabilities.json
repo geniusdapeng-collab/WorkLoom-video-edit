@@ -239,7 +239,7 @@
       "id": "growth.video.production.plan",
       "version": "1.0.0",
       "title": "预览出片计划（不执行）",
-      "description": "给出「出片建议命令 + 前置检查清单」（分流是否就绪、镜头卡是否在场、火山方舟密钥是否配置、欠费提示）。这是预览：不跑管线、不提交渲染、不花钱；真正的执行走 CLI（full-chain-film.mts）。",
+      "description": "预检本地分流、非草稿片单的来源字段与密钥配置。待澄清、空片单、草稿或缺少来源均不就绪。结果只用于排查，执行前仍须核验正式 Studio 本轮归档及 Film 门禁。",
       "operation": "preview",
       "risk": "low",
       "dataMode": "unverified",
