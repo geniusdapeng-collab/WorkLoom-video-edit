@@ -416,8 +416,12 @@ describe("预生产原始结果与诚实终态", () => {
     }
   });
 
-  it.each(["SEEDANCE_MODEL", "ARK_VIDEO_MODEL"])("G6合同绑定部署实际模型覆盖%s，而非静态目录别名", async (key) => {
-    vi.stubEnv("PROMPT_CONTRACT_V2", "enforce");
+  it.each([
+    { key: "SEEDANCE_MODEL", mode: "enforce" },
+    { key: "ARK_VIDEO_MODEL", mode: "enforce" },
+    { key: "SEEDANCE_MODEL", mode: "shadow" },
+  ])("G6合同绑定部署实际模型覆盖$key（$mode），最终上限仅用于强制模式", async ({ key, mode }) => {
+    vi.stubEnv("PROMPT_CONTRACT_V2", mode);
     vi.stubEnv("SEEDANCE_MODEL", ""); vi.stubEnv("ARK_VIDEO_MODEL", "");
     vi.stubEnv(key, "deployment-specific-seedance-endpoint");
     const captured: any[] = [];
@@ -432,7 +436,8 @@ describe("预生产原始结果与诚实终态", () => {
     const { entry } = await runToTerminal(false);
     expect(entry.error).toContain("stop-after-contract-model-capture");
     expect(captured).toHaveLength(1);
-    expect(captured[0].maxFinalPromptChars).toBe(fieldSpec().lengths.hardMax);
+    if (mode === "enforce") expect(captured[0].maxFinalPromptChars).toBe(fieldSpec().lengths.hardMax);
+    else expect(captured[0]).not.toHaveProperty("maxFinalPromptChars");
     expect(captured[0].shots[0].compile.model).toMatchObject({ modelId: "doubao-seedance-2-5",
       providerModel: "deployment-specific-seedance-endpoint", version: "workloom.media-catalog/v1:deployment-specific-seedance-endpoint" });
   });

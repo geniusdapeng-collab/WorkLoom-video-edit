@@ -1071,7 +1071,7 @@ function startRunWithLease(scope: Scope, input: StudioRunInput, heldLease?: Proj
             stageRunId: `${entry.runId}:g6`,
             revision: Math.max(1, stageRef.attempt),
             shots: packageShots,
-            maxFinalPromptChars: fieldSpec().lengths.hardMax,
+            ...(promptContractMode === "enforce" ? { maxFinalPromptChars: fieldSpec().lengths.hardMax } : {}),
             reviewer: semanticQualityReviewer,
             upstreamContext: {
               pipelineKind,
@@ -1142,7 +1142,8 @@ function startRunWithLease(scope: Scope, input: StudioRunInput, heldLease?: Proj
               path.join(runWorkDir, "characters", input.projectId), source, false, archiveCopies),
           }));
           const currentness = verifyCurrentPromptContracts({
-            shots: currentShots, maxFinalPromptChars: fieldSpec().lengths.hardMax,
+            shots: currentShots,
+            ...(promptContractMode === "enforce" ? { maxFinalPromptChars: fieldSpec().lengths.hardMax } : {}),
           }, prior);
           // Vendor PipelineGuard consumes the assigned prompt, not a fresh compile.
           // Require both representations to match before recording an eligible G7.
