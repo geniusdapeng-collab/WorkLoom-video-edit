@@ -60,7 +60,7 @@ test('persistent fullchain requires its subtitle consumer before creating work o
   assert.equal(existsSync(work), false); assert.equal(existsSync(out), false); assert.equal(sha(shots), original);
 });
 
-function fixture(t) {
+function fixture(t, { dialogue = [{ speaker: '原片人物', text: '保留原片全部台词' }], hasPriorHistory = true } = {}) {
   const root = mkdtempSync(join(tmpdir(), 'persistent 正式全链-')); t.after(() => rmSync(root, { recursive: true, force: true }));
   const project = 'PERSISTENT-OFFLINE', work = join(root, 'work'), out = join(root, 'out');
   const logs = join(work, 'logs', project), clips = join(work, 'clips', project);
@@ -73,7 +73,7 @@ function fixture(t) {
   writeFileSync(prompt, 'Already issued provider prompt; immutable in all postprocessing tests.'); writeFileSync(keys, '');
   writeFileSync(shots, JSON.stringify({ title: '完整作品', durationSeconds: 1.4, aspect: '9:16', resolution: '720p',
     eraProfile: { storyDate: '2026-10-07' }, shots: [{ shotId: 'S1', duration: 1.4,
-      dialogue: [{ speaker: '原片人物', text: '保留原片全部台词' }], motion: '既有动作', scene: '既有场景' }] }));
+      dialogue, motion: '既有动作', scene: '既有场景' }] }));
   const network = join(root, 'network.log'), preloader = join(root, 'deny-network.cjs'); writeFileSync(network, '');
   writeFileSync(preloader, `const fs=require('node:fs');const deny=k=>{fs.appendFileSync(${JSON.stringify(network)},k+'\\n');throw new Error('OFFLINE_NETWORK_FORBIDDEN:'+k)};globalThis.fetch=()=>deny('fetch');for(const n of ['node:http','node:https']){const m=require(n);m.request=()=>deny(n+'.request');m.get=()=>deny(n+'.get')};
     if(process.env.WORKLOOM_TEST_TAMPER_PERSISTENT_PROOF==='1'){const write=fs.writeFileSync;fs.writeFileSync=function(file,data,...options){if(String(file).includes('processor-')&&String(file).endsWith('.json')){const doc=JSON.parse(String(data));const proof=doc.manifest?.persistentText??doc.persistentText;if(proof){proof.assText='not the requested text';data=JSON.stringify(doc)}}return write.call(this,file,data,...options)}}`);
@@ -87,17 +87,20 @@ function fixture(t) {
     const {shots,durationSeconds,...common}=doc;const sourceHash=productionHash({source:{...common,shot:shots[0]},brief:null,sceneBible:null,eraProfile:author.eraProfile,aspect:'9:16',resolution:'720p',fps:30});
     const lineage=createLineageReceipt({projectId:x.project,sourceHash,runId:'issued-source-run',stage:'shot',shotId:'S1',recipe:{component:'issued-source'},status:'failed',inputs:[x.prompt],outputs:[x.clip]});
     fs.writeFileSync(path.join(x.logs,'stages.jsonl'),JSON.stringify({at:'2026-10-01T00:00:00.000Z',stage:'shot',shotId:'S1',invoked:true,ok:false,cached:false,degraded:false,artifact:x.clip,verdict:{approved:false,reason:'historical quality judgment'},evidence:{taskId:'issued-task-offline-fixture',qualityScore:1},lineage})+'\\n');`;
-  const setup = spawnSync(process.execPath, ['--import', 'tsx', '--input-type=module', '-e', setupCode,
-    JSON.stringify({ shots, logs, project, prompt, clip })], { cwd: ROOT, encoding: 'utf8', timeout: 30000 });
-  assert.equal(setup.status, 0, setup.stderr);
   const history = join(logs, 'stages.jsonl');
+  if (hasPriorHistory) {
+    const setup = spawnSync(process.execPath, ['--import', 'tsx', '--input-type=module', '-e', setupCode,
+      JSON.stringify({ shots, logs, project, prompt, clip })], { cwd: ROOT, encoding: 'utf8', timeout: 30000 });
+    assert.equal(setup.status, 0, setup.stderr);
+  } else writeFileSync(history, '');
   return { root, work, out, logs, project, clip, prompt, shots, keys, network, env, history,
     originals: [clip, prompt, shots].map(file => ({ file, sha256: sha(file) })), oldHistory: readFileSync(history) };
 }
-function run(f, text, env = {}) {
+function run(f, text, env = {}, { stages = "compose,subtitle,master", postOnly = false } = {}) {
   return invoke(['--shots', f.shots, '--project', f.project, '--work-dir', f.work, '--out', f.out, '--keys-file', f.keys,
-    '--resolution', '720p', '--route-kind', 'narrative', '--stages', 'compose,subtitle,master', '--xfade', '0', '--cut-transition', '',
+    '--resolution', '720p', '--route-kind', 'narrative', '--stages', stages, '--xfade', '0', '--cut-transition', '',
     '--subtitle-mode', 'both', '--no-open-with-cover', '--no-title-card', '--no-danmaku', '--no-bgm',
+    ...(postOnly ? ['--assembly-mode', 'post-only', '--assembly-reason', '已有原片完成本地后期'] : []),
     ...(text === null ? [] : ['--subtitle-persistent-text', text])], { ...f.env, ...env });
 }
 function originals(f) {
@@ -146,4 +149,58 @@ test('persistent renderer failure or altered proof cannot publish a completion p
   assert.notEqual(tampered.status, 0, tampered.stdout + tampered.stderr);
   assert.match(tampered.stdout + tampered.stderr, /SUBTITLE_SIDECAR_FAILED|persistent text readback/i);
   assert.equal(existsSync(join(f.out, 'current.json')), false); originals(f);
+});
+
+test('Film post-only burns and publishes exact persistent text with no dialogue, stale sidecars or provider calls', { timeout: 180000 }, t => {
+  const f = fixture(t, { dialogue: [], hasPriorHistory: false });
+  const staleDir = join(f.work, 'post', f.project, 'subtitles');
+  mkdirSync(staleDir, { recursive: true });
+  const stale = ['.zh.srt', '.en.srt', '.vtt', '.zh.ass'].map(suffix => join(staleDir, f.project + suffix));
+  stale.push(join(f.work, 'post', f.project, 'subtitle.srt'));
+  for (const file of stale) writeFileSync(file, 'historical dialogue should never be picked up');
+  const text = 'AI剧情演绎｜封闭赛道';
+  const result = run(f, text, {}, { postOnly: true });
+  assert.equal(result.status, 0, result.stdout + result.stderr); originals(f);
+  const pointer = readJson(join(f.out, 'current.json')), manifest = readJson(pointer.manifest);
+  const assFile = manifest.subtitles.compositionAss, proof = manifest.subtitles.persistentText;
+  assert.equal(manifest.subtitles.portableSidecars, 'not-applicable-no-dialogue');
+  assert.equal(proof.text, text); assert.equal(proof.readback, true);
+  assert.equal(proof.startSeconds, 0); assert.ok(proof.endSeconds >= proof.videoDuration && proof.endSeconds <= proof.videoDuration + .01 + 1e-9);
+  const events = parseAssEvents(readFileSync(assFile, 'utf8'));
+  assert.equal(events.length, 1); assert.equal(events[0].style, 'Title'); assert.equal(events[0].text, text);
+  assert.equal(sha(assFile), proof.assSha256);
+  assert.ok(manifest.assets.some(asset => asset.path === assFile));
+  assert.ok(!manifest.assets.some(asset => /\.(srt|vtt)$/i.test(asset.path)));
+  const sidecar = readJson(join(dirname(assFile), `${f.project}.subtitle-manifest.json`));
+  assert.equal(sidecar.timeline.cues, 0); assert.equal(sidecar.timeline.readback.srt, null);
+  assert.deepEqual(sidecar.files.map(file => file.format), ['ass']);
+  const rows = readFileSync(f.history, 'utf8').trim().split('\n').map(JSON.parse);
+  const burn = rows.filter(row => row.stage === 'subtitle' && row.evidence?.mode === 'burn').at(-1);
+  assert.equal(burn.evidence.persistentMatchesSidecar, true);
+  assert.equal(burn.evidence.srt, null);
+  assert.ok(rows.some(row => row.stepKey === 'g-post-only-assembly' && row.degraded && row.evidence?.blocked?.includes('S1')));
+  assert.ok(rows.some(row => row.stage === 'master' && row.ok));
+  for (const file of stale) assert.equal(readFileSync(file, 'utf8'), 'historical dialogue should never be picked up');
+  const actual = spawnSync(FFPROBE, ['-v', 'error', '-show_streams', '-of', 'json', manifest.deliverable.path], { encoding: 'utf8' });
+  assert.equal(actual.status, 0, actual.stderr);
+  const streams = JSON.parse(actual.stdout).streams;
+  assert.ok(streams.some(stream => stream.codec_type === 'audio'));
+  assert.ok(!streams.some(stream => stream.codec_type === 'subtitle'));
+  // The input video is solid black. At the first, middle and last video frame,
+  // the top safe-area crop must contain actual bright rendered text pixels.
+  const v = streams.find(stream => stream.codec_type === 'video');
+  for (const at of [0, Number(v.duration) / 2, Number(v.duration) - 1 / 30]) {
+    const frame = spawnSync(FFMPEG, ['-v', 'error', '-ss', at.toFixed(6), '-i', manifest.deliverable.path,
+      '-frames:v', '1', '-vf', 'crop=iw:ih*0.25:0:ih*0.12,format=gray', '-f', 'rawvideo', 'pipe:1'],
+    { timeout: 20000, maxBuffer: 2_000_000 });
+    assert.equal(frame.status, 0, frame.stderr.toString());
+    assert.ok(frame.stdout.some(pixel => pixel >= 235), `persistent burn has no bright pixels at ${at}`);
+  }
+});
+
+test('Film rejects an explicitly requested dialogue soft mux when only persistent text is present', { timeout: 120000 }, t => {
+  const f = fixture(t, { dialogue: [], hasPriorHistory: false });
+  const result = run(f, 'AI剧情演绎｜封闭赛道', {}, { stages: 'compose,subtitle,mux,master', postOnly: true });
+  assert.notEqual(result.status, 0); assert.match(result.stdout + result.stderr, /PERSISTENT_ONLY_MUX_UNSUPPORTED/);
+  assert.equal(existsSync(f.out), false); originals(f);
 });
