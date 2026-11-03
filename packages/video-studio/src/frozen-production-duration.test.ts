@@ -2,13 +2,15 @@ import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
 import { frozenSegmentContract } from "./requirement-contract.js";
-import { installVendorDurationProjectionBridge, withVendorDurationProjectionScope } from "./vendor-compat.js";
+import { installVendorDurationProjectionBridge, withVendorDurationProjectionScope, type DurationProjectionEvent } from "./vendor-compat.js";
 import { assertFrozenProductionTiming } from "./frozen-production-duration.js";
 
 const vendor = createRequire(import.meta.url);
 const load = (name: string) => vendor(fileURLToPath(new URL(`../../../vendor/supermickey/hyperreality-system/engines/${name}`, import.meta.url)));
 const { ScriptGenerator } = load("script-engine/core/script-generator.js");
+const { ScriptBlueprintAdapter } = load("script-engine/core/adapter.js");
 const { ProductionEngine } = load("production-engine/production-engine.js");
+const { ShotNormalizer } = load("production-engine/utils/shot-normalizer.js");
 const { DurationConstraintManager } = load("duration-constraint/duration-constraint-manager.js");
 const intervals = ["追击并完成第一次超越", "第二次超越并率先冲线", "停车、摘盔后登台"].map((brief, i) => ({ startSec: i * 10, endSec: (i + 1) * 10, brief }));
 const frozenSegments = frozenSegmentContract({ duration: 30, segmentContract: { count: 3, totalSeconds: 30, secondsPerSegment: 10, hardCuts: true, intervals } }, 30)!;
@@ -22,6 +24,17 @@ const rows = (lengths: number[]) => {
     return scene;
   });
 };
+
+function extractNativeShots(dialogue: Record<string, unknown>) {
+  const blueprint = { meta: { title: "台词时长回归", target_duration: 30 }, structure: {
+    scenes: rows([10, 10, 10]).map((scene, index) => index === 0 ? { ...scene, dialogue } : scene),
+  } };
+  const engine = Object.assign(Object.create(ProductionEngine.prototype), { shotNormalizer: new ShotNormalizer() });
+  return engine._extractScenes(new ScriptBlueprintAdapter().adapt(blueprint)).shots as Array<{
+    shotId: string; duration: number; dialogue: string; dialogueBlocks?: unknown; _blueprint?: unknown;
+  }>;
+}
+
 let restore: (() => void) | undefined;
 afterEach(() => { restore?.(); restore = undefined; });
 
@@ -84,6 +97,45 @@ describe("frozen production duration through actual native prototypes", () => {
     await expect(withVendorDurationProjectionScope(options, () =>
       ProductionEngine.prototype._normalizeDurations.call({}, scenes, 30))).rejects.toThrow("台词无法在冻结区间内完整呈现");
     expect(scenes.map(row => row.duration)).toEqual([10, 10, 10]);
+  });
+
+  it.each(["blocks", "lines"])("counts only spoken text from the verified native %s projection", async (key) => {
+    const spoken = "字".repeat(25);
+    const nativeLine = { speaker: "车手", emotion: "neutrally", type: "monologue",
+      [key === "blocks" ? "line" : "text"]: spoken };
+    const dialogue = { has_dialogue: true, [key]: [nativeLine] };
+    const original = structuredClone(dialogue);
+    restore = installVendorDurationProjectionBridge();
+    const events: DurationProjectionEvent[] = [];
+    const actual = await withVendorDurationProjectionScope({ ...options, onEvent: (event) => events.push(event) },
+      () => extractNativeShots(dialogue));
+    expect(actual.map(({ duration }) => duration)).toEqual([10, 10, 10]);
+    expect(actual[0]!.dialogue).toBe(`车手|monologue|neutrally|${spoken}|LIP_SYNC:YES`);
+    expect(actual.slice(1).map(({ dialogue }) => dialogue)).toEqual(["", ""]);
+    expect(events[0]!.shots.map(({ voiceFloorSeconds }) => voiceFloorSeconds)).toEqual([9, 0, 0]);
+    expect(dialogue).toEqual(original);
+
+    const ordinary: DurationProjectionEvent[] = [];
+    await withVendorDurationProjectionScope({ onEvent: (event) => ordinary.push(event) },
+      () => extractNativeShots(dialogue));
+    expect(ordinary[0]!.shots[0]!.voiceFloorSeconds).toBeGreaterThan(10);
+  });
+
+  it("keeps strict floors for overlong spoken text and for mismatched or missing structured proof", async () => {
+    const short = "字".repeat(25);
+    const shots = extractNativeShots({ has_dialogue: true, blocks: [{ line: short }] });
+    const missing = shots.map((shot) => ({ ...shot, dialogueBlocks: undefined, _blueprint: undefined }));
+    const mismatched = shots.map((shot, index) => index === 0
+      ? { ...shot, dialogue: shot.dialogue + "附加的真实台词" } : shot);
+    restore = installVendorDurationProjectionBridge();
+    await expect(withVendorDurationProjectionScope(options, () => extractNativeShots({
+      has_dialogue: true, blocks: [{ line: "短", text: "字".repeat(80) }],
+    }))).rejects.toThrow("SC-1 台词无法在冻结区间内完整呈现");
+    for (const invalid of [missing, mismatched]) {
+      await expect(withVendorDurationProjectionScope(options, () =>
+        ProductionEngine.prototype._normalizeDurations.call({}, invalid, 30)))
+        .rejects.toThrow("SC-1 台词无法在冻结区间内完整呈现");
+    }
   });
 
   it("rechecks the actual G6/G7 prompt shape, which may retain only duration instead of a timing object", () => {

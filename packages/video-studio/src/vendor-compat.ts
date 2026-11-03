@@ -1484,6 +1484,37 @@ export function installVendorDurationProjectionBridge(options: DurationProjectio
     return Number(record.duration ?? timing?.duration ?? 0) || 0;
   };
 
+  // ProductionEngine._extractScenes serializes speech together with non-spoken
+  // labels. Use its structured source only if it reproduces that entire string.
+  const spokenDialogue = (record: Recordish, index: number): unknown => {
+    const stored = record.dialogue;
+    if (typeof stored !== "string" || !stored) return stored;
+    let source = record.dialogueBlocks;
+    if (!Array.isArray(source) || source.length === 0) {
+      const blueprint = record._blueprint;
+      const scene = isPlainObject(blueprint) && Array.isArray(blueprint.scenes) ? blueprint.scenes[index] : undefined;
+      if (!isPlainObject(scene) || record.shotId !== (scene.scene_id || `S${String(index + 1).padStart(2, "0")}`)
+        || !isPlainObject(scene.dialogue) || Array.isArray(scene.dialogue.blocks)) return stored;
+      source = scene.dialogue.lines;
+    }
+    if (!Array.isArray(source) || !source.length) return stored;
+    const formatted: string[] = [];
+    const lines: Array<{ text: string }> = [];
+    for (const row of source) {
+      if (!isPlainObject(row)) return stored;
+      const speaker = row.speaker || "角色";
+      const type = row.type || row.manner || "独白";
+      const emotion = row.emotion || "平静";
+      const text = row.text || row.line || "";
+      if (typeof text !== "string" || [speaker, type, emotion].some(value => typeof value !== "string" || value.includes("|"))) {
+        return stored;
+      }
+      formatted.push(`${speaker}|${type}|${emotion}|${text}|LIP_SYNC:YES`);
+      if (text.trim()) lines.push({ text });
+    }
+    return formatted.join(" || ") === stored ? { lines } : stored;
+  };
+
   /** 通用：把一组镜头/场景投影到 target，并**原地**写回 duration + timing（保持对象引用不变） */
   const projectRecords = (
     records: Recordish[],
@@ -1509,7 +1540,7 @@ export function installVendorDurationProjectionBridge(options: DurationProjectio
       assertFrozenProductionTiming(records, contract, source, true);
       const shots = records.map((record, index) => {
         const voiceFloorSeconds = computeVoiceFloor({ shotId: idOf(record, `${kindLabel}-${index + 1}`),
-          dialogue: record.dialogue, emotion: record.emotion as string | undefined, mood: record.mood as string | undefined }).seconds;
+          dialogue: spokenDialogue(record, index), emotion: record.emotion as string | undefined, mood: record.mood as string | undefined }).seconds;
         return { shotId: idOf(record, `${kindLabel}-${index + 1}`), planSeconds: contract.secondsPerSegment,
           seconds: contract.secondsPerSegment, voiceFloorSeconds, raised: false, lowered: false };
       });
