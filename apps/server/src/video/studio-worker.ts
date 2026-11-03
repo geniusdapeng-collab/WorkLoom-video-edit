@@ -14,7 +14,7 @@
  */
 import path from "node:path";
 import { AsyncLocalStorage } from "node:async_hooks";
-import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, readFileSync, realpathSync, statSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { getAppPool, getGatewayPool } from "@workloom/db";
 import { GatewayEventSink, poolFromEnv } from "@workloom/base/model-router";
@@ -31,10 +31,13 @@ import {
   bindExplicitAudienceMetadata,
   classifyError,
   fieldSpec,
+  frozenVisualPrdSegments,
   type DeterministicCheck,
   installVendorEngineBridge,
   installVendorPortraitBindingBridge,
   installVendorRenderCompatBridge,
+  normalizePrdProductionProfile,
+  providerRejectsCameraFixed,
   resolveVideoModel,
   reviewStage,
   updateContextBundle,
@@ -44,6 +47,7 @@ import {
   type GateVerdict,
   type PipelineKind,
   type PortraitIndex,
+  type PrdMarketingAuthority,
   type ProducerArtifact,
   type ProducerStage,
   type ProducerVerdict,
@@ -607,6 +611,102 @@ function contractModelFor(metadata?: Record<string, unknown>) {
   return model;
 }
 
+function jsonRecord(value: unknown): Record<string, unknown> | undefined {
+  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : undefined;
+}
+
+/** Bind G6 to the same bytes the current G4 review approved, including the ordered native scene obligations. */
+function readApprovedProductionPlan(input: {
+  workDir: string;
+  metadata: Record<string, unknown>;
+  marketing: PrdMarketingAuthority;
+  proof: Record<string, unknown> | undefined;
+  shots: ReadonlyArray<Record<string, unknown>>;
+}) {
+  const invalid = (detail: string): never => { throw new Error(`G6_APPROVED_PRODUCTION_PLAN_UNVERIFIED: ${detail}`); };
+  const { workDir, marketing, proof, shots } = input;
+  const profile = normalizePrdProductionProfile(input.metadata);
+  const segments = frozenVisualPrdSegments({ metadata: input.metadata, marketing, profile });
+  if (!segments) return invalid("缺少本次冻结无对白分段");
+  const file = path.join(workDir, "gates", marketing.scope.projectId, `attempt-${marketing.scope.attempt}`, "G4_PRD.md");
+  const receipt = jsonRecord(proof?.autoApproval);
+  const g4ArtifactSha256 = receipt?.artifactSha256;
+  const evidence = Array.isArray(proof?.evidence) ? proof.evidence.filter(item => jsonRecord(item)?.path === file) : [];
+  if (proof?.gate !== "G4_PRD" || proof.approved !== true || proof.status !== "passed"
+    || proof.via !== "llm" || proof.degraded !== false || receipt?.gateKey !== "G4_PRD" || receipt.outcome !== "passed"
+    || typeof g4ArtifactSha256 !== "string" || !/^[a-f0-9]{64}$/.test(g4ArtifactSha256)
+    || evidence.length !== 1 || evidence[0]?.scope !== "complete-text" || evidence[0]?.sha256 !== g4ArtifactSha256) {
+    return invalid("缺少当前尝试 G4 完整原件的已通过模型和系统策略证明");
+  }
+  const body = (() => {
+    try {
+      if (realpathSync(workDir) !== workDir || realpathSync(file) !== file) return invalid("G4 原件路径越界或经过符号链接");
+      const stat = statSync(file);
+      if (!stat.isFile() || stat.size === 0 || stat.size > 2 * 1024 * 1024) return invalid("G4 原件不是完整可审文本文件");
+      return readFileSync(file);
+    } catch (error) {
+      if (error instanceof Error && error.message.startsWith("G6_APPROVED_PRODUCTION_PLAN_UNVERIFIED:")) throw error;
+      return invalid("无法读取当前尝试 G4 原件");
+    }
+  })();
+  if (renderSha256(body) !== g4ArtifactSha256) return invalid("G4 原件字节与已通过证明不一致");
+  const markdown = body.toString("utf8");
+  const annex = (heading: string) => {
+    const sections = markdown.split(`\n## ${heading}\n\n`);
+    if (sections.length !== 2) return invalid(`G4 缺少唯一的${heading}附件`);
+    const block = /^[\s\S]*?\x60\x60\x60json\n([\s\S]*?)\n\x60\x60\x60(?:\n|$)/.exec(sections[1]!.split("\n## ", 1)[0]!);
+    if (!block) return invalid(`G4 的${heading}缺少完整 JSON`);
+    try {
+      return jsonRecord(JSON.parse(block[1]!)) ?? invalid(`G4 的${heading}不是 JSON 对象`);
+    } catch {
+      return invalid(`G4 的${heading}不是可解析的 JSON 对象`);
+    }
+  };
+  const authority = annex("宿主本次权威生产与交付要求");
+  const plan = annex("本次 G4 执行与核验计划原文");
+  const source = jsonRecord(authority.source);
+  const contract = jsonRecord(authority.approvedRequirementContract);
+  const requirementContractHash = source?.requirementContractHash;
+  if (source?.schemaVersion !== "workloom.prd-authority/v1" || source.status !== "ready-for-g4"
+    || canonicalRenderJson(source.scope ?? null) !== canonicalRenderJson(marketing.scope)
+    || canonicalRenderJson(source.g1 ?? null) !== canonicalRenderJson({ path: marketing.g1Artifact.path, sha256: marketing.g1Artifact.sha256 })
+    || canonicalRenderJson(source.profile ?? null) !== canonicalRenderJson(profile)
+    || canonicalRenderJson(authority.profile ?? null) !== canonicalRenderJson(profile)
+    || contract?.schemaVersion !== "workloom.requirement-contract/v1" || contract.status !== "ready-for-g3"
+    || typeof requirementContractHash !== "string" || !/^[a-f0-9]{64}$/.test(requirementContractHash)
+    || contract.hash !== requirementContractHash || plan.status !== "plan-only-not-executed") {
+    return invalid("G4 作用域、当前 G1、生产规格或已审场景合同不一致");
+  }
+  const scenes = contract.scenes;
+  const verification = plan.sceneVerificationPlans;
+  if (!Array.isArray(scenes) || !Array.isArray(verification)
+    || scenes.length !== segments.count || verification.length !== scenes.length || shots.length !== scenes.length) {
+    return invalid("G4 场景、冻结区间与原生镜头无法按序一一对应");
+  }
+  const strings = (value: unknown): value is string[] => Array.isArray(value) && value.every(text => typeof text === "string" && text.trim());
+  const tolerance = (profile.durationToleranceFrames ?? 0) / (profile.frameRate ?? 1);
+  const seen = new Set<string>();
+  return { g4ArtifactSha256, requirementContractHash, scenes: shots.map((shot, index) => {
+    const approvedScene = jsonRecord(scenes[index]);
+    const verificationPlan = jsonRecord(verification[index]);
+    const shotId = shot.shotId ?? shot.shot_id;
+    if (!approvedScene || !verificationPlan || typeof shotId !== "string" || !shotId || seen.has(shotId)
+      || (shot.shotId !== undefined && shot.shot_id !== undefined && shot.shotId !== shot.shot_id)
+      || approvedScene.id !== shotId || verificationPlan.sceneId !== shotId || shot.duration !== segments.secondsPerSegment
+      || approvedScene.duration !== shot.duration || typeof verificationPlan.duration !== "number"
+      || !Number.isFinite(verificationPlan.duration) || Math.abs(verificationPlan.duration - shot.duration) > tolerance + 1e-9
+      || typeof approvedScene.purpose !== "string" || !approvedScene.purpose.trim() || !strings(approvedScene.keyElements)
+      || !Array.isArray(approvedScene.props) || !Array.isArray(approvedScene.actions) || !approvedScene.actions.length
+      || !approvedScene.actions.every(value => {
+        const action = jsonRecord(value);
+        return typeof action?.actorId === "string" && typeof action.description === "string" && Boolean(action.description.trim());
+      }) || !strings(verificationPlan.visualRequirements) || !strings(verificationPlan.audioRequirements)
+      || verificationPlan.dialogue !== "") return invalid(`第 ${index + 1} 镜的已审场景身份、时长或动作核验计划不完整`);
+    seen.add(shotId);
+    return { shotId, sceneId: shotId, interval: segments.intervals[index]!, approvedScene, verificationPlan };
+  }) };
+}
+
 function promptCompileOptionsFor(
   metadata: Record<string, unknown> | undefined,
   model: ReturnType<typeof contractModelFor>,
@@ -615,6 +715,7 @@ function promptCompileOptionsFor(
   source: Record<string, unknown>,
   applyFrozenDelivery = false,
   archiveCopies?: ReturnType<typeof readCurrentPortraitArchiveCopies>,
+  enforceProviderCapabilities = false,
 ): PromptCompileOptions {
   const brief = metadata?.brief && typeof metadata.brief === "object" && !Array.isArray(metadata.brief)
     ? metadata.brief as Record<string, unknown>
@@ -653,6 +754,7 @@ function promptCompileOptionsFor(
       resolutions: limits?.resolutions?.length ? [...limits.resolutions] : [resolution],
       maxReferenceImages: limits?.maxReferenceImages ?? 0,
       maxPromptChars: limits?.maxPromptChars ?? 4000,
+      ...(enforceProviderCapabilities && providerRejectsCameraFixed(model.provider, providerModel) ? { cameraFixedSupported: false } : {}),
     },
     assets: resolvePromptAssets({
       source,
@@ -905,6 +1007,15 @@ function startRunWithLease(scope: Scope, input: StudioRunInput, heldLease?: Proj
     workDir: runWorkDir,
     scope: { tenantId: scope.tenantId, workspaceId: scope.workspaceId, projectId: input.projectId, runId: entry.runId },
   }) : undefined;
+  const brief = jsonRecord(runInput.metadata?.brief);
+  const usesApprovedProductionPlan = promptContractMode === "enforce" && input.isMarketing
+    && brief?.segmentContract !== undefined && jsonRecord(brief.productionRequirements)?.speechPolicy === "none";
+  const approvedProductionPlanFor = (shots: ReadonlyArray<Record<string, unknown>>) =>
+    usesApprovedProductionPlan && marketingGateEvidence ? readApprovedProductionPlan({
+      workDir: runWorkDir, metadata: runInput.metadata ?? {}, marketing: marketingGateEvidence.forPrd(),
+      proof: gateProofs.get("G4_PRD"), shots,
+    }) : undefined;
+  let reviewedG4ArtifactSha256: string | undefined;
   let completedVendorResult: Awaited<ReturnType<VideoStudio["runPreproduction"]>> | null = null;
   const promptQualityRef: { current: PromptQualityResult | null } = { current: null };
   const currentPromptQuality = (): PromptQualityResult | null => promptQualityRef.current as PromptQualityResult | null;
@@ -1056,13 +1167,14 @@ function startRunWithLease(scope: Scope, input: StudioRunInput, heldLease?: Proj
             detail: "G6 提示词合同缺少模型能力卡或语义评审器",
           });
         } else {
+          const approvedProductionPlan = approvedProductionPlanFor(structuredPromptPackage);
           const packageShots = structuredPromptPackage.map((source) => ({
             source: {
               ...source,
               shotId: String(source.shotId ?? source.shot_id ?? ""),
             },
             compile: promptCompileOptionsFor(runInput.metadata, promptContractModel, runWorkDir,
-              path.join(runWorkDir, "characters", input.projectId), source, input.isMarketing, archiveCopies),
+              path.join(runWorkDir, "characters", input.projectId), source, input.isMarketing, archiveCopies, promptContractMode === "enforce"),
           }));
           promptQualityForGate = await evaluatePromptPackage({
             mode: promptContractMode === "enforce" ? "enforce" : "shadow",
@@ -1077,8 +1189,18 @@ function startRunWithLease(scope: Scope, input: StudioRunInput, heldLease?: Proj
               pipelineKind,
               intent: input.intent,
               brief: runInput.metadata?.brief ?? null,
+              ...(approvedProductionPlan ? { approvedProductionPlan } : {}),
             },
           });
+          if (approvedProductionPlan) {
+            const currentPlan = approvedProductionPlanFor(structuredPromptPackage);
+            const expectedPlanSha256 = sha256Json(approvedProductionPlan);
+            if (!currentPlan || sha256Json(currentPlan) !== expectedPlanSha256
+              || promptQualityForGate?.approvedProductionPlanSha256 !== expectedPlanSha256) {
+              throw new Error("G6_APPROVED_PRODUCTION_PLAN_UNVERIFIED: 评审使用的计划或 G4 原件发生变化");
+            }
+            reviewedG4ArtifactSha256 = approvedProductionPlan.g4ArtifactSha256;
+          }
           promptQualityRef.current = promptQualityForGate;
           promptQualityEvidence = writePromptQualityEvidence(
             path.join(path.dirname(artifact.path), "prompt-quality"),
@@ -1136,10 +1258,17 @@ function startRunWithLease(scope: Scope, input: StudioRunInput, heldLease?: Proj
             detail: "G7 找不到当前 G6 字段合同或原始镜头包，不能只凭预生产报告放行",
           });
         } else {
+          const approvedProductionPlan = approvedProductionPlanFor(structuredPromptPackage);
+          const approvedProductionPlanSha256 = approvedProductionPlan ? sha256Json(approvedProductionPlan) : undefined;
+          if (usesApprovedProductionPlan && (!reviewedG4ArtifactSha256
+            || approvedProductionPlan?.g4ArtifactSha256 !== reviewedG4ArtifactSha256
+            || approvedProductionPlanSha256 !== currentPromptQuality()?.approvedProductionPlanSha256)) {
+            throw new Error("G6_APPROVED_PRODUCTION_PLAN_UNVERIFIED: G7 缺少与 G6 评审一致的当前 G4 原件和动作计划");
+          }
           const currentShots = structuredPromptPackage.map((source) => ({
             source: { ...source, shotId: String(source.shotId ?? source.shot_id ?? "") },
             compile: promptCompileOptionsFor(runInput.metadata, promptContractModel, runWorkDir,
-              path.join(runWorkDir, "characters", input.projectId), source, false, archiveCopies),
+              path.join(runWorkDir, "characters", input.projectId), source, false, archiveCopies, promptContractMode === "enforce"),
           }));
           const currentness = verifyCurrentPromptContracts({
             shots: currentShots,
@@ -1159,6 +1288,7 @@ function startRunWithLease(scope: Scope, input: StudioRunInput, heldLease?: Proj
             runId: entry.runId,
             attempt: stageRef.attempt,
             g6DecisionId: gateProofs.get("G6_PROMPT") ? String(gateProofs.get("G6_PROMPT")!.decisionId ?? "") : "",
+            ...(approvedProductionPlanSha256 ? { approvedProductionPlanSha256 } : {}),
             promptContracts: prior,
             current,
             eligible: current,
@@ -1557,6 +1687,7 @@ function startRunWithLease(scope: Scope, input: StudioRunInput, heldLease?: Proj
           async (ctx) => {
             gateProofs.clear();
             promptQualityRef.current = null;
+            reviewedG4ArtifactSha256 = undefined;
             marketingGateEvidence?.reset(ctx.attempt);
             completedVendorResult = null;
             /**

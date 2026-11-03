@@ -2,13 +2,13 @@
  * T-2026-0927-0013：真实 startRun + StageRunner + ArchiveStore 回归。
  * vendor、PG、媒体登记用边界替身；档案写盘与重试/终态/商品摘要走实际代码。
  */
-import { mkdir, mkdtemp, readFile, readdir, realpath, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, readdir, realpath, rename, rm, symlink, writeFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { gatewayAppend, gatewayAppendOnClient } from "@workloom/base/workdata";
-import { applyScenePolicy, auditScenePolicy, fieldSpec, loadScenePolicies, promptFieldPolicy, resolveShotCast, SHOT_FIELD_SCHEMA_V2, type ScenePolicyShot } from "@hyperreality/video-studio";
+import { applyScenePolicy, auditScenePolicy, fieldSpec, loadScenePolicies, normalizePrdProductionProfile, promptFieldPolicy, resolveShotCast, SHOT_FIELD_SCHEMA_V2, type ScenePolicyShot } from "@hyperreality/video-studio";
 import { verifyScenePolicyProductionSource } from "./scene-policy-render-gate.js";
 import { portraitReuseFixture } from "./portrait-reuse.test-support.js";
 import { builtinCatalogFixture } from "./builtin-character-selection.test-support.js";
@@ -286,6 +286,81 @@ async function archiveOutput(projectId: string, attempt: number) {
 }
 
 describe("预生产原始结果与诚实终态", () => {
+  it.each(["current", "missing", "changed", "symlink", "foreign-attempt", "wrong-order", "wrong-duration", "changed-during-review", "shadow"] as const)(
+    "冻结无对白 G6 仅接收同次通过的原始 G4 制作动作计划（%s）", async scenario => {
+      vi.stubEnv("PROMPT_CONTRACT_V2", scenario === "shadow" ? "shadow" : "enforce");
+      doubles.emitGates = false;
+      const intervals = [
+        { startSec: 0, endSec: 5, brief: "前轮须从落后到完全超过第一辆车。" },
+        { startSec: 5, endSec: 10, brief: "稳定停车后完全离车，走上台阶再举杯。" },
+      ];
+      const metadata = { hasPerson: false, characters: [], noCharacters: true, brief: { duration: 10, aspectRatio: "9:16",
+        segmentContract: { count: 2, secondsPerSegment: 5, totalSeconds: 10, hardCuts: true, intervals },
+        productionRequirements: { titleCard: false, resolution: "1080p", frameRate: 30, speechPolicy: "none",
+          subtitleMode: "none", nativeAudio: true, openWithCover: false, durationToleranceFrames: 1 } } };
+      const scenes = ["opening", "ending"].map((id, index) => ({ id, purpose: `实际目的一${index}`, duration: 5,
+        keyElements: ["连续动作"], props: [], actions: [{ actorId: "$scene", description: intervals[index]!.brief }] }));
+      const verification = scenes.map(({ id, duration }) => ({ sceneId: id, duration,
+        visualRequirements: ["动作起点、经过、完成均可见"], audioRequirements: ["保留赛道原声"], dialogue: "" }));
+      const requirementContractHash = "f".repeat(64);
+      const captures: any[] = [];
+      let g4Path = "", g4ArtifactSha256 = "";
+      const capture = vi.fn(async options => {
+        captures.push(options);
+        if (scenario === "changed-during-review") {
+          await writeFile(g4Path, "复核后改写");
+          return undefined;
+        }
+        throw new Error("worker-captured-native-g6-context");
+      });
+      doubles.capturePromptOptions = capture;
+      doubles.runPreproduction.mockImplementation(async (runInput) => {
+        const config = doubles.studioConfigs[0]!;
+        const { scope: marketingScope, g1Artifact } = config.dataMining.verifiedRaw.prdAuthority;
+        const profile = normalizePrdProductionProfile(runInput.metadata);
+        const authority = { profile, source: { schemaVersion: "workloom.prd-authority/v1", status: "ready-for-g4", profile,
+          scope: { ...marketingScope, attempt: scenario === "foreign-attempt" ? marketingScope.attempt + 1 : marketingScope.attempt },
+          g1: { path: g1Artifact.path, sha256: g1Artifact.sha256 }, requirementContractHash },
+          approvedRequirementContract: { schemaVersion: "workloom.requirement-contract/v1", status: "ready-for-g3",
+            hash: requirementContractHash, modelAudienceHypothesis: "未审受众假设", scenes } };
+        const annex = (heading: string, value: unknown) => `\n## ${heading}\n\n内容。\n\n\x60\x60\x60json\n${JSON.stringify(value, null, 2)}\n\x60\x60\x60\n`;
+        const g4 = "当前 G4 全文。".repeat(20)
+          + annex("宿主本次权威生产与交付要求", authority)
+          + annex("本次 G4 执行与核验计划原文", { status: "plan-only-not-executed", sceneVerificationPlans: verification });
+        g4Path = path.join(path.dirname(g1Artifact.path), "G4_PRD.md");
+        g4ArtifactSha256 = renderSha256(g4);
+        if (scenario !== "missing" && scenario !== "shadow") {
+          await expect(config.onApproval({ gate: "G4_PRD", vendorType: "prd", title: "完整审核", contentMd: g4 }))
+            .resolves.toMatchObject({ approved: true });
+        }
+        if (scenario === "changed") await writeFile(g4Path, "已通过后改写");
+        if (scenario === "symlink") {
+          const original = g4Path + ".saved";
+          await rename(g4Path, original);
+          await symlink(original, g4Path);
+        }
+        const shots = scenes.map(scene => ({ shotId: scene.id, duration: 5, fields: { scene: "赛道" } }));
+        if (scenario === "wrong-order") shots.reverse();
+        if (scenario === "wrong-duration") shots[0]!.duration = 6;
+        await config.onApproval({ gate: "G6_PROMPT", vendorType: "prompt-generation", title: "提示词包",
+          contentMd: "本次原生镜头报告。".repeat(20), structuredArtifact: shots });
+        return success();
+      });
+      const { entry } = await runToTerminal(true, metadata);
+      if (scenario === "current" || scenario === "shadow") {
+        expect(entry.error).toContain("worker-captured-native-g6-context");
+        expect(capture).toHaveBeenCalledTimes(1);
+        if (scenario === "shadow") expect(captures[0].upstreamContext).not.toHaveProperty("approvedProductionPlan");
+        else expect(captures[0].upstreamContext.approvedProductionPlan).toEqual({ g4ArtifactSha256, requirementContractHash,
+          scenes: scenes.map((approvedScene, index) => ({ shotId: approvedScene.id, sceneId: approvedScene.id,
+            interval: intervals[index], approvedScene, verificationPlan: verification[index] })) });
+      } else {
+        expect(entry.error).toContain("G6_APPROVED_PRODUCTION_PLAN_UNVERIFIED");
+        expect(capture).toHaveBeenCalledTimes(scenario === "changed-during-review" ? 1 : 0);
+      }
+    },
+  );
+
   it.each([
     { drift: false, frozen: false },
     { drift: true, frozen: false },
@@ -420,10 +495,13 @@ describe("预生产原始结果与诚实终态", () => {
     { key: "SEEDANCE_MODEL", mode: "enforce" },
     { key: "ARK_VIDEO_MODEL", mode: "enforce" },
     { key: "SEEDANCE_MODEL", mode: "shadow" },
-  ])("G6合同绑定部署实际模型覆盖$key（$mode），最终上限仅用于强制模式", async ({ key, mode }) => {
+    { key: "SEEDANCE_MODEL", mode: "enforce", exact: true },
+    { key: "ARK_VIDEO_MODEL", mode: "shadow", exact: true },
+  ])("G6合同绑定部署实际模型覆盖$key（$mode、$exact），最终上限和传输能力仅用于强制模式", async ({ key, mode, exact }) => {
     vi.stubEnv("PROMPT_CONTRACT_V2", mode);
     vi.stubEnv("SEEDANCE_MODEL", ""); vi.stubEnv("ARK_VIDEO_MODEL", "");
-    vi.stubEnv(key, "deployment-specific-seedance-endpoint");
+    const providerModel = exact ? "doubao-seedance-2-5-260628" : "deployment-specific-seedance-endpoint";
+    vi.stubEnv(key, providerModel);
     const captured: any[] = [];
     doubles.capturePromptOptions = async (options) => { captured.push(options); throw new Error("stop-after-contract-model-capture"); };
     doubles.emitGates = false;
@@ -439,7 +517,9 @@ describe("预生产原始结果与诚实终态", () => {
     if (mode === "enforce") expect(captured[0].maxFinalPromptChars).toBe(fieldSpec().lengths.hardMax);
     else expect(captured[0]).not.toHaveProperty("maxFinalPromptChars");
     expect(captured[0].shots[0].compile.model).toMatchObject({ modelId: "doubao-seedance-2-5",
-      providerModel: "deployment-specific-seedance-endpoint", version: "workloom.media-catalog/v1:deployment-specific-seedance-endpoint" });
+      providerModel, version: `workloom.media-catalog/v1:${providerModel}` });
+    if (mode === "enforce" && exact) expect(captured[0].shots[0].compile.model.cameraFixedSupported).toBe(false);
+    else expect(captured[0].shots[0].compile.model).not.toHaveProperty("cameraFixedSupported");
   });
   it("坏复用配置在启动注册、vendor和租约之前失败，不回退生成", () => {
     vi.stubEnv("HR_PORTRAIT_REUSE_MANIFEST", path.join(doubles.workDir, "missing-manifest.json"));

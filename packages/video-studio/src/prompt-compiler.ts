@@ -333,7 +333,10 @@ export function compilePromptShot(
       fps: options.delivery.fps,
       format: options.delivery.format,
       generate_audio: options.delivery.generateAudio,
-      camera_fixed: /固定机位|固定镜头|static camera|fixed camera/i.test(fieldText.get("camera_movement") ?? ""),
+      // An unsupported global switch cannot express stable viewpoints inside a shot.
+      // The complete authored camera direction still enters the bound prompt.
+      camera_fixed: options.model.cameraFixedSupported !== false
+        && /固定机位|固定镜头|static camera|fixed camera/i.test(fieldText.get("camera_movement") ?? ""),
       ...(fieldText.has("negative") ? { negative_prompt: fieldText.get("negative") } : {}),
     },
     technical: {},

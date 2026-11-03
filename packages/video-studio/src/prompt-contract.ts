@@ -63,6 +63,13 @@ export interface PromptModelCapabilities {
   resolutions: string[];
   maxReferenceImages: number;
   maxPromptChars: number;
+  /** Whether the resolved transport can enforce a global camera_fixed switch. */
+  cameraFixedSupported?: boolean;
+}
+
+/** Keep the exact transport identity separate from catalog aliases and deployment overrides. */
+export function providerRejectsCameraFixed(provider: string, providerModel: string): boolean {
+  return provider === "seedance" && providerModel.trim() === "doubao-seedance-2-5-260628";
 }
 
 export interface PromptContractRequest {
@@ -242,6 +249,9 @@ export function validatePromptContract(contract: PromptContract): PromptContract
   if (contract.schemaVersion !== PROMPT_CONTRACT_SCHEMA_VERSION) add("HARD_CONTRACT_SCHEMA_INVALID", null, "合同 schemaVersion 非法");
   const policy = promptFieldPolicy(contract.fieldSchema, contract.bindings.some((binding) => binding.field === "title_content"));
   if (contract.fieldCount !== policy.fieldCount) add("HARD_FIELD_COUNT_MISMATCH", null, `字段数 ${contract.fieldCount}，策略要求 ${policy.fieldCount}`);
+  if (contract.modelCapabilities?.cameraFixedSupported === false && contract.request.parameters.camera_fixed !== false) {
+    add("HARD_CAMERA_FIXED_UNSUPPORTED", "camera_movement", "当前模型不支持全镜固定参数，原生请求只能保留未启用状态");
+  }
   const expected = new Map(policy.fields.map((field) => [field.key, field]));
   const seen = new Set<string>();
   for (const binding of contract.bindings) {

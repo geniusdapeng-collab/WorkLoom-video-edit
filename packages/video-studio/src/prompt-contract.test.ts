@@ -4,6 +4,8 @@ import {
   SHOT_FIELD_SCHEMA_V1,
   SHOT_FIELD_SCHEMA_V2,
   promptFieldPolicy,
+  providerRejectsCameraFixed,
+  sha256Json,
   sha256Text,
   validatePromptContract,
 } from "./prompt-contract.js";
@@ -123,6 +125,43 @@ describe("versioned 25/30 prompt field policy", () => {
 });
 
 describe("deterministic prompt and request compiler", () => {
+  it.each([
+    "固定机位分段拍摄；先用侧后中景，随后切到同轴近景，最后切到侧前中景。",
+    "不使用固定机位，也不用 static camera；保持跟拍，主体移动时持续推进。",
+  ])("keeps complete camera prose for the transport without a global switch: %s", camera_movement => {
+    const source = shot({ fields: { ...contentFields, camera_movement } });
+    const previous = compilePromptShot(source, options);
+    const current = compilePromptShot(source, { ...options, model: { ...model, cameraFixedSupported: false } });
+    expect(previous.request.parameters.camera_fixed).toBe(true);
+    expect(current.hardErrors).toEqual([]);
+    expect(current.request).toEqual({ ...previous.request, parameters: { ...previous.request.parameters, camera_fixed: false } });
+    expect(current.prompt).toBe(previous.prompt);
+    expect(current.prompt).toContain(camera_movement);
+    expect(current.contract.fieldsSha256).toBe(previous.contract.fieldsSha256);
+    expect(current.contract.bindings).toEqual(previous.contract.bindings);
+    expect(current.contract.requestSha256).not.toBe(previous.contract.requestSha256);
+    expect(validatePromptContract(previous.contract).valid).toBe(true);
+    expect(validatePromptContract(current.contract).valid).toBe(true);
+    const altered = structuredClone(current.contract);
+    altered.request.parameters.camera_fixed = true;
+    altered.requestSha256 = sha256Json(altered.request);
+    expect(validatePromptContract(altered).errors).toContainEqual(expect.objectContaining({ code: "HARD_CAMERA_FIXED_UNSUPPORTED" }));
+  });
+
+  it("keeps the legacy request and archive when a supported transport retains the global switch", () => {
+    const legacy = { ...model, modelId: "legacy-seedance", providerModel: "doubao-seedance-1-0-pro-250528" };
+    const baseline = compilePromptShot(shot(), { ...options, model: legacy });
+    const supported = compilePromptShot(shot(), { ...options, model: { ...legacy, cameraFixedSupported: true } });
+    expect(providerRejectsCameraFixed("seedance", model.providerModel)).toBe(true);
+    expect(providerRejectsCameraFixed("seedance", legacy.providerModel)).toBe(false);
+    expect(providerRejectsCameraFixed("other", model.providerModel)).toBe(false);
+    expect(baseline.hardErrors).toEqual([]);
+    expect(supported.hardErrors).toEqual([]);
+    expect(baseline.request.parameters.camera_fixed).toBe(true);
+    expect(supported.contract.requestSha256).toBe(baseline.contract.requestSha256);
+    expect(compilePromptShot(shot(), { ...options, model: legacy }).contract).toEqual(baseline.contract);
+  });
+
   it("compiles all 25 content fields into stable prompt, request and binding hashes", () => {
     const first = compilePromptShot(shot(), options);
     const second = compilePromptShot(shot(), options);
