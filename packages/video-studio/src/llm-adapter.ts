@@ -14,17 +14,33 @@
  */
 import {
   canonicalDeepSeekModel,
+  circuitSnapshot,
+  currentWindow,
+  DEFAULT_CALL_TIMEOUT_MS,
+  DEFAULT_MODEL_POLICY,
+  DEFAULT_SCENE_TIMEOUTS,
+  DEEPSEEK_FLASH_MODEL_ID,
+  GatewayEventSink,
   OpenAiCompatibleProvider,
+  resolveScene,
+  resolveTextScenePolicy,
+  resolveTier,
   routeSmart,
+  TEXT_PRIMARY_POLICY_VERSION,
+  TEXT_PRIMARY_REGISTRY_VERSION,
+  type ChatResult,
   type EventSink,
   type ModelPolicy,
   type ModelProvider,
   type PlanId,
+  type SmartTask,
 } from "@workloom/base/model-router";
+import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, resolve as resolvePath } from "node:path";
 import { fileURLToPath } from "node:url";
+import { types } from "node:util";
 import { productionModelInput } from "./prd-authority-bridge.js";
 import {
   resolveOpenAiCompatibleBaseUrl,
@@ -86,8 +102,116 @@ export interface WorkloomLLMEngineConfig {
   };
 }
 
+/** An answered, canonical dispatch can prove the same structured review input in this run. */
+export interface StructuredReviewDispatchProof {
+  readonly inputSha256: string;
+  readonly requestSha256: string;
+  readonly responseSha256: string;
+  readonly modelId: string;
+  readonly policyVersion: string;
+  readonly registryVersion: string;
+  matchesCurrent(prompt: string, schema: unknown, options: LLMReasonOptions): boolean;
+}
+
+type AttachedRouter = NonNullable<WorkloomLLMEngineConfig["router"]>;
+interface ReviewDispatchBinding {
+  inputSha256: string;
+  revision: number;
+  router: AttachedRouter;
+  providers: AttachedRouter["providers"];
+  provider: OpenAiCompatibleProvider;
+  sink: EventSink;
+  recordModelTrace: EventSink["recordModelTrace"];
+  thinkingMode: "enabled" | "disabled";
+  thinkingEffort?: "low" | "high" | "max";
+}
+
+const captureReviewDispatch = Symbol("captureReviewDispatch");
+type InternalReasonOptions = LLMReasonOptions & {
+  [captureReviewDispatch]?: (proof: StructuredReviewDispatchProof) => void;
+};
+const nativeProviderChat = OpenAiCompatibleProvider.prototype.chat;
+const nativeTransportCheck = OpenAiCompatibleProvider.prototype.matchesCurrentTransport;
+const nativeMapGet = Map.prototype.get;
+const digestPattern = /^[a-f0-9]{64}$/;
+
+/** Only data descriptors are inspected. A proof must not execute configuration code. */
+function dataMember(value: object, key: PropertyKey, prototype?: object): unknown {
+  const own = Object.getOwnPropertyDescriptor(value, key);
+  const descriptor = own ?? (prototype && Object.getOwnPropertyDescriptor(prototype, key));
+  return descriptor && "value" in descriptor ? descriptor.value : undefined;
+}
+
+function dataDescriptors(value: unknown, prototypes: readonly (object | null)[]): PropertyDescriptor[] | undefined {
+  if (!value || typeof value !== "object" || types.isProxy(value)
+    || !prototypes.includes(Object.getPrototypeOf(value))) return undefined;
+  const properties = Reflect.ownKeys(value).map((key) => Object.getOwnPropertyDescriptor(value, key)!);
+  return properties.every((property) => "value" in property) ? properties : undefined;
+}
+
+function plainDataTree(value: unknown, parents = new WeakSet<object>(), depth = 0): boolean {
+  if (value == null || typeof value === "string" || typeof value === "boolean") return true;
+  if (typeof value === "number") return Number.isFinite(value);
+  if (typeof value !== "object" || depth >= 32 || parents.has(value)) return false;
+  const descriptors = dataDescriptors(value, [Object.prototype, null, Array.prototype]);
+  if (!descriptors) return false;
+  parents.add(value);
+  const plain = descriptors.every((descriptor) => plainDataTree(descriptor.value, parents, depth + 1));
+  parents.delete(value);
+  return plain;
+}
+
+function attestableRoute(engine: object) {
+  const cfg = dataMember(engine, "cfg") as WorkloomLLMEngineConfig | undefined;
+  if (!cfg || !dataDescriptors(cfg, [Object.prototype, null])) return undefined;
+  const router = dataMember(cfg, "router") as AttachedRouter | undefined;
+  if (!router || !dataDescriptors(router, [Object.prototype, null])) return undefined;
+  const providers = dataMember(router, "providers") as AttachedRouter["providers"] | undefined;
+  const sink = dataMember(router, "sink") as EventSink | undefined;
+  const policy = (dataMember(router, "policy") as ModelPolicy | undefined) ?? DEFAULT_MODEL_POLICY;
+  if (!plainDataTree(policy) || !types.isMap(providers) || !dataDescriptors(providers, [Map.prototype])
+    || dataMember(providers, "get", Map.prototype) !== nativeMapGet
+    || !sink || !dataDescriptors(sink, [Object.prototype, null, GatewayEventSink.prototype])) return undefined;
+  const provider = nativeMapGet.call(providers, DEEPSEEK_FLASH_MODEL_ID);
+  if (!provider || !dataDescriptors(provider, [OpenAiCompatibleProvider.prototype])
+    || dataMember(provider, "chat", OpenAiCompatibleProvider.prototype) !== nativeProviderChat
+    || dataMember(provider, "modelId") !== DEEPSEEK_FLASH_MODEL_ID) return undefined;
+  const sinkPrototype = Object.getPrototypeOf(sink) ?? undefined;
+  const recordModelTrace = dataMember(sink, "recordModelTrace", sinkPrototype);
+  if (typeof recordModelTrace !== "function" || types.isProxy(recordModelTrace)) return undefined;
+  const model = dataMember(cfg, "model");
+  if (typeof model !== "string") return undefined;
+  return { router, providers, sink, provider: provider as OpenAiCompatibleProvider, policy, model,
+    recordModelTrace: recordModelTrace as EventSink["recordModelTrace"] };
+}
+
+function sameReviewDispatch(before: ReviewDispatchBinding, current: ReviewDispatchBinding | undefined): boolean {
+  return !!current && before.inputSha256 === current.inputSha256 && before.revision === current.revision
+    && before.router === current.router && before.providers === current.providers && before.provider === current.provider
+    && before.sink === current.sink && before.recordModelTrace === current.recordModelTrace;
+}
+
+function structuredPromptFor(prompt: string, schema: unknown): string {
+  const schemaText = JSON.stringify(schema, null, 2);
+  // The caller supplies actual IDs and field templates independently of illustrative examples.
+  return [
+    prompt,
+    "",
+    "【硬性输出要求】",
+    "1. 只输出合法 JSON",
+    "2. 不要输出 markdown 代码块",
+    "3. 不要输出解释、前言、结尾",
+    "4. 所有字段必须存在",
+    "5. 输出必须能被 JSON.parse 直接解析",
+    "",
+    "【目标JSON结构示例】",
+    schemaText,
+  ].join("\n");
+}
+
 export class WorkloomLLMEngine {
   private readonly cfg: Required<Omit<WorkloomLLMEngineConfig, "router">> & { router?: WorkloomLLMEngineConfig["router"] };
+  #routerRevision = 0;
   readonly stats = { totalCalls: 0, totalFailures: 0 };
 
   get model(): string {
@@ -113,6 +237,7 @@ export class WorkloomLLMEngine {
   /** v3.0 收口：装配后注入路由配置（宿主侧 seam；vendor 无感） */
   attachRouter(router: NonNullable<WorkloomLLMEngineConfig["router"]>): void {
     this.cfg.router = router;
+    this.#routerRevision += 1;
   }
 
   /** 从底座变量构建；DEEPSEEK_* is accepted for OpenAI-compatible CLI/server deployments. */
@@ -134,7 +259,101 @@ export class WorkloomLLMEngine {
     finally { input.verify(); }
   }
 
-  private async requestChat(prompt: string, opts: LLMReasonOptions): Promise<LLMReasonResult> {
+  private routeTask(prompt: string, opts: LLMReasonOptions, scene: string): SmartTask {
+    return {
+      action: scene,
+      scene,
+      plan: this.cfg.router?.plan,
+      ...(this.cfg.router?.forceModel
+        ? { forceModel: canonicalDeepSeekModel(this.cfg.router.forceModel) }
+        : {}),
+      timeoutMs: opts.timeoutMs ?? this.cfg.timeoutMs,
+      signal: opts.signal,
+      // The dispatcher calculates the complete legal output window.
+      generation: { temperature: opts.temperature, topP: opts.topP },
+      messages: [
+        {
+          role: "system",
+          content: opts.systemPrompt
+            ?? (opts.forceJson
+              ? "你是一个严格输出 JSON 的助手。除合法 JSON 外不要输出任何额外文字。"
+              : "你是一个可靠的助手。"),
+        },
+        { role: "user", content: prompt },
+      ],
+    };
+  }
+
+  private describeReviewDispatch(task: SmartTask, route: NonNullable<ReturnType<typeof attestableRoute>>): ReviewDispatchBinding | undefined {
+    try {
+      const { router, providers, sink, provider, policy, model, recordModelTrace } = route;
+      const scene = task.scene;
+      // Only the worker's pinned, built-in provider has a verifiable dispatch path here.
+      if (!scene || task.forceModel !== DEEPSEEK_FLASH_MODEL_ID || task.signal || circuitSnapshot(scene)) return undefined;
+      const plan = task.plan ?? "standard";
+      const rule = resolveScene(policy, scene);
+      const effectivePolicy = resolveTextScenePolicy(scene, {
+        ...(rule.type ? { type: rule.type } : {}),
+        ...(rule.thinking ? { thinking: { type: rule.thinking.type, effort: rule.thinking.effort } } : {}),
+        ...(rule.responseFormat ? { responseFormat: rule.responseFormat } : {}),
+        ...(rule.outputBudget ? { outputBudget: rule.outputBudget } : {}),
+        ...(rule.generationReviewGroup ? { generationReviewGroup: rule.generationReviewGroup } : {}),
+        ...(rule.sameModelAs ? { sameModelAs: rule.sameModelAs } : {}),
+      });
+      // Hash the actual model inputs and effective settings only. The provider
+      // and sink are compared by identity. The provider attests to its own transport.
+      const inputSha256 = createHash("sha256").update(JSON.stringify({
+        messages: task.messages,
+        generation: task.generation,
+        model: canonicalDeepSeekModel(model),
+        forceModel: task.forceModel,
+        timeoutMs: task.timeoutMs && task.timeoutMs > 0 ? task.timeoutMs : DEFAULT_SCENE_TIMEOUTS[scene] ?? DEFAULT_CALL_TIMEOUT_MS,
+        plan,
+        tier: resolveTier(policy, scene, plan),
+        window: currentWindow(),
+        fallback: rule.fallback ?? null,
+        billTo: rule.billTo ?? "tenant",
+        bundlePolicyVersion: policy.version,
+        effectivePolicy,
+        policyVersion: TEXT_PRIMARY_POLICY_VERSION,
+        registryVersion: TEXT_PRIMARY_REGISTRY_VERSION,
+      })).digest("hex");
+      return {
+        inputSha256, revision: this.#routerRevision, router, providers,
+        provider, sink, recordModelTrace,
+        thinkingMode: effectivePolicy.thinking.type,
+        thinkingEffort: effectivePolicy.thinking.type === "enabled" ? effectivePolicy.thinking.effort : undefined,
+      };
+    } catch {
+      // An unprovable dispatch is still evaluated by the regular model path.
+      return undefined;
+    }
+  }
+
+  private reviewDispatchIsCurrent(
+    before: ReviewDispatchBinding, receipt: ChatResult, prompt: string, schema: unknown, opts: LLMReasonOptions,
+  ): boolean {
+    if (!WorkloomLLMEngine.supportsStructuredReviewProof(this) || !plainDataTree(schema) || !plainDataTree(opts)) return false;
+    let structured: string;
+    try { structured = structuredPromptFor(prompt, schema); }
+    catch { return false; }
+    // Recheck the same private G1/G2/G4 authority as a fresh call. A failed
+    // authority check propagates through the original technical retry path.
+    const input = productionModelInput(structured);
+    try {
+      const route = attestableRoute(this);
+      if (!route) return false;
+      canonicalDeepSeekModel(opts.model ?? route.model);
+      const scene = opts.scene ?? route.router.scene ?? this.cfg.scene;
+      const task = WorkloomLLMEngine.nativeProofMethods.routeTask.call(this, input.prompt, { ...opts, forceJson: true }, scene);
+      return sameReviewDispatch(before, WorkloomLLMEngine.nativeProofMethods.describeReviewDispatch.call(this, task, route))
+        && nativeTransportCheck.call(before.provider, receipt);
+    } catch {
+      return false;
+    } finally { input.verify(); }
+  }
+
+  private async requestChat(prompt: string, opts: InternalReasonOptions): Promise<LLMReasonResult> {
     const activeModel = canonicalDeepSeekModel(opts.model ?? this.cfg.model);
     const scene = opts.scene
       ?? this.cfg.router?.scene
@@ -153,40 +372,17 @@ export class WorkloomLLMEngine {
       recordCircuitBreak: async () => undefined,
     };
     try {
-      const result = await routeSmart(
-        {
-          action: scene,
-          scene,
-          plan: this.cfg.router?.plan,
-          ...(this.cfg.router?.forceModel
-            ? { forceModel: canonicalDeepSeekModel(this.cfg.router.forceModel) }
-            : {}),
-          timeoutMs: opts.timeoutMs ?? this.cfg.timeoutMs,
-          signal: opts.signal,
-          // Vendor max-token values are historical product guesses. The
-          // dispatcher calculates the complete legal window instead.
-          generation: {
-            temperature: opts.temperature,
-            topP: opts.topP,
-          },
-          messages: [
-            {
-              role: "system",
-              content: opts.systemPrompt
-                ?? (opts.forceJson
-                  ? "你是一个严格输出 JSON 的助手。除合法 JSON 外不要输出任何额外文字。"
-                  : "你是一个可靠的助手。"),
-            },
-            { role: "user", content: prompt },
-          ],
-        },
-        providers,
-        sink,
-        { policy: this.cfg.router?.policy },
-      );
+      const task = this.routeTask(prompt, opts, scene);
+      const policy = this.cfg.router?.policy;
+      const route = opts[captureReviewDispatch] ? attestableRoute(this) : undefined;
+      const describe = WorkloomLLMEngine.nativeProofMethods.describeReviewDispatch;
+      const binding = route?.providers === providers && route.sink === sink && route.policy === (policy ?? DEFAULT_MODEL_POLICY)
+        ? describe.call(this, task, route)
+        : undefined;
+      const result = await routeSmart(task, providers, sink, { policy });
       if ((result.kind === "answered" || result.kind === "circuit_broken" || result.kind === "reused")
         && result.text) {
-        return {
+        const answer: LLMReasonResult = {
           success: true,
           content: result.text,
           usage: result.providerResult
@@ -196,6 +392,23 @@ export class WorkloomLLMEngine {
               }
             : undefined,
         };
+        const receipt = result.providerResult;
+        const currentRoute = binding ? attestableRoute(this) : undefined;
+        if (binding && currentRoute && result.kind === "answered" && !result.degraded?.length && !result.budgetExceeded
+          && receipt?.modelId === DEEPSEEK_FLASH_MODEL_ID && receipt.scene === scene && receipt.finishReason === "stop"
+          && receipt.mode === binding.thinkingMode && receipt.effort === binding.thinkingEffort
+          && receipt.policyVersion === TEXT_PRIMARY_POLICY_VERSION && receipt.registryVersion === TEXT_PRIMARY_REGISTRY_VERSION
+          && digestPattern.test(receipt.requestHash) && digestPattern.test(receipt.responseHash)
+          && sameReviewDispatch(binding, describe.call(this, task, currentRoute))
+          && nativeTransportCheck.call(binding.provider, receipt)) {
+          opts[captureReviewDispatch]?.(Object.freeze({
+            inputSha256: binding.inputSha256, requestSha256: receipt.requestHash, responseSha256: receipt.responseHash,
+            modelId: receipt.modelId, policyVersion: receipt.policyVersion, registryVersion: receipt.registryVersion,
+            matchesCurrent: (text: string, schema: unknown, options: LLMReasonOptions) =>
+              WorkloomLLMEngine.nativeProofMethods.reviewDispatchIsCurrent.call(this, binding, receipt, text, schema, options),
+          }));
+        }
+        return answer;
       }
       return {
         success: false,
@@ -259,9 +472,9 @@ export class WorkloomLLMEngine {
     schema: unknown,
     options: LLMReasonOptions = {}
   ): Promise<LLMReasonResult> {
-    let schemaText: string | undefined;
+    let structuredPrompt: string;
     try {
-      schemaText = JSON.stringify(schema, null, 2);
+      structuredPrompt = structuredPromptFor(prompt, schema);
     } catch (error) {
       return {
         success: false,
@@ -269,22 +482,38 @@ export class WorkloomLLMEngine {
         retryable: false,
       };
     }
-    // Match the vendor interface: its caller supplies the actual IDs and field
-    // template here, independently of any illustrative examples in the prompt.
-    const structuredPrompt = [
-      prompt,
-      "",
-      "【硬性输出要求】",
-      "1. 只输出合法 JSON",
-      "2. 不要输出 markdown 代码块",
-      "3. 不要输出解释、前言、结尾",
-      "4. 所有字段必须存在",
-      "5. 输出必须能被 JSON.parse 直接解析",
-      "",
-      "【目标JSON结构示例】",
-      schemaText,
-    ].join("\n");
     return this.reason(structuredPrompt, { ...options, forceJson: true });
+  }
+
+  private static readonly nativeProofMethods = {
+    reason: this.prototype.reason,
+    reasonStructured: this.prototype.reasonStructured,
+    callChat: this.prototype.callChat,
+    requestChat: this.prototype.requestChat,
+    routeTask: this.prototype.routeTask,
+    describeReviewDispatch: this.prototype.describeReviewDispatch,
+    reviewDispatchIsCurrent: this.prototype.reviewDispatchIsCurrent,
+    reasonStructuredWithProof: this.prototype.reasonStructuredWithProof,
+  };
+
+  static supportsStructuredReviewProof(engine: WorkloomLLMEngine): boolean {
+    return #routerRevision in engine && Object.getPrototypeOf(engine) === WorkloomLLMEngine.prototype
+      && Object.entries(WorkloomLLMEngine.nativeProofMethods).every(([key, method]) =>
+        dataMember(engine, key, WorkloomLLMEngine.prototype) === method);
+  }
+
+  /** Same request and result as reasonStructured, with optional dispatch evidence for G6. */
+  async reasonStructuredWithProof(prompt: string, schema: unknown, options: LLMReasonOptions): Promise<{
+    result: LLMReasonResult;
+    proof?: StructuredReviewDispatchProof;
+  }> {
+    if (!WorkloomLLMEngine.supportsStructuredReviewProof(this) || !plainDataTree(schema) || !plainDataTree(options)) {
+      return { result: await this.reasonStructured(prompt, schema, options) };
+    }
+    let proof: StructuredReviewDispatchProof | undefined;
+    const captured: InternalReasonOptions = { ...options, [captureReviewDispatch]: (value) => { proof = value; } };
+    const result = await this.reasonStructured(prompt, schema, captured);
+    return { result, proof: result.success ? proof : undefined };
   }
 
   /**
