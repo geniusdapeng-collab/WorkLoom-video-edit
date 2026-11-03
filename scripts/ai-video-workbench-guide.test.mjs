@@ -79,7 +79,7 @@ test("本仓固定指南返回全文、版本、产品身份及原始字节摘�
   assert.equal(result.markdown, GUIDE_BYTES.toString("utf8"));
   assert.equal(result.sha256, hash(GUIDE_BYTES));
   assert.equal(result.byteCount, GUIDE_BYTES.length);
-  assert.equal(result.guideVersion, "2026-11-03.2");
+  assert.equal(result.guideVersion, "2026-11-03.3");
   assert.equal(result.repository, "workloom-ai/WorkLoom-video-edit");
   assert.match(result.markdown, /rawIntent/u);
   assert.match(result.markdown, /没有 Growthtest 的 nativeaudio 专用契约/u);
@@ -265,7 +265,7 @@ test("实际pack固定复制块遇到缺指南会非零退出", (t) => {
   assert.match(result.stdout, /视频指南载荷缺件/u);
 });
 
-test("计划指向指南并保留安全argv，不把指南当生产资格", () => {
+test("未就绪计划指向指南，省略可运行命令并保持无生产资格", () => {
   const keyFile = process.env.WORKLOOM_KEYS_FILE;
   try {
     process.env.WORKLOOM_KEYS_FILE = "/dev/null";
@@ -273,9 +273,11 @@ test("计划指向指南并保留安全argv，不把指南当生产资格", () =
     assert.equal(output.previewOnly, true);
     assert.deepEqual(output.workbenchGuide, { capabilityId: GUIDE_CAPABILITY_ID, path: GUIDE_PATH, mustReadBeforeProduction: true });
     assert.ok(output.beforeRun[0].includes(GUIDE_CAPABILITY_ID));
-    assert.equal(output.execution.command, "pnpm");
-    assert.ok(output.execution.args.includes("scripts/tools/full-chain-film.mts"));
-    assert.equal(output.execution.args.includes("--standard-post"), false);
+    assert.equal(output.ready, false);
+    assert.equal(output.productionAuthorized, false);
+    assert.equal(output.execution, null);
+    assert.equal(output.recommendedCommand, null);
+    assert.equal(output.recommendedPowerShellCommand, null);
   } finally {
     if (keyFile === undefined) delete process.env.WORKLOOM_KEYS_FILE;
     else process.env.WORKLOOM_KEYS_FILE = keyFile;
