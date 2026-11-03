@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import { createRequire } from "node:module";
 import path from "node:path";
 import {
-  frozenSegmentContract, requirementHash, requirementRecord, verifiedRequirementContract,
+  frozenSegmentContract, prdCharacterShapePath, requirementHash, requirementRecord, verifiedRequirementContract,
   type RequirementContract, type RequirementRecord
 } from "./requirement-contract.js";
 import {
@@ -15,7 +15,7 @@ import { verifyPrdPortraitSources } from "./prd-portrait-source.js";
 import { assertNoSpokenPromptPackage } from "./frozen-speech-policy.js";
 import { isNoSpeechDeclaration } from "./dialogue-contract.js";
 import { acquireVendorRequirementEntry } from "./vendor-requirement-entry.js";
-import { nativeReasonCompleted, nativeReasonFailure, WorkloomLLMEngine } from "./llm-adapter.js";
+import { nativeReasonCompleted, nativeReasonFailure, WorkloomLLMEngine, type LLMReasonResult } from "./llm-adapter.js";
 
 type Method = (this: RequirementRecord, ...args: unknown[]) => unknown;
 const QUALITY_KEYS = ["visual", "audio", "narrative", "consistency"] as const;
@@ -279,6 +279,24 @@ interface Change { owner: RequirementRecord; key: string; original: PropertyDesc
 interface Installed { changes: Change[]; schema: RequirementRecord; schemaHash: string }
 const active = new WeakMap<object, Installed>();
 const nativeIdentities = new WeakMap<object, Array<{ owner: RequirementRecord; key: string; descriptor: PropertyDescriptor }>>();
+function bindPrdPortraitRule(prompt: string): string {
+  const native = "\n9. 角色 portraitPath 留空字符串（系统后续填充），但需标注是否需要生成定妆照\n10. 只输出 JSON，不要任何 markdown 代码块标记，不要解释文本";
+  const parts = prompt.split(native);
+  if (parts.length !== 2) prdFail("PRD_VENDOR_UNAVAILABLE", "Agent3 的定妆照原生模板规则已经变化");
+  return parts.join("\n9. 角色 portraitPath 保持空字符串。按本次封闭角色 schema 输出，定妆照由后续正式阶段核验。\n10. 只输出 JSON，不要任何 markdown 代码块标记，不要解释文本");
+}
+
+function prdCharacterShapeFeedback(error: unknown, schema: RequirementRecord): string | undefined {
+  const path = prdCharacterShapePath(error);
+  if (!path) return undefined;
+  const root = requirementRecord(schema.properties, "制作规格 schema 字段");
+  const characterSystem = requirementRecord(requirementRecord(root.characterSystem, "角色系统 schema").properties, "角色系统 schema 字段");
+  const character = requirementRecord(requirementRecord(characterSystem.characters, "角色数组 schema").items, "角色项 schema");
+  const allowedProperties = Object.keys(requirementRecord(character.properties, "角色项 schema 字段"));
+  const facts = { path, keyword: "additionalProperties", allowedProperties };
+  return `\n\n## 上一次原生制作规格结构校验反馈\n${JSON.stringify(facts)}\n依据完整原始任务和同一 schema，重新生成完整四模块 JSON。此对象仅允许列出的键，保留冻结人物、场景、时长和制作约束。不得引用上次回复。`;
+}
+
 function descriptorEqual(a: PropertyDescriptor | undefined, b: PropertyDescriptor): boolean {
   return Boolean(a && a.value === b.value && a.writable === b.writable && a.configurable === b.configurable
     && a.enumerable === b.enumerable && a.get === b.get && a.set === b.set);
@@ -521,6 +539,9 @@ export function installPrdAuthorityBridge(
             + `\`\`\`json\n${JSON.stringify(effectiveSchema)}\n\`\`\`\n` + promptContext
             + (number === 3 ? productionPlanningPrompt(scope) : "");
           let builtPrompt: { original: string; complete: string } | undefined;
+          let nativeAttemptLimit = 0;
+          let modelAttempts = 0;
+          let correction: { prompt: string; argsHash: string; dispatched: boolean } | undefined;
           agentView._getLLMEngine = function (this: RequirementRecord, ...args: unknown[]) {
             return guard(scope, () => {
               check(scope);
@@ -551,6 +572,13 @@ export function installPrdAuthorityBridge(
                     return prompt;
                   }
                   if (!prompt.startsWith(nativePrefix)) prdFail("PRD_VENDOR_UNAVAILABLE", "原生模型 prompt 前缀在重试期间变化");
+                  if (correction) {
+                    if (correction.dispatched || requirementHash(callArgs) !== correction.argsHash) {
+                      prdFail("PRD_MODEL_UNVERIFIED", "Agent3 结构修正次数或原生请求参数已变化");
+                    }
+                    correction.dispatched = true;
+                    return correction.prompt;
+                  }
                   const currentPrompt = prompt.slice(nativePrefix.length);
                   if (currentPrompt === builtPrompt.complete) return prompt;
                   // The pinned native example-removal branch adds this trailer.
@@ -565,6 +593,7 @@ export function installPrdAuthorityBridge(
                     && builtPrompt.complete.startsWith(surviving);
                   return (ownSuffixSurvived ? nativePrefix + builtPrompt.original + trailer : prompt) + responseContext;
                 });
+                const attempt = ++modelAttempts;
                 let result: unknown;
                 try { result = await Reflect.apply(reason, engine, [complete, ...callArgs]); }
                 catch (error) {
@@ -574,6 +603,28 @@ export function installPrdAuthorityBridge(
                   throw error;
                 }
                 guard(scope, () => { check(scope); checkEngine(); });
+                if (kind === "production") {
+                  const response = result as LLMReasonResult;
+                  const completed = engine instanceof WorkloomLLMEngine && WorkloomLLMEngine.supportsStructuredReviewProof(engine)
+                    && nativeReasonCompleted(response);
+                  if (correction?.dispatched && (!completed || !response.success)) {
+                    guard(scope, () => prdFail("PRD_MODEL_UNVERIFIED", "Agent3 结构修正缺少已完成的原生模型响应"));
+                  }
+                  if (completed && response.success && attempt === 1 && modelAttempts === 1 && nativeAttemptLimit >= 2) {
+                    try { validatePrdModelPayload(response.data, kind, schema, contract, scope.authority.profile); }
+                    catch (error) {
+                      const feedback = prdCharacterShapeFeedback(error, effectiveSchema);
+                      if (feedback) {
+                        correction = { prompt: complete + feedback, argsHash: requirementHash(callArgs), dispatched: false };
+                        // The pinned BaseAgent routes JSON failures through its
+                        // existing second attempt and unchanged timeout budget.
+                        throw new Error("Agent3 JSON 结构校验失败，进入一次原生结构修正");
+                      }
+                      // The ordinary parser retains responsibility for all
+                      // other validation failures and their original errors.
+                    }
+                  }
+                }
                 return result;
               };
               return engineView;
@@ -582,8 +633,9 @@ export function installPrdAuthorityBridge(
           agentView._buildPrompt = function (this: RequirementRecord, ...args: unknown[]) {
             return guard(scope, () => {
               check(scope);
-              const original = Reflect.apply(build, this, args);
-              if (typeof original !== "string") prdFail("PRD_VENDOR_UNAVAILABLE", "原始 PRD prompt 不是文本");
+              const native = Reflect.apply(build, this, args);
+              if (typeof native !== "string") prdFail("PRD_VENDOR_UNAVAILABLE", "原始 PRD prompt 不是文本");
+              const original = kind === "production" ? bindPrdPortraitRule(native) : native;
               builtPrompt = { original, complete: original + responseContext };
               return builtPrompt.complete;
             });
@@ -591,6 +643,11 @@ export function installPrdAuthorityBridge(
           agentView._callLLM = function (this: RequirementRecord, ...args: unknown[]) {
             return awaited(scope, async () => {
               check(scope);
+              if (kind === "production") {
+                const options = requirementRecord(args[3] ?? {}, "Agent3 原生调用配置");
+                const limit = options.maxRetries ?? this.llmMaxRetries;
+                nativeAttemptLimit = typeof limit === "number" && Number.isSafeInteger(limit) ? limit : 0;
+              }
               const result = requirementRecord(await Reflect.apply(call, this, args), "PRD 模型调用回执");
               check(scope);
               if (result.degraded !== false || result.result === null || result.result === undefined) prdFail("PRD_MODEL_UNVERIFIED", "本次 PRD 模型失败或降级，不能使用模板创意");
