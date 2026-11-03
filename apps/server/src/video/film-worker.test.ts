@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { filmWorkerEnvironment, handleFilmChannelRequest, validateFilmChannelScope } from "./film-worker.js";
 import { FILM_CHANNEL_METHOD_COMPONENT, filmRequestHash, resolveEraProfile, type FilmChannelRequestFrame } from "@hyperreality/video-studio";
 import { mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
@@ -57,6 +57,64 @@ describe("film parent local post budget", () => {
       expect(accepted).toHaveLength(1);
       expect(accepted[0]).toMatchObject({ actualCny: 0, evidence: { score: null, approved: true } });
     } finally { rmSync(dir, { recursive: true, force: true }); }
+  });
+});
+
+describe("film parent Seedance output format", () => {
+  it.each([
+    { name: "vertical options override the frozen document", options: { aspect: "9:16", resolution: "720p" }, frozen: { aspect: "16:9", resolution: "1080p" }, firstFrame: false, ratio: "9:16", resolution: "720p" },
+    { name: "text generation uses the frozen document", options: {}, frozen: { aspect: "1:1", resolution: "720p" }, firstFrame: false, ratio: "1:1", resolution: "720p" },
+    { name: "first frame supplies the ratio but UHD uses the supported source resolution", options: { resolution: "2160p" }, frozen: { aspect: "9:16" }, firstFrame: true, ratio: undefined, resolution: "1080p" },
+    { name: "legacy jobs use the CLI defaults", options: {}, frozen: {}, firstFrame: false, ratio: "9:16", resolution: "1080p" },
+    { name: "4:5 text generation is rejected before reserving budget", options: { aspect: "4:5" }, frozen: {}, error: "冻结画幅不受支持" },
+    { name: "4:5 reference generation is rejected before reserving budget", options: {}, frozen: { aspect: "4:5", reference: "asset://authorized-fixture" }, refs: ["asset://authorized-fixture"], error: "冻结画幅不受支持" },
+    { name: "unsupported frozen resolution is rejected before reserving budget", options: {}, frozen: { resolution: "480p" }, error: "冻结分辨率不受支持" },
+  ])("$name", async ({ options, frozen, firstFrame, ratio, resolution, refs, error }) => {
+    const dir = realpathSync(mkdtempSync(join(tmpdir(), "film-provider-format-")));
+    const endpoint = "https://seedance.invalid/api/v3/contents/generations/tasks";
+    const hostedUrl = "https://media.invalid/keyframe.png";
+    const fetchFixture = vi.fn(async (url: string, init?: RequestInit) => {
+      expect(url).toBe(endpoint);
+      expect(init?.method).toBe("POST");
+      return Response.json({ error: { message: "wire fixture stopped before vendor acceptance" } }, { status: 400 });
+    });
+    const reserveComponent = vi.fn(async () => ({ row: { id: "component-a" }, deduped: false }));
+    vi.stubGlobal("fetch", fetchFixture);
+    try {
+      const params = { prompt: "Frozen portrait-format product shot", seconds: 5, targetRef: "clip.mp4",
+        ...(firstFrame ? { firstFrame: { hostedUrl } } : {}), ...(refs ? { refs } : {}) };
+      const request = { method: "video.generate", stepKey: "videos:S1", shotId: "S1", params };
+      const frame: FilmChannelRequestFrame = { ...request, kind: "film.request", id: "video-request",
+        component: "video", idempotencyKey: "video:S1", requestHash: filmRequestHash(request) };
+      const ctx = {
+        scope: { workspaceId: "workspace-a", tenantId: "tenant-a" },
+        env: { VOLCENGINE_ARK_API_KEY: "fixture-key", SEEDANCE_ENDPOINT: "https://seedance.invalid/api/v3" },
+        job: { id: "job-a", project_id: "project-a", stages: ["videos"], options },
+        worker: { capabilities: ["video.generate"] }, workDir: dir, shots: new Map([["S1", { shotId: "S1" }]]), frozen,
+        signal: new AbortController().signal, deadlineAt: Date.now() + 30_000, ownerToken: "parent-owner",
+        issuedUrls: new Map([[hostedUrl, { stepKey: "plates:S1", shotId: "S1" }]]), log: () => undefined,
+        ledger: {
+          reserveComponent,
+          claimComponent: async () => ({ id: "component-a" }),
+          recordDispatch: async () => undefined,
+          recordComponentFailure: async () => undefined,
+        },
+      } as unknown as Parameters<typeof handleFilmChannelRequest>[0];
+      if (error) {
+        await expect(handleFilmChannelRequest(ctx, frame)).rejects.toThrow(error);
+        expect(reserveComponent).not.toHaveBeenCalled();
+        expect(fetchFixture).not.toHaveBeenCalled();
+        return;
+      }
+      await expect(handleFilmChannelRequest(ctx, frame)).rejects.toThrow("wire fixture stopped before vendor acceptance");
+      expect(fetchFixture).toHaveBeenCalledTimes(1);
+      const body = JSON.parse(String(fetchFixture.mock.calls[0]?.[1]?.body));
+      expect({ ratio: body.ratio, resolution: body.resolution }).toEqual({ ratio, resolution });
+      if (firstFrame) expect(body).not.toHaveProperty("ratio");
+    } finally {
+      vi.unstubAllGlobals();
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });
 

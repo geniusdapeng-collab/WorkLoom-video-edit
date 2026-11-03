@@ -5,6 +5,7 @@ import { dirname, extname, isAbsolute, join, relative, resolve, sep } from "node
 import { FilmChannelError, FilmWorkerChannel, parseFilmWorkerJobContext, processIpcTransport,
   type FilmChannelTransport, type FilmWorkerJobContext } from "./film-worker-channel.js";
 import type { ProducerGateOptions, ProducerVerdict } from "./producer-gate.js";
+import type { VideoSubmissionRequest } from "./video-submission-request.js";
 
 export const FILM_CLI_STAGES = Object.freeze(["cine-kb", "continuity", "micromotion", "spec", "plates", "material-gen", "videos", "voice", "compose", "color", "subtitle", "danmaku", "bgm", "sfx", "cover", "mux", "master", "deliver", "revise"]);
 const valueOptions = new Set(["aspect", "resolution", "quality", "platform", "fps", "max-attempts", "xfade", "cut-transition", "cut-transition-duration", "cut-transition-at", "subtitle-mode", "subtitle-lang", "cover-platform", "cover-hero", "cover-hook", "theme", "account", "only", "review-policy", "route-kind", "assembly-mode", "assembly-reason", "revise-note", "revision-context", "narration-profile", "enhance-kind"]);
@@ -150,7 +151,15 @@ export class FullChainFilmWorker {
     const artifact = this.accept(await this.call("image.generate", "plates", shotId, { prompt, anchors: anchors.map((file) => this.reference(file)), size, targetRef: this.ref(target) }));
     return artifact.hostedUrl ?? `film-artifact:${artifact.ref}`;
   }
-  async video(options: { prompt: string; firstFrame?: string; refs: string[]; seconds: number; generateAudio: boolean; seed?: number; stage: string; shotId: string; target: string }): Promise<{ taskId: string; url: string; lastFrame: null }> {
+  async video(options: {
+    prompt: string; firstFrame?: string; refs: string[]; seconds: number; generateAudio: boolean;
+    seed?: number; stage: string; shotId: string; target: string;
+    submissionPlan?: Pick<VideoSubmissionRequest, "mode">;
+  }): Promise<{ taskId: string; url: string; lastFrame: null }> {
+    // The parent channel cannot bind a reviewed reference plan to the bytes it submits.
+    if (options.submissionPlan?.mode === "reference-image") {
+      throw new FilmChannelError("VIDEO_REFERENCE_PLAN_UNSUPPORTED", "固定工位无法核验参考图计划与实际提交一致，请使用正式独立 CLI");
+    }
     const first = options.firstFrame;
     const firstFrame = first ? (/^https:\/\//.test(first) ? { hostedUrl: first } : { ref: first.replace(/^film-ref:/, "") }) : undefined;
     const artifact = this.accept(await this.call("video.generate", options.stage, options.shotId, {

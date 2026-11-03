@@ -8,9 +8,10 @@
 
 接到视频制作、返修或交付请求，先完整读取 [`docs/ai-video-workbench-guide.md`](docs/ai-video-workbench-guide.md)，
 或调用 `node scripts/workloom-agent.mjs invoke growth.video.workbench.guide`；MCP 对应
-`workloom_growth_video_workbench_guide`，参数 `{}`。返回的仓库身份必须是 `workloom-ai/WorkLoom-growth`。
+`workloom_growth_video_workbench_guide`，参数 `{}`。返回的仓库身份必须是 `workloom-ai/WorkLoom-video-edit`，
+产品 ID 必须是 `workloom-ai-video-edit`。新工作台按 [Agent 接入指南](docs/AGENT-CLIENTS.md) 克隆 GitHub 主干、安装依赖和启动隔离本机服务。
 按指南冻结用户指定人、商品、平台、时长、账号调性、声音和特殊要求，再走正式系统前期、渲染、后期和交付核验。
-指南是工作台纪律，本次不新增生产硬闸；Growth 当前没有 Growthtest 的 standard-post/nativeaudio 专用契约，
+指南是工作台纪律；Edit 的普通全链使用本仓正式后期入口，
 普通全链默认保留原节目声音、不隐式 ASR/TTS；明确配音或换声才进入授权的新声音请求，不能静默替代。成功源片核验真实任务/来源/授权与当前字节后直接正式后期，历史品质失败保留，不因组件变化重新付费。
 
 ## 一、视频工位：内置角色资产（新接手最容易踩的一条）

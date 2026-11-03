@@ -1,10 +1,12 @@
 # WorkLoom Video Edit 视频调用指南：AI 工作台先读，再执行
 
-> guideVersion: 2026-10-29.1
-> 适用仓库：`workloom-ai/WorkLoom-video-edit`；本版范围：成功原片默认接受、正式后期、G3 结构化需求、本次 G1 事实与用途限定、PRD 制作与交接计划、显式封面与字幕交付声明、模型响应结构、需求与制作的权威上下文、明确无标题卡的生成适用性、原始拒绝保留、风险分析有限反馈、完整评审文本分配、完整 CLI 草稿归档、启动时长与片型选型输入及显式全片持续字幕；实际源码 SHA 以本次冻结交付记录为准。
+> guideVersion: 2026-11-03.1
+> 适用仓库：`workloom-ai/WorkLoom-video-edit`。本版增加 GitHub 源码接入、Codex 预检、正式 Studio 请求与同轮片单核验，以及 Film 执行和交付回读。实际源码 SHA 以本次运行记录为准。
 > 读者：Codex、DeepSeek Harness 及能调用本仓 CLI / stdio MCP 的 AI 工作台。
 
 本指南把已成功视频作业的经验固化为调用纪律，帮助工作台从用户原话走到系统前期、渲染、后期和交付核验。先读取本仓能力，冻结人、商品、平台、时长、账号调性、声音与特殊要求，再走现有官方流程。不能把另一个仓库的功能、成片或测试结果算成本仓能力。
+
+新工作台先按 [Agent 接入指南](AGENT-CLIENTS.md#1-克隆安装与连接本机服务) 从 GitHub 克隆 Edit、安装锁定依赖并连接隔离本机服务。源代码工作树的身份应为 `workloom-ai/WorkLoom-video-edit`，产品 ID 为 `workloom-ai-video-edit`。`growth.*` 是本仓沿用的能力命名。从已安装桌面端读到本文时，可直接打开具备仓库权限的 [GitHub 接入指南](https://github.com/geniusdapeng-collab/WorkLoom-video-edit/blob/main/docs/AGENT-CLIENTS.md)。
 
 ## 1. 工作台的第一步：读取本指南全文
 
@@ -57,6 +59,211 @@ node scripts/workloom-agent.mjs invoke growth.video.workbench.guide
 
 片型自动选择对每个原始需求文本字段使用局部确定性文本规则，选择理由与命中证据使用同一份处理结果：排除明确负面块，识别完整否定短语及已支持的否定动作谓词，转折后恢复正向内容。例如“不持手机或相机”不能单凭其中的物品名选成科技测评；“无人机开箱”“不锈钢智能手表开箱”等普通肯定名词不会仅因包含“无”或“不”而被删掉。原始用户文本和 Brief 保持完整，显式 `scenePolicy.id`、未知条目拒绝、多条目判优与同优先级冲突、已选规范及后续审核保持原流程。这些规则只用于自动选型，不改变现有分镜审计，也不保证理解任意自然语言或未支持的否定表达；仍需核对实际选型回执和本轮注入的规范。
 
+### 3.1 核对环境、授权和路由
+
+在仓库根运行 `node scripts/tools/codex-video-preflight.mjs --api "$EDIT_API"`，核对当前 Git SHA、实际服务和所选模型目录。其可用性结果只证明检查到的配置、依赖和接口。开始付费前期前，应有本次租户、项目、可发送的素材范围、授权模型、预算上限、预期调用与重试范围，以及额度和审批记录。前期也可能产生 LLM、检索或出图费用。遇到有硬金额上限的任务，只有具备能覆盖此次调用的预算闸才启动，不能把静态报价或终端计时当作实时限额。
+
+营销片需要能核验商品来源原文的 A1–G1。仓内商品档案可以定位型号、图片用途和原始出处，不能代替当前运行取得的正文、来源摘要和真实审核回执。如果运行显示没有来源候选或 `MARKETING_A1_UNVERIFIED`，先核对本次检索和公开来源访问；不要把失败的原始档案改成通过。正式 RDAS 的产品派单若报告无法证明逐请求预算预占与结算，保持 `blocked`；先补可验证的预算控制，再进行真实模型实测。
+
+在私有作业目录准备用户原话和 `brief.json`。把已明确的商品、平台、时长、账号、声音与制作要求放入实际 brief，保留素材授权和使用范围。下面从同一个 brief 生成 Studio 请求。作业目录使用接入步骤中的 `EDIT_RUN_ROOT`，源码、密钥和其他作业均留在该目录以外。
+
+```bash
+: "${EDIT_RUN_ROOT:?指定本次专用的仓外私有作业目录}"
+: "${EDIT_RAW_INTENT:?提供本次用户原话}"
+: "${EDIT_BRIEF_JSON:?指定完整 brief.json}"
+umask 077
+export WORKLOOM_VIDEO_ARTIFACT_ROOT="$EDIT_RUN_ROOT"
+node --import tsx scripts/tools/route-video.mts \
+  --title "$EDIT_RAW_INTENT" --brief "$EDIT_BRIEF_JSON" \
+  --out "$EDIT_RUN_ROOT/route.json"
+printf '%s' '{"path":"route.json"}' | \
+  node scripts/workloom-agent.mjs invoke growth.video.route.record --input-file -
+```
+
+这一步按本地规则分流。只有单独授权模型仲裁时才使用 `--llm`。返回 `clarify` 时按缺项完善资料，`explainer` 则走口播解说入口。营销、叙事继续下文。保存真实分流记录。若调用方依据用户明确选择传入 `route: "marketing"` 或 `"narrative"`，应与本次记录一致。
+
+### 3.2 通过 Studio 启动并读取状态
+
+优先使用已登录的本机产品界面发起正式项目。能运行终端的 Agent 也可以按下列方式调用同一认证入口。先确认 `WORKLOOM_ACCESS_TOKEN` 对应实际 B 端成员的工作区和写权限。令牌通过受控进程环境注入。以下函数只接收操作和文件路径，服务响应留在本次私有目录。
+
+```bash
+studio_api() {
+  node --input-type=module - "$@" <<'NODE'
+import { closeSync, openSync, readFileSync, writeFileSync } from "node:fs";
+
+const [action, inputFile, outputFile] = process.argv.slice(2);
+const token = process.env.WORKLOOM_ACCESS_TOKEN;
+const api = new URL(process.env.EDIT_API);
+if (!token || api.protocol !== "http:" || api.hostname !== "127.0.0.1" || !api.port
+  || api.username || api.password || api.pathname !== "/" || api.search || api.hash) {
+  throw new Error("此示例需要本机服务和当前工作区 B 端令牌");
+}
+if (!["start", "status", "archive"].includes(action) || !inputFile || !outputFile) {
+  throw new Error("指定操作、输入文件和回执路径");
+}
+const isStart = action === "start";
+const input = JSON.parse(readFileSync(inputFile, "utf8"));
+const url = new URL("/trpc/video.studio." + action, api);
+const headers = { authorization: "Bearer " + token };
+let body;
+if (isStart) {
+  headers["content-type"] = "application/json";
+  body = JSON.stringify(input);
+} else {
+  const key = action === "status" ? "runId" : "projectId";
+  if (!input[key]) throw new Error("启动回执缺少 " + key);
+  url.searchParams.set("input", JSON.stringify({ [key]: input[key] }));
+}
+// 占用启动回执路径后才发请求，避免在本地同一作业目录重复提交。
+const receipt = isStart ? openSync(outputFile, "wx", 0o600) : null;
+try {
+  const response = await fetch(url, { method: isStart ? "POST" : "GET", headers, body,
+    redirect: "error", signal: AbortSignal.timeout(30_000) });
+  const envelope = await response.json();
+  if (!response.ok || !Object.hasOwn(envelope.result ?? {}, "data")) {
+    throw new Error(envelope.error?.data?.code ?? "HTTP " + response.status);
+  }
+  writeFileSync(receipt ?? outputFile, JSON.stringify(envelope.result.data, null, 2) + "\n",
+    { mode: 0o600 });
+} finally {
+  if (receipt !== null) closeSync(receipt);
+}
+NODE
+}
+
+# 新项目使用前面分流时的原话和 brief。
+node --input-type=module - "$EDIT_RAW_INTENT" "$EDIT_BRIEF_JSON" "$EDIT_RUN_ROOT/studio-input.json" <<'NODE'
+import { readFileSync, writeFileSync } from "node:fs";
+const [intent, briefFile, outputFile] = process.argv.slice(2);
+const brief = JSON.parse(readFileSync(briefFile, "utf8"));
+if (!intent.trim() || intent.length > 2000 || !brief || typeof brief !== "object" || Array.isArray(brief)) {
+  throw new Error("需要 1–2000 字符的 Studio intent 和完整 brief 对象");
+}
+writeFileSync(outputFile, JSON.stringify({ intent, route: "auto", metadata: { brief } }, null, 2) + "\n",
+  { mode: 0o600, flag: "wx" });
+NODE
+
+# 批准本次真实前期及预算后，提交一次。
+studio_api start "$EDIT_RUN_ROOT/studio-input.json" "$EDIT_RUN_ROOT/studio-start.json"
+# 若返回 routed 且有 runId，用原启动回执持续查询。
+studio_api status "$EDIT_RUN_ROOT/studio-start.json" "$EDIT_RUN_ROOT/studio-status.json"
+```
+
+启动成功只表示已建项目或已登记运行。查看 `projectId`、`runId`、`pipeline`、`status`、`currentGate`、`error` 与 `pendingApprovalId`。产品界面启动时，可从实际项目和本轮状态获取相同的 `projectId` 与 `runId`。以真实 `finished` 及同轮归档证据进入下一步。若有审批，从产品的对应操作核实并完成它。失败保留原始原因。启动请求超时、掉线或回执为空时，从本次工作区的项目及档案核对是否已登记运行，再决定恢复。
+
+### 3.3 读取并核验同一轮正式片单
+
+```bash
+studio_api archive "$EDIT_RUN_ROOT/studio-start.json" "$EDIT_RUN_ROOT/studio-archive.json"
+node --input-type=module - "$EDIT_RUN_ROOT" <<'NODE'
+import { readFileSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+const root = process.argv[2];
+const read = (name) => JSON.parse(readFileSync(join(root, name), "utf8"));
+const start = read("studio-start.json");
+const status = read("studio-status.json");
+if (!start.projectId || !start.runId || status?.projectId !== start.projectId
+  || status.runId !== start.runId || status.status !== "finished" || status.pendingApprovalId) {
+  throw new Error("当前项目和运行必须已完成且没有待审事项");
+}
+writeFileSync(join(root, "project.json"), JSON.stringify({ projectId: start.projectId }) + "\n",
+  { mode: 0o600 });
+NODE
+node scripts/workloom-agent.mjs invoke growth.video.production.shots \
+  --input-file "$EDIT_RUN_ROOT/project.json" \
+  > "$EDIT_RUN_ROOT/production-shots.json"
+```
+
+`production.shots` 返回当前来源和逐镜提示词。完整片单在同轮 `video.studio.archive` 的项目档案内。下面从真实归档比对运行、尝试、提示词及原始字节，打印片单绝对路径。只在比对成功时把该路径用于 Film。渲染前重查一次当前项目和摘要。
+
+```bash
+node --input-type=module - "$EDIT_RUN_ROOT" <<'NODE'
+import { createHash } from "node:crypto";
+import { readFileSync, realpathSync } from "node:fs";
+import { isAbsolute, join, relative, sep } from "node:path";
+const root = process.argv[2];
+const read = (name) => JSON.parse(readFileSync(join(root, name), "utf8"));
+const start = read("studio-start.json");
+const archive = read("studio-archive.json");
+const { result: production } = read("production-shots.json");
+if (!archive.archiveExists || archive.projectId !== start.projectId
+  || production?.projectId !== start.projectId || !production.shots?.length) {
+  throw new Error("项目归档与当前可用镜头不一致");
+}
+const archiveRoot = realpathSync(archive.archiveRoot);
+const studioRoot = realpathSync(join(root, "studio"));
+function inside(parent, child) {
+  const path = relative(parent, child);
+  return path && path !== ".." && !path.startsWith(".." + sep) && !isAbsolute(path);
+}
+if (!inside(studioRoot, archiveRoot)) throw new Error("项目档案不在本次 Studio 工作目录");
+function verified(ref, sha256) {
+  if (!ref || isAbsolute(ref)) throw new Error("档案引用必须是相对路径");
+  const path = realpathSync(join(archiveRoot, ref));
+  if (!inside(archiveRoot, path)) throw new Error("档案引用超出当前项目");
+  const bytes = readFileSync(path);
+  if (createHash("sha256").update(bytes).digest("hex") !== sha256) throw new Error("档案摘要不一致");
+  return { path, value: JSON.parse(bytes.toString("utf8")) };
+}
+const rows = archive.stages.filter((row) => row.stageId === "preproduction");
+const latest = rows.reduce((current, row) => !current || row.attempt > current.attempt ? row : current, null);
+if (latest?.status !== "done" || latest.runId !== start.runId || latest.attempt !== production.sourceAttempt) {
+  throw new Error("同轮当前前期记录尚未完成或已变更");
+}
+const { value: output } = verified(latest.outputRef, latest.outputSha256);
+if (output.success !== true || output.promptsSha256 !== production.promptsSha256) {
+  throw new Error("当前提示词与前期输出不一致");
+}
+const { path, value: shotlist } = verified(output.cliShotlistRef, output.cliShotlistSha256);
+if (shotlist.source?.kind !== "system-preproduction" || shotlist.source.projectId !== start.projectId
+  || shotlist.source.runId !== start.runId || shotlist.source.attempt !== latest.attempt) {
+  throw new Error("完整片单不是本项目本轮的系统原件");
+}
+console.log(path);
+NODE
+```
+
+将通过的绝对路径记作 `EDIT_SHOTLIST`。同时逐项检查角色与版本、商品、镜头时长之和、语言、平台、画幅、声音及禁止项。若 G1–G7 真实审批、镜头当前性、授权或正式原件无法对账，保留具体阻断。已有 `draft:true` 的同轮原始片单仍需正式 CLI 的片型与提交前门禁。保持原片单完整字节，修正业务输入时返回相应正式步骤。
+
+### 3.4 通过正式 Film CLI 渲染并核验交付
+
+按已审镜头与用户合同确定执行阶段、媒体参数和本次费用。渲染前核对当前模型目录、可消费预算、围栏、人审要求以及素材授权。使用产品固定工位时，在正式项目中取得同一轮当前资格、作业和预算回执。该工位无法证明审核过的参考图会进入同一供应商请求时返回 `VIDEO_REFERENCE_PLAN_UNSUPPORTED`。独立 Film CLI 可承接经过本路径授权和预算控制的参考图作业，真人肖像沿用平台授权素材入口。需要跨前期、素材和视频调用的总额硬闸时，按 §3.1 核验实际预算执行面再启用。
+
+下列示例参数变量来自实际回执及冻结合同。素材镜使用 `material-gen`，需要新生成的普通镜按原生流程选择 `plates`、`videos`；声音、字幕、配乐、封面、合成和母版按实际交付启用。只在明确请求多版本时启用 `deliver`。对可复用源片优先走原任务恢复或正式后期路径。可先运行只读 `growth.video.production.plan`，输入真实 `projectId`、`platform` 和位于作业根内的相对 `shotlistPath`、`routePath`、`outDir`。将计划用作前置核对，实际执行参数来自本次合同。
+
+```bash
+EDIT_PROJECT_ID="$(node -p 'JSON.parse(require("node:fs").readFileSync(process.argv[1], "utf8")).projectId' "$EDIT_RUN_ROOT/project.json")"
+: "${EDIT_SHOTLIST:?填写核验通过的同轮原始片单绝对路径}"
+: "${EDIT_FILM_STAGES:?填写与本次镜头及交付合同一致的阶段列表}"
+: "${EDIT_PLATFORM:?填写本次平台}"
+: "${EDIT_ASPECT:?填写已审画幅}"
+: "${EDIT_RESOLUTION:?填写已审分辨率}"
+: "${EDIT_FPS:?填写已审帧率}"
+: "${EDIT_KEYS_FILE:?指向已授权的仓外私有模型配置}"
+node --import tsx scripts/tools/full-chain-film.mts \
+  --shots "$EDIT_SHOTLIST" --project "$EDIT_PROJECT_ID" \
+  --work-dir "$EDIT_RUN_ROOT/film-work" --out "$EDIT_RUN_ROOT/delivery" \
+  --brief "$EDIT_BRIEF_JSON" --route "$EDIT_RUN_ROOT/route.json" \
+  --keys-file "$EDIT_KEYS_FILE" --stages "$EDIT_FILM_STAGES" \
+  --platform "$EDIT_PLATFORM" --aspect "$EDIT_ASPECT" \
+  --resolution "$EDIT_RESOLUTION" --fps "$EDIT_FPS"
+```
+
+如用户要求烧录与侧车字幕同时交付，使用 `--subtitle-mode both`；指定持续文字时核对 `--subtitle-persistent-text`、`--no-title-card` 和字幕阶段。封面是否进片及实际片头秒数按本次交付合同选择阶段和 `--cover-intro-seconds`。人物档案使用实际已授权库和片单绑定，配乐使用获准素材。各阶段参数见 [AI 视频 runbook](../bundles/ai-video/README.md) 及下文。输出目录保持独立，渲染收据和原片保存在同一作业上下文。无 ACK 的已提交请求保持未知，已取得任务号时查原任务；欠费、额度和授权阻断据实处理。生成过程与发布分开，交付核验不会自动把内容发到社交平台。
+
+用同一个 `WORKLOOM_VIDEO_ARTIFACT_ROOT="$EDIT_RUN_ROOT"` 和本次真实项目回读。下例为 HD 新生成，UHD 改用实际归档相对目录，正式后期复用作业按实际路径和 `kind:"post"` 回读。
+
+```bash
+node -p 'JSON.stringify({projectId:process.argv[1],workDir:"film-work"})' "$EDIT_PROJECT_ID" | \
+  node scripts/workloom-agent.mjs invoke growth.video.production.status --input-file -
+node -p 'JSON.stringify({projectId:process.argv[1],outDir:"delivery"})' "$EDIT_PROJECT_ID" | \
+  node scripts/workloom-agent.mjs invoke growth.video.delivery.inspect --input-file -
+node -p 'JSON.stringify({projectId:process.argv[1],outDir:"delivery",kind:"generation"})' "$EDIT_PROJECT_ID" | \
+  node scripts/workloom-agent.mjs invoke growth.video.post.quality --input-file -
+```
+
+以实际阶段账本、供应商成功任务及原片字节、交付清单中的成片和当前技术质检回执为准。只有计划或模型目录、只到前期、无任务回执、技术检查未完成，均按实际阶段记录。人工检查播放、画幅、时长、首中尾画面、声音、字幕、封面和必需镜头。最终说明已核实的项、真实调用及复用数、授权使用范围和仍待复核的项。
+
 ## 4. 安全调用例子与三个场景
 
 只读发现与计划：
@@ -90,9 +297,9 @@ node scripts/workloom-agent.mjs invoke growth.video.delivery.inspect --input-fil
 | 已有合格镜头，只改字幕或封面 | 先读原项目状态和交付清单，再走正式返修影响分析；复用原镜头 | 整片重渲花钱，或外部手工修改导致清单失效 |
 | 指定原生声音、剧情顺序和精确时长 | 核对本仓是否支持所需音频路径，不能满足就保留阻塞，不替声、不重排、不拉速 | 看似产出成片，实际声音/剧情/时长已违背原始需求 |
 
-## 5. Growth 当前能力边界
+## 5. Edit 当前能力边界
 
-本指南基线下，Growth 已有分流、正式前期、全链 CLI、阶段账本和交付核验入口。已存在不等于当前机器、账号与依赖已经就绪，也不等于本次已重新做过真实付费生成验收。
+Edit 提供分流、正式前期、全链 CLI、阶段账本和交付核验入口。机器、账号与依赖状态按本次预检和实际回执判定。
 
 - **没有 Growthtest 的标准后期新入口。**此基线没有 `scripts/tools/film-standard-post.mts`、`packages/video-studio/src/standard-post-contract.ts`，CLI 不含 `--standard-post`。不要复制别仓命令或声称本仓已支持。
 - **没有 Growthtest 的 nativeaudio 专用契约。**本仓没有该专用合同文件，但普通全链默认保留原片完整节目声音，voice 阶段不隐式做 ASR 或补 TTS；只有明确配音、旁白、换声请求才进入新声音操作。不得静默替代原生声音或指定声线，也不得因声音品质失败自动重配。

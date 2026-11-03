@@ -1,15 +1,76 @@
-# 桌面 Agent 接入指南：Codex / DeepSeek Harness（T-2026-1001-0008）
+# 用 Codex、DeepSeek Harness 或其他 Agent 操作 WorkLoom Video Edit
 
-> 读者：要把本仓能力接进**桌面 Agent**的人（或 Agent 自己）。目标是**5 分钟能跑通**：
-> 先 `list` 看到能力 → 再 `invoke` 读一条真实状态 → 最后把 stdio MCP 挂进客户端。
-> **接到视频任务先读** [`AI 工作台视频调用指南`](ai-video-workbench-guide.md)，或 invoke `growth.video.workbench.guide`；冻结用户固定项后再执行。
-> 视频链路的完整操作手册在 [`bundles/ai-video/README.md`](../bundles/ai-video/README.md)（§0–§6），本文只讲**接入**。
+本文从干净克隆开始，配置本机服务和 Agent。正式前期、渲染、恢复及交付步骤见 [AI 工作台视频调用指南](ai-video-workbench-guide.md)。本仓沿用 `growth.*` 能力 ID，运行身份以本地 manifest 返回的 `workloom-ai/WorkLoom-video-edit` 和 `workloom-ai-video-edit` 为准。
 
 ---
 
-## 1. 5 分钟接入（所有客户端通用）
+## 1. 克隆、安装与连接本机服务
 
-前置：Node.js ≥ 24（与 `package.json#engines` 一致）、已 `pnpm install`；**不需要**先起服务端也能用只读/预览能力。
+使用具备此仓读取权限的 Git 身份，从 GitHub `main` 开始。记录本次运行的 SHA。需要更新时先完成或隔离正在运行的作业，再在干净工作树 `git pull --ff-only`。
+
+```bash
+git clone --branch main https://github.com/geniusdapeng-collab/WorkLoom-video-edit.git
+cd WorkLoom-video-edit
+git status --short
+git rev-parse HEAD
+node --version
+node -p 'JSON.stringify({engines: require("./package.json").engines, packageManager: require("./package.json").packageManager})'
+pnpm --version
+```
+
+准备仓库声明的 Node.js 与 pnpm 版本。媒体工位需要可用的 FFmpeg 和 FFprobe，按交付合同另检查字体、音频及可授权曲库。完整依赖安装使用和 GitHub CI 相同的 [UI 制品引导](../scripts/ci/install-private-ui.mjs)。当前 GitHub 锁定制品从公开 Release 匿名读取并校验，不需要访问令牌。把原始归档、安装回执和缓存放在仓外私有目录。
+
+```bash
+ui_bootstrap="$(mktemp -d "${TMPDIR:-/tmp}/workloom-edit-ui.XXXXXX")"
+node scripts/ci/install-private-ui.mjs --repo . \
+  --store-dir "$ui_bootstrap/store" --staging-root "$ui_bootstrap" \
+  --archive "$ui_bootstrap/original.tgz" --report "$ui_bootstrap/install.json"
+pnpm -C packages/industry-contract build
+```
+
+`--archive` 是本次下载的**输出路径**。安装成功检查 `frozenInstallPassed` 和 `originalLockUnchanged`。制品权限、摘要或锁文件验证失败时，修复实际凭据或工具链后再执行，保留仓库锁文件。
+
+读取指南、枚举工具和检查已有文件可以独立于服务运行。正式新生成需要隔离 PostgreSQL（含 `vector` 扩展）、本次专用归档和媒体目录，以及已授权的模型及供应商配置。为这次作业单独建库与集群，避免迁移中对 `workloom_app` 和 `workloom_gateway` 角色密码的调整影响其他实例。由受控环境注入 `DATABASE_URL`、`DATABASE_APP_URL`、`DATABASE_GATEWAY_URL`、对应 `APP_DB_PASSWORD` 和 `GATEWAY_DB_PASSWORD` 以及服务签名密钥。把同一组数据库连接用于迁移、种子和服务。新建测试工作区时可以加载本仓种子，已有正式工作区使用其既有成员和数据。
+
+```bash
+: "${DATABASE_URL:?注入本次数据库的迁移连接}"
+: "${DATABASE_APP_URL:?注入本次数据库的应用连接}"
+: "${DATABASE_GATEWAY_URL:?注入本次数据库的事件网关连接}"
+: "${APP_DB_PASSWORD:?注入本次应用角色密码}"
+: "${GATEWAY_DB_PASSWORD:?注入本次事件网关角色密码}"
+: "${JWT_SECRET:?注入本次隔离服务的签名密钥}"
+node --import tsx scripts/migrate.ts
+# 仅对本次新建、专用的测试数据库加载测试工作区。
+node --import tsx scripts/seed.ts
+node --import tsx scripts/seed-geo.ts
+
+: "${EDIT_RUN_ROOT:?指定本次作业专用的仓外绝对目录}"
+umask 077
+export HR_WORK_DIR="$EDIT_RUN_ROOT/studio"
+export WORKLOOM_MEDIA_DIR="$EDIT_RUN_ROOT/media"
+mkdir -p "$HR_WORK_DIR" "$WORKLOOM_MEDIA_DIR"
+ARCHIVE_ENABLED=1 ARCHIVE_AUTO_RESUME=0 SERVER_HOST=127.0.0.1 SERVER_PORT=48787 \
+  node --import tsx apps/server/src/index.ts
+```
+
+上面是隔离源码服务的启动方式。做真实模型作业时，在**启动前**另外为服务进程配置 `LLM_PROVIDER=deepseek`、`LLM_MODEL=deepseek-flash` 和经授权的 OpenAI 兼容 `LLM_BASE_URL`；密钥用 `DEEPSEEK_API_KEY` 或 `LLM_API_KEY`。媒体走批准的 `SEEDANCE_ENDPOINT`、`SEEDREAM_ENDPOINT` 与 `VOLCENGINE_ARK_API_KEY`；独立 CLI 还读取其 `--keys-file` 中的 `ARK_BASE_URL`、模型和密钥。传给服务的配置与传给独立 CLI 的配置都需逐项核对。按本轮合同和仓内规则启用 `PROMPT_CONTRACT_V2=enforce`。启动前期前核对前期预算；付费提交视频前再核对本轮 G7 当前性和付费授权。模型密钥只进服务或 Film 进程，无需传给 MCP。用 `NODE_ENV=production` 时按 `.env.example` 配置生产签名及脱敏变量，使用实际会员认证；公开演示登录在该档位关闭。
+
+上述命令在单独终端前台运行服务。端口使用未占用值，后面的 URL 与之保持一致。需要图形界面时，在另一终端从仓库根运行 `SERVER_PORT=48787 pnpm -C apps/web dev --host 127.0.0.1`，打开启动日志给出的本机地址并按实际账号登录。真实供应商仅在已经批准的作业执行中调用。本机健康响应、测试工作区和 `LLM_PROVIDER=mock` 都不能证明真实生成可用。正式试跑使用授权的实际模型配置、实际余额与工作区预算，保持服务仅监听回环地址。
+
+在 Agent 的终端打开同一工作树。由授权方式向当前进程注入本工作区 B 端成员令牌 `WORKLOOM_ACCESS_TOKEN`，再检查只读健康接口和模型目录。无服务时可以单独运行不带 `--api` 的预检。
+
+```bash
+export EDIT_API=http://127.0.0.1:48787
+: "${WORKLOOM_ACCESS_TOKEN:?注入当前工作区 B 端成员令牌}"
+export WORKLOOM_BASE_URL="$EDIT_API" WORKLOOM_DEV_AUTO_LOGIN=0
+node scripts/tools/codex-video-preflight.mjs --api "$EDIT_API"
+printf '%s' '{"kind":"video","includeUnavailable":true}' | \
+  node scripts/workloom-agent.mjs invoke growth.video.gen.catalog --input-file -
+```
+
+预检打印仓库身份、HEAD、依赖和媒体工位结果。提供 `--api` 时额外检查回环健康与已认证的模型目录，并给出模型数量；服务的源码身份与部署版本仍由启动回执确认。显式目录查询返回各模型，核对本次所选条目的 `available`、缺少的配置、可用画幅、分辨率与时长。预检读取本地已获取的 `origin/main`，要核对远端当前状态先以获准 Git 身份执行 `git fetch origin main`。账户余额、预算与执行授权按 [正式流程](ai-video-workbench-guide.md#3-按系统官方流程推进) 独立核对。
+
+### 验证 Agent 读取能力
 
 ```bash
 # ① 看能力清单（每项含 ID / 操作类别 / 风险 / 数据模式）
@@ -21,9 +82,8 @@ node scripts/workloom-agent.mjs invoke growth.video.workbench.guide
 # ③ 看单项契约（输入 JSON Schema、传输方式）
 node scripts/workloom-agent.mjs describe growth.video.production.status
 
-# ④ 真跑一条只读能力（读本仓产物的阶段账本）
-printf '%s' '{"projectId":"VID-FF02-FULL","workDir":"work"}' \
-  | node scripts/workloom-agent.mjs invoke growth.video.production.status --input-file -
+# ④ 读取本仓环境状态（没有实际项目时无需填样例项目 ID）
+node scripts/workloom-agent.mjs invoke growth.repo.readiness
 
 # ⑤ MCP 冒烟（stdio JSON-RPC，两个请求：initialize + tools/list）
 printf '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"probe","version":"1"}}}\n{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}\n' \
@@ -48,35 +108,31 @@ printf '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion
 | 预览（`preview`） | 否（本地校验/出计划） | ✅ | `growth.service.inquiry.preview`、`growth.video.production.plan` |
 | 执行（`execute`） | **是**（服务端过程 + 幂等键 + 围栏/审批） | 仅在启用且过审后出现 | `growth.service.inquiry.execute`（本仓当前**禁用**） |
 
-**视频的"执行"目前不在 MCP 里**：渲染/出片是本地长任务，走 CLI：
-`scripts/tools/route-video.mts` → `scripts/tools/full-chain-film.mts`（见 `bundles/ai-video/README.md`）。
-`growth.video.production.plan` 只给"建议命令 + 前置检查"，**不替你执行、不花钱**——这是产品所有者口径。
+**视频 MCP 用于读取和预览。** 分流可用 `route-video.mts`，正式前期通过本机产品入口或经授权的 `video.studio.start`，正式渲染和后期使用 `full-chain-film.mts`。连接 MCP 既不启动前期，也不授予付费或对外发布权限。按 [正式流程](ai-video-workbench-guide.md#3-按系统官方流程推进) 核对项目状态、原始片单和门禁。
 
 ---
 
 ## 3. Codex 接入
 
-Codex 支持本地 STDIO MCP。把下面这段加进 Codex 的 `config.toml`（`~/.codex/config.toml`），
-**命令指向本仓**的 MCP 入口即可（多个仓可各配一条，用不同名字）：
+Codex 支持本地 STDIO MCP。下面配置可放在用户 `~/.codex/config.toml`，或可信项目的 `.codex/config.toml`。将 Node 和 Edit 工作树换成机器实际绝对路径。同源仓各用独立名称和工作目录。 [OpenAI 官方 MCP 文档](https://learn.chatgpt.com/docs/extend/mcp)
 
 ```toml
-[mcp_servers.workloom-growth]
-command = "node"
-args = ["/abs/path/to/WorkLoom-growth/scripts/workloom-agent-mcp.mjs"]
-cwd = "/abs/path/to/WorkLoom-growth"
+[mcp_servers.workloom-video-edit]
+command = "/abs/path/to/node"
+args = ["/abs/path/to/WorkLoom-video-edit/scripts/workloom-agent-mcp.mjs"]
+cwd = "/abs/path/to/WorkLoom-video-edit"
 startup_timeout_sec = 60
+# 仅访问 B 端只读服务时，从启动 Codex 的受控环境转发。
+env_vars = ["WORKLOOM_ACCESS_TOKEN"]
 
-[mcp_servers.workloom-growth.env]
-WORKLOOM_PRODUCT_ROOT = "/abs/path/to/WorkLoom-growth"
-# 只读能力可不配下面两项；要用服务端过程时按需配置（**不要写进仓库/日志**）
-# WORKLOOM_BASE_URL = "http://127.0.0.1:9207"      # 打包产品默认8787+420；源码服务8787须显式填写
-# WORKLOOM_ACCESS_TOKEN = "<B 端成员令牌>"          # 远程地址时必须
-# WORKLOOM_C_TOKEN = "<C 端令牌>"                   # 仅 C 端能力需要，与 B 端令牌不可互换
+[mcp_servers.workloom-video-edit.env]
+WORKLOOM_PRODUCT_ROOT = "/abs/path/to/WorkLoom-video-edit"
+# 只读本地指南或产物时可省略下面两项。
+WORKLOOM_BASE_URL = "http://127.0.0.1:48787"
+WORKLOOM_DEV_AUTO_LOGIN = "0"
 ```
 
-> **官方核实（2026-10-07）**：STDIO 的 `command/args/env/cwd`、`startup_timeout_sec` 以及 `[mcp_servers.<name>]`
-> 取自 [OpenAI 官方 MCP 文档](https://learn.chatgpt.com/docs/extend/mcp)。本任务实际验证本仓 CLI 与 stdio JSON-RPC 读取；
-> 不把协议回读算作 Codex/DSH 桌面界面已经逐机验收。更换客户端版本时重新核对配置。
+重启或重载客户端，用 `codex mcp list` 或客户端工具列表核对服务器。先调用 `workloom_growth_video_workbench_guide`，参数 `{}`。收到正确产品身份和正文摘要后，再运行实际任务。令牌只通过受控进程环境传入，MCP 进程无需接收 Ark 或文本模型密钥。 [OpenAI 官方 MCP 文档](https://learn.chatgpt.com/docs/extend/mcp)
 
 ---
 
@@ -101,23 +157,23 @@ DSH 客户端与本仓内置运行时分别配置。可用终端调用或 MCP �
 
 1. 在 DSH 里把本仓目录设为工作区；
 2. 先 invoke `growth.video.workbench.guide` 读取本仓完整指南，再读 `bundles/ai-video/README.md`；
-3. 用它的 `bash` 工具执行同一套命令（`pnpm video:doctor` → `route-video.mts` → `full-chain-film.mts`）。
+3. 用终端执行与 Codex 相同的 [正式流程](ai-video-workbench-guide.md#3-按系统官方流程推进)。
 
 ### 4.2 桌面端接入 · 路线 B（把本仓 MCP 挂成 DSH 插件，能力进菜单）
 
-本次对照 [DSH 官方 MCP 客户端说明](https://github.com/deepseek-ai/deepseek-harness/blob/master/packages/mcp/mcp-client/README.md)（2026-10-07）：每个服务器一项配置，使用 `@deepseek-ai/dsh-mcp-client`。在当前 profile 支持的插件配置位置加入以下条目；不把旧桌面界面按钮名当成跨版本保证：
+每个服务器配置一项。使用当前 profile 所支持的 `@deepseek-ai/dsh-mcp-client` 插件。 [DSH 官方 MCP 客户端说明](https://github.com/deepseek-ai/deepseek-harness/blob/master/packages/mcp/mcp-client/README.md)
 
 ```yaml
-- id: workloom-growth-mcp
+- id: workloom-video-edit-mcp
   name: '@deepseek-ai/dsh-mcp-client'
   config:
-    serverName: workloom_growth
+    serverName: workloom_video_edit
     transport: stdio
     command: node
-    args: ['/abs/path/to/WorkLoom-growth/scripts/workloom-agent-mcp.mjs']
-    cwd: /abs/path/to/WorkLoom-growth
+    args: ['/abs/path/to/WorkLoom-video-edit/scripts/workloom-agent-mcp.mjs']
+    cwd: /abs/path/to/WorkLoom-video-edit
     env:
-      WORKLOOM_PRODUCT_ROOT: /abs/path/to/WorkLoom-growth
+      WORKLOOM_PRODUCT_ROOT: /abs/path/to/WorkLoom-video-edit
 ```
 
 DSH 会清理继承环境中的秘密变量；需要访问服务时，按该客户端当前配置机制显式注入成员令牌和服务地址，不能把令牌字面量保存到仓库。接通检查：
@@ -125,15 +181,17 @@ DSH 会清理继承环境中的秘密变量；需要访问服务时，按该客�
 1. 核对上面条目的 Node 可执行路径和本仓绝对入口，等价服务命令为：
 
    ```bash
-   node /abs/path/to/WorkLoom-growth/scripts/workloom-agent-mcp.mjs
+   node /abs/path/to/WorkLoom-video-edit/scripts/workloom-agent-mcp.mjs
    ```
 
-   并把 `WORKLOOM_PRODUCT_ROOT=/abs/path/to/WorkLoom-growth` 等环境变量注入插件进程；
-2. 重新加载插件后，以实际 `tools/list` 核对原始工具；DSH 显示名会加 `mcp__workloom_growth__` 前缀。先读取原始工具 `workloom_growth_video_workbench_guide`，参数 `{}`，再以实际结果对账。
+   并把 `WORKLOOM_PRODUCT_ROOT=/abs/path/to/WorkLoom-video-edit` 等环境变量注入插件进程。
+2. 重新加载插件后，以实际 `tools/list` 核对原始工具。按本例注册时 DSH 显示名会加 `mcp__workloom_video_edit__` 前缀。调用原始工具 `workloom_growth_video_workbench_guide`，参数 `{}`，回读产品身份和文档摘要。
 
 > 说明：DSH 侧"自定义 STDIO MCP"的具体配置键以**你所用 DSH 版本的官方文档/插件页为准**；
 > 我们这侧只保证"标准 stdio JSON-RPC + 工具清单"这一契约（协议版本含 2024-11-05 / 2025-03-26 /
 > 2025-06-18 / 2025-11-25，见 `scripts/workloom-agent-mcp.mjs`）。
+
+其他 Agent 也可用 §1 的终端调用。若客户端支持本机 STDIO MCP，复用同一个绝对 Node 路径、入口、工作目录和非秘密环境配置，再通过该客户端的受控变量转发所需成员令牌。仅云端执行的 Agent 需要单独配置可访问的执行环境。
 
 ---
 
@@ -172,7 +230,7 @@ DSH 会清理继承环境中的秘密变量；需要访问服务时，按该客�
 
 - **令牌三类**：`WORKLOOM_ACCESS_TOKEN`（B 端成员，远程地址必需）、`WORKLOOM_C_TOKEN`（C 端，单独）、
   本地开发可用 `auth.loginAs` 演示身份；**令牌只经环境变量**，不得写进仓库、命令行参数、日志或提示词；
-- **地址**：默认 `127.0.0.1:8787+portOffset`（本仓 `product.manifest.json`）；**非回环必须 HTTPS**；
+- **地址**：将 `WORKLOOM_BASE_URL` 设为实际 `SERVER_HOST` 和 `SERVER_PORT`。默认能力地址按 manifest 的桌面端口偏移推导，源码服务不会自动采用这一偏移。非回环必须 HTTPS；
 - **禁用能力**：`enabled=false` 的能力会从 MCP `tools/list` 消失，调用返回 `DISABLED` + 原因；
 - **错误码**：清单/契约类错误返回 `{"error":{"code":...}}`；指南契约错误保留 `INVALID_INPUT` / `GUIDE_UNAVAILABLE`；其它本地能力自身抛错可能显示为 `INTERNAL_ERROR` + 可读原因
   （例如"路径监狱""超过读取上限"）；
