@@ -5,6 +5,7 @@
  * a separate registry and is intentionally not handled here.
  */
 import { createHash } from "node:crypto";
+import { types } from "node:util";
 import { maskDeep } from "../workdata/pii.js";
 import {
   canonicalDeepSeekModel,
@@ -257,6 +258,14 @@ function policyForOptions(opts: ChatOptions): TextScenePolicy {
   });
 }
 
+interface OpenAiTransport {
+  fetchImpl: typeof fetch;
+  endpoint: string;
+  authorization: string | undefined;
+}
+
+const openAiTransportReceipts = new WeakMap<ChatResult, OpenAiTransport & { provider: OpenAiCompatibleProvider }>();
+
 /**
  * Canonical DeepSeek transport. The complete serialized request is tokenized
  * before dispatch and the output ceiling is the maximum legal remainder.
@@ -264,6 +273,7 @@ function policyForOptions(opts: ChatOptions): TextScenePolicy {
 export class OpenAiCompatibleProvider implements ModelProvider {
   readonly modelId: typeof DEEPSEEK_FLASH_MODEL_ID;
   private readonly baseUrl: string;
+  private static readonly nativeAuthHeaders = OpenAiCompatibleProvider.prototype.authHeaders;
 
   constructor(
     modelId: string,
@@ -276,6 +286,28 @@ export class OpenAiCompatibleProvider implements ModelProvider {
 
   private authHeaders(): Record<string, string> {
     return this.cfg.apiKey ? { authorization: `Bearer ${this.cfg.apiKey}` } : {};
+  }
+
+  /** Compare the actual successful attempt with current dispatch without exposing transport credentials. */
+  matchesCurrentTransport(receipt: ChatResult): boolean {
+    const dispatched = openAiTransportReceipts.get(receipt);
+    if (!dispatched || dispatched.provider !== this || types.isProxy(this)) return false;
+    const authMethod = Object.getOwnPropertyDescriptor(this, "authHeaders")
+      ?? Object.getOwnPropertyDescriptor(OpenAiCompatibleProvider.prototype, "authHeaders");
+    const cfg = Object.getOwnPropertyDescriptor(this, "cfg")?.value as OpenAiCompatibleProvider["cfg"] | undefined;
+    if (authMethod?.value !== OpenAiCompatibleProvider.nativeAuthHeaders
+      || !cfg || types.isProxy(cfg) || Object.getPrototypeOf(cfg) !== Object.prototype) return false;
+    const fetchImpl = Object.getOwnPropertyDescriptor(cfg, "fetchImpl");
+    const apiKey = Object.getOwnPropertyDescriptor(cfg, "apiKey");
+    const baseUrl = Object.getOwnPropertyDescriptor(this, "baseUrl")?.value;
+    // Accessors and inherited overrides still dispatch normally, but cannot attest to future inputs.
+    if ((fetchImpl ? !("value" in fetchImpl) : "fetchImpl" in cfg)
+      || (apiKey ? !("value" in apiKey) : "apiKey" in cfg)
+      || typeof baseUrl !== "string"
+      || (apiKey?.value !== undefined && typeof apiKey.value !== "string")) return false;
+    return dispatched.fetchImpl === (fetchImpl?.value ?? fetch)
+      && dispatched.endpoint === `${baseUrl}/chat/completions`
+      && dispatched.authorization === (apiKey?.value ? `Bearer ${apiKey.value}` : undefined);
   }
 
   private static async failureDetail(response: Response): Promise<string> {
@@ -359,11 +391,16 @@ export class OpenAiCompatibleProvider implements ModelProvider {
         ? AbortSignal.any([opts.signal, timeoutSignal])
         : timeoutSignal;
       let response: Response;
+      let transport: OpenAiTransport;
       try {
-        response = await (this.cfg.fetchImpl ?? fetch)(`${this.baseUrl}/chat/completions`, {
+        const fetchImpl = this.cfg.fetchImpl ?? fetch;
+        const endpoint = `${this.baseUrl}/chat/completions`;
+        const headers = this.authHeaders();
+        transport = { fetchImpl, endpoint, authorization: headers.authorization };
+        response = await fetchImpl(endpoint, {
           method: "POST",
           redirect: "error",
-          headers: { "content-type": "application/json", accept: "application/json", ...this.authHeaders() },
+          headers: { "content-type": "application/json", accept: "application/json", ...headers },
           body,
           signal,
         });
@@ -502,7 +539,7 @@ export class OpenAiCompatibleProvider implements ModelProvider {
         });
       }
 
-      return {
+      const receipt: ChatResult = {
         text,
         promptTokens,
         completionTokens,
@@ -522,6 +559,8 @@ export class OpenAiCompatibleProvider implements ModelProvider {
         registryVersion: TEXT_PRIMARY_REGISTRY_VERSION,
         attempts,
       };
+      openAiTransportReceipts.set(receipt, { ...transport, provider: this });
+      return receipt;
     }
     throw new ModelProviderError("模型调用重试耗尽", "http", { retryable: false, receipt: { attempts } });
   }

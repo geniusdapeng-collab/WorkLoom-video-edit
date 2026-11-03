@@ -3,9 +3,17 @@
  * 全部调用经 routeSmart（preproduction 场景 + 真实计量留痕 + fastModel 强制 L1 + 失败可重试语义）
  */
 import { createRequire } from "node:module";
+import { writeFileSync } from "node:fs";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { MockProvider, type ChatMessage, type ChatOptions, type ModelProvider } from "@workloom/base/model-router";
+import {
+  DEFAULT_MODEL_POLICY, MockProvider, OpenAiCompatibleProvider, resetCircuit, routeSmart,
+  type ChatMessage, type ChatOptions, type ModelProvider,
+} from "@workloom/base/model-router";
 import { WorkloomLLMEngine } from "./llm-adapter.js";
+import { installPrdAuthorityBridge, withPrdAuthorityScope } from "./prd-authority-bridge.js";
+import { preparePrdAuthority } from "./prd-authority.js";
+import { requirementRecord, type RequirementRecord } from "./requirement-contract.js";
+import { PRDGenerator, PRDSchema, prdFixture } from "./prd-authority.test-support.js";
 
 afterEach(() => vi.restoreAllMocks());
 
@@ -250,6 +258,196 @@ describe("结构化调用保留调用方真实输出合同", () => {
     const result = await adapter.reasonStructured("原文", { shots: [{ shotId: "SC-05", fields: { scene: "" } }] });
     expect(result.data).toEqual(payload);
     expect(requests).toHaveLength(1);
+  });
+});
+
+function pinnedReviewTransport(usage = { prompt_tokens: 300, completion_tokens: 100, total_tokens: 400 }) {
+  const requests: string[] = [];
+  const { sink } = memSink();
+  const endpoint = "http://review-proof.invalid/v1";
+  vi.spyOn(globalThis, "fetch").mockImplementation(async (url, init) => {
+    expect(String(url)).toBe(`${endpoint}/chat/completions`);
+    requests.push(String(init?.body));
+    return Response.json({
+      model: "deepseek-flash", choices: [{ finish_reason: "stop", message: { content: '{"ok":true}' } }], usage,
+    });
+  });
+  const adapter = new WorkloomLLMEngine({ baseUrl: endpoint, apiKey: "fixture-only", model: "deepseek-flash" });
+  const providerConfig: { baseUrl: string; apiKey?: string; fetchImpl?: typeof fetch } = {
+    baseUrl: endpoint, apiKey: "fixture-only",
+  };
+  const provider = new OpenAiCompatibleProvider("deepseek-flash", providerConfig);
+  const router = {
+    providers: new Map([[provider.modelId, provider]]),
+    policy: structuredClone(DEFAULT_MODEL_POLICY),
+    forceModel: provider.modelId,
+    sink,
+  };
+  adapter.attachRouter(router);
+  return { adapter, router, sink, requests, providerConfig };
+}
+
+describe("G6 结构化评审的实际派发证据", () => {
+  it.each(["router-policy", "scene-rule", "sink-method", "router-proxy"] as const)(
+    "%s 动态配置只按原调度读取，实际请求不变且无证明", async (kind) => {
+      const scene = "G6-proof-dynamic-policy";
+      const prompt = "检查动态配置";
+      const schema = { ok: true };
+      const options = { scene };
+      const setup = () => {
+        const { adapter, router, requests } = pinnedReviewTransport();
+        router.policy.scenes[scene] = { tier: "L2", responseFormat: "json_object" };
+        let reads = 0;
+        if (kind === "router-policy") {
+          const first = router.policy;
+          const second = structuredClone(first);
+          second.scenes[scene] = { tier: "L2", responseFormat: "text" };
+          Object.defineProperty(router, "policy", { get: () => ++reads === 2 ? second : first });
+        } else if (kind === "scene-rule") {
+          Object.defineProperty(router.policy.scenes[scene], "responseFormat", {
+            get: () => ++reads === 2 ? "text" : "json_object",
+          });
+        } else if (kind === "sink-method") {
+          const record = router.sink.recordModelTrace;
+          Object.defineProperty(router.sink, "recordModelTrace", { get: () => { ++reads; return record; } });
+        } else {
+          adapter.attachRouter(new Proxy(router, {
+            get(target, key, receiver) { ++reads; return Reflect.get(target, key, receiver); },
+          }));
+        }
+        return { adapter, requests, reads: () => reads };
+      };
+      const ordinary = setup();
+      expect((await ordinary.adapter.reasonStructured(prompt, schema, options)).success).toBe(true);
+      const optedIn = setup();
+      const actual = await optedIn.adapter.reasonStructuredWithProof(prompt, schema, options);
+      expect(actual.result.success).toBe(true);
+      expect(optedIn.requests).toEqual(ordinary.requests);
+      expect(optedIn.reads()).toBe(ordinary.reads());
+      expect(actual.proof).toBeUndefined();
+    },
+  );
+
+  it("提供方实例不变但有效传输或授权变更后，旧证明失效", async () => {
+    const { adapter, requests, providerConfig } = pinnedReviewTransport();
+    const originalFetch = globalThis.fetch;
+    const explicitTransport = vi.fn<typeof fetch>((url, init) => originalFetch(url, init));
+    providerConfig.fetchImpl = explicitTransport;
+    const prompt = "检查镜头";
+    const schema = { ok: true };
+    const options = { scene: "G6-proof-transport" };
+    const { proof } = await adapter.reasonStructuredWithProof(prompt, schema, options);
+    expect(proof?.matchesCurrent(prompt, schema, options)).toBe(true);
+
+    const replacement = vi.fn<typeof fetch>((url, init) => originalFetch(url, init));
+    providerConfig.fetchImpl = replacement;
+    expect(proof?.matchesCurrent(prompt, schema, options)).toBe(false);
+    const fresh = await adapter.reasonStructuredWithProof(prompt, schema, options);
+    expect(fresh.result).toMatchObject({ success: true, data: { ok: true } });
+    expect(fresh.proof?.matchesCurrent(prompt, schema, options)).toBe(true);
+    expect(replacement).toHaveBeenCalledTimes(1);
+
+    providerConfig.apiKey = "rotated-fixture-only";
+    expect(fresh.proof?.matchesCurrent(prompt, schema, options)).toBe(false);
+    expect(requests).toHaveLength(2);
+    expect(explicitTransport).toHaveBeenCalledTimes(1);
+  });
+
+  it("有副作用的动态传输配置保持原调度，不能提供可复用证明", async () => {
+    const { adapter, requests, providerConfig } = pinnedReviewTransport();
+    const originalFetch = globalThis.fetch;
+    const readTransport = vi.fn(() => originalFetch);
+    Object.defineProperty(providerConfig, "fetchImpl", { get: readTransport });
+    const result = await adapter.reasonStructuredWithProof("检查镜头", { ok: true }, { scene: "G6-proof-transport-getter" });
+    expect(result.result).toMatchObject({ success: true, data: { ok: true } });
+    expect(result.proof).toBeUndefined();
+    expect(requests).toHaveLength(1);
+    expect(readTransport).toHaveBeenCalledTimes(1);
+  });
+
+  it("当前性比较包含完整 G4 权威追加，命中前复查原件字节", async () => {
+    const { adapter, requests } = pinnedReviewTransport();
+    const source = prdFixture("G6-PROOF-AUTHORITY");
+    class System {
+      constructor(readonly prdGenerator: RequirementRecord) {}
+      async _confirmRequirementList(_markdown: string, list: unknown) { return { approved: true, requirementList: list }; }
+      _generateMinimalPRD() { throw new Error("fixture cannot fall back to minimal PRD"); }
+      async _confirmPRD(_markdown: string, prd: unknown) { return { approved: true, prd }; }
+    }
+    const dispose = installPrdAuthorityBridge(System.prototype as unknown as RequirementRecord, PRDGenerator.prototype, PRDSchema);
+    const generator = new PRDGenerator();
+    for (const [key, payload] of [["agent2", source.creative], ["agent3", source.production]] as const) {
+      const agent = requirementRecord(generator[key], key);
+      agent._llmEngineLoaded = true;
+      agent._llmEngine = { reasonStructured: async () => ({ success: true, data: structuredClone(payload) }) };
+    }
+    const system = new System(generator);
+    const options = { scene: "G6-proof-authority", maxTokens: 2200, temperature: 0 };
+    const prompt = "检查真实上游原文";
+    const schema = { ok: true };
+    const verifyAuthority = () => preparePrdAuthority({
+      metadata: source.metadata, marketing: source.marketing, workDir: source.workDir, projectId: source.scope.projectId,
+    });
+    try {
+      await expect(withPrdAuthorityScope(source.authority, async () => {
+        await system._confirmRequirementList("G3 fixture", source.list);
+        const prd = await (generator.generate as (value: unknown) => Promise<RequirementRecord>).call(generator, source.discovery);
+        const markdown = (generator.generateMarkdown as (value: unknown) => string).call(generator, prd);
+        await system._confirmPRD(markdown, prd);
+
+        const { result, proof } = await adapter.reasonStructuredWithProof(prompt, schema, options);
+        expect(result).toMatchObject({ success: true, data: { ok: true } });
+        const actual = JSON.parse(requests[0]!).messages.at(-1).content;
+        expect(actual).toContain(JSON.stringify(schema, null, 2));
+        expect(actual).toContain(source.content);
+        expect(actual).toContain(markdown);
+        expect(proof?.matchesCurrent(prompt, schema, options)).toBe(true);
+
+        // G5 may legitimately fill portraitPath. G4 still verifies, while the actual
+        // model appendix changes. A proof bound only to the raw G6 prompt would hit.
+        const characters = requirementRecord(prd.characterSystem, "characters").characters as RequirementRecord[];
+        characters[0]!.portraitPath = "portrait-current.png";
+        expect(proof?.matchesCurrent(prompt, schema, options)).toBe(false);
+        characters[0]!.portraitPath = "";
+        expect(proof?.matchesCurrent(prompt, schema, options)).toBe(true);
+
+        writeFileSync(source.file, "G1 source bytes changed during repair");
+        expect(() => proof?.matchesCurrent(prompt, schema, options)).toThrow("PRD_G1_CHANGED");
+      }, verifyAuthority)).rejects.toThrow("PRD_G1_CHANGED");
+      expect(requests).toHaveLength(1);
+    } finally {
+      dispose();
+      source.cleanup();
+    }
+  });
+
+  it("打开的路由熔断使现有证明失效，原请求返回现有不可用状态", async () => {
+    const { adapter, sink, requests } = pinnedReviewTransport();
+    const scene = "G6-proof-circuit";
+    try {
+      const { proof } = await adapter.reasonStructuredWithProof("检查", { ok: true }, { scene });
+      expect(proof?.matchesCurrent("检查", { ok: true }, { scene })).toBe(true);
+      const failing = new MockProvider("deepseek-flash", { failFirst: 3 });
+      const providers = new Map([[failing.modelId, failing]]);
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        expect((await routeSmart({ action: scene, scene, messages: [{ role: "user", content: "模拟故障" }] }, providers, sink)).kind).toBe("unavailable");
+      }
+      expect(proof?.matchesCurrent("检查", { ok: true }, { scene })).toBe(false);
+      const after = await adapter.reasonStructuredWithProof("检查", { ok: true }, { scene });
+      expect(after.result).toMatchObject({ success: false, error: "模型场景熔断冷却中" });
+      expect(after.proof).toBeUndefined();
+      expect(requests).toHaveLength(1);
+    } finally { resetCircuit(scene); }
+  });
+
+  it("超过路由积分上限的有效文本保留原结果，不能成为可复用证明", async () => {
+    const { adapter, router, requests } = pinnedReviewTransport({ prompt_tokens: 900_000, completion_tokens: 100, total_tokens: 900_100 });
+    const scene = "G6-proof-budget";
+    router.policy.scenes[scene] = { tier: "L3", noDowngrade: true };
+    const result = await adapter.reasonStructuredWithProof("检查", { ok: true }, { scene });
+    expect(requests).toHaveLength(1);
+    expect(result.result).toMatchObject({ success: true, data: { ok: true } });
+    expect(result.proof).toBeUndefined();
   });
 });
 

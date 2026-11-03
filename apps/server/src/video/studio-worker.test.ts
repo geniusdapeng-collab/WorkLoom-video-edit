@@ -8,7 +8,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { gatewayAppend, gatewayAppendOnClient } from "@workloom/base/workdata";
-import { applyScenePolicy, auditScenePolicy, loadScenePolicies, resolveShotCast, type ScenePolicyShot } from "@hyperreality/video-studio";
+import { applyScenePolicy, auditScenePolicy, loadScenePolicies, promptFieldPolicy, resolveShotCast, SHOT_FIELD_SCHEMA_V2, type ScenePolicyShot } from "@hyperreality/video-studio";
 import { verifyScenePolicyProductionSource } from "./scene-policy-render-gate.js";
 import { portraitReuseFixture } from "./portrait-reuse.test-support.js";
 import { builtinCatalogFixture } from "./builtin-character-selection.test-support.js";
@@ -33,6 +33,7 @@ const doubles = vi.hoisted(() => ({
   gateReplies: [] as Array<{ gate: string; verdict: any }>,
   emitGates: true,
   realStructuredLog: false,
+  realModelRouting: false,
   capturePromptOptions: null as null | ((options: any) => Promise<any>),
   connect: vi.fn(),
   query: vi.fn(),
@@ -40,10 +41,18 @@ const doubles = vi.hoisted(() => ({
 }));
 
 vi.mock("@workloom/db", () => ({ getAppPool: () => ({ connect: doubles.connect }), getGatewayPool: () => ({}) }));
-vi.mock("@workloom/base/model-router", async (importOriginal) => ({
-  ...await importOriginal<typeof import("@workloom/base/model-router")>(),
-  GatewayEventSink: class {}, poolFromEnv: () => new Map(),
-}));
+vi.mock("@workloom/base/model-router", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@workloom/base/model-router")>();
+  return {
+    ...actual,
+    GatewayEventSink: class {
+      async recordModelTrace() { return undefined; }
+      async recordDegradation() { return undefined; }
+      async recordCircuitBreak() { return undefined; }
+    },
+    poolFromEnv: () => doubles.realModelRouting ? actual.poolFromEnv() : new Map(),
+  };
+});
 /**
  * GR-02（2026-09-29 第二次修复）：号源改为共享的 `insertWithReadableId`（纯 nextval + SAVEPOINT 换号）。
  * 这里按真实契约实现 stub：取号 SQL 仍走 mock 的 `video_projects_max_vid_no()`（返回 9000），
@@ -109,7 +118,10 @@ vi.mock("@hyperreality/video-studio", async (importOriginal) => {
     }
   },
   reviewStage: doubles.review,
-  WorkloomLLMEngine: { fromEnv: () => ({ attachRouter: vi.fn() }) },
+  WorkloomLLMEngine: {
+    fromEnv: () => doubles.realModelRouting ? actual.WorkloomLLMEngine.fromEnv() : { attachRouter: vi.fn() },
+    supportsStructuredReviewProof: actual.WorkloomLLMEngine.supportsStructuredReviewProof,
+  },
   installVendorEngineBridge: vi.fn(),
   installVendorRenderCompatBridge: vi.fn(),
   installVendorPortraitBindingBridge: () => doubles.uninstall,
@@ -138,6 +150,7 @@ beforeEach(() => {
   doubles.studioConfigs.length = 0;
   doubles.gateReplies.length = 0;
   doubles.realStructuredLog = false;
+  doubles.realModelRouting = false;
   doubles.capturePromptOptions = null;
   doubles.prepare.mockReset().mockImplementation(async ({ scope, root }) => {
     const raw = { A1: { identity: { name: "本次商品", specs: { 功率: "1 W" } }, images: [] }, A2: { reviews: [] }, A3: { competitors: [] } };
@@ -271,6 +284,72 @@ async function archiveOutput(projectId: string, attempt: number) {
 }
 
 describe("预生产原始结果与诚实终态", () => {
+  it.each([false, true])("真实 worker G6 定点修复后，G7 仍核对当前镜头合同（漂移=%s）", async (drift) => {
+    doubles.realModelRouting = true;
+    doubles.emitGates = false;
+    vi.stubEnv("PROMPT_CONTRACT_V2", "enforce");
+    vi.stubEnv("LLM_PROVIDER", "deepseek");
+    vi.stubEnv("LLM_BASE_URL", "http://g6-worker.invalid/v1");
+    vi.stubEnv("LLM_API_KEY", "fixture-only");
+    vi.stubEnv("LLM_MODEL", "deepseek-flash");
+    vi.stubEnv("LLM_FORCE_MODEL", "deepseek-flash");
+    const originalCamera = "短镜连续绕场一周";
+    const fixedCamera = "固定机位轻微缓推";
+    const fields: Record<string, unknown> = Object.fromEntries(promptFieldPolicy(SHOT_FIELD_SCHEMA_V2, false).fields.map(
+      ({ key, label }) => [key, `${label}配合晨光和水面动作`],
+    ));
+    Object.assign(fields, { character: "明确无人", portraits: "NONE", dialogue: "无台词", constraint: "9:16画幅，30fps，MP4",
+      camera_movement: originalCamera, timeline: "T00:00到T00:05，湖面轻晃" });
+    const shots = ["S01", "S02"].map((shotId) => ({ shotId, duration: 5, sceneType: "content", noPeople: true,
+      prompt: "原生分镜提示词", fields: { ...fields, camera_movement: shotId === "S01" ? originalCamera : fixedCamera } }));
+    const calls: string[] = [];
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (url, init) => {
+      expect(String(url)).toBe("http://g6-worker.invalid/v1/chat/completions");
+      const user = String(JSON.parse(String(init?.body)).messages.at(-1).content);
+      const prompt = user.split("\n\n【硬性输出要求】", 1)[0]!;
+      const repair = prompt.startsWith("你是字段级定点修复器。");
+      const context = JSON.parse(prompt.slice(repair ? prompt.indexOf("镜头：{") + 3 : prompt.indexOf("\n{\n") + 1));
+      calls.push(`${repair ? "repair" : "review"}:${context.shotId}`);
+      const values = new Map<string, unknown>(context.fields?.map((field: { field: string; value: unknown }) => [field.field, field.value]));
+      const checks = Object.entries(context.questions ?? {}).map(([id, question]) => {
+        const field = (question as { fields: string[] }).fields[0]!;
+        const evidence = String(values.get(field));
+        return id === "SQ3_CAMERA_FEASIBLE" && evidence === originalCamera
+          ? { id, field, evidence, pass: false, failureCode: "CAMERA_TOO_LONG", repair: "只改为可执行单动作" }
+          : { id, field, evidence, pass: true };
+      });
+      const content = repair ? { changes: [{ field: "camera_movement", value: fixedCamera, reason: "收敛为单动作" }] }
+        : { shotId: context.shotId, checks };
+      return Response.json({ model: "deepseek-flash", choices: [{ finish_reason: "stop", message: { content: JSON.stringify(content) } }],
+        usage: { prompt_tokens: 100, completion_tokens: 40, total_tokens: 140 } });
+    });
+
+    const verdicts: Record<string, { approved: boolean; reason: string }> = {};
+    doubles.runPreproduction.mockImplementation(async () => {
+      const approve = doubles.studioConfigs[0]!.onApproval;
+      for (const gate of ["G2_THEME", "G3_INSIGHT", "G4_PRD", "G6_PROMPT", "G7_FINAL"]) {
+        if (drift && gate === "G7_FINAL") shots[1]!.fields.camera_movement = "前景突然改为手持推进";
+        verdicts[gate] = await approve({ gate, vendorType: "test-gate", runId: "vendor-run", title: "完整确认单",
+          contentMd: "具体场景、角色、动作与镜头交付标准。".repeat(20), structuredArtifact: shots });
+      }
+      return { ...success(), shots, success: verdicts.G7_FINAL!.approved,
+        errors: verdicts.G7_FINAL!.approved ? [] : [{ message: verdicts.G7_FINAL!.reason }] };
+    });
+    const { entry, projectId } = await runToTerminal(false, { hasPerson: false, characters: [], noCharacters: true });
+    expect(calls).toEqual(["review:S01", "review:S02", "repair:S01", "review:S01"]);
+    expect(verdicts.G6_PROMPT).toMatchObject({ approved: true });
+    expect(shots[0]!.fields.camera_movement).toBe(fixedCamera);
+    expect(shots[0]!.prompt).toContain(fixedCamera);
+    const gateDir = path.join(doubles.workDir, "workspaces", scope.workspaceId, "gates", projectId, "attempt-1");
+    const semantic = JSON.parse(await readFile(path.join(gateDir, "prompt-quality/semantic-quality-report.json"), "utf8"));
+    expect(semantic.reports[1]).toMatchObject({ shotId: "S02", proofReuse: { sourcePass: 1 } });
+    const eligibility = JSON.parse(await readFile(path.join(gateDir, "render-eligibility.json"), "utf8"));
+    expect(eligibility).toMatchObject({ current: !drift, eligible: !drift });
+    expect(verdicts.G7_FINAL).toMatchObject({ approved: !drift });
+    expect(entry).toMatchObject({ status: drift ? "failed" : "finished" });
+    if (drift) expect(eligibility.reasons).toContain("PROMPT_CONTRACT_DRIFT:S02");
+  });
+
   it.each(["SEEDANCE_MODEL", "ARK_VIDEO_MODEL"])("G6合同绑定部署实际模型覆盖%s，而非静态目录别名", async (key) => {
     vi.stubEnv("PROMPT_CONTRACT_V2", "enforce");
     vi.stubEnv("SEEDANCE_MODEL", ""); vi.stubEnv("ARK_VIDEO_MODEL", "");

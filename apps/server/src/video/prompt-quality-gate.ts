@@ -14,15 +14,17 @@ import {
   promptContractManifestHash,
   sha256Json,
   validatePromptContract,
+  WorkloomLLMEngine,
   type CompiledPromptShot,
   type PromptCompileAsset,
   type PromptCompileOptions,
   type PromptCompileShot,
   type PromptContract,
   type PromptFieldDefinition,
+  type LLMReasonOptions,
+  type StructuredReviewDispatchProof,
 } from "@hyperreality/video-studio";
 import { promptSemanticRepairPlaybook } from "@hyperreality/video-pipeline";
-import type { WorkloomLLMEngine } from "@hyperreality/video-studio";
 
 export const SEMANTIC_QUALITY_POLICY_VERSION = "workloom.video-prompt-quality/v2" as const;
 export const SEMANTIC_QUALITY_CHECK_IDS = [
@@ -89,6 +91,40 @@ export interface SemanticQualityReviewer {
   model?: string;
 }
 
+interface BuiltinSemanticReviewer {
+  engine: WorkloomLLMEngine;
+  review: SemanticQualityReviewer["review"];
+  repair: SemanticQualityReviewer["repair"];
+}
+
+const builtinSemanticReviewers = new WeakMap<SemanticQualityReviewer, BuiltinSemanticReviewer>();
+
+function proofReviewer(reviewer: SemanticQualityReviewer): BuiltinSemanticReviewer | undefined {
+  const native = builtinSemanticReviewers.get(reviewer);
+  return native && Object.getOwnPropertyDescriptor(reviewer, "review")?.value === native.review
+    && Object.getOwnPropertyDescriptor(reviewer, "repair")?.value === native.repair
+    && WorkloomLLMEngine.supportsStructuredReviewProof(native.engine) ? native : undefined;
+}
+
+interface ReusedSemanticReview {
+  sourcePass: 1;
+  sourceTechnicalRetry: number;
+  inputSha256: string;
+  dependenciesSha256: string;
+  sourceRequestSha256: string;
+  sourceResponseSha256: string;
+  modelId: string;
+  policyVersion: string;
+  registryVersion: string;
+}
+
+interface PassedSemanticReviewProof {
+  dependenciesSha256: string;
+  review: SemanticQualityReview;
+  technicalRetry: number;
+  dispatch: StructuredReviewDispatchProof;
+}
+
 export interface PromptQualityFinding {
   code: string;
   field: string | null;
@@ -132,6 +168,7 @@ export interface PromptQualityResult {
     valid: boolean;
     errors: string[];
     technicalRetry: number;
+    proofReuse?: ReusedSemanticReview;
   }>;
   findings: PromptQualityFinding[];
   repairPlan?: RepairPlan;
@@ -406,15 +443,16 @@ function repairPrompt(
   ].join("\n");
 }
 
+function semanticReviewRequest(context: SemanticReviewContext) {
+  const options: LLMReasonOptions = { scene: "preproduction", maxTokens: 2200, temperature: 0 };
+  return [semanticPrompt(context.contract, context.shot, context.upstreamContext), semanticSchema(context.contract.shotId), options] as const;
+}
+
 export function createLlmSemanticQualityReviewer(llm: WorkloomLLMEngine): SemanticQualityReviewer {
-  return {
+  const reviewer: SemanticQualityReviewer = {
     model: llm.model,
     async review(context) {
-      const result = await llm.reasonStructured(
-        semanticPrompt(context.contract, context.shot, context.upstreamContext),
-        semanticSchema(context.contract.shotId),
-        { scene: "preproduction", maxTokens: 2200, temperature: 0 },
-      );
+      const result = await llm.reasonStructured(...semanticReviewRequest(context));
       if (!result.success) throw new Error(result.error ?? "SEMANTIC_REVIEW_TRANSPORT_FAILED");
       return result.data ?? result.content;
     },
@@ -428,6 +466,8 @@ export function createLlmSemanticQualityReviewer(llm: WorkloomLLMEngine): Semant
       return result.data ?? result.content;
     },
   };
+  builtinSemanticReviewers.set(reviewer, { engine: llm, review: reviewer.review, repair: reviewer.repair });
+  return reviewer;
 }
 
 function semanticFinding(
@@ -604,14 +644,43 @@ export function verifyCurrentPromptContracts(
 async function reviewWithTechnicalRetry(
   reviewer: SemanticQualityReviewer,
   context: SemanticReviewContext,
-): Promise<{ review?: SemanticQualityReview; errors: string[]; retries: number }> {
-  let last: unknown;
+  captureProof: boolean,
+  prior?: PassedSemanticReviewProof,
+): Promise<{
+  review?: SemanticQualityReview;
+  errors: string[];
+  retries: number;
+  dispatchProof?: StructuredReviewDispatchProof;
+  proofReuse?: ReusedSemanticReview;
+}> {
   let lastError = "";
   for (let attempt = 0; attempt < 2; attempt += 1) {
     try {
-      last = await reviewer.review({ ...context, attempt: attempt + 1 });
-      const parsed = parseSemanticQualityReview(last, context.contract, context.shot);
-      if (parsed.valid && parsed.review) return { review: parsed.review, errors: [], retries: attempt };
+      const current = { ...context, attempt: attempt + 1 };
+      const native = captureProof || prior ? proofReviewer(reviewer) : undefined;
+      if (attempt === 0 && native && prior?.dispatch.matchesCurrent(...semanticReviewRequest(current))) {
+        const parsed = parseSemanticQualityReview(prior.review, current.contract, current.shot);
+        if (parsed.valid && parsed.review?.checks.every((check) => check.pass)) {
+          const { inputSha256, requestSha256, responseSha256, modelId, policyVersion, registryVersion } = prior.dispatch;
+          return {
+            review: parsed.review, errors: [], retries: attempt,
+            proofReuse: { sourcePass: 1, sourceTechnicalRetry: prior.technicalRetry, inputSha256, dependenciesSha256: prior.dependenciesSha256,
+              sourceRequestSha256: requestSha256, sourceResponseSha256: responseSha256, modelId, policyVersion, registryVersion },
+          };
+        }
+      }
+      let value: unknown;
+      let dispatchProof: StructuredReviewDispatchProof | undefined;
+      if (native && captureProof) {
+        const { result, proof } = await native.engine.reasonStructuredWithProof(...semanticReviewRequest(current));
+        if (!result.success) throw new Error(result.error ?? "SEMANTIC_REVIEW_TRANSPORT_FAILED");
+        value = result.data ?? result.content;
+        dispatchProof = proof;
+      } else {
+        value = await reviewer.review(current);
+      }
+      const parsed = parseSemanticQualityReview(value, current.contract, current.shot);
+      if (parsed.valid && parsed.review) return { review: parsed.review, errors: [], retries: attempt, dispatchProof };
       lastError = parsed.errors.join(",");
     } catch (error) {
       lastError = errorText(error);
@@ -620,13 +689,30 @@ async function reviewWithTechnicalRetry(
   return { errors: [lastError || "SEMANTIC_REVIEW_INVALID"], retries: 1, review: undefined };
 }
 
+function reviewDependencies(input: EvaluatePromptQualityInput, contract: PromptContract): string {
+  const model = contract.modelCapabilities;
+  return sha256Json({
+    scope: [input.projectId, input.runId, input.stageRunId, input.revision, input.mode],
+    semanticPolicy: SEMANTIC_QUALITY_POLICY_VERSION,
+    contractSchema: contract.schemaVersion,
+    contractPolicy: contract.policyVersion,
+    contractManifest: promptContractManifestHash([contract]),
+    model: {
+      modelId: model.modelId, provider: model.provider, providerModel: model.providerModel, version: model.version,
+      modes: model.modes, durationSec: [model.durationSec.min, model.durationSec.max], aspectRatios: model.aspectRatios,
+      resolutions: model.resolutions, maxReferenceImages: model.maxReferenceImages, maxPromptChars: model.maxPromptChars,
+    },
+  });
+}
+
 async function evaluateCompiledShots(
   input: EvaluatePromptQualityInput,
   reviewer: SemanticQualityReviewer | null,
   sources: Array<{ source: Record<string, unknown>; compile: PromptCompileOptions }>,
+  proofPass?: { phase: "capture" | "reuse"; byShot: Map<string, PassedSemanticReviewProof> },
 ): Promise<{
   compiled: Array<{ shotId: string; source: Record<string, unknown>; compiled: CompiledPromptShot }>;
-  reports: Array<{ shotId: string; checks: SemanticQualityCheck[]; valid: boolean; errors: string[]; technicalRetry: number }>;
+  reports: PromptQualityResult["semanticReports"];
   findings: PromptQualityFinding[];
 }> {
   const compiled = sources.map(({ source, compile }) => {
@@ -641,7 +727,7 @@ async function evaluateCompiledShots(
       compiled: result,
     };
   });
-  const reports: Array<{ shotId: string; checks: SemanticQualityCheck[]; valid: boolean; errors: string[]; technicalRetry: number }> = [];
+  const reports: PromptQualityResult["semanticReports"] = [];
   const findings: PromptQualityFinding[] = [];
   for (const item of compiled) {
     for (const error of item.compiled.hardErrors) findings.push(hardFinding(error, item.shotId));
@@ -654,6 +740,9 @@ async function evaluateCompiledShots(
     }
     return { compiled, reports, findings };
   }
+  // Proofs are one-per-shot. Keep the existing evaluator for ambiguous shot identities.
+  const proofs = proofPass && compiled.every((item) => item.shotId)
+    && new Set(compiled.map((item) => item.shotId)).size === compiled.length ? proofPass : undefined;
   for (const item of compiled) {
     const context: SemanticReviewContext = {
       projectId: input.projectId,
@@ -664,13 +753,21 @@ async function evaluateCompiledShots(
       upstreamContext: input.upstreamContext,
       attempt: 1,
     };
-    const reviewed = await reviewWithTechnicalRetry(reviewer, context);
+    const dependencies = proofs ? reviewDependencies(input, context.contract) : undefined;
+    const prior = proofs?.phase === "reuse" ? proofs.byShot.get(item.shotId) : undefined;
+    const reviewed = await reviewWithTechnicalRetry(reviewer, context, proofs?.phase === "capture",
+      prior && prior.dependenciesSha256 === dependencies ? prior : undefined);
+    if (proofs?.phase === "capture" && dependencies && reviewed.dispatchProof && reviewed.review?.checks.every((check) => check.pass)) {
+      proofs.byShot.set(item.shotId, { dependenciesSha256: dependencies, review: structuredClone(reviewed.review),
+        technicalRetry: reviewed.retries, dispatch: reviewed.dispatchProof });
+    }
     reports.push({
       shotId: item.shotId,
       checks: reviewed.review?.checks ?? [],
       valid: Boolean(reviewed.review),
       errors: reviewed.errors,
       technicalRetry: reviewed.retries,
+      ...(reviewed.proofReuse ? { proofReuse: reviewed.proofReuse } : {}),
     });
     if (!reviewed.review) {
       findings.push({
@@ -693,7 +790,9 @@ async function evaluateCompiledShots(
 
 export async function evaluatePromptPackage(input: EvaluatePromptQualityInput): Promise<PromptQualityResult> {
   const reviewer = input.reviewer ?? null;
-  const first = await evaluateCompiledShots(input, reviewer, input.shots);
+  const proofs = input.mode === "enforce" && input.shots.length > 1 && reviewer && proofReviewer(reviewer)
+    ? new Map<string, PassedSemanticReviewProof>() : undefined;
+  const first = await evaluateCompiledShots(input, reviewer, input.shots, proofs && { phase: "capture", byShot: proofs });
   const hardOrReviewFindings = first.findings.filter((finding) => finding.repairClass !== "semantic");
   const semanticFindings = first.findings.filter((finding) => finding.repairClass === "semantic");
   const firstContracts = first.compiled.map((item) => item.compiled.contract);
@@ -766,7 +865,8 @@ export async function evaluatePromptPackage(input: EvaluatePromptQualityInput): 
           changes.push(...shotChanges.map((change) => ({ shotId, ...change })));
         }
         if (changes.length === 0) throw new Error("REPAIR_CHANGES_MISSING");
-        const second = await evaluateCompiledShots(input, reviewer, [...patchedSources.values()]);
+        const second = await evaluateCompiledShots(input, reviewer, [...patchedSources.values()],
+          proofs && { phase: "reuse", byShot: proofs });
         const beforeFields = sha256Json(firstContracts.map((contract) => ({ shotId: contract.shotId, sha256: contract.fieldsSha256 })));
         const afterContracts = second.compiled.map((item) => item.compiled.contract);
         const afterFields = sha256Json(afterContracts.map((contract) => ({ shotId: contract.shotId, sha256: contract.fieldsSha256 })));
