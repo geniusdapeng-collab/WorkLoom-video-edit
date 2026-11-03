@@ -55,6 +55,7 @@ describe("native Scene Responses text evidence", () => {
     const receipt = nativeSceneResponseSource(result);
     expect(receipt).toEqual({
       rawText, requestSha256: sha256(String(transport.mock.calls[0]?.[1]?.body)), responseSha256: sha256(body),
+      schemaSha256: sha256(JSON.stringify(JSON.parse(String(transport.mock.calls[0]?.[1]?.body)).text.format.schema)),
     });
     expect(Object.isFrozen(receipt)).toBe(true);
     expect(nativeSceneResponseSource({ ...result, source: receipt })).toBeUndefined();

@@ -55,6 +55,7 @@ export type NativeSceneResponseSource = Readonly<{
   rawText: string;
   requestSha256: string;
   responseSha256: string;
+  schemaSha256: string;
 }>;
 
 export interface ChatResult {
@@ -760,7 +761,10 @@ export class OpenAiCompatibleProvider implements ModelProvider {
       const sceneResponse = completeNativeHttp && structuredRequest?.format.name === SCENE_RESPONSES_SCHEMA_NAME
         && echoedFormat?.type === "json_schema" && echoedFormat.name === SCENE_RESPONSES_SCHEMA_NAME
         && typeof rawText === "string" && isNativeEndpoint(transport.endpoint, DEEPSEEK_RESPONSES_PATH)
-        ? Object.freeze({ rawText, requestSha256: requestHash, responseSha256: responseHash })
+        ? Object.freeze({
+            rawText, requestSha256: requestHash, responseSha256: responseHash,
+            schemaSha256: createHash("sha256").update(JSON.stringify(structuredRequest.format.schema)).digest("hex"),
+          })
         : undefined;
       openAiTransportReceipts.set(receipt, { ...transport, provider: this, finalJson, sceneResponse });
       return receipt;
