@@ -244,3 +244,39 @@ test("a provider-shaped identifier cannot persist or echo the configured bearer"
   assert.equal(readFileSync(f.receipt, "utf8").includes(token), false);
   assert.equal(f.requests.length, 1);
 });
+
+test("the existing CLI continues only from the original receipt and preserves pending approval", async (t) => {
+  const f = await fixture(t, { start: () => normalStart,
+    status: () => state("awaiting_approval", { currentGate: "G7_FINAL", pendingApprovalId: "APR-1" }) });
+  assert.equal((await cli(f.start)).body.state, "studio_started");
+  const args = ["--continue", "--receipt", f.receipt];
+  const invalid = await cli([...args, "--shots", join(f.root, "manual.json")]);
+  assert.equal(invalid.body.code, "ARGUMENTS_INVALID");
+  const pending = await cli(args);
+  assert.equal(pending.body.state, "awaiting_approval");
+  assert.equal(pending.body.delivered, false);
+  assert.equal(pending.body.pendingApprovalId, "APR-1");
+  assert.deepEqual(f.requests.map(({ path, method }) => [path, method]), [
+    ["/trpc/video.studio.start", "POST"], ["/trpc/video.studio.status", "GET"],
+  ]);
+  assert.equal(existsSync(join(f.root, "film-continuation.json")), false);
+});
+
+test("an existing unknown Film receipt is read by the same CLI without a service token or another dispatch", async (t) => {
+  const f = await fixture(t, { start: () => normalStart });
+  assert.equal((await cli(f.start)).body.state, "studio_started");
+  const original = JSON.parse(readFileSync(f.receipt, "utf8"));
+  writeFileSync(join(f.root, "film-continuation.json"), JSON.stringify({ schemaVersion: "workloom.codex-video-film-continuation/v1",
+    projectId: original.projectId, runId: original.runId, requestSha256: original.requestSha256,
+    shotlistSha256: "a".repeat(64), sourceCommit: "b".repeat(40), outDir: "delivery",
+    targetDuration: 17, frameRate: 30, durationToleranceFrames: null }), { mode: 0o600 });
+  for (const mode of ["--status", "--continue"]) {
+    const readback = await cli([mode, "--receipt", f.receipt], null);
+    assert.equal(readback.code, 1);
+    assert.equal(readback.body.state, "film_dispatch_unknown");
+    assert.equal(readback.body.delivered, false);
+    assert.equal(readback.body.shotlistSha256, "a".repeat(64));
+  }
+  assert.equal(f.requests.length, 1);
+  assert.equal(f.productRequests.length, 1);
+});

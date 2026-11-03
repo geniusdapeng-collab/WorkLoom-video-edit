@@ -663,7 +663,8 @@ if (STAGES.has("master") || STAGES.has("deliver")) { STAGES.add("compose"); STAG
 /** 环境：进程环境优先，其次仓库外秘密文件（只进内存，不落盘） */
 function loadEnv(): Record<string, string> {
   const out: Record<string, string> = {};
-  if (WORKER_RUNTIME) {
+  // The verified continuation supplies only relay credentials and local runtime settings.
+  if (WORKER_RUNTIME || process.env.WORKLOOM_FILM_BUDGET_RELAY === "1") {
     for (const [key, value] of Object.entries(process.env)) if (value) out[key] = value;
     return out;
   }
@@ -683,6 +684,11 @@ function loadEnv(): Record<string, string> {
   return out;
 }
 const ENV = loadEnv();
+const REQUESTED_NATIVE_AUDIO = arg("--native-audio");
+if (REQUESTED_NATIVE_AUDIO) {
+  if (!["0", "1"].includes(REQUESTED_NATIVE_AUDIO)) throw new Error("NATIVE_AUDIO_OPTION_INVALID");
+  ENV.SEEDANCE_GENERATE_AUDIO = REQUESTED_NATIVE_AUDIO;
+}
 const ARK_KEY = ENV.VOLCENGINE_ARK_API_KEY ?? ENV.ARK_API_KEY ?? "";
 const ARK_BASE = (ENV.ARK_BASE_URL ?? "https://ark.cn-beijing.volces.com/api/v3").replace(/\/$/, "");
 const IMAGE_MODEL = ENV.SEEDREAM_MODEL ?? ENV.ARK_IMAGE_MODEL ?? "doubao-seedream-5-0-pro-260628";
@@ -2203,7 +2209,15 @@ function loadCharacterRoot(root: string, library: Map<string, CharacterEntryLike
     });
   }
 }
-const characters = needsNewRender ? loadCharacters() : new Map<string, CharacterEntryLike>();
+const strictSourceCast = flag("--strict-source-cast");
+const sourceCast = (sourceDocument.metadata as { builtinCharacterSelection?: { mode?: unknown; characters?: Array<{ id?: unknown }> } } | undefined)
+  ?.builtinCharacterSelection;
+const characters = needsNewRender && (!strictSourceCast || sourceCast?.mode !== "none")
+  ? loadCharacters() : new Map<string, CharacterEntryLike>();
+if (strictSourceCast && needsNewRender && (!sourceCast || !Array.isArray(sourceCast.characters)
+  || sourceCast.characters.some(({ id }) => typeof id !== "string" || !characters.has(id)))) {
+  throw new Error("SOURCE_CAST_LIBRARY_MISMATCH");
+}
 /**
  * 选角（2026-09-24 规则）：
  *   ① 镜头卡/项目显式指定 → 用指定的；
@@ -2219,8 +2233,12 @@ const lead = (() => {
   const list = [...characters.values()];
   const explicitId = shotlist.character?.id ?? "";
   const explicitName = shotlist.character?.name ?? "";
-  const byExplicit = list.find((c) => c.id === explicitId || c.name === explicitName);
+  const byExplicit = list.find((c) => c.id === explicitId || (!strictSourceCast && c.name === explicitName));
   if (byExplicit) return byExplicit;
+  if (strictSourceCast) {
+    if (sourceCast?.mode !== "none" && needsNewRender) throw new Error("SOURCE_CAST_LIBRARY_MISMATCH");
+    return undefined;
+  }
   const aliasHit = characterRegistry.aliases.find((a) => a.names.some((n) => n && n.length > 1 && explicitName.includes(n)));
   if (aliasHit) return list.find((c) => c.id === aliasHit.id) ?? undefined;
   if (characterRegistry.defaultModel) {
@@ -6074,7 +6092,7 @@ if (STAGES.has("master") && !STAGES.has("deliver") && !DRY_RUN) {
   const content = [...new Set([...media.filter(file => file.startsWith(OUT_DIR + sep)), ...sidecars, ...accepted.files])];
   const manifestFile = join(OUT_DIR, `${PROJECT}-delivery-manifest.json`);
   const manifest = { schemaVersion: "workloom.generation-delivery/v1", projectId: PROJECT, scope: "master",
-    masterOnly: true, deliveryPolicy: "single-master", variants: [],
+    masterOnly: true, deliveryPolicy: "single-master", variants: [], sourceShotlistSha256: sourceFileHash,
     deliverable: { path: publicDeliveryPath(deliverablePath), sha256: await sha256UhdAsset(deliverablePath) },
     assets: await Promise.all(content.map(async file => ({ path: publicDeliveryPath(file), sha256: await sha256UhdAsset(file) }))),
     ...(PERSISTENT_SUBTITLE_TEXT ? { subtitles: { mode: SUBTITLE_MODE, persistentText: persistentSubtitleProof,
@@ -6418,7 +6436,7 @@ if (STAGES.has("deliver") && !DRY_RUN && (QUALITY !== "uhd" || masterApprovedFor
     distinctness: null,
     samples: [],
     at: stamp()
-  }), assets: assetHashes, generationQuality: deliveryGenerationQuality.manifest,
+  }), assets: assetHashes, sourceShotlistSha256: sourceFileHash, generationQuality: deliveryGenerationQuality.manifest,
   ...(PERSISTENT_SUBTITLE_TEXT ? { persistentText: persistentSubtitleProof,
     portableSubtitleSidecars: persistentOnlySubtitles ? "not-applicable-no-dialogue" : "dialogue-only" } : {}),
   ...(completeRecommendations.length ? {

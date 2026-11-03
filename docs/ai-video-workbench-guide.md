@@ -1,7 +1,7 @@
 # WorkLoom Video Edit 视频调用指南：AI 工作台先读，再执行
 
-> guideVersion: 2026-11-03.3
-> 适用仓库：`workloom-ai/WorkLoom-video-edit`。本版增加 Studio 服务身份核对和未就绪预览约束。实际源码 SHA 以本次运行记录为准。
+> guideVersion: 2026-11-04.1
+> 适用仓库：`workloom-ai/WorkLoom-video-edit`。本版增加使用原 Studio 回执接续 Film、预算核验和当前媒体质检。实际源码 SHA 以本次运行记录为准。
 > 读者：Codex、DeepSeek Harness 及能调用本仓 CLI / stdio MCP 的 AI 工作台。
 
 本指南把已成功视频作业的经验固化为调用纪律，帮助工作台从用户原话走到系统前期、渲染、后期和交付核验。先读取本仓能力，冻结人、商品、平台、时长、账号调性、声音与特殊要求，再走现有官方流程。不能把另一个仓库的功能、成片或测试结果算成本仓能力。
@@ -47,7 +47,7 @@ node scripts/workloom-agent.mjs invoke growth.video.workbench.guide
 2. **仅新生成先分流。**已有成功原片只走请求的正式后期，不要求新的分流记录、provider key、角色属性或旧提示词格式。新生成用户需求进入系统视频工位/标准派活入口，由 `video.studio.start` 走营销、叙事、口播解释片或澄清分流。CLI 场景可运行 `route-video.mts`，保存分流记录；判 `clarify` 时先解决缺项，不能替用户进入付费渲染。
 3. **系统生产前期和提示词。**由本仓预生产管线产出剧本、镜头与提示词，绑定冻结的人/商品/场景和原话。不要为了绕过缺入口手写“看起来能跑”的镜头卡、改剧情或跳过规范步骤。定妆照需要时复用已批准档案；没有新的用户否决，不重复出图或让机器相似度触发付费重做。
 4. **读取并核对正式前期产物。**用 `growth.video.production.shots` 读取服务端项目镜头和资格，核对合同中的每个固定项；MCP 只读能力不会替你创建项目或启动前期。系统正式产物尚未就绪时停止，不能拿本地草案冒充。
-5. **取得计划，才进入执行。**`growth.video.production.plan` 返回预览命令与前置清单；它本身不启动任何任务。将其参数与正式镜头文件、分流记录、brief、账号和声音合同逐项核对，再使用现有 CLI 执行本仓官方出片链。按 `execution.command/args` 逐参数调用，避免拼接未经转义的用户原话。
+5. **使用同回执接续，或核对人工执行计划。**自动接续按 §3.3 核验本轮资格、正式片单和预算。人工接续时，`growth.video.production.plan` 返回预览命令与前置清单；它本身不启动任何任务。将其参数与正式镜头文件、分流记录、brief、账号和声音合同逐项核对，再使用现有 CLI 执行本仓官方出片链。按 `execution.command/args` 逐参数调用，避免拼接未经转义的用户原话。
 6. **先恢复，再考虑补跑。**固定 project、work/out 目录和输入；成功原片在普通 resume 与 `--no-resume` 都按真实来源接受，不能靠开关将它重新付费。平台任务已提交却状态未知时查原任务；账户欠费/额度错误先解决账户状态。只有已有记录证明哪个镜头需要更改、且变更被授权，才走逐镜返修；同提示词不盲重试。
 7. **完整后期并核验。**保留官方 compose、color、subtitle、BGM、cover、mux、master 的实际记录；显式请求多版本时再保留 deliver。不得在系统外用临时 ffmpeg、临时封面或手工音轨替换伪装交付。`growth.video.production.status` 用来读阶段结果，`growth.video.delivery.inspect` 用来核对清单和实际文件 SHA-256。缺少实际请求阶段、真实工具失败、清单缺件、来源/授权不符或当前摘要变化不能宣称完成。原片身份、服装、动作、画质、名义时长、嘴型、台词和声音品质不做默认评审；未测项为 null，`qualityReviewed=false`，不得当作品质已通过。
 
@@ -96,7 +96,7 @@ node --import tsx scripts/tools/codex-video-workflow.mjs --status \
   --receipt "$EDIT_RUN_ROOT/studio-start.json"
 ```
 
-`--brief` 可省略；如已确认 Brief，应在计划与执行使用同一份。令牌仅在受控进程环境传入。客户端先在本机连接上通过 `GET /health/product` 核对服务制品的 Edit 身份，再沿用同一连接发送令牌。收到 `STUDIO_PRODUCT_MISMATCH` 或 `STUDIO_PRODUCT_UNVERIFIED` 时，先核对端口和实际运行版本。`EDIT_RUN_ROOT` 须为当前用户拥有的私有目录。启动一次后保留原回执，不因超时另换路径提交。返回 `awaiting_approval` 时到 Studio 核对正式审批，`preproduction_archived` 表示读到同轮前期记录及摘要，接续 §3.3 核验实际片单与资格。口播、待澄清和未知启动各有独立下一步。任何启动或查询回执均不算成片交付。
+`--brief` 可省略；如已确认 Brief，应在计划与执行使用同一份。令牌仅在受控进程环境传入。客户端先在本机连接上通过 `GET /health/product` 核对服务制品的 Edit 身份，再沿用同一连接发送令牌。收到 `STUDIO_PRODUCT_MISMATCH` 或 `STUDIO_PRODUCT_UNVERIFIED` 时，先核对端口和实际运行版本。`EDIT_RUN_ROOT` 须为当前用户拥有的私有目录。启动一次后保留原回执，不因超时另换路径提交。返回 `awaiting_approval` 时到 Studio 核对正式审批，`preproduction_archived` 表示读到同轮前期记录及摘要，按 §3.3 接续 Film 或 §3.4 核验实际片单与资格。口播、待澄清和未知启动各有独立下一步。仅有 Studio 启动、前期状态或前期档案时，作业还没有经过成片交付质检。
 
 已有 Studio 作业或兼容客户端可使用以下直接 tRPC 示例读原回执、状态及档案。也可以在已登录的本机产品界面发起正式项目。以上三种方式选择一个启动入口，同一作业不可重复提交。确认 `WORKLOOM_ACCESS_TOKEN` 对应实际 B 端成员工作区和权限。服务响应仅存本次私有目录。
 
@@ -142,13 +142,37 @@ NODE
 
 # 仅在未使用 Codex 入口或产品界面启动时，按本次前期授权与预算通过此兼容入口提交一次。
 # studio_api start "$EDIT_RUN_ROOT/studio-input.json" "$EDIT_RUN_ROOT/studio-start.json"
-# 两种终端入口都可复用原启动回执。存在 runId 后读取 §3.3 需要的正式状态。
+# 两种终端入口都可复用原启动回执。存在 runId 后读取 §3.4 需要的正式状态。
 studio_api status "$EDIT_RUN_ROOT/studio-start.json" "$EDIT_RUN_ROOT/studio-status.json"
 ```
 
 启动成功只表示已建项目或已登记运行。查看 `projectId`、`runId`、`pipeline`、`status`、`currentGate`、`error` 与 `pendingApprovalId`。产品界面启动时，可从实际项目和本轮状态获取相同的 `projectId` 与 `runId`。以真实 `finished` 及同轮归档证据进入下一步。若有审批，从产品的对应操作核实并完成它。失败保留原始原因。启动请求超时、掉线或回执为空时，从本次工作区的项目及档案核对是否已登记运行，再决定恢复。
 
-### 3.3 读取并核验同一轮正式片单
+### 3.3 使用原回执接续正式 Film
+
+准备整链作业时，在私有 `EDIT_RUN_ROOT` 下创建 `studio` 目录，并从与 CLI 相同的干净 Git 提交启动本机 Edit 服务。
+服务使用 `HR_WORK_DIR="$EDIT_RUN_ROOT/studio"` 和 `HR_DEFER_RENDER=1`，让 Film 接手渲染。
+在已获得本轮渲染、供应商用量和素材外发授权后，按 [单作业供应商预算](edit-task-provider-budget.md)
+启动本轮 `--profile workflow` 预算网关。通过进程环境提供本轮的 `WORKLOOM_BUDGET_GATEWAY_TOKEN`、
+与网关 `--task` 一致的 `WORKLOOM_BUDGET_TASK_ID`、批准的估算费用上限 `WORKLOOM_BUDGET_APPROVED_MICRO_CNY`，
+以及同一回环网关的 `LLM_BASE_URL` 与 `ARK_BASE_URL`。两者分别以网关根地址和 `/api/v3` 结尾。
+网关规格、实际镜头秒数、剩余次数及批准额度均须匹配，才可用原回执运行：
+
+```bash
+node --import tsx scripts/tools/codex-video-workflow.mjs --continue \
+  --receipt "$EDIT_RUN_ROOT/studio-start.json"
+node --import tsx scripts/tools/codex-video-workflow.mjs --status \
+  --receipt "$EDIT_RUN_ROOT/studio-start.json"
+```
+
+命令回读当前 Studio 运行和正式 `video.production.shots`，比较项目、尝试、提示词与原件摘要，随后将同轮原件交给本仓 Film。
+角色、分辨率、画幅、帧率、字幕和明确制作要求由当前片单的原生契约传入。Film 保留普通镜 G8、素材镜 G-MAT1 和肖像用途授权检查。
+`--continue` 会消费授权范围内的资源。Film 子进程只使用经核验的本轮预算网关。
+预算网关按本轮任务和批准范围逐请求入账，价格口径为估算，真实费用以账单为准。若本轮已有前期费用，
+还需核对前期的原预算台账。等待审批、来源变更、预算范围不符或服务目录不符时不会派发 Film。Film 启动回执先于执行落盘，退出或 ACK 丢失后使用原回执对账。
+`finished` 表示当前交付文件经过技术质检，且清单绑定本轮镜头摘要、实测正片时长符合本轮合同。
+
+### 3.4 读取并核验同一轮正式片单
 
 ```bash
 studio_api archive "$EDIT_RUN_ROOT/studio-start.json" "$EDIT_RUN_ROOT/studio-archive.json"
@@ -222,7 +246,7 @@ NODE
 
 将通过的绝对路径记作 `EDIT_SHOTLIST`。同时逐项检查角色与版本、商品、镜头时长之和、语言、平台、画幅、声音及禁止项。若 G1–G7 真实审批、镜头当前性、授权或正式原件无法对账，保留具体阻断。已有 `draft:true` 的同轮原始片单仍需正式 CLI 的片型与提交前门禁。保持原片单完整字节，修正业务输入时返回相应正式步骤。
 
-### 3.4 通过正式 Film CLI 渲染并核验交付
+### 3.5 通过正式 Film CLI 渲染并核验交付
 
 按已审镜头与用户合同确定执行阶段、媒体参数和本次费用。渲染前核对当前模型目录、可消费预算、围栏、人审要求以及素材授权。使用产品固定工位时，在正式项目中取得同一轮当前资格、作业和预算回执。该工位无法证明审核过的参考图会进入同一供应商请求时返回 `VIDEO_REFERENCE_PLAN_UNSUPPORTED`。独立 Film CLI 可承接经过本路径授权和预算控制的参考图作业，真人肖像沿用平台授权素材入口。需要跨前期、素材和视频调用的总额硬闸时，按 §3.1 核验实际预算执行面再启用。
 
@@ -301,7 +325,7 @@ Edit 提供分流、正式前期、全链 CLI、阶段账本和交付核验入�
 - **没有 Growthtest 的标准后期新入口。**此基线没有 `scripts/tools/film-standard-post.mts`、`packages/video-studio/src/standard-post-contract.ts`，CLI 不含 `--standard-post`。不要复制别仓命令或声称本仓已支持。
 - **没有 Growthtest 的 nativeaudio 专用契约。**本仓没有该专用合同文件，但普通全链默认保留原片完整节目声音，voice 阶段不隐式做 ASR 或补 TTS；只有明确配音、旁白、换声请求才进入新声音操作。不得静默替代原生声音或指定声线，也不得因声音品质失败自动重配。
 - **MCP 提供读取和预览。**本轮新增的是指南读取；视频创建、渲染与交付不会因为工具菜单多了一条指南而自动接通。
-- **后期使用本仓正式执行器。**普通 AI 视频默认一次执行 compose/color/subtitle/BGM/cover/mux/master，交付一支保留原色、烧封面、烧台词、含 BGM 的母版；完整保留原片和真实回执。`deliver` 多风格包只在显式请求时执行。没有模型品质评价、试渲候选、画面差异/声音余量否决或自动重做；默认 UHD 只进行实际本地目标画布加工。真实加工、权限、来源与缺件失败仍明确。
+- **后期使用本仓正式执行器。**普通 AI 视频后期执行 compose/color/subtitle/BGM/cover/master，接续入口需要软字幕时才执行 mux，交付一支保留原色、烧封面、烧台词、含 BGM 的母版；完整保留原片和真实回执。`deliver` 多风格包只在显式请求时执行。没有模型品质评价、试渲候选、画面差异/声音余量否决或自动重做；默认 UHD 只进行实际本地目标画布加工。真实加工、权限、来源与缺件失败仍明确。
 - **不自动发布到社交平台。**交付清单核验完成只代表本地交付核验；外发需要独立业务授权和真实远端回执。
 
 ## 5.1 默认后期与显式请求边界

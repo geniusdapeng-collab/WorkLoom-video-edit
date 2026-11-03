@@ -1,8 +1,10 @@
 #!/usr/bin/env node
-/** Read-only planning and authenticated, single-submit access to Edit's Studio entry. */
+/** Authenticated single-submit Studio entry and same-receipt Film continuation. */
+import { spawnSync } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
 import { closeSync, constants, fstatSync, fsyncSync, lstatSync, openSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, isAbsolute, resolve } from "node:path";
+import { continueNativeFilm, FilmContinuationError, readFilmContinuation } from "./lib/codex-video-film.mjs";
 import { fileURLToPath } from "node:url";
 import { parseEditLoopbackApi, WorkflowError, withVerifiedEditService } from "./lib/edit-service-session.mjs";
 import { normalizeExplicitBriefDuration, normalizePrdProductionProfile } from "../../packages/video-studio/src/prd-authority.ts";
@@ -13,6 +15,8 @@ const GUIDE = "docs/ai-video-workbench-guide.md";
 const START = "video.studio.start";
 const STATUS = "video.studio.status";
 const ARCHIVE = "video.studio.archive";
+const PRODUCTION_SHOTS = "video.production.shots";
+const ROOT = resolve(import.meta.dirname, "../..");
 const idPattern = /^[A-Za-z0-9][A-Za-z0-9._-]{0,199}$/;
 const digestPattern = /^[a-f0-9]{64}$/;
 const shortText = ["title", "product", "category", "audience", "platform", "aspectRatio", "aspect_ratio", "description", "tone", "purpose"];
@@ -20,6 +24,7 @@ const USAGE = [
   "node --import tsx scripts/tools/codex-video-workflow.mjs --intent '<用户原话>' [--brief <JSON文件>]",
   "同一命令加 --execute --api http://127.0.0.1:PORT --receipt <私有目录中的绝对回执路径>",
   "node --import tsx scripts/tools/codex-video-workflow.mjs --status --receipt <同一回执绝对路径>",
+  "node --import tsx scripts/tools/codex-video-workflow.mjs --continue --receipt <同一回执绝对路径>",
 ].join("\n");
 
 function check(condition, code) { if (!condition) throw new WorkflowError(code); }
@@ -33,8 +38,8 @@ function parseArgs(argv) {
   const args = {};
   for (let i = 0; i < argv.length; i++) {
     const flag = argv[i];
-    check(["--intent", "--brief", "--api", "--receipt", "--execute", "--status"].includes(flag) && !Object.hasOwn(args, flag), "ARGUMENTS_INVALID");
-    if (flag === "--execute" || flag === "--status") args[flag] = true;
+    check(["--intent", "--brief", "--api", "--receipt", "--execute", "--status", "--continue"].includes(flag) && !Object.hasOwn(args, flag), "ARGUMENTS_INVALID");
+    if (["--execute", "--status", "--continue"].includes(flag)) args[flag] = true;
     else {
       const value = argv[++i];
       check(typeof value === "string" && value.trim() && !value.startsWith("--"), "ARGUMENTS_INVALID");
@@ -44,8 +49,9 @@ function parseArgs(argv) {
   if (args["--api"]) {
     args["--api"] = parseEditLoopbackApi(args["--api"]);
   }
-  if (args["--status"]) {
-    check(!args["--execute"] && !args["--intent"] && !args["--brief"] && args["--receipt"], "ARGUMENTS_INVALID");
+  if (args["--status"] || args["--continue"]) {
+    check(!(args["--status"] && args["--continue"]) && !args["--execute"] && !args["--intent"]
+      && !args["--brief"] && args["--receipt"], "ARGUMENTS_INVALID");
   } else {
     check(args["--intent"] && (!args["--execute"] || args["--api"] && args["--receipt"]), "ARGUMENTS_INVALID");
     check(args["--execute"] || !args["--receipt"], "ARGUMENTS_INVALID");
@@ -237,11 +243,43 @@ async function status(args) {
   }
   check(receipt.state === "studio_started" && validId(receipt.projectId) && validId(receipt.runId)
     && ["marketing", "narrative"].includes(receipt.pipeline), "RECEIPT_INVALID");
+  const job = { receipt, receiptPath: path, root: ROOT };
+  const currentFilm = await readFilmContinuation(job);
+  if (currentFilm) return filmEnvelope(receipt, currentFilm);
   const token = memberToken();
-  return withVerifiedEditService(api, token, call => readStudioStatus(receipt, token, call));
+  // Resolve source identity before opening the short-lived, authenticated Studio connection.
+  const sourceCommit = args["--continue"] ? cleanSourceCommit() : null;
+  return withVerifiedEditService(api, token, async (call, service) => {
+    let archive;
+    const result = await readStudioStatus(receipt, token, call, value => { archive = value; });
+    if (!args["--continue"] || result.state !== "preproduction_archived") return result;
+    check(sourceCommit, "EDIT_CLEAN_SOURCE_COMMIT_REQUIRED");
+    check(service.sourceCommit === sourceCommit, "EDIT_SERVICE_REVISION_MISMATCH");
+    const project = { projectId: receipt.projectId };
+    const production = await call(PRODUCTION_SHOTS, project);
+    const refreshSource = async () => ({ archive: await call(ARCHIVE, project), production: await call(PRODUCTION_SHOTS, project) });
+    const continued = await continueNativeFilm({ ...job, archiveReceipt: result.source, archive, production, service, sourceCommit, refreshSource });
+    return filmEnvelope(receipt, continued);
+  });
 }
 
-async function readStudioStatus(receipt, token, call) {
+function cleanSourceCommit() {
+  const git = (args) => spawnSync("git", args, { cwd: ROOT, encoding: "utf8", timeout: 5_000 });
+  const head = git(["rev-parse", "HEAD"]), status = git(["status", "--porcelain", "--untracked-files=no"]);
+  const sourceCommit = head.stdout?.trim();
+  return head.status === 0 && status.status === 0 && !status.stdout.trim() && /^[a-f0-9]{40}$/u.test(sourceCommit ?? "")
+    ? sourceCommit : null;
+}
+
+function filmEnvelope(receipt, result) {
+  const { state, delivered, delivery, shotlistSha256, sourceCommit, errorCode } = result;
+  const fields = { delivered, projectId: receipt.projectId, runId: receipt.runId, pipeline: receipt.pipeline,
+    requestSha256: receipt.requestSha256, shotlistSha256, sourceCommit };
+  return state === "finished" ? envelope(state, { ...fields, delivery }) : envelope(state, { ...fields, errorCode,
+    next: ["从同一作业的 Film 日志和当前交付回读对账。继续查询不重复提交。"] });
+}
+
+async function readStudioStatus(receipt, token, call, observeArchive) {
   const identity = { projectId: receipt.projectId, runId: receipt.runId, pipeline: receipt.pipeline, requestSha256: receipt.requestSha256 };
   const readback = [ARCHIVE, "回读本工作区原项目和运行，勿重复启动。"];
   let actual;
@@ -265,8 +303,9 @@ async function readStudioStatus(receipt, token, call) {
   catch (error) { return envelope("preproduction_source_unverified", { ...current, errorCode: error.code, next: readback }); }
   const source = matchingArchiveRecord(archive, receipt);
   if (!source || source.outputSha256.includes(token)) return envelope("preproduction_source_unverified", { ...current, next: [ARCHIVE, "核对同轮最新前期尝试和档案，不进入付费渲染。"] });
+  observeArchive(archive);
   return envelope("preproduction_archived", { ...current, source,
-    next: ["video.production.shots", "按 " + GUIDE + " 核验同轮片单与 G1–G7，取得正式资格和 G8 后走本仓 Film 与后期质检。"] });
+    next: [PRODUCTION_SHOTS, "--continue --receipt <本次原回执>", "按 " + GUIDE + " 核对本轮渲染授权后继续。"] });
 }
 
 if (resolve(process.argv[1] ?? "") === fileURLToPath(import.meta.url)) {
@@ -274,12 +313,12 @@ if (resolve(process.argv[1] ?? "") === fileURLToPath(import.meta.url)) {
     const args = parseArgs(process.argv.slice(2));
     if (args.help) console.log(USAGE);
     else {
-      const result = await (args["--status"] ? status(args) : launch(args));
+      const result = await (args["--status"] || args["--continue"] ? status(args) : launch(args));
       console.log(JSON.stringify(result, null, 2));
-      if (["start_unknown", "receipt_persistence_failed", "status_unavailable", "preproduction_source_unverified"].includes(result.state)) process.exitCode = 1;
+      if (["start_unknown", "receipt_persistence_failed", "status_unavailable", "preproduction_source_unverified", "film_dispatch_unknown", "film_interrupted", "delivery_unverified"].includes(result.state)) process.exitCode = 1;
     }
   } catch (error) {
-    console.error(JSON.stringify({ code: error instanceof WorkflowError ? error.code : "WORKFLOW_FAILED", delivered: false }));
+    console.error(JSON.stringify({ code: error instanceof WorkflowError || error instanceof FilmContinuationError ? error.code : "WORKFLOW_FAILED", delivered: false }));
     process.exitCode = 2;
   }
 }
