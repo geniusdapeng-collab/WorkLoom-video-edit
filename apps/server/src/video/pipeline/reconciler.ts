@@ -23,6 +23,7 @@ export class VideoPipelineReconciler {
   async scan(limit = 100): Promise<ReconcileOutcome[]> {
     const candidates = await this.repository.listReconcileCandidates(limit);
     const outcomes: ReconcileOutcome[] = [];
+    const interruptedRuns = new Set<string>();
     for (const candidate of candidates) {
       if (candidate.reason !== "expired_running_lease") {
         outcomes.push({
@@ -35,21 +36,25 @@ export class VideoPipelineReconciler {
         });
         continue;
       }
-      const key = stableKey({
-        runId: candidate.runId,
-        revision: candidate.runRevision,
-        stageRunId: candidate.stageRunId,
-        reason: candidate.reason,
-      });
-      await this.repository.markInterrupted({
-        runId: candidate.runId,
-        reason: "startup reconciler: running stage lease expired",
-        owner: this.owner,
-        commandId: `reconcile-${key}`,
-        idempotencyKey: `reconcile:${key}`,
-        expectedRunRevision: candidate.runRevision,
-        actor: { id: this.owner, type: "system" },
-      });
+      // One command updates every running stage under the run-level lease.
+      if (!interruptedRuns.has(candidate.runId)) {
+        const key = stableKey({
+          runId: candidate.runId,
+          revision: candidate.runRevision,
+          stageRunId: candidate.stageRunId,
+          reason: candidate.reason,
+        });
+        await this.repository.markInterrupted({
+          runId: candidate.runId,
+          reason: "startup reconciler: running stage lease expired",
+          owner: this.owner,
+          commandId: `reconcile-${key}`,
+          idempotencyKey: `reconcile:${key}`,
+          expectedRunRevision: candidate.runRevision,
+          actor: { id: this.owner, type: "system" },
+        });
+        interruptedRuns.add(candidate.runId);
+      }
       outcomes.push({ candidate, action: "marked_interrupted" });
     }
     return outcomes;

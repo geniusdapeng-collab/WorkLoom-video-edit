@@ -65,89 +65,94 @@ export async function logStageOutcome(
     return result;
   }
 
-  let attempt = 1;
-  let inputRef: string | null = null;
+  const recordError = (operation: string, error: unknown): void => {
+    const message = error instanceof Error ? error.message : String(error);
+    result.error ??= message;
+    console.error(`[archive] ${operation}(${input.stageId}): ${message}`);
+  };
+
+  let claim: Awaited<ReturnType<StageLedgerWriter["claimRun"]>>;
   try {
-    const claimed = await ledger.claimRun({
+    claim = await ledger.claimRun({
       id: newStageRunId(),
       projectId: store.projectId,
       stageId: input.stageId,
       inputRefTemplate: `${dir}/attempt-{attempt}.input.json`,
       runId: input.runId ?? null,
     });
-    attempt = claimed.attempt;
-    inputRef = claimed.inputRef;
+    if (!Number.isSafeInteger(claim.attempt) || claim.attempt < 1 || claim.inputRef !== `${dir}/attempt-${claim.attempt}.input.json`) {
+      throw new Error("STAGE_CLAIM_INVALID: 未返回本次环节的有效认领回执");
+    }
   } catch (err) {
-    result.error = (err as Error).message;
-    console.error(`[archive] 台账认领失败(${input.stageId}): ${result.error}`);
+    recordError("台账认领失败", err);
+    return result;
   }
 
+  const { attempt, inputRef } = claim;
+  result.attempt = attempt;
   if (input.input) {
     try {
-      await store.writeJsonAtomic(`${dir}/attempt-${attempt}.input.json`, {
+      await store.writeJsonAtomic(inputRef, {
         stageId: input.stageId,
         attempt,
         input: input.input,
         startedAt: new Date().toISOString(),
       });
     } catch (err) {
-      console.error(`[archive] 输入快照写入失败(${input.stageId}): ${(err as Error).message}`);
+      recordError("输入快照写入失败", err);
     }
   }
-  try {
-    await store.appendJsonl("events.jsonl", {
-      kind: `stage.${input.status}`,
-      stageId: input.stageId,
-      attempt,
-      ...(input.errorClass ? { errorClass: input.errorClass } : {}),
-    });
-  } catch (err) {
-    console.error(`[archive] 事件写入失败(${input.stageId}): ${(err as Error).message}`);
-  }
 
-  /* 产物先落盘，状态后翻转 */
-  let outputRef: string | null = null;
-  let outputSha256: string | null = null;
   if (input.output) {
-    outputRef = `${dir}/attempt-${attempt}.output.json`;
+    const ref = `${dir}/attempt-${attempt}.output.json`;
     try {
-      const written = await store.writeJsonAtomic(outputRef, input.output);
-      outputSha256 = written.sha256;
+      const written = await store.writeJsonAtomic(ref, input.output);
+      result.outputRef = ref;
+      result.outputSha256 = written.sha256;
     } catch (err) {
-      outputRef = null;
-      console.error(`[archive] 产物写入失败(${input.stageId}): ${(err as Error).message}`);
+      recordError("产物写入失败", err);
     }
   }
 
+  // The supplier action can already have happened. Preserve any saved output
+  // and require reconciliation when its archive receipt cannot be confirmed.
+  let status: StageStatus = result.error !== null ? "interrupted" : input.status;
+  let errorClass = result.error !== null ? "RECEIPT_UNVERIFIED" : input.errorClass ?? null;
   try {
     await ledger.finishRun({
       projectId: store.projectId,
       stageId: input.stageId,
       attempt,
-      status: input.status,
-      outputRef,
-      outputSha256,
-      errorClass: input.errorClass ?? null,
-      errorMsg: input.errorMsg ? input.errorMsg.slice(0, 500) : null,
+      status,
+      outputRef: result.outputRef,
+      outputSha256: result.outputSha256,
+      errorClass,
+      errorMsg: (result.error ?? input.errorMsg)?.slice(0, 500) ?? null,
       durationMs: Date.now() - startedAt,
       cost: input.cost,
     });
   } catch (err) {
-    result.error = (err as Error).message;
-    console.error(`[archive] 台账终结写失败(${input.stageId}): ${result.error}`);
+    recordError("台账终结写失败", err);
+    status = "interrupted";
+    errorClass = "RECEIPT_UNVERIFIED";
+  }
+  try {
+    await store.appendJsonl("events.jsonl", {
+      kind: `stage.${status}`, stageId: input.stageId, attempt,
+      ...(errorClass ? { errorClass } : {}),
+    });
+  } catch (err) {
+    recordError("事件写入失败", err);
   }
   try {
     await store.updateLedger(input.stageId, {
       attempt,
-      status: input.status,
+      status,
       finishedAt: new Date().toISOString(),
     });
   } catch (err) {
-    console.error(`[archive] manifest 账本更新失败(${input.stageId}): ${(err as Error).message}`);
+    recordError("manifest 账本更新失败", err);
   }
 
-  result.attempt = attempt;
-  result.outputRef = outputRef;
-  result.outputSha256 = outputSha256;
   return result;
 }

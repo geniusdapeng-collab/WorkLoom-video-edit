@@ -44,7 +44,7 @@ import {
 } from "@hyperreality/video-studio";
 import { routedLlmCall } from "../service/llm.js";
 import { acquireProjectLease, archiveWorkDir, type ProjectLease } from "./archive-host.js";
-import { FilmLedger, filmWorkerId, type FilmComponentKind, type FilmJobRow, type FilmWorkerRow } from "./film-ledger.js";
+import { FilmLedger, filmWorkerId, type FilmComponentKind, type FilmJobRow, type FilmProviderTaskReceipt, type FilmWorkerRow } from "./film-ledger.js";
 import { canonicalRenderJson, compileProviderRequest, providerEndpointOptions, renderSha256 } from "./gen/compiled-request.js";
 import type { Scope } from "./gen/db.js";
 import { ArkImageProvider, ArkVideoProvider } from "./gen/providers.js";
@@ -571,15 +571,17 @@ export async function handleFilmChannelRequest(ctx: RunContext, frame: FilmChann
     return claimed;
   });
   const component = await reserved;
+  let providerTask: FilmProviderTaskReceipt | undefined;
   try {
-    return await abortable(ctx.signal, () => dispatchComponent(ctx, frame, component.id));
+    return await abortable(ctx.signal, () => dispatchComponent(ctx, frame, component.id, (task) => { providerTask = task; }));
   } catch (error) {
     const failureClass = error instanceof SubmissionError ? error.code.split(":")[0]! : "UNEXPECTED";
     await ledger.recordComponentFailure(component.id, ctx.ownerToken, {
       state: !(error instanceof SubmissionError) || /UNKNOWN|TIMEOUT|DEADLINE/.test(error.code) ? "unknown" : "failed",
       failureClass,
-      evidence: { message: error instanceof Error ? error.message.slice(0, 400) : String(error).slice(0, 400) },
-    }).catch(() => undefined);
+      evidence: { message: error instanceof Error ? error.message.slice(0, 400) : String(error).slice(0, 400),
+        ...(providerTask ? { providerTask } : {}) },
+    }).catch(() => ctx.log(`组件 ${component.id} 的 ${failureClass} 终态回执写入未核实`));
     throw error;
   }
 }
@@ -643,12 +645,15 @@ function reserveFor(frame: FilmChannelRequestFrame): number {
   return 0;
 }
 
-async function dispatchComponent(ctx: RunContext, frame: FilmChannelRequestFrame, componentId: string): Promise<unknown> {
+async function dispatchComponent(
+  ctx: RunContext, frame: FilmChannelRequestFrame, componentId: string,
+  rememberProviderTask: (receipt: FilmProviderTaskReceipt) => void,
+): Promise<unknown> {
   switch (frame.method) {
     case "llm.chat": return runLlm(ctx, frame, componentId);
     case "image.generate": return runImage(ctx, frame, componentId);
     case "media.fetch": return runMediaFetch(ctx, frame, componentId);
-    case "video.generate": return runVideo(ctx, frame, componentId);
+    case "video.generate": return runVideo(ctx, frame, componentId, rememberProviderTask);
     case "gate.review": return runGateReview(ctx, frame, componentId);
     case "voice.dub": return runVoiceDub(ctx, frame, componentId);
     case "voice.verify": return runVoiceVerify(ctx, frame, componentId);
@@ -798,7 +803,10 @@ async function runMediaFetch(ctx: RunContext, frame: FilmChannelRequestFrame, co
   return written;
 }
 
-async function runVideo(ctx: RunContext, frame: FilmChannelRequestFrame, componentId: string): Promise<unknown> {
+async function runVideo(
+  ctx: RunContext, frame: FilmChannelRequestFrame, componentId: string,
+  rememberProviderTask: (receipt: FilmProviderTaskReceipt) => void,
+): Promise<unknown> {
   const params = record(frame.params);
   const prompt = text(params.prompt, "video.generate 需要非空 prompt", 30_000);
   const seconds = Number(params.seconds);
@@ -839,20 +847,47 @@ async function runVideo(ctx: RunContext, frame: FilmChannelRequestFrame, compone
   const provider = new ArkVideoProvider({ apiKey, baseUrl: endpoint.baseUrl });
   const started = Date.now();
   await ctx.ledger.recordDispatch(componentId, ctx.ownerToken, "seedance", model);
+  if (ctx.signal.aborted || Date.now() >= ctx.deadlineAt) fail("JOB_DEADLINE_EXCEEDED", "工位作业截止，未提交生成任务");
   const submitted = await provider.submit(genRequest);
-  const deadline = Date.now() + VIDEO_POLL_DEADLINE_MS;
-  let last: Awaited<ReturnType<ArkVideoProvider["poll"]>> = { status: "submitted" };
-  while (Date.now() < deadline) {
-    if (ctx.signal.aborted) fail("PROVIDER_TIMEOUT_UNKNOWN", "作业截止，供应商任务需要对账");
-    await new Promise((resolve) => setTimeout(resolve, VIDEO_POLL_INTERVAL_MS));
-    last = await provider.poll(submitted.taskId);
-    if (last.status === "succeeded" || last.status === "failed") break;
+  const deadline = Math.min(Date.now() + VIDEO_POLL_DEADLINE_MS, ctx.deadlineAt);
+  const providerTask: FilmProviderTaskReceipt = {
+    taskId: submitted.taskId, provider: "seedance", providerModel: model, requestSha256: compiled.payloadHash,
+  };
+  rememberProviderTask(providerTask);
+  try {
+    await ctx.ledger.recordComponentProviderTask(componentId, ctx.ownerToken, providerTask);
+  } catch (error) {
+    const unverified = new SubmissionError("PROVIDER_RECEIPT_UNKNOWN", "供应商已接受任务，任务号入账未核实，须按原任务对账");
+    unverified.cause = error;
+    throw unverified;
   }
-  if (last.status !== "succeeded" || !last.uri) {
+
+  const remaining = deadline - Date.now();
+  if (!(remaining > 0) || ctx.signal.aborted) fail("PROVIDER_TIMEOUT_UNKNOWN", "作业截止，供应商任务需要对账");
+  const lookupSignal = AbortSignal.any([ctx.signal, AbortSignal.timeout(Math.min(2_147_483_647, Math.ceil(remaining)))]);
+  let last: Awaited<ReturnType<ArkVideoProvider["poll"]>> = { status: "submitted" };
+  let outputUrl: string | undefined;
+  while (!lookupSignal.aborted && Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, Math.min(VIDEO_POLL_INTERVAL_MS, deadline - Date.now())));
+    if (lookupSignal.aborted || Date.now() >= deadline) break;
+    try {
+      last = await abortable(lookupSignal, () => provider.poll(providerTask.taskId));
+    } catch (error) {
+      last = { status: "running", error: error instanceof Error ? error.message : String(error) };
+      continue;
+    }
+    if (last.status === "failed") break;
+    if (last.status === "succeeded" && typeof last.uri === "string" && last.uri.trim()) {
+      outputUrl = last.uri;
+      break;
+    }
+  }
+  if (lookupSignal.aborted || Date.now() >= deadline) fail("PROVIDER_TIMEOUT_UNKNOWN", `原供应商任务尚未核实：${last.error ?? last.status}`);
+  if (!outputUrl) {
     fail(last.status === "failed" ? "PROVIDER_FAILED" : "PROVIDER_TIMEOUT_UNKNOWN", `出片未成功：${last.error ?? last.status}`);
   }
-  const written = await fetchToFile(ctx, last.uri, targetRef);
-  ctx.issuedUrls.set(last.uri, { stepKey: frame.stepKey, shotId: frame.shotId });
+  const written = await fetchToFile(ctx, outputUrl, targetRef);
+  ctx.issuedUrls.set(outputUrl, { stepKey: frame.stepKey, shotId: frame.shotId });
   const evidence: Record<string, unknown> = {
     artifactSha256: written.sha256,
     artifactRef: written.ref,
@@ -867,7 +902,7 @@ async function runVideo(ctx: RunContext, frame: FilmChannelRequestFrame, compone
   await ctx.ledger.recordComponentAccepted(componentId, ctx.ownerToken, {
     provider: "seedance", providerModel: model, actualCny: null, evidence,
   });
-  return { ...written, taskId: submitted.taskId, hostedUrl: last.uri, provider: "seedance", providerModel: model };
+  return { ...written, taskId: submitted.taskId, hostedUrl: outputUrl, provider: "seedance", providerModel: model };
 }
 
 /** The service and CLI apply the same post-render acceptance policy, even with old blocking options. */

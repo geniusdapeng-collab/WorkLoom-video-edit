@@ -11,6 +11,7 @@ import { prepareMarketingFacts, finalizeMarketingFacts } from "./marketing-autho
 import { renderSha256 } from "./gen/compiled-request.js";
 import { submitGenJob } from "./gen/submit.js";
 import { projectRunLockKey } from "./archive-host.js";
+import { pollRenderJobs } from "./render-poller.js";
 import { DEEPSEEK_FLASH_MODEL } from "@hyperreality/video-studio";
 
 const RUN_DB = process.env.RUN_DB_TESTS === "1" && Boolean(process.env.DATABASE_APP_URL);
@@ -77,7 +78,7 @@ describe.runIf(RUN_DB)("正式生成资格活库契约", () => {
         reason: "原始需求未命中已安装片型", evidence: [] } }, rule_impact: [],
     });
   });
-  afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); });
+  afterEach(() => { vi.unstubAllGlobals(); vi.unstubAllEnvs(); vi.restoreAllMocks(); });
   // 不删除 append-only 资格/五元事件；专属测试作用域留作真实回归证据。
   afterAll(async () => { await Promise.all([owner.end(), app.end(), gateway.end()]); await rm(dir, { recursive: true, force: true }); });
 
@@ -129,6 +130,67 @@ describe.runIf(RUN_DB)("正式生成资格活库契约", () => {
     return { root, prepared, output, outputFile };
   }
 
+  it.each([[false, false, false], [false, true, false], [true, false, false], [true, true, false], [false, true, true]] as const)(
+    "已接受资格的供应商端点必须沿用已审身份（配置漂移=%s，历史回执=%s，证据冲突=%s）", async (drift, legacyReceipt, conflictingProof) => {
+    const endpointA = "https://endpoint-a.fixture.invalid/api/v3", endpointB = "https://endpoint-b.fixture.invalid/api/v3";
+    const tasks = "/contents/generations/tasks";
+    env.SEEDANCE_ENDPOINT = endpointA;
+    const qualification = await issue();
+    const withoutNewProof = { connect: async () => { const c = await app.connect(); return {
+      query: (sql: string, params?: unknown[]) => {
+        if (params && sql.includes("SET state='accepted'")) {
+          const original = JSON.parse(String(params[5])) as Record<string, unknown>;
+          delete original.qualifiedEndpointSha256;
+          return c.query(sql, params.map((value, index) => index === 5 ? JSON.stringify(original) : value));
+        }
+        return c.query(sql, params);
+      },
+      release: (discard?: boolean) => c.release(discard),
+    }; } } as unknown as pg.Pool;
+    const request = await input(qualification.qualificationToken, legacyReceipt ? withoutNewProof : app);
+    const issued = await submitGenJob(request);
+    const accepted = await owner.query("SELECT receipt->>'qualifiedEndpointSha256' AS digest FROM generation_submissions WHERE job_id=$1", [issued.jobId]);
+    expect(accepted.rows[0]?.digest).toBe(legacyReceipt ? null : renderSha256(endpointA + tasks));
+    expect(issued).not.toHaveProperty("qualifiedEndpointSha256");
+    if (legacyReceipt) {
+      // Old rows have no uniqueness constraint on the request fingerprint; duplicate same-target evidence is valid.
+      await owner.query(`INSERT INTO production_qualifications
+        SELECT (jsonb_populate_record(NULL::production_qualifications,to_jsonb(q) || jsonb_build_object(
+          'id',$2::text,'seq',nextval('production_qualifications_seq_seq'),
+          'compiled_request',CASE WHEN $3::boolean THEN jsonb_set(q.compiled_request,'{endpoint}',to_jsonb($4::text)) ELSE q.compiled_request END))).*
+          FROM production_qualifications q WHERE q.id=$1`,
+      [qualification.qualificationId, `${qualification.qualificationId}-duplicate`, conflictingProof, endpointB + tasks]);
+    }
+    expect(calls.filter(call => call.url === endpointA + tasks)).toHaveLength(1);
+    expect(providerCalls).toBe(1);
+    vi.stubEnv("VOLCENGINE_ARK_API_KEY", "pg-test-provider");
+    vi.stubEnv("SEEDANCE_ENDPOINT", drift ? endpointB : endpointA);
+    const lookups: string[] = [];
+    vi.stubGlobal("fetch", vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
+      expect(init?.method).toBe("GET"); lookups.push(String(url));
+      return new Response(JSON.stringify({ status: "succeeded", content: { video_url: String(url).startsWith(endpointA)
+        ? "https://fixture.invalid/issued-original.mp4" : "https://fixture.invalid/wrong-endpoint.mp4" } }));
+    }));
+    const report = await pollRenderJobs(app, gateway, scope, { archive: null, ingest: false });
+    const stored = (await owner.query("SELECT status,result_url,task_id FROM render_jobs WHERE id=$1", [issued.jobId])).rows[0];
+    expect(stored.task_id).toBe(issued.taskId);
+    if (drift || conflictingProof) {
+      expect(lookups).toEqual([]); expect(report.details.find(detail => detail.jobId === issued.jobId)).toMatchObject({ status: "skip", error: expect.stringContaining("端点") });
+      expect(stored).toMatchObject({ status: "submitted", result_url: null });
+      expect((await owner.query("SELECT seq FROM biz_events WHERE payload->'object'->>'id'=$1 AND payload->'decision'->>'action'='render.complete'", [issued.jobId])).rowCount).toBe(0);
+      if (!conflictingProof) {
+        vi.stubEnv("SEEDANCE_ENDPOINT", endpointA);
+        await pollRenderJobs(app, gateway, scope, { archive: null, ingest: false });
+        expect(lookups).toEqual([`${endpointA}${tasks}/${issued.taskId}`]);
+        expect((await owner.query("SELECT status,result_url FROM render_jobs WHERE id=$1", [issued.jobId])).rows[0])
+          .toMatchObject({ status: "done", result_url: "https://fixture.invalid/issued-original.mp4" });
+      }
+    } else {
+      expect(lookups).toEqual([`${endpointA}${tasks}/${issued.taskId}`]);
+      expect(stored).toMatchObject({ status: "done", result_url: "https://fixture.invalid/issued-original.mp4" });
+    }
+    expect(providerCalls).toBe(1);
+  });
   it("营销完整来源事实包→资格签发→Ark适配器提交（网络替身）；A2/A3缺证据用途限制保留", async () => {
     const state = await marketingSource(); expect(state.prepared.bundle.restrictions).toHaveLength(2);
     const qualification = await issue(); const result = await submitGenJob(await input(qualification.qualificationToken));

@@ -53,7 +53,7 @@ import { mediaUrl } from "./gen/ingest.js";
 /** PollReport 类型再导出（web 端 AppRouter 类型可移植性，TS2883） */
 export type { PollReport } from "./render-poller.js";
 import { dealRouter } from "./deal.js";
-import { getRun, startRun, startVideoProjectRun, summarizeWorkspaceRuns, StudioWorkerError } from "./studio-worker.js";
+import { getRun, startResumedRun, startRun, startVideoProjectRun, summarizeWorkspaceRuns, StudioWorkerError } from "./studio-worker.js";
 import { resolveScenePolicyForIntent, ScenePolicyRouteError } from "./scene-policy-routing.js";
 import { resolvePlatformForIntent } from "./platform-routing.js";
 import { BuiltinCharacterSelectionError } from "./builtin-character-selection.js";
@@ -727,7 +727,7 @@ const studioRouter = router({
           projectId: input.projectId,
           fromStage: input.fromStage,
           intent: input.intent,
-          startRun: (runInput) => startRun(scope, runInput),
+          startRun: (runInput, source) => startResumedRun(scope, runInput, source),
           actor: { id: ctx.identity.memberNo, type: "human" },
         });
       } catch (err) {

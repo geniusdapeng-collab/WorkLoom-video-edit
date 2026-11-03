@@ -28,11 +28,11 @@ async function main(): Promise<void> {
   );
   const jobId = `rj-stress-${RUN_ID}`;
   await db.query(
-    `INSERT INTO render_jobs (id, workspace_id, project_id, script_id, script_version, task_id, status, provider)
-     VALUES ($1,$2,$3,$4,1,$5,'submitted','seedance')`,
+    `INSERT INTO render_jobs (id, workspace_id, project_id, script_id, script_version, task_id, status, provider, mock)
+     VALUES ($1,$2,$3,$4,1,$5,'submitted','seedance',true)`,
     [jobId, SCOPE.workspaceId, projId, scrId, `mock-stress-${RUN_ID}`],
   );
-  step(`已造 mock 渲染任务 ${jobId}（task_id 前缀 mock-）`);
+  step(`已造 mock 渲染任务 ${jobId}（显式 mock=true）`);
   const report = await pollRenderJobs(db as never, gw as never, SCOPE, { ingest: false, archive: null, limit: 5 });
   step(`poll 结果：checked=${report.checked} done=${report.done} failed=${report.failed} running=${report.running}；detail=${JSON.stringify(report.details.find((d) => d.jobId === jobId) ?? null)}`);
   const ev = await db.query<{ receipt: unknown; after: unknown }>(

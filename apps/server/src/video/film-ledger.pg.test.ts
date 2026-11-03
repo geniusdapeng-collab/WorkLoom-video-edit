@@ -97,17 +97,59 @@ describe.runIf(RUN_DB)("固定影片工位台账活库契约（T-2026-0927-0039�
     expect(claimed?.state).toBe("dispatched");
     expect(await ledger.claimComponent(row.id, "owner-2")).toBeNull();
     await ledger.recordDispatch(row.id, "owner-1", "seedance", "doubao-test");
-    await ledger.recordComponentAccepted(row.id, "owner-1", { provider: "seedance", providerModel: "doubao-test", actualCny: null,
-      evidence: { artifactSha256: hash("e"), artifactRef: "clips/SC-09.mp4" } });
+    const task = { taskId: "original-task", provider: "seedance", providerModel: "doubao-test", requestSha256: hash("provider-wire") };
+    await ledger.recordComponentProviderTask(row.id, "owner-1", task);
+    const evidence = { artifactSha256: hash("e"), artifactRef: "clips/SC-09.mp4",
+      providerTaskId: task.taskId, providerRequestHash: task.requestSha256 };
+    const receipt = { provider: task.provider, providerModel: task.providerModel, actualCny: null, evidence };
+    await expect(ledger.recordComponentAccepted(row.id, "owner-1", { ...receipt, providerModel: "unbound-model" }))
+      .rejects.toMatchObject({ code: "FILM_COMPONENT_STATE_CONFLICT" });
+    await expect(ledger.recordComponentAccepted(row.id, "owner-1", { ...receipt, evidence: { ...evidence, providerTaskId: "replaced-task" } }))
+      .rejects.toMatchObject({ code: "FILM_COMPONENT_STATE_CONFLICT" });
+    await expect(ledger.recordComponentAccepted(row.id, "owner-1", { ...receipt, evidence: { ...evidence, providerRequestHash: hash("different") } }))
+      .rejects.toMatchObject({ code: "FILM_COMPONENT_STATE_CONFLICT" });
+    await ledger.recordComponentAccepted(row.id, "owner-1", receipt);
     const stored = await ledger.componentById(row.id);
     expect(stored?.state).toBe("accepted");
     expect(stored?.evidence.artifactSha256).toBe(hash("e"));
+    expect(stored?.evidence.providerTask).toEqual(task);
     await expect(ledger.recordComponentAccepted(row.id, "owner-1", { provider: "seedance", providerModel: "doubao-test", actualCny: null,
       evidence: { artifactSha256: hash("e") } })).rejects.toMatchObject({ code: "FILM_COMPONENT_STATE_CONFLICT" });
     await ledger.finishJob(job.id, { status: "failed", errorClass: "WORKER_EXIT_NONZERO", errorMsg: "测试收尾" });
     await expect(ledger.reserveComponent({ jobId: job.id, component: "llm", stepKey: "cover:1", shotId: null,
       idempotencyKey: "llm:cover:1", requestHash: hash("r3"), payloadHash: hash("p3"), reservedCny: 0.1 }))
       .rejects.toMatchObject({ code: "FILM_JOB_NOT_RUNNING" });
+  });
+
+  it.each(["dispatched", "unknown"] as const)("供应商任务回执在 %s 状态只补同一任务，禁止替换或越权", async (state) => {
+    const job = await claim(`provider-task-${state}`);
+    const { row } = await ledger.reserveComponent({ jobId: job.id, component: "video", stepKey: "videos:SC-09", shotId: "SC-09",
+      idempotencyKey: "provider-task", requestHash: hash("frozen-video-request"), payloadHash: hash("frozen-video-params"), reservedCny: 1.5 });
+    await ledger.claimComponent(row.id, "owner-1");
+    await ledger.recordDispatch(row.id, "owner-1", "seedance", "fixture-model");
+    const unknown = { state: "unknown" as const, failureClass: "PROVIDER_TIMEOUT_UNKNOWN", evidence: { message: "poll timeout" } };
+    if (state === "unknown") await ledger.recordComponentFailure(row.id, "owner-1", unknown);
+    const task = { taskId: "supplier-accepted-001", provider: "seedance", providerModel: "fixture-model", requestSha256: hash("wire-payload") };
+    const wrongScope = new FilmLedger(app as unknown as AppPool, { ...scope, tenantId: "neighbor-tenant" });
+    await expect(wrongScope.recordComponentProviderTask(row.id, "owner-1", task)).rejects.toMatchObject({ code: "FILM_COMPONENT_STATE_CONFLICT" });
+    await expect(ledger.recordComponentProviderTask(row.id, "owner-2", task)).rejects.toMatchObject({ code: "FILM_COMPONENT_STATE_CONFLICT" });
+    await expect(ledger.recordComponentProviderTask(row.id, "owner-1", { ...task, providerModel: "wrong-model" }))
+      .rejects.toMatchObject({ code: "FILM_COMPONENT_STATE_CONFLICT" });
+    await Promise.all([
+      ledger.recordComponentProviderTask(row.id, "owner-1", task),
+      ledger.recordComponentProviderTask(row.id, "owner-1", task),
+    ]);
+    await expect(ledger.recordComponentProviderTask(row.id, "owner-1", { ...task, taskId: "replacement" }))
+      .rejects.toMatchObject({ code: "FILM_COMPONENT_STATE_CONFLICT" });
+    if (state === "dispatched") await ledger.recordComponentFailure(row.id, "owner-1", unknown);
+    expect(await ledger.componentById(row.id)).toMatchObject({
+      tenant_id: scope.tenantId, workspace_id: scope.workspaceId, project_id: projectId, job_id: job.id,
+      state: "unknown", dispatch_count: 1, evidence: { providerTask: task, failureClass: "PROVIDER_TIMEOUT_UNKNOWN", message: "poll timeout" },
+    });
+    expect(await ledger.jobStatus(job.id)).toMatchObject({
+      jobId: job.id, projectId, reservedCny: 1.5, spentCny: 0,
+      components: [{ stepKey: "videos:SC-09", shotId: "SC-09", state: "unknown", providerTask: task }],
+    });
   });
 
   it("状态视图汇总预占与已接受费用", async () => {

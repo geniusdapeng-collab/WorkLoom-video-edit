@@ -48,6 +48,8 @@ export interface SubmissionReceipt {
   estUsd: number | null;
   estCny: number | null;
   degraded: Array<{ from: string; to: string | null; reason: string }>;
+  /** Approved provider target, recorded with acceptance without copying a URL or credentials into the receipt. */
+  qualifiedEndpointSha256?: string;
   /** 原始接受时点的记账证据；恢复时不能用新的调用方身份或模型配置替换。 */
   events: EventDraft[];
 }

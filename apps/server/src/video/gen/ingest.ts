@@ -6,8 +6,8 @@
  *      asset-cms.register(kind=final_cut)（sha256 幂等去重）→ 返回 assetId 用于 render_jobs 回链。
  * 播放：签名 URL（HMAC + 过期时间），`/media/*` 路由校验后才吐文件——不做无鉴权裸目录。
  */
-import { createHash, createHmac, timingSafeEqual } from "node:crypto";
-import { copyFileSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { createHash, createHmac, randomUUID, timingSafeEqual } from "node:crypto";
+import { constants, existsSync, fstatSync, closeSync, lstatSync, mkdirSync, openSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join, normalize, resolve, sep } from "node:path";
 import type { getAppPool, getGatewayPool } from "@workloom/db";
@@ -15,6 +15,7 @@ import { register } from "@workloom/base/asset-cms";
 import { newId } from "@workloom/shared";
 import type { Scope } from "./db.js";
 import { probeMedia } from "../media/ffmpeg.js";
+import { safeSegment } from "../media/paths.js";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = join(HERE, "../../../../..");
@@ -52,48 +53,90 @@ export async function downloadToMediaStore(
   if (!/^https?:\/\//i.test(uri)) throw new Error(`只支持 http(s) 产物地址：${uri.slice(0, 80)}`);
   const fetchImpl = opts.fetchImpl ?? fetch;
   const maxBytes = opts.maxBytes ?? DEFAULT_MAX_BYTES;
+  if (!Number.isSafeInteger(maxBytes) || maxBytes < 0) throw new Error("成片大小上限必须是非负安全整数");
   // C-06 修复：大文件下载 5 分钟超时（此前无超时，慢源/断流会永久拖住整个 poll 批次）
   const res = await fetchImpl(uri, { signal: AbortSignal.timeout(Number(process.env.MEDIA_DOWNLOAD_TIMEOUT_MS ?? 300_000)) });
-  if (!res.ok) throw new Error(`成片下载失败：HTTP ${res.status}`);
+  const rejectResponse = async (error: Error): Promise<never> => {
+    try { await res.body?.cancel(error); }
+    catch (cancelError) { throw new AggregateError([error, cancelError], `${error.message}；响应取消失败`); }
+    throw error;
+  };
+  if (!res.ok) return rejectResponse(new Error(`成片下载失败：HTTP ${res.status}`));
+  const declaredLength = res.headers.get("content-length");
+  if (declaredLength && /^\d+$/.test(declaredLength) && Number(declaredLength) > maxBytes) {
+    return rejectResponse(new Error(`成片超过大小上限（${declaredLength} > ${maxBytes} 字节），已拒收`));
+  }
   const contentType = res.headers.get("content-type");
   const ext = contentType?.includes("webm") ? "webm" : contentType?.includes("png") ? "png"
     : contentType?.includes("jpeg") || contentType?.includes("jpg") ? "jpg" : "mp4";
-  const buf = Buffer.from(await res.arrayBuffer());
-  if (buf.byteLength > maxBytes) throw new Error(`成片超过大小上限（${buf.byteLength} > ${maxBytes} 字节），已拒收`);
-  const sha256 = createHash("sha256").update(buf).digest("hex");
-  const relPath = join("video", opts.workspaceId, `${sha256}.${ext}`);
-  const absPath = join(mediaRoot(), relPath);
-  mkdirSync(dirname(absPath), { recursive: true });
-  writeFileSync(absPath, buf);
-  return { relPath: relPath.split(sep).join("/"), absPath, sha256, bytes: buf.byteLength, contentType };
+  const reader = res.body?.getReader();
+  if (!reader) throw new Error("成片下载为空，拒绝入库");
+  const chunks: Uint8Array[] = [];
+  let received = 0;
+  try {
+    while (true) {
+      const part = await reader.read();
+      if (part.done) break;
+      received += part.value.byteLength;
+      if (received > maxBytes) throw new Error(`成片超过大小上限（${received} > ${maxBytes} 字节），已拒收`);
+      chunks.push(part.value);
+    }
+  } catch (error) {
+    try { await reader.cancel(error); }
+    catch (cancelError) {
+      // An already errored stream rejects cancel with the same original read error.
+      if (cancelError !== error) throw new AggregateError([error, cancelError], `成片下载失败：${error instanceof Error ? error.message : String(error)}；响应取消失败`);
+    }
+    throw error;
+  } finally { reader.releaseLock(); }
+  if (received === 0) throw new Error("成片下载为空，拒绝入库");
+  return storeMediaBytes(Buffer.concat(chunks, received), opts.workspaceId, ext, contentType);
 }
 
-/** 本地文件 → 媒体仓（拷贝 + sha256 + 同名幂等；超限拒收，不落半成品） */
+/** Atomically publish the bytes that were hashed; cache existence alone is not integrity. */
+function storeMediaBytes(bytes: Buffer, workspaceId: string, ext: string, contentType: string | null): DownloadedMedia {
+  safeSegment(workspaceId, "workspaceId");
+  const sha256 = createHash("sha256").update(bytes).digest("hex");
+  const relPath = join("video", workspaceId, `${sha256}.${ext}`);
+  const absPath = join(mediaRoot(), relPath);
+  mkdirSync(dirname(absPath), { recursive: true });
+  const cached = existsSync(absPath) ? lstatSync(absPath) : null;
+  const valid = cached?.isFile() && cached.size === bytes.length
+    && createHash("sha256").update(readFileSync(absPath)).digest("hex") === sha256;
+  if (!valid) {
+    const temp = `${absPath}.write-${randomUUID()}`;
+    try {
+      writeFileSync(temp, bytes, { flag: "wx", mode: 0o600 });
+      renameSync(temp, absPath);
+    } finally { rmSync(temp, { force: true }); }
+  }
+  return { relPath: relPath.split(sep).join("/"), absPath, sha256, bytes: bytes.length, contentType };
+}
+
+/** 本地文件 → 媒体仓：同一描述符读取、检查，再原子落已哈希字节。 */
 export function storeLocalFile(
   uri: string,
   opts: { workspaceId: string; maxBytes?: number },
 ): DownloadedMedia {
-  // 兼容三种写法：file:///abs/path、file://localhost/abs/path、裸绝对路径。
-  // 裸路径支持是刻意的：调用方（白板 provider / 渲染器产物）拿到的是文件系统路径，
-  // 强制先拼 file:// 反而容易拼错（相对路径会变成 URL 的 host，见 ERR_INVALID_FILE_URL_HOST）。
   const srcPath = uri.startsWith("file://") ? fileURLToPath(uri) : uri;
-  const st = statSync(srcPath); // 不存在 → 抛错（调用方按入库失败处理，不静默）
-  if (!st.isFile()) throw new Error(`本地产物不是文件：${srcPath}`);
-  const maxBytes = opts.maxBytes ?? DEFAULT_MAX_BYTES;
-  if (st.size > maxBytes) throw new Error(`成片超过大小上限（${st.size} > ${maxBytes} 字节），已拒收`);
+  const fd = openSync(srcPath, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
+  let bytes: Buffer;
+  try {
+    const before = fstatSync(fd);
+    if (!before.isFile() || before.size === 0) throw new Error(`本地产物必须为非空文件：${srcPath}`);
+    const maxBytes = opts.maxBytes ?? DEFAULT_MAX_BYTES;
+    if (before.size > maxBytes) throw new Error(`成片超过大小上限（${before.size} > ${maxBytes} 字节），已拒收`);
+    bytes = readFileSync(fd);
+    const after = fstatSync(fd);
+    if (before.size !== after.size || before.mtimeMs !== after.mtimeMs || before.ctimeMs !== after.ctimeMs || bytes.length !== after.size) {
+      throw new Error("本地产物在读取期间变化，拒绝入库");
+    }
+    if (bytes.length > maxBytes) throw new Error(`成片超过大小上限（${bytes.length} > ${maxBytes} 字节），已拒收`);
+  } finally { closeSync(fd); }
   const ext = srcPath.toLowerCase().endsWith(".webm") ? "webm"
     : srcPath.toLowerCase().endsWith(".png") ? "png"
       : /\.jpe?g$/i.test(srcPath) ? "jpg" : "mp4";
-  // 先算 sha256 再落盘：与远端分支同一口径（内容寻址 + 同内容幂等）
-  const bytes = readFileSync(srcPath);
-  const sha256 = createHash("sha256").update(bytes).digest("hex");
-  const relPath = join("video", opts.workspaceId, `${sha256}.${ext}`);
-  const absPath = join(mediaRoot(), relPath);
-  if (!existsSync(absPath)) {
-    mkdirSync(dirname(absPath), { recursive: true });
-    copyFileSync(srcPath, absPath);
-  }
-  return { relPath: relPath.split(sep).join("/"), absPath, sha256, bytes: bytes.byteLength, contentType: null };
+  return storeMediaBytes(bytes, opts.workspaceId, ext, null);
 }
 
 /* ================= 成片注册（asset-cms） ================= */

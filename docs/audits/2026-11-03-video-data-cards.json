@@ -1,0 +1,1505 @@
+{
+  "schema": "workloom.video-data-audit-discovery/v1",
+  "taskId": "T-2026-1103-0002",
+  "auditBaseline": "9704c98feb6dc7a64edb199d1c02b667596b36ae",
+  "meaning": "Discovery evidence and reproducible contracts. The exact candidate and runtime verification are separately bound to the PR integration receipt.",
+  "cards": [
+    {
+      "id": "MC-001",
+      "kind": "problem",
+      "level": "L1",
+      "severity": "P0",
+      "batch": 0,
+      "title": "档案读取未绑定单组件身份、真实路径与数据库项目归属",
+      "evidence": [
+        {
+          "type": "code",
+          "ref": "packages/video-studio/src/archive/store.ts:79@9704c98feb6dc7a64edb199d1c02b667596b36ae",
+          "sha256": "e2e84de2f5b3713e1fee1d7922a9eb7f0b5734481ef09d3f4d5fc7f548c625ef",
+          "note": "Archive scope must be bound to a single workspace/project and a visible scoped DB project before reading files"
+        },
+        {
+          "type": "code",
+          "ref": "apps/server/src/video/archive-resume.ts:276@9704c98feb6dc7a64edb199d1c02b667596b36ae",
+          "sha256": "741f323cc54f2f37516b9ea54c1d9ff9467f03c06023a379146d622ba20138d6",
+          "note": "Archive scope must be bound to a single workspace/project and a visible scoped DB project before reading files"
+        }
+      ],
+      "root_cause": {
+        "file": "packages/video-studio/src/archive/store.ts",
+        "line": 79,
+        "commit": "9704c98feb6dc7a64edb199d1c02b667596b36ae",
+        "symbol": "ArchiveStore.constructor/readArchiveSummary"
+      },
+      "trigger_path": "Authenticated archive query with an invalid project component, a linked archive directory, or an invisible scoped project reaches filesystem data before DB authorization. Fixtures use only temporary synthetic records.",
+      "assertions": [
+        {
+          "kind": "sample",
+          "given": "Temporary own/other archive fixtures and scoped DB allowed/empty rows; invalid identities, linked directories/files and mismatched manifest",
+          "expect": "Only visible own-project data is returned; invalid boundaries cause no file read/write; ordinary and Chinese identifiers still work",
+          "command": "node node_modules/vitest/vitest.mjs run packages/video-studio/src/archive/store-scope.test.ts apps/server/src/video/archive-summary-scope.test.ts --maxWorkers=1 --no-file-parallelism",
+          "exec": {
+            "file": "node",
+            "args": [
+              "node_modules/vitest/vitest.mjs",
+              "run",
+              "packages/video-studio/src/archive/store-scope.test.ts",
+              "apps/server/src/video/archive-summary-scope.test.ts",
+              "--maxWorkers=1",
+              "--no-file-parallelism"
+            ]
+          },
+          "last_result": "not-run"
+        }
+      ],
+      "regression": {
+        "command": "node node_modules/vitest/vitest.mjs run packages/video-studio/src/archive/store-scope.test.ts apps/server/src/video/archive-summary-scope.test.ts --maxWorkers=1 --no-file-parallelism"
+      },
+      "notes": "Initial actual regression:13failed/1passed in archive-scope-red.log. Root owns minimal defensive fix; independent actor must rerun."
+    },
+    {
+      "id": "MC-002",
+      "kind": "problem",
+      "level": "L1",
+      "severity": "P1",
+      "batch": 2,
+      "title": "一次性记账claim/写产物失败仍覆盖历史并发布done",
+      "evidence": [
+        {
+          "type": "code",
+          "ref": "packages/video-studio/src/archive/stage-log.ts:76@9704c98feb6dc7a64edb199d1c02b667596b36ae",
+          "sha256": "ef51247c4dcdc2ba143e6648472fc6480804c73b5fa3f2b63b827c3a8d9dc8d4",
+          "note": "Source review grade A. Executed baseline fault injection grade B in work/round2/marketing-data-integrity-red.log"
+        },
+        {
+          "type": "code",
+          "ref": "packages/video-studio/src/archive/stage-log.ts:109@9704c98feb6dc7a64edb199d1c02b667596b36ae",
+          "sha256": "ef51247c4dcdc2ba143e6648472fc6480804c73b5fa3f2b63b827c3a8d9dc8d4",
+          "note": "Source review grade A. Executed baseline fault injection grade B in work/round2/marketing-data-integrity-red.log"
+        }
+      ],
+      "root_cause": {
+        "file": "packages/video-studio/src/archive/stage-log.ts",
+        "line": 76,
+        "commit": "9704c98feb6dc7a64edb199d1c02b667596b36ae",
+        "symbol": "一次性记账claim/写产物失败仍覆盖历史并发布done"
+      },
+      "trigger_path": "claim failure preserves historical attempt1 bytes and manifest; failed output write never records done in PG or manifest",
+      "assertions": [
+        {
+          "kind": "sample",
+          "given": "一次性记账claim/写产物失败仍覆盖历史并发布done",
+          "expect": "Normal inputs preserve their data. Invalid or unverifiable inputs stop before a false receipt or unbooked external call.",
+          "command": "node node_modules/vitest/vitest.mjs run packages/video-studio/src/archive/stage-log-integrity-r2.test.ts packages/video-studio/src/archive/stage-log.test.ts --maxWorkers=1 --no-file-parallelism",
+          "exec": {
+            "file": "node",
+            "args": [
+              "node_modules/vitest/vitest.mjs",
+              "run",
+              "packages/video-studio/src/archive/stage-log-integrity-r2.test.ts",
+              "packages/video-studio/src/archive/stage-log.test.ts",
+              "--maxWorkers=1",
+              "--no-file-parallelism"
+            ]
+          },
+          "last_result": "not-run"
+        }
+      ],
+      "regression": {
+        "command": "node node_modules/vitest/vitest.mjs run packages/video-studio/src/archive/stage-log-integrity-r2.test.ts packages/video-studio/src/archive/stage-log.test.ts --maxWorkers=1 --no-file-parallelism"
+      },
+      "notes": "Exact baseline source grade A. Local fixture execution grade B. Before-fix regression work/round2/marketing-r2-formal-red.log."
+    },
+    {
+      "id": "MC-003",
+      "kind": "problem",
+      "level": "L1",
+      "severity": "P1",
+      "batch": 2,
+      "title": "预生产恢复丢失完整原始需求与metadata",
+      "evidence": [
+        {
+          "type": "code",
+          "ref": "apps/server/src/video/archive-resume.ts:215@9704c98feb6dc7a64edb199d1c02b667596b36ae",
+          "sha256": "741f323cc54f2f37516b9ea54c1d9ff9467f03c06023a379146d622ba20138d6",
+          "note": "Source review grade A. Executed baseline fault injection grade B in work/round2/marketing-data-integrity-red.log"
+        },
+        {
+          "type": "code",
+          "ref": "apps/server/src/video/studio-worker.ts:1441@9704c98feb6dc7a64edb199d1c02b667596b36ae",
+          "sha256": "d22d861851d9bf801b9989c23020ec799b31f87680195f8167847d912139dec1",
+          "note": "Source review grade A. Executed baseline fault injection grade B in work/round2/marketing-data-integrity-red.log"
+        },
+        {
+          "type": "code",
+          "ref": "apps/server/src/video/studio-worker.ts:2016@9704c98feb6dc7a64edb199d1c02b667596b36ae",
+          "sha256": "d22d861851d9bf801b9989c23020ec799b31f87680195f8167847d912139dec1",
+          "note": "Source review grade A. Executed baseline fault injection grade B in work/round2/marketing-data-integrity-red.log"
+        }
+      ],
+      "root_cause": {
+        "file": "apps/server/src/video/archive-resume.ts",
+        "line": 215,
+        "commit": "9704c98feb6dc7a64edb199d1c02b667596b36ae",
+        "symbol": "预生产恢复丢失完整原始需求与metadata"
+      },
+      "trigger_path": "preproduction resume reuses full archived intent and metadata",
+      "assertions": [
+        {
+          "kind": "sample",
+          "given": "预生产恢复丢失完整原始需求与metadata",
+          "expect": "Normal inputs preserve their data. Invalid or unverifiable inputs stop before a false receipt or unbooked external call.",
+          "command": "node node_modules/vitest/vitest.mjs run apps/server/src/video/archive-resume-input-r2.test.ts apps/server/src/video/archive-resume.test.ts apps/server/src/video/studio-worker.test.ts --maxWorkers=1 --no-file-parallelism",
+          "exec": {
+            "file": "node",
+            "args": [
+              "node_modules/vitest/vitest.mjs",
+              "run",
+              "apps/server/src/video/archive-resume-input-r2.test.ts",
+              "apps/server/src/video/archive-resume.test.ts",
+              "apps/server/src/video/studio-worker.test.ts",
+              "--maxWorkers=1",
+              "--no-file-parallelism"
+            ]
+          },
+          "last_result": "not-run"
+        }
+      ],
+      "regression": {
+        "command": "node node_modules/vitest/vitest.mjs run apps/server/src/video/archive-resume-input-r2.test.ts apps/server/src/video/archive-resume.test.ts apps/server/src/video/studio-worker.test.ts --maxWorkers=1 --no-file-parallelism"
+      },
+      "notes": "Exact baseline source grade A. Local fixture execution grade B. Before-fix regression work/round2/marketing-r2-formal-red.log."
+    },
+    {
+      "id": "MC-004",
+      "kind": "problem",
+      "level": "L1",
+      "severity": "P1",
+      "batch": 2,
+      "title": "fixtureOnly缓存未命中仍访问线上检索",
+      "evidence": [
+        {
+          "type": "code",
+          "ref": "apps/server/src/video/data-mining-executor.ts:405@9704c98feb6dc7a64edb199d1c02b667596b36ae",
+          "sha256": "e1a5400ffd346320a7f5ae689d2a869a219f479421d3f43bdb8df34aab9d5f37",
+          "note": "Source review grade A. Executed baseline fault injection grade B in work/round2/marketing-fixture-only-red.log"
+        }
+      ],
+      "root_cause": {
+        "file": "apps/server/src/video/data-mining-executor.ts",
+        "line": 405,
+        "commit": "9704c98feb6dc7a64edb199d1c02b667596b36ae",
+        "symbol": "fixtureOnly缓存未命中仍访问线上检索"
+      },
+      "trigger_path": "missing fixture in fixtureOnly mode makes zero online API calls",
+      "assertions": [
+        {
+          "kind": "sample",
+          "given": "fixtureOnly缓存未命中仍访问线上检索",
+          "expect": "Normal inputs preserve their data. Invalid or unverifiable inputs stop before a false receipt or unbooked external call.",
+          "command": "node node_modules/vitest/vitest.mjs run apps/server/src/video/marketing-search-fixture-r2.test.ts apps/server/src/video/data-mining-executor.test.ts --maxWorkers=1 --no-file-parallelism",
+          "exec": {
+            "file": "node",
+            "args": [
+              "node_modules/vitest/vitest.mjs",
+              "run",
+              "apps/server/src/video/marketing-search-fixture-r2.test.ts",
+              "apps/server/src/video/data-mining-executor.test.ts",
+              "--maxWorkers=1",
+              "--no-file-parallelism"
+            ]
+          },
+          "last_result": "not-run"
+        }
+      ],
+      "regression": {
+        "command": "node node_modules/vitest/vitest.mjs run apps/server/src/video/marketing-search-fixture-r2.test.ts apps/server/src/video/data-mining-executor.test.ts --maxWorkers=1 --no-file-parallelism"
+      },
+      "notes": "Exact baseline source grade A. Local fixture execution grade B. Before-fix regression work/round2/marketing-r2-formal-red.log."
+    },
+    {
+      "id": "MC-005",
+      "kind": "problem",
+      "level": "L1",
+      "severity": "P2",
+      "batch": 2,
+      "title": "营销摘要误称用户共识并把去重后主张绑到错误来源",
+      "evidence": [
+        {
+          "type": "code",
+          "ref": "apps/server/src/video/marketing-dossier-normalization.ts:57@9704c98feb6dc7a64edb199d1c02b667596b36ae",
+          "sha256": "685da170c44bc9d5cdce9a1fc6ce4ec602bb7bdb979ee02519a0ac063502e875",
+          "note": "Source review grade A. Executed baseline fault injection grade B in work/round2/marketing-presentation-red.log"
+        },
+        {
+          "type": "code",
+          "ref": "apps/server/src/video/marketing-dossier-normalization.ts:69@9704c98feb6dc7a64edb199d1c02b667596b36ae",
+          "sha256": "685da170c44bc9d5cdce9a1fc6ce4ec602bb7bdb979ee02519a0ac063502e875",
+          "note": "Source review grade A. Executed baseline fault injection grade B in work/round2/marketing-presentation-red.log"
+        },
+        {
+          "type": "code",
+          "ref": "apps/server/src/video/marketing-facts.ts:224@9704c98feb6dc7a64edb199d1c02b667596b36ae",
+          "sha256": "763f36a4e3c64171cecf61c616bdedeaaa4f016f1b251af9837abf467babd5b7",
+          "note": "Grade A. Source URL membership and citation digest are checked independently. Existing correct raw evidence is kept."
+        },
+        {
+          "type": "code",
+          "ref": "apps/server/src/video/marketing-authority.ts:379@9704c98feb6dc7a64edb199d1c02b667596b36ae",
+          "sha256": "e3cb6c7ed60b6c29d1f182104532c0176fda9a3b86accaa45bc6e389b87202a3",
+          "note": "Grade A. Real prepareMarketingFacts assembled using model-provided selling point URL; offline A/B source probe returned sourceId of A and sourceUrl/evidenceId from B."
+        }
+      ],
+      "root_cause": {
+        "file": "apps/server/src/video/marketing-dossier-normalization.ts",
+        "line": 57,
+        "commit": "9704c98feb6dc7a64edb199d1c02b667596b36ae",
+        "symbol": "营销摘要误称用户共识并把去重后主张绑到错误来源"
+      },
+      "trigger_path": "官方卖点被写成用户共识；去重导致主张下标偏移；真实 A1 引用支持页 A 但原始元数据引用已采集的不支持页 B，导致 PRD 中 sourceId 指向 A、sourceUrl 和 evidenceId 指向 B。",
+      "assertions": [
+        {
+          "kind": "sample",
+          "given": "A2 为空；A1 卖点重复且存在不同来源；A1 原文引用支持页 A，原始元数据使用已采集的不支持页 B；证据账本缺少同主张同源条目。",
+          "expect": "无可核实 A2 时用户共识为零；去重仍关联正确 A1 下标；卖点装订、PRD 与 G1 证据绑定到同一已核实源 A，原始抽取内容和摘要保留；未登记同主张同来源时 evidenceId 为空。",
+          "command": "node node_modules/vitest/vitest.mjs run apps/server/src/video/marketing-presentation-integrity-r2.test.ts apps/server/src/video/marketing-dossier-normalization.test.ts apps/server/src/video/marketing-authority.test.ts --maxWorkers=1 --no-file-parallelism",
+          "exec": {
+            "file": "node",
+            "args": [
+              "node_modules/vitest/vitest.mjs",
+              "run",
+              "apps/server/src/video/marketing-presentation-integrity-r2.test.ts",
+              "apps/server/src/video/marketing-dossier-normalization.test.ts",
+              "apps/server/src/video/marketing-authority.test.ts",
+              "--maxWorkers=1",
+              "--no-file-parallelism"
+            ]
+          },
+          "last_result": "not-run"
+        }
+      ],
+      "regression": {
+        "command": "node node_modules/vitest/vitest.mjs run apps/server/src/video/marketing-presentation-integrity-r2.test.ts apps/server/src/video/marketing-dossier-normalization.test.ts apps/server/src/video/marketing-authority.test.ts --maxWorkers=1 --no-file-parallelism"
+      },
+      "notes": "A 级源代码，B 级执行。原先红测 work/round2/marketing-r2-formal-red.log；独立新增两个红测 marketing-r2-cross-source-red.log / marketing-r2-cross-source-provenance-red.log，正式回归 marketing-r2-cross-source-green.log。"
+    },
+    {
+      "id": "MC-006",
+      "external_id": "R2-006",
+      "kind": "problem",
+      "level": "L1",
+      "severity": "P1",
+      "batch": 1,
+      "title": "内容地址缓存命中未核对实际字节",
+      "evidence": [
+        {
+          "type": "code",
+          "ref": "apps/server/src/video/gen/ingest.ts:88@9704c98feb6dc7a64edb199d1c02b667596b36ae",
+          "sha256": "1e6445bae0eee9bef061ba64007ef41ed60511c50bd09685ab226c70c7cadf91",
+          "note": "A: complete implementation read; runnable pre-fix red log in separate metadata"
+        }
+      ],
+      "root_cause": {
+        "file": "apps/server/src/video/gen/ingest.ts",
+        "line": 88,
+        "commit": "9704c98feb6dc7a64edb199d1c02b667596b36ae",
+        "symbol": "storeLocalFile"
+      },
+      "trigger_path": "已有sha命名文件损坏后再次登记同一正常源，返回原源摘要而目标仍是损坏字节",
+      "fix_plan": "校验既有缓存SHA；源同描述符读取并检查，原子发布已哈希字节。",
+      "blast_radius": "Same render job, task identity, media receipt and tenant scope; generation submit/unknown/accepted dispatch contract and media success acceptance policy preserved. Shared poller changes must be reviewed together.",
+      "conflict_paths": [
+        "apps/server/src/video/gen/ingest.ts"
+      ],
+      "assertions": [
+        {
+          "kind": "sample",
+          "given": "已有sha命名文件损坏后再次登记同一正常源，返回原源摘要而目标仍是损坏字节",
+          "expect": "目标实际SHA/bytes等于收据；正常重复登记幂等，空/超限不登记",
+          "command": "node node_modules/vitest/vitest.mjs run apps/server/src/video/gen/ingest-integrity.test.ts --maxWorkers=1 --no-file-parallelism",
+          "exec": {
+            "file": "node",
+            "args": [
+              "node_modules/vitest/vitest.mjs",
+              "run",
+              "apps/server/src/video/gen/ingest-integrity.test.ts",
+              "--maxWorkers=1",
+              "--no-file-parallelism"
+            ]
+          },
+          "last_result": "not-run",
+          "required_environment": "RUN_DB_TESTS=1 and task-only DATABASE_URL / DATABASE_APP_URL / DATABASE_GATEWAY_URL"
+        }
+      ],
+      "regression": {
+        "command": "node node_modules/vitest/vitest.mjs run apps/server/src/video/gen/ingest-integrity.test.ts --maxWorkers=1 --no-file-parallelism"
+      },
+      "rollback": "Revert the task source commit if necessary; do not mutate previously applied migrations. For0061, restore behavior only with a new forward migration. Existing issued supplier tasks must never be resubmitted as rollback.",
+      "notes": "Ordinary red/green actual runs exist; formal MCD repair and independent acceptance must run on parent-frozen clean commit before state promotion."
+    },
+    {
+      "id": "MC-007",
+      "external_id": "R2-007",
+      "kind": "problem",
+      "level": "L1",
+      "severity": "P1",
+      "batch": 1,
+      "title": "legacy资格currentness跨阶段attempt误比较",
+      "evidence": [
+        {
+          "type": "code",
+          "ref": "packages/db/migrations/0059_pipeline_qualification_bridge.sql:52@9704c98feb6dc7a64edb199d1c02b667596b36ae",
+          "sha256": "4c153e48a94fd1cdd53894bf34df6b83f1d29985f11b0613e1f629c8403511e3",
+          "note": "A: complete implementation read; runnable pre-fix red log in separate metadata"
+        }
+      ],
+      "root_cause": {
+        "file": "packages/db/migrations/0059_pipeline_qualification_bridge.sql",
+        "line": 52,
+        "commit": "9704c98feb6dc7a64edb199d1c02b667596b36ae",
+        "symbol": "guard_production_qualification"
+      },
+      "trigger_path": "legacy preproduction attempt1已完成，另一个renderPoll attempt2误使合法资格拒绝",
+      "fix_plan": "0061前向迁移在legacy lane按stage_id比较，CP仍按run/stage_key/item/revision。",
+      "blast_radius": "Same render job, task identity, media receipt and tenant scope; generation submit/unknown/accepted dispatch contract and media success acceptance policy preserved. Shared poller changes must be reviewed together.",
+      "conflict_paths": [
+        "packages/db/migrations/0059_pipeline_qualification_bridge.sql"
+      ],
+      "assertions": [
+        {
+          "kind": "sample",
+          "given": "legacy preproduction attempt1已完成，另一个renderPoll attempt2误使合法资格拒绝",
+          "expect": "无新attempt通过；另stage新attempt不作废；同preproduction新attempt必须作废",
+          "command": "node node_modules/vitest/vitest.mjs run apps/server/src/video/production-qualification-currentness.pg.test.ts --maxWorkers=1 --no-file-parallelism",
+          "exec": {
+            "file": "node",
+            "args": [
+              "node_modules/vitest/vitest.mjs",
+              "run",
+              "apps/server/src/video/production-qualification-currentness.pg.test.ts",
+              "--maxWorkers=1",
+              "--no-file-parallelism"
+            ]
+          },
+          "last_result": "not-run",
+          "required_environment": "RUN_DB_TESTS=1 and task-only DATABASE_URL / DATABASE_APP_URL / DATABASE_GATEWAY_URL"
+        }
+      ],
+      "regression": {
+        "command": "node node_modules/vitest/vitest.mjs run apps/server/src/video/production-qualification-currentness.pg.test.ts --maxWorkers=1 --no-file-parallelism"
+      },
+      "rollback": "Revert the task source commit if necessary; do not mutate previously applied migrations. For0061, restore behavior only with a new forward migration. Existing issued supplier tasks must never be resubmitted as rollback.",
+      "notes": "Ordinary red/green actual runs exist; formal MCD repair and independent acceptance must run on parent-frozen clean commit before state promotion."
+    },
+    {
+      "id": "MC-008",
+      "external_id": "R2-008",
+      "kind": "problem",
+      "level": "L1",
+      "severity": "P1",
+      "batch": 1,
+      "title": "poller裸app UPDATE缺少RLS事务上下文",
+      "evidence": [
+        {
+          "type": "code",
+          "ref": "apps/server/src/video/render-poller.ts:167@9704c98feb6dc7a64edb199d1c02b667596b36ae",
+          "sha256": "2ad8ca7e875702f8921759ecf2dceb71c67127fc382f678fe3a44e682984f151",
+          "note": "A: complete implementation read; runnable pre-fix red log in separate metadata"
+        }
+      ],
+      "root_cause": {
+        "file": "apps/server/src/video/render-poller.ts",
+        "line": 167,
+        "commit": "9704c98feb6dc7a64edb199d1c02b667596b36ae",
+        "symbol": "pollRenderJobs"
+      },
+      "trigger_path": "正常workloom_app角色运行时report说running/failed，裸UPDATE因RLS影响0行而DB仍submitted",
+      "fix_plan": "普通状态推进使用scopedQuery显式事务双GUC；缺provider超时走同一终态事务事件链。",
+      "blast_radius": "Same render job, task identity, media receipt and tenant scope; generation submit/unknown/accepted dispatch contract and media success acceptance policy preserved. Shared poller changes must be reviewed together.",
+      "conflict_paths": [
+        "apps/server/src/video/render-poller.ts"
+      ],
+      "assertions": [
+        {
+          "kind": "sample",
+          "given": "正常workloom_app角色运行时report说running/failed，裸UPDATE因RLS影响0行而DB仍submitted",
+          "expect": "真实app角色持久化rendering和failed；缺provider超时写render.failed；错tenant/workspace不读不写",
+          "command": "node node_modules/vitest/vitest.mjs run apps/server/src/video/render-poller.pg.test.ts --maxWorkers=1 --no-file-parallelism",
+          "exec": {
+            "file": "node",
+            "args": [
+              "node_modules/vitest/vitest.mjs",
+              "run",
+              "apps/server/src/video/render-poller.pg.test.ts",
+              "--maxWorkers=1",
+              "--no-file-parallelism"
+            ]
+          },
+          "last_result": "not-run",
+          "required_environment": "RUN_DB_TESTS=1 and task-only DATABASE_URL / DATABASE_APP_URL / DATABASE_GATEWAY_URL"
+        }
+      ],
+      "regression": {
+        "command": "node node_modules/vitest/vitest.mjs run apps/server/src/video/render-poller.pg.test.ts --maxWorkers=1 --no-file-parallelism"
+      },
+      "rollback": "Revert the task source commit if necessary; do not mutate previously applied migrations. For0061, restore behavior only with a new forward migration. Existing issued supplier tasks must never be resubmitted as rollback.",
+      "notes": "Ordinary red/green actual runs exist; formal MCD repair and independent acceptance must run on parent-frozen clean commit before state promotion."
+    },
+    {
+      "id": "MC-009",
+      "external_id": "R2-009",
+      "kind": "problem",
+      "level": "L1",
+      "severity": "P1",
+      "batch": 1,
+      "title": "poller终态SQL异常泄漏gateway连接",
+      "evidence": [
+        {
+          "type": "code",
+          "ref": "apps/server/src/video/render-poller.ts:160@9704c98feb6dc7a64edb199d1c02b667596b36ae",
+          "sha256": "2ad8ca7e875702f8921759ecf2dceb71c67127fc382f678fe3a44e682984f151",
+          "note": "A: complete implementation read; runnable pre-fix red log in separate metadata"
+        }
+      ],
+      "root_cause": {
+        "file": "apps/server/src/video/render-poller.ts",
+        "line": 160,
+        "commit": "9704c98feb6dc7a64edb199d1c02b667596b36ae",
+        "symbol": "pollRenderJobs"
+      },
+      "trigger_path": "取得gw后终态UPDATE/事件/COMMIT报错，函数抛出前没有到尾部release",
+      "fix_plan": "每job finally归还连接；未知claim/unlock及ROLLBACK结果丢弃会话，防残留锁。",
+      "blast_radius": "Same render job, task identity, media receipt and tenant scope; generation submit/unknown/accepted dispatch contract and media success acceptance policy preserved. Shared poller changes must be reviewed together.",
+      "conflict_paths": [
+        "apps/server/src/video/render-poller.ts"
+      ],
+      "assertions": [
+        {
+          "kind": "sample",
+          "given": "取得gw后终态UPDATE/事件/COMMIT报错，函数抛出前没有到尾部release",
+          "expect": "SQL失败后release一次；claim/unlock ack丢失和ROLLBACK失败discard；同原任务仍可恢复",
+          "command": "node node_modules/vitest/vitest.mjs run apps/server/src/video/render-poller.pg.test.ts --maxWorkers=1 --no-file-parallelism",
+          "exec": {
+            "file": "node",
+            "args": [
+              "node_modules/vitest/vitest.mjs",
+              "run",
+              "apps/server/src/video/render-poller.pg.test.ts",
+              "--maxWorkers=1",
+              "--no-file-parallelism"
+            ]
+          },
+          "last_result": "not-run",
+          "required_environment": "RUN_DB_TESTS=1 and task-only DATABASE_URL / DATABASE_APP_URL / DATABASE_GATEWAY_URL"
+        }
+      ],
+      "regression": {
+        "command": "node node_modules/vitest/vitest.mjs run apps/server/src/video/render-poller.pg.test.ts --maxWorkers=1 --no-file-parallelism"
+      },
+      "rollback": "Revert the task source commit if necessary; do not mutate previously applied migrations. For0061, restore behavior only with a new forward migration. Existing issued supplier tasks must never be resubmitted as rollback.",
+      "notes": "Ordinary red/green actual runs exist; formal MCD repair and independent acceptance must run on parent-frozen clean commit before state promotion."
+    },
+    {
+      "id": "MC-010",
+      "external_id": "R2-010",
+      "kind": "problem",
+      "level": "L1",
+      "severity": "P1",
+      "batch": 1,
+      "title": "并发poll重复终态事件和产物下载",
+      "evidence": [
+        {
+          "type": "code",
+          "ref": "apps/server/src/video/render-poller.ts:264@9704c98feb6dc7a64edb199d1c02b667596b36ae",
+          "sha256": "2ad8ca7e875702f8921759ecf2dceb71c67127fc382f678fe3a44e682984f151",
+          "note": "A: complete implementation read; runnable pre-fix red log in separate metadata"
+        }
+      ],
+      "root_cause": {
+        "file": "apps/server/src/video/render-poller.ts",
+        "line": 264,
+        "commit": "9704c98feb6dc7a64edb199d1c02b667596b36ae",
+        "symbol": "pollRenderJobs"
+      },
+      "trigger_path": "两个轮询读到同submitted任务，各自poll/下载并无条件写终态，产生两条render.failed/complete",
+      "fix_plan": "每job会话租约跨网络但不跨PG事务；租约后重读；旧态CAS与唯一终态事件同事务。",
+      "blast_radius": "Same render job, task identity, media receipt and tenant scope; generation submit/unknown/accepted dispatch contract and media success acceptance policy preserved. Shared poller changes must be reviewed together.",
+      "conflict_paths": [
+        "apps/server/src/video/render-poller.ts"
+      ],
+      "assertions": [
+        {
+          "kind": "sample",
+          "given": "两个轮询读到同submitted任务，各自poll/下载并无条件写终态，产生两条render.failed/complete",
+          "expect": "并发只一次provider.poll/一次下载/一条终态事件；完成快照不重复执行",
+          "command": "node node_modules/vitest/vitest.mjs run apps/server/src/video/render-poller.pg.test.ts --maxWorkers=1 --no-file-parallelism",
+          "exec": {
+            "file": "node",
+            "args": [
+              "node_modules/vitest/vitest.mjs",
+              "run",
+              "apps/server/src/video/render-poller.pg.test.ts",
+              "--maxWorkers=1",
+              "--no-file-parallelism"
+            ]
+          },
+          "last_result": "not-run",
+          "required_environment": "RUN_DB_TESTS=1 and task-only DATABASE_URL / DATABASE_APP_URL / DATABASE_GATEWAY_URL"
+        }
+      ],
+      "regression": {
+        "command": "node node_modules/vitest/vitest.mjs run apps/server/src/video/render-poller.pg.test.ts --maxWorkers=1 --no-file-parallelism"
+      },
+      "rollback": "Revert the task source commit if necessary; do not mutate previously applied migrations. For0061, restore behavior only with a new forward migration. Existing issued supplier tasks must never be resubmitted as rollback.",
+      "notes": "Ordinary red/green actual runs exist; formal MCD repair and independent acceptance must run on parent-frozen clean commit before state promotion."
+    },
+    {
+      "id": "MC-011",
+      "external_id": "R2-011",
+      "kind": "problem",
+      "level": "L1",
+      "severity": "P1",
+      "batch": 2,
+      "title": "供应商成功但临时下载失败后无普通补入库路径",
+      "evidence": [
+        {
+          "type": "code",
+          "ref": "apps/server/src/video/render-poller.ts:240@9704c98feb6dc7a64edb199d1c02b667596b36ae",
+          "sha256": "2ad8ca7e875702f8921759ecf2dceb71c67127fc382f678fe3a44e682984f151",
+          "note": "A: complete implementation read; runnable pre-fix red log in separate metadata"
+        }
+      ],
+      "root_cause": {
+        "file": "apps/server/src/video/render-poller.ts",
+        "line": 240,
+        "commit": "9704c98feb6dc7a64edb199d1c02b667596b36ae",
+        "symbol": "pollRenderJobs"
+      },
+      "trigger_path": "首次download503仍保存done+URL但asset_id=null，下次开放任务扫描排除done，永不重试",
+      "fix_plan": "扫描已done/asset缺失/原URL，使用原task/URL单独补入库并append render.ingest.*；保留成功事实和原价格，不重发生成。",
+      "blast_radius": "Same render job, task identity, media receipt and tenant scope; generation submit/unknown/accepted dispatch contract and media success acceptance policy preserved. Shared poller changes must be reviewed together.",
+      "conflict_paths": [
+        "apps/server/src/video/render-poller.ts",
+        "apps/server/src/video/render-poller.ts"
+      ],
+      "assertions": [
+        {
+          "kind": "sample",
+          "given": "首次download503仍保存done+URL但asset_id=null，下次开放任务扫描排除done，永不重试",
+          "expect": "503后下轮同URL入库；poll仅1次、submit0；一条render.complete后独立ingest回执；重复失败和ingest关闭可观测",
+          "command": "node node_modules/vitest/vitest.mjs run apps/server/src/video/render-poller.pg.test.ts --maxWorkers=1 --no-file-parallelism",
+          "exec": {
+            "file": "node",
+            "args": [
+              "node_modules/vitest/vitest.mjs",
+              "run",
+              "apps/server/src/video/render-poller.pg.test.ts",
+              "--maxWorkers=1",
+              "--no-file-parallelism"
+            ]
+          },
+          "last_result": "not-run",
+          "required_environment": "RUN_DB_TESTS=1 and task-only DATABASE_URL / DATABASE_APP_URL / DATABASE_GATEWAY_URL"
+        }
+      ],
+      "regression": {
+        "command": "node node_modules/vitest/vitest.mjs run apps/server/src/video/render-poller.pg.test.ts --maxWorkers=1 --no-file-parallelism"
+      },
+      "rollback": "Revert the task source commit if necessary; do not mutate previously applied migrations. For0061, restore behavior only with a new forward migration. Existing issued supplier tasks must never be resubmitted as rollback.",
+      "notes": "Ordinary red/green actual runs exist; formal MCD repair and independent acceptance must run on parent-frozen clean commit before state promotion."
+    },
+    {
+      "id": "MC-012",
+      "external_id": "R2-012",
+      "kind": "problem",
+      "level": "L1",
+      "severity": "P1",
+      "batch": 2,
+      "title": "queued/submitted绕过既有24小时超时",
+      "evidence": [
+        {
+          "type": "code",
+          "ref": "apps/server/src/video/render-poller.ts:189@9704c98feb6dc7a64edb199d1c02b667596b36ae",
+          "sha256": "2ad8ca7e875702f8921759ecf2dceb71c67127fc382f678fe3a44e682984f151",
+          "note": "A: complete implementation read; runnable pre-fix red log in separate metadata"
+        }
+      ],
+      "root_cause": {
+        "file": "apps/server/src/video/render-poller.ts",
+        "line": 189,
+        "commit": "9704c98feb6dc7a64edb199d1c02b667596b36ae",
+        "symbol": "pollRenderJobs"
+      },
+      "trigger_path": "48小时后供应商持续queued归一成submitted，超时判断只认running",
+      "fix_plan": "以同一既有阈值覆盖submitted/running；明确成功产物默认接纳不变。",
+      "blast_radius": "Same render job, task identity, media receipt and tenant scope; generation submit/unknown/accepted dispatch contract and media success acceptance policy preserved. Shared poller changes must be reviewed together.",
+      "conflict_paths": [
+        "apps/server/src/video/render-poller.ts",
+        "apps/server/src/video/render-poller.ts"
+      ],
+      "assertions": [
+        {
+          "kind": "sample",
+          "given": "48小时后供应商持续queued归一成submitted，超时判断只认running",
+          "expect": "48h submitted任务进入failed；未超龄查询错误仍可回查",
+          "command": "node node_modules/vitest/vitest.mjs run apps/server/src/video/render-poller.pg.test.ts --maxWorkers=1 --no-file-parallelism",
+          "exec": {
+            "file": "node",
+            "args": [
+              "node_modules/vitest/vitest.mjs",
+              "run",
+              "apps/server/src/video/render-poller.pg.test.ts",
+              "--maxWorkers=1",
+              "--no-file-parallelism"
+            ]
+          },
+          "last_result": "not-run",
+          "required_environment": "RUN_DB_TESTS=1 and task-only DATABASE_URL / DATABASE_APP_URL / DATABASE_GATEWAY_URL"
+        }
+      ],
+      "regression": {
+        "command": "node node_modules/vitest/vitest.mjs run apps/server/src/video/render-poller.pg.test.ts --maxWorkers=1 --no-file-parallelism"
+      },
+      "rollback": "Revert the task source commit if necessary; do not mutate previously applied migrations. For0061, restore behavior only with a new forward migration. Existing issued supplier tasks must never be resubmitted as rollback.",
+      "notes": "Ordinary red/green actual runs exist; formal MCD repair and independent acceptance must run on parent-frozen clean commit before state promotion."
+    },
+    {
+      "id": "MC-013",
+      "external_id": "R2-013",
+      "kind": "problem",
+      "level": "L1",
+      "severity": "P1",
+      "batch": 2,
+      "title": "查询HTTP故障冒充供应商任务终态失败",
+      "evidence": [
+        {
+          "type": "code",
+          "ref": "apps/server/src/video/gen/providers.ts:97@9704c98feb6dc7a64edb199d1c02b667596b36ae",
+          "sha256": "344138a7285580d068db2354b752038f3e568ca052b64f65022b392f249ce77d",
+          "note": "A: complete implementation read; runnable pre-fix red log in separate metadata"
+        },
+        {
+          "type": "code",
+          "ref": "packages/base/model-router/gen-pool.ts:123@9704c98feb6dc7a64edb199d1c02b667596b36ae",
+          "sha256": "9b111d204d88dbc6d26566514f427f4efb1c5741ebe4c7064d60fe12bcb09826",
+          "note": "Same root cause in Seedance/Kling/Jimeng legacy poll adapters, required direct dependency linkage"
+        }
+      ],
+      "root_cause": {
+        "file": "apps/server/src/video/gen/providers.ts",
+        "line": 97,
+        "commit": "9704c98feb6dc7a64edb199d1c02b667596b36ae",
+        "symbol": "ArkVideoProvider.poll/HiggsfieldProvider.poll/MuapiProvider.poll"
+      },
+      "trigger_path": "已接受任务查询503/429/404，适配器返回failed导致poller将仍可能成功任务永久终结",
+      "fix_plan": "仅明确供应商状态映射failed；HTTP与无效查询体抛查询异常，poller保留原任务重查直至既有超时。",
+      "blast_radius": "Same render job, task identity, media receipt and tenant scope; generation submit/unknown/accepted dispatch contract and media success acceptance policy preserved. Shared poller changes must be reviewed together.",
+      "conflict_paths": [
+        "apps/server/src/video/gen/providers.ts",
+        "apps/server/src/video/render-poller.ts",
+        "packages/base/model-router/gen-pool.ts",
+        "packages/base/model-router/gen-poll-query.test.ts"
+      ],
+      "assertions": [
+        {
+          "kind": "sample",
+          "given": "已接受任务查询503/429/404，适配器返回failed导致poller将仍可能成功任务永久终结",
+          "expect": "401/404/429/503和非任务响应拒绝伪终态；明确任务失败仍failed，成功URL照常接受",
+          "command": "node node_modules/vitest/vitest.mjs run apps/server/src/video/gen/provider-poll-recovery.test.ts packages/base/model-router/gen-poll-query.test.ts --maxWorkers=1 --no-file-parallelism",
+          "exec": {
+            "file": "node",
+            "args": [
+              "node_modules/vitest/vitest.mjs",
+              "run",
+              "apps/server/src/video/gen/provider-poll-recovery.test.ts",
+              "packages/base/model-router/gen-poll-query.test.ts",
+              "--maxWorkers=1",
+              "--no-file-parallelism"
+            ]
+          },
+          "last_result": "not-run",
+          "required_environment": "RUN_DB_TESTS=1 and task-only DATABASE_URL / DATABASE_APP_URL / DATABASE_GATEWAY_URL"
+        }
+      ],
+      "regression": {
+        "command": "node node_modules/vitest/vitest.mjs run apps/server/src/video/gen/provider-poll-recovery.test.ts packages/base/model-router/gen-poll-query.test.ts --maxWorkers=1 --no-file-parallelism"
+      },
+      "rollback": "Revert the task source commit if necessary; do not mutate previously applied migrations. For0061, restore behavior only with a new forward migration. Existing issued supplier tasks must never be resubmitted as rollback.",
+      "notes": "Ordinary red/green actual runs exist; formal MCD repair and independent acceptance must run on parent-frozen clean commit before state promotion. Root authorized necessary same-repository base dependency repair; no cross-repository synchronization, publishing, quota, submit, fallback or configuration changes. Formal legacy test8fail/1pass before fix; combined38/38green after."
+    },
+    {
+      "id": "MC-014",
+      "kind": "problem",
+      "level": "L1",
+      "severity": "P1",
+      "batch": 1,
+      "title": "命令重放返回残缺视图，并发重试可能冲突",
+      "evidence": [
+        {
+          "type": "code",
+          "ref": "apps/server/src/video/pipeline/pipeline-repository.ts:248@9704c98feb6dc7a64edb199d1c02b667596b36ae",
+          "sha256": "2064a3a955e45e6ea73e7bacdd3307703916c94a38752d23445951042e44c30c",
+          "note": "A: source implementation fully read and actual scoped PostgreSQL reproduction."
+        }
+      ],
+      "root_cause": {
+        "file": "apps/server/src/video/pipeline/pipeline-repository.ts",
+        "line": 248,
+        "commit": "9704c98feb6dc7a64edb199d1c02b667596b36ae",
+        "symbol": "commandReplay/recordCommand"
+      },
+      "trigger_path": "同一作用域和幂等键先后或并发重送创建、认领、提交、门禁、刷新与中断",
+      "fix_plan": "在同一事务以工作区+幂等键串行并保存版本化完整回执；兼容旧摘要，不重做操作。",
+      "blast_radius": "现有控制面与 legacy 台账一致性及回执；模型、供应商、阶段策略保持原口径。",
+      "conflict_paths": [
+        "apps/server/src/video/pipeline/pipeline-repository.ts",
+        "apps/server/src/video/pipeline/pipeline-repository.pg.test.ts"
+      ],
+      "assertions": [
+        {
+          "kind": "sample",
+          "given": "同一作用域和幂等键先后或并发重送创建、认领、提交、门禁、刷新与中断",
+          "expect": "首次响应的完整同版本视图重放，只有一次事务副作用；旧历史摘要回读当前视图和原 manifest",
+          "command": "node node_modules/vitest/vitest.mjs run apps/server/src/video/pipeline/pipeline-repository.pg.test.ts --maxWorkers=1 --no-file-parallelism -t 'replays the full original response'",
+          "exec": {
+            "file": "node",
+            "args": [
+              "node_modules/vitest/vitest.mjs",
+              "run",
+              "apps/server/src/video/pipeline/pipeline-repository.pg.test.ts",
+              "--maxWorkers=1",
+              "--no-file-parallelism",
+              "-t",
+              "replays the full original response"
+            ]
+          },
+          "required_environment": "WORKLOOM_TEST_ADMIN_URL, WORKLOOM_TEST_APP_PASSWORD, WORKLOOM_TEST_GATEWAY_PASSWORD for disposable PostgreSQL only",
+          "last_result": "not-run"
+        }
+      ],
+      "regression": {
+        "command": "node node_modules/vitest/vitest.mjs run apps/server/src/video/pipeline/pipeline-repository.pg.test.ts --maxWorkers=1 --no-file-parallelism -t 'replays the full original response'"
+      },
+      "rollback": "源码按任务提交回退；已落库的 0062 不修改历史文件，恢复约束需单独向前迁移并验证同号数据。",
+      "notes": "普通红绿证据与真实 PG 当前通过；待冻结提交后执行正式独立验收。日志：control-repository-red.log, control-final-pg.log"
+    },
+    {
+      "id": "MC-015",
+      "kind": "problem",
+      "level": "L1",
+      "severity": "P1",
+      "batch": 1,
+      "title": "刷新前沿丢掉已就绪阶段",
+      "evidence": [
+        {
+          "type": "code",
+          "ref": "apps/server/src/video/pipeline/pipeline-repository.ts:1103@9704c98feb6dc7a64edb199d1c02b667596b36ae",
+          "sha256": "2064a3a955e45e6ea73e7bacdd3307703916c94a38752d23445951042e44c30c",
+          "note": "A: source implementation fully read and actual scoped PostgreSQL reproduction."
+        }
+      ],
+      "root_cause": {
+        "file": "apps/server/src/video/pipeline/pipeline-repository.ts",
+        "line": 1103,
+        "commit": "9704c98feb6dc7a64edb199d1c02b667596b36ae",
+        "symbol": "refreshFrontier"
+      },
+      "trigger_path": "新建含就绪根节点的 run，在根节点未认领时刷新前沿",
+      "fix_plan": "按更新后的最新阶段状态重算就绪集合与阻断状态。",
+      "blast_radius": "现有控制面与 legacy 台账一致性及回执；模型、供应商、阶段策略保持原口径。",
+      "conflict_paths": [
+        "apps/server/src/video/pipeline/pipeline-repository.ts",
+        "apps/server/src/video/pipeline/pipeline-repository.pg.test.ts"
+      ],
+      "assertions": [
+        {
+          "kind": "sample",
+          "given": "新建含就绪根节点的 run，在根节点未认领时刷新前沿",
+          "expect": "现有 ready 节点仍在 frontier，nextAction 为 run_node；只检查最新阶段状态的阻断条件",
+          "command": "node node_modules/vitest/vitest.mjs run apps/server/src/video/pipeline/pipeline-repository.pg.test.ts --maxWorkers=1 --no-file-parallelism -t 'keeps an already ready stage'",
+          "exec": {
+            "file": "node",
+            "args": [
+              "node_modules/vitest/vitest.mjs",
+              "run",
+              "apps/server/src/video/pipeline/pipeline-repository.pg.test.ts",
+              "--maxWorkers=1",
+              "--no-file-parallelism",
+              "-t",
+              "keeps an already ready stage"
+            ]
+          },
+          "required_environment": "WORKLOOM_TEST_ADMIN_URL, WORKLOOM_TEST_APP_PASSWORD, WORKLOOM_TEST_GATEWAY_PASSWORD for disposable PostgreSQL only",
+          "last_result": "not-run"
+        }
+      ],
+      "regression": {
+        "command": "node node_modules/vitest/vitest.mjs run apps/server/src/video/pipeline/pipeline-repository.pg.test.ts --maxWorkers=1 --no-file-parallelism -t 'keeps an already ready stage'"
+      },
+      "rollback": "源码按任务提交回退；已落库的 0062 不修改历史文件，恢复约束需单独向前迁移并验证同号数据。",
+      "notes": "普通红绿证据与真实 PG 当前通过；待冻结提交后执行正式独立验收。日志：control-repository-red.log, control-final-pg.log"
+    },
+    {
+      "id": "MC-016",
+      "kind": "problem",
+      "level": "L1",
+      "severity": "P1",
+      "batch": 1,
+      "title": "租约失效或不匹配仍可提交，启动中断调和失效",
+      "evidence": [
+        {
+          "type": "code",
+          "ref": "apps/server/src/video/pipeline/pipeline-repository.ts:783@9704c98feb6dc7a64edb199d1c02b667596b36ae",
+          "sha256": "2064a3a955e45e6ea73e7bacdd3307703916c94a38752d23445951042e44c30c",
+          "note": "A: source implementation fully read and actual scoped PostgreSQL reproduction."
+        }
+      ],
+      "root_cause": {
+        "file": "apps/server/src/video/pipeline/pipeline-repository.ts",
+        "line": 783,
+        "commit": "9704c98feb6dc7a64edb199d1c02b667596b36ae",
+        "symbol": "claimStage/commitArtifact/recordGateDecision/markInterrupted"
+      },
+      "trigger_path": "持有当前 revision 的其他 worker 或旧租约提交产物；门禁完成时仍有并行阶段，重启扫描同 run 多个过期阶段",
+      "fix_plan": "核对 run 与阶段认领身份和期限；还有 running 阶段则保留共享租约；修正中断 SQL 参数并按 run 去重。",
+      "blast_radius": "现有控制面与 legacy 台账一致性及回执；模型、供应商、阶段策略保持原口径。",
+      "conflict_paths": [
+        "apps/server/src/video/pipeline/pipeline-repository.ts",
+        "apps/server/src/video/pipeline/reconciler.ts",
+        "apps/server/src/video/pipeline/pipeline-repository.pg.test.ts"
+      ],
+      "assertions": [
+        {
+          "kind": "sample",
+          "given": "持有当前 revision 的其他 worker 或旧租约提交产物；门禁完成时仍有并行阶段，重启扫描同 run 多个过期阶段",
+          "expect": "错 owner 与过期回执无 DB 副作用；并行持有者仍可提交；过期续接需要调和，调和恰好更新一次 run",
+          "command": "node node_modules/vitest/vitest.mjs run apps/server/src/video/pipeline/pipeline-repository.pg.test.ts --maxWorkers=1 --no-file-parallelism -t 'artifact writer|marks running work interrupted|preserves a live sibling claim'",
+          "exec": {
+            "file": "node",
+            "args": [
+              "node_modules/vitest/vitest.mjs",
+              "run",
+              "apps/server/src/video/pipeline/pipeline-repository.pg.test.ts",
+              "--maxWorkers=1",
+              "--no-file-parallelism",
+              "-t",
+              "artifact writer|marks running work interrupted|preserves a live sibling claim"
+            ]
+          },
+          "required_environment": "WORKLOOM_TEST_ADMIN_URL, WORKLOOM_TEST_APP_PASSWORD, WORKLOOM_TEST_GATEWAY_PASSWORD for disposable PostgreSQL only",
+          "last_result": "not-run"
+        }
+      ],
+      "regression": {
+        "command": "node node_modules/vitest/vitest.mjs run apps/server/src/video/pipeline/pipeline-repository.pg.test.ts --maxWorkers=1 --no-file-parallelism -t 'artifact writer|marks running work interrupted|preserves a live sibling claim'"
+      },
+      "rollback": "源码按任务提交回退；已落库的 0062 不修改历史文件，恢复约束需单独向前迁移并验证同号数据。",
+      "notes": "普通红绿证据与真实 PG 当前通过；待冻结提交后执行正式独立验收。日志：control-repository-red.log, control-final-pg.log"
+    },
+    {
+      "id": "MC-017",
+      "kind": "problem",
+      "level": "L1",
+      "severity": "P1",
+      "batch": 1,
+      "title": "旧档案台账与控制面阶段共用约束与错误查询边界",
+      "evidence": [
+        {
+          "type": "code",
+          "ref": "apps/server/src/video/archive-host.ts:118@9704c98feb6dc7a64edb199d1c02b667596b36ae",
+          "sha256": "e8cba5b39a8b95cc465e8d49c408f0be64d5c49e34be4e76f996ee86006b4eff",
+          "note": "A: source implementation fully read and actual scoped PostgreSQL reproduction."
+        }
+      ],
+      "root_cause": {
+        "file": "apps/server/src/video/archive-host.ts",
+        "line": 118,
+        "commit": "9704c98feb6dc7a64edb199d1c02b667596b36ae",
+        "symbol": "makeLedgerWriter/markProjectInterrupted/readStageBreakpoints/resumeProject/scanStaleRunsOnStartup"
+      },
+      "trigger_path": "同项目同 stage+attempt 同时写入旧台账和控制面；旧台账终结、心跳、手动恢复或启动扫描",
+      "fix_plan": "0062 删除残留的 0038 全局唯一约束；所有旧台账操作绑定 pipeline_run_id IS NULL。",
+      "blast_radius": "现有控制面与 legacy 台账一致性及回执；模型、供应商、阶段策略保持原口径。",
+      "conflict_paths": [
+        "apps/server/src/video/archive-host.ts",
+        "apps/server/src/video/archive-resume.ts",
+        "apps/server/src/video/pipeline/pipeline-repository.pg.test.ts",
+        "packages/db/migrations/0062_production_stage_ledger_namespace.sql"
+      ],
+      "assertions": [
+        {
+          "kind": "sample",
+          "given": "同项目同 stage+attempt 同时写入旧台账和控制面；旧台账终结、心跳、手动恢复或启动扫描",
+          "expect": "两个名字空间可同号，各自写读隔离；原 legacy 记录和两个局部唯一索引保留；旧库升级可重跑",
+          "command": "node node_modules/vitest/vitest.mjs run apps/server/src/video/pipeline/pipeline-repository.pg.test.ts --maxWorkers=1 --no-file-parallelism -t 'isolates legacy claim|keeps control rows intact'",
+          "exec": {
+            "file": "node",
+            "args": [
+              "node_modules/vitest/vitest.mjs",
+              "run",
+              "apps/server/src/video/pipeline/pipeline-repository.pg.test.ts",
+              "--maxWorkers=1",
+              "--no-file-parallelism",
+              "-t",
+              "isolates legacy claim|keeps control rows intact"
+            ]
+          },
+          "required_environment": "WORKLOOM_TEST_ADMIN_URL, WORKLOOM_TEST_APP_PASSWORD, WORKLOOM_TEST_GATEWAY_PASSWORD for disposable PostgreSQL only",
+          "last_result": "not-run"
+        }
+      ],
+      "regression": {
+        "command": "node node_modules/vitest/vitest.mjs run apps/server/src/video/pipeline/pipeline-repository.pg.test.ts --maxWorkers=1 --no-file-parallelism -t 'isolates legacy claim|keeps control rows intact'"
+      },
+      "rollback": "源码按任务提交回退；已落库的 0062 不修改历史文件，恢复约束需单独向前迁移并验证同号数据。",
+      "notes": "普通红绿证据与真实 PG 当前通过；待冻结提交后执行正式独立验收。日志：control-legacy-red.log, control-legacy-sql-red.log, control-ledger-upgrade.log, control-final-pg.log"
+    },
+    {
+      "id": "MC-018",
+      "external_id": "R2-018",
+      "kind": "problem",
+      "level": "L1",
+      "severity": "P0",
+      "batch": 0,
+      "title": "缺真实凭据时Mock池为已接受真实任务写假外部成功回执",
+      "evidence": [
+        {
+          "type": "code",
+          "ref": "apps/server/src/video/render-poller.ts:113@9704c98feb6dc7a64edb199d1c02b667596b36ae",
+          "sha256": "2ad8ca7e875702f8921759ecf2dceb71c67127fc382f678fe3a44e682984f151",
+          "note": "default real pool merges global demo fallback"
+        },
+        {
+          "type": "code",
+          "ref": "packages/base/model-router/gen-pool.ts:257@9704c98feb6dc7a64edb199d1c02b667596b36ae",
+          "sha256": "9b111d204d88dbc6d26566514f427f4efb1c5741ebe4c7064d60fe12bcb09826",
+          "note": "no Ark credential installs MockGenProvider"
+        }
+      ],
+      "root_cause": {
+        "file": "apps/server/src/video/render-poller.ts",
+        "line": 113,
+        "commit": "9704c98feb6dc7a64edb199d1c02b667596b36ae",
+        "symbol": "pollRenderJobs/resolveProvider"
+      },
+      "trigger_path": "Real non-mock render job exists, deployment lacks Ark key; genPoolFromEnv inserts MockGenProvider in realPool, mock URL is persisted as done/mock=false/receipt.synced=true without network. A real supplier may return a taskId beginning mock-; prefix inference also overrides row.mock=false. Persisted mock=true needs no prefix guess.",
+      "fix_plan": "Filter MockGenProvider from real provider pool; only explicitly mock task IDs may resolve via explicit mockPool. Global demo Mock behavior remains unchanged. Use render_jobs.mock as the explicit persisted classification for provider dispatch, event receipt, and cost; update the stress mock fixture to set that flag.",
+      "blast_radius": "Poll only, real credential removal and explicit mock classification. No paid submit path, acceptance-quality policy or global demo behavior changes.",
+      "conflict_paths": [
+        "apps/server/src/video/render-poller.ts",
+        "stress/stress-render.ts"
+      ],
+      "assertions": [
+        {
+          "kind": "sample",
+          "given": "Real issued task with no credentials or explicit Mock injected; explicit mock and real-success control jobs",
+          "expect": "Real missing-credential tasks remain submitted/unverified with no mock URL/terminal event/network; explicit mock has mock=true/synced=false; real success URL still accepted and submit not called",
+          "command": "node node_modules/vitest/vitest.mjs run apps/server/src/video/render-poller-mock-boundary.pg.test.ts --maxWorkers=1 --no-file-parallelism",
+          "exec": {
+            "file": "node",
+            "args": [
+              "node_modules/vitest/vitest.mjs",
+              "run",
+              "apps/server/src/video/render-poller-mock-boundary.pg.test.ts",
+              "--maxWorkers=1",
+              "--no-file-parallelism"
+            ]
+          },
+          "last_result": "not-run",
+          "required_environment": "RUN_DB_TESTS=1 and isolated task PostgreSQL database URLs"
+        }
+      ],
+      "regression": {
+        "command": "node node_modules/vitest/vitest.mjs run apps/server/src/video/render-poller-mock-boundary.pg.test.ts --maxWorkers=1 --no-file-parallelism"
+      },
+      "rollback": "Revert task source commit; never resubmit an existing accepted real task or allow demo fallback to claim real success.",
+      "notes": "Before source fix ordinary formal test2failed/2passed; root adds ledger before source repair. Independent root acceptance required. Additional formal red covers real false+mock prefix and true+nonprefix; prior current and earliest submit code both persisted receipt.mock."
+    },
+    {
+      "id": "MC-019",
+      "external_id": "R2-019",
+      "kind": "problem",
+      "level": "L1",
+      "severity": "P1",
+      "batch": 1,
+      "title": "Completed ingested render jobs permanently lose accounting after a temporary cost write failure",
+      "evidence": [
+        {
+          "type": "code",
+          "ref": "apps/server/src/video/render-poller.ts:316@9704c98feb6dc7a64edb199d1c02b667596b36ae",
+          "sha256": "2ad8ca7e875702f8921759ecf2dceb71c67127fc382f678fe3a44e682984f151",
+          "note": "A: terminal job commits before recordRenderCost; next scan excludes all done rows"
+        }
+      ],
+      "root_cause": {
+        "file": "apps/server/src/video/render-poller.ts",
+        "line": 316,
+        "commit": "9704c98feb6dc7a64edb199d1c02b667596b36ae",
+        "symbol": "pollRenderJobs/recordRenderCost"
+      },
+      "trigger_path": "The provider has succeeded and the media asset is linked. One INSERT budget_ledger fails; the job stays done and future polling excludes it, leaving render:<jobId> permanently absent.",
+      "fix_plan": "Select completed jobs whose original render:<jobId> accounting receipt is absent. Reconcile the persisted actual price and units under the job lease; never re-price, re-poll, download again or dispatch generation.",
+      "blast_radius": "Same render job, task identity, media receipt and tenant scope; generation submit/unknown/accepted dispatch contract and media success acceptance policy preserved. Shared poller changes must be reviewed together.",
+      "conflict_paths": [
+        "apps/server/src/video/render-poller.ts",
+        "apps/server/src/video/render-poller.ts"
+      ],
+      "assertions": [
+        {
+          "kind": "sample",
+          "given": "One cost write failure after completed media ingestion; concurrent recovery of historical done jobs with no URL and ingest disabled.",
+          "expect": "Exactly one cost row uses original actual amount, USD and units despite exchange-rate change; terminal event stays unique; provider poll/download only occur initially and submit is never called.",
+          "command": "node node_modules/vitest/vitest.mjs run apps/server/src/video/render-cost-reconciliation.pg.test.ts --maxWorkers=1 --no-file-parallelism",
+          "exec": {
+            "file": "node",
+            "args": [
+              "node_modules/vitest/vitest.mjs",
+              "run",
+              "apps/server/src/video/render-cost-reconciliation.pg.test.ts",
+              "--maxWorkers=1",
+              "--no-file-parallelism"
+            ]
+          },
+          "last_result": "not-run",
+          "required_environment": "RUN_DB_TESTS=1 and isolated task PostgreSQL database URLs"
+        }
+      ],
+      "regression": {
+        "command": "node node_modules/vitest/vitest.mjs run apps/server/src/video/render-cost-reconciliation.pg.test.ts --maxWorkers=1 --no-file-parallelism"
+      },
+      "rollback": "Revert the task source commit if necessary; do not mutate previously applied migrations. For0061, restore behavior only with a new forward migration. Existing issued supplier tasks must never be resubmitted as rollback.",
+      "notes": "Formal red:2/2 failures in render-r2-cost-reconciliation-red.log before source edit. Formal clean-commit repair and independent acceptance remain pending."
+    },
+    {
+      "id": "MC-020",
+      "external_id": "R2-020",
+      "kind": "problem",
+      "level": "L1",
+      "severity": "P1",
+      "batch": 1,
+      "title": "Download size budget is checked only after buffering the entire response",
+      "evidence": [
+        {
+          "type": "code",
+          "ref": "apps/server/src/video/gen/ingest.ts:61@9704c98feb6dc7a64edb199d1c02b667596b36ae",
+          "sha256": "1e6445bae0eee9bef061ba64007ef41ed60511c50bd09685ab226c70c7cadf91",
+          "note": "A: arrayBuffer completes before maxBytes comparison; bounded streams reproduce excessive reads"
+        }
+      ],
+      "root_cause": {
+        "file": "apps/server/src/video/gen/ingest.ts",
+        "line": 61,
+        "commit": "9704c98feb6dc7a64edb199d1c02b667596b36ae",
+        "symbol": "downloadToMediaStore"
+      },
+      "trigger_path": "Supplier body exceeds maxBytes or declares an already excessive Content-Length; the implementation still buffers the complete body before rejecting.",
+      "fix_plan": "Reject excessive declared lengths before reading and count actual stream bytes while reading; cancel on overflow/HTTP failure, release the reader on every path, publish only a complete within-budget nonempty result. Default300MB stays unchanged.",
+      "blast_radius": "Same render job, task identity, media receipt and tenant scope; generation submit/unknown/accepted dispatch contract and media success acceptance policy preserved. Shared poller changes must be reviewed together.",
+      "conflict_paths": [
+        "apps/server/src/video/gen/ingest.ts"
+      ],
+      "assertions": [
+        {
+          "kind": "sample",
+          "given": "Small deterministic ReadableStreams with counters: excessive header, absent/lying header, exact budget, empty, HTTP503, interrupted read",
+          "expect": "Overflow cancels without reading full stream and creates no file; exact-budget bytes/hash match; empty/HTTP/error paths reject and release resources",
+          "command": "node node_modules/vitest/vitest.mjs run apps/server/src/video/gen/ingest-download-limit.test.ts --maxWorkers=1 --no-file-parallelism",
+          "exec": {
+            "file": "node",
+            "args": [
+              "node_modules/vitest/vitest.mjs",
+              "run",
+              "apps/server/src/video/gen/ingest-download-limit.test.ts",
+              "--maxWorkers=1",
+              "--no-file-parallelism"
+            ]
+          },
+          "last_result": "not-run"
+        }
+      ],
+      "regression": {
+        "command": "node node_modules/vitest/vitest.mjs run apps/server/src/video/gen/ingest-download-limit.test.ts --maxWorkers=1 --no-file-parallelism"
+      },
+      "rollback": "Revert source patch if required, while preserving original issued tasks and media identities; never re-dispatch generation.",
+      "notes": "Root discovered resource-bound defect. All fixtures are <=500bytes, no large allocation and no external I/O. Card remains open pending clean-commit repair and independent acceptance."
+    },
+    {
+      "id": "MC-021",
+      "external_id": "R2-021",
+      "kind": "problem",
+      "level": "L1",
+      "severity": "P1",
+      "batch": 1,
+      "title": "Provider succeeded without an artifact URL becomes an unrecoverable false terminal job",
+      "evidence": [
+        {
+          "type": "code",
+          "ref": "apps/server/src/video/render-poller.ts:196@9704c98feb6dc7a64edb199d1c02b667596b36ae",
+          "sha256": "2ad8ca7e875702f8921759ecf2dceb71c67127fc382f678fe3a44e682984f151",
+          "note": "A: implementation trace; independent marketing baseline reproduction plus formal real-role PG test"
+        }
+      ],
+      "root_cause": {
+        "file": "apps/server/src/video/render-poller.ts",
+        "line": 196,
+        "commit": "9704c98feb6dc7a64edb199d1c02b667596b36ae",
+        "symbol": "pollRenderJobs"
+      },
+      "trigger_path": "Real Ark HTTP200 says succeeded without video_url; poller commits done with no media receipt and excludes future lookup.",
+      "fix_plan": "Treat missing/blank artifact URL as an unresolved lookup on the same task. Query again later and accept its original supplied artifact without generation resubmission.",
+      "blast_radius": "Same render job, task identity, media receipt and tenant scope; generation submit/unknown/accepted dispatch contract and media success acceptance policy preserved. Shared poller changes must be reviewed together.",
+      "conflict_paths": [
+        "apps/server/src/video/render-poller.ts",
+        "apps/server/src/video/render-poller.ts"
+      ],
+      "assertions": [
+        {
+          "kind": "sample",
+          "given": "Real Ark HTTP200 says succeeded without video_url; poller commits done with no media receipt and excludes future lookup.",
+          "expect": "Missing/empty/blank URI gives no terminal event or asset; later original-task lookup with URL ingests once, terminal event once, submit never called.",
+          "command": "node node_modules/vitest/vitest.mjs run apps/server/src/video/render-poller-receipts-scheduling.pg.test.ts --maxWorkers=1 --no-file-parallelism",
+          "exec": {
+            "file": "node",
+            "args": [
+              "node_modules/vitest/vitest.mjs",
+              "run",
+              "apps/server/src/video/render-poller-receipts-scheduling.pg.test.ts",
+              "--maxWorkers=1",
+              "--no-file-parallelism"
+            ]
+          },
+          "last_result": "not-run",
+          "required_environment": "RUN_DB_TESTS=1 and isolated task PostgreSQL database URLs"
+        }
+      ],
+      "regression": {
+        "command": "node node_modules/vitest/vitest.mjs run apps/server/src/video/render-poller-receipts-scheduling.pg.test.ts --maxWorkers=1 --no-file-parallelism"
+      },
+      "rollback": "Revert the task source commit if necessary; do not mutate previously applied migrations. For0061, restore behavior only with a new forward migration. Existing issued supplier tasks must never be resubmitted as rollback.",
+      "notes": "Independent marketing evidence and ordinary formal red exist before this repair. Parent adds shared ledger before source edits; no source self-verification is claimed."
+    },
+    {
+      "id": "MC-022",
+      "external_id": "R2-022",
+      "kind": "problem",
+      "level": "L1",
+      "severity": "P1",
+      "batch": 1,
+      "title": "Bounded polling permanently starves later tasks and completed-job reconciliation",
+      "evidence": [
+        {
+          "type": "code",
+          "ref": "apps/server/src/video/render-poller.ts:147@9704c98feb6dc7a64edb199d1c02b667596b36ae",
+          "sha256": "2ad8ca7e875702f8921759ecf2dceb71c67127fc382f678fe3a44e682984f151",
+          "note": "A: implementation trace; independent marketing baseline reproduction plus formal real-role PG test"
+        }
+      ],
+      "root_cause": {
+        "file": "apps/server/src/video/render-poller.ts",
+        "line": 147,
+        "commit": "9704c98feb6dc7a64edb199d1c02b667596b36ae",
+        "symbol": "pollRenderJobs"
+      },
+      "trigger_path": "limit1 repeatedly selects an old rendering or unconfigured job; updated_at does not rotate and open tasks always sort before completed recovery.",
+      "fix_plan": "Advance the scheduling cursor under the per-job lease before I/O/skip, sort all pending work by cursor, and preserve the existing job count limit and timeout threshold.",
+      "blast_radius": "Same render job, task identity, media receipt and tenant scope; generation submit/unknown/accepted dispatch contract and media success acceptance policy preserved. Shared poller changes must be reviewed together.",
+      "conflict_paths": [
+        "apps/server/src/video/render-poller.ts",
+        "apps/server/src/video/render-poller.ts"
+      ],
+      "assertions": [
+        {
+          "kind": "sample",
+          "given": "limit1 repeatedly selects an old rendering or unconfigured job; updated_at does not rotate and open tasks always sort before completed recovery.",
+          "expect": "Four bounded polls rotate old/new jobs; cost recovery and missing-credential skip do not starve other jobs; no supplier submit is called.",
+          "command": "node node_modules/vitest/vitest.mjs run apps/server/src/video/render-poller-receipts-scheduling.pg.test.ts --maxWorkers=1 --no-file-parallelism",
+          "exec": {
+            "file": "node",
+            "args": [
+              "node_modules/vitest/vitest.mjs",
+              "run",
+              "apps/server/src/video/render-poller-receipts-scheduling.pg.test.ts",
+              "--maxWorkers=1",
+              "--no-file-parallelism"
+            ]
+          },
+          "last_result": "not-run",
+          "required_environment": "RUN_DB_TESTS=1 and isolated task PostgreSQL database URLs"
+        }
+      ],
+      "regression": {
+        "command": "node node_modules/vitest/vitest.mjs run apps/server/src/video/render-poller-receipts-scheduling.pg.test.ts --maxWorkers=1 --no-file-parallelism"
+      },
+      "rollback": "Revert the task source commit if necessary; do not mutate previously applied migrations. For0061, restore behavior only with a new forward migration. Existing issued supplier tasks must never be resubmitted as rollback.",
+      "notes": "Independent marketing evidence and ordinary formal red exist before this repair. Parent adds shared ledger before source edits; no source self-verification is claimed."
+    },
+    {
+      "id": "MC-023",
+      "kind": "problem",
+      "level": "L1",
+      "severity": "P1",
+      "batch": 2,
+      "title": "档案最新状态回退及并发阶段投影丢失",
+      "evidence": [
+        {
+          "type": "code",
+          "ref": "packages/video-studio/src/archive/store.ts:235@9704c98feb6dc7a64edb199d1c02b667596b36ae",
+          "sha256": "e2e84de2f5b3713e1fee1d7922a9eb7f0b5734481ef09d3f4d5fc7f548c625ef",
+          "note": "A: source-to-entry path; B red fixture independent-marketing-state-probes.json and mc023-024-formal-red.log"
+        }
+      ],
+      "root_cause": {
+        "file": "packages/video-studio/src/archive/store.ts",
+        "line": 235,
+        "symbol": "ArchiveStore.updateLedger",
+        "commit": "9704c98feb6dc7a64edb199d1c02b667596b36ae"
+      },
+      "trigger_path": "同项目多个渲染回执并发落盘；更新较新的 attempt 后，旧 attempt 延迟完成，或两个不同阶段读到同一 manifest",
+      "fix_plan": "同一项目使用短时 PostgreSQL advisory transaction lock 串行生产档案读改写；独立本地 store 使用目录队列；在锁内保证 attempt 与阶段终态单调。",
+      "blast_radius": "Legacy 档案投影与启动恢复，作用域为单个租户、工作区、项目；普通开始与收费政策沿用原有入口。",
+      "conflict_paths": [
+        "packages/video-studio/src/archive/store.ts",
+        "apps/server/src/video/archive-host.ts",
+        "apps/server/src/video/studio-worker.ts",
+        "packages/video-studio/src/archive/manifest-concurrency-r2.test.ts"
+      ],
+      "assertions": [
+        {
+          "kind": "sample",
+          "given": "同项目多个渲染回执并发落盘；更新较新的 attempt 后，旧 attempt 延迟完成，或两个不同阶段读到同一 manifest",
+          "expect": "同项目读取、合并、写入串行；保留不同 stage，最新同阶段不回退，旧一代状态可追溯",
+          "command": "node node_modules/vitest/vitest.mjs run packages/video-studio/src/archive/manifest-concurrency-r2.test.ts --maxWorkers=1 --no-file-parallelism",
+          "exec": {
+            "file": "node",
+            "args": [
+              "node_modules/vitest/vitest.mjs",
+              "run",
+              "packages/video-studio/src/archive/manifest-concurrency-r2.test.ts",
+              "--maxWorkers=1",
+              "--no-file-parallelism"
+            ]
+          },
+          "last_result": "not-run"
+        }
+      ],
+      "regression": {
+        "command": "node node_modules/vitest/vitest.mjs run packages/video-studio/src/archive/manifest-concurrency-r2.test.ts --maxWorkers=1 --no-file-parallelism"
+      },
+      "notes": "独立负控与正式红测已落盘；使用合成档案与本地隔离 PostgreSQL，无供应商调用。"
+    },
+    {
+      "id": "MC-024",
+      "kind": "problem",
+      "level": "L1",
+      "severity": "P1",
+      "batch": 2,
+      "title": "恢复已校验的档案快照可在实际启动前过期",
+      "evidence": [
+        {
+          "type": "code",
+          "ref": "apps/server/src/video/archive-resume.ts:221@9704c98feb6dc7a64edb199d1c02b667596b36ae",
+          "sha256": "741f323cc54f2f37516b9ea54c1d9ff9467f03c06023a379146d622ba20138d6",
+          "note": "A: source-to-entry path; B red fixture independent-marketing-state-probes.json and mc023-024-formal-red.log"
+        }
+      ],
+      "root_cause": {
+        "file": "apps/server/src/video/archive-resume.ts",
+        "line": 221,
+        "symbol": "resumeProject/startResumedRun",
+        "commit": "9704c98feb6dc7a64edb199d1c02b667596b36ae"
+      },
+      "trigger_path": "恢复拿到 attempt 1 的台账/快照；检查与实际 worker 持锁间，另一次合法运行生成更新完成 attempt 2",
+      "fix_plan": "原始恢复输入及内部精确 guard 分开传入实际 worker 启动接缝。复核作用域、创建时间、阶段行ID、attempt、run/status、ref和输入摘要，在同一 session lease 下交接给 worker。",
+      "blast_radius": "Legacy 档案投影与启动恢复，作用域为单个租户、工作区、项目；普通开始与收费政策沿用原有入口。",
+      "conflict_paths": [
+        "apps/server/src/video/archive-resume.ts",
+        "apps/server/src/video/studio-worker.ts",
+        "apps/server/src/video/archive-host.ts",
+        "apps/server/src/video/router.ts",
+        "apps/server/src/video/archive-resume-input-r2.test.ts"
+      ],
+      "assertions": [
+        {
+          "kind": "sample",
+          "given": "恢复拿到 attempt 1 的台账/快照；检查与实际 worker 持锁间，另一次合法运行生成更新完成 attempt 2",
+          "expect": "实际项目租约持有后核对最新 legacy 阶段行和档案字节；身份不符不启动、无付费或注册副作用",
+          "command": "node node_modules/vitest/vitest.mjs run apps/server/src/video/archive-resume-input-r2.test.ts --maxWorkers=1 --no-file-parallelism",
+          "exec": {
+            "file": "node",
+            "args": [
+              "node_modules/vitest/vitest.mjs",
+              "run",
+              "apps/server/src/video/archive-resume-input-r2.test.ts",
+              "--maxWorkers=1",
+              "--no-file-parallelism"
+            ]
+          },
+          "last_result": "not-run"
+        }
+      ],
+      "regression": {
+        "command": "node node_modules/vitest/vitest.mjs run apps/server/src/video/archive-resume-input-r2.test.ts --maxWorkers=1 --no-file-parallelism"
+      },
+      "notes": "独立负控与正式红测已落盘；使用合成档案与本地隔离 PostgreSQL，无供应商调用。"
+    },
+    {
+      "id": "MC-025",
+      "external_id": "R2-025",
+      "kind": "problem",
+      "level": "L1",
+      "severity": "P0",
+      "batch": 0,
+      "title": "Polling configuration drift can attach a different endpoint result to a previously qualified task",
+      "evidence": [
+        {
+          "type": "code",
+          "ref": "apps/server/src/video/render-poller.ts:113@9704c98feb6dc7a64edb199d1c02b667596b36ae",
+          "sha256": "2ad8ca7e875702f8921759ecf2dceb71c67127fc382f678fe3a44e682984f151",
+          "note": "Runtime pool config determines poll target"
+        },
+        {
+          "type": "code",
+          "ref": "apps/server/src/video/production-authority.ts:665@9704c98feb6dc7a64edb199d1c02b667596b36ae",
+          "sha256": "73ec895a14f45fefa4a516ae77f770f391b1aaa29e3026ec4a22ed051ba2a300",
+          "note": "Qualified exact compiled endpoint already bound before submit"
+        },
+        {
+          "type": "code",
+          "ref": "apps/server/src/video/gen/submit.ts:137@9704c98feb6dc7a64edb199d1c02b667596b36ae",
+          "sha256": "5681ed3c2cdb1f943ecdba9ff8e7c73f485c32c0a2d99041b68c46cc6e2e19c1",
+          "note": "Job keeps task/provider/model but no saved endpoint"
+        }
+      ],
+      "root_cause": {
+        "file": "apps/server/src/video/render-poller.ts",
+        "line": 113,
+        "commit": "9704c98feb6dc7a64edb199d1c02b667596b36ae",
+        "symbol": "pollRenderJobs/resolveProvider"
+      },
+      "trigger_path": "A real qualification compiles endpoint A; accepted/finalized submission stores the task. Deployment endpoint changes to B. Poller queries B for the same task string and commits its artifact as synced success.",
+      "fix_plan": "Persist approved compiled endpoint SHA256 in immutable accepted receipt, with legacy fallback to scoped accepted job/request-hash/qualification endpoint. Compare against the actual adapter configuration before lookup. Never use a database URL as a request destination.",
+      "blast_radius": "Qualified real remote provider status query only; retains original task and independent accepted ingest/accounting. No network is added and no new supplier generation request occurs.",
+      "conflict_paths": [
+        "apps/server/src/video/render-poller.ts",
+        "apps/server/src/video/gen/providers.ts",
+        "apps/server/src/video/gen/submit.ts",
+        "apps/server/src/video/gen/submission-ledger.ts",
+        "apps/server/src/video/production-authority.pg.test.ts"
+      ],
+      "assertions": [
+        {
+          "kind": "sample",
+          "given": "Real PG issuance/POST acceptance on A, then same endpoint or B with an apparent same-task successful fixture; also simulate historical receipt missing the new digest.",
+          "expect": "Same A lookups still work. Drift never calls B, preserves original submitted task and no terminal receipt; historical qualifications retain comparable proof; provider submit runs once.",
+          "command": "node node_modules/vitest/vitest.mjs run apps/server/src/video/production-authority.pg.test.ts --maxWorkers=1 --no-file-parallelism",
+          "exec": {
+            "file": "node",
+            "args": [
+              "node_modules/vitest/vitest.mjs",
+              "run",
+              "apps/server/src/video/production-authority.pg.test.ts",
+              "--maxWorkers=1",
+              "--no-file-parallelism"
+            ]
+          },
+          "last_result": "not-run",
+          "required_environment": "RUN_DB_TESTS=1 and isolated task PostgreSQL database URLs"
+        }
+      ],
+      "regression": {
+        "command": "node node_modules/vitest/vitest.mjs run apps/server/src/video/production-authority.pg.test.ts --maxWorkers=1 --no-file-parallelism"
+      },
+      "rollback": "Revert source patch if necessary; receipt metadata is optional and old rows remain readable. Never re-submit an already accepted job as rollback.",
+      "notes": "Full real-PG baseline and candidate repro logs; external fetch intercepted, zero paid I/O. Formal red and positive same-endpoint controls run before change."
+    },
+    {
+      "id": "MC-026",
+      "external_id": "R2-026",
+      "kind": "problem",
+      "level": "L1",
+      "severity": "P1",
+      "batch": 1,
+      "title": "Film 工位已接受任务遇暂时查询故障即退出并丢失任务号",
+      "evidence": [
+        {
+          "type": "code",
+          "ref": "apps/server/src/video/film-worker.ts:842@9704c98feb6dc7a64edb199d1c02b667596b36ae",
+          "sha256": "ab4daab2e8a7ac0d046cf82cc4a5b596cd428316c0c2e45b1787bf1e1a2b0b1b",
+          "note": "A：Ark 已接受 taskId 仅留在本次函数局部变量。"
+        },
+        {
+          "type": "code",
+          "ref": "apps/server/src/video/film-worker.ts:848@9704c98feb6dc7a64edb199d1c02b667596b36ae",
+          "sha256": "ab4daab2e8a7ac0d046cf82cc4a5b596cd428316c0c2e45b1787bf1e1a2b0b1b",
+          "note": "A：查询错误提前结束本次回查。基线 HTTP 503 被标成供应商失败，MC-013 候选改成 unknown 但仍丢失 taskId。"
+        },
+        {
+          "type": "code",
+          "ref": "apps/server/src/video/film-worker.ts:578@9704c98feb6dc7a64edb199d1c02b667596b36ae",
+          "sha256": "ab4daab2e8a7ac0d046cf82cc4a5b596cd428316c0c2e45b1787bf1e1a2b0b1b",
+          "note": "A：失败回执只持有错误摘要。B：独立离线入口探针与 5 条正式测试均复现。"
+        },
+        {
+          "type": "code",
+          "ref": "apps/server/src/video/film-ledger.ts:472@9704c98feb6dc7a64edb199d1c02b667596b36ae",
+          "sha256": "f8a1d7c9d1b77058b5ceccb1f1511b93c85d85a406639be04d9505f9bee48b42",
+          "note": "A：失败更新替换全部 evidence，未保留已经确认的供应商任务身份。"
+        }
+      ],
+      "root_cause": {
+        "file": "apps/server/src/video/film-worker.ts",
+        "line": 848,
+        "commit": "9704c98feb6dc7a64edb199d1c02b667596b36ae",
+        "symbol": "runVideo/handleFilmChannelRequest"
+      },
+      "trigger_path": "Film 固定工位 video.generate 已通过范围/配额预占，供应商只接受一次 POST。首个任务查询返回 503，之后同一任务可正常成功。当前第一拍退出，失败或 unknown 回执没有已知 taskId。",
+      "fix_plan": "以同组件同 owner 和实际供应商身份追加任务号/编译请求摘要，保持原派发次数与终态。瞬态故障在原 poll/job 截止时间内重查同一 task，超时及已知回执写失败留待对账。明确供应商拒绝仍记真实失败。",
+      "blast_radius": "仅 Film 固定工位 video.generate 的已接受回执和查询循环，以及同一 FilmLedger 的证据投影。零迁移、零新付费调用、保留预算预占、角色围栏、现有产物摘要和失败分类。",
+      "conflict_paths": [
+        "apps/server/src/video/film-worker.ts",
+        "apps/server/src/video/film-ledger.ts"
+      ],
+      "assertions": [
+        {
+          "kind": "sample",
+          "given": "已接受任务，第一次查询503，随后有效；另外注入deadline、作业中止、回执写失败和明确供应商拒绝。",
+          "expect": "唯一生成，任务号在首次GET前记账，只回查原task，unknown保持任务与作用域，明确拒绝才failed。",
+          "command": "node node_modules/vitest/vitest.mjs run apps/server/src/video/film-video-reconciliation.test.ts --maxWorkers=1 --no-file-parallelism",
+          "exec": {
+            "file": "node",
+            "args": [
+              "node_modules/vitest/vitest.mjs",
+              "run",
+              "apps/server/src/video/film-video-reconciliation.test.ts",
+              "--maxWorkers=1",
+              "--no-file-parallelism"
+            ]
+          },
+          "last_result": "not-run"
+        },
+        {
+          "kind": "sample",
+          "given": "真实app角色、同/异owner，回执先写或超时后迟到。",
+          "expect": "同owner原任务证据保留，异owner/作用域/替换任务拒绝，账单与派发次数不变。",
+          "command": "node node_modules/vitest/vitest.mjs run apps/server/src/video/film-ledger.pg.test.ts --maxWorkers=1 --no-file-parallelism",
+          "exec": {
+            "file": "node",
+            "args": [
+              "node_modules/vitest/vitest.mjs",
+              "run",
+              "apps/server/src/video/film-ledger.pg.test.ts",
+              "--maxWorkers=1",
+              "--no-file-parallelism"
+            ]
+          },
+          "last_result": "not-run",
+          "required_environment": "RUN_DB_TESTS=1 and isolated task PostgreSQL database URLs"
+        }
+      ],
+      "regression": {
+        "command": "node node_modules/vitest/vitest.mjs run apps/server/src/video/film-video-reconciliation.test.ts apps/server/src/video/film-worker.test.ts apps/server/src/video/film-ledger.pg.test.ts --maxWorkers=1 --no-file-parallelism"
+      },
+      "notes": "正式修复前 worker 5/5 失败见 work/round2/film-mc026-formal-red.log；基线与 MC-013 候选均通过实际 handleFilmChannelRequest 的零外呼探针复现，见 independent-film-poll-{render-baseline,audit-repo}-fault.json。"
+    }
+  ]
+}
