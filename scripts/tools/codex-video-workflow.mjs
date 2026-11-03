@@ -2,10 +2,9 @@
 /** Read-only planning and authenticated, single-submit access to Edit's Studio entry. */
 import { createHash, randomUUID } from "node:crypto";
 import { closeSync, constants, fstatSync, fsyncSync, lstatSync, openSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
-import { request as requestHttp } from "node:http";
 import { dirname, isAbsolute, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { parsePreflightArgs } from "./codex-video-preflight.mjs";
+import { parseEditLoopbackApi, WorkflowError, withVerifiedEditService } from "./lib/edit-service-session.mjs";
 import { normalizeExplicitBriefDuration, normalizePrdProductionProfile } from "../../packages/video-studio/src/prd-authority.ts";
 
 const PRODUCT = "workloom-ai-video-edit";
@@ -14,8 +13,6 @@ const GUIDE = "docs/ai-video-workbench-guide.md";
 const START = "video.studio.start";
 const STATUS = "video.studio.status";
 const ARCHIVE = "video.studio.archive";
-const HTTP_TIMEOUT_MS = 30_000;
-const MAX_RESPONSE = 8 * 1024 * 1024;
 const idPattern = /^[A-Za-z0-9][A-Za-z0-9._-]{0,199}$/;
 const digestPattern = /^[a-f0-9]{64}$/;
 const shortText = ["title", "product", "category", "audience", "platform", "aspectRatio", "aspect_ratio", "description", "tone", "purpose"];
@@ -25,9 +22,6 @@ const USAGE = [
   "node --import tsx scripts/tools/codex-video-workflow.mjs --status --receipt <同一回执绝对路径>",
 ].join("\n");
 
-class WorkflowError extends Error {
-  constructor(code) { super(code); this.code = code; }
-}
 function check(condition, code) { if (!condition) throw new WorkflowError(code); }
 const object = value => value !== null && typeof value === "object" && !Array.isArray(value);
 const validId = value => typeof value === "string" && idPattern.test(value) && !value.includes("..");
@@ -48,8 +42,7 @@ function parseArgs(argv) {
     }
   }
   if (args["--api"]) {
-    try { args["--api"] = parsePreflightArgs(["--api", args["--api"]]).api; }
-    catch { throw new WorkflowError("API_NOT_LOOPBACK"); }
+    args["--api"] = parseEditLoopbackApi(args["--api"]);
   }
   if (args["--status"]) {
     check(!args["--execute"] && !args["--intent"] && !args["--brief"] && args["--receipt"], "ARGUMENTS_INVALID");
@@ -167,41 +160,6 @@ function memberToken() {
   return token;
 }
 
-async function callStudio(api, procedure, input, token) {
-  const post = procedure === START;
-  const url = new URL(`/trpc/${procedure}`, api);
-  const headers = { authorization: `Bearer ${token}`, accept: "application/json" };
-  const payload = post ? Buffer.from(JSON.stringify(input)) : undefined;
-  if (payload) {
-    headers["content-type"] = "application/json";
-    headers["content-length"] = String(payload.length);
-  }
-  else url.searchParams.set("input", JSON.stringify(input));
-  try {
-    const response = await new Promise((resolve, reject) => {
-      // A fresh direct connection never follows redirects or inherits a proxy agent.
-      const req = requestHttp(url, { method: post ? "POST" : "GET", headers, agent: false,
-        signal: AbortSignal.timeout(HTTP_TIMEOUT_MS) }, resolve);
-      req.once("error", reject);
-      req.end(payload);
-    });
-    if (!(response.statusCode >= 200 && response.statusCode < 300)) {
-      response.destroy();
-      throw new WorkflowError([401, 403].includes(response.statusCode) ? "STUDIO_ACCESS_DENIED" : "STUDIO_RESPONSE_REJECTED");
-    }
-    const chunks = [];
-    let size = 0;
-    for await (const chunk of response) {
-      size += chunk.length;
-      check(size <= MAX_RESPONSE, "STUDIO_RESPONSE_TOO_LARGE");
-      chunks.push(chunk);
-    }
-    const body = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(Buffer.concat(chunks, size)));
-    check(object(body?.result) && !body.error && Object.hasOwn(body.result, "data"), "STUDIO_RESPONSE_INVALID");
-    return body.result.data;
-  } catch (error) { throw error instanceof WorkflowError ? error : new WorkflowError("STUDIO_RESPONSE_UNKNOWN"); }
-}
-
 function launchIdentity(data) {
   check(object(data), "STUDIO_RESPONSE_INVALID");
   if (data.kind === "clarify") {
@@ -228,22 +186,24 @@ async function launch(args) {
   const token = memberToken(), api = args["--api"], path = privateReceiptPath(args["--receipt"]);
   const marker = envelope("start_unknown", { api, requestSha256, durationSeconds,
     next: ["从正式 Studio 项目列表和归档核对是否已有登记。禁止因缺回执而重复提交。"] });
-  writeExclusive(path, marker);
-  syncReceiptDirectory(path);
-  let outcome;
-  try {
-    outcome = launchIdentity(await callStudio(api, START, input, token));
-    check(!JSON.stringify(outcome).includes(token), "STUDIO_RESPONSE_INVALID");
-  }
-  catch (error) {
-    const unknown = { ...marker, errorCode: error.code ?? "STUDIO_RESPONSE_UNKNOWN" };
-    try { commitReceipt(path, unknown); } catch { /* The durable marker still prevents replay. */ }
-    return unknown;
-  }
-  const receipt = { ...marker, ...outcome };
-  try { commitReceipt(path, receipt); }
-  catch { return { ...receipt, state: "receipt_persistence_failed", next: ["凭已返回的项目和运行 ID 核对 Studio，禁止重复提交。"] }; }
-  return receipt;
+  return withVerifiedEditService(api, token, async call => {
+    writeExclusive(path, marker);
+    syncReceiptDirectory(path);
+    let outcome;
+    try {
+      outcome = launchIdentity(await call(START, input));
+      check(!JSON.stringify(outcome).includes(token), "STUDIO_RESPONSE_INVALID");
+    }
+    catch (error) {
+      const unknown = { ...marker, errorCode: error.code ?? "STUDIO_RESPONSE_UNKNOWN" };
+      try { commitReceipt(path, unknown); } catch { /* The durable marker still prevents replay. */ }
+      return unknown;
+    }
+    const receipt = { ...marker, ...outcome };
+    try { commitReceipt(path, receipt); }
+    catch { return { ...receipt, state: "receipt_persistence_failed", next: ["凭已返回的项目和运行 ID 核对 Studio，禁止重复提交。"] }; }
+    return receipt;
+  });
 }
 
 function matchingArchiveRecord(archive, receipt) {
@@ -263,7 +223,7 @@ async function status(args) {
   const receipt = readJsonFile(path, 64 * 1024, "RECEIPT_INVALID", true);
   check(object(receipt) && receipt.schemaVersion === SCHEMA && receipt.productId === PRODUCT && digestPattern.test(receipt.requestSha256 ?? ""), "RECEIPT_INVALID");
   let api;
-  try { api = parsePreflightArgs(["--api", receipt.api]).api; } catch { throw new WorkflowError("RECEIPT_INVALID"); }
+  try { api = parseEditLoopbackApi(receipt.api); } catch { throw new WorkflowError("RECEIPT_INVALID"); }
   check(!args["--api"] || args["--api"] === api, "RECEIPT_API_MISMATCH");
   if (receipt.state === "start_unknown" || receipt.state === "clarify" || receipt.state === "explainer_handoff") {
     // Project/approval data from a receipt is never echoed wholesale.
@@ -278,10 +238,14 @@ async function status(args) {
   check(receipt.state === "studio_started" && validId(receipt.projectId) && validId(receipt.runId)
     && ["marketing", "narrative"].includes(receipt.pipeline), "RECEIPT_INVALID");
   const token = memberToken();
+  return withVerifiedEditService(api, token, call => readStudioStatus(receipt, token, call));
+}
+
+async function readStudioStatus(receipt, token, call) {
   const identity = { projectId: receipt.projectId, runId: receipt.runId, pipeline: receipt.pipeline, requestSha256: receipt.requestSha256 };
   const readback = [ARCHIVE, "回读本工作区原项目和运行，勿重复启动。"];
   let actual;
-  try { actual = await callStudio(api, STATUS, { runId: receipt.runId }, token); }
+  try { actual = await call(STATUS, { runId: receipt.runId }); }
   catch (error) { return envelope("status_unavailable", { ...identity, errorCode: error.code, next: readback }); }
   if (!object(actual) || actual.runId !== receipt.runId || actual.projectId !== receipt.projectId) {
     return envelope("status_unavailable", { ...identity, errorCode: actual === null ? "STUDIO_STATUS_NOT_FOUND" : "STUDIO_STATUS_MISMATCH", next: readback });
@@ -297,7 +261,7 @@ async function status(args) {
     ...current, next: studioStatus === "running" ? [STATUS] : [ARCHIVE, "在 Studio 查看原错误，使用正式恢复入口。"],
   });
   let archive;
-  try { archive = await callStudio(api, ARCHIVE, { projectId: receipt.projectId }, token); }
+  try { archive = await call(ARCHIVE, { projectId: receipt.projectId }); }
   catch (error) { return envelope("preproduction_source_unverified", { ...current, errorCode: error.code, next: readback }); }
   const source = matchingArchiveRecord(archive, receipt);
   if (!source || source.outputSha256.includes(token)) return envelope("preproduction_source_unverified", { ...current, next: [ARCHIVE, "核对同轮最新前期尝试和档案，不进入付费渲染。"] });
