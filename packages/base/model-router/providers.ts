@@ -39,6 +39,17 @@ export interface ChatUsageReceipt {
   promptCacheMissTokens: number | null;
 }
 
+/** Measured stop with a blank final JSON-mode message. This is failure evidence. */
+export type NativeBlankJsonReceipt = Readonly<{
+  modelId: typeof DEEPSEEK_FLASH_MODEL_ID;
+  responseId: string;
+  requestHash: string;
+  responseHash: string;
+  promptTokens: number;
+  completionTokens: number;
+  reasoningTokens: number;
+}>;
+
 export interface ChatResult {
   text: string;
   promptTokens: number;
@@ -213,7 +224,10 @@ export class MockProvider implements ModelProvider {
 interface OpenAiResponse {
   id?: string;
   model?: string;
+  object?: string;
+  error?: unknown;
   choices?: Array<{
+    index?: number;
     finish_reason?: string;
     message?: {
       content?: unknown;
@@ -242,6 +256,46 @@ function objectRecord(value: unknown): Record<string, unknown> | undefined {
   return value !== null && typeof value === "object" && !Array.isArray(value)
     ? value as Record<string, unknown>
     : undefined;
+}
+
+function completionUsage(data: OpenAiResponse, thinkingEnabled: boolean, outputCeiling: number) {
+  const promptTokens = data.usage?.prompt_tokens;
+  const completionTokens = data.usage?.completion_tokens;
+  const totalTokens = data.usage?.total_tokens;
+  const reasoningTokens = data.usage?.completion_tokens_details?.reasoning_tokens;
+  if (!safeInteger(promptTokens) || !safeInteger(completionTokens)
+    || !safeInteger(totalTokens) || totalTokens !== promptTokens + completionTokens) {
+    throw new ModelProviderError("模型 usage 缺失或无效", "protocol", { retryable: false });
+  }
+  if (reasoningTokens !== undefined && (!safeInteger(reasoningTokens) || reasoningTokens > completionTokens)) {
+    throw new ModelProviderError("模型 reasoning_tokens 无效", "protocol", { retryable: false });
+  }
+  if (!thinkingEnabled && reasoningTokens !== undefined && reasoningTokens !== 0) {
+    throw new ModelProviderError("非思考场景返回了 reasoning tokens", "protocol", { retryable: false, unknown: true });
+  }
+  if (completionTokens > outputCeiling || totalTokens > DEEPSEEK_FLASH_CONTEXT_TOKENS) {
+    throw new ModelProviderError("模型 usage 超过本次预算", "protocol", { retryable: false, unknown: true });
+  }
+  return { promptTokens, completionTokens, reasoningTokens: reasoningTokens ?? 0 };
+}
+
+function isNativeChatJsonMessage(data: OpenAiResponse): data is OpenAiResponse & { id: string } {
+  const choice = data.choices?.[0];
+  const message = objectRecord(choice?.message);
+  const usage = objectRecord(data.usage);
+  if (data.object !== "chat.completion" || data.error != null || typeof data.id !== "string" || !data.id.trim()
+    || !Array.isArray(data.choices) || data.choices.length !== 1 || choice?.index !== 0 || choice.finish_reason !== "stop"
+    || message?.role !== "assistant" || typeof message.content !== "string"
+    || message.refusal != null || message.function_call != null
+    || (message.tool_calls != null && (!Array.isArray(message.tool_calls) || message.tool_calls.length !== 0))
+    || !usage || (usage.completion_tokens_details != null && !objectRecord(usage.completion_tokens_details))) return false;
+  const hit = usage.prompt_cache_hit_tokens;
+  const miss = usage.prompt_cache_miss_tokens;
+  const promptTokens = usage.prompt_tokens;
+  if (!safeInteger(promptTokens)) return false;
+  if (hit !== undefined && (!safeInteger(hit) || hit > promptTokens)) return false;
+  if (miss !== undefined && (!safeInteger(miss) || miss > promptTokens)) return false;
+  return !safeInteger(hit) || !safeInteger(miss) || hit + miss === promptTokens;
 }
 
 function responsesCompletion(value: unknown, model: string): OpenAiResponse {
@@ -316,9 +370,24 @@ interface OpenAiTransport {
   authorization: string | undefined;
 }
 
-const openAiTransportReceipts = new WeakMap<ChatResult, OpenAiTransport & { provider: OpenAiCompatibleProvider }>();
+type OpenAiDispatch = OpenAiTransport & { provider: OpenAiCompatibleProvider };
+type BlankJsonDispatch = OpenAiDispatch & Pick<ChatResult, "scene" | "mode" | "effort">;
+const openAiTransportReceipts = new WeakMap<ChatResult, OpenAiDispatch & { finalJson?: boolean }>();
+const nativeBlankJsonErrors = new WeakMap<ModelProviderError, NativeBlankJsonReceipt>();
+const nativeBlankJsonDispatches = new WeakMap<NativeBlankJsonReceipt, BlankJsonDispatch>();
 export const DEEPSEEK_CHAT_PATH = "/chat/completions";
 export const DEEPSEEK_RESPONSES_PATH = "/responses";
+
+function isNativeChatEndpoint(endpoint: string): boolean {
+  try {
+    const url = new URL(endpoint);
+    return (url.protocol === "http:" || url.protocol === "https:")
+      && url.pathname.endsWith(DEEPSEEK_CHAT_PATH) && !url.search && !url.hash
+      && !url.username && !url.password;
+  } catch {
+    return false;
+  }
+}
 
 /**
  * Canonical DeepSeek transport. The complete serialized request is tokenized
@@ -347,7 +416,35 @@ export class OpenAiCompatibleProvider implements ModelProvider {
     receipt: ChatResult, path: typeof DEEPSEEK_CHAT_PATH | typeof DEEPSEEK_RESPONSES_PATH = DEEPSEEK_CHAT_PATH,
   ): boolean {
     const dispatched = openAiTransportReceipts.get(receipt);
-    if (!dispatched || dispatched.provider !== this || types.isProxy(this)) return false;
+    return !!dispatched && dispatched.provider === this && !types.isProxy(this) && this.#matchesTransport(dispatched, path);
+  }
+
+  /** Reads proof only from the error thrown by this exact native Chat dispatch. */
+  readNativeBlankJson(error: unknown): NativeBlankJsonReceipt | undefined {
+    const receipt = error instanceof ModelProviderError ? nativeBlankJsonErrors.get(error) : undefined;
+    return receipt && this.#matchesBlankDispatch(nativeBlankJsonDispatches.get(receipt)) ? receipt : undefined;
+  }
+
+  matchesNativeBlankJsonTransport(receipt: NativeBlankJsonReceipt): boolean {
+    return this.#matchesBlankDispatch(nativeBlankJsonDispatches.get(receipt));
+  }
+
+  #matchesBlankDispatch(dispatched: BlankJsonDispatch | undefined): dispatched is BlankJsonDispatch {
+    return dispatched?.provider === this && this.modelId === DEEPSEEK_FLASH_MODEL_ID
+      && !types.isProxy(this) && this.#matchesTransport(dispatched, DEEPSEEK_CHAT_PATH);
+  }
+
+  /** The pair is only used by the bounded blank-repair consumer. */
+  matchesNativeBlankJsonCorrection(first: NativeBlankJsonReceipt, second: ChatResult): boolean {
+    const before = nativeBlankJsonDispatches.get(first);
+    const after = openAiTransportReceipts.get(second);
+    return this.#matchesBlankDispatch(before) && after?.provider === this && after.finalJson === true
+      && this.#matchesTransport(after, DEEPSEEK_CHAT_PATH) && before.scene === second.scene
+      && before.mode === second.mode && before.effort === second.effort
+      && first.requestHash !== second.requestHash && first.responseId !== second.responseId;
+  }
+
+  #matchesTransport(dispatched: OpenAiTransport, path: typeof DEEPSEEK_CHAT_PATH | typeof DEEPSEEK_RESPONSES_PATH): boolean {
     const authMethod = Object.getOwnPropertyDescriptor(this, "authHeaders")
       ?? Object.getOwnPropertyDescriptor(OpenAiCompatibleProvider.prototype, "authHeaders");
     const cfg = Object.getOwnPropertyDescriptor(this, "cfg")?.value as OpenAiCompatibleProvider["cfg"] | undefined;
@@ -597,42 +694,32 @@ export class OpenAiCompatibleProvider implements ModelProvider {
         });
       }
       const text = textFromContent(choice.message?.content);
-      if (!text) throw new ModelProviderError("模型返回 content 为空", "empty", { retryable: false });
-
-      const promptTokens = data.usage?.prompt_tokens;
-      const completionTokens = data.usage?.completion_tokens;
-      const totalTokens = data.usage?.total_tokens;
-      const reasoningTokens = data.usage?.completion_tokens_details?.reasoning_tokens;
-      if (!safeInteger(promptTokens)
-        || !safeInteger(completionTokens)
-        || !safeInteger(totalTokens)
-        || totalTokens !== promptTokens + completionTokens) {
-        throw new ModelProviderError("模型 usage 缺失或无效", "protocol", { retryable: false });
+      if (!text) {
+        const error = new ModelProviderError("模型返回 content 为空", "empty", { retryable: false });
+        // Preserve the ordinary empty-content error. Only the native nonstream
+        // Chat JSON wire may supply evidence of a complete, measured failure.
+        if (!structuredRequest && this.modelId === DEEPSEEK_FLASH_MODEL_ID && responseFormat?.type === "json_object" && attempt === 1
+          && response.status === 200 && !response.redirected && !signal.aborted
+          && isNativeChatEndpoint(transport.endpoint) && isNativeChatJsonMessage(data)
+          && !/[^ ]/u.test(choice.message?.content as string)) {
+          try {
+            const usage = completionUsage(data, thinkingEnabled, plan.outputCeiling);
+            const receipt = Object.freeze({ ...usage, modelId: this.modelId, responseId: data.id, requestHash, responseHash });
+            nativeBlankJsonErrors.set(error, receipt);
+            nativeBlankJsonDispatches.set(receipt, { ...transport, provider: this, scene: opts.scene ?? "generic", mode, effort });
+          } catch (validationError) {
+            if (!(validationError instanceof ModelProviderError)) throw validationError;
+          }
+        }
+        throw error;
       }
-      if (reasoningTokens !== undefined
-        && (!safeInteger(reasoningTokens) || reasoningTokens > completionTokens)) {
-        throw new ModelProviderError("模型 reasoning_tokens 无效", "protocol", { retryable: false });
-      }
-      if (!thinkingEnabled && reasoningTokens !== undefined && reasoningTokens !== 0) {
-        throw new ModelProviderError("非思考场景返回了 reasoning tokens", "protocol", {
-          retryable: false,
-          unknown: true,
-        });
-      }
-      if (completionTokens > plan.outputCeiling || totalTokens > DEEPSEEK_FLASH_CONTEXT_TOKENS) {
-        throw new ModelProviderError("模型 usage 超过本次预算", "protocol", {
-          retryable: false,
-          unknown: true,
-        });
-      }
+      const usage = completionUsage(data, thinkingEnabled, plan.outputCeiling);
 
       const receipt: ChatResult = {
         text,
-        promptTokens,
-        completionTokens,
+        ...usage,
         modelId: data.model,
         finishReason: "stop",
-        reasoningTokens: reasoningTokens ?? 0,
         requestHash,
         responseHash,
         responseId: data.id ?? null,
@@ -646,7 +733,10 @@ export class OpenAiCompatibleProvider implements ModelProvider {
         registryVersion: TEXT_PRIMARY_REGISTRY_VERSION,
         attempts,
       };
-      openAiTransportReceipts.set(receipt, { ...transport, provider: this });
+      const finalJson = !structuredRequest && responseFormat?.type === "json_object" && attempt === 1
+        && response.status === 200 && !response.redirected && !signal.aborted
+        && isNativeChatEndpoint(transport.endpoint) && isNativeChatJsonMessage(data);
+      openAiTransportReceipts.set(receipt, { ...transport, provider: this, finalJson });
       return receipt;
     }
     throw new ModelProviderError("模型调用重试耗尽", "http", { retryable: false, receipt: { attempts } });
