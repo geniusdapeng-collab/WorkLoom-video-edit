@@ -4,7 +4,7 @@ import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { OpenAiCompatibleProvider, type ChatMessage, type ChatOptions, type ModelProvider } from "@workloom/base/model-router";
+import { OpenAiCompatibleProvider, resetCircuit, type ChatMessage, type ChatOptions, type ModelProvider } from "@workloom/base/model-router";
 import { bindRequirementContract, requirementCast, requirementHash, requirementRecord, type RequirementContract, type RequirementRecord } from "./requirement-contract.js";
 import { effectivePrdModelSchema, prdAuthorityPrompt, preparePrdAuthority } from "./prd-authority.js";
 import { assertPrdAuthorityBridge, bindApprovedPrdPortraitSelection, installPrdAuthorityBridge, installPrdProductionBridge, productionModelInput, withPrdAuthorityScope } from "./prd-authority-bridge.js";
@@ -24,6 +24,10 @@ const { FieldContentRefiner } = nativeRequire("../../../vendor/supermickey/hyper
 const { CharacterCostumePrompter } = nativeRequire("../../../vendor/supermickey/hyperreality-system/engines/character-system/character-costume-prompter.js") as { CharacterCostumePrompter: NativeConstructor };
 const { FieldGuard } = nativeRequire("../../../vendor/supermickey/hyperreality-system/engines/field-guard.js") as { FieldGuard: NativeConstructor };
 const { QualityGate } = nativeRequire("../../../vendor/supermickey/hyperreality-system/engines/production-engine/utils/quality-gate.js") as { QualityGate: NativeConstructor };
+const { BaseAgent } = nativeRequire("../../../vendor/supermickey/hyperreality-system/engines/production-engine/agents/base-agent.js") as { BaseAgent: NativeConstructor };
+const { globalLLMLimiter } = nativeRequire("../../../vendor/supermickey/hyperreality-system/core/llm-concurrency-limiter.js") as {
+  globalLLMLimiter: NonNullable<Parameters<typeof installPrdProductionBridge>[0]["structuredAgent"]>["limiter"];
+};
 const { PromptFusionAgent } = nativeRequire("../../../vendor/supermickey/hyperreality-system/engines/production-engine/agents/prompt-fusion-agent.js") as { PromptFusionAgent: NativeConstructor };
 const { FieldConsistencyChecker } = nativeRequire("../../../vendor/supermickey/hyperreality-system/engines/field-consistency-checker.js") as { FieldConsistencyChecker: NativeConstructor };
 const { PromptDeliveryGuard } = nativeRequire("../../../vendor/supermickey/hyperreality-system/engines/production-engine/agents/prompt-delivery-guard.js") as { PromptDeliveryGuard: NativeConstructor };
@@ -487,7 +491,7 @@ function deliveryPrompt() {
   return labels.map((label, index) => `${String(index + 1).padStart(2, "0")}.【${label}】${label === "情绪" ? "人物眼睛缓慢眨动，指尖轻触商品，呼吸平稳。" : "封闭场地中人物观察商品并保留实际材料与自然光线，动作和空间关系清楚。"}${"完整本镜真实细节，保持本次原始摄影与人物动作。".repeat(2)}`).join("\n");
 }
 
-function productionHarness(nativeFusion = false) {
+function productionHarness(nativeFusion = false, nativeModel = false) {
   const h = harness();
   const calls: Array<{ key: string; receiver: RequirementRecord; args: unknown[] }> = [];
   const record = (key: string, operation: (this: RequirementRecord, ...args: unknown[]) => unknown) => function (this: RequirementRecord, ...args: unknown[]) {
@@ -519,6 +523,7 @@ function productionHarness(nativeFusion = false) {
     deliveryGuardPrototype: PromptDeliveryGuard.prototype, semanticPrototype: SemanticRefinementPass.prototype,
     fieldQualityPrototype: FieldQualityPipeline.prototype, ruleRepairPrototype: RuleRepairer.prototype,
     ...(nativeFusion ? { fieldConsistencyPrototype: FieldConsistencyChecker.prototype } : {}),
+    ...(nativeModel ? { structuredAgent: { prototype: BaseAgent.prototype, limiter: globalLLMLimiter } } : {}),
     standardizeShot: nativeStandardizer.standardizeShot, validateShot: nativeStandardizer.validateShot, fields: nativeStandardizer.CRITICAL_FIELDS };
   const originals = Object.fromEntries(Object.entries(deps).filter(([key]) => key.endsWith("Prototype"))
     .map(([key, prototype]) => [key, Object.getOwnPropertyDescriptors(prototype)]));
@@ -1568,6 +1573,154 @@ describe("PRD private scope, receiver identity and strict restoration", () => {
     });
     await expect(Promise.resolve().then(() => late!())).rejects.toThrow("PRD_SCOPE_CLOSED");
     expect(run.calls).toHaveLength(2);
+  });
+});
+
+describe("bounded blank JSON correction at the actual frozen PromptFusion entry", () => {
+  const scene = "preproduction";
+  const templateHeading = "\n\n【硬性输出要求】";
+  const correctionHeading = "\n\n## 本镜头最终 JSON 交付\n";
+  const providerReply = (content: string, id = "fixture-response") => ({
+    id, object: "chat.completion", model: "deepseek-flash",
+    choices: [{ index: 0, finish_reason: "stop", message: { role: "assistant", content } }],
+    usage: { prompt_tokens: 132765, completion_tokens: 4779, total_tokens: 137544,
+      completion_tokens_details: { reasoning_tokens: 4740 } },
+  });
+  function fusionOutput(id: string) {
+    const { fields } = productionShot(id);
+    const output = Object.fromEntries(Object.entries(fields as RequirementRecord)
+      .map(([key, value]) => [key, key === "dialogue" ? "无台词" : String(value).repeat(9)])) as RequirementRecord;
+    output.audio = "保留封闭场地风声、轮胎声与动作声，跟随每个画面内可见事件变化。".repeat(8);
+    output.timeline = "T00:00–T00:03 交代环境和行动起点；T00:03–T00:07 观察物件并继续移动；T00:07–T00:10 收稳并保持原方向。".repeat(5);
+    return { shots: [{ shotId: id, fields: output }] };
+  }
+  function fusionRun(label: string, replies: Array<unknown>, options: { frozen?: boolean; maxRetries?: number; afterFirst?: (adapter: WorkloomLLMEngine) => void } = {}) {
+    resetCircuit(scene);
+    const value = fixture(`FUSION-BLANK-${label}`, [10, 10, 10]);
+    if (options.frozen !== false) {
+      requirementRecord(value.metadata.brief, "frozen fixture Brief").segmentContract = {
+        count: 3, totalSeconds: 30, secondsPerSegment: 10, hardCuts: true,
+        intervals: Array.from({ length: 3 }, (_, i) => ({ startSec: i * 10, endSec: (i + 1) * 10, brief: `冻结动作原文 ${i + 1}` })),
+      };
+    }
+    declareDelivery(value, { speechPolicy: "none" });
+    const h = productionHarness(true, true), run = h.make(value);
+    const fusion = new PromptFusionAgent({ llmMaxRetries: options.maxRetries ?? 2, llmTimeout: 30_000, semanticRefinement: false });
+    const baseUrl = "https://native-fusion-fixture.invalid/v1";
+    const requests: Array<{ url: string; body: RequirementRecord }> = [];
+    const fetchImpl: typeof fetch = async (url, init) => {
+      requests.push({ url: String(url), body: JSON.parse(String(init?.body)) as RequirementRecord });
+      const reply = replies[requests.length - 1];
+      if (requests.length === 1) options.afterFirst?.(adapter);
+      if (reply instanceof Error) throw reply;
+      if (!reply) throw new Error("unexpected third native fixture request");
+      return Response.json(reply);
+    };
+    const provider = new OpenAiCompatibleProvider("deepseek-flash", { baseUrl, apiKey: "test-only", fetchImpl });
+    const adapter = new WorkloomLLMEngine({ baseUrl, apiKey: "test-only", model: "deepseek-flash",
+      router: { scene, providers: new Map([[provider.modelId, provider]]), sink: {
+        recordModelTrace: async () => undefined, recordDegradation: async () => undefined, recordCircuitBreak: async () => undefined,
+      } } });
+    run.system.llmEngine = adapter;
+    const shot = (index: number) => ({ shotId: value.contract.scenes[index]!.id,
+      sceneType: index === 0 ? "opening" : "body", duration: 10, scene: `原生镜头原文 ${index + 1}，完整保留现场声音与可见动作`,
+      dialogue: "无台词", dialogueBlocks: [], dialogueText: "" });
+    const execute = (index = 0) => invoke(fusion, "_fuseSingleShot", shot(index), "9:16", [], { config: { aspectRatio: "9:16" } }, 20_000);
+    const accepted = (operation: () => unknown | Promise<unknown>) => h.accepted(run, operation);
+    return { value, fusion, requests, execute, accepted, baseUrl };
+  }
+  const prompt = (wire: RequirementRecord) => (wire.messages as ChatMessage[]).find(message => message.role === "user")!.content as string;
+
+  it("repeats the complete native shot, approved evidence and exact schema once on the same high/window Chat route", async () => {
+    const h = fusionRun("CORRECTED", [providerReply("    "), providerReply(JSON.stringify(fusionOutput("opening")), "fixture-corrected")]);
+    await h.accepted(async () => {
+      const output = await h.execute();
+      expect(output).toMatchObject({ shotId: "opening", duration: 10, degraded: false });
+    });
+    expect(h.requests).toHaveLength(2);
+    const [first, second] = h.requests;
+    expect(first!.url).toBe(h.baseUrl + "/chat/completions");
+    expect(second!.url).toBe(first!.url);
+    const { messages: firstMessages, ...firstOptions } = first!.body;
+    const { messages: secondMessages, ...secondOptions } = second!.body;
+    const nonUser = (messages: unknown) => (messages as ChatMessage[]).filter(message => message.role !== "user");
+    expect(nonUser(secondMessages)).toEqual(nonUser(firstMessages));
+    expect(secondOptions).toEqual(firstOptions);
+    expect(firstOptions).toMatchObject({ model: "deepseek-flash", max_tokens: 393216,
+      response_format: { type: "json_object" }, thinking: { type: "enabled" }, reasoning_effort: "high" });
+    const firstPrompt = prompt(first!.body), corrected = prompt(second!.body);
+    const originalSuffix = firstPrompt.slice(firstPrompt.indexOf(templateHeading));
+    const instructionStart = corrected.indexOf(correctionHeading);
+    const instructionEnd = corrected.indexOf(templateHeading);
+    expect(corrected.slice(0, instructionStart) + corrected.slice(instructionEnd)).toBe(firstPrompt);
+    expect(corrected.slice(instructionStart, instructionEnd)).toContain("完成必要推理后，把完整结果写入最终答复");
+    expect(corrected.endsWith(originalSuffix)).toBe(true);
+    expect(firstPrompt).toContain("原生镜头原文 1");
+    expect(firstPrompt).toContain(h.value.content);
+    expect(firstPrompt).toContain("冻结动作原文 3");
+  });
+
+  it.each(["wrong-shot", "missing-field", "extra-field", "another-blank", "unmeasured", "refusal", "same-response"] as const)(
+    "keeps the correction fatal when the second exact native response is %s", async kind => {
+      const output = fusionOutput(kind === "wrong-shot" ? "scene-1" : "opening");
+      if (kind === "missing-field") delete output.shots[0]!.fields.lighting;
+      if (kind === "extra-field") output.shots[0]!.fields.foreign = "foreign field";
+      const second = providerReply(kind === "another-blank" ? " " : JSON.stringify(output),
+        kind === "same-response" ? "fixture-response" : "fixture-bad-second");
+      if (kind === "refusal") Object.assign(second.choices[0]!.message, { refusal: "fixture refusal accompanying JSON" });
+      const h = fusionRun(kind, [providerReply(" "), kind === "unmeasured" ? { ...second, usage: undefined } : second]);
+      await expect(h.accepted(async () => {
+        try { await h.execute(); } catch { /* the authority must remember the native failure */ }
+      })).rejects.toThrow("PRD_PRODUCTION_MODEL_UNVERIFIED");
+      expect(h.requests).toHaveLength(2);
+    });
+
+  it.each(["unmeasured", "no-finish", "refusal", "unknown", "not-frozen", "no-slot", "deadline", "direct", "other-agent", "route-replaced"] as const)(
+    "does not dispatch a correction for a first response with %s", async kind => {
+      const blank = providerReply("   ");
+      if (kind === "no-finish") delete (blank.choices[0] as Partial<typeof blank.choices[number]>).finish_reason;
+      if (kind === "refusal") Object.assign(blank.choices[0]!.message, { refusal: "fixture refusal" });
+      const h = fusionRun(kind, [kind === "unknown" ? new TypeError("fixture lost original response")
+        : kind === "unmeasured" ? { ...blank, usage: undefined } : blank], {
+        frozen: kind !== "not-frozen", maxRetries: kind === "no-slot" ? 1 : 2,
+        ...(kind === "deadline" ? { afterFirst: () => vi.setSystemTime(Date.now() + 18_000) } : {}),
+        ...(kind === "route-replaced" ? { afterFirst: (adapter: WorkloomLLMEngine) => adapter.attachRouter({
+          providers: new Map(), sink: { recordModelTrace: async () => undefined, recordDegradation: async () => undefined,
+            recordCircuitBreak: async () => undefined },
+        }) } : {}),
+      });
+      await expect(h.accepted(() => {
+        if (kind === "direct" || kind === "other-agent") {
+          const receiver = kind === "direct" ? h.fusion : new BaseAgent({ name: "PromptFusionAgent" });
+          return invoke(receiver, "_callLLM", "仿制关键调用", { required: ["shots"] }, null, { critical: true });
+        }
+        return h.execute();
+      })).rejects.toThrow(/PRD_PRODUCTION_MODEL_(?:UNVERIFIED|DEADLINE)/);
+      expect(h.requests).toHaveLength(1);
+    });
+
+  it.each(["native-fill", "second-after-syntax"] as const)("leaves blank JSON fatal in %s after the initial primary call", async mode => {
+    const original = fusionOutput("opening");
+    if (mode === "native-fill") delete original.shots[0]!.fields.lighting;
+    const h = fusionRun(mode, [providerReply(mode === "native-fill" ? JSON.stringify(original) : '{"shots":[}'),
+      providerReply("  ", "fixture-nonprimary-blank")]);
+    await expect(h.accepted(async () => {
+      try { await h.execute(); } catch { /* a native catch cannot clear this failure */ }
+    })).rejects.toThrow("PRD_PRODUCTION_MODEL_UNVERIFIED");
+    expect(h.requests).toHaveLength(2);
+    expect(prompt(h.requests[1]!.body)).not.toContain(correctionHeading);
+    expect(prompt(h.requests[1]!.body)).toContain(mode === "native-fill" ? "本次只补齐以下字段" : "完整结构修正");
+  });
+
+  it("consumes the single blank allowance across the current approved run", async () => {
+    const h = fusionRun("ONCE-PER-RUN", [providerReply(" "), providerReply(JSON.stringify(fusionOutput("opening")), "fixture-corrected"),
+      providerReply(" ", "fixture-later-blank")]);
+    await expect(h.accepted(async () => {
+      expect(await h.execute()).toMatchObject({ shotId: "opening", degraded: false });
+      await h.execute(1);
+    })).rejects.toThrow("PRD_PRODUCTION_MODEL_UNVERIFIED");
+    expect(h.requests).toHaveLength(3);
+    expect(prompt(h.requests[2]!.body)).not.toContain(correctionHeading);
   });
 });
 

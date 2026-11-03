@@ -83,7 +83,7 @@ function fixture(replies: Reply[]) {
     productionPrototype: unused("produce", "_loadLatestCheckpoint", "_saveCheckpoint", "_clearCheckpoints"),
     phase1Prototype: unused("_shouldGenerateOpening"), refinerPrototype: unused("_normalizeConstraint"),
     costumePrototype: unused("enhance"), fieldGuardPrototype: unused("normalizeAndValidate", "check", "assertOpeningFields"),
-    fusionPrototype: unused("_loadSubCheckpoint", "_saveSubCheckpoint", "_clearSubCheckpoint"),
+    fusionPrototype: unused("_fuseSingleShot", "_loadSubCheckpoint", "_saveSubCheckpoint", "_clearSubCheckpoint"),
     qualityGatePrototype: unused("run"), deliveryGuardPrototype: unused("verify"), semanticPrototype: unused("_buildPrompt"),
     standardizeShot: standardizer.standardizeShot, validateShot: standardizer.validateShot, fields: standardizer.CRITICAL_FIELDS,
     structuredAgent: { prototype: BaseAgent.prototype, limiter: globalLLMLimiter },

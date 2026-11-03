@@ -279,13 +279,13 @@ function completionUsage(data: OpenAiResponse, thinkingEnabled: boolean, outputC
   return { promptTokens, completionTokens, reasoningTokens: reasoningTokens ?? 0 };
 }
 
-function isNativeBlankJsonMessage(data: OpenAiResponse): data is OpenAiResponse & { id: string } {
+function isNativeChatJsonMessage(data: OpenAiResponse): data is OpenAiResponse & { id: string } {
   const choice = data.choices?.[0];
   const message = objectRecord(choice?.message);
   const usage = objectRecord(data.usage);
   if (data.object !== "chat.completion" || data.error != null || typeof data.id !== "string" || !data.id.trim()
     || !Array.isArray(data.choices) || data.choices.length !== 1 || choice?.index !== 0 || choice.finish_reason !== "stop"
-    || message?.role !== "assistant" || typeof message.content !== "string" || /[^ ]/u.test(message.content)
+    || message?.role !== "assistant" || typeof message.content !== "string"
     || message.refusal != null || message.function_call != null
     || (message.tool_calls != null && (!Array.isArray(message.tool_calls) || message.tool_calls.length !== 0))
     || !usage || (usage.completion_tokens_details != null && !objectRecord(usage.completion_tokens_details))) return false;
@@ -371,8 +371,10 @@ interface OpenAiTransport {
 }
 
 type OpenAiDispatch = OpenAiTransport & { provider: OpenAiCompatibleProvider };
-const openAiTransportReceipts = new WeakMap<ChatResult, OpenAiDispatch>();
-const nativeBlankJsonErrors = new WeakMap<ModelProviderError, OpenAiDispatch & { receipt: NativeBlankJsonReceipt }>();
+type BlankJsonDispatch = OpenAiDispatch & Pick<ChatResult, "scene" | "mode" | "effort">;
+const openAiTransportReceipts = new WeakMap<ChatResult, OpenAiDispatch & { finalJson?: boolean }>();
+const nativeBlankJsonErrors = new WeakMap<ModelProviderError, NativeBlankJsonReceipt>();
+const nativeBlankJsonDispatches = new WeakMap<NativeBlankJsonReceipt, BlankJsonDispatch>();
 export const DEEPSEEK_CHAT_PATH = "/chat/completions";
 export const DEEPSEEK_RESPONSES_PATH = "/responses";
 
@@ -419,10 +421,27 @@ export class OpenAiCompatibleProvider implements ModelProvider {
 
   /** Reads proof only from the error thrown by this exact native Chat dispatch. */
   readNativeBlankJson(error: unknown): NativeBlankJsonReceipt | undefined {
-    const dispatched = error instanceof ModelProviderError ? nativeBlankJsonErrors.get(error) : undefined;
+    const receipt = error instanceof ModelProviderError ? nativeBlankJsonErrors.get(error) : undefined;
+    return receipt && this.#matchesBlankDispatch(nativeBlankJsonDispatches.get(receipt)) ? receipt : undefined;
+  }
+
+  matchesNativeBlankJsonTransport(receipt: NativeBlankJsonReceipt): boolean {
+    return this.#matchesBlankDispatch(nativeBlankJsonDispatches.get(receipt));
+  }
+
+  #matchesBlankDispatch(dispatched: BlankJsonDispatch | undefined): dispatched is BlankJsonDispatch {
     return dispatched?.provider === this && this.modelId === DEEPSEEK_FLASH_MODEL_ID
-      && !types.isProxy(this) && this.#matchesTransport(dispatched, DEEPSEEK_CHAT_PATH)
-      ? dispatched.receipt : undefined;
+      && !types.isProxy(this) && this.#matchesTransport(dispatched, DEEPSEEK_CHAT_PATH);
+  }
+
+  /** The pair is only used by the bounded blank-repair consumer. */
+  matchesNativeBlankJsonCorrection(first: NativeBlankJsonReceipt, second: ChatResult): boolean {
+    const before = nativeBlankJsonDispatches.get(first);
+    const after = openAiTransportReceipts.get(second);
+    return this.#matchesBlankDispatch(before) && after?.provider === this && after.finalJson === true
+      && this.#matchesTransport(after, DEEPSEEK_CHAT_PATH) && before.scene === second.scene
+      && before.mode === second.mode && before.effort === second.effort
+      && first.requestHash !== second.requestHash && first.responseId !== second.responseId;
   }
 
   #matchesTransport(dispatched: OpenAiTransport, path: typeof DEEPSEEK_CHAT_PATH | typeof DEEPSEEK_RESPONSES_PATH): boolean {
@@ -681,11 +700,13 @@ export class OpenAiCompatibleProvider implements ModelProvider {
         // Chat JSON wire may supply evidence of a complete, measured failure.
         if (!structuredRequest && this.modelId === DEEPSEEK_FLASH_MODEL_ID && responseFormat?.type === "json_object" && attempt === 1
           && response.status === 200 && !response.redirected && !signal.aborted
-          && isNativeChatEndpoint(transport.endpoint) && isNativeBlankJsonMessage(data)) {
+          && isNativeChatEndpoint(transport.endpoint) && isNativeChatJsonMessage(data)
+          && !/[^ ]/u.test(choice.message?.content as string)) {
           try {
             const usage = completionUsage(data, thinkingEnabled, plan.outputCeiling);
             const receipt = Object.freeze({ ...usage, modelId: this.modelId, responseId: data.id, requestHash, responseHash });
-            nativeBlankJsonErrors.set(error, { ...transport, provider: this, receipt });
+            nativeBlankJsonErrors.set(error, receipt);
+            nativeBlankJsonDispatches.set(receipt, { ...transport, provider: this, scene: opts.scene ?? "generic", mode, effort });
           } catch (validationError) {
             if (!(validationError instanceof ModelProviderError)) throw validationError;
           }
@@ -712,7 +733,10 @@ export class OpenAiCompatibleProvider implements ModelProvider {
         registryVersion: TEXT_PRIMARY_REGISTRY_VERSION,
         attempts,
       };
-      openAiTransportReceipts.set(receipt, { ...transport, provider: this });
+      const finalJson = !structuredRequest && responseFormat?.type === "json_object" && attempt === 1
+        && response.status === 200 && !response.redirected && !signal.aborted
+        && isNativeChatEndpoint(transport.endpoint) && isNativeChatJsonMessage(data);
+      openAiTransportReceipts.set(receipt, { ...transport, provider: this, finalJson });
       return receipt;
     }
     throw new ModelProviderError("模型调用重试耗尽", "http", { retryable: false, receipt: { attempts } });

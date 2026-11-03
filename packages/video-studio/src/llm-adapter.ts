@@ -83,7 +83,11 @@ export interface LLMReasonResult {
 // structured data. Track native failure identity outside the model payload.
 const reasonFailures = new WeakMap<object, "json-syntax" | "unavailable">();
 const nativeCompletions = new WeakSet<object>();
-const nativeBlankJsonFailures = new WeakMap<object, NativeBlankJsonReceipt>();
+const nativeBlankJsonFailures = new WeakMap<object, { receipt: NativeBlankJsonReceipt; engine: WorkloomLLMEngine;
+  provider: OpenAiCompatibleProvider; routeCurrent: () => boolean }>();
+const nativeChatAnswers = new WeakMap<object, ChatResult>();
+const checkBlankTransport = OpenAiCompatibleProvider.prototype.matchesNativeBlankJsonTransport;
+const checkBlankCorrection = OpenAiCompatibleProvider.prototype.matchesNativeBlankJsonCorrection;
 
 export function nativeReasonFailure(value: unknown): "json-syntax" | "unavailable" | undefined {
   return value !== null && typeof value === "object" ? reasonFailures.get(value) : undefined;
@@ -96,7 +100,17 @@ export function nativeReasonCompleted(value: LLMReasonResult): boolean {
 
 /** A completed empty Chat JSON result remains a failed, non-retryable call. */
 export function nativeReasonBlankJson(value: unknown): NativeBlankJsonReceipt | undefined {
-  return value !== null && typeof value === "object" ? nativeBlankJsonFailures.get(value) : undefined;
+  return value !== null && typeof value === "object" ? nativeBlankJsonFailures.get(value)?.receipt : undefined;
+}
+
+export function nativeBlankJsonRouteCurrent(engine: WorkloomLLMEngine, first: LLMReasonResult): boolean {
+  const proof = nativeBlankJsonFailures.get(first);
+  return !!proof && proof.engine === engine && proof.routeCurrent() && checkBlankTransport.call(proof.provider, proof.receipt);
+}
+
+export function nativeBlankJsonCorrected(first: LLMReasonResult, second: LLMReasonResult): boolean {
+  const proof = nativeBlankJsonFailures.get(first), answer = nativeChatAnswers.get(second);
+  return !!proof && !!answer && proof.routeCurrent() && checkBlankCorrection.call(proof.provider, proof.receipt, answer);
 }
 
 export interface WorkloomLLMEngineConfig {
@@ -389,6 +403,7 @@ export class WorkloomLLMEngine {
   }
 
   private async requestChat(prompt: string, opts: InternalReasonOptions): Promise<LLMReasonResult> {
+    const router = this.cfg.router, revision = this.#routerRevision;
     const activeModel = canonicalDeepSeekModel(opts.model ?? this.cfg.model);
     const scene = opts.scene
       ?? this.cfg.router?.scene
@@ -433,6 +448,7 @@ export class WorkloomLLMEngine {
           && receipt.finishReason === "stop" && receipt.responseId?.trim() && nativeProvider instanceof OpenAiCompatibleProvider
           && nativeTransportCheck.call(nativeProvider, receipt, transportPath(opts))) {
           nativeCompletions.add(answer);
+          if (transportPath(opts) === DEEPSEEK_CHAT_PATH) nativeChatAnswers.set(answer, receipt);
         }
         const currentRoute = binding ? attestableRoute(this) : undefined;
         if (binding && currentRoute && result.kind === "answered" && !result.degraded?.length && !result.budgetExceeded
@@ -459,7 +475,15 @@ export class WorkloomLLMEngine {
         retryable: false,
       };
       const blankJson = nativeRouteBlankJson(result);
-      if (blankJson) nativeBlankJsonFailures.set(failure, blankJson);
+      if (blankJson) {
+        const provider = providers.get(DEEPSEEK_FLASH_MODEL_ID);
+        if (provider instanceof OpenAiCompatibleProvider) nativeBlankJsonFailures.set(failure, {
+          receipt: blankJson, engine: this, provider,
+          routeCurrent: () => !!router && this.cfg.router === router && this.#routerRevision === revision
+            && router.providers === providers && Map.prototype.get.call(providers, DEEPSEEK_FLASH_MODEL_ID) === provider
+            && router.sink === sink && router.policy === policy && (router.scene ?? this.cfg.scene) === scene,
+        });
+      }
       return failure;
     } catch (error) {
       return {
