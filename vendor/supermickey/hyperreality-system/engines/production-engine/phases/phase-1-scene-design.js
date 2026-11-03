@@ -56,7 +56,11 @@ class Phase1SceneDesign extends PhaseExecutor {
           : Promise.resolve(null)
       });
 
-      // 合并场景设计结果（sdResult.shots 可能因 Agent 内部降级而缺失）
+      // SceneDesign is the required core result. Never merge/save an unchanged
+      // input returned after failure as a completed design checkpoint.
+      if (!sdResult || sdResult.degraded === true) {
+        throw new Error(`SCENE_DESIGN_UNVERIFIED: ${sdResult?.degradeReason || '缺少场景设计结果'}`);
+      }
       // 【修复 新-P0】白名单补齐 makeup/props：SceneDesign schema 输出 6 字段，
       // 严格白名单生效后这两个字段会被 MERGE-GUARD 误拦截
       let newShots = this.mergeShots(shots, sdResult.shots || [], [
