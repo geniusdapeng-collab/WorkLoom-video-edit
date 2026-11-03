@@ -166,7 +166,7 @@ export default function P10() {
       const catalog = await trpc.video.gen.catalog.query({ kind: "video" });
       const model = catalog.models.find(item => ["seedance", "higgsfield", "muapi"].includes(item.provider));
       if (!model) throw new Error("没有已配置的正式视频模型，请先在模型设置中完成配置。");
-      const qualification = await trpc.video.production.qualifyShot.mutate({ projectId: detail.project_id,
+      const qualification = await trpc.video.production.qualifyShotReceipt.mutate({ projectId: detail.project_id,
         shotId: detail.shot_id, modelId: model.id, params: {}, mode });
       setBusy("submit");
       const r = await trpc.video.render.submit.mutate({ qualificationToken: qualification.qualificationToken });

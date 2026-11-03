@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import { createRequire } from "node:module";
 import path from "node:path";
 import {
-  requirementHash, requirementRecord, verifiedRequirementContract,
+  frozenSegmentContract, requirementHash, requirementRecord, verifiedRequirementContract,
   type RequirementContract, type RequirementRecord
 } from "./requirement-contract.js";
 import {
@@ -798,6 +798,7 @@ interface ProductionDependencies {
   deliveryGuardPrototype: RequirementRecord;
   semanticPrototype: RequirementRecord;
   fieldQualityPrototype?: RequirementRecord;
+  ruleRepairPrototype?: RequirementRecord;
   fieldConsistencyPrototype?: RequirementRecord;
   structuredAgent?: {
     prototype: RequirementRecord;
@@ -903,6 +904,18 @@ export function installPrdProductionBridge(deps: ProductionDependencies): () => 
     const base: Method = original?.value ?? function () { return true; };
     changes.push({ owner, key, original, patched: wrap(base) });
   };
+  if (deps.ruleRepairPrototype) add(deps.ruleRepairPrototype, "_prdAnchorPhrase", original => function (...args) {
+    const scope = productionScope(this);
+    if (!scope || scope.authority.metadata.brief === undefined) return Reflect.apply(original, this, args);
+    return guard(scope, () => {
+      check(scope);
+      const brief = requirementRecord(scope.authority.metadata.brief, "已审冻结分段 Brief");
+      // The vendor uses only the first scene to form this style prefix. A
+      // frozen scene already carries its own approved source into production.
+      // An empty prefix skips just that rewrite, retaining the other repairs.
+      return frozenSegmentContract(brief, scope.authority.profile.targetDuration) ? "" : Reflect.apply(original, this, args);
+    });
+  });
   if (deps.fieldQualityPrototype) add(deps.fieldQualityPrototype, "run", original => async function (shotValue, ...args) {
     const scope = productionScope(this);
     if (!scope?.authority.portraitSources?.length) return Reflect.apply(original, this, [shotValue, ...args]);
@@ -1369,6 +1382,7 @@ export function installVendorPrdProductionBridge(constructor: { prototype: objec
       deliveryGuardPrototype: load("engines/production-engine/agents/prompt-delivery-guard.js", "PromptDeliveryGuard"),
       semanticPrototype: load("engines/production-engine/agents/semantic-refinement-pass.js", "SemanticRefinementPass"),
       fieldQualityPrototype: load("engines/field-quality/field-quality-pipeline.js", "FieldQualityPipeline"),
+      ruleRepairPrototype: load("engines/field-quality/field-repair-agent.js", "RuleRepairer"),
       fieldConsistencyPrototype: load("engines/field-consistency-checker.js", "FieldConsistencyChecker"),
       structuredAgent: { prototype: load("engines/production-engine/agents/base-agent.js", "BaseAgent"), limiter: globalLLMLimiter },
       standardizeShot: standardizer.standardizeShot, validateShot: standardizer.validateShot, fields: standardizer.CRITICAL_FIELDS });

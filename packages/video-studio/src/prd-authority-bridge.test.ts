@@ -508,7 +508,7 @@ function productionHarness() {
     refinerPrototype: FieldContentRefiner.prototype, costumePrototype: CharacterCostumePrompter.prototype,
     fieldGuardPrototype: FieldGuard.prototype, qualityGatePrototype: QualityGate.prototype,
     deliveryGuardPrototype: PromptDeliveryGuard.prototype, semanticPrototype: SemanticRefinementPass.prototype,
-    fieldQualityPrototype: FieldQualityPipeline.prototype,
+    fieldQualityPrototype: FieldQualityPipeline.prototype, ruleRepairPrototype: RuleRepairer.prototype,
     standardizeShot: nativeStandardizer.standardizeShot, validateShot: nativeStandardizer.validateShot, fields: nativeStandardizer.CRITICAL_FIELDS };
   const originals = Object.fromEntries(Object.entries(deps).filter(([key]) => key.endsWith("Prototype"))
     .map(([key, prototype]) => [key, Object.getOwnPropertyDescriptors(prototype)]));
@@ -1476,6 +1476,42 @@ describe("PRD private scope, receiver identity and strict restoration", () => {
 });
 
 describe("approved production authority at native technical and title seams", () => {
+  it.each([true, false])("keeps native per-shot scene and director prose only for a verified frozen contract (%s)", async frozen => {
+    const value = fixture(`DIRECTOR-RULE-${frozen}`, [10, 10, 10]), h = productionHarness();
+    if (frozen) {
+      const brief = requirementRecord(value.metadata.brief, "test frozen Brief");
+      brief.segmentContract = { count: 3, totalSeconds: 30, secondsPerSegment: 10, hardCuts: true,
+        intervals: [{ startSec: 0, endSec: 10, brief: "第一段原始动作" },
+          { startSec: 10, endSec: 20, brief: "第二段原始动作" },
+          { startSec: 20, endSec: 30, brief: "第三段原始动作" }] };
+      refreshContract(value);
+    }
+    const nativeSceneIds = ["opening", "scene-1", "ending"];
+    const fromBlueprint = (PRD as unknown as { fromBlueprint(value: RequirementRecord): RequirementRecord }).fromBlueprint;
+    const prd = Reflect.apply(fromBlueprint, PRD, [{ characters: [{ name: "合成人物" }],
+      scenes: nativeSceneIds.map((scene_id, index) => ({ scene_id, scene_name: `原生场景${index}`, visual: `完整的实际镜头${index}` })) }]);
+    expect((prd.scenes as string[])[0]).toContain('{"scene_id":"opening","scene_name"');
+    const run = h.make(value), rule = new RuleRepairer();
+    await h.accepted(run, () => {
+      for (const shotId of nativeSceneIds) {
+        const shot = { shotId, scene: `当前镜头 ${shotId} 已生成的完整物理环境与动作。`,
+          director_instruction: `当前镜头 ${shotId} 已生成的完整导演意图和逐镜动作安排。`,
+          character: "清楚保持姿态与视线方向", consistency: "同一人物与环境关系" };
+        const result = requirementRecord(invoke(rule, "repair", shot, { issues: [] }, prd), "native field repair");
+        const repaired = requirementRecord(result.repaired, "repaired native shot");
+        if (frozen) {
+          expect(repaired.scene).toBe(shot.scene);
+          expect(repaired.director_instruction).toBe(shot.director_instruction);
+        } else {
+          expect(repaired.scene).toMatch(/^\{"scene_id":"opening","scene_n/u);
+          expect(repaired.director_instruction).toMatch(/^\{"scene_id":"opening","scene_n/u);
+        }
+        expect(repaired.character).toContain("角色锚定：合成人物");
+        expect(repaired.consistency).toContain("角色锚定：合成人物");
+      }
+    });
+  });
+
   function syntheticPortraitSource(value: ReturnType<typeof prdFixture>): PrdPortraitSource {
     const provenance = value.authority.marketing.g1Artifact;
     const file = { path: provenance.path, sha256: provenance.sha256 };

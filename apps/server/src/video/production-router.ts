@@ -20,6 +20,19 @@ const params = z.object({
   callbackUrl: z.url().max(8192).optional(), extra: z.record(z.string(), z.unknown()).optional(),
 }).strict();
 
+const qualifyInput = z.object({
+  projectId: z.string().min(1).max(200), shotId: z.string().min(1).max(200), modelId: z.string().min(1).max(200),
+  params: params.default({}), mode: z.enum(["manual", "batch", "auto"]).default("manual"),
+}).strict();
+
+async function qualify<T>(request: () => Promise<T>): Promise<T> {
+  try { return await request(); }
+  catch (error) {
+    if (error instanceof SubmissionError) throw new TRPCError({ code: "PRECONDITION_FAILED", message: error.message, cause: error });
+    throw error;
+  }
+}
+
 export const productionRouter = router({
   shots: protectedProcedure.input(z.object({ projectId: z.string().min(1).max(200) }).strict()).query(async ({ ctx, input }) => {
     try { return await listProductionShots({ app: getAppPool(), scope: scopeOf(ctx.identity), projectId: input.projectId }); }
@@ -28,15 +41,8 @@ export const productionRouter = router({
       throw error;
     }
   }),
-  qualifyShot: writeProcedure.input(z.object({
-    projectId: z.string().min(1).max(200), shotId: z.string().min(1).max(200), modelId: z.string().min(1).max(200),
-    params: params.default({}), mode: z.enum(["manual", "batch", "auto"]).default("manual"),
-  }).strict()).mutation(async ({ ctx, input }) => {
-    try {
-      return await qualifyProductionShot({ app: getAppPool(), scope: scopeOf(ctx.identity), actor: ctx.identity.memberNo, ...input });
-    } catch (error) {
-      if (error instanceof SubmissionError) throw new TRPCError({ code: "PRECONDITION_FAILED", message: error.message, cause: error });
-      throw error;
-    }
-  }),
+  qualifyShot: writeProcedure.input(qualifyInput).mutation(({ ctx, input }) => qualify(() =>
+    qualifyProductionShot({ app: getAppPool(), scope: scopeOf(ctx.identity), actor: ctx.identity.memberNo, ...input }))),
+  qualifyShotReceipt: writeProcedure.input(qualifyInput).mutation(({ ctx, input }) => qualify(() =>
+    qualifyProductionShot({ app: getAppPool(), scope: scopeOf(ctx.identity), actor: ctx.identity.memberNo, ...input, response: "receipt" }))),
 });

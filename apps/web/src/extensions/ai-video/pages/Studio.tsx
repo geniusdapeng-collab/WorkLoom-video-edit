@@ -186,7 +186,7 @@ export default function Studio() {
     setBusy("qualify");
     try {
       if (firstFrameUrl.trim() && !/^(https?:\/\/|asset:\/\/)/.test(firstFrameUrl.trim())) throw new Error("首帧地址须使用 https、http 或已授权的 asset:// 素材地址。");
-      const qualification = await trpc.video.production.qualifyShot.mutate({ projectId, shotId: selectedShot.shotId, modelId, mode,
+      const qualification = await trpc.video.production.qualifyShotReceipt.mutate({ projectId, shotId: selectedShot.shotId, modelId, mode,
         params: { durationSec: selectedShot.durationSec, aspectRatio, resolution, generateAudio,
           ...(firstFrameUrl.trim() ? { firstFrameUrl: firstFrameUrl.trim() } : {}) } });
       setBusy("submit");

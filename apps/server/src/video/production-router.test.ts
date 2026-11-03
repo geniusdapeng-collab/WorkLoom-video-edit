@@ -48,6 +48,21 @@ describe("生产入口正常可达且不能覆盖已审核请求", () => {
     expect(d.submit).toHaveBeenCalledWith(expect.objectContaining({ script: canonical().script, params: canonical().params,
       qualificationToken: "test-token", modelId: "doubao-seedance-2-5", mode: "manual", durationProvenance: { source: "script-fields", planSeconds: 5, requestedSeconds: 5, mismatchSeconds: 0, strict: true } }));
   });
+  it("精简资格走同一正式签发和权限范围，只返回签名回执", async () => {
+    const input = { projectId: "P1", shotId: "S1", modelId: "doubao-seedance-2-5", params: { durationSec: 10 } };
+    const result = await caller().production.qualifyShotReceipt(input);
+    expect(d.qualify).toHaveBeenCalledWith(expect.objectContaining({ ...input, response: "receipt",
+      scope: { tenantId: identity.tenantId, workspaceId: identity.workspaceId }, actor: "MEM-T" }));
+    expect(result).not.toHaveProperty("params");
+    expect(result.qualificationToken).toBe("test-token");
+    expect(d.submit).not.toHaveBeenCalled();
+    await expect(caller().production.qualifyShotReceipt({ ...input, passed: true } as never)).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    await expect(videoRouter.createCaller({ ...context, identity: null, session: null }).production.qualifyShotReceipt(input))
+      .rejects.toMatchObject({ code: "UNAUTHORIZED" });
+    d.writable = false;
+    await expect(caller().production.qualifyShotReceipt(input)).rejects.toMatchObject({ code: "FORBIDDEN" });
+    expect(d.qualify).toHaveBeenCalledTimes(1);
+  });
   it("没有token的旧CMS approved直提在查脚本/供应商之前拒绝", async () => {
     await expect(caller().render.submit({ scriptId: "RS-handmade", mode: "auto" })).rejects.toMatchObject({ code: "PRECONDITION_FAILED" });
     expect(d.load).not.toHaveBeenCalled(); expect(d.query).not.toHaveBeenCalled(); expect(d.submit).not.toHaveBeenCalled();

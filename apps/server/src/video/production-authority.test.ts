@@ -1,7 +1,7 @@
 /** 实际发行/验签/文件/监制代码；PG 为明确 SQL 边界替身，模型 HTTP 仅返回测试裁决。 */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createHmac } from "node:crypto";
-import { mkdtemp, mkdir, writeFile, readFile, readdir, rm, realpath, symlink } from "node:fs/promises";
+import { mkdtemp, mkdir, writeFile, readFile, readdir, rm, realpath, stat, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import type pg from "pg";
@@ -532,5 +532,85 @@ describe("资格失效、最新裁决与补账边界", () => {
     await expect(submitGenJob({ app: pool.asPool(), gateway: pool.asPool(), scope, actor: "MEM-T", script: { id: "handwritten", project_id: "P1", shot_id: "S1", script_key: "handwritten", version: 1, status: "approved", md: "手写prompt", fields: {} },
       modelId: "doubao-seedance-2-5", params: { durationSec: 5 }, mode: "auto", fenceLevel: "auto", fenceImpacts: [], env })).rejects.toThrow("QUALIFICATION_REQUIRED");
     expect(calls).toHaveLength(0); expect(pool.qualifications).toHaveLength(0);
+  });
+});
+
+describe("oversized signed G6 request and compact production receipt", () => {
+  const front = Buffer.alloc(5_003_858, 71), closeup = Buffer.alloc(4_868_216, 82);
+  async function issueReceipt(patch: Partial<Parameters<typeof qualifyProductionShot>[0]> = {}) {
+    const fixture = await installPromptContract(front, {}, [closeup]);
+    const result = await qualifyProductionShot({ app: pool.asPool(), scope, actor: "MEM-ORIGINAL", projectId: "P1",
+      shotId: "S1", modelId: "doubao-seedance-2-5", params: {}, env: fixture.enforced, workDir: dir, ...patch,
+      response: "receipt" });
+    return { result, fixture };
+  }
+
+  it("archives the exact native wire once and returns a signed receipt without media or params", async () => {
+    const { result, fixture } = await issueReceipt();
+    expect(result).not.toHaveProperty("params");
+    expect(JSON.stringify(result).length).toBeLessThan(4096);
+    const dirPath = path.join(root, "qualifications");
+    const request = JSON.parse(await readFile(path.join(dirPath, `${result.qualificationId}.request.json`), "utf8"));
+    const review = JSON.parse(await readFile(path.join(dirPath, `${result.qualificationId}.review.json`), "utf8"));
+    const wirePath = path.join(dirPath, `${result.qualificationId}.wire.json`);
+    const wire = await readFile(wirePath, "utf8");
+    expect((await stat(wirePath)).mode & 0o777).toBe(0o600);
+    const canonical = await loadQualifiedRenderInput(pool.asPool(), scope, result.qualificationToken, fixture.enforced);
+    expect(request).toMatchObject({ schemaVersion: "workloom.qualification-archive/v2", wire: {
+      ref: `qualifications/${result.qualificationId}.wire.json`, sha256: renderSha256(wire), bytes: Buffer.byteLength(wire) },
+      requestHash: result.requestHash, payloadHash: result.payloadHash });
+    expect(request.compiledRequest).not.toHaveProperty("bodyJson");
+    expect(review.wireRequest).toMatchObject({ payloadHash: result.payloadHash, bodyJsonSha256: renderSha256(wire), bodyRef: request.wire.ref });
+    expect(JSON.stringify(request).length).toBeLessThan(65_536);
+    expect(wire === canonical.compiled.bodyJson).toBe(true);
+    const media = JSON.parse(wire).content.filter((item: Row) => item.type === "image_url");
+    expect(media.map((item: Row) => ({ role: item.role, sha256: renderSha256(Buffer.from(item.image_url.url.split(",")[1], "base64")) })))
+      .toEqual([front, closeup].map(image => ({ role: "reference_image", sha256: renderSha256(image) })));
+    expect(review.params.referenceImageUrls.map((item: Row) => item.sha256)).toEqual([front, closeup].map(renderSha256));
+    expect(calls).toHaveLength(1);
+    expect(JSON.stringify(calls[0]!.body.messages).length).toBeLessThan(65_536);
+    const checked = await authorized(result.qualificationToken, { env: fixture.enforced });
+    expect(checked.compiled.payloadHash).toBe(result.payloadHash);
+    await checked.release();
+    expect(pool.locked).toBe(false);
+  });
+  it("keeps an accepted oversized qualification idempotent and rejects a full legacy response for that row", async () => {
+    const { result, fixture } = await issueReceipt();
+    pool.submissionState = "accepted";
+    const repeated = await qualifyProductionShot({ app: pool.asPool(), scope, actor: "MEM-ORIGINAL", projectId: "P1", shotId: "S1",
+      modelId: "doubao-seedance-2-5", params: {}, env: fixture.enforced, workDir: dir, response: "receipt" });
+    expect(repeated).toEqual(result);
+    expect((await loadQualifiedRenderInput(pool.asPool(), scope, repeated.qualificationToken, fixture.enforced)).reconciliationOnly).toBe(true);
+    await expect(issue({ params: {}, env: fixture.enforced })).rejects.toThrow("QUALIFICATION_RESPONSE_TOO_LARGE");
+    expect(pool.qualifications).toHaveLength(1);
+    expect(calls).toHaveLength(1);
+    expect(await readdir(path.join(root, "qualifications"))).toHaveLength(3);
+    expect(pool.locked).toBe(false);
+  });
+
+  it.each(["request", "review", "wire", "source image"])("refuses to sign if the %s changes during review", async kind => {
+    const model = globalThis.fetch;
+    vi.stubGlobal("fetch", vi.fn(async (...args: Parameters<typeof fetch>) => {
+      const reply = await model(...args);
+      const folder = path.join(root, "qualifications");
+      const file = kind === "source image" ? path.join(dir, "workspaces", scope.workspaceId, "characters", "P1", "front.png")
+        : path.join(folder, (await readdir(folder)).find(name => name.endsWith(`.${kind}.json`))!);
+      await writeFile(file, "{}");
+      return reply;
+    }));
+    await expect(issueReceipt()).rejects.toThrow("SOURCE_HASH_MISMATCH");
+    expect(calls).toHaveLength(1);
+    expect(pool.qualifications).toHaveLength(0);
+    expect(pool.locked).toBe(false);
+  });
+
+  it("keeps the original wire cap for arbitrary images without an enforced G6 reference binding", async () => {
+    await expect(qualifyProductionShot({ app: pool.asPool(), scope, actor: "MEM-ORIGINAL", projectId: "P1", shotId: "S1",
+      modelId: "doubao-seedance-2-5", workDir: dir, env: { ...env, PROMPT_CONTRACT_V2: "off" },
+      params: { referenceImageUrls: [front, closeup].map(image => `data:image/png;base64,${image.toString("base64")}`) },
+      response: "receipt" })).rejects.toThrow("QUALIFICATION_REQUEST_TOO_LARGE");
+    expect(calls).toHaveLength(0);
+    expect(pool.qualifications).toHaveLength(0);
+    expect(pool.locked).toBe(false);
   });
 });
