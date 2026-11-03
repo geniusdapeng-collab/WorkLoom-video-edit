@@ -23,7 +23,7 @@ function parseArgs(args: string[]) {
 
 async function main() {
   if (process.argv.length === 3 && process.argv[2] === "--help") {
-    console.log("Usage: node --import tsx scripts/tools/provider-budget-gateway.mts --port PORT --journal PATH [--task ID] [--scope FILE] [--profile case|workflow]");
+    console.log("Usage: node --import tsx scripts/tools/provider-budget-gateway.mts --port PORT --journal PATH [--task ID] [--scope FILE] [--profile case|workflow|workflow-v2]");
     return;
   }
   check(process.env.NODE_TLS_REJECT_UNAUTHORIZED !== "0" && !process.env.NODE_USE_ENV_PROXY,

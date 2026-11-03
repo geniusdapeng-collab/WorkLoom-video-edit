@@ -155,7 +155,7 @@ export async function startProviderBudgetGateway(options: GatewayOptions) {
   const localAuthorization = Buffer.from(`Bearer ${options.clientToken}`);
   const scope = normalizeBudgetScope(options.scope);
   const profile = normalizeBudgetProfile(options.profile);
-  if (profile === "workflow") {
+  if (profile !== "case") {
     check(scope.video.seconds !== null && scope.video.ratio !== null && scope.video.resolution !== null,
       "BUDGET_WORKFLOW_SCOPE_REQUIRED", 503);
   }
@@ -292,7 +292,9 @@ export async function startProviderBudgetGateway(options: GatewayOptions) {
     void handle(request, response).catch((error: unknown) => {
       if (response.destroyed || response.headersSent) return;
       const failure = error instanceof BudgetError ? error : new BudgetError("BUDGET_GATEWAY_FAILED", 503);
-      sendJson(response, failure.httpStatus, { error: { code: failure.code, message: failure.code } });
+      sendJson(response, failure.httpStatus, {
+        error: { code: failure.code, message: failure.code, ...(failure.limit ? { limit: failure.limit } : {}) },
+      });
     });
   });
   // No upgrade, CONNECT, or Expect admission paths.

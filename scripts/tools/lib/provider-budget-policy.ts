@@ -27,7 +27,8 @@ export const TASK_CAPS = Object.freeze({
 export const ARK_VIDEO_PATH = "/api/v3/contents/generations/tasks";
 export const ARK_IMAGE_PATH = "/api/v3/images/generations";
 
-export type BudgetProfile = "case" | "workflow";
+export type WorkflowBudgetProfile = "workflow" | "workflow-v2";
+export type BudgetProfile = "case" | WorkflowBudgetProfile;
 export type JsonObject = Record<string, unknown>;
 export type ImageProof = { urlHash: string; width: number; height: number };
 export type Resolution = "720p" | "1080p";
@@ -45,7 +46,11 @@ export type Settlement =
   | { kind: "video"; status: "succeeded" | "failed" | "cancelled" | "expired"; microCny: number };
 
 export class BudgetError extends Error {
-  constructor(readonly code: string, readonly httpStatus: number) {
+  constructor(
+    readonly code: string,
+    readonly httpStatus: number,
+    readonly limit?: { profile: "workflow-v2"; resource: "llmCalls"; used: number; cap: number },
+  ) {
     super(code);
   }
 }
@@ -113,15 +118,24 @@ export const llmMicroCny = (input: number, output: number): number => input * 2 
 
 const { microCny: mediaMicroCny, ...caseResourceCaps } = TASK_CAPS;
 const nativeInputAtMaxOutput = EDIT_CANONICAL_CASE_BUDGET.maxLlmTokens - EDIT_CANONICAL_CASE_BUDGET.maxLlmOutputTokens;
-export const WORKFLOW_TASK_CAPS = Object.freeze({
-  ...caseResourceCaps,
-  llmGrossTokens: TASK_CAPS.llmCalls * EDIT_CANONICAL_CASE_BUDGET.maxLlmTokens,
-  llmEstimatedMaxMicroCny: TASK_CAPS.llmCalls * llmMicroCny(nativeInputAtMaxOutput, EDIT_CANONICAL_CASE_BUDGET.maxLlmOutputTokens),
-  mediaMicroCny,
+function workflowTaskCaps(llmCalls: number) {
+  return Object.freeze({
+    ...caseResourceCaps,
+    llmCalls,
+    llmGrossTokens: llmCalls * EDIT_CANONICAL_CASE_BUDGET.maxLlmTokens,
+    llmEstimatedMaxMicroCny: llmCalls * llmMicroCny(nativeInputAtMaxOutput, EDIT_CANONICAL_CASE_BUDGET.maxLlmOutputTokens),
+    mediaMicroCny,
+  });
+}
+
+export const WORKFLOW_TASK_CAPS = workflowTaskCaps(TASK_CAPS.llmCalls);
+export const WORKFLOW_TASK_CAPS_BY_PROFILE = Object.freeze({
+  workflow: WORKFLOW_TASK_CAPS,
+  "workflow-v2": workflowTaskCaps(64),
 });
 
 export function normalizeBudgetProfile(value: unknown = "case"): BudgetProfile {
-  check(value === "case" || value === "workflow", "BUDGET_PROFILE_INVALID", 503);
+  check(value === "case" || value === "workflow" || value === "workflow-v2", "BUDGET_PROFILE_INVALID", 503);
   return value;
 }
 
