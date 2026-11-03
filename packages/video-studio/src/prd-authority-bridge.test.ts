@@ -1989,6 +1989,67 @@ describe("approved production authority at native technical and title seams", ()
     }))).rejects.toThrow("PRD_REVIEW_CHANGED");
   });
 
+  it.each(["valid", "reordered", "stale-original", "unknown-cast", "actor-absent", "non-frozen"])(
+    "runs native Layer2 before G6 with exact owner portrait candidates (%s)", async mode => {
+      const value = fixture(`LAYER2-PORTRAIT-${mode}`, [10, 10, 10]), h = productionHarness();
+      if (mode !== "non-frozen") {
+        requirementRecord(value.metadata.brief, "brief").segmentContract = {
+          count: 3, totalSeconds: 30, secondsPerSegment: 10, hardCuts: true,
+          intervals: Array.from({ length: 3 }, (_, i) => ({ startSec: i * 10, endSec: (i + 1) * 10, brief: `冻结段 ${i + 1}` })),
+        };
+        declareDelivery(value, { speechPolicy: "none" });
+      }
+      if (mode === "actor-absent") {
+        const sceneStructure = requirementRecord(value.discovery.sceneStructure, "source scene structure");
+        const opening = requirementRecord(sceneStructure.opening, "source opening");
+        requirementRecord(opening.productionContract, "source opening contract").actions = [
+          { actorId: "$scene", description: "开场只出现空场地，不出现任何人物" },
+        ];
+        refreshContract(value);
+      }
+      const portrait = syntheticPortraitSource(value);
+      if (mode === "unknown-cast") portrait.characterId = "outside-reviewed-cast";
+      const declaration = { characterId: portrait.characterId, portraitVersion: 2, angles: ["front", "closeup"] };
+      value.authority.portraitSources = [portrait];
+      value.authority.portraitReferenceSelection = preparePrdPortraitReferenceSelection(declaration, [portrait]);
+      const run = h.make(value);
+      const shots: RequirementRecord[] = value.contract.scenes.map(scene => ({ ...productionShot(scene.id), duration: 10,
+        sceneType: scene.id === "opening" ? "opening" : "body",
+        ...(scene.id === "opening" ? {} : { referenceImages: ["/characters/legacy/portrait_v1.png"] }) }));
+      delete shots[0]!.portraits;
+      delete requirementRecord(shots[0]!.fields, "opening fields").portraits;
+      if (mode === "reordered") [shots[1], shots[2]] = [shots[2]!, shots[1]!];
+      const input = structuredClone(shots);
+      const execute = () => h.accepted(run, () => {
+        if (mode === "stale-original") writeFileSync(portrait.originals.front!.path, Buffer.alloc(1024, 9));
+        // Native entry calls the strict FieldGuard here before the later G6 bind.
+        const normalized = requirementRecord(invoke(run.fieldGuard, "normalizeAndValidate", shots, "Layer2-Production"), "layer 2");
+        expect(requirementRecord(normalized.report, "layer 2 report")).toMatchObject({ passed: true, errors: [] });
+        const references = ["portrait-set://builtin-person/v2/front", "portrait-set://builtin-person/v2/closeup"];
+        for (const shot of normalized.shots as RequirementRecord[]) {
+          expect(shot.portraits).toEqual(references);
+          expect(requirementRecord(shot.fields, "layer 2 fields").portraits).toEqual(references);
+          expect(shot).toHaveProperty("degraded", false);
+        }
+        expect(shots).toEqual(input);
+        // The separate native G6 prompt array still requires the normal later binding.
+        expect(bindApprovedPrdPortraitSelection(shots)).toEqual(shots.map(shot => ({ shotId: shot.shotId, references })));
+      });
+      if (mode === "valid") await execute();
+      else {
+        const error = {
+          reordered: "PRD_SCENE_UNVERIFIED",
+          "stale-original": "PRD_PORTRAIT_SOURCE_UNVERIFIED",
+          "unknown-cast": "PRD_CAST_UNVERIFIED",
+          "actor-absent": "Production 25 fields missing: portraits",
+          "non-frozen": "Production 25 fields missing: portraits",
+        }[mode];
+        await expect(execute()).rejects.toThrow(error);
+        expect(shots).toEqual(input);
+      }
+    },
+  );
+
   it("passes a private complete authority identity to native produce without changing the caller blueprint, arguments, result or receiver", async () => {
     const value = fixture("PRODUCE-INPUT"), h = productionHarness(), run = h.make(value);
     const scenes = [{ id: "real-opening", action: "真实首镜动作" }], config = { aspectRatio: "16:9", unknown: { keep: true } };
