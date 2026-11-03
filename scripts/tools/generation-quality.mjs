@@ -7,6 +7,7 @@ import { constants, copyFileSync, existsSync, lstatSync, mkdirSync, readFileSync
 import path from 'node:path';
 import { POST_QUALITY_STAGES, inspectPostQuality, assertPostQuality, writePostQuality, writeProcessingProof, verifyProcessingProof } from '../../bundles/ai-video/connectors/post-bridge/quality-gate.mjs';
 import { probeMedia } from '../../bundles/ai-video/connectors/subtitle-bridge/measure.mjs';
+import { escapePersistentSubtitleText, parseAssEvents } from '../../bundles/ai-video/connectors/subtitle-bridge/core.mjs';
 
 export const GENERATION_QUALITY_SCHEMA = 'workloom.generation-quality/v1';
 const hashJson = value => createHash('sha256').update(JSON.stringify(value)).digest('hex');
@@ -50,6 +51,27 @@ function cueCount(report, args) {
   const items = cliFlag(args, '--items');
   if (items && existsSync(items)) { const values = JSON.parse(readFileSync(items, 'utf8')); return Array.isArray(values) ? values.length : 0; }
   return 0;
+}
+function persistentOnlyAss(report, args) {
+  const requested = cliFlag(args, '--persistent-text');
+  if (!requested || cliFlag(args, '--srt') || !['burn', 'sidecar'].includes(args[0])) return null;
+  const sidecar = args[0] === 'sidecar';
+  const proof = sidecar ? report?.manifest?.persistentText : report?.persistentText;
+  const ass = sidecar ? report?.files?.find(file => file.format === 'ass')?.path : report?.assPath;
+  const clockVerified = sidecar
+    ? report?.manifest?.timeline?.cues === 0 && report?.manifest?.timeline?.readback?.ass === true
+    : report?.textTimeline?.count === 1 && report?.checks?.persistent_text_coverage === true;
+  if (!clockVerified || !ass || proof?.readback !== true || proof.text !== requested
+    || proof.assText !== escapePersistentSubtitleText(requested) || proof.startSeconds !== 0
+    || !validHash(proof.assSha256) || generationFileSha256(ass) !== proof.assSha256) {
+    throw new GenerationQualityError('持续字幕缺少当前完整 ASS 和实际时钟回执');
+  }
+  const events = parseAssEvents(readFileSync(ass, 'utf8'));
+  if (events.length !== 1 || events[0].style !== 'Title' || events[0].text !== proof.assText
+    || events[0].start !== proof.start || events[0].end !== proof.end) {
+    throw new GenerationQualityError('持续字幕实际事件与当前回执不符');
+  }
+  return ass;
 }
 function collectReportOutputs(report) {
   const result = [];
@@ -180,6 +202,10 @@ export function createGenerationQuality({ root, bins, enabled = true } = {}) {
       execution.trackSha256 = music.sha256; execution.playedSha256 = music.playedSha256 ?? null;
     } else if (token.stage === 'subtitles' || token.stage === 'danmaku') {
       execution.cueCount = cueCount(detail, args); parameters.mode = token.stage === 'danmaku' ? 'danmaku' : args[0];
+      if (token.stage === 'subtitles' && !execution.cueCount) {
+        const ass = persistentOnlyAss(detail, args);
+        if (ass) { execution.cueCount = 1; execution.dialogueCueCount = 0; allOutputs.push(ass); }
+      }
       if (!execution.cueCount) throw new GenerationQualityError('字幕或弹幕没有实际文字与执行条数');
       const files = detail?.files ?? [];
       for (const file of files) if (file?.path && existsSync(file.path)) allOutputs.push(file.path);

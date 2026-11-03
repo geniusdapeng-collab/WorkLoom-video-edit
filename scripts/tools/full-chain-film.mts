@@ -548,6 +548,13 @@ const VALID_STAGES = new Set(["cine-kb", "continuity", "micromotion", "spec", "p
 for (const stage of STAGES) if (!VALID_STAGES.has(stage)) throw new Error(`UNKNOWN_STAGE: ${stage}`);
 if (STAGES.has("deliver")) STAGES.add("master");
 assertSelectedShotStageScope(STAGES, ONLY);
+if (PERSISTENT_SUBTITLE_TEXT && STAGES.has("mux") && sourceDocument.shots?.length
+  && !sourceDocument.shots.some(shot => dialogueText(shot as ShotCard).trim())) {
+  if (process.argv.includes("--stages")) {
+    throw new Error("PERSISTENT_ONLY_MUX_UNSUPPORTED: no dialogue for a portable soft track; omit mux and use the complete ASS sidecar");
+  }
+  STAGES.delete("mux");
+}
 
 const LOG_DIR = join(WORK_DIR, "logs", PROJECT);
 const STAGE_LOG = join(LOG_DIR, "stages.jsonl");
@@ -629,8 +636,13 @@ function generationArtifacts(scope: "master" | "delivery", masterFile: string,
   if (STAGES.has("cover") && !existsSync(cover)) throw new Error("GENERATION_REQUIRED_COVER_MISSING");
   if (softsubFile) artifacts.push({ id: "softsub", path: softsubFile, media: "video", role: "softsub", requireSubtitleStream: true, requiredStages: ["transitions", "subtitles"] });
   if (STAGES.has("mux") && !softsubFile) throw new Error("GENERATION_REQUIRED_SOFTSUB_MISSING");
-  const files = sidecars.length ? sidecars : subtitleSidecar ? [subtitleSidecar.srt, subtitleSidecar.ass] : [];
-  if (STAGES.has("subtitle") && SUBTITLE_MODE !== "burn" && (!subtitleSidecar || files.filter(file => /\.(srt|ass)$/i.test(file)).length < 2)) throw new Error("GENERATION_REQUIRED_SIDECARS_MISSING");
+  const ass = subtitleSidecar?.ass, srt = subtitleSidecar?.srt;
+  const files = sidecars.length ? sidecars : [srt, ass].filter((file): file is string => typeof file === "string");
+  if (STAGES.has("subtitle") && SUBTITLE_MODE !== "burn" && (!ass
+    || !files.some(file => basename(file) === basename(ass))
+    || srt && !files.some(file => basename(file) === basename(srt)))) {
+    throw new Error("GENERATION_REQUIRED_SIDECARS_MISSING");
+  }
   for (const [index, file] of files.filter(file => /\.(srt|ass|vtt)$/i.test(file)).entries()) artifacts.push({ id: `subtitle:${index}`, path: file, media: "subtitle", durationSeconds: expectedMasterSeconds });
   const intro = join(OUT_DIR, `${PROJECT}-with-cover.mp4`);
   if (existsSync(intro) && stageApproved("cover-intro")) artifacts.push({ id: "cover-intro", path: intro, media: "video", role: "cover-intro", requiredStages: ["transitions", "cover"] });
@@ -4944,7 +4956,15 @@ let colored = master;
 /** 未重跑字幕时，若磁盘上有"不早于当前上游"的字幕版就沿用它（只重跑后段的场景） */
 let subtitled = STAGES.has("subtitle") ? colored : preferDownstream(join(POST_DIR, "master-subtitled.mp4"), colored, "subtitle");
 /** 旁挂字幕文件（sidecar 模式的产物；burn 模式下为 null，下游仍走烧字版） */
-let subtitleSidecar: { dir: string; srt: string; ass: string; manifest: string | null; timelineOk: boolean } | null = null;
+let subtitleSidecar: { dir: string; srt: string | null; ass: string; manifest: string | null; timelineOk: boolean } | null = null;
+function subtitleDeliveryFiles(sidecar: NonNullable<typeof subtitleSidecar>): string[] {
+  if (!sidecar.srt) {
+    if (!sidecar.manifest) throw new Error("GENERATION_REQUIRED_SIDECARS_MISSING");
+    return [sidecar.ass, sidecar.manifest];
+  }
+  return readdirSync(sidecar.dir).filter(name => /\.(srt|ass|vtt|json)$/i.test(name)).map(name => join(sidecar.dir, name));
+}
+let persistentOnlySubtitles = false;
 let persistentSubtitleProof: Record<string, any> | null = null;
 async function readPersistentSubtitleProof(reportFile: string | undefined, input: string): Promise<{ ok: boolean; detail: string; proof?: Record<string, any>; ass?: string }> {
   if (!PERSISTENT_SUBTITLE_TEXT) return { ok: true, detail: "本次未请求持续文字层" };
@@ -4975,53 +4995,59 @@ async function readPersistentSubtitleProof(reportFile: string | undefined, input
 if (STAGES.has("subtitle") && existsSync(colored)) {
   rememberInputs("subtitle", [colored]);
   const started = Date.now();
-  const srtFile = join(POST_DIR, "subtitle.srt");
-  writeFileSync(srtFile, buildSrt(), "utf8");
+  const srt = buildSrt();
+  persistentOnlySubtitles = Boolean(PERSISTENT_SUBTITLE_TEXT && !srt);
+  const srtFile = persistentOnlySubtitles ? null : join(POST_DIR, "subtitle.srt");
+  if (srtFile) writeFileSync(srtFile, srt, "utf8");
+  const srtArgs = srtFile ? ["--srt", srtFile] : [];
   const briefFile = BRIEF_FILE ? abs(BRIEF_FILE) : null;
   const platform = arg("--platform", "抖音/快手");
   const persistentArgs = PERSISTENT_SUBTITLE_TEXT ? ["--persistent-text", PERSISTENT_SUBTITLE_TEXT] : [];
 
   if (SUBTITLE_MODE !== "burn") {
-    const sidecarDir = join(POST_DIR, "subtitles");
+    // Persistent-only output has no dialogue files; isolate it from earlier sidecars.
+    const sidecarDir = join(POST_DIR, "subtitles", ...(persistentOnlySubtitles ? [RUN_ID] : []));
     const sidecarResult = runCli(SUBTITLE_CLI, [
-      "sidecar", "--in", colored, "--out-dir", sidecarDir, "--srt", srtFile, "--name", PROJECT,
+      "sidecar", "--in", colored, "--out-dir", sidecarDir, ...srtArgs, "--name", PROJECT,
       "--platform", platform,
       ...persistentArgs,
       ...(briefFile ? ["--brief", briefFile] : [])
     ]);
-    const zhSrt = join(sidecarDir, `${PROJECT}.zh.srt`);
+    const zhSrt = persistentOnlySubtitles ? null : join(sidecarDir, `${PROJECT}.zh.srt`);
     const zhAss = join(sidecarDir, `${PROJECT}.zh.ass`);
     const manifest = join(sidecarDir, `${PROJECT}.subtitle-manifest.json`);
     const timelineOk = sidecarResult.ok && /时间轴回读 ok/.test(sidecarResult.out);
     const persistentCheck = await readPersistentSubtitleProof(sidecarResult.reportFile, colored);
+    const sidecarProduced = existsSync(zhAss) && (zhSrt ? existsSync(zhSrt) : persistentCheck.ass === zhAss && existsSync(manifest));
+    const subtitleArtifact = zhSrt ?? zhAss;
     const verdict = await reviewStage({
       stage: "subtitle", projectId: PROJECT,
       artifacts: [
-        { path: existsSync(zhSrt) ? zhSrt : srtFile, kind: "text", note: "旁挂字幕（母版未烧字）" },
+        ...(zhSrt && existsSync(zhSrt) ? [{ path: zhSrt, kind: "text" as const, note: "旁挂对白（母版未烧字）" }] : []),
         ...(existsSync(zhAss) ? [{ path: zhAss, kind: "text" as const, note: "带版式的 ASS（软轨/再烧同源）" }] : [])
       ],
       deterministic: [
-        { id: "sidecar-produced", pass: existsSync(zhSrt) && existsSync(zhAss), detail: existsSync(zhSrt) ? "旁挂字幕文件已产出（srt + ass）" : "旁挂字幕文件未产出", hard: true },
+        { id: "sidecar-produced", pass: sidecarProduced, detail: sidecarProduced ? "旁挂字幕文件已产出" : "旁挂字幕文件未产出", hard: true },
         { id: "tool-exit", pass: sidecarResult.ok, detail: sidecarResult.ok ? "字幕工位退出码 0" : `字幕工位失败：${sidecarResult.out.slice(-300)}`, hard: true },
         { id: "timeline", pass: timelineOk, detail: (sidecarResult.out.match(/时间轴回读[^\n]*/) ?? ["无回读信息"])[0] ?? "" },
         { id: "master-untouched", pass: sidecarResult.out.includes("母版未被改动 ok"), detail: "母版只读：出字幕文件的过程不改动画面（哈希与 mtime 双验）", hard: true },
         ...(PERSISTENT_SUBTITLE_TEXT ? [{ id: "persistent-text", pass: persistentCheck.ok, detail: persistentCheck.detail, hard: true }] : [])
       ],
-      context: { mode: SUBTITLE_MODE, srt: readFileSync(srtFile, "utf8").slice(0, 1200), platform, toolOutput: sidecarResult.out.slice(-900) },
+      context: { mode: SUBTITLE_MODE, srt: srt.slice(0, 1200), platform, toolOutput: sidecarResult.out.slice(-900) },
       env: ENV, allowFallbackApprove: ALLOW_FALLBACK_APPROVE, log
     });
-    if (existsSync(zhSrt) && persistentCheck.ok) {
-      subtitleSidecar = { dir: sidecarDir, srt: zhSrt, ass: existsSync(zhAss) ? zhAss : zhSrt, manifest: existsSync(manifest) ? manifest : null, timelineOk };
+    if (sidecarProduced && persistentCheck.ok) {
+      subtitleSidecar = { dir: sidecarDir, srt: zhSrt, ass: zhAss, manifest: existsSync(manifest) ? manifest : null, timelineOk };
       if (persistentCheck.proof) persistentSubtitleProof = persistentCheck.proof;
     }
     record({
       stage: "subtitle", shotId: null, invoked: true, ok: sidecarResult.ok && Boolean(subtitleSidecar), cached: false, degraded: false,
-      attempt: 1, ms: Date.now() - started, artifact: existsSync(zhSrt) ? zhSrt : null,
-      evidence: { mode: "sidecar", srt: zhSrt, ass: zhAss, manifest, outputFiles: [zhSrt, zhAss, manifest], timelineOk, tool: "subtitle-bridge sidecar", masterBurnedIn: false,
+      attempt: 1, ms: Date.now() - started, artifact: existsSync(subtitleArtifact) ? subtitleArtifact : null,
+      evidence: { mode: "sidecar", srt: zhSrt, ass: zhAss, manifest, outputFiles: [...(zhSrt ? [zhSrt] : []), zhAss, manifest], timelineOk, tool: "subtitle-bridge sidecar", masterBurnedIn: false,
         ...(PERSISTENT_SUBTITLE_TEXT ? { persistentText: persistentCheck.proof ?? null, persistentCheck } : {}) }, verdict
     });
     if (!sidecarResult.ok || !verdict.approved || !subtitleSidecar) throw new Error(`SUBTITLE_SIDECAR_FAILED: ${sidecarResult.out.slice(-400)}`);
-    log(`字幕以旁挂文件产出（母版不烧字）：${zhSrt}`);
+    log(`字幕以旁挂文件产出（母版不烧字）：${subtitleArtifact}`);
   }
 
   if (SUBTITLE_MODE !== "sidecar") {
@@ -5044,7 +5070,7 @@ if (STAGES.has("subtitle") && existsSync(colored)) {
       log(`  · 片头标题卡：跳过（封面卡承担片头标题${coverWillOpenTheFilm ? "" : "；--no-title-card 显式关闭"}）`);
     }
     const result = runCli(SUBTITLE_CLI, [
-      "burn", "--in", colored, "--out", out, "--srt", srtFile,
+      "burn", "--in", colored, "--out", out, ...srtArgs,
       ...(burnOpeningTitle ? ["--title", openingTitle] : []),
       "--platform", platform,
       ...persistentArgs,
@@ -5058,7 +5084,8 @@ if (STAGES.has("subtitle") && existsSync(colored)) {
       // 阶段名统一为 `subtitle`（历史裁决按阶段名检索：burn/sidecar 只是同一步的两种落地方式，
       // 命名分开会让"历史日志里有 subtitle 的放行裁决"这条链路完整性检查在本模式下误判缺失）
       stage: "subtitle", projectId: PROJECT,
-      artifacts: [{ path: existsSync(out) ? out : colored, kind: "video", probe: info }, { path: srtFile, kind: "text" }],
+      artifacts: [{ path: existsSync(out) ? out : colored, kind: "video", probe: info },
+        ...(srtFile ? [{ path: srtFile, kind: "text" as const }] : [])],
       deterministic: [
         { id: "burned", pass: existsSync(out), detail: existsSync(out) ? "字幕版已产出" : "字幕版未产出", hard: true },
         { id: "tool-exit", pass: result.ok, detail: result.ok ? "字幕工位退出码 0" : `字幕工位失败：${result.out.slice(-300)}`, hard: true },
@@ -5074,7 +5101,7 @@ if (STAGES.has("subtitle") && existsSync(colored)) {
         ...(PERSISTENT_SUBTITLE_TEXT ? [{ id: "persistent-text", pass: persistentCheck.ok && persistentMatchesSidecar, hard: true,
           detail: `${persistentCheck.detail}；烧录与组合ASS旁挂${persistentMatchesSidecar ? "同源" : "不一致"}` }] : [])
       ],
-      context: { mode: SUBTITLE_MODE, srt: readFileSync(srtFile, "utf8").slice(0, 1200), platform, toolOutput: result.out.slice(-900) },
+      context: { mode: SUBTITLE_MODE, srt: srt.slice(0, 1200), platform, toolOutput: result.out.slice(-900) },
       env: ENV, allowFallbackApprove: ALLOW_FALLBACK_APPROVE, log
     });
     if (existsSync(out)) subtitled = out;
@@ -5932,7 +5959,7 @@ if (!subtitleSidecar && SUBTITLE_MODE !== "burn" && stageApproved("subtitle")) {
   }
 }
 let softsubFile: string | null = null;
-if (STAGES.has("mux") && subtitleSidecar && existsSync(scored) && !DRY_RUN) {
+if (STAGES.has("mux") && subtitleSidecar?.srt && existsSync(scored) && !DRY_RUN) {
   rememberInputs("mux", [scored, subtitleSidecar.srt, subtitleSidecar.ass]);
   const started = Date.now();
   const deliverSubtitleDir = join(OUT_DIR, "subtitles");
@@ -6001,7 +6028,7 @@ if (STAGES.has("master") && !DRY_RUN) {
   const verdict = await reviewStage({ stage: "master", projectId: PROJECT,
     artifacts: [{ path: scored, kind: "video", probe: info },
       ...(STAGES.has("cover") ? [{ path: join(OUT_DIR, `${PROJECT}-cover.png`), kind: "image" as const }] : []),
-      ...(subtitleSidecar ? [{ path: subtitleSidecar.srt, kind: "text" as const }] : [])],
+      ...(subtitleSidecar ? [{ path: subtitleSidecar.srt ?? subtitleSidecar.ass, kind: "text" as const }] : [])],
     deterministic: [
       { id: "exists", pass: Number(info.duration ?? 0) > 0, hard: true, detail: "正式后期母版可由媒体探针读取" },
       { id: "duration", pass: Math.abs(Number(info.duration ?? 0) - expectedMasterSeconds) <= 1,
@@ -6016,7 +6043,7 @@ if (STAGES.has("master") && !DRY_RUN) {
       { id: "enhancement-lineage", pass: !ENHANCE_REQUESTED || stageApproved("enhance", sourceIds, history), hard: true,
         detail: "仅显式请求本地增强时核对实际增强回执；普通导出直接按目标尺寸编码" },
       { id: "subtitle-delivery", pass: !STAGES.has("subtitle") || (SUBTITLE_MODE === "burn"
-        ? existsSync(join(POST_DIR, "master-subtitled.mp4")) : Boolean(subtitleSidecar && existsSync(subtitleSidecar.srt))),
+        ? existsSync(join(POST_DIR, "master-subtitled.mp4")) : Boolean(subtitleSidecar && existsSync(subtitleSidecar.srt ?? subtitleSidecar.ass))),
         hard: true, detail: "按实际请求核对烧录字幕或旁挂文件" },
       { id: "deliverable-naming", pass: finalNamingAudit.ok, hard: true, detail: finalNamingAudit.detail },
     ], context: { stageSummary, qualityReviewed: false, qualityScore: null, policy: RENDERED_SHOT_ACCEPTANCE_POLICY },
@@ -6054,8 +6081,10 @@ if (STAGES.has("master") && !STAGES.has("deliver") && !DRY_RUN) {
   const sidecars: string[] = [];
   if (subtitleSidecar) {
     const dir = join(OUT_DIR, "subtitles"); mkdirSync(dir, { recursive: true });
-    for (const name of readdirSync(subtitleSidecar.dir)) if (/\.(srt|ass|vtt|json)$/i.test(name)) {
-      const file = join(dir, name); if (resolve(file) !== resolve(join(subtitleSidecar.dir, name))) copyFileSync(join(subtitleSidecar.dir, name), file); sidecars.push(file);
+    for (const source of subtitleDeliveryFiles(subtitleSidecar)) {
+      const file = join(dir, basename(source));
+      if (resolve(file) !== resolve(source)) copyFileSync(source, file);
+      sidecars.push(file);
     }
   }
   const accepted = await inspectCurrentGeneration("master-release", "master", deliverablePath, [], sidecars);
@@ -6068,7 +6097,7 @@ if (STAGES.has("master") && !STAGES.has("deliver") && !DRY_RUN) {
     assets: await Promise.all(content.map(async file => ({ path: publicDeliveryPath(file), sha256: await sha256UhdAsset(file) }))),
     ...(PERSISTENT_SUBTITLE_TEXT ? { subtitles: { mode: SUBTITLE_MODE, persistentText: persistentSubtitleProof,
       compositionAss: subtitleSidecar ? publicDeliveryPath(join(OUT_DIR, "subtitles", `${PROJECT}.zh.ass`)) : null,
-      portableSidecars: "dialogue-only" } } : {}),
+      portableSidecars: persistentOnlySubtitles ? "not-applicable-no-dialogue" : "dialogue-only" } } : {}),
     generationQuality: accepted.manifest, qualityReport: { path: relative(OUT_DIR, accepted.qualityFile.path), sha256: accepted.qualityFile.sha256 } };
   writeFileSync(manifestFile, `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
   const published = await publishUhdDelivery({ stagingDir: OUT_DIR, publicRoot: PUBLIC_OUT_DIR, releaseId: RUN_ID,
@@ -6332,10 +6361,9 @@ if (STAGES.has("deliver") && !DRY_RUN && (QUALITY !== "uhd" || masterApprovedFor
   if (subtitleSidecar) {
     const dir = join(OUT_DIR, "subtitles");
     mkdirSync(dir, { recursive: true });
-    for (const name of readdirSync(subtitleSidecar.dir)) {
-      if (!/\.(srt|ass|vtt|json)$/i.test(name)) continue;
-      const target = join(dir, name);
-      copyFileSync(join(subtitleSidecar.dir, name), target);
+    for (const source of subtitleDeliveryFiles(subtitleSidecar)) {
+      const target = join(dir, basename(source));
+      copyFileSync(source, target);
       stagedSubtitles.push(target);
     }
   }
@@ -6409,7 +6437,8 @@ if (STAGES.has("deliver") && !DRY_RUN && (QUALITY !== "uhd" || masterApprovedFor
     samples: [],
     at: stamp()
   }), assets: assetHashes, sourceShotlistSha256: sourceFileHash, generationQuality: deliveryGenerationQuality.manifest,
-  ...(PERSISTENT_SUBTITLE_TEXT ? { persistentText: persistentSubtitleProof, portableSubtitleSidecars: "dialogue-only" } : {}),
+  ...(PERSISTENT_SUBTITLE_TEXT ? { persistentText: persistentSubtitleProof,
+    portableSubtitleSidecars: persistentOnlySubtitles ? "not-applicable-no-dialogue" : "dialogue-only" } : {}),
   ...(completeRecommendations.length ? {
     coverIntro: {
       defaultSeconds: COVER_INTRO_SECONDS,

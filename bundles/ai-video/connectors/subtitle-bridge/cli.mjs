@@ -10,14 +10,14 @@
  *   subtitle-cli recipes    [--list] [--genre 旅拍] [--id outdoor-travel] [--platform B站]
  *   subtitle-cli plan       --in clip.mp4 [--srt subs.srt] [--title "川西之行"] [--platform 抖音/快手]
  *                           [--brief brief.json] [--out-dir dir] [--evidence-dir dir]
- *   subtitle-cli burn       --in clip.mp4 --out out.mp4 --srt subs.srt [--title "…"] [--platform …]
+ *   subtitle-cli burn       --in clip.mp4 --out out.mp4 [--srt subs.srt] [--title "…"] [--platform …]
  *                           [--brief brief.json] [--evidence-dir dir]
- *                           [--persistent-text "全片持续显示的文本"] # 与 --title 互斥，使用实际视频时钟
+ *                           [--persistent-text "全片持续显示的文本"] # 无对白时可省略 --srt；与 --title 互斥
  *   subtitle-cli title      --in clip.mp4 --out out.mp4 --title "川西之行 · WEST SICHUAN" [--srt subs.srt]
  *   subtitle-cli danmaku    --in clip.mp4 --out out.mp4 --items danmaku.json [--opacity 0.85]
  *   subtitle-cli sticker    --in clip.mp4 --out out.mp4 --items stickers.json
  *   subtitle-cli karaoke    --in clip.mp4 --out out.mp4 --srt subs.srt [--srt-en subs.en.srt] [--timings words.json]
- *   subtitle-cli sidecar    --out-dir dir [--in master.mp4] --srt subs.srt [--srt-en subs.en.srt] [--name film]
+ *   subtitle-cli sidecar    --out-dir dir [--in master.mp4] [--srt subs.srt] [--srt-en subs.en.srt] [--name film]
  *                           [--platform 抖音/快手] [--brief brief.json] [--evidence-dir dir]
  *   subtitle-cli softmux    --in master.mp4 --out master-softsub.mp4 --srt subs.srt [--srt-en subs.en.srt]
  *                           [--lang chi] [--lang-en eng]        # 字幕轨可开关，画面零改动
@@ -198,7 +198,7 @@ async function main() {
         mode: flags.title ? "both" : "subtitle",
         input: flags.in,
         output: flags.out,
-        cues: (await import("./core.mjs")).parseSrt(fs.readFileSync(flags.srt, "utf8")),
+        cues: flags.srt ? parseSrt(fs.readFileSync(flags.srt, "utf8")) : [],
         titleText: typeof flags.title === "string" ? flags.title : "",
         persistentText,
         brief: readBrief(flags),
@@ -327,7 +327,9 @@ async function main() {
       const punctuationCheck = outcome.checks.find((check) => check.kind === "no_punctuation");
       line(`  标点体检 ${punctuationCheck?.ok === false ? "fail" : "ok"}（残留 ${punctuationCheck?.detail?.hits ?? 0} 处；口径：字幕不带标点，数字内的 . : - / 保留）`);
       line(`  清单：${outcome.manifestPath}`);
-      line(`  结论：母版不含字幕（burnedIn=false）；要用软轨走 softmux，要硬字幕走 burn`);
+      line(outcome.manifest.portableSidecars === "not-applicable-no-dialogue"
+        ? "  结论：已交付完整持续文字 ASS；无对白软轨，硬字幕走 burn"
+        : "  结论：母版不含字幕（burnedIn=false）；要用软轨走 softmux，要硬字幕走 burn");
       return outcome.passed ? 0 : 3;
     }
     case "softmux": {
