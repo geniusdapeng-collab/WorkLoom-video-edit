@@ -1,7 +1,7 @@
 /** 完整来源分段供模型选择；引文只从本次保存原文装订，不接受模型改写。 */
 import { z } from "zod";
 import type { SourceSnapshot } from "./marketing-source-fetcher.js";
-import { extractionSchema } from "./marketing-facts.js";
+import { extractionSchema, normalizeOptionalEvidenceReason } from "./marketing-facts.js";
 import { canonicalRenderJson, renderSha256 } from "./gen/compiled-request.js";
 
 export interface SourceQuoteFragment { quoteId: string; start: number; end: number; text: string }
@@ -51,7 +51,7 @@ export function quoteIndexedSources(sources: SourceSnapshot[]): IndexedMarketing
 export function resolveMarketingExtraction(raw: unknown, sources: SourceSnapshot[]): {
   extraction: ReturnType<typeof extractionSchema.parse>; bindings: CitationBinding[];
 } {
-  const parsed = selectableExtraction.parse(raw);
+  const parsed = selectableExtraction.parse(normalizeOptionalEvidenceReason(raw));
   const indexed = quoteIndexedSources(sources), bySource = new Map(indexed.map(source => [source.sourceId, source]));
   const bindings: CitationBinding[] = [];
   const citations = parsed.citations.map(citation => {
