@@ -29,6 +29,8 @@ import {
   projectShotDurations,
   resolveRateKey,
 } from "./duration-projection.js";
+import { assertFrozenProductionTiming, bindFrozenScreenplayPrompt } from "./frozen-production-duration.js";
+import type { FrozenSegmentContract } from "./requirement-contract.js";
 import { REQUIRED_ANGLES, type PortraitIndex, type PortraitIndexEntry } from "./portrait-runtime.js";
 import {
   CinematicSkillError, cinematicSkillHash, checkCinematicSkillCompliance, planCinematicSkills,
@@ -1387,6 +1389,7 @@ export interface DurationProjectionBridgeOptions {
   onEvent?: (event: DurationProjectionEvent) => void;
   minShotSeconds?: number;
   maxShotSeconds?: number;
+  frozenSegments?: FrozenSegmentContract;
 }
 
 const durationProjectionScopes = new AsyncLocalStorage<{ options: DurationProjectionBridgeOptions; active: boolean }>();
@@ -1396,7 +1399,8 @@ export async function withVendorDurationProjectionScope<T>(
   options: DurationProjectionBridgeOptions,
   operation: () => T | Promise<T>,
 ): Promise<T> {
-  const scope = { options: Object.freeze({ ...options }), active: true };
+  const scope = { options: Object.freeze({ ...options,
+    ...(options.frozenSegments ? { frozenSegments: structuredClone(options.frozenSegments) } : {}) }), active: true };
   return durationProjectionScopes.run(scope, async () => {
     try { return await operation(); }
     finally { scope.active = false; }
@@ -1491,6 +1495,30 @@ export function installVendorDurationProjectionBridge(options: DurationProjectio
     const current = durationProjectionOptions(options);
     const minShot = current.minShotSeconds ?? 4;
     const maxShot = current.maxShotSeconds ?? 30;
+    if (current.frozenSegments) {
+      const contract = current.frozenSegments;
+      const fail = (message: string): never => {
+        emit({ kind: "infeasible", source, targetSeconds: contract.totalSeconds,
+          totalSeconds: records.reduce((sum, record) => sum + durationOf(record), 0), shots: [], message });
+        throw new Error(`FROZEN_PRODUCTION_TIMING_UNVERIFIED: ${source}: ${message}`);
+      };
+      if ((targetSeconds !== null && targetSeconds !== contract.totalSeconds)
+        || contract.secondsPerSegment < minShot || contract.secondsPerSegment > maxShot) {
+        return fail("冻结时长与本次目标或正式模型能力冲突");
+      }
+      assertFrozenProductionTiming(records, contract, source, true);
+      const shots = records.map((record, index) => {
+        const voiceFloorSeconds = computeVoiceFloor({ shotId: idOf(record, `${kindLabel}-${index + 1}`),
+          dialogue: record.dialogue, emotion: record.emotion as string | undefined, mood: record.mood as string | undefined }).seconds;
+        return { shotId: idOf(record, `${kindLabel}-${index + 1}`), planSeconds: contract.secondsPerSegment,
+          seconds: contract.secondsPerSegment, voiceFloorSeconds, raised: false, lowered: false };
+      });
+      const overflow = shots.find(shot => shot.voiceFloorSeconds > shot.seconds);
+      if (overflow) return fail(`${overflow.shotId} 台词无法在冻结区间内完整呈现`);
+      emit({ kind: "projected", source, targetSeconds: contract.totalSeconds, totalSeconds: contract.totalSeconds, shots,
+        message: "冻结分段逐项核验通过，未重新分配时长" });
+      return true;
+    }
     if (!Number.isFinite(Number(targetSeconds)) || Number(targetSeconds) <= 0) {
       emit({
         kind: "skipped",
@@ -1572,6 +1600,20 @@ export function installVendorDurationProjectionBridge(options: DurationProjectio
   };
 
   /* ---------- ① 剧本引擎：总量对齐改为投影 ---------- */
+  step("ScriptGenerator._buildGenerationPrompt", () => {
+    const file = resolvePath(repoRoot, "vendor/supermickey/hyperreality-system/engines/script-engine/core/script-generator.js");
+    if (!existsSync(file)) return;
+    const mod = vendorRequire(file) as { ScriptGenerator?: { prototype?: Recordish } };
+    const prototype = mod?.ScriptGenerator?.prototype;
+    const original = prototype?._buildGenerationPrompt;
+    if (!prototype || typeof original !== "function") return;
+    prototype._buildGenerationPrompt = function patchedBuildGenerationPrompt(this: unknown, ...args: unknown[]): string {
+      const prompt = Reflect.apply(original, this, args);
+      const frozen = durationProjectionOptions(options).frozenSegments;
+      return frozen ? bindFrozenScreenplayPrompt(prompt, frozen) : prompt;
+    };
+    restores.push(() => { prototype._buildGenerationPrompt = original; });
+  });
   step("ScriptGenerator._enforceTargetDuration", () => {
     const file = resolvePath(repoRoot, "vendor/supermickey/hyperreality-system/engines/script-engine/core/script-generator.js");
     if (!existsSync(file)) return;
@@ -1609,7 +1651,11 @@ export function installVendorDurationProjectionBridge(options: DurationProjectio
     const original = prototype?._normalizeDurations as ((this: unknown, shots: Recordish[], target: unknown) => Recordish[]) | undefined;
     if (!prototype || typeof original !== "function") return;
     const patched = function patchedNormalizeDurations(this: unknown, shots: Recordish[], target: unknown): Recordish[] {
-      if (!Array.isArray(shots) || shots.length === 0) return shots;
+      if (!Array.isArray(shots) || shots.length === 0) {
+        const frozen = durationProjectionOptions(options).frozenSegments;
+        if (frozen) assertFrozenProductionTiming(shots, frozen, "production-engine.normalize", true);
+        return shots;
+      }
       const applied = projectRecords(shots, Number(target), "production-engine.normalize", "S", true);
       if (!applied) return original.call(this, shots, target);
       return shots;
@@ -1633,6 +1679,8 @@ export function installVendorDurationProjectionBridge(options: DurationProjectio
     if (typeof originalConstrain === "function") {
       const patched = function patchedConstrain(this: Recordish, scenes: Recordish[], opts: Recordish = {}): Recordish {
         if (!Array.isArray(scenes) || scenes.length === 0) {
+          const frozen = durationProjectionOptions(options).frozenSegments;
+          if (frozen) assertFrozenProductionTiming(scenes, frozen, "dcm.constrain", true);
           return originalConstrain.call(this, scenes ?? [], opts) as Recordish;
         }
         const explicitTarget = Number(opts.targetDuration);
@@ -1641,6 +1689,8 @@ export function installVendorDurationProjectionBridge(options: DurationProjectio
         projectRecords(scenes, target, "dcm.constrain", "SC");
         const ensure = prototype._ensureSequentialTiming as ((this: unknown, list: Recordish[]) => void) | undefined;
         if (typeof ensure === "function") ensure.call(this, scenes);
+        const frozen = durationProjectionOptions(options).frozenSegments;
+        if (frozen) assertFrozenProductionTiming(scenes, frozen, "dcm.constrain", true);
         return { scenes, adjustments: [], valid: true };
       };
       prototype.constrain = patched;

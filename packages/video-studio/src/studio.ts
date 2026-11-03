@@ -31,7 +31,8 @@ import { preparePrdAuthority, type PrdAuthority, type PrdMarketingAuthority } fr
 import { assertPrdAuthorityBridge, installVendorPrdAuthorityBridge, installVendorPrdProductionBridge, withPrdAuthorityScope } from "./prd-authority-bridge.js";
 import { preparePrdPortraitSources } from "./prd-portrait-source.js";
 import { captureRequirementTheme, requirementThemeApprovalPayload, requirementThemeUsageBoundary, type RequirementApprovedTheme } from "./requirement-authority.js";
-import { requirementHash } from "./requirement-contract.js";
+import { frozenSegmentContract, requirementHash } from "./requirement-contract.js";
+import { assertFrozenProductionTiming } from "./frozen-production-duration.js";
 import { normalizeNarrativePrdContract } from "./narrative-prd-contract.js";
 import { normalizeCreativeThemeContract } from "./creative-theme-contract.js";
 import {
@@ -318,6 +319,9 @@ export class VideoStudio {
       ? metadata.brief as Record<string, unknown>
       : {};
     const requestedDuration = Number(prdAuthority?.profile.targetDuration ?? brief.duration ?? 0);
+    const frozenSegments = prdAuthority
+      ? frozenSegmentContract((prdAuthority.metadata.brief ?? {}) as Record<string, unknown>, requestedDuration)
+      : undefined;
     const promptOptions = {
       targetDuration: Number.isFinite(requestedDuration) && requestedDuration > 0 ? requestedDuration : 30,
       noPeople: Boolean(noPeople),
@@ -331,6 +335,9 @@ export class VideoStudio {
 
     const handler: ConfirmationHandler = async (req) => {
       const gate = resolveGate(req.type);
+      if (frozenSegments && (gate === "G6_PROMPT" || gate === "G7_FINAL")) {
+        assertFrozenProductionTiming(req.structured, frozenSegments, gate, false);
+      }
       const normalizedPrompt = input.isMarketing && gate === "G6_PROMPT"
         ? normalizeMarketingPromptText(req.content, promptOptions)
         : null;
@@ -457,10 +464,14 @@ export class VideoStudio {
          * 全部收敛到宿主投影器；`WORKLOOM_DURATION_PROJECTION=off` 可一键回到原行为（回滚开关）。
          */
         const projectionEnabled = (process.env.WORKLOOM_DURATION_PROJECTION ?? "on") !== "off";
+        if (frozenSegments && !projectionEnabled) {
+          throw new Error("FROZEN_PRODUCTION_TIMING_UNVERIFIED: 冻结分段要求正式时长检查启用");
+        }
         let lastProjectedTarget: number | null = null;
         const projectionOptions: DurationProjectionBridgeOptions = {
           minShotSeconds: minSingleShot,
           maxShotSeconds: maxSingleShot,
+          ...(frozenSegments ? { frozenSegments } : {}),
           log,
           onEvent: (event) => {
             if (typeof event.targetSeconds === "number" && event.targetSeconds > 0) {
