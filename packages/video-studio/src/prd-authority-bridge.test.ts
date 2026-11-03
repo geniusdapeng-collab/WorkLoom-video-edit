@@ -29,8 +29,12 @@ const { FieldConsistencyChecker } = nativeRequire("../../../vendor/supermickey/h
 const { PromptDeliveryGuard } = nativeRequire("../../../vendor/supermickey/hyperreality-system/engines/production-engine/agents/prompt-delivery-guard.js") as { PromptDeliveryGuard: NativeConstructor };
 const { SemanticRefinementPass } = nativeRequire("../../../vendor/supermickey/hyperreality-system/engines/production-engine/agents/semantic-refinement-pass.js") as { SemanticRefinementPass: NativeConstructor };
 const { FieldQualityPipeline } = nativeRequire("../../../vendor/supermickey/hyperreality-system/engines/field-quality/field-quality-pipeline.js") as { FieldQualityPipeline: NativeConstructor };
-const { RuleRepairer, PRD } = nativeRequire("../../../vendor/supermickey/hyperreality-system/engines/field-quality/field-repair-agent.js") as { RuleRepairer: NativeConstructor; PRD: NativeConstructor };
-const { IssueType } = nativeRequire("../../../vendor/supermickey/hyperreality-system/engines/field-quality/field-check-agent.js") as { IssueType: Record<string, string> };
+const { RuleRepairer, PRD, FieldRepairAgent } = nativeRequire("../../../vendor/supermickey/hyperreality-system/engines/field-quality/field-repair-agent.js") as {
+  RuleRepairer: NativeConstructor; PRD: NativeConstructor; FieldRepairAgent: NativeConstructor;
+};
+const { IssueType, RuleChecker } = nativeRequire("../../../vendor/supermickey/hyperreality-system/engines/field-quality/field-check-agent.js") as {
+  IssueType: Record<string, string>; RuleChecker: NativeConstructor;
+};
 const nativeConstraint = FieldContentRefiner.prototype._normalizeConstraint as (this: RequirementRecord, ...args: unknown[]) => unknown;
 const nativeQuality = QualityGate.prototype.run as (this: RequirementRecord, ...args: unknown[]) => unknown;
 const nativeDelivery = PromptDeliveryGuard.prototype.verify as (this: RequirementRecord, ...args: unknown[]) => unknown;
@@ -1600,6 +1604,67 @@ describe("approved production authority at native technical and title seams", ()
         }
         expect(repaired.character).toContain("角色锚定：合成人物");
         expect(repaired.consistency).toContain("角色锚定：合成人物");
+      }
+    });
+  });
+
+  it.each([
+    { frozen: true, hasCamera: true },
+    { frozen: true, hasCamera: false },
+    { frozen: false, hasCamera: true },
+    { frozen: false, hasCamera: false },
+  ])("keeps native camera diagnostics and avoids ungrounded timing only in frozen shots ($frozen, authored $hasCamera)", async ({ frozen, hasCamera }) => {
+    const value = fixture(`CAMERA-RULE-${frozen}-${hasCamera}`, [10, 10, 10]), h = productionHarness();
+    if (frozen) {
+      const brief = requirementRecord(value.metadata.brief, "test frozen Brief");
+      brief.segmentContract = { count: 3, totalSeconds: 30, secondsPerSegment: 10, hardCuts: true,
+        intervals: [{ startSec: 0, endSec: 10, brief: "第一段原始动作" },
+          { startSec: 10, endSec: 20, brief: "第二段原始动作" },
+          { startSec: 20, endSec: 30, brief: "第三段原始动作" }] };
+      refreshContract(value);
+    }
+    const camera = hasCamera ? "低位长焦跟拍与车身同步，镜头只随车身自然减速并保持同轴，不加停格或推近。" : "";
+    const timeline = "T00:00–T00:03 跟住车身；T00:03–T00:08 两次位置反转后冲线；T00:08–T00:10 随车回稳。";
+    const shot = {
+      shotId: "scene-1", duration: 10, camera_movement: camera, cameraMovement: camera, timeline,
+      fields: { camera_movement: camera, timeline },
+    };
+    const check = invoke(new RuleChecker(), "check", shot) as RequirementRecord[];
+    const cameraIssue = check.find(issue => issue.fieldEn === "camera_movement" && issue.issueType === (hasCamera ? IssueType.INCOMPLETE : IssueType.MISSING));
+    expect(cameraIssue).toBeDefined();
+    const otherIssue = { fieldEn: "negative", issueType: IssueType.INCOMPLETE, severity: "major", description: "负面约束缺少 no text" };
+    const input = { ...shot, negative: "不出现车牌", fields: { ...shot.fields, negative: "不出现车牌" } };
+    const run = h.make(value);
+    await h.accepted(run, async () => {
+      // Use the native rule application and the native recheck before the
+      // language-model layer. The fixture records that handoff with zero I/O.
+      const repairer = Object.create(FieldRepairAgent.prototype) as RequirementRecord;
+      repairer.ruleRepairer = new RuleRepairer();
+      repairer.prd = new PRD({});
+      const handoff = vi.fn(async (repaired: RequirementRecord, report: RequirementRecord) => {
+        if (frozen) {
+          expect(repaired.camera_movement).toBe(camera);
+          expect((report.issues as RequirementRecord[]).some(issue => issue.fieldEn === "camera_movement"
+            && issue.issueType === cameraIssue!.issueType)).toBe(true);
+        }
+        return { repaired, actions: [] };
+      });
+      repairer.llmRepairer = { llm: {}, repair: handoff };
+      const result = requirementRecord(await invoke(repairer, "repair", input, { shotId: shot.shotId, issues: [cameraIssue, otherIssue] }, shot.shotId), "native repair result");
+      const repaired = requirementRecord(result.repaired, "native repaired shot");
+      const fields = requirementRecord(repaired.fields, "native repaired fields");
+      const actions = requirementRecord(result.log, "native repair log").actions as RequirementRecord[];
+      expect(repaired.timeline).toBe(timeline);
+      expect(fields.timeline).toBe(timeline);
+      expect(repaired.duration).toBe(10);
+      expect(repaired.negative).toBe("no text, no watermark, 不出现车牌");
+      expect(actions.some(action => action.fieldEn === "camera_movement")).toBe(!frozen);
+      if (frozen) {
+        expect(handoff).toHaveBeenCalledTimes(1);
+        expect([repaired.camera_movement, repaired.cameraMovement, fields.camera_movement]).toEqual([camera, camera, camera]);
+      } else {
+        expect(repaired.camera_movement).toContain("0.5m/s");
+        expect(repaired.camera_movement).toContain("收尾");
       }
     });
   });
