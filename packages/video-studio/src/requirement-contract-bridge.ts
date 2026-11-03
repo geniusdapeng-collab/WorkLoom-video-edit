@@ -34,6 +34,18 @@ const sceneJsonCorrection = "\n\n## 上一次原生场景 JSON 语法纠正\n"
   + "上一次已返回正文，但正文无法解析为 JSON。根据完整原始输入和本次实际 schema 重新生成一个完整 JSON 对象。"
   + "检查数组元素之间的逗号、对象与数组逐层闭合，以及字符串内引号和换行的合法转义。只输出对象，禁止代码围栏或解释。";
 
+function frozenSceneAnnex(segments: FrozenSegmentContract, draft: Readonly<{ body: string; hash: string }>): string {
+  return "\n\n## 本次冻结分段及原生场景草案\n"
+    + `精确硬切合同（客户权威）：\n${JSON.stringify(segments)}\n`
+    + `本次 SceneArchitect 已通过结构校验的完整原始 JSON（场景摘要 ${draft.hash}，仍待独立 G3 审核）：\n${draft.body}\n`
+    + "用原草案的区间、动作先后、机位和声场做交叉核对，建议应指出作用的现有区间。"
+    + "不得新增生成段、补拍输出或依赖额外生成的插入镜头，不得改动已有硬切、时长、动作前提或终态。"
+    + "需要调整时，在对应单次生成输出内部控制构图、机位移动、遮挡、运动或声场，保留 Brief 要求可辨认的动作和结果。"
+    + "跨硬切核对同一人物、服装与护具、发型、姿态、道具、运动方向和相对位置。前段终态与后段首态相承，只有草案明确展示的动作才改变状态。"
+    + "若当前方案有矛盾或无法在既定段内完成，按真实风险报告，指出受影响的具体动作、状态或区间，交 G3 审核。"
+    + "不要把额外生成、跳过必需动作或换成未获批准的方案写成可执行缓解或参考。\n";
+}
+
 /**
  * The vendor treats every populated brief as a marketing brief. A host-routed
  * narrative run must bypass that suffix while retaining duration/platform in
@@ -285,6 +297,7 @@ export function installRequirementContractBridge(
         throw new RequirementContractError("REQUIREMENT_SCENE_UNVERIFIED", "上游创意时长与冻结分段合同不一致");
       }
       const agents = requirementRecord(this.agents, "需求洞察 agents");
+      let sceneDraft: Readonly<{ body: string; hash: string }> | undefined;
       const inputHash = scope.authority ? requirementHash(input) : undefined;
       const originalEngine = this;
       const requireActiveScope = () => {
@@ -373,6 +386,21 @@ export function installRequirementContractBridge(
               requireActiveScope();
               const original = Reflect.apply(build, this, [input]);
               if (typeof original !== "string") requirementAuthorityFailure("REQUIREMENT_VENDOR_UNAVAILABLE", `${label} 原始 prompt 不是文本`);
+              let prompt = original;
+              if (segments && name === "risk") {
+                const boundary = original.lastIndexOf("\n\n【评估心法】");
+                const format = original.lastIndexOf("\n\n请输出 JSON 格式：");
+                if (boundary < 0 || format <= boundary) {
+                  requirementAuthorityFailure("REQUIREMENT_VENDOR_UNAVAILABLE", "RiskAssessor 原始创作指令边界发生变化");
+                }
+                // Keep native input fields and output format. Replace generic
+                // examples that explicitly prescribe extra cuts or audiences.
+                prompt = original.slice(0, boundary)
+                  + "\n\n【本次评估】逐段指出最可能影响交付的具体风险、影响与严重级别。"
+                  + "businessConstraints 使用本次 Brief 的真实约束，mitigationSuggestions 只写符合精确分段合同且可执行的措施。"
+                  + "无法消除的关键风险留在风险字段供独立 G3 裁决。"
+                  + original.slice(format);
+              }
               if (techniqueReference) {
                 const boundary = original.lastIndexOf("\n\n【推荐心法】");
                 if (boundary === -1 || !original.startsWith("你是一位泡在片库里的剪辑指导。")) {
@@ -381,13 +409,17 @@ export function installRequirementContractBridge(
                 // Keep the native video fields and remove the incompatible named-case brief and examples.
                 const fields = original.indexOf("\n\n视频类型: ");
                 if (fields < 0 || fields >= boundary) requirementAuthorityFailure("REQUIREMENT_VENDOR_UNAVAILABLE", "ReferenceCurator 原始主题字段边界发生变化");
-                return "你是一位泡在片库里的剪辑指导。只提出适合本片的具体摄影、剪辑和声音手法。"
+                prompt = "你是一位泡在片库里的剪辑指导。只提出适合本片的具体摄影、剪辑和声音手法。"
                   + original.slice(fields, boundary)
                   + "\n\n客户只允许无品牌的视听手法。filmReferences 和 adReferences 均必须是空数组。"
                   + "styleReferences 写 2–4 条可执行的具体手法，覆盖本片所需的摄影、剪辑与声音，不写导演、影片、作品、品牌或其他商业标识。"
-                  + "只输出符合实际 schema 的完整 JSON 对象。" + attemptFeedback;
+                  + "只输出符合实际 schema 的完整 JSON 对象。";
               }
-              return original + attemptFeedback;
+              if (segments && name !== "audience") {
+                if (!sceneDraft) requirementAuthorityFailure("REQUIREMENT_DISCOVERY_CHANGED", "后续原生角色缺少本次已校验场景原件");
+                prompt += frozenSceneAnnex(segments, sceneDraft);
+              }
+              return prompt + attemptFeedback;
             };
             runView._validateAndFill = function (this: RequirementRecord, response: unknown, responseSchema: unknown) {
               requireActiveScope();
@@ -437,6 +469,7 @@ export function installRequirementContractBridge(
         let jsonCorrectionExhausted = false;
         let started = false, correctionUsed = false;
         let completedSyntaxFailure = false;
+        let nativeSceneBody: string | undefined;
         if (segments) {
           const model = requirementRecord(this.llmEngine, "SceneArchitect 已守护模型");
           const reason = model.reason;
@@ -450,7 +483,11 @@ export function installRequirementContractBridge(
             // The pinned vendor parses the returned text with JSON.parse. Its
             // legacy candidate extractor may salvage partial data or clip a
             // valid full-window response. Send only the whole body to that parser.
-            _extractJsonObject: { value: (value: unknown) => typeof value === "string" ? value.trim() || null : null },
+            _extractJsonObject: { value: (value: unknown) => {
+              if (typeof value !== "string" || !value.trim()) return null;
+              nativeSceneBody = value;
+              return value.trim();
+            } },
           });
         }
         runView._callLLM = async function (this: RequirementRecord, ...args: unknown[]) {
@@ -467,6 +504,7 @@ export function installRequirementContractBridge(
           pendingFeedback = "";
           currentSceneFailure = undefined;
           completedSyntaxFailure = false;
+          nativeSceneBody = undefined;
           try { return await Reflect.apply(callScene, this, args); }
           catch (error) {
             // The adapter strictly parses returned content; the pinned vendor
@@ -499,7 +537,13 @@ export function installRequirementContractBridge(
           try {
             validateRequirementSchema(response, responseSchema);
             requirementScenes(response, cast, upstream.duration_sec);
-            if (segments) validateFrozenSceneTiming(response, segments);
+            if (segments) {
+              validateFrozenSceneTiming(response, segments);
+              if (!nativeSceneBody || sceneDraft) {
+                throw new RequirementContractError("REQUIREMENT_DISCOVERY_CHANGED", "本次严格校验场景缺少唯一原始正文");
+              }
+              sceneDraft = Object.freeze({ body: nativeSceneBody, hash: requirementHash(response) });
+            }
           } catch (error) {
             const feedback = structuredSceneFeedback(error);
             if (feedback && error instanceof RequirementContractError) {
@@ -537,7 +581,12 @@ export function installRequirementContractBridge(
       if (currentScope() !== scope) throw new RequirementContractError("REQUIREMENT_SCOPE_CLOSED", "需求洞察结束时运行作用域已经关闭");
       const record = requirementRecord(result, "实际需求洞察结果");
       requirementScenes(record.sceneStructure, cast, requirementRecord(input, "上游输入").duration_sec);
-      if (segments) validateFrozenSceneTiming(record.sceneStructure, segments);
+      if (segments) {
+        validateFrozenSceneTiming(record.sceneStructure, segments);
+        if (sceneDraft?.hash !== requirementHash(record.sceneStructure)) {
+          throw new RequirementContractError("REQUIREMENT_DISCOVERY_CHANGED", "需求洞察结果不再匹配本次原始场景草案");
+        }
+      }
       return { ...record, audienceAuthority: audience(scope) ?? null, audienceProfileStatus: "model-hypothesis" };
     });
   };
