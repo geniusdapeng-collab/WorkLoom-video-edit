@@ -59,9 +59,11 @@ afterEach(() => {
   vi.clearAllTimers(); vi.useRealTimers(); vi.unstubAllGlobals();
 });
 
-function fixture(name = "P1") {
+function fixture(name = "P1", ownerAudience: string | null = "原始年轻消费者") {
   const f = prdFixture(name); owned.push(f);
   const brief = requirementRecord(f.metadata.brief, "brief");
+  if (ownerAudience === null) delete brief.audience;
+  else brief.audience = ownerAudience;
   brief.description = `${brief.description}\n本片不把性能数字作屏幕卖点，不采用SBK同款背书；完整尾注-${name}-𠮷。`;
   const raw = JSON.parse(f.content);
   raw.facts.stages[0].facts.claims.push({ id: "source-retained", text: "SBK同款原始来源主张；330毫米", source: "合成媒体 2026-09-19" });
@@ -175,6 +177,52 @@ describe("current requirement authority and original transport", () => {
     expect(captureRequirementTheme(f.authority, "被拒主题", { approved: false, advisories: ["意见"] })).toBeUndefined();
     captured.scope.runId = "other";
     expect(() => requirementAuthorityPrompt(f.authority, captured)).toThrow("REQUIREMENT_THEME_CHANGED");
+  });
+
+  it("separates G1 evidence from G3 adoption while keeping any model violations visible to review", async () => {
+    install();
+    const ownerAudience = "成年赛道运动爱好者（仅国内本次活动）";
+    const f = fixture("g3-adoption", ownerAudience), approved = f.approve();
+    const modelData = payloads(structuredClone(f.discovery.sceneStructure));
+    const visibleSpec = "首帧给 330 毫米的商品部件一个可辨识特写";
+    const widenedAudience = "另为海外观众制作独立传播内容";
+    const opening = requirementRecord(requirementRecord(modelData.sceneStructure, "scene structure").opening, "opening");
+    opening.keyElements = [visibleSpec];
+    modelData.audienceProfile.contentExpectations.push(widenedAudience);
+    const model = fakeEngine("structured", modelData);
+    const engine = new RequirementDiscoveryEngine({ llmEngine: model.engine, timeoutMs: 1000, agentTimeoutMs: 100 });
+    const { result, markdown } = await withRequirementContractScope(f.metadata, async () => {
+      const result = await discover(engine, f.upstream);
+      const markdown = (engine.generateMarkdown as (value: unknown) => string)(result);
+      return { result, markdown };
+    }, f.options);
+    const boundary = "## G3 成片采用边界与本轮自检";
+    expect(requirementAuthorityPrompt(f.authority)).not.toContain(boundary);
+    expect(model.calls).toHaveLength(4);
+    for (const { prompt } of model.calls) {
+      expect(prompt.split(boundary)).toHaveLength(2);
+      expect(prompt.split(f.authority.marketing.g1Artifact.content)).toHaveLength(2);
+      expect(prompt).toContain(approved.contentMd);
+      expect(prompt).toContain(`客户 Brief 受众原文（JSON）：${JSON.stringify(ownerAudience)}`);
+      expect(prompt).toContain("事实可核实与成片可采用分别判断");
+      expect(prompt).toContain("仪表读数");
+      expect(prompt).toContain("不能新增投放地区、语言人群或其他传播对象");
+      expect(prompt).toContain("在同一次响应内逐项自检");
+    }
+    expect(result.sceneStructure).toEqual(modelData.sceneStructure);
+    expect(result.audienceProfile).toEqual(modelData.audienceProfile);
+    expect(markdown).toContain(ownerAudience);
+    expect(markdown).toContain(visibleSpec);
+    expect(markdown).toContain(widenedAudience);
+    expect(markdown).not.toContain(boundary);
+  });
+
+  it("treats an omitted owner audience as unspecified without adopting an upstream guess", () => {
+    const f = fixture("g3-no-audience", null);
+    const prompt = requirementAuthorityPrompt(f.authority, f.approve());
+    expect(prompt).toContain("客户 Brief 受众原文（JSON）：null");
+    expect(prompt).toContain("未指定时保留未指定；推测不能成为本片投放要求");
+    expect(prompt).not.toContain(f.upstream.target_audience);
   });
 
   it.each(["structured", "generate", "chat"] as const)("passes the full story and authority last, once, through all four native agents via %s", async mode => {
