@@ -41,9 +41,9 @@ import { computeCredits } from "./credits.js";
 
 const nativeDeepSeekChat = OpenAiCompatibleProvider.prototype.chat;
 const readNativeBlankJson = OpenAiCompatibleProvider.prototype.readNativeBlankJson;
-const nativeBlankJsonRoutes = new WeakMap<RouteResult, NativeBlankJsonReceipt>();
+const nativeBlankJsonRoutes = new WeakMap<SmartRouteResult, NativeBlankJsonReceipt>();
 
-export function nativeRouteBlankJson(value: RouteResult): NativeBlankJsonReceipt | undefined {
+export function nativeRouteBlankJson(value: SmartRouteResult): NativeBlankJsonReceipt | undefined {
   return nativeBlankJsonRoutes.get(value);
 }
 
