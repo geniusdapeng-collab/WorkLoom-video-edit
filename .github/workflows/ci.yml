@@ -70,7 +70,7 @@ jobs:
         run: node --test --test-concurrency=1 scripts/ci/ui-auth-bootstrap.test.mjs scripts/ci/install-private-ui.test.mjs
 
       - name: Codex 正式视频入口与接入指南回归
-        run: node --test scripts/tools/codex-video-workflow.test.mjs scripts/ai-video-workbench-guide.test.mjs
+        run: node --import tsx --test scripts/tools/codex-video-workflow.test.mjs scripts/tools/lib/codex-video-film.test.mjs scripts/ai-video-workbench-guide.test.mjs
 
       - name: typecheck 全包
         run: pnpm -r --if-present typecheck

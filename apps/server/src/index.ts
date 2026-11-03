@@ -10,12 +10,13 @@ import { fetchRequestHandler } from "@trpc/server/adapters/fetch";
 import { Hono } from "hono";
 import type { Context } from "hono";
 import { cors } from "hono/cors";
+import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { once } from "node:events";
 import { createWriteStream, existsSync, mkdirSync, renameSync, rmSync } from "node:fs";
-import { readFile } from "node:fs/promises";
+import { readFile, realpath } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
-import { dirname, extname, join } from "node:path";
+import { dirname, extname, join, resolve } from "node:path";
 import { appRouter } from "./trpc/router.js";
 import { createContext } from "./trpc/context.js";
 import { serviceGateway } from "./service/gateway.js";
@@ -30,6 +31,7 @@ import { changesSince, applyPush, syncEnabled, verifyDeviceRequest } from "./vid
 import { scopedQuery } from "./video/gen/db.js";
 import { mediaUrl } from "./video/gen/ingest.js";
 import { startThreadScheduler } from "./runtime/scheduler.js";
+import { archiveWorkDir } from "./video/archive-host.js";
 import { gatewayAppend } from "@workloom/base/workdata";
 import { registerBundleAskFacts } from "./runtime/ask-facts-loader.js";
 import { registerAskKbSearch } from "@workloom/runtime";
@@ -56,6 +58,14 @@ app.use(
 /** 裸健康检查（不进 tRPC，供 start.sh/编排探活） */
 app.get("/health", (c) => c.json({ ok: true, service: "workloom-im-server" }));
 
+const sourceRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
+const sourceCommit = (() => {
+  if (!existsSync(join(sourceRoot, ".git"))) return null;
+  const git = (args: string[]) => spawnSync("git", args, { cwd: sourceRoot, encoding: "utf8", timeout: 5_000 });
+  const head = git(["rev-parse", "HEAD"]), status = git(["status", "--porcelain", "--untracked-files=no"]);
+  const commit = head.stdout?.trim();
+  return head.status === 0 && status.status === 0 && !status.stdout.trim() && /^[a-f0-9]{40}$/u.test(commit ?? "") ? commit : null;
+})();
 /** 本机客户端在发送成员凭据前，核对实际服务制品的产品清单。 */
 app.get("/health/product", async (c) => {
   c.header("cache-control", "no-store");
@@ -63,7 +73,11 @@ app.get("/health/product", async (c) => {
     const manifest = JSON.parse(await readFile(new URL("../../../product.manifest.json", import.meta.url), "utf8"));
     if (typeof manifest?.productId === "string" && manifest.productId.trim()
       && typeof manifest.repository === "string" && manifest.repository.trim()) {
-      return c.json({ schemaVersion: "workloom.service-product/v1", productId: manifest.productId, repository: manifest.repository });
+      const studioRoot = await realpath(archiveWorkDir()).catch(() => null);
+      const videoStudio = { deferRender: (process.env.HR_DEFER_RENDER ?? "1") !== "0",
+        workDirSha256: studioRoot === null ? null : createHash("sha256").update(studioRoot).digest("hex") };
+      return c.json({ schemaVersion: "workloom.service-product/v1", productId: manifest.productId,
+        repository: manifest.repository, sourceCommit, videoStudio });
     }
   } catch {
     return c.json({ error: "PRODUCT_IDENTITY_UNAVAILABLE" }, 503);
