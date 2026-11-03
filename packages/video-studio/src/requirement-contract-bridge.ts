@@ -12,7 +12,7 @@ import {
   nativeReasonCompleted, nativeReasonFailure, nativeSceneResponseRouteCurrent, nativeSceneResponseSource,
   sameNativeSceneResponseRoute, type LLMReasonResult,
 } from "./llm-adapter.js";
-import { recoverSceneJsonMissingSeparators } from "./scene-json-comma-recovery.js";
+import { parseStrictSceneJsonObject, recoverSceneJsonMissingSeparators } from "./scene-json-comma-recovery.js";
 import { acquireVendorRequirementEntry } from "./vendor-requirement-entry.js";
 import {
   qualifyRequirementThemeInput, requirementAuthorityFailure, requirementAuthorityPrompt, scopedRequirementEngine,
@@ -596,6 +596,10 @@ export function installRequirementContractBridge(
                   || !before.every(item => item && sameNativeSceneResponseRoute(item, result))) {
                   throw new RequirementContractError("REQUIREMENT_SCENE_UNVERIFIED", "SceneArchitect 末次格式重生成未取得同一路径的完整新 JSON");
                 }
+                const data = parseStrictSceneJsonObject(exactSource.rawText);
+                if (!data) {
+                  throw new RequirementContractError("REQUIREMENT_SCENE_UNVERIFIED", "SceneArchitect 末次格式重生成正文不是键名唯一的完整 JSON 对象");
+                }
                 syntaxRecovery = Object.freeze({
                   schemaVersion: "workloom.scene-json-format-reissue/v1",
                   requestSha256: exactSource.requestSha256, responseSha256: exactSource.responseSha256, schemaSha256,
@@ -606,7 +610,7 @@ export function installRequirementContractBridge(
                       rawSha256: createHash("sha256").update(prior.rawText, "utf8").digest("hex") });
                   })),
                 });
-                return { ...result, content: exactSource.rawText };
+                return { ...result, content: exactSource.rawText, data };
               }
               completedSyntaxFailure = nativeReasonFailure(result) === "json-syntax" && nativeReasonCompleted(result);
               if (completedSyntaxFailure && exactSource) {

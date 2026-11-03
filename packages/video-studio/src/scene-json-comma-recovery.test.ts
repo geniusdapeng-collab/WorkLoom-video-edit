@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { describe, expect, it } from "vitest";
-import { recoverSceneJsonMissingComma, recoverSceneJsonMissingSeparators } from "./scene-json-comma-recovery.js";
+import { parseStrictSceneJsonObject, recoverSceneJsonMissingComma, recoverSceneJsonMissingSeparators } from "./scene-json-comma-recovery.js";
 
 describe("SceneArchitect single comma recovery", () => {
   it.each([
@@ -126,5 +126,31 @@ describe("SceneArchitect bounded separator recovery", () => {
     const overLimit = atLimit.replace("x", "🏍️");
     expect(recoverSceneJsonMissingSeparators(atLimit)?.insertionByteOffsets).toHaveLength(2);
     expect(recoverSceneJsonMissingSeparators(overLimit)).toBeUndefined();
+  });
+});
+
+describe("SceneArchitect strict complete reissue parsing", () => {
+  it.each([
+    '{"a":1,"\\u0061":2}',
+    '{"a":[{"a":1,"\\u0061":2}]}',
+    '{"__proto__":{},"__proto__":{}}',
+    '{"a":1 "b":2}',
+    '{"a":1} {}',
+    '{"a":"\ud800"}',
+    '\u00a0{"a":1}',
+    '[]',
+  ])("declines invalid or ambiguous native bodies: %j", raw => {
+    expect(parseStrictSceneJsonObject(raw)).toBeUndefined();
+  });
+
+  it("allows identical keys in separate objects and ignores punctuation in string values", () => {
+    const data = { a: [{ a: 'literal } [, "a": 2' }, { a: 3 }], b: { a: 1 } };
+    expect(parseStrictSceneJsonObject(` \t${JSON.stringify(data)}\r\n`)).toEqual(data);
+  });
+
+  it("does not apply the local recovery size or recursion limit to valid native JSON", () => {
+    const raw = '{"scene":' + "[".repeat(70) + '"' + "声".repeat(350_000) + '"' + "]".repeat(70) + "}";
+    expect(Buffer.byteLength(raw)).toBeGreaterThan(1_048_576);
+    expect(parseStrictSceneJsonObject(raw)).toEqual(JSON.parse(raw));
   });
 });

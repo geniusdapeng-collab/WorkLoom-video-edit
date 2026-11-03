@@ -136,3 +136,43 @@ export function recoverSceneJsonMissingSeparators(raw: string): SceneSeparatorRe
   }
   return recoverSceneJson(raw, 3);
 }
+
+/** Parse the entire native body without allowing JSON.parse's last-key-wins behavior. */
+export function parseStrictSceneJsonObject(raw: string): Record<string, unknown> | undefined {
+  let data: unknown;
+  try { data = JSON.parse(raw); }
+  catch { return undefined; }
+  if (!data || typeof data !== "object" || Array.isArray(data) || Buffer.from(raw, "utf8").toString("utf8") !== raw) {
+    return undefined;
+  }
+
+  // Syntax is already verified. Walk the tokens without recursion or a new
+  // response size limit. A string followed by a colon must be an object key.
+  const containers: Array<Set<string> | null> = [];
+  const whitespace = /[ \t\r\n]*/y;
+  for (let offset = 0; offset < raw.length; offset++) {
+    switch (raw[offset]) {
+      case "{": containers.push(new Set()); break;
+      case "[": containers.push(null); break;
+      case "}":
+      case "]": containers.pop(); break;
+      case '"': {
+        const start = offset++;
+        while (raw[offset] !== '"') {
+          if (raw[offset] === "\\") offset++;
+          offset++;
+        }
+        const keys = containers.at(-1);
+        if (!keys) break;
+        whitespace.lastIndex = offset + 1;
+        whitespace.exec(raw);
+        if (raw[whitespace.lastIndex] !== ":") break;
+        const key = JSON.parse(raw.slice(start, offset + 1)) as string;
+        if (keys.has(key)) return undefined;
+        keys.add(key);
+        break;
+      }
+    }
+  }
+  return data as Record<string, unknown>;
+}
