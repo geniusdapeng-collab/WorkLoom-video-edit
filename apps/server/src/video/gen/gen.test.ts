@@ -194,7 +194,7 @@ describe("供应商适配器", () => {
   });
 
   /** 官方 SDK（5.0.50）新增/既有未用参数：watermark 默认关闭、seed/service_tier/return_last_frame 透传 */
-  it("Ark Seedance：watermark 默认 false，新参数（seed/service_tier/return_last_frame/camera_fixed）透传", async () => {
+  it("Ark Seedance 1.0 pro：watermark 默认 false，seed/service_tier/return_last_frame/camera_fixed 透传", async () => {
     const calls: Array<{ body: Record<string, unknown> }> = [];
     vi.stubGlobal("fetch", vi.fn(async (_url: string, init?: RequestInit) => {
       calls.push({ body: JSON.parse(String(init?.body ?? "{}")) as Record<string, unknown> });
@@ -205,7 +205,7 @@ describe("供应商适配器", () => {
       prompt: "南园夜景口播",
       estimatedUnits: 10,
       params: {
-        providerModel: "doubao-seedance-2-5-260628",
+        providerModel: "doubao-seedance-1-0-pro-250528",
         durationSec: 10,
         aspectRatio: "9:16",
         seed: 12345,

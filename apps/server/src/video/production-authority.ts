@@ -24,7 +24,7 @@ import type { AppPool, Scope } from "./gen/db.js";
 import type { RenderScriptLike } from "./gen/submit.js";
 import type { VideoGenParams } from "./gen/types.js";
 import { SubmissionError } from "./gen/submission-ledger.js";
-import { canonicalRenderJson, compileRenderRequest, renderSha256, supportsCompiledRequest, type CompiledProviderRequest } from "./gen/compiled-request.js";
+import { canonicalRenderJson, compileRenderRequest, previousSeedanceCameraFixedPayloadHash, renderSha256, supportsCompiledRequest, type CompiledProviderRequest } from "./gen/compiled-request.js";
 import { verifyPortraitArchiveReuseAcceptance } from "./portrait-reuse-acceptance.js";
 import { assertSystemAutoApprovalReceipt, loadPipelineFeatureFlags } from "@workloom/pipeline-control";
 import { VIDEO_SYSTEM_AUTO_APPROVAL_POLICY } from "@hyperreality/video-pipeline";
@@ -518,18 +518,23 @@ export async function qualifyProductionShot(input: {
         production: { qualificationId: id, sourceStageRunId: source.row.id, sourceAttempt: source.row.attempt, promptsSha256: source.promptsHash,
           ...(source.promptContractSha256 ? { promptContractSha256: source.promptContractSha256 } : {}) } } };
     const built = compileRenderRequest({ script, model, params, scope, mode, env });
+    const previousPayloadHash = previousSeedanceCameraFixedPayloadHash(built.compiled, params);
+    const payloadHashes = previousPayloadHash ? [built.compiled.payloadHash, previousPayloadHash] : [built.compiled.payloadHash];
     // UI 网络失败后再次按同一镜头点提交，不能通过重新签发随机 scriptId 绕过已派发任务的幂等键。
     const dispatched = await scopedTx(leased.app, scope, async client => {
       const found = await client.query<QualificationRow & { submission_state: string }>(`SELECT q.*,s.state AS submission_state
         FROM production_qualifications q JOIN generation_submissions s
           ON s.tenant_id=q.tenant_id AND s.workspace_id=q.workspace_id AND s.request_hash=q.request_hash
         WHERE q.tenant_id=$1 AND q.workspace_id=$2 AND q.project_id=$3 AND q.shot_id=$4
-          AND q.source_stage_run_id=$5 AND q.payload_hash=$6 AND q.model_id=$7 AND q.mode=$8 AND q.params=$9::jsonb
+          AND q.source_stage_run_id=$5 AND q.payload_hash=ANY($6::text[]) AND q.model_id=$7 AND q.mode=$8 AND q.params=$9::jsonb
           AND q.status='passed' AND s.state IN ('submitting','unknown','accepted','finalized') ORDER BY q.seq DESC LIMIT 1`,
-        [scope.tenantId, scope.workspaceId, input.projectId, input.shotId, source.row.id, built.compiled.payloadHash, model.id, mode, JSON.stringify(params)]);
+        [scope.tenantId, scope.workspaceId, input.projectId, input.shotId, source.row.id, payloadHashes, model.id, mode, JSON.stringify(params)]);
       return found.rows[0];
     });
     if (dispatched) {
+      if (dispatched.payload_hash !== built.compiled.payloadHash && ["submitting", "unknown"].includes(dispatched.submission_state)) {
+        fail("QUALIFICATION_RECONCILIATION_REQUIRED", "同一镜头的旧请求仍待核对供应商结果，禁止再次派发");
+      }
       const existingPayload = payloadFor(dispatched);
       if (dispatched.key_id !== keyId || signature(existingPayload, env) !== dispatched.signature) fail("QUALIFICATION_RECONCILIATION_REQUIRED", "已有生成任务的签发密钥发生变化，必须先核对已有任务，不能重新提交");
       return { qualificationId: dispatched.id,

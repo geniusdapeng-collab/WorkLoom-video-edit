@@ -127,7 +127,7 @@ describe("完整请求指纹", () => {
     { aspectRatio: "9:16" }, { resolution: "1080p" }, { generateAudio: false }, { seed: 42 },
     { firstFrameUrl: "https://example.test/first.png" }, { referenceImageUrls: ["asset://a"] },
     { referenceVideoUrls: ["https://example.test/a.mp4"] }, { referenceAudioUrls: ["https://example.test/a.wav"] },
-    { cameraFixed: true }, { negativePrompt: "no text" }, { extra: { nested: { a: "changed" } } },
+    { cameraFixed: false }, { negativePrompt: "no text" }, { extra: { nested: { a: "changed" } } },
   ] satisfies VideoGenParams[])("默认键覆盖完整生成参数 %j", async (patch) => {
     const first = await submitGenJob(request());
     const second = await submitGenJob(request({ params: { ...request().params, ...patch } }));

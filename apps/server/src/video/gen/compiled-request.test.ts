@@ -45,6 +45,27 @@ describe("完整最终请求编译", () => {
       { params: { durationSec: 5, extra: { cfg_scale: 9 } } },
     ]) expect(compileRenderRequest({ ...input, ...patch }).requestHash).not.toBe(original.requestHash);
   });
+  it("仅按解析后的 Seedance 2.5 SKU 在供应商 JSON 和摘要前规范化 false 固定机位", () => {
+    const input = { script, model, scope: { tenantId: "t", workspaceId: "w" }, mode: "manual" as const, env: {} };
+    const omitted = compileRenderRequest({ ...input, params: {} }).compiled;
+    const inactive = compileRenderRequest({ ...input, params: { cameraFixed: false, extra: { camera_fixed: false } } }).compiled;
+    expect(inactive.providerModel).toBe("doubao-seedance-2-5-260628");
+    expect(inactive.body).not.toHaveProperty("camera_fixed");
+    expect(inactive.bodyJson).toBe(omitted.bodyJson);
+    expect(inactive.payloadHash).toBe(omitted.payloadHash);
+    const legacy = { ...input, env: { SEEDANCE_MODEL: "doubao-seedance-1-0-pro-250528" } };
+    expect(compileRenderRequest({ ...legacy, params: { cameraFixed: false } }).compiled.body.camera_fixed).toBe(false);
+    expect(compileRenderRequest({ ...legacy, params: { cameraFixed: true } }).compiled.body.camera_fixed).toBe(true);
+  });
+  it.each([
+    { cameraFixed: true },
+    { cameraFixed: true, extra: { camera_fixed: false } },
+    { cameraFixed: false, extra: { camera_fixed: true } },
+    { extra: { camera_fixed: "false" } },
+  ])("Seedance 2.5 拒绝启用固定机位或非布尔字段 %j", params => {
+    expect(() => compileRenderRequest({ script, model, params, scope: { tenantId: "t", workspaceId: "w" },
+      mode: "manual", env: {} })).toThrow("SEEDANCE_CAMERA_FIXED_UNSUPPORTED");
+  });
   it("对象顺序规范化、数组保序，__proto__ 不会消失", () => {
     expect(canonicalRenderJson({ b: 2, a: 1 })).toBe(canonicalRenderJson({ a: 1, b: 2 }));
     expect(canonicalRenderJson([1, 2])).not.toBe(canonicalRenderJson([2, 1]));

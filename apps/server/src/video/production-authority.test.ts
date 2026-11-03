@@ -1,5 +1,6 @@
 /** 实际发行/验签/文件/监制代码；PG 为明确 SQL 边界替身，模型 HTTP 仅返回测试裁决。 */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { createHmac } from "node:crypto";
 import { mkdtemp, mkdir, writeFile, readFile, readdir, rm, realpath, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -8,7 +9,7 @@ import { applyScenePolicy, auditScenePolicy, loadScenePolicies, compilePromptSho
 import { promptContractSummary } from "./prompt-quality-gate.js";
 import { getModel } from "./gen/catalog.js";
 import { authorizeRenderSubmission, loadQualifiedRenderInput, listProductionShots, qualifyProductionShot } from "./production-authority.js";
-import { renderSha256 } from "./gen/compiled-request.js";
+import { canonicalRenderJson, renderSha256 } from "./gen/compiled-request.js";
 import { submitGenJob } from "./gen/submit.js";
 import { acceptPortraitArchiveReuse, portraitReuseEvidence } from "./portrait-reuse-acceptance.js";
 import { portraitReuseFixture } from "./portrait-reuse.test-support.js";
@@ -33,7 +34,12 @@ class MemoryPool {
     else if (sql.includes("FROM biz_events") && sql.includes("video.scene_policy.selected")) rows = this.selection
       && values[0] === scope.tenantId && values[1] === scope.workspaceId && values[2] === this.source.project_id
       ? [{ after: this.selection }] : [];
-    else if (sql.includes("SELECT q.*,s.state AS submission_state")) rows = this.submissionState ? this.qualifications.filter(row => row.payload_hash === values[5] && row.source_stage_run_id === values[4] && ["submitting", "unknown", "accepted", "finalized"].includes(this.submissionState)).slice(-1) : [];
+    else if (sql.includes("SELECT q.*,s.state AS submission_state")) {
+      if (["submitting", "unknown", "accepted", "finalized"].includes(this.submissionState)) {
+        rows = this.qualifications.filter(row => values[5].includes(row.payload_hash) && row.source_stage_run_id === values[4])
+          .slice(-1).map(row => ({ ...row, submission_state: this.submissionState }));
+      }
+    }
     else if (sql.includes("INSERT INTO render_scripts")) this.scripts.push({ id: values[0], workspace_id: values[1], project_id: values[2], shot_id: values[3], script_key: values[4], version: 1, status: "draft", md: values[5], fields: JSON.parse(values[6]), created_by: values[7] });
     else if (sql.includes("INSERT INTO production_qualifications")) {
       const names = ["id","tenant_id","workspace_id","project_id","shot_id","source_stage_run_id","source_attempt","source_output_sha256","prompts_sha256","script_id","script_version","model_id","provider","provider_model","request_hash","payload_hash","compiled_request","params","mode","status","producer_verdict","issuer","key_id","signature","issued_at","expires_at","created_by"];
@@ -162,7 +168,7 @@ async function installPromptContract(image = Buffer.from("approved synthetic por
   await Promise.all(extraImages.map((bytes, index) => writeFile(files[index + 1]!, bytes)));
   const fields = Object.fromEntries(promptFieldPolicy("workloom.video-shot-card/v2", false).fields.map(field => [field.key, `${field.label}具体内容`]));
   Object.assign(fields, { portraits: files, constraint: "9:16画幅，1080x1920，30fps，MP4格式。",
-    timeline: "T00:00至T00:05", camera_movement: "固定机位", dialogue: "无台词", negative: "no watermark" });
+    timeline: "T00:00至T00:05", camera_movement: "镜头沿窗口缓慢侧移", dialogue: "无台词", negative: "no watermark" });
   Object.assign(fields, fieldOverrides);
   const model = getModel("doubao-seedance-2-5")!;
   const compiled = compilePromptShot({ shotId: "S1", duration: 5, fields }, {
@@ -251,18 +257,26 @@ describe("G6合同到供应商请求的绑定", () => {
     expect(view.compiledRequest.body.content[0].text).toContain(userText);
     expect(JSON.stringify(calls[0]!.body.messages)).toContain(userText);
   });
-  it("服务默认参数保留已审画幅、声音、固定机位与定妆照真实字节", async () => {
+  it("服务保留已审画幅、声音、MP4与定妆照真实字节，Seedance 2.5 载荷省略未启用的固定机位", async () => {
     const fixture = await installPromptContract();
     const result = await issue({ params: {}, env: fixture.enforced });
     const body = pool.qualifications[0]!.compiled_request.body;
-    expect(body).toMatchObject({ ratio: "9:16", resolution: "1080p", duration: 5, generate_audio: true, camera_fixed: true });
+    expect(body).toMatchObject({ ratio: "9:16", resolution: "1080p", duration: 5, generate_audio: true, output_format: "mp4" });
+    expect(body).not.toHaveProperty("camera_fixed");
+    expect(result.params.cameraFixed).toBe(false);
     expect(body.content).toContainEqual({ type: "image_url", role: "reference_image", image_url: { url: `data:image/png;base64,${fixture.image.toString("base64")}` } });
     expect(result.params.referenceImageUrls).toHaveLength(1);
     const auth = await authorized(result.qualificationToken, { env: fixture.enforced }); await auth.release();
     await writeFile(fixture.portrait, "changed after qualification");
     await expect(authorized(result.qualificationToken, { env: fixture.enforced })).rejects.toThrow(/SOURCE_HASH_MISMATCH|PROMPT_CONTRACT_ASSET/);
   });
-  it.each([{ aspectRatio: "16:9" }, { generateAudio: false }, { cameraFixed: false }, { referenceImageUrls: ["https://other.invalid/image.png"] }, { extra: { camera_fixed: false } }])(
+  it("G6要求固定机位时，Seedance 2.5 在付费评审前明确拒绝", async () => {
+    const fixture = await installPromptContract(undefined, { camera_movement: "固定机位" });
+    await expect(issue({ params: {}, env: fixture.enforced })).rejects.toThrow("SEEDANCE_CAMERA_FIXED_UNSUPPORTED");
+    expect(calls).toHaveLength(0);
+    expect(pool.qualifications).toHaveLength(0);
+  });
+  it.each([{ aspectRatio: "16:9" }, { generateAudio: false }, { cameraFixed: true }, { referenceImageUrls: ["https://other.invalid/image.png"] }, { extra: { camera_fixed: false } }])(
     "调用者无法覆盖已审参数 %j", async params => {
       const fixture = await installPromptContract();
       await expect(issue({ params, env: fixture.enforced })).rejects.toThrow(/PROMPT_CONTRACT_REQUEST_MISMATCH/);
@@ -331,6 +345,34 @@ describe("正式资格的正常路径和来源边界", () => {
   it.each(["submitting", "unknown", "accepted", "finalized"])("%s 后重发相同签发请求复用旧资格，不通过随机scriptId重复烧额度", async state => {
     const original = await issue(); pool.submissionState = state;
     const retry = await issue(); expect(retry).toEqual(original); expect(pool.qualifications).toHaveLength(1); expect(calls).toHaveLength(1);
+  });
+  it.each(["submitting", "unknown", "accepted", "finalized"])("升级后 %s 的旧 camera_fixed:false 任务禁止重新派发", async state => {
+    const input = { params: { aspectRatio: "16:9", cameraFixed: false } };
+    const original = await issue(input), stored = pool.qualifications[0]!;
+    const { provider, providerModel, endpoint, method } = stored.compiled_request;
+    const body = { ...stored.compiled_request.body, camera_fixed: false };
+    const payloadHash = renderSha256(canonicalRenderJson({ provider, providerModel, endpoint, method, body }));
+    const requestHash = renderSha256("historical-request-fingerprint");
+    const payload = JSON.parse(Buffer.from(original.qualificationToken.split(".")[0]!, "base64url").toString());
+    Object.assign(payload, { payloadHash, requestHash });
+    const encoded = canonicalRenderJson(payload);
+    const signature = createHmac("sha256", env.WORKLOOM_RENDER_SIGNING_SECRET).update(encoded).digest("base64url");
+    Object.assign(stored, { payload_hash: payloadHash, request_hash: requestHash, signature,
+      compiled_request: { ...stored.compiled_request, body, bodyJson: canonicalRenderJson(body), payloadHash } });
+    pool.submissionState = state;
+    const legacyToken = `${Buffer.from(encoded).toString("base64url")}.${signature}`;
+    if (state === "submitting" || state === "unknown") {
+      await expect(issue(input)).rejects.toThrow("QUALIFICATION_RECONCILIATION_REQUIRED");
+      await expect(authorized(legacyToken)).rejects.toThrow("QUALIFICATION_REQUEST_MISMATCH");
+    } else {
+      await expect(issue(input)).resolves.toMatchObject({ qualificationId: original.qualificationId, qualificationToken: legacyToken });
+      const auth = await authorized(legacyToken);
+      expect(auth.reconciliationOnly).toBe(true);
+      expect(auth.compiled.body.camera_fixed).toBe(false);
+      await auth.release();
+    }
+    expect(pool.qualifications).toHaveLength(1);
+    expect(calls).toHaveLength(1);
   });
   it.each(["missing", "failed", "old-evidence", "missing-gate", "auto", "degraded", "fields-trimmed", "missing-shot", "duplicate-shot"])("来源 %s 不得签发或调用监制", async kind => {
     if (kind === "missing") pool.source.status = "running";
