@@ -1193,8 +1193,11 @@ function startRunWithLease(scope: Scope, input: StudioRunInput, heldLease?: Proj
             },
           });
           if (approvedProductionPlan) {
-            if (approvedProductionPlanFor(structuredPromptPackage)?.g4ArtifactSha256 !== approvedProductionPlan.g4ArtifactSha256) {
-              throw new Error("G6_APPROVED_PRODUCTION_PLAN_UNVERIFIED: 评审期间 G4 原件发生变化");
+            const currentPlan = approvedProductionPlanFor(structuredPromptPackage);
+            const expectedPlanSha256 = sha256Json(approvedProductionPlan);
+            if (!currentPlan || sha256Json(currentPlan) !== expectedPlanSha256
+              || promptQualityForGate?.approvedProductionPlanSha256 !== expectedPlanSha256) {
+              throw new Error("G6_APPROVED_PRODUCTION_PLAN_UNVERIFIED: 评审使用的计划或 G4 原件发生变化");
             }
             reviewedG4ArtifactSha256 = approvedProductionPlan.g4ArtifactSha256;
           }
@@ -1255,9 +1258,12 @@ function startRunWithLease(scope: Scope, input: StudioRunInput, heldLease?: Proj
             detail: "G7 找不到当前 G6 字段合同或原始镜头包，不能只凭预生产报告放行",
           });
         } else {
+          const approvedProductionPlan = approvedProductionPlanFor(structuredPromptPackage);
+          const approvedProductionPlanSha256 = approvedProductionPlan ? sha256Json(approvedProductionPlan) : undefined;
           if (usesApprovedProductionPlan && (!reviewedG4ArtifactSha256
-            || approvedProductionPlanFor(structuredPromptPackage)?.g4ArtifactSha256 !== reviewedG4ArtifactSha256)) {
-            throw new Error("G6_APPROVED_PRODUCTION_PLAN_UNVERIFIED: G7 缺少与 G6 评审一致的当前 G4 原件");
+            || approvedProductionPlan?.g4ArtifactSha256 !== reviewedG4ArtifactSha256
+            || approvedProductionPlanSha256 !== currentPromptQuality()?.approvedProductionPlanSha256)) {
+            throw new Error("G6_APPROVED_PRODUCTION_PLAN_UNVERIFIED: G7 缺少与 G6 评审一致的当前 G4 原件和动作计划");
           }
           const currentShots = structuredPromptPackage.map((source) => ({
             source: { ...source, shotId: String(source.shotId ?? source.shot_id ?? "") },
@@ -1282,6 +1288,7 @@ function startRunWithLease(scope: Scope, input: StudioRunInput, heldLease?: Proj
             runId: entry.runId,
             attempt: stageRef.attempt,
             g6DecisionId: gateProofs.get("G6_PROMPT") ? String(gateProofs.get("G6_PROMPT")!.decisionId ?? "") : "",
+            ...(approvedProductionPlanSha256 ? { approvedProductionPlanSha256 } : {}),
             promptContracts: prior,
             current,
             eligible: current,
