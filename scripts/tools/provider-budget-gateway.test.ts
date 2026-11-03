@@ -1,4 +1,5 @@
 import { chmodSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -6,6 +7,7 @@ import { getModel } from "../../apps/server/src/video/gen/catalog.js";
 import { compileRenderRequest } from "../../apps/server/src/video/gen/compiled-request.js";
 import { ArkImageProvider, ArkVideoProvider } from "../../apps/server/src/video/gen/providers.js";
 import { OpenAiCompatibleProvider } from "../../packages/base/model-router/providers.js";
+import { structuredSceneSchema } from "../../packages/video-studio/src/requirement-contract.js";
 import { startProviderBudgetGateway } from "./lib/provider-budget-gateway.js";
 import { BudgetJournal } from "./lib/provider-budget-journal.js";
 import {
@@ -22,6 +24,7 @@ const VIDEO_URL = "https://fixture.tos-cn-beijing.volces.com/clip.mp4?signature=
 const IMAGE_BYTES = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMB/6X9f1kAAAAASUVORK5CYII=", "base64");
 const IMAGE_DATA = `data:image/png;base64,${IMAGE_BYTES.toString("base64")}`;
 const videoScope = { video: { seconds: 10, ratio: "9:16", resolution: "1080p" } };
+const responsesPath = "/responses";
 const roots: string[] = [];
 const close: Array<() => Promise<void>> = [];
 
@@ -59,6 +62,36 @@ async function call(server: Gateway, path: string, body?: unknown, token = CLIEN
 
 const llm = (prompt = "private task fixture", max = 393_216) => ({
   model: DEEPSEEK_MODEL, max_tokens: max, messages: [{ role: "user", content: prompt }],
+});
+async function responseSceneSchema(count = 3) {
+  type Agent = { run: (input: unknown, schema: unknown) => Promise<unknown>; _fallback: (input: unknown) => unknown };
+  const { RequirementDiscoveryEngine } = createRequire(import.meta.url)(
+    "../../vendor/supermickey/hyperreality-system/engines/requirement-discovery-engine.js",
+  ) as { RequirementDiscoveryEngine: new () => {
+    agents: Record<string, Agent>; discover: (input: Record<string, unknown>) => Promise<unknown>;
+  } };
+  const engine = new RequirementDiscoveryEngine();
+  let nativeSchema: unknown;
+  for (const [name, agent] of Object.entries(engine.agents)) {
+    agent.run = async (input, schema) => {
+      if (name === "scene") nativeSchema = schema;
+      return agent._fallback(input);
+    };
+  }
+  await engine.discover({ type: "商业广告", theme: "合法架空示例", duration_sec: count * 10 });
+  return structuredSceneSchema(nativeSchema, { count, totalSeconds: count * 10, secondsPerSegment: 10, hardCuts: true,
+    intervals: Array.from({ length: count }, (_, i) => ({ startSec: i * 10, endSec: i * 10 + 10, brief: "fixture" })) });
+}
+const strictScene = (schema: Record<string, unknown>, input = "完整原始创作输入，末行不得裁剪。") => ({
+  model: DEEPSEEK_MODEL, input, instructions: "私有完整系统指令。",
+  reasoning: { effort: "high" }, max_output_tokens: 393_216, stream: false,
+  text: { format: { type: "json_schema", name: "workloom_scene_architect", schema } },
+});
+const responsesBody = (status = "completed") => ({
+  id: "response-inert-fixture", object: "response", status, model: DEEPSEEK_MODEL,
+  output: status === "completed"
+    ? [{ type: "message", role: "assistant", status: "completed", content: [{ type: "output_text", text: "{}" }] }] : [],
+  usage: { input_tokens: 30, output_tokens: 20, total_tokens: 50 },
 });
 const image = (prompt = "private image fixture") => ({
   model: SEEDREAM_MODEL, prompt, size: "1080x1920", response_format: "url",
@@ -386,9 +419,11 @@ describe("task-local provider budget gateway", () => {
 
   it("opens an explicit v2 journal and admits exactly 64 original full-window requests across restart", async () => {
     const wireBodies: string[] = [];
-    const upstream = vi.fn(async (_url: string | URL | Request, init?: RequestInit) => {
+    const upstream = vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
       wireBodies.push(Buffer.from(init!.body as Uint8Array).toString());
-      return llmResponse();
+      return new URL(String(url)).pathname === responsesPath
+        ? Response.json({ ...responsesBody(), usage: { input_tokens: 12, output_tokens: 8, total_tokens: 20 } })
+        : llmResponse();
     });
     const now = 1_800_000_000_000;
     const options = { profile: "workflow-v2", scope: videoScope, now: () => now };
@@ -397,6 +432,7 @@ describe("task-local provider budget gateway", () => {
       ...llm(`full quality workflow request ${i}`), thinking: { type: "enabled" },
       reasoning_effort: "high", response_format: { type: "json_object" },
     }));
+    sent[40] = JSON.stringify(strictScene(await responseSceneSchema(), "same exact workflow forty-first call"));
     for (const wire of sent.slice(0, 40)) expect((await call(first.server, DEEPSEEK_CHAT_PATH, wire)).status).toBe(200);
     await first.server.close();
     const restart = { ...options, journalPath: first.journalPath, port: first.server.port };
@@ -412,7 +448,8 @@ describe("task-local provider budget gateway", () => {
     expect(code(await call(server, DEEPSEEK_CHAT_PATH, sent[0]))).toBe("BUDGET_DUPLICATE_REQUEST");
     expect(code(await call(server, DEEPSEEK_CHAT_PATH, llm("arbitrary clipping", 300_000)))).toBe("BUDGET_ILLEGAL_LLM_WINDOW");
     expect(code(await call(server, DEEPSEEK_CHAT_PATH, llm("too much output", 393_217)))).toBe("BUDGET_ILLEGAL_LLM_WINDOW");
-    for (const wire of sent.slice(40, 64)) expect((await call(server, DEEPSEEK_CHAT_PATH, wire)).status).toBe(200);
+    expect((await call(server, responsesPath, sent[40])).status).toBe(200);
+    for (const wire of sent.slice(41, 64)) expect((await call(server, DEEPSEEK_CHAT_PATH, wire)).status).toBe(200);
     const fullJournal = readFileSync(first.journalPath, "utf8");
     expect(await call(server, DEEPSEEK_CHAT_PATH, sent[64])).toEqual({
       status: 429, data: { error: { code: "BUDGET_LLM_CALLS_EXCEEDED", message: "BUDGET_LLM_CALLS_EXCEEDED",
@@ -431,6 +468,79 @@ describe("task-local provider budget gateway", () => {
       estimatedCost: { llm: { settledMicroCny: 64 * llmMicroCny(12, 8), reservedMicroCny: 0 },
         media: { settledMicroCny: 0, reservedMicroCny: 0 } },
     });
+  });
+
+  it("fsyncs each exact stateless Responses request and preserves complete and metered terminal bodies", async () => {
+    const journalPath = location();
+    const schema = await responseSceneSchema();
+    const sent = ["completed", "incomplete", "failed"].map(state => ({
+      state, wire: JSON.stringify(strictScene(schema, `original entire prompt for ${state}`)),
+    }));
+    const upstream = vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
+      const expected = sent[upstream.mock.calls.length - 1]!;
+      expect(url).toBe("https://api.deepseek.com/responses");
+      expect(init?.headers).toMatchObject({ authorization: `Bearer ${DEEPSEEK}` });
+      expect(Buffer.from(init!.body as Uint8Array).toString()).toBe(expected.wire);
+      const reserved = readFileSync(journalPath, "utf8");
+      expect(reserved).toContain(digest(expected.wire));
+      expect(reserved).not.toContain("original entire prompt");
+      return Response.json(responsesBody(expected.state), { headers: { "x-request-id": "responses-fixture" } });
+    });
+    const { server } = await gate(upstream, { scope: videoScope, profile: "workflow-v2", journalPath });
+    for (const { state, wire } of sent) expect(await call(server, responsesPath, wire))
+      .toEqual({ status: 200, data: responsesBody(state) });
+    expect(code(await call(server, responsesPath, sent[0]!.wire))).toBe("BUDGET_DUPLICATE_REQUEST");
+    expect(upstream).toHaveBeenCalledTimes(3);
+    expect((await call(server, "/budget/status")).data).toMatchObject({ state: "live", held: false,
+      phaseRelays: { llm: { structuredScenePath: responsesPath, admitted: 3 } },
+      settledLlmTokens: { input: 90, output: 60 }, usage: { llmCalls: 3, settledLlmGrossTokens: 150, imageCalls: 0, videoCalls: 0 } });
+  });
+
+  it("only enables native frozen Scene Responses in workflow v2 with exact scope and no tools or continuation state", async () => {
+    const upstream = vi.fn(async () => Response.json(responsesBody()));
+    const schema = await responseSceneSchema();
+    const body = strictScene(schema);
+    for (const profile of ["case", "workflow"]) {
+      const { server } = await gate(upstream, { profile, scope: videoScope });
+      expect((await call(server, responsesPath, body)).status).toBe(404);
+      expect((await call(server, "/budget/status")).data.phaseRelays.llm).not.toHaveProperty("structuredScenePath");
+    }
+    const { server } = await gate(upstream, { profile: "workflow-v2", scope: videoScope });
+    expect((await call(server, responsesPath, body, "wrong")).status).toBe(401);
+    expect((await call(server, responsesPath + "?unsafe", body)).status).toBe(404);
+    for (const patch of [{ tools: [] }, { previous_response_id: "resp-other" }, { truncation: "disabled" },
+      { store: false }, { stream: true }, { input: [{ role: "user", content: "text" }] },
+      { reasoning: { effort: "none" } }, { model: "deepseek-v4-pro" },
+      { text: { format: { ...body.text.format, name: "unrelated_schema" } } }]) {
+      expect((await call(server, responsesPath, { ...body, ...patch })).status).toBe(400);
+    }
+    const unpinned = strictScene({ ...schema, $ref: "https://external.invalid/schema" });
+    expect((await call(server, responsesPath, unpinned)).status).toBe(400);
+    const wrongScope = await gate(upstream, { profile: "workflow-v2", scope: { video: { ...videoScope.video, seconds: 11 } } });
+    expect((await call(wrongScope.server, responsesPath, body)).status).toBe(400);
+    for (const max_output_tokens of [300_000, 393_217]) {
+      expect(code(await call(server, responsesPath, { ...body, max_output_tokens }))).toBe("BUDGET_ILLEGAL_LLM_WINDOW");
+    }
+    expect(upstream).not.toHaveBeenCalled();
+    expect((await call(server, responsesPath, strictScene(await responseSceneSchema(2)))).status).toBe(200);
+    expect(upstream).toHaveBeenCalledTimes(1);
+  });
+
+  it.each(["meter", "tool", "transport"])("freezes the same v2 WAL for unverifiable Responses %s", async (mode) => {
+    const upstream = vi.fn(async () => {
+      if (mode === "transport") throw new Error("fixture socket loss");
+      return Response.json(mode === "meter"
+        ? { ...responsesBody(), usage: { input_tokens: 30, output_tokens: 20, total_tokens: 49 } }
+        : { ...responsesBody(), output: [{ type: "function_call", name: "forbidden" }] });
+    });
+    const first = await gate(upstream, { profile: "workflow-v2", scope: videoScope });
+    expect(code(await call(first.server, responsesPath, strictScene(await responseSceneSchema())))).toBe("BUDGET_OUTCOME_UNKNOWN");
+    expect(code(await call(first.server, DEEPSEEK_CHAT_PATH, llm("after unknown response")))).toBe("BUDGET_FROZEN");
+    await first.server.close();
+    const { server } = await gate(upstream, { profile: "workflow-v2", scope: videoScope,
+      port: first.server.port, journalPath: first.journalPath });
+    expect((await call(server, "/budget/status")).data).toMatchObject({ state: "frozen", held: true, reserved: { calls: 1 } });
+    expect(upstream).toHaveBeenCalledTimes(1);
   });
 
   it.each(["workflow", "workflow-v2"])("keeps the media price cap independent in %s mode", async (profile) => {

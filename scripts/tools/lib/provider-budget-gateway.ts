@@ -5,8 +5,8 @@ import type { AddressInfo } from "node:net";
 import { Readable } from "node:stream";
 import { BudgetJournal, type Reservation } from "./provider-budget-journal.js";
 import {
-  ARK_IMAGE_PATH, ARK_VIDEO_PATH, BudgetError, check, compileClaim, DEEPSEEK_CHAT_PATH, DEEPSEEK_MODEL, digest,
-  exceededClaim, normalizeBudgetProfile, normalizeBudgetScope, record, safeTaskId, SEEDANCE_MODEL, SEEDREAM_MODEL, settlementFor,
+  ARK_IMAGE_PATH, ARK_VIDEO_PATH, BudgetError, check, compileClaim, DEEPSEEK_CHAT_PATH, DEEPSEEK_MODEL, DEEPSEEK_RESPONSES_PATH, digest,
+  exceededClaim, normalizeBudgetProfile, normalizeBudgetScope, record, responsesSettlement, safeTaskId, SEEDANCE_MODEL, SEEDREAM_MODEL, settlementFor,
   type JsonObject, type Settlement,
 } from "./provider-budget-policy.js";
 
@@ -18,7 +18,8 @@ const MAX_UPSTREAM_BODY_BYTES = 32 * 1024 * 1024;
 const SYNCHRONOUS_TIMEOUT_MS = 5 * 60_000;
 const VIDEO_ACK_TIMEOUT_MS = 2 * 60_000;
 const READBACK_TIMEOUT_MS = 45_000;
-const POST_PATHS = new Set([DEEPSEEK_CHAT_PATH, ARK_IMAGE_PATH, ARK_VIDEO_PATH]);
+const TEXT_POST_PATHS = new Set([DEEPSEEK_CHAT_PATH, DEEPSEEK_RESPONSES_PATH]);
+const POST_PATHS = new Set([...TEXT_POST_PATHS, ARK_IMAGE_PATH, ARK_VIDEO_PATH]);
 const utf8 = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true });
 
 interface GatewayOptions {
@@ -166,7 +167,7 @@ export async function startProviderBudgetGateway(options: GatewayOptions) {
 
   async function forward(method: "GET" | "POST", path: string, timeoutMs: number, payload?: Buffer): Promise<Upstream> {
     check(timeoutMs > 0, "BUDGET_DEADLINE_EXCEEDED", 423);
-    const deepSeek = path === DEEPSEEK_CHAT_PATH || path === "/models";
+    const deepSeek = TEXT_POST_PATHS.has(path) || path === "/models";
     const response = await fetcher(`${deepSeek ? DEEPSEEK_ORIGIN : ARK_ORIGIN}${path}`, {
       method,
       headers: { authorization: `Bearer ${deepSeek ? options.deepSeekApiKey : options.arkApiKey}`,
@@ -219,7 +220,7 @@ export async function startProviderBudgetGateway(options: GatewayOptions) {
   }
 
   async function submit(store: BudgetJournal, request: IncomingMessage, response: ServerResponse, path: string): Promise<void> {
-    const bytes = await incomingBody(request, path === DEEPSEEK_CHAT_PATH ? MAX_LLM_BODY_BYTES : MAX_ARK_BODY_BYTES);
+    const bytes = await incomingBody(request, TEXT_POST_PATHS.has(path) ? MAX_LLM_BODY_BYTES : MAX_ARK_BODY_BYTES);
     const wireSha256 = digest(bytes);
     const hash = digest(`${path}\n${wireSha256}`);
     const body = decode(bytes, true);
@@ -241,7 +242,7 @@ export async function startProviderBudgetGateway(options: GatewayOptions) {
         check(safeTaskId(upstream.value.id), "BUDGET_UPSTREAM_TASK_UNVERIFIED", 502);
         store.accept(hash, upstream.value.id);
       } else {
-        const usage = settlementFor(claim, upstream.value);
+        const usage = path === DEEPSEEK_RESPONSES_PATH ? responsesSettlement(upstream.value) : settlementFor(claim, upstream.value);
         const entry = store.find(hash);
         check(entry && usage, "BUDGET_UPSTREAM_USAGE_UNVERIFIED", 502);
         settle(store, entry, usage);
@@ -261,7 +262,8 @@ export async function startProviderBudgetGateway(options: GatewayOptions) {
       if (path === "/budget/status") {
         const status = store.status();
         sendJson(response, 200, { ...status, phaseRelays: {
-          llm: { model: DEEPSEEK_MODEL, path: DEEPSEEK_CHAT_PATH, configured: true, admitted: status.usage.llmCalls },
+          llm: { model: DEEPSEEK_MODEL, path: DEEPSEEK_CHAT_PATH, configured: true, admitted: status.usage.llmCalls,
+            ...(profile === "workflow-v2" ? { structuredScenePath: DEEPSEEK_RESPONSES_PATH } : {}) },
           image: { model: SEEDREAM_MODEL, path: ARK_IMAGE_PATH, configured: true, admitted: status.usage.imageCalls },
           video: { model: SEEDANCE_MODEL, path: ARK_VIDEO_PATH, configured: true, admitted: status.usage.videoCalls },
         } });
@@ -284,7 +286,8 @@ export async function startProviderBudgetGateway(options: GatewayOptions) {
         return;
       }
     }
-    check(request.method === "POST" && POST_PATHS.has(path), "BUDGET_ROUTE_DENIED", 404);
+    check(request.method === "POST" && POST_PATHS.has(path)
+      && (path !== DEEPSEEK_RESPONSES_PATH || profile === "workflow-v2"), "BUDGET_ROUTE_DENIED", 404);
     await submit(store, request, response, path);
   }
 

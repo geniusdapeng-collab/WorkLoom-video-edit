@@ -24,3 +24,5 @@
 每次文本请求仍使用完整原生窗口，最多 40 次文本请求。41,943,040 是 40 次各自最多 1,048,576 个输入和输出 token 得出的总量上界。账本逐次预占和结算，并分别显示文本与媒体的已结算和预占估算。按当前公开峰值估算，文本上界约 ¥178.26，仅供观察。媒体估算独立受 ¥120、8 次图片、3 次视频及原有镜头范围限制。任务窗口为 45 分钟，结果未知时保留原始预占并冻结新增提交。
 
 对已单独授权、需要预留逐镜语义复核和渲染资格审核的正式 Studio 作业，在新任务号和新账本上显式使用 `--profile workflow-v2`。该策略允许 64 次文本请求，单请求仍使用同一完整原生窗口。理论合计上界为 67,108,864 token，峰值文本估算上界为 ¥285.212672。媒体规格、限额、任务窗口和正式审批沿用上述要求。第 65 个不同的有效文本请求在本地返回 HTTP 429 `BUDGET_LLM_CALLS_EXCEEDED`，响应的 `error.limit` 包含策略、资源、已用和上限。已有账本只能用最初启用的策略恢复；默认 `case` 和原 `workflow` 均保持 40 次。Film 的正式接续沿用 `workflow`。
+
+仅 `workflow-v2` 的正式 Studio 场景节点可使用 `POST /responses`。网关接收冻结分段的 `workloom_scene_architect` JSON Schema、完整输入和 `deepseek-flash` 高档思考，按完整原生窗口核验 `max_output_tokens`。该请求为非流式，不传工具、图片或跨轮状态。网关持久化预占后原样转发，按供应商返回的输入、输出和总 token 对账。同一账本同时计算 Chat Completions 和 Responses 调用。计量完整的失败或未完成响应仍结算真实用量，Studio 独立核验场景是否可用。无法核实用量时保留预占并关闭新增提交。参见 [DeepSeek Responses API](https://api-docs.deepseek.com/api/create-response/)。

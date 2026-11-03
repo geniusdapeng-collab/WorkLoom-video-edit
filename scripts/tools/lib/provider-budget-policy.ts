@@ -9,6 +9,7 @@ import {
 
 export { DEEPSEEK_CHAT_PATH };
 export const DEEPSEEK_MODEL = EDIT_CANONICAL_CASE_BUDGET.modelId;
+export const DEEPSEEK_RESPONSES_PATH = "/responses";
 export const SEEDREAM_MODEL = "doubao-seedream-5-0-pro-260628";
 export const SEEDANCE_MODEL = "doubao-seedance-2-5-260628";
 
@@ -206,23 +207,106 @@ async function llmClaim(body: JsonObject, scope: BudgetScope, known: FindImage):
       }
     }
   }
+  return textClaim(body.model, body.max_tokens, body.messages as BudgetMessage[], body.response_format);
+}
+
+async function textClaim(modelId: unknown, maxOutputTokens: number, messages: BudgetMessage[], responseFormat: unknown): Promise<Claim> {
   let plan;
   try {
-    plan = await planDeepSeekWindow({
-      messages: body.messages as BudgetMessage[],
-      responseFormat: body.response_format,
-    });
+    plan = await planDeepSeekWindow({ messages, responseFormat });
   } catch {
     throw new BudgetError("BUDGET_UNVERIFIED_LLM_TOKENS", 422);
   }
   try {
-    const { inputTokens, maxOutputTokens } = verifyEditCanonicalLlmEnvelope({
-      modelId: body.model, inputTokens: plan.inputTokens, maxOutputTokens: body.max_tokens,
+    const { inputTokens } = verifyEditCanonicalLlmEnvelope({
+      modelId, inputTokens: plan.inputTokens, maxOutputTokens,
     });
     return { kind: "llm", inputTokens, maxOutputTokens, microCny: llmMicroCny(inputTokens, maxOutputTokens) };
   } catch {
     throw new BudgetError("BUDGET_ILLEGAL_LLM_WINDOW", 422);
   }
+}
+
+// Validate the bounded JSON Schema dialect actually used by the frozen Scene
+// stage. Business content and all native scene semantics are checked by Studio.
+function validateSceneSchemaNode(node: unknown, depth: number, remaining: { nodes: number }): void {
+  check(record(node) && depth <= 12 && --remaining.nodes >= 0);
+  switch (node.type) {
+    case "object": {
+      fields(node, ["type", "properties", "required", "additionalProperties"]);
+      const properties = node.properties;
+      check(record(properties) && (node.additionalProperties === undefined || node.additionalProperties === false));
+      const keys = Object.keys(properties);
+      check(keys.length > 0 && keys.length <= 16 && keys.every((key) => /^[A-Za-z][A-Za-z0-9]{0,63}$/.test(key))
+        && Array.isArray(node.required) && node.required.length <= keys.length
+        && new Set(node.required).size === node.required.length
+        && node.required.every((key: unknown) => typeof key === "string" && Object.hasOwn(properties, key)));
+      for (const field of Object.values(properties)) validateSceneSchemaNode(field, depth + 1, remaining);
+      return;
+    }
+    case "array":
+      fields(node, ["type", "items", "minItems", "maxItems"]);
+      check((node.minItems === undefined || safeInteger(node.minItems))
+        && (node.maxItems === undefined || safeInteger(node.maxItems) && node.maxItems >= Number(node.minItems ?? 0)));
+      validateSceneSchemaNode(node.items, depth + 1, remaining);
+      return;
+    case "number":
+      fields(node, ["type", "minimum", "maximum"]);
+      check((node.minimum === undefined || within(node.minimum, 0, 600))
+        && (node.maximum === undefined || within(node.maximum, Number(node.minimum ?? 0), 600)));
+      return;
+    case "string":
+      fields(node, ["type", "enum", "minLength", "maxLength"]);
+      check((node.minLength === undefined || safeInteger(node.minLength))
+        && (node.maxLength === undefined || safeInteger(node.maxLength) && node.maxLength >= Number(node.minLength ?? 0)));
+      check(node.enum === undefined || Array.isArray(node.enum) && node.enum.length > 0 && node.enum.length <= 16
+        && node.enum.every((item: unknown) => typeof item === "string" && item.length <= 64));
+      return;
+    default:
+      throw new BudgetError("BUDGET_UNSUPPORTED_REQUEST", 400);
+  }
+}
+
+function fixedSceneNumber(value: unknown, expected: number): boolean {
+  return record(value) && value.type === "number" && value.minimum === expected && value.maximum === expected;
+}
+
+function checkFrozenSceneScope(schema: unknown, scope: BudgetScope): void {
+  check(record(schema) && schema.type === "object" && schema.additionalProperties === false && record(schema.properties));
+  const props = schema.properties;
+  const names = ["opening", "scenes", "ending", "totalDuration", "sceneCount", "narrativeArc"];
+  check(Object.keys(props).length === names.length && names.every((name) => Object.hasOwn(props, name)));
+  const required = names.slice(0, -1);
+  const declared = schema.required;
+  check(Array.isArray(declared) && required.every((name) => declared.includes(name)));
+  const middle = props.scenes, seconds = scope.video.seconds;
+  check(seconds !== null && record(middle) && middle.type === "array"
+    && safeInteger(middle.minItems) && middle.minItems + 2 <= TASK_CAPS.videoCalls && middle.maxItems === middle.minItems);
+  const count = middle.minItems + 2;
+  check(fixedSceneNumber(props.sceneCount, count) && fixedSceneNumber(props.totalDuration, count * seconds)
+    && [props.opening, middle.items, props.ending].every((node) => record(node) && node.type === "object"
+      && record(node.properties) && fixedSceneNumber(node.properties.duration, seconds)));
+  validateSceneSchemaNode(schema, 0, { nodes: 128 });
+}
+
+async function responsesClaim(body: JsonObject, scope: BudgetScope): Promise<Claim> {
+  fields(body, ["model", "input", "instructions", "reasoning", "max_output_tokens", "stream", "text"]);
+  check(body.model === DEEPSEEK_MODEL && typeof body.input === "string" && body.input.trim()
+    && safeInteger(body.max_output_tokens, 1) && body.stream === false);
+  const messages: BudgetMessage[] = [];
+  if (body.instructions !== undefined) {
+    check(typeof body.instructions === "string" && body.instructions.trim());
+    messages.push({ role: "system", content: body.instructions });
+  }
+  messages.push({ role: "user", content: body.input });
+  fields(body.reasoning, ["effort"]);
+  check(body.reasoning.effort === "high");
+  fields(body.text, ["format"]);
+  const format = body.text.format;
+  fields(format, ["type", "name", "schema"]);
+  check(format.type === "json_schema" && format.name === "workloom_scene_architect");
+  checkFrozenSceneScope(format.schema, scope);
+  return textClaim(body.model, body.max_output_tokens, messages, format);
 }
 
 function imageClaim(body: JsonObject, scope: BudgetScope, known: FindImage): Claim {
@@ -281,21 +365,34 @@ function videoClaim(body: JsonObject, scope: BudgetScope, known: FindImage): Cla
 
 export function compileClaim(path: string, body: JsonObject, scope: BudgetScope, known: FindImage): Promise<Claim> | Claim {
   if (path === DEEPSEEK_CHAT_PATH) return llmClaim(body, scope, known);
+  if (path === DEEPSEEK_RESPONSES_PATH) return responsesClaim(body, scope);
   if (path === ARK_IMAGE_PATH) return imageClaim(body, scope, known);
   check(path === ARK_VIDEO_PATH);
   return videoClaim(body, scope, known);
 }
 
+function textSettlement(input: unknown, output: unknown, total: unknown): Settlement {
+  check(safeInteger(input, 1) && safeInteger(output) && output <= EDIT_CANONICAL_CASE_BUDGET.maxLlmOutputTokens
+    && safeInteger(total) && total === input + output && total <= EDIT_CANONICAL_CASE_BUDGET.maxLlmTokens,
+  "BUDGET_UPSTREAM_USAGE_UNVERIFIED", 502);
+  return { kind: "llm", inputTokens: input, outputTokens: output, microCny: llmMicroCny(input, output) };
+}
+
+export function responsesSettlement(body: JsonObject): Settlement {
+  const usage = body.usage;
+  check(body.object === "response" && body.model === DEEPSEEK_MODEL && safeTaskId(body.id)
+    && oneOf(body.status, ["completed", "incomplete", "failed"]) && Array.isArray(body.output)
+    && body.output.every((item: unknown) => record(item) && oneOf(item.type, ["message", "reasoning"]))
+    && record(usage) && !Object.hasOwn(usage, "server_tool_use"), "BUDGET_UPSTREAM_USAGE_UNVERIFIED", 502);
+  return textSettlement(usage.input_tokens, usage.output_tokens, usage.total_tokens);
+}
+
 export function settlementFor(claim: Claim, body: JsonObject, taskId?: string): Settlement | undefined {
   const usage = record(body.usage) ? body.usage : {};
   if (claim.kind === "llm") {
-    const input = usage.prompt_tokens;
-    const output = usage.completion_tokens;
-    check(body.model === DEEPSEEK_MODEL && Array.isArray(body.choices) && body.choices.length === 1
-      && safeInteger(input, 1) && safeInteger(output) && output <= EDIT_CANONICAL_CASE_BUDGET.maxLlmOutputTokens
-      && safeInteger(usage.total_tokens) && usage.total_tokens === input + output && usage.total_tokens <= EDIT_CANONICAL_CASE_BUDGET.maxLlmTokens,
+    check(body.model === DEEPSEEK_MODEL && Array.isArray(body.choices) && body.choices.length === 1,
       "BUDGET_UPSTREAM_USAGE_UNVERIFIED", 502);
-    return { kind: "llm", inputTokens: input, outputTokens: output, microCny: llmMicroCny(input, output) };
+    return textSettlement(usage.prompt_tokens, usage.completion_tokens, usage.total_tokens);
   }
   if (claim.kind === "image") {
     const image = Array.isArray(body.data) && body.data.length === 1 ? body.data[0] : undefined;
