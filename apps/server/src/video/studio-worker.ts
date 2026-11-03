@@ -701,7 +701,7 @@ function readApprovedProductionPlan(input: {
         const action = jsonRecord(value);
         return typeof action?.actorId === "string" && typeof action.description === "string" && Boolean(action.description.trim());
       }) || !strings(verificationPlan.visualRequirements) || !strings(verificationPlan.audioRequirements)
-      || !Array.isArray(verificationPlan.dialogue)) return invalid(`第 ${index + 1} 镜的已审场景身份、时长或动作核验计划不完整`);
+      || verificationPlan.dialogue !== "") return invalid(`第 ${index + 1} 镜的已审场景身份、时长或动作核验计划不完整`);
     seen.add(shotId);
     return { shotId, sceneId: shotId, interval: segments.intervals[index]!, approvedScene, verificationPlan };
   }) };

@@ -301,7 +301,7 @@ describe("预生产原始结果与诚实终态", () => {
       const scenes = ["opening", "ending"].map((id, index) => ({ id, purpose: `实际目的一${index}`, duration: 5,
         keyElements: ["连续动作"], props: [], actions: [{ actorId: "$scene", description: intervals[index]!.brief }] }));
       const verification = scenes.map(({ id, duration }) => ({ sceneId: id, duration,
-        visualRequirements: ["动作起点、经过、完成均可见"], audioRequirements: ["保留赛道原声"], dialogue: [] }));
+        visualRequirements: ["动作起点、经过、完成均可见"], audioRequirements: ["保留赛道原声"], dialogue: "" }));
       const requirementContractHash = "f".repeat(64);
       const captures: any[] = [];
       let g4Path = "", g4ArtifactSha256 = "";
