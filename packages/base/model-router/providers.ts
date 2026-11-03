@@ -50,6 +50,13 @@ export type NativeBlankJsonReceipt = Readonly<{
   reasoningTokens: number;
 }>;
 
+/** The original final text of one measured, completed Scene Responses dispatch. */
+export type NativeSceneResponseSource = Readonly<{
+  rawText: string;
+  requestSha256: string;
+  responseSha256: string;
+}>;
+
 export interface ChatResult {
   text: string;
   promptTokens: number;
@@ -372,17 +379,21 @@ interface OpenAiTransport {
 
 type OpenAiDispatch = OpenAiTransport & { provider: OpenAiCompatibleProvider };
 type BlankJsonDispatch = OpenAiDispatch & Pick<ChatResult, "scene" | "mode" | "effort">;
-const openAiTransportReceipts = new WeakMap<ChatResult, OpenAiDispatch & { finalJson?: boolean }>();
+const openAiTransportReceipts = new WeakMap<ChatResult, OpenAiDispatch & {
+  finalJson?: boolean;
+  sceneResponse?: NativeSceneResponseSource;
+}>();
 const nativeBlankJsonErrors = new WeakMap<ModelProviderError, NativeBlankJsonReceipt>();
 const nativeBlankJsonDispatches = new WeakMap<NativeBlankJsonReceipt, BlankJsonDispatch>();
 export const DEEPSEEK_CHAT_PATH = "/chat/completions";
 export const DEEPSEEK_RESPONSES_PATH = "/responses";
+const SCENE_RESPONSES_SCHEMA_NAME = "workloom_scene_architect";
 
-function isNativeChatEndpoint(endpoint: string): boolean {
+function isNativeEndpoint(endpoint: string, path: typeof DEEPSEEK_CHAT_PATH | typeof DEEPSEEK_RESPONSES_PATH): boolean {
   try {
     const url = new URL(endpoint);
     return (url.protocol === "http:" || url.protocol === "https:")
-      && url.pathname.endsWith(DEEPSEEK_CHAT_PATH) && !url.search && !url.hash
+      && url.pathname.endsWith(path) && !url.search && !url.hash
       && !url.username && !url.password;
   } catch {
     return false;
@@ -417,6 +428,14 @@ export class OpenAiCompatibleProvider implements ModelProvider {
   ): boolean {
     const dispatched = openAiTransportReceipts.get(receipt);
     return !!dispatched && dispatched.provider === this && !types.isProxy(this) && this.#matchesTransport(dispatched, path);
+  }
+
+  /** Reads only a source attached to the exact successful native Responses result. */
+  readNativeSceneResponseSource(receipt: ChatResult): NativeSceneResponseSource | undefined {
+    const dispatched = openAiTransportReceipts.get(receipt);
+    if (dispatched?.provider === this && dispatched.sceneResponse && !types.isProxy(this)
+      && this.#matchesTransport(dispatched, DEEPSEEK_RESPONSES_PATH)) return dispatched.sceneResponse;
+    return undefined;
   }
 
   /** Reads proof only from the error thrown by this exact native Chat dispatch. */
@@ -700,7 +719,7 @@ export class OpenAiCompatibleProvider implements ModelProvider {
         // Chat JSON wire may supply evidence of a complete, measured failure.
         if (!structuredRequest && this.modelId === DEEPSEEK_FLASH_MODEL_ID && responseFormat?.type === "json_object" && attempt === 1
           && response.status === 200 && !response.redirected && !signal.aborted
-          && isNativeChatEndpoint(transport.endpoint) && isNativeChatJsonMessage(data)
+          && isNativeEndpoint(transport.endpoint, DEEPSEEK_CHAT_PATH) && isNativeChatJsonMessage(data)
           && !/[^ ]/u.test(choice.message?.content as string)) {
           try {
             const usage = completionUsage(data, thinkingEnabled, plan.outputCeiling);
@@ -733,10 +752,17 @@ export class OpenAiCompatibleProvider implements ModelProvider {
         registryVersion: TEXT_PRIMARY_REGISTRY_VERSION,
         attempts,
       };
-      const finalJson = !structuredRequest && responseFormat?.type === "json_object" && attempt === 1
-        && response.status === 200 && !response.redirected && !signal.aborted
-        && isNativeChatEndpoint(transport.endpoint) && isNativeChatJsonMessage(data);
-      openAiTransportReceipts.set(receipt, { ...transport, provider: this, finalJson });
+      const completeNativeHttp = attempt === 1 && response.status === 200 && !response.redirected && !signal.aborted;
+      const finalJson = !structuredRequest && responseFormat?.type === "json_object" && completeNativeHttp
+        && isNativeEndpoint(transport.endpoint, DEEPSEEK_CHAT_PATH) && isNativeChatJsonMessage(data);
+      const echoedFormat = objectRecord(objectRecord(objectRecord(decoded)?.text)?.format);
+      const rawText = choice.message?.content;
+      const sceneResponse = completeNativeHttp && structuredRequest?.format.name === SCENE_RESPONSES_SCHEMA_NAME
+        && echoedFormat?.type === "json_schema" && echoedFormat.name === SCENE_RESPONSES_SCHEMA_NAME
+        && typeof rawText === "string" && isNativeEndpoint(transport.endpoint, DEEPSEEK_RESPONSES_PATH)
+        ? Object.freeze({ rawText, requestSha256: requestHash, responseSha256: responseHash })
+        : undefined;
+      openAiTransportReceipts.set(receipt, { ...transport, provider: this, finalJson, sceneResponse });
       return receipt;
     }
     throw new ModelProviderError("模型调用重试耗尽", "http", { retryable: false, receipt: { attempts } });
