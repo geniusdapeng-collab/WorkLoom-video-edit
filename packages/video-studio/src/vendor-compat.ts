@@ -30,6 +30,7 @@ import {
   resolveRateKey,
 } from "./duration-projection.js";
 import { assertFrozenProductionTiming, bindFrozenScreenplayPrompt } from "./frozen-production-duration.js";
+import { bindSilentScreenplayPrompt, bindSilentScreenplaySystemPrompt, hasExplicitSilentScreenplay, SilentScreenplayError } from "./silent-screenplay.js";
 import type { FrozenSegmentContract } from "./requirement-contract.js";
 import { REQUIRED_ANGLES, type PortraitIndex, type PortraitIndexEntry } from "./portrait-runtime.js";
 import {
@@ -1390,6 +1391,7 @@ export interface DurationProjectionBridgeOptions {
   minShotSeconds?: number;
   maxShotSeconds?: number;
   frozenSegments?: FrozenSegmentContract;
+  speechPolicy?: "none";
 }
 
 const durationProjectionScopes = new AsyncLocalStorage<{ options: DurationProjectionBridgeOptions; active: boolean }>();
@@ -1631,19 +1633,108 @@ export function installVendorDurationProjectionBridge(options: DurationProjectio
   };
 
   /* ---------- ① 剧本引擎：总量对齐改为投影 ---------- */
-  step("ScriptGenerator._buildGenerationPrompt", () => {
+  step("ScriptGenerator frozen screenplay prompt and speech policy", () => {
     const file = resolvePath(repoRoot, "vendor/supermickey/hyperreality-system/engines/script-engine/core/script-generator.js");
     if (!existsSync(file)) return;
     const mod = vendorRequire(file) as { ScriptGenerator?: { prototype?: Recordish } };
-    const prototype = mod?.ScriptGenerator?.prototype;
-    const original = prototype?._buildGenerationPrompt;
-    if (!prototype || typeof original !== "function") return;
-    prototype._buildGenerationPrompt = function patchedBuildGenerationPrompt(this: unknown, ...args: unknown[]): string {
-      const prompt = Reflect.apply(original, this, args);
-      const frozen = durationProjectionOptions(options).frozenSegments;
-      return frozen ? bindFrozenScreenplayPrompt(prompt, frozen) : prompt;
+    const prototype = mod.ScriptGenerator?.prototype;
+    const build = prototype?._buildGenerationPrompt;
+    const resolveVoiceover = prototype?._resolveVoiceoverPolicy;
+    const generate = prototype?.generate;
+    const call = prototype?._callLLM;
+    const parse = prototype?._parseLLMResponse;
+    if (!prototype || typeof build !== "function" || typeof resolveVoiceover !== "function"
+      || typeof generate !== "function" || typeof call !== "function" || typeof parse !== "function") return;
+    // Keep the native retry loop for transport errors. A final structured result
+    // with prohibited speech is terminal for this generation, even on its retry.
+    const generation = new AsyncLocalStorage<{ terminalError?: SilentScreenplayError }>();
+    prototype.generate = function patchedGenerate(this: unknown, ...args: unknown[]): unknown {
+      if (durationProjectionOptions(options).speechPolicy !== "none") return Reflect.apply(generate, this, args);
+      return generation.run({}, () => Reflect.apply(generate, this, args));
     };
-    restores.push(() => { prototype._buildGenerationPrompt = original; });
+    prototype._buildGenerationPrompt = function patchedBuildGenerationPrompt(this: unknown, ...args: unknown[]): string {
+      const policy = durationProjectionOptions(options);
+      const terminal = generation.getStore()?.terminalError;
+      if (terminal) throw terminal;
+      let prompt = Reflect.apply(build, this, args);
+      if (policy.speechPolicy === "none") prompt = bindSilentScreenplayPrompt(prompt, Boolean(policy.frozenSegments));
+      return policy.frozenSegments ? bindFrozenScreenplayPrompt(prompt, policy.frozenSegments) : prompt;
+    };
+    prototype._resolveVoiceoverPolicy = function patchedVoiceoverPolicy(this: unknown, ...args: unknown[]): Recordish {
+      const native = Reflect.apply(resolveVoiceover, this, args);
+      return durationProjectionOptions(options).speechPolicy === "none" ? { ...native, allowed: false } : native;
+    };
+    prototype._callLLM = function patchedScriptCall(
+      this: { llmEngine?: { generate: (prompt: string, request: Recordish) => unknown } },
+      ...args: unknown[]
+    ): unknown {
+      const policy = durationProjectionOptions(options);
+      const engine = this.llmEngine;
+      if (policy.speechPolicy !== "none" || !engine) return Reflect.apply(call, this, args);
+      // The native method sets a second set of rules in the system role. Use
+      // an invocation-local receiver so concurrent calls share no mutable state.
+      const receiver = Object.create(this, { llmEngine: { value: {
+        generate(prompt: string, request: Recordish) {
+          if (typeof request.systemPrompt !== "string") throw new SilentScreenplayError("原生编剧系统提示缺失");
+          const systemPrompt = bindSilentScreenplaySystemPrompt(request.systemPrompt, Boolean(policy.frozenSegments));
+          return engine.generate(prompt, { ...request, systemPrompt });
+        },
+      } } });
+      return Reflect.apply(call, receiver, args);
+    };
+    prototype._parseLLMResponse = function patchedScriptParse(this: unknown, response: string, ...args: unknown[]): unknown {
+      if (durationProjectionOptions(options).speechPolicy === "none") {
+        // The normal host call already requires complete final JSON. Check the
+        // authored fields before the vendor parser can move or delete aliases.
+        let raw: unknown;
+        try {
+          raw = JSON.parse(response);
+        } catch (cause) {
+          if (!(cause instanceof SyntaxError)) throw cause;
+          throw new SilentScreenplayError("原生编剧没有提供完整的最终 JSON");
+        }
+        if (!hasExplicitSilentScreenplay(raw)) {
+          const error = new SilentScreenplayError("剧本未逐场声明零对白且无可辨识人声，或包含语音字段");
+          const attempt = generation.getStore();
+          if (attempt) attempt.terminalError = error;
+          throw error;
+        }
+      }
+      return Reflect.apply(parse, this, [response, ...args]);
+    };
+    restores.push(() => {
+      prototype.generate = generate;
+      prototype._buildGenerationPrompt = build;
+      prototype._resolveVoiceoverPolicy = resolveVoiceover;
+      prototype._callLLM = call;
+      prototype._parseLLMResponse = parse;
+    });
+  });
+  step("ScriptValidator frozen speech policy", () => {
+    const file = resolvePath(repoRoot, "vendor/supermickey/hyperreality-system/engines/script-engine/core/script-validator.js");
+    if (!existsSync(file)) return;
+    const mod = vendorRequire(file) as { ScriptValidator?: { prototype?: Recordish } };
+    const prototype = mod.ScriptValidator?.prototype;
+    const voiceoverAllowed = prototype?._isVoiceoverAllowed;
+    const checkDialogue = prototype?._checkDialogue;
+    if (!prototype || typeof voiceoverAllowed !== "function" || typeof checkDialogue !== "function") return;
+    prototype._isVoiceoverAllowed = function patchedVoiceoverAllowed(this: unknown, ...args: unknown[]): boolean {
+      return durationProjectionOptions(options).speechPolicy === "none" ? false : Reflect.apply(voiceoverAllowed, this, args);
+    };
+    prototype._checkDialogue = function patchedCheckDialogue(this: unknown, blueprint: unknown): Recordish[] {
+      const native = Reflect.apply(checkDialogue, this, [blueprint]) as Recordish[];
+      if (durationProjectionOptions(options).speechPolicy !== "none") return native;
+      const passed = hasExplicitSilentScreenplay(blueprint);
+      return native.map((check) => check.name === "has_dialogue" ? {
+        ...check, name: "no_identifiable_speech", passed,
+        message: passed ? "逐场零对白且无可辨识人声" : "剧本违反冻结声音策略",
+        suggestion: passed ? null : "逐场明确声明无对白，移除实际语音字段",
+      } : check);
+    };
+    restores.push(() => {
+      prototype._isVoiceoverAllowed = voiceoverAllowed;
+      prototype._checkDialogue = checkDialogue;
+    });
   });
   step("ScriptGenerator._enforceTargetDuration", () => {
     const file = resolvePath(repoRoot, "vendor/supermickey/hyperreality-system/engines/script-engine/core/script-generator.js");
