@@ -11,9 +11,11 @@ const scope = { tenantId: "tenant-a", workspaceId: "ws-a", projectId: "P1", runI
 const env = { LLM_BASE_URL: "https://api.deepseek.com", LLM_API_KEY: "test-only", LLM_MODEL: "deepseek-flash" };
 const sourceUrl = "https://source.example.com/f3";
 const secondarySourceUrl = "https://secondary.example.com/f3";
-const sourceText = "星野 F3 是一款风扇，风量 9 档。价格 399 CNY。待机功率 0，自动启停 false，接口 USB/C~口。尾部注意：9 档是风量档位，不是能耗等级；不得声称静音或市场第一。";
+const sourceText = "星野 F3 是一款风扇，风量 9 档。价格 399 CNY。待机功率 0，自动启停 false，接口 USB/C~口。仅供室内使用，不适用于潮湿环境。尾部注意：9 档是风量档位，不是能耗等级；不得声称静音或市场第一。";
 let server: Server, origin: string, root: string, modelCalls: any[], rejectJudge: boolean, extractionCalls: string[], extractionOptions: unknown[];
+const useRestriction = "仅供室内使用，不适用于潮湿环境";
 let simulatedProviderCalls: ReturnType<typeof simulatedProviderCompletion>[];
+let judgeRejection: string | undefined;
 /** 独立声明的模拟 token 账单，不从字符/字节数推算，也不代表真实供应商 tokenizer。 */
 function simulatedProviderCompletion(data: unknown, maxTokens: number, syntheticTokenCharge: number) {
   const complete = JSON.stringify(data), length = syntheticTokenCharge > maxTokens;
@@ -31,7 +33,7 @@ beforeAll(async () => {
 });
 afterAll(async () => { server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve())); });
 beforeEach(async () => {
-  root = await realpath(await mkdtemp(path.join(tmpdir(), "marketing-authority-"))); modelCalls = []; extractionCalls = []; extractionOptions = []; simulatedProviderCalls = []; rejectJudge = false;
+  root = await realpath(await mkdtemp(path.join(tmpdir(), "marketing-authority-"))); modelCalls = []; extractionCalls = []; extractionOptions = []; simulatedProviderCalls = []; rejectJudge = false; judgeRejection = undefined;
   vi.stubGlobal("fetch", vi.fn(async (_url, init) => {
     modelCalls.push(JSON.parse(String(init.body)));
     return new Response(JSON.stringify({
@@ -44,7 +46,7 @@ beforeEach(async () => {
           score: rejectJudge ? 10 : 96,
           issues: rejectJudge ? ["来源不支持此主张"] : [],
           suggestions: [],
-          reason: rejectJudge ? "原文限定相冲突" : "逐项原文支持",
+          reason: rejectJudge ? judgeRejection ?? "原文限定相冲突" : "逐项原文支持",
         }) },
       }],
       usage: {
@@ -65,6 +67,7 @@ async function prepare(options: { noSearch?: boolean; noAux?: boolean; badQuote?
   absoluteSellingPoint?: boolean;
   conflictingBrand?: string;
   mismatchedSellingPointSource?: boolean;
+  thirdPartyOnly?: boolean;
 } = {}): Promise<PreparedMarketingFacts> {
   let searches = 0, a1Calls = 0;
   return prepareMarketingFacts({ scope: { ...scope, attempt: options.attempt ?? 1 }, root, intent: "做一条风扇介绍", metadata: { brief: { product: "星野 F3", brand: "星野" } }, env: { ...env, ...(options.mode ? { VM_DATA_MINING_MODE: options.mode } : {}) },
@@ -76,7 +79,7 @@ async function prepare(options: { noSearch?: boolean; noAux?: boolean; badQuote?
       a1Calls++;
       if (a1Calls === 2 && options.citationFault === "repair-model-failure") return { success: false, error: "LLM unavailable" };
       const specs = options.specs ?? { 风量: "9 档" };
-      const officialPoints = [
+      const officialPoints = options.thirdPartyOnly ? [] : [
         { point: "风量 9 档", source_url: options.mismatchedSellingPointSource ? secondarySourceUrl : sourceUrl },
         ...(options.absoluteSellingPoint ? [{ point: "Perfect to run anywhere", source_url: sourceUrl }] : []),
       ];
@@ -222,7 +225,12 @@ describe("营销事实宿主完整执行", () => {
     const prepared = await prepare({ quoteIds: true, ...(repair ? { citationFault: "missing" as const } : {}) });
     const a1 = prepared.bundle.stages[0]!, attempts = await Promise.all(a1.extractions!.map(async item => JSON.parse(await readFile(path.join(root, item.ref), "utf8"))));
     const artifact = attempts.at(-1)!;
-    expect(artifact.schemaVersion).toBe("workloom.marketing-extraction/v3");
+    expect(artifact.schemaVersion).toBe("workloom.marketing-extraction/v4");
+    for (const stage of prepared.bundle.stages.slice(1)) {
+      const auxiliary = JSON.parse(await readFile(path.join(root, stage.extractions![0]!.ref), "utf8"));
+      expect(auxiliary.schemaVersion).toBe("workloom.marketing-extraction/v3");
+      expect(auxiliary.prompt).not.toContain("A1先保留会改变");
+    }
     const request = JSON.parse(artifact.prompt.slice(artifact.prompt.lastIndexOf("当前阶段：A1\n") + "当前阶段：A1\n".length));
     expect(request.payloadJsonSchema.properties.images.items).toMatchObject({ additionalProperties: false, required: ["url", "page_url"] });
     expect(Object.keys(request.payloadJsonSchema.properties.images.items.properties).sort()).toEqual(["angle", "page_url", "source", "url"]);
@@ -235,16 +243,53 @@ describe("营销事实宿主完整执行", () => {
     await expect(verifyMarketingFacts({ root, ...saved, scope, shots })).resolves.toMatchObject({ scope });
     if (repair) expect(attempts.map(item => item.status)).toEqual(["rejected", "accepted"]);
   });
-  it.each(["binding-offset", "binding-quote-id", "response-quote-id", "prompt-policy", "prompt-fragment", "version", "schema", "schema-missing", "schema-stage", "version-downgrade"])("重算摘要也拒绝ID桥%s篡改", async kind => {
+  it("A1要求逐条引证实质限制并区分官方归因，只有第三方事实时仍完成支持审核和复读", async () => {
+    const prepared = await prepare({ quoteIds: true, thirdPartyOnly: true, specs: { 使用范围: useRestriction, 风量: "9 档" } });
+    expect(extractionCalls[0]).toContain("包括原文的否定和排除条件");
+    expect(extractionCalls[0]).toContain("只选确实包含该限定的原文quoteId逐项引证");
+    expect(extractionCalls[0]).toContain("引证必须支持声明本身和该归因");
+    expect(extractionCalls[0]).toContain("第三方报道中有原文支持的客观商品事实放入identity.specs");
+    expect(prepared.raw.A1.identity).toMatchObject({ official_selling_points: [], specs: { 使用范围: useRestriction } });
+    expect(prepared.bundle.dossier.identity).toMatchObject({ official_selling_points: [], specs: { 使用范围: useRestriction } });
+    expect(prepared.bundle.stages[0]!.facts.claims).toContainEqual(expect.objectContaining({
+      pointer: "/identity/specs/使用范围", value: useRestriction, quote: sourceText,
+    }));
+    const saved = await finalizeMarketingFacts(prepared, shots, env);
+    await expect(verifyMarketingFacts({ root, ...saved, scope, shots })).resolves.toMatchObject({ scope });
+  });
+  it.each(["遗漏重大用途限制", "第三方报道未证明官方归因"])("提取结构通过后，独立支持审核仍阻断%s", async reason => {
+    rejectJudge = true; judgeRejection = reason;
+    const thirdPartyOnly = reason === "遗漏重大用途限制";
+    await expect(prepare({ quoteIds: true, thirdPartyOnly, ...(thirdPartyOnly ? {} : { specs: { 使用范围: useRestriction } }) }))
+      .rejects.toThrow(`MARKETING_SUPPORT_REJECTED: 原文支持关系未通过：${reason}`);
+    expect(extractionCalls).toHaveLength(1); expect(modelCalls).toHaveLength(1);
+    expect(JSON.stringify(modelCalls)).toContain("缺失会改变商品理解的限定即拒绝");
+    expect(JSON.stringify(modelCalls)).toContain("第三方意见不得作为官方卖点");
+    expect(JSON.stringify(modelCalls)).toContain(useRestriction);
+    const prefix = "stages/preproduction/attempt-1.marketing";
+    const extraction = JSON.parse(await readFile(path.join(root, `${prefix}-A1.extraction-1.json`), "utf8"));
+    expect(extraction.status).toBe("accepted");
+    await expect(readFile(path.join(root, `${prefix}-facts.json`))).rejects.toMatchObject({ code: "ENOENT" });
+  });
+  it.each(["binding-offset", "binding-quote-id", "response-quote-id", "prompt-policy", "prompt-a1-policy", "prompt-fragment", "version", "schema", "schema-missing", "schema-stage", "version-downgrade", "version-downgrade-policy", "version-aux-upgrade"])("重算摘要也拒绝ID桥%s篡改", async kind => {
     const prepared = await prepare({ quoteIds: true }), saved = await finalizeMarketingFacts(prepared, shots, env);
-    const reference = prepared.bundle.stages[0]!.extractions![0]!, artifact = JSON.parse(await readFile(path.join(root, reference.ref), "utf8"));
+    const stageIndex = kind === "version-aux-upgrade" ? 1 : 0;
+    const reference = prepared.bundle.stages[stageIndex]!.extractions![0]!, artifact = JSON.parse(await readFile(path.join(root, reference.ref), "utf8"));
     if (kind === "binding-offset") artifact.citationBindings[0].start++;
     if (kind === "binding-quote-id") artifact.citationBindings[0].quoteId = "Q1-000000000000";
     if (kind === "response-quote-id") artifact.response.data.citations[0].quoteId = "Q1-000000000000";
     if (kind === "prompt-policy") artifact.prompt = artifact.prompt.replace("不能改写或拼接", "允许自由发挥");
     if (kind === "prompt-fragment") artifact.prompt = artifact.prompt.replace(sourceText, "删除正文");
     if (kind === "version") delete artifact.schemaVersion;
-    if (kind === "version-downgrade") artifact.schemaVersion = "workloom.marketing-extraction/v2";
+    if (kind === "prompt-a1-policy" || kind === "version-downgrade-policy") artifact.prompt = artifact.prompt.replace("包括原文的否定和排除条件", "可省略原文的否定和排除条件");
+    if (kind.startsWith("version-downgrade")) artifact.schemaVersion = "workloom.marketing-extraction/v3";
+    if (kind === "version-aux-upgrade") {
+      const marker = "本次查询线索（不是事实）：";
+      const a1Reference = prepared.bundle.stages[0]!.extractions![0]!;
+      const a1Artifact = JSON.parse(await readFile(path.join(root, a1Reference.ref), "utf8"));
+      artifact.schemaVersion = "workloom.marketing-extraction/v4";
+      artifact.prompt = a1Artifact.prompt.slice(0, a1Artifact.prompt.indexOf(marker)) + artifact.prompt.slice(artifact.prompt.indexOf(marker));
+    }
     if (kind.startsWith("schema")) {
       const marker = "当前阶段：A1\n", offset = artifact.prompt.lastIndexOf(marker) + marker.length;
       const request = JSON.parse(artifact.prompt.slice(offset));
@@ -257,7 +302,7 @@ describe("营销事实宿主完整执行", () => {
     const bundle = canonicalRenderJson(prepared.bundle); await writeFile(path.join(root, saved.ref), bundle);
     await expect(verifyMarketingFacts({ root, ref: saved.ref, sha256: renderSha256(bundle), scope, shots })).rejects.toThrow(/MARKETING_/);
   });
-  it.each(["v1", "v2"])("已发布的旧%s档案保留原合同和完整来源时仍可严格复读", async version => {
+  it.each(["v1", "v2", "v3"])("已发布的旧%s档案保留原合同和完整来源时仍可严格复读", async version => {
     const prepared = await prepare(), saved = await finalizeMarketingFacts(prepared, shots, env);
     // 冻结的v1三行头与原始全文sources；公共规则保持原字节，模拟升级前已接受的档案。
     const legacyHead = [
@@ -269,12 +314,14 @@ describe("营销事实宿主完整执行", () => {
       const artifact = JSON.parse(await readFile(path.join(root, reference.ref), "utf8")), marker = `当前阶段：${stage.stage}\n`;
       const split = artifact.prompt.lastIndexOf(marker), request = JSON.parse(artifact.prompt.slice(split + marker.length));
       if (version === "v1") request.sources = request.sources.map(({ textFragments, ...source }: any) => ({ ...source, text: textFragments.map((fragment: any) => fragment.text).join("") }));
-      delete request.payloadJsonSchema;
+      if (version !== "v3") delete request.payloadJsonSchema;
       const header = artifact.prompt.slice(0, split + marker.length).split("\n");
-      const oldHeader = header.filter((line: string) => !line.startsWith("当前阶段的payloadJsonSchema来自宿主实际严格验证器；"));
+      const oldHeader = header.filter((line: string) => !line.startsWith("A1先保留会改变")
+        && !line.startsWith("official_selling_points只接受")
+        && (version === "v3" || !line.startsWith("当前阶段的payloadJsonSchema来自宿主实际严格验证器；")));
       artifact.prompt = (version === "v1" ? [...legacyHead, ...oldHeader.slice(4)] : oldHeader).join("\n") + canonicalRenderJson(request);
       if (version === "v1") { delete artifact.schemaVersion; delete artifact.citationBindings; }
-      else artifact.schemaVersion = "workloom.marketing-extraction/v2";
+      else artifact.schemaVersion = `workloom.marketing-extraction/${version}`;
       const bytes = canonicalRenderJson(artifact); await writeFile(path.join(root, reference.ref), bytes); reference.sha256 = renderSha256(bytes);
     }
     const bundle = canonicalRenderJson(prepared.bundle); await writeFile(path.join(root, saved.ref), bundle);
