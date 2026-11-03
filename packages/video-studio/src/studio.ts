@@ -29,7 +29,7 @@ import {
 } from "./requirement-contract-bridge.js";
 import { preparePrdAuthority, type PrdAuthority, type PrdMarketingAuthority } from "./prd-authority.js";
 import { assertPrdAuthorityBridge, installVendorPrdAuthorityBridge, installVendorPrdProductionBridge, withPrdAuthorityScope } from "./prd-authority-bridge.js";
-import { captureRequirementTheme, type RequirementApprovedTheme } from "./requirement-authority.js";
+import { captureRequirementTheme, requirementThemeUsageBoundary, type RequirementApprovedTheme } from "./requirement-authority.js";
 import { requirementHash } from "./requirement-contract.js";
 import { normalizeNarrativePrdContract } from "./narrative-prd-contract.js";
 import { normalizeCreativeThemeContract } from "./creative-theme-contract.js";
@@ -674,7 +674,8 @@ export class VideoStudio {
           themeInput: string,
         ): Promise<Record<string, unknown>> {
           const generated = await Reflect.apply(originalThemeGenerate, this, [themeInput]);
-          const normalized = normalizeCreativeThemeContract(generated, metadata);
+          validateRequirementAuthority?.();
+          const normalized = normalizeCreativeThemeContract(generated, metadata, prdAuthority ? requirementThemeUsageBoundary(prdAuthority) : "");
           if (normalized.changes.length > 0) {
             log(`[studio] 创意主题合同归一：${normalized.changes.join("、")}`);
           }

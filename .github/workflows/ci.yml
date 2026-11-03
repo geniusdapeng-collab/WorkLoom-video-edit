@@ -125,6 +125,7 @@ jobs:
           packages/video-studio/src/production-structured-native.test.ts
           packages/video-studio/src/scene-design-source.test.ts
           packages/video-studio/src/studio.test.ts
+          packages/video-studio/src/builtin-character-library.test.ts
           packages/video-studio/src/studio-portrait-reuse.test.ts
           packages/video-studio/src/producer-gate.test.ts
           packages/video-studio/src/vendor-compat.test.ts

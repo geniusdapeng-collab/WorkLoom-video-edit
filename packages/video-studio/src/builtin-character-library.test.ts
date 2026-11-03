@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { loadCharacterEntry, loadCharacterLibrary, resolveShotCast } from "./character-archive.js";
+import { loadCharacterEntry, loadCharacterLibrary, resolveShotCast, selectPortraitWardrobe } from "./character-archive.js";
 
 /**
  * 随仓内置角色库的门禁（T-2026-0928-0002）：
@@ -51,6 +51,15 @@ describe("随仓内置角色库", () => {
       id: entry.id, name: entry.name, aliases: entry.aliases
     })));
     expect(cast.characters.map((character) => character.id)).toEqual(["lin-yu-an"]);
+  });
+
+  it("李英子的赛道服仅描述服装，V2 定妆仍绑定 w1", () => {
+    const entry = loadCharacterEntry(resolve(CHARACTERS_ROOT, "model-01-young-rider"), { pinnedVersion: 2 })!;
+    const raceWardrobe = selectPortraitWardrobe(entry, { wardrobeId: "w2" });
+    expect(raceWardrobe.detail).toMatch(/纯色.*赛车服/);
+    expect(raceWardrobe.detail).not.toMatch(/820RR|车色|涂装/);
+    expect(entry.activeSet?.wardrobe?.id).toBe("w1");
+    expect(loadCharacterEntry(entry.dir, { pinnedVersion: 2, wardrobeId: "w2" })?.verification.status).toBe("unverified");
   });
 
   it("默认1号是本次新创作的虚构AI人物，按姓名绑定而不冒充真人授权", () => {

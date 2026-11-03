@@ -852,7 +852,7 @@
   },
   "integrity": {
     "algorithm": "sha256",
-    "digest": "dabfb5a49c92b9c984d9c0740b2336a46a43b0ba4022968b5152cc48a01443c2",
+    "digest": "9186d1c1426c0fa25c6642af7934543bb15828565140fdcb91ca512547a91e98",
     "assets": {
       "connectors/bgm-bridge/audio-stems-trust.mjs": "701b20e1705b16b026be2900bb49430ef875c8f01f83515f297a5b0b9a50cf93",
       "connectors/bgm-bridge/audio-stems.mjs": "d83bc554f015115ed0f4ea71ac6ced4cf5bd8f44d61094489776e3d2a5ffa751",
@@ -996,7 +996,7 @@
       "library/characters/model-01-young-rider/portraits/v2/young-rider-01-handDetail.png": "78db8dac0b150642612df9c6c3ed47e69e588a41f178bf379a65c5a7208ddd37",
       "library/characters/model-01-young-rider/portraits/v2/young-rider-01-side.png": "38edcba9e595906563b56cb46d19811fd178529b69b7aa919412bc6c42c94d8b",
       "library/characters/model-01-young-rider/portraits/v2/young-rider-01-threeQuarter.png": "ebc1ec5c38e5d33642ca23cdd686e2f0b7a8c8fc62b79f08e4a4cc56944c51d9",
-      "library/characters/model-01-young-rider/profile.json": "c887012d28098f89966273de8ce58e16ad991d5f009d6efdd6b86b05647cba43",
+      "library/characters/model-01-young-rider/profile.json": "8d146b02830c2838078ce72759bbd32a24adb58dc5c1c244ba1902ce5a2c8992",
       "library/characters/model-01-young-rider/provenance/v2.json": "c06fe2d02e79587a755b1f7798166dbc2ab9c219f94e026a1af4fcc5073eb0a6",
       "library/characters/model-01-young-rider/provenance/v2/actionPose.dispatch.json": "23bac38fedfc280d8ec6e6b6ef9d4d2d784b9b52cc37f76cb095c9676ced95e1",
       "library/characters/model-01-young-rider/provenance/v2/actionPose.provenance.json": "e814ba5f53955f2797c93a9889fe1d82c6a052828786e647efa57890e67473d3",
