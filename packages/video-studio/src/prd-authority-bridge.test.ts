@@ -1162,6 +1162,8 @@ describe("native truth-check preserves verdicts and scopes internal fact use to 
     });
     value.discovery.riskAssessment = { technicalRisks: [], businessConstraints: [riskCopy] };
     value.discovery._originalStoryText = "用户原创动作：主角在封闭场地观察商品。";
+    const unboundNotes = "UNBOUND-G2-NOTES：双语字幕轨，三个场景之间三次硬切";
+    Object.assign(requirementRecord(value.discovery.upstreamFields, "upstream"), { special_notes: unboundNotes, tone: "冷酷精密" });
     if (frozen) requirementRecord(value.metadata.brief, "brief").segmentContract = {
       count: 3, totalSeconds: 30, secondsPerSegment: 10, hardCuts: true,
       intervals: authoredSegments.map((brief, index) => ({ startSec: index * 10, endSec: (index + 1) * 10, brief })),
@@ -1189,10 +1191,21 @@ describe("native truth-check preserves verdicts and scopes internal fact use to 
         expect(constraints.businessConstraints).toEqual(expect.arrayContaining([expect.stringContaining("claim-prerequisite")]));
         expect(constraints.businessConstraints).not.toContain(riskCopy);
         expect(creativePrompt).toContain("与本次 3 个已审节点对应");
+        expect(creativePrompt).toContain("setup→climax→resolution");
+        expect(creativePrompt).toContain("段内升温写在对应节点的执行描述");
+        const productionPrompt = run.calls[1]!.prompt;
+        expect(productionPrompt).toContain("scenePlan.scenes[].emotionalBeat");
+        expect(productionPrompt).toContain("visualSpecification.colorPalette.mood");
+        expect(productionPrompt).toContain("本次 G2 已审调性：冷酷精密");
+        expect(productionPrompt).toContain("shotMapping.estimatedShots 每场写 1");
+        expect(productionPrompt).toContain("只在声明的结尾区间");
+        expect(constraints.technicalConstraints).toEqual(expect.arrayContaining([expect.stringContaining("3 个连续生成片段，每段 10 秒，共 30 秒，相邻片段之间恰好 2 处硬切")]));
+        expect(markdown).toContain("不增加双语轨");
         expect(creativePrompt).not.toContain("P0 必须能用一句钉子台词");
         for (const prompt of [...run.calls.map(call => call.prompt), execution.prompt, markdown]) {
           expect(prompt).not.toContain(audienceCopy);
           expect(prompt).not.toContain(riskCopy);
+          expect(prompt).not.toContain(unboundNotes);
         }
         for (const prompt of [...run.calls.map(call => call.prompt), execution.prompt]) expect(prompt).toContain(value.content);
         const display = requirementRecord(authorityFromMarkdown(markdown).approvedRequirementContract, "display");
@@ -1202,6 +1215,7 @@ describe("native truth-check preserves verdicts and scopes internal fact use to 
         expect(creativePrompt).toContain("P0 必须能用一句钉子台词");
         expect(creativePrompt).toContain(audienceCopy);
         expect(markdown).toContain(riskCopy);
+        expect(markdown).toContain(unboundNotes);
       }
       return h.success(prd);
     });
@@ -1927,8 +1941,16 @@ describe("approved production authority at native technical and title seams", ()
     });
   });
 
-  it("requires matching owner originals and a current G4 artifact before placing ordered explicit reference angles", async () => {
-    const value = fixture("PORTRAIT-PLACEMENT"), h = productionHarness(), portrait = syntheticPortraitSource(value);
+  it.each([true, false])("requires matching owner originals and a current G4 artifact before placing ordered explicit reference angles (%s)", async frozen => {
+    const value = fixture(`PORTRAIT-PLACEMENT-${frozen}`, frozen ? [10, 10, 10] : undefined);
+    const h = productionHarness(), portrait = syntheticPortraitSource(value);
+    if (frozen) {
+      requirementRecord(value.metadata.brief, "brief").segmentContract = {
+        count: 3, totalSeconds: 30, secondsPerSegment: 10, hardCuts: true,
+        intervals: Array.from({ length: 3 }, (_, i) => ({ startSec: i * 10, endSec: (i + 1) * 10, brief: `冻结段 ${i + 1}` })),
+      };
+      declareDelivery(value, { speechPolicy: "none" });
+    }
     const declaration = { characterId: "builtin-person", portraitVersion: 2, angles: ["closeup", "front"] };
     for (const invalid of [{ ...declaration, characterId: "other" }, { ...declaration, portraitVersion: 1 },
       { ...declaration, angles: ["closeup", "closeup"] }, { ...declaration, angles: ["guess"] }]) {
@@ -1940,7 +1962,14 @@ describe("approved production authority at native technical and title seams", ()
     const run = h.make(value);
     const shots = value.contract.scenes.map(scene => productionShot(scene.id));
     const references = ["portrait-set://builtin-person/v2/closeup", "portrait-set://builtin-person/v2/front"];
-    await h.accepted(run, async (_prd, report) => {
+    await h.accepted(run, async (prd, report) => {
+      expect(run.calls[1]!.prompt).toContain("每个含该人物的 G3 场景只提交选定的 2 张，按 closeup → front 顺序使用");
+      if (frozen) {
+        const constraints = requirementRecord(prd.productionConstraints, "production constraints");
+        expect(constraints.technicalConstraints).toEqual(expect.arrayContaining([expect.stringContaining(
+          "人物档案 V2 原图共 4 张待 G5 核验；每个含该人物的生成片段只按 closeup → front 顺序引用其中 2 张",
+        )]));
+      }
       const exact = JSON.parse(report.split("## 本次 G4 执行与核验计划原文")[1]!.split("\n```json\n")[1]!.split("\n```")[0]!);
       expect(exact.portraitReferenceSelection).toEqual({ ...declaration,
         originalSha256InOrder: [portrait.originals.closeup!.sha256, portrait.originals.front!.sha256] });
