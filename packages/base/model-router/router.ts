@@ -27,6 +27,7 @@ import {
   type ChatMessage,
   type ChatResult,
   type ModelProvider,
+  type NativeBlankJsonReceipt,
 } from "./providers.js";
 import {
   DEFAULT_MODEL_POLICY,
@@ -39,6 +40,12 @@ import {
 import { computeCredits } from "./credits.js";
 
 const nativeDeepSeekChat = OpenAiCompatibleProvider.prototype.chat;
+const readNativeBlankJson = OpenAiCompatibleProvider.prototype.readNativeBlankJson;
+const nativeBlankJsonRoutes = new WeakMap<RouteResult, NativeBlankJsonReceipt>();
+
+export function nativeRouteBlankJson(value: RouteResult): NativeBlankJsonReceipt | undefined {
+  return nativeBlankJsonRoutes.get(value);
+}
 
 export type Window = "peak" | "off-peak";
 
@@ -613,7 +620,7 @@ export async function routeSmart(
       state.openUntil = Date.now() + CIRCUIT_COOLDOWN_MS;
     }
     sceneCircuits.set(scene, state);
-    return {
+    const unavailable: SmartRouteResult = {
       kind: "unavailable",
       degraded: [{ from: DEEPSEEK_FLASH_MODEL_ID, to: null, reason: failure.message }],
       tier,
@@ -626,6 +633,12 @@ export async function routeSmart(
         attempted: [DEEPSEEK_FLASH_MODEL_ID],
       },
     };
+    if (responsesJsonSchema === undefined && scenePolicy.responseFormat === "json_object" && !failure.unknown
+      && failure.kind === "empty" && provider instanceof OpenAiCompatibleProvider && provider.chat === nativeDeepSeekChat) {
+      const receipt = readNativeBlankJson.call(provider, failure);
+      if (receipt) nativeBlankJsonRoutes.set(unavailable, receipt);
+    }
+    return unavailable;
   }
 }
 

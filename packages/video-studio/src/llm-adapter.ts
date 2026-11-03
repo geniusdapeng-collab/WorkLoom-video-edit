@@ -27,12 +27,14 @@ import {
   resolveScene,
   resolveTextScenePolicy,
   resolveTier,
+  nativeRouteBlankJson,
   routeSmart,
   TEXT_PRIMARY_POLICY_VERSION,
   TEXT_PRIMARY_REGISTRY_VERSION,
   type ChatResult,
   type EventSink,
   type ModelPolicy,
+  type NativeBlankJsonReceipt,
   type ModelProvider,
   type PlanId,
   type ResponsesJsonSchema,
@@ -81,6 +83,7 @@ export interface LLMReasonResult {
 // structured data. Track native failure identity outside the model payload.
 const reasonFailures = new WeakMap<object, "json-syntax" | "unavailable">();
 const nativeCompletions = new WeakSet<object>();
+const nativeBlankJsonFailures = new WeakMap<object, NativeBlankJsonReceipt>();
 
 export function nativeReasonFailure(value: unknown): "json-syntax" | "unavailable" | undefined {
   return value !== null && typeof value === "object" ? reasonFailures.get(value) : undefined;
@@ -89,6 +92,11 @@ export function nativeReasonFailure(value: unknown): "json-syntax" | "unavailabl
 /** True only after the canonical provider returned a measured, complete response. */
 export function nativeReasonCompleted(value: LLMReasonResult): boolean {
   return nativeCompletions.has(value);
+}
+
+/** A completed empty Chat JSON result remains a failed, non-retryable call. */
+export function nativeReasonBlankJson(value: unknown): NativeBlankJsonReceipt | undefined {
+  return value !== null && typeof value === "object" ? nativeBlankJsonFailures.get(value) : undefined;
 }
 
 export interface WorkloomLLMEngineConfig {
@@ -443,13 +451,16 @@ export class WorkloomLLMEngine {
         }
         return answer;
       }
-      return {
+      const failure: LLMReasonResult = {
         success: false,
         error: result.failure?.reason
           ?? result.degraded?.at(-1)?.reason
           ?? `模型路由不可用（${result.kind}）`,
         retryable: false,
       };
+      const blankJson = nativeRouteBlankJson(result);
+      if (blankJson) nativeBlankJsonFailures.set(failure, blankJson);
+      return failure;
     } catch (error) {
       return {
         success: false,
