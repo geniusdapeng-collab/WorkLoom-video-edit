@@ -256,6 +256,7 @@ function expectCompleteSources(prompt: string, run: ReturnType<typeof privateRun
 
 describe("actual native scene prompt and strict production response", () => {
   const network = vi.fn(async () => { throw new Error("Unexpected network/model request"); });
+  const nativeAudienceRule = "3. contentExpectations 至少包含一条'无需字幕也能看懂的视觉叙事'类全球化要求，和一条'可复述可转发的钉子台词'类传播要求。";
   beforeEach(() => { network.mockClear(); vi.stubGlobal("fetch", network); vi.useFakeTimers(); });
   afterEach(() => {
     expect(network).not.toHaveBeenCalled();
@@ -285,6 +286,79 @@ describe("actual native scene prompt and strict production response", () => {
     expectCompleteSources(refs!.prompt, run);
     expect(requirementRecord(requirementRecord(refs!.schema, "reference schema").properties, "reference properties"))
       .toMatchObject({ filmReferences: { minItems: 0, maxItems: 0 }, adReferences: { minItems: 0, maxItems: 0 } });
+  });
+
+  it("guides native silent audience and risk analyses without rewriting their accepted G3 response", async () => {
+    installNativeDiscovery();
+    const scene = physicalScene([10, 10, 10]);
+    const run = withFrozenSegmentBrief(privateRun("silent-observable-expectations", 30, scene));
+    run.authority.profile.speechPolicy = "none";
+    // Identical source literals supplied by the owner remain part of the evidence.
+    run.input.description += `\n客户逐字引用：\n${nativeAudienceRule}\n原始描述结束。`;
+    run.modules.audience.contentExpectations.push("留给G3独立审阅的本次模型原话");
+    run.modules.risk.mitigationSuggestions.push("模型原样保留的具体镜头风险");
+    const before = [run.input, run.authority, run.approvedTheme, run.modules].map(requirementHash);
+    const rawScene = JSON.stringify(scene, null, 2);
+    const model = modelFor(run, [rawScene]), discovery = nativeDiscovery(model.engine);
+    const actual = await withRequirementContractScope(run.metadata, async () => {
+      const record = await Reflect.apply(discovery.discover as NativeMethod, discovery, [run.input]) as RequirementRecord;
+      const markdown = Reflect.apply(discovery.generateMarkdown as NativeMethod, discovery, [record]) as string;
+      return { record, markdown };
+    }, run.options);
+
+    expect(model.calls).toHaveLength(4);
+    const [audienceCall, sceneCall, riskCall, referenceCall] = model.calls;
+    expect(audienceCall!.prompt.split(nativeAudienceRule)).toHaveLength(2); // only the owner's literal
+    expect(audienceCall!.prompt).not.toContain("第50秒转发");
+    expect(audienceCall!.prompt).toContain("可观察的画面、动作与原生声场");
+    expect(audienceCall!.prompt).toContain("不得把未有来源的数字、时点、动作次数或商品名写成本片要求");
+    expect(audienceCall!.prompt).not.toContain(rawScene);
+    expect(riskCall!.prompt).toContain("商品身份、型号及用途以本次 G1 已接受原文为准");
+    expect(riskCall!.prompt).toContain("不得从受众推测新增事实、数字或动作节拍");
+    expect(riskCall!.prompt.split(rawScene)).toHaveLength(2);
+    expect(riskCall!.options).toEqual({ maxTokens: 4000, temperature: 1, timeoutMs: 100 });
+    expect(sceneCall!.prompt).not.toContain("可观察的画面、动作与原生声场");
+    expect(referenceCall!.prompt).not.toContain("不得从受众推测新增事实");
+    for (const call of model.calls) expectCompleteSources(call.prompt, run);
+    expect(actual.record).toMatchObject({ audienceProfile: run.modules.audience, riskAssessment: run.modules.risk, sceneStructure: scene });
+    expect(actual.markdown).toContain("留给G3独立审阅的本次模型原话");
+    expect(actual.markdown).toContain("模型原样保留的具体镜头风险");
+    expect([run.input, run.authority, run.approvedTheme, run.modules].map(requirementHash)).toEqual(before);
+  });
+
+  it.each(["frozen without private speech policy", "private speech policy without frozen segments"])(
+    "preserves the native audience contract for %s",
+    async (kind) => {
+      installNativeDiscovery();
+      const scene = physicalScene([10, 10, 10]);
+      const run = privateRun(kind, 30, scene);
+      if (kind === "frozen without private speech policy") withFrozenSegmentBrief(run);
+      else run.authority.profile.speechPolicy = "none";
+      const model = modelFor(run, [scene]);
+      await expect(runDiscovery(run, model.engine)).resolves.toMatchObject({ audienceProfile: run.modules.audience });
+      expect(model.calls).toHaveLength(4);
+      expect(model.calls[0]!.prompt).toContain("第50秒转发");
+      expect(model.calls[0]!.prompt).toContain("可复述可转发的钉子台词");
+      expect(model.calls[2]!.prompt).not.toContain("商品身份、型号及用途以本次 G1 已接受原文为准");
+    },
+  );
+
+  it("fails before the first request if the native audience rule changes even when the owner quotes the old rule", async () => {
+    installNativeDiscovery();
+    const scene = physicalScene([10, 10, 10]);
+    const run = withFrozenSegmentBrief(privateRun("silent-drifted-native-audience", 30, scene));
+    run.authority.profile.speechPolicy = "none";
+    run.input.description += `\n客户逐字引用：\n${nativeAudienceRule}\n原始描述结束。`;
+    const model = modelFor(run, [scene]), discovery = nativeDiscovery(model.engine);
+    const audience = requirementRecord(requirementRecord(discovery.agents, "agents").audience, "audience");
+    const build = audience._buildPrompt as NativeMethod;
+    audience._buildPrompt = function (this: RequirementRecord, input: unknown) {
+      const prompt = Reflect.apply(build, this, [input]) as string;
+      const at = prompt.lastIndexOf(nativeAudienceRule);
+      return prompt.slice(0, at) + "3. 原生静态约束已变化。" + prompt.slice(at + nativeAudienceRule.length);
+    };
+    await expect(runDiscovery(run, model.engine, discovery)).rejects.toThrow("REQUIREMENT_VENDOR_UNAVAILABLE");
+    expect(model.calls).toHaveLength(0);
   });
 
   it("opts only the protected frozen SceneArchitect into the exact same effective native response schema", async () => {

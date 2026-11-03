@@ -51,6 +51,41 @@ const sceneJsonCorrection = "\n\n## 上一次原生场景 JSON 语法纠正\n"
   + "上一次已返回正文，但正文无法解析为 JSON。根据完整原始输入和本次实际 schema 重新生成一个完整 JSON 对象。"
   + "检查数组元素之间的逗号、对象与数组逐层闭合，以及字符串内引号和换行的合法转义。只输出对象，禁止代码围栏或解释。";
 
+const nativeAudienceIntro = '你是一位操过多个全球爆款短片的传播策略师。基于视频主题做受众分析，但你输出的不是"人群标签"，而是"这群人为什么会在第3秒停下来、在第50秒转发"。';
+const nativeAudienceRule = "3. contentExpectations 至少包含一条'无需字幕也能看懂的视觉叙事'类全球化要求，和一条'可复述可转发的钉子台词'类传播要求。";
+const nativeAudienceAnalysis = [
+  "\n\n【分析心法】",
+  "1. emotionTriggers 必须写到具体画面级：不是'匠人精神感人'，而是'老匠人颤抖的手与一整车人的安危之间的张力'——每个触发点都要能直接翻译成镜头。",
+  "2. painPoints 写现代生活的缺失感（快节奏/技艺消逝/承诺稀缺），不写生理痛点。",
+  nativeAudienceRule,
+  "4. secondaryAudience 写'有具体记忆关联的人'（去过京都的游客/手艺人），不写泛人群。",
+  "",
+  "【原始故事文本是核心依据】所有结论必须能从原文细节里找到出处，禁止套模板。",
+].join("\n");
+
+function frozenSilentAudiencePrompt(original: string): string {
+  const format = original.lastIndexOf("\n\n请输出 JSON 格式的受众分析：");
+  const analysis = original.lastIndexOf("\n\n【分析心法】", format);
+  if (!original.startsWith(`${nativeAudienceIntro}\n\n视频类型: `) || format < 0 || analysis < 0
+    || original.slice(analysis, format) !== nativeAudienceAnalysis) {
+    requirementAuthorityFailure("REQUIREMENT_VENDOR_UNAVAILABLE", "AudienceProfiler 原始受众指令边界发生变化");
+  }
+  // Replace the pinned instructions, keeping identical text in input fields intact.
+  const rules = nativeAudienceAnalysis.replace(nativeAudienceRule,
+    "3. contentExpectations 以可观察的画面、动作与原生声场描述观众如何理解或分享本片。"
+    + "不新增对白、旁白、口播、传播短句或屏上文字；只保留冻结 Brief 已授权的后期文字。");
+  return "你是一位传播策略师。基于本片主题做受众分析，用实际能看到或听到的内容解释观众的注意力和传播动机。"
+    + original.slice(nativeAudienceIntro.length, analysis) + rules
+    + "\n\n本次受众细分、情绪触发与传播动机属于待审假设。以冻结 Brief 与本次已审创意为边界，"
+    + "不得把未有来源的数字、时点、动作次数或商品名写成本片要求，不得把创作推测升级为商品事实。"
+    + "商品事实只引用本次 G1 已接受且获本片使用的原文；不要从推测补齐或改写型号及用途。"
+    + original.slice(format);
+}
+
+const frozenSilentRiskBoundary = "商品身份、型号及用途以本次 G1 已接受原文为准，并遵守冻结 Brief 的使用范围；"
+  + "不得从受众推测新增事实、数字或动作节拍。叙事风险和缓解须对照下附本次实际场景草案与冻结分段，"
+  + "保持现有动作、先后、原生声音和后期文字要求。待确认内容留在技术风险，不能写成 businessConstraints。";
+
 function frozenSceneAnnex(segments: FrozenSegmentContract, draft: SceneDraft): string {
   return "\n\n## 本次冻结分段及原生场景草案\n"
     + `精确硬切合同（客户权威）：\n${JSON.stringify(segments)}\n`
@@ -325,6 +360,7 @@ export function installRequirementContractBridge(
       const techniqueOnly = typeof brief.requirements === "string"
         && /参考(?:案例)?(?:只|仅)(?:写|使用)无品牌的?摄影[、，,]剪辑(?:和|与|及|[、，,])声音手法/u.test(brief.requirements);
       const segments = scope.segments;
+      const frozenSilent = segments !== undefined && scope.authority?.profile.speechPolicy === "none";
       if (segments && Number(requirementRecord(input, "原始洞察来源").duration_sec) !== segments.totalSeconds) {
         throw new RequirementContractError("REQUIREMENT_SCENE_UNVERIFIED", "上游创意时长与冻结分段合同不一致");
       }
@@ -420,6 +456,9 @@ export function installRequirementContractBridge(
               const original = Reflect.apply(build, this, [input]);
               if (typeof original !== "string") requirementAuthorityFailure("REQUIREMENT_VENDOR_UNAVAILABLE", `${label} 原始 prompt 不是文本`);
               let prompt = original;
+              if (frozenSilent && name === "audience") {
+                prompt = guard(scope, () => frozenSilentAudiencePrompt(original));
+              }
               if (segments && name === "risk") {
                 const boundary = original.lastIndexOf("\n\n【评估心法】");
                 const format = original.lastIndexOf("\n\n请输出 JSON 格式：");
@@ -432,6 +471,7 @@ export function installRequirementContractBridge(
                   + "\n\n【本次评估】逐段指出最可能影响交付的具体风险、影响与严重级别。"
                   + "businessConstraints 使用本次 Brief 的真实约束，mitigationSuggestions 只写符合精确分段合同且可执行的措施。"
                   + "无法消除的关键风险留在风险字段供独立 G3 裁决。"
+                  + (frozenSilent ? frozenSilentRiskBoundary : "")
                   + original.slice(format);
               }
               if (techniqueReference) {
