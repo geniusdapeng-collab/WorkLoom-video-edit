@@ -11,6 +11,12 @@ const isRecord = (value: unknown): value is RecordValue =>
 const text = (value: unknown): string => typeof value === "string" ? value.trim() : "";
 const list = (value: unknown): unknown[] => Array.isArray(value) ? value : [];
 
+export function builtinWardrobeBoundary(metadata: RecordValue): string {
+  if (!list(metadata.characters).some(character => isRecord(character)
+    && isRecord(character.builtinCharacterSource) && text(character.activeWardrobeId))) return "";
+  return "角色档案的 activeWardrobeId 标识该人物档案当前定妆造型。客户明确仅复用已授权定妆作为人物身份参考、并另行指定本片服装时，镜头服装执行本次 Brief；档案定妆的服装、姿势和背景只用于核对参考来源。沿用实际授权用途与资产版本";
+}
+
 function explicitAudience(intent: string, brief: RecordValue): string {
   const fromBrief = text(brief.audience);
   if (fromBrief) return fromBrief;
@@ -52,8 +58,13 @@ function officialClaims(metadata: RecordValue): string[] {
     .slice(0, 4);
 }
 
-function normalizeDisplayPlaceholders(value: unknown): boolean {
+function normalizeDisplayPlaceholders(value: unknown, protectedText: string): boolean {
   let changed = false;
+  const normalize = (value: string) => value
+    .replace(/\bundefined\b/giu, "未定义值（未提供）")
+    .replace(/\bnull\b/giu, "空值（未提供）")
+    .replace(/\bNaN\b/gu, "非数值（未提供）")
+    .replace(/\[object Object\]/gu, "对象数据（未展开）");
   const walk = (node: unknown): void => {
     if (Array.isArray(node)) {
       for (const item of node) walk(item);
@@ -62,11 +73,7 @@ function normalizeDisplayPlaceholders(value: unknown): boolean {
     if (!isRecord(node)) return;
     for (const [key, item] of Object.entries(node)) {
       if (typeof item === "string") {
-        const next = item
-          .replace(/\bundefined\b/giu, "未定义值（未提供）")
-          .replace(/\bnull\b/giu, "空值（未提供）")
-          .replace(/\bNaN\b/gu, "非数值（未提供）")
-          .replace(/\[object Object\]/gu, "对象数据（未展开）");
+        const next = protectedText ? item.split(protectedText).map(normalize).join(protectedText) : normalize(item);
         if (next !== item) {
           node[key] = next;
           changed = true;
@@ -89,6 +96,7 @@ function normalizeDisplayPlaceholders(value: unknown): boolean {
 export function normalizeCreativeThemeContract(
   resultValue: RecordValue,
   metadataValue: unknown,
+  usageBoundary = "",
 ): CreativeThemeNormalization {
   if (!isRecord(metadataValue)) return { result: resultValue, applied: false, changes: [] };
   const tasks = list(resultValue.tasks).filter(isRecord);
@@ -198,6 +206,7 @@ export function normalizeCreativeThemeContract(
 
     const contract = [
       noPerson ? "本片明确无人，不出现人物、人体局部或人物动作" : "",
+      builtinWardrobeBoundary(metadata),
       "不得新增客户原文未提供的导演、影片或作品名",
       "不得把未经 G1 核验的用户痛点、操作命令、使用效果或收益承诺写成既有事实",
       claims.length ? `本次 G1 核验官方主张（以“官方仓库/官方主张”归属）：${claims.join("；")}` : "",
@@ -217,6 +226,12 @@ export function normalizeCreativeThemeContract(
     };
   }
 
-  if (normalizeDisplayPlaceholders(result)) changes.push("display-placeholders-normalized");
+  if (normalizeDisplayPlaceholders(result, usageBoundary)) changes.push("display-placeholders-normalized");
+  if (usageBoundary) for (const task of list(result.tasks).filter(isRecord)) {
+    const notes = text(task.special_notes);
+    if (notes.includes(usageBoundary)) continue;
+    task.special_notes = [notes, usageBoundary].filter(Boolean).join("\n");
+    changes.push("theme-source-usage-boundary-preserved");
+  }
   return { result, applied: changes.length > 0, changes: [...new Set(changes)] };
 }

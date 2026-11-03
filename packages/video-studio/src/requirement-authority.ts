@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import type { GateVerdict } from "./gates.js";
 import type { PrdAuthority, PrdMarketingScope } from "./prd-authority.js";
 import { RequirementContractError, requirementHash, requirementRecord, type RequirementRecord } from "./requirement-contract.js";
+import { builtinWardrobeBoundary } from "./creative-theme-contract.js";
 
 export interface RequirementApprovedTheme {
   scope: PrdMarketingScope;
@@ -31,6 +32,45 @@ export function captureRequirementTheme(
   }
   return structuredClone({ scope: authority.marketing.scope, contentMd,
     contentSha256: createHash("sha256").update(contentMd).digest("hex"), verdict });
+}
+
+/** Project explicit limits from the current, already verified G1 artifact. */
+export function requirementThemeUsageBoundary(authority: PrdAuthority): string {
+  const isRecord = (value: unknown): value is RequirementRecord => Boolean(value && typeof value === "object" && !Array.isArray(value));
+  const record = (value: unknown): RequirementRecord | undefined => isRecord(value) ? value : undefined;
+  const records = (value: unknown): RequirementRecord[] => Array.isArray(value)
+    ? value.filter(isRecord) : [];
+  const root = requirementRecord(JSON.parse(authority.marketing.g1Artifact.content), "G1 原件");
+  const facts = requirementRecord(root.facts, "G1 facts");
+  const stages = records(facts.stages).filter(stage => stage.stage === "A1");
+  if (stages.length > 1) requirementAuthorityFailure("REQUIREMENT_THEME_USAGE_UNVERIFIED", "G1 含多份 A1 主张");
+  const stage = stages[0], a1 = record(stage?.facts);
+  const claims = records(a1?.claims), sources = records(facts.sources);
+  const specs = record(record(record(a1?.payload)?.identity)?.specs);
+  const limitLabel = /^(?:(?:道路(?:行驶|使用|通行)|上路)资质|使用(?:资质|限制|前提|条件)|用途限制|适用条件|road(?: use)? eligibility|usage (?:restriction|limit|prerequisite))$/iu;
+  const limitClause = /(?:^|[，。；、;:,.：])\s*(?:不具备|不允许|不支持|无(?:资质|资格)|不可|不能|不得|禁止|只(?:能|可|限)|仅|限于|须|需|必须|only\b|not (?:permitted|allowed|eligible|licensed|approved|supported)\b|no (?:public )?road use\b|requires?\b|must\b)/iu;
+  const lines = [];
+  for (const claim of claims) {
+    const label = typeof claim.pointer === "string" ? /^\/identity\/specs\/([^/]+)$/u.exec(claim.pointer)?.[1] : undefined;
+    if (!label || !limitLabel.test(label) || typeof claim.value !== "string" || !limitClause.test(claim.value)) continue;
+    const matches = sources.filter(source => source.sourceId === claim.sourceId);
+    const source = matches[0], url = typeof source?.finalUrl === "string" && URL.canParse(source.finalUrl) ? new URL(source.finalUrl) : undefined;
+    const sourceId = typeof source?.textSha256 === "string" && url
+      ? `SRC-${createHash("sha256").update(`${String(source.finalUrl)}\n${source.textSha256}`).digest("hex").slice(0, 24)}` : undefined;
+    if (a1?.stage !== "A1" || a1.status !== "source_bound" || claim.stage !== "A1" || claim.status !== "source-bound"
+      || specs?.[label] !== claim.value || claims.filter(item => item.pointer === claim.pointer).length !== 1
+      || typeof claim.claimId !== "string" || !/^CL-[a-f0-9]{24}$/u.test(claim.claimId)
+      || matches.length !== 1 || !source || !sourceId || sourceId !== claim.sourceId || !Array.isArray(stage?.sourceIds)
+      || stage.sourceIds.filter(id => id === sourceId).length !== 1 || source?.textSha256 !== claim.textSha256
+      || !/^[a-f0-9]{64}$/u.test(String(claim.textSha256)) || !url || !["http:", "https:"].includes(url.protocol) || url.username || url.password) {
+      requirementAuthorityFailure("REQUIREMENT_THEME_USAGE_UNVERIFIED", `G1 的 ${label} 缺少唯一、值一致的原始来源绑定`);
+    }
+    lines.push(`${label}：${JSON.stringify(claim.value)}（G1 主张 ${claim.claimId}，来源 ${JSON.stringify(source.finalUrl)}）`);
+  }
+  if (!lines.length) return "";
+  return `本次已核实的商品用途与资质边界（强制遵守；引号内为 JSON 编码的来源事实值）：\n${lines.join("\n")}\n`
+    + "主题、场景、动作、对白及商品主张均须符合这些限制。将限制本身写成可选，或拟定与之矛盾的内容，应由独立 G2 审核退回。"
+    + "是否在成片里另作文字或口播提示依客户要求及审核决定，限制本身始终适用。";
 }
 
 /** Relabel the vendor's fixed heading only. Every source fact and the original intent stay intact. */
@@ -76,17 +116,21 @@ export function requirementAuthorityPrompt(authority: PrdAuthority, theme?: Requ
   }
   const metadata = authority.metadata;
   const key = requirementHash(authority);
+  const usageBoundary = theme ? "" : requirementThemeUsageBoundary(authority);
+  const wardrobeBoundary = builtinWardrobeBoundary(metadata);
   return `\n\n## 本次宿主需求权威输入 ${key}（冲突时按本节层级处理）\n`
     + `一、完整客户 Brief 和其中本片制作细则决定本片的主张用途、受众与交付要求。G1 接受某条事实，不能覆盖客户选择的用途限制，不能把底账事实自动变成钩子、口播、屏幕卖点或结尾。\n`
     + `完整客户 Brief：\n${JSON.stringify(metadata.brief)}\n`
     + `客户原始诉求：\n${JSON.stringify(metadata.customerOriginalIntent ?? null)}\n`
     + `客户明确生产/交付要求：\n${JSON.stringify(authority.profile)}\n`
     + `完整宿主选角与人物表达依据：\n${JSON.stringify({ selection: metadata.builtinCharacterSelection, characters: metadata.characters })}\n`
+    + (wardrobeBoundary ? `${wardrobeBoundary}。\n` : "")
     + `人物档案只约束角色表达，不构成商品参数、试驾记录或真实消费者体验。客户受众原文优先；模型细分、情绪触发点和互动预期均为待审创作假设，不是已核实人群事实。\n`
     + `二、下面本次真实非降级 G1 原件只授权已接受 claims 及其限定用途。完整遵守 restrictions，并阅读嵌套 A1/A2/A3 support review 的 issues、suggestions 和证据状态。`
     + `A1 来源主张不构成竞品证据；A2/A3 为 no_evidence 时不得补写口碑、评分、销量、共识、竞品弱点或市场领先。媒体事实保留媒体、日期和 reported 等来源限定，不升格为实测或厂家独立认证。`
     + `已核规格数字和宣传性来源用语仍保留在事实底账；本片是否可用及如何使用须服从完整客户 Brief。未知外观不因选入道具或动作就成为已核实配置。\n`
     + `G1 完整原始裁决（所有意见与建议保持原层级）：\n${JSON.stringify(authority.marketing.g1Proof)}\n`
+    + (usageBoundary ? `${usageBoundary}\n` : "")
     + `G1 完整原件 ${authority.marketing.g1Artifact.path} / SHA256 ${authority.marketing.g1Artifact.sha256}：\n${authority.marketing.g1Artifact.content}\n`
     + `三、${theme ? `本次已批准 G2 的完整原文与原始裁决只提供创作上下文。advisories 是非阻断建议，不新增硬性门槛、审批或强制重试；不能覆盖客户 Brief/G1 用途限制。\nG2 SHA256 ${theme.contentSha256}：\n${theme.contentMd}\nG2 原始裁决：\n${JSON.stringify(theme.verdict)}\n` : "本次尚无已批准 G2 上下文；不推定主题或新创作已经通过。\n"}`
     + `场景、道具、动作、情绪、风险和艺术参考都是待审核创作方案，不是已核实拍摄事实或产品质量证明。可用影片/摄影语言作艺术参考，不因此声称品牌合作、媒体背书或真实设备已核实，也不把艺术参考本身列为新硬禁。`
