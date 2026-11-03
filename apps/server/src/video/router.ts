@@ -42,7 +42,7 @@ import { serviceTierRejectionReason } from "./gen/params.js";
 import { submitGenJob } from "./gen/submit.js";
 import { SubmissionError } from "./gen/submission-ledger.js";
 import { canonicalRenderJson } from "./gen/compiled-request.js";
-import { loadQualifiedRenderInput } from "./production-authority.js";
+import { loadQualifiedRenderInput, recoverG8Qualification } from "./production-authority.js";
 import { productionRouter } from "./production-router.js";
 import { filmRouter } from "./film-router.js";
 import { renderSubmitAutoAllowed } from "./gate-policy.js";
@@ -1014,9 +1014,13 @@ const renderRouter = router({
     .mutation(async ({ ctx, input }) => {
       const scope = scopeOf(ctx.identity);
       const app = getAppPool();
-      if (!input.qualificationToken) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "QUALIFICATION_REQUIRED：请先通过 video.production.qualifyShot 审核当前服务预生产镜头" });
+      if (!input.qualificationToken && !input.g8ApprovalId) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "QUALIFICATION_REQUIRED：请先通过 video.production.qualifyShot 审核当前服务预生产镜头" });
+      let qualificationToken: string;
       let qualified: Awaited<ReturnType<typeof loadQualifiedRenderInput>>;
-      try { qualified = await loadQualifiedRenderInput(app, scope, input.qualificationToken); }
+      try {
+        qualificationToken = input.qualificationToken ?? await recoverG8Qualification({ app, scope, approvalId: input.g8ApprovalId! });
+        qualified = await loadQualifiedRenderInput(app, scope, qualificationToken);
+      }
       catch (error) {
         if (error instanceof SubmissionError) throw new TRPCError({ code: "PRECONDITION_FAILED", message: error.message, cause: error });
         throw error;
@@ -1237,7 +1241,7 @@ const renderRouter = router({
         modelId,
         mode,
         params: canonicalParams,
-        qualificationToken: input.qualificationToken,
+        qualificationToken,
         /** 默认键由提交服务基于完整请求派生；显式键须与已绑定内容一致。 */
         idempotencyKey: input.idempotencyKey?.trim() || undefined,
       fenceLevel: auto.outcome === "passed" ? "auto" : verdict.level,

@@ -3,9 +3,8 @@
  *  - 脚本列表：按项目分组（script_key 链聚合）、状态 chip（draft/approved/submitted/rendering/done/failed）、版本链
  *  - MD 详情：工作台展示（getScript）+ contentEditable 本地编辑（§6 本地编辑纪律：保存即新版本，不原地改）
  *  - 保存为新版本（cms.saveScriptVersion：parent_version 链 + diff 摘要 + 字数校验快照 2470-3000 口径）
- *  - G8 审批（cms.approveScript：仅 draft 可审；版本即审批对象，approved 不继承）
- *  - 三档提交（render.submit mode=manual/batch/auto）：G8 烧额度门——review 级须先 approved，block 级 403
- *  - 服务预生产档案 → 完整请求审核 → 正式渲染；无模型配置或资格时明确拒绝
+ *  - 工作稿审核（cms.approveScript：仅 draft 可审；版本即审批对象）
+ *  - 三档模式交给生成工作室，审核服务镜头、授权及提交生成
  * 状态变体：加载骨架 G10 / 空态（无脚本引导）/ 错误横幅（围栏拒绝原因展示）
  * 轮询口径（D6）：脚本列表 15s 静默刷新
  */
@@ -115,7 +114,7 @@ export default function P10() {
   const charCount = useMemo(() => (detail?.md ?? "").length, [detail]);
   const withinSpec = charCount >= CHAR_MIN && charCount <= CHAR_MAX;
 
-  /** 保存即新版本（§6：parent_version 链 + diff 摘要；新版本回 draft，approved 不继承须重新过 G8） */
+  /** 保存即新版本（§6：parent_version 链 + diff 摘要；新版本回 draft，审核结果按版本记录） */
   const saveVersion = useCallback(async () => {
     if (!detail) return;
     const md = mdRef.current?.innerText ?? detail.md;
@@ -127,7 +126,7 @@ export default function P10() {
         charCheck: { charCount: md.length, withinSpec: md.length >= CHAR_MIN && md.length <= CHAR_MAX },
         diffSummary: "工作台手工编辑",
       }) as unknown as ScriptRow;
-      setBanner({ level: "info", text: `已保存为第 ${r.version} 版（父版本为第 ${r.parent_version} 版；新版本须重新通过 G8 审批）` });
+      setBanner({ level: "info", text: `已保存为第 ${r.version} 版（父版本为第 ${r.parent_version} 版；新版本待审核）` });
       setDirty(false);
       await load(true);
       await selectChain(detail.script_key);
@@ -138,13 +137,13 @@ export default function P10() {
     }
   }, [detail, load, selectChain]);
 
-  /** G8 审批（仅 draft 可审；approvals 行随版本同一 COMMIT） */
+  /** 审核当前工作稿版本（仅 draft 可审）。 */
   const approve = useCallback(async () => {
     if (!detail) return;
     setBusy("approve");
     try {
       await trpc.video.cms.approveScript.mutate({ scriptKey: detail.script_key, version: detail.version });
-      setBanner({ level: "info", text: `G8 审批通过：第 ${detail.version} 版脚本已放行，渲染额度门已开启。` });
+      setBanner({ level: "info", text: `第 ${detail.version} 版工作稿已审核。付费生成请到生成工作室申请授权。` });
       await load(true);
       await selectChain(detail.script_key);
     } catch (e) {
@@ -163,25 +162,14 @@ export default function P10() {
       const current = await trpc.video.production.shots.query({ projectId: detail.project_id });
       const source = current.shots.find(shot => shot.shotId === detail.shot_id);
       if (!source || source.prompt !== detail.md) throw new Error("当前工作稿与服务预生产镜头不一致，请重新预生产，或在生成工作室选择当前服务镜头。");
-      const catalog = await trpc.video.gen.catalog.query({ kind: "video" });
-      const model = catalog.models.find(item => ["seedance", "higgsfield", "muapi"].includes(item.provider));
-      if (!model) throw new Error("没有已配置的正式视频模型，请先在模型设置中完成配置。");
-      const qualification = await trpc.video.production.qualifyShotReceipt.mutate({ projectId: detail.project_id,
-        shotId: detail.shot_id, modelId: model.id, params: {}, mode });
-      setBusy("submit");
-      const r = await trpc.video.render.submit.mutate({ qualificationToken: qualification.qualificationToken });
-      setBanner({
-        level: "info",
-        text: `渲染已提交：${r.mock ? "当前为演示回执，不触发真实渲染，也不消耗额度。" : "真实渲染任务已受理。"}`,
-      });
-      await load(true);
-      await selectChain(detail.script_key);
+      const studio = new URLSearchParams({ tab: "studio", project: detail.project_id, shot: detail.shot_id, mode });
+      nav(`/ai-video/assets?${studio}`);
     } catch (e) {
-      setBanner({ level: "alert", text: `提交被围栏拦下：${e instanceof Error ? e.message : String(e)}` });
+      setBanner({ level: "alert", text: `打开镜头失败：${e instanceof Error ? e.message : String(e)}` });
     } finally {
       setBusy(null);
     }
-  }, [detail, dirty, busy, mode, load, selectChain]);
+  }, [detail, dirty, busy, mode, nav]);
 
   /* ---------- 左栏：项目分组脚本列表（状态 chip + 版本链） ---------- */
   const left = (
@@ -246,15 +234,11 @@ export default function P10() {
     <>
       <div className="mb-2 px-1 text-[11px] tracking-[.2em] text-ink3">提交纪律</div>
       <div className="rounded-lg border border-line bg-card p-3 text-caption leading-relaxed text-ink2">
-        保存即新版本；版本即审批对象——新版本不继承既有审批结果，须重新通过 G8。
+        保存即新版本，每个工作稿版本单独审核。
       </div>
       <div className="mt-2.5 rounded-lg border border-line bg-card p-3 text-caption leading-relaxed text-ink3">
         <div className="mb-1 text-micro font-bold text-ink2">G8 烧额度门</div>
-        先核对当前预生产镜头，再审核完整生成请求<br />
-        禁止 → 直接熔断<br />
-        人工复核 → 须先完成脚本审批<br />
-        自动放行 → 达到信任条件后执行<br />
-        预生产镜头与最终请求审核通过后才提交；未配置生成服务会明确提示
+        在生成工作室核对当前预生产镜头、审核完整生成请求。正式付费渲染须经人工授权，再单独提交。
       </div>
       <div className="mt-2.5 rounded-lg border border-line bg-card p-3 text-caption text-ink3">
         <div className="mb-1 text-micro font-bold text-ink2">字数校验</div>
@@ -344,7 +328,7 @@ export default function P10() {
                       onClick={() => void approve()}
                       className="cursor-pointer rounded-md border border-go/50 px-3 py-1.5 text-caption font-bold text-go hover:bg-go/10 disabled:opacity-40"
                     >
-                      ✓ G8 审批通过
+                      ✓ 审核工作稿
                     </button>
                   )}
                   <button
@@ -353,7 +337,7 @@ export default function P10() {
                     onClick={() => void submit()}
                     className="cursor-pointer rounded-md gold-grad px-3.5 py-1.5 text-caption font-bold text-ongold disabled:opacity-40"
                   >
-                    {busy === "qualify" ? "正在审核完整生成请求…" : busy === "submit" ? "正在提交生成…" : "▶ 审核并生成当前镜头"}
+                    {busy === "qualify" ? "正在核对服务镜头…" : "在生成工作室打开当前镜头"}
                   </button>
                 </div>
 
