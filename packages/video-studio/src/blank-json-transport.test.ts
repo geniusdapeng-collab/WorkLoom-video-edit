@@ -16,10 +16,10 @@ const blank = (content: unknown = "   ") => ({
     completion_tokens_details: { reasoning_tokens: 4740 } },
 });
 
-function setup(value: unknown, format: "json_object" | "text" = "json_object", status = 200) {
+function setup(value: unknown, format: "json_object" | "text" = "json_object", origin = baseUrl) {
   const serialized = JSON.stringify(value);
-  const fetchImpl = vi.fn<typeof fetch>(async () => new Response(serialized, { status }));
-  const transport = { baseUrl, apiKey: "test-only", fetchImpl };
+  const fetchImpl = vi.fn<typeof fetch>(async () => new Response(serialized));
+  const transport = { baseUrl: origin, apiKey: "test-only", fetchImpl };
   const provider = new OpenAiCompatibleProvider(model, transport);
   const providers = new Map([[model, provider]]);
   const policy = structuredClone(DEFAULT_MODEL_POLICY);
@@ -27,7 +27,7 @@ function setup(value: unknown, format: "json_object" | "text" = "json_object", s
   const sink: EventSink = { recordModelTrace: vi.fn(async () => undefined), recordDegradation: vi.fn(async () => undefined),
     recordCircuitBreak: vi.fn(async () => undefined) };
   const adapter = new adapterApi.WorkloomLLMEngine({
-    baseUrl, model, apiKey: "test-only", router: { providers, sink, policy, forceModel: model },
+    baseUrl: origin, model, apiKey: "test-only", router: { providers, sink, policy, forceModel: model },
   });
   return { adapter, fetchImpl, provider, providers, policy, sink, serialized, transport };
 }
@@ -122,6 +122,13 @@ describe("native completed blank JSON is an exact failure receipt", () => {
     sample.fetchImpl.mockRejectedValueOnce(new TypeError("fixture lost response"));
     expect(proof(await structured(sample.adapter))).toBeUndefined();
     expect(sample.fetchImpl).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not mistake a query string suffix for the exact Chat path", async () => {
+    const sample = setup(blank(), "json_object", `${baseUrl}/wrong?target=`);
+    expect(proof(await structured(sample.adapter))).toBeUndefined();
+    const [target] = sample.fetchImpl.mock.calls[0]!;
+    expect(new URL(String(target)).pathname).toBe("/v1/wrong");
   });
 
   it("requires the exact current provider transport after receipt readback", async () => {

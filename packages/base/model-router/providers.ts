@@ -376,6 +376,17 @@ const nativeBlankJsonErrors = new WeakMap<ModelProviderError, OpenAiDispatch & {
 export const DEEPSEEK_CHAT_PATH = "/chat/completions";
 export const DEEPSEEK_RESPONSES_PATH = "/responses";
 
+function isNativeChatEndpoint(endpoint: string): boolean {
+  try {
+    const url = new URL(endpoint);
+    return (url.protocol === "http:" || url.protocol === "https:")
+      && url.pathname.endsWith(DEEPSEEK_CHAT_PATH) && !url.search && !url.hash
+      && !url.username && !url.password;
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Canonical DeepSeek transport. The complete serialized request is tokenized
  * before dispatch and the output ceiling is the maximum legal remainder.
@@ -669,7 +680,8 @@ export class OpenAiCompatibleProvider implements ModelProvider {
         // Preserve the ordinary empty-content error. Only the native nonstream
         // Chat JSON wire may supply evidence of a complete, measured failure.
         if (!structuredRequest && this.modelId === DEEPSEEK_FLASH_MODEL_ID && responseFormat?.type === "json_object" && attempt === 1
-          && response.status === 200 && !response.redirected && !signal.aborted && isNativeBlankJsonMessage(data)) {
+          && response.status === 200 && !response.redirected && !signal.aborted
+          && isNativeChatEndpoint(transport.endpoint) && isNativeBlankJsonMessage(data)) {
           try {
             const usage = completionUsage(data, thinkingEnabled, plan.outputCeiling);
             const receipt = Object.freeze({ ...usage, modelId: this.modelId, responseId: data.id, requestHash, responseHash });
