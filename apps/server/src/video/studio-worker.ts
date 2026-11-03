@@ -960,6 +960,7 @@ function startRunWithLease(scope: Scope, input: StudioRunInput, heldLease?: Proj
       const artifact = writeGateArtifact(runWorkDir, path.join(input.projectId, `attempt-${stageRef.attempt}`), gate, req.contentMd ?? "");
       const currentArtifact: ProducerArtifact = { path: artifact.path, kind: "text", note: req.title,
         ...(marketingGateEvidence ? { expectedSha256: renderSha256(req.contentMd ?? "") } : {}) };
+      const gateCheckContent = gate === "G2_THEME" && marketingGateEvidence ? req.themeDraft ?? req.contentMd : req.contentMd;
       const portrait = gate === "G5_PORTRAIT" ? portraitGateEvidence({ workDir: runWorkDir, projectId: input.projectId,
         stage: completedVendorResult?.stages?.portraitStudio,
         scriptReport: (completedVendorResult?.stages?.scriptEngine as { report?: unknown } | undefined)?.report }) : null;
@@ -971,7 +972,7 @@ function startRunWithLease(scope: Scope, input: StudioRunInput, heldLease?: Proj
             hard: true,
             detail: "本次剧本结构 characters_count=0 且 PortraitStudio 无角色/商品任务",
           }]
-        : [...(portrait?.deterministic ?? gateDeterministicChecks(gate, req.contentMd ?? ""))];
+        : [...(portrait?.deterministic ?? gateDeterministicChecks(gate, gateCheckContent ?? ""))];
       const marketingReview = marketingGateEvidence?.forReview(gate, currentArtifact);
       const structuredPromptPackage = Array.isArray(req.structuredArtifact)
         ? req.structuredArtifact.filter((item): item is Record<string, unknown> => Boolean(item && typeof item === "object" && !Array.isArray(item)))
