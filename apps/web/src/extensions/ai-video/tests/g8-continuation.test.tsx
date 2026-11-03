@@ -25,8 +25,8 @@ vi.mock("../../../shell/NavigationAccess", () => ({
 vi.mock("../../../shell/Bridge", () => ({ Bridge: ({ left, right, children }: Record<string, ReactNode>) => <>{left}{children}{right}</> }));
 vi.mock("../../../components/hud", () => ({ BannerAlert: ({ children }: { children: ReactNode }) => <p role="alert">{children}</p>,
   EmptyState: () => null, Skeleton: () => null }));
-import Studio from "./Studio";
-import Assets from "./Assets";
+import Studio from "../pages/Studio";
+import Assets from "../pages/Assets";
 
 
 const address = "/ai-video/assets?tab=studio&project=P1&shot=S1";
