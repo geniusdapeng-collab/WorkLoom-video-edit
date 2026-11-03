@@ -554,7 +554,10 @@ const scoped = await silent;
 release();
 console.log("RESULT " + JSON.stringify({ scoped, standard }));
 `;
-    const result = runInChild(script);
+    const result = runInChild(script) as {
+      scoped: { first: string; second: string; fields: { audio: string }; audio: string; plain: { first: string } };
+      standard: { first: string };
+    };
     for (const text of [result.scoped.first, result.scoped.second, result.scoped.fields.audio, result.scoped.audio, result.scoped.plain.first]) {
       expect(text).toContain("禁止可辨识人声");
       expect(text).not.toContain("仅允许：台词人声");
