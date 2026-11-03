@@ -12,6 +12,7 @@ import {
 } from "./prd-authority.js";
 import { marketingPrdReferenceView, normalizeMarketingPrdContract } from "./marketing-prd-contract.js";
 import { verifyPrdPortraitSources } from "./prd-portrait-source.js";
+import { assertNoSpokenPromptPackage } from "./frozen-speech-policy.js";
 import { isNoSpeechDeclaration } from "./dialogue-contract.js";
 import { acquireVendorRequirementEntry } from "./vendor-requirement-entry.js";
 import { nativeReasonCompleted, nativeReasonFailure, WorkloomLLMEngine } from "./llm-adapter.js";
@@ -813,6 +814,23 @@ const productionInstalls = new WeakMap<object, { changes: Array<{ owner: Require
 const RETIRED_TITLES = ["title", "subtitle", "title_content", "subtitle_content", "title_animation", "title_font_design", "opening_audio_design"];
 const RETIRED_TITLE_LABELS = ["【主标题内容】", "【副标题内容】", "【标题动画设计】", "【标题字体设计】", "【开场音频设计】"];
 
+const FROZEN_FUSION_SPEECH_RULE = "禁止可辨识人声，包括对白、独白、口播、旁白、画外音及可辨识的背景话语。按原制作要求保留实际环境声和动作声。";
+
+function bindFusionSpeechRule(prompt: string, native: string, scoped: string): string {
+  const pieces = prompt.split(native);
+  if (pieces.length !== 2) prdFail("PRD_VENDOR_UNAVAILABLE", "原生提示词声音策略模板边界已经变化");
+  return pieces.join(scoped);
+}
+
+function fusionSpeechTemplate(value: unknown, boundary: string): [string, string] {
+  if (typeof value !== "string") prdFail("PRD_VENDOR_UNAVAILABLE", "原生提示词不是文本");
+  // Native creative and source context can contain any user-provided wording.
+  // Bind only the suffix after the final pinned template boundary.
+  const split = value.lastIndexOf(boundary);
+  if (split < 0) prdFail("PRD_VENDOR_UNAVAILABLE", "原生提示词声音策略模板缺少边界");
+  return [value.slice(0, split), value.slice(split)];
+}
+
 function productionScope(receiver: RequirementRecord, required = true): Scope | undefined {
   const scope = current(), bound = productionOwners.get(receiver) ?? systems.get(receiver);
   if (bound && bound !== scope) {
@@ -1154,34 +1172,84 @@ export function installPrdProductionBridge(deps: ProductionDependencies): () => 
         return isNoSpeechDeclaration(shotFields.dialogue) ? [] : Reflect.apply(original, this, [fieldsValue, ...args]);
       });
     });
+    add(fusionPrototype, "_getSystemPrompt", original => function (...args) {
+      const scope = productionScope(this);
+      if (scope?.authority.profile.speechPolicy !== "none") return Reflect.apply(original, this, args);
+      return guard(scope, () => {
+        check(scope);
+        const prompt = Reflect.apply(original, this, args);
+        if (typeof prompt !== "string") prdFail("PRD_VENDOR_UNAVAILABLE", "PromptFusion 系统提示词不是文本");
+        const fields = bindFusionSpeechRule(prompt, "\n15. dialogue: 角色台词(纯台词,不要旁白)\n",
+          '\n15. dialogue: 固定输出"无台词"。\n');
+        return bindFusionSpeechRule(fields, "\n- 台词必须是角色直接对话,不要画外音/旁白\n",
+          `\n- ${FROZEN_FUSION_SPEECH_RULE}\n`);
+      });
+    });
     add(fusionPrototype, "_buildBatchPrompt", original => function (...args) {
       const scope = productionScope(this);
       if (!scope) return Reflect.apply(original, this, args);
       return guard(scope, () => {
         check(scope);
-        const prompt = Reflect.apply(original, this, args);
-        const { aspectRatio, resolution, frameRate } = scope.authority.profile;
-        if (!aspectRatio || !resolution || !frameRate) return prompt;
-        const native = 'constraint 固定为"16:9画幅，4K分辨率，24fps，MP4格式"(竖屏项目为9:16)';
-        if (typeof prompt !== "string" || prompt.split(native).length !== 2) {
-          prdFail("PRD_VENDOR_UNAVAILABLE", "PromptFusion 技术规格模板边界已经变化");
+        const { aspectRatio, resolution, frameRate, speechPolicy } = scope.authority.profile;
+        if (speechPolicy === "none") assertNoSpokenPromptPackage(args[0], "PromptFusion.batch");
+        let prompt = Reflect.apply(original, this, args);
+        if (aspectRatio && resolution && frameRate) {
+          const native = 'constraint 固定为"16:9画幅，4K分辨率，24fps，MP4格式"(竖屏项目为9:16)';
+          if (typeof prompt !== "string" || prompt.split(native).length !== 2) {
+            prdFail("PRD_VENDOR_UNAVAILABLE", "PromptFusion 技术规格模板边界已经变化");
+          }
+          prompt = prompt.replace(native, `constraint 固定为"${aspectRatio}画幅，${resolution}分辨率，${frameRate}fps，MP4格式"（帧率为最终交付要求）`);
         }
-        return prompt.replace(native, `constraint 固定为"${aspectRatio}画幅，${resolution}分辨率，${frameRate}fps，MP4格式"（帧率为最终交付要求）`);
+        if (speechPolicy !== "none") return prompt;
+        const [source, template] = fusionSpeechTemplate(prompt, "\n【字段最低字符数 - 硬性要求");
+        const min = bindFusionSpeechRule(template, "\n 其余字段 ≥ 30 字符\n",
+          '\n dialogue 固定为"无台词"，该字段不计入字符下限；其余字段 ≥ 30 字符\n');
+        const dialogue = bindFusionSpeechRule(min,
+          "\n5. dialogue 字段只放角色嘴里的台词（原样保留钉子台词），情绪用副词，触发用物理动作；旁白出现即废稿。\n",
+          `\n5. dialogue 固定为"无台词"。已授权的叙事信息通过物理动作、画面或后期画面文字传达。${FROZEN_FUSION_SPEECH_RULE}\n`);
+        const example = bindFusionSpeechRule(dialogue, '示例角色站立讲台前,自然手势讲解',
+          "示例角色站立讲台前,转身提起道具并示意");
+        return source + bindFusionSpeechRule(example, '\n3. 【台词】字段必须独立,角色直接对镜头说话,不要写"画外音""旁白"\n',
+          '\n3. 【台词】字段必须独立，值为"无台词"，其余字段同样不得安排说话或口型同步。\n');
+      });
+    });
+    add(fusionPrototype, "_buildFillPrompt", original => function (...args) {
+      const scope = productionScope(this);
+      if (scope?.authority.profile.speechPolicy !== "none") return Reflect.apply(original, this, args);
+      return guard(scope, () => {
+        check(scope);
+        assertNoSpokenPromptPackage([args[0], { fields: args[2] }], "PromptFusion.fill");
+        const [source, template] = fusionSpeechTemplate(Reflect.apply(original, this, args), "\n## 本次只补齐以下字段");
+        const fields = Array.isArray(args[1]) && args[1].includes("dialogue")
+          ? bindFusionSpeechRule(template, "\n- dialogue:string,台词/旁白原文\n", '\n- dialogue:string,固定为"无台词"\n')
+          : template;
+        return source + fields + `\n${FROZEN_FUSION_SPEECH_RULE}`;
       });
     });
   }
   add(semanticPrototype, "_buildPrompt", original => function (...args) {
     const scope = productionScope(this);
-    if (!scope || scope.authority.profile.titleCard !== false) return Reflect.apply(original, this, args);
+    if (!scope) return Reflect.apply(original, this, args);
+    const { titleCard, speechPolicy } = scope.authority.profile;
+    if (titleCard !== false && speechPolicy !== "none") return Reflect.apply(original, this, args);
     return guard(scope, () => {
       check(scope);
+      if (speechPolicy === "none") assertNoSpokenPromptPackage([args[1]], "PromptFusion.semantic");
       const value = Reflect.apply(original, this, args);
       if (typeof value !== "string") prdFail("PRD_VENDOR_UNAVAILABLE", "语义精炼输入不是文本");
       const boundary = value.indexOf("\n【待精炼提示词】\n");
       if (boundary < 0) prdFail("PRD_VENDOR_UNAVAILABLE", "语义精炼提示词边界已经变化");
-      const header = value.slice(0, boundary).replace("，片头 5 个专属字段保留", "");
-      return header + `\n- 本次私有 titleCard=false：生成侧七个标题项 not_applicable，不生成、不补占位；保留实际 opening 场景身份及其他 25 个内容字段。`
-        + value.slice(boundary);
+      let header = value.slice(0, boundary);
+      if (titleCard === false) header = header.replace("，片头 5 个专属字段保留", "")
+        + "\n- 本次私有 titleCard=false：生成侧七个标题项 not_applicable，不生成、不补占位；保留实际 opening 场景身份及其他 25 个内容字段。";
+      if (speechPolicy === "none") {
+        const nativeDialogue = header.includes("【台词】字段逐字保留，时间戳不动。")
+          ? "【台词】字段逐字保留，时间戳不动。" : "【台词】字段不存在则禁止虚构添加。";
+        header = bindFusionSpeechRule(header, nativeDialogue,
+          `【台词】字段若存在则保留"无台词"原值，缺省时不得虚构。${FROZEN_FUSION_SPEECH_RULE}`);
+        header = bindFusionSpeechRule(header, "（如台词引号缺失、半句话）", "（如可见物件描述被截断）");
+      }
+      return header + value.slice(boundary);
     });
   });
   add(productionPrototype, "produce", original => async function (blueprintValue, ...args) {

@@ -43,6 +43,8 @@ export interface PrdProductionProfile {
   frameRate?: 24 | 25 | 30 | 60;
   subtitleMode?: "both" | "burned" | "sidecar" | "none";
   nativeAudio?: boolean;
+  /** No authored dialogue, voice-over or narration. Does not mute original ambient or action sound. */
+  speechPolicy?: "none";
   openWithCover?: boolean;
   /** Complete-video cover intro duration; 0 disables the intro. */
   coverIntroSeconds?: number;
@@ -106,7 +108,7 @@ export function normalizePrdProductionProfile(metadata: RequirementRecord): PrdP
   const explicit = Object.hasOwn(brief, "productionRequirements");
   const production = explicit ? requirementRecord(brief.productionRequirements, "Brief.productionRequirements") : undefined;
   const required = ["resolution", "frameRate", "subtitleMode", "nativeAudio", "openWithCover", "titleCard", "durationToleranceFrames"];
-  const keys = [...required, "coverDelivery", "sidecarPolicy", "persistentSubtitleText", "coverIntroSeconds"];
+  const keys = [...required, "coverDelivery", "sidecarPolicy", "persistentSubtitleText", "coverIntroSeconds", "speechPolicy"];
   if (production && (Object.keys(production).some(key => !keys.includes(key)) || required.some(key => !Object.hasOwn(production, key)))) {
     prdFail("PRD_PROFILE_INVALID", "productionRequirements 必须完整且不能包含未定义字段");
   }
@@ -148,6 +150,9 @@ export function normalizePrdProductionProfile(metadata: RequirementRecord): PrdP
     && (typeof production.coverIntroSeconds !== "number" || !Number.isFinite(production.coverIntroSeconds)
       || production.coverIntroSeconds < 0 || production.coverIntroSeconds > 5)) {
     prdFail("PRD_PROFILE_INVALID", "封面片头时长必须为 0–5 秒的有限数");
+  }
+  if (Object.hasOwn(production, "speechPolicy") && production.speechPolicy !== "none") {
+    prdFail("PRD_PROFILE_INVALID", "明确的人声口径只接受 none；它不关闭原生环境或动作声音");
   }
   const normalized = { ...profile, ...production } as PrdProductionProfile;
   if (Object.hasOwn(production, "persistentSubtitleText")) {
@@ -223,6 +228,9 @@ export function prdAuthorityPrompt(authority: PrdAuthority, contract: Requiremen
     + `当前已核验商品营销路线的交付类型是商业广告；本次获批类型细分可继续描述创作风格。${MARKETING_REFERENCE_BOUNDARY}\n`
     + `在 visualReferences 和 audioReferences 中填写本片可执行的摄影或声音手法，不能照抄示例片名、导演或品牌。\n`
     + `客户明确提供的生产/交付要求（缺省字段没有客户权威，不得伪称客户已指定；分辨率为交付档声明，不替代模型原生能力与提交前验证）：\n${JSON.stringify(authority.profile)}\n`
+    + (authority.profile.speechPolicy === "none"
+      ? "本次明确禁止创作或生成台词、旁白、口播、独白及可辨词句；保留已要求的原生环境和动作声。无对白不表示静音，后期文字仍按本次交付合同执行。\n"
+      : "")
     + `本次 G3 已审的完整场景、道具、动作和宿主选角合同：\n${JSON.stringify(contract)}\n`
     + `客户受众原文是权威口径；模型年龄/性别细分仅为推测。只使用合同内人物，characterId 必须等于所选 id，姓名一致。`
     + `人物档案是人物表达依据，不能当成商品事实；保留其人物档案/版本来源锚点。portraitPath 可以留空，G5 后续独立核验，不能提前声称出图或一致性已通过。\n`
