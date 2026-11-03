@@ -1,16 +1,18 @@
 import { closeSync, constants, fstatSync, fsyncSync, openSync, readFileSync, writeSync } from "node:fs";
 import { dirname } from "node:path";
 import {
-  BudgetError, check, llmMicroCny, record, safeHash, safeInteger, safeTaskId, TASK_CAPS,
-  type BudgetScope, type Claim, type ImageProof, type Settlement,
+  BudgetError, check, llmMicroCny, record, safeHash, safeInteger, safeTaskId, TASK_CAPS, WORKFLOW_TASK_CAPS,
+  type BudgetProfile, type BudgetScope, type Claim, type ImageProof, type Settlement,
 } from "./provider-budget-policy.js";
 
 const JOURNAL_SCHEMA = "workloom.provider-budget-wal/v1";
 const MAX_JOURNAL_BYTES = 512 * 1024;
 const ERROR_CODE = /^[A-Z][A-Z0-9_]{0,95}$/;
 
+type BudgetLimits = { profile?: never; caps: typeof TASK_CAPS }
+  | { profile: "workflow"; caps: typeof WORKFLOW_TASK_CAPS };
 type Header = { schema: typeof JOURNAL_SCHEMA; type: "open"; task: string; port: number; at: number;
-  scope: BudgetScope; caps: typeof TASK_CAPS };
+  scope: BudgetScope } & BudgetLimits;
 type Reserve = { type: "reserve"; hash: string; wireSha256: string; at: number; claim: Claim };
 type Ack = { type: "ack"; hash: string; at: number; taskId: string };
 type Settle = { type: "settle"; hash: string; at: number; usage: Settlement };
@@ -69,7 +71,10 @@ export class BudgetJournal {
 
   private constructor(private readonly fd: number, private readonly header: Header, private readonly now: () => number) {}
 
-  static open(path: string, port: number, task: string, scope: BudgetScope, now: () => number): BudgetJournal {
+  static open(path: string, port: number, task: string, scope: BudgetScope, now: () => number, profile: BudgetProfile = "case"): BudgetJournal {
+    // Keep existing case headers readable by earlier releases. The distinct
+    // workflow header pins both the explicit profile and its expanded limits.
+    const limits: BudgetLimits = profile === "workflow" ? { profile, caps: WORKFLOW_TASK_CAPS } : { caps: TASK_CAPS };
     const flags = constants.O_NOFOLLOW | constants.O_APPEND | constants.O_RDWR;
     let fd: number;
     let created = false;
@@ -85,7 +90,7 @@ export class BudgetJournal {
       check(stat.isFile() && stat.nlink === 1 && !(stat.mode & 0o077) && stat.uid === process.getuid?.()
         && stat.size <= MAX_JOURNAL_BYTES, "BUDGET_JOURNAL_UNSAFE", 503);
       if (created) {
-        const header: Header = { schema: JOURNAL_SCHEMA, type: "open", task, port, at: now(), scope, caps: TASK_CAPS };
+        const header: Header = { schema: JOURNAL_SCHEMA, type: "open", task, port, at: now(), scope, ...limits };
         check(safeInteger(header.at, 1), "BUDGET_CLOCK_INVALID", 503);
         const journal = new BudgetJournal(fd, header, now);
         journal.append(header);
@@ -99,9 +104,9 @@ export class BudgetJournal {
       const header: unknown = JSON.parse(first ?? "");
       check(record(header) && header.schema === JOURNAL_SCHEMA && header.type === "open"
         && header.task === task && header.port === port && safeInteger(header.at, 1)
-        && JSON.stringify(header.scope) === JSON.stringify(scope) && JSON.stringify(header.caps) === JSON.stringify(TASK_CAPS),
-        "BUDGET_JOURNAL_SCOPE_MISMATCH", 503);
-      const journal = new BudgetJournal(fd, { schema: JOURNAL_SCHEMA, type: "open", task, port, at: header.at, scope, caps: TASK_CAPS }, now);
+        && header.profile === limits.profile && JSON.stringify(header.scope) === JSON.stringify(scope)
+        && JSON.stringify(header.caps) === JSON.stringify(limits.caps), "BUDGET_JOURNAL_SCOPE_MISMATCH", 503);
+      const journal = new BudgetJournal(fd, { schema: JOURNAL_SCHEMA, type: "open", task, port, at: header.at, scope, ...limits }, now);
       for (const line of rest) journal.apply(parseEvent(line));
       const uncertain = [...journal.byHash.values()].find((entry) => !entry.taskId && !entry.usage);
       if (uncertain) journal.freeze(uncertain.hash, "BUDGET_INTERRUPTED_WITHOUT_RECEIPT");
@@ -157,7 +162,7 @@ export class BudgetJournal {
     this.apply(event);
   }
 
-  get deadline(): number { return this.header.at + TASK_CAPS.windowMs; }
+  get deadline(): number { return this.header.at + this.header.caps.windowMs; }
   get expired(): boolean { return this.now() < this.header.at || this.now() >= this.deadline; }
   get frozen(): string | null { return this.writeFailed ? "BUDGET_JOURNAL_WRITE_FAILED" : this.frozenReason; }
   find(hash: string): Reservation | undefined { return this.byHash.get(hash); }
@@ -168,16 +173,27 @@ export class BudgetJournal {
     check(!this.frozen, "BUDGET_FROZEN", 423);
     check(!this.expired, "BUDGET_DEADLINE_EXCEEDED", 423);
     check(!this.byHash.has(hash), "BUDGET_DUPLICATE_REQUEST", 409);
-    const usage = this.counters();
+    const { usage, estimatedCost } = this.counters();
+    const { caps } = this.header;
     if (claim.kind === "llm") {
-      check(usage.llmCalls + 1 <= TASK_CAPS.llmCalls, "BUDGET_LLM_CALLS_EXCEEDED", 429);
-      check(usage.llmGrossTokens + claim.inputTokens + claim.maxOutputTokens <= TASK_CAPS.llmGrossTokens, "BUDGET_LLM_TOKENS_EXCEEDED", 429);
+      check(usage.llmCalls + 1 <= caps.llmCalls, "BUDGET_LLM_CALLS_EXCEEDED", 429);
+      // In workflow mode each exact native request already proves its own
+      // window. The call limit bounds the cumulative usage without clipping.
+      if (this.header.profile !== "workflow") {
+        check(usage.llmGrossTokens + claim.inputTokens + claim.maxOutputTokens <= caps.llmGrossTokens, "BUDGET_LLM_TOKENS_EXCEEDED", 429);
+      }
     } else if (claim.kind === "image") {
-      check(usage.imageCalls + 1 <= TASK_CAPS.imageCalls, "BUDGET_IMAGE_COUNT_EXCEEDED", 429);
+      check(usage.imageCalls + 1 <= caps.imageCalls, "BUDGET_IMAGE_COUNT_EXCEEDED", 429);
     } else {
-      check(usage.videoCalls + 1 <= TASK_CAPS.videoCalls && usage.videoSeconds + claim.seconds <= TASK_CAPS.totalVideoSeconds, "BUDGET_VIDEO_LIMIT_EXCEEDED", 429);
+      check(usage.videoCalls + 1 <= caps.videoCalls && usage.videoSeconds + claim.seconds <= caps.totalVideoSeconds, "BUDGET_VIDEO_LIMIT_EXCEEDED", 429);
     }
-    check(usage.microCny + claim.microCny <= TASK_CAPS.microCny, "BUDGET_CNY_EXCEEDED", 429);
+    if (this.header.profile === "workflow") {
+      const { media } = estimatedCost;
+      if (claim.kind !== "llm") check(media.settledMicroCny + media.reservedMicroCny + claim.microCny <= this.header.caps.mediaMicroCny,
+        "BUDGET_MEDIA_CNY_EXCEEDED", 429);
+    } else {
+      check(usage.microCny + claim.microCny <= this.header.caps.microCny, "BUDGET_CNY_EXCEEDED", 429);
+    }
     this.write({ type: "reserve", hash, wireSha256, at: this.now(), claim });
   }
 
@@ -196,17 +212,28 @@ export class BudgetJournal {
   }
 
   private counters() {
-    let llmCalls = 0, llmGrossTokens = 0, imageCalls = 0, videoCalls = 0, videoSeconds = 0, microCny = 0;
-    let settledMicroCny = 0, reservedMicroCny = 0, settledLlmGrossTokens = 0;
+    let llmCalls = 0, llmGrossTokens = 0, imageCalls = 0, videoCalls = 0, videoSeconds = 0;
+    let settledMicroCny = 0, reservedMicroCny = 0;
+    let settledLlmInputTokens = 0, settledLlmOutputTokens = 0;
+    const estimatedCost = { llm: { settledMicroCny: 0, reservedMicroCny: 0 }, media: { settledMicroCny: 0, reservedMicroCny: 0 } };
     for (const { claim, usage } of this.byHash.values()) {
-      microCny += usage?.microCny ?? claim.microCny;
-      settledMicroCny += usage?.microCny ?? 0;
-      reservedMicroCny += usage ? 0 : claim.microCny;
+      const cost = claim.kind === "llm" ? estimatedCost.llm : estimatedCost.media;
+      if (usage) {
+        settledMicroCny += usage.microCny;
+        cost.settledMicroCny += usage.microCny;
+      } else {
+        reservedMicroCny += claim.microCny;
+        cost.reservedMicroCny += claim.microCny;
+      }
       if (claim.kind === "llm") {
         llmCalls++;
-        const actual = usage?.kind === "llm" ? usage.inputTokens + usage.outputTokens : undefined;
-        llmGrossTokens += actual ?? claim.inputTokens + claim.maxOutputTokens;
-        settledLlmGrossTokens += actual ?? 0;
+        if (usage?.kind === "llm") {
+          settledLlmInputTokens += usage.inputTokens;
+          settledLlmOutputTokens += usage.outputTokens;
+          llmGrossTokens += usage.inputTokens + usage.outputTokens;
+        } else {
+          llmGrossTokens += claim.inputTokens + claim.maxOutputTokens;
+        }
       } else if (claim.kind === "image") {
         imageCalls++;
       } else {
@@ -214,11 +241,13 @@ export class BudgetJournal {
         videoSeconds += claim.seconds;
       }
     }
-    return { llmCalls, llmGrossTokens, settledLlmGrossTokens, imageCalls, videoCalls, videoSeconds, microCny, settledMicroCny, reservedMicroCny };
+    return { usage: { llmCalls, llmGrossTokens, settledLlmGrossTokens: settledLlmInputTokens + settledLlmOutputTokens,
+      imageCalls, videoCalls, videoSeconds, microCny: settledMicroCny + reservedMicroCny, settledMicroCny, reservedMicroCny },
+      estimatedCost, settledLlmInputTokens, settledLlmOutputTokens };
   }
 
   status() {
-    const usage = this.counters();
+    const { usage, estimatedCost, settledLlmInputTokens, settledLlmOutputTokens } = this.counters();
     const frozen = this.frozen;
     const expired = this.expired;
     const requests = [...this.byHash.values()];
@@ -226,7 +255,9 @@ export class BudgetJournal {
     return { schema: JOURNAL_SCHEMA, task: this.header.task, openedAt: this.header.at, deadlineAt: this.deadline,
       state: frozen ? "frozen" : expired ? "expired" : holds.length ? "held" : "live",
       live: !expired && !frozen, expired, frozen, held: holds.length > 0,
-      scope: this.header.scope, caps: TASK_CAPS, usage,
+      scope: this.header.scope, caps: this.header.caps, usage,
+      ...(this.header.profile === "workflow" ? { profile: this.header.profile, estimatedCost,
+        settledLlmTokens: { input: settledLlmInputTokens, output: settledLlmOutputTokens } } : {}),
       consumed: { llmGrossTokens: usage.settledLlmGrossTokens, microCny: usage.settledMicroCny },
       reserved: { llmGrossTokens: usage.llmGrossTokens - usage.settledLlmGrossTokens, microCny: usage.reservedMicroCny, calls: holds.length },
       receipts: requests.map((entry) => ({ wireSha256: entry.wireSha256, kind: entry.claim.kind,
