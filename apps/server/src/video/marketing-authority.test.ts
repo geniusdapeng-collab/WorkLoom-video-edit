@@ -10,6 +10,7 @@ import { canonicalRenderJson, renderSha256 } from "./gen/compiled-request.js";
 const scope = { tenantId: "tenant-a", workspaceId: "ws-a", projectId: "P1", runId: "RUN1", attempt: 1 };
 const env = { LLM_BASE_URL: "https://api.deepseek.com", LLM_API_KEY: "test-only", LLM_MODEL: "deepseek-flash" };
 const sourceUrl = "https://source.example.com/f3";
+const secondarySourceUrl = "https://secondary.example.com/f3";
 const sourceText = "星野 F3 是一款风扇，风量 9 档。价格 399 CNY。待机功率 0，自动启停 false，接口 USB/C~口。尾部注意：9 档是风量档位，不是能耗等级；不得声称静音或市场第一。";
 let server: Server, origin: string, root: string, modelCalls: any[], rejectJudge: boolean, extractionCalls: string[], extractionOptions: unknown[];
 let simulatedProviderCalls: ReturnType<typeof simulatedProviderCompletion>[];
@@ -23,7 +24,8 @@ beforeAll(async () => {
   server = createServer((req, res) => {
     const imagePage = req.url === "/with-image";
     res.writeHead(200, { "content-type": imagePage ? "text/html; charset=utf-8" : "text/plain; charset=utf-8" });
-    res.end(imagePage ? `<html><body><p>${sourceText}</p><img src="${sourceUrl}/hero.png"></body></html>` : sourceText);
+    res.end(imagePage ? `<html><body><p>${sourceText}</p><img src="${sourceUrl}/hero.png"></body></html>`
+      : req.url === "/secondary" ? "星野 F3 风扇门店导览，本页没有任何商品参数。" : sourceText);
   });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve)); origin = `http://127.0.0.1:${(server.address() as { port: number }).port}`;
 });
@@ -62,6 +64,7 @@ async function prepare(options: { noSearch?: boolean; noAux?: boolean; badQuote?
   syntheticTokenCharge?: number;
   absoluteSellingPoint?: boolean;
   conflictingBrand?: string;
+  mismatchedSellingPointSource?: boolean;
 } = {}): Promise<PreparedMarketingFacts> {
   let searches = 0, a1Calls = 0;
   return prepareMarketingFacts({ scope: { ...scope, attempt: options.attempt ?? 1 }, root, intent: "做一条风扇介绍", metadata: { brief: { product: "星野 F3", brand: "星野" } }, env: { ...env, ...(options.mode ? { VM_DATA_MINING_MODE: options.mode } : {}) },
@@ -74,7 +77,7 @@ async function prepare(options: { noSearch?: boolean; noAux?: boolean; badQuote?
       if (a1Calls === 2 && options.citationFault === "repair-model-failure") return { success: false, error: "LLM unavailable" };
       const specs = options.specs ?? { 风量: "9 档" };
       const officialPoints = [
-        { point: "风量 9 档", source_url: sourceUrl },
+        { point: "风量 9 档", source_url: options.mismatchedSellingPointSource ? secondarySourceUrl : sourceUrl },
         ...(options.absoluteSellingPoint ? [{ point: "Perfect to run anywhere", source_url: sourceUrl }] : []),
       ];
       const data: { payload: any; citations: any[] } = { payload: { identity: { name: "星野 F3", ...(options.conflictingBrand ? { brand: options.conflictingBrand } : {}), specs, ...(options.citationFault ? { prices: [{ amount: 399, currency: "CNY", source_url: sourceUrl }] } : {}), official_selling_points: officialPoints }, images: [] },
@@ -99,8 +102,11 @@ async function prepare(options: { noSearch?: boolean; noAux?: boolean; badQuote?
       }
       return { success: true, data };
     } }, dependencies: {
-      search: async () => (++searches, options.noSearch || options.noAux && searches > 20 ? [] : [{ title: "星野规格", url: sourceUrl, snippet: "故意错误摘要999档，不能当事实" }]),
-      fetchSource: async url => fetchMarketingSource(url, { resolver: async () => [{ address: "93.184.216.34", family: 4 }], transport: async (_url, _address, signal) => requestSource(new URL(options.imageMetadata || options.imageExtras ? "/with-image" : "/", origin), { address: "127.0.0.1", family: 4 }, signal) }),
+      search: async () => (++searches, options.noSearch || options.noAux && searches > 20 ? [] : [
+        { title: "星野规格", url: sourceUrl, snippet: "故意错误摘要999档，不能当事实" },
+        ...(options.mismatchedSellingPointSource ? [{ title: "星野门店", url: secondarySourceUrl, snippet: "门店导览" }] : []),
+      ]),
+      fetchSource: async url => fetchMarketingSource(url, { resolver: async () => [{ address: "93.184.216.34", family: 4 }], transport: async (_url, _address, signal) => requestSource(new URL(url === secondarySourceUrl ? "/secondary" : options.imageMetadata || options.imageExtras ? "/with-image" : "/", origin), { address: "127.0.0.1", family: 4 }, signal) }),
     } });
 }
 const shots = [{ shotId: "S1", prompt: "窗边展示星野 F3 风扇，字幕说明风量 9 档。", fields: { 场景: "窗边", 产品: "星野 F3", 规格: "9 档" } }];
@@ -361,6 +367,26 @@ describe("营销事实宿主完整执行", () => {
   });
   it("重复attempt写盘失败必须终止，不能当抓源失败换候选", async () => {
     await prepare(); await expect(prepare()).rejects.toMatchObject({ code: "EEXIST" });
+  });
+  it("binds the G1 selling point URL and evidence id to the same collected source as the verified quote", async () => {
+    const prepared = await prepare({ mismatchedSellingPointSource: true });
+    const { bundle } = prepared;
+    const claim = bundle.stages[0]!.facts.claims.find(item => item.pointer === "/identity/official_selling_points/0/point")!;
+    expect(bundle.sources.find(source => source.sourceId === claim.sourceId)?.finalUrl).toBe(sourceUrl);
+    expect(bundle.sources.some(source => source.finalUrl === secondarySourceUrl)).toBe(true);
+    const expected = { point: "风量 9 档", claimId: claim.claimId, sourceId: claim.sourceId, sourceUrl };
+    expect(bundle.cards.prd_card).toMatchObject({ selling_point_evidence: [expected] });
+    const [presentation] = (bundle.cards.prd_card as { selling_point_evidence: Array<{ evidenceId: string }> }).selling_point_evidence;
+    expect(presentation?.evidenceId).toMatch(/^EV-/);
+    expect(bundle.dossier.provenance).toContainEqual(expect.objectContaining({
+      evidence_id: presentation?.evidenceId, claim_ref: "identity.official_selling_points:风量 9 档", source_url: sourceUrl,
+    }));
+    expect(JSON.parse(prepared.g1Content).facts.cards.prd_card.selling_point_evidence).toEqual([presentation]);
+    expect(prepared.raw.A1.identity).toMatchObject({ official_selling_points: [{ source_url: secondarySourceUrl }] });
+    expect(bundle.rawSha256).toBe(renderSha256(canonicalRenderJson(prepared.raw)));
+    expect(toJennyMarketingRaw(prepared.raw, bundle).A1.identity).toMatchObject({ official_selling_points: [{ source_url: sourceUrl }] });
+    const saved = await finalizeMarketingFacts(prepared, shots, env);
+    await expect(verifyMarketingFacts({ root, ...saved, scope, shots })).resolves.toMatchObject({ scope });
   });
   it("Jenny桥逐项绑定转义pointer、0/false和finalUrl，不改变原始审核值或摘要", async () => {
     const specs = { "接口/~": "USB/C~口", 待机功率: 0, 自动启停: false };

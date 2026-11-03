@@ -247,7 +247,7 @@ async function verifyExtractionAttempts(input: {
   }
 }
 
-/** Jenny 的规格来源格式与宿主 primitive 事实合同不同；仅为装订复制，原始审核值和摘要不变。 */
+/** Jenny 的规格和卖点来源来自已核实的主张，仅修改装订副本。 */
 export function toJennyMarketingRaw(
   raw: MarketingFactsBundle["rawByAgent"],
   evidence: Pick<MarketingFactsBundle, "rawSha256" | "sources" | "stages">,
@@ -260,20 +260,23 @@ export function toJennyMarketingRaw(
   if (sources.size !== evidence.sources.length || new Set(record.sourceIds).size !== record.sourceIds.length) fail("MARKETING_SOURCE_INVALID", "装订来源ID缺失或重复");
   const converted = structuredClone(raw), identity = object(converted.A1.identity, "装订商品身份");
   const specs = object(identity.specs, "装订商品规格"), boundSpecs: RecordValue = Object.create(null);
-  for (const [key, value] of Object.entries(specs)) {
-    const pointer = `/identity/specs/${key.replace(/~/g, "~0").replace(/\//g, "~1")}`;
+  const boundSource = (pointer: string, value: unknown, code: string) => {
     const claims = record.facts.claims.filter(claim => claim.pointer === pointer), claim = claims[0];
     if (claims.length !== 1 || !claim || claim.stage !== "A1" || claim.status !== "source-bound"
       || !["string", "number", "boolean"].includes(typeof value) || canonicalRenderJson(claim.value) !== canonicalRenderJson(value)) {
-      fail("MARKETING_SPEC_UNVERIFIED", `装订规格没有唯一且值一致的已审核主张：${pointer}`);
+      fail(code, `装订字段没有唯一且值一致的已审核主张：${pointer}`);
     }
     const source = sources.get(claim.sourceId);
     if (!source || !record.sourceIds.includes(source.sourceId) || source.textSha256 !== claim.textSha256
-      || source.sourceId !== `SRC-${renderSha256(`${source.finalUrl}\n${source.textSha256}`).slice(0, 24)}`) fail("MARKETING_SPEC_UNVERIFIED", `装订规格缺少本次主张来源：${pointer}`);
+      || source.sourceId !== `SRC-${renderSha256(`${source.finalUrl}\n${source.textSha256}`).slice(0, 24)}`) fail(code, `装订字段缺少本次主张来源：${pointer}`);
     let url: URL;
     try { url = new URL(source.finalUrl); } catch { fail("MARKETING_SOURCE_INVALID", "装订来源地址非法"); }
     if (!["http:", "https:"].includes(url.protocol) || url.username || url.password) fail("MARKETING_SOURCE_INVALID", "装订来源不是本次无凭据网页地址");
-    boundSpecs[key] = { value, source_url: source.finalUrl };
+    return { finalUrl: source.finalUrl, hostname: url.hostname };
+  };
+  for (const [key, value] of Object.entries(specs)) {
+    const pointer = `/identity/specs/${key.replace(/~/g, "~0").replace(/\//g, "~1")}`;
+    boundSpecs[key] = { value, source_url: boundSource(pointer, value, "MARKETING_SPEC_UNVERIFIED").finalUrl };
   }
   identity.specs = boundSpecs;
   // A5 需要来源与角度元数据；从已核实页面补齐装订副本，不改原始事实与其摘要。
@@ -288,6 +291,13 @@ export function toJennyMarketingRaw(
     try { url = new URL(source.finalUrl); } catch { fail("MARKETING_SOURCE_INVALID", "装订图片来源地址非法"); }
     if (!["http:", "https:"].includes(url.protocol) || url.username || url.password) fail("MARKETING_SOURCE_INVALID", "装订图片来源不是本次无凭据网页地址");
     return { ...image, source: url.hostname, angle: image.angle ?? "unknown" };
+  });
+  const sellingPoints = identity.official_selling_points === undefined ? [] : identity.official_selling_points;
+  if (!Array.isArray(sellingPoints)) fail("MARKETING_SELLING_POINT_UNVERIFIED", "装订卖点不是已审核的列表");
+  identity.official_selling_points = sellingPoints.map((value, index) => {
+    const point = object(value, "装订卖点");
+    const source = boundSource(`/identity/official_selling_points/${index}/point`, point.point, "MARKETING_SELLING_POINT_UNVERIFIED");
+    return { ...point, source_url: source.finalUrl, ...("channel" in point ? { channel: source.hostname } : {}) };
   });
   return converted;
 }
@@ -387,7 +397,10 @@ export async function prepareMarketingFacts(input: {
       .filter((report) => report.stage === "A1")
       .flatMap((report) => report.facts.claims)
       .filter((claim) => /^\/identity\/official_selling_points\/\d+\/point$/.test(claim.pointer))
-      .map((claim) => ({ pointer: claim.pointer, claimId: claim.claimId, sourceId: claim.sourceId })),
+      .map((claim) => ({
+        pointer: claim.pointer, claimId: claim.claimId, sourceId: claim.sourceId,
+        sourceUrl: sources.find((source) => source.sourceId === claim.sourceId)?.finalUrl ?? null,
+      })),
     customerRestrictions: customerRestrictionLines(input.intent),
   });
   if (typeof presentation.dossier.product_id !== "string" || !presentation.dossier.product_id.trim()) {

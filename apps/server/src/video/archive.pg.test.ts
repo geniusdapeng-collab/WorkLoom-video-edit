@@ -11,7 +11,10 @@
  * 说明：审批分支用 gateway 池真实 append 五元事件（与 studio-worker#onApproval 同口径）；
  * biz_events 是 append-only（触发器禁删改），测试事件按设计留在链上，不清理。
  */
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { mkdtemp, realpath, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import pg from "pg";
 
 process.env.DATABASE_URL ??= "postgres://postgres:workloom@localhost:5432/workloom";
@@ -27,6 +30,8 @@ describe.runIf(RUN_DB)("制片档案活库契约", () => {
   const workspaceId = `ws-archive-${suffix}`;
   const projectId = `VID-AR-${suffix.slice(-6)}`;
   const scope = { tenantId, workspaceId };
+  let workDir: string;
+  let projectCreatedAt: string;
 
   let makeLedgerWriter: typeof import("./archive-host.js").makeLedgerWriter;
   let acquireProjectLease: typeof import("./archive-host.js").acquireProjectLease;
@@ -34,13 +39,16 @@ describe.runIf(RUN_DB)("制片档案活库契约", () => {
   let resumeProject: typeof import("./archive-resume.js").resumeProject;
   let scanStaleRunsOnStartup: typeof import("./archive-resume.js").scanStaleRunsOnStartup;
   let readArchiveSummary: typeof import("./archive-resume.js").readArchiveSummary;
+  let createPreproductionResumeSnapshot: typeof import("./archive-resume.js").createPreproductionResumeSnapshot;
+  let ArchiveStore: typeof import("@hyperreality/video-studio").ArchiveStore;
   let gatewayAppendOnClient: typeof import("@workloom/base/workdata").gatewayAppendOnClient;
   let getGatewayPool: typeof import("@workloom/db").getGatewayPool;
   let getAppPool: typeof import("@workloom/db").getAppPool;
 
   beforeAll(async () => {
     ({ makeLedgerWriter, acquireProjectLease } = await import("./archive-host.js"));
-    ({ readStageBreakpoints, resumeProject, readArchiveSummary, scanStaleRunsOnStartup } = await import("./archive-resume.js"));
+    ({ readStageBreakpoints, resumeProject, readArchiveSummary, scanStaleRunsOnStartup, createPreproductionResumeSnapshot } = await import("./archive-resume.js"));
+    ({ ArchiveStore } = await import("@hyperreality/video-studio"));
     ({ gatewayAppendOnClient } = await import("@workloom/base/workdata"));
     ({ getGatewayPool, getAppPool } = await import("@workloom/db"));
     await owner.query(`INSERT INTO tenants (id, name, plan) VALUES ($1,$2,'community')`, [tenantId, "制片档案契约租户"]);
@@ -48,10 +56,14 @@ describe.runIf(RUN_DB)("制片档案活库契约", () => {
       `INSERT INTO workspaces (id, tenant_id, name, slug, industry) VALUES ($1,$2,'档案契约工作区',$3,'general')`,
       [workspaceId, tenantId, `archive-${suffix}`],
     );
-    await owner.query(
-      `INSERT INTO video_projects (id, workspace_id, title, kind, created_by) VALUES ($1,$2,'档案契约片','narrative','MEM-T')`,
+    const project = await owner.query<{ created_at: Date }>(
+      `INSERT INTO video_projects (id, workspace_id, title, kind, created_by)
+       VALUES ($1,$2,'档案契约片','narrative','MEM-T') RETURNING created_at`,
       [projectId, workspaceId],
     );
+    projectCreatedAt = project.rows[0]!.created_at.toISOString();
+    workDir = await realpath(await mkdtemp(path.join(tmpdir(), "archive-pg-r2-")));
+    vi.stubEnv("HR_WORK_DIR", workDir);
   });
 
   afterAll(async () => {
@@ -62,6 +74,8 @@ describe.runIf(RUN_DB)("制片档案活库契约", () => {
     await owner.query(`DELETE FROM workspaces WHERE id=$1`, [workspaceId]).catch(() => undefined);
     await owner.query(`DELETE FROM tenants WHERE id=$1`, [tenantId]).catch(() => undefined);
     await owner.end();
+    vi.unstubAllEnvs();
+    if (workDir) await rm(workDir, { recursive: true, force: true });
   });
 
   it("claimRun 原子认领 attempt；finishRun 带 attempt 谓词不写串历史行", async () => {
@@ -125,24 +139,39 @@ describe.runIf(RUN_DB)("制片档案活库契约", () => {
 
   it("resume：预生产断点 → resumed（running 归位 interrupted + 走既有补跑入口）", async () => {
     await owner.query(`DELETE FROM production_stage_runs WHERE workspace_id=$1 AND project_id=$2`, [workspaceId, projectId]);
+    const inputRef = "stages/preproduction/attempt-1.input.json";
+    const originRunId = `RUN-original-${suffix}`;
     await owner.query(
-      `INSERT INTO production_stage_runs (id, workspace_id, project_id, stage_id, attempt, status)
-       VALUES ('SR-run1',$1,$2,'preproduction',1,'running')`,
-      [workspaceId, projectId],
+      `INSERT INTO production_stage_runs (id, workspace_id, project_id, stage_id, attempt, status, input_ref, run_id)
+       VALUES ('SR-run1',$1,$2,'preproduction',1,'running',$3,$4)`,
+      [workspaceId, projectId, inputRef, originRunId],
     );
-    const started: Array<Record<string, unknown>> = [];
+    const request = {
+      rawIntent: "完整原始需求" + "保留用户要求。".repeat(60),
+      intent: "[需求口径] 时长：35秒。\n" + "完整原始需求" + "保留用户要求。".repeat(60),
+      isMarketing: false,
+      metadata: { brief: { duration: 35, productionRequirements: { frameRate: 60, audio: false } } },
+    };
+    const archive = new ArchiveStore(workDir, workspaceId, projectId);
+    await archive.ensure({ kind: "narrative", title: "档案契约片", createdAt: projectCreatedAt });
+    await archive.writeJsonAtomic(inputRef, {
+      stageId: "preproduction", attempt: 1,
+      input: { resumeSnapshot: createPreproductionResumeSnapshot({
+        scope: { ...scope, projectId, runId: originRunId }, projectCreatedAt, request,
+      }) },
+    });
+    const started: unknown[] = [];
     const result = await resumeProject(scope, {
       projectId,
-      intent: "续跑契约用例",
       startRun: (runInput) => {
         started.push(runInput);
-        return "RUN-RESUMED";
+        return { kind: "started", runId: "RUN-RESUMED" };
       },
       actor: { id: "MEM-T", type: "human" },
     });
     expect(result.kind).toBe("resumed");
     if (result.kind === "resumed") expect(result.runId).toBe("RUN-RESUMED");
-    expect(started[0]).toMatchObject({ projectId, intent: "续跑契约用例", isMarketing: false });
+    expect(started).toEqual([{ projectId, ...request }]);
     const rows = await owner.query<{ status: string }>(
       `SELECT status FROM production_stage_runs WHERE workspace_id=$1 AND project_id=$2`,
       [workspaceId, projectId],
@@ -150,13 +179,74 @@ describe.runIf(RUN_DB)("制片档案活库契约", () => {
     expect(rows.rows[0]?.status).toBe("interrupted");
   });
 
+  it.each(["newer-attempt", "changed-bytes", "busy-at-handoff"] as const)(
+    "resume：%s 在实际 worker 获取租约时失败关闭", async (fault) => {
+      const resumeProjectId = `${projectId}-${fault}`;
+      const runId = `RUN-guard-${fault}`;
+      const inputRef = "stages/preproduction/attempt-1.input.json";
+      const created = await owner.query<{ created_at: Date }>(
+        `INSERT INTO video_projects (id,workspace_id,title,kind,created_by)
+          VALUES ($1,$2,'恢复竞态夹具','narrative','MEM-T') RETURNING created_at`, [resumeProjectId, workspaceId],
+      );
+      const createdAt = created.rows[0]!.created_at.toISOString();
+      await owner.query(
+        `INSERT INTO production_stage_runs (id,workspace_id,project_id,stage_id,attempt,status,input_ref,run_id)
+          VALUES ($1,$2,$3,'preproduction',1,'failed',$4,$5)`,
+        [`SR-guard-${fault}`, workspaceId, resumeProjectId, inputRef, runId],
+      );
+      const archive = new ArchiveStore(workDir, workspaceId, resumeProjectId);
+      await archive.ensure();
+      await archive.writeJsonAtomic(inputRef, {
+        stageId: "preproduction", attempt: 1, input: { resumeSnapshot: createPreproductionResumeSnapshot({
+          scope: { ...scope, projectId: resumeProjectId, runId }, projectCreatedAt: createdAt,
+          request: { intent: "完整夹具请求", rawIntent: "完整原文", isMarketing: false, metadata: {} },
+        }) },
+      });
+      const { startResumedRun } = await import("./studio-worker.js");
+      const previous = process.env.ARCHIVE_ENABLED;
+      process.env.ARCHIVE_ENABLED = "0"; // A mistakenly accepted guard must fail before any model setup.
+      try {
+        const result = await resumeProject(scope, {
+          projectId: resumeProjectId, actor: { id: "MEM-T", type: "human" },
+          startRun: async (request, source) => {
+            const competing = await acquireProjectLease(scope, resumeProjectId);
+            if (!competing) throw new Error("synthetic competing lease missing");
+            try {
+              if (fault === "busy-at-handoff") return await startResumedRun(scope, request, source);
+              if (fault === "changed-bytes") await archive.writeJsonAtomic(inputRef, { changed: true });
+              else {
+                const ledger = makeLedgerWriter(scope);
+                const claim = await ledger.claimRun({
+                  id: `SR-new-${fault}`, projectId: resumeProjectId, stageId: "preproduction",
+                  inputRefTemplate: "stages/preproduction/attempt-{attempt}.input.json", runId: "RUN-newer",
+                });
+                await ledger.finishRun({
+                  projectId: resumeProjectId, stageId: "preproduction", attempt: claim.attempt, status: "done",
+                  outputRef: null, outputSha256: null, errorClass: null, errorMsg: null, durationMs: 1,
+                });
+              }
+            } finally { await competing.release(); }
+            return startResumedRun(scope, request, source);
+          },
+        });
+        expect(result.kind).toBe(fault === "busy-at-handoff" ? "busy" : "noaction");
+        const available = await acquireProjectLease(scope, resumeProjectId);
+        expect(available).not.toBeNull();
+        await available?.release();
+      } finally {
+        if (previous === undefined) delete process.env.ARCHIVE_ENABLED;
+        else process.env.ARCHIVE_ENABLED = previous;
+      }
+    },
+  );
+
   it("resume：已有执行者持有运行租约 → busy（不重复烧额度）", async () => {
     const lease = await acquireProjectLease(scope, projectId);
     expect(lease).not.toBeNull();
     try {
       const result = await resumeProject(scope, {
         projectId,
-        startRun: () => "RUN-SHOULD-NOT-START",
+        startRun: () => ({ kind: "started", runId: "RUN-SHOULD-NOT-START" }),
         actor: { id: "MEM-T", type: "human" },
       });
       expect(result.kind).toBe("busy");
@@ -174,7 +264,7 @@ describe.runIf(RUN_DB)("制片档案活库契约", () => {
     );
     const result = await resumeProject(scope, {
       projectId,
-      startRun: () => "RUN-SHOULD-NOT-START",
+      startRun: () => ({ kind: "started", runId: "RUN-SHOULD-NOT-START" }),
       actor: { id: "MEM-T", type: "human" },
     });
     expect(result.kind).toBe("noaction");
@@ -221,7 +311,7 @@ describe.runIf(RUN_DB)("制片档案活库契约", () => {
       projectId,
       startRun: (input) => {
         started.push(input);
-        return "RUN-SHOULD-NOT-START";
+        return { kind: "started", runId: "RUN-SHOULD-NOT-START" };
       },
       actor: { id: "MEM-T", type: "human" },
     });

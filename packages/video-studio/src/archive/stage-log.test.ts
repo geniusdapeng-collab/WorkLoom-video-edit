@@ -98,7 +98,7 @@ describe("logStageOutcome", () => {
     expect(manifest?.ledger.renderPoll?.status).toBe("failed");
   });
 
-  it("台账不可用：不抛错，档案仍落盘（旁路不阻断）", async () => {
+  it("台账不可用：不抛错，也不凭空写入未认领的尝试", async () => {
     const broken: StageLedgerWriter = {
       claimRun: async () => {
         throw new Error("connect ECONNREFUSED");
@@ -116,6 +116,7 @@ describe("logStageOutcome", () => {
     });
     expect(result.error).toContain("ECONNREFUSED");
     expect(errors.mock.calls.length).toBeGreaterThan(0);
-    expect(await store.readJson("stages/renderPoll/attempt-1.output.json")).toEqual({ jobId: "RJ-3" });
+    expect(result.attempt).toBeNull();
+    expect(await store.readJson("stages/renderPoll/attempt-1.output.json")).toBeNull();
   });
 });

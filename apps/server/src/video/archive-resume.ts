@@ -17,7 +17,8 @@ import path from "node:path";
 import { newId } from "@workloom/shared";
 import { getAppPool, getOwnerPool } from "@workloom/db";
 import { ArchiveStore, readContextBundle, type ContextBundle } from "@hyperreality/video-studio";
-import { scopedRows, archiveWorkDir, projectRunLockKey } from "./archive-host.js";
+import { scopedRows, archiveWorkDir, projectRunLockKey, readProjectMeta, type ProjectLease } from "./archive-host.js";
+import { canonicalRenderJson, renderSha256 } from "./gen/compiled-request.js";
 
 interface Scope {
   tenantId: string;
@@ -35,19 +36,123 @@ export interface StageBreakpoint {
   startedAt: string;
 }
 
+interface PreproductionResumeRequest {
+  intent: string;
+  rawIntent: string;
+  isMarketing: boolean;
+  metadata: Record<string, unknown>;
+}
+
+const RESUME_INPUT_VERSION = "workloom.preproduction-resume-input/v1";
+
+/** Freeze the worker inputs before the stage can call any external dependency. */
+export function createPreproductionResumeSnapshot(input: {
+  scope: Scope & { projectId: string; runId: string };
+  projectCreatedAt: string | null;
+  request: PreproductionResumeRequest;
+}) {
+  const body = { schemaVersion: RESUME_INPUT_VERSION, ...structuredClone(input) };
+  return { ...body, sha256: renderSha256(canonicalRenderJson(body)) };
+}
+
+function resumeRecord(value: unknown): Record<string, unknown> | null {
+  return value !== null && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : null;
+}
+
+function verifiedResumeRequest(
+  value: unknown,
+  expected: { scope: Scope & { projectId: string; runId: string }; attempt: number; createdAt: string | null; isMarketing: boolean },
+): PreproductionResumeRequest | null {
+  const envelope = resumeRecord(value);
+  if (envelope?.stageId !== "preproduction" || envelope.attempt !== expected.attempt) return null;
+  const snapshot = resumeRecord(resumeRecord(envelope.input)?.resumeSnapshot);
+  if (!snapshot || snapshot.schemaVersion !== RESUME_INPUT_VERSION || snapshot.projectCreatedAt !== expected.createdAt) return null;
+  const { sha256, ...body } = snapshot;
+  try {
+    if (typeof sha256 !== "string" || !/^[a-f0-9]{64}$/.test(sha256)
+      || renderSha256(canonicalRenderJson(body)) !== sha256
+      || canonicalRenderJson(snapshot.scope) !== canonicalRenderJson(expected.scope)) return null;
+  } catch {
+    return null;
+  }
+  const request = resumeRecord(snapshot.request);
+  const metadata = resumeRecord(request?.metadata);
+  if (!request || !metadata || typeof request.intent !== "string" || !request.intent.trim()
+    || typeof request.rawIntent !== "string" || !request.rawIntent.trim()
+    || request.isMarketing !== expected.isMarketing) return null;
+  return { intent: request.intent, rawIntent: request.rawIntent, metadata, isMarketing: expected.isMarketing };
+}
+
+export interface PreproductionResumeSource extends Scope {
+  projectId: string;
+  projectCreatedAt: string | null;
+  sourceStageRunId: string;
+  attempt: number;
+  runId: string;
+  status: string;
+  inputRef: string;
+  inputSha256: string;
+}
+
+export type PreproductionResumeLaunch =
+  | { kind: "started"; runId: string }
+  | { kind: "busy" }
+  | { kind: "stale" };
+
+interface PreproductionOrigin {
+  id: string;
+  attempt: number;
+  run_id: string | null;
+  input_ref: string | null;
+  status: string;
+  error_class: string | null;
+  project_created_at: Date | string | null;
+}
+
+const LATEST_PREPRODUCTION_ORIGIN = `SELECT r.id, r.attempt, r.run_id, r.input_ref, r.status, r.error_class,
+       p.created_at AS project_created_at
+  FROM production_stage_runs r JOIN video_projects p ON p.id=r.project_id AND p.workspace_id=r.workspace_id
+ WHERE r.workspace_id=$1 AND r.project_id=$2 AND r.stage_id='preproduction' AND r.pipeline_run_id IS NULL
+ ORDER BY r.attempt DESC LIMIT 1`;
+
+/** Revalidate inside the worker's real, scoped project lease before starting any work. */
+export async function verifyPreproductionResumeSource(
+  scope: Scope,
+  lease: ProjectLease,
+  source: PreproductionResumeSource,
+): Promise<boolean> {
+  if (scope.workspaceId !== source.workspaceId || scope.tenantId !== source.tenantId || lease.projectId !== source.projectId) return false;
+  return lease.withScopedTransaction(async (client) => {
+    const result = await client.query<PreproductionOrigin>(
+      LATEST_PREPRODUCTION_ORIGIN + " FOR SHARE OF r,p",
+      [scope.workspaceId, source.projectId],
+    );
+    const current = result.rows[0];
+    if (!current || current.id !== source.sourceStageRunId || current.attempt !== source.attempt
+      || current.run_id !== source.runId || current.status !== source.status || current.status === "running"
+      || current.input_ref !== source.inputRef || current.error_class === "RECEIPT_UNVERIFIED") return false;
+    const createdAt = current.project_created_at ? new Date(current.project_created_at).toISOString() : null;
+    if (createdAt !== source.projectCreatedAt) return false;
+    const archive = new ArchiveStore(archiveWorkDir(), scope.workspaceId, source.projectId);
+    const stem = `stages/preproduction/attempt-${source.attempt}`;
+    if (source.inputRef !== `${stem}.input.json`) return false;
+    const bytes = await archive.readBytes(source.inputRef);
+    if (!bytes || renderSha256(bytes) !== source.inputSha256) return false;
+    const meta = await archive.readJson<{ errorClass?: string }>(`${stem}.meta.json`);
+    return meta?.errorClass !== "RECEIPT_UNVERIFIED"
+      && (current.status !== "interrupted" || await archive.readBytes(`${stem}.output.json`) === null);
+  });
+}
+
 export interface ResumeOptions {
   projectId: string;
   /** 人工裁决：强制从指定环节重跑 */
   fromStage?: string;
-  /** 预生产续跑需要（缺省读 video_projects.title） */
+  /** 可显式改写本次意图，其他输入来自已归档的本次请求。 */
   intent?: string;
   /** 复用既有补跑入口（router 传 `startRun(scope, …)`） */
-  startRun: (input: {
-    projectId: string;
-    intent: string;
-    isMarketing: boolean;
-    metadata?: Record<string, unknown>;
-  }) => string | Promise<string>;
+  startRun: (input: PreproductionResumeRequest & { projectId: string }, source: PreproductionResumeSource)
+    => PreproductionResumeLaunch | Promise<PreproductionResumeLaunch>;
   actor: { id: string; type: "human" | "system" };
 }
 
@@ -66,7 +171,7 @@ export async function readStageBreakpoints(scope: Scope, projectId: string): Pro
               row_number() OVER (PARTITION BY stage_id ORDER BY attempt DESC) AS rn,
               min(started_at) OVER (PARTITION BY stage_id) AS first_at
          FROM production_stage_runs
-        WHERE workspace_id=$1 AND project_id=$2
+        WHERE workspace_id=$1 AND project_id=$2 AND pipeline_run_id IS NULL
      ) latest
       WHERE rn=1 AND status = ANY($3::text[])
       ORDER BY first_at ASC, stage_id ASC`,
@@ -140,7 +245,7 @@ export async function resumeProject(
     /* 旧账归位：进程已死，状态不能继续撒谎 */
     const interrupted = await client.query(
       `UPDATE production_stage_runs SET status='interrupted', finished_at=now()
-        WHERE workspace_id=$1 AND project_id=$2 AND status='running' RETURNING id`,
+        WHERE workspace_id=$1 AND project_id=$2 AND pipeline_run_id IS NULL AND status='running' RETURNING id`,
       [scope.workspaceId, opts.projectId],
     );
     interruptedRows = interrupted.rowCount ?? 0;
@@ -208,29 +313,60 @@ export async function resumeProject(
   }
 
   if (stuckStage === "preproduction") {
-    const project = (
-      await scopedRows<{ title: string | null; kind: string | null }>(
-        scope,
-        `SELECT title, kind FROM video_projects WHERE id=$1 AND workspace_id=$2`,
-        [opts.projectId, scope.workspaceId],
-      )
-    )[0];
+    const project = await readProjectMeta(scope, opts.projectId);
     if (!project) {
       return { kind: "noaction", stage: stuckStage, message: `项目 ${opts.projectId} 不存在或不属于当前工作区` };
     }
-    const runId = await opts.startRun({
+    const [origin] = await scopedRows<PreproductionOrigin>(
+      scope, LATEST_PREPRODUCTION_ORIGIN, [scope.workspaceId, opts.projectId],
+    );
+    if (origin?.status === "running") {
+      return { kind: "busy", stage: null, message: "项目已有新的预生产执行者，当前恢复未启动。" };
+    }
+    const attempt = origin?.attempt;
+    const breakpoint = breakpoints.find(stage => stage.stageId === "preproduction");
+    const expectedRef = `stages/preproduction/attempt-${attempt}.input.json`;
+    let request: PreproductionResumeRequest | null = null;
+    let inputSha256: string | null = null;
+    if (origin?.id && origin.run_id && typeof attempt === "number" && Number.isSafeInteger(attempt) && attempt > 0
+      && (!breakpoint || breakpoint.attempt === attempt) && origin.input_ref === expectedRef) {
+      const bytes = await archive.readBytes(expectedRef);
+      if (bytes) {
+        let envelope: unknown;
+        try { envelope = JSON.parse(bytes.toString("utf8")); }
+        catch { envelope = null; }
+        request = verifiedResumeRequest(envelope, {
+          scope: { ...scope, projectId: opts.projectId, runId: origin.run_id },
+          attempt, createdAt: project.createdAt, isMarketing: project.kind === "marketing",
+        });
+        inputSha256 = renderSha256(bytes);
+      }
+    }
+    if (!request || !inputSha256 || !origin?.run_id || attempt === undefined) {
+      return { kind: "noaction", stage: stuckStage,
+        message: "缺少当前尝试可核验的完整预生产输入。请从原始需求和完整资料通过 video.studio.start 的项目补跑入口恢复。" };
+    }
+    const launch = await opts.startRun({
       projectId: opts.projectId,
-      intent: opts.intent ?? project.title ?? "",
-      isMarketing: project.kind === "marketing",
+      ...request,
+      ...(opts.intent !== undefined ? { intent: opts.intent, rawIntent: opts.intent } : {}),
+    }, {
+      ...scope, projectId: opts.projectId, projectCreatedAt: project.createdAt, sourceStageRunId: origin.id,
+      attempt, runId: origin.run_id, status: origin.status, inputRef: expectedRef, inputSha256,
     });
-    const attempt = breakpoints[0]?.attempt ?? null;
+    if (launch.kind === "busy") {
+      return { kind: "busy", stage: null, message: "项目已有新的预生产执行者，当前恢复未启动。" };
+    }
+    if (launch.kind === "stale") {
+      return { kind: "noaction", stage: stuckStage, message: "等待启动期间预生产台账或输入已经变化，本次恢复未启动。" };
+    }
     return {
       kind: "resumed",
       stage: "preproduction",
-      runId,
+      runId: launch.runId,
       attempt,
       message:
-        `预生产断点（attempt=${attempt ?? "-"}，状态=${breakpoints[0]?.status ?? "无记录"}）→ 走既有补跑入口续跑。`
+        `预生产断点（attempt=${attempt}，状态=${origin?.status ?? "无记录"}）→ 使用已核验的完整请求续跑。`
         + `注意：vendor Phase checkpoint 仅在 blueprint 指纹一致时命中（真实模型下常不一致 → 全量重跑，重复计费风险）；`
         + `本轮开跑前已把 checkpoint 快照进档案（checkpoints/attempt-<n>-before/），跑完看输出里的 resumed 标记。`
         + (interruptedRows > 0 ? `已把 ${interruptedRows} 条 running 台账归位为 interrupted。` : ""),
@@ -275,6 +411,17 @@ export interface ArchiveSummary {
 /** 档案只读视图（任务详情页「制片档案」标签数据源）：文件本体 + PG 索引合并返回 */
 export async function readArchiveSummary(scope: Scope, projectId: string): Promise<ArchiveSummary> {
   const store = new ArchiveStore(archiveWorkDir(), scope.workspaceId, projectId);
+  const projects = await scopedRows<{ id: string }>(
+    scope,
+    "SELECT id FROM video_projects WHERE workspace_id=$1 AND id=$2",
+    [scope.workspaceId, projectId],
+  );
+  if (projects.length === 0) {
+    return {
+      projectId, archiveRoot: store.root, archiveExists: false, manifest: null, contextBundle: null,
+      stages: [], breakpoints: [], pendingApprovalId: null, recentEvents: [], findings: [],
+    };
+  }
   const manifest = await store.readManifest();
   const contextBundle = await readContextBundle(store);
   const recentEvents = await store.readEvents(20);
@@ -357,7 +504,7 @@ export async function scanStaleRunsOnStartup(env: NodeJS.ProcessEnv = process.en
     `SELECT r.workspace_id, w.tenant_id, r.project_id, r.stage_id, r.attempt, r.started_at
        FROM production_stage_runs r
        JOIN workspaces w ON w.id = r.workspace_id
-      WHERE r.status='running' AND COALESCE(r.last_heartbeat_at, r.started_at) < now() - ($1 || ' minutes')::interval
+      WHERE r.pipeline_run_id IS NULL AND r.status='running' AND COALESCE(r.last_heartbeat_at, r.started_at) < now() - ($1 || ' minutes')::interval
       ORDER BY r.started_at ASC
       LIMIT 100`,
     [String(staleAfterMinutes)],
@@ -391,7 +538,7 @@ export async function scanStaleRunsOnStartup(env: NodeJS.ProcessEnv = process.en
           if (runLock.rows[0]?.ok !== true) throw new Error("PROJECT_LEASE_RECEIPT_INVALID");
           const updated = await client.query(
             `UPDATE production_stage_runs SET status='interrupted', finished_at=now()
-              WHERE workspace_id=$1 AND project_id=$2 AND stage_id=$3 AND attempt=$4 AND status='running'
+              WHERE workspace_id=$1 AND project_id=$2 AND stage_id=$3 AND attempt=$4 AND pipeline_run_id IS NULL AND status='running'
                 AND COALESCE(last_heartbeat_at, started_at) < now() - ($5 || ' minutes')::interval
               RETURNING id`,
             [workspaceId, row.project_id, row.stage_id, row.attempt, String(staleAfterMinutes)],
