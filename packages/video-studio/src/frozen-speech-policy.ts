@@ -21,7 +21,7 @@ export function assertNoSpokenPromptPackage(value: unknown, gate: string): void 
   for (const [i, raw] of value.entries()) {
     const row = requirementRecord(raw, "当前正式逐镜字段");
     const fields = row.fields === undefined ? {} : requirementRecord(row.fields, "当前逐镜子字段");
-    const keys = ["dialogue", "dialogueBlocks", "narration", "voice_over", "voiceover"];
+    const keys = ["dialogue", "dialogueText", "dialogueBlocks", "dialogue_blocks", "dialogues", "narration", "voice_over", "voiceover"];
     if (keys.some(key => !noSpokenContent(row[key]) || !noSpokenContent(fields[key]))) {
       throw new Error(`PRD_SPEECH_CONFLICT: ${gate} 第 ${i + 1} 镜包含与本次明确无人声台词要求冲突的字段`);
     }

@@ -24,6 +24,8 @@ const { FieldContentRefiner } = nativeRequire("../../../vendor/supermickey/hyper
 const { CharacterCostumePrompter } = nativeRequire("../../../vendor/supermickey/hyperreality-system/engines/character-system/character-costume-prompter.js") as { CharacterCostumePrompter: NativeConstructor };
 const { FieldGuard } = nativeRequire("../../../vendor/supermickey/hyperreality-system/engines/field-guard.js") as { FieldGuard: NativeConstructor };
 const { QualityGate } = nativeRequire("../../../vendor/supermickey/hyperreality-system/engines/production-engine/utils/quality-gate.js") as { QualityGate: NativeConstructor };
+const { PromptFusionAgent } = nativeRequire("../../../vendor/supermickey/hyperreality-system/engines/production-engine/agents/prompt-fusion-agent.js") as { PromptFusionAgent: NativeConstructor };
+const { FieldConsistencyChecker } = nativeRequire("../../../vendor/supermickey/hyperreality-system/engines/field-consistency-checker.js") as { FieldConsistencyChecker: NativeConstructor };
 const { PromptDeliveryGuard } = nativeRequire("../../../vendor/supermickey/hyperreality-system/engines/production-engine/agents/prompt-delivery-guard.js") as { PromptDeliveryGuard: NativeConstructor };
 const { SemanticRefinementPass } = nativeRequire("../../../vendor/supermickey/hyperreality-system/engines/production-engine/agents/semantic-refinement-pass.js") as { SemanticRefinementPass: NativeConstructor };
 const { FieldQualityPipeline } = nativeRequire("../../../vendor/supermickey/hyperreality-system/engines/field-quality/field-quality-pipeline.js") as { FieldQualityPipeline: NativeConstructor };
@@ -481,7 +483,7 @@ function deliveryPrompt() {
   return labels.map((label, index) => `${String(index + 1).padStart(2, "0")}.【${label}】${label === "情绪" ? "人物眼睛缓慢眨动，指尖轻触商品，呼吸平稳。" : "封闭场地中人物观察商品并保留实际材料与自然光线，动作和空间关系清楚。"}${"完整本镜真实细节，保持本次原始摄影与人物动作。".repeat(2)}`).join("\n");
 }
 
-function productionHarness() {
+function productionHarness(nativeFusion = false) {
   const h = harness();
   const calls: Array<{ key: string; receiver: RequirementRecord; args: unknown[] }> = [];
   const record = (key: string, operation: (this: RequirementRecord, ...args: unknown[]) => unknown) => function (this: RequirementRecord, ...args: unknown[]) {
@@ -494,7 +496,11 @@ function productionHarness() {
   define(h.prototype, "create", function (operation) { return Reflect.apply(operation as (...args: unknown[]) => unknown, this, []); });
   define(h.prototype, "_optimizeOpeningTitle", function () { return { originalTitlePackage: true }; });
   define(h.prototype, "_generatePromptsReport", function (prompts) { return `legacy-report:${JSON.stringify(prompts)}`; });
-  const productionPrototype: RequirementRecord = {}, phase1Prototype: RequirementRecord = {}, fusionPrototype: RequirementRecord = {};
+  const productionPrototype: RequirementRecord = {}, phase1Prototype: RequirementRecord = {};
+  const fusionPrototype = nativeFusion ? PromptFusionAgent.prototype : {};
+  if (!nativeFusion) for (const key of ["_loadSubCheckpoint", "_saveSubCheckpoint", "_clearSubCheckpoint"]) {
+    define(fusionPrototype, key, function (...args) { return { nativeCache: key, args }; });
+  }
   define(productionPrototype, "produce", function (blueprint, ...args) {
     return typeof this.nextProduce === "function" ? Reflect.apply(this.nextProduce as (...args: unknown[]) => unknown, this, [blueprint, ...args])
       : this.nativeResult ?? { nativeProduction: true };
@@ -502,13 +508,13 @@ function productionHarness() {
   define(phase1Prototype, "_shouldGenerateOpening", function () { return true; });
   for (const [owner, key] of [
     [productionPrototype, "_loadLatestCheckpoint"], [productionPrototype, "_saveCheckpoint"], [productionPrototype, "_clearCheckpoints"],
-    [fusionPrototype, "_loadSubCheckpoint"], [fusionPrototype, "_saveSubCheckpoint"], [fusionPrototype, "_clearSubCheckpoint"],
   ] as Array<[RequirementRecord, string]>) define(owner, key, function (...args) { return { nativeCache: key, args }; });
   const deps = { systemPrototype: h.prototype, productionPrototype, phase1Prototype, fusionPrototype,
     refinerPrototype: FieldContentRefiner.prototype, costumePrototype: CharacterCostumePrompter.prototype,
     fieldGuardPrototype: FieldGuard.prototype, qualityGatePrototype: QualityGate.prototype,
     deliveryGuardPrototype: PromptDeliveryGuard.prototype, semanticPrototype: SemanticRefinementPass.prototype,
     fieldQualityPrototype: FieldQualityPipeline.prototype, ruleRepairPrototype: RuleRepairer.prototype,
+    ...(nativeFusion ? { fieldConsistencyPrototype: FieldConsistencyChecker.prototype } : {}),
     standardizeShot: nativeStandardizer.standardizeShot, validateShot: nativeStandardizer.validateShot, fields: nativeStandardizer.CRITICAL_FIELDS };
   const originals = Object.fromEntries(Object.entries(deps).filter(([key]) => key.endsWith("Prototype"))
     .map(([key, prototype]) => [key, Object.getOwnPropertyDescriptors(prototype)]));
@@ -1890,6 +1896,46 @@ describe("approved production authority at native technical and title seams", ()
       if (kind === "retired-label") expected.push("生成侧重新出现已退休片头标题字段");
       expect(result.pass).toBe(false); expect(result.issues).toEqual(expected);
     });
+  });
+
+  it("aligns native fusion, field completion and semantic prompt templates with verified silent production", async () => {
+    const value = fixture("FUSION-SILENT");
+    declareDelivery(value, { speechPolicy: "none" });
+    const h = productionHarness(true), run = h.make(value);
+    const originalScene = "后轮卷起尘土，保留引擎与轮胎声；创作原文要求不要写旁白";
+    const shot = { shotId: "S01", sceneType: "opening", duration: 10, scene: originalScene,
+      dialogue: "", dialogueText: "", dialogueBlocks: [] };
+    const semantic = Object.create(SemanticRefinementPass.prototype) as RequirementRecord;
+    const base = deliveryPrompt() + "\n【台词】无台词";
+    const baseline = invoke(Object.create(PromptFusionAgent.prototype) as RequirementRecord, "_getSystemPrompt");
+    expect(baseline).toContain("台词必须是角色直接对话");
+    await h.accepted(run, () => {
+      const system = invoke(run.fusion, "_getSystemPrompt") as string;
+      const batch = invoke(run.fusion, "_buildBatchPrompt", [shot], "9:16", [], {}) as string;
+      const fill = invoke(run.fusion, "_buildFillPrompt", shot, ["dialogue", "audio"], {}, "9:16", []) as string;
+      const refinement = invoke(semantic, "_buildPrompt", base, shot) as string;
+      for (const prompt of [system, batch, fill, refinement]) {
+        expect(prompt).toContain("禁止可辨识人声");
+        expect(prompt).not.toMatch(/台词必须是角色直接对话|只放角色嘴里的台词|角色直接对镜头说话|台词\/旁白原文|如台词引号缺失、半句话/);
+      }
+      expect(batch).toContain(originalScene);
+      expect(batch).toContain('constraint 固定为"9:16画幅，1080p分辨率，30fps，MP4格式"');
+      expect(refinement).toContain("titleCard=false");
+      expect(refinement.endsWith(base)).toBe(true);
+    });
+  });
+
+  it.each(["batch", "semantic"])("rejects positive native speech aliases before %s dispatch", async stage => {
+    const value = fixture(`FUSION-SILENT-${stage}`);
+    declareDelivery(value, { speechPolicy: "none" });
+    const h = productionHarness(true), run = h.make(value);
+    const shot = { shotId: "S01", duration: 10, scene: "弯道", dialogue: "无台词", dialogueBlocks: [],
+      fields: { dialogueText: "车手说：我赢了。" } };
+    const semantic = Object.create(SemanticRefinementPass.prototype) as RequirementRecord;
+    await expect(h.accepted(run, () => stage === "batch"
+      ? invoke(run.fusion, "_buildBatchPrompt", [shot], "9:16", [], {})
+      : invoke(semantic, "_buildPrompt", deliveryPrompt(), shot)
+    )).rejects.toThrow("PRD_SPEECH_CONFLICT");
   });
 
   it("real semantic refine consumes the revised instruction, preserves its actual input and applies the original output through the real guard", async () => {
