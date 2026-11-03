@@ -1,7 +1,7 @@
 # WorkLoom Video Edit 视频调用指南：AI 工作台先读，再执行
 
-> guideVersion: 2026-11-03.1
-> 适用仓库：`workloom-ai/WorkLoom-video-edit`。本版增加 GitHub 源码接入、Codex 预检、正式 Studio 请求与同轮片单核验，以及 Film 执行和交付回读。实际源码 SHA 以本次运行记录为准。
+> guideVersion: 2026-11-03.2
+> 适用仓库：`workloom-ai/WorkLoom-video-edit`。本版增加 Codex 原话计划、一次正式 Studio 提交和同一回执进度查询。实际源码 SHA 以本次运行记录为准。
 > 读者：Codex、DeepSeek Harness 及能调用本仓 CLI / stdio MCP 的 AI 工作台。
 
 本指南把已成功视频作业的经验固化为调用纪律，帮助工作台从用户原话走到系统前期、渲染、后期和交付核验。先读取本仓能力，冻结人、商品、平台、时长、账号调性、声音与特殊要求，再走现有官方流程。不能把另一个仓库的功能、成片或测试结果算成本仓能力。
@@ -84,7 +84,21 @@ printf '%s' '{"path":"route.json"}' | \
 
 ### 3.2 通过 Studio 启动并读取状态
 
-优先使用已登录的本机产品界面发起正式项目。能运行终端的 Agent 也可以按下列方式调用同一认证入口。先确认 `WORKLOOM_ACCESS_TOKEN` 对应实际 B 端成员的工作区和写权限。令牌通过受控进程环境注入。以下函数只接收操作和文件路径，服务响应留在本次私有目录。
+Codex 终端使用本仓原话入口。默认输出只读计划，保留原话并将唯一明确时长写入 `metadata.brief.duration`。支持数字秒数、常用中文整数秒数和明确的分钟数。多种时长、范围或原话与 Brief 冲突时停止。缺少时长时先补齐。可通过 `--brief` 提供本仓接受的标题、商品、品牌名、受众、平台、画幅、描述和 `productionRequirements` 等结构化字段。
+
+```bash
+node --import tsx scripts/tools/codex-video-workflow.mjs --intent "$EDIT_RAW_INTENT" --brief "$EDIT_BRIEF_JSON"
+# 仅在已有正式 B 端成员令牌、本轮前期授权、预算和素材范围时执行。
+node --import tsx scripts/tools/codex-video-workflow.mjs --intent "$EDIT_RAW_INTENT" \
+  --brief "$EDIT_BRIEF_JSON" --execute --api "$EDIT_API" \
+  --receipt "$EDIT_RUN_ROOT/studio-start.json"
+node --import tsx scripts/tools/codex-video-workflow.mjs --status \
+  --receipt "$EDIT_RUN_ROOT/studio-start.json"
+```
+
+`--brief` 可省略；如已确认 Brief，应在计划与执行使用同一份。令牌仅在受控进程环境传入。`EDIT_RUN_ROOT` 须为当前用户拥有的私有目录。启动一次后保留原回执，不因超时另换路径提交。返回 `awaiting_approval` 时到 Studio 核对正式审批，`preproduction_archived` 表示读到同轮前期记录及摘要，接续 §3.3 核验实际片单与资格。口播、待澄清和未知启动各有独立下一步。任何启动或查询回执均不算成片交付。
+
+已有 Studio 作业或兼容客户端可使用以下直接 tRPC 示例读原回执、状态及档案。也可以在已登录的本机产品界面发起正式项目。以上三种方式选择一个启动入口，同一作业不可重复提交。确认 `WORKLOOM_ACCESS_TOKEN` 对应实际 B 端成员工作区和权限。服务响应仅存本次私有目录。
 
 ```bash
 studio_api() {
@@ -143,9 +157,9 @@ writeFileSync(outputFile, JSON.stringify({ intent, route: "auto", metadata: { br
   { mode: 0o600, flag: "wx" });
 NODE
 
-# 批准本次真实前期及预算后，提交一次。
-studio_api start "$EDIT_RUN_ROOT/studio-input.json" "$EDIT_RUN_ROOT/studio-start.json"
-# 若返回 routed 且有 runId，用原启动回执持续查询。
+# 仅在未使用 Codex 入口或产品界面启动时，按本次前期授权与预算通过此兼容入口提交一次。
+# studio_api start "$EDIT_RUN_ROOT/studio-input.json" "$EDIT_RUN_ROOT/studio-start.json"
+# 两种终端入口都可复用原启动回执。存在 runId 后读取 §3.3 需要的正式状态。
 studio_api status "$EDIT_RUN_ROOT/studio-start.json" "$EDIT_RUN_ROOT/studio-status.json"
 ```
 

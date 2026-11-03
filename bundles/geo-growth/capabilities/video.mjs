@@ -355,6 +355,26 @@ export function deliveryInspect(input) {
 
 /* ---------------------------------- 能力 4：出片计划（预览） ---------------------------------- */
 
+function shotlistReadiness(shotlist, shotlistPath, projectId) {
+  if (shotlist === null) return `缺镜头卡：${shotlistPath}`;
+  if (!plain(shotlist) || !Array.isArray(shotlist.shots) || shotlist.shots.length === 0) return "镜头卡缺少非空 shots 数组";
+  if (shotlist.draft === true) return "原件仍标记为草稿。保留原始字节，经正式 Studio 资格与 Film 门禁核验后继续";
+  const shotIds = shotlist.shots.map(shot => plain(shot) ? shot.shotId ?? shot.shot_id : undefined);
+  if (shotIds.some(id => typeof id !== "string" || !id.trim()) || new Set(shotIds).size !== shotIds.length) {
+    return "镜头卡需要非空且唯一的镜号";
+  }
+  const source = shotlist.source;
+  if ((shotlist.draft !== undefined && shotlist.draft !== false)
+      || shotlist.schemaVersion !== "workloom.preproduction-cli-handoff/v1" || shotlist.projectId !== projectId
+      || !plain(source) || source.kind !== "system-preproduction" || source.issuer !== "workloom.studio-worker"
+      || source.resultPath !== "result.shots" || source.projectId !== projectId
+      || ![source.tenantId, source.workspaceId, source.runId].every(value => typeof value === "string" && value.trim())
+      || !Number.isSafeInteger(source.attempt) || source.attempt < 1) {
+    return "片单缺少同项目的正式 Studio 来源字段。回读本轮项目、运行和归档";
+  }
+  return null;
+}
+
 /** 产出"建议命令 + 前置检查清单"；**不执行**任何生成/渲染/提交。 */
 export function productionPlan(input) {
   const value = assertKeys(input, ["title", "projectId", "platform", "shotlistPath", "routePath", "outDir"]);
@@ -366,17 +386,21 @@ export function productionPlan(input) {
   const outDir = optionalText(value.outDir, "outDir") ?? `work/out-${projectId}`;
 
   const route = routeRecord({ path: routePath });
-  const shotlistExists = existsSync(insideRepo(shotlistPath, "shotlistPath"));
+  const routeReady = route.schemaVersion === "workloom.video-route-record/v1"
+    && (route.route === "narrative" || route.route === "marketing" && Boolean(route.productAnchor?.trim()));
+  const shotlist = readJsonFile(insideRepo(shotlistPath, "shotlistPath"), shotlistPath);
+  const shotlistIssue = shotlistReadiness(shotlist, shotlistPath, projectId);
   const arkKey = envFileKeyPresence("VOLCENGINE_ARK_API_KEY");
   const checklist = [
-    { id: "route", ok: route.found === true, detail: route.found ? `分流结论：${route.route ?? "?"}` : "缺 work/route.json：先跑 route-video.mts" },
-    { id: "shotlist", ok: shotlistExists, detail: shotlistExists ? `镜头卡在场：${shotlistPath}` : `缺镜头卡：${shotlistPath}（25 字段规范）` },
+    { id: "route", ok: routeReady, detail: routeReady ? `分流结论：${route.route}`
+      : "需要有效的正式营销或叙事分流记录。营销需要商品锚点，待澄清和口播按各自路径处理" },
+    { id: "shotlist", ok: shotlistIssue === null, detail: shotlistIssue ?? "本地片单具备来源字段，仍须用服务端回执核验本轮资格和字节" },
     { id: "ark-key", ok: arkKey.present, detail: arkKey.present ? `火山方舟密钥已配置（${arkKey.source}）` : "缺 VOLCENGINE_ARK_API_KEY（渲染会 403）" },
   ];
   const argv = ["exec", "tsx", "scripts/tools/full-chain-film.mts", "--shots", shotlistPath, "--project", projectId,
     "--work-dir", `work/vm-${projectId}`, "--out", outDir, "--route", routePath,
     "--keys-file", process.env.WORKLOOM_KEYS_FILE || join(process.env.HOME ?? "", ".workloom/live.env"),
-    "--platform", platform, "--fps", "24", "--subtitle-mode", "both", "--review-policy", "off"];
+    "--platform", platform];
   const posixQuote = (text) => `'${text.replace(/'/gu, `'"'"'`)}'`;
   const powershellQuote = (text) => `'${text.replace(/'/gu, "''")}'`;
   const command = ["pnpm", ...argv].map(posixQuote).join(" ");
@@ -387,6 +411,7 @@ export function productionPlan(input) {
     platform,
     checklist,
     ready: checklist.every((entry) => entry.ok),
+    productionAuthorized: false,
     workbenchGuide: { capabilityId: GUIDE_CAPABILITY_ID, path: GUIDE_PATH, mustReadBeforeProduction: true },
     recommendedCommand: command,
     recommendedPowerShellCommand: `& ${["pnpm", ...argv].map(powershellQuote).join(" ")}`,
@@ -394,8 +419,8 @@ export function productionPlan(input) {
     beforeRun: [
       `node scripts/workloom-agent.mjs invoke ${GUIDE_CAPABILITY_ID}（先读本仓固定项、官方流程与声音边界）`,
       "pnpm video:doctor（环境自检：ffmpeg/密钥/配音工位/曲库路径监狱）",
-      "营销片：product-archive.mts 建/取商品档案；真人出镜：video:assets reconcile 对账素材清单",
-      "账户欠费（AccountOverdueError 403）会拦住提交：先充值再跑，不要连点重试",
+      "从 Studio 回执核验本轮分流、项目、运行、尝试、片单与提示词摘要，以及适用的 G1–G7 结果",
+      "先核验实际素材授权、预算与 G8；供应商状态未知时查原任务，不重复提交",
     ],
     notExecuted: "本能力只产出计划与检查项，不代跑管线；出片执行见 `scripts/tools/full-chain-film.mts`",
   };

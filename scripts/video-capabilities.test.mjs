@@ -78,6 +78,47 @@ test("suggested POSIX command preserves every argument literally and supplies a 
   assert.throws(() => productionPlan({ projectId: "line\nbreak" }), /非空字符串/u);
 }));
 
+test("production preview blocks a clarify route and an empty, draft or unbound shotlist", () => fixture(({ root }) => {
+  const keyFile = join(root, "fixture.env");
+  writeFileSync(keyFile, "VOLCENGINE_ARK_API_KEY=offline-fixture-never-dispatched\n");
+  process.env.WORKLOOM_KEYS_FILE = keyFile;
+  const route = (kind, product) => writeFileSync(join(root, "out", "route.json"), JSON.stringify({
+    schemaVersion: "workloom.video-route-record/v1", decision: { route: kind, product },
+  }));
+  const shotlist = (value) => writeFileSync(join(root, "out", "shots.json"), JSON.stringify(value));
+  const plan = () => productionPlan({ projectId: "P1", routePath: "out/route.json", shotlistPath: "out/shots.json" });
+  const source = { kind: "system-preproduction", issuer: "workloom.studio-worker", resultPath: "result.shots",
+    tenantId: "T1", workspaceId: "W1", projectId: "P1", runId: "RUN-test", attempt: 1 };
+  const document = { schemaVersion: "workloom.preproduction-cli-handoff/v1", projectId: "P1", source,
+    shots: [{ shotId: "S01" }] };
+
+  route("clarify"); shotlist({ draft: true, shots: [] });
+  const oldFalseReady = plan();
+  assert.equal(oldFalseReady.ready, false);
+  assert.equal(oldFalseReady.checklist.find(row => row.id === "route").ok, false);
+  assert.equal(oldFalseReady.checklist.find(row => row.id === "shotlist").ok, false);
+  route("narrative");
+  for (const value of [
+    { ...document, draft: true }, { ...document, draft: "true" }, { ...document, shots: [] },
+    { ...document, shots: [null] }, { ...document, shots: [document.shots[0], document.shots[0]] }, { ...document, source: undefined },
+    { ...document, source: { ...source, projectId: "OTHER" } }, { ...document, source: { ...source, attempt: 0 } },
+  ]) {
+    shotlist(value);
+    assert.equal(plan().ready, false);
+  }
+  shotlist(document);
+  const localOnly = plan();
+  assert.equal(localOnly.ready, true);
+  assert.equal(localOnly.productionAuthorized, false);
+  for (const flag of ["--review-policy", "--fps", "--subtitle-mode"]) assert.equal(localOnly.execution.args.includes(flag), false);
+  route("marketing");
+  assert.equal(plan().ready, false); // marketing source must name the product anchor
+  route("marketing", { name: "合成样例商品" });
+  assert.equal(plan().ready, true);
+  route("explainer");
+  assert.equal(plan().ready, false); // explainer has a different execution path
+}));
+
 function publishedPointer(root, overrides = {}) {
   const releaseDir = join(root, "out", "releases", "R1");
   mkdirSync(releaseDir, { recursive: true });

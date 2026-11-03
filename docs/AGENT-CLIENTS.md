@@ -108,7 +108,7 @@ printf '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion
 | 预览（`preview`） | 否（本地校验/出计划） | ✅ | `growth.service.inquiry.preview`、`growth.video.production.plan` |
 | 执行（`execute`） | **是**（服务端过程 + 幂等键 + 围栏/审批） | 仅在启用且过审后出现 | `growth.service.inquiry.execute`（本仓当前**禁用**） |
 
-**视频 MCP 用于读取和预览。** 分流可用 `route-video.mts`，正式前期通过本机产品入口或经授权的 `video.studio.start`，正式渲染和后期使用 `full-chain-film.mts`。连接 MCP 既不启动前期，也不授予付费或对外发布权限。按 [正式流程](ai-video-workbench-guide.md#3-按系统官方流程推进) 核对项目状态、原始片单和门禁。
+**视频 MCP 用于读取和预览。** Codex 在 Edit 源码仓按仓库技能先运行 `node --import tsx scripts/tools/codex-video-workflow.mjs --intent "$EDIT_RAW_INTENT"`。确认本轮授权后通过同一入口显式启动 Studio，以私有回执持续查询。正式渲染和后期使用 `full-chain-film.mts`。连接 MCP 既不启动前期，也不授予付费或对外发布权限。按 [正式流程](ai-video-workbench-guide.md#3-按系统官方流程推进) 核对项目状态、原始片单和门禁。
 
 ---
 
