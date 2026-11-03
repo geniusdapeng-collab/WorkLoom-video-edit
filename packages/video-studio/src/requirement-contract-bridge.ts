@@ -8,8 +8,11 @@ import {
   frozenSegmentContract, techniqueReferenceSchema, validateFrozenSceneTiming, validateRequirementSchema, validateTechniqueReferences,
   verifiedRequirementContract, type FrozenSegmentContract, type RequirementCast, type RequirementRecord
 } from "./requirement-contract.js";
-import { nativeReasonCompleted, nativeReasonFailure, nativeSceneResponseSource, type LLMReasonResult } from "./llm-adapter.js";
-import { recoverSceneJsonMissingComma } from "./scene-json-comma-recovery.js";
+import {
+  nativeReasonCompleted, nativeReasonFailure, nativeSceneResponseRouteCurrent, nativeSceneResponseSource,
+  sameNativeSceneResponseRoute, type LLMReasonResult,
+} from "./llm-adapter.js";
+import { recoverSceneJsonMissingSeparators } from "./scene-json-comma-recovery.js";
 import { acquireVendorRequirementEntry } from "./vendor-requirement-entry.js";
 import {
   qualifyRequirementThemeInput, requirementAuthorityFailure, requirementAuthorityPrompt, scopedRequirementEngine,
@@ -18,15 +21,17 @@ import {
 import type { PrdAuthority } from "./prd-authority.js";
 
 type Method = (this: RequirementRecord, ...args: unknown[]) => unknown;
-interface SceneSyntaxRecovery {
-  schemaVersion: "workloom.scene-json-single-comma/v1";
+interface SceneWireEvidence {
   requestSha256: string;
   responseSha256: string;
   schemaSha256: string;
-  originalSha256: string;
-  repairedSha256: string;
-  insertionByteOffset: number;
 }
+type SceneSyntaxRecovery = SceneWireEvidence & (
+  { schemaVersion: "workloom.scene-json-single-comma/v1"; originalSha256: string; repairedSha256: string; insertionByteOffset: number }
+  | { schemaVersion: "workloom.scene-json-bounded-commas/v2"; originalSha256: string; repairedSha256: string; insertionByteOffsets: readonly number[] }
+  | { schemaVersion: "workloom.scene-json-format-reissue/v1"; acceptedRawSha256: string;
+      previousSyntaxFailures: readonly Readonly<{ requestSha256: string; responseSha256: string; rawSha256: string }>[] }
+);
 type SceneDraft = Readonly<{ body: string; hash: string; recovery?: Readonly<SceneSyntaxRecovery> }>;
 interface Scope {
   metadata: RequirementRecord;
@@ -50,6 +55,14 @@ const receivers = new WeakMap<object, Scope>();
 const sceneJsonCorrection = "\n\n## 上一次原生场景 JSON 语法纠正\n"
   + "上一次已返回正文，但正文无法解析为 JSON。根据完整原始输入和本次实际 schema 重新生成一个完整 JSON 对象。"
   + "检查数组元素之间的逗号、对象与数组逐层闭合，以及字符串内引号和换行的合法转义。只输出对象，禁止代码围栏或解释。";
+const strictSceneJsonPresentation = "\n\n## 原生场景 JSON 排版自检\n"
+  + "用标准 JSON 逐行输出：每个对象键值与每个数组元素各占一行，除同级最后一项外都用 ASCII 逗号分隔。"
+  + "中文描述内避免裸双引号；必须保留时使用 JSON 转义。先核对所有数组和对象都闭合，再返回完整 JSON 对象。";
+const sceneFinalFormatReissue = "\n\n## 两次原生语法失败后的末次格式重生成\n"
+  + "仅依据本请求的完整原文、已审要求和同一实际 JSON Schema 重新生成，前两次正文无效且未作为输入。"
+  + "逐个写完完整对象成员或数组元素再换行，检查相邻值之间恰有一个 ASCII 逗号；"
+  + "使用清楚简短的句子描述每个动作，保留全部人物、动作、道具、先后、可见状态与冻结区间，不合并或省略场景。"
+  + "在本次回答内核对闭合括号和转义，只交完整有效的原生 JSON，不给草稿或解释。";
 
 const nativeAudienceIntro = '你是一位操过多个全球爆款短片的传播策略师。基于视频主题做受众分析，但你输出的不是"人群标签"，而是"这群人为什么会在第3秒停下来、在第50秒转发"。';
 const nativeAudienceRule = "3. contentExpectations 至少包含一条'无需字幕也能看懂的视觉叙事'类全球化要求，和一条'可复述可转发的钉子台词'类传播要求。";
@@ -87,11 +100,15 @@ const frozenSilentRiskBoundary = "商品身份、型号及用途以本次 G1 已
   + "保持现有动作、先后、原生声音和后期文字要求。待确认内容留在技术风险，不能写成 businessConstraints。";
 
 function frozenSceneAnnex(segments: FrozenSegmentContract, draft: SceneDraft): string {
+  const proof = draft.recovery;
+  const scene = !proof
+    ? `本次 SceneArchitect 已通过结构校验的完整原始 JSON（场景摘要 ${draft.hash}，仍待独立 G3 审核）：\n${draft.body}\n`
+    : proof.schemaVersion === "workloom.scene-json-format-reissue/v1"
+      ? `本次 SceneArchitect 原生格式重生成并通过严格结构校验的完整 JSON（场景摘要 ${draft.hash}，仍待独立 G3 审核）：\n${draft.body}\n格式重生成证据：${JSON.stringify(proof)}\n`
+      : `本次 SceneArchitect ${proof.schemaVersion === "workloom.scene-json-single-comma/v1" ? "单" : "多"}分隔符校正后通过严格结构校验的完整 JSON（场景摘要 ${draft.hash}，仍待独立 G3 审核）：\n${draft.body}\n语法校正证据：${JSON.stringify(proof)}\n`;
   return "\n\n## 本次冻结分段及原生场景草案\n"
     + `精确硬切合同（客户权威）：\n${JSON.stringify(segments)}\n`
-    + (draft.recovery
-      ? `本次 SceneArchitect 单分隔符校正后通过严格结构校验的完整 JSON（场景摘要 ${draft.hash}，仍待独立 G3 审核）：\n${draft.body}\n语法校正证据：${JSON.stringify(draft.recovery)}\n`
-      : `本次 SceneArchitect 已通过结构校验的完整原始 JSON（场景摘要 ${draft.hash}，仍待独立 G3 审核）：\n${draft.body}\n`)
+    + scene
     + "用原草案的区间、动作先后、机位和声场做交叉核对，建议应指出作用的现有区间。"
     + "不得新增生成段、补拍输出或依赖额外生成的插入镜头，不得改动已有硬切、时长、动作前提或终态。"
     + "需要调整时，在对应单次生成输出内部控制构图、机位移动、遮挡、运动或声场，保留 Brief 要求可辨认的动作和结果。"
@@ -346,7 +363,9 @@ export function installRequirementContractBridge(
       if (evidence.discovery !== discovery || evidence.receipt.sceneHash !== requirementHash(evidence.discovery.sceneStructure)) {
         throw new RequirementContractError("REQUIREMENT_DISCOVERY_CHANGED", "G3 未绑定本次语法校正场景");
       }
-      return report + `\n\n## 原生场景单分隔符校正证据\n${JSON.stringify(evidence.receipt)}\n`;
+      const title = evidence.receipt.schemaVersion === "workloom.scene-json-single-comma/v1" ? "单分隔符校正"
+        : evidence.receipt.schemaVersion === "workloom.scene-json-bounded-commas/v2" ? "多分隔符校正" : "格式重生成";
+      return report + `\n\n## 原生场景${title}证据\n${JSON.stringify(evidence.receipt)}\n`;
     });
   };
   const discovered: Method = async function (input) {
@@ -536,11 +555,19 @@ export function installRequirementContractBridge(
         finalSceneFailure = undefined;
         const effectiveSchema = structuredSceneSchema(schema, segments);
         const runView = Object.create(this) as RequirementRecord;
+        // The pinned agent defaults to two tries. Only this private view gets
+        // a third loop slot; _callLLM admits it solely with both native proofs.
+        if (segments && scope.sceneResponsesSchema) runView.maxRetries = 2;
         let pendingFeedback = "", attemptFeedback = "";
         let currentSceneFailure: RequirementContractError | undefined;
         let jsonCorrectionScheduled = false;
         let jsonCorrectionExhausted = false;
         let started = false, correctionUsed = false;
+        let sceneCalls = 0, formatReissueScheduled = false;
+        let activeSlot: { formatReissue: boolean } | undefined;
+        let currentNativeSyntax: LLMReasonResult | undefined;
+        let firstNativeSyntax: LLMReasonResult | undefined;
+        let secondNativeSyntax: LLMReasonResult | undefined;
         let completedSyntaxFailure = false;
         let nativeSceneBody: string | undefined;
         let syntaxRecovery: Readonly<SceneSyntaxRecovery> | undefined;
@@ -551,18 +578,41 @@ export function installRequirementContractBridge(
           if (typeof reason !== "function") requirementAuthorityFailure("REQUIREMENT_VENDOR_UNAVAILABLE", "SceneArchitect 缺少原生 reason");
           runView.llmEngine = Object.create(model, {
             reason: { value: async (...args: unknown[]) => {
+              const slot = activeSlot;
+              if (!slot) throw unverifiedScene();
               const dispatchArgs = scope.sceneResponsesSchema
                 ? [args[0], { ...requirementRecord(args[1], "SceneArchitect 原生选项"),
                   responsesJsonSchema: { name: "workloom_scene_architect", schema: structuredClone(effectiveSchema) } }, ...args.slice(2)]
                 : args;
               const result = await Reflect.apply(reason, model, dispatchArgs) as LLMReasonResult;
+              if (activeSlot !== slot) throw unverifiedScene();
+              requireActiveScope();
+              const source = scope.sceneResponsesSchema ? nativeSceneResponseSource(result) : undefined;
+              const exactSource = source && source.schemaSha256 === schemaSha256 && source.rawText.trim() === result.content
+                ? source : undefined;
+              if (slot.formatReissue) {
+                const before = [firstNativeSyntax, secondNativeSyntax];
+                if (result.success !== true || !nativeReasonCompleted(result) || !exactSource
+                  || !before.every(item => item && sameNativeSceneResponseRoute(item, result))) {
+                  throw new RequirementContractError("REQUIREMENT_SCENE_UNVERIFIED", "SceneArchitect 末次格式重生成未取得同一路径的完整新 JSON");
+                }
+                syntaxRecovery = Object.freeze({
+                  schemaVersion: "workloom.scene-json-format-reissue/v1",
+                  requestSha256: exactSource.requestSha256, responseSha256: exactSource.responseSha256, schemaSha256,
+                  acceptedRawSha256: createHash("sha256").update(exactSource.rawText, "utf8").digest("hex"),
+                  previousSyntaxFailures: Object.freeze(before.map(item => {
+                    const prior = nativeSceneResponseSource(item)!;
+                    return Object.freeze({ requestSha256: prior.requestSha256, responseSha256: prior.responseSha256,
+                      rawSha256: createHash("sha256").update(prior.rawText, "utf8").digest("hex") });
+                  })),
+                });
+                return { ...result, content: exactSource.rawText };
+              }
               completedSyntaxFailure = nativeReasonFailure(result) === "json-syntax" && nativeReasonCompleted(result);
-              if (completedSyntaxFailure && scope.sceneResponsesSchema) {
-                requireActiveScope();
-                const source = nativeSceneResponseSource(result);
-                const repaired = source && source.schemaSha256 === schemaSha256 && source.rawText.trim() === result.content
-                  ? recoverSceneJsonMissingComma(source.rawText) : undefined;
-                if (source && repaired) {
+              if (completedSyntaxFailure && exactSource) {
+                if (nativeSceneResponseRouteCurrent(result)) currentNativeSyntax = result;
+                const repaired = recoverSceneJsonMissingSeparators(exactSource.rawText);
+                if (repaired) {
                   try {
                     validateRequirementSchema(repaired.data, effectiveSchema);
                     requirementScenes(repaired.data, cast, requirementRecord(input, "SceneArchitect 上游输入").duration_sec);
@@ -571,12 +621,15 @@ export function installRequirementContractBridge(
                     if (error instanceof RequirementContractError) return result;
                     throw error;
                   }
-                  syntaxRecovery = Object.freeze({
-                    schemaVersion: "workloom.scene-json-single-comma/v1",
-                    requestSha256: source.requestSha256, responseSha256: source.responseSha256,
+                  const wire = {
+                    requestSha256: exactSource.requestSha256, responseSha256: exactSource.responseSha256,
                     schemaSha256,
                     originalSha256: repaired.originalSha256, repairedSha256: repaired.repairedSha256,
-                    insertionByteOffset: repaired.insertionByteOffset,
+                  };
+                  syntaxRecovery = repaired.insertionByteOffsets.length === 1 ? Object.freeze({
+                    ...wire, schemaVersion: "workloom.scene-json-single-comma/v1", insertionByteOffset: repaired.insertionByteOffsets[0]!,
+                  }) : Object.freeze({
+                    ...wire, schemaVersion: "workloom.scene-json-bounded-commas/v2", insertionByteOffsets: repaired.insertionByteOffsets,
                   });
                   // Only this native agent view receives the locally verified JSON.
                   // The original adapter result remains a measured syntax failure.
@@ -598,18 +651,25 @@ export function installRequirementContractBridge(
         }
         runView._callLLM = async function (this: RequirementRecord, ...args: unknown[]) {
           requireActiveScope();
-          if (jsonCorrectionExhausted) throw currentSceneFailure;
+          if (jsonCorrectionExhausted && !formatReissueScheduled) throw currentSceneFailure;
+          const slot = { formatReissue: formatReissueScheduled };
           if (segments) {
-            if (started && (!pendingFeedback || correctionUsed)) throw currentSceneFailure ?? unverifiedScene();
+            if (started && (!pendingFeedback || (correctionUsed && !slot.formatReissue))) throw currentSceneFailure ?? unverifiedScene();
+            if (slot.formatReissue && (sceneCalls !== 2 || !firstNativeSyntax || !secondNativeSyntax
+              || !sameNativeSceneResponseRoute(firstNativeSyntax, secondNativeSyntax))) throw currentSceneFailure ?? unverifiedScene();
             correctionUsed = started;
             started = true;
+            sceneCalls += 1;
           }
+          formatReissueScheduled = false;
+          activeSlot = slot;
           // Feedback belongs to the previous completed validation. The current
           // failure must be cleared independently before transport/JSON parsing.
           attemptFeedback = pendingFeedback;
           pendingFeedback = "";
           currentSceneFailure = undefined;
           completedSyntaxFailure = false;
+          currentNativeSyntax = undefined;
           nativeSceneBody = undefined;
           syntaxRecovery = undefined;
           try { return await Reflect.apply(callScene, this, args); }
@@ -625,17 +685,28 @@ export function installRequirementContractBridge(
               if (!jsonCorrectionScheduled) {
                 jsonCorrectionScheduled = true;
                 pendingFeedback = sceneJsonCorrection;
+                if (sceneCalls === 1) firstNativeSyntax = currentNativeSyntax;
+              } else if (sceneCalls === 2 && firstNativeSyntax && currentNativeSyntax
+                && sameNativeSceneResponseRoute(firstNativeSyntax, currentNativeSyntax)) {
+                secondNativeSyntax = currentNativeSyntax;
+                formatReissueScheduled = true;
+                pendingFeedback = sceneFinalFormatReissue;
               }
             }
+            if (slot.formatReissue && error instanceof RequirementContractError) currentSceneFailure = error;
             throw error;
           }
-          finally { attemptFeedback = ""; }
+          finally {
+            attemptFeedback = "";
+            if (activeSlot === slot) activeSlot = undefined;
+          }
         };
         runView._buildPrompt = function (this: RequirementRecord, input: unknown) {
           requireActiveScope();
           const original = Reflect.apply(build, this, [input]);
           return structuredScenePrompt(original, input, effectiveSchema, segments)
-            + structuredSceneInstructions(cast, audience(scope), segments) + attemptFeedback;
+            + structuredSceneInstructions(cast, audience(scope), segments)
+            + (segments && scope.sceneResponsesSchema ? strictSceneJsonPresentation : "") + attemptFeedback;
         };
         runView._validateAndFill = function (this: RequirementRecord, response: unknown, responseSchema: unknown) {
           requireActiveScope();
@@ -649,8 +720,10 @@ export function installRequirementContractBridge(
               if (!nativeSceneBody || sceneDraft) {
                 throw new RequirementContractError("REQUIREMENT_DISCOVERY_CHANGED", "本次严格校验场景缺少唯一原始正文");
               }
-              if (syntaxRecovery && createHash("sha256").update(nativeSceneBody).digest("hex") !== syntaxRecovery.repairedSha256) {
-                throw new RequirementContractError("REQUIREMENT_DISCOVERY_CHANGED", "单分隔符校正正文在原生解析过程中发生变化");
+              if (syntaxRecovery && createHash("sha256").update(nativeSceneBody).digest("hex") !== (
+                syntaxRecovery.schemaVersion === "workloom.scene-json-format-reissue/v1"
+                  ? syntaxRecovery.acceptedRawSha256 : syntaxRecovery.repairedSha256)) {
+                throw new RequirementContractError("REQUIREMENT_DISCOVERY_CHANGED", "已绑定正文在原生解析过程中发生变化");
               }
               const hash = requirementHash(response);
               sceneDraft = Object.freeze({ body: nativeSceneBody, hash, ...(syntaxRecovery ? { recovery: syntaxRecovery } : {}) });
@@ -679,6 +752,9 @@ export function installRequirementContractBridge(
           pendingFeedback = "";
           attemptFeedback = "";
           currentSceneFailure = undefined;
+          activeSlot = undefined;
+          firstNativeSyntax = undefined;
+          secondNativeSyntax = undefined;
         }
       };
       sceneView._fallback = function () {
