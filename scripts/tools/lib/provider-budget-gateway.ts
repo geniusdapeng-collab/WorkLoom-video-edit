@@ -6,7 +6,7 @@ import { Readable } from "node:stream";
 import { BudgetJournal, type Reservation } from "./provider-budget-journal.js";
 import {
   ARK_IMAGE_PATH, ARK_VIDEO_PATH, BudgetError, check, compileClaim, DEEPSEEK_CHAT_PATH, DEEPSEEK_MODEL, digest,
-  exceededClaim, normalizeBudgetScope, record, safeTaskId, SEEDANCE_MODEL, SEEDREAM_MODEL, settlementFor,
+  exceededClaim, normalizeBudgetProfile, normalizeBudgetScope, record, safeTaskId, SEEDANCE_MODEL, SEEDREAM_MODEL, settlementFor,
   type JsonObject, type Settlement,
 } from "./provider-budget-policy.js";
 
@@ -29,6 +29,7 @@ interface GatewayOptions {
   deepSeekApiKey: string;
   arkApiKey: string;
   scope?: unknown;
+  profile?: unknown;
   now?: () => number;
   /** Tests can inject a provider transport. The CLI never exposes it. */
   fetchImpl?: typeof fetch;
@@ -153,6 +154,11 @@ export async function startProviderBudgetGateway(options: GatewayOptions) {
     && options.clientToken !== options.deepSeekApiKey && options.clientToken !== options.arkApiKey, "BUDGET_GATEWAY_CREDENTIALS_INVALID", 503);
   const localAuthorization = Buffer.from(`Bearer ${options.clientToken}`);
   const scope = normalizeBudgetScope(options.scope);
+  const profile = normalizeBudgetProfile(options.profile);
+  if (profile === "workflow") {
+    check(scope.video.seconds !== null && scope.video.ratio !== null && scope.video.resolution !== null,
+      "BUDGET_WORKFLOW_SCOPE_REQUIRED", 503);
+  }
   const now = options.now ?? Date.now;
   const fetcher = options.fetchImpl ?? directProviderFetch;
   const inFlightPolls = new Map<string, Promise<Upstream>>();
@@ -302,7 +308,7 @@ export async function startProviderBudgetGateway(options: GatewayOptions) {
   });
   const port = (server.address() as AddressInfo).port;
   try {
-    journal = BudgetJournal.open(options.journalPath, port, options.task, scope, now);
+    journal = BudgetJournal.open(options.journalPath, port, options.task, scope, now, profile);
   } catch (error) {
     server.close();
     throw error;

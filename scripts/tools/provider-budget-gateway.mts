@@ -9,7 +9,7 @@ function parseArgs(args: string[]) {
   for (let i = 0; i < args.length; i += 2) {
     const option = args[i];
     const value = args[i + 1];
-    check(option && ["--port", "--task", "--journal", "--scope"].includes(option) && value && !value.startsWith("--") && !values.has(option),
+    check(option && ["--port", "--task", "--journal", "--scope", "--profile"].includes(option) && value && !value.startsWith("--") && !values.has(option),
       "BUDGET_GATEWAY_ARGUMENTS_INVALID", 503);
     values.set(option, value);
   }
@@ -18,12 +18,12 @@ function parseArgs(args: string[]) {
   check(Number.isInteger(port) && port >= 1024 && port <= 65535 && journal, "BUDGET_GATEWAY_ARGUMENTS_INVALID", 503);
   const scopePath = values.get("--scope");
   const scope: unknown = scopePath ? JSON.parse(readFileSync(scopePath, "utf8")) : undefined;
-  return { port, task: values.get("--task") ?? "local-task", journalPath: resolve(journal), scope };
+  return { port, task: values.get("--task") ?? "local-task", journalPath: resolve(journal), scope, profile: values.get("--profile") };
 }
 
 async function main() {
   if (process.argv.length === 3 && process.argv[2] === "--help") {
-    console.log("Usage: node --import tsx scripts/tools/provider-budget-gateway.mts --port PORT --journal PATH [--task ID] [--scope FILE]");
+    console.log("Usage: node --import tsx scripts/tools/provider-budget-gateway.mts --port PORT --journal PATH [--task ID] [--scope FILE] [--profile case|workflow]");
     return;
   }
   check(process.env.NODE_TLS_REJECT_UNAUTHORIZED !== "0" && !process.env.NODE_USE_ENV_PROXY,

@@ -27,6 +27,7 @@ export const TASK_CAPS = Object.freeze({
 export const ARK_VIDEO_PATH = "/api/v3/contents/generations/tasks";
 export const ARK_IMAGE_PATH = "/api/v3/images/generations";
 
+export type BudgetProfile = "case" | "workflow";
 export type JsonObject = Record<string, unknown>;
 export type ImageProof = { urlHash: string; width: number; height: number };
 export type Resolution = "720p" | "1080p";
@@ -109,6 +110,21 @@ function imageReference(value: unknown, scope: BudgetScope, known: FindImage): I
 // https://api-docs.deepseek.com/zh-cn/quick_start/pricing/
 // Peak cache-miss input ¥2/M and output ¥8/M. Estimate all input at the cache-miss rate.
 export const llmMicroCny = (input: number, output: number): number => input * 2 + output * 8;
+
+const { microCny: mediaMicroCny, ...caseResourceCaps } = TASK_CAPS;
+const nativeInputAtMaxOutput = EDIT_CANONICAL_CASE_BUDGET.maxLlmTokens - EDIT_CANONICAL_CASE_BUDGET.maxLlmOutputTokens;
+export const WORKFLOW_TASK_CAPS = Object.freeze({
+  ...caseResourceCaps,
+  llmGrossTokens: TASK_CAPS.llmCalls * EDIT_CANONICAL_CASE_BUDGET.maxLlmTokens,
+  llmEstimatedMaxMicroCny: TASK_CAPS.llmCalls * llmMicroCny(nativeInputAtMaxOutput, EDIT_CANONICAL_CASE_BUDGET.maxLlmOutputTokens),
+  mediaMicroCny,
+});
+
+export function normalizeBudgetProfile(value: unknown = "case"): BudgetProfile {
+  check(value === "case" || value === "workflow", "BUDGET_PROFILE_INVALID", 503);
+  return value;
+}
+
 // https://console.volcengine.com/ark/region:cn-beijing/docs/model-pricing
 const imageMicroCny = (inputs: number, pixels: number): number => (pixels > 2_610_000 ? 600_000 : 300_000) + Math.max(0, inputs - 1) * 20_000;
 

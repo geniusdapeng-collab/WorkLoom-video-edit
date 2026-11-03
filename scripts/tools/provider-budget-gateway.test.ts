@@ -38,11 +38,11 @@ function location() {
   return join(dir, "journal.jsonl");
 }
 
-async function gate(fetchImpl: typeof fetch, options: { journalPath?: string; scope?: unknown; port?: number; now?: () => number; task?: string } = {}) {
+async function gate(fetchImpl: typeof fetch, options: { journalPath?: string; scope?: unknown; port?: number; now?: () => number; task?: string; profile?: string } = {}) {
   const journalPath = options.journalPath ?? location();
   const server = await startProviderBudgetGateway({
     task: options.task ?? TASK, port: options.port ?? 0, journalPath, clientToken: CLIENT,
-    deepSeekApiKey: DEEPSEEK, arkApiKey: ARK, fetchImpl, scope: options.scope, now: options.now,
+    deepSeekApiKey: DEEPSEEK, arkApiKey: ARK, fetchImpl, scope: options.scope, now: options.now, profile: options.profile,
   });
   close.push(() => server.close());
   return { server, journalPath };
@@ -353,6 +353,78 @@ describe("task-local provider budget gateway", () => {
     expect(code(await call(server, DEEPSEEK_CHAT_PATH, llm()))).toBe("BUDGET_DEADLINE_EXCEEDED");
     expect((await call(server, "/budget/status")).data).toMatchObject({ expired: true, state: "expired", live: false, deadlineAt: now });
     expect(upstream).not.toHaveBeenCalled();
+  });
+
+  it("admits a workflow beyond the legacy case and combined price caps while preserving every wire byte and the 40-call limit", async () => {
+    const wireBodies: string[] = [];
+    const upstream = vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
+      if (new URL(String(url)).pathname === ARK_VIDEO_PATH) return Response.json({ id: "workflow-media-held" });
+      wireBodies.push(Buffer.from(init!.body as Uint8Array).toString());
+      return llmResponse(12, 390_000);
+    });
+    const { server, journalPath } = await gate(upstream, { profile: "workflow", scope: videoScope });
+    expect((await call(server, ARK_VIDEO_PATH, video())).status).toBe(200);
+    const sent = Array.from({ length: 40 }, (_, i) => JSON.stringify(llm(`full workflow request ${i}`)));
+    for (const wire of sent) expect((await call(server, DEEPSEEK_CHAT_PATH, wire)).status).toBe(200);
+    expect(wireBodies).toEqual(sent);
+    expect(code(await call(server, DEEPSEEK_CHAT_PATH, sent[0]))).toBe("BUDGET_DUPLICATE_REQUEST");
+    expect(code(await call(server, DEEPSEEK_CHAT_PATH, llm("forty-first workflow call")))).toBe("BUDGET_LLM_CALLS_EXCEEDED");
+    expect(code(await call(server, DEEPSEEK_CHAT_PATH, llm("arbitrary clipping", 300_000)))).toBe("BUDGET_ILLEGAL_LLM_WINDOW");
+    expect((await call(server, "/budget/status")).data).toMatchObject({
+      profile: "workflow", live: true, held: true,
+      caps: { llmCalls: 40, llmGrossTokens: 41_943_040, llmEstimatedMaxMicroCny: 178_257_920, mediaMicroCny: 120_000_000 },
+      usage: { llmCalls: 40, settledLlmGrossTokens: (390_000 + 12) * 40, videoCalls: 1 },
+      settledLlmTokens: { input: 12 * 40, output: 390_000 * 40 },
+      estimatedCost: {
+        llm: { settledMicroCny: llmMicroCny(12, 390_000) * 40, reservedMicroCny: 0 },
+        media: { settledMicroCny: 0, reservedMicroCny: 37_422_000 },
+      },
+    });
+    expect(upstream).toHaveBeenCalledTimes(41);
+    expect(JSON.parse(readFileSync(journalPath, "utf8").split("\n")[0]!)).toMatchObject({ profile: "workflow" });
+  });
+
+  it("keeps the media price cap independent in workflow mode", async () => {
+    let mediaSubmissions = 0;
+    const upstream = vi.fn(async (url: string | URL | Request) => {
+      if (new URL(String(url)).pathname === ARK_VIDEO_PATH) return Response.json({ id: `media-${++mediaSubmissions}` });
+      return llmResponse();
+    });
+    const scope = { video: { ...videoScope.video, seconds: 15 } };
+    const { server } = await gate(upstream, { profile: "workflow", scope });
+    expect((await call(server, DEEPSEEK_CHAT_PATH, llm())).status).toBe(200);
+    expect((await call(server, ARK_VIDEO_PATH, video("first media shot", 15))).status).toBe(200);
+    expect((await call(server, ARK_VIDEO_PATH, video("second media shot", 15))).status).toBe(200);
+    expect(code(await call(server, ARK_VIDEO_PATH, video("third exceeds media funds", 15)))).toBe("BUDGET_MEDIA_CNY_EXCEEDED");
+    expect(code(await call(server, ARK_VIDEO_PATH, video("off approved exact duration", 10)))).toBe("BUDGET_VIDEO_SCOPE_MISMATCH");
+    expect(upstream).toHaveBeenCalledTimes(3);
+  });
+
+  it("fails closed when a workflow profile is missing exact media scope or an unrecognized profile is selected", async () => {
+    const upstream = vi.fn(async () => llmResponse());
+    await expect(gate(upstream, { profile: "workflow" })).rejects.toThrow("BUDGET_WORKFLOW_SCOPE_REQUIRED");
+    await expect(gate(upstream, { profile: "unbounded", scope: videoScope })).rejects.toThrow("BUDGET_PROFILE_INVALID");
+    expect(upstream).not.toHaveBeenCalled();
+  });
+
+  it("binds each WAL to its profile and preserves a workflow unknown hold after same-profile restart", async () => {
+    const upstream = vi.fn(async () => { throw new Error("fixture outcome unknown"); });
+    const legacy = await gate(upstream, { scope: videoScope });
+    await legacy.server.close();
+    await expect(gate(upstream, { profile: "workflow", scope: videoScope, journalPath: legacy.journalPath, port: legacy.server.port }))
+      .rejects.toThrow("BUDGET_JOURNAL_SCOPE_MISMATCH");
+    const first = await gate(upstream, { profile: "workflow", scope: videoScope });
+    const wire = llm("private uncertain workflow dispatch");
+    expect(code(await call(first.server, DEEPSEEK_CHAT_PATH, wire))).toBe("BUDGET_OUTCOME_UNKNOWN");
+    await first.server.close();
+    const restart = { scope: videoScope, journalPath: first.journalPath, port: first.server.port };
+    await expect(gate(upstream, restart)).rejects.toThrow("BUDGET_JOURNAL_SCOPE_MISMATCH");
+    const { server } = await gate(upstream, { ...restart, profile: "workflow" });
+    expect((await call(server, "/budget/status")).data).toMatchObject({ profile: "workflow", state: "frozen", held: true,
+      reserved: { calls: 1 }, estimatedCost: { media: { settledMicroCny: 0, reservedMicroCny: 0 } } });
+    expect(code(await call(server, DEEPSEEK_CHAT_PATH, wire))).toBe("BUDGET_DUPLICATE_REQUEST");
+    expect(code(await call(server, DEEPSEEK_CHAT_PATH, llm("different but frozen")))).toBe("BUDGET_FROZEN");
+    expect(upstream).toHaveBeenCalledTimes(1);
   });
 
   it("fails closed on an interrupted reservation and on corrupt or exposed WALs", async () => {
