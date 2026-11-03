@@ -8,7 +8,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { gatewayAppend, gatewayAppendOnClient } from "@workloom/base/workdata";
-import { applyScenePolicy, auditScenePolicy, loadScenePolicies, promptFieldPolicy, resolveShotCast, SHOT_FIELD_SCHEMA_V2, type ScenePolicyShot } from "@hyperreality/video-studio";
+import { applyScenePolicy, auditScenePolicy, fieldSpec, loadScenePolicies, promptFieldPolicy, resolveShotCast, SHOT_FIELD_SCHEMA_V2, type ScenePolicyShot } from "@hyperreality/video-studio";
 import { verifyScenePolicyProductionSource } from "./scene-policy-render-gate.js";
 import { portraitReuseFixture } from "./portrait-reuse.test-support.js";
 import { builtinCatalogFixture } from "./builtin-character-selection.test-support.js";
@@ -290,7 +290,8 @@ describe("预生产原始结果与诚实终态", () => {
     { drift: true, frozen: false },
     { drift: false, frozen: true },
     { drift: true, frozen: true },
-  ])("真实 worker G6 定点修复后，G7 仍核对当前镜头合同（$drift, $frozen）", async ({ drift, frozen }) => {
+    { drift: true, frozen: false, assignedOnly: true },
+  ])("真实 worker G6 定点修复后，G7 仍核对当前镜头合同（$drift, $frozen, $assignedOnly）", async ({ drift, frozen, assignedOnly }) => {
     doubles.realModelRouting = true;
     doubles.emitGates = false;
     vi.stubEnv("PROMPT_CONTRACT_V2", "enforce");
@@ -338,7 +339,8 @@ describe("预生产原始结果与诚实终态", () => {
       const approve = doubles.studioConfigs[0]!.onApproval;
       for (const gate of ["G2_THEME", "G3_INSIGHT", "G4_PRD", "G6_PROMPT", "G7_FINAL"]) {
         if (drift && gate === "G7_FINAL") {
-          if (frozen) shots[1]!.fields.constraint = staleTemplate;
+          if (assignedOnly) shots[1]!.prompt += "。未经审核的新动作。";
+          else if (frozen) shots[1]!.fields.constraint = staleTemplate;
           else shots[1]!.fields.camera_movement = "前景突然改为手持推进";
         }
         verdicts[gate] = await approve({ gate, vendorType: "test-gate", runId: "vendor-run", title: "完整确认单",
@@ -367,7 +369,8 @@ describe("预生产原始结果与诚实终态", () => {
     expect(eligibility).toMatchObject({ current: !drift, eligible: !drift });
     expect(verdicts.G7_FINAL).toMatchObject({ approved: !drift });
     expect(entry).toMatchObject({ status: drift ? "failed" : "finished" });
-    if (drift) expect(eligibility.reasons).toContain(frozen ? "S02:HARD_CONSTRAINT_FPS_CONFLICT:stage" : "PROMPT_CONTRACT_DRIFT:S02");
+    if (drift) expect(eligibility.reasons).toContain(assignedOnly ? "FINAL_ASSIGNED_PROMPT_DRIFT:S02"
+      : frozen ? "S02:HARD_CONSTRAINT_FPS_CONFLICT:stage" : "PROMPT_CONTRACT_DRIFT:S02");
   });
 
   it.each(["SEEDANCE_MODEL", "ARK_VIDEO_MODEL"])("G6合同绑定部署实际模型覆盖%s，而非静态目录别名", async (key) => {
@@ -386,6 +389,7 @@ describe("预生产原始结果与诚实终态", () => {
     const { entry } = await runToTerminal(false);
     expect(entry.error).toContain("stop-after-contract-model-capture");
     expect(captured).toHaveLength(1);
+    expect(captured[0].maxFinalPromptChars).toBe(fieldSpec().lengths.hardMax);
     expect(captured[0].shots[0].compile.model).toMatchObject({ modelId: "doubao-seedance-2-5",
       providerModel: "deployment-specific-seedance-endpoint", version: "workloom.media-catalog/v1:deployment-specific-seedance-endpoint" });
   });

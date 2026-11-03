@@ -86,9 +86,20 @@ export interface SemanticReviewContext {
   attempt: number;
 }
 
+interface FinalPromptLength {
+  actualChars: number;
+  maxFinalPromptChars: number;
+}
+
+interface SemanticRepairContext extends SemanticReviewContext {
+  findings: SemanticQualityCheck[];
+  allowedFields: string[];
+  finalPromptLength?: FinalPromptLength;
+}
+
 export interface SemanticQualityReviewer {
   review(context: SemanticReviewContext): Promise<unknown>;
-  repair?(context: SemanticReviewContext & { findings: SemanticQualityCheck[]; allowedFields: string[] }): Promise<unknown>;
+  repair?(context: SemanticRepairContext): Promise<unknown>;
   model?: string;
 }
 
@@ -172,6 +183,7 @@ export interface PromptQualityResult {
     proofReuse?: ReusedSemanticReview;
   }>;
   findings: PromptQualityFinding[];
+  maxFinalPromptChars?: number;
   repairPlan?: RepairPlan;
   repairAttempt?: PromptQualityRepairAttempt;
   decision: GateDecision;
@@ -467,7 +479,10 @@ function semanticPrompt(
   ].join("\n");
 }
 
-function repairSchema(): Record<string, unknown> {
+function repairSchema(context: SemanticRepairContext): Record<string, unknown> {
+  if (context.finalPromptLength) {
+    return { changes: [{ field: context.allowedFields[0], value: "保留原意的简洁表述", reason: "缩短完整提示词" }] };
+  }
   return {
     changes: [{ field: "camera_movement", value: "只包含在目标时长内可完成的一个主动作", reason: "修复 SQ3" }],
   };
@@ -479,6 +494,7 @@ function repairPrompt(
   findings: SemanticQualityCheck[],
   allowedFields: string[],
   upstreamContext?: Record<string, unknown>,
+  finalPromptLength?: FinalPromptLength,
 ): string {
   const fields = contract.bindings.map(({ field }) => ({ field, value: fieldValueFromSource(source, field) }));
   const writable = new Set(allowedFields);
@@ -486,11 +502,15 @@ function repairPrompt(
     "你是字段级定点修复器。只允许修改 allowedFields 中列出的字段。",
     "readOnlyFields 是同一镜头当前已编译的完整只读约束；不是待修字段。修复运镜或构图时，逐段对齐现有时间轴、动作和道具交接；固定机位和镜内切换须明确区分，不能把一个动作延长到下一动作的已定区间。",
     "不得修改事实、授权、时长、画幅、模型能力、gate threshold 或任何其它字段。",
+    ...(finalPromptLength ? [
+      `本镜完整编译提示词实测 ${finalPromptLength.actualChars} 字符，最终上限 ${finalPromptLength.maxFinalPromptChars} 字符（UTF-16 计数）；字段合计至少需缩短 ${finalPromptLength.actualChars - finalPromptLength.maxFinalPromptChars} 字符。`,
+      "只用更精炼的措辞缩短允许的美术描述，去除同义重复，保持已有光向、色彩、构图、景深和情绪的具体含义。保持原有镜头内容、动作、时间轴、角色、服装、定妆、声音和全部约束。不得截断、清空或把字段内容移到其他字段。",
+    ] : []),
     "只输出 JSON：changes[]，每项必须有 field、value、reason；至少产生一个变化。",
     `镜头：${JSON.stringify({ shotId: contract.shotId, durationSec: contract.request.parameters.duration_sec,
       allowedFields: fields.filter(({ field }) => writable.has(field)),
       readOnlyFields: fields.filter(({ field }) => !writable.has(field)),
-      findings, upstreamContext: upstreamContext ?? null }, null, 2)}`,
+      findings, ...(finalPromptLength ? { finalPromptLength } : {}), upstreamContext: upstreamContext ?? null }, null, 2)}`,
   ].join("\n");
 }
 
@@ -509,8 +529,8 @@ export function createLlmSemanticQualityReviewer(llm: WorkloomLLMEngine): Semant
     },
     async repair(context) {
       const result = await llm.reasonStructured(
-        repairPrompt(context.contract, context.shot, context.findings, context.allowedFields, context.upstreamContext),
-        repairSchema(),
+        repairPrompt(context.contract, context.shot, context.findings, context.allowedFields, context.upstreamContext, context.finalPromptLength),
+        repairSchema(context),
         { scene: "preproduction", maxTokens: 1200, temperature: 0 },
       );
       if (!result.success) throw new Error(result.error ?? "SEMANTIC_REPAIR_TRANSPORT_FAILED");
@@ -547,6 +567,35 @@ function hardFinding(error: { code: string; field: string | null; detail: string
   };
 }
 
+const FINAL_PROMPT_LENGTH_CODE = "HARD_FINAL_PROMPT_TOO_LONG";
+const FINAL_LENGTH_EDITABLE_FIELDS = new Set(["lighting", "composition", "color_palette", "depth_of_field", "mood"]);
+
+function checkedFinalPromptLimit(value: number | undefined): number | undefined {
+  if (value !== undefined && (!Number.isSafeInteger(value) || value <= 0)) {
+    throw new Error("FINAL_PROMPT_LENGTH_LIMIT_INVALID");
+  }
+  return value;
+}
+
+function finalPromptOverflow(contract: PromptContract, limit: number | undefined): FinalPromptLength | undefined {
+  if (limit !== undefined && contract.prompt.length > limit) {
+    return { actualChars: contract.prompt.length, maxFinalPromptChars: limit };
+  }
+}
+
+function finalLengthEditableFields(contract: PromptContract, source: Record<string, unknown>, length: FinalPromptLength): string[] {
+  const candidates = contract.bindings.flatMap(binding => {
+    if (!FINAL_LENGTH_EDITABLE_FIELDS.has(binding.field) || !binding.promptSpan
+      || binding.channels.length !== 1 || binding.channels[0] !== "prompt") return [];
+    const value = fieldValueFromSource(source, binding.field);
+    return typeof value === "string" && value.trim().length > 1
+      ? [{ field: binding.field, removableChars: value.trim().length - 1 }] : [];
+  });
+  const excess = length.actualChars - length.maxFinalPromptChars;
+  if (candidates.reduce((total, candidate) => total + candidate.removableChars, 0) < excess) return [];
+  return candidates.map(candidate => candidate.field);
+}
+
 function asGateFinding(finding: PromptQualityFinding): GateFinding {
   return {
     code: finding.code,
@@ -554,7 +603,8 @@ function asGateFinding(finding: PromptQualityFinding): GateFinding {
     targetType: finding.field ? "field" : "stage",
     targetId: finding.field ? finding.shotId : null,
     fieldPath: finding.field,
-    expected: finding.repairClass === "semantic" ? "pass for fixed semantic quality question" : "deterministic prompt contract",
+    expected: finding.code === FINAL_PROMPT_LENGTH_CODE ? "complete compiled prompt within final native limit"
+      : finding.repairClass === "semantic" ? "pass for fixed semantic quality question" : "deterministic prompt contract",
     actual: finding.detail,
     evidenceRefs: [`prompt-quality/${finding.shotId}`],
     repairClass: finding.repairClass,
@@ -570,6 +620,7 @@ function makeDecision(input: {
   findings: PromptQualityFinding[];
   reviewer: SemanticQualityReviewer | null;
   status: PromptQualityStatus;
+  maxFinalPromptChars?: number;
 }): GateDecision {
   const blocking = input.findings.filter((finding) => finding.blocking);
   const status = blocking.length > 0 ? "rejected" : input.status === "passed" ? "passed" : "unverified";
@@ -582,6 +633,7 @@ function makeDecision(input: {
     planHash: sha256Json({
       policy: SEMANTIC_QUALITY_POLICY_VERSION,
       schema: [...new Set(input.contracts.map((contract) => contract.fieldSchema))].sort(),
+      ...(input.maxFinalPromptChars !== undefined ? { maxFinalPromptChars: input.maxFinalPromptChars } : {}),
     }),
     checkSetVersion: SEMANTIC_QUALITY_POLICY_VERSION,
     rubricVersion: SEMANTIC_QUALITY_POLICY_VERSION,
@@ -641,6 +693,7 @@ export interface EvaluatePromptQualityInput {
   reviewer?: SemanticQualityReviewer | null;
   upstreamContext?: Record<string, unknown>;
   maxWallMs?: number;
+  maxFinalPromptChars?: number;
 }
 
 export interface PromptContractSummary {
@@ -672,12 +725,15 @@ export function compilePromptPackage(input: Pick<EvaluatePromptQualityInput, "sh
 }
 
 export function verifyCurrentPromptContracts(
-  input: Pick<EvaluatePromptQualityInput, "shots">,
+  input: Pick<EvaluatePromptQualityInput, "shots" | "maxFinalPromptChars">,
   expected: readonly PromptContractSummary[],
 ): { valid: boolean; reasons: string[]; contracts: PromptContract[] } {
+  const limit = checkedFinalPromptLimit(input.maxFinalPromptChars);
   const compiled = compilePromptPackage(input);
-  const reasons = compiled.flatMap((item) => item.hardErrors.map((error) =>
-    `${item.contract.shotId}:${error.code}:${error.field ?? "stage"}`));
+  const reasons = compiled.flatMap((item) => [
+    ...item.hardErrors.map(error => `${item.contract.shotId}:${error.code}:${error.field ?? "stage"}`),
+    ...(finalPromptOverflow(item.contract, limit) ? [`${item.contract.shotId}:${FINAL_PROMPT_LENGTH_CODE}:stage`] : []),
+  ]);
   const current = promptContractSummary(compiled.map((item) => item.contract));
   const expectedById = new Map(expected.map((item) => [item.shotId, item]));
   if (current.length !== expected.length) reasons.push("SHOT_COUNT_MISMATCH");
@@ -748,6 +804,7 @@ function reviewDependencies(input: EvaluatePromptQualityInput, contract: PromptC
     contractSchema: contract.schemaVersion,
     contractPolicy: contract.policyVersion,
     contractManifest: promptContractManifestHash([contract]),
+    ...(input.maxFinalPromptChars !== undefined ? { maxFinalPromptChars: input.maxFinalPromptChars } : {}),
     model: {
       modelId: model.modelId, provider: model.provider, providerModel: model.providerModel, version: model.version,
       modes: model.modes, durationSec: [model.durationSec.min, model.durationSec.max], aspectRatios: model.aspectRatios,
@@ -759,14 +816,15 @@ function reviewDependencies(input: EvaluatePromptQualityInput, contract: PromptC
 async function evaluateCompiledShots(
   input: EvaluatePromptQualityInput,
   reviewer: SemanticQualityReviewer | null,
-  sources: Array<{ source: Record<string, unknown>; compile: PromptCompileOptions }>,
+  sources: Array<{ source: Record<string, unknown>; compile: PromptCompileOptions; expectedRequestSha256?: string }>,
   proofPass?: { phase: "capture" | "reuse"; byShot: Map<string, PassedSemanticReviewProof> },
+  allowLengthRepair = false,
 ): Promise<{
   compiled: Array<{ shotId: string; source: Record<string, unknown>; compiled: CompiledPromptShot }>;
   reports: PromptQualityResult["semanticReports"];
   findings: PromptQualityFinding[];
 }> {
-  const compiled = sources.map(({ source, compile }) => {
+  const compiled = sources.map(({ source, compile, expectedRequestSha256 }) => {
     const shot = source as unknown as PromptCompileShot;
     const result = compilePromptShot(shot, compile);
     const normalizedFields = source.fields && typeof source.fields === "object" && !Array.isArray(source.fields)
@@ -776,14 +834,28 @@ async function evaluateCompiledShots(
       shotId: String(shot.shotId ?? ""),
       source: { ...source, fields: normalizedFields },
       compiled: result,
+      expectedRequestSha256,
     };
   });
   const reports: PromptQualityResult["semanticReports"] = [];
   const findings: PromptQualityFinding[] = [];
   for (const item of compiled) {
     for (const error of item.compiled.hardErrors) findings.push(hardFinding(error, item.shotId));
+    if (item.expectedRequestSha256 !== undefined && item.compiled.contract.requestSha256 !== item.expectedRequestSha256) {
+      findings.push(hardFinding({ code: "FINAL_PROMPT_REPAIR_REQUEST_DRIFT", field: null, detail: "缩短提示词时请求参数发生变化" }, item.shotId));
+    }
   }
-  if (findings.length > 0) return { compiled, reports, findings };
+  const structureValid = findings.length === 0;
+  for (const item of compiled) {
+    const length = finalPromptOverflow(item.compiled.contract, input.maxFinalPromptChars);
+    if (!length) continue;
+    const repairable = allowLengthRepair && structureValid && reviewer?.repair
+      && finalLengthEditableFields(item.compiled.contract, item.source, length).length > 0;
+    findings.push({ code: FINAL_PROMPT_LENGTH_CODE, field: null, shotId: item.shotId, blocking: true,
+      detail: `完整提示词 ${length.actualChars} 字符超过最终原生上限 ${length.maxFinalPromptChars}（UTF-16）`,
+      repairClass: repairable ? "semantic" : "deterministic" });
+  }
+  if (findings.some(finding => finding.repairClass !== "semantic")) return { compiled, reports, findings };
   if (!reviewer) {
     for (const item of compiled) {
       reports.push({ shotId: item.shotId, checks: [], valid: false, errors: ["SEMANTIC_REVIEWER_UNAVAILABLE"], technicalRetry: 0 });
@@ -839,11 +911,13 @@ async function evaluateCompiledShots(
   return { compiled, reports, findings };
 }
 
-export async function evaluatePromptPackage(input: EvaluatePromptQualityInput): Promise<PromptQualityResult> {
+export async function evaluatePromptPackage(value: EvaluatePromptQualityInput): Promise<PromptQualityResult> {
+  const input = { ...value, maxFinalPromptChars: checkedFinalPromptLimit(value.maxFinalPromptChars) };
   const reviewer = input.reviewer ?? null;
   const proofs = input.mode === "enforce" && input.shots.length > 1 && reviewer && proofReviewer(reviewer)
     ? new Map<string, PassedSemanticReviewProof>() : undefined;
-  const first = await evaluateCompiledShots(input, reviewer, input.shots, proofs && { phase: "capture", byShot: proofs });
+  const first = await evaluateCompiledShots(input, reviewer, input.shots, proofs && { phase: "capture", byShot: proofs },
+    input.mode === "enforce");
   const hardOrReviewFindings = first.findings.filter((finding) => finding.repairClass !== "semantic");
   const semanticFindings = first.findings.filter((finding) => finding.repairClass === "semantic");
   const firstContracts = first.compiled.map((item) => item.compiled.contract);
@@ -860,13 +934,20 @@ export async function evaluatePromptPackage(input: EvaluatePromptQualityInput): 
   let finalFindings = first.findings;
 
   if (input.mode === "enforce" && hardOrReviewFindings.length === 0 && semanticFindings.length > 0) {
-    const allowedFields = [...new Set(semanticFindings.flatMap((finding) => finding.field ? [finding.field] : []))];
-    if (!reviewer?.repair || allowedFields.length === 0) {
+    const repairs = [...new Set(semanticFindings.map(finding => finding.shotId))].map(shotId => {
+      const firstShot = first.compiled.find(item => item.shotId === shotId)!;
+      const finalPromptLength = finalPromptOverflow(firstShot.compiled.contract, input.maxFinalPromptChars);
+      const fields = finalPromptLength ? finalLengthEditableFields(firstShot.compiled.contract, firstShot.source, finalPromptLength)
+        : [...new Set(semanticFindings.filter(finding => finding.shotId === shotId).flatMap(finding => finding.field ? [finding.field] : []))];
+      return { firstShot, fields, finalPromptLength };
+    });
+    const allowedFields = [...new Set(repairs.flatMap(repair => repair.fields))];
+    if (!reviewer?.repair || repairs.some(repair => repair.fields.length === 0)) {
       finalStatus = "stalled";
     } else {
       const decision = makeDecision({
         projectId: input.projectId, runId: input.runId, stageRunId: input.stageRunId,
-        contracts: firstContracts, findings: semanticFindings, reviewer, status: "rejected",
+        contracts: firstContracts, findings: semanticFindings, reviewer, status: "rejected", maxFinalPromptChars: input.maxFinalPromptChars,
       });
       const playbook = promptSemanticRepairPlaybook(allowedFields);
       const findingSignature = sha256Json(semanticFindings.map((finding) => ({
@@ -880,7 +961,8 @@ export async function evaluatePromptPackage(input: EvaluatePromptQualityInput): 
         targetRevision: input.revision,
         playbookId: playbook.id,
         playbookVersion: playbook.version,
-        planHash: sha256Json({ findingSignature, allowedFields, playbook }),
+        planHash: sha256Json({ findingSignature, allowedFields, playbook,
+          ...(input.maxFinalPromptChars !== undefined ? { maxFinalPromptChars: input.maxFinalPromptChars } : {}) }),
         findings: semanticFindings.map(asGateFinding),
         allowedChanges: playbook.allowedChanges,
         forbiddenChanges: playbook.forbiddenChanges,
@@ -895,24 +977,35 @@ export async function evaluatePromptPackage(input: EvaluatePromptQualityInput): 
         status: "running",
       };
       try {
-        const patchedSources = new Map(input.shots.map((item) => [String((item.source as Record<string, unknown>).shotId), item]));
+        const patchedSources = new Map<string, Parameters<typeof evaluateCompiledShots>[2][number]>(
+          input.shots.map(item => [String(item.source.shotId), item]));
         const compileById = new Map(input.shots.map((item) => [String((item.source as Record<string, unknown>).shotId), item.compile]));
         const changes: Array<{ shotId: string; field: string; value: unknown; reason: string }> = [];
-        for (const shotId of new Set(semanticFindings.map((finding) => finding.shotId))) {
-          const firstShot = first.compiled.find((item) => item.shotId === shotId)!;
-          const shotAllowedFields = [...new Set(semanticFindings.filter((finding) => finding.shotId === shotId)
-            .flatMap((finding) => finding.field ? [finding.field] : []))];
+        for (const { firstShot, fields: shotAllowedFields, finalPromptLength } of repairs) {
+          const shotId = firstShot.shotId;
           const changesRaw = await reviewer.repair({
             projectId: input.projectId, runId: input.runId, stageRunId: input.stageRunId,
-            shot: firstShot.source, contract: firstShot.compiled.contract, attempt: 1,
+            shot: finalPromptLength ? structuredClone(firstShot.source) : firstShot.source,
+            contract: finalPromptLength ? structuredClone(firstShot.compiled.contract) : firstShot.compiled.contract,
+            attempt: 1,
             upstreamContext: input.upstreamContext,
             findings: finalReports.find((report) => report.shotId === shotId)?.checks.filter((check) => !check.pass) ?? [],
-            allowedFields: shotAllowedFields,
+            allowedFields: [...shotAllowedFields],
+            ...(finalPromptLength ? { finalPromptLength: { ...finalPromptLength } } : {}),
           });
           const shotChanges = validateRepairChanges(changesRaw, shotAllowedFields);
           if (new Set(shotChanges.map((change) => change.field)).size !== shotChanges.length) throw new Error("REPAIR_CHANGE_DUPLICATE");
-          const patched = shotChanges.reduce((current, change) => patchSource(current, [change]), firstShot.source);
-          patchedSources.set(firstShot.shotId, { source: patched, compile: compileById.get(firstShot.shotId)! });
+          if (finalPromptLength) {
+            for (const change of shotChanges) {
+              const prior = fieldValueFromSource(firstShot.source, change.field);
+              if (typeof prior !== "string" || typeof change.value !== "string" || !change.value.trim()
+                || change.value.trim().length >= prior.trim().length) throw new Error("FINAL_PROMPT_REPAIR_NOT_SHORTER");
+            }
+            proofs?.delete(shotId);
+          }
+          const patched = patchSource(firstShot.source, shotChanges);
+          patchedSources.set(shotId, { source: patched, compile: compileById.get(shotId)!,
+            ...(finalPromptLength ? { expectedRequestSha256: firstShot.compiled.contract.requestSha256 } : {}) });
           changes.push(...shotChanges.map((change) => ({ shotId, ...change })));
         }
         if (changes.length === 0) throw new Error("REPAIR_CHANGES_MISSING");
@@ -980,6 +1073,7 @@ export async function evaluatePromptPackage(input: EvaluatePromptQualityInput): 
     findings: finalFindings,
     reviewer,
     status: finalStatus,
+    maxFinalPromptChars: input.maxFinalPromptChars,
   });
   return {
     schemaVersion: SEMANTIC_QUALITY_POLICY_VERSION,
@@ -997,6 +1091,7 @@ export async function evaluatePromptPackage(input: EvaluatePromptQualityInput): 
     })),
     semanticReports: finalReports,
     findings: finalFindings,
+    ...(input.maxFinalPromptChars !== undefined ? { maxFinalPromptChars: input.maxFinalPromptChars } : {}),
     ...(repairPlan ? { repairPlan } : {}),
     ...(repairAttempt ? { repairAttempt } : {}),
     decision,
@@ -1029,6 +1124,7 @@ export function writePromptQualityEvidence(directory: string, result: PromptQual
     checkedAt: result.checkedAt,
     reports: result.semanticReports,
     findings: result.findings,
+    ...(result.maxFinalPromptChars !== undefined ? { maxFinalPromptChars: result.maxFinalPromptChars } : {}),
     repairAttempt: result.repairAttempt ?? null,
   });
   const decision = write("prompt-quality-decision.json", result.decision);
@@ -1054,7 +1150,15 @@ export function writePromptQualityEvidence(directory: string, result: PromptQual
 }
 
 export function promptQualityAutoChecks(result: PromptQualityResult): AutoApprovalCheck[] {
+  const limit = result.maxFinalPromptChars;
   return [
+    ...(limit !== undefined ? [{
+      id: "prompt-final-native-length",
+      category: "deterministic" as const,
+      status: result.shotContracts.every(item => item.contract.prompt.length <= limit) ? "passed" as const : "failed" as const,
+      detail: `完整提示词字符数（上限 ${limit}，UTF-16）：${result.shotContracts.map(item => `${item.shotId}=${item.contract.prompt.length}`).join("、")}`,
+      evidenceRef: "prompt-quality/decision",
+    }] : []),
     ...(result.status === "stalled" ? [{
       id: "prompt-quality-stalled",
       category: "policy" as const,

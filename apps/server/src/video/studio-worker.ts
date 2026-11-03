@@ -30,6 +30,7 @@ import {
   attachStructuredLog,
   bindExplicitAudienceMetadata,
   classifyError,
+  fieldSpec,
   type DeterministicCheck,
   installVendorEngineBridge,
   installVendorPortraitBindingBridge,
@@ -1024,6 +1025,7 @@ function startRunWithLease(scope: Scope, input: StudioRunInput, heldLease?: Proj
             stageRunId: `${entry.runId}:g6`,
             revision: Math.max(1, stageRef.attempt),
             shots: packageShots,
+            maxFinalPromptChars: fieldSpec().lengths.hardMax,
             reviewer: semanticQualityReviewer,
             upstreamContext: {
               pipelineKind,
@@ -1093,7 +1095,17 @@ function startRunWithLease(scope: Scope, input: StudioRunInput, heldLease?: Proj
             compile: promptCompileOptionsFor(runInput.metadata, promptContractModel, runWorkDir,
               path.join(runWorkDir, "characters", input.projectId), source, false, archiveCopies),
           }));
-          const currentness = verifyCurrentPromptContracts({ shots: currentShots }, prior);
+          const currentness = verifyCurrentPromptContracts({
+            shots: currentShots, maxFinalPromptChars: fieldSpec().lengths.hardMax,
+          }, prior);
+          // Vendor PipelineGuard consumes the assigned prompt, not a fresh compile.
+          // Require both representations to match before recording an eligible G7.
+          const assignedPrompts = new Map(structuredPromptPackage.map((shot) => [String(shot.shotId ?? shot.shot_id ?? ""), shot.prompt]));
+          const assignedDrift = promptContractMode === "enforce" ? currentness.contracts
+            .filter((contract) => assignedPrompts.get(contract.shotId) !== contract.prompt)
+            .map(({ shotId }) => `FINAL_ASSIGNED_PROMPT_DRIFT:${shotId}`) : [];
+          const reasons = [...currentness.reasons, ...assignedDrift];
+          const current = currentness.valid && assignedDrift.length === 0;
           const eligibility = {
             schemaVersion: "workloom.video-render-eligibility/v2",
             projectId: input.projectId,
@@ -1101,9 +1113,9 @@ function startRunWithLease(scope: Scope, input: StudioRunInput, heldLease?: Proj
             attempt: stageRef.attempt,
             g6DecisionId: gateProofs.get("G6_PROMPT") ? String(gateProofs.get("G6_PROMPT")!.decisionId ?? "") : "",
             promptContracts: prior,
-            current: currentness.valid,
-            eligible: currentness.valid,
-            reasons: currentness.reasons,
+            current,
+            eligible: current,
+            reasons,
           };
           const eligibilityPath = path.join(path.dirname(artifact.path), "render-eligibility.json");
           const body = JSON.stringify(eligibility, null, 2);
@@ -1111,15 +1123,15 @@ function startRunWithLease(scope: Scope, input: StudioRunInput, heldLease?: Proj
           renderEligibilityEvidence = {
             path: eligibilityPath,
             sha256: renderSha256(body),
-            eligible: currentness.valid,
-            reasons: currentness.reasons,
+            eligible: current,
+            reasons,
           };
           baseChecks.push({
             id: "g6-contract-current",
-            pass: currentness.valid,
+            pass: current,
             hard: promptContractMode === "enforce",
-            detail: currentness.valid ? "G6 字段/提示词/请求哈希与当前镜头包一致"
-              : `G6 合同漂移：${currentness.reasons.join(",")}`,
+            detail: current ? "G6 字段/提示词/请求哈希与当前镜头包一致"
+              : `G6 合同漂移：${reasons.join(",")}`,
           });
         }
       }

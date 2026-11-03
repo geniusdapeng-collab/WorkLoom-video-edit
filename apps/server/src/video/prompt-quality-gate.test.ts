@@ -114,6 +114,14 @@ function input(reviewer: SemanticQualityReviewer, mode: "shadow" | "enforce" = "
   };
 }
 
+function shotAtFinalLength(length: number, shotId = "S01") {
+  const original = compilePromptPackage({ shots: [{ source, compile }] })[0]!.contract.prompt.length;
+  const color_palette = `${fields.color_palette}🎨${"灰".repeat(length - original - 2)}`;
+  const shot = { source: { ...source, shotId, fields: { ...fields, color_palette } }, compile };
+  expect(compilePromptPackage({ shots: [shot] })[0]!.contract.prompt.length).toBe(length);
+  return shot;
+}
+
 afterEach(() => {
   vi.unstubAllEnvs();
   vi.unstubAllGlobals();
@@ -224,6 +232,39 @@ function workerModelFixture() {
 }
 
 describe("G6 同次修复的真实模型路由", () => {
+  it("只缩短超长镜头的美术字段，保留另一镜原有运镜修复及未变化镜头证明", async () => {
+    const fixture = workerModelFixture();
+    const longShot = shotAtFinalLength(3001, "S02");
+    const original = compilePromptPackage({ shots: [longShot] })[0]!.contract;
+    const evaluation = { ...fixture.evaluation, maxFinalPromptChars: 3000,
+      shots: [fixture.evaluation.shots[0]!, longShot, { source: { ...source, shotId: "S03" }, compile }] };
+    fixture.onRepair.mockImplementation(context => context.shotId === "S02"
+      ? { changes: [{ field: "color_palette", value: longShot.source.fields.color_palette.slice(0, -1), reason: "删掉重复字" }] }
+      : undefined);
+    const result = await evaluatePromptPackage(evaluation);
+    expect(fixture.calls).toEqual(["review:S01", "review:S02", "review:S03", "repair:S02", "repair:S01", "review:S01", "review:S02"]);
+    expect(fixture.onRepair).toHaveBeenCalledWith(expect.objectContaining({
+      shotId: "S02", finalPromptLength: { actualChars: 3001, maxFinalPromptChars: 3000 },
+      allowedFields: [
+        { field: "lighting", value: fields.lighting },
+        { field: "composition", value: fields.composition },
+        { field: "color_palette", value: longShot.source.fields.color_palette },
+        { field: "depth_of_field", value: fields.depth_of_field },
+        { field: "mood", value: fields.mood },
+      ],
+      readOnlyFields: expect.arrayContaining(["action", "timeline", "portraits", "costume", "dialogue", "audio"]
+        .map(field => ({ field, value: fields[field] }))),
+    }), expect.anything());
+    expect(fixture.requests[3]).toContain("字段合计至少需缩短 1 字符");
+    expect(result.status).toBe("passed");
+    expect(result.shotContracts[1]!.contract).toMatchObject({ requestSha256: original.requestSha256 });
+    expect(result.shotContracts[1]!.contract.prompt.length).toBe(3000);
+    expect(result.semanticReports[1]!.checks).toHaveLength(5);
+    expect(result.semanticReports[1]!.proofReuse).toBeUndefined();
+    expect(result.semanticReports[2]!.proofReuse).toBeDefined();
+    expect(promptQualityAutoChecks(result)).toContainEqual(expect.objectContaining({ id: "prompt-final-native-length", status: "passed" }));
+  });
+
   it("修复运镜时在真实出站请求中附上完整只读动作与时间轴，不授予修改权限", async () => {
     const fixture = workerModelFixture();
     const timeline = "T00:00–T00:02停稳摘盔；T00:02–T00:05踏上台阶、举起奖杯。";
@@ -398,6 +439,80 @@ describe("G6 同次修复的真实模型路由", () => {
 });
 
 describe("prompt semantic quality gate", () => {
+  it("G6 and G7 enforce the same inclusive UTF-16 final limit even when an oversized contract summary matches", async () => {
+    const review = vi.fn(async () => passReview());
+    const exact = shotAtFinalLength(3000);
+    const oversized = shotAtFinalLength(3001);
+    const maxFinalPromptChars = 3000;
+    for (const [shot, valid] of [[exact, true], [oversized, false]] as const) {
+      const gateInput = { ...input({ review }), shots: [shot], maxFinalPromptChars };
+      const summary = promptContractSummary(compilePromptPackage(gateInput).map(item => item.contract));
+      const g6 = await evaluatePromptPackage(gateInput);
+      expect(g6.g6Eligible).toBe(valid);
+      expect(promptQualityAutoChecks(g6)).toContainEqual(expect.objectContaining({
+        id: "prompt-final-native-length", status: valid ? "passed" : "failed",
+      }));
+      expect(verifyCurrentPromptContracts(gateInput, summary)).toMatchObject({
+        valid, reasons: valid ? [] : ["S01:HARD_FINAL_PROMPT_TOO_LONG:stage"],
+      });
+    }
+    expect(review).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    { field: "action", value: "原地不动", reason: "REPAIR_CHANGE_INVALID:0" },
+    { field: "color_palette", value: " ", reason: "FINAL_PROMPT_REPAIR_NOT_SHORTER" },
+    { field: "color_palette", value: "短", reason: "SAME_FAILURE_SIGNATURE_REPEATED" },
+  ])("stops a failed final-length repair once ($reason)", async ({ field, value, reason }) => {
+    const review = vi.fn(async () => passReview());
+    const repair = vi.fn(async () => ({ changes: [{ field, value, reason: "定点缩写" }] }));
+    const shot = shotAtFinalLength(3001);
+    if (reason === "SAME_FAILURE_SIGNATURE_REPEATED") {
+      const prior = shot.source.fields.color_palette;
+      const next = { ...shot, source: { ...shot.source, fields: { ...shot.source.fields, color_palette: prior + "灰" } } };
+      repair.mockResolvedValueOnce({ changes: [{ field, value: prior, reason: "只缩短一字" }] });
+      const result = await evaluatePromptPackage({ ...input({ review, repair }), shots: [next], maxFinalPromptChars: 3000 });
+      expect(result.repairAttempt?.reason).toBe(reason);
+      expect(result.shotContracts[0]!.contract.prompt.length).toBe(3001);
+    } else {
+      const result = await evaluatePromptPackage({ ...input({ review, repair }), shots: [shot], maxFinalPromptChars: 3000 });
+      expect(result.repairAttempt?.reason).toBe(reason);
+      expect(result.g6Eligible).toBe(false);
+    }
+    expect(repair).toHaveBeenCalledTimes(1);
+    expect(review).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps one repair per overflowing shot in the same pass and rechecks all five for both", async () => {
+    const review = vi.fn(async context => ({ ...passReview(), shotId: context.contract.shotId }));
+    const repair = vi.fn(async context => {
+      const value = (context.shot.fields as Record<string, string>).color_palette!.slice(0, -1);
+      return { changes: [{ field: "color_palette", value, reason: "去掉重复字" }] };
+    });
+    const result = await evaluatePromptPackage({ ...input({ review, repair }), maxFinalPromptChars: 3000,
+      shots: [shotAtFinalLength(3001), shotAtFinalLength(3001, "S02")] });
+    expect(result.g6Eligible).toBe(true);
+    expect(result.shotContracts.map(item => item.contract.prompt.length)).toEqual([3000, 3000]);
+    expect(result.semanticReports.map(report => report.checks.length)).toEqual([5, 5]);
+    expect(repair).toHaveBeenCalledTimes(2);
+    expect(review).toHaveBeenCalledTimes(4);
+  });
+
+  it("blocks a malformed cap or compiler hard error before review and length repair", async () => {
+    const review = vi.fn(async () => passReview());
+    const repair = vi.fn();
+    const shot = shotAtFinalLength(3001);
+    const gateInput = { ...input({ review, repair }), maxFinalPromptChars: 3000, shots: [
+      { ...shot, compile: { ...shot.compile, model: { ...shot.compile.model, maxPromptChars: 2999 } } },
+    ] };
+    const result = await evaluatePromptPackage(gateInput);
+    expect(result.g6Eligible).toBe(false);
+    expect(result.findings.map(finding => finding.code)).toContain("HARD_PROMPT_TOO_LONG");
+    await expect(evaluatePromptPackage({ ...gateInput, maxFinalPromptChars: Number.NaN })).rejects.toThrow("FINAL_PROMPT_LENGTH_LIMIT_INVALID");
+    expect(review).not.toHaveBeenCalled();
+    expect(repair).not.toHaveBeenCalled();
+  });
+
   it.each(["S01", "S02"])("the LLM output example for %s satisfies the same identity and pass/failure schema as the parser", async shotId => {
     const reasonStructured = vi.fn(async (_prompt: string, schema: unknown) => {
       const example = schema as SemanticQualityReview;
