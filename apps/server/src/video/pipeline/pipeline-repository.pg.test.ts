@@ -13,7 +13,11 @@ import {
   type CompiledVideoPipelinePlan,
 } from "@hyperreality/video-pipeline";
 import { VideoPipelineRepository } from "./pipeline-repository.js";
+import { VideoPipelineReconciler } from "./reconciler.js";
 import { PipelineShadowObserver } from "./shadow.js";
+import { closeAllPools } from "@workloom/db";
+import { makeLedgerWriter, markProjectInterrupted } from "../archive-host.js";
+import { readStageBreakpoints, resumeProject, scanStaleRunsOnStartup } from "../archive-resume.js";
 
 const adminUrl = process.env.WORKLOOM_TEST_ADMIN_URL;
 const root = resolve(import.meta.dirname, "../../../../..");
@@ -91,6 +95,7 @@ describe.skipIf(!adminUrl || !appPassword || !gatewayPassword)("video pipeline r
     `);
     workDir = mkdtempSync(join(tmpdir(), "wl-pipeline-pg-"));
     process.env.HR_WORK_DIR = workDir;
+    process.env.DATABASE_URL = dbUrl(dbName, new URL(adminUrl!).username, decodeURIComponent(new URL(adminUrl!).password));
     process.env.DATABASE_APP_URL = dbUrl(dbName, "workloom_app", appPassword!);
     process.env.DATABASE_GATEWAY_URL = dbUrl(dbName, "workloom_gateway", gatewayPassword!);
     appPool = new pg.Pool({ connectionString: dbUrl(dbName, "workloom_app", appPassword!), max: 4 });
@@ -118,6 +123,7 @@ describe.skipIf(!adminUrl || !appPassword || !gatewayPassword)("video pipeline r
   }, 30_000);
 
   afterAll(async () => {
+    await closeAllPools();
     await appPool?.end().catch(() => undefined);
     await owner?.end().catch(() => undefined);
     if (admin) {
@@ -545,4 +551,321 @@ describe.skipIf(!adminUrl || !appPassword || !gatewayPassword)("video pipeline r
     const approvals = await owner.query("SELECT count(*)::int AS n FROM approvals WHERE workspace_id='W1'");
     expect(approvals.rows[0]?.n).toBe(0);
   }, 60_000);
+
+  async function startIntegrityRun(projectId: string, selectedPlan = plan) {
+    await owner.query(
+      "INSERT INTO video_projects (id,workspace_id,title,kind,created_by) VALUES ($1,'W1',$1,'marketing','test')",
+      [projectId],
+    );
+    return {
+      projectId,
+      pipelineKind: "marketing" as const,
+      intentContractId: projectId,
+      intentHash: sha256Json({ projectId }),
+      createdBy: "test",
+      plan: selectedPlan,
+      idempotencyKey: `${projectId}:start`,
+      commandId: `${projectId}:start`,
+      actor: { id: "system", type: "system" as const },
+    };
+  }
+
+  function writeFixtureArtifact(projectId: string, id: string, logicalId = "dossier") {
+    const content = "{}\n";
+    const storageRef = `artifacts/${id}.json`;
+    const projectRoot = join(workDir, "archive", "W1", projectId);
+    mkdirSync(join(projectRoot, "artifacts"), { recursive: true });
+    writeFileSync(join(projectRoot, storageRef), content);
+    return artifact(id, logicalId, createHash("sha256").update(content).digest("hex"), Buffer.byteLength(content), storageRef);
+  }
+
+  it("replays the full original response of all mutation commands after later revisions", async () => {
+    const start = await startIntegrityRun("P-replay");
+    const [created, concurrentReplay] = await Promise.all([repository.createRun(start), repository.createRun(start)]);
+    expect(concurrentReplay).toEqual(created);
+    const claim = {
+      plan, runId: created.runId, stageKey: "source", owner: "replay-worker",
+      commandId: "replay-claim", idempotencyKey: "replay-claim",
+      expectedRunRevision: created.revision, expectedStageRevision: 1, leaseMs: 30_000,
+    };
+    const [claimed, claimReplay] = await Promise.all([repository.claimStage(claim), repository.claimStage(claim)]);
+    expect(claimReplay).toEqual(claimed);
+    const source = writeFixtureArtifact(start.projectId, "A-REPLAY");
+    const commit = {
+      plan, runId: created.runId, stageKey: "source", artifact: source, manifestArtifacts: [source],
+      commandId: "replay-commit", idempotencyKey: "replay-commit",
+      expectedRunRevision: claimed.revision, expectedStageRevision: 1,
+      actor: { id: claim.owner, type: "worker" as const },
+    };
+    const committed = await repository.commitArtifact(commit);
+    const refresh = {
+      plan, runId: created.runId, commandId: "replay-refresh", idempotencyKey: "replay-refresh",
+      expectedRunRevision: committed.run.revision, actor: start.actor,
+    };
+    const refreshed = await repository.refreshFrontier(refresh);
+    const stage = committed.run.stages.find((value) => value.key === "source")!;
+    const gate = {
+      plan, runId: created.runId, gateStageKey: "g1", commandId: "replay-gate", idempotencyKey: "replay-gate",
+      expectedRunRevision: refreshed.revision, expectedStageRevision: 1, actor: start.actor,
+      findings: [], manifestArtifacts: [source],
+      decision: {
+        id: "GD-REPLAY", runId: created.runId, stageRunId: stage.stageRunId, gateId: "G1",
+        artifactManifestHash: artifactManifestHash([source]), planHash: plan.planHash,
+        checkSetVersion: "g1/v1", rubricVersion: "g1/v1", status: "passed" as const,
+        reviewer: { kind: "host_rule" as const, id: "test" }, findings: [],
+        evidenceRefs: ["fixture:g1"], supersedesDecisionId: null, createdAt: new Date().toISOString(),
+      },
+    };
+    const decided = await repository.recordGateDecision(gate);
+    const interrupted = await repository.markInterrupted({
+      runId: created.runId, commandId: "replay-interrupt", idempotencyKey: "replay-interrupt",
+      expectedRunRevision: decided.revision, actor: start.actor, reason: "fixture", owner: "test",
+    });
+    expect(await repository.createRun(start)).toEqual(created);
+    expect(await repository.claimStage(claim)).toEqual(claimed);
+    expect(await repository.commitArtifact(commit)).toEqual(committed);
+    expect(await repository.refreshFrontier(refresh)).toEqual(refreshed);
+    expect(await repository.recordGateDecision(gate)).toEqual(decided);
+    expect(await repository.markInterrupted({
+      runId: created.runId, commandId: "replay-interrupt", idempotencyKey: "replay-interrupt",
+      expectedRunRevision: decided.revision, actor: start.actor, reason: "fixture", owner: "test",
+    })).toEqual(interrupted);
+    await expect(repository.claimStage({ ...claim, leaseMs: 42 })).rejects.toMatchObject({ code: "IDEMPOTENCY_CONFLICT" });
+    const counts = await owner.query(
+      `SELECT (SELECT count(*)::int FROM video_pipeline_commands WHERE run_id=$1) AS commands,
+              (SELECT count(*)::int FROM video_pipeline_outbox WHERE run_id=$1) AS events,
+              (SELECT count(*)::int FROM video_artifacts WHERE pipeline_run_id=$1) AS artifacts`,
+      [created.runId],
+    );
+    expect(counts.rows[0]).toEqual({ commands: 6, events: 6, artifacts: 1 });
+
+    await owner.query(
+      "UPDATE video_pipeline_commands SET response_json=$2::jsonb WHERE id=$1",
+      [commit.commandId, JSON.stringify({ runId: created.runId, artifactManifestHash: committed.artifactManifestHash })],
+    );
+    expect(await repository.commitArtifact(commit)).toEqual({ run: interrupted, artifactManifestHash: committed.artifactManifestHash });
+    await owner.query(
+      "UPDATE video_pipeline_commands SET response_json=$2::jsonb WHERE id=$1",
+      [start.commandId, JSON.stringify({ runId: created.runId })],
+    );
+    expect(await repository.createRun(start)).toEqual(interrupted);
+  });
+
+  it("keeps an already ready stage in the recomputed frontier", async () => {
+    const start = await startIntegrityRun("P-frontier");
+    const created = await repository.createRun(start);
+    const refreshed = await repository.refreshFrontier({
+      plan, runId: created.runId, commandId: "ready-refresh", idempotencyKey: "ready-refresh",
+      expectedRunRevision: created.revision, actor: start.actor,
+    });
+    expect(refreshed.stages.find((stage) => stage.key === "source")?.executionStatus).toBe("ready");
+    expect(refreshed.currentFrontier).toEqual(["source"]);
+    expect(refreshed.nextAction).toBe("run_node");
+  });
+
+  it.each(["wrong-owner", "expired-owner"])("rejects a %s artifact writer and rolls back all effects", async (mode) => {
+    const start = await startIntegrityRun(`P-${mode}`);
+    const created = await repository.createRun(start);
+    const claimed = await repository.claimStage({
+      plan, runId: created.runId, stageKey: "source", owner: "lease-worker",
+      commandId: `${mode}:claim`, idempotencyKey: `${mode}:claim`,
+      expectedRunRevision: created.revision, expectedStageRevision: 1, leaseMs: 30_000,
+    });
+    if (mode === "expired-owner") {
+      await owner.query("UPDATE video_pipeline_runs SET lease_expires_at=clock_timestamp() - interval '1 second' WHERE id=$1", [created.runId]);
+    }
+    const source = writeFixtureArtifact(start.projectId, `A-${mode}`);
+    await expect(repository.commitArtifact({
+      plan, runId: created.runId, stageKey: "source", artifact: source, manifestArtifacts: [source],
+      commandId: `${mode}:commit`, idempotencyKey: `${mode}:commit`,
+      expectedRunRevision: claimed.revision, expectedStageRevision: 1,
+      actor: { id: mode === "wrong-owner" ? "another-worker" : "lease-worker", type: "worker" },
+    })).rejects.toMatchObject({ code: "PIPELINE_LEASE_NOT_OWNED" });
+    expect((await repository.getRun(created.runId))?.revision).toBe(claimed.revision);
+    expect((await owner.query("SELECT id FROM video_artifacts WHERE id=$1", [source.id])).rowCount).toBe(0);
+    expect((await owner.query("SELECT id FROM video_pipeline_commands WHERE id=$1", [`${mode}:commit`])).rowCount).toBe(0);
+  });
+
+  it("marks running work interrupted and hands the expired lease to reconciliation", async () => {
+    const start = await startIntegrityRun("P-interrupt");
+    const created = await repository.createRun(start);
+    const claimed = await repository.claimStage({
+      plan, runId: created.runId, stageKey: "source", owner: "interrupted-worker",
+      commandId: "interrupted-claim", idempotencyKey: "interrupted-claim",
+      expectedRunRevision: created.revision, expectedStageRevision: 1, leaseMs: 30_000,
+    });
+    await owner.query("UPDATE video_pipeline_runs SET lease_expires_at=clock_timestamp() - interval '1 second' WHERE id=$1", [created.runId]);
+    expect(await repository.listReconcileCandidates()).toContainEqual(expect.objectContaining({
+      runId: created.runId, reason: "expired_running_lease",
+    }));
+    const interrupted = await repository.markInterrupted({
+      runId: created.runId, commandId: "interrupt-running", idempotencyKey: "interrupt-running",
+      expectedRunRevision: claimed.revision, actor: start.actor, reason: "fixture expiry", owner: "reconciler",
+    });
+    expect(interrupted.leaseOwner).toBeNull();
+    expect(interrupted.nextAction).toBe("reconcile");
+    expect(interrupted.stages.find((stage) => stage.key === "source")).toMatchObject({
+      executionStatus: "interrupted", verificationStatus: "unverified", disposition: "reconcile",
+    });
+  });
+
+  it("preserves a live sibling claim when a gate resolves and fences expired takeover", async () => {
+    const parallel = compileVideoPipelineDocument({
+      quest: "parallel-film", name: "parallel film", version: "1",
+      steps: [
+        { step_key: "source", name: "Source", owner: "worker", outputs: ["dossier"] },
+        { step_key: "sibling", name: "Sibling", owner: "worker", outputs: ["report"] },
+        { step_key: "available", name: "Available", owner: "worker", outputs: ["report"] },
+        { step_key: "g1", name: "G1", owner: "director", gate: "G1", inputs: ["dossier"],
+          outputs: ["dossier"], depends_on: ["source"] },
+      ],
+    }, { knownPipelines: ["parallel-film"] });
+    const start = await startIntegrityRun("P-parallel", parallel);
+    const created = await repository.createRun(start);
+    const claim = (stageKey: string, expectedRunRevision: number, owner = "parallel-worker") => repository.claimStage({
+      plan: parallel, runId: created.runId, stageKey, owner,
+      commandId: `parallel-claim:${stageKey}:${owner}`, idempotencyKey: `parallel-claim:${stageKey}:${owner}`,
+      expectedRunRevision, expectedStageRevision: 1, leaseMs: 30_000,
+    });
+    const claimedSource = await claim("source", created.revision);
+    const claimedSibling = await claim("sibling", claimedSource.revision);
+    const commit = (stageKey: string, expectedRunRevision: number) => {
+      const source = writeFixtureArtifact(start.projectId, `A-parallel-${stageKey}`, stageKey === "source" ? "dossier" : "report");
+      return repository.commitArtifact({
+        plan: parallel, runId: created.runId, stageKey, artifact: source, manifestArtifacts: [source],
+        commandId: `parallel-commit:${stageKey}`, idempotencyKey: `parallel-commit:${stageKey}`,
+        expectedRunRevision, expectedStageRevision: 1, actor: { id: "parallel-worker", type: "worker" },
+      });
+    };
+    const committed = await commit("source", claimedSibling.revision);
+    const refreshed = await repository.refreshFrontier({
+      plan: parallel, runId: created.runId, commandId: "parallel-refresh", idempotencyKey: "parallel-refresh",
+      expectedRunRevision: committed.run.revision, actor: start.actor,
+    });
+    const stage = committed.run.stages.find((value) => value.key === "source")!;
+    const decided = await repository.recordGateDecision({
+      plan: parallel, runId: created.runId, gateStageKey: "g1", commandId: "parallel-gate", idempotencyKey: "parallel-gate",
+      expectedRunRevision: refreshed.revision, expectedStageRevision: 1, actor: start.actor,
+      findings: [], manifestArtifacts: [stage.artifact!],
+      decision: {
+        id: "GD-PARALLEL", runId: created.runId, stageRunId: stage.stageRunId, gateId: "G1",
+        artifactManifestHash: committed.artifactManifestHash, planHash: parallel.planHash,
+        checkSetVersion: "g1/v1", rubricVersion: "g1/v1", status: "passed",
+        reviewer: { kind: "host_rule", id: "test" }, findings: [],
+        evidenceRefs: ["fixture:g1"], supersedesDecisionId: null, createdAt: new Date().toISOString(),
+      },
+    });
+    expect(decided.leaseOwner).toBe("parallel-worker");
+    await expect(claim("available", decided.revision, "other-worker")).rejects.toMatchObject({ code: "PIPELINE_LEASE_BUSY" });
+    const expiredAt = new Date(Date.now() - 1000).toISOString();
+    await owner.query("UPDATE video_pipeline_runs SET lease_expires_at=$2 WHERE id=$1", [created.runId, expiredAt]);
+    for (const worker of ["parallel-worker", "other-worker"]) {
+      await expect(claim("available", decided.revision, worker)).rejects.toMatchObject({ code: "PIPELINE_LEASE_RECONCILE_REQUIRED" });
+    }
+    await owner.query("UPDATE video_pipeline_runs SET lease_expires_at=clock_timestamp() + interval '30 seconds' WHERE id=$1", [created.runId]);
+    const completedSibling = await commit("sibling", decided.revision);
+    expect(completedSibling.run.leaseOwner).toBeNull();
+    expect((await claim("available", completedSibling.run.revision, "other-worker")).leaseOwner).toBe("other-worker");
+    const retry = await startIntegrityRun("P-parallel-reconcile", parallel);
+    const retryRun = await repository.createRun(retry);
+    let revision = retryRun.revision;
+    for (const stageKey of ["source", "sibling"]) {
+      revision = (await repository.claimStage({
+        plan: parallel, runId: retryRun.runId, stageKey, owner: "reconcile-fixture",
+        commandId: `parallel-reconcile:${stageKey}`, idempotencyKey: `parallel-reconcile:${stageKey}`,
+        expectedRunRevision: revision, expectedStageRevision: 1, leaseMs: 30_000,
+      })).revision;
+    }
+    await owner.query(
+      "UPDATE video_pipeline_runs SET status='waiting',lease_expires_at=$2 WHERE id=$1",
+      [retryRun.runId, expiredAt],
+    );
+    const outcomes = await new VideoPipelineReconciler(repository, "startup-fixture").scan();
+    expect(outcomes.filter((item) => item.candidate.runId === retryRun.runId)).toHaveLength(2);
+    const reconciled = await repository.getRun(retryRun.runId);
+    expect(reconciled?.revision).toBe(revision + 1);
+    expect(reconciled?.stages.filter((stage) => stage.executionStatus === "interrupted")).toHaveLength(2);
+
+  });
+
+  it("isolates legacy claim, heartbeat and finish from control rows with identical stage and attempt", async () => {
+    const start = await startIntegrityRun("P-ledger-isolation");
+    const run = await repository.createRun(start);
+    const scope = { tenantId: "T1", workspaceId: "W1" };
+    const stageId = "source";
+    const controlId = run.stages.find((stage) => stage.key === stageId)!.stageRunId;
+    const ledger = makeLedgerWriter(scope);
+    expect(await ledger.nextAttempt(start.projectId, stageId)).toBe(1);
+    expect(await ledger.claimRun({
+      id: "legacy-claim", projectId: start.projectId, stageId,
+      inputRefTemplate: "stages/source/attempt-{attempt}.input.json", runId: "legacy-run",
+    })).toEqual({ attempt: 1, inputRef: "stages/source/attempt-1.input.json" });
+    await ledger.heartbeatRun?.({ projectId: start.projectId, stageId, attempt: 1 });
+    await ledger.finishRun({
+      projectId: start.projectId, stageId, attempt: 1, status: "done",
+      outputRef: "stages/source/attempt-1.output.json", outputSha256: "a".repeat(64),
+      durationMs: 1, errorClass: null, errorMsg: null, cost: {},
+    });
+    const rows = await owner.query(
+      `SELECT id,status,execution_status,last_heartbeat_at,output_ref FROM production_stage_runs
+        WHERE id IN ($1,'legacy-claim') ORDER BY id`,
+      [controlId],
+    );
+    expect(rows.rows).toEqual([
+      { id: controlId, status: "running", execution_status: "ready", last_heartbeat_at: null, output_ref: null },
+      { id: "legacy-claim", status: "done", execution_status: null, last_heartbeat_at: expect.any(Date),
+        output_ref: "stages/source/attempt-1.output.json" },
+    ]);
+    expect(await ledger.nextAttempt(start.projectId, stageId)).toBe(2);
+    expect(await readStageBreakpoints(scope, start.projectId)).toEqual([]);
+  });
+
+  it.each(["mark", "resume", "startup"])("keeps control rows intact during legacy %s", async (operation) => {
+    const start = await startIntegrityRun(`P-legacy-${operation}`);
+    const run = await repository.createRun(start);
+    const scope = { tenantId: "T1", workspaceId: "W1" };
+    const controlId = run.stages.find((stage) => stage.key === "source")!.stageRunId;
+    const legacyId = `legacy-${operation}`;
+    await owner.query(
+      `INSERT INTO production_stage_runs (id,workspace_id,project_id,stage_id,attempt,status,run_id,started_at)
+        VALUES ($1,'W1',$2,'source',1,'running',$1,clock_timestamp() - interval '3 hours')`,
+      [legacyId, start.projectId],
+    );
+    const readRows = () => owner.query(
+      `SELECT id,status,execution_status,finished_at FROM production_stage_runs
+        WHERE id IN ($1,$2) ORDER BY id`,
+      [controlId, legacyId],
+    );
+    if (operation === "mark") {
+      expect(await markProjectInterrupted(scope, start.projectId)).toBe(1);
+    } else if (operation === "resume") {
+      const result = await resumeProject(scope, {
+        projectId: start.projectId, actor: start.actor,
+        startRun: () => { throw new Error("fixture must never start a worker"); },
+      });
+      expect(result).toMatchObject({ kind: "noaction", stage: "source" });
+    } else {
+      await owner.query("BEGIN");
+      try {
+        await owner.query("SELECT set_config('app.workspace_id','W1',true),set_config('app.tenant_id','T1',true)");
+        await owner.query(
+          "UPDATE production_stage_runs SET started_at=clock_timestamp() - interval '3 hours' WHERE id=$1",
+          [controlId],
+        );
+        await owner.query("COMMIT");
+      } catch (error) {
+        await owner.query("ROLLBACK");
+        throw error;
+      }
+      const report = await scanStaleRunsOnStartup({ ARCHIVE_AUTO_RESUME: "1", ARCHIVE_STALE_RUNNING_MIN: "10" });
+      expect(report.interrupted.filter((item) => item.projectId === start.projectId)).toHaveLength(1);
+    }
+    expect((await readRows()).rows).toEqual([
+      { id: controlId, status: "running", execution_status: "ready", finished_at: null },
+      { id: legacyId, status: "interrupted", execution_status: null, finished_at: expect.any(Date) },
+    ]);
+    expect(await readStageBreakpoints(scope, start.projectId)).toEqual([
+      expect.objectContaining({ stageId: "source", status: "interrupted", attempt: 1 }),
+    ]);
+  });
 });

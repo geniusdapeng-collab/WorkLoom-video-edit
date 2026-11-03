@@ -403,12 +403,10 @@ export function createWebSearch(options: {
 
     // ① 预置通道（fixture）：平台检索/人工回填的真实结果，优先级最高
     const fixture = readCachedHits(cache, FIXTURE_PROVIDER, query, cacheTtlMs * 30);
-    if (fixture && fixture.length > 0) {
-      take(FIXTURE_PROVIDER, fixture);
-      if (options.fixtureOnly || merged.length >= limit) {
-        options.log?.(`[intel] 检索「${query.slice(0, 24)}」：${perProvider.join(" / ")} → 预置命中 ${merged.length} 条`);
-        return merged.slice(0, limit);
-      }
+    if (fixture?.length) take(FIXTURE_PROVIDER, fixture);
+    if (options.fixtureOnly || merged.length >= limit) {
+      options.log?.(`[intel] 检索「${query.slice(0, 24)}」：${perProvider.join(" / ") || "fixture=miss"} → 预置命中 ${merged.length} 条`);
+      return merged.slice(0, limit);
     }
 
     // ② 线上引擎（逐引擎降级；命中足够即停）

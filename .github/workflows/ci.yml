@@ -142,6 +142,24 @@ jobs:
           apps/server/src/video/gate-policy.test.ts
           apps/server/src/video/gate-ledger-bridge.test.ts
 
+      - name: 视频数据完整性与恢复回归（真实 PostgreSQL，离线供应商）
+        env:
+          WORKLOOM_TEST_ADMIN_URL: postgres://postgres:workloom@localhost:5432/workloom
+          WORKLOOM_TEST_APP_PASSWORD: workloom_dev_app
+          WORKLOOM_TEST_GATEWAY_PASSWORD: workloom_dev_gateway
+        run: >-
+          pnpm exec vitest run --maxWorkers=1 --no-file-parallelism
+          packages/video-studio/src/archive
+          apps/server/src/video/archive
+          apps/server/src/video/pipeline/
+          apps/server/src/video/gen/
+          apps/server/src/video/render-poller
+          apps/server/src/video/render-cost-reconciliation.pg.test.ts
+          apps/server/src/video/production-qualification-currentness.pg.test.ts
+          apps/server/src/video/film-
+          apps/server/src/video/marketing-presentation-integrity-r2.test.ts
+          apps/server/src/video/marketing-search-fixture-r2.test.ts
+
       - name: 全场景套件（326 用例）
         run: pnpm suite
 

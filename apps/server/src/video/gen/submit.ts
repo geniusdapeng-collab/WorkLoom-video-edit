@@ -13,7 +13,7 @@ import { videoGenPool } from "./providers.js";
 import type { VideoGenParams } from "./types.js";
 import type { Scope } from "./db.js";
 import { SubmissionError, SubmissionLedger, submissionRequestHash, type SubmissionReceipt, type SubmissionRow } from "./submission-ledger.js";
-import { buildRenderPrompt } from "./compiled-request.js";
+import { buildRenderPrompt, renderSha256 } from "./compiled-request.js";
 import { authorizeRenderSubmission } from "../production-authority.js";
 
 export interface RenderScriptLike {
@@ -68,7 +68,7 @@ export interface SubmitGenJobResult {
 }
 
 function publicResult(receipt: SubmissionReceipt, row: SubmissionRow, deduped: boolean): SubmitGenJobResult {
-  const { events: _events, ...result } = receipt;
+  const { events: _events, qualifiedEndpointSha256: _endpointProof, ...result } = receipt;
   return { ...result, deduped, idempotencyKey: row.idempotency_key, requestHash: row.request_hash };
 }
 
@@ -270,6 +270,7 @@ async function submitWithLedger(input: SubmitGenJobInput, authorization: Awaited
   const receipt: SubmissionReceipt = {
     jobId: row.job_id, taskId, provider: selected.provider, providerModel: selected.providerModel,
     mock, estUsd: est.usd, estCny: est.cny, degraded, events,
+    ...(authorization ? { qualifiedEndpointSha256: renderSha256(authorization.compiled.endpoint) } : {}),
   };
   try {
     await ledger.recordAccepted(row.id, owner, receipt);

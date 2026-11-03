@@ -76,6 +76,15 @@ async function getJson(url: string, headers: Record<string, string>): Promise<{ 
   return { ok: res.ok, status: res.status, body, text };
 }
 
+/** A lookup failure says nothing about the already accepted task's terminal outcome. */
+function assertPollResponse(result: { ok: boolean; status: number; body: unknown }, provider: string): void {
+  if (!result.ok) throw new Error(`${provider} 任务查询失败：HTTP ${result.status}；保留原任务待回查`);
+  if (!result.body || typeof result.body !== "object" || Array.isArray(result.body)
+    || typeof (result.body as { status?: unknown }).status !== "string") {
+    throw new Error(`${provider} 任务查询响应无效；保留原任务待回查`);
+  }
+}
+
 /* ================= 火山方舟 · Seedance（视频，任务制异步） ================= */
 
 export class ArkVideoProvider implements GenProvider {
@@ -84,6 +93,9 @@ export class ArkVideoProvider implements GenProvider {
   constructor(private readonly cfg: { apiKey: string; baseUrl?: string }) {}
   private base(): string {
     return (this.cfg.baseUrl ?? "https://ark.cn-beijing.volces.com/api/v3").replace(/\/$/, "");
+  }
+  compiledEndpoint(providerModel: string): string {
+    return compileProviderRequest(this.providerId, { prompt: "", estimatedUnits: 1, params: { providerModel } }, this.cfg).endpoint;
   }
   async healthy(): Promise<boolean> { return Boolean(this.cfg.apiKey); }
   async submit(req: GenRequest): Promise<{ taskId: string }> {
@@ -94,7 +106,7 @@ export class ArkVideoProvider implements GenProvider {
   }
   async poll(taskId: string): Promise<{ status: GenTaskStatus; uri?: string; actualUnits?: number; error?: string }> {
     const r = await getJson(`${this.base()}/contents/generations/tasks/${taskId}`, { authorization: `Bearer ${this.cfg.apiKey}` });
-    if (!r.ok) return { status: "failed", error: `Seedance 查询失败：HTTP ${r.status} ${r.text.slice(0, 120)}` };
+    assertPollResponse(r, "Seedance");
     const d = r.body as { status?: string; content?: { video_url?: string }; error?: { message?: string }; usage?: { completion_tokens?: number } };
     if (d.status === "succeeded") return { status: "succeeded", uri: d.content?.video_url };
     if (d.status === "failed" || d.status === "cancelled" || d.status === "canceled") {
@@ -112,6 +124,9 @@ export class ArkImageProvider implements GenProvider {
   constructor(private readonly cfg: { apiKey: string; baseUrl?: string }) {}
   private base(): string {
     return (this.cfg.baseUrl ?? "https://ark.cn-beijing.volces.com/api/v3").replace(/\/$/, "");
+  }
+  compiledEndpoint(providerModel: string): string {
+    return compileProviderRequest(this.providerId, { prompt: "", estimatedUnits: 1, params: { providerModel } }, this.cfg).endpoint;
   }
   async healthy(): Promise<boolean> { return Boolean(this.cfg.apiKey); }
   async submit(req: GenRequest): Promise<{ taskId: string }> {
@@ -145,6 +160,9 @@ export class HiggsfieldProvider implements GenProvider {
   private auth(): Record<string, string> {
     return { authorization: `Key ${this.cfg.keyId}:${this.cfg.keySecret}` };
   }
+  compiledEndpoint(providerModel: string): string {
+    return compileProviderRequest(this.providerId, { prompt: "", estimatedUnits: 1, params: { providerModel } }, this.cfg).endpoint;
+  }
   async healthy(): Promise<boolean> { return Boolean(this.cfg.keyId && this.cfg.keySecret); }
 
   async submit(req: GenRequest): Promise<{ taskId: string }> {
@@ -157,7 +175,7 @@ export class HiggsfieldProvider implements GenProvider {
 
   async poll(taskId: string): Promise<{ status: GenTaskStatus; uri?: string; error?: string }> {
     const r = await getJson(`${this.base()}/requests/${taskId}/status`, this.auth());
-    if (!r.ok) return { status: "failed", error: `Higgsfield 查询失败：HTTP ${r.status} ${r.text.slice(0, 120)}` };
+    assertPollResponse(r, "Higgsfield");
     const d = r.body as {
       status?: string; error?: unknown;
       video?: { url?: string }; images?: Array<{ url?: string }>; payload?: { video?: { url?: string } };
@@ -190,6 +208,9 @@ export class MuapiProvider implements GenProvider {
   private base(): string {
     return (this.cfg.baseUrl ?? "https://api.muapi.ai").replace(/\/$/, "");
   }
+  compiledEndpoint(providerModel: string): string {
+    return compileProviderRequest(this.providerId, { prompt: "", estimatedUnits: 1, params: { providerModel } }, this.cfg).endpoint;
+  }
   async healthy(): Promise<boolean> { return Boolean(this.cfg.apiKey); }
   async submit(req: GenRequest): Promise<{ taskId: string }> {
     const compiled = compileProviderRequest(this.providerId, req, this.cfg);
@@ -200,7 +221,7 @@ export class MuapiProvider implements GenProvider {
   }
   async poll(taskId: string): Promise<{ status: GenTaskStatus; uri?: string; error?: string }> {
     const r = await getJson(`${this.base()}/api/v1/predictions/${taskId}/result`, { "x-api-key": this.cfg.apiKey });
-    if (!r.ok) return { status: "failed", error: `MuAPI 查询失败：HTTP ${r.status}` };
+    assertPollResponse(r, "MuAPI");
     const d = r.body as { status?: string; url?: string; outputs?: string[]; error?: string };
     const uri = d.url ?? d.outputs?.[0];
     const st = (d.status ?? "").toLowerCase();
@@ -208,6 +229,15 @@ export class MuapiProvider implements GenProvider {
     if (["failed", "error"].includes(st)) return { status: "failed", error: d.error ?? "生成失败" };
     return { status: "running" };
   }
+}
+
+/** Non-secret submission target from the same instance configuration used by poll(). */
+export function compiledEndpointOfProvider(provider: GenProvider, providerModel: string): string | null {
+  if (provider instanceof ArkVideoProvider || provider instanceof ArkImageProvider
+    || provider instanceof HiggsfieldProvider || provider instanceof MuapiProvider) {
+    return provider.compiledEndpoint(providerModel);
+  }
+  return null;
 }
 
 /* ================= 装配：env 驱动 + fail-closed（缺密钥=缺位，不 mock 冒充） ================= */

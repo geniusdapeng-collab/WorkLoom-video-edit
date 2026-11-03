@@ -61,6 +61,18 @@ function httpSubmissionError(provider: string, status: number): GenSubmissionErr
   return new GenSubmissionError(`${provider} 提交失败：HTTP ${status}`, rejected ? "not-accepted" : "unknown", canFallback);
 }
 
+/** Query transport/schema failures leave the existing task outcome unknown. */
+async function readPollResponse(res: Response, provider: string, hasStatus: (body: Record<string, unknown>) => boolean): Promise<unknown> {
+  if (!res.ok) throw new Error(`${provider} 任务查询失败：HTTP ${res.status}；保留原任务待回查`);
+  let body: unknown;
+  try { body = await res.json(); }
+  catch { throw new Error(`${provider} 任务查询响应不是有效 JSON；保留原任务待回查`); }
+  if (!body || typeof body !== "object" || Array.isArray(body) || !hasStatus(body as Record<string, unknown>)) {
+    throw new Error(`${provider} 任务查询响应无效；保留原任务待回查`);
+  }
+  return body;
+}
+
 /* ================= Mock 生成 Provider（D4 离线可跑 + 故障注入） ================= */
 
 export class MockGenProvider implements GenProvider {
@@ -119,8 +131,7 @@ export class SeedanceProvider implements GenProvider {
     const res = await fetch(`${this.base()}/contents/generations/tasks/${taskId}`, {
       headers: { authorization: `Bearer ${this.cfg.apiKey}` },
     });
-    if (!res.ok) return { status: "failed", error: `Seedance 查询失败：HTTP ${res.status}` };
-    const data = (await res.json()) as {
+    const data = (await readPollResponse(res, "Seedance", body => typeof body.status === "string")) as {
       status?: string;
       content?: { video_url?: string };
       error?: { message?: string };
@@ -173,8 +184,7 @@ export class KlingProvider implements GenProvider {
     const res = await fetch(`${this.base()}/v1/videos/text2video/${taskId}`, {
       headers: { authorization: `Bearer ${this.cfg.apiKey}` },
     });
-    if (!res.ok) return { status: "failed", error: `Kling 查询失败：HTTP ${res.status}` };
-    const data = (await res.json()) as {
+    const data = (await readPollResponse(res, "Kling", body => typeof (body.data as { task_status?: unknown } | undefined)?.task_status === "string")) as {
       data?: { task_status?: string; task_result?: { videos?: Array<{ url?: string }> }; task_status_msg?: string };
     };
     const st = data.data?.task_status;
@@ -227,8 +237,7 @@ export class JimengProvider implements GenProvider {
       headers: { "content-type": "application/json", authorization: `Bearer ${this.cfg.apiKey}` },
       body: JSON.stringify({ req_key: this.cfg.model ?? "jimeng-video-3.0", task_id: taskId }),
     });
-    if (!res.ok) return { status: "failed", error: `Jimeng 查询失败：HTTP ${res.status}` };
-    const data = (await res.json()) as {
+    const data = (await readPollResponse(res, "Jimeng", body => typeof (body.data as { status?: unknown } | undefined)?.status === "string")) as {
       data?: { status?: string; video_url?: string; resp_data?: string; message?: string };
     };
     const st = data.data?.status;

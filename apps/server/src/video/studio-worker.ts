@@ -60,7 +60,11 @@ import { createMarketingGateEvidenceGuard } from "./marketing-gate-evidence.js";
 import { canonicalRenderJson, renderSha256 } from "./gen/compiled-request.js";
 import { acceptPortraitArchiveReuse, loadPortraitReuseManifest, portraitReuseEvidence } from "./portrait-reuse-acceptance.js";
 import { applyBuiltinCharacters, appendBuiltinCharacterGuidance, resolveBuiltinCharacters, type BuiltinCharacterResolution } from "./builtin-character-selection.js";
-import { acquireProjectLease, archiveWorkDir, makeLedgerWriter, readProjectMeta } from "./archive-host.js";
+import { acquireProjectLease, archiveWorkDir, makeLedgerWriter, readProjectMeta, serializeProjectArchive, type ProjectLease } from "./archive-host.js";
+import {
+  createPreproductionResumeSnapshot, verifyPreproductionResumeSource,
+  type PreproductionResumeLaunch, type PreproductionResumeSource,
+} from "./archive-resume.js";
 import { ingestPortraitsFromIndex } from "./media/library.js";
 import { upsertProductProfileFromDossier } from "./media/products.js";
 import { appendScenePolicyGuidance, resolveScenePolicyForIntent } from "./scene-policy-routing.js";
@@ -674,6 +678,38 @@ type StudioRunInput = RunInput & {
 };
 
 export function startRun(scope: Scope, input: StudioRunInput): string {
+  return startRunWithLease(scope, input);
+}
+
+export async function startResumedRun(
+  scope: Scope, input: StudioRunInput, source: PreproductionResumeSource,
+): Promise<PreproductionResumeLaunch> {
+  if (input.projectId !== source.projectId || scope.workspaceId !== source.workspaceId || scope.tenantId !== source.tenantId) {
+    return { kind: "stale" };
+  }
+  const lease = await acquireProjectLease(scope, input.projectId);
+  if (!lease) return { kind: "busy" };
+  try {
+    if (await verifyPreproductionResumeSource(scope, lease, source)) {
+      // Ownership transfers to the worker only after a verified start.
+      return { kind: "started", runId: startRunWithLease(scope, input, lease) };
+    }
+  } catch (error) {
+    try { await lease.release(); }
+    catch (releaseError) { throw new AggregateError([error, releaseError], "resume-start-lease-release-failed"); }
+    throw error;
+  }
+  await lease.release();
+  return { kind: "stale" };
+}
+
+function startRunWithLease(scope: Scope, input: StudioRunInput, heldLease?: ProjectLease): string {
+  const resumeRequest = {
+    intent: input.intent,
+    rawIntent: input.rawIntent ?? input.intent,
+    isMarketing: input.isMarketing === true,
+    metadata: structuredClone(input.metadata ?? {}),
+  };
   // 补跑/恢复同样经过选型；歧义或知识库损坏在任何供应商调用之前同步失败。
   const selectedScenePolicy = input.selectedScenePolicy
     ?? resolveScenePolicyForIntent(input.rawIntent ?? input.intent, input.metadata);
@@ -800,7 +836,7 @@ export function startRun(scope: Scope, input: StudioRunInput): string {
   const archive = new ArchiveStore(path.resolve(WORK_DIR), scope.workspaceId, input.projectId, pipelineKind, {
     aspectRatio: runInput.metadata?.aspectRatio ?? null,
     scenePolicy: selectedScenePolicy.decision,
-  });
+  }, serializeProjectArchive(scope, input.projectId));
   /** 结构化日志镜像的"当前环节"（StageRunner 在环节边界更新；与文本 tee 并行） */
   const stageRef: { name: string | null; attempt: number } = { name: null, attempt: 0 };
   const runner = new StageRunner(archive, makeLedgerWriter(scope), entry.runId, {
@@ -1368,11 +1404,11 @@ export function startRun(scope: Scope, input: StudioRunInput): string {
      * 项目级执行者租约（规格书 §11：同一项目同一时刻只允许一个执行者，杜绝双写与重复烧额度）。
      * 会话级 advisory lock 持有到 run 结束；进程被 kill -9 → 连接断开 → 锁自动释放。
      */
-    let activeLease: Awaited<ReturnType<typeof acquireProjectLease>> = null;
+    let activeLease: ProjectLease | null = heldLease ?? null;
     let detachStructuredLog: (() => void) | null = null;
     let projectMeta: Awaited<ReturnType<typeof readProjectMeta>> = null;
     try {
-      activeLease = await acquireProjectLease(scope, input.projectId);
+      activeLease ??= await acquireProjectLease(scope, input.projectId);
       if (!activeLease) {
         throw new Error(`项目 ${input.projectId} 已有执行者持有档案租约（不重复启动，避免双份烧额度）`);
       }
@@ -1381,18 +1417,18 @@ export function startRun(scope: Scope, input: StudioRunInput): string {
       if (projectMeta.kind !== pipelineKind) throw new Error("PIPELINE_KIND_MISMATCH：预生产管线与服务项目类型不一致");
       await archive.ensure({ kind: projectMeta.kind, title: projectMeta.title, createdAt: projectMeta.createdAt });
       // 既有项目补跑可能改用新的明确片型；manifest 保存当前决策，旧值留在追加事件中。
-      const manifest = await archive.readManifest();
-      if (!manifest) throw new Error(`项目 ${input.projectId} 制片档案 manifest 缺失`);
-      if (JSON.stringify(manifest.routeMeta?.scenePolicy ?? null) !== JSON.stringify(selectedScenePolicy.decision)) {
+      let previousScenePolicy: unknown;
+      await archive.updateManifest((manifest) => {
+        if (!manifest) throw new Error(`项目 ${input.projectId} 制片档案 manifest 缺失`);
         const previous = manifest.routeMeta?.scenePolicy ?? null;
-        await archive.writeJsonAtomic("manifest.json", {
-          ...manifest,
-          routeMeta: { ...(manifest.routeMeta ?? {}), scenePolicy: selectedScenePolicy.decision },
-          updatedAt: new Date().toISOString(),
-        });
+        if (JSON.stringify(previous) === JSON.stringify(selectedScenePolicy.decision)) return null;
+        previousScenePolicy = previous;
+        return { ...manifest, routeMeta: { ...(manifest.routeMeta ?? {}), scenePolicy: selectedScenePolicy.decision } };
+      });
+      if (previousScenePolicy !== undefined) {
         await archive.appendJsonl("events.jsonl", {
           kind: "scene-policy.route-changed", runId: entry.runId,
-          previous, current: selectedScenePolicy.decision,
+          previous: previousScenePolicy, current: selectedScenePolicy.decision,
         });
       }
       detachStructuredLog = attachStructuredLog(archive, {
@@ -1438,7 +1474,14 @@ export function startRun(scope: Scope, input: StudioRunInput): string {
         let rawResult: Awaited<ReturnType<VideoStudio["runPreproduction"]>> | undefined;
         await runner.run(
           "preproduction",
-          { intent: runInput.intent, isMarketing: input.isMarketing ?? false, pipelineKind, scenePolicy: selectedScenePolicy.decision },
+          {
+            intent: runInput.intent, isMarketing: input.isMarketing ?? false, pipelineKind, scenePolicy: selectedScenePolicy.decision,
+            resumeSnapshot: createPreproductionResumeSnapshot({
+              scope: { ...scope, projectId: input.projectId, runId: entry.runId },
+              projectCreatedAt: projectMeta?.createdAt ?? null,
+              request: resumeRequest,
+            }),
+          },
           async (ctx) => {
             gateProofs.clear();
             promptQualityRef.current = null;

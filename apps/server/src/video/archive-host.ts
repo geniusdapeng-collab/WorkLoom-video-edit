@@ -58,12 +58,12 @@ export function archiveEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
  * 事务内 RLS 上下文 + 回调（口径与 studio-worker/render-poller 一致：
  * `set_config(..., true)` 只在显式事务内有效，autocommit 下语句结束即失效）。
  */
-async function withScopedTx<T>(
+async function scopedClientTransaction<T>(
+  client: pg.PoolClient,
   scope: Scope,
   fn: (client: pg.PoolClient) => Promise<T>,
+  discard: () => void,
 ): Promise<T> {
-  const client = await getAppPool().connect();
-  let discard = false;
   try {
     await client.query("BEGIN");
     await client.query("SELECT set_config('app.workspace_id', $1, true)", [scope.workspaceId]);
@@ -75,10 +75,21 @@ async function withScopedTx<T>(
     try {
       await client.query("ROLLBACK");
     } catch (rollbackError) {
-      discard = true;
+      discard();
       throw new AggregateError([err, rollbackError], "archive-transaction-rollback-failed");
     }
     throw err;
+  }
+}
+
+async function withScopedTx<T>(
+  scope: Scope,
+  fn: (client: pg.PoolClient) => Promise<T>,
+): Promise<T> {
+  const client = await getAppPool().connect();
+  let discard = false;
+  try {
+    return await scopedClientTransaction(client, scope, fn, () => { discard = true; });
   } finally {
     client.release(discard);
   }
@@ -121,7 +132,7 @@ export function makeLedgerWriter(scope: Scope): StageLedgerWriter {
                   replace($5, '{attempt}', (COALESCE(MAX(r.attempt),0)+1)::text), $6, now()
              FROM video_projects p
              LEFT JOIN production_stage_runs r
-               ON r.workspace_id=p.workspace_id AND r.project_id=p.id AND r.stage_id=$4
+               ON r.workspace_id=p.workspace_id AND r.project_id=p.id AND r.stage_id=$4 AND r.pipeline_run_id IS NULL
             WHERE p.workspace_id=$2 AND p.id=$3
             GROUP BY p.id
            RETURNING attempt, input_ref`,
@@ -144,7 +155,7 @@ export function makeLedgerWriter(scope: Scope): StageLedgerWriter {
           `UPDATE production_stage_runs
               SET status=$4, output_ref=$5, output_sha256=$6, error_class=$7, error_msg=$8,
                   duration_ms=$9, cost=$10::jsonb, finished_at=now()
-            WHERE workspace_id=$1 AND project_id=$2 AND stage_id=$3 AND attempt=$11 AND status='running'
+            WHERE workspace_id=$1 AND project_id=$2 AND stage_id=$3 AND attempt=$11 AND pipeline_run_id IS NULL AND status='running'
             RETURNING id`,
           params,
         );
@@ -152,7 +163,7 @@ export function makeLedgerWriter(scope: Scope): StageLedgerWriter {
         // 完成写的确认丢失后可重送同一回执；不同终态/摘要或不存在的 attempt 不能假装成功。
         const existing = await client.query(
           `SELECT id FROM production_stage_runs
-            WHERE workspace_id=$1 AND project_id=$2 AND stage_id=$3 AND attempt=$11
+            WHERE workspace_id=$1 AND project_id=$2 AND stage_id=$3 AND attempt=$11 AND pipeline_run_id IS NULL
               AND status=$4 AND output_ref IS NOT DISTINCT FROM $5
               AND output_sha256 IS NOT DISTINCT FROM $6 AND error_class IS NOT DISTINCT FROM $7
               AND error_msg IS NOT DISTINCT FROM $8 AND duration_ms IS NOT DISTINCT FROM $9
@@ -168,7 +179,7 @@ export function makeLedgerWriter(scope: Scope): StageLedgerWriter {
       withScopedTx(scope, async (client) => {
         await client.query(
           `UPDATE production_stage_runs SET last_heartbeat_at=now()
-            WHERE workspace_id=$1 AND project_id=$2 AND stage_id=$3 AND attempt=$4 AND status='running'`,
+            WHERE workspace_id=$1 AND project_id=$2 AND stage_id=$3 AND attempt=$4 AND pipeline_run_id IS NULL AND status='running'`,
           [scope.workspaceId, row.projectId, row.stageId, row.attempt],
         );
       }),
@@ -177,7 +188,7 @@ export function makeLedgerWriter(scope: Scope): StageLedgerWriter {
       withScopedTx(scope, async (client) => {
         const r = await client.query<{ n: number }>(
           `SELECT COALESCE(MAX(attempt),0)+1 AS n FROM production_stage_runs
-            WHERE workspace_id=$1 AND project_id=$2 AND stage_id=$3`,
+            WHERE workspace_id=$1 AND project_id=$2 AND stage_id=$3 AND pipeline_run_id IS NULL`,
           [scope.workspaceId, projectId, stageId],
         );
         return Number(r.rows[0]?.n ?? 1);
@@ -188,6 +199,7 @@ export function makeLedgerWriter(scope: Scope): StageLedgerWriter {
 /** 项目级执行者租约：同一项目同一时刻只允许一个执行者（跨进程也成立）。 */
 export interface ProjectLease {
   projectId: string;
+  withScopedTransaction<T>(fn: (client: pg.PoolClient) => Promise<T>): Promise<T>;
   release(): Promise<void>;
 }
 
@@ -225,6 +237,13 @@ export async function acquireProjectLease(scope: Scope, projectId: string): Prom
   let released = false;
   return {
     projectId,
+    async withScopedTransaction<T>(fn: (client: pg.PoolClient) => Promise<T>): Promise<T> {
+      if (released) throw new Error("PROJECT_LEASE_RELEASED");
+      return scopedClientTransaction(client, scope, fn, () => {
+        released = true;
+        client.release(true);
+      });
+    },
     async release(): Promise<void> {
       if (released) return;
       released = true;
@@ -282,12 +301,21 @@ export async function markProjectInterrupted(scope: Scope, projectId: string): P
   const rows = await withScopedTx(scope, async (client) => {
     const r = await client.query(
       `UPDATE production_stage_runs SET status='interrupted', finished_at=now()
-        WHERE workspace_id=$1 AND project_id=$2 AND status='running' RETURNING id`,
+        WHERE workspace_id=$1 AND project_id=$2 AND pipeline_run_id IS NULL AND status='running' RETURNING id`,
       [scope.workspaceId, projectId],
     );
     return r.rowCount ?? 0;
   });
   return rows;
+}
+
+/** Manifest mutations have a short lock independent of the long production run lease. */
+export function serializeProjectArchive(scope: Scope, projectId: string) {
+  const key = JSON.stringify(["archive-manifest", scope.tenantId, scope.workspaceId, projectId]);
+  return <T>(operation: () => Promise<T>): Promise<T> => withScopedTx(scope, async (client) => {
+    await client.query("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))", [key]);
+    return operation();
+  });
 }
 
 export type { StageStatus };
@@ -303,7 +331,9 @@ export function makeStageArchive(
 ): { store: ArchiveStore; ledger: StageLedgerWriter } | null {
   if (!archiveEnabled()) return null;
   try {
-    const store = new ArchiveStore(archiveWorkDir(), scope.workspaceId, projectId, pipelineKind);
+    const store = new ArchiveStore(
+      archiveWorkDir(), scope.workspaceId, projectId, pipelineKind, undefined, serializeProjectArchive(scope, projectId),
+    );
     return { store, ledger: makeLedgerWriter(scope) };
   } catch (err) {
     console.error(`[archive] 环节档案句柄构造失败（旁路关闭）: ${(err as Error).message}`);

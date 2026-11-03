@@ -34,7 +34,7 @@ export function normalizeMarketingDossierPresentation(
   options: {
     hasReviewEvidence?: boolean;
     hasCompetitorEvidence?: boolean;
-    sellingPointClaims?: Array<{ pointer: string; claimId: string; sourceId: string }>;
+    sellingPointClaims?: Array<{ pointer: string; claimId: string; sourceId: string; sourceUrl?: string | null }>;
     customerRestrictions?: string[];
   } = {},
 ): { dossier: RecordValue; cards: RecordValue; changes: string[] } {
@@ -48,34 +48,47 @@ export function normalizeMarketingDossierPresentation(
     dossier.restrictions = [...new Set([...list(dossier.restrictions).map(text).filter(Boolean), ...customerRestrictions])];
   }
 
-  const sellingPoints = [...new Set(list(identity.official_selling_points)
-    .map((item) => text(record(item).point))
-    .filter(Boolean))];
+  const originalSellingPoints = list(identity.official_selling_points).map((item) => text(record(item).point));
+  const sellingPoints = [...new Set(originalSellingPoints.filter(Boolean))];
   const provenance = list(dossier.provenance).map(record);
   const brief = record(cards.brief_card);
   if (JSON.stringify(brief.sellingPoints) !== JSON.stringify(sellingPoints)) {
     brief.sellingPoints = sellingPoints;
     changes.push("selling-point-summary-reconciled");
   }
-  const userConsensus = list(record(cards.insight_card).consensus_points).length;
-  const evidenceNote = `卖点来自 ${sellingPoints.length} 条来源绑定官方主张 + ${userConsensus} 条可核实用户共识；完整溯源见档案 ${text(dossier.product_id) || "(当前项目)"}`;
+  const insight = record(cards.insight_card);
+  const userPoints = new Set(list(record(dossier.pros_cons).pros).map(record)
+    .filter((point) => point.claim_nature !== "official" && list(point.source_refs).length > 0)
+    .map((point) => text(point.point)).filter(Boolean));
+  const previousConsensus = list(insight.consensus_points);
+  const userConsensus = options.hasReviewEvidence === false
+    ? []
+    : previousConsensus.filter((item) => userPoints.has(text(record(item).point)));
+  if (userConsensus.length !== previousConsensus.length) {
+    insight.consensus_points = userConsensus;
+    changes.push("user-consensus-source-reconciled");
+  }
+  const evidenceNote = `卖点来自 ${sellingPoints.length} 条来源绑定官方主张 + ${userConsensus.length} 条可核实用户共识；完整溯源见档案 ${text(dossier.product_id) || "(当前项目)"}`;
   if (brief.evidence_note !== evidenceNote) {
     brief.evidence_note = evidenceNote;
     changes.push("evidence-note-reconciled");
   }
   cards.brief_card = brief;
   const prdCard = record(cards.prd_card);
-  prdCard.selling_point_evidence = sellingPoints.map((point, index) => {
-    const provenanceEntry = provenance.find((entry) =>
-      text(entry.claim_ref) === `identity.official_selling_points:${point}`);
+  prdCard.selling_point_evidence = sellingPoints.map((point) => {
+    // Claim pointers refer to the original A1 array, including duplicates.
+    const originalIndex = originalSellingPoints.indexOf(point);
     const claim = options.sellingPointClaims?.find((entry) =>
-      entry.pointer === `/identity/official_selling_points/${index}/point`);
+      entry.pointer === `/identity/official_selling_points/${originalIndex}/point`);
+    const provenanceEntry = provenance.find((entry) =>
+      text(entry.claim_ref) === `identity.official_selling_points:${point}`
+      && (claim?.sourceUrl === undefined || entry.source_url === claim.sourceUrl && claim.sourceUrl !== null));
     return {
       point,
       claimId: claim?.claimId ?? null,
       evidenceId: text(provenanceEntry?.evidence_id) || null,
       sourceId: claim?.sourceId ?? null,
-      sourceUrl: text(provenanceEntry?.source_url) || null,
+      sourceUrl: claim?.sourceUrl === undefined ? text(provenanceEntry?.source_url) || null : claim.sourceUrl,
     };
   });
   cards.prd_card = prdCard;
@@ -149,18 +162,15 @@ export function normalizeMarketingDossierPresentation(
       cards.theme_card = theme;
       changes.push("unsupported-differentiation-claims-removed");
     }
-    const market = record(record(cards.insight_card).market_position);
+    const market = record(insight.market_position);
     if (list(market.our_opening).length > 0 || list(market.crowded_points).length > 0) {
       market.our_opening = [];
       market.crowded_points = [];
-      const insight = record(cards.insight_card);
       insight.market_position = market;
-      cards.insight_card = insight;
       changes.push("unsupported-market-position-removed");
     }
   }
 
-  const insight = record(cards.insight_card);
   if (list(insight.audience_profile).length === 0) {
     const gaps = list(dossier.gaps).map(text).filter(Boolean);
     const gap = "未采集到可核实受众画像；只能使用客户 Brief 原文或标注为创作假设，不能冒充市场事实";

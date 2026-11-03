@@ -91,6 +91,14 @@ export interface FilmComponentSummary {
   reservedCny: number;
   actualCny: number | null;
   updatedAt: string;
+  providerTask?: FilmProviderTaskReceipt;
+}
+
+export interface FilmProviderTaskReceipt {
+  taskId: string;
+  provider: string;
+  providerModel: string;
+  requestSha256: string;
 }
 
 export interface FilmJobStatusView {
@@ -133,6 +141,15 @@ function money(value: string | number | null): number | null {
   if (value === null) return null;
   const parsed = typeof value === "number" ? value : Number(value);
   return Number.isFinite(parsed) ? parsed : null;
+}
+
+function providerTaskOf(value: unknown): FilmProviderTaskReceipt | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+  const { taskId, provider, providerModel, requestSha256 } = value as Record<string, unknown>;
+  if (typeof taskId !== "string" || !taskId.trim() || typeof provider !== "string" || !provider.trim()
+    || typeof providerModel !== "string" || !providerModel.trim()
+    || typeof requestSha256 !== "string" || !/^[a-f0-9]{64}$/.test(requestSha256)) return undefined;
+  return { taskId, provider, providerModel, requestSha256 };
 }
 
 export class FilmLedger {
@@ -436,6 +453,25 @@ export class FilmLedger {
     });
   }
 
+  /** Keep the supplier acceptance distinct from the final local artifact receipt. */
+  async recordComponentProviderTask(id: string, ownerToken: string, receipt: FilmProviderTaskReceipt): Promise<void> {
+    const task = providerTaskOf(receipt);
+    if (!task) fail("FILM_COMPONENT_RECEIPT_INVALID", "供应商任务回执缺少任务号、模型或请求摘要");
+    await this.transaction(async (client) => {
+      const result = await client.query(
+        `UPDATE film_component_requests
+            SET evidence=evidence || jsonb_build_object('providerTask',$7::jsonb),
+                updated_at=CASE WHEN evidence ? 'providerTask' THEN updated_at ELSE now() END
+          WHERE tenant_id=$1 AND workspace_id=$2 AND id=$3 AND owner_token=$4
+            AND provider=$5 AND provider_model=$6 AND component='video' AND dispatch_count=1
+            AND state IN ('dispatched','unknown')
+            AND (NOT (evidence ? 'providerTask') OR evidence->'providerTask'=$7::jsonb) RETURNING id`,
+        [this.scope.tenantId, this.scope.workspaceId, id, ownerToken, task.provider, task.providerModel, JSON.stringify(task)],
+      );
+      this.requireChanged(result.rowCount);
+    });
+  }
+
   async recordComponentAccepted(id: string, ownerToken: string, receipt: {
     provider: string;
     providerModel: string;
@@ -448,8 +484,13 @@ export class FilmLedger {
     await this.transaction(async (client) => {
       const result = await client.query(
         `UPDATE film_component_requests
-            SET state='accepted', provider=$5, provider_model=$6, actual_cny=$7, evidence=$8::jsonb, updated_at=now()
-          WHERE tenant_id=$1 AND workspace_id=$2 AND id=$3 AND owner_token=$4 AND state='dispatched' RETURNING id`,
+            SET state='accepted', provider=$5, provider_model=$6, actual_cny=$7, evidence=$8::jsonb || evidence, updated_at=now()
+          WHERE tenant_id=$1 AND workspace_id=$2 AND id=$3 AND owner_token=$4 AND state='dispatched'
+            AND (NOT (evidence ? 'providerTask') OR (
+              provider=$5 AND provider_model=$6
+              AND $8::jsonb->>'providerTaskId'=evidence->'providerTask'->>'taskId'
+              AND $8::jsonb->>'providerRequestHash'=evidence->'providerTask'->>'requestSha256'
+            )) RETURNING id`,
         [this.scope.tenantId, this.scope.workspaceId, id, ownerToken,
           receipt.provider, receipt.providerModel,
           receipt.actualCny === null || receipt.actualCny === undefined ? null : receipt.actualCny,
@@ -469,7 +510,8 @@ export class FilmLedger {
     await this.transaction(async (client) => {
       const result = await client.query(
         `UPDATE film_component_requests
-            SET state=$5, actual_cny=$6, evidence=$7::jsonb || jsonb_build_object('failureClass',$8::text), updated_at=now()
+            SET state=$5, actual_cny=$6,
+                evidence=$7::jsonb || evidence || jsonb_build_object('failureClass',$8::text), updated_at=now()
           WHERE tenant_id=$1 AND workspace_id=$2 AND id=$3 AND owner_token=$4 AND state IN ('dispatched','reserved') RETURNING id`,
         [this.scope.tenantId, this.scope.workspaceId, id, ownerToken, receipt.state,
           receipt.actualCny === null || receipt.actualCny === undefined ? null : receipt.actualCny,
@@ -508,6 +550,8 @@ export class FilmLedger {
       const summaries: FilmComponentSummary[] = components.rows.map((component) => {
         const reservedCny = money(component.reserved_cny) ?? 0;
         const actualCny = money(component.actual_cny);
+        const providerTask = component.component === "video" && (component.state === "unknown" || component.state === "dispatched")
+          ? providerTaskOf(component.evidence.providerTask) : undefined;
         reserved += reservedCny;
         if (component.state === "accepted") spent += actualCny ?? reservedCny;
         return {
@@ -518,6 +562,8 @@ export class FilmLedger {
           reservedCny,
           actualCny,
           updatedAt: iso(component.updated_at),
+          ...(providerTask && providerTask.provider === component.provider && providerTask.providerModel === component.provider_model
+            ? { providerTask } : {}),
         };
       });
       return {

@@ -83,6 +83,7 @@ vi.mock("./archive-host.js", () => ({
   archiveWorkDir: () => doubles.workDir,
   acquireProjectLease: doubles.lease,
   readProjectMeta: doubles.meta,
+  serializeProjectArchive: () => undefined,
   makeLedgerWriter: () => ({
     claimRun: async (row: { inputRefTemplate: string }) => {
       const attempt = ++doubles.nextAttempt;
@@ -996,5 +997,49 @@ describe("完整原生前期到正式 CLI 草稿交接", () => {
     doubles.runPreproduction.mockResolvedValue(success()); doubles.finalize.mockRejectedValue(new Error("MARKETING_PROMPT_FACTS_REJECTED"));
     const { entry } = await runToTerminal(); expect(entry.status).toBe("failed"); expect(entry.error).toContain("MARKETING_PROMPT_FACTS_REJECTED");
     expect(doubles.project).not.toHaveBeenCalled(); expect(doubles.finish.mock.calls.every(([row]) => row.status === "failed")).toBe(true);
+  });
+});
+
+describe("预生产恢复接入实际 worker 租约", () => {
+  it.each(["stale-row", "stale-bytes", "busy", "current"] as const)("%s 只有当前来源才接入并移交同一租约", async (mode) => {
+    useNarrativeProject();
+    const projectId = `VID-resume-guard-${++projectSequence}`;
+    const projectCreatedAt = "2026-09-27T00:00:00Z";
+    const input = { projectId, intent: "完整续跑请求", rawIntent: "完整客户需求", isMarketing: false };
+    const inputRef = "stages/preproduction/attempt-1.input.json";
+    const { ArchiveStore } = await import("@hyperreality/video-studio");
+    const archive = new ArchiveStore(doubles.workDir, scope.workspaceId, projectId);
+    await archive.ensure();
+    const { sha256 } = await archive.writeJsonAtomic(inputRef, { valid: true });
+    const source = {
+      ...scope, projectId, projectCreatedAt: new Date(projectCreatedAt).toISOString(),
+      sourceStageRunId: "SR-origin", attempt: 1, runId: "RUN-old", status: "failed", inputRef, inputSha256: sha256,
+    };
+    const query = vi.fn(async () => ({ rows: [{
+      id: mode === "stale-row" ? "SR-new" : source.sourceStageRunId,
+      attempt: mode === "stale-row" ? 2 : 1,
+      run_id: source.runId, input_ref: inputRef, status: "failed", error_class: null, project_created_at: projectCreatedAt,
+    }] }));
+    const withScopedTransaction = vi.fn((fn) => fn({ query }));
+    doubles.lease.mockResolvedValue(mode === "busy" ? null : { projectId, release: doubles.release, withScopedTransaction });
+    if (mode === "stale-bytes") await archive.writeJsonAtomic(inputRef, { valid: true, changed: true });
+    const launch = await worker.startResumedRun(scope, input, source);
+    if (mode !== "current") {
+      expect(launch.kind).toBe(mode === "busy" ? "busy" : "stale");
+      expect(doubles.runPreproduction).not.toHaveBeenCalled();
+      expect(doubles.release).toHaveBeenCalledTimes(mode === "busy" ? 0 : 1);
+    } else {
+      expect(launch.kind).toBe("started");
+      if (launch.kind !== "started") throw new Error("synthetic launch expected");
+      await vi.waitFor(() => expect(worker.getRun(launch.runId, scope.workspaceId)?.finishedAt).not.toBeNull(),
+        { timeout: 3_000, interval: 10 });
+      expect(doubles.runPreproduction).toHaveBeenCalledTimes(1);
+      expect(doubles.release).toHaveBeenCalledTimes(1);
+    }
+    expect(doubles.lease).toHaveBeenCalledExactlyOnceWith(scope, projectId);
+    if (mode !== "busy") {
+      expect(withScopedTransaction).toHaveBeenCalledTimes(1);
+      expect(query).toHaveBeenCalledExactlyOnceWith(expect.stringContaining("r.pipeline_run_id IS NULL"), [scope.workspaceId, projectId]);
+    }
   });
 });
