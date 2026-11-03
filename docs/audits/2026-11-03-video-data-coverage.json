@@ -3,7 +3,7 @@
   "taskId": "T-2026-1103-0002",
   "auditBaseline": "9704c98feb6dc7a64edb199d1c02b667596b36ae",
   "snapshotMode": "candidate-worktree-per-file-sha256",
-  "sourceParentCommit": "9704c98feb6dc7a64edb199d1c02b667596b36ae",
+  "sourceParentCommit": "15bd5bdfd7f74046675c68a6f081cd1e2cd6f51b",
   "counts": {
     "total": 482,
     "A": 190,
@@ -3082,8 +3082,8 @@
     {
       "path": "apps/server/src/video/pipeline/pipeline-repository.pg.test.ts",
       "grade": "A",
-      "candidateSha256": "cf5e6c32adceb06086d95e503c0a7ab0db50f754a36aad6909b0caa6ff005f38",
-      "candidateLines": 871,
+      "candidateSha256": "57cd6c1c7c09ceead2380892851e76042fec4deb94e3be066622eaab233303b8",
+      "candidateLines": 874,
       "changedInAudit": true,
       "candidateFullReadRecorded": true,
       "readRecords": [
@@ -3091,8 +3091,8 @@
           "record": "read-control-r2.json",
           "grade": "A",
           "readRanges": null,
-          "method": "complete-read",
-          "recordedSha256": "cf5e6c32adceb06086d95e503c0a7ab0db50f754a36aad6909b0caa6ff005f38",
+          "method": "complete-read plus final locale-independent assertion change",
+          "recordedSha256": "57cd6c1c7c09ceead2380892851e76042fec4deb94e3be066622eaab233303b8",
           "reason": null
         },
         {

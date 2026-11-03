@@ -808,14 +808,15 @@ describe.skipIf(!adminUrl || !appPassword || !gatewayPassword)("video pipeline r
     });
     const rows = await owner.query(
       `SELECT id,status,execution_status,last_heartbeat_at,output_ref FROM production_stage_runs
-        WHERE id IN ($1,'legacy-claim') ORDER BY id`,
+        WHERE id IN ($1,'legacy-claim')`,
       [controlId],
     );
-    expect(rows.rows).toEqual([
-      { id: controlId, status: "running", execution_status: "ready", last_heartbeat_at: null, output_ref: null },
-      { id: "legacy-claim", status: "done", execution_status: null, last_heartbeat_at: expect.any(Date),
+    expect(rows.rows).toHaveLength(2);
+    expect(Object.fromEntries(rows.rows.map((row) => [row.id, row]))).toEqual({
+      [controlId]: { id: controlId, status: "running", execution_status: "ready", last_heartbeat_at: null, output_ref: null },
+      "legacy-claim": { id: "legacy-claim", status: "done", execution_status: null, last_heartbeat_at: expect.any(Date),
         output_ref: "stages/source/attempt-1.output.json" },
-    ]);
+    });
     expect(await ledger.nextAttempt(start.projectId, stageId)).toBe(2);
     expect(await readStageBreakpoints(scope, start.projectId)).toEqual([]);
   });
@@ -833,7 +834,7 @@ describe.skipIf(!adminUrl || !appPassword || !gatewayPassword)("video pipeline r
     );
     const readRows = () => owner.query(
       `SELECT id,status,execution_status,finished_at FROM production_stage_runs
-        WHERE id IN ($1,$2) ORDER BY id`,
+        WHERE id IN ($1,$2)`,
       [controlId, legacyId],
     );
     if (operation === "mark") {
@@ -860,10 +861,12 @@ describe.skipIf(!adminUrl || !appPassword || !gatewayPassword)("video pipeline r
       const report = await scanStaleRunsOnStartup({ ARCHIVE_AUTO_RESUME: "1", ARCHIVE_STALE_RUNNING_MIN: "10" });
       expect(report.interrupted.filter((item) => item.projectId === start.projectId)).toHaveLength(1);
     }
-    expect((await readRows()).rows).toEqual([
-      { id: controlId, status: "running", execution_status: "ready", finished_at: null },
-      { id: legacyId, status: "interrupted", execution_status: null, finished_at: expect.any(Date) },
-    ]);
+    const { rows } = await readRows();
+    expect(rows).toHaveLength(2);
+    expect(Object.fromEntries(rows.map((row) => [row.id, row]))).toEqual({
+      [controlId]: { id: controlId, status: "running", execution_status: "ready", finished_at: null },
+      [legacyId]: { id: legacyId, status: "interrupted", execution_status: null, finished_at: expect.any(Date) },
+    });
     expect(await readStageBreakpoints(scope, start.projectId)).toEqual([
       expect.objectContaining({ stageId: "source", status: "interrupted", attempt: 1 }),
     ]);
