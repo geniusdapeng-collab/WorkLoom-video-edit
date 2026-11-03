@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { describe, expect, it } from "vitest";
-import { recoverSceneJsonMissingComma } from "./scene-json-comma-recovery.js";
+import { recoverSceneJsonMissingComma, recoverSceneJsonMissingSeparators } from "./scene-json-comma-recovery.js";
 
 describe("SceneArchitect single comma recovery", () => {
   it.each([
@@ -66,5 +66,65 @@ describe("SceneArchitect single comma recovery", () => {
     const recovery = recoverSceneJsonMissingComma(raw);
     expect(recovery?.data).toEqual({ a: { k: "🏍" }, b: { k: "头盔" } });
     expect(recovery?.content).toBe('{"a":{"\\u006b":"\\ud83c\\udfcd"} ,"b":{"k":"头盔"}}');
+  });
+});
+
+describe("SceneArchitect bounded separator recovery", () => {
+  it.each([
+    [' \r\n{"目的":"走过弯道🏍️" \n', '"时长":10}\t'],
+    ['{"opening":{"duration":10 ', '"purpose":"风雪"} ', '"ending":true}'],
+    [' \t{"scenes":[{"a":"引号：\\""}', '{"a":"🏍️"} ', '{"a":"\\u5934"}] ', '"timing":[1,2,3]}\r\n'],
+    ['{"timing":[-1.25e2 \r\n', '2 ', '3 ', '4]}'],
+  ])("restores exact UTF-8 source at %j", (...parts: string[]) => {
+    const raw = parts.join("");
+    const content = parts.join(",");
+    const offsets = parts.slice(1).map((_part, index) => Buffer.byteLength(parts.slice(0, index + 1).join(""), "utf8"));
+    const result = recoverSceneJsonMissingSeparators(raw);
+    expect(() => JSON.parse(raw)).toThrow(SyntaxError);
+    expect(result).toEqual({
+      content,
+      data: JSON.parse(content),
+      originalSha256: createHash("sha256").update(raw, "utf8").digest("hex"),
+      repairedSha256: createHash("sha256").update(content, "utf8").digest("hex"),
+      insertionByteOffsets: offsets,
+    });
+    expect(Object.isFrozen(result?.insertionByteOffsets)).toBe(true);
+    const repaired = Buffer.from(result!.content, "utf8");
+    const originalParts: Buffer[] = [];
+    let start = 0;
+    result!.insertionByteOffsets.forEach((offset, index) => {
+      const insertion = offset + index;
+      expect(repaired[insertion]).toBe(0x2c);
+      originalParts.push(repaired.subarray(start, insertion));
+      start = insertion + 1;
+    });
+    originalParts.push(repaired.subarray(start));
+    expect(Buffer.concat(originalParts)).toEqual(Buffer.from(raw, "utf8"));
+  });
+
+  it.each([
+    ["no insertion", '{"a":1,"b":[2,3]}'],
+    ["four missing separators", '{"a":[1 2 3 4 5]}'],
+    ["closing array missing after two omissions", '{"a":[1 2 3}'],
+    ["closing object missing after two omissions", '{"a":1 "b":[2 3]'],
+    ["late trailing comma", '{"a":1 "b":[2 3],}'],
+    ["duplicate decoded key after two omissions", '{"a":1 "b":[2 3],"\\u0061":4}'],
+    ["duplicate decoded nested key", '{"a":1 "b":{"k":2 "\\u006b":3}}'],
+    ["adjacent scalar numbers", '{"a":1 "b":[2 3,04]}'],
+    ["adjacent scalar strings", '{"a":1 "b":[2 3,"x""y"]}'],
+    ["a second root value", '{"a":1 "b":[2 3]} {}'],
+    ["an unpaired surrogate", '{"a":1 "b":[2 3],"c":"\ud800"}'],
+    ["overdeep response", '{"a":1 "b":' + "[".repeat(65) + "2 3" + "]".repeat(65) + "}"],
+  ])("declines %s without yielding partial output", (_case, raw) => {
+    expect(recoverSceneJsonMissingSeparators(raw)).toBeUndefined();
+  });
+
+  it("admits the exact size boundary and measures multibyte input in original bytes", () => {
+    const prefix = '{"a":"';
+    const suffix = '" "b":[1 2]}';
+    const atLimit = prefix + "x".repeat(1_048_576 - Buffer.byteLength(prefix + suffix)) + suffix;
+    const overLimit = atLimit.replace("x", "🏍️");
+    expect(recoverSceneJsonMissingSeparators(atLimit)?.insertionByteOffsets).toHaveLength(2);
+    expect(recoverSceneJsonMissingSeparators(overLimit)).toBeUndefined();
   });
 });
