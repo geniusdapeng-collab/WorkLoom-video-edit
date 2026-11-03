@@ -480,13 +480,17 @@ function repairPrompt(
   allowedFields: string[],
   upstreamContext?: Record<string, unknown>,
 ): string {
-  const allowed = contract.bindings.filter((binding) => allowedFields.includes(binding.field))
-    .map((binding) => ({ field: binding.field, value: fieldValueFromSource(source, binding.field) }));
+  const fields = contract.bindings.map(({ field }) => ({ field, value: fieldValueFromSource(source, field) }));
+  const writable = new Set(allowedFields);
   return [
     "你是字段级定点修复器。只允许修改 allowedFields 中列出的字段。",
+    "readOnlyFields 是同一镜头当前已编译的完整只读约束；不是待修字段。修复运镜或构图时，逐段对齐现有时间轴、动作和道具交接；固定机位和镜内切换须明确区分，不能把一个动作延长到下一动作的已定区间。",
     "不得修改事实、授权、时长、画幅、模型能力、gate threshold 或任何其它字段。",
     "只输出 JSON：changes[]，每项必须有 field、value、reason；至少产生一个变化。",
-    `镜头：${JSON.stringify({ shotId: contract.shotId, allowedFields: allowed, findings, upstreamContext: upstreamContext ?? null }, null, 2)}`,
+    `镜头：${JSON.stringify({ shotId: contract.shotId, durationSec: contract.request.parameters.duration_sec,
+      allowedFields: fields.filter(({ field }) => writable.has(field)),
+      readOnlyFields: fields.filter(({ field }) => !writable.has(field)),
+      findings, upstreamContext: upstreamContext ?? null }, null, 2)}`,
   ].join("\n");
 }
 

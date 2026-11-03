@@ -31,6 +31,7 @@ import {
 } from "./duration-projection.js";
 import { assertFrozenProductionTiming, bindFrozenScreenplayPrompt } from "./frozen-production-duration.js";
 import { bindSilentScreenplayPrompt, bindSilentScreenplaySystemPrompt, hasExplicitSilentScreenplay, SilentScreenplayError } from "./silent-screenplay.js";
+import { FROZEN_NO_SPEECH_AUDIO_DISCIPLINE } from "./frozen-speech-policy.js";
 import type { FrozenSegmentContract } from "./requirement-contract.js";
 import { REQUIRED_ANGLES, type PortraitIndex, type PortraitIndexEntry } from "./portrait-runtime.js";
 import {
@@ -1083,13 +1084,19 @@ export function installVendorAudioDisciplineBridge(options: {
       fields: Record<string, unknown>,
       ratio: string
     ) {
+      const frozenNoSpeech = durationProjectionOptions({}).speechPolicy === "none";
+      const clause = frozenNoSpeech ? FROZEN_NO_SPEECH_AUDIO_DISCIPLINE : options.clause;
       const musicPattern = /(背景音乐|配乐|音乐风格|音乐节拍|旋律|歌曲|background\s*music|\bbgm\b|soundtrack)/gi;
       /** 否定式（"无配乐/不加配乐/no bgm"）与音频纪律同向，保留不删 */
       const negatedPattern =
         /(无|没有|不含|不加|不出现|不加入|禁止|避免|无需|不要)[^，。；;、,.]{0,6}(背景音乐|配乐|音乐|BGM|旋律|歌曲|soundtrack)|no\s+(background\s+)?music|no\s+bgm|without\s+(background\s+)?music/i;
       // 1) 清洗入参里 audio / fields.audio 的音乐指令
       for (const holder of [shot, fields]) {
-        const value = holder?.audio;
+        const audio = holder?.audio;
+        // Do not re-sanitize our own already-bound annotation when the native
+        // phase assembles the same shot again.
+        const value = frozenNoSpeech && typeof audio === "string" && audio.endsWith(clause)
+          ? audio.slice(0, -clause.length).replace(/；$/u, "") : audio;
         if (typeof value === "string" && musicPattern.test(value)) {
           musicPattern.lastIndex = 0;
           const kept = value
@@ -1101,14 +1108,14 @@ export function installVendorAudioDisciplineBridge(options: {
               musicPattern.lastIndex = 0;
               return !musicPattern.test(seg);
             });
-          holder.audio = kept.length > 0 ? `${kept.join("；")}；${options.clause}` : options.clause;
+          holder.audio = kept.length > 0 ? `${kept.join("；")}；${clause}` : clause;
           log("[vendor-compat] 已清洗镜头 audio 字段中的音乐指令（镜头内禁止 BGM）");
         }
       }
       const prompt = original.call(this, shot, fields, ratio);
       if (typeof prompt !== "string") return prompt;
       let out = prompt;
-      if (!out.includes("【音频纪律】")) out += ` | ${options.clause}`;
+      if (!out.includes("【音频纪律】")) out += ` | ${clause}`;
       if (!/no background music/i.test(out)) out += ` | ${options.negativeTerms}`;
       patchedCount += 1;
       if (patchedCount === 1) log("[vendor-compat] 音频纪律桥已生效（每镜追加【音频纪律】+ 音乐负面词）");

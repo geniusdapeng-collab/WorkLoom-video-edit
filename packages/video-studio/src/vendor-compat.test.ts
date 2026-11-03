@@ -523,6 +523,56 @@ console.log("RESULT " + JSON.stringify({
  * 桥用 createRequire 加载 vendor 原型，vitest 的 ESM 转换会误处理 CJS。
  */
 describe("音频纪律桥与时长策略桥（真机口径 2026-09-23）", () => {
+  it("binds the private frozen no-speech audio rule in the actual installed native assembler without leaking between runs", () => {
+    const script = `
+import { createRequire } from "node:module";
+import { installSharedBridge, installVendorAudioDisciplineBridge, withVendorDurationProjectionScope } from ${JSON.stringify(resolve(here, "vendor-compat.ts"))};
+import { AUDIO_DISCIPLINE_CLAUSE, AUDIO_NEGATIVE_TERMS } from ${JSON.stringify(resolve(here, "shot-spec.ts"))};
+const require = createRequire(${JSON.stringify(join(repoRoot, "package.json"))});
+const { PromptFusionAgent } = require(${JSON.stringify(join(repoRoot, "vendor/supermickey/hyperreality-system/engines/production-engine/agents/prompt-fusion-agent.js"))});
+const agent = new PromptFusionAgent({ semanticRefinement: false });
+const build = (audio, dialogue) => {
+  const fields = { audio, dialogue, scene: "封闭赛道", constraint: "9:16画幅，1080p分辨率，30fps，MP4格式" };
+  const shot = { shotId: "opening", duration: 10, scene: fields.scene, audio, fields };
+  const first = String(agent._assembleStandardPrompt(shot, fields, "9:16"));
+  const second = String(agent._assembleStandardPrompt(shot, fields, "9:16"));
+  return { first, second, fields, audio: shot.audio };
+};
+const release = installSharedBridge("vendor-audio-discipline", () => installVendorAudioDisciplineBridge({
+  clause: AUDIO_DISCIPLINE_CLAUSE, negativeTerms: AUDIO_NEGATIVE_TERMS,
+}));
+let resume;
+const waiting = new Promise(resolve => { resume = resolve; });
+const silent = withVendorDurationProjectionScope({ speechPolicy: "none" }, async () => {
+  await waiting;
+  const base = build("背景音乐：钢琴铺底；环境声：引擎与轮胎摩擦声", "无台词");
+  return { ...base, plain: build("环境声：看台与发动机", "无台词") };
+});
+const standard = await withVendorDurationProjectionScope({}, () => build("背景音乐：钢琴铺底；环境声：街边流水", "现在开始。"));
+resume();
+const scoped = await silent;
+release();
+console.log("RESULT " + JSON.stringify({ scoped, standard }));
+`;
+    const result = runInChild(script) as {
+      scoped: { first: string; second: string; fields: { audio: string }; audio: string; plain: { first: string } };
+      standard: { first: string };
+    };
+    for (const text of [result.scoped.first, result.scoped.second, result.scoped.fields.audio, result.scoped.audio, result.scoped.plain.first]) {
+      expect(text).toContain("禁止可辨识人声");
+      expect(text).not.toContain("仅允许：台词人声");
+      expect(text).not.toContain("台词人声清晰自然");
+      expect(text).not.toContain("钢琴铺底");
+    }
+    expect(result.scoped.first).toContain("引擎与轮胎摩擦声");
+    expect(result.scoped.plain.first).toContain("看台与发动机");
+    expect(result.scoped.first).toContain("no background music");
+    expect(result.scoped.second).toBe(result.scoped.first);
+    expect(result.standard.first).toContain("仅允许：台词人声");
+    expect(result.standard.first).toContain("现在开始。");
+    expect(result.standard.first).not.toContain("钢琴铺底");
+  });
+
   it("音频纪律桥：组装器出口追加【音频纪律】+ 清洗 audio 字段里的音乐指令，摘除后复原", () => {
     const script = `
 import { createRequire } from "node:module";

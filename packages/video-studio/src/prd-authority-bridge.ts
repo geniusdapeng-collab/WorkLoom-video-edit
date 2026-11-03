@@ -979,18 +979,34 @@ export function installPrdProductionBridge(deps: ProductionDependencies): () => 
     const base: Method = original?.value ?? function () { return true; };
     changes.push({ owner, key, original, patched: wrap(base) });
   };
-  if (deps.ruleRepairPrototype) add(deps.ruleRepairPrototype, "_prdAnchorPhrase", original => function (...args) {
-    const scope = productionScope(this);
-    if (!scope || scope.authority.metadata.brief === undefined) return Reflect.apply(original, this, args);
-    return guard(scope, () => {
-      check(scope);
-      const brief = requirementRecord(scope.authority.metadata.brief, "已审冻结分段 Brief");
-      // The vendor uses only the first scene to form this style prefix. A
-      // frozen scene already carries its own approved source into production.
-      // An empty prefix skips just that rewrite, retaining the other repairs.
-      return frozenSegmentContract(brief, scope.authority.profile.targetDuration) ? "" : Reflect.apply(original, this, args);
+  if (deps.ruleRepairPrototype) {
+    const ruleRepair = deps.ruleRepairPrototype;
+    const frozenCuts = (scope: Scope) => scope.authority.metadata.brief === undefined ? undefined
+      : frozenSegmentContract(requirementRecord(scope.authority.metadata.brief, "已审冻结分段 Brief"),
+        scope.authority.profile.targetDuration);
+    add(ruleRepair, "_prdAnchorPhrase", original => function (...args) {
+      const scope = productionScope(this);
+      if (!scope || scope.authority.metadata.brief === undefined) return Reflect.apply(original, this, args);
+      return guard(scope, () => {
+        check(scope);
+        // The vendor's style prefix quotes the first scene. Frozen shots
+        // already carry their own approved source, so skip only this rewrite.
+        return frozenCuts(scope) ? "" : Reflect.apply(original, this, args);
+      });
     });
-  });
+    for (const key of ["_generateDefault", "_completeElements"]) {
+      add(ruleRepair, key, original => function (field, ...args) {
+        const scope = field === "camera_movement" ? productionScope(this) : undefined;
+        if (!scope) return Reflect.apply(original, this, [field, ...args]);
+        return guard(scope, () => {
+          check(scope);
+          // Native camera fillers invent speed, cut points and a freeze. Keep
+          // the issue open for the native model repair and its recheck.
+          return frozenCuts(scope) ? null : Reflect.apply(original, this, [field, ...args]);
+        });
+      });
+    }
+  }
   if (deps.fieldQualityPrototype) add(deps.fieldQualityPrototype, "run", original => async function (shotValue, ...args) {
     const scope = productionScope(this);
     if (!scope?.authority.portraitSources?.length) return Reflect.apply(original, this, [shotValue, ...args]);
