@@ -286,6 +286,31 @@ describe("actual native scene prompt and strict production response", () => {
       .toMatchObject({ filmReferences: { minItems: 0, maxItems: 0 }, adReferences: { minItems: 0, maxItems: 0 } });
   });
 
+  it("opts only the protected frozen SceneArchitect into the exact same effective native response schema", async () => {
+    vi.stubEnv("WORKLOOM_VIDEO_SCENE_RESPONSE_FORMAT", "json_schema");
+    try {
+      installNativeDiscovery();
+      const valid = physicalScene([10, 10, 10]);
+      const frozen = withFrozenSegmentBrief(privateRun("provider-schema-frozen", 30, valid));
+      const model = modelFor(frozen, [valid]);
+      await expect(runDiscovery(frozen, model.engine)).resolves.toMatchObject({ sceneStructure: valid });
+      const scene = model.calls.filter(call => call.method === "reason");
+      expect(scene).toHaveLength(1);
+      expectCompleteSources(scene[0]!.prompt, frozen);
+      const format = requirementRecord(requirementRecord(scene[0]!.options, "native options").responsesJsonSchema, "provider schema");
+      expect(format.name).toBe("workloom_scene_architect");
+      const schema = requirementRecord(format.schema, "effective schema");
+      expect(schema.properties).toMatchObject({ scenes: { minItems: 1, maxItems: 1 },
+        opening: { properties: { duration: { minimum: 10, maximum: 10 }, productionContract: { properties: { actions: { minItems: 1 } } } } } });
+      expect(() => validateRequirementSchema(valid, schema)).not.toThrow();
+      expect(model.calls.filter(call => call.method !== "reason").every(call => !Object.hasOwn(requirementRecord(call.options, "native options"), "responsesJsonSchema"))).toBe(true);
+      const standard = privateRun("provider-schema-standard", 30, valid);
+      const ordinary = modelFor(standard, [valid]);
+      await runDiscovery(standard, ordinary.engine);
+      expect(ordinary.calls.every(call => !Object.hasOwn(requirementRecord(call.options, "native options"), "responsesJsonSchema"))).toBe(true);
+    } finally { vi.unstubAllEnvs(); }
+  });
+
   it("rejects conflicting or discontinuous frozen segments before a model call", async () => {
     installNativeDiscovery();
     const run = withFrozenSegmentBrief(privateRun("conflicting-segments", 30, physicalScene([10, 10, 10])));

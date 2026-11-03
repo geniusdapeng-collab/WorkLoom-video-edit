@@ -27,6 +27,7 @@ interface Scope {
   options?: RequirementAuthorityOptions;
   optionsSource?: RequirementAuthorityOptions;
   segments?: FrozenSegmentContract;
+  sceneResponsesSchema?: true;
 }
 const scopes = new AsyncLocalStorage<Scope>();
 const receivers = new WeakMap<object, Scope>();
@@ -108,6 +109,13 @@ export async function withRequirementContractScope<T>(
       if (scope.authority && scope.metadata.brief !== undefined) {
         const brief = requirementRecord(scope.metadata.brief, "冻结客户 Brief");
         scope.segments = frozenSegmentContract(brief, brief.duration);
+        if (scope.segments) {
+          const format = process.env.WORKLOOM_VIDEO_SCENE_RESPONSE_FORMAT ?? "json_object";
+          if (format === "json_schema") scope.sceneResponsesSchema = true;
+          else if (format !== "json_object") {
+            requirementAuthorityFailure("REQUIREMENT_VENDOR_UNAVAILABLE", "冻结场景模型响应格式未获本机受控配置支持");
+          }
+        }
       }
       return await awaited(scope, operation);
     }
@@ -476,7 +484,11 @@ export function installRequirementContractBridge(
           if (typeof reason !== "function") requirementAuthorityFailure("REQUIREMENT_VENDOR_UNAVAILABLE", "SceneArchitect 缺少原生 reason");
           runView.llmEngine = Object.create(model, {
             reason: { value: async (...args: unknown[]) => {
-              const result = await Reflect.apply(reason, model, args) as LLMReasonResult;
+              const dispatchArgs = scope.sceneResponsesSchema
+                ? [args[0], { ...requirementRecord(args[1], "SceneArchitect 原生选项"),
+                  responsesJsonSchema: { name: "workloom_scene_architect", schema: structuredClone(effectiveSchema) } }, ...args.slice(2)]
+                : args;
+              const result = await Reflect.apply(reason, model, dispatchArgs) as LLMReasonResult;
               completedSyntaxFailure = nativeReasonFailure(result) === "json-syntax" && nativeReasonCompleted(result);
               return result;
             } },
